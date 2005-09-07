@@ -617,7 +617,7 @@ do_set(commandline_t *comline)
 		break;
 	}
 
-	new_value = cpu_to_gfs2_64(new_value);
+	new_value = cpu_to_le64(new_value);
 
 	{
 		char *argv[] = { "do_hfile_write", "quota" };

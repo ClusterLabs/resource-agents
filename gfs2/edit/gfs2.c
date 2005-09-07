@@ -56,7 +56,7 @@ do_dinode_extended(struct gfs2_dinode *di, char *buf)
 
 		for (x = sizeof(struct gfs2_dinode), y = 0;
 		     x < bsize; x += sizeof(uint64_t), y++) {
-			p = gfs2_64_to_cpu(*(uint64_t *)(buf + x));
+			p = le64_to_cpu(*(uint64_t *)(buf + x));
 
 			if (p)
 				printf("  %u -> %"PRIu64"\n", y, p);
@@ -83,13 +83,13 @@ do_dinode_extended(struct gfs2_dinode *di, char *buf)
 		 di->di_height == 0) {
 		printf("\nLeaf Pointers:\n\n");
 
-		last = gfs2_64_to_cpu(*(uint64_t *)(buf + sizeof(struct gfs2_dinode)));
+		last = le64_to_cpu(*(uint64_t *)(buf + sizeof(struct gfs2_dinode)));
 		count = 0;
 
 		for (x = sizeof(struct gfs2_dinode), y = 0;
 		     y < (1 << di->di_depth);
 		     x += sizeof(uint64_t), y++) {
-			p = gfs2_64_to_cpu(*(uint64_t *) (buf + x));
+			p = le64_to_cpu(*(uint64_t *) (buf + x));
 
 			if (p != last) {
 				printf("  %u:  %"PRIu64"\n", count, last);
@@ -129,7 +129,7 @@ do_indirect_extended(char *buf)
 	printf("\nPointers\n\n");
 
 	for (x = sizeof(struct gfs2_meta_header), y = 0; x < bsize; x += 8, y++) {
-		p = gfs2_64_to_cpu(*(uint64_t *) (buf + x));
+		p = le64_to_cpu(*(uint64_t *) (buf + x));
 
 		if (p)
 			printf("  %u -> %"PRIu64"\n", y, p);
@@ -237,7 +237,7 @@ display_gfs2(int extended)
 	do_lseek(fd, block * bsize);
 	do_read(fd, buf, bsize);
 
-	magic = gfs2_32_to_cpu(*(uint32_t *) buf);
+	magic = le32_to_cpu(*(uint32_t *) buf);
 
 	switch (magic) {
 	case GFS2_MAGIC:

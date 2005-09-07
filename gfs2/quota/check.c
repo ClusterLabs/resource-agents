@@ -449,7 +449,7 @@ set_list(commandline_t *comline, int user, osi_list_t *list, int64_t multiplier)
 
 		value = v->v_blocks * multiplier;
 		value >>= sb.sb_bsize_shift - 9;
-		value = cpu_to_gfs2_64(value);
+		value = cpu_to_le64(value);
 
 		{
 			char *argv[] = { "do_hfile_write", "quota"};

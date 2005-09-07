@@ -81,7 +81,7 @@ recursive_scan(struct gfs2_dinode *di,
 	}
 
 	for ( ; top < bottom; top++) {
-		x = gfs2_64_to_cpu(*top);
+		x = le64_to_cpu(*top);
 
 		pc(di, height, x, opaque);
 
@@ -122,7 +122,7 @@ foreach_leaf(struct gfs2_dinode *di,
 			ht_offset_cur = ht_offset;
 		}
 
-		leaf_no = gfs2_64_to_cpu(lp[lp_offset]);
+		leaf_no = le64_to_cpu(lp[lp_offset]);
 		if (!leaf_no)
 			die("NULL leaf pointer\n");
 
@@ -201,7 +201,7 @@ lookup_block(char *data, unsigned int height,
 	block = *(((uint64_t *)(data + head_size)) + mp->mp_list[height]);
 
 	if (block)
-		return gfs2_64_to_cpu(block);
+		return le64_to_cpu(block);
 	else
 		return 0;
 }

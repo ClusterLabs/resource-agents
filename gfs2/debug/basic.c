@@ -232,7 +232,7 @@ print_stuffed_hash(char *data)
 	printf("\n");
 
 	for (; p < end; p++) {
-		this = gfs2_64_to_cpu(*p);
+		this = le64_to_cpu(*p);
 
 		if (first) {
 			first = FALSE;
@@ -300,7 +300,7 @@ print_pointers(char *data, unsigned int offset)
 	for (; p < end; p++, x++)
 		if (*p)
 			printf("  pointer #%u: %"PRIu64"\n",
-			       x, gfs2_64_to_cpu(*p));
+			       x, le64_to_cpu(*p));
 }
 
 /**

@@ -230,7 +230,7 @@ recursive_scan(world_t *w,
 	}
 
 	for (; top < bottom; top++) {
-		bn = gfs2_64_to_cpu(*top);
+		bn = le64_to_cpu(*top);
 
 		pc(w, height, bn, data);
 
@@ -353,7 +353,7 @@ foreach_leaf(world_t *w, leaf_call_t lc, void *data)
 			ht_offset_cur = ht_offset;
 		}
 
-		leaf_no = gfs2_64_to_cpu(lp[lp_offset]);
+		leaf_no = le64_to_cpu(lp[lp_offset]);
 		if (!leaf_no)
 			die("NULL leaf pointer\n");
 
@@ -601,7 +601,7 @@ print_leaves(world_t *w)
  */
 
 #define MAKE_MULT8(x) (((x) + 7) & ~7)
-#define GFS2_EA_REC_LEN(ea) gfs2_32_to_cpu((ea)->ea_rec_len)
+#define GFS2_EA_REC_LEN(ea) le32_to_cpu((ea)->ea_rec_len)
 #define GFS2_EA_IS_STUFFED(ea) (!(ea)->ea_num_ptrs)
 #define GFS2_EA_IS_LAST(ea) ((ea)->ea_flags & GFS2_EAFLAG_LAST)
 #define GFS2_EA2NAME(ea) ((char *)((struct gfs2_ea_header *)(ea) + 1))
@@ -663,7 +663,7 @@ print_eattr_data(world_t *w, uint64_t blkno, int *first)
 
 			p = GFS2_EA2DATAPTRS(ea);
 			for (x = 0; x < ea->ea_num_ptrs; x++) {
-				blkno = gfs2_64_to_cpu(*p);
+				blkno = le64_to_cpu(*p);
 				if (b + l == blkno)
 					l++;
 				else {
@@ -713,7 +713,7 @@ print_eattr(world_t *w)
 		for (x = 0; x < w->inptrs; x++) {
 			if (!*blkno)
 				break;
-			printf("  %" PRIu64 "\n", gfs2_64_to_cpu(*blkno));
+			printf("  %" PRIu64 "\n", le64_to_cpu(*blkno));
 			blkno++;
 		}
 
@@ -721,7 +721,7 @@ print_eattr(world_t *w)
 		for (x = 0; x < w->inptrs; x++) {
 			if (!*blkno)
 				break;
-			print_eattr_data(w, gfs2_64_to_cpu(*blkno), &first);
+			print_eattr_data(w, le64_to_cpu(*blkno), &first);
 			blkno++;
 		}
 	} else {

@@ -451,7 +451,7 @@ add_j(struct gfs2_sbd *sdp)
 			lh.lh_blkno = x;
 			gfs2_log_header_out(&lh, buf);
 			hash = gfs2_disk_hash(buf, sizeof(struct gfs2_log_header));
-			((struct gfs2_log_header *)buf)->lh_hash = cpu_to_gfs2_32(hash);
+			((struct gfs2_log_header *)buf)->lh_hash = cpu_to_le32(hash);
 
 			error = write(fd, buf, sdp->bsize);
 			if (error != sdp->bsize)
