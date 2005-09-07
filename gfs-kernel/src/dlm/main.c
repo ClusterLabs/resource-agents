@@ -42,7 +42,7 @@ int __init init_lock_dlm(void)
 	gdlm_drop_count = GDLM_DROP_COUNT;
 	gdlm_drop_period = GDLM_DROP_PERIOD;
 
-	log_info("(built %s %s) installed", __DATE__, __TIME__);
+	printk("Lock_DLM (built %s %s) installed", __DATE__, __TIME__);
 	return 0;
 }
 
