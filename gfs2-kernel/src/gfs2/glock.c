@@ -1989,7 +1989,7 @@ void gfs2_iopen_go_callback(struct gfs2_glock *io_gl, unsigned int state)
 			gfs2_try_toss_vnode(ip);
 			gfs2_glmutex_unlock(i_gl);
 			gfs2_glock_schedule_for_reclaim(i_gl);
-				goto out;
+			goto out;
 		}
 		gfs2_glmutex_unlock(i_gl);
 	}
