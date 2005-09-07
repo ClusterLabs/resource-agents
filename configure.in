@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.434 $) dnl cvs revision
+AC_REVISION($Revision: 1.435 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -170,6 +170,12 @@ AC_DEFINE_UNQUOTED(HA_COREDIR,"$HA_COREDIR", top directory of area to drop core 
 HA_LOGDAEMON_IPC="${HA_VARLIBDIR}/log_daemon"
 AC_SUBST(HA_LOGDAEMON_IPC)
 AC_DEFINE_UNQUOTED(HA_LOGDAEMON_IPC, "$HA_LOGDAEMON_IPC", Logging Daemon IPC socket name)
+
+dnl This IS a default but we should make sure we can override it for any 
+dnl odd OS requirements.
+HA_VARLOGDIR="/var/log"
+AC_SUBST(HA_VARLOGDIR)
+AC_DEFINE_UNQUOTED(HA_VARLOGDIR,"$HA_VARLOGDIR", var log directory)
 
 
 
