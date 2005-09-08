@@ -319,9 +319,6 @@ static int gi_get_counters(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 	gfs2_printf("sd_log_wraps:log wraps::%llu\n",
 		    sdp->sd_log_wraps);
 
-	gfs2_printf("sd_bio_outstanding:outstanding BIO calls::%u\n",
-		    (unsigned int)atomic_read(&sdp->sd_bio_outstanding));
-
 	gfs2_printf("sd_fh2dentry_misses:fh2dentry misses:diff:%u\n",
 		    (unsigned int)atomic_read(&sdp->sd_fh2dentry_misses));
 
@@ -372,14 +369,6 @@ static int gi_get_counters(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 
 	gfs2_printf("sd_ops_vm:vm operations:diff:%u\n",
 		    (unsigned int)atomic_read(&sdp->sd_ops_vm));
-
-	gfs2_printf("sd_bio_reads:block I/O reads:diff:%u\n",
-		    (unsigned int)atomic_read(&sdp->sd_bio_reads) >>
-		    (sdp->sd_sb.sb_bsize_shift - 9));
-
-	gfs2_printf("sd_bio_writes:block I/O writes:diff:%u\n",
-		    (unsigned int)atomic_read(&sdp->sd_bio_writes) >>
-		    (sdp->sd_sb.sb_bsize_shift - 9));
 
 	error = 0;
 

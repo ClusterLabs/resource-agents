@@ -680,10 +680,6 @@ struct gfs2_sbd {
 	atomic_t sd_lm_unlock_calls;
 	atomic_t sd_lm_callbacks;
 
-	atomic_t sd_bio_reads;
-	atomic_t sd_bio_writes;
-	atomic_t sd_bio_outstanding;
-
 	atomic_t sd_ops_address;
 	atomic_t sd_ops_dentry;
 	atomic_t sd_ops_export;
