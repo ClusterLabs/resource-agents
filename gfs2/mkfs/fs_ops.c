@@ -1152,6 +1152,10 @@ createi(struct gfs2_inode *dip, char *filename,
 
 	dir_add(dip, filename, &inum, IF2DT(mode));
 
+	if(S_ISDIR(mode)) {
+		dip->i_di.di_nlink++;
+	}
+
 	bh = init_dinode(sdp, &inum, mode, flags,
 			 &dip->i_di.di_num);
 
