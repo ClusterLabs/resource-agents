@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.436 $) dnl cvs revision
+AC_REVISION($Revision: 1.437 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -866,7 +866,7 @@ elif test "x${ac_cv_header_ucd_snmp_snmp_h}" = "xyes"; then
 		ENABLE_SNMP="no"
 		AC_MSG_RESULT("Could not find ucdsnmp libary."
 			"Please make sure that libsnmp or libucdsnmp"
-			"are in your libaray path. Or the path to LDFLAGS")
+			"are in your library path. Or the path to LDFLAGS")
 	fi
 else
 	ENABLE_SNMP="no"
