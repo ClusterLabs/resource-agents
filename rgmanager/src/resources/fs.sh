@@ -165,12 +165,12 @@ meta_data()
 	<action name="monitor" interval="1m" timeout="10"/>
 
 	<!-- Checks to see if we can read from the mountpoint -->
-	<action name="status" depth="10" timeout="30" interval="5m"/>
-	<action name="monitor" depth="10" timeout="30" interval="5m"/>
+	<action name="status" depth="10" timeout="30" interval="30"/>
+	<action name="monitor" depth="10" timeout="30" interval="30"/>
 
 	<!-- Checks to see if we can write to the mountpoint (if !ROFS) -->
-	<action name="status" depth="20" timeout="30" interval="10m"/>
-	<action name="monitor" depth="20" timeout="30" interval="10m"/>
+	<action name="status" depth="20" timeout="30" interval="1m"/>
+	<action name="monitor" depth="20" timeout="30" interval="1m"/>
 
 	<action name="meta-data" timeout="5"/>
 	<action name="verify-all" timeout="5"/>
@@ -492,6 +492,65 @@ Device $dev is mounted on $tmp_mp instead of $mp"
 	done < <(mount | awk '{print $1,$3}')
 
 	return $NO
+}
+
+
+# 
+# isAlive mount_point
+# 
+# Check to see if mount_point is alive (testing read/write)
+# 
+isAlive()
+{
+	declare mount_point
+	declare file=".writable_test"
+	declare rw
+	
+	if [ $# -ne 1 ]; then
+	        logAndPrint $LOG_ERR "Usage: isAlive mount_point"
+		return $FAIL
+	fi
+	mount_point=$1
+	
+	test -d $mount_point
+	if [ $? -ne 0 ]; then
+		logAndPrint $LOG_ERR "$mount_point is not a directory"
+		return $FAIL
+	fi
+	
+	[ $OCF_CHECK_LEVEL -lt 10 ] && return $YES
+	
+	# depth 10 test (read test)
+	ls $mount_point > /dev/null 2> /dev/null
+	if [ $? -ne 0 ]; then
+	       return $NO
+	fi
+	
+	[ $OCF_CHECK_LEVEL -lt 20 ] && return $YES
+	
+	# depth 20 check (write test)
+	rw=$YES
+	for o in `echo $OCF_RESKEY_options | sed -e s/,/\ /g`; do
+                if [ "$o" = "ro" ]; then
+		        rw=$NO
+                fi
+	done
+	if [ $rw -eq $YES ]; then
+	        file=$mount_point/$file
+		while true; do
+			if [ -e "$file" ]; then
+				file=${file}_tmp
+				continue
+			else
+			        break
+			fi
+		done
+		touch $file > /dev/null 2> /dev/null
+		[ $? -ne 0 ] && return $NO
+		rm -f $file > /dev/null 2> /dev/null
+	fi
+	
+	return $YES
 }
 
 
@@ -940,9 +999,14 @@ stop)
 	stopFilesystem
 	exit $?
 	;;
-status)
+status|monitor)
 	isMounted ${OCF_RESKEY_device} ${OCF_RESKEY_mountpoint}
-	exit $?
+	[ $? -ne $YES ] && exit 1
+	
+	isAlive ${OCF_RESKEY_mountpoint}
+	[ $? -ne $YES ] && exit 1
+	
+	exit 0
 	;;
 restart)
 	stopFilesystem
