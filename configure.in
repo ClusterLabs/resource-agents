@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.437 $) dnl cvs revision
+AC_REVISION($Revision: 1.438 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -131,6 +131,10 @@ var() {
     *)		echo "$res";;
   esac
 }
+
+dnl Keep copy of original (default) localstatedir
+localstatedir_orig="$localstatedir"
+
 exec_prefix=`var "$exec_prefix" "$prefix"`
 bindir=`var "$bindir" "$exec_prefix/bin"`
 sbindir=`var "$sbindir" "$exec_prefix/sbin"`
@@ -146,6 +150,39 @@ infodir=`var "$infodir" "$prefix/info"`
 mandir=`var "$mandir" "$exec_prefix/man"`
 docdir=${datadir}/doc/${HB_PKG}-${VERSION}
 
+dnl	The GNU conventions for installation directories don't always
+dnl	sit well with this software.  In particular, GNU's stated:
+dnl
+dnl	   '$(localstatedir)' should normally be '/usr/local/var', ...
+dnl
+dnl	is poor for us: much better would be somewhere under '/var'.
+dnl
+dnl	Here within "configure" it would be poor practice for us to interfere
+dnl	with such values, irrespective of our opinion:
+dnl	1. user perspective: we would have gone behind their back;
+dnl	2. autoconf perspective: autoconf should avoid any OS-specific mindset.
+dnl
+dnl	So if localstatedir still has its default value, we issue an advisory
+dnl	warning and inform folk of our own "ConfigureMe", which is ideally
+dnl	suited for setting such aspects (by user, and per-OS).
+dnl
+dnl	[ Another option would be to detect, and to warn of, (post-expansion)
+dnl	non-"/var/[...]" values: something like:
+dnl		if test `expr "$localstatedir" : '^/var/.*'` -ge '5' \
+dnl			-o `expr "$localstatedir" : '^/var.*'` -eq '4'
+dnl		then <OK> else <WARN> fi
+dnl	]
+
+# If original localstatedir had defaulted then sanity-check the result.
+if test "x$localstatedir_orig" = 'x${prefix}/var'	# Note quote types
+then
+	SNOOZING=10
+	AC_MSG_WARN(value/default "--localstatedir=$localstatedir" is poor.)
+	AC_MSG_WARN("/var/something" is strongly recommended.)
+	AC_MSG_WARN(We also recommend using "ConfigureMe".)
+	AC_MSG_WARN(Sleeping for $SNOOZING seconds.)
+	sleep $SNOOZING
+fi
 
 HA_LIBDIR="${libdir}"
 AC_SUBST(HA_LIBDIR)
