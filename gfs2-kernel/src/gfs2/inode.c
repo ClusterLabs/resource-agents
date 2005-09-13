@@ -1750,6 +1750,26 @@ void gfs2_try_toss_vnode(struct gfs2_inode *ip)
 	iput(inode);
 }
 
+
+static int
+__gfs2_setattr_simple(struct gfs2_inode *ip, struct iattr *attr)
+{
+       struct buffer_head *dibh;
+       int error;
+
+	error = gfs2_meta_inode_buffer(ip, &dibh);
+	if (!error) {
+		error = inode_setattr(ip->i_vnode, attr);
+		gfs2_assert_warn(ip->i_sbd, !error);
+		gfs2_inode_attr_out(ip);
+
+		gfs2_trans_add_bh(ip->i_gl, dibh);
+		gfs2_dinode_out(&ip->i_di, dibh->b_data);
+		brelse(dibh);
+	}
+	return error;
+}
+
 /**
  * gfs2_setattr_simple -
  * @ip:
@@ -1762,23 +1782,16 @@ void gfs2_try_toss_vnode(struct gfs2_inode *ip)
 
 int gfs2_setattr_simple(struct gfs2_inode *ip, struct iattr *attr)
 {
-	struct buffer_head *dibh;
 	int error;
+
+	if (get_transaction)
+		return __gfs2_setattr_simple(ip, attr);
 
 	error = gfs2_trans_begin(ip->i_sbd, RES_DINODE, 0);
 	if (error)
 		return error;
 
-	error = gfs2_meta_inode_buffer(ip, &dibh);
-	if (!error) {
-		error = inode_setattr(ip->i_vnode, attr);
-		gfs2_assert_warn(ip->i_sbd, !error);
-		gfs2_inode_attr_out(ip);
-
-		gfs2_trans_add_bh(ip->i_gl, dibh);
-		gfs2_dinode_out(&ip->i_di, dibh->b_data);
-		brelse(dibh);
-	}
+	error = __gfs2_setattr_simple(ip, attr);
 
 	gfs2_trans_end(ip->i_sbd);
 
