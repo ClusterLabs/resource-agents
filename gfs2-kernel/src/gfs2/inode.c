@@ -1754,8 +1754,8 @@ void gfs2_try_toss_vnode(struct gfs2_inode *ip)
 static int
 __gfs2_setattr_simple(struct gfs2_inode *ip, struct iattr *attr)
 {
-       struct buffer_head *dibh;
-       int error;
+	struct buffer_head *dibh;
+	int error;
 
 	error = gfs2_meta_inode_buffer(ip, &dibh);
 	if (!error) {

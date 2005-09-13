@@ -96,6 +96,13 @@ static int system_eo_get(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 	    !capable(CAP_SYS_ADMIN))
 		return -EPERM;
 
+	if (ip->i_sbd->sd_args.ar_posix_acl == 0 &&
+	    (GFS2_ACL_IS_ACCESS(er->er_name, er->er_name_len) ||
+	     GFS2_ACL_IS_DEFAULT(er->er_name, er->er_name_len)))
+		return -EOPNOTSUPP;
+
+
+
 	return gfs2_ea_get_i(ip, er);
 }
 
