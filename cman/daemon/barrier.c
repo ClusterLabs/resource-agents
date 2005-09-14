@@ -54,8 +54,6 @@ struct cl_barrier {
 	       BARRIER_STATE_COMPLETE } state;
 	unsigned int expected_nodes;
 	unsigned int got_nodes;
-	unsigned int completed_nodes;
-	unsigned int inuse;
 	unsigned int waitsent;
 	unsigned int phase;	/* Completion phase */
 	unsigned int endreason;	/* Reason we were woken, usually 0 */
@@ -122,26 +120,17 @@ static void check_barrier_complete_phase1(struct cl_barrier *barrier)
 
 /* Do the stuff we need to do when the barrier has been reached */
 /* Return 1 if we deleted the barrier */
-static int check_barrier_complete_phase2(struct cl_barrier *barrier, int status)
+static int barrier_complete_phase2(struct cl_barrier *barrier, int status)
 {
-	P_BARRIER("check_complete_phase2 for %s\n", barrier->name);
+	P_BARRIER("complete_phase2 for %s\n", barrier->name);
 
-	P_BARRIER("check_complete_phase2 status=%d, c_nodes=%d, e_nodes=%d, state=%d\n",
-		  status,barrier->completed_nodes, barrier->expected_nodes, barrier->state);
+	barrier->endreason = status;
 
-	if (barrier->state != BARRIER_STATE_COMPLETE &&
-	    (status == -ETIMEDOUT ||
-	     barrier->completed_nodes == ((barrier->expected_nodes != 0)
-					  ? barrier->expected_nodes : cluster_members))) {
-
-		barrier->endreason = status;
-
-		/* Wake up listener */
-		if (barrier->state == BARRIER_STATE_WAITING) {
-			send_barrier_complete_msg(barrier);
-		}
-		barrier->state = BARRIER_STATE_COMPLETE;
+	/* Wake up listener */
+	if (barrier->state == BARRIER_STATE_WAITING) {
+		send_barrier_complete_msg(barrier);
 	}
+	barrier->state = BARRIER_STATE_COMPLETE;
 
 	/* Delete barrier if autodelete */
 	if (barrier->flags & BARRIER_ATTR_AUTODELETE) {
@@ -164,7 +153,7 @@ static void barrier_timer_fn(void *arg)
 	barrier->phase = 0;
 
 	/* and cause it to timeout */
-	check_barrier_complete_phase2(barrier, -ETIMEDOUT);
+	barrier_complete_phase2(barrier, -ETIMEDOUT);
 }
 
 static struct cl_barrier *alloc_barrier(char *name, int nodes)
@@ -182,7 +171,6 @@ static struct cl_barrier *alloc_barrier(char *name, int nodes)
 	barrier->flags = 0;
 	barrier->expected_nodes = nodes;
 	barrier->got_nodes = 0;
-	barrier->completed_nodes = 0;
 	barrier->endreason = 0;
 	barrier->state = BARRIER_STATE_INACTIVE;
 
@@ -201,18 +189,14 @@ void process_barrier_msg(struct cl_barriermsg *msg,
 	/* Ignore other peoples' messages */
 	if (!we_are_a_cluster_member)
 		return;
+	if (!barrier)
+		return;
 
 	P_BARRIER("Got %d for %s, from node %s\n", msg->subcmd, msg->name,
 		  node ? node->name : "unknown");
 
 	switch (msg->subcmd) {
 	case BARRIER_WAIT:
-		if (!barrier) {
-			barrier = alloc_barrier(msg->name, msg->nodes);
-			if (!barrier)
-				return;
-		}
-
 		if (barrier->phase == 0)
 			barrier->phase = 1;
 
@@ -220,31 +204,14 @@ void process_barrier_msg(struct cl_barriermsg *msg,
 			barrier->got_nodes++;
 			check_barrier_complete_phase1(barrier);
 		}
-		else {
-			log_msg(LOG_WARNING, "got WAIT barrier not in phase 1 %s (%d)\n",
-			       msg->name, barrier->phase);
-
-		}
 		break;
 
 	case BARRIER_COMPLETE:
 		if (!barrier)
 			return;
-		barrier->completed_nodes++;
-
-		/* First node to get all the WAIT messages sends COMPLETE, so
-		 * we all complete */
-		if (barrier->phase == 1) {
-			barrier->got_nodes = barrier->expected_nodes;
-			check_barrier_complete_phase1(barrier);
-		}
-
-		if (barrier->phase == 2) {
-			/* If it was deleted (ret==1) then no need to unlock
-			 * the mutex */
-			if (check_barrier_complete_phase2(barrier, 0) == 1)
-				return;
-		}
+		/* Once we receive COMPLETE, we know that everyone has completed.
+		   I love VS */
+		barrier_complete_phase2(barrier, 0);
 		break;
 	}
 }
@@ -310,7 +277,6 @@ static int barrier_setattr_enabled(struct cl_barrier *barrier,
 		/* Send it to the rest of the cluster */
 		bmsg.cmd = CLUSTER_MSG_BARRIER;
 		bmsg.subcmd = BARRIER_WAIT;
-		bmsg.nodes = barrier->expected_nodes;
 		strcpy(bmsg.name, barrier->name);
 
 		barrier->waitsent = 1;

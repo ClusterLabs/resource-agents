@@ -1328,7 +1328,6 @@ static void byteswap_internal_message(char *data, int len)
 
 	case CLUSTER_MSG_BARRIER:
 		barriermsg = (struct cl_barriermsg *)data;
-		barriermsg->nodes = swab32(barriermsg->nodes);
 		break;
 
 	case CLUSTER_MSG_RECONFIGURE:

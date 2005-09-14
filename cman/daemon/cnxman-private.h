@@ -79,7 +79,6 @@ struct cl_barriermsg {
 	unsigned char  cmd;	/* CLUSTER_CMD_BARRIER */
 	unsigned char  subcmd;	/* BARRIER sub command */
 	unsigned short pad;
-        unsigned int   nodes;
 
 	char name[MAX_BARRIER_NAME_LEN];
 };
