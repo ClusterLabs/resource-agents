@@ -1,0 +1,25 @@
+This is a completely rewritten filesystem checker for GFS.  Performance
+characteristics are significantly improved.  The design follows the 5-pass
+fsck design found in "Fsck - The UNIX File System Check Program"
+by McKusick & Kowalkski (1994)
+  - http://citeseer.ist.psu.edu/mckusick94fsck.html
+
+
+Line item list of supported features:
+
+1. Detects and replaces missing/bad root inode
+2. Detects and relinks unlinked inodes to l+f
+   o If a file is zero length, it is not relinked to l+f - unless it
+     has an extended attribute attached to it.
+3. Detects duplicate blocks and removes inodes containing them
+4. Detects bad blocks (block number out of range) and removes inodes
+   containing them - Currently EAs that have blocks are removed but
+   the inode containing them is left.
+5. Detects bad metadata headers and clears the structure
+6. Fixes bad resource group bitmaps
+7. Fixes incorrect resource group counts
+8. Creates l+f directory if missing
+9. Detects and removes duplicate '.' and '..' entries
+10. Creates '.' if missing
+11. Beginning of support for internationalization
+12. Checks extended attributes

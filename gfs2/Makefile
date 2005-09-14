@@ -14,6 +14,7 @@
 all:
 	cd debug && ${MAKE} all
 	cd edit && ${MAKE} all
+	cd fsck && ${MAKE} all
 	cd mkfs && ${MAKE} all
 	cd quota && ${MAKE} all
 	cd tool && ${MAKE} all
@@ -21,6 +22,7 @@ all:
 copytobin:
 	cd debug && ${MAKE} copytobin
 	cd edit && ${MAKE} copytobin
+	cd fsck && ${MAKE} copytobin
 	cd mkfs && ${MAKE} copytobin
 	cd quota && ${MAKE} copytobin
 	cd tool && ${MAKE} copytobin
@@ -28,6 +30,7 @@ copytobin:
 clean:
 	cd bin && ${MAKE} clean
 	cd debug && ${MAKE} clean
+	cd fsck && ${MAKE} clean
 	cd edit && ${MAKE} clean
 	cd mkfs && ${MAKE} clean
 	cd quota && ${MAKE} clean
