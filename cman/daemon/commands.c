@@ -37,6 +37,7 @@
 #include "barrier.h"
 #include "logging.h"
 #include "config.h"
+#include "cmanccs.h"
 #include "ais.h"
 #include "aispoll.h"
 #include "swab.h"
@@ -45,7 +46,7 @@
 
 
 /* Cluster configuration version that must be the same among members. */
-static unsigned int config_version;
+       unsigned int config_version;
 
 /* Reference counting for cluster applications */
 static int use_count;
@@ -82,7 +83,6 @@ static int get_node_count(void);
 static int get_highest_nodeid(void);
 static int send_port_open_msg(unsigned char port);
 static void process_internal_message(char *data, int len, int nodeid, struct totem_ip_address *ais_node, int byteswap);
-static struct cluster_node *find_joining(void);
 static void recalculate_quorum(int allow_decrease);
 
 static void set_port_bit(struct cluster_node *node, uint8_t port)
@@ -143,11 +143,14 @@ static void set_quorate(int total_votes)
 static struct cluster_node *add_new_node(char *name, int nodeid, int votes, int expected_votes,
 					 nodestate_t state, struct totem_ip_address *ais_node)
 {
-	struct cluster_node *newnode;
+	struct cluster_node *newnode = NULL;
 	int newalloc = 0;
 
-	/* Look for AIS node entry. there should be one */
-	newnode = find_node_by_ais_node(ais_node);
+	if (nodeid)
+		newnode = find_node_by_nodeid(nodeid);
+
+	if (!newnode)
+		newnode = find_node_by_ais_node(ais_node);
 	if (!newnode) {
 		newnode = malloc(sizeof(struct cluster_node));
 		if (!newnode) {
@@ -156,7 +159,9 @@ static struct cluster_node *add_new_node(char *name, int nodeid, int votes, int 
 		}
 		memset(newnode, 0, sizeof(struct cluster_node));
 		newalloc = 1;
-		newnode->state = NODESTATE_DEAD;
+		newnode->state = state;
+		newnode->incarnation = incarnation;
+		set_port_bit(newnode, 0);
 	}
 	if (!newnode->name) {
 		newnode->name = malloc(strlen(name)+1);
@@ -168,27 +173,20 @@ static struct cluster_node *add_new_node(char *name, int nodeid, int votes, int 
 		strcpy(newnode->name, name);
 	}
 
-	newnode->state = state;
-	newnode->us = 0;
 	if (!newnode->node_id) /* Don't clobber existing nodeid */
 		newnode->node_id = nodeid;
 	newnode->votes = votes;
-	newnode->expected_votes = expected_votes;
+	if (expected_votes)
+		newnode->expected_votes = expected_votes;
+
 	if (ais_node)
 		totemip_copy(&newnode->ais_node, ais_node);
-	else
-		memset(&newnode->ais_node, 0, sizeof(struct totem_ip_address));
-	newnode->incarnation = incarnation;
-	memset(newnode->port_bits, 0, sizeof(us->port_bits));
-	set_port_bit(newnode, 0);
+
 	if (newalloc)
 		list_add(&cluster_members_list, &newnode->list);
 
 	P_MEMB("add_new_node: %s, (id=%d, votes=%d) newalloc=%d\n",
 	       name, nodeid, votes, newalloc);
-
-	if (newnode->state == NODESTATE_MEMBER)
-		cluster_members++;
 
 	return newnode;
 }
@@ -206,93 +204,6 @@ static void send_reconfigure(int nodeid, int param, int value)
 			   0,0,
 			   0,  /* multicast */
 			   0); /* flags */
-}
-
-static void send_joinconf(int nodeid, int real_nodeid)
-{
-	char buf[sizeof(struct cl_joinconf_head) +
-		 sizeof(struct cl_joinconf_node) * get_node_count()];
-	struct cl_joinconf_head *head = (struct cl_joinconf_head *)buf;
-	struct cl_joinconf_node *node = (struct cl_joinconf_node *)(buf+sizeof(struct cl_joinconf_head));
-	struct cluster_node *clnode;
-	int len = sizeof(struct cl_joinconf_head);
-
-	P_MEMB("Sending JOINCONF base = %p, real_nodeid = %d\n", buf, real_nodeid);
-	head->cmd = CLUSTER_MSG_JOINCONF;
-	head->nodeid = real_nodeid;
-
-	list_iterate_items(clnode, &cluster_members_list) {
-		if (clnode->node_id) {
-			node->nodeid = clnode->node_id;
-			node->expected_votes = clnode->expected_votes;
-			node->votes = clnode->votes;
-			node->state = clnode->state;
-			totemip_copy(&node->ais_node, &clnode->ais_node);
-			memcpy(node->port_bits, clnode->port_bits, sizeof(clnode->port_bits));
-			strcpy(node->name, clnode->name);
-		}
-		node++;
-		len += sizeof(struct cl_joinconf_node);
-	}
-	comms_send_message(buf, len,
-			   0,0,
-			   nodeid,
-			   0); /* flags */
-}
-
-static void swab_joinconf_node(struct cl_joinconf_node *node)
-{
-	node->nodeid = swab32(node->nodeid);
-	node->expected_votes = swab32(node->expected_votes);
-	node->votes = swab32(node->votes);
-	node->state = swab32(node->state);
-}
-
-static void do_process_joinconf(int nodeid, char *buf, int len, int byteswap)
-{
-	struct cl_joinconf_head *head = (struct cl_joinconf_head *)buf;
-	struct cl_joinconf_node *node = (struct cl_joinconf_node *)(buf + sizeof(struct cl_joinconf_head));
-
-	P_MEMB("Got JOINCONF, our state = %d, buf=%p, len=%d\n", us->state, buf, len);
-	/* joinconf for new node - unpack nodelist */
-	if (us->state == NODESTATE_JOINING) {
-
-		P_MEMB("Joinconf says our nodeid is %d\n", head->nodeid);
-		/* We must get the node ID we wanted */
-		assert(wanted_nodeid == 0 ||
-		       wanted_nodeid == head->nodeid);
-
-		us->node_id = head->nodeid;
-		while ((char *)node < buf+len) {
-			struct cluster_node *newnode;
-
-			if (byteswap)
-				swab_joinconf_node(node);
-
-			newnode = add_new_node(node->name, node->nodeid, node->votes, node->expected_votes,
-					       node->state, &node->ais_node);
-			memcpy(newnode->port_bits, node->port_bits, sizeof(newnode->port_bits));
-			node++;
-		}
-
-		us->state = NODESTATE_MEMBER;
-		cluster_members++;
-		we_are_a_cluster_member = 1;
-		recalculate_quorum(0);
-		P_MEMB("We are now a cluster member\n");
-	}
-	else {
-		/* Someone else's joinconf, but we need to know the nodeid */
-		struct cluster_node *node = find_joining();
-
-		P_MEMB("process_joinconf: new node's ID = %d, node=%p\n", head->nodeid, node);
-		if (head->nodeid && node) {
-			node->node_id = head->nodeid;
-			node->state = NODESTATE_MEMBER;
-			cluster_members++;
-			recalculate_quorum(0);
-		}
-	}
 }
 
 static int calculate_quorum(int allow_decrease, int max_expected, unsigned int *ret_total_votes)
@@ -390,6 +301,7 @@ static int do_cmd_set_version(char *cmdbuf, int *retlen)
 		return 0;
 
 	config_version = version->config;
+	/* We will re-read CCS when we get our own message back */
 	send_reconfigure(us->node_id, RECONFIG_PARAM_CONFIG_VERSION, config_version);
 	return 0;
 }
@@ -544,8 +456,10 @@ static int do_cmd_get_node(char *cmdbuf, char *retbuf, int *retlen)
 	else
 		node = find_node_by_name(u_node->name);
 
-	if (!node)
+	if (!node) {
+		P_MEMB("cmd_get_node failed: id=%d, name='%s'\n", u_node->node_id, u_node->name);
 		return -ENOENT;
+	}
 
 	copy_to_usernode(node, r_node);
 	*retlen = sizeof(struct cl_cluster_node);
@@ -804,7 +718,16 @@ static int do_cmd_join_cluster(char *cmdbuf, int *retlen)
 	cluster_id = generate_cluster_id(join_info->cluster_name);
 	strncpy(cluster_name, join_info->cluster_name, MAX_CLUSTER_NAME_LEN);
 	two_node = join_info->two_node;
-	config_version = join_info->config_version;
+
+	/* Check for a race where ccs is updated between ccs_tool reading it and us starting up
+	   (miniscule but possible I suppose)
+	*/
+	if (config_version != join_info->config_version) {
+		log_msg(LOG_ERR, "CCS was updated during ccs_tool join, we read %d, ccs_tool said %d\n",
+			config_version, join_info->config_version);
+		return -EINVAL;
+	}
+
 
 	quit_threads = 0;
 	ais_running = 1;
@@ -816,7 +739,7 @@ static int do_cmd_join_cluster(char *cmdbuf, int *retlen)
 	}
 
 	us = add_new_node(nodename, wanted_nodeid, join_info->votes, join_info->expected_votes,
-			  NODESTATE_JOINING, NULL);
+			  NODESTATE_MEMBER, NULL);
 	set_port_bit(us, 0);
 	us->us = 1;
 
@@ -1015,6 +938,10 @@ int process_command(struct connection *con, int cmd, char *cmdbuf,
 		err = do_cmd_get_all_members(cmdbuf, retbuf, retsize, retlen, offset);
 		break;
 
+	case CMAN_CMD_GETNODECOUNT:
+		err = get_node_count();
+		break;
+
 	case CMAN_CMD_GETNODE:
 		err = do_cmd_get_node(cmdbuf, outbuf+offset, retlen);
 		break;
@@ -1112,10 +1039,6 @@ int send_to_userport(unsigned char fromport, unsigned char toport,
 {
 	int ret = -1;
 
-	/* Only allow tgt==-1 if we are joining */
-	if (tgtid == -1 && us->state != NODESTATE_JOINING)
-		return 0;
-
 	if (toport == 0) {
 		process_internal_message(recv_buf, len, nodeid, ais_node, endian_conv);
 		ret = 0;
@@ -1195,38 +1118,44 @@ int our_nodeid()
 		return 0;
 }
 
-/* Sanity check JOIN message */
-static int valid_nodemsg(struct cl_nodemsg *nodemsg)
+/* Sanity check TRANSITION message */
+static int valid_transition_msg(struct totem_ip_address *ipaddr, struct cl_transmsg *msg)
 {
-	struct cluster_node *node_byid;
-	struct cluster_node *node_byname;
-
-	if (strcmp(nodemsg->clustername, cluster_name) != 0) {
-		log_msg(LOG_ERR, "Node refused, remote cluster name='%s', local='%s'\n", nodemsg->clustername, cluster_name);
+	if (strcmp(msg->clustername, cluster_name) != 0) {
+		log_msg(LOG_ERR, "Node %s refused, remote cluster name='%s', local='%s'\n",
+			totemip_print(ipaddr), msg->clustername, cluster_name);
 		return -1;
 	}
 
-	if (nodemsg->cluster_id != cluster_id) {
-		log_msg(LOG_ERR, "Node refused, remote cluster id=%d, local=%d\n", nodemsg->cluster_id, cluster_id);
+	if (msg->cluster_id != cluster_id) {
+		log_msg(LOG_ERR, "Node %s refused, remote cluster id=%d, local=%d\n",
+			totemip_print(ipaddr), msg->cluster_id, cluster_id);
 		return -1;
 	}
 
+	if (msg->major_version != CNXMAN_MAJOR_VERSION) {
 
-	node_byid = find_node_by_nodeid(nodemsg->nodeid);
-	node_byname = find_node_by_name(nodemsg->name);
-	if (nodemsg->nodeid && node_byid != node_byname) {
-		log_msg(LOG_ERR, "Node refused, nodeid %d already in use\n", nodemsg->nodeid);
+		log_msg(LOG_ERR, "Node %s refused, remote version id=%d, local=%d\n",
+			totemip_print(ipaddr), msg->major_version, CNXMAN_MAJOR_VERSION);
 		return -1;
 	}
 
-	if (nodemsg->major_version != CNXMAN_MAJOR_VERSION) {
+	/* New config version - try to read new file */
+	if (msg->config_version > config_version) {
+		int saved_config = config_version;
+		int ccs_err;
 
-		log_msg(LOG_ERR, "Node refused, remote version id=%d, local=%d\n", nodemsg->major_version, CNXMAN_MAJOR_VERSION);
-		return -1;
+		config_version = msg->config_version;
+		ccs_err = read_ccs_nodes();
+		if (ccs_err) {
+			config_version = saved_config;
+		}
 	}
 
-	if (nodemsg->config_version != config_version) {
-		log_msg(LOG_ERR, "Node refused, remote config version id=%d, local=%d\n", nodemsg->config_version, config_version);
+
+	if (msg->config_version != config_version) {
+		log_msg(LOG_ERR, "Node %s refused, remote config version id=%d, local=%d\n",
+			totemip_print(ipaddr), msg->config_version, config_version);
 		return -1;
 	}
 
@@ -1234,51 +1163,29 @@ static int valid_nodemsg(struct cl_nodemsg *nodemsg)
 }
 
 
-// TODO What happens if we boot several nodes together ???????
-static poll_timer_handle join_timer;
-extern poll_handle ais_poll_handle;
-static void join_timeout(void *data)
+void send_transition_msg(int last_memb_count)
 {
-	P_MEMB("Join_timeout\n");
-	if (cluster_members == 0) {
+	struct cl_transmsg msg;
 
-		P_MEMB("We are in a 1 node cluster\n");
-		we_are_a_cluster_member = 1;
-		us->state = NODESTATE_MEMBER;
-		cluster_members++;
+	we_are_a_cluster_member = 1;
 
-		if (!us->node_id)
-			us->node_id = 1;
+	if (last_memb_count == 1) { /* new joiner */
+		P_MEMB("sending TRANSITION message. cluster_name = %s\n", cluster_name);
+		msg.cmd = CLUSTER_MSG_TRANSITION;
+		msg.high_nodeid = get_highest_nodeid();
+		msg.expected_votes = us->expected_votes;
+		msg.cluster_id = cluster_id;
+		msg.major_version = CNXMAN_MAJOR_VERSION;
+		msg.minor_version = CNXMAN_MINOR_VERSION;
+		msg.patch_version = CNXMAN_PATCH_VERSION;
+		msg.config_version = config_version;
+		strcpy(msg.clustername, cluster_name);
 
-		recalculate_quorum(0);
+		comms_send_message(&msg, sizeof(msg),
+				   0,0,
+				   0,  /* multicast */
+				   0); /* flags */
 	}
-}
-
-void send_joinreq()
-{
-	char buf[sizeof(struct cl_nodemsg)+strlen(nodename)];
-	struct cl_nodemsg *msg = (struct cl_nodemsg *)buf;
-
-	P_MEMB("sending JOINREQ message\n");
-	msg->cmd = CLUSTER_MSG_JOINREQ;
-	msg->nodeid = wanted_nodeid;
-	msg->votes  = us->votes;
-	msg->expected_votes = us->expected_votes;
-	msg->cluster_id = cluster_id;
-	msg->major_version = CNXMAN_MAJOR_VERSION;
-	msg->minor_version = CNXMAN_MINOR_VERSION;
-	msg->patch_version = CNXMAN_PATCH_VERSION;
-	msg->config_version = config_version;
-	strcpy(msg->clustername, cluster_name);
-	strcpy(msg->name, nodename);
-
-	comms_send_message(buf, sizeof(buf),
-			   0,0,
-			   0,  /* multicast */
-			   0); /* flags */
-
-	/* If this timer expires then we are in a 1 node cluster */
-	poll_timer_add(ais_poll_handle, 1000, NULL, join_timeout, &join_timer);
 }
 
 static void byteswap_internal_message(char *data, int len)
@@ -1287,8 +1194,7 @@ static void byteswap_internal_message(char *data, int len)
 	struct cl_barriermsg *barriermsg;
 	struct cl_killmsg *killmsg;
 	struct cl_leavemsg *leavemsg;
-	struct cl_nodemsg *nodemsg;
-	struct cl_joinconf_head *confmsg;
+	struct cl_transmsg *transmsg;
 	struct cl_reconfig_msg *reconfmsg;
 
 	switch (msg->cmd) {
@@ -1297,22 +1203,15 @@ static void byteswap_internal_message(char *data, int len)
 		/* Just a byte */
 		break;
 
-	case CLUSTER_MSG_JOINREQ:
-		nodemsg = (struct cl_nodemsg *)data;
-		nodemsg->cluster_id = swab16(nodemsg->cluster_id);
-		nodemsg->nodeid = swab32(nodemsg->nodeid);
-		nodemsg->votes = swab32(nodemsg->votes);
-		nodemsg->expected_votes = swab32(nodemsg->expected_votes);
-		nodemsg->major_version = swab32(nodemsg->major_version);
-		nodemsg->minor_version = swab32(nodemsg->minor_version);
-		nodemsg->patch_version = swab32(nodemsg->patch_version);
-		nodemsg->config_version = swab32(nodemsg->config_version);
-		break;
-
-	case CLUSTER_MSG_JOINCONF:
-		/* Just swap the head */
-		confmsg = (struct cl_joinconf_head *)data;
-		confmsg->nodeid = swab32(confmsg->nodeid);
+	case CLUSTER_MSG_TRANSITION:
+		transmsg = (struct cl_transmsg *)data;
+		transmsg->cluster_id = swab16(transmsg->cluster_id);
+		transmsg->high_nodeid = swab32(transmsg->high_nodeid);
+		transmsg->expected_votes = swab32(transmsg->expected_votes);
+		transmsg->major_version = swab32(transmsg->major_version);
+		transmsg->minor_version = swab32(transmsg->minor_version);
+		transmsg->patch_version = swab32(transmsg->patch_version);
+		transmsg->config_version = swab32(transmsg->config_version);
 		break;
 
 	case CLUSTER_MSG_KILLNODE:
@@ -1371,50 +1270,21 @@ static void do_reconfigure_msg(void *data)
 
 	case RECONFIG_PARAM_CONFIG_VERSION:
 		config_version = msg->value;
+		read_ccs_nodes();
 		break;
 	}
 }
 
 
-static void do_process_joinreq(char *data, int len, int nodeid, struct totem_ip_address *ais_node)
+static void do_process_transition(int nodeid, struct totem_ip_address *ipaddr, char *data, int len)
 {
-	struct cl_nodemsg *nodemsg;
-	struct cluster_node *node;
-	struct cluster_node *lownode;
-	int new_nodeid = 0;
+	struct cl_transmsg *msg = (struct cl_transmsg *)data;
 
-	nodemsg = (struct cl_nodemsg *)data;
-	if (we_are_a_cluster_member && valid_nodemsg(nodemsg) == -1) {
-		send_kill(-1, nodemsg->nodeid, CLUSTER_KILL_REJECTED);
-		return;
+	if (valid_transition_msg(ipaddr, msg) != 0) {
+		P_MEMB("Transition message contents does not match current config - should quit ?\n");
 	}
 
-	/* This is our join message returned */
-	P_MEMB("process_joinreq, our state = %d (nodeid=%d, wanted_node=%d)\n", us->state, nodemsg->nodeid, wanted_nodeid);
-	if (us->state == NODESTATE_JOINING && nodemsg->nodeid == wanted_nodeid) {
-		us->incarnation = incarnation;
-		return;
-	}
-	if (totemip_equal(ais_node, &us->ais_node)) {
-		P_MEMB("Discarding our JOINREQ message\n");
-		return;
-	}
-
-	node = add_new_node(nodemsg->name, nodemsg->nodeid, nodemsg->votes, nodemsg->expected_votes,
-			    NODESTATE_JOINING, ais_node);
 	recalculate_quorum(0);
-
-	lownode = get_lowest_node();
-	if (lownode != us)
-		return;
-
-	/* Allocate a new nodeid if needed */
-	if (!node->node_id) {
-		new_nodeid = get_highest_nodeid()+1;
-		node->node_id = new_nodeid;
-		P_MEMB("Allocating new nodeid %d for %s\n", new_nodeid, node->name);
-	}
-	send_joinconf(0, node->node_id);
 }
 
 static void process_internal_message(char *data, int len, int nodeid, struct totem_ip_address *ais_node, int need_byteswap)
@@ -1446,12 +1316,9 @@ static void process_internal_message(char *data, int len, int nodeid, struct tot
 		post_close_event(portmsg->port, nodeid);
 		break;
 
-	case CLUSTER_MSG_JOINREQ:
-		do_process_joinreq(data, len, nodeid, ais_node);
-		break;
-
-	case CLUSTER_MSG_JOINCONF:
-		do_process_joinconf(nodeid, data, len, need_byteswap);
+	case CLUSTER_MSG_TRANSITION:
+		P_MEMB("got TRANSITION from node %d\n", nodeid);
+		do_process_transition(nodeid, ais_node, data, len);
 		break;
 
 	case CLUSTER_MSG_KILLNODE:
@@ -1497,6 +1364,30 @@ static void process_internal_message(char *data, int len, int nodeid, struct tot
 	}
 }
 
+
+/* Add a node from CCS, note that it may already exist if user has simply updated the config file */
+void add_ccs_node(char *nodename, int nodeid, int votes, int expected_votes)
+{
+	struct totem_ip_address ipaddr;
+	struct cluster_node *node;
+
+	if (totemip_parse(&ipaddr, nodename))
+		return;
+
+	/* See if it already exists */
+	if (!nodeid) {
+		node = find_node_by_ais_node(&ipaddr);
+	}
+	else {
+		node = find_node_by_nodeid(nodeid);
+	}
+
+        // TODO Cope with altnames (multiple IPs) for nodes
+
+	/* Update node entry */
+	add_new_node(nodename, nodeid, votes, expected_votes, NODESTATE_DEAD, &ipaddr);
+}
+
 void add_ais_node(struct totem_ip_address *ais_node, uint64_t incarnation, int total_members)
 {
 	struct cluster_node *node;
@@ -1509,23 +1400,31 @@ void add_ais_node(struct totem_ip_address *ais_node, uint64_t incarnation, int t
 		P_MEMB("Adding AIS node for US\n");
 	}
 
+	/* This really should exist!! */
 	if (!node) {
 		node = malloc(sizeof(struct cluster_node));
 		if (!node) {
-			// TODO what ??
+			log_msg(LOG_ERR, "error allocating node struct for %s, but CCS doesn't know about it anyway\n",
+				totemip_print(ais_node));
 			return;
 		}
 		memset(node, 0, sizeof(struct cluster_node));
 		list_add(&cluster_members_list, &node->list);
-		node->state = NODESTATE_JOINING;
+		node->state = NODESTATE_DEAD;
+
+		/* Emergency nodename */
+		node->name = strdup(totemip_print(ais_node));
 	}
 
 	node->incarnation = incarnation;
 	totemip_copy(&node->ais_node, ais_node);
 	gettimeofday(&node->join_time, NULL);
 
-	if (node->state == NODESTATE_DEAD)
-		node->state = NODESTATE_JOINING;
+	if (node->state == NODESTATE_DEAD) {
+		node->state = NODESTATE_MEMBER;
+		cluster_members++;
+		recalculate_quorum(0);
+	}
 }
 
 void del_ais_node(struct totem_ip_address *ais_node)
@@ -1608,6 +1507,8 @@ static struct cluster_node *find_node_by_nodeid(int nodeid)
 static struct cluster_node *find_node_by_ais_node(struct totem_ip_address *ais_node)
 {
 	struct cluster_node *node;
+	if (!ais_node)
+		return NULL;
 
 	list_iterate_items(node, &cluster_members_list) {
 		if (totemip_equal(&node->ais_node, ais_node))
@@ -1625,20 +1526,5 @@ static struct cluster_node *find_node_by_name(char *name)
 			return node;
 	}
 	return NULL;
-}
-
-static struct cluster_node *find_joining()
-{
-	struct cluster_node *node;
-	struct cluster_node *jnode = NULL;
-
-	list_iterate_items(node, &cluster_members_list) {
-		if (node->state == NODESTATE_JOINING) {
-			assert(!jnode);
-
-			jnode = node;
-		}
-	}
-	return jnode;
 }
 

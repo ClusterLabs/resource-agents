@@ -38,6 +38,7 @@
 #include "commands.h"
 #include "barrier.h"
 #include "config.h"
+#include "cmanccs.h"
 #include "ais.h"
 
 struct queued_reply
@@ -518,6 +519,12 @@ int main(int argc, char *argv[])
 	sigaction(SIGTERM, &sa, NULL);
 
 	signal(SIGPIPE, SIG_IGN);
+
+
+	if (read_ccs_nodes()) {
+		log_msg(LOG_ERR, "Can't initialise list of nodes from CCS\n");
+		return -2;
+	}
 
 	cman_set_realtime();
 

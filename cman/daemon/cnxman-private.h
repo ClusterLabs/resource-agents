@@ -83,12 +83,11 @@ struct cl_barriermsg {
 	char name[MAX_BARRIER_NAME_LEN];
 };
 
-struct cl_nodemsg {
+struct cl_transmsg {
 	unsigned char cmd;
-	unsigned char joining;
+	unsigned char pad;
 	uint16_t cluster_id;
-	int nodeid;
-	int votes;
+	int high_nodeid;
 	int expected_votes;
 
 	unsigned int   major_version;	/* Not backwards compatible */
@@ -96,8 +95,6 @@ struct cl_nodemsg {
 	unsigned int   patch_version;	/* Backwards/forwards compatible */
 	unsigned int   config_version;
         char           clustername[16];
-
-	char name[1]; /* Node name */
 };
 
 struct cl_killmsg {
@@ -123,24 +120,6 @@ struct cl_reconfig_msg {
 	unsigned int   value;
 };
 
-struct cl_joinconf_head
-{
-	unsigned char cmd;
-	unsigned char  param;
-	unsigned short pad;
-	int            nodeid; /* ID we were granted if we requested 0 */
-};
-
-struct cl_joinconf_node
-{
-	int nodeid;
-	unsigned int expected_votes;
-	unsigned int votes;
-	nodestate_t  state;
-	struct totem_ip_address ais_node;
-	unsigned char port_bits[32];
-	char         name[64]; // TODO This is a waste of bandwidth
-};
 
 typedef enum {CON_COMMS, CON_CLIENT_RENDEZVOUS, CON_ADMIN_RENDEZVOUS,
 	      CON_CLIENT, CON_ADMIN} con_type_t;
@@ -162,6 +141,7 @@ struct connection
 #define RECONFIG_PARAM_EXPECTED_VOTES 1
 #define RECONFIG_PARAM_NODE_VOTES     2
 #define RECONFIG_PARAM_CONFIG_VERSION 3
+#define RECONFIG_PARAM_CCS            4
 
 /* There's one of these for each node in the cluster */
 struct cluster_node {
@@ -190,11 +170,10 @@ struct cluster_node {
 #define CLUSTER_MSG_PORTOPENED  2
 #define CLUSTER_MSG_PORTCLOSED  3
 #define CLUSTER_MSG_BARRIER     4
-#define CLUSTER_MSG_JOINREQ     5
+#define CLUSTER_MSG_TRANSITION  5
 #define CLUSTER_MSG_KILLNODE    6
 #define CLUSTER_MSG_LEAVE       7
 #define CLUSTER_MSG_RECONFIGURE 8
-#define CLUSTER_MSG_JOINCONF    9
 
 /* Kill reasons */
 #define CLUSTER_KILL_REJECTED   1

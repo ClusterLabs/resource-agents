@@ -28,11 +28,11 @@ all: ${TARGET}
 copytobin: all
 	cp ${TARGET} ${top_srcdir}/bin
 
-cmand:	${AISDIR}/trunk/exec/libtotem_pg.a daemon.o config.o logging.o ais.o commands.o barrier.o ../lib/libcman.a 
+cmand:	${AISDIR}/trunk/exec/libtotem_pg.a daemon.o config.o logging.o ais.o commands.o barrier.o cmanccs.o ../lib/libcman.a 
 	$(CC) $(CFLAGS) -o $@ $^ -L../lib -L${ccslibdir} -lccs -lcman -lpthread -Wl,-Bstatic -ltotem_pg -Wl,-Bdynamic
 
 daemon.o: daemon.c list.h cnxman-socket.h cnxman-private.h xlate.h \
-  daemon.h logging.h commands.h barrier.h config.h
+  daemon.h logging.h commands.h barrier.h config.h cmanccs.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 cnxman.o: cnxman.c list.h cnxman-socket.h cnxman-private.h xlate.h \
@@ -40,6 +40,9 @@ cnxman.o: cnxman.c list.h cnxman-socket.h cnxman-private.h xlate.h \
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 config.o: config.c config.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+cmanccs.o: cmanccs.c cmanccs.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 barrier.o: barrier.c list.h cnxman-socket.h cnxman-private.h xlate.h \

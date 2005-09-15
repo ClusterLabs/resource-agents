@@ -28,8 +28,6 @@ extern int our_nodeid();
 /* DLM Currently maxes out at 3 ! */
 #define MAX_INTERFACES 16
 
-static int initial_msg_sent;
-
 uint64_t incarnation;
 
 static struct totem_ip_address mcast_addr;
@@ -126,8 +124,7 @@ static void deliver_fn(struct totem_ip_address *source_addr, struct iovec *iovec
 
 	/* Only pass on messages for us or everyone */
 	if (header->tgtid == our_nodeid() ||
-	    header->tgtid == -1 ||  /* Joining node */
-	    header->tgtid == 0) {   /* Broadcast */
+	    header->tgtid == 0) {
 		send_to_userport(header->srcport, header->tgtport,
 				 header->srcid, header->tgtid,
 				 source_addr,
@@ -144,30 +141,23 @@ static void confchg_fn(enum totem_configuration_type configuration_type,
 		       struct memb_ring_id *ring_id)
 {
 	int i;
+	static int last_memb_count = 0;
 
 	P_AIS("confchg_fn called type = %d, seq=%lld\n", configuration_type, ring_id->seq);
 
 	incarnation = ring_id->seq;
-
-	if (!initial_msg_sent &&
-	    configuration_type == TOTEM_CONFIGURATION_REGULAR &&
-	    member_list_entries >= 1)
-	{
-		/* We actually send two NODEMSG messages, one when we first start up and are in a
-		   single-node configuration and again when we know there are other nodes in the cluster.
-		   This is because AIS does cluster "merges", all nodes start as a single-node ring and get
-		   merged into the main one. This way we get to be a cluster member twice!
-		*/
-		send_joinreq();
-		if (member_list_entries > 1)
-			initial_msg_sent = 1;
-	}
 
 	/* Tell the cman membership layer */
 	for (i=0; i<left_list_entries; i++)
 		del_ais_node(&left_list[i]);
 	for (i=0; i<joined_list_entries; i++)
 		add_ais_node(&joined_list[i], incarnation, member_list_entries);
+
+	if (configuration_type == TOTEM_CONFIGURATION_REGULAR) {
+		P_AIS("last memb_count = %d, current = %d\n", last_memb_count, member_list_entries);
+		send_transition_msg(last_memb_count);
+		last_memb_count = member_list_entries;
+	}
 }
 
 extern poll_handle ais_poll_handle; // From daemon.c
@@ -224,7 +214,7 @@ int comms_init_ais(unsigned short port, char *key_filename)
 	ais_config.fail_to_recv_const = cman_config[FAIL_TO_RECV_CONST].value;
 	ais_config.seqno_unchanged_const = cman_config[SEQNO_UNCHANGED_CONST].value;
 	ais_config.net_mtu = 1500;
-	ais_config.threads = 2;
+	ais_config.threads = 0;//2;
 
 	// TEMP clear it all
 	ais_config.totem_logging_configuration.log_level_security =

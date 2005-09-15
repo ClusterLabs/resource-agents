@@ -479,7 +479,7 @@ int cman_get_node_count(cman_handle_t handle)
 	struct cman_handle *h = (struct cman_handle *)handle;
 	VALIDATE_HANDLE(h);
 
-	return info_call(h, CMAN_CMD_GETALLMEMBERS, NULL, 0, NULL, 0);
+	return info_call(h, CMAN_CMD_GETNODECOUNT, NULL, 0, NULL, 0);
 }
 
 int cman_get_nodes(cman_handle_t handle, int maxnodes, int *retnodes, cman_node_t *nodes)

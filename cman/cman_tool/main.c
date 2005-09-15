@@ -19,7 +19,7 @@
 #include "libcman.h"
 #include "cman_tool.h"
 
-#define OPTION_STRING		("m:n:v:e:2p:c:r:i:N:t:o:k:XVwqh?d")
+#define OPTION_STRING		("m:n:v:e:2p:c:r:i:N:t:o:k:Vwqh?d")
 #define OP_JOIN			1
 #define OP_LEAVE		2
 #define OP_EXPECTED		3
@@ -55,7 +55,6 @@ static void print_usage(void)
 	printf("  -n <nodename>  * The name of this node (defaults to hostname)\n");
 	printf("  -o <nodename>  * Override node name\n");
 	printf("  -N <id>          Node id (defaults to automatic)\n");
-	printf("  -X               Do not use cluster.conf values from CCS\n");
 	printf("  -w               Wait until node has joined a cluster\n");
 	printf("  -q               Wait until the cluster is quorate\n");
 	printf("  -t               Maximum time (in seconds) to wait\n");
@@ -214,6 +213,7 @@ static void show_status(void)
 		printf("Quorum: %d %s\n", einfo->ei_quorum, quorate?" ":"Activity Blocked");
 		printf("Active subsystems: %d\n", cman_get_subsys_count(h));
 
+		node.cn_name[0] = 0;
 		if (cman_get_node(h, CMAN_NODEID_US, &node) == 0)
 			printf("Node name: %s\n", node.cn_name);
 
@@ -256,7 +256,10 @@ static void show_nodes(void)
 	for (i=0; i<numnodes; i++) {
 
 		jtime = localtime(&nodes[i].cn_jointime.tv_sec);
-		strftime(jstring, sizeof(jstring), "%F %H:%M:%S", jtime);
+		if (nodes[i].cn_jointime.tv_sec)
+			strftime(jstring, sizeof(jstring), "%F %H:%M:%S", jtime);
+		else
+			strcpy(jstring, "                   ");
 
 		printf("%4d   %c  %5d   %s  %s\n",
 		       nodes[i].cn_nodeid, nodes[i].cn_member?'M':'X',
@@ -547,15 +550,11 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 			break;
 
 		case 'c':
-			if (strlen(optarg) > MAX_NODE_NAME_LEN)
+			if (strlen(optarg) > MAX_NODE_NAME_LEN-1)
 				die("maximum cluster name length is %d",
-				    MAX_CLUSTER_NAME_LEN);
+				    MAX_CLUSTER_NAME_LEN-1);
 			strcpy(comline->clustername, optarg);
 			comline->clustername_opt = TRUE;
-			break;
-
-		case 'X':
-			comline->no_ccs = TRUE;
 			break;
 
 		case 'V':
@@ -704,7 +703,7 @@ static void check_arguments(commandline_t *comline)
 	        die("Node id must be between 1 and 4096");
 
 	if (strlen(comline->clustername) > MAX_CLUSTER_NAME_LEN) {
-	        die("Cluster name must be <= %d characters long",
+	        die("Cluster name must be < %d characters long",
 		    MAX_CLUSTER_NAME_LEN);
 	}
 
@@ -725,8 +724,7 @@ int main(int argc, char *argv[])
 
 	switch (comline.operation) {
 	case OP_JOIN:
-		if (!comline.no_ccs)
-			get_ccs_join_info(&comline);
+		get_ccs_join_info(&comline);
 		check_arguments(&comline);
 
 		if (comline.timeout) {
