@@ -91,6 +91,7 @@
 /* CMAN_CMD_EVENT reason codes */
 #define EVENT_REASON_PORTCLOSED   0
 #define EVENT_REASON_STATECHANGE  1
+#define EVENT_REASON_PORTOPENED   2
 
 /* Sendmsg flags, these are above the normal sendmsg flags so they don't
  * interfere */

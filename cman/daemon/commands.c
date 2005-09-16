@@ -82,6 +82,7 @@ static struct cluster_node *get_lowest_node();
 static int get_node_count(void);
 static int get_highest_nodeid(void);
 static int send_port_open_msg(unsigned char port);
+static int send_port_enquire(int nodeid);
 static void process_internal_message(char *data, int len, int nodeid, struct totem_ip_address *ais_node, int byteswap);
 static void recalculate_quorum(int allow_decrease);
 
@@ -161,7 +162,6 @@ static struct cluster_node *add_new_node(char *name, int nodeid, int votes, int 
 		newalloc = 1;
 		newnode->state = state;
 		newnode->incarnation = incarnation;
-		set_port_bit(newnode, 0);
 	}
 	if (!newnode->name) {
 		newnode->name = malloc(strlen(name)+1);
@@ -587,7 +587,23 @@ static int do_cmd_islistening(struct connection *con, char *cmdbuf, int *retlen)
 	if (rem_node->us)
 		return (port_array[rq.port] != 0) ? 1 : 0;
 
-	return get_port_bit(rem_node, rq.port);
+
+	/* If we don't know the node's port status then ask it.
+	   This should only need to be done when we are the new node in
+	   a cluster that has been running for a while
+	*/
+       	if (!get_port_bit(rem_node, 0)) {
+		P_MEMB("islistening, no data for node %d, sending PORTENQ\n", nodeid);
+		send_port_enquire(rem_node->node_id);
+
+		/* Returning 0 here is fine as users will either retry or
+		   get a PORTOPENED notification */
+		return 0;
+	}
+	else {
+		P_MEMB("islistening, for node %d, low bytes are %x %x\n", nodeid, rem_node->port_bits[0], rem_node->port_bits[1]);
+		return get_port_bit(rem_node, rq.port);
+	}
 }
 
 
@@ -659,17 +675,15 @@ static int do_cmd_set_nodeid(char *cmdbuf, int *retlen)
 
 static int do_cmd_bind(struct connection *con, char *cmdbuf)
 {
-	int port;
+	unsigned int port;
 	int ret = -EADDRINUSE;
 
 	memcpy(&port, cmdbuf, sizeof(int));
 
 	P_MEMB("requested bind to port %d, port_con = %p (us=%p)\n", port, port_array[port], con);
 
-	/* TODO: the kernel version caused a wait here. I don't
-	   think we really need it though */
-	if (port > HIGH_PROTECTED_PORT && (!cluster_is_quorate)) {
-	}
+	if (port == 0 || port > 255)
+		return -EINVAL;
 
 	if (port_array[port])
 		goto out;
@@ -677,7 +691,6 @@ static int do_cmd_bind(struct connection *con, char *cmdbuf)
 	ret = 0;
 	port_array[port] = con;
 	con->port = port;
-
 
 	set_port_bit(us, con->port);
 	send_port_open_msg(con->port);
@@ -1070,6 +1083,16 @@ static int send_port_close_msg(unsigned char port)
 	return comms_send_message(&portmsg, sizeof(portmsg), 0,0, 0, 0);
 }
 
+static int send_port_enquire(int nodeid)
+{
+	char msg[1];
+
+	/* Build the header */
+	msg[0] = CLUSTER_MSG_PORTENQ;
+
+	return comms_send_message(msg, 1, 0,0, nodeid, 0);
+}
+
 static int send_port_open_msg(unsigned char port)
 {
 	struct cl_portmsg portmsg;
@@ -1086,28 +1109,18 @@ void unbind_con(struct connection *con)
 	if (con->port) {
 		port_array[con->port] = NULL;
 		send_port_close_msg(con->port);
+		clear_port_bit(us, con->port);
+		con->port = 0;
 	}
-
-	clear_port_bit(us, con->port);
-	con->port = 0;
 }
 
-/* A remote port has been closed - post an OOB message to the local listen on
- * that port (if there is one) */
-static void post_close_event(unsigned char port, int nodeid)
+/* Post a PORT OPEN/CLOSE event to anyone listening on this end */
+static void post_port_event(int reason, unsigned char port, int nodeid)
 {
-	struct connection *con;
-	struct cluster_node *node;
-
-	con = port_array[port];
-
-	/* Make a note here too */
-	node = find_node_by_nodeid(nodeid);
-	if (node)
-		clear_port_bit(node, port);
+	struct connection *con = port_array[port];
 
 	if (con)
-		notify_listeners(con, EVENT_REASON_PORTCLOSED, nodeid);
+		notify_listeners(con, reason, nodeid);
 }
 
 int our_nodeid()
@@ -1295,6 +1308,7 @@ static void process_internal_message(char *data, int len, int nodeid, struct tot
 	struct cl_killmsg *killmsg;
 	struct cl_leavemsg *leavemsg;
 	struct cluster_node *node = find_node_by_nodeid(nodeid);
+	unsigned char portresult[PORT_BITS_SIZE+1];
 
 	P_MEMB("Message on port 0 is %d (len = %d)\n", msg->cmd, len);
 
@@ -1307,13 +1321,30 @@ static void process_internal_message(char *data, int len, int nodeid, struct tot
 		portmsg = (struct cl_portmsg *)data;
 		if (node)
 			set_port_bit(node, portmsg->port);
+		post_port_event(EVENT_REASON_PORTOPENED, portmsg->port, nodeid);
 		break;
 
 	case CLUSTER_MSG_PORTCLOSED:
 		portmsg = (struct cl_portmsg *)data;
 		if (node)
 			clear_port_bit(node, portmsg->port);
-		post_close_event(portmsg->port, nodeid);
+		post_port_event(EVENT_REASON_PORTCLOSED, portmsg->port, nodeid);
+		break;
+
+	case CLUSTER_MSG_PORTENQ:
+		portresult[0] = CLUSTER_MSG_PORTSTATUS;
+		memcpy(portresult+1, us->port_bits, PORT_BITS_SIZE);
+		P_MEMB("Sending PORTRESULT, low bytes = %x %x\n", us->port_bits[0], us->port_bits[1]);
+
+		/* Broadcast reply as other new nodes may be interested */
+		comms_send_message(portresult, PORT_BITS_SIZE+1, 0,0, 0, 0);
+		break;
+
+	case CLUSTER_MSG_PORTSTATUS:
+		if (nodeid != us->node_id) {
+			P_MEMB("got PORTRESULT from %d, low bytes = %x %x\n", data[1], data[2]);
+			memcpy(node->port_bits, data+1, PORT_BITS_SIZE);
+		}
 		break;
 
 	case CLUSTER_MSG_TRANSITION:
@@ -1411,6 +1442,7 @@ void add_ais_node(struct totem_ip_address *ais_node, uint64_t incarnation, int t
 		memset(node, 0, sizeof(struct cluster_node));
 		list_add(&cluster_members_list, &node->list);
 		node->state = NODESTATE_DEAD;
+		node->votes = 1;
 
 		/* Emergency nodename */
 		node->name = strdup(totemip_print(ais_node));

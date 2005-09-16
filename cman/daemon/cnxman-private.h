@@ -161,7 +161,9 @@ struct cluster_node {
 	unsigned int leave_reason;
 	uint64_t     incarnation;
 
-	unsigned char port_bits[32]; /* bitmap of ports open on this node */
+	/* 32 bytes gives us enought for 256 bits (8 bit port number) */
+#define PORT_BITS_SIZE 32
+ 	unsigned char port_bits[PORT_BITS_SIZE]; /* bitmap of ports open on this node */
 };
 
 
@@ -174,6 +176,8 @@ struct cluster_node {
 #define CLUSTER_MSG_KILLNODE    6
 #define CLUSTER_MSG_LEAVE       7
 #define CLUSTER_MSG_RECONFIGURE 8
+#define CLUSTER_MSG_PORTENQ     9
+#define CLUSTER_MSG_PORTSTATUS 10
 
 /* Kill reasons */
 #define CLUSTER_KILL_REJECTED   1
