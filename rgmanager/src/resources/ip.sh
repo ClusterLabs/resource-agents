@@ -373,44 +373,27 @@ ipv4_same_subnet()
 }
 
 
-ipv6_find_interface()
+ipv6_list_interfaces()
 {
 	declare idx dev ifaddr
-	declare newaddr=$(ipv6_expand $1)
-
+	declare ifaddr_exp
+	
 	while read idx dev ifaddr; do
-
+	    
 		isSlave $dev
 		if [ $? -ne 2 ]; then
 			continue
 		fi
-
+		
 		idx=${idx/:/}
-
-		#
-		# expand the addr to the full deal
-		#
-		ifaddr=$(ipv6_expand $ifaddr)
-
-		if [ "$ifaddr" = "$newaddr" ]; then
-			#
-			# Already running?
-			#
-			echo $dev ${ifaddr/*\/}
-			return 0
-		fi
-
-		#
-		# Always list the new address second so that _same_subnet
-		# matches based on i/f subnet.
-		#
-		if ipv6_same_subnet $ifaddr $newaddr; then
-			echo $dev ${ifaddr/*\//}
-			return 0
-		fi
+		
+		ifaddr_exp=$(ipv6_expand $ifaddr)
+		
+		echo $dev ${ifaddr_exp/\/*/} ${ifaddr_exp/*\//}
+		
 	done < <(/sbin/ip -o -f inet6 addr | awk '{print $1,$2,$4}')
 
-	return 1
+	return 0
 }
 
 
@@ -482,6 +465,26 @@ isSlave()
 	return 0
 }
 
+
+# 
+# Check if interface is in UP state
+#
+interface_up()
+{
+       declare intf=$1
+       
+       if [ -z "$intf" ]; then
+		echo "usage: interface_up <I/F>"
+		return 1
+       fi
+       
+       line=$(/sbin/ip -o link show up dev $intf 2> /dev/null)
+       [ -z "$line" ] && return 2
+       
+       return 0
+}
+
+
 ethernet_link_up()
 {
 	declare linkstate=$(ethtool $1 | grep "Link detected:" |\
@@ -552,33 +555,24 @@ network_link_up()
 }
 
 
-ipv4_find_interface()
+ipv4_list_interfaces()
 {
 	declare idx dev ifaddr
-	declare newaddr=$1
 
 	while read idx dev ifaddr; do
-
+	        
 		isSlave $dev
 		if [ $? -ne 2 ]; then
 			continue
 		fi
-
+		
 		idx=${idx/:/}
-
-		if [ "$ifaddr" = "$newaddr" ]; then
-			# for most things, 
-			echo $dev ${ifaddr/*\//}
-			return 0
-		fi
-
-		if ipv4_same_subnet $ifaddr $newaddr; then
-			echo $dev ${ifaddr/*\//}
-			return 0
-		fi
+		
+		echo $dev ${ifaddr/\/*/} ${ifaddr/*\//}
+		
 	done < <(/sbin/ip -o -f inet addr | awk '{print $1,$2,$4}')
-
-	return 1
+	
+	return 0
 }
 
 
@@ -589,51 +583,66 @@ ipv6()
 {
 	declare dev maskbits
 	declare addr=$2
-
-	read dev maskbits < <(ipv6_find_interface $addr)
-
-	if [ -z "$dev" ]; then
-		return 1
-	fi
-
-	if [ "${addr}" = "${addr/*\//}" ]; then
-		addr="$addr/$maskbits"
-	fi
-
-	if [ "$1" = "add" ]; then
-		network_link_up $dev
-		if [ $? -ne 0 ]; then
-			echo "Cannot add $addr to $dev; no link"
-			return 1
+	declare addr_exp=$(ipv6_expand $addr)
+	
+	while read dev ifaddr_exp maskbits; do 
+	        if [ -z "$dev" ]; then
+		        continue
 		fi
-	fi
-
-	echo "Attempting to $1 IPv6 address $addr ($dev)"
-
-	/sbin/ip -f inet6 addr $1 dev $dev $addr
-	[ $? -ne 0 ] && return 1
-
-	#
-	# NDP should take of figuring out our new address.  Plus,
-	# we do not have something (like arping) to do this for ipv6
-	# anyway.
-	# 
-	# RFC 2461, section 7.2.6 states thusly:
-	#
-   	# Note that because unsolicited Neighbor Advertisements do not
-	# reliably update caches in all nodes (the advertisements might
-	# not be received by all nodes), they should only be viewed as
-	# a performance optimization to quickly update the caches in
-	#  most neighbors. 
-	#
-
-	# Not sure if this is necessary for ipv6 either.
-	file=$(which rdisc 2>/dev/null)
-	if [ -f "$file" ]; then
-		killall -HUP rdisc || rdisc -fs
-	fi
-
-	return 0
+		
+        	#if [ "${addr}" = "${addr/*\//}" ]; then
+	        #	addr="$addr/$maskbits"
+        	#fi
+		
+		if [ "$1" = "add" ]; then
+			ipv6_same_subnet $ifaddr_exp/$maskbits $addr_exp
+			if [ $? -ne 0 ]; then
+                                continue
+                        fi
+                        interface_up $dev
+                        if [ $? -ne 0 ]; then
+                                continue
+                        fi
+                        network_link_up $dev
+                        if [ $? -ne 0 ]; then
+                                continue
+                        fi
+		fi
+		if [ "$1" = "del" ]; then
+		        if [ "$addr_exp" != "$ifaddr_exp" ]; then
+			        continue
+			fi
+                fi
+		
+		echo "Attempting to $1 IPv6 address $addr ($dev)"
+		
+		/sbin/ip -f inet6 addr $1 dev $dev $addr
+		[ $? -ne 0 ] && return 1
+		
+		#
+		# NDP should take of figuring out our new address.  Plus,
+		# we do not have something (like arping) to do this for ipv6
+		# anyway.
+		# 
+		# RFC 2461, section 7.2.6 states thusly:
+		#
+	   	# Note that because unsolicited Neighbor Advertisements do not
+		# reliably update caches in all nodes (the advertisements might
+		# not be received by all nodes), they should only be viewed as
+		# a performance optimization to quickly update the caches in
+		#  most neighbors. 
+		#
+		
+		# Not sure if this is necessary for ipv6 either.
+		file=$(which rdisc 2>/dev/null)
+		if [ -f "$file" ]; then
+		        killall -HUP rdisc || rdisc -fs
+		fi
+		
+		return 0
+	done < <(ipv6_list_interfaces)
+	
+	return 1
 }
 
 
@@ -642,54 +651,67 @@ ipv6()
 #
 ipv4()
 {
-	declare dev maskbits hwaddr
+	declare dev ifaddr maskbits
 	declare addr=$2
-		
-	read dev maskbits < <(ipv4_find_interface $addr)
-
-	if [ -z "$dev" ]; then
-		return 1
-	fi
-
-	#if [ "${addr}" = "${addr/\*\//}" ]; then
-		#addr="$addr/$maskbits"
-	#fi
-
-	if [ "$1" = "add" ]; then
-		network_link_up $dev
-		if [ $? -ne 0 ]; then
-			echo "Cannot add $addr to $dev; no link"
-			return 1
+	
+	while read dev ifaddr maskbits; do
+	        if [ -z "$dev" ]; then
+		        continue
 		fi
-	fi
-
-	echo "Attempting to $1 IPv4 address $addr ($dev)"
-
-	#/sbin/ip $dev $1 $addr
-	/sbin/ip -f inet addr $1 dev $dev $addr
-	[ $? -ne 0 ] && return 1
-
-	#
-	# The following is needed only with ifconfig; ifcfg does it for us
-	#
-	if [ "$1" = "add" ]; then
-		# do that freak arp thing
-
-		hwaddr=$(ip -o link show $dev)
-		hwaddr=${hwaddr/*link\/ether\ /}
-		hwaddr=${hwaddr/\ \*/}
-
-		addr=${addr/\/*/}
-		echo Sending gratuitous ARP: $addr $hwaddr
- 		arping -q -c 2 -U -I $dev $addr
-	fi
-
-	file=$(which rdisc 2>/dev/null)
-	if [ -f "$file" ]; then
-		killall -HUP rdisc || rdisc -fs
-	fi
-
-	return 0
+		
+        	#if [ "${addr}" = "${addr/\*\//}" ]; then
+	        	#addr="$addr/$maskbits"
+        	#fi
+		
+		if [ "$1" = "add" ]; then
+		        ipv4_same_subnet $ifaddr/$maskbits $addr
+			if [ $? -ne 0 ]; then
+			        continue
+			fi
+		        interface_up $dev
+			if [ $? -ne 0 ]; then
+			        continue
+			fi
+			network_link_up $dev
+			if [ $? -ne 0 ]; then
+				continue
+			fi
+		fi
+		if [ "$1" = "del" ]; then
+			if [ "$addr" != "$ifaddr" ]; then
+			        continue
+			fi
+		fi
+		
+		echo "Attempting to $1 IPv4 address $addr ($dev)"
+	        #/sbin/ip $dev $1 $addr
+		/sbin/ip -f inet addr $1 dev $dev $addr
+		[ $? -ne 0 ] && return 1
+		
+        	#
+	        # The following is needed only with ifconfig; ifcfg does it for us
+        	#
+		if [ "$1" = "add" ]; then
+        		# do that freak arp thing
+		    
+ 		        hwaddr=$(ip -o link show $dev)
+			hwaddr=${hwaddr/*link\/ether\ /}
+			hwaddr=${hwaddr/\ \*/}
+			
+			addr=${addr/\/*/}
+			echo Sending gratuitous ARP: $addr $hwaddr
+			arping -q -c 2 -U -I $dev $addr
+		fi
+		
+		file=$(which rdisc 2>/dev/null)
+		if [ -f "$file" ]; then
+		        killall -HUP rdisc || rdisc -fs
+		fi
+		
+		return 0
+	done  < <(ipv4_list_interfaces)
+	
+	return 1
 }
 
 
@@ -710,6 +732,38 @@ ping_check()
 }
 
 
+# 
+# Usage:
+# check_interface_up <family> <address>
+#
+check_interface_up()
+{
+	declare dev
+	
+	dev=$(/sbin/ip -f $1 -o addr | grep " $2/" | awk '{print $2}')
+	if [ -z "$dev" ]; then
+		return 1
+	fi
+	
+	interface_up $dev
+	return $?
+}
+
+
+# 
+# Usage:
+# address_configured <family> <address>
+#
+address_configured()
+{
+        line=$(/sbin/ip -f $1 -o addr | grep " $2/")
+        if [ -z "$line" ]; then
+		return 1
+	fi
+	return 0
+}
+
+
 #
 # Usage:
 # ip_op <family> <operation> <address> [quiet]
@@ -718,7 +772,14 @@ ip_op()
 {
 	declare dev
 	declare rtr
-
+	declare monitor_link
+	
+	monitor_link="yes"
+	if [ "${OCF_RESKEY_monitor_link}" = "no" ] ||
+	    [ "${OCF_RESKEY_monitor_link}" = "0" ]; then
+	        monitor_link="no"
+	fi
+	
 	if [ "$2" = "status" ]; then
 
 		echo Checking $3, Level $OCF_CHECK_LEVEL
@@ -728,20 +789,17 @@ ip_op()
 			[ -n "$4" ] || echo "$3 is not configured"
 			return 1
 		fi
-
 		[ -n "$4" ] || echo "$3 present on $dev"
-		if [ "${OCF_RESKEY_monitor_link}" = "no" ] ||
-		   [ "${OCF_RESKEY_monitor_link}" = "0" ]; then
-			return 0
+		
+		if [ "$monitor_link" = "yes" ]; then
+		        [ -n "$4" ] || echo -n "Checking link status of $dev..."
+			if ! network_link_up $dev; then
+			        [ -n "$4" ] || echo "No Link"
+				return 1
+			fi
+			[ -n "$4" ] || echo "Active"
 		fi
-
-		[ -n "$4" ] || echo -n "Checking link status of $dev..."
-		if ! network_link_up $dev; then
-			[ -n "$4" ] || echo "No Link"
-			return 1
-		fi
-		[ -n "$4" ] || echo "Active"
-
+		
 		[ $OCF_CHECK_LEVEL -lt 10 ] && return 0
 		[ -n "$4" ] || echo -n "Pinging $3..."
 		if ! ping_check $1 $3; then
@@ -749,14 +807,15 @@ ip_op()
 			return 1
 		fi
 		echo "OK"
-
-		#
+		
+                #
 		# XXX may be ipv4 only; disable for now. 
 		#
 		if [ "$OCF_RESKEY_family" = "inet6" ]; then
 			return 0;
 		fi
 		[ $OCF_CHECK_LEVEL -lt 20 ] && return 0
+		[ "$monitor_link" != "yes" ] && return 0
 		rtr=`ip route | grep "default via.*dev $dev" | awk '{print $3}'`
 		[ -n "$4" ] || echo -n "Pinging $rtr..."
 		if ! ping_check $1 $rtr; then
@@ -801,10 +860,14 @@ if [ -z "$OCF_CHECK_LEVEL" ]; then
 	OCF_CHECK_LEVEL=0
 fi
 
+if [ -z "$OCF_RESKEY_monitor_link" ]; then
+        OCF_RESKEY_monitor_link="yes"
+fi
+
 
 case $1 in
 start)
-	if ip_op ${OCF_RESKEY_family} status ${OCF_RESKEY_address} quiet; then
+	if address_configured ${OCF_RESKEY_family} ${OCF_RESKEY_address}; then
 		echo "${OCF_RESKEY_address} already configured"
 		exit 0
 	fi
@@ -812,12 +875,11 @@ start)
 	exit $?
 	;;
 stop)
-	unset OCF_RESKEY_monitor_link
-	if ip_op ${OCF_RESKEY_family} status ${OCF_RESKEY_address} quiet; then
+	if address_configured ${OCF_RESKEY_family} ${OCF_RESKEY_address}; then
 		ip_op ${OCF_RESKEY_family} del ${OCF_RESKEY_address}
 
 		# Make sure it's down
-		if ip_op ${OCF_RESKEY_family} status ${OCF_RESKEY_address} quiet; then
+		if address_configured ${OCF_RESKEY_family} ${OCF_RESKEY_address}; then
 			exit 1
 		fi
 	else
@@ -827,6 +889,9 @@ stop)
 	;;
 status|monitor)
 	ip_op ${OCF_RESKEY_family} status ${OCF_RESKEY_address}
+	[ $? -ne 0 ] && exit 1
+	
+	check_interface_up ${OCF_RESKEY_family} ${OCF_RESKEY_address}
 	exit $?
 	;;
 restart)
