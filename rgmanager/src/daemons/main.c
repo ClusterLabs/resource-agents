@@ -46,6 +46,7 @@ void hard_exit(void);
 int send_rg_states(int);
 int check_config_update(void);
 int svc_exists(char *);
+int watchdog_init(void);
 
 int shutdown_pending = 0, running = 1, need_reconfigure = 0;
 
@@ -634,9 +635,13 @@ main(int argc, char **argv)
 	if (foreground)
 		clu_log_console(1);
 
-	if (!foreground && (geteuid() == 0)) 
+	if (!foreground && (geteuid() == 0)) {
 		daemon_init(argv[0]);
-
+		if(!debug)
+		        if(!watchdog_init())
+			        clulog(LOG_NOTICE, "Failed to start watchdog\n");
+	}
+	
 	/*
 	   We need quorum before we can read the configuration data from
 	   ccsd.
