@@ -46,7 +46,8 @@ typedef void *cman_handle_t;
  * Reasons we get an event callback
  */
 typedef enum {CMAN_REASON_PORTCLOSED,
-	      CMAN_REASON_STATECHANGE} cman_call_reason_t;
+	      CMAN_REASON_STATECHANGE
+              CMAN_REASON_PORTOPENED} cman_call_reason_t;
 
 /*
  * Reason flags for cman_leave
