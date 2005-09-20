@@ -10,7 +10,7 @@ RCS file: /cvs/lvm2/LVM2/daemons/clvmd/Makefile.in,v
 retrieving revision 1.10
 diff -u -p -r1.10 Makefile.in
 --- daemons/clvmd/Makefile.in	21 Feb 2005 15:58:06 -0000	1.10
-+++ daemons/clvmd/Makefile.in	16 Sep 2005 10:59:25 -0000
++++ daemons/clvmd/Makefile.in	20 Sep 2005 16:22:16 -0000
 @@ -46,7 +46,7 @@ endif
  
  ifeq ("$(CMAN)", "yes")
@@ -26,14 +26,15 @@ RCS file: /cvs/lvm2/LVM2/daemons/clvmd/clvmd-cman.c,v
 retrieving revision 1.11
 diff -u -p -r1.11 clvmd-cman.c
 --- daemons/clvmd/clvmd-cman.c	7 Mar 2005 17:03:44 -0000	1.11
-+++ daemons/clvmd/clvmd-cman.c	16 Sep 2005 10:59:25 -0000
-@@ -46,19 +46,23 @@
++++ daemons/clvmd/clvmd-cman.c	20 Sep 2005 16:22:16 -0000
+@@ -46,19 +46,24 @@
  
  #define LOCKSPACE_NAME "clvmd"
  
 -static int cluster_sock;
  static int num_nodes;
 -static struct cl_cluster_node *nodes = NULL;
++static int is_quorate;
 +static struct cman_node *nodes = NULL;
 +static struct cman_node this_node;
  static int count_nodes; /* size of allocated nodes array */
@@ -53,7 +54,7 @@ diff -u -p -r1.11 clvmd-cman.c
  
  struct lock_wait {
  	pthread_cond_t cond;
-@@ -68,30 +72,23 @@ struct lock_wait {
+@@ -68,30 +73,23 @@ struct lock_wait {
  
  static int _init_cluster(void)
  {
@@ -93,7 +94,7 @@ diff -u -p -r1.11 clvmd-cman.c
  	/* Get the cluster members list */
  	get_members();
  	count_clvmds_running();
-@@ -114,63 +111,46 @@ static void _cluster_init_completed(void
+@@ -114,63 +112,47 @@ static void _cluster_init_completed(void
  
  static int _get_main_cluster_fd()
  {
@@ -144,7 +145,7 @@ diff -u -p -r1.11 clvmd-cman.c
 -		msg.msg_namelen = 0;
 -	}
 +	if (csid)
-+		memcpy(&nodeid, csid, MAX_CSID_LEN);
++		memcpy(&nodeid, csid, CMAN_MAX_CSID_LEN);
  
 -	do {
 -		len = sendmsg(cluster_sock, &msg, 0);
@@ -153,6 +154,7 @@ diff -u -p -r1.11 clvmd-cman.c
 -
 -	} while (len == -1 && errno == EAGAIN);
 -	return len;
++	DEBUGLOG("sending message to node %d\n", nodeid);
 +	if (cman_send_data(c_handle, buf, msglen, 0, CLUSTER_PORT_CLVMD, nodeid) <= 0)
 +	{
 +		log_error(errtext);
@@ -171,7 +173,7 @@ diff -u -p -r1.11 clvmd-cman.c
 +	if (this_node.cn_nodeid == 0) {
 +		cman_get_node(c_handle, 0, &this_node);
  	}
-+	memcpy(csid, &this_node.cn_nodeid, MAX_CSID_LEN);
++	memcpy(csid, &this_node.cn_nodeid, CMAN_MAX_CSID_LEN);
  }
  
 -/* Call a callback routine for each node that known (down mean not running a clvmd) */
@@ -179,7 +181,7 @@ diff -u -p -r1.11 clvmd-cman.c
  static int _cluster_do_node_callback(struct local_client *client,
  			     void (*callback) (struct local_client *, char *,
  					       int))
-@@ -179,8 +159,8 @@ static int _cluster_do_node_callback(str
+@@ -179,8 +161,8 @@ static int _cluster_do_node_callback(str
  	int somedown = 0;
  
  	for (i = 0; i < _get_num_nodes(); i++) {
@@ -190,7 +192,7 @@ diff -u -p -r1.11 clvmd-cman.c
  			somedown = -1;
  	}
  	return somedown;
-@@ -188,78 +168,49 @@ static int _cluster_do_node_callback(str
+@@ -188,78 +170,51 @@ static int _cluster_do_node_callback(str
  
  /* Process OOB message from the cluster socket,
     this currently just means that a node has stopped listening on our port */
@@ -234,7 +236,6 @@ diff -u -p -r1.11 clvmd-cman.c
 -	struct iovec iov[2];
 -	struct msghdr msg;
 -	struct sockaddr_cl saddr;
-+
 +	/* Save this for data_callback */
 +	cman_client = fd;
  
@@ -262,7 +263,7 @@ diff -u -p -r1.11 clvmd-cman.c
 -		log_error("read error on cluster socket: %m");
 -		return 0;
 -	}
-+	return cman_dispatch(c_handle, 0);
++	return cman_dispatch(c_handle, CMAN_DISPATCH_ALL);
 +}
  
 -	/* EOF - we have left the cluster */
@@ -286,11 +287,14 @@ diff -u -p -r1.11 clvmd-cman.c
 +static void data_callback(cman_handle_t handle, void *private,
 +			  char *buf, int len, uint8_t port, int nodeid)
 +{
-+    process_message(cman_client, buf, len, (char *)&nodeid);
++	DEBUGLOG("Data callback from node %d, %d bytes\n", nodeid, len);
++	/* Throw away our own messages */
++	if (nodeid != this_node.cn_nodeid)
++		process_message(cman_client, buf, len, (char *)&nodeid);
  }
  
  static void _add_up_node(char *csid)
-@@ -290,19 +241,15 @@ static void _cluster_closedown()
+@@ -290,19 +245,15 @@ static void _cluster_closedown()
  {
  	unlock_all();
  	dlm_release_lockspace(LOCKSPACE_NAME, lockspace, 1);
@@ -312,7 +316,7 @@ diff -u -p -r1.11 clvmd-cman.c
  		if (status < 0 && errno == EBUSY) {	/* Don't busywait */
  			sleep(1);
  			errno = EBUSY;	/* In case sleep trashes it */
-@@ -320,56 +267,49 @@ static void count_clvmds_running(void)
+@@ -320,57 +271,53 @@ static void count_clvmds_running(void)
  	int i;
  
  	for (i = 0; i < num_nodes; i++) {
@@ -351,16 +355,24 @@ diff -u -p -r1.11 clvmd-cman.c
 -		}
 -		nodelist.max_members = count_nodes;
 -		nodelist.nodes = nodes;
++	DEBUGLOG("get_members: node count = %d\n", num_nodes);
+ 
+-		num_nodes = ioctl(cluster_sock, SIOCCLUSTER_GETMEMBERS, &nodelist);
+-		if (num_nodes <= 0) {
+-		        log_error("Unable to get node details");
+-			exit(6);
+-		}
 +	/* Not enough room for new nodes list ? */
 +	if (num_nodes > count_nodes && nodes) {
 +		free(nodes);
 +		nodes = NULL;
 +	}
  
--		num_nodes = ioctl(cluster_sock, SIOCCLUSTER_GETMEMBERS, &nodelist);
--		if (num_nodes <= 0) {
--		        log_error("Unable to get node details");
--			exit(6);
+-		/* Sanity check struct */
+-		if (nodes[0].size != sizeof(struct cl_cluster_node)) {
+-			log_error
+-			    ("sizeof(cl_cluster_node) does not match size returned from the kernel: aborting\n");
+-			exit(10);
 +	if (nodes == NULL) {
 +		count_nodes = num_nodes + 10; /* Overallocate a little */
 +		nodes = malloc(count_nodes * sizeof(struct cman_node));
@@ -370,18 +382,6 @@ diff -u -p -r1.11 clvmd-cman.c
  		}
 +	}
  
--		/* Sanity check struct */
--		if (nodes[0].size != sizeof(struct cl_cluster_node)) {
--			log_error
--			    ("sizeof(cl_cluster_node) does not match size returned from the kernel: aborting\n");
--			exit(10);
--		}
-+	status = cman_get_nodes(c_handle, count_nodes, &retnodes, nodes);
-+	if (status < 0) {
-+		log_error("Unable to get node details");
-+		exit(6);
-+	}
- 
 -		if (node_updown == NULL) {
 -			node_updown =
 -			    (int *) malloc(sizeof(int) *
@@ -389,6 +389,12 @@ diff -u -p -r1.11 clvmd-cman.c
 -			memset(node_updown, 0,
 -			       sizeof(int) * max(num_nodes, max_updown_nodes));
 -		}
++	status = cman_get_nodes(c_handle, count_nodes, &retnodes, nodes);
++	if (status < 0) {
++		log_error("Unable to get node details");
++		exit(6);
++	}
++
 +	if (node_updown == NULL) {
 +		node_updown =
 +			(int *) malloc(sizeof(int) *
@@ -396,31 +402,33 @@ diff -u -p -r1.11 clvmd-cman.c
 +		memset(node_updown, 0,
 +		       sizeof(int) * max(num_nodes, max_updown_nodes));
  	}
++	is_quorate = cman_is_quorate(c_handle);
  }
  
-@@ -379,8 +319,8 @@ static int _csid_from_name(char *csid, c
+ /* Convert a node name to a CSID */
+@@ -379,8 +326,8 @@ static int _csid_from_name(char *csid, c
  	int i;
  
  	for (i = 0; i < num_nodes; i++) {
 -		if (strcmp(name, nodes[i].name) == 0) {
 -			memcpy(csid, &nodes[i].node_id, CMAN_MAX_CSID_LEN);
 +		if (strcmp(name, nodes[i].cn_name) == 0) {
-+			memcpy(csid, &nodes[i].cn_nodeid, MAX_CSID_LEN);
++			memcpy(csid, &nodes[i].cn_nodeid, CMAN_MAX_CSID_LEN);
  			return 0;
  		}
  	}
-@@ -393,8 +333,8 @@ static int _name_from_csid(char *csid, c
+@@ -393,8 +340,8 @@ static int _name_from_csid(char *csid, c
  	int i;
  
  	for (i = 0; i < num_nodes; i++) {
 -		if (memcmp(csid, &nodes[i].node_id, CMAN_MAX_CSID_LEN) == 0) {
 -			strcpy(name, nodes[i].name);
-+		if (memcmp(csid, &nodes[i].cn_nodeid, MAX_CSID_LEN) == 0) {
++		if (memcmp(csid, &nodes[i].cn_nodeid, CMAN_MAX_CSID_LEN) == 0) {
 +			strcpy(name, nodes[i].cn_name);
  			return 0;
  		}
  	}
-@@ -409,8 +349,8 @@ static int name_from_nodeid(int nodeid, 
+@@ -409,8 +356,8 @@ static int name_from_nodeid(int nodeid, 
  	int i;
  
  	for (i = 0; i < num_nodes; i++) {
@@ -431,12 +439,12 @@ diff -u -p -r1.11 clvmd-cman.c
  			return 0;
  		}
  	}
-@@ -431,7 +371,7 @@ static int nodeid_from_csid(char *csid)
+@@ -431,7 +378,7 @@ static int nodeid_from_csid(char *csid)
  
  static int _is_quorate()
  {
 -	return ioctl(cluster_sock, SIOCCLUSTER_ISQUORATE, 0);
-+	return cman_is_quorate(c_handle);
++	return is_quorate;
  }
  
  static void sync_ast_routine(void *arg)
@@ -446,7 +454,7 @@ RCS file: /cvs/lvm2/LVM2/daemons/clvmd/clvmd-comms.h,v
 retrieving revision 1.3
 diff -u -p -r1.3 clvmd-comms.h
 --- daemons/clvmd/clvmd-comms.h	19 Apr 2005 10:36:42 -0000	1.3
-+++ daemons/clvmd/clvmd-comms.h	16 Sep 2005 10:59:25 -0000
++++ daemons/clvmd/clvmd-comms.h	20 Sep 2005 16:22:16 -0000
 @@ -56,7 +56,10 @@ struct cluster_ops *init_gulm_cluster(vo
  #endif
  
