@@ -42,19 +42,19 @@ test_block_list: block_list.o bitmap.o log.o test_block_list.o
 test_bitmap: bitmap.o test_bitmap.o log.o
 	$(CC) $(CFLAGS) $^ -o $@
 clean:
-	@rm -f *.o *~
+	@rm -f gfs2_fsck *.o *~
 
-copytobin: gfs_fsck
-	cp gfs_fsck ${top_srcdir}/bin
+copytobin: gfs2_fsck
+	cp gfs2_fsck ${top_srcdir}/bin
 
 distclean: clean
-	@rm -f *.d cscope.* gfs_fsck test_inode_list *.orig *.rej test_block_list test_bitmap
+	@rm -f *.d cscope.* gfs2_fsck test_inode_list *.orig *.rej test_block_list test_bitmap
 
 
-gfs_fsck.pot: $(sources)
+gfs2_fsck.pot: $(sources)
 	@xgettext -C -F --keyword=print_log --keyword=log_debug --keyword=log_info --keyword=_ \
 	 --keyword=log_notice --keyword=log_warn --keyword=log_err --keyword=log_crit \
-	 --keyword=log_debug --keyword=log_err --keyword=log_print -d - $(sources) > gfs_fsck.pot	
+	 --keyword=log_debug --keyword=log_err --keyword=log_print -d - $(sources) > gfs2_fsck.pot	
 
 
 -include $(sources:.c=.d)
