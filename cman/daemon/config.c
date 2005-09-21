@@ -18,19 +18,17 @@
 
 /* Config file defaults */
 
-#define HZ 100
-
 /* Copied from totemconfig.c */
 #define DEF_TOKEN_RETRANSMITS_BEFORE_LOSS_CONST     4
 #define DEF_TOKEN_TIMEOUT                           1000
-#define DEF_TOKEN_RETRANSMIT_TIMEOUT                (int)(TOKEN_TIMEOUT / (TOKEN_RETRANSMITS_BEFORE_LOSS_CONST + 0.2))
-#define DEF_TOKEN_HOLD_TIMEOUT                      (int)(TOKEN_RETRANSMIT_TIMEOUT * 0.8 - (1000/HZ))
+#define DEF_TOKEN_RETRANSMIT_TIMEOUT                238
+#define DEF_TOKEN_HOLD_TIMEOUT                      190
 #define DEF_JOIN_TIMEOUT                            100
 #define DEF_CONSENSUS_TIMEOUT                       200
 #define DEF_MERGE_TIMEOUT                           200
 #define DEF_DOWNCHECK_TIMEOUT                       1000
 #define DEF_FAIL_TO_RECV_CONST                      10
-#define DEF_SEQNO_UNCHANGED_CONST                   3000
+#define DEF_SEQNO_UNCHANGED_CONST                   30
 #define DEF_DEBUG_MASK                              0xff
 
 struct config_entry cman_config[] = {
