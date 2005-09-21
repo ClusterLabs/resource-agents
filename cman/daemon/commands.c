@@ -265,7 +265,7 @@ static void recalculate_quorum(int allow_decrease)
 static void copy_to_usernode(struct cluster_node *node,
 			     struct cl_cluster_node *unode)
 {
-	struct sockaddr_storage *ss;
+	struct sockaddr_storage ss;
 	int addrlen;
 
 	strcpy(unode->name, node->name);
@@ -278,8 +278,8 @@ static void copy_to_usernode(struct cluster_node *node,
 	unode->leave_reason = node->leave_reason;
 	unode->incarnation = node->incarnation;
 
-	ss = (struct sockaddr_storage *)unode->addr;
-	totemip_totemip_to_sockaddr_convert(&node->ais_node, 0, ss, &addrlen);
+	totemip_totemip_to_sockaddr_convert(&node->ais_node, 0, &ss, &addrlen);
+	memcpy(unode->addr, &ss, addrlen);
 }
 
 
