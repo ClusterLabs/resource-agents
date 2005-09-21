@@ -304,8 +304,8 @@ static cman_handle_t open_socket(const char *name, int namelen, void *private)
 		int saved_errno = errno;
 		close(h->fd);
 		free(h);
-		h = NULL;
 		errno = saved_errno;
+		return NULL;
 	}
 
 	/* Get a handle on /dev/zero too. This is always active so we
