@@ -10,7 +10,7 @@ RCS file: /cvs/lvm2/LVM2/daemons/clvmd/Makefile.in,v
 retrieving revision 1.10
 diff -u -p -r1.10 Makefile.in
 --- daemons/clvmd/Makefile.in	21 Feb 2005 15:58:06 -0000	1.10
-+++ daemons/clvmd/Makefile.in	20 Sep 2005 16:22:16 -0000
++++ daemons/clvmd/Makefile.in	21 Sep 2005 08:05:26 -0000
 @@ -46,7 +46,7 @@ endif
  
  ifeq ("$(CMAN)", "yes")
@@ -26,7 +26,7 @@ RCS file: /cvs/lvm2/LVM2/daemons/clvmd/clvmd-cman.c,v
 retrieving revision 1.11
 diff -u -p -r1.11 clvmd-cman.c
 --- daemons/clvmd/clvmd-cman.c	7 Mar 2005 17:03:44 -0000	1.11
-+++ daemons/clvmd/clvmd-cman.c	20 Sep 2005 16:22:16 -0000
++++ daemons/clvmd/clvmd-cman.c	21 Sep 2005 08:05:26 -0000
 @@ -46,19 +46,24 @@
  
  #define LOCKSPACE_NAME "clvmd"
@@ -454,7 +454,7 @@ RCS file: /cvs/lvm2/LVM2/daemons/clvmd/clvmd-comms.h,v
 retrieving revision 1.3
 diff -u -p -r1.3 clvmd-comms.h
 --- daemons/clvmd/clvmd-comms.h	19 Apr 2005 10:36:42 -0000	1.3
-+++ daemons/clvmd/clvmd-comms.h	20 Sep 2005 16:22:16 -0000
++++ daemons/clvmd/clvmd-comms.h	21 Sep 2005 08:05:26 -0000
 @@ -56,7 +56,10 @@ struct cluster_ops *init_gulm_cluster(vo
  #endif
  
@@ -467,3 +467,20 @@ diff -u -p -r1.3 clvmd-comms.h
  #  define CMAN_MAX_CSID_LEN 4
  #  ifndef MAX_CSID_LEN
  #    define MAX_CSID_LEN CMAN_MAX_CSID_LEN
+Index: daemons/clvmd/clvmd.c
+===================================================================
+RCS file: /cvs/lvm2/LVM2/daemons/clvmd/clvmd.c,v
+retrieving revision 1.25
+diff -u -p -r1.25 clvmd.c
+--- daemons/clvmd/clvmd.c	9 Aug 2005 10:39:57 -0000	1.25
++++ daemons/clvmd/clvmd.c	21 Sep 2005 08:05:26 -0000
+@@ -508,6 +508,9 @@ static void main_loop(int local_sock, in
+ 		struct timeval tv = { cmd_timeout, 0 };
+ 		int quorate = clops->is_quorate();
+ 
++		/* Make sure this is up-to-date */
++		local_client_head.fd = clops->get_main_cluster_fd();
++
+ 		/* Wait on the cluster FD and all local sockets/pipes */
+ 		FD_ZERO(&in);
+ 		for (thisfd = &local_client_head; thisfd != NULL;
