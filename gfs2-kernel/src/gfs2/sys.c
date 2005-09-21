@@ -25,17 +25,17 @@
 char *gfs2_sys_margs;
 spinlock_t gfs2_sys_margs_lock;
 
-static ssize_t gfs2_id_show(struct gfs2_sbd *sdp, char *buf)
+static ssize_t id_show(struct gfs2_sbd *sdp, char *buf)
 {
 	return sprintf(buf, "%s\n", sdp->sd_vfs->s_id);
 }
 
-static ssize_t gfs2_fsname_show(struct gfs2_sbd *sdp, char *buf)
+static ssize_t fsname_show(struct gfs2_sbd *sdp, char *buf)
 {
 	return sprintf(buf, "%s\n", sdp->sd_fsname);
 }
 
-static ssize_t gfs2_freeze_show(struct gfs2_sbd *sdp, char *buf)
+static ssize_t freeze_show(struct gfs2_sbd *sdp, char *buf)
 {
 	unsigned int count;
 
@@ -46,8 +46,7 @@ static ssize_t gfs2_freeze_show(struct gfs2_sbd *sdp, char *buf)
 	return sprintf(buf, "%u\n", count);
 }
 
-static ssize_t gfs2_freeze_store(struct gfs2_sbd *sdp, const char *buf,
-				 size_t len)
+static ssize_t freeze_store(struct gfs2_sbd *sdp, const char *buf, size_t len)
 {
 	ssize_t ret = len;
 	int error = 0;
@@ -70,14 +69,13 @@ static ssize_t gfs2_freeze_store(struct gfs2_sbd *sdp, const char *buf,
 	return ret;
 }
 
-static ssize_t gfs2_withdraw_show(struct gfs2_sbd *sdp, char *buf)
+static ssize_t withdraw_show(struct gfs2_sbd *sdp, char *buf)
 {
 	unsigned int b = test_bit(SDF_SHUTDOWN, &sdp->sd_flags);
 	return sprintf(buf, "%u\n", b);
 }
 
-static ssize_t gfs2_withdraw_store(struct gfs2_sbd *sdp, const char *buf,
-				   size_t len)
+static ssize_t withdraw_store(struct gfs2_sbd *sdp, const char *buf, size_t len)
 {
 	ssize_t ret = len;
 	int n = simple_strtol(buf, NULL, 0);
@@ -94,39 +92,48 @@ static ssize_t gfs2_withdraw_store(struct gfs2_sbd *sdp, const char *buf,
 	return ret;
 }
 
+static ssize_t statfs_show(struct gfs2_sbd *sdp, char *buf)
+{
+	struct gfs2_statfs_change sc;
+	int rv;
+
+	if (gfs2_tune_get(sdp, gt_statfs_slow))
+		rv = gfs2_statfs_slow(sdp, &sc);
+	else
+		rv = gfs2_statfs_i(sdp, &sc);
+
+	if (rv)
+		goto out;
+
+	rv += sprintf(buf + rv, "bsize %u\n", sdp->sd_sb.sb_bsize);
+	rv += sprintf(buf + rv, "total %lld\n", sc.sc_total);
+	rv += sprintf(buf + rv, "free %lld\n", sc.sc_free);
+	rv += sprintf(buf + rv, "dinodes %lld\n", sc.sc_dinodes);
+ out:
+	return rv;
+}
+
 struct gfs2_attr {
 	struct attribute attr;
-	ssize_t (*show)(struct gfs2_sbd*, char *);
-	ssize_t (*store)(struct gfs2_sbd*, const char *, size_t);
+	ssize_t (*show)(struct gfs2_sbd *, char *);
+	ssize_t (*store)(struct gfs2_sbd *, const char *, size_t);
 };
 
-static struct gfs2_attr gfs2_attr_id = {
-	.attr = {.name = "id", .mode = S_IRUSR},
-	.show = gfs2_id_show
-};
+#define GFS2_ATTR(name, mode, show, store) \
+static struct gfs2_attr gfs2_attr_##name = __ATTR(name, mode, show, store)
 
-static struct gfs2_attr gfs2_attr_fsname = {
-	.attr = {.name = "fsname", .mode = S_IRUSR},
-	.show = gfs2_fsname_show
-};
-
-static struct gfs2_attr gfs2_attr_freeze = {
-	.attr  = {.name = "freeze", .mode = S_IRUSR | S_IWUSR},
-	.show  = gfs2_freeze_show,
-	.store = gfs2_freeze_store
-};
-
-static struct gfs2_attr gfs2_attr_withdraw = {
-	.attr  = {.name = "withdraw", .mode = S_IRUSR | S_IWUSR},
-	.show  = gfs2_withdraw_show,
-	.store = gfs2_withdraw_store
-};
+GFS2_ATTR(id,       0444, id_show,       NULL);
+GFS2_ATTR(fsname,   0444, fsname_show,   NULL);
+GFS2_ATTR(freeze,   0644, freeze_show,   freeze_store);
+GFS2_ATTR(withdraw, 0644, withdraw_show, withdraw_store);
+GFS2_ATTR(statfs,   0444, statfs_show,   NULL);
 
 static struct attribute *gfs2_attrs[] = {
 	&gfs2_attr_id.attr,
 	&gfs2_attr_fsname.attr,
 	&gfs2_attr_freeze.attr,
 	&gfs2_attr_withdraw.attr,
+	&gfs2_attr_statfs.attr,
 	NULL,
 };
 
@@ -164,24 +171,404 @@ static struct kset gfs2_kset = {
 	.ktype  = &gfs2_ktype,
 };
 
+/*
+ * display struct lm_lockstruct fields
+ */
+
+struct lockstruct_attr {
+	struct attribute attr;
+	ssize_t (*show)(struct gfs2_sbd *, char *);
+};
+
+#define LOCKSTRUCT_ATTR(name, fmt)                                          \
+static ssize_t name##_show(struct gfs2_sbd *sdp, char *buf)                 \
+{                                                                           \
+	return sprintf(buf, fmt, sdp->sd_lockstruct.ls_##name);             \
+}                                                                           \
+static struct lockstruct_attr lockstruct_attr_##name = __ATTR_RO(name)
+
+LOCKSTRUCT_ATTR(jid,      "%u\n");
+LOCKSTRUCT_ATTR(first,    "%u\n");
+LOCKSTRUCT_ATTR(lvb_size, "%u\n");
+LOCKSTRUCT_ATTR(flags,    "%d\n");
+
+static struct attribute *lockstruct_attrs[] = {
+	&lockstruct_attr_jid.attr,
+	&lockstruct_attr_first.attr,
+	&lockstruct_attr_lvb_size.attr,
+	&lockstruct_attr_flags.attr,
+	NULL
+};
+
+/*
+ * display struct gfs2_args fields
+ */
+
+struct args_attr {
+	struct attribute attr;
+	ssize_t (*show)(struct gfs2_sbd *, char *);
+};
+
+#define ARGS_ATTR(name, fmt)                                                \
+static ssize_t name##_show(struct gfs2_sbd *sdp, char *buf)                 \
+{                                                                           \
+	return sprintf(buf, fmt, sdp->sd_args.ar_##name);                   \
+}                                                                           \
+static struct args_attr args_attr_##name = __ATTR_RO(name)
+
+ARGS_ATTR(lockproto,       "%s\n");
+ARGS_ATTR(locktable,       "%s\n");
+ARGS_ATTR(hostdata,        "%s\n");
+ARGS_ATTR(spectator,       "%d\n");
+ARGS_ATTR(ignore_local_fs, "%d\n");
+ARGS_ATTR(localcaching,    "%d\n");
+ARGS_ATTR(localflocks,     "%d\n");
+ARGS_ATTR(debug,           "%d\n");
+ARGS_ATTR(upgrade,         "%d\n");
+ARGS_ATTR(num_glockd,      "%u\n");
+ARGS_ATTR(posix_acl,       "%d\n");
+ARGS_ATTR(quota,           "%u\n");
+ARGS_ATTR(suiddir,         "%d\n");
+ARGS_ATTR(data,            "%d\n");
+
+/* one oddball doesn't fit the macro mold */
+static ssize_t noatime_show(struct gfs2_sbd *sdp, char *buf)
+{
+	return sprintf(buf, "%d\n", !!test_bit(SDF_NOATIME, &sdp->sd_flags));
+}
+static struct args_attr args_attr_noatime = __ATTR_RO(noatime);
+
+static struct attribute *args_attrs[] = {
+	&args_attr_lockproto.attr,
+	&args_attr_locktable.attr,
+	&args_attr_hostdata.attr,
+	&args_attr_spectator.attr,
+	&args_attr_ignore_local_fs.attr,
+	&args_attr_localcaching.attr,
+	&args_attr_localflocks.attr,
+	&args_attr_debug.attr,
+	&args_attr_upgrade.attr,
+	&args_attr_num_glockd.attr,
+	&args_attr_posix_acl.attr,
+	&args_attr_quota.attr,
+	&args_attr_suiddir.attr,
+	&args_attr_data.attr,
+	&args_attr_noatime.attr,
+	NULL
+};
+
+/*
+ * display counters from superblock
+ */
+
+struct counters_attr {
+	struct attribute attr;
+	ssize_t (*show)(struct gfs2_sbd *, char *);
+};
+
+#define COUNTERS_ATTR_GENERAL(name, fmt, val)                               \
+static ssize_t name##_show(struct gfs2_sbd *sdp, char *buf)                 \
+{                                                                           \
+	return sprintf(buf, fmt, val);                                      \
+}                                                                           \
+static struct counters_attr counters_attr_##name = __ATTR_RO(name)
+
+#define COUNTERS_ATTR_SIMPLE(name, fmt) \
+	COUNTERS_ATTR_GENERAL(name, fmt, sdp->sd_##name)
+
+#define COUNTERS_ATTR_ATOMIC(name, fmt) \
+	COUNTERS_ATTR_GENERAL(name, fmt, (unsigned int)atomic_read(&sdp->sd_##name))
+
+COUNTERS_ATTR_ATOMIC(glock_count,          "%u\n");
+COUNTERS_ATTR_ATOMIC(glock_held_count,     "%u\n");
+COUNTERS_ATTR_ATOMIC(inode_count,          "%u\n");
+COUNTERS_ATTR_ATOMIC(bufdata_count,        "%u\n");
+COUNTERS_ATTR_ATOMIC(unlinked_count,       "%u\n");
+COUNTERS_ATTR_ATOMIC(quota_count,          "%u\n");
+COUNTERS_ATTR_SIMPLE(log_num_gl,           "%u\n");
+COUNTERS_ATTR_SIMPLE(log_num_buf,          "%u\n");
+COUNTERS_ATTR_SIMPLE(log_num_revoke,       "%u\n");
+COUNTERS_ATTR_SIMPLE(log_num_rg,           "%u\n");
+COUNTERS_ATTR_SIMPLE(log_num_databuf,      "%u\n");
+COUNTERS_ATTR_SIMPLE(log_blks_free,        "%u\n");
+COUNTERS_ATTR_GENERAL(jd_blocks,           "%u\n", sdp->sd_jdesc->jd_blocks);
+COUNTERS_ATTR_ATOMIC(reclaim_count,        "%u\n");
+COUNTERS_ATTR_SIMPLE(log_wraps,            "%llu\n");
+COUNTERS_ATTR_ATOMIC(fh2dentry_misses,     "%u\n");
+COUNTERS_ATTR_ATOMIC(reclaimed,            "%u\n");
+COUNTERS_ATTR_ATOMIC(log_flush_incore,     "%u\n");
+COUNTERS_ATTR_ATOMIC(log_flush_ondisk,     "%u\n");
+COUNTERS_ATTR_ATOMIC(glock_nq_calls,       "%u\n");
+COUNTERS_ATTR_ATOMIC(glock_dq_calls,       "%u\n");
+COUNTERS_ATTR_ATOMIC(glock_prefetch_calls, "%u\n");
+COUNTERS_ATTR_ATOMIC(lm_lock_calls,        "%u\n");
+COUNTERS_ATTR_ATOMIC(lm_unlock_calls,      "%u\n");
+COUNTERS_ATTR_ATOMIC(lm_callbacks,         "%u\n");
+COUNTERS_ATTR_ATOMIC(ops_address,          "%u\n");
+COUNTERS_ATTR_ATOMIC(ops_dentry,           "%u\n");
+COUNTERS_ATTR_ATOMIC(ops_export,           "%u\n");
+COUNTERS_ATTR_ATOMIC(ops_file,             "%u\n");
+COUNTERS_ATTR_ATOMIC(ops_inode,            "%u\n");
+COUNTERS_ATTR_ATOMIC(ops_super,            "%u\n");
+COUNTERS_ATTR_ATOMIC(ops_vm,               "%u\n");
+
+static struct attribute *counters_attrs[] = {
+	&counters_attr_glock_count.attr,
+	&counters_attr_glock_held_count.attr,
+	&counters_attr_inode_count.attr,
+	&counters_attr_bufdata_count.attr,
+	&counters_attr_unlinked_count.attr,
+	&counters_attr_quota_count.attr,
+	&counters_attr_log_num_gl.attr,
+	&counters_attr_log_num_buf.attr,
+	&counters_attr_log_num_revoke.attr,
+	&counters_attr_log_num_rg.attr,
+	&counters_attr_log_num_databuf.attr,
+	&counters_attr_log_blks_free.attr,
+	&counters_attr_jd_blocks.attr,
+	&counters_attr_reclaim_count.attr,
+	&counters_attr_log_wraps.attr,
+	&counters_attr_fh2dentry_misses.attr,
+	&counters_attr_reclaimed.attr,
+	&counters_attr_log_flush_incore.attr,
+	&counters_attr_log_flush_ondisk.attr,
+	&counters_attr_glock_nq_calls.attr,
+	&counters_attr_glock_dq_calls.attr,
+	&counters_attr_glock_prefetch_calls.attr,
+	&counters_attr_lm_lock_calls.attr,
+	&counters_attr_lm_unlock_calls.attr,
+	&counters_attr_lm_callbacks.attr,
+	&counters_attr_ops_address.attr,
+	&counters_attr_ops_dentry.attr,
+	&counters_attr_ops_export.attr,
+	&counters_attr_ops_file.attr,
+	&counters_attr_ops_inode.attr,
+	&counters_attr_ops_super.attr,
+	&counters_attr_ops_vm.attr,
+	NULL
+};
+
+/*
+ * get and set struct gfs2_tune fields
+ */
+
+static ssize_t quota_scale_show(struct gfs2_sbd *sdp, char *buf)
+{
+	return sprintf(buf, "%u %u\n", sdp->sd_tune.gt_quota_scale_num,
+				       sdp->sd_tune.gt_quota_scale_den);
+}
+
+static ssize_t quota_scale_store(struct gfs2_sbd *sdp, const char *buf,
+				 size_t len)
+{
+	struct gfs2_tune *gt = &sdp->sd_tune;
+	unsigned int x, y;
+
+	if (!capable(CAP_SYS_ADMIN))
+		return -EACCES;
+
+	if (sscanf(buf, "%u %u", &x, &y) != 2 || !y)
+		return -EINVAL;
+
+	spin_lock(&gt->gt_spin);
+	gt->gt_quota_scale_num = x;
+	gt->gt_quota_scale_den = y;
+	spin_unlock(&gt->gt_spin);
+	return len;
+}
+
+static ssize_t tune_set(struct gfs2_sbd *sdp, unsigned int *field,
+			int check_zero, const char *buf, size_t len)
+{
+	struct gfs2_tune *gt = &sdp->sd_tune;
+	unsigned int x;
+
+	if (!capable(CAP_SYS_ADMIN))
+		return -EACCES;
+
+	x = simple_strtoul(buf, NULL, 0);
+
+	if (check_zero && !x)
+		return -EINVAL;
+
+	spin_lock(&gt->gt_spin);
+	*field = x;
+	spin_unlock(&gt->gt_spin);
+	return len;
+}
+
+struct tune_attr {
+	struct attribute attr;
+	ssize_t (*show)(struct gfs2_sbd *, char *);
+	ssize_t (*store)(struct gfs2_sbd *, const char *, size_t);
+};
+
+#define TUNE_ATTR_3(name, show, store)                                        \
+static struct tune_attr tune_attr_##name = __ATTR(name, 0644, show, store)
+
+#define TUNE_ATTR_2(name, store)                                              \
+static ssize_t name##_show(struct gfs2_sbd *sdp, char *buf)                   \
+{                                                                             \
+	return sprintf(buf, "%u\n", sdp->sd_tune.gt_##name);                  \
+}                                                                             \
+TUNE_ATTR_3(name, name##_show, store)
+
+#define TUNE_ATTR(name, check_zero)                                           \
+static ssize_t name##_store(struct gfs2_sbd *sdp, const char *buf, size_t len)\
+{                                                                             \
+	return tune_set(sdp, &sdp->sd_tune.gt_##name, check_zero, buf, len);  \
+}                                                                             \
+TUNE_ATTR_2(name, name##_store)
+
+#define TUNE_ATTR_DAEMON(name, process)                                       \
+static ssize_t name##_store(struct gfs2_sbd *sdp, const char *buf, size_t len)\
+{                                                                             \
+	ssize_t r = tune_set(sdp, &sdp->sd_tune.gt_##name, 1, buf, len);      \
+	wake_up_process(sdp->sd_##process);                                   \
+	return r;                                                             \
+}                                                                             \
+TUNE_ATTR_2(name, name##_store)
+
+TUNE_ATTR(ilimit, 0);
+TUNE_ATTR(ilimit_tries, 0);
+TUNE_ATTR(ilimit_min, 0);
+TUNE_ATTR(demote_secs, 0);
+TUNE_ATTR(incore_log_blocks, 0);
+TUNE_ATTR(log_flush_secs, 0);
+TUNE_ATTR(jindex_refresh_secs, 0);
+TUNE_ATTR(quota_warn_period, 0);
+TUNE_ATTR(quota_quantum, 0);
+TUNE_ATTR(atime_quantum, 0);
+TUNE_ATTR(max_readahead, 0);
+TUNE_ATTR(complain_secs, 0);
+TUNE_ATTR(reclaim_limit, 0);
+TUNE_ATTR(prefetch_secs, 0);
+TUNE_ATTR(statfs_slow, 0);
+TUNE_ATTR(new_files_jdata, 0);
+TUNE_ATTR(new_files_directio, 0);
+TUNE_ATTR(quota_simul_sync, 1);
+TUNE_ATTR(quota_cache_secs, 1);
+TUNE_ATTR(max_atomic_write, 1);
+TUNE_ATTR(stall_secs, 1);
+TUNE_ATTR(entries_per_readdir, 1);
+TUNE_ATTR(greedy_default, 1);
+TUNE_ATTR(greedy_quantum, 1);
+TUNE_ATTR(greedy_max, 1);
+TUNE_ATTR(statfs_quantum, 1);
+TUNE_ATTR_DAEMON(scand_secs, scand_process);
+TUNE_ATTR_DAEMON(recoverd_secs, recoverd_process);
+TUNE_ATTR_DAEMON(logd_secs, logd_process);
+TUNE_ATTR_DAEMON(quotad_secs, quotad_process);
+TUNE_ATTR_DAEMON(inoded_secs, inoded_process);
+TUNE_ATTR_3(quota_scale, quota_scale_show, quota_scale_store);
+
+static struct attribute *tune_attrs[] = {
+	&tune_attr_ilimit.attr,
+	&tune_attr_ilimit_tries.attr,
+	&tune_attr_ilimit_min.attr,
+	&tune_attr_demote_secs.attr,
+	&tune_attr_incore_log_blocks.attr,
+	&tune_attr_log_flush_secs.attr,
+	&tune_attr_jindex_refresh_secs.attr,
+	&tune_attr_quota_warn_period.attr,
+	&tune_attr_quota_quantum.attr,
+	&tune_attr_atime_quantum.attr,
+	&tune_attr_max_readahead.attr,
+	&tune_attr_complain_secs.attr,
+	&tune_attr_reclaim_limit.attr,
+	&tune_attr_prefetch_secs.attr,
+	&tune_attr_statfs_slow.attr,
+	&tune_attr_quota_simul_sync.attr,
+	&tune_attr_quota_cache_secs.attr,
+	&tune_attr_max_atomic_write.attr,
+	&tune_attr_stall_secs.attr,
+	&tune_attr_entries_per_readdir.attr,
+	&tune_attr_greedy_default.attr,
+	&tune_attr_greedy_quantum.attr,
+	&tune_attr_greedy_max.attr,
+	&tune_attr_statfs_quantum.attr,
+	&tune_attr_scand_secs.attr,
+	&tune_attr_recoverd_secs.attr,
+	&tune_attr_logd_secs.attr,
+	&tune_attr_quotad_secs.attr,
+	&tune_attr_inoded_secs.attr,
+	&tune_attr_quota_scale.attr,
+	&tune_attr_new_files_jdata.attr,
+	&tune_attr_new_files_directio.attr,
+	NULL
+};
+
+static struct attribute_group lockstruct_group = {
+	.name = "lockstruct",
+	.attrs = lockstruct_attrs
+};
+
+static struct attribute_group counters_group = {
+	.name = "counters",
+	.attrs = counters_attrs
+};
+
+static struct attribute_group args_group = {
+	.name = "args",
+	.attrs = args_attrs
+};
+
+static struct attribute_group tune_group = {
+	.name = "tune",
+	.attrs = tune_attrs
+};
+
 int gfs2_sys_fs_add(struct gfs2_sbd *sdp)
 {
 	int error;
 
-	error = kobject_set_name(&sdp->sd_kobj, "%s", sdp->sd_fsname);
-	if (error)
-		goto out;
-
 	sdp->sd_kobj.kset = &gfs2_kset;
 	sdp->sd_kobj.ktype = &gfs2_ktype;
 
+	error = kobject_set_name(&sdp->sd_kobj, "%s", sdp->sd_fsname);
+	if (error)
+		goto fail;
+
 	error = kobject_register(&sdp->sd_kobj);
- out:
+	if (error)
+		goto fail;
+
+	error = sysfs_create_group(&sdp->sd_kobj, &lockstruct_group);
+	if (error)
+		goto fail_reg;
+
+	error = sysfs_create_group(&sdp->sd_kobj, &counters_group);
+	if (error)
+		goto fail_lockstruct;
+
+	error = sysfs_create_group(&sdp->sd_kobj, &args_group);
+	if (error)
+		goto fail_counters;
+
+	error = sysfs_create_group(&sdp->sd_kobj, &tune_group);
+	if (error)
+		goto fail_args;
+
+	return 0;
+
+ fail_args:
+	sysfs_remove_group(&sdp->sd_kobj, &args_group);
+ fail_counters:
+	sysfs_remove_group(&sdp->sd_kobj, &counters_group);
+ fail_lockstruct:
+	sysfs_remove_group(&sdp->sd_kobj, &lockstruct_group);
+ fail_reg:
+	kobject_unregister(&sdp->sd_kobj);
+ fail:
 	return error;
 }
 
 void gfs2_sys_fs_del(struct gfs2_sbd *sdp)
 {
+	sysfs_remove_group(&sdp->sd_kobj, &tune_group);
+	sysfs_remove_group(&sdp->sd_kobj, &args_group);
+	sysfs_remove_group(&sdp->sd_kobj, &counters_group);
+	sysfs_remove_group(&sdp->sd_kobj, &lockstruct_group);
 	kobject_unregister(&sdp->sd_kobj);
 }
 

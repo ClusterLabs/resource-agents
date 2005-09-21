@@ -1227,9 +1227,8 @@ static int gfs2_open(struct inode *inode, struct file *file)
 	set_v2fp(file, fp);
 
 	if (S_ISREG(ip->i_di.di_mode)) {
-		error = gfs2_glock_nq_init(ip->i_gl,
-					  LM_ST_SHARED, LM_FLAG_ANY,
-					  &i_gh);
+		error = gfs2_glock_nq_init(ip->i_gl, LM_ST_SHARED, LM_FLAG_ANY,
+					   &i_gh);
 		if (error)
 			goto fail;
 
