@@ -44,6 +44,7 @@ struct cman_handle
 {
 	int magic;
 	int fd;
+	int zero_fd;
 	void *private;
 	int want_reply;
 	cman_callback_t event_callback;
@@ -307,6 +308,18 @@ static cman_handle_t open_socket(const char *name, int namelen, void *private)
 		errno = saved_errno;
 	}
 
+	/* Get a handle on /dev/zero too. This is always active so we
+	   can return it from cman_get_fd() if we have cached messages */
+	h->zero_fd = open("/dev/zero", O_RDONLY);
+	if (h->zero_fd < 0)
+	{
+		int saved_errno = errno;
+		close(h->fd);
+		free(h);
+		h = NULL;
+		errno = saved_errno;
+	}
+
 	return (cman_handle_t)h;
 }
 
@@ -327,6 +340,7 @@ int cman_finish(cman_handle_t handle)
 
 	h->magic = 0;
 	close(h->fd);
+	close(h->zero_fd);
 	free(h);
 
 	return 0;
@@ -364,7 +378,12 @@ int cman_get_fd(cman_handle_t handle)
 	struct cman_handle *h = (struct cman_handle *)handle;
 	VALIDATE_HANDLE(h);
 
-	return h->fd;
+	/* If we have saved messages then return an FD to /dev/zero which
+	   will always be readable */
+	if (h->saved_data_msg || h->saved_event_msg || h->saved_reply_msg)
+		return h->zero_fd;
+	else
+		return h->fd;
 }
 
 int cman_dispatch(cman_handle_t handle, int flags)
@@ -466,7 +485,7 @@ int cman_dispatch(cman_handle_t handle, int flags)
 
 		if (res)
 			break;
-	
+
 	} while ( flags & CMAN_DISPATCH_ALL &&
 		  (len < 0 && errno == EAGAIN) );
 
@@ -479,7 +498,7 @@ int cman_get_node_count(cman_handle_t handle)
 	struct cman_handle *h = (struct cman_handle *)handle;
 	VALIDATE_HANDLE(h);
 
-	return info_call(h, CMAN_CMD_GETNODECOUNT, NULL, 0, NULL, 0);
+	return info_call(h, CMAN_CMD_GETALLMEMBERS, NULL, 0, NULL, 0);
 }
 
 int cman_get_nodes(cman_handle_t handle, int maxnodes, int *retnodes, cman_node_t *nodes)
