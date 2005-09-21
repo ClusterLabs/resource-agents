@@ -21,8 +21,9 @@
 #include "totempg.h"
 #include "aispoll.h"
 #include "logging.h"
-
+#include "swab.h"
 #include "config.h"
+
 extern int our_nodeid();
 
 /* DLM Currently maxes out at 3 ! */
@@ -122,6 +123,12 @@ static void deliver_fn(struct totem_ip_address *source_addr, struct iovec *iovec
 	P_AIS("deliver_fn called, iov_len = %d, iov[0].len = %d, source=%s, conversion reqd=%d\n",
 	      iov_len, iovec->iov_len, totemip_print(source_addr), endian_conversion_required);
 
+	if (endian_conversion_required) {
+		header->srcid = swab32(header->srcid);
+		header->tgtid = swab32(header->tgtid);
+		header->flags = swab32(header->flags);
+	}
+	
 	/* Only pass on messages for us or everyone */
 	if (header->tgtid == our_nodeid() ||
 	    header->tgtid == 0) {
