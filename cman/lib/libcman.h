@@ -46,7 +46,7 @@ typedef void *cman_handle_t;
  * Reasons we get an event callback
  */
 typedef enum {CMAN_REASON_PORTCLOSED,
-	      CMAN_REASON_STATECHANGE
+	      CMAN_REASON_STATECHANGE,
               CMAN_REASON_PORTOPENED} cman_call_reason_t;
 
 /*
@@ -185,6 +185,8 @@ int cman_stop_notification(cman_handle_t handle);
 /*
  * Get the internal CMAN fd so you can pass it into poll() or select().
  * When it's active then call cman_dispatch() on the handle to process the event
+ * NOTE: This fd can change between calls to cman_dispatch() so always call this
+ * routine to get the latest one. (This is mainly due to message caching).
  */
 int cman_get_fd(cman_handle_t handle);
 int cman_dispatch(cman_handle_t handle, int flags);
