@@ -39,7 +39,7 @@ uninstall:
 
 clurgmgrd: rg_thread.o rg_locks.o main.o groups.o rg_state.o \
 		rg_queue.o members.o rg_forward.o reslist.o \
-		resrules.o restree.o fo_domain.o
+		resrules.o restree.o fo_domain.o watchdog.o
 	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS) $(LDFLAGS) -lccs
 
 #
