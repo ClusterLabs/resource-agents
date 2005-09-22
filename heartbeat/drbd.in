@@ -1,10 +1,11 @@
 #!/bin/sh
 #
-#	$Id: drbd.in,v 1.8 2005/09/22 10:35:55 lars Exp $
+#	$Id: drbd.in,v 1.9 2005/09/22 13:42:45 lars Exp $
 #
 #       OCF Resource Agent compliant drbd resource script.
 #
-# WARNING: This is proof of concept code and likely doesn't work at all!
+# WARNING: This is proof of concept code and still has a lot of open
+# TODOs.
 #
 # Copyright (c) 2004 - 2005 SUSE LINUX AG, Lars Marowsky-Brée
 #                    All Rights Reserved.
@@ -52,9 +53,6 @@ else
 	. @hb_libdir@/ocf-shellfuncs
 fi
 
-DRBDADM=""
-DRBDSETUP=""
-
 #######################################################################
 
 meta_data() {
@@ -62,7 +60,7 @@ meta_data() {
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="drbd">
-<version>1.0</version>
+<version>1.1</version>
 <parameters>
 <parameter name="drbd_resource" unique="1">
 <longdesc lang="en">
@@ -112,16 +110,16 @@ Maximum number of primaries per node. Do not fiddle with the default.
 <shortdesc lang="en">Number of primaries per node</shortdesc>
 <content type="integer" default="1"/>
 </parameter>
-
 </parameters>
 
 <actions>
-<action name="start"   timeout="90" />
+<action name="start"   timeout="240" />
 <action name="promote"   timeout="90" />
 <action name="demote"   timeout="90" />
 <action name="notify"   timeout="90" />
 <action name="stop"    timeout="100" />
-<action name="monitor" depth="0"  timeout="20" interval="10" start-delay="1m" />
+<action name="monitor" depth="0"  timeout="20" interval="20" start-delay="1m" role="Slave" />
+<action name="monitor" depth="0"  timeout="20" interval="10" start-delay="1m" role="Master" />
 <action name="meta-data"  timeout="5" />
 <action name="validate-all"  timeout="30" />
 </actions>
@@ -131,8 +129,20 @@ END
 	exit $OCF_SUCCESS
 }
 
+do_drbdadm() {
+	local cmd="$DRBDADM -c $DRBDCONF $*"
+	local ret=0
+	ocf_log debug "$RESOURCE: Calling $cmd"
+	$cmd
+	ret=$?
+	ocf_log debug "$RESOURCE: Exit code $ret"
+	return $ret
+}
+
 drbd_init() {
-	DRBDADM=`which drbdadm 2>/dev/null`
+	DRBDADM=$(which drbdadm 2>/dev/null)
+	CRM_MASTER=@hb_libdir@/crm_master
+	
 	if [ -z "$DRBDADM" -o ! -x "$DRBDADM" ]; then
 		ocf_log err "drbdadm not installed."
 		exit $OCF_ERR_INSTALLED
@@ -151,7 +161,6 @@ drbd_init() {
 		ocf_log err "Resource not running as a clone."
 		exit $OCF_ERR_CONFIGURED
 	fi
-	
 }
 
 
@@ -176,17 +185,20 @@ is_drbd_enabled () {
 
 
 drbd_get_status() {
-	DRBD_STATE=$($DRBDADM state $RESOURCE)
+	DRBD_STATE=$(do_drbdadm state $RESOURCE)
 	DRBD_STATE_LOCAL=$(echo $DRBD_STATE | sed -e 's#/.*##')
 	DRBD_STATE_REMOTE=$(echo $DRBD_STATE | sed -e 's#.*/##')
-	DRBD_CSTATE=$($DRBDADM cstate $RESOURCE)
+	DRBD_CSTATE=$(do_drbdadm cstate $RESOURCE)
 	ocf_log debug "$RESOURCE status: $DRBD_STATE $DRBD_STATE_LOCAL $DRBD_STATE_REMOTE $DRBD_CSTATE"
 	# SyncSource|PausedSyncS|WFBitMapS|SkippedSyncS)
 	# Diskless|Inconsistent)
+	# SyncTarget)
+	# Connected)
+	# WFConnection)
+	# StandAlone)
 }
 
 drbd_start() {
-	# TODO: Verify idempotency of drbdadm up
 	if is_drbd_enabled; then
 	    : OK
 	else
@@ -204,15 +216,37 @@ drbd_start() {
 		return $OCF_SUCCESS
 	fi
 
-	if $DRBDADM -c $DRBDCONF up $RESOURCE ; then
+	if do_drbdadm up $RESOURCE ; then
 		ocf_log debug "$RESOURCE start: succeeded."
 		return $OCF_SUCCESS
 	else
 		ocf_log err "$RESOURCE: Failed to start up."
 		return $OCF_ERR_GENERIC
 	fi
+	
+	do_drbdadm wait_connect $RESOURCE
+	
+	drbd_get_status
 
-	# TODO: Should we honor the wait connect here?
+	# TODO: This is probably way too complex.
+	case $DRBD_CSTATE in
+	Connected) 
+		$CRM_MASTER -v 75
+		;;
+	SyncSource|PausedSyncS|WFBitMapS|SkippedSyncS)
+		$CRM_MASTER -v 100
+		;;
+        # TODO:
+        # (Inconsistent || Diskless && WFConnection) should be -infinity
+	# This one implies we'll try to promote even on disconnected
+	# nodes, but that might not work.
+	WFConnection) 
+		$CRM_MASTER -v 10
+		;;
+	*)
+		$CRM_MASTER -v 5
+		;;
+	esac
 
 }
 
@@ -222,7 +256,7 @@ drbd_stop() {
 
 	# Do not bother if drbd is not enabled
 	if is_drbd_enabled; then
-		if $DRBDADM -c $DRBDCONF down $RESOURCE ; then
+		if do_drbdadm down $RESOURCE ; then
 			ocf_log debug "$RESOURCE stop: drbdadm down succeeded."
 			return $OCF_SUCCESS
 		else
@@ -245,6 +279,7 @@ drbd_monitor() {
 	    ocf_log warn "$RESOURCE monitor: drbd module not loaded"
 	    return $OCF_NOT_RUNNING
 	fi
+
 	drbd_get_status
 
 	if [ "$DRBD_STATE_LOCAL" == "Not configured" ]; then
@@ -285,7 +320,7 @@ drbd_promote() {
 		ocf_log debug "$RESOURCE promote: Not secondary to start with"
 		return $OCF_ERR_GENERIC
 	fi
-	if $DRBDADM -c $DRBDCONF primary $RESOURCE ; then
+	if do_drbdadm primary $RESOURCE ; then
 		ocf_log debug "$RESOURCE promote: primary succeeded"
 		return $OCF_SUCCESS
 	else
@@ -310,7 +345,7 @@ drbd_demote() {
 	    ocf_log debug "$RESOURCE demote: already secondary"
 		return $OCF_SUCCESS
 	fi
-	if $DRBDADM -c $DRBDCONF secondary $RESOURCE ; then
+	if do_drbdadm secondary $RESOURCE ; then
 	        ocf_log debug "$RESOURCE demote: succeeded"
 		return $OCF_SUCCESS
 	else
@@ -333,7 +368,7 @@ drbd_notify() {
 			if [ "$target_status" -eq 0 ]; then
 				# TODO: This comamnd is also not
 				# implemented in drbdadm yet ;-)
-				$DRBDADM mark_peer_down $RESOURCE
+				do_drbdadm mark_peer_down $RESOURCE
 			fi
 			;;
 		monitor)
@@ -359,7 +394,7 @@ drbd_validate_all () {
 	    return $OCF_ERR_ARGS
 	fi
 	
-	if ! $DRBDADM -c $DRBDCONF dump $RESOURCE 2>/dev/null ; then
+	if ! do_drbdadm dump $RESOURCE 2>/dev/null ; then
 	    ocf_log err "Invalid configuration file $DRBDCONF"
 	    return $OCF_ERR_CONFIGURED
 	fi
