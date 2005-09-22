@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: drbd.in,v 1.7 2005/07/15 07:45:58 sunjd Exp $
+#	$Id: drbd.in,v 1.8 2005/09/22 10:35:55 lars Exp $
 #
 #       OCF Resource Agent compliant drbd resource script.
 #
@@ -36,16 +36,21 @@
 
 # OCF instance parameters
 #	OCF_RESKEY_drbd_resource
-#	OCF_RESKEY_incarnation_no
 #	OCF_RESKEY_drbdconf
-#	OCF_RESKEY_target_action
-#	OCF_RESKEY_notify_type
-#	OCF_RESKEY_target_status
+#	OCF_RESKEY_clone_max
+#	OCF_RESKEY_clone_node_max
+#	OCF_RESKEY_master_max
+#	OCF_RESKEY_master_node_max
+
 
 #######################################################################
 # Initialization:
 
-. @hb_libdir@/ocf-shellfuncs
+if [ -n "$OCF_DEBUG_LIBRARY" ]; then
+	. $OCF_DEBUG_LIBRARY
+else
+	. @hb_libdir@/ocf-shellfuncs
+fi
 
 DRBDADM=""
 DRBDSETUP=""
@@ -75,35 +80,36 @@ Full path to the drbd.conf file.
 <content type="string" default="/etc/drbd.conf"/>
 </parameter>
 
-<parameter name="incarnation_no">
+
+<parameter name="clone_max">
 <longdesc lang="en">
-Number of incarnations of this drbd resource.
+Number of clones of this drbd resource. Do not fiddle with the default.
 </longdesc>
-<shortdesc lang="en">Number of incarnations</shortdesc>
+<shortdesc lang="en">Number of clones</shortdesc>
 <content type="integer" default="2"/>
 </parameter>
 
-<parameter name="incarnations_max_global">
+<parameter name="clone_node_max">
 <longdesc lang="en">
-Number of total incarnations of this drbd.
+Clones per node. Do not fiddle with the default.
 </longdesc>
 <shortdesc lang="en">Number of nodes</shortdesc>
-<content type="integer" default="2"/>
-</parameter>
-
-<parameter name="incarnations_max_node">
-<longdesc lang="en">
-How many incarnations on one node. Don't mess.
-</longdesc>
-<shortdesc lang="en">Set to one</shortdesc>
 <content type="integer" default="1"/>
 </parameter>
 
-<parameter name="incarnations_max_active_global">
+<parameter name="master_max">
 <longdesc lang="en">
-How many incarnations can be primary. Don't mess.
+Maximum number of active primaries. Do not fiddle with the default.
 </longdesc>
-<shortdesc lang="en">Set to one</shortdesc>
+<shortdesc lang="en">Number of primaries</shortdesc>
+<content type="integer" default="1"/>
+</parameter>
+
+<parameter name="master_node_max">
+<longdesc lang="en">
+Maximum number of primaries per node. Do not fiddle with the default.
+</longdesc>
+<shortdesc lang="en">Number of primaries per node</shortdesc>
 <content type="integer" default="1"/>
 </parameter>
 
@@ -115,7 +121,6 @@ How many incarnations can be primary. Don't mess.
 <action name="demote"   timeout="90" />
 <action name="notify"   timeout="90" />
 <action name="stop"    timeout="100" />
-<action name="xstatus"    timeout="100" />
 <action name="monitor" depth="0"  timeout="20" interval="10" start-delay="1m" />
 <action name="meta-data"  timeout="5" />
 <action name="validate-all"  timeout="30" />
@@ -134,7 +139,7 @@ drbd_init() {
 	fi
 	
 	RESOURCE="$OCF_RESKEY_drbd_resource"
-	INC_NO="$OCF_RESKEY_incarnation_no"
+	CLONE_NO="$OCF_RESKEY_clone"
 	DRBDCONF="${OCF_RESKEY_drbdconf:=/etc/drbd.conf}"
 	
 	if [ ! -f "$DRBDCONF" ]; then
@@ -142,13 +147,11 @@ drbd_init() {
 		exit $OCF_ERR_CONFIGURED
 	fi
 
-# Move this three drbd_notity _local_ variables here for validation by drbd_validate_all, it should not hurt anybody
-	target_action="$OCF_RESKEY_target_action"
-	notify_type="$OCF_RESKEY_notify_type"
-	target_status="${OCF_RESKEY_target_status:-1}"
-
-	# TODO: Inherit max primary etc from configuration and do
-	# something about them. Right now, we just assume 1/1.
+	if [ -z "$CLONE_NO" ]; then
+		ocf_log err "Resource not running as a clone."
+		exit $OCF_ERR_CONFIGURED
+	fi
+	
 }
 
 
@@ -156,31 +159,31 @@ drbd_init() {
 
 drbd_usage() {
 	cat <<END
-usage: $0 {start|stop|monitor|xstatus|validate-all|promote|demote|notify|meta-data}
+usage: $0 {start|stop|monitor|validate-all|promote|demote|notify|meta-data}
 
 Expects to have a fully populated OCF RA-compliant environment set.
 END
 }
 
 is_drbd_enabled () {
-	# Copied and modified from /etc/init.d/drbd
-
-	# NEEDS to be heartbeat friendly...
-	# so: put some "OK" in the output.
 	if [ -f /proc/drbd ]; then
-	    cat /proc/devices | cut -d" " -f2 |grep -q ^drbd$
-	    if [ $? -eq 0 ]; then
-		# We have drbd enabled
-	    	echo "drbd driver loaded OK; device status:"
-		cat /proc/drbd
-		return $OCF_SUCCESS
+	    if cut -d" " -f2 </proc/devices | grep -q ^drbd$ ; then
+		return 0
 	    fi
 	fi
-	# Drbd is not enabled
-	ocf_log err "drbd not loaded"
-	return $OCF_ERR_UNIMPLEMENTED
+	return 1
 }
 
+
+drbd_get_status() {
+	DRBD_STATE=$($DRBDADM state $RESOURCE)
+	DRBD_STATE_LOCAL=$(echo $DRBD_STATE | sed -e 's#/.*##')
+	DRBD_STATE_REMOTE=$(echo $DRBD_STATE | sed -e 's#.*/##')
+	DRBD_CSTATE=$($DRBDADM cstate $RESOURCE)
+	ocf_log debug "$RESOURCE status: $DRBD_STATE $DRBD_STATE_LOCAL $DRBD_STATE_REMOTE $DRBD_CSTATE"
+	# SyncSource|PausedSyncS|WFBitMapS|SkippedSyncS)
+	# Diskless|Inconsistent)
+}
 
 drbd_start() {
 	# TODO: Verify idempotency of drbdadm up
@@ -188,17 +191,29 @@ drbd_start() {
 	    : OK
 	else
 	    modprobe -s drbd `$DRBDADM sh-mod-parms` || { 
-	    ocf_log err "Can not load the drbd module."$'\n'; exit $OCF_ERR_GENERIC 
+		    ocf_log err "Can not load the drbd module."$'\n'; 
+		    exit $OCF_ERR_GENERIC 
 	    }
+	    ocf_log debug "$RESOURCE start: Module loaded."
 	fi
 
-	$DRBDADM -c $DRBDCONF up $RESOURCE
-	if [ $? -eq 0 ]; then
+	drbd_get_status
+
+	if [ "$DRBD_STATE_LOCAL" != "Not configured" ]; then
+		ocf_log debug "$RESOURCE start: already configured."
+		return $OCF_SUCCESS
+	fi
+
+	if $DRBDADM -c $DRBDCONF up $RESOURCE ; then
+		ocf_log debug "$RESOURCE start: succeeded."
 		return $OCF_SUCCESS
 	else
-		ocf_log err "Failed to start up resource $RESOURCE."
+		ocf_log err "$RESOURCE: Failed to start up."
 		return $OCF_ERR_GENERIC
 	fi
+
+	# TODO: Should we honor the wait connect here?
+
 }
 
 drbd_stop() {
@@ -207,13 +222,15 @@ drbd_stop() {
 
 	# Do not bother if drbd is not enabled
 	if is_drbd_enabled; then
-		$DRBDADM -c $DRBDCONF down $RESOURCE
-		if [ $? -eq 0 ]; then
+		if $DRBDADM -c $DRBDCONF down $RESOURCE ; then
+			ocf_log debug "$RESOURCE stop: drbdadm down succeeded."
 			return $OCF_SUCCESS
 		else
-			ocf_log err "Failed to bring down resource $RESOURCE, resource busy?"
+			ocf_log err "$RESOURCE stop: Failed with exit code: $?"
 			return $OCF_ERR_GENERIC
 		fi
+	else
+		ocf_log debug "$RESOURCE stop: drbd not loaded."
 	fi
 }
 
@@ -225,9 +242,28 @@ drbd_monitor() {
 	if is_drbd_enabled; then
 	    : OK
 	else
-	    ocf_log err "Drbd is not enabled, nothing to monitor"
-	    return $OCF_ERR_GENERIC
+	    ocf_log warn "$RESOURCE monitor: drbd module not loaded"
+	    return $OCF_NOT_RUNNING
 	fi
+	drbd_get_status
+
+	if [ "$DRBD_STATE_LOCAL" == "Not configured" ]; then
+		ocf_log debug "$RESOURCE monitor: resource not configured"
+		return $OCF_NOT_RUNNING
+	fi
+	
+	if [ "$DRBD_STATE_LOCAL" != "Secondary" ] \
+	&& [ "$DRBD_STATE_LOCAL" != "Primary" ]; then
+		ocf_log err "$RESOURCE monitor: unexpected local state: $DRBD_STATE_LOCAL"
+		return $OCF_ERR_GENERIC
+	fi
+
+	ROLE="$OCF_RESKEY_role"
+	if [ -n "$ROLE" ] && [ "$DRBD_STATE_LOCAL" != "$ROLE" ]; then
+		ocf_log err "$RESOURCE monitor: wrong state: expected $ROLE != $DRBD_STATE_LOCAL"
+		return $OCF_ERR_GENERIC
+	fi
+
 	return $OCF_SUCCESS
 }
 
@@ -235,20 +271,25 @@ drbd_promote() {
 	if is_drbd_enabled; then
 	    : OK
 	else
-	    ocf_log err "Drbd is not enabled"
+	    ocf_log err "drbd is not enabled"
 	    return $OCF_ERR_GENERIC
 	fi
 
 	drbd_get_status
 
-	if [ "x$DRBD_STATE_LOCAL" = "xPrimary" ]; then
+	if [ "x$DRBD_STATE_LOCAL" == "xPrimary" ]; then
+		ocf_log debug "$RESOURCE promote: already primary"
 		return $OCF_SUCCESS
 	fi
-	$DRBDADM -c $DRBDCONF primary $RESOURCE
-	if [ $? -eq 0 ]; then
+	if [ "x$DRBD_STATE_LOCAL" != "xSecondary" ]; then
+		ocf_log debug "$RESOURCE promote: Not secondary to start with"
+		return $OCF_ERR_GENERIC
+	fi
+	if $DRBDADM -c $DRBDCONF primary $RESOURCE ; then
+		ocf_log debug "$RESOURCE promote: primary succeeded"
 		return $OCF_SUCCESS
 	else
-		ocf_log err "Failed to promote resource $RESOURCE"
+		ocf_log err "$RESOURCE promote: Failed with exit code $?."
 		return $OCF_ERR_GENERIC
 	fi
 }
@@ -257,28 +298,30 @@ drbd_demote() {
 	if is_drbd_enabled; then
 	    : OK
 	else
-	    echo "Drbd is not enabled"
-	    return $OCF_ERR_GENERIC
+	    # A stopped resource also is demoted.
+	    ocf_log debug "$RESOURCE demote: module not loaded"
+	    return $OCF_SUCCESS
 	fi
 	# TODO: this is a _force_ operation. we may need to kill higher
 	# levels (or switch them to r/o) to be able to demote drbd.
 	# figure out how...
 	
-	if [ "x$DRBD_STATE_LOCAL" = "xSecondary" ]; then
+	if [ "x$DRBD_STATE_LOCAL" == "xSecondary" ]; then
+	    ocf_log debug "$RESOURCE demote: already secondary"
 		return $OCF_SUCCESS
 	fi
-	$DRBDADM -c $DRBDCONF secondary $RESOURCE
-	if [ $? -eq 0 ]; then
+	if $DRBDADM -c $DRBDCONF secondary $RESOURCE ; then
+	        ocf_log debug "$RESOURCE demote: succeeded"
 		return $OCF_SUCCESS
 	else
-		ocf_log err "Failed to demote resource $RESOURCE"
+	        ocf_log err "$RESOURCE demote: Failed with exit code $?."
 		return $OCF_ERR_GENERIC
 	fi
 }
 
 drbd_notify() {
-
-	if [ "x$notify_type" = "xpost" ]; then
+	# TODO: Notification support not implemented yet
+	if [ "x$notify_type" == "xpost" ]; then
 		case $target_action in
 		stop|fence)
 			# On the primary, this would unblock waiting for
@@ -303,138 +346,57 @@ drbd_notify() {
 	return $OCF_SUCCESS
 }
 
-drbd_get_status() {
-	DRBD_STATE=$($DRBDADM state $RESOURCE)
-	DRBD_STATE_LOCAL=$(echo $DRBD_STATE | sed -e 's#/.*##')
-	DRBD_STATE_REMOTE=$(echo $DRBD_STATE | sed -e 's#.*/##')
-	DRBD_CSTATE=$($DRBDADM state $RESOURCE)
-}
-
-drbd_xstatus() {
-	if is_drbd_enabled; then
-	    : OK
-	else
-	    ocf_log err "Drbd is not enabled"
-	    return $OCF_ERR_GENERIC
-	fi
-	drbd_get_status
-	# TODO: This extended status is PROOF OF CONCEPT CODE FOR
-	# DISCUSSION only.
-
-	local preference=0
-	local ability=1
-
-	case $DRBD_CSTATE in
-	SyncSource|PausedSyncS|WFBitMapS|SkippedSyncS)
-		preference=10
-		;;
-	Diskless|Inconsistent)
-		# TODO: drbd doesn't actually tell us about these two.
-		ability=0
-		;;
-	*)	preference=5
-		;;
-	esac
-	
-	case $DRBD_STATE_LOCAL in
-	Primary)
-		preference=100
-		;;
-	esac
-
-	cat <<END
-<resource_status name="$RESOURCE" incarnation="$INC_NO">
-<promotion_data preference="$preference" ability="$ability" />
-</resource_status>
-END
-
-	return $OCF_SUCCESS
-}
-
 drbd_validate_all () {
 # First check the configuration file
-	echo here
-	if [ -z $DRBDCONF ]; then
-	    ocf_log err "No configuration file specified!"
+	if [ -n "$DRBDCONF" ] && [ ! -f "$DRBDCONF" ]; then
+	    ocf_log err "Configuration file does not exist: $DRBDCONF"
 	    return $OCF_ERR_CONFIGURED
 	fi
 
-	if [ ! -f $DRBDCONF ]; then
-	    ocf_log err "No such file $DRBDCONF!"
-	    return $OCF_ERR_CONFIGURED
-	fi
-
-	dumped_content=`$DRBDADM -c $DRBDCONF dump 2>/dev/null`
-	if [ $? -ne 0 ] || [ -z '$dumped_content' ]; then
-	    ocf_log err "Invalid configuration file $DRBDCONF"
-	    return $OCF_ERR_CONFIGURED
-	fi
-	
 # Check the resource name, it should appear in DRBDCONF
 	if [ -z $RESOURCE ]; then
 	    ocf_log err "No resource name specified!"
 	    return $OCF_ERR_ARGS
 	fi
 	
-	echo $dumped_content |grep -q "^resource $RESOURCE {"
-	if [ $? -ne 0 ]; then
-	    ocf_log err "No such resource \"$RESOURCE\" in drbd configuration file $DRBDCONF"
-	    return $OCF_ERR_ARGS
+	if ! $DRBDADM -c $DRBDCONF dump $RESOURCE 2>/dev/null ; then
+	    ocf_log err "Invalid configuration file $DRBDCONF"
+	    return $OCF_ERR_CONFIGURED
 	fi
 	
-# Check the INC_NO, it is OK to be empty since we have default value for it
-	if [ -z $INC_NO ]; then
-	    INC_NO=2
-	else 
-	    expr $INC_NO + 0 >/dev/null 2>&1
-	    if [ $? -ne 0 -o $INC_NO -le 0 ]; then
-	    # INC_NO is not a valid integer, or not positive
-		ocf_log err "Invalid incarnation number $INC_NO."
-		return $OCF_ERR_ARGS
-	    fi
-	fi 
-# Check notify_type
-	if [ ! -z $notify_type ] && [ "$notity_type" != "post" ]; then
-	    ocf_log err "Invalid notity type $notify_type"
-	    return $OCF_ERR_ARGS
+	if [ "$OCF_RESKEY_clone_max" -ne 2 ] \
+	 || [ "$OCF_RESKEY_clone_node_max" -ne 1 ] \
+	 || [ "$OCF_RESKEY_master_node_max" -ne 1 ] \
+	 || [ "$OCF_RESKEY_master_max" -ne 1 ] ; then
+		ocf_log err "Clone options misconfigured."
+		exit $OCF_ERR_CONFIGURED
 	fi
-
-# Check target_action
-	case $target_action in
-	""|stop|fence|monitor)
-	    ;;
-	*) ocf_log err "Invalid target action $target_action"
-	   return $OCF_ERR_ARGS
-	   ;;
-	esac
-
-# Should we check target_status?
-	echo "Validate OK"
+	
 	return $OCF_SUCCESS
 }
 
 
 if [ $# -ne 1 ]; then
+	echo "Incorrect parameter count."
 	drbd_usage
 	exit $OCF_ERR_ARGS
 fi
 
-
-
-case $__OCF_ACTION in
+ACTION=$1
+case $ACTION in
 meta-data)	meta_data
 		;;
 validate-all)	drbd_init
 		drbd_validate_all
 		;;
-start|stop|monitor|xstatus|promote|demote|notify)
+start|stop|monitor|promote|demote|notify)
 		if [ $UID -ne 0 ]; then
-			ocf_log err "You must be root."
+			ocf_log err "You must be root to perform this operation."
 			exit $OCF_ERR_PERM
 		fi
 	
 		drbd_init
-		drbd_$__OCF_ACTION
+		drbd_$ACTION
 		exit $?
 		;;
 usage|help)	drbd_usage
