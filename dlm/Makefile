@@ -28,7 +28,7 @@ install:
 
 uninstall:
 	cd lib && ${MAKE} uninstall
-	cd deamon && ${MAKE} uninstall
+	cd daemon && ${MAKE} uninstall
 #	cd dlm_tool && ${MAKE} uninstall
 
 clean:
