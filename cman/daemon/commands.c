@@ -1400,17 +1400,16 @@ static void process_internal_message(char *data, int len, int nodeid, struct tot
 void add_ccs_node(char *nodename, int nodeid, int votes, int expected_votes)
 {
 	struct totem_ip_address ipaddr;
-	struct cluster_node *node;
 
 	if (totemip_parse(&ipaddr, nodename))
-		return;
-
-	/* See if it already exists */
-	if (!nodeid) {
-		node = find_node_by_ais_node(&ipaddr);
-	}
-	else {
-		node = find_node_by_nodeid(nodeid);
+	{
+		if (!nodeid) {
+			log_msg(LOG_ERR, "Error, can't find IP address and no nodeid for node %s - ignoring it\n", nodename);
+			return;
+		}
+		else {
+			log_msg(LOG_WARNING, "Warning, can't find IP address for node %s\n", nodename);
+		}
 	}
 
         // TODO Cope with altnames (multiple IPs) for nodes
@@ -1430,6 +1429,12 @@ void add_ais_node(struct totem_ip_address *ais_node, uint64_t incarnation, int t
 		node = us;
 		P_MEMB("Adding AIS node for US\n");
 	}
+
+	if (!node && ais_node->nodeid)
+		node = find_node_by_nodeid(ais_node->nodeid);
+
+	if (!node)
+		log_msg(LOG_ERR, "Got node %s from AIS (id %d) with no CCS entry\n", totemip_print(ais_node), ais_node->nodeid);
 
 	/* This really should exist!! */
 	if (!node) {
