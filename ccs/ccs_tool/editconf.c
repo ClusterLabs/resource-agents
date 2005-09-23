@@ -35,9 +35,9 @@ do { \
 struct option_info
 {
 	char *name;
+	char *altname;
 	char *votes;
 	char *nodeid;
-	char *mcast_if;
 	char *mcast_addr;
 	char *fence_type;
 	char *configfile;
@@ -88,10 +88,10 @@ static void create_usage(const char *name)
 	  "eg:\n"
 	  "  ccs_tool create MyCluster\n"
 	  "  ccs_tool addfence apc fence_apc ipaddr=apc.domain.net user=apc password=apc\n"
-	  "  ccs_tool addnode node1 -v 1 -f apc port=1\n"
-	  "  ccs_tool addnode node2 -v 1 -f apc port=2\n"
-	  "  ccs_tool addnode node3 -v 1 -f apc port=3\n"
-	  "  ccs_tool addnode node4 -v 1 -f apc port=4\n"
+	  "  ccs_tool addnode node1 -n 1 -f apc port=1\n"
+	  "  ccs_tool addnode node2 -n 2 -f apc port=2\n"
+	  "  ccs_tool addnode node3 -n 3 -f apc port=3\n"
+	  "  ccs_tool addnode node4 -n 4 -f apc port=4\n"
           "\n");
 
 	exit(0);
@@ -131,11 +131,9 @@ static void delnode_usage(const char *name)
 static void addnode_usage(const char *name)
 {
 	fprintf(stderr, "Usage: %s %s [options] <nodename> [<fencearg>=<value>]...\n", prog_name, name);
-	fprintf(stderr, " -v --votes         Number of votes for this node\n");
-	fprintf(stderr, " -n --nodeid        Nodeid (optional)\n");
-	fprintf(stderr, " -i --interface     Interface name (needed if multicast is used)\n");
-	fprintf(stderr, " -m --multicast     Multicast address (only needed for first node in a cman\n");
-        fprintf(stderr, "                    multicast cluster)\n");
+	fprintf(stderr, " -n --nodeid        Nodeid (required)\n");
+	fprintf(stderr, " -v --votes         Number of votes for this node (default 1)\n");
+	fprintf(stderr, " -a --altname       Alternative name/interface for multihomed hosts\n");
 	fprintf(stderr, " -f --fence_type    Type of fencing to use\n");
 	config_usage(1);
 	help_usage();
@@ -144,10 +142,10 @@ static void addnode_usage(const char *name)
 	fprintf(stderr, "Examples:\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Add a new node to default configuration file:\n");
-	fprintf(stderr, "  %s %s -v 1 -f manual ipaddr=newnode\n", prog_name, name);
+	fprintf(stderr, "  %s %s -n 1 -f manual ipaddr=newnode\n", prog_name, name);
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Add a new node and dump config file to stdout rather than save it\n");
-	fprintf(stderr, "  %s %s -v 1 -f apc -i eth0 -o - newnode.temp.net port=1\n", prog_name, name);
+	fprintf(stderr, "  %s %s -n 2 -f apc -o- newnode.temp.net port=1\n", prog_name, name);
 
 	exit(0);
 }
@@ -368,19 +366,6 @@ static xmlChar *find_multicast_addr(xmlNode *clusternodes, struct option_info *n
 	return mc_addr;
 }
 
-static xmlChar *get_mcast_if(xmlNode *clusternode)
-{
-	xmlChar *mc_if = NULL;
-
-	xmlNode *mcast = findnode(clusternode, "multicast");
-	if (mcast)
-	{
-		mc_if = xmlGetProp(mcast, BAD_CAST "interface");
-	}
-	return mc_if;
-}
-
-
 static xmlNode *find_node(xmlNode *clusternodes, char *nodename)
 {
 	xmlNode *cur_node;
@@ -400,7 +385,7 @@ static xmlNode *find_node(xmlNode *clusternodes, char *nodename)
 /* Print name=value pairs for a (n XML) node.
  * "ignore" is a string to ignore if present as a property (probably already printed on the main line)
  */
-static void print_properties(xmlNode *node, char *prefix, char *ignore)
+static void print_properties(xmlNode *node, char *prefix, char *ignore, char *ignore2)
 {
 	xmlAttr *attr;
 	int done_prefix = 0;
@@ -409,7 +394,9 @@ static void print_properties(xmlNode *node, char *prefix, char *ignore)
 	{
 		/* Don't print "name=" */
 		if (strcmp((char *)attr->name, "name") &&
-		    strcmp((char *)attr->name, ignore) )
+		    strcmp((char *)attr->name, ignore) &&
+		    strcmp((char *)attr->name, ignore2)
+			)
 		{
 			if (!done_prefix)
 			{
@@ -461,7 +448,6 @@ static void add_clusternode(xmlNode *root_element, struct option_info *ninfo,
 	xmlNode *newfence;
 	xmlNode *newfencemethod;
 	xmlNode *newfencedevice;
-	xmlChar *multicast_addr;
 
 	clusternodes = findnode(root_element, "clusternodes");
 	if (!clusternodes)
@@ -479,18 +465,6 @@ static void add_clusternode(xmlNode *root_element, struct option_info *ninfo,
 	if (!valid_fence_type(root_element, ninfo->fence_type))
 		die("fence type '%s' not known\n", ninfo->fence_type);
 
-	/*
-	 * Check for a multicast line on the first node. If it's there then
-	 * the user must have supplied an interface on the command-line.
-	 */
-	multicast_addr = find_multicast_addr(clusternodes, ninfo);
-	if (multicast_addr && !ninfo->mcast_if)
-		die("no interface specified, but cluster.conf uses multicast\n");
-
-	/* We could ignore this, but I'd rather point out the user's mistake */
-	if (!multicast_addr && ninfo->mcast_if)
-		die("interface was specified, but cluster.conf is not set up for multicast\n");
-
 	/* Add the new node */
 	newnode = xmlNewNode(NULL, BAD_CAST "clusternode");
 	xmlSetProp(newnode, BAD_CAST "name", BAD_CAST ninfo->name);
@@ -498,16 +472,6 @@ static void add_clusternode(xmlNode *root_element, struct option_info *ninfo,
 	if (ninfo->nodeid)
 		xmlSetProp(newnode, BAD_CAST "nodeid", BAD_CAST ninfo->nodeid);
 	xmlAddChild(clusternodes, newnode);
-
-	if (multicast_addr)
-	{
-		xmlNode *mcastnode;
-
-		mcastnode = xmlNewNode(NULL, BAD_CAST "multicast");
-		xmlSetProp(mcastnode, BAD_CAST "addr", multicast_addr);
-		xmlSetProp(mcastnode, BAD_CAST "interface", BAD_CAST ninfo->mcast_if);
-		xmlAddChild(newnode, mcastnode);
-	}
 
 	/* Add the fence attributes */
 	newfence = xmlNewNode(NULL, BAD_CAST "fence");
@@ -573,8 +537,7 @@ struct option addnode_options[] =
 {
       { "votes", required_argument, NULL, 'v'},
       { "nodeid", required_argument, NULL, 'n'},
-      { "interface", required_argument, NULL, 'i'},
-      { "multicast", required_argument, NULL, 'm'},
+      { "altname", required_argument, NULL, 'a'},
       { "fence_type", required_argument, NULL, 'f'},
       { "outputfile", required_argument, NULL, 'o'},
       { "configfile", required_argument, NULL, 'c'},
@@ -618,8 +581,9 @@ void add_node(int argc, char **argv)
 
 	memset(&ninfo, 0, sizeof(ninfo));
 	ninfo.tell_ccsd = 1;
+	ninfo.votes = "1";
 
-	while ( (opt = getopt_long(argc, argv, "v:n:i:m:f:o:c:CFh?", addnode_options, NULL)) != EOF)
+	while ( (opt = getopt_long(argc, argv, "v:n:a:f:o:c:CFh?", addnode_options, NULL)) != EOF)
 	{
 		switch(opt)
 		{
@@ -633,12 +597,8 @@ void add_node(int argc, char **argv)
 			ninfo.nodeid = optarg;
 			break;
 
-		case 'i':
-			ninfo.mcast_if = strdup(optarg);
-			break;
-
-		case 'm':
-			ninfo.mcast_addr = strdup(optarg);
+		case 'a':
+			ninfo.altname = strdup(optarg);
 			break;
 
 		case 'f':
@@ -673,7 +633,7 @@ void add_node(int argc, char **argv)
 	else
 		addnode_usage(argv[0]);
 
-	if (!ninfo.fence_type || !ninfo.votes)
+	if (!ninfo.fence_type)
 		addnode_usage(argv[0]);
 
 
@@ -791,7 +751,7 @@ void list_nodes(int argc, char **argv)
 	if (mcast)
 		printf("Multicast address for cluster: %s\n\n", mcast);
 
-	printf("Nodename                        Votes Nodeid Iface Fencetype\n");
+	printf("Nodename                        Votes Nodeid Fencetype\n");
 	for (cur_node = clusternodes->children; cur_node; cur_node = cur_node->next)
 	{
 		if (cur_node->type == XML_ELEMENT_NODE && strcmp((char *)cur_node->name, "clusternode") == 0)
@@ -800,16 +760,14 @@ void list_nodes(int argc, char **argv)
 			xmlChar *votes  = xmlGetProp(cur_node, BAD_CAST "votes");
 			xmlChar *nodeid = xmlGetProp(cur_node, BAD_CAST "nodeid");
 			xmlChar *ftype  = get_fence_type(cur_node, &fencenode);
-			xmlChar *mc_if  = get_mcast_if(cur_node);
 
-			printf("%-32s %3d    %-3s  %-5s %s\n", name, atoi((char *)votes),
-			       nodeid?nodeid:(xmlChar *)"",
-			       mc_if?mc_if:(xmlChar *)"",
+			printf("%-32s %3d  %3d    %s\n", name, atoi((char *)votes),
+			       atoi((char *)nodeid),
 			       ftype?ftype:(xmlChar *)"");
 			if (verbose)
 			{
-				print_properties(cur_node, "  Node properties: ", "votes");
-				print_properties(fencenode, "  Fence properties: ", "agent");
+				print_properties(cur_node, "  Node properties: ", "votes", "nodeid");
+				print_properties(fencenode, "  Fence properties: ", "agent", "");
 			}
 
 		}
@@ -1077,7 +1035,7 @@ void list_fences(int argc, char **argv)
 
 			printf("%-16s %s\n", name, agent);
 			if (verbose)
-				print_properties(cur_node, "  Properties: ", "agent");
+				print_properties(cur_node, "  Properties: ", "agent", "");
 		}
 	}
 }
