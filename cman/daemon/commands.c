@@ -161,7 +161,8 @@ static struct cluster_node *add_new_node(char *name, int nodeid, int votes, int 
 		memset(newnode, 0, sizeof(struct cluster_node));
 		newalloc = 1;
 		newnode->state = state;
-		newnode->incarnation = incarnation;
+		if (state == NODESTATE_MEMBER)
+			newnode->incarnation = incarnation;
 	}
 	if (!newnode->name) {
 		newnode->name = malloc(strlen(name)+1);
@@ -733,10 +734,11 @@ static int do_cmd_join_cluster(char *cmdbuf, int *retlen)
 	two_node = join_info->two_node;
 
 	/* Check for a race where ccs is updated between ccs_tool reading it and us starting up
-	   (miniscule but possible I suppose)
+	   (bizarre but possible I suppose). Going forwards is OK as our new information will
+	   be updated. Infact the latter is quite possible during startup.
 	*/
-	if (config_version != join_info->config_version) {
-		log_msg(LOG_ERR, "CCS was updated during ccs_tool join, we read %d, ccs_tool said %d\n",
+	if (config_version < join_info->config_version) {
+		log_msg(LOG_ERR, "CCS went backwards during ccs_tool join, we read %d, ccs_tool said %d\n",
 			config_version, join_info->config_version);
 		return -EINVAL;
 	}
