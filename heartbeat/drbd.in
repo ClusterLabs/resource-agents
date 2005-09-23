@@ -1,13 +1,13 @@
 #!/bin/sh
 #
-#	$Id: drbd.in,v 1.9 2005/09/22 13:42:45 lars Exp $
+#	$Id: drbd.in,v 1.10 2005/09/23 12:42:40 lars Exp $
 #
 #       OCF Resource Agent compliant drbd resource script.
 #
-# WARNING: This is proof of concept code and still has a lot of open
+# WARNING: This is experimental code and still has a lot of open
 # TODOs.
 #
-# Copyright (c) 2004 - 2005 SUSE LINUX AG, Lars Marowsky-Brée
+# Copyright (c) 2004 - 2005 SUSE LINUX Products GmbH, Lars Marowsky-Brée
 #                    All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -30,10 +30,6 @@
 # Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
 #
 #
-
-# TODO: 
-# - All calls to external commands should use the ocf_exec function
-#   which should be implemented.
 
 # OCF instance parameters
 #	OCF_RESKEY_drbd_resource
@@ -129,14 +125,18 @@ END
 	exit $OCF_SUCCESS
 }
 
-do_drbdadm() {
-	local cmd="$DRBDADM -c $DRBDCONF $*"
-	local ret=0
+do_cmd() {
+	local cmd="$*"
 	ocf_log debug "$RESOURCE: Calling $cmd"
 	$cmd
 	ret=$?
 	ocf_log debug "$RESOURCE: Exit code $ret"
 	return $ret
+}
+
+do_drbdadm() {
+	local cmd="$DRBDADM -c $DRBDCONF $*"
+	do_cmd $cmd
 }
 
 drbd_init() {
@@ -154,11 +154,6 @@ drbd_init() {
 	
 	if [ ! -f "$DRBDCONF" ]; then
 		ocf_log err "drbd.conf not installed."
-		exit $OCF_ERR_CONFIGURED
-	fi
-
-	if [ -z "$CLONE_NO" ]; then
-		ocf_log err "Resource not running as a clone."
 		exit $OCF_ERR_CONFIGURED
 	fi
 }
@@ -202,9 +197,9 @@ drbd_start() {
 	if is_drbd_enabled; then
 	    : OK
 	else
-	    modprobe -s drbd `$DRBDADM sh-mod-parms` || { 
+	    do_cmd modprobe -s drbd `$DRBDADM sh-mod-parms` || { 
 		    ocf_log err "Can not load the drbd module."$'\n'; 
-		    exit $OCF_ERR_GENERIC 
+		    return $OCF_ERR_GENERIC 
 	    }
 	    ocf_log debug "$RESOURCE start: Module loaded."
 	fi
@@ -216,6 +211,9 @@ drbd_start() {
 		return $OCF_SUCCESS
 	fi
 
+	# Clear preference for becoming master
+	do_cmd $CRM_MASTER -D
+	
 	if do_drbdadm up $RESOURCE ; then
 		ocf_log debug "$RESOURCE start: succeeded."
 		return $OCF_SUCCESS
@@ -223,31 +221,37 @@ drbd_start() {
 		ocf_log err "$RESOURCE: Failed to start up."
 		return $OCF_ERR_GENERIC
 	fi
-	
-	do_drbdadm wait_connect $RESOURCE
-	
+}
+
+drbd_start_phase_2() {
+	if [ "$1" == "yes" ]; then
+		do_drbdadm connect $RESOURCE
+		do_drbdadm wait_connect $RESOURCE
+	fi
+
 	drbd_get_status
 
 	# TODO: This is probably way too complex.
 	case $DRBD_CSTATE in
 	Connected) 
-		$CRM_MASTER -v 75
+		do_cmd $CRM_MASTER -v 75
 		;;
 	SyncSource|PausedSyncS|WFBitMapS|SkippedSyncS)
-		$CRM_MASTER -v 100
+		do_cmd $CRM_MASTER -v 100
 		;;
         # TODO:
         # (Inconsistent || Diskless && WFConnection) should be -infinity
 	# This one implies we'll try to promote even on disconnected
 	# nodes, but that might not work.
 	WFConnection) 
-		$CRM_MASTER -v 10
+		do_cmd $CRM_MASTER -v 10
 		;;
 	*)
-		$CRM_MASTER -v 5
+		do_cmd $CRM_MASTER -v 5
 		;;
 	esac
 
+	return $OCF_SUCCESS
 }
 
 drbd_stop() {
@@ -256,6 +260,13 @@ drbd_stop() {
 
 	# Do not bother if drbd is not enabled
 	if is_drbd_enabled; then
+		drbd_get_status
+		
+		if [ "$DRBD_STATE_LOCAL" == "Not configured" ]; then
+			ocf_log debug "$RESOURCE stop: already unconfigured."
+			return $OCF_SUCCESS
+		fi
+		
 		if do_drbdadm down $RESOURCE ; then
 			ocf_log debug "$RESOURCE stop: drbdadm down succeeded."
 			return $OCF_SUCCESS
@@ -266,6 +277,8 @@ drbd_stop() {
 	else
 		ocf_log debug "$RESOURCE stop: drbd not loaded."
 	fi
+
+	return $OCF_SUCCESS
 }
 
 drbd_monitor() {
@@ -337,14 +350,19 @@ drbd_demote() {
 	    ocf_log debug "$RESOURCE demote: module not loaded"
 	    return $OCF_SUCCESS
 	fi
+	
+	if [ "$DRBD_STATE_LOCAL" == "Secondary" ]; then
+		ocf_log debug "$RESOURCE demote: already secondary"
+		return $OCF_SUCCESS
+	fi
+	if [ "$DRBD_STATE_LOCAL" == "Not configured" ]; then
+		ocf_log debug "$RESOURCE demote: already stopped"
+		return $OCF_SUCCESS
+	fi
+	
 	# TODO: this is a _force_ operation. we may need to kill higher
 	# levels (or switch them to r/o) to be able to demote drbd.
 	# figure out how...
-	
-	if [ "x$DRBD_STATE_LOCAL" == "xSecondary" ]; then
-	    ocf_log debug "$RESOURCE demote: already secondary"
-		return $OCF_SUCCESS
-	fi
 	if do_drbdadm secondary $RESOURCE ; then
 	        ocf_log debug "$RESOURCE demote: succeeded"
 		return $OCF_SUCCESS
@@ -355,41 +373,70 @@ drbd_demote() {
 }
 
 drbd_notify() {
-	# TODO: Notification support not implemented yet
-	if [ "x$notify_type" == "xpost" ]; then
-		case $target_action in
-		stop|fence)
-			# On the primary, this would unblock waiting for
-			# ACKs from the secondary.
-			# On the secondary, this would un-taint the
-			# local data and allow the node to be promoted
-			# to primary.
-			#
-			if [ "$target_status" -eq 0 ]; then
-				# TODO: This comamnd is also not
-				# implemented in drbdadm yet ;-)
-				do_drbdadm mark_peer_down $RESOURCE
+	local n_type="$OCF_RESKEY_notify_type"
+	local n_op="$OCF_RESKEY_notify_operation"
+	set -- $n_active_resource
+	local n_active="$#"
+	set -- $notify_stop_resource
+	local n_stop="$#"
+	set -- $notify_start_resource
+	local n_start="$#"
+
+	ocf_log debug "$RESOURCE notify: $n_type for $n_op - counts: active $n_active - starting $n_start - stopping $n_stop"
+	
+	case $n_type in
+	pre)
+		case $n_op in
+		promote) # TODO:
+			 # Resist promotion of the other side in case we
+			 # are already primary - though the CRM should
+			 # not even attempt that.
+			;;
+		esac
+		;;
+	post)
+		case $n_op in
+		start)
+			if [ "$n_active_count" -eq 2 ]; then
+				# The other side is running, so we ought
+				# to connect and wait for that.
+				drbd_start_phase_2 yes
+			else
+				drbd_start_phase_2 no
 			fi
 			;;
+		# TODO: Does "fence" actually happen?
+		stop|fence)
+			# This MUST be a notification for the other side
+			# having been stopped, because for sure we won't
+			# receive one for ourselves being stopped ;-)
+			# So to allow continuing with freeze_io, we need
+			# to explicitly disconnect.
+			do_drbdadm disconnect $RESOURCE
+			# TODO: If we are secondary, do we need to do
+			# anything about a stopped primary in case we
+			# had an outdated flag...?
+			;;
 		monitor)
-			if [ "$target_status" -ne 0 ]; then
-				: # TODO: Anything we should do about this?
-			fi
+			# TODO: We don't get notifications for failed
+			# monitors yet.
+			;;
 		esac
-	fi
+		;;
+	esac
 	
 	return $OCF_SUCCESS
 }
 
 drbd_validate_all () {
-# First check the configuration file
+	# First check the configuration file
 	if [ -n "$DRBDCONF" ] && [ ! -f "$DRBDCONF" ]; then
 	    ocf_log err "Configuration file does not exist: $DRBDCONF"
 	    return $OCF_ERR_CONFIGURED
 	fi
 
-# Check the resource name, it should appear in DRBDCONF
-	if [ -z $RESOURCE ]; then
+	# Check the resource name, it should appear in DRBDCONF
+	if [ -z "$RESOURCE" ]; then
 	    ocf_log err "No resource name specified!"
 	    return $OCF_ERR_ARGS
 	fi
