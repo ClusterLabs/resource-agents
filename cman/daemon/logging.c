@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include <signal.h>
 #include <time.h>
+#include <sys/time.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 
@@ -48,10 +49,11 @@ void log_msg(int priority, char *fmt, ...)
 
 	if (use_stderr)
 	{
-		time_t P;
+		struct timeval tv;
 
-		time(&P);
-		fprintf(stderr, "%.15s ",  ctime(&P)+4);
+		gettimeofday(&tv, NULL);
+
+		fprintf(stderr, "%.15s.%06d ",  ctime(&tv.tv_sec)+4, (int)tv.tv_usec);
 		fprintf(stderr, "totem: ");
 		va_start(va, fmt);
 		vfprintf(stderr, fmt, va);
@@ -75,9 +77,9 @@ void log_debug(int subsys, int stamp, const char *fmt, ...)
 {
 	va_list va;
 	char newfmt[strlen(fmt)+10];
-	time_t P;
+	struct timeval tv;
 
-	time(&P);
+	gettimeofday(&tv, NULL);
 
 	if (!(subsys_mask & subsys))
 		return;
@@ -101,7 +103,7 @@ void log_debug(int subsys, int stamp, const char *fmt, ...)
 		default:
 			break;
 		}
-		fprintf(stderr, "%.15s ",  ctime(&P)+4);
+		fprintf(stderr, "%.15s.%06d ",  ctime(&tv.tv_sec)+4, (int)tv.tv_usec);
 	}
 	else
 	{
