@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: drbd.in,v 1.10 2005/09/23 12:42:40 lars Exp $
+#	$Id: drbd.in,v 1.11 2005/09/23 12:58:29 lars Exp $
 #
 #       OCF Resource Agent compliant drbd resource script.
 #
@@ -128,9 +128,18 @@ END
 do_cmd() {
 	local cmd="$*"
 	ocf_log debug "$RESOURCE: Calling $cmd"
-	$cmd
+	local cmd_out=$($cmd 2>&1)
 	ret=$?
-	ocf_log debug "$RESOURCE: Exit code $ret"
+	
+	if [ $ret -ne 0 ]; then
+		ocf_log err "$RESOURCE: Called $cmd"
+		ocf_log err "$RESOURCE: Exit code $ret"
+		ocf_log err "$RESOURCE: Command output: $cmd_out"
+	else
+		ocf_log debug "$RESOURCE: Exit code $ret"
+		ocf_log debug "$RESOURCE: Command output: $cmd_out"
+	fi
+	
 	return $ret
 }
 
@@ -231,7 +240,7 @@ drbd_start_phase_2() {
 
 	drbd_get_status
 
-	# TODO: This is probably way too complex.
+	# TODO: This is probably way too complex. 
 	case $DRBD_CSTATE in
 	Connected) 
 		do_cmd $CRM_MASTER -v 75
@@ -255,9 +264,6 @@ drbd_start_phase_2() {
 }
 
 drbd_stop() {
-	# TODO: this is a _force_ operation. we may need to kill higher
-	# levels to be able to down drbd. figure out how...
-
 	# Do not bother if drbd is not enabled
 	if is_drbd_enabled; then
 		drbd_get_status
@@ -267,6 +273,8 @@ drbd_stop() {
 			return $OCF_SUCCESS
 		fi
 		
+		# TODO: this is a _force_ operation. we may need to kill higher
+		# levels to be able to down drbd. figure out how...
 		if do_drbdadm down $RESOURCE ; then
 			ocf_log debug "$RESOURCE stop: drbdadm down succeeded."
 			return $OCF_SUCCESS
