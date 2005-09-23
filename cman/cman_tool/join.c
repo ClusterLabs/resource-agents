@@ -18,6 +18,28 @@
 
 static char *argv[128];
 
+static char *default_mcast(commandline_t *comline)
+{
+        struct addrinfo *ainfo;
+        struct addrinfo ahints;
+	int ret;
+
+        memset(&ahints, 0, sizeof(ahints));
+
+        /* Lookup the the nodename address and use it's IP type to
+	   default a multicast address */
+        ret = getaddrinfo(comline->nodenames[0], NULL, &ahints, &ainfo);
+	if (ret)
+		return NULL;
+
+	if (ainfo->ai_family == AF_INET)
+		return "224.0.9.1";
+	if (ainfo->ai_family == AF_INET6)
+		return "FF15::1";
+
+	return NULL;
+}
+
 int join(commandline_t *comline)
 {
 	cman_join_info_t join_info;
@@ -118,10 +140,14 @@ int join(commandline_t *comline)
 		}
 	}
 
-	if (comline->multicast_names[0])
-		mcast_name = comline->multicast_names[0];
+	if (comline->multicast_addr)
+		mcast_name = comline->multicast_addr;
 	else
-		mcast_name = "224.0.9.1"; // TODO use something sensible
+		mcast_name = default_mcast(comline);
+
+	if (!mcast_name)
+		die("Cannot determine a default multicast address");
+
 	error = cman_set_mcast(h, mcast_name);
 	if (error)
 	{

@@ -46,7 +46,7 @@ static void print_usage(void)
 	printf("\n");
 
 	printf("join\n");
-	printf("  -m <addr>      * Multicast address to use (combines with -i)\n");
+	printf("  -m <addr>      * Multicast address to use\n");
 	printf("  -v <votes>       Number of votes this node has (default 1)\n");
 	printf("  -e <votes>       Number of expected votes for the cluster (no default)\n");
 	printf("  -c <clustername> Name of the cluster to join\n");
@@ -489,15 +489,7 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 		switch (optchar) {
 
 		case 'm':
-		        i = comline->num_multicasts;
-			if (i >= MAX_INTERFACES)
-			        die("maximum of %d multicast addresses allowed",
-				    MAX_INTERFACES);
-			if (strlen(optarg) > MAX_MCAST_NAME_LEN)
-				die("maximum multicast name length is %d",
-				    MAX_MCAST_NAME_LEN);
-			comline->multicast_names[i] = strdup(optarg);
-			comline->num_multicasts++;
+			comline->multicast_addr = strdup(optarg);
 			break;
 
 		case 'n':
@@ -684,13 +676,6 @@ static void check_arguments(commandline_t *comline)
 
 		comline->nodenames[0] = strdup(utsname.nodename);
 		comline->num_nodenames++;
-	}
-
-	if (comline->num_nodenames && comline->num_multicasts &&
-	    comline->num_nodenames != comline->num_multicasts) {
-	        die("Number of node names (%d) must match number of multicast "
-		    "addresses (%d)", comline->num_nodenames,
-		    comline->num_multicasts);
 	}
 
 	if (comline->port <= 0 || comline->port > 65535)

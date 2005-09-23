@@ -62,10 +62,8 @@ do { \
 struct commandline
 {
 	int operation;
-	int num_multicasts;
-        int num_interfaces;
         int num_nodenames;
-	char *multicast_names[MAX_INTERFACES];
+	char *multicast_addr;
 	char *nodenames[MAX_INTERFACES];
         char *interfaces[MAX_INTERFACES];
 	char *override_nodename;

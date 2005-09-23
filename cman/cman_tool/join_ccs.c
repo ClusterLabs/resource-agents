@@ -187,7 +187,7 @@ int verify_nodename(commandline_t *comline, int cd, char *nodename)
 	freeifaddrs(ifa_list);
 	return error;
 }
-	   
+
 
 
 /*
@@ -214,7 +214,7 @@ int verify_nodename(commandline_t *comline, int cd, char *nodename)
  * has made an error if we find that a node's name is missing from cluster.conf
  * since that's the most likely situation and most helpful to the non-expert.
  */
- 
+
 int get_ccs_join_info(commandline_t *comline)
 {
 	char path[MAX_PATH_LEN];
@@ -353,45 +353,15 @@ int get_ccs_join_info(commandline_t *comline)
 	}
 
 
-	/* optional multicast name(s) with interfaces */
+	/* optional multicast name */
+	str = NULL;
+	error = ccs_get(cd, MCAST_ADDR_PATH, &str);
+	if (str) {
+		if (comline->verbose)
+			printf("multicast address %s\n", str);
 
-	if (!comline->num_multicasts) {
-		comline->num_multicasts = 0;
-		comline->num_interfaces = 0;
-
-		for (i = 0; ; i++) {
-			str = NULL;
-
-			error = ccs_get_list(cd, MCAST_ADDR_PATH, &str);
-			if (error || !str)
-				break;
-
-			if (comline->verbose)
-				printf("multicast address %s\n", str);
-
-			comline->multicast_names[i] = str;
-			comline->num_multicasts++;
-		}
-
-		for (i = 0; i < comline->num_multicasts; i++) {
-			str = NULL;
-			name = comline->multicast_names[i];
-			memset(path, 0, MAX_PATH_LEN);
-			sprintf(path, NODE_MCAST_IF_PATH, nodename, name);
-
-			error = ccs_get(cd, path, &str);
-			if (error || !str)
-				die("no interface for multicast address %s", name);
-
-			if (comline->verbose)
-				printf("if %s for mcast address %s\n", str, name);
-
-			comline->interfaces[i] = str;
-			comline->num_interfaces++;
-		}
+		comline->multicast_addr = str;
 	}
-
-
 
 	/* find our own number of votes */
 
