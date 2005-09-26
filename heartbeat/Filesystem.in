@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.4 2005/08/18 13:54:42 andrew Exp $
+# $Id: Filesystem.in,v 1.5 2005/09/26 08:44:30 sunjd Exp $
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
@@ -9,9 +9,8 @@
 #      Description: Manages a Filesystem on a shared storage medium.
 #  Original Author: Eric Z. Ayers (eric.ayers@compgen.com)
 # Original Release: 25 Oct 2000
-#          Support: linux-ha-dev@lists.tummy.com
 #
-# usage: ./Filesystem {start|stop|status|monitor}
+# usage: ./Filesystem {start|stop|status|monitor|validate-all|meta-data}
 #
 #	  OCF parameters are as below:
 #		OCF_RESKEY_device
@@ -40,7 +39,7 @@
 # If you are interested in High Availability, you will probably also want
 # some sort of external hardware RAID controller in front of the actual 
 # disks.  I don't mean a RAID controller embedded in the host controller -
-# it has to be a external controller.
+# it has to be an external controller.
 #
 # It can also be an internal RAID controller if the controller supports
 # failover.  IBM's ServeRAID controller does this, and it automatically
@@ -78,9 +77,6 @@
 
 #######################################################################
 
-prefix=@prefix@
-exec_prefix=@exec_prefix@
-
 # Utilities used by this script
 MODPROBE=@MODPROBE@
 FSCK=@FSCK@
@@ -91,16 +87,16 @@ BLOCKDEV=@BLOCKDEV@
 
 check_util () {
     if [ ! -x "$1" ] ; then
-	ocf_log "err" "Setup problem: Couldn't find utility $1"
-	exit 1
+	ocf_log err "Setup problem: Couldn't find utility $1"
+	exit $OCF_ERR_GENERIC
     fi
 }
 
 usage() {
 
 cat <<-EOT;
-	usage: $0 {start|stop|status|monitor}
-	$Id: Filesystem.in,v 1.4 2005/08/18 13:54:42 andrew Exp $
+	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
+	$Id: Filesystem.in,v 1.5 2005/09/26 08:44:30 sunjd Exp $
 	EOT
 }
 
@@ -108,7 +104,7 @@ meta_data() {
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="Filesystem" version="0.9">
+<resource-agent name="Filesystem">
 <version>1.0</version>
 
 <longdesc lang="en">
@@ -119,7 +115,7 @@ Resource script for Filesystem. It manages a Filesystem on a shared storage medi
 <parameters>
 <parameter name="device" unique="0">
 <longdesc lang="en">
-The name of block device for the filesystem.
+The name of block device for the filesystem, or -U, -L options for mount, or NFS mount specification.
 </longdesc>
 <shortdesc lang="en">block device</shortdesc>
 <content type="string" default="" />
@@ -155,6 +151,7 @@ Any extra options to be given as -o options to mount.
 <action name="stop" timeout="60" />
 <action name="status" depth="0" timeout="10" interval="10" start-delay="10" />
 <action name="monitor" depth="0" timeout="10" interval="10" start-delay="10" />
+<action name="validate-all" timeout="5" />
 <action name="meta-data" timeout="5" />
 </actions>
 </resource-agent>
@@ -193,20 +190,23 @@ Filesystem_start()
 	# See if the device is already mounted.
 	$MOUNT | cut -d' ' -f3 | grep -e "^$MOUNTPOINT$" >/dev/null
 	if [ $? -ne 1 ] ; then
-	    ocf_log "info" "Filesystem $MOUNTPOINT is already mounted."
-	    return 0;
+	    ocf_log info "Filesystem $MOUNTPOINT is already mounted."
+	    return $OCF_SUCCESS
 	fi
 
 	# Insert SCSI module
 	$MODPROBE scsi_hostadapter >/dev/null 2>&1
 
-	# Insert Filesystem module
-	$MODPROBE $FSTYPE >/dev/null 2>&1
-	grep -e "$FSTYPE"'$' /proc/filesystems >/dev/null
-	if [ $? != 0  ] ; then
-		ocf_log "err" "Couldn't find filesystem $FSTYPE in /proc/filesystems"
-		usage
-		return 1
+	if [ -z $FSTYPE ]; then
+	    : No $FSTYPE specified, rely on the system has the right file-system support already 
+	else
+	    # Insert Filesystem module
+	    $MODPROBE $FSTYPE >/dev/null 2>&1
+	    grep -e "$FSTYPE"'$' /proc/filesystems >/dev/null
+	    if [ $? != 0  ] ; then
+		ocf_log err "Couldn't find filesystem $FSTYPE in /proc/filesystems"
+		return $OCF_ERR_ARGS
+	    fi
 	fi
 
 	# Check the filesystem & auto repair.  
@@ -219,28 +219,34 @@ Filesystem_start()
 	    *)				true;;
 	  esac
         then
-	  ocf_log "info"  "Starting filesystem check on $DEVICE"
-	  $FSCK -t $FSTYPE -a $DEVICE
+	  ocf_log info  "Starting filesystem check on $DEVICE"
+	  if [ -z $FSTYPE ]; then
+		$FSCK -a $DEVICE
+	  else
+		$FSCK -t $FSTYPE -a $DEVICE
+	  fi
 	
 	  # NOTE: if any errors at all are detected, it returns non-zero
 	  # if the error is >= 4 then there is a big problem
 	  if
 	    [ $? -ge 4 ]
 	  then
-	    ocf_log "err" "Couldn't sucessfully fsck filesystem for $DEVICE"
-	    return 1	
+	    ocf_log err "Couldn't sucessfully fsck filesystem for $DEVICE"
+	    return $OCF_ERR_GENERIC	
 	  fi	
 	fi
 
 	flushbufs $DEVICE
 	# Mount the filesystem.
-	if
+	if [ -z $FSTYPE ]; then
+	  $MOUNT $options $DEVICE $MOUNTPOINT
+	else
 	  $MOUNT -t $FSTYPE $options $DEVICE $MOUNTPOINT
-        then
-	  : Mount worked!
-        else
-	  ocf_log "err" "Couldn't mount filesystem $DEVICE on $MOUNTPOINT"
-	  return 1
+        fi
+
+        if [ $? -ne 0 ]; then
+	  ocf_log err "Couldn't mount filesystem $DEVICE on $MOUNTPOINT"
+	  return $OCF_ERR_GENERIC
 	fi
 
 	return $?
@@ -266,8 +272,8 @@ Filesystem_stop()
 		# Unmount the filesystem
 		$UMOUNT $MOUNTPOINT
 		if [ $? -ne 0 ] ; then
-			ocf_log "err" "Couldn't unmount $MOUNTPOINT"
-			return 1
+			ocf_log err "Couldn't unmount $MOUNTPOINT"
+			return $OCF_ERR_GENERIC
 		fi
 		flushbufs $DEV
 	else
@@ -295,17 +301,47 @@ Filesystem_status()
 }
 # end of Filesystem_status
 
+#
+# VALIDATE_ALL: Are the instance parameters valid?
+#
+Filesystem_validate_all()
+{
+# See if the mountpoint is already occupied.
+	$MOUNT | cut -d' ' -f3 | grep -e "^$MOUNTPOINT$" >/dev/null
+	if [ $? -eq 0 ] ; then
+	    ocf_log info "Mountpoint $MOUNTPOINT is already used."
+	fi
+
+# Check if the $FSTYPE is workable
+# NOTE: Without inserting the $FSTYPE module, this step may be imprecise
+	if [ ! -z $FSTYPE ]; then
+	    cut -f2 /proc/filesystems |grep -q ^$FSTYPE$
+	    if [ $? -ne 0 ]; then
+		modpath=/lib/modules/`uname -r` 
+		moddep=$modpath/modules.dep
+		# Do we have $FSTYPE in modules.dep?
+		cut -d' ' -f1 $moddep |grep -q "^$modpath.*$FSTYPE\.k\?o:$"
+		if [ $? -ne 0 ]; then
+		    ocf_log info "It seems we do not have $FSTYPE support"
+		fi
+	    fi
+	fi
+
+#TODO: How to check the $options ?
+
+	return $OCF_SUCCESS
+}
+
 # Check the arguments passed to this script
 if
   [ $# -ne 1 ]
 then
   usage
-  exit 1
+  exit $OCF_ERR_ARGS
 fi
 
 # Check the OCF_RESKEY_ environment variables...
 DEVICE=$OCF_RESKEY_device
-MOUNTPOINT=$OCF_RESKEY_directory
 FSTYPE=$OCF_RESKEY_fstype
 if [ ! -z "$OCF_RESKEY_options" ]; then
 	options="-o $OCF_RESKEY_options"
@@ -313,22 +349,40 @@ fi
 
 OP=$1
 
+# These operations do not require instance parameters
+case $OP in
+  meta-data)		meta_data
+			exit $OCF_SUCCESS
+			;;
+  usage)		usage
+			exit $OCF_SUCCESS
+			;;
+esac
+
 case $DEVICE in
   -*) # Oh... An option to mount instead...  Typically -U or -L
 	;;
   [^/]*:/*)	# An NFS filesystem specification...
 	;;
   *)	if [ ! -b "$DEVICE"  -a "X$OP" != Xstop ] ; then
-	  ocf_log "err" "Couldn't find device $DEVICE. Expected /dev/??? to exist"
-	  usage
-	  exit 1
+	  ocf_log err "Couldn't find device [$DEVICE]. Expected /dev/??? to exist"
+	  exit $OCF_ERR_ARGS
 	fi;;
 esac
 
+# It is possible that OCF_RESKEY_directory has one or even multiple trailing "/".
+# But the output of `mount` do not.
+if [ -z $OCF_RESKEY_directory ]; then
+	ocf_log err "Please specify the directory"
+	exit $OCF_ERR_ARGS 
+else
+    MOUNTPOINT=$(echo $OCF_RESKEY_directory | sed 's/\/*$//')
+    : ${MOUNTPOINT:=/}
+    # At this stage, $MOUNTPOINT does not contain trailing "/" unless it is "/"
+fi
 if [ ! -d "$MOUNTPOINT" ] ; then
-	ocf_log "err" "Couldn't find directory  $MOUNTPOINT to use as a mount point"
-	usage
-	exit 1	
+	ocf_log err "Couldn't find directory  [$MOUNTPOINT] to use as a mount point"
+	exit $OCF_ERR_ARGS
 fi
 	
 
@@ -340,17 +394,13 @@ check_util $MOUNT
 check_util $UMOUNT
 
 case $OP in
-  meta-data)		meta_data
-			exit $OCF_SUCCESS
-			;;
   start)		Filesystem_start
 			;;
   stop)			Filesystem_stop
 			;;
   status|monitor)	Filesystem_status
 			;;
-  usage)		usage
-			exit $OCF_SUCCESS
+  validate-all)		Filesystem_validate_all
 			;;
   *)			usage
 			exit $OCF_ERR_UNIMPLEMENTED
