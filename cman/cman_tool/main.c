@@ -46,19 +46,19 @@ static void print_usage(void)
 	printf("\n");
 
 	printf("join\n");
-	printf("  -m <addr>      * Multicast address to use\n");
+	printf("  -m <addr>        Multicast address to use\n");
 	printf("  -v <votes>       Number of votes this node has (default 1)\n");
 	printf("  -e <votes>       Number of expected votes for the cluster (no default)\n");
 	printf("  -c <clustername> Name of the cluster to join\n");
 	printf("  -2               This is a two node cluster (-e must be 1)\n");
 	printf("  -p <port>        UDP port number for cman communications (default %d)\n", DEFAULT_PORT);
 	printf("  -n <nodename>  * The name of this node (defaults to hostname)\n");
-	printf("  -o <nodename>  * Override node name\n");
+	printf("  -o <nodename>    Override node name\n");
 	printf("  -N <id>          Node id (defaults to automatic)\n");
 	printf("  -w               Wait until node has joined a cluster\n");
 	printf("  -q               Wait until the cluster is quorate\n");
 	printf("  -t               Maximum time (in seconds) to wait\n");
-	printf("  -k               Private key file\n");
+	printf("  -k <file>        Private key file\n");
 	printf("  options with marked * can be specified multiple times for multi-path systems\n");
 
 	printf("\n");
