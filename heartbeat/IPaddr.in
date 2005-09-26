@@ -7,7 +7,7 @@
 #
 #	It can add an IP alias, or remove one.
 #
-#	usage: $0 {start|stop|status|monitor|meta-data}
+#	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
 #
 #	The "start" arg adds an IP alias.
 #
@@ -39,13 +39,11 @@ FINDIF=$HA_BIN/findif
 VLDIR=$HA_VARRUNDIR/rsctmp/IPaddr
 SENDARPPIDDIR=$HA_VARRUNDIR/rsctmp/send_arp
 ROUTE=@ROUTE@
-USAGE="usage: $0 {start|stop|status|monitor|meta-data}";
+USAGE="usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
 
 #######################################################################
 export LC_ALL=C
 
-prefix=@prefix@
-exec_prefix=@exec_prefix@
 HA_D=@sysconfdir@/ha.d
 . ${HA_D}/shellfuncs
 
@@ -69,7 +67,7 @@ meta_data() {
         cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="IPaddr" version="0.1">
+<resource-agent name="IPaddr">
 <version>1.0</version>
 <parameters>
 <parameter name="ip" unique="1">
@@ -180,22 +178,14 @@ netmask for ARP
 <content type="string" default="ffffffffffff"/>
 </parameter>
 
-<parameter name="remove_conflicting_loopback">
-<longdesc lang="en">
-netmask for ARP
-</longdesc>
-<shortdesc lang="en">netmask for ARP</shortdesc>
-<content type="string" default="ffffffffffff"/>
-</parameter>
-
 </parameters>
 
 <actions>
 <action name="start"   timeout="90" />
 <action name="stop"    timeout="100" />
 <action name="monitor" depth="10"  timeout="20s" interval="5s" start-delay="1s" />
+<action name="validate-all"  timeout="30s" />
 <action name="meta-data"  timeout="5s" />
-<action name="verify-all"  timeout="30s" />
 </actions>
 </resource-agent>
 END
@@ -246,7 +236,6 @@ ip_init() {
         case $NIC in
             *:*)
                 NIC=`echo $NIC | sed 's/:.*//'`
-                IFLABEL=`echo $NIC | sed 's/.*://'`
                 ;;
         esac
 
@@ -829,6 +818,42 @@ ip_monitor() {
   return $OCF_NOT_RUNNING
 }
 
+is_positive_integer() {
+# We know $1 is non-empty beforehand
+    case $1 in
+	*[^0-9]*) false;; #got invalid char
+	*[1-9]*) true;; #no invalid char, at most one decimal point, contains non-zero digit <=> valid
+	*) false;; #"0" string
+    esac
+}
+
+ip_validate_all() {
+# $BASEIP, $NETMASK, $NIC and $BRDCAST have been checked within ip_init,
+# do not bother here.
+
+# No need to Check lvs_support.
+
+  if is_positive_integer $OCF_RESKEY_ARP_INTERVAL_MS; then
+	:
+  else
+	ocf_log err "Invalid OCF_RESKEY_ARP_INTERVAL_MS [$OCF_RESKEY_ARP_INTERVAL_MS]"
+	exit $OCF_ERR_ARGS
+  fi
+
+  if is_positive_integer $OCF_RESKEY_ARP_REPEAT; then
+	:
+  else
+	ocf_log err "Invalid OCF_RESKEY_ARP_REPEAT [$OCF_RESKEY_ARP_REPEAT]"
+	exit $OCF_ERR_ARGS
+  fi
+
+# No need to check OCF_RESKEY_ARP_BACKGROUND
+# No need to check OCF_RESKEY_ARP_NETMASK, since it is currently unused
+# No need to check OCF_RESKEY_local_start_script and OCF_RESKEY_local_stop_script
+  return $OCF_SUCCESS
+}
+  
+
 usage() {
   echo $USAGE >&2
 }
@@ -838,8 +863,12 @@ usage() {
 #
 
 if
-  [ $# -eq 1 ]
+  [ $# -ne 1 ]
 then
+  usage
+  exit $OCF_ERR_ARGS
+fi
+
   case $1 in
     info)	cat <<-!INFO
 	Abstract=IP address takeover
@@ -857,22 +886,16 @@ then
 	!INFO
 	exit $OCF_SUCCESS;;
   esac
-fi
-
-if
-  [ $# -eq 0 ]
-then
-  usage
-  exit $OCF_ERR_GENERIC
-fi
 
 case $1 in
   start)	ip_init; ip_start ;;
   stop)		ip_init; ip_stop ;;
   status)	ip_init; ip_status ;;
   monitor)	ip_init; ip_monitor ;;
+  validate-all)	ip_init; ip_validate_all;;
   meta-data)	meta_data;;
+  usage)	usage; exit $OCF_SUCCESS;;
   *)		usage
- 		exit 1
+ 		exit $OCF_ERR_ARGS
 		;;
 esac
