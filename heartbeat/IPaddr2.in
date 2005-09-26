@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr2.in,v 1.9 2005/08/29 02:06:09 sunjd Exp $
+#	$Id: IPaddr2.in,v 1.10 2005/09/26 08:49:00 sunjd Exp $
 #
 #       OCF Resource Agent compliant IPaddr2 script.
 #
@@ -37,12 +37,28 @@
 
 # TODO: 
 # - Implement Cluster IP functionality
-# - there ought to be an ocf_log function, replacing ha_log
 # - There ought to be an ocf_run_cmd function which does all logging,
 #   timeout handling etc for us
 # - Make this the standard IP address agent on Linux; the other
 #   platforms simply should ignore the additional parameters OR can use
 #   the legacy heartbeat resource script...
+#
+#	OCF parameters are as below
+#	OCF_RESKEY_ip
+#	OCF_RESKEY_broadcast
+#	OCF_RESKEY_nic
+#	OCF_RESKEY_netmask
+#	OCF_RESKEY_iflabel
+#	OCF_RESKEY_mac
+#	OCF_RESKEY_incarnations_max_global
+#	OCF_RESKEY_incarnation_no
+#	OCF_RESKEY_clusterip_hash
+#	OCF_RESKEY_clusterip_mark
+#	OCF_RESKEY_arp_interval
+#	OCF_RESKEY_arp_count
+#	OCF_RESKEY_arp_bg
+#	OCF_RESKEY_arp_mac
+
 
 #######################################################################
 # Initialization:
@@ -64,7 +80,7 @@ meta_data() {
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="IPaddr2" version="0.9">
+<resource-agent name="IPaddr2">
 <version>1.0</version>
 <parameters>
 <parameter name="ip" unique="1">
@@ -113,7 +129,7 @@ determine this from the netmask.
 
 <parameter name="iflabel">
 <longdesc lang="en">
-You can specify an additional label for your IP address here.
+You can specify an additional label for your IP address here. This label is appended to your interface name. If a label is specified in nic name, this parameter takes no effect.
 </longdesc>
 <shortdesc lang="en">Interface label</shortdesc>
 <content type="string" default=""/>
@@ -129,7 +145,7 @@ to the number of hash buckets you wish to use.
 <content type="integer" default="1"/>
 </parameter>
 
-<parameter name="incarnations_max_node">
+<parameter name="incarnation_no">
 <longdesc lang="en">
 If you wish the IP address to be active on more than one node, set this
 to the number of hash buckets you wish to maximally assign to a single
@@ -159,6 +175,15 @@ Specify the hashing algorithm used for the Cluster IP functionality.
 </longdesc>
 <shortdesc lang="en">Cluster IP hashing function</shortdesc>
 <content type="string" default="sourceip-sourceport-destport"/>
+</parameter>
+
+<parameter name="clusterip_mark">
+<longdesc lang="en">
+Specify the mark value used to mark the connection by CONNMARK target.
+
+</longdesc>
+<shortdesc lang="en">Mark value</shortdesc>
+<content type="string" default="1"/>
 </parameter>
 
 <parameter name="arp_interval">
@@ -203,12 +228,20 @@ You really shouldn't be touching this.
 <action name="stop"    timeout="100" />
 <action name="monitor" depth="10"  timeout="20s" interval="10s" start-delay="5s" />
 <action name="meta-data"  timeout="5s" />
-<action name="verify-all"  timeout="20s" />
+<action name="validate-all"  timeout="20s" />
 </actions>
 </resource-agent>
 END
 
 	exit $OCF_SUCCESS
+}
+
+is_decimal() {
+# We know $1 is non-empty beforehand
+    case $1 in
+	*[^0-9]*) false;; #got invalid char
+	*) true;;
+    esac
 }
 
 ip_init() {
@@ -226,45 +259,60 @@ ip_init() {
 	BRDCAST="$OCF_RESKEY_broadcast"
 	NIC="$OCF_RESKEY_nic"
 	NETMASK="$OCF_RESKEY_netmask"
-	IFLABEL="$OCF_RESKEY_label"
+	IFLABEL="$OCF_RESKEY_iflabel"
 	IF_MAC="$OCF_RESKEY_mac"
-	IP_INC_GLOBAL="$OCF_RESKEY_incarnations_max_global"
-	IP_INC_NO="$OCF_RESKEY_incarnation_no"
+
+	IP_INC_GLOBAL=${OCF_RESKEY_incarnations_max_global:-1}
+	IP_INC_NO=${OCF_RESKEY_incarnation_no:-0}
 	IP_CIP_HASH="$OCF_RESKEY_clusterip_hash"
-	
+	IP_CIP_MARK=${OCF_RESKEY_clusterip_mark:-1}
+
 	ARP_INTERVAL_MS=${OCF_RESKEY_arp_interval:-200}
 	ARP_REPEAT=${OCF_RESKEY_arp_count:-5}
 	ARP_BACKGROUND=${OCF_RESKEY_arp_bg:-yes}
 	ARP_NETMASK=${OCF_RESKEY_arp_mac:-ffffffffffff}
 
-	if [ x"$IP_INC_GLOBAL" = "x" ]; then
-	    IP_INC_GLOBAL=1
+	if is_decimal "$IP_INC_GLOBAL" && [ $IP_INC_GLOBAL -gt 0 ]; then
+		:
+	else
+		ocf_log err "Invalid OCF_RESKEY_incarnations_max_global [$IP_INC_GLOBAL], should be positive integer"
+		exit $OCF_ERR_ARGS
 	fi
 
-	# TODO: Perform validation here...
-	local VALID=1
-	if [ $VALID -eq 0 ]; then
-		exit $OCF_ERR_ARGS;
-	fi
+	  
+	# Validation is performed in ip_validate()...
 
 	#
 	# $FINDIF can deal with the condition of empty intermediate parameters.
 	#
-	 NICINFO=`$FINDIF -C "$BASEIP/$NETMASK/$NIC/$BRDCAST" | sed -e 's/netmask\ //;s/broadcast\ //'`
+	NICINFO=`$FINDIF -C "$BASEIP/$NETMASK/$NIC/$BRDCAST"`
 
-	 NIC=`echo "$NICINFO" | cut -f1`
-	 NETMASK=`echo "$NICINFO" | cut -f2`
-	 BRDCAST=`echo "$NICINFO" | cut -f3`
+	if [ $? -eq 0 ]; then
+	    NICINFO=`echo $NICINFO | sed -e 's/netmask\ //;s/broadcast\ //'`
+	    NIC=`echo "$NICINFO" | cut -d" " -f1`
+	    NETMASK=`echo "$NICINFO" | cut -d" " -f2`
+	    BRDCAST=`echo "$NICINFO" | cut -d" " -f3`
+	else
+	    ocf_log err "Failed: $FINDIF $BASEIP/$NETMASK/$NIC/$BRDCAST . Parameter error."
+  	    exit $OCF_ERR_GENERIC
+	fi
 	
 	SENDARPPIDFILE="$SENDARPPIDDIR/send_arp-$BASEIP"
 
 	case $NIC in
 	    *:*)
+		IFLABEL=$NIC
 		NIC=`echo $NIC | sed 's/:.*//'`
-		IFLABEL=`echo $NIC | sed 's/.*://'`
+		;;
+	    *)
+		if [ -n "$IFLABEL" ]; then
+			IFLABEL=${NIC}:${IFLABEL}
+		fi
 		;;
 	esac
 
+	IP_CIP=
+	
 	if [ "$IP_INC_GLOBAL" -gt 1 ]; then
 		if [ ! -x "$IPTABLES" ]; then
 			ocf_log err "Cluster Alias IP mode selected, but iptables not configured"
@@ -273,9 +321,17 @@ ip_init() {
 		IP_CIP="yes"
 		if [ -z "$IF_MAC" ]; then
 			# Choose a hash.
-			IF_MAC=`echo $BASEIP $NETMASK $BRDCAST | md5sum | cut -c 1-16`
+			IF_MAC=`echo $BASEIP $NETMASK $BRDCAST | md5sum | cut -c 1-12`
+			# Make it properly delimited, anything non-numeric will do, ":" and "-" are preferred.
+			IF_MAC=${IF_MAC:0:2}:${IF_MAC:2:2}:${IF_MAC:4:2}:${IF_MAC:6:2}:${IF_MAC:8:2}:${IF_MAC:10:2}
+			# For $IF_MAC to be a multicast Ethernet address, the first octet must be an odd number.
+			case ${IF_MAC:1:1} in
+				0|2|4|6|8|a|A|c|C|e|E)
+				IF_MAC=${IF_MAC:0:1}1${IF_MAC:2}
+				;;
+			esac
 		fi
-		IP_CIP_FILE="/proc/net/ipt_CLUSTERIP"
+		IP_CIP_FILE="/proc/net/ipt_CLUSTERIP/$BASEIP"
 	fi
 }
 
@@ -496,9 +552,9 @@ ip_start() {
 		$MODPROBE ip_tables
 		$MODPROBE ip_conntrack
 		$MODPROBE ipt_CLUSTERIP
-		$IPTABLES -A OUTPUT -s $CLUSTERIP -o $NIC \
+		$IPTABLES -A OUTPUT -s $BASEIP -o $NIC \
 				-m state --state NEW \
-				-j CONNMARK --set-mark $LOCALNODE
+				-j CONNMARK --set-mark $IP_CIP_MARK
 		if [ $? -ne 0 ]; then
 			ocf_log err "iptables failed"
 			exit $OCF_ERR_GENERIC
@@ -575,7 +631,7 @@ ip_stop() {
 			# This was the last incarnation
 			$IPTABLES -D OUTPUT -s $CLUSTERIP -o $NIC \
 					-m state --state NEW \
-					-j CONNMARK --set-mark $LOCALNODE
+					-j CONNMARK --set-mark $IP_CIP_MARK
 			$IPTABLES -D INPUT -d $BASEIP -i $NIC -j CLUSTERIP \
 					--new \
 					--clustermac $IF_MAC \
@@ -617,8 +673,124 @@ ip_monitor() {
 	esac
 }
 
+is_hexidecimal() {
+# We know $1 is non-empty beforehand
+    case $1 in
+	*[^0-9a-fA-F]*) false;; #got invalid char
+	*) true;;
+    esac
+}
+
+is_octal() {
+# We know $1 is non-empty beforehand
+    case $1 in
+	*[^0-7]*) false;; #got invalid char
+	*) true;;
+    esac
+}
+
 ip_validate() {
-	# TODO
+    ip_init
+
+# $BASEIP, $NETMASK, $NIC , $IP_INC_GLOBAL, and $BRDCAST have been checked within ip_init,
+# do not bother here.
+	
+    if is_decimal "$ARP_INTERVAL_MS" && [ $ARP_INTERVAL_MS -gt 0 ]; then
+	:
+    else
+	ocf_log err "Invalid OCF_RESKEY_arp_interval [$ARP_INTERVAL_MS]"
+	exit $OCF_ERR_ARGS
+    fi
+
+    if is_decimal "$ARP_REPEAT" && [ $ARP_REPEAT -gt 0 ]; then
+	:
+    else
+	ocf_log err "Invalid OCF_RESKEY_arp_count [$ARP_REPEAT]"
+	exit $OCF_ERR_ARGS
+    fi
+
+    if [ -n "$IP_CIP" ]; then
+
+	local valid=1
+
+	if is_decimal "$IP_INC_NO"; then
+		:
+	else
+		ocf_log err "Invalid OCF_RESKEY_incarnation_no [$IP_INC_NO]"
+		exit $OCF_ERR_ARGS
+	fi
+		 
+	case $IP_CIP_HASH in
+	sourceip|sourceip-sourceport|sourceip-sourceport-destport)
+		;;
+	*)
+		ocf_log err "Invalid OCF_RESKEY_clusterip_hash [$IP_CIP_HASH]"
+		exit $OCF_ERR_ARGS
+		;;
+	esac
+
+	mark=$IP_CIP_MARK
+	case $mark in
+	+*|-*)
+		mark=$(echo $mark | cut -c 2-)
+		;;
+	esac
+	case $mark in
+	0x*)	# hexidecimal
+	  mark=$(echo $mark | cut -c 3-)
+	  if [ -n "$mark" ] && is_hexidecimal "$mark"; then
+		:
+	  else
+		valid=0
+	  fi
+	  ;;
+	0*)	# octal
+	  mark=$(echo $mark | cut -c 2-)
+	  if [ -n "$mark" ] && is_octal "$mark"; then
+		:
+	  else
+		valid=0
+	  fi
+	  ;;
+	*)	# decimal
+	  if [ -n "$mark" ] && is_decimal "$mark"; then
+		:
+	  else
+		valid=0
+	  fi
+	  ;;
+	esac
+
+	if [ $valid -eq 0 ]; then
+	  ocf_log err "Invalid OCF_RESKEY_clusterip_mark [$IP_CIP_MARK]"
+	  exit $OCF_ERR_ARGS
+	fi
+
+	case $IF_MAC in
+	??[^0-9]??[^0-9]??[^0-9]??[^0-9]??[^0-9]??)
+		mac=${IF_MAC:0:2}${IF_MAC:3:2}${IF_MAC:6:2}${IF_MAC:9:2}${IF_MAC:12:2}${IF_MAC:15:2}
+		if is_hexidecimal "$mac"; then
+			case ${mac:1:1} in
+			0|2|4|6|8|a|A|c|C|e|E)
+				valid=0
+				;;
+			esac
+		else
+			valid=0
+		fi
+		;;
+	*)
+		valid=0
+		;;
+	esac
+
+	if [ $valid -eq 0 ]; then
+	  ocf_log err "Invalid IF_MAC [$IF_MAC]"
+	  exit $OCF_ERR_ARGS
+	fi
+
+    fi
+
 	exit $OCF_SUCCESS
 }
 
