@@ -59,7 +59,7 @@ void make_args(char *buf, int *argc, char **argv, char sep)
 int process_uevent(void)
 {
 	char buf[MAXLINE];
-	char *argv[MAXARGS], *act, *sys;
+	char *argv[MAXARGS], *act;
 	int rv, argc = 0;
 
 	memset(buf, 0, sizeof(buf));
@@ -70,17 +70,15 @@ int process_uevent(void)
 		return -1;
 	}
 
-	if (!strstr(buf, "lock_dlm"))
+	log_debug("kernel: %s", buf);
+
+	if (!strstr(buf, "gfs") || !strstr(buf, "lock_module"))
 		return 0;
 
 	make_args(buf, &argc, argv, '/');
 	act = argv[0];
-	sys = argv[2];
 
-	if ((strlen(sys) != strlen("lock_dlm")) || strcmp(sys, "lock_dlm"))
-		return 0;
-
-	log_debug("kernel: %s %s", act, argv[3]);
+	/* log_debug("kernel: %s %s", act, argv[3]); */
 
 	if (!strcmp(act, "mount@"))
 		do_mount(argv[3]);

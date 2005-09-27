@@ -83,6 +83,7 @@ do { \
 struct mountgroup {
 	struct list_head	list;
 	char			name[MAXNAME+1];
+	char			table[MAXNAME+1];
 	struct list_head	members;
 	struct list_head	members_gone;
 	int			memb_count;

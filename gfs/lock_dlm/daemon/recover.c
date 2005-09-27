@@ -12,7 +12,7 @@
 
 #include "lock_dlm.h"
 
-#define LOCK_DLM_SYSFS_DIR	("/sys/kernel/lock_dlm")
+#define SYSFS_DIR	"/sys/kernel/gfs2"
 
 extern char *clustername;
 extern int our_nodeid;
@@ -33,7 +33,8 @@ int set_sysfs(struct mountgroup *mg, char *field, int val)
 	char out[16];
 	int rv, fd;
 
-	snprintf(fname, 512, "%s/%s/%s", LOCK_DLM_SYSFS_DIR, mg->name, field);
+	snprintf(fname, 512, "%s/%s/lock_module/%s",
+		 SYSFS_DIR, mg->table, field);
 
 	log_group(mg, "set %s to %d", fname, val);
 
@@ -59,7 +60,8 @@ int get_sysfs(struct mountgroup *mg, char *field, char *buf, int len)
 	char fname[512], *p;
 	int fd, rv;
 
-	snprintf(fname, 512, "%s/%s/%s", LOCK_DLM_SYSFS_DIR, mg->name, field);
+	snprintf(fname, 512, "%s/%s/lock_module/%s",
+		 SYSFS_DIR, mg->table, field);
 
 	fd = open(fname, O_RDONLY);
 	if (fd < 0) {
@@ -441,12 +443,18 @@ struct mountgroup *find_mg(char *name)
 	return NULL;
 }
 
-int do_mount(char *name)
+int do_mount(char *table)
 {
 	struct mountgroup *mg;
-	char buf[MAXLINE], *info = NULL;
+	char buf[MAXLINE], *name, *info = NULL;
 	group_data_t data;
 	int rv;
+
+	name = strstr(table, ":") + 1;
+	if (!name) {
+		rv = -EINVAL;
+		goto fail;
+	}
 
 	if (strlen(name) > MAXNAME) {
 		rv = -ENAMETOOLONG;
@@ -464,6 +472,8 @@ int do_mount(char *name)
 		rv = -ENOMEM;
 		goto fail;
 	}
+
+	strcpy(mg->table, table);
 
 	memset(buf, 0, sizeof(buf));
 
@@ -544,16 +554,17 @@ int first_recovery_done(struct mountgroup *mg)
 	return 0;
 }
 
-int do_recovery_done(char *name)
+int do_recovery_done(char *table)
 {
 	struct mountgroup *mg;
 	struct mg_member *memb;
 	char buf[MAXLINE];
+	char *name = strstr(table, ":") + 1;
 	int rv, jid_done, wait, found = 0;
 
 	mg = find_mg(name);
 	if (!mg) {
-		log_error("recovery_done: unknown mount group %s", name);
+		log_error("recovery_done: unknown mount group %s", table);
 		return -1;
 	}
 
@@ -597,13 +608,14 @@ int do_recovery_done(char *name)
 	return 0;
 }
 
-int do_unmount(char *name)
+int do_unmount(char *table)
 {
 	struct mountgroup *mg;
+	char *name = strstr(table, ":") + 1;
 
 	mg = find_mg(name);
 	if (!mg) {
-		log_error("do_unmount: unknown mount group %s", name);
+		log_error("do_unmount: unknown mount group %s", table);
 		return -1;
 	}
 
