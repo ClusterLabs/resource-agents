@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: drbd.in,v 1.11 2005/09/23 12:58:29 lars Exp $
+#	$Id: drbd.in,v 1.12 2005/09/27 15:25:53 lars Exp $
 #
 #       OCF Resource Agent compliant drbd resource script.
 #
@@ -139,6 +139,8 @@ do_cmd() {
 		ocf_log debug "$RESOURCE: Exit code $ret"
 		ocf_log debug "$RESOURCE: Command output: $cmd_out"
 	fi
+	
+	echo $cmd_out
 	
 	return $ret
 }
