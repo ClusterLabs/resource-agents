@@ -31,60 +31,20 @@
 
 int gfs2_lm_mount(struct gfs2_sbd *sdp, int silent)
 {
-	struct gfs2_sb *sb = NULL;
-	char *proto, *table;
+	char *proto = sdp->sd_proto_name;
+	char *table = sdp->sd_table_name;
 	int flags = 0;
 	int error;
 
 	if (sdp->sd_args.ar_spectator)
 		flags |= LM_MFLAG_SPECTATOR;
 
-	proto = sdp->sd_args.ar_lockproto;
-	table = sdp->sd_args.ar_locktable;
-
-	/*  Try to autodetect  */
-
-	if (!proto[0] || !table[0]) {
-		struct buffer_head *bh;
-		bh = sb_getblk(sdp->sd_vfs,
-			       GFS2_SB_ADDR >> sdp->sd_fsb2bb_shift);
-		lock_buffer(bh);
-		clear_buffer_uptodate(bh);
-		clear_buffer_dirty(bh);
-		unlock_buffer(bh);
-		ll_rw_block(READ, 1, &bh);
-		wait_on_buffer(bh);
-
-		if (!buffer_uptodate(bh)) {
-			brelse(bh);
-			return -EIO;
-		}
-
-		sb = kmalloc(sizeof(struct gfs2_sb), GFP_KERNEL);
-		if (!sb) {
-			brelse(bh);
-			return -ENOMEM;
-		}
-		gfs2_sb_in(sb, bh->b_data);
-		brelse(bh);
-
-		error = gfs2_check_sb(sdp, sb, silent);
-		if (error)
-			goto out;
-
-		if (!proto[0])
-			proto = sb->sb_lockproto;
-
-		if (!table[0])
-			table = sb->sb_locktable;
-	}
-
 	fs_info(sdp, "Trying to join cluster \"%s\", \"%s\"\n", proto, table);
 
 	error = lm_mount(proto, table, sdp->sd_args.ar_hostdata,
 			 gfs2_glock_cb, sdp,
 			 GFS2_MIN_LVB_SIZE, flags,
-			 &sdp->sd_lockstruct);
+			 &sdp->sd_lockstruct, &sdp->sd_kobj);
 	if (error) {
 		fs_info(sdp, "can't mount proto=%s, table=%s, hostdata=%s\n",
 			proto, table, sdp->sd_args.ar_hostdata);
@@ -93,33 +53,27 @@ int gfs2_lm_mount(struct gfs2_sbd *sdp, int silent)
 
 	if (gfs2_assert_warn(sdp, sdp->sd_lockstruct.ls_lockspace) ||
 	    gfs2_assert_warn(sdp, sdp->sd_lockstruct.ls_ops) ||
-	    gfs2_assert_warn(sdp, sdp->sd_lockstruct.ls_lvb_size >= GFS2_MIN_LVB_SIZE)) {
+	    gfs2_assert_warn(sdp, sdp->sd_lockstruct.ls_lvb_size >=
+				  GFS2_MIN_LVB_SIZE)) {
 		lm_unmount(&sdp->sd_lockstruct);
 		goto out;
 	}
 
 	if (sdp->sd_args.ar_spectator)
-		snprintf(sdp->sd_fsname, GFS2_FSNAME_LEN, "%s.s",
-			 (*table) ? table : sdp->sd_vfs->s_id);
+		snprintf(sdp->sd_fsname, GFS2_FSNAME_LEN, "%s.s", table);
 	else
-		snprintf(sdp->sd_fsname, GFS2_FSNAME_LEN, "%s.%u",
-			 (*table) ? table : sdp->sd_vfs->s_id,
+		snprintf(sdp->sd_fsname, GFS2_FSNAME_LEN, "%s.%u", table,
 			 sdp->sd_lockstruct.ls_jid);
 
 	fs_info(sdp, "Joined cluster. Now mounting FS...\n");
 
 	if ((sdp->sd_lockstruct.ls_flags & LM_LSFLAG_LOCAL) &&
 	    !sdp->sd_args.ar_ignore_local_fs) {
-		/* Force local [p|f]locks */
 		sdp->sd_args.ar_localflocks = 1;
-
-		/* Force local read ahead and caching */
 		sdp->sd_args.ar_localcaching = 1;
 	}
 
  out:
-	kfree(sb);
-
 	return error;
 }
 

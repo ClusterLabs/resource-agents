@@ -525,7 +525,7 @@ int gfs2_sys_fs_add(struct gfs2_sbd *sdp)
 	sdp->sd_kobj.kset = &gfs2_kset;
 	sdp->sd_kobj.ktype = &gfs2_ktype;
 
-	error = kobject_set_name(&sdp->sd_kobj, "%s", sdp->sd_fsname);
+	error = kobject_set_name(&sdp->sd_kobj, "%s", sdp->sd_table_name);
 	if (error)
 		goto fail;
 

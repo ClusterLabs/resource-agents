@@ -72,8 +72,6 @@ static void gfs2_put_super(struct super_block *sb)
 
 	atomic_inc(&sdp->sd_ops_super);
 
-	gfs2_sys_fs_del(sdp);
-
 	/*  Unfreeze the filesystem, if we need to  */
 
 	down(&sdp->sd_freeze_lock);
@@ -135,6 +133,8 @@ static void gfs2_put_super(struct super_block *sb)
 	gfs2_lm_unmount(sdp);
 
 	/*  At this point, we're through participating in the lockspace  */
+
+	gfs2_sys_fs_del(sdp);
 
 	/*  Get rid of any extra inodes  */
 	while (invalidate_inodes(sb))

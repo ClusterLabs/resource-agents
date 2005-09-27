@@ -689,12 +689,12 @@ struct gfs2_sbd {
 	atomic_t sd_ops_vm;
 
 	char sd_fsname[GFS2_FSNAME_LEN];
+	char sd_table_name[GFS2_FSNAME_LEN];
+	char sd_proto_name[GFS2_FSNAME_LEN];
 
 	/* Debugging crud */
 
 	unsigned long sd_last_warning;
-
-	struct list_head sd_list;
 };
 
 #endif /* __INCORE_DOT_H__ */

@@ -131,6 +131,63 @@ static void init_vfs(struct gfs2_sbd *sdp)
 	sdp->sd_fsb2bb = 1 << sdp->sd_fsb2bb_shift;
 }
 
+static int init_names(struct gfs2_sbd *sdp, int silent)
+{
+	struct gfs2_sb *sb = NULL;
+	char *proto, *table;
+	int error = 0;
+
+	proto = sdp->sd_args.ar_lockproto;
+	table = sdp->sd_args.ar_locktable;
+
+	/*  Try to autodetect  */
+
+	if (!proto[0] || !table[0]) {
+		struct buffer_head *bh;
+		bh = sb_getblk(sdp->sd_vfs,
+			       GFS2_SB_ADDR >> sdp->sd_fsb2bb_shift);
+		lock_buffer(bh);
+		clear_buffer_uptodate(bh);
+		clear_buffer_dirty(bh);
+		unlock_buffer(bh);
+		ll_rw_block(READ, 1, &bh);
+		wait_on_buffer(bh);
+
+		if (!buffer_uptodate(bh)) {
+			brelse(bh);
+			return -EIO;
+		}
+
+		sb = kmalloc(sizeof(struct gfs2_sb), GFP_KERNEL);
+		if (!sb) {
+			brelse(bh);
+			return -ENOMEM;
+		}
+		gfs2_sb_in(sb, bh->b_data); 
+		brelse(bh);
+
+		error = gfs2_check_sb(sdp, sb, silent);
+		if (error)
+			goto out;
+
+		if (!proto[0])
+			proto = sb->sb_lockproto;
+		if (!table[0])
+			table = sb->sb_locktable;
+	}
+
+	if (!table[0])
+		table = sdp->sd_vfs->s_id;
+
+	snprintf(sdp->sd_proto_name, GFS2_FSNAME_LEN, "%s", proto);
+	snprintf(sdp->sd_table_name, GFS2_FSNAME_LEN, "%s", table);
+
+ out:
+	kfree(sb);
+
+	return error;
+}
+
 static int init_locking(struct gfs2_sbd *sdp, struct gfs2_holder *mount_gh,
 			int undo)
 {
@@ -698,10 +755,17 @@ static int fill_super(struct super_block *sb, void *data, int silent)
 
 	init_vfs(sdp);
 
-	/* Mount an inter-node lock module, check for local optimizations */
-	error = gfs2_lm_mount(sdp, silent);
+	error = init_names(sdp, silent);
 	if (error)
 		goto fail;
+
+	error = gfs2_sys_fs_add(sdp);
+	if (error)
+		goto fail;
+
+	error = gfs2_lm_mount(sdp, silent);
+	if (error)
+		goto fail_sys;
 
 	error = init_locking(sdp, &mount_gh, DO);
 	if (error)
@@ -733,25 +797,17 @@ static int fill_super(struct super_block *sb, void *data, int silent)
 	if (error)
 		goto fail_per_node;
 
-	error = gfs2_sys_fs_add(sdp);
-	if (error)
-		goto fail_threads;
-
-	/* Make the FS read/write */
 	if (!(sb->s_flags & MS_RDONLY)) {
 		error = gfs2_make_fs_rw(sdp);
 		if (error) {
 			fs_err(sdp, "can't make FS RW: %d\n", error);
-			goto fail_sys;
+			goto fail_threads;
 		}
 	}
 
 	gfs2_glock_dq_uninit(&mount_gh);
 
 	return 0;
-
- fail_sys:
-	gfs2_sys_fs_del(sdp);
 
  fail_threads:
 	init_threads(sdp, UNDO);
@@ -776,6 +832,9 @@ static int fill_super(struct super_block *sb, void *data, int silent)
 	gfs2_lm_unmount(sdp);
 	while (invalidate_inodes(sb))
 		yield();
+
+ fail_sys:
+	gfs2_sys_fs_del(sdp);
 
  fail:
 	vfree(sdp);
