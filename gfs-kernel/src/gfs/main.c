@@ -55,9 +55,13 @@ init_gfs_fs(void)
 	p = TRUE;
 #endif
 
-	error = gfs_proc_init();
+	error = gfs_sys_init();
 	if (error)
 		goto fail_debug;
+
+	error = gfs_proc_init();
+	if (error)
+		goto fail_sys;
 
 	error = gfs_diaper_init();
 	if (error)
@@ -116,6 +120,9 @@ init_gfs_fs(void)
  fail_proc:
 	gfs_proc_uninit();
 
+ fail_sys:
+	gfs_sys_uninit();
+
  fail_debug:
 #ifdef GFS_PROFILE
 	if (p)
@@ -145,6 +152,7 @@ exit_gfs_fs(void)
 
 	gfs_diaper_uninit();
 	gfs_proc_uninit();
+	gfs_sys_uninit();
 
 #ifdef GFS_PROFILE
 	gfs_profile_uninit();

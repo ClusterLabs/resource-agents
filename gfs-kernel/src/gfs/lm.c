@@ -56,7 +56,6 @@ int
 gfs_lm_mount(struct gfs_sbd *sdp, int silent)
 {
 	ENTER(GFN_LM_MOUNT)
-	struct gfs_sb *sb = NULL;
 	char *proto = sdp->sd_proto_name, *table = sdp->sd_table_name;
 	int flags = 0;
 	int error;
