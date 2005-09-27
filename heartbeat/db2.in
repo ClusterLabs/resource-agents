@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: db2.in,v 1.4 2005/08/31 17:42:49 alan Exp $
+# $Id: db2.in,v 1.5 2005/09/27 03:04:52 horms Exp $
 # 
 # db2
 #
@@ -48,7 +48,7 @@ usage() {
 	The 'validate-all' operation reports whether the parameters are valid
 	The 'methods' operation reports on the methods $0 supports
 
-	$Id: db2.in,v 1.4 2005/08/31 17:42:49 alan Exp $
+	$Id: db2.in,v 1.5 2005/09/27 03:04:52 horms Exp $
 	!
 }
 
@@ -359,6 +359,7 @@ case "$1" in
 		  echo DB2 UDB instance $instance is stopped
 		  exit $OCF_NOT_RUNNING
 		fi
+		;;
 
   monitor)	db2_monitor $instance
 		exit $?;;
