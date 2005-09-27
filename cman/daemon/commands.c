@@ -78,7 +78,6 @@ static int ais_running;
 static struct cluster_node *find_node_by_nodeid(int nodeid);
 static struct cluster_node *find_node_by_name(char *name);
 static struct cluster_node *find_node_by_ais_node(struct totem_ip_address *ais_node);
-static struct cluster_node *get_lowest_node();
 static int get_node_count(void);
 static int get_highest_nodeid(void);
 static int send_port_open_msg(unsigned char port);
@@ -141,6 +140,29 @@ static void set_quorate(int total_votes)
 
 }
 
+static void node_add_ordered(struct cluster_node *newnode)
+{
+	struct cluster_node *node = NULL;
+	struct list *tmp;
+	struct list *newlist = &newnode->list;
+
+	list_iterate(tmp, &cluster_members_list) {
+		node = list_item(tmp, struct cluster_node);
+
+                if (newnode->node_id < node->node_id)
+                        break;
+        }
+
+        if (!node)
+		list_add(&cluster_members_list, &newnode->list);
+        else {
+                newlist->p = tmp->p;
+                newlist->n = tmp;
+                tmp->p->n = newlist;
+                tmp->p = newlist;
+        }
+}
+
 static struct cluster_node *add_new_node(char *name, int nodeid, int votes, int expected_votes,
 					 nodestate_t state, struct totem_ip_address *ais_node)
 {
@@ -184,7 +206,7 @@ static struct cluster_node *add_new_node(char *name, int nodeid, int votes, int 
 		totemip_copy(&newnode->ais_node, ais_node);
 
 	if (newalloc)
-		list_add(&cluster_members_list, &newnode->list);
+		node_add_ordered(newnode);
 
 	P_MEMB("add_new_node: %s, (id=%d, votes=%d) newalloc=%d\n",
 	       name, nodeid, votes, newalloc);
@@ -367,7 +389,6 @@ static int do_cmd_get_all_members(char *cmdbuf, char **retbuf, int retsize, int 
 	struct list *nodelist;
 	char *outbuf = *retbuf + offset;
 	int num_nodes = 0;
-	int i;
 	int total_nodes = 0;
 	int highest_node;
 
@@ -394,19 +415,7 @@ static int do_cmd_get_all_members(char *cmdbuf, char **retbuf, int retsize, int 
 	}
 	user_node = (struct cl_cluster_node *)outbuf;
 
-#if 1
-	/* This returns nodes sorted by nodeid */
-	for (i=1; i <= highest_node; i++) {
-		node = find_node_by_nodeid(i);
-		if (node && retsize) {
-			copy_to_usernode(node, user_node);
-
-			user_node++;
-			num_nodes++;
-		}
-	}
-#else
-	/* This just returns the full list */
+	/* This returns the full list */
 	list_iterate_items(node, &cluster_members_list) {
 		if (retsize) {
 			copy_to_usernode(node, user_node);
@@ -415,7 +424,7 @@ static int do_cmd_get_all_members(char *cmdbuf, char **retbuf, int retsize, int 
 			num_nodes++;
 		}
 	}
-#endif
+
 	if (quorum_device) {
 		copy_to_usernode(quorum_device, user_node);
 		user_node++;
@@ -1368,7 +1377,7 @@ static void process_internal_message(char *data, int len, int nodeid, struct tot
 		P_MEMB("got LEAVE from node %d, reason = %d\n", nodeid, leavemsg->reason);
 
 		/* We got our own leave message back. now quit */
-		if (node->node_id == us->node_id)
+		if (node && node->node_id == us->node_id)
 			exit(0);
 
 		/* Someone else, make a note of the reason for leaving */
@@ -1429,25 +1438,37 @@ void add_ais_node(struct totem_ip_address *ais_node, uint64_t incarnation, int t
 	node = find_node_by_ais_node(ais_node);
 	if (!node && total_members == 1) {
 		node = us;
-		P_MEMB("Adding AIS node for US\n");
+		P_MEMB("Adding AIS node for 'us'\n");
 	}
 
 	if (!node && ais_node->nodeid)
 		node = find_node_by_nodeid(ais_node->nodeid);
 
-	if (!node)
-		log_msg(LOG_ERR, "Got node %s from AIS (id %d) with no CCS entry\n", totemip_print(ais_node), ais_node->nodeid);
+	/* Sanity check */
+	if ((ais_node->nodeid && ais_node->nodeid != node->node_id) ||
+	    !totemip_equal(ais_node, &node->ais_node)) {
 
-	/* This really should exist!! */
+		/* totemip_print returns a static buffer! */
+		char *aisnode = strdup(totemip_print(ais_node));
+
+		log_msg(LOG_ERR, "Node %s (%d) from AIS, conflicts with node from CCS: %s (%s)\n",
+			aisnode, ais_node->nodeid, totemip_print(&node->ais_node), node->ais_node.nodeid);
+		free(aisnode);
+		node = NULL;
+	}
+
+ 	/* This really should exist!! */
 	if (!node) {
 		node = malloc(sizeof(struct cluster_node));
 		if (!node) {
-			log_msg(LOG_ERR, "error allocating node struct for %s, but CCS doesn't know about it anyway\n",
-				totemip_print(ais_node));
+			log_msg(LOG_ERR, "error allocating node struct for %s (id %d), but CCS doesn't know about it anyway\n",
+				totemip_print(ais_node), ais_node->nodeid);
 			return;
 		}
+		log_msg(LOG_ERR, "Got node %s from AIS (id %d) with no CCS entry\n", totemip_print(ais_node), ais_node->nodeid);
+
 		memset(node, 0, sizeof(struct cluster_node));
-		list_add(&cluster_members_list, &node->list);
+		node_add_ordered(node);
 		node->state = NODESTATE_DEAD;
 		node->votes = 1;
 
@@ -1456,7 +1477,11 @@ void add_ais_node(struct totem_ip_address *ais_node, uint64_t incarnation, int t
 	}
 
 	node->incarnation = incarnation;
-	totemip_copy(&node->ais_node, ais_node);
+
+	/* Don't overwrite a valid node address */
+	if (totemip_zero_check(&node->ais_node))
+	    totemip_copy(&node->ais_node, ais_node);
+
 	gettimeofday(&node->join_time, NULL);
 
 	if (node->state == NODESTATE_DEAD) {
@@ -1515,22 +1540,6 @@ static int get_node_count()
 	}
 	return count;
 }
-
-static struct cluster_node *get_lowest_node()
-{
-	int lowest = INT_MAX;
-	struct cluster_node *node;
-	struct cluster_node *lnode=NULL;
-
-	list_iterate_items(node, &cluster_members_list) {
-		if (node->node_id && node->state == NODESTATE_MEMBER && node->node_id < lowest) {
-			lnode = node;
-			lowest = lnode->node_id;
-		}
-	}
-	return lnode;
-}
-
 
 static struct cluster_node *find_node_by_nodeid(int nodeid)
 {
