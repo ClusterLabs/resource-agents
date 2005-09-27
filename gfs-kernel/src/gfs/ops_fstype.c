@@ -102,7 +102,7 @@ static struct kset gfs_kset = {
 	.ktype  = &gfs_ktype,
 };
 
-static int gfs_sys_fs_add(struct gfs_sbd *sdp)
+int gfs_sys_fs_add(struct gfs_sbd *sdp)
 {
 	int error;
 
@@ -122,7 +122,7 @@ static int gfs_sys_fs_add(struct gfs_sbd *sdp)
 	return error;
 }
 
-static void gfs_sys_fs_del(struct gfs_sbd *sdp)
+void gfs_sys_fs_del(struct gfs_sbd *sdp)
 {
 	kobject_unregister(&sdp->sd_kobj);
 }

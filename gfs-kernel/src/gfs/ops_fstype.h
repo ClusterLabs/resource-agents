@@ -16,6 +16,7 @@
 
 int gfs_sys_init(void);
 void gfs_sys_uninit(void);
+void gfs_sys_fs_del(struct gfs_sbd *sdp);
 int gfs_test_bdev_super(struct super_block *sb, void *data);
 int gfs_set_bdev_super(struct super_block *sb, void *data);
 

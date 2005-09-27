@@ -194,6 +194,8 @@ gfs_put_super(struct super_block *sb)
 
 	/*  At this point, we're through participating in the lockspace  */
 
+	gfs_sys_fs_del(sdp);
+
 	gfs_clear_dirty_j(sdp);
 
 	/*  Get rid of any extra inodes  */
