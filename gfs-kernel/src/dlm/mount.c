@@ -63,7 +63,8 @@ static struct gdlm_ls *init_gdlm(lm_callback_t cb, lm_fsdata_t *fsdata,
 static int gdlm_mount(char *table_name, char *host_data,
 			lm_callback_t cb, lm_fsdata_t *fsdata,
 			unsigned int min_lvb_size, int flags,
-			struct lm_lockstruct *lockstruct)
+			struct lm_lockstruct *lockstruct,
+			struct kobject *fskobj)
 {
 	struct gdlm_ls *ls;
 	int error = -ENOMEM;
@@ -82,14 +83,17 @@ static int gdlm_mount(char *table_name, char *host_data,
 	error = dlm_new_lockspace(ls->fsname, strlen(ls->fsname),
 				  &ls->dlm_lockspace, 0, GDLM_LVB_SIZE);
 	if (error) {
-		printk("lock_dlm: dlm_new_lockspace error %d\n", error);
+		log_error("dlm_new_lockspace error %d", error);
 		goto out_thread;
 	}
 
-	error = gdlm_kobject_setup(ls);
+	error = gdlm_kobject_setup(ls, fskobj);
 	if (error)
 		goto out_dlm;
-	kobject_uevent(&ls->kobj, KOBJ_MOUNT, NULL);
+
+	error = kobject_uevent(&ls->kobj, KOBJ_MOUNT, NULL);
+	if (error)
+		log_error("mount uevent error %d", error);
 
 	/* Now we depend on userspace to notice the new mount,
 	   join the appropriate group, and do a write to our sysfs

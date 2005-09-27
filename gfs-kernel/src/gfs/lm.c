@@ -57,51 +57,12 @@ gfs_lm_mount(struct gfs_sbd *sdp, int silent)
 {
 	ENTER(GFN_LM_MOUNT)
 	struct gfs_sb *sb = NULL;
-	char *proto, *table;
+	char *proto = sdp->sd_proto_name, *table = sdp->sd_table_name;
 	int flags = 0;
 	int error;
 
 	if (sdp->sd_args.ar_spectator)
 		flags |= LM_MFLAG_SPECTATOR;
-
-	proto = sdp->sd_args.ar_lockproto;
-	table = sdp->sd_args.ar_locktable;
-
-	/*  Try to autodetect  */
-
-	if (!proto[0] || !table[0]) {
-		struct buffer_head *bh = sb_getblk(sdp->sd_vfs,
-						   GFS_SB_ADDR >> sdp->sd_fsb2bb_shift);
-		lock_buffer(bh);
-		clear_buffer_dirty(bh);
-		clear_buffer_uptodate(bh);
-		unlock_buffer(bh);
-		ll_rw_block(READ, 1, &bh);
-		wait_on_buffer(bh);
-
-		if (!buffer_uptodate(bh)) {
-			brelse(bh);
-			RETURN(GFN_LM_MOUNT, -EIO);
-		}
-
-		sb = kmalloc(sizeof(struct gfs_sb), GFP_KERNEL);
-		if (!sb) {
-			brelse(bh);
-			RETURN(GFN_LM_MOUNT, -ENOMEM);
-		}
-		gfs_sb_in(sb, bh->b_data);
-		brelse(bh);
-
-		error = gfs_check_sb(sdp, sb, silent);
-		if (error)
-			goto out;
-
-		if (!proto[0])
-			proto = sb->sb_lockproto;
-
-		if (!table[0])
-			table = sb->sb_locktable;
-	}
 
 	printk("GFS: Trying to join cluster \"%s\", \"%s\"\n",
 	       proto, table);
@@ -110,7 +71,7 @@ gfs_lm_mount(struct gfs_sbd *sdp, int silent)
 	error = lm_mount(proto, table, sdp->sd_args.ar_hostdata,
 			 lm_cb, sdp,
 			 GFS_MIN_LVB_SIZE, flags,
-			 &sdp->sd_lockstruct);
+			 &sdp->sd_lockstruct, &sdp->sd_kobj);
 	atomic_dec(&sdp->sd_lm_outstanding);
 	if (error) {
 		printk("GFS: can't mount proto = %s, table = %s, hostdata = %s\n",
@@ -126,20 +87,15 @@ gfs_lm_mount(struct gfs_sbd *sdp, int silent)
 	}
 
 	if (sdp->sd_args.ar_spectator)
-		snprintf(sdp->sd_fsname, 256, "%s.s",
-			 (*table) ? table : sdp->sd_vfs->s_id);
+		snprintf(sdp->sd_fsname, 256, "%s.s", table);
 	else
-		snprintf(sdp->sd_fsname, 256, "%s.%u",
-			 (*table) ? table : sdp->sd_vfs->s_id,
+		snprintf(sdp->sd_fsname, 256, "%s.%u", table,
 			 sdp->sd_lockstruct.ls_jid);
 
 	printk("GFS: fsid=%s: Joined cluster. Now mounting FS...\n",
 	       sdp->sd_fsname);
 
  out:
-	if (sb)
-		kfree(sb);
-
 	RETURN(GFN_LM_MOUNT, error);
 }
 

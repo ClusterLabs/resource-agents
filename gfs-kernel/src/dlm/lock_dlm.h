@@ -150,7 +150,7 @@ do {                                                                          \
 
 int gdlm_sysfs_init(void);
 void gdlm_sysfs_exit(void);
-int gdlm_kobject_setup(struct gdlm_ls *);
+int gdlm_kobject_setup(struct gdlm_ls *, struct kobject *);
 void gdlm_kobject_release(struct gdlm_ls *);
 
 /* thread.c */

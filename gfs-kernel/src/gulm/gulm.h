@@ -228,7 +228,8 @@ void gulm_others_may_mount (lm_lockspace_t * lockspace);
 int gulm_mount (char *table_name, char *host_data,
 		lm_callback_t cb, lm_fsdata_t * fsdata,
 		unsigned int min_lvb_size, int flags,
-		struct lm_lockstruct *lockstruct);
+		struct lm_lockstruct *lockstruct,
+		struct kobject *fskobj);
 void gulm_withdraw (lm_lockspace_t * lockspace);
 
 /* from gulm_jid.c */

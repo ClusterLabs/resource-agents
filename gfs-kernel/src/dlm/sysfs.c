@@ -12,6 +12,13 @@
 
 #include "lock_dlm.h"
 
+extern struct lm_lockops gdlm_ops;
+
+static ssize_t gdlm_proto_name_show(struct gdlm_ls *ls, char *buf)
+{
+	return sprintf(buf, "%s\n", gdlm_ops.lm_proto_name);
+}
+
 static ssize_t gdlm_block_show(struct gdlm_ls *ls, char *buf)
 {
 	ssize_t ret;
@@ -185,6 +192,7 @@ struct gdlm_attr {
 #define GDLM_ATTR(_name,_mode,_show,_store) \
 static struct gdlm_attr gdlm_attr_##_name = __ATTR(_name,_mode,_show,_store)
 
+GDLM_ATTR(proto_name, S_IRUGO, gdlm_proto_name_show, NULL);
 GDLM_ATTR(block, S_IRUGO | S_IWUSR, gdlm_block_show, gdlm_block_store);
 GDLM_ATTR(mounted, S_IRUGO | S_IWUSR, gdlm_mounted_show, gdlm_mounted_store);
 GDLM_ATTR(withdraw, S_IRUGO | S_IWUSR, gdlm_withdraw_show, gdlm_withdraw_store);
@@ -198,6 +206,7 @@ GDLM_ATTR(cluster, S_IRUGO, gdlm_cluster_show, NULL);
 GDLM_ATTR(options, S_IRUGO, gdlm_options_show, NULL);
 
 static struct attribute *gdlm_attrs[] = {
+	&gdlm_attr_proto_name.attr,
 	&gdlm_attr_block.attr,
 	&gdlm_attr_mounted.attr,
 	&gdlm_attr_withdraw.attr,
@@ -244,20 +253,25 @@ static struct kset gdlm_kset = {
 	.ktype  = &gdlm_ktype,
 };
 
-int gdlm_kobject_setup(struct gdlm_ls *ls)
+int gdlm_kobject_setup(struct gdlm_ls *ls, struct kobject *fskobj)
 {
 	int error;
 
-	error = kobject_set_name(&ls->kobj, "%s", ls->fsname);
-	if (error)
+	error = kobject_set_name(&ls->kobj, "%s", "lock_module");
+	if (error) {
+		log_error("can't set kobj name %d", error);
 		return error;
+	}
 
 	ls->kobj.kset = &gdlm_kset;
 	ls->kobj.ktype = &gdlm_ktype;
+	ls->kobj.parent = fskobj;
 
 	error = kobject_register(&ls->kobj);
+	if (error)
+		log_error("can't register kobj %d", error);
 
-	return 0;
+	return error;
 }
 
 void gdlm_kobject_release(struct gdlm_ls *ls)

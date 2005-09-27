@@ -107,7 +107,8 @@ void lm_unregister_proto(struct lm_lockops *proto)
 int lm_mount(char *proto_name, char *table_name, char *host_data,
 	 lm_callback_t cb, lm_fsdata_t * fsdata,
 	 unsigned int min_lvb_size, int flags,
-	 struct lm_lockstruct *lockstruct)
+	 struct lm_lockstruct *lockstruct,
+	 struct kobject *fskobj)
 {
 	struct lmh_wrapper *lw = NULL;
 	int try = 0;
@@ -147,7 +148,7 @@ int lm_mount(char *proto_name, char *table_name, char *host_data,
 	error = lw->lw_ops->lm_mount(table_name, host_data,
 				     cb, fsdata,
 				     min_lvb_size, flags,
-				     lockstruct);
+				     lockstruct, fskobj);
 	if (error)
 		module_put(lw->lw_ops->lm_owner);
  out:

@@ -20,6 +20,7 @@
 #include <linux/buffer_head.h>
 #include <linux/vmalloc.h>
 #include <linux/blkdev.h>
+#include <linux/kobject.h>
 
 #include "gfs.h"
 #include "daemon.h"
@@ -38,6 +39,99 @@
 #include "rgrp.h"
 #include "super.h"
 #include "unlinked.h"
+
+static struct kobj_type gfs_ktype = {
+};
+
+/* FIXME: should this go under /sys/fs/ */
+
+static struct kset gfs_kset = {
+	.subsys = &kernel_subsys,
+	.kobj   = {.name = "gfs",},
+	.ktype  = &gfs_ktype,
+};
+
+static int gfs_sys_fs_add(struct gfs_sbd *sdp)
+{
+	int error;
+
+	sdp->sd_kobj.kset = &gfs_kset;
+	sdp->sd_kobj.ktype = &gfs_ktype;
+
+	error = kobject_set_name(&sdp->sd_kobj, "%s", sdp->sd_table_name);
+	if (error)
+		goto fail;
+
+	error = kobject_register(&sdp->sd_kobj);
+	if (error)
+		goto fail;
+
+	return 0;
+ fail:
+	return error;
+}
+
+static void gfs_sys_fs_del(struct gfs_sbd *sdp)
+{
+	kobject_unregister(&sdp->sd_kobj);
+}
+
+static int init_names(struct gfs_sbd *sdp, int silent)
+{
+	struct gfs_sb *sb = NULL;
+	char *proto, *table;
+	int error = 0;
+
+	proto = sdp->sd_args.ar_lockproto;
+	table = sdp->sd_args.ar_locktable;
+
+	/*  Try to autodetect  */
+
+	if (!proto[0] || !table[0]) {
+		struct buffer_head *bh;
+		bh = sb_getblk(sdp->sd_vfs,
+			       GFS_SB_ADDR >> sdp->sd_fsb2bb_shift);
+		lock_buffer(bh);
+		clear_buffer_uptodate(bh);
+		clear_buffer_dirty(bh);
+		unlock_buffer(bh);
+		ll_rw_block(READ, 1, &bh);
+		wait_on_buffer(bh);
+
+		if (!buffer_uptodate(bh)) {
+			brelse(bh);
+			return -EIO;
+		}
+
+		sb = kmalloc(sizeof(struct gfs_sb), GFP_KERNEL);
+		if (!sb) {
+			brelse(bh);
+			return -ENOMEM;
+		}
+		gfs_sb_in(sb, bh->b_data); 
+		brelse(bh);
+
+		error = gfs_check_sb(sdp, sb, silent);
+		if (error)
+			goto out;
+
+		if (!proto[0])
+			proto = sb->sb_lockproto;
+		if (!table[0])
+			table = sb->sb_locktable;
+	}
+
+	if (!table[0])
+		table = sdp->sd_vfs->s_id;
+
+	snprintf(sdp->sd_proto_name, 256, "%s", proto);
+	snprintf(sdp->sd_table_name, 256, "%s", table);
+
+ out:
+	kfree(sb);
+
+	return error;
+}
 
 /**
  * gfs_read_super - Read in superblock
@@ -192,11 +286,19 @@ fill_super(struct super_block *sb, void *data, int silent)
 		goto fail_vfree;
 	}
 
+	error = init_names(sdp, silent);
+	if (error)
+		goto fail_vfree;
+
+	error = gfs_sys_fs_add(sdp);
+	if (error)
+		goto fail_vfree;
+
 	/*  Mount an inter-node lock module, check for local optimizations */
 
 	error = gfs_lm_mount(sdp, silent);
 	if (error)
-		goto fail_vfree;
+		goto fail_sysfs;
 
 	if ((sdp->sd_lockstruct.ls_flags & LM_LSFLAG_LOCAL) &&
 	    !sdp->sd_args.ar_ignore_local_fs) {
@@ -643,6 +745,9 @@ fill_super(struct super_block *sb, void *data, int silent)
 	gfs_clear_dirty_j(sdp);
 	while (invalidate_inodes(sb))
 		yield();
+
+ fail_sysfs:
+	gfs_sys_fs_del(sdp);
 
  fail_vfree:
 	vfree(sdp);

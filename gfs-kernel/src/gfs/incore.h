@@ -1191,6 +1191,10 @@ struct gfs_sbd {
 	atomic_t sd_ops_vm;
 
 	char sd_fsname[256];
+	char sd_table_name[256];
+	char sd_proto_name[256];
+
+	struct kobject sd_kobj;
 
 	/* Debugging crud */
 
