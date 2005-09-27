@@ -988,10 +988,6 @@ static int setattr_size(struct inode *inode, struct iattr *attr)
 	struct gfs2_inode *ip = get_v2ip(inode);
 	int error;
 
-	error = gfs2_repermission(inode, MAY_WRITE, NULL);
-	if (error)
-		return error;
-
 	if (attr->ia_size != ip->i_di.di_size) {
 		error = vmtruncate(inode, attr->ia_size);
 		if (error)
