@@ -29,7 +29,7 @@
 #define TWO_NODE_PATH		"/cluster/cman/@two_node"
 #define MCAST_ADDR_PATH		"/cluster/cman/multicast/@addr"
 #define PORT_PATH		"/cluster/cman/@port"
-#define KEY_PATH		"/cluster/cman/@commskey"
+#define KEY_PATH		"/cluster/cman/@keyfile"
 
 #define NODEI_NAME_PATH		"/cluster/clusternodes/clusternode[%d]/@name"
 #define NODE_NAME_PATH		"/cluster/clusternodes/clusternode[@name=\"%s\"]/@name"
@@ -37,8 +37,6 @@
 #define NODE_NODEID_PATH	"/cluster/clusternodes/clusternode[@name=\"%s\"]/@nodeid"
 #define NODE_IFNAME_PATH        "/cluster/clusternodes/clusternode[@name=\"%s\"]/@ifname"
 #define NODE_ALTNAMES_PATH	"/cluster/clusternodes/clusternode[@name=\"%s\"]/altname/@name"
-#define NODE_MCAST_IF_PATH	"/cluster/clusternodes/clusternode[@name=\"%s\"]/multicast[@addr=\"%s\"]/@interface"
-
 
 int verify_nodename(commandline_t *comline, int cd, char *nodename)
 {
