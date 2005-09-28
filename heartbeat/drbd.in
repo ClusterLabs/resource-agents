@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: drbd.in,v 1.12 2005/09/27 15:25:53 lars Exp $
+#	$Id: drbd.in,v 1.13 2005/09/28 08:33:40 lars Exp $
 #
 #       OCF Resource Agent compliant drbd resource script.
 #
@@ -182,9 +182,7 @@ END
 
 is_drbd_enabled () {
 	if [ -f /proc/drbd ]; then
-	    if cut -d" " -f2 </proc/devices | grep -q ^drbd$ ; then
 		return 0
-	    fi
 	fi
 	return 1
 }
