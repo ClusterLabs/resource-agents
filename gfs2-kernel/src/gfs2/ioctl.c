@@ -89,32 +89,6 @@ static int gi_get_super(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 	return error;
 }
 
-/**
- * gi_do_shrink - throw out unused glocks
- * @sdp:
- * @gi:
- *
- * Returns: 0
- */
-
-static int gi_do_shrink(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
-{
-	if (!capable(CAP_SYS_ADMIN))
-		return -EACCES;
-	if (gi->gi_argc != 1)
-		return -EINVAL;
-	gfs2_gl_hash_clear(sdp, NO_WAIT);
-	return 0;
-}
-
-/**
- * gi_get_file_stat -
- * @ip:
- * @gi:
- *
- * Returns: the number of bytes copied, or -errno
- */
-
 static int gi_get_file_stat(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 {
 	struct gfs2_holder i_gh;
@@ -146,14 +120,6 @@ static int gi_get_file_stat(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 
 	return error;
 }
-
-/**
- * gi_set_file_flag - set or clear a flag on a file
- * @ip:
- * @gi:
- *
- * Returns: errno
- */
 
 static int gi_set_file_flag(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 {
@@ -347,7 +313,7 @@ static int gi_get_file_meta(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 
 /**
  * gi_do_file_flush - sync out all dirty data and
- *		    drop the cache (and lock) for a file.
+ *                    drop the cache (and lock) for a file.
  * @ip:
  * @gi:
  *
@@ -708,23 +674,6 @@ static int gi_do_quota_read(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 	return 0;
 }
 
-/**
- * gi_do_statfs_sync - sync the outstanding statfs changes for a FS
- * @sdp:
- * @gi:
- *
- * Returns: errno
- */
-
-static int gi_do_statfs_sync(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
-{
-	if (!capable(CAP_SYS_ADMIN))
-		return -EACCES;
-	if (gi->gi_argc != 1)
-		return -EINVAL;
-	return gfs2_statfs_sync(sdp);
-}
-
 static int gi_resize_add_rgrps(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
 	if (!capable(CAP_SYS_ADMIN))
@@ -795,14 +744,6 @@ static int gi_rename2system(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 	return error;
 }
 
-/**
- * gfs2_ioctl_i -
- * @ip:
- * @arg:
- *
- * Returns: -errno or positive byte count
- */
-
 int gfs2_ioctl_i(struct gfs2_inode *ip, void *arg)
 {
 	struct gfs2_ioctl *gi_user = (struct gfs2_ioctl *)arg;
@@ -828,8 +769,6 @@ int gfs2_ioctl_i(struct gfs2_inode *ip, void *arg)
 
 	if (strcmp(arg0, "get_super") == 0)
 		error = gi_get_super(ip->i_sbd, &gi);
-	else if (strcmp(arg0, "do_shrink") == 0)
-		error = gi_do_shrink(ip->i_sbd, &gi);
 	else if (strcmp(arg0, "get_file_stat") == 0)
 		error = gi_get_file_stat(ip, &gi);
 	else if (strcmp(arg0, "set_file_flag") == 0)
@@ -854,8 +793,6 @@ int gfs2_ioctl_i(struct gfs2_inode *ip, void *arg)
 		error = gi_do_quota_refresh(ip->i_sbd, &gi);
 	else if (strcmp(arg0, "do_quota_read") == 0)
 		error = gi_do_quota_read(ip->i_sbd, &gi);
-	else if (strcmp(arg0, "do_statfs_sync") == 0)
-		error = gi_do_statfs_sync(ip->i_sbd, &gi);
 	else if (strcmp(arg0, "resize_add_rgrps") == 0)
 		error = gi_resize_add_rgrps(ip->i_sbd, &gi);
 	else if (strcmp(arg0, "rename2system") == 0)

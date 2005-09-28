@@ -21,6 +21,7 @@
 #include "lm.h"
 #include "sys.h"
 #include "super.h"
+#include "glock.h"
 
 char *gfs2_sys_margs;
 spinlock_t gfs2_sys_margs_lock;
@@ -52,6 +53,9 @@ static ssize_t freeze_store(struct gfs2_sbd *sdp, const char *buf, size_t len)
 	int error = 0;
 	int n = simple_strtol(buf, NULL, 0);
 
+	if (!capable(CAP_SYS_ADMIN))
+		return -EACCES;
+
 	switch (n) {
 	case 0:
 		gfs2_unfreeze_fs(sdp);
@@ -77,19 +81,16 @@ static ssize_t withdraw_show(struct gfs2_sbd *sdp, char *buf)
 
 static ssize_t withdraw_store(struct gfs2_sbd *sdp, const char *buf, size_t len)
 {
-	ssize_t ret = len;
-	int n = simple_strtol(buf, NULL, 0);
+	if (!capable(CAP_SYS_ADMIN))
+		return -EACCES;
 
-	if (n != 1) {
-		ret = -EINVAL;
-		goto out;
-	}
+	if (simple_strtol(buf, NULL, 0) != 1)
+		return -EINVAL;
 
 	gfs2_lm_withdraw(sdp,
 		"GFS2: fsid=%s: withdrawing from cluster at user's request\n",
 		sdp->sd_fsname);
- out:
-	return ret;
+	return len;
 }
 
 static ssize_t statfs_show(struct gfs2_sbd *sdp, char *buf)
@@ -113,6 +114,31 @@ static ssize_t statfs_show(struct gfs2_sbd *sdp, char *buf)
 	return rv;
 }
 
+static ssize_t statfs_sync_store(struct gfs2_sbd *sdp, const char *buf,
+				 size_t len)
+{
+	if (!capable(CAP_SYS_ADMIN))
+		return -EACCES;
+
+	if (simple_strtol(buf, NULL, 0) != 1)
+		return -EINVAL;
+
+	gfs2_statfs_sync(sdp);
+	return len;
+}
+
+static ssize_t shrink_store(struct gfs2_sbd *sdp, const char *buf, size_t len)
+{
+	if (!capable(CAP_SYS_ADMIN))
+		return -EACCES;
+
+	if (simple_strtol(buf, NULL, 0) != 1)
+		return -EINVAL;
+
+	gfs2_gl_hash_clear(sdp, NO_WAIT);
+	return len;
+}
+
 struct gfs2_attr {
 	struct attribute attr;
 	ssize_t (*show)(struct gfs2_sbd *, char *);
@@ -122,11 +148,13 @@ struct gfs2_attr {
 #define GFS2_ATTR(name, mode, show, store) \
 static struct gfs2_attr gfs2_attr_##name = __ATTR(name, mode, show, store)
 
-GFS2_ATTR(id,       0444, id_show,       NULL);
-GFS2_ATTR(fsname,   0444, fsname_show,   NULL);
-GFS2_ATTR(freeze,   0644, freeze_show,   freeze_store);
-GFS2_ATTR(withdraw, 0644, withdraw_show, withdraw_store);
-GFS2_ATTR(statfs,   0444, statfs_show,   NULL);
+GFS2_ATTR(id,          0444, id_show,       NULL);
+GFS2_ATTR(fsname,      0444, fsname_show,   NULL);
+GFS2_ATTR(freeze,      0644, freeze_show,   freeze_store);
+GFS2_ATTR(withdraw,    0644, withdraw_show, withdraw_store);
+GFS2_ATTR(statfs,      0444, statfs_show,   NULL);
+GFS2_ATTR(statfs_sync, 0200, NULL,          statfs_sync_store);
+GFS2_ATTR(shrink,      0200, NULL,          shrink_store);
 
 static struct attribute *gfs2_attrs[] = {
 	&gfs2_attr_id.attr,
@@ -134,6 +162,8 @@ static struct attribute *gfs2_attrs[] = {
 	&gfs2_attr_freeze.attr,
 	&gfs2_attr_withdraw.attr,
 	&gfs2_attr_statfs.attr,
+	&gfs2_attr_statfs_sync.attr,
+	&gfs2_attr_shrink.attr,
 	NULL,
 };
 
