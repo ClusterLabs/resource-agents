@@ -32,7 +32,7 @@ int process_libdlm(void);
 int setup_plocks(void);
 int process_plocks(void);
 
-int do_mount(char *name);
+int do_mount(char *name, char *fs);
 int do_unmount(char *name);
 int do_recovery_done(char *name);
 int do_withdraw(char *name);
@@ -59,7 +59,7 @@ void make_args(char *buf, int *argc, char **argv, char sep)
 int process_uevent(void)
 {
 	char buf[MAXLINE];
-	char *argv[MAXARGS], *act;
+	char *argv[MAXARGS], *act, *fs;
 	int rv, argc = 0;
 
 	memset(buf, 0, sizeof(buf));
@@ -70,18 +70,17 @@ int process_uevent(void)
 		return -1;
 	}
 
-	log_debug("kernel: %s", buf);
-
 	if (!strstr(buf, "gfs") || !strstr(buf, "lock_module"))
 		return 0;
 
 	make_args(buf, &argc, argv, '/');
 	act = argv[0];
+	fs = argv[2];
 
-	/* log_debug("kernel: %s %s", act, argv[3]); */
+	log_debug("kernel: %s %s %s", act, fs, argv[3]);
 
 	if (!strcmp(act, "mount@"))
-		do_mount(argv[3]);
+		do_mount(argv[3], fs);
 
 	else if (!strcmp(act, "umount@"))
 		do_unmount(argv[3]);

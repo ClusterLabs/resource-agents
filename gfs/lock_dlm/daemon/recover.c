@@ -12,7 +12,7 @@
 
 #include "lock_dlm.h"
 
-#define SYSFS_DIR	"/sys/kernel/gfs2"
+#define SYSFS_DIR	"/sys/kernel"
 
 extern char *clustername;
 extern int our_nodeid;
@@ -33,8 +33,8 @@ int set_sysfs(struct mountgroup *mg, char *field, int val)
 	char out[16];
 	int rv, fd;
 
-	snprintf(fname, 512, "%s/%s/lock_module/%s",
-		 SYSFS_DIR, mg->table, field);
+	snprintf(fname, 512, "%s/%s/%s/lock_module/%s",
+		 SYSFS_DIR, mg->fs, mg->table, field);
 
 	log_group(mg, "set %s to %d", fname, val);
 
@@ -60,8 +60,8 @@ int get_sysfs(struct mountgroup *mg, char *field, char *buf, int len)
 	char fname[512], *p;
 	int fd, rv;
 
-	snprintf(fname, 512, "%s/%s/lock_module/%s",
-		 SYSFS_DIR, mg->table, field);
+	snprintf(fname, 512, "%s/%s/%s/lock_module/%s",
+		 SYSFS_DIR, mg->fs, mg->table, field);
 
 	fd = open(fname, O_RDONLY);
 	if (fd < 0) {
@@ -443,7 +443,7 @@ struct mountgroup *find_mg(char *name)
 	return NULL;
 }
 
-int do_mount(char *table)
+int do_mount(char *table, char *fs)
 {
 	struct mountgroup *mg;
 	char buf[MAXLINE], *name, *info = NULL;
@@ -474,6 +474,7 @@ int do_mount(char *table)
 	}
 
 	strcpy(mg->table, table);
+	strcpy(mg->fs, fs);
 
 	memset(buf, 0, sizeof(buf));
 
