@@ -171,7 +171,7 @@ apache_param() {
 
   if
     apachecat $1 | grep -i "^$varname " | \
-        sed -e 's%^[^ ]* %%' -e 's%^"%%' -e 's%"$%%'
+        sed -e 's%^[^ ]* %%' -e 's%^"%%' -e 's%"$%%' -e 's%^[[:blank:]]*%%' -e 's%[[:blank:]]*$%%'
   then
      : OK
   else
@@ -183,7 +183,7 @@ apache_param() {
 # Return TRUE if the config file supports the given handler somewhere
 #
 SupportsHandler() {
-  apache_param $1 SetHandler | grep "^$2 *" >/dev/null
+  apache_param $1 SetHandler | grep "^ *$2 *" >/dev/null
 }
 
 #
@@ -230,6 +230,7 @@ GetParams() {
   PidFile=`apache_param $ConfigFile PidFile`
   case $PidFile in
     /*)	;;
+    [[:alnum:]]*)	PidFile=$ServerRoot/$PidFile;;
     *)	PidFile=$VARRUN/${httpd_basename}.pid;;
   esac
 #  case "$PORT" in
@@ -375,7 +376,7 @@ stop_apache() {
       ocf_log info "$CMD still running ($ApachePID)."
       false
     else
-      ocf_log "$CMD stopped."
+      ocf_log info "$CMD stopped."
     fi
   else
     ocf_log info "$CMD is not running."
