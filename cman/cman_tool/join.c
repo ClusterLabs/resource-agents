@@ -33,7 +33,7 @@ static char *default_mcast(commandline_t *comline)
 		return NULL;
 
 	if (ainfo->ai_family == AF_INET)
-		return "224.0.9.1";
+		return "239.192.9.1";
 	if (ainfo->ai_family == AF_INET6)
 		return "FF15::1";
 
