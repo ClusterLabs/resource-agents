@@ -10,7 +10,9 @@
 *******************************************************************************
 ******************************************************************************/
 /* DLM Currently maxes out at 3 ! */
-#define MAX_INTERFACES 16
+#define MAX_INTERFACES 8
+
+#include "totem.h"
 
 extern int comms_init_ais(unsigned short port, char *key_filename);
 extern int ais_set_mcast(char *mcast);

@@ -101,7 +101,7 @@ struct cl_killmsg {
 	unsigned char cmd;
 	unsigned char pad1;
 	uint16_t reason;
-	int wanted_nodeid;
+	int nodeid;
 };
 
 struct cl_leavemsg {

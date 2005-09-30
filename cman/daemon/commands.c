@@ -30,7 +30,6 @@
 #include <netinet/in.h>
 #include <sys/errno.h>
 
-#include "totem.h"
 #include "list.h"
 #include "cnxman-socket.h"
 #include "cnxman-private.h"
@@ -508,22 +507,21 @@ static int do_cmd_set_expected(char *cmdbuf, int *retlen)
 		}
 	}
 
-	recalculate_quorum(1);
-
 	send_reconfigure(us->node_id, RECONFIG_PARAM_EXPECTED_VOTES, newexp);
 
+	/* We will recalculate quorum when we get our own message back */
 	return 0;
 }
 
-static void send_kill(int nodeid, int wanted_nodeid, uint16_t reason)
+static void send_kill(int nodeid, uint16_t reason)
 {
 	struct cl_killmsg msg;
 
-	P_MEMB("Sending KILL to node %d, wanted %d\n", nodeid, wanted_nodeid);
+	P_MEMB("Sending KILL to node %d\n", nodeid);
 
 	msg.cmd = CLUSTER_MSG_KILLNODE;
 	msg.reason = reason;
-	msg.wanted_nodeid = wanted_nodeid;
+	msg.nodeid = nodeid;
 
 	comms_send_message((char *)&msg, sizeof(msg),
 			   0,0,
@@ -566,7 +564,7 @@ static int do_cmd_kill_node(char *cmdbuf, int *retlen)
 	node->state = NODESTATE_LEAVING;
 
 	/* Send a KILL message */
-	send_kill(nodeid, nodeid, CLUSTER_KILL_CMANTOOL);
+	send_kill(nodeid, CLUSTER_KILL_CMANTOOL);
 
 	return 0;
 }
@@ -1245,7 +1243,7 @@ static void byteswap_internal_message(char *data, int len)
 	case CLUSTER_MSG_KILLNODE:
 		killmsg = (struct cl_killmsg *)data;
 		killmsg->reason = swab16(killmsg->reason);
-		killmsg->wanted_nodeid = swab16(killmsg->wanted_nodeid);
+		killmsg->nodeid = swab16(killmsg->nodeid);
 		break;
 
 	case CLUSTER_MSG_LEAVE:
@@ -1369,8 +1367,8 @@ static void process_internal_message(char *data, int len, int nodeid, struct tot
 
 	case CLUSTER_MSG_KILLNODE:
 		killmsg = (struct cl_killmsg *)data;
-		P_MEMB("got KILL for wanted node %d\n", killmsg->wanted_nodeid);
-		if (killmsg->wanted_nodeid == wanted_nodeid) {
+		P_MEMB("got KILL for node %d\n", killmsg->nodeid);
+		if (killmsg->nodeid == wanted_nodeid) {
 			log_msg(LOG_INFO, "cman killed by node %d for reason %d\n", nodeid, killmsg->reason);
 			exit(1);
 		}
