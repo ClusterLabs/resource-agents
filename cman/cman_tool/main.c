@@ -124,24 +124,19 @@ static cman_handle_t open_cman_handle(int priv)
 
 static void print_address(char *addr)
 {
-        struct sockaddr_in6 *saddr = (struct sockaddr_in6 *)addr;
-        if (saddr->sin6_family == AF_INET6) {
-                printf("%x:%x:%x:%x:%x:%x:%x:%x  ",
-		       htons(saddr->sin6_addr.s6_addr16[0]),
-		       htons(saddr->sin6_addr.s6_addr16[1]),
-		       htons(saddr->sin6_addr.s6_addr16[2]),
-		       htons(saddr->sin6_addr.s6_addr16[3]),
-		       htons(saddr->sin6_addr.s6_addr16[4]),
-		       htons(saddr->sin6_addr.s6_addr16[5]),
-		       htons(saddr->sin6_addr.s6_addr16[6]),
-		       htons(saddr->sin6_addr.s6_addr16[7]));
-        }
-        else {
-            struct sockaddr_in *saddr4 = (struct sockaddr_in *)saddr;
-            uint8_t *addr = (uint8_t *)&saddr4->sin_addr;
-            printf("%u.%u.%u.%u  ",
-		   addr[0], addr[1], addr[2], addr[3]);
-	}
+	char buf[INET6_ADDRSTRLEN];
+	struct sockaddr_storage *ss = (struct sockaddr_storage *)addr;
+	struct sockaddr_in *sin = (struct sockaddr_in *)addr;
+	struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)addr;
+	void *saddr;
+
+	if (ss->ss_family == AF_INET6)
+		saddr = &sin6->sin6_addr;
+	else
+		saddr = &sin->sin_addr;
+
+	inet_ntop(ss->ss_family, saddr, buf, sizeof(buf));
+	printf("%s", buf);
 }
 
 static char *membership_state(char *buf, int buflen, int node_state, int master)
