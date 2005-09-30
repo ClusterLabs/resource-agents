@@ -22,18 +22,15 @@
 #include "aispoll.h"
 #include "logging.h"
 #include "swab.h"
+#include "ais.h"
 #include "config.h"
 
 extern int our_nodeid();
 
-/* DLM Currently maxes out at 3 ! */
-#define MAX_INTERFACES 16
-
 uint64_t incarnation;
-
-static struct totem_ip_address mcast_addr;
-static struct totem_interface ifaddrs[MAX_INTERFACES];
-       int num_interfaces;
+struct totem_ip_address mcast_addr;
+struct totem_interface ifaddrs[MAX_INTERFACES];
+int num_interfaces;
 
 /* This structure is tacked onto the start of a cluster message packet for our
  * own nefarious purposes. */

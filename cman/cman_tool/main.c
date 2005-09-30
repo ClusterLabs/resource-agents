@@ -217,8 +217,14 @@ static void show_status(void)
 		if (cman_get_node(h, CMAN_NODEID_US, &node) == 0)
 			printf("Node name: %s\n", node.cn_name);
 
-		printf("Node addresses: ");
+		printf("Multicast address: ");
 		addrptr = einfo->ei_addresses;
+		print_address(addrptr);
+		printf("\n");
+
+		addrptr += sizeof(struct sockaddr_storage);
+
+		printf("Node addresses: ");
 		for (i=0; i < einfo->ei_num_addresses; i++) {
 			print_address(addrptr);
 			addrptr += sizeof(struct sockaddr_storage);

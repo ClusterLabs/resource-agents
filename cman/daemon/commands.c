@@ -30,6 +30,7 @@
 #include <netinet/in.h>
 #include <sys/errno.h>
 
+#include "totem.h"
 #include "list.h"
 #include "cnxman-socket.h"
 #include "cnxman-private.h"
@@ -43,10 +44,6 @@
 #include "swab.h"
 
 #define max(a,b) (((a) > (b)) ? (a) : (b))
-
-
-/* Cluster configuration version that must be the same among members. */
-       unsigned int config_version;
 
 /* Reference counting for cluster applications */
 static int use_count;
@@ -62,6 +59,7 @@ static char *key_filename;
 static LIST_INIT(cluster_members_list);
        int cluster_members;
        int we_are_a_cluster_member;
+       unsigned int config_version;
 static struct cluster_node *us;
 static int quorum;
 static int two_node;
@@ -339,6 +337,7 @@ static int do_cmd_get_extrainfo(char *cmdbuf, char **retbuf, int retsize, int *r
 	struct cluster_node *node;
 	struct sockaddr_storage *ss;
 	char *ptr;
+	int i;
 
 	if (!we_are_a_cluster_member)
 		return -ENOENT;
@@ -354,9 +353,9 @@ static int do_cmd_get_extrainfo(char *cmdbuf, char **retbuf, int retsize, int *r
 
         /* Enough room for addresses ? */
 	if (retsize < (sizeof(struct cl_extra_info) +
-		       sizeof(struct sockaddr_storage) * num_interfaces)) {
+		       sizeof(struct sockaddr_storage) * (num_interfaces+1))) {
 
-		*retbuf = malloc(sizeof(struct cl_extra_info) + sizeof(struct sockaddr_storage) * num_interfaces);
+		*retbuf = malloc(sizeof(struct cl_extra_info) + sizeof(struct sockaddr_storage) * (num_interfaces+1));
 		outbuf = *retbuf + offset;
 		einfo = (struct cl_extra_info *)outbuf;
 
@@ -373,10 +372,15 @@ static int do_cmd_get_extrainfo(char *cmdbuf, char **retbuf, int retsize, int *r
 	einfo->num_addresses = num_interfaces;
 
 	ptr = einfo->addresses;
-
 	ss = (struct sockaddr_storage *)ptr;
-	totemip_totemip_to_sockaddr_convert(&us->ais_node, 0, ss, &addrlen);
+	totemip_totemip_to_sockaddr_convert(&mcast_addr, 0, ss, &addrlen);
+
 	ptr += sizeof(struct sockaddr_storage);
+	for (i=0; i<num_interfaces; i++) {
+		ss = (struct sockaddr_storage *)ptr;
+		totemip_totemip_to_sockaddr_convert(&ifaddrs[i].bindnet, 0, ss, &addrlen);
+		ptr += sizeof(struct sockaddr_storage);
+	}
 
 	*retlen = ptr - outbuf;
 	return 0;

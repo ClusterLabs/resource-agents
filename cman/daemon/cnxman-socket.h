@@ -165,8 +165,10 @@ struct cl_extra_info {
 	int           expected_votes;
 	int           quorum;
 	int           members;
-	int           num_addresses;
-	char          addresses[1];/* Array of num_addresses sockaddr_storage */
+	int           num_addresses; /* Number of real addresses, so the array below has
+					<n>+1 addresses in it */
+	char          addresses[1];/* Array of num_addresses sockaddr_storage
+				      1st is the multicast address */
 };
 
 /* This is the structure, per node, returned from the membership ioctl */
