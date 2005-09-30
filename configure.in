@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.444 $) dnl cvs revision
+AC_REVISION($Revision: 1.445 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -976,6 +976,16 @@ dnl     Check to see if it exists, and if so use it.
 dnl
 AC_CHECK_LIB(crypto, CRYPTO_free, CRYPTOLIB="-lcrypto",)
 AC_SUBST(CRYPTOLIB)
+
+
+dnl ***************************************************************************
+dnl  CIM provider configuration
+dnl ***************************************************************************
+if test "x${enable_cim_provider}" != "xyes"; then
+        enable_cim_provider="no"
+fi
+AM_CONDITIONAL(CIM_PROVIDER_BUILD, test "x${enable_cim_provider}" = "xyes")
+
 
 dnl ************************************************************************
 dnl  Handy function for checking for typedefs or struct defs
@@ -2375,6 +2385,7 @@ port/Makefile							\
 		port/heartbeat/pkg-plist			\
 snmp_subagent/Makefile						\
 	snmp_subagent/SNMPAgentSanityCheck			\
+cim/Makefile		        				\
 telecom/Makefile						\
 	telecom/apphbd/Makefile					\
 	telecom/recoverymgrd/Makefile				\
