@@ -40,6 +40,7 @@
 #include "config.h"
 #include "cmanccs.h"
 #include "ais.h"
+#include "memlock.h"
 
 struct queued_reply
 {
@@ -67,7 +68,7 @@ void cman_set_realtime()
 #if 0 // Until debugged!
 	struct sched_param s;
 
-	s.sched_priority = 1;
+	s.sched_priority = cman_config[PROCESS_PRIORITY];
 	if (sched_setscheduler(0, SCHED_FIFO, &s))
 		log_msg(LOG_WARNING, "Cannot set priority: %s\n", strerror(errno));
 #endif
@@ -526,10 +527,12 @@ int main(int argc, char *argv[])
 		return -2;
 	}
 
+	memlock_inc();
 	cman_set_realtime();
 
 	/* Go. */
 	poll_run(ais_poll_handle);
+	memlock_dec();
 
 	/* Stop */
 	unlink(CLIENT_SOCKNAME);

@@ -28,11 +28,11 @@ all: ${TARGET}
 copytobin: all
 	cp ${TARGET} ${top_srcdir}/bin
 
-cmand:	${AISDIR}/trunk/exec/libtotem_pg.a daemon.o config.o logging.o ais.o commands.o barrier.o cmanccs.o ../lib/libcman.a 
+cmand:	${AISDIR}/trunk/exec/libtotem_pg.a daemon.o config.o logging.o ais.o commands.o barrier.o cmanccs.o memlock.o ../lib/libcman.a 
 	$(CC) $(CFLAGS) -o $@ $^ -L../lib -L${ccslibdir} -lccs -lcman -lpthread -Wl,-Bstatic -ltotem_pg -Wl,-Bdynamic
 
 daemon.o: daemon.c list.h cnxman-socket.h cnxman-private.h xlate.h \
-  daemon.h logging.h commands.h barrier.h config.h cmanccs.h
+  daemon.h logging.h commands.h barrier.h config.h cmanccs.h memlock.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 cnxman.o: cnxman.c list.h cnxman-socket.h cnxman-private.h xlate.h \
@@ -54,6 +54,9 @@ commands.o: commands.c list.h cnxman-socket.h cnxman-private.h xlate.h \
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 logging.o: logging.c list.h cnxman-socket.h cnxman-private.h xlate.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+memlock.o: memlock.c 
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # Target to download & unpack openAIS
