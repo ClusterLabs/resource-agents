@@ -71,9 +71,11 @@ ${AISDIR}/trunk/exec/libtotem_pg.a: ${AISDIR}/trunk
 install: cmand
 	install -d ${sbindir}
 	install cmand ${sbindir}
+	install ${AISDIR}/trunk/exec/keygen ${sbindir}/ais_keygen
 
 uninstall:
 	${UNINSTALL} cmand ${sbindir}
+	${UNINSTALL} ais_keygen ${sbindir}
 
 clean:
 	rm -f *.o cmand
