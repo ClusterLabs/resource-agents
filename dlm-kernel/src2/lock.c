@@ -1603,7 +1603,8 @@ static int set_lock_args(int mode, struct dlm_lksb *lksb, uint32_t flags,
 
 static int set_unlock_args(uint32_t flags, void *astarg, struct dlm_args *args)
 {
-	if (flags & ~(DLM_LKF_CANCEL | DLM_LKF_VALBLK | DLM_LKF_IVVALBLK))
+	if (flags & ~(DLM_LKF_CANCEL | DLM_LKF_VALBLK | DLM_LKF_IVVALBLK |
+ 		      DLM_LKF_FORCEUNLOCK))
 		return -EINVAL;
 
 	args->flags = flags;
@@ -1673,6 +1674,9 @@ static int validate_unlock_args(struct dlm_lkb *lkb, struct dlm_args *args)
 	if (lkb->lkb_flags & DLM_IFL_MSTCPY)
 		goto out;
 
+	if (args->flags & DLM_LKF_FORCEUNLOCK)
+		goto out_ok;
+
 	if (args->flags & DLM_LKF_CANCEL &&
 	    lkb->lkb_status == DLM_LKSTS_GRANTED)
 		goto out;
@@ -1685,9 +1689,11 @@ static int validate_unlock_args(struct dlm_lkb *lkb, struct dlm_args *args)
 	if (lkb->lkb_wait_type)
 		goto out;
 
+ out_ok:
 	lkb->lkb_exflags = args->flags;
 	lkb->lkb_sbflags = 0;
 	lkb->lkb_astparam = args->astparam;
+
 	rv = 0;
  out:
 	return rv;

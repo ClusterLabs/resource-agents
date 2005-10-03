@@ -545,37 +545,19 @@ static int dlm_close(struct inode *inode, struct file *file)
 
 		clear_bit(LI_FLAG_COMPLETE, &li.li_flags);
 
-		/* If it's not granted then cancel the request.
-		 * If the lock was WAITING then it will be dropped,
-		 *    if it was converting then it will be reverted to GRANTED,
-		 *    then we will unlock it.
-		 */
-
-		if (old_li->li_grmode != old_li->li_rqmode)
-			flags = DLM_LKF_CANCEL;
-
+		flags = DLM_LKF_FORCEUNLOCK;
 		if (old_li->li_grmode >= DLM_LOCK_PW)
 			flags |= DLM_LKF_IVVALBLK;
 
 		status = dlm_unlock(f->fi_ls->ls_lockspace,
 				    old_li->li_lksb.sb_lkid, flags,
 				    &li.li_lksb, &li);
+
 		/* Must wait for it to complete as the next lock could be its
 		 * parent */
 		if (status == 0)
 			wait_for_ast(&li);
 
-		/* If it was waiting for a conversion, it will
-		   now be granted so we can unlock it properly */
-		if (flags & DLM_LKF_CANCEL) {
-			flags &= ~DLM_LKF_CANCEL;
-			clear_bit(LI_FLAG_COMPLETE, &li.li_flags);
-			status = dlm_unlock(f->fi_ls->ls_lockspace,
-					    old_li->li_lksb.sb_lkid, flags,
-					    &li.li_lksb, &li);
-			if (status == 0)
-				wait_for_ast(&li);
-		}
 		/* Unlock suceeded, free the lock_info struct. */
 		if (status == 0)
 			release_lockinfo(old_li);

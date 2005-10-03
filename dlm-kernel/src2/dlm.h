@@ -123,6 +123,12 @@
  * DLM_LKF_ALTCW
  *
  * The same as ALTPR, but the alternate mode is CW.
+ *
+ * DLM_LKF_FORCEUNLOCK
+ *
+ * Unlock the lock even if it is converting or waiting or has sublocks.
+ * Only really for use by the userland device.c code.
+ *
  */
 
 #define DLM_LKF_NOQUEUE		0x00000001
@@ -142,6 +148,7 @@
 #define DLM_LKF_ORPHAN		0x00004000
 #define DLM_LKF_ALTPR		0x00008000
 #define DLM_LKF_ALTCW		0x00010000
+#define DLM_LKF_FORCEUNLOCK	0x00020000
 
 /*
  * Some return codes that are not in errno.h
