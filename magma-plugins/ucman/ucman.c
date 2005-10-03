@@ -27,6 +27,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <assert.h>
+#include <signal.h>
 #include "libcman.h"
 #include "libdlm.h"
 #include "ucman-plugin.h"
@@ -181,6 +182,8 @@ cman_open(cluster_plugin_t *self)
 	p->handle = cman_init(NULL);
 	if (p->handle)
 		cman_quorum_status(self, NULL);
+
+	signal(SIGPIPE, SIG_IGN);
 
 	return cman_get_fd(p->handle);
 }
