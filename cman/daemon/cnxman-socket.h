@@ -94,18 +94,11 @@
 #define EVENT_REASON_PORTOPENED   2
 
 /* Sendmsg flags, these are above the normal sendmsg flags so they don't
- * interfere */
-#if 0
-#define MSG_NOACK     0x010000	/* Don't need an ACK for this message */
-#define MSG_QUEUE     0x020000	/* Queue the message for sending later */
-#define MSG_MULTICAST 0x080000	/* Message was sent to all nodes in the cluster */
-#define MSG_ALLINT    0x100000	/* Send out of all interfaces */
-#define MSG_REPLYEXP  0x200000	/* Reply is expected */
-#define MSG_BCASTSELF 0x400000	/* Broadcast message also gets sent to us */
-#define MSG_HEARTBEAT 0x800000  /* Message is visible to non-member nodes */
-#endif
+ * interfere
+ */
 #define MSG_TOTEM_AGREED 0x1000000
 #define MSG_TOTEM_SAFE   0x2000000
+#define MSG_BCASTSELF    0x4000000
 
 typedef enum { NODESTATE_JOINING=1, NODESTATE_MEMBER,
 	       NODESTATE_DEAD, NODESTATE_LEAVING } nodestate_t;
@@ -116,8 +109,10 @@ static const char ADMIN_SOCKNAME[]=  "/var/run/cman_admin";
 /* This struct should be in front of all messages
    passed down the client and admin sockets */
 #define CMAN_MAGIC 0x434d414e
+#define CMAN_VERSION 0x10000001
 struct sock_header {
 	uint32_t magic;
+	uint32_t version;
 	uint32_t length;
 	uint32_t command;
 	uint32_t flags;

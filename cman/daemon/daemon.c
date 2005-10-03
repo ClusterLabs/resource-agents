@@ -238,6 +238,11 @@ static int process_client(poll_handle handle, int fd, int revent, void *data, un
 			send_status_return(con, msg->command, EINVAL);
 			return 0;
 		}
+		if (msg->version != CMAN_VERSION) {
+			P_DAEMON("bad version in client command. msg = 0x%x, us = 0x%x\n", msg->version, CMAN_VERSION);
+			send_status_return(con, msg->command, EINVAL);
+			return 0;
+		}
 
 		P_DAEMON("client command is %x\n", msg->command);
 
