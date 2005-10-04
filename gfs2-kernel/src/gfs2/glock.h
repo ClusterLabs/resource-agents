@@ -83,7 +83,7 @@ int gfs2_glock_get(struct gfs2_sbd *sdp,
 		   uint64_t number, struct gfs2_glock_operations *glops,
 		   int create, struct gfs2_glock **glp);
 void gfs2_glock_hold(struct gfs2_glock *gl);
-void gfs2_glock_put(struct gfs2_glock *gl);
+int gfs2_glock_put(struct gfs2_glock *gl);
 
 void gfs2_holder_init(struct gfs2_glock *gl, unsigned int state, int flags,
 		      struct gfs2_holder *gh);

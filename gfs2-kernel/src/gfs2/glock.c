@@ -15,6 +15,7 @@
 #include <linux/delay.h>
 #include <linux/sort.h>
 #include <linux/jhash.h>
+#include <linux/kref.h>
 #include <asm/semaphore.h>
 #include <asm/uaccess.h>
 
@@ -87,6 +88,29 @@ static unsigned int gl_hash(struct lm_lockname *name)
 }
 
 /**
+ * glock_free() - Perform a few checks and then release struct gfs2_glock
+ * @gl: The glock to release
+ *
+ * Also calls lock module to release its internal structure for this glock.
+ *
+ */
+
+static void glock_free(struct gfs2_glock *gl)
+{
+	struct gfs2_sbd *sdp = gl->gl_sbd;
+	struct inode *aspace = gl->gl_aspace;
+
+	gfs2_lm_put_lock(sdp, gl->gl_lock);
+
+	if (aspace)
+		gfs2_aspace_put(aspace);
+
+	kmem_cache_free(gfs2_glock_cachep, gl);
+
+	atomic_dec(&sdp->sd_glock_count);
+}
+
+/**
  * gfs2_glock_hold() - increment reference count on glock
  * @gl: The glock to hold
  *
@@ -94,8 +118,23 @@ static unsigned int gl_hash(struct lm_lockname *name)
 
 void gfs2_glock_hold(struct gfs2_glock *gl)
 {
-	gfs2_assert(gl->gl_sbd, atomic_read(&gl->gl_count) > 0);
-	atomic_inc(&gl->gl_count);
+	kref_get(&gl->gl_ref);
+}
+
+/* All work is done after the return from kref_put() so we
+   can release the write_lock before the free. */
+
+static void kill_glock(struct kref *kref)
+{
+	struct gfs2_glock *gl = container_of(kref, struct gfs2_glock, gl_ref);
+	struct gfs2_sbd *sdp = gl->gl_sbd;
+
+	gfs2_assert(sdp, gl->gl_state == LM_ST_UNLOCKED);
+	gfs2_assert(sdp, list_empty(&gl->gl_reclaim));
+	gfs2_assert(sdp, list_empty(&gl->gl_holders));
+	gfs2_assert(sdp, list_empty(&gl->gl_waiters1));
+	gfs2_assert(sdp, list_empty(&gl->gl_waiters2));
+	gfs2_assert(sdp, list_empty(&gl->gl_waiters3));
 }
 
 /**
@@ -104,12 +143,19 @@ void gfs2_glock_hold(struct gfs2_glock *gl)
  *
  */
 
-void gfs2_glock_put(struct gfs2_glock *gl)
+int gfs2_glock_put(struct gfs2_glock *gl)
 {
-	if (atomic_read(&gl->gl_count) == 1)
-		gfs2_glock_schedule_for_reclaim(gl);
-	gfs2_assert(gl->gl_sbd, atomic_read(&gl->gl_count) > 0);
-	atomic_dec(&gl->gl_count);
+	struct gfs2_gl_hash_bucket *bucket = gl->gl_bucket;
+
+	write_lock(&bucket->hb_lock);
+	if (kref_put(&gl->gl_ref, kill_glock)) {
+		list_del_init(&gl->gl_list);
+		write_unlock(&bucket->hb_lock);
+		glock_free(gl);
+		return 1;
+	}
+	write_unlock(&bucket->hb_lock);
+	return 0;
 }
 
 /**
@@ -148,7 +194,7 @@ static struct gfs2_glock *search_bucket(struct gfs2_gl_hash_bucket *bucket,
 		if (!lm_name_equal(&gl->gl_name, name))
 			continue;
 
-		atomic_inc(&gl->gl_count);
+		kref_get(&gl->gl_ref);
 
 		return gl;
 	}
@@ -175,29 +221,6 @@ struct gfs2_glock *gfs2_glock_find(struct gfs2_sbd *sdp,
 	read_unlock(&bucket->hb_lock);
 
 	return gl;
-}
-
-/**
- * glock_free() - Perform a few checks and then release struct gfs2_glock
- * @gl: The glock to release
- *
- * Also calls lock module to release its internal structure for this glock.
- *
- */
-
-static void glock_free(struct gfs2_glock *gl)
-{
-	struct gfs2_sbd *sdp = gl->gl_sbd;
-	struct inode *aspace = gl->gl_aspace;
-
-	gfs2_lm_put_lock(sdp, gl->gl_lock);
-
-	if (aspace)
-		gfs2_aspace_put(aspace);
-
-	kmem_cache_free(gfs2_glock_cachep, gl);
-
-	atomic_dec(&sdp->sd_glock_count);
 }
 
 /**
@@ -243,7 +266,7 @@ int gfs2_glock_get(struct gfs2_sbd *sdp, uint64_t number,
 
 	INIT_LIST_HEAD(&gl->gl_list);
 	gl->gl_name = name;
-	atomic_set(&gl->gl_count, 1);
+	kref_init(&gl->gl_ref);
 
 	spin_lock_init(&gl->gl_spin);
 
@@ -2057,19 +2080,15 @@ void gfs2_glock_schedule_for_reclaim(struct gfs2_glock *gl)
 void gfs2_reclaim_glock(struct gfs2_sbd *sdp)
 {
 	struct gfs2_glock *gl;
-	struct gfs2_gl_hash_bucket *bucket;
 
 	spin_lock(&sdp->sd_reclaim_lock);
-
 	if (list_empty(&sdp->sd_reclaim_list)) {
 		spin_unlock(&sdp->sd_reclaim_lock);
 		return;
 	}
-
 	gl = list_entry(sdp->sd_reclaim_list.next,
 			struct gfs2_glock, gl_reclaim);
 	list_del_init(&gl->gl_reclaim);
-
 	spin_unlock(&sdp->sd_reclaim_lock);
 
 	atomic_dec(&sdp->sd_reclaim_count);
@@ -2088,17 +2107,7 @@ void gfs2_reclaim_glock(struct gfs2_sbd *sdp)
 		gfs2_glmutex_unlock(gl);
 	}
 
-	bucket = gl->gl_bucket;
-
-	write_lock(&bucket->hb_lock);
-	if (atomic_read(&gl->gl_count) == 1) {
-		list_del_init(&gl->gl_list);
-		write_unlock(&bucket->hb_lock);
-		glock_free(gl);
-	} else {
-		write_unlock(&bucket->hb_lock);
-		gfs2_glock_put(gl);
-	}
+	gfs2_glock_put(gl);
 }
 
 /**
@@ -2146,8 +2155,8 @@ static int examine_bucket(glock_examiner examiner, struct gfs2_sbd *sdp,
 			if (test_bit(GLF_PLUG, &gl->gl_flags))
 				continue;
 
-			/* examiner must gfs2_glock_put() */
-			atomic_inc(&gl->gl_count);
+			/* examiner() must glock_put() */
+			gfs2_glock_hold(gl);
 
 			break;
 		}
@@ -2215,13 +2224,14 @@ void gfs2_scand_internal(struct gfs2_sbd *sdp)
 static void clear_glock(struct gfs2_glock *gl)
 {
 	struct gfs2_sbd *sdp = gl->gl_sbd;
-	struct gfs2_gl_hash_bucket *bucket = gl->gl_bucket;
+	int released;
 
 	spin_lock(&sdp->sd_reclaim_lock);
 	if (!list_empty(&gl->gl_reclaim)) {
 		list_del_init(&gl->gl_reclaim);
 		atomic_dec(&sdp->sd_reclaim_count);
-		gfs2_glock_put(gl);
+		released = gfs2_glock_put(gl);
+		gfs2_assert(sdp, !released);
 	}
 	spin_unlock(&sdp->sd_reclaim_lock);
 
@@ -2238,15 +2248,7 @@ static void clear_glock(struct gfs2_glock *gl)
 		gfs2_glmutex_unlock(gl);
 	}
 
-	write_lock(&bucket->hb_lock);
-	if (atomic_read(&gl->gl_count) == 1) {
-		list_del_init(&gl->gl_list);
-		write_unlock(&bucket->hb_lock);
-		glock_free(gl);
-	} else {
-		write_unlock(&bucket->hb_lock);
-		gfs2_glock_put(gl);
-	}
+	gfs2_glock_put(gl);
 }
 
 /**
@@ -2394,7 +2396,7 @@ static int dump_glock(struct gfs2_glock *gl, char *buf, unsigned int size,
 		if (test_bit(x, &gl->gl_flags))
 			gfs2_printf(" %u", x);
 	gfs2_printf(" \n");
-	gfs2_printf("  gl_count = %d\n", atomic_read(&gl->gl_count));
+	gfs2_printf("  gl_ref = %d\n", atomic_read(&gl->gl_ref.refcount));
 	gfs2_printf("  gl_state = %u\n", gl->gl_state);
 	gfs2_printf("  req_gh = %s\n", (gl->gl_req_gh) ? "yes" : "no");
 	gfs2_printf("  req_bh = %s\n", (gl->gl_req_bh) ? "yes" : "no");

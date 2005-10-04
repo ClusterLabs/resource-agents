@@ -180,7 +180,7 @@ struct gfs2_glock {
 	struct list_head gl_list;
 	unsigned long gl_flags;		/* GLF_... */
 	struct lm_lockname gl_name;
-	atomic_t gl_count;
+	struct kref gl_ref;
 
 	spinlock_t gl_spin;
 
