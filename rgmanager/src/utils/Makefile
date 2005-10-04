@@ -16,14 +16,14 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 include ${top_srcdir}/make/defines.mk
 INCLUDE += -I $(top_srcdir)/include
 
-CFLAGS+= -g -I${magmaincdir} -I${incdir}
+CFLAGS+= -g -I${incdir}
 
 CFLAGS+= -g -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
 
-CFLAGS+= -L${magmalibdir} -L${libdir} -DPACKAGE_VERSION=\"${RELEASE}\"
+CFLAGS+= -L${libdir} -DPACKAGE_VERSION=\"${RELEASE}\"
 
-LDFLAGS+= -lmagmamsg -lmagma -lpthread -ldl -lncurses -L../clulib -lclulib
-TARGETS=clubufflush clustat clusvcadm clulog
+LDFLAGS+= -lmagmamsg -lmagma -lpthread -ldl -lncurses -L../clulib -lclulib -lccs
+TARGETS=clubufflush clufindhostname clustat clusvcadm clulog
 
 all: ${TARGETS}
 
@@ -41,6 +41,9 @@ clulog: clulog.o
 	$(CC) -o $@ $^ $(INLUDE) $(CFLAGS) $(LDFLAGS)
 
 clubufflush: clubufflush.o
+	$(CC) -o $@ $^ $(INLUDE) $(CFLAGS) $(LDFLAGS)
+
+clufindhostname: clufindhostname.o
 	$(CC) -o $@ $^ $(INLUDE) $(CFLAGS) $(LDFLAGS)
 
 clustat: clustat.o
