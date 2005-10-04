@@ -193,7 +193,7 @@ static struct kobj_type gfs2_ktype = {
 	.sysfs_ops     = &gfs2_attr_ops,
 };
 
-/* FIXME: should this go under /sys/fs/ ? */
+/* FIXME: this should go under fs_subsys, /sys/fs/ */
 
 static struct kset gfs2_kset = {
 	.subsys = &kernel_subsys,
