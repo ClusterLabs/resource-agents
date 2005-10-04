@@ -424,6 +424,11 @@ findSlaves()
 		return 1
 	fi
 
+	## BZ 165447
+	## Strip possible VLAN (802.1q) suffixes 
+	##  - Roland Gadinger <roland.gadinger@beko.at> 
+	mastif=${mastif%%.*} 
+
 	while read line; do
 		set - $line
 		while [ $# -gt 0 ]; do
