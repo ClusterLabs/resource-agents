@@ -163,6 +163,13 @@ int gfs2_glock_put(struct gfs2_glock *gl)
  * @gl: the glock
  * @head: the head of the queue to check
  *
+ * This function protects the list in the event that a process already
+ * has a holder on the list and is adding a second holder for itself.
+ * The glmutex lock is what generally prevents processes from working
+ * on the same glock at once, but the special case of adding a second
+ * holder for yourself ("recursive" locking) doesn't involve locking
+ * glmutex, making the spin lock necessary.
+ *
  * Returns: 1 if the queue is empty
  */
 
