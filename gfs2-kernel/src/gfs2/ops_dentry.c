@@ -12,6 +12,7 @@
 #include <linux/spinlock.h>
 #include <linux/completion.h>
 #include <linux/buffer_head.h>
+#include <linux/smp_lock.h>
 #include <asm/semaphore.h>
 
 #include "gfs2.h"

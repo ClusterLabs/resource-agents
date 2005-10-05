@@ -16,6 +16,7 @@
 #include <linux/uio.h>
 #include <linux/blkdev.h>
 #include <linux/mm.h>
+#include <linux/smp_lock.h>
 #include <linux/gfs2_ioctl.h>
 #include <asm/semaphore.h>
 #include <asm/uaccess.h>
