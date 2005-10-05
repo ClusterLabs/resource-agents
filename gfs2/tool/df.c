@@ -27,9 +27,6 @@
 #define __user
 #include <linux/gfs2_ioctl.h>
 #include <linux/gfs2_ondisk.h>
-struct file { int x; };
-struct file_lock { int x; };
-#include <linux/lm_interface.h>
 
 #include "gfs2_tool.h"
 
@@ -173,9 +170,7 @@ do_df_one(char *path)
 	printf("  Mounted host data = \"%s\"\n", name2value(args, "hostdata"));
 	printf("  Journal number = %u\n", name2u32(lockstruct, "jid"));
 	flags = name2u32(lockstruct, "flags");
-	printf("  Lock module flags = ");
-	if (flags & LM_LSFLAG_LOCAL)
-		printf("local ");
+	printf("  Lock module flags = %x", flags);
 	printf("\n");
 	printf("  Local flocks = %s\n", (name2u32(args, "localflocks")) ? "TRUE" : "FALSE");
 	printf("  Local caching = %s\n", (name2u32(args, "localcaching")) ? "TRUE" : "FALSE");
