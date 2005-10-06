@@ -29,6 +29,7 @@
 #include "inode.h"
 #include "lm.h"
 #include "log.h"
+#include "ops_fstype.h"
 #include "ops_super.h"
 #include "page.h"
 #include "proc.h"
