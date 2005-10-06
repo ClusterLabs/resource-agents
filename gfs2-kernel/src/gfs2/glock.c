@@ -992,6 +992,9 @@ void gfs2_glock_xmote_th(struct gfs2_glock *gl, unsigned int state, int flags)
 	lck_ret = gfs2_lm_lock(sdp, gl->gl_lock, gl->gl_state, state,
 			       lck_flags);
 
+	if (gfs2_assert_withdraw(sdp, !(lck_ret & LM_OUT_ERROR)))
+		return;
+
 	if (lck_ret & LM_OUT_ASYNC)
 		gfs2_assert_warn(sdp, lck_ret == LM_OUT_ASYNC);
 	else
@@ -1080,6 +1083,9 @@ void gfs2_glock_drop_th(struct gfs2_glock *gl)
 	atomic_inc(&sdp->sd_lm_unlock_calls);
 
 	ret = gfs2_lm_unlock(sdp, gl->gl_lock, gl->gl_state);
+
+	if (gfs2_assert_withdraw(sdp, !(ret & LM_OUT_ERROR)))
+		return;
 
 	if (!ret)
 		drop_bh(gl, ret);
