@@ -1216,11 +1216,14 @@ gfs_glock_xmote_th(struct gfs_glock *gl, unsigned int state, int flags)
 			      gl->gl_state, state,
 			      lck_flags);
 
+	if (gfs_assert_withdraw(sdp, !(lck_ret & LM_OUT_ERROR)))
+		goto out;
+
 	if (lck_ret & LM_OUT_ASYNC)
 		gfs_assert_warn(sdp, lck_ret == LM_OUT_ASYNC);
 	else
 		xmote_bh(gl, lck_ret);
-
+ out:
 	RET(GFN_GLOCK_XMOTE_TH);
 }
 
@@ -1313,11 +1316,14 @@ gfs_glock_drop_th(struct gfs_glock *gl)
 
 	ret = gfs_lm_unlock(sdp, gl->gl_lock, gl->gl_state);
 
+	if (gfs_assert_withdraw(sdp, !(ret & LM_OUT_ERROR)))
+		goto out;
+
 	if (!ret)
 		drop_bh(gl, ret);
 	else
 		gfs_assert_warn(sdp, ret == LM_OUT_ASYNC);
-
+ out:
 	RET(GFN_GLOCK_DROP_TH);
 }
 
