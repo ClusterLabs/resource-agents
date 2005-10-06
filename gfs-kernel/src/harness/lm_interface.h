@@ -125,6 +125,7 @@ typedef void (*lm_callback_t) (lm_fsdata_t *fsdata, unsigned int type,
 #define LM_OUT_CACHEABLE	0x00000004
 #define LM_OUT_CANCELED		0x00000008
 #define LM_OUT_ASYNC		0x00000080
+#define LM_OUT_ERROR		0x00000100
 
 /*
  * lm_callback_t types
