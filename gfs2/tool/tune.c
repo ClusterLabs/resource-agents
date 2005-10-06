@@ -23,6 +23,7 @@
 #include <sys/ioctl.h>
 #include <limits.h>
 #include <errno.h>
+#include <dirent.h>
 
 #define __user
 #include <linux/gfs2_ioctl.h>
@@ -42,10 +43,12 @@ void
 get_tune(int argc, char **argv)
 {
 	int fd;
-	char *gi_argv[] = { "get_tune" };
-	struct gfs2_ioctl gi;
-	char str[SIZE], str2[SIZE];
-	char **lines, **l;
+	char path[PATH_MAX];
+	char *fs;
+	DIR *d;
+	struct dirent *de;
+	double ratio;
+	unsigned int num, den;
 
 	if (optind == argc)
 		die("Usage: gfs2_tool gettune <mountpoint>\n");
@@ -56,42 +59,29 @@ get_tune(int argc, char **argv)
 		    argv[optind], strerror(errno));
 
 	check_for_gfs2(fd, argv[optind]);
-
-	gi.gi_argc = 1;
-	gi.gi_argv = gi_argv;
-	gi.gi_data = str;
-	gi.gi_size = SIZE;
-
-	if (ioctl(fd, GFS2_IOCTL_SUPER, &gi) < 0)
-		die("error doing get_tune: %s\n",
-		    strerror(errno));
-
 	close(fd);
+	fs = mp2fsname(argv[optind]);
+	memset(path, 0, PATH_MAX);
+	snprintf(path, PATH_MAX - 1, "%s/%s/tune", SYS_BASE, fs);
 
-	strcpy(str2, str);
-	lines = str2lines(str2);
+	d = opendir(path);
+	if (!d)
+		die("can't open %s: %s\n", path, strerror(errno));
 
-	for (l = lines; **l; l++) {
-		char *p;
-		for (p = *l; *p; p++)
-			if (*p == ' ') {
-				*p++ = 0;
-				break;
-			}
-
-		if (strcmp(*l, "version") == 0)
+	while((de = readdir(d))) {
+		if (de->d_name[0] == '.')
 			continue;
-		if (strcmp(*l, "quota_scale_num") == 0) {
-			printf("quota_scale = %.4f   (%u, %u)\n",
-			       (double)name2u32(str, "quota_scale_num") / name2u32(str, "quota_scale_den"),
-			       name2u32(str, "quota_scale_num"), name2u32(str, "quota_scale_den"));
-			continue;
-		}
-		if (strcmp(*l, "quota_scale_den") == 0)
-			continue;
-
-		printf("%s = %s\n", *l, p);
+		snprintf(path, PATH_MAX - 1, "tune/%s", de->d_name);
+		if (strcmp(de->d_name, "quota_scale") == 0) {
+			sscanf(get_sysfs(fs, "tune/quota_scale"), "%u %u",
+			       &num, &den);
+			ratio = (double)num / den;
+			printf("quota_scale = %.4f   (%u, %u)\n", ratio, num,
+			       den);
+		} else
+			printf("%s = %s\n", de->d_name, get_sysfs(fs, path));
 	}
+	closedir(d);
 }
 
 /**
@@ -106,8 +96,9 @@ set_tune(int argc, char **argv)
 {
 	char *mp, *param, *value;
 	int fd;
-	struct gfs2_ioctl gi;
+	char tune_base[SIZE] = "tune/";
 	char buf[256];
+	char *fs;
 
 	if (optind == argc)
 		die("Usage: gfs2_tool settune <mountpoint> <parameter> <value>\n");
@@ -125,6 +116,8 @@ set_tune(int argc, char **argv)
 		    mp, strerror(errno));
 
 	check_for_gfs2(fd, mp);
+	close(fd);
+	fs = mp2fsname(mp);
 
 	if (strcmp(param, "quota_scale") == 0) {
 		float s;
@@ -132,17 +125,5 @@ set_tune(int argc, char **argv)
 		sprintf(buf, "%u %u", (unsigned int)(s * 10000.0 + 0.5), 10000);
 		value = buf;
 	}
-
-	{
-		char *argv[] = { "set_tune", param, value };
-
-		gi.gi_argc = 3;
-		gi.gi_argv = argv;
-
-		if (ioctl(fd, GFS2_IOCTL_SUPER, &gi))
-			die("can't change tunable parameter %s: %s\n",
-			    param, strerror(errno));
-	}
-
-	close(fd);
+	set_sysfs(fs, strcat(tune_base, param), value);
 }

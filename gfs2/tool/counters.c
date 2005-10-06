@@ -20,12 +20,10 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <sys/ioctl.h>
 #include <limits.h>
 #include <errno.h>
 
 #define __user
-#include <linux/gfs2_ioctl.h>
 #include "osi_list.h"
 
 #include "gfs2_tool.h"
@@ -87,28 +85,31 @@ find_update_last(char *token, unsigned int this)
  * print_line - print out a counter
  * @token: the name of the counter
  * @description: the text description of the counter
- * @option: an optional modifier
- * @value: the value of the counter
+ * @diff: 1 if you want diffs on continuous output
  *
  */
 
 static void
-print_line(char *token, char *description, char *option, char *value)
+print_line(char *fsname, char *token, char *description, int diff)
 {
-	static unsigned int sd_log_blks_free;
+	char *value;
+	char counters_base[PATH_MAX] = "counters/";
+	static unsigned int log_blks_free;
 	unsigned int this, last;
 
-	if (!strcmp(token, "sd_log_blks_free"))
-		sscanf(value, "%u", &sd_log_blks_free);
+	value = get_sysfs(fsname, strcat(counters_base, token));
+	
+	if (!strcmp(token, "log_blks_free"))
+		sscanf(value, "%u", &log_blks_free);
 
 	else if (!strcmp(token, "jd_blocks")) {
 		sscanf(value, "%u", &this);
 		maybe_printf("%39s %.2f%% (%u of %u)\n",
 			     "log space used",
-			     100.0 * (this - sd_log_blks_free) / this,
-			     this - sd_log_blks_free, this);
+			     100.0 * (this - log_blks_free) / this,
+			     this - log_blks_free, this);
 
-	} else if (continuous && !strcmp(option, "diff")) {
+	} else if (continuous && diff) {
 		sscanf(value, "%u", &this);
 		last = find_update_last(token, this);
 		maybe_printf("%39s %-10s %d/s\n",
@@ -117,54 +118,6 @@ print_line(char *token, char *description, char *option, char *value)
 
 	} else
 		maybe_printf("%39s %s\n", description, value);
-}
-
-/**
- * parse_line: break up a chunk of data into counter fields
- * @buf: the data
- * @count: the number of bytes of data
- *
- */
-
-static void
-parse_lines(char *buf, unsigned int count)
-{
-	char line[SIZE];
-	char part1[SIZE], part2[SIZE], part3[SIZE], part4[SIZE];
-	char *c, *c2;
-	unsigned int x;
-
-	maybe_printf("\n");
-
-	while (count) {
-		for (c = line; count; c++) {
-			*c = *buf;
-			buf++;
-			count--;
-			if (*c == '\n')
-				break;
-		}
-		*c = 0;
-
-		*part1 = *part2 = *part3 = *part4 = 0;
-
-		for (c = line, x = 0; (c2 = strsep(&c, ":")); x++) {
-			if (!*c2)
-				continue;
-
-			if (x == 0)
-				strcpy(part1, c2);
-			else if (x == 1)
-				strcpy(part2, c2);
-			else if (x == 2)
-				strcpy(part3, c2);
-			else
-				strcpy(part4, c2);
-		}
-
-		if (x == 4)
-			print_line(part1, part2, part3, part4);
-	}
 }
 
 /**
@@ -178,41 +131,63 @@ void
 print_counters(int argc, char **argv)
 {
 	unsigned int i = interval;
-	char *fs;
+	char *path, *fs;
 	int fd;
 
 	interval = 1;
 
 	if (optind < argc)
-		fs = argv[optind++];
+		path = argv[optind++];
 	else
 		die("Usage: gfs2_tool counters <mountpoint>\n");
 
-	fd = open(fs, O_RDONLY);
+	fd = open(path, O_RDONLY);
 	if (fd < 0)
-		die("can't open file %s: %s\n", fs, strerror(errno));
+		die("can't open file %s: %s\n", path, strerror(errno));
 
-	check_for_gfs2(fd, fs);
+	check_for_gfs2(fd, path);
+	close(fd);
+
+	fs = mp2fsname(path);
 
 	for (;;) {
-		struct gfs2_ioctl gi;
-		char *argv[] = { "get_counters" };
-		char data[SIZE];
-		int error;
-
-		gi.gi_argc = 1;
-		gi.gi_argv = argv;
-		gi.gi_data = data;
-		gi.gi_size = SIZE;
-
-		error = ioctl(fd, GFS2_IOCTL_SUPER, &gi);
-		if (error < 0)
-			die("can't get counters: %s\n", strerror(errno));
-
-		if (debug)
-			write(STDOUT_FILENO, data, error);
-
-		parse_lines(data, error);
+		print_line(fs, "glock_count", "locks", 0);
+		print_line(fs, "glock_held_count", "locks held", 0);
+		print_line(fs, "inode_count", "incore inodes", 0);
+		print_line(fs, "bufdata_count", "metadata buffers", 0);
+		print_line(fs, "unlinked_count", "unlinked inodes", 0);
+		print_line(fs, "quota_count", "quota IDs", 0);
+		print_line(fs, "log_num_gl", "Glocks in current transaction",
+			   0);
+		print_line(fs, "log_num_buf", "Blocks in current transaction",
+			   0);
+		print_line(fs, "log_num_revoke",
+			   "Revokes in current transaction", 0);
+		print_line(fs, "log_num_rg", "RGs in current transaction", 0);
+		print_line(fs, "log_num_databuf",
+			   "Databufs in current transaction", 0);
+		print_line(fs, "log_blks_free", "log blks free", 0);
+		print_line(fs, "jd_blocks", "log blocks total", 0);
+		print_line(fs, "reclaim_count", "glocks on reclaim list", 0);
+		print_line(fs, "log_wraps", "log wraps", 0);
+		print_line(fs, "fh2dentry_misses", "fh2dentry misses", 1);
+		print_line(fs, "reclaimed", "glocks reclaimed", 1);
+		print_line(fs, "log_flush_incore", "log incore flushes", 1);
+		print_line(fs, "log_flush_ondisk", "log ondisk flushes", 1);
+		print_line(fs, "glock_nq_calls", "glock dq calls", 1);
+		print_line(fs, "glock_dq_calls", "glock dq calls", 1);
+		print_line(fs, "glock_prefetch_calls", "glock prefetch calls",
+			   1);
+		print_line(fs, "lm_lock_calls", "lm_lock calls", 1);
+		print_line(fs, "lm_unlock_calls", "lm_unlock calls", 1);
+		print_line(fs, "lm_callbacks", "lm callbacks", 1);
+		print_line(fs, "ops_address", "address operations", 1);
+		print_line(fs, "ops_dentry", "dentry operations", 1);
+		print_line(fs, "ops_export", "export operations", 1);
+		print_line(fs, "ops_file", "file operations", 1);
+		print_line(fs, "ops_inode", "inode operations", 1);
+		print_line(fs, "ops_super", "super operations", 1);
+		print_line(fs, "ops_vm", "vm operations", 1);
 
 		if (!continuous)
 			break;

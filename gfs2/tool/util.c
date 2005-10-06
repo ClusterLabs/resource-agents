@@ -26,6 +26,7 @@
 #include <libgen.h>
 #include <dirent.h>
 #include <string.h>
+#include <asm/page.h>
 
 #define __user
 #include <linux/gfs2_ioctl.h>
@@ -33,27 +34,71 @@
 
 #include "gfs2_tool.h"
 
-#define SYS_BASE "/sys/kernel/gfs2"
+static char sysfs_buf[PAGE_SIZE];
 
-void do_sysfs(char *fsname, char *filename, int val)
+char *__get_sysfs(char *fsname, char *filename)
 {
 	char path[PATH_MAX];
-	char buf[32];
 	int fd, rv;
 
 	memset(path, 0, PATH_MAX);
-	snprintf(path, PATH_MAX, "%s/%s/%s", SYS_BASE, fsname, filename);
+	memset(sysfs_buf, 0, PAGE_SIZE);
+	snprintf(path, PATH_MAX - 1, "%s/%s/%s", SYS_BASE, fsname, filename);
+
+	fd = open(path, O_RDONLY);
+	if (fd < 0)
+		die("can't open %s: %s\n", path, strerror(errno));
+	rv = read(fd, sysfs_buf, PAGE_SIZE);
+	if (rv < 0)
+		die("can't read from %s: %s\n", path, strerror(errno));
+
+	close(fd);
+	return sysfs_buf;
+}
+
+char *
+get_sysfs(char *fsname, char *filename)
+{
+	char *p = strchr(__get_sysfs(fsname, filename), '\n');
+	if (p)
+		*p = '\0';
+	return sysfs_buf;
+}
+
+unsigned int
+get_sysfs_uint(char *fsname, char *filename)
+{
+	unsigned int x;
+	sscanf(__get_sysfs(fsname, filename), "%u", &x);
+	return x;
+}
+
+void
+set_sysfs(char *fsname, char *filename, char *val)
+{
+	char path[PATH_MAX];
+	int fd, rv, len;
+
+	len = strlen(val) + 1;
+	if (len > PAGE_SIZE)
+		die("value for %s is too larger for sysfs\n", path);
+
+	memset(path, 0, PATH_MAX);
+	snprintf(path, PATH_MAX - 1, "%s/%s/%s", SYS_BASE, fsname, filename);
 
 	fd = open(path, O_WRONLY);
 	if (fd < 0)
 		die("can't open %s: %s\n", path, strerror(errno));
 
-	memset(buf, 0, sizeof(buf));
-	snprintf(buf, sizeof(buf), "%d", val);
-
-	rv = write(fd, buf, strlen(buf) + 1);
-	if (rv < 0)
-		die("can't write to %s: %s", path, strerror(errno));
+	rv = write(fd, val, len);
+	if (rv != len){
+		if (rv < 0)
+			die("can't write to %s: %s", path, strerror(errno));
+		else
+			die("tried to write %d bytes to path, wrote %d\n",
+			    len, rv);
+	}
+	close(fd);
 }
 
 /**
@@ -264,17 +309,11 @@ mp2devname(char *mp)
 char *
 devname2fsname(char *devname)
 {
-	char path[PATH_MAX];
-	char s_id[PATH_MAX];
 	char *fsname = NULL;
-	int rv, fd;
 	DIR *d;
 	struct dirent *de;
 
-	memset(path, 0, PATH_MAX);
-	snprintf(path, PATH_MAX, "%s", SYS_BASE);
-
-	d = opendir(path);
+	d = opendir(SYS_BASE);
 	if (!d)
 		die("can't open %s: %s\n", SYS_BASE, strerror(errno));
 
@@ -282,22 +321,7 @@ devname2fsname(char *devname)
 		if (de->d_name[0] == '.')
 			continue;
 
-		memset(path, 0, PATH_MAX);
-		snprintf(path, PATH_MAX, "%s/%s/id", SYS_BASE, de->d_name);
-
-		fd = open(path, O_RDONLY);
-		if (fd < 0)
-			die("can't open %s: %s\n", path, strerror(errno));
-
-		memset(s_id, 0, PATH_MAX);
-
-		rv = read(fd, s_id, sizeof(s_id));
-		if (rv < 0)
-			die("can't read %s: %s\n", path, strerror(errno));
-
-		close(fd);
-
-		if (strcmp(s_id, devname) == 0) {
+		if (strcmp(get_sysfs(de->d_name, "id"), devname) == 0) {
 			fsname = strdup(de->d_name);
 			break;
 		}
@@ -314,15 +338,11 @@ devname2fsname(char *devname)
 
 int is_fsname(char *name)
 {
-	char path[PATH_MAX];
 	int rv = 0;
 	DIR *d;
 	struct dirent *de;
 
-	memset(path, 0, PATH_MAX);
-	snprintf(path, PATH_MAX, "%s", SYS_BASE);
-
-	d = opendir(path);
+	d = opendir(SYS_BASE);
 	if (!d)
 		die("can't open %s: %s\n", SYS_BASE, strerror(errno));
 

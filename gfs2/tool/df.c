@@ -43,13 +43,14 @@ do_df_one(char *path)
 {
 	int fd;
 	struct gfs2_ioctl gi;
-	char stat_gfs2[SIZE], args[SIZE], lockstruct[SIZE];
+	char stat_gfs2[SIZE];
 	struct gfs2_sb sb;
 	struct gfs2_dinode ji, ri;
 	unsigned int journals = 0;
 	uint64_t rgrps;
 	unsigned int flags;
 	unsigned int percentage;
+	char *fs, *value;
  	int error;
 
 
@@ -59,20 +60,9 @@ do_df_one(char *path)
 
 	check_for_gfs2(fd, path);
 
-
-	{
-		char *argv[] = { "get_statfs" };
-
-		gi.gi_argc = 1;
-		gi.gi_argv = argv;
-		gi.gi_data = stat_gfs2;
-		gi.gi_size = SIZE;
-
-		error = ioctl(fd, GFS2_IOCTL_SUPER, &gi);
-		if (error < 0)
-			die("error doing get_statfs (%d): %s\n",
-			    error, strerror(errno));
-	}
+	fs = mp2fsname(path);
+	strncpy(stat_gfs2, __get_sysfs(fs, "statfs"), SIZE);
+	stat_gfs2[SIZE - 1] = '\0';
 	{
 		char *argv[] = { "get_super" };
 
@@ -84,32 +74,6 @@ do_df_one(char *path)
 		error = ioctl(fd, GFS2_IOCTL_SUPER, &gi);
 		if (error != gi.gi_size)
 			die("error doing get_super (%d): %s\n",
-			    error, strerror(errno));
-	}
-	{
-		char *argv[] = { "get_args" };
-
-		gi.gi_argc = 1;
-		gi.gi_argv = argv;
-		gi.gi_data = args;
-		gi.gi_size = SIZE;
-
-		error = ioctl(fd, GFS2_IOCTL_SUPER, &gi);
-		if (error < 0)
-			die("error doing get_args (%d): %s\n",
-			    error, strerror(errno));
-	}
-	{
-		char *argv[] = { "get_lockstruct" };
-
-		gi.gi_argc = 1;
-		gi.gi_argv = argv;
-		gi.gi_data = lockstruct;
-		gi.gi_size = SIZE;
-
-		error = ioctl(fd, GFS2_IOCTL_SUPER, &gi);
-		if (error < 0)
-			die("error doing get_lockstruct (%d): %s\n",
 			    error, strerror(errno));
 	}
 	{
@@ -141,9 +105,7 @@ do_df_one(char *path)
 			    error, strerror(errno));
 	}
 
-
 	close(fd);
-
 
 	journals = ji.di_entries - 2;
 
@@ -162,18 +124,21 @@ do_df_one(char *path)
 	printf("  Journals = %u\n", journals);
 	printf("  Resource Groups = %"PRIu64"\n", rgrps);
 	printf("  Mounted lock proto = \"%s\"\n",
-	       (name2value(args, "lockproto")[0]) ?
-	       name2value(args, "lockproto") : sb.sb_lockproto);
+	       ((value = get_sysfs(fs, "args/lockproto"))[0]) ? value :
+	       sb.sb_lockproto);
 	printf("  Mounted lock table = \"%s\"\n",
-	       (name2value(args, "locktable")[0]) ?
-	       name2value(args, "locktable") : sb.sb_locktable);
-	printf("  Mounted host data = \"%s\"\n", name2value(args, "hostdata"));
-	printf("  Journal number = %u\n", name2u32(lockstruct, "jid"));
-	flags = name2u32(lockstruct, "flags");
+	       ((value = get_sysfs(fs, "args/locktable"))[0]) ? value :
+	       sb.sb_locktable);
+	printf("  Mounted host data = \"%s\"\n",
+	       get_sysfs(fs, "args/hostdata"));
+	printf("  Journal number = %s\n", get_sysfs(fs, "lockstruct/jid"));
+	flags = get_sysfs_uint(fs, "lockstruct/flags");
 	printf("  Lock module flags = %x", flags);
 	printf("\n");
-	printf("  Local flocks = %s\n", (name2u32(args, "localflocks")) ? "TRUE" : "FALSE");
-	printf("  Local caching = %s\n", (name2u32(args, "localcaching")) ? "TRUE" : "FALSE");
+	printf("  Local flocks = %s\n",
+	       (get_sysfs_uint(fs, "args/localflocks")) ? "TRUE" : "FALSE");
+	printf("  Local caching = %s\n",
+		(get_sysfs_uint(fs, "args/localcaching")) ? "TRUE" : "FALSE");
 	printf("\n");
 	printf("  %-15s%-15s%-15s%-15s%-15s\n", "Type", "Total", "Used", "Free", "use%");
 	printf("  ------------------------------------------------------------------------\n");

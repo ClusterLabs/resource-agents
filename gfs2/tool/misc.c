@@ -23,6 +23,7 @@
 #include <sys/ioctl.h>
 #include <limits.h>
 #include <errno.h>
+#include <dirent.h>
 
 #define __user
 #include <linux/gfs2_ioctl.h>
@@ -86,9 +87,9 @@ do_freeze(int argc, char **argv)
 	name = mp2fsname(argv[optind]);
 
 	if (strcmp(command, "freeze") == 0)
-		do_sysfs(name, "freeze", 1);
+		set_sysfs(name, "freeze", "1");
 	else if (strcmp(command, "unfreeze") == 0)
-		do_sysfs(name, "freeze", 0);
+		set_sysfs(name, "freeze", "0");
 
 	sync();
 }
@@ -295,14 +296,15 @@ print_sb(int argc, char **argv)
  *
  */
 
+
 void
 print_args(int argc, char **argv)
 {
 	int fd;
-	char *gi_argv[] = { "get_args" };
-	struct gfs2_ioctl gi;
-	char buf[65536];
-	int error;
+	char *fs;
+	DIR *d;
+	struct dirent *de;
+	char path[PATH_MAX];
 
 	if (optind == argc)
 		die("Usage: gfs2_tool getargs <mountpoint>\n");
@@ -313,19 +315,26 @@ print_args(int argc, char **argv)
 	
 	check_for_gfs2(fd, argv[optind]);
 
-	gi.gi_argc = 1;
-	gi.gi_argv = gi_argv;
-	gi.gi_data = buf;
-	gi.gi_size = sizeof(buf);
-
-	error = ioctl(fd, GFS2_IOCTL_SUPER, &gi);
-	if (error < 0)
-		die("error doing get_super (%d): %s\n",
-		    error, strerror(errno));
-
 	close(fd);
+	fs = mp2fsname(argv[optind]);
 
-	printf("%s", buf);
+	memset(path, 0, PATH_MAX);
+	snprintf(path, PATH_MAX - 1, "%s/%s/args/", SYS_BASE, fs);
+
+	d = opendir(path);
+	if (!d)
+		die("can't open %s: %s\n", path, strerror(errno));
+
+	while((de = readdir(d))) {
+		if (de->d_name[0] == '.')
+			continue;
+
+		snprintf(path, PATH_MAX - 1, "args/%s", de->d_name);
+		printf("%s %s\n", de->d_name, get_sysfs(fs, path));
+	}
+
+	closedir(d);
+	
 }
 
 /**
@@ -551,8 +560,7 @@ void
 do_shrink(int argc, char **argv)
 {
 	int fd;
-	char *gi_argv[] = { "do_shrink" };
-	struct gfs2_ioctl gi;
+	char *fs;
 
 	if (optind == argc)
 		die("Usage: gfs2_tool shrink <mountpoint>\n");
@@ -563,19 +571,14 @@ do_shrink(int argc, char **argv)
 		    argv[optind], strerror(errno));
 
 	check_for_gfs2(fd, argv[optind]);
-
-	gi.gi_argc = 1;
-	gi.gi_argv = gi_argv;
-
-	if (ioctl(fd, GFS2_IOCTL_SUPER, &gi))
-		die("error doing ioctl: %s\n",
-		    strerror(errno));
-
 	close(fd);
+	fs = mp2fsname(argv[optind]);
+	
+	set_sysfs(fs, "shrink", "1");
 }
 
 /**
- * do_withdraw - freeze a GFS2 filesystem
+ * do_withdraw - withdraw a GFS2 filesystem
  * @argc:
  * @argv:
  *
@@ -591,6 +594,6 @@ do_withdraw(int argc, char **argv)
 
 	name = mp2fsname(argv[optind]);
 
-	do_sysfs(name, "withdraw", 1);
+	set_sysfs(name, "withdraw", "1");
 }
 

@@ -30,6 +30,7 @@ do { \
 	exit(EXIT_FAILURE); \
 } while (0)
 
+#define SYS_BASE "/sys/kernel/gfs2"
 
 extern char *prog_name;
 extern char *action;
@@ -98,7 +99,10 @@ char *mp2fsname(char *mp);
 char *name2value(char *str, char *name);
 uint32_t name2u32(char *str, char *name);
 uint64_t name2u64(char *str, char *name);
-void do_sysfs(char *fsname, char *filename, int val);
+char *__get_sysfs(char *fsname, char *filename);
+char *get_sysfs(char *fsname, char *filename);
+unsigned int get_sysfs_uint(char *fsname, char *filename);
+void set_sysfs(char *fsname, char *filename, char *val);
 
 
 #endif /* __GFS2_TOOL_DOT_H__ */
