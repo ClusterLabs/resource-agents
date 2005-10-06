@@ -247,6 +247,7 @@ static int info_call(struct cman_handle *h, int msgtype, void *inbuf, int inlen,
 	size_t iovlen = 1;
 
 	header.magic = CMAN_MAGIC;
+	header.version = CMAN_VERSION;
 	header.command = msgtype;
 	header.flags = 0;
 	header.length = sizeof(header) + inlen;
@@ -800,6 +801,7 @@ int cman_send_data(cman_handle_t handle, void *buf, int len, int flags, uint8_t 
 	VALIDATE_HANDLE(h);
 
 	header.header.magic = CMAN_MAGIC;
+	header.header.version = CMAN_VERSION;
 	header.header.command = CMAN_CMD_DATA;
 	header.header.flags = flags;
 	header.header.length = len + sizeof(header);

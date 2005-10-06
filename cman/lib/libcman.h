@@ -187,6 +187,8 @@ int cman_stop_notification(cman_handle_t handle);
  * When it's active then call cman_dispatch() on the handle to process the event
  * NOTE: This fd can change between calls to cman_dispatch() so always call this
  * routine to get the latest one. (This is mainly due to message caching).
+ * One upshot of this is that you must never read or write this FD (it may on occasion
+ * point to /dev/zero if you have messages cached!)
  */
 int cman_get_fd(cman_handle_t handle);
 int cman_dispatch(cman_handle_t handle, int flags);
