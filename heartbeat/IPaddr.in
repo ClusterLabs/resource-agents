@@ -789,6 +789,11 @@ ip_status() {
 #
 ip_monitor() {
   TIMEOUT=1 # seconds
+
+  if ! ip_status >/dev/null 2>&1; then
+	return $OCF_NOT_RUNNING
+  fi
+
   case $SYSTYPE in
         Linux)
             # -c count -t timetolive -q(uiet) -n(umeric) -W timeout
@@ -801,21 +806,13 @@ ip_monitor() {
             PINGARGS="-c 1 -q $BASEIP"
             ;;
   esac
-  for j in 1 2 3
-    do
-    if
-	ip_status
-    then
-	@PING@ $PINGARGS >/dev/null 2>&1
-	if
-	    [ $? -eq 0 ]
-	then
-	    return $OCF_SUCCESS
-	fi
+  for j in 1 2 3; do
+    if @PING@ $PINGARGS >/dev/null 2>&1 ; then
+	return $OCF_SUCCESS
     fi
   done
 
-  return $OCF_NOT_RUNNING
+  return $OCF_ERR_GENERIC
 }
 
 is_positive_integer() {
