@@ -374,6 +374,9 @@ int get_ccs_join_info(commandline_t *comline)
 				die("invalid votes value %d", comline->votes);
 			free(str);
 		}
+		else {
+			comline->votes = 1;
+		}
 	}
 
 
