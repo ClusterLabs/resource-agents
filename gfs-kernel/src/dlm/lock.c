@@ -223,7 +223,7 @@ void gdlm_put_lock(lm_lock_t *lock)
 	gdlm_delete_lp((struct gdlm_lock *) lock);
 }
 
-void gdlm_do_lock(struct gdlm_lock *lp, struct dlm_range *range)
+unsigned int gdlm_do_lock(struct gdlm_lock *lp, struct dlm_range *range)
 {
 	struct gdlm_ls *ls = lp->ls;
 	struct gdlm_strname str;
@@ -238,7 +238,7 @@ void gdlm_do_lock(struct gdlm_lock *lp, struct dlm_range *range)
 	if (test_bit(DFL_BLOCK_LOCKS, &ls->flags) &&
 	    !test_bit(LFL_NOBLOCK, &lp->flags) && lp->req != DLM_LOCK_NL) {
 		gdlm_queue_delayed(lp);
-		return;
+		return LM_OUT_ASYNC;
 	}
 
 	/*
@@ -266,12 +266,17 @@ void gdlm_do_lock(struct gdlm_lock *lp, struct dlm_range *range)
 		error = 0;
 	}
 
-	gdlm_assert(!error, "%s: %x,%llx err=%d cur=%d req=%d lkf=%x flags=%lx",
-		    ls->fsname, lp->lockname.ln_type, lp->lockname.ln_number,
-		    error, lp->cur, lp->req, lp->lkf, lp->flags);
+	if (error) {
+		log_debug("%s: gdlm_lock %x,%llx err=%d cur=%d req=%d lkf=%x "
+			  "flags=%lx", ls->fsname, lp->lockname.ln_type,
+			  lp->lockname.ln_number, error, lp->cur, lp->req,
+			  lp->lkf, lp->flags);
+		return LM_OUT_ERROR;
+	}
+	return LM_OUT_ASYNC;
 }
 
-void gdlm_do_unlock(struct gdlm_lock *lp)
+unsigned int gdlm_do_unlock(struct gdlm_lock *lp)
 {
 	struct gdlm_ls *ls = lp->ls;
 	unsigned int lkf = 0;
@@ -288,9 +293,14 @@ void gdlm_do_unlock(struct gdlm_lock *lp)
 
 	error = dlm_unlock(ls->dlm_lockspace, lp->lksb.sb_lkid, lkf, NULL, lp);
 
-	gdlm_assert(!error, "%s: %x,%llx err=%d cur=%d req=%d lkf=%x flags=%lx",
-		    ls->fsname, lp->lockname.ln_type, lp->lockname.ln_number,
-		    error, lp->cur, lp->req, lp->lkf, lp->flags);
+	if (error) {
+		log_debug("%s: gdlm_unlock %x,%llx err=%d cur=%d req=%d lkf=%x "
+			  "flags=%lx", ls->fsname, lp->lockname.ln_type,
+			  lp->lockname.ln_number, error, lp->cur, lp->req,
+			  lp->lkf, lp->flags);
+		return LM_OUT_ERROR;
+	}
+	return LM_OUT_ASYNC;
 }
 
 unsigned int gdlm_lock(lm_lock_t *lock, unsigned int cur_state,
@@ -306,8 +316,7 @@ unsigned int gdlm_lock(lm_lock_t *lock, unsigned int cur_state,
 	lp->req = make_mode(req_state);
 	lp->lkf = make_flags(lp, flags, lp->cur, lp->req);
 
-	gdlm_do_lock(lp, NULL);
-	return LM_OUT_ASYNC;
+	return gdlm_do_lock(lp, NULL);
 }
 
 unsigned int gdlm_unlock(lm_lock_t *lock, unsigned int cur_state)
@@ -317,8 +326,7 @@ unsigned int gdlm_unlock(lm_lock_t *lock, unsigned int cur_state)
 	clear_bit(LFL_DLM_CANCEL, &lp->flags);
 	if (lp->cur == DLM_LOCK_IV)
 		return 0;
-	gdlm_do_unlock(lp);
-	return LM_OUT_ASYNC;
+	return gdlm_do_unlock(lp);
 }
 
 void gdlm_cancel(lm_lock_t *lock)
