@@ -302,6 +302,7 @@ static int create_control_device()
     int status = 0;
     int saved_errno = 0;
     mode_t oldmode;
+    int done = 0;
 
     /* Make sure the parent directory exists */
     oldmode = umask(0);
@@ -323,6 +324,7 @@ static int create_control_device()
 	{
 	    status = mknod(DLM_CTL_DEVICE_NAME, S_IFCHR | 0600, makedev(MISC_MAJOR, minor));
 	    saved_errno = errno;
+	    done = 1;
 #ifdef HAVE_SELINUX
 	    if (status == 0)
 		set_selinux_context(DLM_CTL_DEVICE_NAME);
@@ -332,6 +334,12 @@ static int create_control_device()
     }
     fclose(pmisc);
 
+    /* if it all went well but we didn't find the DLM misc device, still return an error */
+    if (status == 0 && !done)
+    {
+	    status = -1;
+	    saved_errno = EEXIST;
+    }
     errno = saved_errno;
     return status;
 }
@@ -383,10 +391,12 @@ static int open_control_device()
 
 	if (control_fd == -1)
 	{
-	    create_control_device();
-	    control_fd = open(DLM_CTL_DEVICE_NAME, O_RDWR);
-	    if (control_fd == -1)
-		return -1;
+		if (!create_control_device())
+			return -1;
+
+		control_fd = open(DLM_CTL_DEVICE_NAME, O_RDWR);
+		if (control_fd == -1)
+			return -1;
 	}
     }
     fcntl(control_fd, F_SETFD, 1);
