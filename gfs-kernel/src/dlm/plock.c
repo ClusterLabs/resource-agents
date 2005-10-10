@@ -68,8 +68,6 @@ int gdlm_plock(lm_lockspace_t *lockspace, struct lm_lockname *name,
 	if (!op)
 		return -ENOMEM;
 
-	log_debug("en plock %x,%llx", name->ln_type, name->ln_number);
-
 	op->info.optype		= GDLM_PLOCK_OP_LOCK;
 	op->info.pid		= (uint32_t) fl->fl_owner;
 	op->info.ex		= (fl->fl_type == F_WRLCK);
@@ -88,8 +86,6 @@ int gdlm_plock(lm_lockspace_t *lockspace, struct lm_lockname *name,
 		list_del(&op->list);
 	}
 	spin_unlock(&ops_lock);
-
-	log_debug("ex plock done %d rv %d", op->done, op->info.rv);
 
 	rv = op->info.rv;
 
@@ -114,8 +110,6 @@ int gdlm_punlock(lm_lockspace_t *lockspace, struct lm_lockname *name,
 	if (!op)
 		return -ENOMEM;
 
-	log_debug("en punlock %x,%llx", name->ln_type, name->ln_number);
-
 	if (posix_lock_file_wait(file, fl) < 0)
 		log_error("gdlm_punlock: vfs unlock error %x,%llx",
 			  name->ln_type, name->ln_number);
@@ -137,8 +131,6 @@ int gdlm_punlock(lm_lockspace_t *lockspace, struct lm_lockname *name,
 	}
 	spin_unlock(&ops_lock);
 
-	log_debug("ex punlock done %d rv %d", op->done, op->info.rv);
-
 	rv = op->info.rv;
 
 	kfree(op);
@@ -155,8 +147,6 @@ int gdlm_plock_get(lm_lockspace_t *lockspace, struct lm_lockname *name,
 	op = kzalloc(sizeof(*op), GFP_KERNEL);
 	if (!op)
 		return -ENOMEM;
-
-	log_debug("en get %x,%llx", name->ln_type, name->ln_number);
 
 	op->info.optype		= GDLM_PLOCK_OP_GET;
 	op->info.pid		= (uint32_t) fl->fl_owner;
@@ -175,8 +165,6 @@ int gdlm_plock_get(lm_lockspace_t *lockspace, struct lm_lockname *name,
 		list_del(&op->list);
 	}
 	spin_unlock(&ops_lock);
-
-	log_debug("ex get done %d rv %d", op->done, op->info.rv);
 
 	rv = op->info.rv;
 
@@ -214,9 +202,6 @@ static ssize_t dev_read(struct file *file, char __user *u, size_t count,
 	if (!op)
 		return -EAGAIN;
 
-	log_debug("send %llx op %d ex %d wait %d", info.number,
-		  info.optype, info.ex, info.wait);
-
 	if (copy_to_user(u, &info, sizeof(info)))
 		return -EFAULT;
 	return sizeof(info);
@@ -239,9 +224,6 @@ static ssize_t dev_write(struct file *file, const char __user *u, size_t count,
 
 	if (check_version(&info))
 		return -EINVAL;
-
-	log_debug("recv %llx op %d ex %d wait %d", info.number,
-		  info.optype, info.ex, info.wait);
 
 	spin_lock(&ops_lock);
 	list_for_each_entry(op, &recv_list, list) {
