@@ -1,7 +1,7 @@
-diff -ur a/fs/Kconfig b/fs/Kconfig
---- a/fs/Kconfig	2005-09-01 16:59:28.038753408 +0800
-+++ b/fs/Kconfig	2005-09-01 17:09:39.810749928 +0800
-@@ -360,6 +360,21 @@
+diff -urpN a/fs/Kconfig b/fs/Kconfig
+--- a/fs/Kconfig	2005-10-10 11:05:02.535328475 -0500
++++ b/fs/Kconfig	2005-10-10 11:27:25.486863588 -0500
+@@ -359,6 +359,21 @@ config OCFS2_FS
  	          - POSIX ACLs
  	          - readpages / writepages (not user visible)
  
@@ -23,11 +23,11 @@ diff -ur a/fs/Kconfig b/fs/Kconfig
  config MINIX_FS
  	tristate "Minix fs support"
  	help
-diff -ur a/fs/Makefile b/fs/Makefile
---- a/fs/Makefile	2005-09-01 16:59:28.042752800 +0800
-+++ b/fs/Makefile	2005-09-01 17:10:11.211976216 +0800
-@@ -105,3 +105,4 @@
+diff -urpN a/fs/Makefile b/fs/Makefile
+--- a/fs/Makefile	2005-10-10 11:05:02.538328004 -0500
++++ b/fs/Makefile	2005-10-10 11:27:09.063430545 -0500
+@@ -105,3 +105,4 @@ obj-$(CONFIG_HPPFS)		+= hppfs/
+ obj-$(CONFIG_DEBUG_FS)		+= debugfs/
+ obj-$(CONFIG_CONFIGFS_FS)	+= configfs/
  obj-$(CONFIG_OCFS2_FS)		+= ocfs2/
- obj-$(CONFIG_RELAYFS_FS)	+= relayfs/
- obj-$(CONFIG_9P_FS)		+= 9p/
 +obj-$(CONFIG_GFS2_FS)		+= gfs2/
