@@ -170,19 +170,14 @@ int gfs2_ail1_empty(struct gfs2_sbd *sdp, int flags)
 
 static void ail2_empty(struct gfs2_sbd *sdp, unsigned int new_tail)
 {
-	struct list_head *head, *tmp, *next;
-	struct gfs2_ail *ai;
+	struct gfs2_ail *ai, *safe;
 	unsigned int old_tail = sdp->sd_log_tail;
 	int wrap = (new_tail < old_tail);
 	int a, b, rm;
 
 	gfs2_log_lock(sdp);
 
-	for (head = &sdp->sd_ail2_list, tmp = head->next, next = tmp->next;
-	     tmp != head;
-	     tmp = next, next = tmp->next) {
-		ai = list_entry(tmp, struct gfs2_ail, ai_list);
-
+	list_for_each_entry_safe(ai, safe, &sdp->sd_ail2_list, ai_list) {
 		a = (old_tail <= ai->ai_first);
 		b = (ai->ai_first < new_tail);
 		rm = (wrap) ? (a || b) : (a && b);
