@@ -93,27 +93,6 @@ static ssize_t withdraw_store(struct gfs2_sbd *sdp, const char *buf, size_t len)
 	return len;
 }
 
-static ssize_t statfs_show(struct gfs2_sbd *sdp, char *buf)
-{
-	struct gfs2_statfs_change sc;
-	int rv;
-
-	if (gfs2_tune_get(sdp, gt_statfs_slow))
-		rv = gfs2_statfs_slow(sdp, &sc);
-	else
-		rv = gfs2_statfs_i(sdp, &sc);
-
-	if (rv)
-		goto out;
-
-	rv += sprintf(buf + rv, "bsize %u\n", sdp->sd_sb.sb_bsize);
-	rv += sprintf(buf + rv, "total %lld\n", sc.sc_total);
-	rv += sprintf(buf + rv, "free %lld\n", sc.sc_free);
-	rv += sprintf(buf + rv, "dinodes %lld\n", sc.sc_dinodes);
- out:
-	return rv;
-}
-
 static ssize_t statfs_sync_store(struct gfs2_sbd *sdp, const char *buf,
 				 size_t len)
 {
@@ -152,7 +131,6 @@ GFS2_ATTR(id,          0444, id_show,       NULL);
 GFS2_ATTR(fsname,      0444, fsname_show,   NULL);
 GFS2_ATTR(freeze,      0644, freeze_show,   freeze_store);
 GFS2_ATTR(withdraw,    0644, withdraw_show, withdraw_store);
-GFS2_ATTR(statfs,      0444, statfs_show,   NULL);
 GFS2_ATTR(statfs_sync, 0200, NULL,          statfs_sync_store);
 GFS2_ATTR(shrink,      0200, NULL,          shrink_store);
 
@@ -161,7 +139,6 @@ static struct attribute *gfs2_attrs[] = {
 	&gfs2_attr_fsname.attr,
 	&gfs2_attr_freeze.attr,
 	&gfs2_attr_withdraw.attr,
-	&gfs2_attr_statfs.attr,
 	&gfs2_attr_statfs_sync.attr,
 	&gfs2_attr_shrink.attr,
 	NULL,
