@@ -34,7 +34,6 @@ enum {
 
 /*  Divide num by den.  Round up if there is a remainder.  */
 #define DIV_RU(num, den) (((num) + (den) - 1) / (den))
-#define MAKE_MULT8(x) (((x) + 7) & ~7)
 
 #define GFS2_FAST_NAME_SIZE 8
 

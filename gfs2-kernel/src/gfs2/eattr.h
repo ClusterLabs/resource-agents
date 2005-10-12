@@ -14,35 +14,34 @@
 #define GFS2_EA_DATA_LEN(ea) le32_to_cpu((ea)->ea_data_len)
 
 #define GFS2_EA_SIZE(ea) \
-MAKE_MULT8(sizeof(struct gfs2_ea_header) + \
-	   (ea)->ea_name_len + \
-	   ((GFS2_EA_IS_STUFFED(ea)) ? \
-	    GFS2_EA_DATA_LEN(ea) : \
-	    (sizeof(uint64_t) * (ea)->ea_num_ptrs)))
+ALIGN(sizeof(struct gfs2_ea_header) + (ea)->ea_name_len + \
+      ((GFS2_EA_IS_STUFFED(ea)) ? GFS2_EA_DATA_LEN(ea) : \
+                                  (sizeof(uint64_t) * (ea)->ea_num_ptrs)), 8)
+
 #define GFS2_EA_STRLEN(ea) \
-((((ea)->ea_type == GFS2_EATYPE_USR) ? 5 : 7) + \
- (ea)->ea_name_len + 1)
+((((ea)->ea_type == GFS2_EATYPE_USR) ? 5 : 7) + (ea)->ea_name_len + 1)
 
 #define GFS2_EA_IS_STUFFED(ea) (!(ea)->ea_num_ptrs)
 #define GFS2_EA_IS_LAST(ea) ((ea)->ea_flags & GFS2_EAFLAG_LAST)
 
 #define GFS2_EAREQ_SIZE_STUFFED(er) \
-MAKE_MULT8(sizeof(struct gfs2_ea_header) + \
-	   (er)->er_name_len + (er)->er_data_len)
+ALIGN(sizeof(struct gfs2_ea_header) + (er)->er_name_len + (er)->er_data_len, 8)
+
 #define GFS2_EAREQ_SIZE_UNSTUFFED(sdp, er) \
-MAKE_MULT8(sizeof(struct gfs2_ea_header) + \
-	   (er)->er_name_len + \
-	   sizeof(uint64_t) * DIV_RU((er)->er_data_len, (sdp)->sd_jbsize))
+ALIGN(sizeof(struct gfs2_ea_header) + (er)->er_name_len + \
+      sizeof(uint64_t) * DIV_RU((er)->er_data_len, (sdp)->sd_jbsize), 8)
 
 #define GFS2_EA2NAME(ea) ((char *)((struct gfs2_ea_header *)(ea) + 1))
 #define GFS2_EA2DATA(ea) (GFS2_EA2NAME(ea) + (ea)->ea_name_len)
+
 #define GFS2_EA2DATAPTRS(ea) \
-((uint64_t *)(GFS2_EA2NAME(ea) + MAKE_MULT8((ea)->ea_name_len)))
+((uint64_t *)(GFS2_EA2NAME(ea) + ALIGN((ea)->ea_name_len, 8)))
+
 #define GFS2_EA2NEXT(ea) \
 ((struct gfs2_ea_header *)((char *)(ea) + GFS2_EA_REC_LEN(ea)))
+
 #define GFS2_EA_BH2FIRST(bh) \
-((struct gfs2_ea_header *)((bh)->b_data + \
-			  sizeof(struct gfs2_meta_header)))
+((struct gfs2_ea_header *)((bh)->b_data + sizeof(struct gfs2_meta_header)))
 
 #define GFS2_ERF_MODE 0x80000000
 
