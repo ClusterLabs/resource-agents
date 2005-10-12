@@ -207,18 +207,15 @@ void gfs2_aspace_put(struct inode *aspace)
 
 void gfs2_ail1_start_one(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 {
-	struct list_head *head, *tmp, *prev;
-	struct gfs2_bufdata *bd;
+	struct gfs2_bufdata *bd, *s;
 	struct buffer_head *bh;
 	int retry;
 
 	do {
 		retry = 0;
 
-		for (head = &ai->ai_ail1_list, tmp = head->prev, prev = tmp->prev;
-		     tmp != head;
-		     tmp = prev, prev = tmp->prev) {
-			bd = list_entry(tmp, struct gfs2_bufdata, bd_ail_st_list);
+		list_for_each_entry_safe_reverse(bd, s, &ai->ai_ail1_list,
+						 bd_ail_st_list) {
 			bh = bd->bd_bh;
 
 			gfs2_assert(sdp, bd->bd_ail == ai);
@@ -256,14 +253,11 @@ void gfs2_ail1_start_one(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 
 int gfs2_ail1_empty_one(struct gfs2_sbd *sdp, struct gfs2_ail *ai, int flags)
 {
-	struct list_head *head, *tmp, *prev;
-	struct gfs2_bufdata *bd;
+	struct gfs2_bufdata *bd, *s;
 	struct buffer_head *bh;
 
-	for (head = &ai->ai_ail1_list, tmp = head->prev, prev = tmp->prev;
-	     tmp != head;
-	     tmp = prev, prev = tmp->prev) {
-		bd = list_entry(tmp, struct gfs2_bufdata, bd_ail_st_list);
+	list_for_each_entry_safe_reverse(bd, s, &ai->ai_ail1_list,
+					 bd_ail_st_list) {
 		bh = bd->bd_bh;
 
 		gfs2_assert(sdp, bd->bd_ail == ai);

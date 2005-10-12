@@ -145,23 +145,19 @@ void gfs2_ail1_start(struct gfs2_sbd *sdp, int flags)
 
 int gfs2_ail1_empty(struct gfs2_sbd *sdp, int flags)
 {
-	struct list_head *head, *tmp, *prev;
-	struct gfs2_ail *ai;
+	struct gfs2_ail *ai, *s;
 	int ret;
 
 	gfs2_log_lock(sdp);
 
-	for (head = &sdp->sd_ail1_list, tmp = head->prev, prev = tmp->prev;
-	     tmp != head;
-	     tmp = prev, prev = tmp->prev) {
-		ai = list_entry(tmp, struct gfs2_ail, ai_list);
+	list_for_each_entry_safe_reverse(ai, s, &sdp->sd_ail1_list, ai_list) {
 		if (gfs2_ail1_empty_one(sdp, ai, flags))
 			list_move(&ai->ai_list, &sdp->sd_ail2_list);
 		else if (!(flags & DIO_ALL))
 			break;
 	}
 
-	ret = list_empty(head);
+	ret = list_empty(&sdp->sd_ail1_list);
 
 	gfs2_log_unlock(sdp);
 
