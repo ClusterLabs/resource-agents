@@ -231,7 +231,7 @@ void gfs2_ail1_start_one(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 			if (!buffer_dirty(bh))
 				continue;
 
-			list_move(&bd->bd_ail_st_list, head);
+			list_move(&bd->bd_ail_st_list, &ai->ai_ail1_list);
 
 			gfs2_log_unlock(sdp);
 			wait_on_buffer(bh);
@@ -275,7 +275,7 @@ int gfs2_ail1_empty_one(struct gfs2_sbd *sdp, struct gfs2_ail *ai, int flags)
 		list_move(&bd->bd_ail_st_list, &ai->ai_ail2_list);
 	}
 
-	return list_empty(head);
+	return list_empty(&ai->ai_ail1_list);
 }
 
 /**
