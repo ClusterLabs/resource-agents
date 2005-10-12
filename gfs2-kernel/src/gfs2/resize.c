@@ -27,6 +27,9 @@
 #include "super.h"
 #include "trans.h"
 
+/* A single transaction needs to add the structs to rindex and make the
+   statfs change. */
+
 int gfs2_resize_add_rgrps(struct gfs2_sbd *sdp, char __user *buf,
 			  unsigned int size)
 {
@@ -144,6 +147,10 @@ static void drop_dentries(struct gfs2_inode *ip)
 
 	iput(inode);
 }
+
+/* This is called by an ioctl to rename an ordinary file that's represented
+   in the vfs to a hidden system file that isn't represented in the vfs.  It's
+   used to add journals, along with the associated system files, to a fs. */
 
 int gfs2_rename2system(struct gfs2_inode *ip,
 		       struct gfs2_inode *old_dip, char *old_name,
