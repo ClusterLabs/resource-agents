@@ -15,14 +15,10 @@
 # License: GNU General Public License (GPL)
 
 #######################################################################
-# Initialization:
-
 # Source function library.
 . @hb_libdir@/ocf-shellfuncs
 
 #######################################################################
-prefix=@prefix@
-exec_prefix=@exec_prefix@
 PIDFILE=@localstatedir@/run/heartbeat-bell
 #For testing
 #PIDFILE=/tmp/heartbeat-bell
@@ -34,7 +30,7 @@ usage() {
 	echo "Usage: $0 {start|stop|restart|status|monitor|meta-data|validate-all}"
 	echo "  The node list is an optional space delimited"
 	echo "  list of hosts that should never sound the alarm."
-	echo "$Id: AudibleAlarm.in,v 1.5 2005/07/21 07:50:08 sunjd Exp $";
+	echo "$Id: AudibleAlarm.in,v 1.6 2005/10/12 08:09:57 sunjd Exp $";
 }
 
 meta_data() {
@@ -77,8 +73,10 @@ audiblealarm_start () {
 	ocf_log info "$0: Starting"
     	if [ -f $PIDFILE ]; then
         	PID=`head -n 1 $PIDFILE`
-		ocf_log info "$0: Appears to already be running, killing [$PID]"
-		kill $PID > /dev/null
+		if [ -n "$PID" ]; then
+		  ocf_log info "$0: Appears to already be running, killing [$PID]"
+		  kill $PID > /dev/null
+		fi
 	fi
 	# Use () to create a subshell to make the redirection be synchronized.
 	( while [ 1 ]; do 
@@ -89,12 +87,12 @@ audiblealarm_start () {
 		# /usr/bin/floppycontrol --pollstate > /dev/null
 		#
 		# To avoid issues when called by lrmd, redirect stdout->stderr.
-	done & ) >&2
+	done &
 	if ! echo $! >  $PIDFILE; then
 		ocf_log info "$0: Could not write to pid file \"$PIDFILE\", bailing"
 		kill $!
 		return $OCF_ERR_GENERIC
-	fi
+	fi) >&2
 
 	return $?
 }
@@ -106,9 +104,10 @@ audiblealarm_stop () {
 		# ocf_log info "$0: Appears to already be running, killing [$PID]"
 		# commented by Phost, since the confusion in the log.
 
+		if [ -n "$PID" ]; then
 		# Donnot remove PIDFILE in case the `kill` fails.
-		kill $PID > /dev/null && rm -f $PIDFILE
-		
+		  kill $PID > /dev/null && rm -f $PIDFILE
+		fi	
 	fi
 
 	return $?
@@ -123,12 +122,18 @@ audiblealarm_restart () {
 
 audiblealarm_status () {
   	if [ -f $PIDFILE ]; then
-		echo running
+		PID=`head -n 1 $PIDFILE`
+		if [ -n "$PID" ]; then
+			echo running
+			return $OCF_SUCCESS
+		else
+			echo stopped
+		fi
 	else
 		echo stopped
 	fi
 
-	return $OCF_SUCCESS
+	return $OCF_NOT_RUNNING
 }
 
 audiblealarm_validate_all () {
