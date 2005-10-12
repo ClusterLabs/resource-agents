@@ -24,6 +24,8 @@
 #
 # Copyright:	(C) 2005 International Business Machines
 
+VARRUN=@localstatedir@/run
+MAILTOFILE=$VARRUN/MailTo
 #######################################################################
 # Initialization:
 
@@ -33,15 +35,11 @@
 
 ARGS="$0 $*"
 
-# Source function library.
-prefix=@prefix@
-exec_prefix=@exec_prefix@
-
 us=`uname -n`
 
 usage() {
   echo "Usage: $0 {start|stop|status|monitor|meta-data|validate-all}"
-  echo "$Id: MailTo.in,v 1.3 2005/07/27 08:26:57 sunjd Exp $"
+  echo "$Id: MailTo.in,v 1.4 2005/10/12 09:06:35 sunjd Exp $"
 }
 
 meta_data() {
@@ -110,6 +108,7 @@ MailToStart() {
 	Subject="`SubjectLine $subject` Takeover in progress on $us"
 
 	MailProgram "$Subject" $1
+	touch $MAILTOFILE
 	return $?
 }
 
@@ -117,13 +116,20 @@ MailToStop () {
 	Subject="`SubjectLine $subject` Migrating resource away from $us"
 
 	MailProgram "$Subject" $1
+	rm -f $MAILTOFILE
 	return $?
 }
 
 MailToStatus () {
-	echo "stopped"
+	ocf_log warn "Don't stat/monitor me! MailTo is a pseudo resource agent, so the status reported may be incorrect"
 
-	return $OCF_NOT_RUNNING
+	if [ -f $MAILTOFILE ]; then
+		echo "running"
+		return $OCF_SUCCESS
+	else
+		echo "stopped"
+		return $OCF_NOT_RUNNING
+	fi
 }
 
 MailToValidateAll () {
@@ -173,6 +179,12 @@ case $1 in
   meta-data)		meta_data
 			exit $OCF_SUCCESS
 			;;
+	#	Not quite sure what to do with this one...
+	#	We aren't a continuously running service - so it's not clear
+	#
+  status|monitor)	MailToStatus
+			exit $?
+			;;
   usage)		usage
 			exit $OCF_SUCCESS
 			;;
@@ -194,11 +206,6 @@ case $1 in
   start)		MailToStart
 			;;
   stop)			MailToStop
-			;;
-	#	Not quite sure what to do with this one...
-	#	We aren't a continuously running service - so it's not clear
-	#
-  status|monitor)	MailToStatus
 			;;
   validate-all)		MailToValidateAll
 			;;
