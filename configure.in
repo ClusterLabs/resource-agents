@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.446 $) dnl cvs revision
+AC_REVISION($Revision: 1.447 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1869,6 +1869,22 @@ if test $ac_cv_sizeof_long -ge 8; then
   AC_DEFINE(CLOCK_T_IS_LONG_ENOUGH, 1, [Set if CLOCK_T is adequate by itself for the "indefinite future" (>= 100 years)])
 else
   AC_MSG_RESULT(no)
+fi
+
+
+dnl check if there are getpid() inconsistency
+AC_MSG_CHECKING(for getpid() consistency in multi-process/threads program)
+$CC tools/pidtest.c -o tools/pidtest -lpthread >& /dev/null
+if test $? = 0 ; then
+	tools/pidtest |$EGREP Inconsistency >& /dev/null
+	if test $? = 0 ; then
+		AC_MSG_RESULT(Inconsistency detected)	
+		AC_DEFINE(GETPID_INCONSISTENT, 1 , [pid is inconsistent in multi-process/threads program])
+	else
+		AC_MSG_RESULT(ok)
+	fi
+else
+	AC_MSG_RESULT(compiling failed)	
 fi
 
 dnl
