@@ -124,7 +124,7 @@ do_df_one(char *path)
 	printf("  SB lock table = \"%s\"\n", sb.sb_locktable);
 	printf("  SB ondisk format = %u\n", sb.sb_fs_format);
 	printf("  SB multihost format = %u\n", sb.sb_multihost_format);
-	/* printf("  Block size = %u\n", name2u32(stat_gfs2, "bsize")); */
+	printf("  Block size = %u\n", sb.sb_bsize);
 	printf("  Journals = %u\n", journals);
 	printf("  Resource Groups = %"PRIu64"\n", rgrps);
 	printf("  Mounted lock proto = \"%s\"\n",
