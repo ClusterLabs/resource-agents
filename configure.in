@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.447 $) dnl cvs revision
+AC_REVISION($Revision: 1.448 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -48,6 +48,26 @@ esac
 
 AC_SUBST(INIT_EXT)
 AC_SUBST(USE_MODULES)
+
+dnl Info for building/packaging systems.
+dnl
+dnl "pkg" (typically Solaris) generally suggests package names of the form:
+dnl	COMPname
+dnl where:
+dnl	COMP: (upper case) resembles a four character company "stock ticker";
+dnl	name: (lower case) is short-form (few character) product name.
+dnl
+dnl It is also conventional for the name to be closely related to the
+dnl installation location, typically "/opt/COMPname".
+dnl
+dnl But (for the moment, at least) we'll use "OpenHA".
+dnl
+AC_ARG_WITH(pkgname,
+    [  --with-pkgname=name     name for pkg (typically for Solaris) ],
+    [ PKGNAME="$withval" ],
+    [ PKGNAME="OpenHA" ],
+  )
+AC_SUBST(PKGNAME)
 
 
 MISSINGTHINGS=""
