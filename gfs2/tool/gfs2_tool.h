@@ -30,7 +30,7 @@ do { \
 	exit(EXIT_FAILURE); \
 } while (0)
 
-#define SYS_BASE "/sys/kernel/gfs2"
+#define SYS_BASE "/sys/fs/gfs2"
 
 extern char *prog_name;
 extern char *action;
