@@ -43,13 +43,13 @@ do_df_one(char *path)
 {
 	int fd;
 	struct gfs2_ioctl gi;
-	char stat_gfs2[SIZE];
+	/* char stat_gfs2[SIZE]; */
+	/* unsigned int percentage; */
 	struct gfs2_sb sb;
 	struct gfs2_dinode ji, ri;
 	unsigned int journals = 0;
 	uint64_t rgrps;
 	unsigned int flags;
-	unsigned int percentage;
 	char *fs, *value;
  	int error;
 
@@ -61,8 +61,12 @@ do_df_one(char *path)
 	check_for_gfs2(fd, path);
 
 	fs = mp2fsname(path);
+
+	/*
 	strncpy(stat_gfs2, __get_sysfs(fs, "statfs"), SIZE);
 	stat_gfs2[SIZE - 1] = '\0';
+	*/
+
 	{
 		char *argv[] = { "get_super" };
 
@@ -120,7 +124,7 @@ do_df_one(char *path)
 	printf("  SB lock table = \"%s\"\n", sb.sb_locktable);
 	printf("  SB ondisk format = %u\n", sb.sb_fs_format);
 	printf("  SB multihost format = %u\n", sb.sb_multihost_format);
-	printf("  Block size = %u\n", name2u32(stat_gfs2, "bsize"));
+	/* printf("  Block size = %u\n", name2u32(stat_gfs2, "bsize")); */
 	printf("  Journals = %u\n", journals);
 	printf("  Resource Groups = %"PRIu64"\n", rgrps);
 	printf("  Mounted lock proto = \"%s\"\n",
@@ -139,6 +143,7 @@ do_df_one(char *path)
 	       (get_sysfs_uint(fs, "args/localflocks")) ? "TRUE" : "FALSE");
 	printf("  Local caching = %s\n",
 		(get_sysfs_uint(fs, "args/localcaching")) ? "TRUE" : "FALSE");
+#if 0
 	printf("\n");
 	printf("  %-15s%-15s%-15s%-15s%-15s\n", "Type", "Total", "Used", "Free", "use%");
 	printf("  ------------------------------------------------------------------------\n");
@@ -162,6 +167,7 @@ do_df_one(char *path)
 	       name2u64(stat_gfs2, "dinodes"),
 	       name2u64(stat_gfs2, "free"),
 	       percentage);
+#endif
 }
 
 
