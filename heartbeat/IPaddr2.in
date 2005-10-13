@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr2.in,v 1.10 2005/09/26 08:49:00 sunjd Exp $
+#	$Id: IPaddr2.in,v 1.11 2005/10/13 09:27:16 sunjd Exp $
 #
 #       OCF Resource Agent compliant IPaddr2 script.
 #
@@ -489,7 +489,7 @@ run_send_arp() {
 	ocf_log info "$SENDARP $ARGS"
 	case $ARP_BACKGROUND in
 	yes) 
-		($SENDARP $ARGS || ocf_log err "Could not send gratuitous arps") &
+		($SENDARP $ARGS || ocf_log err "Could not send gratuitous arps" &) >&2
 		;;
 	*)
 		$SENDARP $ARGS || ocf_log err "Could not send gratuitous arps"
