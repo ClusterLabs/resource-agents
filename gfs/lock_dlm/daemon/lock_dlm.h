@@ -85,6 +85,7 @@ struct mountgroup {
 	char			name[MAXNAME+1];
 	char			table[MAXNAME+1];
 	char			fs[5];
+	uint32_t		id;
 	struct list_head	members;
 	struct list_head	members_gone;
 	int			memb_count;
@@ -101,6 +102,7 @@ struct mountgroup {
 	int			low_finished_nodeid;
 	int			spectator;
 	int			withdraw;
+	struct list_head	resources; /* for plocks */
 };
 
 struct mg_member {
@@ -115,5 +117,19 @@ struct mg_member {
 	int			withdraw;
 	struct dlm_lksb		wd_lksb;
 };
+
+#define MSG_JOURNAL 1
+#define MSG_PLOCK 2
+
+struct gdlm_header {
+	uint16_t		version[3];
+	uint16_t		type;			/* MSG_ */
+	uint32_t		nodeid;			/* sender */
+	char			name[MAXNAME + 1];	/* mg->name */
+};
+
+
+struct mountgroup *find_mg(char *name);
+struct mountgroup *find_mg_id(uint32_t id);
 
 #endif

@@ -32,11 +32,11 @@ static int              message_nodeid;
 static int              message_len;
 static char             message_buf[MAX_MSGLEN];
 
-/* MAX_MSGLEN of 1024 will support up to 96 group members:
-   (1024 - 256) / (2 * 4) = 96 */
+/* MAX_MSGLEN of 1024 will support up to around 90 group members:
+   (1024 - sizeof(header)) / (2 * 4) */
 
 void receive_journals(char *buf, int len, int nodeid);
-
+void receive_plock(char *buf, int len, int from);
 
 static void message_callback(cman_handle_t h, void *private, char *buf,
                              int len, uint8_t port, int nodeid)
@@ -51,12 +51,24 @@ static void message_callback(cman_handle_t h, void *private, char *buf,
 
 int process_member(void)
 {
+	struct gdlm_header *hd;
+
 	while (1) {
 		cman_dispatch(ch, CMAN_DISPATCH_ONE);
 		if (message_cb) {
 			message_cb = 0;
-			receive_journals(message_buf, message_len,
-					 message_nodeid);
+
+			hd = (struct gdlm_header *)message_buf;
+			if (hd->type == MSG_JOURNAL)
+				receive_journals(message_buf,
+						 message_len,
+					 	 message_nodeid);
+			else if (hd->type == MSG_PLOCK)
+				receive_plock(message_buf,
+					      message_len,
+					      message_nodeid);
+			else
+				log_error("unknown message type %x", hd->type);
 		} else
 			break;
 	}
@@ -118,5 +130,17 @@ int send_journals_message(int nodeid, char *buf, int len)
 	if (error < 0)
 		log_error("cman_send_data error %d errno %d", error, errno);
 	return 0;
+}
+
+int send_plock_message(char *buf, int len)
+{
+	int error;
+
+	error = cman_send_data(ch, buf, len, 0, LOCK_DLM_PORT, 0);
+	if (error < 0)
+		log_error("cman_send_data error %d errno %d", error, errno);
+	else
+		error = 0;
+	return error;
 }
 

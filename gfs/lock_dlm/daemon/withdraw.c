@@ -20,7 +20,6 @@ static void *cb_arg;
 extern int our_nodeid;
 extern struct list_head mounts;
 
-struct mountgroup *find_mg(char *name);
 int set_sysfs(struct mountgroup *mg, char *field, int val);
 struct mg_member *find_memb_nodeid(struct mountgroup *mg, int nodeid);
 

@@ -30,11 +30,11 @@ static int cb_type;
 static int cb_member_count;
 static int cb_members[MAX_GROUP_MEMBERS];
 
+int do_setid(struct mountgroup *mg);
 int do_stop(struct mountgroup *mg);
 int do_finish(struct mountgroup *mg);
 int do_terminate(struct mountgroup *mg);
 int do_start(struct mountgroup *mg, int type, int count, int *nodeids);
-struct mountgroup *find_mg(char *name);
 
 
 static void stop_cbfn(group_handle_t h, void *private, char *name)
@@ -139,6 +139,8 @@ int process_groupd(void)
 		free(mg);
 		break;
 	case DO_SETID:
+		mg->id = cb_id;
+		do_setid(mg);
 		break;
 	default:
 		error = -EINVAL;

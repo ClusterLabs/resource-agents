@@ -21,7 +21,6 @@ extern group_handle_t gh;
 struct list_head mounts;
 
 int send_journals_message(int nodeid, char *buf, int len);
-struct mountgroup *find_mg(char *name);
 int hold_withdraw_locks(struct mountgroup *mg);
 void release_withdraw_lock(struct mountgroup *mg, struct mg_member *memb);
 void release_withdraw_locks(struct mountgroup *mg);
@@ -110,7 +109,8 @@ struct mg_member *find_memb_jid(struct mountgroup *mg, int jid)
 void send_journals(struct mountgroup *mg, int nodeid)
 {
 	struct mg_member *memb;
-	int i, len = MAXNAME + 1 + (mg->memb_count * 2 * sizeof(int));
+	struct gdlm_header *hd;
+	int i, len = sizeof(struct gdlm_header) + (mg->memb_count * 2 * sizeof(int));
 	char *buf;
 	int *ids;
 
@@ -119,8 +119,11 @@ void send_journals(struct mountgroup *mg, int nodeid)
 		return;
 	memset(buf, 0, len);
 
-	strncpy(buf, mg->name, MAXNAME);
-	ids = (int *) (buf + MAXNAME + 1);
+	hd = (struct gdlm_header *)buf;
+	hd->type = MSG_JOURNAL;
+	hd->nodeid = our_nodeid;
+	strncpy(hd->name, mg->name, MAXNAME);
+	ids = (int *) (buf + sizeof(struct gdlm_header));
 
 	/* FIXME: do byte swapping */
 
@@ -143,14 +146,15 @@ void receive_journals(char *buf, int len, int from)
 {
 	struct mg_member *memb, *memb2;
 	struct mountgroup *mg;
+	struct gdlm_header *hd = (struct gdlm_header *)buf;
 	int *ids, count, i, nodeid, jid;
 
-	count = (len - MAXNAME - 1) / (2 * sizeof(int));
+	count = (len - sizeof(struct gdlm_header)) / (2 * sizeof(int));
 
-	mg = find_mg(buf);
+	mg = find_mg(hd->name);
 	if (!mg) {
 		log_error("receive_journals from %d no mountgroup %s",
-			  from, buf);
+			  from, hd->name);
 		return;
 	}
 
@@ -162,7 +166,7 @@ void receive_journals(char *buf, int len, int from)
 		return;
 	}
 
-	ids = (int *) (buf + MAXNAME + 1);
+	ids = (int *) (buf + sizeof(struct gdlm_header));
 
 	/* FIXME: byte swap nodeid/jid */
 
@@ -424,6 +428,7 @@ struct mountgroup *create_mg(char *name)
 
 	INIT_LIST_HEAD(&mg->members);
 	INIT_LIST_HEAD(&mg->members_gone);
+	INIT_LIST_HEAD(&mg->resources);
 	mg->first_start = 1;
 
 	strncpy(mg->name, name, MAXNAME);
@@ -438,6 +443,17 @@ struct mountgroup *find_mg(char *name)
 	list_for_each_entry(mg, &mounts, list) {
 		if ((strlen(mg->name) == strlen(name)) &&
 		    !strncmp(mg->name, name, strlen(name)))
+			return mg;
+	}
+	return NULL;
+}
+
+struct mountgroup *find_mg_id(uint32_t id)
+{
+	struct mountgroup *mg;
+
+	list_for_each_entry(mg, &mounts, list) {
+		if (mg->id == id)
 			return mg;
 	}
 	return NULL;
@@ -624,6 +640,12 @@ int do_unmount(char *table)
 
 	group_leave(gh, name, NULL);
 
+	return 0;
+}
+
+int do_setid(struct mountgroup *mg)
+{
+	set_sysfs(mg, "id", mg->id);
 	return 0;
 }
 
