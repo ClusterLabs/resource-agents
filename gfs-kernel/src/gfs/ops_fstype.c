@@ -94,10 +94,8 @@ static struct kobj_type gfs_ktype = {
 	.sysfs_ops     = &gfs_attr_ops,
 };
 
-/* FIXME: should this go under /sys/fs/ */
-
 static struct kset gfs_kset = {
-	.subsys = &kernel_subsys,
+	.subsys = &fs_subsys,
 	.kobj   = {.name = "gfs",},
 	.ktype  = &gfs_ktype,
 };
