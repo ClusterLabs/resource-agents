@@ -12,7 +12,7 @@
 
 #include "lock_dlm.h"
 
-#define SYSFS_DIR	"/sys/kernel"
+#define SYSFS_DIR	"/sys/fs"
 
 extern char *clustername;
 extern int our_nodeid;
