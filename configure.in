@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.448 $) dnl cvs revision
+AC_REVISION($Revision: 1.449 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -2392,6 +2392,7 @@ lrm/Makefile							\
 mgmt/Makefile							\
 	mgmt/daemon/Makefile					\
 	mgmt/client/Makefile					\
+		mgmt/client/haclient.py				\
 heartbeat/Makefile						\
 	heartbeat/rc.d/Makefile					\
 		heartbeat/rc.d/ask_resources			\
