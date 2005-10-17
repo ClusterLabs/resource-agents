@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.450 $) dnl cvs revision
+AC_REVISION($Revision: 1.451 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1896,8 +1896,8 @@ dnl check if there are getpid() inconsistency
 AC_MSG_CHECKING(for getpid() consistency in multi-process/threads program)
 LIBS="$LIBS -lpthread"
 AC_TRY_RUN(`cat $srcdir/config/pidtest.c`, 
-[AC_MSG_RESULT(ok); AC_DEFINE(GETPID_INCONSISTENT, 1 , [pid inconsistent])], 
-AC_MSG_RESULT(fail),)
+AC_MSG_RESULT(ok), 
+[AC_MSG_RESULT(fail); AC_DEFINE(GETPID_INCONSISTENT, 1 , [pid inconsistent])],)
 
 dnl
 dnl Lex and yacc can't be trusted to produce code that won't produce
