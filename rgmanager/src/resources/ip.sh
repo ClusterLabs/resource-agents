@@ -90,6 +90,17 @@ meta_data()
             </shortdesc>
             <content type="boolean" default="1"/>
         </parameter>
+
+        <parameter name="is_nfs" inherit="nfsserver%name">
+            <longdesc lang="en">
+	    	If this is set, we bump the NFS grace period and issue
+		status monitor notifications.
+            </longdesc>
+            <shortdesc lang="en">
+	    	Send SM_NOTIFY
+            </shortdesc>
+            <content type="string"/>
+        </parameter>
     </parameters>
 
     <actions>
@@ -120,6 +131,7 @@ meta_data()
 
     <special tag="rgmanager">
 	<attributes maxinstances="1"/>
+	<child type="nfsserver" forbid="1"/>
 	<child type="nfsclient" forbid="1"/>
 	<child type="nfsexport" forbid="1"/>
     </special>
@@ -853,6 +865,54 @@ ip_op()
 }
 
 
+do_nfs_stuff()
+{
+	declare lockd_pid=$(pidof lockd)
+	declare tmpdir=/tmp/statd-$OCF_RESKEY_address.$$
+
+	[ -z "$lockd_pid" ] && return 0
+
+	if [ -z "$(ls /var/lib/nfs/statd/sm-ha/* 2> /dev/null)" ]; then
+		ocf_log debug "No hosts to notify"
+		return 0
+	fi
+
+	ocf_log debug "Bumping NFS lock grace period"
+	# First of all, send lockd a SIGKILL.  We hope nfsd is running.
+	# If it is, this will cause lockd to reset the grace period for
+	# lock reclaiming.
+	kill -9 $lockd_pid
+
+	# Ok, copy the HA directory to something we can use.
+	rm -rf $tmpdir
+       	mkdir -p $tmpdir
+	cp -a /var/lib/nfs/statd/* $tmpdir
+
+	# Copy our saved list to the sm directory.
+	cp -f $tmpdir/sm-ha/* $tmpdir/sm
+
+	#
+	# Tell rpc.statd to notify clients.  Don't go into background.
+	#
+	ocf_log debug "Sending SM_NOTIFY via $OCF_RESKEY_address"
+	rpc.statd -NFdP $tmpdir -n $OCF_RESKEY_address &
+
+	sleep 5 # XXX - the instance of rpc.statd we just spawned is supposed
+	        # to exit after it finishes notifying clients.
+	        # rpc.statd spawned from nfsserver.sh handles the actual
+	        # nbew SM_MON requests... we hope 5 seconds is enough time
+	        # to get all the SM_NOTIFY messages out
+
+	#
+	# clean up
+	#
+	kill %1
+	rm -rf $tmpdir
+
+	return 0
+}
+	
+
 case ${OCF_RESKEY_family} in
 inet)
 	;;
@@ -885,6 +945,9 @@ start)
 	fi
 	ip_op ${OCF_RESKEY_family} add ${OCF_RESKEY_address}
 
+	if [ -n "$OCF_RESKEY_is_nfs" ]; then
+		do_nfs_stuff
+	fi
 	exit $?
 	;;
 stop)

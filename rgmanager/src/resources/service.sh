@@ -125,6 +125,7 @@ meta_data()
         <child type="fs" start="1" stop="8"/>
         <child type="clusterfs" start="2" stop="7"/>
         <child type="netfs" start="3" stop="6"/>
+        <child type="nfsserver" start="4" stop="5"/>
 	<child type="nfsexport" start="4" stop="5"/>
 
 	<child type="nfsclient" start="5" stop=""/>

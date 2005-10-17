@@ -151,6 +151,7 @@ meta_data()
     <special tag="rgmanager">
     	<child type="fs" start="1" stop="3"/>
     	<child type="clusterfs" start="1" stop="3"/>
+        <child type="nfsserver" start="2" stop="2"/>
         <child type="nfsexport" start="3" stop="1"/>
     </special>
 </resource-agent>
