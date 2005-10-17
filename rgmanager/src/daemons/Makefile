@@ -24,7 +24,7 @@ CFLAGS+= -g -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
 CFLAGS+= -L ../clulib 
 
 LDFLAGS+= -lclulib -lxml2 -lmagmamsg -lmagma -lpthread -ldl
-TARGETS=clurgmgrd clurmtabd
+TARGETS=clurgmgrd clurmtabd rg_test
 
 all: ${TARGETS}
 
@@ -32,10 +32,12 @@ install: all
 	install -d ${sbindir}
 	install clurgmgrd ${sbindir}
 	install clurmtabd ${sbindir}
+	install rg_test ${sbindir}
 
 uninstall:
 	${UNINSTALL} clurgmgrd ${sbindir}
 	${UNINSTALL} clurmtabd ${sbindir}
+	${UNINSTALL} rg_test ${sbindir}
 
 clurgmgrd: rg_thread.o rg_locks.o main.o groups.o rg_state.o \
 		rg_queue.o members.o rg_forward.o reslist.o \

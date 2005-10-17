@@ -39,10 +39,7 @@ NO=1
 YES_STR="yes"
 INVALIDATEBUFFERS="/bin/true"
 
-logAndPrint()
-{
-	echo $*
-}
+. $(dirname $0)/ocf-shellfuncs
 
 
 meta_data()
@@ -152,7 +149,9 @@ meta_data()
     </actions>
 
     <special tag="rgmanager">
-        <child type="nfsexport"/>
+    	<child type="fs" start="1" stop="3"/>
+    	<child type="clusterfs" start="1" stop="3"/>
+        <child type="nfsexport" start="3" stop="1"/>
     </special>
 </resource-agent>
 EOT
@@ -161,28 +160,27 @@ EOT
 
 verify_name()
 {
-	[ -n "$OCF_RESKEY_name" ] || exit 1
+	[ -n "$OCF_RESKEY_name" ] || exit $OCF_ERR_ARGS
 }
 
 
 verify_mountpoint()
 {
 	if [ -z "$OCF_RESKEY_mountpoint" ]; then
-		echo No mount point specified.
-		return 1
+		ocf_log err "No mount point specified."
+		return $OCF_ERR_ARGS
 	fi
 
 	if ! [ -e "$OCF_RESKEY_mountpoint" ]; then
-		echo "Mount point $OCF_RESKEY_mountpoint will be created "\
-		     "at mount time."
+		ocf_log info "Mount point $OCF_RESKEY_mountpoint will be "
+			     "created at mount time."
 		return 0
 	fi
 
 	[ -d "$OCF_RESKEY_mountpoint" ] && return 0
 
-	echo $OCF_RESKEY_mountpoint is not a directory
-	
-	return 1
+	ocf_log err "$OCF_RESKEY_mountpoint is not a directory"
+	return $OCF_ERR_ARGS
 }
 
 
@@ -222,8 +220,8 @@ verify_device()
 	declare realdev
 
 	if [ -z "$OCF_RESKEY_device" ]; then
-	       echo "No device or label specified."
-	       return 1
+	       ocf_log err "No device or label specified."
+	       return $OCF_ERR_ARGS
 	fi
 
 	realdev=$(real_device $OCF_RESKEY_device)
@@ -231,27 +229,27 @@ verify_device()
 		if [ "$realdev" != "$OCF_RESKEY_device" ]; then
 			echo "Specified $OCF_RESKEY_device maps to $realdev"
 		fi
-		return 0
+		return $OCF_SUCCESS
 	fi
 
-	echo "Device or label \"$OCF_RESKEY_device\" not valid"
+	ocf_log "Device or label \"$OCF_RESKEY_device\" not valid"
 
-	return 1
+	return $OCF_ERR_ARGS
 }
 
 
 verify_fstype()
 {
 	# Auto detect?
-	[ -z "$OCF_RESKEY_fstype" ] && return 0
+	[ -z "$OCF_RESKEY_fstype" ] && return $OCF_SUCCESS
 
 	case $OCF_RESKEY_fstype in
 	gfs)
-		return 0
+		return $OCF_SUCCESS
 		;;
 	*)
-		echo "File system type $OCF_RESKEY_fstype not supported"
-		return 1
+		ocf_log err "File system type $OCF_RESKEY_fstype not supported"
+		return $OCF_ERR_ARGS
 		;;
 	esac
 }
@@ -259,7 +257,7 @@ verify_fstype()
 
 verify_options()
 {
-	declare -i ret=0
+	declare -i ret=$OCF_SUCCESS
 
 	#
 	# From mount(8)
@@ -293,8 +291,8 @@ verify_options()
 			;;
 		esac
 
-		echo Option $o not supported for $OCF_RESKEY_fstype
-		ret=1
+		ocf_log err "Option $o not supported for $OCF_RESKEY_fstype"
+		ret=$OCF_ERR_ARGS
 	done
 
 	return $ret
@@ -303,11 +301,11 @@ verify_options()
 
 verify_all()
 {
-	verify_name || return 1
-	verify_fstype || return 1
-	verify_device || return 1
-	verify_mountpoint || return 1
-	verify_options || return 1
+	verify_name || return $OCF_ERR_ARGS
+	verify_fstype || return $OCF_ERR_ARGS
+	verify_device || return $OCF_ERR_ARGS
+	verify_mountpoint || return $OCF_ERR_ARGS
+	verify_options || return $OCF_ERR_ARGS
 }
 
 
@@ -357,14 +355,13 @@ isMounted () {
 	typeset dev tmp_dev
 
 	if [ $# -ne 2 ]; then
-		logAndPrint $LOG_ERR "Usage: isMounted device mount_point"
+		ocf_log err "Usage: isMounted device mount_point"
 		return $FAIL
 	fi
 
 	dev=$(real_device $1)
 	if [ -z "$dev" ]; then
-		logAndPrint $LOG_ERR \
-			"isMounted: Could not match $1 with a real device"
+		ocf_log err "isMounted: Could not match $1 with a real device"
 		return $FAIL
 	fi
 	mp=$2
@@ -380,7 +377,7 @@ isMounted () {
 			# place
 			#
 			if [ -n "$tmp_mp"  -a "$tmp_mp"  != "$mp" ]; then
-				logAndPrint $LOG_WARNING "\
+				ocf_log warn "\
 Device $dev is mounted on $tmp_mp instead of $mp"
 			fi
 			return $YES
@@ -388,6 +385,65 @@ Device $dev is mounted on $tmp_mp instead of $mp"
 	done < <(mount | awk '{print $1,$3}')
 
 	return $NO
+}
+
+
+# 
+# isAlive mount_point
+# 
+# Check to see if mount_point is alive (testing read/write)
+# 
+isAlive()
+{
+	declare mount_point
+	declare file=".writable_test"
+	declare rw
+	
+	if [ $# -ne 1 ]; then
+	        logAndPrint $LOG_ERR "Usage: isAlive mount_point"
+		return $FAIL
+	fi
+	mount_point=$1
+	
+	test -d $mount_point
+	if [ $? -ne 0 ]; then
+		logAndPrint $LOG_ERR "$mount_point is not a directory"
+		return $FAIL
+	fi
+	
+	[ $OCF_CHECK_LEVEL -lt 10 ] && return $YES
+	
+	# depth 10 test (read test)
+	ls $mount_point > /dev/null 2> /dev/null
+	if [ $? -ne 0 ]; then
+	       return $NO
+	fi
+	
+	[ $OCF_CHECK_LEVEL -lt 20 ] && return $YES
+	
+	# depth 20 check (write test)
+	rw=$YES
+	for o in `echo $OCF_RESKEY_options | sed -e s/,/\ /g`; do
+                if [ "$o" = "ro" ]; then
+		        rw=$NO
+                fi
+	done
+	if [ $rw -eq $YES ]; then
+	        file=$mount_point/$file
+		while true; do
+			if [ -e "$file" ]; then
+				file=${file}_tmp
+				continue
+			else
+			        break
+			fi
+		done
+		touch $file > /dev/null 2> /dev/null
+		[ $? -ne 0 ] && return $NO
+		rm -f $file > /dev/null 2> /dev/null
+	fi
+	
+	return $YES
 }
 
 
@@ -405,14 +461,14 @@ killMountProcesses()
 	typeset try
 
 	if [ $# -ne 1 ]; then
-		logAndPrint $LOG_ERR \
+		ocf_log err \
 			"Usage: killMountProcesses mount_point"
 		return $FAIL
 	fi
 
 	typeset mp=$1
 
-	logAndPrint $LOG_INFO "Forcefully unmounting $mp"
+	ocf_log notice "Forcefully unmounting $mp"
 
 	#
 	# Not all distributions have lsof.  If not use fuser.  If it
@@ -429,7 +485,7 @@ killMountProcesses()
 	fi             
 
 	if [ -z "$have_lsof" -a -z "$have_fuser" ]; then
-		logAndPrint $LOG_WARNING \
+		ocf_log warn \
 	"Cannot forcefully unmount $mp; cannot find lsof or fuser commands"
 		return $FAIL
 	fi
@@ -446,10 +502,10 @@ killMountProcesses()
 				fi
 
 				if [ $try -eq 1 ]; then
-					logAndPrint $LOG_WARNING \
+					ocf_log warn \
 			 	  "killing process $pid ($user $command $mp)"
 				elif [ $try -eq 3 ]; then
-					logAndPrint $LOG_CRIT \
+					ocf_log crit \
 		    		  "Could not clean up mountpoint $mp"
 				ret=$FAIL
 				fi
@@ -474,10 +530,10 @@ killMountProcesses()
 				fi
 
 				if [ $try -eq 1 ]; then
-					logAndPrint $LOG_WARNING \
+					ocf_log warn \
 			 	  "killing process $pid ($user $command $mp)"
 				elif [ $try -eq 3 ]; then
-					logAndPrint $LOG_CRIT \
+					ocf_log crit \
 				    "Could not clean up mount point $mp"
 					ret=$FAIL
 				fi
@@ -521,7 +577,7 @@ startFilesystem() {
 	/*)			# found it
 	  	;;
 	*)	 		# invalid format
-			logAndPrint $LOG_ERR \
+			ocf_log err \
 "startFilesystem: Invalid mount point format (must begin with a '/'): \'$mp\'"
 	    	return $FAIL
 	    	;;
@@ -532,7 +588,7 @@ startFilesystem() {
 	#
 	dev=$(real_device $OCF_RESKEY_device)
 	if [ -z "$dev" ]; then
-			logAndPrint $LOG_ERR "\
+			ocf_log err "\
 startFilesystem: Could not match $OCF_RESKEY_device with a real device"
 			return $FAIL
 	fi
@@ -542,12 +598,12 @@ startFilesystem: Could not match $OCF_RESKEY_device with a real device"
 	#
 	if [ -e "$mp" ]; then
 		if ! [ -d "$mp" ]; then
-			logAndPrint $LOG_ERR "\
+			ocf_log err "\
 startFilesystem: Mount point $mp exists but is not a directory"
 			return $FAIL
 		fi
 	else
-		logAndPrint $LOG_INFO "\
+		ocf_log info "\
 startFilesystem: Creating mount point $mp for device $dev"
 		mkdir -p $mp
 	fi
@@ -572,7 +628,7 @@ startFilesystem: Creating mount point $mp for device $dev"
 	isMounted $dev $mp
 	case $? in
 	$YES)		# already mounted
-		logAndPrint $LOG_DEBUG "$dev already mounted"
+		ocf_log debug "$dev already mounted"
 		return $SUCCESS
 		;;
 	$NO)		# not mounted, continue
@@ -592,7 +648,7 @@ startFilesystem: Creating mount point $mp for device $dev"
 	mountInUse $dev $mp
 	case $? in
 	$YES)		# uh oh, someone is using the device or mount point
-		logAndPrint $LOG_ERR "\
+		ocf_log err "\
 Cannot mount $dev on $mp, the device or mount point is already in use!"
 		return $FAIL
 		;;
@@ -602,7 +658,7 @@ Cannot mount $dev on $mp, the device or mount point is already in use!"
 		return $FAIL
 		;;
 	*)
-		logAndPrint $LOG_ERR "Unknown return from mountInUse"
+		ocf_log err "Unknown return from mountInUse"
 		return $FAIL
 		;;
 	esac
@@ -615,7 +671,7 @@ Cannot mount $dev on $mp, the device or mount point is already in use!"
 		mkdir -p $mp			# create the mount point
 		ret_val=$?
 		if [ $ret_val -ne 0 ]; then
-			logAndPrint $LOG_ERR \
+			ocf_log err \
 				"'mkdir -p $mp' failed, error=$ret_val"
 			return $FAIL
 		fi
@@ -642,7 +698,7 @@ Cannot mount $dev on $mp, the device or mount point is already in use!"
 	mount $fstype_option $mount_options $dev $mp
 	ret_val=$?
 	if [ $ret_val -ne 0 ]; then
-		logAndPrint $LOG_ERR "\
+		ocf_log err "\
 'mount $fstype_option $mount_options $dev $mp' failed, error=$ret_val"
 		return $FAIL
 	fi
@@ -679,7 +735,7 @@ stopFilesystem() {
 	/*)			# found it
 	  	;;
 	*)	 		# invalid format
-			logAndPrint $LOG_ERR \
+			ocf_log err \
 "startFilesystem: Invalid mount point format (must begin with a '/'): \'$mp\'"
 	    	return $FAIL
 	    	;;
@@ -690,7 +746,7 @@ stopFilesystem() {
 	#
 	dev=$(real_device $OCF_RESKEY_device)
 	if [ -z "$dev" ]; then
-			logAndPrint $LOG_ERR "\
+			ocf_log err "\
 stop: Could not match $OCF_RESKEY_device with a real device"
 			return $FAIL
 	fi
@@ -708,7 +764,7 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 	fi
 
 	if [ -z "$force_umount" ]; then
-		echo "Not umounting $dev (clustered file system)"
+		ocf_log debug "Not umounting $dev (clustered file system)"
 		return $SUCCESS
 	fi
 
@@ -720,7 +776,7 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 		isMounted $dev $mp
 		case $? in
 		$NO)
-			logAndPrint $LOG_INFO "$dev is not mounted"
+			ocf_log info "$dev is not mounted"
 			umount_failed=
 			done=$YES
 			;;
@@ -729,7 +785,7 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 			;;
 		$YES)
 			sync; sync; sync
-			logAndPrint $LOG_INFO "unmounting $dev ($mp)"
+			ocf_log info "unmounting $dev ($mp)"
 
 			umount $dev
 			if  [ $? -eq 0 ]; then
@@ -765,7 +821,7 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 	done # while 
 
 	if [ -n "$umount_failed" ]; then
-		logAndPrint $LOG_ERR "'umount $dev' failed ($mp), error=$ret_val"
+		ocf_log err "'umount $dev' failed ($mp), error=$ret_val"
 
 		return $FAIL
 	fi
@@ -783,19 +839,24 @@ stop)
 	stopFilesystem
 	exit $?
 	;;
-status)
-	isMounted ${OCF_RESKEY_device} ${OCF_RESKEY_mountpoint}
+status|monitor)
+  	isMounted ${OCF_RESKEY_device} ${OCF_RESKEY_mountpoint}
+ 	[ $? -ne $YES ] && exit $OCF_ERR_GENERIC
+
+ 	isAlive ${OCF_RESKEY_mountpoint}
+ 	[ $? -ne $YES ] && exit $OCF_ERR_GENERIC
+ 	
 	exit $?
 	;;
 restart)
 	stopFilesystem
 	if [ $? -ne 0 ]; then
-		exit 1
+		exit $OCF_ERR_GENERIC
 	fi
 
 	startFilesystem
 	if [ $? -ne 0 ]; then
-		exit 1
+		exit $OCF_ERR_GENERIC
 	fi
 
 	exit 0
@@ -806,6 +867,10 @@ meta-data)
 	;;
 verify-all)
 	verify_all
+	;;
+*)
+	echo "usage: $0 {start|stop|status|monitor|restart|meta-data|verify-all}"
+	exit $OCF_ERR_GENERIC
 	;;
 esac
 

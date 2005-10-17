@@ -28,6 +28,7 @@ LANG=C
 PATH=/bin:/sbin:/usr/bin:/usr/sbin
 export LC_ALL LANG PATH
 
+. $(dirname $0)/ocf-shellfuncs
 
 meta_data()
 {
@@ -155,8 +156,8 @@ verify_options()
 		anongid)
 			;;
 		*)
-			echo Option $o invalid
-			ret=1
+			ocf_log err "Option $o invalid"
+			ret=$OCF_ERR_ARGS
 			;;
 		esac
 	done
@@ -175,15 +176,15 @@ verify_target()
 verify_path()
 {
 	if [ -z "$OCF_RESKEY_path" ]; then
-		echo No export path specified.
-		return 1
+		ocf_log err "No export path specified."
+		return $OCF_ERR_ARGS
 	fi
 
 	[ -d "$OCF_RESKEY_path" ] && return 0
 
-	echo $OCF_RESKEY_path is not a directory
+	ocf_log err "$OCF_RESKEY_path is not a directory"
 	
-	return 1
+	return $OCF_ERR_ARGS
 }
 
 
@@ -209,9 +210,11 @@ start)
 	[ -n "${OCF_RESKEY_path}" ] || exit 1
 
 	if [ -z "${OCF_RESKEY_options}" ]; then
+		ocf_log info "Adding export: ${OCF_RESKEY_target}:${OCF_RESKEY_path}"
 		exportfs -i "${OCF_RESKEY_target}:${OCF_RESKEY_path}"
 		rv=$?
 	else
+		ocf_log info "Adding export: ${OCF_RESKEY_target}:${OCF_RESKEY_path} (${OCF_RESKEY_options})"
 		exportfs -o ${OCF_RESKEY_options} "${OCF_RESKEY_target}:${OCF_RESKEY_path}"
 		rv=$?
 	fi
@@ -220,6 +223,7 @@ start)
 stop)
 	[ -n "${OCF_RESKEY_target}" ] || exit 0
 	[ -n "${OCF_RESKEY_path}" ] || exit 0
+	ocf_log info "Removing export: ${OCF_RESKEY_target}:${OCF_RESKEY_path}"
 	exportfs -u "${OCF_RESKEY_target}:${OCF_RESKEY_path}"
 	rv=$?
 	;;
@@ -239,7 +243,7 @@ status|monitor)
 	rv=$?
 	;;
 
-recover|restart)
+restart)
 	#
 	# Recover might better be "exportfs -r" - reexport
 	#
@@ -257,8 +261,9 @@ verify-all)
 	rv=$?
 	;;
 
-	*)
-	rv=0
+*)
+	echo "usage: $0 {start|stop|status|monitor|restart|meta-data|verify-all}"
+	rv=$OCF_ERR_GENERIC
 	;;
 esac
 

@@ -38,10 +38,8 @@ YES=0
 NO=1
 YES_STR="yes"
 
-logAndPrint()
-{
-	echo $*
-}
+
+. $(dirname $0)/ocf-shellfuncs
 
 
 meta_data()
@@ -159,6 +157,7 @@ meta_data()
 
     <special tag="rgmanager">
         <child type="nfsexport" forbid="1"/>
+        <child type="nfsclient" forbid="1"/>
     </special>
 </resource-agent>
 EOT
@@ -167,26 +166,26 @@ EOT
 
 verify_name()
 {
-	[ -n "$OCF_RESKEY_name" ] || exit 1
+	[ -n "$OCF_RESKEY_name" ] || exit $OCF_ERR_ARGS
 }
 
 
 verify_mountpoint()
 {
 	if [ -z "$OCF_RESKEY_mountpoint" ]; then
-		echo No mount point specified.
-		return 1
+		ocf_log err "No mount point specified."
+		return $OCF_ERR_ARGS
 	fi
 
 	if ! [ -e "$OCF_RESKEY_mountpoint" ]; then
-		echo "Mount point $OCF_RESKEY_mountpoint will be created "\
+		ocf_log info "Mount point $OCF_RESKEY_mountpoint will be created "\
 		     "at mount time."
 		return 0
 	fi
 
 	[ -d "$OCF_RESKEY_mountpoint" ] && return 0
 
-	echo $OCF_RESKEY_mountpoint is not a directory
+	ocf_log err "$OCF_RESKEY_mountpoint is not a directory"
 	
 	return 1
 }
@@ -195,7 +194,7 @@ verify_mountpoint()
 verify_host()
 {
 	if [ -z "$OCF_RESKEY_host" ]; then
-	       echo "No server hostname or IP addess specified."
+	       ocf_log err "No server hostname or IP addess specified."
 	       return 1
 	fi
 
@@ -204,9 +203,9 @@ verify_host()
 		return 0
 	fi
 
-	echo "Hostname or IP address \"$OCF_RESKEY_host\" not valid"
+	ocf_log err "Hostname or IP address \"$OCF_RESKEY_host\" not valid"
 
-	return 1
+	return $OCF_ERR_ARGS
 }
 
 
@@ -220,8 +219,8 @@ verify_fstype()
 		return 0
 		;;
 	*)
-		echo "File system type $OCF_RESKEY_fstype not supported"
-		return 1
+		ocf_log err "File system type $OCF_RESKEY_fstype not supported"
+		return $OCF_ERR_ARGS
 		;;
 	esac
 }
@@ -298,8 +297,8 @@ verify_options()
 			;;
 		esac
 
-		echo Option $o not supported for $OCF_RESKEY_fstype
-		ret=1
+		ocf_log err "Option $o not supported for $OCF_RESKEY_fstype"
+		ret=$OCF_ERR_ARGS
 	done
 
 	return $ret
@@ -308,11 +307,11 @@ verify_options()
 
 verify_all()
 {
-	verify_name || return 1
-	verify_fstype|| return 1
-	verify_host || return 1
-	verify_mountpoint || return 1
-	verify_options || return 1
+	verify_name || return $OCF_ERR_ARGS
+	verify_fstype|| return $OCF_ERR_ARGS
+	verify_host || return $OCF_ERR_ARGS
+	verify_mountpoint || return $OCF_ERR_ARGS
+	verify_options || return $OCF_ERR_ARGS
 }
 
 
@@ -328,7 +327,7 @@ isMounted () {
 	typeset fullpath tmp_fullpath
 
 	if [ $# -ne 2 ]; then
-		logAndPrint $LOG_ERR "Usage: isMounted host:/export mount_point"
+		ocf_log err "Usage: isMounted host:/export mount_point"
 		return $FAIL
 	fi
 
@@ -370,7 +369,7 @@ startNFSFilesystem() {
 	/*)			# found it
 	  	;;
 	*)	 		# invalid format
-			logAndPrint $LOG_ERR \
+			ocf_log err \
 "startFilesystem: Invalid mount point format (must begin with a '/'): \'$mp\'"
 	    	return $FAIL
 	    	;;
@@ -389,12 +388,12 @@ startNFSFilesystem() {
 	#
 	if [ -e "$mp" ]; then
 		if ! [ -d "$mp" ]; then
-			logAndPrint $LOG_ERR "\
+			ocf_log err "\
 startFilesystem: Mount point $mp exists but is not a directory"
 			return $FAIL
 		fi
 	else
-		logAndPrint $LOG_INFO "\
+		ocf_log info "\
 startFilesystem: Creating mount point $mp for $fullpath"
 		mkdir -p $mp
 	fi
@@ -405,7 +404,7 @@ startFilesystem: Creating mount point $mp for $fullpath"
 	isMounted $fullpath $mp
 	case $? in
 	$YES)		# already mounted
-		logAndPrint $LOG_DEBUG "$fullpath already mounted on $mp"
+		ocf_log debug "$fullpath already mounted on $mp"
 		return $SUCCESS
 		;;
 	$NO)		# not mounted, continue
@@ -432,11 +431,11 @@ startFilesystem: Creating mount point $mp for $fullpath"
 	#
 	# Mount the NFS export
 	#
-	logAndPrint $LOG_DEBUG "mount $fstype_option $mount_options $fullpath $mp"
+	ocf_log debug "mount $fstype_option $mount_options $fullpath $mp"
 	mount $fstype_option $mount_options $fullpath $mp
 	ret_val=$?
 	if [ $ret_val -ne 0 ]; then
-		logAndPrint $LOG_ERR "\
+		ocf_log err "\
 'mount $fstype_option $mount_options $fullpath $mp' failed, error=$ret_val"
 		return $FAIL
 	fi
@@ -472,7 +471,7 @@ stopNFSFilesystem() {
 	/*)			# found it
 	  	;;
 	*)	 		# invalid format
-			logAndPrint $LOG_ERR \
+			ocf_log err \
 "startFilesystem: Invalid mount point format (must begin with a '/'): \'$mp\'"
 	    	return $FAIL
 	    	;;
@@ -500,7 +499,7 @@ stopNFSFilesystem() {
 	isMounted $fullpath $mp
 	case $? in
 	$NO)
-		logAndPrint $LOG_INFO "$fullpath is not mounted"
+		ocf_log debug "$fullpath is not mounted"
 		umount_failed=
 		done=$YES
 		;;
@@ -509,7 +508,7 @@ stopNFSFilesystem() {
 		;;
 	$YES)
 		sync; sync; sync
-		logAndPrint $LOG_INFO "unmounting $fullpath ($mp)"
+		ocf_log info "unmounting $fullpath ($mp)"
 
 		umount $force_umount $mp
 		if  [ $? -eq 0 ]; then
@@ -525,7 +524,7 @@ stopNFSFilesystem() {
 	esac
 
 	if [ -n "$umount_failed" ]; then
-		logAndPrint $LOG_ERR "'umount $fullpath' failed ($mp), error=$ret_val"
+		ocf_log err "'umount $fullpath' failed ($mp), error=$ret_val"
 
 		return $FAIL
 	fi
@@ -560,7 +559,7 @@ stop)
 	stopNFSFilesystem
 	exit $?
 	;;
-status)
+status|monitor)
 	isMounted ${OCF_RESKEY_host}:${OCF_RESKEY_export} \
 		${OCF_RESKEY_mountpoint}
 	exit $?
@@ -568,12 +567,12 @@ status)
 restart)
 	stopNFSFilesystem
 	if [ $? -ne 0 ]; then
-		exit 1
+		exit $OCF_ERR_GENERIC
 	fi
 
 	startNFSFilesystem
 	if [ $? -ne 0 ]; then
-		exit 1
+		exit $OCF_ERR_GENERIC
 	fi
 
 	exit 0
@@ -585,6 +584,10 @@ meta-data)
 verify-all)
 	verify_all
 	exit $?
+	;;
+*)
+	echo "usage: $0 {start|stop|status|monitor|restart|meta-data|verify-all}"
+	exit $OCF_ERR_GENERIC
 	;;
 esac
 

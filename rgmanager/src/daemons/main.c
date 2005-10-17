@@ -675,7 +675,8 @@ main(int argc, char **argv)
 	setup_signal(SIGUSR1, statedump);
 	unblock_signal(SIGCHLD);
 	setup_signal(SIGPIPE, SIG_IGN);
-	setup_signal(SIGSEGV, segfault);
+	if (debug)
+		setup_signal(SIGSEGV, segfault);
 
 	if ((listeners = msg_listen(RG_PORT, RG_PURPOSE,
 				    listen_fds, 2)) <= 0) {

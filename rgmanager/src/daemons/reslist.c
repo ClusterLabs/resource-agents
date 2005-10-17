@@ -77,6 +77,8 @@ attr_value(resource_node_t *node, char *attrname)
 {
 	resource_t *res = node->rn_resource;
 	resource_attr_t *ra;
+	char *c, *p_type;
+	ssize_t len;
 	int x;
 
 	for (x = 0; res->r_attrs && res->r_attrs[x].ra_name; x++) {
@@ -85,10 +87,34 @@ attr_value(resource_node_t *node, char *attrname)
 
 		ra = &res->r_attrs[x];
 
-		if (ra->ra_flags & RA_INHERIT)
+		if (!(ra->ra_flags & RA_INHERIT))
+			return ra->ra_value;
+		/* 
+		   Handle resource_type%field to be more precise, so we
+		   don't have to worry about this being a child
+		   of an unexpected type.  E.g. lots of things have the
+		   "name" attribute.
+		 */
+		c = strchr(ra->ra_value, '%');
+		if (!c) {
+			/* Someone doesn't care or uses older
+			   semantics on inheritance */
 			return attr_value(node->rn_parent, ra->ra_value);
+		}
 
-		return ra->ra_value;
+		p_type = node->rn_parent->rn_resource->r_rule->rr_type;
+		len = (c - ra->ra_value);
+
+		/* Different sizes? */
+		if (strlen(p_type) != len)
+			return NULL;
+
+		/* Check for parent type match */
+		if (strncmp(p_type, ra->ra_value, len) != 0)
+			return NULL;
+
+		/* Skip the "%" and recurse */
+		return attr_value(node->rn_parent, ++c);
 	}
 
 	return NULL;

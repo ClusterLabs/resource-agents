@@ -28,6 +28,7 @@ LANG=C
 PATH=/bin:/sbin:/usr/bin:/usr/sbin
 export LC_ALL LANG PATH
 
+. $(dirname $0)/ocf-shellfuncs
 
 meta_data()
 {
@@ -92,10 +93,10 @@ case $1 in
 		;;
 esac
 
-
-[ -n "${OCF_RESKEY_file}" ] || exit 2 # Invalid Argument
-[ -f "${OCF_RESKEY_file}" ] || exit 5 # Program not installed
-[ -x "${OCF_RESKEY_file}" ] || exit 1 # Generic error
+[ -n "${OCF_RESKEY_file}" ] || exit $OCF_ERR_ARGS      # Invalid Argument
+[ -f "${OCF_RESKEY_file}" ] || exit $OCF_ERR_INSTALLED # Program not installed
+[ -x "${OCF_RESKEY_file}" ] || exit $OCF_ERR_GENERIC   # Generic error
 
 # Don't need to catch return codes; this one will work.
+ocf_log info "Executing ${OCF_RESKEY_file} $1"
 exec /bin/sh ${OCF_RESKEY_file} $1

@@ -30,10 +30,8 @@ LANG=C
 PATH=/bin:/sbin:/usr/bin:/usr/sbin
 export LC_ALL LANG PATH
 
-logAndPrint()
-{
-	echo $*
-}
+. $(dirname $0)/ocf-shellfuncs
+
 
 rmtabpid=""
 nfsop_arg=""
@@ -106,6 +104,7 @@ meta_data()
     </actions>
 
     <special tag="rgmanager">
+	<child type="nfsexport" forbid="1"/>
 	<child type="nfsclient"/>
     </special>
 
@@ -117,31 +116,31 @@ EOT
 verify_device()
 {
 	if [ -z "$OCF_RESKEY_device" ]; then
-	       echo "No device or label specified."
-	       return 1
+	       ocf_log err "No device or label specified."
+	       return $OCF_ERR_ARGS
 	fi
 
 	[ -b "$OCF_RESKEY_device" ] && return 0
 	[ -b "`findfs $OCF_RESKEY_device`" ] && return 0
 
-	echo "Device or label \"$OCF_RESKEY_device\" not valid"
+	ocf_log err "Device or label \"$OCF_RESKEY_device\" not valid"
 
-	return 1
+	return $OCF_ERR_ARGS
 }
 
 
 verify_path()
 {
 	if [ -z "$OCF_RESKEY_path" ]; then
-		echo No export path specified.
-		return 1
+		ocf_log err "No export path specified."
+		return $OCF_ERR_ARGS
 	fi
 
 	[ -d "$OCF_RESKEY_path" ] && return 0
 
-	echo $OCF_RESKEY_path is not a directory
+	ocf_log err "$OCF_RESKEY_path is not a directory"
 	
-	return 1
+	return $OCF_ERR_ARGS
 }
 
 
@@ -149,8 +148,8 @@ verify_all()
 {
 	declare -i ret=0
 
-	verify_device || ret=1
-	verify_path || ret=1
+	verify_device || ret=$OCF_ERR_ARGS
+	verify_path || ret=$OCF_ERR_ARGS
 
 	return $ret
 }
@@ -166,9 +165,9 @@ nfs_daemons_running()
     for daemon in $NFS_DAEMONS; do
         ps -ef | grep "$daemon" | grep -v grep >/dev/null 2>&1
         if [ $? -ne 0 ]; then
-	    logAndPrint $LOG_ERR \
+	    ocf_log err \
             "NFS daemon $daemon is not running."
-	    logAndPrint $LOG_ERR \
+	    ocf_log err \
             "Verify that the NFS service run level script is enabled."
             return 1
         fi
@@ -193,17 +192,19 @@ nfs_check()
 		return 1;
 	fi
 		
-  	logAndPrint $LOG_ERR "Restarting NFS daemons"
+  	ocf_log err "Restarting NFS daemons"
 	# Note restart does less than stop/start
+	junk=$(/sbin/service nfslock stop)
+	junk=$(/sbin/service nfslock start)
 	junk=$(/sbin/service nfs stop)
 	junk=$(/sbin/service nfs start)
 	sleep 2
 	
 	if ! nfs_daemons_running; then
-		logAndPrint $LOG_ERR "Failed restarting NFS daemons"
+		ocf_log err "Failed restarting NFS daemons"
     		return 1
 	fi
-	logAndPrint $LOG_NOTICE "Successfully restarted NFS daemons"
+	ocf_log notice "Successfully restarted NFS daemons"
 }
 
 
@@ -233,9 +234,12 @@ status|monitor)
 		    
 stop)
 	nfs_check restart || exit 1
-	rmtabpid=$(cat ${OCF_RESKEY_path}/.clumanager/pid)
-	if [ -n "$rmtabpid" ]; then
-		kill $rmtabpid
+
+	if [ -f "${OCF_RESKEY_path}/.clumanager/pid" ]; then
+		rmtabpid=$(cat ${OCF_RESKEY_path}/.clumanager/pid)
+		if [ -n "$rmtabpid" ]; then
+			kill $rmtabpid &> /dev/null
+		fi
 	fi
 	rm -f ${OCF_RESKEY_path}/.clumanager/pid
 	rv=0
@@ -243,8 +247,8 @@ stop)
 	;;
 
 recover|restart)
-	$0 stop || exit 1
-	$0 start || exit 1
+	$0 stop || exit $OCF_ERR_GENERIC
+	$0 start || exit $OCF_ERR_GENERIC
 	exit 0
 	;;
 
@@ -256,6 +260,10 @@ meta-data)
 verify-all)
 	verify_all
 	exit $?
+	;;
+*)
+	echo "usage: $0 {start|status|monitor|stop|recover|restart|meta-data|verify-all}"
+	exit $OCF_ERR_GENERIC
 	;;
 esac
 

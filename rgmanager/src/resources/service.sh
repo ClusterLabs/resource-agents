@@ -5,6 +5,8 @@
 # resources. ;(
 #
 
+
+
 meta_data()
 {
     cat <<EOT
@@ -120,12 +122,15 @@ meta_data()
     
     <special tag="rgmanager">
         <attributes root="1" maxinstances="1"/>
-        <child type="fs" start="2" stop="4"/>
-        <child type="netfs" start="2" stop="4"/>
-        <child type="clusterfs" start="2" stop="4"/>
-        <child type="ip" start="3" stop="2"/>
-        <child type="samba" start="4" stop="3"/>
-        <child type="script" start="5" stop="1"/>
+        <child type="fs" start="1" stop="8"/>
+        <child type="clusterfs" start="2" stop="7"/>
+        <child type="netfs" start="3" stop="6"/>
+	<child type="nfsexport" start="4" stop="5"/>
+
+	<child type="nfsclient" start="5" stop=""/>
+
+        <child type="ip" start="6" stop="2"/>
+        <child type="script" start="7" stop="1"/>
     </special>
 </resource-agent>
 EOT

@@ -30,6 +30,8 @@ LANG=C
 PATH=/bin:/sbin:/usr/bin:/usr/sbin
 export LC_ALL LANG PATH
 
+. $(dirname $0)/ocf-shellfuncs
+
 
 meta_data()
 {
@@ -107,8 +109,10 @@ meta_data()
         <action name="monitor" depth="10" interval="60" timeout="20"/>
 
 	<!-- Checks to see if we can ping the router -->
+	<!-- does not correctly work in certain customer configurations
         <action name="status" depth="20" interval="2m" timeout="20"/>
         <action name="monitor" depth="20" interval="2m" timeout="20"/>
+		-->
 
         <action name="meta-data" timeout="20"/>
         <action name="verify-all" timeout="20"/>
@@ -116,6 +120,8 @@ meta_data()
 
     <special tag="rgmanager">
 	<attributes maxinstances="1"/>
+	<child type="nfsclient" forbid="1"/>
+	<child type="nfsexport" forbid="1"/>
     </special>
 </resource-agent>
 EOT
@@ -198,7 +204,7 @@ ipv6_same_subnet()
 	declare r x llsb rlsb
 
 	if [ $# -lt 2 ]; then
-		echo "usage: ipv6_same_subnet addr1 addr2 [mask]"
+		ocf_log err "usage: ipv6_same_subnet addr1 addr2 [mask]"
 		return 255
 	fi
 
@@ -275,7 +281,7 @@ ipv4_same_subnet()
 	declare r x llsb rlsb
 
 	if [ $# -lt 2 ]; then
-		echo "usage: ipv4_same_subnet current_addr new_addr [maskbits]"
+		ocf_log err "usage: ipv4_same_subnet current_addr new_addr [maskbits]"
 		return 255
 	fi
 
@@ -408,26 +414,21 @@ findSlaves()
 	declare interfaces
 
 	if [ -z "$mastif" ]; then
-		echo "usage: findSlaves <master I/F>"
-		return 1
+		ocf_log err "usage: findSlaves <master I/F>"
+		return $OCF_ERR_ARGS
 	fi
 
 	line=$(/sbin/ip link list dev $mastif | grep "<.*MASTER.*>")
 	if [ $? -ne 0 ]; then
-		echo "Error determining status of $mastif"
-		return 1
+		ocf_log err "Error determining status of $mastif"
+		return $OCF_ERR_GENERIC
 	fi
 
 	if [ -z "`/sbin/ip link list dev $mastif | grep \"<.*MASTER.*>\"`" ]
 	then
-		echo "$mastif is not a master device"
-		return 1
+		ocf_log err "$mastif is not a master device"
+		return $OCF_ERR_GENERIC
 	fi
-
-	## BZ 165447
-	## Strip possible VLAN (802.1q) suffixes 
-	##  - Roland Gadinger <roland.gadinger@beko.at> 
-	mastif=${mastif%%.*} 
 
 	while read line; do
 		set - $line
@@ -452,14 +453,14 @@ isSlave()
 	declare line
 
 	if [ -z "$intf" ]; then
-		logAndPrint $LOG_ERR "usage: isSlave <I/F>"
-		return 1
+		ocf_log err "usage: isSlave <I/F>"
+		return $OCF_ERR_ARGS
 	fi
 
 	line=$(/sbin/ip link list dev $intf)
 	if [ $? -ne 0 ]; then
-		logAndPrint $LOG_ERR "$intf not found"
-		return 1
+		ocf_log err "$intf not found"
+		return $OCF_ERR_GENERIC
 	fi
 
 	if [ "$line" = "${line/<*SLAVE*>/}" ]; then
@@ -479,7 +480,7 @@ interface_up()
        declare intf=$1
        
        if [ -z "$intf" ]; then
-		echo "usage: interface_up <I/F>"
+		ocf_log err "usage: interface_up <I/F>"
 		return 1
        fi
        
@@ -521,7 +522,7 @@ network_link_up()
 	declare intf_test
 
 	if [ -z "$intf_arg" ]; then
-		echo "usage: network_link_up <intf>"
+		ocf_log err "usage: network_link_up <intf>"
 		return 1
 	fi
 	
@@ -539,7 +540,7 @@ network_link_up()
 		#
 		slaves=$(findSlaves $intf_arg)
 		if [ $? -ne 0 ]; then
-			echo "Error finding slaves of $intf_arg"
+			ocf_log err "Error finding slaves of $intf_arg"
 			return 1
 		fi
 		for intf_test in $slaves; do
@@ -551,9 +552,9 @@ network_link_up()
 	fi
 
 	if [ $link_up -eq 0 ]; then
-		echo "Link for $intf_arg: Detected"
+		ocf_log debug "Link for $intf_arg: Detected"
 	else
-		echo "Link for $intf_arg: Not detected"
+		ocf_log warn "Link for $intf_arg: Not detected"
 	fi
 
 	return $link_up
@@ -595,10 +596,6 @@ ipv6()
 		        continue
 		fi
 		
-        	#if [ "${addr}" = "${addr/*\//}" ]; then
-	        #	addr="$addr/$maskbits"
-        	#fi
-		
 		if [ "$1" = "add" ]; then
 			ipv6_same_subnet $ifaddr_exp/$maskbits $addr_exp
 			if [ $? -ne 0 ]; then
@@ -612,14 +609,14 @@ ipv6()
                         if [ $? -ne 0 ]; then
                                 continue
                         fi
+			ocf_log info "Adding IPv6 address $addr to $dev"
 		fi
 		if [ "$1" = "del" ]; then
-		        if [ "$addr_exp" != "$ifaddr_exp" ]; then
+		        if [ "${addr_exp/\/*/}" != "$ifaddr_exp" ]; then
 			        continue
 			fi
+			ocf_log info "Removing IPv6 address $addr from $dev"
                 fi
-		
-		echo "Attempting to $1 IPv6 address $addr ($dev)"
 		
 		/sbin/ip -f inet6 addr $1 dev $dev $addr
 		[ $? -ne 0 ] && return 1
@@ -663,11 +660,7 @@ ipv4()
 	        if [ -z "$dev" ]; then
 		        continue
 		fi
-		
-        	#if [ "${addr}" = "${addr/\*\//}" ]; then
-	        	#addr="$addr/$maskbits"
-        	#fi
-		
+
 		if [ "$1" = "add" ]; then
 		        ipv4_same_subnet $ifaddr/$maskbits $addr
 			if [ $? -ne 0 ]; then
@@ -681,15 +674,15 @@ ipv4()
 			if [ $? -ne 0 ]; then
 				continue
 			fi
+			ocf_log info "Adding IPv4 address $addr to $dev"
 		fi
 		if [ "$1" = "del" ]; then
-			if [ "$addr" != "$ifaddr" ]; then
+			if [ "${addr/\/*/}" != "$ifaddr" ]; then
 			        continue
 			fi
+			ocf_log info "Removing IPv4 address $addr from $dev"
 		fi
 		
-		echo "Attempting to $1 IPv4 address $addr ($dev)"
-	        #/sbin/ip $dev $1 $addr
 		/sbin/ip -f inet addr $1 dev $dev $addr
 		[ $? -ne 0 ] && return 1
 		
@@ -699,12 +692,12 @@ ipv4()
 		if [ "$1" = "add" ]; then
         		# do that freak arp thing
 		    
- 		        hwaddr=$(ip -o link show $dev)
+ 		        hwaddr=$(/sbin/ip -o link show $dev)
 			hwaddr=${hwaddr/*link\/ether\ /}
 			hwaddr=${hwaddr/\ \*/}
 			
 			addr=${addr/\/*/}
-			echo Sending gratuitous ARP: $addr $hwaddr
+			ocf_log debug "Sending gratuitous ARP: $addr $hwaddr"
 			arping -q -c 2 -U -I $dev $addr
 		fi
 		
@@ -722,18 +715,24 @@ ipv4()
 
 #
 # Usage:
-# ping_check <family> <address>
+# ping_check <family> <address> [interface]
 #
 ping_check()
 {
 	declare ops="-c 1 -w 2"
-	declare ipv6ops=""
+	declare pingcmd=""
 
-	if [ "$1" = "ipv6" ]; then
-		ipv6ops="-6"
+	if [ "$1" = "inet6" ]; then
+		pingcmd="ping6"
+	else
+		pingcmd="ping"
 	fi
 
-	return $(ping $ipv6ops $ops $2 &> /dev/null)
+	if [ -n "$3" ]; then 
+		ops="$ops -I $3"
+	fi
+
+	return $($pingcmd $ops $2 &> /dev/null)
 }
 
 
@@ -744,8 +743,9 @@ ping_check()
 check_interface_up()
 {
 	declare dev
-	
-	dev=$(/sbin/ip -f $1 -o addr | grep " $2/" | awk '{print $2}')
+	declare addr=${2/\/*/}
+
+	dev=$(/sbin/ip -f $1 -o addr | grep " $addr/" | awk '{print $2}')
 	if [ -z "$dev" ]; then
 		return 1
 	fi
@@ -761,7 +761,13 @@ check_interface_up()
 #
 address_configured()
 {
-        line=$(/sbin/ip -f $1 -o addr | grep " $2/")
+	declare line
+	declare addr
+
+	# Chop off maxk bits 
+	addr=${2/\/*/}
+        line=$(/sbin/ip -f $1 -o addr | grep " $addr/")
+
         if [ -z "$line" ]; then
 		return 1
 	fi
@@ -778,6 +784,7 @@ ip_op()
 	declare dev
 	declare rtr
 	declare monitor_link
+	declare addr=${3/\/*/}
 	
 	monitor_link="yes"
 	if [ "${OCF_RESKEY_monitor_link}" = "no" ] ||
@@ -787,31 +794,29 @@ ip_op()
 	
 	if [ "$2" = "status" ]; then
 
-		echo Checking $3, Level $OCF_CHECK_LEVEL
+		ocf_log debug "Checking $3, Level $OCF_CHECK_LEVEL"
 	
-		dev=$(/sbin/ip -f $1 -o addr | grep " $3/" | awk '{print $2}')
+		dev=$(/sbin/ip -f $1 -o addr | grep " $addr/" | awk '{print $2}')
 		if [ -z "$dev" ]; then
-			[ -n "$4" ] || echo "$3 is not configured"
+			ocf_log warn "$3 is not configured"
 			return 1
 		fi
-		[ -n "$4" ] || echo "$3 present on $dev"
+		ocf_log debug "$3 present on $dev"
 		
 		if [ "$monitor_link" = "yes" ]; then
-		        [ -n "$4" ] || echo -n "Checking link status of $dev..."
 			if ! network_link_up $dev; then
-			        [ -n "$4" ] || echo "No Link"
+		        	ocf_log warn "No link on $dev..."
 				return 1
 			fi
-			[ -n "$4" ] || echo "Active"
+			ocf_log debug "Link detected on $dev"
 		fi
 		
 		[ $OCF_CHECK_LEVEL -lt 10 ] && return 0
-		[ -n "$4" ] || echo -n "Pinging $3..."
-		if ! ping_check $1 $3; then
-			[ -n "$4" ] || echo "Fail"
+		if ! ping_check $1 $addr $dev; then
+			ocf_log warn "Failed to ping $addr"
 			return 1
 		fi
-		echo "OK"
+		ocf_log debug "Local ping to $addr succeeded"
 		
                 #
 		# XXX may be ipv4 only; disable for now. 
@@ -819,15 +824,17 @@ ip_op()
 		if [ "$OCF_RESKEY_family" = "inet6" ]; then
 			return 0;
 		fi
+
 		[ $OCF_CHECK_LEVEL -lt 20 ] && return 0
 		[ "$monitor_link" != "yes" ] && return 0
+
 		rtr=`ip route | grep "default via.*dev $dev" | awk '{print $3}'`
-		[ -n "$4" ] || echo -n "Pinging $rtr..."
-		if ! ping_check $1 $rtr; then
-			[ -n "$4" ] || echo "Fail"
+
+		if ! ping_check $1 $rtr $dev; then
+			ocf_log err "Failed to ping default router $rtr on $dev"
 			return 1
 		fi
-		echo "OK"
+		ocf_log debug "Ping check of $rtr succeeded"
 
 		return 0
 	fi
@@ -844,7 +851,7 @@ ip_op()
 	esac
 	return 1
 }
-	
+
 
 case ${OCF_RESKEY_family} in
 inet)
@@ -873,35 +880,38 @@ fi
 case $1 in
 start)
 	if address_configured ${OCF_RESKEY_family} ${OCF_RESKEY_address}; then
-		echo "${OCF_RESKEY_address} already configured"
+		ocf_log debug "${OCF_RESKEY_address} already configured"
 		exit 0
 	fi
 	ip_op ${OCF_RESKEY_family} add ${OCF_RESKEY_address}
+
 	exit $?
 	;;
 stop)
 	if address_configured ${OCF_RESKEY_family} ${OCF_RESKEY_address}; then
+		
 		ip_op ${OCF_RESKEY_family} del ${OCF_RESKEY_address}
 
 		# Make sure it's down
 		if address_configured ${OCF_RESKEY_family} ${OCF_RESKEY_address}; then
+			ocf_log err "Failed to remove ${OCF_RESKEY_address}"
 			exit 1
 		fi
 	else
-		echo "${OCF_RESKEY_address} is not configured"
+		ocf_log debug "${OCF_RESKEY_address} is not configured"
 	fi
 	exit 0
 	;;
 status|monitor)
 	ip_op ${OCF_RESKEY_family} status ${OCF_RESKEY_address}
-	[ $? -ne 0 ] && exit 1
+	[ $? -ne 0 ] && exit $OCF_ERR_GENERIC
 	
 	check_interface_up ${OCF_RESKEY_family} ${OCF_RESKEY_address}
 	exit $?
 	;;
 restart)
-	$0 stop || exit 1
-	$0 start || exit 1
+	$0 stop || exit $OCF_ERR_GENERIC
+	$0 start || exit $OCF_ERR_GENERIC
 	exit 0
 	;;
 meta-data)
@@ -911,6 +921,10 @@ meta-data)
 verify-all)
 	verify_all
 	exit $?
+	;;
+*)
+	echo "usage: $0 {start|stop|status|monitor|restart|meta-data|verify-alll}"
+	exit $OCF_ERR_GENERIC
 	;;
 esac
 

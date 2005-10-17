@@ -17,8 +17,11 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 include ${top_srcdir}/make/defines.mk
 INCLUDE += -I $(top_srcdir)/include
 
-TARGETS=fs.sh service.sh ip.sh nfsclient.sh nfsexport.sh \
-	script.sh netfs.sh clusterfs.sh # oracleas
+RESOURCES=fs.sh service.sh ip.sh nfsclient.sh nfsexport.sh \
+	script.sh netfs.sh clusterfs.sh
+
+TARGETS=${RESOURCES} ocf-shellfuncs
+
 all:
 
 install: all
@@ -32,9 +35,9 @@ uninstall:
 
 clean:
 
-check: $(TARGETS) ra-api-1-modified.dtd
+check: $(RESOURCES) ra-api-1-modified.dtd
 	@echo Validating resource agent meta-data
-	@for f in $(TARGETS); do \
+	@for f in $(RESOURCES); do \
 		echo "   ./$$f "; \
 		./$$f meta-data | xmllint --dtdvalid \
 				  ./ra-api-1-modified.dtd --noout -; \
