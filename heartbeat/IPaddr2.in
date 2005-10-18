@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr2.in,v 1.11 2005/10/13 09:27:16 sunjd Exp $
+#	$Id: IPaddr2.in,v 1.12 2005/10/18 08:20:47 sunjd Exp $
 #
 #       OCF Resource Agent compliant IPaddr2 script.
 #
@@ -226,6 +226,7 @@ You really shouldn't be touching this.
 <actions>
 <action name="start"   timeout="90" />
 <action name="stop"    timeout="100" />
+<action name="status" depth="10"  timeout="20s" interval="10s" start-delay="5s" />
 <action name="monitor" depth="10"  timeout="20s" interval="10s" start-delay="5s" />
 <action name="meta-data"  timeout="5s" />
 <action name="validate-all"  timeout="20s" />
@@ -530,7 +531,7 @@ ip_served() {
 
 ip_usage() {
 	cat <<END
-usage: $0 {start|stop|monitor|validate-all|meta-data}
+usage: $0 {start|stop|status|monitor|validate-all|meta-data}
 
 Expects to have a fully populated OCF RA-compliant environment set.
 END
@@ -801,6 +802,16 @@ start)		ip_start
 		;;
 stop)		ip_stop
 		;;
+status)		ip_init
+		ip_status=`ip_served`
+		if [ $ip_status = "ok" ]; then
+			echo "running"
+			exit $OCF_SUCCESS
+		else
+			echo "stopped"
+			exit $OCF_NOT_RUNNING
+		fi
+		;;
 monitor)	ip_monitor
 		;;
 validate-all)	ip_validate
@@ -812,4 +823,3 @@ usage|help)	ip_usage
 		exit $OCF_ERR_UNIMPLEMENTED
 		;;
 esac
-
