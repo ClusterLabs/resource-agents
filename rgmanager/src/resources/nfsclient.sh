@@ -71,7 +71,7 @@ meta_data()
             <content type="string"/>
         </parameter>
 
-        <parameter name="path" inherit="path">
+        <parameter name="path" inherit="nfsserver%path">
             <longdesc lang="en">
                 This is the path to export to the target.  This
                 field is generally left blank, as it inherits the
