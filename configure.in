@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.451 $) dnl cvs revision
+AC_REVISION($Revision: 1.452 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1893,11 +1893,16 @@ fi
 
 
 dnl check if there are getpid() inconsistency
+dnl	Note: reduce LIBS; in particular, ltdl can cause confusion.
+dnl	Possibly better:  move 'LIBS="$LIBS -lltdl"' from above to beyond here.
+dnl
 AC_MSG_CHECKING(for getpid() consistency in multi-process/threads program)
-LIBS="$LIBS -lpthread"
+ac_save_LIBS=$LIBS
+LIBS="-lpthread"
 AC_TRY_RUN(`cat $srcdir/config/pidtest.c`, 
 AC_MSG_RESULT(ok), 
 [AC_MSG_RESULT(fail); AC_DEFINE(GETPID_INCONSISTENT, 1 , [pid inconsistent])],)
+LIBS=$ac_save_LIBS
 
 dnl
 dnl Lex and yacc can't be trusted to produce code that won't produce
