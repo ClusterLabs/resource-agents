@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.5 2005/09/26 08:44:30 sunjd Exp $
+# $Id: Filesystem.in,v 1.6 2005/10/19 19:09:43 lars Exp $
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
@@ -96,7 +96,7 @@ usage() {
 
 cat <<-EOT;
 	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
-	$Id: Filesystem.in,v 1.5 2005/09/26 08:44:30 sunjd Exp $
+	$Id: Filesystem.in,v 1.6 2005/10/19 19:09:43 lars Exp $
 	EOT
 }
 
@@ -289,15 +289,13 @@ Filesystem_stop()
 #
 Filesystem_status()
 {
-	$MOUNT | grep -e "on $MOUNTPOINT " >/dev/null
-	rc=$?
-	if [ $rc = 0 ] ; then
-		echo "$MOUNTPOINT is mounted (running)"
+	if $MOUNT | grep -e "on $MOUNTPOINT " >/dev/null 2>&1 ; then
+		ocf_log info "$MOUNTPOINT is mounted (running)"
+		return $OCF_SUCCESS
 	else
-		echo "$MOUNTPOINT is unmounted (stopped)"
+		ocf_log info "$MOUNTPOINT is unmounted (stopped)"
+		return $OCF_NOT_RUNNING
 	fi
-
-	return $rc
 }
 # end of Filesystem_status
 
