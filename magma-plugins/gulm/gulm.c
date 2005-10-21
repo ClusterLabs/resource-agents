@@ -34,7 +34,7 @@
 #include <sys/types.h>
 #include <linux/unistd.h>
 
-#define MODULE_DESCRIPTION "GuLM Plugin v1.0.1"
+#define MODULE_DESCRIPTION "GuLM Plugin v1.0.3"
 #define MODULE_AUTHOR      "Lon Hohberger"
 
 

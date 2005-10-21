@@ -166,8 +166,10 @@ gulm_lock_login(gulm_interface_p pg)
 
 	cb.login_reply = gulm_lk_login_reply;
 
-	if (lg_lock_login(pg, "usrm") != 0)
-		return -ENOLCK;
+	if (lg_lock_login(pg, "usrm") != 0) {
+		errno = ENOLCK;
+		return -1;
+	}
 
 	do {
 		ret = lg_lock_handle_messages(pg, &cb, &flag);
@@ -272,7 +274,8 @@ gulm_lock(cluster_plugin_t *self,
 	} else if (flags & CLK_WRITE) {
 		state = lg_lock_state_Exclusive;
 	} else {
-		return -EINVAL;
+		errno = EINVAL;
+		return -1;
 	}
 
 	pid = getpid();
@@ -302,14 +305,18 @@ gulm_lock(cluster_plugin_t *self,
 		switch(ret) {
 		case -EINPROGRESS:
 			lg_lock_cancel_req(pg, resource, reslen, pid);
-			break;
+			errno = EINPROGRESS;
+			return -1;
 		case -EAGAIN:
 			if (!(lkflags & lg_lock_flag_Try))
 				break;
-			return ret;
+			errno = EAGAIN;
+			return -1;
 		case 0:
+			return 0;
 		default:
-			return ret;
+			errno = (-ret);
+			return -1;
 		}
 
 		usleep(250000);
