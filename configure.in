@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.453 $) dnl cvs revision
+AC_REVISION($Revision: 1.454 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1001,11 +1001,41 @@ AC_SUBST(CRYPTOLIB)
 dnl ***************************************************************************
 dnl  CIM provider configuration
 dnl ***************************************************************************
+CMPI_HEADER_PATH="/usr/local/include"
+CIMOM=""
+CMPI_PROVIDER_DIR="/usr/local/lib/cmpi"
+
 if test "x${enable_cim_provider}" != "xyes"; then
         enable_cim_provider="no"
 fi
-AM_CONDITIONAL(CIM_PROVIDER_BUILD, test "x${enable_cim_provider}" = "xyes")
 
+if test "x${enable_cim_provider}" = "xyes"; then
+        AC_CHECK_HEADERS([cmpidt.h cmpift.h cmpimacs.h], [], 
+			[AC_MSG_ERROR([Sorry, can't find CMPI header files])] )
+        
+        if test "x${CIMOM}" = "x"; then 
+                AC_CHECK_PROG([CIMOM], [sfcbd], [sfcbd])
+        fi
+
+        dnl OpenWBEM does not support CMPI indications yet
+        if test "x${CIMOM}" = "x"; then 
+                AC_CHECK_PROG([CIMOM], [owcimomd], [OpenWBEM])
+        fi
+
+        if test "x${CIMOM}" = "x"; then 
+                AC_CHECK_PROG([CIMOM], [cimvserver], [OpenPegasus])
+        fi
+
+        if test "x${CIMOM}" = "xOpenWBEM"; then
+                CMPI_PROVIDER_DIR="/usr/lib/openwbem/cmpiproviders"
+        fi
+fi
+
+
+AM_CONDITIONAL(CIM_PROVIDER_BUILD, test "x${enable_cim_provider}" = "xyes")
+AC_SUBST(CMPI_PROVIDER_DIR)
+AC_SUBST(CIMOM)
+AC_SUBST(CMPI_HEADER_PATH)
 
 dnl ************************************************************************
 dnl  Handy function for checking for typedefs or struct defs
@@ -2525,6 +2555,13 @@ AC_MSG_RESULT([  HA group name        = "${HA_APIGROUP}"])
 AC_MSG_RESULT([  HA group id          = "${HA_APIGID}"])
 AC_MSG_RESULT([  HA user name         = "${HA_CCMUSER}"])
 AC_MSG_RESULT([  HA user user id      = "${HA_CCMUID}"])
+
+AC_MSG_RESULT([  Build cim providers  = "${enable_cim_provider}"])
+if test "x${enable_cim_provider}" = "xyes"; then
+    AC_MSG_RESULT([  CIM server           = "${CIMOM}"])
+    AC_MSG_RESULT([  CIM providers dir    = "${CMPI_PROVIDER_DIR}"])
+    
+fi
 
 AC_MSG_RESULT([  Build snmp subagent  = "${enable_snmp_subagent}"])
 if test "x${enable_snmp_subagent}" = "xyes"; then
