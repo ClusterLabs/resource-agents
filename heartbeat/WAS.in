@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: WAS.in,v 1.4 2005/08/12 05:52:57 sunjd Exp $
+# $Id: WAS.in,v 1.5 2005/10/24 15:08:31 sunjd Exp $
 # 
 # WAS
 #
@@ -31,10 +31,6 @@
 
 #######################################################################
 
-prefix=@prefix@
-exec_prefix=@exec_prefix@
-
-#
 WASDIR=/opt/WebSphere/AppServer
 if
   [ ! -d $WASDIR ]
@@ -103,7 +99,7 @@ usage() {
 	We run servlet/snoop on the first transport port listed in
 	the config file for the "monitor" operation.
 
-	$Id: WAS.in,v 1.4 2005/08/12 05:52:57 sunjd Exp $
+	$Id: WAS.in,v 1.5 2005/10/24 15:08:31 sunjd Exp $
 	!
 }
 
@@ -338,7 +334,7 @@ WAS_report_status() {
   PortCount=`echo $PortCount`
   PortsInUse=`CheckWASPortsInUse $WASPorts`
   case $PortsInUse in
-    0)	ocf_log debug "WAS: server $1 is stopped."; false;;
+    0)	ocf_log debug "WAS: server $1 is stopped."; return $OCF_NOT_RUNNING;;
     *)
 	pids=`WASPIDs $WASPorts`
 	if
@@ -348,7 +344,7 @@ WAS_report_status() {
 	else
     	  ocf_log debug "WAS: server $1 is running (pid $pids et al) but not listening on all ports."
         fi
-	true;;
+	return $OCF_SUCCESS;;
   esac
 }
 
@@ -360,7 +356,7 @@ WAS_report_status() {
 #	This is actually faster than WAS_status above...
 #
 WAS_monitor() {
-  tmpfile=`tempfile`
+  tmpfile=`maketempfile`
   SnoopPort=`GetWASSnoopPort $1`
   output=`$WGET -nv -O$tmpfile  http://localhost:$SnoopPort/servlet/snoop 2>&1`
   rc=$?
