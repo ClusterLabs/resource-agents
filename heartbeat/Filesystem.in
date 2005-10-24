@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.6 2005/10/19 19:09:43 lars Exp $
+# $Id: Filesystem.in,v 1.7 2005/10/24 15:16:09 sunjd Exp $
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
@@ -96,7 +96,7 @@ usage() {
 
 cat <<-EOT;
 	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
-	$Id: Filesystem.in,v 1.6 2005/10/19 19:09:43 lars Exp $
+	$Id: Filesystem.in,v 1.7 2005/10/24 15:16:09 sunjd Exp $
 	EOT
 }
 
@@ -188,8 +188,9 @@ flushbufs() {
 Filesystem_start()
 {
 	# See if the device is already mounted.
-	$MOUNT | cut -d' ' -f3 | grep -e "^$MOUNTPOINT$" >/dev/null
-	if [ $? -ne 1 ] ; then
+#$MOUNT | cut -d' ' -f3 | grep -e "^$MOUNTPOINT$" >/dev/null
+	Filesystem_status >/dev/null 2>&1
+	if [ $? -eq $OCF_SUCCESS ] ; then
 	    ocf_log info "Filesystem $MOUNTPOINT is already mounted."
 	    return $OCF_SUCCESS
 	fi
@@ -213,6 +214,12 @@ Filesystem_start()
 	# NOTE: Some filesystem types don't need this step...  Please modify
 	#       accordingly
 
+    if [ $blockdevice = "yes" ]; then
+	if [ ! -b "$DEVICE" ] ; then
+		ocf_log err "Couldn't find device [$DEVICE]. Expected /dev/??? to exist"
+		exit $OCF_ERR_ARGS
+	fi
+
 	if
 	  case $FSTYPE in
 	    ext3|reiserfs|xfs|jfs|vfat|fat|nfs)	false;;
@@ -234,6 +241,12 @@ Filesystem_start()
 	    ocf_log err "Couldn't sucessfully fsck filesystem for $DEVICE"
 	    return $OCF_ERR_GENERIC	
 	  fi	
+	fi
+    fi
+
+	if [ ! -d "$MOUNTPOINT" ] ; then
+		ocf_log err "Couldn't find directory  [$MOUNTPOINT] to use as a mount point"
+		exit $OCF_ERR_ARGS
 	fi
 
 	flushbufs $DEVICE
@@ -260,17 +273,22 @@ Filesystem_stop()
 {
 	# See if the device is currently mounted
 	if
-	  $MOUNT | grep -e " on $MOUNTPOINT " >/dev/null
+		Filesystem_status >/dev/null 2>&1
 	then
 		# Kill all processes open on filesystem
 		$FUSER -mk $MOUNTPOINT
 
+	    if [ $blockdevice = "yes" ]; then
+		$UMOUNT $DEVICE
+		DEV=$DEVICE
+	    else
 		# Get the current real device name...
 		# (specified devname could be -L or -U...)
 
 		DEV=`$MOUNT | grep "on $MOUNTPOINT " | cut -d' ' -f1`
 		# Unmount the filesystem
 		$UMOUNT $MOUNTPOINT
+	    fi
 		if [ $? -ne 0 ] ; then
 			ocf_log err "Couldn't unmount $MOUNTPOINT"
 			return $OCF_ERR_GENERIC
@@ -289,7 +307,15 @@ Filesystem_stop()
 #
 Filesystem_status()
 {
-	if $MOUNT | grep -e "on $MOUNTPOINT " >/dev/null 2>&1 ; then
+	if [ $blockdevice = "yes" ]; then
+	    grep -q -e "^$DEVICE $MOUNTPOINT " /proc/mounts
+	    rc=$?
+	else	
+	    grep -q -e "on $MOUNTPOINT " /proc/mounts
+	    rc=$?
+	fi
+
+	if [ $rc = 0 ] ; then
 		ocf_log info "$MOUNTPOINT is mounted (running)"
 		return $OCF_SUCCESS
 	else
@@ -304,6 +330,10 @@ Filesystem_status()
 #
 Filesystem_validate_all()
 {
+	if [ -n $MOUNTPOINT -a ! -d $MOUNTPOINT ]; then
+	    ocf_log warn "Mountpoint $MOUNTPOINT does not exist"
+	fi
+
 # See if the mountpoint is already occupied.
 	$MOUNT | cut -d' ' -f3 | grep -e "^$MOUNTPOINT$" >/dev/null
 	if [ $? -eq 0 ] ; then
@@ -357,33 +387,35 @@ case $OP in
 			;;
 esac
 
+blockdevice=no
 case $DEVICE in
+  "")	ocf_log err "Please set OCF_RESKEY_device to the device to be managed"
+	exit $OCF_ERR_ARGS
+	;;
   -*) # Oh... An option to mount instead...  Typically -U or -L
 	;;
   [^/]*:/*)	# An NFS filesystem specification...
 	;;
-  *)	if [ ! -b "$DEVICE"  -a "X$OP" != Xstop ] ; then
-	  ocf_log err "Couldn't find device [$DEVICE]. Expected /dev/??? to exist"
-	  exit $OCF_ERR_ARGS
-	fi;;
+  *)	if [ ! -b "$DEVICE"  -a "X$OP" != Xstart ] ; then
+	  ocf_log warn "Couldn't find device [$DEVICE]. Expected /dev/??? to exist"
+	fi
+	blockdevice=yes
+	;;
 esac
 
 # It is possible that OCF_RESKEY_directory has one or even multiple trailing "/".
-# But the output of `mount` do not.
+# But the output of `mount` and /proc/mounts do not.
 if [ -z $OCF_RESKEY_directory ]; then
+    if [ X$OP = "Xstart" -o $blockdevice = "no" ]; then
 	ocf_log err "Please specify the directory"
 	exit $OCF_ERR_ARGS 
+    fi
 else
     MOUNTPOINT=$(echo $OCF_RESKEY_directory | sed 's/\/*$//')
     : ${MOUNTPOINT:=/}
     # At this stage, $MOUNTPOINT does not contain trailing "/" unless it is "/"
 fi
-if [ ! -d "$MOUNTPOINT" ] ; then
-	ocf_log err "Couldn't find directory  [$MOUNTPOINT] to use as a mount point"
-	exit $OCF_ERR_ARGS
-fi
 	
-
 # Check to make sure the utilites are found
 check_util $MODPROBE
 check_util $FSCK
