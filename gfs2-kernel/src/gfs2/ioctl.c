@@ -563,66 +563,6 @@ static int gi_do_hfile_trunc(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 }
 
 /**
- * gi_do_quota_sync - sync the outstanding quota changes for a FS
- * @sdp:
- * @gi:
- *
- * Returns: errno
- */
-
-static int gi_do_quota_sync(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
-{
-	if (!capable(CAP_SYS_ADMIN))
-		return -EACCES;
-	if (gi->gi_argc != 1)
-		return -EINVAL;
-	return gfs2_quota_sync(sdp);
-}
-
-/**
- * gi_do_quota_refresh - Refresh the a quota LVB from the quota file
- * @sdp:
- * @gi:
- *
- * Returns: errno
- */
-
-static int gi_do_quota_refresh(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
-{
-	char buf[ARG_SIZE];
-	int user;
-	uint32_t id;
-
-	if (!capable(CAP_SYS_ADMIN))
-		return -EACCES;
-	if (gi->gi_argc != 2)
-		return -EINVAL;
-
-	if (strncpy_from_user(buf, gi->gi_argv[1], ARG_SIZE) < 0)
-		return -EFAULT;
-	buf[ARG_SIZE - 1] = 0;
-
-	switch (buf[0]) {
-	case 'u':
-		user = 1;
-		break;
-	case 'g':
-		user = 0;
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	if (buf[1] != ':')
-		return -EINVAL;
-
-	if (sscanf(buf + 2, "%u", &id) != 1)
-		return -EINVAL;
-
-	return gfs2_quota_refresh(sdp, user, id);
-}
-
-/**
  * gi_do_quota_read - read quota values from the quota file
  * @sdp:
  * @gi:
@@ -787,10 +727,6 @@ int gfs2_ioctl_i(struct gfs2_inode *ip, void *arg)
 		error = gi_do_hfile_write(ip->i_sbd, &gi);
 	else if (strcmp(arg0, "do_hfile_trunc") == 0)
 		error = gi_do_hfile_trunc(ip->i_sbd, &gi);
-	else if (strcmp(arg0, "do_quota_sync") == 0)
-		error = gi_do_quota_sync(ip->i_sbd, &gi);
-	else if (strcmp(arg0, "do_quota_refresh") == 0)
-		error = gi_do_quota_refresh(ip->i_sbd, &gi);
 	else if (strcmp(arg0, "do_quota_read") == 0)
 		error = gi_do_quota_read(ip->i_sbd, &gi);
 	else if (strcmp(arg0, "resize_add_rgrps") == 0)

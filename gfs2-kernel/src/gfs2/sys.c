@@ -22,6 +22,7 @@
 #include "sys.h"
 #include "super.h"
 #include "glock.h"
+#include "quota.h"
 
 char *gfs2_sys_margs;
 spinlock_t gfs2_sys_margs_lock;
@@ -118,6 +119,47 @@ static ssize_t shrink_store(struct gfs2_sbd *sdp, const char *buf, size_t len)
 	return len;
 }
 
+static ssize_t quota_sync_store(struct gfs2_sbd *sdp, const char *buf,
+				size_t len)
+{
+	if (!capable(CAP_SYS_ADMIN))
+		return -EACCES;
+
+	if (simple_strtol(buf, NULL, 0) != 1)
+		return -EINVAL;
+
+	gfs2_quota_sync(sdp);
+	return len;
+}
+
+static ssize_t quota_refresh_user_store(struct gfs2_sbd *sdp, const char *buf,
+					size_t len)
+{
+	uint32_t id;
+
+	if (!capable(CAP_SYS_ADMIN))
+		return -EACCES;
+
+	id = simple_strtoul(buf, NULL, 0);
+
+	gfs2_quota_refresh(sdp, 1, id);
+	return len;
+}
+
+static ssize_t quota_refresh_group_store(struct gfs2_sbd *sdp, const char *buf,
+					 size_t len)
+{
+	uint32_t id;
+
+	if (!capable(CAP_SYS_ADMIN))
+		return -EACCES;
+
+	id = simple_strtoul(buf, NULL, 0);
+
+	gfs2_quota_refresh(sdp, 0, id);
+	return len;
+}
+
 struct gfs2_attr {
 	struct attribute attr;
 	ssize_t (*show)(struct gfs2_sbd *, char *);
@@ -127,20 +169,26 @@ struct gfs2_attr {
 #define GFS2_ATTR(name, mode, show, store) \
 static struct gfs2_attr gfs2_attr_##name = __ATTR(name, mode, show, store)
 
-GFS2_ATTR(id,          0444, id_show,       NULL);
-GFS2_ATTR(fsname,      0444, fsname_show,   NULL);
-GFS2_ATTR(freeze,      0644, freeze_show,   freeze_store);
-GFS2_ATTR(withdraw,    0644, withdraw_show, withdraw_store);
-GFS2_ATTR(statfs_sync, 0200, NULL,          statfs_sync_store);
-GFS2_ATTR(shrink,      0200, NULL,          shrink_store);
+GFS2_ATTR(id,                  0444, id_show,       NULL);
+GFS2_ATTR(fsname,              0444, fsname_show,   NULL);
+GFS2_ATTR(freeze,              0644, freeze_show,   freeze_store);
+GFS2_ATTR(shrink,              0200, NULL,          shrink_store);
+GFS2_ATTR(withdraw,            0644, withdraw_show, withdraw_store);
+GFS2_ATTR(statfs_sync,         0200, NULL,          statfs_sync_store);
+GFS2_ATTR(quota_sync,          0200, NULL,          quota_sync_store);
+GFS2_ATTR(quota_refresh_user,  0200, NULL,          quota_refresh_user_store);
+GFS2_ATTR(quota_refresh_group, 0200, NULL,          quota_refresh_group_store);
 
 static struct attribute *gfs2_attrs[] = {
 	&gfs2_attr_id.attr,
 	&gfs2_attr_fsname.attr,
 	&gfs2_attr_freeze.attr,
+	&gfs2_attr_shrink.attr,
 	&gfs2_attr_withdraw.attr,
 	&gfs2_attr_statfs_sync.attr,
-	&gfs2_attr_shrink.attr,
+	&gfs2_attr_quota_sync.attr,
+	&gfs2_attr_quota_refresh_user.attr,
+	&gfs2_attr_quota_refresh_group.attr,
 	NULL,
 };
 
