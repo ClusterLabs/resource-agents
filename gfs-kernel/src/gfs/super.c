@@ -84,6 +84,7 @@ gfs_tune_init(struct gfs_tune *gt)
 	gt->gt_greedy_default = HZ / 10;
 	gt->gt_greedy_quantum = HZ / 40;
 	gt->gt_greedy_max = HZ / 4;
+	gt->gt_rgrp_try_threshold = 100;
 
 	RET(GFN_TUNE_INIT);
 }

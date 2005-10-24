@@ -488,6 +488,7 @@ gi_get_tune(struct gfs_inode *ip,
         gfs_printf("greedy_default %u\n", gt->gt_greedy_default);
         gfs_printf("greedy_quantum %u\n", gt->gt_greedy_quantum);
         gfs_printf("greedy_max %u\n", gt->gt_greedy_max);
+        gfs_printf("rgrp_try_threshold %u\n", gt->gt_rgrp_try_threshold);
 
         error = 0;
 
@@ -747,6 +748,11 @@ gi_set_tune(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 		if (sscanf(value, "%u", &x) != 1 || !x)
 			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_greedy_max, x);
+
+	} else if (strcmp(param, "rgrp_try_threshold") == 0) {
+		if (sscanf(value, "%u", &x) != 1)
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
+		tune_set(gt_rgrp_try_threshold, x);
 
 	} else
 		RETURN(GFN_GI_SET_TUNE, -EINVAL);

@@ -1173,6 +1173,7 @@ recent_rgrp_add(struct gfs_rgrpd *new_rgd)
 		if (++count >= max)
 			goto out;
 	}
+	new_rgd->rd_try_counter = 0;
 	list_add_tail(&new_rgd->rd_recent, &sdp->sd_rg_recent);
 
  out:
@@ -1256,24 +1257,31 @@ get_local_rgrp(struct gfs_inode *ip)
 	int skipped = 0;
 	int loops = 0;
 	int error;
+	int try_flag;
+	unsigned int try_threshold = gfs_tune_get(sdp, gt_rgrp_try_threshold);
 
 	/* Try recently successful rgrps */
 
 	rgd = recent_rgrp_first(sdp, ip->i_last_rg_alloc);
 
 	while (rgd) {
+		try_flag = (rgd->rd_try_counter >= try_threshold) ?
+			0: LM_FLAG_TRY;
 		error = gfs_glock_nq_init(rgd->rd_gl,
-					  LM_ST_EXCLUSIVE, LM_FLAG_TRY,
+					  LM_ST_EXCLUSIVE, try_flag,
 					  &al->al_rgd_gh);
 		switch (error) {
 		case 0:
-			if (try_rgrp_fit(rgd, al))
+			if (try_rgrp_fit(rgd, al)) {
+				rgd->rd_try_counter = 0;
 				goto out;
+			}
 			gfs_glock_dq_uninit(&al->al_rgd_gh);
 			rgd = recent_rgrp_next(rgd, TRUE);
 			break;
 
 		case GLR_TRYFAILED:
+			rgd->rd_try_counter++;
 			rgd = recent_rgrp_next(rgd, FALSE);
 			break;
 

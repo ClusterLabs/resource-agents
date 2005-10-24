@@ -227,6 +227,7 @@ struct gfs_rgrpd {
 	struct list_head rd_list;       /* On-disk-order list of all rgrps */
 	struct list_head rd_list_mru;   /* Most Recently Used list of all rgs */
 	struct list_head rd_recent;     /* recently used rgrps */
+	uint32_t rd_try_counter;        /* # of times we fail a try lock */
 
 	struct gfs_glock *rd_gl;        /* Glock for this rgrp */
 
@@ -890,6 +891,7 @@ struct gfs_tune {
 	unsigned int gt_greedy_default;
 	unsigned int gt_greedy_quantum;
 	unsigned int gt_greedy_max;
+	unsigned int gt_rgrp_try_threshold;
 };
 
 /*
