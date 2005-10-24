@@ -7,6 +7,35 @@
  * of the GNU General Public License v.2.
  */
 
+/*
+ * Quota change tags are associated with each transaction that allocates or
+ * deallocates space.  Those changes are accumulated locally to each node (in a
+ * per-node file) and then are periodically synced to the quota file.  This
+ * avoids the bottleneck of constantly touching the quota file, but introduces
+ * fuzziness in the current usage value of IDs that are being used on different
+ * nodes in the cluster simultaneously.  So, it is possible for a user on
+ * multiple nodes to overrun their quota, but that overrun is controlable.
+ * Since quota tags are part of transactions, there is no need to a quota check
+ * program to be run on node crashes or anything like that.
+ *
+ * There are couple of knobs that let the administrator manage the quota
+ * fuzziness.  "quota_quantum" sets the maximum time a quota change can be
+ * sitting on one node before being synced to the quota file.  (The default is
+ * 60 seconds.)  Another knob, "quota_scale" controls how quickly the frequency
+ * of quota file syncs increases as the user moves closer to their limit.  The
+ * more frequent the syncs, the more accurate the quota enforcement, but that
+ * means that there is more contention between the nodes for the quota file.
+ * The default value is one.  This sets the maximum theoretical quota overrun
+ * (with infinite node with infinite bandwidth) to twice the user's limit.  (In
+ * practice, the maximum overrun you see should be much less.)  A "quota_scale"
+ * number greater than one makes quota syncs more frequent and reduces the
+ * maximum overrun.  Numbers less than one (but greater than zero) make quota
+ * syncs less frequent.
+ *
+ * GFS quotas also use per-ID Lock Value Blocks (LVBs) to cache the contents of
+ * the quota file, so it is not being constantly read.
+ */
+
 #include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
