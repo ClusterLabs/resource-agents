@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.456 $) dnl cvs revision
+AC_REVISION($Revision: 1.457 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -2466,6 +2466,8 @@ heartbeat/Makefile						\
 		heartbeat/lib/ResourceManager			\
 		heartbeat/lib/TestHeartbeatComm			\
 		heartbeat/lib/hb_takeover			\
+		heartbeat/lib/hb_addnode			\
+		heartbeat/lib/hb_delnode			\
 	heartbeat/shellfuncs					\
 	heartbeat/libnet_util/Makefile				\
 	heartbeat/logrotate.d/Makefile				\
