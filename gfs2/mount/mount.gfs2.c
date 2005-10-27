@@ -19,6 +19,14 @@
 #include <limits.h>
 #include <errno.h>
 #include <signal.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+
+
+#include <linux/gfs2_ondisk.h>
+
+#define LOCK_DLM_SOCK_PATH "lock_dlmd_sock"  /* FIXME: use a header */
+#define MAXLINE 256
 
 /* libmount.a */
 void parse_opts(const char *options, int *flags, char **extra_opts);
@@ -30,6 +38,7 @@ struct mount_options {
 	char dev[PATH_MAX+1];
 	char dir[PATH_MAX+1];
 	char opts[PATH_MAX+1];
+	char extra_plus[PATH_MAX+1];
 	char *extra;
 	char type[5];
 	int flags;
@@ -37,11 +46,140 @@ struct mount_options {
 
 #define die(fmt, args...) \
 do { \
-        fprintf(stderr, "%s: ", prog_name); \
-        fprintf(stderr, fmt, ##args); \
-        exit(EXIT_FAILURE); \
+	fprintf(stderr, "%s: ", prog_name); \
+	fprintf(stderr, fmt, ##args); \
+	exit(EXIT_FAILURE); \
 } while (0)
 
+#define do_lseek(fd, off) \
+do { \
+	if (lseek((fd), (off), SEEK_SET) != (off)) \
+		die("bad seek: %s on line %d of file %s\n", \
+		    strerror(errno),__LINE__, __FILE__); \
+} while (0)
+
+#define do_read(fd, buff, len) \
+do { \
+	if (read((fd), (buff), (len)) != (len)) \
+		die("bad read: %s on line %d of file %s\n", \
+		    strerror(errno), __LINE__, __FILE__); \
+} while (0)
+
+static int get_sb(char *device, struct gfs2_sb *sb_out)
+{
+	int fd;
+	char buf[GFS2_BASIC_BLOCK];
+	struct gfs2_sb sb;
+
+	fd = open(device, O_RDONLY);
+	if (fd < 0)
+		die("can't open %s: %s\n", device, strerror(errno));
+
+	do_lseek(fd, GFS2_SB_ADDR * GFS2_BASIC_BLOCK);
+	do_read(fd, buf, GFS2_BASIC_BLOCK);
+
+	gfs2_sb_in(&sb, buf);
+
+	if (sb.sb_header.mh_magic != GFS2_MAGIC ||
+	    sb.sb_header.mh_type != GFS2_METATYPE_SB)
+		die("there isn't a GFS2 filesystem on %s\n", device);
+
+	memcpy(sb_out, &sb, sizeof(struct gfs2_sb));
+
+	close(fd);
+
+	return 0;
+}
+
+static int gfs_daemon_connect(void)
+{
+	struct sockaddr_un sun;
+	socklen_t addrlen;
+	int rv, fd;
+
+	fd = socket(PF_UNIX, SOCK_STREAM, 0);
+	if (fd < 0)
+		goto out;
+
+	memset(&sun, 0, sizeof(sun));
+	sun.sun_family = AF_UNIX;
+	strcpy(&sun.sun_path[1], LOCK_DLM_SOCK_PATH);
+	addrlen = sizeof(sa_family_t) + strlen(sun.sun_path+1) + 1;
+
+	rv = connect(fd, (struct sockaddr *) &sun, addrlen);
+	if (rv < 0) {
+		close(fd);
+		fd = rv;
+	}
+ out:
+	return fd;
+}
+
+static int do_join(struct mount_options *mo, struct gfs2_sb *sb)
+{
+	int i, fd, rv;
+	char buf[MAXLINE];
+
+	i = 0;
+	do {
+		sleep(1);
+		fd = gfs_daemon_connect();
+		if (!fd)
+			fprintf(stderr, "waiting for gfs daemon to start\n");
+	} while (!fd && ++i < 10);
+
+	if (!fd)
+		die("gfs daemon not running");
+
+	memset(buf, 0, sizeof(buf));
+	rv = snprintf(buf, MAXLINE, "join gfs2 %s %s %s %s %s",
+		     sb->sb_lockproto, sb->sb_locktable,
+		     mo->opts, mo->extra, mo->dir);
+	if (rv >= MAXLINE)
+		die("join message too large: %d \"%s\"\n", rv, buf);
+
+	printf("%s\n", buf);
+
+	rv = write(fd, buf, sizeof(buf));
+	if (rv < 0)
+		die("can't communicate with gfs daemon %d", rv);
+
+	memset(buf, 0, sizeof(buf));
+	rv = read(fd, buf, sizeof(buf));
+
+	printf("join read1 %d: %s\n", rv, buf);
+
+	memset(buf, 0, sizeof(buf));
+	rv = read(fd, buf, sizeof(buf));
+
+	printf("join read2 %d: %s\n", rv, buf);
+
+	/* gfs daemon returns "hostdata=jid=X,id=Y,first=Z" to add to the
+	   extra mount options */
+
+	if (strlen(mo->extra) > 0)
+		snprintf(mo->extra_plus, PATH_MAX, "%s,%s", mo->extra, buf);
+	else
+		snprintf(mo->extra_plus, PATH_MAX, "%s", buf);
+
+	printf("extra_plus: \"%s\"\n", mo->extra_plus);
+
+	return 0;
+}
+
+static int do_cluster(struct mount_options *mo)
+{
+	struct gfs2_sb sb;
+	int rv;
+
+	get_sb(mo->dev, &sb);
+
+	rv = do_join(mo, &sb);
+	if (rv)
+		die("mount failed during cluster init %d\n", rv);
+
+	return 0;
+}
 
 static void print_version(void)
 {
@@ -144,11 +282,7 @@ int main(int argc, char **argv)
 
 	/* FIXME: what about remounts? (mo.flags & MS_REMOUNT) */
 
-#if 0
-	rv = do_cluster_stuff();
-	if (rv)
-		die("cluster error\n");
-#endif
+	do_cluster(&mo);
 
 	block_signals(SIG_BLOCK);
 
@@ -159,14 +293,14 @@ int main(int argc, char **argv)
 	if (rv) {
 #if 0
 		if (!(mo.flags & MS_REMOUNT))
-			undo_cluster_stuff();
+			undo_cluster(&mo);
 #endif
 		block_signals(SIG_UNBLOCK);
 
 		die("error %d mounting %s on %s\n", errno, mo.dev, mo.dir);
 	}
 
-	/* FIXME: update mtab, cf mount.c:update_mtab_entry(),
+	/* FIXME: update mtab?, cf mount.c:update_mtab_entry(),
 	   would we need fix_opts_string() before that? */
 
 	block_signals(SIG_UNBLOCK);

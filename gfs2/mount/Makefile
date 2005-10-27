@@ -22,12 +22,26 @@ CFLAGS+= -O2 -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 \
 INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config \
 	-I${gfs2kincdir} -I${incdir}
 
+ifneq (${KERNEL_SRC}, )
+# Use the kernel tree if patched, otherwise, look where cluster headers
+#  should be installed
+INCLUDE += $(shell if [ -e ${KERNEL_SRC}/include/linux/gfs2_ondisk.h ]; then \
+	echo '-I${KERNEL_SRC}/include'; else \
+	echo '-I${incdir}'; fi)
+else
+INCLUDE += -I${incdir}
+endif
+
+
 all: ${TARGET}
 
 mount.gfs2.o: mount.gfs2.c
 	${CC} ${CFLAGS} ${INCLUDE} -c -o $@ $<
 
-mount.gfs2: mount.gfs2.o ${UTIL}/${UTIL}/mount/libmount.a
+ondisk.o: ondisk.c
+	${CC} ${CFLAGS} ${INCLUDE} -c -o $@ $<
+
+mount.gfs2: mount.gfs2.o ondisk.o ${UTIL}/${UTIL}/mount/libmount.a
 	${CC} ${LDFLAGS} -o $@ $^ -lblkid -luuid
 
 ${UTIL}/${UTIL}.tar.gz:
