@@ -88,7 +88,8 @@ int read_ccs_nodes()
 	{
 	    votes = atoi(str);
 	    free(str);
-	}
+	} else
+	    votes = 1;
 
 	sprintf(key, NODE_NODEID_PATH, nodename);
 	if (!ccs_get(ctree, key, &str))
