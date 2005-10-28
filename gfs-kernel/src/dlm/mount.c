@@ -60,6 +60,59 @@ static struct gdlm_ls *init_gdlm(lm_callback_t cb, lm_fsdata_t *fsdata,
 	return ls;
 }
 
+static int make_args(struct gdlm_ls *ls, char *data_arg)
+{
+	char *data = data_arg;
+	char *options, *x, *y;
+	int error = 0;
+
+	printk("make_args \"%s\"\n", data);
+
+	for (options = data; (x = strsep(&options, ":")); ) {
+		if (!*x)
+			continue;
+
+		y = strchr(x, '=');
+		if (y)
+			*y++ = 0;
+
+		if (!strcmp(x, "jid")) {
+			if (!y) {
+				log_error("need argument to jid");
+				error = -EINVAL;
+				break;
+			}
+			sscanf(y, "%u", &ls->jid);
+			printk("jid = %u\n", ls->jid);
+
+		} else if (!strcmp(x, "first")) {
+			if (!y) {
+				log_error("need argument to first");
+				error = -EINVAL;
+				break;
+			}
+			sscanf(y, "%u", &ls->first);
+			printk("first = %u\n", ls->first);
+
+		} else if (!strcmp(x, "id")) {
+			if (!y) {
+				log_error("need argument to id");
+				error = -EINVAL;
+				break;
+			}
+			sscanf(y, "%u", &ls->id);
+			printk("id = %u\n", ls->id);
+
+		} else {
+			log_error("unkonwn option: %s", x);
+			error = -EINVAL;
+			break;
+		}
+	}
+
+	return error;
+}
+
 static int gdlm_mount(char *table_name, char *host_data,
 			lm_callback_t cb, lm_fsdata_t *fsdata,
 			unsigned int min_lvb_size, int flags,
@@ -91,24 +144,9 @@ static int gdlm_mount(char *table_name, char *host_data,
 	if (error)
 		goto out_dlm;
 
-	error = kobject_uevent(&ls->kobj, KOBJ_MOUNT, NULL);
-	if (error)
-		log_error("mount uevent error %d", error);
-
-	/* Now we depend on userspace to notice the new mount,
-	   join the appropriate group, and do a write to our sysfs
-	   "mounted" or "terminate" file.  Before the start, userspace
-	   must set "jid" and "first". */
-
-	error = wait_event_interruptible(ls->wait_control,
-			test_bit(DFL_JOIN_DONE, &ls->flags));
+	error = make_args(ls, host_data);
 	if (error)
 		goto out_sysfs;
-
-	if (test_bit(DFL_TERMINATE, &ls->flags)) {
-		error = -ERESTARTSYS;
-		goto out_sysfs;
-	}
 
 	lockstruct->ls_jid = ls->jid;
 	lockstruct->ls_first = ls->first;
@@ -161,7 +199,7 @@ static void gdlm_recovery_done(lm_lockspace_t *lockspace, unsigned int jid,
                                unsigned int message)
 {
 	struct gdlm_ls *ls = (struct gdlm_ls *) lockspace;
-	ls->recover_done = jid;
+	ls->recover_jid_done = jid;
 	kobject_uevent(&ls->kobj, KOBJ_CHANGE, NULL);
 }
 

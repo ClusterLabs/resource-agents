@@ -14,12 +14,12 @@
 
 extern struct lm_lockops gdlm_ops;
 
-static ssize_t gdlm_proto_name_show(struct gdlm_ls *ls, char *buf)
+static ssize_t proto_name_show(struct gdlm_ls *ls, char *buf)
 {
 	return sprintf(buf, "%s\n", gdlm_ops.lm_proto_name);
 }
 
-static ssize_t gdlm_block_show(struct gdlm_ls *ls, char *buf)
+static ssize_t block_show(struct gdlm_ls *ls, char *buf)
 {
 	ssize_t ret;
 	int val = 0;
@@ -30,7 +30,7 @@ static ssize_t gdlm_block_show(struct gdlm_ls *ls, char *buf)
 	return ret;
 }
 
-static ssize_t gdlm_block_store(struct gdlm_ls *ls, const char *buf, size_t len)
+static ssize_t block_store(struct gdlm_ls *ls, const char *buf, size_t len)
 {
 	ssize_t ret = len;
 	int val;
@@ -47,43 +47,7 @@ static ssize_t gdlm_block_store(struct gdlm_ls *ls, const char *buf, size_t len)
 	return ret;
 }
 
-static ssize_t gdlm_mounted_show(struct gdlm_ls *ls, char *buf)
-{
-	ssize_t ret;
-	int val = -2;
-
-	if (test_bit(DFL_TERMINATE, &ls->flags))
-		val = -1;
-	else if (test_bit(DFL_LEAVE_DONE, &ls->flags))
-		val = 0;
-	else if (test_bit(DFL_JOIN_DONE, &ls->flags))
-		val = 1;
-	ret = sprintf(buf, "%d\n", val);
-	return ret;
-}
-
-static ssize_t gdlm_mounted_store(struct gdlm_ls *ls, const char *buf, size_t len)
-{
-	ssize_t ret = len;
-	int val;
-
-	val = simple_strtol(buf, NULL, 0);
-
-	if (val == 1)
-		set_bit(DFL_JOIN_DONE, &ls->flags);
-	else if (val == 0)
-		set_bit(DFL_LEAVE_DONE, &ls->flags);
-	else if (val == -1) {
-		set_bit(DFL_TERMINATE, &ls->flags);
-		set_bit(DFL_JOIN_DONE, &ls->flags);
-		set_bit(DFL_LEAVE_DONE, &ls->flags);
-	} else
-		ret = -EINVAL;
-	wake_up(&ls->wait_control);
-	return ret;
-}
-
-static ssize_t gdlm_withdraw_show(struct gdlm_ls *ls, char *buf)
+static ssize_t withdraw_show(struct gdlm_ls *ls, char *buf)
 {
 	ssize_t ret;
 	int val = 0;
@@ -94,7 +58,7 @@ static ssize_t gdlm_withdraw_show(struct gdlm_ls *ls, char *buf)
 	return ret;
 }
 
-static ssize_t gdlm_withdraw_store(struct gdlm_ls *ls, const char *buf, size_t len)
+static ssize_t withdraw_store(struct gdlm_ls *ls, const char *buf, size_t len)
 {
 	ssize_t ret = len;
 	int val;
@@ -109,78 +73,41 @@ static ssize_t gdlm_withdraw_store(struct gdlm_ls *ls, const char *buf, size_t l
 	return ret;
 }
 
-static ssize_t gdlm_id_show(struct gdlm_ls *ls, char *buf)
+static ssize_t id_show(struct gdlm_ls *ls, char *buf)
 {
 	return sprintf(buf, "%u\n", ls->id);
 }
 
-static ssize_t gdlm_id_store(struct gdlm_ls *ls, const char *buf, size_t len)
-{
-	ls->id = simple_strtoul(buf, NULL, 0);
-	return len;
-}
-
-static ssize_t gdlm_jid_show(struct gdlm_ls *ls, char *buf)
+static ssize_t jid_show(struct gdlm_ls *ls, char *buf)
 {
 	return sprintf(buf, "%d\n", ls->jid);
 }
 
-static ssize_t gdlm_jid_store(struct gdlm_ls *ls, const char *buf, size_t len)
-{
-	ls->jid = simple_strtol(buf, NULL, 0);
-	return len;
-}
-
-static ssize_t gdlm_first_show(struct gdlm_ls *ls, char *buf)
+static ssize_t first_show(struct gdlm_ls *ls, char *buf)
 {
 	return sprintf(buf, "%d\n", ls->first);
 }
 
-static ssize_t gdlm_first_store(struct gdlm_ls *ls, const char *buf, size_t len)
-{
-	ls->first = simple_strtol(buf, NULL, 0);
-	return len;
-}
-
-static ssize_t gdlm_first_done_show(struct gdlm_ls *ls, char *buf)
+static ssize_t first_done_show(struct gdlm_ls *ls, char *buf)
 {
 	return sprintf(buf, "%d\n", ls->first_done);
 }
 
-static ssize_t gdlm_recover_show(struct gdlm_ls *ls, char *buf)
+static ssize_t recover_show(struct gdlm_ls *ls, char *buf)
 {
 	return sprintf(buf, "%d\n", ls->recover_jid);
 }
 
-static ssize_t gdlm_recover_store(struct gdlm_ls *ls, const char *buf, size_t len)
+static ssize_t recover_store(struct gdlm_ls *ls, const char *buf, size_t len)
 {
 	ls->recover_jid = simple_strtol(buf, NULL, 0);
 	ls->fscb(ls->fsdata, LM_CB_NEED_RECOVERY, &ls->recover_jid);
 	return len;
 }
 
-static ssize_t gdlm_recover_done_show(struct gdlm_ls *ls, char *buf)
+static ssize_t recover_done_show(struct gdlm_ls *ls, char *buf)
 {
-	ssize_t ret;
-	ret = sprintf(buf, "%d\n", ls->recover_done);
-	return ret;
-}
-
-static ssize_t gdlm_cluster_show(struct gdlm_ls *ls, char *buf)
-{
-	ssize_t ret;
-	ret = sprintf(buf, "%s\n", ls->clustername);
-	return ret;
-}
-
-static ssize_t gdlm_options_show(struct gdlm_ls *ls, char *buf)
-{
-	ssize_t ret = 0;
-
-	if (ls->fsflags & LM_MFLAG_SPECTATOR)
-		ret += sprintf(buf, "spectator ");
-
-	return ret;
+	return sprintf(buf, "%d\n", ls->recover_jid_done);
 }
 
 struct gdlm_attr {
@@ -192,23 +119,19 @@ struct gdlm_attr {
 #define GDLM_ATTR(_name,_mode,_show,_store) \
 static struct gdlm_attr gdlm_attr_##_name = __ATTR(_name,_mode,_show,_store)
 
-GDLM_ATTR(proto_name, S_IRUGO, gdlm_proto_name_show, NULL);
-GDLM_ATTR(block, S_IRUGO | S_IWUSR, gdlm_block_show, gdlm_block_store);
-GDLM_ATTR(mounted, S_IRUGO | S_IWUSR, gdlm_mounted_show, gdlm_mounted_store);
-GDLM_ATTR(withdraw, S_IRUGO | S_IWUSR, gdlm_withdraw_show, gdlm_withdraw_store);
-GDLM_ATTR(id, S_IRUGO | S_IWUSR, gdlm_id_show, gdlm_id_store);
-GDLM_ATTR(jid, S_IRUGO | S_IWUSR, gdlm_jid_show, gdlm_jid_store);
-GDLM_ATTR(first, S_IRUGO | S_IWUSR, gdlm_first_show, gdlm_first_store);
-GDLM_ATTR(first_done, S_IRUGO, gdlm_first_done_show, NULL);
-GDLM_ATTR(recover, S_IRUGO | S_IWUSR, gdlm_recover_show, gdlm_recover_store);
-GDLM_ATTR(recover_done, S_IRUGO, gdlm_recover_done_show, NULL);
-GDLM_ATTR(cluster, S_IRUGO, gdlm_cluster_show, NULL);
-GDLM_ATTR(options, S_IRUGO, gdlm_options_show, NULL);
+GDLM_ATTR(proto_name,   0444, proto_name_show,   NULL);
+GDLM_ATTR(block,        0644, block_show,        block_store);
+GDLM_ATTR(withdraw,     0644, withdraw_show,     withdraw_store);
+GDLM_ATTR(id,           0444, id_show,           NULL);
+GDLM_ATTR(jid,          0444, jid_show,          NULL);
+GDLM_ATTR(first,        0444, first_show,        NULL);
+GDLM_ATTR(first_done,   0444, first_done_show,   NULL);
+GDLM_ATTR(recover,      0644, recover_show,      recover_store);
+GDLM_ATTR(recover_done, 0444, recover_done_show, NULL);
 
 static struct attribute *gdlm_attrs[] = {
 	&gdlm_attr_proto_name.attr,
 	&gdlm_attr_block.attr,
-	&gdlm_attr_mounted.attr,
 	&gdlm_attr_withdraw.attr,
 	&gdlm_attr_id.attr,
 	&gdlm_attr_jid.attr,
@@ -216,8 +139,6 @@ static struct attribute *gdlm_attrs[] = {
 	&gdlm_attr_first_done.attr,
 	&gdlm_attr_recover.attr,
 	&gdlm_attr_recover_done.attr,
-	&gdlm_attr_cluster.attr,
-	&gdlm_attr_options.attr,
 	NULL,
 };
 

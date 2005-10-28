@@ -72,7 +72,7 @@ struct gdlm_ls {
 	lm_callback_t		fscb;
 	lm_fsdata_t		*fsdata;
 	int			recover_jid;
-	int			recover_done;
+	int			recover_jid_done;
 	spinlock_t		async_lock;
 	struct list_head	complete;
 	struct list_head	blocking;
