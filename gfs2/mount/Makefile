@@ -14,7 +14,8 @@ top_srcdir=..
 include ${top_srcdir}/make/defines.mk
 UTIL=util-linux-2.12r-dt1
 
-TARGET= mount.gfs2
+TARGET1= mount.gfs2
+TARGET2= umount.gfs2
 
 CFLAGS+= -O2 -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 \
 	-DGFS2_RELEASE_NAME=\"${RELEASE}\" -D_GNU_SOURCE
@@ -33,7 +34,7 @@ INCLUDE += -I${incdir}
 endif
 
 
-all: ${TARGET}
+all: ${TARGET1} ${TARGET2}
 
 mount.gfs2.o: mount.gfs2.c
 	${CC} ${CFLAGS} ${INCLUDE} -c -o $@ $<
@@ -41,7 +42,13 @@ mount.gfs2.o: mount.gfs2.c
 ondisk.o: ondisk.c
 	${CC} ${CFLAGS} ${INCLUDE} -c -o $@ $<
 
+umount.gfs2.o: umount.gfs2.c
+	${CC} ${CFLAGS} ${INCLUDE} -c -o $@ $<
+
 mount.gfs2: mount.gfs2.o ondisk.o ${UTIL}/${UTIL}/mount/libmount.a
+	${CC} ${LDFLAGS} -o $@ $^ -lblkid -luuid
+
+umount.gfs2: umount.gfs2.o
 	${CC} ${LDFLAGS} -o $@ $^ -lblkid -luuid
 
 ${UTIL}/${UTIL}.tar.gz:
@@ -56,14 +63,16 @@ ${UTIL}/${UTIL}: ${UTIL}/${UTIL}.tar.gz
 ${UTIL}/${UTIL}/mount/libmount.a: ${UTIL}/${UTIL}
 	cd ${UTIL}/${UTIL} && ./configure && (cd lib; make) && cd mount && make
 
-install: mount.gfs2
-	install mount.gfs2 ${sbindir}
+install: ${TARGET1} ${TARGET2}
+	install ${TARGET1} ${sbindir}
+	install ${TARGET2} ${sbindir}
 
-copytobin: ${TARGET}
-	cp ${TARGET} ${top_srcdir}/bin
+copytobin: ${TARGET1} ${TARGET2}
+	cp ${TARGET1} ${top_srcdir}/bin
+	cp ${TARGET2} ${top_srcdir}/bin
 
 clean:
-	rm -f *.o ${TARGET} mount.gfs2
+	rm -f *.o ${TARGET1} ${TARGET2}
 
 reallyclean: clean
 	rm -rf ${UTIL}
