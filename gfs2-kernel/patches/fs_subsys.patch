@@ -1,12 +1,29 @@
-This patch adds an empty /sys/fs, which filesystems can use.
-
-Signed-off-by: Miklos Szeredi <miklos@szeredi.hu>
-
-Index: linux/include/linux/fs.h
-===================================================================
---- linux.orig/include/linux/fs.h	2005-08-31 12:51:30.000000000 +0200
-+++ linux/include/linux/fs.h	2005-08-31 12:58:12.000000000 +0200
-@@ -1251,6 +1251,9 @@ extern long do_mount(char *, char *, cha
+diff -ur a/fs/namespace.c b/fs/namespace.c
+--- a/fs/namespace.c	2005-10-10 11:04:44.000000000 -0500
++++ b/fs/namespace.c	2005-10-26 17:31:34.422668941 -0500
+@@ -43,6 +43,10 @@
+ static int hash_mask __read_mostly, hash_bits __read_mostly;
+ static kmem_cache_t *mnt_cache; 
+ 
++/* /sys/fs */
++decl_subsys(fs, NULL, NULL);
++EXPORT_SYMBOL_GPL(fs_subsys);
++
+ static inline unsigned long hash(struct vfsmount *mnt, struct dentry *dentry)
+ {
+ 	unsigned long tmp = ((unsigned long) mnt / L1_CACHE_BYTES);
+@@ -1453,6 +1457,7 @@
+ 		i--;
+ 	} while (i);
+ 	sysfs_init();
++	subsystem_register(&fs_subsys);
+ 	init_rootfs();
+ 	init_mount_tree();
+ }
+diff -ur a/include/linux/fs.h b/include/linux/fs.h
+--- a/include/linux/fs.h	2005-10-10 11:05:03.000000000 -0500
++++ b/include/linux/fs.h	2005-10-26 17:31:12.222061323 -0500
+@@ -1246,6 +1246,9 @@
  
  extern int vfs_statfs(struct super_block *, struct kstatfs *);
  
@@ -16,25 +33,4 @@ Index: linux/include/linux/fs.h
  #define FLOCK_VERIFY_READ  1
  #define FLOCK_VERIFY_WRITE 2
  
-Index: linux/fs/namespace.c
-===================================================================
---- linux.orig/fs/namespace.c	2005-08-19 14:58:53.000000000 +0200
-+++ linux/fs/namespace.c	2005-08-31 12:55:48.000000000 +0200
-@@ -43,6 +43,9 @@ static struct list_head *mount_hashtable
- static int hash_mask, hash_bits;
- static kmem_cache_t *mnt_cache; 
- 
-+/* /sys/fs */
-+decl_subsys(fs, NULL, NULL);
-+
- static inline unsigned long hash(struct vfsmount *mnt, struct dentry *dentry)
- {
- 	unsigned long tmp = ((unsigned long) mnt / L1_CACHE_BYTES);
-@@ -1453,6 +1456,7 @@ void __init mnt_init(unsigned long mempa
- 		i--;
- 	} while (i);
- 	sysfs_init();
-+	subsystem_register(&fs_subsys);
- 	init_rootfs();
- 	init_mount_tree();
- }
+Only in b/include/linux: fs.h.orig
