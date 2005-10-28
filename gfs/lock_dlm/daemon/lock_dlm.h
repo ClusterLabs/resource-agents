@@ -39,15 +39,16 @@
 /* FIXME: linux-2.6.11/include/linux/netlink.h (use header) */
 #define NETLINK_KOBJECT_UEVENT  15
 
-#define MAXARGS 64
-#define MAXLINE 256
-#define MAXCON  4
-#define MAXNAME 255
-#define MAX_MSGLEN 1024
+#define MAXARGS			64
+#define MAXLINE			256
+#define MAXNAME			255
+#define MAX_CLIENTS		8
+#define MAX_MSGLEN		1024
 
-#define LOCK_DLM_PORT 3
-#define GFS_GROUP_NAME "gfs_dlm"
-#define GFS_GROUP_LEVEL 2
+#define LOCK_DLM_PORT		3
+#define LOCK_DLM_GROUP_LEVEL	2
+#define LOCK_DLM_GROUP_NAME	"lock_dlmd"
+#define LOCK_DLM_SOCK_PATH	"lock_dlmd_sock"
 
 #ifndef TRUE
 #define TRUE (1)
@@ -84,7 +85,9 @@ struct mountgroup {
 	struct list_head	list;
 	char			name[MAXNAME+1];
 	char			table[MAXNAME+1];
-	char			fs[5];
+	char			type[5];
+	char			dir[PATH_MAX+1];
+	int			mount_client;
 	uint32_t		id;
 	struct list_head	members;
 	struct list_head	members_gone;
@@ -131,5 +134,22 @@ struct gdlm_header {
 
 struct mountgroup *find_mg(char *name);
 struct mountgroup *find_mg_id(uint32_t id);
+
+int setup_member(void);
+int process_member(void);
+int setup_groupd(void);
+int process_groupd(void);
+int setup_libdlm(void);
+int process_libdlm(void);
+int setup_plocks(void);
+int process_plocks(void);
+
+int do_mount(int ci, char *dir, char *type, char *proto, char *table,
+	     char *extra);
+int do_unmount(int ci, char *dir);
+int do_recovery_done(char *name);
+int do_withdraw(char *name);
+
+int client_send(int ci, char *buf, int len);
 
 #endif

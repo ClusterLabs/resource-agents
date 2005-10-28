@@ -30,7 +30,6 @@ static int cb_type;
 static int cb_member_count;
 static int cb_members[MAX_GROUP_MEMBERS];
 
-int do_setid(struct mountgroup *mg);
 int do_stop(struct mountgroup *mg);
 int do_finish(struct mountgroup *mg);
 int do_terminate(struct mountgroup *mg);
@@ -140,7 +139,6 @@ int process_groupd(void)
 		break;
 	case DO_SETID:
 		mg->id = cb_id;
-		do_setid(mg);
 		break;
 	default:
 		error = -EINVAL;
@@ -155,7 +153,8 @@ int setup_groupd(void)
 {
 	int rv;
 
-	gh = group_init(NULL, GFS_GROUP_NAME, GFS_GROUP_LEVEL, &callbacks);
+	gh = group_init(NULL, LOCK_DLM_GROUP_NAME, LOCK_DLM_GROUP_LEVEL,
+			&callbacks);
 	if (!gh) {
 		log_error("group_init error %d %d", (int) gh, errno);
 		return -ENOTCONN;

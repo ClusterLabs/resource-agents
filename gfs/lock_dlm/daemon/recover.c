@@ -33,7 +33,7 @@ int set_sysfs(struct mountgroup *mg, char *field, int val)
 	int rv, fd;
 
 	snprintf(fname, 512, "%s/%s/%s/lock_module/%s",
-		 SYSFS_DIR, mg->fs, mg->table, field);
+		 SYSFS_DIR, mg->type, mg->table, field);
 
 	log_group(mg, "set %s to %d", fname, val);
 
@@ -60,7 +60,7 @@ int get_sysfs(struct mountgroup *mg, char *field, char *buf, int len)
 	int fd, rv;
 
 	snprintf(fname, 512, "%s/%s/%s/lock_module/%s",
-		 SYSFS_DIR, mg->fs, mg->table, field);
+		 SYSFS_DIR, mg->type, mg->table, field);
 
 	fd = open(fname, O_RDONLY);
 	if (fd < 0) {
@@ -191,7 +191,6 @@ void receive_journals(char *buf, int len, int from)
 			mg->our_jid = jid;
 	}
 
-	set_sysfs(mg, "jid", mg->our_jid);
 	group_start_done(gh, mg->name, mg->start_event_nr);
 }
 
@@ -291,7 +290,7 @@ int add_member(struct mountgroup *mg, int nodeid)
 	memset(memb, 0, sizeof(*memb));
 	memset(buf, 0, sizeof(buf));
 
-	rv = group_join_info(GFS_GROUP_LEVEL, mg->name, nodeid, buf);
+	rv = group_join_info(LOCK_DLM_GROUP_LEVEL, mg->name, nodeid, buf);
 	if (!rv && strstr(buf, "spectator"))
 		memb->spectator = 1;
 
@@ -459,18 +458,57 @@ struct mountgroup *find_mg_id(uint32_t id)
 	return NULL;
 }
 
-int do_mount(char *table, char *fs)
+struct mountgroup *find_mg_dir(char *dir)
 {
 	struct mountgroup *mg;
-	char buf[MAXLINE], *name, *info = NULL;
+
+	list_for_each_entry(mg, &mounts, list) {
+		if (!strcmp(mg->dir, dir))
+			return mg;
+	}
+	return NULL;
+}
+
+int do_mount(int ci, char *dir, char *type, char *proto, char *table,
+	     char *extra)
+{
+	struct mountgroup *mg;
+	char table2[MAXLINE];
+	char *cluster = NULL, *name = NULL, *info = NULL;
 	group_data_t data;
 	int rv;
 
-	name = strstr(table, ":") + 1;
+	log_debug("mount: %s %s %s %s %s",
+		  dir, type, proto, table, extra);
+
+	if (strcmp(type, "gfs2")) {
+		log_error("mount: fs type %s not supported", type);
+		rv = -EINVAL;
+		goto fail;
+	}
+
+	if (strcmp(proto, "lock_dlm")) {
+		log_error("mount: lockproto %s not supported", proto);
+		rv = -EINVAL;
+		goto fail;
+	}
+
+	/* FIXME: check/reject jid/first/id values in options */
+
+	/* table is <cluster>:<name> */
+
+	memset(&table2, 0, MAXLINE);
+	strncpy(table2, table, MAXLINE);
+
+	name = strstr(table2, ":");
 	if (!name) {
 		rv = -EINVAL;
 		goto fail;
 	}
+
+	*name = '\0';
+	name++;
+	cluster = table2;
 
 	if (strlen(name) > MAXNAME) {
 		rv = -ENAMETOOLONG;
@@ -489,29 +527,21 @@ int do_mount(char *table, char *fs)
 		goto fail;
 	}
 
-	strcpy(mg->table, table);
-	strcpy(mg->fs, fs);
+	mg->mount_client = ci;
+	strncpy(mg->dir, dir, sizeof(mg->dir));
+	strncpy(mg->type, type, sizeof(mg->type));
+	strncpy(mg->table, table, sizeof(mg->table));
 
-	memset(buf, 0, sizeof(buf));
-
-	rv = get_sysfs(mg, "cluster", buf, sizeof(buf));
-	if (rv < 0)
-		goto fail;
-
-	if (strlen(buf) != strlen(clustername) ||
-	    strlen(buf) == 0 || strcmp(buf, clustername)) {
+	if (strlen(cluster) != strlen(clustername) ||
+	    strlen(cluster) == 0 || strcmp(cluster, clustername)) {
 		rv = -1;
-		log_error("do_mount: different cluster names: fs=%s cman=%s",
-			  buf, clustername);
+		log_error("mount: fs requires cluster=\"%s\" current=\"%s\"",
+			  cluster, clustername);
 		goto fail;
 	} else
 		log_group(mg, "cluster name matches: %s", clustername);
 
-	memset(buf, 0, sizeof(buf));
-
-	rv = get_sysfs(mg, "options", buf, sizeof(buf));
-
-	if (strstr(buf, "spectator")) {
+	if (strstr(extra, "spectator")) {
 		log_group(mg, "spectator mount");
 		mg->spectator = 1;
 		info = "spectator";
@@ -520,7 +550,7 @@ int do_mount(char *table, char *fs)
 		memset(&data, 0, sizeof(data));
 		rv = group_get_group(0, "default", &data);
 		if (rv || strcmp(data.client_name, "fence") || !data.member) {
-			log_error("do_mount: not in default fence domain");
+			log_error("mount: not in default fence domain");
 			goto fail;
 		}
 	}
@@ -531,10 +561,7 @@ int do_mount(char *table, char *fs)
 	return 0;
 
  fail:
-	/* terminate the mount */
-	set_sysfs(mg, "mounted", -1);
-
-	log_error("do_mount: %d", rv);
+	log_error("mount: failed %d", rv);
 	return rv;
 }
 
@@ -625,28 +652,38 @@ int do_recovery_done(char *table)
 	return 0;
 }
 
-int do_unmount(char *table)
+int do_unmount(int ci, char *dir)
 {
 	struct mountgroup *mg;
-	char *name = strstr(table, ":") + 1;
 
-	mg = find_mg(name);
+	mg = find_mg_dir(dir);
 	if (!mg) {
-		log_error("do_unmount: unknown mount group %s", table);
+		log_error("do_unmount: unknown mount dir %s", dir);
 		return -1;
 	}
 
 	release_withdraw_locks(mg);
 
-	group_leave(gh, name, NULL);
+	group_leave(gh, mg->name, NULL);
 
 	return 0;
 }
 
-int do_setid(struct mountgroup *mg)
+void notify_mount_client(struct mountgroup *mg)
 {
-	set_sysfs(mg, "id", mg->id);
-	return 0;
+	char buf[MAXLINE];
+	int rv;
+
+	memset(buf, 0, MAXLINE);
+
+	snprintf(buf, MAXLINE, "hostdata=jid=%d:id=%u:first=%d",
+		 mg->our_jid, mg->id, mg->first_mount);
+
+	log_debug("notify_mount_client: %s", buf);
+
+	rv = client_send(mg->mount_client, buf, MAXLINE);
+
+	mg->mount_client = 0;
 }
 
 int do_stop(struct mountgroup *mg)
@@ -688,11 +725,10 @@ int do_finish(struct mountgroup *mg)
 		}
 	}
 
-	if (!leave_blocked)
+	if (mg->mount_client)
+		notify_mount_client(mg);
+	else if (!leave_blocked)
 		set_sysfs(mg, "block", 0);
-
-	/* only needed if joining */
-	set_sysfs(mg, "mounted", 1);
 
 	return 0;
 }
@@ -750,7 +786,6 @@ int do_start(struct mountgroup *mg, int type, int member_count, int *nodeids)
 		if (member_count == 1) {
 			mg->first_mount = 1;
 			mg->first_mount_done = 0;
-			set_sysfs(mg, "first", 1);
 		}
 		group_start_done(gh, mg->name, mg->last_start);
 		goto out;
@@ -770,8 +805,6 @@ int do_start(struct mountgroup *mg, int type, int member_count, int *nodeids)
 			mg->our_jid = 0;
 			mg->first_mount = 1;
 			mg->first_mount_done = 0;
-			set_sysfs(mg, "jid", mg->our_jid);
-			set_sysfs(mg, "first", 1);
 			group_start_done(gh, mg->name, mg->last_start);
 		}
 		
@@ -812,6 +845,6 @@ int do_start(struct mountgroup *mg, int type, int member_count, int *nodeids)
 
 int do_terminate(struct mountgroup *mg)
 {
-	return set_sysfs(mg, "mounted", -1);
+	return 0;
 }
 

@@ -15,6 +15,16 @@
 #define OPTION_STRING			"DhV"
 #define LOCKFILE_NAME			"/var/run/lock_dlmd.pid"
 
+struct client {
+	int fd;
+	char type[32];
+};
+
+static int client_size = MAX_CLIENTS;
+static struct client client[MAX_CLIENTS];
+static struct pollfd pollfd[MAX_CLIENTS];
+
+static int listen_fd;
 static int groupd_fd;
 static int uevent_fd;
 static int member_fd;
@@ -23,22 +33,7 @@ static int plocks_fd;
 
 extern struct list_head mounts;
 
-int setup_member(void);
-int process_member(void);
-int setup_groupd(void);
-int process_groupd(void);
-int setup_libdlm(void);
-int process_libdlm(void);
-int setup_plocks(void);
-int process_plocks(void);
-
-int do_mount(char *name, char *fs);
-int do_unmount(char *name);
-int do_recovery_done(char *name);
-int do_withdraw(char *name);
-
-
-void make_args(char *buf, int *argc, char **argv, char sep)
+static void make_args(char *buf, int *argc, char **argv, char sep)
 {
 	char *p = buf;
 	int i;
@@ -56,10 +51,132 @@ void make_args(char *buf, int *argc, char **argv, char sep)
 	*argc = i;
 }
 
+static int client_add(int fd, int *maxi)
+{
+	int i;
+
+	for (i = 0; i < client_size; i++) {
+		if (client[i].fd == -1) {
+			client[i].fd = fd;
+			pollfd[i].fd = fd;
+			pollfd[i].events = POLLIN;
+			if (i > *maxi)
+				*maxi = i;
+			/* log_debug("client %d fd %d added", i, fd); */
+			return i;
+		}
+	}
+	log_debug("client add failed");
+	return -1;
+}
+
+static void client_dead(int ci)
+{
+	/* log_debug("client %d fd %d dead", ci, client[ci].fd); */
+	close(client[ci].fd);
+	client[ci].fd = -1;
+	pollfd[ci].fd = -1;
+}
+
+static void client_init(void)
+{
+	int i;
+
+	for (i = 0; i < client_size; i++)
+		client[i].fd = -1;
+}
+
+int client_send(int ci, char *buf, int len)
+{
+	return write(client[ci].fd, buf, len);
+}
+
+static int process_client(int ci)
+{
+	char *cmd, *dir, *type, *proto, *table, *extra;
+	char buf[MAXLINE], *argv[MAXARGS], out[MAXLINE];
+	int argc = 0, rv;
+
+	cmd = dir = type = proto = table = extra = NULL;
+	memset(buf, 0, MAXLINE);
+	memset(out, 0, MAXLINE);
+
+	rv = read(client[ci].fd, buf, MAXLINE);
+	if (!rv) {
+		client_dead(ci);
+		return 0;
+	}
+	if (rv < 0) {
+		log_debug("client %d fd %d read error %d %d", ci,
+			   client[ci].fd, rv, errno);
+		return rv;
+	}
+
+	log_debug("client %d: %s", ci, buf);
+
+	make_args(buf, &argc, argv, ' ');
+	cmd = argv[0];
+	dir = argv[1];
+	type = argv[2];
+	proto = argv[3];
+	table = argv[4];
+	extra = argv[5];
+
+	if (!strcmp(cmd, "join"))
+		rv = do_mount(ci, dir, type, proto, table, extra);
+	else if (!strcmp(cmd, "leave"))
+		rv = do_unmount(ci, dir);
+	else
+		rv = -EINVAL;
+
+	sprintf(out, "%d", rv);
+	rv = client_send(ci, out, MAXLINE);
+
+	return rv;
+}
+
+static int setup_listen(void)
+{
+	struct sockaddr_un addr;
+	socklen_t addrlen;
+	int rv, s;
+
+	/* we listen for new client connections on socket s */
+
+	s = socket(AF_LOCAL, SOCK_STREAM, 0);
+	if (s < 0) {
+		log_error("socket error %d %d", s, errno);
+		return s;
+	}
+
+	memset(&addr, 0, sizeof(addr));
+	addr.sun_family = AF_LOCAL;
+	strcpy(&addr.sun_path[1], LOCK_DLM_SOCK_PATH);
+	addrlen = sizeof(sa_family_t) + strlen(addr.sun_path+1) + 1;
+
+	rv = bind(s, (struct sockaddr *) &addr, addrlen);
+	if (rv < 0) {
+		log_error("bind error %d %d", rv, errno);
+		close(s);
+		return rv;
+	}
+
+	rv = listen(s, 5);
+	if (rv < 0) {
+		log_error("listen error %d %d", rv, errno);
+		close(s);
+		return rv;
+	}
+
+	log_debug("listen %d", s);
+
+	return s;
+}
+
 int process_uevent(void)
 {
 	char buf[MAXLINE];
-	char *argv[MAXARGS], *act, *fs;
+	char *argv[MAXARGS], *act;
 	int rv, argc = 0;
 
 	memset(buf, 0, sizeof(buf));
@@ -75,17 +192,10 @@ int process_uevent(void)
 
 	make_args(buf, &argc, argv, '/');
 	act = argv[0];
-	fs = argv[2];
 
-	log_debug("kernel: %s %s %s", act, fs, argv[3]);
+	log_debug("kernel: %s %s", act, argv[3]);
 
-	if (!strcmp(act, "mount@"))
-		do_mount(argv[3], fs);
-
-	else if (!strcmp(act, "umount@"))
-		do_unmount(argv[3]);
-
-	else if (!strcmp(act, "change@"))
+	if (!strcmp(act, "change@"))
 		do_recovery_done(argv[3]);
 
 	else if (!strcmp(act, "offline@"))
@@ -124,52 +234,57 @@ int setup_uevent(void)
 
 int loop(void)
 {
-	struct pollfd *pollfd;
-	int rv, i, maxi;
+	int rv, i, f, maxi = 0;
 
-
-	pollfd = malloc(MAXCON * sizeof(struct pollfd));
-	if (!pollfd)
-		return -1;
+	rv = listen_fd = setup_listen();
+	if (rv < 0)
+		goto out;
+	client_add(listen_fd, &maxi);
 
 	rv = member_fd = setup_member();
 	if (rv < 0)
 		goto out;
-	pollfd[0].fd = member_fd;
-	pollfd[0].events = POLLIN;
+	client_add(member_fd, &maxi);
 
 	rv = groupd_fd = setup_groupd();
 	if (rv < 0)
 		goto out;
-	pollfd[1].fd = groupd_fd;
-	pollfd[1].events = POLLIN;
+	client_add(groupd_fd, &maxi);
 
 	rv = uevent_fd = setup_uevent();
 	if (rv < 0)
 		goto out;
-	pollfd[2].fd = uevent_fd;
-	pollfd[2].events = POLLIN;
+	client_add(uevent_fd, &maxi);
 
 	rv = libdlm_fd = setup_libdlm();
 	if (rv < 0)
 		goto out;
-	pollfd[3].fd = libdlm_fd;
-	pollfd[3].events = POLLIN;
+	client_add(libdlm_fd, &maxi);
 
 	rv = plocks_fd = setup_plocks();
 	if (rv < 0)
 		goto out;
-	pollfd[4].fd = plocks_fd;
-	pollfd[4].events = POLLIN;
-
-	maxi = 4;
+	client_add(plocks_fd, &maxi);
 
 	for (;;) {
 		rv = poll(pollfd, maxi + 1, -1);
 		if (rv < 0)
 			log_error("poll error %d errno %d", rv, errno);
 
-		for (i = 0; i <= maxi; i++) {
+		/* client[0] is listening for new connections */
+
+		if (pollfd[0].revents & POLLIN) {
+			f = accept(client[0].fd, NULL, NULL);
+			if (f < 0)
+				log_debug("accept error %d %d", f, errno);
+			else
+				client_add(f, &maxi);
+                }
+
+		for (i = 1; i <= maxi; i++) {
+			if (client[i].fd < 0)
+				continue;
+
 			if (pollfd[i].revents & POLLIN) {
 				if (pollfd[i].fd == groupd_fd)
 					process_groupd();
@@ -181,6 +296,8 @@ int loop(void)
 					process_libdlm();
 				else if (pollfd[i].fd == plocks_fd)
 					process_plocks();
+				else
+					process_client(i);
 			}
 
 			if (pollfd[i].revents & POLLHUP) {
@@ -191,7 +308,6 @@ int loop(void)
 	}
 	rv = 0;
  out:
-	free(pollfd);
 	return rv;
 }
 
@@ -317,6 +433,7 @@ int main(int argc, char **argv)
 {
 	prog_name = argv[0];
 	INIT_LIST_HEAD(&mounts);
+	client_init();
 
 	decode_arguments(argc, argv);
 
