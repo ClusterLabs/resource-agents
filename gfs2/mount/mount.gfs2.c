@@ -119,6 +119,7 @@ static int do_join(struct mount_options *mo, struct gfs2_sb *sb)
 {
 	int i, fd, rv;
 	char buf[MAXLINE];
+	char *dir, *type, *proto, *table, *extra;
 
 	i = 0;
 	do {
@@ -129,16 +130,24 @@ static int do_join(struct mount_options *mo, struct gfs2_sb *sb)
 	} while (!fd && ++i < 10);
 
 	if (!fd)
-		die("gfs daemon not running");
+		die("gfs daemon not running\n");
+
+	dir = mo->dir;
+	type = "gfs2";
+	proto = sb->sb_lockproto;
+	table = sb->sb_locktable;
+	extra = mo->extra;
+
+	if (strlen(extra) == 0)
+		extra = "-";
 
 	memset(buf, 0, sizeof(buf));
-	rv = snprintf(buf, MAXLINE, "join gfs2 %s %s %s %s %s",
-		     sb->sb_lockproto, sb->sb_locktable,
-		     mo->opts, mo->extra, mo->dir);
+	rv = snprintf(buf, MAXLINE, "join %s %s %s %s %s",
+		      dir, type, proto, table, extra);
 	if (rv >= MAXLINE)
 		die("join message too large: %d \"%s\"\n", rv, buf);
 
-	printf("%s\n", buf);
+	printf("do_join: write \"%s\"\n", buf);
 
 	rv = write(fd, buf, sizeof(buf));
 	if (rv < 0)
@@ -147,22 +156,22 @@ static int do_join(struct mount_options *mo, struct gfs2_sb *sb)
 	memset(buf, 0, sizeof(buf));
 	rv = read(fd, buf, sizeof(buf));
 
-	printf("join read1 %d: %s\n", rv, buf);
+	printf("do_join: read1 %d: %s\n", rv, buf);
 
 	memset(buf, 0, sizeof(buf));
 	rv = read(fd, buf, sizeof(buf));
 
-	printf("join read2 %d: %s\n", rv, buf);
+	printf("do_join: read2 %d: %s\n", rv, buf);
 
-	/* gfs daemon returns "hostdata=jid=X,id=Y,first=Z" to add to the
+	/* gfs daemon returns "hostdata=jid=X:id=Y:first=Z" to add to the
 	   extra mount options */
 
-	if (strlen(mo->extra) > 0)
-		snprintf(mo->extra_plus, PATH_MAX, "%s,%s", mo->extra, buf);
-	else
+	if (strlen(mo->extra) == 0)
 		snprintf(mo->extra_plus, PATH_MAX, "%s", buf);
+	else
+		snprintf(mo->extra_plus, PATH_MAX, "%s,%s", mo->extra, buf);
 
-	printf("extra_plus: \"%s\"\n", mo->extra_plus);
+	printf("do_join: extra_plus: \"%s\"\n", mo->extra_plus);
 
 	return 0;
 }
@@ -289,7 +298,7 @@ int main(int argc, char **argv)
 	/* FIXME: do we need to clear certain flags that the kernel
 	   doesn't know about (cf MS_NOSYS in mount) ? */
 
-	rv = mount(mo.dev, mo.dir, fsname, mo.flags, mo.extra);
+	rv = mount(mo.dev, mo.dir, fsname, mo.flags, mo.extra_plus);
 	if (rv) {
 #if 0
 		if (!(mo.flags & MS_REMOUNT))
