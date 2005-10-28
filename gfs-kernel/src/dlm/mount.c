@@ -175,15 +175,12 @@ static void gdlm_unmount(lm_lockspace_t *lockspace)
 
 	log_debug("unmount flags %lx", ls->flags);
 
-	if (test_bit(DFL_WITHDRAW, &ls->flags)) {
-		gdlm_kobject_release(ls);
+	/* FIXME: serialize unmount and withdraw in case they
+	   happen at once.  Also, if unmount follows withdraw,
+	   wait for withdraw to finish. */
+
+	if (test_bit(DFL_WITHDRAW, &ls->flags))
 		goto out;
-	}
-
-	kobject_uevent(&ls->kobj, KOBJ_UMOUNT, NULL);
-
-	wait_event_interruptible(ls->wait_control,
-				 test_bit(DFL_LEAVE_DONE, &ls->flags));
 
 	gdlm_kobject_release(ls);
 	dlm_release_lockspace(ls->dlm_lockspace, 2);
@@ -210,11 +207,13 @@ static void gdlm_others_may_mount(lm_lockspace_t *lockspace)
 	kobject_uevent(&ls->kobj, KOBJ_CHANGE, NULL);
 }
 
+/* Userspace gets the offline uevent, blocks new gfs locks on
+   other mounters, and lets us know (sets WITHDRAW flag).  Then,
+   userspace leaves the mount group while we leave the lockspace. */
+
 static void gdlm_withdraw(lm_lockspace_t *lockspace)
 {
 	struct gdlm_ls *ls = (struct gdlm_ls *) lockspace;
-
-	/* userspace suspends locking on all other members */
 
 	kobject_uevent(&ls->kobj, KOBJ_OFFLINE, NULL);
 
@@ -224,11 +223,7 @@ static void gdlm_withdraw(lm_lockspace_t *lockspace)
 	dlm_release_lockspace(ls->dlm_lockspace, 2);
 	gdlm_release_threads(ls);
 	gdlm_release_all_locks(ls);
-
-	kobject_uevent(&ls->kobj, KOBJ_UMOUNT, NULL);
-
-	/* userspace leaves the mount group, we don't need to wait for
-	   that to complete */
+	gdlm_kobject_release(ls);
 }
 
 struct lm_lockops gdlm_ops = {

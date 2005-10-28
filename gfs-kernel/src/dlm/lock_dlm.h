@@ -51,11 +51,8 @@ struct gdlm_strname {
 
 enum {
 	DFL_BLOCK_LOCKS		= 0,
-	DFL_JOIN_DONE		= 1,
-	DFL_LEAVE_DONE		= 2,
-	DFL_TERMINATE		= 3,
-	DFL_SPECTATOR		= 4,
-	DFL_WITHDRAW		= 5,
+	DFL_SPECTATOR		= 1,
+	DFL_WITHDRAW		= 2,
 };
 
 struct gdlm_ls {
