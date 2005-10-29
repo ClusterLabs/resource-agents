@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.457 $) dnl cvs revision
+AC_REVISION($Revision: 1.458 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -457,9 +457,20 @@ dnl  AC_CHECK_LIB(uuid, uuid_create)	dnl ossp
   ;;
 esac
 
+case "$host_os" in
+darwin*)	
+    dnl Recent Darwin versions do not need to link against a uuid library
+    dnl Maybe this can be moved up into the previous block but it also might
+    dnl    break things (ie. the later check for uuid_parse)
+    AC_CHECK_FUNCS(uuid_parse)
+esac
+
+
 AC_MSG_CHECKING(uuid implementation:)
 if test "$ac_cv_lib_uuid_uuid_parse" = yes; then
   AC_MSG_RESULT(e2fsprogs)
+elif test "$ac_cv_func_uuid_parse" = yes; then
+  AC_MSG_RESULT(native)
 elif test "$ac_cv_lib_uuid_uuid_create" = yes; then
   AC_MSG_RESULT(ossp)
   AC_MSG_ERROR([heartbeat does not yet support ossp implementation of uuid])
@@ -2610,4 +2621,5 @@ fi
 
 AC_MSG_RESULT([  CC_WARNINGS          = "${CC_WARNINGS}"])
 AC_MSG_RESULT([  Mangled CFLAGS       = "${CFLAGS}"])
+AC_MSG_RESULT([  Libraries            = "${LIBS}"])
 
