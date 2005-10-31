@@ -3,7 +3,8 @@ menu "Distributed Lock Manager"
 
 config DLM 
 	tristate "Distributed Lock Manager (DLM)"
-	depends on SYSFS && (IPV6 || IPV6=n)
+	depends on SYSFS
+	depends on IPV6 || IPV6=n
 	select IP_SCTP
 	select CONFIGFS_FS
 	help
