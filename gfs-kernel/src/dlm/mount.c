@@ -62,9 +62,12 @@ static struct gdlm_ls *init_gdlm(lm_callback_t cb, lm_fsdata_t *fsdata,
 
 static int make_args(struct gdlm_ls *ls, char *data_arg)
 {
-	char *data = data_arg;
+	char data[256];
 	char *options, *x, *y;
 	int error = 0;
+
+	memset(data, 0, 256);
+	strncpy(data, data_arg, 255);
 
 	printk("make_args \"%s\"\n", data);
 
