@@ -847,7 +847,7 @@ status|monitor)
  	isAlive ${OCF_RESKEY_mountpoint}
  	[ $? -ne $YES ] && exit $OCF_ERR_GENERIC
  	
-	exit $?
+	exit 0
 	;;
 restart)
 	stopFilesystem
