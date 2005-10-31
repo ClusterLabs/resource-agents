@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.7 2005/10/24 15:16:09 sunjd Exp $
+# $Id: Filesystem.in,v 1.8 2005/10/31 03:15:18 xunsun Exp $
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
@@ -96,7 +96,7 @@ usage() {
 
 cat <<-EOT;
 	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
-	$Id: Filesystem.in,v 1.7 2005/10/24 15:16:09 sunjd Exp $
+	$Id: Filesystem.in,v 1.8 2005/10/31 03:15:18 xunsun Exp $
 	EOT
 }
 
@@ -171,7 +171,8 @@ flushbufs() {
     [ "$BLOCKDEV" != "" -a -x "$BLOCKDEV" ]
   then
     case $1 in
-      -*|[^/]*:/*)	
+      -*|[^/]*:/*|//[^/]*/*)	# -U, -L options to mount, or NFS mount point,
+				# or samba mount point	
 			;;
       *)		$BLOCKDEV --flushbufs $1
 			return $?
@@ -222,7 +223,7 @@ Filesystem_start()
 
 	if
 	  case $FSTYPE in
-	    ext3|reiserfs|xfs|jfs|vfat|fat|nfs)	false;;
+	    ext3|reiserfs|xfs|jfs|vfat|fat|nfs|cifs|smbfs)	false;;
 	    *)				true;;
 	  esac
         then
@@ -311,7 +312,7 @@ Filesystem_status()
 	    grep -q -e "^$DEVICE $MOUNTPOINT " /proc/mounts
 	    rc=$?
 	else	
-	    grep -q -e "on $MOUNTPOINT " /proc/mounts
+	    grep -q -e " $MOUNTPOINT " /proc/mounts
 	    rc=$?
 	fi
 
@@ -395,6 +396,8 @@ case $DEVICE in
   -*) # Oh... An option to mount instead...  Typically -U or -L
 	;;
   [^/]*:/*)	# An NFS filesystem specification...
+	;;
+  //[^/]*/*)	# An SMB filesystem specification...
 	;;
   *)	if [ ! -b "$DEVICE"  -a "X$OP" != Xstart ] ; then
 	  ocf_log warn "Couldn't find device [$DEVICE]. Expected /dev/??? to exist"
