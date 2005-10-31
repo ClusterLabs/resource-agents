@@ -17,7 +17,9 @@ UNINSTALL = ${top_srcdir}/scripts/uninstall.pl
 SBINPROGS= \
 	gfs2_mkfs \
 	gfs2_quota \
-	gfs2_tool
+	gfs2_tool \
+	mount.gfs2 \
+	umount.gfs2
 
 include ${top_srcdir}/make/defines.mk
 
@@ -44,6 +46,6 @@ install: all
 
 uninstall:
 	#uninstall the hardlinked program as well
-	${UNINSTALL} ${SBINPROGS} mkfs.gfs2 gfs2_grow gfs2_jadd gfs2_shrink ${sbindir}
+	${UNINSTALL} ${SBINPROGS} mkfs.gfs2 gfs2_grow gfs2_jadd gfs2_shrink mount.gfs2 umount.gfs2 ${sbindir}
 
 
