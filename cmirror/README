@@ -8,3 +8,4 @@ an example might be:
 
 #Example device mapper table file for cluster mirror
 0 4724028 mirror cluster 2 /dev/sda1 1024 2 /dev/sda2 0 /dev/sdb2 0
+
