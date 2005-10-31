@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.458 $) dnl cvs revision
+AC_REVISION($Revision: 1.459 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -2211,7 +2211,7 @@ RA_PLUGIN_DIR="${ra_plugindir}"
 AC_SUBST(RA_PLUGIN_DIR)
 AC_DEFINE_UNQUOTED(RA_PLUGIN_DIR,"$RA_PLUGIN_DIR", ra plugin dir)
 
-HB_RA_DIR="${sysconfdir}/ha.d/resource.d/"
+HB_RA_DIR="${sysconfdir}/ha.d/resource.d"
 AC_SUBST(HB_RA_DIR)
 AC_DEFINE_UNQUOTED(HB_RA_DIR,"$HB_RA_DIR", heartbeat ra dir)
 
@@ -2228,7 +2228,7 @@ fi
 AC_SUBST(OCF_ROOT_DIR)
 AC_DEFINE_UNQUOTED(OCF_ROOT_DIR,"$OCF_ROOT_DIR", ocf root dir)
 
-OCF_RA_DIR="${OCF_ROOT_DIR}/resource.d/"
+OCF_RA_DIR="${OCF_ROOT_DIR}/resource.d"
 AC_SUBST(OCF_RA_DIR)
 AC_DEFINE_UNQUOTED(OCF_RA_DIR,"$OCF_RA_DIR", ocf ra dir)
 
@@ -2236,7 +2236,7 @@ LSB_RA_DIR="${INITDIR}"
 AC_SUBST(LSB_RA_DIR)
 AC_DEFINE_UNQUOTED(LSB_RA_DIR,"$LSB_RA_DIR", lsb ra dir)
 
-STONITH_RA_DIR="${hb_libdir}/stonith.d/"
+STONITH_RA_DIR="${hb_libdir}/stonith.d"
 AC_SUBST(STONITH_RA_DIR)
 AC_DEFINE_UNQUOTED(STONITH_RA_DIR,"$STONITH_RA_DIR", stonith ra dir)
 
