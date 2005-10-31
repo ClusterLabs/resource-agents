@@ -12,7 +12,6 @@
 
 top_srcdir=..
 include ${top_srcdir}/make/defines.mk
-UTIL=util-linux-2.12r-dt1
 
 TARGET1= mount.gfs2
 TARGET2= umount.gfs2
@@ -45,23 +44,11 @@ ondisk.o: ondisk.c
 umount.gfs2.o: umount.gfs2.c
 	${CC} ${CFLAGS} ${INCLUDE} -c -o $@ $<
 
-mount.gfs2: mount.gfs2.o ondisk.o ${UTIL}/${UTIL}/mount/libmount.a
-	${CC} ${LDFLAGS} -o $@ $^ -lblkid -luuid
+mount.gfs2: mount.gfs2.o ondisk.o
+	${CC} ${LDFLAGS} -o $@ $^
 
 umount.gfs2: umount.gfs2.o
-	${CC} ${LDFLAGS} -o $@ $^ -lblkid -luuid
-
-${UTIL}/${UTIL}.tar.gz:
-	mkdir -p ${UTIL}
-#	cd ${UTIL} && cp ~/${UTIL}.tar.gz .
-	cd ${UTIL} && wget http://people.redhat.com/teigland/${UTIL}.tar.gz
-
-${UTIL}/${UTIL}: ${UTIL}/${UTIL}.tar.gz
-	cd ${UTIL} && tar -xzf ${UTIL}.tar.gz
-	touch ${UTIL}/${UTIL}
-
-${UTIL}/${UTIL}/mount/libmount.a: ${UTIL}/${UTIL}
-	cd ${UTIL}/${UTIL} && ./configure && (cd lib; make) && cd mount && make
+	${CC} ${LDFLAGS} -o $@ $^
 
 install: ${TARGET1} ${TARGET2}
 	install ${TARGET1} ${sbindir}
@@ -73,7 +60,4 @@ copytobin: ${TARGET1} ${TARGET2}
 
 clean:
 	rm -f *.o ${TARGET1} ${TARGET2}
-
-reallyclean: clean
-	rm -rf ${UTIL}
 

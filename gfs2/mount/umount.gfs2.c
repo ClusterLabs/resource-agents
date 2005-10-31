@@ -160,7 +160,7 @@ int main(int argc, char **argv)
 	if (rv)
 		die("error %d unmounting %s\n", errno, opt_dir);
 
-	/* FIXME: update mtab? */
+	/* FIXME: are we going to mess with mtab? */
 
 	do_leave();
 

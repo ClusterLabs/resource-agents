@@ -22,14 +22,10 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
-
 #include <linux/gfs2_ondisk.h>
 
-#define LOCK_DLM_SOCK_PATH "lock_dlmd_sock"  /* FIXME: use a header */
-#define MAXLINE 256
-
-/* libmount.a */
-void parse_opts(const char *options, int *flags, char **extra_opts);
+#define LOCK_DLM_SOCK_PATH "lock_dlmd_sock"	/* FIXME: use a header */
+#define MAXLINE 256			/* size of messages with lock_dlmd */
 
 static char *prog_name;
 static char *fsname = "gfs2";
@@ -38,8 +34,8 @@ struct mount_options {
 	char dev[PATH_MAX+1];
 	char dir[PATH_MAX+1];
 	char opts[PATH_MAX+1];
+	char extra[PATH_MAX+1];
 	char extra_plus[PATH_MAX+1];
-	char *extra;
 	char type[5];
 	int flags;
 };
@@ -258,6 +254,90 @@ static void read_options(int argc, char **argv, struct mount_options *mo)
 		strncpy(mo->dir, argv[optind], PATH_MAX);
 }
 
+/* opt_map stuff from util-linux */
+
+struct opt_map {
+	char *opt;	/* option name */
+	int skip;	/* skip in mtab option string (gfs: not used) */
+	int inv;	/* true if flag value should be inverted */
+	int mask;	/* flag mask value */
+};
+
+static struct opt_map opt_map[] = {
+  { "defaults", 0, 0, 0         },      /* default options */
+  { "ro",       1, 0, MS_RDONLY },      /* read-only */
+  { "rw",       1, 1, MS_RDONLY },      /* read-write */
+  { "exec",     0, 1, MS_NOEXEC },      /* permit execution of binaries */
+  { "noexec",   0, 0, MS_NOEXEC },      /* don't execute binaries */
+  { "suid",     0, 1, MS_NOSUID },      /* honor suid executables */
+  { "nosuid",   0, 0, MS_NOSUID },      /* don't honor suid executables */
+  { "dev",      0, 1, MS_NODEV  },      /* interpret device files  */
+  { "nodev",    0, 0, MS_NODEV  },      /* don't interpret devices */
+  { "sync",     0, 0, MS_SYNCHRONOUS},  /* synchronous I/O */
+  { "async",    0, 1, MS_SYNCHRONOUS},  /* asynchronous I/O */
+  { "remount",  0, 0, MS_REMOUNT},      /* Alter flags of mounted FS */
+  { "bind",     0, 0, MS_BIND   },      /* Remount part of tree elsewhere */
+  { "mand",     0, 0, MS_MANDLOCK },    /* Allow mandatory locks on this FS */
+  { "nomand",   0, 1, MS_MANDLOCK },    /* Forbid mandatory locks on this FS */
+  { "atime",    0, 1, MS_NOATIME },     /* Update access time */
+  { "noatime",  0, 0, MS_NOATIME },     /* Do not update access time */
+  { "diratime", 0, 1, MS_NODIRATIME },  /* Update dir access times */
+  { "nodiratime", 0, 0, MS_NODIRATIME },/* Do not update dir access times */
+  { NULL,       0, 0, 0         }
+};
+
+/* if option has a corresponding MS_XXX, set the bit in the flags */
+
+static int set_flag(char *o, int *flags)
+{
+	struct opt_map *om;
+
+	for (om = opt_map; om->opt; om++) {
+		if (strcmp(om->opt, o))
+			continue;
+
+		if (om->inv)
+			*flags &= ~om->mask;
+		else
+			*flags |= om->mask;
+
+		return 1;
+	}
+
+	return 0;
+}
+
+/* opts is the string of all mount options, this function extracts
+   the options that have MS_XXX flags and sets the appropriate flag
+   bit.  The options without an MS_ flag are copied into the extra
+   string. */
+
+void parse_opts(char *data_arg, int *flags, char *extra)
+{
+	char *data = data_arg;
+	char *options, *o;
+	int extra_len = 0;
+
+	for (options = data; (o = strsep(&options, ",")); ) {
+		if (!*o)
+			continue;
+
+		if (set_flag(o, flags))
+			continue;
+
+		if (extra_len + 1 + strlen(o) > PATH_MAX)
+			die("extra options string is too long\n");
+
+		if (extra[0]) {
+			strcat(extra, ",");
+			extra_len += 1;
+		}
+
+		strcat(extra, o);
+		extra_len += strlen(o);
+	}
+}
+
 static void process_options(struct mount_options *mo)
 {
 	if (!strlen(mo->dev))
@@ -270,7 +350,7 @@ static void process_options(struct mount_options *mo)
 		die("unknown file system type \"%s\"\n", mo->type);
 
 	if (strlen(mo->opts))
-		parse_opts(mo->opts, &mo->flags, &mo->extra);
+		parse_opts(mo->opts, &mo->flags, mo->extra);
 }
 
 int main(int argc, char **argv)
@@ -289,14 +369,12 @@ int main(int argc, char **argv)
 	read_options(argc, argv, &mo);
 	process_options(&mo);
 
-	/* FIXME: what about remounts? (mo.flags & MS_REMOUNT) */
+	/* FIXME: if REMOUNT, don't do cluster stuff, verify only things
+	   changing are flags in MS_RMT_MASK */
 
 	do_cluster(&mo);
 
 	block_signals(SIG_BLOCK);
-
-	/* FIXME: do we need to clear certain flags that the kernel
-	   doesn't know about (cf MS_NOSYS in mount) ? */
 
 	rv = mount(mo.dev, mo.dir, fsname, mo.flags, mo.extra_plus);
 	if (rv) {
@@ -309,8 +387,7 @@ int main(int argc, char **argv)
 		die("error %d mounting %s on %s\n", errno, mo.dev, mo.dir);
 	}
 
-	/* FIXME: update mtab?, cf mount.c:update_mtab_entry(),
-	   would we need fix_opts_string() before that? */
+	/* FIXME: are we going to mess with mtab, please no */
 
 	block_signals(SIG_UNBLOCK);
 
