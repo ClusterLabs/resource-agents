@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.460 $) dnl cvs revision
+AC_REVISION($Revision: 1.461 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1040,7 +1040,7 @@ if test "x${with_cimom}" = "x"; then
         fi
 
         if test "x${CIMOM}" = "x"; then 
-                AC_CHECK_PROG([CIMOM], [sfcbd], [sfcbd])
+                AC_CHECK_PROG([CIMOM], [sfcbd], [sfcb])
         fi
 
         if test "x${CIMOM}" = "x"; then 
