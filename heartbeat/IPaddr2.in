@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr2.in,v 1.12 2005/10/18 08:20:47 sunjd Exp $
+#	$Id: IPaddr2.in,v 1.13 2005/11/01 03:32:41 xunsun Exp $
 #
 #       OCF Resource Agent compliant IPaddr2 script.
 #
@@ -51,7 +51,7 @@
 #	OCF_RESKEY_iflabel
 #	OCF_RESKEY_mac
 #	OCF_RESKEY_incarnations_max_global
-#	OCF_RESKEY_incarnation_no
+#	OCF_RESKEY_incarnation_no (not user-configurable)
 #	OCF_RESKEY_clusterip_hash
 #	OCF_RESKEY_clusterip_mark
 #	OCF_RESKEY_arp_interval
@@ -145,19 +145,6 @@ to the number of hash buckets you wish to use.
 <content type="integer" default="1"/>
 </parameter>
 
-<parameter name="incarnation_no">
-<longdesc lang="en">
-If you wish the IP address to be active on more than one node, set this
-to the number of hash buckets you wish to maximally assign to a single
-node at any given time.
-
-0 is equivalent to unlimited.
-
-</longdesc>
-<shortdesc lang="en">Local maximum number of hash buckets</shortdesc>
-<content type="integer" default="0"/>
-
-</parameter>
 <parameter name="mac">
 <longdesc lang="en">
 Set the interface MAC address explicitly. Currently only used in case of
@@ -714,13 +701,6 @@ ip_validate() {
 
 	local valid=1
 
-	if is_decimal "$IP_INC_NO"; then
-		:
-	else
-		ocf_log err "Invalid OCF_RESKEY_incarnation_no [$IP_INC_NO]"
-		exit $OCF_ERR_ARGS
-	fi
-		 
 	case $IP_CIP_HASH in
 	sourceip|sourceip-sourceport|sourceip-sourceport-destport)
 		;;
