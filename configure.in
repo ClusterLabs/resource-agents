@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.461 $) dnl cvs revision
+AC_REVISION($Revision: 1.462 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1026,17 +1026,20 @@ AC_ARG_WITH([cimom],
 AC_ARG_WITH([cmpiheader],
  [  --with-cmpi-headers     Sepecify CMPI header files], [], [])
 
+AC_ARG_WITH([cmpiprovider],
+ [  --with-provider-dir     Sepecify CMPI providers directory], [], [])
+
 CMPI_HEADER_PATH=${with_cmpi_headers}
 CIMOM=${with_cimom}
-CMPI_PROVIDER_DIR="/usr/local/lib/cmpi"
+CMPI_PROVIDER_DIR=${with_provider_dir}
 
 if test "x${enable_cim_provider}" != "xyes"; then
         enable_cim_provider="no"
 fi
 
-if test "x${with_cimom}" = "x"; then
+if test "x${CIMOM}" = "x"; then
         if test "x${CIMOM}" = "x"; then 
-                AC_CHECK_PROG([CIMOM], [cimvserver], [pegasus])
+                AC_CHECK_PROG([CIMOM], [cimserver], [pegasus])
         fi
 
         if test "x${CIMOM}" = "x"; then 
@@ -1068,12 +1071,20 @@ if test "x${enable_cim_provider}" = "xyes"; then
 		        	[AC_MSG_ERROR([Sorry, can't find CMPI header files, \
 specify CMPI header files with --with-cmpi-headers please.])] )
         done
-        case ${CIMOM} in
-                sfcbd)   CMPI_PROVIDER_DIR="/usr/local/lib/cmpi";;
-                openwbem)CMPI_PROVIDER_DIR="/usr/lib/openwbem/cmpiproviders";;
-                pegasus) CMPI_PROVIDER_DIR="/opt/tog-pegasus/providers/lib";;
-                *);;
-        esac
+
+        if test "x${CMPI_PROVIDER_DIR}" = "x"; then
+                case ${CIMOM} in
+                        sfcbd)   CMPI_PROVIDER_DIR=${libdir}/cmpi;;
+                        openwbem)CMPI_PROVIDER_DIR=${libdir}/openwbem/cmpiproviders;;
+                        pegasus) CMPI_PROVIDER_DIR=/opt/tog-pegasus/providers/lib;;
+                        *);;
+                esac
+
+                if test x"$CMPI_PROVIDER_DIR" == x ; then
+                        CMPI_PROVIDER_DIR="$libdir"/cmpi
+                        AC_MSG_RESULT(default directory: $CMPI_PROVIDER_DIR)
+                fi
+        fi
 fi
 
 AM_CONDITIONAL(CIM_PROVIDER_BUILD, test "x${enable_cim_provider}" = "xyes")
@@ -2520,6 +2531,7 @@ port/Makefile							\
 snmp_subagent/Makefile						\
 	snmp_subagent/SNMPAgentSanityCheck			\
 cim/Makefile		        				\
+        cim/mof/Makefile                                        \
 telecom/Makefile						\
 	telecom/apphbd/Makefile					\
 	telecom/recoverymgrd/Makefile				\
