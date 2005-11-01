@@ -228,7 +228,7 @@ my_memb_id_to_name(cluster_member_list_t *members, uint64_t memb_id)
 	int x;
 
 	if (memb_id == NODE_ID_NONE)
-		return "unknown";
+		return "none";
 
 	for (x = 0; x < members->cml_count; x++) {
 		if (members->cml_members[x].cm_id == memb_id)
@@ -271,8 +271,8 @@ xml_rg_state(rg_state_t *rs, cluster_member_list_t *members)
 	       rs->rs_name,
 	       rs->rs_state,
 	       rg_state_str(rs->rs_state),
-	       memb_id_to_name(members, rs->rs_owner),
-	       memb_id_to_name(members, rs->rs_last_owner),
+	       my_memb_id_to_name(members, rs->rs_owner),
+	       my_memb_id_to_name(members, rs->rs_last_owner),
 	       rs->rs_restarts);
 }
 
@@ -465,12 +465,19 @@ build_member_list(uint64_t *lid)
 {
 	cluster_member_list_t *all, *part;
 	cluster_member_t *m;
+	int root = 0;
 	int x;
 
 	/* Get all members from ccs, and all members reported by the cluster
 	   infrastructure */
-	all = ccs_member_list();
+	root = (getuid() == 0 || geteuid() == 0);
+
 	part = clu_member_list(NULL);
+	if (root)
+		all = ccs_member_list();
+	else
+		/* not root... */
+		all = cml_dup(part);
 	msg_update(part); /* XXX magmamsg is awful. */
 
 	/* Flag online nodes */
