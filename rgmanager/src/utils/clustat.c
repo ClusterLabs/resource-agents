@@ -13,8 +13,8 @@
 #include <config.h>
 #endif
 
-#define FLAG_LOCAL 0x1
-#define FLAG_UP    0x2
+#define FLAG_UP    0x1
+#define FLAG_LOCAL 0x2
 #define FLAG_RGMGR 0x4
 #define FLAG_NOCFG 0x8	/* Shouldn't happen */
 
@@ -373,9 +373,13 @@ txt_member_state(cluster_member_t *node)
 void
 xml_member_state(cluster_member_t *node)
 {
-	printf("    <node name=\"%s\" state=\"%d\" nodeid=\"0x%08x%08x\"/>\n",
+	printf("    <node name=\"%s\" state=\"%d\" local=\"%d\" "
+	       "estranged=\"%d\" rgmanager=\"%d\" nodeid=\"0x%08x%08x\"/>\n",
 	       node->cm_name,
-	       node->cm_state &0x1,
+	       !!(node->cm_state & FLAG_UP),
+	       !!(node->cm_state & FLAG_LOCAL),
+	       !!(node->cm_state & FLAG_NOCFG),
+	       !!(node->cm_state & FLAG_RGMGR),
 	       (uint32_t)((node->cm_id >> 32)&0xffffffff),
 	       (uint32_t)((node->cm_id      )&0xffffffff));
 }
@@ -432,7 +436,7 @@ xml_cluster_status(int qs, cluster_member_list_t *membership,
 		   rg_state_list_t *rgs)
 {
 	printf("<?xml version=\"1.0\"?>\n");
-	printf("<clustat version=\"4.0\">\n");
+	printf("<clustat version=\"4.1\">\n");
 	xml_quorum_state(qs);
 	xml_member_states(membership);
 	if (rgs)
@@ -473,19 +477,23 @@ build_member_list(uint64_t *lid)
 	root = (getuid() == 0 || geteuid() == 0);
 
 	part = clu_member_list(NULL);
-	if (root)
-		all = ccs_member_list();
-	else
-		/* not root... */
-		all = cml_dup(part);
 	msg_update(part); /* XXX magmamsg is awful. */
 
-	/* Flag online nodes */
-	flag_nodes(all, part, FLAG_UP);
+	if (root) {
+		all = ccs_member_list();
 
-	/* See if our config has anyone missed.  If so, flag them as missing 
-	   from the config file */
-	all = add_missing(all, part);
+		/* See if our config has anyone missed.  If so, flag
+		   them as missing from the config file */
+		all = add_missing(all, part);
+
+		/* Flag online nodes */
+		flag_nodes(all, part, FLAG_UP);
+
+		cml_free(part);
+	} else {
+		/* not root - keep it simple for the next block */
+		all = part;
+	}
 
 	/* Grab the local node ID and flag it from the list of reported
 	   online nodes */
@@ -497,8 +505,6 @@ build_member_list(uint64_t *lid)
 			break;
 		}
 	}
-			
-	cml_free(part);
 
 	/* Flag rgmanager nodes, if any */
 	part = clu_member_list(RG_SERVICE_GROUP);
