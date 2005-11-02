@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: LVM.in,v 1.6 2005/08/01 10:12:20 sunjd Exp $
+# $Id: LVM.in,v 1.7 2005/11/02 05:57:33 horms Exp $
 # 
 # LVM
 #
@@ -49,7 +49,7 @@ usage() {
 	The 'validate-all' operation checks whether the OCF parameters are valid
 	The 'methods' operation reports on the methods $0 supports
 
-	$Id: LVM.in,v 1.6 2005/08/01 10:12:20 sunjd Exp $
+	$Id: LVM.in,v 1.7 2005/11/02 05:57:33 horms Exp $
 	!
   exit $OCF_ERR_GENERIC 
 
@@ -331,8 +331,8 @@ fi
 #	Driver version:  4.1.0
 
 LVM_VERSION=`vgchange --version 2>&1 | \
-	awk --source '/Logical Volume Manager/ {print $5"\n"; exit; } '\
-	    --source '/LVM version:/ {printf $3"\n"; exit;}'`
+	awk '/Logical Volume Manager/ {print $5"\n"; exit; }
+	     /LVM version:/ {printf $3"\n"; exit;}'`
 rc=$?
 
 if
