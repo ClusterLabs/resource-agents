@@ -54,9 +54,8 @@
 . @hb_libdir@/ocf-shellfuncs
 
 #######################################################################
-prefix=@prefix@
-exec_prefix=@exec_prefix@
 
+AWK=@AWK@
 IPROUTE=@IP2UTIL@
 IFCONFIG=@IFCONFIG@
 IFCONFIG_A_OPT=@IFCONFIG_A_OPT@
@@ -252,7 +251,7 @@ CheckIP() {
 find_interface_solaris() {
 
 
-  $IFCONFIG $IFCONFIG_A_OPT | nawk '{if ($0 ~ /.*: / && NR > 1) {print "\n"$0} else {print}}' |
+  $IFCONFIG $IFCONFIG_A_OPT | $AWK '{if ($0 ~ /.*: / && NR > 1) {print "\n"$0} else {print}}' |
   while read ifname linkstuff
   do
     : ifname = $ifname

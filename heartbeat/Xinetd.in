@@ -27,6 +27,8 @@ XPIDFILE=$VARRUN/xinetd.pid
 
 #######################################################################
 
+AWK=@AWK@
+
 meta_data() {
 	cat <<END
 <?xml version="1.0"?>
@@ -89,7 +91,7 @@ xup_start () {
   fi
 
   ocf_log "info" "$0: enabling in $RCFILE"
-  if awk '!/disable/' $RCFILE > $RCFILE.xup
+  if $AWK '!/disable/' $RCFILE > $RCFILE.xup
     then
       if mv $RCFILE.xup $RCFILE
         then
@@ -111,7 +113,7 @@ xup_stop () {
   fi
 
   ocf_log "info" "$0: disabling in $RCFILE"
-  if awk '!/disable/;/{/{printf "\tdisable\t\t\t= yes\n"}' $RCFILE >$RCFILE.xup
+  if $AWK '!/disable/;/{/{printf "\tdisable\t\t\t= yes\n"}' $RCFILE >$RCFILE.xup
     then
       if mv $RCFILE.xup $RCFILE
         then

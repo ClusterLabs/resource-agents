@@ -31,6 +31,7 @@
 
 . @hb_libdir@/ocf-shellfuncs
 
+AWK=@AWK@
 HA_VARRUNDIR=@localstatedir@/run/@HB_PKG@
 IFCONFIG=@IFCONFIG@
 IFCONFIG_A_OPT=@IFCONFIG_A_OPT@
@@ -250,7 +251,7 @@ ip_init() {
 find_interface_solaris() {
 
 
-  $IFCONFIG $IFCONFIG_A_OPT | nawk '{if ($0 ~ /.*: / && NR > 1) {print "\n"$0} else {print}}' |
+  $IFCONFIG $IFCONFIG_A_OPT | $AWK '{if ($0 ~ /.*: / && NR > 1) {print "\n"$0} else {print}}' |
   while read ifname linkstuff
   do
     : ifname = $ifname
