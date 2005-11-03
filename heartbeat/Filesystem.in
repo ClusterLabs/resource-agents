@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.9 2005/10/31 06:08:30 xunsun Exp $
+# $Id: Filesystem.in,v 1.10 2005/11/03 07:10:04 xunsun Exp $
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
@@ -96,7 +96,7 @@ usage() {
 
 cat <<-EOT;
 	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
-	$Id: Filesystem.in,v 1.9 2005/10/31 06:08:30 xunsun Exp $
+	$Id: Filesystem.in,v 1.10 2005/11/03 07:10:04 xunsun Exp $
 	EOT
 }
 
@@ -276,8 +276,23 @@ Filesystem_stop()
 	if
 		Filesystem_status >/dev/null 2>&1
 	then
-		# Kill all processes open on filesystem
-		$FUSER -mk $MOUNTPOINT
+# By sending both signals twice, we eliminate the need for `sleep` after them
+	    for sig in SIGTERM SIGTERM SIGKILL SIGKILL; do
+		if [ $blockdevice = "yes" ]; then
+		    $FUSER -$sig -mk $DEVICE
+		else
+		    $FUSER -$sig -mk $MOUNTPOINT
+		fi
+
+# fuser returns a non-zero return code if none of the specified files is
+# accessed or in case of a fatal error, in either case we stop sending signal.
+# If at least one access has been found, fuser returns zero, then we should
+# try it again.
+
+		if [ $? -ne 0 ]; then
+		    break
+		fi
+	    done
 
 	    if [ $blockdevice = "yes" ]; then
 		$UMOUNT $DEVICE
