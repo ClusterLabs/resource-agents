@@ -29,7 +29,7 @@
 
 #define METHOD_NAME_PATH        "/cluster/clusternodes/clusternode[@name=\"%s\"]/fence/method[%d]/@name"
 #define DEVICE_NAME_PATH        "/cluster/clusternodes/clusternode[@name=\"%s\"]/fence/method[@name=\"%s\"]/device[%d]/@name"
-#define NODE_FENCE_ARGS_PATH    "/cluster/clusternodes/clusternode[@name=\"%s\"]/fence/method[@name=\"%s\"]/device[@name=\"%s\"]/@*"
+#define NODE_FENCE_ARGS_PATH    "/cluster/clusternodes/clusternode[@name=\"%s\"]/fence/method[@name=\"%s\"]/device[%d]/@*"
 #define AGENT_NAME_PATH         "/cluster/fencedevices/fencedevice[@name=\"%s\"]/@agent"
 #define FENCE_DEVICE_ARGS_PATH  "/cluster/fencedevices/fencedevice[@name=\"%s\"]/@*"
 
@@ -126,7 +126,7 @@ static int run_agent(char *agent, char *args)
 	return -1;
 }
 
-static int make_args(int cd, char *victim, char *method, char *device,
+static int make_args(int cd, char *victim, char *method, int d, char *device,
 		     char **args_out) {
 	char path[256], *args, *str;
 	int error;
@@ -139,7 +139,7 @@ static int make_args(int cd, char *victim, char *method, char *device,
 	/* node-specific args for victim */
 
 	memset(path, 0, 256);
-	sprintf(path, NODE_FENCE_ARGS_PATH, victim, method, device);
+	sprintf(path, NODE_FENCE_ARGS_PATH, victim, method, d+1);
 
 	for (;;) {
 		error = ccs_get_list(cd, path, &str);
@@ -249,7 +249,7 @@ static int count_devices(int cd, char *victim, char *method)
 	return i;
 }
 
-static int use_device(int cd, char *victim, char *method, char *device)
+static int use_device(int cd, char *victim, char *method, int d, char *device)
 {
 	char path[256], *agent, *args = NULL;
 	int error;
@@ -261,7 +261,7 @@ static int use_device(int cd, char *victim, char *method, char *device)
 	if (error)
 		goto out;
 
-	error = make_args(cd, victim, method, device, &args);
+	error = make_args(cd, victim, method, d, device, &args);
 	if (error)
 		goto out_agent;
 	
@@ -276,7 +276,7 @@ static int use_device(int cd, char *victim, char *method, char *device)
 
 int dispatch_fence_agent(int cd, char *victim)
 {
-	char *method, *device;
+	char *method = NULL, *device = NULL;
 	int num_methods, num_devices, m, d, error = -1;
 
 	num_methods = count_methods(cd, victim);
@@ -294,7 +294,7 @@ int dispatch_fence_agent(int cd, char *victim)
 			if (error)
 				break;
 
-			error = use_device(cd, victim, method, device);
+			error = use_device(cd, victim, method, d, device);
 			if (error)
 				break;
 
