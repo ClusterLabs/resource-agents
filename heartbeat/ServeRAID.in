@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: ServeRAID.in,v 1.5 2005/07/22 07:45:37 sunjd Exp $
+# $Id: ServeRAID.in,v 1.6 2005/11/03 10:32:47 xunsun Exp $
 # 
 # ServeRAID
 #
@@ -104,7 +104,7 @@ usage() {
 	You will need at least version 6.10 (~July 2003 release) of the ipssend
 	command for this script to work.
 
-	$Id: ServeRAID.in,v 1.5 2005/07/22 07:45:37 sunjd Exp $
+	$Id: ServeRAID.in,v 1.6 2005/11/03 10:32:47 xunsun Exp $
 	!
 }
 
@@ -150,9 +150,6 @@ The logical drive under consideration.
 </resource-agent>
 END
 }
-
-prefix=@prefix@
-exec_prefix=@exec_prefix@
 
 ServeRAID_methods() {
   cat <<-!

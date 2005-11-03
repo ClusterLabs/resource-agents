@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Raid1.in,v 1.3 2005/08/03 05:53:38 sunjd Exp $
+# $Id: Raid1.in,v 1.4 2005/11/03 10:32:47 xunsun Exp $
 #
 # License:      GNU General Public License (GPL)
 # Support:      linux-ha@lists.linux-ha.org
@@ -92,8 +92,6 @@
 . @hb_libdir@/ocf-shellfuncs
 
 #######################################################################
-prefix=@prefix@
-exec_prefix=@exec_prefix@
 
 # Utilities used by this script
 MODPROBE=@MODPROBE@
@@ -115,7 +113,7 @@ check_util () {
 usage() {
 cat <<-EOT;
 	usage: $0 {start|stop|status|monitor|validate-all|usage|meta-data}
-	$Id: Raid1.in,v 1.3 2005/08/03 05:53:38 sunjd Exp $
+	$Id: Raid1.in,v 1.4 2005/11/03 10:32:47 xunsun Exp $
 EOT
 }
 

@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: ICP.in,v 1.2 2005/08/12 05:44:24 sunjd Exp $
+# $Id: ICP.in,v 1.3 2005/11/03 10:32:47 xunsun Exp $
 # 
 # ICP
 #
@@ -32,9 +32,6 @@
 
 #######################################################################
 
-prefix=@prefix@
-exec_prefix=@exec_prefix@
-
 #
 ICPCLUCON=/usr/sbin/icpclucon
 #
@@ -56,7 +53,7 @@ usage() {
 	The 'validate-all' operation reports whether OCF instance parameters are valid.
 	The 'methods' operation reports on the methods $0 supports
 
-	$Id: ICP.in,v 1.2 2005/08/12 05:44:24 sunjd Exp $
+	$Id: ICP.in,v 1.3 2005/11/03 10:32:47 xunsun Exp $
 	!
 }
 

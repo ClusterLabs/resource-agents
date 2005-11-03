@@ -32,8 +32,6 @@
 #  OCF_RESKEY_port
 #  OCF_RESKEY_statusurl
 
-prefix=@prefix@
-exec_prefix=@exec_prefix@
 VARRUN=@localstatedir@/run
 
 . @hb_libdir@/ocf-shellfuncs
@@ -390,10 +388,11 @@ status_apache() {
     [ $rc -eq 0 ]
   then
     ocf_log info "$CMD is running (pid $ApachePID)."
+    return $OCF_SUCCESS
   else
     ocf_log info "$CMD is stopped."
+    return $OCF_NOT_RUNNING
   fi
-  return $rc
 }
 
 

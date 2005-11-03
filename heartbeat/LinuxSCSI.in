@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: LinuxSCSI.in,v 1.4 2005/07/18 15:07:16 sunjd Exp $
+# $Id: LinuxSCSI.in,v 1.5 2005/11/03 10:32:47 xunsun Exp $
 # 
 # LinuxSCSI
 #
@@ -32,9 +32,6 @@
 #######################################################################
 
 zeropat="[ 0]0"
-
-prefix=@prefix@
-exec_prefix=@exec_prefix@
 
 PROCSCSI=/proc/scsi/scsi
 
@@ -101,7 +98,7 @@ usage() {
 	keep in the volumes.  If you don't use a reasonable volume manager,
 	then you'll have to mount by UUID.
 
-	$Id: LinuxSCSI.in,v 1.4 2005/07/18 15:07:16 sunjd Exp $
+	$Id: LinuxSCSI.in,v 1.5 2005/11/03 10:32:47 xunsun Exp $
 	!
 }
 

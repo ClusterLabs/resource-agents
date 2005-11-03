@@ -19,8 +19,6 @@
 
 #######################################################################
 HA_VARRUNDIR=@localstatedir@/run/@HB_PKG@
-prefix=@prefix@
-exec_prefix=@exec_prefix@
 CMD=`basename $0`
 
 iptables=`which iptables`
