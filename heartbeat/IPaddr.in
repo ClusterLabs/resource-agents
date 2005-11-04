@@ -592,8 +592,12 @@ find_free_interface() {
     mkdir -p $VLDIR
   fi
 
+  FINDIFOPT=$BASEIP
+  if [ -n $OCF_RESKEY_netmak ]; then
+    FINDIFOPT=$FINDIFOPT/$OCF_RESKEY_netmask/$NIC/$BROADCAST
+  fi
   if
-    NICINFO=`$FINDIF $BASEIP`
+    NICINFO=`$FINDIF $FINDIFOPT`
   then
     : OK
   else
