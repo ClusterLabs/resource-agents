@@ -247,14 +247,17 @@ sub navigate
 			/--\s*Outlet Control.*(\d+)\s*-\s+Outlet\s+$opt_n\D[^\n]*\s(?-i:ON|OFF)\*?\s/ism ||
 
 			# Administrator Outlet Control menu
-			/--\s*Outlet $opt_n\D.*(\d+)\s*-\s*control outlet\s+$opt_n\D/ism
+			/--\s*Outlet $opt_n\D.*(\d+)\s*-\s*control\s*outlet\s+$opt_n\D/ism ||
+			/--\s*Outlet $opt_n\D.*(\d+)\s*-\s*control\s*outlet/ism 
+
 		) {
 			$t->print($1);
 			next;
 		}
 
 		# "Outlet Control X:N", "4- Immediate Reboot"
-		if ( /(\d+)\s*-\s*$immediate $opt_o/i ) {
+		if ( /(\d+)\s*-\s*$immediate $opt_o/i || 
+                     /--\s*Control Outlet\D.*(\d+)\s*-\s*Immediate\s*$opt_o/is ) {
 			$t->print($1);
 			last;
 		}
