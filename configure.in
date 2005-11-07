@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.467 $) dnl cvs revision
+AC_REVISION($Revision: 1.468 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -494,7 +494,7 @@ if test "X${PKGCONFIG}" = "X"; then
 	EXTRALIBMSG="(this message might be bogus because pkgconfig is missing)"
 fi
 
-if test "x${enable_thread_safe}" == "xyes"; then
+if test "x${enable_thread_safe}" = "xyes"; then
         GPKGNAME="gthread-2.0"
 else
         GPKGNAME="glib-2.0"
@@ -1080,7 +1080,7 @@ specify CMPI header files with --with-cmpi-headers please.])] )
                         *);;
                 esac
 
-                if test x"$CMPI_PROVIDER_DIR" == x ; then
+                if test x"$CMPI_PROVIDER_DIR" = x ; then
                         CMPI_PROVIDER_DIR="$libdir"/cmpi
                         AC_MSG_RESULT(default directory: $CMPI_PROVIDER_DIR)
                 fi
