@@ -344,7 +344,7 @@ static int new_lockspace(char *name, int namelen, void **lockspace,
 	if (!try_module_get(THIS_MODULE))
 		return -EINVAL;
 
-	ls = find_lockspace_name(name, namelen);
+	ls = dlm_find_lockspace_name(name, namelen);
 	if (ls) {
 		*lockspace = ls;
 		module_put(THIS_MODULE);
