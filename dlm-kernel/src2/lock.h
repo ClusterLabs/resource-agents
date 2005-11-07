@@ -13,7 +13,6 @@
 #ifndef __LOCK_DOT_H__
 #define __LOCK_DOT_H__
 
-void dlm_print_lkb(struct dlm_lkb *lkb);
 void dlm_print_rsb(struct dlm_rsb *r);
 int dlm_receive_message(struct dlm_header *hd, int nodeid, int recovery);
 int dlm_modes_compat(int mode1, int mode2);
@@ -22,7 +21,6 @@ int dlm_find_rsb(struct dlm_ls *ls, char *name, int namelen,
 void dlm_put_rsb(struct dlm_rsb *r);
 void dlm_hold_rsb(struct dlm_rsb *r);
 int dlm_put_lkb(struct dlm_lkb *lkb);
-int dlm_remove_from_waiters(struct dlm_lkb *lkb);
 void dlm_scan_rsbs(struct dlm_ls *ls);
 
 int dlm_purge_locks(struct dlm_ls *ls);

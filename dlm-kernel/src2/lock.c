@@ -152,7 +152,7 @@ static const int __quecvt_compat_matrix[8][8] = {
         {0, 0, 0, 0, 0, 0, 0, 0}        /* PD */
 };
 
-void dlm_print_lkb(struct dlm_lkb *lkb)
+static void dlm_print_lkb(struct dlm_lkb *lkb)
 {
 	printk(KERN_ERR "lkb: nodeid %d id %x remid %x exflags %x flags %x\n"
 	       "     status %d rqmode %d grmode %d wait_type %d ast_type %d\n",
@@ -749,11 +749,6 @@ static int remove_from_waiters(struct dlm_lkb *lkb)
 	error = _remove_from_waiters(lkb);
 	up(&ls->ls_waiters_sem);
 	return error;
-}
-
-int dlm_remove_from_waiters(struct dlm_lkb *lkb)
-{
-	return remove_from_waiters(lkb);
 }
 
 static void dir_remove(struct dlm_rsb *r)

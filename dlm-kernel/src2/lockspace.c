@@ -222,7 +222,7 @@ static void dlm_scand_stop(void)
 	kthread_stop(scand_task);
 }
 
-static struct dlm_ls *find_lockspace_name(char *name, int namelen)
+static struct dlm_ls *dlm_find_lockspace_name(char *name, int namelen)
 {
 	struct dlm_ls *ls;
 
@@ -237,11 +237,6 @@ static struct dlm_ls *find_lockspace_name(char *name, int namelen)
  out:
 	spin_unlock(&lslist_lock);
 	return ls;
-}
-
-struct dlm_ls *dlm_find_lockspace_name(char *name, int namelen)
-{
-	return find_lockspace_name(name, namelen);
 }
 
 struct dlm_ls *dlm_find_lockspace_global(uint32_t id)

@@ -38,7 +38,6 @@
 #include "dlm.h"
 #include "dlm_device.h"
 #include "lvb_table.h"
-#include "device.h"
 
 static struct file_operations _dlm_fops;
 static const char *name_prefix="dlm";
@@ -1031,26 +1030,6 @@ static ssize_t dlm_write(struct file *file, const char __user *buffer,
 		return status;
 }
 
-/* Called when the cluster is shutdown uncleanly, all lockspaces
-   have been summarily removed */
-void dlm_device_free_devices()
-{
-	struct user_ls *tmp;
-	struct user_ls *lsinfo;
-
-	down(&user_ls_lock);
-	list_for_each_entry_safe(lsinfo, tmp, &user_ls_list, ls_list) {
-		misc_deregister(&lsinfo->ls_miscinfo);
-
-		/* Tidy up, but don't delete the lsinfo struct until
-		   all the users have closed their devices */
-		list_del(&lsinfo->ls_list);
-		set_bit(LS_FLAG_DELETED, &lsinfo->ls_flags);
-		lsinfo->ls_lockspace = NULL;
-	}
-	up(&user_ls_lock);
-}
-
 static struct file_operations _dlm_fops = {
       .open    = dlm_open,
       .release = dlm_close,
@@ -1070,7 +1049,7 @@ static struct file_operations _dlm_ctl_fops = {
 /*
  * Create control device
  */
-int __init dlm_device_init(void)
+static int __init dlm_device_init(void)
 {
 	int r;
 
@@ -1091,7 +1070,7 @@ int __init dlm_device_init(void)
 	return 0;
 }
 
-void __exit dlm_device_exit(void)
+static void __exit dlm_device_exit(void)
 {
 	misc_deregister(&ctl_device);
 }
