@@ -20,6 +20,7 @@
 #include "lowcomms.h"
 #include "lock.h"
 #include "requestqueue.h"
+#include "recoverd.h"
 
 
 /* If the start for which we're re-enabling locking (seq) has been superseded

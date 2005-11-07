@@ -13,6 +13,7 @@
 
 #include "dlm_internal.h"
 #include "config.h"
+#include "memory.h"
 
 static kmem_cache_t *lkb_cache;
 

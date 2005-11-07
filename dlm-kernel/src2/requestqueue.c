@@ -15,6 +15,7 @@
 #include "lock.h"
 #include "dir.h"
 #include "config.h"
+#include "requestqueue.h"
 
 struct rq_entry {
 	struct list_head list;

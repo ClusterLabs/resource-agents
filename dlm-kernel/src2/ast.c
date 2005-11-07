@@ -13,6 +13,7 @@
 
 #include "dlm_internal.h"
 #include "lock.h"
+#include "ast.h"
 
 #define WAKE_ASTS  0
 

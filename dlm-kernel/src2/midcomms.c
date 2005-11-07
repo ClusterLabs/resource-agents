@@ -29,6 +29,7 @@
 #include "config.h"
 #include "rcom.h"
 #include "lock.h"
+#include "midcomms.h"
 
 
 static void copy_from_cb(void *dst, const void *base, unsigned offset,

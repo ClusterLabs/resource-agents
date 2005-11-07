@@ -12,6 +12,7 @@
 
 #include "dlm_internal.h"
 #include "rcom.h"
+#include "util.h"
 
 static void header_out(struct dlm_header *hd)
 {

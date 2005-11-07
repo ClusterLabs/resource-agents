@@ -21,6 +21,7 @@
 #include "lock.h"
 #include "lowcomms.h"
 #include "member.h"
+#include "recover.h"
 
 
 /*

@@ -21,6 +21,7 @@
 #include "recover.h"
 #include "util.h"
 #include "lock.h"
+#include "dir.h"
 
 
 static void put_free_de(struct dlm_ls *ls, struct dlm_direntry *de)
