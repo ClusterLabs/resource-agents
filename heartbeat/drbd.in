@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: drbd.in,v 1.13 2005/09/28 08:33:40 lars Exp $
+#	$Id: drbd.in,v 1.14 2005/11/07 15:44:22 xunsun Exp $
 #
 #       OCF Resource Agent compliant drbd resource script.
 #
@@ -233,7 +233,7 @@ drbd_start() {
 }
 
 drbd_start_phase_2() {
-	if [ "$1" == "yes" ]; then
+	if [ "$1" = "yes" ]; then
 		do_drbdadm connect $RESOURCE
 		do_drbdadm wait_connect $RESOURCE
 	fi
@@ -268,7 +268,7 @@ drbd_stop() {
 	if is_drbd_enabled; then
 		drbd_get_status
 		
-		if [ "$DRBD_STATE_LOCAL" == "Not configured" ]; then
+		if [ "$DRBD_STATE_LOCAL" = "Not configured" ]; then
 			ocf_log debug "$RESOURCE stop: already unconfigured."
 			return $OCF_SUCCESS
 		fi
@@ -303,7 +303,7 @@ drbd_monitor() {
 
 	drbd_get_status
 
-	if [ "$DRBD_STATE_LOCAL" == "Not configured" ]; then
+	if [ "$DRBD_STATE_LOCAL" = "Not configured" ]; then
 		ocf_log debug "$RESOURCE monitor: resource not configured"
 		return $OCF_NOT_RUNNING
 	fi
@@ -333,7 +333,7 @@ drbd_promote() {
 
 	drbd_get_status
 
-	if [ "x$DRBD_STATE_LOCAL" == "xPrimary" ]; then
+	if [ "x$DRBD_STATE_LOCAL" = "xPrimary" ]; then
 		ocf_log debug "$RESOURCE promote: already primary"
 		return $OCF_SUCCESS
 	fi
@@ -359,11 +359,11 @@ drbd_demote() {
 	    return $OCF_SUCCESS
 	fi
 	
-	if [ "$DRBD_STATE_LOCAL" == "Secondary" ]; then
+	if [ "$DRBD_STATE_LOCAL" = "Secondary" ]; then
 		ocf_log debug "$RESOURCE demote: already secondary"
 		return $OCF_SUCCESS
 	fi
-	if [ "$DRBD_STATE_LOCAL" == "Not configured" ]; then
+	if [ "$DRBD_STATE_LOCAL" = "Not configured" ]; then
 		ocf_log debug "$RESOURCE demote: already stopped"
 		return $OCF_SUCCESS
 	fi

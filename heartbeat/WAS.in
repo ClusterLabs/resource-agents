@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: WAS.in,v 1.5 2005/10/24 15:08:31 sunjd Exp $
+# $Id: WAS.in,v 1.6 2005/11/07 15:44:22 xunsun Exp $
 # 
 # WAS
 #
@@ -99,7 +99,7 @@ usage() {
 	We run servlet/snoop on the first transport port listed in
 	the config file for the "monitor" operation.
 
-	$Id: WAS.in,v 1.5 2005/10/24 15:08:31 sunjd Exp $
+	$Id: WAS.in,v 1.6 2005/11/07 15:44:22 xunsun Exp $
 	!
 }
 
@@ -182,11 +182,11 @@ run() {
 #
 xmlcat() {
   if
-    [ "X$XMLcat" == X ]
+    [ "X$XMLcat" = X ]
   then
     XMLcat=`which xmllint 2>/dev/null`
     if
-      [ "X${XMLcat}" == X  -o ! -x "${XMLcat}" ]
+      [ "X${XMLcat}" = X  -o ! -x "${XMLcat}" ]
     then
       XMLcat=cat
     else
