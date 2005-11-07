@@ -206,6 +206,13 @@ ip_init() {
         #
         # $FINDIF can deal with the condition of empty intermediate parameters.
         #
+
+	if [ ! -z "$OCF_RESKEY_netmask" ]; then
+        	NICINFO=`$FINDIF "$BASEIP/$NETMASK/$NIC/$BRDCAST"`
+	else
+        	NICINFO=`$FINDIF "$BASEIP"`
+	fi
+
         NICINFO=`$FINDIF "$BASEIP/$NETMASK/$NIC/$BRDCAST"`
 	if [ $? -eq 0 ]; then
             NIC=`echo "$NICINFO" | cut -f1`
@@ -593,7 +600,7 @@ find_free_interface() {
   fi
 
   FINDIFOPT=$BASEIP
-  if [ -n $OCF_RESKEY_netmask ]; then
+  if [ ! -z "$OCF_RESKEY_netmask" ]; then
     FINDIFOPT=$FINDIFOPT/$OCF_RESKEY_netmask/$NIC/$BROADCAST
   fi
   if
