@@ -768,28 +768,35 @@ ip_status() {
       *BSD)
 	  $IFCONFIG $IFCONFIG_A_OPT | grep "inet.*[: ]$BASEIP " >/dev/null 2>&1
 	  if [ $? = 0 ]; then
+	      echo "running"
 	      return $OCF_SUCCESS
 	  else
+	      echo "stopped"
 	      return $OCF_NOT_RUNNING
 	  fi;;
       
     Linux|SunOS)		
 	  IF=`find_interface "$BASEIP"`
-	  echo $IF
 	  if [ -z "$IF" ]; then
+	      echo "stopped"
 	      return $OCF_NOT_RUNNING
 	  elif [ ${LVS_SUPPORT} = 1 ]; then 
 	      case $IF in
-		  lo*)  return $OCF_NOT_RUNNING;;
-		  *)	return $OCF_SUCCESS;;
+		  lo*)  echo "stopped"
+			return $OCF_NOT_RUNNING;;
+		  *)	echo "running"
+			return $OCF_SUCCESS;;
 	      esac
 	  else
+	      echo "running"
 	      return $OCF_SUCCESS
 	  fi;;
       *)		
 	  if [ -z "$IF" ]; then
+	      echo "stopped"
 	      return $OCF_NOT_RUNNING
 	  else
+	      echo "running"
 	      return $OCF_SUCCESS
 	  fi;;
   esac
