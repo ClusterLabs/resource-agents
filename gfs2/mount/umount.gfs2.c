@@ -6,94 +6,11 @@
  * of the GNU General Public License v.2.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdint.h>
-#include <inttypes.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/mount.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <limits.h>
-#include <errno.h>
-#include <signal.h>
-#include <sys/socket.h>
-#include <sys/un.h>
+#include "util.h"
 
-
-#define LOCK_DLM_SOCK_PATH "lock_dlmd_sock"  /* FIXME: use a header */
-#define MAXLINE 256
-
-static char *prog_name;
-static char opt_dir[PATH_MAX+1];
-
-#define die(fmt, args...) \
-do { \
-	fprintf(stderr, "%s: ", prog_name); \
-	fprintf(stderr, fmt, ##args); \
-	exit(EXIT_FAILURE); \
-} while (0)
-
-static int gfs_daemon_connect(void)
-{
-	struct sockaddr_un sun;
-	socklen_t addrlen;
-	int rv, fd;
-
-	fd = socket(PF_UNIX, SOCK_STREAM, 0);
-	if (fd < 0)
-		goto out;
-
-	memset(&sun, 0, sizeof(sun));
-	sun.sun_family = AF_UNIX;
-	strcpy(&sun.sun_path[1], LOCK_DLM_SOCK_PATH);
-	addrlen = sizeof(sa_family_t) + strlen(sun.sun_path+1) + 1;
-
-	rv = connect(fd, (struct sockaddr *) &sun, addrlen);
-	if (rv < 0) {
-		close(fd);
-		fd = rv;
-	}
- out:
-	return fd;
-}
-
-static int do_leave(void)
-{
-	int i, fd, rv;
-	char buf[MAXLINE];
-
-	i = 0;
-	do {
-		sleep(1);
-		fd = gfs_daemon_connect();
-		if (!fd)
-			fprintf(stderr, "waiting for gfs daemon to start\n");
-	} while (!fd && ++i < 10);
-
-	if (!fd)
-		die("gfs daemon not running\n");
-
-	memset(buf, 0, sizeof(buf));
-	rv = snprintf(buf, MAXLINE, "leave %s gfs2", opt_dir);
-	if (rv >= MAXLINE)
-		die("leave message too large: %d \"%s\"\n", rv, buf);
-
-	printf("do_leave: write \"%s\"\n", buf);
-
-	rv = write(fd, buf, sizeof(buf));
-	if (rv < 0)
-		die("can't communicate with gfs daemon %d", rv);
-
-	memset(buf, 0, sizeof(buf));
-	rv = read(fd, buf, sizeof(buf));
-
-	printf("do_leave: read1 %d: %s\n", rv, buf);
-
-	return 0;
-}
+char *prog_name;
+char *fsname;
+int verbose;
 
 static void print_version(void)
 {
@@ -107,7 +24,7 @@ static void print_usage(void)
 	printf("This program is called by umount(8), it should not be used directly.\n");
 }
 
-static void read_options(int argc, char **argv)
+static void read_options(int argc, char **argv, struct mount_options *mo)
 {
 	int cont = 1;
 	int optchar;
@@ -115,11 +32,15 @@ static void read_options(int argc, char **argv)
 	/* FIXME: check for "quiet" option and don't print in that case */
 
 	while (cont) {
-		optchar = getopt(argc, argv, "hV");
+		optchar = getopt(argc, argv, "hVv");
 
 		switch (optchar) {
 		case EOF:
 			cont = 0;
+			break;
+
+		case 'v':
+			++verbose;
 			break;
 
 		case 'h':
@@ -136,33 +57,56 @@ static void read_options(int argc, char **argv)
 	}
 
 	if (optind < argc && argv[optind])
-		strncpy(opt_dir, argv[optind], PATH_MAX);
+		strncpy(mo->dir, argv[optind], PATH_MAX);
+}
+
+static void check_options(struct mount_options *mo)
+{
+	if (!strlen(mo->dir))
+		die("no mount point specified\n");
+}
+
+static void umount_lockproto(char *proto, struct mount_options *mo,
+			     struct gfs2_sb *sb)
+{
+	if (!strcmp(proto, "lock_dlm"))
+		lock_dlm_leave(mo, sb);
 }
 
 int main(int argc, char **argv)
 {
+	struct mount_options mo;
+	struct gfs2_sb sb;
+	char *proto;
 	int rv;
 
+	memset(&mo, 0, sizeof(mo));
+	memset(&sb, 0, sizeof(sb));
+
 	prog_name = argv[0];
+
+	if (!strstr(prog_name, "gfs"))
+		die("invalid umount helper name \"%s\"\n", prog_name);
+
+	fsname = (strstr(prog_name, "gfs2")) ? "gfs2" : "gfs";
 
 	if (argc < 2) {
 		print_usage();
 		exit(EXIT_SUCCESS);
 	}
 
-	memset(&opt_dir, 0, sizeof(opt_dir));
-	read_options(argc, argv);
+	read_options(argc, argv, &mo);
+	check_options(&mo);
+	read_proc_mounts(&mo);
+	get_sb(mo.dev, &sb);
+	parse_opts(&mo);
 
-	if (!strlen(opt_dir))
-		die("no mount point specified\n");
-
-	rv = umount(opt_dir);
+	rv = umount(mo.dir);
 	if (rv)
-		die("error %d unmounting %s\n", errno, opt_dir);
+		die("error %d unmounting %s\n", errno, mo.dir);
 
-	/* FIXME: are we going to mess with mtab? */
-
-	do_leave();
+	proto = select_lockproto(&mo, &sb);
+	umount_lockproto(proto, &mo, &sb);
 
 	return 0;
 }
