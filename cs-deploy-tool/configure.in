@@ -1,0 +1,20 @@
+AC_INIT(cs-deploy-tool.spec.in)
+AM_INIT_AUTOMAKE(cs-deploy-tool, 0.5.0)
+AM_PATH_PYTHON(2.3)
+
+dnl ALL_LINGUAS=""
+ALL_LINGUAS=`ls po/ | grep \\.po\$ | sed s/\\.po//`
+
+dnl prevent to copy po/Makefile.in.in
+GETTEXT_PACKAGE=cs-deploy-tool
+AC_SUBST(GETTEXT_PACKAGE)
+AM_GLIB_GNU_GETTEXT
+AC_PROG_INTLTOOL
+AC_PROG_LN_S
+
+AC_OUTPUT([
+Makefile
+src/Makefile
+po/Makefile.in
+cs-deploy-tool.spec
+])

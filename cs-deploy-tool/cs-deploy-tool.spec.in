@@ -1,0 +1,50 @@
+# -*- RPM-SPEC -*-
+Summary: Red Hat Cluster Suite - Deployment Tool
+Name: @PACKAGE@
+Version: @VERSION@
+Release: 1.0
+URL: http://www.redhat.com/ 
+Source0: %{name}-%{version}.tar.gz
+License: GPL
+Group: Applications/System
+BuildArch: noarch
+BuildRoot: %{_tmppath}/%{name}-%{version}-root
+Requires: /sbin/chkconfig
+Requires: pygtk2, pygtk2-libglade
+Requires: python >= 2.3
+
+%description
+Red Hat Cluster Suite - Deployment Tool
+
+%prep
+%setup -q
+
+%build
+%configure
+make
+
+%install
+rm -rf %{buildroot}
+%makeinstall
+
+#Uncomment this when translations are done
+#%find_lang %name
+
+%clean
+rm -rf %{buildroot}
+
+#Replace the files line with the one commented out when translations are done
+#%files -f %{name}.lang
+%files
+
+%defattr(-,root,root)
+%doc COPYING src/ADSs/ads_example.py
+#%doc docs/ReleaseNotes
+#%doc docs/html/*
+%{_bindir}/*
+%{_datadir}/applications/cs-deploy-tool.desktop
+%{_datadir}/cs-deploy-tool
+
+%changelog
+* Mon Nov 07 2005 Stanko Kupcevic <kupcevic@redhat.com> 0.5.0-1.0
+  - Red Hat Cluster Suite - Deployment Tool initial checkin
