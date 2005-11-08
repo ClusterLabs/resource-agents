@@ -257,7 +257,7 @@ static void show_nodes(void)
 	for (i=0; i<numnodes; i++) {
 
 		jtime = localtime(&nodes[i].cn_jointime.tv_sec);
-		if (nodes[i].cn_jointime.tv_sec)
+		if (nodes[i].cn_jointime.tv_sec && nodes[i].cn_member)
 			strftime(jstring, sizeof(jstring), "%F %H:%M:%S", jtime);
 		else
 			strcpy(jstring, "                   ");
