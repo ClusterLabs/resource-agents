@@ -201,6 +201,8 @@ static struct cluster_node *add_new_node(char *name, int nodeid, int votes, int 
 
 	if (ais_node)
 		totemip_copy(&newnode->ais_node, ais_node);
+	else
+		memset(&newnode->ais_node, 0, sizeof(struct totem_ip_address));
 
 	if (newalloc)
 		node_add_ordered(newnode);
@@ -286,7 +288,7 @@ static void copy_to_usernode(struct cluster_node *node,
 			     struct cl_cluster_node *unode)
 {
 	struct sockaddr_storage ss;
-	int addrlen;
+	int addrlen=0;
 
 	strcpy(unode->name, node->name);
 	unode->jointime = node->join_time;
@@ -1421,7 +1423,8 @@ void add_ccs_node(char *nodename, int nodeid, int votes, int expected_votes)
 			return;
 		}
 		else {
-			log_msg(LOG_WARNING, "Warning, can't find IP address for node %s\n", nodename);
+			log_msg(LOG_WARNING, "Warning, can't resolve IP address for node %s\n", nodename);
+			memset(&ipaddr, 0, sizeof(ipaddr));
 		}
 	}
 
@@ -1447,8 +1450,8 @@ void add_ais_node(struct totem_ip_address *ais_node, uint64_t incarnation, int t
 		node = find_node_by_nodeid(ais_node->nodeid);
 
 	/* Sanity check */
-	if ((ais_node->nodeid && ais_node->nodeid != node->node_id) ||
-	    !totemip_equal(ais_node, &node->ais_node)) {
+	if ((ais_node->nodeid && node && ais_node->nodeid != node->node_id) ||
+	    (node && node->ais_node.family != 0 && !totemip_equal(ais_node, &node->ais_node))) {
 
 		/* totemip_print returns a static buffer! */
 		char *aisnode = strdup(totemip_print(ais_node));
