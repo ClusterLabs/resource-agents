@@ -1453,7 +1453,7 @@ void add_ais_node(struct totem_ip_address *ais_node, uint64_t incarnation, int t
 		/* totemip_print returns a static buffer! */
 		char *aisnode = strdup(totemip_print(ais_node));
 
-		log_msg(LOG_ERR, "Node %s (%d) from AIS, conflicts with node from CCS: %s (%s)\n",
+		log_msg(LOG_ERR, "Node %s (%d) from AIS, conflicts with node from CCS: %s (%d)\n",
 			aisnode, ais_node->nodeid, totemip_print(&node->ais_node), node->ais_node.nodeid);
 		free(aisnode);
 		node = NULL;
