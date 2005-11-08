@@ -182,6 +182,11 @@ int do_withdraw(char *name)
 	}
 
 	mg->withdraw = 1;
+
+	/* FIXME: now just go ahead and leave the mountgroup, leaving
+	   enough around so that when umount.gfs2 is called we can
+	   do the formal umount(2). */
+
  out:
 	return rv;
 }
