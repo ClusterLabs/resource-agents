@@ -25,7 +25,6 @@
 #include <sys/un.h>
 #include <fcntl.h>
 #include <errno.h>
-#include <mntent.h>
 #include <libgen.h>
 
 #include "ccs.h"
@@ -62,21 +61,25 @@ int dispatch_fence_agent(int cd, char *victim);
 
 static int check_mounted(void)
 {
-	FILE *fp;
-	struct mntent *me;
+	FILE *file;
+	char line[PATH_MAX];
+	char device[PATH_MAX];
+	char path[PATH_MAX];
+	char type[PATH_MAX];
 
-	fp = setmntent("/etc/mtab", "r");
+	file = fopen("/proc/mounts", "r");
+	if (!file)
+		return 0;
 
-	for (;;) {
-		me = getmntent(fp);
-		if (!me)
-			break;
-
-		if (!strcmp(me->mnt_type, "gfs"))
-			die("cannot leave, gfs mounted on %s",
-			    me->mnt_fsname);
+	while (fgets(line, PATH_MAX, file)) {
+		if (sscanf(line, "%s %s %s", device, path, type) != 3)
+			continue;
+		if (!strcmp(type, "gfs") || !strcmp(type, "gfs2"))
+			die("cannot leave, %s file system mounted from %s on %s",
+			    type, device, path);
 	}
-	return 0;
+
+	fclose(file);
 }
 
 int fenced_connect(void)
