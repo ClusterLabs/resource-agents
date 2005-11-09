@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.470 $) dnl cvs revision
+AC_REVISION($Revision: 1.471 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -60,12 +60,14 @@ dnl
 dnl It is also conventional for the name to be closely related to the
 dnl installation location, typically "/opt/COMPname".
 dnl
-dnl But (for the moment, at least) we'll use "OpenHA".
+dnl See "linux-ha-dev" discussion, "heartbeat package name", from 12/Oct/2005.
+dnl "LXHAhb" seems the least evil compromise for a default.
+dnl Any site or packager may, of course, override this.
 dnl
 AC_ARG_WITH(pkgname,
     [  --with-pkgname=name     name for pkg (typically for Solaris) ],
     [ PKGNAME="$withval" ],
-    [ PKGNAME="OpenHA" ],
+    [ PKGNAME="LXHAhb" ],
   )
 AC_SUBST(PKGNAME)
 
