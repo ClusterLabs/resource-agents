@@ -1,0 +1,92 @@
+instance of PG_ProviderModule
+{
+	Description = "RedHat Cluster Suite Provider Module";
+	Name = "RedHatClusterProviderModule";
+	Vendor = "RedHat";
+	Version = "0.0.1";
+	InterfaceType = "C++Default";
+	InterfaceVersion = "2.1.0";
+	Location = "RedHatClusterProvider";
+};
+
+instance of PG_Provider
+{
+	Name = "RedHatClusterProvider";
+	ProviderModuleName = "RedHatClusterProviderModule";
+};
+
+instance of PG_ProviderCapabilities
+{
+	ProviderModuleName = "RedHatClusterProviderModule";
+	ProviderName = "RedHatClusterProvider";
+	CapabilityID = "1";
+	ClassName = "RedHat_Cluster";
+	Namespaces = {"root/cimv2"};
+	ProviderType = { 2, 3 }; //  Instance, Association
+	SupportedProperties = NULL;
+	SupportedMethods = NULL;
+};
+
+instance of PG_ProviderCapabilities
+{
+	ProviderModuleName = "RedHatClusterProviderModule";
+	ProviderName = "RedHatClusterProvider";
+	CapabilityID = "2";
+	ClassName = "RedHat_ClusterNode";
+	Namespaces = {"root/cimv2"};
+	ProviderType = { 2, 3 }; //  Instance, Association
+	SupportedProperties = NULL;
+	SupportedMethods = NULL;
+};
+
+instance of PG_ProviderCapabilities
+{
+	ProviderModuleName = "RedHatClusterProviderModule";
+	ProviderName = "RedHatClusterProvider";
+	CapabilityID = "3";
+	ClassName = "RedHat_ClusterParticipatingNode";
+	Namespaces = {"root/cimv2"};
+	ProviderType = { 2, 3 }; //  Instance
+	SupportedProperties = NULL;
+	SupportedMethods = NULL;
+};
+
+
+
+
+
+instance of PG_ProviderCapabilities
+{
+	ProviderModuleName = "RedHatClusterProviderModule";
+	ProviderName = "RedHatClusterProvider";
+	CapabilityID = "4";
+	ClassName = "RedHat_ClusterFailoverService";
+	Namespaces = {"root/cimv2"};
+	ProviderType = { 2, 3 }; //  Instance, Association
+	SupportedProperties = NULL;
+	SupportedMethods = NULL;
+};
+
+instance of PG_ProviderCapabilities
+{
+	ProviderModuleName = "RedHatClusterProviderModule";
+	ProviderName = "RedHatClusterProvider";
+	CapabilityID = "5";
+	ClassName = "RedHat_ClusterHostingFailoverService";
+	Namespaces = {"root/cimv2"};
+	ProviderType = { 2, 3 }; //  Instance
+	SupportedProperties = NULL;
+	SupportedMethods = NULL;
+};
+
+instance of PG_ProviderCapabilities
+{
+	ProviderModuleName = "RedHatClusterProviderModule";
+	ProviderName = "RedHatClusterProvider";
+	CapabilityID = "6";
+	ClassName = "RedHat_ClusterNodeHostingFailoverService";
+	Namespaces = {"root/cimv2"};
+	ProviderType = { 2, 3 }; //  Instance
+	SupportedProperties = NULL;
+	SupportedMethods = NULL;
+};

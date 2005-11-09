@@ -1,0 +1,129 @@
+
+[ Description ("RedHat Cluster. \nServices are accessible thru RedHat_ClusterHostingFailoverService.\nNodes are accessible thru RedHat_ClusterParticipatingNode.\nIf RequiredQuorum is not fulfilled, all services are stoped and Status is set to Degraded.\nIf some services have failed, Status is set to Stressed."), 
+	Version("0.0.2") ]
+class RedHat_Cluster : CIM_Cluster
+{
+	[ Description("Number of available nodes' votes.") ]
+	uint16 Votes;
+	
+	[ Description("Minimum quorum required for cluster to be operational.") ]
+	uint16 VotesNeededForQuorum;
+	
+	
+	[ Description("Number of nodes.") ]
+	uint16 NodesNumber;
+	
+	[ Description("Number of available nodes.") ]
+	uint16 AvailableNodesNumber;
+	
+	[ Description("Number of unavailable nodes.") ]
+	uint16 UnavailableNodesNumber;
+	
+	[ Description("Node Names.") ]
+	string NodesNames[];
+	
+	[ Description("Available Nodes.") ]
+	string AvailableNodesNames[];
+	
+	[ Description("Unavailable Nodes.") ]
+	string UnavailableNodesNames[];
+	
+	
+	[ Description("Number of services.") ]
+	uint16 ServicesNumber;
+	
+	[ Description("Number of running services.") ]
+	uint16 RunningServicesNumber;
+	
+	[ Description("Number of stopped services.") ]
+	uint16 StoppedServicesNumber;
+	
+	[ Description("Number of failed services.") ]
+	uint16 FailedServicesNumber;
+	
+	[ Description("Names of running services.") ]
+	string ServicesNames[];
+	
+	[ Description("Names of running services.") ]
+	string RunningServicesNames[];
+	
+	[ Description("Names of stopped services.") ]
+	string StoppedServicesNames[];
+	
+	[ Description("Names of failed services.") ]
+	string FailedServicesNames[];
+};
+
+
+[ Description("Cluster Node"), 
+	Version("0.0.2") ]
+class RedHat_ClusterNode : CIM_ComputerSystem
+{
+	[ Key, Description("Name of cluster this node participates in.") ]
+	string ClusterName;
+	
+	[ Description("Number of services running on this node") ]
+	uint16 RunningServicesNumber;
+	
+	[ Description("Services running on this node") ]
+	string RunningServicesNames[];
+};
+
+
+[ Description("Cluster Failover Service"), Version("0.0.1") ]
+class RedHat_ClusterFailoverService : CIM_ClusteringService
+{
+	[ Description("Node service runs on") ]
+	string NodeName;
+	
+	[ Description("Cluster Name") ]
+	string ClusterName;
+};
+
+
+
+
+
+
+
+// ### Associations ###
+
+
+/*
+[ Association, 
+	Description("Links cluster to cluster nodes."), Version("0.0.1") ]
+class RedHat_ClusterParticipatingNode : CIM_ParticipatingCS
+{
+	[ Override("Antecedent") ]
+	RedHat_ClusterNode REF Antecedent;
+	
+	[ Description("Number of node's votes participating in cluster quorum.") ]
+	uint16 QuorumVotes;
+};
+*/
+
+/*
+[ Association,
+	Description("Defines hosting cluster for cluster service.") ]
+class RedHat_ClusterHostingFailoverService : CIM_HostedClusterService
+{
+	[ Override("Antecedent") ]
+	RedHat_Cluster REF Antecedent;
+	
+	[ Override("Dependent") ]
+	RedHat_ClusterFailoverService REF Dependent;
+};
+*/
+
+/*
+[ Association,
+	Description("Defines cluster node on which the cluster service is currently executing.") ]
+class RedHat_ClusterNodeHostingFailoverService : CIM_HostedService
+{
+	[ Override("Antecedent") ]
+	RedHat_ClusterNode REF Antecedent;
+	
+	[ Override("Dependent") ]
+	RedHat_ClusterFailoverService REF Dependent;
+};
+*/

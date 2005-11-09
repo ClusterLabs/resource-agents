@@ -1,0 +1,9 @@
+
+1. Monitoring daemon shouldn't be in python. Reimplement...
+
+2. build system
+
+3. rpm
+
+4. replace OID with real one
+

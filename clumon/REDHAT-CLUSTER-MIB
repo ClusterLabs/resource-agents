@@ -1,0 +1,296 @@
+REDHAT-CLUSTER-MIB DEFINITIONS ::= BEGIN
+
+IMPORTS
+--	enterprises				FROM RFC1155-SMI
+	MODULE-IDENTITY, OBJECT-TYPE, Integer32	FROM SNMPv2-SMI
+--	SnmpAdminString				FROM SNMP-FRAMEWORK-MIB
+	
+	
+-- parent info (to be replaced with our own OID)
+	netSnmpExamples				FROM NET-SNMP-EXAMPLES-MIB
+;
+
+
+redhatClusterMIB MODULE-IDENTITY
+    LAST-UPDATED "200510210000Z"            -- Oct 21 2005, midnight
+    ORGANIZATION "Redhat Inc."
+    CONTACT-INFO "postal:   Redhat address
+			
+		  email:    email@redhat.com
+                 "
+    DESCRIPTION  "Redhat Cluster Suite monitoring MIB.
+                 "
+-- change this to parent info (to be replaced with our own OID)
+    ::= { netSnmpExamples 5 }
+
+
+
+rhcCluster		OBJECT IDENTIFIER ::= { redhatClusterMIB 1 }
+rhcTables		OBJECT IDENTIFIER ::= { redhatClusterMIB 2 }
+
+
+
+--  #####  Cluster #####  --
+
+rhcClusterName OBJECT-TYPE
+	SYNTAX      OCTET STRING
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Cluster name."
+	::= { rhcCluster 1 }
+
+
+rhcClusterStatusCode OBJECT-TYPE
+	SYNTAX      Integer32
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Cluster status code.
+	ORed values:
+		1	All services and nodes functional
+		2	Some services failed
+		4	Some services not running
+		8	Some nodes unavailable
+		16	Not quorumed
+		32	Cluster stopped
+	"
+	::= { rhcCluster 2 }
+
+rhcClusterStatusString OBJECT-TYPE
+	SYNTAX      OCTET STRING
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Cluster status description"
+	::= { rhcCluster 3 }
+
+
+rhcClusterVotes OBJECT-TYPE
+	SYNTAX      Integer32
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Current number of votes in cluster."
+	::= { rhcCluster 4 }
+
+rhcClusterVotesNeededForQuorum OBJECT-TYPE
+	SYNTAX      Integer32
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Minimum votes required for quorum. 
+	If cluster is not quorumed, all services are stopped."
+	::= { rhcCluster 5 }
+
+
+rhcClusterNodesNum OBJECT-TYPE
+	SYNTAX      Integer32
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Number of nodes configured to participate in cluster."
+	::= { rhcCluster 6 }
+
+rhcClusterAvailNodesNum OBJECT-TYPE
+	SYNTAX      Integer32
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Number of nodes currently participating in cluster."
+	::= { rhcCluster 7 }
+
+rhcClusterUnavailNodesNum OBJECT-TYPE
+	SYNTAX      Integer32
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Number of nodes currently NOT participating in cluster."
+	::= { rhcCluster 8 }
+
+
+rhcClusterServicesNum OBJECT-TYPE
+	SYNTAX      Integer32
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Number of configured services."
+	::= { rhcCluster 9 }
+
+rhcClusterRunningServicesNum OBJECT-TYPE
+	SYNTAX      Integer32
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Number of running services."
+	::= { rhcCluster 10 }
+
+rhcClusterStoppedServicesNum OBJECT-TYPE
+	SYNTAX      Integer32
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Number of stopped services."
+	::= { rhcCluster 11 }
+
+rhcClusterFailedServicesNum OBJECT-TYPE
+	SYNTAX      Integer32
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Number of failed services."
+	::= { rhcCluster 12 }
+
+
+
+--  ##### nodes #####  --
+
+
+rhcNodesTable OBJECT-TYPE
+	SYNTAX      SEQUENCE OF RhcNodeEntry
+	MAX-ACCESS  not-accessible
+	STATUS      current
+	DESCRIPTION
+        "Table of cluster nodes."
+	::= { rhcTables 1 }
+
+rhcNodeEntry OBJECT-TYPE
+	SYNTAX      RchNodeEntry
+	MAX-ACCESS  not-accessible
+	STATUS      current
+	DESCRIPTION
+        "Cluster node."
+	INDEX   { rhcNodeName }
+	::= { rhcNodesTable 1 }
+
+RhcNodeEntry ::= SEQUENCE {
+	rhcNodeName			OCTET STRING,
+	rhcNodeStatusCode		Integer32,
+	rhcNodeStatusString    		OCTET STRING,
+	rhcNodeRunningServicesNum	Integer32
+}
+
+rhcNodeName OBJECT-TYPE
+	SYNTAX      OCTET STRING
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Node name."
+	::= { rhcNodeEntry 1 }
+
+
+rhcNodeStatusCode OBJECT-TYPE
+	SYNTAX      Integer32
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Node status code.
+	Values:
+		0	Node available to cluster
+		1	Node running, but unavailable to cluster
+		2	Node not running
+	"
+	::= { rhcNodeEntry 2 }
+
+rhcNodeStatusString OBJECT-TYPE
+	SYNTAX      OCTET STRING
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Node status description."
+	::= { rhcNodeEntry 3 }
+
+
+rhcNodeRunningServicesNum OBJECT-TYPE
+	SYNTAX      Integer32
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Number of running services."
+	::= { rhcNodeEntry 4 }
+
+
+
+--  ##### services #####  --
+
+
+rhcServicesTable OBJECT-TYPE
+	SYNTAX      SEQUENCE OF RhcServiceEntry
+	MAX-ACCESS  not-accessible
+	STATUS      current
+	DESCRIPTION
+        "Table of cluster services."
+	::= { rhcTables 2 }
+
+rhcServiceEntry OBJECT-TYPE
+	SYNTAX      RchServiceEntry
+	MAX-ACCESS  not-accessible
+	STATUS      current
+	DESCRIPTION
+	"Cluster service."
+	INDEX   { rhcServiceName }
+	::= { rhcServicesTable 1 }
+
+RhcServiceEntry ::= SEQUENCE {
+	rhcServiceName		OCTET STRING,
+	rhcServiceStatusCode	Integer32,
+	rhcServiceStatusString	OCTET STRING,
+	rhcServiceStartMode	OCTET STRING,
+	rhcServiceRunningOnNode	OCTET STRING
+}
+
+rhcServiceName OBJECT-TYPE
+	SYNTAX      OCTET STRING
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Service name."
+	::= { rhcServiceEntry 1 }
+
+
+rhcServiceStatusCode OBJECT-TYPE
+	SYNTAX      Integer32
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Service status codes.
+	Codes:
+		0	Service running
+		1	Service stopped
+		2	Service failed
+	"
+	::= { rhcServiceEntry 2 }
+
+rhcServiceStatusString OBJECT-TYPE
+	SYNTAX      OCTET STRING
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Service status description."
+	::= { rhcServiceEntry 3 }
+
+
+rhcServiceStartMode OBJECT-TYPE
+	SYNTAX      OCTET STRING
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Automatic or manual."
+	::= { rhcServiceEntry 4 }
+
+rhcServiceRunningOnNode OBJECT-TYPE
+	SYNTAX      OCTET STRING
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Name of node service runs on. Empty if none."
+	::= { rhcServiceEntry 5 }
+
+
+
+
+
+
+END
+
+
