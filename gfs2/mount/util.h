@@ -83,5 +83,10 @@ int get_sb(char *device, struct gfs2_sb *sb_out);
 int lock_dlm_join(struct mount_options *mo, struct gfs2_sb *sb);
 int lock_dlm_leave(struct mount_options *mo, struct gfs2_sb *sb);
 
+/* mtab.c */
+
+void add_mtab_entry(struct mount_options *mo);
+void del_mtab_entry(struct mount_options *mo);
+
 #endif
 

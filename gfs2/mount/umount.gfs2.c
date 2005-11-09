@@ -108,6 +108,8 @@ int main(int argc, char **argv)
 	proto = select_lockproto(&mo, &sb);
 	umount_lockproto(proto, &mo, &sb);
 
+	del_mtab_entry(&mo);
+
 	return 0;
 }
 

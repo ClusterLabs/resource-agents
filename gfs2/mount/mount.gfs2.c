@@ -159,10 +159,8 @@ int main(int argc, char **argv)
 
 	block_signals(SIG_UNBLOCK);
 
-	/*
 	if (!(mo.flags & MS_REMOUNT))
 		add_mtab_entry(&mo);
-	*/
 
 	return rv ? 1 : 0;
 }

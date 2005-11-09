@@ -44,13 +44,16 @@ ondisk.o: ondisk.c
 util.o: util.c
 	${CC} ${CFLAGS} ${INCLUDE} -c -o $@ $<
 
+mtab.o: mtab.c
+	${CC} ${CFLAGS} ${INCLUDE} -c -o $@ $<
+
 umount.gfs2.o: umount.gfs2.c
 	${CC} ${CFLAGS} ${INCLUDE} -c -o $@ $<
 
-mount.gfs2: mount.gfs2.o ondisk.o util.o
+mount.gfs2: mount.gfs2.o ondisk.o util.o mtab.o
 	${CC} ${LDFLAGS} -o $@ $^
 
-umount.gfs2: umount.gfs2.o ondisk.o util.o
+umount.gfs2: umount.gfs2.o ondisk.o util.o mtab.o
 	${CC} ${LDFLAGS} -o $@ $^
 
 install: ${TARGET1} ${TARGET2}
