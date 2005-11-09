@@ -42,10 +42,12 @@ install: all
 	(cd ${sbindir}; ln -f gfs2_mkfs mkfs.gfs2)
 	(cd ${sbindir}; ln -f gfs2_mkfs gfs2_grow)
 	(cd ${sbindir}; ln -f gfs2_mkfs gfs2_jadd)
+	(cd ${sbindir}; ln -f mount.gfs2 mount.gfs)
+	(cd ${sbindir}; ln -f umount.gfs2 umount.gfs)
 #	(cd ${sbindir}; ln -f gfs2_mkfs gfs2_shrink)
 
 uninstall:
 	#uninstall the hardlinked program as well
-	${UNINSTALL} ${SBINPROGS} mkfs.gfs2 gfs2_grow gfs2_jadd gfs2_shrink mount.gfs2 umount.gfs2 ${sbindir}
+	${UNINSTALL} ${SBINPROGS} mkfs.gfs2 gfs2_grow gfs2_jadd gfs2_shrink mount.gfs2 umount.gfs2 mount.gfs umount.gfs ${sbindir}
 
 
