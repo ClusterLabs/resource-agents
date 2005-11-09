@@ -167,8 +167,8 @@ void read_proc_mounts(struct mount_options *mo)
 
 	if (!found)
 		die("can't find /proc/mounts entry for directory %s\n", mo->dir);
-	log_debug("read_proc_mounts: device = \"%s\"\n", mo->dev);
-	log_debug("read_proc_mounts: opts = \"%s\"\n", mo->opts);
+	log_debug("read_proc_mounts: device = \"%s\"", mo->dev);
+	log_debug("read_proc_mounts: opts = \"%s\"", mo->opts);
 }
 
 int get_sb(char *device, struct gfs2_sb *sb_out)
