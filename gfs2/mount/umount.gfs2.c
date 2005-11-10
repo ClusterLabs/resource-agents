@@ -10,6 +10,7 @@
 
 char *prog_name;
 char *fsname;
+char *expert;
 int verbose;
 
 static void print_version(void)
@@ -32,7 +33,7 @@ static void read_options(int argc, char **argv, struct mount_options *mo)
 	/* FIXME: check for "quiet" option and don't print in that case */
 
 	while (cont) {
-		optchar = getopt(argc, argv, "hVv");
+		optchar = getopt(argc, argv, "hVvX:");
 
 		switch (optchar) {
 		case EOF:
@@ -41,6 +42,11 @@ static void read_options(int argc, char **argv, struct mount_options *mo)
 
 		case 'v':
 			++verbose;
+			break;
+
+		case 'X':
+			expert = strdup(optarg);
+			log_debug("umount expert override: %s", expert);
 			break;
 
 		case 'h':
@@ -58,6 +64,8 @@ static void read_options(int argc, char **argv, struct mount_options *mo)
 
 	if (optind < argc && argv[optind])
 		strncpy(mo->dir, argv[optind], PATH_MAX);
+
+	log_debug("umount %s", mo->dir);
 }
 
 static void check_options(struct mount_options *mo)
@@ -96,6 +104,12 @@ int main(int argc, char **argv)
 	}
 
 	read_options(argc, argv, &mo);
+
+	if (expert) {
+		umount_lockproto(expert, &mo, &sb);
+		return 0;
+	}
+
 	check_options(&mo);
 	read_proc_mounts(&mo);
 	get_sb(mo.dev, &sb);

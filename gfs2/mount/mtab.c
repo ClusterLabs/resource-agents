@@ -151,7 +151,7 @@ void del_mtab_entry(struct mount_options *mo)
 		/* all other lines from mtab are included in
 		   the next version of mtab */
 
-		if (fprintf(mtmp, "%s\n", line) < 0) {
+		if (fprintf(mtmp, "%s", line) < 0) {
 			int e = errno;
 			warn("error writing to /etc/mtab.tmp: %s", strerror(e));
 		}

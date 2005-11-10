@@ -335,7 +335,7 @@ int lock_dlm_leave(struct mount_options *mo, struct gfs2_sb *sb)
 	memset(buf, 0, sizeof(buf));
 	rv = read(fd, buf, sizeof(buf));
 
-	log_debug("lock_dlm_leave: read1 %d: %s\n", rv, buf);
+	log_debug("lock_dlm_leave: read1 %d: %s", rv, buf);
 
 	return 0;
 }

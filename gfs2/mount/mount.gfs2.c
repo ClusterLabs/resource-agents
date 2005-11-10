@@ -82,6 +82,8 @@ static void read_options(int argc, char **argv, struct mount_options *mo)
 
 	if (optind < argc && argv[optind])
 		strncpy(mo->dir, argv[optind], PATH_MAX);
+
+	log_debug("mount %s %s", mo->dev, mo->dir);
 }
 
 static void check_options(struct mount_options *mo)
