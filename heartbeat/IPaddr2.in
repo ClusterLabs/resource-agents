@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr2.in,v 1.13 2005/11/01 03:32:41 xunsun Exp $
+#	$Id: IPaddr2.in,v 1.14 2005/11/11 16:15:02 davidlee Exp $
 #
 #       OCF Resource Agent compliant IPaddr2 script.
 #
@@ -224,16 +224,8 @@ END
 	exit $OCF_SUCCESS
 }
 
-is_decimal() {
-# We know $1 is non-empty beforehand
-    case $1 in
-	*[^0-9]*) false;; #got invalid char
-	*) true;;
-    esac
-}
-
 ip_init() {
-	if [ $UID -ne 0 ]; then
+	if ocf_is_root ; then : ; else
 		ocf_log err "You must be root."
 		exit $OCF_ERR_PERM
 	fi
@@ -260,7 +252,7 @@ ip_init() {
 	ARP_BACKGROUND=${OCF_RESKEY_arp_bg:-yes}
 	ARP_NETMASK=${OCF_RESKEY_arp_mac:-ffffffffffff}
 
-	if is_decimal "$IP_INC_GLOBAL" && [ $IP_INC_GLOBAL -gt 0 ]; then
+	if ocf_is_decimal "$IP_INC_GLOBAL" && [ $IP_INC_GLOBAL -gt 0 ]; then
 		:
 	else
 		ocf_log err "Invalid OCF_RESKEY_incarnations_max_global [$IP_INC_GLOBAL], should be positive integer"
@@ -661,36 +653,20 @@ ip_monitor() {
 	esac
 }
 
-is_hexidecimal() {
-# We know $1 is non-empty beforehand
-    case $1 in
-	*[^0-9a-fA-F]*) false;; #got invalid char
-	*) true;;
-    esac
-}
-
-is_octal() {
-# We know $1 is non-empty beforehand
-    case $1 in
-	*[^0-7]*) false;; #got invalid char
-	*) true;;
-    esac
-}
-
 ip_validate() {
     ip_init
 
 # $BASEIP, $NETMASK, $NIC , $IP_INC_GLOBAL, and $BRDCAST have been checked within ip_init,
 # do not bother here.
 	
-    if is_decimal "$ARP_INTERVAL_MS" && [ $ARP_INTERVAL_MS -gt 0 ]; then
+    if ocf_is_decimal "$ARP_INTERVAL_MS" && [ $ARP_INTERVAL_MS -gt 0 ]; then
 	:
     else
 	ocf_log err "Invalid OCF_RESKEY_arp_interval [$ARP_INTERVAL_MS]"
 	exit $OCF_ERR_ARGS
     fi
 
-    if is_decimal "$ARP_REPEAT" && [ $ARP_REPEAT -gt 0 ]; then
+    if ocf_is_decimal "$ARP_REPEAT" && [ $ARP_REPEAT -gt 0 ]; then
 	:
     else
 	ocf_log err "Invalid OCF_RESKEY_arp_count [$ARP_REPEAT]"
@@ -719,7 +695,7 @@ ip_validate() {
 	case $mark in
 	0x*)	# hexidecimal
 	  mark=$(echo $mark | cut -c 3-)
-	  if [ -n "$mark" ] && is_hexidecimal "$mark"; then
+	  if [ -n "$mark" ] && ocf_is_hex "$mark"; then
 		:
 	  else
 		valid=0
@@ -727,14 +703,14 @@ ip_validate() {
 	  ;;
 	0*)	# octal
 	  mark=$(echo $mark | cut -c 2-)
-	  if [ -n "$mark" ] && is_octal "$mark"; then
+	  if [ -n "$mark" ] && ocf_is_octal "$mark"; then
 		:
 	  else
 		valid=0
 	  fi
 	  ;;
 	*)	# decimal
-	  if [ -n "$mark" ] && is_decimal "$mark"; then
+	  if [ -n "$mark" ] && ocf_is_decimal "$mark"; then
 		:
 	  else
 		valid=0
@@ -750,7 +726,7 @@ ip_validate() {
 	case $IF_MAC in
 	??[^0-9]??[^0-9]??[^0-9]??[^0-9]??[^0-9]??)
 		mac=${IF_MAC:0:2}${IF_MAC:3:2}${IF_MAC:6:2}${IF_MAC:9:2}${IF_MAC:12:2}${IF_MAC:15:2}
-		if is_hexidecimal "$mac"; then
+		if ocf_is_hex "$mac"; then
 			case ${mac:1:1} in
 			0|2|4|6|8|a|A|c|C|e|E)
 				valid=0

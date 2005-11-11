@@ -1,5 +1,5 @@
 #
-# 	$Id: ocf-shellfuncs.in,v 1.19 2005/10/26 11:34:49 andrew Exp $
+# 	$Id: ocf-shellfuncs.in,v 1.20 2005/11/11 16:15:02 davidlee Exp $
 #
 # 	Common helper functions for the OCF Resource Agents supplied by
 # 	heartbeat.
@@ -39,6 +39,26 @@
 HA_D=@sysconfdir@/ha.d
 __SCRIPT_NAME=`basename $0`
 . ${HA_D}/shellfuncs
+
+ocf_is_root() {
+	set `/usr/bin/id`
+	[ $1 = "uid=0(root)" ]
+}
+
+ocf_is_decimal() {
+        # test: delete all decimal digits: result should be zero-length
+        [ -z "`echo $1 | tr -d '[0-9]'`" ]
+}
+
+ocf_is_hexadecimal() {
+        # test: delete all hex digits: result should be zero-length
+        [ -z "`echo $1 | tr -d '[0-9a-fA-F]'`" ]
+}
+
+ocf_is_octal() {
+        # test: delete all octal digits: result should be zero-length
+        [ -z "`echo $1 | tr -d '[0-7]'`" ]
+}
 
 __ocf_set_defaults() {
 	__OCF_ACTION="$1"

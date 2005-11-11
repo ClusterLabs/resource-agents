@@ -43,7 +43,8 @@ ROUTE=@ROUTE@
 USAGE="usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
 
 #######################################################################
-export LC_ALL=C
+LC_ALL=C
+export LC_ALL
 
 HA_D=@sysconfdir@/ha.d
 . ${HA_D}/shellfuncs
@@ -194,7 +195,7 @@ END
 }
 
 ip_init() {
-        if [ $UID -ne 0 ]; then
+	if ocf_is_root ; then : ; else
                 ocf_log err "You must be root."
                 exit $OCF_ERR_PERM
         fi
@@ -223,11 +224,11 @@ ip_init() {
   	    exit $OCF_ERR_GENERIC
 	fi
 
-	if [ -z ${OCF_RESKEY_lvs_support} ]; then
+	if [ -z "${OCF_RESKEY_lvs_support}" ]; then
 	    LVS_SUPPORT=0
-	elif [ ${OCF_RESKEY_lvs_support} = "true"
-		-o ${OCF_RESKEY_lvs_support} = "on"
-		-o ${OCF_RESKEY_lvs_support} = "1" ]; then
+	elif [ x"${OCF_RESKEY_lvs_support}" = x"true"
+		-o x"${OCF_RESKEY_lvs_support}" = x"on"
+		-o x"${OCF_RESKEY_lvs_support}" = x"1" ]; then
 	    LVS_SUPPORT=1
 	else
 	    LVS_SUPPORT=0
@@ -554,8 +555,8 @@ ip_stop() {
   		fi;;
   esac
 
-  if [ ! -z ${OCF_RESKEY_local_stop_script} ]; then
-      if [ -x ${OCF_RESKEY_local_stop_script} ]; then
+  if [ ! -z "${OCF_RESKEY_local_stop_script}" ]; then
+      if [ -x "${OCF_RESKEY_local_stop_script}" ]; then
 	  ${OCF_RESKEY_local_stop_script} $*
       fi
   fi
@@ -723,8 +724,8 @@ ip_start() {
 	  *)       ;;
       esac
   fi
-  if [ ! -z ${OCF_RESKEY_local_start_script} ]; then
-      if [ -x ${OCF_RESKEY_local_start_script} ]; then
+  if [ ! -z "${OCF_RESKEY_local_start_script}" ]; then
+      if [ -x "${OCF_RESKEY_local_start_script}" ]; then
 	  ${OCF_RESKEY_local_start_script} $*
       fi
   fi
@@ -835,12 +836,7 @@ ip_monitor() {
 }
 
 is_positive_integer() {
-# We know $1 is non-empty beforehand
-    case $1 in
-	*[^0-9]*) false;; #got invalid char
-	*[1-9]*) true;; #no invalid char, at most one decimal point, contains non-zero digit <=> valid
-	*) false;; #"0" string
-    esac
+	ocf_is_decimal $1 && [ $1 -ge 1 ]
 }
 
 ip_validate_all() {

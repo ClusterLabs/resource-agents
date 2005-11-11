@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: drbd.in,v 1.14 2005/11/07 15:44:22 xunsun Exp $
+#	$Id: drbd.in,v 1.15 2005/11/11 16:15:02 davidlee Exp $
 #
 #       OCF Resource Agent compliant drbd resource script.
 #
@@ -480,7 +480,7 @@ validate-all)	drbd_init
 		drbd_validate_all
 		;;
 start|stop|monitor|promote|demote|notify)
-		if [ $UID -ne 0 ]; then
+		if ocf_is_root ; then : ; else
 			ocf_log err "You must be root to perform this operation."
 			exit $OCF_ERR_PERM
 		fi
