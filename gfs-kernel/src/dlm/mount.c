@@ -69,8 +69,6 @@ static int make_args(struct gdlm_ls *ls, char *data_arg)
 	memset(data, 0, 256);
 	strncpy(data, data_arg, 255);
 
-	printk("make_args \"%s\"\n", data);
-
 	for (options = data; (x = strsep(&options, ":")); ) {
 		if (!*x)
 			continue;
@@ -86,7 +84,6 @@ static int make_args(struct gdlm_ls *ls, char *data_arg)
 				break;
 			}
 			sscanf(y, "%u", &ls->jid);
-			printk("jid = %u\n", ls->jid);
 
 		} else if (!strcmp(x, "first")) {
 			if (!y) {
@@ -95,7 +92,6 @@ static int make_args(struct gdlm_ls *ls, char *data_arg)
 				break;
 			}
 			sscanf(y, "%u", &ls->first);
-			printk("first = %u\n", ls->first);
 
 		} else if (!strcmp(x, "id")) {
 			if (!y) {
@@ -104,7 +100,6 @@ static int make_args(struct gdlm_ls *ls, char *data_arg)
 				break;
 			}
 			sscanf(y, "%u", &ls->id);
-			printk("id = %u\n", ls->id);
 
 		} else {
 			log_error("unkonwn option: %s", x);
