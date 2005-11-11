@@ -38,7 +38,10 @@ all: ${TARGET1} ${TARGET2}
 mount.gfs2.o: mount.gfs2.c
 	${CC} ${CFLAGS} ${INCLUDE} -c -o $@ $<
 
-ondisk.o: ondisk.c
+ondisk1.o: ondisk1.c
+	${CC} ${CFLAGS} ${INCLUDE} -c -o $@ $<
+
+ondisk2.o: ondisk2.c
 	${CC} ${CFLAGS} ${INCLUDE} -c -o $@ $<
 
 util.o: util.c
@@ -50,15 +53,17 @@ mtab.o: mtab.c
 umount.gfs2.o: umount.gfs2.c
 	${CC} ${CFLAGS} ${INCLUDE} -c -o $@ $<
 
-mount.gfs2: mount.gfs2.o ondisk.o util.o mtab.o
+mount.gfs2: mount.gfs2.o ondisk1.o ondisk2.o util.o mtab.o
 	${CC} ${LDFLAGS} -o $@ $^
 
-umount.gfs2: umount.gfs2.o ondisk.o util.o mtab.o
+umount.gfs2: umount.gfs2.o ondisk1.o ondisk2.o util.o mtab.o
 	${CC} ${LDFLAGS} -o $@ $^
 
 install: ${TARGET1} ${TARGET2}
 	install ${TARGET1} ${sbindir}
 	install ${TARGET2} ${sbindir}
+	(cd ${sbindir}; ln -f mount.gfs2 mount.gfs)
+	(cd ${sbindir}; ln -f umount.gfs2 umount.gfs)
 
 copytobin: ${TARGET1} ${TARGET2}
 	cp ${TARGET1} ${top_srcdir}/bin

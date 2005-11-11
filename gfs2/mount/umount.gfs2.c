@@ -75,7 +75,7 @@ static void check_options(struct mount_options *mo)
 }
 
 static void umount_lockproto(char *proto, struct mount_options *mo,
-			     struct gfs2_sb *sb)
+			     struct gen_sb *sb)
 {
 	if (!strcmp(proto, "lock_dlm"))
 		lock_dlm_leave(mo, sb);
@@ -84,7 +84,7 @@ static void umount_lockproto(char *proto, struct mount_options *mo,
 int main(int argc, char **argv)
 {
 	struct mount_options mo;
-	struct gfs2_sb sb;
+	struct gen_sb sb;
 	char *proto;
 	int rv;
 

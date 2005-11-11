@@ -171,38 +171,54 @@ void read_proc_mounts(struct mount_options *mo)
 	log_debug("read_proc_mounts: opts = \"%s\"", mo->opts);
 }
 
-int get_sb(char *device, struct gfs2_sb *sb_out)
+int get_sb(char *device, struct gen_sb *sb_out)
 {
 	int fd;
-	char buf[GFS2_BASIC_BLOCK];
-	struct gfs2_sb sb;
 
 	fd = open(device, O_RDONLY);
 	if (fd < 0)
 		die("can't open %s: %s\n", device, strerror(errno));
 
-	do_lseek(fd, GFS2_SB_ADDR * GFS2_BASIC_BLOCK);
-	do_read(fd, buf, GFS2_BASIC_BLOCK);
-
-	gfs2_sb_in(&sb, buf);
-
 	if (!strcmp(fsname, "gfs2")) {
-		if (sb.sb_header.mh_magic != GFS2_MAGIC ||
-	    	    sb.sb_header.mh_type != GFS2_METATYPE_SB)
-			die("there isn't a GFS2 filesystem on %s\n", device);
-	} else if (!strcmp(fsname, "gfs")) {
-		if (sb.sb_header.mh_magic != GFS_MAGIC ||
-		    sb.sb_header.mh_type != GFS_METATYPE_SB)
-			die("there isn't a GFS filesystem on %s\n", device);
-	}
+		char buf[GFS2_BASIC_BLOCK];
+		struct gfs2_sb sb;
 
-	memcpy(sb_out, &sb, sizeof(struct gfs2_sb));
+		do_lseek(fd, GFS2_SB_ADDR * GFS2_BASIC_BLOCK);
+		do_read(fd, buf, GFS2_BASIC_BLOCK);
+		gfs2_sb_in(&sb, buf);
+
+		if (sb.sb_header.mh_magic != GFS2_MAGIC ||
+	    	    sb.sb_header.mh_type != GFS2_METATYPE_SB) {
+			gfs2_sb_print(&sb);
+			die("there isn't a GFS2 filesystem on %s\n", device);
+		}
+
+		strncpy(sb_out->lockproto, sb.sb_lockproto, 256);
+		strncpy(sb_out->locktable, sb.sb_locktable, 256);
+
+	} else if (!strcmp(fsname, "gfs")) {
+		char buf[GFS_BASIC_BLOCK];
+		struct gfs_sb sb;
+
+		do_lseek(fd, GFS_SB_ADDR * GFS_BASIC_BLOCK);
+		do_read(fd, buf, GFS2_BASIC_BLOCK);
+		gfs_sb_in(&sb, buf);
+
+		if (sb.sb_header.mh_magic != GFS_MAGIC ||
+		    sb.sb_header.mh_type != GFS_METATYPE_SB) {
+			gfs_sb_print(&sb);
+			die("there isn't a GFS filesystem on %s\n", device);
+		}
+
+		strncpy(sb_out->lockproto, sb.sb_lockproto, 256);
+		strncpy(sb_out->locktable, sb.sb_locktable, 256);
+	}
 
 	close(fd);
 	return 0;
 }
 
-char *select_lockproto(struct mount_options *mo, struct gfs2_sb *sb)
+char *select_lockproto(struct mount_options *mo, struct gen_sb *sb)
 {
 	/* find the effective lockproto, proto specified in mount options
 	   overrides the sb lockproto */
@@ -210,7 +226,7 @@ char *select_lockproto(struct mount_options *mo, struct gfs2_sb *sb)
 	if (mo->lockproto[0])
 		return mo->lockproto;
 	else
-		return sb->sb_lockproto;
+		return sb->lockproto;
 }
 
 static int lock_dlmd_connect(void)
@@ -237,7 +253,7 @@ static int lock_dlmd_connect(void)
 	return fd;
 }
 
-int lock_dlm_join(struct mount_options *mo, struct gfs2_sb *sb)
+int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb)
 {
 	int i, fd, rv;
 	char buf[MAXLINE];
@@ -261,7 +277,7 @@ int lock_dlm_join(struct mount_options *mo, struct gfs2_sb *sb)
 	if (mo->locktable[0])
 		table = mo->locktable;
 	else
-		table = sb->sb_locktable;
+		table = sb->locktable;
 
 	if (mo->extra[0])
 		extra = mo->extra;
@@ -303,7 +319,7 @@ int lock_dlm_join(struct mount_options *mo, struct gfs2_sb *sb)
 	return 0;
 }
 
-int lock_dlm_leave(struct mount_options *mo, struct gfs2_sb *sb)
+int lock_dlm_leave(struct mount_options *mo, struct gen_sb *sb)
 {
 	int i, fd, rv;
 	char buf[MAXLINE];

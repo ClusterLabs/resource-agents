@@ -74,14 +74,19 @@ struct mount_options {
 	int flags;
 };
 
+struct gen_sb {
+	char lockproto[256];
+	char locktable[256];
+};
+
 /* util.c */
 
-char *select_lockproto(struct mount_options *mo, struct gfs2_sb *sb);
+char *select_lockproto(struct mount_options *mo, struct gen_sb *sb);
 void parse_opts(struct mount_options *mo);
 void read_proc_mounts(struct mount_options *mo);
-int get_sb(char *device, struct gfs2_sb *sb_out);
-int lock_dlm_join(struct mount_options *mo, struct gfs2_sb *sb);
-int lock_dlm_leave(struct mount_options *mo, struct gfs2_sb *sb);
+int get_sb(char *device, struct gen_sb *sb_out);
+int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb);
+int lock_dlm_leave(struct mount_options *mo, struct gen_sb *sb);
 
 /* mtab.c */
 
