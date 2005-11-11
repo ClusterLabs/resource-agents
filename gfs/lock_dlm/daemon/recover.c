@@ -481,12 +481,6 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 	log_debug("mount: %s %s %s %s %s",
 		  dir, type, proto, table, extra);
 
-	if (strcmp(type, "gfs2")) {
-		log_error("mount: fs type %s not supported", type);
-		rv = -EINVAL;
-		goto fail;
-	}
-
 	if (strcmp(proto, "lock_dlm")) {
 		log_error("mount: lockproto %s not supported", proto);
 		rv = -EINVAL;
