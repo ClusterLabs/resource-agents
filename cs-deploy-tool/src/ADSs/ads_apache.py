@@ -58,7 +58,7 @@ class ADSApache(ADSBase):
         self.frame.set_shadow_type(gtk.SHADOW_OUT)
         self.frame.add(align_in)
         
-        self.enabled = gtk.CheckButton('Enabled')
+        self.enabled = gtk.CheckButton('Deploy Apache')
         self.enabled.connect('clicked', self.enabled_clicked)
         
         self.vbox = gtk.VBox(False, 3)

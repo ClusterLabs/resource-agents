@@ -76,7 +76,6 @@ class FenceApc(fence_base.FenceBase, gtk.HBox):
         gtk.HBox.__init__(self)
         
         self.port_entry = self.glade_xml.get_widget('fence_apc_port')
-        self.switch_entry = self.glade_xml.get_widget('fence_apc_switch')
         
         container = self.glade_xml.get_widget('fence_apc_node_specific')
         container.unparent()
@@ -87,14 +86,12 @@ class FenceApc(fence_base.FenceBase, gtk.HBox):
         return self
     
     def validate(self):
-        port, switch = self.__get_info()
+        port = self.__get_info()
         if port == '':
             raise err.Err('node ' + self.node + ' missing fence device\'s port')
-        if switch == '':
-            raise err.Err('node ' + self.node + ' missing fence device\'s switch')
     
     def get_nodes_fence_tag(self):
-        template = '<device name=\"fence-apc\" port=\"%s\" switch=\"%s\"/>'
+        template = '<device name=\"fence-apc\" port=\"%s\" switch=\"0\"/>'
         return template % self.__get_info()
     
     def get_fencedevice_tag(self):
@@ -102,5 +99,4 @@ class FenceApc(fence_base.FenceBase, gtk.HBox):
     
     def __get_info(self):
         port = self.port_entry.get_text().strip()
-        switch = self.switch_entry.get_text().strip()
-        return port, switch
+        return port

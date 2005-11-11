@@ -304,7 +304,7 @@ class Storage:
         table.attach(gtk.Label(), 0, 1, 0, 1, gtk.FILL, 0)
         table.attach(gtk.Label('Vendor and Model'), 1, 2, 0, 1, gtk.FILL, 0)
         table.attach(gtk.Label('Partition number'), 2, 3, 0, 1, gtk.FILL, 0)
-        table.attach(gtk.Label('Size'), 3, 4, 0, 1, gtk.FILL, 0)
+        table.attach(gtk.Label('Size (GB)'), 3, 4, 0, 1, gtk.FILL, 0)
         table.attach(gtk.Label('SCSI ID'), 4, 5, 0, 1, gtk.FILL, 0)
         
         # entries
@@ -318,8 +318,9 @@ class Storage:
                 if len(parts) != 1 and part == '0':
                     continue
                 sz = partnum_size[part]
-                if sz < 50*1024*1024: # 50 MB
-                    print scsi_id + ', partition ' + str(part) + ' is smaller than 50 MB, skipping'
+                sz = sz / 1024/1024/1024 # GB
+                if sz == 0:
+                    print scsi_id + ', partition ' + str(part) + ' is smaller than 1 GB, skipping'
                 else:
                     check = gtk.CheckButton()
                     model = gtk.Label(self.__scsi_model[scsi_id])
@@ -337,9 +338,9 @@ class Storage:
                     table.attach(id, 4, 5, row, row+1, gtk.FILL, 0)
                     
                     objects = [model, size, id, partnum]
-                    for obj in objects:
-                        obj.set_sensitive(False)
-                        
+                    #for obj in objects:
+                    #    obj.set_sensitive(False)
+                    
                     check.connect('toggled', self.__toggled, scsi_id, part, objects, res_list)
                     
                     row += 1
@@ -522,12 +523,12 @@ class Storage:
     
     def __toggled(self, butt, scsi_id, partnum, objects, res_list):
         if butt.get_active():
-            for obj in objects:
-                obj.set_sensitive(True)
+            #for obj in objects:
+            #    obj.set_sensitive(True)
             res_list.append((scsi_id, partnum))
         else:
-            for obj in objects:
-                obj.set_sensitive(False)
+            #for obj in objects:
+            #    obj.set_sensitive(False)
             for p in res_list[:]:
                 if p[0] == scsi_id and p[1] == partnum:
                     res_list.remove(p)
