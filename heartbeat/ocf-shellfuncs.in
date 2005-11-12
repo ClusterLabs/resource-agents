@@ -1,5 +1,5 @@
 #
-# 	$Id: ocf-shellfuncs.in,v 1.20 2005/11/11 16:15:02 davidlee Exp $
+# 	$Id: ocf-shellfuncs.in,v 1.21 2005/11/12 14:28:17 xunsun Exp $
 #
 # 	Common helper functions for the OCF Resource Agents supplied by
 # 	heartbeat.
@@ -50,7 +50,7 @@ ocf_is_decimal() {
         [ -z "`echo $1 | tr -d '[0-9]'`" ]
 }
 
-ocf_is_hexadecimal() {
+ocf_is_hex() {
         # test: delete all hex digits: result should be zero-length
         [ -z "`echo $1 | tr -d '[0-9a-fA-F]'`" ]
 }
