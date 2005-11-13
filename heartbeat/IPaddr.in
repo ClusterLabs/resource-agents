@@ -810,7 +810,9 @@ ip_status() {
 ip_monitor() {
   TIMEOUT=1 # seconds
 
-  if ! ip_status >/dev/null 2>&1; then
+  if ip_status >/dev/null 2>&1; then
+	:
+  else
 	return $OCF_NOT_RUNNING
   fi
 

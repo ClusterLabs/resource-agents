@@ -73,7 +73,9 @@ END
 
 hup_inetd () {
     if [ -s $XPIDFILE ]; then
-      if ! kill -HUP `cat $XPIDFILE`; then
+      if kill -HUP `cat $XPIDFILE`; then
+          :
+      else
           ocf_log err "Could not SigHUP xinetd superdaemon!"
           ocf_log err "perhaps we are booting after a system crash"
           exit $OCF_ERR_GENERIC

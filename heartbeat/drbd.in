@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: drbd.in,v 1.15 2005/11/11 16:15:02 davidlee Exp $
+#	$Id: drbd.in,v 1.16 2005/11/13 17:16:43 davidlee Exp $
 #
 #       OCF Resource Agent compliant drbd resource script.
 #
@@ -449,7 +449,9 @@ drbd_validate_all () {
 	    return $OCF_ERR_ARGS
 	fi
 	
-	if ! do_drbdadm dump $RESOURCE 2>/dev/null ; then
+	if do_drbdadm dump $RESOURCE 2>/dev/null ; then
+	    :
+	else
 	    ocf_log err "Invalid configuration file $DRBDCONF"
 	    return $OCF_ERR_CONFIGURED
 	fi

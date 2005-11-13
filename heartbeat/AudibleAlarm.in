@@ -30,7 +30,7 @@ usage() {
 	echo "Usage: $0 {start|stop|restart|status|monitor|meta-data|validate-all}"
 	echo "  The node list is an optional space delimited"
 	echo "  list of hosts that should never sound the alarm."
-	echo "$Id: AudibleAlarm.in,v 1.6 2005/10/12 08:09:57 sunjd Exp $";
+	echo "$Id: AudibleAlarm.in,v 1.7 2005/11/13 17:16:43 davidlee Exp $";
 }
 
 meta_data() {
@@ -88,7 +88,9 @@ audiblealarm_start () {
 		#
 		# To avoid issues when called by lrmd, redirect stdout->stderr.
 	done &
-	if ! echo $! >  $PIDFILE; then
+	if echo $! >  $PIDFILE; then
+		:
+	else
 		ocf_log info "$0: Could not write to pid file \"$PIDFILE\", bailing"
 		kill $!
 		return $OCF_ERR_GENERIC
