@@ -1,5 +1,5 @@
 #
-# 	$Id: ocf-shellfuncs.in,v 1.21 2005/11/12 14:28:17 xunsun Exp $
+# 	$Id: ocf-shellfuncs.in,v 1.22 2005/11/13 17:00:02 davidlee Exp $
 #
 # 	Common helper functions for the OCF Resource Agents supplied by
 # 	heartbeat.
@@ -45,19 +45,42 @@ ocf_is_root() {
 	[ $1 = "uid=0(root)" ]
 }
 
+# Portability comments:
+# o The following rely on Bourne "sh" pattern-matching, which is usually
+#   that for filename generation (note: not regexp).
+# o The "*) true ;;" clause is probably unnecessary, but is included
+#   here for completeness.
+# o The negation in the pattern uses "!".  This seems to be common
+#   across many OSes (whereas the alternative "^" fails on some).
+# o If an OS is encountered where this negation fails, then a possible
+#   alternative would be to replace the function contents by (e.g.):
+#	[ -z "`echo $1 | tr -d '[0-9]'`" ]
+#
 ocf_is_decimal() {
-        # test: delete all decimal digits: result should be zero-length
-        [ -z "`echo $1 | tr -d '[0-9]'`" ]
+	case "$1" in
+	""|*[!0-9]*)	# empty, or at least one non-decimal
+		false ;;
+	*)
+		true ;;
+	esac
 }
 
 ocf_is_hex() {
-        # test: delete all hex digits: result should be zero-length
-        [ -z "`echo $1 | tr -d '[0-9a-fA-F]'`" ]
+	case "$1" in
+        ""|*[!0-9a-fA-F]*)	# empty, or at least one non-hex
+		false ;;
+	*)
+		true ;;
+	esac
 }
 
 ocf_is_octal() {
-        # test: delete all octal digits: result should be zero-length
-        [ -z "`echo $1 | tr -d '[0-7]'`" ]
+	case "$1" in
+        ""|*[!0-7]*)	# empty, or at least one non-octal
+		false ;;
+	*)
+		true ;;
+	esac
 }
 
 __ocf_set_defaults() {
