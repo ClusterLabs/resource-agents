@@ -74,13 +74,16 @@ void init_config()
 	{
 		char keyname[1024];
 
-		sprintf(keyname, CCS_CMAN_PREFIX "%s", cman_config[i].name);
-
-		error = ccs_get(cd, keyname, &str);
-		if (!error)
+		if (cman_config[i].name)
 		{
-			cman_config[i].value = atoi(str);
-			free(str);
+			sprintf(keyname, CCS_CMAN_PREFIX "%s", cman_config[i].name);
+
+			error = ccs_get(cd, keyname, &str);
+			if (!error)
+			{
+				cman_config[i].value = atoi(str);
+				free(str);
+			}
 		}
 	}
 	ccs_disconnect(cd);
