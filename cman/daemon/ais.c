@@ -180,7 +180,7 @@ int comms_init_ais(unsigned short port, char *key_filename)
 	ais_config.ip_port = htons(port);
 
 	totemip_copy(&ais_config.mcast_addr, &mcast_addr);
-	ais_config.node_id = our_nodeid();
+	ais_config.node_id = htonl(our_nodeid());
 
 	ais_config.totem_logging_configuration.log_printf = log_msg;
 	ais_config.totem_logging_configuration.log_level_security = 5;
@@ -214,7 +214,7 @@ int comms_init_ais(unsigned short port, char *key_filename)
 	{
 		ais_config.secauth = 1;
 		P_AIS("Reading key from file %s\n", key_filename);
-		if (totem_config_keyread ((unsigned char*)key_filename, &ais_config, &errstring))
+		if (totem_config_keyread(key_filename, &ais_config, &errstring))
 		{
 			P_AIS("Unable to read key from file %s: %s\n", key_filename, errstring);
 			log_msg(LOG_ERR, "Unable to read key from file %s: %s\n", key_filename, errstring);

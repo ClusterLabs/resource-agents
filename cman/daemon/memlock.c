@@ -84,7 +84,7 @@ static void _unlock_memory(void)
 {
 #ifdef MCL_CURRENT
 	if (munlockall())
-		log_msg(LOG_ERR, "munlockall failed: %s", strerror(errno));
+		log_msg(LOG_ERR, "munlockall failed: %s\n", strerror(errno));
 #endif
 	_release_memory();
 }
@@ -93,14 +93,14 @@ void memlock_inc(void)
 {
 	if (!_memlock_count++)
 		_lock_memory();
-	P_DAEMON("memlock_count inc to %d", _memlock_count);
+	P_DAEMON("memlock_count inc to %d\n", _memlock_count);
 }
 
 void memlock_dec(void)
 {
 	if (_memlock_count && (!--_memlock_count))
 		_unlock_memory();
-	P_DAEMON("memlock_count dec to %d", _memlock_count);
+	P_DAEMON("memlock_count dec to %d\n", _memlock_count);
 }
 
 int memlock(void)

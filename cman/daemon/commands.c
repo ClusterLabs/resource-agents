@@ -235,6 +235,7 @@ static int calculate_quorum(int allow_decrease, int max_expected, unsigned int *
 	unsigned int total_votes = 0;
 	unsigned int highest_expected = 0;
 	unsigned int newquorum, q1, q2;
+	unsigned int total_nodes = 0;
 
 	list_iterate(nodelist, &cluster_members_list) {
 		node = list_item(nodelist, struct cluster_node);
@@ -243,6 +244,7 @@ static int calculate_quorum(int allow_decrease, int max_expected, unsigned int *
 			highest_expected =
 				max(highest_expected, node->expected_votes);
 			total_votes += node->votes;
+			total_nodes++;
 		}
 	}
 	if (quorum_device && quorum_device->state == NODESTATE_MEMBER)
@@ -264,8 +266,11 @@ static int calculate_quorum(int allow_decrease, int max_expected, unsigned int *
 
 	/* The special two_node mode allows each of the two nodes to retain
 	 * quorum if the other fails.  Only one of the two should live past
-	 * fencing (as both nodes try to fence each other in split-brain.) */
-	if (two_node)
+	 * fencing (as both nodes try to fence each other in split-brain.)
+	 * Also: if there are more than two nodes, force us inquorate to avoid
+	 * any damage or confusion.
+	 */
+	if (two_node && total_nodes <= 2)
 		newquorum = 1;
 
 	if (ret_total_votes)
@@ -1438,7 +1443,7 @@ void add_ais_node(struct totem_ip_address *ais_node, uint64_t incarnation, int t
 {
 	struct cluster_node *node;
 
-	P_MEMB("add_ais_node %s, ID=%d, incarnation = %d\n", totemip_print(ais_node), ais_node->nodeid, incarnation);
+	P_MEMB("add_ais_node %s, ID=%d, incarnation = %d\n", totemip_print(ais_node), ntohl(ais_node->nodeid), incarnation);
 
 	node = find_node_by_ais_node(ais_node);
 	if (!node && total_members == 1) {
@@ -1447,17 +1452,17 @@ void add_ais_node(struct totem_ip_address *ais_node, uint64_t incarnation, int t
 	}
 
 	if (!node && ais_node->nodeid)
-		node = find_node_by_nodeid(ais_node->nodeid);
+		node = find_node_by_nodeid(ntohl(ais_node->nodeid));
 
 	/* Sanity check */
-	if ((ais_node->nodeid && node && ais_node->nodeid != node->node_id) ||
+	if ((ais_node->nodeid && node && ntohl(ais_node->nodeid) != node->node_id) ||
 	    (node && node->ais_node.family != 0 && !totemip_equal(ais_node, &node->ais_node))) {
 
 		/* totemip_print returns a static buffer! */
 		char *aisnode = strdup(totemip_print(ais_node));
 
 		log_msg(LOG_ERR, "Node %s (%d) from AIS, conflicts with node from CCS: %s (%d)\n",
-			aisnode, ais_node->nodeid, totemip_print(&node->ais_node), node->ais_node.nodeid);
+			aisnode, ais_node->nodeid, totemip_print(&node->ais_node), ntohl(node->ais_node.nodeid));
 		free(aisnode);
 		node = NULL;
 	}
@@ -1467,10 +1472,10 @@ void add_ais_node(struct totem_ip_address *ais_node, uint64_t incarnation, int t
 		node = malloc(sizeof(struct cluster_node));
 		if (!node) {
 			log_msg(LOG_ERR, "error allocating node struct for %s (id %d), but CCS doesn't know about it anyway\n",
-				totemip_print(ais_node), ais_node->nodeid);
+				totemip_print(ais_node), ntohl(ais_node->nodeid));
 			return;
 		}
-		log_msg(LOG_ERR, "Got node %s from AIS (id %d) with no CCS entry\n", totemip_print(ais_node), ais_node->nodeid);
+		log_msg(LOG_ERR, "Got node %s from AIS (id %d) with no CCS entry\n", totemip_print(ais_node), ntohl(ais_node->nodeid));
 
 		memset(node, 0, sizeof(struct cluster_node));
 		node_add_ordered(node);
