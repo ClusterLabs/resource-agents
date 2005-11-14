@@ -430,7 +430,7 @@ RCFILE=$ETC/xinetd.d/$service
 PIDFILE=$VARRUN/xup$service
 
 # Make sure the OCF_RESKEY_service is a valid xinetd service name
-if ! [ -f $RCFILE ]; then
+if [ ! -f $RCFILE ]; then
     ocf_log err "Service descriptor $RCFILE not found!"
     exit $OCF_ERR_ARGS
 fi
