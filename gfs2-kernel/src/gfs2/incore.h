@@ -512,6 +512,7 @@ struct gfs2_sbd {
 	struct gfs2_holder sd_live_gh;
 	struct gfs2_glock *sd_rename_gl;
 	struct gfs2_glock *sd_trans_gl;
+	struct semaphore sd_invalidate_inodes_mutex;
 
 	/* Inode Stuff */
 

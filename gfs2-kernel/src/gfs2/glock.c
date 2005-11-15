@@ -145,17 +145,24 @@ static void kill_glock(struct kref *kref)
 
 int gfs2_glock_put(struct gfs2_glock *gl)
 {
+	struct gfs2_sbd *sdp = gl->gl_sbd;
 	struct gfs2_gl_hash_bucket *bucket = gl->gl_bucket;
+	int rv = 0;
+
+	down(&sdp->sd_invalidate_inodes_mutex);
 
 	write_lock(&bucket->hb_lock);
 	if (kref_put(&gl->gl_ref, kill_glock)) {
 		list_del_init(&gl->gl_list);
 		write_unlock(&bucket->hb_lock);
 		glock_free(gl);
-		return 1;
+		rv = 1;
+		goto out;
 	}
 	write_unlock(&bucket->hb_lock);
-	return 0;
+ out:
+	up(&sdp->sd_invalidate_inodes_mutex);
+	return rv;
 }
 
 /**
@@ -2300,7 +2307,16 @@ void gfs2_gl_hash_clear(struct gfs2_sbd *sdp, int wait)
 			t = jiffies;
 		}
 
+		/* invalidate_inodes() requires that the sb inodes list
+		   not change, but an async completion callback for an
+		   unlock can occur which does glock_put() which
+		   can call iput() which will change the sb inodes list.
+		   invalidate_inodes_mutex prevents glock_put()'s during
+		   an invalidate_inodes() */
+
+		down(&sdp->sd_invalidate_inodes_mutex);
 		invalidate_inodes(sdp->sd_vfs);
+		up(&sdp->sd_invalidate_inodes_mutex);
 		yield();
 	}
 }

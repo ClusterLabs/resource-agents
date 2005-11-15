@@ -59,6 +59,7 @@ static struct gfs2_sbd *init_sbd(struct super_block *sb)
 	INIT_LIST_HEAD(&sdp->sd_reclaim_list);
 	spin_lock_init(&sdp->sd_reclaim_lock);
 	init_waitqueue_head(&sdp->sd_reclaim_wq);
+	init_MUTEX(&sdp->sd_invalidate_inodes_mutex);
 
 	init_MUTEX(&sdp->sd_inum_mutex);
 	spin_lock_init(&sdp->sd_statfs_spin);
