@@ -1,5 +1,5 @@
 #
-# 	$Id: ocf-shellfuncs.in,v 1.22 2005/11/13 17:00:02 davidlee Exp $
+# 	$Id: ocf-shellfuncs.in,v 1.23 2005/11/15 04:22:30 xunsun Exp $
 #
 # 	Common helper functions for the OCF Resource Agents supplied by
 # 	heartbeat.
@@ -41,7 +41,7 @@ __SCRIPT_NAME=`basename $0`
 . ${HA_D}/shellfuncs
 
 ocf_is_root() {
-	set `/usr/bin/id`
+	set `id`
 	[ $1 = "uid=0(root)" ]
 }
 
