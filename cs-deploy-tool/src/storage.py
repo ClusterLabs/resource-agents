@@ -45,7 +45,7 @@ class StorageInstance(StorageConfig):
         
         self.__tooltip = gtk.Tooltips()
         
-        self.set_size_label_text('Storage size')
+        self.set_size_label_text('Storage size (GB)')
         self.set_mountpoint_label_text('Mountpoint')
         size_tooltip = 'Size, in GB, that is to be carved out from shared storage.\n'
         size_tooltip += 'Leave enough room for GFS journals (number of nodes * 128 MB)'
@@ -75,15 +75,29 @@ class StorageInstance(StorageConfig):
     def size_key_press(self, obj, event, *args):
         stop_event = True
         ch = event.string
+        if ch == '.':
+            if self.__size_entry.get_text().find('.') == -1:
+                stop_event = False
         if ch in '0123456789':
             stop_event = False
         return stop_event
     def size_changed(self, *args):
+        text = self.__size_entry.get_text()
+        idx = text.find('.')
+        if idx != -1:
+            if len(text) > idx+2:
+                self.__size_entry.set_text(text[:idx+2])
+        
         size_free = self.storage.get_size_free()
         if size_free < 0:
             size = self.get_size() + size_free
-            size_GB = int(size /1024/1024/1024)
-            self.__size_entry.set_text(str(size_GB))
+            size_GB = size /1024.0/1024/1024
+            size_str = '%.2f' % size_GB
+            size_str = size_str[:len(size_str)-1]
+            msg = 'Size entered is larger than free storage.\n'
+            msg += 'It will be reduced to ' + str(size_str) + ' GB.'
+            infoMessage(msg)
+            self.__size_entry.set_text(size_str)
         self.storage.update_status()
     
     def register_mountpoint_changed(self, callback):
@@ -141,6 +155,7 @@ class StorageInstance(StorageConfig):
         self.get_config_widget().set_sensitive(bool)
         self.size_changed()
         
+    
     def get_devpath(self):
         return '/dev/' + self.__vgname + '/' + self.__name
     
@@ -149,10 +164,10 @@ class StorageInstance(StorageConfig):
         if not self.get_enabled():
             return 0
         t = self.__size_entry.get_text()
-        if t == '':
+        if t == '' or t == '.':
             return 0
-        size_GB = int(t)
-        return size_GB * 1024 * 1024 * 1024
+        size_GB = float(t)
+        return int(size_GB * 1024 * 1024 * 1024)
     
     def get_mountpoint(self):
         if not self.get_enabled():
@@ -250,13 +265,17 @@ class Storage:
         
         # total
         size = self.get_size_total()
-        sizeGB = size / 1024/1024/1024
-        status += 'total ' + str(sizeGB) + ' GB, '
+        sizeGB = size / 1024.0/1024/1024
+        size_str = '%.2f' % sizeGB
+        size_str = size_str[:len(size_str)-1]
+        status += 'total ' + size_str + ' GB, '
         
         # free
         size_free = self.get_size_free()
-        sizeGB_free = size_free / 1024/1024/1024
-        status += 'free ' + str(sizeGB_free) + ' GB'
+        sizeGB_free = size_free / 1024.0/1024/1024
+        size_str = '%.2f' % sizeGB_free
+        size_str = size_str[:len(size_str)-1]
+        status += 'free ' + size_str + ' GB'
         
         if self.label != None:
             self.label.set_text(status)
@@ -318,13 +337,15 @@ class Storage:
                 if len(parts) != 1 and part == '0':
                     continue
                 sz = partnum_size[part]
-                sz = sz / 1024/1024/1024 # GB
-                if sz == 0:
-                    print scsi_id + ', partition ' + str(part) + ' is smaller than 1 GB, skipping'
+                sz = sz / 1024.0/1024/1024 # GB
+                size_str = '%.2f' % sz
+                size_str = size_str[:len(size_str)-1]
+                if sz < 0.1:
+                    print scsi_id + ', partition ' + str(part) + ' too small, skipping'
                 else:
                     check = gtk.CheckButton()
                     model = gtk.Label(self.__scsi_model[scsi_id])
-                    size = gtk.Label(str(sz))
+                    size = gtk.Label(size_str)
                     id = gtk.Label(str(scsi_id))
                     if part == '0':
                         partnum = gtk.Label('Whole Device')
@@ -579,7 +600,7 @@ class Storage:
             ssize = int(words[5]) # size in sectors
             path = words[6]
             devs[path] = ss * ssize
-            
+        
         # merge data
         ret = {}
         for scsi_id in scsi_ids:
@@ -636,3 +657,14 @@ class Storage:
             self.environ.execute_remote(node, 'setenforce', [se])
         except:
             pass
+
+
+
+def infoMessage(message):
+    dlg = gtk.MessageDialog(None, 0,
+                            gtk.MESSAGE_INFO, gtk.BUTTONS_OK,
+                            message)
+    dlg.show_all()
+    rc = dlg.run()
+    dlg.destroy()
+    return rc
