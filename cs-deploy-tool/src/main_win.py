@@ -161,15 +161,15 @@ class MainWin:
         if self.environ.execute_remote(node, 'echo', [''])[2] != 0:
             raise Err('Unable to login into ' + node)
         if self.rpm_installer.is_os_supported(node) != True:
-            raise Err(node + ' doesn\'t contain supported installation')
+            raise Err(node + ' doesn\'t contain supported OS')
         o, e, s = self.environ.execute_remote(node, 'cat', ['/proc/cluster/status'])
         if s == 0:
             cluster_name = 'unknown cluster name'
             for line in o.splitlines():
                 if 'Cluster name' in line:
                     cluster_name = line.split(':')[1].strip()
-            msg = node + ' is already a node of cluster ' + cluster_name + '. '
-            msg += 'Cannot add.'
+            msg = node + ' is already a node of cluster ' + cluster_name + '.'
+            msg += 'Unable to add.'
             raise Err(msg)
         
         self.storage.add_node(node)
@@ -291,9 +291,9 @@ class MainWin:
                 msgs += 'Application ' + ads.get_pretty_name() + ': \n'
                 for msg in ads_msgs:
                     msgs += '\t' + msg + '\n'
-        msg = 'Cluster deployment completed'
+        msg = 'Cluster deployment completed successfully'
         if msgs != '':
-            msg += '\nPost-deployment messages: \n'
+            msg += '\n\nPost-installation messages:\n\n'
             msg += msgs
         infoMessage(msg)
         

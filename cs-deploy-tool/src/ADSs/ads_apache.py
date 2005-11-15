@@ -61,6 +61,14 @@ class ADSApache(ADSBase):
         self.enabled = gtk.CheckButton('Deploy Apache')
         self.enabled.connect('clicked', self.enabled_clicked)
         
+        self.__tooltip = gtk.Tooltips()
+        tip = 'If deployed:\n'
+        tip += ' - Web server will be accessible at <virtual IP>\n'
+        tip += ' - Shared LV will be created and mounted on <mountpoint>\n'
+        tip += ' - Shared Apache configuration files will be located in <mountpoint>/conf.d/\n'
+        tip += ' - Sample web page will be placed into <mountpoint>/www/'
+        self.__tooltip.set_tip(self.enabled, tip)
+        
         self.vbox = gtk.VBox(False, 3)
         self.vbox.pack_start(self.enabled, False)
         self.vbox.pack_start(self.frame)

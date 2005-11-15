@@ -115,6 +115,7 @@ class ADSGeneric(ADSBase):
     def __remove_kid(self, butt, expander, kid):
         self.widget.remove(expander)
         self.kids.remove(kid)
+        kid.destroy()
         
     
 
@@ -152,7 +153,12 @@ class Generic:
         self.storage_enabled.connect('toggled', self.storage_toggled)
         self.ip_enabled.connect('toggled', self.ip_toggled)
         
-
+        pass
+    
+    def destroy(self):
+        self.storage_instance.set_enabled(False)
+        self.ip.set_enabled(False)
+    
     def get_widget(self):
         return self.widget
     

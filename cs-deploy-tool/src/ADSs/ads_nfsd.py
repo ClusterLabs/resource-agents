@@ -134,7 +134,8 @@ class ADSNFSD(ADSBase):
     def __remove_server(self, butt, expander, server):
         self.widget.remove(expander)
         self.servers.remove(server)
-    
+        server.destroy()
+        
 
 class NFSServer:
     
@@ -168,7 +169,12 @@ class NFSServer:
         self.__tooltip.set_tip(self.name_entry, tip)
         
         pass
+        
     
+    def destroy(self):
+        self.ip.set_enabled(False)
+        for share in self.shares:
+            share.destroy()
     
     def validate(self):
         try:
@@ -225,6 +231,7 @@ class NFSServer:
     def __remove_share(self, butt, expander, share):
         self.widget.remove(expander)
         self.shares.remove(share)
+        share.destroy()
         
     
     def generate_xml(self):
@@ -252,7 +259,7 @@ class NFSShare(gtk.VBox):
         self.storage = self.utils.get_new_storage_config()
         self.storage.register_mountpoint_changed(self.mountpoint_changed)
         
-        self.storage.set_size_label_text('Export\'s size')
+        self.storage.set_size_label_text('Export\'s size (GB)')
         self.storage.set_mountpoint_label_text('Export path')
         path_tooltip = self.storage.get_mountpoint_tooltip()
         path_tooltip += '\nIt is also the path that clients will mount from.'
@@ -290,8 +297,11 @@ class NFSShare(gtk.VBox):
         tip = 'A hostname, a wildcard (IP address or hostname based), or a netgroup'
         self.__tooltip.set_tip(self.new_client_entry, tip)
         
-        return
+        pass
     
+    
+    def destroy(self):
+        self.storage.set_enabled(False)
     
     def get_widget(self):
         return self.widget

@@ -59,8 +59,9 @@ class Environment:
         l = [bin]
         for arg in args:
             l.append(arg)
+        self.log('exec:\n' + str(l) + ':\n')
         o, e, s = self.__execute_basic(bin, l)
-        self.log('exec:\n' + str(l) + ':\nstdout:\n' + o + '\nstderr:\n' + e + '\n')
+        self.log('stdout:\n' + o + '\nstderr:\n' + e + '\n')
         return o, e, s
     
     def execute_remote(self, host, bin, args):

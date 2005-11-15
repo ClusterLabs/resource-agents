@@ -109,6 +109,8 @@ class StorageInstance(StorageConfig):
             stop_event = True
         if len(self.get_mountpoint()) == 0 and ch != '/' and ch != '':
             stop_event = True
+            msg = 'Mountpoint has to be an absolute path (it begins with \'/\')'
+            infoMessage(msg)
         return stop_event
     def mountpoint_changed(self, *args):
         if self.__callback != None:
