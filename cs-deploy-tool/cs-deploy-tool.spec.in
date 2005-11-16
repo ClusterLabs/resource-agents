@@ -9,12 +9,12 @@ License: GPL
 Group: Applications/System
 BuildArch: noarch
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
-Requires: /sbin/chkconfig
+Requires: openssh-clients, openssh-askpass-gnome
 Requires: pygtk2, pygtk2-libglade
 Requires: python >= 2.3
 
 %description
-Red Hat Cluster Suite - Deployment Tool
+Easily deploy Red Hat Clusters using graphical user interface.
 
 %prep
 %setup -q
@@ -46,5 +46,7 @@ rm -rf %{buildroot}
 %{_datadir}/cs-deploy-tool
 
 %changelog
+* Mon Nov 15 2005 Stanko Kupcevic <kupcevic@redhat.com> 0.9.1-1.0
+  - Red Hat Cluster Suite - Deployment Tool alpha build
 * Mon Nov 07 2005 Stanko Kupcevic <kupcevic@redhat.com> 0.5.0-1.0
   - Red Hat Cluster Suite - Deployment Tool initial checkin
