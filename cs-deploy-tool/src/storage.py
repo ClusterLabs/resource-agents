@@ -264,21 +264,21 @@ class Storage:
     
     def update_status(self):
         status = 'Storage: '
-        
-        # total
-        size = self.get_size_total()
-        sizeGB = size / 1024.0/1024/1024
-        size_str = '%.2f' % sizeGB
-        size_str = size_str[:len(size_str)-1]
-        status += 'total ' + size_str + ' GB, '
-        
-        # free
-        size_free = self.get_size_free()
-        sizeGB_free = size_free / 1024.0/1024/1024
-        size_str = '%.2f' % sizeGB_free
-        size_str = size_str[:len(size_str)-1]
-        status += 'free ' + size_str + ' GB'
-        
+        if len(self.__node_storage.keys()) < 2:
+            status += ' Add two nodes to determine shared storage'
+        else:
+            # total
+            size = self.get_size_total()
+            sizeGB = size / 1024.0/1024/1024
+            size_str = '%.2f' % sizeGB
+            size_str = size_str[:len(size_str)-1]
+            status += 'total ' + size_str + ' GB, '
+            # free
+            size_free = self.get_size_free()
+            sizeGB_free = size_free / 1024.0/1024/1024
+            size_str = '%.2f' % sizeGB_free
+            size_str = size_str[:len(size_str)-1]
+            status += 'free ' + size_str + ' GB'
         if self.label != None:
             self.label.set_text(status)
 

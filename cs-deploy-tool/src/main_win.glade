@@ -639,8 +639,7 @@
 	  <child>
 	    <widget class="GtkLabel" id="welcome_msg">
 	      <property name="visible">True</property>
-	      <property name="label" translatable="yes">
-Welcome to Red Hat Cluster Deployment Tool
+	      <property name="label" translatable="yes">Welcome to Red Hat Cluster Deployment Tool
 
 
 All nodes have to be RHEL4 PCs, subscribed to cluster RHN channel, with network configured, sshd running and firewall disabled.
