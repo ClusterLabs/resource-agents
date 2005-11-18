@@ -181,14 +181,21 @@ apache_param() {
 # Return TRUE if the config file supports the given handler somewhere
 #
 SupportsHandler() {
-  apache_param $1 SetHandler | grep "^ *$2 *" >/dev/null
+  apache_param "$1" SetHandler | grep "^ *$2 *" >/dev/null
 }
 
 #
 #	return true if the given module is loaded...
 #
 Module_loaded() {
-  apache_param $1 AddModule | grep -i "^mod_$2\." >/dev/null
+  apache_param "$1" AddModule | grep -i "^mod_$2\." >/dev/null
+  if
+    [ $? = 0 ]
+  then
+    true
+  else
+    apache_param "$1" LoadModule | grep -i "mod_$2\." >/dev/null
+  fi
 }
 
 #
@@ -224,8 +231,8 @@ CheckPort() {
 #
 GetParams() {
   ConfigFile=$1
-  ServerRoot=`apache_param $ConfigFile ServerRoot`
-  PidFile=`apache_param $ConfigFile PidFile`
+  ServerRoot=`apache_param "$ConfigFile" ServerRoot`
+  PidFile=`apache_param "$ConfigFile" PidFile`
   case $PidFile in
     /*)	;;
     [[:alnum:]]*)	PidFile=$ServerRoot/$PidFile;;
@@ -233,7 +240,7 @@ GetParams() {
   esac
 #  case "$PORT" in
 #    [0-9]*)	;;
-#    *)	PORT=`apache_param $ConfigFile Port`
+#    *)	PORT=`apache_param "$ConfigFile" Port`
 #        case "$PORT" in
 #          [0-9]*)	;;
 #	  *)		PORT=80;;
@@ -243,7 +250,7 @@ GetParams() {
   if CheckPort "$PORT"; then
 	:
   else
-	PORT=`apache_param $ConfigFile Port`
+	PORT=`apache_param "$ConfigFile" Port`
 	if CheckPort "$PORT"; then
 	    :
 	else
