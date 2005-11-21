@@ -65,6 +65,17 @@ meta_data()
             </shortdesc>
 	    <content type="string"/>
         </parameter>
+
+        <parameter name="service_name" inherit="service%name">
+            <longdesc lang="en">
+	    	Inherit the service name, in case the
+		script wants to know this information.
+            </longdesc>
+            <shortdesc lang="en">
+	    	Inherit the service name.
+            </shortdesc>
+	    <content type="string"/>
+        </parameter>
     </parameters>
 
     <actions>
