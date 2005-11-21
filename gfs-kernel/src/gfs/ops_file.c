@@ -548,6 +548,14 @@ do_write_direct_alloc(struct file *file, char *buf, size_t size, loff_t *offset)
 	gfs_quota_unlock_m(ip);
 	gfs_alloc_put(ip);
 
+	if (file->f_mapping->nrpages) {
+		error = filemap_fdatawrite(file->f_mapping);
+		if (!error)
+			error = filemap_fdatawait(file->f_mapping);
+	}
+	if (error)
+		count = error;
+
 	RETURN(GFN_DO_WRITE_DIRECT_ALLOC, count);
 
  fail_end_trans:

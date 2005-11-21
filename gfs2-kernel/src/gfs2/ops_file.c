@@ -497,6 +497,14 @@ static ssize_t do_write_direct_alloc(struct file *file, char *buf, size_t size,
 	gfs2_quota_unlock(ip);
 	gfs2_alloc_put(ip);
 
+	if (file->f_mapping->nrpages) {
+		error = filemap_fdatawrite(file->f_mapping);
+		if (!error)
+			error = filemap_fdatawait(file->f_mapping);
+	}
+	if (error)
+		return error;
+
 	return count;
 
  fail_end_trans:
