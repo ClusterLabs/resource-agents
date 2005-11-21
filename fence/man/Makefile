@@ -28,6 +28,8 @@ TARGET8= \
 	fence_tool.8 \
 	fence_vixel.8 \
 	fence_wti.8 \
+	fence_bullpap.8 \
+	fence_ipmilan.8 \
 	fenced.8
 
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
