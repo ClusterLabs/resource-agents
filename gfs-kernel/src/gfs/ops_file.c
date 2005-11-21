@@ -815,8 +815,14 @@ do_do_write_buf(struct file *file, char *buf, size_t size, loff_t *offset)
 
 	gfs_trans_end(sdp);
 
-	if (file->f_flags & O_SYNC)
+	if (file->f_flags & O_SYNC || IS_SYNC(inode)) {
 		gfs_log_flush_glock(ip->i_gl);
+		error = filemap_fdatawrite(file->f_mapping);
+		if (error == 0)
+			error = filemap_fdatawait(file->f_mapping);
+		if (error)
+			goto fail_ipres;
+	}
 
 	if (alloc_required) {
 		gfs_assert_warn(sdp, count != size ||
