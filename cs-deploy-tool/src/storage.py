@@ -470,7 +470,7 @@ class Storage:
             self.environ.execute_remote(node2, 'service', ['clvmd', 'start'])
             pass
         
-        if len(self.__node_storage.keys()) == 0:
+        if len(self.__storage_to_be_used.keys()) == 0:
             for node2 in self.__node_storage:
                 self.__restore_selinux(node2)
             return True

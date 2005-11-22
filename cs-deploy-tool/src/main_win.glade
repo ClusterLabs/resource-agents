@@ -194,7 +194,7 @@
 		      <property name="editable">True</property>
 		      <property name="visibility">True</property>
 		      <property name="max_length">0</property>
-		      <property name="text" translatable="yes">My New Cluster</property>
+		      <property name="text" translatable="yes">Enterprise Cluster</property>
 		      <property name="has_frame">True</property>
 		      <property name="invisible_char" translatable="yes">*</property>
 		      <property name="activates_default">False</property>
@@ -642,7 +642,7 @@
 	      <property name="label" translatable="yes">Welcome to Red Hat Cluster Deployment Tool
 
 
-All nodes have to be RHEL4 PCs, subscribed to cluster RHN channel, with network configured, sshd running and firewall disabled.
+All nodes have to be RHEL4 PCs, subscribed to cluster and GFS RHN channels, with network configured, sshd running and firewall disabled.
 
 You will be prompted for root password for all nodes. 
 Installer can only be run from a PC that is not to be node.</property>

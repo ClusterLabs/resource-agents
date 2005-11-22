@@ -1,7 +1,6 @@
 AUTOMAKE_OPTIONS = foreign 1.7
 
-#SUBDIRS = src po docs
-SUBDIRS = src po
+SUBDIRS = src po docs
 
 EXTRA_DIST = \
 	cs-deploy-tool.spec			\

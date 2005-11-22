@@ -40,12 +40,14 @@ rm -rf %{buildroot}
 %defattr(-,root,root)
 %doc COPYING src/ADSs/ads_example.py
 #%doc docs/ReleaseNotes
-#%doc docs/html/*
+%doc docs/html
 %{_bindir}/*
 %{_datadir}/applications/cs-deploy-tool.desktop
 %{_datadir}/cs-deploy-tool
 
 %changelog
+* Mon Nov 22 2005 Stanko Kupcevic <kupcevic@redhat.com> 0.9.2-1.0
+  - Addition of html documentation, GUI touchups
 * Mon Nov 15 2005 Stanko Kupcevic <kupcevic@redhat.com> 0.9.1-1.0
   - Red Hat Cluster Suite - Deployment Tool alpha build
 * Mon Nov 07 2005 Stanko Kupcevic <kupcevic@redhat.com> 0.5.0-1.0
