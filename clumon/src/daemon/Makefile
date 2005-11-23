@@ -1,31 +1,50 @@
+################################################################################################################################################################
+##
+##  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+##
+##  This copyrighted material is made available to anyone wishing to use,
+##  modify, copy, or redistribute it subject to the terms and conditions
+##  of the GNU General Public License v.2.
+##
+##############################################################################################################################################################
 
-INCLUDE_DIR = ../include/
+top_srcdir=../..
+UNINSTALL = ${top_srcdir}/scripts/uninstall.pl
 
-CXX = g++ 
-CXXFLAGS = -O2 -Wall -Wno-unused -I$(INCLUDE_DIR)
+INCLUDE_DIR = $(top_srcdir)/src/include
 
-LDFLAGS = -lpthread ../common/*.o `xml2-config --libs`
+include ${top_srcdir}/make/defines.mk
+INCLUDE += -I ${INCLUDE_DIR}
 
-OBJECTS = daemon_init.o executils.o \
-	Monitor.o Peer.o Communicator.o
-
-OBJECTS_ALL = main.o $(OBJECTS)
+#LDFLAGS += -lpthread -L${top_srcdir}/src/common/ -lClusterMonitor `xml2-config --libs`
+LDFLAGS += -lpthread ${top_srcdir}/src/common/*.o `xml2-config --libs`
 
 TARGET = clumond
-TARGET_TEST = clumond_test
+
+OBJECTS = main.o \
+	daemon_init.o executils.o \
+	Monitor.o Peer.o Communicator.o
 
 
-$(TARGET): $(OBJECTS_ALL) 
-	$(CXX) $(LDFLAGS) -o $@ $(OBJECTS_ALL)
 
-*.o: *.h $(INCLUDE_DIR)/*.h
+all: ${TARGET}
 
-all: $(TARGET) $(TARGET_TEST)
+install: 
+	install -d ${sbindir}
+	install ${TARGET} ${sbindir}
 
-clean: 
-	rm -f *\.o  $(TARGET) $(TARGET_TEST)
+uninstall: 
+	${UNINSTALL} ${TARGET} ${sbindir}
+
+clean:
+	rm -f $(OBJECTS) $(TARGET)
+
+check: 
 
 rebuild: clean all
 
-$(TARGET_TEST): $(OBJECTS) $(TARGET_TEST).*
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $(OBJECTS) $(TARGET_TEST).cpp
+
+$(TARGET): $(OBJECTS)
+	$(CXX) $(LDFLAGS) -o $@ $(OBJECTS)
+
+*.o: *.h $(INCLUDE_DIR)/*.h

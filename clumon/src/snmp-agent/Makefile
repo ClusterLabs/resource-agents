@@ -1,11 +1,36 @@
+################################################################################################################################################################
+##
+##  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+##
+##  This copyrighted material is made available to anyone wishing to use,
+##  modify, copy, or redistribute it subject to the terms and conditions
+##  of the GNU General Public License v.2.
+##
+##############################################################################################################################################################
+
+top_srcdir=../..
+UNINSTALL = ${top_srcdir}/scripts/uninstall.pl
+
+INCLUDE_DIR = $(top_srcdir)/src/include
+
+include ${top_srcdir}/make/defines.mk
+INCLUDE += -I ${INCLUDE_DIR}
+
 
 SNMP_CFLAGS = `net-snmp-config --cflags`
-# AGENTLIBS=`net-snmp-config --agent-libs`
+CXXFLAGS += $(SNMP_CFLAGS)
 
-CXX = g++
-CXXFLAGS = -O2 -Wall -Wno-unused -I../include/ $(SNMP_CFLAGS)
 
-LDFLAGS = -fPIC -shared -lpthread ../common/*.o `xml2-config --libs`
+#LDFLAGS += -fPIC -shared -lpthread \
+#	-L${top_srcdir}/src/common -lClusterMonitor \
+#	`net-snmp-config --libs` \
+#	`xml2-config --libs`
+
+LDFLAGS += -fPIC -shared -lpthread \
+	${top_srcdir}/src/common/*.o \
+	`net-snmp-config --libs` \
+	`xml2-config --libs`
+
 
 OBJECTS = clusterMonitorSnmp.o \
 	clusterMIB.o \
@@ -15,14 +40,24 @@ OBJECTS = clusterMonitorSnmp.o \
 TARGET = libClusterMonitorSnmp.so
 
 
-$(TARGET): $(OBJECTS)
-	$(CXX) $(LDFLAGS) -o $@  $(OBJECTS)
 
-*.o: *.h 
+all: ${TARGET}
 
-all: $(TARGET)
+install: 
+	install ${TARGET} ${libdir}
+
+uninstall: 
+	${UNINSTALL} ${TARGET} ${libdir}
 
 clean:
-	rm -f $(TARGET) $(OBJECTS)
+	rm -f $(OBJECTS) $(TARGET)
+
+check: 
 
 rebuild: clean all
+
+
+$(TARGET): $(OBJECTS)
+	$(CXX) $(LDFLAGS) -o $@ $(OBJECTS)
+
+*.o: *.h $(INCLUDE_DIR)/*.h

@@ -1,0 +1,50 @@
+#
+# 
+# 
+
+%define vers @VERS@
+%define rel @REL@
+
+Summary: Monitoring daemon for Red Hat Enterprise Linux - Cluster Suite
+Name: clumon
+Version: %vers
+Release: %rel
+License: GPL,LGPL
+Group: System Environment/Base
+Source: %{name}-%{version}-%{release}.tar.gz
+Buildroot: %{_tmppath}/%{name}-%{version}-buildroot
+Requires: chkconfig initscripts glibc libxml2 libstdc++
+Requires: /bin/bash
+Provides: clumond
+BuildRequires: glibc-devel gcc-c++ libxml2-devel /bin/grep 
+
+%description
+clumond description
+
+%prep
+%setup -q
+%configure
+
+%build
+make
+
+%install
+%makeinstall
+
+%clean
+rm -rf $RPM_BUILD_ROOT
+
+%files
+%defattr(-,root,root)
+%doc README COPYING
+/usr/sbin/*
+
+%post
+
+%preun
+
+%postun
+
+%changelog
+* Wed Nov 23 2005 Stanko Kupcevic <kupcevic@redhat.com> 0.8.1-1
+- Initial build.

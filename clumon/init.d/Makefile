@@ -1,6 +1,5 @@
 ################################################################################################################################################################
-##
-##  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
 ##
 ##  This copyrighted material is made available to anyone wishing to use,
 ##  modify, copy, or redistribute it subject to the terms and conditions
@@ -8,36 +7,20 @@
 ##
 ##############################################################################################################################################################
 
-top_srcdir=../..
-UNINSTALL = ${top_srcdir}/scripts/uninstall.pl
+top_srcdir=..
+UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 include ${top_srcdir}/make/defines.mk
-INCLUDE += -I $(top_srcdir)/src/include `xml2-config --cflags`
 
+TARGET = clumond
 
-TARGET = libClusterMonitor.a
-
-OBJECTS = ClusterMonitor.o \
-	Cluster.o Node.o Service.o \
-	Socket.o ClientSocket.o ServerSocket.o \
-	Thread.o \
-	XML.o
-
-
-all: ${TARGET}
-
-install: 
-
-uninstall: 
+all:
 
 clean:
-	rm -f $(OBJECTS) $(TARGET)
 
-check: 
+install:
+	install -d ${DESTDIR}/etc/init.d
+	install ${TARGET} ${DESTDIR}/etc/init.d
 
-rebuild: clean all
-
-
-$(TARGET): $(OBJECTS) 
-	$(AR) rc $(TARGET) $(OBJECTS)
-	$(RANLIB) $(TARGET)
+uninstall:
+	${UNINSTALL} ${TARGET} ${DESTDIR}/etc/init.d

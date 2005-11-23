@@ -2,7 +2,7 @@
 ###############################################################################
 ##
 ##  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
-##
+##  
 ##  This copyrighted material is made available to anyone wishing to use,
 ##  modify, copy, or redistribute it subject to the terms and conditions
 ##  of the GNU General Public License v.2.
@@ -10,37 +10,26 @@
 ###############################################################################
 ###############################################################################
 
-
 all:
-	cd common && ${MAKE} all
-	cd daemon && ${MAKE} all
-	cd snmp-agent && ${MAKE} all
-	cd cim-provider && ${MAKE} all
+	cd src && ${MAKE} all
 
 clean:
-	cd common && ${MAKE} clean
-	cd daemon && ${MAKE} clean
-	cd snmp-agent && ${MAKE} clean
-	cd cim-provider && ${MAKE} clean
-
-check:
-	cd common && ${MAKE} check
-	cd daemon && ${MAKE} check
-	cd snmp-agent && ${MAKE} check
-	cd cim-provider && ${MAKE} check
+	cd src && ${MAKE} clean
 
 distclean: clean
+	rm -f make/defines.mk
 
 install:
-	cd common && ${MAKE} install
-	cd daemon && ${MAKE} install
-	cd snmp-agent && ${MAKE} install
-	cd cim-provider && ${MAKE} install
+	cd src && ${MAKE} install
+	cd man && ${MAKE} install
+	cd init.d && ${MAKE} install
 
 uninstall:
-	cd common && ${MAKE} uninstall
-	cd daemon && ${MAKE} uninstall
-	cd snmp-agent && ${MAKE} uninstall
-	cd cim-provider && ${MAKE} uninstall
+	cd src && ${MAKE} uninstall
+	cd man && ${MAKE} uninstall
+	cd init.d && ${MAKE} uninstall
+
+check:
+	cd src && ${MAKE} check
 
 rebuild: clean all
