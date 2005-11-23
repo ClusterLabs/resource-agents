@@ -21,45 +21,59 @@
  */
 
 
-#ifndef counting_auto_ptr_h
-#define counting_auto_ptr_h
+#ifndef Mutex_h
+#define Mutex_h
 
-#include "Mutex.h"
+#include <pthread.h>
 
 
 namespace ClusterMonitoring 
 {
 
 
-template<class X>
-class counting_auto_ptr
+class Mutex
 {
  public:
-  explicit counting_auto_ptr(X* ptr = 0);
-  counting_auto_ptr(const counting_auto_ptr<X>&);
-  counting_auto_ptr<X>& operator= (const counting_auto_ptr<X>&);
-  virtual ~counting_auto_ptr();
+  Mutex()
+    {
+      pthread_mutexattr_t attr;
+      pthread_mutexattr_init(&attr);
+      pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE_NP);
+      pthread_mutex_init(&_mutex, &attr);
+      pthread_mutexattr_destroy(&attr);
+    }
+  virtual ~Mutex()
+    { pthread_mutex_destroy(&_mutex); }
   
-  X& operator*() const;
-  X* operator->() const;
-  
-  bool operator== (const counting_auto_ptr<X>& a) const 
-    { return _ptr == a._ptr; }
-  
-  X* get();
+  void lock()
+    { pthread_mutex_lock(&_mutex); }
+  void unlock()
+    { pthread_mutex_unlock(&_mutex); }
   
  private:
-  X* _ptr;
+  pthread_mutex_t _mutex;
   
-  Mutex* _mutex;
-  int* _counter;
-  
-};
+  Mutex(const Mutex&);
+  Mutex& operator= (const Mutex&);
+};  // class Mutex
 
-#include "counting_auto_ptr.cpp"
+
+class MutexLocker
+{
+ public:
+  MutexLocker(Mutex& m) :
+    _mutex(m) { _mutex.lock(); }
+  virtual ~MutexLocker() { _mutex.unlock(); }
+  
+ private:
+  Mutex& _mutex;
+  
+  MutexLocker(const MutexLocker&);
+  MutexLocker& operator= (const MutexLocker&);
+};  // class MutexLocker
 
 
 };  // namespace ClusterMonitoring 
 
 
-#endif
+#endif  // Mutex_h

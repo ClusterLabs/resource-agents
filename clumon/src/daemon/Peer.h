@@ -13,7 +13,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; see the file COPYING.  If not, write to the
-  Free Software Foundation, Inc.,  675 Mass Ave, Cambridge,
+  Free Software Foundation, Inc.,  675 Mass Ave, Cambridge, 
   MA 02139, USA.
 */
 /*
@@ -21,13 +21,13 @@
  */
 
 
-#ifndef ClusterMonitor_h
-#define ClusterMonitor_h
+#ifndef Peer_h
+#define Peer_h
 
-#include "Cluster.h"
 #include "counting_auto_ptr.h"
-#include "clumond_globals.h"
+#include "Socket.h"
 
+#include <vector>
 #include <string>
 
 
@@ -35,25 +35,38 @@ namespace ClusterMonitoring
 {
 
 
-class ClusterMonitor
+class Peer
 {
  public:
-  ClusterMonitor(const std::string& socket_path=MONITORING_CLIENT_SOCKET);
-  virtual ~ClusterMonitor();
+  Peer();
+  Peer(const std::string& hostname, const ClientSocket&);
+  Peer(const std::string& hostname, unsigned short port);
+  virtual ~Peer();
   
-  counting_auto_ptr<Cluster> get_cluster();
+  void send();
+  std::vector<std::string> receive();
+  
+  bool outq_empty() { return _out->empty(); }
+  
+  void append(const std::string& msg);
+  
+  int get_sock_fd();
+  
+  std::string hostname();
+  
+  bool operator== (const Peer&) const;
   
  private:
-  std::string _sock_path;
-  unsigned int time();
+  counting_auto_ptr<ClientSocket> _sock;
+  const std::string _hostname;
   
-  ClusterMonitor(const ClusterMonitor&);
-  ClusterMonitor& operator= (const ClusterMonitor&);
+  counting_auto_ptr<std::string> _in;
+  counting_auto_ptr<std::string> _out;
   
-};  // class ClusterMonitor
+};  // class Peer
 
 
-};  // namespace ClusterMonitoring
+};  // namespace ClusterMonitoring 
 
 
-#endif
+#endif  // Peer

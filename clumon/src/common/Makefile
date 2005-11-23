@@ -1,8 +1,13 @@
 
 CXX = g++ 
-CXXFLAGS = -c -O2 -Wall -Wno-unused -I../include/
+CXXFLAGS = -c -O2 -Wall -Wno-unused -I../include/ `xml2-config --cflags`
 
-OBJECTS = ClusterMonitor.o Cluster.o Node.o Service.o 
+OBJECTS = ClusterMonitor.o \
+	Cluster.o Node.o Service.o \
+	Socket.o ClientSocket.o ServerSocket.o \
+	Thread.o \
+	XML.o
+
 TARGET = libClusterMonitor.a
 
 

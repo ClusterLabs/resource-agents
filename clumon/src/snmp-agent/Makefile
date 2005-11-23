@@ -5,7 +5,7 @@ SNMP_CFLAGS = `net-snmp-config --cflags`
 CXX = g++
 CXXFLAGS = -O2 -Wall -Wno-unused -I../include/ $(SNMP_CFLAGS)
 
-LDFLAGS = -fPIC -shared -lpthread ../common/*.o
+LDFLAGS = -fPIC -shared -lpthread ../common/*.o `xml2-config --libs`
 
 OBJECTS = clusterMonitorSnmp.o \
 	clusterMIB.o \

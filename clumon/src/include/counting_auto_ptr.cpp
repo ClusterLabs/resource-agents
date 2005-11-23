@@ -1,59 +1,73 @@
+/*
+  Copyright Red Hat, Inc. 2005
 
-//#include "counting_auto_ptr.h"
-#include <MutexLocker.h>
+  This program is free software; you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as published by the
+  Free Software Foundation; either version 2, or (at your option) any
+  later version.
 
+  This program is distributed in the hope that it will be useful, but
+  WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; see the file COPYING.  If not, write to the
+  Free Software Foundation, Inc.,  675 Mass Ave, Cambridge, 
+  MA 02139, USA.
+*/
+/*
+ * Author: Stanko Kupcevic <kupcevic@redhat.com>
+ */
+
+
+#include "counting_auto_ptr.h"
 
 
 template<class X>
-counting_auto_ptr<X>::counting_auto_ptr(X* ptr) : ptr(ptr)
+counting_auto_ptr<X>::counting_auto_ptr(X* ptr) : 
+  _ptr(ptr)
 {
   try {
-    counter = new int(1);
+    _counter = new int(1);
   } catch ( ... ) {
     delete ptr;
     throw;
   }
   
   try {
-    mutex = new pthread_mutex_t;
+    _mutex = new Mutex();
   } catch ( ... ) {
-    delete counter;
     delete ptr;
+    delete _counter;
     throw;
   }
-  
-  // init mutex
-  pthread_mutexattr_t attr;
-  pthread_mutexattr_init(&attr);
-  pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE_NP);
-  pthread_mutex_init(mutex, &attr);
-  pthread_mutexattr_destroy(&attr);
 };
 
 template<class X>
 counting_auto_ptr<X>::counting_auto_ptr(const counting_auto_ptr<X>& o)
 {
-  MutexLocker lock(o.mutex);
-  ptr = o.ptr;
-  mutex = o.mutex;
-  counter = o.counter;
-  *counter += 1;
+  MutexLocker l(*(o._mutex));
+  _ptr = o._ptr;
+  _mutex = o._mutex;
+  _counter = o._counter;
+  *_counter += 1;
 };
 
 template<class X> 
 counting_auto_ptr<X>&
-counting_auto_ptr<X>::operator=(const counting_auto_ptr<X>& o)
+counting_auto_ptr<X>::operator= (const counting_auto_ptr<X>& o)
 {
   if (&o == this)
     return *this;
   
   this->~counting_auto_ptr();
   
-  MutexLocker lock(o.mutex);
-  ptr = o.ptr;
-  mutex = o.mutex;
-  counter = o.counter;
-  *counter += 1;
+  MutexLocker l(*(o._mutex));
+  _ptr = o._ptr;
+  _mutex = o._mutex;
+  _counter = o._counter;
+  *_counter += 1;
   return *this;
 };
 
@@ -62,14 +76,13 @@ counting_auto_ptr<X>::~counting_auto_ptr()
 {
   bool last = false;
   {
-    MutexLocker lock(mutex);
-    last = (--(*counter) == 0);
+    MutexLocker l(*_mutex);
+    last = (--(*_counter) == 0);
   }
   if (last) {
-    delete counter;
-    delete ptr;
-    pthread_mutex_destroy(mutex);
-    delete mutex;
+    delete _counter;
+    delete _ptr;
+    delete _mutex;
   }
 };
 
@@ -78,20 +91,20 @@ template<class X>
 X&
 counting_auto_ptr<X>::operator*() const
 {
-  return *ptr;
+  return *_ptr;
 };
 
 template<class X>
 X*
 counting_auto_ptr<X>::operator->() const
 {
-  return ptr;
+  return _ptr;
 };
 
 template<class X>
 X*
 counting_auto_ptr<X>::get()
 {
-  return ptr;
+  return _ptr;
 };
 

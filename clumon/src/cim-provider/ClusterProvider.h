@@ -1,3 +1,26 @@
+/*
+  Copyright Red Hat, Inc. 2005
+
+  This program is free software; you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as published by the
+  Free Software Foundation; either version 2, or (at your option) any
+  later version.
+
+  This program is distributed in the hope that it will be useful, but
+  WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; see the file COPYING.  If not, write to the
+  Free Software Foundation, Inc.,  675 Mass Ave, Cambridge, 
+  MA 02139, USA.
+*/
+/*
+ * Author: Stanko Kupcevic <kupcevic@redhat.com>
+ */
+
+
 #ifndef ClusterProvider_h
 #define ClusterProvider_h
 
@@ -5,10 +28,8 @@
 #include <Pegasus/Provider/CIMInstanceProvider.h>
 #include <Pegasus/Provider/CIMAssociationProvider.h>
 
-#include <list>
-#include <string>
-
 #include "Cluster.h"
+#include "ClusterMonitor.h"
 
 
 namespace ClusterMonitoring
@@ -25,13 +46,12 @@ namespace ClusterMonitoring
 
 
 
-class ClusterProvider : public Pegasus::CIMInstanceProvider//, public Pegasus::CIMAssociationProvider
+class ClusterProvider : 
+  public Pegasus::CIMInstanceProvider  //, public Pegasus::CIMAssociationProvider
 {
  public:
   ClusterProvider (void) throw ();
   virtual ~ClusterProvider (void) throw ();
-  
-  
   
   // CIMProvider interface
   virtual void initialize (Pegasus::CIMOMHandle& cimom);
@@ -45,7 +65,6 @@ class ClusterProvider : public Pegasus::CIMInstanceProvider//, public Pegasus::C
 			   const Pegasus::Boolean includeClassOrigin,
 			   const Pegasus::CIMPropertyList & propertyList,
 			   Pegasus::InstanceResponseHandler & handler);
-    
   virtual void enumerateInstances(
 				  const Pegasus::OperationContext & context,
 				  const Pegasus::CIMObjectPath & ref,
@@ -53,12 +72,10 @@ class ClusterProvider : public Pegasus::CIMInstanceProvider//, public Pegasus::C
 				  const Pegasus::Boolean includeClassOrigin,
 				  const Pegasus::CIMPropertyList & propertyList,
 				  Pegasus::InstanceResponseHandler & handler);
-
   virtual void enumerateInstanceNames(
 				      const Pegasus::OperationContext & context,
 				      const Pegasus::CIMObjectPath & ref,
 				      Pegasus::ObjectPathResponseHandler & handler);
-
   virtual void modifyInstance(
 			      const Pegasus::OperationContext & context,
 			      const Pegasus::CIMObjectPath & ref,
@@ -66,13 +83,11 @@ class ClusterProvider : public Pegasus::CIMInstanceProvider//, public Pegasus::C
 			      const Pegasus::Boolean includeQualifiers,
 			      const Pegasus::CIMPropertyList & propertyList,
 			      Pegasus::ResponseHandler & handler);
-
   virtual void createInstance(
 			      const Pegasus::OperationContext & context,
 			      const Pegasus::CIMObjectPath & ref,
 			      const Pegasus::CIMInstance & obj,
 			      Pegasus::ObjectPathResponseHandler & handler);
-
   virtual void deleteInstance(
 			      const Pegasus::OperationContext & context,
 			      const Pegasus::CIMObjectPath & ref,
@@ -117,10 +132,12 @@ class ClusterProvider : public Pegasus::CIMInstanceProvider//, public Pegasus::C
   */
   
  private:
-  int log_handle;
+  int _log_handle;
   void log(const Pegasus::String str);
+  ClusterMonitor _monitor;
   
-};
+};  // class ClusterProvider
+ 
  
 }; // namespace ClusterMonitoring
 

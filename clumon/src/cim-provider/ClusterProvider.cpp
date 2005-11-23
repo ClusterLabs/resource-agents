@@ -1,3 +1,26 @@
+/*
+  Copyright Red Hat, Inc. 2005
+
+  This program is free software; you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as published by the
+  Free Software Foundation; either version 2, or (at your option) any
+  later version.
+
+  This program is distributed in the hope that it will be useful, but
+  WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; see the file COPYING.  If not, write to the
+  Free Software Foundation, Inc.,  675 Mass Ave, Cambridge, 
+  MA 02139, USA.
+*/
+/*
+ * Author: Stanko Kupcevic <kupcevic@redhat.com>
+ */
+
+
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -13,7 +36,6 @@
 
 #include "ClusterProvider.h"
 #include "SmartHandler.h"
-#include "ClusterMonitor.h"
 #include "Cluster.h"
 
 
@@ -23,19 +45,19 @@ using namespace ClusterMonitoring;
 
 
 static CIMInstance 
-buildClusterInstance(Cluster& cluster, Boolean qual, Boolean orig);
+buildClusterInstance(counting_auto_ptr<Cluster>& cluster, Boolean qual, Boolean orig);
 static CIMInstance 
-buildNodeInstance(Node& node, Boolean qual, Boolean orig);
+buildNodeInstance(counting_auto_ptr<Node>& node, Boolean qual, Boolean orig);
 static CIMInstance 
-buildServiceInstance(Service& service, Boolean qual, Boolean orig);
+buildServiceInstance(counting_auto_ptr<Service>& service, Boolean qual, Boolean orig);
 
 
 static CIMObjectPath 
-buildClusterInstancePath(Cluster& cluster, const CIMNamespaceName& nameSpace);
+buildClusterInstancePath(counting_auto_ptr<Cluster>& cluster, const CIMNamespaceName& nameSpace);
 static CIMObjectPath 
-buildNodeInstancePath(Node& node, const CIMNamespaceName& nameSpace);
+buildNodeInstancePath(counting_auto_ptr<Node>& node, const CIMNamespaceName& nameSpace);
 static CIMObjectPath 
-buildServiceInstancePath(Service& service, const CIMNamespaceName& nameSpace);
+buildServiceInstancePath(counting_auto_ptr<Service>& service, const CIMNamespaceName& nameSpace);
 
 
 static String
@@ -44,18 +66,19 @@ hostname(void);
 
 
 
-ClusterProvider::ClusterProvider(void) throw()
-  //  clusterMonitor("/tmp/cluster_monitor_sock")
+ClusterProvider::ClusterProvider(void) throw() :
+  _log_handle(-1)
 {
-  log_handle = open("/var/log/ClusterProvider.log", O_WRONLY | O_CREAT | O_APPEND);
+  //_log_handle = open("/var/log/ClusterProvider.log", O_WRONLY | O_CREAT | O_APPEND);
   log("ClusterProvider Created");
 }
 
 ClusterProvider::~ClusterProvider(void) throw()
 {
-  
+  if(_log_handle != -1)
+    close(_log_handle);
 }
-  
+
 
 
 // CIMProvider interface
@@ -82,7 +105,7 @@ ClusterProvider::getInstance(const OperationContext &context,
 			     const CIMPropertyList &propertyList,
 			     InstanceResponseHandler &handler)
 {
-  counting_auto_ptr<Cluster> cluster = ClusterMonitoring::getCluster("/tmp/cluster_monitor_sock");
+  counting_auto_ptr<Cluster> cluster = _monitor.get_cluster();
   
   SmartHandler<InstanceResponseHandler> t(handler);
   
@@ -94,11 +117,11 @@ ClusterProvider::getInstance(const OperationContext &context,
     {
       if(cluster.get() == NULL)
 	return;
-      CIMObjectPath path = buildClusterInstancePath(*cluster, 
+      CIMObjectPath path = buildClusterInstancePath(cluster, 
 						    ref.getNameSpace());
       if(path.identical(ref))
 	{
-	  CIMInstance inst = buildClusterInstance(*cluster,
+	  CIMInstance inst = buildClusterInstance(cluster,
 						  includeQualifiers,
 						  includeClassOrigin);
 	  handler.deliver(inst);
@@ -108,9 +131,10 @@ ClusterProvider::getInstance(const OperationContext &context,
     {
       if(cluster.get() == NULL)
 	return;
-      list<Node>& nodes = cluster->getNodes();
-      list<Node>::iterator iter = nodes.begin();
-      for( ; iter != nodes.end(); iter++)
+      list<counting_auto_ptr<Node> > nodes = cluster->nodes();
+      for(list<counting_auto_ptr<Node> >::iterator iter = nodes.begin();
+	  iter != nodes.end(); 
+	  iter++)
 	{
 	  CIMObjectPath path = buildNodeInstancePath(*iter, 
 						     ref.getNameSpace());
@@ -127,16 +151,17 @@ ClusterProvider::getInstance(const OperationContext &context,
     {
       if(cluster.get() == NULL)
 	return;
-      list<Service>& services = cluster->getServices();
-      list<Service>::iterator iter = services.begin();
-      for( ; iter != services.end(); iter++)
+      list<counting_auto_ptr<Service> > services = cluster->services();
+      for(list<counting_auto_ptr<Service> >::iterator iter = services.begin();
+	  iter != services.end(); 
+	  iter++)
 	{
 	  CIMObjectPath path = buildServiceInstancePath(*iter, 
 							ref.getNameSpace());
 	  if(path.identical(ref))
 	    {
 	      CIMInstance inst = buildServiceInstance(*iter, 
-							  includeQualifiers,
+						      includeQualifiers,
 						      includeClassOrigin);
 	      handler.deliver(inst);
 	    }
@@ -154,7 +179,7 @@ ClusterProvider::enumerateInstances(const OperationContext &context,
 				    const CIMPropertyList &propertyList,
 				    InstanceResponseHandler &handler)
 {
-  counting_auto_ptr<Cluster> cluster = ClusterMonitoring::getCluster("/tmp/cluster_monitor_sock");
+  counting_auto_ptr<Cluster> cluster = _monitor.get_cluster();
   
   SmartHandler<InstanceResponseHandler> t(handler);
   
@@ -166,7 +191,7 @@ ClusterProvider::enumerateInstances(const OperationContext &context,
     {
       if(cluster.get() == NULL)
 	return;
-      CIMInstance inst = buildClusterInstance(*cluster,
+      CIMInstance inst = buildClusterInstance(cluster,
 					      includeQualifiers,
 					      includeClassOrigin);
       handler.deliver(inst);
@@ -175,9 +200,10 @@ ClusterProvider::enumerateInstances(const OperationContext &context,
     {
       if(cluster.get() == NULL)
 	return;
-      list<Node>& nodes = cluster->getNodes();
-      list<Node>::iterator iter = nodes.begin();
-      for( ; iter != nodes.end(); iter++)
+      list<counting_auto_ptr<Node> > nodes = cluster->nodes();
+      for(list<counting_auto_ptr<Node> >::iterator iter = nodes.begin();
+	  iter != nodes.end(); 
+	  iter++)
 	{
 	  CIMInstance inst = buildNodeInstance(*iter, 
 					       includeQualifiers,
@@ -189,9 +215,10 @@ ClusterProvider::enumerateInstances(const OperationContext &context,
     {
       if(cluster.get() == NULL)
 	return;
-      list<Service>& services = cluster->getServices();
-      list<Service>::iterator iter = services.begin();
-      for( ; iter != services.end(); iter++)
+      list<counting_auto_ptr<Service> > services = cluster->services();
+      for(list<counting_auto_ptr<Service> >::iterator iter = services.begin();
+	  iter != services.end(); 
+	  iter++)
 	{
 	  CIMInstance inst = buildServiceInstance(*iter, 
 						  includeQualifiers,
@@ -208,7 +235,7 @@ ClusterProvider::enumerateInstanceNames(const OperationContext &context,
 					const CIMObjectPath &classRef,
 					ObjectPathResponseHandler &handler)
 {
-  counting_auto_ptr<Cluster> cluster = ClusterMonitoring::getCluster("/tmp/cluster_monitor_sock");
+  counting_auto_ptr<Cluster> cluster = _monitor.get_cluster();
   
   SmartHandler<ObjectPathResponseHandler> t(handler);
   
@@ -220,7 +247,7 @@ ClusterProvider::enumerateInstanceNames(const OperationContext &context,
     {
       if(cluster.get() == NULL)
 	return;
-      CIMObjectPath path = buildClusterInstancePath(*cluster,
+      CIMObjectPath path = buildClusterInstancePath(cluster,
 						    classRef.getNameSpace());
       handler.deliver(path);
     }
@@ -228,9 +255,10 @@ ClusterProvider::enumerateInstanceNames(const OperationContext &context,
     {
       if(cluster.get() == NULL)
 	return;
-      list<Node>& nodes = cluster->getNodes();
-      list<Node>::iterator iter = nodes.begin();
-      for( ; iter != nodes.end(); iter++)
+      list<counting_auto_ptr<Node> > nodes = cluster->nodes();
+      for(list<counting_auto_ptr<Node> >::iterator iter = nodes.begin();
+	  iter != nodes.end(); 
+	  iter++)
 	{
 	  CIMObjectPath path = buildNodeInstancePath(*iter, 
 						     classRef.getNameSpace());
@@ -241,9 +269,10 @@ ClusterProvider::enumerateInstanceNames(const OperationContext &context,
     {
       if(cluster.get() == NULL)
 	return;
-      list<Service>& services = cluster->getServices();
-      list<Service>::iterator iter = services.begin();
-      for( ; iter != services.end(); iter++)
+      list<counting_auto_ptr<Service> > services = cluster->services();
+      for(list<counting_auto_ptr<Service> >::iterator iter = services.begin();
+	  iter != services.end(); 
+	  iter++)
 	{
 	  CIMObjectPath path = buildServiceInstancePath(*iter, 
 							classRef.getNameSpace());
@@ -292,8 +321,8 @@ void
 ClusterProvider::log(const String str)
 {
   String s = str + "\n";
-  if(log_handle != -1)
-    write(log_handle, s.getCString(), s.size());
+  if(_log_handle != -1)
+    write(_log_handle, s.getCString(), s.size());
 }
 
 
@@ -302,14 +331,14 @@ ClusterProvider::log(const String str)
 
 
 CIMInstance
-buildClusterInstance(Cluster& cluster, Boolean qual, Boolean orig)
+buildClusterInstance(counting_auto_ptr<Cluster>& cluster, Boolean qual, Boolean orig)
 {
   CIMInstance inst(CIMName(CLUSTER_CLASSNAME));
   
   // Name
   inst.addProperty(CIMProperty(
 			       CIMName("Name"),
-			       CIMValue(String(cluster.name.c_str()))));
+			       CIMValue(String(cluster->name().c_str()))));
   
   // Caption
   //inst.addProperty(CIMProperty(
@@ -324,24 +353,26 @@ buildClusterInstance(Cluster& cluster, Boolean qual, Boolean orig)
   
   inst.addProperty(CIMProperty(
 			       CIMName("Votes"),
-			       CIMValue(Uint16(cluster.getVotes()))));
+			       CIMValue(Uint16(cluster->votes()))));
   inst.addProperty(CIMProperty(
 			       CIMName("VotesNeededForQuorum"),
-			       CIMValue(Uint16(cluster.getMinQuorum()))));
+			       CIMValue(Uint16(cluster->minQuorum()))));
   
   
   // *** Nodes ***
   
-  list<Node>& nodes = cluster.getNodes();
+  list<counting_auto_ptr<Node> > nodes = cluster->nodes();
   Array<String> names;
   Array<String> namesA;
   Array<String> namesU;
-  list<Node>::iterator iterN = nodes.begin();
-  for( ; iterN != nodes.end(); iterN++)
+  for(list<counting_auto_ptr<Node> >::iterator iterN = nodes.begin();
+      iterN != nodes.end(); 
+      iterN++)
     {
-      String name(iterN->name.c_str());
+      counting_auto_ptr<Node>& node = *iterN;
+      String name(node->name().c_str());
       names.append(name);
-      if(iterN->clustered)
+      if(node->clustered())
 	namesA.append(name);
       else
 	namesU.append(name);
@@ -354,10 +385,10 @@ buildClusterInstance(Cluster& cluster, Boolean qual, Boolean orig)
 			       CIMValue(Uint16(nodes.size()))));
   inst.addProperty(CIMProperty(
 			       CIMName("AvailableNodesNumber"),
-			       CIMValue(Uint16(cluster.getClusteredNodes().size()))));
+			       CIMValue(Uint16(cluster->clusteredNodes().size()))));
   inst.addProperty(CIMProperty(
 			       CIMName("UnavailableNodesNumber"),
-			       CIMValue(Uint16(cluster.getUnclusteredNodes().size()))));
+			       CIMValue(Uint16(cluster->unclusteredNodes().size()))));
   inst.addProperty(CIMProperty(
 			       CIMName("NodesNames"), 
 			       CIMValue(names)));
@@ -370,35 +401,37 @@ buildClusterInstance(Cluster& cluster, Boolean qual, Boolean orig)
   
   // *** services ***
   
-  list<Service>& services = cluster.getServices();
+  list<counting_auto_ptr<Service> > services = cluster->services();
   names.clear();
   Array<String> namesR;
   Array<String> namesF;
   Array<String> namesS;
-  list<Service>::iterator iterS = services.begin();
-  for( ; iterS != services.end(); iterS++)
+  for(list<counting_auto_ptr<Service> >::iterator iterS = services.begin();
+      iterS != services.end(); 
+      iterS++)
     {
-      String name(iterS->name.c_str());
+      counting_auto_ptr<Service>& service = *iterS;
+      String name(service->name().c_str());
       names.append(name);
-      if(iterS->running())
+      if(service->running())
 	namesR.append(name);
       else 
 	namesS.append(name);
-      if(iterS->failed())
+      if(service->failed())
 	namesF.append(name);
     }
   inst.addProperty(CIMProperty(
 			       CIMName("ServicesNumber"),
-			       CIMValue(Uint16(cluster.getServices().size()))));
+			       CIMValue(Uint16(cluster->services().size()))));
   inst.addProperty(CIMProperty(
 			       CIMName("RunningServicesNumber"),
-			       CIMValue(Uint16(cluster.getRunningServices().size()))));
+			       CIMValue(Uint16(cluster->runningServices().size()))));
   inst.addProperty(CIMProperty(
 			       CIMName("StoppedServicesNumber"),
-			       CIMValue(Uint16(cluster.getStoppedServices().size()))));
+			       CIMValue(Uint16(cluster->stoppedServices().size()))));
   inst.addProperty(CIMProperty(
 			       CIMName("FailedServicesNumber"),
-			       CIMValue(Uint16(cluster.getFailedServices().size()))));
+			       CIMValue(Uint16(cluster->failedServices().size()))));
   inst.addProperty(CIMProperty(
 			       CIMName("ServicesNames"),
 			       CIMValue(names)));
@@ -415,16 +448,16 @@ buildClusterInstance(Cluster& cluster, Boolean qual, Boolean orig)
   
   // *** status begin ***
   
-  bool online = cluster.getClusteredNodes().size() > 0;
-  bool failedServices = cluster.getFailedServices().size() != 0;
-  bool stoppedServices = cluster.getStoppedServices().size() != 0;
-  bool unclusteredNodes = cluster.getUnclusteredNodes().size() != 0;
-  bool quorumed = cluster.quorumed();
+  bool online = cluster->clusteredNodes().size() > 0;
+  bool failedServices = cluster->failedServices().size() != 0;
+  bool stoppedServices = cluster->stoppedServices().size() != 0;
+  bool unclusteredNodes = cluster->unclusteredNodes().size() != 0;
+  bool quorate = cluster->quorate();
   Array<Uint16> Ostatus; // OperationalStatus
   Array<String> statusD; // StatusDescription
   if(online)
     {
-      if(quorumed)
+      if(quorate)
 	{
 	  if(!unclusteredNodes && !failedServices && !stoppedServices)
 	    {
@@ -458,7 +491,7 @@ buildClusterInstance(Cluster& cluster, Boolean qual, Boolean orig)
 	{
 	  // Degraded
 	  Ostatus.append(3);
-	  statusD.append("All services stopped, not quorumed");
+	  statusD.append("All services stopped, not quorate");
 	}
     }
   else
@@ -539,7 +572,7 @@ buildClusterInstance(Cluster& cluster, Boolean qual, Boolean orig)
 }
 
 CIMInstance
-buildNodeInstance(Node& node, Boolean qual, Boolean orig)
+buildNodeInstance(counting_auto_ptr<Node>& node, Boolean qual, Boolean orig)
 {
   CIMInstance inst(CIMName(CLUSTER_NODE_CLASSNAME));
   /*
@@ -556,12 +589,12 @@ buildNodeInstance(Node& node, Boolean qual, Boolean orig)
   // ClusterName
   inst.addProperty(CIMProperty(
   			       CIMName("ClusterName"),
-  			       CIMValue(String(node.cluster->name.c_str()))));
+  			       CIMValue(String(node->clustername().c_str()))));
   
   // Name
   inst.addProperty(CIMProperty(
 			       CIMName("Name"),
-			       CIMValue(String(node.name.c_str()))));
+			       CIMValue(String(node->name().c_str()))));
   
   // Caption
   //inst.addProperty(CIMProperty(
@@ -577,21 +610,22 @@ buildNodeInstance(Node& node, Boolean qual, Boolean orig)
   
   inst.addProperty(CIMProperty(
 			       CIMName("Votes"),
-			       CIMValue(Uint16(node.votes))));
+			       CIMValue(Uint16(node->votes()))));
   
   // *** services ***
   
-  list<Service*> services = node.getServices();
+  list<counting_auto_ptr<Service> > services = node->services();
   Array<String> names;
-  list<Service*>::iterator iter = services.begin();
-  for( ; iter != services.end(); iter++)
+  for(list<counting_auto_ptr<Service> >::iterator iter = services.begin();
+      iter != services.end(); 
+      iter++)
     {
-      String name((*iter)->name.c_str());
+      String name((*iter)->name().c_str());
       names.append(name);
     }
   inst.addProperty(CIMProperty(
 			       CIMName("RunningServicesNumber"),
-			       CIMValue(Uint16(node.getServices().size()))));
+			       CIMValue(Uint16(node->services().size()))));
   inst.addProperty(CIMProperty(
 			       CIMName("RunningServicesNames"),
 			       CIMValue(names)));
@@ -601,13 +635,13 @@ buildNodeInstance(Node& node, Boolean qual, Boolean orig)
   
   Array<Uint16> Ostatus; // OperationalStatus
   Array<String> statusD; // StatusDescription
-  if(node.online && node.clustered)
+  if(node->online() && node->clustered())
     {
       // OK
       Ostatus.append(2);
       statusD.append("Node available to cluster");
     }
-  else if(node.online)
+  else if(node->online())
     {
       // Error
       Ostatus.append(6);
@@ -668,14 +702,14 @@ buildNodeInstance(Node& node, Boolean qual, Boolean orig)
 }
 
 CIMInstance
-buildServiceInstance(Service& service, Boolean qual, Boolean orig)
+buildServiceInstance(counting_auto_ptr<Service>& service, Boolean qual, Boolean orig)
 {
   CIMInstance inst(CIMName(CLUSTER_SERVICE_CLASSNAME));
   
   // Name
   inst.addProperty(CIMProperty(
 			       CIMName("Name"),
-			       CIMValue(String(service.name.c_str()))));
+			       CIMValue(String(service->name().c_str()))));
   
   // Caption
   //inst.addProperty(CIMProperty(
@@ -689,15 +723,15 @@ buildServiceInstance(Service& service, Boolean qual, Boolean orig)
   // ClusterName
   inst.addProperty(CIMProperty(
   			       CIMName("ClusterName"),
-  			       CIMValue(String(service.cluster->name.c_str()))));
+  			       CIMValue(String(service->clustername().c_str()))));
   
   // Started
   inst.addProperty(CIMProperty(
 			       CIMName("Started"),
-			       CIMValue(service.running())));
+			       CIMValue(service->running())));
   // StartMode
   String autostart;
-  if(service.autostart())
+  if(service->autostart())
     autostart = "Automatic";
   else
     autostart = "Manual";
@@ -706,10 +740,9 @@ buildServiceInstance(Service& service, Boolean qual, Boolean orig)
 			       CIMValue(autostart)));
   
   // NodeName
-  if(service.running())
+  if(service->running())
     {
-      Node* node = service.getNode();
-      String nodeName = String(node->name.c_str());
+      String nodeName = String(service->nodename().c_str());
       inst.addProperty(CIMProperty(
 				   CIMName("NodeName"),
 				   CIMValue(nodeName)));
@@ -719,13 +752,13 @@ buildServiceInstance(Service& service, Boolean qual, Boolean orig)
   
   Array<Uint16> Ostatus; // OperationalStatus
   Array<String> statusD; // StatusDescription
-  if(service.failed())
+  if(service->failed())
     {
       // Error
       Ostatus.append(6);
       statusD.append("Failed");
     }
-  else if(!service.running())
+  else if(!service->running())
     {
       // Stopped
       Ostatus.append(10);
@@ -761,7 +794,7 @@ buildServiceInstance(Service& service, Boolean qual, Boolean orig)
   // SystemName
   inst.addProperty(CIMProperty(
   			       CIMName("SystemName"),
-  			       CIMValue(String(service.cluster->name.c_str()))));
+  			       CIMValue(String(service->clustername().c_str()))));
   
   
   // ElementName
@@ -786,34 +819,53 @@ buildServiceInstance(Service& service, Boolean qual, Boolean orig)
 
 
 CIMObjectPath 
-buildClusterInstancePath(Cluster& cluster, const CIMNamespaceName& nameSpace)
+buildClusterInstancePath(counting_auto_ptr<Cluster>& cluster, 
+			 const CIMNamespaceName& nameSpace)
 {
   Array<CIMKeyBinding> keys;
-  keys.append(CIMKeyBinding("CreationClassName", String(CLUSTER_CLASSNAME), CIMKeyBinding::STRING));
-  keys.append(CIMKeyBinding("Name", String(cluster.name.c_str()), CIMKeyBinding::STRING));
+  keys.append(CIMKeyBinding("CreationClassName", 
+			    String(CLUSTER_CLASSNAME), 
+			    CIMKeyBinding::STRING));
+  keys.append(CIMKeyBinding("Name", 
+			    String(cluster->name().c_str()), 
+			    CIMKeyBinding::STRING));
   return CIMObjectPath(hostname(), nameSpace, CLUSTER_CLASSNAME, keys);
 }
 
 CIMObjectPath 
-buildNodeInstancePath(Node& node, const CIMNamespaceName& nameSpace)
+buildNodeInstancePath(counting_auto_ptr<Node>& node, 
+		      const CIMNamespaceName& nameSpace)
 {
-  string clustername = node.cluster->name;
   Array<CIMKeyBinding> keys;
-  keys.append(CIMKeyBinding("CreationClassName", String(CLUSTER_NODE_CLASSNAME), CIMKeyBinding::STRING));
-  keys.append(CIMKeyBinding("Name", String(node.name.c_str()), CIMKeyBinding::STRING));
-  keys.append(CIMKeyBinding("ClusterName", String(clustername.c_str()), CIMKeyBinding::STRING));
+  keys.append(CIMKeyBinding("CreationClassName", 
+			    String(CLUSTER_NODE_CLASSNAME), 
+			    CIMKeyBinding::STRING));
+  keys.append(CIMKeyBinding("Name", 
+			    String(node->name().c_str()), 
+			    CIMKeyBinding::STRING));
+  keys.append(CIMKeyBinding("ClusterName", 
+			    String(node->clustername().c_str()), 
+			    CIMKeyBinding::STRING));
   return CIMObjectPath(hostname(), nameSpace, CLUSTER_NODE_CLASSNAME, keys);
 }
 
 CIMObjectPath 
-buildServiceInstancePath(Service& service, const CIMNamespaceName& nameSpace)
+buildServiceInstancePath(counting_auto_ptr<Service>& service, 
+			 const CIMNamespaceName& nameSpace)
 {
-  string clustername = service.cluster->name;
   Array<CIMKeyBinding> keys;
-  keys.append(CIMKeyBinding("CreationClassName", String(CLUSTER_SERVICE_CLASSNAME), CIMKeyBinding::STRING));
-  keys.append(CIMKeyBinding("Name", String(service.name.c_str()), CIMKeyBinding::STRING));
-  keys.append(CIMKeyBinding("SystemCreationClassName", String(CLUSTER_CLASSNAME), CIMKeyBinding::STRING));
-  keys.append(CIMKeyBinding("SystemName", String(clustername.c_str()), CIMKeyBinding::STRING));
+  keys.append(CIMKeyBinding("CreationClassName", 
+			    String(CLUSTER_SERVICE_CLASSNAME), 
+			    CIMKeyBinding::STRING));
+  keys.append(CIMKeyBinding("Name", 
+			    String(service->name().c_str()), 
+			    CIMKeyBinding::STRING));
+  keys.append(CIMKeyBinding("SystemCreationClassName", 
+			    String(CLUSTER_CLASSNAME), 
+			    CIMKeyBinding::STRING));
+  keys.append(CIMKeyBinding("SystemName", 
+			    String(service->clustername().c_str()), 
+			    CIMKeyBinding::STRING));
   return CIMObjectPath(hostname(), nameSpace, CLUSTER_SERVICE_CLASSNAME, keys);
 }
 
@@ -914,7 +966,7 @@ ClusterProvider::associatorNames(const OperationContext& context,
 				 const String& resultRole,
 				 ObjectPathResponseHandler& handler) 
 {
-  counting_auto_ptr<Cluster> cluster = ClusterMonitoring::getCluster("/tmp/cluster_monitor_sock");
+  counting_auto_ptr<Cluster> cluster = _monitor.get_cluster();
   
   SmartHandler<ObjectPathResponseHandler> t(handler);
   
@@ -939,7 +991,7 @@ ClusterProvider::associators(const OperationContext& context,
 			     const CIMPropertyList& propertyList,
 			     ObjectResponseHandler& handler)
 {
-  counting_auto_ptr<Cluster> cluster = ClusterMonitoring::getCluster("/tmp/cluster_monitor_sock");
+  counting_auto_ptr<Cluster> cluster = _monitor.get_cluster();
   
   SmartHandler<ObjectResponseHandler> t(handler);
   
@@ -959,7 +1011,7 @@ ClusterProvider::referenceNames(const OperationContext& context,
 				const String& role,
 				ObjectPathResponseHandler& handler)
 {
-  counting_auto_ptr<Cluster> cluster = ClusterMonitoring::getCluster("/tmp/cluster_monitor_sock");
+  counting_auto_ptr<Cluster> cluster = _monitor.get_cluster();
   
   SmartHandler<ObjectPathResponseHandler> t(handler);
   
@@ -1018,7 +1070,7 @@ ClusterProvider::references(const OperationContext& context,
 			    const CIMPropertyList& propertyList,
 			    ObjectResponseHandler& handler)
 {
-  counting_auto_ptr<Cluster> cluster = ClusterMonitoring::getCluster("/tmp/cluster_monitor_sock");
+  counting_auto_ptr<Cluster> cluster = _monitor.get_cluster();
   
   SmartHandler<ObjectResponseHandler> t(handler);
   
