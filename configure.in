@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.471 $) dnl cvs revision
+AC_REVISION($Revision: 1.472 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -32,10 +32,21 @@ export CC_IN_CONFIGURE
 INIT_EXT=""
 USE_MODULES=0
 echo Our Host OS: $host_os/$host
+
+dnl This OS-based decision-making is poor autotools practice;
+dnl feature-based mechanisms are strongly preferred.
+dnl
+dnl So keep this section to a bare minimum; regard as a "necessary evil". 
+
+pf_argv_set=""
 case "$host_os" in
 *bsd*)		LIBS="-L/usr/local/lib"
 		CPPFLAGS="$CPPFLAGS -I/usr/local/include"
 		INIT_EXT=".sh"
+		;;
+
+*solaris*)
+		pf_argv_set="PF_ARGV_NONE"
 		;;
 
 *linux*)	USE_MODULES=1
@@ -1922,33 +1933,30 @@ AC_CHECK_LIB(util, setproctitle,
 		ac_cv_func_setproctitle="yes" ; LIBS="$LIBS -lutil"])
 
 if test "$ac_cv_func_setproctitle" = "yes"; then
-  AC_DEFINE(PF_ARGV_TYPE, PF_ARGV_NONE, [ ])
-else
-  pf_argv_set="no"
+  pf_argv_set="PF_ARGV_NONE"
+fi
 
+if test "$pf_argv_set" = ""; then
   AC_CHECK_HEADERS(sys/pstat.h)
   if test "$ac_cv_header_pstat_h" = "yes"; then
     AC_CHECK_FUNCS(pstat)
 
     if test "$ac_cv_func_pstat" = "yes"; then
-	AC_DEFINE(PF_ARGV_TYPE, PF_ARGV_PSTAT, [ ])
+	pf_argv_set="PF_ARGV_PSTAT"
     else
-	AC_DEFINE(PF_ARGV_TYPE, PF_ARGV_WRITABLE, [ ])
+	pf_argv_set="PF_ARGV_WRITEABLE"
     fi
-
-    pf_argv_set="yes"
   fi
 
-  if test "$pf_argv_set" = "no"; then
+  if test "$pf_argv_set" = ""; then
     AC_EGREP_HEADER([#define.*PS_STRINGS.*],sys/exec.h,
 			have_psstrings="yes",have_psstrings="no")
     if test "$have_psstrings" = "yes"; then
-	AC_DEFINE(PF_ARGV_TYPE, PF_ARGV_PSSTRINGS, [ ])
-	pf_argv_set="yes"
+	pf_argv_set="PF_ARGV_PSSTRINGS"
     fi
   fi
 
-  if test "$pf_argv_set" = "no"; then
+  if test "$pf_argv_set" = ""; then
     AC_CACHE_CHECK(whether __progname and __progname_full are available,
 		    pf_cv_var_progname,
 		    AC_TRY_LINK([extern char *__progname, *__progname_full;],
@@ -1968,15 +1976,16 @@ else
   ],pf_cv_argv_type="new", pf_cv_argv_type="writeable"))
 
     if test "$pf_cv_argv_type" = "new"; then
-	AC_DEFINE(PF_ARGV_TYPE, PF_ARGV_NEW, [ ])
-	pf_argv_set="yes"
+	pf_argv_set="PF_ARGV_NEW"
     fi
 
-    if test "$pf_argv_set" = "no"; then
-	AC_DEFINE(PF_ARGV_TYPE, PF_ARGV_WRITEABLE, [ ])
+    if test "$pf_argv_set" = ""; then
+	pf_argv_set="PF_ARGV_WRITEABLE"
     fi
   fi
 fi
+AC_DEFINE_UNQUOTED(PF_ARGV_TYPE, $pf_argv_set,
+	mechanism to pretty-print ps output: setproctitle-equivalent)
 
 dnl End of tests borrowed from Proftpd
 
