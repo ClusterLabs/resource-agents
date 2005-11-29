@@ -878,15 +878,14 @@ static int print_message(struct gfs2_quota_data *qd, char *type)
 	if (!line)
 		return -ENOMEM;
 
-	len = snprintf(line, MAX_LINE, "GFS2: fsid=%s: quota %s for %s %u\r\n",
+	len = snprintf(line, MAX_LINE-1, "GFS2: fsid=%s: quota %s for %s %u\r\n",
 		       sdp->sd_fsname, type,
 		       (test_bit(QDF_USER, &qd->qd_flags)) ? "user" : "group",
 		       qd->qd_id);
+	line[MAX_LINE-1] = 0;
 
-	if (current->signal) {
-		tty = current->signal->tty;
-		if (tty && tty->driver->write)
-			tty->driver->write(tty, line, len);
+	if (current->signal) { /* Is this test still required? */
+		tty_write_message(current->signal->tty, line);
 	}
 
 	kfree(line);
