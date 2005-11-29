@@ -443,7 +443,7 @@ Monitor::clustered_nodes()
   // split out by lines
   vector<string> lines;
   while (out.size()) {
-    unsigned int idx = out.find('\n');
+    string::size_type idx = out.find('\n');
     lines.push_back(out.substr(0, idx));
     if (idx == out.npos)
       out = "";
@@ -458,7 +458,7 @@ Monitor::clustered_nodes()
     string& line = *iter;
     if (line.find("Member ID") != line.npos) {
       string t = line.substr(line.find(": ") + 2);
-      unsigned int idx = t.find(',');
+      string::size_type idx = t.find(',');
       string name = t.substr(0, idx);
       string rest = t.substr(idx);
       if (rest.find("UP") != rest.npos)

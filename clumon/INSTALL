@@ -1,0 +1,14 @@
+
+# installation
+./configure
+make
+su
+make install
+
+# removal
+su
+make uninstall
+
+# SRPM
+cd ..
+./clumon/scripts/build_srpm.pl

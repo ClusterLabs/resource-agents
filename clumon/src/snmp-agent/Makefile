@@ -44,10 +44,11 @@ TARGET = libClusterMonitorSnmp.so
 all: ${TARGET}
 
 install: 
-	install ${TARGET} ${libdir}
+	install -d ${libdir}/clumon-snmp
+	install ${TARGET} ${libdir}/clumon-snmp
 
 uninstall: 
-	${UNINSTALL} ${TARGET} ${libdir}
+	${UNINSTALL} ${TARGET} ${libdir}/clumon-snmp
 
 clean:
 	rm -f $(OBJECTS) $(TARGET)

@@ -10,6 +10,11 @@
 ###############################################################################
 ###############################################################################
 
+top_srcdir=.
+UNINSTALL=${top_srcdir}/scripts/uninstall.pl
+
+include ${top_srcdir}/make/defines.mk
+
 all:
 	cd src && ${MAKE} all
 
@@ -23,11 +28,14 @@ install:
 	cd src && ${MAKE} install
 	cd man && ${MAKE} install
 	cd init.d && ${MAKE} install
+	install -d ${DESTDIR}/usr/share/snmp/mibs
+	install REDHAT-CLUSTER-MIB ${DESTDIR}/usr/share/snmp/mibs/
 
 uninstall:
 	cd src && ${MAKE} uninstall
 	cd man && ${MAKE} uninstall
 	cd init.d && ${MAKE} uninstall
+	${UNINSTALL} REDHAT-CLUSTER-MIB ${DESTDIR}/usr/share/snmp/mibs/
 
 check:
 	cd src && ${MAKE} check

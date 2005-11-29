@@ -17,6 +17,10 @@ mandir ?= ${DESTDIR}/@MANDIR@
 libdir ?= ${DESTDIR}/@LIBDIR@
 incdir ?= ${DESTDIR}/@INCDIR@
 sharedir ?= ${DESTDIR}/@SHAREDIR@
+pegasus_providers_dir ?= ${DESTDIR}/@PEGASUS_PROVIDERS_DIR@
+
+# architecture
+arch ?= @ARCH@
 
 # Where's the kernel?
 KERNEL_SRC = @KERNEL_SRC@
@@ -34,6 +38,6 @@ RANLIB = ranlib
 DEBUG_FLAGS = -c -O2
 
 # Default CFLAGS
-CFLAGS += ${DEBUG_FLAGS} -Wall -Wno-unused ${INCLUDE}
-CXXFLAGS += ${DEBUG_FLAGS} -Wall -Wno-unused ${INCLUDE}
+CFLAGS += ${DEBUG_FLAGS} -fPIC -Wall -Wno-unused ${INCLUDE}
+CXXFLAGS += ${DEBUG_FLAGS} -fPIC -Wall -Wno-unused ${INCLUDE}
 

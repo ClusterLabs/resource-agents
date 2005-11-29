@@ -36,6 +36,8 @@ $ret = 0;
 	prefix => \$prefix,
 	sbindir => \$sbindir,
 	sharedir => \$sharedir,
+	arch => \$arch,
+	pegasus_providers_dir => \$pegasus_providers_dir,
 	verbose => \$verbose
 );
 
@@ -52,6 +54,8 @@ $err = &GetOptions (\%options,
 		    'prefix=s',
 		    'sbindir=s',
 		    'sharedir=s',
+		    'arch=s',
+		    'pegasus_providers_dir=s',
 		    'verbose');
 
 if(!$err) {
@@ -77,7 +81,9 @@ if ($help || !$err) {
   print "--prefix=\tthe base directory to install into.  (Default: /)\n";
   print "--sbindir=\tthe base directory for system binaries.  (Default: /sbin)\n";
   print "--sharedir=\tthe base directory for misc cluster files.  (Default: /usr/share/cluster)\n";
-  print "--verbose\t\tVerbose output\n";
+  print "--arch=\t\tarchitecture.  (Default: `uname -i`)\n";
+  print "--pegasus_providers_dir=\tPegasus providers dir.  (Default: {libdir}/Pegasus/providers)\n";
+  print "--verbose\tVerbose output\n";
   exit $ret;
 }
 
@@ -113,6 +119,12 @@ if (!$sbindir) {
 if (!$sharedir) {
   $sharedir="${prefix}/usr/share/cluster";
 }
+if (!$arch) {
+  $arch=`uname -i`;
+}
+if (!$pegasus_providers_dir) {
+  $pegasus_providers_dir="${libdir}/Pegasus/providers";
+}
 
 
 open IFILE, "<make/defines.mk.input" or die "Can't redirect stdin";
@@ -134,6 +146,8 @@ while (<IFILE>) {
   $_ =~ s/\@MANDIR\@/$mandir/;
   $_ =~ s/\@SBINDIR\@/$sbindir/;
   $_ =~ s/\@SHAREDIR\@/$sharedir/;
+  $_ =~ s/\@ARCH\@/$arch/;
+  $_ =~ s/\@PEGASUS_PROVIDERS_DIR\@/$pegasus_providers_dir/;
   print OFILE "$_\n";
 }
 

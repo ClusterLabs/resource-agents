@@ -1,35 +1,55 @@
-#
-# 
-# 
+###############################################################################
+###############################################################################
+##
+##  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+##
+##  This copyrighted material is made available to anyone wishing to use,
+##  modify, copy, or redistribute it subject to the terms and conditions
+##  of the GNU General Public License v.2.
+##
+###############################################################################
+###############################################################################
 
 %define vers @VERS@
 %define rel @REL@
 
-Summary: Monitoring daemon for Red Hat Enterprise Linux - Cluster Suite
+%ifarch x86_64
+%define _libdir /usr/lib64
+%endif
+
+%define PEGASUS_PROVIDERS_DIR %{_libdir}/Pegasus/providers
+
+
 Name: clumon
 Version: %vers
 Release: %rel
 License: GPL,LGPL
+
 Group: System Environment/Base
-Source: %{name}-%{version}-%{release}.tar.gz
+Summary: Red Hat Enterprise Linux Cluster Suite - Monitoring daemon
+
+Source: %{name}-%{version}.tar.gz
 Buildroot: %{_tmppath}/%{name}-%{version}-buildroot
-Requires: chkconfig initscripts glibc libxml2 libstdc++
+
+Requires: chkconfig initscripts
 Requires: /bin/bash
-Provides: clumond
-BuildRequires: glibc-devel gcc-c++ libxml2-devel /bin/grep 
+BuildRequires: glibc-devel gcc-c++ libxml2-devel
+BuildRequires: openssl-devel net-snmp-devel tog-pegasus-devel
 
 %description
-clumond description
+Monitoring daemon for Red Hat Enterprise Linux Cluster Suite
+
 
 %prep
 %setup -q
-%configure
 
 %build
+./configure --arch=%{_arch} --sbindir=%{_sbindir} --libdir=%{_libdir} --pegasus_providers_dir=%{PEGASUS_PROVIDERS_DIR}
 make
 
 %install
-%makeinstall
+rm -rf $RPM_BUILD_ROOT
+make install DESTDIR=$RPM_BUILD_ROOT
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -37,14 +57,76 @@ rm -rf $RPM_BUILD_ROOT
 %files
 %defattr(-,root,root)
 %doc README COPYING
-/usr/sbin/*
+%{_sbindir}/clumond
+/etc/init.d/clumond
 
 %post
+chkconfig --add clumond
+chkconfig clumond off
 
 %preun
+service clumond stop 1> /dev/null
+chkconfig --del clumond
 
 %postun
 
+
+
+###  SNMP agent ###
+
+
+%package snmp
+Group: System Environment/Base
+Summary: Red Hat Enterprise Linux Cluster Suite - SNMP agent
+Requires: %{name} = %{version}-%{release}
+Requires: net-snmp
+
+%description snmp
+SNMP agent for Red Hat Enterprise Linux Cluster Suite
+
+
+%files snmp
+%defattr(-,root,root)
+%doc README COPYING REDHAT-CLUSTER-MIB
+%{_libdir}/clumon-snmp/libClusterMonitorSnmp.so
+%attr(644,root,root) /usr/share/snmp/mibs/REDHAT-CLUSTER-MIB
+
+%post snmp
+
+%preun snmp
+
+%postun snmp
+
+
+
+###  CIM provider ###
+
+
+%package cim
+Group: System Environment/Base
+Summary: Red Hat Enterprise Linux Cluster Suite - CIM provider
+Requires: %{name} = %{version}-%{release}
+Requires: tog-pegasus
+
+%description cim
+CIM provider for Red Hat Enterprise Linux Cluster Suite
+
+%files cim
+%defattr(-,root,root)
+%doc README COPYING RedHat_ClusterProvider.mof RedHat_ClusterSchema.mof
+%{PEGASUS_PROVIDERS_DIR}/libRedHatClusterProvider.so
+
+%post cim
+
+%preun cim
+
+%postun cim
+
+
+
+###  changelog ###
+
+
 %changelog
-* Wed Nov 23 2005 Stanko Kupcevic <kupcevic@redhat.com> 0.8.1-1
-- Initial build.
+* Wed Nov 23 2005 Stanko Kupcevic <kupcevic@redhat.com> 0.8.0
+- Initial build

@@ -16,9 +16,30 @@ INCLUDE_DIR = $(top_srcdir)/src/include
 include ${top_srcdir}/make/defines.mk
 INCLUDE += -I ${INCLUDE_DIR}
 
-
+ifeq ($(arch),i386)
 PEGASUS_CXXFLAGS = -DPEGASUS_PLATFORM_LINUX_IX86_GNU
-PEGASUS_PROVIDERS_DIR = /usr/lib/Pegasus/providers/
+endif
+ifeq ($(arch),i586)
+PEGASUS_CXXFLAGS = -DPEGASUS_PLATFORM_LINUX_IX86_GNU
+endif
+ifeq ($(arch),i686)
+PEGASUS_CXXFLAGS = -DPEGASUS_PLATFORM_LINUX_IX86_GNU
+endif
+ifeq ($(arch),athlon)
+PEGASUS_CXXFLAGS = -DPEGASUS_PLATFORM_LINUX_IX86_GNU
+endif
+ifeq ($(arch),ia64)
+PEGASUS_CXXFLAGS = -DPEGASUS_PLATFORM_LINUX_IA64_GNU
+endif
+ifeq ($(arch),x86_64)
+PEGASUS_CXXFLAGS = -DPEGASUS_PLATFORM_LINUX_IA64_GNU
+endif
+ifeq ($(arch),ppc)
+PEGASUS_CXXFLAGS = -DPEGASUS_PLATFORM_LINUX_PPC_GNU
+endif
+ifeq ($(arch),ppc64)
+PEGASUS_CXXFLAGS = -DPEGASUS_PLATFORM_LINUX_PPC64_GNU
+endif
 
 
 CXXFLAGS += $(PEGASUS_CXXFLAGS)
@@ -38,10 +59,11 @@ TARGET_TEST = clusterCIM_test
 all: ${TARGET} $(TARGET_TEST)
 
 install: 
-	install ${TARGET} ${PEGASUS_PROVIDERS_DIR}
+	install -d ${pegasus_providers_dir}
+	install ${TARGET} ${pegasus_providers_dir}
 
 uninstall: 
-	${UNINSTALL} ${TARGET} ${PEGASUS_PROVIDERS_DIR}
+	${UNINSTALL} ${TARGET} ${pegasus_providers_dir}
 
 clean:
 	rm -f $(OBJECTS) $(TARGET) $(TARGET_TEST)

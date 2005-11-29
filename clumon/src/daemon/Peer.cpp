@@ -79,7 +79,7 @@ Peer::receive()
   
   vector<string> ret;
   while (true) {
-    unsigned int idx = in.find("\n\n");
+    string::size_type idx = in.find("\n\n");
     if (idx == in.npos)
       return ret;
     idx += 2;
