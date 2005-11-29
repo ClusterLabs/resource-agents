@@ -86,9 +86,10 @@ struct gfs2_inum {
 
 struct gfs2_meta_header {
 	uint32_t mh_magic;
-	uint16_t mh_type;
-	uint16_t mh_format;
-	uint64_t mh_blkno;
+	uint32_t mh_type;
+	uint64_t mh_blkno;	/* ?? */ /* Was generation number in gfs1 */
+	uint32_t mh_format;
+	uint32_t __pad;		/* Was incarnation number in gfs1 */
 };
 
 /*
@@ -115,14 +116,18 @@ struct gfs2_sb {
 
 	uint32_t sb_fs_format;
 	uint32_t sb_multihost_format;
+	uint32_t __pad0;
 
 	uint32_t sb_bsize;
 	uint32_t sb_bsize_shift;
+	uint32_t __pad1;
 
 	struct gfs2_inum sb_master_dir;
+	struct gfs2_inum __pad2, __pad3;
 
 	char sb_lockproto[GFS2_LOCKNAME_LEN];
 	char sb_locktable[GFS2_LOCKNAME_LEN];
+	/* In gfs1 quota and license dinodes followed */
 };
 
 /*
@@ -139,7 +144,7 @@ struct gfs2_rindex {
 
 	uint32_t ri_bitbytes;	/* number of bytes in data bitmaps */
 
-	char ri_reserved[32];
+	char ri_reserved[64];
 };
 
 /*
@@ -168,7 +173,7 @@ struct gfs2_rgrp {
 	uint32_t rg_free;
 	uint32_t rg_dinodes;
 
-	char rg_reserved[36];
+	char rg_reserved[92]; /* Several fields from gfs1 now reserved */
 };
 
 /*
@@ -225,18 +230,24 @@ struct gfs2_dinode {
 
 	uint64_t di_goal_meta;	/* rgrp to alloc from next */
 	uint64_t di_goal_data;	/* data block goal */
+	uint32_t __pad[2];
 
 	uint32_t di_flags;	/* GFS2_DIF_... */
 	uint32_t di_payload_format;  /* GFS2_FORMAT_... */
+	uint16_t __pad1;
 	uint16_t di_height;	/* height of metadata */
+	uint32_t __pad2;
 
 	/* These only apply to directories  */
+	uint16_t __pad3;
 	uint16_t di_depth;	/* Number of bits in the table */
 	uint32_t di_entries;	/* The number of entries in the directory */
 
+	struct gfs2_inum __pad4;
+
 	uint64_t di_eattr;	/* extended attribute block number */
 
-	char di_reserved[32];
+	char di_reserved[56];
 };
 
 /*
