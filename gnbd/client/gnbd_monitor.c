@@ -504,6 +504,9 @@ int check_recvd(monitor_t *dev)
   
   snprintf(filename, 32, "gnbd_recvd-%d.pid", dev->minor_nr);
   ret = __check_lock(filename, &pid);
+  /* If we can't get the lock, ret is either 0 or -1.  If it's -1, we've   */
+  /* got an error, in which case we log it.  If 0, the lock file doesn't   */
+  /* exist yet, in which case we silently wait for it without complaining. */
   if (ret < 0)
     log_err("cannot check lockfile %s/%s : %s\n", program_dir, filename,
             strerror(errno));
@@ -634,8 +637,8 @@ void check_devices(void)
         dev->state = RESTARTABLE_STATE;
       break;
     case RESTARTABLE_STATE:
-      if (check_recvd(dev) >= 0)
-        dev->state = NORMAL_STATE;
+      if (check_recvd(dev) > 0)    /* if we got a good lock file  */
+        dev->state = NORMAL_STATE; /* go back to the normal state */
       else if (checks % RESTART_CHECK == 0)
         start_recvd(dev);
       break;

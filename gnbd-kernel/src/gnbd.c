@@ -275,7 +275,7 @@ static void gnbd_end_request(struct request *req)
 			req, uptodate? "done": "failed");
 
 	if (!uptodate)
-		printk("%s %d called gnbd_end_request with and error\n",
+		printk("%s %d called gnbd_end_request with an error\n",
 		       current->comm, current->pid);	
 	
 	spin_lock_irqsave(q->queue_lock, flags);
@@ -745,7 +745,7 @@ static int gnbd_ctl_ioctl(struct inode *inode, struct file *file,
 		}
 		error = gnbd_resend_requests(dev, SOCKET_I(inode));
 		if (error){
-			printk("quitting NBD_DO_IT\n");
+			printk("quitting GNBD_DO_IT\n");
 			up(&dev->do_it_lock);
 			fput(file);
 			return error;
@@ -770,7 +770,7 @@ static int gnbd_ctl_ioctl(struct inode *inode, struct file *file,
 		dev->file = NULL;
 		if (file)
 			fput(file);
-		printk("exitting GNBD_DO_IT ioctl\n");
+		printk("exiting GNBD_DO_IT ioctl\n");
 		return error;
 	case GNBD_PING:
 		/* FIXME -- should I allow pings if everything is compeletely
@@ -793,7 +793,7 @@ static int gnbd_ctl_ioctl(struct inode *inode, struct file *file,
 		return 0;
 	case GNBD_GET_TIME:
 		if (copy_to_user((void *)arg, &insmod_time, sizeof(uint64_t))){
-			printk(KERN_WARNING "couldn't compy time argument to user\n");
+			printk(KERN_WARNING "couldn't copy time argument to user\n");
 			return -EFAULT;
 		}
 		return 0;
