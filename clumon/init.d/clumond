@@ -59,7 +59,8 @@ case $1 in
 
 	stop)
 		echo -n "Shutting down $ID: "
-		killproc $CLUMOND SIGUSR1
+		killproc $CLUMOND SIGTERM
+		sleep 8
 		rtrn=$?
 		;;
 

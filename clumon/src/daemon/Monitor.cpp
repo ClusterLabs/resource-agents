@@ -87,7 +87,7 @@ Monitor::run()
       }
     } catch ( ... ) {}
     
-    cout << "Monitor::run() iteration took " << time() - time_beg << " seconds" << endl;
+    // cout << "Monitor::run() iteration took " << time() - time_beg << " seconds" << endl;
     
     // wait some time
     struct pollfd nothing;
@@ -318,7 +318,7 @@ Monitor::merge_data(const string& clustername)
   for (unsigned int i=0; i<stales.size(); i++)
     _cache.erase(stales[i]);
   
-  cout << "merged data: \n" << generateXML(cluster) << endl;
+  // cout << "merged data: \n" << generateXML(cluster) << endl;
   
   if (_cache.size() == 0)
     return counting_auto_ptr<Cluster>();
@@ -511,7 +511,7 @@ Monitor::services_info()
     if (status)
       return vector<XMLObject>();
     
-    cout << "clustat returned after " << time() - time_beg << " seconds" << endl;
+    // cout << "clustat returned after " << time() - time_beg << " seconds" << endl;
     
     XMLObject clustat = parseXML(out);
     for (list<XMLObject>::const_iterator iter_c = clustat.children().begin();

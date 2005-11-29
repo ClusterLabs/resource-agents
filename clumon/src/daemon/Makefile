@@ -22,7 +22,7 @@ LDFLAGS += -lpthread ${top_srcdir}/src/common/*.o `xml2-config --libs`
 TARGET = clumond
 
 OBJECTS = main.o \
-	daemon_init.o executils.o \
+	daemon_init.o signals.o executils.o \
 	Monitor.o Peer.o Communicator.o
 
 

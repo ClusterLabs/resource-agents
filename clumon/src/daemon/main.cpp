@@ -21,9 +21,19 @@
  */
 
 
+#include <unistd.h>
+#include <sys/types.h>
+#include <signal.h>
+#include <pthread.h>
+
 #include <sys/poll.h>
 #include <errno.h>
 typedef struct pollfd poll_fd;
+
+extern "C" {
+#include "signals.h"
+void daemon_init(char *prog);
+}
 
 #include "clumond_globals.h"
 #include "Monitor.h"
@@ -38,6 +48,11 @@ using namespace ClusterMonitoring;
 using namespace std;
 
 
+static bool shutdown_pending = false;
+static void shutdown(int);
+static void segfault(int);
+static void serve_clients(Monitor& monitor, ServerSocket& server);
+
 class ClientInfo
 {
 public:
@@ -49,23 +64,47 @@ public:
   string str;
 };
 
-static void 
-serve_clients(Monitor& monitor, ServerSocket& server);
 
 
 int 
 main(int argc, char** argv)
 {
+  bool debug=false, foreground=false;
+  
+  int rv;
+  while ((rv = getopt(argc, argv, "fd")) != EOF)
+    switch (rv) {
+    case 'd':
+      debug = true;
+      break;
+    case 'f':
+      foreground = true;
+    default:
+      break;
+    }
+  
   try {
-    Monitor monitor(COMMUNICATION_PORT);
-    monitor.start();
     ServerSocket server(MONITORING_CLIENT_SOCKET);
+    Monitor monitor(COMMUNICATION_PORT);
+    
+    if (!foreground && (geteuid() == 0))
+      daemon_init(argv[0]);
+    setup_signal(SIGINT, shutdown);
+    setup_signal(SIGTERM, shutdown);
+    unblock_signal(SIGCHLD);
+    setup_signal(SIGPIPE, SIG_IGN);
+    if (debug)
+      setup_signal(SIGSEGV, segfault);
+    else
+      unblock_signal(SIGSEGV);
     
     serve_clients(monitor, server);
   } catch (string e) {
     cout << e << endl;
+    return 1;
   } catch ( ... ) {
     cout << "unhandled exception" << endl;
+    return 1;
   }
 }
 
@@ -74,7 +113,9 @@ serve_clients(Monitor& monitor, ServerSocket& server)
 {
   map<int, ClientInfo> clients;
   
-  while (true) {
+  monitor.start();
+  
+  while (!shutdown_pending) {
     unsigned int socks_num = clients.size() + 1;
     
     // prepare poll structs
@@ -145,4 +186,21 @@ serve_clients(Monitor& monitor, ServerSocket& server)
       }  // client socket
     }  // process events
   } // while
+}
+
+void 
+shutdown(int)
+{
+  shutdown_pending = true;
+}
+
+void
+segfault(int)
+{
+  char ow[64];
+  snprintf(ow, sizeof(ow)-1, "PID %d Thread %d: SIGSEGV\n", getpid(),
+	   (int) pthread_self());
+  write(2, ow, strlen(ow));
+  while(1)
+    sleep(60);
 }

@@ -26,7 +26,7 @@
 
 
 #define COMMUNICATION_PORT 16851
-#define MONITORING_CLIENT_SOCKET "/var/run/cluster/clumond.sock"
+#define MONITORING_CLIENT_SOCKET "/var/run/clumond.sock"
 
 
 #endif

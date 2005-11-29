@@ -27,6 +27,7 @@
 #include <sys/poll.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <signal.h>
 #include <errno.h>
 
 
@@ -79,6 +80,13 @@ ClusterMonitoring::execute(const std::string& path,
     close(_stderr_pipe[0]);
     dup2(_stderr_pipe[1], 2);
     close(_stderr_pipe[1]);
+    
+    // restore signals
+    for (int x = 1; x < _NSIG; x++)
+      signal(x, SIG_DFL);
+    sigset_t set;
+    sigfillset(&set);
+    sigprocmask(SIG_UNBLOCK, &set, NULL);
     
     /* exec */
     
@@ -193,6 +201,7 @@ read_data(struct pollfd& poll_info,
     return;
   }
 }
+
 
 /*
 #include <iostream>
