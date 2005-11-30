@@ -61,7 +61,7 @@ static LIST_INIT(cluster_members_list);
        unsigned int config_version;
 static struct cluster_node *us;
 static int quorum;
-static int two_node;
+       int two_node;
 static int cluster_is_quorate;
        char cluster_name[MAX_CLUSTER_NAME_LEN+1];
 static char nodename[MAX_CLUSTER_MEMBER_NAME_LEN+1];

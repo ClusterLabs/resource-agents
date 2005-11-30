@@ -25,8 +25,10 @@
 #define NODE_NAME_PATH		"/cluster/clusternodes/clusternode[%d]/@name"
 #define NODE_VOTES_PATH		"/cluster/clusternodes/clusternode[@name=\"%s\"]/@votes"
 #define NODE_NODEID_PATH	"/cluster/clusternodes/clusternode[@name=\"%s\"]/@nodeid"
+#define TWO_NODE_PATH           "/cluster/cman/@two_node"
 
 extern int config_version;
+extern int two_node;
 
 /* Get all the cluster node names from CCS and
    add them to our node list.
@@ -69,6 +71,11 @@ int read_ccs_nodes()
        one specified on a join command-line at join time */
     if (!ccs_get(ctree, EXP_VOTES_PATH, &str)) {
 	    expected = atoi(str);
+	    free(str);
+    }
+
+    if (!ccs_get(ctree, TWO_NODE_PATH, &str)) {
+	    two_node = atoi(str);
 	    free(str);
     }
 
