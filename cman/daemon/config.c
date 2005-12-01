@@ -29,6 +29,7 @@
 #define DEF_DOWNCHECK_TIMEOUT                       1000
 #define DEF_FAIL_TO_RECV_CONST                      10
 #define DEF_SEQNO_UNCHANGED_CONST                   30
+#define DEF_THREAD_COUNT	                    2
 
 /* Memory allocation defaults */
 #define DEF_RESERVED_STACK                          8192
@@ -53,6 +54,7 @@ struct config_entry cman_config[] = {
 	[RESERVED_MEMORY] = { .name = "reserved_memory", .value = DEF_RESERVED_MEMORY},
 	[PROCESS_PRIORITY] = { .name = "process_priority", .value = DEF_PROCESS_PRIORITY},
 
+	[THREAD_COUNT] = { .name = "thread_count", .value = DEF_THREAD_COUNT},
 	[DEBUG_MASK] = { .name = "debug_mask", .value = DEF_DEBUG_MASK},
 
 };

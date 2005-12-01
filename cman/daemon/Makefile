@@ -12,7 +12,7 @@
 
 top_srcdir=..
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
-AISDIR=openais20051110
+AISDIR=openais20051201
 
 
 include ${top_srcdir}/make/defines.mk
@@ -69,7 +69,7 @@ ${AISDIR}/trunk: ${AISDIR}/${AISDIR}.tar.gz
 	touch ${AISDIR}/trunk
 
 ${AISDIR}/trunk/exec/libtotem_pg.a: ${AISDIR}/trunk
-	cd ${AISDIR}/trunk && make
+	cd ${AISDIR}/trunk && make -C exec
 
 install: cmand
 	install -d ${sbindir}

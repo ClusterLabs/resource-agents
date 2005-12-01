@@ -37,6 +37,7 @@ extern struct config_entry cman_config[];
 #define RESERVED_STACK                         10
 #define RESERVED_MEMORY                        11
 #define PROCESS_PRIORITY                       12
+#define THREAD_COUNT                           13
 
 #define DEBUG_MASK                             30
 

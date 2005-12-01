@@ -201,7 +201,7 @@ int comms_init_ais(unsigned short port, char *key_filename)
 	ais_config.fail_to_recv_const = cman_config[FAIL_TO_RECV_CONST].value;
 	ais_config.seqno_unchanged_const = cman_config[SEQNO_UNCHANGED_CONST].value;
 	ais_config.net_mtu = 1500;
-	ais_config.threads = 0;//2;
+	ais_config.threads = cman_config[THREAD_COUNT].value;
 
 	// TEMP clear it all
 	ais_config.totem_logging_configuration.log_level_security =
