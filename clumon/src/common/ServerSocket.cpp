@@ -117,7 +117,7 @@ ServerSocket::operator= (const ServerSocket& s)
 
 ServerSocket::~ServerSocket()
 {
-  if (_unix_sock)
+  if (_unix_sock && (*_counter == 1))
     unlink(_sock_path.c_str());
 }
 

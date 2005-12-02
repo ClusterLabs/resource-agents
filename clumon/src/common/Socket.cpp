@@ -58,6 +58,7 @@ Socket&
 Socket::operator= (const Socket& s)
 {
   if (&s != this) {
+    this->~Socket();
     _sock = s._sock;
     _counter = s._counter;
     (*_counter)++;

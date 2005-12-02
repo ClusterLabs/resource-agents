@@ -52,6 +52,7 @@ using namespace std;
 static bool shutdown_pending = false;
 static void shutdown(int);
 static void segfault(int);
+static void sigchild(int);
 static void serve_clients(Monitor& monitor, ServerSocket& server);
 
 class ClientInfo
@@ -107,7 +108,7 @@ main(int argc, char** argv)
       daemon_init(argv[0]);
     setup_signal(SIGINT, shutdown);
     setup_signal(SIGTERM, shutdown);
-    unblock_signal(SIGCHLD);
+    setup_signal(SIGCHLD, sigchild);
     setup_signal(SIGPIPE, SIG_IGN);
     if (debug)
       setup_signal(SIGSEGV, segfault);
@@ -125,6 +126,7 @@ main(int argc, char** argv)
     return 1;
   }
   
+  unlink("/var/run/clumond.pid");
   log("exited");
   return 0;
 }
@@ -226,4 +228,10 @@ segfault(int)
   log(msg);
   while(1)
     sleep(60);
+}
+
+void 
+sigchild(int)
+{
+  // do nothing
 }

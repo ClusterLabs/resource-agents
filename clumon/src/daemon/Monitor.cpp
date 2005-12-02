@@ -375,7 +375,7 @@ Monitor::merge_data(const string& clustername)
       if (running && nodename.empty())
 	throw string("merge_data(): running service missing 'nodename' attr");
       bool failed = obj.get_attr("failed") == "true";
-      bool autostart = obj.get_attr("autostart") == "1";
+      bool autostart = obj.get_attr("autostart") != "0";
       // add service to cluster
       cluster_ret->addService(service_name, nodename, failed, autostart);
     }

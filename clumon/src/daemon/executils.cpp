@@ -95,14 +95,16 @@ ClusterMonitoring::execute(const std::string& path,
     
     /* exec */
     
-    unsigned int size = args.size() + 2;
-    char** argv = new char*[size];
-    argv[0] = (char*) path.c_str();
-    for (unsigned int i=0; i<args.size(); i++)
-      argv[i+1] = (char*) args[i].c_str();
-    argv[size-1] = NULL;
-    
-    execv(path.c_str(), argv);
+    try {
+      unsigned int size = args.size() + 2;
+      char** argv = new char*[size];
+      argv[0] = (char*) path.c_str();
+      for (unsigned int i=0; i<args.size(); i++)
+	argv[i+1] = (char*) args[i].c_str();
+      argv[size-1] = NULL;
+      
+      execv(path.c_str(), argv);
+    } catch ( ... ) {}
     exit(1);
   }
   
