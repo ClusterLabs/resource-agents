@@ -22,6 +22,7 @@
 
 
 #include "Thread.h"
+#include "Logger.h"
 #include <string>
 
 
@@ -48,6 +49,7 @@ Thread::Thread() :
 
 Thread::~Thread()
 {
+  log(std::string("entered destructor of thread ") + (int) _thread, LogThread);
   Thread::stop();
 }
 
@@ -55,6 +57,7 @@ Thread::~Thread()
 void 
 Thread::start()
 {
+  log("entered Thread::start()", LogThread);
   MutexLocker l1(_main_mutex);
   if (!_running) {
     {
@@ -62,6 +65,7 @@ Thread::start()
       _stop = false;
     }
     pthread_create(&_thread, NULL, start_thread, this);
+    log(std::string("created thread ") + (int) _thread, LogThread);
     _running = true;
   }
 }
@@ -69,14 +73,18 @@ Thread::start()
 void 
 Thread::stop()
 {
+  log(std::string("entered Thread::stop() for thread ") + (int) _thread, LogThread);
   MutexLocker l1(_main_mutex);
   if (_running) {
     {
+      log(std::string("Thread::stop(): locking stop mutex for thread ") + (int) _thread, LogThread);
       MutexLocker l2(_stop_mutex);
       _stop = true;
     }
+    log(std::string("entering pthread_join() for thread ") + (int) _thread, LogThread);
     if (pthread_join(_thread, NULL))
       throw std::string("error stopping thread");
+    log(std::string("stopped thread ") + (int) _thread, LogThread);
     _running = false;
   }
 }
@@ -84,6 +92,7 @@ Thread::stop()
 bool 
 Thread::running()
 {
+  log(std::string("entered Thread::running() for thread ") + (int) _thread, LogThread);
   MutexLocker l1(_main_mutex);
   bool ret = _running;
   return ret;
@@ -92,6 +101,7 @@ Thread::running()
 bool 
 Thread::shouldStop()
 {
+  log(std::string("entered Thread::shouldStop() for thread ") + (int) _thread, LogThread);
   MutexLocker l(_stop_mutex);
   bool ret = _stop;
   return ret;

@@ -22,6 +22,7 @@
 
 
 #include "Socket.h"
+#include "Logger.h"
 
 #include <unistd.h>
 #include <errno.h>
@@ -42,7 +43,7 @@ Socket::Socket(int sock) :
     _counter = new int(1);
   } catch ( ... ) {
     close();
-    throw std::string("Socket(int sock) new failed");
+    throw std::string("Socket(int sock) failed");
   }
 }
 
@@ -77,6 +78,7 @@ void
 Socket::close()
 {
   if (_sock != -1) {
+    log(std::string("closing socket ") + _sock, LogSocket);
     shutdown(_sock, SHUT_RDWR);
     while (true) {
       int ret = ::close(_sock);

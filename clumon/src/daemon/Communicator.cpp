@@ -23,6 +23,7 @@
 
 #include "Communicator.h"
 #include "array_auto_ptr.h"
+#include "Logger.h"
 
 #include <sys/poll.h>
 #include <sys/time.h>
@@ -51,11 +52,13 @@ Communicator::Communicator(unsigned short port,
   gettimeofday(&t, &z);
   _connect_time = t.tv_sec;
   _rand_state = t.tv_usec;
+  log(string("Communicator created, port ") + _port, LogCommunicator);
 }
 
 Communicator::~Communicator()
 {
   stop();
+  log("Communicator deleted", LogCommunicator);
 }
   
 void 
@@ -105,6 +108,7 @@ Communicator::run()
     for (vector<string>::iterator iter = remove_us.begin();
 	 iter != remove_us.end();
 	 iter++) {
+      log("dropping connection with " + *iter, LogCommunicator);
       _peers.erase(*iter);
     }
     
@@ -117,6 +121,7 @@ Communicator::run()
 	if (_peers.find(name) == _peers.end())
 	  try {
 	    _peers.insert(pair<string, Peer>(name, Peer(name, _port)));
+	    log("connected to " + name + ", socket " + _peers[name].get_sock_fd(), LogCommunicator);
 	  } catch ( ... ) {}
       }
     }
@@ -194,6 +199,7 @@ Communicator::serve_sockets(vector<string>& names)
 	  }
 	  if (hostname.size()) {
 	    _peers.insert(pair<string, Peer>(hostname, Peer(hostname, sock)));
+	    log("accepted connection from " + hostname + ", socket " + sock.get_sock(), LogCommunicator);
 	  }
 	} catch ( ... ) {}
       }
@@ -209,6 +215,7 @@ Communicator::serve_sockets(vector<string>& names)
 	try {
 	  msgs = peer.receive();
 	} catch ( ... ) {
+	  log("error receiving data from " + peer.hostname(), LogCommunicator);
 	  _peers.erase(peer.hostname());
 	  continue;
 	}
@@ -223,6 +230,7 @@ Communicator::serve_sockets(vector<string>& names)
 	try {
 	  peer.send();
 	} catch ( ... ) {
+	  log("error sending data to " + peer.hostname(), LogCommunicator);
 	  _peers.erase(peer.hostname());
 	  continue;
 	}

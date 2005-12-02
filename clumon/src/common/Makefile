@@ -21,7 +21,8 @@ OBJECTS = ClusterMonitor.o \
 	Cluster.o Node.o Service.o \
 	Socket.o ClientSocket.o ServerSocket.o \
 	Thread.o \
-	XML.o
+	XML.o \
+	Logger.o
 
 
 all: ${TARGET}

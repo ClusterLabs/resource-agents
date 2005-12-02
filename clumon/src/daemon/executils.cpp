@@ -22,6 +22,7 @@
 
 
 #include "executils.h"
+#include "Logger.h"
 
 #include <unistd.h>
 #include <sys/poll.h>
@@ -158,6 +159,11 @@ ClusterMonitoring::execute(const std::string& path,
     if ((ret < 0) && (errno == EINTR))
       continue;
   } while (false);
+  
+  std::string comm(path);
+  for (unsigned int i=0; i<args.size(); i++)
+    comm += " " + args[i];
+  log("executed \"" + comm + "\"", LogExecute);
   
   if (WIFEXITED(status)) {
     status = WEXITSTATUS(status);

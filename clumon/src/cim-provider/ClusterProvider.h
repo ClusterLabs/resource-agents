@@ -132,8 +132,7 @@ class ClusterProvider :
   */
   
  private:
-  int _log_handle;
-  void log(const Pegasus::String str);
+  void log(const Pegasus::String& str);
   ClusterMonitor _monitor;
   
 };  // class ClusterProvider

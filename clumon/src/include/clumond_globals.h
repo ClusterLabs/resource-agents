@@ -28,5 +28,7 @@
 #define COMMUNICATION_PORT 16851
 #define MONITORING_CLIENT_SOCKET "/var/run/clumond.sock"
 
+#define LOG_FILE                 "/var/log/clumond.log"
+
 
 #endif

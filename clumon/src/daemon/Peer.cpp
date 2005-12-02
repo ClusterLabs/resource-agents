@@ -22,6 +22,7 @@
 
 
 #include "Peer.h"
+#include "Logger.h"
 
 
 using namespace ClusterMonitoring;
@@ -67,6 +68,7 @@ Peer::send()
 {
   if (_out->empty())
     return;
+  log("sending data to " + _hostname, LogTransfer);
   string rest = _sock->send(*_out);
   *_out = rest;
 }
@@ -74,6 +76,8 @@ Peer::send()
 vector<string>
 Peer::receive()
 {
+  log("receiving data from " + _hostname, LogTransfer);
+  
   string& in = *_in;
   in += _sock->recv();
   

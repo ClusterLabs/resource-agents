@@ -23,13 +23,12 @@
 
 #include "Monitor.h"
 #include "executils.h"
+#include "Logger.h"
 
 #include <sys/poll.h>
 #include <sys/time.h>
 
 #include <algorithm>
-
-#include <iostream>
 
 
 using namespace ClusterMonitoring;
@@ -53,17 +52,23 @@ using namespace std;
 
 Monitor::Monitor(unsigned short port) :
   _comm(port, *this)
-{}
+{
+  log("Monitor created", LogMonitor);
+}
 
 Monitor::~Monitor()
 {
+  log("Stopping monitoring", LogMonitor);
   stop();
+  log("Monitoring stopped", LogMonitor);
+  log("Monitor deleted", LogMonitor);
 }
 
 
 void
 Monitor::run()
 {
+  log("Starting communicator", LogCommunicator);
   _comm.start();
   while (!shouldStop()) {
     
@@ -87,13 +92,16 @@ Monitor::run()
       }
     } catch ( ... ) {}
     
-    // cout << "Monitor::run() iteration took " << time() - time_beg << " seconds" << endl;
+    string msg = string("monitoring iteration took ") + (time() - time_beg) + " seconds";
+    log(msg, LogTime);
     
     // wait some time
     struct pollfd nothing;
     poll(&nothing, 0, 5000);
   }
+  log("Stopping communicator", LogCommunicator);
   _comm.stop();
+  log("Communicator stopped", LogCommunicator);
 }
 
 

@@ -22,6 +22,7 @@
 
 
 #include "Socket.h"
+#include "Logger.h"
 
 #include <unistd.h>
 #include <errno.h>
@@ -61,6 +62,10 @@ ClientSocket::ClientSocket(const std::string& sock_path) :
   if(connect(_sock, (struct sockaddr*) &addr, sizeof(addr))) {
     throw std::string("ClientSocket(string): connect() failed");
   }
+  
+  std::string msg = std::string("created client socket ") + _sock;
+  msg += ", and connected to " + sock_path;
+  log(msg, LogSocket);
 }
 
 ClientSocket::ClientSocket(const std::string& hostname, unsigned short port) :
@@ -83,6 +88,9 @@ ClientSocket::ClientSocket(const std::string& hostname, unsigned short port) :
     if (connect(_sock, (struct sockaddr*) &addr_in, sizeof(addr_in)))
       continue;
     else {
+      std::string msg = std::string("created client socket ") + _sock;
+      msg += ", and connected to " + hostname + ", port " + port;
+      log(msg, LogSocket);
       _addr = addr_in.sin_addr.s_addr;
       return;
     }
@@ -140,6 +148,8 @@ ClientSocket::recv()
       throw std::string("ClientSocket::recv(): socket has been shutdown");
     }
     
+    log(std::string("received ") + ret + " bytes from socket " + _sock, 
+	LogLevel(LogSocket|LogTransfer));
     return std::string(buffer, ret);
   }
 }
@@ -158,6 +168,8 @@ ClientSocket::send(const std::string& msg)
       throw std::string("ClientSocket::recv(): socket error");
     }
     
+    log(std::string("sent ") + ret + " bytes thru socket " + _sock, 
+	LogLevel(LogSocket|LogTransfer));
     return msg.substr(ret, msg.npos);
   }
 }

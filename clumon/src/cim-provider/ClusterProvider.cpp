@@ -21,6 +21,11 @@
  */
 
 
+#include "ClusterProvider.h"
+#include "SmartHandler.h"
+#include "Cluster.h"
+#include "Logger.h"
+
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -33,10 +38,6 @@
 #include <functional>
 #include <vector>
 
-
-#include "ClusterProvider.h"
-#include "SmartHandler.h"
-#include "Cluster.h"
 
 
 using namespace std;
@@ -64,26 +65,21 @@ static String
 hostname(void);
 
 
-
-
-ClusterProvider::ClusterProvider(void) throw() :
-  _log_handle(-1)
+ClusterProvider::ClusterProvider(void) throw()
 {
-  //_log_handle = open("/var/log/ClusterProvider.log", O_WRONLY | O_CREAT | O_APPEND);
+  //set_logger(counting_auto_ptr<Logger>(Logger(LOG_FILE, "ClusterProvider", LogBasic)));
   log("ClusterProvider Created");
 }
 
 ClusterProvider::~ClusterProvider(void) throw()
 {
-  if(_log_handle != -1)
-    close(_log_handle);
+  set_logger(counting_auto_ptr<Logger>(new Logger()));
 }
-
 
 
 // CIMProvider interface
 void 
-ClusterProvider::initialize (CIMOMHandle &cimom)
+ClusterProvider::initialize (CIMOMHandle& cimom)
 {
   log("ClusterProvider::initialize called");
 }
@@ -318,11 +314,9 @@ ClusterProvider::deleteInstance(const OperationContext &context,
 // private
 
 void 
-ClusterProvider::log(const String str)
+ClusterProvider::log(const String& str)
 {
-  String s = str + "\n";
-  if(_log_handle != -1)
-    write(_log_handle, s.getCString(), s.size());
+  ::log((const char*) str.getCString());
 }
 
 

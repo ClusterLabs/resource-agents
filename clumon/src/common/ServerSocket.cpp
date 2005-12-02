@@ -22,6 +22,7 @@
 
 
 #include "Socket.h"
+#include "Logger.h"
 
 #include <unistd.h>
 #include <errno.h>
@@ -41,8 +42,10 @@ ServerSocket::ServerSocket(const std::string& sock_path) :
   _sock_path(sock_path)
 {
   _sock = socket(PF_UNIX, SOCK_STREAM, 0);
-  if (_sock == -1)
-    throw std::string("ServerSocket(string): socket() failed");
+  if (_sock == -1) {
+    std::string m = std::string("ServerSocket(sock_path=") + sock_path + "): socket() failed, errno=" + errno;
+    throw m;
+  }
   
   struct sockaddr_un {
     sa_family_t  sun_family;
@@ -52,11 +55,18 @@ ServerSocket::ServerSocket(const std::string& sock_path) :
   memcpy(addr.sun_path, sock_path.c_str(), sock_path.size()+1);
   
   unlink(_sock_path.c_str());
-  if (bind(_sock, (struct sockaddr*) &addr, sizeof(addr)))
-    throw std::string("ServerSocket(string): bind() failed");
+  if (bind(_sock, (struct sockaddr*) &addr, sizeof(addr))) {
+    std::string m = std::string("ServerSocket(sock_path=") + sock_path + "): bind() failed, errno=" + errno;
+    throw m;
+  }
   
-  if (listen(_sock, 5))
-    throw std::string("ServerSocket(string): listen() failed");
+  if (listen(_sock, 5)) {
+    std::string m = std::string("ServerSocket(sock_path=") + sock_path + "): listen() failed, errno=" + errno;
+    throw m;
+  }
+  
+  std::string msg = std::string("created unix server socket, ") + _sock + ", " + sock_path;
+  log(msg, LogSocket);
 }
 
 ServerSocket::ServerSocket(unsigned short port) :
@@ -65,18 +75,27 @@ ServerSocket::ServerSocket(unsigned short port) :
   _sock_path("")
 {
   _sock = socket(PF_INET, SOCK_STREAM, 0);
-  if (_sock == -1)
-    throw std::string("ServerSocket(string): socket() failed");
+  if (_sock == -1) {
+    std::string m = std::string("ServerSocket(port=") + port + "): socket() failed, errno=" + errno;
+    throw m;
+  }
   
   struct sockaddr_in addr;
   addr.sin_family = AF_INET;
   addr.sin_port = htons(port);
   addr.sin_addr.s_addr = INADDR_ANY;
-  if (bind(_sock, (struct sockaddr*) &addr, sizeof(addr)))
-    throw std::string("ServerSocket(port): bind() failed");
+  if (bind(_sock, (struct sockaddr*) &addr, sizeof(addr))) {
+    std::string m = std::string("ServerSocket(port=") + port + "): bind() failed, errno=" + errno;
+    throw m;
+  }
   
-  if (listen(_sock, 5))
-    throw std::string("ServerSocket(port): listen() failed");
+  if (listen(_sock, 5)) {
+    std::string m = std::string("ServerSocket(port=") + port + "): listen() failed, errno=" + errno;
+    throw m;
+  }
+  
+  std::string msg = std::string("created tcp server socket, ") + _sock + ", port " + port;
+  log(msg, LogSocket);
 }
 
 ServerSocket::ServerSocket(const ServerSocket& s) :
@@ -115,6 +134,7 @@ ServerSocket::accept()
 	continue;
       throw std::string("ServerSocket(string): accept() failed");
     }
+    log("ServerSocket: accepted connection", LogSocket);
     return ClientSocket(ret, addr_in.sin_addr.s_addr);
   }
 }

@@ -39,6 +39,7 @@ void daemon_init(char *prog);
 #include "Monitor.h"
 #include "Socket.h"
 #include "array_auto_ptr.h"
+#include "Logger.h"
 
 #include <map>
 #include <iostream>
@@ -70,19 +71,34 @@ int
 main(int argc, char** argv)
 {
   bool debug=false, foreground=false;
+  int v_level = -1;
   
   int rv;
-  while ((rv = getopt(argc, argv, "fd")) != EOF)
+  while ((rv = getopt(argc, argv, "fdv:")) != EOF)
     switch (rv) {
     case 'd':
       debug = true;
       break;
     case 'f':
       foreground = true;
+      break;
+    case 'v':
+      sscanf(optarg, "%d", &v_level);
+      break;
     default:
       break;
     }
   
+  if (v_level < 0) {
+    cout << "Setting verbosity level to LogBasic" << endl;
+    v_level = LogBasic;
+  }
+  if (foreground)
+    set_logger(counting_auto_ptr<Logger>(new Logger(1, "clumond", LogLevel(v_level))));
+  else
+    set_logger(counting_auto_ptr<Logger>(new Logger(LOG_FILE, "clumond", LogLevel(v_level))));
+  
+  log("started");
   try {
     ServerSocket server(MONITORING_CLIENT_SOCKET);
     Monitor monitor(COMMUNICATION_PORT);
@@ -100,12 +116,17 @@ main(int argc, char** argv)
     
     serve_clients(monitor, server);
   } catch (string e) {
-    cout << e << endl;
+    log("unhandled exception in main(): " + e);
+    log("died");
     return 1;
   } catch ( ... ) {
-    cout << "unhandled exception" << endl;
+    log("unhandled unknown exception in main()");
+    log("died");
     return 1;
   }
+  
+  log("exited");
+  return 0;
 }
 
 void 
@@ -113,6 +134,7 @@ serve_clients(Monitor& monitor, ServerSocket& server)
 {
   map<int, ClientInfo> clients;
   
+  log("Starting monitor", LogMonitor);
   monitor.start();
   
   while (!shutdown_pending) {
@@ -191,16 +213,17 @@ serve_clients(Monitor& monitor, ServerSocket& server)
 void 
 shutdown(int)
 {
+  log("exit requested", LogExit);
   shutdown_pending = true;
 }
 
 void
 segfault(int)
 {
-  char ow[64];
-  snprintf(ow, sizeof(ow)-1, "PID %d Thread %d: SIGSEGV\n", getpid(),
-	   (int) pthread_self());
-  write(2, ow, strlen(ow));
+  char msg[128];
+  snprintf(msg, sizeof(msg)-1, "PID %d Thread %d: SIGSEGV, waiting forensics", 
+	   getpid(), (int) pthread_self());
+  log(msg);
   while(1)
     sleep(60);
 }
