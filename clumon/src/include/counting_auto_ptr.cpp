@@ -31,14 +31,14 @@ counting_auto_ptr<X>::counting_auto_ptr(X* ptr) :
   try {
     _counter = new int(1);
   } catch ( ... ) {
-    delete ptr;
+    delete _ptr;
     throw;
   }
   
   try {
     _mutex = new Mutex();
   } catch ( ... ) {
-    delete ptr;
+    delete _ptr;
     delete _counter;
     throw;
   }
@@ -51,23 +51,21 @@ counting_auto_ptr<X>::counting_auto_ptr(const counting_auto_ptr<X>& o)
   _ptr = o._ptr;
   _mutex = o._mutex;
   _counter = o._counter;
-  *_counter += 1;
+  (*_counter)++;
 };
 
 template<class X> 
 counting_auto_ptr<X>&
 counting_auto_ptr<X>::operator= (const counting_auto_ptr<X>& o)
 {
-  if (&o == this)
-    return *this;
-  
-  this->~counting_auto_ptr();
-  
-  MutexLocker l(*(o._mutex));
-  _ptr = o._ptr;
-  _mutex = o._mutex;
-  _counter = o._counter;
-  *_counter += 1;
+  if (&o != this) {
+    this->~counting_auto_ptr();
+    MutexLocker l(*(o._mutex));
+    _ptr = o._ptr;
+    _mutex = o._mutex;
+    _counter = o._counter;
+    (*_counter)++;
+  }
   return *this;
 };
 

@@ -23,9 +23,9 @@
 
 #include "ClusterMonitor.h"
 #include "Socket.h"
+#include "Time.h"
 
 #include <sys/poll.h>
-#include <sys/time.h>
 #include <errno.h>
 
 
@@ -57,9 +57,9 @@ ClusterMonitor::get_cluster()
       poll_data.events = POLLIN;
       poll_data.revents = 0;
       
-      unsigned int time_start = time();
+      unsigned int time_start = time_mil();
       int ret = poll(&poll_data, 1, timeout);
-      timeout -= (time() - time_start);
+      timeout -= (time_mil() - time_start);
       if (ret == 0)
 	continue;
       else if (ret == -1) {
@@ -80,13 +80,4 @@ ClusterMonitor::get_cluster()
   } catch ( ... ) {
     return counting_auto_ptr<Cluster>();
   }
-}
-
-unsigned int
-ClusterMonitor::time()
-{
-  struct timeval t;
-  struct timezone z;
-  gettimeofday(&t, &z);
-  return t.tv_sec*1000 + t.tv_usec/1000;
 }

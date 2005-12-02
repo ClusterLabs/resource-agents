@@ -24,6 +24,8 @@
 #ifndef Socket_h
 #define Socket_h
 
+#include "counting_auto_ptr.h"
+
 #include <string>
 #include <vector>
 
@@ -56,9 +58,7 @@ class Socket
   Socket(int sock);  // takes ownership of sock
   int _sock;
   void close();
-  
- private:
-  int* _counter;
+  counting_auto_ptr<int> _counter;
   
 };  // class Socket
 

@@ -43,9 +43,7 @@ ClusterMonitoring::start_thread(void* thread_obj)
 Thread::Thread() :
   _stop(true),
   _running(false)
-{
-  
-}
+{}
 
 Thread::~Thread()
 {

@@ -23,6 +23,7 @@
 
 #include "executils.h"
 #include "Logger.h"
+#include "Time.h"
 
 #include <unistd.h>
 #include <sys/poll.h>
@@ -30,6 +31,9 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <errno.h>
+
+
+using namespace ClusterMonitoring;
 
 
 static void 
@@ -107,6 +111,8 @@ ClusterMonitoring::execute(const std::string& path,
   close(_stderr_pipe[1]);
   bool out_closed=false, err_closed=false;
   
+  unsigned int time_beg = time_mil();
+  
   while (true) {
     // prepare poll structs
     struct pollfd poll_data[2];
@@ -163,7 +169,7 @@ ClusterMonitoring::execute(const std::string& path,
   std::string comm(path);
   for (unsigned int i=0; i<args.size(); i++)
     comm += " " + args[i];
-  log("executed \"" + comm + "\"", LogExecute);
+  log("executed \"" + comm + "\" in " + (time_mil() - time_beg) + " milliseconds", LogExecute);
   
   if (WIFEXITED(status)) {
     status = WEXITSTATUS(status);

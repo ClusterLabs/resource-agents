@@ -64,7 +64,6 @@ class Monitor : public Thread, public CommDP
 					  std::string& msg);
   counting_auto_ptr<Cluster> merge_data(const std::string& clustername);
   
-  unsigned int time();
   XMLObject parse_cluster_conf();
   //  bool clustered();
   //  bool quorate();

@@ -13,7 +13,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; see the file COPYING.  If not, write to the
-  Free Software Foundation, Inc.,  675 Mass Ave, Cambridge,
+  Free Software Foundation, Inc.,  675 Mass Ave, Cambridge, 
   MA 02139, USA.
 */
 /*
@@ -21,38 +21,25 @@
  */
 
 
-#ifndef ClusterMonitor_h
-#define ClusterMonitor_h
-
-#include "Cluster.h"
-#include "counting_auto_ptr.h"
-#include "clumond_globals.h"
+#ifndef Time_h
+#define Time_h
 
 #include <string>
 
 
-namespace ClusterMonitoring
-{
+namespace ClusterMonitoring {
 
 
-class ClusterMonitor
-{
- public:
-  ClusterMonitor(const std::string& socket_path=MONITORING_CLIENT_SOCKET);
-  virtual ~ClusterMonitor();
-  
-  counting_auto_ptr<Cluster> get_cluster();
-  
- private:
-  std::string _sock_path;
-  
-  ClusterMonitor(const ClusterMonitor&);
-  ClusterMonitor& operator= (const ClusterMonitor&);
-  
-};  // class ClusterMonitor
+// number of seconds since Epoch
+unsigned int time_sec();
 
+// number of milliseconds since Epoch
+unsigned int time_mil();
 
+std::string time_formated();
+
+ 
 };  // namespace ClusterMonitoring
 
 
-#endif
+#endif  // Time_h

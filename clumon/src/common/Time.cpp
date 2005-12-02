@@ -13,7 +13,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; see the file COPYING.  If not, write to the
-  Free Software Foundation, Inc.,  675 Mass Ave, Cambridge,
+  Free Software Foundation, Inc.,  675 Mass Ave, Cambridge, 
   MA 02139, USA.
 */
 /*
@@ -21,38 +21,35 @@
  */
 
 
-#ifndef ClusterMonitor_h
-#define ClusterMonitor_h
+#include "Time.h"
 
-#include "Cluster.h"
-#include "counting_auto_ptr.h"
-#include "clumond_globals.h"
-
-#include <string>
+#include <sys/time.h>
 
 
-namespace ClusterMonitoring
+unsigned int 
+ClusterMonitoring::time_sec()
 {
+  struct timeval t;
+  struct timezone z;
+  gettimeofday(&t, &z);
+  return t.tv_sec;
+}
 
-
-class ClusterMonitor
+unsigned int 
+ClusterMonitoring::time_mil()
 {
- public:
-  ClusterMonitor(const std::string& socket_path=MONITORING_CLIENT_SOCKET);
-  virtual ~ClusterMonitor();
-  
-  counting_auto_ptr<Cluster> get_cluster();
-  
- private:
-  std::string _sock_path;
-  
-  ClusterMonitor(const ClusterMonitor&);
-  ClusterMonitor& operator= (const ClusterMonitor&);
-  
-};  // class ClusterMonitor
+  struct timeval t;
+  struct timezone z;
+  gettimeofday(&t, &z);
+  return t.tv_sec*1000 + t.tv_usec/1000;
+}
 
-
-};  // namespace ClusterMonitoring
-
-
-#endif
+std::string 
+ClusterMonitoring::time_formated()
+{
+  char time[64];
+  time_t t = time_sec();
+  ctime_r(&t, time);
+  std::string m(time);
+  return m.substr(0, m.size()-1);
+}

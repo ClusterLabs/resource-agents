@@ -22,6 +22,7 @@
 
 
 #include "Logger.h"
+#include "Time.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -87,9 +88,9 @@ void
 Logger::log(const std::string& msg, LogLevel level)
 {
   if (_fd > 0 && _level & level) {
-    std::string m;
+    std::string m = time_formated();
     if (_fd > 2)
-      m += _domain;
+      m += " " + _domain;
     m += ": " + msg + '\n';
     int e;
     do {

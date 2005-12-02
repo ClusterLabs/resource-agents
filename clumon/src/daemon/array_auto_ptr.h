@@ -32,18 +32,18 @@ namespace ClusterMonitoring
 template <class T>
 class array_auto_ptr
 {
-public:
+ public:
   array_auto_ptr(T* array) : _arr(array) {}
   virtual ~array_auto_ptr() { delete[] _arr; }
   
   T& operator [] (unsigned int i) { return _arr[i]; }
   T* get() { return _arr; }
-private:
+  
+ private:
   T* _arr;
   
   array_auto_ptr(const array_auto_ptr&);
   array_auto_ptr& operator= (const array_auto_ptr&);
-  
 };  // class array_auto_ptr
 
  

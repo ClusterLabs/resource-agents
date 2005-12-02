@@ -40,7 +40,7 @@ Socket::Socket(int sock) :
   _sock(sock)
 {
   try {
-    _counter = new int(1);
+    _counter = counting_auto_ptr<int>(new int(1));
   } catch ( ... ) {
     close();
     throw std::string("Socket(int sock) failed");
@@ -51,7 +51,7 @@ Socket::Socket(const Socket& s) :
   _sock(s._sock),
   _counter(s._counter)
 {
-  *_counter += 1;
+  (*_counter)++;
 }
 
 Socket& 
@@ -60,18 +60,15 @@ Socket::operator= (const Socket& s)
   if (&s != this) {
     _sock = s._sock;
     _counter = s._counter;
-    *_counter += 1;
+    (*_counter)++;
   }
   return *this;
 }
 
 Socket::~Socket()
 {
-  *_counter -= 1;
-  if (*_counter == 0) {
+  if (--(*_counter) == 0)
     close();
-    delete _counter;
-  }
 }
 
 void
@@ -80,14 +77,10 @@ Socket::close()
   if (_sock != -1) {
     log(std::string("closing socket ") + _sock, LogSocket);
     shutdown(_sock, SHUT_RDWR);
-    while (true) {
-      int ret = ::close(_sock);
-      if (ret) {
-	if (errno == EINTR)
-	  continue;
-      }
-      break;
-    }
+    int e;
+    do {
+      e = ::close(_sock);
+    } while (e && (errno == EINTR));
   }
   _sock = -1;
 }

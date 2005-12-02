@@ -23,7 +23,7 @@
 Name: clumon
 Version: %vers
 Release: %rel
-License: GPL,LGPL
+License: GPL
 
 Group: System Environment/Base
 Summary: Red Hat Enterprise Linux Cluster Suite - Monitoring daemon
@@ -33,6 +33,7 @@ Buildroot: %{_tmppath}/%{name}-%{version}-buildroot
 
 Requires: chkconfig initscripts
 Requires: /bin/bash
+Provides: clumon
 BuildRequires: glibc-devel gcc-c++ libxml2-devel
 BuildRequires: openssl-devel net-snmp-devel tog-pegasus-devel
 
@@ -61,12 +62,8 @@ rm -rf $RPM_BUILD_ROOT
 /etc/init.d/clumond
 
 %post
-chkconfig --add clumond
-chkconfig clumond off
 
 %preun
-service clumond stop 1> /dev/null
-chkconfig --del clumond
 
 %postun
 
@@ -80,6 +77,7 @@ Group: System Environment/Base
 Summary: Red Hat Enterprise Linux Cluster Suite - SNMP agent
 Requires: %{name} = %{version}-%{release}
 Requires: net-snmp
+Provides: clumon-snmp
 
 %description snmp
 SNMP agent for Red Hat Enterprise Linux Cluster Suite
@@ -107,6 +105,7 @@ Group: System Environment/Base
 Summary: Red Hat Enterprise Linux Cluster Suite - CIM provider
 Requires: %{name} = %{version}-%{release}
 Requires: tog-pegasus
+Provides: clumon-cim
 
 %description cim
 CIM provider for Red Hat Enterprise Linux Cluster Suite

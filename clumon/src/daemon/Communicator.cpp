@@ -24,9 +24,9 @@
 #include "Communicator.h"
 #include "array_auto_ptr.h"
 #include "Logger.h"
+#include "Time.h"
 
 #include <sys/poll.h>
-#include <sys/time.h>
 #include <stdlib.h>
 #include <errno.h>
 
@@ -47,11 +47,8 @@ Communicator::Communicator(unsigned short port,
   _serv_sock(_port),
   _delivery_point(delivery_point)
 {
-  struct timeval t;
-  struct timezone z;
-  gettimeofday(&t, &z);
-  _connect_time = t.tv_sec;
-  _rand_state = t.tv_usec;
+  _connect_time = time_sec();
+  _rand_state = time_mil();
   log(string("Communicator created, port ") + _port, LogCommunicator);
 }
 
@@ -242,13 +239,8 @@ Communicator::serve_sockets(vector<string>& names)
 bool
 Communicator::time_to_connect()
 {
-  struct timeval t;
-  struct timezone z;
-  gettimeofday(&t, &z);
-  unsigned int time = t.tv_sec;
-  
-  if (time > _connect_time) {
-    _connect_time = time + rand_r(&_rand_state) % 15;
+  if (time_sec() > _connect_time) {
+    _connect_time = time_sec() + rand_r(&_rand_state) % 15;
     return true;
   }
   return false;

@@ -24,9 +24,9 @@
 #include "Monitor.h"
 #include "executils.h"
 #include "Logger.h"
+#include "Time.h"
 
 #include <sys/poll.h>
-#include <sys/time.h>
 
 #include <algorithm>
 
@@ -46,7 +46,6 @@ using namespace std;
 #define RG_STATE_ERROR                  117     /** Recoverable error */
 #define RG_STATE_RECOVER                118     /** Pending recovery */
 #define RG_STATE_DISABLED               119     /** Resource not allowd to run */
-
 
 
 
@@ -72,7 +71,7 @@ Monitor::run()
   _comm.start();
   while (!shouldStop()) {
     
-    unsigned int time_beg = time();
+    unsigned int time_beg = time_sec();
     
     try {
       // get local info
@@ -92,7 +91,7 @@ Monitor::run()
       }
     } catch ( ... ) {}
     
-    string msg = string("monitoring iteration took ") + (time() - time_beg) + " seconds";
+    string msg = string("monitoring iteration took ") + (time_sec() - time_beg) + " seconds";
     log(msg, LogTime);
     
     // wait some time
@@ -141,7 +140,7 @@ Monitor::msg_arrived(const string& hostname, const string& msg_in)
 	  const XMLObject& cluster = *(obj.children().begin());
 	  if (cluster.tag() == "cluster") {
 	    MutexLocker l(_mutex);
-	    pair<unsigned int, XMLObject> data(time(), cluster);
+	    pair<unsigned int, XMLObject> data(time_sec(), cluster);
 	    _cache[hostname] = data;
 	  }
 	}
@@ -304,7 +303,7 @@ Monitor::merge_data(const string& clustername)
   for (map<string, pair<unsigned int, XMLObject> >::iterator iter = _cache.begin();
        iter != _cache.end();
        iter++) {
-    if (iter->second.first < time() - 8)
+    if (iter->second.first < time_sec() - 8)
       stales.push_back(iter);
     else {
       online_nodes.push_back(iter->first);
@@ -385,14 +384,6 @@ Monitor::merge_data(const string& clustername)
   return cluster_ret;
 }
 
-unsigned int
-Monitor::time()
-{
-  struct timeval t;
-  struct timezone z;
-  gettimeofday(&t, &z);
-  return t.tv_sec;
-}
 
 /*
 bool 
@@ -507,9 +498,6 @@ Monitor::services_info()
   vector<XMLObject> services;
   
   try {
-    
-    unsigned int time_beg = time();
-    
     string out, err;
     int status;
     vector<string> args;
@@ -518,8 +506,6 @@ Monitor::services_info()
       throw string("services_info(): missing clustat");
     if (status)
       return vector<XMLObject>();
-    
-    // cout << "clustat returned after " << time() - time_beg << " seconds" << endl;
     
     XMLObject clustat = parseXML(out);
     for (list<XMLObject>::const_iterator iter_c = clustat.children().begin();

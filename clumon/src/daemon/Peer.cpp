@@ -52,15 +52,14 @@ Peer::Peer(const string& hostname, unsigned short port) :
 Peer::~Peer()
 {}
 
+
 bool 
 Peer::operator== (const Peer& p) const
 {
-  if (_in == p._in &&
-      _out == p._out &&
-      _sock == p._sock &&
-      _hostname == p._hostname)
-    return true;
-  return false;
+  return (_in == p._in &&
+	  _out == p._out &&
+	  _sock == p._sock &&
+	  _hostname == p._hostname);
 }
 
 void 
