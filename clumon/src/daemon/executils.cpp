@@ -36,10 +36,15 @@
 using namespace ClusterMonitoring;
 
 
+#define EXECUTE_TIMEOUT_MILS  3000
+
+
 static void 
 read_data(struct pollfd& poll_info,
 	  bool& fd_closed,
 	  std::string& data);
+static void
+close_fd(int fd);
 
 
 int 
@@ -58,33 +63,36 @@ ClusterMonitoring::execute(const std::string& path,
   if (pipe(_stdout_pipe) == -1)
     return 2;
   if (pipe(_stderr_pipe) == -1) {
-    close(_stdout_pipe[0]);
-    close(_stdout_pipe[1]);
+    close_fd(_stdout_pipe[0]);
+    close_fd(_stdout_pipe[1]);
     return 2;
   }
   
   int pid = fork();
   if (pid == -1) {
-    close(_stdout_pipe[0]);
-    close(_stdout_pipe[1]);
-    close(_stderr_pipe[0]);
-    close(_stderr_pipe[1]);
+    close_fd(_stdout_pipe[0]);
+    close_fd(_stdout_pipe[1]);
+    close_fd(_stderr_pipe[0]);
+    close_fd(_stderr_pipe[1]);
     return 3;
   }
   
+  unsigned int time_beg = time_mil();
+  unsigned int time_to_kill = time_beg + EXECUTE_TIMEOUT_MILS;
+  
   if (pid == 0) {
     /* child */
-    close(0);
-    close(1);
-    close(2);
+    close_fd(0);
+    close_fd(1);
+    close_fd(2);
     
-    close(_stdout_pipe[0]);
+    close_fd(_stdout_pipe[0]);
     dup2(_stdout_pipe[1], 1);
-    close(_stdout_pipe[1]);
+    close_fd(_stdout_pipe[1]);
     
-    close(_stderr_pipe[0]);
+    close_fd(_stderr_pipe[0]);
     dup2(_stderr_pipe[1], 2);
-    close(_stderr_pipe[1]);
+    close_fd(_stderr_pipe[1]);
     
     // restore signals
     for (int x = 1; x < _NSIG; x++)
@@ -105,17 +113,19 @@ ClusterMonitoring::execute(const std::string& path,
       
       execv(path.c_str(), argv);
     } catch ( ... ) {}
-    exit(1);
+    _exit(1);
   }
   
   /* parent */
-  close(_stdout_pipe[1]);
-  close(_stderr_pipe[1]);
+  close_fd(_stdout_pipe[1]);
+  close_fd(_stderr_pipe[1]);
   bool out_closed=false, err_closed=false;
   
-  unsigned int time_beg = time_mil();
-  
   while (true) {
+    // kill child if timeout elapsed
+    if (time_mil() > time_to_kill)
+      kill(pid, SIGKILL);
+    
     // prepare poll structs
     struct pollfd poll_data[2];
     int s = 0;
@@ -143,9 +153,9 @@ ClusterMonitoring::execute(const std::string& path,
 	continue;
       else {
 	if (!out_closed)
-	  close(_stdout_pipe[0]);
+	  close_fd(_stdout_pipe[0]);
 	if (!err_closed)
-	  close(_stderr_pipe[0]);
+	  close_fd(_stderr_pipe[0]);
 	return 4;
       }
     }
@@ -160,28 +170,28 @@ ClusterMonitoring::execute(const std::string& path,
     }
   } // while (true)
   
-  
-  // get status
-  do {
-    int ret = waitpid(pid, &status, 0);
-    if ((ret < 0) && (errno == EINTR))
-      continue;
-  } while (false);
-  
+  // command
   std::string comm(path);
   for (unsigned int i=0; i<args.size(); i++)
     comm += " " + args[i];
-  log("executed \"" + comm + "\" in " + (time_mil() - time_beg) + " milliseconds", LogExecute);
+  
+  // get status
+  int ret;
+  do {
+    ret = waitpid(pid, &status, 0);
+  } while ((ret < 0) && (errno == EINTR));
   
   if (WIFEXITED(status)) {
+    log("executed \"" + comm + "\" in " + (time_mil() - time_beg) + " milliseconds", LogExecute);
     status = WEXITSTATUS(status);
     return 0;
-  }
-  
-  if (WIFSIGNALED(status))
+  } else if (WIFSIGNALED(status)) {
+    log("\"" + comm + "\" killed after " + (time_mil() - time_beg) + " milliseconds", LogExecute);
     return 5;
-  
-  return 6;
+  } else {
+    log("unknown cause of \"" + comm + "\"'s exit after " + (time_mil() - time_beg) + " milliseconds", LogExecute);
+    return 6;
+  }
 }
 
 void 
@@ -198,22 +208,31 @@ read_data(struct pollfd& poll_info,
       if (ret < 0)
 	return;
       if (ret == 0) {
-	close(fd);
+	close_fd(fd);
 	fd_closed = true;
 	return;
       }
       data.append(data_in, ret);
     } catch ( ... ) {
-      close(fd);
+      close_fd(fd);
       fd_closed = true;
     }
   }
   
   if (poll_info.revents & (POLLERR | POLLHUP | POLLNVAL)) {
-    close(fd);
+    close_fd(fd);
     fd_closed = true;
     return;
   }
+}
+
+void
+close_fd(int fd)
+{
+  int e;
+  do {
+    e = close(fd);
+  } while (e && (errno == EINTR));
 }
 
 
