@@ -62,11 +62,18 @@ rm -rf $RPM_BUILD_ROOT
 /etc/init.d/clumond
 
 %post
+/sbin/chkconfig --add clumond
 
 %preun
+if [ "$1" = 0 ]; then
+   /sbin/service clumond stop > /dev/null 2>&1
+   /sbin/chkconfig --del clumond
+fi
 
 %postun
-
+if [ "$1" -ge "1" ]; then
+   /sbin/service clumond condrestart > /dev/null 2>&1
+fi
 
 
 ###  SNMP agent ###
@@ -86,7 +93,7 @@ SNMP agent for Red Hat Enterprise Linux Cluster Suite
 %files snmp
 %defattr(-,root,root)
 %doc README COPYING REDHAT-CLUSTER-MIB
-%{_libdir}/clumon-snmp/libClusterMonitorSnmp.so
+%{_libdir}/clumon-snmp/
 %attr(644,root,root) /usr/share/snmp/mibs/REDHAT-CLUSTER-MIB
 
 %post snmp
@@ -94,6 +101,9 @@ SNMP agent for Red Hat Enterprise Linux Cluster Suite
 %preun snmp
 
 %postun snmp
+if [ "$1" -ge "1" ]; then
+   /sbin/service snmpd condrestart > /dev/null 2>&1
+fi
 
 
 

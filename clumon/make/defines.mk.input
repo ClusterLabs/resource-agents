@@ -35,9 +35,7 @@ LD = ld
 #RANLIB = echo
 RANLIB = ranlib
 
-DEBUG_FLAGS = -c -O2
-
 # Default CFLAGS
-CFLAGS += ${DEBUG_FLAGS} -fPIC -Wall -Wno-unused ${INCLUDE}
-CXXFLAGS += ${DEBUG_FLAGS} -fPIC -Wall -Wno-unused ${INCLUDE}
+CFLAGS += -g -fPIC -Wall -Wno-unused ${INCLUDE}
+CXXFLAGS += -g -fPIC -Wall -Wno-unused ${INCLUDE}
 
