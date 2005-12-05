@@ -22,6 +22,7 @@
 
 
 #include "XML.h"
+#include "Mutex.h"
 
 #include <libxml/parser.h>
 #include <libxml/tree.h>
@@ -196,6 +197,14 @@ _parseXML(XMLObject& parent, xmlNode* children)
 XMLObject 
 ClusterMonitoring::parseXML(const string& xml)
 {
+  static Mutex mutex;
+  MutexLocker l(mutex);
+  static bool initialized = false;
+  if (!initialized) {
+    LIBXML_TEST_VERSION;
+    initialized = true;
+  }
+  
   xmlDoc* doc = xmlReadMemory(xml.c_str(),
 			      xml.size(),
 			      "noname.xml",
