@@ -53,11 +53,12 @@ class Logger
   virtual ~Logger();
   
   void log(const std::string& msg, LogLevel level=LogBasic);
+  void log_sigsafe(const char* msg, LogLevel level=LogBasic);
   void operator<< (const std::string& msg) { log(msg); }
   
  private:
   int _fd;
-  std::string _domain;
+  char* _domain_c;
   int _level;
   
   void close_fd();
@@ -71,6 +72,7 @@ class Logger
 std::string operator+ (const std::string&, int);
 std::string operator+ (int, const std::string&);
 void log(const std::string& msg, LogLevel level=LogBasic);
+void log_sigsafe(const char* msg, LogLevel level=LogBasic);
 void set_logger(counting_auto_ptr<Logger>);
  
  

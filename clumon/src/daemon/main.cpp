@@ -118,16 +118,16 @@ main(int argc, char** argv)
     serve_clients(monitor, server);
   } catch (string e) {
     log("unhandled exception in main(): " + e);
-    log("died");
+    log("died", LogAll);
     return 1;
   } catch ( ... ) {
     log("unhandled unknown exception in main()");
-    log("died");
+    log("died", LogAll);
     return 1;
   }
   
   unlink("/var/run/clumond.pid");
-  log("exited");
+  log("exited", LogAll);
   return 0;
 }
 
@@ -215,7 +215,7 @@ serve_clients(Monitor& monitor, ServerSocket& server)
 void 
 shutdown(int)
 {
-  log("exit requested", LogExit);
+  log_sigsafe("exit requested", LogExit);
   shutdown_pending = true;
 }
 
@@ -225,7 +225,7 @@ segfault(int)
   char msg[128];
   snprintf(msg, sizeof(msg)-1, "PID %d Thread %d: SIGSEGV, waiting forensics", 
 	   getpid(), (int) pthread_self());
-  log(msg);
+  log_sigsafe(msg, LogAll);
   while(1)
     sleep(60);
 }

@@ -29,6 +29,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
+#include <stdlib.h>
+#include <string.h>
 
 
 using namespace ClusterMonitoring;
@@ -39,30 +41,44 @@ static counting_auto_ptr<Logger> logger(new Logger());
 
 
 Logger::Logger() :
-  _fd(-1)
+  _fd(-1),
+  _domain_c(NULL)
 {}
 
 Logger::Logger(const std::string& filepath, 
 	       const std::string& domain, 
 	       LogLevel level) :
-  _domain(domain),
   _level(level)
 {
-  _fd = open(filepath.c_str(), 
+  const char* c_str = domain.c_str();
+  const char* path_c = filepath.c_str();
+  
+  _domain_c = (char*) malloc(domain.size()+1);
+  if (_domain_c == NULL)
+    throw string("Logger::Logger(): malloc() failed");
+  strcpy(_domain_c, c_str);
+  
+  _fd = open(path_c, 
 	     O_CREAT|O_WRONLY|O_APPEND, 
 	     S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
+  if (_fd == -1) {
+    free(_domain_c);
+    throw string("Logger::Logger(): open() failed");
+  }
 }
 
 Logger::Logger(int fd, const std::string& domain, LogLevel level) :
   _fd(fd),
   _level(level)
 {
-  try {
-    _domain = domain;
-  } catch ( ... ) {
+  const char* c_str = domain.c_str();
+  
+  _domain_c = (char*) malloc(domain.size()+1);
+  if (_domain_c == NULL) {
     close_fd();
-    throw;
+    throw string("Logger::Logger(): malloc() failed");
   }
+  strcpy(_domain_c, c_str);
 }
 
 void
@@ -82,23 +98,44 @@ Logger::close_fd()
 Logger::~Logger()
 {
   close_fd();
+  free(_domain_c);
 }
 
 void 
 Logger::log(const std::string& msg, LogLevel level)
 {
+  log_sigsafe(msg.c_str(), level);
+}
+
+void 
+Logger::log_sigsafe(const char* msg, LogLevel level)
+{
   if (_fd > 0 && _level & level) {
-    std::string m = time_formated();
-    if (_fd > 2)
-      m += " " + _domain;
-    m += ": " + msg + '\n';
-    int e;
+    char time[64];
+    time_t t = time_sec();
+    ctime_r(&t, time);
+    time[sizeof(time)-1] = 0;
+    for (int i=0; time[i]; i++)
+      if (time[i] == '\n') {
+	time[i] = 0;
+	break;
+      }
+    
+    char m[2048];
+    if (_fd > 2 && (_domain_c != NULL))
+      snprintf(m, sizeof(m), "%s %s: %s\n", time, _domain_c, msg);
+    else
+      snprintf(m, sizeof(m), "%s: %s\n", time, msg);
+    m[sizeof(m)-1] = 0;
+    
+    int l, e;
+    for (l=0; m[l]; l++) ;
     do {
-      e = write(_fd, m.c_str(), m.size());
+      e = write(_fd, m, l);
     } while (e == -1 && errno == EINTR);
   }
 }
-
+  
 
 
 // ### helper functions ###
@@ -126,7 +163,15 @@ ClusterMonitoring::log(const std::string& msg, LogLevel level)
 }
 
 void 
+ClusterMonitoring::log_sigsafe(const char* msg, LogLevel level)
+{
+  logger->log_sigsafe(msg, level);
+}
+
+void 
 ClusterMonitoring::set_logger(counting_auto_ptr<Logger> l)
 {
+  if (l.get() == NULL)
+    l = counting_auto_ptr<Logger>(new Logger());
   logger = l;
 }
