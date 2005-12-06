@@ -639,7 +639,7 @@ killMountProcesses()
 				else
 					kill -TERM $pid
 				fi
-			done < <(lsof -b 2>/dev/null | \
+			done < <(lsof -bn 2>/dev/null | \
 			    grep -E "$mp(/.*|)\$" | \
 			    awk '{print $1,$2,$3}' | \
 			    sort -u -k 1,3)
@@ -938,6 +938,7 @@ Unknown file system type '$fstype' for device $dev.  Assuming fsck is required."
 	#
 	# Mount the device
 	#
+	ocf_log info "mounting $dev on $mp"
 	ocf_log debug "mount $fstype_option $mount_options $dev $mp"
 	mount $fstype_option $mount_options $dev $mp
 	ret_val=$?
