@@ -479,8 +479,7 @@ build_member_list(uint64_t *lid)
 	part = clu_member_list(NULL);
 	msg_update(part); /* XXX magmamsg is awful. */
 
-	if (root) {
-		all = ccs_member_list();
+	if (root && (all = ccs_member_list())) {
 
 		/* See if our config has anyone missed.  If so, flag
 		   them as missing from the config file */
