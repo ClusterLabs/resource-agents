@@ -346,6 +346,7 @@ static int process_rendezvous(poll_handle handle, int fd, int revent, void *data
 		newcon->type = con->type;
 		newcon->port = 0;
 		list_init(&newcon->write_msgs);
+		fcntl(client_fd, F_SETFL, fcntl(client_fd, F_GETFL, 0) | O_NONBLOCK);
 
 		poll_dispatch_add(handle, client_fd, POLLIN, newcon, process_client, 0);
 		num_connections++;
@@ -371,6 +372,7 @@ static int open_local_sock(const char *name, int name_len, mode_t mode, poll_han
 	}
 	/* Set Close-on-exec */
 	fcntl(local_socket, F_SETFD, 1);
+	fcntl(local_socket, F_SETFL, fcntl(local_socket, F_GETFL, 0) | O_NONBLOCK);
 
 	memset(&sockaddr, 0, sizeof(sockaddr));
 	memcpy(sockaddr.sun_path, name, name_len);
