@@ -131,6 +131,7 @@ meta_data()
 	<child type="nfsclient" start="5" stop=""/>
 
         <child type="ip" start="6" stop="2"/>
+        <child type="smb" start="7" stop="3"/>
         <child type="script" start="7" stop="1"/>
     </special>
 </resource-agent>

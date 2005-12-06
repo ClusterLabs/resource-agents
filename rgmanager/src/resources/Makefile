@@ -18,7 +18,7 @@ include ${top_srcdir}/make/defines.mk
 INCLUDE += -I $(top_srcdir)/include
 
 RESOURCES=fs.sh service.sh ip.sh nfsclient.sh nfsexport.sh \
-	script.sh netfs.sh clusterfs.sh nfsserver.sh 
+	script.sh netfs.sh clusterfs.sh nfsserver.sh smb.sh
 
 TARGETS=${RESOURCES} ocf-shellfuncs
 
