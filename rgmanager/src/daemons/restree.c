@@ -660,33 +660,14 @@ print_resource_tree(resource_node_t **tree)
 }
 
 
-/**
-   Nasty codependent function.  Perform an operation by numerical level
-   at some point in the tree.  This allows indirectly-dependent resources
-   (such as IP addresses and user scripts) to have ordering without requiring
-   a direct dependency.
-
-   @param tree		Resource tree to search/perform operations on
-   @param first		Resource we're looking to perform the operation on,
-   			if one exists.
-   @param ret		Unused, but will be used to store status information
-   			such as resources consumed, etc, in the future.
-   @param op		Operation to perform if either first is found,
-   			or no first is declared (in which case, all nodes
-			in the subtree).
-   @see			_res_op res_exec
- */
-int
-_res_op_by_level(resource_node_t **tree, resource_t *first, void *ret,
+static inline int
+_do_child_levels(resource_node_t **tree, resource_t *first, void *ret,
 		 int op)
 {
 	resource_node_t *node = *tree;
 	resource_t *res = node->rn_resource;
 	resource_rule_t *rule = res->r_rule;
-	int l, x, rv = 0, lev;
-
-	if (!rule->rr_childtypes)
-		return _res_op(&node->rn_child, first, NULL, ret, op);
+	int l, lev, x, rv = 0;
 
 	for (l = 1; l <= RESOURCE_MAX_LEVELS; l++) {
 
@@ -720,6 +701,19 @@ _res_op_by_level(resource_node_t **tree, resource_t *first, void *ret,
 			return rv;
 	}
 
+	return 0;
+}
+
+
+static inline int
+_do_child_default_level(resource_node_t **tree, resource_t *first,
+			void *ret, int op)
+{
+	resource_node_t *node = *tree;
+	resource_t *res = node->rn_resource;
+	resource_rule_t *rule = res->r_rule;
+	int x, rv = 0, lev;
+
 	for (x = 0; rule->rr_childtypes &&
 	     rule->rr_childtypes[x].rc_name; x++) {
 
@@ -746,6 +740,57 @@ _res_op_by_level(resource_node_t **tree, resource_t *first, void *ret,
 	}
 
 	return 0;
+}
+
+
+
+
+/**
+   Nasty codependent function.  Perform an operation by numerical level
+   at some point in the tree.  This allows indirectly-dependent resources
+   (such as IP addresses and user scripts) to have ordering without requiring
+   a direct dependency.
+
+   @param tree		Resource tree to search/perform operations on
+   @param first		Resource we're looking to perform the operation on,
+   			if one exists.
+   @param ret		Unused, but will be used to store status information
+   			such as resources consumed, etc, in the future.
+   @param op		Operation to perform if either first is found,
+   			or no first is declared (in which case, all nodes
+			in the subtree).
+   @see			_res_op res_exec
+ */
+int
+_res_op_by_level(resource_node_t **tree, resource_t *first, void *ret,
+		 int op)
+{
+	resource_node_t *node = *tree;
+	resource_t *res = node->rn_resource;
+	resource_rule_t *rule = res->r_rule;
+	int rv = 0;
+
+	if (!rule->rr_childtypes)
+		return _res_op(&node->rn_child, first, NULL, ret, op);
+
+	if (op == RS_START || op == RS_STATUS) {
+		rv =  _do_child_levels(tree, first, ret, op);
+	       	if (rv != 0)
+			return rv;
+
+		/* Start default level after specified ones */
+		rv =  _do_child_default_level(tree, first, ret, op);
+
+	} /* stop */ else {
+
+		rv =  _do_child_default_level(tree, first, ret, op);
+	       	if (rv != 0)
+			return rv;
+
+		rv =  _do_child_levels(tree, first, ret, op);
+	}
+
+	return rv;
 }
 
 
