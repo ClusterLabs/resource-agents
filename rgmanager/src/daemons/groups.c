@@ -72,7 +72,7 @@ count_resource_groups(uint64_t nodeid, int *excl)
 		*excl = 0;
 
 	list_do(&_resources, res) {
-		if (res->r_rule->rr_type == 0)
+		if (res->r_rule->rr_root == 0)
 			continue;
 
 		rgname = res->r_attrs[0].ra_value;
@@ -734,7 +734,7 @@ do_condstarts(void)
 	pthread_rwlock_rdlock(&resource_lock);
 	list_do(&_tree, curr) {
 
-		if (curr->rn_resource->r_rule->rr_type == 0)
+		if (curr->rn_resource->r_rule->rr_root == 0)
 			continue;
 
 		/* Group name */
@@ -779,7 +779,7 @@ do_condstarts(void)
 	pthread_rwlock_rdlock(&resource_lock);
 	list_do(&_tree, curr) {
 
-		if (curr->rn_resource->r_rule->rr_type == 0)
+		if (curr->rn_resource->r_rule->rr_root == 0)
 			continue;
 
 		/* Group name */
