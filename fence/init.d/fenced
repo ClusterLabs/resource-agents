@@ -13,9 +13,23 @@
 
 LOCK_FILE="/var/lock/subsys/fenced"
 
+# FENCED_START_TIMEOUT -- amount of time to wait for starting fenced
+#     before giving up.  If FENCED_START_TIMEOUT is positive, then we will
+#     wait FENCED_START_TIMEOUT seconds before giving up and failing when
+#     fenced does not start.  If FENCED_START_TIMEOUT is zero, then
+#     wait indefinately for fenced to start.
+FENCED_START_TIMEOUT=120
+
 start()
 {
 	echo -n "Starting fence domain:"
+
+	if ! [ -e /proc/cluster/status ]
+	then
+	  	failure "cman has not been properly started."
+		echo
+		return 0
+	fi
 
 	# If gulm is in ccs, don't start fenced
 	if ! [ -r /etc/cluster/cluster.conf ]
@@ -34,7 +48,7 @@ start()
 
 	rtrn=1
 
-	fence_tool join -w > /dev/null 2>&1
+	fence_tool -t $FENCED_START_TIMEOUT join -w > /dev/null 2>&1
 	rtrn=$?
 	
 	if [ $rtrn -eq 0 ]
