@@ -204,6 +204,18 @@ static struct cluster_node *add_new_node(char *name, int nodeid, int votes, int 
 	else
 		memset(&newnode->ais_node, 0, sizeof(struct totem_ip_address));
 
+	/* If this node has a name passed in then use that rather than a previous generated one */
+	if (name && newnode->name && strcmp(name, newnode->name)) {
+		char *newname;
+
+		newname = strdup(name);
+		if (newname) {
+			P_MEMB("replacing old node name %s with %s\n", newnode->name, name);
+			free(newnode->name);
+			newnode->name = newname;
+		}
+	}
+
 	if (newalloc)
 		node_add_ordered(newnode);
 
@@ -1183,6 +1195,7 @@ static int valid_transition_msg(struct totem_ip_address *ipaddr, struct cl_trans
 		if (ccs_err) {
 			config_version = saved_config;
 		}
+		recalculate_quorum(0);
 	}
 
 
@@ -1304,6 +1317,7 @@ static void do_reconfigure_msg(void *data)
 	case RECONFIG_PARAM_CONFIG_VERSION:
 		config_version = msg->value;
 		read_ccs_nodes();
+		recalculate_quorum(0);
 		break;
 	}
 }
