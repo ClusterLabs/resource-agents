@@ -152,7 +152,7 @@ serve_clients(Monitor& monitor, ServerSocket& server)
       poll_data[i].fd = iter->first;
       poll_data[i].events = POLLIN;
       if ( ! iter->second.str.empty())
-	poll_data[i].events = POLLOUT;
+	poll_data[i].events |= POLLOUT;
       poll_data[i].revents = 0;
       iter++;
     }

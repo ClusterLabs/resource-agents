@@ -60,6 +60,8 @@ class Socket
   void close();
   counting_auto_ptr<int> _counter;
   
+ private:
+  void decrease_counter();
 };  // class Socket
 
 

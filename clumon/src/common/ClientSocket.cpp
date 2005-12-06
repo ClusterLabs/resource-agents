@@ -99,14 +99,17 @@ ClientSocket::ClientSocket(const std::string& hostname, unsigned short port) :
 }
 
 ClientSocket::ClientSocket(const ClientSocket& s) :
-  Socket(s)
+  Socket(s),
+  _addr(s._addr)
 {}
 
 ClientSocket& 
 ClientSocket::operator= (const ClientSocket& s)
 {
-  if (&s != this)
-    Socket::operator= (s);
+  if (&s != this) {
+    this->Socket::operator= (s);
+    _addr = s._addr;
+  }
   return *this;
 }
 

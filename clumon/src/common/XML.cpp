@@ -197,8 +197,6 @@ _parseXML(XMLObject& parent, xmlNode* children)
 XMLObject 
 ClusterMonitoring::parseXML(const string& xml)
 {
-  static Mutex mutex;
-  MutexLocker l(mutex);
   static bool initialized = false;
   if (!initialized) {
     LIBXML_TEST_VERSION;
@@ -217,7 +215,6 @@ ClusterMonitoring::parseXML(const string& xml)
   try {
     _parseXML(root, xmlDocGetRootElement(doc));
     xmlFreeDoc(doc);
-    xmlCleanupParser();
     return *(root.children().begin());
   } catch ( ... ) {
     xmlFreeDoc(doc);

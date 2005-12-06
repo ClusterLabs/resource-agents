@@ -54,6 +54,8 @@ class counting_auto_ptr
   Mutex* _mutex;
   int* _counter;
   
+  void decrease_counter();
+  
 };
 
 #include "counting_auto_ptr.cpp"

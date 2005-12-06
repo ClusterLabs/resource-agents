@@ -108,9 +108,9 @@ ServerSocket&
 ServerSocket::operator= (const ServerSocket& s)
 {
   if (&s != this) {
+    this->Socket::operator= (s);
     _unix_sock = s._unix_sock;
     _sock_path = s._sock_path;
-    Socket::operator= (s);
   }
   return *this;
 }

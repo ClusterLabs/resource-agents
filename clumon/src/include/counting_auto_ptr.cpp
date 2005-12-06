@@ -59,7 +59,7 @@ counting_auto_ptr<X>&
 counting_auto_ptr<X>::operator= (const counting_auto_ptr<X>& o)
 {
   if (&o != this) {
-    this->~counting_auto_ptr();
+    decrease_counter();
     MutexLocker l(*(o._mutex));
     _ptr = o._ptr;
     _mutex = o._mutex;
@@ -71,6 +71,13 @@ counting_auto_ptr<X>::operator= (const counting_auto_ptr<X>& o)
 
 template<class X>
 counting_auto_ptr<X>::~counting_auto_ptr()
+{
+  decrease_counter();
+};
+
+template<class X>
+void 
+counting_auto_ptr<X>::decrease_counter()
 {
   bool last = false;
   {
