@@ -228,6 +228,13 @@ static void show_status(void)
 	}
 }
 
+static int node_compare(const void *va, const void *vb)
+{
+	const cman_node_t *a = va;
+	const cman_node_t *b = vb;
+	return a->cn_nodeid - b->cn_nodeid;
+}
+
 static void show_nodes(void)
 {
 	cman_handle_t h;
@@ -252,6 +259,9 @@ static void show_nodes(void)
 
 	if (cman_get_nodes(h, count, &numnodes, nodes) < 0)
 		die("cman_get_nodes failed: %s", cman_error(errno));
+
+	/* Sort by nodeid to be friendly */
+	qsort(nodes, numnodes, sizeof(cman_node_t), node_compare);
 
 	printf("Node  Sts   Inc   Joined               Name\n");
 	for (i=0; i<numnodes; i++) {
