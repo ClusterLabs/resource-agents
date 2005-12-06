@@ -870,7 +870,6 @@ void gfs2_quota_unlock(struct gfs2_inode *ip)
 static int print_message(struct gfs2_quota_data *qd, char *type)
 {
 	struct gfs2_sbd *sdp = qd->qd_gl->gl_sbd;
-	struct tty_struct *tty;
 	char *line;
 	int len;
 
