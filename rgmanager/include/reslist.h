@@ -72,6 +72,7 @@
 
 typedef struct _resource_attribute {
 	int	ra_flags;
+	/* XXX possible alignment problem on ia64 */
 	char	*ra_name;
 	char	*ra_value;
 } resource_attr_t;
@@ -112,11 +113,12 @@ typedef struct _resource {
 	resource_rule_t *	r_rule;
 	char *	r_name;
 	resource_attr_t *	r_attrs;
+	resource_act_t *	r_actions;
+	time_t	r_started;	/** Time this resource was last started */
 	int	r_flags;
 	int	r_refs;
 	int	r_incarnations;	/** Number of instances running locally */
-	time_t	r_started;	/** Time this resource was last started */
-	resource_act_t *	r_actions;
+	int	_pad_; /* align */
 } resource_t;
 
 
@@ -124,22 +126,24 @@ typedef struct _rg_node {
 	list_head();
 	struct _rg_node	*rn_child, *rn_parent;
 	resource_t	*rn_resource;
+	resource_act_t	*rn_actions;
 	int	rn_state; /* State of this instance of rn_resource */
 	int	rn_flags;
-       resource_act_t *        rn_actions;
 } resource_node_t;
 
 typedef struct _fod_node {
 	list_head();
 	char	*fdn_name;
 	int	fdn_prio;
+	int	_pad_; /* align */
 } fod_node_t;
 
 typedef struct _fod {
 	list_head();
 	char	*fd_name;
-	int	fd_flags;
 	fod_node_t	*fd_nodes;
+	int	fd_flags;
+	int	_pad_; /* align */
 } fod_t;
 
 

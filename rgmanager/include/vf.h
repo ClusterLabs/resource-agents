@@ -83,6 +83,7 @@ typedef struct _view_node {
 	struct timeval  vn_timeout;	/**< Expiration time. */
 	uint64_t	vn_viewno;	/**< View Number. */
 	uint32_t	vn_datalen;	/**< Length of included data. */
+	uint32_t	vn_pad;		/**< pad */
 	char		vn_data[0];	/**< Included data. */
 } view_node_t;
 
@@ -107,12 +108,13 @@ typedef struct _key_node {
 	char	 *kn_keyid;		/**< Key ID this key node refers to. */
 	uint32_t kn_pid;		/**< PID. Child process running
 					  View-Formation on this key. */
+	uint32_t kn_datalen;		/**< Current length of data. */
 	view_node_t *kn_jvlist;		/**< Buffered join-view list. */
 	commit_node_t *kn_clist;	/**< Buffered commit list. */
 	uint64_t kn_viewno;		/**< Current view number of data. */
-	uint32_t kn_datalen;		/**< Current length of data. */
 	char *kn_data;			/**< Current data. */
 	int kn_tsec;			/**< Default timeout (in seconds */
+	int kn_pad;			/**< pad */
 	vf_vote_cb_t kn_vote_cb;	/**< Voting callback function */
 	vf_commit_cb_t kn_commit_cb;	/**< Commit callback function */
 } key_node_t;

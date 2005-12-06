@@ -11,6 +11,7 @@ typedef struct __attribute__ ((packed)) {
     uint32_t gh_command;
     uint32_t gh_arg1;
     uint32_t gh_arg2;
+    /* XXX alignment issue on ia64 */
 } generic_msg_hdr;
 
 #define swab_generic_msg_hdr(ptr)\
@@ -55,11 +56,8 @@ typedef struct __attribute__ ((packed)) {
 }
 
 
-#define GENERIC_HDR_MAGIC 0x123abc00/* match librhcm!  */
-
-#ifndef clu_perror
-#define clu_perror(func, val) fprintf(stderr, "%s: %s\n", func, strerror(val)
-#endif
+#define GENERIC_HDR_MAGIC   0x123abc00
+#define GENERIC_HDR_MAGICV2 0x123abc02
 
 int msg_send_simple(int fd, int cmd, int arg1, int arg2);
 int msg_receive_simple(int fd, generic_msg_hdr ** buf, int timeout);
