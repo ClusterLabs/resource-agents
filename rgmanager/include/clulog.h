@@ -61,6 +61,7 @@ extern "C" {
  *   add more levels.  Thus, any number up to MAXINT will be supported.
  */
 int clu_set_loglevel(int severity);
+int clu_set_facility(char *facility);
 int clu_log_console(int onoff);
 
 /*

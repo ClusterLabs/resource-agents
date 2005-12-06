@@ -36,6 +36,7 @@
 #include <sys/types.h>
 #include <sys/file.h>
 #include <sys/socket.h>
+#include <ccs.h>
 #define SYSLOG_NAMES
 #include <sys/syslog.h>
 #undef SYSLOG_NAMES
@@ -63,6 +64,7 @@ static const char *version __attribute__ ((unused)) = "$Revision$";
 /*
  * Globals
  */
+static int   log_is_open = 0;
 static int   useconsole = 0;
 static int   loglevel = LOGLEVEL_DFLT;
 static int   syslog_facility = LOG_DAEMON;
@@ -117,6 +119,61 @@ clu_set_loglevel(int severity)
 
 
 /**
+ * @return The current cluster log facility.
+ */
+char *
+clu_get_facility(void)
+{
+	int x = 0;
+
+	pthread_mutex_lock(&log_mutex);
+	for (; facilitynames[x].c_name; x++) {
+		if (syslog_facility == facilitynames[x].c_val) {
+			pthread_mutex_unlock(&log_mutex);
+			return facilitynames[x].c_name;
+		}
+	}
+	
+	pthread_mutex_unlock(&log_mutex);
+	return "local4";
+}
+
+
+/**
+ * Set the cluster log facility.
+ *
+ * @param facilityname  New log facility (see /usr/include/sys/syslog.h).
+ * @return 		0
+ */
+int
+clu_set_facility(char *facilityname)
+{
+	int x = 0, old;
+
+	pthread_mutex_lock(&log_mutex);
+	old = syslog_facility;
+
+	for (; facilitynames[x].c_name; x++) {
+		if (strcmp(facilityname, facilitynames[x].c_name))
+			continue;
+
+		syslog_facility = facilitynames[x].c_val;
+		break;
+	}
+
+	if (syslog_facility == old) {
+		pthread_mutex_unlock(&log_mutex);
+		return 0;
+	}
+
+	closelog();
+	log_is_open = 0;
+	pthread_mutex_unlock(&log_mutex);
+	return 0;
+}
+
+
+/**
  * Set the console logging mode.  Does not work for daemons.
  *
  * @param onoff		0 = off, otherwise on.
@@ -146,7 +203,6 @@ do_clulog(int        severity,
 	va_list      args;
 	char         logmsg[MAX_LOGMSG_LEN];	/* message to go to the log */
 	char         printmsg[MAX_LOGMSG_LEN];	/* message to go to stdout */
-	static int   log_is_open = 0;
 	int          syslog_flags = LOG_NDELAY;
 
 	pthread_mutex_lock(&log_mutex);

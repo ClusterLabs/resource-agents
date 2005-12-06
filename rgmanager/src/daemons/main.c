@@ -34,6 +34,7 @@
 #include <rg_queue.h>
 #include <malloc.h>
 
+int configure_logging(int ccsfd);
 
 int daemon_init(char *);
 int init_resource_groups(int);
@@ -49,8 +50,7 @@ int svc_exists(char *);
 int watchdog_init(void);
 
 int shutdown_pending = 0, running = 1, need_reconfigure = 0;
-
-#define request_failback(a) 0
+char debug = 0; /* XXX* */
 
 uint64_t next_node_id(cluster_member_list_t *membership, uint64_t me);
 
@@ -106,35 +106,6 @@ notify_exiting(void)
 			continue;
 
 		send_exit_msg(partner);
-	}
-
-	cml_free(membership);
-
-	return 0;
-}
-
-
-int
-request_failbacks(void)
-{
-	int x;
-	uint64_t partner;
-	cluster_member_list_t *membership;
-
-	membership = member_list();
-
-	for (x = 0; x < membership->cml_count; x++) {
-
-		partner = membership->cml_members[x].cm_id;
-
-		if (partner == my_id() ||
-		    membership->cml_members[x].cm_state != STATE_UP)
-			continue;
-
-		if (request_failback(partner) != 0) {
-			clulog(LOG_ERR, "#35: Unable to inform partner "
-			       "to start failback\n");
-		}
 	}
 
 	cml_free(membership);
@@ -493,6 +464,7 @@ event_loop(int clusterfd)
 
 	if (need_reconfigure || check_config_update()) {
 		need_reconfigure = 0;
+		configure_logging(-1);
 		init_resource_groups(1);
 		return 0;
 	}
@@ -564,6 +536,39 @@ statedump(int sig)
 void malloc_dump_table(void);
 
 
+/*
+ * Configure logging based on data in cluster.conf
+ */
+int
+configure_logging(int ccsfd)
+{
+	char *v;
+	char internal = 0;
+
+	if (ccsfd == -1) {
+		internal = 1;
+		ccsfd = ccs_connect();
+		if (ccsfd == -1)
+			return -1;
+	}
+
+	if (ccs_get(ccsfd, "/cluster/rm/@log_facility", &v) == 0) {
+		clu_set_facility(v);
+		free(v);
+	}
+
+	if (ccs_get(ccsfd, "/cluster/rm/@log_level", &v) == 0) {
+		clu_set_loglevel(atoi(v));
+		free(v);
+	}
+
+	if (internal)
+		ccs_disconnect(ccsfd);
+
+	return 0;
+}
+
+
 void
 wait_for_quorum(void)
 {
@@ -610,7 +615,7 @@ int
 main(int argc, char **argv)
 {
 	int cluster_fd, rv;
-	char debug = 0, foreground = 0;
+	char foreground = 0;
 	int quorate;
 	int listen_fds[2], listeners;
 	uint64_t myNodeID;
@@ -652,6 +657,9 @@ main(int argc, char **argv)
 	   We know we're quorate.  At this point, we need to
 	   read the resource group trees from ccsd.
 	 */
+	configure_logging(-1);
+	clulog(LOG_NOTICE, "Resource Group Manager Starting\n");
+
 	if (init_resource_groups(0) != 0) {
 		clulog(LOG_CRIT, "#8: Couldn't initialize services\n");
 		return -1;
