@@ -905,6 +905,9 @@ int gfs2_quota_check(struct gfs2_inode *ip, uint32_t uid, uint32_t gid)
 	if (!test_bit(GIF_QD_LOCKED, &ip->i_flags))
 		return 0;
 
+        if (!gfs_tune_get(sdp, gt_quota_enforce))
+                return 0;
+
 	for (x = 0; x < al->al_qd_num; x++) {
 		qd = al->al_qd[x];
 
