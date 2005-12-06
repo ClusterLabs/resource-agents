@@ -42,7 +42,7 @@ rg_state_list(uint64_t local_node_id)
 	generic_msg_hdr *msgp = NULL;
 	rg_state_msg_t *rsmp = NULL;
 
-	fd = msg_open(local_node_id, RG_PORT, RG_PURPOSE, 2);
+	fd = msg_open(local_node_id, RG_PORT, RG_PURPOSE, 10);
 	if (fd == -1) {
 		return NULL;
 	}
