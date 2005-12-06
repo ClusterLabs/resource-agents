@@ -1,3 +1,15 @@
+/******************************************************************************
+*******************************************************************************
+**
+**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
+**
+**  This copyrighted material is made available to anyone wishing to use,
+**  modify, copy, or redistribute it subject to the terms and conditions
+**  of the GNU General Public License v.2.
+**
+*******************************************************************************
+******************************************************************************/
+
 #include <sys/poll.h>
 #include <sys/types.h>
 #include <sys/errno.h>
@@ -208,7 +220,7 @@ int comms_init_ais(unsigned short port, char *key_filename)
 	ais_config.totem_logging_configuration.log_level_error =
 	ais_config.totem_logging_configuration.log_level_warning =
 	ais_config.totem_logging_configuration.log_level_notice =
-	ais_config.totem_logging_configuration.log_level_debug = 1;
+	ais_config.totem_logging_configuration.log_level_debug = 0;
 
 	if (key_filename)
 	{

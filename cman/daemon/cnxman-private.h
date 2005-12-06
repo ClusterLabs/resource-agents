@@ -154,14 +154,14 @@ struct cluster_node {
 	nodestate_t state;
 	struct timeval join_time;
 
-	long last_hello;// Only used for quorum devices
+	long last_hello; /* Only used for quorum devices */
 
 	unsigned int votes;
 	unsigned int expected_votes;
 	unsigned int leave_reason;
 	uint64_t     incarnation;
 
-	/* 32 bytes gives us enought for 256 bits (8 bit port number) */
+	/* 32 bytes gives us enough for 256 bits (8 bit port number) */
 #define PORT_BITS_SIZE 32
  	unsigned char port_bits[PORT_BITS_SIZE]; /* bitmap of ports open on this node */
 };
