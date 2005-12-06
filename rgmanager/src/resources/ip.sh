@@ -119,12 +119,6 @@ meta_data()
         <action name="status" depth="10" interval="60" timeout="20"/>
         <action name="monitor" depth="10" interval="60" timeout="20"/>
 
-	<!-- Checks to see if we can ping the router -->
-	<!-- does not correctly work in certain customer configurations
-        <action name="status" depth="20" interval="2m" timeout="20"/>
-        <action name="monitor" depth="20" interval="2m" timeout="20"/>
-		-->
-
         <action name="meta-data" timeout="20"/>
         <action name="verify-all" timeout="20"/>
     </actions>
@@ -441,6 +435,10 @@ findSlaves()
 		ocf_log err "$mastif is not a master device"
 		return $OCF_ERR_GENERIC
 	fi
+
+       ## Strip possible VLAN (802.1q) suffixes 
+       ##  - Roland Gadinger <roland.gadinger@beko.at> 
+       mastif=${mastif%%.*} 
 
 	while read line; do
 		set - $line
@@ -830,24 +828,6 @@ ip_op()
 		fi
 		ocf_log debug "Local ping to $addr succeeded"
 		
-                #
-		# XXX may be ipv4 only; disable for now. 
-		#
-		if [ "$OCF_RESKEY_family" = "inet6" ]; then
-			return 0;
-		fi
-
-		[ $OCF_CHECK_LEVEL -lt 20 ] && return 0
-		[ "$monitor_link" != "yes" ] && return 0
-
-		rtr=`ip route | grep "default via.*dev $dev" | awk '{print $3}'`
-
-		if ! ping_check $1 $rtr $dev; then
-			ocf_log err "Failed to ping default router $rtr on $dev"
-			return 1
-		fi
-		ocf_log debug "Ping check of $rtr succeeded"
-
 		return 0
 	fi
 
