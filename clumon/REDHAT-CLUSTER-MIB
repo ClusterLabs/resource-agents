@@ -1,36 +1,51 @@
 REDHAT-CLUSTER-MIB DEFINITIONS ::= BEGIN
 
+
 IMPORTS
---	enterprises				FROM RFC1155-SMI
-	MODULE-IDENTITY, OBJECT-TYPE, Integer32	FROM SNMPv2-SMI
---	SnmpAdminString				FROM SNMP-FRAMEWORK-MIB
-	
-	
--- parent info (to be replaced with our own OID)
-	netSnmpExamples				FROM NET-SNMP-EXAMPLES-MIB
-;
+	RedHat					FROM REDHAT-MIB
+	MODULE-IDENTITY, OBJECT-TYPE, Integer32	FROM SNMPv2-SMI;
 
 
-redhatClusterMIB MODULE-IDENTITY
-    LAST-UPDATED "200510210000Z"            -- Oct 21 2005, midnight
-    ORGANIZATION "Redhat Inc."
-    CONTACT-INFO "postal:   Redhat address
-			
-		  email:    email@redhat.com
+RedHatCluster MODULE-IDENTITY
+    LAST-UPDATED "200512060000Z"            -- Dec 06 2005, midnight
+    ORGANIZATION "Red Hat, Inc (www.redhat.com)"
+    CONTACT-INFO "postal:   Red Hat, Inc
+		   	    1801 Varsity Drive
+			    Raleigh, North Carolina 27606
+			    USA
+		  
+		  email:    customerservice@redhat.com
                  "
-    DESCRIPTION  "Redhat Cluster Suite monitoring MIB.
+    DESCRIPTION  "Red Hat Cluster Suite.
+		  MIB, version 1.
                  "
--- change this to parent info (to be replaced with our own OID)
-    ::= { netSnmpExamples 5 }
+    REVISION     "200512060000Z"            -- Dec 06 2005, midnight
+    DESCRIPTION  "Version 1
+		 "
+    ::= { RedHat 8 }
 
 
 
-rhcCluster		OBJECT IDENTIFIER ::= { redhatClusterMIB 1 }
-rhcTables		OBJECT IDENTIFIER ::= { redhatClusterMIB 2 }
+rhcMIBInfo		OBJECT IDENTIFIER ::= { RedHatCluster 1 }
+rhcCluster		OBJECT IDENTIFIER ::= { RedHatCluster 2 }
+rhcTables		OBJECT IDENTIFIER ::= { RedHatCluster 3 }
 
 
 
---  #####  Cluster #####  --
+--  #####  MIB info #####
+
+rhcMIBVersion OBJECT-TYPE
+	SYNTAX      Integer32
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Version of Red Hat Cluster MIB. Currently 1.
+	"
+	::= { rhcMIBInfo 1 }
+
+
+
+--  #####  Cluster  #####  --
 
 rhcClusterName OBJECT-TYPE
 	SYNTAX      OCTET STRING

@@ -67,7 +67,7 @@ void
 initialize_table_rhcServicesTable(void)
 {
     static oid      rhcServicesTable_oid[] =
-        { 1, 3, 6, 1, 4, 1, 8072, 2, 5, 2, 2 };
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 3, 2 };
     netsnmp_table_registration_info *table_info;
     netsnmp_handler_registration *my_handler;
     netsnmp_iterator_info *iinfo;

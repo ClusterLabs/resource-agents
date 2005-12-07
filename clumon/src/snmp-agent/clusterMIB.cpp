@@ -40,33 +40,41 @@ static string getStatusDescription(unsigned int code);
 void
 initialize_clusterMIB(void)
 {
+    static oid      rhcMIBVersion_oid[] =
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 1, 1 };
     static oid      rhcClusterFailedServicesNum_oid[] =
-        { 1, 3, 6, 1, 4, 1, 8072, 2, 5, 1, 12 };
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 12 };
     static oid      rhcClusterStatusString_oid[] =
-        { 1, 3, 6, 1, 4, 1, 8072, 2, 5, 1, 3 };
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 3 };
     static oid      rhcClusterVotes_oid[] =
-        { 1, 3, 6, 1, 4, 1, 8072, 2, 5, 1, 4 };
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 4 };
     static oid      rhcClusterStoppedServicesNum_oid[] =
-        { 1, 3, 6, 1, 4, 1, 8072, 2, 5, 1, 11 };
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 11 };
     static oid      rhcClusterAvailNodesNum_oid[] =
-        { 1, 3, 6, 1, 4, 1, 8072, 2, 5, 1, 7 };
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 7 };
     static oid      rhcClusterServicesNum_oid[] =
-        { 1, 3, 6, 1, 4, 1, 8072, 2, 5, 1, 9 };
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 9 };
     static oid      rhcClusterName_oid[] =
-        { 1, 3, 6, 1, 4, 1, 8072, 2, 5, 1, 1 };
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 1 };
     static oid      rhcClusterStatusCode_oid[] =
-        { 1, 3, 6, 1, 4, 1, 8072, 2, 5, 1, 2 };
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 2 };
     static oid      rhcClusterUnavailNodesNum_oid[] =
-        { 1, 3, 6, 1, 4, 1, 8072, 2, 5, 1, 8 };
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 8 };
     static oid      rhcClusterNodesNum_oid[] =
-        { 1, 3, 6, 1, 4, 1, 8072, 2, 5, 1, 6 };
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 6 };
     static oid      rhcClusterRunningServicesNum_oid[] =
-        { 1, 3, 6, 1, 4, 1, 8072, 2, 5, 1, 10 };
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 10 };
     static oid      rhcClusterVotesNeededForQuorum_oid[] =
-        { 1, 3, 6, 1, 4, 1, 8072, 2, 5, 1, 5 };
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 5 };
     
     DEBUGMSGTL(("libClusterMonitorSnmp", "Initializing\n"));
     
+    netsnmp_register_scalar(netsnmp_create_handler_registration
+                            ("rhcMIBVersion",
+                             handle_rhcMIBVersion,
+                             rhcMIBVersion_oid,
+                             OID_LENGTH(rhcMIBVersion_oid),
+                             HANDLER_CAN_RONLY));
     netsnmp_register_scalar(netsnmp_create_handler_registration
                             ("rhcClusterFailedServicesNum",
                              handle_rhcClusterFailedServicesNum,
@@ -204,6 +212,48 @@ getStatusDescription(unsigned int code)
   return descr;
 }
 
+
+int
+handle_rhcMIBVersion(netsnmp_mib_handler *handler,
+		     netsnmp_handler_registration *reginfo,
+		     netsnmp_agent_request_info *reqinfo,
+		     netsnmp_request_info *requests)
+{
+  try {
+    
+    unsigned int num = 1;  // MIB version 1
+    
+    /*
+     * We are never called for a GETNEXT if it's registered as a
+     * "instance", as it's "magically" handled for us.  
+     */
+    
+    /*
+     * a instance handler also only hands us one request at a time, so
+     * we don't need to loop over a list of requests; we'll only get one. 
+     */
+    
+    switch (reqinfo->mode) {
+      
+    case MODE_GET:
+      snmp_set_var_typed_value(requests->requestvb, ASN_INTEGER,
+			       (u_char *)
+			       &num,
+			       sizeof(num));
+      break;
+      
+    default:
+      /*
+       * we should never get here, so this is a really bad error 
+       */
+      return SNMP_ERR_GENERR;
+    }
+  }
+  catch( ... ) {
+    return SNMP_ERR_GENERR;
+  }
+  return SNMP_ERR_NOERROR;
+}
 
 int
 handle_rhcClusterFailedServicesNum(netsnmp_mib_handler *handler,

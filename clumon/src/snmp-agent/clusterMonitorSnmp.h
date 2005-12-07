@@ -34,6 +34,6 @@ extern ClusterMonitoring::ClusterMonitor monitor;
 
 
 // called by snmpd
-extern "C" void init_redhatClusterMIB(void);
+extern "C" void init_RedHatCluster(void);
 
 #endif  /* clusterMonitorSnmp_h */

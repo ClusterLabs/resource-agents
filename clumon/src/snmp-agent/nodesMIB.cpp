@@ -68,7 +68,7 @@ void
 initialize_table_rhcNodesTable(void)
 {
     static oid      rhcNodesTable_oid[] =
-        { 1, 3, 6, 1, 4, 1, 8072, 2, 5, 2, 1 };
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 3, 1 };
     netsnmp_table_registration_info *table_info;
     netsnmp_handler_registration *my_handler;
     netsnmp_iterator_info *iinfo;

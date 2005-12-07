@@ -31,7 +31,7 @@
 ClusterMonitoring::ClusterMonitor monitor;
 
 void
-init_redhatClusterMIB(void)
+init_RedHatCluster(void)
 {
   try {
     initialize_clusterMIB();

@@ -38,6 +38,7 @@ void initialize_clusterMIB(void);
 extern "C"
 {
 
+Netsnmp_Node_Handler handle_rhcMIBVersion;
 Netsnmp_Node_Handler handle_rhcClusterFailedServicesNum;
 Netsnmp_Node_Handler handle_rhcClusterStatusString;
 Netsnmp_Node_Handler handle_rhcClusterVotes;

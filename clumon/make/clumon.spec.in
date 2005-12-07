@@ -92,8 +92,9 @@ SNMP agent for Red Hat Enterprise Linux Cluster Suite
 
 %files snmp
 %defattr(-,root,root)
-%doc README COPYING REDHAT-CLUSTER-MIB
+%doc README COPYING REDHAT-MIB REDHAT-CLUSTER-MIB
 %{_libdir}/clumon-snmp/
+%attr(644,root,root) /usr/share/snmp/mibs/REDHAT-MIB
 %attr(644,root,root) /usr/share/snmp/mibs/REDHAT-CLUSTER-MIB
 
 %post snmp
@@ -137,5 +138,7 @@ CIM provider for Red Hat Enterprise Linux Cluster Suite
 
 
 %changelog
+* Wed Dec 07 2005 Stanko Kupcevic <kupcevic@redhat.com> 0.8.1
+- Temp OID replaced with unique one, misc bugfixes
 * Wed Nov 23 2005 Stanko Kupcevic <kupcevic@redhat.com> 0.8.0
 - Initial build
