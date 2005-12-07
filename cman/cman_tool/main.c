@@ -281,7 +281,7 @@ static void show_nodes(void)
 
 static void show_services(void)
 {
-
+	system("group_tool");
 }
 
 
