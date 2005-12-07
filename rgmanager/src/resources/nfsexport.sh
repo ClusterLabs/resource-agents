@@ -222,55 +222,33 @@ nfs_check()
 case $1 in
 start)
 	nfs_check start || exit 1
-	rm -f ${OCF_RESKEY_path}/.clumanager/pid
-	clurmtabd ${OCF_RESKEY_path}
-	rv=$?
-	nfsop_arg="-s"
+	rv=0
 	;;
 
 status|monitor)
 	nfs_check status || exit 1
-	rmtabpid=$(cat ${OCF_RESKEY_path}/.clumanager/pid)
-	if [ -n "$rmtabpid" ]; then
-		if kill -s 0 $rmtabpid; then
-			# TODO: validate pid?
-			exit 0
-		fi
-	fi
-	#
-	# rmtabd not running or nonexistent pidfile
-	#
-	exit 1
+	rv=0
 	;;
 		    
 stop)
 	nfs_check restart || exit 1
-
-	if [ -f "${OCF_RESKEY_path}/.clumanager/pid" ]; then
-		rmtabpid=$(cat ${OCF_RESKEY_path}/.clumanager/pid)
-		if [ -n "$rmtabpid" ]; then
-			kill $rmtabpid &> /dev/null
-		fi
-	fi
-	rm -f ${OCF_RESKEY_path}/.clumanager/pid
 	rv=0
-	nfsop_arg="-e"
 	;;
 
 recover|restart)
 	$0 stop || exit $OCF_ERR_GENERIC
 	$0 start || exit $OCF_ERR_GENERIC
-	exit 0
+	rv=0
 	;;
 
 meta-data)
 	meta_data
-	exit 0
+	rv=0
 	;;
 
 verify-all)
 	verify_all
-	exit $?
+	rv=$?
 	;;
 *)
 	echo "usage: $0 {start|status|monitor|stop|recover|restart|meta-data|verify-all}"
@@ -278,9 +256,11 @@ verify-all)
 	;;
 esac
 
-# XXX Don't do this one yet.  Build is broken
 #
-#clunfsops $nfsop_arg -d ${OCF_RESKEY_device}
+# Flush NFS request queue.  This might be done in the ip resource in the
+# future, but keep this around for now.
+#
+# clunfsops $nfsop_arg -d ${OCF_RESKEY_device}
 #
 
 exit $rv
