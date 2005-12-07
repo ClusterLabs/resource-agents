@@ -228,7 +228,7 @@ static int process_client(poll_handle handle, int fd, int revent, void *data, un
 
 			if (len < 0) {
 				remove_client(handle, con);
-				return 0;
+				return -1;
 			}
 			totallen += len;
 		}
