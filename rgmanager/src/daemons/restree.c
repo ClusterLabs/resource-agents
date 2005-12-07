@@ -221,10 +221,10 @@ build_env(resource_node_t *node, int op, int depth)
 	resource_t *res = node->rn_resource;
 	char **env;
 	char *val;
-	int x, n;
+	int x, attrs, n;
 
-	for (x = 0; res->r_attrs && res->r_attrs[x].ra_name; x++);
-	x += 7; /*
+	for (attrs = 0; res->r_attrs && res->r_attrs[attrs].ra_name; attrs++);
+	attrs += 7; /*
 		   Leave space for:
 		   OCF_RA_VERSION_MAJOR
 		   OCF_RA_VERSION_MINOR
@@ -235,12 +235,14 @@ build_env(resource_node_t *node, int op, int depth)
 		   (null terminator)
 		 */
 
-	env = malloc(sizeof(char *) * x);
+	env = malloc(sizeof(char *) * attrs);
 	if (!env)
 		return NULL;
 
-	memset(env, 0, sizeof(char *) * x);
+	memset(env, 0, sizeof(char *) * attrs);
 
+	/* Reset */
+	attrs = 0;
 	for (x = 0; res->r_attrs && res->r_attrs[x].ra_name; x++) {
 
 		val = attr_value(node, res->r_attrs[x].ra_name);
@@ -251,24 +253,25 @@ build_env(resource_node_t *node, int op, int depth)
 		n = strlen(res->r_attrs[x].ra_name) + strlen(val) + 2 +
 			strlen(OCF_RES_PREFIX);
 
-		env[x] = malloc(n);
-		if (!env[x]) {
+		env[attrs] = malloc(n);
+		if (!env[attrs]) {
 			kill_env(env);
 			return NULL;
 		}
 
 		/* Prepend so we don't conflict with normal shell vars */
-		snprintf(env[x], n, "%s%s=%s", OCF_RES_PREFIX,
+		snprintf(env[attrs], n, "%s%s=%s", OCF_RES_PREFIX,
 			 res->r_attrs[x].ra_name, val);
-		
+
 #if 0
 		/* Don't uppercase; OCF-spec */
 		for (n = 0; env[x][n] != '='; n++)
 			env[x][n] &= ~0x20; /* Convert to uppercase */
 #endif
+		++attrs;
 	}
 
-	add_ocf_stuff(res, &env[x], depth);
+	add_ocf_stuff(res, &env[attrs], depth);
 
 	return env;
 }

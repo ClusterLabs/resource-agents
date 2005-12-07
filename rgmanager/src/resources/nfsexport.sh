@@ -87,6 +87,16 @@ meta_data()
             </shortdesc>
 	    <content type="string"/>
         </parameter>
+
+        <parameter name="fsid" inherit="fsid">
+            <longdesc lang="en">
+                If you can see this, your GUI is broken.
+            </longdesc>
+            <shortdesc lang="en">
+                If you can see this, your GUI is broken.
+            </shortdesc>
+	    <content type="string"/>
+        </parameter>
     </parameters>
 
     <actions>

@@ -139,6 +139,17 @@ meta_data()
 	    <content type="boolean"/>
 	</parameter>
 
+	<parameter name="fsid">
+	    <longdesc lang="en">
+	    	File system ID for NFS exports.  This can be overridden
+		in individual nfsclient entries.
+	    </longdesc>
+	    <shortdesc lang="en">
+	    	NFS File system ID
+	    </shortdesc>
+	    <content type="string"/>
+	</parameter>
+
         <parameter name="force_fsck">
             <longdesc lang="en">
                 If set, the file system will be checked (even if

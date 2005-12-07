@@ -83,6 +83,18 @@ meta_data()
             <content type="string"/>
         </parameter>
 
+        <parameter name="fsid" inherit="fsid">
+            <longdesc lang="en">
+	    	File system ID inherited from the parent nfsexport/
+		clusterfs/fs resource.  Putting fsid in the options
+		field will override this.
+            </longdesc>
+            <shortdesc lang="en">
+	    	File system ID
+            </shortdesc>
+            <content type="string"/>
+        </parameter>
+
         <parameter name="options">
             <longdesc lang="en">Defines a list of options for this
                 particular client.  See 'man 5 exports' for a list
@@ -93,6 +105,7 @@ meta_data()
             </shortdesc>
             <content type="string"/>
         </parameter>
+
     </parameters>
 
     <actions>
@@ -125,6 +138,10 @@ verify_options()
 	#
 	for o in `echo $OCF_RESKEY_options | sed -e s/,/\ /g`; do
 		case $o in
+		fsid=*)
+			ocf_log debug "Using designated $o instead of fsid=$OCF_RESKEY_fsid"
+			unset OCF_RESKEY_fsid
+			;;
 		secure)
 			;;
 		rw)
@@ -156,7 +173,7 @@ verify_options()
 		anongid)
 			;;
 		*)
-			ocf_log err "Option $o invalid"
+			ocf_log err "Export Option $o invalid"
 			ret=$OCF_ERR_ARGS
 			;;
 		esac
@@ -169,7 +186,9 @@ verify_options()
 verify_target()
 {
 	# XXX need to add wildcards, hostname, ip, etc.
-	return 0
+	[ -n "$OCF_RESKEY_target" ] && return 0
+	
+	return $OCF_ERR_ARGS
 }
 
 
@@ -188,13 +207,24 @@ verify_path()
 }
 
 
+verify_type()
+{
+	[ -z "$OCF_RESKEY_type" ] && return 0
+	[ "$OCF_RESKEY_type" = "nfs" ] && return 0
+
+	ocf_log err "Export type $OCF_RESKEY_type not supported yet"
+	return $OCF_ERR_ARGS
+}
+
+
 verify_all()
 {
 	declare -i ret=0
 
-	verify_options || ret=1
-	verify_target || ret=1
-	verify_path || ret=1
+	verify_type || ret=$OCF_ERR_ARGS
+	verify_options || ret=$OCF_ERR_ARGS
+	verify_target || ret=$OCF_ERR_ARGS
+	verify_path || ret=$OCF_ERR_ARGS
 
 	return $ret
 }
@@ -202,33 +232,45 @@ verify_all()
 
 case $1 in
 start)
-	if [ -n "${OCF_RESKEY_type}" ] && [ "${OCF_RESKEY_type}" != "nfs" ]; then
-		exit 1
+	declare option_str
+
+	verify_all || exit $OCF_ERR_ARGS
+
+	#
+	# XXX
+	# Bad: Side-effect of verify_options: unset OCF_RESKEY_fsid if
+	# fsid is specified in the options string.
+	#
+	if [ -z "$OCF_RESKEY_options" ] && [ -n "$OCF_RESKEY_fsid" ]; then
+		option_str="fsid=$OCF_RESKEY_fsid"
+	elif [ -n "$OCF_RESKEY_options" ] && [ -z "$OCF_RESKEY_fsid" ]; then
+		option_str="$OCF_RESKEY_options"
+	elif [ -n "$OCF_RESKEY_fsid" ] && [ -n "$OCF_RESKEY_options" ]; then
+		option_str="fsid=$OCF_RESKEY_fsid,$OCF_RESKEY_options"
 	fi
 
-	[ -n "${OCF_RESKEY_target}" ] || exit 1
-	[ -n "${OCF_RESKEY_path}" ] || exit 1
-
-	if [ -z "${OCF_RESKEY_options}" ]; then
+	if [ -z "$option_str" ]; then
 		ocf_log info "Adding export: ${OCF_RESKEY_target}:${OCF_RESKEY_path}"
 		exportfs -i "${OCF_RESKEY_target}:${OCF_RESKEY_path}"
 		rv=$?
 	else
-		ocf_log info "Adding export: ${OCF_RESKEY_target}:${OCF_RESKEY_path} (${OCF_RESKEY_options})"
-		exportfs -o ${OCF_RESKEY_options} "${OCF_RESKEY_target}:${OCF_RESKEY_path}"
+		ocf_log info "Adding export: ${OCF_RESKEY_target}:${OCF_RESKEY_path} ($option_str)"
+		exportfs -i -o $option_str "${OCF_RESKEY_target}:${OCF_RESKEY_path}"
 		rv=$?
 	fi
 	;;
 
 stop)
-	[ -n "${OCF_RESKEY_target}" ] || exit 0
-	[ -n "${OCF_RESKEY_path}" ] || exit 0
+	verify_all || exit $OCF_ERR_ARGS
+
 	ocf_log info "Removing export: ${OCF_RESKEY_target}:${OCF_RESKEY_path}"
 	exportfs -u "${OCF_RESKEY_target}:${OCF_RESKEY_path}"
 	rv=$?
 	;;
 
 status|monitor)
+	verify_all || exit $OCF_ERR_ARGS
+
 	if [ "${OCF_RESKEY_target}" = "*" ]; then
 		export OCF_RESKEY_target="\<world\>"
 	fi

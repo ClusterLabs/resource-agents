@@ -940,6 +940,10 @@ stop)
 			ocf_log err "Failed to remove ${OCF_RESKEY_address}"
 			exit 1
 		fi
+
+		# XXX Let nfsd/lockd clear their queues; we hope to have a
+		# way to enforce this in the future
+		sleep 10
 	else
 		ocf_log debug "${OCF_RESKEY_address} is not configured"
 	fi

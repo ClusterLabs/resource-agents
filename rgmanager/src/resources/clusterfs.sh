@@ -124,6 +124,17 @@ meta_data()
 	    <content type="string"/>
         </parameter>
 
+	<parameter name="fsid">
+	    <longdesc lang="en">
+	    	File system ID for NFS exports.  This can be overridden
+		in individual nfsclient entries.
+	    </longdesc>
+	    <shortdesc lang="en">
+	    	NFS File system ID
+	    </shortdesc>
+	    <content type="string"/>
+	</parameter>
+
     </parameters>
 
     <actions>
