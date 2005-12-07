@@ -1,0 +1,46 @@
+
+net-snmp configuration:
+
+Refer to net-snmp documentation for ACL configuration (/etc/snmp/snmpd.conf is commented as well).
+To load cluster MIB's shared library, add following line to /etc/snmpd/snmp.conf
+dlmod RedHatCluster /usr/lib/clumon-snmp/libClusterMonitorSnmp.so
+
+
+Sample configuration (cluster info is accessible from localhost and 192.168.0.0/16 using "cluster" community):
+
+######################################
+## cluster monitoring configuration ##
+######################################
+
+dlmod RedHatCluster /usr/lib/clumon-snmp/libClusterMonitorSnmp.so
+
+#       sec.name        source          community
+com2sec	local		localhost	cluster
+com2sec	localnet	192.168.0.0/16	cluster
+
+#	groupName	securityModel	securityName
+group	clusterGroup	v1		local
+group	clusterGroup	v2c		local
+group	clusterGroup	v1		localnet
+group	clusterGroup	v2c		localnet
+
+#	name		incl/excl	subtree					mask(optional)
+view	clusterview	included	REDHAT-CLUSTER-MIB:RedHatCluster	
+
+#	group		context sec.model	sec.level	prefix	read		write	notif
+access	clusterGroup	""	any		noauth		prefix	clusterview	none	none
+
+
+######################################
+##     cluster monitoring done      ##
+######################################
+
+
+
+net-snmp client configuration:
+Place REDHAT-MIB and REDHAT-CLUSTER-MIB into ~/.snmp/mibs/, and query cluster using: 
+snmpwalk -v 2c -c cluster NODENAME REDHAT-CLUSTER-MIB::RedHatCluster
+(replace NODENAME with the hostname of one of cluster nodes running software)
+
+
+

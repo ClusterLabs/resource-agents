@@ -1,0 +1,13 @@
+
+To execute following commands, Pegasus CIM server has to be running 
+and root account has to be used,
+
+Register Red Hat Cluster provider:
+cimmof -n root/PG_InterOp RedHat_ClusterProvider.mof
+
+Install Red Hat Cluster schema:
+cimmof -n root/cimv2 RedHat_ClusterSchema.mof
+
+
+Refer to Pegasus documentation and /usr/share/doc/tog-pegasus for CIM 
+user management and ACL.

@@ -92,7 +92,7 @@ SNMP agent for Red Hat Enterprise Linux Cluster Suite
 
 %files snmp
 %defattr(-,root,root)
-%doc README COPYING REDHAT-MIB REDHAT-CLUSTER-MIB
+%doc README README.snmpd COPYING REDHAT-MIB REDHAT-CLUSTER-MIB
 %{_libdir}/clumon-snmp/
 %attr(644,root,root) /usr/share/snmp/mibs/REDHAT-MIB
 %attr(644,root,root) /usr/share/snmp/mibs/REDHAT-CLUSTER-MIB
@@ -123,7 +123,7 @@ CIM provider for Red Hat Enterprise Linux Cluster Suite
 
 %files cim
 %defattr(-,root,root)
-%doc README COPYING RedHat_ClusterProvider.mof RedHat_ClusterSchema.mof
+%doc README README.cim COPYING RedHat_ClusterProvider.mof RedHat_ClusterSchema.mof
 %{PEGASUS_PROVIDERS_DIR}/libRedHatClusterProvider.so
 
 %post cim
