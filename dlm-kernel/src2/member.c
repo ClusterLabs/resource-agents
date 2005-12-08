@@ -69,6 +69,7 @@ static int dlm_add_member(struct dlm_ls *ls, int nodeid)
 
 static void dlm_remove_member(struct dlm_ls *ls, struct dlm_member *memb)
 {
+	dlm_lowcomms_close(memb->nodeid);
 	list_move(&memb->list, &ls->ls_nodes_gone);
 	ls->ls_num_nodes--;
 }

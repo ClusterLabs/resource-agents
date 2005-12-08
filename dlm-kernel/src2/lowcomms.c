@@ -61,7 +61,7 @@ static int			local_nodeid;
 
 /* One of these per connected node */
 
-#define NI_INIT_PENDING 1
+#define NI_INIT_PENDING  1
 #define NI_WRITE_PENDING 2
 
 struct nodeinfo {
@@ -96,6 +96,7 @@ struct connection {
 	atomic_t		waiting_requests;
 	struct cbuf		cb;
 	int                     eagain_flag;
+	int                     last_recv_node;
 };
 
 /* An entry waiting to be sent */
@@ -147,6 +148,7 @@ static atomic_t accepting;
 /* The SCTP connection */
 static struct connection sctp_con;
 
+static void clean_one_writequeue(struct nodeinfo *ni);
 
 static int nodeid_to_addr(int nodeid, struct sockaddr *retaddr)
 {
@@ -455,6 +457,8 @@ static void process_sctp_notification(struct msghdr *msg, char *buf)
 				ni->assoc_id = 0;
 				spin_unlock(&ni->lock);
 			}
+			clean_one_writequeue(ni);
+			clear_bit(NI_INIT_PENDING, &ni->flags);
 		}
 		break;
 
@@ -563,10 +567,11 @@ static int receive_from_sock(void)
 		return 0;
 	}
 
-	/* Is this a new association ? */
 	ni = nodeid2nodeinfo(le32_to_cpu(sinfo->sinfo_ppid), GFP_KERNEL);
 	if (ni) {
 		ni->assoc_id = sinfo->sinfo_assoc_id;
+
+		/* Is this a new association ? */
 		if (test_and_clear_bit(NI_INIT_PENDING, &ni->flags)) {
 
 			if (!test_and_set_bit(NI_WRITE_PENDING, &ni->flags)) {
@@ -582,14 +587,24 @@ static int receive_from_sock(void)
 	if (r == 1)
 		return 0;
 
+	/* If this message is from a different node than the last one and there's some data
+	   waiting from the last read then discard the old stuff as it must be a partial message,
+	   probably form a node that died */
+	if (sctp_con.last_recv_node != le32_to_cpu(sinfo->sinfo_ppid) &&
+	    sctp_con.cb.base != 0) {
+		log_print("PJC: eaten partial packet from node %d",sctp_con.last_recv_node);
+		CBUF_EAT(&sctp_con.cb, sctp_con.cb.len);
+	}
+
 	CBUF_ADD(&sctp_con.cb, ret);
-	ret = dlm_process_incoming_buffer(cpu_to_le32(sinfo->sinfo_ppid),
+	ret = dlm_process_incoming_buffer(le32_to_cpu(sinfo->sinfo_ppid),
 					  page_address(sctp_con.rx_page),
 					  sctp_con.cb.base, sctp_con.cb.len,
 					  PAGE_CACHE_SIZE);
 	if (ret < 0)
 		goto out_close;
 	CBUF_EAT(&sctp_con.cb, ret);
+	sctp_con.last_recv_node = le32_to_cpu(sinfo->sinfo_ppid);
 
       out:
 	ret = 0;
@@ -794,6 +809,15 @@ void *dlm_lowcomms_get_buffer(int nodeid, int len, int allocation, char **ppc)
 		goto got_one;
 	}
 	return NULL;
+}
+
+void dlm_lowcomms_close(int nodeid)
+{
+	struct nodeinfo *ni = nodeid2nodeinfo(nodeid, 0);
+	if (ni) {
+		clean_one_writequeue(ni);
+		clear_bit(NI_INIT_PENDING, &ni->flags);
+	}
 }
 
 void dlm_lowcomms_commit_buffer(void *arg)
