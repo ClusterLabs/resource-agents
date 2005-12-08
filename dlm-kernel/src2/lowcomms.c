@@ -587,12 +587,13 @@ static int receive_from_sock(void)
 	if (r == 1)
 		return 0;
 
-	/* If this message is from a different node than the last one and there's some data
-	   waiting from the last read then discard the old stuff as it must be a partial message,
-	   probably form a node that died */
+	/* If this message is from a different node than the last one and 
+	   there's some data waiting from the last read then discard the old
+	   stuff as it must be a partial message, probably form a node that
+	   died */
 	if (sctp_con.last_recv_node != le32_to_cpu(sinfo->sinfo_ppid) &&
-	    sctp_con.cb.base != 0) {
-		log_print("PJC: eaten partial packet from node %d",sctp_con.last_recv_node);
+	    sctp_con.cb.len != 0) {
+		log_print("Eaten partial packet from node %d",sctp_con.last_recv_node);
 		CBUF_EAT(&sctp_con.cb, sctp_con.cb.len);
 	}
 
