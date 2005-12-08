@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.473 $) dnl cvs revision
+AC_REVISION($Revision: 1.474 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -369,7 +369,7 @@ AC_DEFINE_UNQUOTED(STRINGSCMD, "$STRINGSCMD", path to strings command)
 AC_SUBST(STRINGSCMD)
 AC_PATH_PROGS(PERL, perl)
 AC_SUBST(PERL)
-AC_PATH_PROGS(SWIG, swig)
+AC_PATH_PROGS(SWIG, swig, [swig not found],)
 AC_SUBST(SWIG)
 AC_PATH_PROGS(EGREP, egrep)
 AC_SUBST(EGREP)
