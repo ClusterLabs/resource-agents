@@ -1145,7 +1145,6 @@ static int glock_wait_internal(struct gfs2_holder *gh)
 	struct gfs2_glock *gl = gh->gh_gl;
 	struct gfs2_sbd *sdp = gl->gl_sbd;
 	struct gfs2_glock_operations *glops = gl->gl_ops;
-	int error = 0;
 
 	if (test_bit(HIF_ABORTED, &gh->gh_iflags))
 		return -EIO;
@@ -1161,7 +1160,7 @@ static int glock_wait_internal(struct gfs2_holder *gh)
 				do_unrecurse(gh);
 			run_queue(gl);
 			spin_unlock(&gl->gl_spin);
-			return GLR_TRYFAILED;
+			return gh->gh_error;
 		}
 		spin_unlock(&gl->gl_spin);
 	}
@@ -1183,11 +1182,10 @@ static int glock_wait_internal(struct gfs2_holder *gh)
 		gfs2_assert_warn(sdp, test_bit(GLF_LOCK, &gl->gl_flags));
 
 		if (glops->go_lock) {
-			error = glops->go_lock(gh);
-			if (error) {
+			gh->gh_error = glops->go_lock(gh);
+			if (gh->gh_error) {
 				spin_lock(&gl->gl_spin);
 				list_del_init(&gh->gh_list);
-				gh->gh_error = error;
 				if (test_and_clear_bit(HIF_RECURSE,
 						       &gh->gh_iflags))
 					do_unrecurse(gh);
@@ -1205,7 +1203,7 @@ static int glock_wait_internal(struct gfs2_holder *gh)
 		spin_unlock(&gl->gl_spin);
 	}
 
-	return error;
+	return gh->gh_error;
 }
 
 static inline struct gfs2_holder *
