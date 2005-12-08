@@ -38,6 +38,7 @@
 #include "logging.h"
 #include "config.h"
 #include "cmanccs.h"
+#include "commands.h"
 #include "ais.h"
 #include "aispoll.h"
 #include "swab.h"
@@ -66,7 +67,6 @@ static int cluster_is_quorate;
        char cluster_name[MAX_CLUSTER_NAME_LEN+1];
 static char nodename[MAX_CLUSTER_MEMBER_NAME_LEN+1];
 static int wanted_nodeid;
-static int expected_votes;
 extern int num_interfaces;
 static struct cluster_node *quorum_device;
 static uint16_t cluster_id;
@@ -501,8 +501,6 @@ static int do_cmd_get_node(char *cmdbuf, char *retbuf, int *retlen)
 
 static int do_cmd_set_expected(char *cmdbuf, int *retlen)
 {
-	struct list *nodelist;
-	struct cluster_node *node;
 	unsigned int total_votes;
 	unsigned int newquorum;
 	unsigned int newexp;
@@ -517,15 +515,7 @@ static int do_cmd_set_expected(char *cmdbuf, int *retlen)
 		return -EINVAL;
 	}
 
-	/* Now do it */
-	list_iterate(nodelist, &cluster_members_list) {
-		node = list_item(nodelist, struct cluster_node);
-		if (node->state == NODESTATE_MEMBER
-		    && node->expected_votes > newexp) {
-			node->expected_votes = newexp;
-		}
-	}
-
+	override_expected(newexp);
 	send_reconfigure(us->node_id, RECONFIG_PARAM_EXPECTED_VOTES, newexp);
 
 	/* We will recalculate quorum when we get our own message back */
@@ -756,8 +746,6 @@ static int do_cmd_join_cluster(char *cmdbuf, int *retlen)
 
 	if (!num_interfaces)
 		return -ENOTCONN;
-
-	expected_votes = join_info->expected_votes;
 
 	cluster_id = generate_cluster_id(join_info->cluster_name);
 	strncpy(cluster_name, join_info->cluster_name, MAX_CLUSTER_NAME_LEN);
@@ -1193,6 +1181,9 @@ static int valid_transition_msg(struct totem_ip_address *ipaddr, struct cl_trans
 		config_version = msg->config_version;
 		ccs_err = read_ccs_nodes();
 		if (ccs_err) {
+			us->expected_votes = INT_MAX; /* Force us to stop */
+			log_msg(LOG_ERR, "Can't read CCS to get updated config version %d. Activity suspended on this node\n",
+				config_version);
 			config_version = saved_config;
 		}
 		recalculate_quorum(0);
@@ -1316,8 +1307,13 @@ static void do_reconfigure_msg(void *data)
 
 	case RECONFIG_PARAM_CONFIG_VERSION:
 		config_version = msg->value;
-		read_ccs_nodes();
-		recalculate_quorum(0);
+		if (read_ccs_nodes()) {
+			log_msg(LOG_ERR, "Can't read CCS to get updated config version %d. Activity suspended on this node\n",
+				config_version);
+
+			us->expected_votes = INT_MAX; /* Force us to stop */
+			recalculate_quorum(0);
+		}
 		break;
 	}
 }
@@ -1426,6 +1422,20 @@ static void process_internal_message(char *data, int len, int nodeid, struct tot
 		log_msg(LOG_WARNING, "Unknown protocol message %d received\n", msg->cmd);
 		break;
 
+	}
+}
+
+void override_expected(int newexp)
+{
+	struct list *nodelist;
+	struct cluster_node *node;
+
+	list_iterate(nodelist, &cluster_members_list) {
+		node = list_item(nodelist, struct cluster_node);
+		if (node->state == NODESTATE_MEMBER
+		    && node->expected_votes > newexp) {
+			node->expected_votes = newexp;
+		}
 	}
 }
 

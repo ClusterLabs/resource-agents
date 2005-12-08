@@ -25,11 +25,12 @@ extern void unbind_con(struct connection *con);
 extern void commands_init(void);
 extern int process_command(struct connection *con, int cmd, char *cmdbuf,
 			   char **retbuf, int *retlen, int retsize, int offset);
-extern int send_transition_msg(int last_memb_count);
+extern void send_transition_msg(int last_memb_count);
 
 extern void add_ais_node(struct totem_ip_address *ais_node, uint64_t incarnation, int total_members);
 extern void del_ais_node(struct totem_ip_address *ais_node);
 extern void add_ccs_node(char *name, int nodeid, int votes, int expected_votes);
+extern void override_expected(int expected);
 
-extern int config_version;
+extern unsigned int config_version;
 extern int cluster_members;

@@ -113,6 +113,9 @@ int read_ccs_nodes()
 	free(nodename);
     }
 
+    if (expected)
+	    override_expected(expected);
+
     /* Finished with config file */
     ccs_disconnect(ctree);
 
