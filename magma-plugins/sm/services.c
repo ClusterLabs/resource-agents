@@ -142,30 +142,35 @@ _group_member_ids(char *groupname, char *buffer, size_t bufferlen,
 static size_t
 _read_services(char **buffer)
 {
-	int fd, n, ret = 0;
+	int fd, ret = 0, bufsz = 0;
+	char *buf;
 
-	*buffer = NULL;
+	buf = malloc(BLOCK_SIZE);
+	bufsz = BLOCK_SIZE;
 
-	fd = open("/proc/cluster/services", O_RDONLY);
-	*buffer = malloc(BLOCK_SIZE);
+	while (1) {
+		fd = open("/proc/cluster/services", O_RDONLY);
+		memset(buf, 0, bufsz);
+		ret = read(fd, buf, bufsz);
+		close(fd);
 
-	while ((n = read(fd, *buffer, BLOCK_SIZE)) == BLOCK_SIZE) {
-		ret += BLOCK_SIZE;
-		*buffer = realloc(*buffer, ret);
+		if (ret < bufsz)
+			break;
+
+		bufsz += BLOCK_SIZE;
+		buf = realloc(buf, bufsz);
 	}
 
-	if (n < 0) {
-		if (*buffer) {
-			free(*buffer);
-			*buffer = NULL;
+	if (ret < 0) {
+		if (buf) {
+			free(buf);
 		}
+		*buffer = NULL;
 
-		close(fd);
 		return 0;
 	}
 
-	ret += n;
-	close(fd);
+	*buffer = buf;
 	return ret;
 }
 
