@@ -35,7 +35,7 @@
 #include <sys/types.h>
 #include <sys/select.h>
 
-#define MODULE_DESCRIPTION "CMAN/SM Plugin v1.1.2"
+#define MODULE_DESCRIPTION "CMAN/SM Plugin v1.1.3"
 #define MODULE_AUTHOR      "Lon Hohberger"
 
 #define DLM_LS_NAME	   "Magma"
