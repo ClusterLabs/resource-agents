@@ -25,8 +25,12 @@
 #include "rgrp.h"
 #include "trans.h"
 
+/* This doesn't need to be that large as max 64 bit pointers in a 4k
+ * block is 512, so __u16 is fine for that. It saves stack space to
+ * keep it small.
+ */
 struct metapath {
-	unsigned int mp_list[GFS2_MAX_META_HEIGHT];
+	__u16 mp_list[GFS2_MAX_META_HEIGHT];
 };
 
 typedef int (*block_call_t) (struct gfs2_inode *ip, struct buffer_head *dibh,
@@ -309,19 +313,15 @@ static int build_height(struct gfs2_inode *ip, int height)
  *
  */
 
-static struct metapath *find_metapath(struct gfs2_inode *ip, uint64_t block)
+static void find_metapath(struct gfs2_inode *ip, uint64_t block, struct metapath *mp)
 {
 	struct gfs2_sbd *sdp = ip->i_sbd;
-	struct metapath *mp;
 	uint64_t b = block;
 	unsigned int i;
 
-	mp = kzalloc(sizeof(struct metapath), GFP_KERNEL | __GFP_NOFAIL);
-
 	for (i = ip->i_di.di_height; i--;)
-		mp->mp_list[i] = do_div(b, sdp->sd_inptrs);
+		mp->mp_list[i] = (__u16)do_div(b, sdp->sd_inptrs);
 
-	return mp;
 }
 
 /**
@@ -409,7 +409,7 @@ int gfs2_block_map(struct gfs2_inode *ip, uint64_t lblock, int *new,
 {
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct buffer_head *bh;
-	struct metapath *mp;
+	struct metapath mp;
 	int create = *new;
 	unsigned int bsize;
 	unsigned int height;
@@ -442,25 +442,25 @@ int gfs2_block_map(struct gfs2_inode *ip, uint64_t lblock, int *new,
 			goto out;
 	}
 
-	mp = find_metapath(ip, lblock);
+	find_metapath(ip, lblock, &mp);
 	end_of_metadata = ip->i_di.di_height - 1;
 
 	error = gfs2_meta_inode_buffer(ip, &bh);
 	if (error)
-		goto out_kfree;
+		goto out;
 
 	for (x = 0; x < end_of_metadata; x++) {
-		lookup_block(ip, bh, x, mp, create, new, dblock);
+		lookup_block(ip, bh, x, &mp, create, new, dblock);
 		brelse(bh);
 		if (!*dblock)
-			goto out_kfree;
+			goto out;
 
 		error = gfs2_meta_indirect_buffer(ip, x+1, *dblock, *new, &bh);
 		if (error)
-			goto out_kfree;
+			goto out;
 	}
 
-	lookup_block(ip, bh, end_of_metadata, mp, create, new, dblock);
+	lookup_block(ip, bh, end_of_metadata, &mp, create, new, dblock);
 
 	if (extlen && *dblock) {
 		*extlen = 1;
@@ -473,8 +473,8 @@ int gfs2_block_map(struct gfs2_inode *ip, uint64_t lblock, int *new,
 			nptrs = (end_of_metadata) ? sdp->sd_inptrs :
 						    sdp->sd_diptrs;
 
-			while (++mp->mp_list[end_of_metadata] < nptrs) {
-				lookup_block(ip, bh, end_of_metadata, mp,
+			while (++mp.mp_list[end_of_metadata] < nptrs) {
+				lookup_block(ip, bh, end_of_metadata, &mp,
 					     0, &tmp_new, &tmp_dblock);
 
 				if (*dblock + *extlen != tmp_dblock)
@@ -495,9 +495,6 @@ int gfs2_block_map(struct gfs2_inode *ip, uint64_t lblock, int *new,
 			brelse(bh);
 		}
 	}
-
- out_kfree:
-	kfree(mp);
 
  out:
 	if (create)
@@ -899,7 +896,7 @@ static int trunc_dealloc(struct gfs2_inode *ip, uint64_t size)
 {
 	unsigned int height = ip->i_di.di_height;
 	uint64_t lblock;
-	struct metapath *mp;
+	struct metapath mp;
 	int error;
 
 	if (!size)
@@ -910,7 +907,7 @@ static int trunc_dealloc(struct gfs2_inode *ip, uint64_t size)
 	} else
 		lblock = (size - 1) >> ip->i_sbd->sd_sb.sb_bsize_shift;
 
-	mp = find_metapath(ip, lblock);
+	find_metapath(ip, lblock, &mp);
 	gfs2_alloc_get(ip);
 
 	error = gfs2_quota_hold(ip, NO_QUOTA_CHANGE, NO_QUOTA_CHANGE);
@@ -922,7 +919,7 @@ static int trunc_dealloc(struct gfs2_inode *ip, uint64_t size)
 		sm.sm_first = !!size;
 		sm.sm_height = height;
 
-		error = recursive_scan(ip, NULL, mp, 0, 0, 1, do_strip, &sm);
+		error = recursive_scan(ip, NULL, &mp, 0, 0, 1, do_strip, &sm);
 		if (error)
 			break;
 	}
@@ -931,8 +928,6 @@ static int trunc_dealloc(struct gfs2_inode *ip, uint64_t size)
 
  out:
 	gfs2_alloc_put(ip);
-	kfree(mp);
-
 	return error;
 }
 
@@ -1201,9 +1196,9 @@ int gfs2_get_file_meta(struct gfs2_inode *ip, struct gfs2_user_buffer *ub)
 			brelse(dibh);
 		}
 	} else {
-		struct metapath *mp = find_metapath(ip, 0);
-		error = recursive_scan(ip, NULL, mp, 0, 0, 1, do_gfm, ub);
-		kfree(mp);
+		struct metapath mp;
+		find_metapath(ip, 0, &mp);
+		error = recursive_scan(ip, NULL, &mp, 0, 0, 1, do_gfm, ub);
 	}
 
 	return error;
