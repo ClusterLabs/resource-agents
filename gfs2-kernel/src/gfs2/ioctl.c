@@ -532,6 +532,9 @@ static int gi_do_hfile_write(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
  * @sdp:
  * @gi:
  *
+ * FIXME: Keep this for later use. Not called for now. Will need to move
+ * into another file.
+ *
  * Returns: the number of bytes copied, or -errno
  */
 
@@ -725,8 +728,6 @@ int gfs2_ioctl_i(struct gfs2_inode *ip, void *arg)
 		error = gi_do_hfile_read(ip->i_sbd, &gi);
 	else if (strcmp(arg0, "do_hfile_write") == 0)
 		error = gi_do_hfile_write(ip->i_sbd, &gi);
-	else if (strcmp(arg0, "do_hfile_trunc") == 0)
-		error = gi_do_hfile_trunc(ip->i_sbd, &gi);
 	else if (strcmp(arg0, "do_quota_read") == 0)
 		error = gi_do_quota_read(ip->i_sbd, &gi);
 	else if (strcmp(arg0, "resize_add_rgrps") == 0)
