@@ -260,7 +260,7 @@ struct gfs2_inode {
 
 	struct gfs2_holder i_iopen_gh;
 
-	struct gfs2_alloc *i_alloc;
+	struct gfs2_alloc i_alloc;
 	uint64_t i_last_rg_alloc;
 
 	spinlock_t i_spin;

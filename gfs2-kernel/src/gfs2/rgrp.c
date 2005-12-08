@@ -509,24 +509,18 @@ void gfs2_rgrp_repolish_clones(struct gfs2_rgrpd *rgd)
 }
 
 /**
- * gfs2_alloc_get - allocate a struct gfs2_alloc structure for an inode
+ * gfs2_alloc_get - get the struct gfs2_alloc structure for an inode
  * @ip: the incore GFS2 inode structure
- *
- * FIXME: Don't use NOFAIL
  *
  * Returns: the struct gfs2_alloc
  */
 
 struct gfs2_alloc *gfs2_alloc_get(struct gfs2_inode *ip)
 {
-	struct gfs2_alloc *al = ip->i_alloc;
+	struct gfs2_alloc *al = &ip->i_alloc;
 
-	gfs2_assert_warn(ip->i_sbd, !al);
-
-	al = kzalloc(sizeof(struct gfs2_alloc), GFP_KERNEL | __GFP_NOFAIL);
-
-	ip->i_alloc = al;
-
+	/* FIXME: Should assert that the correct locks are held here... */
+	memset(al, 0, sizeof(*al));
 	return al;
 }
 
@@ -538,13 +532,7 @@ struct gfs2_alloc *gfs2_alloc_get(struct gfs2_inode *ip)
 
 void gfs2_alloc_put(struct gfs2_inode *ip)
 {
-	struct gfs2_alloc *al = ip->i_alloc;
-
-	if (gfs2_assert_warn(ip->i_sbd, al))
-		return;
-
-	ip->i_alloc = NULL;
-	kfree(al);
+	return;
 }
 
 /**
@@ -744,7 +732,7 @@ static int get_local_rgrp(struct gfs2_inode *ip)
 {
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_rgrpd *rgd, *begin = NULL;
-	struct gfs2_alloc *al = ip->i_alloc;
+	struct gfs2_alloc *al = &ip->i_alloc;
 	int flags = LM_FLAG_TRY;
 	int skipped = 0;
 	int loops = 0;
@@ -833,7 +821,7 @@ static int get_local_rgrp(struct gfs2_inode *ip)
 int gfs2_inplace_reserve_i(struct gfs2_inode *ip, char *file, unsigned int line)
 {
 	struct gfs2_sbd *sdp = ip->i_sbd;
-	struct gfs2_alloc *al = ip->i_alloc;
+	struct gfs2_alloc *al = &ip->i_alloc;
 	int error;
 
 	if (gfs2_assert_warn(sdp, al->al_requested))
@@ -865,7 +853,7 @@ int gfs2_inplace_reserve_i(struct gfs2_inode *ip, char *file, unsigned int line)
 void gfs2_inplace_release(struct gfs2_inode *ip)
 {
 	struct gfs2_sbd *sdp = ip->i_sbd;
-	struct gfs2_alloc *al = ip->i_alloc;
+	struct gfs2_alloc *al = &ip->i_alloc;
 
 	if (gfs2_assert_warn(sdp, al->al_alloced <= al->al_requested) == -1)
 		fs_warn(sdp, "al_alloced = %u, al_requested = %u "
@@ -1058,7 +1046,7 @@ static struct gfs2_rgrpd *rgblk_free(struct gfs2_sbd *sdp, uint64_t bstart,
 uint64_t gfs2_alloc_data(struct gfs2_inode *ip)
 {
 	struct gfs2_sbd *sdp = ip->i_sbd;
-	struct gfs2_alloc *al = ip->i_alloc;
+	struct gfs2_alloc *al = &ip->i_alloc;
 	struct gfs2_rgrpd *rgd = al->al_rgd;
 	uint32_t goal, blk;
 	uint64_t block;
@@ -1103,7 +1091,7 @@ uint64_t gfs2_alloc_data(struct gfs2_inode *ip)
 uint64_t gfs2_alloc_meta(struct gfs2_inode *ip)
 {
 	struct gfs2_sbd *sdp = ip->i_sbd;
-	struct gfs2_alloc *al = ip->i_alloc;
+	struct gfs2_alloc *al = &ip->i_alloc;
 	struct gfs2_rgrpd *rgd = al->al_rgd;
 	uint32_t goal, blk;
 	uint64_t block;
@@ -1149,7 +1137,7 @@ uint64_t gfs2_alloc_meta(struct gfs2_inode *ip)
 uint64_t gfs2_alloc_di(struct gfs2_inode *dip)
 {
 	struct gfs2_sbd *sdp = dip->i_sbd;
-	struct gfs2_alloc *al = dip->i_alloc;
+	struct gfs2_alloc *al = &dip->i_alloc;
 	struct gfs2_rgrpd *rgd = al->al_rgd;
 	uint32_t blk;
 	uint64_t block;

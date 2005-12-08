@@ -1472,7 +1472,7 @@ static int ea_dealloc_indirect(struct gfs2_inode *ip)
 static int ea_dealloc_block(struct gfs2_inode *ip)
 {
 	struct gfs2_sbd *sdp = ip->i_sbd;
-	struct gfs2_alloc *al = ip->i_alloc;
+	struct gfs2_alloc *al = &ip->i_alloc;
 	struct gfs2_rgrpd *rgd;
 	struct buffer_head *dibh;
 	int error;

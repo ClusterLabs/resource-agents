@@ -436,7 +436,7 @@ static void qdsb_put(struct gfs2_quota_data *qd)
 int gfs2_quota_hold(struct gfs2_inode *ip, uint32_t uid, uint32_t gid)
 {
 	struct gfs2_sbd *sdp = ip->i_sbd;
-	struct gfs2_alloc *al = ip->i_alloc;
+	struct gfs2_alloc *al = &ip->i_alloc;
 	struct gfs2_quota_data **qd = al->al_qd;
 	int error;
 
@@ -485,7 +485,7 @@ int gfs2_quota_hold(struct gfs2_inode *ip, uint32_t uid, uint32_t gid)
 void gfs2_quota_unhold(struct gfs2_inode *ip)
 {
 	struct gfs2_sbd *sdp = ip->i_sbd;
-	struct gfs2_alloc *al = ip->i_alloc;
+	struct gfs2_alloc *al = &ip->i_alloc;
 	unsigned int x;
 
 	gfs2_assert_warn(sdp, !test_bit(GIF_QD_LOCKED, &ip->i_flags));
@@ -767,7 +767,7 @@ static int do_glock(struct gfs2_quota_data *qd, int force_refresh,
 int gfs2_quota_lock(struct gfs2_inode *ip, uint32_t uid, uint32_t gid)
 {
 	struct gfs2_sbd *sdp = ip->i_sbd;
-	struct gfs2_alloc *al = ip->i_alloc;
+	struct gfs2_alloc *al = &ip->i_alloc;
 	unsigned int x;
 	int error = 0;
 
@@ -834,7 +834,7 @@ static int need_sync(struct gfs2_quota_data *qd)
 
 void gfs2_quota_unlock(struct gfs2_inode *ip)
 {
-	struct gfs2_alloc *al = ip->i_alloc;
+	struct gfs2_alloc *al = &ip->i_alloc;
 	struct gfs2_quota_data *qda[4];
 	unsigned int count = 0;
 	unsigned int x;
@@ -895,7 +895,7 @@ static int print_message(struct gfs2_quota_data *qd, char *type)
 int gfs2_quota_check(struct gfs2_inode *ip, uint32_t uid, uint32_t gid)
 {
 	struct gfs2_sbd *sdp = ip->i_sbd;
-	struct gfs2_alloc *al = ip->i_alloc;
+	struct gfs2_alloc *al = &ip->i_alloc;
 	struct gfs2_quota_data *qd;
 	int64_t value;
 	unsigned int x;
@@ -938,7 +938,7 @@ int gfs2_quota_check(struct gfs2_inode *ip, uint32_t uid, uint32_t gid)
 void gfs2_quota_change(struct gfs2_inode *ip, int64_t change,
 		       uint32_t uid, uint32_t gid)
 {
-	struct gfs2_alloc *al = ip->i_alloc;
+	struct gfs2_alloc *al = &ip->i_alloc;
 	struct gfs2_quota_data *qd;
 	unsigned int x;
 	unsigned int found = 0;

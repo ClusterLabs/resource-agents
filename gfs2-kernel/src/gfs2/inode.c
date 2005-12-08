@@ -951,7 +951,7 @@ static int alloc_dinode(struct gfs2_inode *dip, struct gfs2_unlinked *ul)
 
 	gfs2_alloc_get(dip);
 
-	dip->i_alloc->al_requested = RES_DINODE;
+	dip->i_alloc.al_requested = RES_DINODE;
 	error = gfs2_inplace_reserve(dip);
 	if (error)
 		goto out;
@@ -1136,7 +1136,7 @@ static int link_dinode(struct gfs2_inode *dip, struct qstr *name,
 	gfs2_trans_end(sdp);
 
  fail_ipreserv:
-	if (dip->i_alloc->al_rgd)
+	if (dip->i_alloc.al_rgd)
 		gfs2_inplace_release(dip);
 
  fail_quota_locks:
