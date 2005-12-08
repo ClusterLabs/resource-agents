@@ -14,7 +14,7 @@
 
 struct gfs2_quota_lvb {
 	uint32_t qb_magic;
-	uint32_t qb_pad;
+	uint32_t __pad;
 	uint64_t qb_limit;      /* Hard limit of # blocks to alloc */
 	uint64_t qb_warn;       /* Warn user when alloc is above this # */
 	int64_t qb_value;       /* Current # blocks allocated */
