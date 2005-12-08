@@ -480,7 +480,7 @@ static int gfs2_invalidatepage(struct page *page, unsigned long offset)
 	return ret;
 }
 
-static int gfs2_direct_IO(int rw, struct kiocb *iocb, const struct iovec *iov,
+static ssize_t gfs2_direct_IO(int rw, struct kiocb *iocb, const struct iovec *iov,
 			  loff_t offset, unsigned long nr_segs)
 {
 	struct file *file = iocb->ki_filp;

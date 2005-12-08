@@ -107,7 +107,7 @@ static void stuck_releasepage(struct buffer_head *bh)
  * Returns: 0
  */
 
-static int gfs2_aspace_releasepage(struct page *page, int gfp_mask)
+static int gfs2_aspace_releasepage(struct page *page, gfp_t gfp_mask)
 {
 	struct inode *aspace = page->mapping->host;
 	struct gfs2_sbd *sdp = get_v2sdp(aspace->i_sb);
