@@ -16,7 +16,7 @@ RedHat MODULE-IDENTITY
 		  
 		  email:    customerservice@redhat.com
                  "
-    DESCRIPTION  "Red Hat, Inc MIB.
+    DESCRIPTION  "Red Hat, Inc MIB
                  "
     REVISION     "200512060000Z"            -- Dec 06 2005, midnight
     DESCRIPTION  "Initial version.

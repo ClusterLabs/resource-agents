@@ -48,7 +48,7 @@ extern "C" {
   /** column accessors */
   char           *get_rhcServiceName(void *data_context, size_t * ret_len);
   long           *get_rhcServiceStatusCode(void *data_context, size_t * ret_len);
-  char           *get_rhcServiceStatusString(void *data_context, size_t * ret_len);
+  char           *get_rhcServiceStatusDesc(void *data_context, size_t * ret_len);
   char           *get_rhcServiceStartMode(void *data_context, size_t * ret_len);
   char           *get_rhcServiceRunningOnNode(void *data_context, size_t * ret_len);
 };

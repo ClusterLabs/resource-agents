@@ -246,6 +246,36 @@ get_rhcNodeRunningServicesNum(void *data_context, size_t * ret_len)
   }
 }
 
+char*
+get_rhcNodeRunningServicesNames(void *data_context, size_t * ret_len)
+{
+  try {
+    DataContext* datactx = (DataContext*) data_context;
+    if (datactx == NULL)
+      return NULL;
+    counting_auto_ptr<Node> node = datactx->getNode();
+    if (node.get() == NULL)
+      return NULL;
+    
+    list<counting_auto_ptr<Service> > l = node->services();
+    string str;
+    for (list<counting_auto_ptr<Service> >::iterator iter = l.begin();
+	 iter != l.end();
+	 iter++)
+      if (str.empty())
+	str = (*iter)->name();
+      else 
+	str += ", " + (*iter)->name();
+    
+    datactx->str_holder = str;
+    *ret_len = datactx->str_holder.size();
+    return (char*) datactx->str_holder.c_str();
+  } catch ( ... ) {
+    return NULL;
+  }
+}
+
+
 // ## status ##
 
 unsigned int 
@@ -267,11 +297,11 @@ getStatusDescription(unsigned int code)
 {
   switch(code) {
   case 0:
-    return "Node available to cluster";
+    return "Participating in cluster";
   case 1:
-    return "Node running, but unavailable to cluster";
+    return "Running, but not participating in cluster";
   case 2:
-    return "Node not running";
+    return "Not running";
   default:
     return "Unknown";
   }
@@ -297,7 +327,7 @@ get_rhcNodeStatusCode(void *data_context, size_t * ret_len)
 }
 
 char*
-get_rhcNodeStatusString(void *data_context, size_t * ret_len)
+get_rhcNodeStatusDesc(void *data_context, size_t * ret_len)
 {
   try {
     DataContext* datactx = (DataContext*) data_context;

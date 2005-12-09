@@ -224,13 +224,13 @@ rhcServicesTable_handler(netsnmp_mib_handler *handler,
                 }
                 break;
 
-            case COLUMN_RHCSERVICESTATUSSTRING:
+            case COLUMN_RHCSERVICESTATUSDESC:
                 {
                     char           *retval;
                     size_t          retval_len = 0;
                     retval =
-                        get_rhcServiceStatusString(data_context,
-                                                   &retval_len);
+                        get_rhcServiceStatusDesc(data_context,
+						 &retval_len);
                     snmp_set_var_typed_value(var, ASN_OCTET_STR,
                                              (const u_char *) retval,
                                              retval_len);

@@ -16,11 +16,10 @@ RedHatCluster MODULE-IDENTITY
 		  
 		  email:    customerservice@redhat.com
                  "
-    DESCRIPTION  "Red Hat Cluster Suite.
-		  MIB, version 1.
+    DESCRIPTION  "Red Hat Cluster Suite MIB
                  "
     REVISION     "200512060000Z"            -- Dec 06 2005, midnight
-    DESCRIPTION  "Version 1
+    DESCRIPTION  "MIB version 1
 		 "
     ::= { RedHat 8 }
 
@@ -29,6 +28,7 @@ RedHatCluster MODULE-IDENTITY
 rhcMIBInfo		OBJECT IDENTIFIER ::= { RedHatCluster 1 }
 rhcCluster		OBJECT IDENTIFIER ::= { RedHatCluster 2 }
 rhcTables		OBJECT IDENTIFIER ::= { RedHatCluster 3 }
+	
 
 
 
@@ -39,7 +39,7 @@ rhcMIBVersion OBJECT-TYPE
 	MAX-ACCESS  read-only
 	STATUS      current
 	DESCRIPTION
-	"Version of Red Hat Cluster MIB. Currently 1.
+	"Version of Red Hat Cluster MIB
 	"
 	::= { rhcMIBInfo 1 }
 
@@ -52,7 +52,7 @@ rhcClusterName OBJECT-TYPE
 	MAX-ACCESS  read-only
 	STATUS      current
 	DESCRIPTION
-	"Cluster name."
+	"Cluster name"
 	::= { rhcCluster 1 }
 
 
@@ -72,7 +72,7 @@ rhcClusterStatusCode OBJECT-TYPE
 	"
 	::= { rhcCluster 2 }
 
-rhcClusterStatusString OBJECT-TYPE
+rhcClusterStatusDesc OBJECT-TYPE
 	SYNTAX      OCTET STRING
 	MAX-ACCESS  read-only
 	STATUS      current
@@ -81,22 +81,30 @@ rhcClusterStatusString OBJECT-TYPE
 	::= { rhcCluster 3 }
 
 
-rhcClusterVotes OBJECT-TYPE
-	SYNTAX      Integer32
-	MAX-ACCESS  read-only
-	STATUS      current
-	DESCRIPTION
-	"Current number of votes in cluster."
-	::= { rhcCluster 4 }
-
 rhcClusterVotesNeededForQuorum OBJECT-TYPE
 	SYNTAX      Integer32
 	MAX-ACCESS  read-only
 	STATUS      current
 	DESCRIPTION
-	"Minimum votes required for quorum. 
+	"Minimum number of votes required for quorum. 
 	If cluster is not quorate, all services are stopped."
+	::= { rhcCluster 4 }
+
+rhcClusterVotes OBJECT-TYPE
+	SYNTAX      Integer32
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Current number of votes"
 	::= { rhcCluster 5 }
+
+rhcClusterQuorate OBJECT-TYPE
+	SYNTAX      Integer32
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"1 if cluster is quorate, 0 otherwise"
+	::= { rhcCluster 6 }
 
 
 rhcClusterNodesNum OBJECT-TYPE
@@ -104,24 +112,48 @@ rhcClusterNodesNum OBJECT-TYPE
 	MAX-ACCESS  read-only
 	STATUS      current
 	DESCRIPTION
-	"Number of nodes configured to participate in cluster."
-	::= { rhcCluster 6 }
+	"Number of nodes configured to participate in cluster"
+	::= { rhcCluster 7 }
+
+rhcClusterNodesNames OBJECT-TYPE
+	SYNTAX      OCTET STRING
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Names of nodes configured to participate in cluster"
+	::= { rhcCluster 8 }
 
 rhcClusterAvailNodesNum OBJECT-TYPE
 	SYNTAX      Integer32
 	MAX-ACCESS  read-only
 	STATUS      current
 	DESCRIPTION
-	"Number of nodes currently participating in cluster."
-	::= { rhcCluster 7 }
+	"Number of nodes currently participating in cluster"
+	::= { rhcCluster 9 }
+
+rhcClusterAvailNodesNames OBJECT-TYPE
+	SYNTAX      OCTET STRING
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Names of nodes currently participating in cluster"
+	::= { rhcCluster 10 }
 
 rhcClusterUnavailNodesNum OBJECT-TYPE
 	SYNTAX      Integer32
 	MAX-ACCESS  read-only
 	STATUS      current
 	DESCRIPTION
-	"Number of nodes currently NOT participating in cluster."
-	::= { rhcCluster 8 }
+	"Number of nodes currently NOT participating in cluster"
+	::= { rhcCluster 11 }
+
+rhcClusterUnavailNodesNames OBJECT-TYPE
+	SYNTAX      OCTET STRING
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Names of nodes currently NOT participating in cluster"
+	::= { rhcCluster 12 }
 
 
 rhcClusterServicesNum OBJECT-TYPE
@@ -129,32 +161,64 @@ rhcClusterServicesNum OBJECT-TYPE
 	MAX-ACCESS  read-only
 	STATUS      current
 	DESCRIPTION
-	"Number of configured services."
-	::= { rhcCluster 9 }
+	"Number of configured services"
+	::= { rhcCluster 13 }
+
+rhcClusterServicesNames OBJECT-TYPE
+	SYNTAX      OCTET STRING
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Names of configured services"
+	::= { rhcCluster 14 }
 
 rhcClusterRunningServicesNum OBJECT-TYPE
 	SYNTAX      Integer32
 	MAX-ACCESS  read-only
 	STATUS      current
 	DESCRIPTION
-	"Number of running services."
-	::= { rhcCluster 10 }
+	"Number of running services"
+	::= { rhcCluster 15 }
+
+rhcClusterRunningServicesNames OBJECT-TYPE
+	SYNTAX      OCTET STRING
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Names of running services"
+	::= { rhcCluster 16 }
 
 rhcClusterStoppedServicesNum OBJECT-TYPE
 	SYNTAX      Integer32
 	MAX-ACCESS  read-only
 	STATUS      current
 	DESCRIPTION
-	"Number of stopped services."
-	::= { rhcCluster 11 }
+	"Number of stopped services"
+	::= { rhcCluster 17 }
+
+rhcClusterStoppedServicesNames OBJECT-TYPE
+	SYNTAX      OCTET STRING
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Names of stopped services"
+	::= { rhcCluster 18 }
 
 rhcClusterFailedServicesNum OBJECT-TYPE
 	SYNTAX      Integer32
 	MAX-ACCESS  read-only
 	STATUS      current
 	DESCRIPTION
-	"Number of failed services."
-	::= { rhcCluster 12 }
+	"Number of failed services"
+	::= { rhcCluster 19 }
+
+rhcClusterFailedServicesNames OBJECT-TYPE
+	SYNTAX      OCTET STRING
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Names of failed services"
+	::= { rhcCluster 20 }
 
 
 
@@ -166,7 +230,7 @@ rhcNodesTable OBJECT-TYPE
 	MAX-ACCESS  not-accessible
 	STATUS      current
 	DESCRIPTION
-        "Table of cluster nodes."
+        "Table of cluster nodes"
 	::= { rhcTables 1 }
 
 rhcNodeEntry OBJECT-TYPE
@@ -174,15 +238,16 @@ rhcNodeEntry OBJECT-TYPE
 	MAX-ACCESS  not-accessible
 	STATUS      current
 	DESCRIPTION
-        "Cluster node."
+        "Cluster node"
 	INDEX   { rhcNodeName }
 	::= { rhcNodesTable 1 }
 
 RhcNodeEntry ::= SEQUENCE {
 	rhcNodeName			OCTET STRING,
 	rhcNodeStatusCode		Integer32,
-	rhcNodeStatusString    		OCTET STRING,
-	rhcNodeRunningServicesNum	Integer32
+	rhcNodeStatusDesc    		OCTET STRING,
+	rhcNodeRunningServicesNum	Integer32,
+	rhcNodeRunningServicesNames	OCTET STRING
 }
 
 rhcNodeName OBJECT-TYPE
@@ -190,7 +255,7 @@ rhcNodeName OBJECT-TYPE
 	MAX-ACCESS  read-only
 	STATUS      current
 	DESCRIPTION
-	"Node name."
+	"Node name"
 	::= { rhcNodeEntry 1 }
 
 
@@ -201,18 +266,18 @@ rhcNodeStatusCode OBJECT-TYPE
 	DESCRIPTION
 	"Node status code.
 	Values:
-		0	Node available to cluster
-		1	Node running, but unavailable to cluster
-		2	Node not running
+		0	Participating in cluster
+		1	Running, but not participating in cluster
+		2	Not running
 	"
 	::= { rhcNodeEntry 2 }
 
-rhcNodeStatusString OBJECT-TYPE
+rhcNodeStatusDesc OBJECT-TYPE
 	SYNTAX      OCTET STRING
 	MAX-ACCESS  read-only
 	STATUS      current
 	DESCRIPTION
-	"Node status description."
+	"Node status description"
 	::= { rhcNodeEntry 3 }
 
 
@@ -221,8 +286,16 @@ rhcNodeRunningServicesNum OBJECT-TYPE
 	MAX-ACCESS  read-only
 	STATUS      current
 	DESCRIPTION
-	"Number of running services."
+	"Number of services running on node"
 	::= { rhcNodeEntry 4 }
+
+rhcNodeRunningServicesNames OBJECT-TYPE
+	SYNTAX      OCTET STRING
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION
+	"Names of services running on node"
+	::= { rhcNodeEntry 5 }
 
 
 
@@ -234,7 +307,7 @@ rhcServicesTable OBJECT-TYPE
 	MAX-ACCESS  not-accessible
 	STATUS      current
 	DESCRIPTION
-        "Table of cluster services."
+        "Table of cluster services"
 	::= { rhcTables 2 }
 
 rhcServiceEntry OBJECT-TYPE
@@ -242,14 +315,14 @@ rhcServiceEntry OBJECT-TYPE
 	MAX-ACCESS  not-accessible
 	STATUS      current
 	DESCRIPTION
-	"Cluster service."
+	"Cluster service"
 	INDEX   { rhcServiceName }
 	::= { rhcServicesTable 1 }
 
 RhcServiceEntry ::= SEQUENCE {
 	rhcServiceName		OCTET STRING,
 	rhcServiceStatusCode	Integer32,
-	rhcServiceStatusString	OCTET STRING,
+	rhcServiceStatusDesc	OCTET STRING,
 	rhcServiceStartMode	OCTET STRING,
 	rhcServiceRunningOnNode	OCTET STRING
 }
@@ -259,38 +332,36 @@ rhcServiceName OBJECT-TYPE
 	MAX-ACCESS  read-only
 	STATUS      current
 	DESCRIPTION
-	"Service name."
+	"Service name"
 	::= { rhcServiceEntry 1 }
-
 
 rhcServiceStatusCode OBJECT-TYPE
 	SYNTAX      Integer32
 	MAX-ACCESS  read-only
 	STATUS      current
 	DESCRIPTION
-	"Service status codes.
+	"Service status code.
 	Codes:
-		0	Service running
-		1	Service stopped
-		2	Service failed
+		0	running
+		1	stopped
+		2	failed
 	"
 	::= { rhcServiceEntry 2 }
 
-rhcServiceStatusString OBJECT-TYPE
+rhcServiceStatusDesc OBJECT-TYPE
 	SYNTAX      OCTET STRING
 	MAX-ACCESS  read-only
 	STATUS      current
 	DESCRIPTION
-	"Service status description."
+	"Dervice status description"
 	::= { rhcServiceEntry 3 }
-
 
 rhcServiceStartMode OBJECT-TYPE
 	SYNTAX      OCTET STRING
 	MAX-ACCESS  read-only
 	STATUS      current
 	DESCRIPTION
-	"Automatic or manual."
+	"Service start mode, automatic or manual"
 	::= { rhcServiceEntry 4 }
 
 rhcServiceRunningOnNode OBJECT-TYPE

@@ -42,30 +42,47 @@ initialize_clusterMIB(void)
 {
     static oid      rhcMIBVersion_oid[] =
         { 1, 3, 6, 1, 4, 1, 2312, 8, 1, 1 };
-    static oid      rhcClusterFailedServicesNum_oid[] =
-        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 12 };
-    static oid      rhcClusterStatusString_oid[] =
-        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 3 };
-    static oid      rhcClusterVotes_oid[] =
-        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 4 };
-    static oid      rhcClusterStoppedServicesNum_oid[] =
-        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 11 };
-    static oid      rhcClusterAvailNodesNum_oid[] =
-        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 7 };
-    static oid      rhcClusterServicesNum_oid[] =
-        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 9 };
+    
     static oid      rhcClusterName_oid[] =
         { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 1 };
     static oid      rhcClusterStatusCode_oid[] =
         { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 2 };
-    static oid      rhcClusterUnavailNodesNum_oid[] =
-        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 8 };
-    static oid      rhcClusterNodesNum_oid[] =
-        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 6 };
-    static oid      rhcClusterRunningServicesNum_oid[] =
-        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 10 };
+    static oid      rhcClusterStatusDesc_oid[] =
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 3 };
     static oid      rhcClusterVotesNeededForQuorum_oid[] =
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 4 };
+    static oid      rhcClusterVotes_oid[] =
         { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 5 };
+    static oid      rhcClusterQuorate_oid[] =
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 6 };
+    static oid      rhcClusterNodesNum_oid[] =
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 7 };
+    static oid      rhcClusterNodesNames_oid[] =
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 8 };
+    static oid      rhcClusterAvailNodesNum_oid[] =
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 9 };
+    static oid      rhcClusterAvailNodesNames_oid[] =
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 10 };
+    static oid      rhcClusterUnavailNodesNum_oid[] =
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 11 };
+    static oid      rhcClusterUnavailNodesNames_oid[] =
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 12 };
+    static oid      rhcClusterServicesNum_oid[] =
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 13 };
+    static oid      rhcClusterServicesNames_oid[] =
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 14 };
+    static oid      rhcClusterRunningServicesNum_oid[] =
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 15 };
+    static oid      rhcClusterRunningServicesNames_oid[] =
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 16 };
+    static oid      rhcClusterStoppedServicesNum_oid[] =
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 17 };
+    static oid      rhcClusterStoppedServicesNames_oid[] =
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 18 };
+    static oid      rhcClusterFailedServicesNum_oid[] =
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 19 };
+    static oid      rhcClusterFailedServicesNames_oid[] =
+        { 1, 3, 6, 1, 4, 1, 2312, 8, 2, 20 };
     
     DEBUGMSGTL(("libClusterMonitorSnmp", "Initializing\n"));
     
@@ -82,15 +99,26 @@ initialize_clusterMIB(void)
                              OID_LENGTH(rhcClusterFailedServicesNum_oid),
                              HANDLER_CAN_RONLY));
     netsnmp_register_scalar(netsnmp_create_handler_registration
-                            ("rhcClusterStatusString",
-                             handle_rhcClusterStatusString,
-                             rhcClusterStatusString_oid,
-                             OID_LENGTH(rhcClusterStatusString_oid),
+                            ("rhcClusterFailedServicesNames",
+                             handle_rhcClusterFailedServicesNames,
+                             rhcClusterFailedServicesNames_oid,
+                             OID_LENGTH(rhcClusterFailedServicesNames_oid),
+                             HANDLER_CAN_RONLY));
+    netsnmp_register_scalar(netsnmp_create_handler_registration
+                            ("rhcClusterStatusDesc",
+                             handle_rhcClusterStatusDesc,
+                             rhcClusterStatusDesc_oid,
+                             OID_LENGTH(rhcClusterStatusDesc_oid),
                              HANDLER_CAN_RONLY));
     netsnmp_register_scalar(netsnmp_create_handler_registration
                             ("rhcClusterVotes", handle_rhcClusterVotes,
                              rhcClusterVotes_oid,
                              OID_LENGTH(rhcClusterVotes_oid),
+                             HANDLER_CAN_RONLY));
+    netsnmp_register_scalar(netsnmp_create_handler_registration
+                            ("rhcClusterQuorate", handle_rhcClusterQuorate,
+                             rhcClusterQuorate_oid,
+                             OID_LENGTH(rhcClusterQuorate_oid),
                              HANDLER_CAN_RONLY));
     netsnmp_register_scalar(netsnmp_create_handler_registration
                             ("rhcClusterStoppedServicesNum",
@@ -99,16 +127,34 @@ initialize_clusterMIB(void)
                              OID_LENGTH(rhcClusterStoppedServicesNum_oid),
                              HANDLER_CAN_RONLY));
     netsnmp_register_scalar(netsnmp_create_handler_registration
+                            ("rhcClusterStoppedServicesNames",
+                             handle_rhcClusterStoppedServicesNames,
+                             rhcClusterStoppedServicesNames_oid,
+                             OID_LENGTH(rhcClusterStoppedServicesNames_oid),
+                             HANDLER_CAN_RONLY));
+    netsnmp_register_scalar(netsnmp_create_handler_registration
                             ("rhcClusterAvailNodesNum",
                              handle_rhcClusterAvailNodesNum,
                              rhcClusterAvailNodesNum_oid,
                              OID_LENGTH(rhcClusterAvailNodesNum_oid),
                              HANDLER_CAN_RONLY));
     netsnmp_register_scalar(netsnmp_create_handler_registration
+                            ("rhcClusterAvailNodesNames",
+                             handle_rhcClusterAvailNodesNames,
+                             rhcClusterAvailNodesNames_oid,
+                             OID_LENGTH(rhcClusterAvailNodesNames_oid),
+                             HANDLER_CAN_RONLY));
+    netsnmp_register_scalar(netsnmp_create_handler_registration
                             ("rhcClusterServicesNum",
                              handle_rhcClusterServicesNum,
                              rhcClusterServicesNum_oid,
                              OID_LENGTH(rhcClusterServicesNum_oid),
+                             HANDLER_CAN_RONLY));
+    netsnmp_register_scalar(netsnmp_create_handler_registration
+                            ("rhcClusterServicesNames",
+                             handle_rhcClusterServicesNames,
+                             rhcClusterServicesNames_oid,
+                             OID_LENGTH(rhcClusterServicesNames_oid),
                              HANDLER_CAN_RONLY));
     netsnmp_register_scalar(netsnmp_create_handler_registration
                             ("rhcClusterName", handle_rhcClusterName,
@@ -128,16 +174,34 @@ initialize_clusterMIB(void)
                              OID_LENGTH(rhcClusterUnavailNodesNum_oid),
                              HANDLER_CAN_RONLY));
     netsnmp_register_scalar(netsnmp_create_handler_registration
+                            ("rhcClusterUnavailNodesNames",
+                             handle_rhcClusterUnavailNodesNames,
+                             rhcClusterUnavailNodesNames_oid,
+                             OID_LENGTH(rhcClusterUnavailNodesNames_oid),
+                             HANDLER_CAN_RONLY));
+    netsnmp_register_scalar(netsnmp_create_handler_registration
                             ("rhcClusterNodesNum",
                              handle_rhcClusterNodesNum,
                              rhcClusterNodesNum_oid,
                              OID_LENGTH(rhcClusterNodesNum_oid),
                              HANDLER_CAN_RONLY));
     netsnmp_register_scalar(netsnmp_create_handler_registration
+                            ("rhcClusterNodesNames",
+                             handle_rhcClusterNodesNames,
+                             rhcClusterNodesNames_oid,
+                             OID_LENGTH(rhcClusterNodesNames_oid),
+                             HANDLER_CAN_RONLY));
+    netsnmp_register_scalar(netsnmp_create_handler_registration
                             ("rhcClusterRunningServicesNum",
                              handle_rhcClusterRunningServicesNum,
                              rhcClusterRunningServicesNum_oid,
                              OID_LENGTH(rhcClusterRunningServicesNum_oid),
+                             HANDLER_CAN_RONLY));
+    netsnmp_register_scalar(netsnmp_create_handler_registration
+                            ("rhcClusterRunningServicesNames",
+                             handle_rhcClusterRunningServicesNames,
+                             rhcClusterRunningServicesNames_oid,
+                             OID_LENGTH(rhcClusterRunningServicesNames_oid),
                              HANDLER_CAN_RONLY));
     netsnmp_register_scalar(netsnmp_create_handler_registration
                             ("rhcClusterVotesNeededForQuorum",
@@ -301,10 +365,63 @@ handle_rhcClusterFailedServicesNum(netsnmp_mib_handler *handler,
 }
 
 int
-handle_rhcClusterStatusString(netsnmp_mib_handler *handler,
-                              netsnmp_handler_registration *reginfo,
-                              netsnmp_agent_request_info *reqinfo,
-                              netsnmp_request_info *requests)
+handle_rhcClusterFailedServicesNames(netsnmp_mib_handler *handler,
+				     netsnmp_handler_registration *reginfo,
+				     netsnmp_agent_request_info *reqinfo,
+				     netsnmp_request_info *requests)
+{
+  try {
+    counting_auto_ptr<Cluster> cluster = monitor.get_cluster();
+    if(cluster.get() == NULL)
+      return SNMP_ERR_NOERROR;
+    
+    list<counting_auto_ptr<Service> > l = cluster->failedServices();
+    string str;
+    for (list<counting_auto_ptr<Service> >::iterator iter = l.begin();
+	 iter != l.end();
+	 iter++)
+      if (str.empty())
+	str = (*iter)->name();
+      else 
+	str += ", " + (*iter)->name();
+    
+    /*
+     * We are never called for a GETNEXT if it's registered as a
+     * "instance", as it's "magically" handled for us.  
+     */
+    
+    /*
+     * a instance handler also only hands us one request at a time, so
+     * we don't need to loop over a list of requests; we'll only get one. 
+     */
+    
+    switch (reqinfo->mode) {
+      
+    case MODE_GET:
+      snmp_set_var_typed_value(requests->requestvb, ASN_OCTET_STR,
+			       (u_char *)
+			       str.c_str(),
+			       str.size());
+      break;
+      
+    default:
+      /*
+       * we should never get here, so this is a really bad error 
+       */
+      return SNMP_ERR_GENERR;
+    }
+  }
+  catch( ... ) {
+    return SNMP_ERR_GENERR;
+  }
+  return SNMP_ERR_NOERROR;
+}
+
+int
+handle_rhcClusterStatusDesc(netsnmp_mib_handler *handler,
+			    netsnmp_handler_registration *reginfo,
+			    netsnmp_agent_request_info *reqinfo,
+			    netsnmp_request_info *requests)
 {
   try {
     counting_auto_ptr<Cluster> cluster = monitor.get_cluster();
@@ -437,6 +554,59 @@ handle_rhcClusterStoppedServicesNum(netsnmp_mib_handler *handler,
 }
 
 int
+handle_rhcClusterStoppedServicesNames(netsnmp_mib_handler *handler,
+				      netsnmp_handler_registration *reginfo,
+				      netsnmp_agent_request_info *reqinfo,
+				      netsnmp_request_info *requests)
+{
+  try {
+    counting_auto_ptr<Cluster> cluster = monitor.get_cluster();
+    if(cluster.get() == NULL)
+      return SNMP_ERR_NOERROR;
+    
+    list<counting_auto_ptr<Service> > l = cluster->stoppedServices();
+    string str;
+    for (list<counting_auto_ptr<Service> >::iterator iter = l.begin();
+	 iter != l.end();
+	 iter++)
+      if (str.empty())
+	str = (*iter)->name();
+      else 
+	str += ", " + (*iter)->name();
+    
+    /*
+     * We are never called for a GETNEXT if it's registered as a
+     * "instance", as it's "magically" handled for us.  
+     */
+    
+    /*
+     * a instance handler also only hands us one request at a time, so
+     * we don't need to loop over a list of requests; we'll only get one. 
+     */
+    
+    switch (reqinfo->mode) {
+      
+    case MODE_GET:
+      snmp_set_var_typed_value(requests->requestvb, ASN_OCTET_STR,
+			       (u_char *)
+			       str.c_str(),
+			       str.size());
+      break;
+      
+    default:
+      /*
+       * we should never get here, so this is a really bad error 
+       */
+      return SNMP_ERR_GENERR;
+    }
+  }
+  catch( ... ) {
+    return SNMP_ERR_GENERR;
+  }
+  return SNMP_ERR_NOERROR;
+}
+
+int
 handle_rhcClusterAvailNodesNum(netsnmp_mib_handler *handler,
                                netsnmp_handler_registration *reginfo,
                                netsnmp_agent_request_info *reqinfo,
@@ -482,6 +652,59 @@ handle_rhcClusterAvailNodesNum(netsnmp_mib_handler *handler,
 }
 
 int
+handle_rhcClusterAvailNodesNames(netsnmp_mib_handler *handler,
+				 netsnmp_handler_registration *reginfo,
+				 netsnmp_agent_request_info *reqinfo,
+				 netsnmp_request_info *requests)
+{
+  try {
+    counting_auto_ptr<Cluster> cluster = monitor.get_cluster();
+    if(cluster.get() == NULL)
+      return SNMP_ERR_NOERROR;
+    
+    list<counting_auto_ptr<Node> > l = cluster->clusteredNodes();
+    string str;
+    for (list<counting_auto_ptr<Node> >::iterator iter = l.begin();
+	 iter != l.end();
+	 iter++)
+      if (str.empty())
+	str = (*iter)->name();
+      else 
+	str += ", " + (*iter)->name();
+    
+    /*
+     * We are never called for a GETNEXT if it's registered as a
+     * "instance", as it's "magically" handled for us.  
+     */
+    
+    /*
+     * a instance handler also only hands us one request at a time, so
+     * we don't need to loop over a list of requests; we'll only get one. 
+     */
+    
+    switch (reqinfo->mode) {
+      
+    case MODE_GET:
+      snmp_set_var_typed_value(requests->requestvb, ASN_OCTET_STR,
+			       (u_char *)
+			       str.c_str(),
+			       str.size());
+      break;
+      
+    default:
+      /*
+       * we should never get here, so this is a really bad error 
+       */
+      return SNMP_ERR_GENERR;
+    }
+  }
+  catch( ... ) {
+    return SNMP_ERR_GENERR;
+  }
+  return SNMP_ERR_NOERROR;
+}
+
+int
 handle_rhcClusterServicesNum(netsnmp_mib_handler *handler,
                              netsnmp_handler_registration *reginfo,
                              netsnmp_agent_request_info *reqinfo,
@@ -513,6 +736,59 @@ handle_rhcClusterServicesNum(netsnmp_mib_handler *handler,
                                  sizeof(num));
         break;
 
+    default:
+      /*
+       * we should never get here, so this is a really bad error 
+       */
+      return SNMP_ERR_GENERR;
+    }
+  }
+  catch( ... ) {
+    return SNMP_ERR_GENERR;
+  }
+  return SNMP_ERR_NOERROR;
+}
+
+int
+handle_rhcClusterServicesNames(netsnmp_mib_handler *handler,
+				 netsnmp_handler_registration *reginfo,
+				 netsnmp_agent_request_info *reqinfo,
+				 netsnmp_request_info *requests)
+{
+  try {
+    counting_auto_ptr<Cluster> cluster = monitor.get_cluster();
+    if(cluster.get() == NULL)
+      return SNMP_ERR_NOERROR;
+    
+    list<counting_auto_ptr<Service> > l = cluster->services();
+    string str;
+    for (list<counting_auto_ptr<Service> >::iterator iter = l.begin();
+	 iter != l.end();
+	 iter++)
+      if (str.empty())
+	str = (*iter)->name();
+      else 
+	str += ", " + (*iter)->name();
+    
+    /*
+     * We are never called for a GETNEXT if it's registered as a
+     * "instance", as it's "magically" handled for us.  
+     */
+    
+    /*
+     * a instance handler also only hands us one request at a time, so
+     * we don't need to loop over a list of requests; we'll only get one. 
+     */
+    
+    switch (reqinfo->mode) {
+      
+    case MODE_GET:
+      snmp_set_var_typed_value(requests->requestvb, ASN_OCTET_STR,
+			       (u_char *)
+			       str.c_str(),
+			       str.size());
+      break;
+      
     default:
       /*
        * we should never get here, so this is a really bad error 
@@ -662,6 +938,59 @@ handle_rhcClusterUnavailNodesNum(netsnmp_mib_handler *handler,
 }
 
 int
+handle_rhcClusterUnavailNodesNames(netsnmp_mib_handler *handler,
+				   netsnmp_handler_registration *reginfo,
+				   netsnmp_agent_request_info *reqinfo,
+				   netsnmp_request_info *requests)
+{
+  try {
+    counting_auto_ptr<Cluster> cluster = monitor.get_cluster();
+    if(cluster.get() == NULL)
+      return SNMP_ERR_NOERROR;
+    
+    list<counting_auto_ptr<Node> > l = cluster->unclusteredNodes();
+    string str;
+    for (list<counting_auto_ptr<Node> >::iterator iter = l.begin();
+	 iter != l.end();
+	 iter++)
+      if (str.empty())
+	str = (*iter)->name();
+      else 
+	str += ", " + (*iter)->name();
+    
+    /*
+     * We are never called for a GETNEXT if it's registered as a
+     * "instance", as it's "magically" handled for us.  
+     */
+    
+    /*
+     * a instance handler also only hands us one request at a time, so
+     * we don't need to loop over a list of requests; we'll only get one. 
+     */
+    
+    switch (reqinfo->mode) {
+      
+    case MODE_GET:
+      snmp_set_var_typed_value(requests->requestvb, ASN_OCTET_STR,
+			       (u_char *)
+			       str.c_str(),
+			       str.size());
+      break;
+      
+    default:
+      /*
+       * we should never get here, so this is a really bad error 
+       */
+      return SNMP_ERR_GENERR;
+    }
+  }
+  catch( ... ) {
+    return SNMP_ERR_GENERR;
+  }
+  return SNMP_ERR_NOERROR;
+}
+
+int
 handle_rhcClusterNodesNum(netsnmp_mib_handler *handler,
                           netsnmp_handler_registration *reginfo,
                           netsnmp_agent_request_info *reqinfo,
@@ -693,6 +1022,59 @@ handle_rhcClusterNodesNum(netsnmp_mib_handler *handler,
                                  sizeof(num));
         break;
 
+    default:
+      /*
+       * we should never get here, so this is a really bad error 
+       */
+      return SNMP_ERR_GENERR;
+    }
+  }
+  catch( ... ) {
+    return SNMP_ERR_GENERR;
+  }
+  return SNMP_ERR_NOERROR;
+}
+
+int
+handle_rhcClusterNodesNames(netsnmp_mib_handler *handler,
+			    netsnmp_handler_registration *reginfo,
+			    netsnmp_agent_request_info *reqinfo,
+			    netsnmp_request_info *requests)
+{
+  try {
+    counting_auto_ptr<Cluster> cluster = monitor.get_cluster();
+    if(cluster.get() == NULL)
+      return SNMP_ERR_NOERROR;
+    
+    list<counting_auto_ptr<Node> > l = cluster->nodes();
+    string str;
+    for (list<counting_auto_ptr<Node> >::iterator iter = l.begin();
+	 iter != l.end();
+	 iter++)
+      if (str.empty())
+	str = (*iter)->name();
+      else 
+	str += ", " + (*iter)->name();
+    
+    /*
+     * We are never called for a GETNEXT if it's registered as a
+     * "instance", as it's "magically" handled for us.  
+     */
+    
+    /*
+     * a instance handler also only hands us one request at a time, so
+     * we don't need to loop over a list of requests; we'll only get one. 
+     */
+    
+    switch (reqinfo->mode) {
+      
+    case MODE_GET:
+      snmp_set_var_typed_value(requests->requestvb, ASN_OCTET_STR,
+			       (u_char *)
+			       str.c_str(),
+			       str.size());
+      break;
+      
     default:
       /*
        * we should never get here, so this is a really bad error 
@@ -752,6 +1134,59 @@ handle_rhcClusterRunningServicesNum(netsnmp_mib_handler *handler,
 }
 
 int
+handle_rhcClusterRunningServicesNames(netsnmp_mib_handler *handler,
+				      netsnmp_handler_registration *reginfo,
+				      netsnmp_agent_request_info *reqinfo,
+				      netsnmp_request_info *requests)
+{
+  try {
+    counting_auto_ptr<Cluster> cluster = monitor.get_cluster();
+    if(cluster.get() == NULL)
+      return SNMP_ERR_NOERROR;
+    
+    list<counting_auto_ptr<Service> > l = cluster->runningServices();
+    string str;
+    for (list<counting_auto_ptr<Service> >::iterator iter = l.begin();
+	 iter != l.end();
+	 iter++)
+      if (str.empty())
+	str = (*iter)->name();
+      else 
+	str += ", " + (*iter)->name();
+    
+    /*
+     * We are never called for a GETNEXT if it's registered as a
+     * "instance", as it's "magically" handled for us.  
+     */
+    
+    /*
+     * a instance handler also only hands us one request at a time, so
+     * we don't need to loop over a list of requests; we'll only get one. 
+     */
+    
+    switch (reqinfo->mode) {
+      
+    case MODE_GET:
+      snmp_set_var_typed_value(requests->requestvb, ASN_OCTET_STR,
+			       (u_char *)
+			       str.c_str(),
+			       str.size());
+      break;
+      
+    default:
+      /*
+       * we should never get here, so this is a really bad error 
+       */
+      return SNMP_ERR_GENERR;
+    }
+  }
+  catch( ... ) {
+    return SNMP_ERR_GENERR;
+  }
+  return SNMP_ERR_NOERROR;
+}
+
+int
 handle_rhcClusterVotesNeededForQuorum(netsnmp_mib_handler *handler,
                                       netsnmp_handler_registration
                                       *reginfo,
@@ -770,6 +1205,52 @@ handle_rhcClusterVotesNeededForQuorum(netsnmp_mib_handler *handler,
      * "instance", as it's "magically" handled for us.  
      */
 
+    /*
+     * a instance handler also only hands us one request at a time, so
+     * we don't need to loop over a list of requests; we'll only get one. 
+     */
+
+    switch (reqinfo->mode) {
+
+    case MODE_GET:
+        snmp_set_var_typed_value(requests->requestvb, ASN_INTEGER,
+                                 (u_char *)
+                                 &num,
+                                 sizeof(num));
+        break;
+
+    default:
+      /*
+       * we should never get here, so this is a really bad error 
+       */
+      return SNMP_ERR_GENERR;
+    }
+  }
+  catch( ... ) {
+    return SNMP_ERR_GENERR;
+  }
+  return SNMP_ERR_NOERROR;
+}
+
+int
+handle_rhcClusterQuorate(netsnmp_mib_handler *handler,
+			 netsnmp_handler_registration
+			 *reginfo,
+			 netsnmp_agent_request_info *reqinfo,
+			 netsnmp_request_info *requests)
+{
+  try {
+    counting_auto_ptr<Cluster> cluster = monitor.get_cluster();
+    if(cluster.get() == NULL)
+      return SNMP_ERR_NOERROR;
+    
+    unsigned int num = cluster->quorate() ? 1 : 0;
+    
+    /*
+     * We are never called for a GETNEXT if it's registered as a
+     * "instance", as it's "magically" handled for us.  
+     */
+    
     /*
      * a instance handler also only hands us one request at a time, so
      * we don't need to loop over a list of requests; we'll only get one. 

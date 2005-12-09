@@ -240,9 +240,9 @@ get_rhcServiceStartMode(void* data_context, size_t* ret_len)
       return NULL;
     
     if (service->autostart())
-      datactx->str_holder = "Automatic";
+      datactx->str_holder = "automatic";
     else
-      datactx->str_holder = "Manual";
+      datactx->str_holder = "manual";
     *ret_len = datactx->str_holder.size();
     return (char*) datactx->str_holder.c_str();
   } catch ( ... ) {
@@ -293,11 +293,11 @@ getStatusDescription(unsigned int code)
 {
   switch(code) {
   case 0:
-    return "Service running";
+    return "running";
   case 1:
-    return "Service stopped";
+    return "stopped";
   case 2:
-    return "Service failed";
+    return "failed";
   default:
     return "Unknown";
   }
@@ -323,7 +323,7 @@ get_rhcServiceStatusCode(void* data_context, size_t* ret_len)
 }
 
 char*
-get_rhcServiceStatusString(void* data_context, size_t* ret_len)
+get_rhcServiceStatusDesc(void* data_context, size_t* ret_len)
 {
   try {
     DataContext* datactx = (DataContext*) data_context;

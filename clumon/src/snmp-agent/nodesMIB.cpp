@@ -102,7 +102,7 @@ initialize_table_rhcNodesTable(void)
     /** Define the minimum and maximum accessible columns.  This
         optimizes retrival. */
     table_info->min_column = 1;
-    table_info->max_column = 4;
+    table_info->max_column = 5;
 
     /** iterator access routines */
     iinfo->get_first_data_point = rhcNodesTable_get_first_data_point;
@@ -223,12 +223,12 @@ rhcNodesTable_handler(netsnmp_mib_handler *handler,
                 }
                 break;
 
-            case COLUMN_RHCNODESTATUSSTRING:
+            case COLUMN_RHCNODESTATUSDESC:
                 {
                     char           *retval;
                     size_t          retval_len = 0;
                     retval =
-                        get_rhcNodeStatusString(data_context, &retval_len);
+                        get_rhcNodeStatusDesc(data_context, &retval_len);
                     snmp_set_var_typed_value(var, ASN_OCTET_STR,
                                              (const u_char *) retval,
                                              retval_len);
@@ -243,6 +243,19 @@ rhcNodesTable_handler(netsnmp_mib_handler *handler,
                         get_rhcNodeRunningServicesNum(data_context,
                                                       &retval_len);
                     snmp_set_var_typed_value(var, ASN_INTEGER,
+                                             (const u_char *) retval,
+                                             retval_len);
+                }
+                break;
+
+            case COLUMN_RHCNODERUNNINGSERVICESNAMES:
+                {
+                    char           *retval;
+                    size_t          retval_len = 0;
+                    retval =
+                        get_rhcNodeRunningServicesNames(data_context, 
+							&retval_len);
+                    snmp_set_var_typed_value(var, ASN_OCTET_STR,
                                              (const u_char *) retval,
                                              retval_len);
                 }

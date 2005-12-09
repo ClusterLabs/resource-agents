@@ -48,8 +48,9 @@ extern "C" {
   /** column accessors */
   char* get_rhcNodeName(void* data_context, size_t* ret_len);
   long* get_rhcNodeStatusCode(void* data_context, size_t* ret_len);
-  char* get_rhcNodeStatusString(void* data_context, size_t* ret_len);
+  char* get_rhcNodeStatusDesc(void* data_context, size_t* ret_len);
   long* get_rhcNodeRunningServicesNum(void* data_context, size_t* ret_len);
+  char* get_rhcNodeRunningServicesNames(void* data_context, size_t* ret_len);
 };
 
 #endif  // nodesMIB_access_h
