@@ -10,6 +10,6 @@
 #ifndef __IOCTL_DOT_H__
 #define __IOCTL_DOT_H__
 
-int gfs2_ioctl_i(struct gfs2_inode *ip, void *arg);
+int gfs2_ioctl_i(struct gfs2_inode *ip, void __user *arg);
 
 #endif /* __IOCTL_DOT_H__ */

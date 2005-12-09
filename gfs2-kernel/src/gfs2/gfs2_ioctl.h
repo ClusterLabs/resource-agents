@@ -19,7 +19,7 @@
 
 struct gfs2_ioctl {
 	unsigned int gi_argc;
-	char **gi_argv;
+	const char **gi_argv;
 
         char __user *gi_data;
 	unsigned int gi_size;

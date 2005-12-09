@@ -69,9 +69,9 @@ struct filldir_reg {
 };
 
 typedef ssize_t(*do_rw_t) (struct file *file,
-			   char *buf,
-			   size_t size, loff_t *offset,
-			   unsigned int num_gh, struct gfs2_holder *ghs);
+		   char __user *buf,
+		   size_t size, loff_t *offset,
+		   unsigned int num_gh, struct gfs2_holder *ghs);
 
 /**
  * gfs2_llseek - seek to a location in a file
@@ -114,8 +114,8 @@ static inline unsigned int vma2state(struct vm_area_struct *vma)
 	return LM_ST_SHARED;
 }
 
-static ssize_t walk_vm_hard(struct file *file, char *buf, size_t size,
-			    loff_t *offset, do_rw_t operation)
+static ssize_t walk_vm_hard(struct file *file, const char __user *buf, size_t size,
+		    loff_t *offset, do_rw_t operation)
 {
 	struct gfs2_holder *ghs;
 	unsigned int num_gh = 0;
@@ -184,8 +184,8 @@ static ssize_t walk_vm_hard(struct file *file, char *buf, size_t size,
  * Returns: The number of bytes written, errno on failure
  */
 
-static ssize_t walk_vm(struct file *file, char *buf, size_t size,
-		       loff_t *offset, do_rw_t operation)
+static ssize_t walk_vm(struct file *file, const char __user *buf, size_t size,
+	       loff_t *offset, do_rw_t operation)
 {
 	struct gfs2_holder gh;
 
@@ -214,11 +214,11 @@ static ssize_t walk_vm(struct file *file, char *buf, size_t size,
 
 	return operation(file, buf, size, offset, 0, &gh);
 
- do_locks:
+do_locks:
 	return walk_vm_hard(file, buf, size, offset, operation);
 }
 
-static ssize_t do_jdata_read(struct file *file, char *buf, size_t size,
+static ssize_t do_jdata_read(struct file *file, char __user *buf, size_t size,
 			     loff_t *offset)
 {
 	struct gfs2_inode *ip = get_v2ip(file->f_mapping->host);
@@ -258,7 +258,7 @@ static ssize_t do_jdata_read(struct file *file, char *buf, size_t size,
  * Returns: The number of bytes read, errno on failure
  */
 
-static ssize_t do_read_direct(struct file *file, char *buf, size_t size,
+static ssize_t do_read_direct(struct file *file, char __user *buf, size_t size,
 			      loff_t *offset, unsigned int num_gh,
 			      struct gfs2_holder *ghs)
 {
@@ -322,7 +322,7 @@ static ssize_t do_read_direct(struct file *file, char *buf, size_t size,
  * Returns: The number of bytes read, errno on failure
  */
 
-static ssize_t do_read_buf(struct file *file, char *buf, size_t size,
+static ssize_t do_read_buf(struct file *file, char __user *buf, size_t size,
 			   loff_t *offset, unsigned int num_gh,
 			   struct gfs2_holder *ghs)
 {
@@ -362,7 +362,7 @@ static ssize_t do_read_buf(struct file *file, char *buf, size_t size,
  * Returns: The number of bytes read, errno on failure
  */
 
-static ssize_t gfs2_read(struct file *file, char *buf, size_t size,
+static ssize_t gfs2_read(struct file *file, char __user *buf, size_t size,
 			 loff_t *offset)
 {
 	atomic_inc(&get_v2sdp(file->f_mapping->host->i_sb)->sd_ops_file);
@@ -386,17 +386,16 @@ static ssize_t gfs2_read(struct file *file, char *buf, size_t size,
  * Returns: errno
  */
 
-static int grope_mapping(char *buf, size_t size)
+static int grope_mapping(const char __user *buf, size_t size)
 {
-	unsigned long start = (unsigned long)buf;
-	unsigned long stop = start + size;
+	const char __user *stop = buf + size;
 	char c;
 
-	while (start < stop) {
-		if (copy_from_user(&c, (char *)start, 1))
+	while (buf < stop) {
+		if (copy_from_user(&c, buf, 1))
 			return -EFAULT;
-		start += PAGE_CACHE_SIZE;
-		start &= PAGE_CACHE_MASK;
+		buf += PAGE_CACHE_SIZE;
+		buf = (const char __user *)PAGE_ALIGN((unsigned long)buf);
 	}
 
 	return 0;
@@ -414,7 +413,7 @@ static int grope_mapping(char *buf, size_t size)
  * Returns: The number of bytes written, errno on failure
  */
 
-static ssize_t do_write_direct_alloc(struct file *file, char *buf, size_t size,
+static ssize_t do_write_direct_alloc(struct file *file, const char __user *buf, size_t size,
 				     loff_t *offset)
 {
 	struct inode *inode = file->f_mapping->host;
@@ -536,7 +535,7 @@ static ssize_t do_write_direct_alloc(struct file *file, char *buf, size_t size,
  * Returns: The number of bytes written, errno on failure
  */
 
-static ssize_t do_write_direct(struct file *file, char *buf, size_t size,
+static ssize_t do_write_direct(struct file *file, const char __user *buf, size_t size,
 			       loff_t *offset, unsigned int num_gh,
 			       struct gfs2_holder *ghs)
 {
@@ -661,7 +660,7 @@ static ssize_t do_write_direct(struct file *file, char *buf, size_t size,
  * Returns: The number of bytes written, errno on failure
  */
 
-static ssize_t do_do_write_buf(struct file *file, char *buf, size_t size,
+static ssize_t do_do_write_buf(struct file *file, const char __user *buf, size_t size,
 			       loff_t *offset)
 {
 	struct inode *inode = file->f_mapping->host;
@@ -816,7 +815,7 @@ static ssize_t do_do_write_buf(struct file *file, char *buf, size_t size,
  * Returns: The number of bytes written, errno on failure
  */
 
-static ssize_t do_write_buf(struct file *file, char *buf, size_t size,
+static ssize_t do_write_buf(struct file *file, const char __user *buf, size_t size,
 			    loff_t *offset, unsigned int num_gh,
 			    struct gfs2_holder *ghs)
 {
@@ -887,8 +886,8 @@ static ssize_t do_write_buf(struct file *file, char *buf, size_t size,
  * Returns: The number of bytes written, errno on failure
  */
 
-static ssize_t gfs2_write(struct file *file, const char *buf, size_t size,
-			  loff_t *offset)
+static ssize_t gfs2_write(struct file *file, const char __user *buf,
+			  size_t size, loff_t *offset)
 {
 	struct inode *inode = file->f_mapping->host;
 	ssize_t count;
@@ -902,10 +901,10 @@ static ssize_t gfs2_write(struct file *file, const char *buf, size_t size,
 
 	down(&inode->i_sem);
 	if (file->f_flags & O_DIRECT)
-		count = walk_vm(file, (char *)buf, size, offset,
+		count = walk_vm(file, buf, size, offset,
 				do_write_direct);
 	else
-		count = walk_vm(file, (char *)buf, size, offset, do_write_buf);
+		count = walk_vm(file, buf, size, offset, do_write_buf);
 	up(&inode->i_sem);
 
 	return count;
@@ -1155,13 +1154,13 @@ static int gfs2_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 	switch (cmd) {
 	case GFS2_IOCTL_IDENTIFY: {
 		unsigned int x = GFS2_MAGIC;
-		if (copy_to_user((unsigned int *)arg, &x, sizeof(unsigned int)))
+		if (copy_to_user((unsigned int __user *)arg, &x, sizeof(unsigned int)))
 			return -EFAULT;
 		return 0;
 	}
 
 	case GFS2_IOCTL_SUPER:
-		return gfs2_ioctl_i(ip, (void *)arg);
+		return gfs2_ioctl_i(ip, (void __user *)arg);
 
 	default:
 		return -ENOTTY;
@@ -1388,7 +1387,7 @@ static int gfs2_lock(struct file *file, int cmd, struct file_lock *fl)
  */
 
 static ssize_t gfs2_sendfile(struct file *in_file, loff_t *offset, size_t count,
-			     read_actor_t actor, void __user *target)
+			     read_actor_t actor, void *target)
 {
 	struct gfs2_inode *ip = get_v2ip(in_file->f_mapping->host);
 	struct gfs2_holder gh;

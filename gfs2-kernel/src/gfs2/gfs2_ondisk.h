@@ -110,13 +110,13 @@ struct gfs2_meta_header {
 struct gfs2_sb {
 	struct gfs2_meta_header sb_header;
 
-	uint32_t sb_fs_format;
-	uint32_t sb_multihost_format;
-	uint32_t __pad0;	/* Was superblock flags in gfs1 */
+	__le32 sb_fs_format;
+	__le32 sb_multihost_format;
+	__u32  __pad0;	/* Was superblock flags in gfs1 */
 
-	uint32_t sb_bsize;
-	uint32_t sb_bsize_shift;
-	uint32_t __pad1;	/* Was journal segment size in gfs1 */
+	__le32 sb_bsize;
+	__le32 sb_bsize_shift;
+	__u32 __pad1;	/* Was journal segment size in gfs1 */
 
 	struct gfs2_inum sb_master_dir; /* Was jindex dinode in gfs1 */
 	struct gfs2_inum __pad2, __pad3; /* Was rindex,root dinodes in gfs1 */

@@ -687,11 +687,11 @@ static int gi_rename2system(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 	return error;
 }
 
-int gfs2_ioctl_i(struct gfs2_inode *ip, void *arg)
+int gfs2_ioctl_i(struct gfs2_inode *ip, void __user *arg)
 {
-	struct gfs2_ioctl *gi_user = (struct gfs2_ioctl *)arg;
+	struct gfs2_ioctl __user *gi_user = arg;
 	struct gfs2_ioctl gi;
-	char **argv;
+	char __user **argv;
 	char arg0[ARG_SIZE];
 	int error = -EFAULT;
 
