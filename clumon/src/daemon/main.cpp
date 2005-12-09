@@ -191,8 +191,8 @@ serve_clients(Monitor& monitor, ServerSocket& server)
 	    info.str = monitor.request(info.sock.recv());
 	  } catch ( ... ) {
 	    clients.erase(poll_info.fd);
-	    continue;
 	  }
+	  continue;
 	}
 	if (poll_info.revents & (POLLERR | POLLHUP | POLLNVAL)) {
 	  clients.erase(poll_info.fd);

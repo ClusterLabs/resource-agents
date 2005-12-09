@@ -213,6 +213,8 @@ read_data(struct pollfd& poll_info,
 	return;
       }
       data.append(data_in, ret);
+      if (ret == sizeof(data_in))
+	return;
     } catch ( ... ) {
       close_fd(fd);
       fd_closed = true;

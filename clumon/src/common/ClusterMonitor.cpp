@@ -72,6 +72,7 @@ ClusterMonitor::get_cluster()
 	xml += sock.recv();
 	if (xml.find("\n\n") != xml.npos)
 	  break;
+	continue;
       }
       if (poll_data.revents & (POLLERR | POLLHUP | POLLNVAL))
 	throw std::string("get_cluster(): socket error");

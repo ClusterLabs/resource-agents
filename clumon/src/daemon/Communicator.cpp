@@ -218,6 +218,7 @@ Communicator::serve_sockets(vector<string>& names)
 	}
 	for (unsigned int i=0; i<msgs.size(); i++)
 	  _delivery_point.msg_arrived(peer.hostname(), msgs[i]);
+	continue;
       }
       if (poll_info.revents & (POLLERR | POLLHUP | POLLNVAL)) {
 	_peers.erase(peer.hostname());
