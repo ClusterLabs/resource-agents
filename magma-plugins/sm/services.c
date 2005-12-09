@@ -27,7 +27,9 @@
 #include <unistd.h>
 #include <sys/ioctl.h>
 
-#define BLOCK_SIZE 4096
+#ifndef SERVICE_FILE
+#define SERVICE_FILE "/proc/cluster/services"
+#endif
 
 #define TEST \
 "Service          Name                              GID LID State     Code\n" \
@@ -142,26 +144,33 @@ _group_member_ids(char *groupname, char *buffer, size_t bufferlen,
 static size_t
 _read_services(char **buffer)
 {
-	int fd, ret = 0, bufsz = 0;
-	char *buf;
+	int fd, ret = 0, nread, bufsz = 0;
+	char *buf, *ptr;
+	int blksz;
 
-	buf = malloc(BLOCK_SIZE);
-	bufsz = BLOCK_SIZE;
+	blksz = sysconf(_SC_PAGESIZE);
+	buf = malloc(blksz);
+	bufsz = blksz;
+	fd = open(SERVICE_FILE, O_RDONLY);
 
 	while (1) {
-		fd = open("/proc/cluster/services", O_RDONLY);
-		memset(buf, 0, bufsz);
-		ret = read(fd, buf, bufsz);
-		close(fd);
+		ptr = buf + ret;
+		nread = read(fd, ptr, blksz);
 
-		if (ret < bufsz)
+		if (nread <= 0)
 			break;
 
-		bufsz += BLOCK_SIZE;
-		buf = realloc(buf, bufsz);
+		ret += nread;
+
+		if ((bufsz - ret) < blksz) {
+			bufsz += blksz;
+			buf = realloc(buf, bufsz);
+		}
 	}
 
-	if (ret < 0) {
+	close(fd);
+
+	if (nread < 0) {
 		if (buf) {
 			free(buf);
 		}
