@@ -6,7 +6,24 @@ To load cluster MIB's shared library, add following line to /etc/snmpd/snmp.conf
 dlmod RedHatCluster /usr/lib/clumon-snmp/libClusterMonitorSnmp.so
 
 
-Sample configuration (cluster info is accessible from localhost and 192.168.0.0/16 using "cluster" community):
+Sample configurations:
+
+1. cluster info is accessible from anywhere using "public" community (add the following to default /etc/snmp/snmpd.conf):
+
+######################################
+## cluster monitoring configuration ##
+######################################
+
+dlmod RedHatCluster	/usr/lib/clumon-snmp/libClusterMonitorSnmp.so
+view	systemview	included	REDHAT-CLUSTER-MIB:RedHatCluster
+
+######################################
+##     cluster monitoring done      ##
+######################################
+
+
+
+2. cluster info is accessible from localhost and 192.168.0.0/16 using "cluster" community:
 
 ######################################
 ## cluster monitoring configuration ##
@@ -30,7 +47,6 @@ view	clusterview	included	REDHAT-CLUSTER-MIB:RedHatCluster
 #	group		context sec.model	sec.level	prefix	read		write	notif
 access	clusterGroup	""	any		noauth		prefix	clusterview	none	none
 
-
 ######################################
 ##     cluster monitoring done      ##
 ######################################
@@ -39,7 +55,7 @@ access	clusterGroup	""	any		noauth		prefix	clusterview	none	none
 
 net-snmp client configuration:
 Place REDHAT-MIB and REDHAT-CLUSTER-MIB into ~/.snmp/mibs/, and query cluster using: 
-snmpwalk -v 2c -c cluster NODENAME REDHAT-CLUSTER-MIB::RedHatCluster
+snmpwalk -v 2c -c COMMUNITY NODENAME REDHAT-CLUSTER-MIB::RedHatCluster
 (replace NODENAME with the hostname of one of cluster nodes running software)
 
 

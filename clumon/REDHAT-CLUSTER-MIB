@@ -369,10 +369,8 @@ rhcServiceRunningOnNode OBJECT-TYPE
 	MAX-ACCESS  read-only
 	STATUS      current
 	DESCRIPTION
-	"Name of node service runs on. Empty if none."
+	"Name of node the service runs on"
 	::= { rhcServiceEntry 5 }
-
-
 
 
 
