@@ -797,7 +797,14 @@ do_do_write_buf(struct file *file, char *buf, size_t size, loff_t *offset)
 			error = count;
 			goto fail_end_trans;
 		}
-
+		if (gfs_is_stuffed(ip)){
+			struct page *page;
+			page = find_get_page(file->f_mapping, 0);
+			if (page) {
+				ClearPageUptodate(page);
+				page_cache_release(page);
+			}
+		}
 		*offset += count;
 	} else {
 		struct iovec local_iov = { .iov_base = buf, .iov_len = size };
