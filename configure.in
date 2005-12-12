@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.478 $) dnl cvs revision
+AC_REVISION($Revision: 1.479 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1096,15 +1096,11 @@ if test "x${CIMOM}" = "x"; then
 fi
 
 if test "x${enable_cim_provider}" = "xyes"; then
-        if test "x${CMPI_HEADER_PATH}" = "x"; then
-                CMPIHEADERS="cmpidt.h cmpift.h cmpimacs.h"
-        else
-                CMPIHEADERS="${CMPI_HEADER_PATH}/cmpidt.h
-                            ${CMPI_HEADER_PATH}/cmpift.h
-                            ${CMPI_HEADER_PATH}/cmpimacs.h"
+        if test "x${CMPI_HEADER_PATH}" != "x"; then
+		CPPFLAGS="$CPPFLAGS -I${CMPI_HEADER_PATH}"
         fi
 
-        for header in ${CMPIHEADERS}
+        for header in cmpidt.h cmpift.h cmpimacs.h
         do
                 AC_CHECK_HEADER([${header}], [], 
 		        	[AC_MSG_ERROR([Sorry, can't find CMPI header files, \
