@@ -63,7 +63,7 @@ int ais_set_mcast(char *mcast)
 	ret = totemip_parse(&mcast_addr, mcast);
 
 	if (num_interfaces && mcast_addr.family != ifaddrs[0].bindnet.family) {
-		P_AIS("multicast address is not same family as host address\n");
+		log_msg(LOG_ERR, "multicast address is not same family as host address\n");
 		ret = -EINVAL;
 	}
 	return ret;
@@ -81,12 +81,12 @@ int ais_add_ifaddr(char *ifaddr)
 
 		for (i=0; i<num_interfaces; i++) {
 			if (ifaddrs[i].bindnet.family != ifaddrs[num_interfaces].bindnet.family) {
-				P_AIS("new address is not same family as others\n");
+				log_msg(LOG_ERR, "new address is not same family as others\n");
 				return -EINVAL;
 			}
 		}
 		if (mcast_addr.family && mcast_addr.family != ifaddrs[num_interfaces].bindnet.family) {
-			P_AIS("new address is not same family as multicast address\n");
+			log_msg(LOG_ERR, "new address is not same family as multicast address\n");
 			return -EINVAL;
 		}
 		num_interfaces++;
@@ -137,7 +137,7 @@ static void deliver_fn(struct totem_ip_address *source_addr, struct iovec *iovec
 		header->tgtid = swab32(header->tgtid);
 		header->flags = swab32(header->flags);
 	}
-	
+
 	/* Only pass on messages for us or everyone */
 	if (header->tgtid == our_nodeid() ||
 	    header->tgtid == 0) {
