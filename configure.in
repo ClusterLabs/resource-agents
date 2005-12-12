@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.477 $) dnl cvs revision
+AC_REVISION($Revision: 1.478 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1055,17 +1055,18 @@ AM_CONDITIONAL(BUILD_TIPC_MODULE, test "x${tipc_headers_found}" = "xyes")
 dnl ***************************************************************************
 dnl  CIM provider configuration
 dnl ***************************************************************************
-AC_ARG_ENABLE([cim],
- [  --enable-cim-provider   Build CIM providers  [[default=no]]],
-                     [], [])
+AC_ARG_ENABLE([cim-provider],
+[  --enable-cim-provider Enable CIM providers.
+                          [default=no]])
+
 AC_ARG_WITH([cimom],
- [  --with-cimom            Sepecify CIM server], [], [])
+ [  --with-cimom            Specify CIM server], [], [])
 
 AC_ARG_WITH([cmpiheader],
- [  --with-cmpi-headers     Sepecify CMPI header files], [], [])
+ [  --with-cmpi-headers     Specify CMPI header files], [], [])
 
 AC_ARG_WITH([cmpiprovider],
- [  --with-provider-dir     Sepecify CMPI providers directory], [], [])
+ [  --with-provider-dir     Specify CMPI providers directory], [], [])
 
 CMPI_HEADER_PATH=${with_cmpi_headers}
 CIMOM=${with_cimom}
@@ -1411,10 +1412,6 @@ AC_ARG_ENABLE([ldirectord],
                           [default=yes]],
                           [], [enable_ldirectord=yes])
 AM_CONDITIONAL(LDIRECTORD_BUILD, test "X$enable_ldirectord" = "Xyes")
-
-AC_ARG_ENABLE([cim-provider],
-[  --enable-cim-provider Enable CIM providers.
-                          [default=no]])
 
 AC_ARG_ENABLE([thread-safe],
 [  --enable-thread-safe Enable some client libraries to be thread safe.
