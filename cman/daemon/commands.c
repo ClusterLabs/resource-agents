@@ -381,13 +381,17 @@ static int do_cmd_get_extrainfo(char *cmdbuf, char **retbuf, int retsize, int *r
 	}
 
 	einfo->node_state = us->state;
-	einfo->master_node = 0;
 	einfo->node_votes = us->votes;
 	einfo->total_votes = total_votes;
 	einfo->expected_votes = max_expected;
 	einfo->quorum = quorum;
 	einfo->members = cluster_members;
 	einfo->num_addresses = num_interfaces;
+	einfo->flags = 0;
+	if (two_node)
+		einfo->flags |= CMAN_EXTRA_FLAG_2NODE;
+	if (us->expected_votes == INT_MAX)
+		einfo->flags |= CMAN_EXTRA_FLAG_ERROR;
 
 	ptr = einfo->addresses;
 	ss = (struct sockaddr_storage *)ptr;

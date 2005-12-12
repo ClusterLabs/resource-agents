@@ -152,9 +152,13 @@ struct cl_join_cluster_info {
         char cluster_name[MAX_CLUSTER_NAME_LEN + 1];
 };
 
+/* Flags */
+#define CMAN_EXTRA_FLAG_2NODE 1
+#define CMAN_EXTRA_FLAG_ERROR 2
+
 struct cl_extra_info {
 	int           node_state;
-	int           master_node;
+	uint32_t      flags;
 	int           node_votes;
 	int           total_votes;
 	int           expected_votes;

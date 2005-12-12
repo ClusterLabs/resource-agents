@@ -139,7 +139,7 @@ static void print_address(char *addr)
 	printf("%s", buf);
 }
 
-static char *membership_state(char *buf, int buflen, int node_state, int master)
+static char *membership_state(char *buf, int buflen, int node_state)
 {
 	switch (node_state) {
 	case 1:
@@ -195,18 +195,24 @@ static void show_status(void)
 	if (nodecount < 0) {
 		printf("Cluster Member: No\n");
 		printf("Membership state: %s\n", membership_state(tmpbuf, sizeof(tmpbuf),
-								  einfo->ei_node_state, einfo->ei_master_node));
+								  einfo->ei_node_state));
 	}
 	else {
 		printf("Cluster Member: Yes\n");
 		printf("Cluster Generation: %d\n", info.ci_generation);
 		printf("Membership state: %s\n", membership_state(tmpbuf, sizeof(tmpbuf),
-								  einfo->ei_node_state, einfo->ei_master_node));
+								  einfo->ei_node_state));
 		printf("Nodes: %d\n", einfo->ei_members);
 		printf("Expected votes: %d\n", einfo->ei_expected_votes);
 		printf("Total votes: %d\n", einfo->ei_total_votes);
 		printf("Quorum: %d %s\n", einfo->ei_quorum, quorate?" ":"Activity Blocked");
 		printf("Active subsystems: %d\n", cman_get_subsys_count(h));
+		printf("Flags:");
+		if (einfo->ei_flags & CMAN_EXTRA_FLAG_2NODE)
+			printf(" 2node");
+		if (einfo->ei_flags & CMAN_EXTRA_FLAG_ERROR)
+			printf(" Error");
+		printf(" \n");
 
 		node.cn_name[0] = 0;
 		if (cman_get_node(h, CMAN_NODEID_US, &node) == 0)
