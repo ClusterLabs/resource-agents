@@ -134,9 +134,14 @@ typedef struct cman_join_info {
  * This is returned from cman_get_extra_info - it's really
  * only for use by cman_tool, don't depend on this not changing
  */
+
+/* Flags */
+#define CMAN_EXTRA_FLAG_2NODE 1
+#define CMAN_EXTRA_FLAG_ERROR 2
+
 typedef struct cman_extra_info {
 	int           ei_node_state;
-	int           ei_master_node;
+	int           ei_flags;
 	int           ei_node_votes;
 	int           ei_total_votes;
 	int           ei_expected_votes;
