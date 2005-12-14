@@ -24,6 +24,7 @@
 #include <errno.h>
 #include <libgen.h>
 
+#include <linux/types.h>
 #include "gfs2_mkfs.h"
 
 char *prog_name;

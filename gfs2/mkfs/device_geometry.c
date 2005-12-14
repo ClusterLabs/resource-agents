@@ -22,6 +22,7 @@
 #include <unistd.h>
 #include <errno.h>
 
+#include <linux/types.h>
 #include "gfs2_mkfs.h"
 
 /**

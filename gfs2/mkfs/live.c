@@ -27,6 +27,7 @@
 #include <errno.h>
 
 #define __user
+#include <linux/types.h>
 #include <linux/gfs2_ioctl.h>
 #include <linux/gfs2_ondisk.h>
 
@@ -84,7 +85,7 @@ lock_for_admin(struct gfs2_sbd *sdp)
 			    strerror(errno));
 
 		{
-			char *argv[] = { "get_file_stat" };
+			const char *argv[] = { "get_file_stat" };
 
 			gi.gi_argc = 1;
 			gi.gi_argv = argv;
@@ -163,7 +164,7 @@ path2device(struct gfs2_sbd *sdp)
 void
 find_block_size(struct gfs2_sbd *sdp)
 {
-	char *argv[] = { "get_super" };
+	const char *argv[] = { "get_super" };
 	struct gfs2_ioctl gi;
 	struct gfs2_sb sb;
 	int error;
@@ -185,7 +186,7 @@ void
 find_current_fssize(struct gfs2_sbd *sdp)
 {
 	struct gfs2_ioctl gi;
-	char *argv[] = { "do_hfile_read",
+	const char *argv[] = { "do_hfile_read",
 			 "rindex" };
 	char buf[sizeof(struct gfs2_rindex)];
 	struct gfs2_rindex ri;
@@ -229,7 +230,7 @@ find_current_fssize(struct gfs2_sbd *sdp)
 static void
 add_to_rindex_i(struct gfs2_sbd *sdp, char *buf, unsigned int num)
 {
-	char *gi_argv[] = { "resize_add_rgrps" };
+	const char *gi_argv[] = { "resize_add_rgrps" };
 	struct gfs2_ioctl gi;
 	int error;
 
@@ -277,7 +278,7 @@ add_to_rindex(struct gfs2_sbd *sdp)
 void
 statfs_sync(struct gfs2_sbd *sdp)
 {
-	char *gi_argv[] = { "do_statfs_sync" };
+	const char *gi_argv[] = { "do_statfs_sync" };
 	struct gfs2_ioctl gi;
 	int error;
 
@@ -293,7 +294,7 @@ statfs_sync(struct gfs2_sbd *sdp)
 void
 find_current_journals(struct gfs2_sbd *sdp)
 {
-	char *argv[] = { "get_hfile_stat",
+	const char *argv[] = { "get_hfile_stat",
 			 "jindex" };
 	struct gfs2_ioctl gi;
 	struct gfs2_dinode di;
@@ -318,7 +319,7 @@ find_current_journals(struct gfs2_sbd *sdp)
 int
 rename2system(struct gfs2_sbd *sdp, char *new_dir, char *new_name)
 {
-	char *argv[] = { "rename2system",
+	const char *argv[] = { "rename2system",
 			 new_dir, new_name };
 	struct gfs2_ioctl gi;
 
@@ -331,7 +332,7 @@ rename2system(struct gfs2_sbd *sdp, char *new_dir, char *new_name)
 void
 make_jdata(int fd, char *value)
 {
-	char *argv[] = { "set_file_flag",
+	const char *argv[] = { "set_file_flag",
 			 value,
 			 "jdata" };
 	struct gfs2_ioctl gi;
@@ -349,7 +350,7 @@ make_jdata(int fd, char *value)
 uint64_t
 bmap(int fd, uint64_t lblock)
 {
-	char *argv[] = { "get_bmap" };
+	const char *argv[] = { "get_bmap" };
 	struct gfs2_ioctl gi;
 	uint64_t dblock = lblock;
 	int error;

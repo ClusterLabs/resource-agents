@@ -18,6 +18,7 @@
 #include <inttypes.h>
 #include <ctype.h>
 
+#include <linux/types.h>
 #include "gfs2_mkfs.h"
 
 /**

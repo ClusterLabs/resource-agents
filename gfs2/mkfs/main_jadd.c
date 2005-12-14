@@ -26,6 +26,7 @@
 #include <errno.h>
 
 #define __user
+#include <linux/types.h>
 #include <linux/gfs2_ioctl.h>
 #include <linux/gfs2_ondisk.h>
 
@@ -451,7 +452,7 @@ add_j(struct gfs2_sbd *sdp)
 			lh.lh_blkno = x;
 			gfs2_log_header_out(&lh, buf);
 			hash = gfs2_disk_hash(buf, sizeof(struct gfs2_log_header));
-			((struct gfs2_log_header *)buf)->lh_hash = cpu_to_le32(hash);
+			((struct gfs2_log_header *)buf)->lh_hash = cpu_to_be32(hash);
 
 			error = write(fd, buf, sdp->bsize);
 			if (error != sdp->bsize)

@@ -21,6 +21,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
+#include <linux/types.h>
 
 #include "gfs2_mkfs.h"
 
@@ -115,7 +116,7 @@ build_journal(struct gfs2_inode *jindex, unsigned int j)
 		lh.lh_blkno = x;
 		gfs2_log_header_out(&lh, bh->b_data);
 		hash = gfs2_disk_hash(bh->b_data, sizeof(struct gfs2_log_header));
-		((struct gfs2_log_header *)bh->b_data)->lh_hash = cpu_to_le32(hash);
+		((struct gfs2_log_header *)bh->b_data)->lh_hash = cpu_to_be32(hash);
 
 		brelse(bh);
 
@@ -410,7 +411,7 @@ do_init(struct gfs2_sbd *sdp)
 		uint64_t buf;
 		int count;
 
-		buf = cpu_to_le64(sdp->next_inum);
+		buf = cpu_to_be64(sdp->next_inum);
 		count = writei(ip, &buf, 0, sizeof(uint64_t));
 		if (count != sizeof(uint64_t))
 			die("do_init (1)\n");
