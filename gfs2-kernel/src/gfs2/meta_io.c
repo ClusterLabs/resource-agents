@@ -458,8 +458,8 @@ static void meta_prep_new(struct buffer_head *bh)
 	set_buffer_uptodate(bh);
 	unlock_buffer(bh);
 
-	mh->mh_magic = cpu_to_le32(GFS2_MAGIC);
-	mh->mh_blkno = cpu_to_le64(bh->b_blocknr);
+	mh->mh_magic = cpu_to_be32(GFS2_MAGIC);
+	mh->mh_blkno = cpu_to_be64(bh->b_blocknr);
 }
 
 /**

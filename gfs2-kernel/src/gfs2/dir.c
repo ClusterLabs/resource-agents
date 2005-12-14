@@ -122,7 +122,7 @@ static int dirent_first(struct gfs2_inode *dip, struct buffer_head *bh,
 {
 	struct gfs2_meta_header *h = (struct gfs2_meta_header *)bh->b_data;
 
-	if (le16_to_cpu(h->mh_type) == GFS2_METATYPE_LF) {
+	if (be16_to_cpu(h->mh_type) == GFS2_METATYPE_LF) {
 		if (gfs2_meta_check(dip->i_sbd, bh))
 			return -EIO;
 		*dent = (struct gfs2_dirent *)(bh->b_data +
@@ -155,7 +155,7 @@ static int dirent_next(struct gfs2_inode *dip, struct buffer_head *bh,
 
 	cur = *dent;
 	bh_end = bh->b_data + bh->b_size;
-	cur_rec_len = le32_to_cpu(cur->de_rec_len);
+	cur_rec_len = be32_to_cpu(cur->de_rec_len);
 
 	if ((char *)cur + cur_rec_len >= bh_end) {
 		if ((char *)cur + cur_rec_len > bh_end) {
@@ -167,7 +167,7 @@ static int dirent_next(struct gfs2_inode *dip, struct buffer_head *bh,
 
 	tmp = (struct gfs2_dirent *)((char *)cur + cur_rec_len);
 
-	if ((char *)tmp + le32_to_cpu(tmp->de_rec_len) > bh_end) {
+	if ((char *)tmp + be32_to_cpu(tmp->de_rec_len) > bh_end) {
 		gfs2_consist_inode(dip);
 		return -EIO;
 	}
@@ -214,8 +214,8 @@ static void dirent_del(struct gfs2_inode *dip, struct buffer_head *bh,
 
 	/*  Combine this dentry with the previous one.  */
 
-	prev_rec_len = le32_to_cpu(prev->de_rec_len);
-	cur_rec_len = le32_to_cpu(cur->de_rec_len);
+	prev_rec_len = be32_to_cpu(prev->de_rec_len);
+	cur_rec_len = be32_to_cpu(cur->de_rec_len);
 
 	if ((char *)prev + prev_rec_len != (char *)cur)
 		gfs2_consist_inode(dip);
@@ -223,7 +223,7 @@ static void dirent_del(struct gfs2_inode *dip, struct buffer_head *bh,
 		gfs2_consist_inode(dip);
 
 	prev_rec_len += cur_rec_len;
-	prev->de_rec_len = cpu_to_le32(prev_rec_len);
+	prev->de_rec_len = cpu_to_be32(prev_rec_len);
 }
 
 /**
@@ -250,11 +250,11 @@ int gfs2_dirent_alloc(struct gfs2_inode *dip, struct buffer_head *bh,
 
 	if (type == IS_LEAF) {
 		struct gfs2_leaf *leaf = (struct gfs2_leaf *)bh->b_data;
-		entries = le16_to_cpu(leaf->lf_entries);
+		entries = be16_to_cpu(leaf->lf_entries);
 		offset = sizeof(struct gfs2_leaf);
 	} else {
 		struct gfs2_dinode *dinode = (struct gfs2_dinode *)bh->b_data;
-		entries = le32_to_cpu(dinode->di_entries);
+		entries = be32_to_cpu(dinode->di_entries);
 		offset = sizeof(struct gfs2_dinode);
 	}
 
@@ -267,7 +267,7 @@ int gfs2_dirent_alloc(struct gfs2_inode *dip, struct buffer_head *bh,
 		gfs2_trans_add_bh(dip->i_gl, bh);
 
 		dent->de_rec_len = bh->b_size - offset;
-		dent->de_rec_len = cpu_to_le32(dent->de_rec_len);
+		dent->de_rec_len = cpu_to_be32(dent->de_rec_len);
 		dent->de_name_len = name_len;
 
 		*dent_out = dent;
@@ -277,7 +277,7 @@ int gfs2_dirent_alloc(struct gfs2_inode *dip, struct buffer_head *bh,
 	do {
 		uint32_t cur_rec_len, cur_name_len;
 
-		cur_rec_len = le32_to_cpu(dent->de_rec_len);
+		cur_rec_len = be32_to_cpu(dent->de_rec_len);
 		cur_name_len = dent->de_name_len;
 
 		if ((!dent->de_inum.no_addr && cur_rec_len >= rec_len) ||
@@ -290,11 +290,11 @@ int gfs2_dirent_alloc(struct gfs2_inode *dip, struct buffer_head *bh,
 				memset(new, 0, sizeof(struct gfs2_dirent));
 
 				new->de_rec_len = cur_rec_len - GFS2_DIRENT_SIZE(cur_name_len);
-				new->de_rec_len = cpu_to_le32(new->de_rec_len);
+				new->de_rec_len = cpu_to_be32(new->de_rec_len);
 				new->de_name_len = name_len;
 
-				dent->de_rec_len = cur_rec_len - le32_to_cpu(new->de_rec_len);
-				dent->de_rec_len = cpu_to_le32(dent->de_rec_len);
+				dent->de_rec_len = cur_rec_len - be32_to_cpu(new->de_rec_len);
+				dent->de_rec_len = cpu_to_be32(dent->de_rec_len);
 
 				*dent_out = new;
 				return 0;
@@ -333,10 +333,10 @@ static int dirent_fits(struct gfs2_inode *dip, struct buffer_head *bh,
 
 	if (type == IS_LEAF) {
 		struct gfs2_leaf *leaf = (struct gfs2_leaf *)bh->b_data;
-		entries = le16_to_cpu(leaf->lf_entries);
+		entries = be16_to_cpu(leaf->lf_entries);
 	} else {
 		struct gfs2_dinode *dinode = (struct gfs2_dinode *)bh->b_data;
-		entries = le32_to_cpu(dinode->di_entries);
+		entries = be32_to_cpu(dinode->di_entries);
 	}
 
 	if (!entries)
@@ -345,7 +345,7 @@ static int dirent_fits(struct gfs2_inode *dip, struct buffer_head *bh,
 	do {
 		uint32_t cur_rec_len, cur_name_len;
 
-		cur_rec_len = le32_to_cpu(dent->de_rec_len);
+		cur_rec_len = be32_to_cpu(dent->de_rec_len);
 		cur_name_len = dent->de_name_len;
 
 		if ((!dent->de_inum.no_addr && cur_rec_len >= rec_len) ||
@@ -371,10 +371,10 @@ static int leaf_search(struct gfs2_inode *dip, struct buffer_head *bh,
 
 	if (type == IS_LEAF) {
 		struct gfs2_leaf *leaf = (struct gfs2_leaf *)bh->b_data;
-		entries = le16_to_cpu(leaf->lf_entries);
+		entries = be16_to_cpu(leaf->lf_entries);
 	} else if (type == IS_DINODE) {
 		struct gfs2_dinode *dinode = (struct gfs2_dinode *)bh->b_data;
-		entries = le32_to_cpu(dinode->di_entries);
+		entries = be32_to_cpu(dinode->di_entries);
 	}
 
 	hash = gfs2_disk_hash(filename->name, filename->len);
@@ -385,7 +385,7 @@ static int leaf_search(struct gfs2_inode *dip, struct buffer_head *bh,
 			continue;
 		}
 
-		if (le32_to_cpu(dent->de_hash) == hash &&
+		if (be32_to_cpu(dent->de_hash) == hash &&
 		    gfs2_filecmp(filename, (char *)(dent + 1),
 				 dent->de_name_len)) {
 			*dent_out = dent;
@@ -434,7 +434,7 @@ static int get_leaf_nr(struct gfs2_inode *dip, uint32_t index,
 	if (error != sizeof(uint64_t))
 		return (error < 0) ? error : -EIO;
 
-	*leaf_out = le64_to_cpu(leaf_no);
+	*leaf_out = be64_to_cpu(leaf_no);
 
 	return 0;
 }
@@ -463,7 +463,7 @@ static int get_next_leaf(struct gfs2_inode *dip, struct buffer_head *bh_in,
 	if (!leaf->lf_next)
 		error = -ENOENT;
 	else
-		error = get_leaf(dip, le64_to_cpu(leaf->lf_next), bh_out);
+		error = get_leaf(dip, be64_to_cpu(leaf->lf_next), bh_out);
 
 	return error;
 }
@@ -562,8 +562,8 @@ static int dir_make_exhash(struct gfs2_inode *dip)
 
 	gfs2_assert(sdp, dip->i_di.di_entries < (1 << 16));
 
-	leaf->lf_dirent_format = cpu_to_le32(GFS2_FORMAT_DE);
-	leaf->lf_entries = cpu_to_le16(dip->i_di.di_entries);
+	leaf->lf_dirent_format = cpu_to_be32(GFS2_FORMAT_DE);
+	leaf->lf_entries = cpu_to_be16(dip->i_di.di_entries);
 
 	/*  Copy dirents  */
 
@@ -586,10 +586,10 @@ static int dir_make_exhash(struct gfs2_inode *dip)
 	/*  Adjust the last dirent's record length
 	   (Remember that dent still points to the last entry.)  */
 
-	dent->de_rec_len = le32_to_cpu(dent->de_rec_len) +
+	dent->de_rec_len = be32_to_cpu(dent->de_rec_len) +
 		sizeof(struct gfs2_dinode) -
 		sizeof(struct gfs2_leaf);
-	dent->de_rec_len = cpu_to_le32(dent->de_rec_len);
+	dent->de_rec_len = cpu_to_be32(dent->de_rec_len);
 
 	brelse(bh);
 
@@ -602,7 +602,7 @@ static int dir_make_exhash(struct gfs2_inode *dip)
 	lp = (uint64_t *)(dibh->b_data + sizeof(struct gfs2_dinode));
 
 	for (x = sdp->sd_hash_ptrs; x--; lp++)
-		*lp = cpu_to_le64(bn);
+		*lp = cpu_to_be64(bn);
 
 	dip->i_di.di_size = sdp->sd_sb.sb_bsize / 2;
 	dip->i_di.di_blocks++;
@@ -653,7 +653,7 @@ static int dir_split_leaf(struct gfs2_inode *dip, uint32_t index,
 
 	nleaf = (struct gfs2_leaf *)nbh->b_data;
 
-	nleaf->lf_dirent_format = cpu_to_le32(GFS2_FORMAT_DE);
+	nleaf->lf_dirent_format = cpu_to_be32(GFS2_FORMAT_DE);
 
 	/*  Get the old leaf block  */
 
@@ -667,7 +667,7 @@ static int dir_split_leaf(struct gfs2_inode *dip, uint32_t index,
 
 	/*  Compute the start and len of leaf pointers in the hash table.  */
 
-	len = 1 << (dip->i_di.di_depth - le16_to_cpu(oleaf->lf_depth));
+	len = 1 << (dip->i_di.di_depth - be16_to_cpu(oleaf->lf_depth));
 	half_len = len >> 1;
 	if (!half_len) {
 		gfs2_consist_inode(dip);
@@ -694,7 +694,7 @@ static int dir_split_leaf(struct gfs2_inode *dip, uint32_t index,
 	/*  Change the pointers  */
 
 	for (x = 0; x < half_len; x++)
-		lp[x] = cpu_to_le64(bn);
+		lp[x] = cpu_to_be64(bn);
 
 	error = gfs2_jdata_write_mem(dip, (char *)lp, start * sizeof(uint64_t),
 				     half_len * sizeof(uint64_t));
@@ -720,7 +720,7 @@ static int dir_split_leaf(struct gfs2_inode *dip, uint32_t index,
 			next = NULL;
 
 		if (dent->de_inum.no_addr &&
-		    le32_to_cpu(dent->de_hash) < divider) {
+		    be32_to_cpu(dent->de_hash) < divider) {
 			name_len = dent->de_name_len;
 
 			gfs2_dirent_alloc(dip, nbh, name_len, &new);
@@ -731,15 +731,15 @@ static int dir_split_leaf(struct gfs2_inode *dip, uint32_t index,
 			memcpy((char *)(new + 1), (char *)(dent + 1),
 			       name_len);
 
-			nleaf->lf_entries = le16_to_cpu(nleaf->lf_entries)+1;
-			nleaf->lf_entries = cpu_to_le16(nleaf->lf_entries);
+			nleaf->lf_entries = be16_to_cpu(nleaf->lf_entries)+1;
+			nleaf->lf_entries = cpu_to_be16(nleaf->lf_entries);
 
 			dirent_del(dip, obh, prev, dent);
 
 			if (!oleaf->lf_entries)
 				gfs2_consist_inode(dip);
-			oleaf->lf_entries = le16_to_cpu(oleaf->lf_entries)-1;
-			oleaf->lf_entries = cpu_to_le16(oleaf->lf_entries);
+			oleaf->lf_entries = be16_to_cpu(oleaf->lf_entries)-1;
+			oleaf->lf_entries = cpu_to_be16(oleaf->lf_entries);
 
 			if (!prev)
 				prev = dent;
@@ -760,8 +760,8 @@ static int dir_split_leaf(struct gfs2_inode *dip, uint32_t index,
 		new->de_inum.no_addr = 0;
 	}
 
-	oleaf->lf_depth = le16_to_cpu(oleaf->lf_depth) + 1;
-	oleaf->lf_depth = cpu_to_le16(oleaf->lf_depth);
+	oleaf->lf_depth = be16_to_cpu(oleaf->lf_depth) + 1;
+	oleaf->lf_depth = cpu_to_be16(oleaf->lf_depth);
 	nleaf->lf_depth = oleaf->lf_depth;
 
 	error = gfs2_meta_inode_buffer(dip, &dibh);
@@ -880,11 +880,11 @@ static int compare_dents(const void *a, const void *b)
 
 	dent_a = *(struct gfs2_dirent **)a;
 	hash_a = dent_a->de_hash;
-	hash_a = le32_to_cpu(hash_a);
+	hash_a = be32_to_cpu(hash_a);
 
 	dent_b = *(struct gfs2_dirent **)b;
 	hash_b = dent_b->de_hash;
-	hash_b = le32_to_cpu(hash_b);
+	hash_b = be32_to_cpu(hash_b);
 
 	if (hash_a > hash_b)
 		ret = 1;
@@ -940,7 +940,7 @@ static int do_filldir_main(struct gfs2_inode *dip, uint64_t *offset,
 	sort(darr, entries, sizeof(struct gfs2_dirent *), compare_dents, NULL);
 
 	dent_next = darr[0];
-	off_next = le32_to_cpu(dent_next->de_hash);
+	off_next = be32_to_cpu(dent_next->de_hash);
 	off_next = gfs2_disk_hash2offset(off_next);
 
 	for (x = 0, y = 1; x < entries; x++, y++) {
@@ -949,7 +949,7 @@ static int do_filldir_main(struct gfs2_inode *dip, uint64_t *offset,
 
 		if (y < entries) {
 			dent_next = darr[y];
-			off_next = le32_to_cpu(dent_next->de_hash);
+			off_next = be32_to_cpu(dent_next->de_hash);
 			off_next = gfs2_disk_hash2offset(off_next);
 
 			if (off < *offset)
@@ -1077,11 +1077,11 @@ static int do_filldir_multi(struct gfs2_inode *dip, uint64_t *offset,
 	/*  Count leaves and entries  */
 
 	leaf = (struct gfs2_leaf *)bh->b_data;
-	entries = le16_to_cpu(leaf->lf_entries);
+	entries = be16_to_cpu(leaf->lf_entries);
 	ln = leaf->lf_next;
 
 	while (ln) {
-		ln = le64_to_cpu(ln);
+		ln = be64_to_cpu(ln);
 
 		error = get_leaf(dip, ln, &tmp_bh);
 		if (error)
@@ -1089,7 +1089,7 @@ static int do_filldir_multi(struct gfs2_inode *dip, uint64_t *offset,
 
 		leaf = (struct gfs2_leaf *)tmp_bh->b_data;
 		if (leaf->lf_entries) {
-			entries += le16_to_cpu(leaf->lf_entries);
+			entries += be16_to_cpu(leaf->lf_entries);
 			leaves++;
 		}
 		ln = leaf->lf_next;
@@ -1130,7 +1130,7 @@ static int do_filldir_multi(struct gfs2_inode *dip, uint64_t *offset,
 	ln = leaf->lf_next;
 
 	while (ln) {
-		ln = le64_to_cpu(ln);
+		ln = be64_to_cpu(ln);
 
 		error = get_leaf(dip, ln, &tmp_bh);
 		if (error)
@@ -1251,7 +1251,7 @@ static int dir_e_add(struct gfs2_inode *dip, struct qstr *filename,
 
 		if (gfs2_dirent_alloc(dip, bh, filename->len, &dent)) {
 
-			if (le16_to_cpu(leaf->lf_depth) < dip->i_di.di_depth) {
+			if (be16_to_cpu(leaf->lf_depth) < dip->i_di.di_depth) {
 				/* Can we split the leaf? */
 
 				brelse(bh);
@@ -1275,7 +1275,7 @@ static int dir_e_add(struct gfs2_inode *dip, struct qstr *filename,
 
 			} else if (leaf->lf_next) {
 				/* Can we try the next leaf in the list? */
-				leaf_no = le64_to_cpu(leaf->lf_next);
+				leaf_no = be64_to_cpu(leaf->lf_next);
 				brelse(bh);
 				continue;
 
@@ -1293,11 +1293,11 @@ static int dir_e_add(struct gfs2_inode *dip, struct qstr *filename,
 					sizeof(struct gfs2_meta_header));
 
 				gfs2_trans_add_bh(dip->i_gl, bh);
-				leaf->lf_next = cpu_to_le64(bn);
+				leaf->lf_next = cpu_to_be64(bn);
 
 				nleaf = (struct gfs2_leaf *)nbh->b_data;
 				nleaf->lf_depth = leaf->lf_depth;
-				nleaf->lf_dirent_format = cpu_to_le32(GFS2_FORMAT_DE);
+				nleaf->lf_dirent_format = cpu_to_be32(GFS2_FORMAT_DE);
 
 				gfs2_dirent_alloc(dip, nbh, filename->len,
 						  &dent);
@@ -1314,12 +1314,12 @@ static int dir_e_add(struct gfs2_inode *dip, struct qstr *filename,
 		/* If the gfs2_dirent_alloc() succeeded, it pinned the "bh" */
 
 		gfs2_inum_out(inum, (char *)&dent->de_inum);
-		dent->de_hash = cpu_to_le32(hash);
+		dent->de_hash = cpu_to_be32(hash);
 		dent->de_type = type;
 		memcpy((char *)(dent + 1), filename->name, filename->len);
 
-		leaf->lf_entries = le16_to_cpu(leaf->lf_entries) + 1;
-		leaf->lf_entries = cpu_to_le16(leaf->lf_entries);
+		leaf->lf_entries = be16_to_cpu(leaf->lf_entries) + 1;
+		leaf->lf_entries = cpu_to_be16(leaf->lf_entries);
 
 		brelse(bh);
 
@@ -1359,11 +1359,11 @@ static int dir_e_del(struct gfs2_inode *dip, struct qstr *filename)
 	dirent_del(dip, bh, prev, dent); /* Pins bh */
 
 	leaf = (struct gfs2_leaf *)bh->b_data;
-	entries = le16_to_cpu(leaf->lf_entries);
+	entries = be16_to_cpu(leaf->lf_entries);
 	if (!entries)
 		gfs2_consist_inode(dip);
 	entries--;
-	leaf->lf_entries = cpu_to_le16(entries);
+	leaf->lf_entries = cpu_to_be16(entries);
 
 	brelse(bh);
 
@@ -1435,7 +1435,7 @@ static int dir_e_read(struct gfs2_inode *dip, uint64_t *offset, void *opaque,
 			ht_offset_cur = ht_offset;
 		}
 
-		error = get_leaf(dip, le64_to_cpu(lp[lp_offset]), &bh);
+		error = get_leaf(dip, be64_to_cpu(lp[lp_offset]), &bh);
 		if (error)
 			goto out;
 
@@ -1570,7 +1570,7 @@ static int dir_l_add(struct gfs2_inode *dip, struct qstr *filename,
 
 	gfs2_inum_out(inum, (char *)&dent->de_inum);
 	dent->de_hash = gfs2_disk_hash(filename->name, filename->len);
-	dent->de_hash = cpu_to_le32(dent->de_hash);
+	dent->de_hash = cpu_to_be32(dent->de_hash);
 	dent->de_type = type;
 	memcpy((char *)(dent + 1), filename->name, filename->len);
 
@@ -1850,7 +1850,7 @@ static int foreach_leaf(struct gfs2_inode *dip, leaf_call_t lc, void *data)
 			ht_offset_cur = ht_offset;
 		}
 
-		leaf_no = le64_to_cpu(lp[lp_offset]);
+		leaf_no = be64_to_cpu(lp[lp_offset]);
 		if (leaf_no) {
 			error = get_leaf(dip, leaf_no, &bh);
 			if (error)
@@ -2031,7 +2031,7 @@ int gfs2_dir_exhash_dealloc(struct gfs2_inode *dip)
 	error = gfs2_meta_inode_buffer(dip, &bh);
 	if (!error) {
 		gfs2_trans_add_bh(dip->i_gl, bh);
-		((struct gfs2_dinode *)bh->b_data)->di_mode = cpu_to_le32(S_IFREG);
+		((struct gfs2_dinode *)bh->b_data)->di_mode = cpu_to_be32(S_IFREG);
 		brelse(bh);
 	}
 

@@ -138,7 +138,7 @@ static int ea_foreach(struct gfs2_inode *ip, ea_call_t ea_call, void *data)
 
 		if (!*eablk)
 			break;
-		bn = le64_to_cpu(*eablk);
+		bn = be64_to_cpu(*eablk);
 
 		error = gfs2_meta_read(ip->i_gl, bn, DIO_START | DIO_WAIT,
 				       &eabh);
@@ -247,7 +247,7 @@ static int ea_dealloc_unstuffed(struct gfs2_inode *ip, struct buffer_head *bh,
 	for (x = 0; x < ea->ea_num_ptrs; x++, dataptrs++)
 		if (*dataptrs) {
 			blks++;
-			bn = le64_to_cpu(*dataptrs);
+			bn = be64_to_cpu(*dataptrs);
 		}
 	if (!blks)
 		return 0;
@@ -274,7 +274,7 @@ static int ea_dealloc_unstuffed(struct gfs2_inode *ip, struct buffer_head *bh,
 	for (x = 0; x < ea->ea_num_ptrs; x++, dataptrs++) {
 		if (!*dataptrs)
 			break;
-		bn = le64_to_cpu(*dataptrs);
+		bn = be64_to_cpu(*dataptrs);
 
 		if (bstart + blen == bn)
 			blen++;
@@ -297,7 +297,7 @@ static int ea_dealloc_unstuffed(struct gfs2_inode *ip, struct buffer_head *bh,
 		uint32_t len;
 
 		len = GFS2_EA_REC_LEN(prev) + GFS2_EA_REC_LEN(ea);
-		prev->ea_rec_len = cpu_to_le32(len);
+		prev->ea_rec_len = cpu_to_be32(len);
 
 		if (GFS2_EA_IS_LAST(ea))
 			prev->ea_flags |= GFS2_EAFLAG_LAST;
@@ -489,7 +489,7 @@ static int ea_get_unstuffed(struct gfs2_inode *ip, struct gfs2_ea_header *ea,
 		return -ENOMEM;
 
 	for (x = 0; x < nptrs; x++) {
-		error = gfs2_meta_read(ip->i_gl, le64_to_cpu(*dataptrs),
+		error = gfs2_meta_read(ip->i_gl, be64_to_cpu(*dataptrs),
 				       DIO_START, bh + x);
 		if (error) {
 			while (x--)
@@ -633,7 +633,7 @@ static int ea_alloc_blk(struct gfs2_inode *ip, struct buffer_head **bhp)
 	gfs2_buffer_clear_tail(*bhp, sizeof(struct gfs2_meta_header));
 
 	ea = GFS2_EA_BH2FIRST(*bhp);
-	ea->ea_rec_len = cpu_to_le32(sdp->sd_jbsize);
+	ea->ea_rec_len = cpu_to_be32(sdp->sd_jbsize);
 	ea->ea_type = GFS2_EATYPE_UNUSED;
 	ea->ea_flags = GFS2_EAFLAG_LAST;
 	ea->ea_num_ptrs = 0;
@@ -660,10 +660,10 @@ static int ea_write(struct gfs2_inode *ip, struct gfs2_ea_header *ea,
 {
 	struct gfs2_sbd *sdp = ip->i_sbd;
 
-	ea->ea_data_len = cpu_to_le32(er->er_data_len);
+	ea->ea_data_len = cpu_to_be32(er->er_data_len);
 	ea->ea_name_len = er->er_name_len;
 	ea->ea_type = er->er_type;
-	ea->ea_pad = 0;
+	ea->__pad = 0;
 
 	memcpy(GFS2_EA2NAME(ea), er->er_name, er->er_name_len);
 
@@ -698,7 +698,7 @@ static int ea_write(struct gfs2_inode *ip, struct gfs2_ea_header *ea,
 				memset(bh->b_data + mh_size + copy, 0,
 				       sdp->sd_jbsize - copy);
 
-			*dataptr++ = cpu_to_le64((uint64_t)bh->b_blocknr);
+			*dataptr++ = cpu_to_be64((uint64_t)bh->b_blocknr);
 			data += copy;
 			data_len -= copy;
 
@@ -823,10 +823,10 @@ static struct gfs2_ea_header *ea_split_ea(struct gfs2_ea_header *ea)
 	uint32_t new_size = GFS2_EA_REC_LEN(ea) - ea_size;
 	int last = ea->ea_flags & GFS2_EAFLAG_LAST;
 
-	ea->ea_rec_len = cpu_to_le32(ea_size);
+	ea->ea_rec_len = cpu_to_be32(ea_size);
 	ea->ea_flags ^= last;
 
-	new->ea_rec_len = cpu_to_le32(new_size);
+	new->ea_rec_len = cpu_to_be32(new_size);
 	new->ea_flags = last;
 
 	return new;
@@ -850,7 +850,7 @@ static void ea_set_remove_stuffed(struct gfs2_inode *ip,
 	}
 
 	len = GFS2_EA_REC_LEN(prev) + GFS2_EA_REC_LEN(ea);
-	prev->ea_rec_len = cpu_to_le32(len);
+	prev->ea_rec_len = cpu_to_be32(len);
 
 	if (GFS2_EA_IS_LAST(ea))
 		prev->ea_flags |= GFS2_EAFLAG_LAST;
@@ -1019,7 +1019,7 @@ static int ea_set_block(struct gfs2_inode *ip, struct gfs2_ea_request *er,
 		gfs2_buffer_clear_tail(indbh, mh_size);
 
 		eablk = (uint64_t *)(indbh->b_data + mh_size);
-		*eablk = cpu_to_le64(ip->i_di.di_eattr);
+		*eablk = cpu_to_be64(ip->i_di.di_eattr);
 		ip->i_di.di_eattr = blk;
 		ip->i_di.di_flags |= GFS2_DIF_EA_INDIRECT;
 		ip->i_di.di_blocks++;
@@ -1031,7 +1031,7 @@ static int ea_set_block(struct gfs2_inode *ip, struct gfs2_ea_request *er,
 	if (error)
 		goto out;
 
-	*eablk = cpu_to_le64((uint64_t)newbh->b_blocknr);
+	*eablk = cpu_to_be64((uint64_t)newbh->b_blocknr);
 	error = ea_write(ip, GFS2_EA_BH2FIRST(newbh), er);
 	brelse(newbh);
 	if (error)
@@ -1169,7 +1169,7 @@ static int ea_remove_stuffed(struct gfs2_inode *ip, struct gfs2_ea_location *el)
 		uint32_t len;
 
 		len = GFS2_EA_REC_LEN(prev) + GFS2_EA_REC_LEN(ea);
-		prev->ea_rec_len = cpu_to_le32(len);
+		prev->ea_rec_len = cpu_to_be32(len);
 
 		if (GFS2_EA_IS_LAST(ea))
 			prev->ea_flags |= GFS2_EAFLAG_LAST;
@@ -1264,7 +1264,7 @@ static int ea_acl_chmod_unstuffed(struct gfs2_inode *ip,
 		goto out;
 
 	for (x = 0; x < nptrs; x++) {
-		error = gfs2_meta_read(ip->i_gl, le64_to_cpu(*dataptrs),
+		error = gfs2_meta_read(ip->i_gl, be64_to_cpu(*dataptrs),
 				       DIO_START, bh + x);
 		if (error) {
 			while (x--)
@@ -1381,7 +1381,7 @@ static int ea_dealloc_indirect(struct gfs2_inode *ip)
 
 		if (!*eablk)
 			break;
-		bn = le64_to_cpu(*eablk);
+		bn = be64_to_cpu(*eablk);
 
 		if (bstart + blen == bn)
 			blen++;
@@ -1427,7 +1427,7 @@ static int ea_dealloc_indirect(struct gfs2_inode *ip)
 
 		if (!*eablk)
 			break;
-		bn = le64_to_cpu(*eablk);
+		bn = be64_to_cpu(*eablk);
 
 		if (bstart + blen == bn)
 			blen++;
@@ -1599,7 +1599,7 @@ int gfs2_get_eattr_meta(struct gfs2_inode *ip, struct gfs2_user_buffer *ub)
 
 			if (!*eablk)
 				break;
-			bn = le64_to_cpu(*eablk);
+			bn = be64_to_cpu(*eablk);
 
 			error = gfs2_meta_read(ip->i_gl, bn,
 					       DIO_START | DIO_WAIT, &eabh);

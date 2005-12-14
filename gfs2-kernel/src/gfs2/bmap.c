@@ -129,7 +129,7 @@ int gfs2_unstuff_dinode(struct gfs2_inode *ip, gfs2_unstuffer_t unstuffer,
 	gfs2_buffer_clear_tail(dibh, sizeof(struct gfs2_dinode));
 
 	if (ip->i_di.di_size) {
-		*(uint64_t *)(dibh->b_data + sizeof(struct gfs2_dinode)) = cpu_to_le64(block);
+		*(uint64_t *)(dibh->b_data + sizeof(struct gfs2_dinode)) = cpu_to_be64(block);
 		ip->i_di.di_blocks++;
 	}
 
@@ -241,7 +241,7 @@ static int build_height(struct gfs2_inode *ip, int height)
 		gfs2_buffer_clear_tail(dibh, sizeof(struct gfs2_dinode));
 
 		if (new_block) {
-			*(uint64_t *)(dibh->b_data + sizeof(struct gfs2_dinode)) = cpu_to_le64(block);
+			*(uint64_t *)(dibh->b_data + sizeof(struct gfs2_dinode)) = cpu_to_be64(block);
 			ip->i_di.di_blocks++;
 		}
 
@@ -367,7 +367,7 @@ static void lookup_block(struct gfs2_inode *ip, struct buffer_head *bh,
 	uint64_t *ptr = metapointer(bh, height, mp);
 
 	if (*ptr) {
-		*block = le64_to_cpu(*ptr);
+		*block = be64_to_cpu(*ptr);
 		return;
 	}
 
@@ -384,7 +384,7 @@ static void lookup_block(struct gfs2_inode *ip, struct buffer_head *bh,
 
 	gfs2_trans_add_bh(ip->i_gl, bh);
 
-	*ptr = cpu_to_le64(*block);
+	*ptr = cpu_to_be64(*block);
 	ip->i_di.di_blocks++;
 
 	*new = 1;
@@ -564,7 +564,7 @@ static int recursive_scan(struct gfs2_inode *ip, struct buffer_head *dibh,
 			if (!*top)
 				continue;
 
-			bn = le64_to_cpu(*top);
+			bn = be64_to_cpu(*top);
 
 			error = recursive_scan(ip, dibh, mp, height + 1, bn,
 					       first, bc, data);
@@ -634,7 +634,7 @@ static int do_strip(struct gfs2_inode *ip, struct buffer_head *dibh,
 		if (!*p)
 			continue;
 
-		bn = le64_to_cpu(*p);
+		bn = be64_to_cpu(*p);
 
 		if (bstart + blen == bn)
 			blen++;
@@ -682,7 +682,7 @@ static int do_strip(struct gfs2_inode *ip, struct buffer_head *dibh,
 		if (!*p)
 			continue;
 
-		bn = le64_to_cpu(*p);
+		bn = be64_to_cpu(*p);
 
 		if (bstart + blen == bn)
 			blen++;
@@ -1159,7 +1159,7 @@ static int do_gfm(struct gfs2_inode *ip, struct buffer_head *dibh,
 		if (*top) {
 			struct buffer_head *data_bh;
 
-			error = gfs2_meta_read(ip->i_gl, le64_to_cpu(*top),
+			error = gfs2_meta_read(ip->i_gl, be64_to_cpu(*top),
 					       DIO_START | DIO_WAIT,
 					       &data_bh);
 			if (error)

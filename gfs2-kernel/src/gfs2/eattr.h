@@ -10,8 +10,8 @@
 #ifndef __EATTR_DOT_H__
 #define __EATTR_DOT_H__
 
-#define GFS2_EA_REC_LEN(ea) le32_to_cpu((ea)->ea_rec_len)
-#define GFS2_EA_DATA_LEN(ea) le32_to_cpu((ea)->ea_data_len)
+#define GFS2_EA_REC_LEN(ea) be32_to_cpu((ea)->ea_rec_len)
+#define GFS2_EA_DATA_LEN(ea) be32_to_cpu((ea)->ea_data_len)
 
 #define GFS2_EA_SIZE(ea) \
 ALIGN(sizeof(struct gfs2_ea_header) + (ea)->ea_name_len + \
