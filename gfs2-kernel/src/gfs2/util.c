@@ -20,9 +20,9 @@
 #include "glock.h"
 #include "lm.h"
 
-kmem_cache_t *gfs2_glock_cachep;
-kmem_cache_t *gfs2_inode_cachep;
-kmem_cache_t *gfs2_bufdata_cachep;
+kmem_cache_t *gfs2_glock_cachep __read_mostly;
+kmem_cache_t *gfs2_inode_cachep __read_mostly;
+kmem_cache_t *gfs2_bufdata_cachep __read_mostly;
 
 uint32_t gfs2_disk_hash(const char *data, int len)
 {
