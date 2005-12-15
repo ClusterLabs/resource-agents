@@ -46,6 +46,8 @@ rm -rf %{buildroot}
 %{_datadir}/cs-deploy-tool
 
 %changelog
+* Wed Dec 15 2005 Stanko Kupcevic <kupcevic@redhat.com> 0.9.4-1.0
+  - Add path to logfile to error popups
 * Wed Dec 14 2005 Stanko Kupcevic <kupcevic@redhat.com> 0.9.3-1.0
   - Check if node is subscribed to RHN
 * Mon Nov 22 2005 Stanko Kupcevic <kupcevic@redhat.com> 0.9.2-1.0

@@ -342,7 +342,8 @@ class MainWin:
         prog_bar.set_fraction(0.50)
         label.set_text('Configuring shared storage')
         if self.storage.configure_nodes() != True:
-            msg = 'Failed configuration of shared storage. Check log.\n'
+            msg = 'Failed configuration of shared storage.\n'
+            msg += 'Check log file ' + self.environ.get_log_file_path() + '.\n'
             msg += 'Aborting deployment...'
             infoMessage(msg)
             self.abort()
