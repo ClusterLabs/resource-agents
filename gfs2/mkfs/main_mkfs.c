@@ -347,6 +347,7 @@ main_mkfs(int argc, char *argv[])
 	/* Build ondisk structures */
 
 	build_rgrps(sdp);
+	build_root(sdp);
 	build_master(sdp);
 	build_sb(sdp);
 	build_jindex(sdp);
@@ -355,12 +356,12 @@ main_mkfs(int argc, char *argv[])
 	build_statfs(sdp);
 	build_rindex(sdp);
 	build_quota(sdp);
-	build_root(sdp);
 
 	do_init(sdp);
 
 	/* Cleanup */
 
+	inode_put(sdp->root_dir);
 	inode_put(sdp->master_dir);
 	inode_put(sdp->inum_inode);
 	inode_put(sdp->statfs_inode);

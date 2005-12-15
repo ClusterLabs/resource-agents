@@ -177,6 +177,7 @@ struct gfs2_sbd {
 	struct gfs2_inode *master_dir;
 	struct gfs2_inode *inum_inode;
 	struct gfs2_inode *statfs_inode;
+	struct gfs2_inode *root_dir;
 
 	unsigned int spills;
 	unsigned int writes;

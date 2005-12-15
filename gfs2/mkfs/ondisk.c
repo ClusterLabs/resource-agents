@@ -133,6 +133,7 @@ void gfs2_sb_in(struct gfs2_sb *sb, char *buf)
 	CPIN_32(sb, str, sb_bsize_shift);
 
 	gfs2_inum_in(&sb->sb_master_dir, (char *)&str->sb_master_dir);
+	gfs2_inum_in(&sb->sb_root_dir, (char *)&str->sb_root_dir);
 
 	CPIN_08(sb, str, sb_lockproto, GFS2_LOCKNAME_LEN);
 	CPIN_08(sb, str, sb_locktable, GFS2_LOCKNAME_LEN);
@@ -151,6 +152,7 @@ void gfs2_sb_out(struct gfs2_sb *sb, char *buf)
 	CPOUT_32(sb, str, sb_bsize_shift);
 
 	gfs2_inum_out(&sb->sb_master_dir, (char *)&str->sb_master_dir);
+	gfs2_inum_out(&sb->sb_root_dir, (char *)&str->sb_root_dir);
 
 	CPOUT_08(sb, str, sb_lockproto, GFS2_LOCKNAME_LEN);
 	CPOUT_08(sb, str, sb_locktable, GFS2_LOCKNAME_LEN);
@@ -167,6 +169,7 @@ void gfs2_sb_print(struct gfs2_sb *sb)
 	pv(sb, sb_bsize_shift, "%u");
 
 	gfs2_inum_print(&sb->sb_master_dir);
+	gfs2_inum_print(&sb->sb_root_dir);
 
 	pv(sb, sb_lockproto, "%s");
 	pv(sb, sb_locktable, "%s");

@@ -28,18 +28,11 @@
 void
 build_master(struct gfs2_sbd *sdp)
 {
-	uint64_t bn;
-	struct gfs2_inum inum;
-	struct buffer_head *bh;
+	struct gfs2_inode *ip;
 
-	bn = dinode_alloc(sdp);
+	ip = createi(sdp->root_dir, ".gfs2_admin", S_IFDIR | 0700, GFS2_DIF_SYSTEM);
 
-	inum.no_formal_ino = sdp->next_inum++;
-	inum.no_addr = bn;
-
-	bh = init_dinode(sdp, &inum, S_IFDIR | 0700, GFS2_DIF_SYSTEM, &inum);
-
-	sdp->master_dir = inode_get(sdp, bh);
+	sdp->master_dir = ip;
 
 	if (sdp->debug) {
 		printf("\nMaster dir:\n");
@@ -71,6 +64,7 @@ build_sb(struct gfs2_sbd *sdp)
 	sb.sb_bsize = sdp->bsize;
 	sb.sb_bsize_shift = sdp->bsize_shift;
 	sb.sb_master_dir = sdp->master_dir->i_di.di_num;
+	sb.sb_root_dir = sdp->root_dir->i_di.di_num;
 	strcpy(sb.sb_lockproto, sdp->lockproto);
 	strcpy(sb.sb_locktable, sdp->locktable);
 
@@ -391,16 +385,21 @@ build_quota(struct gfs2_sbd *sdp)
 void
 build_root(struct gfs2_sbd *sdp)
 {
-	struct gfs2_inode *ip;
+	struct gfs2_inum inum;
+	uint64_t bn;
+	struct buffer_head *bh;
 
-	ip = createi(sdp->master_dir, "root", S_IFDIR | 0755, 0);
+	bn = dinode_alloc(sdp);
+	inum.no_formal_ino = sdp->next_inum++;
+	inum.no_addr = bn;
+
+	bh = init_dinode(sdp, &inum, S_IFDIR | 0755, 0, &inum);
+	sdp->root_dir = inode_get(sdp, bh);
 
 	if (sdp->debug) {
 		printf("\nRoot directory:\n");
-		gfs2_dinode_print(&ip->i_di);
+		gfs2_dinode_print(&sdp->root_dir->i_di);
 	}
-
-	inode_put(ip);
 }
 
 void
