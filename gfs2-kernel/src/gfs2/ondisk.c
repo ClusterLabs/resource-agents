@@ -117,6 +117,7 @@ void gfs2_sb_in(struct gfs2_sb *sb, char *buf)
 	sb->sb_bsize_shift = be32_to_cpu(str->sb_bsize_shift);
 
 	gfs2_inum_in(&sb->sb_master_dir, (char *)&str->sb_master_dir);
+	gfs2_inum_in(&sb->sb_root_dir, (char *)&str->sb_root_dir);
 
 	memcpy(sb->sb_lockproto, str->sb_lockproto, GFS2_LOCKNAME_LEN);
 	memcpy(sb->sb_locktable, str->sb_locktable, GFS2_LOCKNAME_LEN);
@@ -134,6 +135,7 @@ void gfs2_sb_out(struct gfs2_sb *sb, char *buf)
 	str->sb_bsize_shift = cpu_to_be32(sb->sb_bsize_shift);
 
 	gfs2_inum_out(&sb->sb_master_dir, (char *)&str->sb_master_dir);
+	gfs2_inum_out(&sb->sb_root_dir, (char *)&str->sb_root_dir);
 
 	memcpy(str->sb_lockproto, sb->sb_lockproto, GFS2_LOCKNAME_LEN);
 	memcpy(str->sb_locktable, sb->sb_locktable, GFS2_LOCKNAME_LEN);

@@ -470,6 +470,25 @@ static int init_journal(struct gfs2_sbd *sdp, int undo)
 	return error;
 }
 
+int gfs2_lookup_root(struct gfs2_sbd *sdp)
+{
+        int error;
+	struct gfs2_glock *gl;
+
+	error = gfs2_glock_get(sdp, sdp->sd_sb.sb_root_dir.no_addr,
+                               &gfs2_inode_glops, CREATE, &gl);
+        if (!error) {
+               	error = gfs2_inode_get(gl, &sdp->sd_sb.sb_root_dir,
+						CREATE, &sdp->sd_root_dir);
+		if (!error)
+			gfs2_inode_min_init(sdp->sd_root_dir, DT_DIR);
+                gfs2_glock_put(gl);
+        }
+
+        return error;
+}
+
+
 static int init_inodes(struct gfs2_sbd *sdp, int undo)
 {
 	struct inode *inode;
@@ -514,8 +533,7 @@ static int init_inodes(struct gfs2_sbd *sdp, int undo)
 	}
 
 	/* Get the root inode */
-	error = gfs2_lookup_simple(sdp->sd_master_dir, "root",
-				   &sdp->sd_root_dir);
+	error = gfs2_lookup_root(sdp);
 	if (error) {
 		fs_err(sdp, "can't read in root inode: %d\n", error);
 		goto fail_qinode;
@@ -775,7 +793,7 @@ static int fill_super(struct super_block *sb, void *data, int silent)
 	error = init_sb(sdp, silent, DO);
 	if (error)
 		goto fail_locking;
-
+	
 	error = init_journal(sdp, DO);
 	if (error)
 		goto fail_sb;

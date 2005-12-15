@@ -119,7 +119,8 @@ struct gfs2_sb {
 	__u32 __pad1;	/* Was journal segment size in gfs1 */
 
 	struct gfs2_inum sb_master_dir; /* Was jindex dinode in gfs1 */
-	struct gfs2_inum __pad2, __pad3; /* Was rindex,root dinodes in gfs1 */
+	struct gfs2_inum __pad2; /* Was rindex dinode in gfs1 */
+	struct gfs2_inum sb_root_dir;
 
 	char sb_lockproto[GFS2_LOCKNAME_LEN];
 	char sb_locktable[GFS2_LOCKNAME_LEN];
