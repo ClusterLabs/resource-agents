@@ -315,8 +315,7 @@ int write_sb(struct fsck_sb *sbp)
 
 	gfs_sb_out(&sbp->sb, BH_DATA(bh));
 
-	/* FIXME: Should this set the BW_WAIT flag? */
-	if((error = write_buf(sbp, bh, 0))) {
+	if((error = write_buf(sbp, bh, BW_WAIT))) {
 		stack;
 		goto out;
 	}

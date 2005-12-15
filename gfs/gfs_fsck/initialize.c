@@ -235,15 +235,14 @@ static int set_block_ranges(struct fsck_sb *sdp)
 
 
 /**
- * fill_super_block
+ * read_super_block
  * @sdp:
  *
  * Returns: 0 on success, -1 on failure
  */
-static int fill_super_block(struct fsck_sb *sdp)
+static int read_super_block(struct fsck_sb *sdp)
 {
 	uint32_t i;
-	struct fsck_inode *ip = NULL;
 
 	sync();
 
@@ -274,7 +273,18 @@ static int fill_super_block(struct fsck_sb *sdp)
 		return -1;
 	}
 
+	return 0;
+}
 
+/**
+ * fill_super_block
+ * @sdp:
+ *
+ * Returns: 0 on success, -1 on failure
+ */
+static int fill_super_block(struct fsck_sb *sdp)
+{
+        struct fsck_inode *ip = NULL;
 	/*******************************************************************
 	 ******************  Initialize important inodes  ******************
 	 *******************************************************************/
@@ -298,8 +308,6 @@ static int fill_super_block(struct fsck_sb *sdp)
 	if(!load_inode(sdp, sdp->sb.sb_root_di.no_addr, &ip)) {
 		if(!check_inode(ip)) {
 			sdp->rooti = ip;
-
-
 		}
 		else {
 			free(ip);
@@ -360,7 +368,9 @@ static int init_sbp(struct fsck_sb *sbp)
 			return -1;
 		}
 	}
-	if (fill_super_block(sbp)) {
+
+	/* initialize lists and read in the sb */
+	if(read_super_block(sbp)) {
 		stack;
 		return -1;
 	}
@@ -371,6 +381,12 @@ static int init_sbp(struct fsck_sb *sbp)
 			log_err("Unable to block other mounters\n");
 			return -1;
 		}
+	}
+
+	/* initialize important inodes, fill the rgrp and journal indexes, etc */
+	if(fill_super_block(sbp)) {
+	        stack;
+		return -1;
 	}
 
 	/* verify various things */
