@@ -20,6 +20,9 @@
 #
 
 
+from err import Err
+
+
 class UP2DATE_Interface:
     
     def __init__(self, environ):
@@ -30,6 +33,28 @@ class UP2DATE_Interface:
         o, e, s = self.environ.execute_remote(node, 'cat', ['/etc/redhat-release'])
         if s != 0 or 'Nahant' not in o:
             return False
+        o, e, s = self.environ.execute_remote(node, 'ls', ['/etc/sysconfig/rhn/systemid'])
+        if s != 0:
+            raise Err(node + ' is not subscribed to RHN. Nodes have to be subscribed to \'cluster\' and \'GFS\' RHN channels.')
+        o, e, s = self.environ.execute_remote(node, 'up2date-nox', ['--show-channels'])
+        if s != 0:
+            raise Err(node + ' has a misconfigured up2date')
+        missing_channels = []
+        if 'cluster' not in o:
+            missing_channels.append('cluster')
+        if 'gfs' not in o:
+            missing_channels.append('GFS')
+        if len(missing_channels) != 0:
+            msg = ''
+            for ch in missing_channels:
+                if msg == '':
+                    msg += '\'' + ch + '\''
+                else:
+                    msg += ' and \'' + ch + '\''
+            if len(missing_channels) == 1:
+                raise Err(node + ' is not subscribed to ' + msg + ' RHN channel')
+            else:
+                raise Err(node + ' is not subscribed to ' + msg + ' RHN channels')
         return True
     
     def install(self, node, rpms):

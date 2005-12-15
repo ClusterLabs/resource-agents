@@ -168,7 +168,7 @@ class MainWin:
             for line in o.splitlines():
                 if 'Cluster name' in line:
                     cluster_name = line.split(':')[1].strip()
-            msg = node + ' is already a node of cluster ' + cluster_name + '.'
+            msg = node + ' is already a node of cluster ' + cluster_name + '. '
             msg += 'Unable to add.'
             raise Err(msg)
         
@@ -316,7 +316,7 @@ class MainWin:
             if self.rpm_installer.install(node, rpms) != True:
                 msg = 'Failed installation of software on ' + node + '.\n'
                 msg += 'Check log file ' + self.environ.get_log_file_path() + '.\n'
-                msg += 'Aborting...'
+                msg += 'Aborting deployment...'
                 infoMessage(msg)
                 self.abort()
         
@@ -343,7 +343,7 @@ class MainWin:
         label.set_text('Configuring shared storage')
         if self.storage.configure_nodes() != True:
             msg = 'Failed configuration of shared storage. Check log.\n'
-            msg += 'Aborting...'
+            msg += 'Aborting deployment...'
             infoMessage(msg)
             self.abort()
         
