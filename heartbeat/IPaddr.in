@@ -205,20 +205,25 @@ ip_init() {
         NIC="$OCF_RESKEY_nic"
         NETMASK="$OCF_RESKEY_netmask"
         #
-        # $FINDIF can deal with the condition of empty intermediate parameters.
+        # $FINDIF can NOT deal with the condition of empty intermediate parameters.
         #
 
-	if [ ! -z "$OCF_RESKEY_netmask" ]; then
-        	NICINFO=`$FINDIF "$BASEIP/$NETMASK/$NIC/$BRDCAST"`
+	if [ ! -z "$NETMASK" ]; then
+        	NICINFO=`$FINDIF -C "$BASEIP/$NETMASK/$NIC/$BRDCAST"`
 	else
-        	NICINFO=`$FINDIF "$BASEIP"`
+        	NICINFO=`$FINDIF -C "$BASEIP"`
 	fi
 
-        NICINFO=`$FINDIF "$BASEIP/$NETMASK/$NIC/$BRDCAST"`
 	if [ $? -eq 0 ]; then
             NIC=`echo "$NICINFO" | cut -f1`
             NETMASK=`echo "$NICINFO" | cut -f2`
             BRDCAST=`echo "$NICINFO" | cut -f3`
+	    case "$SYSTYPE" in
+		Darwin*)
+		    NETMASK=`echo "$NICINFO" | cut -f2 | cut -d ' ' -f2`
+		    BRDCAST=`echo "$NICINFO" | cut -f3 | cut -d ' ' -f2`
+		    ;;
+	    esac
 	else
 	    ocf_log err "Failed: $FINDIF $BASEIP/$NETMASK/$NIC/$BRDCAST . Parameter error."
   	    exit $OCF_ERR_GENERIC
@@ -601,8 +606,8 @@ find_free_interface() {
   fi
 
   FINDIFOPT=$BASEIP
-  if [ ! -z "$OCF_RESKEY_netmask" ]; then
-    FINDIFOPT=$FINDIFOPT/$OCF_RESKEY_netmask/$NIC/$BROADCAST
+  if [ -n $NETMASK ]; then
+    FINDIFOPT=$FINDIFOPT/$NETMASK/$NIC/$BROADCAST
   fi
   if
     NICINFO=`$FINDIF $FINDIFOPT`
