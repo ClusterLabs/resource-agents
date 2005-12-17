@@ -216,14 +216,8 @@ ip_init() {
 
 	if [ $? -eq 0 ]; then
             NIC=`echo "$NICINFO" | cut -f1`
-            NETMASK=`echo "$NICINFO" | cut -f2`
-            BRDCAST=`echo "$NICINFO" | cut -f3`
-	    case "$SYSTYPE" in
-		Darwin*)
-		    NETMASK=`echo "$NICINFO" | cut -f2 | cut -d ' ' -f2`
-		    BRDCAST=`echo "$NICINFO" | cut -f3 | cut -d ' ' -f2`
-		    ;;
-	    esac
+	    NETMASK=`echo "$NICINFO" | cut -f2 | cut -d ' ' -f2`
+	    BRDCAST=`echo "$NICINFO" | cut -f3 | cut -d ' ' -f2`
 	else
 	    ocf_log err "Failed: $FINDIF $BASEIP/$NETMASK/$NIC/$BRDCAST . Parameter error."
   	    exit $OCF_ERR_GENERIC
