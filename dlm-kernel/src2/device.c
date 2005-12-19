@@ -801,6 +801,8 @@ static int do_user_lock(struct file_info *fi, uint8_t cmd,
 		   lockinfo again */
 		if (!li && (kparams->flags & DLM_LKF_PERSISTENT)) {
 			li = allocate_lockinfo(fi, cmd, kparams);
+			if (!li)
+				return -ENOMEM;
 
 			li->li_lksb.sb_lkid = kparams->lkid;
 			li->li_castaddr  = kparams->castaddr;
@@ -913,12 +915,12 @@ static int do_user_unlock(struct file_info *fi, uint8_t cmd,
 	li = get_lockinfo(kparams->lkid);
 	if (!li) {
 		li = allocate_lockinfo(fi, cmd, kparams);
+		if (!li)
+			return -ENOMEM;
 		spin_lock(&fi->fi_li_lock);
 		list_add(&li->li_ownerqueue, &fi->fi_li_list);
 		spin_unlock(&fi->fi_li_lock);
 	}
- 	if (!li)
-		return -ENOMEM;
 
 	if (li->li_magic != LOCKINFO_MAGIC)
 		return -EINVAL;
