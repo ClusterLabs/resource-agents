@@ -400,7 +400,7 @@ find_free_interface() {
 		;;
 	*)
 		j=0
-                TRYADRCNT=`ls "${NICBASE}:"* | wc -l | tr -d ' ' 2>/dev/null`
+                TRYADRCNT=`ls "${NICBASE}:"* 2>/dev/null | wc -w | tr -d ' '`
 		if 
 		  [ -f "${NICBASE}:${TRYADRCNT}" ]
 		then
@@ -499,8 +499,7 @@ add_interface () {
   
   rc=$?
   if [ $? -eq 0 ]; then
-      netmask=`echo "$NICINFO" | cut -f2 | cut -d ' ' -f2`
-      netmask_text="netmask $netmask"
+      netmask_text=`echo "$NICINFO" | cut -f2`
   else
       echo "ERROR: $IFCMD failed (rc=$rc)"
   fi
