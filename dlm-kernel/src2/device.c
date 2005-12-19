@@ -799,7 +799,7 @@ static int do_user_lock(struct file_info *fi, uint8_t cmd,
 
 		/* If this is a persistent lock we will have to create a
 		   lockinfo again */
-		if (!li && DLM_LKF_PERSISTENT) {
+		if (!li && (kparams->flags & DLM_LKF_PERSISTENT)) {
 			li = allocate_lockinfo(fi, cmd, kparams);
 
 			li->li_lksb.sb_lkid = kparams->lkid;
