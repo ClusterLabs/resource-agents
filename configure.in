@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.479 $) dnl cvs revision
+AC_REVISION($Revision: 1.480 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -388,6 +388,9 @@ AC_SUBST(CP)
 AC_SUBST(LS)
 AC_SUBST(LN)
 AC_SUBST(MD5)
+
+dnl The "test" program can be different from the "sh" builtin.
+AC_PATH_PROGS(TEST, test)
 
 AC_PATH_PROGS(DRBDADM, drbdadm)
 AC_PATH_PROGS(DRBDSETUP, drbdsetup)
