@@ -82,7 +82,7 @@ modification.
 <shortdesc lang="en">IPsrcaddr resource agent</shortdesc>
 
 <parameters>
-<parameter name="ipaddress" unique="0">
+<parameter name="ipaddress" unique="0" required="1">
 <longdesc lang="en">
 The IP address. 
 </longdesc>

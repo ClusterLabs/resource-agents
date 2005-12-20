@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: drbd.in,v 1.16 2005/11/13 17:16:43 davidlee Exp $
+#	$Id: drbd.in,v 1.17 2005/12/20 08:34:48 zhenh Exp $
 #
 #       OCF Resource Agent compliant drbd resource script.
 #
@@ -57,8 +57,14 @@ meta_data() {
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="drbd">
 <version>1.1</version>
+
+<longdesc lang="en">
+OCF Resource Agent compliant drbd resource script
+</longdesc>
+<shortdesc lang="en">OCF Resource Agent compliant drbd resource script</shortdesc>
+
 <parameters>
-<parameter name="drbd_resource" unique="1">
+<parameter name="drbd_resource" unique="1" required="1">
 <longdesc lang="en">
 The name of the drbd resource from the drbd.conf file.
 </longdesc>

@@ -71,8 +71,14 @@ meta_data() {
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="IPaddr">
 <version>1.0</version>
+<longdesc lang="en">
+This script manages IP alias IP addresses
+It can add an IP alias, or remove one.
+</longdesc>
+<shortdesc lang="en">OCF Resource Agent compliant IPaddr script.</shortdesc>
+
 <parameters>
-<parameter name="ip" unique="1">
+<parameter name="ip" unique="1" required="1">
 <longdesc lang="en">
 The IPv4 address to be configured in dotted quad notation, for example
 "192.168.1.1".

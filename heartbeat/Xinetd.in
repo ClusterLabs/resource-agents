@@ -43,7 +43,7 @@ by xinetd.
 <shortdesc lang="en">Xinetd resource agent</shortdesc>
 
 <parameters>
-<parameter name="service" unique="0">
+<parameter name="service" unique="0" required="1">
 <longdesc lang="en">
 The service name managed by xinetd. 
 </longdesc>

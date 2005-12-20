@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: ICP.in,v 1.3 2005/11/03 10:32:47 xunsun Exp $
+# $Id: ICP.in,v 1.4 2005/12/20 08:34:47 zhenh Exp $
 # 
 # ICP
 #
@@ -53,7 +53,7 @@ usage() {
 	The 'validate-all' operation reports whether OCF instance parameters are valid.
 	The 'methods' operation reports on the methods $0 supports
 
-	$Id: ICP.in,v 1.3 2005/11/03 10:32:47 xunsun Exp $
+	$Id: ICP.in,v 1.4 2005/12/20 08:34:47 zhenh Exp $
 	!
 }
 
@@ -71,7 +71,7 @@ HA resource.
 <shortdesc lang="en">ICP resource agent</shortdesc>
 
 <parameters>
-<parameter name="driveid" unique="0">
+<parameter name="driveid" unique="0" required="1">
 <longdesc lang="en">
 The ICP cluster drive ID.
 </longdesc>
@@ -79,7 +79,7 @@ The ICP cluster drive ID.
 <content type="string" default="" />
 </parameter>
 
-<parameter name="device" unique="0">
+<parameter name="device" unique="0" required="1">
 <longdesc lang="en">
 The device name.
 </longdesc>

@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: WAS.in,v 1.6 2005/11/07 15:44:22 xunsun Exp $
+# $Id: WAS.in,v 1.7 2005/12/20 08:34:47 zhenh Exp $
 # 
 # WAS
 #
@@ -99,7 +99,7 @@ usage() {
 	We run servlet/snoop on the first transport port listed in
 	the config file for the "monitor" operation.
 
-	$Id: WAS.in,v 1.6 2005/11/07 15:44:22 xunsun Exp $
+	$Id: WAS.in,v 1.7 2005/12/20 08:34:47 zhenh Exp $
 	!
 }
 
@@ -117,7 +117,7 @@ an HA resource.
 <shortdesc lang="en">WAS resource agent</shortdesc>
 
 <parameters>
-<parameter name="config" unique="0">
+<parameter name="config" unique="0" required="1">
 <longdesc lang="en">
 The WAS-configuration file.
 </longdesc>

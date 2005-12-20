@@ -72,7 +72,7 @@ using iptables.
 <shortdesc lang="en">portblock resource agent</shortdesc>
 
 <parameters>
-<parameter name="protocol" unique="0">
+<parameter name="protocol" unique="0" required="1">
 <longdesc lang="en">
 The protocol used to be blocked/unblocked.
 </longdesc>
@@ -80,7 +80,7 @@ The protocol used to be blocked/unblocked.
 <content type="string" default="" />
 </parameter>
 
-<parameter name="portno" unique="0">
+<parameter name="portno" unique="0" required="1">
 <longdesc lang="en">
 The port number used to be blocked/unblocked.
 </longdesc>
@@ -88,7 +88,7 @@ The port number used to be blocked/unblocked.
 <content type="integer" default="" />
 </parameter>
 
-<parameter name="action" unique="0">
+<parameter name="action" unique="0" required="1">
 <longdesc lang="en">
 The action (block/unblock) to be done on the protocol::portno.
 </longdesc>

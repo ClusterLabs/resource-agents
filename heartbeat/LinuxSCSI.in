@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: LinuxSCSI.in,v 1.5 2005/11/03 10:32:47 xunsun Exp $
+# $Id: LinuxSCSI.in,v 1.6 2005/12/20 08:34:47 zhenh Exp $
 # 
 # LinuxSCSI
 #
@@ -98,7 +98,7 @@ usage() {
 	keep in the volumes.  If you don't use a reasonable volume manager,
 	then you'll have to mount by UUID.
 
-	$Id: LinuxSCSI.in,v 1.5 2005/11/03 10:32:47 xunsun Exp $
+	$Id: LinuxSCSI.in,v 1.6 2005/12/20 08:34:47 zhenh Exp $
 	!
 }
 
@@ -117,7 +117,7 @@ believe the device has gone away, and it can make it come back again.
 <shortdesc lang="en">LinuxSCSI resource agent</shortdesc>
 
 <parameters>
-<parameter name="scsi" unique="0">
+<parameter name="scsi" unique="0" required="1">
 <longdesc lang="en">
 The SCSI instance to be managed.
 </longdesc>

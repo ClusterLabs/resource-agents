@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: ServeRAID.in,v 1.6 2005/11/03 10:32:47 xunsun Exp $
+# $Id: ServeRAID.in,v 1.7 2005/12/20 08:34:47 zhenh Exp $
 # 
 # ServeRAID
 #
@@ -104,7 +104,7 @@ usage() {
 	You will need at least version 6.10 (~July 2003 release) of the ipssend
 	command for this script to work.
 
-	$Id: ServeRAID.in,v 1.6 2005/11/03 10:32:47 xunsun Exp $
+	$Id: ServeRAID.in,v 1.7 2005/12/20 08:34:47 zhenh Exp $
 	!
 }
 
@@ -121,7 +121,7 @@ Resource script for ServeRAID. It enables/disables shared ServeRAID merge groups
 <shortdesc lang="en">ServeRAID resource agent</shortdesc>
 
 <parameters>
-<parameter name="serveraid" unique="0">
+<parameter name="serveraid" unique="0" required="1">
 <longdesc lang="en">
 The adapter number of the ServeRAID adapter.
 </longdesc>
@@ -129,7 +129,7 @@ The adapter number of the ServeRAID adapter.
 <content type="integer" default="" />
 </parameter>
 
-<parameter name="mergegroup" unique="0">
+<parameter name="mergegroup" unique="0" required="1">
 <longdesc lang="en">
 The logical drive under consideration. 
 </longdesc>

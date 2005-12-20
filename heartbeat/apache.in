@@ -425,6 +425,11 @@ metadata_apache(){
 <resource-agent name="apache">
 <version>1.0</version>
 
+<longdesc lang="en">
+starts/stops apache web servers.
+</longdesc>
+<shortdesc lang="en">starts/stops apache web servers.</shortdesc>
+
 <parameters>
 <parameter name="configfile">
 <longdesc lang="en">

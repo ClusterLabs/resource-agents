@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.10 2005/11/03 07:10:04 xunsun Exp $
+# $Id: Filesystem.in,v 1.11 2005/12/20 08:34:47 zhenh Exp $
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
@@ -96,7 +96,7 @@ usage() {
 
 cat <<-EOT;
 	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
-	$Id: Filesystem.in,v 1.10 2005/11/03 07:10:04 xunsun Exp $
+	$Id: Filesystem.in,v 1.11 2005/12/20 08:34:47 zhenh Exp $
 	EOT
 }
 
@@ -113,7 +113,7 @@ Resource script for Filesystem. It manages a Filesystem on a shared storage medi
 <shortdesc lang="en">Filesystem resource agent</shortdesc>
 
 <parameters>
-<parameter name="device" unique="0">
+<parameter name="device" unique="0" required="1">
 <longdesc lang="en">
 The name of block device for the filesystem, or -U, -L options for mount, or NFS mount specification.
 </longdesc>
@@ -121,7 +121,7 @@ The name of block device for the filesystem, or -U, -L options for mount, or NFS
 <content type="string" default="" />
 </parameter>
 
-<parameter name="directory" unique="0">
+<parameter name="directory" unique="0" required="1">
 <longdesc lang="en">
 The mount point for the filesystem.
 </longdesc>
@@ -129,7 +129,7 @@ The mount point for the filesystem.
 <content type="string" default="" />
 </parameter>
 
-<parameter name="fstype" unique="0">
+<parameter name="fstype" unique="0" required="1">
 <longdesc lang="en">
 The optional type of filesystem to be mounted.
 </longdesc>

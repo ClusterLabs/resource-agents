@@ -30,7 +30,7 @@ us=`uname -n`
 
 usage() {
   echo "Usage: $0 {start|stop|status|monitor|validate-all|meta-data}"
-  echo "$Id: WinPopup.in,v 1.4 2005/10/11 09:55:40 sunjd Exp $"
+  echo "$Id: WinPopup.in,v 1.5 2005/12/20 08:34:48 zhenh Exp $"
 }
 
 meta_data() {
@@ -47,7 +47,7 @@ sysadmin's workstation whenever a takeover occurs.
 <shortdesc lang="en">WinPopup resource agent</shortdesc>
 
 <parameters>
-<parameter name="hostfile" unique="0">
+<parameter name="hostfile" unique="0" required="1">
 <longdesc lang="en">
 The file containing the hosts to send WinPopup messages to.
 </longdesc>

@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: ClusterMon.in,v 1.5 2005/07/22 07:40:52 sunjd Exp $
+#	$Id: ClusterMon.in,v 1.7 2005/12/20 08:34:47 zhenh Exp $
 #
 #	ClusterMon OCF RA. Does nothing but wait a few seconds, can be
 #	configured to fail occassionally.
@@ -50,6 +50,7 @@ meta_data() {
 
 <longdesc lang="en">
 This is a ClusterMon Resource Agent.
+It outputs current cluster status to the html.
 </longdesc>
 <shortdesc lang="en">ClusterMon resource agent</shortdesc>
 
@@ -87,7 +88,7 @@ PID file location to ensure only one instance is running
 <content type="string" default="/tmp/ClusterMon_${OCF_RESOURCE_INSTANCE}.pid" />
 </parameter>
 
-<parameter name="htmlfile" unique="1">
+<parameter name="htmlfile" unique="1" required="1">
 <longdesc lang="en">
 Location to write HTML output to.
 </longdesc>
@@ -157,9 +158,11 @@ ClusterMon_monitor() {
     fi
     if [ ! -z $pid ]; then
 	kill -0 $pid
-	ClusterMon_exit $?
+	if [ $? = 0 ]; then
+	    exit $OCF_SUCCESS
+	fi
     fi
-    ClusterMon_exit 1
+    exit $OCF_NOT_RUNNING
 }
 
 CheckInterval() {

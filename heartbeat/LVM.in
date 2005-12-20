@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: LVM.in,v 1.8 2005/11/03 06:44:18 xunsun Exp $
+# $Id: LVM.in,v 1.9 2005/12/20 08:34:47 zhenh Exp $
 # 
 # LVM
 #
@@ -48,7 +48,7 @@ usage() {
 	The 'validate-all' operation checks whether the OCF parameters are valid
 	The 'methods' operation reports on the methods $0 supports
 
-	$Id: LVM.in,v 1.8 2005/11/03 06:44:18 xunsun Exp $
+	$Id: LVM.in,v 1.9 2005/12/20 08:34:47 zhenh Exp $
 	!
   exit $OCF_ERR_GENERIC 
 
@@ -68,7 +68,7 @@ as an HA resource.
 <shortdesc lang="en">LVM resource agent</shortdesc>
 
 <parameters>
-<parameter name="volgrpname" unique="0">
+<parameter name="volgrpname" unique="0" required="1">
 <longdesc lang="en">
 The name of volume group.
 </longdesc>

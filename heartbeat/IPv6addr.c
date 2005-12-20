@@ -856,7 +856,7 @@ meta_data_addr6(void)
 	"  </longdesc>\n"
 	"  <shortdesc lang=\"en\">manages IPv6 alias</shortdesc>\n"
 	"  <parameters>\n"
-	"    <parameter name=\"ipv6addr\" unique=\"0\">\n"
+	"    <parameter name=\"ipv6addr\" unique=\"0\" required=\"1\">\n"
 	"      <longdesc lang=\"en\">\n"
 	"	The IPv6 address this RA will manage \n"
 	"      </longdesc>\n"

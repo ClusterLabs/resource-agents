@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: db2.in,v 1.6 2005/12/09 23:35:03 gshi Exp $
+# $Id: db2.in,v 1.7 2005/12/20 08:34:48 zhenh Exp $
 # 
 # db2
 #
@@ -48,7 +48,7 @@ usage() {
 	The 'validate-all' operation reports whether the parameters are valid
 	The 'methods' operation reports on the methods $0 supports
 
-	$Id: db2.in,v 1.6 2005/12/09 23:35:03 gshi Exp $
+	$Id: db2.in,v 1.7 2005/12/20 08:34:48 zhenh Exp $
 	!
 }
 
@@ -65,7 +65,7 @@ Resource script for db2. It manages a DB2 Universal Database instance as an HA r
 <shortdesc lang="en">db2 resource agent</shortdesc>
 
 <parameters>
-<parameter name="instance" unique="0">
+<parameter name="instance" unique="0" required="1">
 <longdesc lang="en">
 The instance of database.
 </longdesc>

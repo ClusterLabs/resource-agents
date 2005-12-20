@@ -39,7 +39,7 @@ us=`uname -n`
 
 usage() {
   echo "Usage: $0 {start|stop|status|monitor|meta-data|validate-all}"
-  echo "$Id: MailTo.in,v 1.4 2005/10/12 09:06:35 sunjd Exp $"
+  echo "$Id: MailTo.in,v 1.5 2005/12/20 08:34:47 zhenh Exp $"
 }
 
 meta_data() {
@@ -56,7 +56,7 @@ a takeover occurs.
 <shortdesc lang="en">MailTo resource agent</shortdesc>
 
 <parameters>
-<parameter name="email" unique="0">
+<parameter name="email" unique="0" required="1">
 <longdesc lang="en">
 The email address of sysadmin.
 </longdesc>

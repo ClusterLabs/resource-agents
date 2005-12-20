@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr2.in,v 1.14 2005/11/11 16:15:02 davidlee Exp $
+#	$Id: IPaddr2.in,v 1.15 2005/12/20 08:34:47 zhenh Exp $
 #
 #       OCF Resource Agent compliant IPaddr2 script.
 #
@@ -82,8 +82,15 @@ meta_data() {
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="IPaddr2">
 <version>1.0</version>
+
+<longdesc lang="en">
+OCF Resource Agent compliant IPaddr2 script.
+Implements Cluster Alias IP functionality.
+</longdesc>
+<shortdesc lang="en">OCF Resource Agent compliant IPaddr2 script.</shortdesc>
+
 <parameters>
-<parameter name="ip" unique="1">
+<parameter name="ip" unique="1" required="1">
 <longdesc lang="en">
 The IPv4 address to be configured in dotted quad notation, for example
 "192.168.1.1".
