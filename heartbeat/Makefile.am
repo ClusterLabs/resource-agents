@@ -39,8 +39,7 @@ IPv6addr_LDADD          = $(top_builddir)/lib/clplumbing/libplumb.la    \
 
 
 
-ocf_SCRIPTS	     =  ocf-shellfuncs 	\
-			ClusterMon 	\
+ocf_SCRIPTS	     =  ClusterMon 	\
 			Dummy		\
 		        IPaddr		\
 		        IPaddr2		\
