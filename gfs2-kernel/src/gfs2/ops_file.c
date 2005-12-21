@@ -1133,6 +1133,73 @@ static int gfs2_readdir(struct file *file, void *dirent, filldir_t filldir)
 	return error;
 }
 
+static int gfs2_ioctl_flags(struct gfs2_inode *ip, unsigned int cmd, unsigned long arg)
+{
+	unsigned int lmode = (cmd == GFS2_IOCTL_SETFLAGS) ? LM_ST_EXCLUSIVE : LM_ST_SHARED;
+	struct buffer_head *dibh;
+	struct gfs2_holder i_gh;
+	int error;
+	__u32 flags = 0, change;
+
+	if (cmd == GFS2_IOCTL_SETFLAGS) {
+		error = get_user(flags, (__u32 __user *)arg);
+		if (error)
+			return -EFAULT;
+	}
+
+	error = gfs2_glock_nq_init(ip->i_gl, lmode, 0, &i_gh);
+	if (error)
+		return error;
+
+	if (cmd == GFS2_IOCTL_SETFLAGS) {
+		change = flags ^ ip->i_di.di_flags;
+		error = -EPERM;
+		if (change & (GFS2_DIF_IMMUTABLE|GFS2_DIF_APPENDONLY)) {
+			if (!capable(CAP_LINUX_IMMUTABLE))
+				goto out;
+		}
+		error = -EINVAL;
+		if (flags & (GFS2_DIF_JDATA|GFS2_DIF_DIRECTIO)) {
+			if (!S_ISREG(ip->i_di.di_mode))
+				goto out;
+			/* FIXME: Would be nice not to require the following test */
+			if ((flags & GFS2_DIF_JDATA) && ip->i_di.di_size)
+				goto out;
+		}
+		if (flags & (GFS2_DIF_INHERIT_JDATA|GFS2_DIF_INHERIT_DIRECTIO)) {
+			if (!S_ISDIR(ip->i_di.di_mode))
+				goto out;
+		}
+
+		error = gfs2_trans_begin(ip->i_sbd, RES_DINODE, 0);
+		if (error)
+			goto out;
+
+		error = gfs2_meta_inode_buffer(ip, &dibh);
+		if (error)
+			goto out_trans_end;
+
+		ip->i_di.di_flags = flags;
+
+		gfs2_trans_add_bh(ip->i_gl, dibh);
+        	gfs2_dinode_out(&ip->i_di, dibh->b_data);
+
+        	brelse(dibh);
+
+out_trans_end:
+		gfs2_trans_end(ip->i_sbd);
+	} else {
+		flags = ip->i_di.di_flags;
+	}
+out:
+	gfs2_glock_dq_uninit(&i_gh);
+	if (cmd == GFS2_IOCTL_GETFLAGS) {
+		if (put_user(flags, (__u32 __user *)arg))
+			return -EFAULT;
+	}
+	return error;
+}
+
 /**
  * gfs2_ioctl - do an ioctl on a file
  * @inode: the inode
@@ -1156,6 +1223,10 @@ static int gfs2_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		if (copy_to_user((unsigned int __user *)arg, &x, sizeof(unsigned int)))
 			return -EFAULT;
 		return 0;
+
+	case GFS2_IOCTL_SETFLAGS:
+	case GFS2_IOCTL_GETFLAGS:
+		return gfs2_ioctl_flags(ip, cmd, arg);
 	}
 
 	default:

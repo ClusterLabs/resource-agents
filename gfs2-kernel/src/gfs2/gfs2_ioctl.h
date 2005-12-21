@@ -16,6 +16,8 @@
 
 #define GFS2_IOCTL_IDENTIFY      _GFS2C_(1)
 #define GFS2_IOCTL_SUPER         _GFS2C_(2)
+#define GFS2_IOCTL_SETFLAGS      _GFS2C_(3)
+#define GFS2_IOCTL_GETFLAGS      _GFS2C_(4)
 
 struct gfs2_ioctl {
 	unsigned int gi_argc;
