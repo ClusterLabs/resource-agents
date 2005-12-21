@@ -42,7 +42,6 @@ gfs2-y := \
 #EXTRA_CFLAGS += -DGFS2_MEMORY_SIMPLE
 #EXTRA_CFLAGS += -DGFS2_MEMORY_BRUTE
 
-#obj-$(CONFIG_GFS2_FS) += locking/harness/
 obj-$(CONFIG_GFS2_FS) += locking/nolock/
-#obj-$(CONFIG_GFS2_FS) += locking/dlm/
+obj-$(CONFIG_GFS2_FS) += locking/dlm/
 

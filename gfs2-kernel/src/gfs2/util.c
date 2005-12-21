@@ -251,35 +251,6 @@ int gfs2_add_bh_to_ub(struct gfs2_user_buffer *ub, struct buffer_head *bh)
 	return 0;
 }
 
-int gfs2_printf_i(char *buf, unsigned int size, unsigned int *count,
-		  char *fmt, ...)
-{
-	va_list args;
-	int left, out;
-
-	if (!buf) {
-		va_start(args, fmt);
-		vprintk(fmt, args);
-		va_end(args);
-		return 0;
-	}
-
-	left = size - *count;
-	if (left <= 0)
-		return 1;
-
-	va_start(args, fmt);
-	out = vsnprintf(buf + *count, left, fmt, args);
-	va_end(args);
-
-	if (out < left)
-		*count += out;
-	else
-		return 1;
-
-	return 0;
-}
-
 void gfs2_icbit_munge(struct gfs2_sbd *sdp, unsigned char **bitmap,
 		      unsigned int bit, int new_value)
 {

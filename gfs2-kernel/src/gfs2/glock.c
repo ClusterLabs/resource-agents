@@ -2301,7 +2301,7 @@ void gfs2_gl_hash_clear(struct gfs2_sbd *sdp, int wait)
 				  t + gfs2_tune_get(sdp, gt_stall_secs) * HZ)) {
 			fs_warn(sdp, "Unmount seems to be stalled. "
 				     "Dumping lock state...\n");
-			gfs2_dump_lockstate(sdp, NULL);
+			gfs2_dump_lockstate(sdp);
 			t = jiffies;
 		}
 
@@ -2327,87 +2327,74 @@ void gfs2_gl_hash_clear(struct gfs2_sbd *sdp, int wait)
  * dump_holder - print information about a glock holder
  * @str: a string naming the type of holder
  * @gh: the glock holder
- * @buf: the buffer
- * @size: the size of the buffer
- * @count: where we are in the buffer
  *
  * Returns: 0 on success, -ENOBUFS when we run out of space
  */
 
-static int dump_holder(char *str, struct gfs2_holder *gh, char *buf,
-		       unsigned int size, unsigned int *count)
+static int dump_holder(char *str, struct gfs2_holder *gh)
 {
 	unsigned int x;
 	int error = -ENOBUFS;
 
-	gfs2_printf("  %s\n", str);
-	gfs2_printf("    owner = %ld\n",
+	printk("  %s\n", str);
+	printk("    owner = %ld\n",
 		   (gh->gh_owner) ? (long)gh->gh_owner->pid : -1);
-	gfs2_printf("    gh_state = %u\n", gh->gh_state);
-	gfs2_printf("    gh_flags =");
+	printk("    gh_state = %u\n", gh->gh_state);
+	printk("    gh_flags =");
 	for (x = 0; x < 32; x++)
 		if (gh->gh_flags & (1 << x))
-			gfs2_printf(" %u", x);
-	gfs2_printf(" \n");
-	gfs2_printf("    error = %d\n", gh->gh_error);
-	gfs2_printf("    gh_iflags =");
+			printk(" %u", x);
+	printk(" \n");
+	printk("    error = %d\n", gh->gh_error);
+	printk("    gh_iflags =");
 	for (x = 0; x < 32; x++)
 		if (test_bit(x, &gh->gh_iflags))
-			gfs2_printf(" %u", x);
-	gfs2_printf(" \n");
+			printk(" %u", x);
+	printk(" \n");
 
 	error = 0;
 
- out:
 	return error;
 }
 
 /**
  * dump_inode - print information about an inode
  * @ip: the inode
- * @buf: the buffer
- * @size: the size of the buffer
- * @count: where we are in the buffer
  *
  * Returns: 0 on success, -ENOBUFS when we run out of space
  */
 
-static int dump_inode(struct gfs2_inode *ip, char *buf, unsigned int size,
-		      unsigned int *count)
+static int dump_inode(struct gfs2_inode *ip)
 {
 	unsigned int x;
 	int error = -ENOBUFS;
 
-	gfs2_printf("  Inode:\n");
-	gfs2_printf("    num = %llu %llu\n",
+	printk("  Inode:\n");
+	printk("    num = %llu %llu\n",
 		    ip->i_num.no_formal_ino, ip->i_num.no_addr);
-	gfs2_printf("    type = %u\n", IF2DT(ip->i_di.di_mode));
-	gfs2_printf("    i_count = %d\n", atomic_read(&ip->i_count));
-	gfs2_printf("    i_flags =");
+	printk("    type = %u\n", IF2DT(ip->i_di.di_mode));
+	printk("    i_count = %d\n", atomic_read(&ip->i_count));
+	printk("    i_flags =");
 	for (x = 0; x < 32; x++)
 		if (test_bit(x, &ip->i_flags))
-			gfs2_printf(" %u", x);
-	gfs2_printf(" \n");
-	gfs2_printf("    vnode = %s\n", (ip->i_vnode) ? "yes" : "no");
+			printk(" %u", x);
+	printk(" \n");
+	printk("    vnode = %s\n", (ip->i_vnode) ? "yes" : "no");
 
 	error = 0;
 
- out:
 	return error;
 }
 
 /**
  * dump_glock - print information about a glock
  * @gl: the glock
- * @buf: the buffer
- * @size: the size of the buffer
  * @count: where we are in the buffer
  *
  * Returns: 0 on success, -ENOBUFS when we run out of space
  */
 
-static int dump_glock(struct gfs2_glock *gl, char *buf, unsigned int size,
-		      unsigned int *count)
+static int dump_glock(struct gfs2_glock *gl)
 {
 	struct gfs2_holder *gh;
 	unsigned int x;
@@ -2415,64 +2402,64 @@ static int dump_glock(struct gfs2_glock *gl, char *buf, unsigned int size,
 
 	spin_lock(&gl->gl_spin);
 
-	gfs2_printf("Glock (%u, %llu)\n",
+	printk("Glock (%u, %llu)\n",
 		    gl->gl_name.ln_type,
 		    gl->gl_name.ln_number);
-	gfs2_printf("  gl_flags =");
+	printk("  gl_flags =");
 	for (x = 0; x < 32; x++)
 		if (test_bit(x, &gl->gl_flags))
-			gfs2_printf(" %u", x);
-	gfs2_printf(" \n");
-	gfs2_printf("  gl_ref = %d\n", atomic_read(&gl->gl_ref.refcount));
-	gfs2_printf("  gl_state = %u\n", gl->gl_state);
-	gfs2_printf("  req_gh = %s\n", (gl->gl_req_gh) ? "yes" : "no");
-	gfs2_printf("  req_bh = %s\n", (gl->gl_req_bh) ? "yes" : "no");
-	gfs2_printf("  lvb_count = %d\n", atomic_read(&gl->gl_lvb_count));
-	gfs2_printf("  object = %s\n", (gl->gl_object) ? "yes" : "no");
-	gfs2_printf("  le = %s\n",
+			printk(" %u", x);
+	printk(" \n");
+	printk("  gl_ref = %d\n", atomic_read(&gl->gl_ref.refcount));
+	printk("  gl_state = %u\n", gl->gl_state);
+	printk("  req_gh = %s\n", (gl->gl_req_gh) ? "yes" : "no");
+	printk("  req_bh = %s\n", (gl->gl_req_bh) ? "yes" : "no");
+	printk("  lvb_count = %d\n", atomic_read(&gl->gl_lvb_count));
+	printk("  object = %s\n", (gl->gl_object) ? "yes" : "no");
+	printk("  le = %s\n",
 		   (list_empty(&gl->gl_le.le_list)) ? "no" : "yes");
-	gfs2_printf("  reclaim = %s\n",
+	printk("  reclaim = %s\n",
 		    (list_empty(&gl->gl_reclaim)) ? "no" : "yes");
 	if (gl->gl_aspace)
-		gfs2_printf("  aspace = %lu\n",
+		printk("  aspace = %lu\n",
 			    gl->gl_aspace->i_mapping->nrpages);
 	else
-		gfs2_printf("  aspace = no\n");
-	gfs2_printf("  ail = %d\n", atomic_read(&gl->gl_ail_count));
+		printk("  aspace = no\n");
+	printk("  ail = %d\n", atomic_read(&gl->gl_ail_count));
 	if (gl->gl_req_gh) {
-		error = dump_holder("Request", gl->gl_req_gh, buf, size, count);
+		error = dump_holder("Request", gl->gl_req_gh);
 		if (error)
 			goto out;
 	}
 	list_for_each_entry(gh, &gl->gl_holders, gh_list) {
-		error = dump_holder("Holder", gh, buf, size, count);
+		error = dump_holder("Holder", gh);
 		if (error)
 			goto out;
 	}
 	list_for_each_entry(gh, &gl->gl_waiters1, gh_list) {
-		error = dump_holder("Waiter1", gh, buf, size, count);
+		error = dump_holder("Waiter1", gh);
 		if (error)
 			goto out;
 	}
 	list_for_each_entry(gh, &gl->gl_waiters2, gh_list) {
-		error = dump_holder("Waiter2", gh, buf, size, count);
+		error = dump_holder("Waiter2", gh);
 		if (error)
 			goto out;
 	}
 	list_for_each_entry(gh, &gl->gl_waiters3, gh_list) {
-		error = dump_holder("Waiter3", gh, buf, size, count);
+		error = dump_holder("Waiter3", gh);
 		if (error)
 			goto out;
 	}
 	if (gl->gl_ops == &gfs2_inode_glops && get_gl2ip(gl)) {
 		if (!test_bit(GLF_LOCK, &gl->gl_flags) &&
 		    list_empty(&gl->gl_holders)) {
-			error = dump_inode(get_gl2ip(gl), buf, size, count);
+			error = dump_inode(get_gl2ip(gl));
 			if (error)
 				goto out;
 		} else {
 			error = -ENOBUFS;
-			gfs2_printf("  Inode: busy\n");
+			printk("  Inode: busy\n");
 		}
 	}
 
@@ -2493,24 +2480,15 @@ static int dump_glock(struct gfs2_glock *gl, char *buf, unsigned int size,
  *
  */
 
-int gfs2_dump_lockstate(struct gfs2_sbd *sdp, struct gfs2_user_buffer *ub)
+int gfs2_dump_lockstate(struct gfs2_sbd *sdp)
 {
 	struct gfs2_gl_hash_bucket *bucket;
 	struct gfs2_glock *gl;
-	char *buf = NULL;
-	unsigned int size = gfs2_tune_get(sdp, gt_lockdump_size);
-	unsigned int x, count;
+	unsigned int x;
 	int error = 0;
-
-	if (ub) {
-		buf = kmalloc(size, GFP_KERNEL);
-		if (!buf)
-			return -ENOMEM;
-	}
 
 	for (x = 0; x < GFS2_GL_HASH_SIZE; x++) {
 		bucket = &sdp->sd_gl_hash[x];
-		count = 0;
 
 		read_lock(&bucket->hb_lock);
 
@@ -2518,7 +2496,7 @@ int gfs2_dump_lockstate(struct gfs2_sbd *sdp, struct gfs2_user_buffer *ub)
 			if (test_bit(GLF_PLUG, &gl->gl_flags))
 				continue;
 
-			error = dump_glock(gl, buf, size, &count);
+			error = dump_glock(gl);
 			if (error)
 				break;
 		}
@@ -2527,22 +2505,8 @@ int gfs2_dump_lockstate(struct gfs2_sbd *sdp, struct gfs2_user_buffer *ub)
 
 		if (error)
 			break;
-
-		if (ub) {
-			if (ub->ub_count + count > ub->ub_size) {
-				error = -ENOMEM;
-				break;
-			}
-			if (copy_to_user(ub->ub_data + ub->ub_count, buf,
-					 count)) {
-				error = -EFAULT;
-				break;
-			}
-			ub->ub_count += count;
-		}
 	}
 
-	kfree(buf);
 
 	return error;
 }

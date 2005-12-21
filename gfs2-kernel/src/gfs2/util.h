@@ -183,15 +183,6 @@ static inline unsigned int gfs2_tune_get_i(struct gfs2_tune *gt,
 #define gfs2_tune_get(sdp, field) \
 gfs2_tune_get_i(&(sdp)->sd_tune, &(sdp)->sd_tune.field)
 
-int gfs2_printf_i(char *buf, unsigned int size, unsigned int *count,
-		  char *fmt, ...) __attribute__ ((format(printf, 4, 5)));
-
-#define gfs2_printf(fmt, args...) \
-do { \
-	if (gfs2_printf_i(buf, size, count, fmt, ##args)) \
-		goto out; \
-} while(0)
-
 void gfs2_icbit_munge(struct gfs2_sbd *sdp, unsigned char **bitmap,
 		      unsigned int bit, int new_value);
 
