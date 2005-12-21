@@ -431,13 +431,13 @@ starts/stops apache web servers.
 <shortdesc lang="en">starts/stops apache web servers.</shortdesc>
 
 <parameters>
-<parameter name="configfile">
+<parameter name="configfile" required="1">
 <longdesc lang="en">
 The fullpath name of configure file.It's a string of path
 name. Other parameters can contain in this file.
 </longdesc>
 <shortdesc lang="en">configure file path</shortdesc>
-<content type="string" default="/opt/IBMHTTPServer/conf/httpd.conf or /etc/httpd/httpd.conf" />
+<content type="string" default="/etc/httpd/httpd.conf" />
 </parameter>
 
 <parameter name="httpd">

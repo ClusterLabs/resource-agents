@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Raid1.in,v 1.5 2005/12/20 08:34:47 zhenh Exp $
+# $Id: Raid1.in,v 1.6 2005/12/21 05:36:52 zhenh Exp $
 #
 # License:      GNU General Public License (GPL)
 # Support:      linux-ha@lists.linux-ha.org
@@ -113,7 +113,7 @@ check_util () {
 usage() {
 cat <<-EOT;
 	usage: $0 {start|stop|status|monitor|validate-all|usage|meta-data}
-	$Id: Raid1.in,v 1.5 2005/12/20 08:34:47 zhenh Exp $
+	$Id: Raid1.in,v 1.6 2005/12/21 05:36:52 zhenh Exp $
 EOT
 }
 
@@ -136,7 +136,7 @@ storage medium.
 The name of RAID configuration file. e.g. /etc/raidtab.
 </longdesc>
 <shortdesc lang="en">RAID tab config file</shortdesc>
-<content type="string" default="" />
+<content type="string" default="/etc/raidtab" />
 </parameter>
 
 <parameter name="raiddev" unique="0" required="1">

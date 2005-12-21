@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: Delay.in,v 1.7 2005/08/29 02:04:18 sunjd Exp $
+#	$Id: Delay.in,v 1.8 2005/12/21 05:36:52 zhenh Exp $
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
@@ -36,7 +36,7 @@ VLFILE="$HA_VARRUNDIR/rsctmp/Delay-${OCF_RESOURCE_INSTANCE}"
 usage() {
   cat <<-!
 	usage: $0 {start|stop|status|monitor|meta-data|validate-all}
-  	$Id: Delay.in,v 1.7 2005/08/29 02:04:18 sunjd Exp $
+  	$Id: Delay.in,v 1.8 2005/12/21 05:36:52 zhenh Exp $
 	!
 }
 
@@ -54,7 +54,7 @@ This script is a test resource for introducing delay.
 
 <parameters>
 
-<parameter name="startdelay" unique="0">
+<parameter name="startdelay" unique="0" required="1">
 <longdesc lang="en">
 How long in seconds to delay on start operation.
 </longdesc>
@@ -62,7 +62,7 @@ How long in seconds to delay on start operation.
 <content type="integer" default="30" />
 </parameter>
 
-<parameter name="stopdelay" unique="0">
+<parameter name="stopdelay" unique="0"  required="1">
 <longdesc lang="en">
 How long in seconds to delay on stop operation.
 Defaults to "startdelay" if unspecified.
@@ -71,7 +71,7 @@ Defaults to "startdelay" if unspecified.
 <content type="integer" default="30" />
 </parameter>
 
-<parameter name="mondelay" unique="0">
+<parameter name="mondelay" unique="0"  required="1">
 <longdesc lang="en">
 How long in seconds to delay on monitor operation.
 Defaults to "startdelay" if unspecified.

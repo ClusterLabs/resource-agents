@@ -1,13 +1,13 @@
 #!/bin/sh
 #
-#	$Id: drbd.in,v 1.17 2005/12/20 08:34:48 zhenh Exp $
+#	$Id: drbd.in,v 1.18 2005/12/21 05:36:52 zhenh Exp $
 #
 #       OCF Resource Agent compliant drbd resource script.
 #
 # WARNING: This is experimental code and still has a lot of open
 # TODOs.
 #
-# Copyright (c) 2004 - 2005 SUSE LINUX Products GmbH, Lars Marowsky-Brée
+# Copyright (c) 2004 - 2005 SUSE LINUX Products GmbH, Lars Marowsky-Brï¿½
 #                    All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -81,7 +81,7 @@ Full path to the drbd.conf file.
 </parameter>
 
 
-<parameter name="clone_max">
+<parameter name="clone_max" required="1">
 <longdesc lang="en">
 Number of clones of this drbd resource. Do not fiddle with the default.
 </longdesc>
@@ -89,7 +89,7 @@ Number of clones of this drbd resource. Do not fiddle with the default.
 <content type="integer" default="2"/>
 </parameter>
 
-<parameter name="clone_node_max">
+<parameter name="clone_node_max" required="1">
 <longdesc lang="en">
 Clones per node. Do not fiddle with the default.
 </longdesc>
@@ -97,7 +97,7 @@ Clones per node. Do not fiddle with the default.
 <content type="integer" default="1"/>
 </parameter>
 
-<parameter name="master_max">
+<parameter name="master_max" required="1">
 <longdesc lang="en">
 Maximum number of active primaries. Do not fiddle with the default.
 </longdesc>
@@ -105,7 +105,7 @@ Maximum number of active primaries. Do not fiddle with the default.
 <content type="integer" default="1"/>
 </parameter>
 
-<parameter name="master_node_max">
+<parameter name="master_node_max" required="1">
 <longdesc lang="en">
 Maximum number of primaries per node. Do not fiddle with the default.
 </longdesc>
