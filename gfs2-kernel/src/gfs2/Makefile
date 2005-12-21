@@ -38,7 +38,6 @@ gfs2-objs := \
 	glock.o \
 	glops.o \
 	inode.o \
-	ioctl.o \
 	jdata.o \
 	lm.o \
 	log.o \
@@ -65,7 +64,8 @@ gfs2-objs := \
 	sys.o \
 	trans.o \
 	unlinked.o \
-	util.o
+	util.o \
+	locking.o
 
 EXTRA_CFLAGS += -I$(obj)
 

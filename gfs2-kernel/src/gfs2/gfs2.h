@@ -12,7 +12,7 @@
 
 #include <linux/gfs2_ondisk.h>
 
-#include "locking/harness/lm_interface.h"
+#include "lm_interface.h"
 #include "lvb.h"
 #include "incore.h"
 #include "util.h"

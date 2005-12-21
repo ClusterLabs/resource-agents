@@ -27,7 +27,6 @@
 #include "glock.h"
 #include "glops.h"
 #include "inode.h"
-#include "ioctl.h"
 #include "jdata.h"
 #include "lm.h"
 #include "log.h"
@@ -1158,9 +1157,6 @@ static int gfs2_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 			return -EFAULT;
 		return 0;
 	}
-
-	case GFS2_IOCTL_SUPER:
-		return gfs2_ioctl_i(ip, (void __user *)arg);
 
 	default:
 		return -ENOTTY;

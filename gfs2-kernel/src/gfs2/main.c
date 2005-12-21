@@ -30,6 +30,10 @@ static int __init init_gfs2_fs(void)
 {
 	int error;
 
+	error = gfs2_init_lmh();
+	if (error)
+		return error;
+
 	error = gfs2_sys_init();
 	if (error)
 		return error;

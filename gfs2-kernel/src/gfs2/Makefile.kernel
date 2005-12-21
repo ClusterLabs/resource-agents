@@ -10,11 +10,11 @@ gfs2-y := \
 	glock.o \
 	glops.o \
 	inode.o \
-	ioctl.o \
 	jdata.o \
 	lm.o \
 	log.o \
 	lops.o \
+	locking.o \
 	lvb.o \
 	main.o \
 	meta_io.o \
@@ -39,7 +39,10 @@ gfs2-y := \
 	unlinked.o \
 	util.o
 
-obj-$(CONFIG_GFS2_FS) += locking/harness/
+#EXTRA_CFLAGS += -DGFS2_MEMORY_SIMPLE
+#EXTRA_CFLAGS += -DGFS2_MEMORY_BRUTE
+
+#obj-$(CONFIG_GFS2_FS) += locking/harness/
 obj-$(CONFIG_GFS2_FS) += locking/nolock/
-obj-$(CONFIG_GFS2_FS) += locking/dlm/
+#obj-$(CONFIG_GFS2_FS) += locking/dlm/
 
