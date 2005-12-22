@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.481 $) dnl cvs revision
+AC_REVISION($Revision: 1.482 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -2257,7 +2257,7 @@ AC_ARG_ENABLE([mgmt],
                      [], [enable_mgmt=try])
 
 MGMT_ENABLED=0
-if test "x${enable_mgmt}" = "xyes" | test "x${enable_mgmt}" = "xtry"; then
+if test "x${enable_mgmt}" = "xyes" || test "x${enable_mgmt}" = "xtry"; then
 	MGMT_ENABLED=1
 	python_headers_found="yes"
 	PYTHON_HEADER_DIR="python${PYTHON_VERSION}"
