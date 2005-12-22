@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.483 $) dnl cvs revision
+AC_REVISION($Revision: 1.484 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -2226,41 +2226,38 @@ AC_ARG_ENABLE([mgmt],
 [  --enable-mgmt  Compile the management tool.  [default=try]],
                      [], [enable_mgmt=try])
 
-MGMT_ENABLED=0
-if test "x${enable_mgmt}" = "xyes" || test "x${enable_mgmt}" = "xtry"; then
+if test "x${enable_mgmt}" != "xno"; then
 	MGMT_ENABLED=1
-	python_headers_found="yes"
+	if test "x${enable_mgmt}" = "xtry"; then
+		MISSING_FN="WarnMissingThing"
+	else
+		MISSING_FN="FatalMissingThing"
+	fi
 	PYTHON_HEADER_DIR="python${PYTHON_VERSION}"
-	AC_CHECK_HEADER($PYTHON_HEADER_DIR/Python.h, , [python_headers_found="no"],)	
-	pam_headers_found="yes"
-	AC_CHECK_HEADER(security/pam_appl.h, , [pam_headers_found="no"],)
-fi
-if test x${python_headers_found} != "xyes"; then
-	if test "x${enable_mgmt}" = "xyes"; then
-  		FatalMissingThing "Python.h" "You need python-devel package for " \
-				"building the GUI managment module"
-	elif test "x${enable_mgmt}" = "xtry"; then
-		AC_MSG_WARN([Did not find Python.h, so disabling the building of the GUI 
-		    managment module. You need python-devel package for
-		    building the GUI managment module.])
-		enable_mgmt=no
+	AC_CHECK_HEADER($PYTHON_HEADER_DIR/Python.h,
+	  [python_headers_found="yes"],[python_headers_found="no"])	
+	if test "x${python_headers_found}" = "xno"; then
+  		$MISSING_FN "$PYTHON_HEADER_DIR/Python.h" \
+		  "The GUI managment module needs the python-devel package"
+		enable_mgmt="no"
 		MGMT_ENABLED=0
-	fi 
-	PYTHON_HEADER_DIR=
-fi
-AC_SUBST(PYTHON_HEADER_DIR)	
+	fi
 
-if test x${pam_headers_found} != "xyes"; then
-	if test "x${enable_mgmt}" = "xyes"; then
-  		FatalMissingThing "pam_appl.h" "You need pam-devel package for " \
-				"building the GUI managment module"
-	elif test "x${enable_mgmt}" = "xtry"; then
-		AC_MSG_WARN([Did not find pam_appl.h, so disabling the building of the GUI 
-		    managment module. You need pam-devel package for
-		    building the GUI managment module.])
-		enable_mgmt=no
+	AC_CHECK_HEADER(security/pam_appl.h)
+	if test "$ac_cv_header_security_pam_appl_h" = "no"; then
+  		$MISSING_FN "security/pam_appl.h" \
+		  "The GUI managment module needs the pam-devel package"
+		enable_mgmt="no"
 		MGMT_ENABLED=0
-	fi 
+	fi
+
+	AC_CHECK_HEADER(gnutls/gnutls.h)
+	if test "$ac_cv_header_gnutls_gnutls_h" = "no"; then
+  		$MISSING_FN "gnutls/gnutls.h" \
+		  "The GUI managment module needs GNU/TLS"
+		enable_mgmt="no"
+		MGMT_ENABLED=0
+	fi
 fi
 
 AC_SUBST(MGMT_ENABLED)
