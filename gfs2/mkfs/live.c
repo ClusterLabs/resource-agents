@@ -332,19 +332,19 @@ rename2system(struct gfs2_sbd *sdp, char *new_dir, char *new_name)
 void
 make_jdata(int fd, char *value)
 {
-	const char *argv[] = { "set_file_flag",
-			 value,
-			 "jdata" };
-	struct gfs2_ioctl gi;
-	int error;
+	int err;
+	uint32_t val;
 
-	gi.gi_argc = 3;
-	gi.gi_argv = argv;
-
-	error = ioctl(fd, GFS2_IOCTL_SUPER, &gi);
-	if (error)
-		die("error doing set_file_flag (%d): %s\n",
-		    error, strerror(errno));
+	err = ioctl(fd, GFS2_IOCTL_GETFLAGS, &val);
+	if (err)
+		die("error doing get flags (%d): %s\n", err, strerror(errno));
+	if (strcmp(value, "set") == 0)
+		val |= GFS2_DIF_JDATA;
+	if (strcmp(value, "clear") == 0)
+		val &= ~GFS2_DIF_JDATA;
+	err = ioctl(fd, GFS2_IOCTL_SETFLAGS, &val);
+	if (err)
+		die("error doing set flags (%d): %s\n", err, strerror(errno));
 }
 
 uint64_t
