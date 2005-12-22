@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.484 $) dnl cvs revision
+AC_REVISION($Revision: 1.485 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -2260,6 +2260,7 @@ if test "x${enable_mgmt}" != "xno"; then
 	fi
 fi
 
+AC_SUBST(PYTHON_HEADER_DIR)
 AC_SUBST(MGMT_ENABLED)
 AM_CONDITIONAL(MGMT_BUILD, test "x${enable_mgmt}" != "xno")
 
