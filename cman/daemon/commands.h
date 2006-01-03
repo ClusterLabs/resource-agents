@@ -34,3 +34,4 @@ extern void override_expected(int expected);
 
 extern unsigned int config_version;
 extern int cluster_members;
+extern int two_node;

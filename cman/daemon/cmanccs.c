@@ -27,9 +27,6 @@
 #define NODE_NODEID_PATH	"/cluster/clusternodes/clusternode[@name=\"%s\"]/@nodeid"
 #define TWO_NODE_PATH           "/cluster/cman/@two_node"
 
-extern int config_version;
-extern int two_node;
-
 /* Get all the cluster node names from CCS and
    add them to our node list.
    Called when we start up and on "cman_tool version".
