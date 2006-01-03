@@ -81,4 +81,5 @@ struct dlm_lock_result {
 /* Lockspace flags */
 #define DLM_USER_LSFLG_AUTOFREE   1
 #define DLM_USER_LSFLG_FORCEFREE  2
+#define DLM_USER_LSFLG_DEFAULTLS  4
 

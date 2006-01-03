@@ -48,6 +48,9 @@ static struct semaphore user_ls_lock;
 static DEFINE_IDR(lockinfo_idr);
 static rwlock_t lockinfo_lock;
 
+/* Bit 1 of this is set when we have a default ls */
+static long default_ls;
+
 /* Flags in li_flags */
 #define LI_FLAG_COMPLETE   1
 #define LI_FLAG_FIRSTLOCK  2
@@ -57,7 +60,7 @@ static rwlock_t lockinfo_lock;
 /* flags in ls_flags*/
 #define LS_FLAG_DELETED   1
 #define LS_FLAG_AUTOFREE  2
-
+#define LS_FLAG_DEFAULT   3
 
 #define LOCKINFO_MAGIC 0x53595324
 
@@ -271,6 +274,8 @@ static int register_lockspace(char *name, struct user_ls **ls, int flags)
 
 	if (flags & DLM_USER_LSFLG_AUTOFREE)
 		set_bit(LS_FLAG_AUTOFREE, &newls->ls_flags);
+	if (flags & DLM_USER_LSFLG_DEFAULTLS)
+		set_bit(LS_FLAG_DEFAULT, &newls->ls_flags);
 
 	add_lockspace_to_list(newls);
 	*ls = newls;
@@ -293,6 +298,9 @@ static int unregister_lockspace(struct user_ls *lsinfo, int force)
 	list_del(&lsinfo->ls_list);
 	set_bit(LS_FLAG_DELETED, &lsinfo->ls_flags);
 	lsinfo->ls_lockspace = NULL;
+	if (test_bit(LS_FLAG_DEFAULT, &lsinfo->ls_flags))
+		clear_bit(1, &default_ls);
+
 	if (atomic_read(&lsinfo->ls_refcnt) == 0) {
 		kfree(lsinfo->ls_miscinfo.name);
 		kfree(lsinfo);
@@ -599,8 +607,11 @@ static int do_user_create_lockspace(struct file_info *fi, uint8_t cmd,
 	int status;
 	struct user_ls *lsinfo;
 
-	if (!capable(CAP_SYS_ADMIN))
+	if (!capable(CAP_SYS_ADMIN) && !(kparams->flags & DLM_USER_LSFLG_DEFAULTLS))
 		return -EPERM;
+
+	if (kparams->flags & DLM_USER_LSFLG_DEFAULTLS && test_and_set_bit(1, &default_ls))
+		return -EEXIST;
 
 	status = register_lockspace(kparams->name, &lsinfo, kparams->flags);
 

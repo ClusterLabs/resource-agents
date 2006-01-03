@@ -968,6 +968,7 @@ dlm_lshandle_t dlm_create_lockspace(const char *name, mode_t mode)
 {
     int status;
     int minor;
+    int i;
     struct stat st;
     int stat_ret;
     int create_dev = 1;
@@ -991,7 +992,7 @@ dlm_lshandle_t dlm_create_lockspace(const char *name, mode_t mode)
 
     /* Make the default lockspace free itself when all users have released it */
     if (strcmp(name, DEFAULT_LOCKSPACE) == 0)
-	    req->i.lspace.flags = DLM_USER_LSFLG_AUTOFREE;
+	    req->i.lspace.flags = DLM_USER_LSFLG_AUTOFREE | DLM_USER_LSFLG_DEFAULTLS;
     else
 	    req->i.lspace.flags = 0;
     strcpy(req->i.lspace.name, name);
@@ -1001,6 +1002,13 @@ dlm_lshandle_t dlm_create_lockspace(const char *name, mode_t mode)
     {
 	free(newls);
 	return NULL;
+    }
+
+    /* Wait for udev to create the device */
+    for (i=1; i<10; i++) {
+	    if (stat(dev_name, &st) == 0)
+		    break;
+	    sleep(1);
     }
 
     /* If the lockspace already exists, we don't get the minor
