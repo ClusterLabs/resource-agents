@@ -52,6 +52,7 @@ static rwlock_t lockinfo_lock;
 #define LI_FLAG_COMPLETE   1
 #define LI_FLAG_FIRSTLOCK  2
 #define LI_FLAG_PERSISTENT 3
+#define LI_FLAG_ONLIST     4
 
 /* flags in ls_flags*/
 #define LS_FLAG_DELETED   1
@@ -381,6 +382,7 @@ static void ast_routine(void *param)
 
 			spin_lock(&li->li_file->fi_li_lock);
 			list_del(&li->li_ownerqueue);
+			clear_bit(LI_FLAG_ONLIST, &li->li_flags);
 			spin_unlock(&li->li_file->fi_li_lock);
 			release_lockinfo(li);
 			return;
@@ -808,7 +810,7 @@ static int do_user_lock(struct file_info *fi, uint8_t cmd,
 			li->li_castaddr  = kparams->castaddr;
 			li->li_castparam = kparams->castparam;
 
-			/* OK, this isn;t exactly a FIRSTLOCK but it is the
+			/* OK, this isn't exactly a FIRSTLOCK but it is the
 			   first time we've used this lockinfo, and if things
 			   fail we want rid of it */
 			init_MUTEX_LOCKED(&li->li_firstlock);
@@ -888,6 +890,7 @@ static int do_user_lock(struct file_info *fi, uint8_t cmd,
 
 		spin_lock(&fi->fi_li_lock);
 		list_add(&li->li_ownerqueue, &fi->fi_li_list);
+		set_bit(LI_FLAG_ONLIST, &li->li_flags);
 		spin_unlock(&fi->fi_li_lock);
 		if (add_lockinfo(li))
 			printk(KERN_WARNING "Add lockinfo failed\n");
@@ -919,6 +922,7 @@ static int do_user_unlock(struct file_info *fi, uint8_t cmd,
 			return -ENOMEM;
 		spin_lock(&fi->fi_li_lock);
 		list_add(&li->li_ownerqueue, &fi->fi_li_list);
+		set_bit(LI_FLAG_ONLIST, &li->li_flags);
 		spin_unlock(&fi->fi_li_lock);
 	}
 
@@ -932,6 +936,12 @@ static int do_user_unlock(struct file_info *fi, uint8_t cmd,
 	/* Cancelling a conversion doesn't remove the lock...*/
 	if (kparams->flags & DLM_LKF_CANCEL && li->li_grmode != -1)
 		convert_cancel = 1;
+
+	/* Wait until dlm_lock() has completed */
+	if (!test_bit(LI_FLAG_ONLIST, &li->li_flags)) {
+		down(&li->li_firstlock);
+		up(&li->li_firstlock);
+	}
 
 	/* dlm_unlock() passes a 0 for castaddr which means don't overwrite
 	   the existing li_castaddr as that's the completion routine for
@@ -948,6 +958,7 @@ static int do_user_unlock(struct file_info *fi, uint8_t cmd,
 	if (!status && !convert_cancel) {
 		spin_lock(&fi->fi_li_lock);
 		list_del(&li->li_ownerqueue);
+		clear_bit(LI_FLAG_ONLIST, &li->li_flags);
 		spin_unlock(&fi->fi_li_lock);
 	}
 
