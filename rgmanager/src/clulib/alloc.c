@@ -41,7 +41,8 @@
 
   What it's _not_:
   - General purpose.  The heap is allocated either at the first call to
-  malloc() or the call to malloc_init(), and is a fixed size.
+  malloc() or the call to malloc_init(), and is a fixed size.  There is no
+  memalign/valloc/pvalloc currently. 
 
   - Super-efficient.  It's reasonably fast in many situations compared to
   glibc's malloc, but records states in the memory blocks to help prevent
@@ -126,7 +127,10 @@
 				   (double free, free after overrun, etc.
 				   for instance) */
 #undef  AGGR_RECLAIM		/* consolidate_all on free (*slow*) */
-#define GDB_HOOK		/* Dump program addresses in malloc_table
+
+#undef  STACKSIZE	/*4	   backtrace to store if DEBUG is set */
+
+#undef  GDB_HOOK		/* Dump program addresses in malloc_table
 				   using a fork/exec of gdb (SLOW but fun)
 				   building this defeats the purpose of
 				   a bounded memory allocator, and is only
@@ -143,10 +147,6 @@
 #define ALIGN		(sizeof(void *))
 #define NOBUCKET	((uint16_t)(~0))
 #define MIN_EXTRA	(1<<5)	/* 64 bytes to split a block */
-#define STACKSIZE	4	/* backtrace to store if DEBUG is set
-				   XXX seems to break for values > 5.
-				   unsure why. */
-
 
 /* Misc stuff */
 #define ST_FREE		0xfec3  /* Block is free */
@@ -191,7 +191,9 @@ typedef struct _memblock {
 	uint16_t	mb_bucket;
 	uint16_t	mb_state;
 #ifdef DEBUG
+#ifdef STACKSIZE
 	void		*mb_pc[STACKSIZE];
+#endif
 #endif
 	/* If PARANOID isn't defined, we use the following pointer for
 	   more space. */
@@ -713,7 +715,9 @@ malloc(size_t size)
 #endif
 	memblock_t *block;
 #ifdef DEBUG
+#ifdef STACKSIZE
 	int sp;
+#endif
 #endif
 
 	if (size < MIN_SIZE)
@@ -747,11 +751,18 @@ malloc(size_t size)
 	block = search_freestore(size);
 	if (block) {
 #ifdef DEBUG
+#ifdef STACKSIZE
 		for (sp = 0; sp < STACKSIZE; sp++) {
+			void *p;
+			p = __builtin_frame_address(2);
+			raise(SIGSTOP);
+			p = __builtin_return_address(2);
+
 			assign_address(block->mb_pc, sp);
 			if (!block->mb_pc[sp])
 				break;
 		}
+#endif
 #endif
 #ifdef PARANOID
 		insert_alloc_block(block);
@@ -767,11 +778,13 @@ malloc(size_t size)
 	block = search_freestore(size);
 	if (block) {
 #ifdef DEBUG
+#ifdef STACKSIZE
 		for (sp = 0; sp < STACKSIZE; sp++) {
 			assign_address(block->mb_pc, sp);
 			if (!block->mb_pc[sp])
 				break;
 		}
+#endif
 #endif
 #ifdef PARANOID
 		insert_alloc_block(block);
@@ -870,7 +883,9 @@ realloc(void *oldp, size_t newsize)
 	memblock_t *oldb;
 #ifdef DEBUG
 	memblock_t *newb;
+#ifdef STACKSIZE
 	int sp;
+#endif
 #endif
 	void *newp;
 
@@ -888,11 +903,13 @@ realloc(void *oldp, size_t newsize)
 	}
 #ifdef DEBUG
 	newb = block(newp);
+#ifdef STACKSIZE
 	for (sp = 0; sp < STACKSIZE; sp++) {
 		assign_address(newb->mb_pc, sp);
 		if (!newb->mb_pc[sp])
 			break;
 	}
+#endif
 #endif
 	return newp;
 }
@@ -907,7 +924,9 @@ calloc(size_t sz, size_t nmemb)
 	void *p;
 #ifdef DEBUG
 	memblock_t *newb;
+#ifdef STACKSIZE
 	int sp;
+#endif
 #endif
 
 	sz *= nmemb;
@@ -917,11 +936,13 @@ calloc(size_t sz, size_t nmemb)
 
 #ifdef DEBUG
 	newb = block(p);
+#ifdef STACKSIZE
 	for (sp = 0; sp < STACKSIZE; sp++) {
 		assign_address(newb->mb_pc, sp);
 		if (!newb->mb_pc[sp])
 			break;
 	}
+#endif
 #endif
 	memset(p, 0, sz);
 	return p;
@@ -941,8 +962,10 @@ malloc_dump_table(void)
 #ifdef PARANOID
 	int any = 0;
 	int x;
+#ifdef STACKSIZE
 #ifndef GDB_HOOK
 	int sp;
+#endif
 #endif
 	memblock_t *b;
 
@@ -961,6 +984,7 @@ malloc_dump_table(void)
 			fprintf(stderr,
 				"  %p (%lu bytes) allocation trace:\n",
 				pointer(b), (unsigned long)b->mb_size);
+#ifdef STACKSIZE
 #ifdef GDB_HOOK
 			resolve_stack_gdb(b->mb_pc, STACKSIZE);
 			fprintf(stderr,"\n");
@@ -968,6 +992,7 @@ malloc_dump_table(void)
 			for (sp = 0; sp < STACKSIZE; sp++)
 				fprintf(stderr,"\t%p\n",b->mb_pc[sp]);
 #endif
+#endif /* STACKSIZE */
 #endif /* DEBUG */
 		}
 	}
@@ -1047,6 +1072,8 @@ malloc_stats(void)
 }
 
 
+#ifdef DEBUG
+#ifdef STACKSIZE
 #ifdef GDB_HOOK
 void
 show_gdb_address(char *buf, size_t buflen, void *address)
@@ -1190,3 +1217,6 @@ resolve_stack_gdb(void **stack, size_t stacksize)
 	exit(0);
 }
 #endif
+#endif
+#endif
+
