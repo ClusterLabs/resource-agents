@@ -61,7 +61,7 @@ int debug;
 int operation;
 int child_wait;
 int quorum_wait = TRUE;
-FENCED_START_TIMEOUT = 0;
+int FENCED_START_TIMEOUT = 0;
 int cl_sock;
 char our_name[MAX_CLUSTER_MEMBER_NAME_LEN+1];
 
