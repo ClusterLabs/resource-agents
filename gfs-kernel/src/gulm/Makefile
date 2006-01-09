@@ -47,9 +47,7 @@ lock_gulm-objs := gulm_core.o \
 EXTRA_CFLAGS += -I$(obj)
 
 all:
-	rm -f linux lm_interface.h
 	ln -s . linux
-	ln -s ${top_srcdir}/src/harness/lm_interface.h .
 	${MAKE} -C ${KERNEL_SRC} M=${PWD} modules USING_KBUILD=yes
 
 install: all
@@ -60,7 +58,7 @@ uninstall:
 	${UNINSTALL} lock_gulm.ko ${module_dir}/fs/gfs_locking/lock_gulm
 
 clean:
-	rm -rf linux lm_interface.h *.mod.c .lock_gulm.ko.cmd \
+	rm -rf linux *.mod.c .lock_gulm.ko.cmd \
 		.tmp_versions *o .*.o.cmd *~
 
 patches: pre add post

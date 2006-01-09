@@ -58,7 +58,7 @@ init_gulm (void)
 	gulm_cm.hookup = NULL;
 
 	/* register with the lm layers. */
-	error = lm_register_proto (&gulm_ops);
+	error = gfs_register_lockproto (&gulm_ops);
 	if (error)
 		goto fail;
 
@@ -82,7 +82,7 @@ glq_fail:
 	glq_release();
 
    lm_fail:
-	lm_unregister_proto (&gulm_ops);
+	gfs_unregister_lockproto (&gulm_ops);
 
       fail:
 	return error;
@@ -98,7 +98,7 @@ exit_gulm (void)
 {
 	gulm_lt_release();
 	glq_release();
-	lm_unregister_proto (&gulm_ops);
+	gfs_unregister_lockproto (&gulm_ops);
 }
 
 module_init (init_gulm);

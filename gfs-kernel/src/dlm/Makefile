@@ -37,7 +37,6 @@ EXTRA_CFLAGS += -I$(obj)
 
 all:
 	if [ ! -e linux ]; then ln -s . linux; fi
-	if [ ! -e lm_interface.h ]; then ln -s ${top_srcdir}/src/harness/lm_interface.h .; fi
 	if [ ! -e dlm.h ]; then cp ../../../dlm-kernel/src2/dlm.h .; fi
 	${MAKE} -C ${KERNEL_SRC} M=${PWD} modules USING_KBUILD=yes
 
@@ -49,8 +48,7 @@ uninstall:
 	${UNINSTALL} lock_dlm.ko ${module_dir}/fs/gfs_locking/lock_dlm
 
 clean:
-	rm -rf linux cluster lm_interface.h dlm.h cnxman.h \
-		cnxman-socket.h service.h .tmp_versions *.o \
+	rm -rf linux dlm.h .tmp_versions *.o \
 		.*.o.cmd lock_dlm.ko .*.ko.cmd lock_dlm.mod.c *~
 
 patches: pre add post

@@ -15,7 +15,7 @@
 #include <linux/fs.h>
 #include <linux/smp_lock.h>
 
-#include "../harness/lm_interface.h"
+#include "../gfs/lm_interface.h"
 
 struct nolock_lockspace {
 	unsigned int nl_lvb_size;
@@ -244,7 +244,7 @@ int __init init_nolock(void)
 {
 	int error;
 
-	error = lm_register_proto(&nolock_ops);
+	error = gfs_register_lockproto(&nolock_ops);
 	if (error) {
 		printk("lock_nolock: can't register protocol: %d\n", error);
 		return error;
@@ -256,7 +256,7 @@ int __init init_nolock(void)
 
 void __exit exit_nolock(void)
 {
-	lm_unregister_proto(&nolock_ops);
+	gfs_unregister_lockproto(&nolock_ops);
 }
 
 module_init(init_nolock);

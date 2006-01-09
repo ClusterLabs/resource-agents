@@ -73,7 +73,7 @@
 /*  Divide x by y.  Round up if there is a remainder.  */
 #define DIV_RU(x, y) (((x) + (y) - 1) / (y))
 
-#include <linux/lm_interface.h>
+#include "../gfs/lm_interface.h"
 
 #include "gulm_prints.h"
 

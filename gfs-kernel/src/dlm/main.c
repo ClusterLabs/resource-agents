@@ -20,7 +20,7 @@ int __init init_lock_dlm(void)
 {
 	int error;
 
-	error = lm_register_proto(&gdlm_ops);
+	error = gfs_register_lockproto(&gdlm_ops);
 	if (error) {
 		printk("lock_dlm:  can't register protocol: %d\n", error);
 		return error;
@@ -28,14 +28,14 @@ int __init init_lock_dlm(void)
 
 	error = gdlm_sysfs_init();
 	if (error) {
-		lm_unregister_proto(&gdlm_ops);
+		gfs_unregister_lockproto(&gdlm_ops);
 		return error;
 	}
 
 	error = gdlm_plock_init();
 	if (error) {
 		gdlm_sysfs_exit();
-		lm_unregister_proto(&gdlm_ops);
+		gfs_unregister_lockproto(&gdlm_ops);
 		return error;
 	}
 
@@ -50,7 +50,7 @@ void __exit exit_lock_dlm(void)
 {
 	gdlm_plock_exit();
 	gdlm_sysfs_exit();
-	lm_unregister_proto(&gdlm_ops);
+	gfs_unregister_lockproto(&gdlm_ops);
 }
 
 module_init(init_lock_dlm);

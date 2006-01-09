@@ -13,7 +13,7 @@
 
 #ifndef __handler_c__
 #define __handler_c__
-#include <linux/lm_interface.h>
+#include "../gfs/lm_interface.h"
 
 struct callback_qu_s {
 	struct completion startup;
