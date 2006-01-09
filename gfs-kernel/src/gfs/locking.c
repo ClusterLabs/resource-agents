@@ -46,7 +46,7 @@ int gfs_register_lockproto(struct lm_lockops *proto)
 	list_for_each_entry(lw, &lmh_list, lw_list) {
 		if (!strcmp(lw->lw_ops->lm_proto_name, proto->lm_proto_name)) {
 			up(&lmh_lock);
-			printk("GFS2: protocol %s already exists\n",
+			printk("GFS: protocol %s already exists\n",
 			       proto->lm_proto_name);
 			return -EEXIST;
 		}
@@ -90,7 +90,7 @@ void gfs_unregister_lockproto(struct lm_lockops *proto)
 
 	up(&lmh_lock);
 
-	printk("GFS2: can't unregister lock protocol %s\n",
+	printk("GFS: can't unregister lock protocol %s\n",
 	       proto->lm_proto_name);
 }
 
@@ -136,7 +136,7 @@ int gfs_mount_lockproto(char *proto_name, char *table_name, char *host_data,
 			request_module(proto_name);
 			goto retry;
 		}
-		printk("GFS2: can't find protocol %s\n", proto_name);
+		printk("GFS: can't find protocol %s\n", proto_name);
 		error = -ENOENT;
 		goto out;
 	}
