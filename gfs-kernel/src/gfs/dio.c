@@ -150,7 +150,7 @@ stuck_releasepage(struct buffer_head *bh)
  */
 
 static int
-gfs_aspace_releasepage(struct page *page, int gfp_mask)
+gfs_aspace_releasepage(struct page *page, gfp_t gfp_mask)
 {
 	ENTER(GFN_ASPACE_RELEASEPAGE)
 	struct inode *aspace = page->mapping->host;

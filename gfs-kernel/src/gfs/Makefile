@@ -64,7 +64,8 @@ gfs-objs := \
 	super.o \
 	trans.o \
 	unlinked.o \
-	util.o
+	util.o \
+	locking.o
 
 EXTRA_CFLAGS += -I$(obj)
 
@@ -73,9 +74,6 @@ EXTRA_CFLAGS += -I$(obj)
 
 all:
 	${top_srcdir}/../kdbl/scripts/build_debug gfs *.[ch] > gfs_debug_const.h
-	rm -f linux lm_interface.h
-	ln -s . linux
-	ln -s ${top_srcdir}/src/harness/lm_interface.h .
 	${MAKE} -C ${KERNEL_SRC} M=${PWD} modules USING_KBUILD=yes
 
 install: all
@@ -89,7 +87,7 @@ uninstall:
 	${UNINSTALL} gfs_ondisk.h gfs_ioctl.h ${incdir}/linux
 
 clean:
-	rm -rf linux *.o .*.o.cmd .gfs.ko.cmd lm_interface.h \
+	rm -rf linux *.o .*.o.cmd .gfs.ko.cmd \
 		gfs.ko gfs.mod.c .tmp_versions *~ gfs_debug_const.h
 
 

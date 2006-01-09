@@ -55,6 +55,8 @@ init_gfs_fs(void)
 	p = TRUE;
 #endif
 
+	gfs_init_lmh();
+
 	error = gfs_sys_init();
 	if (error)
 		goto fail_debug;

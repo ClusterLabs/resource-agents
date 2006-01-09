@@ -67,10 +67,10 @@ gfs_lm_mount(struct gfs_sbd *sdp, int silent)
 	       proto, table);
 
 	atomic_inc(&sdp->sd_lm_outstanding);
-	error = lm_mount(proto, table, sdp->sd_args.ar_hostdata,
-			 lm_cb, sdp,
-			 GFS_MIN_LVB_SIZE, flags,
-			 &sdp->sd_lockstruct, &sdp->sd_kobj);
+	error = gfs_mount_lockproto(proto, table, sdp->sd_args.ar_hostdata,
+				    lm_cb, sdp,
+				    GFS_MIN_LVB_SIZE, flags,
+				    &sdp->sd_lockstruct, &sdp->sd_kobj);
 	atomic_dec(&sdp->sd_lm_outstanding);
 	if (error) {
 		printk("GFS: can't mount proto = %s, table = %s, hostdata = %s\n",
@@ -81,7 +81,7 @@ gfs_lm_mount(struct gfs_sbd *sdp, int silent)
 	if (gfs_assert_warn(sdp, sdp->sd_lockstruct.ls_lockspace) ||
 	    gfs_assert_warn(sdp, sdp->sd_lockstruct.ls_ops) ||
 	    gfs_assert_warn(sdp, sdp->sd_lockstruct.ls_lvb_size >= GFS_MIN_LVB_SIZE)) {
-		lm_unmount(&sdp->sd_lockstruct);
+		gfs_unmount_lockproto(&sdp->sd_lockstruct);
 		goto out;
 	}
 
@@ -127,7 +127,7 @@ gfs_lm_unmount(struct gfs_sbd *sdp)
 	ENTER(GFN_LM_UNMOUNT)
 	atomic_inc(&sdp->sd_lm_outstanding);
 	if (likely(!test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
-		lm_unmount(&sdp->sd_lockstruct);
+		gfs_unmount_lockproto(&sdp->sd_lockstruct);
 	atomic_dec(&sdp->sd_lm_outstanding);
 	RET(GFN_LM_UNMOUNT);
 }
@@ -180,7 +180,7 @@ gfs_lm_withdraw(struct gfs_sbd *sdp, char *fmt, ...)
 	       sdp->sd_fsname);
 
 	atomic_inc(&sdp->sd_lm_outstanding);
-	lm_withdraw(&sdp->sd_lockstruct);
+	gfs_withdraw_lockproto(&sdp->sd_lockstruct);
 	atomic_dec(&sdp->sd_lm_outstanding);
 
 	printk("GFS: fsid=%s: withdrawn\n",

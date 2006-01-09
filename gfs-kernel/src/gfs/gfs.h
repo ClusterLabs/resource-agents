@@ -16,9 +16,9 @@
 
 #define GFS_RELEASE_NAME "<CVS>"
 
-#include <linux/lm_interface.h>
 #include <linux/gfs_ondisk.h>
 
+#include "lm_interface.h"
 #include "fixed_div64.h"
 #include "lvb.h"
 #include "incore.h"
