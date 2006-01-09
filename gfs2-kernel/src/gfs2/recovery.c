@@ -147,7 +147,6 @@ static int get_log_header(struct gfs2_jdesc *jd, unsigned int blk,
 
 	if (lh.lh_header.mh_magic != GFS2_MAGIC ||
 	    lh.lh_header.mh_type != GFS2_METATYPE_LH ||
-	    lh.lh_header.mh_blkno != bh->b_blocknr ||
 	    lh.lh_blkno != blk ||
 	    lh.lh_hash != hash)
 		return 1;
