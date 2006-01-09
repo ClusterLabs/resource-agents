@@ -15,6 +15,7 @@
 #include <linux/sched.h>
 #include <linux/kmod.h>
 #include <linux/fs.h>
+#include <linux/delay.h>
 
 #include "lm_interface.h"
 
@@ -23,17 +24,20 @@ struct lmh_wrapper {
 	struct lm_lockops *lw_ops;
 };
 
-static struct semaphore lmh_lock;
+/* List of registered low-level locking protocols.  A file system selects one
+   of them by name at mount time, e.g. lock_nolock, lock_dlm. */
+
 static struct list_head lmh_list;
+static struct semaphore lmh_lock;
 
 /**
- * lm_register_proto - Register a low-level locking protocol
+ * gfs_register_lockproto - Register a low-level locking protocol
  * @proto: the protocol definition
  *
  * Returns: 0 on success, -EXXX on failure
  */
 
-int lm_register_proto(struct lm_lockops *proto)
+int gfs_register_lockproto(struct lm_lockops *proto)
 {
 	struct lmh_wrapper *lw;
 
@@ -42,7 +46,7 @@ int lm_register_proto(struct lm_lockops *proto)
 	list_for_each_entry(lw, &lmh_list, lw_list) {
 		if (!strcmp(lw->lw_ops->lm_proto_name, proto->lm_proto_name)) {
 			up(&lmh_lock);
-			printk("lock_harness:  protocol %s already exists\n",
+			printk("GFS2: protocol %s already exists\n",
 			       proto->lm_proto_name);
 			return -EEXIST;
 		}
@@ -64,12 +68,12 @@ int lm_register_proto(struct lm_lockops *proto)
 }
 
 /**
- * lm_unregister_proto - Unregister a low-level locking protocol
+ * gfs_unregister_lockproto - Unregister a low-level locking protocol
  * @proto: the protocol definition
  *
  */
 
-void lm_unregister_proto(struct lm_lockops *proto)
+void gfs_unregister_lockproto(struct lm_lockops *proto)
 {
 	struct lmh_wrapper *lw;
 
@@ -86,12 +90,12 @@ void lm_unregister_proto(struct lm_lockops *proto)
 
 	up(&lmh_lock);
 
-	printk("lock_harness:  can't unregister lock protocol %s\n",
+	printk("GFS2: can't unregister lock protocol %s\n",
 	       proto->lm_proto_name);
 }
 
 /**
- * lm_mount - Mount a lock protocol
+ * gfs2_mount_lockproto - Mount a lock protocol
  * @proto_name - the name of the protocol
  * @table_name - the name of the lock space
  * @host_data - data specific to this host
@@ -104,11 +108,11 @@ void lm_unregister_proto(struct lm_lockops *proto)
  * Returns: 0 on success, -EXXX on failure
  */
 
-int lm_mount(char *proto_name, char *table_name, char *host_data,
-	 lm_callback_t cb, lm_fsdata_t * fsdata,
-	 unsigned int min_lvb_size, int flags,
-	 struct lm_lockstruct *lockstruct,
-	 struct kobject *fskobj)
+int gfs2_mount_lockproto(char *proto_name, char *table_name, char *host_data,
+			 lm_callback_t cb, lm_fsdata_t *fsdata,
+			 unsigned int min_lvb_size, int flags,
+			 struct lm_lockstruct *lockstruct,
+			 struct kobject *fskobj)
 {
 	struct lmh_wrapper *lw = NULL;
 	int try = 0;
@@ -132,7 +136,7 @@ int lm_mount(char *proto_name, char *table_name, char *host_data,
 			request_module(proto_name);
 			goto retry;
 		}
-		printk("lock_harness:  can't find protocol %s\n", proto_name);
+		printk("GFS2: can't find protocol %s\n", proto_name);
 		error = -ENOENT;
 		goto out;
 	}
@@ -140,15 +144,12 @@ int lm_mount(char *proto_name, char *table_name, char *host_data,
 	if (!try_module_get(lw->lw_ops->lm_owner)) {
 		try = 0;
 		up(&lmh_lock);
-		current->state = TASK_UNINTERRUPTIBLE;
-		schedule_timeout(HZ);
+		msleep(1000);
 		goto retry;
 	}
 
-	error = lw->lw_ops->lm_mount(table_name, host_data,
-				     cb, fsdata,
-				     min_lvb_size, flags,
-				     lockstruct, fskobj);
+	error = lw->lw_ops->lm_mount(table_name, host_data, cb, fsdata,
+				     min_lvb_size, flags, lockstruct, fskobj);
 	if (error)
 		module_put(lw->lw_ops->lm_owner);
  out:
@@ -156,7 +157,7 @@ int lm_mount(char *proto_name, char *table_name, char *host_data,
 	return error;
 }
 
-void lm_unmount(struct lm_lockstruct *lockstruct)
+void gfs2_unmount_lockproto(struct lm_lockstruct *lockstruct)
 {
 	down(&lmh_lock);
 	lockstruct->ls_ops->lm_unmount(lockstruct->ls_lockspace);
@@ -166,12 +167,12 @@ void lm_unmount(struct lm_lockstruct *lockstruct)
 }
 
 /**
- * lm_withdraw - abnormally unmount a lock module
+ * gfs2_withdraw_lockproto - abnormally unmount a lock module
  * @lockstruct: the lockstruct passed into mount
  *
  */
 
-void lm_withdraw(struct lm_lockstruct *lockstruct)
+void gfs2_withdraw_lockproto(struct lm_lockstruct *lockstruct)
 {
 	down(&lmh_lock);
 	lockstruct->ls_ops->lm_withdraw(lockstruct->ls_lockspace);
@@ -180,14 +181,12 @@ void lm_withdraw(struct lm_lockstruct *lockstruct)
 	up(&lmh_lock);
 }
 
-int __init gfs2_init_lmh(void)
+void __init gfs2_init_lmh(void)
 {
 	init_MUTEX(&lmh_lock);
 	INIT_LIST_HEAD(&lmh_list);
-	printk("Lock_Harness (built %s %s) installed\n", __DATE__, __TIME__);
-	return 0;
 }
 
-EXPORT_SYMBOL_GPL(lm_register_proto);
-EXPORT_SYMBOL_GPL(lm_unregister_proto);
+EXPORT_SYMBOL_GPL(gfs_register_lockproto);
+EXPORT_SYMBOL_GPL(gfs_unregister_lockproto);
 

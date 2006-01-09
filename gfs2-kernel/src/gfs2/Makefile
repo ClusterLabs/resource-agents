@@ -74,7 +74,6 @@ all:
 	ln -s . linux
 	rm -rf locking
 	mkdir -p locking/harness
-	ln -s ../../../../../gfs-kernel/src/harness/lm_interface.h locking/harness/.
 	${MAKE} -C ${KERNEL_SRC} M=${PWD} modules USING_KBUILD=yes
 
 install: all

@@ -41,10 +41,10 @@ int gfs2_lm_mount(struct gfs2_sbd *sdp, int silent)
 
 	fs_info(sdp, "Trying to join cluster \"%s\", \"%s\"\n", proto, table);
 
-	error = lm_mount(proto, table, sdp->sd_args.ar_hostdata,
-			 gfs2_glock_cb, sdp,
-			 GFS2_MIN_LVB_SIZE, flags,
-			 &sdp->sd_lockstruct, &sdp->sd_kobj);
+	error = gfs2_mount_lockproto(proto, table, sdp->sd_args.ar_hostdata,
+				     gfs2_glock_cb, sdp,
+				     GFS2_MIN_LVB_SIZE, flags,
+				     &sdp->sd_lockstruct, &sdp->sd_kobj);
 	if (error) {
 		fs_info(sdp, "can't mount proto=%s, table=%s, hostdata=%s\n",
 			proto, table, sdp->sd_args.ar_hostdata);
@@ -55,7 +55,7 @@ int gfs2_lm_mount(struct gfs2_sbd *sdp, int silent)
 	    gfs2_assert_warn(sdp, sdp->sd_lockstruct.ls_ops) ||
 	    gfs2_assert_warn(sdp, sdp->sd_lockstruct.ls_lvb_size >=
 				  GFS2_MIN_LVB_SIZE)) {
-		lm_unmount(&sdp->sd_lockstruct);
+		gfs2_unmount_lockproto(&sdp->sd_lockstruct);
 		goto out;
 	}
 
@@ -86,7 +86,7 @@ void gfs2_lm_others_may_mount(struct gfs2_sbd *sdp)
 void gfs2_lm_unmount(struct gfs2_sbd *sdp)
 {
 	if (likely(!test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
-		lm_unmount(&sdp->sd_lockstruct);
+		gfs2_unmount_lockproto(&sdp->sd_lockstruct);
 }
 
 int gfs2_lm_withdraw(struct gfs2_sbd *sdp, char *fmt, ...)
@@ -110,7 +110,7 @@ int gfs2_lm_withdraw(struct gfs2_sbd *sdp, char *fmt, ...)
 	   and all further io requests fail */
 
 	fs_err(sdp, "telling LM to withdraw\n");
-	lm_withdraw(&sdp->sd_lockstruct);
+	gfs2_withdraw_lockproto(&sdp->sd_lockstruct);
 	fs_err(sdp, "withdrawn\n");
 	dump_stack();
 
