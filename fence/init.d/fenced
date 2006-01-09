@@ -24,13 +24,6 @@ start()
 {
 	echo -n "Starting fence domain:"
 
-	if ! [ -e /proc/cluster/status ]
-	then
-	  	failure "cman has not been properly started."
-		echo
-		return 0
-	fi
-
 	# If gulm is in ccs, don't start fenced
 	if ! [ -r /etc/cluster/cluster.conf ]
 	then
@@ -44,6 +37,13 @@ start()
 			"/etc/cluster/cluster.conf"
 		echo
 		exit 0
+	fi
+
+	if ! [ -e /proc/cluster/status ]
+	then
+	  	failure "cman has not been properly started."
+		echo
+		return 0
 	fi
 
 	rtrn=1
