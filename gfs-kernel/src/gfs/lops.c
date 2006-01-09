@@ -48,7 +48,7 @@ generic_le_add(struct gfs_sbd *sdp, struct gfs_log_element *le)
 		   list_empty(&le->le_list),);
 
 	/* Attach it to the (one) transaction being built by this process */
-	tr = current_transaction;
+	tr = get_transaction;
 	gfs_assert(sdp, tr,);
 
 	le->le_trans = tr;

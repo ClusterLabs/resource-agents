@@ -878,7 +878,7 @@ stat_gfs_async(struct gfs_sbd *sdp, struct gfs_stat_gfs *sg, int interruptible)
 					error = err;
 				} else {
 					if (!error)
-						error = stat_gfs_fill(gl2rgd(gh->gh_gl), sg);
+						error = stat_gfs_fill(get_gl2rgd(gh->gh_gl), sg);
 					gfs_glock_dq_uninit(gh);
 				}
 			}

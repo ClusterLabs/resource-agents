@@ -590,7 +590,7 @@ clear_rgrpdi(struct gfs_sbd *sdp)
 			gfs_glock_force_drop(gl);
 			if (atomic_read(&gl->gl_lvb_count))
 				gfs_lvb_unhold(gl);
-			gl2rgd(gl) = NULL;
+			set_gl2rgd(gl, NULL);
 			gfs_glock_put(gl);
 		}
 
@@ -771,7 +771,7 @@ gfs_ri_update(struct gfs_inode *ip)
 		if (error)
 			goto fail;
 
-		gl2rgd(rgd->rd_gl) = rgd;
+		set_gl2rgd(rgd->rd_gl, rgd);
 		rgd->rd_rg_vn = rgd->rd_gl->gl_vn - 1;
 	}
 

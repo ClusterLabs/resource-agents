@@ -50,7 +50,7 @@ static int
 gfs_write_inode(struct inode *inode, int sync)
 {
 	ENTER(GFN_WRITE_INODE)
-	struct gfs_inode *ip = vn2ip(inode);
+	struct gfs_inode *ip = get_v2ip(inode);
 
 	atomic_inc(&ip->i_sbd->sd_ops_super);
 
@@ -73,8 +73,8 @@ static void
 gfs_put_inode(struct inode *inode)
 {
 	ENTER(GFN_PUT_INODE)
-	struct gfs_sbd *sdp = vfs2sdp(inode->i_sb);
-	struct gfs_inode *ip = vn2ip(inode);
+	struct gfs_sbd *sdp = get_v2sdp(inode->i_sb);
+	struct gfs_inode *ip = get_v2ip(inode);
 
 	atomic_inc(&sdp->sd_ops_super);
 
@@ -97,7 +97,7 @@ static void
 gfs_put_super(struct super_block *sb)
 {
 	ENTER(GFN_PUT_SUPER)
-	struct gfs_sbd *sdp = vfs2sdp(sb);
+	struct gfs_sbd *sdp = get_v2sdp(sb);
 	int error;
 
         if (!sdp)
@@ -205,7 +205,7 @@ gfs_put_super(struct super_block *sb)
 
 	vfree(sdp);
 
-	vfs2sdp(sb) = NULL;
+	set_v2sdp(sb, NULL);
 
 	RET(GFN_PUT_SUPER);
 }
@@ -222,7 +222,7 @@ static void
 gfs_write_super(struct super_block *sb)
 {
 	ENTER(GFN_WRITE_SUPER)
-	struct gfs_sbd *sdp = vfs2sdp(sb);
+	struct gfs_sbd *sdp = get_v2sdp(sb);
 	atomic_inc(&sdp->sd_ops_super);
 	gfs_log_flush(sdp);
 	RET(GFN_WRITE_SUPER);
@@ -238,7 +238,7 @@ static void
 gfs_write_super_lockfs(struct super_block *sb)
 {
 	ENTER(GFN_WRITE_SUPER_LOCKFS)
-	struct gfs_sbd *sdp = vfs2sdp(sb);
+	struct gfs_sbd *sdp = get_v2sdp(sb);
 	int error;
 
 	atomic_inc(&sdp->sd_ops_super);
@@ -279,7 +279,7 @@ static void
 gfs_unlockfs(struct super_block *sb)
 {
 	ENTER(GFN_UNLOCKFS)
-	struct gfs_sbd *sdp = vfs2sdp(sb);
+	struct gfs_sbd *sdp = get_v2sdp(sb);
 
 	atomic_inc(&sdp->sd_ops_super);
 	gfs_unfreeze_fs(sdp);
@@ -299,7 +299,7 @@ static int
 gfs_statfs(struct super_block *sb, struct kstatfs *buf)
 {
 	ENTER(GFN_STATFS)
-	struct gfs_sbd *sdp = vfs2sdp(sb);
+	struct gfs_sbd *sdp = get_v2sdp(sb);
 	struct gfs_stat_gfs sg;
 	int error;
 
@@ -337,7 +337,7 @@ static int
 gfs_remount_fs(struct super_block *sb, int *flags, char *data)
 {
 	ENTER(GFN_REMOUNT_FS)
-	struct gfs_sbd *sdp = vfs2sdp(sb);
+	struct gfs_sbd *sdp = get_v2sdp(sb);
 	int error = 0;
 
 	atomic_inc(&sdp->sd_ops_super);
@@ -379,14 +379,14 @@ static void
 gfs_clear_inode(struct inode *inode)
 {
 	ENTER(GFN_CLEAR_INODE)
-	struct gfs_inode *ip = vn2ip(inode);
+	struct gfs_inode *ip = get_v2ip(inode);
 
-	atomic_inc(&vfs2sdp(inode->i_sb)->sd_ops_super);
+	atomic_inc(&get_v2sdp(inode->i_sb)->sd_ops_super);
 
 	if (ip) {
 		spin_lock(&ip->i_spin);
 		ip->i_vnode = NULL;
-		vn2ip(inode) = NULL;
+		set_v2ip(inode, NULL);
 		spin_unlock(&ip->i_spin);
 
 		gfs_glock_schedule_for_reclaim(ip->i_gl);
@@ -408,7 +408,7 @@ static int
 gfs_show_options(struct seq_file *s, struct vfsmount *mnt)
 {
 	ENTER(GFN_SHOW_OPTIONS)
-	struct gfs_sbd *sdp = vfs2sdp(mnt->mnt_sb);
+	struct gfs_sbd *sdp = get_v2sdp(mnt->mnt_sb);
 	struct gfs_args *args = &sdp->sd_args;
 
 	atomic_inc(&sdp->sd_ops_super);

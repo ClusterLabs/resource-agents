@@ -49,7 +49,7 @@ aspace_get_block(struct inode *inode, sector_t lblock,
 		 struct buffer_head *bh_result, int create)
 {
 	ENTER(GFN_ASPACE_GET_BLOCK)
-	gfs_assert_warn(vfs2sdp(inode->i_sb), FALSE);
+	gfs_assert_warn(get_v2sdp(inode->i_sb), FALSE);
 	RETURN(GFN_ASPACE_GET_BLOCK, -ENOSYS);
 }
 
@@ -78,15 +78,15 @@ static void
 stuck_releasepage(struct buffer_head *bh)
 {
 	ENTER(GFN_STUCK_RELEASEPAGE)
-	struct gfs_sbd *sdp = vfs2sdp(bh->b_page->mapping->host->i_sb);
-	struct gfs_bufdata *bd = bh2bd(bh);
+	struct gfs_sbd *sdp = get_v2sdp(bh->b_page->mapping->host->i_sb);
+	struct gfs_bufdata *bd = get_v2bd(bh);
 
 	printk("GFS: fsid=%s: stuck in gfs_releasepage()...\n", sdp->sd_fsname);
 	printk("GFS: fsid=%s: blkno = %"PRIu64", bh->b_count = %d\n",
 	       sdp->sd_fsname,
 	       (uint64_t)bh->b_blocknr,
 	       atomic_read(&bh->b_count));
-	printk("GFS: fsid=%s: bh2bd(bh) = %s\n",
+	printk("GFS: fsid=%s: get_v2bd(bh) = %s\n",
 	       sdp->sd_fsname,
 	       (bd) ? "!NULL" : "NULL");
 
@@ -114,7 +114,7 @@ stuck_releasepage(struct buffer_head *bh)
 		       (list_empty(&bd->bd_ail_tr_list)) ? "Empty" : "!Empty");
 
 		if (gl->gl_ops == &gfs_inode_glops) {
-			struct gfs_inode *ip = gl2ip(gl);
+			struct gfs_inode *ip = get_gl2ip(gl);
 
 			if (ip) {
 				unsigned int x;
@@ -154,7 +154,7 @@ gfs_aspace_releasepage(struct page *page, gfp_t gfp_mask)
 {
 	ENTER(GFN_ASPACE_RELEASEPAGE)
 	struct inode *aspace = page->mapping->host;
-	struct gfs_sbd *sdp = vfs2sdp(aspace->i_sb);
+	struct gfs_sbd *sdp = get_v2sdp(aspace->i_sb);
 	struct buffer_head *bh, *head;
 	struct gfs_bufdata *bd;
 	unsigned long t;
@@ -182,7 +182,7 @@ gfs_aspace_releasepage(struct page *page, gfp_t gfp_mask)
 			RETURN(GFN_ASPACE_RELEASEPAGE, 0);
 		}
 
-		bd = bh2bd(bh);
+		bd = get_v2bd(bh);
 		if (bd) {
 			gfs_assert_warn(sdp, bd->bd_bh == bh);
 			gfs_assert_warn(sdp, !bd->bd_new_le.le_trans);
@@ -192,7 +192,7 @@ gfs_aspace_releasepage(struct page *page, gfp_t gfp_mask)
 			gfs_assert_warn(sdp, list_empty(&bd->bd_ail_tr_list));
 			kmem_cache_free(gfs_bufdata_cachep, bd);
 			atomic_dec(&sdp->sd_bufdata_count);
-			bh2bd(bh) = NULL;
+			set_v2bd(bh, NULL);
 		}
 
 		bh = bh->b_this_page;
@@ -232,7 +232,7 @@ gfs_aspace_get(struct gfs_sbd *sdp)
 		mapping_set_gfp_mask(aspace->i_mapping, GFP_KERNEL);
 		aspace->i_mapping->a_ops = &aspace_aops;
 		aspace->i_size = ~0ULL;
-		vn2ip(aspace) = NULL;
+		set_v2ip(aspace, NULL);
 		insert_inode_hash(aspace);
 	}
 
@@ -678,7 +678,7 @@ gfs_attach_bufdata(struct buffer_head *bh, struct gfs_glock *gl)
 	lock_page(bh->b_page);
 
 	/* If there's one attached already, we're done */
-	if (bh2bd(bh)) {
+	if (get_v2bd(bh)) {
 		unlock_page(bh->b_page);
 		RET(GFN_ATTACH_BUFDATA);
 	}
@@ -698,7 +698,7 @@ gfs_attach_bufdata(struct buffer_head *bh, struct gfs_glock *gl)
 
 	INIT_LIST_HEAD(&bd->bd_ail_tr_list);
 
-	bh2bd(bh) = bd;
+	set_v2bd(bh, bd);
 
 	unlock_page(bh->b_page);
 
@@ -717,7 +717,7 @@ int
 gfs_is_pinned(struct gfs_sbd *sdp, struct buffer_head *bh)
 {
 	ENTER(GFN_IS_PINNED)
-	struct gfs_bufdata *bd = bh2bd(bh);
+	struct gfs_bufdata *bd = get_v2bd(bh);
 	int ret = FALSE;
 
 	if (bd) {
@@ -751,7 +751,7 @@ void
 gfs_dpin(struct gfs_sbd *sdp, struct buffer_head *bh)
 {
 	ENTER(GFN_DPIN)
-	struct gfs_bufdata *bd = bh2bd(bh);
+	struct gfs_bufdata *bd = get_v2bd(bh);
 	char *data;
 
 	gfs_assert_withdraw(sdp, !test_bit(SDF_ROFS, &sdp->sd_flags));
@@ -833,7 +833,7 @@ void
 gfs_dunpin(struct gfs_sbd *sdp, struct buffer_head *bh, struct gfs_trans *tr)
 {
 	ENTER(GFN_DUNPIN)
-	struct gfs_bufdata *bd = bh2bd(bh);
+	struct gfs_bufdata *bd = get_v2bd(bh);
 
 	gfs_assert_withdraw(sdp, buffer_uptodate(bh));
 
@@ -997,10 +997,10 @@ gfs_replay_buf(struct gfs_glock *gl, struct buffer_head *bh)
 	struct gfs_sbd *sdp = gl->gl_sbd;
 	struct gfs_bufdata *bd;
 
-	bd = bh2bd(bh);
+	bd = get_v2bd(bh);
 	if (!bd) {
 		gfs_attach_bufdata(bh, gl);
-		bd = bh2bd(bh);
+		bd = get_v2bd(bh);
 	}
 
 	mark_buffer_dirty(bh);
@@ -1127,7 +1127,7 @@ gfs_wipe_buffers(struct gfs_inode *ip, struct gfs_rgrpd *rgd,
 		bh = getbuf(sdp, aspace, bstart, NO_CREATE);
 		if (bh) {
 
-			bd = bh2bd(bh);
+			bd = get_v2bd(bh);
 
 			if (buffer_uptodate(bh)) {
 				if (bd) {

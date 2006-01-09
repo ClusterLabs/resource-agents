@@ -240,7 +240,7 @@ fill_super(struct super_block *sb, void *data, int silent)
 
 	memset(sdp, 0, sizeof(struct gfs_sbd));
 
-	vfs2sdp(sb) = sdp;
+	set_v2sdp(sb, sdp);
 	sdp->sd_vfs = sb;
 	gfs_diaper_register_sbd(sb->s_bdev, sdp);
 
@@ -812,7 +812,7 @@ fill_super(struct super_block *sb, void *data, int silent)
 	vfree(sdp);
 
  fail:
-	vfs2sdp(sb) = NULL;
+	set_v2sdp(sb, NULL);
 	RETURN(GFN_FILL_SUPER, error);
 }
 

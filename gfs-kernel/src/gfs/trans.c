@@ -137,8 +137,8 @@ gfs_trans_begin_i(struct gfs_sbd *sdp,
 	if (error)
 		goto fail_gunlock;
 
-	gfs_assert(sdp, !current_transaction,);
-	current_transaction = tr;
+	gfs_assert(sdp, !get_transaction,);
+	set_transaction(tr);
 
 	RETURN(GFN_TRANS_BEGIN_I, 0);
 
@@ -174,9 +174,9 @@ gfs_trans_end(struct gfs_sbd *sdp)
 
 	/* Linux task struct indicates current new trans for this process.
 	 * We're done building it, so set it to NULL */
-	tr = current_transaction;
+	tr = get_transaction;
 	gfs_assert(sdp, tr,);
-	current_transaction = NULL;
+	set_transaction(NULL);
 
 	t_gh = tr->tr_t_gh;
 	tr->tr_t_gh = NULL;
@@ -289,10 +289,10 @@ gfs_trans_add_bh(struct gfs_glock *gl, struct buffer_head *bh)
 	struct gfs_bufdata *bd;
 
 	/* Make sure GFS private info struct is attached to buffer head */
-	bd = bh2bd(bh);
+	bd = get_v2bd(bh);
 	if (!bd) {
 		gfs_attach_bufdata(bh, gl);
-		bd = bh2bd(bh);
+		bd = get_v2bd(bh);
 	}
 
 	/* If buffer has already been attached to trans, we're done */
@@ -387,7 +387,7 @@ gfs_trans_add_quota(struct gfs_sbd *sdp, int64_t change,
 	if (gfs_assert_warn(sdp, !found_uid || !found_gid))
 		RET(GFN_TRANS_ADD_QUOTA);
 
-	tr = current_transaction;
+	tr = get_transaction;
 	gfs_assert(sdp, tr,);
 
 	for (head = &tr->tr_elements, tmp = head->next, next = tmp->next;

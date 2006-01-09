@@ -36,19 +36,19 @@ void gfs_dunpin(struct gfs_sbd *sdp, struct buffer_head *bh,
 static __inline__
 void gfs_lock_buffer(struct buffer_head *bh)
 {
-	struct gfs_bufdata *bd = bh2bd(bh);
+	struct gfs_bufdata *bd = get_v2bd(bh);
 	down(&bd->bd_lock);
 }
 static __inline__
 int gfs_trylock_buffer(struct buffer_head *bh)
 {
-	struct gfs_bufdata *bd = bh2bd(bh);
+	struct gfs_bufdata *bd = get_v2bd(bh);
 	return down_trylock(&bd->bd_lock);
 }
 static __inline__
 void gfs_unlock_buffer(struct buffer_head *bh)
 {
-	struct gfs_bufdata *bd = bh2bd(bh);
+	struct gfs_bufdata *bd = get_v2bd(bh);
 	up(&bd->bd_lock);
 }
 

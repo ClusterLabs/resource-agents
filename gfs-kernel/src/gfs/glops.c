@@ -318,7 +318,7 @@ inode_go_demote_ok(struct gfs_glock *gl)
 	struct gfs_sbd *sdp = gl->gl_sbd;
 	int demote = FALSE;
 
-	if (!gl2ip(gl) && !gl->gl_aspace->i_mapping->nrpages)
+	if (!get_gl2ip(gl) && !gl->gl_aspace->i_mapping->nrpages)
 		demote = TRUE;
 	else if (!sdp->sd_args.ar_localcaching &&
 		 time_after_eq(jiffies, gl->gl_stamp + gfs_tune_get(sdp, gt_demote_secs) * HZ))
@@ -340,7 +340,7 @@ static int
 inode_go_lock(struct gfs_glock *gl, int flags)
 {
 	ENTER(GFN_INODE_GO_LOCK)
-	struct gfs_inode *ip = gl2ip(gl);
+	struct gfs_inode *ip = get_gl2ip(gl);
 	int error = 0;
 
 	if (ip && ip->i_vn != gl->gl_vn) {
@@ -364,7 +364,7 @@ static void
 inode_go_unlock(struct gfs_glock *gl, int flags)
 {
 	ENTER(GFN_INODE_GO_UNLOCK)
-	struct gfs_inode *ip = gl2ip(gl);
+	struct gfs_inode *ip = get_gl2ip(gl);
 
 	if (ip && test_bit(GLF_DIRTY, &gl->gl_flags))
 		gfs_inode_attr_in(ip);
@@ -386,7 +386,7 @@ inode_greedy(struct gfs_glock *gl)
 {
 	ENTER(GFN_INODE_GREEDY)
 	struct gfs_sbd *sdp = gl->gl_sbd;
-	struct gfs_inode *ip = gl2ip(gl);
+	struct gfs_inode *ip = get_gl2ip(gl);
 	unsigned int quantum = gfs_tune_get(sdp, gt_greedy_quantum);
 	unsigned int max = gfs_tune_get(sdp, gt_greedy_max);
 	unsigned int new_time;
@@ -433,7 +433,7 @@ static void
 rgrp_go_xmote_th(struct gfs_glock *gl, unsigned int state, int flags)
 {
 	ENTER(GFN_RGRP_GO_XMOTE_TH)
-	struct gfs_rgrpd *rgd = gl2rgd(gl);
+	struct gfs_rgrpd *rgd = get_gl2rgd(gl);
 
 	gfs_mhc_zap(rgd);
 	gfs_depend_sync(rgd);
@@ -455,7 +455,7 @@ static void
 rgrp_go_drop_th(struct gfs_glock *gl)
 {
 	ENTER(GFN_RGRP_GO_DROP_TH)
-	struct gfs_rgrpd *rgd = gl2rgd(gl);
+	struct gfs_rgrpd *rgd = get_gl2rgd(gl);
 
 	gfs_mhc_zap(rgd);
 	gfs_depend_sync(rgd);
@@ -479,7 +479,7 @@ static int
 rgrp_go_demote_ok(struct gfs_glock *gl)
 {
 	ENTER(GFN_RGRP_GO_DEMOTE_OK)
-	struct gfs_rgrpd *rgd = gl2rgd(gl);
+	struct gfs_rgrpd *rgd = get_gl2rgd(gl);
 	int demote = TRUE;
 
 	if (gl->gl_aspace->i_mapping->nrpages)
@@ -508,7 +508,7 @@ rgrp_go_lock(struct gfs_glock *gl, int flags)
 	if (flags & GL_SKIP)
 		RETURN(GFN_RGRP_GO_LOCK, 0);
 	RETURN(GFN_RGRP_GO_LOCK,
-	       gfs_rgrp_read(gl2rgd(gl)));
+	       gfs_rgrp_read(get_gl2rgd(gl)));
 }
 
 /**
@@ -526,7 +526,7 @@ static void
 rgrp_go_unlock(struct gfs_glock *gl, int flags)
 {
 	ENTER(GFN_RGRP_GO_UNLOCK)
-	struct gfs_rgrpd *rgd = gl2rgd(gl);
+	struct gfs_rgrpd *rgd = get_gl2rgd(gl);
 	if (flags & GL_SKIP)
 		RET(GFN_RGRP_GO_UNLOCK);
 	gfs_rgrp_relse(rgd);

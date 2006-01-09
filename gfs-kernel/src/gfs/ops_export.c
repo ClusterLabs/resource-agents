@@ -60,7 +60,7 @@ gfs_decode_fh(struct super_block *sb, __u32 *fh, int fh_len, int fh_type,
 	ENTER(GFN_DECODE_FH)
 	struct inode_cookie this, parent;
 
-	atomic_inc(&vfs2sdp(sb)->sd_ops_export);
+	atomic_inc(&get_v2sdp(sb)->sd_ops_export);
 
 	if (fh_type != fh_len)
 		RETURN(GFN_DECODE_FH, NULL);
@@ -106,7 +106,7 @@ gfs_encode_fh(struct dentry *dentry, __u32 *fh, int *len,
 {
 	ENTER(GFN_ENCODE_FH)
 	struct inode *inode = dentry->d_inode;
-	struct gfs_inode *ip = vn2ip(inode);
+	struct gfs_inode *ip = get_v2ip(inode);
 	int maxlen = *len;
 
 	atomic_inc(&ip->i_sbd->sd_ops_export);
@@ -125,7 +125,7 @@ gfs_encode_fh(struct dentry *dentry, __u32 *fh, int *len,
 	spin_lock(&dentry->d_lock);
 
 	inode = dentry->d_parent->d_inode;
-	ip = vn2ip(inode);
+	ip = get_v2ip(inode);
 
 	fh[3] = cpu_to_gfs32((uint32_t)(ip->i_num.no_formal_ino >> 32));
 	fh[4] = cpu_to_gfs32((uint32_t)(ip->i_num.no_formal_ino & 0xFFFFFFFF));
@@ -200,13 +200,13 @@ int gfs_get_name(struct dentry *parent, char *name,
 	if (!dir)
 		RETURN(GFN_GET_NAME, -EINVAL);
 
-	atomic_inc(&vfs2sdp(dir->i_sb)->sd_ops_export);
+	atomic_inc(&get_v2sdp(dir->i_sb)->sd_ops_export);
 
 	if (!S_ISDIR(dir->i_mode) || !inode)
 		RETURN(GFN_GET_NAME, -EINVAL);
 
-	dip = vn2ip(dir);
-	ip = vn2ip(inode);
+	dip = get_v2ip(dir);
+	ip = get_v2ip(inode);
 
 	*name = 0;
 	gnfd.formal_ino = ip->i_num.no_formal_ino;
@@ -241,7 +241,7 @@ struct dentry *
 gfs_get_parent(struct dentry *child)
 {
 	ENTER(GFN_GET_PARENT)
-	struct gfs_inode *dip = vn2ip(child->d_inode);
+	struct gfs_inode *dip = get_v2ip(child->d_inode);
 	struct gfs_holder d_gh, i_gh;
 	struct qstr dotdot = { .name = "..", .len = 2 };
 	struct gfs_inode *ip;
@@ -260,7 +260,7 @@ gfs_get_parent(struct dentry *child)
 	if (!i_gh.gh_gl)
 		goto fail;
 
-	ip = gl2ip(i_gh.gh_gl);
+	ip = get_gl2ip(i_gh.gh_gl);
 
 	gfs_glock_dq_uninit(&d_gh);
 	gfs_glock_dq_uninit(&i_gh);
@@ -299,7 +299,7 @@ struct dentry *
 gfs_get_dentry(struct super_block *sb, void *inump)
 {
 	ENTER(GFN_GET_DENTRY)
-	struct gfs_sbd *sdp = vfs2sdp(sb);
+	struct gfs_sbd *sdp = get_v2sdp(sb);
 	struct inode_cookie *cookie = (struct inode_cookie *)inump;
 	struct gfs_inum inum;
 	struct gfs_holder i_gh, ri_gh, rgd_gh;

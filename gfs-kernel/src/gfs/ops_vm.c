@@ -69,7 +69,7 @@ gfs_private_nopage(struct vm_area_struct *area,
 		   unsigned long address, int *type)
 {
 	ENTER(GFN_PRIVATE_NOPAGE)
-	struct gfs_inode *ip = vn2ip(area->vm_file->f_mapping->host);
+	struct gfs_inode *ip = get_v2ip(area->vm_file->f_mapping->host);
 	struct gfs_holder i_gh;
 	struct page *result;
 	int error;
@@ -188,7 +188,7 @@ gfs_sharewrite_nopage(struct vm_area_struct *area,
 		      unsigned long address, int *type)
 {
 	ENTER(GFN_SHAREWRITE_NOPAGE)
-	struct gfs_inode *ip = vn2ip(area->vm_file->f_mapping->host);
+	struct gfs_inode *ip = get_v2ip(area->vm_file->f_mapping->host);
 	struct gfs_holder i_gh;
 	struct page *result = NULL;
 	unsigned long index = ((address - area->vm_start) >> PAGE_CACHE_SHIFT) + area->vm_pgoff;

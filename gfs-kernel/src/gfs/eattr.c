@@ -1761,7 +1761,8 @@ gfs_ea_acl_chmod(struct gfs_inode *ip, struct gfs_ea_location *el,
 
 	error = gfs_get_inode_buffer(ip, &dibh);
 	if (!error) {
-		inode_setattr(ip->i_vnode, attr);
+		error = inode_setattr(ip->i_vnode, attr);
+		gfs_assert_warn(ip->i_sbd, !error);
 		gfs_inode_attr_out(ip);
 		gfs_trans_add_bh(ip->i_gl, dibh);
 		gfs_dinode_out(&ip->i_di, dibh->b_data);
@@ -1834,7 +1835,7 @@ ea_dealloc_indirect(struct gfs_inode *ip)
 
 	for (x = 0; x < rlist.rl_rgrps; x++) {
 		struct gfs_rgrpd *rgd;
-		rgd = gl2rgd(rlist.rl_ghs[x].gh_gl);
+		rgd = get_gl2rgd(rlist.rl_ghs[x].gh_gl);
 		rg_blocks += rgd->rd_ri.ri_length;
 	}
 

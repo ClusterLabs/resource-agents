@@ -39,7 +39,7 @@ gfs_inval_pte(struct gfs_glock *gl)
 	struct gfs_inode *ip;
 	struct inode *inode;
 
-	ip = gl2ip(gl);
+	ip = get_gl2ip(gl);
 	if (!ip ||
 	    ip->i_di.di_type != GFS_FILE_REG)
 		RET(GFN_INVAL_PTE);
@@ -74,7 +74,7 @@ gfs_inval_page(struct gfs_glock *gl)
 	struct gfs_inode *ip;
 	struct inode *inode;
 
-	ip = gl2ip(gl);
+	ip = get_gl2ip(gl);
 	if (!ip ||
 	    ip->i_di.di_type != GFS_FILE_REG)
 		RET(GFN_INVAL_PAGE);
@@ -115,7 +115,7 @@ gfs_sync_page_i(struct inode *inode, int flags)
 
 	/* Find a better way to report this to the user. */
 	if (error)
-		gfs_io_error_inode(vn2ip(inode));
+		gfs_io_error_inode(get_v2ip(inode));
 
 	RET(GFN_SYNC_PAGE_I);
 }
@@ -136,7 +136,7 @@ gfs_sync_page(struct gfs_glock *gl, int flags)
 	struct gfs_inode *ip;
 	struct inode *inode;
 
-	ip = gl2ip(gl);
+	ip = get_gl2ip(gl);
 	if (!ip ||
 	    ip->i_di.di_type != GFS_FILE_REG)
 		RET(GFN_SYNC_PAGE);

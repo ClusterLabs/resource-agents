@@ -40,7 +40,7 @@ gfs_drevalidate(struct dentry *dentry, struct nameidata *nd)
 {
 	ENTER(GFN_DREVALIDATE)
 	struct dentry *parent = dget_parent(dentry);
-	struct gfs_inode *dip = vn2ip(parent->d_inode);
+	struct gfs_inode *dip = get_v2ip(parent->d_inode);
 	struct gfs_sbd *sdp = dip->i_sbd;
 	struct inode *inode;
 	struct gfs_holder d_gh;
@@ -78,7 +78,7 @@ gfs_drevalidate(struct dentry *dentry, struct nameidata *nd)
 		goto fail_gunlock;
 	}
 
-	ip = vn2ip(inode);
+	ip = get_v2ip(inode);
 
 	if (ip->i_num.no_formal_ino != inum.no_formal_ino)
 		goto invalid_gunlock;

@@ -211,7 +211,7 @@ gfs_iget(struct gfs_inode *ip, int create)
 		init_special_inode(tmp, tmp->i_mode, tmp->i_rdev);
 	}
 
-	vn2ip(tmp) = NULL;
+	set_v2ip(tmp, NULL);
 
 	/* Did another process successfully create an inode while we were
 	   preparing this (tmp) one?  If so, we can use that other one, and
@@ -237,7 +237,7 @@ gfs_iget(struct gfs_inode *ip, int create)
 
 	gfs_inode_hold(ip);
 	ip->i_vnode = inode;
-	vn2ip(inode) = ip;
+	set_v2ip(inode, ip);
 
 	spin_unlock(&ip->i_spin);
 
@@ -339,7 +339,7 @@ inode_create(struct gfs_glock *i_gl, struct gfs_inum *inum,
 	/* Assign the inode's glock as this iopen glock's protected object */
 	spin_lock(&io_gl->gl_spin);
 	gfs_glock_hold(i_gl);
-	gl2gl(io_gl) = i_gl;
+	set_gl2gl(io_gl, i_gl);
 	spin_unlock(&io_gl->gl_spin);
 
 	/* Read dinode from disk */
@@ -348,7 +348,7 @@ inode_create(struct gfs_glock *i_gl, struct gfs_inum *inum,
 		goto fail_iopen;
 
 	gfs_glock_hold(i_gl);
-	gl2ip(i_gl) = ip;
+	set_gl2ip(i_gl, ip);
 
 	atomic_inc(&sdp->sd_inode_count);
 
@@ -358,7 +358,7 @@ inode_create(struct gfs_glock *i_gl, struct gfs_inum *inum,
 
  fail_iopen:
 	spin_lock(&io_gl->gl_spin);
-	gl2gl(io_gl) = NULL;
+	set_gl2gl(io_gl, NULL);
 	gfs_glock_put(i_gl);
 	spin_unlock(&io_gl->gl_spin);
 
@@ -392,7 +392,7 @@ gfs_inode_get(struct gfs_glock *i_gl, struct gfs_inum *inum, int create,
 	struct gfs_glock *io_gl;
 	int error = 0;
 
-	*ipp = gl2ip(i_gl);
+	*ipp = get_gl2ip(i_gl);
 	if (*ipp) {
 		atomic_inc(&(*ipp)->i_count);
 		gfs_assert_warn(i_gl->gl_sbd, 
@@ -461,11 +461,11 @@ gfs_inode_destroy(struct gfs_inode *ip)
 	struct gfs_glock *i_gl = ip->i_gl;
 
 	gfs_assert_warn(sdp, !atomic_read(&ip->i_count));
-	gfs_assert(sdp, gl2gl(io_gl) == i_gl,);
+	gfs_assert(sdp, get_gl2gl(io_gl) == i_gl,);
 
 	/* Unhold the iopen glock */
 	spin_lock(&io_gl->gl_spin);
-	gl2gl(io_gl) = NULL;
+	set_gl2gl(io_gl, NULL);
 	gfs_glock_put(i_gl);
 	spin_unlock(&io_gl->gl_spin);
 
@@ -475,7 +475,7 @@ gfs_inode_destroy(struct gfs_inode *ip)
 	gfs_flush_meta_cache(ip);
 	kmem_cache_free(gfs_inode_cachep, ip);
 
-	gl2ip(i_gl) = NULL;
+	set_gl2ip(i_gl, NULL);
 	gfs_glock_put(i_gl);
 
 	atomic_dec(&sdp->sd_inode_count);
@@ -661,7 +661,7 @@ inode_dealloc(struct gfs_sbd *sdp, struct gfs_inum *inum,
 		goto fail;
 	}
 
-	gfs_assert_warn(sdp, !gl2ip(i_gh.gh_gl));
+	gfs_assert_warn(sdp, !get_gl2ip(i_gh.gh_gl));
 	error = inode_create(i_gh.gh_gl, inum, io_gh->gh_gl, LM_ST_EXCLUSIVE,
 			     &ip);
 
@@ -905,7 +905,7 @@ gfs_lookupi(struct gfs_holder *d_gh, struct qstr *name,
 	    int is_root, struct gfs_holder *i_gh)
 {
 	ENTER(GFN_LOOKUPI)
-	struct gfs_inode *dip = gl2ip(d_gh->gh_gl);
+	struct gfs_inode *dip = get_gl2ip(d_gh->gh_gl);
 	struct gfs_sbd *sdp = dip->i_sbd;
 	struct gfs_glock *gl;
 	struct gfs_inode *ip;
@@ -1407,7 +1407,7 @@ gfs_createi(struct gfs_holder *d_gh, struct qstr *name,
 	    struct gfs_holder *i_gh)
 {
 	ENTER(GFN_CREATEI)
-	struct gfs_inode *dip = gl2ip(d_gh->gh_gl);
+	struct gfs_inode *dip = get_gl2ip(d_gh->gh_gl);
 	struct gfs_sbd *sdp = dip->i_sbd;
 	struct gfs_unlinked *ul;
 	struct gfs_inum inum;
@@ -1690,7 +1690,7 @@ gfs_ok_to_move(struct gfs_inode *this, struct gfs_inode *to)
 			break;
 		}
 
-		tmp = gl2ip(tmp_gh.gh_gl);
+		tmp = get_gl2ip(tmp_gh.gh_gl);
 
 		gfs_glock_dq_uninit(&to_gh);
 		gfs_glock_dq_uninit(&tmp_gh);
@@ -1784,7 +1784,7 @@ gfs_glock_nq_atime(struct gfs_holder *gh)
 	ENTER(GFN_GLOCK_NQ_ATIME)
 	struct gfs_glock *gl = gh->gh_gl;
 	struct gfs_sbd *sdp = gl->gl_sbd;
-	struct gfs_inode *ip = gl2ip(gl);
+	struct gfs_inode *ip = get_gl2ip(gl);
 	int64_t curtime, quantum = gfs_tune_get(sdp, gt_atime_quantum);
 	unsigned int state;
 	int flags;
@@ -2037,7 +2037,8 @@ gfs_setattr_simple(struct gfs_inode *ip, struct iattr *attr)
 
 	error = gfs_get_inode_buffer(ip, &dibh);
 	if (!error) {
-		inode_setattr(ip->i_vnode, attr);
+		error = inode_setattr(ip->i_vnode, attr);
+		gfs_assert_warn(ip->i_sbd, !error);
 		gfs_inode_attr_out(ip);
 
 		gfs_trans_add_bh(ip->i_gl, dibh);
