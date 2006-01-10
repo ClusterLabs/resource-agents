@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.11 2005/12/20 08:34:47 zhenh Exp $
+# $Id: Filesystem.in,v 1.12 2006/01/10 17:32:35 alan Exp $
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
@@ -96,7 +96,7 @@ usage() {
 
 cat <<-EOT;
 	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
-	$Id: Filesystem.in,v 1.11 2005/12/20 08:34:47 zhenh Exp $
+	$Id: Filesystem.in,v 1.12 2006/01/10 17:32:35 alan Exp $
 	EOT
 }
 
@@ -323,26 +323,35 @@ Filesystem_stop()
 #
 Filesystem_status()
 {
-	if [ $blockdevice = "yes" ]; then
-	    grep -q -e "^$DEVICE $MOUNTPOINT " /proc/mounts
-	    rc=$?
+	if
+          [ $blockdevice = "yes" ]
+        then
+          greppat="^$DEVICE $MOUNTPOINT "
 	else	
-	    grep -q -e " $MOUNTPOINT " /proc/mounts
-	    rc=$?
+          greppat=" $MOUNTPOINT "
+	  rc=$?
 	fi
+	if
+	  grep -q -e "${greppat}" /proc/mounts >/dev/null 2>&1
+        then
+         rc=$OCF_SUCCESS
+          msg="$MOUNTPOINT is mounted (running)"
+        else
+          rc=$OCF_NOT_RUNNING
+          msg="$MOUNTPOINT is unmounted (stopped)"
+        fi
 
-	if [ $rc = 0 ] ; then
-		ocf_log info "$MOUNTPOINT is mounted (running)"
-		return $OCF_SUCCESS
-	else
-		ocf_log info "$MOUNTPOINT is unmounted (stopped)"
-		return $OCF_NOT_RUNNING
-	fi
+        case "$OP" in
+	  status)	ocf_log info "$msg";;
+	esac
+        return $rc
 }
 # end of Filesystem_status
 
 #
 # VALIDATE_ALL: Are the instance parameters valid?
+#	FIXME!!  The only part that's useful is the return code.
+#	This code always returns $OCF_SUCCESS (!)
 #
 Filesystem_validate_all()
 {
