@@ -43,6 +43,9 @@
 #include "aispoll.h"
 #include "swab.h"
 
+// TODO make this configurable (seconds)
+#define QUORUM_TIMEOUT 10
+
 #define max(a,b) (((a) > (b)) ? (a) : (b))
 
 /* Reference counting for cluster applications */
@@ -68,9 +71,11 @@ static int cluster_is_quorate;
 static char nodename[MAX_CLUSTER_MEMBER_NAME_LEN+1];
 static int wanted_nodeid;
 extern int num_interfaces;
+extern poll_handle ais_poll_handle;
 static struct cluster_node *quorum_device;
 static uint16_t cluster_id;
 static int ais_running;
+static poll_timer_handle quorum_device_timer;
 
 static struct cluster_node *find_node_by_nodeid(int nodeid);
 static struct cluster_node *find_node_by_name(char *name);
@@ -853,6 +858,7 @@ static int do_cmd_register_quorum_device(char *cmdbuf, int *retlen)
         /* Keep this list valid so it doesn't confuse other code */
         list_init(&quorum_device->addr_list);
 
+	log_msg(LOG_INFO, "quorum device registered\n");
         return 0;
 }
 
@@ -869,7 +875,27 @@ static int do_cmd_unregister_quorum_device(char *cmdbuf, int *retlen)
 
         quorum_device = NULL;
 
+	log_msg(LOG_INFO, "quorum device unregistered\n");
         return 0;
+}
+
+static void quorum_device_timer_fn(void *arg)
+{
+	struct timeval now;
+	if (!quorum_device || quorum_device->state == NODESTATE_DEAD)
+		return;
+
+	gettimeofday(&now, NULL);
+	if (quorum_device->last_hello.tv_sec + QUORUM_TIMEOUT <
+	    now.tv_sec) {
+		quorum_device->state = NODESTATE_DEAD;
+		log_msg(LOG_INFO, "lost contact with quorum device\n");
+		recalculate_quorum(0);
+	}
+	else {
+		poll_timer_add(ais_poll_handle, QUORUM_TIMEOUT, quorum_device,
+			       quorum_device_timer_fn, &quorum_device_timer);
+	}
 }
 
 static int do_cmd_poll_quorum_device(char *cmdbuf, int *retlen)
@@ -880,21 +906,26 @@ static int do_cmd_poll_quorum_device(char *cmdbuf, int *retlen)
                 return -EINVAL;
 
 	memcpy(&yesno, cmdbuf, sizeof(int));
-#if 0 // TODO
+
         if (yesno) {
-                quorum_device->last_hello = gettime();
+		gettimeofday(&quorum_device->last_hello, NULL);
                 if (quorum_device->state == NODESTATE_DEAD) {
                         quorum_device->state = NODESTATE_MEMBER;
                         recalculate_quorum(0);
+
+			poll_timer_add(ais_poll_handle, QUORUM_TIMEOUT, quorum_device,
+				       quorum_device_timer_fn, &quorum_device_timer);
+
                 }
         }
         else {
                 if (quorum_device->state == NODESTATE_MEMBER) {
                         quorum_device->state = NODESTATE_DEAD;
                         recalculate_quorum(0);
+			poll_timer_delete(ais_poll_handle, quorum_device_timer);
                 }
         }
-#endif
+
 	return 0;
 }
 

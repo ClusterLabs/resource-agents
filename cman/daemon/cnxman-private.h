@@ -154,7 +154,7 @@ struct cluster_node {
 	nodestate_t state;
 	struct timeval join_time;
 
-	long last_hello; /* Only used for quorum devices */
+	struct timeval last_hello; /* Only used for quorum devices */
 
 	unsigned int votes;
 	unsigned int expected_votes;
