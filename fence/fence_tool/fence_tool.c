@@ -3,7 +3,7 @@
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
 **  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
-**  
+**
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
 **  of the GNU General Public License v.2.
@@ -28,7 +28,7 @@
 #include <errno.h>
 #include <libgen.h>
 
-#include "cnxman-socket.h"
+#include "libcman.h"
 #include "ccs.h"
 #include "copyright.cf"
 
@@ -62,8 +62,8 @@ int operation;
 int child_wait;
 int quorum_wait = TRUE;
 int FENCED_START_TIMEOUT = 0;
-int cl_sock;
-char our_name[MAX_CLUSTER_MEMBER_NAME_LEN+1];
+cman_handle_t cl_handle;
+char our_name[CMAN_MAX_NODENAME_LEN+1];
 
 int dispatch_fence_agent(int cd, char *victim, int in);
 
@@ -89,6 +89,7 @@ static int check_mounted(void)
 	}
 
 	fclose(file);
+	return 0;
 }
 
 static void sigalarm_handler(int sig)
@@ -100,17 +101,17 @@ static void sigalarm_handler(int sig)
 static int get_int_arg(char argopt, char *arg)
 {
         char *tmp;
-        int val;                                                                                 
+        int val;
         val = strtol(arg, &tmp, 10);
         if (tmp == arg || tmp != arg + strlen(arg))
                 die("argument to %c (%s) is not an integer", argopt, arg);
-                                                                                
+
         if (val < 0)
                 die("argument to %c cannot be negative", argopt);
-                                                                                
+
         return val;
 }
-                                                                                
+
 
 
 static void lockfile(void)
@@ -136,9 +137,9 @@ static void lockfile(void)
 
 static int setup_sock(void)
 {
-	cl_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_CLIENT);
-	if (cl_sock < 0)
-		die("cannot create cluster socket %d", cl_sock);
+	cl_handle = cman_init(NULL);
+	if (cl_handle < 0)
+		die("cannot create cluster socket: %s", strerror(errno));
 
 	return 0;
 }
@@ -162,23 +163,23 @@ static int check_ccs(void)
 
 static int get_our_name(void)
 {
-	struct cl_cluster_node cl_node;
+	cman_node_t cl_node;
 	int rv;
 
 	if (debug)
 		printf("%s: get our node name\n", prog_name);
 
-	memset(&cl_node, 0, sizeof(struct cl_cluster_node));
+	memset(&cl_node, 0, sizeof(cl_node));
 
 	for (;;) {
-		rv = ioctl(cl_sock, SIOCCLUSTER_GETNODE, &cl_node);
+		rv = cman_get_node(cl_handle, CMAN_NODEID_US, &cl_node);
 		if (!rv)
 			break;
 		printf("%s: retrying cman getnode %d\n", prog_name, rv);
 		sleep(1);
 	}
 
-	memcpy(our_name, cl_node.name, strlen(cl_node.name));
+	memcpy(our_name, cl_node.cn_name, strlen(cl_node.cn_name));
 	return 0;
 }
 
@@ -213,11 +214,11 @@ static int check_quorum(void)
 		printf("%s: wait for quorum %d\n", prog_name, quorum_wait);
 
 	while (1) {
-		rv = ioctl(cl_sock, SIOCCLUSTER_ISACTIVE, NULL);
+		rv = cman_is_active(cl_handle);
 		if (!rv)
 			die("cluster is not active");
 
-		rv = ioctl(cl_sock, SIOCCLUSTER_ISQUORATE, NULL);
+		rv = cman_is_quorate(cl_handle);
 		if (rv)
 			return TRUE;
 		else if (!quorum_wait)
@@ -268,7 +269,7 @@ static int do_wait(void)
 		sleep(1);
 		rewind(file);
 	}
-                        
+
  out:
 	fclose(file);
 	return EXIT_SUCCESS;
@@ -284,7 +285,7 @@ static int do_join(int argc, char *argv[])
 		return EXIT_FAILURE;
 
 	get_our_name();
-	close(cl_sock);
+	cman_finish(cl_handle);
 	cd = check_ccs();
 	ccs_disconnect(cd);
 
@@ -350,7 +351,7 @@ static int do_leave(void)
 	if (!check_quorum())
 		return EXIT_FAILURE;
 
-	close(cl_sock);
+	cman_finish(cl_handle);
 
 	kill(pid, SIGTERM);
 
