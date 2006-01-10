@@ -105,22 +105,23 @@ static void buf_lo_incore_commit(struct gfs2_sbd *sdp, struct gfs2_trans *tr)
 static void buf_lo_before_commit(struct gfs2_sbd *sdp)
 {
 	struct buffer_head *bh;
-	struct gfs2_log_descriptor ld;
+	struct gfs2_log_descriptor *ld;
 	struct gfs2_bufdata *bd;
 
 	if (!sdp->sd_log_num_buf)
 		return;
 
 	bh = gfs2_log_get_buf(sdp);
-	memset(&ld, 0, sizeof(struct gfs2_log_descriptor));
-	ld.ld_header.mh_magic = GFS2_MAGIC;
-	ld.ld_header.mh_type = GFS2_METATYPE_LD;
-	ld.ld_header.mh_format = GFS2_FORMAT_LD;
-	ld.ld_header.mh_blkno = bh->b_blocknr;
-	ld.ld_type = GFS2_LOG_DESC_METADATA;
-	ld.ld_length = sdp->sd_log_num_buf + 1;
-	ld.ld_data1 = sdp->sd_log_num_buf;
-	gfs2_log_descriptor_out(&ld, bh->b_data);
+	ld = (struct gfs2_log_descriptor *)bh->b_data;
+	ld->ld_header.mh_magic = cpu_to_be32(GFS2_MAGIC);
+	ld->ld_header.mh_type = cpu_to_be16(GFS2_METATYPE_LD);
+	ld->ld_header.mh_format = cpu_to_be16(GFS2_FORMAT_LD);
+	ld->ld_header.mh_blkno = cpu_to_be64(bh->b_blocknr);
+	ld->ld_type = cpu_to_be32(GFS2_LOG_DESC_METADATA);
+	ld->ld_length = cpu_to_be32(sdp->sd_log_num_buf + 1);
+	ld->ld_data1 = cpu_to_be32(sdp->sd_log_num_buf);
+	ld->ld_data2 = cpu_to_be32(0);
+	memset(ld->ld_reserved, 0, sizeof(ld->ld_reserved));
 
 	set_buffer_dirty(bh);
 	ll_rw_block(WRITE, 1, &bh);
@@ -164,12 +165,12 @@ static int buf_lo_scan_elements(struct gfs2_jdesc *jd, unsigned int start,
 {
 	struct gfs2_sbd *sdp = jd->jd_inode->i_sbd;
 	struct gfs2_glock *gl = jd->jd_inode->i_gl;
-	unsigned int blks = ld->ld_data1;
+	unsigned int blks = be32_to_cpu(ld->ld_data1);
 	struct buffer_head *bh_log, *bh_ip;
 	uint64_t blkno;
 	int error = 0;
 
-	if (pass != 1 || ld->ld_type != GFS2_LOG_DESC_METADATA)
+	if (pass != 1 || be32_to_cpu(ld->ld_type) != GFS2_LOG_DESC_METADATA)
 		return 0;
 
 	gfs2_replay_incr_blk(sdp, &start);
@@ -179,8 +180,7 @@ static int buf_lo_scan_elements(struct gfs2_jdesc *jd, unsigned int start,
 		if (error)
 			return error;
 
-		blkno = ((struct gfs2_meta_header *)bh_log->b_data)->mh_blkno;
-		blkno = be64_to_cpu(blkno);
+		blkno = be64_to_cpu(((struct gfs2_meta_header *)bh_log->b_data)->mh_blkno);
 
 		sdp->sd_found_blocks++;
 
@@ -242,8 +242,8 @@ static void revoke_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 
 static void revoke_lo_before_commit(struct gfs2_sbd *sdp)
 {
-	struct gfs2_log_descriptor ld;
-	struct gfs2_meta_header *mh = &ld.ld_header;
+	struct gfs2_log_descriptor *ld;
+	struct gfs2_meta_header *mh;
 	struct buffer_head *bh;
 	unsigned int offset;
 	struct list_head *head = &sdp->sd_log_le_revoke;
@@ -253,15 +253,16 @@ static void revoke_lo_before_commit(struct gfs2_sbd *sdp)
 		return;
 
 	bh = gfs2_log_get_buf(sdp);
-	memset(&ld, 0, sizeof(struct gfs2_log_descriptor));
-	ld.ld_header.mh_magic = GFS2_MAGIC;
-	ld.ld_header.mh_type = GFS2_METATYPE_LD;
-	ld.ld_header.mh_format = GFS2_FORMAT_LD;
-	ld.ld_header.mh_blkno = bh->b_blocknr;
-	ld.ld_type = GFS2_LOG_DESC_REVOKE;
-	ld.ld_length = gfs2_struct2blk(sdp, sdp->sd_log_num_revoke, sizeof(uint64_t));
-	ld.ld_data1 = sdp->sd_log_num_revoke;
-	gfs2_log_descriptor_out(&ld, bh->b_data);
+	ld = (struct gfs2_log_descriptor *)bh->b_data;
+	ld->ld_header.mh_magic = cpu_to_be32(GFS2_MAGIC);
+	ld->ld_header.mh_type = cpu_to_be16(GFS2_METATYPE_LD);
+	ld->ld_header.mh_format = cpu_to_be16(GFS2_FORMAT_LD);
+	ld->ld_header.mh_blkno = cpu_to_be64(bh->b_blocknr);
+	ld->ld_type = cpu_to_be32(GFS2_LOG_DESC_REVOKE);
+	ld->ld_length = cpu_to_be32(gfs2_struct2blk(sdp, sdp->sd_log_num_revoke, sizeof(uint64_t)));
+	ld->ld_data1 = cpu_to_be32(sdp->sd_log_num_revoke);
+	ld->ld_data2 = cpu_to_be32(0);
+	memset(ld->ld_reserved, 0, sizeof(ld->ld_reserved));
 	offset = sizeof(struct gfs2_log_descriptor);
 
 	while (!list_empty(head)) {
@@ -274,14 +275,15 @@ static void revoke_lo_before_commit(struct gfs2_sbd *sdp)
 			ll_rw_block(WRITE, 1, &bh);
 
 			bh = gfs2_log_get_buf(sdp);
-			mh->mh_type = GFS2_METATYPE_LB;
-			mh->mh_format = GFS2_FORMAT_LB;
-			mh->mh_blkno = bh->b_blocknr;
-			gfs2_meta_header_out(mh, bh->b_data);
+			mh = (struct gfs2_meta_header *)bh->b_data;
+			mh->mh_magic = cpu_to_be32(GFS2_MAGIC);
+			mh->mh_type = cpu_to_be16(GFS2_METATYPE_LB);
+			mh->mh_format = cpu_to_be16(GFS2_FORMAT_LB);
+			mh->mh_blkno = cpu_to_be64(bh->b_blocknr);
 			offset = sizeof(struct gfs2_meta_header);
 		}
 
-		*(uint64_t *)(bh->b_data + offset) = cpu_to_be64(rv->rv_blkno);
+		*(__be64 *)(bh->b_data + offset) = cpu_to_be64(rv->rv_blkno);
 		kfree(rv);
 
 		offset += sizeof(uint64_t);
@@ -308,15 +310,15 @@ static int revoke_lo_scan_elements(struct gfs2_jdesc *jd, unsigned int start,
 				   struct gfs2_log_descriptor *ld, int pass)
 {
 	struct gfs2_sbd *sdp = jd->jd_inode->i_sbd;
-	unsigned int blks = ld->ld_length;
-	unsigned int revokes = ld->ld_data1;
+	unsigned int blks = be32_to_cpu(ld->ld_length);
+	unsigned int revokes = be32_to_cpu(ld->ld_data1);
 	struct buffer_head *bh;
 	unsigned int offset;
 	uint64_t blkno;
 	int first = 1;
 	int error;
 
-	if (pass != 0 || ld->ld_type != GFS2_LOG_DESC_REVOKE)
+	if (pass != 0 || be32_to_cpu(ld->ld_type) != GFS2_LOG_DESC_REVOKE)
 		return 0;
 
 	offset = sizeof(struct gfs2_log_descriptor);
@@ -330,8 +332,7 @@ static int revoke_lo_scan_elements(struct gfs2_jdesc *jd, unsigned int start,
 			gfs2_metatype_check(sdp, bh, GFS2_METATYPE_LB);
 
 		while (offset + sizeof(uint64_t) <= sdp->sd_sb.sb_bsize) {
-			blkno = *(uint64_t *)(bh->b_data + offset);
-			blkno = be64_to_cpu(blkno);
+			blkno = be64_to_cpu(*(__be64 *)(bh->b_data + offset));
 
 			error = gfs2_revoke_add(sdp, blkno, start);
 			if (error < 0)

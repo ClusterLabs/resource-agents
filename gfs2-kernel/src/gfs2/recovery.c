@@ -296,8 +296,9 @@ static int foreach_descriptor(struct gfs2_jdesc *jd, unsigned int start,
 {
 	struct gfs2_sbd *sdp = jd->jd_inode->i_sbd;
 	struct buffer_head *bh;
-	struct gfs2_log_descriptor ld;
+	struct gfs2_log_descriptor *ld;
 	int error = 0;
+	u32 length;
 
 	while (start != end) {
 		error = gfs2_replay_read_block(jd, start, &bh);
@@ -307,10 +308,10 @@ static int foreach_descriptor(struct gfs2_jdesc *jd, unsigned int start,
 			brelse(bh);
 			return -EIO;
 		}
-		gfs2_log_descriptor_in(&ld, bh->b_data);
-		brelse(bh);
+		ld = (struct gfs2_log_descriptor *)bh->b_data;
+		length = be32_to_cpu(ld->ld_length);
 
-		if (ld.ld_header.mh_type == GFS2_METATYPE_LH) {
+		if (be16_to_cpu(ld->ld_header.mh_type) == GFS2_METATYPE_LH) {
 			struct gfs2_log_header lh;
 			error = get_log_header(jd, start, &lh);
 			if (!error) {
@@ -321,16 +322,23 @@ static int foreach_descriptor(struct gfs2_jdesc *jd, unsigned int start,
 				gfs2_consist_inode(jd->jd_inode);
 				error = -EIO;
 			}
+			brelse(bh);
 			return error;
-		} else if (gfs2_metatype_check(sdp, bh, GFS2_METATYPE_LD))
+		} else if (gfs2_metatype_check(sdp, bh, GFS2_METATYPE_LD)) {
+			brelse(bh);
 			return -EIO;
+		}
 
-		error = lops_scan_elements(jd, start, &ld, pass);
-		if (error)
+		error = lops_scan_elements(jd, start, ld, pass);
+		if (error) {
+			brelse(bh);
 			return error;
+		}
 
-		while (ld.ld_length--)
+		while (length--)
 			gfs2_replay_incr_blk(sdp, &start);
+
+		brelse(bh);
 	}
 
 	return 0;
@@ -353,7 +361,7 @@ static int clean_journal(struct gfs2_jdesc *jd, struct gfs2_log_header *head)
 	unsigned int lblock;
 	int new = 0;
 	uint64_t dblock;
-	struct gfs2_log_header lh;
+	struct gfs2_log_header *lh;
 	uint32_t hash;
 	struct buffer_head *bh;
 	int error;
@@ -375,17 +383,17 @@ static int clean_journal(struct gfs2_jdesc *jd, struct gfs2_log_header *head)
 	clear_buffer_dirty(bh);
 	unlock_buffer(bh);
 
-	memset(&lh, 0, sizeof(struct gfs2_log_header));
-	lh.lh_header.mh_magic = GFS2_MAGIC;
-	lh.lh_header.mh_type = GFS2_METATYPE_LH;
-	lh.lh_header.mh_format = GFS2_FORMAT_LH;
-	lh.lh_header.mh_blkno = dblock;
-	lh.lh_sequence = head->lh_sequence + 1;
-	lh.lh_flags = GFS2_LOG_HEAD_UNMOUNT;
-	lh.lh_blkno = lblock;
-	gfs2_log_header_out(&lh, bh->b_data);
-	hash = gfs2_disk_hash(bh->b_data, sizeof(struct gfs2_log_header));
-	((struct gfs2_log_header *)bh->b_data)->lh_hash = cpu_to_be32(hash);
+	lh = (struct gfs2_log_header *)bh->b_data;
+	memset(lh, 0, sizeof(struct gfs2_log_header));
+	lh->lh_header.mh_magic = cpu_to_be32(GFS2_MAGIC);
+	lh->lh_header.mh_type = cpu_to_be16(GFS2_METATYPE_LH);
+	lh->lh_header.mh_format = cpu_to_be16(GFS2_FORMAT_LH);
+	lh->lh_header.mh_blkno = cpu_to_be64(dblock);
+	lh->lh_sequence = cpu_to_be64(head->lh_sequence + 1);
+	lh->lh_flags = cpu_to_be32(GFS2_LOG_HEAD_UNMOUNT);
+	lh->lh_blkno = cpu_to_be32(lblock);
+	hash = gfs2_disk_hash((const char *)lh, sizeof(struct gfs2_log_header));
+	lh->lh_hash = cpu_to_be32(hash);
 
 	set_buffer_dirty(bh);
 	if (sync_dirty_buffer(bh))

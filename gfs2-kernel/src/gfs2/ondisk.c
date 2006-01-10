@@ -473,18 +473,6 @@ void gfs2_log_header_in(struct gfs2_log_header *lh, char *buf)
 	lh->lh_hash = be32_to_cpu(str->lh_hash);
 }
 
-void gfs2_log_header_out(struct gfs2_log_header *lh, char *buf)
-{
-	struct gfs2_log_header *str = (struct gfs2_log_header *)buf;
-
-	gfs2_meta_header_out(&lh->lh_header, buf);
-	str->lh_sequence = cpu_to_be64(lh->lh_sequence);
-	str->lh_flags = cpu_to_be32(lh->lh_flags);
-	str->lh_tail = cpu_to_be32(lh->lh_tail);
-	str->lh_blkno = cpu_to_be32(lh->lh_blkno);
-	str->lh_hash = cpu_to_be32(lh->lh_hash);
-}
-
 void gfs2_log_header_print(struct gfs2_log_header *lh)
 {
 	gfs2_meta_header_print(&lh->lh_header);
@@ -493,30 +481,6 @@ void gfs2_log_header_print(struct gfs2_log_header *lh)
 	pv(lh, lh_tail, "%u");
 	pv(lh, lh_blkno, "%u");
 	pv(lh, lh_hash, "0x%.8X");
-}
-
-void gfs2_log_descriptor_in(struct gfs2_log_descriptor *ld, char *buf)
-{
-	struct gfs2_log_descriptor *str = (struct gfs2_log_descriptor *)buf;
-
-	gfs2_meta_header_in(&ld->ld_header, buf);
-	ld->ld_type = be32_to_cpu(str->ld_type);
-	ld->ld_length = be32_to_cpu(str->ld_length);
-	ld->ld_data1 = be32_to_cpu(str->ld_data1);
-	ld->ld_data2 = be32_to_cpu(str->ld_data2);
-}
-
-void gfs2_log_descriptor_out(struct gfs2_log_descriptor *ld, char *buf)
-{
-	struct gfs2_log_descriptor *str = (struct gfs2_log_descriptor *)buf;
-
-	gfs2_meta_header_out(&ld->ld_header, buf);
-	str->ld_type = be32_to_cpu(ld->ld_type);
-	str->ld_length = be32_to_cpu(ld->ld_length);
-	str->ld_data1 = be32_to_cpu(ld->ld_data1);
-	str->ld_data2 = be32_to_cpu(ld->ld_data2);
-
-	memset(str->ld_reserved, 0, sizeof(str->ld_reserved));
 }
 
 void gfs2_log_descriptor_print(struct gfs2_log_descriptor *ld)
