@@ -22,10 +22,17 @@ applications.  It must be run on each node that wishes to join a cluster.
 .SH OPTIONS
 .TP
 \fB-4\fP
-Use IPv4 for all communication.  By default, IPv6 is tried, then IPv4.
+Use IPv4 for inter-node communication.  By default, IPv6 is tried, then IPv4.
 .TP
 \fB-6\fP
-Use IPv6 for all communication.  By default, IPv6 is tried, then IPv4.
+Use IPv6 for inter-node communication.  By default, IPv6 is tried, then IPv4.
+.TP
+\fB-I\fP
+Force use of IP for local communication (disables use of UNIX domain sockets).
+If set, \fBccsd\fP will use the specified inter-node communication protocol
+(see the \fB-4\fP and \fB-6\fP options).  If one is not specified,
+IPv6 is tried, then IPv4.  For backward compatibility, IP connections are
+still allowed even when UNIX domain sockets are available.
 .TP
 \fB-h\fP
 Help.  Print out the usage syntax.

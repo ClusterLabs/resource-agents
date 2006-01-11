@@ -42,4 +42,6 @@ typedef struct comm_header_s {
   int comm_payload_size;
 } comm_header_t;
 
+#define COMM_LOCAL_SOCKET "/var/run/cluster/ccsd.sock"
+
 #endif /* __COMM_HEADERS_DOT_H__ */

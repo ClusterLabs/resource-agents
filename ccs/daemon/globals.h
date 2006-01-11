@@ -29,6 +29,7 @@ extern int backend_port;
 extern int cluster_base_port;
 
 extern int IPv6;
+extern int use_local;
 extern char *multicast_address;
 extern int ttl;
 #endif /* __GLOBALS_H__ */

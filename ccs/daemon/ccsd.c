@@ -20,6 +20,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <libxml/parser.h>
@@ -29,6 +30,7 @@
 #include "cnx_mgr.h"
 #include "cluster_mgr.h"
 #include "globals.h"
+#include "comm_headers.h"
 
 #include "copyright.cf"
 
@@ -43,11 +45,12 @@ static int check_cluster_conf(void);
 static void daemonize(void);
 static void print_start_msg(char *msg);
 static int join_group(int sfd, int loopback, int port);
+static int setup_local_socket(int backlog);
 
 int main(int argc, char *argv[]){
   int i,error=0;
   int trueint = 1;
-  int sfds[2] = {-1,-1}, afd;
+  int sfds[3] = {-1,-1,-1}, afd;
   struct sockaddr_storage addr;
   struct sockaddr_in *addr4 = (struct sockaddr_in *)&addr;
   struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *)&addr;
@@ -166,9 +169,14 @@ int main(int argc, char *argv[]){
  
   listen(sfds[1], 5);
 
+  /* Set up the unix (local) socket for CCS lib comms */
+  sfds[2] = setup_local_socket(SOMAXCONN);
+
   FD_ZERO(&rset);
   FD_SET(sfds[0], &rset);
   FD_SET(sfds[1], &rset);
+  if (sfds[2] >= 0) 
+    FD_SET(sfds[2], &rset);
 
   while(1){
     int len = addr_size;
@@ -182,8 +190,8 @@ int main(int argc, char *argv[]){
       continue;
     }
     
-    for(i=0; i<2; i++){
-      if(!FD_ISSET(sfds[i], &tmp_set)){
+    for(i=0; i<3; i++){
+      if(sfds[i] < 0 || !FD_ISSET(sfds[i], &tmp_set)){
 	continue;
       }
       if(i == 0){
@@ -204,6 +212,20 @@ int main(int argc, char *argv[]){
 	  close(afd);
 	  continue;
 	}
+	if((error = process_request(afd))){
+	  log_err("Error while processing request: %s\n", strerror(-error));
+	}
+	close(afd);
+      } else if (i == 2) {
+	log_dbg("NORMAL CCS REQUEST.\n");
+	afd = accept(sfds[i], NULL, NULL);
+	if(afd < 0){
+	  log_sys_err("Unable to accept connection");
+	  continue;
+	}
+
+	log_dbg("Connection requested from local socket\n");
+
 	if((error = process_request(afd))){
 	  log_err("Error while processing request: %s\n", strerror(-error));
 	}
@@ -235,6 +257,7 @@ static void print_usage(FILE *stream){
 	  "Options:\n"
 	  " -4            Use IPv4 only.\n"
 	  " -6            Use IPv6 only.\n"
+	  " -I            Use IP for everything (disables local sockets)\n"
 	  " -h            Help.\n"
 	  " -m <addr>     Specify multicast address (\"default\" ok).\n"
 	  " -n            No Daemon.  Run in the foreground.\n"
@@ -301,11 +324,12 @@ static char *parse_cli_args(int argc, char *argv[]){
 
   memset(buff, 0, buff_size);
 
-  while((c = getopt(argc, argv, "46cdf:hlm:nP:t:sVX")) != -1){
+  while((c = getopt(argc, argv, "46Icdf:hlm:nP:t:sVX")) != -1){
     switch(c){
     case '4':
       if(IPv6 == 1){
-	fprintf(stderr, "Setting protocol to IPv4 conflicts with multicast address.\n");
+	fprintf(stderr,
+		"Setting protocol to IPv4 conflicts with multicast address.\n");
 	error = -EINVAL;
 	goto fail;
       }
@@ -315,13 +339,21 @@ static char *parse_cli_args(int argc, char *argv[]){
       break;
     case '6':
       if(IPv6 == 0){
-	fprintf(stderr, "Setting protocol to IPv6 conflicts with multicast address.\n");
+	fprintf(stderr,
+		"Setting protocol to IPv6 conflicts with previous protocol choice.\n");
 	error = -EINVAL;
 	goto fail;
       }
       IPv6=1;
       buff_index += snprintf(buff+buff_index, buff_size-buff_index,
 			     "  IP Protocol:: IPv6 only\n");
+      break;
+    case 'I':
+      if (use_local) {
+        buff_index += snprintf(buff+buff_index, buff_size-buff_index,
+			       "  Communication:: Local sockets disabled\n");
+      }
+      use_local = 0;
       break;
     case 'c':
       fprintf(stderr, "The '-c' option is deprecated.\n"
@@ -818,4 +850,43 @@ static int join_group(int sfd, int loopback, int port){
  fail:
   EXIT("join_group");
   return 0;
+}
+
+int setup_local_socket(int backlog)
+{
+  int sock = -1;
+  struct sockaddr_un su;
+  mode_t om;
+
+  ENTER("setup_local_socket");
+  if (use_local == 0)
+    goto fail;
+
+  sock = socket(PF_LOCAL, SOCK_STREAM, 0);
+  if (sock < 0)
+    goto fail;
+
+  /* This is ours ;) */
+  unlink(COMM_LOCAL_SOCKET);
+  om = umask(077);
+  su.sun_family = PF_LOCAL;
+  snprintf(su.sun_path, sizeof(su.sun_path), COMM_LOCAL_SOCKET);
+
+  if (bind(sock, &su, sizeof(su)) < 0) {
+    umask(om);
+    goto fail;
+  }
+  umask(om);
+
+  if (listen(sock, backlog) < 0)
+    goto fail;
+
+  log_dbg("Set up local socket on %s\n", su.sun_path);
+  EXIT("setup_local_socket");
+  return sock;
+fail:
+  if (sock >= 0)
+    close(sock);
+  EXIT("setup_local_socket");
+  return -1;
 }

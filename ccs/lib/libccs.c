@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <errno.h>
@@ -25,7 +26,7 @@
 #include <stdio.h>
 
 static int fe_port = 50006;
-static int ipv6=-1;
+static int comm_proto=-1;
 
 static int setup_interface_ipv6(int *sp, int port){
   int sock = -1;
@@ -128,6 +129,41 @@ static int setup_interface_ipv4(int *sp, int port){
 }
 
 
+int
+setup_interface_local(int *sp)
+{
+  struct sockaddr_un sun;
+  int sock = -1, error = 0;
+
+  ENTER("setup_interface_local");
+  sun.sun_family = PF_LOCAL;
+  snprintf(sun.sun_path, sizeof(sun.sun_path), COMM_LOCAL_SOCKET);
+
+  sock = socket(PF_LOCAL, SOCK_STREAM, 0);
+  if (sock < 0) {
+    error = errno;
+    goto fail;
+  }
+
+  error = connect(sock, (struct sockaddr *)&sun, sizeof(sun));
+  if (error < 0) {
+    error = errno;
+    goto fail;
+  }
+
+  *sp = sock;
+  EXIT("setup_interface_local");
+  return PF_LOCAL;
+
+fail:
+  if (sock >= 0){
+    close(sock);
+  }
+  EXIT("setup_interface_local");
+  return -error;
+}
+
+
 /**
  * setup_interface
  * @sp: pointer gets filled in with open socket
@@ -141,31 +177,38 @@ static int setup_interface(int *sp){
   int error=-1;
   int res_port = IPPORT_RESERVED-1;
   int timo=1;
-  int ipv4 = (ipv6 != 1)? 1: 0;
+  int ipv4 = (comm_proto < 0) ? 1 : (comm_proto == PF_INET);
+  int ipv6 = (comm_proto < 0) ? 1 : (comm_proto == PF_INET6);
+  int local = (comm_proto < 0) ? 1 : (comm_proto == PF_LOCAL);
 
   ENTER("setup_interface");
   srandom(getpid());
 
-  for(; res_port >= 512; res_port--){
-    if(ipv6 && !(error = setup_interface_ipv6(sp, res_port))){
-      error = AF_INET6;
-      break;
-    } else if(ipv4 && !(error = setup_interface_ipv4(sp, res_port))){
-      error = AF_INET;
-      break;
-    }
-    if(error == -ECONNREFUSED){
-      break;
-    }
+  /* Try to do a local connect first */
+  if (local && !(error = setup_interface_local(sp)))
+    error = PF_LOCAL;
 
-    /* Connections could have colided, giving ECONNREFUSED, or **
-    ** the port we are trying to bind to may already be in use **
-    ** and since we don't want to collide again, wait a random **
-    ** amount of time......................................... */
+  if (error < 0) {
+    for(; res_port >= 512; res_port--){
+      if (ipv6 && !(error = setup_interface_ipv6(sp, res_port))){
+        error = PF_INET6;
+        break;
+      } else if (ipv4 && !(error = setup_interface_ipv4(sp, res_port))){
+        error = PF_INET;
+        break;
+      }
+      if(error == -ECONNREFUSED){
+        break;
+      }
 
-    timo = random();
-    timo /= (RAND_MAX/4);
-    sleep(timo);
+      /* Connections could have colided, giving ECONNREFUSED, or **
+      ** the port we are trying to bind to may already be in use **
+      ** and since we don't want to collide again, wait a random **
+      ** amount of time......................................... */
+      timo = random();
+      timo /= (RAND_MAX/4);
+      sleep(timo);
+    }
   }
   EXIT("setup_interface");
   return error;
@@ -184,8 +227,8 @@ static int setup_interface(int *sp){
 static int do_request(char *buffer){
   int error=0;
   int sock=-1;
+  char *proto;
   comm_header_t *ch = (comm_header_t *)buffer;
-  int addr_size=0;
  
   ENTER("do_request");
 
@@ -194,15 +237,20 @@ static int do_request(char *buffer){
   }
 
   /* In the future, we will only try the protocol that worked first */
-  if(ipv6 < 0){
-    ipv6 = (error == AF_INET6)? 1: 0;
+  if (comm_proto < 0){
+    if (error == AF_INET) {
+      proto = "IPv4";
+    } else if (error == AF_INET6) {
+      proto = "IPv6";
+    } else if (error == PF_LOCAL) {
+      proto = "Local Domain";
+    } else {
+      proto = "Unknown";
+    }
 
-    log_dbg("Protocol version set to %s.\n", (ipv6)?"IPv6":"IPv4");
+    comm_proto = error;
+    log_dbg("Protocol set to %s.\n", proto);
   }
-
-  addr_size = (error == AF_INET6)? 
-    sizeof(struct sockaddr_in6 *):
-    sizeof(struct sockaddr_in *);
 
   error = write(sock, buffer, sizeof(comm_header_t)+ch->comm_payload_size);
   if(error < 0){
