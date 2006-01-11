@@ -424,7 +424,7 @@ static void log_write_header(struct gfs2_sbd *sdp, uint32_t flags, int pull)
 {
 	uint64_t blkno = log_bmap(sdp, sdp->sd_log_flush_head);
 	struct buffer_head *bh;
-	struct gfs2_log_header lh;
+	struct gfs2_log_header *lh;
 	unsigned int tail;
 	uint32_t hash;
 
@@ -440,18 +440,18 @@ static void log_write_header(struct gfs2_sbd *sdp, uint32_t flags, int pull)
 	gfs2_ail1_empty(sdp, 0);
 	tail = current_tail(sdp);
 
-	memset(&lh, 0, sizeof(struct gfs2_log_header));
-	lh.lh_header.mh_magic = GFS2_MAGIC;
-	lh.lh_header.mh_type = GFS2_METATYPE_LH;
-	lh.lh_header.mh_format = GFS2_FORMAT_LH;
-	lh.lh_header.mh_blkno = blkno;
-	lh.lh_sequence = sdp->sd_log_sequence++;
-	lh.lh_flags = flags;
-	lh.lh_tail = tail;
-	lh.lh_blkno = sdp->sd_log_flush_head;
-	gfs2_log_header_out(&lh, bh->b_data);
+	lh = (struct gfs2_log_header *)bh->b_data;
+	memset(lh, 0, sizeof(struct gfs2_log_header));
+	lh->lh_header.mh_magic = cpu_to_be32(GFS2_MAGIC);
+	lh->lh_header.mh_type = cpu_to_be16(GFS2_METATYPE_LH);
+	lh->lh_header.mh_format = cpu_to_be16(GFS2_FORMAT_LH);
+	lh->lh_header.mh_blkno = cpu_to_be64(blkno);
+	lh->lh_sequence = be64_to_cpu(sdp->sd_log_sequence++);
+	lh->lh_flags = be32_to_cpu(flags);
+	lh->lh_tail = be32_to_cpu(tail);
+	lh->lh_blkno = be32_to_cpu(sdp->sd_log_flush_head);
 	hash = gfs2_disk_hash(bh->b_data, sizeof(struct gfs2_log_header));
-	((struct gfs2_log_header *)bh->b_data)->lh_hash = cpu_to_be32(hash);
+	lh->lh_hash = cpu_to_be32(hash);
 
 	set_buffer_dirty(bh);
 	if (sync_dirty_buffer(bh))
@@ -576,7 +576,7 @@ static void log_refund(struct gfs2_sbd *sdp, struct gfs2_trans *tr)
 	gfs2_assert_withdraw(sdp, ((int)sdp->sd_log_commited_revoke) >= 0);
 
 	if (sdp->sd_log_commited_buf)
-		reserved += 1 + sdp->sd_log_commited_buf;
+		reserved += 1 + sdp->sd_log_commited_buf + sdp->sd_log_commited_buf/503;
 	if (sdp->sd_log_commited_revoke)
 		reserved += gfs2_struct2blk(sdp, sdp->sd_log_commited_revoke,
 					    sizeof(uint64_t));

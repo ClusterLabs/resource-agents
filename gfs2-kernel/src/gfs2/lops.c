@@ -106,30 +106,59 @@ static void buf_lo_before_commit(struct gfs2_sbd *sdp)
 {
 	struct buffer_head *bh;
 	struct gfs2_log_descriptor *ld;
-	struct gfs2_bufdata *bd;
+	struct gfs2_bufdata *bd1 = NULL, *bd2;
+	unsigned int total = sdp->sd_log_num_buf;
+	unsigned int offset = sizeof(struct gfs2_log_descriptor);
+	unsigned int limit;
+	unsigned int num;
+	unsigned n;
+	__be64 *ptr;
 
-	if (!sdp->sd_log_num_buf)
-		return;
+	offset += (sizeof(__be64) - 1);
+	offset &= ~(sizeof(__be64) - 1);
+	limit = (sdp->sd_sb.sb_bsize - offset)/sizeof(__be64);
+	/* for 4k blocks, limit = 503 */
 
-	bh = gfs2_log_get_buf(sdp);
-	ld = (struct gfs2_log_descriptor *)bh->b_data;
-	ld->ld_header.mh_magic = cpu_to_be32(GFS2_MAGIC);
-	ld->ld_header.mh_type = cpu_to_be16(GFS2_METATYPE_LD);
-	ld->ld_header.mh_format = cpu_to_be16(GFS2_FORMAT_LD);
-	ld->ld_header.mh_blkno = cpu_to_be64(bh->b_blocknr);
-	ld->ld_type = cpu_to_be32(GFS2_LOG_DESC_METADATA);
-	ld->ld_length = cpu_to_be32(sdp->sd_log_num_buf + 1);
-	ld->ld_data1 = cpu_to_be32(sdp->sd_log_num_buf);
-	ld->ld_data2 = cpu_to_be32(0);
-	memset(ld->ld_reserved, 0, sizeof(ld->ld_reserved));
+	bd1 = bd2 = list_prepare_entry(bd1, &sdp->sd_log_le_buf, bd_le.le_list);
+	while(total) {
+		num = total;
+		if (total > limit)
+			num = limit;
+		bh = gfs2_log_get_buf(sdp);
+		ld = (struct gfs2_log_descriptor *)bh->b_data;
+		ptr = (__be64 *)(bh->b_data + offset);
+		ld->ld_header.mh_magic = cpu_to_be32(GFS2_MAGIC);
+		ld->ld_header.mh_type = cpu_to_be16(GFS2_METATYPE_LD);
+		ld->ld_header.mh_format = cpu_to_be16(GFS2_FORMAT_LD);
+		ld->ld_header.mh_blkno = cpu_to_be64(bh->b_blocknr);
+		ld->ld_type = cpu_to_be32(GFS2_LOG_DESC_METADATA);
+		ld->ld_length = cpu_to_be32(num + 1);
+		ld->ld_data1 = cpu_to_be32(num);
+		ld->ld_data2 = cpu_to_be32(0);
+		memset(ld->ld_reserved, 0, sizeof(ld->ld_reserved));
 
-	set_buffer_dirty(bh);
-	ll_rw_block(WRITE, 1, &bh);
+		n = 0;
+		list_for_each_entry_continue(bd1, &sdp->sd_log_le_buf, bd_le.le_list) {
+			*ptr++ = cpu_to_be64(bd1->bd_bh->b_blocknr);
+			printk(KERN_INFO "h: %u %u %Lu\n", num, n, bd1->bd_bh->b_blocknr);
+			if (++n >= num)
+				break;
+		}
 
-	list_for_each_entry(bd, &sdp->sd_log_le_buf, bd_le.le_list) {
-		bh = gfs2_log_fake_buf(sdp, bd->bd_bh);
 		set_buffer_dirty(bh);
 		ll_rw_block(WRITE, 1, &bh);
+
+		n = 0;
+		list_for_each_entry_continue(bd2, &sdp->sd_log_le_buf, bd_le.le_list) {
+			bh = gfs2_log_fake_buf(sdp, bd2->bd_bh);
+			set_buffer_dirty(bh);
+			ll_rw_block(WRITE, 1, &bh);
+			printk(KERN_INFO "b: %u %u %Lu\n", num, n, bd2->bd_bh->b_blocknr);
+			if (++n >= num)
+				break;
+		}
+
+		total -= num;
 	}
 }
 
