@@ -22,6 +22,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <time.h>
 #include <libxml/parser.h>
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
@@ -33,20 +34,40 @@
 #include "misc.h"
 #include "globals.h"
 
+/* Default descriptor expiration time, in seconds */
+#ifndef DEFAULT_EXPIRE
+#define DEFAULT_EXPIRE 30
+#endif
+
+/* Maximum open connection count */
+#ifndef MAX_OPEN_CONNECTIONS
+#define MAX_OPEN_CONNECTIONS 30
+#endif
+
+/* Conversion from descriptor to ocs index */
+#ifdef dindex
+#undef dindex
+#endif
+#define dindex(x) ((x) % MAX_OPEN_CONNECTIONS)
+
+static inline void _cleanup_descriptor(int desc);
+
 extern int no_manager_opt;
 
 typedef struct open_connection_s {
   char *oc_cwp;
   char *oc_query;
-  int oc_index;
   open_doc_t *oc_odoc;
   xmlXPathContextPtr oc_ctx;
+  int oc_index;
+  int oc_desc;
+  time_t oc_expire;
 } open_connection_t;
 
 /* ATTENTION: need to lock on this if we start forking the daemon **
 **  Also would need to create a shared memory area for open cnx's */
-#define MAX_OPEN_CONNECTIONS 10
 static open_connection_t **ocs = NULL;
+static int _descbase = 0;
 
 static int _update_config(char *location){
   int error = 0;
@@ -476,7 +497,7 @@ static int process_connect(comm_header_t *ch, char *cluster_name){
   int i=0, error = 0;
   int bcast_needed = 0;
   char *tmp_name = NULL;
-  
+  time_t now;
 
   ENTER("process_connect");
 
@@ -597,10 +618,21 @@ static int process_connect(comm_header_t *ch, char *cluster_name){
     }
   }
 
+  /* Locate the connection descriptor */
+  now = time(NULL); 
   for(i=0; i < MAX_OPEN_CONNECTIONS; i++){
-    if(!ocs[i]){
-      break;
+    if (!ocs[i])
+      continue;
+    if (now >= ocs[i]->oc_expire) {
+      log_dbg("Recycling connection descriptor %d: Expired\n",
+	      ocs[i]->oc_desc );
+      _cleanup_descriptor(i);
     }
+  }
+
+  for(i=0; i < MAX_OPEN_CONNECTIONS; i++){
+    if(!ocs[i])
+      break;
   }
 
   if(i >= MAX_OPEN_CONNECTIONS){
@@ -619,6 +651,19 @@ static int process_connect(comm_header_t *ch, char *cluster_name){
   master_doc->od_refs++;
   ocs[i]->oc_odoc = master_doc;
   ocs[i]->oc_ctx = xmlXPathNewContext(ocs[i]->oc_odoc->od_doc);
+  ocs[i]->oc_expire = now + DEFAULT_EXPIRE;
+
+  /* using error as a temp var */
+  error = i + _descbase++ * MAX_OPEN_CONNECTIONS;
+  if (error > INT_MAX || error < 0) {
+    error = i;
+    _descbase = 0;
+  }
+  ocs[i]->oc_desc = error;
+ 
+  /* reset error */
+  error = 0;
+
   if(!ocs[i]->oc_ctx){
     ocs[i]->oc_odoc->od_refs--;
     free(ocs[i]);
@@ -640,10 +685,44 @@ static int process_connect(comm_header_t *ch, char *cluster_name){
   if(error){
     ch->comm_error = error;
   } else {
-    ch->comm_desc = i;
+    ch->comm_desc = ocs[i]->oc_desc;
   }
   EXIT("process_connect");
   return error;
+}
+
+
+static inline void
+_cleanup_descriptor(int desc)
+{
+  open_doc_t *tmp_odoc;
+
+  if(ocs[desc]->oc_ctx){
+    xmlXPathFreeContext(ocs[desc]->oc_ctx);
+  }
+  if(ocs[desc]->oc_cwp){
+    free(ocs[desc]->oc_cwp);
+  }
+  if(ocs[desc]->oc_query){
+    free(ocs[desc]->oc_query);
+  }
+  tmp_odoc = ocs[desc]->oc_odoc;
+  if(tmp_odoc->od_refs < 1){
+    log_err("Number of references on an open doc should never be < 1.\n");
+    log_err("This is a fatal error.  Exiting...\n");
+    exit(EXIT_FAILURE);
+  }
+  if(tmp_odoc != master_doc && tmp_odoc->od_refs == 1){
+    log_dbg("No more references on version %d of config file, freeing...\n",
+	      get_doc_version(tmp_odoc->od_doc));
+    xmlFreeDoc(tmp_odoc->od_doc);
+    free(tmp_odoc);
+  } else {
+    tmp_odoc->od_refs--;
+  }
+
+  free(ocs[desc]);
+  ocs[desc] = NULL;
 }
 
 
@@ -657,53 +736,28 @@ static int process_connect(comm_header_t *ch, char *cluster_name){
  * Returns: 0 on success, < 0 on error
  */
 static int process_disconnect(comm_header_t *ch){
-  open_doc_t *tmp_odoc;
-  int desc = ch->comm_desc;
+  int desc = dindex(ch->comm_desc);
   int error=0;
   ENTER("process_disconnect");
 
   ch->comm_payload_size = 0;
 
-  if(desc < 0 || desc >= MAX_OPEN_CONNECTIONS){
+  if(desc < 0){
     log_err("Invalid descriptor specified (%d).\n", desc);
     log_err("Someone may be attempting something evil.\n");
     error = -EBADR;
     goto fail;
   }
 
-  if(!ocs || !ocs[desc]){
+  if(!ocs || !ocs[desc] || (ocs[desc]->oc_desc != ch->comm_desc)){
     /* send failure to requestor ? */
-    log_err("Attempt to close an unopened CCS descriptor (%d).\n", desc);
+    log_err("Attempt to close an unopened CCS descriptor (%d).\n",
+	    ch->comm_desc);
 
     error = -EBADR;
     goto fail;
   } else {
-    if(ocs[desc]->oc_ctx){
-      xmlXPathFreeContext(ocs[desc]->oc_ctx);
-    }
-    if(ocs[desc]->oc_cwp){
-      free(ocs[desc]->oc_cwp);
-    }
-    if(ocs[desc]->oc_query){
-      free(ocs[desc]->oc_query);
-    }
-    tmp_odoc = ocs[desc]->oc_odoc;
-    if(tmp_odoc->od_refs < 1){
-      log_err("Number of references on an open doc should never be < 1.\n");
-      log_err("This is a fatal error.  Exiting...\n");
-      exit(EXIT_FAILURE);
-    }
-    if(tmp_odoc != master_doc && tmp_odoc->od_refs == 1){
-      log_dbg("No more references on version %d of config file, freeing...\n",
-	      get_doc_version(tmp_odoc->od_doc));
-      xmlFreeDoc(tmp_odoc->od_doc);
-      free(tmp_odoc);
-    } else {
-      tmp_odoc->od_refs--;
-    }
-
-    free(ocs[desc]);
-    ocs[desc] = NULL;
+    _cleanup_descriptor(desc);
   }
 
  fail:
@@ -732,7 +786,7 @@ static int process_disconnect(comm_header_t *ch){
  * Returns: -EXXX on error, 1 if restarting list, 0 otherwise
  */
 static int _process_get(comm_header_t *ch, char **payload){
-  int error = 0;
+  int error = 0, desc = dindex(ch->comm_desc);
   xmlXPathObjectPtr obj = NULL;
   char *query = NULL;
 
@@ -743,37 +797,37 @@ static int _process_get(comm_header_t *ch, char **payload){
     goto fail;
   }
 
-  if(ch->comm_desc < 0 || ch->comm_desc >= MAX_OPEN_CONNECTIONS){
+  if(ch->comm_desc < 0){
     log_err("Invalid descriptor specified (%d).\n", ch->comm_desc);
     log_err("Someone may be attempting something evil.\n");
     error = -EBADR;
     goto fail;
   }
 
-  if(!ocs || !ocs[ch->comm_desc]){
+  if(!ocs || !ocs[desc] || (ocs[desc]->oc_desc != ch->comm_desc)){
     log_err("process_get: Invalid connection descriptor received.\n");
     error = -EBADR;
     goto fail;
   }
 
-  if(ocs[ch->comm_desc]->oc_query && !strcmp(*payload,ocs[ch->comm_desc]->oc_query)){
-    ocs[ch->comm_desc]->oc_index++;
-    log_dbg("Index = %d\n",ocs[ch->comm_desc]->oc_index);
+  if(ocs[desc]->oc_query && !strcmp(*payload,ocs[desc]->oc_query)){
+    ocs[desc]->oc_index++;
+    log_dbg("Index = %d\n",ocs[desc]->oc_index);
     log_dbg(" Query = %s\n", *payload);
   } else {
     log_dbg("Index reset (new query).\n");
     log_dbg(" Query = %s\n", *payload);
-    ocs[ch->comm_desc]->oc_index = 0;
-    if(ocs[ch->comm_desc]->oc_query){
-      free(ocs[ch->comm_desc]->oc_query);
+    ocs[desc]->oc_index = 0;
+    if(ocs[desc]->oc_query){
+      free(ocs[desc]->oc_query);
     }
-    ocs[ch->comm_desc]->oc_query = (char *)strdup(*payload);
+    ocs[desc]->oc_query = (char *)strdup(*payload);
   }
 
   /* ATTENTION -- should path expansion go before index inc ? */
   if(((ch->comm_payload_size > 1) &&
       ((*payload)[0] == '/')) ||
-     !ocs[ch->comm_desc]->oc_cwp){
+     !ocs[desc]->oc_cwp){
     log_dbg("Query involves absolute path or cwp is not set.\n");
     query = (char *)strdup(*payload);
     if(!query){
@@ -783,15 +837,18 @@ static int _process_get(comm_header_t *ch, char **payload){
   } else {
     /* +2 because of NULL and '/' character */
     log_dbg("Query involves relative path.\n");
-    query = malloc(strlen(*payload)+strlen(ocs[ch->comm_desc]->oc_cwp)+2);
+    query = malloc(strlen(*payload)+strlen(ocs[desc]->oc_cwp)+2);
     if(!query){
       error = -ENOMEM;
       goto fail;
     }
-    sprintf(query, "%s/%s", ocs[ch->comm_desc]->oc_cwp, *payload);
+    sprintf(query, "%s/%s", ocs[desc]->oc_cwp, *payload);
   }
 
-  obj = xmlXPathEvalExpression(query, ocs[ch->comm_desc]->oc_ctx);
+  /* Bump expiration time */
+  ocs[desc]->oc_expire = time(NULL) + DEFAULT_EXPIRE;
+
+  obj = xmlXPathEvalExpression(query, ocs[desc]->oc_ctx);
   if(obj){
     log_dbg("Obj type  = %d (%s)\n", obj->type, (obj->type == 1)?"XPATH_NODESET":"");
     log_dbg("Number of matches: %d\n", (obj->nodesetval)?obj->nodesetval->nodeNr:0);
@@ -800,13 +857,13 @@ static int _process_get(comm_header_t *ch, char **payload){
       int size=0;
       int nnv=0; /* name 'n' value */
 
-      if(ocs[ch->comm_desc]->oc_index >= obj->nodesetval->nodeNr){
-	ocs[ch->comm_desc]->oc_index = 0;
+      if(ocs[desc]->oc_index >= obj->nodesetval->nodeNr){
+	ocs[desc]->oc_index = 0;
 	error = 1;
 	log_dbg("Index reset to zero (end of list).\n");
       }
 	  
-      node = obj->nodesetval->nodeTab[ocs[ch->comm_desc]->oc_index];
+      node = obj->nodesetval->nodeTab[ocs[desc]->oc_index];
 	
       log_dbg("Node (%s) type = %d (%s)\n", node->name, node->type,
 	      (node->type == 1)? "XML_ELEMENT_NODE":
@@ -895,8 +952,8 @@ static int process_get_list(comm_header_t *ch, char **payload){
   error = _process_get(ch, payload);
   if(error){
     ch->comm_payload_size = 0;
-    if(ocs && ocs[ch->comm_desc])
-      ocs[ch->comm_desc]->oc_index = -1;
+    if(ocs && ocs[dindex(ch->comm_desc)])
+      ocs[dindex(ch->comm_desc)]->oc_index = -1;
   }
 
   EXIT("process_get_list");
@@ -905,6 +962,7 @@ static int process_get_list(comm_header_t *ch, char **payload){
 
 static int process_set(comm_header_t *ch, char *payload){
   int error = 0;
+  int desc = dindex(ch->comm_desc);
 
   ENTER("process_set");
   if(!ch->comm_payload_size){
@@ -913,14 +971,14 @@ static int process_set(comm_header_t *ch, char *payload){
     goto fail;
   }
 
-  if(ch->comm_desc < 0 || ch->comm_desc >= MAX_OPEN_CONNECTIONS){
+  if(ch->comm_desc < 0){
     log_err("Invalid descriptor specified (%d).\n", ch->comm_desc);
     log_err("Someone may be attempting something evil.\n");
     error = -EBADR;
     goto fail;
   }
 
-  if(!ocs || !ocs[ch->comm_desc]){
+  if(!ocs || !ocs[desc] || (ocs[desc]->oc_desc != ch->comm_desc)){
     log_err("process_set: Invalid connection descriptor received.\n");
     error = -EBADR;
     goto fail;
@@ -940,7 +998,7 @@ static int process_set(comm_header_t *ch, char *payload){
 
 
 static int process_get_state(comm_header_t *ch, char **payload){
-  int error = 0;
+  int error = 0, desc = dindex(ch->comm_desc);
   char *load = NULL;
 
   ENTER("process_get_state");
@@ -950,41 +1008,41 @@ static int process_get_state(comm_header_t *ch, char **payload){
     goto fail;
   }
 
-  if(ch->comm_desc < 0 || ch->comm_desc >= MAX_OPEN_CONNECTIONS){
+  if(ch->comm_desc < 0){
     log_err("Invalid descriptor specified (%d).\n", ch->comm_desc);
     log_err("Someone may be attempting something evil.\n");
     error = -EBADR;
     goto fail;
   }
 
-  if(!ocs || !ocs[ch->comm_desc]){
+  if(!ocs || !ocs[desc] || (ocs[desc]->oc_desc != ch->comm_desc)){
     log_err("process_get_state: Invalid connection descriptor received.\n");
     error = -EBADR;
     goto fail;
   }
 
-  if(ocs[ch->comm_desc]->oc_cwp && ocs[ch->comm_desc]->oc_query){
-    int size = strlen(ocs[ch->comm_desc]->oc_cwp) +
-      strlen(ocs[ch->comm_desc]->oc_query) + 2;
+  if(ocs[desc]->oc_cwp && ocs[desc]->oc_query){
+    int size = strlen(ocs[desc]->oc_cwp) +
+      strlen(ocs[desc]->oc_query) + 2;
     log_dbg("Both cwp and query are set.\n");
     load = malloc(size);
     if(!load){
       error = -ENOMEM;
       goto fail;
     }
-    strcpy(load, ocs[ch->comm_desc]->oc_cwp);
-    strcpy(load+strlen(ocs[ch->comm_desc]->oc_cwp)+1, ocs[ch->comm_desc]->oc_query);
+    strcpy(load, ocs[desc]->oc_cwp);
+    strcpy(load+strlen(ocs[desc]->oc_cwp)+1, ocs[desc]->oc_query);
     ch->comm_payload_size = size;
-  } else if(ocs[ch->comm_desc]->oc_cwp){
+  } else if(ocs[desc]->oc_cwp){
     log_dbg("Only cwp is set.\n");
-    load = (char *)strdup(ocs[ch->comm_desc]->oc_cwp);
+    load = (char *)strdup(ocs[desc]->oc_cwp);
     if(!load){
       error = -ENOMEM;
       goto fail;
     }
     ch->comm_payload_size = strlen(load)+1;
-  } else if(ocs[ch->comm_desc]->oc_query){
-    int size = strlen(ocs[ch->comm_desc]->oc_query) + 2;
+  } else if(ocs[desc]->oc_query){
+    int size = strlen(ocs[desc]->oc_query) + 2;
     log_dbg("Only query is set.\n");
     load = malloc(size);
     if(!load){
@@ -992,10 +1050,11 @@ static int process_get_state(comm_header_t *ch, char **payload){
       goto fail;
     }
     memset(load, 0, size);
-    strcpy(load+1, ocs[ch->comm_desc]->oc_query);
+    strcpy(load+1, ocs[desc]->oc_query);
     ch->comm_payload_size = size;
   }
 
+  ocs[desc]->oc_expire = time(NULL) + DEFAULT_EXPIRE;
   *payload = load;
 
  fail:
@@ -1010,7 +1069,7 @@ static int process_get_state(comm_header_t *ch, char **payload){
 
 
 static int process_set_state(comm_header_t *ch, char *payload){
-  int error = 0;
+  int error = 0, desc = dindex(ch->comm_desc);
 
   ENTER("process_set_state");
   if(!ch->comm_payload_size){
@@ -1026,23 +1085,24 @@ static int process_set_state(comm_header_t *ch, char *payload){
     goto fail;
   }
 
-  if(!ocs || !ocs[ch->comm_desc]){
+  if(!ocs || !ocs[desc] || (ocs[desc]->oc_desc != ch->comm_desc)){
     log_err("process_set_state: Invalid connection descriptor received.\n");
     error = -EBADR;
     goto fail;
   }
 
-  if(ocs[ch->comm_desc]->oc_cwp){
-    free(ocs[ch->comm_desc]->oc_cwp);
-    ocs[ch->comm_desc]->oc_cwp = NULL;
+  if(ocs[desc]->oc_cwp){
+    free(ocs[desc]->oc_cwp);
+    ocs[desc]->oc_cwp = NULL;
   }
 
-  if((ch->comm_flags & COMM_SET_STATE_RESET_QUERY) && ocs[ch->comm_desc]->oc_query){
-    free(ocs[ch->comm_desc]->oc_query);
-    ocs[ch->comm_desc]->oc_query = NULL;
+  if((ch->comm_flags & COMM_SET_STATE_RESET_QUERY) && ocs[desc]->oc_query){
+    free(ocs[desc]->oc_query);
+    ocs[desc]->oc_query = NULL;
   }
 
-  ocs[ch->comm_desc]->oc_cwp = (char *)strdup(payload);
+  ocs[desc]->oc_expire = time(NULL) + DEFAULT_EXPIRE;
+  ocs[desc]->oc_cwp = (char *)strdup(payload);
 
  fail:
   ch->comm_payload_size = 0;

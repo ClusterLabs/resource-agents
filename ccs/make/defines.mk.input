@@ -33,4 +33,4 @@ LD = ld
 RANLIB = ranlib
 
 # Default CFLAGS
-CFLAGS += -Wall ${INCLUDE}
+CFLAGS += -Wall -ggdb ${INCLUDE}

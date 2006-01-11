@@ -38,6 +38,8 @@ extern int quorate;
 int no_manager_opt=0;
 static int exit_now=0;
 static unsigned int flags=0;
+static sigset_t signal_mask;
+static int signal_received = 0;
 #define FLAG_NODAEMON	1
 
 static char *parse_cli_args(int argc, char *argv[]);
@@ -46,6 +48,7 @@ static void daemonize(void);
 static void print_start_msg(char *msg);
 static int join_group(int sfd, int loopback, int port);
 static int setup_local_socket(int backlog);
+static inline void process_signals(void);
 
 int main(int argc, char *argv[]){
   int i,error=0;
@@ -180,6 +183,8 @@ int main(int argc, char *argv[]){
 
   while(1){
     int len = addr_size;
+
+    process_signals();
     
     tmp_set = rset;
 
@@ -627,11 +632,16 @@ static void parent_exit_handler(int sig){
  * This handles signals which the daemon might receive.
  */
 static void sig_handler(int sig){
+  sigaddset(&signal_mask, sig);
+  ++signal_received;
+}
+
+static void process_signal(int sig){
   int err;
 
   ENTER("sig_handler");
 
-  switch(sig){
+  switch(sig) {
   case SIGINT:
     log_msg("Stopping ccsd, SIGINT received.\n");
     err = EXIT_SUCCESS;
@@ -644,22 +654,36 @@ static void sig_handler(int sig){
     log_msg("Stopping ccsd, SIGTERM received.\n");
     err = EXIT_SUCCESS;
     break;
-  case SIGSEGV:
-    log_err("Stopping ccsd, SIGSEGV received.\n");
-    err = EXIT_FAILURE;
-    break;
   case SIGHUP:
     log_msg("SIGHUP received.\n");
     log_msg("Use ccs_tool for updates.\n");
     return;
     break;
   default:
-    log_err("Stopping ccsd, unknown signal received.\n");
+    log_err("Stopping ccsd, unknown signal %d received.\n", sig);
     err = EXIT_FAILURE;
   }
 
   EXIT("sig_handler");
   exit(err);
+}
+
+
+static inline void process_signals(void)
+{
+  int x;
+
+  if (!signal_received)
+    return;
+
+  signal_received = 0;
+
+  for (x = 1; x < _NSIG; x++) {
+    if (sigismember(&signal_mask, x)) {
+      sigdelset(&signal_mask, x);
+      process_signal(x);
+    }
+  }
 }
 
 
@@ -684,11 +708,6 @@ static void daemonize(void){
     if((error = create_lockfile(lockfile_location))){
       goto fail;
     }
-    signal(SIGINT, &sig_handler);
-    signal(SIGQUIT, &sig_handler);
-    signal(SIGTERM, &sig_handler);
-    signal(SIGSEGV, &sig_handler);
-    signal(SIGHUP, &sig_handler);
   } else {
     log_dbg("Entering daemon mode.\n");
 
@@ -745,13 +764,15 @@ static void daemonize(void){
     /* shut down parent now when using no cluster -- there's no communicator */
     if (no_manager_opt)
       kill(getppid(), SIGTERM);
-
-    signal(SIGINT, &sig_handler);
-    signal(SIGQUIT, &sig_handler);
-    signal(SIGTERM, &sig_handler);
-    signal(SIGSEGV, &sig_handler);
-    signal(SIGHUP, &sig_handler);
   }
+
+  signal(SIGINT, &sig_handler);
+  signal(SIGQUIT, &sig_handler);
+  signal(SIGTERM, &sig_handler);
+  signal(SIGHUP, &sig_handler);
+  signal(SIGPIPE, SIG_IGN);
+  sigemptyset(&signal_mask);
+  signal_received = 0;
 
  fail:
   EXIT("daemonize");
