@@ -140,7 +140,6 @@ static void buf_lo_before_commit(struct gfs2_sbd *sdp)
 		n = 0;
 		list_for_each_entry_continue(bd1, &sdp->sd_log_le_buf, bd_le.le_list) {
 			*ptr++ = cpu_to_be64(bd1->bd_bh->b_blocknr);
-			printk(KERN_INFO "h: %u %u %Lu\n", num, n, bd1->bd_bh->b_blocknr);
 			if (++n >= num)
 				break;
 		}
@@ -153,7 +152,6 @@ static void buf_lo_before_commit(struct gfs2_sbd *sdp)
 			bh = gfs2_log_fake_buf(sdp, bd2->bd_bh);
 			set_buffer_dirty(bh);
 			ll_rw_block(WRITE, 1, &bh);
-			printk(KERN_INFO "b: %u %u %Lu\n", num, n, bd2->bd_bh->b_blocknr);
 			if (++n >= num)
 				break;
 		}
