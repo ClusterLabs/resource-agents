@@ -299,6 +299,10 @@ static int foreach_descriptor(struct gfs2_jdesc *jd, unsigned int start,
 	struct gfs2_log_descriptor *ld;
 	int error = 0;
 	u32 length;
+	__be64 *ptr;
+	unsigned int offset = sizeof(struct gfs2_log_descriptor);
+	offset += (sizeof(__be64)-1);
+	offset &= ~(sizeof(__be64)-1);
 
 	while (start != end) {
 		error = gfs2_replay_read_block(jd, start, &bh);
@@ -328,8 +332,8 @@ static int foreach_descriptor(struct gfs2_jdesc *jd, unsigned int start,
 			brelse(bh);
 			return -EIO;
 		}
-
-		error = lops_scan_elements(jd, start, ld, pass);
+		ptr = (__be64 *)(bh->b_data + offset);
+		error = lops_scan_elements(jd, start, ld, ptr, pass);
 		if (error) {
 			brelse(bh);
 			return error;

@@ -68,13 +68,14 @@ static inline void lops_before_scan(struct gfs2_jdesc *jd,
 
 static inline int lops_scan_elements(struct gfs2_jdesc *jd, unsigned int start,
 				     struct gfs2_log_descriptor *ld,
+				     __be64 *ptr,
 				     unsigned int pass)
 {
 	int x, error;
 	for (x = 0; gfs2_log_ops[x]; x++)
 		if (gfs2_log_ops[x]->lo_scan_elements) {
 			error = gfs2_log_ops[x]->lo_scan_elements(jd, start,
-								  ld, pass);
+								  ld, ptr, pass);
 			if (error)
 				return error;
 		}

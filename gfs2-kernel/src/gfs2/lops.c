@@ -188,7 +188,8 @@ static void buf_lo_before_scan(struct gfs2_jdesc *jd,
 }
 
 static int buf_lo_scan_elements(struct gfs2_jdesc *jd, unsigned int start,
-				struct gfs2_log_descriptor *ld, int pass)
+				struct gfs2_log_descriptor *ld, __be64 *ptr,
+				int pass)
 {
 	struct gfs2_sbd *sdp = jd->jd_inode->i_sbd;
 	struct gfs2_glock *gl = jd->jd_inode->i_gl;
@@ -203,18 +204,16 @@ static int buf_lo_scan_elements(struct gfs2_jdesc *jd, unsigned int start,
 	gfs2_replay_incr_blk(sdp, &start);
 
 	for (; blks; gfs2_replay_incr_blk(sdp, &start), blks--) {
-		error = gfs2_replay_read_block(jd, start, &bh_log);
-		if (error)
-			return error;
-
-		blkno = be64_to_cpu(((struct gfs2_meta_header *)bh_log->b_data)->mh_blkno);
+		blkno = be64_to_cpu(*ptr++);
 
 		sdp->sd_found_blocks++;
 
-		if (gfs2_revoke_check(sdp, blkno, start)) {
-			brelse(bh_log);
+		if (gfs2_revoke_check(sdp, blkno, start))
 			continue;
-		}
+
+		error = gfs2_replay_read_block(jd, start, &bh_log);
+                if (error)
+                        return error;
 
 		bh_ip = gfs2_meta_new(gl, blkno);
 		memcpy(bh_ip->b_data, bh_log->b_data, bh_log->b_size);
@@ -334,7 +333,8 @@ static void revoke_lo_before_scan(struct gfs2_jdesc *jd,
 }
 
 static int revoke_lo_scan_elements(struct gfs2_jdesc *jd, unsigned int start,
-				   struct gfs2_log_descriptor *ld, int pass)
+				   struct gfs2_log_descriptor *ld, __be64 *ptr,
+				   int pass)
 {
 	struct gfs2_sbd *sdp = jd->jd_inode->i_sbd;
 	unsigned int blks = be32_to_cpu(ld->ld_length);

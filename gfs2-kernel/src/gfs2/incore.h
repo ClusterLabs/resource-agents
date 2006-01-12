@@ -60,7 +60,8 @@ struct gfs2_log_operations {
 	void (*lo_before_scan) (struct gfs2_jdesc *jd,
 				struct gfs2_log_header *head, int pass);
 	int (*lo_scan_elements) (struct gfs2_jdesc *jd, unsigned int start,
-				 struct gfs2_log_descriptor *ld, int pass);
+				 struct gfs2_log_descriptor *ld, __be64 *ptr,
+				 int pass);
 	void (*lo_after_scan) (struct gfs2_jdesc *jd, int error, int pass);
 	char *lo_name;
 };
