@@ -57,7 +57,6 @@ build_sb(struct gfs2_sbd *sdp)
 	memset(&sb, 0, sizeof(struct gfs2_sb));
 	sb.sb_header.mh_magic = GFS2_MAGIC;
 	sb.sb_header.mh_type = GFS2_METATYPE_SB;
-	sb.sb_header.mh_blkno = sdp->sb_addr;
 	sb.sb_header.mh_format = GFS2_FORMAT_SB;
 	sb.sb_fs_format = GFS2_FORMAT_FS;
 	sb.sb_multihost_format = GFS2_FORMAT_MULTI;
@@ -105,7 +104,6 @@ build_journal(struct gfs2_inode *jindex, unsigned int j)
 		if (!bh)
 			die("build_journals\n");
 
-		lh.lh_header.mh_blkno = bh->b_blocknr;
 		lh.lh_sequence = seq;
 		lh.lh_blkno = x;
 		gfs2_log_header_out(&lh, bh->b_data);
@@ -210,7 +208,6 @@ build_unlinked_tag(struct gfs2_inode *per_node, unsigned int j)
 		if (!bh)
 			die("build_unlinked_tag\n");
 
-		mh.mh_blkno = bh->b_blocknr;
 		gfs2_meta_header_out(&mh, bh->b_data);
 
 		brelse(bh);
@@ -248,7 +245,6 @@ build_quota_change(struct gfs2_inode *per_node, unsigned int j)
 		if (!bh)
 			die("build_quota_change\n");
 
-		mh.mh_blkno = bh->b_blocknr;
 		gfs2_meta_header_out(&mh, bh->b_data);
 
 		brelse(bh);

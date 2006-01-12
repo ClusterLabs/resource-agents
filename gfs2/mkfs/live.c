@@ -347,31 +347,3 @@ make_jdata(int fd, char *value)
 		die("error doing set flags (%d): %s\n", err, strerror(errno));
 }
 
-uint64_t
-bmap(int fd, uint64_t lblock)
-{
-	const char *argv[] = { "get_bmap" };
-	struct gfs2_ioctl gi;
-	uint64_t dblock = lblock;
-	int error;
-
-	gi.gi_argc = 1;
-	gi.gi_argv = argv;
-	gi.gi_data = (char *)&dblock;
-	gi.gi_size = sizeof(uint64_t);
-
-	error = ioctl(fd, GFS2_IOCTL_SUPER, &gi);
-	if (error)
-		die("error doing get_bmap (%d): %s\n",
-		    error, strerror(errno));
-
-	if (!dblock)
-		die("can't bmap\n");
-
-	return dblock;
-}
-
-
-
-
-

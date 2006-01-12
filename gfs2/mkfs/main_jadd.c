@@ -323,7 +323,6 @@ add_ut(struct gfs2_sbd *sdp)
 		mh.mh_format = GFS2_FORMAT_UT;
 
 		for (x = 0; x < blocks; x++) {
-			mh.mh_blkno = bmap(fd, x);
 			gfs2_meta_header_out(&mh, buf);
 
 			error = write(fd, buf, sdp->bsize);
@@ -383,7 +382,6 @@ add_qc(struct gfs2_sbd *sdp)
 		mh.mh_format = GFS2_FORMAT_QC;
 
 		for (x = 0; x < blocks; x++) {
-			mh.mh_blkno = bmap(fd, x);
 			gfs2_meta_header_out(&mh, buf);
 
 			error = write(fd, buf, sdp->bsize);
@@ -447,7 +445,6 @@ add_j(struct gfs2_sbd *sdp)
 		for (x = 0; x < blocks; x++) {
 			uint32_t hash;
 
-			lh.lh_header.mh_blkno = bmap(fd, x);
 			lh.lh_sequence = seq;
 			lh.lh_blkno = x;
 			gfs2_log_header_out(&lh, buf);

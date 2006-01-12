@@ -180,7 +180,6 @@ unstuff_dinode(struct gfs2_inode *ip)
 				struct gfs2_meta_header mh;
 				mh.mh_magic = GFS2_MAGIC;
 				mh.mh_type = GFS2_METATYPE_JD;
-				mh.mh_blkno = block;
 				mh.mh_format = GFS2_FORMAT_JD;
 				gfs2_meta_header_out(&mh, bh->b_data);
 			}
@@ -260,7 +259,6 @@ build_height(struct gfs2_inode *ip, int height)
 				struct gfs2_meta_header mh;
 				mh.mh_magic = GFS2_MAGIC;
 				mh.mh_type = GFS2_METATYPE_IN;
-				mh.mh_blkno = block;
 				mh.mh_format = GFS2_FORMAT_IN;
 				gfs2_meta_header_out(&mh, bh->b_data);
 			}
@@ -393,7 +391,6 @@ block_map(struct gfs2_inode *ip,
 			bh = bget(sdp, *dblock);
 			mh.mh_magic = GFS2_MAGIC;
 			mh.mh_type = GFS2_METATYPE_IN;
-			mh.mh_blkno = *dblock;
 			mh.mh_format = GFS2_FORMAT_IN;
 			gfs2_meta_header_out(&mh, bh->b_data);
 		} else
@@ -571,7 +568,6 @@ writei(struct gfs2_inode *ip, void *buf,
 				struct gfs2_meta_header mh;
 				mh.mh_magic = GFS2_MAGIC;
 				mh.mh_type = GFS2_METATYPE_JD;
-				mh.mh_blkno = dblock;
 				mh.mh_format = GFS2_FORMAT_JD;
 				gfs2_meta_header_out(&mh, bh->b_data);
 			}
@@ -770,7 +766,6 @@ dir_split_leaf(struct gfs2_inode *dip, uint32_t index, uint64_t leaf_no)
 		struct gfs2_meta_header mh;
 		mh.mh_magic = GFS2_MAGIC;
 		mh.mh_type = GFS2_METATYPE_LF;
-		mh.mh_blkno = bn;
 		mh.mh_format = GFS2_FORMAT_LF;
 		gfs2_meta_header_out(&mh, nbh->b_data);
 	}
@@ -942,7 +937,6 @@ dir_e_add(struct gfs2_inode *dip,
 					struct gfs2_meta_header mh;
 					mh.mh_magic = GFS2_MAGIC;
 					mh.mh_type = GFS2_METATYPE_LF;
-					mh.mh_blkno = bn;
 					mh.mh_format = GFS2_FORMAT_LF;
 					gfs2_meta_header_out(&mh, nbh->b_data);
 				}
@@ -997,7 +991,6 @@ dir_make_exhash(struct gfs2_inode *dip)
 		struct gfs2_meta_header mh;
 		mh.mh_magic = GFS2_MAGIC;
 		mh.mh_type = GFS2_METATYPE_LF;
-		mh.mh_blkno = bn;
 		mh.mh_format = GFS2_FORMAT_LF;
 		gfs2_meta_header_out(&mh, bh->b_data);
 	}
@@ -1086,7 +1079,6 @@ init_dinode(struct gfs2_sbd *sdp, struct gfs2_inum *inum,
 	memset(&di, 0, sizeof(struct gfs2_dinode));
 	di.di_header.mh_magic = GFS2_MAGIC;
 	di.di_header.mh_type = GFS2_METATYPE_DI;
-	di.di_header.mh_blkno = inum->no_addr;
 	di.di_header.mh_format = GFS2_FORMAT_DI;
 	di.di_num = *inum;
 	di.di_mode = mode;

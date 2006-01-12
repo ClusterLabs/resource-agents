@@ -185,7 +185,6 @@ build_rgrps(struct gfs2_sbd *sdp)
 
 		rg->rg_header.mh_magic = GFS2_MAGIC;
 		rg->rg_header.mh_type = GFS2_METATYPE_RG;
-		rg->rg_header.mh_blkno = rl->start;
 		rg->rg_header.mh_format = GFS2_FORMAT_RG;
 		rg->rg_flags = rl->rgf_flags;
 		rg->rg_free = rgblocks;
@@ -194,7 +193,6 @@ build_rgrps(struct gfs2_sbd *sdp)
 			for (x = 0; x < bitblocks; x++) {
 				bh = bget(sdp, rl->start + x);
 				if (x) {
-					mh.mh_blkno = rl->start + x;
 					gfs2_meta_header_out(&mh, bh->b_data);
 				} else
 					gfs2_rgrp_out(rg, bh->b_data);

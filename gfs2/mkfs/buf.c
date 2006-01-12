@@ -59,8 +59,7 @@ write_buffer(struct gfs2_sbd *sdp, struct buffer_head *bh)
 	if (!bh->b_uninit) {
 		struct gfs2_meta_header mh;
 		gfs2_meta_header_in(&mh, bh->b_data);
-		if (mh.mh_magic != GFS2_MAGIC ||
-		    mh.mh_blkno != bh->b_blocknr)
+		if (mh.mh_magic != GFS2_MAGIC)
 			fprintf(stderr, "gfs2_mkfs: uninitialized block %"PRIu64"\n",
 				bh->b_blocknr);
 	}

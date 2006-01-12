@@ -99,7 +99,6 @@ void gfs2_meta_header_in(struct gfs2_meta_header *mh, char *buf)
 	CPIN_32(mh, str, mh_magic);
 	CPIN_16(mh, str, mh_type);
 	CPIN_16(mh, str, mh_format);
-	CPIN_64(mh, str, mh_blkno);
 }
 
 void gfs2_meta_header_out(struct gfs2_meta_header *mh, char *buf)
@@ -109,7 +108,8 @@ void gfs2_meta_header_out(struct gfs2_meta_header *mh, char *buf)
 	CPOUT_32(mh, str, mh_magic);
 	CPOUT_16(mh, str, mh_type);
 	CPOUT_16(mh, str, mh_format);
-	CPOUT_64(mh, str, mh_blkno);
+	str->__pad0 = 0;
+	str->__pad1 = 0;
 }
 
 void gfs2_meta_header_print(struct gfs2_meta_header *mh)
@@ -117,7 +117,6 @@ void gfs2_meta_header_print(struct gfs2_meta_header *mh)
 	pv(mh, mh_magic, "0x%.8X");
 	pv(mh, mh_type, "%u");
 	pv(mh, mh_format, "%u");
-	pv(mh, mh_blkno, "%llu");
 }
 
 void gfs2_sb_in(struct gfs2_sb *sb, char *buf)
