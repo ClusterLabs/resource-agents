@@ -335,8 +335,7 @@ static ssize_t do_read_buf(struct file *file, char __user *buf, size_t size,
 	if (error)
 		goto out;
 
-	if (gfs2_is_jdata(ip) ||
-	    (gfs2_is_stuffed(ip) && !test_bit(GIF_PAGED, &ip->i_flags)))
+	if (gfs2_is_jdata(ip))
 		count = do_jdata_read(file, buf, size, offset);
 	else
 		count = generic_file_read(file, buf, size, offset);
@@ -727,10 +726,7 @@ static ssize_t do_do_write_buf(struct file *file, const char __user *buf, size_t
 		brelse(dibh);
 	}
 
-	if (journaled ||
-	    (gfs2_is_stuffed(ip) && !test_bit(GIF_PAGED, &ip->i_flags) &&
-	     *offset + size <= sdp->sd_sb.sb_bsize - sizeof(struct gfs2_dinode))) {
-
+	if (journaled) {
 		count = gfs2_jdata_write(ip, buf, *offset, size,
 					 gfs2_copy_from_user);
 		if (count < 0) {
