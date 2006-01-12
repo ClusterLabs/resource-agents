@@ -13,6 +13,8 @@
 #ifndef __COMM_HEADERS_DOT_H__
 #define __COMM_HEADERS_DOT_H__
 
+#include <byteswap.h>
+
 /* Types of requests */
 #define COMM_CONNECT    1
 #define COMM_DISCONNECT 2
@@ -43,5 +45,15 @@ typedef struct comm_header_s {
 } comm_header_t;
 
 #define COMM_LOCAL_SOCKET "/var/run/cluster/ccsd.sock"
+
+static inline void swab_header(comm_header_t *head) {
+#if BYTE_ORDER == BIG_ENDIAN
+  head->comm_type = bswap_32(head->comm_type);
+  head->comm_flags = bswap_32(head->comm_flags);
+  head->comm_desc = bswap_32(head->comm_desc);
+  head->comm_error = bswap_32(head->comm_error);
+  head->comm_payload_size = bswap_32(head->comm_payload_size);
+#endif
+}
 
 #endif /* __COMM_HEADERS_DOT_H__ */

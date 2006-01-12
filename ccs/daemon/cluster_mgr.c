@@ -32,7 +32,6 @@
 #include "magma.h"
 #include "magmamsg.h"
 
-
 static cluster_member_list_t *membership = NULL;
 
 static int check_update_doc(xmlDocPtr tmp_doc){
@@ -114,6 +113,7 @@ static int handle_cluster_message(int fd){
 
   log_dbg("Message (%d bytes) received from %s\n", error,
 	  memb_id_to_name(membership,nodeid));
+  swab_header(&ch);
   if(ch.comm_type != COMM_UPDATE){
     log_err("Unexpected communication type (%d)... ignoring.\n",
 	    ch.comm_type);
@@ -175,6 +175,7 @@ static int handle_cluster_message(int fd){
     ch.comm_payload_size = 0;
     ch.comm_flags = COMM_UPDATE_NOTICE_ACK;
     log_dbg("Sending COMM_UPDATE_NOTICE_ACK.\n");
+    swab_header(&ch);
     if((error = msg_send(afd, &ch, sizeof(comm_header_t))) < 0){
       log_sys_err("Unable to send COMM_UPDATE_NOTICE_ACK.\n");
       goto fail;
@@ -226,6 +227,7 @@ static int handle_cluster_message(int fd){
     update_required=1;
     ch.comm_flags = COMM_UPDATE_COMMIT_ACK;
     log_dbg("Sending COMM_UPDATE_COMMIT_ACK.\n");
+    swab_header(&ch);
     if((error = msg_send(afd, &ch, sizeof(comm_header_t))) < 0){
       log_sys_err("Unable to send COMM_UPDATE_NOTICE_ACK.\n");
       goto fail;

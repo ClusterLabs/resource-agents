@@ -292,6 +292,7 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
     ch->comm_type = COMM_BROADCAST;
 
     log_dbg("Sending broadcast.\n");
+    swab_header(ch);
 
     if(sendto(sfd, (char *)ch, sizeof(comm_header_t), 0,
 	      (struct sockaddr *)&addr, addr_size) < 0){
@@ -326,6 +327,7 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
 	error = 0;
 	recvfrom(sfd, (char *)ch, sizeof(comm_header_t), MSG_PEEK,
 		 (struct sockaddr *)&recv_addr, (socklen_t *)&len);
+	swab_header(ch);
 	if(!ch->comm_payload_size || ch->comm_error){
 	  /* clean out this reply by not using MSG_PEEK */
 	  recvfrom(sfd, (char *)ch, sizeof(comm_header_t), 0,
@@ -1264,6 +1266,7 @@ int process_broadcast(int sfd){
   char *buffer = NULL;
   struct sockaddr_storage addr;
   int len = sizeof(struct sockaddr_storage);  /* value/result for recvfrom */
+  int sendlen;
   int discard = 0;
 
   ENTER("process_broadcast");
@@ -1282,12 +1285,13 @@ int process_broadcast(int sfd){
     error = -errno;
     goto fail;
   }
+  swab_header(ch);
 
   if(ch->comm_type != COMM_BROADCAST){
     /* Either someone is pinging this port, or there is an older version **
     ** of ccs trying to get bcast response.  Either way, we should not   **
     ** respond to them.................................................. */
-    log_dbg("Received invalid request on broadcast port.\n");
+    log_dbg("Received invalid request on broadcast port. %x\n",ch->comm_type);
     error = -EINVAL;
     goto fail;
   }
@@ -1349,7 +1353,9 @@ int process_broadcast(int sfd){
   memcpy(buffer+sizeof(comm_header_t), payload, ch->comm_payload_size);
 
   log_dbg("Sending cluster.conf (version %d)...\n", get_doc_version(master_doc->od_doc));
-  if(sendto(sfd, buffer, ch->comm_payload_size + sizeof(comm_header_t), 0,
+  sendlen = ch->comm_payload_size + sizeof(comm_header_t);
+  swab_header(ch);
+  if(sendto(sfd, buffer, sendlen, 0,
 	    (struct sockaddr *)&addr, (socklen_t)len) < 0){
     log_sys_err("Sendto failed");
     error = -errno;

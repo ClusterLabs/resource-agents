@@ -192,6 +192,9 @@ int update(char *location){
   msg_update(membership);
   memb_resolve_list(membership, NULL);
 
+
+  swab_header(ch);
+  
   for(i=0; i < membership->cml_count; i++){
     fd = msg_open(membership->cml_members[i].cm_id, cluster_base_port, 0, 5);
 
@@ -214,6 +217,7 @@ int update(char *location){
     }
 
     error = msg_receive_timeout(fd, &rch, sizeof(comm_header_t), 5);
+    swab_header(&rch);
     if(error < 0){
       fprintf(stderr, "Failed to receive COMM_UPDATE_NOTICE_ACK from %s.\n",
 	      membership->cml_members[i].cm_name);
@@ -227,7 +231,11 @@ int update(char *location){
     msg_close(fd);
   }
 
+  swab_header(ch);
+  
   ch->comm_flags = COMM_UPDATE_COMMIT;
+
+  swab_header(ch);
 
   for(i=0; i < membership->cml_count; i++){
     fd = msg_open(membership->cml_members[i].cm_id, cluster_base_port, 0, 5);
@@ -248,6 +256,7 @@ int update(char *location){
       return -errno;
     }
     error = msg_receive_timeout(fd, &rch, sizeof(comm_header_t), 5);
+    swab_header(&rch);
     if(error < 0){
       fprintf(stderr, "Failed to receive COMM_UPDATE_COMMIT_ACK from %s.\n",
 	      membership->cml_members[i].cm_name);
