@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.12 2006/01/10 17:32:35 alan Exp $
+# $Id: Filesystem.in,v 1.13 2006/01/12 16:41:12 xunsun Exp $
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
@@ -96,7 +96,7 @@ usage() {
 
 cat <<-EOT;
 	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
-	$Id: Filesystem.in,v 1.12 2006/01/10 17:32:35 alan Exp $
+	$Id: Filesystem.in,v 1.13 2006/01/12 16:41:12 xunsun Exp $
 	EOT
 }
 
@@ -329,12 +329,11 @@ Filesystem_status()
           greppat="^$DEVICE $MOUNTPOINT "
 	else	
           greppat=" $MOUNTPOINT "
-	  rc=$?
 	fi
 	if
 	  grep -q -e "${greppat}" /proc/mounts >/dev/null 2>&1
         then
-         rc=$OCF_SUCCESS
+          rc=$OCF_SUCCESS
           msg="$MOUNTPOINT is mounted (running)"
         else
           rc=$OCF_NOT_RUNNING
