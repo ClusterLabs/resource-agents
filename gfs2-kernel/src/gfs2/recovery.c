@@ -392,7 +392,6 @@ static int clean_journal(struct gfs2_jdesc *jd, struct gfs2_log_header *head)
 	lh->lh_header.mh_magic = cpu_to_be32(GFS2_MAGIC);
 	lh->lh_header.mh_type = cpu_to_be16(GFS2_METATYPE_LH);
 	lh->lh_header.mh_format = cpu_to_be16(GFS2_FORMAT_LH);
-	lh->lh_header.mh_blkno = cpu_to_be64(dblock);
 	lh->lh_sequence = cpu_to_be64(head->lh_sequence + 1);
 	lh->lh_flags = cpu_to_be32(GFS2_LOG_HEAD_UNMOUNT);
 	lh->lh_blkno = cpu_to_be32(lblock);

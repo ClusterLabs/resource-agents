@@ -83,9 +83,9 @@ struct gfs2_inum {
 struct gfs2_meta_header {
 	__be32 mh_magic;
 	__be32 mh_type;
-	__be64 mh_blkno;	/* ?? */ /* Was generation number in gfs1 */
+	__be64 __pad0;		/* Was generation number in gfs1 */
 	__be32 mh_format;
-	__be32 __pad;		/* Was incarnation number in gfs1 */
+	__be32 __pad1;		/* Was incarnation number in gfs1 */
 };
 
 /*

@@ -84,7 +84,6 @@ void gfs2_meta_header_in(struct gfs2_meta_header *mh, char *buf)
 	mh->mh_magic = be32_to_cpu(str->mh_magic);
 	mh->mh_type = be16_to_cpu(str->mh_type);
 	mh->mh_format = be16_to_cpu(str->mh_format);
-	mh->mh_blkno = be64_to_cpu(str->mh_blkno);
 }
 
 void gfs2_meta_header_out(struct gfs2_meta_header *mh, char *buf)
@@ -94,7 +93,6 @@ void gfs2_meta_header_out(struct gfs2_meta_header *mh, char *buf)
 	str->mh_magic = cpu_to_be32(mh->mh_magic);
 	str->mh_type = cpu_to_be16(mh->mh_type);
 	str->mh_format = cpu_to_be16(mh->mh_format);
-	str->mh_blkno = cpu_to_be64(mh->mh_blkno);
 }
 
 void gfs2_meta_header_print(struct gfs2_meta_header *mh)
@@ -102,7 +100,6 @@ void gfs2_meta_header_print(struct gfs2_meta_header *mh)
 	pv(mh, mh_magic, "0x%.8X");
 	pv(mh, mh_type, "%u");
 	pv(mh, mh_format, "%u");
-	pv(mh, mh_blkno, "%llu");
 }
 
 void gfs2_sb_in(struct gfs2_sb *sb, char *buf)

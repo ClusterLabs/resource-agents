@@ -85,14 +85,9 @@ static inline int gfs2_meta_check_i(struct gfs2_sbd *sdp,
 {
 	struct gfs2_meta_header *mh = (struct gfs2_meta_header *)bh->b_data;
 	uint32_t magic = mh->mh_magic;
-	uint64_t blkno = mh->mh_blkno;
 	magic = be32_to_cpu(magic);
-	blkno = be64_to_cpu(blkno);
 	if (unlikely(magic != GFS2_MAGIC))
 		return gfs2_meta_check_ii(sdp, bh, "magic number", function,
-					  file, line);
-	if (unlikely(blkno != bh->b_blocknr))
-		return gfs2_meta_check_ii(sdp, bh, "block number", function,
 					  file, line);
 	return 0;
 }
@@ -115,14 +110,9 @@ static inline int gfs2_metatype_check_i(struct gfs2_sbd *sdp,
 	struct gfs2_meta_header *mh = (struct gfs2_meta_header *)bh->b_data;
 	uint32_t magic = mh->mh_magic;
 	uint16_t t = mh->mh_type;
-	uint64_t blkno = mh->mh_blkno;
 	magic = be32_to_cpu(magic);
-	blkno = be64_to_cpu(blkno);
 	if (unlikely(magic != GFS2_MAGIC))
 		return gfs2_meta_check_ii(sdp, bh, "magic number", function,
-					  file, line);
-	if (unlikely(blkno != bh->b_blocknr))
-		return gfs2_meta_check_ii(sdp, bh, "block number", function,
 					  file, line);
 	t = be16_to_cpu(t);
         if (unlikely(t != type))

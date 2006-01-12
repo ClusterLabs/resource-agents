@@ -130,7 +130,6 @@ static void buf_lo_before_commit(struct gfs2_sbd *sdp)
 		ld->ld_header.mh_magic = cpu_to_be32(GFS2_MAGIC);
 		ld->ld_header.mh_type = cpu_to_be16(GFS2_METATYPE_LD);
 		ld->ld_header.mh_format = cpu_to_be16(GFS2_FORMAT_LD);
-		ld->ld_header.mh_blkno = cpu_to_be64(bh->b_blocknr);
 		ld->ld_type = cpu_to_be32(GFS2_LOG_DESC_METADATA);
 		ld->ld_length = cpu_to_be32(num + 1);
 		ld->ld_data1 = cpu_to_be32(num);
@@ -283,7 +282,6 @@ static void revoke_lo_before_commit(struct gfs2_sbd *sdp)
 	ld->ld_header.mh_magic = cpu_to_be32(GFS2_MAGIC);
 	ld->ld_header.mh_type = cpu_to_be16(GFS2_METATYPE_LD);
 	ld->ld_header.mh_format = cpu_to_be16(GFS2_FORMAT_LD);
-	ld->ld_header.mh_blkno = cpu_to_be64(bh->b_blocknr);
 	ld->ld_type = cpu_to_be32(GFS2_LOG_DESC_REVOKE);
 	ld->ld_length = cpu_to_be32(gfs2_struct2blk(sdp, sdp->sd_log_num_revoke, sizeof(uint64_t)));
 	ld->ld_data1 = cpu_to_be32(sdp->sd_log_num_revoke);
@@ -305,7 +303,6 @@ static void revoke_lo_before_commit(struct gfs2_sbd *sdp)
 			mh->mh_magic = cpu_to_be32(GFS2_MAGIC);
 			mh->mh_type = cpu_to_be16(GFS2_METATYPE_LB);
 			mh->mh_format = cpu_to_be16(GFS2_FORMAT_LB);
-			mh->mh_blkno = cpu_to_be64(bh->b_blocknr);
 			offset = sizeof(struct gfs2_meta_header);
 		}
 
