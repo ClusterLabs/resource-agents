@@ -470,7 +470,11 @@ class Storage:
             self.environ.execute_remote(node2, 'service', ['clvmd', 'start'])
             pass
         
-        if len(self.__storage_to_be_used.keys()) == 0:
+        need_config = False
+        for inst in self.__storage_instances:
+            if inst.get_enabled():
+                need_config = True
+        if len(self.__storage_to_be_used.keys()) == 0 or need_config == False:
             for node2 in self.__node_storage:
                 self.__restore_selinux(node2)
             return True
@@ -587,6 +591,9 @@ class Storage:
             for dev in scsi_ids[scsi_id]:
                 self.environ.execute_remote(node, 'blockdev', ['--rereadpt', dev])
         
+        # rescan PVS
+        self.environ.execute_remote(node, 'pvscan', [])
+        
         # parse blockdev --report
         devs = {} # {path : size, ... }
         rep_str, e, s = self.environ.execute_remote(node, 'blockdev', ['--report'])
@@ -602,6 +609,11 @@ class Storage:
             ssize = int(words[5]) # size in sectors
             path = words[6]
             devs[path] = ss * ssize
+        
+        # remove pvs in use
+        for pv in self.__get_used_pvs(node):
+            if pv in devs:
+                devs.pop(pv)
         
         # merge data
         ret = {}
@@ -659,7 +671,27 @@ class Storage:
             self.environ.execute_remote(node, 'setenforce', [se])
         except:
             pass
-
+        
+    
+    def __get_used_pvs(self, node):
+        args = []
+        args.append('--noheadings')
+        args.append('-o')
+        args.append('pv_name,vg_name')
+        o, e, s = self.environ.execute_remote(node, 'pvs', args)
+        if s != 0:
+            return []
+        ret = []
+        for line in o.splitlines():
+            words = line.strip().split()
+            if len(words) == 2:
+                ret.append(words[0])
+        return ret
+    
+            
+            
+            
+        
 
 
 def infoMessage(message):
