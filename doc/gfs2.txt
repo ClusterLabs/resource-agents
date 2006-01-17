@@ -11,21 +11,20 @@ their I/O so file system consistency is maintained.  One of the nifty
 features of GFS is perfect consistency -- changes made to the file system
 on one machine show up immediately on all other machines in the cluster.
 
-GFS uses interchangable inter-node locking mechanisms.  GFS plugs into one
-side of a module called "lock_harness" and different lock modules can plug
-into the other side of the harness.  Each gfs file system selects the
-appropriate lock module at mount time.  Lock modules include:
+GFS uses interchangable inter-node locking mechanisms.  Different lock
+modules can plug into GFS and each file system selects the appropriate
+lock module at mount time.  Lock modules include:
 
   lock_nolock -- does no real locking and allows gfs to be used as a
   local file system
 
   lock_dlm -- uses a distributed lock manager (dlm) for inter-node locking
-  The dlm is found at linux/drivers/dlm/
+  The dlm is found at linux/fs/dlm/
 
 In addition to interfacing with an external locking manager, a gfs lock
 module is responsible for interacting with external cluster management
 systems.  Lock_dlm depends on user space cluster management systems found
-at the location above.
+at the URL above.
 
 To use gfs as a local file system, no external clustering systems are
 needed, simply:
@@ -35,147 +34,12 @@ needed, simply:
 
 GFS2 is not on-disk compatible with previous versions of GFS.
 
-
-The following man pages can be found at the location above:
+The following man pages can be found at the URL above:
   gfs2_mkfs	to make a filesystem
   gfs2_fsck	to repair a filesystem
   gfs2_grow	to expand a filesystem online
   gfs2_jadd	to add journals to a filesystem online
   gfs2_tool	to manipulate, examine and tune a filesystem
   gfs2_quota	to examine and change quota values in a filesystem
-  gfs2_mount	to find mount options
-
-Mount options (from the gfs2_mount man page)
-
-       lockproto=LockModuleName
-              This  specifies  which  inter-node lock protocol is used by the
-              GFS2 filesystem for this mount,  overriding  the  default  lock
-              protocol name stored in the filesystem's on-disk superblock.
-
-              The  LockModuleName must be an exact match of the protocol name
-              presented by the lock module when it registers  with  the  lock
-              harness.   Traditionally,  this  matches the .o filename of the
-              lock module, e.g. lock_dlm, lock_gulm, or lock_nolock.
-
-              The default lock protocol name is  written  to  disk  initially
-              when  creating the filesystem with gfs2_mkfs(8), -p option.  It
-              can be changed on-disk by using the gfs2_tool(8)  utility's  sb
-              proto command.
-
-              The  lockproto  mount  option should be used only under special
-              circumstances in which you want to temporarily use a  different
-              lock protocol without changing the on-disk default.
-
-       locktable=LockTableName
-              This  specifies the identity of the cluster and of the filesys-
-              tem for this mount, overriding the  default  cluster/filesystem
-              identify  stored  in  the filesystem's on-disk superblock.  The
-              cluster/filesystem name is recognized globally  throughout  the
-              cluster,  and establishes a unique namespace for the inter-node
-              locking system, enabling the mounting of multiple GFS2 filesys-
-              tems.
-
-              The  format  of  LockTableName  is  lock-module-specific.   For
-              lock_gulm and lock_dlm, the format is clustername:fsname.   For
-              lock_nolock, the field is ignored.
-
-              The  default  cluster/filesystem  name  is written to disk ini-
-              tially when  creating  the  filesystem  with  gfs2_mkfs(8),  -t
-              option.   It  can  be changed on-disk by using the gfs2_tool(8)
-              utility's sb table command.
-
-              The locktable mount option should be used  only  under  special
-              circumstances  in  which  you want to mount the filesystem in a
-              different cluster, or mount it as a different filesystem  name,
-              without changing the on-disk default.
-
-       hostdata=HostIDInfo
-              This  field sends host (the computer on which the filesystem is
-              being mounted) identity information to the lock module.
-
-              The format and behavior of HostIDInfo is  lock-module-specific.
-              For  lock_gulm,  it overrides the uname(1) -n network node name
-              used as default by lock_gulm.  For lock_nolock, a HostIDInfo of
-              "jid=x" tells GFS to mount journal number x.
-
-              This field is ignored by lock_dlm.
-
-       localcaching
-              This  flag  tells GFS2 that it is running as a local (not clus-
-              tered) filesystem, so it can turn on some block  caching  opti-
-              mizations that can't be used when running in cluster mode.
-
-              This  is turned on automatically by the lock_nolock module, but
-              can be overridden by using the ignore_local_fs option.
-
-       localflocks
-              This flag tells GFS2 that it is running as a local  (not  clus-
-              tered)  filesystem,  so it can allow the kernel VFS layer to do
-              all flock and fcntl file  locking.   When  running  in  cluster
-              mode,  these  file  locks require inter-node locks, and require
-              the support of GFS2.  When running locally, better  performance
-              is achieved by letting VFS handle the whole job.
-
-              This  is turned on automatically by the lock_nolock module, but
-              can be overridden by using the ignore_local_fs option.
-
-       debug  Causes GFS2 to oops when encountering an error that would cause
-              the  mount  to  withdraw  or  print an assertion warning.  This
-              option should probably not be used in a production system.
-
-       ignore_local_fs
-              By default, using the nolock lock module automatically turns on
-              the     localcaching     and     localflocks     optimizations.
-              ignore_local_fs forces GFS2 to treat the filesystem  as  if  it
-              were  a multihost (clustered) filesystem, with localcaching and
-              localflocks optimizations turned off.
-
-       upgrade
-              This flag tells GFS2 to upgrade the filesystem's on-disk format
-              to the version supported by the current GFS2 software installa-
-              tion on this computer.  If you try to mount an old-version disk
-              image,  GFS2 will notify you via a syslog message that you need
-              to upgrade.  Try mounting again, using the -o  upgrade  option.
-              When upgrading, only one node may mount the GFS2 filesystem.
-
-       num_glockd=Number
-              Tunes  GFS2  to alleviate memory pressure when rapidly aquiring
-              many locks  (e.g.   several  processes  scanning  through  huge
-              directory  trees).  GFS2' glockd kernel daemon cleans up memory
-              for no-longer-needed glocks.  Multiple instances of the  daemon
-              clean  up  faster than a single instance.  The default value is
-              one daemon, with a maximum of 16.  Since this option was intro-
-              duced,  other  methods  of  rapid  cleanup  have been developed
-              within GFS2, so this option may go away in the future.
-
-       acl    Enables POSIX Access Control List acl(5) support within GFS2.
-
-       spectator
-              Mount this filesystem using a special form of read-only  mount.
-              The mount does not use one of the filesystem's journals.
-
-       suiddir
-              Sets owner of any newly created file or directory to be that of
-              parent directory, if parent directory  has  S_ISUID  permission
-              attribute  bit  set.  Sets S_ISUID in any new directory, if its
-              parent directory's S_ISUID is set.  Strips all  execution  bits
-              on  a  new  file,  if  parent directory owner is different from
-              owner of process creating the file.  Set this  option  only  if
-              you know why you are setting it.
-
-       quota=[off/account/on]
-              Turns quotas on or off for a filesystem.  Setting the quotas to
-              be in the "account" state causes the per UID/GID usage  statis-
-              tics  to  be  correctly maintained by the filesystem, limit and
-              warn values are ignored.  The default value is "off".
-
-       data=[ordered/writeback]
-              When data=ordered is set, the user data modified by a  transac-
-              tion  is flushed to the disk before the transaction is commited
-              to disk.  This should prevent the user from  seeing  uninitial-
-              ized  blocks  in  a  file  after  a crash.  Data=writeback mode
-              writes the user data to the disk at any time after  it's  dirt-
-              ied.   This  doesn't  provide the same consistency guarantee as
-              ordered mode, but it should be slightly faster for  some  work-
-              loads.  The default is ordered mode.
+  mount.gfs2	to find mount options
 
