@@ -109,6 +109,7 @@ cluster_member_list_t *cml_dup(cluster_member_list_t *ml);
 #define CLK_NOWAIT	(1<<0)	/** Do not block if not immediately available */
 #define CLK_WRITE	(1<<1)	/** Write lock */
 #define CLK_READ	(1<<2)	/** Read lock */
+#define CLK_HOLDER	(1<<3)  /** Return the holder node ID if lock is held*/
 #define CLK_EX		(CLK_READ|CLK_WRITE)
 
 

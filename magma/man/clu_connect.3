@@ -6,8 +6,9 @@ High-level cluster infrastructure connect/disconnect functions.
 .nf
 .B #include <magma.h>
 .sp
-.BI "int clu_connect(void);"
+.BI "int clu_connect(char *groupname, int login);"
 .BI "int clu_disconnect(int fd);"
+.BI "int cp_connect(cluster_plugin_t **cpp, char *groupname, int login);"
 .fi
 .SH DESCRIPTION
 The \fBclu_connect()\fP function attempts to connect to the cluster
