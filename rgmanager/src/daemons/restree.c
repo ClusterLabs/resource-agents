@@ -32,6 +32,11 @@
 #include <clulog.h>
 #include <assert.h>
 
+#ifdef INTERNAL_MALLOC
+void malloc_zap_mutex(void);
+#endif
+
+
 /* XXX from resrules.c */
 int store_childtype(resource_child_t **childp, char *name, int start,
 		    int stop, int forbid);
@@ -344,6 +349,9 @@ res_exec(resource_node_t *node, int op, int depth)
 
 	if (!childpid) {
 		/* Child */ 
+#ifdef INTERNAL_MALLOC
+		malloc_zap_mutex();
+#endif
 #if 0
 		printf("Exec of script %s, action %s type %s\n",
 			res->r_rule->rr_agent, res_ops[op],

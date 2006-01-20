@@ -41,6 +41,8 @@ rg_state_list(uint64_t local_node_id)
 	rg_state_list_t *rsl = NULL;
 	generic_msg_hdr *msgp = NULL;
 	rg_state_msg_t *rsmp = NULL;
+	fd_set rfds;
+	struct timeval tv;
 
 	fd = msg_open(local_node_id, RG_PORT, RG_PURPOSE, 10);
 	if (fd == -1) {
@@ -57,7 +59,27 @@ rg_state_list(uint64_t local_node_id)
 	memset(rsl, 0, sizeof(rg_state_list_t));
 
 	while (1) {
-		n = msg_receive_simple(fd, &msgp, 10);
+		FD_ZERO(&rfds);
+		FD_SET(fd, &rfds);
+		tv.tv_sec = 10;
+		tv.tv_usec = 0;
+
+		n = select(fd+1, &rfds, NULL, NULL, &tv);
+		if (n == 0) {
+			fprintf(stderr, "Timed out waiting for a response "
+				"from Resource Group Manager\n");
+			break;
+		}
+		if (n < 0) {
+			if (errno == EINTR)
+				continue;
+			fprintf(stderr, "Failed to receive "
+				"service data: select: %s\n",
+				strerror(errno));
+			break;
+		}
+
+		n = msg_receive_simple(fd, &msgp, tv.tv_sec);
 	        if (n < sizeof(generic_msg_hdr))
 			break;
 

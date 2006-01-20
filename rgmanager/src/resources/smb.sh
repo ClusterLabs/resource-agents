@@ -139,7 +139,12 @@ ccs_connect()
 	fi
 
 	outp=${outp/*= /}
-	return $outp
+	if [ -n "$outp" ]; then
+		echo $outp
+		return 0
+	fi
+
+	return 1
 }
 
 
@@ -437,13 +442,12 @@ gen_smb_conf()
 
 	ocf_log $lvl "Creating $conf"
 
-	ccs_connect
-	ccsfd=$?
-	if [ $ccsfd -eq $_FAIL ]; then
+	ccsfd=$(ccs_connect)
+	if [ $? -eq $_FAIL ]; then
 		return $OCF_ERR_GENERIC
 	fi
 
-	#ocf_log debug "Acquired CCS descriptor $ccsfd"
+	ocf_log debug "Acquired CCS descriptor $ccsfd"
 
 	get_service_ip_keys $ccsfd "$OCF_RESKEY_service_name"
 	get_service_fs_keys $ccsfd "$OCF_RESKEY_service_name"

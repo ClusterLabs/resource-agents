@@ -111,35 +111,85 @@ svc_report_failure(char *svcName)
 
 
 int
+clu_lock_verbose(char *resource, int dflt_flags, void **lockpp)
+{
+	int ret, timed_out = 0;
+	struct timeval start, now;
+	uint64_t nodeid, *p;
+	int flags;
+	int block = !(dflt_flags & CLK_NOWAIT);
+
+	/* Holder not supported for this call */
+	dflt_flags &= ~CLK_HOLDER;
+
+	flags = dflt_flags;
+
+	if (block) {
+		gettimeofday(&start, NULL);
+		start.tv_sec += 30;
+	}
+	while (1) {
+		if (block) {
+			gettimeofday(&now, NULL);
+
+			if ((now.tv_sec > start.tv_sec) ||
+			    ((now.tv_sec == start.tv_sec) &&
+	 		     (now.tv_usec >= start.tv_usec))) {
+
+				gettimeofday(&start, NULL);
+				start.tv_sec += 30;
+
+				timed_out = 1;
+				flags |= CLK_HOLDER;
+			}
+		}
+
+		ret = clu_lock(resource, flags | CLK_NOWAIT, lockpp);
+
+		if ((ret != 0) && (errno == EAGAIN) && block) {
+			if (timed_out) {
+				p = (uint64_t *)*lockpp;
+				if (p) {
+					nodeid = *p;
+					clulog(LOG_WARNING, "Node ID:%08x%08x"
+					       " stuck with lock %s\n",
+					       (uint32_t)(nodeid>>32&0xffffffff),
+					       (uint32_t)nodeid&0xffffffff,
+					       resource);
+					free(p);
+				} else {
+					clulog(LOG_WARNING, "Starving for lock"
+					       " %s\n", resource);
+				}
+				flags = dflt_flags;
+				timed_out = 0;
+			}
+			usleep(random()&32767<<1);
+			continue;
+
+		} else if (ret == 0) {
+			/* Success */
+			return 0;
+		}
+
+		break;
+	}
+
+	return ret;
+}
+
+
+int
 #ifdef DEBUG
 _rg_lock(char *name, void **p)
 #else
 rg_lock(char *name, void **p)
 #endif
 {
-#if 0
-	int ret;
-#endif
 	char res[256];
 
 	snprintf(res, sizeof(res), "usrm::rg=\"%s\"", name);
-	*p = NULL;
-
-#if 0
-	do {
-		ret = clu_lock(res, CLK_EX | CLK_NOWAIT, p);
-		if ((ret == -1) && (errno == EAGAIN)) {
-			usleep(50000);
-			continue;
-		}
-		
-	} while (1);
-
-	return ret;
-#else
-	return clu_lock(res, CLK_EX, p);
-#endif
-	
+	return clu_lock_verbose(res, CLK_EX, p);
 }
 
 

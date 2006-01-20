@@ -99,6 +99,8 @@ forwarding_thread(void *arg)
 	swab_SmMessageSt(&msg);
 	send_response(msg.sm_data.d_ret, req);
 
+	rq_free(req);
+
 	pthread_exit(NULL);
 }
 

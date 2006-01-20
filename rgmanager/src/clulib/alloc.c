@@ -479,7 +479,7 @@ consolidate_all(void)
   without getting stuck.
  */
 void
-zap_mutex(void)
+malloc_zap_mutex(void)
 {
 	pthread_mutex_init(&_alloc_mutex, NULL);
 }
@@ -560,7 +560,7 @@ malloc_init(size_t poolsize)
 		ret = _malloc_init(poolsize);
 		e = errno;
 	}
-	pthread_atfork(NULL, NULL, zap_mutex);
+	pthread_atfork(NULL, NULL, malloc_zap_mutex);
 	pthread_mutex_unlock(&_alloc_mutex);
 	errno = e;
 	return ret;
@@ -753,11 +753,6 @@ malloc(size_t size)
 #ifdef DEBUG
 #ifdef STACKSIZE
 		for (sp = 0; sp < STACKSIZE; sp++) {
-			void *p;
-			p = __builtin_frame_address(2);
-			raise(SIGSTOP);
-			p = __builtin_return_address(2);
-
 			assign_address(block->mb_pc, sp);
 			if (!block->mb_pc[sp])
 				break;
@@ -957,7 +952,7 @@ void resolve_stack_gdb(void **, size_t);
   is set.
  */
 void
-malloc_dump_table(void)
+malloc_dump_table(size_t minsize, size_t maxsize)
 {
 #ifdef PARANOID
 	int any = 0;
@@ -973,6 +968,10 @@ malloc_dump_table(void)
 	pthread_mutex_lock(&_alloc_mutex);
 	for (x=0; x<BUCKET_COUNT; x++) {
 		for (b = alloc_buckets[x]; b; b = b->mb_next) {
+
+			if (b->mb_size < minsize || b->mb_size > maxsize)
+				continue;
+
 			if (!any)
 				fprintf(stderr,
 					"+++ Memory table dump +++\n");

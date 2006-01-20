@@ -539,15 +539,16 @@ send_rg_state(int fd, char *rgname)
 
 
 /**
-  Send all resource group states to a file descriptor
-
-  @param fd		File descriptor to send states to.
-  @return		0
+  Send status from a thread because we don't want rgmanager's
+  main thread to block in the case of DLM issues
  */
-int
-send_rg_states(int fd)
+static void *
+status_check_thread(void *arg)
 {
+	int fd = *(int *)arg;
 	resource_t *res;
+
+	free(arg);
 
 	pthread_rwlock_rdlock(&resource_lock);
 
@@ -562,6 +563,39 @@ send_rg_states(int fd)
 
 	msg_send_simple(fd, RG_SUCCESS, 0, 0);
 	msg_close(fd);
+
+	return NULL;
+}
+
+
+/**
+  Send all resource group states to a file descriptor
+
+  @param fd		File descriptor to send states to.
+  @return		0
+ */
+int
+send_rg_states(int fd)
+{
+	int *fdp;
+	pthread_t newthread;
+	pthread_attr_t attrs;
+
+	fdp = malloc(sizeof(int));
+	if (!fdp) {
+		msg_send_simple(fd, RG_FAIL, 0, 0);
+		return -1;
+	}
+
+	*fdp = fd;
+
+        pthread_attr_init(&attrs);
+        pthread_attr_setinheritsched(&attrs, PTHREAD_INHERIT_SCHED);
+        pthread_attr_setdetachstate(&attrs, PTHREAD_CREATE_DETACHED);
+	pthread_attr_setstacksize(&attrs, 65535);
+
+	pthread_create(&newthread, &attrs, status_check_thread, fdp);
+        pthread_attr_destroy(&attrs);
 
 	return 0;
 }
@@ -653,7 +687,7 @@ do_status_checks(void)
 		    svcblk.rs_state != RG_STATE_STARTED)
 			continue;
 
-		clulog(LOG_DEBUG, "Checking status of %s\n", name);
+		/*clulog(LOG_DEBUG, "Checking status of %s\n", name);*/
 
 		rt_enqueue_request(name, RG_STATUS,
 				   -1, 0, NODE_ID_NONE, 0, 0);
@@ -661,7 +695,7 @@ do_status_checks(void)
 	} while (!list_done(&_tree, curr));
 
 	pthread_rwlock_unlock(&resource_lock);
-	rg_wait_threads();
+	/*rg_wait_threads();*/
 }
 
 /**
@@ -825,7 +859,7 @@ int
 check_config_update(void)
 {
 	int newver = 0, fd, ret = 0;
-	char *val;
+	char *val = NULL;
 
        	fd = ccs_lock();
 	if (fd == -1) {
@@ -835,6 +869,9 @@ check_config_update(void)
 	if (ccs_get(fd, "/cluster/@config_version", &val) == 0) {
 		newver = atoi(val);
 	}
+
+	if (val)
+		free(val);
 
 	pthread_mutex_lock(&config_mutex);
 	if (newver && newver != config_version)

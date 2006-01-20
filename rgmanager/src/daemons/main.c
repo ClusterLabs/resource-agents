@@ -51,6 +51,7 @@ int watchdog_init(void);
 
 int shutdown_pending = 0, running = 1, need_reconfigure = 0;
 char debug = 0; /* XXX* */
+static int signalled = 0;
 
 uint64_t next_node_id(cluster_member_list_t *membership, uint64_t me);
 
@@ -409,6 +410,8 @@ handle_cluster_event(int fd)
 }
 
 
+void dump_threads(void);
+
 int
 event_loop(int clusterfd)
 {
@@ -419,6 +422,12 @@ event_loop(int clusterfd)
 
 	tv.tv_sec = 10;
 	tv.tv_usec = 0;
+
+	if (signalled) {
+		signalled = 0;
+		malloc_stats();
+		dump_threads();
+	}
 
 	while (tv.tv_sec || tv.tv_usec) {
 		FD_ZERO(&rfds);
@@ -523,17 +532,15 @@ cleanup(int cluster_fd)
 }
 
 
-void dump_threads(void);
 
 void
 statedump(int sig)
 {
-	dump_threads();
-	/*malloc_stats();*/
+	signalled++;
 }
 
 
-void malloc_dump_table(void);
+void malloc_dump_table(size_t, size_t);
 
 
 /*
@@ -751,7 +758,8 @@ main(int argc, char **argv)
 	clulog(LOG_NOTICE, "Shutdown complete, exiting\n");
 	
 	/*malloc_dump_table(); */ /* Only works if alloc.c us used */
-	/*malloc_stats();*/
+	malloc_stats();
+	malloc_dump_table(1352, 1352);
 
 	exit(0);
 }

@@ -343,12 +343,16 @@ resgroup_thread_main(void *arg)
 			error = svc_status(myname);
 
 			/* Recover dead service */
-			if (error == 0)
+			if (error == 0) {
+				ret = RG_SUCCESS;
 				break;
+			}
 
 			error = svc_stop(myname, RG_STOP_RECOVER);
 			if (error == 0) {
 				error = handle_recover_req(myname, &newowner);
+				if (error == 0)
+					ret = RG_SUCCESS;
 			}
 
 			break;
@@ -364,22 +368,28 @@ resgroup_thread_main(void *arg)
 		myself->rt_request = RG_NONE;
 		pthread_mutex_unlock(&reslist_mutex);
 
-		if (error == RG_EFORWARD)
+		if (error == RG_EFORWARD) {
+			/* Forward_request frees this and closes the
+			   file descriptor, so we can just move on
+			   with life. */
 			forward_request(req);
-		else
-			rq_free(req);
+			continue;
+		}
 
-		if (ret != RG_NONE && rg_initialized()) {
+		if (ret != RG_NONE && rg_initialized() &&
+		    (req->rr_resp_fd >= 0)) {
 			send_response(error, req);
 		}
 
+		
+		rq_free(req);
 	}
 
 	/* reslist_mutex and my_queue_mutex held */
 	myself = find_resthread_byname(myname);
 
 	if (!myself) {
-		dprintf("I don't exist... shit!\n");
+		dprintf("I don't exist...\n");
 		raise(SIGSEGV);
 	}
 
@@ -411,7 +421,6 @@ spawn_resgroup_thread(const char *name)
         pthread_attr_init(&attrs);
         pthread_attr_setinheritsched(&attrs, PTHREAD_INHERIT_SCHED);
         pthread_attr_setdetachstate(&attrs, PTHREAD_CREATE_DETACHED);
-        pthread_atfork(NULL, NULL, NULL);
 
 	newthread = malloc(sizeof(*newthread));
 	if (!newthread)

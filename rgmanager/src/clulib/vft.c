@@ -44,6 +44,8 @@
 #include <signals.h>
 
 
+int clu_lock_verbose(char *lockname, int flags, void **lockpp);
+
 static int vf_lfds[2];
 static int vf_lfd = 0;
 static key_node_t *key_list = NULL;	/** List of key nodes. */
@@ -1185,7 +1187,7 @@ vf_write(cluster_member_list_t *membership, uint32_t flags, char *keyid,
 	pthread_mutex_lock(&vf_mutex);
 	/* Obtain cluster lock on it. */
 	snprintf(lock_name, sizeof(lock_name), "usrm::vf");
-	l = clu_lock(lock_name, CLK_EX, &lockp);
+	l = clu_lock_verbose(lock_name, CLK_EX, &lockp);
 	if (l < 0) {
 		clu_unlock(lock_name, lockp);
 		pthread_mutex_unlock(&vf_mutex);
@@ -1522,7 +1524,7 @@ vf_read(cluster_member_list_t *membership, char *keyid, uint64_t *view,
 	/* Obtain cluster lock on it. */
 	pthread_mutex_lock(&vf_mutex);
 	snprintf(lock_name, sizeof(lock_name), "usrm::vf");
-	l = clu_lock(lock_name, CLK_EX, &lockp);
+	l = clu_lock_verbose(lock_name, CLK_EX, &lockp);
 	if (l < 0) {
 		clu_unlock(lock_name, lockp);
 		pthread_mutex_unlock(&vf_mutex);
