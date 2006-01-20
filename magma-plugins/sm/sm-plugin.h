@@ -37,6 +37,7 @@ typedef struct {
 	int     state;
 	char    *groupname;
 	dlm_lshandle_t ls;
+	struct dlm_lksb lsholder;
 } sm_priv_t;
 
 #endif /* _SM_PLUGIN_H */

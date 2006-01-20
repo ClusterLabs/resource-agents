@@ -35,13 +35,19 @@
 #include <sys/types.h>
 #include <sys/select.h>
 
-#define MODULE_DESCRIPTION "CMAN/SM Plugin v1.1.4"
+#define MODULE_DESCRIPTION "CMAN/SM Plugin v1.1.5"
 #define MODULE_AUTHOR      "Lon Hohberger"
 
 #define DLM_LS_NAME	   "Magma"
+#define DLM_LSHOLDER_NAME  "__ref_lck"
+#define LOCKINFO_MAX	   16
 
 /* From services.c */
 cluster_member_list_t *service_group_members(int sockfd, char *groupname);
+
+/* Internal */
+static inline int _dlm_release_lockspace(sm_priv_t *p);
+
 
 /*
  * Grab the version from the header file so we don't cause API problems
@@ -423,8 +429,9 @@ sm_close(cluster_plugin_t *self, int fd)
 	assert(p);
 	assert(fd == p->sockfd);
 
-	if (p->ls)
-		dlm_release_lockspace(DLM_LS_NAME, p->ls, 0);
+	if (p->ls) {
+		_dlm_release_lockspace(p);
+	}
 	p->ls = NULL;
 
 	ret = close(fd);
@@ -547,6 +554,193 @@ wait_for_dlm_event(dlm_lshandle_t *ls)
 }
 
 
+static inline int
+_dlm_lock(sm_priv_t *p, int mode, struct dlm_lksb *lksb, int options,
+          char *resource)
+{
+        int ret;
+
+        /*
+         * per pjc: create/open lockspace when first lock is taken
+         */
+        ret = dlm_ls_lock(p->ls, mode, lksb, options, resource,
+                          strlen(resource), 0, ast_function, lksb,
+                          NULL, NULL);
+
+        if (ret < 0) {
+#if 0
+                if (errno == ENOENT) {
+                        /* This should not happen if we have a lock
+                           ref open in the LS ! */A
+                        assert(0);
+                }
+#endif
+
+                return -1;
+        }
+
+        if ((ret = (wait_for_dlm_event(p->ls) < 0))) {
+                fprintf(stderr, "wait_for_dlm_event: %d / %d\n",
+                        ret, errno);
+                return -1;
+        }
+
+        return 0;
+}
+
+
+
+static inline int
+_dlm_acquire_lockspace(sm_priv_t *p, const char *lsname)
+{
+        dlm_lshandle_t ls = NULL;
+        struct dlm_lksb lksb;
+        int ret;
+
+retry:
+        while (!ls) {
+                ls = dlm_open_lockspace(lsname);
+                if (ls)
+                        break;
+
+                ls = dlm_create_lockspace(lsname, 0644);
+                if (ls)
+                        break;
+
+                /* Work around race: Someone was closing lockspace as
+                   we were trying to open it.  Retry. */
+                if (errno == ENOENT)
+                        continue;
+
+                fprintf(stderr, "failed acquiring lockspace: %s\n",
+                        strerror(errno));
+
+                return -1;
+        }
+
+        p->ls = ls;
+        memset(&lksb,0,sizeof(lksb));
+
+        ret = _dlm_lock(p, LKM_NLMODE, &lksb, 0, DLM_LSHOLDER_NAME);
+        if (ret != 0) {
+                dlm_release_lockspace(DLM_LS_NAME, ls, 0);
+                p->ls = NULL;
+                if (errno == ENOENT)
+                        /* Lockspace freed under us? :( */
+                        goto retry;
+        }
+
+        memcpy(&p->lsholder, &lksb, sizeof(p->lsholder));
+
+        return 0;
+}
+
+
+
+static inline int
+_dlm_unlock(sm_priv_t *p, struct dlm_lksb *lksb)
+{
+        int ret;
+
+        ret = dlm_ls_unlock(p->ls, lksb->sb_lkid, 0, lksb, NULL);
+
+        if (ret != 0)
+                return ret;
+
+        /* lksb->sb_status should be EINPROG at this point */
+
+        if (wait_for_dlm_event(p->ls) < 0) {
+                errno = lksb->sb_status;
+                return -1;
+        }
+
+        return 0;
+}
+
+
+static inline int
+_dlm_release_lockspace(sm_priv_t *p)
+{
+        _dlm_unlock(p, &p->lsholder);
+        return dlm_release_lockspace(DLM_LS_NAME, p->ls, 0);
+}
+
+
+/**
+ * Ugly routine to figure out what node has a given lock.
+ */
+static inline int
+_get_holder(char *lk, sm_priv_t *p, int mode, uint64_t *holderid)
+{
+	struct dlm_lksb lksb;
+	struct dlm_lockinfo li[LOCKINFO_MAX];
+	struct dlm_resinfo ri;
+	struct dlm_queryinfo qi;
+	int query = 0, x;
+	int ret;
+
+	/*
+	 * Take a null lock so we can query the DLM and find out who
+	 * is holding the lock we're after.
+	 */
+	query = DLM_QUERY_QUEUE_GRANTED | DLM_QUERY_LOCKS_ALL;
+
+	memset(&lksb, 0, sizeof(lksb));
+	ret = _dlm_lock(p, LKM_NLMODE, &lksb, 0, lk);
+	if (ret < 0)
+		return -1;
+
+	memset(&qi, 0, sizeof(qi));
+	memset(&ri, 0, sizeof(ri));
+
+	qi.gqi_resinfo = &ri;
+	qi.gqi_lockinfo = &li[0];
+	qi.gqi_locksize = LOCKINFO_MAX;
+	qi.gqi_lockcount = 0;
+
+	/* Query based on our null lock */
+	ret = dlm_ls_query(p->ls, &lksb, query, &qi,
+			   ast_function, NULL);
+
+	if (ret != 0)
+		return ret;
+
+	while (lksb.sb_status == EINPROG) {
+		if (wait_for_dlm_event(p->ls) < 0)
+			return -1;
+	}
+
+	ret = -1;
+	for (x = 0; x < qi.gqi_lockcount; x++) {
+		if (li[x].lki_lkid == lksb.sb_lkid)
+			continue;
+
+		/* XXX what symbol is state 2?! */
+		if (li[x].lki_state != 2)
+			continue;
+
+		if (li[x].lki_rqmode != 255)
+			continue;
+
+		if (li[x].lki_grmode == 0)
+			continue;
+	
+		*holderid = (uint64_t)(li[x].lki_node);
+		ret = 0;
+		break;
+
+		usleep(100000);
+	}
+
+	/* XXX check return value?! */
+
+	_dlm_unlock(p, &lksb);
+
+	return ret;
+
+}
+
+
 static int
 sm_lock(cluster_plugin_t *self,
 	  char *resource,
@@ -556,6 +750,8 @@ sm_lock(cluster_plugin_t *self,
 	sm_priv_t *p;
 	int mode = 0, options = 0, ret = 0;
 	struct dlm_lksb *lksb;
+	size_t sz;
+	uint64_t holder;
 
 	if (!self || !lockpp) {
 		errno = EINVAL;
@@ -564,21 +760,7 @@ sm_lock(cluster_plugin_t *self,
 
 	p = (sm_priv_t *)self->cp_private.p_data;
 	assert(p);
-
-	/*
-	 * per pjc: create/open lockspace when first lock is taken
-	 */
-	if (!p->ls)
-		p->ls = dlm_open_lockspace(DLM_LS_NAME);
-	if (!p->ls)
-		p->ls = dlm_create_lockspace(DLM_LS_NAME, 0644);
-	if (!p->ls) {
-		ret = errno;
-		close(p->sockfd);
-		errno = ret;
-		return -1;
-	}
-
+	*lockpp = NULL;
 	if (flags & CLK_EX) {
 		mode = LKM_EXMODE;
 	} else if (flags & CLK_READ) {
@@ -594,32 +776,37 @@ sm_lock(cluster_plugin_t *self,
 		options = LKF_NOQUEUE;
 
 	/* Allocate our lock structure. */
-	lksb = malloc(sizeof(*lksb));
+	sz = (sizeof(*lksb) > sizeof(uint64_t) ? sizeof(*lksb) :
+	      sizeof(uint64_t));
+
+	lksb = malloc(sz);
 	assert(lksb);
-	memset(lksb, 0, sizeof(*lksb));
+	memset(lksb, 0, sz);
 
-	ret = dlm_ls_lock(p->ls, mode, lksb, options, resource,
-			  strlen(resource), 0, ast_function, lksb, NULL,
-			  NULL);
-	if (ret != 0) {
-		free(lksb);
-		return ret;
+	while(!p->ls) {
+		_dlm_acquire_lockspace(p, DLM_LS_NAME);
 	}
+	assert(p->ls);
 
-	if (wait_for_dlm_event(p->ls) < 0) {
-		free(lksb);
-		return -1;
-	}
+	ret = _dlm_lock(p, mode, lksb, options, resource);
 
 	switch(lksb->sb_status) {
 	case 0:
 		*lockpp = (void *)lksb;
 		return 0;
 	case EAGAIN:
-		free(lksb);
+		if ((flags & CLK_HOLDER) &&
+		    (_get_holder(resource, p, mode, &holder) == 0)) {
+			memset(lksb, 0, sz);
+			*((uint64_t *)lksb) = holder;
+			*lockpp = (void *)lksb;
+		} else {
+			free(lksb);
+		}
 		errno = EAGAIN;
 		return -1;
 	default:
+		fprintf(stderr, "_dlm_lock: %d / %d\n", ret, lksb->sb_status);
 		ret = lksb->sb_status;
 		free(lksb);
 		errno = ret;
@@ -627,6 +814,7 @@ sm_lock(cluster_plugin_t *self,
 	}
 
 	/* Not reached */
+	fprintf(stderr, "code path error @ %s:%d\n", __FILE__, __LINE__);
 	return -1;
 }
 
@@ -651,17 +839,10 @@ sm_unlock(cluster_plugin_t *self, char *__attribute__((unused)) resource,
 		return -1;
 	}
 
-	ret = dlm_ls_unlock(ls, lksb->sb_lkid, 0, lksb, NULL);
+	ret = _dlm_unlock(p, lksb);
 
 	if (ret != 0) 
 		return ret;
-
-	/* lksb->sb_status should be EINPROG at this point */
-
-	if (wait_for_dlm_event(p->ls) < 0) {
-		errno = lksb->sb_status;
-		return -1;
-	}
 
 	free(lksb);
 

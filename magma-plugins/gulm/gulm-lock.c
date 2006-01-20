@@ -267,6 +267,8 @@ gulm_lock(cluster_plugin_t *self,
 	reslen = (uint16_t)strlen(resource);
 	assert(reslen);
 
+	*lockpp = NULL;
+
 	if (flags & CLK_EX) {
 		state = lg_lock_state_Exclusive;
 	} else if (flags & CLK_READ) {
