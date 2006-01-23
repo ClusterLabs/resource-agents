@@ -285,28 +285,32 @@ static int register_lockspace(char *name, struct user_ls **ls, int flags)
 /* Called with the user_ls_lock semaphore held */
 static int unregister_lockspace(struct user_ls *lsinfo, int force)
 {
-	int status;
-
-	status = dlm_release_lockspace(lsinfo->ls_lockspace, force);
-	if (status)
-		return status;
-
-	status = misc_deregister(&lsinfo->ls_miscinfo);
-	if (status)
-		return status;
-
-	list_del(&lsinfo->ls_list);
-	set_bit(LS_FLAG_DELETED, &lsinfo->ls_flags);
-	lsinfo->ls_lockspace = NULL;
-	if (test_bit(LS_FLAG_DEFAULT, &lsinfo->ls_flags))
-		clear_bit(1, &default_ls);
+	int status = 0;
 
 	if (atomic_read(&lsinfo->ls_refcnt) == 0) {
+		status = dlm_release_lockspace(lsinfo->ls_lockspace, force);
+		if (status)
+			return status;
+
+		status = misc_deregister(&lsinfo->ls_miscinfo);
+		if (status)
+			return status;
+
+		list_del(&lsinfo->ls_list);
+		set_bit(LS_FLAG_DELETED, &lsinfo->ls_flags);
+		lsinfo->ls_lockspace = NULL;
+		if (test_bit(LS_FLAG_DEFAULT, &lsinfo->ls_flags))
+			clear_bit(1, &default_ls);
+
+
 		kfree(lsinfo->ls_miscinfo.name);
 		kfree(lsinfo);
 	}
+	else {
+		status = -EBUSY;
+	}
 
-	return 0;
+	return status;
 }
 
 /* Add it to userland's AST queue */
