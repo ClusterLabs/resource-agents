@@ -215,8 +215,10 @@ static void show_status(void)
 		printf(" \n");
 
 		node.cn_name[0] = 0;
-		if (cman_get_node(h, CMAN_NODEID_US, &node) == 0)
+		if (cman_get_node(h, CMAN_NODEID_US, &node) == 0) {
 			printf("Node name: %s\n", node.cn_name);
+			printf("Node ID: %d\n", node.cn_nodeid);
+		}
 
 		printf("Multicast address: ");
 		addrptr = einfo->ei_addresses;
