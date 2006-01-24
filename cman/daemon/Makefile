@@ -12,14 +12,15 @@
 
 top_srcdir=..
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
-AISDIR=openais20051201
+AISDIR=openais20060121
+AISTAG=version_0.71
 
 
 include ${top_srcdir}/make/defines.mk
 
 CFLAGS+= -g -I${ccsincdir} -I${incdir} -I${top_srcdir}/config \
 	-DCMAN_RELEASE_NAME=\"${RELEASE}\" -I../lib -DDEBUG \
-	-I ${AISDIR}/trunk/exec -L ${AISDIR}/trunk/exec
+	-I ${AISDIR}/${AISTAG}/exec -L ${AISDIR}/${AISTAG}/exec
 
 TARGET=cmand
 
@@ -28,7 +29,7 @@ all: ${TARGET}
 copytobin: all
 	cp ${TARGET} ${top_srcdir}/bin
 
-cmand:	${AISDIR}/trunk/exec/libtotem_pg.a daemon.o config.o logging.o ais.o commands.o barrier.o cmanccs.o memlock.o ../lib/libcman.a 
+cmand:	${AISDIR}/${AISTAG}/exec/libtotem_pg.a daemon.o config.o logging.o ais.o commands.o barrier.o cmanccs.o memlock.o ../lib/libcman.a 
 	$(CC) $(CFLAGS) -o $@ $^ -L../lib -L${ccslibdir} -lccs -lcman -lpthread -Wl,-Bstatic -ltotem_pg -Wl,-Bdynamic
 
 daemon.o: daemon.c list.h cnxman-socket.h cnxman-private.h xlate.h \
@@ -64,17 +65,17 @@ ${AISDIR}/${AISDIR}.tar.gz:
 	mkdir -p ${AISDIR}
 	cd ${AISDIR} && wget http://people.redhat.com/pcaulfie/${AISDIR}.tar.gz
 
-${AISDIR}/trunk: ${AISDIR}/${AISDIR}.tar.gz
+${AISDIR}/${AISTAG}: ${AISDIR}/${AISDIR}.tar.gz
 	cd ${AISDIR} && tar -xzf ${AISDIR}.tar.gz
-	touch ${AISDIR}/trunk
+	touch ${AISDIR}/${AISTAG}
 
-${AISDIR}/trunk/exec/libtotem_pg.a: ${AISDIR}/trunk
-	cd ${AISDIR}/trunk && make -C exec
+${AISDIR}/${AISTAG}/exec/libtotem_pg.a: ${AISDIR}/${AISTAG}
+	cd ${AISDIR}/${AISTAG} && make -C exec
 
 install: cmand
 	install -d ${sbindir}
 	install cmand ${sbindir}
-	install ${AISDIR}/trunk/exec/keygen ${sbindir}/ais_keygen
+	install ${AISDIR}/${AISTAG}/exec/keygen ${sbindir}/ais_keygen
 
 uninstall:
 	${UNINSTALL} cmand ${sbindir}
@@ -82,7 +83,7 @@ uninstall:
 
 clean:
 	rm -f *.o cmand
-	rm -rf ${AISDIR}/trunk
+	rm -rf ${AISDIR}/${AISTAG}
 
 reallyclean: clean
 	rm -rf ${AISDIR}

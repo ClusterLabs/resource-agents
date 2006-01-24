@@ -38,11 +38,16 @@
 #include "config.h"
 
 extern int our_nodeid();
+static totempg_groups_handle group_handle;
 
 uint64_t incarnation;
 struct totem_ip_address mcast_addr;
 struct totem_interface ifaddrs[MAX_INTERFACES];
 int num_interfaces;
+struct totempg_group cman_group = {
+        .group          = "CMAN",
+        .group_len      = 4
+};
 
 /* This structure is tacked onto the start of a cluster message packet for our
  * own nefarious purposes. */
@@ -104,6 +109,7 @@ int comms_send_message(void *buf, int len,
 	struct iovec iov[2];
 	struct cl_protheader header;
 	int totem_flags = TOTEMPG_AGREED;
+	int status;
 
 	P_AIS("comms send message %p len = %d\n", buf,len);
 	header.tgtport = toport;
@@ -120,7 +126,10 @@ int comms_send_message(void *buf, int len,
 	if (flags & MSG_TOTEM_SAFE)
 		totem_flags = TOTEMPG_SAFE;
 
-	return totempg_mcast(iov, 2, totem_flags);
+	status = totempg_groups_mcast_joined(group_handle, iov, 2, totem_flags);
+	P_AIS("comms send message, status = %d\n", status);
+
+	return status;
 }
 
 // This assumes the iovec has only one element ... is it true ??
@@ -183,7 +192,6 @@ int comms_init_ais(unsigned short port, char *key_filename)
 
 	/* AIS doesn't like these to disappear */
 	static struct totem_config ais_config;
-	static totemsrp_handle totemsrp_handle_in;
 
 	P_AIS("comms_init_ais()\n");
 
@@ -239,10 +247,11 @@ int comms_init_ais(unsigned short port, char *key_filename)
 		ais_config.private_key_len = 0;
 	}
 
+	totempg_groups_initialize(&group_handle, deliver_fn, confchg_fn);
+	totempg_groups_join(group_handle, &cman_group, 1);
+
         totempg_initialize(ais_poll_handle,
-			   &totemsrp_handle_in,
-			   &ais_config,
-			   deliver_fn, confchg_fn);
+			   &ais_config);
 
 	return 0;
 }
