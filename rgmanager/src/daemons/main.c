@@ -425,8 +425,10 @@ event_loop(int clusterfd)
 
 	if (signalled) {
 		signalled = 0;
+		/*
 		malloc_stats();
 		dump_threads();
+		 */
 	}
 
 	while (tv.tv_sec || tv.tv_usec) {
@@ -758,8 +760,8 @@ main(int argc, char **argv)
 	clulog(LOG_NOTICE, "Shutdown complete, exiting\n");
 	
 	/*malloc_dump_table(); */ /* Only works if alloc.c us used */
-	malloc_stats();
-	malloc_dump_table(1352, 1352);
+	/*malloc_stats(); */
+	/*malloc_dump_table(1352, 1352);*/
 
 	exit(0);
 }
