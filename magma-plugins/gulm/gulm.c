@@ -34,7 +34,7 @@
 #include <sys/types.h>
 #include <linux/unistd.h>
 
-#define MODULE_DESCRIPTION "GuLM Plugin v1.0.3"
+#define MODULE_DESCRIPTION "GuLM Plugin v1.0.4"
 #define MODULE_AUTHOR      "Lon Hohberger"
 
 
@@ -96,7 +96,9 @@ static int
 null_login_reply(void *misc, uint64_t gen, uint32_t error, uint32_t rank,
 		 uint8_t corestate)
 {
+#ifdef DEBUG
 	printf("GuLM: %s called\n", __FUNCTION__);
+#endif
 	return 0;
 }
 
@@ -104,7 +106,9 @@ null_login_reply(void *misc, uint64_t gen, uint32_t error, uint32_t rank,
 static int
 null_logout_reply(void *misc)
 {
+#ifdef DEBUG
 	printf("GuLM: %s called\n", __FUNCTION__);
+#endif
 	return 0;
 }
 
@@ -113,7 +117,9 @@ static int
 null_nodelist(void *misc, lglcb_t type, char *name, struct in6_addr *ip,
 	      uint8_t state)
 {
+#ifdef DEBUG
 	printf("GuLM: %s called\n", __FUNCTION__);
+#endif
 	return 0;
 }
 
@@ -122,7 +128,9 @@ static int
 null_statechange(void *misc, uint8_t corestate, uint8_t quorate, 
       struct in6_addr *masterip, char *mastername)
 {
+#ifdef DEBUG
 	printf("GuLM: %s called\n", __FUNCTION__);
+#endif
 	return 0;
 }
 
@@ -131,7 +139,9 @@ static int
 null_nodechange(void *misc, char *nodename, struct in6_addr *nodeip,
 		uint8_t nodestate)
 {
+#ifdef DEBUG
 	printf("GuLM: %s called\n", __FUNCTION__);
+#endif
 	return 0;
 }
 
@@ -139,7 +149,9 @@ null_nodechange(void *misc, char *nodename, struct in6_addr *nodeip,
 static int
 null_service_list(void *misc, lglcb_t type, char *service)
 {
+#ifdef DEBUG
 	printf("GuLM: %s called\n", __FUNCTION__);
+#endif
 	return 0;
 }
 
@@ -147,7 +159,9 @@ null_service_list(void *misc, lglcb_t type, char *service)
 static int
 null_error(void *misc, uint32_t err)
 {
+#ifdef DEBUG
 	printf("GuLM: %s called\n", __FUNCTION__);
+#endif
 	return 0;
 }
 

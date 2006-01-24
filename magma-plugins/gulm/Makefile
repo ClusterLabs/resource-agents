@@ -15,7 +15,7 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 INCLUDES+= -I. -I${gulmincdir} -I${magmaincdir} -I${cmankincdir} -I${incdir}
 LIBS    += ${gulmlibdir}/libgulm.a
-CFLAGS  += -D_CLUSTER_ -D_REENTRANT
+CFLAGS  += -D_CLUSTER_ -D_REENTRANT -ggdb
 OBJS     = gulm.o gulm-lock.o
 TARGETS  = magma_gulm.so
 
