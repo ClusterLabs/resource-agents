@@ -81,7 +81,6 @@ int is_clustered = 1;
 #define ACTION_UNFENCE       8
 #define ACTION_LIST_BANNED   9
 #define ACTION_FAIL_SERVER  10
-#define ACTION_UNIQUE_ID    11
 
 gnbd_info_t *match_info_name(char *name){
   list_t *item;
@@ -95,11 +94,9 @@ gnbd_info_t *match_info_name(char *name){
   return NULL;
 }
 
-#define read_from_server(host, request, buf) \
-__read_from_server((host), (request), NULL, 0, (buf))
 
-int __read_from_server(char *host, uint32_t request, void *data, int size,
-                       char **buf)
+
+int read_from_server(char *host, uint32_t request, char **buf)
 {
   int sock_fd;
   int n, total;
@@ -113,11 +110,7 @@ int __read_from_server(char *host, uint32_t request, void *data, int size,
   }
   msg = cpu_to_be32(request);
   if (write(sock_fd, &msg, sizeof(msg)) != sizeof(msg)){
-    printe("error sending request to %s : %s\n", host, strerror(errno));
-    exit(1);
-  }
-  if (data && size > 0 && write(sock_fd, data, size) != size){
-    printe("error sending data to %s : %s\n", host, strerror(errno));
+    printe("error sending list request to %s : %s\n", host, strerror(errno));
     exit(1);
   }
   if (read(sock_fd, &msg, sizeof(msg)) != sizeof(msg)){
@@ -126,18 +119,18 @@ int __read_from_server(char *host, uint32_t request, void *data, int size,
   }
   msg = cpu_to_be32(msg);
   if (msg != EXTERN_SUCCESS_REPLY){
-    printe("request to %s failed : %s\n", host, strerror(REPLY_ERR(msg)));
+    printe("list request to %s failed : %s\n", host, strerror(REPLY_ERR(msg)));
     exit(1);
   }
   if (read(sock_fd, &msg, sizeof(msg)) != sizeof(msg)){
-    printe("error reading size from %s : %s\n", host,
+    printe("error reading size of list from %s : %s\n", host,
            strerror(errno));
     exit(1);
   }
   msg = be32_to_cpu(msg);
   *buf = malloc(msg);
   if (*buf == NULL){
-    printe("couldn't allocate memory for server data: %s\n", strerror(errno));
+    printe("couldn't allocate memory for list : %s\n", strerror(errno));
     exit(1);
   }
   memset(*buf, 0, msg);
@@ -145,7 +138,7 @@ int __read_from_server(char *host, uint32_t request, void *data, int size,
   while(total < msg){
     n = read(sock_fd, *buf + total, msg - total);
     if (n <= 0){
-      printe("error reading data from server %s : %s\n", host,
+      printe("error reading list from server %s : %s\n", host,
              strerror(errno));
       exit(1);
     }
@@ -228,8 +221,6 @@ char action_to_flag(int action){
     return 'c';
   case ACTION_FAIL_SERVER:
     return 'k';
-  case ACTION_UNIQUE_ID:
-    return 'd';
   default:
     printe("invalid action value\n");
     return 0;
@@ -257,7 +248,6 @@ int usage(void){
 "Options:\n"
 "  -a               validate all imported GNBDs, and remove the invalid ones\n"
 "  -c <server>      list all nodes currently IO fenced from the server\n"
-"  -d <GNBD>        print the unique identifier for the specified GNBD\n"
 "  -e <server>      list all GNBDs exported by the server\n"
 "  -h               print this help message\n"
 "  -i <server>      import all GNBDs from the server\n"
@@ -596,6 +586,70 @@ void remove_gnbd(char *name, int minor, int pid)
   close(fd);
 }
 
+void kill_gnbd_monitor(void){
+  int pid;
+  if (check_lock("gnbd_monitor.pid", &pid)){
+    if (pid > 0){
+      kill(pid, SIGKILL);
+    }
+  }
+}
+
+int device_active(int minor){
+  list_t *item;
+  gnbd_info_t *gnbd_info;
+  char prefix[] = "/dev/gnbd/";
+  char dev_path[256];
+  
+  list_foreach(item, &gnbd_list){
+    struct stat statbuf;
+    gnbd_info = list_entry(item, gnbd_info_t, list);
+    if ( gnbd_info->minor_nr == minor ){
+      strcpy(dev_path, prefix);
+      strcat(dev_path, gnbd_info->name);
+      
+      if ( lstat(dev_path, &statbuf) == 0 ){
+	if ( S_ISBLK(statbuf.st_mode) )
+	  return 1; /* this is a valid block device */
+      } else {
+	if ( errno != ENOENT ){
+	  printe("failed to stat device %s : %s\n", dev_path, strerror(errno));
+	  return 1; /* if stat on the device failed for some reason*/
+	}
+      }
+    }
+  }
+  return 0;
+}
+
+int uncached_imports_removed(){
+  if (check_lock("gnbd_monitor.pid", NULL)){
+    monitor_info_t *ptr, *devs;
+    int i, count;
+    
+    if (do_list_monitored_devs(&devs, &count) < 0){
+      printe("unable to get monitored device list : %s\n", gstrerror(errno));
+      return 1;
+    }
+    if ( count <= 0 ){ /* monitoring nothing */
+      free(devs);
+      return 1;
+    }
+    
+    ptr = devs;
+    for (i = 0; i < count; i++, ptr++){
+      if ( device_active(ptr->minor_nr) ){
+	/* found an active device, bail */
+	free(devs);
+	return 0;
+      }
+    }
+    free(devs);
+    return 1; /* No active devices found */
+  }
+  return 0;
+}
+
 void update_devs(void){
   int minor;
   char path[LINE_MAX];
@@ -634,7 +688,9 @@ void update_devs(void){
           remove_gnbd(NULL, minor, info->pid);
           printm("removed duplicate gnbd device %s\n", info->name);
           free(info);
-        }
+	  if (uncached_imports_removed())
+	    kill_gnbd_monitor();
+	}
         else {
           printe("cannot create %s for gnbd device minor #%d, "
                  "name already used\n", path, minor);
@@ -681,12 +737,16 @@ void remove_all(void){
     gnbd_info = list_entry(item, gnbd_info_t, list);
     remove_gnbd(gnbd_info->name, gnbd_info->minor_nr, gnbd_info->pid);
   }
+
+  if (uncached_imports_removed())
+    kill_gnbd_monitor();
 }
 
 void remove_clients(char *names[], int num){
   list_t *item;
   gnbd_info_t *gnbd_info;
   int i;
+
   for (i = 0; i < num; i++){
     list_foreach(item, &gnbd_list){
       gnbd_info = list_entry(item, gnbd_info_t, list);
@@ -700,6 +760,9 @@ void remove_clients(char *names[], int num){
       exit(1);
     }
   }
+
+  if (uncached_imports_removed())
+    kill_gnbd_monitor();
 }
 
 void fence(char *host, char *server, int is_fence)
@@ -745,7 +808,6 @@ void fence(char *host, char *server, int is_fence)
     exit(SERVER_ERR);
   }
   close(sock_fd);
-  msg = be32_to_cpu(msg);
   if (msg != EXTERN_SUCCESS_REPLY){
     printe("%s failed : %s\n", fence_str, strerror(msg));
     exit(SERVER_ERR);
@@ -983,47 +1045,6 @@ void list(void){
   }
 }
 
-void get_unique_id(char *dev){
-  struct stat stats;
-  int major, minor;
-  char *buf;
-  list_t *item;
-  device_req_t id_req;
-  gnbd_info_t *gnbd_entry;
-
-  gnbd_entry = match_info_name(dev);
-  if (gnbd_entry)
-    goto found;
-
-  if (stat(dev, &stats) < 0){
-    printe("cannot stat %s : %s\n", dev, strerror(errno));
-    exit(1);
-  }
-  major = major(stats.st_rdev);
-  minor = minor(stats.st_rdev);
-  
-  if (major != gnbd_major){
-    printe("%s is not a gnbd device\n", dev);
-    exit(1);
-  }
-
-  list_foreach(item, &gnbd_list){
-    gnbd_entry = list_entry(item, gnbd_info_t, list);
-    if (gnbd_entry->minor_nr == minor)
-      break;
-  }
-  if (item == &gnbd_list){
-    printe("cannot find gnbd device %s\n", dev);
-    exit(1);
-  }
- found:
-  strncpy(id_req.name, gnbd_entry->name, 32); 
-  __read_from_server(gnbd_entry->server_name, EXTERN_UNIQUE_ID_REQ, &id_req,
-                     sizeof(id_req), &buf);
-  printf("%s\n", buf);
-}
- 
-
 void validate_gnbds(void){
   list_t *item;
   char filename[32];
@@ -1052,19 +1073,17 @@ void validate_gnbds(void){
     }
   }
 }
-        
 
 int main(int argc, char **argv)
 {
   int action = 0;
-  char *dev = NULL;
   char *host = NULL;
   char *fence_server = NULL;
   int c;
 
   list_init(&gnbd_list);
   program_name = "gnbd_import";
-  while( (c = getopt(argc, argv, "ac:d:e:hi:lnOp:qRrs:t:u:Vv")) != -1){
+  while( (c = getopt(argc, argv, "ac:e:hi:lnOp:qRrs:t:u:Vv")) != -1){
     switch(c){
     case ':':
     case '?':
@@ -1076,10 +1095,6 @@ int main(int argc, char **argv)
     case 'c':
       set_action(ACTION_LIST_BANNED);
       host = optarg;
-      continue;
-    case 'd':
-      set_action(ACTION_UNIQUE_ID);
-      dev = optarg;
       continue;
     case 'e':
       set_action(ACTION_LIST_EXPORTED);
@@ -1220,9 +1235,6 @@ int main(int argc, char **argv)
     return 0;
   case ACTION_LIST_BANNED:
     get_banned_list(host);
-    return 0;
-  case ACTION_UNIQUE_ID:
-    get_unique_id(dev);
     return 0;
   default:
     printe("unknown action %d\n", action);
