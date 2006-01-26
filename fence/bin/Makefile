@@ -18,6 +18,8 @@ UNINSTALL= ${top_srcdir}/scripts/uninstall.pl
 SBINPROGS= \
 	fence_ack_manual \
 	fence_apc \
+	fence_rsa \
+	fence_bladecenter \
 	fence_brocade \
 	fence_drac \
 	fence_egenera \
