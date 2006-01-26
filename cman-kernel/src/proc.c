@@ -190,11 +190,16 @@ static int cluster_open(struct inode *inode, struct file *file)
 
 static void *cluster_seq_start(struct seq_file *m, loff_t * pos)
 {
-	struct cluster_seq_info *csi =
-	    kmalloc(sizeof (struct cluster_seq_info), GFP_KERNEL);
+	struct cluster_seq_info *csi;
 
-	if (!csi)
-		return NULL;
+	if (!m->private) {
+	    csi = kmalloc(sizeof (struct cluster_seq_info), GFP_KERNEL);
+		m->private = csi;
+		if (!csi)
+			return NULL;
+	}
+	else
+		csi = m->private;
 
 	csi->nodeid = *pos;
 
@@ -258,7 +263,10 @@ static int cluster_seq_show(struct seq_file *m, void *p)
 
 static void cluster_seq_stop(struct seq_file *m, void *p)
 {
-	kfree(p);
+	if (m->private) {
+		kfree(m->private);
+		m->private = NULL;
+	}
 }
 
 static struct seq_operations cluster_info_op = {

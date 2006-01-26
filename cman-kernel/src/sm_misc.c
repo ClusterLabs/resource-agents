@@ -265,11 +265,16 @@ static sm_group_t *sm_walk(loff_t offset, int *rlevel)
 
 static void *sm_seq_start(struct seq_file *m, loff_t * pos)
 {
-	struct sm_seq_info *ssi =
-	        kmalloc(sizeof (struct sm_seq_info), GFP_KERNEL);
+	struct sm_seq_info *ssi;
 
-	if (!ssi)
-		return NULL;
+	if (!m->private) {
+		ssi=kmalloc(sizeof (struct sm_seq_info), GFP_KERNEL);
+		m->private = ssi;
+		if (!ssi)
+			return NULL;
+	}
+	else
+		ssi = m->private;
 
 	ssi->pos = *pos;
 	ssi->level = 0;
@@ -428,7 +433,10 @@ static int sm_seq_show(struct seq_file *s, void *p)
 
 static void sm_seq_stop(struct seq_file *m, void *p)
 {
-	kfree(p);
+	if (m->private) {
+		kfree(m->private);
+		m->private = NULL;
+	}
 }
 
 
