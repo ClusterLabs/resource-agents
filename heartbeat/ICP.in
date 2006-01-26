@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: ICP.in,v 1.4 2005/12/20 08:34:47 zhenh Exp $
+# $Id: ICP.in,v 1.5 2006/01/26 18:00:05 lars Exp $
 # 
 # ICP
 #
@@ -41,7 +41,7 @@ BLOCKDEV=@BLOCKDEV@
 usage() {
   methods=`ICP_methods | grep -v methods`
   methods=`echo $methods | tr ' ' '|'`
-  cat <<-! >&1
+  cat <<-!
 	usage: $0 ($methods)
 
 	$0 manages an ICP Vortex clustered host drive.
@@ -53,7 +53,7 @@ usage() {
 	The 'validate-all' operation reports whether OCF instance parameters are valid.
 	The 'methods' operation reports on the methods $0 supports
 
-	$Id: ICP.in,v 1.4 2005/12/20 08:34:47 zhenh Exp $
+	$Id: ICP.in,v 1.5 2006/01/26 18:00:05 lars Exp $
 	!
 }
 

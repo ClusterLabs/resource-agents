@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.13 2006/01/12 16:41:12 xunsun Exp $
+# $Id: Filesystem.in,v 1.14 2006/01/26 18:00:05 lars Exp $
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
@@ -93,10 +93,9 @@ check_util () {
 }
 
 usage() {
-
-cat <<-EOT;
+	cat <<-EOT
 	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
-	$Id: Filesystem.in,v 1.13 2006/01/12 16:41:12 xunsun Exp $
+	$Id: Filesystem.in,v 1.14 2006/01/26 18:00:05 lars Exp $
 	EOT
 }
 

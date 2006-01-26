@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: ServeRAID.in,v 1.7 2005/12/20 08:34:47 zhenh Exp $
+# $Id: ServeRAID.in,v 1.8 2006/01/26 18:00:05 lars Exp $
 # 
 # ServeRAID
 #
@@ -76,7 +76,7 @@ PERL="perl"
 SCSI="scsi "
 
 usage() {
-  cat <<-! >&1
+  cat <<-!
 	usage: $0 (start|stop|status|monitor|validate-all|meta-data)
 
 	You have to set the following environment virables before running $0 :
@@ -104,7 +104,7 @@ usage() {
 	You will need at least version 6.10 (~July 2003 release) of the ipssend
 	command for this script to work.
 
-	$Id: ServeRAID.in,v 1.7 2005/12/20 08:34:47 zhenh Exp $
+	$Id: ServeRAID.in,v 1.8 2006/01/26 18:00:05 lars Exp $
 	!
 }
 

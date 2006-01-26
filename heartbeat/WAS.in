@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: WAS.in,v 1.7 2005/12/20 08:34:47 zhenh Exp $
+# $Id: WAS.in,v 1.8 2006/01/26 18:00:05 lars Exp $
 # 
 # WAS
 #
@@ -51,7 +51,7 @@ DEFAULT=$WASDIR/config/server-cfg.xml
 usage() {
   methods=`WAS_methods | grep -v methods`
   methods=`echo $methods | tr ' ' '|'`
-  cat <<-! >&1
+  cat <<-!
 	usage: $0 ($methods)
 
 	For the single server edition of WAS, you have to set the following
@@ -99,7 +99,7 @@ usage() {
 	We run servlet/snoop on the first transport port listed in
 	the config file for the "monitor" operation.
 
-	$Id: WAS.in,v 1.7 2005/12/20 08:34:47 zhenh Exp $
+	$Id: WAS.in,v 1.8 2006/01/26 18:00:05 lars Exp $
 	!
 }
 

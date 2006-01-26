@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: db2.in,v 1.7 2005/12/20 08:34:48 zhenh Exp $
+# $Id: db2.in,v 1.8 2006/01/26 18:00:05 lars Exp $
 # 
 # db2
 #
@@ -36,7 +36,7 @@ SH=/bin/sh
 usage() {
   methods=`db2_methods`
   methods=`echo $methods | tr ' ' '|'`
-  cat <<-! >&1
+  cat <<-!
 	usage: $0 ($methods)
 
 	$0 manages a DB2 Universal Database instance as an HA resource.
@@ -48,7 +48,7 @@ usage() {
 	The 'validate-all' operation reports whether the parameters are valid
 	The 'methods' operation reports on the methods $0 supports
 
-	$Id: db2.in,v 1.7 2005/12/20 08:34:48 zhenh Exp $
+	$Id: db2.in,v 1.8 2006/01/26 18:00:05 lars Exp $
 	!
 }
 

@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: LinuxSCSI.in,v 1.6 2005/12/20 08:34:47 zhenh Exp $
+# $Id: LinuxSCSI.in,v 1.7 2006/01/26 18:00:05 lars Exp $
 # 
 # LinuxSCSI
 #
@@ -36,7 +36,7 @@ zeropat="[ 0]0"
 PROCSCSI=/proc/scsi/scsi
 
 usage() {
-  cat <<-! >&1
+  cat <<-!
 	usage: $0 (start|stop|status|monitor|meta-data|validate-all|methods)
 
 	$0 manages the availability of a SCSI device from the point
@@ -98,7 +98,7 @@ usage() {
 	keep in the volumes.  If you don't use a reasonable volume manager,
 	then you'll have to mount by UUID.
 
-	$Id: LinuxSCSI.in,v 1.6 2005/12/20 08:34:47 zhenh Exp $
+	$Id: LinuxSCSI.in,v 1.7 2006/01/26 18:00:05 lars Exp $
 	!
 }
 

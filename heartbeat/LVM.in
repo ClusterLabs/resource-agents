@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: LVM.in,v 1.9 2005/12/20 08:34:47 zhenh Exp $
+# $Id: LVM.in,v 1.10 2006/01/26 18:00:05 lars Exp $
 # 
 # LVM
 #
@@ -36,7 +36,7 @@ AWK=@AWK@
 usage() {
   methods=`LVM_methods`
   methods=`echo $methods | tr ' ' '|'`
-  cat <<-! >&1
+  cat <<-!
 	usage: $0 $methods
 
 	$0 manages an  Linux Volume Manager volume (LVM) as an HA resource
@@ -48,7 +48,7 @@ usage() {
 	The 'validate-all' operation checks whether the OCF parameters are valid
 	The 'methods' operation reports on the methods $0 supports
 
-	$Id: LVM.in,v 1.9 2005/12/20 08:34:47 zhenh Exp $
+	$Id: LVM.in,v 1.10 2006/01/26 18:00:05 lars Exp $
 	!
   exit $OCF_ERR_GENERIC 
 
