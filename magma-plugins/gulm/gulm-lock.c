@@ -70,7 +70,7 @@ static lg_lockspace_callbacks_t lock_callbacks_initializer = {
 static int
 null_lk_login_reply(void *misc, uint32_t error, uint8_t which)
 {
-	printf("GuLM Lock: %s called\n", __FUNCTION__);
+	/*printf("GuLM Lock: %s called\n", __FUNCTION__);*/
 	return 0;
 }
 
@@ -78,7 +78,7 @@ null_lk_login_reply(void *misc, uint32_t error, uint8_t which)
 static int
 null_lk_logout_reply(void *misc)
 {
-	printf("GuLM Lock: %s called\n", __FUNCTION__);
+	/*printf("GuLM Lock: %s called\n", __FUNCTION__);*/
 	return 0;
 }
 
@@ -89,7 +89,7 @@ null_lk_lock_state(void *misc, uint8_t *key, uint16_t keylen,
 		   uint32_t flags, uint32_t error, uint8_t *LVB,
 		   uint16_t LVBlen)
 {
-	printf("GuLM Lock: %s called\n", __FUNCTION__);
+	/*printf("GuLM Lock: %s called\n", __FUNCTION__);*/
 	return 0;
 }
 
@@ -98,7 +98,7 @@ static int
 null_lk_lock_action(void *misc, uint8_t *key, uint16_t keylen,
 		    uint64_t subid, uint8_t action, uint32_t error)
 {
-	printf("GuLM Lock: %s called\n", __FUNCTION__);
+	/*printf("GuLM Lock: %s called\n", __FUNCTION__);*/
 	return 0;
 }
 
@@ -107,7 +107,7 @@ static int
 null_lk_drop_lock_req(void *misc, uint8_t *key, uint16_t keylen,
 		      uint64_t subid, uint8_t state)
 {
-	printf("GuLM Lock: %s called\n", __FUNCTION__);
+	/*printf("GuLM Lock: %s called\n", __FUNCTION__);*/
 	return 0;
 }
 
@@ -115,7 +115,7 @@ null_lk_drop_lock_req(void *misc, uint8_t *key, uint16_t keylen,
 static int
 null_lk_drop_all(void *misc)
 {
-	printf("GuLM Lock: %s called\n", __FUNCTION__);
+	/*printf("GuLM Lock: %s called\n", __FUNCTION__);*/
 	return 0;
 }
 
@@ -123,7 +123,7 @@ null_lk_drop_all(void *misc)
 static int
 null_lk_error(void *misc, uint32_t err)
 {
-	printf("GuLM Lock: %s called\n", __FUNCTION__);
+	/*printf("GuLM Lock: %s called\n", __FUNCTION__);*/
 	return 0;
 }
 
