@@ -144,17 +144,34 @@ verify_options()
 			;;
 		secure)
 			;;
+		insecure)
+			;;
+
 		rw)
+			;;
+		ro)
 			;;
 		async)
 			;;
+		sync)
+			;;
+		wdelay)
+			;;
 		no_wdelay)
+			;;
+		hide)
 			;;
 		nohide)
 			;;
+		subtree_check)
+			;;
 		no_subtree_check)
 			;;
+		secure_locks)
+			;;
 		insecure_locks)
+			;;
+		auth_nlm)
 			;;
 		no_auth_nlm)
 			;;
@@ -167,6 +184,8 @@ verify_options()
 		no_root_squash)
 			;;
 		all_squash)
+			;;
+		no_all_squash)
 			;;
 		anonuid)
 			;;
