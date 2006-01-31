@@ -458,7 +458,10 @@ static void add_clusternode(xmlNode *root_element, struct option_info *ninfo,
 		die("node %s already exists in %s\n", ninfo->name, ninfo->configfile);
 
 	/* Check for duplicate node ID */
-	if (ninfo->nodeid && get_by_nodeid(root_element, atoi((char *)ninfo->nodeid)))
+	if (!ninfo->nodeid)
+		die("nodeid not specified\n");
+
+	if (get_by_nodeid(root_element, atoi((char *)ninfo->nodeid)))
 		die("nodeid %s already in use\n", ninfo->nodeid);
 
         /* Don't allow random fence types */
@@ -469,8 +472,7 @@ static void add_clusternode(xmlNode *root_element, struct option_info *ninfo,
 	newnode = xmlNewNode(NULL, BAD_CAST "clusternode");
 	xmlSetProp(newnode, BAD_CAST "name", BAD_CAST ninfo->name);
 	xmlSetProp(newnode, BAD_CAST "votes", BAD_CAST ninfo->votes);
-	if (ninfo->nodeid)
-		xmlSetProp(newnode, BAD_CAST "nodeid", BAD_CAST ninfo->nodeid);
+	xmlSetProp(newnode, BAD_CAST "nodeid", BAD_CAST ninfo->nodeid);
 	xmlAddChild(clusternodes, newnode);
 
 	/* Add the fence attributes */
