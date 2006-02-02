@@ -110,6 +110,9 @@ start()
 	return $rtrn
 }
 
+# This function can be called with an additional argument, remove
+# The cman_tool command will fail if the additional argument is
+# something else.
 stop()
 {
 	echo -n "Stopping cman:"
@@ -118,7 +121,7 @@ stop()
 	then
 		rtrn=1
 
-		cman_tool -t $CMAN_SHUTDOWN_TIMEOUT -w leave &> /dev/null
+		cman_tool -t $CMAN_SHUTDOWN_TIMEOUT -w leave $1 &> /dev/null
 
 		# allow cman time to clean up BZ 149282
 		sleep 3
@@ -153,13 +156,17 @@ case "$1" in
 	;;
 
   stop)
-	stop
+	if [ $2 ]; then
+		stop
+	else
+		stop remove
+	fi
 	rtrn=$?
 	[ $rtrn = 0 ] && rm -f $LOCK_FILE
 	;;
 
   restart)
-	$0 stop
+	$0 stop restart
 	$0 start 
 	rtrn=$?
 	;;
