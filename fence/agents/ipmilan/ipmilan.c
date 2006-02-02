@@ -68,16 +68,29 @@ do { \
 #define IPMIID "IPMI over LAN driver"
 #define NOTIPMI "Destroyed IPMI over LAN driver"
 
+
+#define dbg_printf(i, lvl, fmt, args...) \
+do { \
+	if ( (i)->i_verbose >= lvl) { \
+		printf(fmt, ##args); \
+		fflush(stdout); \
+	} \
+} while (0)
+
+
+
 struct ipmi {
 	char *i_id;
 	const char *i_ipmitool;
 	char *i_host;
 	char *i_user;
+	char *i_authtype;
 	char *i_password;
 	int i_rdfd;
 	int i_wrfd;
 	pid_t i_pid;
 	int i_config;
+	int i_verbose;
 };
 
 
@@ -159,6 +172,7 @@ build_cmd(char *command, size_t cmdlen, struct ipmi *ipmi, int op)
 {
 	char cmd[2048];
 	char arg[2048];
+	int x;
 
 	/* Store path */
 	snprintf(cmd, sizeof(cmd), "%s -I lan -H %s", ipmi->i_ipmitool,
@@ -169,8 +183,20 @@ build_cmd(char *command, size_t cmdlen, struct ipmi *ipmi, int op)
 		strncat(cmd, arg, sizeof(cmd) - strlen(arg));
 	}
 
+	if (ipmi->i_authtype) {
+		snprintf(arg, sizeof(arg), " -A %s", ipmi->i_authtype);
+		strncat(cmd, arg, sizeof(cmd) - strlen(arg));
+	}
+
 	if (ipmi->i_password) {
 		snprintf(arg, sizeof(arg), " -P %s", ipmi->i_password);
+		strncat(cmd, arg, sizeof(cmd) - strlen(arg));
+	}
+
+	/* Tack on the -v flags for ipmitool; in most cases, i_verbose
+	   will be 0 */
+	for (x = 0; x < ipmi->i_verbose; x++) {
+		snprintf(arg, sizeof(arg), " -v");
 		strncat(cmd, arg, sizeof(cmd) - strlen(arg));
 	}
 
@@ -197,20 +223,26 @@ build_cmd(char *command, size_t cmdlen, struct ipmi *ipmi, int op)
 static int
 ipmi_spawn(struct ipmi *ipmi, const char *cmd)
 {
+	dbg_printf(ipmi, 1, "Spawning: '%s'...\n", cmd);
 	if (!ipmi) {
 		errno = EINVAL;
 		return -1;
 	}
 
 	if (ipmi->i_pid != -1)  {
+		dbg_printf(ipmi, 1, "Can't spawn: PID %d running\n",
+			   (int)ipmi->i_pid);
 		errno = EINPROGRESS;
 		return -1;
 	}
 
 	if ((ipmi->i_pid = StartProcess(cmd, &ipmi->i_rdfd,
 					&ipmi->i_wrfd,
-					EXP_STDERR|EXP_NOCTTY)) >= 0)
+					EXP_STDERR|EXP_NOCTTY)) >= 0) {
+		dbg_printf(ipmi, 2, "Spawned: '%s' - PID %d\n", cmd,
+			   (int)ipmi->i_pid);
 		return 0;
+	}
 	return -1;
 }
 
@@ -219,6 +251,7 @@ static int
 ipmi_reap(struct ipmi *ipmi)
 {
 	if (ipmi->i_pid >= 0) {
+		dbg_printf(ipmi, 2, "Reaping pid %d\n", ipmi->i_pid);
 		kill(ipmi->i_pid, 9);
 		waitpid(ipmi->i_pid, NULL, 0);
 	}
@@ -239,10 +272,25 @@ static int
 ipmi_expect(struct ipmi *ipmi, struct Etoken *toklist, int timeout)
 {
 	int ret;
+	char buf[32768]; /* XX hope this is enough */
 
-	ret = ExpectToken(ipmi->i_rdfd, toklist, timeout, NULL, 0);
-	if (ret == -1)
+	dbg_printf(ipmi, 3, "Looking for: \n");
+	for (ret = 0; toklist[ret].string; ret++) {
+		dbg_printf(ipmi, 3, "    '%s', val = %d\n",
+			   toklist[ret].string,
+			   toklist[ret].toktype);
+	}
+
+	ret = ExpectToken(ipmi->i_rdfd, toklist, timeout, buf, sizeof(buf));
+	dbg_printf(ipmi, 3, "ExpectToken returned %d\n", ret);
+	if (ret == -1) {
 		ret = errno;
+		dbg_printf(ipmi, 3, "ExpectToken failed.  Info returned:\n");
+		dbg_printf(ipmi, 3, ">>>>>\n%s\n<<<<<\nError = %d (%s)\n",
+			   buf,
+			   ret,
+			   strerror(ret));
+	}
 
 	return ret;
 }
@@ -263,7 +311,9 @@ ipmi_op(struct ipmi *ipmi, int op, struct Etoken *toklist)
 	ipmi_reap(ipmi);
 
 	while ((ret == EAGAIN || ret == ETIMEDOUT) && retries > 0) {
+		dbg_printf(ipmi, 3, "Sleeping 5 ...\n");
 		sleep(5);
+		dbg_printf(ipmi, 1, "Retrying ...\n");
 		--retries;
 		
 		if (ipmi_spawn(ipmi, cmd) != 0)
@@ -405,7 +455,8 @@ ipmi_destroy(struct ipmi *i)
   or update an existing one, or both.
  */
 static struct ipmi *
-ipmi_init(struct ipmi *i, char *host, char *user, char *password)
+ipmi_init(struct ipmi *i, char *host, char *authtype,
+	  char *user, char *password, int verbose)
 {
 	const char *p;
 
@@ -443,10 +494,25 @@ ipmi_init(struct ipmi *i, char *host, char *user, char *password)
 	} else
 		i->i_password = NULL;
 
+	if (authtype && strlen(authtype)) {
+		i->i_authtype = strdup(authtype);
+		if (!i->i_authtype) {
+			free(i->i_host);
+			if (i->i_password)
+				free(i->i_password);
+			free(i);
+			return NULL;
+		}
+	} else
+		i->i_authtype = NULL;
+
+
 	if (user && strlen(user)) {
 		i->i_user= strdup(user);
 		if (!i->i_user) {
 			free(i->i_host);
+			if (i->i_authtype)
+				free(i->i_authtype);
 			if (i->i_password)
 				free(i->i_password);
 			free(i);
@@ -459,6 +525,7 @@ ipmi_init(struct ipmi *i, char *host, char *user, char *password)
 	i->i_wrfd = -1;
 	i->i_pid = -1;
 	i->i_id = IPMIID;
+	i->i_verbose = verbose;
 
 	return i;
 }
@@ -503,7 +570,7 @@ st_new(void)
 	}
 
 	memset((void *)i, 0, sizeof(*i));
-	ipmi_init(i, NULL, NULL, NULL);
+	ipmi_init(i, NULL, NULL, NULL, NULL, 0);
 	return i;
 }
 
@@ -631,7 +698,8 @@ _ipmilan_setconfinfo(Stonith *s, const char *info)
 	if (!*user || !strcmp(user, "(null)")) 
 		user = NULL;
 
-	i = ipmi_init(i, host, user, passwd);
+	/* IPMI auth type not supported on RHEL3 */
+	i = ipmi_init(i, host, NULL, user, passwd, 0);
 	if (!i)
 		return S_OOPS;
 	i->i_config = 1;
@@ -732,6 +800,7 @@ eol:
  */
 int
 get_options_stdin(char *ip, size_t iplen,
+		  char *authtype, size_t atlen,
 		  char *passwd, size_t pwlen,
 		  char *user, size_t userlen,
 		  char *op, size_t oplen,
@@ -768,6 +837,13 @@ get_options_stdin(char *ip, size_t iplen,
 				strncpy(ip, val, iplen);
 			else
 				ip[0] = 0;
+
+		} else if (!strcasecmp(name, "auth")) {
+			/* Authtype to use */
+			if (val)
+				strncpy(authtype, val, atlen);
+			else
+				authtype[0] = 0;
 
 		} else if (!strcasecmp(name, "passwd")) {
 			/* password */
@@ -817,18 +893,21 @@ void
 usage_exit(char *pname)
 {
 printf("usage: %s <options>\n", pname);
-printf("   -i <ipaddr>    IPMI Lan IP to talk to\n");
+printf("   -A <authtype>  IPMI Lan Auth type (md5, password, or none)\n");
+printf("   -a <ipaddr>    IPMI Lan IP to talk to\n");
+printf("   -i <ipaddr>    IPMI Lan IP to talk to (deprecated, use -i)\n");
 printf("   -p <password>  Password (if required) to control power on\n"
        "                  IPMI device\n");
 printf("   -l <login>     Username/Login (if required) to control power\n"
        "                  on IPMI device\n");
 printf("   -o <op>        Operation to perform.\n");
-printf("                  Valid operations: on, off, reboot\n");
+printf("                  Valid operations: on, off, reboot, status\n");
 printf("   -V             Print version and exit\n");
 printf("   -v             Verbose mode\n\n");
 printf("If no options are specified, the following options will be read\n");
 printf("from standard input (one per line):\n\n");
-printf("   ipaddr=<#>     Same as -i\n");
+printf("   auth=<auth>    Same as -A\n");
+printf("   ipaddr=<#>     Same as -a\n");
 printf("   passwd=<pass>  Same as -p\n");
 printf("   login=<login>  Same as -u\n");
 printf("   option=<op>    Same as -o\n");
@@ -844,6 +923,7 @@ main(int argc, char **argv)
 {
 	extern char *optarg;
 	int opt, ret = -1;
+	char authtype[64];
 	char ip[64];
 	char passwd[64];
 	char user[64];
@@ -853,6 +933,7 @@ main(int argc, char **argv)
 	struct ipmi *i;
 
 	memset(ip, 0, sizeof(ip));
+	memset(authtype, 0, sizeof(authtype));
 	memset(passwd, 0, sizeof(passwd));
 	memset(user, 0, sizeof(user));
 	memset(op, 0, sizeof(op));
@@ -861,8 +942,13 @@ main(int argc, char **argv)
 		/*
 		   Parse command line options if any were specified
 		 */
-		while ((opt = getopt(argc, argv, "i:l:p:o:vV?hH")) != EOF) {
+		while ((opt = getopt(argc, argv, "A:a:i:l:p:o:vV?hH")) != EOF) {
 			switch(opt) {
+			case 'A':
+				/* Auth type */
+				strncpy(authtype, optarg, sizeof(authtype));
+				break;
+			case 'a':
 			case 'i':
 				/* IP address */
 				strncpy(ip, optarg, sizeof(ip));
@@ -898,6 +984,7 @@ main(int argc, char **argv)
 		   No command line args?  Get stuff from stdin
 		 */
 		if (get_options_stdin(ip, sizeof(ip),
+				      authtype, sizeof(authtype),
 				      passwd, sizeof(passwd),
 				      user, sizeof(user),
 				      op, sizeof(op), &verbose) != 0)
@@ -914,12 +1001,22 @@ main(int argc, char **argv)
 		snprintf(op,sizeof(op), "reboot");
 
 	if (strcasecmp(op, "off") && strcasecmp(op, "on") &&
-	    strcasecmp(op, "reboot")) {
-		fail_exit("operation must be 'on', 'off', or 'reboot'");
+	    strcasecmp(op, "status") && strcasecmp(op, "reboot")) {
+		fail_exit("operation must be 'on', 'off', 'status', "
+			  "or 'reboot'");
 	}
 
+	if (strlen(authtype) &&
+	    strcasecmp(authtype, "md5") &&
+	    strcasecmp(authtype, "password") &&
+	    strcasecmp(authtype, "none")) {
+		fail_exit("authtype, if included, must be 'md5', 'password',"
+			  " 'none'.");
+	}
+
+
 	/* Ok, set up the IPMI struct */
-	i = ipmi_init(NULL, ip, user, passwd);
+	i = ipmi_init(NULL, ip, authtype, user, passwd, verbose);
 	if (!i)
 		fail_exit("Failed to initialize\n");
 
@@ -943,7 +1040,26 @@ main(int argc, char **argv)
 		printf("Powering off machine @ IPMI:%s...", ip);
 		fflush(stdout);
 		ret = ipmi_off(i);
+	} else if (!strcasecmp(op, "status")) {
+		printf("Getting status of IPMI:%s...",ip);
+		fflush(stdout);
+		ret = ipmi_op(i, ST_STATUS, power_status);
+		switch(ret) {
+		case STATE_ON:
+			printf("Chassis power = On\n");
+			ret = 0;
+			break;
+		case STATE_OFF:
+			printf("Chassis power = Off\n");
+			ret = 0;
+			break;
+		default:
+			printf("Chassis power = Unknown\n");
+			ret = 1;
+			break;
+		}
 	}
+
 
 out:
 	ipmi_destroy(i);
