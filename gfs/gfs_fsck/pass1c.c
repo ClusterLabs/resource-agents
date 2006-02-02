@@ -30,6 +30,8 @@ static int remove_eattr_entry(struct fsck_sb *sdp, osi_buf_t *leaf_bh,
 		prev->ea_rec_len =
 			cpu_to_gfs32(gfs32_to_cpu(curr->ea_rec_len) +
 				     gfs32_to_cpu(prev->ea_rec_len));
+		if (curr->ea_flags & GFS_EAFLAG_LAST)
+			prev->ea_flags |= GFS_EAFLAG_LAST;	
 	}
 	if(write_buf(sdp, leaf_bh, 0)){
 		stack;
@@ -122,7 +124,39 @@ static int check_eattr_entry(struct fsck_inode *ip,
 {
 	struct fsck_sb *sdp = ip->i_sbd;
 	char ea_name[256];
-
+	uint32_t offset = (uint32_t)(((unsigned long)ea_hdr) -
+			                  ((unsigned long)BH_DATA(leaf_bh)));
+	uint32_t max_size = sdp->sb.sb_bsize;
+	if(!ea_hdr->ea_rec_len){
+		log_err("EA has rec length == 0\n");
+		ea_hdr->ea_flags |= GFS_EAFLAG_LAST;
+		ea_hdr->ea_rec_len = cpu_to_gfs32(max_size - offset);
+		if(remove_eattr_entry(sdp, leaf_bh, ea_hdr, ea_hdr_prev)){
+			stack;
+			return -1;
+		}
+		return 1;
+	}
+	if(offset + gfs32_to_cpu(ea_hdr->ea_rec_len) > max_size){
+		log_err("EA rec length too long\n");
+		ea_hdr->ea_flags |= GFS_EAFLAG_LAST;
+		ea_hdr->ea_rec_len = cpu_to_gfs32(max_size - offset);
+		if(remove_eattr_entry(sdp, leaf_bh, ea_hdr, ea_hdr_prev)){
+			stack;
+			return -1;
+		}
+		return 1;
+	}
+	if(offset + gfs32_to_cpu(ea_hdr->ea_rec_len) == max_size &&
+	   (ea_hdr->ea_flags & GFS_EAFLAG_LAST) == 0){
+		log_err("last EA has no last entry flag\n");
+		ea_hdr->ea_flags |= GFS_EAFLAG_LAST;
+		if(remove_eattr_entry(sdp, leaf_bh, ea_hdr, ea_hdr_prev)){
+			stack;
+			return -1;
+		}
+		return 1;
+	}
 	if(!ea_hdr->ea_name_len){
 		log_err("EA has name length == 0\n");
 		if(remove_eattr_entry(sdp, leaf_bh, ea_hdr, ea_hdr_prev)){
