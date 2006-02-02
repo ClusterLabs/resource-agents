@@ -1094,28 +1094,30 @@ handle_relocate_req(char *svcName, int request, uint64_t preferred_target,
 			return RG_EFORWARD;
 	}
 
-	allowed_nodes = member_list();
-	/*
-	   Mark everyone except me and the preferred target DOWN for now
-	   If we can't start it on the preferred target, then we'll try
- 	   other nodes.
-	 */
-	for (x = 0; x < allowed_nodes->cml_count; x++) {
-		if (allowed_nodes->cml_members[x].cm_id == me ||
-		    allowed_nodes->cml_members[x].cm_id == preferred_target)
-			continue;
+	if (preferred_target != NODE_ID_NONE) {
 
-		allowed_nodes->cml_members[x].cm_state = STATE_DOWN;
-	}
+		allowed_nodes = member_list();
+		/*
+	   	   Mark everyone except me and the preferred target DOWN for now
+		   If we can't start it on the preferred target, then we'll try
+	 	   other nodes.
+		 */
+		for (x = 0; x < allowed_nodes->cml_count; x++) {
+			if (allowed_nodes->cml_members[x].cm_id == me ||
+		    	    allowed_nodes->cml_members[x].cm_id == preferred_target)
+				continue;
+			allowed_nodes->cml_members[x].cm_state = STATE_DOWN;
+		}
 
-	/*
-	 * First, see if it's legal to relocate to the target node.  Legal
-	 * means: the node is online and is in the [restricted] failover
-	 * domain of the service, or the service has no failover domain.
-	 */
-	if (preferred_target != (uint64_t)FAIL) {
+		/*
+		 * First, see if it's legal to relocate to the target node.  Legal
+		 * means: the node is online and is in the [restricted] failover
+		 * domain of the service, or the service has no failover domain.
+		 */
 
 		target = best_target_node(allowed_nodes, me, svcName, 1);
+
+		cml_free(allowed_nodes);
 
 		/*
 		 * I am the ONLY one capable of running this service,
@@ -1123,6 +1125,7 @@ handle_relocate_req(char *svcName, int request, uint64_t preferred_target,
 		 */
 		if (target == me && me != preferred_target)
 			goto exhausted;
+
 
 		if (target == me) {
 			/*
@@ -1152,14 +1155,10 @@ handle_relocate_req(char *svcName, int request, uint64_t preferred_target,
 	 * Ok, so, we failed to send it to the preferred target node.
 	 * Try to start it on all other nodes.
 	 */
-	for (x = 0; x < allowed_nodes->cml_count; x++) {
-		if (allowed_nodes->cml_members[x].cm_id == me ||
-		    allowed_nodes->cml_members[x].cm_id == preferred_target) {
-			allowed_nodes->cml_members[x].cm_state = STATE_DOWN;
-			continue;
-		}
-		allowed_nodes->cml_members[x].cm_state = STATE_UP;
-	}
+	allowed_nodes = member_list();
+
+	if (preferred_target != NODE_ID_NONE)
+		memb_mark_down(allowed_nodes, preferred_target);
 	memb_mark_down(allowed_nodes, me);
 
 	while (memb_count(allowed_nodes)) {
@@ -1178,6 +1177,10 @@ handle_relocate_req(char *svcName, int request, uint64_t preferred_target,
 		case NO:
 			/* state uncertain */
 			cml_free(allowed_nodes);
+			clulog(LOG_DEBUG, "State Uncertain: svc:%s "
+			       "nid:%08x%08x req:%d\n", svcName,
+			       (uint32_t)(target>>32)&0xffffffff,
+			       (uint32_t)(target&0xffffffff), request);
 			return 0;
 		case 0:
 			*new_owner = target;
@@ -1246,6 +1249,7 @@ handle_start_req(char *svcName, int req, uint64_t *new_owner)
 		tolerance = FOD_GOOD;
 	
 	if (req != RG_RESTART &&
+	    req != RG_START_RECOVER &&
 	    (node_should_start_safe(my_id(), membership, svcName) <
 	     tolerance)) {
 		cml_free(membership);
@@ -1279,7 +1283,7 @@ handle_start_req(char *svcName, int req, uint64_t *new_owner)
 	clulog(LOG_DEBUG, "Stopping failed service %s\n", svcName);
 	if (svc_stop(svcName, RG_STOP_RECOVER) != 0) {
 		clulog(LOG_CRIT,
-		       "#13: Service %s failed to stop cleanly",
+		       "#13: Service %s failed to stop cleanly\n",
 		       svcName);
 		(void) svc_fail(svcName);
 
