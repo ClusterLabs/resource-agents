@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: ClusterMon.in,v 1.7 2005/12/20 08:34:47 zhenh Exp $
+#	$Id: ClusterMon.in,v 1.8 2006/02/02 14:21:08 andrew Exp $
 #
 #	ClusterMon OCF RA. Does nothing but wait a few seconds, can be
 #	configured to fail occassionally.
@@ -61,7 +61,7 @@ It outputs current cluster status to the html.
 The user we want to run crm_mon as
 </longdesc>
 <shortdesc lang="en">The user we want to run crm_mon as</shortdesc>
-<content type="string" default="15" />
+<content type="string" default="root" />
 </parameter>
 
 <parameter name="update" unique="0">
