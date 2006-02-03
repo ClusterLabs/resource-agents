@@ -28,7 +28,7 @@ can be run by itself with command line options which is useful for testing.
 
 .SH OPTIONS
 .TP
-\fB-i\fP \fIIPaddress\fP
+\fB-a\fP \fIIPaddress\fP
 IP address or hostname of the IPMI controller.
 .TP
 \fB-h\fP
@@ -42,6 +42,9 @@ Action to perform (on, off, reboot).
 .TP
 \fB-p\fP \fIpassword\fP
 Password (if required) for login.
+.TP
+\fB-A\fP \fIAuthentication Type\fP
+Can be set to none, password, md2, or md5.
 .TP
 \fB-q\fP
 Quiet operation.  Only print out error messages.
@@ -65,6 +68,9 @@ Action to perform (on, off, reboot).
 .TP
 \fIpasswd = < param >\fR
 Password (if required) for login.
+.TP
+\fIauth = < param >\fR
+Authentication type (none, password, md2, md5).
 
 .SH SEE ALSO
 fence(8), fence_node(8)
