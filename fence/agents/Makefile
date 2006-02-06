@@ -27,6 +27,7 @@ all:
 	cd mcdata && ${MAKE} all
 	# cd rackswitch && ${MAKE} all
 	cd rps10 && ${MAKE} all
+	cd rsa && ${MAKE} all
 	cd sanbox2 && ${MAKE} all
 	cd vixel && ${MAKE} all
 	cd wti && ${MAKE} all
