@@ -15,6 +15,7 @@ TARGET8= \
 	fence.8 \
 	fence_ack_manual.8 \
 	fence_apc.8 \
+	fence_rsa.8 \
 	fence_bladecenter.8 \
 	fence_brocade.8 \
 	fence_drac.8 \
