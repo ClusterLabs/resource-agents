@@ -1,65 +1,35 @@
-###############################################################################
-###############################################################################
-##
-##  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
-##
-##  This copyrighted material is made available to anyone wishing to use,
-##  modify, copy, or redistribute it subject to the terms and conditions
-##  of the GNU General Public License v.2.
-##
-###############################################################################
-###############################################################################
+#
+# Makefile for GFS2 mkfs
+#
+.PHONY: all clean install
 
-top_srcdir=..
-include ${top_srcdir}/make/defines.mk
+MKFS=mkfs.gfs2
+INSTALLPATH=/sbin
+INCLUDEPATH=-I/home/steve/linux-2.6/include/
 
-TARGET= gfs2_mkfs
+INSTALL=install
+CC=gcc -c
+LD=gcc
+CFLAGS=-Wall -O2 -ggdb -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
+       -D_GNU_SOURCE -DGFS2_RELEASE_NAME=\"2\" ${INCLUDEPATH}
+LDFLAGS=
 
-SOURCE=	\
-	buf.c \
-	device_geometry.c \
-	fs_geometry.c \
-	fs_ops.c \
-	live.c \
-	locking.c \
-	main.c \
-	main_grow.c \
-	main_jadd.c \
-	main_mkfs.c \
-	main_shrink.c \
-	misc.c \
-	ondisk.c \
-	structures.c
+H=gfs2_disk_hash.h  gfs2_mkfs.h  iddev.h  linux_endian.h  ondisk.h  osi_list.h
+C=main.c buf.c device_geometry.c fs_geometry.c locking.c main_mkfs.c \
+  misc.c ondisk.c structures.c fs_ops.c size.c iddev.c
+O=$(subst .c,.o,${C})
 
-CFLAGS+= -O2 -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 \
-	-DGFS2_RELEASE_NAME=\"${RELEASE}\" -D_GNU_SOURCE
+all: ${MKFS}
 
-INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config \
-	-I${gfs2kincdir} -I${iddevincdir} -I${incdir}
+${MKFS}: ${O}
+	${LD} ${LDFLAGS} ${O} -o ${@}
 
-ifneq (${KERNEL_SRC}, )
-# Use the kernel tree if patched, otherwise, look where cluster headers
-#  should be installed
-INCLUDE += $(shell if [ -e ${KERNEL_SRC}/include/linux/gfs2_ondisk.h ]; then \
-		echo '-I${KERNEL_SRC}/include'; else \
-		echo '-I${incdir}'; fi)
-else
-INCLUDE += -I${incdir}
-endif
+.c.o: $<
+	${CC} ${CFLAGS} -o $@ $^
 
-LDFLAGS+= -L${iddevlibdir} 
-LOADLIBES+= -liddev
-
-all: ${TARGET}
-
-gfs2_mkfs: ${SOURCE}
-	${CC} ${CFLAGS} ${INCLUDE} ${LDFLAGS} ${SOURCE} ${LOADLIBES} ${LDLIBS} -o $@
-
-copytobin: ${TARGET}
-	cp ${TARGET} ${top_srcdir}/bin
+install: ${MKFS}
+	${INSTALL} -m 0755 -g root -o root ${MKFS} ${INSTALLPATH}
 
 clean:
-	rm -f *.o ${TARGET}
-
+	rm -f *.o ${MKFS}
 

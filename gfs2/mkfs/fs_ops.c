@@ -170,10 +170,10 @@ unstuff_dinode(struct gfs2_inode *ip)
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct buffer_head *bh;
 	uint64_t block = 0;
-	int journaled = !!(ip->i_di.di_flags & GFS2_DIF_JDATA);
+	int isdir = !!(S_ISDIR(ip->i_di.di_mode));
 
 	if (ip->i_di.di_size) {
-		if (journaled) {
+		if (isdir) {
 			block = meta_alloc(ip);
 			bh = bget(sdp, block);
 			{
@@ -219,7 +219,7 @@ calc_tree_height(struct gfs2_inode *ip, uint64_t size)
 	if (ip->i_di.di_size > size)
 		size = ip->i_di.di_size;
 
-	if (ip->i_di.di_flags & GFS2_DIF_JDATA) {
+	if (S_ISDIR(ip->i_di.di_mode)) {
 		arr = sdp->sd_jheightsize;
 		max = sdp->sd_max_jheight;
 	} else {
@@ -326,7 +326,7 @@ lookup_block(struct gfs2_inode *ip,
 		return;
 
 	if (height == ip->i_di.di_height - 1&&
-	    !(ip->i_di.di_flags & GFS2_DIF_JDATA))
+	    !(S_ISDIR(ip->i_di.di_mode)))
 		*block = data_alloc(ip);
 	else
 		*block = meta_alloc(ip);
@@ -365,7 +365,7 @@ block_map(struct gfs2_inode *ip,
 		return;
 	}
 
-	bsize = (ip->i_di.di_flags & GFS2_DIF_JDATA) ? sdp->sd_jbsize : sdp->bsize;
+	bsize = (S_ISDIR(ip->i_di.di_mode)) ? sdp->sd_jbsize : sdp->bsize;
 
 	height = calc_tree_height(ip, (lblock + 1) * bsize);
 	if (ip->i_di.di_height < height) {
@@ -453,7 +453,7 @@ readi(struct gfs2_inode *ip, void *buf,
 	uint32_t extlen = 0;
 	unsigned int amount;
 	int not_new = 0;
-	int journaled = !!(ip->i_di.di_flags & GFS2_DIF_JDATA);
+	int isdir = !!(S_ISDIR(ip->i_di.di_mode));
 	int copied = 0;
 
 	if (offset >= ip->i_di.di_size)
@@ -465,7 +465,7 @@ readi(struct gfs2_inode *ip, void *buf,
 	if (!size)
 		return 0;
 
-	if (journaled) {
+	if (isdir) {
 		lblock = offset;
 		o = do_div(lblock, sdp->sd_jbsize);
 	} else {
@@ -475,7 +475,7 @@ readi(struct gfs2_inode *ip, void *buf,
 
 	if (!ip->i_di.di_height)
 		o += sizeof(struct gfs2_dinode);
-	else if (journaled)
+	else if (isdir)
 		o += sizeof(struct gfs2_meta_header);
 
 	while (copied < size) {
@@ -500,7 +500,7 @@ readi(struct gfs2_inode *ip, void *buf,
 		copied += amount;
 		lblock++;
 
-		o = (journaled) ? sizeof(struct gfs2_meta_header) : 0;
+		o = (isdir) ? sizeof(struct gfs2_meta_header) : 0;
 	}
 
 	return copied;
@@ -528,7 +528,7 @@ writei(struct gfs2_inode *ip, void *buf,
 	uint32_t extlen = 0;
 	unsigned int amount;
 	int new;
-	int journaled = !!(ip->i_di.di_flags & GFS2_DIF_JDATA);
+	int isdir = !!(S_ISDIR(ip->i_di.di_flags));
 	const uint64_t start = offset;
 	int copied = 0;
 
@@ -539,7 +539,7 @@ writei(struct gfs2_inode *ip, void *buf,
 	    ((start + size) > (sdp->bsize - sizeof(struct gfs2_dinode))))
 		unstuff_dinode(ip);
 
-	if (journaled) {
+	if (isdir) {
 		lblock = offset;
 		o = do_div(lblock, sdp->sd_jbsize);
 	} else {
@@ -549,7 +549,7 @@ writei(struct gfs2_inode *ip, void *buf,
 
 	if (!ip->i_di.di_height)
 		o += sizeof(struct gfs2_dinode);
-	else if (journaled)
+	else if (isdir)
 		o += sizeof(struct gfs2_meta_header);
 
 	while (copied < size) {
@@ -564,7 +564,7 @@ writei(struct gfs2_inode *ip, void *buf,
 
 		if (new) {
 			bh = bget(sdp, dblock);
-			if (journaled) {
+			if (isdir) {
 				struct gfs2_meta_header mh;
 				mh.mh_magic = GFS2_MAGIC;
 				mh.mh_type = GFS2_METATYPE_JD;
@@ -581,7 +581,7 @@ writei(struct gfs2_inode *ip, void *buf,
 		dblock++;
 		extlen--;
 
-		o = (journaled) ? sizeof(struct gfs2_meta_header) : 0;
+		o = (isdir) ? sizeof(struct gfs2_meta_header) : 0;
 	}
 
 	if (ip->i_di.di_size < start + copied)

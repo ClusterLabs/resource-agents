@@ -71,8 +71,10 @@ decode_arguments(int argc, char *argv[], struct gfs2_sbd *sdp)
 	int cont = TRUE;
 	int optchar;
 
+	sdp->device_name = NULL;
+
 	while (cont) {
-		optchar = getopt(argc, argv, "b:c:DhJ:j:Op:qr:t:u:VX");
+		optchar = getopt(argc, argv, "-b:c:DhJ:j:Op:qr:t:u:VX");
 
 		switch (optchar) {
 		case 'b':
@@ -150,20 +152,30 @@ decode_arguments(int argc, char *argv[], struct gfs2_sbd *sdp)
 			cont = FALSE;
 			break;
 
+		case 1:
+			if (strcmp(optarg, "gfs2") == 0)
+				continue;
+			if (sdp->device_name) {
+				die("More than one device specified (try -h for help)");
+			} 
+			sdp->device_name = optarg;
+			break;
+
 		default:
 			die("unknown option: %c\n", optchar);
 			break;
 		};
 	}
 
-	if (optind < argc) {
-		sdp->device_name = argv[optind];
-		optind++;
-	} else
+	if ((sdp->device_name == NULL) && (optind < argc)) {
+		sdp->device_name = argv[optind++];
+	}
+
+	if (sdp->device_name == NULL)
 		die("no device specified (try -h for help)\n");
 
 	if (optind < argc)
-		die("Unrecognized option: %s\n", argv[optind]);
+		die("Unrecognized argument: %s\n", argv[optind]);
 
 	if (sdp->debug) {
 		printf("Command Line Arguments:\n");

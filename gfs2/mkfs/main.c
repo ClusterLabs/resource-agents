@@ -47,18 +47,20 @@ main(int argc, char *argv[])
 
 	p = strdup(prog_name);
 	whoami = basename(p);
-
+#if 0
 	if (!strcmp(whoami, "gfs2_grow"))
 		main_grow(argc, argv);
 	else if (!strcmp(whoami, "gfs2_jadd"))
 		main_jadd(argc, argv);
 	else if (!strcmp(whoami, "gfs2_mkfs") || !strcmp(whoami, "mkfs.gfs2"))
+#endif
 		main_mkfs(argc, argv);
+#if 0
 	else if (!strcmp(whoami, "gfs2_shrink"))
 		main_shrink(argc, argv);
 	else
 		die("I don't know who I am!\n");
-
+#endif
 	free(p);
 
 	return EXIT_SUCCESS;
