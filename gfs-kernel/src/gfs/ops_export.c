@@ -70,7 +70,7 @@ gfs_decode_fh(struct super_block *sb, __u32 *fh, int fh_len, int fh_type,
 	switch (fh_type) {
 	case 6:
 		parent.gen_valid = TRUE;
-		parent.gen = fh[5];
+		parent.gen = gfs32_to_cpu(fh[5]);
 	case 5:
 		parent.formal_ino = ((uint64_t)gfs32_to_cpu(fh[3])) << 32;
 		parent.formal_ino |= (uint64_t)gfs32_to_cpu(fh[4]);
