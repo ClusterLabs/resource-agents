@@ -3,7 +3,7 @@
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
 **  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
-**
+**  
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
 **  of the GNU General Public License v.2.
@@ -26,9 +26,10 @@
 #include <sys/un.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <mntent.h>
 #include <libgen.h>
 
-#include "libcman.h"
+#include "cnxman-socket.h"
 #include "ccs.h"
 #include "copyright.cf"
 
@@ -61,57 +62,52 @@ int debug;
 int operation;
 int child_wait;
 int quorum_wait = TRUE;
-int FENCED_START_TIMEOUT = 0;
-cman_handle_t cl_handle;
-char our_name[CMAN_MAX_NODENAME_LEN+1];
+int fenced_start_timeout = 0;
+int signalled = 0;
+int cl_sock;
+char our_name[MAX_CLUSTER_MEMBER_NAME_LEN+1];
 
 int dispatch_fence_agent(int cd, char *victim, int in);
 
 
 static int check_mounted(void)
 {
-	FILE *file;
-	char line[PATH_MAX];
-	char device[PATH_MAX];
-	char path[PATH_MAX];
-	char type[PATH_MAX];
+	FILE *fp;
+	struct mntent *me;
 
-	file = fopen("/proc/mounts", "r");
-	if (!file)
-		return 0;
+	fp = setmntent("/etc/mtab", "r");
 
-	while (fgets(line, PATH_MAX, file)) {
-		if (sscanf(line, "%s %s %s", device, path, type) != 3)
-			continue;
-		if (!strcmp(type, "gfs") || !strcmp(type, "gfs2"))
-			die("cannot leave, %s file system mounted from %s on %s",
-			    type, device, path);
+	for (;;) {
+		me = getmntent(fp);
+		if (!me)
+			break;
+
+		if (!strcmp(me->mnt_type, "gfs"))
+			die("cannot leave, gfs mounted on %s",
+			    me->mnt_fsname);
 	}
-
-	fclose(file);
 	return 0;
 }
 
 static void sigalarm_handler(int sig)
 {
-        fprintf(stderr, "Timed-out waiting for cluster\n");
-        exit(2);
+	signalled = 1;
 }
 
 static int get_int_arg(char argopt, char *arg)
 {
         char *tmp;
-        int val;
+        int val;                                                                                 
         val = strtol(arg, &tmp, 10);
         if (tmp == arg || tmp != arg + strlen(arg))
                 die("argument to %c (%s) is not an integer", argopt, arg);
-
+                                                                                
         if (val < 0)
                 die("argument to %c cannot be negative", argopt);
-
+                                                                                
         return val;
 }
-
+                                                                                
 
 
 static void lockfile(void)
@@ -137,9 +133,9 @@ static void lockfile(void)
 
 static int setup_sock(void)
 {
-	cl_handle = cman_init(NULL);
-	if (cl_handle < 0)
-		die("cannot create cluster socket: %s", strerror(errno));
+	cl_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_CLIENT);
+	if (cl_sock < 0)
+		die("cannot create cluster socket %d", cl_sock);
 
 	return 0;
 }
@@ -163,23 +159,23 @@ static int check_ccs(void)
 
 static int get_our_name(void)
 {
-	cman_node_t cl_node;
+	struct cl_cluster_node cl_node;
 	int rv;
 
 	if (debug)
 		printf("%s: get our node name\n", prog_name);
 
-	memset(&cl_node, 0, sizeof(cl_node));
+	memset(&cl_node, 0, sizeof(struct cl_cluster_node));
 
 	for (;;) {
-		rv = cman_get_node(cl_handle, CMAN_NODEID_US, &cl_node);
+		rv = ioctl(cl_sock, SIOCCLUSTER_GETNODE, &cl_node);
 		if (!rv)
 			break;
 		printf("%s: retrying cman getnode %d\n", prog_name, rv);
 		sleep(1);
 	}
 
-	memcpy(our_name, cl_node.cn_name, strlen(cl_node.cn_name));
+	memcpy(our_name, cl_node.name, strlen(cl_node.name));
 	return 0;
 }
 
@@ -213,12 +209,12 @@ static int check_quorum(void)
 	if (debug)
 		printf("%s: wait for quorum %d\n", prog_name, quorum_wait);
 
-	while (1) {
-		rv = cman_is_active(cl_handle);
+	while (!signalled) {
+		rv = ioctl(cl_sock, SIOCCLUSTER_ISACTIVE, NULL);
 		if (!rv)
 			die("cluster is not active");
 
-		rv = cman_is_quorate(cl_handle);
+		rv = ioctl(cl_sock, SIOCCLUSTER_ISQUORATE, NULL);
 		if (rv)
 			return TRUE;
 		else if (!quorum_wait)
@@ -226,9 +222,12 @@ static int check_quorum(void)
 
 		sleep(1);
 
-		if (++i > 9 && !(i % 10))
+		if (!signalled && ++i > 9 && !(i % 10))
 			printf("%s: waiting for cluster quorum\n", prog_name);
 	}
+
+	errno = ETIMEDOUT;
+	return FALSE;
 }
 
 /*
@@ -247,12 +246,12 @@ static int do_wait(void)
 	if (!file)
 		return EXIT_FAILURE;
 
-	while (1) {
+	while (!signalled) {
 		memset(line, 0, 256);
 		while (fgets(line, 256, file)) {
 			if (strstr(line, "Fence Domain")) {
 				if (strstr(line, "run")) {
-					error = 0;
+					error = EXIT_SUCCESS;
 					goto out;
 				}
 				starting = 1;
@@ -269,10 +268,12 @@ static int do_wait(void)
 		sleep(1);
 		rewind(file);
 	}
-
+	errno = ETIMEDOUT;
+	error = EXIT_FAILURE;
+                        
  out:
 	fclose(file);
-	return EXIT_SUCCESS;
+	return error;
 }
 
 static int do_join(int argc, char *argv[])
@@ -281,11 +282,20 @@ static int do_join(int argc, char *argv[])
 
 	setup_sock();
 
-	if (!check_quorum())
+       	if (fenced_start_timeout) {
+               	signal(SIGALRM, sigalarm_handler);
+               	alarm(fenced_start_timeout);
+       	}
+
+	if (!check_quorum()) {
+		if (errno == ETIMEDOUT)
+			printf("%s: Timed out waiting for cluster "
+			       "quorum to form.\n", prog_name);
 		return EXIT_FAILURE;
+	}
 
 	get_our_name();
-	cman_finish(cl_handle);
+	close(cl_sock);
 	cd = check_ccs();
 	ccs_disconnect(cd);
 
@@ -300,21 +310,36 @@ static int do_join(int argc, char *argv[])
 	if (debug)
 		printf("%s: start fenced\n", prog_name);
 
-        if (FENCED_START_TIMEOUT) {
-                signal(SIGALRM, sigalarm_handler);
-                alarm(FENCED_START_TIMEOUT);
-        }
-
-
 	if (!debug && child_wait) {
 		int status;
 		pid_t pid = fork();
+
 		/* parent waits for fenced to join */
 		if (pid > 0) {
 			waitpid(pid, &status, 0);
-			if (WIFEXITED(status) && !WEXITSTATUS(status))
-				do_wait();
-			exit(EXIT_SUCCESS);
+			if (WIFEXITED(status) &&
+			    !WEXITSTATUS(status)) {
+				if (do_wait() == EXIT_SUCCESS)
+					exit(EXIT_SUCCESS);
+
+				if (errno == ETIMEDOUT)
+					printf("%s: Timed out waiting "
+					       "for fenced to start.\n",
+					       prog_name);
+				return EXIT_FAILURE;
+			}
+
+			/* If we get here, the child died with a signal */
+			if (WIFSIGNALED(status)) {
+				printf("%s: child pid %d died with "
+				       "signal %d\n", prog_name, (int)pid,
+				       WTERMSIG(status));
+			}
+
+			return EXIT_FAILURE;
+		} else if (pid < 0) {
+			fprintf(stderr, "%s: fork(): %s\n",
+				prog_name, strerror(errno));
 		}
 		/* child execs fenced */
 	}
@@ -351,7 +376,7 @@ static int do_leave(void)
 	if (!check_quorum())
 		return EXIT_FAILURE;
 
-	cman_finish(cl_handle);
+	close(cl_sock);
 
 	kill(pid, SIGTERM);
 
@@ -405,6 +430,7 @@ static void print_usage(void)
 	printf("  -w               Wait for join to complete\n");
 	printf("  -V               Print program version information, then exit\n");
 	printf("  -h               Print this help, then exit\n");
+        printf("  -t               Maximum time in seconds to wait\n");
 	printf("  -Q               Fail if cluster is not quorate, don't wait\n");
 	printf("  -D               Enable debugging, don't fork (also passed to fenced)\n");
 	printf("\n");
@@ -460,11 +486,12 @@ static void decode_arguments(int argc, char *argv[])
 			cont = FALSE;
 			break;
 
+                case 't':
+                        fenced_start_timeout = get_int_arg(optchar, optarg);
+                        break;
+
 		case 'c':
 		case 'j':
-                case 't':
-                        FENCED_START_TIMEOUT = get_int_arg(optchar, optarg);
-                        break;
 		case 'f':
 			/* Do nothing, just pass these options on to fenced */
 			break;
