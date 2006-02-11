@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: Delay.in,v 1.8 2005/12/21 05:36:52 zhenh Exp $
+#	$Id: Delay.in,v 1.9 2006/02/11 14:21:20 xunsun Exp $
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
@@ -36,7 +36,7 @@ VLFILE="$HA_VARRUNDIR/rsctmp/Delay-${OCF_RESOURCE_INSTANCE}"
 usage() {
   cat <<-!
 	usage: $0 {start|stop|status|monitor|meta-data|validate-all}
-  	$Id: Delay.in,v 1.8 2005/12/21 05:36:52 zhenh Exp $
+  	$Id: Delay.in,v 1.9 2006/02/11 14:21:20 xunsun Exp $
 	!
 }
 
@@ -104,8 +104,8 @@ Delay_Status() {
     ocf_log info "Delay is running OK"
     return $OCF_SUCCESS
   else
-    ocf_log err "Delay is not operational"
-    return $OCF_ERR_GENERIC
+    ocf_log info "Delay is stopped"
+    return $OCF_NOT_RUNNING
   fi
 }
 
