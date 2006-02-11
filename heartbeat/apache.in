@@ -210,19 +210,10 @@ FindLocationForHandler() {
 }
 
 #
-#	Check if the port is valid, this function code is not decent, but works
+#	Check if the port is valid
 #
 CheckPort() {
-#	Examples of valid port: "1080", "1", "0080"
-#	Examples of invalid port: "1080bad", "0", "0000", ""
-  case "$1" in
-    *[^0-9]*) #got invalid char
-	false;;
-    *[1-9]*) #no invalid char, and has non-zero digit, so is a good port
-	true;;
-    *) #empty string, or string of 0's 
-	false;;
-  esac
+  ocf_is_decimal "$1" && [ $1 -gt 0 ]
 }
 
 
