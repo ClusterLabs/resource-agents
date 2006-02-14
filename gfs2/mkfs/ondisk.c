@@ -266,6 +266,7 @@ void gfs2_quota_out(struct gfs2_quota *qu, char *buf)
 	CPOUT_64(qu, str, qu_limit);
 	CPOUT_64(qu, str, qu_warn);
 	CPOUT_64(qu, str, qu_value);
+	memset(qu->qu_reserved, 0, sizeof(qu->qu_reserved));
 }
 
 void gfs2_quota_print(struct gfs2_quota *qu)
@@ -379,9 +380,9 @@ void gfs2_dirent_in(struct gfs2_dirent *de, char *buf)
 
 	gfs2_inum_in(&de->de_inum, buf);
 	CPIN_32(de, str, de_hash);
-	CPIN_32(de, str, de_rec_len);
-	de->de_name_len = str->de_name_len;
-	de->de_type = str->de_type;
+	CPIN_16(de, str, de_rec_len);
+	CPIN_16(de, str, de_name_len);
+	CPIN_16(de, str, de_type);
 }
 
 void gfs2_dirent_out(struct gfs2_dirent *de, char *buf)
@@ -390,11 +391,10 @@ void gfs2_dirent_out(struct gfs2_dirent *de, char *buf)
 
 	gfs2_inum_out(&de->de_inum, buf);
 	CPOUT_32(de, str, de_hash);
-	CPOUT_32(de, str, de_rec_len);
-	str->de_name_len = de->de_name_len;
-	str->de_type = de->de_type;
-	str->__pad1 = 0;
-	str->__pad2 = 0;
+	CPOUT_16(de, str, de_rec_len);
+	CPOUT_16(de, str, de_name_len);
+	CPOUT_16(de, str, de_type);
+	memset(str->__pad, 0, sizeof(str->__pad));
 }
 
 void gfs2_dirent_print(struct gfs2_dirent *de, char *name)
