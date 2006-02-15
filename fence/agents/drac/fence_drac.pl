@@ -18,6 +18,7 @@
 #  -------------------	--------------	----------------------
 #  PowerEdge 750	DRAC III/XT	3.20 (Build 10.25)
 #  PowerEdge 1855	DRAC/MC		1.1  (Build 03.03)
+#  PowerEdge 1855	DRAC/MC		1.2  (Build 03.03)
 #  PowerEdge 1850	DRAC 4/I	1.35 (Build 09.27)
 #
 
@@ -29,7 +30,7 @@ $_=$0;
 s/.*\///;
 my $pname = $_;
 
-my $telnet_timeout = 2;      # Seconds to wait for matching telent response
+my $telnet_timeout = 5;      # Seconds to wait for matching telent response
 my $power_timeout = 20;      # time to wait in seconds for power state changes
 $action = 'reboot';          # Default fence action.  
 
@@ -217,6 +218,9 @@ sub set_power_status
 
 	# discard command sent to DRAC
 	$_ = shift @cmd_out;
+        s/\e\[(([0-9]+;)*[0-9]+)*[ABCDfHJKmsu]//g; #strip ansi chars
+        s/^.*\x0D//;
+
 	fail "failed: unkown dialog exception: '$_'" unless (/^$cmd$/);
 
 	# Additional lines of output probably means an error.  
@@ -226,6 +230,9 @@ sub set_power_status
 	while (@cmd_out)
 	{
 		$_ = shift @cmd_out;
+                #firmware vers 1.2 on DRAC/MC sends ansi chars - evil
+                s/\e\[(([0-9]+;)*[0-9]+)*[ABCDfHJKmsu]//g;
+                s/^.*\x0D//;
 
 		next if (/^\s*$/); # skip empty lines
 		if (defined $err)
@@ -262,6 +269,10 @@ sub get_power_status
 
 	# discard command sent to DRAC
 	$_ = shift @cmd_out;
+        #strip ansi control chars
+        s/\e\[(([0-9]+;)*[0-9]+)*[ABCDfHJKmsu]//g;
+        s/^.*\x0D//;
+
 	fail "failed: unkown dialog exception: '$_'" unless (/^$cmd$/);
 
 	#Expect:
