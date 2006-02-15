@@ -201,7 +201,7 @@ int do_join(char *name)
 
 	list_add(&fd->list, &domains);
 
-	rv = group_join(gh, name, NULL);
+	rv = group_join(gh, name);
 	if (rv) {
 		log_error("group_join error %d", rv);
 		free(fd);
@@ -221,7 +221,7 @@ int do_leave(char *name)
 
 	fd->leave = 1;
 
-	rv = group_leave(gh, name, NULL);
+	rv = group_leave(gh, name);
 	if (rv) {
 		log_error("group_leave error %d", rv);
 		fd->leave = 0;
