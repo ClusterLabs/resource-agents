@@ -91,34 +91,26 @@ struct group_handle
 	char prog_name[32];
 };
 
-static int _joinleave(group_handle_t handle, char *name, char *info, char *cmd)
+static int _joinleave(group_handle_t handle, char *name, char *cmd)
 {
 	char buf[GROUPD_MSGLEN];
-	char ibuf[GROUP_INFO_LEN];
 	struct group_handle *h = (struct group_handle *) handle;
 	VALIDATE_HANDLE(h);
 
 	memset(buf, 0, sizeof(buf));
-	memset(ibuf, 0, sizeof(ibuf));
-
-	if (info) {
-		snprintf(ibuf, GROUP_INFO_LEN, "%s", info);
-		ibuf[GROUP_INFO_LEN-1] = '\0';
-		snprintf(buf, sizeof(buf), "%s %s %s", cmd, name, ibuf);
-	} else
-		snprintf(buf, sizeof(buf), "%s %s", cmd, name);
+	snprintf(buf, sizeof(buf), "%s %s", cmd, name);
 
 	return do_write(h->fd, buf, GROUPD_MSGLEN);
 }
 
-int group_join(group_handle_t handle, char *name, char *info)
+int group_join(group_handle_t handle, char *name)
 {
-	return _joinleave(handle, name, info, "join");
+	return _joinleave(handle, name, "join");
 }
 
-int group_leave(group_handle_t handle, char *name, char *info)
+int group_leave(group_handle_t handle, char *name)
 {
-	return _joinleave(handle, name, info, "leave");
+	return _joinleave(handle, name, "leave");
 }
 
 int group_stop_done(group_handle_t handle, char *name)
@@ -143,6 +135,11 @@ int group_start_done(group_handle_t handle, char *name, int event_nr)
 	snprintf(buf, sizeof(buf), "start_done %s %d", name, event_nr);
 
 	return do_write(h->fd, buf, GROUPD_MSGLEN);
+}
+
+int group_send(group_handle_t handle, char *buf, int len)
+{
+	return -1;
 }
 
 static int connect_groupd(void)
@@ -326,47 +323,5 @@ int group_get_group(int level, char *name, group_data_t *data)
  out:
 	close(fd);
 	return rv;
-}
-
-static int _info(int level, char *name, int nodeid, char *info, char *cmd)
-{
-	char buf[GROUPD_MSGLEN];
-	char info_buf[GROUP_INFO_LEN];
-	int fd, rv, len;
-
-	fd = connect_groupd();
-	if (fd < 0)
-		return fd;
-
-	memset(buf, 0, sizeof(buf));
-	snprintf(buf, sizeof(buf), "%s %d %s %d", cmd, level, name, nodeid);
-
-	rv = do_write(fd, buf, GROUPD_MSGLEN);
-	if (rv < 0)
-		goto out;
-
-	memset(info_buf, 0, GROUP_INFO_LEN);
-
-	rv = read(fd, info_buf, GROUP_INFO_LEN);
-	if (rv != GROUP_INFO_LEN) {
-		rv = -1;
-		goto out;
-	}
-
-	memcpy(info, info_buf, GROUP_INFO_LEN);
-	rv = 0;
- out:
-	close(fd);
-	return rv;
-}
-
-int group_join_info(int level, char *name, int nodeid, char *info)
-{
-	return _info(level, name, nodeid, info, "join_info");
-}
-
-int group_leave_info(int level, char *name, int nodeid, char *info)
-{
-	return _info(level, name, nodeid, info, "leave_info");
 }
 
