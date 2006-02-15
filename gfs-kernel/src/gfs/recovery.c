@@ -272,7 +272,10 @@ gfs_find_jhead(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 
 		if (seg1 == seg_m) {
 			error = verify_jhead(sdp, jdesc, gl, &lh1);
-			memcpy(head, &lh1, sizeof(struct gfs_log_header));
+			if (unlikely(error)) 
+				printk("GFS: verify_jhead error=%d\n", error);
+			else
+				memcpy(head, &lh1, sizeof(struct gfs_log_header));
 			break;
 		}
 
