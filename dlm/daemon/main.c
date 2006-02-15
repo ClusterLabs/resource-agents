@@ -115,7 +115,7 @@ int process_uevent(void)
 		ls->joining = 1;
 		list_add(&ls->list, &lockspaces);
 
-		rv = group_join(gh, argv[3], NULL);
+		rv = group_join(gh, argv[3]);
 
 	} else if (!strcmp(act, "offline@")) {
 		ls = find_ls(argv[3]);
@@ -124,7 +124,7 @@ int process_uevent(void)
 			goto out;
 		}
 
-		rv = group_leave(gh, argv[3], NULL);
+		rv = group_leave(gh, argv[3]);
 	} else
 		rv = 0;
  out:
