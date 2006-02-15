@@ -10,45 +10,32 @@
 ###############################################################################
 ###############################################################################
 
-CFLAGS+= -g -I. -I../include/ -I../../cman/lib/ -I../lib/
+CFLAGS+= -g -I. -I../include/ -I../../cman/lib/ -I../lib/ -I../../../openais/trunk/include/
 
 TARGET=groupd
 
 all: ${TARGET}
 
-groupd: main.o \
-	cman.o \
-	barrier.o \
+groupd: app.o \
+	cpg.o \
 	joinleave.o \
-	message.o \
-	update.o \
-	done.o \
-	recover.o \
-	../../cman/lib/libcman.a
+	main.o \
+	../../../openais/trunk/lib/libcpg.a
 	$(CC) $(LDFLAGS) -o $@ $^
 
-main.o: main.c gd_internal.h
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-joinleave.o: joinleave.c gd_internal.h
+app.o: app.c gd_internal.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 cman.o: cman.c gd_internal.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-barrier.o: barrier.c gd_internal.h
+cpg.o: cpg.c gd_internal.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-message.o: message.c gd_internal.h
+joinleave.o: joinleave.c gd_internal.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-update.o: update.c gd_internal.h
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-recover.o: recover.c gd_internal.h
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-done.o: done.c gd_internal.h
+main.o: main.c gd_internal.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:

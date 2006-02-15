@@ -15,91 +15,91 @@
 #define OPTION_STRING			"DhV"
 #define LOCKFILE_NAME			"/var/run/groupd.pid"
 
+extern struct list_head recovery_sets;
+
+struct list_head        gd_groups;
+struct list_head        gd_levels[MAX_LEVELS];
+uint32_t		gd_event_nr;
+int			our_nodeid;
+int			cman_quorate;
+
+static int client_maxi;
 static int client_size;
 static struct client *client;
 static struct pollfd *pollfd;
-
-/*
- * gd_nodes
- * List of all nodes who have been in cluster.
- * Those who are members have NFL_CLUSTER_MEMBER set.
- * This assumes a nodeid is permanently attached to a particular
- * node for the life of the cluster.
- *
- * gd_node_count
- * number of nodes in gd_nodes list
- *
- * gd_member_count
- * number of nodes in gd_nodes list that are members
- */
-
-extern struct list_head	gd_groups;
-
-struct list_head        gd_nodes;
-int                     gd_node_count;
-int                     gd_member_count;
-int                     gd_quorate;
-int                     gd_nodeid;
-struct list_head        gd_barriers;
-int			gd_event_delays;
 
 struct client {
 	int fd;
 	int level;
 	char type[32];
+	void *workfn;
 };
 
 
-static void group_action(group_t *g, char *buf)
+static void app_action(app_t *a, char *buf)
 {
 	int rv;
 
-	log_group(g, "%s", buf);
+	log_group(a->g, "%s", buf);
 
-	rv = write(client[g->client].fd, buf, GROUPD_MSGLEN);
+	rv = write(client[a->client].fd, buf, GROUPD_MSGLEN);
 	if (rv != GROUPD_MSGLEN)
 		log_print("write error %d errno %d", rv, errno);
 }
 
-void group_terminate(group_t *g)
+void app_terminate(app_t *a)
 {
 	char buf[GROUPD_MSGLEN];
-	snprintf(buf, sizeof(buf), "terminate %s", g->name);
-	group_action(g, buf);
+	snprintf(buf, sizeof(buf), "terminate %s", a->g->name);
+	app_action(a, buf);
 }
 
-void group_stop(group_t *g)
+void app_stop(app_t *a)
 {
 	char buf[GROUPD_MSGLEN];
-	snprintf(buf, sizeof(buf), "stop %s", g->name);
-	group_action(g, buf);
+	snprintf(buf, sizeof(buf), "stop %s", a->g->name);
+	app_action(a, buf);
 }
 
-void group_setid(group_t *g)
+void app_setid(app_t *a)
 {
 	char buf[GROUPD_MSGLEN];
-	snprintf(buf, sizeof(buf), "set_id %s %u", g->name, g->global_id);
-	group_action(g, buf);
+	snprintf(buf, sizeof(buf), "set_id %s %u", a->g->name, a->g->global_id);
+	app_action(a, buf);
 }
 
-void group_start(group_t *g, int *memb, int count, int event_nr, int type)
+void app_start(app_t *a)
 {
 	char buf[GROUPD_MSGLEN];
-	int i, len;
+	int memb[MAX_NODES];
+	int len = 0, type;
+	node_t *node;
 
-	clear_bit(GFL_STOPPED, &g->flags);
+	if (a->current_event->state == EST_JOIN_START_WAIT)
+		type = NODE_JOIN;
+	else if (a->current_event->state == EST_LEAVE_START_WAIT)
+		type = NODE_LEAVE;
+	else if (a->current_event->state == EST_FAIL_START_WAIT)
+		type = NODE_FAILED;
+	else {
+		/* report error */
+	}
 
-	len = snprintf(buf, sizeof(buf), "start %s %d %d", g->name, event_nr, type);
-	for (i = 0; i < count; i++)
-		len += sprintf(buf+len, " %d", memb[i]);
-	group_action(g, buf);
+	len = snprintf(buf, sizeof(buf), "start %s %d %d",
+		       a->g->name, a->current_event->event_nr, type);
+
+	list_for_each_entry(node, &a->nodes, list)
+		len += sprintf(buf+len, " %d", node->nodeid);
+
+	app_action(a, buf);
 }
 
-void group_finish(group_t *g, int event_nr)
+void app_finish(app_t *a)
 {
 	char buf[GROUPD_MSGLEN];
-	snprintf(buf, sizeof(buf), "finish %s %d", g->name, event_nr);
-	group_action(g, buf);
+	snprintf(buf, sizeof(buf), "finish %s %d",
+		 a->g->name, a->current_event->event_nr);
+	app_action(a, buf);
 }
 
 static void make_args(char *buf, int *argc, char **argv, char sep)
@@ -133,6 +133,7 @@ static void client_alloc(void)
 		log_print("can't alloc for client array");
 
 	for (i = client_size; i < client_size + NALLOC; i++) {
+		client[i].workfn = NULL;
 		client[i].fd = -1;
 		client[i].level = -1;
 		memset(client[i].type, 0, sizeof(client[i].type));
@@ -140,7 +141,7 @@ static void client_alloc(void)
 	client_size += NALLOC;
 }
 
-static int client_add(int fd, int *maxi)
+int client_add(int fd, void (*workfn)(int ci))
 {
 	int i;
 
@@ -149,11 +150,12 @@ static int client_add(int fd, int *maxi)
  again:
 	for (i = 0; i < client_size; i++) {
 		if (client[i].fd == -1) {
+			client[i].workfn = workfn;
 			client[i].fd = fd;
 			pollfd[i].fd = fd;
 			pollfd[i].events = POLLIN;
-			if (i > *maxi)
-				*maxi = i;
+			if (i > client_maxi)
+				client_maxi = i;
 			return i;
 		}
 	}
@@ -166,60 +168,17 @@ static void client_dead(int ci)
 {
 	log_print("client %d fd %d dead", ci, client[ci].fd);
 	close(client[ci].fd);
+	client[ci].workfn = NULL;
 	client[ci].fd = -1;
 	pollfd[ci].fd = -1;
 }
 
-static int client_process_setup(int ci, int argc, char **argv)
+static void do_setup(int ci, int argc, char **argv)
 {
 	log_debug("setup %s %s", argv[1], argv[2]);
 
 	strcpy(client[ci].type, argv[1]);
 	client[ci].level = atoi(argv[2]);
-
-	return 0;
-}
-
-static int do_info(int ci, int argc, char **argv, int join)
-{
-	group_t *g;
-	node_t *node;
-	char *name, *buf = "error";
-	int rv, level, nodeid, len = strlen(buf);
-
-	level = atoi(argv[1]);
-	name = argv[2];
-	nodeid = atoi(argv[3]);
-
-	g = find_group_level(name, level);
-	if (!g)
-		goto out;
-
-	if (nodeid == gd_nodeid) {
-		if (join)
-			buf = g->join_info;
-		else
-			buf = g->leave_info;
-		len = GROUP_INFO_LEN;
-		goto out;
-	}
-
-	node = find_member(g, nodeid);
-	if (!node)
-		goto out;
-
-	if (join)
-		buf = node->join_info;
-	else
-		buf = node->leave_info;
-	len = GROUP_INFO_LEN;
- out:
-	log_debug("info %d:%s nodeid %d \"%s\"", level, name, nodeid, buf);
-
-	rv = write(client[ci].fd, buf, len);
-	if (rv != len)
-		log_print("write error %d errno %d", rv, errno);
-	return 0;
 }
 
 static void copy_group_data(group_t *g, group_data_t *data)
@@ -227,28 +186,19 @@ static void copy_group_data(group_t *g, group_data_t *data)
 	node_t *node;
 	int i = 0;
 
-	strncpy(data->client_name, client[g->client].type, 32);
+	strncpy(data->client_name, client[g->app->client].type, 32);
 	strncpy(data->name, g->name, MAX_GROUP_NAME_LEN);
 	data->level = g->level;
 	data->id = g->global_id;
-	data->member = test_bit(GFL_MEMBER, &g->flags) ? 1 : 0;
 	data->member_count = g->memb_count;
 
 	list_for_each_entry(node, &g->memb, list) {
-		data->members[i] = node->id;
+		data->members[i] = node->nodeid;
 		i++;
 	}
-
-	/* debugging info */
-	data->flags = (int) g->flags;
-	data->recover_state = g->recover_state;
-	if (g->update)
-		data->update_state = g->update->state;
-	if (g->event)
-		data->event_state = g->event->state;
 }
 
-static int client_process_get_groups(int ci, int argc, char **argv)
+static int do_get_groups(int ci, int argc, char **argv)
 {
 	group_t *g;
 	group_data_t *data;
@@ -280,7 +230,7 @@ static int client_process_get_groups(int ci, int argc, char **argv)
 	return 0;
 }
 
-static int client_process_get_group(int ci, int argc, char **argv)
+static int do_get_group(int ci, int argc, char **argv)
 {
 	group_t *g;
 	group_data_t data;
@@ -301,7 +251,7 @@ static int client_process_get_group(int ci, int argc, char **argv)
 	return 0;
 }
 
-static int client_process_dump(int ci, int argc, char **argv)
+static int do_dump(int ci, int argc, char **argv)
 {
 	int rv, len = DUMP_SIZE;
 
@@ -319,7 +269,7 @@ static int client_process_dump(int ci, int argc, char **argv)
 	return 0;
 }
 
-static int client_process(int ci)
+static void process_connection(int ci)
 {
 	char buf[GROUPD_MSGLEN], *argv[MAXARGS], *cmd;
 	int argc = 0, rv;
@@ -329,12 +279,12 @@ static int client_process(int ci)
 	rv = read(client[ci].fd, buf, GROUPD_MSGLEN);
 	if (!rv) {
 		client_dead(ci);
-		return 0;
+		return;
 	}
 	if (rv != GROUPD_MSGLEN) {
 		log_print("client %d fd %d read error %d %d", ci,
 			  client[ci].fd, rv, errno);
-		return 0;
+		return;
 	}
 
 	log_debug("got %d bytes from client %d \"%s\"", rv, ci, buf);
@@ -343,41 +293,42 @@ static int client_process(int ci)
 	cmd = argv[0];
 
 	if (!strcmp(cmd, "setup"))
-		client_process_setup(ci, argc, argv);
+		do_setup(ci, argc, argv);
 
 	else if (!strcmp(cmd, "join"))
-		do_join(argv[1], client[ci].level, ci,
-			(argc > 2) ? argv[2] : NULL);
+		do_join(argv[1], client[ci].level, ci);
 
 	else if (!strcmp(cmd, "leave"))
-	        do_leave(argv[1], client[ci].level, 0,
-			 (argc > 2) ? argv[2] : NULL);
+	        do_leave(argv[1], client[ci].level);
 
 	else if (!strcmp(cmd, "stop_done"))
 		do_stopdone(argv[1], client[ci].level);
 
 	else if (!strcmp(cmd, "start_done"))
-		do_startdone(argv[1], client[ci].level, atoi(argv[2]));
-
-	else if (!strcmp(cmd, "join_info"))
-		do_info(ci, argc, argv, 1);
-
-	else if (!strcmp(cmd, "leave_info"))
-		do_info(ci, argc, argv, 0);
+		do_startdone(argv[1], client[ci].level);
 
 	else if (!strcmp(cmd, "get_groups"))
-		client_process_get_groups(ci, argc, argv);
+		do_get_groups(ci, argc, argv);
 
 	else if (!strcmp(cmd, "get_group"))
-		client_process_get_group(ci, argc, argv);
+		do_get_group(ci, argc, argv);
 
 	else if (!strcmp(cmd, "dump"))
-		client_process_dump(ci, argc, argv);
+		do_dump(ci, argc, argv);
 
 	else
 		log_print("unknown cmd \"%s\" client %d bytes %d", cmd, ci, rv);
+}
 
-	return 0;
+static void process_listener(int ci)
+{
+	int fd;
+
+	fd = accept(client[ci].fd, NULL, NULL);
+	if (fd < 0)
+		log_print("process_listener: accept error %d %d", fd, errno);
+	else
+		client_add(fd, process_connection);
 }
 
 static int setup_listener(void)
@@ -413,79 +364,54 @@ static int setup_listener(void)
 		return rv;
 	}
 
-	return s;
+	client_add(s, process_listener);
+
+	return 0;
 }
 
 static int loop(void)
 {
-	int rv, fd, i, maxi = 0, timeout = -1;
+	int rv, fd, i, timeout = -1;
+	void (*workfn) (int ci);
 
+	rv = setup_listener();
+	if (rv < 0)
+		return rv;
 
-	/*
-	 * client[0] -- the socket listening for new connections
-	 */
+/*
+	rv = setup_cman();
+	if (rv < 0)
+		return rv;
+*/
+	cman_quorate = 1;
 
-	fd = setup_listener();
-	if (fd < 0)
-		return fd;
-	client_add(fd, &maxi);
+	rv = setup_cpg();
+	if (rv < 0)
+		return rv;
 
-
-	/*
-	 * client[1] -- the fd for membership events and messages
-	 */
-
-	fd = setup_member_message();
-	if (fd < 0)
-		return fd;
-	client_add(fd, &maxi);
-
-
-	for (;;) {
-		rv = poll(pollfd, maxi + 1, timeout);
+	while (1) {
+		rv = poll(pollfd, client_maxi + 1, timeout);
 		if (rv < 0)
 			log_print("poll error %d %d", rv, errno);
 
-
-		/* client[0] is listening for new connections */
-
-		if (pollfd[0].revents & POLLIN) {
-			fd = accept(client[0].fd, NULL, NULL);
-			if (fd < 0)
-				log_print("accept error %d %d", fd, errno);
-			else
-				client_add(fd, &maxi);
-		}
-
-		for (i = 1; i <= maxi; i++) {
+		for (i = 0; i <= client_maxi; i++) {
 			if (client[i].fd < 0)
 				continue;
 			if (pollfd[i].revents & POLLHUP)
 				client_dead(i);
 			else if (pollfd[i].revents & POLLIN) {
-				if (i == 1)
-					process_member_message();
-				else
-					client_process(i);
+				workfn = client[i].workfn;
+				workfn(i);
 			}
 		}
 
-		if (!gd_quorate)
-			continue;
+		/* process_apps() returns non-zero if there may be
+		   more work to do */
 
 		do {
 			rv = 0;
-			rv += process_recoveries();
-			rv += process_joinleave();
-			rv += process_updates();
-			rv += process_barriers();
-			rv += process_member_message();
+			rv += process_apps();
 		} while (rv);
-
-		if (gd_event_delays)
-			timeout = 2000;
-		else
-			timeout = -1;
 	}
 
 	return 0;
@@ -608,20 +534,15 @@ static void decode_arguments(int argc, char **argv)
 	}
 }
 
-/*
-  Input:
-  - local client messages (dlm_controld, fenced, ...)
-  - remote groupd messages
-  - membership events and messages from membership manager
-
-  Output:
-  - start/stop/finish over a client connection
-  - messages to remote groupd's
-*/
-
 int main(int argc, char *argv[])
 {
 	prog_name = argv[0];
+	int i;
+
+	INIT_LIST_HEAD(&recovery_sets);
+	INIT_LIST_HEAD(&gd_groups);
+	for (i = 0; i < MAX_LEVELS; i++)
+		INIT_LIST_HEAD(&gd_levels[i]);
 
 	decode_arguments(argc, argv);
 
@@ -631,11 +552,6 @@ int main(int argc, char *argv[])
 	pollfd = malloc(MAXCON * sizeof(struct pollfd));
 	if (!pollfd)
 		return -1;
-
-	INIT_LIST_HEAD(&gd_barriers);
-
-	init_recovery();
-	init_joinleave();
 
 	return loop();
 }
