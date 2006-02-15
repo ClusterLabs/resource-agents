@@ -280,19 +280,21 @@ static void add_ordered_member(struct mountgroup *mg, struct mg_member *new)
 int add_member(struct mountgroup *mg, int nodeid)
 {
 	struct mg_member *memb;
-	char buf[MAXLINE];
-	int rv;
 
 	memb = malloc(sizeof(struct mg_member));
 	if (!memb)
 		return -ENOMEM;
 
 	memset(memb, 0, sizeof(*memb));
-	memset(buf, 0, sizeof(buf));
 
+	/* FIMXE: we need a new way to discover if a new mounter is
+	   a spectator */
+
+	/*
 	rv = group_join_info(LOCK_DLM_GROUP_LEVEL, mg->name, nodeid, buf);
 	if (!rv && strstr(buf, "spectator"))
 		memb->spectator = 1;
+	*/
 
 	memb->nodeid = nodeid;
 	memb->jid = -1;
@@ -474,7 +476,7 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 {
 	struct mountgroup *mg;
 	char table2[MAXLINE];
-	char *cluster = NULL, *name = NULL, *info = NULL;
+	char *cluster = NULL, *name = NULL;
 	group_data_t data;
 	int rv;
 
@@ -538,7 +540,6 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 	if (strstr(extra, "spectator")) {
 		log_group(mg, "spectator mount");
 		mg->spectator = 1;
-		info = "spectator";
 	} else {
 		/* check that we're in fence domain */
 		memset(&data, 0, sizeof(data));
@@ -551,7 +552,7 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 
 	list_add(&mg->list, &mounts);
 
-	group_join(gh, name, info);
+	group_join(gh, name);
 	return 0;
 
  fail:
@@ -658,7 +659,7 @@ int do_unmount(int ci, char *dir)
 
 	release_withdraw_locks(mg);
 
-	group_leave(gh, mg->name, NULL);
+	group_leave(gh, mg->name);
 
 	return 0;
 }
