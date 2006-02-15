@@ -43,7 +43,7 @@ typedef void (*group_terminate_t)(group_handle_t h, void *private, char *name);
 typedef void (*group_set_id_t)(group_handle_t h, void *private, char *name,
 			       int id);
 typedef void (*group_deliver_t)(group_handle_t h, void *private, char *name,
-			        char *buf, int len);
+			        int nodeid, char *buf, int len);
 
 typedef struct {
 	group_stop_t stop;
