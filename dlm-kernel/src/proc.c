@@ -139,10 +139,14 @@ static void *s_start(struct seq_file *m, loff_t *pos)
 	if (!ls)
 		return NULL;
 
-	di = kmalloc(sizeof(struct ls_dumpinfo), GFP_KERNEL);
-	if (!di)
-		return NULL;
-
+	if (!m->private) {
+		di = kmalloc(sizeof(struct ls_dumpinfo), GFP_KERNEL);
+		m->private = di;
+		if (!di)
+			return NULL;
+	}
+	else
+		di = m->private;
 	if (*pos == 0)
 		seq_printf(m, "DLM lockspace '%s'\n", proc_ls_name);
 
@@ -175,7 +179,10 @@ static int s_show(struct seq_file *m, void *p)
 
 static void s_stop(struct seq_file *m, void *p)
 {
-	kfree(p);
+	if (m->private) {
+		kfree(m->private);
+		m->private = NULL;
+	}
 }
 
 static struct seq_operations locks_info_op = {
@@ -387,9 +394,14 @@ static void *dir_start(struct seq_file *m, loff_t *pos)
 	if (!ls)
 		return NULL;
 
-	di = kmalloc(sizeof(struct ls_dumpinfo), GFP_KERNEL);
-	if (!di)
-		return NULL;
+    if (!m->private) {
+        di = kmalloc(sizeof(struct ls_dumpinfo), GFP_KERNEL);
+        m->private = di;
+        if (!di)
+            return NULL;
+    }
+    else
+        di = m->private;
 
 	if (*pos == 0)
 		seq_printf(m, "DLM lockspace '%s'\n", proc_ls_name);
@@ -422,7 +434,10 @@ static int dir_show(struct seq_file *m, void *p)
 
 static void dir_stop(struct seq_file *m, void *p)
 {
-	kfree(p);
+	if (m->private) {
+		kfree(m->private);
+		m->private = NULL;
+	}
 }
 
 static struct seq_operations dir_info_op = {
