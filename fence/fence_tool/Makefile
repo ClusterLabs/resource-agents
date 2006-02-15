@@ -25,7 +25,7 @@ endif
 
 INCLUDE = -I${top_srcdir}/include -I${ccsincdir} -I${incdir} -I${top_srcdir}/config
 
-LDFLAGS+= -L${ccslibdir} -L${libdir} -L${top_srcdir}/cman/lib -lcman
+LDFLAGS+= -L${ccslibdir} -L${libdir} 
 LOADLIBES+= -lccs
 
 FENCE_TOOL_SRC = \
