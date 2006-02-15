@@ -156,10 +156,6 @@ gfs_put_super(struct super_block *sb)
 	wait_for_completion(&sdp->sd_thread_completion);
 
 	if (!test_bit(SDF_ROFS, &sdp->sd_flags)) {
-		gfs_log_flush(sdp);
-		gfs_quota_sync(sdp);
-		gfs_quota_sync(sdp);
-
 		error = gfs_make_fs_ro(sdp);
 		if (error)
 			gfs_io_error(sdp);

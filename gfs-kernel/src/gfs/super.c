@@ -790,6 +790,10 @@ gfs_make_fs_ro(struct gfs_sbd *sdp)
 	    !test_bit(SDF_SHUTDOWN, &sdp->sd_flags))
 		RETURN(GFN_MAKE_FS_RO, error);
 
+	gfs_quota_sync(sdp);
+	gfs_quota_scan(sdp);
+	gfs_log_flush(sdp);
+
 	gfs_sync_meta(sdp);
 	gfs_log_dump(sdp, TRUE);
 	gfs_log_shutdown(sdp);
