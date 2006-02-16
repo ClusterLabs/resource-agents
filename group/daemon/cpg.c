@@ -125,17 +125,9 @@ void process_groupd_confchg(void)
 
 		printf("%d ", saved_member[i].nodeId);
 
-		/*
 		if (saved_member[i].nodeId == our_nodeid &&
 		    saved_member[i].pid == (uint32_t) getpid()) {
 			found = 1;
-			break;
-		}
-		*/
-		/* Hack until we can get nodeid from cman */
-		if (!our_nodeid) {
-			if (saved_member[i].pid == (uint32_t) getpid())
-				our_nodeid = saved_member[i].nodeId;
 		}
 	}
 	printf("\n");
@@ -150,15 +142,11 @@ void process_groupd_confchg(void)
 		printf("%d ", saved_left[i].nodeId);
 	printf("\n");
 
-	log_print("our_nodeid %d", our_nodeid);
-
-	/*
 	if (found)
 		groupd_joined = 1;
 	else
-		log_print("we are not in groupd confchg, %u %u\n",
+		log_print("we are not in groupd confchg: %u %u",
 			  our_nodeid, (uint32_t) getpid());
-	*/
 	
 	for (i = 0; i < saved_left_count; i++) {
 		if (saved_left[i].reason != CPG_REASON_LEAVE)
@@ -285,7 +273,7 @@ void process_cpg(int ci)
 	}
 
 	list_for_each_entry(g, &gd_groups, list) {
-		if (g->app->client == ci) {
+		if (g->cpg_client == ci) {
 			handle = g->cpg_handle;
 			found = 1;
 			break;
@@ -294,12 +282,13 @@ void process_cpg(int ci)
 
 	if (!found) {
 		log_print("process_cpg: no group found for ci %d", ci);
+		sleep(1);
 		return;
 	}
 
  dispatch:
 	while (1) {
-		error = cpg_dispatch(handle, CPG_DISPATCH_ONE);
+		error = cpg_dispatch(handle, CPG_DISPATCH_ALL);
 		if (error != CPG_OK)
 			break;
 
@@ -349,7 +338,7 @@ int do_cpg_join(group_t *g)
 	cpg_error_t error;
 	cpg_handle_t h;
 	SaNameT name;
-	int fd;
+	int fd, ci;
 
 	error = cpg_initialize(&h, &callbacks);
 	if (error != CPG_OK) {
@@ -359,9 +348,11 @@ int do_cpg_join(group_t *g)
 
 	cpg_fd_get(h, &fd);
 
-	client_add(fd, process_cpg);
+	ci = client_add(fd, process_cpg);
 
 	sprintf(name.value, "%d_%s", g->level, g->name);
+
+	log_group(g, "is cpg client %d name %s", ci, name.value);
 
 	error = cpg_join(h, &name);
 	if (error != CPG_OK) {
@@ -370,6 +361,7 @@ int do_cpg_join(group_t *g)
 		return error;
 	}
 
+	g->cpg_client = ci;
 	g->cpg_handle = h;
 	g->cpg_fd = fd;
 

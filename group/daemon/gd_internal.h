@@ -165,6 +165,7 @@ struct group {
 	struct list_head  	messages;
 	cpg_handle_t		cpg_handle;
 	cpg_handle_t		cpg_fd;
+	int			cpg_client;
 };
 
 /*

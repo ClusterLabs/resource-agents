@@ -2,7 +2,7 @@
 /* Interface with openais's cman API */
 
 #include "gd_internal.h"
-#include "cman.h"
+#include "libcman.h"
 
 static cman_handle_t	ch;
 static int		member_cb;
@@ -21,7 +21,7 @@ static void membership_cb(cman_handle_t h, void *private, int reason, int arg)
 	member_reason = reason;
 }
 
-static int process_cman(int ci)
+static void process_cman(int ci)
 {
 	int rv = 0;
 
@@ -30,12 +30,11 @@ static int process_cman(int ci)
 
 		if (member_cb) {
 			member_cb = 0;
-			process_membership();
+			process_membership_cb();
 			rv = 1;
 		} else
 			break;
 	}
-	return rv;
 }
 
 int setup_cman(void)

@@ -18,9 +18,11 @@ all: ${TARGET}
 
 groupd: app.o \
 	cpg.o \
+	cman.o \
 	joinleave.o \
 	main.o \
-	../../../openais/trunk/lib/libcpg.a
+	../../cman/lib/libcman.a \
+	../../cman/daemon/openais/trunk/lib/libcpg.a
 	$(CC) $(LDFLAGS) -o $@ $^
 
 app.o: app.c gd_internal.h

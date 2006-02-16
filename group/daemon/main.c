@@ -322,13 +322,17 @@ static void process_connection(int ci)
 
 static void process_listener(int ci)
 {
-	int fd;
+	int fd, i;
 
 	fd = accept(client[ci].fd, NULL, NULL);
-	if (fd < 0)
+	if (fd < 0) {
 		log_print("process_listener: accept error %d %d", fd, errno);
-	else
-		client_add(fd, process_connection);
+		return;
+	}
+	
+	i = client_add(fd, process_connection);
+
+	log_print("client connection %d", i);
 }
 
 static int setup_listener(void)
@@ -378,12 +382,9 @@ static int loop(void)
 	if (rv < 0)
 		return rv;
 
-/*
 	rv = setup_cman();
 	if (rv < 0)
 		return rv;
-*/
-	cman_quorate = 1;
 
 	rv = setup_cpg();
 	if (rv < 0)
