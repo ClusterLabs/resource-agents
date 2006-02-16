@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Raid1.in,v 1.7 2006/01/26 18:00:05 lars Exp $
+# $Id: Raid1.in,v 1.8 2006/02/16 08:36:31 xunsun Exp $
 #
 # License:      GNU General Public License (GPL)
 # Support:      linux-ha@lists.linux-ha.org
@@ -17,12 +17,16 @@
 #
 #	  OCF parameters are as below:
 #		OCF_RESKEY_raidconf
-#                  (name of MD configuration file. e.g. /etc/raidtab)
+#                  (name of MD configuration file. e.g. /etc/raidtab or /etc/mdadm.conf)
 #		OCF_RESKEY_raiddev
-#                  (of the form /dev/md?? the block device to use)   
+#                  (of the form /dev/md* the block device to use)   
 #
 # in /etc/ha.d/haresources, use a line such as:
 # nodea  10.0.0.170 Raid1::/etc/raidtab.md0::/dev/md0 Filesystem::/dev/md0::/data1::ext2
+# (for systems with raidtools)
+#	or
+# nodea  10.0.0.170 Raid1::/etc/mdadm.conf::/dev/md0 Filesystem::/dev/md0::/data1::ext2
+# (for systems with mdadm)
 #
 # The "start" arg starts up the raid device
 # The "stop" arg stops it.  NOTE: all filesystems must be unmounted
@@ -56,18 +60,21 @@
 # going to work to use RAID for the system disks and the shared disks.
 #
 # 0) partition the disks to use for RAID.  Use normal Linux partition 
-#     types, not the RAID autodetect type for your partitions.
+#    types, not the RAID autodetect type for your partitions.
 # 1) Create /etc/raidtab.md?  on both systems (see example file below)
+#    or for systems with mdadm tools create /etc/mdadm.conf (see example below)
 # 2) Initialize your raid partition with 
-#     /sbin/mkraid --configfile /etc/raidtab.md? /dev/md?
+#	/sbin/mkraid --configfile /etc/raidtab.md? /dev/md?
+#    or create mirror raid with the following command  
+#	mdadm --create /dev/md? -l 1 -n 2 /dev/sdb? /dev/sdb?
 # 3) Format your filesystem
-#     mke2fs /dev/md0  # for ext2fs... a journaling filesystem would be nice
+#	mke2fs /dev/md0  # for ext2fs... a journaling filesystem would be nice
 # 3) Create the mount point on both systems.
-#     DO NOT add your raid filesystem to /etc/fstab
+#    DO NOT add your raid filesystem to /etc/fstab
 # 4) copy this script (to /etc/rc.d/init.d if you wish) and edit it to
 #    reflect your desired settings.
-# 5) Modify the heartbeat 'haresources' setup file
-# 6) unmount the filesystem and stop the raid device with 'raidstop'
+# 5) Modify the heartbeat 'haresources' (for non-crm heartbeat) or 'cib.xml' (for crm heartbeat) setup file
+# 6) unmount the filesystem and stop the raid device with 'raidstop' or 'mdadm -S'
 # 7) fire up heartbeat!
 #
 # 
@@ -76,16 +83,19 @@
 #
 #  raiddev		    /dev/md0
 #  raid-level		    1
-#  nr-raid-disks		    2
+#  nr-raid-disks	    2
 #  chunk-size		    64k
-#  persistent-superblock	    1
+#  persistent-superblock    1
 #  #nr-spare-disks	    0
 #    device	    /dev/sda1
 #    raid-disk     0
 #    device	    /dev/sdb1
 #    raid-disk     1
 #
-
+# EXAMPLE config file /etc/mdadm.conf (for more info:man mdadm.conf)
+#
+#  DEVICE /dev/sdb1 /dev/sdb2 
+#  ARRAY /dev/md0 level=raid1 UUID=4a865b55:ba27ef8d:29cd5701:6fb42799
 #######################################################################
 # Initialization:
 
@@ -113,7 +123,7 @@ check_util () {
 usage() {
 	cat <<-EOT
 	usage: $0 {start|stop|status|monitor|validate-all|usage|meta-data}
-	$Id: Raid1.in,v 1.7 2006/01/26 18:00:05 lars Exp $
+	$Id: Raid1.in,v 1.8 2006/02/16 08:36:31 xunsun Exp $
 	EOT
 }
 
@@ -133,10 +143,10 @@ storage medium.
 <parameters>
 <parameter name="raidconf" unique="0" required="1">
 <longdesc lang="en">
-The name of RAID configuration file. e.g. /etc/raidtab.
+The RAID configuration file. e.g. /etc/raidtab or /etc/mdadm.conf.
 </longdesc>
-<shortdesc lang="en">RAID tab config file</shortdesc>
-<content type="string" default="/etc/raidtab" />
+<shortdesc lang="en">RAID config file</shortdesc>
+<content type="string" default="" />
 </parameter>
 
 <parameter name="raiddev" unique="0" required="1">
@@ -187,7 +197,6 @@ raid1_start() {
 	if [ $? -ne 0 ] ; then
 	# It is not fatal, chance is that we have raid1 builtin...
 	    ocf_log warn "Couldn't insert RAID1 module"
-#	    return 1
 	fi
 	grep -q "^Personalities.*\[raid1\]" /proc/mdstat 2>/dev/null
 	if [ $? -ne 0 ] ; then
@@ -197,19 +206,11 @@ raid1_start() {
 
 	if [ $HAVE_RAIDTOOLS = "true" ]; then
 	    # Run raidstart to start up the RAID array
-	    $RAIDSTART --configfile $RAIDTAB_CONFIG $MDDEV
+	    $RAIDSTART --configfile $RAIDCONF $MDDEV
 	else
 	    # Run mdadm
-	    $MDADM --run $MDDEV --config=$RAIDTAB_CONFIG
+	    $MDADM --assemble $MDDEV --config=$RAIDCONF
 	fi
-
-
-	# We can't rely the exit status above, $MDADM will return 0 on some failures, see
-	#
-	#	# mdadm --run /dev/nosuchdevice
-	#	mdadm: error opening /dev/nosuchdevice: No such file or directory
-	#	# echo $?
-	#	0
 
 	if [ "running" = `raid1_status` ]; then
 	    return $OCF_SUCCESS
@@ -224,18 +225,15 @@ raid1_start() {
 #
 raid1_stop() {
 	# See if the MD device is online
-	grep -e "^$MD[ \t:]" /proc/mdstat >/dev/null
-	if [ $? -ne 0 ] ; then
-	        ocf_log warn "device $MD is not online according to kernel"
+	if [ "stopped" = `raid1_status` ]; then
 		return $OCF_SUCCESS
 	fi
 
 	# See if the MD device is mounted
-	# NOTE: this will not work right if you have more than 10 md devices!
 	$MOUNT | grep -e "^$MDDEV\>" >/dev/null
 	if [ $? -ne 1 ] ; then
 		# Kill all processes open on filesystem
-		$FUSER -mk $MOUNTPOINT
+		$FUSER -m -k $MDDEV
 
 		# the return from fuser doesn't tell us much
 		#if [ $? -ne 0 ] ; then
@@ -245,10 +243,6 @@ raid1_stop() {
 
 		# Unmount the filesystem
 		$UMOUNT $MDDEV
-		if [ $? -ne 0 ] ; then
-			ocf_log err "Couldn't unmount filesystem for $MDDEV"
-			return $OCF_ERR_GENERIC
-		fi
 
 		$MOUNT | grep -e "^$MDDEV\>" >/dev/null
 		if [ $? -ne 1 ] ; then
@@ -259,9 +253,9 @@ raid1_stop() {
 
 	# Turn off raid
 	if [ $HAVE_RAIDTOOLS = "true" ]; then
-		$RAIDSTOP --configfile /etc/raidtab.$MD $MDDEV
+		$RAIDSTOP --configfile $RAIDCONF $MDDEV
 	else
-		$MDADM --stop $MDDEV --config=$RAIDTAB_CONFIG
+		$MDADM --stop $MDDEV --config=$RAIDCONF
 	fi
 
 	if [ $? -ne 0 ] ; then
@@ -300,9 +294,9 @@ raid1_validate_all() {
 	    fi
 		
 	    COMMENT="\(#.*\)"
-	    grep -q "^[[:space:]]*raiddev[[:space:]]\+$MDDEV[[:space:]]*$COMMENT\?$" $RAIDTAB_CONFIG 2>/dev/null
+	    grep -q "^[[:space:]]*raiddev[[:space:]]\+$MDDEV[[:space:]]*$COMMENT\?$" $RAIDCONF 2>/dev/null
 	    if [ $? -ne 0 ]; then
-		ocf_log err "Raid device $MDDEV does not appear in $RAIDTAB_CONFIG"
+		ocf_log err "Raid device $MDDEV does not appear in $RAIDCONF"
 		exit $OCF_ERR_GENERIC
 	    fi
 	else
@@ -346,16 +340,16 @@ esac
 # Check the necessary enviroment virable's setting 
 # 
 
-RAIDTAB_CONFIG=$OCF_RESKEY_raidconf
+RAIDCONF=$OCF_RESKEY_raidconf
 MDDEV=$OCF_RESKEY_raiddev
 
-if [ -z "$RAIDTAB_CONFIG" ] ; then
+if [ -z "$RAIDCONF" ] ; then
 	ocf_log err "Please set OCF_RESKEY_raidconf!"
 	exit $OCF_ERR_ARGS
 fi
 
-if [ ! -r "$RAIDTAB_CONFIG" ] ; then
-	ocf_log err "Configuration file [$RAIDTAB_CONFIG] does not exist, or can not be opend!"
+if [ ! -r "$RAIDCONF" ] ; then
+	ocf_log err "Configuration file [$RAIDCONF] does not exist, or can not be opend!"
 	exit $OCF_ERR_ARGS
 fi
 
@@ -365,7 +359,7 @@ if [ -z "$MDDEV" ] ; then
 fi
 
 if [ ! -b "$MDDEV" ] ; then
-	ocf_log err "Couldn't find MD device $MDDEV. Expected /dev/md* to exist"
+	ocf_log err "$MDDEV is not a block device!"
 	exit $OCF_ERR_ARGS
 fi
 
@@ -375,20 +369,17 @@ MD=`echo $MDDEV | sed -e 's/\/dev\///'`
 # Check to make sure the utilites are found
 check_util $MODPROBE
 check_util $FUSER
-#check_util $RAIDSTART
 check_util $MOUNT
 check_util $UMOUNT
 
 HAVE_RAIDTOOLS=false
 
 if [ -z "$RAIDSTART" -o ! -x "$RAIDSTART" ]; then
-  ocf_log info "Raidstart not found, trying mdadm..."
+  ocf_log info "$RAIDSTART not found, trying mdadm..."
   check_util $MDADM
 else
   check_util $RAIDSTOP
-  
   HAVE_RAIDTOOLS=true
-  
 fi
 
 # At this stage,
