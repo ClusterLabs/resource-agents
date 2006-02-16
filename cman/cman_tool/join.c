@@ -20,6 +20,36 @@
 static char *argv[128];
 static char *envp[128];
 
+static void be_daemon(int close_stderr)
+{
+	int devnull = open("/dev/null", O_RDWR);
+	if (devnull == -1) {
+		perror("Can't open /dev/null");
+		exit(3);
+	}
+
+	/* Detach ourself from the calling environment */
+	if (close(0) || close(1)) {
+		die("Error closing terminal FDs");
+	}
+
+	if (dup2(devnull, 0) < 0 || dup2(devnull, 1) < 0) {
+		die("Error setting terminal FDs to /dev/null: %m");
+	}
+
+	if (close_stderr) {
+		if (close(2)) {
+			die("Error closing stderr FD");
+		}
+		if (!dup2(devnull, 2) < 0) {
+			die("Error setting stderr FD to /dev/null: %m");
+		}
+	}
+
+	setsid();
+}
+
+
 int join(commandline_t *comline)
 {
 	int i;
@@ -34,7 +64,7 @@ int join(commandline_t *comline)
 	{
 		die ("ccsd is not running\n");
 	}
-
+	ccs_disconnect(ctree);
 
         /*
 	 * If we can talk to cman then we're already joined (or joining);
@@ -86,7 +116,7 @@ int join(commandline_t *comline)
 		die("fork of aisexec daemon failed: %s", strerror(errno));
 
 	case 0: // child
-		setsid();
+		be_daemon(!comline->verbose);
 		chdir(SBINDIR);
 		execve("./aisexec", argv, envp);
 		die("execve of " SBINDIR "/aisexec failed: %s", strerror(errno));
