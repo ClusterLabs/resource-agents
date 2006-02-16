@@ -45,10 +45,22 @@ do { \
 	} \
 } while (0)
 
+enum {
+	DO_STOP = 1,
+	DO_START,
+	DO_FINISH,
+	DO_TERMINATE,
+	DO_SET_ID,
+	DO_DELIVER,
+};
 
-static void make_args(char *buf, int *argc, char **argv, char sep)
+
+/* if there's more data beyond the number of args we want, the return value
+   points to it */
+
+static char *get_args(char *buf, int *argc, char **argv, char sep, int want)
 {
-	char *p = buf;
+	char *p = buf, *rp = NULL;
 	int i;
 
 	argv[0] = p;
@@ -58,10 +70,77 @@ static void make_args(char *buf, int *argc, char **argv, char sep)
 		if (!p)
 			break;
 		*p = '\0';
+
+		if (want == i) {
+			rp = p + 1;
+			break;
+		}
+
 		argv[i] = p + 1;
 		buf = p + 1;
 	}
 	*argc = i;
+
+	return rp;
+}
+
+void get_nodeids(char *buf, int memb_count, int *nodeids)
+{
+	char *p;
+	int i, count = 0;
+
+	for (i = 0; ; i++) {
+		if (isdigit(buf[i]))
+			break;
+	}
+
+	buf = &buf[i];
+
+	for (i = 0; i < memb_count; i++) {
+
+		nodeids[count++] = atoi(buf);
+
+		p = strchr(buf, ' ');
+		if (!p)
+			break;
+
+		buf = p + 1;
+	}
+}
+
+int get_action(char *buf)
+{
+	char act[16];
+	int i;
+
+	memset(act, 0, 16);
+
+	for (i = 0; i < 16; i++) {
+		if (isalnum(buf[i]))
+			act[i] = buf[i];
+		else
+			break;
+	}
+
+	if (strncmp(act, "stop", 16))
+		return DO_STOP;
+
+	if (strncmp(act, "start", 16))
+		return DO_START;
+
+	if (strncmp(act, "finish", 16))
+		return DO_FINISH;
+
+	if (strncmp(act, "terminate", 16))
+		return DO_TERMINATE;
+
+	if (strncmp(act, "set_id", 16))
+		return DO_SET_ID;
+
+	if (strncmp(act, "deliver", 16))
+		return DO_DELIVER;
+
+	return -1;
 }
 
 static int do_write(int fd, void *buf, size_t count)
@@ -99,6 +178,8 @@ static int _joinleave(group_handle_t handle, char *name, char *cmd)
 
 	memset(buf, 0, sizeof(buf));
 	snprintf(buf, sizeof(buf), "%s %s", cmd, name);
+
+	printf("write to groupd \"%s\"\n", buf);
 
 	return do_write(h->fd, buf, GROUPD_MSGLEN);
 }
@@ -222,10 +303,46 @@ int group_get_fd(group_handle_t handle)
 	return h->fd;
 }
 
+/* Format of string messages we receive from groupd:
+   0         1      2           3     4
+
+   stop      <name>
+   
+      name = the name of the group (same for rest)
+
+   start     <name> <event_nr> <type> <memb_count> <memb0> <memb1>...
+
+      event_nr = used to later match finish/terminate
+      type = 1/GROUP_NODE_FAILED, 2/GROUP_NODE_JOIN, 3/GROUP_NODE_LEAVE
+      memb_count = the number of group members
+      memb0... = the nodeids of the group members
+
+   finish    <name> <event_nr>
+   
+      event_nr = matches the start event that's finishing
+
+   terminate <name> <event_nr>
+
+      event_nr = matches the start event that's being canceled
+
+   set_id    <name> <id>
+
+      id = the global id of the group
+
+   deliver   <name> <nodeid>   <len>  <offset>     <data>
+
+      nodeid = who sent the message
+      len = length of the message
+      offset = number of bytes from the start of the buffer the message begins
+      data = the message
+
+*/
+
 int group_dispatch(group_handle_t handle)
 {
-	char buf[GROUPD_MSGLEN], *argv[MAXARGS], *act;
-	int argc, rv, i, count, *nodeids;
+	char buf[GROUPD_MSGLEN], *argv[MAXARGS];
+	char *p;
+	int act, argc, rv, i, count, *nodeids;
 	struct group_handle *h = (struct group_handle *) handle;
 	VALIDATE_HANDLE(h);
 
@@ -233,31 +350,57 @@ int group_dispatch(group_handle_t handle)
 
 	rv = read(h->fd, &buf, GROUPD_MSGLEN);
 
+	printf("read from groupd \"%s\"\n", buf);
+
 	/* FIXME: check rv */
 
-	make_args(buf, &argc, argv, ' ');
-	act = argv[0];
+	act = get_action(buf);
 
-	if (!strcmp(act, "stop")) {
+	switch (act) {
+
+	case DO_STOP:
+		get_args(buf, &argc, argv, ' ', 2);
+
 		h->cbs.stop(h, h->private, argv[1]);
+		break;
 
-	} else if (!strcmp(act, "start")) {
-		count = argc - 4;
+	case DO_START:
+		p = get_args(buf, &argc, argv, ' ', 5);
+
+		count = atoi(argv[4]);
 		nodeids = malloc(count * sizeof(int));
-		for (i = 4; i < argc; i++)
-			nodeids[i-4] = atoi(argv[i]);
+		get_nodeids(p, count, nodeids);
+
 		h->cbs.start(h, h->private, argv[1], atoi(argv[2]),
 			     atoi(argv[3]), count, nodeids);
+
 		free(nodeids);
+		break;
 
-	} else if (!strcmp(act, "finish")) {
+	case DO_FINISH:
+		get_args(buf, &argc, argv, ' ', 3);
+
 		h->cbs.finish(h, h->private, argv[1], atoi(argv[2]));
+		break;
 
-	} else if (!strcmp(act, "terminate")) {
+	case DO_TERMINATE:
+		get_args(buf, &argc, argv, ' ', 3);
+
 		h->cbs.terminate(h, h->private, argv[1]);
+		break;
 
-	} else if (!strcmp(act, "set_id")) {
+	case DO_SET_ID:
+		get_args(buf, &argc, argv, ' ', 3);
+
 		h->cbs.set_id(h, h->private, argv[1], atoi(argv[2]));
+		break;
+
+	case DO_DELIVER:
+		get_args(buf, &argc, argv, ' ', 5);
+
+		h->cbs.deliver(h, h->private, argv[1], atoi(argv[2]),
+			       buf + atoi(argv[4]), atoi(argv[3]));
+		break;
 	}
 
 	return 0;
