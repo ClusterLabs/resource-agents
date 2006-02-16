@@ -15,6 +15,7 @@
 #include <signal.h>
 #include "libcman.h"
 #include "cman_tool.h"
+#include "ccs.h"
 
 static char *argv[128];
 static char *envp[128];
@@ -26,8 +27,16 @@ int join(commandline_t *comline)
 	char scratch[1024];
 	cman_handle_t h;
 	pid_t aisexec_pid;
+	int ctree;
 
-	/*
+	ctree = ccs_force_connect(NULL, 1);
+	if (ctree < 0)
+	{
+		die ("ccsd is not running\n");
+	}
+
+
+        /*
 	 * If we can talk to cman then we're already joined (or joining);
 	 */
 	h = cman_admin_init(NULL);
