@@ -401,6 +401,7 @@ static int loop(void)
 			if (pollfd[i].revents & POLLHUP)
 				client_dead(i);
 			else if (pollfd[i].revents & POLLIN) {
+				printf("poll %d\n", i);
 				workfn = client[i].workfn;
 				workfn(i);
 			}

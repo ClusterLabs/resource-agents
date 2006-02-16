@@ -164,7 +164,7 @@ struct group {
 	app_t 			*app;
 	struct list_head  	messages;
 	cpg_handle_t		cpg_handle;
-	cpg_handle_t		cpg_fd;
+	int			cpg_fd;
 	int			cpg_client;
 };
 
@@ -189,9 +189,10 @@ struct app {
 #define MSG_APP_STARTED        2
 
 struct msg {
-	uint8_t 		ms_type;
-	uint8_t 		ms_status;
-	uint32_t 		ms_count;
+	uint32_t 		ms_type;
+	uint32_t 		ms_id;
+	uint32_t 		ms_pad;
+	uint32_t		ms_pad2;
 };
 
 /*
@@ -235,7 +236,7 @@ int setup_cman(void);
 int setup_cpg(void);
 int do_cpg_join(group_t *g);
 int do_cpg_leave(group_t *g);
-int send_message(group_t *g, char *buf, int len);
+int send_message(group_t *g, void *buf, int len);
 
 /* joinleave.c */
 void remove_group(group_t *g);

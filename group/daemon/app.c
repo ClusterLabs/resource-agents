@@ -338,7 +338,7 @@ static int send_stopped(group_t *g)
 	msg.ms_type = MSG_APP_STOPPED;
 
 	log_group(g, "send stopped");
-	return send_message(g, (char *) &msg, sizeof(msg));
+	return send_message(g, &msg, sizeof(msg));
 }
 
 static int send_started(group_t *g)
@@ -349,7 +349,7 @@ static int send_started(group_t *g)
 	msg.ms_type = MSG_APP_STARTED;
 
 	log_group(g, "send started");
-	return send_message(g, (char *) &msg, sizeof(msg));
+	return send_message(g, &msg, sizeof(msg));
 }
 
 int do_stopdone(char *name, int level)
@@ -724,6 +724,48 @@ static int group_started(event_t *ev)
 	};
 }
 
+void dump_group(group_t *g)
+{
+	node_t *node;
+	struct save_msg *save;
+	event_t *ev;
+
+	printf("---\n");
+	printf("name: %s\n", g->name);
+	printf("level: %d\n", g->level);
+	printf("global_id: %u\n", g->global_id);
+	printf("cpg client: %d\n", g->cpg_client);
+	printf("app client: %d\n", g->app->client);
+
+	printf("memb count: %u\n", g->memb_count);
+	printf("memb list: ");
+	list_for_each_entry(node, &g->memb, list)
+		printf("%d ", node->nodeid);
+	printf("\n");
+
+	printf("app node count: %u\n", g->app->node_count);
+	printf("app node list: ");
+	list_for_each_entry(node, &g->app->nodes, list)
+		printf("%d ", node->nodeid);
+	printf("\n");
+
+	printf("saved messages: ");
+	list_for_each_entry(save, &g->messages, list)
+		printf("%d/%d ", save->nodeid, save->msg.ms_type);
+	printf("\n");
+
+	printf("events: ");
+	list_for_each_entry(ev, &g->app->events, list)
+		printf("%d-%s ", ev->nodeid, ev_state_str(ev));
+	printf("\n");
+
+	if (g->app->current_event)
+		printf("current_event %d-%s\n",
+			g->app->current_event->nodeid,
+			g->app->current_event->state);
+	printf("---\n");
+}
+
 static int process_app(group_t *g)
 {
 	app_t *a = g->app;
@@ -737,12 +779,16 @@ static int process_app(group_t *g)
 		rv += process_app_messages(g);
 		rv += process_current_event(g);
 
+		dump_group(g);
+
 		/* if there's a recovery event, the current event is
 		   abandoned and replaced with the recovery event */
 
 		rev = find_queued_recover_event(g);
 		if (!rev)
 			goto out;
+
+		log_group(g, "setting recover event");
 
 		list_del(&rev->list);
 		ev = a->current_event;
@@ -767,6 +813,7 @@ static int process_app(group_t *g)
 			list_del(&ev->list);
 			a->current_event = ev;
 			rv = process_current_event(g);
+			dump_group(g);
 		}
 	}
  out:
@@ -775,10 +822,10 @@ static int process_app(group_t *g)
 
 int process_apps(void)
 {
-	group_t *g;
+	group_t *g, *safe;
 	int rv = 0;
 
-	list_for_each_entry(g, &gd_groups, list)
+	list_for_each_entry_safe(g, safe, &gd_groups, list)
 		rv += process_app(g);
 
 	return rv;

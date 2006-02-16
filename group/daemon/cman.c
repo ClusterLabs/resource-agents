@@ -64,8 +64,10 @@ int setup_cman(void)
 		goto out;
 	}
 
+	/*
 	our_nodeid = node.cn_nodeid;
 	log_debug("our nodeid %d", our_nodeid);
+	*/
 
 	fd = cman_get_fd(ch);
 	client_add(fd, process_cman);

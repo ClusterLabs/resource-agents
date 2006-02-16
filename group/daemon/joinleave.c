@@ -29,6 +29,7 @@ int create_group(char *name, int level, group_t **g_out)
 	g->namelen = strlen(name);
 	g->level = level;
 	INIT_LIST_HEAD(&g->memb);
+	INIT_LIST_HEAD(&g->messages);
 
 	list_add_tail(&g->list, &gd_groups);
 	list_add_tail(&g->level_list, &gd_levels[level]);

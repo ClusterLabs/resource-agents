@@ -52,6 +52,9 @@ static void process_node_down(group_t *g, int nodeid)
 	g->memb_count--;
 	free(node);
 
+	log_group(g, "group del node %d total %d - down",
+		  nodeid, g->memb_count);
+
 	ev = find_queued_recover_event(g);
 	if (ev)
 		extend_recover_event(ev, nodeid);
@@ -87,11 +90,15 @@ static void process_node_join(group_t *g, int nodeid)
 			node = new_node(saved_member[i].nodeId);
 			list_add_tail(&node->list, &g->memb);
 			g->memb_count++;
+			log_group(g, "group add node %d total %d - init",
+				  node->nodeid, g->memb_count);
 		}
 	} else {
 		node = new_node(nodeid);
 		list_add_tail(&node->list, &g->memb);
 		g->memb_count++;
+		log_group(g, "group add node %d total %d",
+			  node->nodeid, g->memb_count);
 	}
 
 	queue_app_join(g, nodeid);
@@ -113,6 +120,8 @@ static void process_node_leave(group_t *g, int nodeid)
 	g->memb_count--;
 	free(node);
 
+	log_group(g, "group del node %d total %d", nodeid, g->memb_count);
+
 	queue_app_leave(g, nodeid);
 }
 
@@ -129,6 +138,10 @@ void process_groupd_confchg(void)
 		    saved_member[i].pid == (uint32_t) getpid()) {
 			found = 1;
 		}
+
+		/* REMOVEME */
+		if (saved_member[i].pid == (uint32_t) getpid())
+			our_nodeid = saved_member[i].nodeId;
 	}
 	printf("\n");
 
@@ -147,7 +160,7 @@ void process_groupd_confchg(void)
 	else
 		log_print("we are not in groupd confchg: %u %u",
 			  our_nodeid, (uint32_t) getpid());
-	
+
 	for (i = 0; i < saved_left_count; i++) {
 		if (saved_left[i].reason != CPG_REASON_LEAVE)
 			add_recovery_set(saved_left[i].nodeId);
@@ -173,6 +186,7 @@ void process_deliver(void)
 
 	if (saved_handle == groupd_handle) {
 		log_print("shouldn't get here");
+		printf("%s\n", saved_msg);
 		return;
 	}
 
@@ -198,7 +212,9 @@ void process_confchg(void)
 		return;
 	}
 
-	log_print("process_confchg");
+	log_print("process_confchg member_count %d joined_count %d "
+		  "left_count %d", saved_member_count, saved_joined_count,
+		  saved_left_count);
 
 	g = find_group_by_handle(saved_handle, saved_name);
 	if (!g) {
@@ -221,12 +237,19 @@ void process_confchg(void)
 void deliver_cb(cpg_handle_t handle, SaNameT *group_name,
 		uint32_t nodeid, uint32_t pid, void *msg, int msg_len)
 {
+	int i;
+
+	printf("deliver_cb from %d len %d\n", nodeid, msg_len);
 	saved_handle = handle;
-	saved_name = *group_name;
 	saved_nodeid = nodeid;
 	saved_pid = pid;
 	saved_msg_len = msg_len;
 	memcpy(saved_msg, msg, msg_len);
+
+	saved_name.length = group_name->length;
+	for (i = 0; i < group_name->length; i++)
+		saved_name.value[i] = group_name->value[i];
+
 	got_deliver = 1;
 }
 
@@ -238,10 +261,13 @@ void confchg_cb(cpg_handle_t handle, SaNameT *group_name,
 	int i;
 
 	saved_handle = handle;
-	saved_name = *group_name;
 	saved_left_count = left_list_entries;
 	saved_joined_count = joined_list_entries;
 	saved_member_count = member_list_entries;
+
+	saved_name.length = group_name->length;
+	for (i = 0; i < group_name->length; i++)
+		saved_name.value[i] = group_name->value[i];
 
 	for (i = 0; i < left_list_entries; i++)
 		saved_left[i] = left_list[i];
@@ -290,7 +316,7 @@ void process_cpg(int ci)
 	while (1) {
 		error = cpg_dispatch(handle, CPG_DISPATCH_ALL);
 		if (error != CPG_OK)
-			break;
+			log_print("cpg_dispatch error %d", error);
 
 		if (got_deliver) {
 			process_deliver();
@@ -328,7 +354,7 @@ int setup_cpg(void)
 		return error;
 	}
 
-	log_debug("setup_cpg done");
+	log_debug("setup_cpg ok");
 
 	return 0;
 }
@@ -350,6 +376,10 @@ int do_cpg_join(group_t *g)
 
 	ci = client_add(fd, process_cpg);
 
+	g->cpg_client = ci;
+	g->cpg_handle = h;
+	g->cpg_fd = fd;
+
 	sprintf(name.value, "%d_%s", g->level, g->name);
 
 	log_group(g, "is cpg client %d name %s", ci, name.value);
@@ -360,10 +390,6 @@ int do_cpg_join(group_t *g)
 		cpg_finalize(h);
 		return error;
 	}
-
-	g->cpg_client = ci;
-	g->cpg_handle = h;
-	g->cpg_fd = fd;
 
 	log_group(g, "cpg_join ok");
 
@@ -390,10 +416,16 @@ int do_cpg_leave(group_t *g)
 	return 0;
 }
 
-int send_message(group_t *g, char *buf, int len)
+int send_message(group_t *g, void *buf, int len)
 {
 	struct iovec iov;
 	cpg_error_t error;
+
+	/*
+	iov.iov_base = "hello";
+	iov.iov_len = 5;
+	cpg_mcast_joined(groupd_handle, CPG_TYPE_AGREED, &iov, 1);
+	*/
 
 	iov.iov_base = buf;
 	iov.iov_len = len;
