@@ -10,7 +10,7 @@
 ###############################################################################
 ###############################################################################
 
-CFLAGS+= -g -I. -I../include/ -I../../cman/lib/ -I../lib/ -I../../../openais/trunk/include/
+CFLAGS+= -g -I. -I../include/ -I../../cman/lib/ -I../lib/ -I../../cman/daemon/openais/trunk/include/
 
 TARGET=groupd
 
