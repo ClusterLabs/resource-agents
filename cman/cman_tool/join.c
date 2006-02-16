@@ -64,14 +64,11 @@ int join(commandline_t *comline)
 		snprintf(scratch, sizeof(scratch), "CMAN_NODENAME=%s", comline->nodenames[0]);
 		envp[envptr++] = strdup(scratch);
 	}
+	if (comline->verbose)
+		envp[envptr++] = strdup("CMAN_DEBUGLOG=y");
 	envp[envptr++] = NULL;
 
 	argv[0] = "aisexec";
-	if (comline->verbose)
-                argv[1] = "-d";
-
-	if (comline->verbose && comline->wait_opt)
-                argv[2] = "-w";
 
 	/* Fork/exec cman */
 	switch ( (aisexec_pid = fork()) )

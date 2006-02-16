@@ -146,6 +146,10 @@ static int cman_config_init_fn (struct openais_config *openais_config)
 		exit(1);
 
 	comms_init_ais();
+
+	if (getenv("CMAN_DEBUGLOG"))
+	    log_setup(NULL, LOG_MODE_STDERR, "/tmp/ais");
+
 	memcpy(&openais_config->totem_config, &cman_ais_config, sizeof(struct totem_config));
 	return 0;
 }
