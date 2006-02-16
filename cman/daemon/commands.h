@@ -32,6 +32,11 @@ extern void del_ais_node(struct totem_ip_address *ais_node);
 extern void add_ccs_node(char *name, int nodeid, int votes, int expected_votes);
 extern void override_expected(int expected);
 
+/* Startup stuff called from cmanccs: */
+extern int do_cmd_set_nodename(char *cmdbuf, int *retlen);
+extern int do_cmd_set_nodeid(char *cmdbuf, int *retlen);
+extern int do_cmd_join_cluster(char *cmdbuf, int *retlen);
+
 extern unsigned int config_version;
 extern int cluster_members;
 extern int two_node;

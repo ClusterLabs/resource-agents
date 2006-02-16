@@ -56,7 +56,7 @@ static int use_count;
 static struct connection *port_array[256];
 
 /* Name of file holding security key for AIS comms */
-static char *key_filename;
+       char *key_filename;
 
 // Stuff that was more global
 static LIST_INIT(cluster_members_list);
@@ -66,6 +66,7 @@ static LIST_INIT(cluster_members_list);
 static struct cluster_node *us;
 static int quorum;
        int two_node;
+       int ip_port;
 static int cluster_is_quorate;
        char cluster_name[MAX_CLUSTER_NAME_LEN+1];
 static char nodename[MAX_CLUSTER_MEMBER_NAME_LEN+1];
@@ -677,7 +678,7 @@ static int do_cmd_set_votes(char *cmdbuf, int *retlen)
 	return 0;
 }
 
-static int do_cmd_set_nodename(char *cmdbuf, int *retlen)
+/*static*/ int do_cmd_set_nodename(char *cmdbuf, int *retlen)
 {
 	if (ais_running)
 		return -EALREADY;
@@ -686,7 +687,7 @@ static int do_cmd_set_nodename(char *cmdbuf, int *retlen)
 	return 0;
 }
 
-static int do_cmd_set_nodeid(char *cmdbuf, int *retlen)
+/*static*/ int do_cmd_set_nodeid(char *cmdbuf, int *retlen)
 {
 	int nodeid;
 
@@ -742,7 +743,7 @@ static uint16_t generate_cluster_id(char *name)
 	return value & 0xFFFF;
 }
 
-static int do_cmd_join_cluster(char *cmdbuf, int *retlen)
+/*static*/ int do_cmd_join_cluster(char *cmdbuf, int *retlen)
 {
 	struct cl_join_cluster_info *join_info = (struct cl_join_cluster_info *)cmdbuf;
 	struct utsname un;
@@ -759,10 +760,11 @@ static int do_cmd_join_cluster(char *cmdbuf, int *retlen)
 	cluster_id = generate_cluster_id(join_info->cluster_name);
 	strncpy(cluster_name, join_info->cluster_name, MAX_CLUSTER_NAME_LEN);
 	two_node = join_info->two_node;
+	ip_port = join_info->port;
 
 	/* Check for a race where ccs is updated between ccs_tool reading it and us starting up
 	   (bizarre but possible I suppose). Going forwards is OK as our new information will
-	   be updated. Infact the latter is quite possible during startup.
+	   be updated. In fact the latter is quite possible during startup.
 	*/
 	if (config_version < join_info->config_version) {
 		log_msg(LOG_ERR, "CCS went backwards during ccs_tool join, we read %d, ccs_tool said %d\n",
@@ -784,8 +786,9 @@ static int do_cmd_join_cluster(char *cmdbuf, int *retlen)
 			  NODESTATE_MEMBER, NULL);
 	set_port_bit(us, 0);
 	us->us = 1;
+	cluster_members = 1;
 
-	return comms_init_ais(join_info->port, key_filename);
+	return 0;
 }
 
 static int do_cmd_leave_cluster(char *cmdbuf, int *retlen)
@@ -794,9 +797,6 @@ static int do_cmd_leave_cluster(char *cmdbuf, int *retlen)
 
 	if (!ais_running)
 		return -ENOTCONN;
-
-	if (!we_are_a_cluster_member)
-		return -ENOENT;
 
 	memcpy(&leave_flags, cmdbuf, sizeof(int));
 
@@ -808,6 +808,10 @@ static int do_cmd_leave_cluster(char *cmdbuf, int *retlen)
 
 	us->leave_reason = leave_flags;
 	quit_threads = 1;
+
+	/* No messaging available yet, just die */
+	if (!we_are_a_cluster_member)
+		exit(0);
 
 	send_leave(leave_flags);
 	use_count = 0;

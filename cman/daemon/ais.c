@@ -25,29 +25,37 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
-#include "cnxman-socket.h"
-
 #include "totemip.h"
 #include "totemconfig.h"
 #include "commands.h"
 #include "totempg.h"
 #include "aispoll.h"
+#include "handlers.h"
+#include "../lcr/lcr_comp.h"
+
+#include "cnxman-socket.h"
 #include "logging.h"
 #include "swab.h"
 #include "ais.h"
+#include "cmanccs.h"
+#include "daemon.h"
 #include "config.h"
 
 extern int our_nodeid();
-static totempg_groups_handle group_handle;
+extern char cluster_name[MAX_CLUSTER_NAME_LEN+1];
+extern int ip_port;
+extern char *key_filename;
 
 uint64_t incarnation;
 struct totem_ip_address mcast_addr;
 struct totem_interface ifaddrs[MAX_INTERFACES];
 int num_interfaces;
-struct totempg_group cman_group = {
-        .group          = "CMAN",
-        .group_len      = 4
+static totempg_groups_handle group_handle;
+static struct totempg_group cman_group[1] = {
+        { .group          = "CMAN", .group_len      = 4},
 };
+
+static struct totem_config cman_ais_config;
 
 /* This structure is tacked onto the start of a cluster message packet for our
  * own nefarious purposes. */
@@ -60,6 +68,103 @@ struct cl_protheader {
 	int            tgtid;	/* Node ID of the target */
 };
 
+/* Plugin-specific code */
+/* Need some better way of determining these.... */
+#define CMAN_SERVICE 8
+
+#define LOG_SERVICE LOG_SERVICE_AMF
+#include "print.h"
+#define LOG_LEVEL_FROM_LIB LOG_LEVEL_DEBUG
+#define LOG_LEVEL_FROM_GMI LOG_LEVEL_DEBUG
+#define LOG_LEVEL_ENTER_FUNC LOG_LEVEL_DEBUG
+
+static int cman_exit_fn (void *conn_info);
+
+static int cman_exec_init_fn (struct openais_config *);
+
+static int cman_config_init_fn (struct openais_config *openais_config);
+
+/*
+ * Exports the interface for the service
+ */
+static struct openais_service_handler cman_service_handler = {
+	.name		    		= (unsigned char *)"openais CMAN membership service 2.01",
+	.id			        = CMAN_SERVICE,
+	.lib_handlers	        	= NULL,
+	.lib_handlers_count		= 0,
+	.lib_exit_fn		       	= cman_exit_fn,
+	.exec_handlers		        = NULL,
+	.exec_handlers_count	        = 0,
+	.exec_init_fn		       	= cman_exec_init_fn,
+	.config_init_fn                 = cman_config_init_fn,
+};
+
+static struct openais_service_handler *cman_get_handler_ver0 (void);
+
+static struct openais_service_handler_iface_ver0 cman_service_handler_iface = {
+	.openais_get_service_handler_ver0 = cman_get_handler_ver0
+};
+
+static struct lcr_iface openais_cman_ver0[1] = {
+	{
+		.name		        = "openais_cman",
+		.version	        = 0,
+		.versions_replace     	= 0,
+		.versions_replace_count = 0,
+		.dependencies	      	= 0,
+		.dependency_count      	= 0,
+		.constructor	       	= NULL,
+		.destructor		= NULL,
+		.interfaces		= (void **)&cman_service_handler_iface,
+	}
+};
+
+static struct lcr_comp cman_comp_ver0 = {
+	.iface_count			= 1,
+	.ifaces			       	= openais_cman_ver0
+};
+
+static void register_this_component (void) {
+        lcr_component_register (&cman_comp_ver0);
+}
+
+void (*const __ctor_cman_comp[1]) (void) __attribute__ ((section(".ctors"))) = { register_this_component };
+
+
+static struct openais_service_handler *cman_get_handler_ver0 (void)
+{
+	return (&cman_service_handler);
+}
+
+static int cman_config_init_fn (struct openais_config *openais_config)
+{
+	int error;
+
+	init_config();
+	error = read_ccs_config();
+	if (error)
+		exit(1);
+
+	comms_init_ais();
+	memcpy(&openais_config->totem_config, &cman_ais_config, sizeof(struct totem_config));
+	return 0;
+}
+
+static int cman_exec_init_fn (struct openais_config *openais_config)
+{
+	cman_init();
+	return (0);
+}
+
+
+int cman_exit_fn (void *conn_info)
+{
+	cman_finish();
+	return (0);
+}
+
+/* END Plugin-specific code */
+
 int ais_set_mcast(char *mcast)
 {
 	int ret;
@@ -68,7 +173,7 @@ int ais_set_mcast(char *mcast)
 	ret = totemip_parse(&mcast_addr, mcast);
 
 	if (num_interfaces && mcast_addr.family != ifaddrs[0].bindnet.family) {
-		log_msg(LOG_ERR, "multicast address is not same family as host address\n");
+		log_msg(LOG_ERR, "multicast address '%s' is not same family as host address\n", mcast);
 		ret = -EINVAL;
 	}
 	return ret;
@@ -109,7 +214,6 @@ int comms_send_message(void *buf, int len,
 	struct iovec iov[2];
 	struct cl_protheader header;
 	int totem_flags = TOTEMPG_AGREED;
-	int status;
 
 	P_AIS("comms send message %p len = %d\n", buf,len);
 	header.tgtport = toport;
@@ -126,14 +230,11 @@ int comms_send_message(void *buf, int len,
 	if (flags & MSG_TOTEM_SAFE)
 		totem_flags = TOTEMPG_SAFE;
 
-	status = totempg_groups_mcast_joined(group_handle, iov, 2, totem_flags);
-	P_AIS("comms send message, status = %d\n", status);
-
-	return status;
+	return totempg_groups_mcast_joined(group_handle, iov, 2, totem_flags);
 }
 
 // This assumes the iovec has only one element ... is it true ??
-static void deliver_fn(struct totem_ip_address *source_addr, struct iovec *iovec, int iov_len, int endian_conversion_required)
+static void cman_deliver_fn(struct totem_ip_address *source_addr, struct iovec *iovec, int iov_len, int endian_conversion_required)
 {
 	struct cl_protheader *header = iovec->iov_base;
 	char *buf = iovec->iov_base;
@@ -159,7 +260,7 @@ static void deliver_fn(struct totem_ip_address *source_addr, struct iovec *iovec
 	}
 }
 
-static void confchg_fn(enum totem_configuration_type configuration_type,
+static void cman_confchg_fn(enum totem_configuration_type configuration_type,
 		       struct totem_ip_address *member_list, int member_list_entries,
 		       struct totem_ip_address *left_list, int left_list_entries,
 		       struct totem_ip_address *joined_list, int joined_list_entries,
@@ -185,56 +286,51 @@ static void confchg_fn(enum totem_configuration_type configuration_type,
 	}
 }
 
-extern poll_handle ais_poll_handle; // From daemon.c
-int comms_init_ais(unsigned short port, char *key_filename)
+int comms_init_ais()
 {
 	char *errstring;
 
-	/* AIS doesn't like these to disappear */
-	static struct totem_config ais_config;
-
 	P_AIS("comms_init_ais()\n");
 
-	ais_config.interfaces = ifaddrs;
-	ais_config.interface_count = num_interfaces;
-	ais_config.ip_port = htons(port);
+	cman_ais_config.interfaces = ifaddrs;
+	cman_ais_config.interface_count = num_interfaces;
+	cman_ais_config.ip_port = htons(ip_port);
 
-	totemip_copy(&ais_config.mcast_addr, &mcast_addr);
-	ais_config.node_id = htonl(our_nodeid());
+	totemip_copy(&cman_ais_config.mcast_addr, &mcast_addr);
+	cman_ais_config.node_id = htonl(our_nodeid());
 
-	ais_config.totem_logging_configuration.log_printf = log_msg;
-	ais_config.totem_logging_configuration.log_level_security = 5;
-	ais_config.totem_logging_configuration.log_level_error = 4;
-	ais_config.totem_logging_configuration.log_level_warning = 3;
-	ais_config.totem_logging_configuration.log_level_notice = 2;
-	ais_config.totem_logging_configuration.log_level_debug = 1;
+	cman_ais_config.totem_logging_configuration.log_printf = log_msg;
+	cman_ais_config.totem_logging_configuration.log_level_security = 5;
+	cman_ais_config.totem_logging_configuration.log_level_error = 4;
+	cman_ais_config.totem_logging_configuration.log_level_warning = 3;
+	cman_ais_config.totem_logging_configuration.log_level_notice = 2;
+	cman_ais_config.totem_logging_configuration.log_level_debug = 1;
 
         /* Set defaults */
-	ais_config.token_retransmits_before_loss_const = cman_config[TOKEN_RETRANSMITS_BEFORE_LOSS_CONST].value;
-	ais_config.token_timeout = cman_config[TOKEN_TIMEOUT].value;
-	ais_config.token_retransmit_timeout = cman_config[TOKEN_RETRANSMIT_TIMEOUT].value;
-	ais_config.token_hold_timeout = cman_config[TOKEN_HOLD_TIMEOUT].value;
-	ais_config.join_timeout = cman_config[JOIN_TIMEOUT].value;
-	ais_config.consensus_timeout = cman_config[CONSENSUS_TIMEOUT].value;
-	ais_config.merge_timeout = cman_config[MERGE_TIMEOUT].value;
-	ais_config.downcheck_timeout = cman_config[DOWNCHECK_TIMEOUT].value;
-	ais_config.fail_to_recv_const = cman_config[FAIL_TO_RECV_CONST].value;
-	ais_config.seqno_unchanged_const = cman_config[SEQNO_UNCHANGED_CONST].value;
-	ais_config.net_mtu = 1500;
-	ais_config.threads = cman_config[THREAD_COUNT].value;
+	cman_ais_config.token_retransmits_before_loss_const = cman_config[TOKEN_RETRANSMITS_BEFORE_LOSS_CONST].value;
+	cman_ais_config.token_timeout = cman_config[TOKEN_TIMEOUT].value;
+	cman_ais_config.token_retransmit_timeout = cman_config[TOKEN_RETRANSMIT_TIMEOUT].value;
+	cman_ais_config.token_hold_timeout = cman_config[TOKEN_HOLD_TIMEOUT].value;
+	cman_ais_config.join_timeout = cman_config[JOIN_TIMEOUT].value;
+	cman_ais_config.consensus_timeout = cman_config[CONSENSUS_TIMEOUT].value;
+	cman_ais_config.merge_timeout = cman_config[MERGE_TIMEOUT].value;
+	cman_ais_config.downcheck_timeout = cman_config[DOWNCHECK_TIMEOUT].value;
+	cman_ais_config.fail_to_recv_const = cman_config[FAIL_TO_RECV_CONST].value;
+	cman_ais_config.seqno_unchanged_const = cman_config[SEQNO_UNCHANGED_CONST].value;
+	cman_ais_config.net_mtu = 1500;
+	cman_ais_config.threads = cman_config[THREAD_COUNT].value;
 
-	// TEMP clear it all
-	ais_config.totem_logging_configuration.log_level_security =
-	ais_config.totem_logging_configuration.log_level_error =
-	ais_config.totem_logging_configuration.log_level_warning =
-	ais_config.totem_logging_configuration.log_level_notice =
-	ais_config.totem_logging_configuration.log_level_debug = 0;
+	cman_ais_config.totem_logging_configuration.log_level_security =
+	cman_ais_config.totem_logging_configuration.log_level_error =
+	cman_ais_config.totem_logging_configuration.log_level_warning =
+	cman_ais_config.totem_logging_configuration.log_level_notice =
+	cman_ais_config.totem_logging_configuration.log_level_debug = cman_config[DEBUG_LEVEL].value;
 
 	if (key_filename)
 	{
-		ais_config.secauth = 1;
+		cman_ais_config.secauth = 1;
 		P_AIS("Reading key from file %s\n", key_filename);
-		if (totem_config_keyread(key_filename, &ais_config, &errstring))
+		if (totem_config_keyread(key_filename, &cman_ais_config, &errstring))
 		{
 			P_AIS("Unable to read key from file %s: %s\n", key_filename, errstring);
 			log_msg(LOG_ERR, "Unable to read key from file %s: %s\n", key_filename, errstring);
@@ -243,15 +339,12 @@ int comms_init_ais(unsigned short port, char *key_filename)
 	}
 	else
 	{
-		ais_config.secauth = 0;
-		ais_config.private_key_len = 0;
+		cman_ais_config.secauth = 0;
+		cman_ais_config.private_key_len = 0;
 	}
+	totempg_groups_initialize(&group_handle, cman_deliver_fn, cman_confchg_fn);
 
-	totempg_groups_initialize(&group_handle, deliver_fn, confchg_fn);
-	totempg_groups_join(group_handle, &cman_group, 1);
-
-        totempg_initialize(ais_poll_handle,
-			   &ais_config);
+	totempg_groups_join(group_handle, cman_group, 1);
 
 	return 0;
 }

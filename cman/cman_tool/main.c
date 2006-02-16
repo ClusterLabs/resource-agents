@@ -671,18 +671,6 @@ static void check_arguments(commandline_t *comline)
 {
 	int error;
 
-	if (!comline->expected_votes)
-	        die("expected votes not set");
-
-	if (!comline->clustername[0])
-		die("cluster name not set");
-
-	if (!comline->votes)
-		comline->votes = DEFAULT_VOTES;
-
-	if (!comline->port)
-		comline->port = DEFAULT_PORT;
-
 	if (comline->two_node && comline->expected_votes != 1)
 		die("expected_votes value (%d) invalid in two node mode",
 		    comline->expected_votes);
@@ -697,7 +685,8 @@ static void check_arguments(commandline_t *comline)
 		comline->num_nodenames++;
 	}
 
-	if (comline->port <= 0 || comline->port > 65535)
+	if (comline->port_opt &&
+	    (comline->port <= 0 || comline->port > 65535))
 		die("Port must be a number between 1 and 65535");
 
 	/* This message looks like it contradicts the condition but
@@ -728,7 +717,6 @@ int main(int argc, char *argv[])
 
 	switch (comline.operation) {
 	case OP_JOIN:
-		get_ccs_join_info(&comline);
 		check_arguments(&comline);
 
 		if (comline.timeout) {

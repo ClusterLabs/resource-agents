@@ -40,7 +40,6 @@
 #include "config.h"
 #include "cmanccs.h"
 #include "ais.h"
-#include "memlock.h"
 
 struct queued_reply
 {
@@ -59,62 +58,6 @@ int num_connections = 0;
 poll_handle ais_poll_handle;
 
 static int process_client(poll_handle handle, int fd, int revent, void *data, unsigned int *prio);
-
-/* None of our threads is CPU intensive, but if they don't run when they are supposed
-   to, the node can get kicked out of the cluster.
-*/
-void cman_set_realtime()
-{
-#if 0 // Until debugged!
-	struct sched_param s;
-
-	s.sched_priority = cman_config[PROCESS_PRIORITY];
-	if (sched_setscheduler(0, SCHED_FIFO, &s))
-		log_msg(LOG_WARNING, "Cannot set priority: %s\n", strerror(errno));
-#endif
-}
-
-/*
- * Fork into the background and detach from our parent process.
- */
-static void be_daemon()
-{
-        pid_t pid;
-	int devnull = open("/dev/null", O_RDWR);
-	if (devnull == -1) {
-		perror("Can't open /dev/null");
-		exit(3);
-	}
-
-	switch (pid = fork()) {
-	case -1:
-		perror("cman: can't fork");
-		exit(2);
-
-	case 0:		/* Child */
-		break;
-
-	default:       /* Parent */
-		exit(0);
-	}
-
-	/* Detach ourself from the calling environment */
-	if (close(0) || close(1) || close(2)) {
-		syslog(LOG_ERR, "Error closing terminal FDs");
-		exit(4);
-	}
-	setsid();
-
-	if (dup2(devnull, 0) < 0 || dup2(devnull, 1) < 0
-	    || dup2(devnull, 2) < 0) {
-		syslog(LOG_ERR, "Error setting terminal FDs to /dev/null: %m");
-		exit(5);
-	}
-	if (chdir("/")) {
-		syslog(LOG_ERR, "Error setting current directory to /: %m");
-		exit(6);
-	}
-}
 
 /* Send it, or queue it for later if the socket is busy */
 static int send_reply_message(struct connection *con, struct sock_header *msg)
@@ -473,38 +416,16 @@ static void sigint_handler(int ignored)
 	quit_threads = 1;
 }
 
-
-int main(int argc, char *argv[])
+extern poll_handle aisexec_poll_handle;
+int cman_init()
 {
 	int fd;
-	int opt;
-	int no_fork = 0;
-	int wait_debug = 0;
 	struct sigaction sa;
 
-	ais_poll_handle = poll_create();
+	ais_poll_handle = aisexec_poll_handle;
 	barrier_init();
 
-	while ((opt=getopt(argc,argv,"dhw?")) != EOF) {
-		switch (opt) {
-
-		case 'h':
-		case '?':
-			printf("Usage\n");
-			break;
-
-		case 'd':
-			no_fork = 1;
-			break;
-
-		case 'w':
-			wait_debug = 1;
-			break;
-		}
-	}
-
-	init_config();
-	init_log(no_fork);
+	init_log(1);
 	init_debug(cman_config[DEBUG_MASK].value);
 
 	log_msg(LOG_INFO, "CMAN %s (built %s %s) started\n",
@@ -512,14 +433,11 @@ int main(int argc, char *argv[])
 
 	fd = open_local_sock(CLIENT_SOCKNAME, sizeof(CLIENT_SOCKNAME), 0660, ais_poll_handle, CON_CLIENT);
 	if (fd < 0)
-		exit(2);
+		return -2;
 
 	fd = open_local_sock(ADMIN_SOCKNAME, sizeof(ADMIN_SOCKNAME), 0600, ais_poll_handle, CON_ADMIN);
 	if (fd < 0)
-		exit(2);
-
-	if (!no_fork)
-		be_daemon();
+		return -2;
 
 	/* Shutdown trap */
 	sa.sa_handler = sigint_handler;
@@ -528,19 +446,16 @@ int main(int argc, char *argv[])
 
 	signal(SIGPIPE, SIG_IGN);
 
-
 	if (read_ccs_nodes()) {
 		log_msg(LOG_ERR, "Can't initialise list of nodes from CCS\n");
 		return -2;
 	}
 
-	memlock_inc();
-	cman_set_realtime();
+	return 0;
+}
 
-	/* Go. */
-	poll_run(ais_poll_handle);
-	memlock_dec();
-
+int cman_finish()
+{
 	/* Stop */
 	unlink(CLIENT_SOCKNAME);
  	unlink(ADMIN_SOCKNAME);

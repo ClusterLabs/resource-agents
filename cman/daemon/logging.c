@@ -21,6 +21,9 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+#define LOG_SERVICE LOG_SERVICE_MAIN
+#include "print.h"
+
 #include "list.h"
 #include "logging.h"
 #include "cnxman-socket.h"
@@ -43,6 +46,7 @@ int init_log(int debug)
 void log_msg(int priority, char *fmt, ...)
 {
 	va_list va;
+	char log_buf[1024];
 
 	if (!priority)
 		return;
@@ -53,11 +57,10 @@ void log_msg(int priority, char *fmt, ...)
 
 		gettimeofday(&tv, NULL);
 
-		fprintf(stderr, "%.15s.%06d ",  ctime(&tv.tv_sec)+4, (int)tv.tv_usec);
-		fprintf(stderr, "totem: ");
 		va_start(va, fmt);
-		vfprintf(stderr, fmt, va);
+		vsprintf(log_buf, fmt, va);
 		va_end(va);
+		log_printf(priority, log_buf);
 	}
 	else
 	{
@@ -103,7 +106,6 @@ void log_debug(int subsys, int stamp, const char *fmt, ...)
 		default:
 			break;
 		}
-		fprintf(stderr, "%.15s.%06d ",  ctime(&tv.tv_sec)+4, (int)tv.tv_usec);
 	}
 	else
 	{
@@ -112,8 +114,11 @@ void log_debug(int subsys, int stamp, const char *fmt, ...)
 	strcat(newfmt, fmt);
 
 	va_start(va, fmt);
-	if (use_stderr)
-		vfprintf(stderr, newfmt, va);
+	if (use_stderr) {
+		char log_buf[1024];
+		vsprintf(log_buf, newfmt, va);
+		log_printf(LOG_LEVEL_DEBUG, log_buf);
+	}
 	else
 		vsyslog(LOG_DEBUG, newfmt, va);
 	va_end(va);

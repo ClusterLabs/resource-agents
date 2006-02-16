@@ -36,6 +36,7 @@
 #define DEF_RESERVED_MEMORY                         256
 #define DEF_PROCESS_PRIORITY                        1
 
+#define DEF_DEBUG_LEVEL                             0
 #define DEF_DEBUG_MASK                              0xff
 
 struct config_entry cman_config[] = {
@@ -56,6 +57,7 @@ struct config_entry cman_config[] = {
 
 	[THREAD_COUNT] = { .name = "thread_count", .value = DEF_THREAD_COUNT},
 	[DEBUG_MASK] = { .name = "debug_mask", .value = DEF_DEBUG_MASK},
+	[DEBUG_LEVEL] = { .name = "debug_level", .value = DEF_DEBUG_LEVEL},
 
 };
 

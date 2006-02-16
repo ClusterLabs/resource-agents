@@ -40,7 +40,7 @@ extern struct config_entry cman_config[];
 #define THREAD_COUNT                           13
 
 #define DEBUG_MASK                             30
-
+#define DEBUG_LEVEL                            31
 
 extern void init_config(void);
 #endif				/* __CONFIG_DOT_H__ */

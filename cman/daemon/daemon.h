@@ -15,6 +15,9 @@ extern int send_data_reply(struct connection *con, int nodeid, int port, char *d
 extern void set_cman_timeout(int secs);
 extern void notify_listeners(struct connection *con, int reason, int arg);
 extern void cman_set_realtime(void);
+extern int cman_init(void);
+extern int cman_finish(void);
+
 
 extern volatile sig_atomic_t quit_threads;
 extern int num_connections;

@@ -11,6 +11,7 @@
 ###############################################################################
 
 top_srcdir=..
+sbindir=${top_srcdir}/daemon/openais/trunk/exec
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 include ${top_srcdir}/make/defines.mk
@@ -27,17 +28,14 @@ all: ${TARGET}
 copytobin: all
 	cp ${TARGET} ${top_srcdir}/bin
 
-cman_tool: main.o join.o join_ccs.o ../lib/libcman.a
+cman_tool: main.o join.o ../lib/libcman.a
 	$(CC) $(LDFLAGS) -L$(libdir) -o $@ $^ -L../lib -lccs
 
 main.o: main.c cman_tool.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 join.o: join.c cman_tool.h
-	$(CC) $(CFLAGS) -c -o $@ $< -DSBINDIR=\"../daemon\" #-DSBINDIR=\"${sbindir}\"
-
-join_ccs.o: join_ccs.c cman_tool.h
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) -c -o $@ $< -DSBINDIR=\"${sbindir}\"
 
 install: cman_tool
 	install -d ${sbindir}

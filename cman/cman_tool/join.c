@@ -17,36 +17,14 @@
 #include "cman_tool.h"
 
 static char *argv[128];
-
-static char *default_mcast(commandline_t *comline)
-{
-        struct addrinfo *ainfo;
-        struct addrinfo ahints;
-	int ret;
-
-        memset(&ahints, 0, sizeof(ahints));
-
-        /* Lookup the the nodename address and use it's IP type to
-	   default a multicast address */
-        ret = getaddrinfo(comline->nodenames[0], NULL, &ahints, &ainfo);
-	if (ret)
-		return NULL;
-
-	if (ainfo->ai_family == AF_INET)
-		return "239.192.9.1";
-	if (ainfo->ai_family == AF_INET6)
-		return "FF15::1";
-
-	return NULL;
-}
+static char *envp[128];
 
 int join(commandline_t *comline)
 {
-	cman_join_info_t join_info;
-	int error, i;
+	int i;
+	int envptr = 0;
+	char scratch[1024];
 	cman_handle_t h;
-	char nodename[256];
-	char *mcast_name;
 	pid_t cmand_pid;
 
 	/*
@@ -56,7 +34,39 @@ int join(commandline_t *comline)
 	if (h)
 		die("Node is already active");
 
-	argv[0] = "cmand";
+
+	/* Set up environment variables for override */
+	if (comline->multicast_addr) {
+		snprintf(scratch, sizeof(scratch), "CMAN_MCAST_ADDR=%s", comline->multicast_addr);
+		envp[envptr++] = strdup(scratch);
+	}
+	if (comline->votes_opt) {
+		snprintf(scratch, sizeof(scratch), "CMAN_VOTES=%d", comline->votes);
+		envp[envptr++] = strdup(scratch);
+	}
+	if (comline->expected_votes_opt) {
+		snprintf(scratch, sizeof(scratch), "CMAN_EXPECTEDVOTES=%d", comline->expected_votes);
+		envp[envptr++] = strdup(scratch);
+	}
+	if (comline->port) {
+		snprintf(scratch, sizeof(scratch), "CMAN_IP_PORT=%d", comline->port);
+		envp[envptr++] = strdup(scratch);
+	}
+	if (comline->nodeid) {
+		snprintf(scratch, sizeof(scratch), "CMAN_NODEID=%d", comline->nodeid);
+		envp[envptr++] = strdup(scratch);
+	}
+	if (comline->clustername_opt) {
+		snprintf(scratch, sizeof(scratch), "CMAN_MCAST_ADDR=%s", comline->clustername);
+		envp[envptr++] = strdup(scratch);
+	}
+	if (comline->nodenames[0]) {
+		snprintf(scratch, sizeof(scratch), "CMAN_NODENAME=%s", comline->nodenames[0]);
+		envp[envptr++] = strdup(scratch);
+	}
+	envp[envptr++] = NULL;
+
+	argv[0] = "aisexec";
 	if (comline->verbose)
                 argv[1] = "-d";
 
@@ -71,14 +81,16 @@ int join(commandline_t *comline)
 
 	case 0: // child
 		setsid();
-		execve(SBINDIR "/cmand", argv, NULL);
-		die("execve of " SBINDIR "/cmand failed: %s", strerror(errno));
+		chdir(SBINDIR);
+		execve("./aisexec", argv, envp);
+		die("execve of " SBINDIR "/aisexec failed: %s", strerror(errno));
 		break;
 
 	default: //parent
 		break;
 
 	}
+
 #ifdef DEBUG
 	if (getenv("DEBUG_WAIT"))
 	{
@@ -100,85 +112,8 @@ int join(commandline_t *comline)
 	if (!h)
 		die("cman daemon didn't start");
 
-
-	/* Set the node name */
-	strcpy(nodename, comline->nodenames[0]);
-
-	if (comline->override_nodename)
-		error = cman_set_nodename(h, comline->override_nodename);
-	else
-		error = cman_set_nodename(h, nodename);
-	if (error)
-	{
-		kill(cmand_pid, SIGKILL);
-		die("Unable to set cluster node name: %s", cman_error(errno));
-	}
-
-	/* Optional, set the node ID */
-	if (comline->nodeid)
-	{
-		error = cman_set_nodeid(h, comline->nodeid);
-		if (error)
-		{
-			kill(cmand_pid, SIGKILL);
-			die("Unable to set cluster nodeid: %s", cman_error(errno));
-		}
-	}
-
-	if (!comline->nodeid)
-		die("TEMPORARY: node IDs must be statically assigned at the moment");
-	/*
-	 * Setup the interface/multicast
-	 */
-	for (i = 0; i<comline->num_nodenames; i++)
-	{
-		error = cman_set_interface(h, comline->nodenames[i]);
-		if (error)
-		{
-			kill(cmand_pid, SIGKILL);
-			die("Unable to add interface for %s: %s", comline->nodenames[i], cman_error(errno));
-		}
-	}
-
-	if (comline->multicast_addr)
-		mcast_name = comline->multicast_addr;
-	else
-		mcast_name = default_mcast(comline);
-
-	if (!mcast_name)
-		die("Cannot determine a default multicast address");
-
-	error = cman_set_mcast(h, mcast_name);
-	if (error)
-	{
-		kill(cmand_pid, SIGKILL);
-		die("Unable to set multicast address %s: %s", mcast_name, cman_error(errno));
-	}
-
-        /*
-	 * Join cluster
-	 */
-	join_info.ji_votes = comline->votes;
-	join_info.ji_expected_votes = comline->expected_votes;
-	strcpy(join_info.ji_cluster_name, comline->clustername);
-	join_info.ji_two_node = comline->two_node;
-	join_info.ji_config_version = comline->config_version;
-	join_info.ji_port = comline->port;
-
-	if (comline->key_filename)
-	{
-		if (cman_set_commskey(h, comline->key_filename))
-		{
-			kill(cmand_pid, SIGKILL);
-			die("Error loading comms key file %s: %s\n", comline->key_filename, strerror(errno));
-		}
-	}
-
-	if (cman_join_cluster(h, &join_info))
-	{
-		kill(cmand_pid, SIGKILL);
-		die("error joining cluster: %s", cman_error(errno));
-	}
+	if (comline->verbose && !cman_is_active(h))
+		fprintf(stderr, "aisexec started, but not joined the cluster yet.\n");
 
 	cman_finish(h);
 	return 0;

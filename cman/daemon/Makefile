@@ -12,9 +12,8 @@
 
 top_srcdir=..
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
-AISDIR=openais20060121
-AISTAG=version_0.71
-
+AISDIR=openais20060216
+AISTAG=trunk
 
 include ${top_srcdir}/make/defines.mk
 
@@ -22,15 +21,17 @@ CFLAGS+= -g -I${ccsincdir} -I${incdir} -I${top_srcdir}/config \
 	-DCMAN_RELEASE_NAME=\"${RELEASE}\" -I../lib -DDEBUG \
 	-I ${AISDIR}/${AISTAG}/exec -L ${AISDIR}/${AISTAG}/exec
 
-TARGET=cmand
+TARGET=service_cman.lcrso
 
-all: ${TARGET}
+all: ${AISDIR}/${AISTAG}/exec/aisexec ${TARGET}
 
 copytobin: all
 	cp ${TARGET} ${top_srcdir}/bin
 
-cmand:	${AISDIR}/${AISTAG}/exec/libtotem_pg.a daemon.o config.o logging.o ais.o commands.o barrier.o cmanccs.o memlock.o ../lib/libcman.a 
-	$(CC) $(CFLAGS) -o $@ $^ -L../lib -L${ccslibdir} -lccs -lcman -lpthread -Wl,-Bstatic -ltotem_pg -Wl,-Bdynamic
+service_cman.lcrso:	daemon.o config.o logging.o ais.o commands.o barrier.o cmanccs.o 
+	$(CC) $(CFLAGS) -shared -shared -Wl,-soname,service_cman.lcrso -o $@ $^ -L../lib -L${ccslibdir} -lccs
+	cp ${TARGET} ${AISDIR}/${AISTAG}/exec
+	ln -sf ${AISDIR} openais
 
 daemon.o: daemon.c list.h cnxman-socket.h cnxman-private.h xlate.h \
   daemon.h logging.h commands.h barrier.h config.h cmanccs.h memlock.h
@@ -69,8 +70,8 @@ ${AISDIR}/${AISTAG}: ${AISDIR}/${AISDIR}.tar.gz
 	cd ${AISDIR} && tar -xzf ${AISDIR}.tar.gz
 	touch ${AISDIR}/${AISTAG}
 
-${AISDIR}/${AISTAG}/exec/libtotem_pg.a: ${AISDIR}/${AISTAG}
-	cd ${AISDIR}/${AISTAG} && make -C exec
+${AISDIR}/${AISTAG}/exec/aisexec: ${AISDIR}/${AISTAG}
+	cd ${AISDIR}/${AISTAG} && make -C exec BUILD_DYNAMIC=1
 
 install: cmand
 	install -d ${sbindir}
