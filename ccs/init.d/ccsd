@@ -19,18 +19,8 @@ LOCK_FILE="/var/lock/subsys/ccsd"
 
 start()
 {
-	echo -n "Starting ccsd:"
-	if ccsd $CCSD_OPTS 2> /dev/null
-	then
-		sleep 1 
-		success "startup"
-		echo 
-		return 0
-	fi
-
-	failure "startup"
-	echo
-	return 1
+	action $"Starting ccsd: " ccsd $CCSD_OPTS
+	return $?
 }
 
 stop()

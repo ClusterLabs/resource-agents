@@ -332,9 +332,12 @@ static void cluster_communicator(void){
       switch(errno){
       case ENOENT:
       case ELIBACC:
+	log_err("Failed to connect to cluster manager.\n"
+                "Hint: Magma plugins are not in the right spot.\n");
 	exit(EXIT_MAGMA_PLUGINS);
 	break;
       case EINVAL:
+	log_err("Failed to connect to cluster manager.\n");
 	exit(EXIT_CLUSTER_FAIL);
 	break;
       case ESRCH:
