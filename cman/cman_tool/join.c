@@ -25,7 +25,7 @@ int join(commandline_t *comline)
 	int envptr = 0;
 	char scratch[1024];
 	cman_handle_t h;
-	pid_t cmand_pid;
+	pid_t aisexec_pid;
 
 	/*
 	 * If we can talk to cman then we're already joined (or joining);
@@ -74,10 +74,10 @@ int join(commandline_t *comline)
                 argv[2] = "-w";
 
 	/* Fork/exec cman */
-	switch ( (cmand_pid = fork()) )
+	switch ( (aisexec_pid = fork()) )
 	{
 	case -1:
-		die("fork cman daemon failed: %s", strerror(errno));
+		die("fork of aisexec daemon failed: %s", strerror(errno));
 
 	case 0: // child
 		setsid();
@@ -94,23 +94,23 @@ int join(commandline_t *comline)
 #ifdef DEBUG
 	if (getenv("DEBUG_WAIT"))
 	{
-		printf("Waiting to attach gdb to cmand (pid %d), press ENTER to continue\n", cmand_pid);
+		printf("Waiting to attach gdb to aisexec (pid %d), press ENTER to continue\n", aisexec_pid);
 		getchar();
 	}
 #endif
 	/* Give the daemon a chance to start up */
 	i = 0;
 	do {
-		sleep(1);
+		sleep(2);
 		h = cman_admin_init(NULL);
 		if (!h && comline->verbose)
 		{
-			fprintf(stderr, "waiting for cman to start\n");
+			fprintf(stderr, "waiting for aisexec to start\n");
 		}
-	} while (!h && ++i < 10);
+	} while (!h && ++i < 20);
 
 	if (!h)
-		die("cman daemon didn't start");
+		die("aisexec daemon didn't start");
 
 	if (comline->verbose && !cman_is_active(h))
 		fprintf(stderr, "aisexec started, but not joined the cluster yet.\n");
