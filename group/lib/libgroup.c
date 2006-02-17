@@ -47,11 +47,11 @@ do { \
 
 enum {
 	DO_STOP = 1,
-	DO_START,
-	DO_FINISH,
-	DO_TERMINATE,
-	DO_SET_ID,
-	DO_DELIVER,
+	DO_START = 2,
+	DO_FINISH = 3,
+	DO_TERMINATE = 4,
+	DO_SET_ID = 5,
+	DO_DELIVER = 6,
 };
 
 
@@ -122,22 +122,22 @@ int get_action(char *buf)
 			break;
 	}
 
-	if (strncmp(act, "stop", 16))
+	if (!strncmp(act, "stop", 16))
 		return DO_STOP;
 
-	if (strncmp(act, "start", 16))
+	if (!strncmp(act, "start", 16))
 		return DO_START;
 
-	if (strncmp(act, "finish", 16))
+	if (!strncmp(act, "finish", 16))
 		return DO_FINISH;
 
-	if (strncmp(act, "terminate", 16))
+	if (!strncmp(act, "terminate", 16))
 		return DO_TERMINATE;
 
-	if (strncmp(act, "set_id", 16))
+	if (!strncmp(act, "set_id", 16))
 		return DO_SET_ID;
 
-	if (strncmp(act, "deliver", 16))
+	if (!strncmp(act, "deliver", 16))
 		return DO_DELIVER;
 
 	return -1;
@@ -178,8 +178,6 @@ static int _joinleave(group_handle_t handle, char *name, char *cmd)
 
 	memset(buf, 0, sizeof(buf));
 	snprintf(buf, sizeof(buf), "%s %s", cmd, name);
-
-	printf("write to groupd \"%s\"\n", buf);
 
 	return do_write(h->fd, buf, GROUPD_MSGLEN);
 }
@@ -350,8 +348,6 @@ int group_dispatch(group_handle_t handle)
 
 	rv = read(h->fd, &buf, GROUPD_MSGLEN);
 
-	printf("read from groupd \"%s\"\n", buf);
-
 	/* FIXME: check rv */
 
 	act = get_action(buf);
@@ -366,6 +362,7 @@ int group_dispatch(group_handle_t handle)
 
 	case DO_START:
 		p = get_args(buf, &argc, argv, ' ', 5);
+
 
 		count = atoi(argv[4]);
 		nodeids = malloc(count * sizeof(int));
