@@ -169,7 +169,7 @@ void process_groupd_confchg(void)
 
 /* FIXME: also match name */
 
-group_t *find_group_by_handle(cpg_handle_t h, SaNameT name)
+group_t *find_group_by_handle(cpg_handle_t h)
 {
 	group_t *g;
 
@@ -190,9 +190,10 @@ void process_deliver(void)
 		return;
 	}
 
-	log_print("process_deliver");
+	log_print("process_deliver from %d len %d",
+		  saved_nodeid, saved_msg_len);
 
-	g = find_group_by_handle(saved_handle, saved_name);
+	g = find_group_by_handle(saved_handle);
 	if (!g) {
 		log_print("process_deliver: no group for handle %u name %s",
 			  saved_handle, saved_name.value);
@@ -212,11 +213,10 @@ void process_confchg(void)
 		return;
 	}
 
-	log_print("process_confchg member_count %d joined_count %d "
-		  "left_count %d", saved_member_count, saved_joined_count,
-		  saved_left_count);
+	log_print("process_confchg members %d joined %d left %d",
+		  saved_member_count, saved_joined_count, saved_left_count);
 
-	g = find_group_by_handle(saved_handle, saved_name);
+	g = find_group_by_handle(saved_handle);
 	if (!g) {
 		log_print("process_confchg: no group for handle %u name %s",
 			  saved_handle, saved_name.value);
@@ -239,16 +239,21 @@ void deliver_cb(cpg_handle_t handle, SaNameT *group_name,
 {
 	int i;
 
-	printf("deliver_cb from %d len %d\n", nodeid, msg_len);
 	saved_handle = handle;
 	saved_nodeid = nodeid;
 	saved_pid = pid;
-	saved_msg_len = msg_len;
-	memcpy(saved_msg, msg, msg_len);
 
+	if (msg_len > MAX_MSGLEN) {
+		log_print("message too large %d", msg_len);
+		msg_len = MAX_MSGLEN;
+	}
+	saved_msg_len = msg_len;
+	memset(&saved_msg, 0, sizeof(saved_msg));
+	memcpy(&saved_msg, msg, msg_len);
+
+	memset(&saved_name, 0, sizeof(saved_name));
 	saved_name.length = group_name->length;
-	for (i = 0; i < group_name->length; i++)
-		saved_name.value[i] = group_name->value[i];
+	memcpy(&saved_name.value, &group_name->value, group_name->length);
 
 	got_deliver = 1;
 }
@@ -261,13 +266,27 @@ void confchg_cb(cpg_handle_t handle, SaNameT *group_name,
 	int i;
 
 	saved_handle = handle;
+
+	if (left_list_entries > MAX_GROUP_MEMBERS) {
+		log_print("left_list_entries too big %d", left_list_entries);
+		left_list_entries = MAX_GROUP_MEMBERS;
+	}
+	if (joined_list_entries > MAX_GROUP_MEMBERS) {
+		log_print("joined_list_entries too big %d", joined_list_entries);
+		joined_list_entries = MAX_GROUP_MEMBERS;
+	}
+	if (member_list_entries > MAX_GROUP_MEMBERS) {
+		log_print("member_list_entries too big %d", joined_list_entries);
+		member_list_entries = MAX_GROUP_MEMBERS;
+	}
+
 	saved_left_count = left_list_entries;
 	saved_joined_count = joined_list_entries;
 	saved_member_count = member_list_entries;
 
+	memset(&saved_name, 0, sizeof(saved_name));
 	saved_name.length = group_name->length;
-	for (i = 0; i < group_name->length; i++)
-		saved_name.value[i] = group_name->value[i];
+	memcpy(&saved_name.value, &group_name->value, group_name->length);
 
 	for (i = 0; i < left_list_entries; i++)
 		saved_left[i] = left_list[i];
@@ -344,6 +363,7 @@ int setup_cpg(void)
 
 	groupd_ci = client_add(fd, process_cpg);
 
+	memset(&groupd_name, 0, sizeof(groupd_name));
 	strcpy(groupd_name.value, "groupd");
 	groupd_name.length = 7;
 
@@ -355,7 +375,6 @@ int setup_cpg(void)
 	}
 
 	log_debug("setup_cpg ok");
-
 	return 0;
 }
 
@@ -380,9 +399,11 @@ int do_cpg_join(group_t *g)
 	g->cpg_handle = h;
 	g->cpg_fd = fd;
 
+	memset(&name, 0, sizeof(name));
 	sprintf(name.value, "%d_%s", g->level, g->name);
+	name.length = strlen(name.value) + 1;
 
-	log_group(g, "is cpg client %d name %s", ci, name.value);
+	log_group(g, "is cpg client %d name %s handle %x", ci, name.value, h);
 
 	error = cpg_join(h, &name);
 	if (error != CPG_OK) {
@@ -401,7 +422,9 @@ int do_cpg_leave(group_t *g)
 	cpg_error_t error;
 	SaNameT name;
 
+	memset(&name, 0, sizeof(name));
 	sprintf(name.value, "%d_%s", g->level, g->name);
+	name.length = strlen(name.value) + 1;
 
 	error = cpg_leave(g->cpg_handle, &name);
 	if (error != CPG_OK) {

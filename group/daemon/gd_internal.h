@@ -41,7 +41,7 @@
 #define GROUPD_PORT		(2)
 #define MAX_NAMELEN		(32)	/* should match libgroup.h */
 #define MAX_BARRIERLEN		(32)	/* no more than GROUP_INFO_LEN */
-#define MAX_MSGLEN		(512)
+#define MAX_MSGLEN		(128)
 #define MAX_LEVELS		(4)
 #define MAX_NODES		(256)
 #define MAXARGS			(100)  /* FIXME */
@@ -220,6 +220,8 @@ event_t *find_queued_recover_event(group_t *g);
 void extend_recover_event(event_t *ev, int nodeid);
 int process_apps(void);
 void del_event_nodes(event_t *ev);
+void dump_group(group_t *g);
+void dump_all_groups(void);
 
 /* main.c */
 void app_stop(app_t *a);

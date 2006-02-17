@@ -216,6 +216,7 @@ static event_t *create_event(group_t *g)
 	memset(ev, 0, sizeof(event_t));
 
 	INIT_LIST_HEAD(&ev->memb);
+	INIT_LIST_HEAD(&ev->extended);
 	ev->event_nr = ++gd_event_nr;
 
 	return ev;
@@ -429,17 +430,11 @@ static int process_current_event(group_t *g)
 	case EST_JOIN_BEGIN:
 		ev->state = EST_JOIN_STOP_WAIT;
 
-		if (is_our_join(ev))
-			send_stopped(g);
-		else
-			app_stop(a);
-		break;
-
-	case EST_JOIN_ALL_STOPPED:
-		ev->state = EST_JOIN_START_WAIT;
-
-		/* the initial set of members that we've joined, includes us */
 		if (is_our_join(ev)) {
+			send_stopped(g);
+
+			/* the initial set of members that we've joined,
+			   includes us */
 			list_for_each_entry_safe(node, n, &ev->memb, list) {
 				list_move(&node->list, &a->nodes);
 				a->node_count++;
@@ -447,13 +442,18 @@ static int process_current_event(group_t *g)
 					  node->nodeid, a->node_count);
 			}
 		} else {
+			app_stop(a);
+
 			node = new_node(ev->nodeid);
 			list_add(&node->list, &a->nodes);
 			a->node_count++;
 			log_group(g, "app node join: add %d total %d",
 				  node->nodeid, a->node_count);
 		}
+		break;
 
+	case EST_JOIN_ALL_STOPPED:
+		ev->state = EST_JOIN_START_WAIT;
 		app_start(a);
 		break;
 
@@ -561,6 +561,9 @@ static int process_current_event(group_t *g)
 		a->current_event = NULL;
 		rv = 1;
 		break;
+
+	default:
+		log_group(g, "nothing to do");
 	}
 
 	return rv;
@@ -726,6 +729,7 @@ static int group_started(event_t *ev)
 
 void dump_group(group_t *g)
 {
+	app_t *a = g->app;
 	node_t *node;
 	struct save_msg *save;
 	event_t *ev;
@@ -734,6 +738,7 @@ void dump_group(group_t *g)
 	printf("name: %s\n", g->name);
 	printf("level: %d\n", g->level);
 	printf("global_id: %u\n", g->global_id);
+	printf("cpg handle: %x\n", g->cpg_handle);
 	printf("cpg client: %d\n", g->cpg_client);
 	printf("app client: %d\n", g->app->client);
 
@@ -754,36 +759,43 @@ void dump_group(group_t *g)
 		printf("%d/%d ", save->nodeid, save->msg.ms_type);
 	printf("\n");
 
+	if (a->current_event)
+		printf("current_event %d-%d\n", a->current_event->nodeid, a->current_event->state);
+
 	printf("events: ");
-	list_for_each_entry(ev, &g->app->events, list)
-		printf("%d-%s ", ev->nodeid, ev_state_str(ev));
+	list_for_each_entry(ev, &a->events, list)
+		printf("%d-%d ", ev->nodeid, ev->state);
 	printf("\n");
 
-	if (g->app->current_event)
-		printf("current_event %d-%s\n",
-			g->app->current_event->nodeid,
-			g->app->current_event->state);
 	printf("---\n");
+}
+
+void dump_all_groups(void)
+{
+	group_t *g;
+	list_for_each_entry(g, &gd_groups, list)
+		dump_group(g);
 }
 
 static int process_app(group_t *g)
 {
 	app_t *a = g->app;
-	event_t *rev, *ev;
-	int rv;
-
- restart:
-	rv = 0;
+	event_t *rev, *ev = NULL;
+	int rv = 0;
 
 	if (a->current_event) {
 		rv += process_app_messages(g);
 		rv += process_current_event(g);
 
-		dump_group(g);
+		/* if the current event has started the app and there's
+		   a recovery event, the current event is abandoned and
+		   replaced with the recovery event */
 
-		/* if there's a recovery event, the current event is
-		   abandoned and replaced with the recovery event */
+		/* we need to check to see if we're waiting for a "stopped"
+		   message from a failed node and if we are, set stopped
+		   for it so we move along */
 
+#if 0
 		rev = find_queued_recover_event(g);
 		if (!rev)
 			goto out;
@@ -793,27 +805,21 @@ static int process_app(group_t *g)
 		list_del(&rev->list);
 		ev = a->current_event;
 		a->current_event = rev;
+#endif
 
-		/* if the group hadn't been started for the replaced
-		   event, then put it back on the list to do later */
-
-		if (group_started(ev))
-			free(ev);
-		else
-			list_add(&ev->list, &g->app->events);
-
-		goto restart;
 	} else {
 		ev = find_queued_recover_event(g);
-
-		if (!ev && !list_empty(&a->events))
+		if (ev) {
+			log_debug("setting recovery event");
+			list_del(&ev->list);
+		} else if (!list_empty(&a->events)) {
 			ev = list_entry(a->events.next, event_t, list);
+			list_del(&ev->list);
+		}
 
 		if (ev) {
-			list_del(&ev->list);
 			a->current_event = ev;
 			rv = process_current_event(g);
-			dump_group(g);
 		}
 	}
  out:

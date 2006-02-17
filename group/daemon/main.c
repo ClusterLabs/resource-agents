@@ -40,7 +40,7 @@ static void app_action(app_t *a, char *buf)
 {
 	int rv;
 
-	log_group(a->g, "%s", buf);
+	log_group(a->g, "action for app: %s", buf);
 
 	rv = write(client[a->client].fd, buf, GROUPD_MSGLEN);
 	if (rv != GROUPD_MSGLEN)
@@ -72,7 +72,7 @@ void app_start(app_t *a)
 {
 	char buf[GROUPD_MSGLEN];
 	int memb[MAX_NODES];
-	int len = 0, type;
+	int len = 0, type, count = 0;
 	node_t *node;
 
 	if (a->current_event->state == EST_JOIN_START_WAIT)
@@ -85,8 +85,13 @@ void app_start(app_t *a)
 		/* report error */
 	}
 
-	len = snprintf(buf, sizeof(buf), "start %s %d %d",
-		       a->g->name, a->current_event->event_nr, type);
+	/* start <name> <event_nr> <type> <count> <memb0> <memb1>... */
+
+	list_for_each_entry(node, &a->nodes, list)
+		count++;
+
+	len = snprintf(buf, sizeof(buf), "start %s %d %d %d",
+		       a->g->name, a->current_event->event_nr, type, count);
 
 	list_for_each_entry(node, &a->nodes, list)
 		len += sprintf(buf+len, " %d", node->nodeid);
@@ -401,7 +406,6 @@ static int loop(void)
 			if (pollfd[i].revents & POLLHUP)
 				client_dead(i);
 			else if (pollfd[i].revents & POLLIN) {
-				printf("poll %d\n", i);
 				workfn = client[i].workfn;
 				workfn(i);
 			}
