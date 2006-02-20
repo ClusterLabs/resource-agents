@@ -307,6 +307,7 @@ for (;;) { \
 	if (until_this) \
 		break; \
 	printk("GFS: out of memory: %s, %u\n", __FILE__, __LINE__); \
+	dump_stack(); \
 	yield(); \
 }
 
