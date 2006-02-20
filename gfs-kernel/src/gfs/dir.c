@@ -723,7 +723,7 @@ dir_split_leaf(struct gfs_inode *dip, uint32_t index, uint64_t leaf_no)
 	uint64_t bn, *lp;
 	uint32_t name_len;
 	int x, moved = FALSE;
-	int error;
+	int error, lp_vfree=0;
 
 	/*  Allocate the new leaf block  */
 
@@ -772,7 +772,16 @@ dir_split_leaf(struct gfs_inode *dip, uint32_t index, uint64_t leaf_no)
 	   Don't bother distinguishing stuffed from non-stuffed.
 	   This code is complicated enough already. */
 
-	lp = gmalloc(half_len * sizeof(uint64_t));
+	lp = kmalloc(half_len * sizeof (uint64_t), GFP_KERNEL);
+	if (unlikely(!lp)) {
+		lp = vmalloc(half_len * sizeof (uint64_t));
+		if (!lp) {
+			printk("GFS: dir_split_leaf vmalloc fail - half_len=%d\n", half_len);
+			error = -ENOMEM;
+			goto fail_brelse;
+		} else
+			lp_vfree = 1;
+	}
 
 	error = gfs_internal_read(dip, (char *)lp, start * sizeof(uint64_t),
 				  half_len * sizeof(uint64_t));
@@ -795,7 +804,10 @@ dir_split_leaf(struct gfs_inode *dip, uint32_t index, uint64_t leaf_no)
 		goto fail_lpfree;
 	}
 
-	kfree(lp);
+	if (unlikely(lp_vfree))
+		vfree(lp);
+	else
+		kfree(lp);
 
 	/*  Compute the divider  */
 
@@ -868,7 +880,10 @@ dir_split_leaf(struct gfs_inode *dip, uint32_t index, uint64_t leaf_no)
 	RETURN(GFN_DIR_SPLIT_LEAF, error);
 
  fail_lpfree:
-	kfree(lp);
+	if (unlikely(lp_vfree))
+		vfree(lp);
+	else
+		kfree(lp);
 
  fail_brelse:
 	brelse(obh);
@@ -1105,14 +1120,21 @@ do_filldir_single(struct gfs_inode *dip, uint64_t *offset,
 	struct gfs_dirent **darr;
 	struct gfs_dirent *de;
 	unsigned int e = 0;
-	int error;
+	int error, do_vfree=0;
 
 	if (!entries)
 		RETURN(GFN_DO_FILLDIR_SINGLE, 0);
 
 	darr = kmalloc(entries * sizeof(struct gfs_dirent *), GFP_KERNEL);
-	if (!darr)
-		RETURN(GFN_DO_FILLDIR_SINGLE, -ENOMEM);
+	if (unlikely(!darr)) {
+		darr = vmalloc(entries * sizeof (struct gfs_dirent *));
+		if (!darr) {
+			printk("GFS: do_filldir_single vmalloc fails, entries=%d\n", entries);
+			RETURN(GFN_DO_FILLDIR_SINGLE, -ENOMEM);
+		} else {
+			do_vfree = 1;
+		}
+	}
 
 	dirent_first(dip, bh, &de);
 	do {
@@ -1137,7 +1159,10 @@ do_filldir_single(struct gfs_inode *dip, uint64_t *offset,
 				entries, copied);
 
  out:
-	kfree(darr);
+	if (unlikely(do_vfree))
+		vfree(darr);
+	else
+		kfree(darr);
 
 	RETURN(GFN_DO_FILLDIR_SINGLE, error);
 }
@@ -1169,7 +1194,7 @@ do_filldir_multi(struct gfs_inode *dip, uint64_t *offset,
 	unsigned int leaves = 0, l = 0;
 	unsigned int x;
 	uint64_t ln;
-	int error = 0;
+	int error = 0, leaves_vfree=0, entries_vfree=0;
 
 	/*  Count leaves and entries  */
 
@@ -1203,15 +1228,30 @@ do_filldir_multi(struct gfs_inode *dip, uint64_t *offset,
 
 	if (leaves) {
 		larr = kmalloc(leaves * sizeof(struct buffer_head *), GFP_KERNEL);
-		if (!larr)
-			RETURN(GFN_DO_FILLDIR_MULTI, -ENOMEM);
+		if (unlikely(!larr)) {
+			larr = vmalloc(leaves * sizeof (struct buffer_head *));
+			if (!larr) {
+				printk("GFS: do_filldir_multi vmalloc fails leaves=%d\n", leaves);
+				RETURN(GFN_DO_FILLDIR_MULTI, -ENOMEM);
+			} else
+				leaves_vfree = 1;
+		}
 	}
 
 	darr = kmalloc(entries * sizeof(struct gfs_dirent *), GFP_KERNEL);
-	if (!darr) {
-		if (larr)
-			kfree(larr);
+	if (unlikely(!darr)) {
+		darr = vmalloc(entries * sizeof (struct gfs_dirent *));
+		if (!darr) {
+			printk("GFS: do_filldir_multi vmalloc fails entries=%d\n", entries);
+			if (larr) {
+				if (leaves_vfree)
+					vfree(larr);
+				else
+					kfree(larr);
+		}
 		RETURN(GFN_DO_FILLDIR_MULTI, -ENOMEM);
+	} else
+		entries_vfree = 1;
 	}
 
 	/*  Fill in arrays  */
@@ -1282,13 +1322,20 @@ do_filldir_multi(struct gfs_inode *dip, uint64_t *offset,
 	/*  Clean up  */
 
  out:
-	kfree(darr);
+	if (unlikely(entries_vfree))
+		vfree(darr);
+	else
+		kfree(darr);
 
 	for (x = 0; x < l; x++)
 		brelse(larr[x]);
 
-	if (leaves)
-		kfree(larr);
+	if (leaves) {
+		if (unlikely(leaves_vfree))
+			vfree(larr);
+		else
+			kfree(larr);
+	}
 
 	RETURN(GFN_DO_FILLDIR_MULTI, error);
 }
