@@ -81,6 +81,10 @@ static char *get_args(char *buf, int *argc, char **argv, char sep, int want)
 	}
 	*argc = i;
 
+	/* we ended by hitting \0, return the point following that */
+	if (!rp)
+		rp = strchr(buf, '\0') + 1;
+
 	return rp;
 }
 
@@ -216,9 +220,21 @@ int group_start_done(group_handle_t handle, char *name, int event_nr)
 	return do_write(h->fd, buf, GROUPD_MSGLEN);
 }
 
-int group_send(group_handle_t handle, char *buf, int len)
+int group_send(group_handle_t handle, char *name, int len, char *data)
 {
-	return -1;
+	char buf[GROUPD_MSGLEN];
+	int rv;
+	struct group_handle *h = (struct group_handle *) handle;
+	VALIDATE_HANDLE(h);
+
+	if (len > 2048 || len <= 0)
+		return -EINVAL;
+
+	memset(buf, 0, sizeof(buf));
+	rv = sprintf(buf, "send %s %d", name, len);
+	memcpy(buf + rv + 1, data, len);
+
+	return do_write(h->fd, buf, GROUPD_MSGLEN);
 }
 
 static int connect_groupd(void)
@@ -302,38 +318,35 @@ int group_get_fd(group_handle_t handle)
 }
 
 /* Format of string messages we receive from groupd:
-   0         1      2           3     4
 
-   stop      <name>
+   "stop <name>"
    
       name = the name of the group (same for rest)
 
-   start     <name> <event_nr> <type> <memb_count> <memb0> <memb1>...
+   "start <name> <event_nr> <type> <memb_count> <memb0> <memb1>..."
 
       event_nr = used to later match finish/terminate
       type = 1/GROUP_NODE_FAILED, 2/GROUP_NODE_JOIN, 3/GROUP_NODE_LEAVE
       memb_count = the number of group members
       memb0... = the nodeids of the group members
 
-   finish    <name> <event_nr>
+   "finish <name> <event_nr>"
    
       event_nr = matches the start event that's finishing
 
-   terminate <name> <event_nr>
+   "terminate <name> <event_nr>"
 
       event_nr = matches the start event that's being canceled
 
-   set_id    <name> <id>
+   "set_id <name> <id>"
 
       id = the global id of the group
 
-   deliver   <name> <nodeid>   <len>  <offset>     <data>
+   "deliver <name> <nodeid> <len>"<data>
 
       nodeid = who sent the message
       len = length of the message
-      offset = number of bytes from the start of the buffer the message begins
       data = the message
-
 */
 
 int group_dispatch(group_handle_t handle)
@@ -362,7 +375,6 @@ int group_dispatch(group_handle_t handle)
 
 	case DO_START:
 		p = get_args(buf, &argc, argv, ' ', 5);
-
 
 		count = atoi(argv[4]);
 		nodeids = malloc(count * sizeof(int));
@@ -393,10 +405,10 @@ int group_dispatch(group_handle_t handle)
 		break;
 
 	case DO_DELIVER:
-		get_args(buf, &argc, argv, ' ', 5);
+		p = get_args(buf, &argc, argv, ' ', 4);
 
 		h->cbs.deliver(h, h->private, argv[1], atoi(argv[2]),
-			       buf + atoi(argv[4]), atoi(argv[3]));
+			       atoi(argv[3]), p);
 		break;
 	}
 

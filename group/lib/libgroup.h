@@ -43,7 +43,7 @@ typedef void (*group_terminate_t)(group_handle_t h, void *private, char *name);
 typedef void (*group_set_id_t)(group_handle_t h, void *private, char *name,
 			       int id);
 typedef void (*group_deliver_t)(group_handle_t h, void *private, char *name,
-			        int nodeid, char *buf, int len);
+			        int nodeid, int len, char *buf);
 
 typedef struct {
 	group_stop_t stop;
@@ -63,7 +63,7 @@ int group_stop_done(group_handle_t handle, char *name);
 int group_start_done(group_handle_t handle, char *name, int event_nr);
 int group_get_fd(group_handle_t handle);
 int group_dispatch(group_handle_t handle);
-int group_send(group_handle_t handle, char *buf, int len);
+int group_send(group_handle_t handle, char *name, int len, char *buf);
 
 
 /*
