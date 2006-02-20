@@ -5,12 +5,6 @@
 
 struct list_head recovery_sets;
 
-struct save_msg {
-	struct list_head list;
-	int nodeid;
-	msg_t msg;
-};
-
 struct recovery_set {
 	struct list_head list;
 	struct list_head entries;
@@ -290,22 +284,24 @@ int queue_app_leave(group_t *g, int nodeid)
 	return 0;
 }
 
-/* messages are STOPPED or STARTED */
-
-int queue_app_message(group_t *g, msg_t *msg, int nodeid)
+int queue_app_message(group_t *g, struct save_msg *save)
 {
-	struct save_msg *save;
+	char *m = "unknown";
 
-	save = malloc(sizeof(struct save_msg));
-	ASSERT(save);
-	memcpy(&save->msg, msg, sizeof(msg_t));
-	save->nodeid = nodeid;
+	switch (save->msg.ms_type) {
+	case MSG_APP_STOPPED:
+		m = "stopped";
+		break;
+	case MSG_APP_STARTED:
+		m = "started";
+		break;
+	case MSG_APP_INTERNAL:
+		m = "internal";
+		break;
+	}
 
-	log_group(g, "queue message %s from %d",
-		  (msg->ms_type == MSG_APP_STOPPED ? "stopped" : "started"),
-		  nodeid);
+	log_group(g, "queue message %s from %d", m, save->nodeid);
 
-	/* might be able to put the messages list under g->app... */
 	list_add_tail(&save->list, &g->messages);
 	return 0;
 }
@@ -337,6 +333,7 @@ static int send_stopped(group_t *g)
 
 	memset(&msg, 0, sizeof(msg));
 	msg.ms_type = MSG_APP_STOPPED;
+	msg.ms_id = g->global_id;
 
 	log_group(g, "send stopped");
 	return send_message(g, &msg, sizeof(msg));
@@ -348,6 +345,7 @@ static int send_started(group_t *g)
 
 	memset(&msg, 0, sizeof(msg));
 	msg.ms_type = MSG_APP_STARTED;
+	msg.ms_id = g->global_id;
 
 	log_group(g, "send started");
 	return send_message(g, &msg, sizeof(msg));
@@ -454,6 +452,12 @@ static int process_current_event(group_t *g)
 
 	case EST_JOIN_ALL_STOPPED:
 		ev->state = EST_JOIN_START_WAIT;
+
+		if (!g->have_set_id) {
+			g->have_set_id = 1;
+			app_setid(a);
+		}
+
 		app_start(a);
 		break;
 
@@ -473,6 +477,8 @@ static int process_current_event(group_t *g)
 		ev->state = EST_LEAVE_START_WAIT;
 
 		if (is_our_leave(ev)) {
+			app_terminate(a);
+			cpg_finalize(g->cpg_handle);
 			g->app = NULL;
 			del_app_nodes(a);
 			free(a);
@@ -603,6 +609,8 @@ static int mark_node_stopped(app_t *a, int nodeid)
 		return -1;
 	}
 
+	log_group(a->g, "mark node %d stopped", nodeid);
+
 	node->stopped = 1;
 	node->started = 0;
 
@@ -625,6 +633,8 @@ static int mark_node_started(app_t *a, int nodeid)
 		return -1;
 	}
 
+	log_group(a->g, "mark node %d started", nodeid);
+
 	node->stopped = 0;
 	node->started = 1;
 
@@ -637,7 +647,7 @@ static int all_nodes_stopped(app_t *a)
 
 	list_for_each_entry(node, &a->nodes, list) {
 		if (!node->stopped) {
-			ASSERT(node->started);
+			/* ASSERT(node->started); */
 			return FALSE;
 		}
 	}
@@ -650,21 +660,11 @@ static int all_nodes_started(app_t *a)
 
 	list_for_each_entry(node, &a->nodes, list) {
 		if (!node->started) {
-			ASSERT(node->stopped);
+			/* ASSERT(node->stopped); */
 			return FALSE;
 		}
 	}
 	return TRUE;
-}
-
-static int is_stopped_message(app_t *a, msg_t *msg)
-{
-	return (msg->ms_type == MSG_APP_STOPPED);
-}
-
-static int is_started_message(app_t *a, msg_t *msg)
-{
-	return (msg->ms_type == MSG_APP_STARTED);
 }
 
 static int process_app_messages(group_t *g)
@@ -674,17 +674,33 @@ static int process_app_messages(group_t *g)
 	int rv = 0;
 
 	list_for_each_entry_safe(save, tmp, &g->messages, list) {
-		if (is_stopped_message(a, &save->msg))
+		switch (save->msg.ms_type) {
+
+		case MSG_APP_STOPPED:
 			mark_node_stopped(a, save->nodeid);
-		else if (is_started_message(a, &save->msg))
+			break;
+
+		case MSG_APP_STARTED:
 			mark_node_started(a, save->nodeid);
-		else {
+			break;
+
+		case MSG_APP_INTERNAL:
+			continue;
+
+		default:
 			log_error(g, "process_app_messages: invalid type %d "
 				  "from %d", save->msg.ms_type, save->nodeid);
-			continue;
+		}
+
+		if (g->global_id == 0 && save->msg.ms_id != 0) {
+			g->global_id = save->msg.ms_id;
+			log_group(g, "set global_id %x from %d",
+				  g->global_id, save->nodeid);
 		}
 
 		list_del(&save->list);
+		if (save->msg_long)
+			free(save->msg_long);
 		free(save);
 		rv = 1;
 	}
@@ -696,6 +712,27 @@ static int process_app_messages(group_t *g)
 		a->current_event->state++;
 
 	return rv;
+}
+
+static int deliver_app_messages(group_t *g)
+{
+	app_t *a = g->app;
+	struct save_msg *save, *tmp;
+
+	list_for_each_entry_safe(save, tmp, &g->messages, list) {
+		switch (save->msg.ms_type) {
+		case MSG_APP_INTERNAL:
+			app_deliver(a, save);
+			break;
+		default:
+			continue;
+		}
+
+		list_del(&save->list);
+		if (save->msg_long)
+			free(save->msg_long);
+		free(save);
+	}
 }
 
 event_t *find_queued_recover_event(group_t *g)
@@ -791,21 +828,28 @@ static int process_app(group_t *g)
 		   a recovery event, the current event is abandoned and
 		   replaced with the recovery event */
 
-		/* we need to check to see if we're waiting for a "stopped"
-		   message from a failed node and if we are, set stopped
-		   for it so we move along */
-
-#if 0
-		rev = find_queued_recover_event(g);
-		if (!rev)
-			goto out;
-
-		log_group(g, "setting recover event");
-
-		list_del(&rev->list);
 		ev = a->current_event;
-		a->current_event = rev;
-#endif
+		rev = find_queued_recover_event(g);
+
+		if (rev && event_state_starting(a)) {
+			list_del(&rev->list);
+			a->current_event = rev;
+			free(ev);
+			rv = 1;
+		}
+
+		/* if we're waiting for a "stopped" message from a failed
+		   node, make one up so we move along to a starting state
+		   so the recovery event can then take over */
+
+		/*
+		if (rev && event_state_stopping(ev))
+			make_up_stops(g, rev);
+		*/
+
+		/* if the current event is a leave and the leaving node
+		   has failed, then replace the current event with the
+		   rev */
 
 	} else {
 		ev = find_queued_recover_event(g);
@@ -831,8 +875,10 @@ int process_apps(void)
 	group_t *g, *safe;
 	int rv = 0;
 
-	list_for_each_entry_safe(g, safe, &gd_groups, list)
+	list_for_each_entry_safe(g, safe, &gd_groups, list) {
 		rv += process_app(g);
+		deliver_app_messages(g);
+	}
 
 	return rv;
 }

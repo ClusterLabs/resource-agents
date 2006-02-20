@@ -47,6 +47,30 @@ static void app_action(app_t *a, char *buf)
 		log_print("write error %d errno %d", rv, errno);
 }
 
+void app_deliver(app_t *a, struct save_msg *save)
+{
+	char buf[GROUPD_MSGLEN];
+	int rv;
+
+	rv = snprintf(buf, sizeof(buf), "deliver %s %d %d",
+		      a->g->name, save->nodeid, save->msg_len - sizeof(msg_t));
+
+	log_group(a->g, "deliver to app: %s", buf);
+
+	memcpy(buf + rv + 1, save->msg_long + sizeof(msg_t),
+	       save->msg_len - sizeof(msg_t));
+
+	/*
+	log_group(a->g, "app_deliver body len %d \"%s\"",
+		  save->msg_len - sizeof(msg_t),
+		  save->msg_long + sizeof(msg_t));
+	*/
+
+	rv = write(client[a->client].fd, buf, GROUPD_MSGLEN);
+	if (rv != GROUPD_MSGLEN)
+		log_print("write error %d errno %d", rv, errno);
+}
+
 void app_terminate(app_t *a)
 {
 	char buf[GROUPD_MSGLEN];
@@ -71,7 +95,6 @@ void app_setid(app_t *a)
 void app_start(app_t *a)
 {
 	char buf[GROUPD_MSGLEN];
-	int memb[MAX_NODES];
 	int len = 0, type, count = 0;
 	node_t *node;
 
@@ -123,6 +146,92 @@ static void make_args(char *buf, int *argc, char **argv, char sep)
 		buf = p + 1;
 	}
 	*argc = i;
+}
+
+static char *get_args(char *buf, int *argc, char **argv, char sep, int want)
+{
+	char *p = buf, *rp = NULL;
+	int i;
+
+	argv[0] = p;
+
+	for (i = 1; i < MAXARGS; i++) {
+		p = strchr(buf, sep);
+		if (!p)
+			break;
+		*p = '\0';
+
+		if (want == i) {
+			rp = p + 1;
+			break;
+		}
+
+		argv[i] = p + 1;
+		buf = p + 1;
+	}
+	*argc = i;
+
+	/* we ended by hitting \0, return the point following that */
+	if (!rp)
+		rp = strchr(buf, '\0') + 1;
+
+	return rp;
+}
+
+enum {
+	DO_SETUP = 1,
+	DO_JOIN,
+	DO_LEAVE,
+	DO_STOP_DONE,
+	DO_START_DONE,
+	DO_SEND,
+	DO_GET_GROUPS,
+	DO_GET_GROUP,
+	DO_DUMP,
+};
+
+int get_action(char *buf)
+{
+	char act[16];
+	int i;
+
+	memset(act, 0, 16);
+
+	for (i = 0; i < 16; i++) {
+		if (isalnum(buf[i]) || ispunct(buf[i]))
+			act[i] = buf[i];
+		else
+			break;
+	}
+
+	if (!strncmp(act, "setup", 16))
+		return DO_SETUP;
+
+	if (!strncmp(act, "join", 16))
+		return DO_JOIN;
+
+	if (!strncmp(act, "leave", 16))
+		return DO_LEAVE;
+
+	if (!strncmp(act, "stop_done", 16))
+		return DO_STOP_DONE;
+
+	if (!strncmp(act, "start_done", 16))
+		return DO_START_DONE;
+
+	if (!strncmp(act, "send", 16))
+		return DO_SEND;
+
+	if (!strncmp(act, "get_groups", 16))
+		return DO_GET_GROUPS;
+
+	if (!strncmp(act, "get_group", 16))
+		return DO_GET_GROUP;
+
+	if (!strncmp(act, "dump", 16))
+		return DO_DUMP;
+
+        return -1;
 }
 
 static void client_alloc(void)
@@ -274,10 +383,38 @@ static int do_dump(int ci, int argc, char **argv)
 	return 0;
 }
 
+static void do_send(char *name, int level, int len, char *data)
+{
+	group_t *g;
+	msg_t *msg;
+	char *buf;
+	int total;
+
+	g = find_group_level(name, level);
+	if (!g)
+		return;
+
+	total = sizeof(msg_t) + len;
+	buf = malloc(total);
+	memset(buf, 0, total);
+
+	memcpy(buf + sizeof(msg_t), data, len);
+
+	msg = (msg_t *) buf;
+	msg->ms_type = MSG_APP_INTERNAL;
+	msg->ms_id = g->global_id;
+
+	log_print("%d:%s do_send %d bytes", level, name, total);
+
+	send_message(g, msg, total);
+
+	free(buf);
+}
+
 static void process_connection(int ci)
 {
-	char buf[GROUPD_MSGLEN], *argv[MAXARGS], *cmd;
-	int argc = 0, rv;
+	char buf[GROUPD_MSGLEN], *argv[MAXARGS], *p;
+	int argc = 0, rv, act;
 
 	memset(buf, 0, sizeof(buf));
 
@@ -292,37 +429,59 @@ static void process_connection(int ci)
 		return;
 	}
 
-	log_debug("got %d bytes from client %d \"%s\"", rv, ci, buf);
+	act = get_action(buf);
 
-	make_args(buf, &argc, argv, ' ');
-	cmd = argv[0];
+	log_debug("got %d bytes from client %d act %d", rv, ci, act);
 
-	if (!strcmp(cmd, "setup"))
+	switch (act) {
+
+	case DO_SETUP:
+		get_args(buf, &argc, argv, ' ', 3);
 		do_setup(ci, argc, argv);
+		break;
 
-	else if (!strcmp(cmd, "join"))
+	case DO_JOIN:
+		get_args(buf, &argc, argv, ' ', 2);
 		do_join(argv[1], client[ci].level, ci);
+		break;
 
-	else if (!strcmp(cmd, "leave"))
+	case DO_LEAVE:
+		get_args(buf, &argc, argv, ' ', 2);
 	        do_leave(argv[1], client[ci].level);
+		break;
 
-	else if (!strcmp(cmd, "stop_done"))
+	case DO_STOP_DONE:
+		get_args(buf, &argc, argv, ' ', 2);
 		do_stopdone(argv[1], client[ci].level);
+		break;
 
-	else if (!strcmp(cmd, "start_done"))
+	case DO_START_DONE:
+		get_args(buf, &argc, argv, ' ', 2);
 		do_startdone(argv[1], client[ci].level);
+		break;
 
-	else if (!strcmp(cmd, "get_groups"))
+	case DO_SEND:
+		p = get_args(buf, &argc, argv, ' ', 3);
+		do_send(argv[1], client[ci].level, atoi(argv[2]), p);
+		break;
+
+	case DO_GET_GROUPS:
+		get_args(buf, &argc, argv, ' ', 2);
 		do_get_groups(ci, argc, argv);
+		break;
 
-	else if (!strcmp(cmd, "get_group"))
+	case DO_GET_GROUP:
+		get_args(buf, &argc, argv, ' ', 3);
 		do_get_group(ci, argc, argv);
+		break;
 
-	else if (!strcmp(cmd, "dump"))
+	case DO_DUMP:
 		do_dump(ci, argc, argv);
+		break;
 
-	else
-		log_print("unknown cmd \"%s\" client %d bytes %d", cmd, ci, rv);
+	default:
+		log_print("unknown action %d client %d bytes %d", act, ci, rv);
+	}
 }
 
 static void process_listener(int ci)

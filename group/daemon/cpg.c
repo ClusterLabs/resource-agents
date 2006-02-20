@@ -7,6 +7,7 @@ static cpg_handle_t groupd_handle;
 static SaNameT groupd_name;
 static int groupd_joined = 0;
 static int groupd_ci;
+static int group_id_counter;
 
 static int			got_confchg;
 static int			got_deliver;
@@ -22,6 +23,7 @@ static int			saved_nodeid;
 static int			saved_pid;
 static int			saved_msg_len;
 static char			saved_msg[MAX_MSGLEN];
+static char			*saved_msg_long;
 
 
 static node_t *find_group_node(group_t *g, int nodeid)
@@ -92,6 +94,16 @@ static void process_node_join(group_t *g, int nodeid)
 			g->memb_count++;
 			log_group(g, "group add node %d total %d - init",
 				  node->nodeid, g->memb_count);
+		}
+
+		/* if we're the first one to join (create) the group,
+		   then set its global_id */
+
+		if (saved_member_count == 1) {
+			g->global_id = (++group_id_counter << 16) |
+				       (0x0000FFFF & our_nodeid);
+			log_group(g, "create group id %x our_nodeid %d",
+				  g->global_id, our_nodeid);
 		}
 	} else {
 		node = new_node(nodeid);
@@ -180,27 +192,41 @@ group_t *find_group_by_handle(cpg_handle_t h)
 	return NULL;
 }
 
-void process_deliver(void)
+void deliver_cb(cpg_handle_t handle, SaNameT *group_name,
+		uint32_t nodeid, uint32_t pid, void *msg, int msg_len)
 {
 	group_t *g;
+	struct save_msg *save;
+	char *buf;
 
 	if (saved_handle == groupd_handle) {
 		log_print("shouldn't get here");
-		printf("%s\n", saved_msg);
 		return;
 	}
 
-	log_print("process_deliver from %d len %d",
-		  saved_nodeid, saved_msg_len);
+	log_print("deliver_cb from %d len %d", nodeid, msg_len);
 
-	g = find_group_by_handle(saved_handle);
+	g = find_group_by_handle(handle);
 	if (!g) {
-		log_print("process_deliver: no group for handle %u name %s",
-			  saved_handle, saved_name.value);
+		log_print("deliver_cb: no group for handle %x name %s",
+			  handle, group_name->value);
 		return;
 	}
 
-	queue_app_message(g, (msg_t *) &saved_msg, saved_nodeid);
+	save = malloc(sizeof(struct save_msg));
+	memset(save, 0, sizeof(struct save_msg));
+	save->nodeid = nodeid;
+	save->msg_len = msg_len;
+
+	if (msg_len > sizeof(msg_t)) {
+		buf = malloc(msg_len);
+		memcpy(buf, msg, msg_len);
+		save->msg_long = buf;
+		memcpy(&save->msg, buf, sizeof(msg_t));
+	} else
+		memcpy(&save->msg, msg, sizeof(msg_t));
+
+	queue_app_message(g, save);
 }
 
 void process_confchg(void)
@@ -234,30 +260,6 @@ void process_confchg(void)
 	}
 }
 
-void deliver_cb(cpg_handle_t handle, SaNameT *group_name,
-		uint32_t nodeid, uint32_t pid, void *msg, int msg_len)
-{
-	int i;
-
-	saved_handle = handle;
-	saved_nodeid = nodeid;
-	saved_pid = pid;
-
-	if (msg_len > MAX_MSGLEN) {
-		log_print("message too large %d", msg_len);
-		msg_len = MAX_MSGLEN;
-	}
-	saved_msg_len = msg_len;
-	memset(&saved_msg, 0, sizeof(saved_msg));
-	memcpy(&saved_msg, msg, msg_len);
-
-	memset(&saved_name, 0, sizeof(saved_name));
-	saved_name.length = group_name->length;
-	memcpy(&saved_name.value, &group_name->value, group_name->length);
-
-	got_deliver = 1;
-}
-
 void confchg_cb(cpg_handle_t handle, SaNameT *group_name,
 		struct cpg_address *member_list, int member_list_entries,
 		struct cpg_address *left_list, int left_list_entries,
@@ -268,15 +270,15 @@ void confchg_cb(cpg_handle_t handle, SaNameT *group_name,
 	saved_handle = handle;
 
 	if (left_list_entries > MAX_GROUP_MEMBERS) {
-		log_print("left_list_entries too big %d", left_list_entries);
+		log_print("left_list_entries %d", left_list_entries);
 		left_list_entries = MAX_GROUP_MEMBERS;
 	}
 	if (joined_list_entries > MAX_GROUP_MEMBERS) {
-		log_print("joined_list_entries too big %d", joined_list_entries);
+		log_print("joined_list_entries %d", joined_list_entries);
 		joined_list_entries = MAX_GROUP_MEMBERS;
 	}
 	if (member_list_entries > MAX_GROUP_MEMBERS) {
-		log_print("member_list_entries too big %d", joined_list_entries);
+		log_print("member_list_entries %d", joined_list_entries);
 		member_list_entries = MAX_GROUP_MEMBERS;
 	}
 
@@ -337,10 +339,7 @@ void process_cpg(int ci)
 		if (error != CPG_OK)
 			log_print("cpg_dispatch error %d", error);
 
-		if (got_deliver) {
-			process_deliver();
-			got_deliver = 0;
-		} else if (got_confchg) {
+		if (got_confchg) {
 			process_confchg();
 			got_confchg = 0;
 		} else
@@ -413,7 +412,6 @@ int do_cpg_join(group_t *g)
 	}
 
 	log_group(g, "cpg_join ok");
-
 	return 0;
 }
 
@@ -433,9 +431,7 @@ int do_cpg_leave(group_t *g)
 		/* FIXME: what do do here? */
 	}
 
-	/* do we get a final confchg showing us leaving? */
-
-	cpg_finalize(g->cpg_handle);
+	log_group(g, "cpg_leave ok");
 	return 0;
 }
 
@@ -443,12 +439,6 @@ int send_message(group_t *g, void *buf, int len)
 {
 	struct iovec iov;
 	cpg_error_t error;
-
-	/*
-	iov.iov_base = "hello";
-	iov.iov_len = 5;
-	cpg_mcast_joined(groupd_handle, CPG_TYPE_AGREED, &iov, 1);
-	*/
 
 	iov.iov_base = buf;
 	iov.iov_len = len;

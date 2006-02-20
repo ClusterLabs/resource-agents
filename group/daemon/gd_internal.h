@@ -166,6 +166,7 @@ struct group {
 	cpg_handle_t		cpg_handle;
 	int			cpg_fd;
 	int			cpg_client;
+	int			have_set_id;
 };
 
 /*
@@ -187,12 +188,21 @@ struct app {
 
 #define MSG_APP_STOPPED        1
 #define MSG_APP_STARTED        2
+#define MSG_APP_INTERNAL       3
 
 struct msg {
 	uint32_t 		ms_type;
 	uint32_t 		ms_id;
-	uint32_t 		ms_pad;
-	uint32_t		ms_pad2;
+	uint32_t 		ms_length;
+	uint32_t		ms_pad;
+};
+
+struct save_msg {
+	struct list_head	list;
+	int			nodeid;
+	int			msg_len;
+	msg_t			msg;
+	char			*msg_long;
 };
 
 /*
@@ -212,7 +222,7 @@ void add_recovery_set(int nodeid);
 int queue_app_recover(group_t *g, int nodeid);
 int queue_app_join(group_t *g, int nodeid);
 int queue_app_leave(group_t *g, int nodeid);
-int queue_app_message(group_t *g, msg_t *msg, int nodeid);
+int queue_app_message(group_t *g, struct save_msg *save);
 int do_stopdone(char *name, int level);
 int do_startdone(char *name, int level);
 char *ev_state_str(event_t *ev);
