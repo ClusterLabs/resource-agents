@@ -301,7 +301,7 @@ int comms_init_ais()
 	cman_ais_config.ip_port = htons(ip_port);
 
 	totemip_copy(&cman_ais_config.mcast_addr, &mcast_addr);
-	cman_ais_config.node_id = htonl(our_nodeid());
+	cman_ais_config.node_id = our_nodeid();
 
 	cman_ais_config.totem_logging_configuration.log_printf = log_msg;
 	cman_ais_config.totem_logging_configuration.log_level_security = 5;
