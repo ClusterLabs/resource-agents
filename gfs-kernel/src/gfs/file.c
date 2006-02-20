@@ -409,3 +409,47 @@ gfs_writei(struct gfs_inode *ip, void *buf,
 		goto out;
 	RETURN(GFN_WRITEI, error);
 }
+
+/*
+ * gfs_zero_blocks - zero out disk blocks via gfs_writei()
+ * @ip: The file to write to
+ * @bh: The buffer to clear
+ * @buf: The pseudo buffer (not used but added to keep interface unchanged)
+ * @offset: The offset in the buffer to write to
+ * @size: The size to zero out
+ * @new: Flag indicating that remaining space in the buffer should be zeroed
+ *
+ * Returns: 0 on success, -EXXX on failure
+ */
+
+int
+gfs_zero_blocks(struct gfs_inode *ip, struct buffer_head *bh, void **buf,
+                unsigned int offset, unsigned int size, int new)
+{
+	int error = 0;
+
+	/* The dinode block always gets journaled */
+	if (bh->b_blocknr == ip->i_num.no_addr) {
+		if (gfs_assert_warn(ip->i_sbd, !new))
+			return -EIO;
+		gfs_trans_add_bh(ip->i_gl, bh);
+		memset((bh)->b_data + offset, 0, size);
+
+	/* Data blocks for journaled files get written added to the journal */
+	} else if (gfs_is_jdata(ip)) {
+		gfs_trans_add_bh(ip->i_gl, bh);
+		memset((bh)->b_data + offset, 0, size);
+		if (new)
+			gfs_buffer_clear_ends(bh, offset, size, TRUE);
+
+	/* Non-journaled data blocks get written to in-place disk blocks */
+	} else {
+		memset((bh)->b_data + offset, 0, size);
+		if (new)
+			gfs_buffer_clear_ends(bh, offset, size, FALSE);
+		error = gfs_dwrite(ip->i_sbd, bh, DIO_DIRTY);
+	}
+
+	return error;
+}
+

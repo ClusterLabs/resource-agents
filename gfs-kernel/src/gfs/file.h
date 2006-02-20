@@ -34,6 +34,9 @@ int gfs_copy_from_user(struct gfs_inode *ip, struct buffer_head *bh, void **buf,
 int gfs_writei(struct gfs_inode *ip, void *buf, uint64_t offset,
 	       unsigned int size, write_copy_fn_t copy_fn);
 
+int gfs_zero_blocks(struct gfs_inode *ip, struct buffer_head *bh, void **buf,
+		    unsigned int offset, unsigned int size, int new);
+
 static __inline__ int
 gfs_internal_read(struct gfs_inode *ip, char *buf, uint64_t offset,
 		  unsigned int size)

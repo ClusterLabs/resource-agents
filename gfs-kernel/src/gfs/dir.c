@@ -2132,16 +2132,11 @@ leaf_free(struct gfs_inode *dip,
 	struct buffer_head *bh, *dibh;
 	uint64_t blk;
 	unsigned int rg_blocks = 0;
-	char *ht;
+	char *ht=0;
 	unsigned int x, size = len * sizeof(uint64_t);
 	int error;
 
 	memset(&rlist, 0, sizeof(struct gfs_rgrp_list));
-
-	ht = kmalloc(size, GFP_KERNEL);
-	if (!ht)
-		RETURN(GFN_LEAF_FREE, -ENOMEM);
-	memset(ht, 0, size);
 
 	gfs_alloc_get(dip);
 
@@ -2203,7 +2198,8 @@ leaf_free(struct gfs_inode *dip,
 		dip->i_di.di_blocks--;
 	}
 
-	error = gfs_internal_write(dip, ht, index * sizeof(uint64_t), size);
+	error = gfs_writei(dip, ht, index * sizeof (uint64_t), size, gfs_zero_blocks);
+
 	if (error != size) {
 		if (error >= 0)
 			error = -EIO;
@@ -2233,7 +2229,6 @@ leaf_free(struct gfs_inode *dip,
 
  out:
 	gfs_alloc_put(dip);
-	kfree(ht);
 
 	RETURN(GFN_LEAF_FREE, error);
 }
