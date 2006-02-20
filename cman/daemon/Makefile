@@ -33,11 +33,11 @@ service_cman.lcrso:	daemon.o config.o logging.o ais.o commands.o barrier.o cmanc
 	cp ${TARGET} ${AISDIR}/${AISTAG}/exec
 	ln -sf ${AISDIR} openais
 
-daemon.o: daemon.c list.h cnxman-socket.h cnxman-private.h xlate.h \
-  daemon.h logging.h commands.h barrier.h config.h cmanccs.h memlock.h
+daemon.o: daemon.c list.h cnxman-socket.h cnxman-private.h \
+  daemon.h logging.h commands.h barrier.h config.h cmanccs.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-cnxman.o: cnxman.c list.h cnxman-socket.h cnxman-private.h xlate.h \
+cnxman.o: cnxman.c list.h cnxman-socket.h cnxman-private.h \
   daemon.h barrier.h commands.h config.h logging.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
@@ -47,18 +47,15 @@ config.o: config.c config.h
 cmanccs.o: cmanccs.c cmanccs.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-barrier.o: barrier.c list.h cnxman-socket.h cnxman-private.h xlate.h \
+barrier.o: barrier.c list.h cnxman-socket.h cnxman-private.h \
   daemon.h logging.h config.h barrier.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-commands.o: commands.c list.h cnxman-socket.h cnxman-private.h xlate.h \
+commands.o: commands.c list.h cnxman-socket.h cnxman-private.h \
   daemon.h barrier.h  logging.h config.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-logging.o: logging.c list.h cnxman-socket.h cnxman-private.h xlate.h
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-memlock.o: memlock.c 
+logging.o: logging.c list.h cnxman-socket.h cnxman-private.h 
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # Target to download & unpack openAIS

@@ -185,15 +185,4 @@ struct cluster_node {
 
 #define MAX_ADDR_PRINTED_LEN (address_length*3 + 1)
 
-#define time_after(a,b)         \
-         ((long)(b) - (long)(a) < 0)
-#define time_before(a,b)        time_after(b,a)
-
-#include "xlate.h"
-
-#define le32_to_cpu(x) xlate32(x)
-#define le16_to_cpu(x) xlate16(x)
-#define cpu_to_le32(x) xlate32(x)
-#define cpu_to_le16(x) xlate16(x)
-
 #endif
