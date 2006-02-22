@@ -38,16 +38,12 @@
 #include "saAis.h"
 #include "cpg.h"
 
-#define GROUPD_PORT		(2)
 #define MAX_NAMELEN		(32)	/* should match libgroup.h */
-#define MAX_BARRIERLEN		(32)	/* no more than GROUP_INFO_LEN */
-#define MAX_MSGLEN		(128)
 #define MAX_LEVELS		(4)
 #define MAX_NODES		(256)
-#define MAXARGS			(100)  /* FIXME */
+#define MAXARGS			(32)
 #define MAXCON			(16)
-#define NALLOC			(4)
-#define RETRY_DELAY		(2)
+#define NALLOC			(16)
 #define DUMP_SIZE		(1024 * 1024)
 
 extern char *prog_name;

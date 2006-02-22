@@ -10,7 +10,6 @@ static int groupd_ci;
 static int group_id_counter;
 
 static int			got_confchg;
-static int			got_deliver;
 static struct cpg_address	saved_member[MAX_GROUP_MEMBERS];
 static struct cpg_address	saved_joined[MAX_GROUP_MEMBERS];
 static struct cpg_address	saved_left[MAX_GROUP_MEMBERS];
@@ -21,9 +20,6 @@ static cpg_handle_t		saved_handle;
 static SaNameT			saved_name;
 static int			saved_nodeid;
 static int			saved_pid;
-static int			saved_msg_len;
-static char			saved_msg[MAX_MSGLEN];
-static char			*saved_msg_long;
 
 
 static node_t *find_group_node(group_t *g, int nodeid)
@@ -150,10 +146,6 @@ void process_groupd_confchg(void)
 		    saved_member[i].pid == (uint32_t) getpid()) {
 			found = 1;
 		}
-
-		/* REMOVEME */
-		if (saved_member[i].pid == (uint32_t) getpid())
-			our_nodeid = saved_member[i].nodeId;
 	}
 	printf("\n");
 
@@ -239,8 +231,8 @@ void process_confchg(void)
 		return;
 	}
 
-	log_print("process_confchg members %d joined %d left %d",
-		  saved_member_count, saved_joined_count, saved_left_count);
+	log_print("process_confchg members %d left %d joined %d",
+		  saved_member_count, saved_left_count, saved_joined_count);
 
 	g = find_group_by_handle(saved_handle);
 	if (!g) {
@@ -266,6 +258,9 @@ void confchg_cb(cpg_handle_t handle, SaNameT *group_name,
 		struct cpg_address *joined_list, int joined_list_entries)
 {
 	int i;
+
+	log_print("confchg_cb members %d left %d joined %d",
+		  member_list_entries, left_list_entries, joined_list_entries);
 
 	saved_handle = handle;
 
