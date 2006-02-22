@@ -27,7 +27,6 @@ static struct pollfd pollfd[MAX_CLIENTS];
 static int listen_fd;
 static int groupd_fd;
 static int uevent_fd;
-static int member_fd;
 static int libdlm_fd;
 static int plocks_fd;
 
@@ -236,15 +235,14 @@ int loop(void)
 {
 	int rv, i, f, maxi = 0;
 
+	rv = setup_cman();
+	if (rv < 0)
+		goto out;
+
 	rv = listen_fd = setup_listen();
 	if (rv < 0)
 		goto out;
 	client_add(listen_fd, &maxi);
-
-	rv = member_fd = setup_member();
-	if (rv < 0)
-		goto out;
-	client_add(member_fd, &maxi);
 
 	rv = groupd_fd = setup_groupd();
 	if (rv < 0)
@@ -290,8 +288,6 @@ int loop(void)
 					process_groupd();
 				else if (pollfd[i].fd == uevent_fd)
 					process_uevent();
-				else if (pollfd[i].fd == member_fd)
-					process_member();
 				else if (pollfd[i].fd == libdlm_fd)
 					process_libdlm();
 				else if (pollfd[i].fd == plocks_fd)

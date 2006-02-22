@@ -43,9 +43,8 @@
 #define MAXLINE			256
 #define MAXNAME			255
 #define MAX_CLIENTS		8
-#define MAX_MSGLEN		1024
+#define MAX_MSGLEN		2048
 
-#define LOCK_DLM_PORT		3
 #define LOCK_DLM_GROUP_LEVEL	2
 #define LOCK_DLM_GROUP_NAME	"lock_dlmd"
 #define LOCK_DLM_SOCK_PATH	"lock_dlmd_sock"
@@ -128,15 +127,13 @@ struct gdlm_header {
 	uint16_t		version[3];
 	uint16_t		type;			/* MSG_ */
 	uint32_t		nodeid;			/* sender */
-	char			name[MAXNAME + 1];	/* mg->name */
 };
 
 
 struct mountgroup *find_mg(char *name);
 struct mountgroup *find_mg_id(uint32_t id);
 
-int setup_member(void);
-int process_member(void);
+int setup_cman(void);
 int setup_groupd(void);
 int process_groupd(void);
 int setup_libdlm(void);

@@ -20,7 +20,7 @@ extern group_handle_t gh;
 
 struct list_head mounts;
 
-int send_journals_message(int nodeid, char *buf, int len);
+int send_journals_message(struct mountgroup *mg, int len, char *buf);
 int hold_withdraw_locks(struct mountgroup *mg);
 void release_withdraw_lock(struct mountgroup *mg, struct mg_member *memb);
 void release_withdraw_locks(struct mountgroup *mg);
@@ -122,7 +122,6 @@ void send_journals(struct mountgroup *mg, int nodeid)
 	hd = (struct gdlm_header *)buf;
 	hd->type = MSG_JOURNAL;
 	hd->nodeid = our_nodeid;
-	strncpy(hd->name, mg->name, MAXNAME);
 	ids = (int *) (buf + sizeof(struct gdlm_header));
 
 	/* FIXME: do byte swapping */
@@ -137,26 +136,17 @@ void send_journals(struct mountgroup *mg, int nodeid)
 
 	log_group(mg, "send_journals len %d to %d", len, nodeid);
 
-	send_journals_message(nodeid, buf, len);
+	send_journals_message(mg, len, buf);
 
 	free(buf);
 }
 
-void receive_journals(char *buf, int len, int from)
+void receive_journals(struct mountgroup *mg, char *buf, int len, int from)
 {
 	struct mg_member *memb, *memb2;
-	struct mountgroup *mg;
-	struct gdlm_header *hd = (struct gdlm_header *)buf;
 	int *ids, count, i, nodeid, jid;
 
 	count = (len - sizeof(struct gdlm_header)) / (2 * sizeof(int));
-
-	mg = find_mg(hd->name);
-	if (!mg) {
-		log_error("receive_journals from %d no mountgroup %s",
-			  from, hd->name);
-		return;
-	}
 
 	log_group(mg, "receive_journals from %d count %d", from, count);
 

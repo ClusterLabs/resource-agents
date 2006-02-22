@@ -44,7 +44,7 @@
 static int control_fd = -1;
 extern int our_nodeid;
 
-int send_plock_message(char *buf, int len);
+int send_plock_message(struct mountgroup *mg, int len, char *buf);
 
 struct resource {
 	struct list_head	list;	   /* list of resources */
@@ -240,10 +240,9 @@ int process_plocks(void)
 	hd = (struct gdlm_header *)buf;
 	hd->type = MSG_PLOCK;
 	hd->nodeid = our_nodeid;
-	strncpy(hd->name, mg->name, MAXNAME);
 	memcpy(buf + sizeof(struct gdlm_header), &info, sizeof(info));
 
-	rv = send_plock_message(buf, len);
+	rv = send_plock_message(mg, len, buf);
 
 	free(buf);
 
@@ -698,16 +697,15 @@ static int do_unlock(struct mountgroup *mg, struct gdlm_plock_info *in)
 	return rv;
 }
 
-void receive_plock(char *buf, int len, int from)
+void receive_plock(struct mountgroup *mg, char *buf, int len, int from)
 {
 	struct gdlm_plock_info info;
 	struct gdlm_header *hd = (struct gdlm_header *) buf;
-	struct mountgroup *mg;
 	int rv;
 
 	memcpy(&info, buf + sizeof(struct gdlm_header), sizeof(info));
 
-	log_debug("receive_plock %d op %d fs %x num %llx ex %d wait %d",
+	log_group(mg, "receive_plock %d op %d fs %x num %llx ex %d wait %d",
 		  from, info.optype, info.fsid, info.number, info.ex,
 		  info.wait);
 
@@ -719,13 +717,6 @@ void receive_plock(char *buf, int len, int from)
 
 	if (info.optype == GDLM_PLOCK_OP_GET && from != our_nodeid)
 		return;
-
-	mg = find_mg(hd->name);
-	if (!mg) {
-		log_error("receive_plock from %d no mg %s", from, hd->name);
-		rv = -EEXIST;
-		goto out;
-	}
 
 	switch (info.optype) {
 	case GDLM_PLOCK_OP_LOCK:

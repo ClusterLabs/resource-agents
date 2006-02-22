@@ -12,11 +12,14 @@
 
 #include "lock_dlm.h"
 
-#define DO_STOP 1
-#define DO_START 2
-#define DO_FINISH 3
-#define DO_TERMINATE 4
-#define DO_SETID 5
+enum {
+	DO_STOP = 1,
+	DO_START,
+	DO_FINISH,
+	DO_TERMINATE,
+	DO_SETID,
+	DO_DELIVER,
+};
 
 /* save all the params from callback functions here because we can't
    do the processing within the callback function itself */
@@ -27,13 +30,18 @@ static char cb_name[MAX_GROUP_NAME_LEN+1];
 static int cb_event_nr;
 static int cb_id;
 static int cb_type;
+static int cb_nodeid;
+static int cb_len;
 static int cb_member_count;
 static int cb_members[MAX_GROUP_MEMBERS];
+static char cb_message[MAX_MSGLEN+1];
 
 int do_stop(struct mountgroup *mg);
 int do_finish(struct mountgroup *mg);
 int do_terminate(struct mountgroup *mg);
 int do_start(struct mountgroup *mg, int type, int count, int *nodeids);
+void receive_journals(struct mountgroup *mg, char *buf, int len, int from);
+void receive_plock(struct mountgroup *mg, char *buf, int len, int from);
 
 
 static void stop_cbfn(group_handle_t h, void *private, char *name)
@@ -48,7 +56,7 @@ static void start_cbfn(group_handle_t h, void *private, char *name,
 	int i;
 
 	cb_action = DO_START;
-	strcpy(cb_name, name);
+	strncpy(cb_name, name, MAX_GROUP_NAME_LEN);
 	cb_event_nr = event_nr;
 	cb_type = type;
 	cb_member_count = member_count;
@@ -61,21 +69,34 @@ static void finish_cbfn(group_handle_t h, void *private, char *name,
 			int event_nr)
 {
 	cb_action = DO_FINISH;
-	strcpy(cb_name, name);
+	strncpy(cb_name, name, MAX_GROUP_NAME_LEN);
 	cb_event_nr = event_nr;
 }
 
 static void terminate_cbfn(group_handle_t h, void *private, char *name)
 {
 	cb_action = DO_TERMINATE;
-	strcpy(cb_name, name);
+	strncpy(cb_name, name, MAX_GROUP_NAME_LEN);
 }
 
 static void setid_cbfn(group_handle_t h, void *private, char *name, int id)
 {
 	cb_action = DO_SETID;
-	strcpy(cb_name, name);
+	strncpy(cb_name, name, MAX_GROUP_NAME_LEN);
 	cb_id = id;
+}
+
+static void deliver_cbfn(group_handle_t h, void *private, char *name,
+			 int nodeid, int len, char *buf)
+{
+	int n;
+	cb_action = DO_DELIVER;
+	strncpy(cb_name, name, MAX_GROUP_NAME_LEN);
+	cb_nodeid = nodeid;
+	cb_len = n = len;
+	if (len > MAX_MSGLEN)
+		n = MAX_MSGLEN;
+	memcpy(&cb_message, buf, n);
 }
 
 group_callbacks_t callbacks = {
@@ -83,8 +104,20 @@ group_callbacks_t callbacks = {
 	start_cbfn,
 	finish_cbfn,
 	terminate_cbfn,
-	setid_cbfn
+	setid_cbfn,
+	deliver_cbfn
 };
+
+static void do_deliver(struct mountgroup *mg)
+{
+	struct gdlm_header *hd;
+
+	hd = (struct gdlm_header *) cb_message;
+	if (hd->type == MSG_JOURNAL)
+		receive_journals(mg, cb_message, cb_len, cb_nodeid);
+	else if (hd->type == MSG_PLOCK)
+		receive_plock(mg, cb_message, cb_len, cb_nodeid);
+}
 
 char *str_members(void)
 {
@@ -117,29 +150,42 @@ int process_groupd(void)
 
 	switch (cb_action) {
 	case DO_STOP:
-		log_debug("stop %s", cb_name);
+		log_debug("groupd callback: stop %s", cb_name);
 		mg->last_stop = mg->last_start;
 		do_stop(mg);
 		break;
+
 	case DO_START:
-		log_debug("start %s %s", cb_name, str_members());
+		log_debug("groupd callback: start %s type %d count %d members %s",
+			  cb_name, cb_type, cb_member_count, str_members());
 		mg->last_start = cb_event_nr;
 		do_start(mg, cb_type, cb_member_count, cb_members);
 		break;
+
 	case DO_FINISH:
-		log_debug("finish %s", cb_name);
+		log_debug("groupd callback: finish %s", cb_name);
 		mg->last_finish = cb_event_nr;
 		do_finish(mg);
 		break;
+
 	case DO_TERMINATE:
-		log_debug("terminate %s", cb_name);
+		log_debug("groupd callback: terminate %s", cb_name);
 		do_terminate(mg);
 		list_del(&mg->list);
 		free(mg);
 		break;
+
 	case DO_SETID:
+		log_debug("groupd callback: set_id %s %x", cb_name, cb_id);
 		mg->id = cb_id;
 		break;
+
+	case DO_DELIVER:
+		log_debug("groupd callback: deliver %s len %d nodeid %d",
+			  cb_name, cb_len, cb_nodeid);
+		do_deliver(mg);
+		break;
+
 	default:
 		error = -EINVAL;
 	}
@@ -168,3 +214,29 @@ int setup_groupd(void)
 
 	return rv;
 }
+
+/* MAX_MSGLEN of 1024 will support up to around 90 group members:
+   (1024 - sizeof(header)) / (2 * 4) */
+
+int send_journals_message(struct mountgroup *mg, int len, char *buf)
+{
+	int error;
+
+	error = group_send(gh, mg->name, len, buf);
+	if (error < 0)
+		log_error("group_send error %d errno %d", error, errno);
+	return 0;
+}
+
+int send_plock_message(struct mountgroup *mg, int len, char *buf)
+{
+        int error;
+
+	error = group_send(gh, mg->name, len, buf);
+	if (error < 0)
+		log_error("group_send error %d errno %d", error, errno);
+	else
+		error = 0;
+	return error;
+}
+
