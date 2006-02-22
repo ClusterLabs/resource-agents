@@ -25,8 +25,17 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
+#define __be16 uint16_t
+#define __be32 uint32_t
+#define __be64 uint64_t
+#define __u16 uint16_t
+#define __u32 uint32_t
+#define __u64 uint64_t
+#define __u8 uint8_t
+
 #include <linux/gfs2_ondisk.h>
 #include <linux/gfs_ondisk.h>
+#include "linux_endian.h"
 
 #define die(fmt, args...) \
 do { \

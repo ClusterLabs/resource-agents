@@ -171,6 +171,41 @@ void read_proc_mounts(struct mount_options *mo)
 	log_debug("read_proc_mounts: opts = \"%s\"", mo->opts);
 }
 
+void gfs2_inum_in(struct gfs2_inum *no, char *buf)
+{
+	struct gfs2_inum *str = (struct gfs2_inum *)buf;
+
+	no->no_formal_ino = be64_to_cpu(str->no_formal_ino);
+	no->no_addr = be64_to_cpu(str->no_addr);
+}
+
+void gfs2_meta_header_in(struct gfs2_meta_header *mh, char *buf)
+{
+	struct gfs2_meta_header *str = (struct gfs2_meta_header *)buf;
+
+	mh->mh_magic = be32_to_cpu(str->mh_magic);
+	mh->mh_type = be16_to_cpu(str->mh_type);
+	mh->mh_format = be16_to_cpu(str->mh_format);
+}
+
+void gfs2_sb_in(struct gfs2_sb *sb, char *buf)
+{
+	struct gfs2_sb *str = (struct gfs2_sb *)buf;
+
+	gfs2_meta_header_in(&sb->sb_header, buf);
+
+	sb->sb_fs_format = be32_to_cpu(str->sb_fs_format);
+	sb->sb_multihost_format = be32_to_cpu(str->sb_multihost_format);
+	sb->sb_bsize = be32_to_cpu(str->sb_bsize);
+	sb->sb_bsize_shift = be32_to_cpu(str->sb_bsize_shift);
+
+	gfs2_inum_in(&sb->sb_master_dir, (char *)&str->sb_master_dir);
+	gfs2_inum_in(&sb->sb_root_dir, (char *)&str->sb_root_dir);
+
+	memcpy(sb->sb_lockproto, str->sb_lockproto, GFS2_LOCKNAME_LEN);
+	memcpy(sb->sb_locktable, str->sb_locktable, GFS2_LOCKNAME_LEN);
+}
+
 int get_sb(char *device, struct gen_sb *sb_out)
 {
 	int fd;
@@ -189,8 +224,9 @@ int get_sb(char *device, struct gen_sb *sb_out)
 
 		if (sb.sb_header.mh_magic != GFS2_MAGIC ||
 	    	    sb.sb_header.mh_type != GFS2_METATYPE_SB) {
-			gfs2_sb_print(&sb);
-			die("there isn't a GFS2 filesystem on %s\n", device);
+			die("there isn't a GFS2 filesystem on %s, "
+			    "magic=%x type=%x\n", device,
+			    sb.sb_header.mh_magic, sb.sb_header.mh_type);
 		}
 
 		strncpy(sb_out->lockproto, sb.sb_lockproto, 256);
