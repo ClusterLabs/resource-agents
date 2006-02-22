@@ -1,0 +1,25 @@
+
+#
+# mkfs for GFS2 filesystem
+#
+
+To install:
+
+ 1. Edit the Makefile to point at your local copy of the kernel source
+with GFS2 included in it, for my set up that means:
+
+INCLUDEPATH=-I/home/steve/linux-2.6/include/
+
+ 2. make
+ 3. make install
+
+
+You can then use it just like other mkfs programs (for example):
+
+/sbin/mkfs -t gfs2 -j 1 -p lock_nolock /dev/sdb1
+
+This will create a filesystem with one journal (i.e. mountable by a
+maximum of one node at a time) with the nolock module (single node
+use only) on /dev/sdb1. Running mkfs -f gfs2 -h will produce help
+information.
+
