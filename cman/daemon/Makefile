@@ -31,6 +31,7 @@ copytobin: all
 service_cman.lcrso:	daemon.o config.o logging.o ais.o commands.o barrier.o cmanccs.o 
 	$(CC) $(CFLAGS) -shared -shared -Wl,-soname,service_cman.lcrso -o $@ $^ -L../lib -L${ccslibdir} -lccs
 	cp ${TARGET} ${AISDIR}/${AISTAG}/exec
+	rm -f openais
 	ln -sf ${AISDIR} openais
 
 daemon.o: daemon.c list.h cnxman-socket.h cnxman-private.h \
