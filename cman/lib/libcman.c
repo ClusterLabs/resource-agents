@@ -347,6 +347,26 @@ int cman_finish(cman_handle_t handle)
 	return 0;
 }
 
+int cman_set_private(cman_handle_t *handle, void *private)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
+
+	h->private = private;
+	return 0;
+}
+
+int cman_get_private(cman_handle_t *handle, void **private)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
+
+	*private = h->private;
+
+	return 0;
+}
+
+
 int cman_start_notification(cman_handle_t handle, cman_callback_t callback)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
@@ -410,31 +430,40 @@ int cman_dispatch(cman_handle_t handle, int flags)
 		{
 			struct saved_message *smsg = h->saved_reply_msg;
 
-			process_cman_message(h, flags, smsg->msg);
+			res = process_cman_message(h, flags, smsg->msg);
 			h->saved_reply_msg = smsg->next;
 			len = smsg->msg->length;
 			free(smsg);
-			continue;
+			if (res)
+				break;
+			else
+				continue;
 		}
 		if (h->saved_data_msg && !(flags & CMAN_DISPATCH_IGNORE_DATA))
 		{
 			struct saved_message *smsg = h->saved_data_msg;
 
-			process_cman_message(h, flags, smsg->msg);
+			res = process_cman_message(h, flags, smsg->msg);
 			h->saved_data_msg = smsg->next;
 			len = smsg->msg->length;
 			free(smsg);
-			continue;
+			if (res)
+				break;
+			else
+				continue;
 		}
 		if (h->saved_event_msg && !(flags & CMAN_DISPATCH_IGNORE_EVENT))
 		{
 			struct saved_message *smsg = h->saved_event_msg;
 
-			process_cman_message(h, flags, smsg->msg);
+			res = process_cman_message(h, flags, smsg->msg);
 			h->saved_event_msg = smsg->next;
 			len = smsg->msg->length;
 			free(smsg);
-			continue;
+			if (res)
+				break;
+			else
+				continue;
 		}
 
 		/* Now look for new messages */
@@ -637,32 +666,6 @@ int cman_set_version(cman_handle_t handle, cman_version_t *version)
 	return info_call(h, CMAN_CMD_SET_VERSION, version, sizeof(cman_version_t), NULL, 0);
 }
 
-int cman_set_nodename(cman_handle_t handle, char *name)
-{
-	struct cman_handle *h = (struct cman_handle *)handle;
-	VALIDATE_HANDLE(h);
-
-	if (!name)
-	{
-		errno = EINVAL;
-		return -1;
-	}
-	return info_call(h, CMAN_CMD_SET_NODENAME, name, strlen(name)+1, NULL, 0);
-}
-
-int cman_set_nodeid(cman_handle_t handle, int nodeid)
-{
-	struct cman_handle *h = (struct cman_handle *)handle;
-	VALIDATE_HANDLE(h);
-
-	if (!nodeid)
-	{
-		errno = EINVAL;
-		return -1;
-	}
-	return info_call(h, CMAN_CMD_SET_NODEID, &nodeid, sizeof(nodeid), NULL, 0);
-}
-
 int cman_kill_node(cman_handle_t handle, int nodeid)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
@@ -712,60 +715,6 @@ int cman_leave_cluster(cman_handle_t handle, int reason)
 
 	return info_call(h, CMAN_CMD_LEAVE_CLUSTER, &reason, sizeof(reason), NULL, 0);
 }
-
-int cman_join_cluster(cman_handle_t handle, struct cman_join_info *jinfo)
-{
-	struct cman_handle *h = (struct cman_handle *)handle;
-	VALIDATE_HANDLE(h);
-
-	if (!jinfo)
-	{
-		errno = EINVAL;
-		return -1;
-	}
-	return info_call(h, CMAN_CMD_JOIN_CLUSTER, jinfo, sizeof(*jinfo), NULL, 0);
-}
-
-int cman_set_mcast(cman_handle_t handle, char *mcast_addr)
-{
-	struct cman_handle *h = (struct cman_handle *)handle;
-	VALIDATE_HANDLE(h);
-
-	if (!mcast_addr)
-	{
-		errno = EINVAL;
-		return -1;
-	}
-	return info_call(h, CMAN_CMD_ADD_MCAST, mcast_addr, strlen(mcast_addr)+1, NULL, 0);
-}
-
-int cman_set_interface(cman_handle_t handle, char *if_addr)
-{
-	struct cman_handle *h = (struct cman_handle *)handle;
-	VALIDATE_HANDLE(h);
-
-	if (!if_addr)
-	{
-		errno = EINVAL;
-		return -1;
-	}
-	return info_call(h, CMAN_CMD_ADD_IFADDR, if_addr, strlen(if_addr)+1, NULL, 0);
-}
-
-int cman_set_commskey(cman_handle_t handle, char *keyfile)
-{
-	struct cman_handle *h = (struct cman_handle *)handle;
-	VALIDATE_HANDLE(h);
-
-	if (!keyfile)
-	{
-		errno = EINVAL;
-		return -1;
-	}
-	return info_call(h, CMAN_CMD_ADD_KEYFILE, keyfile, strlen(keyfile)+1, NULL, 0);
-	return -1;
-}
-
 
 int cman_get_cluster(cman_handle_t handle, cman_cluster_t *clinfo)
 {
