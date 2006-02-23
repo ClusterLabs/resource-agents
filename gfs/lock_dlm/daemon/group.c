@@ -28,7 +28,7 @@ group_handle_t gh;
 static int cb_action;
 static char cb_name[MAX_GROUP_NAME_LEN+1];
 static int cb_event_nr;
-static int cb_id;
+static unsigned int cb_id;
 static int cb_type;
 static int cb_nodeid;
 static int cb_len;
@@ -79,7 +79,8 @@ static void terminate_cbfn(group_handle_t h, void *private, char *name)
 	strncpy(cb_name, name, MAX_GROUP_NAME_LEN);
 }
 
-static void setid_cbfn(group_handle_t h, void *private, char *name, int id)
+static void setid_cbfn(group_handle_t h, void *private, char *name,
+		       unsigned int id)
 {
 	cb_action = DO_SETID;
 	strncpy(cb_name, name, MAX_GROUP_NAME_LEN);

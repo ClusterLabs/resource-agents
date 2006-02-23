@@ -463,13 +463,32 @@ struct mountgroup *find_mg_dir(char *dir)
 	return NULL;
 }
 
+static int we_are_in_fence_domain(void)
+{
+	group_data_t data;
+	int i, rv;
+
+	memset(&data, 0, sizeof(data));
+
+	rv = group_get_group(0, "default", &data);
+
+	if (rv || strcmp(data.client_name, "fence"))
+		return 0;
+
+	for (i = 0; i < data.member_count; i++) {
+		if (data.members[i] == our_nodeid)
+			return 1;
+	}
+
+	return 0;
+}
+
 int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 	     char *extra)
 {
 	struct mountgroup *mg;
 	char table2[MAXLINE];
 	char *cluster = NULL, *name = NULL;
-	group_data_t data;
 	int rv;
 
 	log_debug("mount: %s %s %s %s %s",
@@ -533,10 +552,7 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 		log_group(mg, "spectator mount");
 		mg->spectator = 1;
 	} else {
-		/* check that we're in fence domain */
-		memset(&data, 0, sizeof(data));
-		rv = group_get_group(0, "default", &data);
-		if (rv || strcmp(data.client_name, "fence") || !data.member) {
+		if (!we_are_in_fence_domain()) {
 			log_error("mount: not in default fence domain");
 			goto fail;
 		}
