@@ -112,9 +112,12 @@ char *state_str(group_data_t *data)
 	
 	memset(buf, 0, sizeof(buf));
 
+	/*
 	sprintf(buf, "E%d U%d R%d F%x",
 		data->event_state, data->update_state, data->recover_state,
 		data->flags);
+	*/
+	sprintf(buf, "none");
 
 	return buf;
 }
