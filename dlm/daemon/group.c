@@ -115,15 +115,14 @@ int process_groupd(void)
 
 	switch (cb_action) {
 	case DO_STOP:
-		log_debug("stop %s", cb_name);
-
+		log_debug("groupd callback: stop %s", cb_name);
 		set_control(cb_name, 0);
-
 		group_stop_done(gh, cb_name);
 		break;
 
 	case DO_START:
-		log_debug("start %s \"%s\"", cb_name, str_members());
+		log_debug("groupd callback: start %s count %d members %s",
+			  cb_name, cb_member_count, str_members());
 
 		set_members(cb_name, cb_member_count, cb_members);
 
@@ -150,12 +149,12 @@ int process_groupd(void)
 		break;
 
 	case DO_SETID:
-		log_debug("set id %s %d", cb_name, cb_id);
+		log_debug("groupd callback: set_id %s %x", cb_name, cb_id);
 		set_id(cb_name, cb_id);
 		break;
 
 	case DO_TERMINATE:
-		log_debug("terminate %s", cb_name);
+		log_debug("groupd callback: terminate %s", cb_name);
 
 		if (ls->joining) {
 			val = -1;
@@ -172,7 +171,7 @@ int process_groupd(void)
 		break;
 
 	case DO_FINISH:
-		log_debug("finish %s (unused)", cb_name);
+		log_debug("groupd callback: finish %s (unused)", cb_name);
 		break;
 
 	default:
