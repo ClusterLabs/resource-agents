@@ -197,8 +197,10 @@ int process_uevent(void)
 	if (!strcmp(act, "change@"))
 		do_recovery_done(argv[3]);
 
+#if 0
 	else if (!strcmp(act, "offline@"))
 		do_withdraw(argv[3]);
+#endif
 
 	return 0;
 }
@@ -254,10 +256,12 @@ int loop(void)
 		goto out;
 	client_add(uevent_fd, &maxi);
 
+#if 0
 	rv = libdlm_fd = setup_libdlm();
 	if (rv < 0)
 		goto out;
 	client_add(libdlm_fd, &maxi);
+#endif
 
 	rv = plocks_fd = setup_plocks();
 	if (rv < 0)
@@ -288,8 +292,10 @@ int loop(void)
 					process_groupd();
 				else if (pollfd[i].fd == uevent_fd)
 					process_uevent();
+#if 0
 				else if (pollfd[i].fd == libdlm_fd)
 					process_libdlm();
+#endif
 				else if (pollfd[i].fd == plocks_fd)
 					process_plocks();
 				else

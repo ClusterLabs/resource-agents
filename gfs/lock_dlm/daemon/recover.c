@@ -21,9 +21,11 @@ extern group_handle_t gh;
 struct list_head mounts;
 
 int send_journals_message(struct mountgroup *mg, int len, char *buf);
+#if 0
 int hold_withdraw_locks(struct mountgroup *mg);
 void release_withdraw_lock(struct mountgroup *mg, struct mg_member *memb);
 void release_withdraw_locks(struct mountgroup *mg);
+#endif
 
 
 int set_sysfs(struct mountgroup *mg, char *field, int val)
@@ -647,7 +649,9 @@ int do_unmount(int ci, char *dir)
 		return -1;
 	}
 
+#if 0
 	release_withdraw_locks(mg);
+#endif
 
 	group_leave(gh, mg->name);
 
@@ -686,8 +690,10 @@ int do_finish(struct mountgroup *mg)
 	list_for_each_entry_safe(memb, safe, &mg->members_gone, list) {
 		if (memb->gone_event <= mg->last_finish) {
 			list_del(&memb->list);
+#if 0
 			if (!memb->withdraw)
 				release_withdraw_lock(mg, memb);
+#endif
 			free(memb);
 		} else {
 			/* not sure if/when this would happen... */
@@ -703,11 +709,13 @@ int do_finish(struct mountgroup *mg)
 		/* If there are still withdrawing nodes that haven't left
 		   the group, we need to keep lock requests blocked */
 
+#if 0
 		if (memb->withdraw) {
 			log_group(mg, "finish: leave locks blocked for %d",
 				  memb->nodeid);
 			leave_blocked = 1;
 		}
+#endif
 	}
 
 	if (mg->mount_client)
@@ -753,7 +761,9 @@ int do_start(struct mountgroup *mg, int type, int member_count, int *nodeids)
 		mg->first_start = 1;
 		mg->last_stop = 0;
 		mg->our_jid = -1;
+#if 0
 		release_withdraw_locks(mg);
+#endif
 		clear_members(mg);
 	}
 
@@ -762,7 +772,9 @@ int do_start(struct mountgroup *mg, int type, int member_count, int *nodeids)
 
 	recover_members(mg, member_count, nodeids, &pos, &neg);
 
+#if 0
 	hold_withdraw_locks(mg);
+#endif
 
 	if (mg->spectator) {
 		/* If we're the first mounter, we set ls_first so gfs
