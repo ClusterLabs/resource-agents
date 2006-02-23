@@ -395,11 +395,15 @@ int group_dispatch(group_handle_t handle)
 	case DO_TERMINATE:
 		get_args(buf, &argc, argv, ' ', 3);
 
+		/* FIXME: why aren't we passing event_nr, argv[2], through? */
+
 		h->cbs.terminate(h, h->private, argv[1]);
 		break;
 
 	case DO_SET_ID:
 		get_args(buf, &argc, argv, ' ', 3);
+
+		/* FIXME: id is unsigned, use strtoul() here */
 
 		h->cbs.set_id(h, h->private, argv[1], atoi(argv[2]));
 		break;

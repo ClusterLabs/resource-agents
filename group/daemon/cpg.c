@@ -5,9 +5,9 @@
 
 static cpg_handle_t groupd_handle;
 static SaNameT groupd_name;
+static int global_id_counter = 0;
 static int groupd_joined = 0;
 static int groupd_ci;
-static int group_id_counter;
 
 static int			got_confchg;
 static struct cpg_address	saved_member[MAX_GROUP_MEMBERS];
@@ -96,7 +96,7 @@ static void process_node_join(group_t *g, int nodeid)
 		   then set its global_id */
 
 		if (saved_member_count == 1) {
-			g->global_id = (++group_id_counter << 16) |
+			g->global_id = (++global_id_counter << 16) |
 				       (0x0000FFFF & our_nodeid);
 			log_group(g, "create group id %x our_nodeid %d",
 				  g->global_id, our_nodeid);
@@ -245,6 +245,9 @@ void process_confchg(void)
 		process_node_join(g, saved_joined[i].nodeId);
 
 	for (i = 0; i < saved_left_count; i++) {
+		log_print("node %d left reason %d",
+			  saved_left[i].nodeId, saved_left[i].reason);
+
 		if (saved_left[i].reason == CPG_REASON_LEAVE)
 			process_node_leave(g, saved_left[i].nodeId);
 		else

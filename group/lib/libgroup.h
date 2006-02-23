@@ -41,7 +41,7 @@ typedef void (*group_finish_t)(group_handle_t h, void *private, char *name,
 			       int event_nr);
 typedef void (*group_terminate_t)(group_handle_t h, void *private, char *name);
 typedef void (*group_set_id_t)(group_handle_t h, void *private, char *name,
-			       int id);
+			       unsigned int id);
 typedef void (*group_deliver_t)(group_handle_t h, void *private, char *name,
 			        int nodeid, int len, char *buf);
 
@@ -74,7 +74,7 @@ typedef struct group_data {
 	char client_name[32+1];
 	char name[MAX_GROUP_NAME_LEN+1];
 	int level;
-	int id;
+	unsigned int id;
 	int member;
 	int member_count;
 	int members[MAX_GROUP_MEMBERS];

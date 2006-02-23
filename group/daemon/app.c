@@ -473,10 +473,26 @@ static int process_current_event(group_t *g)
 		app_stop(a);
 		break;
 
-	case EST_LEAVE_ALL_STOPPED:
-		ev->state = EST_LEAVE_START_WAIT;
+	case EST_LEAVE_STOP_WAIT:
+
+		/* The leaving node won't get the "stopped" messages
+		   from the remaining group members because the confchg
+		   for our leave is the last thing we get from libcpg.
+		   
+		   The other nodes won't get our "stopped" message either;
+		   we can't send to the group since we're not in it any more.
+
+		   FIXME: we should add an extra level of certainty to
+		   the leaving process by sending a special "stopped" message
+		   through the groupd group to the remaining group members.
+		   The remaining members should wait for our special out-of-
+		   band "stopped" message for the group we've left before they
+		   go ahead and start following our leave.  This adds
+		   certainly that they're not starting the group before
+		   our stop for our leave is actually completed. */
 
 		if (is_our_leave(ev)) {
+			log_group(g, "shutdown after our leave");
 			app_terminate(a);
 			cpg_finalize(g->cpg_handle);
 			g->app = NULL;
@@ -485,16 +501,19 @@ static int process_current_event(group_t *g)
 			/* FIXME: check if there are any recovery_sets
 			   referencing this group somehow */
 			remove_group(g);
-		} else {
-			node = find_app_node(a, ev->nodeid);
-			list_del(&node->list);
-			a->node_count--;
-			log_group(g, "app node leave: del %d total %d",
-				  node->nodeid, a->node_count);
-			free(node);
-
-			app_start(a);
 		}
+		break;
+
+	case EST_LEAVE_ALL_STOPPED:
+		ev->state = EST_LEAVE_START_WAIT;
+
+		node = find_app_node(a, ev->nodeid);
+		list_del(&node->list);
+		a->node_count--;
+		log_group(g, "app node leave: del %d total %d",
+			  node->nodeid, a->node_count);
+		free(node);
+		app_start(a);
 		break;
 
 	case EST_LEAVE_ALL_STARTED:
