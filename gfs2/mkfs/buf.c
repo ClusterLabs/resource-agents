@@ -56,6 +56,7 @@ blkno2head(struct gfs2_sbd *sdp, uint64_t blkno)
 static void
 write_buffer(struct gfs2_sbd *sdp, struct buffer_head *bh)
 {
+#if 0
 	if (!bh->b_uninit) {
 		struct gfs2_meta_header mh;
 		gfs2_meta_header_in(&mh, bh->b_data);
@@ -63,6 +64,7 @@ write_buffer(struct gfs2_sbd *sdp, struct buffer_head *bh)
 			fprintf(stderr, "gfs2_mkfs: uninitialized block %"PRIu64"\n",
 				bh->b_blocknr);
 	}
+#endif
 
 	osi_list_del(&bh->b_list);
 	osi_list_del(&bh->b_hash);
