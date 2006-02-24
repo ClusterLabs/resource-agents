@@ -23,6 +23,9 @@ static void print_usage(void)
 {
 	printf("Usage:\n");
 	printf("This program is called by umount(8), it should not be used directly.\n");
+	printf("If umount(8) fails to call umount.gfs2, you can clean up with\n");
+	printf("> umount.gfs2 -v -X lock_dlm <mountpoint>\n");
+
 }
 
 static void read_options(int argc, char **argv, struct mount_options *mo)
@@ -92,6 +95,8 @@ int main(int argc, char **argv)
 	memset(&sb, 0, sizeof(sb));
 
 	prog_name = argv[0];
+
+	printf("%s called\n", prog_name);
 
 	if (!strstr(prog_name, "gfs"))
 		die("invalid umount helper name \"%s\"\n", prog_name);
