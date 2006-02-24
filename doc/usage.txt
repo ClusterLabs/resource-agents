@@ -40,7 +40,7 @@ updated yet, so just build the minimum bits shown here.
         cd cluster/cman;                make (*)
         cd cluster/group;               make; make install
         cd cluster/fence;               make; make install
-        cd cluster/dlm/daemon;          make; make install
+        cd cluster/dlm;                 make; make install
         cd cluster/gfs/lock_dlm/daemon; make; make install
 
         edit INCLUDEPATH in cluster/gfs2/mkfs/Makefile
@@ -89,7 +89,7 @@ debug/verbose options in [] can be useful at this stage :)
 > fence_tool join
 > dlm_controld [-D]
 > lock_dlm [-D]
-> mkfs -p lock_dlm -t <clustername>:<fsname> -j <#journals> <blockdev>
+> mkfs -t gfs2 -p lock_dlm -t <clustername>:<fsname> -j <#journals> <blockdev>
 > mount -t gfs2 [-v] <blockdev> <mountpoint>
 
 > group_tool ls
@@ -99,11 +99,13 @@ debug/verbose options in [] can be useful at this stage :)
 Shutdown procedure
 ------------------
 
-Doesn't work yet
+Notes:
+You need util-linux 2.13-pre6 version of umount(8), older versions do not
+call the umount.gfs2 helper.
 
 Run these commands on each cluster node:
 
-> umount <mountpoint>
+> umount -t gfs2 [-v] <mountpoint>
 > fence_tool leave
 > cman_tool leave
 
