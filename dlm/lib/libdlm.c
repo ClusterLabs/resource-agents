@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
 **
 **  This library is free software; you can redistribute it and/or
 **  modify it under the terms of the GNU Lesser General Public
@@ -592,16 +592,14 @@ int dlm_ls_lock(dlm_lshandle_t ls,
     req->i.lock.bastaddr = bastaddr;
     req->i.lock.castparam = astarg;	/* completion and blocking ast arg are the same */
     req->i.lock.bastparam = astarg;
+
+    /* dlm2 does not support range locks */
     if (range)
     {
-	req->i.lock.range.ra_start = range->ra_start;
-	req->i.lock.range.ra_end = range->ra_end;
+	    errno = ENOSYS;
+	    return -1;
     }
-    else
-    {
-	req->i.lock.range.ra_start = 0L;
-	req->i.lock.range.ra_end = 0L;
-    }
+
     if (flags & LKF_CONVERT)
     {
 	req->i.lock.namelen = 0;
