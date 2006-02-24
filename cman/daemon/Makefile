@@ -12,7 +12,7 @@
 
 top_srcdir=..
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
-AISDIR=openais20060222
+AISDIR=openais20060224
 AISTAG=trunk
 
 include ${top_srcdir}/make/defines.mk
@@ -28,7 +28,7 @@ all: ${AISDIR}/${AISTAG}/exec/aisexec ${TARGET}
 copytobin: all
 	cp ${TARGET} ${top_srcdir}/bin
 
-service_cman.lcrso:	daemon.o config.o logging.o ais.o commands.o barrier.o cmanccs.o 
+service_cman.lcrso:	daemon.o config.o logging.o ais.o commands.o barrier.o cmanccs.o ${AISDIR}/${AISTAG}/exec/aisexec
 	$(CC) $(CFLAGS) -shared -shared -Wl,-soname,service_cman.lcrso -o $@ $^ -L../lib -L${ccslibdir} -lccs
 	cp ${TARGET} ${AISDIR}/${AISTAG}/exec
 	rm -f openais
@@ -59,17 +59,20 @@ commands.o: commands.c list.h cnxman-socket.h cnxman-private.h \
 logging.o: logging.c list.h cnxman-socket.h cnxman-private.h 
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-# Target to download & unpack openAIS
+# Target to download openAIS
 ${AISDIR}/${AISDIR}.tar.gz:
 	mkdir -p ${AISDIR}
 	cd ${AISDIR} && wget http://people.redhat.com/pcaulfie/${AISDIR}.tar.gz
 
+# Unpack the tarball and apply our patches
 ${AISDIR}/${AISTAG}: ${AISDIR}/${AISDIR}.tar.gz
 	cd ${AISDIR} && tar -xzf ${AISDIR}.tar.gz
+	cd ${AISDIR} && patch -p1 < ../ais-cman-hack.patch
+	cd ${AISDIR} && patch -p1 < ../ais-cpg.patch
 	touch ${AISDIR}/${AISTAG}
 
 ${AISDIR}/${AISTAG}/exec/aisexec: ${AISDIR}/${AISTAG}
-	cd ${AISDIR}/${AISTAG} && make -C exec BUILD_DYNAMIC=1
+	cd ${AISDIR}/${AISTAG} && make BUILD_DYNAMIC=1
 
 install: 
 	install -d ${libexecdir}
