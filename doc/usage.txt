@@ -4,8 +4,8 @@ Refer to the cluster project page for the latest information.
 http://sources.redhat.com/cluster/
 
 Notes:
-- CLVM does not yet work with the rest of the infrastructure in cvs head
-  so we're using plain block devices below.
+- CLVM needs to be patched to use libcman. Checkout LVM2 as normal
+  and apply the patch from cluster/cman/lib/clvmd-libcman.diff
 
 
 Get source
@@ -17,6 +17,13 @@ Get a kernel that has GFS2 and DLM.
 Get the 'cluster' cvs tree, instructions at:
   http://sources.redhat.com/cluster/
 
+Optionally, get the LVM2 cvs from
+  cvs -d :pserver:cvs@sources.redhat.com:/cvs/lvm2
+  and apply the patch mentioned above:
+   cd LVM2
+   patch -p0 < ../cluster/cman/lib/clvmd-libcman.diff
+
+   
 
 Build and install
 -----------------
@@ -43,6 +50,8 @@ updated yet, so just build the minimum bits shown here.
         (*) this step downloads and builds an openais tarball from
         http://people.redhat.com/pcaulfie/
 
+	See old instructions for configuring & building LVM2 & CLVM.
+
 
 Load kernel modules
 -------------------
@@ -58,55 +67,13 @@ Configuration
 -------------
 
 Create /etc/cluster/cluster.conf
-  The format and content of cluster.conf has not changed since the
+  The format and content of cluster.conf has changed little since the
   last generation of the software.  See old example here:
   http://sources.redhat.com/cluster/doc/usage.txt
+  The one change you will need to make is to add nodeids for all nodes
+  in the cluster. These are now mandatory. eg:
 
-Configure OpenAIS
-  Add an "ais" user to /etc/passwd and an "ais" group to /etc/group.
-  Create /etc/ais/groups.conf.  It's not used but needs to contain:
-
-group {
-}
-
-  Create /etc/ais/openais.conf.  The addresses will probably need to
-  be modified according to your network.
-
-totem {
-        version: 1
-        secauth: off
-        bindnetaddr: 10.15.84.0
-        mcastaddr: 226.94.1.1
-        nodeid: 20
-        mcastport: 5406
-        netmtu: 1500
-        threads: 0
-}
-
-logging {
-        logoutput: stderr
-        logfile: /tmp/ais
-        debug: on
-        timestamp: on
-}
-
-amf {
-        mode:disabled
-}
-
-components {
-        openais_evs:0
-        openais_clm:0
-        openais_amf:0
-        openais_ckpt:0
-        openais_evt:0
-        openais_lck:0
-        openais_msg:0
-        openais_cfg:0
-        openais_cman:0
-        openais_cpg:0
-}
-
+     <clusternode name="node12.mycluster.mycompany.com" votes="1" nodeid="12">
 
 Startup procedure
 -----------------
@@ -116,7 +83,7 @@ debug/verbose options in [] can be useful at this stage :)
 
 > mount -t configfs none /config
 > ccsd -X
-> cd cluster/cman/cman_tool; ./cman_tool join [-d]
+> cman_tool join [-d]
 > groupd [-D]
 > fenced [-D]
 > fence_tool join
