@@ -28,6 +28,7 @@ $ret = 0;
         ccsincdir => \$ccsincdir,
 	kernel_src => \$kernel_src,
 	libdir => \$libdir,
+	libexecdir => \$libexecdir,
 	ccslibdir => \$libdir,
 	mandir  => \$mandir,
 	prefix => \$prefix,
@@ -41,6 +42,7 @@ $err = &GetOptions (\%options,
 		    'ccsincdir=s',
 		    'kernel_src=s',
 		    'libdir=s',
+		    'libexecdir=s',
 		    'ccslibdir=s',
 		    'mandir=s',
 		    'prefix=s',
@@ -64,6 +66,7 @@ if ($help || !$err) {
   print "--ccsincdir=\tthe base directory for ccs include files.  (Default: {incdir}/cluster)\n";
   print "--kernel_src=\tthe directory containing the kernel source you wish to\n\t\tcompile against. (Default: system dependant)\n";
   print "--libdir=\tthe base directory for libraries.  (Default: /usr/lib)\n";
+  print "--libexecdir=\tthe base directory for executable components.  (Default: /usr/libexec)\n";
   print "--ccslibdir=\tthe base directory for ccs libraries.  (Default: {libdir})\n";
   print "--mandir=\tthe base directory for man pages.  (Default: /usr/share/man)\n";
   print "--prefix=\tthe base directory to install into.  (Default: /)\n";
@@ -86,6 +89,9 @@ if (!$ccsincdir) {
 }
 if (!$libdir) {
   $libdir="${prefix}/usr/lib";
+}
+if (!$libexecdir) {
+  $libexecdir="${prefix}/usr/libexec";
 }
 if (!$ccslibdir) {
   $ccslibdir="${libdir}";
@@ -113,6 +119,7 @@ while (<IFILE>) {
   $_ =~ s/\@CCSINCDIR\@/$ccsincdir/;
   $_ =~ s/\@KERNEL_SRC\@/$kernel_src/;
   $_ =~ s/\@LIBDIR\@/$libdir/;
+  $_ =~ s/\@LIBEXECDIR\@/$libexecdir/;
   $_ =~ s/\@CCSLIBDIR\@/$ccslibdir/;
   $_ =~ s/\@MANDIR\@/$mandir/;
   $_ =~ s/\@SBINDIR\@/$sbindir/;

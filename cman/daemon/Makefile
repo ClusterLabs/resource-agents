@@ -71,10 +71,12 @@ ${AISDIR}/${AISTAG}: ${AISDIR}/${AISDIR}.tar.gz
 ${AISDIR}/${AISTAG}/exec/aisexec: ${AISDIR}/${AISTAG}
 	cd ${AISDIR}/${AISTAG} && make -C exec BUILD_DYNAMIC=1
 
-install: cmand
-	install -d ${sbindir}
-	install cmand ${sbindir}
-	install ${AISDIR}/${AISTAG}/exec/keygen ${sbindir}/ais_keygen
+install: 
+	install -d ${libexecdir}
+	install -d ${libexecdir}/cman
+	install ${AISDIR}/${AISTAG}/exec/aisexec ${libexecdir}/cman/
+	install ${AISDIR}/${AISTAG}/exec/service*.lcrso ${libexecdir}/cman/
+	install ${AISDIR}/${AISTAG}/exec/keygen ${sbindir}/ais-keygen
 
 uninstall:
 	${UNINSTALL} cmand ${sbindir}

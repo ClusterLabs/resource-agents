@@ -117,9 +117,9 @@ int join(commandline_t *comline)
 
 	case 0: // child
 		be_daemon(!comline->verbose);
-		chdir(SBINDIR);
+		chdir(LIBEXECDIR);
 		execve("./aisexec", argv, envp);
-		die("execve of " SBINDIR "/aisexec failed: %s", strerror(errno));
+		die("execve of " LIBEXECDIR "/aisexec failed: %s", strerror(errno));
 		break;
 
 	default: //parent

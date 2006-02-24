@@ -15,6 +15,7 @@
 sbindir ?= ${DESTDIR}/@SBINDIR@
 mandir ?= ${DESTDIR}/@MANDIR@
 libdir ?= ${DESTDIR}/@LIBDIR@
+libexecdir ?= ${DESTDIR}/@LIBEXECDIR@
 ccslibdir ?= ${DESTDIR}/@CCSLIBDIR@
 incdir ?= ${DESTDIR}/@INCDIR@
 ccsincdir ?= ${DESTDIR}/@CCSINCDIR@
