@@ -22,14 +22,15 @@ CFLAGS+= -g -I${ccsincdir} -I${incdir} -I${top_srcdir}/config \
 	-I ${AISDIR}/${AISTAG}/exec -L ${AISDIR}/${AISTAG}/exec
 
 TARGET=service_cman.lcrso
+CMAN_OBJS=daemon.o config.o logging.o ais.o commands.o barrier.o cmanccs.o
 
 all: ${AISDIR}/${AISTAG}/exec/aisexec ${TARGET}
 
 copytobin: all
 	cp ${TARGET} ${top_srcdir}/bin
 
-service_cman.lcrso:	daemon.o config.o logging.o ais.o commands.o barrier.o cmanccs.o ${AISDIR}/${AISTAG}/exec/aisexec
-	$(CC) $(CFLAGS) -shared -shared -Wl,-soname,service_cman.lcrso -o $@ $^ -L../lib -L${ccslibdir} -lccs
+service_cman.lcrso: ${CMAN_OBJS} ${AISDIR}/${AISTAG}/exec/aisexec
+	$(CC) $(CFLAGS) -shared -shared -Wl,-soname,service_cman.lcrso -o $@ ${CMAN_OBJS} -L../lib -L${ccslibdir} -lccs
 	cp ${TARGET} ${AISDIR}/${AISTAG}/exec
 	rm -f openais
 	ln -sf ${AISDIR} openais
