@@ -25,7 +25,7 @@ group_handle_t gh;
 static int cb_action;
 static char cb_name[MAX_GROUP_NAME_LEN+1];
 static int cb_event_nr;
-static int cb_id;
+static unsigned int cb_id;
 static int cb_type;
 static int cb_member_count;
 static int cb_members[MAX_GROUP_MEMBERS];
@@ -66,7 +66,8 @@ static void terminate_cbfn(group_handle_t h, void *private, char *name)
 	strcpy(cb_name, name);
 }
 
-static void setid_cbfn(group_handle_t h, void *private, char *name, int id)
+static void setid_cbfn(group_handle_t h, void *private, char *name,
+		       unsigned int id)
 {
 	cb_action = DO_SETID;
 	strcpy(cb_name, name);
@@ -163,6 +164,9 @@ int process_groupd(void)
 		} else {
 			val = 0;
 			log_debug("leave event done %s", cb_name);
+
+			/* remove everything under configfs */
+			set_members(cb_name, 0, NULL);
 		}
 
 		set_event_done(cb_name, val);

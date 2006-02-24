@@ -38,6 +38,8 @@
 
 static int dir_members[MAX_GROUP_MEMBERS];
 static int dir_members_count;
+static int comms_nodes[MAX_NODES];
+static int comms_nodes_count;
 
 #define DLM_SYSFS_DIR "/sys/kernel/dlm"
 #define LS_DIR "/config/dlm/cluster/spaces"
@@ -258,6 +260,22 @@ int set_members(char *name, int new_count, int *new_members)
 		}
 	}
 
+	/*
+	 * remove lockspace dir after we've removed all the nodes
+	 * (when we're shutting down and adding no new nodes)
+	 */
+
+	if (!new_count) {
+		memset(path, 0, PATH_MAX);
+		snprintf(path, PATH_MAX, "%s/%s", LS_DIR, name);
+
+		log_debug("set_members lockspace rmdir \"%s\"", path);
+
+		rv = rmdir(path);
+		if (rv)
+			log_error("%s: rmdir failed: %d", path, errno);
+	}
+
 	for (i = 0; i < new_count; i++) {
 		id = new_members[i];
 		if (id_exists(id, old_count, old_members))
@@ -348,13 +366,71 @@ char *str_ip(char *addr)
 	return ip;
 }
 
-int set_node(int nodeid, char *addr, int local)
+/* record the nodeids that are currently listed under
+   /config/dlm/cluster/comms/ so that we can remove all of them */
+
+static int update_comms_nodes(void)
+{
+	char path[PATH_MAX];
+	DIR *d;
+	struct dirent *de;
+	int i = 0;
+
+	memset(path, 0, PATH_MAX);
+	snprintf(path, PATH_MAX, "/config/dlm/cluster/comms");
+
+	d = opendir(path);
+	if (!d) {
+		log_error("%s: opendir failed: %d", path, errno);
+		return -1;
+	}
+
+	memset(comms_nodes, 0, sizeof(comms_nodes));
+	comms_nodes_count = 0;
+
+	while ((de = readdir(d))) {
+		if (de->d_name[0] == '.')
+			continue;
+		comms_nodes[i++] = atoi(de->d_name);
+	}
+	closedir(d);
+
+	comms_nodes_count = i;
+	return 0;
+}
+
+/* clear out everything under /config/dlm/cluster/comms/ */
+
+void clear_configfs_nodes(void)
+{
+	char path[PATH_MAX];
+	int i, rv;
+
+	rv = update_comms_nodes();
+	if (rv < 0)
+		return;
+
+	for (i = 0; i < comms_nodes_count; i++) {
+		memset(path, 0, PATH_MAX);
+		snprintf(path, PATH_MAX, "/config/dlm/cluster/comms/%d",
+			 comms_nodes[i]);
+
+		log_debug("clear_configfs_nodes rmdir \"%s\"", path);
+
+		rv = rmdir(path);
+		if (rv)
+			log_error("%s: rmdir failed: %d", path, errno);
+	}
+}
+
+int set_configfs_node(int nodeid, char *addr, int local)
 {
 	char path[PATH_MAX];
 	char buf[32];
 	int rv, fd;
 
-	log_debug("set_node %d %s local %d", nodeid, str_ip(addr), local);
+	log_debug("set_configfs_node %d %s local %d",
+		  nodeid, str_ip(addr), local);
 
 	if (!path_exists("/config/dlm")) {
 		log_error("No /config/dlm, is the dlm loaded?");

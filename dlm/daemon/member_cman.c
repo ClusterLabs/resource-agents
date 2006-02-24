@@ -77,9 +77,9 @@ static void process_member_cb(void)
 				new_nodes[i].cn_address.cna_address[j] = 0;
 		}
 
-		set_node(new_nodes[i].cn_nodeid,
-			 new_nodes[i].cn_address.cna_address,
-			 (new_nodes[i].cn_nodeid == local_nodeid));
+		set_configfs_node(new_nodes[i].cn_nodeid,
+				  new_nodes[i].cn_address.cna_address,
+				  (new_nodes[i].cn_nodeid == local_nodeid));
 	}
 
 	cluster_count = count;
@@ -137,6 +137,12 @@ int setup_member(void)
 		goto out;
 	}
 	local_nodeid = node.cn_nodeid;
+
+	/* if this daemon was killed and the cluster shut down, and
+	   then the cluster brought back up and this daemon restarted,
+	   there will be old configfs entries we need to clear out */
+
+	clear_configfs_nodes();
 
 	/* this will just initialize gd_nodes, etc */
 	member_reason = CMAN_REASON_STATECHANGE;
