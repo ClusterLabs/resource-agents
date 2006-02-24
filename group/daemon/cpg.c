@@ -192,7 +192,8 @@ void deliver_cb(cpg_handle_t handle, SaNameT *group_name,
 	char *buf;
 
 	if (saved_handle == groupd_handle) {
-		log_print("shouldn't get here");
+		log_print("ERROR: deliver_cb for groupd_handle from %d len %d",
+			   nodeid, msg_len);
 		return;
 	}
 

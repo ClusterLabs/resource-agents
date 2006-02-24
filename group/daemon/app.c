@@ -327,9 +327,47 @@ static node_t *find_app_node(app_t *a, int nodeid)
 	return NULL;
 }
 
+static int is_our_join(event_t *ev)
+{
+	return (ev->nodeid == our_nodeid);
+}
+
+static int is_our_leave(event_t *ev)
+{
+	return (ev->nodeid == our_nodeid);
+}
+
+/* called after the local app has acked that it is stopped as part
+   of our own leave.  We've gotten the final confchg for our leave
+   so we can't send anything out to the group at this point. */
+
+void finalize_our_leave(group_t *g)
+{
+	app_t *a = g->app;
+
+	log_group(g, "finalize_our_leave");
+
+	app_terminate(a);
+	cpg_finalize(g->cpg_handle);
+	g->app = NULL;
+	del_app_nodes(a);
+	free(a);
+
+	/* FIXME: check if there are any recovery_sets
+	   referencing this group somehow */
+
+	remove_group(g);
+}
+
 static int send_stopped(group_t *g)
 {
 	msg_t msg;
+	event_t *ev = g->app->current_event;
+
+	if (ev && ev->state == EST_LEAVE_STOP_WAIT && is_our_leave(ev)) {
+		finalize_our_leave(g);
+		return 0;
+	}
 
 	memset(&msg, 0, sizeof(msg));
 	msg.ms_type = MSG_APP_STOPPED;
@@ -363,16 +401,6 @@ int do_startdone(char *name, int level)
 	group_t *g;
 	g = find_group_level(name, level);
 	return send_started(g);
-}
-
-static int is_our_join(event_t *ev)
-{
-	return (ev->nodeid == our_nodeid);
-}
-
-static int is_our_leave(event_t *ev)
-{
-	return (ev->nodeid == our_nodeid);
 }
 
 char *ev_state_str(event_t *ev)
@@ -413,13 +441,25 @@ char *ev_state_str(event_t *ev)
 	}
 }
 
+static int count_nodes_not_stopped(app_t *a)
+{
+	node_t *node;
+	int i = 0;
+
+	list_for_each_entry(node, &a->nodes, list) {
+		if (!node->stopped)
+			i++;
+	}
+	return i;
+}
+
 static int process_current_event(group_t *g)
 {
 	app_t *a = g->app;
 	event_t *ev = a->current_event, *ev_tmp, *ev_safe;
 	node_t *node, *n;
 	struct nodeid *id, *id_safe;
-	int rv = 0, do_start = 0;
+	int rv = 0, do_start = 0, count;
 
 	log_group(g, "process_current_event state %s", ev_state_str(ev));
 
@@ -450,6 +490,11 @@ static int process_current_event(group_t *g)
 		}
 		break;
 
+	case EST_JOIN_STOP_WAIT:
+		count = count_nodes_not_stopped(a);
+		log_group(g, "waiting for %d more nodes to be stopped", count);
+		break;
+
 	case EST_JOIN_ALL_STOPPED:
 		ev->state = EST_JOIN_START_WAIT;
 
@@ -471,38 +516,46 @@ static int process_current_event(group_t *g)
 	case EST_LEAVE_BEGIN:
 		ev->state = EST_LEAVE_STOP_WAIT;
 		app_stop(a);
+
+		/* Set leaving node as stopped because it can't send a
+		   stopped message for us to receive.
+
+                   FIXME: see below about getting the leaving node's
+		   special stopped message through the groupd group so
+		   we can be sure it's stopped before we start.  When we
+		   do that, then we won't want to set the leaving node
+		   as stopped here. */
+
+		if (!is_our_leave(ev)) {
+			node = find_app_node(a, ev->nodeid);
+			ASSERT(node);
+			node->stopped = 1;
+		}
+
 		break;
 
 	case EST_LEAVE_STOP_WAIT:
+		count = count_nodes_not_stopped(a);
+		log_group(g, "waiting for %d more nodes to be stopped", count);
+		break;
 
 		/* The leaving node won't get the "stopped" messages
-		   from the remaining group members because the confchg
-		   for our leave is the last thing we get from libcpg.
+		   from the remaining group members (or be able to send/recv
+		   its own stopped message) because the confchg for our leave
+		   is the last thing we get from libcpg.
 		   
-		   The other nodes won't get our "stopped" message either;
+		   The other nodes can't get our "stopped" message either;
 		   we can't send to the group since we're not in it any more.
 
 		   FIXME: we should add an extra level of certainty to
 		   the leaving process by sending a special "stopped" message
+		   (after the local app has acked that it's in fact stopped)
 		   through the groupd group to the remaining group members.
 		   The remaining members should wait for our special out-of-
 		   band "stopped" message for the group we've left before they
 		   go ahead and start following our leave.  This adds
 		   certainly that they're not starting the group before
 		   our stop for our leave is actually completed. */
-
-		if (is_our_leave(ev)) {
-			log_group(g, "shutdown after our leave");
-			app_terminate(a);
-			cpg_finalize(g->cpg_handle);
-			g->app = NULL;
-			del_app_nodes(a);
-			free(a);
-			/* FIXME: check if there are any recovery_sets
-			   referencing this group somehow */
-			remove_group(g);
-		}
-		break;
 
 	case EST_LEAVE_ALL_STOPPED:
 		ev->state = EST_LEAVE_START_WAIT;
@@ -526,6 +579,19 @@ static int process_current_event(group_t *g)
 	case EST_FAIL_BEGIN:
 		ev->state = EST_FAIL_STOP_WAIT;
 		app_stop(a);
+
+		/* set the failed node as stopped since we won't
+		   be getting a "stopped" message from it */
+
+		node = find_app_node(a, ev->nodeid);
+		ASSERT(node);
+		node->stopped = 1;
+
+		break;
+
+	case EST_FAIL_STOP_WAIT:
+		count = count_nodes_not_stopped(a);
+		log_group(g, "waiting for %d more nodes to be stopped", count);
 		break;
 
 	case EST_FAIL_ALL_STOPPED:
@@ -846,6 +912,9 @@ static int process_app(group_t *g)
 		/* if the current event has started the app and there's
 		   a recovery event, the current event is abandoned and
 		   replaced with the recovery event */
+
+		/* (this assumes that we don't ever remove/free the group
+		   in process_current_event) */
 
 		ev = a->current_event;
 		rev = find_queued_recover_event(g);
