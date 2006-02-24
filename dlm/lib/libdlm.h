@@ -42,10 +42,6 @@ struct dlm_lksb {
 	char *sb_lvbptr;
 };
 
-struct dlm_range {
-	uint64_t ra_start;
-	uint64_t ra_end;
-};
 
 /* lksb flags */
 #define DLM_SBF_VALNOTVALID    (0x02)
@@ -101,8 +97,6 @@ struct dlm_lockinfo {
 	uint8_t lki_state;	/* Queue the lock is on */
 	uint8_t lki_grmode;	/* Granted mode */
 	uint8_t lki_rqmode;	/* Requested mode */
-	struct dlm_range lki_grrange;	/* Granted range, if applicable */
-	struct dlm_range lki_rqrange;	/* Requested range, if applicable */
 };
 
 struct dlm_resinfo {
@@ -145,7 +139,7 @@ extern int dlm_lock(uint32_t mode,
 		    void (*astaddr) (void *astarg),
 		    void *astarg,
 		    void (*bastaddr) (void *astarg),
-		    struct dlm_range *range);
+		    void *range);
 
 extern int dlm_unlock(uint32_t lkid,
 		      uint32_t flags, struct dlm_lksb *lksb, void *astarg);
@@ -159,7 +153,7 @@ extern int dlm_lock_wait(uint32_t mode,
 			 uint32_t parent,
 			 void *bastarg,
 			 void (*bastaddr) (void *bastarg),
-			 struct dlm_range *range);
+			 void *range);
 
 
 extern int dlm_unlock_wait(uint32_t lkid,
@@ -213,7 +207,7 @@ extern int dlm_ls_lock(dlm_lshandle_t lockspace,
 		       void (*astaddr) (void *astarg),
 		       void *astarg,
 		       void (*bastaddr) (void *astarg),
-		       struct dlm_range *range);
+		       void *range);
 
 extern int dlm_ls_lock_wait(dlm_lshandle_t lockspace,
 			       uint32_t mode,
@@ -224,7 +218,7 @@ extern int dlm_ls_lock_wait(dlm_lshandle_t lockspace,
 			       uint32_t parent,
 			       void *bastarg,
 			       void (*bastaddr) (void *bastarg),
-			       struct dlm_range *range);
+			       void *range);
 
 extern int dlm_ls_unlock_wait(dlm_lshandle_t lockspace,
 			      uint32_t lkid,

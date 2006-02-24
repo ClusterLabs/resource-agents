@@ -549,7 +549,7 @@ int dlm_lock(uint32_t mode,
 	     void (*astaddr) (void *astarg),
 	     void *astarg,
 	     void (*bastaddr) (void *astarg),
-	     struct dlm_range *range)
+	     void *range)
 {
     if (open_default_lockspace())
 	return -1;
@@ -572,7 +572,7 @@ int dlm_ls_lock(dlm_lshandle_t ls,
 		void (*astaddr) (void *astarg),
 		void *astarg,
 		void (*bastaddr) (void *astarg),
-		struct dlm_range *range)
+		void *range)
 {
     int len;
     char param_buf[sizeof(struct dlm_write_request) + DLM_RESNAME_MAXLEN];
@@ -646,7 +646,7 @@ int dlm_lock_wait(uint32_t mode,
 		     uint32_t parent,
 		     void *bastarg,
 		     void (*bastaddr) (void *bastarg),
-		     struct dlm_range *range)
+		     void *range)
 {
     if (open_default_lockspace())
 	    return -1;
@@ -668,7 +668,7 @@ int dlm_ls_lock_wait(dlm_lshandle_t ls,
 		     uint32_t parent,
 		     void *bastarg,
 		     void (*bastaddr) (void *bastarg),
-		     struct dlm_range *range)
+		     void *range)
 {
 
     return dlm_ls_lock(ls, mode, lksb, flags | LKF_WAIT,
@@ -989,8 +989,9 @@ dlm_lshandle_t dlm_create_lockspace(const char *name, mode_t mode)
     set_version(req);
 
     /* Make the default lockspace free itself when all users have released it */
+    // TODO: DLM_USER_LSFLG_DEFAULTLS is yet to be added to the upstream DLM
     if (strcmp(name, DEFAULT_LOCKSPACE) == 0)
-	    req->i.lspace.flags = DLM_USER_LSFLG_AUTOFREE | DLM_USER_LSFLG_DEFAULTLS;
+	    req->i.lspace.flags = DLM_USER_LSFLG_AUTOFREE /*| DLM_USER_LSFLG_DEFAULTLS*/;
     else
 	    req->i.lspace.flags = 0;
     strcpy(req->i.lspace.name, name);
