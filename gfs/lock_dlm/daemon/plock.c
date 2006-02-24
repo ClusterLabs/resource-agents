@@ -240,6 +240,7 @@ int process_plocks(void)
 	hd = (struct gdlm_header *)buf;
 	hd->type = MSG_PLOCK;
 	hd->nodeid = our_nodeid;
+	hd->to_nodeid = 0;   /* to all */
 	memcpy(buf + sizeof(struct gdlm_header), &info, sizeof(info));
 
 	rv = send_plock_message(mg, len, buf);

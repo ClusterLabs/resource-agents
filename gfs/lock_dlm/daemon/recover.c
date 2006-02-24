@@ -124,6 +124,7 @@ void send_journals(struct mountgroup *mg, int nodeid)
 	hd = (struct gdlm_header *)buf;
 	hd->type = MSG_JOURNAL;
 	hd->nodeid = our_nodeid;
+	hd->to_nodeid = nodeid;
 	ids = (int *) (buf + sizeof(struct gdlm_header));
 
 	/* FIXME: do byte swapping */
@@ -136,7 +137,7 @@ void send_journals(struct mountgroup *mg, int nodeid)
 		i++;
 	}
 
-	log_group(mg, "send_journals len %d to %d", len, nodeid);
+	log_group(mg, "send_journals to %d len %d count %d", nodeid, len, i);
 
 	send_journals_message(mg, len, buf);
 
@@ -146,11 +147,18 @@ void send_journals(struct mountgroup *mg, int nodeid)
 void receive_journals(struct mountgroup *mg, char *buf, int len, int from)
 {
 	struct mg_member *memb, *memb2;
+	struct gdlm_header *hd;
 	int *ids, count, i, nodeid, jid;
+
+	hd = (struct gdlm_header *)buf;
+
+	if (hd->to_nodeid && hd->to_nodeid != our_nodeid)
+		return;
 
 	count = (len - sizeof(struct gdlm_header)) / (2 * sizeof(int));
 
-	log_group(mg, "receive_journals from %d count %d", from, count);
+	log_group(mg, "receive_journals from %d len %d count %d",
+		  from, len, count);
 
 	if (count != mg->memb_count) {
 		log_error("invalid journals message len %d counts %d %d",

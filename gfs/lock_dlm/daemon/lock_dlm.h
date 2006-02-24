@@ -127,6 +127,7 @@ struct gdlm_header {
 	uint16_t		version[3];
 	uint16_t		type;			/* MSG_ */
 	uint32_t		nodeid;			/* sender */
+	uint32_t		to_nodeid;		/* 0 if to all */
 };
 
 
