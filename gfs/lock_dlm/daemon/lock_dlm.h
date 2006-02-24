@@ -46,7 +46,7 @@
 #define MAX_MSGLEN		2048
 
 #define LOCK_DLM_GROUP_LEVEL	2
-#define LOCK_DLM_GROUP_NAME	"lock_dlmd"
+#define LOCK_DLM_GROUP_NAME	"gfs"
 #define LOCK_DLM_SOCK_PATH	"lock_dlmd_sock"
 
 #ifndef TRUE
