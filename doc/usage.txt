@@ -1,370 +1,142 @@
-
-How to install and run clvm and gfs.
+How to install and run GFS2.
 
 Refer to the cluster project page for the latest information.
 http://sources.redhat.com/cluster/
 
 Notes:
-- These instructions relate to the code on the cvs HEAD, not to
-  the other stable branches.
-- The code on cvs HEAD is new and undergoing large changes.  It is
-  not yet suitable for general use, only for development.
-- CLVM does not yet work with cvs head, so skip the clvm steps for now.
-- The names of some of the new daemons may change.
+- CLVM does not yet work with the rest of the infrastructure in cvs head
+  so we're using plain block devices below.
 
 
 Get source
 ----------
 
-- using cvs
+Get a kernel that has GFS2 and DLM.
+  See web page for git tree or download -mm?
 
-  See these pages for instructions:
-  http://sources.redhat.com/dm/
-  http://sources.redhat.com/lvm2/
+Get the 'cluster' cvs tree, instructions at:
   http://sources.redhat.com/cluster/
-
-  summary: after cvs login,
-  cvs -d :pserver:cvs@sources.redhat.com:/cvs/dm      checkout device-mapper
-  cvs -d :pserver:cvs@sources.redhat.com:/cvs/lvm2    checkout LVM2 
-  cvs -d :pserver:cvs@sources.redhat.com:/cvs/cluster checkout cluster
-
-  Notes:
-  - The 'cluster' cvs head can be unstable, so it's recommended that you
-    checkout from the RHEL4 branch -- 'checkout -r RHEL4 cluster'
-  - Recent RPM's of device-mapper and LVM2 can be used instead of building
-    them from source.
 
 
 Build and install
 -----------------
 
-1. build and install from cluster tree
-   cd cluster
-   ./configure --kernel_src=/path/to/kernel
-   make; make install
+Compile kernel with GFS2, DLM, configfs, IPV6 and SCTP.
 
-2. build device mapper user space
-   cd device-mapper
-   ./configure
-   make; make install
+Build and install from cluster tree.  Various parts of the tree aren't
+updated yet, so just build the minimum bits shown here.
 
-3. build lvm2/clvm
-   cd LVM2
-   ./configure --with-clvmd --with-cluster=shared
-   make; make install
+        cd cluster
+        ./configure --kernel_src=/path/to/kernel
 
+        cd cluster/ccs;                 make; make install
+        cd cluster/cman;                make (*)
+        cd cluster/group;               make; make install
+        cd cluster/fence;               make; make install
+        cd cluster/dlm/daemon;          make; make install
+        cd cluster/gfs/lock_dlm/daemon; make; make install
 
-Update lvm2.conf
-----------------
+        edit INCLUDEPATH in cluster/gfs2/mkfs/Makefile
+        cd cluster/gfs2/mkfs;           make; make install
+        cd cluster/gfs2/mount;          make; make install
 
-Standard lvm commands are "clusterized" (told to talk to the clvm daemon)
-by using the following two lines in /etc/lvm/lvm.conf:
-
-locking_type = 2
-locking_library = "/lib/liblvm2clusterlock.so"
+        (*) this step downloads and builds an openais tarball from
+        http://people.redhat.com/pcaulfie/
 
 
 Load kernel modules
 -------------------
 
-depmod -a
-modprobe dm-mod
-modprobe gfs
+modprobe gfs2
 modprobe lock_dlm
+modprobe lock_nolock
+modprobe dlm
+modprobe dlm_device
 
-Modules that should be loaded: lock_dlm, dlm, dlm_device, gfs, lock_harness
-and dm-mod if device-mapper was built as a module
+
+Configuration
+-------------
+
+Create /etc/cluster/cluster.conf
+  The format and content of cluster.conf has not changed since the
+  last generation of the software.  See old example here:
+  http://sources.redhat.com/cluster/doc/usage.txt
+
+Configure OpenAIS
+  Add an "ais" user to /etc/passwd and an "ais" group to /etc/group.
+  Create /etc/ais/groups.conf.  It's not used but needs to contain:
+
+group {
+}
+
+  Create /etc/ais/openais.conf.  The addresses will probably need to
+  be modified according to your network.
+
+totem {
+        version: 1
+        secauth: off
+        bindnetaddr: 10.15.84.0
+        mcastaddr: 226.94.1.1
+        nodeid: 20
+        mcastport: 5406
+        netmtu: 1500
+        threads: 0
+}
+
+logging {
+        logoutput: stderr
+        logfile: /tmp/ais
+        debug: on
+        timestamp: on
+}
+
+amf {
+        mode:disabled
+}
+
+components {
+        openais_evs:0
+        openais_clm:0
+        openais_amf:0
+        openais_ckpt:0
+        openais_evt:0
+        openais_lck:0
+        openais_msg:0
+        openais_cfg:0
+        openais_cman:0
+        openais_cpg:0
+}
 
 
 Startup procedure
 -----------------
 
 Run these commands on each cluster node:
+debug/verbose options in [] can be useful at this stage :)
 
-> ccsd                             - Starts ccs daemon
-> cman_tool join -w                - Starts cman daemon and joins the cluster
-> groupd                           - Starts group daemon
-> fenced                           - Starts fence daemon
-> clvmd                            - Starts clvm daemon
-> dlm_controld                     - Starts dlm daemon
-> lock_dlmd                        - Starts lock_dlm daemon
-> fence_tool join                  - Joins the fence domain
-> vgchange -aly                    - Activates LVM volumes (locally)
-> mount -t gfs /dev/vg/lvol /mnt   - Mounts a GFS file system
+> mount -t configfs none /config
+> ccsd -X
+> cd cluster/cman/cman_tool; ./cman_tool join [-d]
+> groupd [-D]
+> fenced [-D]
+> fence_tool join
+> dlm_controld [-D]
+> lock_dlm [-D]
+> mkfs -p lock_dlm -t <clustername>:<fsname> -j <#journals> <blockdev>
+> mount -t gfs2 [-v] <blockdev> <mountpoint>
+
+> group_tool ls
+        Shows registered groups, similar to what cman_tool services did.
 
 
 Shutdown procedure
 ------------------
 
+Doesn't work yet
+
 Run these commands on each cluster node:
 
-> umount /mnt			   - Unmounts a GFS file system
-> vgchange -aln                    - Deactivates LVM volumes (locally)
-> killall clvmd                    - Stops the CLVM daemon
-> fence_tool leave                 - Leaves the fence domain (stops fenced)
-> cman_tool leave -w               - Leaves the cluster
-
-
-Creating cluster.conf
----------------------
-
-There is no GUI or command line program to create the config file yet.
-The cluster config file "cluster.conf" must therefore be created manually.
-Once created, cluster.conf should be placed in the /etc/cluster/ directory
-on one cluster node.  CCS daemon (ccsd) will take care of transferring it
-to other nodes where it's needed.
-
-A minimal cluster.conf example is shown below.
-
-
-Creating CLVM logical volumes
------------------------------
-
-Use standard LVM commands (see LVM documentation on using pvcreate, vgcreate,
-lvcreate.)  A node must be running the CLVM system to use the LVM commands.
-Running the CLVM system means successfully running the commands above up
-through starting clvmd.
-
-
-Creating GFS file systems
--------------------------
-
-> gfs_mkfs -p lock_dlm -t <ClusterName>:<FSName> -j <Journals> <Device>
-
-        <ClusterName> must match the cluster name used in cluster.conf
-        <FSName> is a unique name chosen now to distinguish this fs from others
-        <Journals> the number of journals in the fs, one for each node to mount
-        <Device> a block device, usually an LVM logical volume
-
-Creating a GFS file system means writing to a CLVM volume which means the CLVM
-system must be running (see previous section.)
-
-
-Cluster startup tips
---------------------
-
-* Avoiding unnecessary startup fencing when fence domain is first created.
-
-When the cluster is quorate and the fence domain is first created (by a fence
-daemon being started), any nodes not yet in the cluster will be fenced.  By
-default there's a delay of 6 seconds in this case to allow any nodes
-unnecessarily flagged for fencing to join the cluster an avoid being fenced.
-This delay can be increased by setting post_join_delay in cluster.conf:
-
-  <fence_daemon post_join_delay="20">
-  </fence_daemon>
-
-The cluster.conf value can be overriden manually using the -j option to
-fence_tool (or fenced).
-
-When starting up the cluster in general, it's best to ensure that all the
-nodes have joined the cluster before any of them run "fence_tool join".  This
-can be difficult if the startup steps are not done manually, though, which
-makes the delay mentioned above is especially helpful.  If the user is certain
-all nodes are in a clean (non-hung) state when starting up the cluster, the -c
-option can be used with fence_tool/fenced to bypass any startup fencing.  See
-the fenced and fence_tool man pages for more information.
-
-Avoiding startup fencing is primarily an issue when the fencing agents being
-used are NPS/power/reboot based.  When SAN-based fencing agents are used, an
-unnecessary fencing operation during startup usually isn't disruptive (the
-unfencing done by fence_tool is helpful in this case.)
-
-
-Cluster shutdown tips
----------------------
-
-* Avoiding a partly shutdown cluster due to lost quorum.
-
-There is a practical timing issue with respect to the shutdown steps being run
-on all nodes when shutting down an entire cluster (or most of it).  When
-shutting down the entire cluster (or shutting down a node for an extended
-period) use "cman_tool leave remove".  This automatically reduces the number
-of votes needed for quorum as each node leaves and prevents the loss of quorum
-which could keep the last nodes from cleanly completing shutdown.
-
-Using the "remove" leave option should not be used in general since it
-introduces potential split-brain risks.
-
-If the "remove" leave option is not used, quorum will be lost after enough
-nodes have left the cluster.  Once the cluster is inquorate, remaining members
-that have not yet completed "fence_tool leave" in the steps above will be
-stuck.  Operations such as umounting gfs or leaving the fence domain will
-block while the cluster is inquorate.  They can continue and complete only
-when quorum is regained.
-
-If this happens, one option is to join the cluster ("cman_tool join") on some
-of the nodes that have left so that the cluster regains quorum and the stuck
-nodes can complete their shutdown.  Another option is to forcibly reduce the
-number of expected votes for the cluster which allows the cluster to become
-quorate again ("cman_tool expected <votes>").
-
-
-Cluster config file - cluster.conf
-----------------------------------
-
-This example primarily illustrates the variety of fencing configurations.
-
-The first node uses "cascade fencing"; if the first method fails (power cycling
-with an APC Masterswitch), the second is tried (port disable on a Brocade FC
-switch).  In this example, the node has dual paths to the storage so the port
-on both paths must be disabled (the same idea applies to nodes with dual power
-supplies.)
-
-There is only one method of fencing the second node (via an APC Masterswitch)
-so no cascade fencing is possible.
-
-If no hardware is available for fencing, manual fencing can be used as shown
-for the third node.  If a node with manual fencing fails, a human must take
-notice (a message appears in the system log) and run fence_ack_manual after
-resetting the failed node.  (The node that actually carries out fencing
-operations is the node with the lowest ID in the fence domain.)
-
-
-<?xml version="1.0"?>
-<cluster name="alpha" config_version="1">
-
-<cman>
-</cman>
-
-<clusternodes>
-<clusternode name="nd01">
-	<fence>
-		<method name="cascade1">
-			<device name="apc1" port="1"/>
-		</method>
-
-		<method name="cascade2">
-			<device name="brocade1" port="1"/>
-			<device name="brocade2" port="1"/>
-		</method>
-	</fence>
-</clusternode>
-
-<clusternode name="nd02">
-	<fence>
-		<method name="single">
-			<device name="apc1" port="2"/>
-		</method>
-	</fence>
-</clusternode>
-
-<clusternode name="nd03">
-	<fence>
-		<method name="single">
-			<device name="human" nodename="nd03"/>
-		</method>
-	</fence>
-</clusternode>
-</clusternodes>
-
-<fencedevices>
-	<fencedevice name="apc1" agent="fence_apc" ipaddr="10.1.1.1" login="apc" passwd="apc"/>
-	<fencedevice name="brocade1" agent="fence_brocade" ipaddr="10.1.1.2" login="user" passwd="pw"/>
-	<fencedevice name="brocade2" agent="fence_brocade" ipaddr="10.1.1.3" login="user" passwd="pw"/>
-	<fencedevice name="human" agent="fence_manual"/>
-</fencedevices>
-
-</cluster>
-
-
-Updating cluster.conf
----------------------
-
-To update the config file in a running cluster:
-
-1. have all nodes running as cluster members using the original cluster.conf
-2. on one node, update /etc/cluster/cluster.conf, incrementing config_version
-3. on this same node run "killall -HUP ccsd"
-4. verify that the new cluster.conf exists on all nodes
-5. on this same node run "cman_tool -r <new config_version>"
-6. check 'cman_tool status' to verify the new config version
-
-
-Multiple clusters
------------------
-
-When multiple clusters are used, it can be useful to specify the cluster name
-on the cman_tool command line.  This forces CCS to select a cluster.conf with
-the same cluster name.  The node then joins this cluster.
-
-> cman_tool join -c <ClusterName>
-
-
-[Note: If the -c option is not used, ccsd will first check the local copy of
-cluster.conf to extract the cluster name and will only grab a remote copy of
-cluster.conf if it has the same cluster name and a greater version number.  If
-a local copy of cluster.conf does not exist, ccsd may grab a cluster.conf for
-a different cluster than intended -- cman_tool would then report an error that
-the node is not listed in the file.
-
-So, if you don't currently have a local copy of cluster.conf (and there are
-other clusters running) or you wish to join a different cluster with a
-different cluster.conf from what exists locally, you must specify the -c
-option.]
-
-
-Two node clusters
------------------
-
-Ordinarily the loss of quorum after one node fails out of two will prevent the
-remaining node from continuing (if both nodes have one vote.)  Some special
-configuration options can be set to allow the one remaining node to continue
-operating if the other fails.  To do this only two nodes with one vote each can
-be defined in cluster.conf.  The two_node and expected_votes values must then be
-set to 1 in the cman config section as follows.
-
-  <cman two_node="1" expected_votes="1">
-  </cman>
-
-
-Advanced Network Configuration
-------------------------------
-
-* UDP Port
-
-CMAN uses UDP port 6809 by default.  A different port number can be used by:
-
-<cman port="6809">
-</cman>
-
-
-* Multicast
-
-CMAN can be configured to use multicast instead of broadcast (broadcast is
-used by default if no multicast parameters are given.)  To configure multicast
-add one line under the <cman> section and another under the <clusternode>
-section:
-
-<cman>
-    <multicast addr="224.0.0.1"/>
-</cman>
-
-<clusternode name="nd1">
-    <multicast addr="224.0.0.1" interface="eth0"/>
-</clusternode>
-
-The multicast addresses must match and the address must be usable on the
-interface name given for the node.
-
-
-* IPv6
-
-- When using IPv6, multicast must be configured; there is no IPv6 broadcast.
-
-
-More information
-----------------
-
-See the following man pages for more information:
-ccs(7)
-ccsd(8)
-cluster.conf(5)
-cman(5)
-cman_tool(8)
-fence_tool(8)
-fenced(8)
-fence_manual(8)
-gfs(8)
-gfs_mkfs(8)
+> umount <mountpoint>
+> fence_tool leave
+> cman_tool leave
 
