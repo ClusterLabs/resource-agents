@@ -17,8 +17,7 @@ include ${top_srcdir}/make/defines.mk
 
 CFLAGS+= -g -I${incdir} -I${top_srcdir}/config
 
-CFLAGS+= -I../../dlm-kernel/src2/ \
-	-I../../cman/lib/ \
+CFLAGS+= -I../../cman/lib/ \
 	-I../../group/lib/ \
 	-I../../ccs/lib/ \
 	-I../include/
