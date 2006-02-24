@@ -11,7 +11,6 @@
 ###############################################################################
 
 top_srcdir=..
-sbindir=${top_srcdir}/daemon/openais/trunk/exec
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 include ${top_srcdir}/make/defines.mk
