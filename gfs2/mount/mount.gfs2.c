@@ -161,6 +161,8 @@ int main(int argc, char **argv)
 
 	block_signals(SIG_UNBLOCK);
 
+	log_debug("mount syscall returned %d", rv);
+
 	if (!(mo.flags & MS_REMOUNT))
 		add_mtab_entry(&mo);
 
