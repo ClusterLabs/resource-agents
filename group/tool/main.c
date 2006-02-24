@@ -127,7 +127,7 @@ int do_ls(int argc, char **argv)
 	group_data_t data[MAX_GROUPS];
 	int i, j, rv, count = 0, level;
 	char *name;
-	int program_width = 16;
+	int type_width = 16;
 	int level_width = 5;
 	int name_width = 32;
 	int id_width = 8;
@@ -145,7 +145,7 @@ int do_ls(int argc, char **argv)
 		rv = group_get_groups(MAX_GROUPS, &count, data);
 
 	printf("%-*s %-*s %-*s %-*s %-*s\n",
-		program_width, "program",
+		type_width, "type",
 		level_width, "level",
 		name_width, "name",
 		id_width, "id",
