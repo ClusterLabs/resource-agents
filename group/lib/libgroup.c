@@ -360,8 +360,8 @@ int group_dispatch(group_handle_t handle)
 	memset(buf, 0, sizeof(buf));
 
 	rv = read(h->fd, &buf, GROUPD_MSGLEN);
-
-	/* FIXME: check rv */
+	if (rv != GROUPD_MSGLEN)
+		goto out;
 
 	act = get_action(buf);
 
@@ -416,7 +416,9 @@ int group_dispatch(group_handle_t handle)
 		break;
 	}
 
-	return 0;
+	rv = 0;
+ out:
+	return rv;
 }
 
 int group_get_groups(int max, int *count, group_data_t *data)
