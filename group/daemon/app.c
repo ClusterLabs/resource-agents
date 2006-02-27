@@ -349,6 +349,7 @@ void finalize_our_leave(group_t *g)
 
 	app_terminate(a);
 	cpg_finalize(g->cpg_handle);
+	client_dead(g->cpg_client);
 	g->app = NULL;
 	del_app_nodes(a);
 	free(a);

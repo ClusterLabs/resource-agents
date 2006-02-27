@@ -278,7 +278,7 @@ int client_add(int fd, void (*workfn)(int ci))
 	goto again;
 }
 
-static void client_dead(int ci)
+void client_dead(int ci)
 {
 	log_print("client %d fd %d dead", ci, client[ci].fd);
 	close(client[ci].fd);
