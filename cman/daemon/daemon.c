@@ -178,12 +178,12 @@ static int process_client(poll_handle handle, int fd, int revent, void *data, un
 
 		if (msg->magic != CMAN_MAGIC) {
 			P_DAEMON("bad magic in client command %x\n", msg->magic);
-			send_status_return(con, msg->command, EINVAL);
+			send_status_return(con, msg->command, -EINVAL);
 			return 0;
 		}
 		if (msg->version != CMAN_VERSION) {
 			P_DAEMON("bad version in client command. msg = 0x%x, us = 0x%x\n", msg->version, CMAN_VERSION);
-			send_status_return(con, msg->command, EINVAL);
+			send_status_return(con, msg->command, -EINVAL);
 			return 0;
 		}
 
@@ -192,7 +192,7 @@ static int process_client(poll_handle handle, int fd, int revent, void *data, un
 		/* Privileged functions can only be done on ADMIN sockets */
 		if (msg->command & CMAN_CMDFLAG_PRIV && con->type != CON_ADMIN) {
 			P_DAEMON("command disallowed from non-admin client\n");
-			send_status_return(con, msg->command, EPERM);
+			send_status_return(con, msg->command, -EPERM);
 			return 0;
 		}
 
@@ -203,7 +203,7 @@ static int process_client(poll_handle handle, int fd, int revent, void *data, un
 		if ((msg->command == CMAN_CMD_DATA || msg->command == CMAN_CMD_BIND) &&
 		    con->type == CON_ADMIN) {
 			P_DAEMON("can't send data down an admin socket, sorry\n");
-			send_status_return(con, msg->command, EINVAL);
+			send_status_return(con, msg->command, -EINVAL);
 			return 0;
 		}
 
@@ -227,7 +227,7 @@ static int process_client(poll_handle handle, int fd, int revent, void *data, un
 						 dmsg->nodeid,
 						 msg->flags);
 			if (ret) {
-				send_status_return(con, msg->command, ret);
+				send_status_return(con, msg->command, -EIO);
 			}
 		}
 		else {
@@ -360,7 +360,7 @@ int send_status_return(struct connection *con, uint32_t cmd, int status)
 	msg.header.command = cmd | CMAN_CMDFLAG_REPLY;
 	msg.header.length = sizeof(msg);
 	msg.header.flags = 0;
-	msg.status = -status;
+	msg.status = status;
 
 	return send_reply_message(con, (struct sock_header *)&msg);
 }
