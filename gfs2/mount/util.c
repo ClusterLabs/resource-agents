@@ -320,30 +320,65 @@ int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb)
 	else
 		extra = "-";
 
+	/*
+	 * send request to lock_dlmd for it to join mountgroup:
+	 * "join <mountpoint> gfs2 lock_dlm <locktable> <extra>"
+	 */
+
 	memset(buf, 0, sizeof(buf));
 	rv = snprintf(buf, MAXLINE, "join %s %s %s %s %s",
 		      dir, fsname, proto, table, extra);
 	if (rv >= MAXLINE)
 		die("join message too large: %d \"%s\"\n", rv, buf);
 
-	log_debug("lock_dlm_join: write \"%s\"", buf);
+	log_debug("message to lock_dlmd: asking to join mountgroup:");
+	log_debug("write \"%s\"", buf);
 
 	rv = write(fd, buf, sizeof(buf));
-	if (rv < 0)
-		die("can't communicate with lock_dlm daemon %d\n", rv);
+	if (rv < 0) {
+		log_debug("lock_dlm_join: lock_dlmd write error: %d", rv);
+		return rv;
+	}
+
+	/*
+	 * read response from lock_dlmd to our join request:
+	 * it sends back an int as a string, 0 or -EXXX
+	 */
 
 	memset(buf, 0, sizeof(buf));
 	rv = read(fd, buf, sizeof(buf));
+	if (rv < 0) {
+		log_debug("lock_dlm_join: lock_dlmd read 1 error: %d", rv);
+		return rv;
+	}
+	rv = atoi(buf);
+	if (rv < 0) {
+		log_debug("lock_dlm_join: lock_dlmd join error: %d", rv);
+		return rv;
+	}
 
-	log_debug("lock_dlm_join: read1 %d: %s", rv, buf);
+	log_debug("message from lock_dlmd: response to join request:");
+	log_debug("lock_dlm_join: read \"%s\"", buf);
+
+	/*
+	 * read mount-option string from lock_dlmd that we are to
+	 * use for the mount syscall
+	 */
 
 	memset(buf, 0, sizeof(buf));
 	rv = read(fd, buf, sizeof(buf));
+	if (rv < 0) {
+		log_debug("lock_dlmd mount options error: %d", rv);
+		return rv;
+	}
 
-	log_debug("lock_dlm_join: read2 %d: %s", rv, buf);
+	log_debug("message from lock_dlmd: mount options:");
+	log_debug("lock_dlm_join: read \"%s\"", buf);
 
-	/* lock_dlmd returns "hostdata=jid=X:id=Y:first=Z" to add to the
-	   extra mount options */
+	/*
+	 * lock_dlmd returns "hostdata=jid=X:id=Y:first=Z" to add to the
+	 * extra mount options
+	 */
 
 	if (strlen(mo->extra) == 0)
 		snprintf(mo->extra_plus, PATH_MAX, "%s", buf);
@@ -373,21 +408,44 @@ int lock_dlm_leave(struct mount_options *mo, struct gen_sb *sb)
 	if (!fd)
 		die("lock_dlmd daemon not running\n");
 
+	/*
+	 * send request to lock_dlmd for it to leave mountgroup:
+	 * "leave <mountpoint> gfs2"
+	 */
+
 	memset(buf, 0, sizeof(buf));
 	rv = snprintf(buf, MAXLINE, "leave %s %s", mo->dir, fsname);
 	if (rv >= MAXLINE)
 		die("leave message too large: %d \"%s\"\n", rv, buf);
 
+	log_debug("message to lock_dlmd: asking to leave mountgroup:");
 	log_debug("lock_dlm_leave: write \"%s\"", buf);
 
 	rv = write(fd, buf, sizeof(buf));
-	if (rv < 0)
-		die("can't communicate with lock_dlmd daemon %d", rv);
+	if (rv < 0) {
+		log_debug("lock_dlm_leave: lock_dlmd write error: %d", rv);
+		return rv;
+	}
+
+	/*
+	 * read response from lock_dlmd to our leave request:
+	 * int as a string, 0 or -EXXX
+	 */
 
 	memset(buf, 0, sizeof(buf));
 	rv = read(fd, buf, sizeof(buf));
+	if (rv < 0) {
+		log_debug("lock_dlm_leave: lock_dlmd read error: %d", rv);
+		return rv;
+	}
+	rv = atoi(buf);
+	if (rv < 0) {
+		log_debug("lock_dlm_leave: lock_dlmd leave error: %d", rv);
+		return rv;
+	}
 
-	log_debug("lock_dlm_leave: read1 %d: %s", rv, buf);
+	log_debug("message from lock_dlmd: response to leave request:");
+	log_debug("lock_dlm_leave: read \"%s\"", buf);
 
 	return 0;
 }

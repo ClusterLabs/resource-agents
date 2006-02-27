@@ -77,11 +77,14 @@ static void check_options(struct mount_options *mo)
 		die("no mount point specified\n");
 }
 
-static void umount_lockproto(char *proto, struct mount_options *mo,
+static int umount_lockproto(char *proto, struct mount_options *mo,
 			     struct gen_sb *sb)
 {
+	int rv = 0;
+
 	if (!strcmp(proto, "lock_dlm"))
-		lock_dlm_leave(mo, sb);
+		rv = lock_dlm_leave(mo, sb);
+	return rv;
 }
 
 int main(int argc, char **argv)
@@ -110,10 +113,8 @@ int main(int argc, char **argv)
 
 	read_options(argc, argv, &mo);
 
-	if (expert) {
-		umount_lockproto(expert, &mo, &sb);
-		return 0;
-	}
+	if (expert)
+		return umount_lockproto(expert, &mo, &sb);
 
 	check_options(&mo);
 	read_proc_mounts(&mo);

@@ -98,16 +98,21 @@ static void check_options(struct mount_options *mo)
 		die("unknown file system type \"%s\"\n", mo->type);
 }
 
-static void mount_lockproto(char *proto, struct mount_options *mo,
-			    struct gen_sb *sb)
+static int mount_lockproto(char *proto, struct mount_options *mo,
+			   struct gen_sb *sb)
 {
+	int rv = 0;
+
+	/* FIXME: what should we do here? */
 	if (mo->flags & MS_REMOUNT)
-		return;
+		return 0;
 
 	if (!strcmp(proto, "lock_dlm"))
-		lock_dlm_join(mo, sb);
+		rv = lock_dlm_join(mo, sb);
 	else
 		strncpy(mo->extra_plus, mo->extra, PATH_MAX);
+
+	return rv;
 }
 
 static void umount_lockproto(char *proto, struct mount_options *mo,
@@ -145,7 +150,10 @@ int main(int argc, char **argv)
 	parse_opts(&mo);
 
 	proto = select_lockproto(&mo, &sb);
-	mount_lockproto(proto, &mo, &sb);
+
+	rv = mount_lockproto(proto, &mo, &sb);
+	if (rv < 0)
+		die("error mounting lockproto %s", proto);
 
 	block_signals(SIG_BLOCK);
 
