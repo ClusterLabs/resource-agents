@@ -12,7 +12,7 @@
 
 #include "lock_dlm.h"
 
-#define OPTION_STRING			"DhV"
+#define OPTION_STRING			"DhVw"
 #define LOCKFILE_NAME			"/var/run/lock_dlmd.pid"
 
 struct client {
@@ -31,6 +31,7 @@ static int libdlm_fd;
 static int plocks_fd;
 
 extern struct list_head mounts;
+int no_withdraw = 1;
 
 static void make_args(char *buf, int *argc, char **argv, char sep)
 {
@@ -254,11 +255,14 @@ int loop(void)
 		goto out;
 	client_add(uevent_fd, &maxi);
 
+	if (no_withdraw)
+		goto next;
+
 	rv = libdlm_fd = setup_libdlm();
 	if (rv < 0)
-		goto out;
+		goto next;
 	client_add(libdlm_fd, &maxi);
-
+ next:
 	rv = plocks_fd = setup_plocks();
 	if (rv < 0)
 		goto out;
@@ -288,7 +292,8 @@ int loop(void)
 					process_groupd();
 				else if (pollfd[i].fd == uevent_fd)
 					process_uevent();
-				else if (pollfd[i].fd == libdlm_fd)
+				else if (!no_withdraw &&
+					 pollfd[i].fd == libdlm_fd)
 					process_libdlm();
 				else if (pollfd[i].fd == plocks_fd)
 					process_plocks();
@@ -391,6 +396,10 @@ static void decode_arguments(int argc, char **argv)
 		optchar = getopt(argc, argv, OPTION_STRING);
 
 		switch (optchar) {
+
+		case 'w':
+			no_withdraw = 1;
+			break;
 
 		case 'D':
 			daemon_debug_opt = 1;

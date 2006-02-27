@@ -19,6 +19,7 @@ static void *cb_arg;
 
 extern int our_nodeid;
 extern struct list_head mounts;
+extern int no_withdraw;
 
 int set_sysfs(struct mountgroup *mg, char *field, int val);
 struct mg_member *find_memb_nodeid(struct mountgroup *mg, int nodeid);
@@ -78,6 +79,11 @@ int hold_withdraw_locks(struct mountgroup *mg)
 	char name[DLM_RESNAME_MAXLEN];
 	int rv;
 
+	if (no_withdraw)
+		return 0;
+
+	log_group(mg, "hold_withdraw_locks for new nodes");
+
 	list_for_each_entry(memb, &mg->members, list) {
 		if (memb->withdraw)
 			continue;
@@ -112,6 +118,9 @@ void release_withdraw_lock(struct mountgroup *mg, struct mg_member *memb)
 	int rv;
 	uint32_t lkid;
 
+	if (no_withdraw)
+		return;
+
 	memset(name, 0, sizeof(name));
 	snprintf(name, sizeof(name), "%s %u", mg->name, memb->nodeid);
 	lkid = memb->wd_lksb.sb_lkid;
@@ -126,6 +135,9 @@ void release_withdraw_locks(struct mountgroup *mg)
 {
 	struct mg_member *memb;
 
+	if (no_withdraw)
+		return;
+
 	list_for_each_entry(memb, &mg->members, list)
 		release_withdraw_lock(mg, memb);
 }
@@ -135,6 +147,9 @@ int promote_withdraw_lock(struct mountgroup *mg)
 	struct mg_member *memb;
 	char name[DLM_RESNAME_MAXLEN];
 	int rv;
+
+	if (no_withdraw)
+		return 0;
 
 	memb = find_memb_nodeid(mg, our_nodeid);
 	if (!memb) {
@@ -162,6 +177,11 @@ int do_withdraw(char *name)
 {
 	struct mountgroup *mg;
 	int rv;
+
+	if (no_withdraw) {
+		log_error("withdraw feature not enabled");
+		return 0;
+	}
 
 	mg = find_mg(name);
 	if (!mg) {
