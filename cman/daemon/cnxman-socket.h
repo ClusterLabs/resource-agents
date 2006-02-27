@@ -109,7 +109,7 @@ static const char ADMIN_SOCKNAME[]=  "/var/run/cman_admin";
 /* This struct should be in front of all messages
    passed down the client and admin sockets */
 #define CMAN_MAGIC 0x434d414e
-#define CMAN_VERSION 0x10000001
+#define CMAN_VERSION 0x10000002
 struct sock_header {
 	uint32_t magic;
 	uint32_t version;
@@ -170,7 +170,7 @@ struct cl_extra_info {
 				      1st is the multicast address */
 };
 
-/* This is the structure, per node, returned from the membership ioctl */
+/* This is the structure, per node, returned from the membership call */
 struct cl_cluster_node {
 	unsigned int size;
 	unsigned int node_id;
@@ -180,6 +180,7 @@ struct cl_cluster_node {
 	nodestate_t state;
 	char name[MAX_CLUSTER_MEMBER_NAME_LEN];
 	char addr[sizeof(struct sockaddr_storage)];
+	unsigned int addrlen;
 	struct timeval jointime;
 	unsigned char votes;
 };

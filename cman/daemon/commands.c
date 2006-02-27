@@ -325,6 +325,7 @@ static void copy_to_usernode(struct cluster_node *node,
 
 	totemip_totemip_to_sockaddr_convert(&node->ais_node, 0, &ss, &addrlen);
 	memcpy(unode->addr, &ss, addrlen);
+	unode->addrlen = addrlen;
 }
 
 
