@@ -106,7 +106,7 @@ static void copy_node(cman_node_t *unode, struct cl_cluster_node *knode)
 	unode->cn_incarnation = knode->incarnation;
 	unode->cn_jointime = knode->jointime;
 
-	memset(&unode->cn_address.cna_address, 0, sizeof(unode->cn_address));
+	memset(&unode->cn_address, 0, sizeof(unode->cn_address));
 	memcpy(&unode->cn_address.cna_address, knode->addr, knode->addrlen);
 	unode->cn_address.cna_addrlen = knode->addrlen;
 }
