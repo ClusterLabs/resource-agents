@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.488 $) dnl cvs revision
+AC_REVISION($Revision: 1.489 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -2505,6 +2505,7 @@ cts/Makefile					        	\
 	cts/CTSproxy.py	        				\
 	cts/extracttests.py					\
 	cts/OCFIPraTest.py              	                \
+	cts/CIB.py						\
 crm/Makefile							\
 	crm/cib/Makefile					\
 	crm/crmd/Makefile					\
