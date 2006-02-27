@@ -360,7 +360,7 @@ int send_status_return(struct connection *con, uint32_t cmd, int status)
 	msg.header.command = cmd | CMAN_CMDFLAG_REPLY;
 	msg.header.length = sizeof(msg);
 	msg.header.flags = 0;
-	msg.status = status;
+	msg.status = -status;
 
 	return send_reply_message(con, (struct sock_header *)&msg);
 }
