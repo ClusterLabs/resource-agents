@@ -106,18 +106,73 @@ static void decode_arguments(int argc, char **argv)
 		operation = OP_LS;
 }
 
+/* copied from grouip/daemon/gd_internal.h, must keep in sync */
+
+#define EST_JOIN_BEGIN         1
+#define EST_JOIN_STOP_WAIT     2
+#define EST_JOIN_ALL_STOPPED   3
+#define EST_JOIN_START_WAIT    4
+#define EST_JOIN_ALL_STARTED   5
+#define EST_LEAVE_BEGIN        6
+#define EST_LEAVE_STOP_WAIT    7
+#define EST_LEAVE_ALL_STOPPED  8
+#define EST_LEAVE_START_WAIT   9
+#define EST_LEAVE_ALL_STARTED 10
+#define EST_FAIL_BEGIN        11
+#define EST_FAIL_STOP_WAIT    12
+#define EST_FAIL_ALL_STOPPED  13
+#define EST_FAIL_START_WAIT   14
+#define EST_FAIL_ALL_STARTED  15
+
+char *ev_state_str(state)
+{
+	switch (state) {
+	case EST_JOIN_BEGIN:
+		return "JOIN_BEGIN";
+	case EST_JOIN_STOP_WAIT:
+		return "JOIN_STOP_WAIT";
+	case EST_JOIN_ALL_STOPPED:
+		return "JOIN_ALL_STOPPED";
+	case EST_JOIN_START_WAIT:
+		return "JOIN_START_WAIT";
+	case EST_JOIN_ALL_STARTED:
+		return "JOIN_ALL_STARTED";
+	case EST_LEAVE_BEGIN:
+		return "LEAVE_BEGIN";
+	case EST_LEAVE_STOP_WAIT:
+		return "LEAVE_STOP_WAIT";
+	case EST_LEAVE_ALL_STOPPED:
+		return "LEAVE_ALL_STOPPED";
+	case EST_LEAVE_START_WAIT:
+		return "LEAVE_START_WAIT";
+	case EST_LEAVE_ALL_STARTED:
+		return "LEAVE_ALL_STARTED";
+	case EST_FAIL_BEGIN:
+		return "FAIL_BEGIN";
+	case EST_FAIL_STOP_WAIT:
+		return "FAIL_STOP_WAIT";
+	case EST_FAIL_ALL_STOPPED:
+		return "FAIL_ALL_STOPPED";
+	case EST_FAIL_START_WAIT:
+		return "FAIL_START_WAIT";
+	case EST_FAIL_ALL_STARTED:
+		return "FAIL_ALL_STARTED";
+	default:
+		return "unknown";
+	}
+}
+
 char *state_str(group_data_t *data)
 {
 	static char buf[32];
 	
 	memset(buf, 0, sizeof(buf));
 
-	/*
-	sprintf(buf, "E%d U%d R%d F%x",
-		data->event_state, data->update_state, data->recover_state,
-		data->flags);
-	*/
-	sprintf(buf, "none");
+	if (!data->event_state && !data->event_nodeid)
+		sprintf(buf, "none");
+	else
+		snprintf(buf, 31, "%s node %d",
+			 ev_state_str(data->event_state), data->event_nodeid);
 
 	return buf;
 }
