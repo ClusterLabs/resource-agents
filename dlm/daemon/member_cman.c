@@ -68,15 +68,6 @@ static void process_member_cb(void)
 		if (cn)
 			continue;
 
-		/* FIXME: remove this
-		   libcman appears to be returning junk after 16 bytes */
-		{
-			int j;
-			for (j = sizeof(struct sockaddr_in);
-			     j < sizeof(struct sockaddr_storage); j++)
-				new_nodes[i].cn_address.cna_address[j] = 0;
-		}
-
 		set_configfs_node(new_nodes[i].cn_nodeid,
 				  new_nodes[i].cn_address.cna_address,
 				  (new_nodes[i].cn_nodeid == local_nodeid));
