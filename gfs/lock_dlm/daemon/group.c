@@ -137,7 +137,11 @@ int process_groupd(void)
 	struct mountgroup *mg;
 	int error = 0;
 
-	group_dispatch(gh);
+	error = group_dispatch(gh);
+	if (error) {
+		log_error("groupd_dispatch error %d errno %d", error, errno);
+		goto out;
+	}
 
 	if (!cb_action)
 		goto out;
