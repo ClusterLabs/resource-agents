@@ -36,12 +36,12 @@ lock_dlmd: 	main.o \
 		group.o \
 		plock.o \
 		recover.o \
+		withdraw.o \
+		../../../dlm/lib/libdlm_lt.a \
 		../../../cman/lib/libcman.a \
 		../../../group/lib/libgroup.a
 	$(CC) $(LDFLAGS) -o $@ $^
 
-#		withdraw.o \
-#		../../../dlm/lib/libdlm_lt.a
 
 main.o: main.c
 	$(CC) $(CFLAGS) -c -o $@ $<
