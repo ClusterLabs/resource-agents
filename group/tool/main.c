@@ -187,6 +187,7 @@ int do_ls(int argc, char **argv)
 	int name_width = 32;
 	int id_width = 8;
 	int state_width = 12;
+	int len, max_name = 4;
 
 	memset(&data, 0, sizeof(data));
 
@@ -198,6 +199,13 @@ int do_ls(int argc, char **argv)
 		count = 1;
 	} else
 		rv = group_get_groups(MAX_GROUPS, &count, data);
+
+	for (i = 0; i < count; i++) {
+		len = strlen(data[i].name);
+		if (len > max_name)
+			max_name = len;
+	}
+	name_width = max_name + 1;
 
 	printf("%-*s %-*s %-*s %-*s %-*s\n",
 		type_width, "type",
