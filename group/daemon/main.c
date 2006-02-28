@@ -88,7 +88,7 @@ void app_stop(app_t *a)
 void app_setid(app_t *a)
 {
 	char buf[GROUPD_MSGLEN];
-	snprintf(buf, sizeof(buf), "set_id %s %u", a->g->name, a->g->global_id);
+	snprintf(buf, sizeof(buf), "setid %s %u", a->g->name, a->g->global_id);
 	app_action(a, buf);
 }
 

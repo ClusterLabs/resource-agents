@@ -223,7 +223,7 @@ int do_stopdone(char *name, int level);
 int do_startdone(char *name, int level);
 char *ev_state_str(event_t *ev);
 event_t *find_queued_recover_event(group_t *g);
-void extend_recover_event(event_t *ev, int nodeid);
+void extend_recover_event(group_t *g, event_t *ev, int nodeid);
 int process_apps(void);
 void del_event_nodes(event_t *ev);
 void dump_group(group_t *g);

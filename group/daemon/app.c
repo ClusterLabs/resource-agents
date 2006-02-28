@@ -21,9 +21,13 @@ struct nodeid {
 	int nodeid;
 };
 
-void extend_recover_event(event_t *ev, int nodeid)
+void extend_recover_event(group_t *g, event_t *ev, int nodeid)
 {
 	struct nodeid *id;
+
+	log_group(g, "extend_recover_event for %d with node %d",
+		  ev->nodeid, nodeid);
+
 	id = malloc(sizeof(struct nodeid));
 	id->nodeid = nodeid;
 	list_add(&id->list, &ev->extended);
@@ -927,8 +931,7 @@ static int process_app(group_t *g)
 		if (rev) {
 			ev = a->current_event;
 
-			log_group(g, "new recovery event for %d takes over "
-				  "current event: state %s nodeid %d",
+			log_group(g, "recovery for %d aborts event %s node %d",
 				  rev->nodeid, ev_state_str(ev), ev->nodeid);
 
 			prev_event_starting = event_state_starting(a);

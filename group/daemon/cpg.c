@@ -55,7 +55,7 @@ static void process_node_down(group_t *g, int nodeid)
 
 	ev = find_queued_recover_event(g);
 	if (ev)
-		extend_recover_event(ev, nodeid);
+		extend_recover_event(g, ev, nodeid);
 	else
 		queue_app_recover(g, nodeid);
 

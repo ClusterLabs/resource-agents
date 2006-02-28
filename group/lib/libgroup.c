@@ -138,7 +138,7 @@ int get_action(char *buf)
 	if (!strncmp(act, "terminate", 16))
 		return DO_TERMINATE;
 
-	if (!strncmp(act, "set_id", 16))
+	if (!strncmp(act, "setid", 16))
 		return DO_SET_ID;
 
 	if (!strncmp(act, "deliver", 16))
@@ -338,7 +338,7 @@ int group_get_fd(group_handle_t handle)
 
       event_nr = matches the start event that's being canceled
 
-   "set_id <name> <id>"
+   "setid <name> <id>"
 
       id = the global id of the group
 
