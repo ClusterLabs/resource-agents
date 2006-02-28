@@ -52,6 +52,8 @@ void add_recovery_set(int nodeid)
 	group_t *g;
 	node_t *node;
 
+	log_debug("add_recovery_set for nodeid %d", nodeid);
+
 	rs = malloc(sizeof(*rs));
 	rs->nodeid = nodeid;
 	INIT_LIST_HEAD(&rs->entries);
@@ -59,6 +61,7 @@ void add_recovery_set(int nodeid)
 	list_for_each_entry(g, &gd_groups, list) {
 		list_for_each_entry(node, &g->app->nodes, list) {
 			if (node->nodeid == nodeid) {
+				log_group(g, "added to recovery set");
 				re = malloc(sizeof(*re));
 				re->group = g;
 				list_add_tail(&re->list, &rs->entries);
@@ -612,12 +615,14 @@ static int process_current_event(group_t *g)
 			if (all_levels_all_stopped(g, ev)) {
 				ev->state = EST_FAIL_START_WAIT;
 				do_start = 1;
-			}
+			} else
+				log_group(g, "wait for all_levels_all_stopped");
 		} else {
 			if (lower_level_recovered(g)) {
 				ev->state = EST_FAIL_START_WAIT;
 				do_start = 1;
-			}
+			} else
+				log_group(g, "wait for lower_level_recovered");
 		}
 
 		if (!do_start)
@@ -905,45 +910,56 @@ static int process_app(group_t *g)
 	app_t *a = g->app;
 	event_t *rev, *ev = NULL;
 	int rv = 0;
+	int prev_event_starting, prev_event_stopping;
 
 	if (a->current_event) {
 		rv += process_app_messages(g);
 		rv += process_current_event(g);
 
+		/* the following assumes that we don't ever remove/free the
+		   group in process_current_event) */
+
 		/* if the current event has started the app and there's
 		   a recovery event, the current event is abandoned and
 		   replaced with the recovery event */
 
-		/* (this assumes that we don't ever remove/free the group
-		   in process_current_event) */
-
-		ev = a->current_event;
 		rev = find_queued_recover_event(g);
+		if (rev) {
+			ev = a->current_event;
 
-		if (rev && event_state_starting(a)) {
-			list_del(&rev->list);
-			a->current_event = rev;
-			free(ev);
-			rv = 1;
+			log_group(g, "new recovery event for %d takes over "
+				  "current event: state %s nodeid %d",
+				  rev->nodeid, ev_state_str(ev), ev->nodeid);
+
+			prev_event_starting = event_state_starting(a);
+			prev_event_stopping = event_state_stopping(a);
+
+			/* if we're waiting for a "stopped" message from a
+			   failed node, make one up so we move along to a
+			   starting state so the recovery event can then take
+			   over; the previous event could be
+			   recovery/join/leave */
+
+			if (prev_event_starting) {
+				list_del(&rev->list);
+				a->current_event = rev;
+				free(ev);
+				rv = 1;
+			} else if (prev_event_stopping) {
+				log_group(g, "fill in stop for node %d",
+					  ev->nodeid);
+				mark_node_stopped(a, ev->nodeid);
+			}
+
+			/* if the current event is a leave and the leaving node
+			   has failed, then replace the current event with the
+			   rev */
 		}
-
-		/* if we're waiting for a "stopped" message from a failed
-		   node, make one up so we move along to a starting state
-		   so the recovery event can then take over */
-
-		/*
-		if (rev && event_state_stopping(ev))
-			make_up_stops(g, rev);
-		*/
-
-		/* if the current event is a leave and the leaving node
-		   has failed, then replace the current event with the
-		   rev */
-
 	} else {
 		ev = find_queued_recover_event(g);
 		if (ev) {
-			log_debug("setting recovery event");
+			log_group(g, "set current event to recovery for %d",
+				  ev->nodeid);
 			list_del(&ev->list);
 		} else if (!list_empty(&a->events)) {
 			ev = list_entry(a->events.next, event_t, list);

@@ -438,13 +438,21 @@ int send_message(group_t *g, void *buf, int len)
 {
 	struct iovec iov;
 	cpg_error_t error;
+	int retries = 0;
 
 	iov.iov_base = buf;
 	iov.iov_len = len;
 
+ retry:
 	error = cpg_mcast_joined(g->cpg_handle, CPG_TYPE_AGREED, &iov, 1);
-	if (error != CPG_OK) {
+	if (error != CPG_OK)
 		log_group(g, "cpg_mcast_joined error %d", error);
+	if (error == CPG_ERR_TRY_AGAIN) {
+		/* FIXME: backoff say .25 sec, .5 sec, .75 sec, 1 sec */
+		retries++;
+		if (retries > 3)
+			sleep(1);
+		goto retry;
 	}
 
 	return 0;
