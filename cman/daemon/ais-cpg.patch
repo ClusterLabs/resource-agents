@@ -214,7 +214,7 @@ Index: trunk/include/ipc_cpg.h
 ===================================================================
 --- trunk/include/ipc_cpg.h	(revision 0)
 +++ trunk/include/ipc_cpg.h	(revision 0)
-@@ -0,0 +1,162 @@
+@@ -0,0 +1,161 @@
 +/*
 + * Copyright (c) 2006 Red Hat, Inc.
 + *
@@ -356,7 +356,6 @@ Index: trunk/include/ipc_cpg.h
 +struct res_lib_cpg_confchg_callback {
 +	struct res_header header;
 +	struct cpg_name groupName;
-+	uint64_t sequence;
 +	uint32_t member_list_entries;
 +	uint32_t joined_list_entries;
 +	uint32_t left_list_entries;
@@ -381,7 +380,7 @@ Index: trunk/include/cpg.h
 ===================================================================
 --- trunk/include/cpg.h	(revision 0)
 +++ trunk/include/cpg.h	(revision 0)
-@@ -0,0 +1,180 @@
+@@ -0,0 +1,179 @@
 +/*
 + * Copyright (c) 2006 Red Hat, Inc.
 + *
@@ -485,7 +484,6 @@ Index: trunk/include/cpg.h
 +typedef void (*cpg_confchg_fn_t) (
 +	cpg_handle_t handle,
 +	struct cpg_name *group_name,
-+	uint64_t sequence,
 +	struct cpg_address *member_list, int member_list_entries,
 +	struct cpg_address *left_list, int left_list_entries,
 +	struct cpg_address *joined_list, int joined_list_entries);
@@ -729,7 +727,7 @@ Index: trunk/exec/cpg.c
 ===================================================================
 --- trunk/exec/cpg.c	(revision 0)
 +++ trunk/exec/cpg.c	(revision 0)
-@@ -0,0 +1,996 @@
+@@ -0,0 +1,994 @@
 +/*
 + * vi: set autoindent tabstop=4 shiftwidth=4 :
 + *
@@ -840,7 +838,6 @@ Index: trunk/exec/cpg.c
 +};
 +
 +static struct list_head group_lists[GROUP_HASH_SIZE];
-+static uint64_t sequence;
 +
 +/*
 + * Service Interfaces required by service_message_handler struct
@@ -1087,7 +1084,6 @@ Index: trunk/exec/cpg.c
 +		}
 +	}
 +	res->member_list_entries = count;
-+	res->sequence = ++sequence;
 +
 +	if (left_list_entries) {
 +		memcpy(retgi, left_list, left_list_entries * sizeof(struct cpg_groupinfo));
@@ -1813,7 +1809,7 @@ Index: trunk/lib/cpg.c
 ===================================================================
 --- trunk/lib/cpg.c	(revision 0)
 +++ trunk/lib/cpg.c	(revision 0)
-@@ -0,0 +1,553 @@
+@@ -0,0 +1,552 @@
 +/*
 + * vi: set autoindent tabstop=4 shiftwidth=4 :
 + *
@@ -2118,7 +2114,6 @@ Index: trunk/lib/cpg.c
 +			res_cpg_confchg_callback = (struct res_lib_cpg_confchg_callback *)&dispatch_data;
 +			callbacks.cpg_confchg_fn (handle,
 +						  &res_cpg_confchg_callback->groupName,
-+						  res_cpg_confchg_callback->sequence,
 +						  (struct cpg_address *)res_cpg_confchg_callback->member_list,
 +						  res_cpg_confchg_callback->member_list_entries,
 +						  (struct cpg_address *)res_cpg_confchg_callback->member_list + res_cpg_confchg_callback->member_list_entries,

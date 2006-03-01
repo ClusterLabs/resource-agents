@@ -257,7 +257,6 @@ void process_confchg(void)
 }
 
 void confchg_cb(cpg_handle_t handle, struct cpg_name *group_name,
-		uint64_t sequence,
 		struct cpg_address *member_list, int member_list_entries,
 		struct cpg_address *left_list, int left_list_entries,
 		struct cpg_address *joined_list, int joined_list_entries)
