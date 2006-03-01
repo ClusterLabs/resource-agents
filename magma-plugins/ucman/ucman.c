@@ -183,6 +183,7 @@ cman_open(cluster_plugin_t *self)
 	if (p->handle)
 		cman_quorum_status(self, NULL);
 
+	p->ls = NULL;
 	signal(SIGPIPE, SIG_IGN);
 
 	return cman_get_fd(p->handle);

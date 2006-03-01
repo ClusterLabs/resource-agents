@@ -15,7 +15,7 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 INCLUDES+= -I. -I${magmaincdir} -I${cmanuincdir} -I${incdir} -I../../dlm/lib/ -I../../cman/lib/
 LIBS    += -L${libdir} -ldlm_lt -L${cmanuincdir} -lcman
-CFLAGS  += -D_CLUSTER_
+CFLAGS  += -D_CLUSTER_ -g
 OBJS     = ucman.o
 TARGETS  = magma_ucman.so
 
