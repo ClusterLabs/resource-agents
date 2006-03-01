@@ -4,7 +4,7 @@
 #include "gd_internal.h"
 
 static cpg_handle_t groupd_handle;
-static SaNameT groupd_name;
+static struct cpg_name groupd_name;
 static int global_id_counter = 0;
 static int groupd_joined = 0;
 static int groupd_ci;
@@ -17,7 +17,7 @@ static int			saved_member_count;
 static int			saved_joined_count;
 static int			saved_left_count;
 static cpg_handle_t		saved_handle;
-static SaNameT			saved_name;
+static struct cpg_name		saved_name;
 static int			saved_nodeid;
 static int			saved_pid;
 
@@ -184,7 +184,7 @@ group_t *find_group_by_handle(cpg_handle_t h)
 	return NULL;
 }
 
-void deliver_cb(cpg_handle_t handle, SaNameT *group_name,
+void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 		uint32_t nodeid, uint32_t pid, void *msg, int msg_len)
 {
 	group_t *g;
@@ -256,7 +256,8 @@ void process_confchg(void)
 	}
 }
 
-void confchg_cb(cpg_handle_t handle, SaNameT *group_name,
+void confchg_cb(cpg_handle_t handle, struct cpg_name *group_name,
+		uint64_t sequence,
 		struct cpg_address *member_list, int member_list_entries,
 		struct cpg_address *left_list, int left_list_entries,
 		struct cpg_address *joined_list, int joined_list_entries)
@@ -380,7 +381,7 @@ int do_cpg_join(group_t *g)
 {
 	cpg_error_t error;
 	cpg_handle_t h;
-	SaNameT name;
+	struct cpg_name name;
 	int fd, ci;
 
 	error = cpg_initialize(&h, &callbacks);
@@ -417,7 +418,7 @@ int do_cpg_join(group_t *g)
 int do_cpg_leave(group_t *g)
 {
 	cpg_error_t error;
-	SaNameT name;
+	struct cpg_name name;
 
 	memset(&name, 0, sizeof(name));
 	sprintf(name.value, "%d_%s", g->level, g->name);

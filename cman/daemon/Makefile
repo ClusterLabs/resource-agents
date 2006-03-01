@@ -69,7 +69,7 @@ ${AISDIR}/${AISDIR}.tar.gz:
 ${AISDIR}/${AISTAG}: ${AISDIR}/${AISDIR}.tar.gz
 	cd ${AISDIR} && tar -xzf ${AISDIR}.tar.gz
 	cd ${AISDIR} && patch -p1 < ../ais-cman-hack.patch
-	cd ${AISDIR} && patch -p1 < ../ais-cpg.patch
+	cd ${AISDIR} && patch -p0 < ../ais-cpg.patch
 	touch ${AISDIR}/${AISTAG}
 
 ${AISDIR}/${AISTAG}/exec/aisexec: ${AISDIR}/${AISTAG}
