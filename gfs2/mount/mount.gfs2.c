@@ -88,6 +88,8 @@ static void read_options(int argc, char **argv, struct mount_options *mo)
 
 static void check_options(struct mount_options *mo)
 {
+	struct stat buf;
+
 	if (!strlen(mo->dev))
 		die("no device name specified\n");
 
@@ -96,6 +98,12 @@ static void check_options(struct mount_options *mo)
 
 	if (strlen(mo->type) && strcmp(mo->type, fsname))
 		die("unknown file system type \"%s\"\n", mo->type);
+
+	if (stat(mo->dir, &buf) < 0)
+		die("mount point %s does not exist\n", mo->dir);
+
+	if (!S_ISDIR(buf.st_mode))
+		die("mount point %s is not a directory\n", mo->dir);
 }
 
 static int mount_lockproto(char *proto, struct mount_options *mo,
