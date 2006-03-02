@@ -201,7 +201,6 @@ cman_close(cluster_plugin_t *self, int fd)
 	assert(self);
 	p = (cman_priv_t *)self->cp_private.p_data;
 	assert(p);
-	assert(fd == cman_get_fd(p->handle));
 
 	if (p->ls)
 		dlm_release_lockspace(DLM_LS_NAME, p->ls, 0);
@@ -255,7 +254,6 @@ cman_get_event(cluster_plugin_t *self, int fd)
 	assert(self);
 	p = (cman_priv_t *)self->cp_private.p_data;
 	assert(p);
-	assert(fd == cman_get_fd(p->handle));
 
 	if (cman_dispatch(p->handle,
 	    CMAN_DISPATCH_ONE | CMAN_DISPATCH_BLOCKING) && errno == EHOSTDOWN) {
