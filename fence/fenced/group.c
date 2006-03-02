@@ -66,7 +66,8 @@ static void terminate_cbfn(group_handle_t h, void *private, char *name)
 	strcpy(cb_name, name);
 }
 
-static void setid_cbfn(group_handle_t h, void *private, char *name, int id)
+static void setid_cbfn(group_handle_t h, void *private, char *name,
+		       int unsigned id)
 {
 	cb_action = DO_SETID;
 	strcpy(cb_name, name);
