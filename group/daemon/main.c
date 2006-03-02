@@ -27,6 +27,7 @@ static int client_maxi;
 static int client_size;
 static struct client *client;
 static struct pollfd *pollfd;
+static char last_action[16];
 
 struct client {
 	int fd;
@@ -204,6 +205,10 @@ int get_action(char *buf)
 			break;
 	}
 
+	/* for debug message */
+	memset(&last_action, 0, 16);
+	memcpy(last_action, act, 16);
+
 	if (!strncmp(act, "setup", 16))
 		return DO_SETUP;
 
@@ -310,6 +315,18 @@ static void copy_group_data(group_t *g, group_data_t *data)
 		event_t *ev = g->app->current_event;
 		data->event_state = ev->state;
 		data->event_nodeid = ev->nodeid;
+		data->event_id = ev->id;
+		data->event_local_status = -2;
+
+		node = find_app_node(g->app, our_nodeid);
+		if (node) {
+			if (event_state_stopping(g->app))
+				data->event_local_status = node->stopped;
+			else if (event_state_starting(g->app))
+				data->event_local_status = node->started;
+			else
+				data->event_local_status = -1;
+		}
 	}
 
 	list_for_each_entry(node, &g->memb, list) {
@@ -408,7 +425,7 @@ static void do_send(char *name, int level, int len, char *data)
 
 	msg = (msg_t *) buf;
 	msg->ms_type = MSG_APP_INTERNAL;
-	msg->ms_id = g->global_id;
+	msg->ms_global_id = g->global_id;
 
 	log_print("%d:%s do_send %d bytes", level, name, total);
 
@@ -437,7 +454,7 @@ static void process_connection(int ci)
 
 	act = get_action(buf);
 
-	log_debug("got %d bytes from client %d act %d", rv, ci, act);
+	log_debug("got %d bytes from client %d %s", rv, ci, last_action);
 
 	switch (act) {
 

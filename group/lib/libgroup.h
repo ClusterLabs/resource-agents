@@ -75,11 +75,13 @@ typedef struct group_data {
 	char name[MAX_GROUP_NAME_LEN+1];
 	int level;
 	unsigned int id;
-	int event_state;
-	int event_nodeid;
 	int member;
 	int member_count;
 	int members[MAX_GROUP_MEMBERS];
+	int event_state;
+	int event_nodeid;
+	int event_local_status;
+	uint64_t event_id;
 } group_data_t;
 
 /* These routines create their own temporary connection to groupd so they

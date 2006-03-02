@@ -116,7 +116,7 @@ typedef struct msg msg_t;
 
 
 /*
- * Event - what a node uses to join or leave a group
+ * Event - manages nodes joining/leaving/failing
  */
 
 #define EST_JOIN_BEGIN         1
@@ -141,6 +141,7 @@ struct event {
 	int			event_nr;
 	int 			state;
 	int			nodeid;
+	uint64_t		id;
 	struct list_head	extended;
 };
 
@@ -188,9 +189,10 @@ struct app {
 
 struct msg {
 	uint32_t 		ms_type;
-	uint32_t 		ms_id;
+	uint32_t 		ms_global_id;
 	uint32_t 		ms_length;
 	uint32_t		ms_pad;
+	uint64_t		ms_event_id;
 };
 
 struct save_msg {
@@ -228,6 +230,9 @@ int process_apps(void);
 void del_event_nodes(event_t *ev);
 void dump_group(group_t *g);
 void dump_all_groups(void);
+node_t *find_app_node(app_t *a, int nodeid);
+int event_state_stopping(app_t *a);
+int event_state_starting(app_t *a);
 
 /* main.c */
 void app_stop(app_t *a);

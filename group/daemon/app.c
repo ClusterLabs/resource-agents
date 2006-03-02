@@ -28,6 +28,9 @@ void extend_recover_event(group_t *g, event_t *ev, int nodeid)
 	log_group(g, "extend_recover_event for %d with node %d",
 		  ev->nodeid, nodeid);
 
+	/* FIXME: adjust event id if this nodeid is lower than another
+	   nodeid that's failed in this event */
+
 	id = malloc(sizeof(struct nodeid));
 	id->nodeid = nodeid;
 	list_add(&id->list, &ev->extended);
@@ -223,6 +226,34 @@ static event_t *create_event(group_t *g)
 	return ev;
 }
 
+uint64_t make_event_id(group_t *g, int state, int nodeid)
+{
+	uint64_t id;
+	uint32_t n = nodeid;
+	uint32_t memb_count = g->memb_count;
+	uint16_t type = 0;
+
+	if (state == EST_JOIN_BEGIN)
+		type = 1;
+	else if (state == EST_LEAVE_BEGIN)
+		type = 2;
+	else if (state == EST_FAIL_BEGIN)
+		type = 3;
+	else
+		log_error(g, "make_event_id invalid state %d", state);
+
+	id = n;
+	id = id << 32;
+	memb_count = memb_count << 16;
+	id = id | memb_count;
+	id = id | type;
+
+	log_group(g, "make_event_id %llx nodeid %d memb_count %d type %u",
+		  id, nodeid, g->memb_count, type);
+
+	return id;
+}
+
 /* go through the queue and find all rev's with the same rev_id to
    process at once, i.e. multiple nodes failed at once */
 
@@ -233,6 +264,7 @@ int queue_app_recover(group_t *g, int nodeid)
 	ev = create_event(g);
 	ev->nodeid = nodeid;
 	ev->state = EST_FAIL_BEGIN;
+	ev->id = make_event_id(g, EST_FAIL_BEGIN, nodeid);
 
 	log_group(g, "queue recover event for nodeid %d", nodeid);
 
@@ -267,6 +299,7 @@ int queue_app_join(group_t *g, int nodeid)
 	ev = create_event(g);
 	ev->nodeid = nodeid;
 	ev->state = EST_JOIN_BEGIN;
+	ev->id = make_event_id(g, EST_JOIN_BEGIN, nodeid);
 
 	log_group(g, "queue join event for nodeid %d", nodeid);
 
@@ -284,6 +317,7 @@ int queue_app_leave(group_t *g, int nodeid)
 	ev = create_event(g);
 	ev->nodeid = nodeid;
 	ev->state = EST_LEAVE_BEGIN;
+	ev->id = make_event_id(g, EST_LEAVE_BEGIN, nodeid);
 
 	log_group(g, "queue leave event for nodeid %d", nodeid);
 
@@ -294,6 +328,8 @@ int queue_app_leave(group_t *g, int nodeid)
 int queue_app_message(group_t *g, struct save_msg *save)
 {
 	char *m = "unknown";
+
+	/* FIXME: do byteswapping */
 
 	switch (save->msg.ms_type) {
 	case MSG_APP_STOPPED:
@@ -323,7 +359,7 @@ static void del_app_nodes(app_t *a)
 	}
 }
 
-static node_t *find_app_node(app_t *a, int nodeid)
+node_t *find_app_node(app_t *a, int nodeid)
 {
 	node_t *node;
 
@@ -379,7 +415,10 @@ static int send_stopped(group_t *g)
 
 	memset(&msg, 0, sizeof(msg));
 	msg.ms_type = MSG_APP_STOPPED;
-	msg.ms_id = g->global_id;
+	msg.ms_global_id = g->global_id;
+	msg.ms_event_id = ev->id;
+
+	/* FIXME: do byteswapping */
 
 	log_group(g, "send stopped");
 	return send_message(g, &msg, sizeof(msg));
@@ -388,10 +427,14 @@ static int send_stopped(group_t *g)
 static int send_started(group_t *g)
 {
 	msg_t msg;
+	event_t *ev = g->app->current_event;
 
 	memset(&msg, 0, sizeof(msg));
 	msg.ms_type = MSG_APP_STARTED;
-	msg.ms_id = g->global_id;
+	msg.ms_global_id = g->global_id;
+	msg.ms_event_id = ev->id;
+
+	/* FIXME: do byteswapping */
 
 	log_group(g, "send started");
 	return send_message(g, &msg, sizeof(msg));
@@ -477,16 +520,32 @@ static int process_current_event(group_t *g)
 		ev->state = EST_JOIN_STOP_WAIT;
 
 		if (is_our_join(ev)) {
-			send_stopped(g);
-
 			/* the initial set of members that we've joined,
 			   includes us */
+
 			list_for_each_entry_safe(node, n, &ev->memb, list) {
 				list_move(&node->list, &a->nodes);
 				a->node_count++;
 				log_group(g, "app node init: add %d total %d",
 					  node->nodeid, a->node_count);
 			}
+
+			/* we could have the joining node send out a stopped
+			   message here for all to receive and count but
+			   that's unnecessary, we just have everyone
+			   set the joining node as stopped initially */
+
+			node = find_app_node(a, our_nodeid);
+			ASSERT(node);
+			node->stopped = 1;
+
+			/* if we're the first node to be joining, move
+			   ahead to the JOIN_ALL_STOPPED state */
+
+			if (a->node_count == 1)
+				ev->state++;
+
+			rv = 1;
 		} else {
 			app_stop(a);
 
@@ -495,6 +554,7 @@ static int process_current_event(group_t *g)
 			a->node_count++;
 			log_group(g, "app node join: add %d total %d",
 				  node->nodeid, a->node_count);
+			node->stopped = 1;
 		}
 		break;
 
@@ -670,7 +730,7 @@ static int process_current_event(group_t *g)
 	return rv;
 }
 
-static int event_state_stopping(app_t *a)
+int event_state_stopping(app_t *a)
 {
 	if (a->current_event->state == EST_JOIN_STOP_WAIT ||
 	    a->current_event->state == EST_LEAVE_STOP_WAIT ||
@@ -679,7 +739,7 @@ static int event_state_stopping(app_t *a)
 	return FALSE;
 }
 
-static int event_state_starting(app_t *a)
+int event_state_starting(app_t *a)
 {
 	if (a->current_event->state == EST_JOIN_START_WAIT ||
 	    a->current_event->state == EST_LEAVE_START_WAIT ||
@@ -693,8 +753,9 @@ static int mark_node_stopped(app_t *a, int nodeid)
 	node_t *node;
 
 	if (!event_state_stopping(a)) {
-		log_error(a->g, "mark_node_stopped: event not stopping %d ",
-			  "from %d", a->current_event->state, nodeid);
+		log_error(a->g, "mark_node_stopped: event not stopping: "
+			  "state %s from %d",
+			  ev_state_str(a->current_event), nodeid);
 		return -1;
 	}
 
@@ -766,9 +827,33 @@ static int process_app_messages(group_t *g)
 {
 	app_t *a = g->app;
 	struct save_msg *save, *tmp;
+	event_t *ev;
 	int rv = 0;
 
 	list_for_each_entry_safe(save, tmp, &g->messages, list) {
+
+		/* INTERNAL messages, sent not by groupd but by apps
+		   to each other, are delivered to the apps in
+		   deliver_app_messages() */
+
+		if (save->msg.ms_type == MSG_APP_INTERNAL)
+			continue;
+
+		/* FIXME: when joining we may get messages from the
+		   group related to events prior to our join, we want
+		   to delete/free these messages instead of saving and
+		   ignoring them forever.  perhaps flag ignored msgs
+		   and free them if they still exist after the next event
+		   has completed. */
+
+		ev = a->current_event;
+		if (!ev || ev->id != save->msg.ms_event_id) {
+			log_group(g, "ignore msg from %d id %llx type %d",
+				  save->nodeid, save->msg.ms_event_id,
+				  save->msg.ms_type);
+			continue;
+		}
+
 		switch (save->msg.ms_type) {
 
 		case MSG_APP_STOPPED:
@@ -779,16 +864,13 @@ static int process_app_messages(group_t *g)
 			mark_node_started(a, save->nodeid);
 			break;
 
-		case MSG_APP_INTERNAL:
-			continue;
-
 		default:
 			log_error(g, "process_app_messages: invalid type %d "
 				  "from %d", save->msg.ms_type, save->nodeid);
 		}
 
-		if (g->global_id == 0 && save->msg.ms_id != 0) {
-			g->global_id = save->msg.ms_id;
+		if (g->global_id == 0 && save->msg.ms_global_id != 0) {
+			g->global_id = save->msg.ms_global_id;
 			log_group(g, "set global_id %x from %d",
 				  g->global_id, save->nodeid);
 		}
@@ -799,6 +881,8 @@ static int process_app_messages(group_t *g)
 		free(save);
 		rv = 1;
 	}
+
+	/* state changes to X_ALL_STOPPED or X_ALL_STARTED */
 
 	if (event_state_stopping(a) && all_nodes_stopped(a))
 		a->current_event->state++;

@@ -26,7 +26,7 @@
 #include "groupd.h"
 
 #define MAX_GROUPS			64
-#define OPTION_STRING			"hV"
+#define OPTION_STRING			"hVv"
 #define DUMP_SIZE			(1024 * 1024)
 
 #define OP_LS				1
@@ -36,6 +36,7 @@ static char *prog_name;
 static int operation;
 static int opt_ind;
 static char *ls_name;
+static int verbose;
 
 static void print_usage(void)
 {
@@ -45,6 +46,7 @@ static void print_usage(void)
 	printf("\n");
 	printf("Options:\n");
 	printf("\n");
+	printf("  -v               Verbose output, extra event information\n");
 	printf("  -h               Print this help, then exit\n");
 	printf("  -V               Print program version information, then exit\n");
 }
@@ -58,6 +60,9 @@ static void decode_arguments(int argc, char **argv)
 		optchar = getopt(argc, argv, OPTION_STRING);
 
 		switch (optchar) {
+		case 'v':
+			verbose = 1;
+			break;
 
 		case 'h':
 			print_usage();
@@ -164,15 +169,20 @@ char *ev_state_str(state)
 
 char *state_str(group_data_t *data)
 {
-	static char buf[32];
+	static char buf[128];
 	
 	memset(buf, 0, sizeof(buf));
 
 	if (!data->event_state && !data->event_nodeid)
 		sprintf(buf, "none");
+	else if (verbose)
+		snprintf(buf, 127, "%s %d %llx %d",
+			 ev_state_str(data->event_state),
+			 data->event_nodeid,
+			 data->event_id,
+			 data->event_local_status);
 	else
-		snprintf(buf, 31, "%s node %d",
-			 ev_state_str(data->event_state), data->event_nodeid);
+		snprintf(buf, 127, "%s", ev_state_str(data->event_state));
 
 	return buf;
 }
@@ -181,7 +191,7 @@ int do_ls(int argc, char **argv)
 {
 	group_data_t data[MAX_GROUPS];
 	int i, j, rv, count = 0, level;
-	char *name;
+	char *name, *state_header;
 	int type_width = 16;
 	int level_width = 5;
 	int name_width = 32;
@@ -207,12 +217,17 @@ int do_ls(int argc, char **argv)
 	}
 	name_width = max_name + 1;
 
+	if (verbose)
+		state_header = "state node id local_done";
+	else
+		state_header = "state";
+			
 	printf("%-*s %-*s %-*s %-*s %-*s\n",
 		type_width, "type",
 		level_width, "level",
 		name_width, "name",
 		id_width, "id",
-		state_width, "state");
+		state_width, state_header);
 
 	for (i = 0; i < count; i++) {
 
