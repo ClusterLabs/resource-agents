@@ -187,11 +187,15 @@ struct app {
 #define MSG_APP_STARTED        2
 #define MSG_APP_INTERNAL       3
 
+#define MSG_VER_MAJOR          1
+#define MSG_VER_MINOR          0
+#define MSG_VER_PATCH          0
+
 struct msg {
+	uint32_t		ms_version[3];
 	uint32_t 		ms_type;
-	uint32_t 		ms_global_id;
 	uint32_t 		ms_length;
-	uint32_t		ms_pad;
+	uint32_t 		ms_global_id;
 	uint64_t		ms_event_id;
 };
 

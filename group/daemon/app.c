@@ -21,18 +21,80 @@ struct nodeid {
 	int nodeid;
 };
 
+static void msg_bswap_out(msg_t *msg)
+{
+	msg->ms_version[0]	= cpu_to_le32(MSG_VER_MAJOR);
+	msg->ms_version[1]	= cpu_to_le32(MSG_VER_MINOR);
+	msg->ms_version[2]	= cpu_to_le32(MSG_VER_PATCH);
+	msg->ms_type		= cpu_to_le32(msg->ms_type);
+	msg->ms_length		= cpu_to_le32(msg->ms_length);
+	msg->ms_global_id	= cpu_to_le32(msg->ms_global_id);
+	msg->ms_event_id	= cpu_to_le64(msg->ms_event_id);
+}
+
+static void msg_bswap_in(msg_t *msg)
+{
+	msg->ms_version[0]	= le32_to_cpu(MSG_VER_MAJOR);
+	msg->ms_version[1]	= le32_to_cpu(MSG_VER_MINOR);
+	msg->ms_version[2]	= le32_to_cpu(MSG_VER_PATCH);
+	msg->ms_type		= le32_to_cpu(msg->ms_type);
+	msg->ms_length		= le32_to_cpu(msg->ms_length);
+	msg->ms_global_id	= le32_to_cpu(msg->ms_global_id);
+	msg->ms_event_id	= le64_to_cpu(msg->ms_event_id);
+}
+
+uint64_t make_event_id(group_t *g, int state, int nodeid)
+{
+	uint64_t id;
+	uint32_t n = nodeid;
+	uint32_t memb_count = g->memb_count;
+	uint16_t type = 0;
+
+	if (state == EST_JOIN_BEGIN)
+		type = 1;
+	else if (state == EST_LEAVE_BEGIN)
+		type = 2;
+	else if (state == EST_FAIL_BEGIN)
+		type = 3;
+	else
+		log_error(g, "make_event_id invalid state %d", state);
+
+	id = n;
+	id = id << 32;
+	memb_count = memb_count << 16;
+	id = id | memb_count;
+	id = id | type;
+
+	log_group(g, "make_event_id %llx nodeid %d memb_count %d type %u",
+		  id, nodeid, g->memb_count, type);
+
+	return id;
+}
+
+/* For a recovery event where multiple nodes have failed, the event id
+   is based on the lowest nodeid of all the failed nodes.  The event
+   id is also based on the number of remaining group members which
+   changes as failed nodes are added to the recovery event. */
+
 void extend_recover_event(group_t *g, event_t *ev, int nodeid)
 {
 	struct nodeid *id;
+	int new_id_nodeid = nodeid;
 
 	log_group(g, "extend_recover_event for %d with node %d",
 		  ev->nodeid, nodeid);
 
-	/* FIXME: adjust event id if this nodeid is lower than another
-	   nodeid that's failed in this event */
+	/* the lowest nodeid in a recovery event is kept in ev->nodeid,
+	   the other nodeid's are kept in the extended list */
+
+	if (nodeid < ev->nodeid) {
+		new_id_nodeid = ev->nodeid;
+		ev->nodeid = nodeid;
+		ev->id = make_event_id(g, EST_FAIL_BEGIN, nodeid);
+	}
 
 	id = malloc(sizeof(struct nodeid));
-	id->nodeid = nodeid;
+	id->nodeid = new_id_nodeid;
 	list_add(&id->list, &ev->extended);
 }
 
@@ -226,34 +288,6 @@ static event_t *create_event(group_t *g)
 	return ev;
 }
 
-uint64_t make_event_id(group_t *g, int state, int nodeid)
-{
-	uint64_t id;
-	uint32_t n = nodeid;
-	uint32_t memb_count = g->memb_count;
-	uint16_t type = 0;
-
-	if (state == EST_JOIN_BEGIN)
-		type = 1;
-	else if (state == EST_LEAVE_BEGIN)
-		type = 2;
-	else if (state == EST_FAIL_BEGIN)
-		type = 3;
-	else
-		log_error(g, "make_event_id invalid state %d", state);
-
-	id = n;
-	id = id << 32;
-	memb_count = memb_count << 16;
-	id = id | memb_count;
-	id = id | type;
-
-	log_group(g, "make_event_id %llx nodeid %d memb_count %d type %u",
-		  id, nodeid, g->memb_count, type);
-
-	return id;
-}
-
 /* go through the queue and find all rev's with the same rev_id to
    process at once, i.e. multiple nodes failed at once */
 
@@ -329,7 +363,7 @@ int queue_app_message(group_t *g, struct save_msg *save)
 {
 	char *m = "unknown";
 
-	/* FIXME: do byteswapping */
+	msg_bswap_in(&save->msg);
 
 	switch (save->msg.ms_type) {
 	case MSG_APP_STOPPED:
@@ -418,7 +452,7 @@ static int send_stopped(group_t *g)
 	msg.ms_global_id = g->global_id;
 	msg.ms_event_id = ev->id;
 
-	/* FIXME: do byteswapping */
+	msg_bswap_out(&msg);
 
 	log_group(g, "send stopped");
 	return send_message(g, &msg, sizeof(msg));
@@ -434,7 +468,7 @@ static int send_started(group_t *g)
 	msg.ms_global_id = g->global_id;
 	msg.ms_event_id = ev->id;
 
-	/* FIXME: do byteswapping */
+	msg_bswap_out(&msg);
 
 	log_group(g, "send started");
 	return send_message(g, &msg, sizeof(msg));
@@ -832,7 +866,7 @@ static int process_app_messages(group_t *g)
 
 	list_for_each_entry_safe(save, tmp, &g->messages, list) {
 
-		/* INTERNAL messages, sent not by groupd but by apps
+		/* internal messages, sent not by groupd but by apps
 		   to each other, are delivered to the apps in
 		   deliver_app_messages() */
 
