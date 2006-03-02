@@ -333,17 +333,16 @@ void process_cpg(int ci)
 	}
 
  dispatch:
-	while (1) {
-		error = cpg_dispatch(handle, CPG_DISPATCH_ALL);
-		if (error != CPG_OK)
-			log_print("cpg_dispatch error %d", error);
+	got_confchg = 0;
 
-		if (got_confchg) {
-			process_confchg();
-			got_confchg = 0;
-		} else
-			break;
+	error = cpg_dispatch(handle, CPG_DISPATCH_ONE);
+	if (error != CPG_OK) {
+		log_print("cpg_dispatch error %d", error);
+		return;
 	}
+
+	if (got_confchg)
+		process_confchg();
 }
 
 int setup_cpg(void)
