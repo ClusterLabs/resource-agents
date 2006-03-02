@@ -28,11 +28,17 @@
 void
 build_master(struct gfs2_sbd *sdp)
 {
-	struct gfs2_inode *ip;
+	struct gfs2_inum inum;
+	uint64_t bn;
+	struct buffer_head *bh;
 
-	ip = createi(sdp->root_dir, ".gfs2_admin", S_IFDIR | 0700, GFS2_DIF_SYSTEM);
+	bn = dinode_alloc(sdp);
+	inum.no_formal_ino = sdp->next_inum++;
+	inum.no_addr = bn;
 
-	sdp->master_dir = ip;
+	bh = init_dinode(sdp, &inum, S_IFDIR | 0755, GFS2_DIF_SYSTEM, &inum);
+	
+	sdp->master_dir = inode_get(sdp, bh);
 
 	if (sdp->debug) {
 		printf("\nMaster dir:\n");
