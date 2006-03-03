@@ -185,39 +185,53 @@ group_t *find_group_by_handle(cpg_handle_t h)
 }
 
 void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
-		uint32_t nodeid, uint32_t pid, void *msg, int msg_len)
+		uint32_t nodeid, uint32_t pid, void *data, int data_len)
 {
 	group_t *g;
 	struct save_msg *save;
+	msg_t *msg = (msg_t *) data;
 	char *buf;
+	char name[MAX_NAMELEN+1];
+	int len;
 
-	if (saved_handle == groupd_handle) {
-		log_print("ERROR: deliver_cb for groupd_handle from %d len %d",
-			   nodeid, msg_len);
-		return;
-	}
+	memset(&name, 0, sizeof(name));
 
-	log_print("deliver_cb from %d len %d", nodeid, msg_len);
+	msg_bswap_in(msg);
 
-	g = find_group_by_handle(handle);
-	if (!g) {
-		log_print("deliver_cb: no group for handle %x name %s",
-			  handle, group_name->value);
-		return;
+	log_print("deliver_cb %llx from %d len %d", handle, nodeid, data_len);
+
+	if (handle == groupd_handle) {
+		memcpy(&name, &msg->ms_name, MAX_NAMELEN);
+
+		g = find_group_level(name, msg->ms_level);
+		if (!g)
+			return;
+	} else {
+		g = find_group_by_handle(handle);
+		if (!g) {
+			len = group_name->length;
+			if (len > MAX_NAMELEN)
+				len = MAX_NAMELEN;
+			memcpy(&name, &group_name->value, len);
+
+			log_print("deliver_cb no group handle %d name %s",
+				  handle, name);
+			return;
+		}
 	}
 
 	save = malloc(sizeof(struct save_msg));
 	memset(save, 0, sizeof(struct save_msg));
 	save->nodeid = nodeid;
-	save->msg_len = msg_len;
+	save->msg_len = data_len;
 
-	if (msg_len > sizeof(msg_t)) {
-		buf = malloc(msg_len);
-		memcpy(buf, msg, msg_len);
+	if (data_len > sizeof(msg_t)) {
+		buf = malloc(data_len);
+		memcpy(buf, data, data_len);
 		save->msg_long = buf;
-		memcpy(&save->msg, buf, sizeof(msg_t));
+		memcpy(&save->msg, data, sizeof(msg_t));
 	} else
-		memcpy(&save->msg, msg, sizeof(msg_t));
+		memcpy(&save->msg, data, sizeof(msg_t));
 
 	queue_app_message(g, save);
 }
@@ -371,7 +385,7 @@ int setup_cpg(void)
 		return error;
 	}
 
-	log_debug("setup_cpg ok");
+	log_debug("setup_cpg groupd_handle %llx", groupd_handle);
 	return 0;
 }
 
@@ -400,7 +414,7 @@ int do_cpg_join(group_t *g)
 	sprintf(name.value, "%d_%s", g->level, g->name);
 	name.length = strlen(name.value) + 1;
 
-	log_group(g, "is cpg client %d name %s handle %x", ci, name.value, h);
+	log_group(g, "is cpg client %d name %s handle %llx", ci, name.value, h);
 
 	error = cpg_join(h, &name);
 	if (error != CPG_OK) {
@@ -433,7 +447,7 @@ int do_cpg_leave(group_t *g)
 	return 0;
 }
 
-int send_message(group_t *g, void *buf, int len)
+static int _send_message(cpg_handle_t h, group_t *g, void *buf, int len)
 {
 	struct iovec iov;
 	cpg_error_t error;
@@ -443,9 +457,9 @@ int send_message(group_t *g, void *buf, int len)
 	iov.iov_len = len;
 
  retry:
-	error = cpg_mcast_joined(g->cpg_handle, CPG_TYPE_AGREED, &iov, 1);
+	error = cpg_mcast_joined(h, CPG_TYPE_AGREED, &iov, 1);
 	if (error != CPG_OK)
-		log_group(g, "cpg_mcast_joined error %d", error);
+		log_group(g, "cpg_mcast_joined error %d handle %d", error, h);
 	if (error == CPG_ERR_TRY_AGAIN) {
 		/* FIXME: backoff say .25 sec, .5 sec, .75 sec, 1 sec */
 		retries++;
@@ -455,5 +469,15 @@ int send_message(group_t *g, void *buf, int len)
 	}
 
 	return 0;
+}
+
+int send_message_groupd(group_t *g, void *buf, int len)
+{
+	return _send_message(groupd_handle, g, buf, len);
+}
+
+int send_message(group_t *g, void *buf, int len)
+{
+	return _send_message(g->cpg_handle, g, buf, len);
 }
 

@@ -193,10 +193,12 @@ struct app {
 
 struct msg {
 	uint32_t		ms_version[3];
-	uint32_t 		ms_type;
+	uint16_t 		ms_type;
+	uint16_t		ms_level;
 	uint32_t 		ms_length;
 	uint32_t 		ms_global_id;
 	uint64_t		ms_event_id;
+	char			ms_name[MAX_NAMELEN];
 };
 
 struct save_msg {
@@ -237,6 +239,8 @@ void dump_all_groups(void);
 node_t *find_app_node(app_t *a, int nodeid);
 int event_state_stopping(app_t *a);
 int event_state_starting(app_t *a);
+void msg_bswap_out(msg_t *msg);
+void msg_bswap_in(msg_t *msg);
 
 /* main.c */
 void app_stop(app_t *a);
@@ -255,6 +259,7 @@ int setup_cpg(void);
 int do_cpg_join(group_t *g);
 int do_cpg_leave(group_t *g);
 int send_message(group_t *g, void *buf, int len);
+int send_message_groupd(group_t *g, void *buf, int len);
 
 /* joinleave.c */
 void remove_group(group_t *g);

@@ -21,23 +21,25 @@ struct nodeid {
 	int nodeid;
 };
 
-static void msg_bswap_out(msg_t *msg)
+void msg_bswap_out(msg_t *msg)
 {
 	msg->ms_version[0]	= cpu_to_le32(MSG_VER_MAJOR);
 	msg->ms_version[1]	= cpu_to_le32(MSG_VER_MINOR);
 	msg->ms_version[2]	= cpu_to_le32(MSG_VER_PATCH);
-	msg->ms_type		= cpu_to_le32(msg->ms_type);
+	msg->ms_type		= cpu_to_le16(msg->ms_type);
+	msg->ms_level		= cpu_to_le16(msg->ms_level);
 	msg->ms_length		= cpu_to_le32(msg->ms_length);
 	msg->ms_global_id	= cpu_to_le32(msg->ms_global_id);
 	msg->ms_event_id	= cpu_to_le64(msg->ms_event_id);
 }
 
-static void msg_bswap_in(msg_t *msg)
+void msg_bswap_in(msg_t *msg)
 {
 	msg->ms_version[0]	= le32_to_cpu(MSG_VER_MAJOR);
 	msg->ms_version[1]	= le32_to_cpu(MSG_VER_MINOR);
 	msg->ms_version[2]	= le32_to_cpu(MSG_VER_PATCH);
-	msg->ms_type		= le32_to_cpu(msg->ms_type);
+	msg->ms_type		= le16_to_cpu(msg->ms_type);
+	msg->ms_level		= le16_to_cpu(msg->ms_level);
 	msg->ms_length		= le32_to_cpu(msg->ms_length);
 	msg->ms_global_id	= le32_to_cpu(msg->ms_global_id);
 	msg->ms_event_id	= le64_to_cpu(msg->ms_event_id);
@@ -363,8 +365,6 @@ int queue_app_message(group_t *g, struct save_msg *save)
 {
 	char *m = "unknown";
 
-	msg_bswap_in(&save->msg);
-
 	switch (save->msg.ms_type) {
 	case MSG_APP_STOPPED:
 		m = "stopped";
@@ -442,6 +442,10 @@ static int send_stopped(group_t *g)
 	msg_t msg;
 	event_t *ev = g->app->current_event;
 
+	/* FIXME: see other fixme that mentions that leaving nodes
+	   should also send a stopped message to be counted by the
+	   remaining nodes before they move on to restarted */
+
 	if (ev && ev->state == EST_LEAVE_STOP_WAIT && is_our_leave(ev)) {
 		finalize_our_leave(g);
 		return 0;
@@ -451,11 +455,13 @@ static int send_stopped(group_t *g)
 	msg.ms_type = MSG_APP_STOPPED;
 	msg.ms_global_id = g->global_id;
 	msg.ms_event_id = ev->id;
+	msg.ms_level = g->level;
+	memcpy(&msg.ms_name, &g->name, MAX_NAMELEN);
 
 	msg_bswap_out(&msg);
 
 	log_group(g, "send stopped");
-	return send_message(g, &msg, sizeof(msg));
+	return send_message_groupd(g, &msg, sizeof(msg));
 }
 
 static int send_started(group_t *g)
@@ -467,11 +473,13 @@ static int send_started(group_t *g)
 	msg.ms_type = MSG_APP_STARTED;
 	msg.ms_global_id = g->global_id;
 	msg.ms_event_id = ev->id;
+	msg.ms_level = g->level;
+	memcpy(&msg.ms_name, &g->name, MAX_NAMELEN);
 
 	msg_bswap_out(&msg);
 
 	log_group(g, "send started");
-	return send_message(g, &msg, sizeof(msg));
+	return send_message_groupd(g, &msg, sizeof(msg));
 }
 
 int do_stopdone(char *name, int level)
@@ -619,14 +627,10 @@ static int process_current_event(group_t *g)
 		ev->state = EST_LEAVE_STOP_WAIT;
 		app_stop(a);
 
-		/* Set leaving node as stopped because it can't send a
-		   stopped message for us to receive.
-
-                   FIXME: see below about getting the leaving node's
-		   special stopped message through the groupd group so
-		   we can be sure it's stopped before we start.  When we
-		   do that, then we won't want to set the leaving node
-		   as stopped here. */
+		/* FIXME: have leaving node send a stopped message after
+		   the app acks that it's stopped, and then make the
+		   other nodes wait for this stopped message instead of
+		   just setting the leaving node as stopped here */
 
 		if (!is_our_leave(ev)) {
 			node = find_app_node(a, ev->nodeid);
@@ -640,24 +644,6 @@ static int process_current_event(group_t *g)
 		count = count_nodes_not_stopped(a);
 		log_group(g, "waiting for %d more nodes to be stopped", count);
 		break;
-
-		/* The leaving node won't get the "stopped" messages
-		   from the remaining group members (or be able to send/recv
-		   its own stopped message) because the confchg for our leave
-		   is the last thing we get from libcpg.
-		   
-		   The other nodes can't get our "stopped" message either;
-		   we can't send to the group since we're not in it any more.
-
-		   FIXME: we should add an extra level of certainty to
-		   the leaving process by sending a special "stopped" message
-		   (after the local app has acked that it's in fact stopped)
-		   through the groupd group to the remaining group members.
-		   The remaining members should wait for our special out-of-
-		   band "stopped" message for the group we've left before they
-		   go ahead and start following our leave.  This adds
-		   certainly that they're not starting the group before
-		   our stop for our leave is actually completed. */
 
 	case EST_LEAVE_ALL_STOPPED:
 		ev->state = EST_LEAVE_START_WAIT;
