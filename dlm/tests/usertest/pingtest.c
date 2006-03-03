@@ -4,6 +4,9 @@
 #ifdef __linux__
 #include <pthread.h>
 #include <errno.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include <sys/types.h>
 #include <netdb.h>
 

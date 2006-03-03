@@ -19,6 +19,7 @@
 
 #include "libdlm.h"
 
+static struct dlm_lksb lksb;
 static int modetonum(char *modestr)
 {
     int mode = LKM_EXMODE;
@@ -67,7 +68,7 @@ static void usage(char *prog, FILE *file)
 
 }
 
-
+#ifdef QUERY
 static void query_ast_routine(void *arg)
 {
     struct dlm_lksb *lksb = arg;
@@ -103,27 +104,26 @@ static void query_ast_routine(void *arg)
 	free(qi->gqi_lockinfo);
 }
 
-
-static struct dlm_lksb lksb;
 static struct dlm_queryinfo qinfo;
 static struct dlm_resinfo resinfo;
 #define MAX_QUERY_LOCKS 10
 
+
 static int query_lock(int lockid)
 {
     int status;
-
+struct dlm_lksb tmplksb;
     lksb.sb_lkid = lockid;
     qinfo.gqi_resinfo = &resinfo;
     qinfo.gqi_lockinfo = malloc(sizeof(struct dlm_lockinfo) * MAX_QUERY_LOCKS);
     qinfo.gqi_locksize = MAX_QUERY_LOCKS;
     lksb.sb_lvbptr = (char *)&qinfo;
 
-    status = dlm_query(&lksb,
+    status = dlm_query(&tmplksb,
 		       DLM_QUERY_QUEUE_ALL | DLM_QUERY_LOCKS_ALL,
 		       &qinfo,
 		       query_ast_routine,
-		       &lksb);
+		       &tmplksb);
     if (status)
 	perror("Query failed");
     else
@@ -131,7 +131,7 @@ static int query_lock(int lockid)
 		     a synchronous version of this call */
     return status;
 }
-
+#endif
 
 
 int main(int argc, char *argv[])
@@ -148,6 +148,7 @@ int main(int argc, char *argv[])
     int  do_query = 0;
     int  do_expedite = 0;
     signed char opt;
+    int i;
 
     /* Deal with command-line arguments */
     opterr = 0;
@@ -235,7 +236,9 @@ int main(int argc, char *argv[])
 
     if (!do_unlock) return 0;
 
+#ifdef QUERY
     if (do_query) query_lock(lockid);
+#endif
 
     sleep(delay);
 

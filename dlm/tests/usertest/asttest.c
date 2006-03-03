@@ -78,6 +78,8 @@ static void usage(char *prog, FILE *file)
     fprintf(file, "   -c <mode>  mode to convert to (default none)\n");
     fprintf(file, "   -n         don't block\n");
     fprintf(file, "   -p         Use pthreads\n");
+    fprintf(file, "   -u         Don't unlock\n");
+    fprintf(file, "   -C         Crash after lock\n");
     fprintf(file, "   -q         Quiet\n");
     fprintf(file, "   -u         Don't unlock explicitly\n");
     fprintf(file, "\n");
@@ -140,12 +142,13 @@ int main(int argc, char *argv[])
     int  mode = LKM_EXMODE;
     int  convmode = -1;
     int  do_unlock = 1;
+    int  do_crash = 0;
     signed char opt;
 
     /* Deal with command-line arguments */
     opterr = 0;
     optind = 0;
-    while ((opt=getopt(argc,argv,"?m:nqupc:vV")) != EOF)
+    while ((opt=getopt(argc,argv,"?m:nqupc:CvV")) != EOF)
     {
 	switch(opt)
 	{
@@ -181,6 +184,9 @@ int main(int argc, char *argv[])
             do_unlock = 0;
             break;
 
+	case 'C':
+	    do_crash = 1;
+	    break;
 
 	case 'V':
 	    printf("\nasttest version 0.1\n\n");
@@ -226,6 +232,9 @@ int main(int argc, char *argv[])
 	return -1;
     }
     printf("(lkid=%x)", lksb.sb_lkid);
+
+    if (do_crash)
+	*(int *)0 = 0xdeadbeef;
 
     /* Wait */
     if (use_threads)
