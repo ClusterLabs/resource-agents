@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.490 $) dnl cvs revision
+AC_REVISION($Revision: 1.491 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -2254,12 +2254,13 @@ if test "x${enable_mgmt}" != "xno"; then
 	else
 		MISSING_FN="FatalMissingThing"
 	fi
-	PYTHON_HEADER_DIR="python${PYTHON_VERSION}"
-	AC_CHECK_HEADER($PYTHON_HEADER_DIR/Python.h,
-	  [python_headers_found="yes"],[python_headers_found="no"])	
-	if test "x${python_headers_found}" = "xno"; then
-  		$MISSING_FN "$PYTHON_HEADER_DIR/Python.h" \
-		  "The GUI managment module needs the python-devel package"
+
+	AM_CHECK_PYTHON_HEADERS(,PYTHON_INCLUDES='')
+	AC_SUBST(PYTHON_INCLUDES)
+
+	if test "x${PYTHON_INCLUDES}" = "x"; then
+  		$MISSING_FN "Python.h" \
+		  "The GUI managment module needs Python.h (Linux: python-devel package)"
 		enable_mgmt="no"
 		MGMT_ENABLED=0
 	fi
@@ -2281,7 +2282,6 @@ if test "x${enable_mgmt}" != "xno"; then
 	fi
 fi
 
-AC_SUBST(PYTHON_HEADER_DIR)
 AC_SUBST(MGMT_ENABLED)
 AM_CONDITIONAL(MGMT_BUILD, test "x${enable_mgmt}" != "xno")
 
