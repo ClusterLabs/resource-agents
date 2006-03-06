@@ -73,6 +73,67 @@ uint64_t make_event_id(group_t *g, int state, int nodeid)
 	return id;
 }
 
+int event_id_to_nodeid(uint64_t id)
+{
+	int nodeid;
+	uint64_t n = id >> 32;
+	nodeid = n & 0xFFFFFFFF;
+	return nodeid;
+}
+
+int event_id_to_type(uint64_t id)
+{
+	uint64_t n;
+	n = id & 0x000000000000FFFF;
+	return ((int) n);
+}
+
+/*
+ * Free queued message if:
+ * - the id indicates a join for node X and X is a member
+ * - the id indicates a leave for node X and X is not a member
+ *
+ * Note sure if all these cases are relevant, currently we only
+ * purge messages after we join.
+ */
+
+static void purge_messages(group_t *g)
+{
+	struct save_msg *save, *tmp;
+	node_t *node;
+	int nodeid, type;
+	char *state_str;
+
+	list_for_each_entry_safe(save, tmp, &g->messages, list) {
+		if (save->msg.ms_type == MSG_APP_INTERNAL)
+			continue;
+
+		nodeid = event_id_to_nodeid(save->msg.ms_event_id);
+		type = event_id_to_type(save->msg.ms_event_id);
+		node = find_app_node(g->app, nodeid);
+
+		if ((type == 1 && node) || (type != 1 && !node)) {
+
+			if (type == 1)
+				state_str = "EST_JOIN_BEGIN";
+			else if (type == 2)
+				state_str = "EST_LEAVE_BEGIN";
+			else if (type == 3)
+				state_str = "EST_FAIL_BEGIN";
+			else
+				state_str = "error";
+
+			log_group(g, "purge msg %llx from %d %s",
+				  save->msg.ms_event_id, nodeid, state_str);
+
+			list_del(&save->list);
+			if (save->msg_long)
+				free(save->msg_long);
+			free(save);
+		}
+	}
+}
+
 /* For a recovery event where multiple nodes have failed, the event id
    is based on the lowest nodeid of all the failed nodes.  The event
    id is also based on the number of remaining group members which
@@ -618,6 +679,9 @@ static int process_current_event(group_t *g)
 
 	case EST_JOIN_ALL_STARTED:
 		app_finish(a);
+
+		if (is_our_join(ev))
+			purge_messages(g);
 		free(ev);
 		a->current_event = NULL;
 		rv = 1;
@@ -1058,9 +1122,10 @@ static int process_app(group_t *g)
 				mark_node_stopped(a, ev->nodeid);
 			}
 
-			/* if the current event is a leave and the leaving node
-			   has failed, then replace the current event with the
-			   rev */
+			/* FIXME: if the current event is a leave and the
+			   leaving node has failed, then replace the current
+			   event with the rev */
+
 		}
 	} else {
 		ev = find_queued_recover_event(g);
