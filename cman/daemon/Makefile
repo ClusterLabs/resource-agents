@@ -12,7 +12,7 @@
 
 top_srcdir=..
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
-AISDIR=openais20060224
+AISDIR=openais20060307
 AISTAG=trunk
 
 include ${top_srcdir}/make/defines.mk
@@ -69,7 +69,6 @@ ${AISDIR}/${AISDIR}.tar.gz:
 ${AISDIR}/${AISTAG}: ${AISDIR}/${AISDIR}.tar.gz
 	cd ${AISDIR} && tar -xzf ${AISDIR}.tar.gz
 	cd ${AISDIR} && patch -p1 < ../ais-cman-hack.patch
-	cd ${AISDIR} && patch -p0 < ../ais-cpg.patch
 	touch ${AISDIR}/${AISTAG}
 
 ${AISDIR}/${AISTAG}/exec/aisexec: ${AISDIR}/${AISTAG}
@@ -83,12 +82,13 @@ install:
 	install ${AISDIR}/${AISTAG}/exec/keygen ${sbindir}/ais-keygen
 
 uninstall:
-	${UNINSTALL} cmand ${sbindir}
-	${UNINSTALL} ais_keygen ${sbindir}
+	rm -rf ${libexecdir}/cman
+	${UNINSTALL} ais-keygen ${sbindir}
 
 clean:
-	rm -f *.o cmand
+	rm -f *.o service_cman.lcrso
 	rm -rf ${AISDIR}/${AISTAG}
+	rm -f openais
 
 reallyclean: clean
 	rm -rf ${AISDIR}
