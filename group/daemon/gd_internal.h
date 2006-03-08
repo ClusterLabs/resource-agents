@@ -253,6 +253,7 @@ void client_dead(int ci);
 
 /* cman.c */
 int setup_cman(void);
+int is_cman_member(int nodeid);
 
 /* cpg.c */
 int setup_cpg(void);

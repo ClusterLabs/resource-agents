@@ -14,6 +14,7 @@ struct recovery_set {
 struct recovery_entry {
 	struct list_head list;
 	group_t *group;
+	int recovered;
 };
 
 struct nodeid {
@@ -169,14 +170,6 @@ void extend_recover_event(group_t *g, event_t *ev, int nodeid)
    level must complete recovery (on all nodes) before recovery can begin for
    the next level. */
 
-/* create a struct recovery_set and search through groups to
-   make the rs reference those groups the failed node was in */
-
-/* when the app code processes a rev, it will look for recovery
-   sets (rs) that reference the group.  if all rs's that reference
-   the group indicate that lower level groups are recovered, then
-   the rev can be processed */
-
 void add_recovery_set(int nodeid)
 {
 	struct recovery_set *rs;
@@ -187,14 +180,16 @@ void add_recovery_set(int nodeid)
 	log_debug("add_recovery_set for nodeid %d", nodeid);
 
 	rs = malloc(sizeof(*rs));
+	memset(rs, 0, sizeof(struct recovery_set));
 	rs->nodeid = nodeid;
 	INIT_LIST_HEAD(&rs->entries);
 
 	list_for_each_entry(g, &gd_groups, list) {
 		list_for_each_entry(node, &g->app->nodes, list) {
 			if (node->nodeid == nodeid) {
-				log_group(g, "added to recovery set");
+				log_group(g, "add to recovery set %d", nodeid);
 				re = malloc(sizeof(*re));
+				memset(re, 0, sizeof(struct recovery_entry));
 				re->group = g;
 				list_add_tail(&re->list, &rs->entries);
 				break;
@@ -206,6 +201,70 @@ void add_recovery_set(int nodeid)
 		list_add_tail(&rs->list, &recovery_sets);
 	else
 		free(rs);
+}
+
+/* A group has finished recovery, remove it from any recovery sets,
+   and free any recovery sets that are not completed. */
+
+void del_recovery_set(group_t *g)
+{
+	struct recovery_set *rs, *rs2;
+	struct recovery_entry *re, *re2;
+	int found = 0, entries_not_recovered;
+
+	list_for_each_entry_safe(rs, rs2, &recovery_sets, list) {
+		entries_not_recovered = 0;
+
+		list_for_each_entry_safe(re, re2, &rs->entries, list) {
+			if (re->group == g) {
+				re->recovered = 1;
+				log_group(g, "done in recovery set %d",
+					  rs->nodeid);
+				found++;
+			} else {
+				if (re->recovered == 0)
+					entries_not_recovered++;
+			}
+		}
+
+		if (entries_not_recovered) {
+			log_print("recovery set %d has %d entries not done",
+				  rs->nodeid, entries_not_recovered);
+			continue;
+		}
+
+		/* all entries in this rs are recovered, free it */
+		log_print("recovery set %d is all done", rs->nodeid);
+
+		list_for_each_entry_safe(re, re2, &rs->entries, list) {
+			list_del(&re->list);
+			free(re);
+		}
+		list_del(&rs->list);
+		free(rs);
+	}
+
+	if (!found)
+		log_group(g, "not found in any recovery sets");
+}
+
+/* go through all recovery sets and check that all failed nodes have
+   been removed by cman callbacks; if they haven't then cman may be
+   inquorate and we just haven't gotten the cman callback yet that
+   will set cman_quorate = 0 */
+
+int cman_quorum_updated(void)
+{
+	struct recovery_set *rs;
+
+	list_for_each_entry(rs, &recovery_sets, list) {
+		if (is_cman_member(rs->nodeid)) {
+			log_print("nodeid %d is still cman member quorate=%d",
+				  rs->nodeid, cman_quorate);
+			return 0;
+		}
+	}
+	return 1;
 }
 
 /* all groups referenced by a recovery set have been stopped on all nodes */
@@ -252,19 +311,11 @@ static int all_levels_all_stopped(group_t *g, event_t *ev)
 static int level_is_recovered(struct recovery_set *rs, int level)
 {
 	struct recovery_entry *re;
-	event_t *ev;
 
 	list_for_each_entry(re, &rs->entries, list) {
 		if (re->group->level != level)
 			continue;
-
-		ev = re->group->app->current_event;
-
-		if (ev == NULL)
-			continue;
-		else if (ev->state < EST_FAIL_BEGIN)
-			continue;
-		else
+		if (!re->recovered)
 			return 0;
 	}
 	return 1;
@@ -330,11 +381,6 @@ static int lowest_level(group_t *g)
 	return 1;
 }
 
-
-/* when any group finishes recovery, we should go through rs's and
-   see if any refer to groups that are all recovered and can be freed */
-
-
 static event_t *create_event(group_t *g)
 {
 	event_t *ev;
@@ -350,9 +396,6 @@ static event_t *create_event(group_t *g)
 
 	return ev;
 }
-
-/* go through the queue and find all rev's with the same rev_id to
-   process at once, i.e. multiple nodes failed at once */
 
 int queue_app_recover(group_t *g, int nodeid)
 {
@@ -752,9 +795,13 @@ static int process_current_event(group_t *g)
 		   apps the node was involved with but wait for quorum before
 		   starting them again  */
 
-		/* FIXME: how are we assured that the cman callback that
-		   clears quorate will happen before we begin processing
-		   recovery events? */
+		/* we need to be sure that cman has updated our quorum
+		   status since the last node failure */
+
+		if (!cman_quorum_updated()) {
+			log_group(g, "waiting for cman quorum update");
+			break;
+		}
 
 		if (!cman_quorate)
 			break;
@@ -776,23 +823,24 @@ static int process_current_event(group_t *g)
 		if (!do_start)
 			break;
 
-		log_group(g, "app node fail: del %d total %d",
-			  node->nodeid, a->node_count);
-
 		node = find_app_node(a, ev->nodeid);
 		list_del(&node->list);
-		free(node);
 		a->node_count--;
+
+		log_group(g, "app node fail: del node %d total %d",
+			  node->nodeid, a->node_count);
+
+		free(node);
 
 		list_for_each_entry_safe(id, id_safe, &ev->extended, list) {
 			node = find_app_node(a, id->nodeid);
 			list_del(&node->list);
-			free(node);
 			a->node_count--;
 
-			log_group(g, "app node fail: del %d total %d (ext)",
+			log_group(g, "app node fail: del node %d total %d, ext",
 			  	  node->nodeid, a->node_count);
 
+			free(node);
 			list_del(&id->list);
 			free(id);
 		}
@@ -805,6 +853,7 @@ static int process_current_event(group_t *g)
 		free(ev);
 		a->current_event = NULL;
 		rv = 1;
+		del_recovery_set(g);
 		break;
 
 	default:
@@ -922,13 +971,6 @@ static int process_app_messages(group_t *g)
 
 		if (save->msg.ms_type == MSG_APP_INTERNAL)
 			continue;
-
-		/* FIXME: when joining we may get messages from the
-		   group related to events prior to our join, we want
-		   to delete/free these messages instead of saving and
-		   ignoring them forever.  perhaps flag ignored msgs
-		   and free them if they still exist after the next event
-		   has completed. */
 
 		ev = a->current_event;
 		if (!ev || ev->id != save->msg.ms_event_id) {
@@ -1128,12 +1170,19 @@ static int process_app(group_t *g)
 
 		}
 	} else {
+		/* We only take on a new non-recovery event if there are
+		   no recovery sets outstanding.  The new event may be
+		   to mount gfs X where there are no living mounters of X,
+		   and the pending recovery set is to fence a node that
+		   had X mounted. */
+
 		ev = find_queued_recover_event(g);
 		if (ev) {
 			log_group(g, "set current event to recovery for %d",
 				  ev->nodeid);
 			list_del(&ev->list);
-		} else if (!list_empty(&a->events)) {
+		} else if (list_empty(&recovery_sets) &&
+			   !list_empty(&a->events)) {
 			ev = list_entry(a->events.next, event_t, list);
 			list_del(&ev->list);
 		}

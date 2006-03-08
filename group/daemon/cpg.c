@@ -137,27 +137,12 @@ void process_groupd_confchg(void)
 {
 	int i, found = 0;
 
-	printf("groupd confchg member list: ");
 	for (i = 0; i < saved_member_count; i++) {
-
-		printf("%d ", saved_member[i].nodeId);
-
 		if (saved_member[i].nodeId == our_nodeid &&
 		    saved_member[i].pid == (uint32_t) getpid()) {
 			found = 1;
 		}
 	}
-	printf("\n");
-
-	printf("groupd confchg joined list: ");
-	for (i = 0; i < saved_joined_count; i++)
-		printf("%d ", saved_joined[i].nodeId);
-	printf("\n");
-
-	printf("groupd confchg left list: ");
-	for (i = 0; i < saved_left_count; i++)
-		printf("%d ", saved_left[i].nodeId);
-	printf("\n");
 
 	if (found)
 		groupd_joined = 1;
@@ -260,7 +245,7 @@ void process_confchg(void)
 		process_node_join(g, saved_joined[i].nodeId);
 
 	for (i = 0; i < saved_left_count; i++) {
-		log_print("node %d left reason %d",
+		log_group(g, "node %d removed reason %d",
 			  saved_left[i].nodeId, saved_left[i].reason);
 
 		if (saved_left[i].reason == CPG_REASON_LEAVE)

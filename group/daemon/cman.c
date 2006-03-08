@@ -5,13 +5,37 @@
 #include "libcman.h"
 
 static cman_handle_t	ch;
+static cman_node_t	cman_nodes[MAX_NODES];
+static int		cman_node_count;
 static int		member_cb;
 static int		member_reason;
 
 
+int is_cman_member(int nodeid)
+{
+	int i;
+
+	for (i = 0; i < cman_node_count; i++) {
+		if (cman_nodes[i].cn_nodeid == nodeid)
+			return cman_nodes[i].cn_member;
+	}
+	return 0;
+}
+
 static void process_membership_cb(void)
 {
+	int rv;
+
 	cman_quorate = cman_is_quorate(ch);
+
+	cman_node_count = 0;
+	memset(&cman_nodes, 0, sizeof(cman_nodes));
+
+	rv = cman_get_nodes(ch, MAX_NODES, &cman_node_count, cman_nodes);
+	if (rv < 0) {
+		log_print("cman_get_nodes error %d %d", rv, errno);
+		return;
+	}
 }
 
 static void membership_cb(cman_handle_t h, void *private, int reason, int arg)
