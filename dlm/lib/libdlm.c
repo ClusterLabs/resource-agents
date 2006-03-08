@@ -1003,6 +1003,13 @@ dlm_lshandle_t dlm_create_lockspace(const char *name, mode_t mode)
 	return NULL;
     }
 
+    /*
+     * If the lockspace already exists, we don't get the minor
+     * number returned, so we need to get it the hard way.
+     */
+    if (minor <= 0)
+	    minor = find_minor_from_proc(DLM_PREFIX,name);
+
     /* Wait for udev to create the device */
     for (i=1; i<10; i++) {
 	    if (stat(dev_name, &st) == 0)
@@ -1010,21 +1017,17 @@ dlm_lshandle_t dlm_create_lockspace(const char *name, mode_t mode)
 	    sleep(1);
     }
 
-    /* If the lockspace already exists, we don't get the minor
-     * number returned. If the device exists we check the minor number.
+    /*
+     * If the device exists we check the minor number.
      * If the device doesn't exist then we have to look in /proc/misc
      * to find the minor number.
      */
     stat_ret = stat(dev_name, &st);
 
     /* Check if the device exists and has the right modes */
-    if (!stat_ret) {
-	if (S_ISCHR(st.st_mode) && st.st_rdev == makedev(MISC_MAJOR, minor))
+    if (!stat_ret &&
+	S_ISCHR(st.st_mode) && st.st_rdev == makedev(MISC_MAJOR, minor)) {
 	    create_dev = 0;
-    }
-    else {
-	if (minor <= 0)
-	    minor = find_minor_from_proc(DLM_PREFIX,name);
     }
 
     if (create_dev && minor > 0) {
