@@ -12,7 +12,7 @@
 #include <sys/ioctl.h>
 #include <netdb.h> 
 #include "csnap.h"
-#include "../dm-csnap.h"
+#include <linux/dm-csnap.h>
 #include "trace.h"
 
 #define trace trace_off

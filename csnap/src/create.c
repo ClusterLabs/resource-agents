@@ -6,7 +6,7 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <netinet/in.h>
-#include "../dm-csnap.h"
+#include <linux/dm-csnap.h>
 #include "csnap.h"
 #include "trace.h"
 #include "sock.h"
