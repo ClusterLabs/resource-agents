@@ -338,7 +338,7 @@ static int create_control_device()
     if (status == 0 && !done)
     {
 	    status = -1;
-	    saved_errno = EEXIST;
+	    saved_errno = ENXIO;
     }
     errno = saved_errno;
     return status;
@@ -391,7 +391,7 @@ static int open_control_device()
 
 	if (control_fd == -1)
 	{
-		if (!create_control_device())
+		if (create_control_device())
 			return -1;
 
 		control_fd = open(DLM_CTL_DEVICE_NAME, O_RDWR);
@@ -1030,8 +1030,7 @@ dlm_lshandle_t dlm_create_lockspace(const char *name, mode_t mode)
 	    create_dev = 0;
     }
 
-    if (create_dev && minor > 0) {
-
+    if (create_dev) {
 	unlink(dev_name);
 
 	/* Now try to create the device, EEXIST is OK cos it must have
