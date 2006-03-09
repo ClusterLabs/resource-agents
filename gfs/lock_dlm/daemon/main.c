@@ -31,7 +31,7 @@ static int libdlm_fd;
 static int plocks_fd;
 
 extern struct list_head mounts;
-int no_withdraw = 1;
+int no_withdraw;
 
 static void make_args(char *buf, int *argc, char **argv, char sep)
 {
