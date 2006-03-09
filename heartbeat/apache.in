@@ -126,33 +126,6 @@ ExpandMe() {
 }
 
 #
-#	Run:  Run a script, and log its output.
-#
-run() {
-  output=`"$@" 2>&1`
-  rc=$?
-  output=`echo $output`
-  if
-    [ $rc -eq 0 ]
-  then 
-    if
-      [ ! -z "$output" ]
-    then
-      ocf_log info "$output"
-    fi
-    return $OCF_SUCCESS
-  else
-    if
-      [ ! -z "$output" ]
-    then
-      ocf_log err "$output"
-    else
-      ocf_log err "command failed: $*"
-    fi
-    return $OCF_ERR_GENERIC
-  fi
-}
-#
 # Strip comments, and initial blanks. Compress other blanks. Delete lines of blanks only.
 #
 apachecat() {
@@ -403,9 +376,10 @@ monitor_apache() {
     silent_status
   then
     run sh -c "$WGET $WGETOPTS $STATUSURL | grep -i '</ *body *></ *html *>' >/dev/null"
+    return_master $?
   else
-    ocf_log err "$CMD not running"
-    return $OCF_ERR_GENERIC;
+    ocf_log info "$CMD not running"
+    return $OCF_NOT_RUNNING
   fi
 }
 

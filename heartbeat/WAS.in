@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: WAS.in,v 1.9 2006/02/11 14:31:14 xunsun Exp $
+# $Id: WAS.in,v 1.10 2006/03/09 12:55:10 xunsun Exp $
 # 
 # WAS
 #
@@ -99,7 +99,7 @@ usage() {
 	We run servlet/snoop on the first transport port listed in
 	the config file for the "monitor" operation.
 
-	$Id: WAS.in,v 1.9 2006/02/11 14:31:14 xunsun Exp $
+	$Id: WAS.in,v 1.10 2006/03/09 12:55:10 xunsun Exp $
 	!
 }
 
@@ -145,34 +145,6 @@ The WAS-(snoop)-port-number.
 </actions>
 </resource-agent>
 END
-}
-
-#
-#	Run:  Run a script, and log its output.
-#
-run() {
-  output=`"$@" 2>&1`
-  rc=$?
-  output=`echo $output`
-  if
-    [ $rc -eq 0 ]
-  then 
-    if
-      [ ! -z "$output" ]
-    then
-      ocf_log info "$output"
-    fi
-    return 0
-  else
-    if
-      [ ! -z "$output" ]
-    then
-      ocf_log "err" "$output"
-    else
-      ocf_log "err" "command failed: $*"
-    fi
-    return $rc
-  fi
 }
 
 #
@@ -376,7 +348,7 @@ WAS_monitor() {
     rc=$OCF_ERR_GENERIC
   fi
   rm -fr $tmpfile
-  return $rc
+  return_master $rc
 }
 
 #

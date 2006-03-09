@@ -138,7 +138,7 @@ xup_usage () {
 xup_status () {
   	if [ -f $PIDFILE ]; then
 		echo running
-		return $OCF_SUCCESS
+		return_master $OCF_SUCCESS
 	else
 		echo stopped
 		return $OCF_NOT_RUNNING

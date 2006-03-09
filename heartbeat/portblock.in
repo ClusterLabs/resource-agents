@@ -183,8 +183,8 @@ IptablesStatus()
     chain_isactive "$1" "$2"
   then
     case $3 in
-	  block)	SayActive $*; return $?;;
-	  *) 		SayInactive $*; return $?;;
+	  block)	SayActive $*;;
+	  *) 		SayInactive $*;;
     esac
   else
     case $3 in
@@ -192,14 +192,16 @@ IptablesStatus()
 	        if
 		  pseudo_resource "$RSCNAME" status
 		then
-		  SayConsideredActive $*; return $?
+		  SayConsideredActive $*
 		else
-		  SayInactive $*; return $?
+		  SayInactive $*
 		fi;;
 
-	  *)	SayActive $*; return $?;;
+	  *)	SayActive $*;;
     esac
   fi      
+
+  return_master $?
 }
 
 #IptablesBLOCK  {udp|tcp} portno,portno

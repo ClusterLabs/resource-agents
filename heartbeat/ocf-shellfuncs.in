@@ -1,5 +1,5 @@
 #
-# 	$Id: ocf-shellfuncs.in,v 1.24 2005/11/18 05:48:40 alan Exp $
+# 	$Id: ocf-shellfuncs.in,v 1.25 2006/03/09 12:55:10 xunsun Exp $
 #
 # 	Common helper functions for the OCF Resource Agents supplied by
 # 	heartbeat.
@@ -206,6 +206,48 @@ ocf_log() {
 	esac
 
 	ha_log "${__OCF_PRIO}: $__OCF_MSG"
+}
+
+return_master() {
+	if [ $# -ne 1 ]; then
+	    return $OCF_ERR_GENERIC
+	fi
+	
+	rc=$1
+	if [ "${__OCF_ACTION}" = "monitor" -a "${OCF_RESKEY_interval}" = "0" ]; then
+	    if [ "$rc" = "$OCF_SUCCESS" ]; then
+		return $OCF_RUNNING_MASTER
+	    fi
+
+	    if [ "$rc" = "$OCF_ERR_GENERIC" ]; then
+		return $OCF_FAILED_MASTER
+	    fi
+	fi
+
+	return $rc
+}
+
+#
+# Run:	 Run a script, and log its output.
+# Usage: run <command>
+#
+run() {
+	output=`"$@" 2>&1`
+	rc=$?
+	output=`echo $output`
+	if [ $rc -eq 0 ]; then 
+	    if [ ! -z "$output" ]; then
+		ocf_log info "$output"
+	    fi
+	    return $OCF_SUCCESS
+	else
+	    if [ ! -z "$output" ]; then
+		ocf_log err "$output"
+	    else
+		ocf_log err "command failed: $*"
+	    fi
+	    return $OCF_ERR_GENERIC
+	fi
 }
 
 __ocf_set_defaults "$@"
