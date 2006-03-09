@@ -47,7 +47,7 @@
 
 #define LOCK_DLM_GROUP_LEVEL	2
 #define LOCK_DLM_GROUP_NAME	"gfs"
-#define LOCK_DLM_SOCK_PATH	"lock_dlmd_sock"
+#define LOCK_DLM_SOCK_PATH	"gfs_controld_sock"
 
 #ifndef TRUE
 #define TRUE (1)

@@ -226,7 +226,7 @@ int setup_libdlm(void)
 {
 	int rv;
 
-	dh = dlm_create_lockspace("lock_dlmd", 0600);
+	dh = dlm_create_lockspace("gfs_controld", 0600);
 	if (!dh) {
 		log_error("dlm_create_lockspace error %d %d", (int) dh, errno);
 		return -ENOTCONN;

@@ -13,7 +13,7 @@
 #include "lock_dlm.h"
 
 #define OPTION_STRING			"DhVw"
-#define LOCKFILE_NAME			"/var/run/lock_dlmd.pid"
+#define LOCKFILE_NAME			"/var/run/gfs_controld.pid"
 
 struct client {
 	int fd;
@@ -335,7 +335,7 @@ static void lockfile(void)
 
 	error = fcntl(fd, F_SETLK, &lock);
 	if (error) {
-		fprintf(stderr, "lock_dlmd is already running\n");
+		fprintf(stderr, "gfs_controld is already running\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -369,7 +369,7 @@ void daemonize(void)
 	close(0);
 	close(1);
 	close(2);
-	openlog("lock_dlmd", LOG_PID, LOG_DAEMON);
+	openlog("gfs_controld", LOG_PID, LOG_DAEMON);
 
 	lockfile();
 }
@@ -411,7 +411,7 @@ static void decode_arguments(int argc, char **argv)
 			break;
 
 		case 'V':
-			printf("lock_dlmd (built %s %s)\n", __DATE__, __TIME__);
+			printf("gfs_controld (built %s %s)\n", __DATE__, __TIME__);
 			/* printf("%s\n", REDHAT_COPYRIGHT); */
 			exit(EXIT_SUCCESS);
 			break;
