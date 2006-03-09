@@ -88,7 +88,7 @@ debug/verbose options in [] can be useful at this stage :)
 > fenced [-D]
 > fence_tool join
 > dlm_controld [-D]
-> lock_dlm [-D]
+> gfs_controld [-D]
 > mkfs -t gfs2 -p lock_dlm -t <clustername>:<fsname> -j <#journals> <blockdev>
 > mount -t gfs2 [-v] <blockdev> <mountpoint>
 
