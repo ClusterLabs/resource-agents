@@ -24,14 +24,14 @@ CFLAGS+= -g \
 	-I../../../dlm/lib/ \
 	-I../../../gfs-kernel/src/dlm/
 
-TARGET=lock_dlmd
+TARGET=gfs_controld
 
 all: ${TARGET}
 
 copytobin: all
 	cp ${TARGET} ${top_srcdir}/bin
 
-lock_dlmd: 	main.o \
+gfs_controld: 	main.o \
 		member_cman.o \
 		group.o \
 		plock.o \
@@ -61,13 +61,13 @@ group.o: group.c
 plock.o: plock.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-install: lock_dlmd 
+install: gfs_controld
 	install -d ${sbindir}
-	install lock_dlmd ${sbindir}
+	install gfs_controld ${sbindir}
 
 uninstall:
-	${UNINSTALL} lock_dlmd ${sbindir}
+	${UNINSTALL} gfs_controld ${sbindir}
 
 clean:
-	rm -f *.o lock_dlmd
+	rm -f *.o gfs_controld
 
