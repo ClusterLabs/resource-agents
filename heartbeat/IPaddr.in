@@ -227,7 +227,7 @@ ip_init() {
 	    OCF_RESKEY_netmask=`echo "$NICINFO" | cut -f2 | cut -d ' ' -f2`
 	    OCF_RESKEY_broadcast=`echo "$NICINFO" | cut -f3 | cut -d ' ' -f2`
 	else
-	    ocf_log err "Failed: $FINDIF $OCF_RESKEY_ip/$OCF_RESKEY_netmask/$OCF_RESKEY_nic/$OCF_RESKEY_broadcast . Parameter error."
+	    ocf_log err "Failed: $IFCMD . Parameter error."
   	    exit $OCF_ERR_GENERIC
 	fi
 
@@ -499,13 +499,15 @@ add_interface () {
   iface="$2"
   netmask_bits="$3"
   netmask_text=""
+  broadcast="$4"
 
-  IFCMD="$FINDIF $ipaddr/$netmask_bits/$iface"
+  IFCMD="$FINDIF $ipaddr/$netmask_bits/$iface/$broadcast"
   NICINFO=`$IFCMD`
   
   rc=$?
   if [ $? -eq 0 ]; then
       netmask_text=`echo "$NICINFO" | cut -f2`
+      broadcast=`echo "$NICINFO" | cut -f3`
   else
       echo "ERROR: $IFCMD failed (rc=$rc)"
   fi
@@ -528,7 +530,7 @@ add_interface () {
 	  CMD="$IFCONFIG $iface inet $ipaddr netmask 255.255.255.255 alias"
 	  ;;
     *)		
-    	  CMD="$IFCONFIG $iface $ipaddr $netmask_text"
+    	  CMD="$IFCONFIG $iface $ipaddr $netmask_text $broadcast"
 	  ;;
   esac
 
@@ -703,7 +705,7 @@ ip_start() {
 	fi
     fi
     
-    add_interface "$OCF_RESKEY_ip" "$NIC_unique" "$OCF_RESKEY_netmask"
+    add_interface "$OCF_RESKEY_ip" "$NIC_unique" "$OCF_RESKEY_netmask" "$OCF_RESKEY_broadcast"
     rc=$?
     if [ $rc != 0 ]; then
 	return $rc
