@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.492 $) dnl cvs revision
+AC_REVISION($Revision: 1.493 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -930,15 +930,13 @@ dnl * Check for linux/icmpv6.h to make enable the IPv6addr resource agent
 AC_CHECK_HEADERS(linux/icmpv6.h,[],[],[#include <asm/types.h>])
 AM_CONDITIONAL(USE_IPV6ADDR, test "$ac_cv_header_linux_icmpv6_h" = yes -a $new_libnet = yes )
 AC_CHECK_HEADERS(libxml/xpath.h)
-AC_CHECK_HEADERS(openssl/md5.h)
-AC_CHECK_HEADERS(openssl/evp.h)
 
 dnl
 dnl	Could check for the libraries, but if you have the headers,
 dnl	you're a dolt for not having installed the libs ;-)
 dnl
 AM_CONDITIONAL(USE_VACM, test "$ac_cv_header_vacmclient_api_h" = yes)
-AM_CONDITIONAL(USE_DRAC3, test "$ac_cv_header_curl_curl_h" = yes -a "$ac_cv_header_libxml_xpath_h" = yes -a "$ac_cv_header_openssl_md5_h" = yes)
+AM_CONDITIONAL(USE_DRAC3, test "$ac_cv_header_curl_curl_h" = yes -a "$ac_cv_header_libxml_xpath_h" = yes)
 
 dnl
 dnl    SNMP checks
