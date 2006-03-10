@@ -423,7 +423,7 @@ void clear_configfs_nodes(void)
 	}
 }
 
-int set_configfs_node(int nodeid, char *addr, int local)
+int add_configfs_node(int nodeid, char *addr, int local)
 {
 	char path[PATH_MAX];
 	char buf[32];
@@ -521,5 +521,20 @@ int set_configfs_node(int nodeid, char *addr, int local)
 	close(fd);
  out:
 	return 0;
+}
+
+void del_configfs_node(int nodeid)
+{
+	char path[PATH_MAX];
+	int rv;
+
+	memset(path, 0, PATH_MAX);
+	snprintf(path, PATH_MAX, "/config/dlm/cluster/comms/%d", nodeid);
+
+	log_debug("del_configfs_node rmdir \"%s\"", path);
+
+	rv = rmdir(path);
+	if (rv)
+		log_error("%s: rmdir failed: %d", path, errno);
 }
 
