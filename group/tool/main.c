@@ -187,6 +187,20 @@ char *state_str(group_data_t *data)
 	return buf;
 }
 
+static int data_compare(const void *va, const void *vb)
+{
+	const group_data_t *a = va;
+	const group_data_t *b = vb;
+	return a->level - b->level;
+}
+
+static int member_compare(const void *va, const void *vb)
+{
+	const int *a = va;
+	const int *b = vb;
+	return *a - *b;
+}
+
 int do_ls(int argc, char **argv)
 {
 	group_data_t data[MAX_GROUPS];
@@ -229,6 +243,8 @@ int do_ls(int argc, char **argv)
 		id_width, "id",
 		state_width, state_header);
 
+	qsort(&data, count, sizeof(group_data_t), data_compare);
+
 	for (i = 0; i < count; i++) {
 
 		printf("%-*s %-*d %-*s %0*x %-*s\n",
@@ -237,6 +253,9 @@ int do_ls(int argc, char **argv)
 			name_width, data[i].name,
 			id_width, data[i].id,
 			state_width, state_str(&data[i]));
+
+		qsort(&data[i].members, data[i].member_count,
+		      sizeof(int), member_compare);
 
 		printf("[");
 		for (j = 0; j < data[i].member_count; j++) {
