@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: WAS.in,v 1.10 2006/03/09 12:55:10 xunsun Exp $
+# $Id: WAS.in,v 1.11 2006/03/10 04:14:20 xunsun Exp $
 # 
 # WAS
 #
@@ -99,7 +99,7 @@ usage() {
 	We run servlet/snoop on the first transport port listed in
 	the config file for the "monitor" operation.
 
-	$Id: WAS.in,v 1.10 2006/03/09 12:55:10 xunsun Exp $
+	$Id: WAS.in,v 1.11 2006/03/10 04:14:20 xunsun Exp $
 	!
 }
 
@@ -348,7 +348,7 @@ WAS_monitor() {
     rc=$OCF_ERR_GENERIC
   fi
   rm -fr $tmpfile
-  return_master $rc
+  return $rc
 }
 
 #
@@ -381,7 +381,7 @@ WAS_start() {
   fi
     
   if
-    run $cmd
+    ocf_run $cmd
   then
     if
       WAS_wait_4_start $STARTTIME "$@"
@@ -433,7 +433,7 @@ WAS_stop() {
   if
     [ -x $WASBIN/stopServer.sh ]
   then
-    run $WASBIN/stopServer.sh -configFile $1
+    ocf_run $WASBIN/stopServer.sh -configFile $1
   else
     WASPorts=`GetWASPorts $1`
     kill `WASPIDs $WASPorts`

@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: db2.in,v 1.9 2006/03/09 12:55:10 xunsun Exp $
+# $Id: db2.in,v 1.10 2006/03/10 04:14:20 xunsun Exp $
 # 
 # db2
 #
@@ -48,7 +48,7 @@ usage() {
 	The 'validate-all' operation reports whether the parameters are valid
 	The 'methods' operation reports on the methods $0 supports
 
-	$Id: db2.in,v 1.9 2006/03/09 12:55:10 xunsun Exp $
+	$Id: db2.in,v 1.10 2006/03/10 04:14:20 xunsun Exp $
 	!
 }
 
@@ -279,11 +279,11 @@ db2_monitor() {
     else
       ocf_log err "DB2 UDB instance $1 DB $DB is not working"
       ocf_log err "DB2 UDB message: $output"
-      return `return_master $OCF_ERR_GENERIC`
+      return $OCF_ERR_GENERIC
     fi
   done
   ocf_log info "All DBs in DB2 UDB instance $1 appear to be working"
-  return_master $OCF_SUCCESS
+  return $OCF_SUCCESS
 }
 
 #

@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: ServeRAID.in,v 1.8 2006/01/26 18:00:05 lars Exp $
+# $Id: ServeRAID.in,v 1.10 2006/03/10 04:14:20 xunsun Exp $
 # 
 # ServeRAID
 #
@@ -104,7 +104,7 @@ usage() {
 	You will need at least version 6.10 (~July 2003 release) of the ipssend
 	command for this script to work.
 
-	$Id: ServeRAID.in,v 1.8 2006/01/26 18:00:05 lars Exp $
+	$Id: ServeRAID.in,v 1.10 2006/03/10 04:14:20 xunsun Exp $
 	!
 }
 
@@ -210,30 +210,30 @@ parseinst() {
 #	codes reversed - it returns 1 for success, and 0 for failure...
 #	We account for that too...
 #
-run() {
-  output=`"$@" 2>&1`
-  rc=$?
-  output=`echo $output`
-  if
-    [ $rc -eq $srsuccess ]
-  then 
-    if
-      [ ! -z "$output" ]
-    then
-      ocf_log "info" "$output"
-    fi
-    return 0
-  else
-    if
-      [ ! -z "$output" ]
-    then
-      ocf_log "err" "$output"
-    else
-      ocf_log "err"  "command failed: $*"
-    fi
-    return 1
-  fi
-}
+#run() {
+#  output=`"$@" 2>&1`
+#  rc=$?
+#  output=`echo $output`
+#  if
+#    [ $rc -eq $srsuccess ]
+#  then 
+#    if
+#      [ ! -z "$output" ]
+#    then
+#      ocf_log "info" "$output"
+#    fi
+#    return 0
+#  else
+#    if
+#      [ ! -z "$output" ]
+#    then
+#      ocf_log "err" "$output"
+#    else
+#      ocf_log "err"  "command failed: $*"
+#    fi
+#    return 1
+#  fi
+#}
 
 SRLogicalDriveConfig() {
   $IPS getconfig $sr_adapter ld
@@ -297,7 +297,7 @@ AddSCSI() {
 ServeRAID_start() {
   parseinst "$@"
   if
-    run $IPS UNMERGE $sr_adapter $sr_mergegroup
+    ocf_run $IPS UNMERGE $sr_adapter $sr_mergegroup
   then
     if
       #
@@ -310,7 +310,7 @@ ServeRAID_start() {
       then
 	ocf_log info "$out"
       else
-        run $IPS MERGE $sr_adapter $sr_mergegroup OWN
+        ocf_run $IPS MERGE $sr_adapter $sr_mergegroup OWN
       fi
     then
       : OK All is well!
@@ -321,7 +321,7 @@ ServeRAID_start() {
       # ServeRAID support CD.
       # To avoid issues when called by lrmd, redirect stdout->stderr.
       # Use () to create a subshell to make the redirection be synchronized.
-      ( run $IPS SYNCH $sr_adapter GROUP $sr_mergegroup & ) >&2
+      ( ocf_run $IPS SYNCH $sr_adapter GROUP $sr_mergegroup & ) >&2
       AddSCSI
     else
       return $?
@@ -347,7 +347,7 @@ ServeRAID_stop() {
   parseinst "$@"
   ReleaseSCSI
   if
-    run $IPS UNMERGE $sr_adapter $sr_mergegroup
+    ocf_run $IPS UNMERGE $sr_adapter $sr_mergegroup
   then
     : UNMERGE $sr_adapter $sr_mergegroup worked
   fi
@@ -435,7 +435,7 @@ case "$1" in
 	  ServeRAID_status $serveraid $mergegroup
 	then
 	  ocf_log debug "ServeRAID merge group $serveraid $mergegroup is running."
-	  exit $OCF_SUCCESS
+	  return $OCF_SUCCESS
 	else
 	  ocf_log debug "ServeRAID merge group $serveraid $mergegroup is stopped."
 	  exit $OCF_NOT_RUNNING

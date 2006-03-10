@@ -201,7 +201,7 @@ IptablesStatus()
     esac
   fi      
 
-  return_master $?
+  return $?
 }
 
 #IptablesBLOCK  {udp|tcp} portno,portno

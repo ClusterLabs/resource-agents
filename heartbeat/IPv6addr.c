@@ -81,10 +81,14 @@
  *	return 0(OCF_SUCCESS) for response correctly.
  *	return 1(OCF_NOT_RUNNING) for no response.
  *	return 2(OCF_ERR_ARGS) for invalid or excess argument(s)
- *
  */
 
+#include <portability.h>
+#ifdef HAVE_CONFIG_H
 #include <config.h>
+#endif
+
+#include <stdlib.h>
 #include <sys/types.h>
 #include <netinet/icmp6.h>
 #include <libgen.h>
@@ -109,6 +113,8 @@
 5 	program is not installed
 6 	program is not configured
 7 	program is not running
+8	resource is running in "master" mode and fully operational
+9	resource is in "master" mode but in a failed state
 */
 #define	OCF_SUCCESS		0
 #define	OCF_ERR_GENERIC		1
@@ -367,7 +373,6 @@ monitor_addr6(struct in6_addr* addr6, int prefix_len)
 		return OCF_SUCCESS;
 	}
 	return OCF_NOT_RUNNING;
-
 }
 
 /* Send an unsolicited advertisement packet

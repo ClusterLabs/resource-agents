@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: drbd.in,v 1.19 2006/03/09 12:55:10 xunsun Exp $
+#	$Id: drbd.in,v 1.20 2006/03/10 04:14:20 xunsun Exp $
 #
 #       OCF Resource Agent compliant drbd resource script.
 #
@@ -317,16 +317,16 @@ drbd_monitor() {
 	if [ "$DRBD_STATE_LOCAL" != "Secondary" ] \
 	&& [ "$DRBD_STATE_LOCAL" != "Primary" ]; then
 		ocf_log err "$RESOURCE monitor: unexpected local state: $DRBD_STATE_LOCAL"
-		return `return_master $OCF_ERR_GENERIC`
+		return $OCF_ERR_GENERIC
 	fi
 
 	ROLE="$OCF_RESKEY_role"
 	if [ -n "$ROLE" ] && [ "$DRBD_STATE_LOCAL" != "$ROLE" ]; then
 		ocf_log err "$RESOURCE monitor: wrong state: expected $ROLE != $DRBD_STATE_LOCAL"
-		return `return_master $OCF_ERR_GENERIC`
+		return $OCF_ERR_GENERIC
 	fi
 
-	return_master $OCF_SUCCESS
+	return $OCF_SUCCESS
 }
 
 drbd_promote() {

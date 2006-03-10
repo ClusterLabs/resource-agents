@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: ClusterMon.in,v 1.9 2006/03/09 12:55:10 xunsun Exp $
+#	$Id: ClusterMon.in,v 1.10 2006/03/10 04:14:20 xunsun Exp $
 #
 #	ClusterMon OCF RA. Does nothing but wait a few seconds, can be
 #	configured to fail occassionally.
@@ -159,7 +159,7 @@ ClusterMon_monitor() {
     if [ ! -z $pid ]; then
 	kill -0 $pid
 	if [ $? = 0 ]; then
-	    return `return_master $OCF_SUCCESS`
+	    exit $OCF_SUCCESS
 	fi
     fi
     exit $OCF_NOT_RUNNING

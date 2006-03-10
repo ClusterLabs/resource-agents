@@ -30,7 +30,7 @@ usage() {
 	echo "Usage: $0 {start|stop|restart|status|monitor|meta-data|validate-all}"
 	echo "  The node list is an optional space delimited"
 	echo "  list of hosts that should never sound the alarm."
-	echo "$Id: AudibleAlarm.in,v 1.8 2006/03/09 12:55:10 xunsun Exp $";
+	echo "$Id: AudibleAlarm.in,v 1.9 2006/03/10 04:14:20 xunsun Exp $";
 }
 
 meta_data() {
@@ -127,7 +127,7 @@ audiblealarm_status () {
 		PID=`head -n 1 $PIDFILE`
 		if [ -n "$PID" ]; then
 			echo running
-			return `return_master $OCF_SUCCESS`
+			return $OCF_SUCCESS
 		fi
 	fi
 

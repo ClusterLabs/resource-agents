@@ -316,7 +316,7 @@ start_apache() {
     ocf_log info "$CMD already running (pid $ApachePID)"
     return $OCF_SUCCESS
   fi
-  run $HTTPD $HTTPDOPTS -f $CONFIGFILE
+  ocf_run $HTTPD $HTTPDOPTS -f $CONFIGFILE
 }
 
 stop_apache() {
@@ -375,8 +375,7 @@ monitor_apache() {
   if
     silent_status
   then
-    run sh -c "$WGET $WGETOPTS $STATUSURL | grep -i '</ *body *></ *html *>' >/dev/null"
-    return_master $?
+    ocf_run sh -c "$WGET $WGETOPTS $STATUSURL | grep -i '</ *body *></ *html *>' >/dev/null"
   else
     ocf_log info "$CMD not running"
     return $OCF_NOT_RUNNING

@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Raid1.in,v 1.8 2006/02/16 08:36:31 xunsun Exp $
+# $Id: Raid1.in,v 1.10 2006/03/10 04:14:20 xunsun Exp $
 #
 # License:      GNU General Public License (GPL)
 # Support:      linux-ha@lists.linux-ha.org
@@ -123,7 +123,7 @@ check_util () {
 usage() {
 	cat <<-EOT
 	usage: $0 {start|stop|status|monitor|validate-all|usage|meta-data}
-	$Id: Raid1.in,v 1.8 2006/02/16 08:36:31 xunsun Exp $
+	$Id: Raid1.in,v 1.10 2006/03/10 04:14:20 xunsun Exp $
 	EOT
 }
 

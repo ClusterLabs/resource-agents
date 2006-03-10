@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: LinuxSCSI.in,v 1.7 2006/01/26 18:00:05 lars Exp $
+# $Id: LinuxSCSI.in,v 1.9 2006/03/10 04:14:20 xunsun Exp $
 # 
 # LinuxSCSI
 #
@@ -98,7 +98,7 @@ usage() {
 	keep in the volumes.  If you don't use a reasonable volume manager,
 	then you'll have to mount by UUID.
 
-	$Id: LinuxSCSI.in,v 1.7 2006/01/26 18:00:05 lars Exp $
+	$Id: LinuxSCSI.in,v 1.9 2006/03/10 04:14:20 xunsun Exp $
 	!
 }
 
@@ -282,7 +282,7 @@ case $1 in
 			  scsi_status $instance
 			then
 			  ocf_log info "SCSI device $instance is running"
-			  exit $OCF_SUCCESS
+			  return $OCF_SUCCESS
 			else
 			  ocf_log info "SCSI device $instance is stopped"
 			  exit $OCF_NOT_RUNNING

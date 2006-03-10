@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: Delay.in,v 1.9 2006/02/11 14:21:20 xunsun Exp $
+#	$Id: Delay.in,v 1.11 2006/03/10 04:14:20 xunsun Exp $
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
@@ -36,7 +36,7 @@ VLFILE="$HA_VARRUNDIR/rsctmp/Delay-${OCF_RESOURCE_INSTANCE}"
 usage() {
   cat <<-!
 	usage: $0 {start|stop|status|monitor|meta-data|validate-all}
-  	$Id: Delay.in,v 1.9 2006/02/11 14:21:20 xunsun Exp $
+  	$Id: Delay.in,v 1.11 2006/03/10 04:14:20 xunsun Exp $
 	!
 }
 

@@ -30,7 +30,7 @@ us=`uname -n`
 
 usage() {
   echo "Usage: $0 {start|stop|status|monitor|validate-all|meta-data}"
-  echo "$Id: WinPopup.in,v 1.6 2006/03/09 12:55:10 xunsun Exp $"
+  echo "$Id: WinPopup.in,v 1.7 2006/03/10 04:14:20 xunsun Exp $"
 }
 
 meta_data() {
@@ -120,7 +120,7 @@ WinPopupStatus () {
 	ocf_log warn "Don't stat/monitor me! WinPopup is a pseudo resource agent, so the status reported may be incorrect"
 	if [ -f $WINPOPUPFILE ]; then
 		echo "running"
-		return_master $OCF_SUCCESS
+		return $OCF_SUCCESS
 	else
 		echo "stopped"
 		return $OCF_NOT_RUNNING

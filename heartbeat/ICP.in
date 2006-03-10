@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: ICP.in,v 1.5 2006/01/26 18:00:05 lars Exp $
+# $Id: ICP.in,v 1.7 2006/03/10 04:14:20 xunsun Exp $
 # 
 # ICP
 #
@@ -53,7 +53,7 @@ usage() {
 	The 'validate-all' operation reports whether OCF instance parameters are valid.
 	The 'methods' operation reports on the methods $0 supports
 
-	$Id: ICP.in,v 1.5 2006/01/26 18:00:05 lars Exp $
+	$Id: ICP.in,v 1.7 2006/03/10 04:14:20 xunsun Exp $
 	!
 }
 
@@ -99,36 +99,6 @@ The device name.
 </resource-agent>
 END
 }
-
-#
-#	run:  run a script, and log its output.
-#
-run() {
-  output=`"$@" 2>&1`
-  rc=$?
-  output=`echo $output`
-  if
-    [ $rc -eq 0 ]
-  then 
-    if
-      [ ! -z "$output" ]
-    then
-      ocf_log "info" "$output"
-    fi
-    return 0
-  else
-    if
-      [ ! -z "$output" ]
-    then
-      ocf_log "err" "$output"
-    else
-      ocf_log "err" "command failed: $*"
-    fi
-    return $rc
-  fi
-}
-
-
 
 #
 # methods: What methods/operations do we support?
@@ -190,7 +160,7 @@ ICP_monitor() {
   if
     ICP_status $1
   then
-    : OK
+    return $?
   else
     ocf_log "err" "ICP host drive $1 is offline"
     return $OCF_NOT_RUNNING
@@ -208,10 +178,10 @@ Clear_bufs() {
 ICP_start() {
 
   ocf_log "info" "Activating host drive $1"
-  run $ICPCLUCON -v -reserve $1
+  ocf_run $ICPCLUCON -v -reserve $1
   if [ $? -ne 0 ]; then
   	ocf_log "info" "Forcing reservation of $1"
-	run $ICPCLUCON -v -force $1 || return $OCF_ERR_GENERIC
+	ocf_run $ICPCLUCON -v -force $1 || return $OCF_ERR_GENERIC
   fi
 
   if
@@ -233,7 +203,7 @@ ICP_start() {
 ICP_stop() {
 
   ocf_log "info" "Releasing ICP host drive $1"
-  run $ICPCLUCON -v -release $1 || return $OCF_ERR_GENERIC
+  ocf_run $ICPCLUCON -v -release $1 || return $OCF_ERR_GENERIC
 
   ocf_log "info" "Verifying reservation"
   if ICP_status $1 ; then
