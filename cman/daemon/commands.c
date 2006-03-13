@@ -1364,10 +1364,10 @@ static void do_process_transition(int nodeid, struct totem_ip_address *ipaddr, c
 	struct cl_transmsg *msg = (struct cl_transmsg *)data;
 
 	if (valid_transition_msg(ipaddr, msg) != 0) {
-		P_MEMB("Transition message contents does not match current config - should quit ?\n");
+		P_MEMB("Transition message from %d does not match current config - should quit ?\n", ipaddr->nodeid);
 	}
 
-	recalculate_quorum(0);
+//	recalculate_quorum(0);
 }
 
 static void process_internal_message(char *data, int len, int nodeid, struct totem_ip_address *ais_node, int need_byteswap)
