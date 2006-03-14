@@ -164,7 +164,7 @@ int get_size(int fd, uint64_t *sectors)
   return -EINVAL;
 }
 
-int create_device(char *name, char *path, char *unique_id, unsigned int timeout,
+int create_device(char *name, char *path, char *uid, unsigned int timeout,
                   unsigned int flags)
 {
   int err;
@@ -201,6 +201,7 @@ int create_device(char *name, char *path, char *unique_id, unsigned int timeout,
     goto fail_info;
   }
   strcpy(dev->name, name);
+
   dev->path = malloc(buflen(path));
   if (!dev->path){
     log_err("couldn't allocate memory for gnbd '%s' path (%s)\n", name, path);
@@ -209,14 +210,16 @@ int create_device(char *name, char *path, char *unique_id, unsigned int timeout,
   }
   strcpy(dev->path, path);
 
-  dev->unique_id = malloc(buflen(unique_id));
-  if (!dev->unique_id){
-    log_err("couldn't allocate memory for gnbd '%s' unique_id (%s)\n", name,
-            unique_id);
-    err = -ENOMEM;
-    goto fail_id;
-  }
-  strcpy(dev->unique_id, unique_id);
+  if (uid && uid[0]){
+    dev->uid = malloc(buflen(uid));
+    if (!dev->uid){
+      log_err("couldn't allocate memory for gnbd '%s' uid (%s)\n", name, uid);
+      err = -ENOMEM;
+      goto fail_path;
+    }
+    strcpy(dev->uid, uid);
+  } else
+    dev->uid = NULL;
 
   err = open_file(dev->path, dev->flags, &devfd);
   if (err < 0)
@@ -237,8 +240,8 @@ int create_device(char *name, char *path, char *unique_id, unsigned int timeout,
  fail_file:
   close(devfd);
  fail_malloc:
-  free(dev->unique_id);
- fail_id:
+  free(dev->uid);
+ fail_path:
   free(dev->path);
  fail_name:
   free(dev->name);
@@ -279,7 +282,8 @@ int remove_device(char *name)
     return -EBUSY;
   }
   list_del(&dev->list);
-  free(dev->unique_id);
+  if (dev->uid)
+    free(dev->uid);
   free(dev->path);
   free(dev->name);
   free(dev);
@@ -325,6 +329,23 @@ int get_dev_names(char **buffer, uint32_t *list_size)
   return 0;
 }
 
+int get_dev_uid(char *name, char **buffer, uint32_t *size)
+{
+  dev_info_t *dev;
+
+  *buffer = NULL;
+  *size = 0;
+  dev = find_device(name);
+  if (!dev)
+    return -ENODEV;
+  if (!dev->uid)
+    return 0;
+  *buffer = dev->uid;
+  *size = buflen(*buffer);
+  return 0;
+}
+
+
 int get_dev_info(char **buffer, uint32_t *list_size)
 {
   info_req_t *ptr;
@@ -355,8 +376,11 @@ int get_dev_info(char **buffer, uint32_t *list_size)
     ptr->name[31] = 0;
     strncpy(ptr->path, dev->path, 1024);
     ptr->path[1023] = 0;
-    strncpy(ptr->unique_id, dev->unique_id, MAX_WWID_SIZE);
-    ptr->unique_id[MAX_WWID_SIZE - 1] = 0;
+    if (dev->uid){
+      strncpy(ptr->uid, dev->uid, 64);
+      ptr->uid[63] = 0;
+    } else
+      ptr->uid[0] = 0;
     ptr++;
   }
 

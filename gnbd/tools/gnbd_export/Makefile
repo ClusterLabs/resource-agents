@@ -22,7 +22,7 @@ INCLUDE= -I$(top_srcdir)/include -I$(top_srcdir)/server \
 	-I$(top_srcdir)/utils -I${top_srcdir}/config \
 	-I${gnbdkincdir} -I${magmaincdir} -I${incdir}
 
-LDLIBS+= -L${magmalibdir} -L${libdir} -lmagma -ldl -lpthread
+LDLIBS+= -L${magmalibdir} -L${libdir} -lmagma -ldl -lpthread -lsysfs
 
 include ${top_srcdir}/make/defines.mk
 

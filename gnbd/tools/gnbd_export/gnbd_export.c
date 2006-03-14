@@ -15,16 +15,20 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
-#include <getopt.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <sys/types.h>
-#include <sys/stat.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/un.h>
 #include <sys/wait.h>
 #include <arpa/inet.h>
-#include <fcntl.h>
+#include <sysfs/dlist.h>
+#include <sysfs/libsysfs.h>
 #include <ctype.h>
+#define _GNU_SOURCE
+#include <getopt.h>
+
 #include "global.h"
 #include "gnbd_endian.h"
 #include "gnbd_utils.h"
@@ -36,7 +40,8 @@
 
 #define TIMEOUT_DEFAULT 60
 
-#define MAN_MSG   "Please see man page for details.\n"
+#define MAN_MSG "Please see man page for details.\n"
+#define DEFAULT_GETUID "/sbin/scsi_id -g -u -s /block/%n"
 
 int start_gnbd_clusterd(void)
 {
@@ -69,159 +74,13 @@ void stop_gnbd_clusterd(void)
   }
 }
 
-int get_unique_scsi_id(char **unique_id, char *dev){
-  char *buf;
-  char partition[3];
-  int fds[2];
-  pid_t pid;
-  char *ptr;
-  char sysfs_path[256];
-  int status, val, count, bytes;
-
-  buf = malloc(MAX_WWID_SIZE);
-  if (!buf){
-    printv("cannot get memory to store unique scsi id : %s\n", strerror(errno));
-    return -1;
-  }
-
-  snprintf(sysfs_path, 256, "/block/%s", dev);
-  sysfs_path[255] = 0;
-
-  ptr = sysfs_path + 9;
-  while(*ptr != 0 && !isdigit(*ptr))
-    ptr++;
-  
-  strncpy(partition, ptr, 2);
-  while (*ptr != 0){
-    if (!isdigit(*ptr)){
-      printv("invalid partition number for %s\n", dev);
-      goto fail;
-    }
-    *ptr = 0;
-    ptr++;
-  }
-
-  if (pipe(fds)){
-    printv("unique scsi id pipe error : %s\n", strerror(errno));
-    goto fail;
-  }
-  pid = fork();
-  if (pid < 0){
-    printv("cannot fork scsi_id process : %s\n", strerror(errno));
-    goto fail;
-  }
-
-  if (!pid){
-    /* child */
-    close(STDOUT_FILENO);
-    dup(fds[1]);
-    close(fds[0]);
-    close(fds[1]);
-    close(STDERR_FILENO);
-    dup(STDOUT_FILENO);
-    execl("/sbin/scsi_id", "/sbin/scsi_id", "-g", "-u", "-s", sysfs_path, NULL);
-    printe("cannot exec '/sbin/scsi_id -g -u -s %s' : %s\n", sysfs_path,
-           strerror(errno));
-    exit(1);
-  }
-  /* parent */
-  close(0);
-  dup(fds[0]);
-  close(fds[0]);
-  close(fds[1]);
-
-  val = fcntl(0, F_GETFL, 0);
-  if (val >= 0){
-    val |= O_NONBLOCK;
-    fcntl(0, F_SETFL, val);
-  }
-  waitpid(pid, &status, 0);
-
-  count = 0;
-  buf[0] = 0;
-  while( (bytes = read(0, buf + count, (MAX_WWID_SIZE - 3) - count)) > 0)
-    count += bytes;
-  if (buf[count - 1] == '\n')
-    count--;
-  buf[count] = 0;
-  if (!WIFEXITED(status)){
-    printv("scsi_id exitted abnormally (%s)'\n", buf);
-    goto fail;
-  }
-  status = WEXITSTATUS(status);
-  if (status != 0){
-    printv("scsi_id failed: %d (%s)\n", status, buf);
-    goto fail;
-  }
-  strcat(buf, partition);
-  *unique_id = buf;
-  return 0;
-
- fail:
-  free(buf);
-  return -1;
-}
-
-int verify_scsi_dev(int major){
-  char device[LINE_MAX];
-  char buf[LINE_MAX];
-  int major_nr;
-  FILE *fp;
-  fp = fopen("/proc/devices", "r");
-  if (!fp){
-    printv("could not open /proc/devices: %s\n", strerror(errno));
-    return -1;
-  }
-  while(fgets(buf, LINE_MAX, fp) != NULL)
-    if (sscanf(buf, "%d %s", &major_nr, device) == 2 &&
-        strcmp(device, "sd") == 0 && major == major_nr){
-      fclose(fp);
-      return 0;
-    }
-  fclose(fp);
-  return -1;
-}
-
-/* FIXME -- This code is horrid. since scsi_id uses /sys/block/<something>
-   and gnbd_export uses something like /dev/<whatever> (or really any block
-   device node, i.e. <somepath>/<whatever>), this code will only work
-   if <something> == <whatever> for the device you are trying to export.
-   Ideally, this should take the major and minor from <whatever> and find the
-   appropriate <something> and then call scsi_id on that. */
-void get_unique_id(char *name, char *device, char **unique_id){
-  char *ptr;
-  struct stat stats;
-  int major;
-
-  if (stat(device, &stats) < 0){
-    printv("cannot stat %s : %s\n", device, strerror(errno));
-    goto fail;
-  }
-  major = major(stats.st_rdev);
-
-  ptr = strrchr(device, '/');
-  if (!ptr)
-    ptr = device;
-  else
-    ptr++;
-  if (verify_scsi_dev(major) == 0 && strncmp(ptr, "sd", 2) == 0 &&
-      get_unique_scsi_id(unique_id, ptr) == 0)
-    return;
-
- fail:
-  *unique_id = name;
-}
-
-int servcreate(char *name, char *device, char *unique_id, uint32_t timeout,
-               uint8_t readonly){
+int servcreate(char *name, char *device, uint32_t timeout, uint8_t readonly,
+               char *uid){
   info_req_t create_req;
   int fd;
   
   if (timeout && start_gnbd_clusterd())
     return 1;
-
-  if (!unique_id)
-    get_unique_id(name, device, &unique_id);
 
   strncpy(create_req.name, name, 32);
   create_req.name[31] = 0;
@@ -232,8 +91,12 @@ int servcreate(char *name, char *device, char *unique_id, uint32_t timeout,
   }
   strncpy(create_req.path, device, 1024);
   create_req.path[1023] = 0;
-  strncpy(create_req.unique_id, unique_id, MAX_WWID_SIZE);
-  create_req.unique_id[MAX_WWID_SIZE - 1] = 0;
+  if (uid){
+    strncpy(create_req.uid, uid, 64);
+    create_req.uid[63] = 0;
+  }
+  else
+    create_req.uid[0] = 0;
   create_req.timeout = timeout;
   create_req.flags = (((readonly)? GNBD_FLAGS_READONLY : 0) |
                       ((timeout)? GNBD_FLAGS_UNCACHED : 0));
@@ -441,22 +304,294 @@ int list(void){
            "--------------------------\n"
            "      file : %s\n"
            "   sectors : %Lu\n"
-           " unique id : %s\n"
            "  readonly : %s\n"
            "    cached : %s\n",
            i, info->name, (info->flags & GNBD_FLAGS_INVALID)? "(invalid)" : "",
            info->path, (long long unsigned int)info->sectors,
-           info->unique_id, (info->flags & GNBD_FLAGS_READONLY)? "yes" : "no",
+           (info->flags & GNBD_FLAGS_READONLY)? "yes" : "no",
            (info->flags & GNBD_FLAGS_UNCACHED)? "no" : "yes");
     if (info->timeout)
       printf("   timeout : %u\n", info->timeout);
     else
       printf("   timeout : no\n");
+    printf("       uid : %s\n", info->uid);
     printf("\n");
     info++;
   }
   free(buf);
   return 0;
+}
+
+
+void get_dev(char *path, int *major, int *minor)
+{
+  struct stat stat_buf;
+  *major = -1;
+  *minor = -1;
+
+  if (stat(path, &stat_buf) < 0){
+    printe("cannot stat %s : %s\n", path, strerror(errno));
+    exit(1);
+  }
+  if (!S_ISBLK(stat_buf.st_mode)){
+    printe("path '%s' is not a block device. cannot get uid information\n",
+           path);
+    exit(1);
+  }
+  *major = major(stat_buf.st_rdev);
+  *minor = minor(stat_buf.st_rdev);
+}
+
+
+char *get_sysfs_name(char *dev_t){
+  unsigned char path[SYSFS_PATH_MAX], *name;
+  struct sysfs_directory *dir, *devdir;
+  struct dlist *devlist;
+
+  name = NULL;
+  if (sysfs_get_mnt_path(path, SYSFS_PATH_MAX) < 0){
+    printe("cannot get sysfs mount path for get_uid command : %s\n",
+           strerror(errno));
+    exit(1);
+  }
+  strcat(path, "/block");
+  dir = sysfs_open_directory(path);
+  if (!dir) {
+    printe("cannot open sysfs directory '%s' for get_uid command : %s\n",
+           path, strerror(errno));
+    exit(1);
+  }
+  devlist = sysfs_get_dir_subdirs(dir);
+  if (!devlist){
+    printe("cannot read sysfs subdirs for get_uid command : %s\n",
+           strerror(errno));
+    exit(1);
+  }
+  dlist_for_each_data(devlist, devdir, struct sysfs_directory) {
+    struct sysfs_attribute *attr;
+    attr = sysfs_get_directory_attribute(devdir, "dev");
+    if (!attr){
+      printe("cannot get 'dev' sysfs attribute for get_uid command : %s\n",
+             strerror(errno));
+      exit(1);
+    }
+    if (sysfs_read_attribute(attr) < 0){
+      printe("cannot get sysfs attribute data for get_uid command : %s\n",
+             strerror(errno));
+      exit(1);
+    }
+    if (strcmp(dev_t, attr->value) == 0){
+      name = strdup(devdir->name);
+      break;
+    }
+  }
+  if (!name){
+    printe("cannot find a sysfs block device for get_uid command\n");
+    exit(1);
+  }
+  sysfs_close_directory(dir);
+  return name;
+}
+
+size_t read_all(int fd, void *buf, size_t len)
+{
+  size_t total = 0;
+
+  while (len) {
+    ssize_t n = read(fd, buf, len);
+    if (n < 0) {
+      if ((errno == EINTR) || (errno == EAGAIN))
+        continue;
+      if (!total)
+        return -1;
+      return total;
+    }
+    if (!n)
+      return total;
+    buf = n + (char *)buf;
+    len -= n;
+    total += n;
+  }
+  return total;
+}
+
+
+char *execute_uid_program(char *command){
+  char *uid;
+  char **argv = NULL;
+  char *ptr = command;
+  int fds[2], size = 0;
+  char *save = strdup(command);
+  pid_t pid;
+  int val, status, count;
+
+  uid = malloc(sizeof(char) * 64);
+  if (!uid){
+    printe("cannot allocate memory for uid\n");
+    exit(1);
+  }
+  while (*ptr){
+    char *delim = "\t\n\r\t\v ";
+    int quote = 0;
+    while(isspace(*ptr))
+      ptr++;
+    if (!*ptr)
+      break;
+    if (*ptr == '\''){
+      quote = 1;
+      ptr++;
+      delim = "'";
+    }
+    argv = realloc(argv, (size + 2) * sizeof(char **));
+    argv[size++] = ptr;
+    ptr = strpbrk(ptr, delim);
+    if (!ptr){
+      if (quote){
+        printe("invalid get_uid command (%s) non terminated quote\n", save);
+        exit(1);
+      }
+      break;
+    }
+    *ptr++ = 0;
+  }
+  if (!size){
+    printe("invalid get_uid command (%s) empty command\n", save);
+    exit(1);
+  }      
+  argv[size] = NULL;
+ 
+  if (pipe(fds) < 0){
+    printe("couldn't open a pipe for get_uid command : %s\n", strerror(errno));
+    exit(1);
+  }
+  pid = fork();
+  if (pid < 0){
+    printe("couldn't fork get_uid command : %s\n", strerror(errno));
+    exit(1);
+  }
+  if (!pid){
+    close(STDOUT_FILENO);
+    dup(fds[1]);
+    execv(argv[0], argv);
+    printe("couldn't exec '%s' : %s\n", argv[0], strerror(errno));
+    exit(1);
+  }
+  close(fds[1]);
+
+  val = fcntl(0, F_GETFL, 0);
+  if (val >= 0){
+    val |= O_NONBLOCK;
+    fcntl(0, F_SETFL, val);
+  }
+
+  waitpid(pid, &status, 0);
+  if ((count = read_all(fds[0], uid, 63)) < 0){
+    printe("couldn't read from get_uid command : %s\n", strerror(errno));
+    exit(1);
+  }
+  if (count && uid[count-1] == '\n')
+    count--;
+  uid[count] = 0;
+  close(fds[0]);
+
+  if (!WIFEXITED(status)){
+    printe("get_uid command '%s' exitted abnormally (%s)\n", argv[0], uid);
+    exit(1);
+  }
+  status = WEXITSTATUS(status);
+  if (status != 0){
+    printe("get_uid command '%s' failed: %d (%s)\n", argv[0], status, uid);
+    exit(1);
+  }
+  return uid;
+}
+
+#define SPACE_LEFT (&command[LINE_MAX - 1] - dest)
+char *get_uid(char *format, char *path)
+{
+  char temp[24];
+  char command[LINE_MAX];
+  int escape, major, minor;
+  char *name, *src, *dest;
+
+  src = format;
+  dest = command;
+  escape = 0;
+  major = -1;
+  minor = -1;
+  name = NULL;
+
+  while(*src){
+    if (!SPACE_LEFT){
+      *dest = 0;
+      printe("get_uid command string '%s' too long\n", command);
+      exit(1);
+    }
+    if (escape){
+      int len;
+      switch(*src){
+      case 'M':
+        if (major == -1)
+          get_dev(path, &major, &minor);
+        sprintf(temp, "%d", major);
+        len = strlen(temp);
+        if (len > SPACE_LEFT){
+          printe("get_uid command string '%s' too long\n", command);
+          exit(1);
+        }
+        strncpy(dest, temp, len);
+        dest += len;
+        break;
+      case 'm':
+        if (minor == -1)
+          get_dev(path, &major, &minor);
+        sprintf(temp, "%d", minor);
+        len = strlen(temp);
+        if (len > SPACE_LEFT){
+          *dest = 0;
+          printe("get_uid command string '%s' too long\n", command);
+          exit(1);
+        }
+        strncpy(dest, temp, len);
+        dest += len;
+        break;
+      case 'n':
+        if (!name){
+          if (major == -1)
+            get_dev(path, &major, &minor);
+          sprintf(temp, "%d:%d\n", major, minor);
+          name = get_sysfs_name(temp);
+        }
+        len = strlen(name);
+        if (len > SPACE_LEFT){
+           *dest = 0;
+           printe("get_uid command string '%s' too long\n", command);
+           exit(1);
+        }
+        strncpy(dest, name, len);
+        dest += len;
+        break;
+      default:
+        if (SPACE_LEFT < 2){
+          *dest = 0;
+          printe("get_uid command string '%s' too long\n", command);
+          exit(1);
+        }
+        *dest++ = '%';
+        *dest++ = *src;
+      }
+      escape = 0;
+    }
+    else if (*src == '%')
+      escape = 1;
+    else{
+      *dest = *src;
+      dest++;
+    }
+    src++;
+  }
+  *dest = 0;
+  return execute_uid_program(command);
 }
 
 int usage(void){
@@ -479,7 +614,10 @@ int usage(void){
 "  -R               unexport all GNBDs\n"
 "  -r [GNBD | list] unexport the specified GNBD(s)\n"
 "  -t <seconds>     set the timeout duration\n"
-"  -u <id>          set a unique identifier for this device\n"              
+"  -u <uid>         manually set the Unique ID of a device (used with -e)\n"
+"  -U[command]      command to get the Unique ID of a device (used with -e)\n"
+"                   If no command is specificed, the default is\n"
+"                   \"/sbin/scsi_id -g -u -s /block/%%n\"\n"
 "  -v               verbose output (useful with -l)\n"
 "  -V               version information\n");
   return 0;
@@ -533,11 +671,11 @@ int main(int argc, char **argv){
   int readonly = 0;
   char *device = NULL;
   char *gnbd_name = NULL;
-  char *unique_id = NULL;
-
+  char *uid = NULL;
+  char *uid_program = NULL;
 
   program_name = "gnbd_export";
-  while ((c = getopt(argc, argv, "acd:e:hlLOoqrRt:u:vV")) != -1){
+  while ((c = getopt(argc, argv, "acd:e:hlLOoqrRt:u:U::vV")) != -1){
     switch(c){
     case ':':
     case '?':
@@ -586,7 +724,13 @@ int main(int argc, char **argv){
       }
       continue;
     case 'u':
-      unique_id = optarg;
+      uid = optarg;
+      continue;
+    case 'U':
+      uid_program = optarg;
+      if (!uid_program)
+        uid_program = DEFAULT_GETUID;
+      continue;
     case 'v':
       verbosity = VERBOSE;
       continue;
@@ -596,8 +740,7 @@ int main(int argc, char **argv){
       printf("%s\n", REDHAT_COPYRIGHT);
       return 0;
     default:
-      printe("invalid option -- %c\n", c);
-      printf("Please use '-h' for usage.\n");
+      printe("invalid option -- %c\nPlease use '-h' for usage.\n", c);
       return 1;
     }
   }
@@ -605,9 +748,10 @@ int main(int argc, char **argv){
     printe("the -t option may not be used with the -c option\n" MAN_MSG);
     return 1;
   }
-  if ((cached || timeout || device || readonly || unique_id) &&
+  if ((cached || timeout || device || readonly || uid || uid_program) &&
       action != ACTION_EXPORT){
-    printe("the -c, -d, -t and -u flags may only be used with -e\n" MAN_MSG);
+    printe("the -c, -t, -d , -u and -U flags may only be used with -e\n"
+           MAN_MSG);
     return 1;
   }
   if (force && action != ACTION_REMOVE && action != ACTION_REMOVE_ALL){
@@ -627,8 +771,14 @@ int main(int argc, char **argv){
     }
     if (cached == 0 && timeout == 0)
       timeout = TIMEOUT_DEFAULT;
-    return servcreate(gnbd_name, device, unique_id, (uint32_t)timeout,
-                      (uint8_t)readonly);
+    if (uid && uid_program){
+      printe("the -u and -U options cannot be used together.\n" MAN_MSG);
+      return 1;
+    }
+    if (uid_program)
+      uid = get_uid(uid_program, device); 
+    return servcreate(gnbd_name, device, (uint32_t)timeout, (uint8_t)readonly,
+                      uid);
   case ACTION_REMOVE:
     if (optind == argc){
       printe("missing operand for remove action\n");

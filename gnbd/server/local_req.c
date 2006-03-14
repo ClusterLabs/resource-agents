@@ -85,14 +85,15 @@ void handle_local_request(int sock, uint32_t cmd, void *buf)
   switch(cmd){
   case LOCAL_CREATE_REQ:
     {
-      info_req_t *create_req = (info_req_t *)buf;
+      info_req_t create_req;
       
-      create_req->name[31] = 0;
-      create_req->path[255] = 0;
-      err = create_device(create_req->name, create_req->path,
-                          create_req->unique_id,
-                          (unsigned int)create_req->timeout,
-                          (unsigned int)create_req->flags);
+      memcpy(&create_req, buf, sizeof(create_req));
+      create_req.name[31] = 0;
+      create_req.path[255] = 0;
+      create_req.uid[63] = 0;
+      err = create_device(create_req.name, create_req.path, create_req.uid,
+                          (unsigned int)create_req.timeout,
+                          (unsigned int)create_req.flags);
       if (err < 0)
         reply = -err;
       DO_TRANS(retry_write(sock, &reply, sizeof(reply)), exit);
@@ -100,14 +101,16 @@ void handle_local_request(int sock, uint32_t cmd, void *buf)
     }
   case LOCAL_REMOVE_REQ:
     {
-      name_req_t *remove_req = (name_req_t *)buf;
-      err = last_uncached_device(remove_req->name);
+      name_req_t remove_req;
+
+      memcpy(&remove_req, buf, sizeof(remove_req));
+      err = last_uncached_device(remove_req.name);
       if (err < 0){
         reply = -err;
         goto remove_reply;
       }
       reply = err;
-      err = remove_device(remove_req->name);
+      err = remove_device(remove_req.name);
       if (err < 0)
         reply = -err;
     remove_reply:
@@ -116,9 +119,11 @@ void handle_local_request(int sock, uint32_t cmd, void *buf)
     }
   case LOCAL_INVALIDATE_REQ:
     {
-      name_req_t *remove_req = (name_req_t *)buf;
+      name_req_t remove_req;
+
+      memcpy(&remove_req, buf, sizeof(remove_req));
       /* This goes on a waiter list */
-      err = invalidate_device(remove_req->name, sock);
+      err = invalidate_device(remove_req.name, sock);
       if (err < 0){
         reply = -err;
         DO_TRANS(retry_write(sock, &reply, sizeof(reply)), exit);

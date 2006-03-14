@@ -81,6 +81,7 @@ int is_clustered = 1;
 #define ACTION_UNFENCE       8
 #define ACTION_LIST_BANNED   9
 #define ACTION_FAIL_SERVER  10
+#define ACTION_GET_UID      11
 
 gnbd_info_t *match_info_name(char *name){
   list_t *item;
@@ -96,7 +97,8 @@ gnbd_info_t *match_info_name(char *name){
 
 
 
-int read_from_server(char *host, uint32_t request, char **buf)
+int talk_to_server(char *host, uint32_t request, char **buf, void *request_data,
+                     ssize_t request_data_size)
 {
   int sock_fd;
   int n, total;
@@ -110,8 +112,14 @@ int read_from_server(char *host, uint32_t request, char **buf)
   }
   msg = cpu_to_be32(request);
   if (write(sock_fd, &msg, sizeof(msg)) != sizeof(msg)){
-    printe("error sending list request to %s : %s\n", host, strerror(errno));
+    printe("error sending request to %s : %s\n", host, strerror(errno));
     exit(1);
+  }
+  if (request_data){
+    if (write(sock_fd, request_data, request_data_size) != request_data_size){
+      printe("error sending request data to %s : %s\n", host, strerror(errno));
+      exit(1);
+    }
   }
   if (read(sock_fd, &msg, sizeof(msg)) != sizeof(msg)){
     printe("error reading reply from %s : %s\n", host, strerror(errno));
@@ -119,18 +127,18 @@ int read_from_server(char *host, uint32_t request, char **buf)
   }
   msg = cpu_to_be32(msg);
   if (msg != EXTERN_SUCCESS_REPLY){
-    printe("list request to %s failed : %s\n", host, strerror(REPLY_ERR(msg)));
+    printe("request to %s failed : %s\n", host, strerror(REPLY_ERR(msg)));
     exit(1);
   }
   if (read(sock_fd, &msg, sizeof(msg)) != sizeof(msg)){
-    printe("error reading size of list from %s : %s\n", host,
+    printe("error reading size of reply from %s : %s\n", host,
            strerror(errno));
     exit(1);
   }
   msg = be32_to_cpu(msg);
   *buf = malloc(msg);
   if (*buf == NULL){
-    printe("couldn't allocate memory for list : %s\n", strerror(errno));
+    printe("couldn't allocate memory for server reply : %s\n", strerror(errno));
     exit(1);
   }
   memset(*buf, 0, msg);
@@ -138,7 +146,7 @@ int read_from_server(char *host, uint32_t request, char **buf)
   while(total < msg){
     n = read(sock_fd, *buf + total, msg - total);
     if (n <= 0){
-      printe("error reading list from server %s : %s\n", host,
+      printe("error reading reply data from server %s : %s\n", host,
              strerror(errno));
       exit(1);
     }
@@ -147,6 +155,9 @@ int read_from_server(char *host, uint32_t request, char **buf)
   close(sock_fd);
   return total;
 }
+
+#define read_from_server(host, request, buf) \
+  talk_to_server(host, request, buf, NULL, 0)
 
 int start_gnbd_monitor(int minor_nr, int timeout, char *host)
 {
@@ -260,7 +271,8 @@ int usage(void){
 "  -r [GNBD | list] remove specified GNBD(s)\n"
 "  -s <host>        IO fence the host (from known servers by default)\n"
 "  -t <server>      specify a server for the IO fence (with -s or -u)\n"
-"  -u <host>        unfence the host (from known servers by default)\n" 
+"  -u <host>        unfence the host (from known servers by default)\n"
+"  -U <GNBD>        get the Universal Identifier for the specified GNBD\n"
 "  -V               version information\n"
 "  -v               verbose output\n"
 "\n");
@@ -1045,6 +1057,29 @@ void list(void){
   }
 }
 
+void get_uid(char *name){
+  list_t *item;
+  gnbd_info_t *gnbd = NULL;
+  char *uid;
+  device_req_t req;
+
+  strncpy(req.name, name, 32);
+  req.name[31] = 0;
+  list_foreach(item, &gnbd_list){
+    gnbd = list_entry(item, gnbd_info_t, list);
+    if (strncmp(gnbd->name, name, 32) == 0)
+      break;
+    gnbd = NULL;
+  }
+  if (!gnbd){
+    printe("cannot find device '%s'\n", name);
+    exit(1);
+  }
+  talk_to_server(gnbd->server_name, EXTERN_UID_REQ, &uid, &req, sizeof(req));
+  printf("%s", uid);
+  free(uid);
+}
+  
 void validate_gnbds(void){
   list_t *item;
   char filename[32];
@@ -1079,11 +1114,12 @@ int main(int argc, char **argv)
   int action = 0;
   char *host = NULL;
   char *fence_server = NULL;
+  char *dev = NULL;
   int c;
 
   list_init(&gnbd_list);
   program_name = "gnbd_import";
-  while( (c = getopt(argc, argv, "ac:e:hi:lnOp:qRrs:t:u:Vv")) != -1){
+  while( (c = getopt(argc, argv, "ac:e:hi:lnOp:qRrs:t:U:u:Vv")) != -1){
     switch(c){
     case ':':
     case '?':
@@ -1145,6 +1181,10 @@ int main(int argc, char **argv)
     case 't':
       fence_server = optarg;
       continue;
+    case 'U':
+      set_action(ACTION_GET_UID);
+      dev = optarg;
+      continue;
     case 'u':
       set_action(ACTION_UNFENCE);
       host = optarg;
@@ -1163,7 +1203,7 @@ int main(int argc, char **argv)
       continue;
     default:
       printe("invalid option -- %c\n", c);
-      printf("Please use '-h' for usage.\n");
+      fprintf(stderr, "Please use '-h' for usage.\n");
       exit(1);
     }
   }
@@ -1235,6 +1275,9 @@ int main(int argc, char **argv)
     return 0;
   case ACTION_LIST_BANNED:
     get_banned_list(host);
+    return 0;
+  case ACTION_GET_UID:
+    get_uid(dev);
     return 0;
   default:
     printe("unknown action %d\n", action);
