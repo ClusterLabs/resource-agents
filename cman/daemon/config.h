@@ -33,11 +33,9 @@ extern struct config_entry cman_config[];
 #define DOWNCHECK_TIMEOUT                       7
 #define FAIL_TO_RECV_CONST                      8
 #define SEQNO_UNCHANGED_CONST                   9
-
-#define RESERVED_STACK                         10
-#define RESERVED_MEMORY                        11
-#define PROCESS_PRIORITY                       12
-#define THREAD_COUNT                           13
+#define QUORUMDEV_POLL                         10
+#define SHUTDOWN_TIMEOUT                       11
+#define THREAD_COUNT                           12
 
 #define DEBUG_MASK                             30
 #define DEBUG_LEVEL                            31

@@ -210,6 +210,8 @@ static void show_status(void)
 		printf("Flags:");
 		if (einfo->ei_flags & CMAN_EXTRA_FLAG_2NODE)
 			printf(" 2node");
+		if (einfo->ei_flags & CMAN_EXTRA_FLAG_SHUTDOWN)
+			printf(" Shutdown");
 		if (einfo->ei_flags & CMAN_EXTRA_FLAG_ERROR)
 			printf(" Error");
 		printf(" \n");
@@ -304,9 +306,6 @@ char *cman_error(int err)
 	case ENOENT:
 		die_error = "Node is not yet a cluster member";
 		break;
-	case EBUSY:
-		die_error = "Cluster is in transition, try later or use -w";
-		break;
 	default:
 		die_error = strerror(errno);
 		break;
@@ -318,42 +317,24 @@ static void leave(commandline_t *comline)
 {
 	cman_handle_t h;
 	int result;
-	int flags = CMAN_LEAVEFLAG_DOWN;
+	int flags = 0;
 
 	h = open_cman_handle(1);
 
 	/* "cman_tool leave remove" adjusts quorum downward */
 
 	if (comline->remove)
-		flags |= CMAN_LEAVEFLAG_REMOVED;
+		flags |= CMAN_SHUTDOWN_REMOVED;
 
-	/* If the join count is != 1 then there are other things using
-	   the cluster and we need to be forced */
+	if (comline->force)
+		flags |= CMAN_SHUTDOWN_ANYWAY;
 
-	if ((result = cman_get_subsys_count(h))) {
-		if (result < 0)
-			die("error getting subsystem count: %s", cman_error(errno));
-
-		/* Two subsustems is OK, membership + us */
-		if (!comline->force && result > 2) {
-	    		die("Can't leave cluster while there are %d active subsystems\n", result);
-		}
-		flags |= CMAN_LEAVEFLAG_FORCE;
-	}
-
-	/* Unlikely this will be needed, but no point in leaving it out */
 	if (comline->wait_opt && comline->timeout) {
 		signal(SIGALRM, sigalarm_handler);
 		alarm(comline->timeout);
 	}
 
-	do {
-		result = cman_leave_cluster(h, flags & 0xF);
-		if (result < 0 && errno == EBUSY && comline->wait_opt)
-			sleep(1);
-
-	} while (result < 0 && errno == EBUSY && comline->wait_opt);
-
+	result = cman_shutdown(h, flags);
 	if (result) {
 		die("Error leaving cluster: %s", cman_error(errno));
 	}

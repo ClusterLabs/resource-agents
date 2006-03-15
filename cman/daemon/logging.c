@@ -117,7 +117,7 @@ void log_debug(int subsys, int stamp, const char *fmt, ...)
 	if (use_stderr) {
 		char log_buf[1024];
 		vsprintf(log_buf, newfmt, va);
-		log_printf(LOG_LEVEL_DEBUG, log_buf);
+		log_printf(LOG_LEVEL_DEBUG,log_buf);
 	}
 	else
 		vsyslog(LOG_DEBUG, newfmt, va);

@@ -13,7 +13,7 @@ else
 CFLAGS += -I/usr/include/linux/cluster
 endif
 
-TARGET=user_service sysman sysmand client qwait
+TARGET=libtest
 
 all: ${TARGET}
 

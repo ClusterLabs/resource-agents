@@ -47,6 +47,8 @@
 #define CMAN_CMD_ADD_MCAST          0x800000b8
 #define CMAN_CMD_ADD_IFADDR         0x800000b9
 #define CMAN_CMD_ADD_KEYFILE        0x800000ba
+#define CMAN_CMD_TRY_SHUTDOWN       0x800000bb
+#define CMAN_CMD_SHUTDOWN_REPLY     0x000000bc
 
 #define CMAN_CMD_DATA               0x00000100
 #define CMAN_CMD_BIND               0x00000101
@@ -92,6 +94,11 @@
 #define EVENT_REASON_PORTCLOSED   0
 #define EVENT_REASON_STATECHANGE  1
 #define EVENT_REASON_PORTOPENED   2
+#define EVENT_REASON_TRY_SHUTDOWN 3
+
+/* Shutdown flags */
+#define SHUTDOWN_ANYWAY           1
+#define SHUTDOWN_REMOVE           2
 
 /* Sendmsg flags, these are above the normal sendmsg flags so they don't
  * interfere
@@ -153,8 +160,9 @@ struct cl_join_cluster_info {
 };
 
 /* Flags */
-#define CMAN_EXTRA_FLAG_2NODE 1
-#define CMAN_EXTRA_FLAG_ERROR 2
+#define CMAN_EXTRA_FLAG_2NODE    1
+#define CMAN_EXTRA_FLAG_ERROR    2
+#define CMAN_EXTRA_FLAG_SHUTDOWN 4
 
 struct cl_extra_info {
 	int           node_state;

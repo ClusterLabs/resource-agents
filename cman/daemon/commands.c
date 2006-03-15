@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004-5 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -43,9 +43,6 @@
 #include "aispoll.h"
 #include "swab.h"
 
-// TODO make this configurable (seconds)
-#define QUORUM_TIMEOUT 10
-
 #define max(a,b) (((a) > (b)) ? (a) : (b))
 
 /* Reference counting for cluster applications */
@@ -77,6 +74,13 @@ static struct cluster_node *quorum_device;
 static uint16_t cluster_id;
 static int ais_running;
 static poll_timer_handle quorum_device_timer;
+
+static poll_timer_handle shutdown_timer;
+static struct connection *shutdown_con;
+static uint32_t shutdown_flags;
+static int shutdown_yes;
+static int shutdown_no;
+static int shutdown_expected;
 
 static struct cluster_node *find_node_by_nodeid(int nodeid);
 static struct cluster_node *find_node_by_name(char *name);
@@ -399,6 +403,8 @@ static int do_cmd_get_extrainfo(char *cmdbuf, char **retbuf, int retsize, int *r
 		einfo->flags |= CMAN_EXTRA_FLAG_2NODE;
 	if (us->expected_votes == INT_MAX)
 		einfo->flags |= CMAN_EXTRA_FLAG_ERROR;
+	if (shutdown_con)
+		einfo->flags |= CMAN_EXTRA_FLAG_SHUTDOWN;
 
 	ptr = einfo->addresses;
 	ss = (struct sockaddr_storage *)ptr;
@@ -726,6 +732,7 @@ static int do_cmd_bind(struct connection *con, char *cmdbuf)
 
 	set_port_bit(us, con->port);
 	send_port_open_msg(con->port);
+
  out:
 	return ret;
 }
@@ -821,6 +828,108 @@ static int do_cmd_leave_cluster(char *cmdbuf, int *retlen)
 	return 0;
 }
 
+static void check_shutdown_status()
+{
+	int reply;
+	int leaveflags = CLUSTER_LEAVEFLAG_DOWN;
+
+	/* All replies safely gathered in ? */
+	if (shutdown_yes + shutdown_no >= shutdown_expected) {
+
+		poll_timer_delete(ais_poll_handle, shutdown_timer);
+
+		if (shutdown_yes >= shutdown_expected ||
+		    shutdown_flags & SHUTDOWN_ANYWAY) {
+			quit_threads == 1;
+			if (shutdown_flags & SHUTDOWN_REMOVE)
+				leaveflags |= CLUSTER_LEAVEFLAG_REMOVED;
+			send_leave(leaveflags);
+			reply = 0;
+		}
+		else {
+			reply = -EBUSY;
+		}
+
+		P_MEMB("shutdown decision is: %d (yes=%d, no=%d) flags=%x\n", reply, shutdown_yes, shutdown_no, shutdown_flags);
+
+		/* Tell originator what we decided */
+		send_status_return(shutdown_con, CMAN_CMD_TRY_SHUTDOWN, reply);
+		shutdown_con = NULL;
+	}
+}
+
+/* Not all nodes responded to the shutdown */
+static void shutdown_timer_fn(void *arg)
+{
+	P_MEMB("Shutdown timer fired. flags = %x\n", shutdown_flags);
+
+	/* Mark undecideds as "NO" */
+	shutdown_no = shutdown_expected;
+	check_shutdown_status();
+}
+
+/* A service's response to a TRY_SHUTDOWN event. This NEVER returns a response */
+static int do_cmd_shutdown_reply(struct connection *con, char *cmdbuf)
+{
+	int response = *(int *)cmdbuf;
+
+	/* Not shutting down, but don't respond. */
+	if (!shutdown_con)
+		return -EWOULDBLOCK;
+
+	P_MEMB("Shutdown reply is %d\n", response);
+
+	/* We only need to keep a track of a client's response in
+	   case it pulls the connection before the shutdown process
+	   has completed */
+	if (response) {
+		shutdown_yes++;
+		con->shutdown_reply = SHUTDOWN_REPLY_YES;
+	}
+	else {
+		shutdown_no++;
+		con->shutdown_reply = SHUTDOWN_REPLY_NO;
+	}
+	check_shutdown_status();
+
+	/* No response needed to this message */
+	return -EWOULDBLOCK;
+}
+
+/* User requested shutdown. We poll all listening clients and see if they are
+   willing to shutdown */
+static int do_cmd_try_shutdown(struct connection *con, char *cmdbuf)
+{
+	int flags = *(int *)cmdbuf;
+
+	/* Are we already in shutdown ? */
+	if (shutdown_con)
+		return -EALREADY;
+
+	shutdown_con = con;
+	shutdown_flags = flags;
+	shutdown_yes = 0;
+	shutdown_no = 0;
+	shutdown_expected = num_listeners();
+
+	/* If no-one is listening for events then we can just go down now */
+	if (shutdown_expected == 0) {
+		send_leave(CLUSTER_LEAVEFLAG_DOWN);
+		return 0;
+	}
+	else {
+
+		/* Start the timer. If we don't get a full set of replies before this goes
+		   off we'll cancel the shutdown */
+		poll_timer_add(ais_poll_handle, cman_config[SHUTDOWN_TIMEOUT].value, NULL,
+			       shutdown_timer_fn, &shutdown_timer);
+
+		notify_listeners(NULL, EVENT_REASON_TRY_SHUTDOWN, flags);
+
+		return -EWOULDBLOCK;
+	}
+}
+
 static int do_cmd_register_quorum_device(char *cmdbuf, int *retlen)
 {
 	int votes;
@@ -891,14 +1000,14 @@ static void quorum_device_timer_fn(void *arg)
 		return;
 
 	gettimeofday(&now, NULL);
-	if (quorum_device->last_hello.tv_sec + QUORUM_TIMEOUT <
+	if (quorum_device->last_hello.tv_sec + cman_config[QUORUMDEV_POLL].value <
 	    now.tv_sec) {
 		quorum_device->state = NODESTATE_DEAD;
 		log_msg(LOG_INFO, "lost contact with quorum device\n");
 		recalculate_quorum(0);
 	}
 	else {
-		poll_timer_add(ais_poll_handle, QUORUM_TIMEOUT, quorum_device,
+		poll_timer_add(ais_poll_handle, cman_config[QUORUMDEV_POLL].value, quorum_device,
 			       quorum_device_timer_fn, &quorum_device_timer);
 	}
 }
@@ -918,9 +1027,8 @@ static int do_cmd_poll_quorum_device(char *cmdbuf, int *retlen)
                         quorum_device->state = NODESTATE_MEMBER;
                         recalculate_quorum(0);
 
-			poll_timer_add(ais_poll_handle, QUORUM_TIMEOUT, quorum_device,
+			poll_timer_add(ais_poll_handle, cman_config[QUORUMDEV_POLL].value, quorum_device,
 				       quorum_device_timer_fn, &quorum_device_timer);
-
                 }
         }
         else {
@@ -984,6 +1092,21 @@ int process_command(struct connection *con, int cmd, char *cmdbuf,
 	P_MEMB("command to process is %x\n", cmd);
 
 	switch (cmd) {
+
+	case CMAN_CMD_NOTIFY:
+		con->events = 1;
+		err = 0;
+		/* If a shutdown is in progress, ask the newcomer what it thinks... */
+		if (shutdown_con) {
+			notify_listeners(con, EVENT_REASON_TRY_SHUTDOWN, shutdown_flags);
+			shutdown_expected++;
+		}
+		break;
+
+	case CMAN_CMD_REMOVENOTIFY:
+		con->events = 0;
+		err = 0;
+		break;
 
 		/* Return the cnxman version number */
 	case CMAN_CMD_GET_VERSION:
@@ -1088,6 +1211,14 @@ int process_command(struct connection *con, int cmd, char *cmdbuf,
 		err = num_connections;
 		break;
 
+	case CMAN_CMD_TRY_SHUTDOWN:
+		err = do_cmd_try_shutdown(con, cmdbuf);
+		break;
+
+	case CMAN_CMD_SHUTDOWN_REPLY:
+		err = do_cmd_shutdown_reply(con, cmdbuf);
+		break;
+
 	case CMAN_CMD_REG_QUORUMDEV:
 		err = do_cmd_register_quorum_device(cmdbuf, retlen);
 		break;
@@ -1167,10 +1298,27 @@ static int send_port_open_msg(unsigned char port)
 void unbind_con(struct connection *con)
 {
 	if (con->port) {
+		P_MEMB("Unbinding con for port %d\n", con->port);
 		port_array[con->port] = NULL;
 		send_port_close_msg(con->port);
 		clear_port_bit(us, con->port);
 		con->port = 0;
+	}
+
+	/* If we're in shutdown and this client was listening for events
+	   then we take its closedown as a "Yes" to the "can we shutdown"
+	   question. If it previously answered "No", we need to change its vote */
+	if (shutdown_con && con->events) {
+		if (!con->shutdown_reply) {
+			if (con->shutdown_reply == SHUTDOWN_REPLY_YES)
+				shutdown_yes--;
+			if (con->shutdown_reply == SHUTDOWN_REPLY_NO)
+				shutdown_no--;
+		}
+		con->shutdown_reply = SHUTDOWN_REPLY_YES; /* I'll take that as a "Yes" then */
+		shutdown_yes++;
+
+		check_shutdown_status();
 	}
 }
 
@@ -1366,8 +1514,7 @@ static void do_process_transition(int nodeid, struct totem_ip_address *ipaddr, c
 	if (valid_transition_msg(ipaddr, msg) != 0) {
 		P_MEMB("Transition message from %d does not match current config - should quit ?\n", ipaddr->nodeid);
 	}
-
-//	recalculate_quorum(0);
+	/* Mutley! Do something! */
 }
 
 static void process_internal_message(char *data, int len, int nodeid, struct totem_ip_address *ais_node, int need_byteswap)

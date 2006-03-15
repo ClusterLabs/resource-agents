@@ -53,7 +53,7 @@ int main()
 
 	if (!cman_get_cluster(h, &clinfo))
 	{
-		printf("Cluster '%s',  number %d\n", clinfo.name, clinfo.number);
+		printf("Cluster '%s',  number %d\n", clinfo.ci_name, clinfo.ci_number);
 	}
 	else
 		perror("cluster info failed");
@@ -88,6 +88,7 @@ int main()
 	}
 
 	cman_start_notification(h, cman_callback);
+	while (1)
 	cman_dispatch(h, CMAN_DISPATCH_BLOCKING | CMAN_DISPATCH_ALL);
 
 	cman_finish(h);

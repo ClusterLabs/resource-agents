@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2005-2006 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -157,6 +157,17 @@ static int process_client(poll_handle handle, int fd, int revent, void *data, un
 			return 0;
 		}
 
+		if (msg->magic != CMAN_MAGIC) {
+			P_DAEMON("bad magic in client command %x\n", msg->magic);
+			send_status_return(con, msg->command, -EINVAL);
+			return 0;
+		}
+		if (msg->version != CMAN_VERSION) {
+			P_DAEMON("bad version in client command. msg = 0x%x, us = 0x%x\n", msg->version, CMAN_VERSION);
+			send_status_return(con, msg->command, -EINVAL);
+			return 0;
+		}
+
 		totallen = len;
 
 		/* Read the rest */
@@ -174,17 +185,6 @@ static int process_client(poll_handle handle, int fd, int revent, void *data, un
 				return -1;
 			}
 			totallen += len;
-		}
-
-		if (msg->magic != CMAN_MAGIC) {
-			P_DAEMON("bad magic in client command %x\n", msg->magic);
-			send_status_return(con, msg->command, -EINVAL);
-			return 0;
-		}
-		if (msg->version != CMAN_VERSION) {
-			P_DAEMON("bad version in client command. msg = 0x%x, us = 0x%x\n", msg->version, CMAN_VERSION);
-			send_status_return(con, msg->command, -EINVAL);
-			return 0;
 		}
 
 		P_DAEMON("client command is %x\n", msg->command);
@@ -288,6 +288,7 @@ static int process_rendezvous(poll_handle handle, int fd, int revent, void *data
 		newcon->fd = client_fd;
 		newcon->type = con->type;
 		newcon->port = 0;
+		newcon->events = 0;
 		list_init(&newcon->write_msgs);
 		fcntl(client_fd, F_SETFL, fcntl(client_fd, F_GETFL, 0) | O_NONBLOCK);
 
@@ -402,13 +403,28 @@ void notify_listeners(struct connection *con, int event, int arg)
 
 	/* Broadcast message */
 	list_iterate_items(thiscon, &client_list) {
-		send_reply_message(thiscon, (struct sock_header *)&msg);
+		if (thiscon->events)
+			send_reply_message(thiscon, (struct sock_header *)&msg);
 	}
 }
 
 void wake_daemon(void)
 {
 	P_DAEMON("Wake daemon called\n");
+}
+
+
+int num_listeners(void)
+{
+	int count = 0;
+	struct connection *thiscon;
+
+	list_iterate_items(thiscon, &client_list) {
+		thiscon->shutdown_reply = SHUTDOWN_REPLY_UNK; /* Clear out for new shutdown request */
+		if (thiscon->events)
+			count++;
+	}
+	return count;
 }
 
 static void sigint_handler(int ignored)

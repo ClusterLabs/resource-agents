@@ -31,10 +31,9 @@
 #define DEF_SEQNO_UNCHANGED_CONST                   30
 #define DEF_THREAD_COUNT	                    2
 
-/* Memory allocation defaults */
-#define DEF_RESERVED_STACK                          8192
-#define DEF_RESERVED_MEMORY                         256
-#define DEF_PROCESS_PRIORITY                        1
+/* Our timeouts in Ms */
+#define DEF_QUORUMDEV_POLL                          10000
+#define DEF_SHUTDOWN_TIMEOUT                        5000
 
 #define DEF_DEBUG_LEVEL                             0
 #define DEF_DEBUG_MASK                              0xff
@@ -51,9 +50,8 @@ struct config_entry cman_config[] = {
 	[FAIL_TO_RECV_CONST] = { .name = "fail_to_recv_const", .value = DEF_FAIL_TO_RECV_CONST},
 	[SEQNO_UNCHANGED_CONST] = { .name = "seqno_unchanged_const", .value = DEF_SEQNO_UNCHANGED_CONST},
 
-	[RESERVED_STACK] = { .name = "reserved_stack", .value = DEF_RESERVED_STACK},
-	[RESERVED_MEMORY] = { .name = "reserved_memory", .value = DEF_RESERVED_MEMORY},
-	[PROCESS_PRIORITY] = { .name = "process_priority", .value = DEF_PROCESS_PRIORITY},
+	[QUORUMDEV_POLL] = { .name = "quorumdev_poo", .value = DEF_QUORUMDEV_POLL},
+	[SHUTDOWN_TIMEOUT] = { .name = "shutdown_timeout", .value = DEF_SHUTDOWN_TIMEOUT},
 
 	[THREAD_COUNT] = { .name = "thread_count", .value = DEF_THREAD_COUNT},
 	[DEBUG_MASK] = { .name = "debug_mask", .value = DEF_DEBUG_MASK},

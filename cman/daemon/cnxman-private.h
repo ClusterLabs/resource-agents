@@ -130,11 +130,13 @@ struct connection
 {
 	int fd;
 	con_type_t type;
-	uint32_t   port; /* If bound client */
+	uint32_t   port;        /* If bound client */
+	enum {SHUTDOWN_REPLY_UNK=0, SHUTDOWN_REPLY_YES, SHUTDOWN_REPLY_NO} shutdown_reply;
+	uint32_t   events;      /* Registered for events */
 	struct list write_msgs; /* Queued messages to go to data clients */
 	struct cl_comms_socket *clsock;
 	struct connection *next;
-	struct list list; /* when on the client_list */
+	struct list list;       /* when on the client_list */
 };
 
 /* Parameters for RECONFIG command */
