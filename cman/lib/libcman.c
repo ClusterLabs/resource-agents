@@ -239,8 +239,7 @@ static int loopy_writev(int fd, struct iovec *iovptr, size_t iovlen)
 }
 
 
-/* Does something similar to the ioctl calls */
-static int info_call(struct cman_handle *h, int msgtype, void *inbuf, int inlen, void *outbuf, int outlen)
+static int send_message(struct cman_handle *h, int msgtype, void *inbuf, int inlen)
 {
 	struct sock_header header;
 	size_t len;
@@ -265,6 +264,14 @@ static int info_call(struct cman_handle *h, int msgtype, void *inbuf, int inlen,
 	len = loopy_writev(h->fd, iov, iovlen);
 	if (len < 0)
 		return len;
+	return 0;
+}
+
+/* Does something similar to the ioctl calls */
+static int info_call(struct cman_handle *h, int msgtype, void *inbuf, int inlen, void *outbuf, int outlen)
+{
+	if (send_message(h, msgtype, inbuf, inlen))
+		return -1;
 
 	return wait_for_reply(h, outbuf, outlen);
 }
@@ -378,7 +385,8 @@ int cman_start_notification(cman_handle_t handle, cman_callback_t callback)
 		errno = EINVAL;
 		return -1;
 	}
-
+	if (info_call(h, CMAN_CMD_NOTIFY, NULL, 0, NULL, 0))
+		return -1;
 	h->event_callback = callback;
 
 	return 0;
@@ -389,6 +397,8 @@ int cman_stop_notification(cman_handle_t handle)
 	struct cman_handle *h = (struct cman_handle *)handle;
 	VALIDATE_HANDLE(h);
 
+	if (info_call(h, CMAN_CMD_REMOVENOTIFY, NULL, 0, NULL, 0))
+		return -1;
 	h->event_callback = NULL;
 
 	return 0;
@@ -871,6 +881,24 @@ int cman_barrier_delete(cman_handle_t handle, char *name)
 
 	return info_call(h, CMAN_CMD_BARRIER, &binfo, sizeof(binfo), NULL, 0);
 }
+
+int cman_shutdown(cman_handle_t handle, int flags)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
+
+	return info_call(h, CMAN_CMD_TRY_SHUTDOWN, &flags, sizeof(int), NULL, 0);
+}
+
+int cman_replyto_shutdown(cman_handle_t handle, int yesno)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
+
+	send_message(h, CMAN_CMD_SHUTDOWN_REPLY, &yesno, sizeof(int));
+	return 0;
+}
+
 
 int cman_register_quorum_device(cman_handle_t handle, char *name, int votes)
 {

@@ -25,6 +25,8 @@
 
 #include <sys/socket.h>
 
+#define LIBCMAN_VERSION 2
+
 /*
  * Some maxima
  */
@@ -47,10 +49,12 @@ typedef void *cman_handle_t;
 
 /*
  * Reasons we get an event callback
+ * PORTOPENED & TRY_SHUTDOWN only exist in libcman 2
  */
 typedef enum {CMAN_REASON_PORTCLOSED,
 	      CMAN_REASON_STATECHANGE,
-              CMAN_REASON_PORTOPENED} cman_call_reason_t;
+              CMAN_REASON_PORTOPENED,
+              CMAN_REASON_TRY_SHUTDOWN} cman_call_reason_t;
 
 /*
  * Reason flags for cman_leave
@@ -58,6 +62,12 @@ typedef enum {CMAN_REASON_PORTCLOSED,
 #define CMAN_LEAVEFLAG_DOWN    0
 #define CMAN_LEAVEFLAG_REMOVED 3
 #define CMAN_LEAVEFLAG_FORCE   0x10
+
+/*
+ * Flags for cman_shutdown
+ */
+#define CMAN_SHUTDOWN_ANYWAY   1
+#define CMAN_SHUTDOWN_REMOVED  3
 
 /*
  * Flags passed to cman_dispatch():
@@ -120,27 +130,14 @@ typedef struct cman_cluster
 } cman_cluster_t;
 
 /*
- * Passed into cman_join_cluster()
- */
-typedef struct cman_join_info {
-	unsigned char  ji_votes;
-	unsigned int   ji_expected_votes;
-	unsigned int   ji_two_node;
-	unsigned int   ji_config_version;
-	unsigned short ji_port;
-
-        char           ji_cluster_name[MAX_CLUSTER_NAME_LEN + 1];
-} cman_join_info_t;
-
-
-/*
  * This is returned from cman_get_extra_info - it's really
  * only for use by cman_tool, don't depend on this not changing
  */
 
-/* Flags */
-#define CMAN_EXTRA_FLAG_2NODE 1
-#define CMAN_EXTRA_FLAG_ERROR 2
+/* Flags in ei_flags */
+#define CMAN_EXTRA_FLAG_2NODE    1
+#define CMAN_EXTRA_FLAG_ERROR    2
+#define CMAN_EXTRA_FLAG_SHUTDOWN 4
 
 typedef struct cman_extra_info {
 	int           ei_node_state;
@@ -155,7 +152,8 @@ typedef struct cman_extra_info {
 } cman_extra_info_t;
 
 /*
- * NOTE: You cannot call other cman_* functions in these callbacks:
+ * NOTE: Apart from cman_replyto_shutdown(), you must not
+ * call other cman_* functions in these callbacks:
  */
 
 /*
@@ -196,7 +194,7 @@ int cman_stop_notification(cman_handle_t handle);
 
 /*
  * Get the internal CMAN fd so you can pass it into poll() or select().
- * When it's active then call cman_dispatch() on the handle to process the event
+ * When it's active then call cman_dispatch() on the handle to process the event.
  * NOTE: This fd can change between calls to cman_dispatch() so always call this
  * routine to get the latest one. (This is mainly due to message caching).
  * One upshot of this is that you must never read or write this FD (it may on occasion
@@ -228,6 +226,21 @@ int cman_leave_cluster(cman_handle_t handle, int reason);
 int cman_set_votes(cman_handle_t handle, int votes, int nodeid);
 int cman_set_expected_votes(cman_handle_t handle, int expected_votes);
 int cman_kill_node(cman_handle_t handle, int nodeid);
+int cman_shutdown(cman_handle_t, int flags);
+/*
+ * cman_shutdown() will send a REASON_TRY_SHUTDOWN event to all
+ * clients registered for notifications. They should respond by calling
+ * cman_replyto_shutdown() to indicate whether they will allow
+ * cman to close down or not. If cman gets >=1 "no" (0) or the
+ * request times out (default 5 seconds) then shutdown will be
+ * cancelled and cman_shutdown() will return -1 with errno == EBUSY.
+ */
+
+
+/* Call this if you get a TRY_SHUTDOWN event. To signal whether you
+ * will let cman shutdown or not
+ */
+int cman_replyto_shutdown(cman_handle_t, int yesno);
 
 /*
  * Data transmission API. Uses the same FD as the rest of the calls.
