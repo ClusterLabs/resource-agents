@@ -125,10 +125,16 @@ void release_withdraw_lock(struct mountgroup *mg, struct mg_member *memb)
 	snprintf(name, sizeof(name), "%s %u", mg->name, memb->nodeid);
 	lkid = memb->wd_lksb.sb_lkid;
 
+	if (!lkid) {
+		log_group(mg, "release withdraw %d skip", memb->nodeid);
+		return;
+	}
+
 	rv = dlm_ls_unlock_wait(dh, lkid, 0, &memb->wd_lksb);
 	if (rv != 0)
 		log_error("release_withdraw_lock %d rv %d", memb->nodeid, rv);
 	log_group(mg, "release withdraw %d lkid %x", memb->nodeid, lkid);
+	memb->wd_lksb.sb_lkid = 0;
 }
 
 void release_withdraw_locks(struct mountgroup *mg)

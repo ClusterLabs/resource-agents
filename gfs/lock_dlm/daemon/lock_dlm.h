@@ -105,6 +105,9 @@ struct mountgroup {
 	int			spectator;
 	int			withdraw;
 	struct list_head	resources; /* for plocks */
+	void			*journals_msg;
+	int			journals_msg_len;
+	int			journals_msg_from;
 };
 
 struct mg_member {

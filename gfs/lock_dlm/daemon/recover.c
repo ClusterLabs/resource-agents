@@ -142,7 +142,7 @@ void send_journals(struct mountgroup *mg, int nodeid)
 	free(buf);
 }
 
-void receive_journals(struct mountgroup *mg, char *buf, int len, int from)
+void _receive_journals(struct mountgroup *mg, char *buf, int len, int from)
 {
 	struct mg_member *memb, *memb2;
 	struct gdlm_header *hd;
@@ -150,13 +150,7 @@ void receive_journals(struct mountgroup *mg, char *buf, int len, int from)
 
 	hd = (struct gdlm_header *)buf;
 
-	if (hd->to_nodeid && hd->to_nodeid != our_nodeid)
-		return;
-
 	count = (len - sizeof(struct gdlm_header)) / (2 * sizeof(int));
-
-	log_group(mg, "receive_journals from %d len %d count %d",
-		  from, len, count);
 
 	if (count != mg->memb_count) {
 		log_error("invalid journals message len %d counts %d %d",
@@ -190,6 +184,37 @@ void receive_journals(struct mountgroup *mg, char *buf, int len, int from)
 	}
 
 	group_start_done(gh, mg->name, mg->start_event_nr);
+}
+
+void receive_journals(struct mountgroup *mg, char *buf, int len, int from)
+{
+	struct gdlm_header *hd;
+	int count;
+
+	hd = (struct gdlm_header *)buf;
+
+	if (hd->to_nodeid && hd->to_nodeid != our_nodeid)
+		return;
+
+	count = (len - sizeof(struct gdlm_header)) / (2 * sizeof(int));
+
+	log_group(mg, "receive_journals from %d len %d count %d",
+		  from, len, count);
+
+	/* If first_start is still 1 it means we've not run do_start()
+	   for our join yet, and we need to save this message to be
+	   processed after we get our first start. */
+
+	if (mg->first_start) {
+		log_group(mg, "save journals message for later");
+		mg->journals_msg = malloc(len);
+		mg->journals_msg_len = len;
+		mg->journals_msg_from = from;
+		memcpy(mg->journals_msg, buf, len);
+		return;
+	}
+
+	_receive_journals(mg, buf, len, from);
 }
 
 /* We set the new member's jid to the lowest unused jid.
@@ -671,8 +696,6 @@ int do_unmount(int ci, char *dir)
 		return -1;
 	}
 
-	release_withdraw_locks(mg);
-
 	group_leave(gh, mg->name);
 
 	return 0;
@@ -706,6 +729,9 @@ int do_finish(struct mountgroup *mg)
 {
 	struct mg_member *memb, *safe;
 	int leave_blocked = 0;
+
+	/* members_gone list are the members that were removed from
+	   the members list when processing the last start */
 
 	list_for_each_entry_safe(memb, safe, &mg->members_gone, list) {
 		if (memb->gone_event <= mg->last_finish) {
@@ -820,8 +846,16 @@ int do_start(struct mountgroup *mg, int type, int member_count, int *nodeids)
 		/* else we wait for a message from an existing member
 		   telling us what jid to use and what jids others
 		   are using; when we get that our mount can complete,
-		   see receive_journals() */
+		   see receive_journals().  we may have already received
+		   and saved this journals message... */
 
+		if (mg->journals_msg) {
+			_receive_journals(mg,
+					  mg->journals_msg,
+					  mg->journals_msg_len,
+					  mg->journals_msg_from);
+			free(mg->journals_msg);
+		}
 	} else {
 		if (pos)
 			discover_journals(mg);
@@ -852,8 +886,33 @@ int do_start(struct mountgroup *mg, int type, int member_count, int *nodeids)
 	return 0;
 }
 
+/* FIXME:
+  What repurcussions are there from umount shutting down gfs in the
+  kernel before we leave the mountgroup?  We can no longer participate
+  in recovery even though we're in the group -- what are the end cases
+  that we need to deal with where this causes a problem?  i.e. there
+  is a period of time where the mountgroup=A,B,C but the kernel fs
+  is only active on A,B, not C.  The mountgroup on A,B can't depend
+  on the mg on C to necessarily be able to do some things (recovery).
+
+  At least in part, it means that after we do an umount and have
+  removed the instance of this fs in the kernel, we'll still get
+  stop/start/finish callbacks from groupd for which we'll attempt
+  and fail to: block/unblock gfs kernel activity, initiate gfs
+  journal recovery, get recovery-done signals fromt eh kernel.
+  
+  We don't want to hang groupd event processing by failing to send
+  an ack (stop_done/start_done) back to groupd when it needs one
+  to procede.  In the case where we get a start for a failed node
+  that needs journal recovery, we have a problem because we wait to
+  call group_start_done() until gfs in the kernel to signal that
+  the journal recovery is done.  If we've unmounted gfs isn't there
+  any more to give us this signal and we'll never call start_done. */
+
 int do_terminate(struct mountgroup *mg)
 {
+	log_group(mg, "termination of our unmount leave");
+	release_withdraw_locks(mg);
 	return 0;
 }
 
