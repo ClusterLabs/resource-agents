@@ -161,7 +161,7 @@ int main(int argc, char **argv)
 
 	rv = mount_lockproto(proto, &mo, &sb);
 	if (rv < 0)
-		die("error mounting lockproto %s", proto);
+		die("error mounting lockproto %s\n", proto);
 
 	block_signals(SIG_BLOCK);
 
