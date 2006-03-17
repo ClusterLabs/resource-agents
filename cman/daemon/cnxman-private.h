@@ -14,10 +14,6 @@
 #ifndef __CNXMAN_PRIVATE_H
 #define __CNXMAN_PRIVATE_H
 
-// TODO move this
-#include "totemip.h"
-
-
 /* Protocol Version triplet */
 #define CNXMAN_MAJOR_VERSION 6
 #define CNXMAN_MINOR_VERSION 0
@@ -43,13 +39,6 @@ struct cman_timer
 	void *arg;
 };
 
-struct cluster_node_addr {
-	struct list list;
-	unsigned char addr[sizeof(struct sockaddr_storage)];/* A large sockaddr */
-	int addr_len;
-};
-
-
 /* A cluster internal protocol message - port number 0 */
 struct cl_protmsg {
 	unsigned char cmd;
@@ -60,12 +49,6 @@ struct cl_protmsg {
 struct cl_portmsg {
 	unsigned char cmd;	/* CLUSTER_CMD_PORTOPENED/CLOSED */
 	unsigned char port;
-};
-
-/* Structure of a newly dead node, passed from cnxman to kmembershipd */
-struct cl_new_dead_node {
-	struct list         list;
-	struct cluster_node *node;
 };
 
 /* Subcommands for BARRIER message */

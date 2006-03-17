@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -11,15 +11,19 @@
 *******************************************************************************
 ******************************************************************************/
 
-/* CMAN socket interface header */
+/*
+ * CMAN socket interface header
+ * Should only be used by libcman - if you want to call CMAN then use the library!
+ */
 
 #ifndef __CNXMAN_SOCKET_H
 #define __CNXMAN_SOCKET_H
 
-/* Commands on the socket.
-   if the top bit is set then it is only allowed
-   on the ADMIN socket.
-*/
+/*
+ * Commands on the socket.
+ * if the top bit is set then it is only allowed
+ * on the ADMIN socket.
+ */
 #define CMAN_CMD_NOTIFY             0x00000001
 #define CMAN_CMD_REMOVENOTIFY       0x00000002
 #define CMAN_CMD_SETEXPECTED_VOTES  0x80000004
@@ -63,7 +67,6 @@
 #define MAX_CLUSTER_MESSAGE          1500
 #define MAX_CLUSTER_MEMBER_NAME_LEN   255
 #define MAX_BARRIER_NAME_LEN           33
-#define MAX_SA_ADDR_LEN                12
 #define MAX_CLUSTER_NAME_LEN           16
 
 /* Well-known cluster port numbers */
@@ -100,7 +103,8 @@
 #define SHUTDOWN_ANYWAY           1
 #define SHUTDOWN_REMOVE           2
 
-/* Sendmsg flags, these are above the normal sendmsg flags so they don't
+/*
+ * Sendmsg flags, these are above the normal sendmsg flags so they don't
  * interfere
  */
 #define MSG_TOTEM_AGREED 0x1000000
@@ -114,7 +118,8 @@ static const char CLIENT_SOCKNAME[]= "/var/run/cman_client";
 static const char ADMIN_SOCKNAME[]=  "/var/run/cman_admin";
 
 /* This struct should be in front of all messages
-   passed down the client and admin sockets */
+ * passed down the client and admin sockets.
+ */
 #define CMAN_MAGIC 0x434d414e
 #define CMAN_VERSION 0x10000002
 struct sock_header {
@@ -174,8 +179,8 @@ struct cl_extra_info {
 	int           members;
 	int           num_addresses; /* Number of real addresses, so the array below has
 					<n>+1 addresses in it */
-	char          addresses[1];/* Array of num_addresses sockaddr_storage
-				      1st is the multicast address */
+	char          addresses[1];  /* Array of num_addresses sockaddr_storage
+					1st is the multicast address */
 };
 
 /* This is the structure, per node, returned from the membership call */

@@ -31,6 +31,7 @@
 #include <sys/errno.h>
 
 #include "list.h"
+#include "totemip.h"
 #include "aispoll.h"
 #include "cnxman-socket.h"
 #include "cnxman-private.h"

@@ -25,6 +25,7 @@
 #include "print.h"
 
 #include "list.h"
+#include "totemip.h"
 #include "logging.h"
 #include "cnxman-socket.h"
 #include "cnxman-private.h"
