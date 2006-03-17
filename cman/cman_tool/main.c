@@ -15,6 +15,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <time.h>
+#include <netinet/in.h>
 #include "copyright.cf"
 #include "libcman.h"
 #include "cman_tool.h"

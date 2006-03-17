@@ -13,6 +13,7 @@
 
 #include <stdint.h>
 #include <signal.h>
+#include <netinet/in.h>
 #include "libcman.h"
 #include "cman_tool.h"
 #include "ccs.h"
