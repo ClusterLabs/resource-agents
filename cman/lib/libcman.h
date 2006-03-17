@@ -23,7 +23,7 @@
 #ifndef _LIBCMAN_H_
 #define _LIBCMAN_H_
 
-#include <sys/socket.h>
+#include <netinet/in.h>
 
 #define LIBCMAN_VERSION 2
 
