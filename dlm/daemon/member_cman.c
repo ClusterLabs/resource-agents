@@ -103,6 +103,7 @@ static void process_cman_callback(void)
 
 			add_configfs_node(cman_nodes[i].cn_nodeid,
 					  cman_nodes[i].cn_address.cna_address,
+					  cman_nodes[i].cn_address.cna_addrlen,
 					  (cman_nodes[i].cn_nodeid ==
 					   local_nodeid));
 		}

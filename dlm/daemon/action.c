@@ -423,9 +423,10 @@ void clear_configfs_nodes(void)
 	}
 }
 
-int add_configfs_node(int nodeid, char *addr, int local)
+int add_configfs_node(int nodeid, char *addr, int addrlen, int local)
 {
 	char path[PATH_MAX];
+	char padded_addr[sizeof(struct sockaddr_storage)];
 	char buf[32];
 	int rv, fd;
 
@@ -479,6 +480,9 @@ int add_configfs_node(int nodeid, char *addr, int local)
 	 * set the address
 	 */
 
+	memset(padded_addr, 0, sizeof(padded_addr));
+	memcpy(padded_addr, addr, addrlen);
+
 	memset(path, 0, PATH_MAX);
 	snprintf(path, PATH_MAX, "/config/dlm/cluster/comms/%d/addr", nodeid);
 
@@ -488,7 +492,7 @@ int add_configfs_node(int nodeid, char *addr, int local)
 		return -1;
 	}
 
-	rv = write(fd, addr, sizeof(struct sockaddr_storage));
+	rv = write(fd, padded_addr, sizeof(struct sockaddr_storage));
 	if (rv != sizeof(struct sockaddr_storage)) {
 		log_error("%s: write failed: %d %d", path, errno, rv);
 		close(fd);
