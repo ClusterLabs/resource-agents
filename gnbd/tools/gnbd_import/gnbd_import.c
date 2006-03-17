@@ -1038,7 +1038,7 @@ void list(void){
     printf("Device name : %s\n"
            "----------------------\n"
            "    Minor # : %d\n"
-           "  Proc name : /dev/gnbd%d\n"
+           " sysfs name : /block/gnbd%d\n"
            "     Server : %s\n"
            "       Port : %d\n"
            "      State : %s %s %s\n"
@@ -1062,11 +1062,13 @@ void get_uid(char *name){
   gnbd_info_t *gnbd = NULL;
   char *uid;
   device_req_t req;
+  int minor_nr = -1;
 
-  strncpy(req.name, name, 32);
-  req.name[31] = 0;
+  sscanf(name, "/block/gnbd%d", &minor_nr);
   list_foreach(item, &gnbd_list){
     gnbd = list_entry(item, gnbd_info_t, list);
+    if (minor_nr >= 0 && minor_nr == gnbd->minor_nr);
+      break;
     if (strncmp(gnbd->name, name, 32) == 0)
       break;
     gnbd = NULL;
@@ -1075,8 +1077,10 @@ void get_uid(char *name){
     printe("cannot find device '%s'\n", name);
     exit(1);
   }
+  strncpy(req.name, gnbd->name, 32);
+  req.name[31] = 0;
   talk_to_server(gnbd->server_name, EXTERN_UID_REQ, &uid, &req, sizeof(req));
-  printf("%s", uid);
+  printf("%s\n", uid);
   free(uid);
 }
   
