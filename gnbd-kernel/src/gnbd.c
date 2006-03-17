@@ -179,9 +179,9 @@ static ssize_t store_sectors(struct class_device *class_dev,
 	set_capacity(dev->disk, size);
 	bdev = bdget_disk(dev->disk, 0);
 	if (bdev) {
-		down(&bdev->bd_inode->i_sem);
+		mutex_lock(&bdev->bd_inode->i_mutex);
 		i_size_write(bdev->bd_inode, (loff_t)size << 9);
-		up(&bdev->bd_inode->i_sem);
+		mutex_unlock(&bdev->bd_inode->i_mutex);
 		bdput(bdev);
 	}
 	up(&dev->do_it_lock);
@@ -280,7 +280,7 @@ static void gnbd_end_request(struct request *req)
 	
 	spin_lock_irqsave(q->queue_lock, flags);
 	if (!end_that_request_first(req, uptodate, req->nr_sectors)) {
-		end_that_request_last(req);
+		end_that_request_last(req, uptodate);
 	}
 	spin_unlock_irqrestore(q->queue_lock, flags);
 }
