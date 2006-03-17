@@ -35,7 +35,7 @@ int is_cman_member(int nodeid)
 	return is_member(cman_nodes, cman_node_count, nodeid);
 }
 
-static void process_cman_callback(void)
+static void statechange(void)
 {
 	int i, rv;
 
@@ -87,10 +87,30 @@ static void process_cman_callback(void)
 	}
 }
 
-static void membership_cb(cman_handle_t h, void *private, int reason, int arg)
+static void process_cman_callback(void)
+{
+	switch (cman_reason) {
+	case CMAN_REASON_STATECHANGE:
+		statechange();
+		break;
+	default:
+		break;
+	}
+}
+
+static void cman_callback(cman_handle_t h, void *private, int reason, int arg)
 {
 	cman_cb = 1;
 	cman_reason = reason;
+
+	if (reason == CMAN_REASON_TRY_SHUTDOWN) {
+		if (list_empty(&gd_groups))
+			cman_replyto_shutdown(ch, 1);
+		else {
+			log_debug("no to cman shutdown");
+			cman_replyto_shutdown(ch, 0);
+		}
+	}
 }
 
 static void process_cman(int ci)
@@ -99,7 +119,6 @@ static void process_cman(int ci)
 
 	while (1) {
 		cman_dispatch(ch, CMAN_DISPATCH_ONE);
-
 		if (cman_cb) {
 			cman_cb = 0;
 			process_cman_callback();
@@ -120,7 +139,7 @@ int setup_cman(void)
 		return -ENOTCONN;
 	}
 
-	rv = cman_start_notification(ch, membership_cb);
+	rv = cman_start_notification(ch, cman_callback);
 	if (rv < 0) {
 		log_print("cman_start_notification error %d %d", rv, errno);
 		cman_finish(ch);

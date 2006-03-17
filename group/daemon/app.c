@@ -658,7 +658,11 @@ static int process_current_event(group_t *g)
 	struct nodeid *id, *id_safe;
 	int rv = 0, do_start = 0, count;
 
+	/*
 	log_group(g, "process_current_event state %s", ev_state_str(ev));
+	*/
+	log_group(g, "process_current_event %llx %d %s",
+		  ev->id, ev->nodeid, ev_state_str(ev));
 
 	switch (ev->state) {
 
