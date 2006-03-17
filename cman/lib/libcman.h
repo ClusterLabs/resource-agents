@@ -30,7 +30,7 @@
 /*
  * Some maxima
  */
-#define CMAN_MAX_ADDR_LEN sizeof(struct sockaddr_storage)
+#define CMAN_MAX_ADDR_LEN sizeof(struct sockaddr_in6)
 #define CMAN_MAX_NODENAME_LEN 255
 #define MAX_CLUSTER_NAME_LEN   16
 
