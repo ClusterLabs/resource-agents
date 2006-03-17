@@ -19,7 +19,10 @@ static cman_handle_t	ch;
 static cman_node_t	cluster_nodes[MAX_NODES];
 static cman_node_t	new_nodes[MAX_NODES];
 static int		cluster_count;
+static int		cman_cb;
+static int		cman_reason;
 static char		name_buf[CMAN_MAX_NODENAME_LEN+1];
+extern struct list_head domains;
 
 char			*our_name;
 int			our_nodeid;
@@ -73,10 +76,37 @@ static cman_node_t *find_cluster_node_name(char *name)
 	return NULL;
 }
 
+static void member_callback(cman_handle_t h, void *private, int reason, int arg)
+{
+	cman_cb = 1;
+	cman_reason = reason;
+
+	if (reason == CMAN_REASON_TRY_SHUTDOWN) {
+		if (list_empty(&domains))
+			cman_replyto_shutdown(ch, 1);
+		else {
+			log_debug("no to cman shutdown");
+			cman_replyto_shutdown(ch, 0);
+		}
+	}
+}
+
+int process_member(void)
+{
+	while (1) {
+		cman_dispatch(ch, CMAN_DISPATCH_ONE);
+		if (cman_cb)
+			cman_cb = 0;
+		else
+			break;
+	}
+	return 0;
+}
+
 int setup_member(void)
 {
 	cman_node_t node;
-	int rv;
+	int rv, fd;
 
 	ch = cman_init(NULL);
 	if (!ch) {
@@ -84,13 +114,22 @@ int setup_member(void)
 		return -ENOTCONN;
 	}
 
-	/* FIXME: wait here for us to be a member of the cluster */
+	rv = cman_start_notification(ch, member_callback);
+	if (rv < 0) {
+		log_error("cman_start_notification error %d %d", rv, errno);
+		cman_finish(ch);
+		return rv;
+	}
 
+	fd = cman_get_fd(ch);
+
+	/* FIXME: wait here for us to be a member of the cluster */
 	memset(&node, 0, sizeof(node));
 	rv = cman_get_node(ch, CMAN_NODEID_US, &node);
 	if (rv < 0) {
 		log_error("cman_get_node us error %d %d", rv, errno);
 		cman_finish(ch);
+		fd = rv;
 		goto out;
 	}
 
@@ -102,13 +141,16 @@ int setup_member(void)
 	log_debug("our_nodeid %d our_name %s", our_nodeid, our_name);
 	rv = 0;
  out:
-	return rv;
+	return fd;
 }
 
 void exit_member(void)
 {
 	cman_finish(ch);
 }
+
+/* FIXME: just use cman callbacks to keep the cman membership list up to
+   date and don't bother with this function */
 
 int update_cluster_members(void)
 {

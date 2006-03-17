@@ -21,6 +21,7 @@ static int              cman_node_count;
 static int		cman_cb;
 static int		cman_reason;
 static int		local_nodeid;
+extern struct list_head lockspaces;
 
 
 static int is_member(cman_node_t *node_list, int count, int nodeid)
@@ -68,7 +69,7 @@ char *nodeid2name(int nodeid)
 /* add a configfs dir for cluster members that don't have one,
    del the configfs dir for cluster members that are now gone */
 
-static void process_cman_callback(void)
+static void statechange(void)
 {
 	int i, rv;
 
@@ -110,10 +111,30 @@ static void process_cman_callback(void)
 	}
 }
 
+static void process_cman_callback(void)
+{
+	switch (cman_reason) {
+	case CMAN_REASON_STATECHANGE:
+		statechange();
+		break;
+	default:
+		break;
+	}
+}
+
 static void member_callback(cman_handle_t h, void *private, int reason, int arg)
 {
 	cman_cb = 1;
 	cman_reason = reason;
+
+	if (reason == CMAN_REASON_TRY_SHUTDOWN) {
+		if (list_empty(&lockspaces))
+			cman_replyto_shutdown(ch, 1);
+		else {
+			log_debug("no to cman shutdown");
+			cman_replyto_shutdown(ch, 0);
+		}
+	}
 }
 
 int process_member(void)
@@ -174,6 +195,7 @@ int setup_member(void)
 	memset(&cman_nodes, 0, sizeof(cman_nodes));
 
 	/* add configfs entries for existing nodes */
+	cman_reason = CMAN_REASON_STATECHANGE;
 	process_cman_callback();
  out:
 	return fd;

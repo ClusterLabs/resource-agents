@@ -29,9 +29,9 @@ extern char *our_name;
 static int client_size = MAX_CLIENTS;
 static struct client client[MAX_CLIENTS];
 static struct pollfd pollfd[MAX_CLIENTS];
-static struct list_head domains;
 static int fenced_exit;
 commandline_t comline;
+struct list_head domains;
 
 
 static int setup_ccs(fd_t *fd)
@@ -363,17 +363,25 @@ static int setup_listen(void)
 
 static int loop(void)
 {
-	int rv, i, f, maxi = 0, listen_fd, groupd_fd;
+	int rv, i, f, maxi = 0, listen_fd, member_fd, groupd_fd;
 
 	rv = listen_fd = setup_listen();
 	if (rv < 0)
 		goto out;
 	client_add(listen_fd, &maxi);
 
+	rv = member_fd = setup_member();
+	if (rv < 0)
+		goto out;
+	client_add(member_fd, &maxi);
+
 	rv = groupd_fd = setup_groupd();
 	if (rv < 0)
 		goto out;
 	client_add(groupd_fd, &maxi);
+
+	log_debug("listen %d member %d groupd %d",
+		  listen_fd, member_fd, groupd_fd);
 
 	for (;;) {
 		rv = poll(pollfd, maxi + 1, -1);
@@ -398,6 +406,8 @@ static int loop(void)
 			else if (pollfd[i].revents & POLLIN) {
 				if (pollfd[i].fd == groupd_fd)
 					process_groupd();
+				else if (pollfd[i].fd == member_fd)
+					process_member();
 				else
 					client_process(i);
 			}
@@ -543,10 +553,6 @@ int main(int argc, char **argv)
 	decode_arguments(argc, argv, &comline);
 	INIT_LIST_HEAD(&domains);
 	client_init();
-
-	error = setup_member();
-	if (error)
-		die1("setup_member error %d", error);
 
 	if (!fenced_debug_opt) {
 		pid_t pid = fork();

@@ -138,6 +138,7 @@ struct mountgroup *find_mg(char *name);
 struct mountgroup *find_mg_id(uint32_t id);
 
 int setup_cman(void);
+int process_cman(void);
 int setup_groupd(void);
 int process_groupd(void);
 int setup_libdlm(void);

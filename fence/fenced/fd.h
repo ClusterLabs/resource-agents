@@ -182,6 +182,7 @@ int process_groupd(void);
 
 /* member_xxx.c */
 int setup_member(void);
+int process_member(void);
 void exit_member(void);
 int update_cluster_members(void);
 int is_member(char *name);

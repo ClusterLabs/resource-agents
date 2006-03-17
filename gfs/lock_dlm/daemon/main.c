@@ -24,6 +24,7 @@ static int client_size = MAX_CLIENTS;
 static struct client client[MAX_CLIENTS];
 static struct pollfd pollfd[MAX_CLIENTS];
 
+static int cman_fd;
 static int listen_fd;
 static int groupd_fd;
 static int uevent_fd;
@@ -236,14 +237,15 @@ int loop(void)
 {
 	int rv, i, f, maxi = 0;
 
-	rv = setup_cman();
-	if (rv < 0)
-		goto out;
-
 	rv = listen_fd = setup_listen();
 	if (rv < 0)
 		goto out;
 	client_add(listen_fd, &maxi);
+
+	rv = cman_fd = setup_cman();
+	if (rv < 0)
+		goto out;
+	client_add(cman_fd, &maxi);
 
 	rv = groupd_fd = setup_groupd();
 	if (rv < 0)
@@ -290,6 +292,8 @@ int loop(void)
 			if (pollfd[i].revents & POLLIN) {
 				if (pollfd[i].fd == groupd_fd)
 					process_groupd();
+				else if (pollfd[i].fd == cman_fd)
+					process_cman();
 				else if (pollfd[i].fd == uevent_fd)
 					process_uevent();
 				else if (!no_withdraw &&
