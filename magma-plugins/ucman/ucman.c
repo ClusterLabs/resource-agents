@@ -1,5 +1,5 @@
 /*
-  Copyright Red Hat, Inc. 2004-2005
+  Copyright Red Hat, Inc. 2004-2006
 
   The Magma Cluster API Library is free software; you can redistribute
   it and/or modify it under the terms of the GNU Lesser General Public
@@ -28,11 +28,12 @@
 #include <stdio.h>
 #include <assert.h>
 #include <signal.h>
+#include <netinet/in.h>
 #include "libcman.h"
 #include "libdlm.h"
 #include "ucman-plugin.h"
 
-#define MODULE_DESCRIPTION "UCMAN/DLM Plugin v1.0"
+#define MODULE_DESCRIPTION "UCMAN/DLM Plugin v1.0.1"
 #define MODULE_AUTHOR      "Lon Hohberger/Patrick Caulfield"
 
 #define DLM_LS_NAME	   "Magma"
@@ -164,6 +165,10 @@ cman_version(cluster_plugin_t *self)
 	return MODULE_DESCRIPTION;
 }
 
+static void event_callback(cman_handle_t handle, void *private, int reason, int arg)
+{
+}
+
 
 static int
 cman_open(cluster_plugin_t *self)
@@ -180,8 +185,10 @@ cman_open(cluster_plugin_t *self)
 		cman_finish(p->handle);
 
 	p->handle = cman_init(NULL);
-	if (p->handle)
+	if (p->handle) {
 		cman_quorum_status(self, NULL);
+		cman_start_notification(p->handle, event_callback);
+	}
 
 	p->ls = NULL;
 	signal(SIGPIPE, SIG_IGN);
