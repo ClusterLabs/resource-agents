@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: drbd.in,v 1.20 2006/03/10 04:14:20 xunsun Exp $
+#	$Id: drbd.in,v 1.21 2006/03/18 00:54:54 lars Exp $
 #
 #       OCF Resource Agent compliant drbd resource script.
 #
@@ -389,11 +389,11 @@ drbd_demote() {
 drbd_notify() {
 	local n_type="$OCF_RESKEY_notify_type"
 	local n_op="$OCF_RESKEY_notify_operation"
-	set -- $n_active_resource
+	set -- $OCF_RESKEY_notify_active_resource
 	local n_active="$#"
-	set -- $notify_stop_resource
+	set -- $OCF_RESKEY_notify_stop_resource
 	local n_stop="$#"
-	set -- $notify_start_resource
+	set -- $OCF_RESKEY_notify_start_resource
 	local n_start="$#"
 
 	ocf_log debug "$RESOURCE notify: $n_type for $n_op - counts: active $n_active - starting $n_start - stopping $n_stop"

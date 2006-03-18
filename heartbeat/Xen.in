@@ -1,0 +1,160 @@
+#!/bin/sh
+#
+# $Id: Xen.in,v 1.1 2006/03/18 00:54:54 lars Exp $
+#
+# Support:      linux-ha@lists.linux-ha.org
+# License:      GNU General Public License (GPL)
+#
+#	Resource Agent for the Xen Hypervisor.
+#	Manages Xen virtual machine instances by
+#	mapping cluster resource start and stop,  
+#	to Xen create and shutdown, respectively.
+#
+#	usage: $0  {start|stop|status|monitor|meta-data}
+#
+#	  OCF parameters are as below:
+#		OCF_RESKEY_xmfile
+#		Absolute path to the Xen control file,
+#		for this virtual machine.
+
+#######################################################################
+# Initialization:
+
+. @hb_libdir@/ocf-shellfuncs
+
+#######################################################################
+
+DOMAIN_NAME="$OCF_RESOURCE_INSTANCE"
+
+usage() {
+  cat <<-!
+	usage: $0 {start|stop|status|monitor|meta-data|validate-all}
+	!
+}
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="Xen">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource Agent for the Xen Hypervisor.
+Manages Xen virtual machine instances by
+mapping cluster resource start and stop,  
+to Xen create and shutdown, respectively.
+</longdesc>
+<shortdesc lang="en">Xen resource agent</shortdesc>
+
+<parameters>
+
+<parameter name="xmfile" unique="0" required="1">
+<longdesc lang="en">
+Absolute path to the Xen control file,
+for this virtual machine.
+</longdesc>
+<shortdesc lang="en">Xen control file</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start" timeout="30" />
+<action name="stop" timeout="30" />
+<action name="status" depth="0" timeout="30" interval="10" start-delay="30" />
+<action name="monitor" depth="0" timeout="30" interval="10" start-delay="30" />
+<action name="meta-data" timeout="5" />
+<action name="validate-all" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+Xen_Status() {
+  xm list $DOMAIN_NAME
+  rc=$?
+  if
+    [ $rc -ne 0 ]
+  then
+    return $OCF_NOT_RUNNING
+  else 
+    return $OCF_SUCCESS
+  fi
+}
+
+Xen_Monitor() {
+  Xen_Status
+}
+
+Xen_Start() {
+  if
+    Xen_Status
+  then
+    ocf_log info "Xen domain $DOMAIN_NAME already running."
+    return $OCF_SUCCESS
+  else
+    xm create $OCF_RESKEY_xmfile name=$DOMAIN_NAME
+    rc=$?
+    if
+      [ $rc -ne 0 ]
+    then
+      return $OCF_ERR_PERM
+    else 
+      return $OCF_SUCCESS
+    fi
+  fi  
+}
+
+Xen_Stop() {
+  if
+    Xen_Status
+  then
+    xm shutdown -w $DOMAIN_NAME
+    rc=$?
+    if
+      [ $rc -ne 0 ]
+    then
+      return $OCF_ERR_PERM
+    else 
+      return $OCF_SUCCESS
+    fi
+  else
+    ocf_log info "Xen domain $DOMAIN_NAME already stopped."
+    return $OCF_SUCCESS
+  fi
+}
+
+Xen_Validate_All() {
+  return $OCF_SUCCESS
+}
+
+if [ $# -ne 1 ]; then
+  usage
+  exit $OCF_ERR_ARGS
+fi
+
+case $1 in
+  meta-data)		meta_data
+			exit $OCF_SUCCESS
+			;;
+  start)		Xen_Start
+			;;
+  stop)			Xen_Stop
+			;;
+  monitor)		Xen_Monitor
+			;;
+  status)		Xen_Status
+			;;
+  validate-all)		Xen_Validate_All
+			;;
+  usage)		usage
+			exit $OCF_SUCCESS
+			;;
+  *)			usage
+			exit $OCF_ERR_ARGS
+			;;
+esac
+exit $?
+

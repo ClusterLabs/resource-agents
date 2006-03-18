@@ -60,6 +60,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			ServeRAID	\
 			WAS		\
 			WinPopup	\
+			Xen		\
 			Xinetd
 
 commondir	     = @hb_libdir@
