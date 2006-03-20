@@ -3,10 +3,6 @@ How to install and run GFS2.
 Refer to the cluster project page for the latest information.
 http://sources.redhat.com/cluster/
 
-Notes:
-- CLVM needs to be patched to use libcman. Checkout LVM2 as normal
-  and apply the patch from cluster/cman/lib/clvmd-libcman.diff
-
 
 Get source
 ----------
@@ -19,11 +15,6 @@ Get the 'cluster' cvs tree, instructions at:
 
 Optionally, get the LVM2 cvs from
   cvs -d :pserver:cvs@sources.redhat.com:/cvs/lvm2
-  and apply the patch mentioned above:
-   cd LVM2
-   patch -p0 < ../cluster/cman/lib/clvmd-libcman.diff
-
-   
 
 Build and install
 -----------------
@@ -50,7 +41,11 @@ updated yet, so just build the minimum bits shown here.
         (*) this step downloads and builds an openais tarball from
         http://people.redhat.com/pcaulfie/
 
-	See old instructions for configuring & building LVM2 & CLVM.
+To build LVM2 & clvm:
+
+	 cd LVM2
+	 ./configure --with-clvmd=cman --with-cluster=shared
+	 make; make install
 
 
 Load kernel modules
