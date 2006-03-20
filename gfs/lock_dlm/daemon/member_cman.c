@@ -43,7 +43,17 @@ static void cman_callback(cman_handle_t h, void *private, int reason, int arg)
 
 int process_cman(void)
 {
-	cman_dispatch(ch, CMAN_DISPATCH_ALL);
+	int rv;
+
+	rv = cman_dispatch(ch, CMAN_DISPATCH_ALL);
+
+	if (rv == -1 && errno == EHOSTDOWN) {
+		/* do we want to try to forcibly clean some stuff up
+	   	   in the kernel here? */
+		log_error("cluster is down, exiting");
+		exit(1);
+	}
+
 	return 0;
 }
 

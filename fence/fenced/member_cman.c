@@ -93,13 +93,24 @@ static void member_callback(cman_handle_t h, void *private, int reason, int arg)
 
 int process_member(void)
 {
+	int rv;
+
 	while (1) {
-		cman_dispatch(ch, CMAN_DISPATCH_ONE);
+		rv = cman_dispatch(ch, CMAN_DISPATCH_ONE);
+		if (rv < 0)
+			break;
+
 		if (cman_cb)
 			cman_cb = 0;
 		else
 			break;
 	}
+
+	if (rv == -1 && errno == EHOSTDOWN) {
+		log_error("cluster is down, exiting");
+		exit(1);
+	}
+
 	return 0;
 }
 
