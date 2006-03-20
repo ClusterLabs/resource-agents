@@ -23,6 +23,8 @@ CFLAGS+= -g -I${ccsincdir} -I${incdir} -I${top_srcdir}/config \
 
 TARGET=service_cman.lcrso
 CMAN_OBJS=daemon.o config.o logging.o ais.o commands.o barrier.o cmanccs.o
+AIS_LIBS=libSaClm libSaAmf libSaCkpt libSaEvt libSaLck libSaMsg libcpg libais libevs
+AIS_HEADERS=cpg.h evs.h openaisCfg.h saAis.h saCkpt.h saClm.h saEvt.h saLck.h saMsg.h
 
 all: ${AISDIR}/${AISTAG}/exec/aisexec ${TARGET}
 
@@ -80,10 +82,21 @@ install:
 	install ${AISDIR}/${AISTAG}/exec/aisexec ${libexecdir}/cman/
 	install ${AISDIR}/${AISTAG}/exec/service*.lcrso ${libexecdir}/cman/
 	install ${AISDIR}/${AISTAG}/exec/keygen ${sbindir}/ais-keygen
+	install -d ${incdir}
+	cd ${AISDIR}/${AISTAG}/include; install ${AIS_HEADERS} ${incdir}
+	cd ${AISDIR}/${AISTAG}/lib; for i in ${AIS_LIBS}; do \
+		install $$i.a $$i.so.1.0 ${libdir}; \
+		ln -s ${libdir}/$$i.so.1.0 ${libdir}/$$i.so.1; \
+		ln -s ${libdir}/$$i.so.1 ${libdir}/$$i.so; \
+		done
+
 
 uninstall:
 	rm -rf ${libexecdir}/cman
 	${UNINSTALL} ais-keygen ${sbindir}
+	${UNINSTALL} ${AIS_HEADERS} ${incdir}
+	for i in ${AIS_LIBS}; do \
+		${UNINSTALL} $$i.a $$i.so.1.0 $$i.so.1 $$i.so ${libdir}; done
 
 clean:
 	rm -f *.o service_cman.lcrso
