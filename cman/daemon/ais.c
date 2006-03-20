@@ -341,10 +341,14 @@ int comms_init_ais()
 			exit(22);
 		}
 	}
-	else
+	else /* Use the cluster name as key, this allows us to isolate different clusters on a single network */
 	{
-		cman_ais_config.secauth = 0;
-		cman_ais_config.private_key_len = 0;
+		cman_ais_config.secauth = 1;
+		memset(cman_ais_config.private_key, 0, sizeof(cman_ais_config.private_key));
+
+		/* Key length must be a multiple of 4 */
+		cman_ais_config.private_key_len = (strlen(cluster_name)+4) & 0xFC;
+		memcpy(cman_ais_config.private_key, cluster_name, strlen(cluster_name));
 	}
 	totempg_groups_initialize(&group_handle, cman_deliver_fn, cman_confchg_fn);
 

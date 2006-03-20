@@ -1,6 +1,6 @@
 diff -rNwup --exclude entries svn/trunk/exec/main.c pjc/trunk/exec/main.c
---- svn/trunk/exec/main.c	2006-02-22 16:07:32.000000000 +0000
-+++ pjc/trunk/exec/main.c	2006-02-22 16:07:39.000000000 +0000
+--- svn/trunk/exec/main.c	2006-03-03 08:28:02.000000000 +0000
++++ pjc/trunk/exec/main.c	2006-03-20 11:53:17.000000000 +0000
 @@ -1000,6 +1000,7 @@ static void confchg_fn (
  
  static void aisexec_uid_determine (void)
@@ -66,8 +66,8 @@ diff -rNwup --exclude entries svn/trunk/exec/main.c pjc/trunk/exec/main.c
  		log_printf (LOG_LEVEL_ERROR, error_string);
  		ais_done (AIS_DONE_LOGSETUP);
 diff -rNwup --exclude entries svn/trunk/exec/mainconfig.c pjc/trunk/exec/mainconfig.c
---- svn/trunk/exec/mainconfig.c	2006-02-22 15:15:24.000000000 +0000
-+++ pjc/trunk/exec/mainconfig.c	2006-02-22 15:41:15.000000000 +0000
+--- svn/trunk/exec/mainconfig.c	2006-03-03 08:28:02.000000000 +0000
++++ pjc/trunk/exec/mainconfig.c	2006-03-20 11:53:17.000000000 +0000
 @@ -94,7 +94,7 @@ static void set_default_services(struct 
  	config->dynamic_services[0].ver = 0;
  	config->dynamic_services[1].name = "openais_clm";
@@ -114,3 +114,15 @@ diff -rNwup --exclude entries svn/trunk/exec/mainconfig.c pjc/trunk/exec/maincon
 +	return 0;
 +#endif
  }
+diff -rNwup --exclude entries svn/trunk/exec/totemnet.c pjc/trunk/exec/totemnet.c
+--- svn/trunk/exec/totemnet.c	2006-03-03 08:28:02.000000000 +0000
++++ pjc/trunk/exec/totemnet.c	2006-03-20 11:53:50.000000000 +0000
+@@ -274,7 +274,7 @@ static int authenticate_and_decrypt (
+ 	hmac_done (&instance->totemnet_hmac_state, digest_comparison, &len);
+ 
+ 	if (memcmp (digest_comparison, header->hash_digest, len) != 0) {
+-		instance->totemnet_log_printf (instance->totemnet_log_level_security, "Received message has invalid digest... ignoring.\n");
++//		instance->totemnet_log_printf (instance->totemnet_log_level_security, "Received message has invalid digest... ignoring.\n");
+ 		res = -1;
+ 		return (-1);
+ 	}
