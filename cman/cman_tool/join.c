@@ -97,7 +97,7 @@ int join(commandline_t *comline)
 		envp[envptr++] = strdup(scratch);
 	}
 	if (comline->clustername_opt) {
-		snprintf(scratch, sizeof(scratch), "CMAN_MCAST_ADDR=%s", comline->clustername);
+		snprintf(scratch, sizeof(scratch), "CMAN_CLUSTER_NAME=%s", comline->clustername);
 		envp[envptr++] = strdup(scratch);
 	}
 	if (comline->nodenames[0]) {

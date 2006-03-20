@@ -47,20 +47,19 @@ static void print_usage(void)
 	printf("\n");
 
 	printf("join\n");
+	printf("  Cluster & node information is taken from CCS. These switches are provided to \n");
+	printf("  to allow CCS values to be overridden. Use them with extreme care.\n\n");
+
 	printf("  -m <addr>        Multicast address to use\n");
 	printf("  -v <votes>       Number of votes this node has (default 1)\n");
 	printf("  -e <votes>       Number of expected votes for the cluster (no default)\n");
-	printf("  -c <clustername> Name of the cluster to join\n");
-	printf("  -2               This is a two node cluster (-e must be 1)\n");
 	printf("  -p <port>        UDP port number for cman communications (default %d)\n", DEFAULT_PORT);
-	printf("  -n <nodename>  * The name of this node (defaults to hostname)\n");
-	printf("  -o <nodename>    Override node name\n");
-	printf("  -N <id>          Node id (defaults to automatic)\n");
+	printf("  -n <nodename>    The name of this node (defaults to hostname)\n");
+	printf("  -N <id>          Node id\n");
 	printf("  -w               Wait until node has joined a cluster\n");
 	printf("  -q               Wait until the cluster is quorate\n");
 	printf("  -t               Maximum time (in seconds) to wait\n");
-	printf("  -k <file>        Private key file\n");
-	printf("  options with marked * can be specified multiple times for multi-path systems\n");
+	printf("  -k <file>        Private key file for AIS communications\n");
 
 	printf("\n");
 	printf("wait               Wait until the node is a member of a cluster\n");
@@ -173,7 +172,6 @@ static void show_status(void)
 	char tmpbuf[1024];
 	cman_extra_info_t *einfo = (cman_extra_info_t *)info_buf;
 	int quorate;
-	int nodecount;
 	int i;
 	char *addrptr;
 
@@ -192,51 +190,44 @@ static void show_status(void)
 	printf("Config Version: %d\n", v.cv_config);
 	printf("Cluster Name: %s\n", info.ci_name);
 	printf("Cluster Id: %d\n", info.ci_number);
-	nodecount = cman_get_node_count(h);
-	if (nodecount < 0) {
-		printf("Cluster Member: No\n");
-		printf("Membership state: %s\n", membership_state(tmpbuf, sizeof(tmpbuf),
-								  einfo->ei_node_state));
+	printf("Cluster Member: Yes\n");
+	printf("Cluster Generation: %d\n", info.ci_generation);
+	printf("Membership state: %s\n", membership_state(tmpbuf, sizeof(tmpbuf),
+							  einfo->ei_node_state));
+	printf("Nodes: %d\n", einfo->ei_members);
+	printf("Expected votes: %d\n", einfo->ei_expected_votes);
+	printf("Total votes: %d\n", einfo->ei_total_votes);
+	printf("Quorum: %d %s\n", einfo->ei_quorum, quorate?" ":"Activity Blocked");
+	printf("Active subsystems: %d\n", cman_get_subsys_count(h));
+	printf("Flags:");
+	if (einfo->ei_flags & CMAN_EXTRA_FLAG_2NODE)
+		printf(" 2node");
+	if (einfo->ei_flags & CMAN_EXTRA_FLAG_SHUTDOWN)
+		printf(" Shutdown");
+	if (einfo->ei_flags & CMAN_EXTRA_FLAG_ERROR)
+		printf(" Error");
+	printf(" \n");
+
+	node.cn_name[0] = 0;
+	if (cman_get_node(h, CMAN_NODEID_US, &node) == 0) {
+		printf("Node name: %s\n", node.cn_name);
+		printf("Node ID: %d\n", node.cn_nodeid);
 	}
-	else {
-		printf("Cluster Member: Yes\n");
-		printf("Cluster Generation: %d\n", info.ci_generation);
-		printf("Membership state: %s\n", membership_state(tmpbuf, sizeof(tmpbuf),
-								  einfo->ei_node_state));
-		printf("Nodes: %d\n", einfo->ei_members);
-		printf("Expected votes: %d\n", einfo->ei_expected_votes);
-		printf("Total votes: %d\n", einfo->ei_total_votes);
-		printf("Quorum: %d %s\n", einfo->ei_quorum, quorate?" ":"Activity Blocked");
-		printf("Active subsystems: %d\n", cman_get_subsys_count(h));
-		printf("Flags:");
-		if (einfo->ei_flags & CMAN_EXTRA_FLAG_2NODE)
-			printf(" 2node");
-		if (einfo->ei_flags & CMAN_EXTRA_FLAG_SHUTDOWN)
-			printf(" Shutdown");
-		if (einfo->ei_flags & CMAN_EXTRA_FLAG_ERROR)
-			printf(" Error");
-		printf(" \n");
 
-		node.cn_name[0] = 0;
-		if (cman_get_node(h, CMAN_NODEID_US, &node) == 0) {
-			printf("Node name: %s\n", node.cn_name);
-			printf("Node ID: %d\n", node.cn_nodeid);
-		}
+	printf("Multicast address: ");
+	addrptr = einfo->ei_addresses;
+	print_address(addrptr);
+	printf("\n");
 
-		printf("Multicast address: ");
-		addrptr = einfo->ei_addresses;
+	addrptr += sizeof(struct sockaddr_storage);
+
+	printf("Node addresses: ");
+	for (i=0; i < einfo->ei_num_addresses; i++) {
 		print_address(addrptr);
-		printf("\n");
-
 		addrptr += sizeof(struct sockaddr_storage);
-
-		printf("Node addresses: ");
-		for (i=0; i < einfo->ei_num_addresses; i++) {
-			print_address(addrptr);
-			addrptr += sizeof(struct sockaddr_storage);
-		}
-		printf("\n");
 	}
+	printf("\n");
+
 }
 
 static int node_compare(const void *va, const void *vb)
