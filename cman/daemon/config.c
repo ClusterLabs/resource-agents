@@ -50,7 +50,7 @@ struct config_entry cman_config[] = {
 	[FAIL_TO_RECV_CONST] = { .name = "fail_to_recv_const", .value = DEF_FAIL_TO_RECV_CONST},
 	[SEQNO_UNCHANGED_CONST] = { .name = "seqno_unchanged_const", .value = DEF_SEQNO_UNCHANGED_CONST},
 
-	[QUORUMDEV_POLL] = { .name = "quorumdev_poo", .value = DEF_QUORUMDEV_POLL},
+	[QUORUMDEV_POLL] = { .name = "quorumdev_poll", .value = DEF_QUORUMDEV_POLL},
 	[SHUTDOWN_TIMEOUT] = { .name = "shutdown_timeout", .value = DEF_SHUTDOWN_TIMEOUT},
 
 	[THREAD_COUNT] = { .name = "thread_count", .value = DEF_THREAD_COUNT},
@@ -59,7 +59,7 @@ struct config_entry cman_config[] = {
 
 };
 
-#define CCS_CMAN_PREFIX "/cluster/cman/config/@"
+#define CCS_CMAN_PREFIX "/cluster/cman/@"
 void init_config()
 {
 	int cd;
