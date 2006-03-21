@@ -100,7 +100,14 @@ static int _upgrade_file_archive(int fd){
 	  for(device = method->child; device; device=device->sib){
 	    printf("        <device name=\"%s\"", device->key);
 	    for(params = device->child; params; params = params->sib){
-	      printf(" %s=\"%s\"", params->key, params->v->v.str);
+	      if (params->v->type == CCS_STRING)
+		printf(" %s=\"%s\"", params->key, params->v->v.str);
+	      else if (params->v->type == CCS_INT)
+		printf(" %s=\"%d\"", params->key, params->v->v.i);
+	      else if (params->v->type == CCS_FLOAT)
+		printf(" %s=[DECIMAL NOT CONVERTED]", params->key);
+	      else
+		printf(" %s=[BAD TYPE CONVERSION]", params->key);
 	    }
 	    printf("/>\n");
 	  }
