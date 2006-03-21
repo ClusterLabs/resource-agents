@@ -48,8 +48,14 @@
 typedef void *cman_handle_t;
 
 /*
- * Reasons we get an event callback
- * PORTOPENED & TRY_SHUTDOWN only exist in libcman 2
+ * Reasons we get an event callback.
+ * PORTOPENED & TRY_SHUTDOWN only exist when LIBCMAN_VERSION >= 2
+ *
+ * The 'arg' parameter varies dependng on the callback type.
+ * for PORTCLOSED/PORTOPENED  arg == the port opened/closed
+ * for STATECHANGE            arg should be ignored
+ * for TRY_SHUTDOWN           arg == 1 for ANYWAY, otherwise 0 (ie if arg == 1 then cman WILL shutdown regardless
+ *                            of your reponse, think of this as advance warning)
  */
 typedef enum {CMAN_REASON_PORTCLOSED,
 	      CMAN_REASON_STATECHANGE,
@@ -65,9 +71,11 @@ typedef enum {CMAN_REASON_PORTCLOSED,
 
 /*
  * Flags for cman_shutdown
+ *    ANYWAY   -  cman will shutdown regardless of clients' responses (but they will still get told)
+ *    REMOVED  -  the rest of the cluster will adjust quorum to stay quorate
  */
 #define CMAN_SHUTDOWN_ANYWAY   1
-#define CMAN_SHUTDOWN_REMOVED  3
+#define CMAN_SHUTDOWN_REMOVED  2
 
 /*
  * Flags passed to cman_dispatch():
@@ -153,17 +161,13 @@ typedef struct cman_extra_info {
 
 /*
  * NOTE: Apart from cman_replyto_shutdown(), you must not
- * call other cman_* functions in these callbacks:
+ * call other cman_* functions while in these two callbacks:
  */
 
-/*
- * Callback routine for a membership event
- */
+/* Callback routine for a membership event */
 typedef void (*cman_callback_t)(cman_handle_t handle, void *private, int reason, int arg);
 
-/*
- * Callback routine for data received
- */
+/* Callback routine for data received */
 typedef void (*cman_datacallback_t)(cman_handle_t handle, void *private,
 				    char *buf, int len, uint8_t port, int nodeid);
 
@@ -174,13 +178,12 @@ typedef void (*cman_datacallback_t)(cman_handle_t handle, void *private,
  * cman_finish      destroys that handle.
  *
  * Note that admin sockets can't send data messages.
- *
  */
 cman_handle_t cman_init(void *private);
 cman_handle_t cman_admin_init(void *private);
 int cman_finish(cman_handle_t handle);
 
-/* Update/retreive private data */
+/* Update/retrieve private data */
 int cman_set_private(cman_handle_t *h, void *private);
 int cman_get_private(cman_handle_t *h, void **private);
 
@@ -199,6 +202,9 @@ int cman_stop_notification(cman_handle_t handle);
  * routine to get the latest one. (This is mainly due to message caching).
  * One upshot of this is that you must never read or write this FD (it may on occasion
  * point to /dev/zero if you have messages cached!)
+ *
+ * cman_dispatch will return -1 with errno == EHOSTDOWN if the cluster is
+ * shut down.
  */
 int cman_get_fd(cman_handle_t handle);
 int cman_dispatch(cman_handle_t handle, int flags);
@@ -263,6 +269,10 @@ int cman_barrier_delete(cman_handle_t handle, char *name);
 
 /*
  * Add your own quorum device here, needs an admin socket
+ *
+ * After creating a quorum device you will need to call 'poll_quorum_device'
+ * at least once every (default) 10 seconds (this can be changed in CCS)
+ * otherwise it will time-out and the cluster will lose its vote.
  */
 int cman_register_quorum_device(cman_handle_t handle, char *name, int votes);
 int cman_unregister_quorum_device(cman_handle_t handle);
