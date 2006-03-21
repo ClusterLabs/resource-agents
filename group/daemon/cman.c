@@ -103,14 +103,8 @@ static void cman_callback(cman_handle_t h, void *private, int reason, int arg)
 	cman_cb = 1;
 	cman_reason = reason;
 
-	if (reason == CMAN_REASON_TRY_SHUTDOWN) {
-		if (list_empty(&gd_groups))
-			cman_replyto_shutdown(ch, 1);
-		else {
-			log_debug("no to cman shutdown");
-			cman_replyto_shutdown(ch, 0);
-		}
-	}
+	if (reason == CMAN_REASON_TRY_SHUTDOWN)
+		cman_replyto_shutdown(ch, 1);
 }
 
 static void process_cman(int ci)
