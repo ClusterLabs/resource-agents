@@ -124,16 +124,23 @@ static void process_cman_callback(void)
 
 static void member_callback(cman_handle_t h, void *private, int reason, int arg)
 {
+	struct lockspace *ls;
+
 	cman_cb = 1;
 	cman_reason = reason;
 
 	if (reason == CMAN_REASON_TRY_SHUTDOWN) {
-		if (list_empty(&lockspaces))
-			cman_replyto_shutdown(ch, 1);
-		else {
+		/* special case: we don't block cluster shutdown
+		   for the gfs_controld lockspace */
+
+		list_for_each_entry(ls, &lockspaces, list) {
+			if (!strncmp(ls->name, "gfs_controld", 12))
+				continue;
 			log_debug("no to cman shutdown");
 			cman_replyto_shutdown(ch, 0);
+			return;
 		}
+		cman_replyto_shutdown(ch, 1);
 	}
 }
 
