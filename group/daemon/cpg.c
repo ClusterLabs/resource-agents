@@ -357,7 +357,7 @@ int setup_cpg(void)
 
 	cpg_fd_get(groupd_handle, &fd);
 
-	groupd_ci = client_add(fd, process_cpg);
+	groupd_ci = client_add(fd, process_cpg, NULL);
 
 	memset(&groupd_name, 0, sizeof(groupd_name));
 	strcpy(groupd_name.value, "groupd");
@@ -389,7 +389,7 @@ int do_cpg_join(group_t *g)
 
 	cpg_fd_get(h, &fd);
 
-	ci = client_add(fd, process_cpg);
+	ci = client_add(fd, process_cpg, NULL);
 
 	g->cpg_client = ci;
 	g->cpg_handle = h;

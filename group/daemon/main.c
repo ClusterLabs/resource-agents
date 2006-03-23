@@ -34,6 +34,7 @@ struct client {
 	int level;
 	char type[32];
 	void *workfn;
+	void *deadfn;
 };
 
 
@@ -260,7 +261,16 @@ static void client_alloc(void)
 	client_size += NALLOC;
 }
 
-int client_add(int fd, void (*workfn)(int ci))
+void client_dead(int ci)
+{
+	log_print("client %d fd %d dead", ci, client[ci].fd);
+	close(client[ci].fd);
+	client[ci].workfn = NULL;
+	client[ci].fd = -1;
+	pollfd[ci].fd = -1;
+}
+
+int client_add(int fd, void (*workfn)(int ci), void (*deadfn)(int ci))
 {
 	int i;
 
@@ -270,6 +280,10 @@ int client_add(int fd, void (*workfn)(int ci))
 	for (i = 0; i < client_size; i++) {
 		if (client[i].fd == -1) {
 			client[i].workfn = workfn;
+			if (deadfn)
+				client[i].deadfn = deadfn;
+			else
+				client[i].deadfn = client_dead;
 			client[i].fd = fd;
 			pollfd[i].fd = fd;
 			pollfd[i].events = POLLIN;
@@ -281,15 +295,6 @@ int client_add(int fd, void (*workfn)(int ci))
 
 	client_alloc();
 	goto again;
-}
-
-void client_dead(int ci)
-{
-	log_print("client %d fd %d dead", ci, client[ci].fd);
-	close(client[ci].fd);
-	client[ci].workfn = NULL;
-	client[ci].fd = -1;
-	pollfd[ci].fd = -1;
 }
 
 static void do_setup(int ci, int argc, char **argv)
@@ -517,7 +522,7 @@ static void process_listener(int ci)
 		return;
 	}
 	
-	i = client_add(fd, process_connection);
+	i = client_add(fd, process_connection, NULL);
 
 	log_print("client connection %d", i);
 }
@@ -555,7 +560,7 @@ static int setup_listener(void)
 		return rv;
 	}
 
-	client_add(s, process_listener);
+	client_add(s, process_listener, NULL);
 
 	return 0;
 }
@@ -564,6 +569,7 @@ static int loop(void)
 {
 	int rv, fd, i, timeout = -1;
 	void (*workfn) (int ci);
+	void (*deadfn) (int ci);
 
 	rv = setup_listener();
 	if (rv < 0)
@@ -585,9 +591,10 @@ static int loop(void)
 		for (i = 0; i <= client_maxi; i++) {
 			if (client[i].fd < 0)
 				continue;
-			if (pollfd[i].revents & POLLHUP)
-				client_dead(i);
-			else if (pollfd[i].revents & POLLIN) {
+			if (pollfd[i].revents & POLLHUP) {
+				deadfn = client[i].deadfn;
+				deadfn(i);
+			} else if (pollfd[i].revents & POLLIN) {
 				workfn = client[i].workfn;
 				workfn(i);
 			}

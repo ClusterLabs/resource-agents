@@ -107,6 +107,12 @@ static void cman_callback(cman_handle_t h, void *private, int reason, int arg)
 		cman_replyto_shutdown(ch, 1);
 }
 
+static void close_cman(int ci)
+{
+	log_print("cluster is down, exiting");
+	exit(1);
+}
+
 static void process_cman(int ci)
 {
 	int rv;
@@ -123,12 +129,8 @@ static void process_cman(int ci)
 			break;
 	}
 
-	if (rv == -1 && errno == EHOSTDOWN) {
-		/* do we want to try to forcibly clean some stuff up
-		   in the kernel here? */
-		log_print("cluster is down, exiting");
-		exit(1);
-	}
+	if (rv == -1 && errno == EHOSTDOWN)
+		close_cman(ci);
 }
 
 int setup_cman(void)
@@ -172,7 +174,7 @@ int setup_cman(void)
 	log_debug("cman: our nodeid %d quorum %d", our_nodeid, cman_quorate);
 
 	fd = cman_get_fd(ch);
-	client_add(fd, process_cman);
+	client_add(fd, process_cman, close_cman);
 
 	rv = 0;
  out:

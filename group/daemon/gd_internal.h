@@ -248,7 +248,7 @@ void app_setid(app_t *a);
 void app_start(app_t *a);
 void app_finish(app_t *a);
 void app_terminate(app_t *a);
-int client_add(int fd, void (*workfn)(int ci));
+int client_add(int fd, void (*workfn)(int ci), void (*deadfn)(int ci));
 void client_dead(int ci);
 
 /* cman.c */
