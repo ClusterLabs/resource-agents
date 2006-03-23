@@ -635,9 +635,8 @@ static int do_cmd_islistening(struct connection *con, char *cmdbuf, int *retlen)
 		P_MEMB("islistening, no data for node %d, sending PORTENQ\n", nodeid);
 		send_port_enquire(rem_node->node_id);
 
-		/* Returning 0 here is fine as users will either retry or
-		   get a PORTOPENED notification */
-		return 0;
+		/* Admit our ignorance */
+		return -EBUSY;
 	}
 	else {
 		P_MEMB("islistening, for node %d, low bytes are %x %x\n", nodeid, rem_node->port_bits[0], rem_node->port_bits[1]);
