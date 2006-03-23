@@ -306,6 +306,8 @@ int loop(void)
 			}
 
 			if (pollfd[i].revents & POLLHUP) {
+				if (pollfd[i].fd == cman_fd)
+					exit_cman();
 				log_debug("closing fd %d", pollfd[i].fd);
 				close(pollfd[i].fd);
 			}

@@ -401,9 +401,13 @@ static int loop(void)
 		for (i = 1; i <= maxi; i++) {
 			if (client[i].fd < 0)
 				continue;
-			if (pollfd[i].revents & POLLHUP)
+			if (pollfd[i].revents & POLLHUP) {
+				if (pollfd[i].fd == member_fd) {
+					log_error("cluster is down, exiting");
+					exit(1);
+				}
 				client_dead(i);
-			else if (pollfd[i].revents & POLLIN) {
+			} else if (pollfd[i].revents & POLLIN) {
 				if (pollfd[i].fd == groupd_fd)
 					process_groupd();
 				else if (pollfd[i].fd == member_fd)

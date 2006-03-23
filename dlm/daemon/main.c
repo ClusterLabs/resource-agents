@@ -207,6 +207,10 @@ int loop(void)
 			}
 
 			if (pollfd[i].revents & POLLHUP) {
+				if (pollfd[i].fd == member_fd) {
+					log_error("cluster is down, exiting");
+					exit(1);
+				}
 				log_error("closing fd %d", pollfd[i].fd);
 				close(pollfd[i].fd);
 			}

@@ -145,6 +145,7 @@ int setup_libdlm(void);
 int process_libdlm(void);
 int setup_plocks(void);
 int process_plocks(void);
+void exit_cman(void);
 
 int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 	     char *extra);
