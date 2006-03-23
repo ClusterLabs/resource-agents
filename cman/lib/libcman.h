@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
 **
 **  This library is free software; you can redistribute it and/or
 **  modify it under the terms of the GNU Lesser General Public
@@ -183,17 +183,22 @@ cman_handle_t cman_init(void *private);
 cman_handle_t cman_admin_init(void *private);
 int cman_finish(cman_handle_t handle);
 
-/* Update/retrieve private data */
+/* Update/retrieve the private data */
 int cman_set_private(cman_handle_t *h, void *private);
 int cman_get_private(cman_handle_t *h, void **private);
 
 /*
  * Notification of membership change events. Note that these are sent after
- * a transition, so multiple nodes may have left the cluster (but a maximum of
- * one will have joined) for each callback.
+ * a transition, so multiple nodes may have left or joined the cluster.
  */
 int cman_start_notification(cman_handle_t handle, cman_callback_t callback);
 int cman_stop_notification(cman_handle_t handle);
+
+/* Call this if you get a TRY_SHUTDOWN event to signal whether you
+ * will let cman shutdown or not.
+ */
+int cman_replyto_shutdown(cman_handle_t, int yesno);
+
 
 /*
  * Get the internal CMAN fd so you can pass it into poll() or select().
@@ -202,37 +207,92 @@ int cman_stop_notification(cman_handle_t handle);
  * routine to get the latest one. (This is mainly due to message caching).
  * One upshot of this is that you must never read or write this FD (it may on occasion
  * point to /dev/zero if you have messages cached!)
- *
- * cman_dispatch will return -1 with errno == EHOSTDOWN if the cluster is
- * shut down, 0 if nothing was read or a positive number if something was dispatched.
  */
 int cman_get_fd(cman_handle_t handle);
-int cman_dispatch(cman_handle_t handle, int flags);
 
 /*
- * Get info calls, self-explanatory I hope. nodeid can be CMAN_NODEID_US
+ * cman_dispatch() will return -1 with errno == EHOSTDOWN if the cluster is
+ * shut down, 0 if nothing was read, or a positive number if something was dispatched.
  */
+
+int cman_dispatch(cman_handle_t handle, int flags);
+
+
+/*
+ * ----------------------------------------------------------------------------------------
+ * Get info calls.
+ */
+
+/* Return the number of nodes we know about. This will normally
+   be the number of nodes in CCS */
 int cman_get_node_count(cman_handle_t handle);
+
+/* Returns the number of connected clients. This isn't as useful as a it used to be
+   as a count >1 does not automatically mean cman won't shut down. Subsystems
+   can decide for themselves whether a clean shutdown is possible. */
 int cman_get_subsys_count(cman_handle_t handle);
+
+/* Returns an array of node info structures. Call cman_get_node_count() first
+   to determine how big your array needs to be */
 int cman_get_nodes(cman_handle_t handle, int maxnodes, int *retnodes, cman_node_t *nodes);
+
+/*
+ * cman_get_node() can get node info by nodeid OR by name. If the first
+ * char of node->cn_name is zero then the nodeid will be used, otherwise
+ * the name will be used. I'll say this differently: If you want to look
+ * up a node by nodeid, you MUST clear out the cman_node_t structure passed
+ * into cman_get_node(). nodeid can be CMAN_NODEID_US.
+ */
 int cman_get_node(cman_handle_t handle, int nodeid, cman_node_t *node);
+
+/* Returns 1 if cman has completed initaialisation and aisexec is running */
 int cman_is_active(cman_handle_t handle);
+
+/*
+ * Returns 1 if a client is registered for data callbacks on a particular
+ * port on a particular node. if cman returns -1 (errno==EBUSY) then it
+ * doesn't currently know the status but has requested it, so try again
+ * later or wait for a PORTOPENED notification.
+ * nodeid can be CMAN_NODEID_US
+ */
 int cman_is_listening(cman_handle_t handle, int nodeid, uint8_t port);
+
+/* Do we have quorum? */
 int cman_is_quorate(cman_handle_t handle);
+
+/* Return software & config (cluster.conf file) version */
 int cman_get_version(cman_handle_t handle, cman_version_t *version);
+
+/* Get cluster name and number */
 int cman_get_cluster(cman_handle_t handle, cman_cluster_t *clinfo);
+
+/* Get stuff for cman_tool. Nobody else should use this */
 int cman_get_extra_info(cman_handle_t handle, cman_extra_info_t *info, int maxlen);
 
 /*
+ * ----------------------------------------------------------------------------------------
  * Admin functions. You will need privileges and have a handle created by cman_admin_init()
  * to use them.
  */
+
+/* Change the config file version. This should be needed much less now, as cman will
+   re-read the config file if a new node joins with a new config versoin */
 int cman_set_version(cman_handle_t handle, cman_version_t *version);
+
+/* Deprecated in favour of cman_shutdown(). Use cman_tool anyway please. */
 int cman_leave_cluster(cman_handle_t handle, int reason);
+
+/* Change the number of votes for this node. NOTE: a CCS update will
+   overwrite this, so make sure you change both. Or, better, change CCS
+   and call set_version() */
 int cman_set_votes(cman_handle_t handle, int votes, int nodeid);
+
+/* As above, for expected_votes */
 int cman_set_expected_votes(cman_handle_t handle, int expected_votes);
+
+/* Tell a particular node to leave the cluster NOW */
 int cman_kill_node(cman_handle_t handle, int nodeid);
-int cman_shutdown(cman_handle_t, int flags);
+
 /*
  * cman_shutdown() will send a REASON_TRY_SHUTDOWN event to all
  * clients registered for notifications. They should respond by calling
@@ -240,15 +300,16 @@ int cman_shutdown(cman_handle_t, int flags);
  * cman to close down or not. If cman gets >=1 "no" (0) or the
  * request times out (default 5 seconds) then shutdown will be
  * cancelled and cman_shutdown() will return -1 with errno == EBUSY.
+ *
+ * Set flags to CMAN_SHUTDOWN_ANYWAY to force shutdown. Clients will still
+ * be notified /and/ they will know you want a forced shutdown.
+ *
+ * Setting flags to CMAN_SHUTDOWN_REMOVED will tell the rest of the
+ * cluster to adjust quorum to keep running with this node has left
  */
+int cman_shutdown(cman_handle_t, int flags);
 
-
-/* Call this if you get a TRY_SHUTDOWN event. To signal whether you
- * will let cman shutdown or not
- */
-int cman_replyto_shutdown(cman_handle_t, int yesno);
-
-/*
+/* ----------------------------------------------------------------------------------------
  * Data transmission API. Uses the same FD as the rest of the calls.
  * If the nodeid passed to cman_send_data() is zero then it will be
  * broadcast to all nodes in the cluster.
@@ -260,7 +321,9 @@ int cman_start_recv_data(cman_handle_t handle, cman_datacallback_t, uint8_t port
 int cman_end_recv_data(cman_handle_t handle);
 
 /*
- * Barrier API
+ * Barrier API.
+ * Here for backwards compatibility. Most of the things you would achieve
+ * with this can now be better done using openAIS services or just messaging.
  */
 int cman_barrier_register(cman_handle_t handle, char *name, int flags, int nodes);
 int cman_barrier_change(cman_handle_t handle, char *name, int flags, int arg);
