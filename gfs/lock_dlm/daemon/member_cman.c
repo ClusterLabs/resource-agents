@@ -46,6 +46,7 @@ void exit_cman(void)
 	/* do we want to try to forcibly clean some stuff up
 	   in the kernel here? */
 	log_error("cluster is down, exiting");
+	exit_libdlm();
 	exit(1);
 }
 
@@ -105,8 +106,4 @@ int setup_cman(void)
 	cman_finish(ch);
 	return rv;
 }
-
-/*
-  FIXME: cman_finish(ch);
-*/
 

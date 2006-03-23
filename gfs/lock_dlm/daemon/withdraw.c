@@ -249,3 +249,12 @@ int setup_libdlm(void)
 	return rv;
 }
 
+void exit_libdlm(void)
+{
+	int rv;
+
+	rv = dlm_release_lockspace("gfs_controld", dh, 1);
+	if (rv < 0)
+		log_error("dlm_release_lockspace error %d %d", rv, errno);
+}
+
