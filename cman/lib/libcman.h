@@ -204,7 +204,7 @@ int cman_stop_notification(cman_handle_t handle);
  * point to /dev/zero if you have messages cached!)
  *
  * cman_dispatch will return -1 with errno == EHOSTDOWN if the cluster is
- * shut down.
+ * shut down, 0 if nothing was read or a positive number if something was dispatched.
  */
 int cman_get_fd(cman_handle_t handle);
 int cman_dispatch(cman_handle_t handle, int flags);
