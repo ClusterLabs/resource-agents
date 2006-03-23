@@ -64,7 +64,7 @@ int set_control(char *name, int val);
 int set_event_done(char *name, int val);
 int add_configfs_node(int nodeid, char *addr, int addrlen, int local);
 void del_configfs_node(int nodeid);
-void clear_configfs_nodes(void);
+void clear_configfs(void);
 int set_members(char *name, int new_count, int *new_members);
 int set_id(char *name, uint32_t id);
 

@@ -401,7 +401,7 @@ static int update_comms_nodes(void)
 
 /* clear out everything under /config/dlm/cluster/comms/ */
 
-void clear_configfs_nodes(void)
+void clear_configfs_comms(void)
 {
 	char path[PATH_MAX];
 	int i, rv;
@@ -421,6 +421,70 @@ void clear_configfs_nodes(void)
 		if (rv)
 			log_error("%s: rmdir failed: %d", path, errno);
 	}
+}
+
+static void clear_configfs_space_nodes(char *name)
+{
+	char path[PATH_MAX];
+	int i, rv;
+
+	rv = update_dir_members(name);
+	if (rv < 0)
+		return;
+
+	for (i = 0; i < dir_members_count; i++) {
+		memset(path, 0, PATH_MAX);
+		snprintf(path, PATH_MAX, "%s/%s/nodes/%d", LS_DIR, name,
+			 dir_members[i]);
+
+		log_debug("clear_configfs_space_nodes rmdir \"%s\"", path);
+
+		rv = rmdir(path);
+		if (rv)
+			log_error("%s: rmdir failed: %d", path, errno);
+	}
+}
+
+/* clear out everything under /config/dlm/cluster/spaces/ */
+
+void clear_configfs_spaces(void)
+{
+	char path[PATH_MAX];
+	DIR *d;
+	struct dirent *de;
+	int rv;
+
+	memset(path, 0, PATH_MAX);
+	snprintf(path, PATH_MAX, "%s", LS_DIR);
+
+	d = opendir(path);
+	if (!d) {
+		log_error("%s: opendir failed: %d", path, errno);
+		return;
+	}
+
+	while ((de = readdir(d))) {
+		if (de->d_name[0] == '.')
+			continue;
+
+		clear_configfs_space_nodes(de->d_name);
+
+		memset(path, 0, PATH_MAX);
+		snprintf(path, PATH_MAX, "%s/%s", LS_DIR, de->d_name);
+		
+		log_debug("clear_configfs_spaces rmdir \"%s\"", path);
+
+		rv = rmdir(path);
+		if (rv)
+			log_error("%s: rmdir failed: %d", path, errno);
+	}
+	closedir(d);
+}
+
+void clear_configfs(void)
+{
+	clear_configfs_comms();
+	clear_configfs_spaces();
 }
 
 int add_configfs_node(int nodeid, char *addr, int addrlen, int local)

@@ -205,7 +205,7 @@ int setup_member(void)
 	   then the cluster brought back up and this daemon restarted,
 	   there will be old configfs entries we need to clear out */
 
-	clear_configfs_nodes();
+	clear_configfs();
 
 	old_node_count = 0;
 	memset(&old_nodes, 0, sizeof(old_nodes));
