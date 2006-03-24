@@ -65,10 +65,13 @@ start()
 
 	for try in block
 	do
-		# load the camn module (modprobe won't error if the modules 
-		# is already loaded
+		# load the cman module (modprobe won't error if the modules 
+		# are already loaded
 		errmsg=$(modprobe cman 2>&1) || break
-		
+
+		# try to load the dlm module
+		modprobe dlm &> /dev/null
+
 		# TODO -- configure tunable paramters?
 		# [ -n "$CMAN_TRANSITION_RESTARTS" ] && 
 		#	echo $CMAN_TRANSITION_RESTARTS > \
@@ -97,8 +100,6 @@ start()
 
 	if [ $rtrn -eq 0 ]
 	then
-		# try to load the dlm module
-		modprobe dlm &>/dev/null
 		success "startup"
 		echo
 	else
