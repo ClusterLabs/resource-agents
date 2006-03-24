@@ -95,6 +95,14 @@ void parse_opts(struct mount_options *mo)
 		if (set_flag(o, &mo->flags))
 			continue;
 
+		if (!strncmp("hostdata", o, 8)) {
+			if (mo->hostdata[0])
+				warn("duplicate hostdata strings");
+			else
+				strcat(mo->hostdata, o);
+			continue;
+		}
+
 		if (extra_len + 1 + strlen(o) > PATH_MAX)
 			die("extra options string is too long\n");
 
@@ -130,6 +138,7 @@ void parse_opts(struct mount_options *mo)
 
 	log_debug("parse_opts: flags = %x", mo->flags);
 	log_debug("parse_opts: extra = \"%s\"", mo->extra);
+	log_debug("parse_opts: hostdata = \"%s\"", mo->hostdata);
 	log_debug("parse_opts: lockproto = \"%s\"", mo->lockproto);
 	log_debug("parse_opts: locktable = \"%s\"", mo->locktable);
 }
@@ -376,17 +385,35 @@ int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb)
 	log_debug("lock_dlm_join: read \"%s\"", buf);
 
 	/*
-	 * gfs_controld returns "hostdata=jid=X:id=Y:first=Z" to add to the
-	 * extra mount options
+	 * gfs_controld returns "hostdata=jid=X:id=Y:first=Z"
+	 * this is first combined with any hostdata the user gave on
+	 * the command line and then the full hostdata is combined
+	 * with the "extra" mount otions into the "extra_plus" string.
 	 */
 
+	if (strlen(mo->hostdata) + strlen(buf) + 1 > PATH_MAX) {
+		warn("hostdata too long");
+		goto out;
+	}
+
+	if (!mo->hostdata[0])
+		snprintf(mo->hostdata, PATH_MAX, "%s", buf);
+	else {
+		char *p = strstr(buf, "=") + 1;
+		strcat(mo->hostdata, ":");
+		strcat(mo->hostdata, p);
+	}
+
+	log_debug("lock_dlm_join: hostdata: \"%s\"", mo->hostdata);
+
 	if (strlen(mo->extra) == 0)
-		snprintf(mo->extra_plus, PATH_MAX, "%s", buf);
+		snprintf(mo->extra_plus, PATH_MAX, "%s", mo->hostdata);
 	else
-		snprintf(mo->extra_plus, PATH_MAX, "%s,%s", mo->extra, buf);
+		snprintf(mo->extra_plus, PATH_MAX, "%s,%s",
+			 mo->extra, mo->hostdata);
 
+ out:
 	log_debug("lock_dlm_join: extra_plus: \"%s\"", mo->extra_plus);
-
 	return 0;
 }
 

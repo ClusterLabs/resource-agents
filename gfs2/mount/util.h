@@ -74,6 +74,7 @@ struct mount_options {
 	char dev[PATH_MAX+1];
 	char dir[PATH_MAX+1];
 	char opts[PATH_MAX+1];
+	char hostdata[PATH_MAX+1];
 	char extra[PATH_MAX+1];
 	char extra_plus[PATH_MAX+1];
 	char type[5]; 
