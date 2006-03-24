@@ -485,12 +485,7 @@ int fs_block_map(struct fsck_inode *ip, uint64 lblock, int *new,
 		if (!*dblock)
 			goto out;
 
-		log_err("ATTENTION -- not doing gfs_get_meta_buffer...\n");
-		error = -1;
-		exit(1);
-		/*
-		  error = gfs_get_meta_buffer(ip, x + 1, *dblock, *new, &bh);
-		*/
+		error = get_and_read_buf(ip->i_sbd, *dblock, &bh, 0);
 		if (error)
 			goto fail;
 	}
