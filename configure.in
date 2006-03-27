@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.497 $) dnl cvs revision
+AC_REVISION($Revision: 1.498 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -2264,8 +2264,8 @@ if test "x${enable_mgmt}" != "xno"; then
 		MGMT_ENABLED=0
 	fi
 
-	AC_CHECK_HEADER(security/pam_appl.h)
-	if test "$ac_cv_header_security_pam_appl_h" = "no"; then
+	AC_CHECK_HEADERS(security/pam_appl.h pam/pam_appl.h)
+	if test "$ac_cv_header_security_pam_appl_h" = "no" -a "$ac_cv_header_pam_pam_appl_h" = "no"; then
   		$MISSING_FN "security/pam_appl.h" \
 		  "The GUI managment module needs the pam-devel package"
 		enable_mgmt="no"
