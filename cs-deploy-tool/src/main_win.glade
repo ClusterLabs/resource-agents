@@ -506,7 +506,7 @@
 	      <property name="focus_on_click">True</property>
 
 	      <child>
-		<widget class="GtkAlignment" id="alignment22">
+		<widget class="GtkAlignment" id="alignment36">
 		  <property name="visible">True</property>
 		  <property name="xalign">0.5</property>
 		  <property name="yalign">0.5</property>
@@ -518,7 +518,7 @@
 		  <property name="right_padding">0</property>
 
 		  <child>
-		    <widget class="GtkHBox" id="hbox8">
+		    <widget class="GtkHBox" id="hbox11">
 		      <property name="visible">True</property>
 		      <property name="homogeneous">False</property>
 		      <property name="spacing">2</property>
@@ -541,9 +541,9 @@
 		      </child>
 
 		      <child>
-			<widget class="GtkLabel" id="label49">
+			<widget class="GtkLabel" id="label85">
 			  <property name="visible">True</property>
-			  <property name="label" translatable="yes">Install</property>
+			  <property name="label" translatable="yes">Deploy</property>
 			  <property name="use_underline">True</property>
 			  <property name="use_markup">False</property>
 			  <property name="justify">GTK_JUSTIFY_LEFT</property>

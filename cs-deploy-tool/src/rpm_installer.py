@@ -33,29 +33,52 @@ class UP2DATE_Interface:
         o, e, s = self.environ.execute_remote(node, 'cat', ['/etc/redhat-release'])
         if s != 0 or 'Nahant' not in o:
             return False
+        return True
+    
+    def installed_rpms(self, node, rpms):
+        o, e, s = self.environ.execute_remote(node, 'rpm', ['-qa'])
+        if s != 0:
+            return []
+        found_rpms = []
+        lines = o.splitlines()
+        for line in lines:
+            for rpm in rpms:
+                if line.find(rpm + '-') == 0:
+                    if rpm not in found_rpms:
+                        found_rpms.append(rpm)
+        return found_rpms
+    
+    def available_rpms(self, node, rpms):
+        if len(rpms) == 0:
+            return []
+        
         o, e, s = self.environ.execute_remote(node, 'ls', ['/etc/sysconfig/rhn/systemid'])
         if s != 0:
-            raise Err(node + ' is not subscribed to RHN. Nodes have to be subscribed to \'cluster\' and \'GFS\' RHN channels.')
+            return []
         o, e, s = self.environ.execute_remote(node, 'up2date-nox', ['--show-channels'])
         if s != 0:
-            raise Err(node + ' has a misconfigured up2date')
-        missing_channels = []
-        if 'cluster' not in o:
-            missing_channels.append('cluster')
-        if 'gfs' not in o:
-            missing_channels.append('GFS')
-        if len(missing_channels) != 0:
-            msg = ''
-            for ch in missing_channels:
-                if msg == '':
-                    msg += '\'' + ch + '\''
-                else:
-                    msg += ' and \'' + ch + '\''
-            if len(missing_channels) == 1:
-                raise Err(node + ' is not subscribed to ' + msg + ' RHN channel')
-            else:
-                raise Err(node + ' is not subscribed to ' + msg + ' RHN channels')
-        return True
+            return []
+        
+        # get list of all installable/upgradeable rpms
+        # check if rpms are on the list
+        o, e, s = self.environ.execute_remote(node, 'up2date-nox', ['--showall'])
+        if s != 0:
+            return []
+        found_rpms = []
+        lines = o.splitlines()
+        for line in lines:
+            for rpm in rpms:
+                if line.find(rpm + '-') == 0:
+                    if rpm not in found_rpms:
+                        found_rpms.append(rpm)
+        if len(found_rpms) == 0:
+            return []
+        
+        # try to retrieve one of available rpms
+        o, e, s = self.environ.execute_remote(node, 'up2date-nox', ['--download', found_rpms[0]])
+        if s != 0:
+            return []
+        return found_rpms
     
     def install(self, node, rpms):
         # install
@@ -82,6 +105,23 @@ class YUM_Interface:
             return False
         return True
     
+    def installed_rpms(self, node, rpms):
+        o, e, s = self.environ.execute_remote(node, 'rpm', ['-qa'])
+        if s != 0:
+            return []
+        found_rpms = []
+        lines = o.splitlines()
+        for line in lines:
+            for rpm in rpms:
+                if line.find(rpm + '-') == 0:
+                    if rpm not in found_rpms:
+                        found_rpms.append(rpm)
+        return found_rpms
+    
+    def available_rpms(self, node, rpms):
+        # TODO: implement
+        return rpms
+    
     def install(self, node, rpms):
         # find what to install
         rpms_to_install = []
@@ -96,7 +136,7 @@ class YUM_Interface:
                     install = False
             if install:
                 rpms_to_install.append(rpm)
-    
+        
         # install
         if len(rpms_to_install) == 0:
             self.environ.log('nothing to install on ' + node)
@@ -131,17 +171,25 @@ class RPMInstaller:
         self.interface = interface_class(self.environ)
         pass
     
+    def available_rpms(self, node, rpms):
+        if len(rpms) == 0:
+            return []
+        return self.interface.available_rpms(node, rpms)
+    
+    def installed_rpms(self, node, rpms):
+        if len(rpms) == 0:
+            return []
+        return self.interface.installed_rpms(node, rpms)
     
     def install(self, node, rpms):
-        rpms2 = rpms[:]
-        for rpm in self.__build_main_rpm_list(node):
-            rpms2.append(rpm)
-        return self.interface.install(node, rpms2)
+        if len(rpms) == 0:
+            return True
+        return self.interface.install(node, rpms)
     
     def is_os_supported(self, node):
         return self.interface.is_os_supported(node)
-        
-    def __build_main_rpm_list(self, node):
+    
+    def cluster_rpms_list(self, node):
         # determine kernel type
         smp = False
         hugemem = False

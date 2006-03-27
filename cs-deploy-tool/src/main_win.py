@@ -278,11 +278,13 @@ class MainWin:
         cursor_busy(dlg)
         
         
-        self.__install(msgs, prog_bar)
+        result = self.__install(msgs, prog_bar)
         
         
         cursor_regular(self.main_win)
         dlg.hide()
+        if result == False:
+            return
         
         msgs = ''
         for ads in self.adss:
@@ -302,18 +304,90 @@ class MainWin:
     
     def __install(self, label, prog_bar):
         
+        # prepare list of rpms
+        prog_bar.set_fraction(0.00)
+        label.set_text('Building list of packages to install')
+        
+        node_rpms_installed = {}
+        for node in self.nodes:
+            label.set_text('Building list of packages to install on node \'' + node + '\'')
+            required_rpms = self.rpm_installer.cluster_rpms_list(node)
+            for ads in self.adss:
+                for rpm in ads.get_rpms():
+                    required_rpms.append(rpm)
+            installed_rpms = self.rpm_installer.installed_rpms(node, required_rpms)
+            node_rpms_installed[node] = (required_rpms[:], installed_rpms[:])
+        
+        label.set_text('Building list of packages to install')
+        node_rpms = {}
+        for node in self.nodes:
+            rpms, installed_rpms = node_rpms_installed[node]
+            missing_rpms = rpms[:]
+            for pkg in installed_rpms:
+                missing_rpms.remove(pkg)
+            
+            if len(installed_rpms) == 0:
+                # no prompt, just install them all
+                node_rpms[node] = rpms
+            elif len(rpms) == len(installed_rpms):
+                msg = 'Node \'' + node + '\' has all required rpms already installed.\n'
+                msg += 'Do you want me to upgrade them to the newest version?'
+                if questionMessage(msg):
+                    node_rpms[node] = rpms
+                else:
+                    node_rpms[node] = []
+            else:
+                installed_string = ' '
+                for pkg in installed_rpms:
+                    installed_string += pkg + ' '
+                missing_string = ' '
+                for pkg in missing_rpms:
+                    missing_string += pkg + ' '
+                msg = 'Node \'' + node + '\' does not have all required rpms installed.\n'
+                msg += 'Installed rpms:' + installed_string + '\n'
+                msg += 'Missing rpms:' + missing_string + '\n'
+                msg += '\nDo you want me to install missing rpms?'
+                if questionMessage(msg):
+                    msg = 'Do you want me to upgrade rpms, installed on node \'' + node + '\', to the newest version?\n'
+                    msg += 'Installed rpms:' + installed_string
+                    if questionMessage(msg):
+                        node_rpms[node] = rpms
+                    else:
+                        node_rpms[node] = missing_rpms
+                else:
+                    msg = 'Manually install missing rpms to node \'' + node + '\' and restart deployment\n'
+                    msg += 'Missing rpms:' + missing_string
+                    infoMessage(msg)
+                    return False
+        
+        
+        # check packages availability
+        prog_bar.set_fraction(0.10)
+        label.set_text('Checking availability of packages')
+        for node in node_rpms:
+            label.set_text('Checking availability of packages to node \'' + node + '\'')
+            available_rpms = self.rpm_installer.available_rpms(node, node_rpms[node])
+            if len(available_rpms) != len(node_rpms[node]):
+                msg = 'Node \'' + node + '\' cannot retrieve selected rpms.\n'
+                msg += 'Make sure it is subscribed to proper RHN channels, or install rpms manually and restart deployment.\n'
+                msg += 'Unavailable rpms: '
+                for pkg in node_rpms[node]:
+                    if pkg not in available_rpms:
+                        msg += pkg + ' '
+                errorMessage(msg)
+                return False
+        
+        
+        
         ### installation starts here ###
         
         
-        # install needed rpms
-        prog_bar.set_fraction(0.00)
-        label.set_text('Installing and upgrading software on all nodes')
+        # install selected rpms
+        prog_bar.set_fraction(0.20)
+        label.set_text('Installing software')
         for node in self.nodes:
-            rpms = []
-            for ads in self.adss:
-                for rpm in ads.get_rpms():
-                    rpms.append(rpm)
-            if self.rpm_installer.install(node, rpms) != True:
+            label.set_text('Installing software on node \'' + node + '\'')
+            if self.rpm_installer.install(node, node_rpms[node]) != True:
                 msg = 'Failed installation of software on ' + node + '.\n'
                 msg += 'Check log file ' + self.environ.get_log_file_path() + '.\n'
                 msg += 'Aborting deployment...'
@@ -333,13 +407,13 @@ class MainWin:
         
         
         # reboot nodes
-        prog_bar.set_fraction(0.25)
+        prog_bar.set_fraction(0.40)
         label.set_text('Rebooting nodes')
         self.cluster_ops.reboot_nodes(self.nodes)
         
         
         # configure storage
-        prog_bar.set_fraction(0.50)
+        prog_bar.set_fraction(0.60)
         label.set_text('Configuring shared storage')
         if self.storage.configure_nodes() != True:
             msg = 'Failed configuration of shared storage.\n'
@@ -350,7 +424,7 @@ class MainWin:
         
         
         # configure applications
-        prog_bar.set_fraction(0.75)
+        prog_bar.set_fraction(0.80)
         label.set_text('Configuring applications')
         for ads in self.adss:
             ads.configure_nodes(self.nodes)
@@ -369,6 +443,8 @@ class MainWin:
         prog_bar.set_fraction(1.00)
         label.set_text('Completed')
         
+        return True
+    
     
     def __get_cluster_conf(self, version):
         cluster_name = self.cluster_name
