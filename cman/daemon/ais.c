@@ -30,7 +30,7 @@
 #include "commands.h"
 #include "totempg.h"
 #include "aispoll.h"
-#include "handlers.h"
+#include "service.h"
 #include "../lcr/lcr_comp.h"
 
 #include "cnxman-socket.h"
@@ -90,11 +90,7 @@ static int cman_config_init_fn (struct openais_config *openais_config);
 static struct openais_service_handler cman_service_handler = {
 	.name		    		= (unsigned char *)"openais CMAN membership service 2.01",
 	.id			        = CMAN_SERVICE,
-	.lib_handlers	        	= NULL,
-	.lib_handlers_count		= 0,
 	.lib_exit_fn		       	= cman_exit_fn,
-	.exec_handlers		        = NULL,
-	.exec_handlers_count	        = 0,
 	.exec_init_fn		       	= cman_exec_init_fn,
 	.config_init_fn                 = cman_config_init_fn,
 };

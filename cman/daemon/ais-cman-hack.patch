@@ -1,7 +1,7 @@
 diff -rNwup --exclude entries svn/trunk/exec/main.c pjc/trunk/exec/main.c
---- svn/trunk/exec/main.c	2006-03-03 08:28:02.000000000 +0000
-+++ pjc/trunk/exec/main.c	2006-03-20 11:53:17.000000000 +0000
-@@ -1000,6 +1000,7 @@ static void confchg_fn (
+--- svn/trunk/exec/main.c	2006-03-27 09:34:33.000000000 +0100
++++ pjc/trunk/exec/main.c	2006-03-27 09:34:52.000000000 +0100
+@@ -979,6 +979,7 @@ static void confchg_fn (
  
  static void aisexec_uid_determine (void)
  {
@@ -9,115 +9,84 @@ diff -rNwup --exclude entries svn/trunk/exec/main.c pjc/trunk/exec/main.c
  	struct passwd *passwd;
  
  	passwd = getpwnam(OPENAIS_USER);
-@@ -1008,10 +1009,12 @@ static void aisexec_uid_determine (void)
- 		ais_done (AIS_DONE_UID_DETERMINE);
+@@ -987,10 +988,12 @@ static void aisexec_uid_determine (void)
+ 		openais_exit_error (AIS_DONE_UID_DETERMINE);
  	}
  	ais_uid = passwd->pw_uid;
-+#endif	
++#endif
  }
  
  static void aisexec_gid_determine (void)
  {
-+#if 0 //PJC not used anyway...see below
++#if 0// PJC not used anyway...see below
  	struct group *group;
  	group = getgrnam (OPENAIS_GROUP);
  	if (group == 0) {
-@@ -1019,6 +1022,7 @@ static void aisexec_gid_determine (void)
- 		ais_done (AIS_DONE_GID_DETERMINE);
+@@ -998,6 +1001,7 @@ static void aisexec_gid_determine (void)
+ 		openais_exit_error (AIS_DONE_GID_DETERMINE);
  	}
  	gid_valid = group->gr_gid;
 +#endif
  }
  
  static void aisexec_priv_drop (void)
-@@ -1267,13 +1271,13 @@ int main (int argc, char **argv)
- 		log_printf (LOG_LEVEL_ERROR, error_string);
- 		ais_done (AIS_DONE_MAINCONFIGREAD);
- 	}
+@@ -1186,8 +1190,8 @@ int main (int argc, char **argv)
+ 		
+ 	objdb->objdb_init ();
+ 	openais_service_default_objdb_set (objdb);
+ 	openais_service_link_all (objdb, &openais_config);
 -
 +#if 0 // PJC
- 	res = openais_amf_config_read (&error_string);
+ 	res = openais_main_config_read (objdb, &error_string, &openais_config, 1);
  	if (res == -1) {
+ 		log_printf (LOG_LEVEL_NOTICE, "AIS Executive Service: Copyright (C) 2002-2006 MontaVista Software, Inc and contributors.\n");
+@@ -1200,7 +1204,7 @@ int main (int argc, char **argv)
  		log_printf (LOG_LEVEL_ERROR, error_string);
- 		ais_done (AIS_DONE_AMFCONFIGREAD);
+ 		openais_exit_error (AIS_DONE_AMFCONFIGREAD);
  	}
 -
 +#endif
  	if (!openais_config.totem_config.interface_count) {
  		res = totem_config_read (&openais_config.totem_config, &error_string, 1);
  		if (res == -1) {
-@@ -1283,6 +1287,7 @@ int main (int argc, char **argv)
+@@ -1209,7 +1213,7 @@ int main (int argc, char **argv)
+ 			openais_exit_error (AIS_DONE_MAINCONFIGREAD);
  		}
  	}
- 
+-
 +#if 0 // PJC
- 	res = totem_config_keyread ("/etc/ais/authkey", &openais_config.totem_config, &error_string);
+ 	res = totem_config_keyread (OPENAIS_CONFDIR "/authkey", &openais_config.totem_config, &error_string);
  	if (res == -1) {
  		log_printf (LOG_LEVEL_ERROR, error_string);
-@@ -1294,8 +1299,9 @@ int main (int argc, char **argv)
+@@ -1221,8 +1225,8 @@ int main (int argc, char **argv)
  		log_printf (LOG_LEVEL_ERROR, error_string);
- 		ais_done (AIS_DONE_MAINCONFIGREAD);
+ 		openais_exit_error (AIS_DONE_MAINCONFIGREAD);
  	}
 -
- 	res = log_setup (&error_string, openais_config.logmode, openais_config.logfile);
+-	res = log_setup (&error_string, openais_config.logmode, openais_config.logfile);
 +#endif
 +	res = log_setup (&error_string, LOG_MODE_SYSLOG, openais_config.logfile);
  	if (res == -1) {
  		log_printf (LOG_LEVEL_ERROR, error_string);
- 		ais_done (AIS_DONE_LOGSETUP);
-diff -rNwup --exclude entries svn/trunk/exec/mainconfig.c pjc/trunk/exec/mainconfig.c
---- svn/trunk/exec/mainconfig.c	2006-03-03 08:28:02.000000000 +0000
-+++ pjc/trunk/exec/mainconfig.c	2006-03-20 11:53:17.000000000 +0000
-@@ -94,7 +94,7 @@ static void set_default_services(struct 
- 	config->dynamic_services[0].ver = 0;
- 	config->dynamic_services[1].name = "openais_clm";
- 	config->dynamic_services[1].ver = 0;
--	config->dynamic_services[2].name = "openais_amf";
-+	config->dynamic_services[2].name = "openais_cpg";
- 	config->dynamic_services[2].ver = 0;
- 	config->dynamic_services[3].name = "openais_ckpt";
- 	config->dynamic_services[3].ver = 0;
-@@ -104,7 +104,7 @@ static void set_default_services(struct 
- 	config->dynamic_services[5].ver = 0;
- 	config->dynamic_services[6].name = "openais_msg";
- 	config->dynamic_services[6].ver = 0;
--	config->dynamic_services[7].name = "openais_cfg";
-+	config->dynamic_services[7].name = "openais_cman";
- 	config->dynamic_services[7].ver = 0;
- 	config->num_dynamic_services = 8;
- }
-@@ -139,6 +139,7 @@ extern int openais_main_config_read (cha
-     struct openais_config *openais_config,
- 	int interface_max)
- {
-+#if 0 // PJC
- 	FILE *fp;
- 	int line_number = 0;
- 	main_parse_t parse = MAIN_HEAD;
-@@ -305,8 +306,11 @@ extern int openais_main_config_read (cha
- 
- 	/* Load default services if the config file doesn't specify */
- 	if (!openais_config->num_dynamic_services) {
-+#endif
- 		set_default_services(openais_config);
-+#if 0 // PJC
+ 		openais_exit_error (AIS_DONE_LOGSETUP);
+diff -rNwup --exclude entries svn/trunk/exec/service.c pjc/trunk/exec/service.c
+--- svn/trunk/exec/service.c	2006-03-27 09:34:33.000000000 +0100
++++ pjc/trunk/exec/service.c	2006-03-27 09:37:13.000000000 +0100
+@@ -86,6 +86,10 @@ static struct default_service default_se
+ 	{
+ 		.name			 = "openais_cpg",
+ 		.ver			 = 0,
++	},
++	{
++		.name            = "openais_cman",
++	.ver             = 0,
  	}
-+
- 	if (parse == MAIN_HEAD) {
- 		fclose (fp);
- 		return (0);
-@@ -327,4 +331,7 @@ parse_error:
- 	*error_string = error_string_response;
- 	fclose (fp);
- 	return (-1);
-+#else
-+	return 0;
-+#endif
- }
+ };
+ 
 diff -rNwup --exclude entries svn/trunk/exec/totemnet.c pjc/trunk/exec/totemnet.c
---- svn/trunk/exec/totemnet.c	2006-03-03 08:28:02.000000000 +0000
-+++ pjc/trunk/exec/totemnet.c	2006-03-20 11:53:50.000000000 +0000
-@@ -274,7 +274,7 @@ static int authenticate_and_decrypt (
+--- svn/trunk/exec/totemnet.c	2006-03-27 09:34:33.000000000 +0100
++++ pjc/trunk/exec/totemnet.c	2006-03-27 09:34:52.000000000 +0100
+@@ -271,7 +271,7 @@ static int authenticate_and_decrypt (
  	hmac_done (&instance->totemnet_hmac_state, digest_comparison, &len);
  
  	if (memcmp (digest_comparison, header->hash_digest, len) != 0) {

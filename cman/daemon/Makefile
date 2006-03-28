@@ -12,7 +12,7 @@
 
 top_srcdir=..
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
-AISDIR=openais20060307
+AISDIR=openais20060328
 AISTAG=trunk
 
 include ${top_srcdir}/make/defines.mk
@@ -74,20 +74,20 @@ ${AISDIR}/${AISTAG}: ${AISDIR}/${AISDIR}.tar.gz
 	touch ${AISDIR}/${AISTAG}
 
 ${AISDIR}/${AISTAG}/exec/aisexec: ${AISDIR}/${AISTAG}
-	cd ${AISDIR}/${AISTAG} && make BUILD_DYNAMIC=1
+	cd ${AISDIR}/${AISTAG} && make BUILD_DYNAMIC=1 OPENAIS_BUILD=DEBUG
 
 install: 
 	install -d ${libexecdir}
 	install -d ${libexecdir}/cman
 	install ${AISDIR}/${AISTAG}/exec/aisexec ${libexecdir}/cman/
-	install ${AISDIR}/${AISTAG}/exec/service*.lcrso ${libexecdir}/cman/
+	install ${AISDIR}/${AISTAG}/exec/*.lcrso ${libexecdir}/cman/
 	install ${AISDIR}/${AISTAG}/exec/keygen ${sbindir}/ais-keygen
 	install -d ${incdir}
 	cd ${AISDIR}/${AISTAG}/include; install ${AIS_HEADERS} ${incdir}
 	cd ${AISDIR}/${AISTAG}/lib; for i in ${AIS_LIBS}; do \
 		install $$i.a $$i.so.1.0 ${libdir}; \
-		ln -s ${libdir}/$$i.so.1.0 ${libdir}/$$i.so.1; \
-		ln -s ${libdir}/$$i.so.1 ${libdir}/$$i.so; \
+		ln -sf ${libdir}/$$i.so.1.0 ${libdir}/$$i.so.1; \
+		ln -sf ${libdir}/$$i.so.1 ${libdir}/$$i.so; \
 		done
 
 
