@@ -631,9 +631,7 @@ void check_devices(void)
       }
       break;
     case RESET_STATE:
-#if 0 /* this keeps it from working with dm-multipathing nicely */
-      if (check_usage(dev) == 0)
-#endif
+      if (!check_recvd (dev))
         dev->state = RESTARTABLE_STATE;
       break;
     case RESTARTABLE_STATE:
