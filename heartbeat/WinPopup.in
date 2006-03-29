@@ -30,7 +30,7 @@ us=`uname -n`
 
 usage() {
   echo "Usage: $0 {start|stop|status|monitor|validate-all|meta-data}"
-  echo "$Id: WinPopup.in,v 1.7 2006/03/10 04:14:20 xunsun Exp $"
+  echo "$Id: WinPopup.in,v 1.8 2006/03/29 15:48:55 xunsun Exp $"
 }
 
 meta_data() {
@@ -97,23 +97,25 @@ WinPopupStart() {
 
 	Subject="`SubjectLine $2` Takeover in progress on $us"
  
-	sendWinPopup "$Subject" $1
-	if [ $? -eq 0 ]; then
+	if sendWinPopup "$Subject" $1; then
 		touch $WINPOPUPFILE
+		return $?
+	else
+		return $?
 	fi
 
-	return $?
 }
 
 WinPopupStop () {
 	Subject="`SubjectLine $2` Reestablishing original master connection in progress on $us"
 
-	sendWinPopup "$Subject" $1
-	if [ $? -eq 0 ]; then
+	if sendWinPopup "$Subject" $1; then
 		rm -f $WINPOPUPFILE
+		return $?
+	else
+		return $?
 	fi
 
-	return $?
 }
 
 WinPopupStatus () {
