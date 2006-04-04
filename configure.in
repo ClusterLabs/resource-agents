@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.498 $) dnl cvs revision
+AC_REVISION($Revision: 1.499 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -921,6 +921,7 @@ if test "x$XML2CONFIG" = "x"; then
 else
    XML2HEAD=`$XML2CONFIG --cflags`
    AC_MSG_RESULT($XML2HEAD)
+   AC_CHECK_LIB(xml2, xmlReadMemory)
 fi
 
 CPPFLAGS="$CPPFLAGS $XML2HEAD"
