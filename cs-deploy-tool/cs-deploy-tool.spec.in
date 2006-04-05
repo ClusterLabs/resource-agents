@@ -46,6 +46,8 @@ rm -rf %{buildroot}
 %{_datadir}/cs-deploy-tool
 
 %changelog
+* Tue Apr 05 2006 Stanko Kupcevic <kupcevic@redhat.com> 0.9.7-1.0
+  - GUI touchups
 * Fri Mar 27 2006 Stanko Kupcevic <kupcevic@redhat.com> 0.9.6-1.0
   - Improved rpm selection and installation phase
 * Mon Jan 16 2006 Stanko Kupcevic <kupcevic@redhat.com> 0.9.5-1.0

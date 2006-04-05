@@ -306,11 +306,11 @@ class MainWin:
         
         # prepare list of rpms
         prog_bar.set_fraction(0.00)
-        label.set_text('Building list of packages to install')
+        label.set_text('Querying installed software')
         
         node_rpms_installed = {}
         for node in self.nodes:
-            label.set_text('Building list of packages to install on node \'' + node + '\'')
+            label.set_text('Querying software installed on node \'' + node + '\'')
             required_rpms = self.rpm_installer.cluster_rpms_list(node)
             for ads in self.adss:
                 for rpm in ads.get_rpms():
@@ -318,7 +318,7 @@ class MainWin:
             installed_rpms = self.rpm_installer.installed_rpms(node, required_rpms)
             node_rpms_installed[node] = (required_rpms[:], installed_rpms[:])
         
-        label.set_text('Building list of packages to install')
+        label.set_text('Software selection phase')
         node_rpms = {}
         for node in self.nodes:
             rpms, installed_rpms = node_rpms_installed[node]
@@ -327,49 +327,25 @@ class MainWin:
                 missing_rpms.remove(pkg)
             
             if len(installed_rpms) == 0:
-                # no prompt, just install them all
                 node_rpms[node] = rpms
-            elif len(rpms) == len(installed_rpms):
-                msg = 'Node \'' + node + '\' has all required rpms already installed.\n'
-                msg += 'Do you want me to upgrade them to the newest version?'
+            else:
+                msg = 'Node \'' + node + '\' has clustering software already installed.\n'
+                msg += 'Do you want me to upgrade it to the newest version?'
                 if questionMessage(msg):
                     node_rpms[node] = rpms
                 else:
-                    node_rpms[node] = []
-            else:
-                installed_string = ' '
-                for pkg in installed_rpms:
-                    installed_string += pkg + ' '
-                missing_string = ' '
-                for pkg in missing_rpms:
-                    missing_string += pkg + ' '
-                msg = 'Node \'' + node + '\' does not have all required rpms installed.\n'
-                msg += 'Installed rpms:' + installed_string + '\n'
-                msg += 'Missing rpms:' + missing_string + '\n'
-                msg += '\nDo you want me to install missing rpms?'
-                if questionMessage(msg):
-                    msg = 'Do you want me to upgrade rpms, installed on node \'' + node + '\', to the newest version?\n'
-                    msg += 'Installed rpms:' + installed_string
-                    if questionMessage(msg):
-                        node_rpms[node] = rpms
-                    else:
-                        node_rpms[node] = missing_rpms
-                else:
-                    msg = 'Manually install missing rpms to node \'' + node + '\' and restart deployment\n'
-                    msg += 'Missing rpms:' + missing_string
-                    infoMessage(msg)
-                    return False
+                    node_rpms[node] = missing_rpms
         
         
         # check packages availability
         prog_bar.set_fraction(0.10)
-        label.set_text('Checking availability of packages')
+        label.set_text('Checking availability of software')
         for node in node_rpms:
-            label.set_text('Checking availability of packages to node \'' + node + '\'')
+            label.set_text('Checking availability of software packages to node \'' + node + '\'')
             available_rpms = self.rpm_installer.available_rpms(node, node_rpms[node])
             if len(available_rpms) != len(node_rpms[node]):
-                msg = 'Node \'' + node + '\' cannot retrieve selected rpms.\n'
-                msg += 'Make sure it is subscribed to proper RHN channels, or install rpms manually and restart deployment.\n'
+                msg = 'Node \'' + node + '\' cannot retrieve required software packages.\n'
+                msg += 'Make sure it is subscribed to proper RHN channels, or install rpms manually and restart deployment.\n\n'
                 msg += 'Unavailable rpms: '
                 for pkg in node_rpms[node]:
                     if pkg not in available_rpms:
