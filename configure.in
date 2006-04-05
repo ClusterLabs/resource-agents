@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.499 $) dnl cvs revision
+AC_REVISION($Revision: 1.500 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -336,27 +336,27 @@ if test x"${RPM}" = x""; then
     AC_PATH_PROGS(RPM, rpm)
 fi
 AC_DEFINE_UNQUOTED(ROUTE, "$ROUTE", path to route command)
-AC_PATH_PROGS(NETSTAT, netstat)
+AC_PATH_PROGS(NETSTAT, netstat, /sbin/netstat)
 AC_DEFINE_UNQUOTED(NETSTAT, "$NETSTAT", path to the netstat command)
-AC_PATH_PROGS(PING, ping)
-AC_PATH_PROGS(IFCONFIG, ifconfig)
-AC_PATH_PROGS(SSH, ssh)
-AC_PATH_PROGS(SCP, scp)
+AC_PATH_PROGS(PING, ping, ping)
+AC_PATH_PROGS(IFCONFIG, ifconfig, /sbin/ifconfig)
+AC_PATH_PROGS(SSH, ssh, ssh)
+AC_PATH_PROGS(SCP, scp, scp)
 AC_PATH_PROGS(PYTHON, python)
 dnl - Determine which mail program exists. Mailx is Solaris
 AC_PATH_PROGS(MAILCMD, mail, mailx)
 AC_SUBST(MAILCMD)
 AC_DEFINE_UNQUOTED(IFCONFIG, "$IFCONFIG", path to the ifconfig command)
-AC_PATH_PROGS(BLOCKDEV, blockdev)
-AC_PATH_PROGS(BASENAME, basename)
-AC_PATH_PROGS(FUSER, fuser)
-AC_PATH_PROGS(MOUNT, mount)
-AC_PATH_PROGS(UMOUNT, umount)
-AC_PATH_PROGS(FSCK, fsck)
-AC_PATH_PROGS(MODPROBE, modprobe)
-AC_PATH_PROGS(RAIDSTART, raidstart)
-AC_PATH_PROGS(RAIDSTOP, raidstop)
-AC_PATH_PROGS(MDADM, mdadm)
+AC_PATH_PROGS(BLOCKDEV, blockdev, /sbin/blockdev)
+AC_PATH_PROGS(BASENAME, basename, basename)
+AC_PATH_PROGS(FUSER, fuser, fuser)
+AC_PATH_PROGS(MOUNT, mount, mount)
+AC_PATH_PROGS(UMOUNT, umount, umount)
+AC_PATH_PROGS(FSCK, fsck, fsck)
+AC_PATH_PROGS(MODPROBE, modprobe, modprobe)
+AC_PATH_PROGS(RAIDSTART, raidstart, raidstart)
+AC_PATH_PROGS(RAIDSTOP, raidstop, raidstop)
+AC_PATH_PROGS(MDADM, mdadm, /sbin/mdadm)
 AC_PATH_PROGS(LIBNETCONFIG, libnet-config)
 AC_PATH_PROGS(GETENT, getent)
 AC_PATH_PROGS(IP2UTIL, ip)
@@ -392,8 +392,8 @@ AC_SUBST(MD5)
 dnl The "test" program can be different from the "sh" builtin.
 AC_PATH_PROGS(TEST, test)
 
-AC_PATH_PROGS(DRBDADM, drbdadm)
-AC_PATH_PROGS(DRBDSETUP, drbdsetup)
+AC_PATH_PROGS(DRBDADM, drbdadm, /sbin/drbdadm)
+AC_PATH_PROGS(DRBDSETUP, drbdsetup, /sbin/drbdsetup)
 AC_PATH_PROGS(PKGCONFIG, pkg-config)
 
 dnl ************************************************************************
