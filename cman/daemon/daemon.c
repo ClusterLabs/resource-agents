@@ -38,7 +38,6 @@
 #include "logging.h"
 #include "commands.h"
 #include "barrier.h"
-#include "config.h"
 #include "cmanccs.h"
 #include "ais.h"
 

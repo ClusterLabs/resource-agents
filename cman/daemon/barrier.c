@@ -38,7 +38,6 @@
 #include "daemon.h"
 #include "commands.h"
 #include "logging.h"
-#include "config.h"
 #include "barrier.h"
 #include "ais.h"
 

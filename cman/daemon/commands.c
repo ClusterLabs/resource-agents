@@ -37,7 +37,6 @@
 #include "daemon.h"
 #include "barrier.h"
 #include "logging.h"
-#include "config.h"
 #include "cmanccs.h"
 #include "commands.h"
 #include "ais.h"

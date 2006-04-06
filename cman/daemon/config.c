@@ -16,7 +16,6 @@
 
 #include "ccs.h"
 #include "objdb.h"
-#include "config.h"
 #include "logging.h"
 
 static void read_config_for(int ccs_fd, struct objdb_iface_ver0 *objdb, char *key)
