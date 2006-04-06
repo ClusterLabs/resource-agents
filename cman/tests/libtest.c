@@ -88,9 +88,13 @@ int main()
 	}
 
 	cman_start_notification(h, cman_callback);
-	while (1)
-	cman_dispatch(h, CMAN_DISPATCH_BLOCKING | CMAN_DISPATCH_ALL);
-
+	while (1) {
+	  int ret = cman_dispatch(h, CMAN_DISPATCH_BLOCKING | CMAN_DISPATCH_ALL);
+	  if (ret == -1) {
+		perror("cman_dispatch");
+		break;
+	  }
+	}
 	cman_finish(h);
 
 	return 0;

@@ -33,14 +33,6 @@
 static int use_stderr = 0;
 static int subsys_mask = 0;
 
-int init_log(int debug)
-{
-	openlog("cman", LOG_CONS|LOG_PID, LOG_DAEMON);
-	use_stderr = debug;
-
-	return 0;
-}
-
 /* This is always called by the libtotem routines so we prefix messages
    with "totem:"
 */
@@ -73,6 +65,10 @@ void log_msg(int priority, char *fmt, ...)
 
 void init_debug(int subsystems)
 {
+	openlog("cman", LOG_CONS|LOG_PID, LOG_DAEMON);
+
+	use_stderr = (subsystems != 0);
+
 	subsys_mask = subsystems;
 }
 

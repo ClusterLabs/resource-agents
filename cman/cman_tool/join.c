@@ -105,7 +105,11 @@ int join(commandline_t *comline)
 		envp[envptr++] = strdup(scratch);
 	}
 	if (comline->verbose)
-		envp[envptr++] = strdup("CMAN_DEBUGLOG=y");
+		envp[envptr++] = strdup("CMAN_DEBUGLOG=255");
+
+	/* Use cman to configure services */
+	envp[envptr++] = strdup("OPENAIS_DEFAULT_CONFIG_IFACE=cmanconfig");
+
 	envp[envptr++] = NULL;
 
 	argv[0] = "aisexec";

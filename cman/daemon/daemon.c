@@ -442,9 +442,6 @@ int cman_init()
 	ais_poll_handle = aisexec_poll_handle;
 	barrier_init();
 
-	init_log(1);
-	init_debug(cman_config[DEBUG_MASK].value);
-
 	log_msg(LOG_INFO, "CMAN %s (built %s %s) started\n",
 		CMAN_RELEASE_NAME, __DATE__, __TIME__);
 
@@ -461,7 +458,8 @@ int cman_init()
 	sigaction(SIGINT, &sa, NULL);
 	sigaction(SIGTERM, &sa, NULL);
 
-	signal(SIGPIPE, SIG_IGN);
+	sa.sa_handler = SIG_IGN;
+	sigaction(SIGPIPE, &sa, NULL);
 
 	if (read_ccs_nodes()) {
 		log_msg(LOG_ERR, "Can't initialise list of nodes from CCS\n");

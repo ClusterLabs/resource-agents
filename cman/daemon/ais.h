@@ -14,7 +14,6 @@
 
 #include "totem.h"
 
-extern int comms_init_ais(void);
 extern int ais_set_mcast(char *mcast);
 extern int ais_add_ifaddr(char *ifaddr);
 extern int comms_send_message(void *buf, int len,
@@ -24,4 +23,5 @@ extern int comms_send_message(void *buf, int len,
 
 extern uint64_t incarnation;
 extern struct totem_ip_address mcast_addr;
-extern struct totem_interface ifaddrs[MAX_INTERFACES];
+extern struct totem_ip_address ifaddrs[MAX_INTERFACES];
+extern int num_interfaces;

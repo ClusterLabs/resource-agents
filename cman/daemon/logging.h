@@ -12,7 +12,6 @@
 
 extern void log_msg(int priority, char *fmt, ...);
 extern void init_debug(int subsystems);
-extern int init_log(int debug);
 
 /* Debug macros */
 #ifdef DEBUG

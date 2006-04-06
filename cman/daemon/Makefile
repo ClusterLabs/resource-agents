@@ -12,7 +12,7 @@
 
 top_srcdir=..
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
-AISDIR=openais20060328
+AISDIR=openais20060406
 AISTAG=trunk
 
 include ${top_srcdir}/make/defines.mk
@@ -38,25 +38,25 @@ service_cman.lcrso: ${CMAN_OBJS} ${AISDIR}/${AISTAG}/exec/aisexec
 	ln -sf ${AISDIR} openais
 
 daemon.o: daemon.c list.h cnxman-socket.h cnxman-private.h \
-  daemon.h logging.h commands.h barrier.h config.h cmanccs.h
+  daemon.h logging.h commands.h barrier.h cmanccs.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 cnxman.o: cnxman.c list.h cnxman-socket.h cnxman-private.h \
-  daemon.h barrier.h commands.h config.h logging.h
+  daemon.h barrier.h commands.h logging.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-config.o: config.c config.h
+config.o: config.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 cmanccs.o: cmanccs.c cmanccs.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 barrier.o: barrier.c list.h cnxman-socket.h cnxman-private.h \
-  daemon.h logging.h config.h barrier.h
+  daemon.h logging.h barrier.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 commands.o: commands.c list.h cnxman-socket.h cnxman-private.h \
-  daemon.h barrier.h  logging.h config.h
+  daemon.h barrier.h  logging.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 logging.o: logging.c list.h cnxman-socket.h cnxman-private.h 
@@ -67,10 +67,9 @@ ${AISDIR}/${AISDIR}.tar.gz:
 	mkdir -p ${AISDIR}
 	cd ${AISDIR} && wget http://people.redhat.com/pcaulfie/${AISDIR}.tar.gz
 
-# Unpack the tarball and apply our patches
+# Unpack the tarball
 ${AISDIR}/${AISTAG}: ${AISDIR}/${AISDIR}.tar.gz
 	cd ${AISDIR} && tar -xzf ${AISDIR}.tar.gz
-	cd ${AISDIR} && patch -p1 < ../ais-cman-hack.patch
 	touch ${AISDIR}/${AISTAG}
 
 ${AISDIR}/${AISTAG}/exec/aisexec: ${AISDIR}/${AISTAG}

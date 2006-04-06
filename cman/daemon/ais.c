@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -31,7 +31,9 @@
 #include "totempg.h"
 #include "aispoll.h"
 #include "service.h"
+#include "config.h"
 #include "../lcr/lcr_comp.h"
+
 
 #include "cnxman-socket.h"
 #include "logging.h"
@@ -39,23 +41,26 @@
 #include "ais.h"
 #include "cmanccs.h"
 #include "daemon.h"
-#include "config.h"
 
 extern int our_nodeid();
 extern char cluster_name[MAX_CLUSTER_NAME_LEN+1];
 extern int ip_port;
 extern char *key_filename;
+extern unsigned int quorumdev_poll;
+extern unsigned int shutdown_timeout;
+extern int init_config(struct objdb_iface_ver0 *objdb);
 
-uint64_t incarnation;
 struct totem_ip_address mcast_addr;
-struct totem_interface ifaddrs[MAX_INTERFACES];
+struct totem_ip_address ifaddrs[MAX_INTERFACES];
 int num_interfaces;
+uint64_t incarnation;
+
+static unsigned int debug_mask;
+static struct objdb_iface_ver0 *global_objdb;
 static totempg_groups_handle group_handle;
 static struct totempg_group cman_group[1] = {
         { .group          = "CMAN", .group_len      = 4},
 };
-
-static struct totem_config cman_ais_config;
 
 /* This structure is tacked onto the start of a cluster message packet for our
  * own nefarious purposes. */
@@ -68,6 +73,16 @@ struct cl_protheader {
 	int            tgtid;	/* Node ID of the target */
 };
 
+static int comms_init_ais(struct objdb_iface_ver0 *objdb);
+static void cman_deliver_fn(struct totem_ip_address *source_addr, struct iovec *iovec, int iov_len,
+			    int endian_conversion_required);
+static void cman_confchg_fn(enum totem_configuration_type configuration_type,
+			    struct totem_ip_address *member_list, int member_list_entries,
+			    struct totem_ip_address *left_list, int left_list_entries,
+			    struct totem_ip_address *joined_list, int joined_list_entries,
+			    struct memb_ring_id *ring_id);
+static int cman_readconfig (struct objdb_iface_ver0 *objdb, char **error_string);
+
 /* Plugin-specific code */
 /* Need some better way of determining these.... */
 #define CMAN_SERVICE 8
@@ -79,10 +94,42 @@ struct cl_protheader {
 #define LOG_LEVEL_ENTER_FUNC LOG_LEVEL_DEBUG
 
 static int cman_exit_fn (void *conn_info);
+static int cman_exec_init_fn (struct objdb_iface_ver0 *objdb);
 
-static int cman_exec_init_fn (struct openais_config *);
+/* These just makes the code below a little neater */
+static inline int objdb_get_string(struct objdb_iface_ver0 *objdb, unsigned int object_service_handle,
+				   char *key, char **value)
+{
+	int res;
 
-static int cman_config_init_fn (struct openais_config *openais_config);
+	*value = NULL;
+	if ( !(res = objdb->object_key_get (object_service_handle,
+					    key,
+					    strlen (key),
+					    (void *)value,
+					    NULL))) {
+		if (*value)
+			return 0;
+	}
+	return -1;
+}
+
+static inline void objdb_get_int(struct objdb_iface_ver0 *objdb, unsigned int object_service_handle,
+				   char *key, unsigned int *intvalue)
+{
+	char *value = NULL;
+
+	if (!objdb->object_key_get (object_service_handle,
+				    key,
+				    strlen (key),
+				    (void *)&value,
+				    NULL)) {
+		if (value) {
+			*intvalue = atoi(value);
+		}
+	}
+}
+
 
 /*
  * Exports the interface for the service
@@ -92,7 +139,7 @@ static struct openais_service_handler cman_service_handler = {
 	.id			        = CMAN_SERVICE,
 	.lib_exit_fn		       	= cman_exit_fn,
 	.exec_init_fn		       	= cman_exec_init_fn,
-	.config_init_fn                 = cman_config_init_fn,
+	.config_init_fn                 = NULL,
 };
 
 static struct openais_service_handler *cman_get_handler_ver0 (void);
@@ -120,39 +167,110 @@ static struct lcr_comp cman_comp_ver0 = {
 	.ifaces			       	= openais_cman_ver0
 };
 
-static void register_this_component (void) {
-        lcr_component_register (&cman_comp_ver0);
-}
-
-void (*const __ctor_cman_comp[1]) (void) __attribute__ ((section(".ctors"))) = { register_this_component };
-
 
 static struct openais_service_handler *cman_get_handler_ver0 (void)
 {
 	return (&cman_service_handler);
 }
 
-static int cman_config_init_fn (struct openais_config *openais_config)
+__attribute__ ((constructor)) static void cman_comp_register (void) {
+	lcr_component_register (&cman_comp_ver0);
+}
+
+/* ------------------------------- */
+/* Code for configuration plugin */
+static struct config_iface_ver0 cmanconfig_iface_ver0 = {
+	.config_readconfig        = cman_readconfig
+};
+
+static struct lcr_iface cmanconfig_ver0[1] = {
+	{
+		.name				= "cmanconfig",
+		.version			= 0,
+		.versions_replace		= 0,
+		.versions_replace_count		= 0,
+		.dependencies			= 0,
+		.dependency_count		= 0,
+		.constructor			= NULL,
+		.destructor			= NULL,
+		.interfaces			= (void **)(void *)&cmanconfig_iface_ver0,
+	}
+};
+
+static struct lcr_comp cmanconfig_comp_ver0 = {
+	.iface_count				= 1,
+	.ifaces					= cmanconfig_ver0
+};
+
+
+__attribute__ ((constructor)) static void cmanconfig_comp_register (void) {
+	lcr_component_register (&cmanconfig_comp_ver0);
+}
+
+/* ------------------------------- */
+
+static int cman_readconfig (struct objdb_iface_ver0 *objdb, char **error_string)
 {
 	int error;
 
-	init_config();
+	if (getenv("CMAN_DEBUGLOG"))
+	{
+		char *dlog = strdup(getenv("CMAN_DEBUGLOG"));
+		char *equal = strchr(dlog, '=');
+
+		if (equal)
+			debug_mask = atoi(equal+1);
+		log_setup(NULL, LOG_MODE_STDERR, "/tmp/ais");
+		init_debug(debug_mask);
+	}
+	else
+	{
+		log_setup(NULL, LOG_MODE_SYSLOG, "/tmp/ais");
+		init_debug(0);
+		debug_mask = 0;
+	}
+
+	global_objdb = objdb;
+
+	/* Read low-level totem etc config from CCS */
+	init_config(objdb);
+
+	/* Read cman-specific config from CCS */
 	error = read_ccs_config();
 	if (error)
 		exit(1);
 
-	comms_init_ais();
+	/* Do config overrides */
+	comms_init_ais(objdb);
 
-	if (getenv("CMAN_DEBUGLOG"))
-	    log_setup(NULL, LOG_MODE_STDERR, "/tmp/ais");
-
-	memcpy(&openais_config->totem_config, &cman_ais_config, sizeof(struct totem_config));
 	return 0;
 }
 
-static int cman_exec_init_fn (struct openais_config *openais_config)
+static int cman_exec_init_fn (struct objdb_iface_ver0 *objdb)
 {
+	unsigned int object_handle;
+
+	/* Get our config variable */
+	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
+	if (objdb->object_find(OBJECT_PARENT_HANDLE,
+			       "cman",
+			       strlen ("cman"),
+			       &object_handle) == 0)
+	{
+		objdb_get_int(objdb, object_handle, "debug_mask", &debug_mask);
+		objdb_get_int(objdb, object_handle, "quorum_dev_poll", &quorumdev_poll);
+		objdb_get_int(objdb, object_handle, "shutdown_timeout", &shutdown_timeout);
+
+		init_debug(debug_mask);
+	}
+
+	/* Open local sockets and initialise I/O queues */
 	cman_init();
+
+	/* Start totem */
+	totempg_groups_initialize(&group_handle, cman_deliver_fn, cman_confchg_fn);
+	totempg_groups_join(group_handle, cman_group, 1);
+
 	return (0);
 }
 
@@ -167,39 +285,49 @@ int cman_exit_fn (void *conn_info)
 
 int ais_set_mcast(char *mcast)
 {
-	int ret;
+	unsigned int object_handle;
+	int ret = -1;
 
 	P_AIS("Adding multi address %s\n", mcast);
-	ret = totemip_parse(&mcast_addr, mcast);
 
-	if (num_interfaces && mcast_addr.family != ifaddrs[0].bindnet.family) {
-		log_msg(LOG_ERR, "multicast address '%s' is not same family as host address\n", mcast);
-		ret = -EINVAL;
+	global_objdb->object_find_reset(OBJECT_PARENT_HANDLE);
+	if (global_objdb->object_find(OBJECT_PARENT_HANDLE,
+				      "totem",
+				      strlen ("totem"),
+				      &object_handle) == 0) {
+
+		global_objdb->object_key_create(object_handle, "mcastaddr", strlen("mcastaddr"),
+						mcast, strlen(mcast)+1);
+
+		/* Keep a local copy */
+		ret = totemip_parse(&mcast_addr, mcast);
 	}
+
 	return ret;
 }
 
 int ais_add_ifaddr(char *ifaddr)
 {
-	int ret;
+	unsigned int object_handle;
+	int ret = -1;
 
 	P_AIS("Adding local address %s\n", ifaddr);
 
-	ret = totemip_parse(&ifaddrs[num_interfaces].bindnet, ifaddr);
-	if (ret == 0) {
-		int i;
+	/* This should already exist as early config creates it */
+	global_objdb->object_find_reset (OBJECT_PARENT_HANDLE);
+	if (global_objdb->object_find (
+		OBJECT_PARENT_HANDLE,
+		"totem",
+		strlen ("totem"),
+		&object_handle) == 0) {
 
-		for (i=0; i<num_interfaces; i++) {
-			if (ifaddrs[i].bindnet.family != ifaddrs[num_interfaces].bindnet.family) {
-				log_msg(LOG_ERR, "new address is not same family as others\n");
-				return -EINVAL;
-			}
-		}
-		if (mcast_addr.family && mcast_addr.family != ifaddrs[num_interfaces].bindnet.family) {
-			log_msg(LOG_ERR, "new address is not same family as multicast address\n");
-			return -EINVAL;
-		}
-		num_interfaces++;
+		global_objdb->object_key_create(object_handle, "bindnetaddr", strlen("bindnetaddr"),
+						 ifaddr, strlen(ifaddr)+1);
+
+		ret = totemip_parse(&ifaddrs[num_interfaces], ifaddr);
+		if (!ret)
+			num_interfaces++;
+
 	}
 
 	return ret;
@@ -234,7 +362,8 @@ int comms_send_message(void *buf, int len,
 }
 
 // This assumes the iovec has only one element ... is it true ??
-static void cman_deliver_fn(struct totem_ip_address *source_addr, struct iovec *iovec, int iov_len, int endian_conversion_required)
+static void cman_deliver_fn(struct totem_ip_address *source_addr, struct iovec *iovec, int iov_len,
+			    int endian_conversion_required)
 {
 	struct cl_protheader *header = iovec->iov_base;
 	char *buf = iovec->iov_base;
@@ -261,10 +390,10 @@ static void cman_deliver_fn(struct totem_ip_address *source_addr, struct iovec *
 }
 
 static void cman_confchg_fn(enum totem_configuration_type configuration_type,
-		       struct totem_ip_address *member_list, int member_list_entries,
-		       struct totem_ip_address *left_list, int left_list_entries,
-		       struct totem_ip_address *joined_list, int joined_list_entries,
-		       struct memb_ring_id *ring_id)
+			    struct totem_ip_address *member_list, int member_list_entries,
+			    struct totem_ip_address *left_list, int left_list_entries,
+			    struct totem_ip_address *joined_list, int joined_list_entries,
+			    struct memb_ring_id *ring_id)
 {
 	int i;
 	static int last_memb_count = 0;
@@ -286,69 +415,89 @@ static void cman_confchg_fn(enum totem_configuration_type configuration_type,
 	}
 }
 
-int comms_init_ais()
+/* These are basically our overrides to the totem config bits */
+static int comms_init_ais(struct objdb_iface_ver0 *objdb)
 {
-	char *errstring;
+	unsigned int object_handle;
+	char tmp[256];
 
 	P_AIS("comms_init_ais()\n");
 
-	cman_ais_config.interfaces = ifaddrs;
-	cman_ais_config.interface_count = num_interfaces;
-	cman_ais_config.ip_port = htons(ip_port);
+	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
 
-	totemip_copy(&cman_ais_config.mcast_addr, &mcast_addr);
-	cman_ais_config.node_id = our_nodeid();
-
-	cman_ais_config.totem_logging_configuration.log_printf = log_msg;
-	cman_ais_config.totem_logging_configuration.log_level_security = 5;
-	cman_ais_config.totem_logging_configuration.log_level_error = 4;
-	cman_ais_config.totem_logging_configuration.log_level_warning = 3;
-	cman_ais_config.totem_logging_configuration.log_level_notice = 2;
-	cman_ais_config.totem_logging_configuration.log_level_debug = 1;
-
-        /* Set defaults */
-	cman_ais_config.token_retransmits_before_loss_const = cman_config[TOKEN_RETRANSMITS_BEFORE_LOSS_CONST].value;
-	cman_ais_config.token_timeout = cman_config[TOKEN_TIMEOUT].value;
-	cman_ais_config.token_retransmit_timeout = cman_config[TOKEN_RETRANSMIT_TIMEOUT].value;
-	cman_ais_config.token_hold_timeout = cman_config[TOKEN_HOLD_TIMEOUT].value;
-	cman_ais_config.join_timeout = cman_config[JOIN_TIMEOUT].value;
-	cman_ais_config.consensus_timeout = cman_config[CONSENSUS_TIMEOUT].value;
-	cman_ais_config.merge_timeout = cman_config[MERGE_TIMEOUT].value;
-	cman_ais_config.downcheck_timeout = cman_config[DOWNCHECK_TIMEOUT].value;
-	cman_ais_config.fail_to_recv_const = cman_config[FAIL_TO_RECV_CONST].value;
-	cman_ais_config.seqno_unchanged_const = cman_config[SEQNO_UNCHANGED_CONST].value;
-	cman_ais_config.net_mtu = 1500;
-	cman_ais_config.threads = cman_config[THREAD_COUNT].value;
-
-	cman_ais_config.totem_logging_configuration.log_level_security =
-	cman_ais_config.totem_logging_configuration.log_level_error =
-	cman_ais_config.totem_logging_configuration.log_level_warning =
-	cman_ais_config.totem_logging_configuration.log_level_notice =
-	cman_ais_config.totem_logging_configuration.log_level_debug = cman_config[DEBUG_LEVEL].value;
-
-	if (key_filename)
+	if (objdb->object_find(OBJECT_PARENT_HANDLE,
+			       "totem",
+			       strlen ("totem"),
+			       &object_handle) == 0)
 	{
-		cman_ais_config.secauth = 1;
-		P_AIS("Reading key from file %s\n", key_filename);
-		if (totem_config_keyread(key_filename, &cman_ais_config, &errstring))
+		global_objdb->object_key_create(object_handle, "version", strlen("version"),
+						"1", 2);
+
+		sprintf(tmp, "%d", ip_port);
+		objdb->object_key_create(object_handle, "mcastport", strlen ("mcastport"),
+					 tmp, strlen(tmp)+1);
+
+		sprintf(tmp, "%d", our_nodeid());
+		objdb->object_key_create(object_handle, "nodeid", strlen ("nodeid"),
+					 tmp, strlen(tmp)+1);
+
+		sprintf(tmp, "%d", 1);
+		objdb->object_key_create(object_handle, "secauth", strlen ("secauth"),
+					 tmp, strlen(tmp)+1);
+
+		if (key_filename)
 		{
-			P_AIS("Unable to read key from file %s: %s\n", key_filename, errstring);
-			log_msg(LOG_ERR, "Unable to read key from file %s: %s\n", key_filename, errstring);
-			exit(22);
+			objdb->object_key_create(object_handle, "keyfile", strlen ("keyfile"),
+						 key_filename, strlen(key_filename)+1);
+		}
+		else /* Use the cluster name as key, this allows us to isolate different clusters on a single network */
+		{
+			int keylen;
+			memset(tmp, 0, sizeof(tmp));
+
+			strcpy(tmp, cluster_name);
+
+			/* Key length must be a multiple of 4 */
+			keylen = (strlen(cluster_name)+4) & 0xFC;
+			objdb->object_key_create(object_handle, "key", strlen ("key"),
+						  tmp, keylen);
 		}
 	}
-	else /* Use the cluster name as key, this allows us to isolate different clusters on a single network */
+
+	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
+	if (objdb->object_find(OBJECT_PARENT_HANDLE,
+			       "logging",
+			       strlen ("logging"),
+			       &object_handle) == 0)
 	{
-		cman_ais_config.secauth = 1;
-		memset(cman_ais_config.private_key, 0, sizeof(cman_ais_config.private_key));
-
-		/* Key length must be a multiple of 4 */
-		cman_ais_config.private_key_len = (strlen(cluster_name)+4) & 0xFC;
-		memcpy(cman_ais_config.private_key, cluster_name, strlen(cluster_name));
+		if (debug_mask)
+		{
+			objdb->object_key_create(object_handle, "logoutput", strlen ("logoutput"),
+						 "stderr", strlen("stderr")+1);
+		}
+		else
+		{
+			objdb->object_key_create(object_handle, "logoutput", strlen ("logoutput"),
+						 "syslog", strlen("syslog")+1);
+		}
 	}
-	totempg_groups_initialize(&group_handle, cman_deliver_fn, cman_confchg_fn);
 
-	totempg_groups_join(group_handle, cman_group, 1);
+	/* Make sure we load our alter-ego */
+	objdb->object_create(OBJECT_PARENT_HANDLE, &object_handle,
+			     "service", strlen ("service"));
+	objdb->object_key_create(object_handle, "name", strlen ("name"),
+				 "openais_cman", strlen ("openais_cman") + 1);
+	objdb->object_key_create(object_handle, "ver", strlen ("ver"),
+				 "0", 2);
+
+	/* Don't run under user "ais" */
+	objdb->object_create(OBJECT_PARENT_HANDLE, &object_handle,
+			     "aisexec", strlen ("aisexec"));
+	objdb->object_key_create(object_handle, "user", strlen ("user"),
+				 "root", strlen ("root") + 1);
+	objdb->object_key_create(object_handle, "group", strlen ("group"),
+				 "root", strlen ("root") + 1);
+
 
 	return 0;
 }

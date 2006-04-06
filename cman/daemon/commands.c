@@ -65,11 +65,12 @@ static struct cluster_node *us;
 static int quorum;
        int two_node;
        int ip_port;
+       unsigned int quorumdev_poll=10000;
+       unsigned int shutdown_timeout=5000;
 static int cluster_is_quorate;
        char cluster_name[MAX_CLUSTER_NAME_LEN+1];
 static char nodename[MAX_CLUSTER_MEMBER_NAME_LEN+1];
 static int wanted_nodeid;
-extern int num_interfaces;
 extern poll_handle ais_poll_handle;
 static struct cluster_node *quorum_device;
 static uint16_t cluster_id;
@@ -414,7 +415,7 @@ static int do_cmd_get_extrainfo(char *cmdbuf, char **retbuf, int retsize, int *r
 	ptr += sizeof(struct sockaddr_storage);
 	for (i=0; i<num_interfaces; i++) {
 		ss = (struct sockaddr_storage *)ptr;
-		totemip_totemip_to_sockaddr_convert(&ifaddrs[i].bindnet, 0, ss, &addrlen);
+		totemip_totemip_to_sockaddr_convert(&ifaddrs[i], 0, ss, &addrlen);
 		ptr += sizeof(struct sockaddr_storage);
 	}
 
@@ -762,9 +763,6 @@ static uint16_t generate_cluster_id(char *name)
 	if (strlen(join_info->cluster_name) > MAX_CLUSTER_NAME_LEN)
 		return -EINVAL;
 
-	if (!num_interfaces)
-		return -ENOTCONN;
-
 	cluster_id = generate_cluster_id(join_info->cluster_name);
 	strncpy(cluster_name, join_info->cluster_name, MAX_CLUSTER_NAME_LEN);
 	two_node = join_info->two_node;
@@ -840,7 +838,7 @@ static void check_shutdown_status()
 
 		if (shutdown_yes >= shutdown_expected ||
 		    shutdown_flags & SHUTDOWN_ANYWAY) {
-			quit_threads == 1;
+			quit_threads = 1;
 			if (shutdown_flags & SHUTDOWN_REMOVE)
 				leaveflags |= CLUSTER_LEAVEFLAG_REMOVED;
 			send_leave(leaveflags);
@@ -921,7 +919,7 @@ static int do_cmd_try_shutdown(struct connection *con, char *cmdbuf)
 
 		/* Start the timer. If we don't get a full set of replies before this goes
 		   off we'll cancel the shutdown */
-		poll_timer_add(ais_poll_handle, cman_config[SHUTDOWN_TIMEOUT].value, NULL,
+		poll_timer_add(ais_poll_handle, shutdown_timeout, NULL,
 			       shutdown_timer_fn, &shutdown_timer);
 
 		notify_listeners(NULL, EVENT_REASON_TRY_SHUTDOWN, flags);
@@ -1000,14 +998,13 @@ static void quorum_device_timer_fn(void *arg)
 		return;
 
 	gettimeofday(&now, NULL);
-	if (quorum_device->last_hello.tv_sec + cman_config[QUORUMDEV_POLL].value <
-	    now.tv_sec) {
+	if (quorum_device->last_hello.tv_sec + quorumdev_poll < now.tv_sec) {
 		quorum_device->state = NODESTATE_DEAD;
 		log_msg(LOG_INFO, "lost contact with quorum device\n");
 		recalculate_quorum(0);
 	}
 	else {
-		poll_timer_add(ais_poll_handle, cman_config[QUORUMDEV_POLL].value, quorum_device,
+		poll_timer_add(ais_poll_handle, quorumdev_poll, quorum_device,
 			       quorum_device_timer_fn, &quorum_device_timer);
 	}
 }
@@ -1027,7 +1024,7 @@ static int do_cmd_poll_quorum_device(char *cmdbuf, int *retlen)
                         quorum_device->state = NODESTATE_MEMBER;
                         recalculate_quorum(0);
 
-			poll_timer_add(ais_poll_handle, cman_config[QUORUMDEV_POLL].value, quorum_device,
+			poll_timer_add(ais_poll_handle, quorumdev_poll, quorum_device,
 				       quorum_device_timer_fn, &quorum_device_timer);
                 }
         }
