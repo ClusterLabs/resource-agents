@@ -4,7 +4,7 @@
 ###############################################################################
 ##
 ##  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+##  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
 ##  
 ##  This copyrighted material is made available to anyone wishing to use,
 ##  modify, copy, or redistribute it subject to the terms and conditions
@@ -27,7 +27,7 @@ my $pname = $_;
 my $immediate = 'immediate'; # # Or 'delayed' - action string prefix on menu
 my $masterswitch = 'masterswitch plus '; # 'Device Manager' option to choose
 my $login_prompt = '/: /';
-my $cmd_prompt = '/> /';
+my $cmd_prompt = '/> $/';
 
 my $max_open_tries = 3;      # How many telnet attempts to make.  Because the 
                              # APC can fail repeated login attempts, this number
@@ -48,7 +48,7 @@ my $t = new Net::Telnet;
 
 #BEGIN_VERSION_GENERATION
 $FENCE_RELEASE_NAME="";
-$SISTINA_COPYRIGHT="";
+$REDHAT_COPYRIGHT="";
 $BUILD_DATE="";
 #END_VERSION_GENERATION
 
@@ -84,7 +84,7 @@ sub fail
 		$t->errmode('return');  
 
 		logout() if $logged_in;
-		$t->close 
+		$t->close();
 	}
 	exit 1;
 }
@@ -100,7 +100,7 @@ sub fail_usage
 sub version
 {
 	print "$pname $FENCE_RELEASE_NAME $BUILD_DATE\n";
-	print "$SISTINA_COPYRIGHT\n" if ( $SISTINA_COPYRIGHT );
+	print "$REDHAT_COPYRIGHT\n" if ( $REDHAT_COPYRIGHT );
 	exit 0;
 }
 
@@ -114,7 +114,7 @@ sub login
   
 		# Expect 'User Name : ' 
 		if (! /name/i) {
-			$t->close;
+			$t->close();
 			sleep($open_wait);
 			next;        
 		}
@@ -124,7 +124,7 @@ sub login
 
 		# Expect 'Password  : ' 
 		if (! /password/i ) {
-			$t->close;
+			$t->close();
 			sleep($open_wait);
 			next;         
 		}
@@ -214,7 +214,7 @@ sub navigate
 	for(my $i=20; $i ; $i--)
 	{
 		# Get the new text from the menu
-		($_) = $t->waitfor($cmd_prompt);
+		(($_) = $t->waitfor($cmd_prompt)) or next;
 
 		# Identify next option 
 		if ( 
@@ -244,14 +244,18 @@ sub navigate
 			/--\s*device manager.*(\d+)\s*-\s*Outlet Control/is ||
 
 			# "Device Manager", "1- Cluster Node 0   ON"
-			/--\s*Outlet Control.*(\d+)\s*-\s+Outlet\s+$opt_n\D[^\n]*\s(?-i:ON|OFF)\*?\s/ism ||
+			/--\s*Outlet Control.*\s+?(\d+)\s*-\s+Outlet\s+$opt_n\D[^\n]*\s(?-i:ON|OFF)\*?\s/ism ||
 
 			# Administrator Outlet Control menu
 			/--\s*Outlet $opt_n\D.*(\d+)\s*-\s*control\s*outlet\s+$opt_n\D/ism ||
-			/--\s*Outlet $opt_n\D.*(\d+)\s*-\s*control\s*outlet/ism 
-
+			/--\s*Outlet $opt_n\D.*(\d+)\s*-\s*control\s*outlet/ism
 		) {
 			$t->print($1);
+			next;
+		}
+
+		if (/.*Press ([^\n\r]+) to continue.*$/) {
+			$t->print("");
 			next;
 		}
 
@@ -314,7 +318,7 @@ sub action
 	if (defined $opt_T) {
 		logout(); 
 		print "success: test outlet $opt_n $opt_o\n" unless defined $opt_q; 
-		$t->close;
+		$t->close();
 
 		# Allow the APC some time to clean connection
 		# before next login.
@@ -324,7 +328,7 @@ sub action
 	} elsif ( /Success/i ) {
 		logout();
 		print "success: outlet $opt_n $opt_o\n" unless defined $opt_q; 
-		$t->close;
+		$t->close();
 
 		# Allow the APC some time to clean connection
 		# before next login.
@@ -411,7 +415,11 @@ sub get_options_stdin
 
 sub telnet_error
 {
-	fail "failed: telnet returned: ".$t->errmsg."\n";
+	if ($t->errmsg ne "pattern match timed-out") {
+		fail "failed: telnet returned: ".$t->errmsg."\n";
+	} else {
+		$t->print("");
+	}
 }
 
 
