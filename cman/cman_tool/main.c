@@ -224,6 +224,7 @@ static void show_status(void)
 	printf("Node addresses: ");
 	for (i=0; i < einfo->ei_num_addresses; i++) {
 		print_address(addrptr);
+		printf(" ");
 		addrptr += sizeof(struct sockaddr_storage);
 	}
 	printf("\n");
