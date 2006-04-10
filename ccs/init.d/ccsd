@@ -19,8 +19,16 @@ LOCK_FILE="/var/lock/subsys/ccsd"
 
 start()
 {
-	action $"Starting ccsd: " ccsd $CCSD_OPTS
-	return $?
+	echo -n "Starting ccsd:"
+        status ccsd &> /dev/null
+        if [ $? -ne 0 ]
+        then
+                action $"" ccsd $CCSD_OPTS
+                return $?
+        fi
+        success "start"
+        echo
+        return 0
 }
 
 stop()
@@ -73,7 +81,7 @@ case "$1" in
 
   status)
 	status ccsd
-	rtrn=0
+	rtrn=$?
 	;;
 
   *)
