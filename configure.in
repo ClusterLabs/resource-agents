@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.501 $) dnl cvs revision
+AC_REVISION($Revision: 1.502 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -2646,6 +2646,7 @@ resources/Makefile						\
 	resources/OCF/ocf-shellfuncs				\
 	resources/OCF/ClusterMon				\
 	resources/OCF/Dummy					\
+	resources/OCF/pingd					\
 	resources/OCF/apache					\
 	resources/OCF/AudibleAlarm				\
 	resources/OCF/Delay					\
