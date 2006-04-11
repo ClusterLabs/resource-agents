@@ -76,7 +76,7 @@ Startup procedure
 Run these commands on each cluster node:
 debug/verbose options in [] can be useful at this stage :)
 
-> mount -t configfs none /config
+> mount -t configfs none /sys/kernel/config
 > ccsd -X
 > cman_tool join [-d]
 > groupd [-D]
