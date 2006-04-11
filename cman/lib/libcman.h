@@ -95,6 +95,11 @@ typedef enum {CMAN_REASON_PORTCLOSED,
 
 /*
  * A node address. This is a complete sockaddr_in[6]
+ * To explain:
+ *  If you cast cna_address to a 'struct sockaddr', the sa_family field
+ *  will be AF_INET or AF_INET6. Armed with that knowledge you can then
+ *  cast it to a sockaddr_in or sockaddr_in6 and pull out the address.
+ *  No other sockaddr fields are valid.
  */
 typedef struct cman_node_address
 {
