@@ -42,7 +42,8 @@ static int comms_nodes[MAX_NODES];
 static int comms_nodes_count;
 
 #define DLM_SYSFS_DIR "/sys/kernel/dlm"
-#define LS_DIR "/config/dlm/cluster/spaces"
+#define SPACES_DIR    "/sys/kernel/config/dlm/cluster/spaces"
+#define COMMS_DIR     "/sys/kernel/config/dlm/cluster/comms"
 
 
 static int do_sysfs(char *name, char *file, char *val)
@@ -110,7 +111,7 @@ static int update_dir_members(char *name)
 	int i = 0;
 
 	memset(path, 0, PATH_MAX);
-	snprintf(path, PATH_MAX, "%s/%s/nodes", LS_DIR, name);
+	snprintf(path, PATH_MAX, "%s/%s/nodes", SPACES_DIR, name);
 
 	d = opendir(path);
 	if (!d) {
@@ -225,7 +226,7 @@ int set_members(char *name, int new_count, int *new_members)
 	 */
 
 	memset(path, 0, PATH_MAX);
-	snprintf(path, PATH_MAX, "%s/%s", LS_DIR, name);
+	snprintf(path, PATH_MAX, "%s/%s", SPACES_DIR, name);
 
 	if (!path_exists(path)) {
 		if (create_path(path))
@@ -249,7 +250,8 @@ int set_members(char *name, int new_count, int *new_members)
 			continue;
 
 		memset(path, 0, PATH_MAX);
-		snprintf(path, PATH_MAX, "%s/%s/nodes/%d", LS_DIR, name, id);
+		snprintf(path, PATH_MAX, "%s/%s/nodes/%d",
+			 SPACES_DIR, name, id);
 
 		log_debug("set_members rmdir \"%s\"", path);
 
@@ -267,7 +269,7 @@ int set_members(char *name, int new_count, int *new_members)
 
 	if (!new_count) {
 		memset(path, 0, PATH_MAX);
-		snprintf(path, PATH_MAX, "%s/%s", LS_DIR, name);
+		snprintf(path, PATH_MAX, "%s/%s", SPACES_DIR, name);
 
 		log_debug("set_members lockspace rmdir \"%s\"", path);
 
@@ -286,7 +288,8 @@ int set_members(char *name, int new_count, int *new_members)
 		 */
 
 		memset(path, 0, PATH_MAX);
-		snprintf(path, PATH_MAX, "%s/%s/nodes/%d", LS_DIR, name, id);
+		snprintf(path, PATH_MAX, "%s/%s/nodes/%d",
+			 SPACES_DIR, name, id);
 
 		log_debug("set_members mkdir \"%s\"", path);
 
@@ -299,8 +302,8 @@ int set_members(char *name, int new_count, int *new_members)
 		 */
 
 		memset(path, 0, PATH_MAX);
-		snprintf(path, PATH_MAX, "%s/%s/nodes/%d/nodeid", LS_DIR, name,
-			 id);
+		snprintf(path, PATH_MAX, "%s/%s/nodes/%d/nodeid",
+			 SPACES_DIR, name, id);
 
 		rv = fd = open(path, O_WRONLY);
 		if (rv < 0) {
@@ -329,8 +332,8 @@ int set_members(char *name, int new_count, int *new_members)
 		w = get_weight(cd, id);
 
 		memset(path, 0, PATH_MAX);
-		snprintf(path, PATH_MAX, "%s/%s/nodes/%d/weight", LS_DIR, name,
-			 id);
+		snprintf(path, PATH_MAX, "%s/%s/nodes/%d/weight",
+			 SPACES_DIR, name, id);
 
 		rv = fd = open(path, O_WRONLY);
 		if (rv < 0) {
@@ -367,7 +370,7 @@ char *str_ip(char *addr)
 }
 
 /* record the nodeids that are currently listed under
-   /config/dlm/cluster/comms/ so that we can remove all of them */
+   config/dlm/cluster/comms/ so that we can remove all of them */
 
 static int update_comms_nodes(void)
 {
@@ -377,7 +380,7 @@ static int update_comms_nodes(void)
 	int i = 0;
 
 	memset(path, 0, PATH_MAX);
-	snprintf(path, PATH_MAX, "/config/dlm/cluster/comms");
+	snprintf(path, PATH_MAX, COMMS_DIR);
 
 	d = opendir(path);
 	if (!d) {
@@ -399,7 +402,7 @@ static int update_comms_nodes(void)
 	return 0;
 }
 
-/* clear out everything under /config/dlm/cluster/comms/ */
+/* clear out everything under config/dlm/cluster/comms/ */
 
 void clear_configfs_comms(void)
 {
@@ -412,8 +415,7 @@ void clear_configfs_comms(void)
 
 	for (i = 0; i < comms_nodes_count; i++) {
 		memset(path, 0, PATH_MAX);
-		snprintf(path, PATH_MAX, "/config/dlm/cluster/comms/%d",
-			 comms_nodes[i]);
+		snprintf(path, PATH_MAX, "%s/%d", COMMS_DIR, comms_nodes[i]);
 
 		log_debug("clear_configfs_nodes rmdir \"%s\"", path);
 
@@ -434,8 +436,8 @@ static void clear_configfs_space_nodes(char *name)
 
 	for (i = 0; i < dir_members_count; i++) {
 		memset(path, 0, PATH_MAX);
-		snprintf(path, PATH_MAX, "%s/%s/nodes/%d", LS_DIR, name,
-			 dir_members[i]);
+		snprintf(path, PATH_MAX, "%s/%s/nodes/%d",
+			 SPACES_DIR, name, dir_members[i]);
 
 		log_debug("clear_configfs_space_nodes rmdir \"%s\"", path);
 
@@ -445,7 +447,7 @@ static void clear_configfs_space_nodes(char *name)
 	}
 }
 
-/* clear out everything under /config/dlm/cluster/spaces/ */
+/* clear out everything under config/dlm/cluster/spaces/ */
 
 void clear_configfs_spaces(void)
 {
@@ -455,7 +457,7 @@ void clear_configfs_spaces(void)
 	int rv;
 
 	memset(path, 0, PATH_MAX);
-	snprintf(path, PATH_MAX, "%s", LS_DIR);
+	snprintf(path, PATH_MAX, "%s", SPACES_DIR);
 
 	d = opendir(path);
 	if (!d) {
@@ -470,7 +472,7 @@ void clear_configfs_spaces(void)
 		clear_configfs_space_nodes(de->d_name);
 
 		memset(path, 0, PATH_MAX);
-		snprintf(path, PATH_MAX, "%s/%s", LS_DIR, de->d_name);
+		snprintf(path, PATH_MAX, "%s/%s", SPACES_DIR, de->d_name);
 		
 		log_debug("clear_configfs_spaces rmdir \"%s\"", path);
 
@@ -497,20 +499,25 @@ int add_configfs_node(int nodeid, char *addr, int addrlen, int local)
 	log_debug("set_configfs_node %d %s local %d",
 		  nodeid, str_ip(addr), local);
 
-	if (!path_exists("/config/dlm")) {
-		log_error("No /config/dlm, is the dlm loaded?");
+	if (!path_exists("/sys/kernel/config")) {
+		log_error("No /sys/kernel/config, is configfs loaded?");
 		return -1;
 	}
 
-	if (!path_exists("/config/dlm/cluster"))
-		create_path("/config/dlm/cluster");
+	if (!path_exists("/sys/kernel/config/dlm")) {
+		log_error("No /sys/kernel/config/dlm, is the dlm loaded?");
+		return -1;
+	}
+
+	if (!path_exists("/sys/kernel/config/dlm/cluster"))
+		create_path("/sys/kernel/config/dlm/cluster");
 
 	/*
 	 * create comm dir for this node
 	 */
 
 	memset(path, 0, PATH_MAX);
-	snprintf(path, PATH_MAX, "/config/dlm/cluster/comms/%d", nodeid);
+	snprintf(path, PATH_MAX, "%s/%d", COMMS_DIR, nodeid);
 
 	rv = create_path(path);
 	if (rv)
@@ -521,7 +528,7 @@ int add_configfs_node(int nodeid, char *addr, int addrlen, int local)
 	 */
 
 	memset(path, 0, PATH_MAX);
-	snprintf(path, PATH_MAX, "/config/dlm/cluster/comms/%d/nodeid", nodeid);
+	snprintf(path, PATH_MAX, "%s/%d/nodeid", COMMS_DIR, nodeid);
 
 	fd = open(path, O_WRONLY);
 	if (fd < 0) {
@@ -548,7 +555,7 @@ int add_configfs_node(int nodeid, char *addr, int addrlen, int local)
 	memcpy(padded_addr, addr, addrlen);
 
 	memset(path, 0, PATH_MAX);
-	snprintf(path, PATH_MAX, "/config/dlm/cluster/comms/%d/addr", nodeid);
+	snprintf(path, PATH_MAX, "%s/%d/addr", COMMS_DIR, nodeid);
 
 	fd = open(path, O_WRONLY);
 	if (fd < 0) {
@@ -572,7 +579,7 @@ int add_configfs_node(int nodeid, char *addr, int addrlen, int local)
 		goto out;
 
 	memset(path, 0, PATH_MAX);
-	snprintf(path, PATH_MAX, "/config/dlm/cluster/comms/%d/local", nodeid);
+	snprintf(path, PATH_MAX, "%s/%d/local", COMMS_DIR, nodeid);
 
 	fd = open(path, O_WRONLY);
 	if (fd < 0) {
@@ -597,7 +604,7 @@ void del_configfs_node(int nodeid)
 	int rv;
 
 	memset(path, 0, PATH_MAX);
-	snprintf(path, PATH_MAX, "/config/dlm/cluster/comms/%d", nodeid);
+	snprintf(path, PATH_MAX, "%s/%d", COMMS_DIR, nodeid);
 
 	log_debug("del_configfs_node rmdir \"%s\"", path);
 
