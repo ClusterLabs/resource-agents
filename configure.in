@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.502 $) dnl cvs revision
+AC_REVISION($Revision: 1.503 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1127,8 +1127,26 @@ specify CMPI header files with --with-cmpi-headers please.])] )
 
         if test "x${CMPI_PROVIDER_DIR}" = "x"; then
                 case ${CIMOM} in
-                        sfcbd)   CMPI_PROVIDER_DIR=${libdir}/cmpi;;
-                        openwbem)CMPI_PROVIDER_DIR=${libdir}/openwbem/cmpiproviders;;
+                        sfcbd)  SFCBD_PREFIX=`which sfcbd`
+				SFCBD_PREFIX=`dirname ${SFCBD_PREFIX}`
+				SFCBD_PREFIX=`dirname ${SFCBD_PREFIX}` 
+				CMPI_PROVIDER_DIR=${SFCBD_PREFIX}/lib/cmpi;;
+                        openwbem)
+				OPENWBEM_PREFIX=`which owcimomd`
+				OPENWBEM_PREFIX=`dirname ${OPENWBEM_PREFIX}`
+				OPENWBEM_PREFIX=`dirname ${OPENWBEM_PREFIX}`
+				OPENWBEM_CONFIG=${OPENWBEM_PREFIX}/etc/openwbem/openwbem.conf
+				OPENWBEM_CMPI_DIR=`grep -e "cmpiprovifc.prov_location.*=" \
+					${OPENWBEM_CONFIG} | sed -e 's/.*=\s*\(\.*\)/\1/'`
+				if test "x${OPENWBEM_CMPI_DIR}" != "x"; then
+					CMPI_PROVIDER_DIR=${OPENWBEM_CMPI_DIR}
+					echo cmpi provider dir set, using openwbem config file: \
+							${OPENWBEM_CONFIG}.
+				else
+					CMPI_PROVIDER_DIR=${OPENWBEM_PREFIX}/lib/openwbem/cmpiproviders
+					echo openwbem config not found, cmpi provider dir set to \
+							$(CMPI_PROVIDER_DIR) by default. 
+				fi;;
                         pegasus) CMPI_PROVIDER_DIR=/opt/tog-pegasus/providers/lib;;
                         *);;
                 esac
