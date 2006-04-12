@@ -197,7 +197,7 @@ static void show_status(void)
 	printf("Nodes: %d\n", einfo->ei_members);
 	printf("Expected votes: %d\n", einfo->ei_expected_votes);
 	printf("Total votes: %d\n", einfo->ei_total_votes);
-	printf("Quorum: %d %s\n", einfo->ei_quorum, quorate?" ":"Activity Blocked");
+	printf("Quorum: %d %s\n", einfo->ei_quorum, quorate?" ":"Activity blocked");
 	printf("Active subsystems: %d\n", cman_get_subsys_count(h));
 	printf("Flags:");
 	if (einfo->ei_flags & CMAN_EXTRA_FLAG_2NODE)
