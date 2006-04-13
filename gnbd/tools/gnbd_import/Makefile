@@ -21,9 +21,9 @@ SOURCE= gnbd_import.c $(top_srcdir)/utils/gnbd_utils.c \
 
 INCLUDE= -I$(top_srcdir)/include -I$(top_srcdir)/client \
 	-I$(top_srcdir)/server -I$(top_srcdir)/utils \
-	-I${magmaincdir} -I${gnbdkincdir} -I${top_srcdir}/config
+	-I${gnbdkincdir} -I${top_srcdir}/config
 
-LDLIBS+= -L${magmalibdir} -L${libdir} -lmagma -ldl -lpthread
+LDLIBS+= -L${libdir} -ldl -lpthread
 
 ifneq (${KERNEL_SRC}, )
 # Use the kernel tree if patched, otherwise, look where cluster headers

@@ -16,7 +16,6 @@
 #include <inttypes.h>
 #include <string.h>
 #include <errno.h>
-#include <magma.h>
 
 #include "gnbd_utils.h"
 

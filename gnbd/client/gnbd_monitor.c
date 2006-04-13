@@ -24,7 +24,6 @@
 #include <string.h>
 #include <errno.h>
 #include <inttypes.h>
-#include <magma.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <linux/gnbd.h>

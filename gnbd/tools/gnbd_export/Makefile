@@ -20,9 +20,9 @@ SOURCE= gnbd_export.c $(top_srcdir)/utils/gnbd_utils.c \
 
 INCLUDE= -I$(top_srcdir)/include -I$(top_srcdir)/server \
 	-I$(top_srcdir)/utils -I${top_srcdir}/config \
-	-I${gnbdkincdir} -I${magmaincdir} -I${incdir}
+	-I${gnbdkincdir} -I${incdir}
 
-LDLIBS+= -L${magmalibdir} -L${libdir} -lmagma -ldl -lpthread -lsysfs
+LDLIBS+= -L${libdir} -ldl -lpthread -lsysfs
 
 include ${top_srcdir}/make/defines.mk
 

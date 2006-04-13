@@ -24,7 +24,6 @@
 #include <errno.h>
 #include <inttypes.h>
 
-#include "magma.h"
 #include "gnbd_endian.h"
 #include "gnbd_utils.h"
 
