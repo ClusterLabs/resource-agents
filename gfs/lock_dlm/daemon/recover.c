@@ -1324,6 +1324,7 @@ void start_participant(struct mountgroup *mg, int pos, int neg)
 		if (no_rw_members(mg)) {
 			log_group(mg, "recovery stalled with no rw members");
 			mg->needs_recovery = 1;
+			start_done(mg);
 			return;
 		}
 
@@ -1443,7 +1444,6 @@ void start_spectator(struct mountgroup *mg, int pos, int neg)
 			log_group(mg, "recovery stalled without rw members");
 			mg->needs_recovery = 1;
 		}
-		clear_new(mg);
 		start_done(mg);
 	}
 }
