@@ -1054,12 +1054,12 @@ void notify_mount_client(struct mountgroup *mg)
 		strncpy(buf, mg->error_msg, MAXLINE);
 		error = 1;
 	} else {
-		if (mg->our_jid > 0)
-			snprintf(buf, MAXLINE, "hostdata=jid=%d:id=%u:first=%d",
-		 		 mg->our_jid, mg->id, mg->first_mounter);
-		else
+		if (mg->our_jid < 0)
 			snprintf(buf, MAXLINE, "hostdata=id=%u:first=%d",
 		 		 mg->id, mg->first_mounter);
+		else
+			snprintf(buf, MAXLINE, "hostdata=jid=%d:id=%u:first=%d",
+		 		 mg->our_jid, mg->id, mg->first_mounter);
 	}
 
 	log_debug("notify_mount_client: %s", buf);
