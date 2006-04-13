@@ -22,7 +22,6 @@ all:
 	cd group && ${MAKE}
 	cd dlm && ${MAKE}
 	cd fence && ${MAKE}
-	cd gulm && ${MAKE}
 	cd gfs-kernel && ${MAKE}
 	cd gfs && ${MAKE}
 	cd gfs2 && ${MAKE}
@@ -40,7 +39,6 @@ copytobin:
 	cd gfs && ${MAKE} copytobin
 	cd gfs2 && ${MAKE} copytobin
 	cd gnbd && ${MAKE} copytobin
-	cd gulm && ${MAKE} copytobin
 	cd rgmanager && ${MAKE} copytobin
 #	cd cmirror && ${MAKE} copytobin
 
@@ -57,7 +55,6 @@ clean:
 	cd gfs && ${MAKE} clean
 	cd gfs2 && ${MAKE} clean
 	cd gnbd && ${MAKE} clean
-	cd gulm && ${MAKE} clean
 	cd rgmanager && ${MAKE} clean
 #	cd cmirror && ${MAKE} clean
 
@@ -71,7 +68,6 @@ distclean:
 	cd gfs && ${MAKE} distclean
 	cd gfs2 && ${MAKE} distclean
 	cd gnbd && ${MAKE} distclean
-	cd gulm && ${MAKE} distclean
 	cd rgmanager && ${MAKE} distclean
 #	cd cmirror && ${MAKE} distclean
 
@@ -86,7 +82,6 @@ install:
 	cd gfs && ${MAKE} install
 	cd gfs2 && ${MAKE} install
 	cd gnbd && ${MAKE} install
-	cd gulm && ${MAKE} install
 	cd rgmanager && ${MAKE} install
 #	cd cmirror && ${MAKE} install
 
@@ -100,7 +95,6 @@ uninstall:
 	cd gfs && ${MAKE} uninstall
 	cd gfs2 && ${MAKE} uninstall
 	cd gnbd && ${MAKE} uninstall
-	cd gulm && ${MAKE} uninstall
 	cd rgmanager && ${MAKE} uninstall
 #	cd cmirror && ${MAKE} uninstall
 
@@ -114,7 +108,6 @@ latest_tags:
 	${LATEST_TAG} gfs
 	${LATEST_TAG} gfs2
 	${LATEST_TAG} gnbd
-	${LATEST_TAG} gulm
 	${LATEST_TAG} rgmanager
 	echo "Beware, your directories are now in sync with their last tag." > TAG
 #	${LATEST_TAG} cmirror
@@ -137,7 +130,6 @@ tarballs: TAG
 	make -s COMPONENT=gfs RELEASE_FILE=gfs/make/release.mk.input tarball
 	make -s COMPONENT=gfs2 RELEASE_FILE=gfs2/make/release.mk.input tarball
 	make -s COMPONENT=gnbd RELEASE_FILE=gnbd/make/release.mk.input tarball
-	make -s COMPONENT=gulm RELEASE_FILE=gulm/make/release.mk.input tarball
 	make -s COMPONENT=rgmanager RELEASE_FILE=rgmanager/make/release.mk.input tarball
 #	make -s COMPONENT=cmirror RELEASE_FILE=cmirror/make/release.mk.input tarball
 
