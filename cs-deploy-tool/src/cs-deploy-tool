@@ -24,8 +24,7 @@
 
 INSTALLDIR="/usr/share/cs-deploy-tool"
 
-
-ssh-agent python $INSTALLDIR/cluster_installer.py
+ssh-agent python $INSTALLDIR/cluster_installer.py $@
 exit $?
 
 

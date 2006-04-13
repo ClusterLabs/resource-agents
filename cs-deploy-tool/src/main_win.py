@@ -40,7 +40,8 @@ class MainWin:
                  cluster_name,
                  environ,
                  rpm_installer,
-                 ads_classes):
+                 ads_classes,
+                 fc5):
         
         gladepath = INSTALLDIR + '/main_win.glade'
         self.glade_xml = gtk.glade.XML(gladepath)
@@ -63,10 +64,11 @@ class MainWin:
             self.adss.append(ads_class(ADSUtils(self.storage, self.environ)))
         
         # display welcome screen
-        self.glade_xml.get_widget('welcome_ok').connect('clicked', self.welcome_ok)
-        if self.glade_xml.get_widget('welcome_screen').run() == gtk.RESPONSE_DELETE_EVENT:
-            self.environ.exit()
-        self.glade_xml.get_widget('welcome_screen').hide()
+        if not fc5:
+            self.glade_xml.get_widget('welcome_ok').connect('clicked', self.welcome_ok)
+            if self.glade_xml.get_widget('welcome_screen').run() == gtk.RESPONSE_DELETE_EVENT:
+                self.environ.exit()
+            self.glade_xml.get_widget('welcome_screen').hide()
         
         # initialize fencing
         if self.fence_builder.configure_fence_type() == False:
@@ -356,6 +358,7 @@ class MainWin:
         
         
         ### installation starts here ###
+        
         
         
         # install selected rpms

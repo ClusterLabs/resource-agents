@@ -47,6 +47,15 @@ from main_win import MainWin
 
 
 
+def infoMessage(message):
+    dlg = gtk.MessageDialog(None, 0,
+                            gtk.MESSAGE_INFO, gtk.BUTTONS_OK,
+                            message)
+    dlg.show_all()
+    rc = dlg.run()
+    dlg.destroy()
+    return rc
+
 def __get_ads_classes(module):
     from ads_base import ADSBase
     from module_parser import ModuleParser
@@ -79,20 +88,26 @@ def get_ads_classes():
 
 
 
-
-
-cluster_name = str(time.time()).replace('.', '')[:15]
-environ = Environment('cluster_' + cluster_name + '_deployment_log')
-
-rpm_installer = RPMInstaller(environ, UP2DATE_Interface)
-ads_classes = get_ads_classes()
-
-window = MainWin(cluster_name,
-                 environ, 
-                 rpm_installer,
-                 ads_classes)
-
 if os.access('/proc/cluster', os.F_OK):
     infoMessage('This PC is a node of existing cluster.\nRun system-config-cluster to configure it.')
 else:
+    
+    cluster_name = str(time.time()).replace('.', '')[:15]
+    environ = Environment('cluster_' + cluster_name + '_deployment_log')
+    
+    rpm_installer = None
+    fc5 = False
+    if '--fc5' in sys.argv:
+        rpm_installer = RPMInstaller(environ, YUM_Interface)
+        fc5 = True
+    else:
+        rpm_installer = RPMInstaller(environ, UP2DATE_Interface)
+    ads_classes = get_ads_classes()
+    
+    window = MainWin(cluster_name,
+                     environ, 
+                     rpm_installer,
+                     ads_classes,
+                     fc5)
+    
     gtk.main()

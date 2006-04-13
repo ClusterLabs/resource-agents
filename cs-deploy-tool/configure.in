@@ -1,5 +1,5 @@
 AC_INIT(cs-deploy-tool.spec.in)
-AM_INIT_AUTOMAKE(cs-deploy-tool, 0.9.7)
+AM_INIT_AUTOMAKE(cs-deploy-tool, 0.9.8)
 AM_PATH_PYTHON(2.3)
 
 dnl ALL_LINGUAS=""

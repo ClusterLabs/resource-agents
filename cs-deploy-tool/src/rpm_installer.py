@@ -101,7 +101,7 @@ class YUM_Interface:
     
     def is_os_supported(self, node):
         o, e, s = self.environ.execute_remote(node, 'cat', ['/etc/redhat-release'])
-        if s != 0 or 'Stentz' not in o:
+        if s != 0 or 'Bordeaux' not in o:
             return False
         return True
     
@@ -119,20 +119,38 @@ class YUM_Interface:
         return found_rpms
     
     def available_rpms(self, node, rpms):
-        # TODO: implement
-        return rpms
+        # get list of all installable/upgradeable rpms
+        # check if rpms are on the list
+        o, e, s = self.environ.execute_remote(node, 'yum', ['-y', 'list', 'all'])
+        if s != 0:
+            return []
+        found_rpms = []
+        lines = o.splitlines()
+        for line in lines:
+            for rpm in rpms:
+                if line.find(rpm + '.') == 0:
+                    if rpm not in found_rpms:
+                        found_rpms.append(rpm)
+        if len(found_rpms) == 0:
+            return []
+        
+        # try to retrieve one of available rpms
+        #o, e, s = self.environ.execute_remote(node, 'up2date-nox', ['--download', found_rpms[0]])
+        #if s != 0:
+        #    return []
+        return found_rpms
     
     def install(self, node, rpms):
         # find what to install
         rpms_to_install = []
-        o, e, s = self.environ.execute_remote(node, 'yum', ['list', 'installed'])
+        o, e, s = self.environ.execute_remote(node, 'yum', ['-y', 'list', 'installed'])
         if s != 0:
             return False
         lines = o.splitlines()
         for rpm in rpms:
             install = True
             for line in lines:
-                if rpm + '.' in line:
+                if line.find(rpm + '.') == 0:
                     install = False
             if install:
                 rpms_to_install.append(rpm)

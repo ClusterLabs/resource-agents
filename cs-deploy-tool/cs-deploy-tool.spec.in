@@ -46,6 +46,8 @@ rm -rf %{buildroot}
 %{_datadir}/cs-deploy-tool
 
 %changelog
+* Thu Apr 13 2006 Stanko Kupcevic <kupcevic@redhat.com> 0.9.8-1.0
+  - FC5 support
 * Tue Apr 05 2006 Stanko Kupcevic <kupcevic@redhat.com> 0.9.7-1.0
   - GUI touchups
 * Fri Mar 27 2006 Stanko Kupcevic <kupcevic@redhat.com> 0.9.6-1.0
