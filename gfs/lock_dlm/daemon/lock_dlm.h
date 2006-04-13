@@ -44,6 +44,7 @@
 #define MAXNAME			255
 #define MAX_CLIENTS		8
 #define MAX_MSGLEN		2048
+#define MAX_OPTIONS_LEN		1024
 
 #define LOCK_DLM_GROUP_LEVEL	2
 #define LOCK_DLM_GROUP_NAME	"gfs"
@@ -79,52 +80,85 @@ do { \
 	syslog(LOG_ERR, fmt, ##args); \
 } while (0)
 
+#define ASSERT(x) \
+{ \
+	if (!(x)) { \
+		fprintf(stderr, "\nAssertion failed on line %d of file %s\n\n" \
+			"Assertion:  \"%s\"\n", \
+			__LINE__, __FILE__, #x); \
+        } \
+}
 
 struct mountgroup {
 	struct list_head	list;
-	char			name[MAXNAME+1];
-	char			table[MAXNAME+1];
-	char			type[5];
-	char			dir[PATH_MAX+1];
-	int			mount_client;
 	uint32_t		id;
 	struct list_head	members;
 	struct list_head	members_gone;
 	int			memb_count;
+	struct list_head	resources; /* for plocks */
+
+	char			name[MAXNAME+1];
+	char			table[MAXNAME+1];
+	char			type[5];
+	char			dir[PATH_MAX+1];
+	char			options[MAX_OPTIONS_LEN+1];
+
+	char			error_msg[128];
+	int			mount_client;
+	int			remount_client;
 	int			last_stop;
 	int			last_start;
 	int			last_finish;
 	int			start_event_nr;
 	int			start_type;
+	int			needs_recovery;
 	int			our_jid;
-	int			first_mount;
-	int			first_mount_done;
+	int			first_mounter;
+	int			first_mounter_done;
 	int			wait_first_done;
-	int			first_start;
+	int			init;
+	int			init2;
 	int			low_finished_nodeid;
 	int			spectator;
+	int			readonly;
+	int			rw;
 	int			withdraw;
-	struct list_head	resources; /* for plocks */
+
 	void			*journals_msg;
 	int			journals_msg_len;
 	int			journals_msg_from;
+	void			*options_msg;
+	int			options_msg_len;
+	int			options_msg_from;
+
+	void			*start2_fn;
 };
+
+#define MEMB_OPT_RW	1
+#define MEMB_OPT_RO	2
+#define MEMB_OPT_SPECT	4
 
 struct mg_member {
 	struct list_head	list;
 	int			nodeid;
 	int			jid;
+	int			new;
+	int			spectator;
+	int			readonly;
+	int			rw;
+	uint32_t		opts;
 	int			recover_journal;
 	int			wait_recover_done;
 	int			gone_event;
 	int			mount_finished;
-	int			spectator;
 	int			withdraw;
 	struct dlm_lksb		wd_lksb;
 };
 
-#define MSG_JOURNAL 1
-#define MSG_PLOCK 2
+#define MSG_JOURNAL	1
+#define MSG_OPTIONS	2
+#define MSG_REMOUNT	3
+#define MSG_PLOCK	4
 
 struct gdlm_header {
 	uint16_t		version[3];
@@ -149,11 +183,14 @@ void exit_cman(void);
 void exit_libdlm(void);
 
 int do_mount(int ci, char *dir, char *type, char *proto, char *table,
-	     char *extra);
+	     char *options);
 int do_unmount(int ci, char *dir);
+int do_remount(int ci, char *dir, char *mode);
 int do_recovery_done(char *name);
 int do_withdraw(char *name);
 
 int client_send(int ci, char *buf, int len);
+
+int send_group_message(struct mountgroup *mg, int len, char *buf);
 
 #endif

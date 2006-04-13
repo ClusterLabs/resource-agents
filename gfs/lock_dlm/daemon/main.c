@@ -127,6 +127,8 @@ static int process_client(int ci)
 		rv = do_mount(ci, dir, type, proto, table, extra);
 	else if (!strcmp(cmd, "leave"))
 		rv = do_unmount(ci, dir);
+	else if (!strcmp(cmd, "remount"))
+		rv = do_remount(ci, dir, argv[3]);
 	else
 		rv = -EINVAL;
 

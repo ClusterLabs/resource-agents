@@ -44,8 +44,6 @@
 static int control_fd = -1;
 extern int our_nodeid;
 
-int send_plock_message(struct mountgroup *mg, int len, char *buf);
-
 struct resource {
 	struct list_head	list;	   /* list of resources */
 	uint64_t		number;
@@ -243,7 +241,7 @@ int process_plocks(void)
 	hd->to_nodeid = 0;   /* to all */
 	memcpy(buf + sizeof(struct gdlm_header), &info, sizeof(info));
 
-	rv = send_plock_message(mg, len, buf);
+	rv = send_group_message(mg, len, buf);
 
 	free(buf);
 

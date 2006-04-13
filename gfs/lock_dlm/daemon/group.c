@@ -40,7 +40,10 @@ int do_stop(struct mountgroup *mg);
 int do_finish(struct mountgroup *mg);
 int do_terminate(struct mountgroup *mg);
 int do_start(struct mountgroup *mg, int type, int count, int *nodeids);
+
 void receive_journals(struct mountgroup *mg, char *buf, int len, int from);
+void receive_options(struct mountgroup *mg, char *buf, int len, int from);
+void receive_remount(struct mountgroup *mg, char *buf, int len, int from);
 void receive_plock(struct mountgroup *mg, char *buf, int len, int from);
 
 
@@ -114,10 +117,28 @@ static void do_deliver(struct mountgroup *mg)
 	struct gdlm_header *hd;
 
 	hd = (struct gdlm_header *) cb_message;
-	if (hd->type == MSG_JOURNAL)
+
+	switch (hd->type) {
+	case MSG_JOURNAL:
 		receive_journals(mg, cb_message, cb_len, cb_nodeid);
-	else if (hd->type == MSG_PLOCK)
+		break;
+
+	case MSG_OPTIONS:
+		receive_options(mg, cb_message, cb_len, cb_nodeid);
+		break;
+
+	case MSG_REMOUNT:
+		receive_remount(mg, cb_message, cb_len, cb_nodeid);
+		break;
+
+	case MSG_PLOCK:
 		receive_plock(mg, cb_message, cb_len, cb_nodeid);
+		break;
+
+	default:
+		log_error("unknown message type %d from %d",
+			  hd->type, hd->nodeid);
+	}
 }
 
 char *str_members(void)
@@ -220,22 +241,9 @@ int setup_groupd(void)
 	return rv;
 }
 
-/* MAX_MSGLEN of 1024 will support up to around 90 group members:
-   (1024 - sizeof(header)) / (2 * 4) */
-
-int send_journals_message(struct mountgroup *mg, int len, char *buf)
+int send_group_message(struct mountgroup *mg, int len, char *buf)
 {
 	int error;
-
-	error = group_send(gh, mg->name, len, buf);
-	if (error < 0)
-		log_error("group_send error %d errno %d", error, errno);
-	return 0;
-}
-
-int send_plock_message(struct mountgroup *mg, int len, char *buf)
-{
-        int error;
 
 	error = group_send(gh, mg->name, len, buf);
 	if (error < 0)
