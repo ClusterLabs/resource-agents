@@ -1,8 +1,5 @@
 #!/bin/sh
 
-echo "configure dlm-kernel"
-(cd dlm-kernel; ./configure $@)
-
 echo "configure gnbd-kernel"
 (cd gnbd-kernel; ./configure $@)
 
@@ -21,9 +18,6 @@ echo "configure dlm"
 
 echo "configure fence"
 (cd fence; ./configure $@ -ccslibdir=`pwd`/../ccs/lib --ccsincdir=`pwd`/../ccs/lib)
-
-echo "configure gulm"
-(cd gulm; ./configure $@ --ccsincdir=`pwd`/../ccs/lib --ccslibdir=`pwd`/../ccs/lib)
 
 echo "configure gfs-kernel"
 (cd gfs-kernel; ./configure $@ --dlmkincdir=`pwd`/../dlm-kernel/src2)
