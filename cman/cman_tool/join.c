@@ -104,8 +104,10 @@ int join(commandline_t *comline)
 		snprintf(scratch, sizeof(scratch), "CMAN_NODENAME=%s", comline->nodenames[0]);
 		envp[envptr++] = strdup(scratch);
 	}
-	if (comline->verbose)
-		envp[envptr++] = strdup("CMAN_DEBUGLOG=255");
+	if (comline->verbose) {
+		snprintf(scratch, sizeof(scratch), "CMAN_DEBUGLOG=%d", comline->verbose);
+		envp[envptr++] = strdup(scratch);
+	}
 
 	/* Use cman to configure services */
 	envp[envptr++] = strdup("OPENAIS_DEFAULT_CONFIG_IFACE=cmanconfig");

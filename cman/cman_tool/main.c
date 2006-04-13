@@ -20,7 +20,7 @@
 #include "libcman.h"
 #include "cman_tool.h"
 
-#define OPTION_STRING		("m:n:v:e:2p:c:r:i:N:t:o:k:Vwqh?d")
+#define OPTION_STRING		("m:n:v:e:2p:c:r:i:N:t:o:k:Vwqh?d::")
 #define OP_JOIN			1
 #define OP_LEAVE		2
 #define OP_EXPECTED		3
@@ -561,7 +561,10 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 			break;
 
 		case 'd':
-		        comline->verbose++;
+			if (optarg)
+				comline->verbose = atoi(optarg);
+			else
+				comline->verbose = 255;
 			break;
 
 		case 'w':
