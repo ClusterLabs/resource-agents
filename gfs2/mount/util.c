@@ -193,8 +193,8 @@ void gfs2_meta_header_in(struct gfs2_meta_header *mh, char *buf)
 	struct gfs2_meta_header *str = (struct gfs2_meta_header *)buf;
 
 	mh->mh_magic = be32_to_cpu(str->mh_magic);
-	mh->mh_type = be16_to_cpu(str->mh_type);
-	mh->mh_format = be16_to_cpu(str->mh_format);
+	mh->mh_type = be32_to_cpu(str->mh_type);
+	mh->mh_format = be32_to_cpu(str->mh_format);
 }
 
 void gfs2_sb_in(struct gfs2_sb *sb, char *buf)
@@ -302,51 +302,53 @@ int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb)
 {
 	int i, fd, rv;
 	char buf[MAXLINE];
-	char *dir, *proto, *table, *extra;
+	char *dir, *proto, *table, *options;
 
 	i = 0;
 	do {
 		sleep(1);
 		fd = gfs_controld_connect();
 		if (!fd)
-			warn("waiting for gfs_controld to start\n");
+			warn("waiting for gfs_controld to start");
 	} while (!fd && ++i < 10);
 
 	/* FIXME: should we start the daemon here? */
-	if (!fd)
-		die("gfs_controld daemon not running\n");
+	if (!fd) {
+		warn("gfs_controld not running");
+		rv = -1;
+		goto out;
+	}
 
 	dir = mo->dir;
 	proto = "lock_dlm";
+	options = mo->opts;
 
 	if (mo->locktable[0])
 		table = mo->locktable;
 	else
 		table = sb->locktable;
 
-	if (mo->extra[0])
-		extra = mo->extra;
-	else
-		extra = "-";
-
 	/*
 	 * send request to gfs_controld for it to join mountgroup:
-	 * "join <mountpoint> gfs2 lock_dlm <locktable> <extra>"
+	 * "join <mountpoint> gfs2 lock_dlm <locktable> <options>"
 	 */
 
 	memset(buf, 0, sizeof(buf));
 	rv = snprintf(buf, MAXLINE, "join %s %s %s %s %s",
-		      dir, fsname, proto, table, extra);
-	if (rv >= MAXLINE)
-		die("join message too large: %d \"%s\"\n", rv, buf);
+		      dir, fsname, proto, table, options);
+	if (rv >= MAXLINE) {
+		warn("lock_dlm_join: message too long: %d \"%s\"", rv, buf);
+		rv = -1;
+		goto out;
+	}
 
 	log_debug("message to gfs_controld: asking to join mountgroup:");
 	log_debug("write \"%s\"", buf);
 
 	rv = write(fd, buf, sizeof(buf));
 	if (rv < 0) {
-		log_debug("lock_dlm_join: gfs_controld write error: %d", rv);
-		return rv;
+		warn("lock_dlm_join: gfs_controld write error: %d", rv);
+		goto out;
 	}
 
 	/*
@@ -357,13 +359,13 @@ int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb)
 	memset(buf, 0, sizeof(buf));
 	rv = read(fd, buf, sizeof(buf));
 	if (rv < 0) {
-		log_debug("lock_dlm_join: gfs_controld read 1 error: %d", rv);
-		return rv;
+		warn("lock_dlm_join: gfs_controld read 1 error: %d", rv);
+		goto out;
 	}
 	rv = atoi(buf);
 	if (rv < 0) {
-		log_debug("lock_dlm_join: gfs_controld join error: %d", rv);
-		return rv;
+		warn("lock_dlm_join: gfs_controld join error: %d", rv);
+		goto out;
 	}
 
 	log_debug("message from gfs_controld: response to join request:");
@@ -371,14 +373,14 @@ int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb)
 
 	/*
 	 * read mount-option string from gfs_controld that we are to
-	 * use for the mount syscall
+	 * use for the mount syscall; or possibly error message
 	 */
 
 	memset(buf, 0, sizeof(buf));
 	rv = read(fd, buf, sizeof(buf));
 	if (rv < 0) {
-		log_debug("gfs_controld mount options error: %d", rv);
-		return rv;
+		warn("gfs_controld options read error: %d", rv);
+		goto out;
 	}
 
 	log_debug("message from gfs_controld: mount options:");
@@ -389,10 +391,18 @@ int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb)
 	 * this is first combined with any hostdata the user gave on
 	 * the command line and then the full hostdata is combined
 	 * with the "extra" mount otions into the "extra_plus" string.
+	 * If we're not allowed to mount, "error: foo" is returned.
 	 */
+
+	if (!strncmp(buf, "error", 5)) {
+		warn("%s", buf);
+		rv = -1;
+		goto out;
+	}
 
 	if (strlen(mo->hostdata) + strlen(buf) + 1 > PATH_MAX) {
 		warn("hostdata too long");
+		rv = -1;
 		goto out;
 	}
 
@@ -412,9 +422,11 @@ int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb)
 		snprintf(mo->extra_plus, PATH_MAX, "%s,%s",
 			 mo->extra, mo->hostdata);
 
- out:
 	log_debug("lock_dlm_join: extra_plus: \"%s\"", mo->extra_plus);
-	return 0;
+	rv = 0;
+ out:
+	close(fd);
+	return rv;
 }
 
 int lock_dlm_leave(struct mount_options *mo, struct gen_sb *sb)
@@ -427,13 +439,14 @@ int lock_dlm_leave(struct mount_options *mo, struct gen_sb *sb)
 		sleep(1);
 		fd = gfs_controld_connect();
 		if (!fd)
-			warn("waiting for gfs_controld to start\n");
+			warn("waiting for gfs_controld to start");
 	} while (!fd && ++i < 10);
 
-	/* FIXME: not sure what failing here means */
-
-	if (!fd)
-		die("gfs_controld daemon not running\n");
+	if (!fd) {
+		warn("gfs_controld not running");
+		rv = -1;
+		goto out;
+	}
 
 	/*
 	 * send request to gfs_controld for it to leave mountgroup:
@@ -442,16 +455,19 @@ int lock_dlm_leave(struct mount_options *mo, struct gen_sb *sb)
 
 	memset(buf, 0, sizeof(buf));
 	rv = snprintf(buf, MAXLINE, "leave %s %s", mo->dir, fsname);
-	if (rv >= MAXLINE)
-		die("leave message too large: %d \"%s\"\n", rv, buf);
+	if (rv >= MAXLINE) {
+		warn("lock_dlm_leave: message too long: %d \"%s\"\n", rv, buf);
+		rv = -1;
+		goto out;
+	}
 
 	log_debug("message to gfs_controld: asking to leave mountgroup:");
 	log_debug("lock_dlm_leave: write \"%s\"", buf);
 
 	rv = write(fd, buf, sizeof(buf));
 	if (rv < 0) {
-		log_debug("lock_dlm_leave: gfs_controld write error: %d", rv);
-		return rv;
+		warn("lock_dlm_leave: gfs_controld write error: %d", rv);
+		goto out;
 	}
 
 	/*
@@ -462,18 +478,123 @@ int lock_dlm_leave(struct mount_options *mo, struct gen_sb *sb)
 	memset(buf, 0, sizeof(buf));
 	rv = read(fd, buf, sizeof(buf));
 	if (rv < 0) {
-		log_debug("lock_dlm_leave: gfs_controld read error: %d", rv);
-		return rv;
+		warn("lock_dlm_leave: gfs_controld read error: %d", rv);
+		goto out;
 	}
 	rv = atoi(buf);
 	if (rv < 0) {
-		log_debug("lock_dlm_leave: gfs_controld leave error: %d", rv);
-		return rv;
+		warn("lock_dlm_leave: gfs_controld leave error: %d", rv);
+		goto out;
 	}
 
 	log_debug("message from gfs_controld: response to leave request:");
 	log_debug("lock_dlm_leave: read \"%s\"", buf);
+	rv = 0;
+ out:
+	close(fd);
+	return rv;
+}
 
-	return 0;
+int lock_dlm_remount(struct mount_options *mo, struct gen_sb *sb)
+{
+	int i, fd, rv;
+	char buf[MAXLINE];
+	char *mode;
+
+	i = 0;
+	do {
+		sleep(1);
+		fd = gfs_controld_connect();
+		if (!fd)
+			warn("waiting for gfs_controld to start");
+	} while (!fd && ++i < 10);
+
+	if (!fd) {
+		warn("gfs_controld not running");
+		rv = -1;
+		goto out;
+	}
+
+	/* FIXME: how to check for spectator remounts, we want
+	   to disallow remount to/from spectator */
+
+	if (mo->flags & MS_RDONLY)
+		mode = "ro";
+	else
+		mode = "rw";
+
+	/*
+	 * send request to gfs_controld for it to remount:
+	 * "remount <mountpoint> gfs2 <mode>"
+	 */
+
+	memset(buf, 0, sizeof(buf));
+	rv = snprintf(buf, MAXLINE, "remount %s %s %s", mo->dir, fsname, mode);
+	if (rv >= MAXLINE) {
+		warn("remount message too large: %d \"%s\"\n", rv, buf);
+		rv = -1;
+		goto out;
+	}
+
+	log_debug("message to gfs_controld: asking to remount:");
+	log_debug("lock_dlm_remount: write \"%s\"", buf);
+
+	rv = write(fd, buf, sizeof(buf));
+	if (rv < 0) {
+		warn("lock_dlm_remount: gfs_controld write error: %d", rv);
+		goto out;
+	}
+
+	/*
+	 * read response from gfs_controld
+	 * int as a string
+	 * 1: go ahead
+	 * -EXXX: error
+	 * 0: wait for second result
+	 */
+
+	memset(buf, 0, sizeof(buf));
+	rv = read(fd, buf, sizeof(buf));
+	if (rv < 0) {
+		warn("lock_dlm_remount: gfs_controld read1 error: %d", rv);
+		goto out;
+	}
+	rv = atoi(buf);
+	if (rv < 0) {
+		warn("lock_dlm_remount: gfs_controld remount error: %d", rv);
+		goto out;
+	}
+	if (rv == 1) {
+		rv = 0;
+		goto out;
+	}
+
+	log_debug("message from gfs_controld: response to remount request:");
+	log_debug("lock_dlm_remount: read \"%s\"", buf);
+
+	/*
+	 * read second result from gfs_controld
+	 */
+
+	memset(buf, 0, sizeof(buf));
+	rv = read(fd, buf, sizeof(buf));
+	if (rv < 0) {
+		warn("lock_dlm_remount: gfs_controld read2 error: %d", rv);
+		goto out;
+	}
+
+	log_debug("message from gfs_controld: remount result:");
+	log_debug("lock_dlm_remount: read \"%s\"", buf);
+
+	if (!strncmp(buf, "error", 5)) {
+		warn("%s", buf);
+		rv = -1;
+		goto out;
+	}
+
+	rv = 0;
+ out:
+	close(fd);
+	return rv;
 }
 

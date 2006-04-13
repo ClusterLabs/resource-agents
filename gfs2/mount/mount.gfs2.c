@@ -111,13 +111,12 @@ static int mount_lockproto(char *proto, struct mount_options *mo,
 {
 	int rv = 0;
 
-	/* FIXME: what should we do here? */
-	if (mo->flags & MS_REMOUNT)
-		return 0;
-
-	if (!strcmp(proto, "lock_dlm"))
-		rv = lock_dlm_join(mo, sb);
-	else
+	if (!strcmp(proto, "lock_dlm")) {
+		if (mo->flags & MS_REMOUNT)
+			rv = lock_dlm_remount(mo, sb);
+		else
+			rv = lock_dlm_join(mo, sb);
+	} else
 		strncpy(mo->extra_plus, mo->extra, PATH_MAX);
 
 	return rv;
