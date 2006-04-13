@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.503 $) dnl cvs revision
+AC_REVISION($Revision: 1.504 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -376,13 +376,13 @@ AC_SUBST(EGREP)
 AC_PATH_PROGS(MSGFMT, msgfmt, [msgfmt not found],)
 AC_SUBST(MSGFMT)
 
-AC_PATH_PROGS(GZIP, gzip)
+AC_PATH_PROGS(GZIP_PROG, gzip)
 AC_PATH_PROGS(TAR, tar)
 AC_PATH_PROGS(CP, cp)
 AC_PATH_PROGS(LS, ls)
 AC_PATH_PROGS(LN, ln)
 AC_PATH_PROGS(MD5, md5)
-AC_SUBST(GZIP)
+AC_SUBST(GZIP_PROG)
 AC_SUBST(TAR)
 AC_SUBST(CP)
 AC_SUBST(LS)
