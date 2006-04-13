@@ -694,12 +694,8 @@ static int do_cmd_set_votes(char *cmdbuf, int *retlen)
 	return 0;
 }
 
-/*static*/ int do_cmd_set_nodeid(char *cmdbuf, int *retlen)
+/*static*/ int do_cmd_set_nodeid(int nodeid, int *retlen)
 {
-	int nodeid;
-
-	memcpy(&nodeid, cmdbuf, sizeof(int));
-
 	if (ais_running)
 		return -EALREADY;
 
@@ -751,7 +747,7 @@ static uint16_t generate_cluster_id(char *name)
 	return value & 0xFFFF;
 }
 
-/*static*/ int do_cmd_join_cluster(char *cmdbuf, int *retlen)
+int do_cmd_join_cluster(char *cmdbuf, int *retlen)
 {
 	struct cl_join_cluster_info *join_info = (struct cl_join_cluster_info *)cmdbuf;
 	struct utsname un;
@@ -1058,26 +1054,6 @@ static int do_cmd_set_keyfile(char *cmdbuf)
 	return 0;
 }
 
-static int do_cmd_set_mcast(char *cmdbuf, int *retlen)
-{
-	static int got_mcast = 0;
-
-	if (ais_running)
-		return -EALREADY;
-
-	/* Only 1 multicast address allowed */
-	if (got_mcast)
-		return -EADDRINUSE;
-
-	got_mcast = 1;
-	return ais_set_mcast(cmdbuf);
-}
-
-static int do_cmd_add_ifaddr(char *cmdbuf, int *retlen)
-{
-	return ais_add_ifaddr(cmdbuf);
-}
-
 int process_command(struct connection *con, int cmd, char *cmdbuf,
 		    char **retbuf, int *retlen, int retsize, int offset)
 {
@@ -1177,22 +1153,6 @@ int process_command(struct connection *con, int cmd, char *cmdbuf,
 
 	case CMAN_CMD_SET_NODENAME:
 		err = do_cmd_set_nodename(cmdbuf, retlen);
-		break;
-
-	case CMAN_CMD_SET_NODEID:
-		err = do_cmd_set_nodeid(cmdbuf, retlen);
-		break;
-
-	case CMAN_CMD_JOIN_CLUSTER:
-		err = do_cmd_join_cluster(cmdbuf, retlen);
-		break;
-
-	case CMAN_CMD_ADD_MCAST:
-		err = do_cmd_set_mcast(cmdbuf, retlen);
-		break;
-
-	case CMAN_CMD_ADD_IFADDR:
-		err = do_cmd_add_ifaddr(cmdbuf, retlen);
 		break;
 
 	case CMAN_CMD_ADD_KEYFILE:
@@ -1652,14 +1612,15 @@ void add_ais_node(struct totem_ip_address *ais_node, uint64_t incarnation, int t
 
 	P_MEMB("add_ais_node %s, ID=%d, incarnation = %d\n", totemip_print(ais_node), ais_node->nodeid, incarnation);
 
-	node = find_node_by_ais_node(ais_node);
+	node = find_node_by_nodeid(ais_node->nodeid);
+
+	if (!node)
+		node = find_node_by_ais_node(ais_node);
+
 	if (!node && total_members == 1) {
 		node = us;
 		P_MEMB("Adding AIS node for 'us'\n");
 	}
-
-	if (!node && ais_node->nodeid)
-		node = find_node_by_nodeid(ais_node->nodeid);
 
 	/* Sanity check */
 	if ((ais_node->nodeid && node && ais_node->nodeid != node->node_id) ||

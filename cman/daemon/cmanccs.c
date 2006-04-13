@@ -29,6 +29,8 @@
 #include "ccs.h"
 #include "cnxman-socket.h"
 
+#define DEFAULT_PORT            6809
+
 #define CONFIG_VERSION_PATH	"/cluster/@config_version"
 #define CLUSTER_NAME_PATH	"/cluster/@name"
 
@@ -43,7 +45,10 @@
 #define NODE_NAME_PATH_BYNUM	"/cluster/clusternodes/clusternode[%d]/@name"
 #define NODE_VOTES_PATH		"/cluster/clusternodes/clusternode[@name=\"%s\"]/@votes"
 #define NODE_NODEID_PATH	"/cluster/clusternodes/clusternode[@name=\"%s\"]/@nodeid"
-#define NODE_ALTNAMES_PATH	"/cluster/clusternodes/clusternode[@name=\"%s\"]/altname/@name"
+#define NODE_ALTNAMES_PATH	"/cluster/clusternodes/clusternode[@name=\"%s\"]/altname[%d]/@name"
+// TODO support these
+#define NODE_ALTNAMES_PORT	"/cluster/clusternodes/clusternode[@name=\"%s\"]/altname[%d]/@port"
+#define NODE_ALTNAMES_MCAST	"/cluster/clusternodes/clusternode[@name=\"%s\"]/altname[%d]/@mcast"
 
 #define MAX_NODENAMES 10
 #define MAX_PATH_LEN PATH_MAX
@@ -51,6 +56,8 @@
 /* Local vars - things we get from ccs */
 static int nodeid;
 static char *nodenames[MAX_NODENAMES];
+static int  portnums[MAX_NODENAMES];
+static char *mcast[MAX_NODENAMES];
 static int num_nodenames;
 static char *keyfile;
 static char *mcast_name;
@@ -176,27 +183,25 @@ static int join(void)
 	int retlen;
 
 	error = do_cmd_set_nodename(nodenames[0], &retlen);
-	error = do_cmd_set_nodeid((char *)&nodeid, &retlen);
+	error = do_cmd_set_nodeid(nodeid, &retlen);
 
-	/*
-	 * Setup the interface/multicast
-	 */
-	for (i = 0; i<num_nodenames; i++)
-	{
-		error = ais_add_ifaddr(nodenames[i]);
-		if (error)
-			return error;
-	}
-
-	error = ais_set_mcast(mcast_name);
-	if (error)
-		return error;
         /*
-	 * Join cluster
+	 * Setup join information
 	 */
 	error = do_cmd_join_cluster((char *)&join_info, &retlen);
 	if (error)
 		return error;
+
+	/*
+	 * Setup the interface/multicast addresses
+	 */
+	for (i = 0; i<num_nodenames; i++)
+	{
+		error = ais_add_ifaddr(mcast[i], nodenames[i], portnums[i]);
+		if (error)
+			return error;
+	}
+
 
 	return 0;
 }
@@ -393,6 +398,7 @@ static int get_ccs_join_info(void)
 			nodename);
 		return -ENOENT;
 	}
+	nodenames[0] = strdup(nodename);
 
 	join_info.expected_votes = 0;
 	if (getenv("CMAN_EXPECTEDVOTES")) {
@@ -459,8 +465,9 @@ static int get_ccs_join_info(void)
 			free(str);
 		}
 		else
-			join_info.port = 6809;
+			join_info.port = DEFAULT_PORT;
 	}
+	portnums[0] = join_info.port;
 
 	/* optional security key filename */
 
@@ -513,33 +520,6 @@ static int get_ccs_join_info(void)
 		}
 	}
 
-	/* get all alternative node names */
-
-	nodenames[0] = strdup(nodename);
-	num_nodenames = 1;
-
-	memset(path, 0, MAX_PATH_LEN);
-	sprintf(path, NODE_ALTNAMES_PATH, nodename);
-
-	for (i = 1; ; i++) {
-		str = NULL;
-
-		error = ccs_get(cd, path, &str);
-		if (error || !str)
-			break;
-
-		/* If we get the same thing twice, it's probably the
-		   end of a 1-element list */
-
-		if (strcmp(str, nodenames[i-1]) == 0) {
-			free(str);
-			break;
-		}
-
-		nodenames[i] = str;
-		num_nodenames++;
-	}
-
 	if (getenv("CMAN_MCAST_ADDR")) {
 		mcast_name = getenv("CMAN_MCAST_ADDR");
 		log_msg(LOG_INFO, "Using override multicast address %s\n", mcast_name);
@@ -557,6 +537,47 @@ static int get_ccs_join_info(void)
 		mcast_name = default_mcast();
 		log_msg(LOG_INFO, "Using default multicast address of %s\n", mcast_name);
 	}
+
+	mcast[0] = mcast_name;
+
+	/* Get all alternative node names */
+	num_nodenames = 1;
+
+	memset(path, 0, MAX_PATH_LEN);
+
+
+	for (i = 1; ; i++) {
+		str = NULL;
+		sprintf(path, NODE_ALTNAMES_PATH, nodename, i);
+
+		error = ccs_get(cd, path, &str);
+		if (error || !str)
+			break;
+
+		nodenames[i] = str;
+
+		sprintf(path, NODE_ALTNAMES_PORT, nodename, i);
+		error = ccs_get(cd, path, &str);
+		if (error || !str) {
+			portnums[i] = DEFAULT_PORT;
+		}
+		else {
+			portnums[i] = atoi(str);
+			free(str);
+		}
+
+		sprintf(path, NODE_ALTNAMES_MCAST, nodename, i);
+		error = ccs_get(cd, path, &str);
+		if (error || !str) {
+			mcast[i] = mcast_name;
+		}
+		else {
+			mcast[i] = str;
+		}
+
+		num_nodenames++;
+	}
+
 
 	/* two_node mode */
 

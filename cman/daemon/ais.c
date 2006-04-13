@@ -55,6 +55,7 @@ struct totem_ip_address ifaddrs[MAX_INTERFACES];
 int num_interfaces;
 uint64_t incarnation;
 
+static char errorstring[512];
 static unsigned int debug_mask;
 static struct objdb_iface_ver0 *global_objdb;
 static totempg_groups_handle group_handle;
@@ -213,14 +214,12 @@ static int cman_readconfig (struct objdb_iface_ver0 *objdb, char **error_string)
 {
 	int error;
 
+	/* Initialise early logging */
 	if (getenv("CMAN_DEBUGLOG"))
 	{
-		char *dlog = strdup(getenv("CMAN_DEBUGLOG"));
-		char *equal = strchr(dlog, '=');
+		debug_mask = atoi(getenv("CMAN_DEBUGLOG"));
 
-		if (equal)
-			debug_mask = atoi(equal+1);
-		log_setup(NULL, LOG_MODE_STDERR, "/tmp/ais");
+		log_setup(NULL, LOG_MODE_STDERR|LOG_MODE_DEBUG, "/tmp/ais");
 		init_debug(debug_mask);
 	}
 	else
@@ -232,13 +231,16 @@ static int cman_readconfig (struct objdb_iface_ver0 *objdb, char **error_string)
 
 	global_objdb = objdb;
 
-	/* Read low-level totem etc config from CCS */
+	/* Read low-level totem/aisexec etc config from CCS */
 	init_config(objdb);
 
 	/* Read cman-specific config from CCS */
 	error = read_ccs_config();
 	if (error)
-		exit(1);
+	{
+		sprintf(errorstring, "Error reading config from CCS");
+		return -1;
+	}
 
 	/* Do config overrides */
 	comms_init_ais(objdb);
@@ -283,51 +285,60 @@ int cman_exit_fn (void *conn_info)
 
 /* END Plugin-specific code */
 
-int ais_set_mcast(char *mcast)
+int ais_add_ifaddr(char *mcast, char *ifaddr, int portnum)
 {
-	unsigned int object_handle;
-	int ret = -1;
-
-	P_AIS("Adding multi address %s\n", mcast);
-
-	global_objdb->object_find_reset(OBJECT_PARENT_HANDLE);
-	if (global_objdb->object_find(OBJECT_PARENT_HANDLE,
-				      "totem",
-				      strlen ("totem"),
-				      &object_handle) == 0) {
-
-		global_objdb->object_key_create(object_handle, "mcastaddr", strlen("mcastaddr"),
-						mcast, strlen(mcast)+1);
-
-		/* Keep a local copy */
-		ret = totemip_parse(&mcast_addr, mcast);
-	}
-
-	return ret;
-}
-
-int ais_add_ifaddr(char *ifaddr)
-{
-	unsigned int object_handle;
+	unsigned int totem_object_handle;
+	unsigned int interface_object_handle;
+	char tmp[132];
 	int ret = -1;
 
 	P_AIS("Adding local address %s\n", ifaddr);
 
-	/* This should already exist as early config creates it */
+
+	/* First time, save the multicast address */
+	if (!num_interfaces)
+	{
+		ret = totemip_parse(&mcast_addr, mcast);
+		if (ret)
+			return ret;
+	}
+
+	/* This will already exist as early config creates it */
 	global_objdb->object_find_reset (OBJECT_PARENT_HANDLE);
 	if (global_objdb->object_find (
 		OBJECT_PARENT_HANDLE,
 		"totem",
 		strlen ("totem"),
-		&object_handle) == 0) {
+		&totem_object_handle) == 0) {
 
-		global_objdb->object_key_create(object_handle, "bindnetaddr", strlen("bindnetaddr"),
-						 ifaddr, strlen(ifaddr)+1);
+		if (global_objdb->object_create(totem_object_handle, &interface_object_handle,
+						"interface", strlen ("interface")) == 0) {
 
-		ret = totemip_parse(&ifaddrs[num_interfaces], ifaddr);
-		if (!ret)
-			num_interfaces++;
+			P_AIS("Setting if %d, name: %s,  mcast: %s,  port=%d, \n",
+			      num_interfaces, ifaddr, mcast, ip_port);
+			sprintf(tmp, "%d", num_interfaces);
+			global_objdb->object_key_create(interface_object_handle, "ringnumber", strlen("ringnumber"),
+							tmp, strlen(tmp)+1);
 
+			global_objdb->object_key_create(interface_object_handle, "bindnetaddr", strlen("bindnetaddr"),
+							ifaddr, strlen(ifaddr)+1);
+
+			global_objdb->object_key_create(interface_object_handle, "mcastaddr", strlen("mcastaddr"),
+							mcast, strlen(mcast)+1);
+
+			sprintf(tmp, "%d", ip_port);
+			global_objdb->object_key_create(interface_object_handle, "mcastport", strlen ("mcastport"),
+							tmp, strlen(tmp)+1);
+
+
+			/* Save a local copy */
+			ret = totemip_parse(&ifaddrs[num_interfaces], ifaddr);
+			if (!ret)
+				num_interfaces++;
+			else
+				return ret;
+
+		}
 	}
 
 	return ret;
@@ -430,12 +441,9 @@ static int comms_init_ais(struct objdb_iface_ver0 *objdb)
 			       strlen ("totem"),
 			       &object_handle) == 0)
 	{
-		global_objdb->object_key_create(object_handle, "version", strlen("version"),
-						"1", 2);
+		objdb->object_key_create(object_handle, "version", strlen("version"),
+					 "2", 2);
 
-		sprintf(tmp, "%d", ip_port);
-		objdb->object_key_create(object_handle, "mcastport", strlen ("mcastport"),
-					 tmp, strlen(tmp)+1);
 
 		sprintf(tmp, "%d", our_nodeid());
 		objdb->object_key_create(object_handle, "nodeid", strlen ("nodeid"),
@@ -460,10 +468,11 @@ static int comms_init_ais(struct objdb_iface_ver0 *objdb)
 			/* Key length must be a multiple of 4 */
 			keylen = (strlen(cluster_name)+4) & 0xFC;
 			objdb->object_key_create(object_handle, "key", strlen ("key"),
-						  tmp, keylen);
+						 tmp, keylen);
 		}
 	}
 
+	/* Make sure mainconfig doesn't stomp on our logging options */
 	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
 	if (objdb->object_find(OBJECT_PARENT_HANDLE,
 			       "logging",
@@ -472,14 +481,29 @@ static int comms_init_ais(struct objdb_iface_ver0 *objdb)
 	{
 		if (debug_mask)
 		{
-			objdb->object_key_create(object_handle, "logoutput", strlen ("logoutput"),
-						 "stderr", strlen("stderr")+1);
+			objdb->object_key_create(object_handle, "to_stderr", strlen ("to_stderr"),
+						 "yes", strlen("yes")+1);
+			objdb->object_key_create(object_handle, "debug", strlen ("debug"),
+						 "on", strlen("on")+1);
 		}
 		else
 		{
-			objdb->object_key_create(object_handle, "logoutput", strlen ("logoutput"),
-						 "syslog", strlen("syslog")+1);
+			objdb->object_key_create(object_handle, "to_syslog", strlen ("to_syslog"),
+						 "yes", strlen("yes")+1);
 		}
+	}
+
+	/* Don't run under user "ais" */
+	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
+	if (objdb->object_find(OBJECT_PARENT_HANDLE,
+			       "aisexec",
+			       strlen ("aisexec"),
+			       &object_handle) == 0)
+	{
+		objdb->object_key_create(object_handle, "user", strlen ("user"),
+				 "root", strlen ("root") + 1);
+		objdb->object_key_create(object_handle, "group", strlen ("group"),
+				 "root", strlen ("root") + 1);
 	}
 
 	/* Make sure we load our alter-ego */
@@ -489,15 +513,6 @@ static int comms_init_ais(struct objdb_iface_ver0 *objdb)
 				 "openais_cman", strlen ("openais_cman") + 1);
 	objdb->object_key_create(object_handle, "ver", strlen ("ver"),
 				 "0", 2);
-
-	/* Don't run under user "ais" */
-	objdb->object_create(OBJECT_PARENT_HANDLE, &object_handle,
-			     "aisexec", strlen ("aisexec"));
-	objdb->object_key_create(object_handle, "user", strlen ("user"),
-				 "root", strlen ("root") + 1);
-	objdb->object_key_create(object_handle, "group", strlen ("group"),
-				 "root", strlen ("root") + 1);
-
 
 	return 0;
 }

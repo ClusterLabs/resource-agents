@@ -34,7 +34,7 @@ extern void override_expected(int expected);
 
 /* Startup stuff called from cmanccs: */
 extern int do_cmd_set_nodename(char *cmdbuf, int *retlen);
-extern int do_cmd_set_nodeid(char *cmdbuf, int *retlen);
+extern int do_cmd_set_nodeid(int nodeid, int *retlen);
 extern int do_cmd_join_cluster(char *cmdbuf, int *retlen);
 
 extern unsigned int config_version;
