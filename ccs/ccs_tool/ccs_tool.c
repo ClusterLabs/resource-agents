@@ -82,6 +82,10 @@ int main(int argc, char *argv[])
 	    create_skeleton(argc-1, argv+1);
 	    exit(EXIT_FAILURE);
     }
+    else if(!strcmp(argv[optind], "addnodeids")){
+	    add_nodeids(argc-1, argv+1);
+	    exit(EXIT_FAILURE);
+    }
 
     else {
       fprintf(stderr, "Unknown command, %s.\n"
@@ -116,5 +120,6 @@ static void print_usage(FILE *stream){
 	  "  addfence <fencedev> Add a new fence device\n"
 	  "  delfence <fencedev> Delete a fence device\n"
 	  "  create              Create a skeleton config file\n"
+	  "  addnodeids          Assign node ID numbers to all nodes\n"
 	  "\n");
 }

@@ -16,11 +16,13 @@
 #include <sys/stat.h>
 #include <getopt.h>
 #include <errno.h>
+#include <assert.h>
 
 #include <libxml/tree.h>
 
 #include "update.h"
 
+#define MAX_NODES 256
 #define DEFAULT_CONFIG_FILE "/etc/cluster/cluster.conf"
 char *prog_name = "ccs_tool";
 
@@ -122,6 +124,17 @@ static void delfence_usage(const char *name)
 static void delnode_usage(const char *name)
 {
 	fprintf(stderr, "Usage: %s %s [options] <name>\n", prog_name, name);
+	config_usage(1);
+	help_usage();
+
+	exit(0);
+}
+
+static void addnodeid_usage(const char *name)
+{
+	fprintf(stderr, "Usage: %s %s [options] <name>\n", prog_name, name);
+	fprintf(stderr, " -n --nodeid        Nodeid to start with (default 1)\n");
+	fprintf(stderr, " -v --verbose       Print nodeids that are assigned\n");
 	config_usage(1);
 	help_usage();
 
@@ -566,6 +579,15 @@ struct option addfence_options[] =
       { NULL, 0, NULL, 0 },
 };
 
+struct option addnodeid_options[] =
+{
+      { "outputfile", required_argument, NULL, 'o'},
+      { "configfile", required_argument, NULL, 'c'},
+      { "nodeid", no_argument, NULL, 'n'},
+      { "verbose", no_argument, NULL, 'v'},
+      { NULL, 0, NULL, 0 },
+};
+
 struct option list_options[] =
 {
       { "configfile", required_argument, NULL, 'c'},
@@ -573,6 +595,136 @@ struct option list_options[] =
       { NULL, 0, NULL, 0 },
 };
 
+
+static int next_nodeid(int startid, int *nodeids, int nodecount)
+{
+	int i;
+	int nextid = startid;
+
+retry:
+	for (i=0; i<nodecount; i++)
+	{
+		if (nodeids[i] == nextid)
+		{
+			nextid++;
+			goto retry;
+		}
+	}
+
+	return nextid;
+}
+
+void add_nodeids(int argc, char **argv)
+{
+	struct option_info ninfo;
+	unsigned char *nodenames[MAX_NODES];
+	xmlDoc *doc;
+	xmlNode *root_element;
+	xmlNode *clusternodes;
+	xmlNode *cur_node;
+	int  verbose = 0;
+	int  opt;
+	int  i;
+	int  nodenumbers[MAX_NODES];
+	int  nodeidx;
+	int  totalnodes;
+	int  nextid;
+
+	memset(nodenames, 0, sizeof(nodenames));
+	memset(nodenumbers, 0, sizeof(nodenumbers));
+	memset(&ninfo, 0, sizeof(ninfo));
+	ninfo.nodeid = "1";
+
+	while ( (opt = getopt_long(argc, argv, "n:o:c:vh?", addnodeid_options, NULL)) != EOF)
+	{
+		switch(opt)
+		{
+		case 'n':
+			validate_int_arg(opt, optarg);
+			ninfo.nodeid = strdup(optarg);
+			break;
+
+		case 'c':
+			ninfo.configfile = strdup(optarg);
+			break;
+
+		case 'o':
+			ninfo.outputfile = strdup(optarg);
+			break;
+
+		case 'v':
+			verbose++;
+			break;
+
+		case '?':
+		default:
+			addnodeid_usage(argv[0]);
+		}
+	}
+
+	doc = open_configfile(&ninfo);
+
+	root_element = xmlDocGetRootElement(doc);
+
+	increment_version(root_element);
+
+	/* Get a list of nodes that /do/ have nodeids so we don't generate
+	   any duplicates */
+	nodeidx=0;
+	clusternodes = findnode(root_element, "clusternodes");
+	if (!clusternodes)
+		die("Can't find \"clusternodes\" in %s\n", ninfo.configfile);
+
+	for (cur_node = clusternodes->children; cur_node; cur_node = cur_node->next)
+	{
+		if (cur_node->type == XML_ELEMENT_NODE && strcmp((char *)cur_node->name, "clusternode") == 0)
+		{
+			xmlChar *name   = xmlGetProp(cur_node, BAD_CAST "name");
+			xmlChar *nodeid = xmlGetProp(cur_node, BAD_CAST "nodeid");
+			nodenames[nodeidx]  = name;
+			if (nodeid)
+				nodenumbers[nodeidx] = atoi((char*)nodeid);
+			nodeidx++;
+		}
+	}
+	totalnodes = nodeidx;
+
+	/* Loop round nodes adding nodeIDs where they don't exist. */
+	nextid = next_nodeid(atoi(ninfo.nodeid), nodenumbers, totalnodes);
+	for (i=0; i<totalnodes; i++)
+	{
+		if (nodenumbers[i] == 0)
+		{
+			nodenumbers[i] = nextid;
+			nextid = next_nodeid(nextid, nodenumbers, totalnodes);
+			if (verbose)
+				fprintf(stderr, "Node %s now has id %d\n", nodenames[i], nodenumbers[i]);
+		}
+	}
+
+	/* Now write them into the tree */
+	nodeidx = 0;
+	for (cur_node = clusternodes->children; cur_node; cur_node = cur_node->next)
+	{
+		if (cur_node->type == XML_ELEMENT_NODE && strcmp((char *)cur_node->name, "clusternode") == 0)
+		{
+			char tmp[80];
+			xmlChar *name = xmlGetProp(cur_node, BAD_CAST "name");
+
+			assert(strcmp((char*)nodenames[nodeidx], (char*)name) == 0);
+
+			sprintf(tmp, "%d", nodenumbers[nodeidx]);
+			xmlSetProp(cur_node, BAD_CAST "nodeid", BAD_CAST tmp);
+			nodeidx++;
+		}
+	}
+
+
+	/* Write it out */
+	save_file(doc, &ninfo);
+	/* Shutdown libxml */
+	xmlCleanupParser();
+}
 
 void add_node(int argc, char **argv)
 {
@@ -741,13 +893,14 @@ void list_nodes(int argc, char **argv)
 
 	root_element = xmlDocGetRootElement(doc);
 
-	clusternodes = findnode(root_element, "clusternodes");
-	if (!clusternodes)
-		die("Can't find \"clusternodes\" in %s\n", ninfo.configfile);
 
 	printf("\nCluster name: %s, config_version: %s\n\n",
 	       (char *)cluster_name(root_element),
 	       (char *)find_version(root_element));
+
+	clusternodes = findnode(root_element, "clusternodes");
+	if (!clusternodes)
+		die("Can't find \"clusternodes\" in %s\n", ninfo.configfile);
 
 	mcast = find_multicast_addr(clusternodes, &ninfo);
 	if (mcast)
@@ -762,6 +915,9 @@ void list_nodes(int argc, char **argv)
 			xmlChar *votes  = xmlGetProp(cur_node, BAD_CAST "votes");
 			xmlChar *nodeid = xmlGetProp(cur_node, BAD_CAST "nodeid");
 			xmlChar *ftype  = get_fence_type(cur_node, &fencenode);
+
+			if (!nodeid)
+				nodeid=(unsigned char *)"0";
 
 			printf("%-32s %3d  %3d    %s\n", name, atoi((char *)votes),
 			       atoi((char *)nodeid),
