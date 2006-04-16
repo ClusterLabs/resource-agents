@@ -451,16 +451,6 @@ END
 }
 
 validate_all_apache() {
-  if [ ! -f $CONFIGFILE ]; then
-# We are sure to succeed here, since we have parsed $CONFIGFILE before getting here
-	ocf_log err "Configuration file $CONFIGFILE not found!"
-	exit $OCF_ERR_ARGS
-  fi
-
-  if [ ! -x $HTTPD ]; then
-	ocf_log err "HTTPD $HTTPD not found or is not an executable!"
-	exit $OCF_ERR_ARGS
-  fi
 
   if CheckPort $PORT; then
 # We are sure to succeed here, since we forced $PORT to be valid in GetParams()
@@ -480,6 +470,16 @@ validate_all_apache() {
 	    exit $OCF_ERR_ARGS ;;
 	esac
   fi
+  if [ ! -x $HTTPD ]; then
+	ocf_log err "HTTPD $HTTPD not found or is not an executable!"
+	exit $OCF_ERR_ARGS
+  fi
+  if [ ! -f $CONFIGFILE ]; then
+# We are sure to succeed here, since we have parsed $CONFIGFILE before getting here
+	ocf_log err "Configuration file $CONFIGFILE not found!"
+	exit $OCF_ERR_CONFIGURED
+  fi
+
 
   return $OCF_SUCCESS
 }
@@ -496,6 +496,7 @@ else
   usage
 fi
 
+LSB_STATUS_STOPPED=3
 if
   [ "X$HTTPD" = X -o ! -f "$HTTPD" -o ! -x "$HTTPD" ]
 then
@@ -514,17 +515,23 @@ then
 	  fi
 	done
 # It is possible that we still do not have a valid httpd at this stage
-	if [ -z $HTTPD ]; then
+	if
+          [ -z "$HTTPD" ]
+	then
+	  case $COMMAND in
+	    stop)	return	$OCF_SUCCESS;;
+	    monitor)	return	$OCF_NOT_RUNNING;;
+            status)	return  $LSB_STATUS_STOPPED;;
+	  esac
 	  ocf_log err "No valid httpd found! Please revise your <HTTPDLIST> item"
-	  exit $OCF_ERR_ARGS
-	fi	
+          exit $OCF_ERR_CONFIGURED
+	fi
 # Let the user know that the $HTTPD used is not the one (s)he specified via $OCF_RESKEY_httpd
         if
           [ "X$OCF_RESKEY_httpd" != X ]
         then
 	  ocf_log info "Using $HTTPD as HTTPD"
         fi
-
 	DefaultConfig=$DEFAULT_NORMCONFIG;;
   esac
 fi
@@ -551,7 +558,7 @@ then
   : OK
 else
   ocf_log err "Cannot parse config file [$CONFIGFILE]"
-  exit $OCF_ERR_ARGS
+  exit $OCF_ERR_CONFIGURED
 fi
 
 case $COMMAND in
