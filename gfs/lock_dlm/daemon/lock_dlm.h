@@ -134,9 +134,10 @@ struct mountgroup {
 	void			*start2_fn;
 };
 
-#define MEMB_OPT_RW	1
-#define MEMB_OPT_RO	2
-#define MEMB_OPT_SPECT	4
+#define MEMB_OPT_RW		1
+#define MEMB_OPT_RO		2
+#define MEMB_OPT_SPECT		4
+#define MEMB_OPT_RECOVER	8
 
 struct mg_member {
 	struct list_head	list;
@@ -150,6 +151,7 @@ struct mg_member {
 	int			recover_journal;
 	int			wait_recover_done;
 	int			gone_event;
+	int			gone_type;
 	int			mount_finished;
 	int			withdraw;
 	struct dlm_lksb		wd_lksb;

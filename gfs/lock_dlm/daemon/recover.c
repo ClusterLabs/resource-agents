@@ -219,7 +219,7 @@ void receive_remount(struct mountgroup *mg, char *buf, int len, int from)
 		  from, error, memb->rw, memb->readonly, memb->opts);
 }
 
-void set_our_options(struct mountgroup *mg)
+void set_our_memb_options(struct mountgroup *mg)
 {
 	struct mg_member *memb;
 	memb = find_memb_nodeid(mg, our_nodeid);
@@ -228,12 +228,12 @@ void set_our_options(struct mountgroup *mg)
 	if (mg->readonly) {
 		memb->readonly = 1;
 		memb->opts |= MEMB_OPT_RO;
-	} else if (mg->rw) {
-		memb->rw = 1;
-		memb->opts |= MEMB_OPT_RW;
 	} else if (mg->spectator) {
 		memb->spectator = 1;
 		memb->opts |= MEMB_OPT_SPECT;
+	} else if (mg->rw) {
+		memb->rw = 1;
+		memb->opts |= MEMB_OPT_RW;
 	}
 }
 
@@ -407,17 +407,21 @@ void _receive_journals(struct mountgroup *mg, char *buf, int len, int from)
 		}
 
 		memb->jid = jid;
-		memb->opts = opts;
 
-		if (opts & MEMB_OPT_RO)
-			memb->readonly = 1;
-		else if (opts & MEMB_OPT_RW)
-			memb->rw = 1;
-		else if (opts & MEMB_OPT_SPECT)
-			memb->spectator = 1;
-
-		if (nodeid == our_nodeid)
+		if (nodeid == our_nodeid) {
 			mg->our_jid = jid;
+			/* set_our_memb_options() sets rest */
+			if (opts & MEMB_OPT_RECOVER)
+				memb->opts |= MEMB_OPT_RECOVER;
+		} else {
+			memb->opts = opts;
+			if (opts & MEMB_OPT_RO)
+				memb->readonly = 1;
+			else if (opts & MEMB_OPT_RW)
+				memb->rw = 1;
+			else if (opts & MEMB_OPT_SPECT)
+				memb->spectator = 1;
+		}
 	}
 }
 
@@ -535,6 +539,16 @@ int discover_journals(struct mountgroup *mg)
 			break;
 		}
 	}
+
+	/* Currently the fs needs recovery, i.e. none of the current
+	   mounters (ro/spectators) can recover journals.  So, this new rw
+	   mounter is told to do first-mounter recovery of all the journals. */
+
+	if (mg->needs_recovery) {
+		log_group(mg, "discover_journals: new member gets OPT_FIRST");
+		new->opts |= MEMB_OPT_RECOVER;
+	}
+
  out:
 	log_group(mg, "discover_journals: new member %d got jid %d",
 		  new->nodeid, new->jid);
@@ -564,6 +578,18 @@ int recover_journals(struct mountgroup *mg)
 		}
 	}
 	return found;
+}
+
+int need_recover_journals(struct mountgroup *mg)
+{
+	struct mg_member *memb;
+
+	list_for_each_entry(memb, &mg->members_gone, list) {
+		if (!memb->spectator && memb->mount_finished &&
+		    (memb->gone_type == GROUP_NODE_FAILED || memb->withdraw))
+			return 1;
+	}
+	return 0;
 }
 
 static void add_ordered_member(struct mountgroup *mg, struct mg_member *new)
@@ -612,6 +638,7 @@ void remove_member(struct mountgroup *mg, struct mg_member *memb)
 {
 	list_move(&memb->list, &mg->members_gone);
 	memb->gone_event = mg->start_event_nr;
+	memb->gone_type = mg->start_type;
 	mg->memb_count--;
 }
 
@@ -1139,30 +1166,18 @@ int do_finish(struct mountgroup *mg)
 	return 0;
 }
 
-int first_participant(struct mountgroup *mg)
+int first_mounter_recovery(struct mountgroup *mg)
 {
 	struct mg_member *memb;
-	int inval = 0, rw = 0, ro = 0, spect = 0;
 
-	list_for_each_entry(memb, &mg->members, list) {
-		if (memb->nodeid == our_nodeid)
-			continue;
-		if (memb->jid == -2)
-			inval++;
-		else if (memb->spectator)
-			spect++;
-		else if (memb->readonly)
-			ro++;
-		else if (memb->rw)
-			rw++;
+	memb = find_memb_nodeid(mg, our_nodeid);
+
+	if (memb->opts & MEMB_OPT_RECOVER) {
+		log_group(mg, "we do first mounter recovery");
+		return 1;
 	}
 
-	if (rw)
-		return 0;
-
-	log_group(mg, "we are first participant inval %d ro %d spect %d",
-		  inval, ro, spect);
-	return 1;
+	return 0;
 }
 
 int no_rw_members(struct mountgroup *mg)
@@ -1212,7 +1227,7 @@ void start_first_mounter(struct mountgroup *mg)
 
 	log_group(mg, "start_first_mounter");
 
-	set_our_options(mg);
+	set_our_memb_options(mg);
 
 	memb = find_memb_nodeid(mg, our_nodeid);
 	ASSERT(memb);
@@ -1242,7 +1257,7 @@ void start_participant_init(struct mountgroup *mg)
 {
 	log_group(mg, "start_participant_init");
 
-	set_our_options(mg);
+	set_our_memb_options(mg);
 	send_options(mg);
 	hold_withdraw_locks(mg);
 
@@ -1277,12 +1292,11 @@ void start_participant_init_2(struct mountgroup *mg)
 		goto out;
 	}
 
-	/* all existing mounts are either spectator/readonly, or are failed
-	   mounters with jid=-2 who don't count; so we do first-mounter gfs
-	   recovery of all journals */
+	/* fs needs recovery and existing mounters can't recover it,
+	   i.e. they're spectator/readonly, so we're told to do
+	   first-mounter recovery on the fs */
 
-	if (mg->rw && first_participant(mg)) {
-		ASSERT(!mg->readonly);
+	if (first_mounter_recovery(mg)) {
 		mg->first_mounter = 1;
 		mg->first_mounter_done = 0;
 	}
@@ -1321,7 +1335,7 @@ void start_participant(struct mountgroup *mg, int pos, int neg)
 		   able to recover the journal; the needs_recovery flag
 		   causes gfs to not be unblocked in finish and requires
 		   the next mounter to be rw */
-		if (no_rw_members(mg)) {
+		if (no_rw_members(mg) && need_recover_journals(mg)) {
 			log_group(mg, "recovery stalled with no rw members");
 			mg->needs_recovery = 1;
 			start_done(mg);
@@ -1373,7 +1387,7 @@ void start_spectator_init(struct mountgroup *mg)
 {
 	log_group(mg, "start_spectator_init");
 
-	set_our_options(mg);
+	set_our_memb_options(mg);
 	send_options(mg);
 	hold_withdraw_locks(mg);
 
@@ -1440,7 +1454,7 @@ void start_spectator(struct mountgroup *mg, int pos, int neg)
 		   able to recover the journal; the needs_recovery flag
 		   causes gfs to not be unblocked in finish and requires
 		   the next mounter to be rw */
-		if (no_rw_members(mg)) {
+		if (no_rw_members(mg) && need_recover_journals(mg)) {
 			log_group(mg, "recovery stalled without rw members");
 			mg->needs_recovery = 1;
 		}
@@ -1467,6 +1481,7 @@ void start_spectator_2(struct mountgroup *mg)
    			send_options
    receive_options
    start_participant_2
+   discover_journals
    assign B a jid
    send_journals
    group_start_done
