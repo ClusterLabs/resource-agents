@@ -8,7 +8,7 @@ Get source
 ----------
 
 Get a kernel that has GFS2 and DLM.
-  See web page for git tree or download -mm?
+  git://git.kernel.org/pub/scm/linux/kernel/git/steve/gfs2-2.6.git
 
 Get the 'cluster' cvs tree, instructions at:
   http://sources.redhat.com/cluster/
@@ -61,7 +61,8 @@ modprobe dlm_device
 Configuration
 -------------
 
-Create /etc/cluster/cluster.conf
+Create /etc/cluster/cluster.conf and copy it to all nodes.
+
   The format and content of cluster.conf has changed little since the
   last generation of the software.  See old example here:
   http://sources.redhat.com/cluster/doc/usage.txt
@@ -69,6 +70,50 @@ Create /etc/cluster/cluster.conf
   in the cluster. These are now mandatory. eg:
 
      <clusternode name="node12.mycluster.mycompany.com" votes="1" nodeid="12">
+
+
+Example cluster.conf
+--------------------
+
+This is a basic cluster.conf file that uses manual fencing.  The node
+names should resolve to the address on the network interface you want to
+use for cman/dlm communication.
+
+<?xml version="1.0"?>
+<cluster name="alpha" config_version="1">
+
+<clusternodes>
+<clusternode name="node01" nodeid="1">
+        <fence>
+                <method name="single">
+                        <device name="man" nodename="node01"/>
+                </method>
+        </fence>
+</clusternode>
+
+<clusternode name="node02" nodeid="2">
+        <fence>
+                <method name="single">
+                        <device name="man" nodename="node02"/>
+                </method>
+        </fence>
+</clusternode>
+
+<clusternode name="node03" nodeid="3">
+        <fence>
+                <method name="single">
+                        <device name="man" nodename="node03"/>
+                </method>
+        </fence>
+</clusternode>
+</clusternodes>
+
+<fencedevices>
+        <fencedevice name="man" agent="fence_manual"/>
+</fencedevices>
+
+</cluster>
+
 
 Startup procedure
 -----------------
@@ -90,17 +135,26 @@ debug/verbose options in [] can be useful at this stage :)
 > group_tool ls
         Shows registered groups, similar to what cman_tool services did.
 
+Notes:
+- <clustername> in mkfs should match the one in cluster.conf.
+- <fsname> in mkfs is any name you pick, each fs must have a different name.
+- <#journals> in mkfs should be greater than or equal to the number of nodes
+  that you want to mount this fs, each node uses a separate journal.
+- To avoid unnecessary fencing when starting the cluster, it's best for
+  all nodes to join the cluster (complete cman_tool join) before any
+  of them do fence_tool join.
+
 
 Shutdown procedure
 ------------------
-
-Notes:
-You need util-linux 2.13-pre6 version of umount(8), older versions do not
-call the umount.gfs2 helper.
 
 Run these commands on each cluster node:
 
 > umount -t gfs2 [-v] <mountpoint>
 > fence_tool leave
 > cman_tool leave
+
+Notes:
+- You need util-linux 2.13-pre6 version of umount(8), older versions do not
+  call the umount.gfs2 helper.
 
