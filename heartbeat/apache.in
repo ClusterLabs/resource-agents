@@ -546,14 +546,18 @@ case "$CONFIGFILE" in
 esac
 
 if
-  [ ! -f "$CONFIGFILE" -a "X$COMMAND" = Xstop ]
+  [ ! -f "$CONFIGFILE" ]
 then
-  ocf_log warn "$CONFIGFILE not found - apache considered stopped"
-  exit $OCF_SUCCESS
+  case $COMMAND in
+    stop)	ocf_log warn "$CONFIGFILE not found - apache considered stopped"
+    		exit $OCF_SUCCESS;;
+    monitor)	exit $OCF_NOT_RUNNING;;
+    status)	exit $LSB_STATUS_STOPPED;;
+  esac
 fi
 
 if
-  GetParams $CONFIGFILE
+  [ "X$COMMAND" = Xmeta-data ] || GetParams $CONFIGFILE
 then
   : OK
 else
