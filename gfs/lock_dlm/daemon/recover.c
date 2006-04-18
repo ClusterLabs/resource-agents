@@ -349,15 +349,13 @@ void send_journals(struct mountgroup *mg, int nodeid)
 	hd->to_nodeid = nodeid;
 	ids = (int *) (buf + sizeof(struct gdlm_header));
 
-	/* FIXME: do byte swapping */
-
 	i = 0;
 	list_for_each_entry(memb, &mg->members, list) {
-		ids[i] = memb->nodeid;
+		ids[i] = cpu_to_le32(memb->nodeid);
 		i++;
-		ids[i] = memb->jid;
+		ids[i] = cpu_to_le32(memb->jid);
 		i++;
-		ids[i] = memb->opts;
+		ids[i] = cpu_to_le32(memb->opts);
 		i++;
 	}
 
@@ -389,9 +387,9 @@ void _receive_journals(struct mountgroup *mg, char *buf, int len, int from)
 	/* FIXME: byte swap nodeid/jid/opts */
 
 	for (i = 0; i < count; i++) {
-		nodeid = ids[i * NUM];
-		jid    = ids[i * NUM + 1];
-		opts   = ids[i * NUM + 2];
+		nodeid = le32_to_cpu(ids[i * NUM]);
+		jid    = le32_to_cpu(ids[i * NUM + 1]);
+		opts   = le32_to_cpu(ids[i * NUM + 2]);
 
 		log_debug("receive nodeid %d jid %d opts %x",
 			  nodeid, jid, opts);

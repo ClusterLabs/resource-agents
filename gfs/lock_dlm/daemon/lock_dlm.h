@@ -33,6 +33,7 @@
 #include <linux/netlink.h>
 
 #include "list.h"
+#include "linux_endian.h"
 #include "libgroup.h"
 #include "libdlm.h"
 
