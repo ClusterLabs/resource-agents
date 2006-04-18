@@ -159,7 +159,7 @@ static struct lcr_iface openais_cman_ver0[1] = {
 		.dependency_count      	= 0,
 		.constructor	       	= NULL,
 		.destructor		= NULL,
-		.interfaces		= (void **)&cman_service_handler_iface,
+		.interfaces		= NULL,
 	}
 };
 
@@ -174,7 +174,9 @@ static struct openais_service_handler *cman_get_handler_ver0 (void)
 	return (&cman_service_handler);
 }
 
+
 __attribute__ ((constructor)) static void cman_comp_register (void) {
+	lcr_interfaces_set (&openais_cman_ver0[0], &cman_service_handler_iface);
 	lcr_component_register (&cman_comp_ver0);
 }
 
@@ -194,7 +196,7 @@ static struct lcr_iface cmanconfig_ver0[1] = {
 		.dependency_count		= 0,
 		.constructor			= NULL,
 		.destructor			= NULL,
-		.interfaces			= (void **)(void *)&cmanconfig_iface_ver0,
+		.interfaces			= NULL,
 	}
 };
 
@@ -204,7 +206,9 @@ static struct lcr_comp cmanconfig_comp_ver0 = {
 };
 
 
+
 __attribute__ ((constructor)) static void cmanconfig_comp_register (void) {
+	lcr_interfaces_set (&cmanconfig_ver0[0], &cmanconfig_iface_ver0);
 	lcr_component_register (&cmanconfig_comp_ver0);
 }
 
@@ -259,11 +263,15 @@ static int cman_exec_init_fn (struct objdb_iface_ver0 *objdb)
 			       strlen ("cman"),
 			       &object_handle) == 0)
 	{
-		objdb_get_int(objdb, object_handle, "debug_mask", &debug_mask);
 		objdb_get_int(objdb, object_handle, "quorum_dev_poll", &quorumdev_poll);
 		objdb_get_int(objdb, object_handle, "shutdown_timeout", &shutdown_timeout);
 
-		init_debug(debug_mask);
+		/* Only use the CCS version of this if it was not overridden on the command-line */
+		if (!getenv("CMAN_DEBUGLOG"))
+		{
+			objdb_get_int(objdb, object_handle, "debug_mask", &debug_mask);
+			init_debug(debug_mask);
+		}
 	}
 
 	/* Open local sockets and initialise I/O queues */

@@ -12,12 +12,12 @@
 
 top_srcdir=..
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
-AISDIR=openais20060413
+AISDIR=openais20060418
 AISTAG=trunk
 
 include ${top_srcdir}/make/defines.mk
 
-CFLAGS+= -g -I${ccsincdir} -I${incdir} -I${top_srcdir}/config \
+CFLAGS+= -fPIC -g -I${ccsincdir} -I${incdir} -I${top_srcdir}/config \
 	-DCMAN_RELEASE_NAME=\"${RELEASE}\" -I../lib -DDEBUG \
 	-I ${AISDIR}/${AISTAG}/exec -L ${AISDIR}/${AISTAG}/exec
 
@@ -32,7 +32,7 @@ copytobin: all
 	cp ${TARGET} ${top_srcdir}/bin
 
 service_cman.lcrso: ${CMAN_OBJS} ${AISDIR}/${AISTAG}/exec/aisexec
-	$(CC) $(CFLAGS) -shared -shared -Wl,-soname,service_cman.lcrso -o $@ ${CMAN_OBJS} -L../lib -L${ccslibdir} -lccs
+	$(CC) $(CFLAGS) -shared -Wl,-soname,service_cman.lcrso -o $@ ${CMAN_OBJS} -L../lib -L${ccslibdir} -lccs
 	cp ${TARGET} ${AISDIR}/${AISTAG}/exec
 	rm -f openais
 	ln -sf ${AISDIR} openais
