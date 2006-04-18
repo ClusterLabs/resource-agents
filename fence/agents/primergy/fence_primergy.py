@@ -238,7 +238,8 @@ def main():
         print "Server is off"
       elif verbose:
         print "Cannot determine power state: %s" % buf
-      break
+      depth = 2
+      sock.write("0\r")
 
     elif i == DONE:
       break;
