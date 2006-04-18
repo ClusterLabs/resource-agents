@@ -502,9 +502,14 @@ int discover_journals(struct mountgroup *mg)
 
 	/* do we let the new member mount? jid=-2 means no */
 
-	if (mg->needs_recovery && !new->rw) {
+	if (mg->needs_recovery && !new->rw)
 		new->jid = -2;
-	} else if (rw_count) {
+
+#if 0
+	/* no longer see any reason to force rw mounts to be added to groups
+	   of only ro/spectator nodes when there's no recovery needed */
+
+	else if (rw_count) {
 		/* all mount modes ok */
 	} else if (!ro_count) {
 		/* all members are spectators;
@@ -517,6 +522,7 @@ int discover_journals(struct mountgroup *mg)
 		if (!new->rw)
 			new->jid = -2;
 	}
+#endif
 
 	if (new->jid == -2) {
 		log_group(mg, "discover_journals: fail - needs_recovery %d",
@@ -577,6 +583,14 @@ int recover_journals(struct mountgroup *mg)
 	}
 	return found;
 }
+
+/* Note: when a readonly node fails we do consider its journal (and the
+   fs) to need recovery... not sure this is really necessary, but
+   the readonly node did "own" a journal so it seems proper to recover
+   it even if the node wasn't writing to it.  So, if there are 3 ro
+   nodes mounting the fs and one fails, gfs on the remaining 2 will
+   remain blocked until an rw node mounts, and the next mounter must
+   be rw. */
 
 int need_recover_journals(struct mountgroup *mg)
 {
@@ -1200,19 +1214,6 @@ int no_rw_members(struct mountgroup *mg)
  * some spectators), disallow any ro->rw remounts, leave gfs blocked,
  * require next mounter to be rw, have next mounter do first mount
  * gfs/journal recovery.
- *
- * - first mounter must be rw
- * - spectators alone ok
- * - spectators and rw ok
- * - ro and rw ok
- * - spectators, ro and rw ok
- * - no ro alone, or ro and spectators; rw must accompany ro
- *
- * - no mounters:       next mount must be rw
- * - only spectators:   next mount can be spectator or rw
- * - only ro:           next mount must be rw
- * - mix ro/spectators: next mount must be rw
- * - rw mixed with any: next mount can be any
  */
 
 /* called for the initial start on the node that's first to mount the fs.
