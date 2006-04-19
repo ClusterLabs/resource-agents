@@ -50,8 +50,11 @@ int set_sysfs(struct mountgroup *mg, char *field, int val)
 	sprintf(out, "%d", val);
 	rv = write(fd, out, strlen(out));
 
-	if (rv != strlen(out))
+	if (rv != strlen(out)) {
 		log_error("write %s error %d %d", fname, fd, errno);
+		close(fd);
+		return -1;
+	}
 
 	close(fd);
 	return 0;
@@ -574,7 +577,7 @@ int recover_journals(struct mountgroup *mg)
 
 			rv = set_sysfs(mg, "recover", memb->jid);
 			if (rv < 0)
-				break;
+				goto fail;
 			memb->recover_journal = 0;
 			memb->wait_recover_done = 1;
 			found = 1;
@@ -582,6 +585,9 @@ int recover_journals(struct mountgroup *mg)
 		}
 	}
 	return found;
+ fail:
+	log_group(mg, "recover_journals gave up, gfs appears unmounted");
+	return -1;
 }
 
 /* Note: when a readonly node fails we do consider its journal (and the
@@ -1037,7 +1043,7 @@ int do_recovery_done(char *table)
 	}
 
 	wait = recover_journals(mg);
-	if (!wait)
+	if (wait <= 0)
 		start_done(mg);
 
 	return 0;
@@ -1342,7 +1348,7 @@ void start_participant(struct mountgroup *mg, int pos, int neg)
 		}
 
 		wait = recover_journals(mg);
-		if (!wait)
+		if (wait <= 0)
 			start_done(mg);
 		else
 			log_group(mg, "delay start_done until recovery_done");
