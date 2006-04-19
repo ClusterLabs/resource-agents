@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.505 $) dnl cvs revision
+AC_REVISION($Revision: 1.506 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -236,7 +236,11 @@ HA_VARLIBDIR="${localstatedir}/lib"
 AC_SUBST(HA_VARLIBDIR)
 AC_DEFINE_UNQUOTED(HA_VARLIBDIR,"$HA_VARLIBDIR", var lib directory)
 
-HA_COREDIR="${HA_VARLIBDIR}/${HB_PKG}/cores"
+HA_VARLIBHBDIR="${HA_VARLIBDIR}/${HB_PKG}"
+AC_SUBST(HA_VARLIBHBDIR)
+AC_DEFINE_UNQUOTED(HA_VARLIBHBDIR,"$HA_VARLIBHBDIR", var lib heartbeat directory)
+
+HA_COREDIR="${HA_VARLIBHBDIR}/cores"
 AC_SUBST(HA_COREDIR)
 AC_DEFINE_UNQUOTED(HA_COREDIR,"$HA_COREDIR", top directory of area to drop core files in)
 
@@ -2172,7 +2176,11 @@ AC_SUBST(LIBADD_INTL)	dnl extra flags for GNU gettext stuff...
 
 AC_SUBST(LOCALE)
 
-HB_RC_DIR=$sysconfdir/ha.d/rc.d
+HB_HA_DIR=$sysconfdir/ha.d
+AC_SUBST(HB_HA_DIR)
+AC_DEFINE_UNQUOTED(HB_HA_DIR,"$HB_HA_DIR", ha directory)
+
+HB_RC_DIR=$HB_HA_DIR/rc.d
 AC_SUBST(HB_RC_DIR)
 AC_DEFINE_UNQUOTED(HB_RC_DIR,"$HB_RC_DIR", rc directory)
 
