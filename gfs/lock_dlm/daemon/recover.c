@@ -995,7 +995,7 @@ int first_recovery_done(struct mountgroup *mg)
 /* FIXME: we need to check result of gfs's recovery_done (SUCCESS/GAVEUP)
    and if all nodes gave up, don't unblock gfs. */
 
-int do_recovery_done(char *table)
+int kernel_recovery_done(char *table)
 {
 	struct mountgroup *mg;
 	struct mg_member *memb;
@@ -1049,6 +1049,17 @@ int do_recovery_done(char *table)
 	return 0;
 }
 
+int need_kernel_recovery_done(struct mountgroup *mg)
+{
+	struct mg_member *memb;
+
+	list_for_each_entry(memb, &mg->members_gone, list) {
+		if (memb->wait_recover_done)
+			return 1;
+	}
+	return 0;
+}
+
 int do_remount(int ci, char *dir, char *mode)
 {
 	struct mountgroup *mg;
@@ -1082,6 +1093,15 @@ int do_unmount(int ci, char *dir)
 	if (!mg) {
 		log_error("do_unmount: unknown mount dir %s", dir);
 		return -1;
+	}
+	
+	/* Check to see if we're waiting for a kernel recovery_done to do a
+	   start_done().  If so, call the start_done() here because we won't be
+	   getting anything else from gfs-kernel which is now gone. */
+
+	if (need_kernel_recovery_done(mg)) {
+		log_group(mg, "do_unmount: fill in start_done");
+		start_done(mg);
 	}
 
 	group_leave(gh, mg->name);

@@ -199,7 +199,7 @@ int process_uevent(void)
 	log_debug("kernel: %s %s", act, argv[3]);
 
 	if (!strcmp(act, "change@"))
-		do_recovery_done(argv[3]);
+		kernel_recovery_done(argv[3]);
 
 	else if (!strcmp(act, "offline@"))
 		do_withdraw(argv[3]);
