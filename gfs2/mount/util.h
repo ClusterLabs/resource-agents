@@ -34,7 +34,7 @@
 #define __u8 uint8_t
 
 #include <linux/gfs2_ondisk.h>
-#include <linux/gfs_ondisk.h>
+#include "../../gfs-kernel/src/gfs/gfs_ondisk.h"
 #include "linux_endian.h"
 
 #define die(fmt, args...) \
