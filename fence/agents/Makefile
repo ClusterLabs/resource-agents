@@ -2,7 +2,7 @@
 ###############################################################################
 ##
 ##  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+##  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
 ##  
 ##  This copyrighted material is made available to anyone wishing to use,
 ##  modify, copy, or redistribute it subject to the terms and conditions
@@ -28,6 +28,7 @@ all:
 	# cd rackswitch && ${MAKE} all
 	cd rps10 && ${MAKE} all
 	cd rsa && ${MAKE} all
+	cd rsb && ${MAKE} all
 	cd sanbox2 && ${MAKE} all
 	cd vixel && ${MAKE} all
 	cd wti && ${MAKE} all
@@ -70,6 +71,8 @@ clean:
 	cd mcdata && ${MAKE} clean
 	# cd rackswitch && ${MAKE} clean
 	cd rps10 && ${MAKE} clean
+	cd rsa && ${MAKE} clean
+	cd rsb && ${MAKE} clean
 	cd sanbox2 && ${MAKE} clean
 	cd vixel && ${MAKE} clean
 	cd wti && ${MAKE} clean

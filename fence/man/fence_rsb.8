@@ -4,37 +4,40 @@
 .\"  modify, copy, or redistribute it subject to the terms and conditions
 .\"  of the GNU General Public License v.2.
 
-.TH fence_rsa 8
+.TH fence_rsb 8
 
 .SH NAME
-fence_rsa - I/O Fencing agent for IBM RSA II
+fence_rsb - I/O Fencing agent for Fujitsu-Siemens RSB
 
 .SH SYNOPSIS
 .B 
-fence_rsa
+fence_rsb
 [\fIOPTION\fR]...
 
 .SH DESCRIPTION
-fence_rsa is an I/O Fencing agent which can be used with the IBM RSA II
-management interface.  It logs into an RSA II device via telnet and reboots
-the associated machine. Lengthy telnet connections to the RSA II device 
+fence_rsb is an I/O Fencing agent which can be used with the Fujitsu-Siemens
+RSB management interface.  It logs into an RSB device via telnet and reboots
+the associated machine. Lengthy telnet connections to the RSB device 
 should be avoided while a GFS cluster is running because the connection 
 will block any necessary fencing actions.
 
-fence_rsa accepts options on the command line as well as from stdin.  
-Fenced sends parameters through stdin when it execs the agent.  fence_rsa 
+fence_rsb accepts options on the command line as well as from stdin.  
+Fenced sends parameters through stdin when it execs the agent.  fence_rsb
 can be run by itself with command line options.  This is useful for testing.
 
 .SH OPTIONS
 .TP
 \fB-a\fP \fIIPaddress\fR
-IP address or hostname of the RSA II device.
+IP address or hostname of the RSB device.
 .TP
 \fB-h\fP 
 Print out a help message describing available options, then exit.
 .TP
 \fB-l\fP \fIlogin\fR
 Login name.
+.TP
+\fB-n\fP \fItelnet_port\fR
+The port number on which the telnet service listens.
 .TP
 \fB-o\fP \fIaction\fR
 The action required.  Reboot (default), Off, On, or Status.
@@ -51,10 +54,13 @@ Print out a version message, then exit.
 .SH STDIN PARAMETERS
 .TP
 \fIagent = < param >\fR
-This option is used by fence_node(8) and is ignored by fence_rsa.
+This option is used by fence_node(8) and is ignored by fence_rsb.
 .TP
 \fIipaddr = < hostname | ip >\fR
 IP address or hostname of the device.
+.TP
+\fItelnet_port = < port number >\fR
+The port number on which the telnet service listens.
 .TP
 \fIlogin = < param >\fR
 Login name.
