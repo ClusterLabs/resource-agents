@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.504 $) dnl cvs revision
+AC_REVISION($Revision: 1.505 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -2533,18 +2533,6 @@ crm/Makefile							\
 	crm/tengine/Makefile					\
 	crm/admin/Makefile					\
 	        crm/admin/crm_primitive.py			\
-	crm/test/Makefile					\
-		crm/test/helper.sh				\
-		crm/test/stop.sh				\
-		crm/test/1node.sh				\
-		crm/test/2node.sh				\
-		crm/test/2node-fail.sh				\
-		crm/test/2node-fence.sh				\
-		crm/test/2node-empty.sh				\
-		crm/test/3node.sh				\
-		crm/test/3node-rapid.sh				\
-		crm/test/3node-fail.sh				\
-		crm/test/cib_suite.sh				\
 debian/Makefile							\
 doc/Makefile							\
 	doc/startstop						\
