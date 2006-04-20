@@ -879,7 +879,7 @@ int pass1(struct fsck_sb *sbp)
 		log_info("Checking metadata in Resource Group %"PRIu64"\n",
 			 rg_count);
 		rgd = osi_list_entry(tmp, struct fsck_rgrp, rd_list);
-		if(fs_rgrp_read(rgd)){
+		if(fs_rgrp_read(rgd, FALSE)){
 			stack;
 			return -1;
 		}

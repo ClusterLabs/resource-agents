@@ -393,7 +393,7 @@ int fs_createi(struct fsck_inode *dip, osi_filename_t *name,
 		struct fsck_rgrp *rgd;
 
 		rgd = osi_list_entry(tmp, struct fsck_rgrp, rd_list);
-		if(fs_rgrp_read(rgd))
+		if(fs_rgrp_read(rgd, FALSE))
 			return -1;
 		if(rgd->rd_rg.rg_freemeta){
 			block = fs_blkalloc_internal(rgd, dip->i_num.no_addr,

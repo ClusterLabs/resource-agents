@@ -248,7 +248,7 @@ int check_block_status(struct fsck_sb *sbp, char *buffer, unsigned int buflen,
 #define FREE_META_COUNT  16
 #define CONVERT_FREEMETA_TO_FREE (FREE_COUNT | FREE_META_COUNT)
 
-int update_rgrp(struct fsck_rgrp *rgp, uint32_t *count)
+int update_rgrp(struct fsck_rgrp *rgp, uint32_t *count, int rgcount)
 {
 	uint32_t i;
 	fs_bitmap_t *bits;
@@ -294,28 +294,28 @@ int update_rgrp(struct fsck_rgrp *rgp, uint32_t *count)
 	} else if(bmap) {
 		/* actually adjust counters and write out to disk */
 		if(bmap & FREE_COUNT) {
-			log_err("free count inconsistent: is %u should be %u\n",
-				rgp->rd_rg.rg_free, count[0] );
+			log_err("RG #%d free count inconsistent: is %u should be %u\n",
+					rgcount, rgp->rd_rg.rg_free, count[0] );
 			rgp->rd_rg.rg_free = count[0];
 		}
 		if(bmap & USED_INODE_COUNT) {
-			log_err("used inode count inconsistent: is %u should be %u\n",
-				rgp->rd_rg.rg_useddi, count[1]);
+			log_err("RG #%d used inode count inconsistent: is %u should be %u\n",
+				rgcount, rgp->rd_rg.rg_useddi, count[1]);
 			rgp->rd_rg.rg_useddi = count[1];
 		}
 		if(bmap & FREE_INODE_COUNT) {
-			log_err("free inode count inconsistent: is %u should be %u\n",
-				rgp->rd_rg.rg_freedi, count[2]);
+			log_err("RG #%d free inode count inconsistent: is %u should be %u\n",
+				rgcount, rgp->rd_rg.rg_freedi, count[2]);
 			rgp->rd_rg.rg_freedi = count[2];
 		}
 		if(bmap & USED_META_COUNT) {
-			log_err("used meta count inconsistent: is %u should be %u\n",
-				rgp->rd_rg.rg_usedmeta, count[3]);
+			log_err("RG #%d used meta count inconsistent: is %u should be %u\n",
+				rgcount, rgp->rd_rg.rg_usedmeta, count[3]);
 			rgp->rd_rg.rg_usedmeta = count[3];
 		}
 		if(bmap & FREE_META_COUNT) {
-			log_err("free meta count inconsistent: is %u should be %u\n",
-				rgp->rd_rg.rg_freemeta, count[4]);
+			log_err("RG #%d free meta count inconsistent: is %u should be %u\n",
+				rgcount, rgp->rd_rg.rg_freemeta, count[4]);
 			rgp->rd_rg.rg_freemeta = count[4];
 		}
 
@@ -344,7 +344,7 @@ int pass5(struct fsck_sb *sbp, struct options *opts)
 	osi_list_t *tmp;
 	struct fsck_rgrp *rgp = NULL;
 	uint32_t count[5];
-	uint64_t rg_count = 0;
+	uint64_t rg_count = 1;
 
 	/* Reconcile RG bitmaps with fsck bitmap */
 	for(tmp = sbp->rglist.next; tmp != &sbp->rglist; tmp = tmp->next){
@@ -352,12 +352,12 @@ int pass5(struct fsck_sb *sbp, struct options *opts)
 		memset(count, 0, sizeof(*count) * 5);
 		rgp = osi_list_entry(tmp, struct fsck_rgrp, rd_list);
 
-		if(fs_rgrp_read(rgp)){
+		if(fs_rgrp_read(rgp, FALSE)){
 			stack;
 			return -1;
 		}
 		/* Compare the bitmaps and report the differences */
-		update_rgrp(rgp, count);
+		update_rgrp(rgp, count, rg_count);
 		rg_count++;
 		fs_rgrp_relse(rgp);
 	}

@@ -141,8 +141,13 @@ struct fsck_rgrp *fs_blk2rgrpd(struct fsck_sb *sdp, uint64 blk)
 	return rgd;
 }
 
-
-int fs_rgrp_read(struct fsck_rgrp *rgd)
+/**
+ * fs_rgrp_read - read in the resource group information from disk.
+ * @rgd - resource group structure
+ * @repair_if_corrupted - If TRUE, rgrps found to be corrupt should be repaired
+ *                 according to the index.  If FALSE, no corruption is fixed.
+ */
+int fs_rgrp_read(struct fsck_rgrp *rgd, int repair_if_corrupted)
 {
 	struct fsck_sb *sdp = rgd->rd_sbd;
 	unsigned int x, length = rgd->rd_ri.ri_length;
@@ -160,15 +165,33 @@ int fs_rgrp_read(struct fsck_rgrp *rgd)
 			exit(1);
 		}
 		error = get_and_read_buf(sdp, rgd->rd_ri.ri_addr + x,
-					 &(rgd->rd_bh[x]), 0);
+								 &(rgd->rd_bh[x]), 0);
+		if (error) {
+		  	log_err("Unable to read rgrp from disk.\n"); 
+		  	goto fail;
+		}
+
 		if(check_meta(rgd->rd_bh[x], (x) ? GFS_METATYPE_RB : GFS_METATYPE_RG)){
-			log_err("Buffer #%"PRIu64" (%d of %d) is neither"
-				" GFS_METATYPE_RB nor GFS_METATYPE_RG.\n",
-				BH_BLKNO(rgd->rd_bh[x]),
-				(int)x+1,
-				(int)length);
-			error = -1;
-			goto fail;
+			log_err("Block #%"PRIu64" (0x%"PRIx64") (%d of %d) is neither"
+					" GFS_METATYPE_RB nor GFS_METATYPE_RG.\n",
+					BH_BLKNO(rgd->rd_bh[x]), BH_BLKNO(rgd->rd_bh[x]),
+					(int)x+1, (int)length);
+			if (repair_if_corrupted) {
+				if (query(sdp, "Fix the RG? (y/n)")) {
+					log_err("Attempting to repair the RG.\n");
+					memset(&rgd->rd_rg, 0, sizeof(struct gfs_rgrp));
+					rgd->rd_rg.rg_header.mh_magic = GFS_MAGIC;
+					rgd->rd_rg.rg_header.mh_type = GFS_METATYPE_RG;
+					rgd->rd_rg.rg_header.mh_format = GFS_FORMAT_RG;
+					rgd->rd_rg.rg_free = rgd->rd_ri.ri_data;
+					gfs_rgrp_out(&rgd->rd_rg, BH_DATA(rgd->rd_bh[x]));
+					write_buf(sdp, rgd->rd_bh[x], BW_WAIT);
+				}
+			}
+			else {
+				error = -1;
+				goto fail;
+			}
 		}
 	}
 
@@ -179,11 +202,13 @@ int fs_rgrp_read(struct fsck_rgrp *rgd)
 
  fail:
 	for (x = 0; x < length; x++){
-		relse_buf(sdp, rgd->rd_bh[x]);
-		rgd->rd_bh[x] = NULL;
+		if (rgd->rd_bh[x]) {
+			relse_buf(sdp, rgd->rd_bh[x]);
+			rgd->rd_bh[x] = NULL;
+		}
 	}
 
-	log_err("Resource group is corrupted.\n");
+	log_err("Resource group or index is corrupted.\n");
 	return error;
 }
 
@@ -196,13 +221,15 @@ void fs_rgrp_relse(struct fsck_rgrp *rgd)
 		log_debug("rgrp still held...\n");
 	} else {
 		for (x = 0; x < length; x++){
-			relse_buf(rgd->rd_sbd, rgd->rd_bh[x]);
-			rgd->rd_bh[x] = NULL;
+			if (rgd->rd_bh[x]) {
+				relse_buf(rgd->rd_sbd, rgd->rd_bh[x]);
+				rgd->rd_bh[x] = NULL;
+			}
 		}
 	}
 }
 
-
+#if 0 /* no one calls this, so don't waste memory for it: */
 /**
  * rgrp_verify - Verify that a resource group is consistent
  * @sdp: the filesystem
@@ -259,7 +286,7 @@ int fs_rgrp_verify(struct fsck_rgrp *rgd)
 	}
 	return 0;
 }
-
+#endif
 
 /**
  * fs_rgrp_recount - adjust block tracking numbers
@@ -433,7 +460,7 @@ int clump_alloc(struct fsck_rgrp *rgd, uint32 goal)
 	log_debug("clump_alloc failing...\n");
 	for(--i; i >=0; i--){
 		fs_set_bitmap(sdp, BH_BLKNO(bh[i]), GFS_BLKST_FREE);
-		relse_buf(sdp, bh[i]);
+		/*relse_buf(sdp, bh[i]);*/
 	}
 	return -1;
 }
@@ -462,7 +489,7 @@ int fs_blkalloc(struct fsck_inode *ip, uint64 *block)
 			return -1;
 		}
 
-		if(fs_rgrp_read(rgd)){
+		if(fs_rgrp_read(rgd, FALSE)){
 			log_err( "fs_blkalloc:  Unable to read rgrp.\n");
 			return -1;
 		}
@@ -535,7 +562,7 @@ int fs_metaalloc(struct fsck_inode *ip, uint64 *block)
 			return -1;
 		}
 
-		if(fs_rgrp_read(rgd)){
+		if(fs_rgrp_read(rgd, FALSE)){
 			log_err( "fs_metaalloc:  Unable to read rgrp.\n");
 			return -1;
 		}

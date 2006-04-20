@@ -265,7 +265,7 @@ int create_inode(struct fsck_sb *sbp, unsigned int type, struct fsck_inode **ip)
 	osi_list_foreach(tmp, &sbp->rglist) {
 		/* Create a new inode in that rgd */
 		rgd = osi_list_entry(tmp, struct fsck_rgrp, rd_list);
-		if(fs_rgrp_read(rgd)) {
+		if(fs_rgrp_read(rgd, FALSE)) {
 			stack;
 			return -1;
 		}

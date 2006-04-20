@@ -272,7 +272,7 @@ int fs_get_bitmap(struct fsck_sb *sdp, uint64 blkno, struct fsck_rgrp *rgd){
 		log_err( "Unable to get rgrp for block #%"PRIu64"\n", blkno);
 		return -1;
 	}
-	if(fs_rgrp_read(rgd)){
+	if(fs_rgrp_read(rgd, FALSE)){ /* FALSE:don't try to fix (done elsewhere) */
 		log_err( "Unable to read rgrp.\n");
 		return -1;
 	}
@@ -336,7 +336,7 @@ int fs_set_bitmap(struct fsck_sb *sdp, uint64 blkno, int state){
 		return -1;
 	}
 
-	if(fs_rgrp_read(rgd)) {
+	if(fs_rgrp_read(rgd, FALSE)) {
 		stack;
 		return -1;
 	}
@@ -347,18 +347,16 @@ int fs_set_bitmap(struct fsck_sb *sdp, uint64 blkno, int state){
 			break;
 		}
 	}
-
-	fs_setbit(BH_DATA(rgd->rd_bh[buf]) + bits->bi_offset,
-		  bits->bi_len,
-		  (rgrp_block - (bits->bi_start*GFS_NBBY)),
-		  state);
-
-
-	if(write_buf(sdp, rgd->rd_bh[buf], 0)){
-		fs_rgrp_relse(rgd);
-		return -1;
+	if (buf < rgd->rd_ri.ri_length) {
+		fs_setbit(BH_DATA(rgd->rd_bh[buf]) + bits->bi_offset,
+				  bits->bi_len,
+				  (rgrp_block - (bits->bi_start*GFS_NBBY)),
+				  state);
+		if(write_buf(sdp, rgd->rd_bh[buf], 0)){
+			fs_rgrp_relse(rgd);
+			return -1;
+		}
 	}
-
 	fs_rgrp_relse(rgd);
 	return 0;
 }
