@@ -496,12 +496,13 @@ delete_interface () {
 
 add_interface () {
   ipaddr="$1"
-  iface="$2"
-  netmask_bits="$3"
+  iface_base="$2"
+  iface="$3"
+  netmask_bits="$4"
   netmask_text=""
-  broadcast="$4"
+  broadcast="$5"
 
-  IFCMD="$FINDIF $ipaddr/$netmask_bits/$iface/$broadcast"
+  IFCMD="$FINDIF $ipaddr/$netmask_bits/$iface_base/$broadcast"
   NICINFO=`$IFCMD`
   
   rc=$?
@@ -579,7 +580,7 @@ restore_loopback() {
 		ifname=`cat "$VLDIR/$ipaddr"`
 		ocf_log info "Restoring loopback IP Address " \
 			"$ipaddr on $ifname."
-		add_interface "$ipaddr" "$ifname" "32"
+		add_interface "$ipaddr" "$ifname" "$ifname" "32"
 		rm -f "$VLDIR/$ipaddr"
 	fi
 }
@@ -705,7 +706,7 @@ ip_start() {
 	fi
     fi
     
-    add_interface "$OCF_RESKEY_ip" "$NIC_unique" "$OCF_RESKEY_netmask" "$OCF_RESKEY_broadcast"
+    add_interface "$OCF_RESKEY_ip" "$OCF_RESKEY_nic" "$NIC_unique" "$OCF_RESKEY_netmask" "$OCF_RESKEY_broadcast"
     rc=$?
     if [ $rc != 0 ]; then
 	return $rc
