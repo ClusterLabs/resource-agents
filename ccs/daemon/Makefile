@@ -15,7 +15,7 @@ UNINSTALL = ${top_srcdir}/scripts/uninstall.pl
 
 include ${top_srcdir}/make/defines.mk
 
-INCLUDE= -I. -I../include -I../common -I${top_srcdir}/config -I${magmaincdir} -I${cmanincdir}
+INCLUDE= -I. -I../include -I../common -I${top_srcdir}/config -I../../cman/lib
 
 ifeq ($(DEBUG),y)
 CFLAGS+= -Wall -O2 -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -DDEBUG -g \
@@ -25,7 +25,7 @@ CFLAGS+= -Wall -O2 -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE \
 	`xml2-config --cflags` -DCCS_RELEASE_NAME=\"${RELEASE}\"
 endif
 
-LDFLAGS+= -L${magmalibdir} -L${libdir} `xml2-config --libs` -lpthread -lmagma -lmagmamsg -ldl
+LDFLAGS+= -L${libdir} `xml2-config --libs` -lpthread -ldl
 
 all: ccsd
 
@@ -33,7 +33,8 @@ copytobin: all
 	cp ccsd ${top_srcdir}/bin
 
 ccsd: ccsd.c cnx_mgr.c cluster_mgr.c misc.c ../common/log.c globals.c
-	${CC} ${CFLAGS} ${INCLUDE} -o $@ $^ ${LDFLAGS}
+	${CC} ${CFLAGS} ${INCLUDE} -o $@ $^ ${LDFLAGS} \
+	../../cman/lib/libcman.a
 
 install: ccsd
 	install -d ${sbindir}
