@@ -55,6 +55,7 @@ struct totem_ip_address ifaddrs[MAX_INTERFACES];
 int num_interfaces;
 uint64_t incarnation;
 
+static int config_run;
 static char errorstring[512];
 static unsigned int debug_mask;
 static struct objdb_iface_ver0 *global_objdb;
@@ -143,13 +144,33 @@ static struct openais_service_handler cman_service_handler = {
 	.config_init_fn                 = NULL,
 };
 
-static struct openais_service_handler *cman_get_handler_ver0 (void);
+static struct openais_service_handler *cman_get_handler_ver0 (void)
+{
+	return (&cman_service_handler);
+}
 
 static struct openais_service_handler_iface_ver0 cman_service_handler_iface = {
 	.openais_get_service_handler_ver0 = cman_get_handler_ver0
 };
 
-static struct lcr_iface openais_cman_ver0[1] = {
+
+
+static struct config_iface_ver0 cmanconfig_iface_ver0 = {
+	.config_readconfig        = cman_readconfig
+};
+
+static struct lcr_iface ifaces_ver0[2] = {
+	{
+		.name		       	= "cmanconfig",
+		.version	       	= 0,
+		.versions_replace      	= 0,
+		.versions_replace_count	= 0,
+		.dependencies	       	= 0,
+		.dependency_count      	= 0,
+		.constructor	       	= NULL,
+		.destructor	       	= NULL,
+		.interfaces	       	= NULL,
+	},
 	{
 		.name		        = "openais_cman",
 		.version	        = 0,
@@ -164,52 +185,16 @@ static struct lcr_iface openais_cman_ver0[1] = {
 };
 
 static struct lcr_comp cman_comp_ver0 = {
-	.iface_count			= 1,
-	.ifaces			       	= openais_cman_ver0
+	.iface_count				= 2,
+	.ifaces					= ifaces_ver0,
 };
 
-
-static struct openais_service_handler *cman_get_handler_ver0 (void)
-{
-	return (&cman_service_handler);
-}
 
 
 __attribute__ ((constructor)) static void cman_comp_register (void) {
-	lcr_interfaces_set (&openais_cman_ver0[0], &cman_service_handler_iface);
+	lcr_interfaces_set (&ifaces_ver0[0], &cmanconfig_iface_ver0);
+	lcr_interfaces_set (&ifaces_ver0[1], &cman_service_handler_iface);
 	lcr_component_register (&cman_comp_ver0);
-}
-
-/* ------------------------------- */
-/* Code for configuration plugin */
-static struct config_iface_ver0 cmanconfig_iface_ver0 = {
-	.config_readconfig        = cman_readconfig
-};
-
-static struct lcr_iface cmanconfig_ver0[1] = {
-	{
-		.name				= "cmanconfig",
-		.version			= 0,
-		.versions_replace		= 0,
-		.versions_replace_count		= 0,
-		.dependencies			= 0,
-		.dependency_count		= 0,
-		.constructor			= NULL,
-		.destructor			= NULL,
-		.interfaces			= NULL,
-	}
-};
-
-static struct lcr_comp cmanconfig_comp_ver0 = {
-	.iface_count				= 1,
-	.ifaces					= cmanconfig_ver0
-};
-
-
-
-__attribute__ ((constructor)) static void cmanconfig_comp_register (void) {
-	lcr_interfaces_set (&cmanconfig_ver0[0], &cmanconfig_iface_ver0);
-	lcr_component_register (&cmanconfig_comp_ver0);
 }
 
 /* ------------------------------- */
@@ -249,12 +234,18 @@ static int cman_readconfig (struct objdb_iface_ver0 *objdb, char **error_string)
 	/* Do config overrides */
 	comms_init_ais(objdb);
 
+	config_run = 1;
+
 	return 0;
 }
 
 static int cman_exec_init_fn (struct objdb_iface_ver0 *objdb)
 {
 	unsigned int object_handle;
+
+	/* We can only work if our config inerface was run first */
+	if (!config_run)
+		return 0;
 
 	/* Get our config variable */
 	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
