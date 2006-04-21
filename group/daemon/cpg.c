@@ -137,6 +137,9 @@ void process_groupd_confchg(void)
 {
 	int i, found = 0;
 
+	log_print("process_groupd_confchg members %d -%d +%d",
+		  saved_member_count, saved_left_count, saved_joined_count);
+
 	for (i = 0; i < saved_member_count; i++) {
 		if (saved_member[i].nodeId == our_nodeid &&
 		    saved_member[i].pid == (uint32_t) getpid()) {
@@ -183,7 +186,7 @@ void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 
 	msg_bswap_in(msg);
 
-	log_print("deliver_cb %llx from %d len %d", handle, nodeid, data_len);
+	log_print("deliver %llx from %d len %d", handle, nodeid, data_len);
 
 	if (handle == groupd_handle) {
 		memcpy(&name, &msg->ms_name, MAX_NAMELEN);
@@ -231,15 +234,15 @@ void process_confchg(void)
 		return;
 	}
 
-	log_print("process_confchg members %d left %d joined %d",
-		  saved_member_count, saved_left_count, saved_joined_count);
-
 	g = find_group_by_handle(saved_handle);
 	if (!g) {
 		log_print("process_confchg: no group for handle %u name %s",
 			  saved_handle, saved_name.value);
 		return;
 	}
+
+	log_group(g, "process_confchg members %d -%d +%d",
+		  saved_member_count, saved_left_count, saved_joined_count);
 
 	for (i = 0; i < saved_joined_count; i++)
 		process_node_join(g, saved_joined[i].nodeId);
@@ -260,9 +263,21 @@ void confchg_cb(cpg_handle_t handle, struct cpg_name *group_name,
 		struct cpg_address *left_list, int left_list_entries,
 		struct cpg_address *joined_list, int joined_list_entries)
 {
-	int i;
+	group_t *g;
+	char *name = "unknown";
+	int i, level = -1;
 
-	log_print("confchg_cb members %d left %d joined %d",
+	if (handle == groupd_handle)
+		name = "groupd";
+	else {
+		g = find_group_by_handle(handle);
+		if (g) {
+			name = g->name;
+			level = g->level;
+		}
+	}
+
+	log_print("confchg %d:%s members %d -%d +%d", level, name,
 		  member_list_entries, left_list_entries, joined_list_entries);
 
 	saved_handle = handle;
