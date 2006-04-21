@@ -186,8 +186,6 @@ void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 
 	msg_bswap_in(msg);
 
-	log_print("deliver %llx from %d len %d", handle, nodeid, data_len);
-
 	if (handle == groupd_handle) {
 		memcpy(&name, &msg->ms_name, MAX_NAMELEN);
 
@@ -207,6 +205,8 @@ void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 			return;
 		}
 	}
+
+	log_group(g, "deliver from %d len %d", nodeid, data_len);
 
 	save = malloc(sizeof(struct save_msg));
 	memset(save, 0, sizeof(struct save_msg));
@@ -277,7 +277,7 @@ void confchg_cb(cpg_handle_t handle, struct cpg_name *group_name,
 		}
 	}
 
-	log_print("confchg %d:%s members %d -%d +%d", level, name,
+	log_print("%d:%s confchg members %d -%d +%d", level, name,
 		  member_list_entries, left_list_entries, joined_list_entries);
 
 	saved_handle = handle;
