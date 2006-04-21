@@ -182,7 +182,7 @@ int main(int argc, char *argv[]){
     FD_SET(sfds[2], &rset);
 
   while(1){
-    int len = addr_size;
+    unsigned int len = addr_size;
 
     process_signals();
     

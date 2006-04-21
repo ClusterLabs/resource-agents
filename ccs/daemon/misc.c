@@ -57,7 +57,7 @@ int get_doc_version(xmlDocPtr ldoc){
     goto fail;
   }
 
-  obj = xmlXPathEvalExpression("//cluster/@config_version", ctx);
+  obj = xmlXPathEvalExpression((xmlChar *)"//cluster/@config_version", ctx);
   if(!obj || !obj->nodesetval || (obj->nodesetval->nodeNr != 1)){
     log_err("Error while retrieving config_version.\n");
     error = -ENODATA;
@@ -71,22 +71,23 @@ int get_doc_version(xmlDocPtr ldoc){
     goto fail;
   }
 
-  if(!node->children->content || !strlen(node->children->content)){
+  if(!node->children->content || !strlen((char *)node->children->content)){
     log_dbg("No content found.\n");
     error = -ENODATA;
     goto fail;
   }
   
-  for(i=0; i < strlen(node->children->content); i++){
+  for(i=0; i < strlen((char *)node->children->content); i++){
     if(!isdigit(node->children->content[i])){
       log_err("config_version is not a valid integer.\n");
       error = -EINVAL;
       goto fail;
     }
   }
-  error = atoi(node->children->content);
+  error = atoi((char *)node->children->content);
 
- fail:
+fail:
+
   if(ctx){
     xmlXPathFreeContext(ctx);
   }
@@ -122,7 +123,7 @@ char *get_cluster_name(xmlDocPtr ldoc){
     goto fail;
   }
 
-  obj = xmlXPathEvalExpression("//cluster/@name", ctx);
+  obj = xmlXPathEvalExpression((xmlChar *)"//cluster/@name", ctx);
   if(!obj || !obj->nodesetval || (obj->nodesetval->nodeNr != 1)){
     log_err("Error while retrieving config_version.\n");
     error = -ENODATA;
@@ -136,15 +137,16 @@ char *get_cluster_name(xmlDocPtr ldoc){
     goto fail;
   }
 
-  if(!node->children->content || !strlen(node->children->content)){
+  if(!node->children->content || !strlen((char *)node->children->content)){
     log_dbg("No content found.\n");
     error = -ENODATA;
     goto fail;
   }
 
-  rtn = strdup(node->children->content);
+  rtn = strdup((char *)node->children->content);
 
- fail:
+fail:
+
   if(ctx){
     xmlXPathFreeContext(ctx);
   }

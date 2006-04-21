@@ -170,8 +170,8 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
   struct sockaddr_storage addr, recv_addr;
   struct sockaddr_in *addr4 = (struct sockaddr_in *)&addr;
   struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *)&addr;
+  unsigned int len = sizeof(struct sockaddr_storage);
   int addr_size = 0;
-  int len=sizeof(struct sockaddr_storage);
   comm_header_t *ch = NULL;
   char *bdoc = NULL;
   fd_set rset;
@@ -850,7 +850,7 @@ static int _process_get(comm_header_t *ch, char **payload){
   /* Bump expiration time */
   ocs[desc]->oc_expire = time(NULL) + DEFAULT_EXPIRE;
 
-  obj = xmlXPathEvalExpression(query, ocs[desc]->oc_ctx);
+  obj = xmlXPathEvalExpression((xmlChar *)query, ocs[desc]->oc_ctx);
   if(obj){
     log_dbg("Obj type  = %d (%s)\n", obj->type, (obj->type == 1)?"XPATH_NODESET":"");
     log_dbg("Number of matches: %d\n", (obj->nodesetval)?obj->nodesetval->nodeNr:0);
@@ -872,7 +872,7 @@ static int _process_get(comm_header_t *ch, char **payload){
 	      (node->type == 2)? "XML_ATTRIBUTE_NODE":"");
 
       if(!node || !node->children ||
-         !node->children->content || !strlen(node->children->content)){
+         !node->children->content || !strlen((char *)node->children->content)){
 	log_dbg("No content found.\n");
 	error = -ENODATA;
 	goto fail;
@@ -884,10 +884,11 @@ static int _process_get(comm_header_t *ch, char **payload){
 	 ((node->type == XML_ELEMENT_NODE) && strstr(query, "child::*"))){
 	/* add on the trailing NULL and the '=' separator for a list of attrs
 	   or an element node + CDATA*/
-	size = strlen(node->children->content)+strlen(node->name)+2;
+	size = strlen((char *)node->children->content) +
+	  strlen((char *)node->name)+2;
 	nnv= 1;
       } else {
-	size = strlen(node->children->content)+1;
+	size = strlen((char *)node->children->content) + 1;
       }
 
       if(size <= ch->comm_payload_size){  /* do we already have enough space? */
@@ -1262,10 +1263,10 @@ int process_request(int afd){
 int process_broadcast(int sfd){
   int error = 0;
   comm_header_t *ch = NULL;
-  char *payload = NULL;
+  xmlChar *payload = NULL;
   char *buffer = NULL;
   struct sockaddr_storage addr;
-  int len = sizeof(struct sockaddr_storage);  /* value/result for recvfrom */
+  unsigned int len = sizeof(struct sockaddr_storage);  /* value/result for recvfrom */
   int sendlen;
   int discard = 0;
 
@@ -1330,7 +1331,7 @@ int process_broadcast(int sfd){
 
   /* allocates space for the payload */
   xmlDocDumpFormatMemory(master_doc->od_doc,
-			 (xmlChar **)&payload,
+			 &payload,
 			 &(ch->comm_payload_size),
 			 0);
   if(!ch->comm_payload_size){

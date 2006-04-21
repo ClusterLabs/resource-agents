@@ -34,7 +34,7 @@ static member_list_t *get_member_list(cman_handle_t handle);
 static void free_member_list(member_list_t *list);
 static char *member_id_to_name(member_list_t *list, int node);
 static int member_name_to_id(member_list_t *list, char *name);
-static int member_addr_to_id(member_list_t *list, struct sockaddr addr);
+static int member_addr_to_id(member_list_t *list, struct sockaddr *addr);
 static int member_online_node(member_list_t *list, int node);
 static int member_online_name(member_list_t *list, char *name);
 
@@ -68,7 +68,7 @@ static int get_doc_version(xmlDocPtr ldoc)
     goto fail;
   }
 
-  obj = xmlXPathEvalExpression("//cluster/@config_version", ctx);
+  obj = xmlXPathEvalExpression((xmlChar *)"//cluster/@config_version", ctx);
 
   if (!obj || !obj->nodesetval || (obj->nodesetval->nodeNr != 1)) {
     fprintf(stderr, "Error while retrieving config_version.\n");
@@ -84,12 +84,12 @@ static int get_doc_version(xmlDocPtr ldoc)
     goto fail;
   }
 
-  if (!node->children->content || !strlen(node->children->content)) {
+  if (!node->children->content || !strlen((char *)node->children->content)) {
     error = -ENODATA;
     goto fail;
   }
 
-  for (i = 0; i < strlen(node->children->content); i++) {
+  for (i = 0; i < strlen((char *)node->children->content); i++) {
     if (!isdigit(node->children->content[i])) {
       fprintf(stderr, "config_version is not a valid integer.\n");
       error = -EINVAL;
@@ -97,7 +97,7 @@ static int get_doc_version(xmlDocPtr ldoc)
     }
   }
 
-  error = atoi(node->children->content);
+  error = atoi((char *)node->children->content);
 
 fail:
 
@@ -120,7 +120,7 @@ int update(char *location)
   int cluster_fd = -1;
   char true_location[256];
   xmlDocPtr doc = NULL;
-  char *mem_doc = NULL;
+  xmlChar *mem_doc;
   int doc_size = 0;
   char *buffer = NULL;
   comm_header_t *ch = NULL, rch;
@@ -194,7 +194,7 @@ int update(char *location)
     return -EINVAL;
   }    
 
-  xmlDocDumpFormatMemory(doc, (xmlChar **)&mem_doc, &doc_size, 0);
+  xmlDocDumpFormatMemory(doc, &mem_doc, &doc_size, 0);
 
   if (!mem_doc) {
     fprintf(stderr, "Unable to allocate memory for update document.\n");
@@ -460,14 +460,15 @@ static int member_name_to_id(member_list_t *list, char *name)
 }
 
 
-static int member_addr_to_id(member_list_t *list, struct sockaddr addr)
+static int member_addr_to_id(member_list_t *list, struct sockaddr *addr)
 {
   int i;
 
   for (i = 0; i < list->count; i++) {
-	  if (memcmp(list->nodes[i].cn_address.cna_address,
-		     (struct sockaddr_in *)&addr, sizeof(addr))) {
-		  return list->nodes[i].cn_nodeid;
+	  if (memcmp(&list->nodes[i].cn_address.cna_address, addr,
+		sizeof(struct sockaddr))) {
+
+		return list->nodes[i].cn_nodeid;
 	  }
   }
 

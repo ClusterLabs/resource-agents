@@ -194,13 +194,15 @@ static int upgrade_device_archive(char *location){
   int error = 0;
   int dev_fd=-1, tmp_fd=-1;
   char tmp_file[64];
-  char *buffer = NULL;
+  void *buffer = NULL;
+  char *buffer_p;
   ccs_dh_t dev_header;
 
-  if(posix_memalign((void **)&buffer, DEFAULT_BBS, DEFAULT_BBS)){
+  if(posix_memalign(&buffer, DEFAULT_BBS, DEFAULT_BBS)){
     fprintf(stderr, "Unable to allocate aligned memory.\n");
     return -ENOMEM;
   }
+  buffer_p = (char *)buffer;
 
   if((dev_fd = open(location, O_RDONLY | O_DIRECT)) < 0){
     fprintf(stderr, "Unable to open %s: %s\n", location, strerror(errno));
@@ -208,13 +210,13 @@ static int upgrade_device_archive(char *location){
     goto fail;
   }
 
-  if(read(dev_fd, buffer, DEFAULT_BBS) < DEFAULT_BBS){
+  if(read(dev_fd, buffer_p, DEFAULT_BBS) < DEFAULT_BBS){
     fprintf(stderr, "Unable to read %s: %s\n", location, strerror(errno));
     error = -errno;
     goto fail;
   }
 
-  ccs_dh_in(&dev_header, buffer);
+  ccs_dh_in(&dev_header, buffer_p);
   if(dev_header.dh_magic == CCS_DH_MAGIC){
     if(!dev_header.dh_active){
       if(lseek(dev_fd, dev_header.dh_maxsize, SEEK_SET)< 0){
@@ -241,14 +243,14 @@ static int upgrade_device_archive(char *location){
 
   while(dev_header.dh_size){
     int write_size;
-    if(read(dev_fd, buffer, DEFAULT_BBS) < DEFAULT_BBS){
+    if(read(dev_fd, buffer_p, DEFAULT_BBS) < DEFAULT_BBS){
       fprintf(stderr, "Bad read on %s: %s.\n", location, strerror(errno));
       error = -errno;
       goto fail;
     }
     write_size = (dev_header.dh_size < DEFAULT_BBS) ? 
       dev_header.dh_size : DEFAULT_BBS;
-    if(write(tmp_fd, buffer, write_size) < write_size){
+    if(write(tmp_fd, buffer_p, write_size) < write_size){
       fprintf(stderr, "Unable to write to temporary archive: %s.\n", strerror(errno));
       error = -errno;
       goto fail;
@@ -260,7 +262,7 @@ static int upgrade_device_archive(char *location){
   error = _upgrade_file_archive(tmp_fd);
   
  fail:
-  if(buffer) free(buffer);
+  if(buffer_p) free(buffer_p);
   if(dev_fd >= 0) close(dev_fd);
   if(tmp_fd >= 0) close(tmp_fd);
   return error;

@@ -45,7 +45,7 @@ static member_list_t *get_member_list(cman_handle_t handle);
 static void free_member_list(member_list_t *list);
 static char *member_id_to_name(member_list_t *list, int node);
 static int member_name_to_id(member_list_t *list, char *name);
-static int member_addr_to_id(member_list_t *list, struct sockaddr addr);
+static int member_addr_to_id(member_list_t *list, struct sockaddr *addr);
 static int member_online_node(member_list_t *list, int node);
 static int member_online_name(member_list_t *list, char *name);
 
@@ -134,7 +134,7 @@ static int handle_cluster_message(int fd)
     goto fail;
   }
 
-  if ((nodeid = member_addr_to_id(members, client_addr)) < 0) {
+  if ((nodeid = member_addr_to_id(members, &client_addr)) < 0) {
     log_err("Unable to determine node ID.\n");
     goto fail;
   }
@@ -595,14 +595,15 @@ static int member_name_to_id(member_list_t *list, char *name)
 }
 
 
-static int member_addr_to_id(member_list_t *list, struct sockaddr addr)
+static int member_addr_to_id(member_list_t *list, struct sockaddr *addr)
 {
   int i;
 
   for (i = 0; i < list->count; i++) {
-	  if (memcmp(list->nodes[i].cn_address.cna_address,
-		     (struct sockaddr_in *)&addr, sizeof(addr))) {
-		  return list->nodes[i].cn_nodeid;
+	  if (memcmp(&list->nodes[i].cn_address.cna_address, addr,
+		sizeof(struct sockaddr))) {
+
+		return list->nodes[i].cn_nodeid;
 	  }
   }
 
