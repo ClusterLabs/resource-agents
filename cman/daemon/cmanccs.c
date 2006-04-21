@@ -29,7 +29,7 @@
 #include "ccs.h"
 #include "cnxman-socket.h"
 
-#define DEFAULT_PORT            6809
+#define DEFAULT_PORT            5405
 
 #define CONFIG_VERSION_PATH	"/cluster/@config_version"
 #define CLUSTER_NAME_PATH	"/cluster/@name"
