@@ -32,8 +32,8 @@
 #include "aispoll.h"
 #include "service.h"
 #include "config.h"
+#include "print.h"
 #include "../lcr/lcr_comp.h"
-
 
 #include "cnxman-socket.h"
 #include "logging.h"
@@ -88,12 +88,6 @@ static int cman_readconfig (struct objdb_iface_ver0 *objdb, char **error_string)
 /* Plugin-specific code */
 /* Need some better way of determining these.... */
 #define CMAN_SERVICE 8
-
-#define LOG_SERVICE LOG_SERVICE_AMF
-#include "print.h"
-#define LOG_LEVEL_FROM_LIB LOG_LEVEL_DEBUG
-#define LOG_LEVEL_FROM_GMI LOG_LEVEL_DEBUG
-#define LOG_LEVEL_ENTER_FUNC LOG_LEVEL_DEBUG
 
 static int cman_exit_fn (void *conn_info);
 static int cman_exec_init_fn (struct objdb_iface_ver0 *objdb);
@@ -207,16 +201,9 @@ static int cman_readconfig (struct objdb_iface_ver0 *objdb, char **error_string)
 	if (getenv("CMAN_DEBUGLOG"))
 	{
 		debug_mask = atoi(getenv("CMAN_DEBUGLOG"));
+	}
 
-		log_setup(NULL, LOG_MODE_STDERR|LOG_MODE_DEBUG, "/tmp/ais");
-		init_debug(debug_mask);
-	}
-	else
-	{
-		log_setup(NULL, LOG_MODE_SYSLOG, "/tmp/ais");
-		init_debug(0);
-		debug_mask = 0;
-	}
+	init_debug(debug_mask);
 
 	global_objdb = objdb;
 
@@ -292,7 +279,6 @@ int ais_add_ifaddr(char *mcast, char *ifaddr, int portnum)
 	int ret = -1;
 
 	P_AIS("Adding local address %s\n", ifaddr);
-
 
 	/* First time, save the multicast address */
 	if (!num_interfaces)
@@ -478,16 +464,23 @@ static int comms_init_ais(struct objdb_iface_ver0 *objdb)
 			       strlen ("logging"),
 			       &object_handle) == 0)
 	{
+		unsigned int logger_object_handle;
+
+		objdb->object_create(object_handle, &logger_object_handle,
+				      "logger", strlen ("logger"));
+		objdb->object_key_create(logger_object_handle, "ident", strlen("ident"),
+					 "CMAN", strlen("CMAN")+1);
+
 		if (debug_mask)
 		{
-			objdb->object_key_create(object_handle, "to_stderr", strlen ("to_stderr"),
+			objdb->object_key_create(object_handle, "to_stderr", strlen("to_stderr"),
 						 "yes", strlen("yes")+1);
-			objdb->object_key_create(object_handle, "debug", strlen ("debug"),
+			objdb->object_key_create(logger_object_handle, "debug", strlen("debug"),
 						 "on", strlen("on")+1);
 		}
 		else
 		{
-			objdb->object_key_create(object_handle, "to_syslog", strlen ("to_syslog"),
+			objdb->object_key_create(object_handle, "to_syslog", strlen("to_syslog"),
 						 "yes", strlen("yes")+1);
 		}
 	}

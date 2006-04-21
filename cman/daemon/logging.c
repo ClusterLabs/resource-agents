@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2005-2006 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -21,54 +21,32 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#define LOG_SERVICE LOG_SERVICE_MAIN
 #include "print.h"
-
-#include "list.h"
 #include "totemip.h"
+
 #include "logging.h"
-#include "cnxman-socket.h"
-#include "cnxman-private.h"
+
+/* All logging comes through here so it can be stamped [CMAN] */
 
 static int use_stderr = 0;
-static int subsys_mask = 0;
+int subsys_mask = 0;
 
-/* This is always called by the libtotem routines so we prefix messages
-   with "totem:"
-*/
 void log_msg(int priority, char *fmt, ...)
 {
 	va_list va;
 	char log_buf[1024];
 
-	if (!priority)
-		return;
-
-	if (use_stderr)
-	{
-		struct timeval tv;
-
-		gettimeofday(&tv, NULL);
-
-		va_start(va, fmt);
-		vsprintf(log_buf, fmt, va);
-		va_end(va);
-		log_printf(priority, log_buf);
-	}
-	else
-	{
-		va_start(va, fmt);
-		vsyslog(priority, fmt, va);
-		va_end(va);
-	}
+	va_start(va, fmt);
+	vsprintf(log_buf, fmt, va);
+	va_end(va);
+	log_printf(priority, log_buf);
 }
 
 void init_debug(int subsystems)
 {
-	openlog("cman", LOG_CONS|LOG_PID, LOG_DAEMON);
+	log_init("CMAN");
 
 	use_stderr = (subsystems != 0);
-
 	subsys_mask = subsystems;
 }
 
@@ -77,9 +55,7 @@ void log_debug(int subsys, int stamp, const char *fmt, ...)
 {
 	va_list va;
 	char newfmt[strlen(fmt)+10];
-	struct timeval tv;
-
-	gettimeofday(&tv, NULL);
+	char log_buf[1024];
 
 	if (!(subsys_mask & subsys))
 		return;
@@ -111,13 +87,8 @@ void log_debug(int subsys, int stamp, const char *fmt, ...)
 	strcat(newfmt, fmt);
 
 	va_start(va, fmt);
-	if (use_stderr) {
-		char log_buf[1024];
-		vsprintf(log_buf, newfmt, va);
-		log_printf(LOG_LEVEL_DEBUG, log_buf);
-	}
-	else
-		vsyslog(LOG_DEBUG, newfmt, va);
+	vsprintf(log_buf, newfmt, va);
+	log_printf(LOG_LEVEL_DEBUG, log_buf);
 	va_end(va);
 }
 #endif

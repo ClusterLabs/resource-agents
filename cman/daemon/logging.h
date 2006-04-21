@@ -26,7 +26,6 @@ extern void log_debug(int subsys, int stamp, const char *fmt, ...);
 
 #define P_BARRIER(fmt, args...) log_debug(CMAN_DEBUG_BARRIER, 1, fmt, ## args)
 #define P_MEMB(fmt, args...)    log_debug(CMAN_DEBUG_MEMB, 1, fmt, ## args)
-#define C_MEMB(fmt, args...)    log_debug(CMAN_DEBUG_MEMB, 0, fmt, ## args)
 #define P_DAEMON(fmt, args...)  log_debug(CMAN_DEBUG_DAEMON, 1, fmt, ## args)
 #define P_AIS(fmt, args...)     log_debug(CMAN_DEBUG_AIS, 1, fmt, ## args)
 
@@ -34,7 +33,6 @@ extern void log_debug(int subsys, int stamp, const char *fmt, ...);
 
 #define P_BARRIER(fmt, args...)
 #define P_MEMB(fmt, args...)
-#define C_MEMB(fmt, args...)
 #define P_DAEMON(fmt, args...)
 #define P_AIS(fmt, args...)
 
