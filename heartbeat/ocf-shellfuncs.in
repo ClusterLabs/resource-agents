@@ -1,5 +1,5 @@
 #
-# 	$Id: ocf-shellfuncs.in,v 1.27 2006/03/11 04:02:58 xunsun Exp $
+# 	$Id: ocf-shellfuncs.in,v 1.28 2006/04/24 14:46:15 andrew Exp $
 #
 # 	Common helper functions for the OCF Resource Agents supplied by
 # 	heartbeat.
@@ -131,10 +131,11 @@ __ocf_set_defaults() {
 	OCF_RUNNING_MASTER=8
 	OCF_FAILED_MASTER=9
 
-	OCF_CHECK_LEVEL=0
 	# Strip the OCF_RESKEY_ prefix from this particular parameter
 	if [ -z "$OCF_RESKEY_OCF_CHECK_LEVEL" ]; then
 		: ${OCF_CHECK_LEVEL:=$OCF_RESKEY_OCF_CHECK_LEVEL}
+	else
+		OCF_CHECK_LEVEL=0
 	fi
 
 	if [ -z "$OCF_ROOT" ]; then
