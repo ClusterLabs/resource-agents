@@ -18,21 +18,22 @@
 #include "objdb.h"
 #include "logging.h"
 
-static int read_config_for(int ccs_fd, struct objdb_iface_ver0 *objdb, char *object, char *key)
+static int read_config_for(int ccs_fd, struct objdb_iface_ver0 *objdb, unsigned int parent,
+			   char *object, char *key, int always_create)
 {
 	int error;
 	char *str;
-	unsigned int object_handle;
+	unsigned int object_handle = 0;
 	char path[256];
 	int gotcount = 0;
 	char *subkeys[52];
 	int subkeycount = 0;
 	int i;
 
+	if (always_create) {
+		objdb->object_create(parent, &object_handle, object, strlen(object));
+	}
 	sprintf(path, "/cluster/%s/@*", key);
-
-	objdb->object_create (OBJECT_PARENT_HANDLE, &object_handle,
-			      object, strlen (object));
 
 	/* Get the keys */
 	for (;;)
@@ -43,13 +44,17 @@ static int read_config_for(int ccs_fd, struct objdb_iface_ver0 *objdb, char *obj
 		if (error || !str)
                         break;
 
+		if (!object_handle) {
+			objdb->object_create(parent, &object_handle, object, strlen(object));
+		}
+
 		equal = strchr(str, '=');
 		if (equal)
 		{
 			*equal = 0;
-			P_DAEMON("CCS: got config item %s: '%s' = '%s'\n", key, str, equal+1);
-			objdb->object_key_create (object_handle, str, strlen (str),
-						  equal+1, strlen(equal+1)+1);
+			P_DAEMON("CCS: got config item %s: '%s' = '%s'\n", object, str, equal+1);
+			objdb->object_key_create(object_handle, str, strlen(str),
+						 equal+1, strlen(equal+1)+1);
 			gotcount++;
 		}
 		free(str);
@@ -102,13 +107,10 @@ static int read_config_for(int ccs_fd, struct objdb_iface_ver0 *objdb, char *obj
 		for (;;)
 		{
 			char subpath[1024];
-			char subobject[1024];
 
 			/* Found a subkey, iterate through it's sub sections */
 			sprintf(subpath, "%s/%s[%d]", key, str, ++count);
-			sprintf(subobject, "%s/%s", key, str);
-
-			if (!read_config_for(ccs_fd, objdb, subobject, subpath))
+			if (!read_config_for(ccs_fd, objdb, object_handle, str, subpath, 0))
 				break;
 		}
 		free(str);
@@ -125,14 +127,14 @@ void init_config(struct objdb_iface_ver0 *objdb)
 		return;
 
 	/* These first few are just versions of openais.conf */
-	read_config_for(cd, objdb, "totem", "totem");
-	read_config_for(cd, objdb, "logging", "logging");
-	read_config_for(cd, objdb, "event", "event");
-	read_config_for(cd, objdb, "aisexec", "aisexec");
-	read_config_for(cd, objdb, "group", "group");
+	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "totem", "totem", 1);
+	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "logging", "logging", 1);
+	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "event", "event", 1);
+	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "aisexec", "aisexec", 1);
+	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "group", "group", 1);
 
 	/* This is stuff specific to us, eg quorum device timeout */
-	read_config_for(cd, objdb, "cman", "cman");
+	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "cman", "cman", 1);
 
 	ccs_disconnect(cd);
 }
