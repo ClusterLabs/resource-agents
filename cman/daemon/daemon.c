@@ -200,8 +200,8 @@ static int process_client(poll_handle handle, int fd, int revent, void *data, un
 		   send/receive data. The main loop doesn't keep a backlog queue
 		   of messages for ADMIN sockets
 		*/
-		if ((msg->command == CMAN_CMD_DATA || msg->command == CMAN_CMD_BIND) &&
-		    con->type == CON_ADMIN) {
+		if ((msg->command == CMAN_CMD_DATA || msg->command == CMAN_CMD_BIND ||
+		     msg->command == CMAN_CMD_NOTIFY) && con->type == CON_ADMIN) {
 			P_DAEMON("can't send data down an admin socket, sorry\n");
 			send_status_return(con, msg->command, -EINVAL);
 			return 0;
