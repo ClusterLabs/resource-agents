@@ -1,5 +1,5 @@
 #
-# 	$Id: ocf-shellfuncs.in,v 1.29 2006/04/24 14:57:00 andrew Exp $
+# 	$Id: ocf-shellfuncs.in,v 1.30 2006/04/24 15:28:38 lars Exp $
 #
 # 	Common helper functions for the OCF Resource Agents supplied by
 # 	heartbeat.
@@ -133,7 +133,7 @@ __ocf_set_defaults() {
 
 	# Strip the OCF_RESKEY_ prefix from this particular parameter
 	if [ -z "$OCF_RESKEY_OCF_CHECK_LEVEL" ]; then
-		OCF_CHECK_LEVEL=0
+		: ${OCF_CHECK_LEVEL:=0}
 	else
 		: ${OCF_CHECK_LEVEL:=$OCF_RESKEY_OCF_CHECK_LEVEL}
 	fi
