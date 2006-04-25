@@ -58,7 +58,6 @@ sub usage
 	print "  ipaddr=<ip>      Same as -a command line option\n";
 	print "  login=<name>     Same as -l command line option\n";
 	print "  domain=<domain>  Same as -d command line option\n";
-	print "  ipaddr=<ip>      Same as -a command line option\n";
 	print "  option=<string>  Same as -o command line option\n";
 	print "  passwd=<string>  Same as -p command line option\n\n";
 
