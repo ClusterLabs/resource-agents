@@ -3,7 +3,7 @@
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
 **  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
-**  
+**
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
 **  of the GNU General Public License v.2.
@@ -19,7 +19,10 @@
 #include <sys/wait.h>
 #include <string.h>
 #include <errno.h>
+#include <time.h>
 #include <syslog.h>
+
+#include <libcman.h>
 
 #include "ccs.h"
 
@@ -264,7 +267,7 @@ static int use_device(int cd, char *victim, char *method, int d, char *device)
 	error = make_args(cd, victim, method, d, device, &args);
 	if (error)
 		goto out_agent;
-	
+
 	error = run_agent(agent, args);
 
 	free(args);
@@ -272,6 +275,31 @@ static int use_device(int cd, char *victim, char *method, int d, char *device)
 	free(agent);
  out:
 	return error;
+}
+
+static void update_cman(char *victim, char *method)
+{
+	cman_handle_t ch;
+	struct cman_node node;
+	uint64_t the_time = time(NULL);
+
+	ch = cman_admin_init(NULL);
+	if (!ch) {
+		syslog(LOG_ERR, "Unable to connect to to cman: %m");
+		return;
+	}
+	/* Convert name to a number */
+	memset(&node, 0, sizeof(node));
+	strcpy(node.cn_name, victim);
+	if (!cman_get_node(ch, 0, &node)) {
+
+		/* Mark it as fenced */
+		cman_node_fenced(ch, node.cn_nodeid, the_time, method);
+	}
+	else {
+		syslog(LOG_ERR, "can't get node number for node %s\n", victim);
+	}
+	cman_finish(ch);
 }
 
 int dispatch_fence_agent(int cd, char *victim)
@@ -298,6 +326,7 @@ int dispatch_fence_agent(int cd, char *victim)
 			if (error)
 				break;
 
+			update_cman(victim, device);
 			free(device);
 			device = NULL;
 		}

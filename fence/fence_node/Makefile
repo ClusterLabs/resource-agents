@@ -23,10 +23,10 @@ else
 CFLAGS+= -O2 -D_FILE_OFFSET_BITS=64 -DFENCE_RELEASE_NAME=\"${RELEASE}\"
 endif
 
-INCLUDE = -I${top_srcdir}/include -I${ccsincdir} -I${incdir} -I${top_srcdir}/config
+INCLUDE = -I${top_srcdir}/include -I${ccsincdir} -I${incdir} -I${top_srcdir}/config -I${top_srcdir}/../cman/lib
 
-LDFLAGS+= -L${ccslibdir} -L${libdir}
-LOADLIBES+= -lccs
+LDFLAGS+= -L${ccslibdir} -L${libdir} -L${top_srcdir}/../cman/lib
+LOADLIBES+= -lccs -lcman
 
 FENCE_NODE_SRC = \
 	agent.c \
