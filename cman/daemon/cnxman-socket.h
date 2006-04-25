@@ -53,6 +53,8 @@
 #define CMAN_CMD_ADD_KEYFILE        0x800000ba
 #define CMAN_CMD_TRY_SHUTDOWN       0x800000bb
 #define CMAN_CMD_SHUTDOWN_REPLY     0x000000bc
+#define CMAN_CMD_UPDATE_FENCE_INFO  0x800000bd
+#define CMAN_CMD_GET_FENCE_INFO     0x000000be
 
 #define CMAN_CMD_DATA               0x00000100
 #define CMAN_CMD_BIND               0x00000101
@@ -68,6 +70,7 @@
 #define MAX_CLUSTER_MEMBER_NAME_LEN   255
 #define MAX_BARRIER_NAME_LEN           33
 #define MAX_CLUSTER_NAME_LEN           16
+#define MAX_FENCE_AGENT_NAME_LEN      255
 
 /* Well-known cluster port numbers */
 #define CLUSTER_PORT_MEMBERSHIP  1	/* Mustn't block during cluster
@@ -229,6 +232,12 @@ struct cl_cluster_info {
 struct cl_set_votes {
 	int nodeid;
 	int newvotes;
+};
+
+struct cl_fence_info {
+	int nodeid;
+	uint64_t fence_time;
+	char fence_agent[MAX_FENCE_AGENT_NAME_LEN];
 };
 
 /* Commands to the barrier cmd */

@@ -271,6 +271,9 @@ int cman_get_version(cman_handle_t handle, cman_version_t *version);
 /* Get cluster name and number */
 int cman_get_cluster(cman_handle_t handle, cman_cluster_t *clinfo);
 
+/* Get fence information for a node */
+int cman_get_fenceinfo(cman_handle_t handle, int nodeid, uint64_t *time, char *agent);
+
 /* Get stuff for cman_tool. Nobody else should use this */
 int cman_get_extra_info(cman_handle_t handle, cman_extra_info_t *info, int maxlen);
 
@@ -297,6 +300,9 @@ int cman_set_expected_votes(cman_handle_t handle, int expected_votes);
 
 /* Tell a particular node to leave the cluster NOW */
 int cman_kill_node(cman_handle_t handle, int nodeid);
+
+/* Tell CMAN a node has been fenced, when and by what means */
+int cman_node_fenced(cman_handle_t handle, int nodeid, uint64_t time, char *agent);
 
 /*
  * cman_shutdown() will send a REASON_TRY_SHUTDOWN event to all

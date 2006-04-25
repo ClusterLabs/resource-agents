@@ -1054,6 +1054,56 @@ static int do_cmd_set_keyfile(char *cmdbuf)
 	return 0;
 }
 
+static int do_cmd_update_fence_info(char *cmdbuf)
+{
+	struct cl_fence_info *f = (struct cl_fence_info *)cmdbuf;
+	struct cluster_node *node;
+	char msg[sizeof(struct cl_fencemsg)+strlen(f->fence_agent)];
+	struct cl_fencemsg *fence_msg = (struct cl_fencemsg *)msg;
+
+	node = find_node_by_nodeid(f->nodeid);
+	if (!node)
+		return -EINVAL;
+
+	if (strlen(f->fence_agent) >= MAX_FENCE_AGENT_NAME_LEN)
+		return -EINVAL;
+
+	/* Tell the rest of the cluster (and us!) */
+	fence_msg->cmd = CLUSTER_MSG_FENCESTATUS;
+	fence_msg->nodeid = f->nodeid;
+	fence_msg->timesec = f->fence_time;
+	strcpy(fence_msg->agent, f->fence_agent);
+	comms_send_message(msg, sizeof(msg), 0,0, 0, 0);
+
+	P_MEMB("node %d fenced by %s\n", f->nodeid, f->fence_agent);
+	return 0;
+}
+
+static int do_cmd_get_fence_info(char *cmdbuf, char **retbuf, int retsize, int *retlen, int offset)
+{
+	int nodeid;
+	char *outbuf = *retbuf + offset;
+	struct cl_fence_info *f = (struct cl_fence_info *)outbuf;
+	struct cluster_node *node;
+
+	if (retsize < sizeof(struct cl_fence_info))
+		return -EINVAL;
+	memcpy(&nodeid, cmdbuf, sizeof(nodeid));
+
+	node = find_node_by_nodeid(nodeid);
+	if (!node)
+		return -EINVAL;
+
+	f->nodeid = nodeid;
+	f->fence_time = node->fence_time;
+	if (node->fence_agent)
+		strcpy(f->fence_agent, node->fence_agent);
+	else
+		f->fence_agent[0] = '\0';
+	*retlen = sizeof(struct cl_fence_info);
+	return 0;
+}
+
 int process_command(struct connection *con, int cmd, char *cmdbuf,
 		    char **retbuf, int *retlen, int retsize, int offset)
 {
@@ -1185,6 +1235,14 @@ int process_command(struct connection *con, int cmd, char *cmdbuf,
 
 	case CMAN_CMD_POLL_QUORUMDEV:
 		err = do_cmd_poll_quorum_device(cmdbuf, retlen);
+		break;
+
+	case CMAN_CMD_UPDATE_FENCE_INFO:
+		err = do_cmd_update_fence_info(cmdbuf);
+		break;
+
+	case CMAN_CMD_GET_FENCE_INFO:
+		err = do_cmd_get_fence_info(cmdbuf, retbuf, retsize, retlen, offset);
 		break;
 	}
 	P_MEMB("command return code is %d\n", err);
@@ -1376,6 +1434,7 @@ static void byteswap_internal_message(char *data, int len)
 	struct cl_killmsg *killmsg;
 	struct cl_leavemsg *leavemsg;
 	struct cl_transmsg *transmsg;
+	struct cl_fencemsg *fencemsg;
 	struct cl_reconfig_msg *reconfmsg;
 
 	switch (msg->cmd) {
@@ -1414,6 +1473,11 @@ static void byteswap_internal_message(char *data, int len)
 		reconfmsg = (struct cl_reconfig_msg *)data;
 		reconfmsg->nodeid = swab32(reconfmsg->nodeid);
 		reconfmsg->value = swab32(reconfmsg->value);
+		break;
+
+	case CLUSTER_MSG_FENCESTATUS:
+		fencemsg = (struct cl_fencemsg *)data;
+		fencemsg->timesec = swab64(fencemsg->timesec);
 		break;
 	}
 }
@@ -1462,6 +1526,22 @@ static void do_reconfigure_msg(void *data)
 	}
 }
 
+static void do_fence_msg(void *data)
+{
+	struct cl_fencemsg *msg = data;
+	struct cluster_node *node;
+
+	P_DAEMON("got FENCE message, node %d fenced by %s\n", msg->nodeid, msg->agent);
+
+	node = find_node_by_nodeid(msg->nodeid);
+	if (!node)
+		return;
+
+	node->fence_time = msg->timesec;
+	if (node->fence_agent)
+		free(node->fence_agent);
+	node->fence_agent = strdup(msg->agent);
+}
 
 static void do_process_transition(int nodeid, struct totem_ip_address *ipaddr, char *data, int len)
 {
@@ -1559,6 +1639,10 @@ static void process_internal_message(char *data, int len, int nodeid, struct tot
 
 	case CLUSTER_MSG_RECONFIGURE:
 		do_reconfigure_msg(data);
+		break;
+
+	case CLUSTER_MSG_FENCESTATUS:
+		do_fence_msg(data);
 		break;
 
 	default:

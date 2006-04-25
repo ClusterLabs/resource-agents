@@ -932,3 +932,35 @@ int cman_poll_quorum_device(cman_handle_t handle, int isavailable)
 
 	return info_call(h, CMAN_CMD_POLL_QUORUMDEV, &isavailable, sizeof(int), NULL, 0);
 }
+
+int cman_get_fenceinfo(cman_handle_t handle, int nodeid, uint64_t *time, char *agent)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	int ret;
+	struct cl_fence_info f;
+	VALIDATE_HANDLE(h);
+
+	ret = info_call(h, CMAN_CMD_GET_FENCE_INFO, &nodeid, sizeof(int), &f, sizeof(f));
+	if (!ret) {
+		*time = f.fence_time;
+		strcpy(agent, f.fence_agent);
+	}
+	return ret;
+}
+
+int cman_node_fenced(cman_handle_t handle, int nodeid, uint64_t time, char *agent)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	struct cl_fence_info f;
+	VALIDATE_HANDLE(h);
+
+	if (strlen(agent) >= MAX_FENCE_AGENT_NAME_LEN) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	f.nodeid = nodeid;
+	f.fence_time = time;
+	strcpy(f.fence_agent, agent);
+	return info_call(h, CMAN_CMD_UPDATE_FENCE_INFO, &f, sizeof(f), NULL, 0);
+}

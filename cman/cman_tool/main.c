@@ -20,7 +20,7 @@
 #include "libcman.h"
 #include "cman_tool.h"
 
-#define OPTION_STRING		("m:n:v:e:2p:c:r:i:N:t:o:k:Vwqh?d::")
+#define OPTION_STRING		("m:n:v:e:2p:c:r:i:N:t:o:k:Vwfqh?d::")
 #define OP_JOIN			1
 #define OP_LEAVE		2
 #define OP_EXPECTED		3
@@ -88,8 +88,11 @@ static void print_usage(void)
 	printf("\n");
 	printf("status             Show local record of cluster status\n");
 	printf("\n");
+
 	printf("nodes              Show local record of cluster nodes\n");
+	printf("  -f                 Also show when node was last fenced\n");
 	printf("\n");
+
 	printf("services           Show local record of cluster services\n");
 
 	printf("\n");
@@ -238,7 +241,7 @@ static int node_compare(const void *va, const void *vb)
 	return a->cn_nodeid - b->cn_nodeid;
 }
 
-static void show_nodes(void)
+static void show_nodes(commandline_t *comline)
 {
 	cman_handle_t h;
 	int count;
@@ -246,6 +249,7 @@ static void show_nodes(void)
 	int numnodes;
 	cman_node_t *nodes;
 	struct tm *jtime;
+	struct tm *ftime;
 	char jstring[1024];
 
 	h = open_cman_handle(0);
@@ -278,6 +282,17 @@ static void show_nodes(void)
 		printf("%4d   %c  %5d   %s  %s\n",
 		       nodes[i].cn_nodeid, nodes[i].cn_member?'M':'X',
 		       nodes[i].cn_incarnation, jstring, nodes[i].cn_name);
+
+		if (comline->fence_flag) {
+			char agent[255];
+			uint64_t fence_time;
+			if (!cman_get_fenceinfo(h, nodes[i].cn_nodeid, &fence_time, agent) && fence_time) {
+				time_t fence_time_t = (time_t)fence_time;
+				ftime = localtime(&fence_time_t);
+				strftime(jstring, sizeof(jstring), "%F %H:%M:%S", ftime);
+				printf("   last fenced:   %-15s by %s\n", jstring, agent);
+			}
+		}
 	}
 	free(nodes);
 }
@@ -483,6 +498,10 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 
 		case 'm':
 			comline->multicast_addr = strdup(optarg);
+			break;
+
+		case 'f':
+			comline->fence_flag = 1;
 			break;
 
 		case 'n':
@@ -745,7 +764,7 @@ int main(int argc, char *argv[])
 		break;
 
 	case OP_NODES:
-		show_nodes();
+		show_nodes(&comline);
 		break;
 
 	case OP_SERVICES:

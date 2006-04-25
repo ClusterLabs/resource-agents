@@ -103,6 +103,13 @@ struct cl_reconfig_msg {
 	unsigned int   value;
 };
 
+struct cl_fencemsg {
+	unsigned char cmd;
+	unsigned char pad1;
+	int           nodeid;
+	uint64_t      timesec;
+	char          agent[0];
+};
 
 typedef enum {CON_COMMS, CON_CLIENT_RENDEZVOUS, CON_ADMIN_RENDEZVOUS,
 	      CON_CLIENT, CON_ADMIN} con_type_t;
@@ -139,6 +146,10 @@ struct cluster_node {
 	nodestate_t state;
 	struct timeval join_time;
 
+	/* When & how this node was last fenced */
+	uint64_t fence_time; /* A time_t */
+	char    *fence_agent;
+
 	struct timeval last_hello; /* Only used for quorum devices */
 
 	unsigned int votes;
@@ -153,16 +164,17 @@ struct cluster_node {
 
 
 /* Cluster protocol commands sent to port 0 */
-#define CLUSTER_MSG_ACK         1
-#define CLUSTER_MSG_PORTOPENED  2
-#define CLUSTER_MSG_PORTCLOSED  3
-#define CLUSTER_MSG_BARRIER     4
-#define CLUSTER_MSG_TRANSITION  5
-#define CLUSTER_MSG_KILLNODE    6
-#define CLUSTER_MSG_LEAVE       7
-#define CLUSTER_MSG_RECONFIGURE 8
-#define CLUSTER_MSG_PORTENQ     9
-#define CLUSTER_MSG_PORTSTATUS 10
+#define CLUSTER_MSG_ACK          1
+#define CLUSTER_MSG_PORTOPENED   2
+#define CLUSTER_MSG_PORTCLOSED   3
+#define CLUSTER_MSG_BARRIER      4
+#define CLUSTER_MSG_TRANSITION   5
+#define CLUSTER_MSG_KILLNODE     6
+#define CLUSTER_MSG_LEAVE        7
+#define CLUSTER_MSG_RECONFIGURE  8
+#define CLUSTER_MSG_PORTENQ      9
+#define CLUSTER_MSG_PORTSTATUS  10
+#define CLUSTER_MSG_FENCESTATUS 11
 
 /* Kill reasons */
 #define CLUSTER_KILL_REJECTED   1
