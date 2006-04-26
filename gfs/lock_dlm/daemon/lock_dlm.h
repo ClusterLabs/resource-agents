@@ -158,8 +158,8 @@ enum {
 /* these need to match the kernel defines of the same name in
    linux/fs/gfs2/lm_interface.h */
 
-#define LM_RD_SUCCESS 308
-#define LM_RD_GAVEUP 309
+#define LM_RD_GAVEUP 308
+#define LM_RD_SUCCESS 309
 
 /* mg_member state: local_recovery_status, recovery_status */
 
