@@ -1155,7 +1155,7 @@ static int process_app(group_t *g)
 			   failed node, make one up so we move along to a
 			   starting state so the recovery event can then take
 			   over; the previous event could be
-			   recovery/join/leave */
+			   recovery/join/leave. */
 
 			if (prev_event_starting) {
 				list_del(&rev->list);
@@ -1166,6 +1166,13 @@ static int process_app(group_t *g)
 				log_group(g, "fill in stop for node %d",
 					  ev->nodeid);
 				mark_node_stopped(a, ev->nodeid);
+
+				/* we need to continue to process this event
+				   that's stopping so it will get to the
+				   starting state at which point this rev
+				   supplants it */
+
+				process_current_event(g);
 			}
 
 			/* FIXME: if the current event is a leave and the
