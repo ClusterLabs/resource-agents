@@ -1186,7 +1186,7 @@ int kernel_recovery_done(char *table)
 	struct mountgroup *mg;
 	struct mg_member *memb;
 	char buf[MAXLINE];
-	char *name = strstr(table, ":") + 1;
+	char *ss, *name = strstr(table, ":") + 1;
 	int rv, jid_done, found = 0;
 
 	mg = find_mg(name);
@@ -1230,8 +1230,8 @@ int kernel_recovery_done(char *table)
 
 	rv = get_sysfs(mg, "recover_status", buf, sizeof(buf));
 	if (rv < 0) {
-		log_group(mg, "recovery_done jid %d sysfs error %d",
-			  jid_done, rv);
+		log_group(mg, "recovery_done jid %d nodeid %d sysfs error %d",
+			  memb->jid, memb->nodeid, rv);
 		memb->local_recovery_status = RS_NOFS;
 		goto out;
 	}
@@ -1239,17 +1239,20 @@ int kernel_recovery_done(char *table)
 	switch (atoi(buf)) {
 	case LM_RD_GAVEUP:
 		memb->local_recovery_status = RS_GAVEUP;
+		ss = "gaveup";
 		break;
 	case LM_RD_SUCCESS:
 		memb->local_recovery_status = RS_SUCCESS;
+		ss = "success";
 		break;
 	default:
-		log_error("recovery_done: jid %d unknown recover_status %d",
-			  jid_done, atoi(buf));
+		log_error("recovery_done: jid %d nodeid %d unknown status %d",
+			  memb->jid, memb->nodeid, atoi(buf));
+		ss = "unknown";
 	}
 
-	log_group(mg, "recovery_done nodeid %d jid %d status %d", jid_done,
-		  memb->nodeid, memb->local_recovery_status);
+	log_group(mg, "recovery_done jid %d nodeid %d %s",
+		  memb->jid, memb->nodeid, ss);
  out:
 	recover_journals(mg);
 	return 0;
