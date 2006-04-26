@@ -12,15 +12,6 @@
 
 #include "lock_dlm.h"
 
-enum {
-	DO_STOP = 1,
-	DO_START,
-	DO_FINISH,
-	DO_TERMINATE,
-	DO_SETID,
-	DO_DELIVER,
-};
-
 /* save all the params from callback functions here because we can't
    do the processing within the callback function itself */
 
@@ -45,6 +36,8 @@ void receive_journals(struct mountgroup *mg, char *buf, int len, int from);
 void receive_options(struct mountgroup *mg, char *buf, int len, int from);
 void receive_remount(struct mountgroup *mg, char *buf, int len, int from);
 void receive_plock(struct mountgroup *mg, char *buf, int len, int from);
+void receive_recovery_status(struct mountgroup *mg, char *buf, int len,
+			     int from);
 
 
 static void stop_cbfn(group_handle_t h, void *private, char *name)
@@ -135,6 +128,10 @@ static void do_deliver(struct mountgroup *mg)
 		receive_plock(mg, cb_message, cb_len, cb_nodeid);
 		break;
 
+	case MSG_RECOVERY:
+		receive_recovery_status(mg, cb_message, cb_len, cb_nodeid);
+		break;
+
 	default:
 		log_error("unknown message type %d from %d",
 			  hd->type, hd->nodeid);
@@ -177,6 +174,7 @@ int process_groupd(void)
 	switch (cb_action) {
 	case DO_STOP:
 		log_debug("groupd callback: stop %s", cb_name);
+		mg->last_callback = DO_STOP;
 		mg->last_stop = mg->last_start;
 		do_stop(mg);
 		break;
@@ -184,18 +182,21 @@ int process_groupd(void)
 	case DO_START:
 		log_debug("groupd callback: start %s type %d count %d members %s",
 			  cb_name, cb_type, cb_member_count, str_members());
+		mg->last_callback = DO_START;
 		mg->last_start = cb_event_nr;
 		do_start(mg, cb_type, cb_member_count, cb_members);
 		break;
 
 	case DO_FINISH:
 		log_debug("groupd callback: finish %s", cb_name);
+		mg->last_callback = DO_FINISH;
 		mg->last_finish = cb_event_nr;
 		do_finish(mg);
 		break;
 
 	case DO_TERMINATE:
 		log_debug("groupd callback: terminate %s", cb_name);
+		mg->last_callback = DO_TERMINATE;
 		do_terminate(mg);
 		list_del(&mg->list);
 		free(mg);

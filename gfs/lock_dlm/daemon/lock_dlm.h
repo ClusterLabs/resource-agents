@@ -58,6 +58,15 @@
 #define FALSE (0)
 #endif
 
+enum {
+	DO_STOP = 1,
+	DO_START,
+	DO_FINISH,
+	DO_TERMINATE,
+	DO_SETID,
+	DO_DELIVER,
+};
+
 extern char *prog_name;
 extern int daemon_debug_opt;
 extern char daemon_debug_buf[256];
@@ -110,6 +119,7 @@ struct mountgroup {
 	int			last_stop;
 	int			last_start;
 	int			last_finish;
+	int			last_callback;
 	int			start_event_nr;
 	int			start_type;
 	int			needs_recovery;
@@ -131,14 +141,35 @@ struct mountgroup {
 	void			*options_msg;
 	int			options_msg_len;
 	int			options_msg_from;
+	struct list_head	saved_recovery_status;
 
 	void			*start2_fn;
 };
 
-#define MEMB_OPT_RW		1
-#define MEMB_OPT_RO		2
-#define MEMB_OPT_SPECT		4
-#define MEMB_OPT_RECOVER	8
+/* mg_member opts bit field */
+
+enum {
+	MEMB_OPT_RW		= 1,
+	MEMB_OPT_RO		= 2,
+	MEMB_OPT_SPECT		= 4,
+	MEMB_OPT_RECOVER	= 8,
+};
+
+/* these need to match the kernel defines of the same name in
+   linux/fs/gfs2/lm_interface.h */
+
+#define LM_RD_SUCCESS 308
+#define LM_RD_GAVEUP 309
+
+/* mg_member state: local_recovery_status, recovery_status */
+
+enum {
+	RS_NEED_RECOVERY = 1,
+	RS_SUCCESS,
+	RS_GAVEUP,
+	RS_NOFS,
+	RS_READONLY,
+};
 
 struct mg_member {
 	struct list_head	list;
@@ -154,14 +185,19 @@ struct mg_member {
 	int			gone_event;
 	int			gone_type;
 	int			mount_finished;
+	int			local_recovery_status;
+	int			recovery_status;
 	int			withdraw;
 	struct dlm_lksb		wd_lksb;
 };
 
-#define MSG_JOURNAL	1
-#define MSG_OPTIONS	2
-#define MSG_REMOUNT	3
-#define MSG_PLOCK	4
+enum {
+	MSG_JOURNAL = 1,
+	MSG_OPTIONS,
+	MSG_REMOUNT,
+	MSG_PLOCK,
+	MSG_RECOVERY,
+};
 
 struct gdlm_header {
 	uint16_t		version[3];
@@ -189,8 +225,8 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 	     char *options);
 int do_unmount(int ci, char *dir);
 int do_remount(int ci, char *dir, char *mode);
-int do_recovery_done(char *name);
 int do_withdraw(char *name);
+int kernel_recovery_done(char *name);
 
 int client_send(int ci, char *buf, int len);
 

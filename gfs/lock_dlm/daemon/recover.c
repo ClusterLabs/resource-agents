@@ -12,6 +12,13 @@
 
 #include "lock_dlm.h"
 
+struct save_msg {
+	struct list_head list;
+	int nodeid;
+	int len;
+	char buf[MAX_MSGLEN];
+};
+
 #define SYSFS_DIR	"/sys/fs"
 
 extern char *clustername;
@@ -138,6 +145,140 @@ void notify_remount_client(struct mountgroup *mg, char *msg)
 		log_error("notify_remount_client: send failed %d", rv);
 
 	mg->remount_client = 0;
+}
+
+#define SEND_RS_INTS 3
+
+void send_recovery_status(struct mountgroup *mg)
+{
+	struct gdlm_header *hd;
+	struct mg_member *memb;
+	int len, *p, i, n = 0;
+	char *buf;
+
+	list_for_each_entry(memb, &mg->members_gone, list) {
+		if (memb->local_recovery_status == RS_SUCCESS)
+			n++;
+	}
+
+	len = sizeof(struct gdlm_header) + (n * SEND_RS_INTS * sizeof(int));
+
+	buf = malloc(len);
+	if (!buf)
+		return;
+	memset(buf, 0, len);
+
+	hd = (struct gdlm_header *)buf;
+	hd->type = MSG_RECOVERY;
+	hd->nodeid = our_nodeid;
+	hd->to_nodeid = 0;
+	p = (int *) (buf + sizeof(struct gdlm_header));
+
+	i = 0;
+	list_for_each_entry(memb, &mg->members_gone, list) {
+		p[i] = cpu_to_le32(memb->nodeid);
+		i++;
+		p[i] = cpu_to_le32(memb->jid);
+		i++;
+		p[i] = cpu_to_le32(memb->local_recovery_status);
+		i++;
+	}
+
+	log_group(mg, "send_recovery_status for %d nodes len %d", n, len);
+
+	send_group_message(mg, len, buf);
+
+	free(buf);
+}
+
+void _receive_recovery_status(struct mountgroup *mg, char *buf, int len,
+			      int from)
+{
+	struct mg_member *memb;
+	int *p, n, i, nodeid, jid, status, found = 0;
+
+	n = (len - sizeof(struct gdlm_header)) / (SEND_RS_INTS * sizeof(int));
+
+	p = (int *) (buf + sizeof(struct gdlm_header));
+
+	for (i = 0; i < n; i++) {
+		nodeid = le32_to_cpu(p[i * SEND_RS_INTS]);
+		jid    = le32_to_cpu(p[i * SEND_RS_INTS + 1]);
+		status = le32_to_cpu(p[i * SEND_RS_INTS + 2]);
+
+		ASSERT(status == RS_SUCCESS);
+
+		found = 0;
+		list_for_each_entry(memb, &mg->members_gone, list) {
+			if (memb->nodeid != nodeid)
+				continue;
+			ASSERT(memb->jid == jid);
+			ASSERT(memb->recovery_status == RS_NEED_RECOVERY);
+			memb->recovery_status = status;
+			found = 1;
+			break;
+		}
+
+		log_group(mg, "receive_recovery_status from %d len %d "
+			  "nodeid %d jid %d status %d found %d",
+			  from, len, nodeid, jid, status, found);
+	}
+
+	if (from == our_nodeid)
+		start_done(mg);
+}
+
+void process_saved_recovery_status(struct mountgroup *mg)
+{
+	struct save_msg *sm, *sm2;
+
+	if (list_empty(&mg->saved_recovery_status))
+		return;
+
+	log_group(mg, "process_saved_recovery_status");
+
+	list_for_each_entry_safe(sm, sm2, &mg->saved_recovery_status, list) {
+		_receive_recovery_status(mg, sm->buf, sm->len, sm->nodeid);
+		list_del(&sm->list);
+		free(sm);
+	}
+}
+
+/* we can receive recovery_status messages from other nodes doing start before
+   we actually process the corresponding start callback ourselves */
+
+void save_recovery_status(struct mountgroup *mg, char *buf, int len, int from)
+{
+	struct save_msg *sm;
+
+	sm = malloc(sizeof(struct save_msg));
+	if (!sm)
+		return;
+	memset(sm, 0, sizeof(struct save_msg));
+
+	memcpy(&sm->buf, buf, len);
+	sm->len = len;
+	sm->nodeid = from;
+
+	list_add_tail(&sm->list, &mg->saved_recovery_status);
+
+	log_group(mg, "save_recovery_status from %d len %d", from, len);
+}
+
+void receive_recovery_status(struct mountgroup *mg, char *buf, int len,
+			     int from)
+{
+	switch (mg->last_callback) {
+	case DO_STOP:
+		save_recovery_status(mg, buf, len, from);
+		break;
+	case DO_START:
+		_receive_recovery_status(mg, buf, len, from);
+		break;
+	default:
+		log_group(mg, "receive_recovery_status %d last_callback %d",
+			  from, mg->last_callback);
+	}
 }
 
 void send_remount(struct mountgroup *mg, int ro)
@@ -324,6 +465,7 @@ void receive_options(struct mountgroup *mg, char *buf, int len, int from)
 		void (*start2)(struct mountgroup *mg) = mg->start2_fn;
 		_receive_options(mg, buf, len, from);
 		start2(mg);
+		mg->start2_fn = NULL;
 	}
 }
 
@@ -441,7 +583,10 @@ void receive_journals(struct mountgroup *mg, char *buf, int len, int from)
 
 	/* If init is still 1 it means we've not run do_start()
 	   for our join yet, and we need to save this message to be
-	   processed after we get our first start. */
+	   processed after we get our first start.
+	   FIXME: it should now be impossible to receive a journals
+	   message prior to our start because the node sending journals
+	   won't do so until receiving our options message. */
 
 	if (mg->init) {
 		mg->journals_msg = malloc(len);
@@ -452,6 +597,7 @@ void receive_journals(struct mountgroup *mg, char *buf, int len, int from)
 		void (*start2)(struct mountgroup *mg) = mg->start2_fn;
 		_receive_journals(mg, buf, len, from);
 		start2(mg);
+		mg->start2_fn = NULL;
 	}
 }
 
@@ -562,51 +708,6 @@ int discover_journals(struct mountgroup *mg)
 
 	if (mg->low_finished_nodeid == our_nodeid)
 		send_journals(mg, new->nodeid);
-	return 0;
-}
-
-int recover_journals(struct mountgroup *mg)
-{
-	struct mg_member *memb;
-	int rv, found = 0;
-
-	list_for_each_entry(memb, &mg->members_gone, list) {
-		if (memb->recover_journal) {
-			log_group(mg, "recover journal nodeid %d jid %d",
-				  memb->nodeid, memb->jid);
-
-			rv = set_sysfs(mg, "recover", memb->jid);
-			if (rv < 0)
-				goto fail;
-			memb->recover_journal = 0;
-			memb->wait_recover_done = 1;
-			found = 1;
-			break;
-		}
-	}
-	return found;
- fail:
-	log_group(mg, "recover_journals gave up, gfs appears unmounted");
-	return -1;
-}
-
-/* Note: when a readonly node fails we do consider its journal (and the
-   fs) to need recovery... not sure this is really necessary, but
-   the readonly node did "own" a journal so it seems proper to recover
-   it even if the node wasn't writing to it.  So, if there are 3 ro
-   nodes mounting the fs and one fails, gfs on the remaining 2 will
-   remain blocked until an rw node mounts, and the next mounter must
-   be rw. */
-
-int need_recover_journals(struct mountgroup *mg)
-{
-	struct mg_member *memb;
-
-	list_for_each_entry(memb, &mg->members_gone, list) {
-		if (!memb->spectator && memb->mount_finished &&
-		    (memb->gone_type == GROUP_NODE_FAILED || memb->withdraw))
-			return 1;
-	}
 	return 0;
 }
 
@@ -725,19 +826,20 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 			neg++;
 			remove_member(mg, memb);
 
-			/* - spectators don't do journal callbacks
-			   - journal cb for failed or withdrawing nodes
+			/* - journal cb for failed or withdrawing nodes
 			   - journal cb only if failed node finished joining
 			   - no journal cb if failed node was spectator
 			   - no journal cb if we've already done a journl cb */
 
-			if (!mg->spectator &&
-			    (mg->start_type == GROUP_NODE_FAILED ||
-			     memb->withdraw) &&
+			if ((memb->gone_type == GROUP_NODE_FAILED ||
+			    memb->withdraw) &&
 			    memb->mount_finished &&
 			    !memb->spectator &&
-			    !memb->wait_recover_done)
+			    !memb->wait_recover_done) {
 				memb->recover_journal = 1;
+				memb->recovery_status = RS_NEED_RECOVERY;
+				memb->local_recovery_status = RS_NEED_RECOVERY;
+			}
 
 			log_group(mg, "remove member %d recover_journal %d "
 				  "(%d,%d,%d,%d,%d,%d)",
@@ -787,6 +889,7 @@ struct mountgroup *create_mg(char *name)
 	INIT_LIST_HEAD(&mg->members);
 	INIT_LIST_HEAD(&mg->members_gone);
 	INIT_LIST_HEAD(&mg->resources);
+	INIT_LIST_HEAD(&mg->saved_recovery_status);
 	mg->init = 1;
 	mg->init2 = 1;
 
@@ -992,8 +1095,91 @@ int first_recovery_done(struct mountgroup *mg)
 	return 0;
 }
 
-/* FIXME: we need to check result of gfs's recovery_done (SUCCESS/GAVEUP)
-   and if all nodes gave up, don't unblock gfs. */
+/* recover_members() discovers which nodes need journal recovery
+   and moves the memb structs for those nodes into members_gone
+   and sets memb->recover_journal on them */
+
+void recover_journals(struct mountgroup *mg)
+{
+	struct mg_member *memb;
+	int rv;
+
+	if (mg->spectator || mg->readonly) {
+		list_for_each_entry(memb, &mg->members_gone, list) {
+			if (!memb->recover_journal)
+				continue;
+
+			log_group(mg, "recover journal %d nodeid %d skip ro",
+				  memb->jid, memb->nodeid);
+			memb->recover_journal = 0;
+			memb->local_recovery_status = RS_READONLY;
+		}
+		start_done(mg);
+		return;
+	}
+
+	/* we feed one jid into the kernel for recovery instead of all
+	   at once because we need to get the result of each independently
+	   through the single recovery_done sysfs file */
+
+	list_for_each_entry(memb, &mg->members_gone, list) {
+		if (!memb->recover_journal)
+			continue;
+
+		log_group(mg, "recover journal %d nodeid %d",
+			  memb->jid, memb->nodeid);
+
+		rv = set_sysfs(mg, "recover", memb->jid);
+		if (rv < 0) {
+			memb->local_recovery_status = RS_NOFS;
+			continue;
+		}
+		memb->recover_journal = 0;
+		memb->wait_recover_done = 1;
+		return;
+	}
+
+	/* no more journals to attempt to recover, if we've been successful
+	   recovering any then send out status, if not then start_done...
+	   receiving no status message from us before start_done means we
+	   didn't successfully recover any journals.  If we send out status,
+	   then delay start_done until we get our own message (so all nodes
+	   will get the status before finish) */
+
+	list_for_each_entry(memb, &mg->members_gone, list) {
+		if (memb->local_recovery_status == RS_SUCCESS) {
+			send_recovery_status(mg);
+			log_group(mg, "delay start_done until status recvd");
+			return;
+		}
+	}
+
+	start_done(mg);
+}
+
+/* Note: when a readonly node fails we do consider its journal (and the
+   fs) to need recovery... not sure this is really necessary, but
+   the readonly node did "own" a journal so it seems proper to recover
+   it even if the node wasn't writing to it.  So, if there are 3 ro
+   nodes mounting the fs and one fails, gfs on the remaining 2 will
+   remain blocked until an rw node mounts, and the next mounter must
+   be rw. */
+
+int journals_need_recovery(struct mountgroup *mg)
+{
+	struct mg_member *memb;
+	int rv = 0;
+
+	list_for_each_entry(memb, &mg->members_gone, list) {
+		if (memb->recovery_status == RS_SUCCESS)
+			continue;
+		log_group(mg, "journals_need_recovery %d nodeid %d status %d",
+			  memb->jid, memb->nodeid, memb->recovery_status);
+		rv++;
+	}
+
+	return rv;
+}
 
 int kernel_recovery_done(char *table)
 {
@@ -1001,7 +1187,7 @@ int kernel_recovery_done(char *table)
 	struct mg_member *memb;
 	char buf[MAXLINE];
 	char *name = strstr(table, ":") + 1;
-	int rv, jid_done, wait, found = 0;
+	int rv, jid_done, found = 0;
 
 	mg = find_mg(name);
 	if (!mg) {
@@ -1029,8 +1215,6 @@ int kernel_recovery_done(char *table)
 		}
 	}
 
-	log_group(mg, "recovery_done jid %d waiting %d", jid_done, found);
-
 	/* We need to ignore recovery_done callbacks in the case where there
 	   are a bunch of recovery_done callbacks for the first mounter, but
 	   we detect "first_done" before we've processed all the
@@ -1039,13 +1223,35 @@ int kernel_recovery_done(char *table)
 	if (!found) {
 		log_group(mg, "recovery_done jid %d ignored, first %d,%d",
 			  jid_done, mg->first_mounter, mg->first_mounter_done);
-		return 0;
+		goto out;
 	}
 
-	wait = recover_journals(mg);
-	if (wait <= 0)
-		start_done(mg);
+	memset(buf, 0, sizeof(buf));
 
+	rv = get_sysfs(mg, "recover_status", buf, sizeof(buf));
+	if (rv < 0) {
+		log_group(mg, "recovery_done jid %d sysfs error %d",
+			  jid_done, rv);
+		memb->local_recovery_status = RS_NOFS;
+		goto out;
+	}
+
+	switch (atoi(buf)) {
+	case LM_RD_GAVEUP:
+		memb->local_recovery_status = RS_GAVEUP;
+		break;
+	case LM_RD_SUCCESS:
+		memb->local_recovery_status = RS_SUCCESS;
+		break;
+	default:
+		log_error("recovery_done: jid %d unknown recover_status %d",
+			  jid_done, atoi(buf));
+	}
+
+	log_group(mg, "recovery_done nodeid %d jid %d status %d", jid_done,
+		  memb->nodeid, memb->local_recovery_status);
+ out:
+	recover_journals(mg);
 	return 0;
 }
 
@@ -1153,6 +1359,9 @@ int do_finish(struct mountgroup *mg)
 	struct mg_member *memb, *safe;
 	int leave_blocked = 0;
 
+	if (journals_need_recovery(mg))
+		mg->needs_recovery = 1;
+
 	/* members_gone list are the members that were removed from
 	   the members list when processing the last start */
 
@@ -1173,8 +1382,15 @@ int do_finish(struct mountgroup *mg)
 	list_for_each_entry(memb, &mg->members, list) {
 		memb->mount_finished = 1;
 
-		/* the addition of an rw node means recovery has been done
-		   and we can clear needs_recovery */
+		/* FIXME:
+		   the addition of an rw node means recovery has been done and
+		   we can clear needs_recovery.  existing rw members may have
+		   failed to recover the journal, though, and we shouldn't
+		   unblock for them.  Will the next rw mounter that does
+		   first-mounter recovery create any problem if there are
+		   existing rw mounters that have failed to recover the
+		   journal? */
+
 		if (mg->needs_recovery && memb->rw) {
 			log_group(mg, "finish: clear needs_recovery memb %d",
 				  memb->nodeid);
@@ -1335,8 +1551,6 @@ void start_participant_init_2(struct mountgroup *mg)
 
 void start_participant(struct mountgroup *mg, int pos, int neg)
 {
-	int wait;
-
 	log_group(mg, "start_participant pos=%d neg=%d", pos, neg);
 
 	if (pos) {
@@ -1356,22 +1570,8 @@ void start_participant(struct mountgroup *mg, int pos, int neg)
 			mg->start2_fn = start_participant_2;
 		}
 	} else if (neg) {
-		/* if there are no rw members left, then no one will be
-		   able to recover the journal; the needs_recovery flag
-		   causes gfs to not be unblocked in finish and requires
-		   the next mounter to be rw */
-		if (no_rw_members(mg) && need_recover_journals(mg)) {
-			log_group(mg, "recovery stalled with no rw members");
-			mg->needs_recovery = 1;
-			start_done(mg);
-			return;
-		}
-
-		wait = recover_journals(mg);
-		if (wait <= 0)
-			start_done(mg);
-		else
-			log_group(mg, "delay start_done until recovery_done");
+		recover_journals(mg);
+		process_saved_recovery_status(mg);
 	}
 }
 
@@ -1475,15 +1675,8 @@ void start_spectator(struct mountgroup *mg, int pos, int neg)
 			mg->start2_fn = start_spectator_2;
 		}
 	} else if (neg) {
-		/* if there are no rw members left, then no one will be
-		   able to recover the journal; the needs_recovery flag
-		   causes gfs to not be unblocked in finish and requires
-		   the next mounter to be rw */
-		if (no_rw_members(mg) && need_recover_journals(mg)) {
-			log_group(mg, "recovery stalled without rw members");
-			mg->needs_recovery = 1;
-		}
-		start_done(mg);
+		recover_journals(mg);
+		process_saved_recovery_status(mg);
 	}
 }
 
