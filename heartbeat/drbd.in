@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: drbd.in,v 1.22 2006/04/27 18:07:43 alan Exp $
+#	$Id: drbd.in,v 1.23 2006/04/27 19:54:37 lars Exp $
 #
 #       OCF Resource Agent compliant drbd resource script.
 #
@@ -158,7 +158,7 @@ do_drbdadm() {
 
 drbd_init() {
 	DRBDADM=$(which drbdadm 2>/dev/null)
-	CRM_MASTER=@hb_libdir@/crm_master
+	CRM_MASTER=@sbindir@/crm_master
 	
 	if [ -z "$DRBDADM" -o ! -x "$DRBDADM" ]; then
 		ocf_log err "drbdadm not installed."
