@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: drbd.in,v 1.21 2006/03/18 00:54:54 lars Exp $
+#	$Id: drbd.in,v 1.22 2006/04/27 18:07:43 alan Exp $
 #
 #       OCF Resource Agent compliant drbd resource script.
 #
@@ -309,24 +309,18 @@ drbd_monitor() {
 
 	drbd_get_status
 
-	if [ "$DRBD_STATE_LOCAL" = "Not configured" ]; then
-		ocf_log debug "$RESOURCE monitor: resource not configured"
-		return $OCF_NOT_RUNNING
+	if [ "$DRBD_STATE_LOCAL" == "Not configured" ]; then
+	    ocf_log debug "$RESOURCE monitor: resource not configured"
+	    return $OCF_NOT_RUNNING
+	elif [ "$DRBD_STATE_LOCAL" == "Primary" ]; then
+	    return $OCF_RUNNING_MASTER
+	elif [ "$DRBD_STATE_LOCAL" == "Secondary" ]; then
+	    return $OCF_SUCCESS
+	else
+	    ocf_log err "$RESOURCE monitor: unexpected local state: $DRBD_STATE_LOCAL"
 	fi
 	
-	if [ "$DRBD_STATE_LOCAL" != "Secondary" ] \
-	&& [ "$DRBD_STATE_LOCAL" != "Primary" ]; then
-		ocf_log err "$RESOURCE monitor: unexpected local state: $DRBD_STATE_LOCAL"
-		return $OCF_ERR_GENERIC
-	fi
-
-	ROLE="$OCF_RESKEY_role"
-	if [ -n "$ROLE" ] && [ "$DRBD_STATE_LOCAL" != "$ROLE" ]; then
-		ocf_log err "$RESOURCE monitor: wrong state: expected $ROLE != $DRBD_STATE_LOCAL"
-		return $OCF_ERR_GENERIC
-	fi
-
-	return $OCF_SUCCESS
+	return $OCF_ERR_GENERIC
 }
 
 drbd_promote() {
@@ -411,7 +405,7 @@ drbd_notify() {
 	post)
 		case $n_op in
 		start)
-			if [ "$n_active_count" -eq 2 ]; then
+			if [ "$n_active" -eq 2 ]; then
 				# The other side is running, so we ought
 				# to connect and wait for that.
 				drbd_start_phase_2 yes
