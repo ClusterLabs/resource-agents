@@ -1223,7 +1223,7 @@ int kernel_recovery_done(char *table)
 	if (!found) {
 		log_group(mg, "recovery_done jid %d ignored, first %d,%d",
 			  jid_done, mg->first_mounter, mg->first_mounter_done);
-		goto out;
+		return 0;
 	}
 
 	memset(buf, 0, sizeof(buf));
