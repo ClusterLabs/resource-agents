@@ -191,6 +191,10 @@ void send_recovery_status(struct mountgroup *mg)
 	free(buf);
 }
 
+/* Note: we can get more than one node reporting success in recovering
+   the journal for a failed node.  The first has really recovered it,
+   the rest have found the fs clean and report success. */
+
 void _receive_recovery_status(struct mountgroup *mg, char *buf, int len,
 			      int from)
 {
@@ -213,7 +217,8 @@ void _receive_recovery_status(struct mountgroup *mg, char *buf, int len,
 			if (memb->nodeid != nodeid)
 				continue;
 			ASSERT(memb->jid == jid);
-			ASSERT(memb->recovery_status == RS_NEED_RECOVERY);
+			ASSERT(memb->recovery_status == RS_NEED_RECOVERY ||
+			       memb->recovery_status == RS_SUCCESS);
 			memb->recovery_status = status;
 			found = 1;
 			break;
