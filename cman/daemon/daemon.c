@@ -57,7 +57,7 @@ volatile sig_atomic_t quit_threads=0;
 int num_connections = 0;
 poll_handle ais_poll_handle;
 
-static int process_client(poll_handle handle, int fd, int revent, void *data, unsigned int *prio);
+static int process_client(poll_handle handle, int fd, int revent, void *data);
 
 /* Send it, or queue it for later if the socket is busy */
 static int send_reply_message(struct connection *con, struct sock_header *msg)
@@ -77,7 +77,7 @@ static int send_reply_message(struct connection *con, struct sock_header *msg)
 		memcpy(qm->buf, msg, msg->length);
 		list_add(&con->write_msgs, &qm->list);
 		P_DAEMON("queued last message\n");
-		poll_dispatch_modify(ais_poll_handle, con->fd, POLLIN | POLLOUT, process_client, 0);
+		poll_dispatch_modify(ais_poll_handle, con->fd, POLLIN | POLLOUT, process_client);
 	}
 	return 0;
 }
@@ -122,12 +122,12 @@ static void send_queued_reply(struct connection *con)
 	if (list_empty(&con->write_msgs)) {
 		/* Remove POLLOUT callback */
 		P_DAEMON("Removing POLLOUT from fd %d\n", con->fd);
-		poll_dispatch_modify(ais_poll_handle, con->fd, POLLIN, process_client, 0);
+		poll_dispatch_modify(ais_poll_handle, con->fd, POLLIN, process_client);
 	}
 }
 
 /* Dispatch a request from a CLIENT or ADMIN socket */
-static int process_client(poll_handle handle, int fd, int revent, void *data, unsigned int *prio)
+static int process_client(poll_handle handle, int fd, int revent, void *data)
 {
 	struct connection *con = data;
 
@@ -270,7 +270,7 @@ static int process_client(poll_handle handle, int fd, int revent, void *data, un
 
 
 /* Both client and admin rendezvous sockets use this */
-static int process_rendezvous(poll_handle handle, int fd, int revent, void *data, unsigned int *prio)
+static int process_rendezvous(poll_handle handle, int fd, int revent, void *data)
 {
 	struct sockaddr_un socka;
 	struct connection *con = data;
@@ -292,7 +292,7 @@ static int process_rendezvous(poll_handle handle, int fd, int revent, void *data
 		list_init(&newcon->write_msgs);
 		fcntl(client_fd, F_SETFL, fcntl(client_fd, F_GETFL, 0) | O_NONBLOCK);
 
-		poll_dispatch_add(handle, client_fd, POLLIN, newcon, process_client, 0);
+		poll_dispatch_add(handle, client_fd, POLLIN, newcon, process_client);
 		num_connections++;
 		if (newcon->type == CON_CLIENT)
 			list_add(&client_list, &newcon->list);
@@ -344,7 +344,7 @@ static int open_local_sock(const char *name, int name_len, mode_t mode, poll_han
 	con->type = type;
 	con->fd = local_socket;
 
-	poll_dispatch_add(handle, con->fd, POLLIN, con, process_rendezvous, 0);
+	poll_dispatch_add(handle, con->fd, POLLIN, con, process_rendezvous);
 
 	return 0;
 }
