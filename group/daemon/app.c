@@ -596,7 +596,15 @@ int do_stopdone(char *name, int level)
 int do_startdone(char *name, int level)
 {
 	group_t *g;
+
 	g = find_group_level(name, level);
+
+	if (!g->app->current_event || !event_state_starting(g->app)) {
+		log_error(g, "IGNORE startdone state %d",
+		    g->app->current_event ?  g->app->current_event->state : -1);
+		return 0;
+	}
+
 	return send_started(g);
 }
 
