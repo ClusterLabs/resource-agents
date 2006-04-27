@@ -1,0 +1,12 @@
+The routines for gfslib2 were written by a bunch of people at Sistina
+and Red Hat, Inc. for the Red Hat Cluster Suite.
+
+Before gfslib2, each of the GFS utilities (gfs_fsck, gfs_edit, gfs_mkfs, etc)
+used their own routines for doing disk IO without the GFS module and
+cluster suite framework.  
+
+The original prototype for libgfs2 came from mkfs, written by Steve
+Whitehouse (swhiteho@redhat.com)
+
+The guy who actually bundled the routines together into gfslib2 
+using libtool and automake was Bob Peterson (rpeterso@redhat.com)

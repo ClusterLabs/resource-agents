@@ -1,0 +1,20 @@
+libgfs2
+-------
+The libgfs2 library is part of the gfs2_utils package for doing userland
+manipulation on gfs2 filesystems.
+
+It is designed to allow the gfs2 userland tools (i.e. gfs2_mkfs, gfs2_fsck,
+etc.) to use a common set of functions to manipulate the internal
+structures of a gfs2 filesystem.
+
+You can build libgfs2 into a static library (libgfs2.a) or dynamic
+library (libgfs2.so.0) by uncommenting the proper section in Makefile.am
+before building.
+
+The original routines were written by Steve Whitehouse and others at
+Sistina and Red Hat.  The library was originally morphed from the mkfs tool.
+
+Bob Peterson
+Red Hat Cluster Suite
+rpeterso@redhat.com
+27 April 2006
