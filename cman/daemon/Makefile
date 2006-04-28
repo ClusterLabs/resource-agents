@@ -12,7 +12,7 @@
 
 top_srcdir=..
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
-AISDIR=openais20060427
+AISDIR=openais20060428
 AISTAG=trunk
 
 include ${top_srcdir}/make/defines.mk
