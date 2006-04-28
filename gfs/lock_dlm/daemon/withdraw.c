@@ -179,9 +179,10 @@ int promote_withdraw_lock(struct mountgroup *mg)
 	return rv;
 }
 
-int do_withdraw(char *name)
+int do_withdraw(char *table)
 {
 	struct mountgroup *mg;
+	char *name = strstr(table, ":") + 1;
 	int rv;
 
 	if (no_withdraw) {

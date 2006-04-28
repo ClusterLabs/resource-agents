@@ -534,8 +534,6 @@ void _receive_journals(struct mountgroup *mg, char *buf, int len, int from)
 
 	ids = (int *) (buf + sizeof(struct gdlm_header));
 
-	/* FIXME: byte swap nodeid/jid/opts */
-
 	for (i = 0; i < count; i++) {
 		nodeid = le32_to_cpu(ids[i * NUM]);
 		jid    = le32_to_cpu(ids[i * NUM + 1]);
@@ -1469,6 +1467,9 @@ int no_rw_members(struct mountgroup *mg)
 /* called for the initial start on the node that's first to mount the fs.
    (it should be ok to let the first mounter be a spectator, gfs should do
    first recovery and bail out if there are any dirty journals) */
+
+/* FIXME: if journal recovery fails on any of the journals, we should
+   fail the mount */
 
 void start_first_mounter(struct mountgroup *mg)
 {
