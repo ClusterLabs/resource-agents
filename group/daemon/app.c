@@ -787,12 +787,19 @@ static int process_current_event(group_t *g)
 		ev->state = EST_FAIL_STOP_WAIT;
 		app_stop(a);
 
-		/* set the failed node as stopped since we won't
-		   be getting a "stopped" message from it */
+		/* set the failed nodes as stopped since we won't
+		   be getting a "stopped" message from them */
 
 		node = find_app_node(a, ev->nodeid);
 		ASSERT(node);
 		node->stopped = 1;
+
+		/* multiple nodes failed together making an extended event */
+		list_for_each_entry(id, &ev->extended, list) {
+			node = find_app_node(a, id->nodeid);
+			ASSERT(node);
+			node->stopped = 1;
+		}
 
 		break;
 
@@ -807,8 +814,8 @@ static int process_current_event(group_t *g)
 		   apps the node was involved with but wait for quorum before
 		   starting them again  */
 
-		/* we need to be sure that cman has updated our quorum
-		   status since the last node failure */
+		/* we make sure that cman has updated our quorum status since
+		   the last node failure */
 
 		if (!cman_quorum_updated()) {
 			log_group(g, "waiting for cman quorum update");
@@ -836,6 +843,7 @@ static int process_current_event(group_t *g)
 			break;
 
 		node = find_app_node(a, ev->nodeid);
+		ASSERT(node);
 		list_del(&node->list);
 		a->node_count--;
 
@@ -846,6 +854,7 @@ static int process_current_event(group_t *g)
 
 		list_for_each_entry_safe(id, id_safe, &ev->extended, list) {
 			node = find_app_node(a, id->nodeid);
+			ASSERT(node);
 			list_del(&node->list);
 			a->node_count--;
 
