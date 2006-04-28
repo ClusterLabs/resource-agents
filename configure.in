@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.508 $) dnl cvs revision
+AC_REVISION($Revision: 1.509 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -318,8 +318,8 @@ AM_PATH_PYTHON
 AC_PROG_LIBTOOL
 dnl Replacing AC_PROG_LIBTOOL with AC_CHECK_PROG because LIBTOOL
 dnl was NOT being expanded all the time thus causing things to fail.
-AC_CHECK_PROGS(LIBTOOL, glibtool libtool)
-AC_MSG_CHECKING(for glibtool or libtool)
+AC_CHECK_PROGS(LIBTOOL, glibtool libtool libtool15 libtool13)
+AC_MSG_CHECKING(for glibtool or libtool*)
 if test x"${LIBTOOL}" = x""; then
       FatalMissingThing "libtool" "You need libtool to build heartbeat." \
 		"You can get the source from ftp://www.gnu.org/pub/gnu/" \
