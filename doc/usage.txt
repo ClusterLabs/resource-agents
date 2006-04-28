@@ -27,8 +27,9 @@ updated yet, so just build the minimum bits shown here.
         cd cluster
         ./configure --kernel_src=/path/to/kernel
 
-        cd cluster/cman;                make; make install (*)
+        cd cluster/cman/lib;            make; make install
         cd cluster/ccs;                 make; make install
+        cd cluster/cman;                make; make install (*)
         cd cluster/group;               make; make install
         cd cluster/fence;               make; make install
         cd cluster/dlm;                 make; make install
