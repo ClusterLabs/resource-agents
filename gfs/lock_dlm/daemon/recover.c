@@ -454,14 +454,14 @@ void receive_options(struct mountgroup *mg, char *buf, int len, int from)
 	if (hd->nodeid == our_nodeid)
 		return;
 
-	log_group(mg, "receive_options from %d len %d init %d",
-		  from, len, mg->init);
+	log_group(mg, "receive_options from %d len %d last_cb %d",
+		  from, len, mg->last_callback);
 
-	/* If init is still 1 it means we've not run do_start()
-	   for our join yet, and we need to save this message to be
-	   processed after we get our first start. */
+	/* If last_callback isn't DO_START it means we've not gotten
+	   the start callback for the new node addition yet, and we need to
+	   save this message to be processed after we get our first start. */
 
-	if (mg->init) {
+	if (mg->last_callback != DO_START) {
 		mg->options_msg = malloc(len);
 		mg->options_msg_len = len;
 		mg->options_msg_from = from;
@@ -581,22 +581,28 @@ void receive_journals(struct mountgroup *mg, char *buf, int len, int from)
 
 	count = (len - sizeof(struct gdlm_header)) / (NUM * sizeof(int));
 
-	log_group(mg, "receive_journals from %d len %d count %d init %d",
-		  from, len, count, mg->init);
+	log_group(mg, "receive_journals from %d len %d count %d last_cb %d",
+		  from, len, count, mg->last_callback);
 
 	/* If init is still 1 it means we've not run do_start()
 	   for our join yet, and we need to save this message to be
-	   processed after we get our first start.
-	   FIXME: it should now be impossible to receive a journals
-	   message prior to our start because the node sending journals
-	   won't do so until receiving our options message. */
+	   processed after we get our first start. */
 
+
+	/* it should now be impossible to receive a journals message prior to
+	   our start because the node sending journals won't do so until
+	   receiving our options message
 	if (mg->init) {
 		mg->journals_msg = malloc(len);
 		mg->journals_msg_len = len;
 		mg->journals_msg_from = from;
 		memcpy(mg->journals_msg, buf, len);
 	} else {
+	*******/
+
+	ASSERT(mg->last_callback == DO_START);
+
+	{
 		void (*start2)(struct mountgroup *mg) = mg->start2_fn;
 		_receive_journals(mg, buf, len, from);
 		start2(mg);
