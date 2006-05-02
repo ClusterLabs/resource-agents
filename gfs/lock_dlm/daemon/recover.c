@@ -844,21 +844,21 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 			    memb->withdraw) &&
 			    memb->mount_finished &&
 			    !memb->spectator &&
-			    !memb->wait_recover_done) {
-				memb->recover_journal = 1;
+			    !memb->wait_gfs_recover_done) {
+				memb->tell_gfs_to_recover = 1;
 				memb->recovery_status = RS_NEED_RECOVERY;
 				memb->local_recovery_status = RS_NEED_RECOVERY;
 			}
 
-			log_group(mg, "remove member %d recover_journal %d "
+			log_group(mg, "remove member %d tell_gfs_to_recover %d "
 				  "(%d,%d,%d,%d,%d,%d)",
-				  memb->nodeid, memb->recover_journal,
+				  memb->nodeid, memb->tell_gfs_to_recover,
 				  mg->spectator,
 				  mg->start_type,
 				  memb->withdraw,
 				  memb->mount_finished,
 				  memb->spectator,
-				  memb->wait_recover_done);
+				  memb->wait_gfs_recover_done);
 		}
 	}	
 
@@ -1106,7 +1106,7 @@ int first_recovery_done(struct mountgroup *mg)
 
 /* recover_members() discovers which nodes need journal recovery
    and moves the memb structs for those nodes into members_gone
-   and sets memb->recover_journal on them */
+   and sets memb->tell_gfs_to_recover on them */
 
 void recover_journals(struct mountgroup *mg)
 {
@@ -1115,12 +1115,12 @@ void recover_journals(struct mountgroup *mg)
 
 	if (mg->spectator || mg->readonly) {
 		list_for_each_entry(memb, &mg->members_gone, list) {
-			if (!memb->recover_journal)
+			if (!memb->tell_gfs_to_recover)
 				continue;
 
 			log_group(mg, "recover journal %d nodeid %d skip ro",
 				  memb->jid, memb->nodeid);
-			memb->recover_journal = 0;
+			memb->tell_gfs_to_recover = 0;
 			memb->local_recovery_status = RS_READONLY;
 		}
 		start_done(mg);
@@ -1132,7 +1132,7 @@ void recover_journals(struct mountgroup *mg)
 	   through the single recovery_done sysfs file */
 
 	list_for_each_entry(memb, &mg->members_gone, list) {
-		if (!memb->recover_journal)
+		if (!memb->tell_gfs_to_recover)
 			continue;
 
 		log_group(mg, "recover journal %d nodeid %d",
@@ -1143,8 +1143,8 @@ void recover_journals(struct mountgroup *mg)
 			memb->local_recovery_status = RS_NOFS;
 			continue;
 		}
-		memb->recover_journal = 0;
-		memb->wait_recover_done = 1;
+		memb->tell_gfs_to_recover = 0;
+		memb->wait_gfs_recover_done = 1;
 		return;
 	}
 
@@ -1216,8 +1216,8 @@ int kernel_recovery_done(char *table)
 
 	list_for_each_entry(memb, &mg->members_gone, list) {
 		if (memb->jid == jid_done) {
-			if (memb->wait_recover_done) {
-				memb->wait_recover_done = 0;
+			if (memb->wait_gfs_recover_done) {
+				memb->wait_gfs_recover_done = 0;
 				found = 1;
 			}
 			break;
@@ -1272,7 +1272,7 @@ int need_kernel_recovery_done(struct mountgroup *mg)
 	struct mg_member *memb;
 
 	list_for_each_entry(memb, &mg->members_gone, list) {
-		if (memb->wait_recover_done)
+		if (memb->wait_gfs_recover_done)
 			return 1;
 	}
 	return 0;

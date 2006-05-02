@@ -180,8 +180,8 @@ struct mg_member {
 	int			readonly;
 	int			rw;
 	uint32_t		opts;
-	int			recover_journal;
-	int			wait_recover_done;
+	int			tell_gfs_to_recover;
+	int			wait_gfs_recover_done;
 	int			gone_event;
 	int			gone_type;
 	int			mount_finished;
