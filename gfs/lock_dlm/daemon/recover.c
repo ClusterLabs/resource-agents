@@ -1706,6 +1706,24 @@ void start_spectator_2(struct mountgroup *mg)
 	start_done(mg);
 }
 
+/* If nodeA fails, nodeB is recovering journalA and nodeB fails before
+   finishing, then nodeC needs to tell gfs to recover both journalA and
+   journalB.  We do this by setting tell_gfs_to_recover back to 1 for
+   any nodes that are still on the members_gone list. */
+
+void reset_unfinished_recoveries(struct mountgroup *mg)
+{
+	struct mg_member *memb;
+
+	list_for_each_entry(memb, &mg->members_gone, list) {
+		log_group(mg, "retry unfinished recovery nodeid %d jid %d",
+			  memb->nodeid, memb->jid);
+		memb->tell_gfs_to_recover = 1;
+		memb->recovery_status = RS_NEED_RECOVERY;
+		memb->local_recovery_status = RS_NEED_RECOVERY;
+	}
+}
+
 /*
    A is rw mount, B mounts rw
 
@@ -1735,6 +1753,8 @@ void do_start(struct mountgroup *mg, int type, int member_count, int *nodeids)
 		  mg->last_start, mg->init, type, member_count);
 
 	recover_members(mg, member_count, nodeids, &pos, &neg);
+
+	reset_unfinished_recoveries(mg);
 
 	if (mg->init) {
 		if (member_count == 1)
