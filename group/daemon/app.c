@@ -690,7 +690,7 @@ static int process_current_event(group_t *g)
 	struct nodeid *id, *id_safe;
 	int rv = 0, do_start = 0, count;
 
-	if (!event_state_stopping(a) && !event_state_starting(a))
+	if (!(event_state_stopping(a) || event_state_starting(a)))
 		log_group(g, "process_current_event %llx %d %s",
 			  ev->id, ev->nodeid, ev_state_str(ev));
 
