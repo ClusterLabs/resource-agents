@@ -429,10 +429,12 @@ static int comms_init_ais(struct objdb_iface_ver0 *objdb)
 		objdb->object_key_create(object_handle, "version", strlen("version"),
 					 "2", 2);
 
-
 		sprintf(tmp, "%d", our_nodeid());
 		objdb->object_key_create(object_handle, "nodeid", strlen ("nodeid"),
 					 tmp, strlen(tmp)+1);
+
+		objdb->object_key_create(object_handle, "vsftype", strlen ("vsftype"),
+					 "none", strlen("none")+1);
 
 		sprintf(tmp, "%d", 1);
 		objdb->object_key_create(object_handle, "secauth", strlen ("secauth"),
