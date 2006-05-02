@@ -1359,6 +1359,27 @@ void notify_mount_client(struct mountgroup *mg)
 	}
 }
 
+/* When mounting a fs, we first join the mountgroup, then tell mount.gfs
+   to procede with the kernel mount.  Once we're in the mountgroup, we
+   can get a stop callback at any time, which requires us to block the
+   fs by setting a sysfs file.  If the kernel mount is slow, we can get
+   a stop callback and try to set the sysfs file before the kernel mount
+   has actually created the sysfs files for the fs.  This function delays
+   any further processing until the sysfs files exist. */
+
+void wait_for_kernel_mount(struct mountgroup *mg)
+{
+	char buf[MAXLINE];
+	int rv;
+
+	while (1) {
+		rv = get_sysfs(mg, "id", buf, sizeof(buf));
+		if (!rv)
+			break;
+		usleep(1000);
+	}
+}
+
 int do_stop(struct mountgroup *mg)
 {
 	set_sysfs(mg, "block", 1);
@@ -1424,9 +1445,10 @@ int do_finish(struct mountgroup *mg)
 		leave_blocked = 1;
 	}
 
-	if (mg->mount_client)
+	if (mg->mount_client) {
 		notify_mount_client(mg);
-	else if (!leave_blocked)
+		wait_for_kernel_mount(mg);
+	} else if (!leave_blocked)
 		set_sysfs(mg, "block", 0);
 
 	return 0;
