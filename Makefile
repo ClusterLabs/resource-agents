@@ -17,6 +17,7 @@ MAKELINE =  sbindir=${BUILDDIR}/sbin libdir=${BUILDDIR}/lib mandir=${BUILDDIR}/m
 
 all:
 	cd gnbd-kernel && ${MAKE}
+	cd cman/lib && ${MAKE}
 	cd ccs && ${MAKE}
 	cd cman && ${MAKE}
 	cd group && ${MAKE}
