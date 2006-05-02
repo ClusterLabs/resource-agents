@@ -80,6 +80,13 @@ static void statechange(void)
 				  old_nodes[i].cn_nodeid);
 			rs = get_recovery_set(old_nodes[i].cn_nodeid);
 			rs->cman_update = 1;
+
+			if (rs->cpg_update && list_empty(&rs->entries)) {
+				log_debug("free unused recovery set %d cman",
+					  rs->nodeid);
+				list_del(&rs->list);
+				free(rs);
+			}
 		}
 	}
 

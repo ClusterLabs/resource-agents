@@ -213,6 +213,7 @@ struct recovery_set {
 	struct list_head	entries;
 	int			nodeid;
 	int			cman_update;
+	int			cpg_update;
 };
 
 struct recovery_entry {

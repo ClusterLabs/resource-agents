@@ -164,7 +164,11 @@ struct recovery_set *get_recovery_set(int nodeid)
 	memset(rs, 0, sizeof(struct recovery_set));
 	rs->nodeid = nodeid;
 	rs->cman_update = 0;
+	rs->cpg_update = 0;
 	INIT_LIST_HEAD(&rs->entries);
+
+	list_add_tail(&rs->list, &recovery_sets);
+
 	return rs;
 }
 
@@ -186,6 +190,7 @@ void add_recovery_set(int nodeid)
 	log_debug("add_recovery_set for nodeid %d", nodeid);
 
 	rs = get_recovery_set(nodeid);
+	rs->cpg_update = 1;
 
 	list_for_each_entry(g, &gd_groups, list) {
 		list_for_each_entry(node, &g->app->nodes, list) {
@@ -200,10 +205,11 @@ void add_recovery_set(int nodeid)
 		}
 	}
 
-	if (!list_empty(&rs->entries))
-		list_add_tail(&rs->list, &recovery_sets);
-	else
+	if (list_empty(&rs->entries) && rs->cman_update) {
+		log_debug("free unused recovery set %d cpg", nodeid);
+		list_del(&rs->list);
 		free(rs);
+	}
 }
 
 /* A group has finished recovery, remove it from any recovery sets,
@@ -845,10 +851,8 @@ static int process_current_event(group_t *g)
 		/* we make sure that cman has updated our quorum status since
 		   the last node failure */
 
-		if (!cman_quorum_updated()) {
-			log_group(g, "waiting for cman quorum update");
+		if (!cman_quorum_updated())
 			break;
-		}
 
 		if (!cman_quorate)
 			break;
@@ -906,7 +910,11 @@ static int process_current_event(group_t *g)
 		break;
 
 	default:
-		log_group(g, "nothing to do");
+		/*
+		log_group(g, "nothing to do: %llx %d %s",
+			  ev->id, ev->nodeid, ev_state_str(ev));
+		*/
+		break;
 	}
 
 	return rv;

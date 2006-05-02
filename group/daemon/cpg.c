@@ -206,7 +206,9 @@ void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 		}
 	}
 
+	/*
 	log_group(g, "deliver from %d len %d", nodeid, data_len);
+	*/
 
 	save = malloc(sizeof(struct save_msg));
 	memset(save, 0, sizeof(struct save_msg));
