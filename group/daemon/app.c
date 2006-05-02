@@ -5,18 +5,6 @@
 
 struct list_head recovery_sets;
 
-struct recovery_set {
-	struct list_head list;
-	struct list_head entries;
-	int nodeid;
-};
-
-struct recovery_entry {
-	struct list_head list;
-	group_t *group;
-	int recovered;
-};
-
 struct nodeid {
 	struct list_head list;
 	int nodeid;
@@ -162,6 +150,24 @@ void extend_recover_event(group_t *g, event_t *ev, int nodeid)
 	list_add(&id->list, &ev->extended);
 }
 
+struct recovery_set *get_recovery_set(int nodeid)
+{
+	struct recovery_set *rs;
+
+	list_for_each_entry(rs, &recovery_sets, list) {
+		if (rs->nodeid == nodeid)
+			return rs;
+	}
+
+	rs = malloc(sizeof(*rs));
+	ASSERT(rs);
+	memset(rs, 0, sizeof(struct recovery_set));
+	rs->nodeid = nodeid;
+	rs->cman_update = 0;
+	INIT_LIST_HEAD(&rs->entries);
+	return rs;
+}
+
 /* When a node fails, all the groups that that node was in are tracked by
    one of these recovery_sets.  These are the groups that will need layered
    recovery, i.e. all effected groups must be completely stopped (the app
@@ -179,10 +185,7 @@ void add_recovery_set(int nodeid)
 
 	log_debug("add_recovery_set for nodeid %d", nodeid);
 
-	rs = malloc(sizeof(*rs));
-	memset(rs, 0, sizeof(struct recovery_set));
-	rs->nodeid = nodeid;
-	INIT_LIST_HEAD(&rs->entries);
+	rs = get_recovery_set(nodeid);
 
 	list_for_each_entry(g, &gd_groups, list) {
 		list_for_each_entry(node, &g->app->nodes, list) {
@@ -251,18 +254,20 @@ void del_recovery_set(group_t *g)
 /* go through all recovery sets and check that all failed nodes have
    been removed by cman callbacks; if they haven't then cman may be
    inquorate and we just haven't gotten the cman callback yet that
-   will set cman_quorate = 0 */
+   will set cman_quorate = 0  [group recoveries are driven by cpg
+   callbacks, not cman callbacks, so that's why we might be trying
+   to do recovery without having heard from cman yet.] */
 
 int cman_quorum_updated(void)
 {
 	struct recovery_set *rs;
 
 	list_for_each_entry(rs, &recovery_sets, list) {
-		if (is_cman_member(rs->nodeid)) {
-			log_print("nodeid %d is still cman member quorate=%d",
-				  rs->nodeid, cman_quorate);
-			return 0;
-		}
+		if (rs->cman_update)
+			continue;
+		log_print("no cman update for recovery_set %d quorate %d",
+			  rs->nodeid, cman_quorate, cman_quorate);
+		return 0;
 	}
 	return 1;
 }
@@ -467,6 +472,7 @@ int queue_app_leave(group_t *g, int nodeid)
 
 int queue_app_message(group_t *g, struct save_msg *save)
 {
+	/*
 	char *m = "unknown";
 
 	switch (save->msg.ms_type) {
@@ -480,8 +486,8 @@ int queue_app_message(group_t *g, struct save_msg *save)
 		m = "internal";
 		break;
 	}
-
 	log_group(g, "queue message %s from %d", m, save->nodeid);
+	*/
 
 	list_add_tail(&save->list, &g->messages);
 	return 0;
@@ -658,6 +664,24 @@ static int count_nodes_not_stopped(app_t *a)
 	return i;
 }
 
+int event_state_stopping(app_t *a)
+{
+	if (a->current_event->state == EST_JOIN_STOP_WAIT ||
+	    a->current_event->state == EST_LEAVE_STOP_WAIT ||
+	    a->current_event->state == EST_FAIL_STOP_WAIT)
+		return TRUE;
+	return FALSE;
+}
+
+int event_state_starting(app_t *a)
+{
+	if (a->current_event->state == EST_JOIN_START_WAIT ||
+	    a->current_event->state == EST_LEAVE_START_WAIT ||
+	    a->current_event->state == EST_FAIL_START_WAIT)
+		return TRUE;
+	return FALSE;
+}
+
 static int process_current_event(group_t *g)
 {
 	app_t *a = g->app;
@@ -666,11 +690,9 @@ static int process_current_event(group_t *g)
 	struct nodeid *id, *id_safe;
 	int rv = 0, do_start = 0, count;
 
-	/*
-	log_group(g, "process_current_event state %s", ev_state_str(ev));
-	*/
-	log_group(g, "process_current_event %llx %d %s",
-		  ev->id, ev->nodeid, ev_state_str(ev));
+	if (!event_state_stopping(a) && !event_state_starting(a))
+		log_group(g, "process_current_event %llx %d %s",
+			  ev->id, ev->nodeid, ev_state_str(ev));
 
 	switch (ev->state) {
 
@@ -717,8 +739,10 @@ static int process_current_event(group_t *g)
 		break;
 
 	case EST_JOIN_STOP_WAIT:
+		/*
 		count = count_nodes_not_stopped(a);
 		log_group(g, "waiting for %d more nodes to be stopped", count);
+		*/
 		break;
 
 	case EST_JOIN_ALL_STOPPED:
@@ -760,8 +784,10 @@ static int process_current_event(group_t *g)
 		break;
 
 	case EST_LEAVE_STOP_WAIT:
+		/*
 		count = count_nodes_not_stopped(a);
 		log_group(g, "waiting for %d more nodes to be stopped", count);
+		*/
 		break;
 
 	case EST_LEAVE_ALL_STOPPED:
@@ -804,8 +830,10 @@ static int process_current_event(group_t *g)
 		break;
 
 	case EST_FAIL_STOP_WAIT:
+		/*
 		count = count_nodes_not_stopped(a);
 		log_group(g, "waiting for %d more nodes to be stopped", count);
+		*/
 		break;
 
 	case EST_FAIL_ALL_STOPPED:
@@ -882,24 +910,6 @@ static int process_current_event(group_t *g)
 	}
 
 	return rv;
-}
-
-int event_state_stopping(app_t *a)
-{
-	if (a->current_event->state == EST_JOIN_STOP_WAIT ||
-	    a->current_event->state == EST_LEAVE_STOP_WAIT ||
-	    a->current_event->state == EST_FAIL_STOP_WAIT)
-		return TRUE;
-	return FALSE;
-}
-
-int event_state_starting(app_t *a)
-{
-	if (a->current_event->state == EST_JOIN_START_WAIT ||
-	    a->current_event->state == EST_LEAVE_START_WAIT ||
-	    a->current_event->state == EST_FAIL_START_WAIT)
-		return TRUE;
-	return FALSE;
 }
 
 static int mark_node_stopped(app_t *a, int nodeid)

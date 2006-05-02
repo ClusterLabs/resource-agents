@@ -30,13 +30,14 @@ static int is_old_member(int nodeid)
 	return is_member(old_nodes, old_node_count, nodeid);
 }
 
-int is_cman_member(int nodeid)
+static int is_cman_member(int nodeid)
 {
 	return is_member(cman_nodes, cman_node_count, nodeid);
 }
 
 static void statechange(void)
 {
+	struct recovery_set *rs;
 	int i, rv;
 
 	old_quorate = cman_quorate;
@@ -74,9 +75,12 @@ static void statechange(void)
 
 	for (i = 0; i < old_node_count; i++) {
 		if (old_nodes[i].cn_member &&
-		    !is_cman_member(old_nodes[i].cn_nodeid))
+		    !is_cman_member(old_nodes[i].cn_nodeid)) {
 			log_print("cman: node %d removed",
 				  old_nodes[i].cn_nodeid);
+			rs = get_recovery_set(old_nodes[i].cn_nodeid);
+			rs->cman_update = 1;
+		}
 	}
 
 	for (i = 0; i < cman_node_count; i++) {

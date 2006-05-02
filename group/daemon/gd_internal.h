@@ -166,10 +166,6 @@ struct group {
 	int			have_set_id;
 };
 
-/*
- * Application
- */
-
 struct app {
 	int			client;
 	int 			node_count;
@@ -178,10 +174,6 @@ struct app {
 	event_t			*current_event;
 	group_t			*g;
 };
-
-/*
- * Message
- */
 
 #define MSG_APP_STOPPED        1
 #define MSG_APP_STARTED        2
@@ -209,15 +201,24 @@ struct save_msg {
 	char			*msg_long;
 };
 
-/*
- * Node
- */
-
 struct node {
 	struct list_head 	list;
 	int			nodeid;
 	int			stopped;
 	int			started;
+};
+
+struct recovery_set {
+	struct list_head	list;
+	struct list_head	entries;
+	int			nodeid;
+	int			cman_update;
+};
+
+struct recovery_entry {
+	struct list_head	list;
+	group_t			*group;
+	int			recovered;
 };
 
 
@@ -241,6 +242,7 @@ int event_state_stopping(app_t *a);
 int event_state_starting(app_t *a);
 void msg_bswap_out(msg_t *msg);
 void msg_bswap_in(msg_t *msg);
+struct recovery_set *get_recovery_set(int nodeid);
 
 /* main.c */
 void app_stop(app_t *a);
@@ -253,7 +255,6 @@ void client_dead(int ci);
 
 /* cman.c */
 int setup_cman(void);
-int is_cman_member(int nodeid);
 
 /* cpg.c */
 int setup_cpg(void);
