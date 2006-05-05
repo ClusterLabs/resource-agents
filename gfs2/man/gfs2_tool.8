@@ -4,78 +4,77 @@
 .TH gfs2_tool 8
 
 .SH NAME
-gfs2_tool - interface to gfs2 ioctl calls
+gfs2_tool - interface to gfs2 ioctl/sysfs calls
 
 .SH SYNOPSIS
 .B gfs2_tool
 \fICOMMAND\fR [\fIOPTION\fR]...
 
 .SH DESCRIPTION
-gfs2_tool is an interface to a variety of the GFS2 ioctl calls.
+gfs2_tool is an interface to a variety of the GFS2 ioctl/sysfs calls.
 
 .SH COMMANDS
 .TP
 \fBclearflag\fP \fIFlag\fR \fIFile1\fR \fIFile2\fR \fI...\fR 
-Clear an attribute flag on a file.
+Clear an attribute flag on a file. See \fBsetflag\fP for available flags.
 .TP
 \fBcounters\fP \fIMountPoint\fR [-c]
 Print out statistics about a filesystem.  If -c is used, gfs2_tool continues
 to run printing out the stats once a second.
-.TP
-\fBdf\fP \fIMountPoint\fR 
-Print out a space usage summary of a given filesystem.  The information
-printed is more detailed than a standard "df".
-.TP
-\fBflush\fP \fIFile\fR
-Sync out any dirty data for a file and drop its lock.
+.\".TP
+.\"\fBdf\fP \fIMountPoint\fR 
+.\"Print out a space usage summary of a given filesystem.  The information
+.\"printed is more detailed than a standard "df".
+.\".TP
+.\"\fBflush\fP \fIFile\fR
+.\"Sync out any dirty data for a file and drop its lock.
 .TP
 \fBfreeze\fP \fIMountPoint\fR
 Freeze (quiesce) a GFS2 cluster.
 .TP
 \fBgetargs\fP \fIMountPoint\fR
 Get the GFS-specific mount arguments used to mount a filesystem.
-.TP
-\fBgetsb\fP \fIMountPoint\fR
-Print out the superblock of a mounted filesystem.
+.\".TP
+.\"\fBgetsb\fP \fIMountPoint\fR
+.\"Print out the superblock of a mounted filesystem.
 .TP
 \fBgettune\fP \fIMountPoint\fR
 Print out the current values of the tuning parameters in a running
 filesystem.
-.TP
-\fBjindex\fP \fIMountPoint\fR
-Print out the journal index of a mounted filesystem.
-.TP
-\fBlayout\fP \fIFile\fR \fI[buffersize]\fR
-Print out on-disk layout information about a file or directory.
-Buffersize is the size of the buffer (in bytes) that gfs2_tool allocates
-to store the file's metadata during processing.  It defaults to 4194304
-bytes.  If you are printing a very big directory you may need to specify
-a bigger size.
+.\".TP
+.\"\fBjindex\fP \fIMountPoint\fR
+.\"Print out the journal index of a mounted filesystem.
+.\".TP
+.\"\fBlayout\fP \fIFile\fR \fI[buffersize]\fR
+.\"Print out on-disk layout information about a file or directory.
+.\"Buffersize is the size of the buffer (in bytes) that gfs2_tool allocates
+.\"to store the file's metadata during processing.  It defaults to 4194304
+.\"bytes.  If you are printing a very big directory you may need to specify
+.\"a bigger size.
 .TP
 \fBlist\fP
 List the currently mounted GFS2 filesystems.  Each line represents
-a filesystem.  The columns represent (in order): 1) A number that
-is a cookie that represents the mounted filesystem. 2) The name of the
+a filesystem.  The columns represent (in order): 1) An identifier that
+represents the mounted filesystem. 2) The name of the
 device that holds the filesystem (well, the name as the Linux
-kernel knows it). 3) The lock table field that the filesystem was
-mounted with.
-.TP
-\fBlockdump\fP \fIMountPoint\fR \fI[buffersize]\fR
-Print out information about the locks this machine holds for a given
-filesystem. Buffersize is the size of the buffer (in bytes) that gfs2_tool
-allocates to store the lock data during processing.  It defaults to 4194304
-bytes.
-.TP
-\fBmargs\fP \fIarguments\fR
-This loads arguments into the module what will override the mount
-options passed with the -o field on the next mount.  See gfs2_mount(8).
-.TP
-\fBquota\fP \fIMountPoint\fR
-Print out the quota file of a mounted filesystem.  Also see
-the "gfs2_quota list" command.
-.TP
-\fBrindex\fP \fIMountPoint\fR
-Print out the resource group index of a mounted filesystem.
+kernel knows it).
+.\".TP
+.\"\fBlockdump\fP \fIMountPoint\fR \fI[buffersize]\fR
+.\"Print out information about the locks this machine holds for a given
+.\"filesystem. Buffersize is the size of the buffer (in bytes) that gfs2_tool
+.\"allocates to store the lock data during processing.  It defaults to 4194304
+.\"bytes.
+.\".TP
+.\"\fBmargs\fP \fIarguments\fR
+.\"This loads arguments into the module what will override the mount
+.\"options passed with the -o field on the next mount.  See gfs2_mount(8).
+.\".TP
+.\"\fBquota\fP \fIMountPoint\fR
+.\"Print out the quota file of a mounted filesystem.  Also see
+.\"the "gfs2_quota list" command.
+.\".TP
+.\"\fBrindex\fP \fIMountPoint\fR
+.\"Print out the resource group index of a mounted filesystem.
 .TP
 \fBsb\fP \fIdevice\fR \fBproto\fP \fI[newvalue]\fR
 View (and possibly replace) the name of the locking protocol in the
@@ -101,9 +100,9 @@ client when you do this.  No one should have to use this.
 Print out the superblock.
 .TP
 \fBsetflag\fP \fIFlag\fR \fIFile1\fR \fIFile2\fR \fI...\fR 
-Set an attribute flag on a file.  There are four currently
-supported flags.  They are jdata, directio, inherit_jdata, and
-inherit_directio.
+Set an attribute flag on a file.  There are eight currently
+supported flags.  They are jdata, directio, immutable, appendonly,
+noatime, sync, inherit_jdata, and inherit_directio.
   
 The \fIjdata\fR flag causes all the data written to a regular file
 to be journaled. The jdata flag can only be set (or cleared) if the file
@@ -111,6 +110,18 @@ is zero length.
 
 The \fIdirectio\fR flag causes all I/O to a regular file to be Direct
 I/O, even if the O_DIRECT flag isn't used on the open() command.
+
+The \fIimmutable\fR flag marks the file immutable. The behavior is 
+similar to the immutable flag in the ext2/3 filesystems. All write 
+access is denied.
+
+The \fIappendonly\fR flag causes all data to be written at the end of 
+the file.
+
+The \fInoatime\fR flag disables updates to the file's access time.
+
+The \fIsync\fR flag causes data written to the file to be sync'ed to 
+stable storage immediately.
 
 The \fIinherit_jdata\fR flag is set on a directory.  It causes all new
 regular files created in that directory automatically inherit the
@@ -128,9 +139,9 @@ tunable parameters.
 .TP
 \fBshrink\fP \fIMountPoint\fR
 Causes any unused locks to be thrown out of memory.
-.TP
-\fBstat\fP \fIFile\fR
-Print out extended stat information about a file.
+.\".TP
+.\"\fBstat\fP \fIFile\fR
+.\"Print out extended stat information about a file.
 .TP
 \fBunfreeze\fP \fIMountPoint\fR
 Unfreeze a GFS2 cluster.
