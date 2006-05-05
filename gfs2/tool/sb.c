@@ -14,9 +14,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <inttypes.h>
 #include <sys/types.h>
+#include <linux/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -27,6 +29,22 @@
 #include <linux/gfs2_ondisk.h>
 
 #include "gfs2_tool.h"
+
+/* From libgfs2 */
+extern int gfs2_sb_in(struct gfs2_sb *sb, char *buf);
+extern void gfs2_sb_print(struct gfs2_sb *sb);
+extern int gfs2_sb_out(struct gfs2_sb *sb, char *buf);
+
+
+void print_it(const char *label, const char *fmt, ...)
+{
+	va_list args;
+	va_start(args, fmt);
+	printf("%s", label);
+	vprintf(fmt, args);
+	printf("\n");
+	va_end(args);
+}
 
 #define do_lseek(fd, off) \
 do { \
@@ -88,7 +106,7 @@ do_sb(int argc, char **argv)
 	if (newval && !override) {
 		printf("You shouldn't change any of these values if the filesystem is mounted.\n");
 		printf("\nAre you sure? [y/n] ");
-		fgets(input, 255, stdin);
+		fgets((char*)input, 255, stdin);
 
 		if (input[0] != 'y')
 			die("aborted\n");
@@ -99,7 +117,7 @@ do_sb(int argc, char **argv)
 	do_lseek(fd, GFS2_SB_ADDR * GFS2_BASIC_BLOCK);
 	do_read(fd, buf, GFS2_BASIC_BLOCK);
 
-	gfs2_sb_in(&sb, buf);
+	gfs2_sb_in(&sb, (char*) buf);
 
 	if (sb.sb_header.mh_magic != GFS2_MAGIC ||
 	    sb.sb_header.mh_type != GFS2_METATYPE_SB)
@@ -152,7 +170,7 @@ do_sb(int argc, char **argv)
 		die("unknown field %s\n", field);
 
 	if (newval) {
-		gfs2_sb_out(&sb, buf);
+		gfs2_sb_out(&sb,(char*) buf);
 
 		do_lseek(fd, GFS2_SB_ADDR * GFS2_BASIC_BLOCK);
 		do_write(fd, buf, GFS2_BASIC_BLOCK);

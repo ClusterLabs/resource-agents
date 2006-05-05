@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include <sys/types.h>
+#include <linux/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -26,11 +27,12 @@
 #include <dirent.h>
 
 #define __user
-#include <linux/gfs2_ioctl.h>
 #include <linux/gfs2_ondisk.h>
+#include <linux/iflags.h>
 
 #include "gfs2_tool.h"
 
+#if GFS2_TOOL_FEATURE_IMPLEMENTED
 /**
  * do_file_flush - 
  * @argc:
@@ -67,6 +69,7 @@ do_file_flush(int argc, char **argv)
 		close(fd);
 	}
 }
+#endif /* #if GFS2_TOOL_FEATURE_IMPLEMENTED */
 
 /**
  * do_freeze - freeze a GFS2 filesystem
@@ -158,55 +161,81 @@ print_flags(struct gfs2_dinode *di)
 	}
 }
 
+/*
+ * Use IFLAG_XXX defined in <linux/iflags.h> which correspond to
+ * GFS2_DIF_XXX
+ */
+static unsigned int 
+get_flag_from_name(char *name)
+{
+	if (strncmp(name, "system", 6) == 0)
+		return GFS2_DIF_SYSTEM;
+	else if (strncmp(name, "jdata", 5) == 0)
+		return IFLAG_JOURNAL_DATA;
+	else if (strncmp(name, "directio", 8) == 0)
+		return IFLAG_DIRECTIO;
+	else if (strncmp(name, "immutable", 9) == 0)
+		return IFLAG_IMMUTABLE;
+	else if (strncmp(name, "appendonly", 10) == 0)
+		return IFLAG_APPEND;
+	else if (strncmp(name, "noatime", 7) == 0)
+		return IFLAG_NOATIME;
+	else if (strncmp(name, "sync", 4) == 0)
+		return IFLAG_SYNC;
+	else if (strncmp(name, "inherit_directio", 16) == 0)
+		return IFLAG_INHERITDIRECTIO;
+	else if (strncmp(name, "inherit_jdata", 13) == 0)
+		return IFLAG_INHERITJDATA;
+	else 
+		return 0;
+}
+
 /**
  * set_flag - set or clear flags in some dinodes
  * @argc:
  * @argv:
  *
  */
-
 void
 set_flag(int argc, char **argv)
 {
 	struct gfs2_dinode di;
-	char *set;
-	char *flag;
-	struct gfs2_ioctl gi;
-	int fd;
-	int error;
-
+	char *flstr;
+	int fd, error, set;
+	unsigned int newflags = 0;
+	unsigned int flag;
 	if (optind == argc) {
 		di.di_flags = 0xFFFFFFFF;
 		print_flags(&di);
 		return;
 	}
-
-	set = (strcmp(argv[optind - 1], "setflag") == 0) ? "set" : "clear";
-	flag = argv[optind++];
-
+	
+	set = (strcmp(argv[optind -1], "setflag") == 0) ? 1 : 0;
+	flstr = argv[optind++];
+	if (!(flag = get_flag_from_name(flstr)))
+		die("unrecognized flag %s\n", argv[optind -1]);
+	
 	for (; optind < argc; optind++) {
+		fprintf(stdout, "opening %s\n", argv[optind]);
 		fd = open(argv[optind], O_RDONLY);
 		if (fd < 0)
 			die("can't open %s: %s\n", argv[optind], strerror(errno));
-
-		check_for_gfs2(fd, argv[optind]);
-
-		{
-			char *gi_argv[] = { "set_file_flag",
-					    set,
-					    flag };
-			gi.gi_argc = 3;
-			gi.gi_argv = gi_argv;
-
-			error = ioctl(fd, GFS2_IOCTL_SUPER, &gi);
-			if (error)
-				die("can't change flag on %s: %s\n", argv[optind], strerror(errno));
-		}
-
+		/* first get the existing flags on the file */
+		error = ioctl(fd, IFLAGS_GET_IOC, &newflags);
+		if (error)
+			die("can't get flags on %s: %s\n", 
+			    argv[optind], strerror(errno));
+		newflags = set ? newflags | flag : newflags & ~flag;
+		/* new flags */
+		error = ioctl(fd, IFLAGS_SET_IOC, &newflags);
+		if (error)
+			die("can't set flags on %s: %s\n", 
+			    argv[optind], strerror(errno));
 		close(fd);
 	}
 }
 
+#if GFS2_TOOL_FEATURE_IMPLEMENTED
 /**
  * print_stat - print out the struct gfs2_dinode for a file
  * @argc:
@@ -288,6 +317,7 @@ print_sb(int argc, char **argv)
 
 	gfs2_sb_print(&sb);
 }
+#endif /* #if GFS2_TOOL_FEATURE_IMPLEMENTED */
 
 /**
  * print_args -
@@ -337,6 +367,7 @@ print_args(int argc, char **argv)
 	
 }
 
+#if GFS2_TOOL_FEATURE_IMPLEMENTED 
 /**
  * print_jindex - print out the journal index
  * @argc:
@@ -536,6 +567,7 @@ print_quota(int argc, char **argv)
 
 	close(fd);
 }
+#endif /* #if GFS2_TOOL_FEATURE_IMPLEMENTED */
 
 /**
  * print_list - print the list of mounted filesystems

@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include <sys/types.h>
+#include <linux/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -25,7 +26,6 @@
 #include <errno.h>
 
 #define __user
-#include <linux/gfs2_ioctl.h>
 #include <linux/gfs2_ondisk.h>
 
 #include "osi_list.h"
@@ -78,6 +78,7 @@ typedef void (*leaf_call_t) (world_t *w,
 			     uint32_t index, uint32_t len, uint64_t leaf_no,
 			     void *data);
 
+#if GFS2_TOOL_FEATURE_IMPLEMENTED
 /**
  * build_list - build a list of buffer_t's to represent the data from the kernel
  * @w: the world structure
@@ -856,3 +857,5 @@ print_layout(int argc, char **argv)
 
 	close(fd);
 }
+#endif /* #if GFS2_TOOL_FEATURE_IMPLEMENTED */
+

@@ -43,7 +43,7 @@ endif
 all: ${TARGET}
 
 gfs2_tool: ${SOURCE}
-	${CC} ${CFLAGS} ${INCLUDE} ${LDFLAGS} ${SOURCE} ${LOADLIBES} ${LDLIBS} -o $@
+	${CC} ${CFLAGS} ${INCLUDE} ${LDFLAGS} ${SOURCE} ${LOADLIBES} ${LDLIBS} -o $@ -L../libgfs2/ -lgfs2
 
 copytobin: ${TARGET}
 	cp ${TARGET} ${top_srcdir}/bin

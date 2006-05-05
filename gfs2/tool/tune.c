@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include <sys/types.h>
+#include <linux/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -26,7 +27,6 @@
 #include <dirent.h>
 
 #define __user
-#include <linux/gfs2_ioctl.h>
 
 #include "gfs2_tool.h"
 

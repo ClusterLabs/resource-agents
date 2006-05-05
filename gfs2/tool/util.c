@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include <sys/types.h>
+#include <linux/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -29,7 +30,6 @@
 #include <asm/page.h>
 
 #define __user
-#include <linux/gfs2_ioctl.h>
 #include <linux/gfs2_ondisk.h>
 
 #include "gfs2_tool.h"
@@ -166,7 +166,6 @@ get_list(void)
 	return list;
 }
 
-
 /**
  * check_for_gfs2 - Check to see if a descriptor is a file on a GFS2 filesystem
  * @fd: the file descriptor
@@ -174,17 +173,26 @@ get_list(void)
  *
  */
 
+/* 
+ * FIXME check_for_gfs2() uses an ioctl that's not supported by gfs2.
+ * This function is used as a sanity check before performing certain
+ * operations.
+ */
+#if 0
 void
 check_for_gfs2(int fd, char *path)
 {
 	unsigned int magic = 0;
-	int error;
-
+	int error = 0;
 	error = ioctl(fd, GFS2_IOCTL_IDENTIFY, &magic);
 	if (error || magic != GFS2_MAGIC)
 		die("%s is not a GFS2 file/filesystem\n",
 		    path);
 }
+#else
+void check_for_gfs2(int fd, char *path) {}
+#endif /* #if 0 */
+
 
 /**
  * str2lines - parse a string into lines

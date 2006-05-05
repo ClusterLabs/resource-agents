@@ -18,6 +18,7 @@
 #include <inttypes.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <linux/types.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
@@ -25,13 +26,13 @@
 #include <errno.h>
 
 #define __user
-#include <linux/gfs2_ioctl.h>
 #include <linux/gfs2_ondisk.h>
 
 #include "gfs2_tool.h"
 
 #define SIZE (65536)
 
+#if GFS2_TOOL_FEATURE_IMPLEMENTED
 /**
  * do_df_one - print out information about one filesystem
  * @path: the path to the filesystem
@@ -218,5 +219,4 @@ print_df(int argc, char **argv)
 		fclose(file);
 	}
 }
-
-
+#endif /* #if GFS2_TOOL_FEATURE_IMPLEMENTED */

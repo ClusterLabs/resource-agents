@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include <sys/types.h>
+#include <linux/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -154,6 +155,8 @@ print_counters(int argc, char **argv)
 		print_line(fs, "glock_count", "locks", 0);
 		print_line(fs, "glock_held_count", "locks held", 0);
 		print_line(fs, "inode_count", "incore inodes", 0);
+		print_line(fs, "reclaimed", "glocks reclaimed", 1);
+#if GFS2_TOOL_FEATURE_IMPLEMENTED
 		print_line(fs, "bufdata_count", "metadata buffers", 0);
 		print_line(fs, "unlinked_count", "unlinked inodes", 0);
 		print_line(fs, "quota_count", "quota IDs", 0);
@@ -171,7 +174,6 @@ print_counters(int argc, char **argv)
 		print_line(fs, "reclaim_count", "glocks on reclaim list", 0);
 		print_line(fs, "log_wraps", "log wraps", 0);
 		print_line(fs, "fh2dentry_misses", "fh2dentry misses", 1);
-		print_line(fs, "reclaimed", "glocks reclaimed", 1);
 		print_line(fs, "log_flush_incore", "log incore flushes", 1);
 		print_line(fs, "log_flush_ondisk", "log ondisk flushes", 1);
 		print_line(fs, "glock_nq_calls", "glock dq calls", 1);
@@ -188,6 +190,7 @@ print_counters(int argc, char **argv)
 		print_line(fs, "ops_inode", "inode operations", 1);
 		print_line(fs, "ops_super", "super operations", 1);
 		print_line(fs, "ops_vm", "vm operations", 1);
+#endif /* #if GFS2_TOOL_FEATURE_IMPLEMENTED */
 
 		if (!continuous)
 			break;

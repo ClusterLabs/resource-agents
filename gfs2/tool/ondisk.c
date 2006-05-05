@@ -16,6 +16,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <inttypes.h>
+#include <linux/types.h>
 
 #include "linux_endian.h"
 
@@ -23,4 +24,3 @@
 
 #define WANT_GFS2_CONVERSION_FUNCTIONS
 #include <linux/gfs2_ondisk.h>
-
