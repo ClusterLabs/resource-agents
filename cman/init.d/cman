@@ -122,7 +122,7 @@ stop()
 	then
 		rtrn=1
 
-		cman_tool -t $CMAN_SHUTDOWN_TIMEOUT -w leave $1 &> /dev/null
+		cman_tool -t $CMAN_SHUTDOWN_TIMEOUT -w leave $1 &> /dev/null && rtrn=0
 
 		# allow cman time to clean up BZ 149282
 		sleep 3
@@ -130,7 +130,7 @@ stop()
 		# try to unload dlm module
 		modprobe -r dlm &>/dev/null
  
-		modprobe -r cman &>/dev/null && rtrn=0
+		modprobe -r cman &>/dev/null
 	fi
 	
 	if [ $rtrn -eq 0 ]
@@ -173,8 +173,8 @@ case "$1" in
 	;;
 
   status)
-	cat /proc/cluster/status
-	rtrn=0
+	cat /proc/cluster/status 2>/dev/null
+	rtrn=$?
 	;;
 
   *)
