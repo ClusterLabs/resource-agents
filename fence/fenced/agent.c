@@ -291,14 +291,12 @@ static void update_cman(char *victim, char *method)
 	/* Convert name to a number */
 	memset(&node, 0, sizeof(node));
 	strcpy(node.cn_name, victim);
-	if (!cman_get_node(ch, 0, &node)) {
 
-		/* Mark it as fenced */
+	/* Mark it as fenced */
+	if (!cman_get_node(ch, 0, &node))
 		cman_node_fenced(ch, node.cn_nodeid, the_time, method);
-	}
-	else {
+	else
 		syslog(LOG_ERR, "can't get node number for node %s\n", victim);
-	}
 	cman_finish(ch);
 }
 
@@ -314,6 +312,9 @@ int dispatch_fence_agent(int cd, char *victim)
 		error = get_method(cd, victim, m, &method);
 		if (error)
 			continue;
+
+		/* if num_devices is zero we should return an error */
+		error = -1;
 
 		num_devices = count_devices(cd, victim, method);
 
