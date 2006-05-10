@@ -469,12 +469,11 @@ restart:
       }
 
       if (FD_ISSET(cman_fd, &rset)) {
-	handle_cluster_event(handle);
-	/* 
-	 * if handle_cluster_event catches a shutdown
-	 * we should probably goto restart ...
-	 *
-	 */
+        if (handle_cluster_event(handle)) {
+	  cman_finish(handle);
+	  handle = NULL;
+	  goto restart;
+	}
       }
     }
   }
