@@ -55,6 +55,7 @@
 #define CMAN_CMD_SHUTDOWN_REPLY     0x000000bc
 #define CMAN_CMD_UPDATE_FENCE_INFO  0x800000bd
 #define CMAN_CMD_GET_FENCE_INFO     0x000000be
+#define CMAN_CMD_GET_NODEADDRS      0x000000bf
 
 #define CMAN_CMD_DATA               0x00000100
 #define CMAN_CMD_BIND               0x00000101
@@ -124,7 +125,7 @@ static const char ADMIN_SOCKNAME[]=  "/var/run/cman_admin";
  * passed down the client and admin sockets.
  */
 #define CMAN_MAGIC 0x434d414e
-#define CMAN_VERSION 0x10000002
+#define CMAN_VERSION 0x10000003
 struct sock_header {
 	uint32_t magic;
 	uint32_t version;
@@ -153,18 +154,6 @@ struct sock_event_message {
 	struct sock_header header;
 	int reason;
 	int arg;
-};
-
-
-/* Cluster configuration info passed when we join the cluster */
-struct cl_join_cluster_info {
-	unsigned char votes;
-	unsigned int expected_votes;
-	unsigned int two_node;
-	unsigned int config_version;
-	unsigned short port;
-
-        char cluster_name[MAX_CLUSTER_NAME_LEN + 1];
 };
 
 /* Flags */
@@ -234,8 +223,21 @@ struct cl_set_votes {
 	int newvotes;
 };
 
+/* An array of these is returned */
+struct cl_node_addrs {
+	int addrlen;
+	struct sockaddr_storage addr;
+};
+
+struct cl_get_node_addrs {
+	int numaddrs;
+	struct cl_node_addrs addrs[];
+};
+
+#define FENCE_FLAGS_FENCED 2
 struct cl_fence_info {
 	int nodeid;
+	int flags;
 	uint64_t fence_time;
 	char fence_agent[MAX_FENCE_AGENT_NAME_LEN];
 };

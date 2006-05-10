@@ -63,7 +63,7 @@ int join(commandline_t *comline)
 	ctree = ccs_force_connect(NULL, 1);
 	if (ctree < 0)
 	{
-		die ("ccsd is not running\n");
+		die("ccsd is not running\n");
 	}
 	ccs_disconnect(ctree);
 
@@ -102,6 +102,10 @@ int join(commandline_t *comline)
 	}
 	if (comline->nodenames[0]) {
 		snprintf(scratch, sizeof(scratch), "CMAN_NODENAME=%s", comline->nodenames[0]);
+		envp[envptr++] = strdup(scratch);
+	}
+	if (comline->key_filename) {
+		snprintf(scratch, sizeof(scratch), "CMAN_KEYFILE=%s", comline->key_filename);
 		envp[envptr++] = strdup(scratch);
 	}
 	if (comline->verbose) {

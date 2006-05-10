@@ -85,12 +85,11 @@ static int shutdown_expected;
 
 static struct cluster_node *find_node_by_nodeid(int nodeid);
 static struct cluster_node *find_node_by_name(char *name);
-static struct cluster_node *find_node_by_ais_node(struct totem_ip_address *ais_node);
 static int get_node_count(void);
 static int get_highest_nodeid(void);
 static int send_port_open_msg(unsigned char port);
 static int send_port_enquire(int nodeid);
-static void process_internal_message(char *data, int len, int nodeid, struct totem_ip_address *ais_node, int byteswap);
+static void process_internal_message(char *data, int len, int nodeid, int byteswap);
 static void recalculate_quorum(int allow_decrease);
 
 static void set_port_bit(struct cluster_node *node, uint8_t port)
@@ -172,7 +171,7 @@ static void node_add_ordered(struct cluster_node *newnode)
 }
 
 static struct cluster_node *add_new_node(char *name, int nodeid, int votes, int expected_votes,
-					 nodestate_t state, struct totem_ip_address *ais_node)
+					 nodestate_t state)
 {
 	struct cluster_node *newnode = NULL;
 	int newalloc = 0;
@@ -180,8 +179,6 @@ static struct cluster_node *add_new_node(char *name, int nodeid, int votes, int 
 	if (nodeid)
 		newnode = find_node_by_nodeid(nodeid);
 
-	if (!newnode)
-		newnode = find_node_by_ais_node(ais_node);
 	if (!newnode) {
 		newnode = malloc(sizeof(struct cluster_node));
 		if (!newnode) {
@@ -209,11 +206,6 @@ static struct cluster_node *add_new_node(char *name, int nodeid, int votes, int 
 	newnode->votes = votes;
 	if (expected_votes)
 		newnode->expected_votes = expected_votes;
-
-	if (ais_node)
-		totemip_copy(&newnode->ais_node, ais_node);
-	else
-		memset(&newnode->ais_node, 0, sizeof(struct totem_ip_address));
 
 	/* If this node has a name passed in then use that rather than a previous generated one */
 	if (name && newnode->name && strcmp(name, newnode->name)) {
@@ -328,7 +320,9 @@ static void copy_to_usernode(struct cluster_node *node,
 	unode->leave_reason = node->leave_reason;
 	unode->incarnation = node->incarnation;
 
-	totemip_totemip_to_sockaddr_convert(&node->ais_node, 0, &ss, &addrlen);
+	/* Just send the first address. If the user wants the full set they
+	   must ask for them */
+	totemip_totemip_to_sockaddr_convert(&node->ipaddr[0], 0, &ss, &addrlen);
 	memcpy(unode->addr, &ss, addrlen);
 	unode->addrlen = addrlen;
 }
@@ -733,20 +727,6 @@ static int do_cmd_bind(struct connection *con, char *cmdbuf)
 	return ret;
 }
 
-
-static uint16_t generate_cluster_id(char *name)
-{
-	int i;
-	int value = 0;
-
-	for (i=0; i<strlen(name); i++) {
-		value <<= 1;
-		value += name[i];
-	}
-	P_MEMB("Generated cluster id for '%s' is %d\n", name, value & 0xFFFF);
-	return value & 0xFFFF;
-}
-
 int do_cmd_join_cluster(char *cmdbuf, int *retlen)
 {
 	struct cl_join_cluster_info *join_info = (struct cl_join_cluster_info *)cmdbuf;
@@ -758,7 +738,7 @@ int do_cmd_join_cluster(char *cmdbuf, int *retlen)
 	if (strlen(join_info->cluster_name) > MAX_CLUSTER_NAME_LEN)
 		return -EINVAL;
 
-	cluster_id = generate_cluster_id(join_info->cluster_name);
+	cluster_id = join_info->cluster_id;
 	strncpy(cluster_name, join_info->cluster_name, MAX_CLUSTER_NAME_LEN);
 	two_node = join_info->two_node;
 	ip_port = join_info->port;
@@ -784,7 +764,7 @@ int do_cmd_join_cluster(char *cmdbuf, int *retlen)
 	}
 
 	us = add_new_node(nodename, wanted_nodeid, join_info->votes, join_info->expected_votes,
-			  NODESTATE_MEMBER, NULL);
+			  NODESTATE_MEMBER);
 	set_port_bit(us, 0);
 	us->us = 1;
 	cluster_members = 1;
@@ -1054,6 +1034,7 @@ static int do_cmd_set_keyfile(char *cmdbuf)
 	return 0;
 }
 
+/* fence_tool tells us it has fenced a node */
 static int do_cmd_update_fence_info(char *cmdbuf)
 {
 	struct cl_fence_info *f = (struct cl_fence_info *)cmdbuf;
@@ -1068,10 +1049,13 @@ static int do_cmd_update_fence_info(char *cmdbuf)
 	if (strlen(f->fence_agent) >= MAX_FENCE_AGENT_NAME_LEN)
 		return -EINVAL;
 
+	node->flags |= NODE_FLAGS_FENCED;
+
 	/* Tell the rest of the cluster (and us!) */
 	fence_msg->cmd = CLUSTER_MSG_FENCESTATUS;
 	fence_msg->nodeid = f->nodeid;
 	fence_msg->timesec = f->fence_time;
+	fence_msg->fenced = 1;
 	strcpy(fence_msg->agent, f->fence_agent);
 	comms_send_message(msg, sizeof(msg), 0,0, 0, 0);
 
@@ -1096,11 +1080,55 @@ static int do_cmd_get_fence_info(char *cmdbuf, char **retbuf, int retsize, int *
 
 	f->nodeid = nodeid;
 	f->fence_time = node->fence_time;
+	f->flags = node->flags;
+
 	if (node->fence_agent)
 		strcpy(f->fence_agent, node->fence_agent);
 	else
 		f->fence_agent[0] = '\0';
 	*retlen = sizeof(struct cl_fence_info);
+	return 0;
+}
+
+static int do_cmd_get_node_addrs(char *cmdbuf, char **retbuf, int retsize, int *retlen, int offset)
+{
+	int nodeid;
+	int i;
+	char *outbuf = *retbuf + offset;
+	struct cl_get_node_addrs *addrs = (struct cl_get_node_addrs *)outbuf;
+	struct cluster_node *node;
+
+	if (retsize < sizeof(struct cl_node_addrs))
+		return -EINVAL;
+	memcpy(&nodeid, cmdbuf, sizeof(nodeid));
+
+	node = find_node_by_nodeid(nodeid);
+	if (!node)
+		return -EINVAL;
+
+	// TODO Allocate enough space...(though it will probably be fine)
+	if (node->us) {
+		addrs->numaddrs = num_interfaces;
+		for (i=0; i<num_interfaces; i++) {
+			totemip_totemip_to_sockaddr_convert(&ifaddrs[i], 0,
+							    &addrs->addrs[i].addr,
+							    &addrs->addrs[i].addrlen);
+		}
+		*retlen = sizeof(struct cl_get_node_addrs) +
+			num_interfaces * sizeof(struct cl_node_addrs);
+	}
+	else {
+		// TODO get addrs from totem when API is ready
+		addrs->numaddrs = node->num_interfaces;
+		for (i=0; i<node->num_interfaces; i++) {
+			totemip_totemip_to_sockaddr_convert(&node->ipaddr[i], 0,
+							    &addrs->addrs[i].addr,
+							    &addrs->addrs[i].addrlen);
+		}
+		*retlen = sizeof(struct cl_get_node_addrs) +
+			addrs->numaddrs * sizeof(struct cl_node_addrs);
+	}
+
 	return 0;
 }
 
@@ -1244,6 +1272,10 @@ int process_command(struct connection *con, int cmd, char *cmdbuf,
 	case CMAN_CMD_GET_FENCE_INFO:
 		err = do_cmd_get_fence_info(cmdbuf, retbuf, retsize, retlen, offset);
 		break;
+
+	case CMAN_CMD_GET_NODEADDRS:
+		err = do_cmd_get_node_addrs(cmdbuf, retbuf, retsize, retlen, offset);
+		break;
 	}
 	P_MEMB("command return code is %d\n", err);
 	return err;
@@ -1252,13 +1284,13 @@ int process_command(struct connection *con, int cmd, char *cmdbuf,
 
 int send_to_userport(unsigned char fromport, unsigned char toport,
 		     int nodeid, int tgtid,
-		     struct totem_ip_address *ais_node,
+		     struct totem_ip_address *aisnode,
 		     char *recv_buf, int len, int endian_conv)
 {
 	int ret = -1;
 
 	if (toport == 0) {
-		process_internal_message(recv_buf, len, nodeid, ais_node, endian_conv);
+		process_internal_message(recv_buf, len, nodeid, endian_conv);
 		ret = 0;
 	}
 	else {
@@ -1354,24 +1386,24 @@ int our_nodeid()
 }
 
 /* Sanity check TRANSITION message */
-static int valid_transition_msg(struct totem_ip_address *ipaddr, struct cl_transmsg *msg)
+static int valid_transition_msg(int nodeid, struct cl_transmsg *msg)
 {
 	if (strcmp(msg->clustername, cluster_name) != 0) {
-		log_msg(LOG_ERR, "Node %s refused, remote cluster name='%s', local='%s'\n",
-			totemip_print(ipaddr), msg->clustername, cluster_name);
+		log_msg(LOG_ERR, "Node %d refused, remote cluster name='%s', local='%s'\n",
+			nodeid, msg->clustername, cluster_name);
 		return -1;
 	}
 
 	if (msg->cluster_id != cluster_id) {
-		log_msg(LOG_ERR, "Node %s refused, remote cluster id=%d, local=%d\n",
-			totemip_print(ipaddr), msg->cluster_id, cluster_id);
+		log_msg(LOG_ERR, "Node %d refused, remote cluster id=%d, local=%d\n",
+			nodeid, msg->cluster_id, cluster_id);
 		return -1;
 	}
 
 	if (msg->major_version != CNXMAN_MAJOR_VERSION) {
 
-		log_msg(LOG_ERR, "Node %s refused, remote version id=%d, local=%d\n",
-			totemip_print(ipaddr), msg->major_version, CNXMAN_MAJOR_VERSION);
+		log_msg(LOG_ERR, "Node %d refused, remote version id=%d, local=%d\n",
+			nodeid, msg->major_version, CNXMAN_MAJOR_VERSION);
 		return -1;
 	}
 
@@ -1393,8 +1425,8 @@ static int valid_transition_msg(struct totem_ip_address *ipaddr, struct cl_trans
 
 
 	if (msg->config_version != config_version) {
-		log_msg(LOG_ERR, "Node %s refused, remote config version id=%d, local=%d\n",
-			totemip_print(ipaddr), msg->config_version, config_version);
+		log_msg(LOG_ERR, "Node %d refused, remote config version id=%d, local=%d\n",
+			nodeid, msg->config_version, config_version);
 		return -1;
 	}
 
@@ -1404,27 +1436,39 @@ static int valid_transition_msg(struct totem_ip_address *ipaddr, struct cl_trans
 
 void send_transition_msg(int last_memb_count)
 {
-	struct cl_transmsg msg;
+	char buf[sizeof(struct cl_transmsg)+1024];
+	struct cl_transmsg *msg = (struct cl_transmsg *)buf;
+	int len = sizeof(struct cl_transmsg);
 
 	we_are_a_cluster_member = 1;
 
-	if (last_memb_count == 1) { /* new joiner */
-		P_MEMB("sending TRANSITION message. cluster_name = %s\n", cluster_name);
-		msg.cmd = CLUSTER_MSG_TRANSITION;
-		msg.high_nodeid = get_highest_nodeid();
-		msg.expected_votes = us->expected_votes;
-		msg.cluster_id = cluster_id;
-		msg.major_version = CNXMAN_MAJOR_VERSION;
-		msg.minor_version = CNXMAN_MINOR_VERSION;
-		msg.patch_version = CNXMAN_PATCH_VERSION;
-		msg.config_version = config_version;
-		strcpy(msg.clustername, cluster_name);
-
-		comms_send_message(&msg, sizeof(msg),
-				   0,0,
-				   0,  /* multicast */
-				   0); /* flags */
+	P_MEMB("sending TRANSITION message. cluster_name = %s\n", cluster_name);
+	msg->cmd = CLUSTER_MSG_TRANSITION;
+	msg->high_nodeid = get_highest_nodeid();
+	msg->expected_votes = us->expected_votes;
+	msg->cluster_id = cluster_id;
+	msg->major_version = CNXMAN_MAJOR_VERSION;
+	msg->minor_version = CNXMAN_MINOR_VERSION;
+	msg->patch_version = CNXMAN_PATCH_VERSION;
+	msg->config_version = config_version;
+	msg->flags = us->flags;
+	msg->fence_time = us->fence_time;
+	strcpy(msg->clustername, cluster_name);
+	if (us->fence_agent)
+	{
+		strcpy(msg->fence_agent, us->fence_agent);
+		len += strlen(us->fence_agent)+1;
 	}
+	else
+	{
+		msg->fence_agent[0] = '\0';
+		len += 1;
+	}
+
+	comms_send_message(msg, len,
+			   0,0,
+			   0,  /* multicast */
+			   0); /* flags */
 }
 
 static void byteswap_internal_message(char *data, int len)
@@ -1452,6 +1496,8 @@ static void byteswap_internal_message(char *data, int len)
 		transmsg->minor_version = swab32(transmsg->minor_version);
 		transmsg->patch_version = swab32(transmsg->patch_version);
 		transmsg->config_version = swab32(transmsg->config_version);
+		transmsg->flags = swab32(transmsg->flags);
+		transmsg->fence_time = swab64(transmsg->fence_time);
 		break;
 
 	case CLUSTER_MSG_KILLNODE:
@@ -1478,6 +1524,7 @@ static void byteswap_internal_message(char *data, int len)
 	case CLUSTER_MSG_FENCESTATUS:
 		fencemsg = (struct cl_fencemsg *)data;
 		fencemsg->timesec = swab64(fencemsg->timesec);
+		fencemsg->nodeid = swab32(fencemsg->nodeid);
 		break;
 	}
 }
@@ -1541,19 +1588,49 @@ static void do_fence_msg(void *data)
 	if (node->fence_agent)
 		free(node->fence_agent);
 	node->fence_agent = strdup(msg->agent);
+	if (msg->fenced)
+		node->flags |= NODE_FLAGS_FENCED;
 }
 
-static void do_process_transition(int nodeid, struct totem_ip_address *ipaddr, char *data, int len)
+static void do_process_transition(int nodeid, char *data, int len)
 {
 	struct cl_transmsg *msg = (struct cl_transmsg *)data;
+	struct cluster_node *node;
 
-	if (valid_transition_msg(ipaddr, msg) != 0) {
-		P_MEMB("Transition message from %d does not match current config - should quit ?\n", ipaddr->nodeid);
+	if (valid_transition_msg(nodeid, msg) != 0) {
+		P_MEMB("Transition message from %d does not match current config - should quit ?\n", nodeid);
+		return; // PJC ???
 	}
-	/* Mutley! Do something! */
+	node = find_node_by_nodeid(nodeid);
+	assert(node);
+
+	node->flags = msg->flags;
+	if (node->fence_agent && msg->fence_agent[0] && strcmp(node->fence_agent, msg->fence_agent))
+	{
+		free(node->fence_agent);
+		strdup(node->fence_agent);
+		node->fence_time = msg->fence_time;
+	}
+
+	/* If this is a rejoined node then it won't know about its own fence data, send it
+	 *  some
+	 */
+	if (node->fence_time && !msg->fence_time &&
+	    node->fence_agent && !msg->fence_agent[0])
+	{
+		char msg[sizeof(struct cl_fencemsg)+strlen(node->fence_agent)];
+		struct cl_fencemsg *fence_msg = (struct cl_fencemsg *)msg;
+
+		fence_msg->cmd = CLUSTER_MSG_FENCESTATUS;
+		fence_msg->nodeid = nodeid;
+		fence_msg->timesec = node->fence_time;
+		fence_msg->fenced = 0;
+		strcpy(fence_msg->agent, node->fence_agent);
+		comms_send_message(msg, sizeof(msg), 0,0, nodeid, 0);
+	}
 }
 
-static void process_internal_message(char *data, int len, int nodeid, struct totem_ip_address *ais_node, int need_byteswap)
+static void process_internal_message(char *data, int len, int nodeid, int need_byteswap)
 {
 	struct cl_protmsg *msg = (struct cl_protmsg *)data;
 	struct cl_portmsg *portmsg;
@@ -1602,7 +1679,7 @@ static void process_internal_message(char *data, int len, int nodeid, struct tot
 
 	case CLUSTER_MSG_TRANSITION:
 		P_MEMB("got TRANSITION from node %d\n", nodeid);
-		do_process_transition(nodeid, ais_node, data, len);
+		do_process_transition(nodeid, data, len);
 		break;
 
 	case CLUSTER_MSG_KILLNODE:
@@ -1671,6 +1748,7 @@ void override_expected(int newexp)
 void add_ccs_node(char *nodename, int nodeid, int votes, int expected_votes)
 {
 	struct totem_ip_address ipaddr;
+	struct cluster_node *node;
 
 	if (totemip_parse(&ipaddr, nodename))
 	{
@@ -1684,50 +1762,38 @@ void add_ccs_node(char *nodename, int nodeid, int votes, int expected_votes)
 		}
 	}
 
-        // TODO Cope with altnames (multiple IPs) for nodes
-
 	/* Update node entry */
-	add_new_node(nodename, nodeid, votes, expected_votes, NODESTATE_DEAD, &ipaddr);
+	node = add_new_node(nodename, nodeid, votes, expected_votes, NODESTATE_DEAD);
+	if (!node->num_interfaces)
+	{
+		totemip_copy(&node->ipaddr[0], &ipaddr);
+		node->num_interfaces = 1;
+	}
 }
 
-void add_ais_node(struct totem_ip_address *ais_node, uint64_t incarnation, int total_members)
+void add_ais_node(struct totem_ip_address *aisnode, uint64_t incarnation, int total_members)
 {
 	struct cluster_node *node;
 
-	P_MEMB("add_ais_node %s, ID=%d, incarnation = %d\n", totemip_print(ais_node), ais_node->nodeid, incarnation);
+	P_MEMB("add_ais_node ID=%d, incarnation = %d\n", aisnode->nodeid, incarnation);
 
-	node = find_node_by_nodeid(ais_node->nodeid);
-
-	if (!node)
-		node = find_node_by_ais_node(ais_node);
+	node = find_node_by_nodeid(aisnode->nodeid);
 
 	if (!node && total_members == 1) {
 		node = us;
 		P_MEMB("Adding AIS node for 'us'\n");
 	}
 
-	/* Sanity check */
-	if ((ais_node->nodeid && node && ais_node->nodeid != node->node_id) ||
-	    (node && node->ais_node.family != 0 && !totemip_equal(ais_node, &node->ais_node))) {
-
-		/* totemip_print returns a static buffer! */
-		char *aisnode = strdup(totemip_print(ais_node));
-
-		log_msg(LOG_ERR, "Node %s (%d) from AIS, conflicts with node from CCS: %s (%d)\n",
-			aisnode, ais_node->nodeid, totemip_print(&node->ais_node), node->ais_node.nodeid);
-		free(aisnode);
-		node = NULL;
-	}
-
  	/* This really should exist!! */
 	if (!node) {
+		char tempname[256];
 		node = malloc(sizeof(struct cluster_node));
 		if (!node) {
-			log_msg(LOG_ERR, "error allocating node struct for %s (id %d), but CCS doesn't know about it anyway\n",
-				totemip_print(ais_node), ais_node->nodeid);
+			log_msg(LOG_ERR, "error allocating node struct for id %d, but CCS doesn't know about it anyway\n",
+				aisnode->nodeid);
 			return;
 		}
-		log_msg(LOG_ERR, "Got node %s from AIS (id %d) with no CCS entry\n", totemip_print(ais_node), ais_node->nodeid);
+		log_msg(LOG_ERR, "Got node from AIS id %d with no CCS entry\n", aisnode->nodeid);
 
 		memset(node, 0, sizeof(struct cluster_node));
 		node_add_ordered(node);
@@ -1735,14 +1801,11 @@ void add_ais_node(struct totem_ip_address *ais_node, uint64_t incarnation, int t
 		node->votes = 1;
 
 		/* Emergency nodename */
-		node->name = strdup(totemip_print(ais_node));
+		sprintf(tempname, "Node%d\n", aisnode->nodeid);
+		node->name = strdup(tempname);
 	}
 
 	node->incarnation = incarnation;
-
-	/* Don't overwrite a valid node address */
-	if (totemip_zero_check(&node->ais_node))
-	    totemip_copy(&node->ais_node, ais_node);
 
 	gettimeofday(&node->join_time, NULL);
 
@@ -1753,14 +1816,15 @@ void add_ais_node(struct totem_ip_address *ais_node, uint64_t incarnation, int t
 	}
 }
 
-void del_ais_node(struct totem_ip_address *ais_node)
+void del_ais_node(struct totem_ip_address *aisnode)
 {
 	struct cluster_node *node;
-	P_MEMB("del_ais_node %s\n", totemip_print(ais_node));
+	P_MEMB("del_ais_node %d\n", aisnode->nodeid);
 
-	node = find_node_by_ais_node(ais_node);
+	node = find_node_by_nodeid(aisnode->nodeid);
 	assert(node);
 
+	node->flags &= ~NODE_FLAGS_FENCED;
 	if (node->state == NODESTATE_MEMBER) {
 		node->state = NODESTATE_DEAD;
 		cluster_members--;
@@ -1814,18 +1878,6 @@ static struct cluster_node *find_node_by_nodeid(int nodeid)
 	return NULL;
 }
 
-static struct cluster_node *find_node_by_ais_node(struct totem_ip_address *ais_node)
-{
-	struct cluster_node *node;
-	if (!ais_node)
-		return NULL;
-
-	list_iterate_items(node, &cluster_members_list) {
-		if (totemip_equal(&node->ais_node, ais_node))
-			return node;
-	}
-	return NULL;
-}
 
 static struct cluster_node *find_node_by_name(char *name)
 {

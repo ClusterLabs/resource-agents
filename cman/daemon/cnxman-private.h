@@ -14,6 +14,13 @@
 #ifndef __CNXMAN_PRIVATE_H
 #define __CNXMAN_PRIVATE_H
 
+#include <totem.h>
+
+// PJC: Remove this later
+#ifndef INTERFACE_MAX
+#define INTERFACE_MAX 2
+#endif
+
 /* Protocol Version triplet */
 #define CNXMAN_MAJOR_VERSION 6
 #define CNXMAN_MINOR_VERSION 0
@@ -77,7 +84,10 @@ struct cl_transmsg {
 	unsigned int   minor_version;	/* Backwards compatible */
 	unsigned int   patch_version;	/* Backwards/forwards compatible */
 	unsigned int   config_version;
+	uint64_t       fence_time;
+	unsigned int   flags;
         char           clustername[16];
+	char           fence_agent[];
 };
 
 struct cl_killmsg {
@@ -105,7 +115,7 @@ struct cl_reconfig_msg {
 
 struct cl_fencemsg {
 	unsigned char cmd;
-	unsigned char pad1;
+	unsigned char fenced;
 	int           nodeid;
 	uint64_t      timesec;
 	char          agent[0];
@@ -135,6 +145,9 @@ struct connection
 #define RECONFIG_PARAM_CONFIG_VERSION 3
 #define RECONFIG_PARAM_CCS            4
 
+#define NODE_FLAGS_GOTTRANSITION      1
+#define NODE_FLAGS_FENCED             2
+
 /* There's one of these for each node in the cluster */
 struct cluster_node {
 	struct list list;
@@ -142,7 +155,9 @@ struct cluster_node {
 	struct list addr_list;
 	int us;			/* This node is us */
 	unsigned int node_id;	/* Unique node ID */
-	struct totem_ip_address ais_node;
+	int flags;
+	int num_interfaces;     /* Number of ipaddrs below */
+	struct totem_ip_address ipaddr[INTERFACE_MAX];
 	nodestate_t state;
 	struct timeval join_time;
 
@@ -162,6 +177,17 @@ struct cluster_node {
  	unsigned char port_bits[PORT_BITS_SIZE]; /* bitmap of ports open on this node */
 };
 
+/* Cluster configuration info passed when we join the cluster */
+struct cl_join_cluster_info {
+	unsigned char votes;
+	unsigned int expected_votes;
+	unsigned int two_node;
+	unsigned int config_version;
+	unsigned short port;
+	unsigned short cluster_id;
+
+        char cluster_name[MAX_CLUSTER_NAME_LEN + 1];
+};
 
 /* Cluster protocol commands sent to port 0 */
 #define CLUSTER_MSG_ACK          1

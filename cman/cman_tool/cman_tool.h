@@ -51,7 +51,6 @@ do { \
 } while (0)
 
 
-#define DEFAULT_PORT 6809
 #define DEFAULT_VOTES 1
 #define MAX_INTERFACES 10
 #define MAX_NODE_NAME_LEN 65
@@ -79,7 +78,6 @@ struct commandline
         int verbose;
         int nodeid;
 	int timeout;
-	int fence_flag;
 	unsigned int config_version;
 
 	int config_version_opt;
@@ -90,6 +88,8 @@ struct commandline
 	int clustername_opt;
 	int wait_opt;
 	int wait_quorate_opt;
+	int fence_opt;
+	int addresses_opt;
 };
 typedef struct commandline commandline_t;
 

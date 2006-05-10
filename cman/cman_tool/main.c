@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -20,7 +20,7 @@
 #include "libcman.h"
 #include "cman_tool.h"
 
-#define OPTION_STRING		("m:n:v:e:2p:c:r:i:N:t:o:k:Vwfqh?d::")
+#define OPTION_STRING		("m:n:v:e:2p:c:r:i:N:t:o:k:Vwfqah?d::")
 #define OP_JOIN			1
 #define OP_LEAVE		2
 #define OP_EXPECTED		3
@@ -33,7 +33,7 @@
 #define OP_SERVICES		10
 
 
-static void print_usage(void)
+static void print_usage(int subcmd)
 {
 	printf("Usage:\n");
 	printf("\n");
@@ -46,59 +46,81 @@ static void print_usage(void)
 	printf("  -d               Enable debug output\n");
 	printf("\n");
 
-	printf("join\n");
-	printf("  Cluster & node information is taken from CCS. These switches are provided to \n");
-	printf("  to allow CCS values to be overridden. Use them with extreme care.\n\n");
+	if (!subcmd || subcmd == OP_JOIN) {
+		printf("join\n");
+		printf("  Cluster & node information is taken from CCS. These switches are provided to \n");
+		printf("  to allow CCS values to be overridden. Use them with extreme care.\n\n");
 
-	printf("  -m <addr>        Multicast address to use\n");
-	printf("  -v <votes>       Number of votes this node has (default 1)\n");
-	printf("  -e <votes>       Number of expected votes for the cluster (no default)\n");
-	printf("  -p <port>        UDP port number for cman communications (default %d)\n", DEFAULT_PORT);
-	printf("  -n <nodename>    The name of this node (defaults to hostname)\n");
-	printf("  -N <id>          Node id\n");
-	printf("  -w               Wait until node has joined a cluster\n");
-	printf("  -q               Wait until the cluster is quorate\n");
-	printf("  -t               Maximum time (in seconds) to wait\n");
-	printf("  -k <file>        Private key file for AIS communications\n");
+		printf("  -m <addr>        Multicast address to use\n");
+		printf("  -v <votes>       Number of votes this node has\n");
+		printf("  -e <votes>       Number of expected votes for the cluster\n");
+		printf("  -p <port>        UDP port number for cman communications\n");
+		printf("  -n <nodename>    The name of this node (defaults to hostname)\n");
+		printf("  -N <id>          Node id\n");
+		printf("  -w               Wait until node has joined a cluster\n");
+		printf("  -q               Wait until the cluster is quorate\n");
+		printf("  -t               Maximum time (in seconds) to wait\n");
+		printf("  -k <file>        Private key file for AIS communications\n");
+		printf("\n");
+	}
 
-	printf("\n");
-	printf("wait               Wait until the node is a member of a cluster\n");
-	printf("  -q               Wait until the cluster is quorate\n");
-	printf("  -t               Maximum time (in seconds) to wait\n");
-	printf("\n");
 
-	printf("leave\n");
-	printf("  -w               If cluster is in transition, wait and keep trying\n");
-	printf("  -t               Maximum time (in seconds) to wait\n");
-	printf("  remove           Tell other nodes to ajust quorum downwards if necessary\n");
-	printf("  force            Leave even if cluster subsystems are active\n");
+	if (!subcmd || subcmd == OP_WAIT) {
+		printf("wait               Wait until the node is a member of a cluster\n");
+		printf("  -q               Wait until the cluster is quorate\n");
+		printf("  -t               Maximum time (in seconds) to wait\n");
+		printf("\n");
+	}
 
-	printf("\n");
-	printf("kill\n");
-	printf("  -n <nodename>    The name of the node to kill (can specify multiple times)\n");
+	if (!subcmd || subcmd == OP_LEAVE) {
+		printf("leave\n");
+		printf("  -w               If cluster is in transition, wait and keep trying\n");
+		printf("  -t               Maximum time (in seconds) to wait\n");
+		printf("  remove           Tell other nodes to ajust quorum downwards if necessary\n");
+		printf("  force            Leave even if cluster subsystems are active\n");
+		printf("\n");
+	}
 
-	printf("\n");
-	printf("expected\n");
-	printf("  -e <votes>       New number of expected votes for the cluster\n");
+	if (!subcmd || subcmd == OP_KILL) {
+		printf("kill\n");
+		printf("  -n <nodename>    The name of the node to kill (can specify multiple times)\n");
+		printf("\n");
+	}
 
-	printf("\n");
-	printf("votes\n");
-	printf("  -v <votes>       New number of votes for this node\n");
+	if (!subcmd || subcmd == OP_EXPECTED) {
+		printf("expected\n");
+		printf("  -e <votes>       New number of expected votes for the cluster\n");
+		printf("\n");
+	}
 
-	printf("\n");
-	printf("status             Show local record of cluster status\n");
-	printf("\n");
+	if (!subcmd || subcmd == OP_VOTES) {
+		printf("votes\n");
+		printf("  -v <votes>       New number of votes for this node\n");
+		printf("\n");
+	}
 
-	printf("nodes              Show local record of cluster nodes\n");
-	printf("  -f                 Also show when node was last fenced\n");
-	printf("\n");
+	if (!subcmd || subcmd == OP_STATUS) {
+		printf("status             Show local record of cluster status\n");
+		printf("\n");
+	}
 
-	printf("services           Show local record of cluster services\n");
+	if (!subcmd || subcmd == OP_NODES) {
+		printf("nodes              Show local record of cluster nodes\n");
+		printf("  -f                 Also show when node was last fenced\n");
+		printf("  -a                 Also show node address(es)\n");
+		printf("\n");
+	}
 
-	printf("\n");
-	printf("version\n");
-	printf("  -r <config>      A new config version to set on all members\n");
-	printf("\n");
+	if (!subcmd || subcmd == OP_SERVICES) {
+		printf("services           Show local record of cluster services\n");
+		printf("\n");
+	}
+
+	if (!subcmd || subcmd == OP_VERSION) {
+		printf("version\n");
+		printf("  -r <config>      A new config version to set on all members\n");
+		printf("\n");
+	}
 }
 
 static void sigalarm_handler(int sig)
@@ -283,14 +305,39 @@ static void show_nodes(commandline_t *comline)
 		       nodes[i].cn_nodeid, nodes[i].cn_member?'M':'X',
 		       nodes[i].cn_incarnation, jstring, nodes[i].cn_name);
 
-		if (comline->fence_flag) {
+		if (comline->fence_opt) {
 			char agent[255];
 			uint64_t fence_time;
-			if (!cman_get_fenceinfo(h, nodes[i].cn_nodeid, &fence_time, agent) && fence_time) {
-				time_t fence_time_t = (time_t)fence_time;
-				ftime = localtime(&fence_time_t);
-				strftime(jstring, sizeof(jstring), "%F %H:%M:%S", ftime);
-				printf("   last fenced:   %-15s by %s\n", jstring, agent);
+			int fenced;
+
+			if (!cman_get_fenceinfo(h, nodes[i].cn_nodeid, &fence_time, &fenced, agent)) {
+				if (fence_time) {
+					time_t fence_time_t = (time_t)fence_time;
+					ftime = localtime(&fence_time_t);
+					strftime(jstring, sizeof(jstring), "%F %H:%M:%S", ftime);
+					printf("   Last fenced:   %-15s by %s\n", jstring, agent);
+				}
+				if (!nodes[i].cn_member && nodes[i].cn_incarnation && !fenced) {
+					printf("   Node has not been fenced since it went down\n");
+				}
+			}
+		}
+
+		if (comline->addresses_opt)
+		{
+			int numaddrs;
+			struct cman_node_address addrs[MAX_INTERFACES];
+			if (!cman_get_node_addrs(h, nodes[i].cn_nodeid, MAX_INTERFACES, &numaddrs, addrs) &&
+				numaddrs)
+			{
+				int i;
+				printf("   Addresses: ");
+				for (i=0; i<numaddrs; i++)
+				{
+					print_address(addrs[i].cna_address);
+					printf(" ");
+				}
+				printf("\n");
 			}
 		}
 	}
@@ -490,6 +537,7 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 {
 	int cont = TRUE;
 	int optchar, i;
+	int show_help = 0;
 
 	while (cont) {
 		optchar = getopt(argc, argv, OPTION_STRING);
@@ -501,7 +549,11 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 			break;
 
 		case 'f':
-			comline->fence_flag = 1;
+			comline->fence_opt = 1;
+			break;
+
+		case 'a':
+			comline->addresses_opt = 1;
 			break;
 
 		case 'n':
@@ -569,8 +621,7 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 			break;
 
 		case 'h':
-			print_usage();
-			exit(EXIT_SUCCESS);
+			show_help = 1;
 			break;
 
 		case ':':
@@ -657,6 +708,11 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 			die("unknown option %s", argv[optind]);
 
 		optind++;
+	}
+
+	if (show_help) {
+		print_usage(comline->operation);
+		exit(EXIT_SUCCESS);
 	}
 
 	if (!comline->operation)
@@ -770,8 +826,6 @@ int main(int argc, char *argv[])
 	case OP_SERVICES:
 		show_services();
 		break;
-
-	/* FIXME: support CLU_SET_NODENAME? */
 	}
 
 	exit(EXIT_SUCCESS);

@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
 **
 **  This library is free software; you can redistribute it and/or
 **  modify it under the terms of the GNU Lesser General Public
@@ -933,7 +933,7 @@ int cman_poll_quorum_device(cman_handle_t handle, int isavailable)
 	return info_call(h, CMAN_CMD_POLL_QUORUMDEV, &isavailable, sizeof(int), NULL, 0);
 }
 
-int cman_get_fenceinfo(cman_handle_t handle, int nodeid, uint64_t *time, char *agent)
+int cman_get_fenceinfo(cman_handle_t handle, int nodeid, uint64_t *time, int *fenced, char *agent)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
 	int ret;
@@ -944,6 +944,32 @@ int cman_get_fenceinfo(cman_handle_t handle, int nodeid, uint64_t *time, char *a
 	if (!ret) {
 		*time = f.fence_time;
 		strcpy(agent, f.fence_agent);
+		*fenced = ((f.flags & FENCE_FLAGS_FENCED) != 0);
+	}
+	return ret;
+}
+
+int cman_get_node_addrs(cman_handle_t handle, int nodeid, int max_addrs, int *num_addrs, struct cman_node_address *addrs)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	int ret;
+	char buf[sizeof(struct cl_get_node_addrs) + sizeof(struct cl_node_addrs)*max_addrs];
+	struct cl_get_node_addrs *outbuf = (struct cl_get_node_addrs *)buf;
+	VALIDATE_HANDLE(h);
+
+	ret = info_call(h, CMAN_CMD_GET_NODEADDRS, &nodeid, sizeof(int), buf, sizeof(buf));
+	if (!ret) {
+		int i;
+
+		*num_addrs = outbuf->numaddrs;
+
+		if (outbuf->numaddrs > max_addrs)
+			outbuf->numaddrs = max_addrs;
+
+		for (i=0; i < outbuf->numaddrs; i++) {
+			memcpy(&addrs[i].cna_address, &outbuf->addrs[i].addr, outbuf->addrs[i].addrlen);
+			addrs[i].cna_addrlen = outbuf->addrs[i].addrlen;
+		}
 	}
 	return ret;
 }

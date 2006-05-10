@@ -27,7 +27,10 @@
 #include "commands.h"
 #include "ais.h"
 #include "ccs.h"
+#include "list.h"
 #include "cnxman-socket.h"
+#include "cnxman-private.h"
+
 
 #define DEFAULT_PORT            5405
 
@@ -46,7 +49,6 @@
 #define NODE_VOTES_PATH		"/cluster/clusternodes/clusternode[@name=\"%s\"]/@votes"
 #define NODE_NODEID_PATH	"/cluster/clusternodes/clusternode[@name=\"%s\"]/@nodeid"
 #define NODE_ALTNAMES_PATH	"/cluster/clusternodes/clusternode[@name=\"%s\"]/altname[%d]/@name"
-// TODO support these
 #define NODE_ALTNAMES_PORT	"/cluster/clusternodes/clusternode[@name=\"%s\"]/altname[%d]/@port"
 #define NODE_ALTNAMES_MCAST	"/cluster/clusternodes/clusternode[@name=\"%s\"]/altname[%d]/@mcast"
 
@@ -62,6 +64,20 @@ static int num_nodenames;
 static char *keyfile;
 static char *mcast_name;
 static struct cl_join_cluster_info join_info;
+
+static uint16_t generate_cluster_id(char *name)
+{
+	int i;
+	int value = 0;
+
+	for (i=0; i<strlen(name); i++) {
+		value <<= 1;
+		value += name[i];
+	}
+	P_MEMB("Generated cluster id for '%s' is %d\n", name, value & 0xFFFF);
+	return value & 0xFFFF;
+}
+
 
 /* Get all the cluster node names from CCS and
  * add them to our node list.
@@ -79,8 +95,7 @@ int read_ccs_nodes()
 
     /* Open the config file */
     ctree = ccs_force_connect(NULL, 1);
-    if (ctree < 0)
-    {
+    if (ctree < 0) {
 	    log_msg(LOG_ERR, "Error connecting to CCS");
 	    return -1;
     }
@@ -112,8 +127,7 @@ int read_ccs_nodes()
 	    free(str);
     }
 
-    for (i=1;;i++)
-    {
+    for (i=1;;i++) {
 	char nodekey[256];
 	char key[256];
 	int  votes=0, nodeid=0;
@@ -124,16 +138,14 @@ int read_ccs_nodes()
 	    break;
 
 	sprintf(key, NODE_VOTES_PATH, nodename);
-	if (!ccs_get(ctree, key, &str))
-	{
+	if (!ccs_get(ctree, key, &str)) {
 	    votes = atoi(str);
 	    free(str);
 	} else
 	    votes = 1;
 
 	sprintf(key, NODE_NODEID_PATH, nodename);
-	if (!ccs_get(ctree, key, &str))
-	{
+	if (!ccs_get(ctree, key, &str))	{
 	    nodeid = atoi(str);
 	    free(str);
 	}
@@ -153,11 +165,13 @@ int read_ccs_nodes()
     return 0;
 }
 
-static char *default_mcast(void)
+static char *default_mcast(uint16_t cluster_id)
 {
         struct addrinfo *ainfo;
         struct addrinfo ahints;
 	int ret;
+	int family;
+	static char addr[132];
 
         memset(&ahints, 0, sizeof(ahints));
 
@@ -169,10 +183,17 @@ static char *default_mcast(void)
 		return NULL;
 	}
 
-	if (ainfo->ai_family == AF_INET)
-		return "239.192.9.1";
-	if (ainfo->ai_family == AF_INET6)
-		return "FF15::1";
+	family = ainfo->ai_family;
+	freeaddrinfo(ainfo);
+
+	if (family == AF_INET) {
+		snprintf(addr, sizeof(addr), "239.192.%d.%d", cluster_id >> 8, cluster_id % 0xFF);
+		return addr;
+	}
+	if (family == AF_INET6) {
+		snprintf(addr, sizeof(addr), "ff15::%x", cluster_id);
+		return addr;
+	}
 
 	return NULL;
 }
@@ -195,13 +216,12 @@ static int join(void)
 	/*
 	 * Setup the interface/multicast addresses
 	 */
-	for (i = 0; i<num_nodenames; i++)
-	{
+	num_nodenames=1;// PJC
+	for (i = 0; i<num_nodenames; i++) {
 		error = ais_add_ifaddr(mcast[i], nodenames[i], portnums[i]);
 		if (error)
 			return error;
 	}
-
 
 	return 0;
 }
@@ -217,9 +237,7 @@ static int verify_nodename(int cd, char *nodename)
 	struct sockaddr *sa;
 	int error, i;
 
-
 	/* nodename is either from commandline or from uname */
-
 	str = NULL;
 	memset(path, 0, MAX_PATH_LEN);
 	sprintf(path, NODE_NAME_PATH_BYNAME, nodename);
@@ -230,8 +248,7 @@ static int verify_nodename(int cd, char *nodename)
 		return 0;
 	}
 
-	/* if nodename was from uname, try a domain-less version of it */
-
+	/* If nodename was from uname, try a domain-less version of it */
 	strcpy(nodename2, nodename);
 	dot = strstr(nodename2, ".");
 	if (dot) {
@@ -250,9 +267,8 @@ static int verify_nodename(int cd, char *nodename)
 	}
 
 
-	/* if nodename (from uname) is domain-less, try to match against
+	/* If nodename (from uname) is domain-less, try to match against
 	   cluster.conf names which may have domainname specified */
-
 	for (i = 1; ; i++) {
 		str = NULL;
 		memset(path, 0, 256);
@@ -278,9 +294,8 @@ static int verify_nodename(int cd, char *nodename)
 	}
 
 
-	/* the cluster.conf names may not be related to uname at all,
+	/* The cluster.conf names may not be related to uname at all,
 	   they may match a hostname on some network interface */
-
 	error = getifaddrs(&ifa_list);
 	if (error)
 		return -1;
@@ -339,8 +354,7 @@ static int get_ccs_join_info(void)
 	char *str, *name, *cname = NULL;
 	int cd, error, i, vote_sum = 0, node_count = 0;
 
-	/* connect to ccsd */
-
+	/* Connect to ccsd */
 	if (getenv("CMAN_CLUSTER_NAME")) {
 		cname = getenv("CMAN_CLUSTER_NAME");
 		log_msg(LOG_INFO, "Using override cluster name %s\n", cname);
@@ -352,8 +366,7 @@ static int get_ccs_join_info(void)
 		return -ENOTCONN;
 	}
 
-	/* cluster name */
-
+	/* Cluster name */
 	error = ccs_get(cd, CLUSTER_NAME_PATH, &str);
 	if (error) {
 		log_msg(LOG_ERR, "cannot find cluster name in config file");
@@ -369,10 +382,9 @@ static int get_ccs_join_info(void)
 		strcpy(join_info.cluster_name, str);
 	}
 	free(str);
-
+	join_info.cluster_id = generate_cluster_id(join_info.cluster_name);
 
 	/* our nodename */
-
 	memset(nodename, 0, sizeof(nodename));
 
 	if (getenv("CMAN_NODENAME")) {
@@ -390,8 +402,7 @@ static int get_ccs_join_info(void)
 	}
 
 
-	/* find our nodename in cluster.conf */
-
+	/* Find our nodename in cluster.conf */
 	error = verify_nodename(cd, nodename);
 	if (error) {
 		log_msg(LOG_ERR, "local node name \"%s\" not found in cluster.conf",
@@ -412,7 +423,7 @@ static int get_ccs_join_info(void)
 		}
 	}
 
-	/* sum node votes for expected */
+	/* Sum node votes for expected */
 	if (join_info.expected_votes == 0) {
 		for (i = 1; ; i++) {
 			name = NULL;
@@ -470,12 +481,15 @@ static int get_ccs_join_info(void)
 	portnums[0] = join_info.port;
 
 	/* optional security key filename */
-
-	error = ccs_get(cd, KEY_PATH, &str);
-	if (!error) {
-		keyfile = str;
+	if (getenv("CMAN_KEYFILE")) {
+		keyfile = strdup(getenv("CMAN_KEYFILE"));
 	}
-
+	else {
+		error = ccs_get(cd, KEY_PATH, &str);
+		if (!error) {
+			keyfile = str;
+		}
+	}
 
 	/* find our own number of votes */
 	if (getenv("CMAN_VOTES")) {
@@ -525,7 +539,7 @@ static int get_ccs_join_info(void)
 		log_msg(LOG_INFO, "Using override multicast address %s\n", mcast_name);
 	}
 
-	/* optional multicast name */
+	/* Optional multicast name */
 	if (!mcast_name) {
 		error = ccs_get(cd, MCAST_ADDR_PATH, &str);
 		if (!error) {
@@ -534,7 +548,7 @@ static int get_ccs_join_info(void)
 	}
 
 	if (!mcast_name) {
-		mcast_name = default_mcast();
+		mcast_name = default_mcast(join_info.cluster_id);
 		log_msg(LOG_INFO, "Using default multicast address of %s\n", mcast_name);
 	}
 
@@ -580,7 +594,6 @@ static int get_ccs_join_info(void)
 
 
 	/* two_node mode */
-
 	error = ccs_get(cd, TWO_NODE_PATH, &str);
 	if (!error) {
 		join_info.two_node = atoi(str);
