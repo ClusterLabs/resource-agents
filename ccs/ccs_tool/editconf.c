@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2005-2006 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -17,6 +17,9 @@
 #include <getopt.h>
 #include <errno.h>
 #include <assert.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
 
 #include <libxml/tree.h>
 
@@ -132,8 +135,14 @@ static void delnode_usage(const char *name)
 
 static void addnodeid_usage(const char *name)
 {
+	fprintf(stderr, "Add node IDs to all nodes in the config file that don't have them.\n");
+	fprintf(stderr, "Nodes with IDs will not be afftected, so you can run this as many times\n");
+	fprintf(stderr, "as you like without doing any harm.\n");
+	fprintf(stderr, "It will optionally add a multicast address to the cluster config too.\n");
+	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage: %s %s [options] <name>\n", prog_name, name);
 	fprintf(stderr, " -n --nodeid        Nodeid to start with (default 1)\n");
+	fprintf(stderr, " -m --multicast     Set or change the multicast address\n");
 	fprintf(stderr, " -v --verbose       Print nodeids that are assigned\n");
 	config_usage(1);
 	help_usage();
@@ -161,6 +170,26 @@ static void addnode_usage(const char *name)
 	fprintf(stderr, "  %s %s -n 2 -f apc -o- newnode.temp.net port=1\n", prog_name, name);
 
 	exit(0);
+}
+
+/* Is it really ?
+ * Actually, we don't check that this is a valid multicast address(!),
+ * merely that it is a valid IP[46] address.
+ */
+static int valid_mcast_addr(char *mcast)
+{
+        struct addrinfo *ainfo;
+        struct addrinfo ahints;
+	int ret;
+
+        memset(&ahints, 0, sizeof(ahints));
+
+        ret = getaddrinfo(mcast, NULL, &ahints, &ainfo);
+	if (ret) {
+		freeaddrinfo(ainfo);
+		return 0;
+	}
+	return 1;
 }
 
 static void save_file(xmlDoc *doc, struct option_info *ninfo)
@@ -356,27 +385,17 @@ static xmlNode *get_by_nodeid(xmlNode *root, int nodeid)
 }
 
 
-/* Get the multicast address (if present) from the first node.
- * If one has it, they all must.
- * Note that if there are no nodes in the config file then
- * we return the command-line multicast address (which may also be NULL!)
+/* Get the multicast address node.
  */
-static xmlChar *find_multicast_addr(xmlNode *clusternodes, struct option_info *ninfo)
+static xmlNode *find_multicast_addr(xmlNode *clusternodes)
 {
-	xmlChar *mc_addr = NULL;
-
-	xmlNode *clnode = findnode(clusternodes, "clusternode");
+	xmlNode *clnode = findnode(clusternodes, "cman");
 	if (clnode)
 	{
 		xmlNode *mcast = findnode(clnode, "multicast");
-		if (mcast)
-		{
-			mc_addr = xmlGetProp(mcast, BAD_CAST "addr");
-		}
+		return mcast;
 	}
-	else
-		mc_addr = (xmlChar *)ninfo->mcast_addr;
-	return mc_addr;
+	return NULL;
 }
 
 static xmlNode *find_node(xmlNode *clusternodes, char *nodename)
@@ -583,6 +602,7 @@ struct option addnodeid_options[] =
 {
       { "outputfile", required_argument, NULL, 'o'},
       { "configfile", required_argument, NULL, 'c'},
+      { "multicast", required_argument, NULL, 'm'},
       { "nodeid", no_argument, NULL, 'n'},
       { "verbose", no_argument, NULL, 'v'},
       { NULL, 0, NULL, 0 },
@@ -622,6 +642,7 @@ void add_nodeids(int argc, char **argv)
 	xmlNode *root_element;
 	xmlNode *clusternodes;
 	xmlNode *cur_node;
+	xmlNode *mcast;
 	int  verbose = 0;
 	int  opt;
 	int  i;
@@ -635,7 +656,7 @@ void add_nodeids(int argc, char **argv)
 	memset(&ninfo, 0, sizeof(ninfo));
 	ninfo.nodeid = "1";
 
-	while ( (opt = getopt_long(argc, argv, "n:o:c:vh?", addnodeid_options, NULL)) != EOF)
+	while ( (opt = getopt_long(argc, argv, "n:o:c:m:vh?", addnodeid_options, NULL)) != EOF)
 	{
 		switch(opt)
 		{
@@ -650,6 +671,14 @@ void add_nodeids(int argc, char **argv)
 
 		case 'o':
 			ninfo.outputfile = strdup(optarg);
+			break;
+
+		case 'm':
+			if (!valid_mcast_addr(optarg)) {
+				fprintf(stderr, "%s is not a valid multicast address\n", optarg);
+				return;
+			}
+			ninfo.mcast_addr = strdup(optarg);
 			break;
 
 		case 'v':
@@ -668,12 +697,31 @@ void add_nodeids(int argc, char **argv)
 
 	increment_version(root_element);
 
+	/* Warn if the cluster doesn't have a multicast address */
+	mcast = find_multicast_addr(root_element);
+	if (!mcast & !ninfo.mcast_addr) {
+		fprintf(stderr, "\nWARNING: The cluster does not have a multicast address.\n");
+		fprintf(stderr, "A default will be assigned a run-time which might not suit your installation\n\n");
+	}
+
+	if (ninfo.mcast_addr) {
+		if (!mcast) {
+			xmlNode *cman = xmlNewNode(NULL, BAD_CAST "cman");
+			mcast = xmlNewNode(NULL, BAD_CAST "multicast");
+
+			xmlAddChild(cman, mcast);
+			xmlAddChild(root_element, cman);
+		}
+		xmlSetProp(mcast, BAD_CAST "addr", BAD_CAST ninfo.mcast_addr);
+	}
+
 	/* Get a list of nodes that /do/ have nodeids so we don't generate
 	   any duplicates */
 	nodeidx=0;
 	clusternodes = findnode(root_element, "clusternodes");
 	if (!clusternodes)
 		die("Can't find \"clusternodes\" in %s\n", ninfo.configfile);
+
 
 	for (cur_node = clusternodes->children; cur_node; cur_node = cur_node->next)
 	{
@@ -722,6 +770,7 @@ void add_nodeids(int argc, char **argv)
 
 	/* Write it out */
 	save_file(doc, &ninfo);
+
 	/* Shutdown libxml */
 	xmlCleanupParser();
 }
@@ -867,7 +916,7 @@ void list_nodes(int argc, char **argv)
 	xmlNode *clusternodes;
 	xmlNode *fencenode = NULL;
 	xmlDocPtr doc;
-	xmlChar *mcast;
+	xmlNode *mcast;
 	struct option_info ninfo;
 	int opt;
 	int verbose = 0;
@@ -902,9 +951,9 @@ void list_nodes(int argc, char **argv)
 	if (!clusternodes)
 		die("Can't find \"clusternodes\" in %s\n", ninfo.configfile);
 
-	mcast = find_multicast_addr(clusternodes, &ninfo);
+	mcast = find_multicast_addr(root_element);
 	if (mcast)
-		printf("Multicast address for cluster: %s\n\n", mcast);
+		printf("Multicast address for cluster: %s\n\n", xmlGetProp(mcast, BAD_CAST "addr"));
 
 	printf("Nodename                        Votes Nodeid Fencetype\n");
 	for (cur_node = clusternodes->children; cur_node; cur_node = cur_node->next)
