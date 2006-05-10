@@ -244,11 +244,11 @@ sub navigate
 			/--\s*device manager.*(\d+)\s*-\s*Outlet Control/is ||
 
 			# "Device Manager", "1- Cluster Node 0   ON"
-			/--\s*Outlet Control.*\s+?(\d+)\s*-\s+Outlet\s+$opt_n\D[^\n]*\s(?-i:ON|OFF)\*?\s/ism ||
+			/--\s*Outlet Control.*\s+?(\d+)\s*-\s+[^\n\r]*\s*Outlet\s+$opt_n\D[^\n]*\s(?-i:ON|OFF)\*?\s/ism ||
 
 			# Administrator Outlet Control menu
-			/--\s*Outlet $opt_n\D.*(\d+)\s*-\s*control\s*outlet\s+$opt_n\D/ism ||
-			/--\s*Outlet $opt_n\D.*(\d+)\s*-\s*control\s*outlet/ism
+			/--[^\n\r]*Outlet\s+$opt_n\D.*(\d+)\s*-\s*control\s*outlet\s+$opt_n\D/ism ||
+			/--[^\n\r]*Outlet\s+$opt_n\D.*(\d+)\s*-\s*control\s*outlet/ism
 		) {
 			$t->print($1);
 			next;
