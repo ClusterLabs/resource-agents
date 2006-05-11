@@ -29,12 +29,14 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#include "cnxman-socket.h"
+#include "libcman.h"
 #define LOCAL_SOCKNAME "/var/run/sysman"
+#define CLUSTER_PORT_SYSMAN 12
 
-static struct cl_cluster_node *nodes = NULL;
+static cman_node_t *nodes = NULL;
 static int num_nodes;
-static int cluster_sock;
+static cman_handle_t ch;
+static int expected_responses;
 
 /* Header for all commands sent to other sysmand servers */
 struct sysman_header
@@ -70,54 +72,103 @@ static void remove_sock(struct read_fd *deadfd);
 static struct read_fd *find_by_fd(int fd);
 static int nodes_listening(int);
 
-static void signal_handler(int sig)
+static void event_callback(cman_handle_t handle, void *private, int reason, int arg)
 {
-    get_members();
-    return;
+	get_members();
+}
+
+static void data_callback(cman_handle_t handle, void *private,
+			  char *buf, int len, uint8_t port, int nodeid)
+{
+	struct read_fd *replyfd = NULL;
+	char reply[PIPE_BUF];
+	char title[PIPE_BUF];
+	char nodename[CMAN_MAX_NODENAME_LEN];
+	struct sysman_header *header;
+	int    status;
+	int    title_len;
+	struct sysman_header *inheader = (struct sysman_header *)buf;
+
+	switch (inheader->cmd)
+	{
+	case SYSMAN_CMD_REQUEST:
+
+		/* Execute command and capture stdout/stderr into 'reply'*/
+		status = exec_command(buf+sizeof(struct sysman_header), reply+sizeof(struct sysman_header), &len);
+
+		header = (struct sysman_header *)reply;
+
+		/* Send reply */
+		header->fd  = inheader->fd; /* Already in the right format */
+		header->cmd = SYSMAN_CMD_REPLY;
+		header->ret = htonl(status);
+
+		cman_send_data(ch, reply, len, 0, port, nodeid);
+		break;
+
+	case SYSMAN_CMD_REPLY:
+		name_from_nodeid(nodeid, nodename);
+		title_len = sprintf(title, "\nReply from %s:", nodename);
+		if (inheader->ret != 0)
+			title_len += sprintf(title+title_len, " (ret=%d)", ntohl(inheader->ret));
+		strcat(title, "\n"); title_len++;
+		write(ntohl(inheader->fd), title, title_len);
+		write(ntohl(inheader->fd), buf+sizeof(struct sysman_header),
+		      len - sizeof(struct sysman_header));
+
+		replyfd = find_by_fd(ntohl(inheader->fd));
+		if (replyfd)
+		{
+			/* If we've done all nodes then close the client down */
+			if (++replyfd->nodes_done == expected_responses)
+			{
+				close(replyfd->fd);
+				remove_sock(replyfd);
+			}
+		}
+		break;
+
+	default:
+		name_from_nodeid(nodeid, nodename);
+		syslog(LOG_ERR, "Unknown sysman command received from %s: %d\n",
+		       nodename, inheader->cmd);
+		break;
+	}
 }
 
 int main(int argc, char *argv[])
 {
-    struct sockaddr_cl saddr;
     unsigned char port = CLUSTER_PORT_SYSMAN;
     int local_sock;
     struct read_fd *newfd;
     struct utsname nodeinfo;
-    int expected_responses;
 
-    cluster_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_CLIENT);
-    if (cluster_sock == -1)
+    ch = cman_init(NULL);
+    if (!ch)
     {
-        perror("Can't open cluster socket");
+        perror("Can't connect to cman");
         return -1;
     }
 
     uname(&nodeinfo);
 
-    /* Just a sensible default, we work out just how many
-     responses we expectect properly later */
-    expected_responses = num_nodes;
-
-    /* Bind to our port number on the cluster.
-       Writes to this will block if the cluster loses quorum */
-    saddr.scl_family = AF_CLUSTER;
-    saddr.scl_port = port;
-
-    if (bind(cluster_sock, (struct sockaddr *)&saddr, sizeof(struct sockaddr_cl)))
+    if (cman_start_recv_data(ch, data_callback, port))
     {
 	perror("Can't bind cluster socket");
 	return -1;
     }
-    fcntl(cluster_sock, F_SETFL, fcntl(cluster_sock, F_GETFL, 0) | O_NONBLOCK);
 
-    /* Get the cluster to send us SIGUSR1 if the configuration changes */
-    ioctl(cluster_sock, SIOCCLUSTER_NOTIFY, SIGUSR1);
-    read_fd_head.fd   = cluster_sock;
+    cman_start_notification(ch, event_callback);
+
+    read_fd_head.fd   = cman_get_fd(ch);
     read_fd_head.type = CLUSTER_SOCK;
 
     /* Preload cluster members list */
     get_members();
-    signal(SIGUSR1, signal_handler);
+
+    /* Just a sensible default, we work out just how many
+       responses we expect properly later */
+    expected_responses = num_nodes;
 
     /* Open the Unix socket we listen for commands on */
     local_sock = open_local_sock();
@@ -135,15 +186,11 @@ int main(int argc, char *argv[])
 
     while (1)
     {
-	char buf[MAX_CLUSTER_MESSAGE];
 	fd_set in;
-	int len;
-	struct iovec iov[2];
 	struct read_fd *thisfd;
-	struct msghdr msg;
-	struct sockaddr_cl saddr;
 	struct timeval tv = {10,0};
 
+	read_fd_head.fd   = cman_get_fd(ch);
 	FD_ZERO(&in);
 	for (thisfd = &read_fd_head; thisfd != NULL; thisfd = thisfd->next)
 	{
@@ -153,14 +200,6 @@ int main(int argc, char *argv[])
 	if (select(FD_SETSIZE, &in, NULL, NULL, &tv) > 0)
 	{
 	    struct read_fd *lastfd = NULL;
-	    struct read_fd *replyfd = NULL;
-	    char reply[MAX_CLUSTER_MESSAGE];
-	    char title[MAX_CLUSTER_MESSAGE];
-	    char nodename[MAX_CLUSTER_MEMBER_NAME_LEN];
-	    struct sysman_header header;
-	    struct sysman_header *inheader;
-	    int    status;
-	    int    title_len;
 
 	    for (thisfd = &read_fd_head; thisfd != NULL; thisfd = thisfd->next)
 	    {
@@ -170,87 +209,9 @@ int main(int argc, char *argv[])
 		    {
 		    /* Request or response from another cluster node */
 		    case CLUSTER_SOCK:
-			msg.msg_control    = NULL;
-			msg.msg_controllen = 0;
-			msg.msg_iovlen     = 1;
-			msg.msg_iov        = iov;
-			msg.msg_name       = &saddr;
-			msg.msg_flags      = O_NONBLOCK;
-			msg.msg_namelen    = sizeof(saddr);
-			iov[0].iov_len     = sizeof(buf);
-			iov[0].iov_base    = buf;
-
-			len = recvmsg(cluster_sock, &msg, O_NONBLOCK);
-			if (len < 0 && (errno == EAGAIN || errno == EINTR)) continue;
-			if (len < 0)
-			{
-			    perror("read");
-			    close(cluster_sock);
-			    exit(-1);
-			}
-			if (len == 0)
-			    goto closedown; // EOF - we have left the cluster
-
-			/* Make sure we get more than just a header(!) */
-			if (len == sizeof(struct sysman_header))
-			{
-			    len += recvmsg(cluster_sock, &msg, O_NONBLOCK);
-			}
-			inheader = (struct sysman_header *)iov[0].iov_base;
-
-			switch (inheader->cmd)
-			{
-			case SYSMAN_CMD_REQUEST:
-			    /* Execute command and capture stdout/stderr into 'reply'*/
-			    status = exec_command(iov[0].iov_base+sizeof(struct sysman_header), reply, &len);
-
-			    /* Send reply */
-			    header.fd  = inheader->fd; /* Already in the right format */
-			    header.cmd = SYSMAN_CMD_REPLY;
-			    header.ret = htonl(status);
-
-			    iov[0].iov_len  = sizeof(struct sysman_header);
-			    iov[0].iov_base = &header;
-			    iov[1].iov_len  = len;
-			    iov[1].iov_base = reply;
-			    msg.msg_iovlen  = 2;
-			    if (sendmsg(cluster_sock, &msg, 0) < 0)
-			    {
-				perror("write");
-				close(cluster_sock);
-				exit(-1);
-			    }
+			    if (cman_dispatch(ch, CMAN_DISPATCH_ONE) == -1)
+				    goto closedown;
 			    break;
-
-			case SYSMAN_CMD_REPLY:
-			    name_from_nodeid(saddr.scl_nodeid, nodename);
-			    title_len = sprintf(title, "\nReply from %s:", nodename);
-			    if (inheader->ret != 0)
-				title_len += sprintf(title+title_len, " (ret=%d)", ntohl(inheader->ret));
-			    strcat(title, "\n"); title_len++;
-			    write(ntohl(inheader->fd), title, title_len);
-			    write(ntohl(inheader->fd), iov[0].iov_base+sizeof(struct sysman_header),
-				  len - sizeof(struct sysman_header));
-
-			    replyfd = find_by_fd(ntohl(inheader->fd));
-			    if (replyfd)
-			    {
-				/* If we've done all nodes then close the client down */
-				if (++replyfd->nodes_done == expected_responses)
-				{
-				    close (replyfd->fd);
-				    remove_sock(replyfd);
-				}
-			    }
-			    break;
-
-			default:
-			    name_from_nodeid(saddr.scl_nodeid, nodename);
-			    syslog(LOG_ERR, "Unknown sysman command received from %s: %d\n",
-				   nodename, inheader->cmd);
-			    break;
-			}
-			break;
 
 		    /* Someone connected to our local socket */
 		    case LOCAL_RENDEZVOUS:
@@ -282,7 +243,7 @@ int main(int argc, char *argv[])
 		    case LOCAL_SOCK:
 		    {
 			int len;
-			char buffer[1024];
+			char buffer[PIPE_BUF];
 			len = read(thisfd->fd, buffer, sizeof(buffer));
 
 			/* EOF on socket */
@@ -299,47 +260,19 @@ int main(int argc, char *argv[])
 			}
 			else
 			{
-			    struct sysman_header header;
+			    char cman_buffer[PIPE_BUF];
+			    struct sysman_header *header = (struct sysman_header *)cman_buffer;
 
 			    expected_responses = nodes_listening(thisfd->fd);
 
-			    header.fd  = htonl(thisfd->fd);
-			    header.cmd = SYSMAN_CMD_REQUEST;
+			    header->fd  = htonl(thisfd->fd);
+			    header->cmd = SYSMAN_CMD_REQUEST;
+			    memcpy(cman_buffer+sizeof(*header), buffer, len);
 
-			    iov[0].iov_len  = sizeof(struct sysman_header);
-			    iov[0].iov_base = &header;
-			    iov[1].iov_len  = len;
-			    iov[1].iov_base = buffer;
-			    msg.msg_control    = NULL;
-			    msg.msg_controllen = 0;
-			    msg.msg_iovlen     = 2;
-			    msg.msg_iov        = iov;
-			    msg.msg_name       = NULL;
-			    msg.msg_flags      = O_NONBLOCK;
-			    msg.msg_namelen    = 0;
-
-			    /* Send command to cluster */
-			    if (sendmsg(cluster_sock, &msg, 0) < 0)
+			    if (!cman_send_data(ch, cman_buffer, sizeof(*header)+len, 0, port, 0))
 			    {
 				perror("write");
-				close(cluster_sock);
-				exit(-1);
-			    }
-
-			    /* Also do local execution on this node */
-			    status = exec_command(buffer, reply, &len);
-			    title_len = sprintf(title, "Reply from %s:", nodeinfo.nodename);
-			    if (status != 0)
-				title_len += sprintf(title+title_len, " (ret=%d)", status);
-			    strcat(title, "\n"); title_len++;
-			    write(thisfd->fd, title, title_len);
-			    write(thisfd->fd, reply, len);
-
-				/* If we've done all nodes then close the client down */
-			    if (++thisfd->nodes_done == expected_responses)
-			    {
-				close (thisfd->fd);
-				remove_sock(thisfd);
+				goto closedown;
 			    }
 			}
 		    }
@@ -367,7 +300,7 @@ int main(int argc, char *argv[])
 	}
     }
  closedown:
-    close(cluster_sock);
+    cman_finish(ch);
     close(local_sock);
 
     return 0;
@@ -376,9 +309,7 @@ int main(int argc, char *argv[])
 /* Get a list of members */
 static void get_members()
 {
-    struct cl_cluster_nodelist nodelist;
-
-    num_nodes = ioctl(cluster_sock, SIOCCLUSTER_GETMEMBERS, 0);
+    num_nodes = cman_get_node_count(ch);
     if (num_nodes == -1)
     {
 	perror("get nodes");
@@ -387,12 +318,9 @@ static void get_members()
     {
 	if (nodes) free(nodes);
 
-	nodes = malloc(num_nodes * sizeof(struct cl_cluster_node));
+	nodes = malloc(num_nodes * sizeof(cman_node_t));
 
-	nodelist.nodes = nodes;
-	nodelist.max_members = num_nodes;
-	num_nodes = ioctl(cluster_sock, SIOCCLUSTER_GETMEMBERS, &nodelist);
-	if (num_nodes < 0)
+	if (cman_get_nodes(ch, num_nodes, &num_nodes, nodes))
 	    perror("Error getting node list");
     }
 }
@@ -404,9 +332,9 @@ static int name_from_nodeid(int nodeid, char *name)
 
     for (i=0; i<num_nodes; i++)
     {
-	if (nodeid == nodes[i].node_id)
+	if (nodeid == nodes[i].cn_nodeid)
 	{
-	    strcpy(name, nodes[i].name);
+	    strcpy(name, nodes[i].cn_name);
 	    return 0;
 	}
     }
@@ -423,26 +351,25 @@ static int nodes_listening(int errfd)
 
     for (i=0; i<num_nodes; i++)
     {
-	struct cl_listen_request rq;
 	int listening;
 
-	rq.port=CLUSTER_PORT_SYSMAN;
-	rq.nodeid = nodes[i].node_id;
+	listening = cman_is_listening(ch, nodes[i].cn_nodeid, CLUSTER_PORT_SYSMAN);
 
-	listening = ioctl(cluster_sock, SIOCCLUSTER_ISLISTENING, &rq);
-
-	if (listening)
+	if (listening > 0)
 	{
 	    num_listening++;
 	}
 	else
 	{
-	    char errstring[1024];
-	    int len;
-	    len = snprintf(errstring, sizeof(errstring),
-			   "WARNING: node %s is not listening for SYSMAN requests\n",
-			   nodes[i].name);
-	    write(errfd, errstring, len);
+		if (listening == 0)
+		{
+			char errstring[1024];
+			int len;
+			len = snprintf(errstring, sizeof(errstring),
+				       "WARNING: node %s is not listening for SYSMAN requests\n",
+				       nodes[i].cn_name);
+			write(errfd, errstring, len);
+		}
 	}
     }
     return num_listening;
@@ -514,7 +441,7 @@ static int exec_command(char *cmd, char *reply, int *len)
 {
     FILE *pipe;
     int readlen;
-    int avail = MAX_CLUSTER_MESSAGE-sizeof(struct sysman_header)-1;
+    int avail = PIPE_BUF-sizeof(struct sysman_header)-1;
     char realcmd[strlen(cmd)+25];
 
     /* Send stderr back to the caller, and make stdin /dev/null */

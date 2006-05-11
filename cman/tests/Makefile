@@ -5,20 +5,16 @@ top_srcdir=..
 include ${top_srcdir}/make/defines.mk
 include ${top_srcdir}/make/flags.mk
 
-CFLAGS+= -g -I${top_srcdir}/config
+CFLAGS+= -g -I${top_srcdir}/config -I ../lib
 
-CFLAGS += -I../lib -L../lib -lcman
+LDFLAGS+= -L../lib -lcman
 
-TARGET=libtest
+TARGET=client libtest sysman sysmand
 
 all: ${TARGET}
 
-copytobin: all
-	cp ${TARGET} ${top_srcdir}/bin
-
-install:
-	install -d ${sbindir}
-	install user_service ${sbindir}
+.c:
+	$(CC) $(CFLAGS) $(OUTPUT_OPTION) $< $(LDFLAGS)
 
 clean:
 	rm -f *.o ${TARGET}

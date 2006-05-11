@@ -19,7 +19,7 @@ static int open_local_sock(void);
 
 int main(int argc, char *argv[])
 {
-    char message[2048];
+    char message[PIPE_BUF];
     int local_sock;
     int len;
 
@@ -39,8 +39,7 @@ int main(int argc, char *argv[])
     /* Print the replies */
     while ( (len = read(local_sock, message, sizeof(message))) )
     {
-	message[len] = '\0';
-	printf("%s", message);
+	write(STDOUT_FILENO, message, len);
     }
     printf("\n");
     return 0;

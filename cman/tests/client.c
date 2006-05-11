@@ -13,22 +13,27 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#include "libcman.h"
 
-#include "cnxman-socket.h"
+static cman_handle_t handle;
+static void get_members(void);
 
-int cluster_sock;
-void get_members(void);
-
-void signal_handler(int sig)
+static void event_callback(cman_handle_t handle, void *private, int reason, int arg)
 {
-    get_members();
-    return;
+	get_members();
 }
+
+
+static void data_callback(cman_handle_t handle, void *private,
+			  char *buf, int len, uint8_t port, int nodeid)
+{
+	printf("Received from node %d port %d: '%s'\n", nodeid, port, buf);
+}
+
 
 int main(int argc, char *argv[])
 {
 
-    struct sockaddr_cl saddr;
     unsigned char port = 100;
     char message[256];
     struct utsname ubuf;
@@ -43,82 +48,35 @@ int main(int argc, char *argv[])
     uname(&ubuf);
     sprintf(message, "Hello from %s", ubuf.nodename);
 
-    signal(SIGUSR1, signal_handler);
-
-    cluster_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_CLIENT);
-    if (cluster_sock == -1)
+    handle = cman_init(NULL);
+    if (!handle)
     {
-        perror("Can't open cluster socket");
+        perror("Can't connect to cman");
         return -1;
     }
 
-    /* Bind to our port number on the cluster. Ports < 10 are special
-       and will not be blocked if the cluster loses quorum */
-    saddr.scl_family = AF_CLUSTER;
-    saddr.scl_port = port;
 
-    if (bind(cluster_sock, (struct sockaddr *)&saddr, sizeof(struct sockaddr_cl)))
+    if (cman_start_recv_data(handle, data_callback, port))
     {
 	perror("Can't bind cluster socket");
 	return -1;
     }
-    fcntl(cluster_sock, F_SETFL, fcntl(cluster_sock, F_GETFL, 0) | O_NONBLOCK);
-
-    /* Get the cluster to send us SIGUSR1 if the configuration changes */
-    ioctl(cluster_sock, SIOCCLUSTER_NOTIFY, SIGUSR1);
+    cman_start_notification(handle, event_callback);
 
     while (1)
     {
-	char buf[1024];
-	fd_set in;
-	int len;
-	struct iovec iov;
-	struct msghdr msg;
-	struct sockaddr saddr;
-	struct timeval tv = {2,0};
 
-	msg.msg_control = NULL;
-	msg.msg_controllen = 0;
-	msg.msg_iovlen = 1;
-	msg.msg_iov = &iov;
-	msg.msg_name = &saddr;
-	msg.msg_flags = O_NONBLOCK;
-	msg.msg_namelen = sizeof(saddr);
-	iov.iov_len = sizeof(buf);
-	iov.iov_base = buf;
-
-	if (write(cluster_sock, message, strlen(message)+1) < 0)
+	if (cman_send_data(handle, message, strlen(message)+1,0, port, 0) < 0)
 	{
 	    perror("write");
-	    close(cluster_sock);
+	    cman_finish(handle);
 	    exit(-1);
 	}
 
-	FD_ZERO(&in);
-	FD_SET(cluster_sock, &in);
-	while (select(cluster_sock+1, &in, NULL, NULL, &tv) > 0)
+	while (1)
 	{
-	    int i;
-	    struct sockaddr_cl *scl = (struct sockaddr_cl *)msg.msg_name;
-
-	    len = recvmsg(cluster_sock, &msg, O_NONBLOCK);
-	    if (len < 0)
-	    {
-		perror("read");
-		close(cluster_sock);
-		exit(-1);
-	    }
-	    if (len == 0)
-		break; // EOF
-
-	    buf[len] = '\0';
-	    fprintf(stderr, "\nRead %d: '%s'\n", len, buf);
-	    fprintf(stderr, "port=%d, nodeid = %d\n", scl->scl_port, scl->scl_nodeid);
-	    for (i=0; i<14; i++)
-	    {
-		fprintf(stderr, "%02x  ", scl->scl_nodeid);
-	    }
-	    fprintf(stderr, "\n");
+		if (cman_dispatch(handle, CMAN_DISPATCH_ALL|CMAN_DISPATCH_BLOCKING) == -1)
+			break;
 	}
     }
     fprintf(stderr, "EOF: finished\n");
@@ -127,9 +85,9 @@ int main(int argc, char *argv[])
 
 void get_members(void)
 {
-    struct cl_cluster_node *nodes;
+    cman_node_t *nodes;
     int i;
-    int num_nodes = ioctl(cluster_sock, SIOCCLUSTER_GETMEMBERS, 0);
+    int num_nodes = cman_get_node_count(handle);
 
     if (num_nodes == -1)
     {
@@ -137,15 +95,14 @@ void get_members(void)
     }
     else
     {
-
 	printf("There are %d nodes: \n", num_nodes);
 
-	nodes = malloc(num_nodes * sizeof(struct cl_cluster_node));
-	if ( (num_nodes = ioctl(cluster_sock, SIOCCLUSTER_GETMEMBERS, nodes) >= 0) )
+	nodes = malloc(num_nodes * sizeof(cman_node_t));
+	if ( (cman_get_nodes(handle, num_nodes, &num_nodes, nodes)))
 	{
 	    for (i=0; i<num_nodes; i++)
 	    {
-		printf("%s %d\n", nodes[i].name, nodes[i].votes);
+		printf("%s %d\n", nodes[i].cn_name, nodes[i].cn_nodeid);
 	    }
 	}
 	else
