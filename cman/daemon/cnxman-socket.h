@@ -169,10 +169,11 @@ struct cl_extra_info {
 	int           expected_votes;
 	int           quorum;
 	int           members;
+	char          ports[32];
 	int           num_addresses; /* Number of real addresses, so the array below has
-					<n>+1 addresses in it */
+					<n>*2 addresses in it */
 	char          addresses[1];  /* Array of num_addresses sockaddr_storage
-					1st is the multicast address */
+					1st n are multicast addresses */
 };
 
 /* This is the structure, per node, returned from the membership call */

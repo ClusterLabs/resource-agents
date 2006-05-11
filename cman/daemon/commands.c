@@ -377,9 +377,9 @@ static int do_cmd_get_extrainfo(char *cmdbuf, char **retbuf, int retsize, int *r
 
         /* Enough room for addresses ? */
 	if (retsize < (sizeof(struct cl_extra_info) +
-		       sizeof(struct sockaddr_storage) * (num_interfaces+1))) {
+		       sizeof(struct sockaddr_storage) * (num_interfaces*2))) {
 
-		*retbuf = malloc(sizeof(struct cl_extra_info) + sizeof(struct sockaddr_storage) * (num_interfaces+1));
+		*retbuf = malloc(sizeof(struct cl_extra_info) + sizeof(struct sockaddr_storage) * (num_interfaces*2));
 		outbuf = *retbuf + offset;
 		einfo = (struct cl_extra_info *)outbuf;
 
@@ -393,6 +393,7 @@ static int do_cmd_get_extrainfo(char *cmdbuf, char **retbuf, int retsize, int *r
 	einfo->quorum = quorum;
 	einfo->members = cluster_members;
 	einfo->num_addresses = num_interfaces;
+	memcpy(einfo->ports, us->port_bits, 32);
 	einfo->flags = 0;
 	if (two_node)
 		einfo->flags |= CMAN_EXTRA_FLAG_2NODE;
@@ -402,10 +403,12 @@ static int do_cmd_get_extrainfo(char *cmdbuf, char **retbuf, int retsize, int *r
 		einfo->flags |= CMAN_EXTRA_FLAG_SHUTDOWN;
 
 	ptr = einfo->addresses;
-	ss = (struct sockaddr_storage *)ptr;
-	totemip_totemip_to_sockaddr_convert(&mcast_addr, 0, ss, &addrlen);
+	for (i=0; i<num_interfaces; i++) {
+		ss = (struct sockaddr_storage *)ptr;
+		totemip_totemip_to_sockaddr_convert(&mcast_addr[i], 0, ss, &addrlen);
+		ptr += sizeof(struct sockaddr_storage);
+	}
 
-	ptr += sizeof(struct sockaddr_storage);
 	for (i=0; i<num_interfaces; i++) {
 		ss = (struct sockaddr_storage *)ptr;
 		totemip_totemip_to_sockaddr_convert(&ifaddrs[i], 0, ss, &addrlen);

@@ -161,8 +161,10 @@ typedef struct cman_extra_info {
 	int           ei_expected_votes;
 	int           ei_quorum;
 	int           ei_members;
+	char          ei_ports[32];
 	int           ei_num_addresses;
-	char          ei_addresses[1]; /* Array of num_addresses*sockaddr_storage */
+	char          ei_addresses[1]; /* Array of num_addresses*sockaddr_storage*2
+					  First batch is the multicast address list */
 } cman_extra_info_t;
 
 /*

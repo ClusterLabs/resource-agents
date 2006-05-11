@@ -50,7 +50,7 @@ extern unsigned int quorumdev_poll;
 extern unsigned int shutdown_timeout;
 extern int init_config(struct objdb_iface_ver0 *objdb);
 
-struct totem_ip_address mcast_addr;
+struct totem_ip_address mcast_addr[MAX_INTERFACES];
 struct totem_ip_address ifaddrs[MAX_INTERFACES];
 int num_interfaces;
 uint64_t incarnation;
@@ -280,14 +280,6 @@ int ais_add_ifaddr(char *mcast, char *ifaddr, int portnum)
 
 	P_AIS("Adding local address %s\n", ifaddr);
 
-	/* First time, save the multicast address */
-	if (!num_interfaces)
-	{
-		ret = totemip_parse(&mcast_addr, mcast);
-		if (ret)
-			return ret;
-	}
-
 	/* This will already exist as early config creates it */
 	global_objdb->object_find_reset (OBJECT_PARENT_HANDLE);
 	if (global_objdb->object_find (
@@ -317,7 +309,9 @@ int ais_add_ifaddr(char *mcast, char *ifaddr, int portnum)
 
 
 			/* Save a local copy */
-			ret = totemip_parse(&ifaddrs[num_interfaces], ifaddr);
+			ret = totemip_parse(&mcast_addr[num_interfaces], mcast);
+			if (!ret)
+				ret = totemip_parse(&ifaddrs[num_interfaces], ifaddr);
 			if (!ret)
 				num_interfaces++;
 			else

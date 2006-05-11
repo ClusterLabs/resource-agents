@@ -21,6 +21,6 @@ extern int comms_send_message(void *buf, int len,
 			      unsigned int flags);
 
 extern uint64_t incarnation;
-extern struct totem_ip_address mcast_addr;
+extern struct totem_ip_address mcast_addr[MAX_INTERFACES];
 extern struct totem_ip_address ifaddrs[MAX_INTERFACES];
 extern int num_interfaces;

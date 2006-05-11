@@ -197,7 +197,8 @@ static void show_status(void)
 	char tmpbuf[1024];
 	cman_extra_info_t *einfo = (cman_extra_info_t *)info_buf;
 	int quorate;
-	int i;
+	int i,j;
+	int portnum;
 	char *addrptr;
 
 	h = open_cman_handle(0);
@@ -233,18 +234,31 @@ static void show_status(void)
 		printf(" Error");
 	printf(" \n");
 
+	printf("Ports Bound: ");
+	portnum = 0;
+	for (i=0; i<32; i++) {
+		for (j=0; j<8; j++) {
+			if ((einfo->ei_ports[i] >> j) & 1)
+				printf("%d ", portnum);
+			portnum++;
+		}
+	}
+	printf(" \n");
+
 	node.cn_name[0] = 0;
 	if (cman_get_node(h, CMAN_NODEID_US, &node) == 0) {
 		printf("Node name: %s\n", node.cn_name);
 		printf("Node ID: %d\n", node.cn_nodeid);
 	}
 
-	printf("Multicast address: ");
+	printf("Multicast addresses: ");
 	addrptr = einfo->ei_addresses;
-	print_address(addrptr);
+	for (i=0; i < einfo->ei_num_addresses; i++) {
+		print_address(addrptr);
+		printf(" ");
+		addrptr += sizeof(struct sockaddr_storage);
+	}
 	printf("\n");
-
-	addrptr += sizeof(struct sockaddr_storage);
 
 	printf("Node addresses: ");
 	for (i=0; i < einfo->ei_num_addresses; i++) {
@@ -315,10 +329,10 @@ static void show_nodes(commandline_t *comline)
 					time_t fence_time_t = (time_t)fence_time;
 					ftime = localtime(&fence_time_t);
 					strftime(jstring, sizeof(jstring), "%F %H:%M:%S", ftime);
-					printf("   Last fenced:   %-15s by %s\n", jstring, agent);
+					printf("       Last fenced:   %-15s by %s\n", jstring, agent);
 				}
 				if (!nodes[i].cn_member && nodes[i].cn_incarnation && !fenced) {
-					printf("   Node has not been fenced since it went down\n");
+					printf("       Node has not been fenced since it went down\n");
 				}
 			}
 		}
@@ -331,7 +345,7 @@ static void show_nodes(commandline_t *comline)
 				numaddrs)
 			{
 				int i;
-				printf("   Addresses: ");
+				printf("       Addresses: ");
 				for (i=0; i<numaddrs; i++)
 				{
 					print_address(addrs[i].cna_address);
