@@ -190,6 +190,10 @@ void add_recovery_set(int nodeid)
 	log_debug("add_recovery_set for nodeid %d", nodeid);
 
 	rs = get_recovery_set(nodeid);
+
+	ASSERT(list_empty(&rs->entries));
+	ASSERT(!rs->cpg_update);
+
 	rs->cpg_update = 1;
 
 	list_for_each_entry(g, &gd_groups, list) {
@@ -212,16 +216,20 @@ void add_recovery_set(int nodeid)
 	}
 }
 
-/* A group has finished recovery, remove it from any recovery sets,
-   and free any recovery sets that are not completed. */
+/* A group has finished recovery for given nodeid, remove group from any
+   recovery sets for that nodeid, and free any recovery sets that are now
+   completed. */
 
-void del_recovery_set(group_t *g)
+void del_recovery_set(group_t *g, int nodeid)
 {
 	struct recovery_set *rs, *rs2;
 	struct recovery_entry *re, *re2;
 	int found = 0, entries_not_recovered;
 
 	list_for_each_entry_safe(rs, rs2, &recovery_sets, list) {
+		if (rs->nodeid != nodeid)
+			continue;
+
 		entries_not_recovered = 0;
 
 		list_for_each_entry_safe(re, re2, &rs->entries, list) {
@@ -254,7 +262,7 @@ void del_recovery_set(group_t *g)
 	}
 
 	if (!found)
-		log_group(g, "not found in any recovery sets");
+		log_group(g, "not found in any recovery sets for %d", nodeid);
 }
 
 /* go through all recovery sets and check that all failed nodes have
@@ -278,9 +286,10 @@ int cman_quorum_updated(void)
 	return 1;
 }
 
-/* all groups referenced by a recovery set have been stopped on all nodes */
+/* all groups referenced by a recovery set have been stopped on all nodes,
+   and stopped for the same rev (asme nodeid) */
 
-static int set_is_all_stopped(struct recovery_set *rs)
+static int set_is_all_stopped(struct recovery_set *rs, event_t *rev)
 {
 	struct recovery_entry *re;
 	event_t *ev;
@@ -288,7 +297,9 @@ static int set_is_all_stopped(struct recovery_set *rs)
 	list_for_each_entry(re, &rs->entries, list) {
 		ev = re->group->app->current_event;
 
-		if (ev && ev->state == EST_FAIL_ALL_STOPPED)
+		if (ev &&
+		    ev->nodeid == rev->nodeid &&
+		    ev->state == EST_FAIL_ALL_STOPPED)
 			continue;
 		else
 			return 0;
@@ -296,7 +307,10 @@ static int set_is_all_stopped(struct recovery_set *rs)
 	return 1;
 }
 
-static int all_levels_all_stopped(group_t *g, event_t *ev)
+/* for every recovery set that this group is in, are all other groups in
+   each of those sets in the "all stopped" state for this rev? */
+
+static int all_levels_all_stopped(group_t *g, event_t *rev)
 {
 	struct recovery_set *rs;
 	struct recovery_entry *re;
@@ -306,7 +320,7 @@ static int all_levels_all_stopped(group_t *g, event_t *ev)
 		list_for_each_entry(re, &rs->entries, list) {
 			if (re->group == g) {
 				found = 1;
-				if (set_is_all_stopped(rs))
+				if (set_is_all_stopped(rs, rev))
 					break;
 				else
 					return 0;
@@ -332,7 +346,10 @@ static int level_is_recovered(struct recovery_set *rs, int level)
 	return 1;
 }
 
-static int lower_level_recovered(group_t *g)
+/* lower level group should be recovered for the same recovery event
+   (same nodeid) in each recovery set this group is in */
+
+static int lower_level_recovered(group_t *g, event_t *rev)
 {
 	struct recovery_set *rs;
 	struct recovery_entry *re;
@@ -688,6 +705,24 @@ int event_state_starting(app_t *a)
 	return FALSE;
 }
 
+int event_state_all_stopped(app_t *a)
+{
+	if (a->current_event->state == EST_JOIN_ALL_STOPPED ||
+	    a->current_event->state == EST_LEAVE_ALL_STOPPED ||
+	    a->current_event->state == EST_FAIL_ALL_STOPPED)
+		return TRUE;
+	return FALSE;
+}
+
+int event_state_all_started(app_t *a)
+{
+	if (a->current_event->state == EST_JOIN_ALL_STARTED ||
+	    a->current_event->state == EST_LEAVE_ALL_STARTED ||
+	    a->current_event->state == EST_FAIL_ALL_STARTED)
+		return TRUE;
+	return FALSE;
+}
+
 static int process_current_event(group_t *g)
 {
 	app_t *a = g->app;
@@ -864,7 +899,7 @@ static int process_current_event(group_t *g)
 			} else
 				log_group(g, "wait for all_levels_all_stopped");
 		} else {
-			if (lower_level_recovered(g)) {
+			if (lower_level_recovered(g, ev)) {
 				ev->state = EST_FAIL_START_WAIT;
 				do_start = 1;
 			} else
@@ -903,10 +938,10 @@ static int process_current_event(group_t *g)
 
 	case EST_FAIL_ALL_STARTED:
 		app_finish(a);
+		del_recovery_set(g, ev->nodeid);
 		free(ev);
 		a->current_event = NULL;
 		rv = 1;
-		del_recovery_set(g);
 		break;
 
 	default:
@@ -1163,7 +1198,6 @@ static int process_app(group_t *g)
 	app_t *a = g->app;
 	event_t *rev, *ev = NULL;
 	int rv = 0;
-	int prev_event_starting, prev_event_stopping;
 
 	if (a->current_event) {
 		rv += process_app_messages(g);
@@ -1180,40 +1214,57 @@ static int process_app(group_t *g)
 		if (rev) {
 			ev = a->current_event;
 
-			log_group(g, "recovery for %d aborts event %s node %d",
-				  rev->nodeid, ev_state_str(ev), ev->nodeid);
+			/* Before starting the rev we need to apply the
+			   node addition/removal of the current ev to the
+			   app.  This means processing the current ev up
+			   through the starting stage.  So, we're sending the
+			   app the start to inform it of the ev node change,
+			   knowing that the start won't complete due to the
+			   node failure (pending rev), and knowing that we'll
+			   shortly be sending it a stop and new start for
+			   the rev.
 
-			prev_event_starting = event_state_starting(a);
-			prev_event_stopping = event_state_stopping(a);
-
-			/* if we're waiting for a "stopped" message from a
-			   failed node, make one up so we move along to a
+			   If we're waiting for a "stopped" message from a
+			   failed node, make one up so we move along to the
 			   starting state so the recovery event can then take
-			   over; the previous event could be
-			   recovery/join/leave. */
+			   over. */
 
-			if (prev_event_starting) {
+			if (event_state_starting(a) ||
+			    event_state_all_started(a)) {
+
+				log_group(g, "rev for %d replaces event %s "
+					  "for %d", rev->nodeid,
+					  ev_state_str(ev), ev->nodeid);
+
 				list_del(&rev->list);
 				a->current_event = rev;
 				free(ev);
 				rv = 1;
-			} else if (prev_event_stopping) {
-				log_group(g, "fill in stop for node %d",
-					  ev->nodeid);
-				mark_node_stopped(a, ev->nodeid);
+			} else if (event_state_stopping(a)) {
 
-				/* we need to continue to process this event
+				/* We'll come back through here multiple times
+				   until all the stopped messages are recved;
+				   we need to continue to process this event
 				   that's stopping so it will get to the
-				   starting state at which point this rev
-				   supplants it */
+				   starting state at which point the rev
+				   can supplant it. */
 
+				log_group(g, "rev for %d will abort "
+				          "current event %s for %d",
+				          rev->nodeid,
+					  ev_state_str(ev), ev->nodeid);
+
+				mark_node_stopped(a, ev->nodeid);
 				process_current_event(g);
+			} else {
+				log_group(g, "rev for %d delayed for event %s"
+					  "for %d", rev->nodeid,
+					  ev_state_str(ev), ev->nodeid);
 			}
 
 			/* FIXME: if the current event is a leave and the
 			   leaving node has failed, then replace the current
 			   event with the rev */
-
 		}
 	} else {
 		/* We only take on a new non-recovery event if there are
