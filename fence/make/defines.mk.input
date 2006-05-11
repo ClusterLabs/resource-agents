@@ -17,7 +17,7 @@ mandir ?= ${DESTDIR}/@MANDIR@
 libdir ?= ${DESTDIR}/@LIBDIR@
 ccslibdir ?= ${DESTDIR}/@CCSLIBDIR@
 incdir ?= ${DESTDIR}/@INCDIR@
-cmankincdir ?= ${DESTDIR}@CMANKINCDIR@
+cmanincdir ?= ${DESTDIR}@CMANINCDIR@
 ccsincdir ?= ${DESTDIR}@CCSINCDIR@
 
 # Where's the kernel?

@@ -14,7 +14,7 @@ top_srcdir=../..
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 include ${top_srcdir}/make/defines.mk
-INCLUDE += -I $(top_srcdir)/include
+INCLUDE += -I ${ccsincdir} -I $(top_srcdir)/include
 
 CFLAGS+= -g -I${magmaincdir} -I${incdir} -DCMAN_RELEASE_NAME=\"${RELEASE}\"
 

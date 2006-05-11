@@ -17,7 +17,7 @@ echo "configure dlm"
 (cd dlm; ./configure $@)
 
 echo "configure fence"
-(cd fence; ./configure $@ -ccslibdir=`pwd`/../ccs/lib --ccsincdir=`pwd`/../ccs/lib)
+(cd fence; ./configure $@ -ccslibdir=`pwd`/../ccs/lib --ccsincdir=`pwd`/../ccs/lib --cmanincdir=`pwd`/../cman/lib)
 
 echo "configure gfs-kernel"
 (cd gfs-kernel; ./configure $@ --dlmkincdir=`pwd`/../dlm-kernel/src2)

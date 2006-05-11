@@ -23,7 +23,7 @@ else
 CFLAGS+= -O2 -D_FILE_OFFSET_BITS=64 -DFENCE_RELEASE_NAME=\"${RELEASE}\"
 endif
 
-INCLUDE = -I${top_srcdir}/include -I${ccsincdir} -I${incdir} -I${top_srcdir}/config
+INCLUDE = -I${top_srcdir}/include -I${ccsincdir} -I${cmanincdir} -I${incdir} -I${top_srcdir}/config
 
 LDFLAGS+= -L${ccslibdir} -L${libdir} -L${top_srcdir}/../cman/lib -lcman
 LOADLIBES+= -lccs -lcman

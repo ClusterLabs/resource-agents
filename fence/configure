@@ -26,7 +26,7 @@ $ret = 0;
 	help => \$help,
         incdir => \$incdir,
         ccsincdir => \$ccsincdir,
-        cmankincdir => \$cmankincdir,
+        cmanincdir => \$cmanincdir,
 	kernel_src => \$kernel_src,
 	libdir => \$libdir,
 	ccslibdir => \$ccslibdir,
@@ -40,7 +40,7 @@ $err = &GetOptions (\%options,
 		    'help',
 		    'incdir=s',
 		    'ccsincdir=s',
-		    'cmankincdir=s',
+		    'cmanincdir=s',
 		    'kernel_src=s',
 		    'libdir=s',
 		    'ccslibdir=s',
@@ -64,7 +64,7 @@ if ($help || !$err) {
   print "install flags:\n";
   print "--incdir=\tthe base directory for include files.  (Default: /usr/include)\n";
   print "--ccsincdir=\tthe base directory for ccs include files.  (Default: {incdir}/cluster)\n";
-  print "--cmankincdir=\tthe base directory for cman kernel include files.  (Default: {incdir}/cluster)\n";
+  print "--cmanincdir=\tthe base directory for cman include files.  (Default: {incdir}/cluster)\n";
   print "--kernel_src=\tthe directory containing the kernel source you wish to\n\t\tcompile against. (Default: system dependant)\n";
   print "--libdir=\tthe base directory for libraries.  (Default: /usr/lib)\n";
   print "--ccslibdir=\tthe base directory for ccs libraries.  (Default: {libdir})\n";
@@ -87,8 +87,8 @@ if (!$incdir) {
 if (!$ccsincdir) {
   $ccsincdir="${incdir}/cluster";
 }
-if (!$cmankincdir) {
-  $cmankincdir="${incdir}/cluster";
+if (!$cmanincdir) {
+  $cmanincdir="${incdir}/cluster";
 }
 if (!$libdir) {
   $libdir="${prefix}/usr/lib";
@@ -117,7 +117,7 @@ while (<IFILE>) {
   $_ =~ s/\@CC\@/${CC}/;
   $_ =~ s/\@INCDIR\@/$incdir/;
   $_ =~ s/\@CCSINCDIR\@/$ccsincdir/;
-  $_ =~ s/\@CMANKINCDIR\@/$cmankincdir/;
+  $_ =~ s/\@CMANINCDIR\@/$cmanincdir/;
   $_ =~ s/\@KERNEL_SRC\@/$kernel_src/;
   $_ =~ s/\@LIBDIR\@/$libdir/;
   $_ =~ s/\@CCSLIBDIR\@/$ccslibdir/;
