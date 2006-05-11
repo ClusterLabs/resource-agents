@@ -1263,13 +1263,16 @@ static int process_app(group_t *g)
 				          rev->nodeid,
 					  ev_state_str(ev), ev->nodeid);
 
-				mark_node_stopped(a, ev->nodeid);
+				mark_node_stopped(a, rev->nodeid);
 				process_current_event(g);
 			} else {
 				log_group(g, "rev for %d delayed for event %s"
 					  "for %d", rev->nodeid,
 					  ev_state_str(ev), ev->nodeid);
 			}
+
+			/* FIXME: does the code above work ok if
+			   ev->nodeid == rev->noded (joining node failed) */
 
 			/* FIXME: if the current event is a leave and the
 			   leaving node has failed, then replace the current
