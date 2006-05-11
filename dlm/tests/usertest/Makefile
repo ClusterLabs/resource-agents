@@ -23,6 +23,7 @@ CFLAGS += -I${KERNEL_SRC}/include/cluster
 else
 CFLAGS += -I/usr/include/linux/cluster
 endif
+CFLAGS += -I${top_srcdir}/lib/dlm
 
 
 dlmtest: dlmtest.c
@@ -37,8 +38,9 @@ lstest: lstest.c
 pingtest: pingtest.c	
 	$(CC) $(CFLAGS) -o $@ $< -ldlm -lpthread
 
-lvb:	lvb.c
+lvb: lvb.c	
 	$(CC) $(CFLAGS) -o $@ $< -ldlm -lpthread
+
 clean:
 	rm -f *.o $(BINARIES) *~ core
 

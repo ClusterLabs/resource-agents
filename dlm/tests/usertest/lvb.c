@@ -27,6 +27,8 @@ struct lksb
 #include <errno.h>
 #include <sys/types.h>
 #include <netdb.h>
+#include <stdlib.h>
+#include <string.h>
 #include <libdlm.h>
 #define LCK$M_VALBLK LKF_VALBLK
 #define LCK$M_CONVERT LKF_CONVERT
@@ -78,6 +80,12 @@ static int sys$deq(int lkid, struct lksb *lksb, int accmode, int flags, int c)
 {
 	return dlm_unlock(lkid, flags, (struct dlm_lksb *)lksb, NULL);
 }
+
+static char *linux_strerror(int vmserr, int err)
+{
+	return strerror(err);
+}
+#define strerror linux_strerror
 
 #endif
 
