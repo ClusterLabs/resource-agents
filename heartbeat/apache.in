@@ -31,6 +31,7 @@
 #  OCF_RESKEY_httpd
 #  OCF_RESKEY_port
 #  OCF_RESKEY_statusurl
+#  OCF_RESKEY_options
 
 VARRUN=@localstatedir@/run
 
@@ -268,7 +269,17 @@ GetParams() {
     if
        [ "X$STATUSURL" = "X" ]
     then
-      STATUSURL="${LOCALHOST}:${PORT}$StatusURL"
+      DoIHaveIP=`apache_param "$ConfigFile" Listen|head -1`
+      if
+        [ "x$DoIHaveIP" != "x" ]
+      then
+        STATUSURL="http://${DoIHaveIP}$StatusURL"
+        case $WGET in
+          *wget*)	WGETOPTS="$WGETOPTS --bind-address=127.0.0.1";;
+        esac
+      else
+        STATUSURL="${LOCALHOST}:${PORT}$StatusURL"
+      fi
     fi
   fi
   if
@@ -316,7 +327,7 @@ start_apache() {
     ocf_log info "$CMD already running (pid $ApachePID)"
     return $OCF_SUCCESS
   fi
-  ocf_run $HTTPD $HTTPDOPTS -f $CONFIGFILE
+  ocf_run $HTTPD $HTTPDOPTS $OPTIONS -f $CONFIGFILE
 }
 
 stop_apache() {
@@ -390,48 +401,62 @@ metadata_apache(){
 <version>1.0</version>
 
 <longdesc lang="en">
-starts/stops apache web servers.
+This is the resource agent for the
+Apache web server.
+Thie resource agent operates both version 1.x and version 2.x Apache
+servers.
+See also http://httpd.apache.org/
 </longdesc>
-<shortdesc lang="en">starts/stops apache web servers.</shortdesc>
+<shortdesc lang="en">Apache web server</shortdesc>
 
 <parameters>
-<parameter name="configfile" required="1">
+<parameter name="configfile" required="1" unique="1">
 <longdesc lang="en">
-The fullpath name of configure file.It's a string of path
-name. Other parameters can contain in this file.
+The full pathname of the Apache configuration file.
+This file is parsed to provide defaults for various other
+resource agent parameters.
 </longdesc>
-<shortdesc lang="en">configure file path</shortdesc>
+<shortdesc lang="en">configuration file path</shortdesc>
 <content type="string" default="/etc/httpd/httpd.conf" />
 </parameter>
 
 <parameter name="httpd">
 <longdesc lang="en">
-The fullpath name of the executable binary httpd.It's a string of path
-name. It's optional.
+The full pathname of the httpd binary (optional).
 </longdesc>
-<shortdesc lang="en">httpd executable binary path</shortdesc>
+<shortdesc lang="en">httpd binary path</shortdesc>
 <content type="string" default="/usr/sbin/httpd" />
 </parameter>
 
-<parameter name="port" unique="1">
+<parameter name="port" >
 <longdesc lang="en">
-The number of port, on that port apache instance provide service.
-It's a string of number. Also can get from file.
-the "main" web server at $PORT will also support it if we can find it
-somewhere in the file.
-it will be supported at the same URL as the one we find in the file
+A port number that we can probe for status information
+using the statusurl.
+This will default to the port number found in the
+configuration file, or 80, if none can be found
+in the configuration file.
+
 </longdesc>
-<shortdesc lang="en">apache port number</shortdesc>
-<content type="string" default="80"/>
+<shortdesc lang="en">httpd port</shortdesc>
+<content type="integer" />
 </parameter>
 
-<parameter name="statusurl" unique="2">
+<parameter name="statusurl">
 <longdesc lang="en">
-The url of the apache instance. It's a string.
-Also can get from file.
+The URL of the apache status module.
+If left unspecified, it will be inferred
+from the apache configuration file.
 </longdesc>
 <shortdesc lang="en">url name</shortdesc>
-<content type="integer" default=""/>
+<content type="string" />
+</parameter>
+
+<parameter name="options">
+<longdesc lang="en">
+Extra options to apply when starting apache. See man httpd(8).
+</longdesc>
+<shortdesc lang="en">command line options</shortdesc>
+<content type="string" ""/>
 </parameter>
 
 </parameters>
@@ -464,7 +489,7 @@ validate_all_apache() {
 	: OK to be empty
   else
 	case $STATUSURL in
-	    http://*/*.*) ;;
+	    http://*/*) ;;
 	    *) 
 	    ocf_log err "Invalid STATUSURL $STATUSURL"
 	    exit $OCF_ERR_ARGS ;;
@@ -492,6 +517,7 @@ then
   PORT="$OCF_RESKEY_port"
   STATUSURL="$OCF_RESKEY_statusurl"
   CONFIGFILE="$OCF_RESKEY_configfile"
+  OPTIONS="$OCF_RESKEY_options"
 else
   usage
 fi
