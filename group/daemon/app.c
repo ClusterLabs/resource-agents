@@ -216,11 +216,7 @@ void add_recovery_set(int nodeid)
 	}
 }
 
-/* A group has finished recovery for given nodeid, remove group from any
-   recovery sets for that nodeid, and free any recovery sets that are now
-   completed. */
-
-void del_recovery_set(group_t *g, int nodeid)
+void _del_recovery_set(group_t *g, int nodeid)
 {
 	struct recovery_set *rs, *rs2;
 	struct recovery_entry *re, *re2;
@@ -263,6 +259,20 @@ void del_recovery_set(group_t *g, int nodeid)
 
 	if (!found)
 		log_group(g, "not found in any recovery sets for %d", nodeid);
+}
+
+/* A group has finished recovery for given event (which can encompass more than
+   one failed nodeid).  Remove this group from recovery sets for those nodeids
+   and free any recovery sets that are now completed. */
+
+void del_recovery_set(group_t *g, event_t *ev)
+{
+	struct nodeid *id;
+
+	_del_recovery_set(g, ev->nodeid);
+
+	list_for_each_entry(id, &ev->extended, list)
+		_del_recovery_set(g, id->nodeid);
 }
 
 /* go through all recovery sets and check that all failed nodes have
@@ -346,10 +356,9 @@ static int level_is_recovered(struct recovery_set *rs, int level)
 	return 1;
 }
 
-/* lower level group should be recovered for the same recovery event
-   (same nodeid) in each recovery set this group is in */
+/* lower level group should be recovered in each recovery set */
 
-static int lower_level_recovered(group_t *g, event_t *rev)
+static int lower_level_recovered(group_t *g)
 {
 	struct recovery_set *rs;
 	struct recovery_entry *re;
@@ -899,7 +908,7 @@ static int process_current_event(group_t *g)
 			} else
 				log_group(g, "wait for all_levels_all_stopped");
 		} else {
-			if (lower_level_recovered(g, ev)) {
+			if (lower_level_recovered(g)) {
 				ev->state = EST_FAIL_START_WAIT;
 				do_start = 1;
 			} else
@@ -938,7 +947,7 @@ static int process_current_event(group_t *g)
 
 	case EST_FAIL_ALL_STARTED:
 		app_finish(a);
-		del_recovery_set(g, ev->nodeid);
+		del_recovery_set(g, ev);
 		free(ev);
 		a->current_event = NULL;
 		rv = 1;
