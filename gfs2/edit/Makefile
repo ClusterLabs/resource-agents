@@ -14,17 +14,17 @@
 TARGET= gfs2_edit
 
 SOURCE=	\
-	gfs2.c \
-	hexedit.c \
-	ondisk.c
+	gfs2hex.c \
+	hexedit.c
 
 top_srcdir=..
 include ${top_srcdir}/make/defines.mk
 
-CFLAGS+= -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 \
+CFLAGS+= -ggdb -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 \
 	 -DGFS2_RELEASE_NAME=\"${RELEASE}\"
 
-INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config -I${gfs2kincdir}
+INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config -I../libgfs2 
+LIBS=-L../libgfs2/
 
 ifneq (${KERNEL_SRC}, )
 # Use the kernel tree if patched, otherwise, look where cluster headers
@@ -38,8 +38,8 @@ endif
 
 all: gfs2_edit
 
-gfs2_edit: ${SOURCE}
-	${CC} ${CFLAGS} ${INCLUDE} ${LDFLAGS} ${SOURCE} ${LOADLIBES} ${LDLIBS} -o $@
+gfs2_edit: ${SOURCE} hexedit.h gfs2hex.h
+	${CC} ${CFLAGS} ${INCLUDE} ${LIBS} ${LDFLAGS} ${SOURCE} ${LOADLIBES} ${LDLIBS} -lncurses -o $@ -lgfs2
 
 copytobin: all
 	cp ${TARGET} ${top_srcdir}/bin

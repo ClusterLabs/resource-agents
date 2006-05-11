@@ -11,13 +11,13 @@
 *******************************************************************************
 ******************************************************************************/
 
-#include <stdio.h>
-#include <string.h>
+#ifndef __GFS2HEX_DOT_H__
+#define __GFS2HEX_DOT_H__
 
-#include "global.h"
-#include "linux_endian.h"
 
-#include <linux/gfs2_ondisk.h>
+int display_gfs2(void);
+int edit_gfs2(void);
+void do_dinode_extended(struct gfs2_dinode *di, char *buf);
+void print_gfs2(const char *fmt, ...);
 
-#define WANT_GFS_CONVERSION_FUNCTIONS
-#include <linux/gfs2_ondisk.h>
+#endif /*  __GFS2HEX_DOT_H__  */
