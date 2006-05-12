@@ -169,7 +169,7 @@ void send_recovery_status(struct mountgroup *mg)
 	memset(buf, 0, len);
 
 	hd = (struct gdlm_header *)buf;
-	hd->type = MSG_RECOVERY;
+	hd->type = MSG_RECOVERY_STATUS;
 	hd->nodeid = our_nodeid;
 	hd->to_nodeid = 0;
 	p = (int *) (buf + sizeof(struct gdlm_header));
@@ -284,6 +284,50 @@ void receive_recovery_status(struct mountgroup *mg, char *buf, int len,
 		log_group(mg, "receive_recovery_status %d last_callback %d",
 			  from, mg->last_callback);
 	}
+}
+
+/* tell others that all journals are recovered; they should clear
+   memb's from members_gone, clear needs_recovery and unblock locks */
+
+void send_recovery_done(struct mountgroup *mg)
+{
+	struct gdlm_header *hd;
+	int len;
+	char *buf;
+
+	len = sizeof(struct gdlm_header);
+
+	buf = malloc(len);
+	if (!buf)
+		return;
+	memset(buf, 0, len);
+
+	hd = (struct gdlm_header *)buf;
+	hd->type = MSG_RECOVERY_DONE;
+	hd->nodeid = our_nodeid;
+	hd->to_nodeid = 0;
+
+	send_group_message(mg, len, buf);
+
+	free(buf);
+}
+
+void receive_recovery_done(struct mountgroup *mg, char *buf, int len, int from)
+{
+	struct mg_member *memb, *safe;
+
+	log_group(mg, "receive_recovery_done from %d needs_recovery %d",
+		  from, mg->needs_recovery);
+
+	list_for_each_entry_safe(memb, safe, &mg->members_gone, list) {
+		log_group(mg, "receive_recovery_done clear jid %d nodeid %d",
+			  memb->jid, memb->nodeid);
+		list_del(&memb->list);
+		free(memb);
+	}
+
+	mg->needs_recovery = 0;
+	set_sysfs(mg, "block", 0);
 }
 
 void send_remount(struct mountgroup *mg, int ro)
@@ -658,29 +702,14 @@ int discover_journals(struct mountgroup *mg)
 	log_group(mg, "discover_journals: new member %d rw=%d ro=%d spect=%d",
 		  new->nodeid, new->rw, new->readonly, new->spectator);
 
-	/* do we let the new member mount? jid=-2 means no */
+	/* do we let the new member mount? jid=-2 means no.
+	   - we only allow an rw mount when the fs needs recovery
+	   - we only allow a single rw mount when the fs needs recovery */
 
-	if (mg->needs_recovery && !new->rw)
-		new->jid = -2;
-
-#if 0
-	/* no longer see any reason to force rw mounts to be added to groups
-	   of only ro/spectator nodes when there's no recovery needed */
-
-	else if (rw_count) {
-		/* all mount modes ok */
-	} else if (!ro_count) {
-		/* all members are spectators;
-		   rw or spectator mounters allowed */
-		if (new->readonly)
-			new->jid = -2;
-	} else {
-		/* some ro members, possibly some spectators;
-		   only rw mounters allowed */
-		if (!new->rw)
+	if (mg->needs_recovery) {
+		if (!new->rw || rw_count)
 			new->jid = -2;
 	}
-#endif
 
 	if (new->jid == -2) {
 		log_group(mg, "discover_journals: fail - needs_recovery %d",
@@ -707,7 +736,7 @@ int discover_journals(struct mountgroup *mg)
 	   mounter is told to do first-mounter recovery of all the journals. */
 
 	if (mg->needs_recovery) {
-		log_group(mg, "discover_journals: new member gets OPT_FIRST");
+		log_group(mg, "discover_journals: new member OPT_RECOVER");
 		new->opts |= MEMB_OPT_RECOVER;
 	}
 
@@ -1076,7 +1105,7 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
    these and wait for gfs to be finished with all at which point it calls
    others_may_mount() and first_done is set. */
 
-int first_recovery_done(struct mountgroup *mg)
+int kernel_recovery_done_first(struct mountgroup *mg)
 {
 	char buf[MAXLINE];
 	int rv, first_done;
@@ -1089,7 +1118,7 @@ int first_recovery_done(struct mountgroup *mg)
 
 	first_done = atoi(buf);
 
-	log_group(mg, "first_recovery_done first_done %d wait_first_done %d",
+	log_group(mg, "recovery_done_first first_done %d wait_first_done %d",
 		  first_done, mg->wait_first_done);
 
 	if (first_done) {
@@ -1166,6 +1195,42 @@ void recover_journals(struct mountgroup *mg)
 	start_done(mg);
 }
 
+/* In some cases, we may be joining a mountgroup with needs_recovery
+   set (there are journals that need recovery and current members can't
+   recover them because they're ro).  In this case, we're told to act
+   like the first mounter to cause gfs to try to recovery all journals
+   when it mounts.  When gfs does this, we'll get recovery_done's for
+   the individual journals it recovers (ignored) and finally, if all
+   journals are ok, an others_may_mount/first_done.
+ 
+   This all happens outside the context of a start event.  The last start
+   event was used to add the new emulate_first mounter to the group.
+
+   Only a single rw node is allowed to mount while the fs needs_recovery. */
+
+/* When gfs does first-mount recovery, the mount(2) fails if it can't
+   recover one of the journals.  If we get o_m_m, then we know it was
+   able to successfully recover all the journals. */
+
+int kernel_recovery_done_emulate_first(struct mountgroup *mg)
+{
+	char buf[MAXLINE];
+	int rv;
+
+	memset(buf, 0, sizeof(buf));
+
+	rv = get_sysfs(mg, "first_done", buf, sizeof(buf));
+	if (rv < 0)
+		return rv;
+
+	if (atoi(buf)) {
+		log_group(mg, "kernel_recovery_done_emulate_first");
+		mg->first_mounter_done = 1;
+		send_recovery_done(mg);
+	}
+	return 0;
+}
+
 /* Note: when a readonly node fails we do consider its journal (and the
    fs) to need recovery... not sure this is really necessary, but
    the readonly node did "own" a journal so it seems proper to recover
@@ -1173,22 +1238,6 @@ void recover_journals(struct mountgroup *mg)
    nodes mounting the fs and one fails, gfs on the remaining 2 will
    remain blocked until an rw node mounts, and the next mounter must
    be rw. */
-
-int journals_need_recovery(struct mountgroup *mg)
-{
-	struct mg_member *memb;
-	int rv = 0;
-
-	list_for_each_entry(memb, &mg->members_gone, list) {
-		if (memb->recovery_status == RS_SUCCESS)
-			continue;
-		log_group(mg, "journals_need_recovery %d nodeid %d status %d",
-			  memb->jid, memb->nodeid, memb->recovery_status);
-		rv++;
-	}
-
-	return rv;
-}
 
 int kernel_recovery_done(char *table)
 {
@@ -1204,8 +1253,12 @@ int kernel_recovery_done(char *table)
 		return -1;
 	}
 
+	if (mg->first_mounter && !mg->first_mounter_done &&
+	    mg->emulate_first_mounter)
+		return kernel_recovery_done_emulate_first(mg);
+
 	if (mg->first_mounter && !mg->first_mounter_done)
-		return first_recovery_done(mg);
+		return kernel_recovery_done_first(mg);
 
 	memset(buf, 0, sizeof(buf));
 
@@ -1376,7 +1429,7 @@ void wait_for_kernel_mount(struct mountgroup *mg)
 		rv = get_sysfs(mg, "id", buf, sizeof(buf));
 		if (!rv)
 			break;
-		usleep(1000);
+		usleep(100000);
 	}
 }
 
@@ -1392,43 +1445,31 @@ int do_finish(struct mountgroup *mg)
 	struct mg_member *memb, *safe;
 	int leave_blocked = 0;
 
-	if (journals_need_recovery(mg))
-		mg->needs_recovery = 1;
-
-	/* members_gone list are the members that were removed from
-	   the members list when processing the last start */
+	/* members_gone list are the members that were removed from the
+	   members list when processing a start.  members are removed
+	   from members_gone if their journals has been recovered */
 
 	list_for_each_entry_safe(memb, safe, &mg->members_gone, list) {
-		if (memb->gone_event <= mg->last_finish) {
+		if (!memb->withdraw)
+			release_withdraw_lock(mg, memb);
+
+		if (memb->recovery_status == RS_SUCCESS) {
+			ASSERT(memb->gone_event <= mg->last_finish);
+			log_group(mg, "finish: recovered jid %d nodeid %d",
+				  memb->jid, memb->nodeid);
 			list_del(&memb->list);
-			if (!memb->withdraw)
-				release_withdraw_lock(mg, memb);
 			free(memb);
 		} else {
-			/* not sure if/when this would happen... */
-			log_group(mg, "finish member not cleared %d %d %d",
-				  memb->nodeid, memb->gone_event,
-				  mg->last_finish);
+			mg->needs_recovery = 1;
+			log_group(mg, "finish: needs recovery "
+				  "jid %d nodeid %d status %d",
+				  memb->jid, memb->nodeid,
+				  memb->recovery_status);
 		}
 	}
 
 	list_for_each_entry(memb, &mg->members, list) {
 		memb->mount_finished = 1;
-
-		/* FIXME:
-		   the addition of an rw node means recovery has been done and
-		   we can clear needs_recovery.  existing rw members may have
-		   failed to recover the journal, though, and we shouldn't
-		   unblock for them.  Will the next rw mounter that does
-		   first-mounter recovery create any problem if there are
-		   existing rw mounters that have failed to recover the
-		   journal? */
-
-		if (mg->needs_recovery && memb->rw) {
-			log_group(mg, "finish: clear needs_recovery memb %d",
-				  memb->nodeid);
-			mg->needs_recovery = 0;
-		}
 
 		/* If there are still withdrawing nodes that haven't left
 		   the group, we need to keep lock requests blocked */
@@ -1447,7 +1488,9 @@ int do_finish(struct mountgroup *mg)
 
 	if (mg->mount_client) {
 		notify_mount_client(mg);
-		wait_for_kernel_mount(mg);
+		/* FIXME: this isn't always working.. the lock_module/ sysfs
+		   files don't exist and mount is in dlm_new_lockspace/uevent */
+		/* wait_for_kernel_mount(mg); */
 	} else if (!leave_blocked)
 		set_sysfs(mg, "block", 0);
 
@@ -1459,24 +1502,11 @@ int first_mounter_recovery(struct mountgroup *mg)
 	struct mg_member *memb;
 
 	memb = find_memb_nodeid(mg, our_nodeid);
+	ASSERT(memb);
 
-	if (memb->opts & MEMB_OPT_RECOVER) {
-		log_group(mg, "we do first mounter recovery");
+	if (memb->opts & MEMB_OPT_RECOVER)
 		return 1;
-	}
-
 	return 0;
-}
-
-int no_rw_members(struct mountgroup *mg)
-{
-	struct mg_member *memb;
-
-	list_for_each_entry(memb, &mg->members, list) {
-		if (memb->rw)
-			return 0;
-	}
-	return 1;
 }
 
 /*
@@ -1572,9 +1602,11 @@ void start_participant_init_2(struct mountgroup *mg)
 
 	/* fs needs recovery and existing mounters can't recover it,
 	   i.e. they're spectator/readonly, so we're told to do
-	   first-mounter recovery on the fs */
-
+	   first-mounter recovery on the fs. */
+	 
 	if (first_mounter_recovery(mg)) {
+		log_group(mg, "first_mounter_recovery");
+		mg->emulate_first_mounter = 1;
 		mg->first_mounter = 1;
 		mg->first_mounter_done = 0;
 	}
@@ -1738,11 +1770,14 @@ void reset_unfinished_recoveries(struct mountgroup *mg)
 	struct mg_member *memb;
 
 	list_for_each_entry(memb, &mg->members_gone, list) {
-		log_group(mg, "retry unfinished recovery nodeid %d jid %d",
-			  memb->nodeid, memb->jid);
-		memb->tell_gfs_to_recover = 1;
-		memb->recovery_status = RS_NEED_RECOVERY;
-		memb->local_recovery_status = RS_NEED_RECOVERY;
+		if (memb->recovery_status != RS_NEED_RECOVERY) {
+			log_group(mg, "retry unfinished recovery "
+				  "jid %d nodeid %d",
+				  memb->jid, memb->nodeid);
+			memb->tell_gfs_to_recover = 1;
+			memb->recovery_status = RS_NEED_RECOVERY;
+			memb->local_recovery_status = RS_NEED_RECOVERY;
+		}
 	}
 }
 

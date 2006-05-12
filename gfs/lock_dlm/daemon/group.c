@@ -38,6 +38,7 @@ void receive_remount(struct mountgroup *mg, char *buf, int len, int from);
 void receive_plock(struct mountgroup *mg, char *buf, int len, int from);
 void receive_recovery_status(struct mountgroup *mg, char *buf, int len,
 			     int from);
+void receive_recovery_done(struct mountgroup *mg, char *buf, int len, int from);
 
 
 static void stop_cbfn(group_handle_t h, void *private, char *name)
@@ -128,8 +129,12 @@ static void do_deliver(struct mountgroup *mg)
 		receive_plock(mg, cb_message, cb_len, cb_nodeid);
 		break;
 
-	case MSG_RECOVERY:
+	case MSG_RECOVERY_STATUS:
 		receive_recovery_status(mg, cb_message, cb_len, cb_nodeid);
+		break;
+
+	case MSG_RECOVERY_DONE:
+		receive_recovery_done(mg, cb_message, cb_len, cb_nodeid);
 		break;
 
 	default:

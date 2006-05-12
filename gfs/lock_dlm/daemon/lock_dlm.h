@@ -126,6 +126,7 @@ struct mountgroup {
 	int			our_jid;
 	int			first_mounter;
 	int			first_mounter_done;
+	int			emulate_first_mounter;
 	int			wait_first_done;
 	int			init;
 	int			init2;
@@ -196,7 +197,8 @@ enum {
 	MSG_OPTIONS,
 	MSG_REMOUNT,
 	MSG_PLOCK,
-	MSG_RECOVERY,
+	MSG_RECOVERY_STATUS,
+	MSG_RECOVERY_DONE,
 };
 
 struct gdlm_header {
