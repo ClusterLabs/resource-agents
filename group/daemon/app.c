@@ -62,6 +62,17 @@ uint64_t make_event_id(group_t *g, int state, int nodeid)
 	return id;
 }
 
+void free_event(event_t *ev)
+{
+	struct nodeid *id, *id_safe;
+
+	list_for_each_entry_safe(id, id_safe, &ev->extended, list) {
+		list_del(&id->list);
+		free(id);
+	}
+	free(ev);
+}
+
 int event_id_to_nodeid(uint64_t id)
 {
 	int nodeid;
@@ -269,10 +280,15 @@ void del_recovery_set(group_t *g, event_t *ev)
 {
 	struct nodeid *id;
 
+	log_group(g, "rev %llx done, remove group from rs %d",
+		  ev->id, ev->nodeid);
 	_del_recovery_set(g, ev->nodeid);
 
-	list_for_each_entry(id, &ev->extended, list)
+	list_for_each_entry(id, &ev->extended, list) {
+		log_group(g, "rev %llx done, remove group from rs %d",
+			  ev->id, id->nodeid);
 		_del_recovery_set(g, id->nodeid);
+	}
 }
 
 /* go through all recovery sets and check that all failed nodes have
@@ -356,6 +372,21 @@ static int level_is_recovered(struct recovery_set *rs, int level)
 	return 1;
 }
 
+void dump_recovery_sets(void)
+{
+	struct recovery_set *rs;
+	struct recovery_entry *re;
+
+	list_for_each_entry(rs, &recovery_sets, list) {
+		log_debug("recovery_set %d", rs->nodeid);
+		list_for_each_entry(re, &rs->entries, list) {
+			log_debug("  recovery_entry %d:%s recovered %d",
+				  re->group->level, re->group->name,
+				  re->recovered);
+		}
+	}
+}
+
 /* lower level group should be recovered in each recovery set */
 
 static int lower_level_recovered(group_t *g)
@@ -370,8 +401,13 @@ static int lower_level_recovered(group_t *g)
 				found = 1;
 				if (level_is_recovered(rs, g->level - 1))
 					break;
-				else
+				else {
+					log_group(g, "lower level %d is not "
+						  "recovered in rs %d",
+						  g->level - 1, rs->nodeid);
+					/* dump_recovery_sets(); */
 					return 0;
+				}
 			}
 		}
 	}
@@ -737,7 +773,7 @@ static int process_current_event(group_t *g)
 	app_t *a = g->app;
 	event_t *ev = a->current_event, *ev_tmp, *ev_safe;
 	node_t *node, *n;
-	struct nodeid *id, *id_safe;
+	struct nodeid *id;
 	int rv = 0, do_start = 0, count;
 
 	if (!(event_state_stopping(a) || event_state_starting(a)))
@@ -811,7 +847,7 @@ static int process_current_event(group_t *g)
 
 		if (is_our_join(ev))
 			purge_messages(g);
-		free(ev);
+		free_event(ev);
 		a->current_event = NULL;
 		rv = 1;
 		break;
@@ -854,7 +890,7 @@ static int process_current_event(group_t *g)
 
 	case EST_LEAVE_ALL_STARTED:
 		app_finish(a);
-		free(ev);
+		free_event(ev);
 		a->current_event = NULL;
 		rv = 1;
 		break;
@@ -928,18 +964,16 @@ static int process_current_event(group_t *g)
 
 		free(node);
 
-		list_for_each_entry_safe(id, id_safe, &ev->extended, list) {
+		list_for_each_entry(id, &ev->extended, list) {
 			node = find_app_node(a, id->nodeid);
 			ASSERT(node);
-			list_del(&node->list);
-			a->node_count--;
 
 			log_group(g, "app node fail: del node %d total %d, ext",
 			  	  node->nodeid, a->node_count);
 
+			list_del(&node->list);
 			free(node);
-			list_del(&id->list);
-			free(id);
+			a->node_count--;
 		}
 
 		app_start(a);
@@ -948,7 +982,7 @@ static int process_current_event(group_t *g)
 	case EST_FAIL_ALL_STARTED:
 		app_finish(a);
 		del_recovery_set(g, ev);
-		free(ev);
+		free_event(ev);
 		a->current_event = NULL;
 		rv = 1;
 		break;
@@ -1206,6 +1240,7 @@ static int process_app(group_t *g)
 {
 	app_t *a = g->app;
 	event_t *rev, *ev = NULL;
+	struct nodeid *id;
 	int rv = 0;
 
 	if (a->current_event) {
@@ -1233,10 +1268,10 @@ static int process_app(group_t *g)
 			   shortly be sending it a stop and new start for
 			   the rev.
 
-			   If we're waiting for a "stopped" message from a
-			   failed node, make one up so we move along to the
-			   starting state so the recovery event can then take
-			   over. */
+			   If the current event is waiting for a "stopped"
+			   message from failed node(s), fill in those stopped
+			   messages so we move along to the starting state so
+			   the recovery event can then take over. */
 
 			if (event_state_starting(a) ||
 			    event_state_all_started(a)) {
@@ -1247,7 +1282,7 @@ static int process_app(group_t *g)
 
 				list_del(&rev->list);
 				a->current_event = rev;
-				free(ev);
+				free_event(ev);
 				rv = 1;
 			} else if (event_state_stopping(a)) {
 
@@ -1264,6 +1299,9 @@ static int process_app(group_t *g)
 					  ev_state_str(ev), ev->nodeid);
 
 				mark_node_stopped(a, rev->nodeid);
+				list_for_each_entry(id, &rev->extended, list)
+					mark_node_stopped(a, id->nodeid);
+
 				process_current_event(g);
 			} else {
 				log_group(g, "rev for %d delayed for event %s"
