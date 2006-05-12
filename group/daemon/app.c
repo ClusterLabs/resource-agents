@@ -1304,7 +1304,7 @@ static int process_app(group_t *g)
 
 				process_current_event(g);
 			} else {
-				log_group(g, "rev for %d delayed for event %s"
+				log_group(g, "rev for %d delayed for event %s "
 					  "for %d", rev->nodeid,
 					  ev_state_str(ev), ev->nodeid);
 			}

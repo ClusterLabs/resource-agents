@@ -37,6 +37,7 @@ static void process_node_down(group_t *g, int nodeid)
 {
 	node_t *node;
 	event_t *ev, *ev_safe;
+	int no_rev = 0;
 
 	log_group(g, "process_node_down %d", nodeid);
 
@@ -53,12 +54,6 @@ static void process_node_down(group_t *g, int nodeid)
 	log_group(g, "group del node %d total %d - down",
 		  nodeid, g->memb_count);
 
-	ev = find_queued_recover_event(g);
-	if (ev)
-		extend_recover_event(g, ev, nodeid);
-	else
-		queue_app_recover(g, nodeid);
-
 	/* purge any queued join/leave events from the dead node */
 
 	list_for_each_entry_safe(ev, ev_safe, &g->app->events, list) {
@@ -67,6 +62,9 @@ static void process_node_down(group_t *g, int nodeid)
 
 		if (ev->state == EST_JOIN_BEGIN ||
 		    ev->state == EST_LEAVE_BEGIN) {
+			if (ev->state == EST_JOIN_BEGIN)
+				no_rev = 1;
+
 			log_group(g, "purge event %s from %d", ev_state_str(ev),
 			  	  nodeid);
 			del_event_nodes(ev);
@@ -74,6 +72,17 @@ static void process_node_down(group_t *g, int nodeid)
 			free(ev);
 		}
 	}
+
+	/* the failed node was never added to the app, so the app
+	   doesn't need to be recovered for it */
+	if (no_rev)
+		return;
+
+	ev = find_queued_recover_event(g);
+	if (ev)
+		extend_recover_event(g, ev, nodeid);
+	else
+		queue_app_recover(g, nodeid);
 }
 
 static void process_node_join(group_t *g, int nodeid)
