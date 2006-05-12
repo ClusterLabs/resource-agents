@@ -1829,6 +1829,7 @@ void do_start(struct mountgroup *mg, int type, int member_count, int *nodeids)
 }
 
 /* FIXME:
+
   What repurcussions are there from umount shutting down gfs in the
   kernel before we leave the mountgroup?  We can no longer participate
   in recovery even though we're in the group -- what are the end cases
