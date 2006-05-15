@@ -14,10 +14,13 @@
 #ifndef __LIBGFS2_DOT_H__
 #define __LIBGFS2_DOT_H__
 
+#include <inttypes.h>
+#include <sys/types.h>
+#include <linux/types.h>
+
 #include "linux_endian.h"
 #include <linux/gfs2_ondisk.h>
 #include "osi_list.h"
-#include "iddev.h"
 #include "copyright.cf"
 #include "ondisk.h"
 
@@ -59,6 +62,18 @@ static __inline__ uint64_t do_div_i(uint64_t *num, unsigned int den)
 #define SRANDOM do { srandom(time(NULL) ^ getpid()); } while (0)
 #define RESRANDOM do { srandom(RANDOM(1000000000)); } while (0)
 #define RANDOM(values) ((values) * (random() / (RAND_MAX + 1.0)))
+
+/* Stolen (and must match) include/linux/fs.h: */
+/* (They're not pulled in when fs.h is included from userspace */
+#define DT_UNKNOWN	0
+#define DT_FIFO		1
+#define DT_CHR		2
+#define DT_DIR		4
+#define DT_BLK		6
+#define DT_REG		8
+#define DT_LNK		10
+#define DT_SOCK		12
+#define DT_WHT		14
 
 struct subdevice {
 	uint64_t start;
@@ -230,6 +245,31 @@ struct gfs2_buffer_head *init_dinode(struct gfs2_sbd *sdp, struct gfs2_inum *inu
 				struct gfs2_inum *parent);
 struct gfs2_inode *createi(struct gfs2_inode *dip, char *filename,
 			  unsigned int mode, uint32_t flags);
+/* iddev.c */
+/**
+ * identify_device - figure out what's on a device
+ * @fd: a file descriptor open on a device open for (at least) reading
+ * @type: a buffer that contains the type of filesystem
+ * @type_len: the amount of space pointed to by @type
+ *
+ * The offset of @fd will be changed by the function.
+ * This routine will not write to this device.
+ *
+ * Returns: -1 on error (with errno set), 1 if unabled to identify,
+ *          0 if device identified (with @type set)
+ */
+
+int identify_device(int fd, char *type, unsigned type_len);
+
+/**
+ * device_size - figure out a device's size
+ * @fd: the file descriptor of a device
+ * @bytes: the number of bytes the device holds
+ *
+ * Returns: -1 on error (with errno set), 0 on success (with @bytes set)
+ */
+
+int device_size(int fd, uint64_t *bytes);
 
 /* live.c */
 void check_for_gfs2(struct gfs2_sbd *sdp);
@@ -264,12 +304,13 @@ void do_init(struct gfs2_sbd *sdp);
 /* ondisk.c */
 uint32_t gfs2_disk_hash(const char *data, int len);
 
-extern void print_it(const char *label, const char *fmt, ...);
-#define pv(struct, member, fmt) do { \
-		print_it("  "#member":", fmt, struct->member); \
+extern void print_it(const char *label, const char *fmt,
+					 const char *fmt2, ...);
+#define pv(struct, member, fmt, fmt2) do {				   \
+		print_it("  "#member":", fmt, fmt2, struct->member); \
         } while (FALSE);
-#define pv2(struct, member, fmt) do { \
-		print_it("  ", fmt, struct->member); \
+#define pv2(struct, member, fmt, fmt2) do {		 \
+		print_it("  ", fmt, fmt2, struct->member);	\
         } while (FALSE);
 
 #endif /* __LIBGFS2_DOT_H__ */

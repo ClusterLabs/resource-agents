@@ -82,8 +82,7 @@ build_sb(struct gfs2_sbd *sdp)
 	}
 }
 
-static void
-build_journal(struct gfs2_inode *jindex, unsigned int j)
+void build_journal(struct gfs2_inode *jindex, unsigned int j)
 {
 	struct gfs2_sbd *sdp = jindex->i_sbd;
 	char name[256];

@@ -85,8 +85,8 @@ void gfs2_inum_out(struct gfs2_inum *no, char *buf)
 
 void gfs2_inum_print(struct gfs2_inum *no)
 {
-	pv(no, no_formal_ino, "%llu");
-	pv(no, no_addr, "%llu");
+	pv(no, no_formal_ino, "%llu", "0x%llx");
+	pv(no, no_addr, "%llu", "0x%llx");
 }
 
 void gfs2_meta_header_in(struct gfs2_meta_header *mh, char *buf)
@@ -111,9 +111,9 @@ void gfs2_meta_header_out(struct gfs2_meta_header *mh, char *buf)
 
 void gfs2_meta_header_print(struct gfs2_meta_header *mh)
 {
-	pv(mh, mh_magic, "0x%.8X");
-	pv(mh, mh_type, "%u");
-	pv(mh, mh_format, "%u");
+	pv(mh, mh_magic, "0x%.8X", NULL);
+	pv(mh, mh_type, "%u", "0x%x");
+	pv(mh, mh_format, "%u", "0x%x");
 }
 
 void gfs2_sb_in(struct gfs2_sb *sb, char *buf)
@@ -158,17 +158,17 @@ void gfs2_sb_print(struct gfs2_sb *sb)
 {
 	gfs2_meta_header_print(&sb->sb_header);
 
-	pv(sb, sb_fs_format, "%u");
-	pv(sb, sb_multihost_format, "%u");
+	pv(sb, sb_fs_format, "%u", "0x%x");
+	pv(sb, sb_multihost_format, "%u", "0x%x");
 
-	pv(sb, sb_bsize, "%u");
-	pv(sb, sb_bsize_shift, "%u");
+	pv(sb, sb_bsize, "%u", "0x%x");
+	pv(sb, sb_bsize_shift, "%u", "0x%x");
 
 	gfs2_inum_print(&sb->sb_master_dir);
 	gfs2_inum_print(&sb->sb_root_dir);
 
-	pv(sb, sb_lockproto, "%s");
-	pv(sb, sb_locktable, "%s");
+	pv(sb, sb_lockproto, "%s", "0x%x");
+	pv(sb, sb_locktable, "%s", "0x%x");
 }
 
 void gfs2_rindex_in(struct gfs2_rindex *ri, char *buf)
@@ -204,13 +204,13 @@ void gfs2_rindex_out(struct gfs2_rindex *ri, char *buf)
 
 void gfs2_rindex_print(struct gfs2_rindex *ri)
 {
-	pv(ri, ri_addr, "%llu");
-	pv(ri, ri_length, "%u");
+	pv(ri, ri_addr, "%llu", "0x%llx");
+	pv(ri, ri_length, "%u", "0x%x");
 
-	pv(ri, ri_data0, "%llu");
-	pv(ri, ri_data, "%u");
+	pv(ri, ri_data0, "%llu", "0x%llx");
+	pv(ri, ri_data, "%u", "0x%x");
 
-	pv(ri, ri_bitbytes, "%u");
+	pv(ri, ri_bitbytes, "%u", "0x%x");
 }
 
 void gfs2_rgrp_in(struct gfs2_rgrp *rg, char *buf)
@@ -240,9 +240,9 @@ void gfs2_rgrp_out(struct gfs2_rgrp *rg, char *buf)
 void gfs2_rgrp_print(struct gfs2_rgrp *rg)
 {
 	gfs2_meta_header_print(&rg->rg_header);
-	pv(rg, rg_flags, "%u");
-	pv(rg, rg_free, "%u");
-	pv(rg, rg_dinodes, "%u");
+	pv(rg, rg_flags, "%u", "0x%x");
+	pv(rg, rg_free, "%u", "0x%x");
+	pv(rg, rg_dinodes, "%u", "0x%x");
 }
 
 void gfs2_quota_in(struct gfs2_quota *qu, char *buf)
@@ -266,9 +266,9 @@ void gfs2_quota_out(struct gfs2_quota *qu, char *buf)
 
 void gfs2_quota_print(struct gfs2_quota *qu)
 {
-	pv(qu, qu_limit, "%llu");
-	pv(qu, qu_warn, "%llu");
-	pv(qu, qu_value, "%lld");
+	pv(qu, qu_limit, "%llu", "0x%llx");
+	pv(qu, qu_warn, "%llu", "0x%llx");
+	pv(qu, qu_value, "%lld", "0x%llx");
 }
 
 void gfs2_dinode_in(struct gfs2_dinode *di, char *buf)
@@ -344,29 +344,29 @@ void gfs2_dinode_print(struct gfs2_dinode *di)
 	gfs2_meta_header_print(&di->di_header);
 	gfs2_inum_print(&di->di_num);
 
-	pv(di, di_mode, "0%o");
-	pv(di, di_uid, "%u");
-	pv(di, di_gid, "%u");
-	pv(di, di_nlink, "%u");
-	pv(di, di_size, "%llu");
-	pv(di, di_blocks, "%llu");
-	pv(di, di_atime, "%lld");
-	pv(di, di_mtime, "%lld");
-	pv(di, di_ctime, "%lld");
-	pv(di, di_major, "%u");
-	pv(di, di_minor, "%u");
+	pv(di, di_mode, "0%o", NULL);
+	pv(di, di_uid, "%u", "0x%x");
+	pv(di, di_gid, "%u", "0x%x");
+	pv(di, di_nlink, "%u", "0x%x");
+	pv(di, di_size, "%llu", "0x%llx");
+	pv(di, di_blocks, "%llu", "0x%llx");
+	pv(di, di_atime, "%lld", "0x%llx");
+	pv(di, di_mtime, "%lld", "0x%llx");
+	pv(di, di_ctime, "%lld", "0x%llx");
+	pv(di, di_major, "%u", "0x%llx");
+	pv(di, di_minor, "%u", "0x%llx");
 
-	pv(di, di_goal_meta, "%llu");
-	pv(di, di_goal_data, "%llu");
+	pv(di, di_goal_meta, "%llu", "0x%llx");
+	pv(di, di_goal_data, "%llu", "0x%llx");
 
-	pv(di, di_flags, "0x%.8X");
-	pv(di, di_payload_format, "%u");
-	pv(di, di_height, "%u");
+	pv(di, di_flags, "0x%.8X", NULL);
+	pv(di, di_payload_format, "%u", "0x%x");
+	pv(di, di_height, "%u", "0x%x");
 
-	pv(di, di_depth, "%u");
-	pv(di, di_entries, "%u");
+	pv(di, di_depth, "%u", "0x%x");
+	pv(di, di_entries, "%u", "0x%x");
 
-	pv(di, di_eattr, "%llu");
+	pv(di, di_eattr, "%llu", "0x%llx");
 }
 
 void gfs2_dirent_in(struct gfs2_dirent *de, char *buf)
@@ -397,10 +397,10 @@ void gfs2_dirent_print(struct gfs2_dirent *de, char *name)
 	char buf[GFS2_FNAMESIZE + 1];
 
 	gfs2_inum_print(&de->de_inum);
-	pv(de, de_hash, "0x%.8X");
-	pv(de, de_rec_len, "%u");
-	pv(de, de_name_len, "%u");
-	pv(de, de_type, "%u");
+	pv(de, de_hash, "0x%.8X", NULL);
+	pv(de, de_rec_len, "%u", "0x%x");
+	pv(de, de_name_len, "%u", "0x%x");
+	pv(de, de_type, "%u", "0x%x");
 
 	memset(buf, 0, GFS2_FNAMESIZE + 1);
 	memcpy(buf, name, de->de_name_len);
@@ -436,10 +436,10 @@ void gfs2_leaf_out(struct gfs2_leaf *lf, char *buf)
 void gfs2_leaf_print(struct gfs2_leaf *lf)
 {
 	gfs2_meta_header_print(&lf->lf_header);
-	pv(lf, lf_depth, "%u");
-	pv(lf, lf_entries, "%u");
-	pv(lf, lf_dirent_format, "%u");
-	pv(lf, lf_next, "%llu");
+	pv(lf, lf_depth, "%u", "0x%x");
+	pv(lf, lf_entries, "%u", "0x%x");
+	pv(lf, lf_dirent_format, "%u", "0x%x");
+	pv(lf, lf_next, "%llu", "0x%llx");
 }
 
 void gfs2_ea_header_in(struct gfs2_ea_header *ea, char *buf)
@@ -471,12 +471,12 @@ void gfs2_ea_header_print(struct gfs2_ea_header *ea, char *name)
 {
 	char buf[GFS2_EA_MAX_NAME_LEN + 1];
 
-	pv(ea, ea_rec_len, "%u");
-	pv(ea, ea_data_len, "%u");
-	pv(ea, ea_name_len, "%u");
-	pv(ea, ea_type, "%u");
-	pv(ea, ea_flags, "%u");
-	pv(ea, ea_num_ptrs, "%u");
+	pv(ea, ea_rec_len, "%u", "0x%x");
+	pv(ea, ea_data_len, "%u", "0x%x");
+	pv(ea, ea_name_len, "%u", "0x%x");
+	pv(ea, ea_type, "%u", "0x%x");
+	pv(ea, ea_flags, "%u", "0x%x");
+	pv(ea, ea_num_ptrs, "%u", "0x%x");
 
 	memset(buf, 0, GFS2_EA_MAX_NAME_LEN + 1);
 	memcpy(buf, name, ea->ea_name_len);
@@ -510,11 +510,11 @@ void gfs2_log_header_out(struct gfs2_log_header *lh, char *buf)
 void gfs2_log_header_print(struct gfs2_log_header *lh)
 {
 	gfs2_meta_header_print(&lh->lh_header);
-	pv(lh, lh_sequence, "%llu");
-	pv(lh, lh_flags, "0x%.8X");
-	pv(lh, lh_tail, "%u");
-	pv(lh, lh_blkno, "%u");
-	pv(lh, lh_hash, "0x%.8X");
+	pv(lh, lh_sequence, "%llu", "0x%llx");
+	pv(lh, lh_flags, "0x%.8X", NULL);
+	pv(lh, lh_tail, "%u", "0x%x");
+	pv(lh, lh_blkno, "%u", "0x%x");
+	pv(lh, lh_hash, "0x%.8X", NULL);
 }
 
 void gfs2_log_descriptor_in(struct gfs2_log_descriptor *ld, char *buf)
@@ -546,10 +546,10 @@ void gfs2_log_descriptor_out(struct gfs2_log_descriptor *ld, char *buf)
 void gfs2_log_descriptor_print(struct gfs2_log_descriptor *ld)
 {
 	gfs2_meta_header_print(&ld->ld_header);
-	pv(ld, ld_type, "%u");
-	pv(ld, ld_length, "%u");
-	pv(ld, ld_data1, "%u");
-	pv(ld, ld_data2, "%u");
+	pv(ld, ld_type, "%u", "0x%x");
+	pv(ld, ld_length, "%u", "0x%x");
+	pv(ld, ld_data1, "%u", "0x%x");
+	pv(ld, ld_data2, "%u", "0x%x");
 }
 
 void gfs2_inum_range_in(struct gfs2_inum_range *ir, char *buf)
@@ -570,8 +570,8 @@ void gfs2_inum_range_out(struct gfs2_inum_range *ir, char *buf)
 
 void gfs2_inum_range_print(struct gfs2_inum_range *ir)
 {
-	pv(ir, ir_start, "%llu");
-	pv(ir, ir_length, "%llu");
+	pv(ir, ir_start, "%llu", "0x%llx");
+	pv(ir, ir_length, "%llu", "0x%llx");
 }
 
 void gfs2_statfs_change_in(struct gfs2_statfs_change *sc, char *buf)
@@ -594,9 +594,9 @@ void gfs2_statfs_change_out(struct gfs2_statfs_change *sc, char *buf)
 
 void gfs2_statfs_change_print(struct gfs2_statfs_change *sc)
 {
-	pv(sc, sc_total, "%lld");
-	pv(sc, sc_free, "%lld");
-	pv(sc, sc_dinodes, "%lld");
+	pv(sc, sc_total, "%lld", "0x%llx");
+	pv(sc, sc_free, "%lld", "0x%llx");
+	pv(sc, sc_dinodes, "%lld", "0x%llx");
 }
 
 void gfs2_unlinked_tag_in(struct gfs2_unlinked_tag *ut, char *buf)
@@ -619,7 +619,7 @@ void gfs2_unlinked_tag_out(struct gfs2_unlinked_tag *ut, char *buf)
 void gfs2_unlinked_tag_print(struct gfs2_unlinked_tag *ut)
 {
 	gfs2_inum_print(&ut->ut_inum);
-	pv(ut, ut_flags, "%u");
+	pv(ut, ut_flags, "%u", "0x%x");
 }
 
 void gfs2_quota_change_in(struct gfs2_quota_change *qc, char *buf)
@@ -642,9 +642,9 @@ void gfs2_quota_change_out(struct gfs2_quota_change *qc, char *buf)
 
 void gfs2_quota_change_print(struct gfs2_quota_change *qc)
 {
-	pv(qc, qc_change, "%lld");
-	pv(qc, qc_flags, "0x%.8X");
-	pv(qc, qc_id, "%u");
+	pv(qc, qc_change, "%lld", "0x%llx");
+	pv(qc, qc_flags, "0x%.8X", NULL);
+	pv(qc, qc_id, "%u", "0x%x");
 }
 
 

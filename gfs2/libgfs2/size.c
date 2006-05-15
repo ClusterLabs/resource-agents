@@ -23,7 +23,7 @@
 #include <errno.h>
 #include <sys/mount.h>
 
-#include "iddev.h"
+#include "libgfs2.h"
 
 #ifndef BLKGETSIZE64
 #define BLKGETSIZE64 _IOR(0x12, 114, size_t)
@@ -39,9 +39,10 @@
 static int
 do_device_size(int fd, uint64_t *bytes)
 {
-	unsigned long size;
 	off_t off;
+#if 0
 	int error;
+	unsigned long size;
 
 	error = ioctl(fd, BLKGETSIZE64, bytes);	/* Size in bytes */
 	if (!error)
@@ -52,7 +53,7 @@ do_device_size(int fd, uint64_t *bytes)
 		*bytes = ((uint64_t) size) << 9;
 		return 0;
 	}
-
+#endif
 	off = lseek(fd, 0, SEEK_END);
 	if (off >= 0) {
 		*bytes = off;

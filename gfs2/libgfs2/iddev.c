@@ -22,8 +22,7 @@
 #include <unistd.h>
 #include <errno.h>
 
-#include "linux_endian.h"
-#include "iddev.h"
+#include "libgfs2.h"
 
 /**
  * check_for_gfs - check to see if GFS is on this device
