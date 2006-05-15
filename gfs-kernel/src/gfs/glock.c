@@ -1689,6 +1689,9 @@ gfs_glock_dq(struct gfs_holder *gh)
 	struct gfs_glock *gl = gh->gh_gl;
 	struct gfs_sbd *sdp = gl->gl_sbd;
 	struct gfs_glock_operations *glops = gl->gl_ops;
+	struct list_head *pos;
+       	struct gfs_holder *tmp_gh = NULL;
+      	int count = 0;
 
 	atomic_inc(&gl->gl_sbd->sd_glock_dq_calls);
 
@@ -1699,8 +1702,20 @@ gfs_glock_dq(struct gfs_holder *gh)
 		set_bit(GLF_SYNC, &gl->gl_flags);
 
 	/* Don't cache glock; request demote to unlock at inter-node scope */
-	if (gh->gh_flags & GL_NOCACHE)
-		handle_callback(gl, LM_ST_UNLOCKED);
+	if (gh->gh_flags & GL_NOCACHE){
+               	list_for_each(pos, &gl->gl_holders) {
+                       	tmp_gh = list_entry(pos, struct gfs_holder, gh_list);
+                       	++count;
+               	}
+               	if (tmp_gh == gh && count == 1)
+               		handle_callback(gl, LM_ST_UNLOCKED);
+               	else {
+                       	printk("XXX: This glock has > 1 holders and gfs_glock_dq "
+                               "was called with GL_NOCACHE. handle_callback() not "
+                               "executed %s %d\n", __FUNCTION__, __LINE__);
+                       	dump_glock(gl, NULL, 0, 0);
+               	}
+       	}
 
 	lock_on_glock(gl);
 
