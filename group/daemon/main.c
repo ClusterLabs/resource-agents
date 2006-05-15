@@ -509,6 +509,7 @@ static void process_connection(int ci)
 
 	default:
 		log_print("unknown action %d client %d bytes %d", act, ci, rv);
+		log_print("invalid message: \"%s\"", buf);
 	}
 }
 
