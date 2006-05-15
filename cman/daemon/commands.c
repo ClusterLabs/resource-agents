@@ -348,18 +348,16 @@ int cman_set_nodeid(int nodeid)
 	return 0;
 }
 
-int cman_join_cluster(char *name, unsigned short cluster_id, int two_node_flag,
+int cman_join_cluster(char *name, unsigned short cl_id, int two_node_flag,
 		      int votes, int expected_votes)
 {
-	struct utsname un;
-
 	if (ais_running)
 		return -EALREADY;
 
 	if (strlen(name) > MAX_CLUSTER_NAME_LEN)
 		return -EINVAL;
 
-	cluster_id = cluster_id;
+	cluster_id = cl_id;
 	strncpy(cluster_name, name, MAX_CLUSTER_NAME_LEN);
 	two_node = two_node_flag;
 
@@ -373,6 +371,7 @@ int cman_join_cluster(char *name, unsigned short cluster_id, int two_node_flag,
 
 	/* Make sure we have a node name */
 	if (nodename[0] == '\0') {
+		struct utsname un;
 		uname(&un);
 		strcpy(nodename, un.nodename);
 	}
@@ -1100,7 +1099,8 @@ static int do_cmd_get_node_addrs(char *cmdbuf, char **retbuf, int retsize, int *
 	if (!node)
 		return -EINVAL;
 
-	// TODO Allocate enough space...(though it will probably be fine)
+	memset(outbuf, 0, retsize - offset);
+
 	if (node->us) {
 		addrs->numaddrs = num_interfaces;
 		for (i=0; i<num_interfaces; i++) {
