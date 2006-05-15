@@ -548,6 +548,7 @@ then
 	    stop)	return	$OCF_SUCCESS;;
 	    monitor)	return	$OCF_NOT_RUNNING;;
             status)	return  $LSB_STATUS_STOPPED;;
+  	    meta-data)	metadata_apache;;
 	  esac
 	  ocf_log err "No valid httpd found! Please revise your <HTTPDLIST> item"
           exit $OCF_ERR_CONFIGURED
