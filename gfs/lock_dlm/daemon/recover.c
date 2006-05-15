@@ -176,6 +176,8 @@ void send_recovery_status(struct mountgroup *mg)
 
 	i = 0;
 	list_for_each_entry(memb, &mg->members_gone, list) {
+		if (memb->local_recovery_status != RS_SUCCESS)
+			continue;
 		p[i] = cpu_to_le32(memb->nodeid);
 		i++;
 		p[i] = cpu_to_le32(memb->jid);
