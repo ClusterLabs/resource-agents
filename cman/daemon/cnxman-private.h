@@ -177,18 +177,6 @@ struct cluster_node {
  	unsigned char port_bits[PORT_BITS_SIZE]; /* bitmap of ports open on this node */
 };
 
-/* Cluster configuration info passed when we join the cluster */
-struct cl_join_cluster_info {
-	unsigned char votes;
-	unsigned int expected_votes;
-	unsigned int two_node;
-	unsigned int config_version;
-	unsigned short port;
-	unsigned short cluster_id;
-
-        char cluster_name[MAX_CLUSTER_NAME_LEN + 1];
-};
-
 /* Cluster protocol commands sent to port 0 */
 #define CLUSTER_MSG_ACK          1
 #define CLUSTER_MSG_PORTOPENED   2

@@ -22,14 +22,14 @@
 #include <netdb.h>
 #include <ifaddrs.h>
 
+#include "list.h"
+#include "cnxman-socket.h"
+#include "cnxman-private.h"
 #include "logging.h"
 #include "totemip.h"
 #include "commands.h"
 #include "ais.h"
 #include "ccs.h"
-#include "list.h"
-#include "cnxman-socket.h"
-#include "cnxman-private.h"
 
 
 #define DEFAULT_PORT            5405
@@ -61,9 +61,13 @@ static char *nodenames[MAX_NODENAMES];
 static int  portnums[MAX_NODENAMES];
 static char *mcast[MAX_NODENAMES];
 static int num_nodenames;
+static int two_node;
 static char *keyfile;
 static char *mcast_name;
-static struct cl_join_cluster_info join_info;
+static unsigned char votes;
+static unsigned int expected_votes;
+static unsigned short cluster_id;
+static char cluster_name[MAX_CLUSTER_NAME_LEN + 1];
 
 static uint16_t generate_cluster_id(char *name)
 {
@@ -83,7 +87,7 @@ static uint16_t generate_cluster_id(char *name)
  * add them to our node list.
  * Called when we start up and on "cman_tool version".
  */
-int read_ccs_nodes()
+int read_ccs_nodes(unsigned int *config_version)
 {
     int ctree;
     char *nodename;
@@ -91,7 +95,7 @@ int read_ccs_nodes()
     int error;
     int i;
     int expected = 0;
-    int config;
+    unsigned int config;
 
     /* Open the config file */
     ctree = ccs_force_connect(NULL, 1);
@@ -106,13 +110,13 @@ int read_ccs_nodes()
 	    free(str);
 
 	    /* config_version is zero at startup when we read initial config */
-	    if (config_version && config != config_version) {
+	    if (*config_version && config != *config_version) {
 		    ccs_disconnect(ctree);
 		    log_msg(LOG_ERR, "CCS version is %d, we expected %d. config not updated\n",
-			    config, config_version);
+			    config, *config_version);
 		    return -1;
 	    }
-	    config_version = config;
+	    *config_version = config;
     }
 
     /* This overrides any other expected votes calculation /except/ for
@@ -201,15 +205,15 @@ static char *default_mcast(uint16_t cluster_id)
 static int join(void)
 {
 	int error, i;
-	int retlen;
 
-	error = do_cmd_set_nodename(nodenames[0], &retlen);
-	error = do_cmd_set_nodeid(nodeid, &retlen);
+	error = cman_set_nodename(nodenames[0]);
+	error = cman_set_nodeid(nodeid);
 
         /*
 	 * Setup join information
 	 */
-	error = do_cmd_join_cluster((char *)&join_info, &retlen);
+	error = cman_join_cluster(cluster_name, cluster_id,
+				  two_node, votes, expected_votes);
 	if (error)
 		return error;
 
@@ -353,6 +357,7 @@ static int get_ccs_join_info(void)
 	char nodename[MAX_CLUSTER_MEMBER_NAME_LEN+1];
 	char *str, *name, *cname = NULL;
 	int cd, error, i, vote_sum = 0, node_count = 0;
+	unsigned short port;
 
 	/* Connect to ccsd */
 	if (getenv("CMAN_CLUSTER_NAME")) {
@@ -379,10 +384,10 @@ static int get_ccs_join_info(void)
 			return -ENOENT;
 		}
 	} else {
-		strcpy(join_info.cluster_name, str);
+		strcpy(cluster_name, str);
 	}
 	free(str);
-	join_info.cluster_id = generate_cluster_id(join_info.cluster_name);
+	cluster_id = generate_cluster_id(cluster_name);
 
 	/* our nodename */
 	memset(nodename, 0, sizeof(nodename));
@@ -411,20 +416,20 @@ static int get_ccs_join_info(void)
 	}
 	nodenames[0] = strdup(nodename);
 
-	join_info.expected_votes = 0;
+	expected_votes = 0;
 	if (getenv("CMAN_EXPECTEDVOTES")) {
-		join_info.expected_votes = atoi(getenv("CMAN_EXPECTEDVOTES"));
-		if (join_info.expected_votes < 1) {
+		expected_votes = atoi(getenv("CMAN_EXPECTEDVOTES"));
+		if (expected_votes < 1) {
 			log_msg(LOG_ERR, "CMAN_EXPECTEDVOTES environment variable is invalid, ignoring");
-			join_info.expected_votes = 0;
+			expected_votes = 0;
 		}
 		else {
-			log_msg(LOG_INFO, "Using override expected votes %d\n", join_info.expected_votes);
+			log_msg(LOG_INFO, "Using override expected votes %d\n", expected_votes);
 		}
 	}
 
 	/* Sum node votes for expected */
-	if (join_info.expected_votes == 0) {
+	if (expected_votes == 0) {
 		for (i = 1; ; i++) {
 			name = NULL;
 			memset(path, 0, MAX_PATH_LEN);
@@ -457,28 +462,28 @@ static int get_ccs_join_info(void)
 
 		error = ccs_get(cd, EXP_VOTES_PATH, &str);
 		if (!error) {
-			join_info.expected_votes = atoi(str);
+			expected_votes = atoi(str);
 			free(str);
 		} else
-			join_info.expected_votes = vote_sum;
+			expected_votes = vote_sum;
 	}
 
 	/* optional port */
 	if (getenv("CMAN_IP_PORT")) {
-		join_info.port = atoi(getenv("CMAN_IP_PORT"));
-		log_msg(LOG_INFO, "Using override IP port %d\n", join_info.port);
+		port = atoi(getenv("CMAN_IP_PORT"));
+		log_msg(LOG_INFO, "Using override IP port %d\n", port);
 	}
 
-	if (!join_info.port) {
+	if (!port) {
 		error = ccs_get(cd, PORT_PATH, &str);
 		if (!error) {
-			join_info.port = atoi(str);
+			port = atoi(str);
 			free(str);
 		}
 		else
-			join_info.port = DEFAULT_PORT;
+			port = DEFAULT_PORT;
 	}
-	portnums[0] = join_info.port;
+	portnums[0] = port;
 
 	/* optional security key filename */
 	if (getenv("CMAN_KEYFILE")) {
@@ -493,11 +498,11 @@ static int get_ccs_join_info(void)
 
 	/* find our own number of votes */
 	if (getenv("CMAN_VOTES")) {
-		join_info.votes = atoi(getenv("CMAN_VOTES"));
-		log_msg(LOG_INFO, "Using override votes %d\n", join_info.votes);
+		votes = atoi(getenv("CMAN_VOTES"));
+		log_msg(LOG_INFO, "Using override votes %d\n", votes);
 	}
 
-	if (!join_info.votes) {
+	if (!votes) {
 		memset(path, 0, MAX_PATH_LEN);
 		sprintf(path, NODE_VOTES_PATH, nodename);
 
@@ -508,11 +513,11 @@ static int get_ccs_join_info(void)
 				log_msg(LOG_ERR, "invalid votes value %d", votes);
 				return -EINVAL;
 			}
-			join_info.votes = votes;
+			votes = votes;
 			free(str);
 		}
 		else {
-			join_info.votes = 1;
+			votes = 1;
 		}
 	}
 
@@ -548,7 +553,7 @@ static int get_ccs_join_info(void)
 	}
 
 	if (!mcast_name) {
-		mcast_name = default_mcast(join_info.cluster_id);
+		mcast_name = default_mcast(cluster_id);
 		log_msg(LOG_INFO, "Using default multicast address of %s\n", mcast_name);
 	}
 
@@ -596,9 +601,9 @@ static int get_ccs_join_info(void)
 	/* two_node mode */
 	error = ccs_get(cd, TWO_NODE_PATH, &str);
 	if (!error) {
-		join_info.two_node = atoi(str);
+		two_node = atoi(str);
 		free(str);
-		if (join_info.two_node) {
+		if (two_node) {
 			if (node_count != 2 || vote_sum != 2) {
 				log_msg(LOG_ERR, "the two-node option requires exactly two "
 					"nodes with one vote each and expected "
@@ -607,10 +612,10 @@ static int get_ccs_join_info(void)
 				return -EINVAL;
 			}
 
-			if (join_info.votes != 1) {
+			if (votes != 1) {
 				log_msg(LOG_ERR, "the two-node option requires exactly two "
 					"nodes with one vote each and expected "
-					"votes of 1 (votes=%d)", join_info.votes);
+					"votes of 1 (votes=%d)", votes);
 				return -EINVAL;
 			}
 		}

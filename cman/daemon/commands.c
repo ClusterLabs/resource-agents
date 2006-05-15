@@ -62,8 +62,7 @@ static LIST_INIT(cluster_members_list);
        unsigned int config_version;
 static struct cluster_node *us;
 static int quorum;
-       int two_node;
-       int ip_port;
+static int two_node;
        unsigned int quorumdev_poll=10000;
        unsigned int shutdown_timeout=5000;
 static int cluster_is_quorate;
@@ -327,6 +326,65 @@ static void copy_to_usernode(struct cluster_node *node,
 	unode->addrlen = addrlen;
 }
 
+
+int cman_set_nodename(char *name)
+{
+	if (ais_running)
+		return -EALREADY;
+
+	strncpy(nodename, name, MAX_CLUSTER_MEMBER_NAME_LEN);
+	return 0;
+}
+
+int cman_set_nodeid(int nodeid)
+{
+	if (ais_running)
+		return -EALREADY;
+
+	if (nodeid < 0 || nodeid > 4096)
+		return -EINVAL;
+
+	wanted_nodeid = nodeid;
+	return 0;
+}
+
+int cman_join_cluster(char *name, unsigned short cluster_id, int two_node_flag,
+		      int votes, int expected_votes)
+{
+	struct utsname un;
+
+	if (ais_running)
+		return -EALREADY;
+
+	if (strlen(name) > MAX_CLUSTER_NAME_LEN)
+		return -EINVAL;
+
+	cluster_id = cluster_id;
+	strncpy(cluster_name, name, MAX_CLUSTER_NAME_LEN);
+	two_node = two_node_flag;
+
+	quit_threads = 0;
+	ais_running = 1;
+
+	if (read_ccs_nodes(&config_version)) {
+		log_msg(LOG_ERR, "Can't initialise list of nodes from CCS\n");
+		return -EINVAL;
+	}
+
+	/* Make sure we have a node name */
+	if (nodename[0] == '\0') {
+		uname(&un);
+		strcpy(nodename, un.nodename);
+	}
+
+	us = add_new_node(nodename, wanted_nodeid, votes, expected_votes,
+			  NODESTATE_MEMBER);
+	set_port_bit(us, 0);
+	us->us = 1;
+	cluster_members = 1;
+
+	return 0;
+}
 
 /* command processing functions */
 
@@ -682,28 +740,6 @@ static int do_cmd_set_votes(char *cmdbuf, int *retlen)
 	return 0;
 }
 
-/*static*/ int do_cmd_set_nodename(char *cmdbuf, int *retlen)
-{
-	if (ais_running)
-		return -EALREADY;
-
-	strncpy(nodename, cmdbuf, MAX_CLUSTER_MEMBER_NAME_LEN);
-	return 0;
-}
-
-/*static*/ int do_cmd_set_nodeid(int nodeid, int *retlen)
-{
-	if (ais_running)
-		return -EALREADY;
-
-	if (nodeid < 0 || nodeid > 4096)
-		return -EINVAL;
-
-	wanted_nodeid = nodeid;
-	return 0;
-}
-
-
 static int do_cmd_bind(struct connection *con, char *cmdbuf)
 {
 	unsigned int port;
@@ -728,51 +764,6 @@ static int do_cmd_bind(struct connection *con, char *cmdbuf)
 
  out:
 	return ret;
-}
-
-int do_cmd_join_cluster(char *cmdbuf, int *retlen)
-{
-	struct cl_join_cluster_info *join_info = (struct cl_join_cluster_info *)cmdbuf;
-	struct utsname un;
-
-	if (ais_running)
-		return -EALREADY;
-
-	if (strlen(join_info->cluster_name) > MAX_CLUSTER_NAME_LEN)
-		return -EINVAL;
-
-	cluster_id = join_info->cluster_id;
-	strncpy(cluster_name, join_info->cluster_name, MAX_CLUSTER_NAME_LEN);
-	two_node = join_info->two_node;
-	ip_port = join_info->port;
-
-	/* Check for a race where ccs is updated between ccs_tool reading it and us starting up
-	   (bizarre but possible I suppose). Going forwards is OK as our new information will
-	   be updated. In fact the latter is quite possible during startup.
-	*/
-	if (config_version < join_info->config_version) {
-		log_msg(LOG_ERR, "CCS went backwards during ccs_tool join, we read %d, ccs_tool said %d\n",
-			config_version, join_info->config_version);
-		return -EINVAL;
-	}
-
-
-	quit_threads = 0;
-	ais_running = 1;
-
-	/* Make sure we have a node name */
-	if (nodename[0] == '\0') {
-		uname(&un);
-		strcpy(nodename, un.nodename);
-	}
-
-	us = add_new_node(nodename, wanted_nodeid, join_info->votes, join_info->expected_votes,
-			  NODESTATE_MEMBER);
-	set_port_bit(us, 0);
-	us->us = 1;
-	cluster_members = 1;
-
-	return 0;
 }
 
 static int do_cmd_leave_cluster(char *cmdbuf, int *retlen)
@@ -1232,10 +1223,6 @@ int process_command(struct connection *con, int cmd, char *cmdbuf,
 		err = do_cmd_barrier(con, cmdbuf, retlen);
 		break;
 
-	case CMAN_CMD_SET_NODENAME:
-		err = do_cmd_set_nodename(cmdbuf, retlen);
-		break;
-
 	case CMAN_CMD_ADD_KEYFILE:
 		err = do_cmd_set_keyfile(cmdbuf);
 		break;
@@ -1412,16 +1399,16 @@ static int valid_transition_msg(int nodeid, struct cl_transmsg *msg)
 
 	/* New config version - try to read new file */
 	if (msg->config_version > config_version) {
-		int saved_config = config_version;
 		int ccs_err;
 
-		config_version = msg->config_version;
-		ccs_err = read_ccs_nodes();
-		if (ccs_err) {
+		ccs_err = read_ccs_nodes(&config_version);
+		if (ccs_err || config_version < msg->config_version) {
 			us->expected_votes = INT_MAX; /* Force us to stop */
 			log_msg(LOG_ERR, "Can't read CCS to get updated config version %d. Activity suspended on this node\n",
-				config_version);
-			config_version = saved_config;
+				msg->config_version);
+		}
+		if (config_version > msg->config_version) {
+			// TODO tell everyone else to update...
 		}
 		recalculate_quorum(0);
 	}
@@ -1564,10 +1551,9 @@ static void do_reconfigure_msg(void *data)
 		break;
 
 	case RECONFIG_PARAM_CONFIG_VERSION:
-		config_version = msg->value;
-		if (read_ccs_nodes()) {
+		if (read_ccs_nodes(&config_version)) {
 			log_msg(LOG_ERR, "Can't read CCS to get updated config version %d. Activity suspended on this node\n",
-				config_version);
+				msg->value);
 
 			us->expected_votes = INT_MAX; /* Force us to stop */
 			recalculate_quorum(0);

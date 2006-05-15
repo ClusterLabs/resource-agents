@@ -33,10 +33,9 @@ extern void add_ccs_node(char *name, int nodeid, int votes, int expected_votes);
 extern void override_expected(int expected);
 
 /* Startup stuff called from cmanccs: */
-extern int do_cmd_set_nodename(char *cmdbuf, int *retlen);
-extern int do_cmd_set_nodeid(int nodeid, int *retlen);
-extern int do_cmd_join_cluster(char *cmdbuf, int *retlen);
+extern int cman_set_nodename(char *name);
+extern int cman_set_nodeid(int nodeid);
+extern int cman_join_cluster(char *name, unsigned short cluster_id, int two_node,
+			     int votes, int expected_votes);
 
-extern unsigned int config_version;
 extern int cluster_members;
-extern int two_node;

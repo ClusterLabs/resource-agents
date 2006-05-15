@@ -38,7 +38,6 @@
 #include "logging.h"
 #include "commands.h"
 #include "barrier.h"
-#include "cmanccs.h"
 #include "ais.h"
 
 struct queued_reply
@@ -459,11 +458,6 @@ int cman_init()
 
 	sa.sa_handler = SIG_IGN;
 	sigaction(SIGPIPE, &sa, NULL);
-
-	if (read_ccs_nodes()) {
-		log_msg(LOG_ERR, "Can't initialise list of nodes from CCS\n");
-		return -2;
-	}
 
 	return 0;
 }

@@ -44,7 +44,6 @@
 
 extern int our_nodeid();
 extern char cluster_name[MAX_CLUSTER_NAME_LEN+1];
-extern int ip_port;
 extern char *key_filename;
 extern unsigned int quorumdev_poll;
 extern unsigned int shutdown_timeout;
@@ -292,7 +291,7 @@ int ais_add_ifaddr(char *mcast, char *ifaddr, int portnum)
 						"interface", strlen ("interface")) == 0) {
 
 			P_AIS("Setting if %d, name: %s,  mcast: %s,  port=%d, \n",
-			      num_interfaces, ifaddr, mcast, ip_port);
+			      num_interfaces, ifaddr, mcast, portnum);
 			sprintf(tmp, "%d", num_interfaces);
 			global_objdb->object_key_create(interface_object_handle, "ringnumber", strlen("ringnumber"),
 							tmp, strlen(tmp)+1);
@@ -303,7 +302,7 @@ int ais_add_ifaddr(char *mcast, char *ifaddr, int portnum)
 			global_objdb->object_key_create(interface_object_handle, "mcastaddr", strlen("mcastaddr"),
 							mcast, strlen(mcast)+1);
 
-			sprintf(tmp, "%d", ip_port);
+			sprintf(tmp, "%d", portnum);
 			global_objdb->object_key_create(interface_object_handle, "mcastport", strlen ("mcastport"),
 							tmp, strlen(tmp)+1);
 
