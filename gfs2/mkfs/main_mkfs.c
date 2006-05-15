@@ -22,11 +22,26 @@
 #include <unistd.h>
 #include <time.h>
 #include <errno.h>
+#include <stdarg.h>
 
 #include <linux/types.h>
 #include "gfs2_mkfs.h"
+#include "libgfs2.h"
 
 char *prog_name;
+
+/**
+ * This function is for libgfs2's sake.
+ */
+void print_it(const char *label, const char *fmt, const char *fmt2, ...)
+{
+	va_list args;
+
+	va_start(args, fmt2);
+	printf("%s: ", label);
+	vprintf(fmt, args);
+	va_end(args);
+}
 
 /**
  * print_usage - print out usage information
@@ -303,9 +318,6 @@ print_results(struct gfs2_sbd *sdp)
 	}
 
 	printf("\n");
-	printf("WARNING: The GFS2 ondisk format is not yet set in stone.\n");
-	printf("         At some point in the future, it will change and\n");
-	printf("         you will have to remake your filesystems.\n");
 }
 
 /**
@@ -323,11 +335,11 @@ main_mkfs(int argc, char *argv[])
 	int error;
 
 	memset(sdp, 0, sizeof(struct gfs2_sbd));
-	sdp->bsize = MKFS_DEFAULT_BSIZE;
-	sdp->jsize = MKFS_DEFAULT_JSIZE;
-	sdp->rgsize = MKFS_DEFAULT_RGSIZE;
-	sdp->utsize = MKFS_DEFAULT_UTSIZE;
-	sdp->qcsize = MKFS_DEFAULT_QCSIZE;
+	sdp->bsize = GFS2_DEFAULT_BSIZE;
+	sdp->jsize = GFS2_DEFAULT_JSIZE;
+	sdp->rgsize = GFS2_DEFAULT_RGSIZE;
+	sdp->utsize = GFS2_DEFAULT_UTSIZE;
+	sdp->qcsize = GFS2_DEFAULT_QCSIZE;
 	sdp->time = time(NULL);
 	osi_list_init(&sdp->rglist);
 	osi_list_init(&sdp->buf_list);
