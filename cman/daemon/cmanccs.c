@@ -62,7 +62,7 @@ static int  portnums[MAX_NODENAMES];
 static char *mcast[MAX_NODENAMES];
 static int num_nodenames;
 static int two_node;
-static char *keyfile;
+       char *key_filename;
 static char *mcast_name;
 static unsigned char votes;
 static unsigned int expected_votes;
@@ -487,12 +487,12 @@ static int get_ccs_join_info(void)
 
 	/* optional security key filename */
 	if (getenv("CMAN_KEYFILE")) {
-		keyfile = strdup(getenv("CMAN_KEYFILE"));
+		key_filename = strdup(getenv("CMAN_KEYFILE"));
 	}
 	else {
 		error = ccs_get(cd, KEY_PATH, &str);
 		if (!error) {
-			keyfile = str;
+			key_filename = str;
 		}
 	}
 
