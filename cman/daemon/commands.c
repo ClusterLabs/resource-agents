@@ -52,9 +52,6 @@ static int use_count;
  * has this port bound. Port 0 is reserved for protocol messages */
 static struct connection *port_array[256];
 
-/* Name of file holding security key for AIS comms */
-       char *key_filename;
-
 // Stuff that was more global
 static LIST_INIT(cluster_members_list);
        int cluster_members;
@@ -1007,26 +1004,6 @@ static int do_cmd_poll_quorum_device(char *cmdbuf, int *retlen)
 	return 0;
 }
 
-static int do_cmd_set_keyfile(char *cmdbuf)
-{
-	struct stat st;
-
-	if (ais_running)
-		return -EALREADY;
-
-	if (stat(cmdbuf, &st))
-		return -errno;
-
-	if (!S_ISREG(st.st_mode))
-		return -EINVAL;
-
-	key_filename = strdup(cmdbuf);
-	if (!key_filename)
-		return -ENOMEM;
-
-	return 0;
-}
-
 /* fence_tool tells us it has fenced a node */
 static int do_cmd_update_fence_info(char *cmdbuf)
 {
@@ -1221,10 +1198,6 @@ int process_command(struct connection *con, int cmd, char *cmdbuf,
 
 	case CMAN_CMD_BARRIER:
 		err = do_cmd_barrier(con, cmdbuf, retlen);
-		break;
-
-	case CMAN_CMD_ADD_KEYFILE:
-		err = do_cmd_set_keyfile(cmdbuf);
 		break;
 
 	case CMAN_CMD_LEAVE_CLUSTER:
