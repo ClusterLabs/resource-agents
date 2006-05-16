@@ -1236,6 +1236,7 @@ int process_request(int afd){
   error = write(afd, ch, sizeof(comm_header_t)+ch->comm_payload_size);
   if(error < 0){
     log_sys_err("Unable to write package back to sender");
+    return error; 
     goto fail;
   } else if(error < (sizeof(comm_header_t)+ch->comm_payload_size)){
     log_err("Unable to write complete package.\n");
