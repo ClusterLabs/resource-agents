@@ -12,34 +12,31 @@
 ###############################################################################
 
 all:
+	cd libgfs2 && ${MAKE} all
 	cd convert && ${MAKE} all
-	cd debug && ${MAKE} all
 	cd edit && ${MAKE} all
 	cd fsck && ${MAKE} all
-	cd libgfs2 && ${MAKE} all
 	cd mkfs && ${MAKE} all
 	cd mount && ${MAKE} all
 	cd quota && ${MAKE} all
 	cd tool && ${MAKE} all
 
 copytobin:
+	cd libgfs2 && ${MAKE} copytobin
 	cd convert && ${MAKE} copytobin
-	cd debug && ${MAKE} copytobin
 	cd edit && ${MAKE} copytobin
 	cd fsck && ${MAKE} copytobin
-	cd libgfs2 && ${MAKE} copytobin
 	cd mkfs && ${MAKE} copytobin
 	cd mount && ${MAKE} copytobin
 	cd quota && ${MAKE} copytobin
 	cd tool && ${MAKE} copytobin
 
 clean:
+	cd libgfs2 && ${MAKE} clean
 	cd convert && ${MAKE} clean
 	cd bin && ${MAKE} clean
-	cd debug && ${MAKE} clean
 	cd fsck && ${MAKE} clean
 	cd edit && ${MAKE} clean
-	cd libgfs2 && ${MAKE} clean
 	cd mkfs && ${MAKE} clean
 	cd mount && ${MAKE} clean
 	cd quota && ${MAKE} clean
