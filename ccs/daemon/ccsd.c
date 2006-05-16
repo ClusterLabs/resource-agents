@@ -758,12 +758,8 @@ static void daemonize(void){
       exit(EXIT_LOCKFILE);
     }
 
-    /* hold off on shutting down parent.  Let cluster_communicator do it **
-    ** after if figures out if it can use magma or not.................. **
-    **    kill(getppid(), SIGTERM); */
-    /* shut down parent now when using no cluster -- there's no communicator */
-    if (no_manager_opt)
-      kill(getppid(), SIGTERM);
+    /* Make the parent stop waiting */
+    kill(getppid(), SIGTERM);
   }
 
   signal(SIGINT, &sig_handler);
