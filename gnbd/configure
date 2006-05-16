@@ -26,6 +26,8 @@ $ret = 0;
 	help => \$help,
         incdir => \$incdir,
         gnbdkincdir => \$gnbdkincdir,
+	cmanincdir => \$cmanincdir,
+	groupincdir => \$groupincdir,
 	kernel_src => \$kernel_src,
 	libdir => \$libdir,
 	mandir  => \$mandir,
@@ -38,6 +40,8 @@ $err = &GetOptions (\%options,
 		    'help',
 		    'incdir=s',
 		    'gnbdkincdir=s',
+		    'cmanincdir=s',
+		    'groupincdir=s',
 		    'kernel_src=s',
 		    'libdir=s',
 		    'mandir=s',
@@ -60,6 +64,8 @@ if ($help || !$err) {
   print "install flags:\n";
   print "--incdir=\tthe base directory for include files.  (Default: /usr/include)\n";
   print "--gnbdkincdir=\tthe base directory for gnbd kernel include files.  (Default: {incdir}/cluster)\n";
+  print "--cmanincdir=\tthe base directory for cman include files.  (Default: {incdir}/cluster)\n";
+  print "--groupincdir=\tthe base directory for group include files.  (Default: {incdir}/cluster)\n";
   print "--kernel_src=\tthe directory containing the kernel source you wish to\n\t\tcompile against. (Default: system dependant)\n";
   print "--libdir=\tthe base directory for libraries.  (Default: /usr/lib)\n";
   print "--mandir=\tthe base directory for man pages.  (Default: /usr/share/man)\n";
@@ -80,6 +86,12 @@ if (!$incdir) {
 }
 if (!$gnbdkincdir) {
   $gnbdkincdir="${incdir}/cluster";
+}
+if (!$cmanincdir) {
+  $cmanincdir="${incdir}/cluster";
+}
+if (!$groupincdir) {
+  $groupincdir="${incdir}/cluster";
 }
 if (!$libdir) {
   $libdir="${prefix}/usr/lib";
@@ -105,6 +117,8 @@ while (<IFILE>) {
   $_ =~ s/\@CC\@/${CC}/;
   $_ =~ s/\@INCDIR\@/$incdir/;
   $_ =~ s/\@GNBDKINCDIR\@/$gnbdkincdir/;
+  $_ =~ s/\@CMANINCDIR\@/$cmanincdir/;
+  $_ =~ s/\@GROUPINCDIR\@/$groupincdir/;
   $_ =~ s/\@KERNEL_SRC\@/$kernel_src/;
   $_ =~ s/\@LIBDIR\@/$libdir/;
   $_ =~ s/\@MANDIR\@/$mandir/;
@@ -163,7 +177,8 @@ sub verbose($msg) {
   }
 }
 
-sub postverbose($msg) { if($verbose) {
+sub postverbose($msg) {
+  if($verbose) {
     $msg = shift(@_);
     print "$msg\n";
   }

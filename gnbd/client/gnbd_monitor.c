@@ -28,6 +28,8 @@
 #include <netinet/in.h>
 #include <linux/gnbd.h>
 
+#include "group.h"
+#include "member_cman.h"
 #include "gnbd_endian.h"
 #include "list.h"
 #include "trans.h"
@@ -50,23 +52,35 @@ struct waiter_s {
 };
 typedef struct waiter_s waiter_t;
 
+#define MAX_NODES 256
+
 list_decl(waiter_list);
 connection_t *connections;
 struct pollfd *polls;
 int max_id;
 char node_name[65];
 unsigned int checks = 0;
+cman_handle_t ch;
+cman_node_t nodes[MAX_NODES];
+int num_nodes;
+cman_node_t old_nodes[MAX_NODES];
+int old_num_nodes;
+int cman_cb;
+int cman_reason;
 
 #define BUFSIZE (sizeof(monitor_info_t) + sizeof(uint32_t))
 #define RESTART_CHECK 10
 
-cluster_member_list_t *cluster_members;
 
 #define CLUSTER 0
 #define CONNECT 1
+#define GROUP 2
 
 list_t monitor_list;
 
+int can_shutdown(void *private){
+  return 0;
+}
 
 struct monitor_s {
   int minor_nr;
@@ -122,9 +136,12 @@ int monitor_device(int minor_nr, int timeout, char *server)
   return 0;
 }
 
+
 void setup_poll(void)
 {
   int i;
+
+  cman_cb = 0;
   polls = malloc(open_max() * sizeof(struct pollfd));
   if (!polls)
     fail_startup("cannot allocate poller structure : %s\n", strerror(errno));
@@ -132,25 +149,25 @@ void setup_poll(void)
   if (!connections)
     fail_startup("cannot allocate connection structures : %s\n",
                  strerror(errno));
-  polls[CLUSTER].fd = clu_connect(NULL, 0);
+  polls[CLUSTER].fd = setup_member(NULL);
   if (polls[CLUSTER].fd < 0)
-    fail_startup("cannot connect to cluster manager : %s\n",
-                 strerror(-(polls[CLUSTER].fd)));
-  cluster_members = clu_member_list(NULL);
-  if (!cluster_members)
-    fail_startup("cannot get initial member list\n");
-  if (memb_resolve_list(cluster_members, NULL) < 0)
-    fail_startup("cannot resolve member list\n");
+    fail_startup("cannot get cluster fd\n");
   polls[CLUSTER].events = POLLIN;
-  connections[CLUSTER].buf = malloc(BUFSIZE);
-  if (!connections[CLUSTER].buf)
-    fail_startup("couldn't allocation memory for cluster connection buffer\n");
+  connections[CLUSTER].buf = NULL;
   connections[CLUSTER].action = 0;
   connections[CLUSTER].size = 0;
   connections[CLUSTER].dev = -1;
   polls[CONNECT].fd = start_comm_device("gnbd_monitorcomm");
   polls[CONNECT].events = POLLIN;
-  for(i = 2; i < open_max(); i++){
+  polls[GROUP].fd = setup_groupd("gnbd_monitor");
+  if (polls[GROUP].fd < 0)
+    fail_startup("cannot get group fd\n");
+  polls[GROUP].events = POLLIN;
+  connections[GROUP].buf = NULL;
+  connections[GROUP].action = 0;
+  connections[GROUP].size = 0;
+  connections[GROUP].dev = -1;
+  for(i = 3; i < open_max(); i++){
     polls[i].fd = -1;
     polls[i].revents = 0;
   }
@@ -168,6 +185,10 @@ void close_poller(int index){
     log_err("lost request socket\n");
     /* FIXME -- again, don't do this */
     exit(1);
+  }
+  if (index == GROUP){
+    log_err("lost connection to groupd\n");
+     exit(1);
   }
   polls[index].fd = -1;
   polls[index].revents = 0;
@@ -250,13 +271,13 @@ int get_monitor_list(char **buffer, unsigned int *list_size)
   return 0;
 }
 
-cluster_member_t *check_for_node(cluster_member_list_t *list, char *node)
+cman_node_t *check_for_node(cman_node_t *list, int len, char *node)
 {
   int i;
 
-  for(i = 0; i < list->cml_count; i++){
-    if (!strcmp(list->cml_members[i].cm_name, node))
-      return &list->cml_members[i];
+  for(i = 0; i < len; i++){
+    if (!strcmp(list[i].cn_name, node))
+      return &list[i];
   }
   return NULL;
 }
@@ -354,41 +375,55 @@ void fail_device(monitor_t *dev)
   unblock_sigchld();
 }
 
-void fail_devices(cluster_member_list_t *nodes)
+static void statechange(void)
 {
+  int ret;
   monitor_t *dev;
   list_t *item, *next;
 
-  if (!nodes)
-    return;
+  old_num_nodes = num_nodes;
+  memcpy(&old_nodes, &nodes, sizeof(old_nodes));
+
+  num_nodes = 0;
+  memset(&nodes, 0, sizeof(nodes));
+  ret = cman_get_nodes(ch, MAX_NODES, &num_nodes, nodes);
+  if (ret < 0) {
+    log_err("can't get cluster node list : %s\n", strerror(errno));
+    exit(1);
+  }
   list_foreach_safe(item, &monitor_list, next){
     dev = list_entry(item, monitor_t, list);
-    if (check_for_node(nodes, dev->server)){
+    if (check_for_node(old_nodes, old_num_nodes, dev->server) &&
+        !check_for_node(nodes,  num_nodes, dev->server))
       fail_device(dev);
-      break;
-    }
   }
 }
 
 void handle_cluster_msg(void)
 {
-  int event;
-  cluster_member_list_t *new, *lost;
+  int ret;
 
-  event = clu_get_event(polls[CLUSTER].fd);
-  if (event == CE_SHUTDOWN){
-    log_err("lost connection to cluster manager\n");
-    /* FIXME -- need to retry.. Can't just give up */
-    exit(1);
+  while(1) {
+    ret = cman_dispatch(ch, CMAN_DISPATCH_ONE);
+    if (ret < 0)
+      break;
+
+    if (cman_cb) {
+      cman_cb = 0;
+      switch (cman_reason) {
+       case CMAN_REASON_STATECHANGE:
+        statechange();
+        break;
+       default:
+        break;
+      }
+    }
+    else
+      break;
   }
-  else if (event != CE_INQUORATE && event != CE_SUSPEND){
-    new = clu_member_list(NULL);
-    lost = memb_lost(cluster_members, new);
-    cml_free(cluster_members);
-    cluster_members = new;
-
-    fail_devices(lost);
-    cml_free(lost);
+  if (ret == -1 && errno == EHOSTDOWN){
+    log_err("lost connection to cluster manager\n");
+    exit(1);
   }
 }
 
@@ -473,16 +508,15 @@ void handle_msg(int index){
   close_poller(index);
 }
 
-cluster_member_t *get_failover_server(monitor_t *dev)
+cman_node_t *get_failover_server(monitor_t *dev)
 {
-  char host[256];
-  cluster_member_t *server;
+  cman_node_t *server;
   list_t *item;
   monitor_t *other_dev;
 
-  server = check_for_node(cluster_members, dev->server);
+  server = check_for_node(nodes, num_nodes, dev->server);
   if (server == NULL){
-    log_err("server %s is not a cluster member, cannot fence.\n", host);
+    log_err("server %s is not a cluster member, cannot fence.\n", dev->server);
     return NULL;
   }
   list_foreach(item, &monitor_list){
@@ -618,15 +652,26 @@ void check_devices(void)
         dev->state = NORMAL_STATE;
       }
       else {
-        cluster_member_t *server;
+        cman_node_t *server;
         server = get_failover_server(dev);
         if (server){
-          if (clu_fence(server) < 0)
-            log_err("fence of %s failed\n", dev->server);
+          cman_handle_t ach;
+          ach = cman_admin_init(NULL);
+          if (!ach) {
+            log_err("cman_admin_init failure : %s\n", strerror(errno));
+            goto cant_fence;
+          }
+          if (cman_kill_node(ch, server->cn_nodeid) < 0){
+            log_err("fence of %s failed : %s\n", dev->server, strerror(errno));
+            cman_finish(ch);
+            goto cant_fence;
+          }
+          cman_finish(ach);
           dev->state = FENCED_STATE;
+          break;
         }
-        else
-          whack_recvd(dev);
+       cant_fence:
+        whack_recvd(dev);
       }
       break;
     case RESET_STATE:
@@ -702,6 +747,8 @@ void do_poll(void)
         accept_connection();
       else if (i == CLUSTER)
         handle_cluster_msg();
+      else if (i == GROUP)
+        default_process_groupd();
       else
         handle_msg(i);
     }

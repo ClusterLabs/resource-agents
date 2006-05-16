@@ -16,15 +16,17 @@ TARGET= gnbd_serv gnbd_clusterd
 top_srcdir=..
 include ${top_srcdir}/make/defines.mk
 
-CLU_SOURCE= gnbd_clusterd.c $(top_srcdir)/utils/gnbd_utils.c
+CLU_SOURCE= gnbd_clusterd.c $(top_srcdir)/utils/gnbd_utils.c \
+	$(top_srcdir)/utils/member_cman.c $(top_srcdir)/utils/group.c
 
-LDLIBS+= -L${libdir} -ldl -lpthread
+LDLIBS+= -L${libdir} -L../../group/lib -lcman -lgroup -ldl -lpthread
 
 SRV_SOURCE= gnbd_serv.c local_req.c extern_req.c device.c gserv.c fence.c \
 	$(top_srcdir)/utils/trans.c $(top_srcdir)/utils/gnbd_utils.c
 
-INCLUDE= -I$(top_srcdir)/include -I$(top_srcdir)/utils \
-	-I${top_srcdir}/config -I${gnbdkincdir} -I${incdir}
+INCLUDE= -I$(top_srcdir)/include -I$(top_srcdir)/utils -I${groupincdir}\
+	-I${top_srcdir}/config -I${gnbdkincdir} -I${incdir} -I${cmanincdir} \
+	-I../../group/lib
 
 ifneq (${KERNEL_SRC}, )
 # Use the kernel tree if patched, otherwise, look where cluster headers

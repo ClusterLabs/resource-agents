@@ -22,7 +22,7 @@ INCLUDE= -I$(top_srcdir)/include -I$(top_srcdir)/server \
 	-I$(top_srcdir)/utils -I${top_srcdir}/config \
 	-I${gnbdkincdir} -I${incdir}
 
-LDLIBS+= -L${libdir} -ldl -lpthread -lsysfs
+LDLIBS+= -L${libdir} -lcman -ldl -lpthread -lsysfs
 
 include ${top_srcdir}/make/defines.mk
 

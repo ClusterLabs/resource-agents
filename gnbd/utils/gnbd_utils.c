@@ -24,6 +24,7 @@
 #include <errno.h>
 #include <inttypes.h>
 
+#include "libcman.h"
 #include "gnbd_endian.h"
 #include "gnbd_utils.h"
 
@@ -69,14 +70,25 @@ int get_my_nodename(char *buf, int is_clustered){
   struct utsname nodeinfo;
 
   if (is_clustered) {
-    int fd;
-    fd = clu_connect(NULL, 0);
-    if (fd < 0)
+    int r = -1;
+    cman_handle_t ch;
+    cman_node_t node;
+    ch = cman_init(NULL);
+    if (!ch){
+      log_err("cman_init failed : %s\n", strerror(errno));
       return -1;
-    if (clu_local_nodename(NULL, buf, 65))
-      return -1;
-    clu_disconnect(fd);
-    return 0;
+    }
+    memset(&node, 0, sizeof(node));
+    if (cman_get_node(ch, CMAN_NODEID_US, &node) < 0){
+      log_err("cman_get_node failed : %s\n", strerror(errno));
+      goto out;
+    }
+    strncpy(buf, node.cn_name, 64);
+    buf[64] = 0;
+    r = 0;
+   out:
+    cman_finish(ch);
+    return r;
   }
   if (uname(&nodeinfo) < 0)
     /*FIXME -- can I print something out here?? */
