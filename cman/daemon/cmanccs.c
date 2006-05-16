@@ -578,7 +578,7 @@ static int get_ccs_join_info(void)
 		sprintf(path, NODE_ALTNAMES_PORT, nodename, i);
 		error = ccs_get(cd, path, &str);
 		if (error || !str) {
-			portnums[i] = portnums[0]
+			portnums[i] = portnums[0];
 		}
 		else {
 			portnums[i] = atoi(str);
