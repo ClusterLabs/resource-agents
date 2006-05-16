@@ -357,7 +357,7 @@ static int get_ccs_join_info(void)
 	char nodename[MAX_CLUSTER_MEMBER_NAME_LEN+1];
 	char *str, *name, *cname = NULL;
 	int cd, error, i, vote_sum = 0, node_count = 0;
-	unsigned short port;
+	unsigned short port = 0;
 
 	/* Connect to ccsd */
 	if (getenv("CMAN_CLUSTER_NAME")) {
@@ -578,7 +578,7 @@ static int get_ccs_join_info(void)
 		sprintf(path, NODE_ALTNAMES_PORT, nodename, i);
 		error = ccs_get(cd, path, &str);
 		if (error || !str) {
-			portnums[i] = DEFAULT_PORT;
+			portnums[i] = portnums[0]
 		}
 		else {
 			portnums[i] = atoi(str);
