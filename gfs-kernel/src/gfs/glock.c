@@ -1709,12 +1709,6 @@ gfs_glock_dq(struct gfs_holder *gh)
                	}
                	if (tmp_gh == gh && count == 1)
                		handle_callback(gl, LM_ST_UNLOCKED);
-               	else {
-                       	printk("XXX: This glock has > 1 holders and gfs_glock_dq "
-                               "was called with GL_NOCACHE. handle_callback() not "
-                               "executed %s %d\n", __FUNCTION__, __LINE__);
-                       	dump_glock(gl, NULL, 0, 0);
-               	}
        	}
 
 	lock_on_glock(gl);
