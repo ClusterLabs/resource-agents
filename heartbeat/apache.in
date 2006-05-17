@@ -456,7 +456,7 @@ from the apache configuration file.
 Extra options to apply when starting apache. See man httpd(8).
 </longdesc>
 <shortdesc lang="en">command line options</shortdesc>
-<content type="string" ""/>
+<content type="string" />
 </parameter>
 
 </parameters>
