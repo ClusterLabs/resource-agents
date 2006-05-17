@@ -313,7 +313,7 @@ int cman_quorum_updated(void)
 }
 
 /* all groups referenced by a recovery set have been stopped on all nodes,
-   and stopped for the same rev (asme nodeid) */
+   and stopped for recovery */
 
 static int set_is_all_stopped(struct recovery_set *rs, event_t *rev)
 {
@@ -324,7 +324,7 @@ static int set_is_all_stopped(struct recovery_set *rs, event_t *rev)
 		ev = re->group->app->current_event;
 
 		if (ev &&
-		    ev->nodeid == rev->nodeid &&
+		    is_recovery_event(ev) &&
 		    ev->state == EST_FAIL_ALL_STOPPED)
 			continue;
 		else
@@ -334,7 +334,7 @@ static int set_is_all_stopped(struct recovery_set *rs, event_t *rev)
 }
 
 /* for every recovery set that this group is in, are all other groups in
-   each of those sets in the "all stopped" state for this rev? */
+   each of those sets in the "all stopped" state for recovery? */
 
 static int all_levels_all_stopped(group_t *g, event_t *rev)
 {
@@ -900,17 +900,19 @@ static int process_current_event(group_t *g)
 		app_stop(a);
 
 		/* set the failed nodes as stopped since we won't
-		   be getting a "stopped" message from them */
+		   be getting a "stopped" message from them.  the node
+		   may already have been removed in the case where one
+		   rev interrupts another */
 
 		node = find_app_node(a, ev->nodeid);
-		ASSERT(node);
-		node->stopped = 1;
+		if (node)
+			node->stopped = 1;
 
 		/* multiple nodes failed together making an extended event */
 		list_for_each_entry(id, &ev->extended, list) {
 			node = find_app_node(a, id->nodeid);
-			ASSERT(node);
-			node->stopped = 1;
+			if (node)
+				node->stopped = 1;
 		}
 
 		break;
@@ -955,25 +957,29 @@ static int process_current_event(group_t *g)
 			break;
 
 		node = find_app_node(a, ev->nodeid);
-		ASSERT(node);
-		list_del(&node->list);
-		a->node_count--;
-
-		log_group(g, "app node fail: del node %d total %d",
-			  node->nodeid, a->node_count);
-
-		free(node);
-
-		list_for_each_entry(id, &ev->extended, list) {
-			node = find_app_node(a, id->nodeid);
-			ASSERT(node);
-
-			log_group(g, "app node fail: del node %d total %d, ext",
+		if (node) {
+			log_group(g, "app node fail: del node %d total %d",
 			  	  node->nodeid, a->node_count);
-
 			list_del(&node->list);
 			free(node);
 			a->node_count--;
+		} else
+			log_group(g, "app node fail: %d prev removed",
+				  ev->nodeid);
+
+		list_for_each_entry(id, &ev->extended, list) {
+			node = find_app_node(a, id->nodeid);
+			if (node) {
+				log_group(g, "app node fail: del node %d "
+					  "total %d, ext", node->nodeid,
+					  a->node_count);
+
+				list_del(&node->list);
+				free(node);
+				a->node_count--;
+			} else
+				log_group(g, "app node fail: %d prev removed",
+					  id->nodeid);
 		}
 
 		app_start(a);
@@ -1236,86 +1242,132 @@ void dump_all_groups(void)
 		dump_group(g);
 }
 
+int is_recovery_event(event_t *ev)
+{
+	if (event_id_to_type(ev->id) == 3)
+		return 1;
+	return 0;
+}
+
+/* handle a node failure while processing an event */
+
+int recover_current_event(group_t *g)
+{
+	app_t *a = g->app;
+	event_t *ev, *rev;
+	node_t *node;
+	struct nodeid *id;
+
+	ev = a->current_event;
+	if (!ev)
+		return 0;
+
+	rev = find_queued_recover_event(g);
+	if (!rev)
+		return 0;
+
+	/* if the current ev is for recovery, we merge the new rev into it;
+	   if the current ev is still stopping (or all stopped), it just
+	   continues as usual; if the current ev is starting, the state is
+	   reset back to FAIL_BEGIN so it goes through a stopping cycle for
+	   the new node failure that's been added to it */
+
+	if (is_recovery_event(ev)) {
+		log_group(g, "merge new rev %d into current rev %d %s",
+			  rev->nodeid, ev->nodeid, ev_state_str(ev));
+
+		if (ev->state > EST_FAIL_ALL_STOPPED) {
+			ev->state = EST_FAIL_BEGIN;
+			list_for_each_entry(node, &a->nodes, list)
+				node->stopped = 0;
+
+		} else if (event_state_stopping(a)) {
+			mark_node_stopped(a, rev->nodeid);
+			list_for_each_entry(id, &rev->extended, list)
+				mark_node_stopped(a, id->nodeid);
+		}
+
+		id = malloc(sizeof(struct nodeid));
+		id->nodeid = rev->nodeid;
+		list_add(&id->list, &ev->extended);
+		log_group(g, "extend active rev %d with failed node %d",
+			  ev->nodeid, rev->nodeid);
+
+		list_for_each_entry(id, &rev->extended, list) {
+			list_del(&id->list);
+			list_add(&id->list, &ev->extended);
+			log_group(g, "extend active rev %d with failed node %d",
+				  ev->nodeid, id->nodeid);
+		}
+
+		list_del(&rev->list);
+		free_event(rev);
+		return;
+	}
+
+	/* Before starting the rev we need to apply the node addition/removal
+	 * of the current ev to the app.  This means processing the current ev
+	 * up through the starting stage.  So, we're sending the app the start
+	 * to inform it of the ev node change, knowing that the start won't
+	 * complete due to the node failure (pending rev), and knowing that
+	 * we'll shortly be sending it a stop and new start for the rev.
+	 *
+	 * If the current event is waiting for a "stopped" message from failed
+	 * node(s), fill in those stopped messages so we move along to the
+	 * starting state so the recovery event can then take over. */
+
+	if (event_state_starting(a) || event_state_all_started(a)) {
+
+		log_group(g, "rev for %d replaces current ev %d %s",
+			  rev->nodeid, ev->nodeid, ev_state_str(ev));
+
+		list_del(&rev->list);
+		a->current_event = rev;
+		free_event(ev);
+
+	} else if (event_state_stopping(a)) {
+
+		/* We'll come back through here multiple times until all the
+		   stopped messages are received; we need to continue to
+		   process this event that's stopping so it will get to the
+		   starting state at which point the rev can replace it. */
+
+		log_group(g, "rev for %d will abort current ev %d %s",
+			  rev->nodeid, ev->nodeid, ev_state_str(ev));
+
+		mark_node_stopped(a, rev->nodeid);
+		list_for_each_entry(id, &rev->extended, list)
+			mark_node_stopped(a, id->nodeid);
+
+		process_current_event(g);
+
+	} else {
+		log_group(g, "rev for %d delayed for ev %d %s",
+			  rev->nodeid, ev->nodeid, ev_state_str(ev));
+	}
+
+	/* FIXME: does the code above work ok if ev->nodeid == rev->noded
+	   (joining node failed) */
+
+	/* FIXME: if the current event is a leave and the leaving node has
+	   failed, then replace the current event with the rev */
+
+	return 0;
+}
+
 static int process_app(group_t *g)
 {
 	app_t *a = g->app;
-	event_t *rev, *ev = NULL;
-	struct nodeid *id;
+	event_t *ev = NULL;
 	int rv = 0;
 
 	if (a->current_event) {
+		/* this assumes that we never remove/free the group in
+		   process_current_event */
+
 		rv += process_app_messages(g);
 		rv += process_current_event(g);
-
-		/* the following assumes that we don't ever remove/free the
-		   group in process_current_event) */
-
-		/* if the current event has started the app and there's
-		   a recovery event, the current event is abandoned and
-		   replaced with the recovery event */
-
-		rev = find_queued_recover_event(g);
-		if (rev) {
-			ev = a->current_event;
-
-			/* Before starting the rev we need to apply the
-			   node addition/removal of the current ev to the
-			   app.  This means processing the current ev up
-			   through the starting stage.  So, we're sending the
-			   app the start to inform it of the ev node change,
-			   knowing that the start won't complete due to the
-			   node failure (pending rev), and knowing that we'll
-			   shortly be sending it a stop and new start for
-			   the rev.
-
-			   If the current event is waiting for a "stopped"
-			   message from failed node(s), fill in those stopped
-			   messages so we move along to the starting state so
-			   the recovery event can then take over. */
-
-			if (event_state_starting(a) ||
-			    event_state_all_started(a)) {
-
-				log_group(g, "rev for %d replaces event %s "
-					  "for %d", rev->nodeid,
-					  ev_state_str(ev), ev->nodeid);
-
-				list_del(&rev->list);
-				a->current_event = rev;
-				free_event(ev);
-				rv = 1;
-			} else if (event_state_stopping(a)) {
-
-				/* We'll come back through here multiple times
-				   until all the stopped messages are recved;
-				   we need to continue to process this event
-				   that's stopping so it will get to the
-				   starting state at which point the rev
-				   can supplant it. */
-
-				log_group(g, "rev for %d will abort "
-				          "current event %s for %d",
-				          rev->nodeid,
-					  ev_state_str(ev), ev->nodeid);
-
-				mark_node_stopped(a, rev->nodeid);
-				list_for_each_entry(id, &rev->extended, list)
-					mark_node_stopped(a, id->nodeid);
-
-				process_current_event(g);
-			} else {
-				log_group(g, "rev for %d delayed for event %s "
-					  "for %d", rev->nodeid,
-					  ev_state_str(ev), ev->nodeid);
-			}
-
-			/* FIXME: does the code above work ok if
-			   ev->nodeid == rev->noded (joining node failed) */
-
-			/* FIXME: if the current event is a leave and the
-			   leaving node has failed, then replace the current
-			   event with the rev */
-		}
+		rv += recover_current_event(g);
 	} else {
 		/* We only take on a new non-recovery event if there are
 		   no recovery sets outstanding.  The new event may be
