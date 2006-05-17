@@ -15,9 +15,6 @@
 #define OPTION_STRING			"DhV"
 #define LOCKFILE_NAME			"/var/run/dlm_controld.pid"
 
-static char *prog_name;
-static int debug;
-
 static int uevent_fd;
 static int groupd_fd;
 static int member_fd;
@@ -279,6 +276,7 @@ void daemonize(void)
 	close(0);
 	close(1);
 	close(2);
+	openlog("dlm_controld", LOG_PID, LOG_DAEMON);
 
 	lockfile();
 }
@@ -307,7 +305,7 @@ static void decode_arguments(int argc, char **argv)
 		switch (optchar) {
 
 		case 'D':
-			debug = 1;
+			daemon_debug_opt = 1;
 			break;
 
 		case 'h':
@@ -347,9 +345,13 @@ int main(int argc, char **argv)
 
 	decode_arguments(argc, argv);
 
-	if (!debug)
+	if (!daemon_debug_opt)
 		daemonize();
 
 	return loop();
 }
+
+char *prog_name;
+int daemon_debug_opt;
+char daemon_debug_buf[256];
 

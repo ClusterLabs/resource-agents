@@ -36,6 +36,8 @@
 #include <netdb.h>
 #include <limits.h>
 #include <unistd.h>
+#include <time.h>
+#include <syslog.h>
 #include <linux/netlink.h>
 
 /* FIXME: linux-2.6.11/include/linux/netlink.h (use header) */
@@ -50,8 +52,22 @@
 #define MAXNAME		255
 #define MAX_NODES	256 /* should be same as MAX_GROUP_MEMBERS */
 
-#define log_error(fmt, args...) fprintf(stderr, fmt "\n", ##args)
-#define log_debug(fmt, args...) fprintf(stderr, fmt "\n", ##args)
+extern char *prog_name;
+extern int daemon_debug_opt;
+extern char daemon_debug_buf[256];
+
+#define log_debug(fmt, args...) \
+do { \
+	snprintf(daemon_debug_buf, 255, "%ld " fmt "\n", time(NULL), ##args); \
+	if (daemon_debug_opt) fprintf(stderr, "%s", daemon_debug_buf); \
+} while (0)
+
+#define log_error(fmt, args...) \
+do { \
+	log_debug(fmt, ##args); \
+	syslog(LOG_ERR, fmt, ##args); \
+} while (0)
+
 
 struct lockspace {
 	struct list_head	list;
