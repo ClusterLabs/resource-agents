@@ -958,11 +958,11 @@ static int process_current_event(group_t *g)
 
 		node = find_app_node(a, ev->nodeid);
 		if (node) {
+			a->node_count--;
 			log_group(g, "app node fail: del node %d total %d",
 			  	  node->nodeid, a->node_count);
 			list_del(&node->list);
 			free(node);
-			a->node_count--;
 		} else
 			log_group(g, "app node fail: %d prev removed",
 				  ev->nodeid);
@@ -970,13 +970,12 @@ static int process_current_event(group_t *g)
 		list_for_each_entry(id, &ev->extended, list) {
 			node = find_app_node(a, id->nodeid);
 			if (node) {
+				a->node_count--;
 				log_group(g, "app node fail: del node %d "
 					  "total %d, ext", node->nodeid,
 					  a->node_count);
-
 				list_del(&node->list);
 				free(node);
-				a->node_count--;
 			} else
 				log_group(g, "app node fail: %d prev removed",
 					  id->nodeid);
