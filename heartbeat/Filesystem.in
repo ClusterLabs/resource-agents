@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.18 2006/05/18 15:27:11 lars Exp $
+# $Id: Filesystem.in,v 1.19 2006/05/18 15:28:35 lars Exp $
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
@@ -95,7 +95,7 @@ check_util () {
 usage() {
 	cat <<-EOT
 	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
-	$Id: Filesystem.in,v 1.18 2006/05/18 15:27:11 lars Exp $
+	$Id: Filesystem.in,v 1.19 2006/05/18 15:28:35 lars Exp $
 	EOT
 }
 
@@ -337,6 +337,43 @@ Filesystem_notify() {
 	local n_type="$OCF_RESKEY_notify_type"
 	local n_op="$OCF_RESKEY_notify_operation"
 	local n_active="$OCF_RESKEY_notify_active_uname"
+
+	case "$OCF_RESKEY_notify_type" in
+	*pre*)
+		case "$OCF_RESKEY_notify_operation" in
+		*start*)
+			# remove unames from notify_stop_uname
+			for UNAME in "$OCF_RESKEY_notify_stop_uname"
+			do
+				n_active=${n_active//$UNAME}
+			done
+		;;
+		*stop*)
+		# leave notify_active_uname as is
+		;;
+		esac
+	;;
+	*post*)
+		case "$OCF_RESKEY_notify_operation" in
+		*start*)
+			# remove unames from notify_stop_uname
+			for UNAME in "$OCF_RESKEY_notify_stop_uname"
+			do
+				n_active=${n_active//$UNAME}
+			done
+			# add unames from notify_start_uname
+			n_active="${n_active} $OCF_RESKEY_notify_start_uname"
+		;;
+		*stop*)
+			# remove unames from notify_stop_uname
+			for UNAME in "$OCF_RESKEY_notify_stop_uname"
+			do
+				n_active=${n_active//$UNAME}
+			done
+		;;
+		esac
+	;;
+	esac
 
 	ocf_log debug "$OCFS2_UUID - notify: $n_type for $n_op - active on $n_active"
 
@@ -599,7 +636,7 @@ ocfs2_init()
 	if [ -n "$OCF_RESKEY_ocfs2_cluster" ]; then
 		OCFS2_CLUSTER=$(echo $OCF_RESKEY_ocfs2_cluster | tr a-z A-Z)
 	else
-		OCFS2_CLUSTER=$(find /tmp -maxdepth 1 -mindepth 1 -type d 2>&1)
+		OCFS2_CLUSTER=$(find "$OCFS2_CONFIGFS" -maxdepth 1 -mindepth 1 -type d -printf %f 2>&1)
 		set -- $OCFS2_CLUSTER
 		local n="$#"
 		if [ $n -gt 1 ]; then
