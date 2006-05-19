@@ -36,6 +36,6 @@ extern void override_expected(int expected);
 extern int cman_set_nodename(char *name);
 extern int cman_set_nodeid(int nodeid);
 extern int cman_join_cluster(char *name, unsigned short cluster_id, int two_node,
-			     int votes, int expected_votes);
+			     int expected_votes);
 
 extern int cluster_members;

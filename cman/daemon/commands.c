@@ -199,7 +199,8 @@ static struct cluster_node *add_new_node(char *name, int nodeid, int votes, int 
 
 	if (!newnode->node_id) /* Don't clobber existing nodeid */
 		newnode->node_id = nodeid;
-	newnode->votes = votes;
+	if (votes >= 0)
+		newnode->votes = votes;
 	if (expected_votes)
 		newnode->expected_votes = expected_votes;
 
@@ -345,8 +346,7 @@ int cman_set_nodeid(int nodeid)
 	return 0;
 }
 
-int cman_join_cluster(char *name, unsigned short cl_id, int two_node_flag,
-		      int votes, int expected_votes)
+int cman_join_cluster(char *name, unsigned short cl_id, int two_node_flag, int expected_votes)
 {
 	if (ais_running)
 		return -EALREADY;
@@ -373,11 +373,10 @@ int cman_join_cluster(char *name, unsigned short cl_id, int two_node_flag,
 		strcpy(nodename, un.nodename);
 	}
 
-	us = add_new_node(nodename, wanted_nodeid, votes, expected_votes,
+	us = add_new_node(nodename, wanted_nodeid, -1, expected_votes,
 			  NODESTATE_MEMBER);
 	set_port_bit(us, 0);
 	us->us = 1;
-	cluster_members = 1;
 
 	return 0;
 }

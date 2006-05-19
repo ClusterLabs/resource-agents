@@ -213,7 +213,7 @@ static int join(void)
 	 * Setup join information
 	 */
 	error = cman_join_cluster(cluster_name, cluster_id,
-				  two_node, votes, expected_votes);
+				  two_node, expected_votes);
 	if (error)
 		return error;
 
