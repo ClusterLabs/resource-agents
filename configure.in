@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.515 $) dnl cvs revision
+AC_REVISION($Revision: 1.516 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -24,7 +24,7 @@ AC_ARG_WITH(pkgversion,
     [ PKGVERSION="" ],
 )
 
-if [ -n "$PKGVERSION" ]; then
+if test x"$PKGVERSION" != x; then
 	AM_INIT_AUTOMAKE(heartbeat, $PKGVERSION)
 else
 	AM_INIT_AUTOMAKE(heartbeat, 2.0.6)
