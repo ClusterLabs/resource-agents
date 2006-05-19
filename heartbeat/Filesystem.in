@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.20 2006/05/19 12:50:06 lars Exp $
+# $Id: Filesystem.in,v 1.21 2006/05/19 13:58:16 lars Exp $
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
@@ -95,7 +95,7 @@ check_util () {
 usage() {
 	cat <<-EOT
 	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
-	$Id: Filesystem.in,v 1.20 2006/05/19 12:50:06 lars Exp $
+	$Id: Filesystem.in,v 1.21 2006/05/19 13:58:16 lars Exp $
 	EOT
 }
 
@@ -636,7 +636,7 @@ ocfs2_init()
 	if [ -n "$OCF_RESKEY_ocfs2_cluster" ]; then
 		OCFS2_CLUSTER=$(echo $OCF_RESKEY_ocfs2_cluster | tr a-z A-Z)
 	else
-		OCFS2_CLUSTER=$(find "$OCFS2_CONFIGFS" -maxdepth 1 -mindepth 1 -type d -printf %f 2>&1)
+		OCFS2_CLUSTER=$(find "$OCFS2_CONFIGFS" -maxdepth 1 -mindepth 1 -type d -printf %f 2>/dev/null)
 		set -- $OCFS2_CLUSTER
 		local n="$#"
 		if [ $n -gt 1 ]; then
