@@ -15,17 +15,20 @@ all:
 	cd lib && ${MAKE} all
 	cd cman_tool && ${MAKE} all
 	cd daemon && ${MAKE} all
+	cd qdisk && ${MAKE} all
 
 copytobin:
 	cd lib && ${MAKE} copytobin
 	cd cman_tool && ${MAKE} copytobin
 	cd daemon && ${MAKE} copytobin
+	cd qdisk && ${MAKE} copytobin
 
 clean:
 	cd bin && ${MAKE} clean
 	cd lib && ${MAKE} clean
 	cd cman_tool && ${MAKE} clean
 	cd daemon && ${MAKE} clean
+	cd qdisk && ${MAKE} clean
 
 distclean: clean
 	rm -f make/defines.mk
@@ -35,10 +38,12 @@ install:
 	cd cman_tool && ${MAKE} install
 	cd man && ${MAKE} install
 	cd daemon && ${MAKE} install
+	cd qdisk && ${MAKE} install
 	cd init.d && ${MAKE} install
 
 uninstall:
 	cd cman_tool && ${MAKE} uninstall
 	cd man && ${MAKE} uninstall
 	cd lib && ${MAKE} uninstall
+	cd qdisk && ${MAKE} uninstall
 	cd init.d && ${MAKE} uninstall

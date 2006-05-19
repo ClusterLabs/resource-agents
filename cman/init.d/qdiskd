@@ -1,0 +1,63 @@
+#!/bin/bash
+#
+# chkconfig: 345 22 78
+# description: Starts and stops the quroum disk daemon
+#
+#	       
+### BEGIN INIT INFO
+# Provides: 
+### END INIT INFO
+
+. /etc/init.d/functions
+[ -f /etc/sysconfig/cluster ] && . /etc/sysconfig/cluster
+
+LOCK_FILE="/var/lock/subsys/qdiskd"
+
+rtrn=1
+retries=0
+
+# See how we were called.
+case "$1" in
+  start)
+	action "Starting the Quorum Disk Daemon:" qdiskd
+	rtrn=$?
+	[ $rtrn = 0 ] && touch $LOCK_FILE
+	;;
+
+  stop)
+	echo -n "Stopping the Quorum Disk Daemon:"
+	killproc qdiskd
+	while [ -n "`pidof qdiskd`" ] && [ $retries -lt 5 ]; do
+		sleep 1
+		killproc qdiskd
+		((retries++))
+	done
+	if [ -z "`pidof qdiskd`" ]; then
+		echo_success
+		echo
+		rtrn=0
+		rm -f $LOCK_FILE
+	else
+		echo_failure
+		echo
+		rtrn=1
+	fi
+	;;
+
+  restart)
+	$0 stop || exit $?
+	$0 start 
+	rtrn=$?
+	;;
+
+  status)
+	status qdiskd
+	rtrn=$?
+	;;
+
+  *)
+	echo $"Usage: $0 {start|stop|restart|status}"
+	;;
+esac
+
+exit $rtrn
