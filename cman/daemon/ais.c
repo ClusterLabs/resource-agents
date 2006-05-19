@@ -204,6 +204,9 @@ static int cman_readconfig (struct objdb_iface_ver0 *objdb, char **error_string)
 
 	init_debug(debug_mask);
 
+	/* We need to set this up to internal defaults too early */
+	openlog("openais", LOG_CONS|LOG_PID, LOG_LOCAL4);
+
 	global_objdb = objdb;
 
 	/* Read low-level totem/aisexec etc config from CCS */
@@ -460,6 +463,13 @@ static int comms_init_ais(struct objdb_iface_ver0 *objdb)
 			       &object_handle) == 0)
 	{
 		unsigned int logger_object_handle;
+		char *logstr;
+
+		/* Default logging facility is "local4" unless overridden by the user */
+		if (!objdb_get_string(objdb, object_handle, "syslog_facility", &logstr)) {
+			objdb->object_key_create(object_handle, "syslog_facility", strlen("syslog_facility"),
+						 "local4", strlen("local4")+1);
+		}
 
 		objdb->object_create(object_handle, &logger_object_handle,
 				      "logger", strlen ("logger"));
