@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.19 2006/05/18 15:28:35 lars Exp $
+# $Id: Filesystem.in,v 1.20 2006/05/19 12:50:06 lars Exp $
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
@@ -95,7 +95,7 @@ check_util () {
 usage() {
 	cat <<-EOT
 	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
-	$Id: Filesystem.in,v 1.19 2006/05/18 15:28:35 lars Exp $
+	$Id: Filesystem.in,v 1.20 2006/05/19 12:50:06 lars Exp $
 	EOT
 }
 
@@ -422,7 +422,7 @@ Filesystem_notify() {
 	done
 	else
 		ocf_log info "$OCFS2_UUID: Doesn't exist yet, creating."
-		mkdir -p $OCFS2_UUID
+		mkdir -p $OCFS2_FS_ROOT
 	fi
 
 	ocf_log debug "$OCFS2_UUID: Nodes which already exist: $n_exists"
@@ -439,7 +439,7 @@ Filesystem_notify() {
 				ocf_log warn "$OCFS2_UUID: Adding nodes on stop"
 			fi
 			ocf_log info "$OCFS2_UUID: Activating node: $entry"
-			if ! ln -s $OCFS2_CLUSTER_ROOT/node/$entry $OCFS2_UUID/$entry ; then
+			if ! ln -s $OCFS2_CLUSTER_ROOT/node/$entry  $OCFS2_FS_ROOT/$entry ; then
 				ocf_log err "$OCFS2_CLUSTER_ROOT/node/$entry: failed to link"
 				# exit $OCF_ERR_GENERIC
 			fi
@@ -567,7 +567,7 @@ Filesystem_status()
         case "$OP" in
 	  status)	ocf_log info "$msg";;
 	esac
-        return_master $rc
+        return $rc
 }
 # end of Filesystem_status
 
