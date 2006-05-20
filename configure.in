@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.516 $) dnl cvs revision
+AC_REVISION($Revision: 1.517 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -200,35 +200,36 @@ localstatedir_orig="$localstatedir"
 exec_prefix=`var "$exec_prefix" "$prefix"`
 bindir=`var "$bindir" "$exec_prefix/bin"`
 sbindir=`var "$sbindir" "$exec_prefix/sbin"`
-libexecdir=`var "$libexecdir" "$exec_prefix/libexec"`
 datadir=`var "$datadir" "$prefix/share"`
 sysconfdir=`var "$sysconfdir" "$prefix/etc"`
 sharedstatedir=`var "$sharedstatedir" "$prefix/com"`
 localstatedir=`var "$localstatedir" "$prefix/var"`
-libdir=`var "$libdir" "$exec_prefix/lib"`
 includedir=`var "$includedir" "$exec_prefix/include"`
 oldincludedir=`var "$oldincludedir" "$exec_prefix/include"`
 infodir=`var "$infodir" "$prefix/info"`
 mandir=`var "$mandir" "$exec_prefix/man"`
 docdir=${datadir}/doc/${HB_PKG}-${VERSION}
 
-if
-  needs_64_bit_libs
-then
-  case $libdir in
-    *64*)	;;
-    *)		old=$libdir
+if test x"$libdir" = x; then
+	libdir="$exec_prefix/lib"
+	if needs_64_bit_libs; then
+		old=$libdir
 		libdir=$exec_prefix/lib64
-	        AC_MSG_WARN(overriding libdir from $old to $libdir)
-		;;
-  esac
-  case $libexecdir in
-    *64*)	;;
-    *)		old=$libexecdir
-    		libexecdir=$exec_prefix/lib64
-	        AC_MSG_WARN(overriding libexecdir from $old to $libexecdir)
-		;;
-  esac
+		AC_MSG_WARN(overriding libdir from $old to $libdir)
+	fi
+else
+	libdir=`eval echo "$libdir"`
+fi
+
+if test x"$libexecdir" = x; then
+	libexecdir="$exec_prefix/libexec"
+	if needs_64_bit_libs; then
+		old=$libdir
+		libexecdir=$exec_prefix/lib64
+		AC_MSG_WARN(overriding libexecdir from $old to $libexecdir)
+	fi
+else
+	libexecdir=`eval echo "$libexecdir"`
 fi
 
 dnl	The GNU conventions for installation directories don't always
