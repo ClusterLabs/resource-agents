@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.517 $) dnl cvs revision
+AC_REVISION($Revision: 1.518 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -224,7 +224,7 @@ fi
 if test x"$libexecdir" = x; then
 	libexecdir="$exec_prefix/libexec"
 	if needs_64_bit_libs; then
-		old=$libdir
+		old=$libexecdir
 		libexecdir=$exec_prefix/lib64
 		AC_MSG_WARN(overriding libexecdir from $old to $libexecdir)
 	fi
