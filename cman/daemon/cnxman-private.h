@@ -156,8 +156,6 @@ struct cluster_node {
 	int us;			/* This node is us */
 	unsigned int node_id;	/* Unique node ID */
 	int flags;
-	int num_interfaces;     /* Number of ipaddrs below */
-	struct totem_ip_address ipaddr[INTERFACE_MAX];
 	nodestate_t state;
 	struct timeval join_time;
 

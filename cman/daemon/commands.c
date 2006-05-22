@@ -32,6 +32,7 @@
 
 #include "list.h"
 #include "totemip.h"
+#include "totempg.h"
 #include "cnxman-socket.h"
 #include "cnxman-private.h"
 #include "daemon.h"
@@ -306,6 +307,8 @@ static void copy_to_usernode(struct cluster_node *node,
 {
 	struct sockaddr_storage ss;
 	int addrlen=0;
+	unsigned int numaddrs;
+	struct totem_ip_address node_ifs[num_interfaces];
 
 	strcpy(unode->name, node->name);
 	unode->jointime = node->join_time;
@@ -319,7 +322,10 @@ static void copy_to_usernode(struct cluster_node *node,
 
 	/* Just send the first address. If the user wants the full set they
 	   must ask for them */
-	totemip_totemip_to_sockaddr_convert(&node->ipaddr[0], 0, &ss, &addrlen);
+	totempg_ifaces_get(node->node_id, node_ifs, &numaddrs);
+
+
+	totemip_totemip_to_sockaddr_convert(&node_ifs[0], 0, &ss, &addrlen);
 	memcpy(unode->addr, &ss, addrlen);
 	unode->addrlen = addrlen;
 }
@@ -1065,6 +1071,7 @@ static int do_cmd_get_node_addrs(char *cmdbuf, char **retbuf, int retsize, int *
 	int i;
 	char *outbuf = *retbuf + offset;
 	struct cl_get_node_addrs *addrs = (struct cl_get_node_addrs *)outbuf;
+	struct totem_ip_address node_ifs[num_interfaces];
 	struct cluster_node *node;
 
 	if (retsize < sizeof(struct cl_node_addrs))
@@ -1077,27 +1084,20 @@ static int do_cmd_get_node_addrs(char *cmdbuf, char **retbuf, int retsize, int *
 
 	memset(outbuf, 0, retsize - offset);
 
-	if (node->us) {
-		addrs->numaddrs = num_interfaces;
-		for (i=0; i<num_interfaces; i++) {
-			totemip_totemip_to_sockaddr_convert(&ifaddrs[i], 0,
-							    &addrs->addrs[i].addr,
-							    &addrs->addrs[i].addrlen);
-		}
-		*retlen = sizeof(struct cl_get_node_addrs) +
-			num_interfaces * sizeof(struct cl_node_addrs);
+	/* AIS doesn't know about nodes that are not members */
+	if (node->state != NODESTATE_MEMBER)
+		return 0;
+
+	if (totempg_ifaces_get(nodeid, node_ifs, (unsigned int *)&addrs->numaddrs))
+		return -errno;
+
+	for (i=0; i<addrs->numaddrs; i++) {
+		totemip_totemip_to_sockaddr_convert(&node_ifs[i], 0,
+						    &addrs->addrs[i].addr,
+						    &addrs->addrs[i].addrlen);
 	}
-	else {
-		// TODO get addrs from totem when API is ready
-		addrs->numaddrs = node->num_interfaces;
-		for (i=0; i<node->num_interfaces; i++) {
-			totemip_totemip_to_sockaddr_convert(&node->ipaddr[i], 0,
-							    &addrs->addrs[i].addr,
-							    &addrs->addrs[i].addrlen);
-		}
-		*retlen = sizeof(struct cl_get_node_addrs) +
-			addrs->numaddrs * sizeof(struct cl_node_addrs);
-	}
+	*retlen = sizeof(struct cl_get_node_addrs) +
+		num_interfaces * sizeof(struct cl_node_addrs);
 
 	return 0;
 }
@@ -1246,7 +1246,6 @@ int process_command(struct connection *con, int cmd, char *cmdbuf,
 
 int send_to_userport(unsigned char fromport, unsigned char toport,
 		     int nodeid, int tgtid,
-		     struct totem_ip_address *aisnode,
 		     char *recv_buf, int len, int endian_conv)
 {
 	int ret = -1;
@@ -1573,8 +1572,9 @@ static void do_process_transition(int nodeid, char *data, int len)
 		node->fence_time = msg->fence_time;
 	}
 
-	/* If this is a rejoined node then it won't know about its own fence data, send it
-	 *  some
+	/*
+	 * If this is a rejoined node then it won't know about its own fence data, send it
+	 * some
 	 */
 	if (node->fence_time && !msg->fence_time &&
 	    node->fence_agent && !msg->fence_agent[0])
@@ -1725,21 +1725,15 @@ void add_ccs_node(char *nodename, int nodeid, int votes, int expected_votes)
 
 	/* Update node entry */
 	node = add_new_node(nodename, nodeid, votes, expected_votes, NODESTATE_DEAD);
-	if (!node->num_interfaces)
-	{
-		totemip_copy(&node->ipaddr[0], &ipaddr);
-		node->num_interfaces = 1;
-	}
 }
 
-void add_ais_node(struct totem_ip_address *aisnode, uint64_t incarnation, int total_members)
+void add_ais_node(int nodeid, uint64_t incarnation, int total_members)
 {
 	struct cluster_node *node;
 
-	P_MEMB("add_ais_node ID=%d, incarnation = %d\n", aisnode->nodeid, incarnation);
+	P_MEMB("add_ais_node ID=%d, incarnation = %d\n",nodeid, incarnation);
 
-	node = find_node_by_nodeid(aisnode->nodeid);
-
+	node = find_node_by_nodeid(nodeid);
 	if (!node && total_members == 1) {
 		node = us;
 		P_MEMB("Adding AIS node for 'us'\n");
@@ -1751,10 +1745,10 @@ void add_ais_node(struct totem_ip_address *aisnode, uint64_t incarnation, int to
 		node = malloc(sizeof(struct cluster_node));
 		if (!node) {
 			log_msg(LOG_ERR, "error allocating node struct for id %d, but CCS doesn't know about it anyway\n",
-				aisnode->nodeid);
+				nodeid);
 			return;
 		}
-		log_msg(LOG_ERR, "Got node from AIS id %d with no CCS entry\n", aisnode->nodeid);
+		log_msg(LOG_ERR, "Got node from AIS id %d with no CCS entry\n", nodeid);
 
 		memset(node, 0, sizeof(struct cluster_node));
 		node_add_ordered(node);
@@ -1762,7 +1756,7 @@ void add_ais_node(struct totem_ip_address *aisnode, uint64_t incarnation, int to
 		node->votes = 1;
 
 		/* Emergency nodename */
-		sprintf(tempname, "Node%d\n", aisnode->nodeid);
+		sprintf(tempname, "Node%d\n", nodeid);
 		node->name = strdup(tempname);
 	}
 
@@ -1777,12 +1771,12 @@ void add_ais_node(struct totem_ip_address *aisnode, uint64_t incarnation, int to
 	}
 }
 
-void del_ais_node(struct totem_ip_address *aisnode)
+void del_ais_node(int nodeid)
 {
 	struct cluster_node *node;
-	P_MEMB("del_ais_node %d\n", aisnode->nodeid);
+	P_MEMB("del_ais_node %d\n", nodeid);
 
-	node = find_node_by_nodeid(aisnode->nodeid);
+	node = find_node_by_nodeid(nodeid);
 	assert(node);
 
 	node->flags &= ~NODE_FLAGS_FENCED;

@@ -75,21 +75,21 @@ struct cl_protheader {
 };
 
 static int comms_init_ais(struct objdb_iface_ver0 *objdb);
-static void cman_deliver_fn(struct totem_ip_address *source_addr, struct iovec *iovec, int iov_len,
+static void cman_deliver_fn(unsigned int nodeid, struct iovec *iovec, int iov_len,
 			    int endian_conversion_required);
 static void cman_confchg_fn(enum totem_configuration_type configuration_type,
-			    struct totem_ip_address *member_list, int member_list_entries,
-			    struct totem_ip_address *left_list, int left_list_entries,
-			    struct totem_ip_address *joined_list, int joined_list_entries,
+			    unsigned int *member_list, int member_list_entries,
+			    unsigned int *left_list, int left_list_entries,
+			    unsigned int *joined_list, int joined_list_entries,
 			    struct memb_ring_id *ring_id);
-static int cman_readconfig (struct objdb_iface_ver0 *objdb, char **error_string);
+static int cman_readconfig(struct objdb_iface_ver0 *objdb, char **error_string);
 
 /* Plugin-specific code */
 /* Need some better way of determining these.... */
-#define CMAN_SERVICE 8
+#define CMAN_SERVICE 9
 
-static int cman_exit_fn (void *conn_info);
-static int cman_exec_init_fn (struct objdb_iface_ver0 *objdb);
+static int cman_exit_fn(void *conn_info);
+static int cman_exec_init_fn(struct objdb_iface_ver0 *objdb);
 
 /* These just makes the code below a little neater */
 static inline int objdb_get_string(struct objdb_iface_ver0 *objdb, unsigned int object_service_handle,
@@ -98,11 +98,11 @@ static inline int objdb_get_string(struct objdb_iface_ver0 *objdb, unsigned int 
 	int res;
 
 	*value = NULL;
-	if ( !(res = objdb->object_key_get (object_service_handle,
-					    key,
-					    strlen (key),
-					    (void *)value,
-					    NULL))) {
+	if ( !(res = objdb->object_key_get(object_service_handle,
+					   key,
+					   strlen(key),
+					   (void *)value,
+					   NULL))) {
 		if (*value)
 			return 0;
 	}
@@ -114,11 +114,8 @@ static inline void objdb_get_int(struct objdb_iface_ver0 *objdb, unsigned int ob
 {
 	char *value = NULL;
 
-	if (!objdb->object_key_get (object_service_handle,
-				    key,
-				    strlen (key),
-				    (void *)&value,
-				    NULL)) {
+	if (!objdb->object_key_get(object_service_handle, key, strlen(key),
+				   (void *)&value, NULL)) {
 		if (value) {
 			*intvalue = atoi(value);
 		}
@@ -137,7 +134,7 @@ static struct openais_service_handler cman_service_handler = {
 	.config_init_fn                 = NULL,
 };
 
-static struct openais_service_handler *cman_get_handler_ver0 (void)
+static struct openais_service_handler *cman_get_handler_ver0(void)
 {
 	return (&cman_service_handler);
 }
@@ -184,15 +181,15 @@ static struct lcr_comp cman_comp_ver0 = {
 
 
 
-__attribute__ ((constructor)) static void cman_comp_register (void) {
-	lcr_interfaces_set (&ifaces_ver0[0], &cmanconfig_iface_ver0);
-	lcr_interfaces_set (&ifaces_ver0[1], &cman_service_handler_iface);
-	lcr_component_register (&cman_comp_ver0);
+__attribute__ ((constructor)) static void cman_comp_register(void) {
+	lcr_interfaces_set(&ifaces_ver0[0], &cmanconfig_iface_ver0);
+	lcr_interfaces_set(&ifaces_ver0[1], &cman_service_handler_iface);
+	lcr_component_register(&cman_comp_ver0);
 }
 
 /* ------------------------------- */
 
-static int cman_readconfig (struct objdb_iface_ver0 *objdb, char **error_string)
+static int cman_readconfig(struct objdb_iface_ver0 *objdb, char **error_string)
 {
 	int error;
 
@@ -228,7 +225,7 @@ static int cman_readconfig (struct objdb_iface_ver0 *objdb, char **error_string)
 	return 0;
 }
 
-static int cman_exec_init_fn (struct objdb_iface_ver0 *objdb)
+static int cman_exec_init_fn(struct objdb_iface_ver0 *objdb)
 {
 	unsigned int object_handle;
 
@@ -238,10 +235,7 @@ static int cman_exec_init_fn (struct objdb_iface_ver0 *objdb)
 
 	/* Get our config variable */
 	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
-	if (objdb->object_find(OBJECT_PARENT_HANDLE,
-			       "cman",
-			       strlen ("cman"),
-			       &object_handle) == 0)
+	if (objdb->object_find(OBJECT_PARENT_HANDLE, "cman", strlen("cman"), &object_handle) == 0)
 	{
 		objdb_get_int(objdb, object_handle, "quorum_dev_poll", &quorumdev_poll);
 		objdb_get_int(objdb, object_handle, "shutdown_timeout", &shutdown_timeout);
@@ -261,14 +255,14 @@ static int cman_exec_init_fn (struct objdb_iface_ver0 *objdb)
 	totempg_groups_initialize(&group_handle, cman_deliver_fn, cman_confchg_fn);
 	totempg_groups_join(group_handle, cman_group, 1);
 
-	return (0);
+	return 0;
 }
 
 
-int cman_exit_fn (void *conn_info)
+int cman_exit_fn(void *conn_info)
 {
 	cman_finish();
-	return (0);
+	return 0;
 }
 
 /* END Plugin-specific code */
@@ -283,15 +277,12 @@ int ais_add_ifaddr(char *mcast, char *ifaddr, int portnum)
 	P_AIS("Adding local address %s\n", ifaddr);
 
 	/* This will already exist as early config creates it */
-	global_objdb->object_find_reset (OBJECT_PARENT_HANDLE);
-	if (global_objdb->object_find (
-		OBJECT_PARENT_HANDLE,
-		"totem",
-		strlen ("totem"),
-		&totem_object_handle) == 0) {
+	global_objdb->object_find_reset(OBJECT_PARENT_HANDLE);
+	if (global_objdb->object_find(OBJECT_PARENT_HANDLE,
+				      "totem", strlen("totem"),&totem_object_handle) == 0) {
 
 		if (global_objdb->object_create(totem_object_handle, &interface_object_handle,
-						"interface", strlen ("interface")) == 0) {
+						"interface", strlen("interface")) == 0) {
 
 			P_AIS("Setting if %d, name: %s,  mcast: %s,  port=%d, \n",
 			      num_interfaces, ifaddr, mcast, portnum);
@@ -306,9 +297,8 @@ int ais_add_ifaddr(char *mcast, char *ifaddr, int portnum)
 							mcast, strlen(mcast)+1);
 
 			sprintf(tmp, "%d", portnum);
-			global_objdb->object_key_create(interface_object_handle, "mcastport", strlen ("mcastport"),
+			global_objdb->object_key_create(interface_object_handle, "mcastport", strlen("mcastport"),
 							tmp, strlen(tmp)+1);
-
 
 			/* Save a local copy */
 			ret = totemip_parse(&mcast_addr[num_interfaces], mcast);
@@ -318,7 +308,6 @@ int ais_add_ifaddr(char *mcast, char *ifaddr, int portnum)
 				num_interfaces++;
 			else
 				return ret;
-
 		}
 	}
 
@@ -354,14 +343,14 @@ int comms_send_message(void *buf, int len,
 }
 
 // This assumes the iovec has only one element ... is it true ??
-static void cman_deliver_fn(struct totem_ip_address *source_addr, struct iovec *iovec, int iov_len,
+static void cman_deliver_fn(unsigned int nodeid, struct iovec *iovec, int iov_len,
 			    int endian_conversion_required)
 {
 	struct cl_protheader *header = iovec->iov_base;
 	char *buf = iovec->iov_base;
 
-	P_AIS("deliver_fn called, iov_len = %d, iov[0].len = %d, source=%s, conversion reqd=%d\n",
-	      iov_len, iovec->iov_len, totemip_print(source_addr), endian_conversion_required);
+	P_AIS("deliver_fn called, iov_len = %d, iov[0].len = %d, source nodeid = %d, conversion reqd=%d\n",
+	      iov_len, iovec->iov_len, nodeid, endian_conversion_required);
 
 	if (endian_conversion_required) {
 		header->srcid = swab32(header->srcid);
@@ -374,7 +363,6 @@ static void cman_deliver_fn(struct totem_ip_address *source_addr, struct iovec *
 	    header->tgtid == 0) {
 		send_to_userport(header->srcport, header->tgtport,
 				 header->srcid, header->tgtid,
-				 source_addr,
 				 buf + sizeof(struct cl_protheader),
 				 iovec->iov_len - sizeof(struct cl_protheader),
 				 endian_conversion_required);
@@ -382,9 +370,9 @@ static void cman_deliver_fn(struct totem_ip_address *source_addr, struct iovec *
 }
 
 static void cman_confchg_fn(enum totem_configuration_type configuration_type,
-			    struct totem_ip_address *member_list, int member_list_entries,
-			    struct totem_ip_address *left_list, int left_list_entries,
-			    struct totem_ip_address *joined_list, int joined_list_entries,
+			    unsigned int *member_list, int member_list_entries,
+			    unsigned int *left_list, int left_list_entries,
+			    unsigned int *joined_list, int joined_list_entries,
 			    struct memb_ring_id *ring_id)
 {
 	int i;
@@ -396,9 +384,9 @@ static void cman_confchg_fn(enum totem_configuration_type configuration_type,
 
 	/* Tell the cman membership layer */
 	for (i=0; i<left_list_entries; i++)
-		del_ais_node(&left_list[i]);
+		del_ais_node(left_list[i]);
 	for (i=0; i<joined_list_entries; i++)
-		add_ais_node(&joined_list[i], incarnation, member_list_entries);
+		add_ais_node(joined_list[i], incarnation, member_list_entries);
 
 	if (configuration_type == TOTEM_CONFIGURATION_REGULAR) {
 		P_AIS("last memb_count = %d, current = %d\n", last_memb_count, member_list_entries);
@@ -418,30 +406,43 @@ static int comms_init_ais(struct objdb_iface_ver0 *objdb)
 	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
 
 	if (objdb->object_find(OBJECT_PARENT_HANDLE,
-			       "totem",
-			       strlen ("totem"),
+			       "totem", strlen("totem"),
 			       &object_handle) == 0)
 	{
 		objdb->object_key_create(object_handle, "version", strlen("version"),
 					 "2", 2);
 
 		sprintf(tmp, "%d", our_nodeid());
-		objdb->object_key_create(object_handle, "nodeid", strlen ("nodeid"),
+		objdb->object_key_create(object_handle, "nodeid", strlen("nodeid"),
 					 tmp, strlen(tmp)+1);
 
-		objdb->object_key_create(object_handle, "vsftype", strlen ("vsftype"),
+		objdb->object_key_create(object_handle, "vsftype", strlen("vsftype"),
 					 "none", strlen("none")+1);
 
+		/* Set RRP mode appropriately */
+		if (num_interfaces > 1) {
+			global_objdb->object_key_create(object_handle, "rrp_mode", strlen("rrp_mode"),
+							"passive", strlen("passive")+1);
+		}
+		else {
+			global_objdb->object_key_create(object_handle, "rrp_mode", strlen("rrp_mode"),
+							"none", strlen("none")+1);
+		}
+
 		sprintf(tmp, "%d", 1);
-		objdb->object_key_create(object_handle, "secauth", strlen ("secauth"),
+		objdb->object_key_create(object_handle, "secauth", strlen("secauth"),
 					 tmp, strlen(tmp)+1);
 
 		if (key_filename)
 		{
-			objdb->object_key_create(object_handle, "keyfile", strlen ("keyfile"),
+			objdb->object_key_create(object_handle, "keyfile", strlen("keyfile"),
 						 key_filename, strlen(key_filename)+1);
 		}
-		else /* Use the cluster name as key, this allows us to isolate different clusters on a single network */
+		else /* Use the cluster name as key,
+		      * This isn't a good isolation strategey but it does make sure that
+		      * clusters on the same port/multicast by mistake don't actually interfere
+		      * and that we have some form of encryption going.
+		      */
 		{
 			int keylen;
 			memset(tmp, 0, sizeof(tmp));
@@ -450,7 +451,7 @@ static int comms_init_ais(struct objdb_iface_ver0 *objdb)
 
 			/* Key length must be a multiple of 4 */
 			keylen = (strlen(cluster_name)+4) & 0xFC;
-			objdb->object_key_create(object_handle, "key", strlen ("key"),
+			objdb->object_key_create(object_handle, "key", strlen("key"),
 						 tmp, keylen);
 		}
 	}
@@ -458,8 +459,7 @@ static int comms_init_ais(struct objdb_iface_ver0 *objdb)
 	/* Make sure mainconfig doesn't stomp on our logging options */
 	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
 	if (objdb->object_find(OBJECT_PARENT_HANDLE,
-			       "logging",
-			       strlen ("logging"),
+			       "logging", strlen("logging"),
 			       &object_handle) == 0)
 	{
 		unsigned int logger_object_handle;
@@ -472,7 +472,7 @@ static int comms_init_ais(struct objdb_iface_ver0 *objdb)
 		}
 
 		objdb->object_create(object_handle, &logger_object_handle,
-				      "logger", strlen ("logger"));
+				      "logger", strlen("logger"));
 		objdb->object_key_create(logger_object_handle, "ident", strlen("ident"),
 					 "CMAN", strlen("CMAN")+1);
 
@@ -492,23 +492,20 @@ static int comms_init_ais(struct objdb_iface_ver0 *objdb)
 
 	/* Don't run under user "ais" */
 	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
-	if (objdb->object_find(OBJECT_PARENT_HANDLE,
-			       "aisexec",
-			       strlen ("aisexec"),
-			       &object_handle) == 0)
+	if (objdb->object_find(OBJECT_PARENT_HANDLE, "aisexec", strlen("aisexec"), &object_handle) == 0)
 	{
-		objdb->object_key_create(object_handle, "user", strlen ("user"),
-				 "root", strlen ("root") + 1);
-		objdb->object_key_create(object_handle, "group", strlen ("group"),
-				 "root", strlen ("root") + 1);
+		objdb->object_key_create(object_handle, "user", strlen("user"),
+				 "root", strlen("root") + 1);
+		objdb->object_key_create(object_handle, "group", strlen("group"),
+				 "root", strlen("root") + 1);
 	}
 
 	/* Make sure we load our alter-ego */
 	objdb->object_create(OBJECT_PARENT_HANDLE, &object_handle,
-			     "service", strlen ("service"));
-	objdb->object_key_create(object_handle, "name", strlen ("name"),
-				 "openais_cman", strlen ("openais_cman") + 1);
-	objdb->object_key_create(object_handle, "ver", strlen ("ver"),
+			     "service", strlen("service"));
+	objdb->object_key_create(object_handle, "name", strlen("name"),
+				 "openais_cman", strlen("openais_cman") + 1);
+	objdb->object_key_create(object_handle, "ver", strlen("ver"),
 				 "0", 2);
 
 	return 0;

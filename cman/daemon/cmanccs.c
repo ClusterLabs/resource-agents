@@ -220,7 +220,6 @@ static int join(void)
 	/*
 	 * Setup the interface/multicast addresses
 	 */
-	num_nodenames=1;// PJC
 	for (i = 0; i<num_nodenames; i++) {
 		error = ais_add_ifaddr(mcast[i], nodenames[i], portnums[i]);
 		if (error)
