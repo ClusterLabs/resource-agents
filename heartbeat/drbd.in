@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: drbd.in,v 1.23 2006/04/27 19:54:37 lars Exp $
+#	$Id: drbd.in,v 1.24 2006/05/22 11:03:41 andrew Exp $
 #
 #       OCF Resource Agent compliant drbd resource script.
 #
@@ -34,8 +34,8 @@
 # OCF instance parameters
 #	OCF_RESKEY_drbd_resource
 #	OCF_RESKEY_drbdconf
-#	OCF_RESKEY_clone_max
-#	OCF_RESKEY_clone_node_max
+#	OCF_RESKEY_CRM_meta_clone_max
+#	OCF_RESKEY_CRM_meta_clone_node_max
 #	OCF_RESKEY_master_max
 #	OCF_RESKEY_master_node_max
 
@@ -166,7 +166,7 @@ drbd_init() {
 	fi
 	
 	RESOURCE="$OCF_RESKEY_drbd_resource"
-	CLONE_NO="$OCF_RESKEY_clone"
+	CLONE_NO="$OCF_RESKEY_CRM_meta_clone"
 	DRBDCONF="${OCF_RESKEY_drbdconf:=/etc/drbd.conf}"
 	
 	if [ ! -f "$DRBDCONF" ]; then
@@ -381,13 +381,13 @@ drbd_demote() {
 }
 
 drbd_notify() {
-	local n_type="$OCF_RESKEY_notify_type"
-	local n_op="$OCF_RESKEY_notify_operation"
-	set -- $OCF_RESKEY_notify_active_resource
+	local n_type="$OCF_RESKEY_CRM_meta_notify_type"
+	local n_op="$OCF_RESKEY_CRM_meta_notify_operation"
+	set -- $OCF_RESKEY_CRM_meta_notify_active_resource
 	local n_active="$#"
-	set -- $OCF_RESKEY_notify_stop_resource
+	set -- $OCF_RESKEY_CRM_meta_notify_stop_resource
 	local n_stop="$#"
-	set -- $OCF_RESKEY_notify_start_resource
+	set -- $OCF_RESKEY_CRM_meta_notify_start_resource
 	local n_start="$#"
 
 	ocf_log debug "$RESOURCE notify: $n_type for $n_op - counts: active $n_active - starting $n_start - stopping $n_stop"
@@ -456,8 +456,8 @@ drbd_validate_all () {
 	    return $OCF_ERR_CONFIGURED
 	fi
 	
-	if [ "$OCF_RESKEY_clone_max" -ne 2 ] \
-	 || [ "$OCF_RESKEY_clone_node_max" -ne 1 ] \
+	if [ "$OCF_RESKEY_CRM_meta_clone_max" -ne 2 ] \
+	 || [ "$OCF_RESKEY_CRM_meta_clone_node_max" -ne 1 ] \
 	 || [ "$OCF_RESKEY_master_node_max" -ne 1 ] \
 	 || [ "$OCF_RESKEY_master_max" -ne 1 ] ; then
 		ocf_log err "Clone options misconfigured."

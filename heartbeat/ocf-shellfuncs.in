@@ -1,5 +1,5 @@
 #
-# 	$Id: ocf-shellfuncs.in,v 1.30 2006/04/24 15:28:38 lars Exp $
+# 	$Id: ocf-shellfuncs.in,v 1.31 2006/05/22 11:03:41 andrew Exp $
 #
 # 	Common helper functions for the OCF Resource Agents supplied by
 # 	heartbeat.
@@ -123,7 +123,7 @@ __ocf_set_defaults() {
 	#    the CRM and/or left behind if the LRM fails.
 	# 
 	# They can be identified in RA scripts by checking for:
-	#   [ "${__OCF_ACTION}" = "monitor" -a "${OCF_RESKEY_interval}" = "0" ]
+	#   [ "${__OCF_ACTION}" = "monitor" -a "${OCF_RESKEY_CRM_meta_interval}" = "0" ]
 	# 
 	# Failed "slaves" should continue to use: OCF_ERR_GENERIC
 	# Fully operational "slaves" should continue to use: OCF_SUCCESS

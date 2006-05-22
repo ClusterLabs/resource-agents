@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.21 2006/05/19 13:58:16 lars Exp $
+# $Id: Filesystem.in,v 1.22 2006/05/22 11:03:41 andrew Exp $
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
@@ -95,7 +95,7 @@ check_util () {
 usage() {
 	cat <<-EOT
 	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
-	$Id: Filesystem.in,v 1.21 2006/05/19 13:58:16 lars Exp $
+	$Id: Filesystem.in,v 1.22 2006/05/22 11:03:41 andrew Exp $
 	EOT
 }
 
@@ -334,16 +334,16 @@ Filesystem_notify() {
 		return $OCF_ERR_GENERIC
 	fi
 
-	local n_type="$OCF_RESKEY_notify_type"
-	local n_op="$OCF_RESKEY_notify_operation"
-	local n_active="$OCF_RESKEY_notify_active_uname"
+	local n_type="$OCF_RESKEY_CRM_meta_notify_type"
+	local n_op="$OCF_RESKEY_CRM_meta_notify_operation"
+	local n_active="$OCF_RESKEY_CRM_meta_notify_active_uname"
 
-	case "$OCF_RESKEY_notify_type" in
+	case "$OCF_RESKEY_CRM_meta_notify_type" in
 	*pre*)
-		case "$OCF_RESKEY_notify_operation" in
+		case "$OCF_RESKEY_CRM_meta_notify_operation" in
 		*start*)
 			# remove unames from notify_stop_uname
-			for UNAME in "$OCF_RESKEY_notify_stop_uname"
+			for UNAME in "$OCF_RESKEY_CRM_meta_notify_stop_uname"
 			do
 				n_active=${n_active//$UNAME}
 			done
@@ -354,19 +354,19 @@ Filesystem_notify() {
 		esac
 	;;
 	*post*)
-		case "$OCF_RESKEY_notify_operation" in
+		case "$OCF_RESKEY_CRM_meta_notify_operation" in
 		*start*)
 			# remove unames from notify_stop_uname
-			for UNAME in "$OCF_RESKEY_notify_stop_uname"
+			for UNAME in "$OCF_RESKEY_CRM_meta_notify_stop_uname"
 			do
 				n_active=${n_active//$UNAME}
 			done
 			# add unames from notify_start_uname
-			n_active="${n_active} $OCF_RESKEY_notify_start_uname"
+			n_active="${n_active} $OCF_RESKEY_CRM_meta_notify_start_uname"
 		;;
 		*stop*)
 			# remove unames from notify_stop_uname
-			for UNAME in "$OCF_RESKEY_notify_stop_uname"
+			for UNAME in "$OCF_RESKEY_CRM_meta_notify_stop_uname"
 			do
 				n_active=${n_active//$UNAME}
 			done
@@ -605,7 +605,7 @@ Filesystem_validate_all()
 ocfs2_init()
 {
 	# Check & initialize the OCFS2 specific variables.
-	if [ -z "$OCF_RESKEY_clone_max" ]; then
+	if [ -z "$OCF_RESKEY_CRM_meta_clone_max" ]; then
 		ocf_log err "ocfs2 must be run as a clone."
 		exit $OCF_ERR_GENERIC
 	fi
@@ -707,7 +707,7 @@ esac
 if [ "$FSTYPE" = "ocfs2" ]; then
 	ocfs2_init
 else 
-	if [ -n "$OCF_RESKEY_clone_max" ]; then
+	if [ -n "$OCF_RESKEY_CRM_meta_clone_max" ]; then
 		ocf_log err "DANGER! $FSTYPE on $DEVICE is NOT cluster-aware!"
 		ocf_log err "DO NOT RUN IT AS A CLONE!"
 		ocf_log err "Politely refusing to proceed to avoid data corruption."
