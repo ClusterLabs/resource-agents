@@ -600,7 +600,8 @@ qdisk_write(int fd, __off64_t offset, const void *buf, int count)
 
 	maxsize = psz - (sizeof(shared_header_t));
 	if (count >= (maxsize + sizeof(shared_header_t))) {
-		printf("error: count %d >= (%d + %d)\n", count, maxsize, sizeof(shared_header_t));
+		printf("error: count %d >= (%d + %d)\n", (int)count,
+		       (int)maxsize, (int)sizeof(shared_header_t));
 		errno = ENOSPC;
 		return -1;
 	}
