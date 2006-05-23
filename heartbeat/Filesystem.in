@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.22 2006/05/22 11:03:41 andrew Exp $
+# $Id: Filesystem.in,v 1.23 2006/05/23 16:48:56 lars Exp $
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
@@ -95,7 +95,7 @@ check_util () {
 usage() {
 	cat <<-EOT
 	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
-	$Id: Filesystem.in,v 1.22 2006/05/22 11:03:41 andrew Exp $
+	$Id: Filesystem.in,v 1.23 2006/05/23 16:48:56 lars Exp $
 	EOT
 }
 
@@ -201,16 +201,18 @@ flushbufs() {
 #
 Filesystem_start()
 {
-	if [ "$FSTYPE" = "ocfs2" ] && [ -z "$OCFS2_DO_MOUNT" ]; then
-		# Sorry, start doesn't actually do anything here. Magic
-		# happens in Filesystem_notify; see the comment there.
-		ocf_log debug "$DEVICE: ocfs2 - skipping start."
-		return $OCF_SUCCESS
+	if [ "$FSTYPE" = "ocfs2" ]; then
+		# "start" now has the notification data available; that
+		# we're being started means we didn't get the
+		# pre-notification, because we weren't running, so
+		# process the information now first.
+		OCF_RESKEY_CRM_meta_notify_type="pre"
+		OCF_RESKEY_CRM_meta_notify_operation="start"
+		Filesystem_notify
 	fi		
 
 	# See if the device is already mounted.
-	Filesystem_status >/dev/null 2>&1
-	if [ $? -eq $OCF_SUCCESS ] ; then
+	if Filesystem_status >/dev/null 2>&1 ; then
 	    ocf_log info "Filesystem $MOUNTPOINT is already mounted."
 	    return $OCF_SUCCESS
 	fi
@@ -293,32 +295,20 @@ Filesystem_notify() {
 	# giving user-space membership events to a cluster-aware
 	# filesystem. Right now, only OCFS2 is supported.
 	#
-	# We get notifications from hb2 that some operation (start or
-	# stop) has completed; we then (1) compare the list of nodes
-	# which are active in the fs membership with the list of nodes
-	# which hb2 wants to be participating and remove those which
-	# aren't supposed to be around. And vice-versa, (2) we add nodes
-	# which aren't yet members, but which hb2 _does_ want to be
-	# active.
+	# When we get a pre-start notification, we set up all the nodes
+	# which will be active in our membership for the filesystem.
+	# (For the resource to be started, this happens at the time of
+	# the actual 'start' operation.)
 	#
-	# Eventually, if (3) we figure that we ourselves are on the list
-	# of nodes which weren't active yet, we initiate a mount
-	# operation.
+	# At a post-start, actually there's nothing to do for us really,
+	# but no harm done in re-syncing either.
 	#
-	# That's it.
+	# pre-stop is meaningless; we can't remove any node yet, it
+	# first needs to unmount.
 	#
-	# If you wonder why we don't process pre-notifications, or don't
-	# do anything in "start": pre-start doesn't help us, because we
-	# don't get it on the node just starting. pre-stop doesn't help
-	# us either, because we can't remove any nodes while still
-	# having the fs mounted. And because we can't mount w/o the
-	# membership populated, we have to wait for the post-start
-	# event.
+	# post-stop: the node is removed from the membership of the
+	# other nodes.
 	# 
-	# This approach _does_ have the advantage of being rather
-	# robust, I hope. We always re-sync the current membership with
-	# the expected membership.
-	#
 	# Note that this expects that the base cluster is already
 	# active; ie o2cb has been started and populated
 	# $OCFS2_CLUSTER_ROOT/node/ already. This can be achieved by
@@ -337,50 +327,32 @@ Filesystem_notify() {
 	local n_type="$OCF_RESKEY_CRM_meta_notify_type"
 	local n_op="$OCF_RESKEY_CRM_meta_notify_operation"
 	local n_active="$OCF_RESKEY_CRM_meta_notify_active_uname"
+	local n_stop="$OCF_RESKEY_CRM_meta_notify_stop_uname"
+	local n_start="$OCF_RESKEY_CRM_meta_notify_start_uname"
 
-	case "$OCF_RESKEY_CRM_meta_notify_type" in
-	*pre*)
-		case "$OCF_RESKEY_CRM_meta_notify_operation" in
-		*start*)
-			# remove unames from notify_stop_uname
-			for UNAME in "$OCF_RESKEY_CRM_meta_notify_stop_uname"
-			do
-				n_active=${n_active//$UNAME}
-			done
-		;;
-		*stop*)
-		# leave notify_active_uname as is
-		;;
-		esac
-	;;
-	*post*)
-		case "$OCF_RESKEY_CRM_meta_notify_operation" in
-		*start*)
-			# remove unames from notify_stop_uname
-			for UNAME in "$OCF_RESKEY_CRM_meta_notify_stop_uname"
-			do
-				n_active=${n_active//$UNAME}
-			done
-			# add unames from notify_start_uname
-			n_active="${n_active} $OCF_RESKEY_CRM_meta_notify_start_uname"
-		;;
-		*stop*)
-			# remove unames from notify_stop_uname
-			for UNAME in "$OCF_RESKEY_CRM_meta_notify_stop_uname"
-			do
-				n_active=${n_active//$UNAME}
-			done
-		;;
-		esac
-	;;
-	esac
+	if [ "$n_type" = "pre" ]; then
+		if [ "$n_op" = "stop" ]; then
+			ocf_log debug "$OCFS2_UUID: ignoring pre-notify for stop."
+			return $OCF_SUCCESS
+		fi
+	else	
+		# TODO: This should be safe, but I don't dare yet.
+		# if [ "$n_op" = "start" ]; then
+		# 	ocf_log debug "$OCFS2_UUID: ignoring post-notify for start."
+		# 	return $OCF_SUCCESS
+		# fi
+		
+		# remove unames from notify_stop_uname; these have been
+		# stopped and can no longer be considered active.
+		for UNAME in "$n_stop"; do
+			n_active="${n_active//$UNAME/}"
+		done
+	fi
+	# These will be started/have been started. Prepare to
+	# communicate with them.
+	n_active="$n_active $n_start"
 
 	ocf_log debug "$OCFS2_UUID - notify: $n_type for $n_op - active on $n_active"
-
-	if [ "$n_type" != "post" ]; then
-		ocf_log debug "$OCFS2_UUID: ignoring pre-notify."
-		return $OCF_SUCCESS
-	fi
 
 	local n_myself=${HA_CURHOST:-$(uname -n | tr A-Z a-z)}
 	ocf_log debug "$OCFS2_UUID: I am node $n_myself."
@@ -443,25 +415,9 @@ Filesystem_notify() {
 				ocf_log err "$OCFS2_CLUSTER_ROOT/node/$entry: failed to link"
 				# exit $OCF_ERR_GENERIC
 			fi
-			
-			if [ "$entry" = "$n_myself" ]; then
-				OCFS2_DO_MOUNT=yes
-				ocf_log debug "$OCFS2_UUID: To be mounted."
-			fi	
 			;;
 		esac
 	done
-
-	# (3)
-	# For now, always unconditionally go ahead; we're here, so we
-	# should have the fs mounted. In theory, it should be fine to
-	# only do this when we're activating ourselves, but what if
-	# something went wrong, and we're in the membership but don't
-	# have the fs mounted? Can this happen? TODO
-	OCFS2_DO_MOUNT="yes"
-	if [ -n "$OCFS2_DO_MOUNT" ]; then
-		Filesystem_start
-	fi
 }
 
 #
