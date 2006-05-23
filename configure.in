@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.519 $) dnl cvs revision
+AC_REVISION($Revision: 1.520 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -346,6 +346,14 @@ AC_SUBST(docdir)
 
 dnl	We use this in the RPM specfile...
 AC_SUBST(ac_configure_args)
+
+dnl Heartbeat does not appear to compile on SuSE 10.1 unless this macro is
+dnl   present (mkdir_p is undefined and make install/dist/rpm refuse to
+dnl   function).
+dnl Apologies in advance if this macro is not present in older versions
+dnl   of libtool.  If someone runs into this, let andrew know and we'll
+dnl   try and work something out.
+AM_PROG_MKDIR_P
 
 dnl *************************************************************************
 PATH="$PATH:/sbin:/usr/sbin:/usr/local/sbin:/usr/local/bin"
