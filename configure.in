@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.520 $) dnl cvs revision
+AC_REVISION($Revision: 1.521 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -18,17 +18,16 @@ dnl Where #defines go (e.g. `AC_CHECK_HEADERS' below)
 AM_CONFIG_HEADER(linux-ha/config.h include/ha_config.h)
 ALL_LINGUAS="en fr"
 
-AC_ARG_WITH(pkgversion,
-    [  --with-pkgversion=name     Override package version (if you're a packager needing to pretend) ],
-    [ PKGVERSION="$withval" ],
-    [ PKGVERSION="" ],
+AC_ARG_WITH(hapkgversion,
+    [  --with-hapkgversion=name     Override package version (if you're a packager needing to pretend) ],
+    [ HAPKGVERSION="$withval" ],
+    [ HAPKGVERSION="" ],
 )
 
-if test x"$PKGVERSION" != x; then
-	AM_INIT_AUTOMAKE(heartbeat, $PKGVERSION)
-else
-	AM_INIT_AUTOMAKE(heartbeat, 2.0.6)
+if test x"$HAPKGVERSION" = x; then
+   HAPKGVERSION="2.0.6"
 fi
+AM_INIT_AUTOMAKE(heartbeat, $HAPKGVERSION)
 
 RPMREL=1
 AC_SUBST(RPMREL)
@@ -346,14 +345,6 @@ AC_SUBST(docdir)
 
 dnl	We use this in the RPM specfile...
 AC_SUBST(ac_configure_args)
-
-dnl Heartbeat does not appear to compile on SuSE 10.1 unless this macro is
-dnl   present (mkdir_p is undefined and make install/dist/rpm refuse to
-dnl   function).
-dnl Apologies in advance if this macro is not present in older versions
-dnl   of libtool.  If someone runs into this, let andrew know and we'll
-dnl   try and work something out.
-AM_PROG_MKDIR_P
 
 dnl *************************************************************************
 PATH="$PATH:/sbin:/usr/sbin:/usr/local/sbin:/usr/local/bin"
