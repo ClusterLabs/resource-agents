@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.521 $) dnl cvs revision
+AC_REVISION($Revision: 1.522 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -2528,6 +2528,7 @@ if test x"${enable_pretty}" = "xyes"; then
    echo "install_sh: ${install_sh}"
    PRETTY_CC="`pwd`/tools/ccdv"
    dnl It would be nice if this was rebuilt when needed too...
+   mkdir `pwd`/tools/ 2>/dev/null
    gcc -o `pwd`/tools/ccdv ${srcdir}/tools/ccdv.c
    CC="\$(PRETTY_CC) ${CC}"
 fi
