@@ -345,6 +345,7 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
 	/* ATTENTION -- potential for incomplete package */
 	recvfrom(sfd, bdoc, ch->comm_payload_size + sizeof(comm_header_t),
 		 0, (struct sockaddr *)&recv_addr, &len);
+	swab_header(ch);
 	tmp_doc = xmlParseMemory(bdoc+sizeof(comm_header_t),
 				 ch->comm_payload_size);
 	if(!tmp_doc){
