@@ -14,6 +14,7 @@
 #define __COMM_HEADERS_DOT_H__
 
 #include <byteswap.h>
+#include <endian.h>
 
 /* Types of requests */
 #define COMM_CONNECT    1
@@ -47,7 +48,7 @@ typedef struct comm_header_s {
 #define COMM_LOCAL_SOCKET "/var/run/cluster/ccsd.sock"
 
 static inline void swab_header(comm_header_t *head) {
-#if BYTE_ORDER == BIG_ENDIAN
+#if __BYTE_ORDER == __BIG_ENDIAN
   head->comm_type = bswap_32(head->comm_type);
   head->comm_flags = bswap_32(head->comm_flags);
   head->comm_desc = bswap_32(head->comm_desc);
