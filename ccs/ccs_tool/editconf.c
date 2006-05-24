@@ -967,6 +967,8 @@ void list_nodes(int argc, char **argv)
 
 			if (!nodeid)
 				nodeid=(unsigned char *)"0";
+			if (!votes)
+				votes = (unsigned char *)"1";
 
 			printf("%-32s %3d  %3d    %s\n", name, atoi((char *)votes),
 			       atoi((char *)nodeid),
