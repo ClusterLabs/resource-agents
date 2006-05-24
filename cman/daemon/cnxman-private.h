@@ -84,8 +84,8 @@ struct cl_transmsg {
 	unsigned int   minor_version;	/* Backwards compatible */
 	unsigned int   patch_version;	/* Backwards/forwards compatible */
 	unsigned int   config_version;
-	uint64_t       fence_time;
 	unsigned int   flags;
+	uint64_t       fence_time;
         char           clustername[16];
 	char           fence_agent[];
 };
@@ -116,6 +116,7 @@ struct cl_reconfig_msg {
 struct cl_fencemsg {
 	unsigned char cmd;
 	unsigned char fenced;
+	uint16_t      pad;
 	int           nodeid;
 	uint64_t      timesec;
 	char          agent[0];
