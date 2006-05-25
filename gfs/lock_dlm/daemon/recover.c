@@ -1129,8 +1129,11 @@ int kernel_recovery_done_first(struct mountgroup *mg)
 		/* If a second node was added before we got first_done,
 		   we delayed calling start_done() (to complete adding
 		   the second node) until here. */
-		if (mg->wait_first_done)
+
+		if (mg->wait_first_done) {
+			clear_new(mg);
 			start_done(mg);
+		}
 	}
 	return 0;
 }
@@ -1490,9 +1493,7 @@ int do_finish(struct mountgroup *mg)
 
 	if (mg->mount_client) {
 		notify_mount_client(mg);
-		/* FIXME: this isn't always working.. the lock_module/ sysfs
-		   files don't exist and mount is in dlm_new_lockspace/uevent */
-		/* wait_for_kernel_mount(mg); */
+		wait_for_kernel_mount(mg);
 	} else if (!leave_blocked)
 		set_sysfs(mg, "block", 0);
 

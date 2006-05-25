@@ -112,6 +112,16 @@ static void do_deliver(struct mountgroup *mg)
 
 	hd = (struct gdlm_header *) cb_message;
 
+	/* If there are some group messages between a new node being added to
+	   the cpg group and being added to the app group, the new node should
+	   discard them since they're only relevant to the app group. */
+
+	if (!mg->last_callback) {
+		log_group(mg, "discard message type %d len %d from %d",
+			  hd->type, cb_len, cb_nodeid);
+		return;
+	}
+
 	switch (hd->type) {
 	case MSG_JOURNAL:
 		receive_journals(mg, cb_message, cb_len, cb_nodeid);
