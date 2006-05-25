@@ -238,6 +238,12 @@ int get_sb(char *device, struct gen_sb *sb_out)
 			    sb.sb_header.mh_magic, sb.sb_header.mh_type);
 		}
 
+		if (sb.sb_fs_format != GFS2_FORMAT_FS ||
+		    sb.sb_multihost_format != GFS2_FORMAT_MULTI) {
+			die("there appears to be a GFS, not GFS2, filesystem "
+			    "on %s\n", device);
+		}
+
 		strncpy(sb_out->lockproto, sb.sb_lockproto, 256);
 		strncpy(sb_out->locktable, sb.sb_locktable, 256);
 
@@ -253,6 +259,12 @@ int get_sb(char *device, struct gen_sb *sb_out)
 		    sb.sb_header.mh_type != GFS_METATYPE_SB) {
 			gfs_sb_print(&sb);
 			die("there isn't a GFS filesystem on %s\n", device);
+		}
+
+		if (sb.sb_fs_format != GFS_FORMAT_FS ||
+		    sb.sb_multihost_format != GFS_FORMAT_MULTI) {
+			die("there appears to be a GFS2, not GFS, filesystem "
+			    "on %s\n", device);
 		}
 
 		strncpy(sb_out->lockproto, sb.sb_lockproto, 256);
