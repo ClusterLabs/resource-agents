@@ -793,14 +793,6 @@ int add_member(struct mountgroup *mg, int nodeid)
 	return 0;
 }
 
-void remove_member(struct mountgroup *mg, struct mg_member *memb)
-{
-	list_move(&memb->list, &mg->members_gone);
-	memb->gone_event = mg->start_event_nr;
-	memb->gone_type = mg->start_type;
-	mg->memb_count--;
-}
-
 int is_member(struct mountgroup *mg, int nodeid)
 {
 	struct mg_member *memb;
@@ -864,7 +856,15 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 
 		if (!found) {
 			neg++;
-			remove_member(mg, memb);
+
+			list_move(&memb->list, &mg->members_gone);
+			memb->gone_event = mg->start_event_nr;
+			memb->gone_type = mg->start_type;
+			mg->memb_count--;
+
+			memb->tell_gfs_to_recover = 0;
+			memb->recovery_status = 0;
+			memb->local_recovery_status = 0;
 
 			/* - journal cb for failed or withdrawing nodes
 			   - journal cb only if failed node finished joining
@@ -1773,7 +1773,8 @@ void reset_unfinished_recoveries(struct mountgroup *mg)
 	struct mg_member *memb;
 
 	list_for_each_entry(memb, &mg->members_gone, list) {
-		if (memb->recovery_status != RS_NEED_RECOVERY) {
+		if (memb->recovery_status &&
+		    memb->recovery_status != RS_NEED_RECOVERY) {
 			log_group(mg, "retry unfinished recovery "
 				  "jid %d nodeid %d",
 				  memb->jid, memb->nodeid);
