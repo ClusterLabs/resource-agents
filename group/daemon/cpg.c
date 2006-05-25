@@ -389,7 +389,13 @@ int setup_cpg(void)
 	strcpy(groupd_name.value, "groupd");
 	groupd_name.length = 7;
 
+ retry:
 	error = cpg_join(groupd_handle, &groupd_name);
+	if (error == CPG_ERR_TRY_AGAIN) {
+		log_debug("setup_cpg cpg_join retry");
+		sleep(1);
+		goto retry;
+	}
 	if (error != CPG_OK) {
 		log_print("cpg_join error %d", error);
 		cpg_finalize(groupd_handle);
