@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.23 2006/05/23 16:48:56 lars Exp $
+# $Id: Filesystem.in,v 1.24 2006/05/25 17:15:56 lars Exp $
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
@@ -95,7 +95,7 @@ check_util () {
 usage() {
 	cat <<-EOT
 	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
-	$Id: Filesystem.in,v 1.23 2006/05/23 16:48:56 lars Exp $
+	$Id: Filesystem.in,v 1.24 2006/05/25 17:15:56 lars Exp $
 	EOT
 }
 
@@ -330,29 +330,45 @@ Filesystem_notify() {
 	local n_stop="$OCF_RESKEY_CRM_meta_notify_stop_uname"
 	local n_start="$OCF_RESKEY_CRM_meta_notify_start_uname"
 
-	if [ "$n_type" = "pre" ]; then
-		if [ "$n_op" = "stop" ]; then
+	ocf_log debug "$OCFS2_UUID - notify: $n_type for $n_op"
+	ocf_log debug "$OCFS2_UUID - notify active: $n_active"
+	ocf_log debug "$OCFS2_UUID - notify stop: $n_stop"
+	ocf_log debug "$OCFS2_UUID - notify start: $n_start"
+
+	case "$n_type" in
+	pre)
+		case "$n_op" in
+		stop)
 			ocf_log debug "$OCFS2_UUID: ignoring pre-notify for stop."
 			return $OCF_SUCCESS
-		fi
-	else	
-		# TODO: This should be safe, but I don't dare yet.
-		# if [ "$n_op" = "start" ]; then
-		# 	ocf_log debug "$OCFS2_UUID: ignoring post-notify for start."
-		# 	return $OCF_SUCCESS
-		# fi
-		
-		# remove unames from notify_stop_uname; these have been
-		# stopped and can no longer be considered active.
-		for UNAME in "$n_stop"; do
-			n_active="${n_active//$UNAME/}"
-		done
-	fi
-	# These will be started/have been started. Prepare to
-	# communicate with them.
-	n_active="$n_active $n_start"
-
-	ocf_log debug "$OCFS2_UUID - notify: $n_type for $n_op - active on $n_active"
+			;;
+		start)
+			# These are about to become active; prepare to
+			# communicate with them.
+			n_active="$n_active $n_start"
+			;;
+		esac
+		;;
+	post)
+		case "$n_op" in
+		stop)
+			# remove unames from notify_stop_uname; these have been
+			# stopped and can no longer be considered active.
+			for UNAME in "$n_stop"; do
+				n_active="${n_active//$UNAME/}"
+			done
+			;;
+		start)
+			if [ "$n_op" = "start" ]; then
+				ocf_log debug "$OCFS2_UUID: ignoring post-notify for start."
+				return $OCF_SUCCESS
+			fi
+			;;
+		esac
+		;;
+	esac
+	
+	ocf_log debug "$OCFS2_UUID - post-processed active: $n_active"
 
 	local n_myself=${HA_CURHOST:-$(uname -n | tr A-Z a-z)}
 	ocf_log debug "$OCFS2_UUID: I am node $n_myself."
@@ -364,12 +380,11 @@ Filesystem_notify() {
 		;;
 	esac
 
-	# (1)
 	if [ -d "$OCFS2_FS_ROOT" ]; then
 	entry_prefix=$OCFS2_FS_ROOT/
 	for entry in $OCFS2_FS_ROOT/* ; do
 		n_fs="${entry##$entry_prefix}"
-		ocf_log debug "$OCFS2_UUID: Found node $n_fs"
+#		ocf_log debug "$OCFS2_UUID: Found current node $n_fs"
 		case " $n_active " in
 		*" $n_fs "*)
 			# Construct a list of nodes which are present
@@ -384,24 +399,22 @@ Filesystem_notify() {
 				ocf_log warn "$OCFS2_UUID: Removing nodes on start"
 			fi
 			ocf_log info "$OCFS2_UUID: Removing dead node: $n_fs"
-			if rm -f $entry ; then
-				ocf_log debug "$OCFS2_UUID: Removal of $n_fs ok."
-			else
+			if ! rm -f $entry ; then
 				ocf_log err "$OCFS2_UUID: Removal of $n_fs failed!"
 			fi
 			;;
 		esac
 	done
 	else
-		ocf_log info "$OCFS2_UUID: Doesn't exist yet, creating."
+		ocf_log info "$OCFS2_UUID: heartbeat directory doesn't exist yet, creating."
 		mkdir -p $OCFS2_FS_ROOT
 	fi
 
-	ocf_log debug "$OCFS2_UUID: Nodes which already exist: $n_exists"
+	ocf_log debug "$OCFS2_UUID: Existing node list: $n_exists"
 	
 	# (2)
 	for entry in $n_active ; do
-		ocf_log debug "$OCFS2_UUID: Expected active node: $entry"
+#		ocf_log debug "$OCFS2_UUID: Expected active node: $entry"
 		case " $n_exists " in
 		*" $entry "*)
 			ocf_log debug "$OCFS2_UUID: Already active: $entry"
@@ -413,7 +426,6 @@ Filesystem_notify() {
 			ocf_log info "$OCFS2_UUID: Activating node: $entry"
 			if ! ln -s $OCFS2_CLUSTER_ROOT/node/$entry  $OCFS2_FS_ROOT/$entry ; then
 				ocf_log err "$OCFS2_CLUSTER_ROOT/node/$entry: failed to link"
-				# exit $OCF_ERR_GENERIC
 			fi
 			;;
 		esac
