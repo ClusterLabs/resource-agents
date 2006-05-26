@@ -1445,6 +1445,10 @@ int do_stop(struct mountgroup *mg)
 	return 0;
 }
 
+/* FIXME: what happens if a node is unmounting, others have it in members_gone,
+   and it crashes?  It shouldn't need journal recovery since the kernel umount
+   happens before leaving the group. */
+
 int do_finish(struct mountgroup *mg)
 {
 	struct mg_member *memb, *safe;
@@ -1452,13 +1456,16 @@ int do_finish(struct mountgroup *mg)
 
 	/* members_gone list are the members that were removed from the
 	   members list when processing a start.  members are removed
-	   from members_gone if their journals has been recovered */
+	   from members_gone if their journals have been recovered */
 
 	list_for_each_entry_safe(memb, safe, &mg->members_gone, list) {
 		if (!memb->withdraw)
 			release_withdraw_lock(mg, memb);
 
-		if (memb->recovery_status == RS_SUCCESS) {
+		if (!memb->recovery_status) {
+			list_del(&memb->list);
+			free(memb);
+		} else if (memb->recovery_status == RS_SUCCESS) {
 			ASSERT(memb->gone_event <= mg->last_finish);
 			log_group(mg, "finish: recovered jid %d nodeid %d",
 				  memb->jid, memb->nodeid);
