@@ -1,0 +1,281 @@
+#!/bin/sh
+#
+# 	License:	GNU General Public License (GPL) 
+# 	Support:	linux-ha@lists.linux-ha.org
+#	Author: 	Huang Zhen <zhenhltc@cn.ibm.com>
+# 	Copyright (c) 	2006 International Business Machines
+#
+#	Virtual IP Address by RIP2 protocol.
+#	This script manages IP alias in different subnet with quagga/ripd.
+#	It can add an IP alias, or remove one.
+#	
+#	The quagga package should be installed to run this RA
+#
+#	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
+#
+#	The "start" arg adds an IP alias.
+#	Surprisingly, the "stop" arg removes one. :-)
+#
+#       OCF parameters are as below
+#       OCF_RESKEY_ip	The IP address in different subnet
+#       OCF_RESKEY_nic	The nic for broadcast the route information
+#
+#######################################################################
+# Initialization:
+
+. @hb_libdir@/ocf-shellfuncs
+GREP=@EGREP@
+HA_VARRUNDIR=@localstatedir@/run/@HB_PKG@
+VLDIR=$HA_VARRUNDIR/rsctmp/VIPArip
+RIPDCONF=$VLDIR/ripd.conf
+IP=@IP2UTIL@
+USAGE="usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
+
+#######################################################################
+LC_ALL=C
+export LC_ALL
+
+HA_D=@sysconfdir@/ha.d
+. ${HA_D}/shellfuncs
+
+meta_data() {
+cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="VIPArip">
+<version>1.0</version>
+
+<longdesc lang="en">
+Virtual IP Address by RIP2 protocol.
+This script manages IP alias in different subnet with quagga/ripd.
+It can add an IP alias, or remove one.
+</longdesc>
+<shortdesc lang="en">Virtual IP Address by RIP2 protocol</shortdesc>
+
+<parameters>
+
+<parameter name="ip" unique="1" required="1">
+<longdesc lang="en">
+The IPv4 address in different subnet, for example "192.168.1.1".
+</longdesc>
+<shortdesc lang="en">The IP address in different subnet</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="nic" unique="0">
+<longdesc lang="en">
+The nic for broadcast the route information.
+The ripd uses this nic to broadcast the route informaton to others
+</longdesc>
+<shortdesc lang="en">The nic for broadcast the route information</shortdesc>
+<content type="string" default="eth0"/>
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"   timeout="90" />
+<action name="stop"    timeout="100" />
+<action name="monitor" depth="10"  timeout="20s" interval="5s" start-delay="1s" />
+<action name="validate-all"  timeout="30s" />
+<action name="meta-data"  timeout="5s" />
+</actions>
+</resource-agent>
+END
+exit $OCF_SUCCESS
+}
+
+usage() {
+  echo $USAGE >&2
+}
+
+new_config_file() {
+	echo new_config_file $1 $2 $3
+	cat >$RIPDCONF <<END
+hostname ripd
+password zebra
+debug rip events
+debug rip packet
+debug rip zebra
+log file /var/log/quagga/quagga.log
+router rip
+!nic_tag
+ no passive-interface $2
+ network $2
+ distribute-list private out $2
+ distribute-list private in $2
+!metric_tag
+ redistribute connected metric $3
+!ip_tag
+access-list private permit $1/32
+access-list private deny any
+END
+}
+
+set_metric() {
+	echo set_metric $1
+	sed "s/redistribute connected metric .*/redistribute connected metric $1/g" $RIPDCONF > $RIPDCONF.tmp
+	cp $RIPDCONF.tmp $RIPDCONF
+}
+
+add_ip() {
+	echo add_ip $1
+	sed "s/ip_tag/ip_tag\naccess-list private permit $1\/32/g" $RIPDCONF > $RIPDCONF.tmp
+	cp $RIPDCONF.tmp $RIPDCONF
+}
+
+del_ip() {
+	echo del_ip $1
+	sed "/$1/d" $RIPDCONF > $RIPDCONF.tmp
+	cp $RIPDCONF.tmp $RIPDCONF
+	if $GREP "access-list private permit" $RIPDCONF>/dev/null 
+	then
+		echo some other IP is running
+		reload_config
+	else
+		stop_quagga
+		echo remove $RIPDCONF
+		rm $RIPDCONF
+	fi
+	
+}
+
+add_nic() {
+	echo add_nic $1
+	if $GREP "network $1" $RIPDCONF >/dev/null 
+	then
+		echo the nic is already in the config file
+	else
+		sed "s/nic_tag/nic_tag\n no passive-interface $1\n network $1\n distribute-list private out $1\n distribute-list private in $1/g" $RIPDCONF > $RIPDCONF.tmp
+		cp $RIPDCONF.tmp $RIPDCONF
+	fi
+}
+
+reload_config() {
+	echo reload_config
+	echo $RIPDCONF:
+	cat $RIPDCONF
+	echo killall -SIGHUP ripd
+	killall -SIGHUP ripd
+}
+
+start_quagga() {
+	echo start_quagga
+	echo $RIPDCONF:
+	cat $RIPDCONF
+	echo /usr/sbin/zebra -d
+	/usr/sbin/zebra -d
+	echo /usr/sbin/ripd -d -f $RIPDCONF
+	/usr/sbin/ripd -d -f $RIPDCONF
+}
+
+stop_quagga() {
+	echo stop_quagga
+	echo $RIPDCONF:
+	cat $RIPDCONF
+	echo killall -SIGTERM ripd
+	killall -SIGTERM ripd
+	echo killall -SIGTERM zebra
+	killall -SIGTERM zebra
+}
+
+start_rip_ip() {
+	echo start_rip_ip
+	if [ -d "$VLDIR/" ] || mkdir -p "$VLDIR/"
+	then
+		: Directory $VLDIR now exists
+	else
+		ocf_log err "Could not create \"$VLDIR/\"."
+		exit $OCF_ERR_GENERIC
+	fi
+
+	if [ x"$OCF_RESKEY_nic" = x ]
+	then
+		echo OCF_RESKEY_nic is null, set to eth0
+		OCF_RESKEY_nic="eth0"
+	fi
+	
+	if $IP addr | $GREP $OCF_RESKEY_ip >/dev/null 
+	then
+		ocf_log err "Invalid OCF_RESKEY_ip [$OCF_RESKEY_ip]"
+		exit $OCF_ERR_ARGS
+	fi
+
+	$IP addr add $OCF_RESKEY_ip/32 dev lo          
+	if [ -f "$RIPDCONF" ]
+	then
+		# there is a config file, add new data(IP,nic,metric) 
+		# to the existing config file.
+		add_ip $OCF_RESKEY_ip
+		add_nic $OCF_RESKEY_nic
+		set_metric 1
+		reload_config
+		echo sleep 3
+		sleep 3
+		set_metric 3
+		reload_config
+	else
+		new_config_file $OCF_RESKEY_ip $OCF_RESKEY_nic 1
+		start_quagga
+		echo sleep 3
+		sleep 3
+		set_metric 3
+		reload_config
+	fi
+	return $OCF_SUCCESS
+}
+
+stop_rip_ip() {
+	echo stop_rip_ip
+	status_rip_ip
+	if [ $? = $OCF_NOT_RUNNING ] 
+	then 
+		ocf_log err "Invalid OCF_RESKEY_ip [$OCF_RESKEY_ip]"
+		exit $OCF_ERR_ARGS
+	fi
+	$IP addr del $OCF_RESKEY_ip dev lo
+	echo sleep 2
+	sleep 2
+	del_ip	$OCF_RESKEY_ip
+	return $OCF_SUCCESS
+}
+
+status_rip_ip() {
+	if $IP addr | $GREP $OCF_RESKEY_ip >/dev/null 
+	then
+		if $GREP $OCF_RESKEY_ip $RIPDCONF >/dev/null 
+		then
+			if pidof ripd >/dev/null
+			then
+				return $OCF_SUCCESS
+			fi
+		fi
+	fi
+	return $OCF_NOT_RUNNING
+}
+
+if
+  [ $# -ne 1 ]
+then
+  usage
+  exit $OCF_ERR_ARGS
+fi
+
+if [ x"$OCF_RESKEY_ip" = x ]
+then
+	ocf_log err "Invalid OCF_RESKEY_ip [$OCF_RESKEY_ip]"
+	exit $OCF_ERR_ARGS
+fi
+
+case $1 in
+  start)	start_rip_ip;;
+  stop)		stop_rip_ip;;
+  status)	status_rip_ip;;
+  monitor)	status_rip_ip;;
+  validate-all)	exit $OCF_SUCCESS;;
+  meta-data)	meta_data;;
+  usage)	usage; exit $OCF_SUCCESS;;
+  *)		usage
+ 		exit $OCF_ERR_ARGS
+		;;
+esac

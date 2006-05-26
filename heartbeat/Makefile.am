@@ -58,6 +58,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			portblock	\
 			Raid1		\
 			ServeRAID	\
+			VIPArip		\
 			WAS		\
 			WinPopup	\
 			Xen		\
