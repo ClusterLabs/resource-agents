@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.24 2006/05/25 17:15:56 lars Exp $
+# $Id: Filesystem.in,v 1.25 2006/05/28 20:27:22 lars Exp $
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
@@ -95,7 +95,7 @@ check_util () {
 usage() {
 	cat <<-EOT
 	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
-	$Id: Filesystem.in,v 1.24 2006/05/25 17:15:56 lars Exp $
+	$Id: Filesystem.in,v 1.25 2006/05/28 20:27:22 lars Exp $
 	EOT
 }
 
@@ -596,7 +596,7 @@ ocfs2_init()
 	fi
 
 	OCFS2_UUID=$(mounted.ocfs2 -d $DEVICE|tail -1|awk '{print $3}'|tr -d -- -|tr a-z A-Z)
-	if [ -z "$OCFS2_UUID" ]; then
+	if [ -z "$OCFS2_UUID" -o "$OCFS2_UUID" = "UUID" ]; then
 		ocf_log err "$DEVICE: Could not determine ocfs2 UUID."
 		exit $OCF_ERR_GENERIC
 	fi
