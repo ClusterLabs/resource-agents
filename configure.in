@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.524 $) dnl cvs revision
+AC_REVISION($Revision: 1.525 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -209,11 +209,15 @@ infodir=`var "$infodir" "$prefix/info"`
 mandir=`var "$mandir" "$exec_prefix/man"`
 docdir=${datadir}/doc/${HB_PKG}-${VERSION}
 
-libdir="$exec_prefix/lib"
-if needs_64_bit_libs; then
-	old=$libdir
-	libdir=$exec_prefix/lib64
-	AC_MSG_WARN(overriding libdir from $old to $libdir)
+if test x"$libdir" = x; then
+	libdir="$exec_prefix/lib"
+	if needs_64_bit_libs; then
+		old=$libdir
+		libdir=$exec_prefix/lib64
+		AC_MSG_WARN(overriding libdir from $old to $libdir)
+	fi
+else
+	libdir=`eval echo "$libdir"`	
 fi
 
 if test x"$libexecdir" = x; then
