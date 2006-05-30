@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.525 $) dnl cvs revision
+AC_REVISION($Revision: 1.526 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -67,22 +67,6 @@ darwin*)
 		AC_DEFINE_UNQUOTED(ON_DARWIN, 1, Compiling for Darwin platform)
 		;;
 esac
-
-needs_64_bit_libs() {
-  case `uname -m` in
-    x86_64)
-	# Hmmm... Let's check for building from chrooted 32-bit environment...
-	case `file /bin/uname` in
-	  *64-bit*|*x86-64*)	true;;
-	  *80?86*)		false;;
-	  *)			true;;
-	esac
-	;;
-	# FIXME. I don't think this is completely general enough.
-      s390*)			true;;
-     *)				false;;
-  esac
-}
 
 AC_SUBST(INIT_EXT)
 AC_SUBST(USE_MODULES)
@@ -208,28 +192,8 @@ oldincludedir=`var "$oldincludedir" "$exec_prefix/include"`
 infodir=`var "$infodir" "$prefix/info"`
 mandir=`var "$mandir" "$exec_prefix/man"`
 docdir=${datadir}/doc/${HB_PKG}-${VERSION}
-
-if test x"$libdir" = x; then
-	libdir="$exec_prefix/lib"
-	if needs_64_bit_libs; then
-		old=$libdir
-		libdir=$exec_prefix/lib64
-		AC_MSG_WARN(overriding libdir from $old to $libdir)
-	fi
-else
-	libdir=`eval echo "$libdir"`	
-fi
-
-if test x"$libexecdir" = x; then
-	libexecdir="$exec_prefix/libexec"
-	if needs_64_bit_libs; then
-		old=$libexecdir
-		libexecdir=$exec_prefix/lib64
-		AC_MSG_WARN(overriding libexecdir from $old to $libexecdir)
-	fi
-else
-	libexecdir=`eval echo "$libexecdir"`
-fi
+libdir=`var "$libdir" "$exec_prefix/lib"`
+libexecdir=`var "$libexecdir" "$exec_prefix/libexec"`
 
 dnl	The GNU conventions for installation directories don't always
 dnl	sit well with this software.  In particular, GNU's stated:
