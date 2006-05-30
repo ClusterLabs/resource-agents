@@ -111,7 +111,13 @@ access-list private permit $1/32
 access-list private deny any
 END
 }
-
+check_params() {
+	if [ x"$OCF_RESKEY_ip" = x ]
+	then
+		ocf_log err "Invalid OCF_RESKEY_ip [$OCF_RESKEY_ip]"
+		exit $OCF_ERR_ARGS
+	fi
+}
 set_metric() {
 	echo set_metric $1
 	sed "s/redistribute connected metric .*/redistribute connected metric $1/g" $RIPDCONF > $RIPDCONF.tmp
@@ -181,6 +187,7 @@ stop_quagga() {
 
 start_rip_ip() {
 	echo start_rip_ip
+	check_params	
 	if [ -d "$VLDIR/" ] || mkdir -p "$VLDIR/"
 	then
 		: Directory $VLDIR now exists
@@ -227,6 +234,7 @@ start_rip_ip() {
 
 stop_rip_ip() {
 	echo stop_rip_ip
+	check_params
 	status_rip_ip
 	if [ $? = $OCF_NOT_RUNNING ] 
 	then 
@@ -241,6 +249,7 @@ stop_rip_ip() {
 }
 
 status_rip_ip() {
+	check_params
 	if $IP addr | $GREP $OCF_RESKEY_ip >/dev/null 
 	then
 		if $GREP $OCF_RESKEY_ip $RIPDCONF >/dev/null 
@@ -261,11 +270,6 @@ then
   exit $OCF_ERR_ARGS
 fi
 
-if [ x"$OCF_RESKEY_ip" = x ]
-then
-	ocf_log err "Invalid OCF_RESKEY_ip [$OCF_RESKEY_ip]"
-	exit $OCF_ERR_ARGS
-fi
 
 case $1 in
   start)	start_rip_ip;;
