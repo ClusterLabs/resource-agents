@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.25 2006/05/28 20:27:22 lars Exp $
+# $Id: Filesystem.in,v 1.26 2006/05/31 22:08:10 lars Exp $
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
@@ -95,7 +95,7 @@ check_util () {
 usage() {
 	cat <<-EOT
 	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
-	$Id: Filesystem.in,v 1.25 2006/05/28 20:27:22 lars Exp $
+	$Id: Filesystem.in,v 1.26 2006/05/31 22:08:10 lars Exp $
 	EOT
 }
 
@@ -437,13 +437,9 @@ Filesystem_notify() {
 #
 Filesystem_stop()
 {
-	# TODO: We actually need to free up anything mounted on top of
-	# us too, and clear nfs exports of ourselves; otherwise, our own
-	# unmount process may be blocked.
-	
 	# See if the device is currently mounted
-	if
-	    Filesystem_status >/dev/null 2>&1
+	Filesystem_status >/dev/null 2>&1
+	if [ $? -ne $OCF_NOT_RUNNING ]; then
 	then
 	    # Umount all sub-filesystems mounted under $MOUNTPOINT/
 	    # (e.g. /proc in chroots)
@@ -470,6 +466,7 @@ Filesystem_stop()
 		fi
 	    done
 
+	    rc=$OCF_SUCCESS
 	    if [ $blockdevice = "yes" ]; then
 		$UMOUNT $DEVICE
 		DEV=$DEVICE
@@ -480,26 +477,32 @@ Filesystem_stop()
 		DEV=`$MOUNT | grep "on $MOUNTPOINT " | cut -d' ' -f1`
 		# Unmount the filesystem
 		$UMOUNT $MOUNTPOINT
-		rc=$?
 	    fi
-		if [ $? -ne 0 ] ; then
-			ocf_log err "Couldn't unmount $MOUNTPOINT"
-			return $OCF_ERR_GENERIC
-		fi
-		flushbufs $DEV
+
+	    if [ $? -ne 0 ] ; then
+	    	ocf_log err "Couldn't unmount $MOUNTPOINT"
+	    	rc=$OCF_ERR_GENERIC
+	    fi
+	    flushbufs $DEV
 	else
-		: $MOUNTPOINT Not mounted.  No problema!
+	    # $MOUNTPOINT Not mounted.  No problema!
+	    rc=$OCF_SUCCESS
 	fi
 
 	# We'll never see the post-stop notification. We're gone now,
 	# have unmounted, and thus should remove the membership.
+	#
+	# (Do so regardless of whether we were unmounted already,
+	# because the admin might have manually unmounted but not
+	# cleared up the membership directory. Bad admin, no cookie.)
+	#
 	if [ "$FSTYPE" = "ocfs2" ]; then
-		if [ ! -d "$OCFS2_FS_ROOT" ]; then
-			ocf_log info "$OCFS2_FS_ROOT: Filesystem membership already gone."
-		else
-			ocf_log info "$OCFS2_FS_ROOT: Removing membership directory."
-			rm -rf $OCFS2_FS_ROOT/
-		fi
+	    if [ ! -d "$OCFS2_FS_ROOT" ]; then
+	    	ocf_log info "$OCFS2_FS_ROOT: Filesystem membership already gone."
+	    else
+	    	ocf_log info "$OCFS2_FS_ROOT: Removing membership directory."
+	    	rm -rf $OCFS2_FS_ROOT/
+	    fi
 	fi
 	
 	return $rc
