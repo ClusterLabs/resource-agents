@@ -16,7 +16,7 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 include ${top_srcdir}/make/defines.mk
 
 INCLUDES+=-I. -I../lib
-CFLAGS +=-I${incdir} -I${top_srcdir}/config \
+CFLAGS +=-I${ccsincdir} -I${incdir} -I${top_srcdir}/config \
          -Wall -Werror -Wstrict-prototypes -Wshadow -D_GNU_SOURCE -g
 
 TARGET=qdiskd
@@ -32,7 +32,7 @@ install: qdiskd
 
 qdiskd: disk.o crc32.o disk_util.o main.o score.o bitmap.o clulog.o \
 	gettid.o ../lib/libcman.a
-	gcc -o $@ $^ -lpthread -L../lib -lccs
+	gcc -o $@ $^ -lpthread -L../lib -L${ccslibdir} -lccs
 
 %.o: %.c
 	$(CC) -c -o $@ $^ $(INCLUDES) $(CFLAGS)
