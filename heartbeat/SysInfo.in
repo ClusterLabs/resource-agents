@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-#	$Id: SysInfo.in,v 1.2 2006/06/01 12:29:00 andrew Exp $
+#	$Id: SysInfo.in,v 1.3 2006/06/01 12:42:23 andrew Exp $
 #
 #	SysInfo OCF RA. Does nothing but wait a few seconds, can be
 #	configured to fail occassionally.
@@ -115,7 +115,7 @@ UpdateStat() {
     name=$1; shift
     value="$*"
     echo -e "$name:\t$value"
-    @sbindir@/attrd_updater ${OCF_RESKEY_delay} -s ${OCF_RESOURCE_INSTANCE}-node-attrs -S status -n $name -v "$value"
+    @sbindir@/attrd_updater ${OCF_RESKEY_delay} -S status -n $name -v "$value"
 }
 
 SysInfoStats() {
