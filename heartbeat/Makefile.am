@@ -55,10 +55,11 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			LinuxSCSI	\
 			LVM		\
 			MailTo		\
+			pingd		\
 			portblock	\
 			Raid1		\
 			ServeRAID	\
-			SysInfo	\
+			SysInfo		\
 			VIPArip		\
 			WAS		\
 			WinPopup	\
