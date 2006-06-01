@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.26 2006/05/31 22:08:10 lars Exp $
+# $Id: Filesystem.in,v 1.27 2006/06/01 13:40:30 lars Exp $
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
@@ -95,7 +95,7 @@ check_util () {
 usage() {
 	cat <<-EOT
 	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
-	$Id: Filesystem.in,v 1.26 2006/05/31 22:08:10 lars Exp $
+	$Id: Filesystem.in,v 1.27 2006/06/01 13:40:30 lars Exp $
 	EOT
 }
 
@@ -440,7 +440,6 @@ Filesystem_stop()
 	# See if the device is currently mounted
 	Filesystem_status >/dev/null 2>&1
 	if [ $? -ne $OCF_NOT_RUNNING ]; then
-	then
 	    # Umount all sub-filesystems mounted under $MOUNTPOINT/
 	    # (e.g. /proc in chroots)
 	    for SUB in `$MOUNT | grep "on $MOUNTPOINT/" | cut -d' ' -f3 | tac` ; do
