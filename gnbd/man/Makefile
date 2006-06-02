@@ -15,6 +15,7 @@ TARGET8= \
 	gnbd.8 \
 	gnbd_export.8 \
 	gnbd_import.8 \
+	gnbd_serv.8 \
 	fence_gnbd.8
 
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
