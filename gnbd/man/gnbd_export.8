@@ -102,6 +102,37 @@ Remove.
 
 Remove named GNBD(s).
 .TP
+\fB-u\fP \fIuid\fR
+Manually set UID.
+
+Manunally set the Universal Identifier for an exported device. This option is
+used with \fB-e\fP. The UID is used by device-mapper-multipath to determine
+which devices belong in a multipath map. A device must have a UID to be
+multipathed. However, for most SCSI devices the default Get UID command
+will return an appropriate id (see \fB-U\fP). \fBNOTE:\fP The UID refers to
+the device being exported, not the GNBD itself. The UIDs of two GNBD devices
+should be equal, only if they are exporting the same underlying device.
+This means that both GNBD servers are connected to the same physical device.
+\fBWARNING:\fP This should only be used for exporting shared storage devices,
+when the \fB-U\fP command does not work. This should almost never happen for
+SCSI devices. If two GNBD devices are not exporting the same underlying
+device, but are given the same UID, data corruption WILL occur. You should
+not use this option unless \fB-U\fP does not work for your setup, and you
+understand why.
+.TP
+\fB-U\fP [\fIcommand\fR]
+Get UID Command.
+
+This is a command the gnbd_export will run to get a Universal Identifier for
+the exported device. The UID is necessary to use device-mapper-multipath with
+GNBD (see \fB-u\fP for more information). The command must use the full path
+of any executeable that you wish to run. A command can contain the %M, %m or
+%n escape sequences. %M will be expanded to the major number of the exported
+device, %m will be expaned to the minor number of the exported device, and
+%n will be expanded to the sysfs name for the device. If no command is given,
+gnbd will use the default command \fI"/sbin/scsi_id -g -u -s /block/%n"\fR. This
+command will work for most scsi devices.
+.TP
 \fB-t\fP [\fIseconds\fR]
 Timeout.
 

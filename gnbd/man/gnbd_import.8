@@ -148,6 +148,12 @@ Unfence the specified host. \fBWARNING\fP: Unfencing a client at the incorrect
 time can result in data corruption.  In normal operation, it should never be
 necessary to run this comman. See the \fB-t\fP option.
 .TP
+\fB-U\fP \fIGNBD\fR
+Get UID.
+
+Gets the Universal Identifier for the specified GNBD.  This command is used
+by dm-multipathing to create multipath maps.
+.TP
 \fB-V\fP
 Version information.
 
