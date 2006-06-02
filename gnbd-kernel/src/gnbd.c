@@ -29,7 +29,7 @@
 #include <linux/in.h>
 #include <linux/buffer_head.h>
 #include <linux/miscdevice.h>
-
+#include <linux/moduleparam.h>
 #include <linux/devfs_fs_kernel.h>
 
 #include <asm/uaccess.h>
