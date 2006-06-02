@@ -19,7 +19,6 @@
 #include <libxml/parser.h>
 #include <libxml/xmlmemory.h>
 #include <libxml/xpath.h>
-#include <magma.h>
 #include <ccs.h>
 #include <stdlib.h>
 #include <stdio.h>

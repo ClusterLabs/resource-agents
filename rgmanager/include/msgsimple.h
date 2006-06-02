@@ -59,7 +59,7 @@ typedef struct __attribute__ ((packed)) {
 #define GENERIC_HDR_MAGIC   0x123abc00
 #define GENERIC_HDR_MAGICV2 0x123abc02
 
-int msg_send_simple(int fd, int cmd, int arg1, int arg2);
-int msg_receive_simple(int fd, generic_msg_hdr ** buf, int timeout);
+int msg_send_simple(msgctx_t *ctx, int cmd, int arg1, int arg2);
+int msg_receive_simple(msgctx_t *ctx, generic_msg_hdr ** buf, int timeout);
 
 #endif

@@ -39,17 +39,15 @@
 #include <sys/syslog.h>
 #include <sys/ioctl.h>
 
-#include <vf.h>
-#include <magmamsg.h>
+#include <message.h>
+#include <msgsimple.h>
 #include <platform.h>
-
-ssize_t msg_peek(int sockfd, void *buf, ssize_t count);
 
 /*
  * msg_send_simple
  */
 int
-msg_send_simple(int fd, int cmd, int arg1, int arg2)
+msg_send_simple(msgctx_t *ctx, int cmd, int arg1, int arg2)
 {
 	generic_msg_hdr msg;
 
@@ -60,7 +58,7 @@ msg_send_simple(int fd, int cmd, int arg1, int arg2)
 	msg.gh_arg2 = arg2;
 	swab_generic_msg_hdr(&msg);
 
-	return msg_send(fd, (void *) &msg, sizeof (msg));
+	return msg_send(ctx, (void *) &msg, sizeof (msg));
 }
 
 
@@ -75,64 +73,54 @@ msg_send_simple(int fd, int cmd, int arg1, int arg2)
  * Returns 0 on success or -1 on failure.
  */
 int
-msg_receive_simple(int fd, generic_msg_hdr ** buf, int timeout)
+msg_receive_simple(msgctx_t *ctx, generic_msg_hdr ** buf, int timeout)
 {
 	int ret;
-	generic_msg_hdr peek_msg;
+	char msgbuf[16384];
+	generic_msg_hdr *peek_msg = (generic_msg_hdr *)msgbuf;
+	int size;
 
 	/*
 	 * Peek at the header.  We need the size of the inbound buffer!
 	 */
-	ret = msg_peek(fd, &peek_msg, sizeof (generic_msg_hdr));
-	if (ret != sizeof (generic_msg_hdr)) {
-		if (ret == -1) {
-			if (errno != ECONNRESET)
-				fprintf(stderr, "fd%d peek: %s\n", fd,
-					strerror(errno));
-		} else if (ret != 0)	/* Blank message = probably closed socket */
-			fprintf(stderr, "fd%d peek: %d/%d bytes\n", fd,
-			       ret, (int)sizeof (generic_msg_hdr));
+	errno = EAGAIN;
+	ret = msg_wait(ctx, timeout);
+	if (ret == M_CLOSE) {
+		errno = ECONNRESET;
 		return -1;
 	}
 
-	swab_generic_msg_hdr(&peek_msg);
-	if (peek_msg.gh_magic != GENERIC_HDR_MAGIC) {
+	ret = msg_receive(ctx, peek_msg, sizeof(msgbuf), timeout);
+
+	if (ret == -1) {
+		fprintf(stderr, "msg_receive: %s\n", strerror(errno));
+		return -1;
+	}
+
+	if (ret < sizeof(generic_msg_hdr)) {
+		fprintf(stderr, "msg_receive_simple: invalid header\n");
+		return -1;
+	}
+
+	swab_generic_msg_hdr(peek_msg);
+	if (peek_msg->gh_magic != GENERIC_HDR_MAGIC) {
 		fprintf(stderr, "Invalid magic: Wanted 0x%08x, got 0x%08x\n",
-		       GENERIC_HDR_MAGIC, peek_msg.gh_magic);
+		       GENERIC_HDR_MAGIC, peek_msg->gh_magic);
 		return -1;
 	}
 
 	/*
 	 * allocate enough memory to receive the header + diff buffer
 	 */
-	*buf = malloc(peek_msg.gh_length);
-	memset(*buf, 0, peek_msg.gh_length);
+	*buf = malloc(peek_msg->gh_length);
 
 	if (!*buf) {
 		fprintf(stderr, "%s: malloc: %s", __FUNCTION__,
 		       strerror(errno));
 		return -1;
 	}
-
-	/*
-	 * Now, do the real receive.  2 second timeout, if none specified.
-	 */
-	ret = msg_receive_timeout(fd, (void *) (*buf), peek_msg.gh_length,
-				  timeout ? timeout : 2);
-
-	if (ret == -1) {
-		fprintf(stderr, "msg_receive_timeout: %s\n", strerror(errno));
-		free(*buf);
-		*buf = NULL;
-		return -1;
-	}
-
-	if (ret != peek_msg.gh_length) {
-		fprintf(stderr, "short read: %d/%d\n", ret, peek_msg.gh_length);
-		free(*buf);
-		*buf = NULL;
-		return -1;
-	}
+	memset(*buf, 0, peek_msg->gh_length);
+	memcpy(*buf, msgbuf + sizeof(generic_msg_hdr), peek_msg->gh_length);
 
 	return ret;
 }

@@ -21,6 +21,7 @@
 #include <gettid.h>
 #include <rg_queue.h>
 #include <assert.h>
+#include <message.h>
 
 /**
  * Resource thread list entry.
@@ -47,7 +48,7 @@ static pthread_mutex_t reslist_mutex = PTHREAD_MUTEX_INITIALIZER;
 static resthread_t *find_resthread_byname(const char *resgroupname);
 static int spawn_if_needed(const char *resgroupname);
 int rt_enqueue_request(const char *resgroupname, int request,
-		       int response_fd, int max, uint64_t target,
+		       msgctx_t *response_ctx, int max, uint64_t target,
 		       int arg0, int arg1);
 
 
@@ -71,7 +72,7 @@ dump_threads(void)
 }
 
 
-static void
+static int 
 wait_initialize(const char *name)
 {
 	resthread_t *t;
@@ -80,15 +81,21 @@ wait_initialize(const char *name)
 		pthread_mutex_lock(&reslist_mutex);
 		t = find_resthread_byname(name);
 
-		assert(t);
+		if (!t) {
+			pthread_mutex_unlock(&reslist_mutex);
+			return -1;
+		}
+
 		if (t->rt_status != RG_STATE_UNINITIALIZED)  {
 			pthread_mutex_unlock(&reslist_mutex);
-			return;
+			return 0;
 		}
 
 		pthread_mutex_unlock(&reslist_mutex);
 		usleep(50000);
 	}
+
+	assert(0);
 }
 
 
@@ -134,7 +141,7 @@ purge_all(request_t **list)
 
 		list_remove(list, curr);
 		dprintf("Removed request %d\n", curr->rr_request);
-		if (curr->rr_resp_fd != -1) {
+		if (curr->rr_resp_ctx) {
 			send_response(RG_EABORT, curr);
 		}
 		rq_free(curr);
@@ -148,7 +155,7 @@ resgroup_thread_main(void *arg)
 	pthread_mutex_t my_queue_mutex;
 	pthread_cond_t my_queue_cond;
 	request_t *my_queue = NULL;
-	uint64_t newowner = NODE_ID_NONE;
+	int newowner = 0;
 	char myname[256];
 	resthread_t *myself;
 	request_t *req;
@@ -191,7 +198,6 @@ resgroup_thread_main(void *arg)
 	pthread_cond_wait(&my_queue_cond, &my_queue_mutex);
 	pthread_mutex_unlock(&my_queue_mutex);
 
-
 	while(1) {
 		pthread_mutex_lock(&reslist_mutex);
  		pthread_mutex_lock(&my_queue_mutex);
@@ -201,7 +207,6 @@ resgroup_thread_main(void *arg)
 			   loop with the lock held. */
 			break;
 		}
-		
 		pthread_mutex_unlock(&my_queue_mutex);
 		pthread_mutex_unlock(&reslist_mutex);
 
@@ -216,6 +221,8 @@ resgroup_thread_main(void *arg)
 		myself = find_resthread_byname(myname);
 		assert(myself);
 		myself->rt_request = req->rr_request;
+		if (req->rr_request == RG_STOP_EXITING)
+			myself->rt_status = RG_STATE_STOPPING;
 		pthread_mutex_unlock(&reslist_mutex);
 
 		switch(req->rr_request) {
@@ -288,6 +295,30 @@ resgroup_thread_main(void *arg)
 			}
 
 			break;
+
+		case RG_STOP_EXITING:
+			/* We're out of here. Don't allow starts anymore */
+			error = svc_stop(myname, RG_STOP);
+
+			if (error == 0) {
+				ret = RG_SUCCESS;
+
+			} else if (error == RG_EFORWARD) {
+				ret = RG_NONE;
+				break;
+			} else {
+				/*
+				 * Bad news. 
+				 */
+				ret = RG_FAIL;
+			}
+
+			pthread_mutex_lock(&my_queue_mutex);
+			purge_all(&my_queue);
+			pthread_mutex_unlock(&my_queue_mutex);
+
+			break;
+
 
 		case RG_DISABLE:
 			/* Disable and user stop requests need to be
@@ -377,7 +408,7 @@ resgroup_thread_main(void *arg)
 		}
 
 		if (ret != RG_NONE && rg_initialized() &&
-		    (req->rr_resp_fd >= 0)) {
+		    (req->rr_resp_ctx)) {
 			send_response(error, req);
 		}
 
@@ -454,6 +485,7 @@ spawn_if_needed(const char *resgroupname)
 	int ret;
 	resthread_t *resgroup = NULL;
 
+retry:
 	pthread_mutex_lock(&reslist_mutex);
 	while (resgroup == NULL) {
 		resgroup = find_resthread_byname(resgroupname);
@@ -468,10 +500,14 @@ spawn_if_needed(const char *resgroupname)
 		return ret;
 	}
 
-	pthread_mutex_unlock(&reslist_mutex);
-	wait_initialize(resgroupname);
+	ret = (resgroup->rt_status == RG_STATE_STOPPING);
 
-	return 0;
+	pthread_mutex_unlock(&reslist_mutex);
+	if (wait_initialize(resgroupname) < 0) {
+		goto retry;
+	}
+
+	return ret;
 }
 
 
@@ -501,7 +537,7 @@ find_resthread_byname(const char *resgroupname)
  *
  * @param resgroupname		Service name to perform operations on
  * @param request		Request to perform
- * @param response_fd		Send response to this file descriptor when
+ * @param response_ctx		Send response to this file descriptor when
  *				this request completes.
  * @param max			Don't insert this request if there already
  * 				are this many requests of this type in the
@@ -513,7 +549,8 @@ find_resthread_byname(const char *resgroupname)
  * @see rq_queue_request
  */
 int
-rt_enqueue_request(const char *resgroupname, int request, int response_fd,
+rt_enqueue_request(const char *resgroupname, int request, 
+		   msgctx_t *response_ctx,
    		   int max, uint64_t target, int arg0, int arg1)
 {
 	request_t *curr;
@@ -521,6 +558,9 @@ rt_enqueue_request(const char *resgroupname, int request, int response_fd,
 	resthread_t *resgroup;
 
 	if (spawn_if_needed(resgroupname) != 0) {
+		/* Usually, we get here if the thread is killing
+		   stuff.  This prevents us from queueing START requests
+		   while we're exiting */
 		return -1;
 	}
 
@@ -568,7 +608,7 @@ rt_enqueue_request(const char *resgroupname, int request, int response_fd,
 		case RG_START_RECOVER:
 		case RG_START:
 		case RG_ENABLE:
-			send_ret(response_fd, resgroup->rt_name, RG_EDEADLCK,
+			send_ret(response_ctx, resgroup->rt_name, RG_EDEADLCK,
 				 request);
 			break;
 		}
@@ -580,7 +620,7 @@ rt_enqueue_request(const char *resgroupname, int request, int response_fd,
 	}
 
 	ret = rq_queue_request(resgroup->rt_queue, resgroup->rt_name,
-			       request, 0, 0, response_fd, 0, target,
+			       request, 0, 0, response_ctx, 0, target,
 			       arg0, arg1);
 	pthread_cond_broadcast(resgroup->rt_queue_cond);
 	pthread_mutex_unlock(resgroup->rt_queue_mutex);

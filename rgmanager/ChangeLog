@@ -1,3 +1,80 @@
+2006-05-23 Lon Hohberger <lhh at redhat.com>
+	* src/daemons/members.c: Zap pad fields on copy-out
+	* src/daemons/main.c: Give notice if skipping an event because of
+	locked services.  Call the self-watchdog init function
+	* src/daemons/watchdog.c: Add Stanko Kupcevic's self-watchdog from
+	CVS head (fixes #193247)
+	* src/daemons/groups.c: Add debug messages.  Actually count
+	resgroups during node transition handling
+	* src/daemons/rg_state.c: allow failover of stopping services if
+	the owner died (#193255)
+	* src/utils/clustat.c: fix typo, misc. usability problems (#192999)
+
+2006-05-16 Lon Hohberger <lhh at redhat.com>
+	* src/resources/nfsclient.sh: Fix 189218 - nfsclient not matching
+	wildcards correctly when checking status.  Allow disabling of
+	recovery for services where the nfs clients are ordered (this will
+	cause a full service restart, but works)
+	* src/resources/clusterfs.sh, fs.sh, svclib_nfslock, service.sh:
+	Implement rudimentary atomic bomb-style NFS lock reclaim handling
+	Needs compatible and correctly configured version of nfs-utils 
+	installed and running on the system.  For clusterfs.sh, ensure
+	that we flush buffers during service tear-down - regardless of
+	whether or not we unmount the file system.
+	* src/utils/clunfslock.sh: HA-callout program (/usr/sbin/clunfslock)
+	for use with the rpc.statd -H parameter.  Copies the client to all
+	cluster-managed mounted file systems so that it will get lock
+	reclaim notification on failover.
+
+2006-05-09 Lon Hohberger <lhh at redhat.com>
+	* include/list.h: Prevent dereferencing curr if it's null for some
+	reason
+	* include/resgroup.h: Clean up alignment, add rgmanager lock/unlock
+	message types
+	* src/daemons/Makefile: Add nodeevent.o to the build for rgmanager
+	* src/clulib/msgsimple.c: Misc code path cleanups
+	* src/clulib/vft.c: Add local reads for fast clustat operation.
+	* src/daemons/groups.c: Count all resource groups for all nodes 
+	in one pass, rather than one node per pass.  Split queueing of
+	status checks off so we never block the main thread.  Mark services
+	which have autostart=0 in the config as "disabled" to help remove
+	confusion between "disabled", "stopped", and the no-longer-needed
+	"stopped but behave like disabled" states. bz #182454 /
+	#190234 / #190408	
+	* src/daemons/fo_domain.c: Add patch from Josef Whiter to 
+	implement no-failback option for a given FO domain - bz #189841
+	* src/daemons/main.c: Queue node events for another thread to
+	handle, so we never block the main thread.  Also, implement 
+	cluster-wide service lock/unlock feature from clumanager 1.2.x
+	- bz #175010
+	* src/daemons/nodeevent.c: Split out node event queueing / handling
+	in to a separate thread so the main thread does not block
+	* src/daemons/rg_state.c: Return error codes if resource groups
+	are locked.
+	* src/daemons/rg_thread.c: Fix assertion failure causing segfault
+	in extremely rare cases.  Quash the rg queue during shutdown.
+	- bz #181539
+	* src/daemons/rg_state.c: Add fast local service state query to
+	reduce unnecessary lock contention
+	* src/daemons/groups.c: Handle request for expedited information
+	from clustat.
+	* src/daemons/main.c: Pass arg1 to send_rg_states() to enable fast
+	clustat operation.
+	* src/resources/fs.sh: Implement user/group quota support if 
+	enabled in the file system options
+	* src/utils/clustat.c: Misc. error handling.  Add single service / 
+	member output and add -Q to the help information.  #185952.
+	Added -f flag.
+	* src/utils/clusvcadm.c: Implement client-side of #175010
+	* src/utils/clustat.c: show transition time in clustat -x
+	- bz #191398
+	* src/resources/fs.sh: enable user/group quotas if enabled in the
+	options attribute - bz #191182
+	* init.d/rgmanager: fix typo - bz #191205
+
+
+-------------
+
 2005-03-21 Lon Hohberger <lhh at redhat.com>
 	* init.d/rgmanager, Makefile: Fix up init script and add Makefile
 	so that the init script is properly installed #142754

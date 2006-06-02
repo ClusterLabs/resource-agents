@@ -5,7 +5,12 @@
 # resources. ;(
 #
 
-
+# Grab nfs lock tricks if available
+export NFS_TRICKS=1
+if [ -f "$(dirname $0)/svclib_nfslock" ]; then
+	. $(dirname $0)/svclib_nfslock
+	NFS_TRICKS=0
+fi
 
 meta_data()
 {
@@ -89,6 +94,22 @@ meta_data()
             <content type="boolean"/>
         </parameter>
 
+	<parameter name="nfslock">
+	    <longdesc lang="en">
+	    	Enable NFS lock workarounds.  When used with a compatible
+		HA-callout program like clunfslock, this could be used
+		to provide NFS lock failover, but at significant cost to
+		other services on the machine.  This requires a compatible
+		version of nfs-utils and manual configuration of rpc.statd;
+		see 'man rpc.statd' to see if your version supports
+		the -H parameter.
+	    </longdesc>
+	    <shortdesc lang="en">
+	        Enable NFS lock workarounds
+	    </shortdesc>
+	    <content type="boolean"/>
+	</parameter>
+                
         <parameter name="recovery">
             <longdesc lang="en">
 	        This currently has three possible options: "restart" tries
@@ -125,7 +146,6 @@ meta_data()
         <child type="fs" start="1" stop="8"/>
         <child type="clusterfs" start="2" stop="7"/>
         <child type="netfs" start="3" stop="6"/>
-        <child type="nfsserver" start="4" stop="5"/>
 	<child type="nfsexport" start="4" stop="5"/>
 
 	<child type="nfsclient" start="5" stop=""/>
@@ -145,6 +165,17 @@ EOT
 #
 case $1 in
 	start)
+		#
+		# XXX If this is set, we kill lockd.  If there is no
+		# child IP address, then clients will NOT get the reclaim
+		# notification.
+		#
+		if [ $NFS_TRICKS -eq 0 ]; then
+			if [ "$OCF_RESKEY_nfslock" = "yes" ] || \
+	   		   [ "$OCF_RESKEY_nfslock" = "1" ]; then
+				pkill -KILL -x lockd
+			fi
+		fi
 		exit 0
 		;;
 	stop)

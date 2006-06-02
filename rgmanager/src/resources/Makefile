@@ -18,9 +18,9 @@ include ${top_srcdir}/make/defines.mk
 INCLUDE += -I $(top_srcdir)/include
 
 RESOURCES=fs.sh service.sh ip.sh nfsclient.sh nfsexport.sh \
-	script.sh netfs.sh clusterfs.sh nfsserver.sh smb.sh
+	script.sh netfs.sh clusterfs.sh smb.sh
 
-TARGETS=${RESOURCES} ocf-shellfuncs
+TARGETS=${RESOURCES} ocf-shellfuncs svclib_nfslock
 
 all:
 

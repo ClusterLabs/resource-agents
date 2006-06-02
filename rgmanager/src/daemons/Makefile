@@ -16,14 +16,13 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 include ${top_srcdir}/make/defines.mk
 INCLUDE += -I $(top_srcdir)/include
 
-CFLAGS+= -g -I${magmaincdir} -I${ccsincdir} -I${incdir} -I/usr/include/libxml2 -L${magmalibdir} \
-	-L${ccslibdir} -L${libdir} 
+CFLAGS+= -g -I${incdir} -I/usr/include/libxml2 -L${libdir}
 
 CFLAGS+= -g -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
 
 CFLAGS+= -L ../clulib 
 
-LDFLAGS+= -lclulib -lxml2 -lmagmamsg -lmagma -lpthread -ldl
+LDFLAGS+= -lclulib -lxml2 -lpthread -ldl
 TARGETS=clurgmgrd clurmtabd rg_test
 
 all: ${TARGETS}
@@ -39,10 +38,11 @@ uninstall:
 	${UNINSTALL} clurmtabd ${sbindir}
 	${UNINSTALL} rg_test ${sbindir}
 
-clurgmgrd: rg_thread.o rg_locks.o main.o groups.o rg_state.o \
-		rg_queue.o members.o rg_forward.o reslist.o \
-		resrules.o restree.o fo_domain.o watchdog.o
-	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS) $(LDFLAGS) -lccs
+clurgmgrd: rg_thread.o rg_locks.o main.o groups.o  \
+		rg_queue.o rg_forward.o reslist.o \
+		resrules.o restree.o fo_domain.o nodeevent.o \
+		watchdog.o rg_state.o
+	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS) $(LDFLAGS) -lccs -lcman 
 
 #
 # Our test program links against the local allocator so that
@@ -60,7 +60,7 @@ clurgmgrd: rg_thread.o rg_locks.o main.o groups.o rg_state.o \
 #
 rg_test: rg_locks-noccs.o test-noccs.o reslist-noccs.o \
 		resrules.o restree-noccs.o fo_domain-noccs.o
-	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS) -llalloc $(LDFLAGS)
+	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS) -llalloc $(LDFLAGS) -lccs -lcman
 
 clurmtabd: clurmtabd.o clurmtabd_lib.o
 	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS) $(LDFLAGS)

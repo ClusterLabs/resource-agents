@@ -167,11 +167,11 @@ conf_get(char *path, char **value)
 
 
 int
-rg_lockall(void)
+rg_lockall(int flag)
 {
 	pthread_mutex_lock(&locks_mutex);
 	if (!__rg_lock)
-		__rg_lock = 1;
+		__rg_lock |= flag;
 	pthread_mutex_unlock(&locks_mutex);
 	return 0;
 }
@@ -189,27 +189,12 @@ rg_locked(void)
 
 
 int
-rg_unlockall(void)
+rg_unlockall(int flag)
 {
 	pthread_mutex_lock(&locks_mutex);
 	if (__rg_lock)
-		__rg_lock = 0;
+		__rg_lock &= ~flag;
 	pthread_cond_broadcast(&unlock_cond);
-	pthread_mutex_unlock(&locks_mutex);
-	return 0;
-}
-
-
-int
-rg_wait_unlockall(void)
-{
-	pthread_mutex_lock(&locks_mutex);
-	if (!__rg_lock) {
-		pthread_mutex_unlock(&locks_mutex);
-		return 0;
-	}
-
-	pthread_cond_wait(&unlock_cond, &locks_mutex);
 	pthread_mutex_unlock(&locks_mutex);
 	return 0;
 }

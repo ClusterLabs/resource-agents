@@ -26,8 +26,9 @@
 #include <libgen.h>
 #include <resgroup.h>
 #include <platform.h>
-#include <magma.h>
-#include <magmamsg.h>
+#include <members.h>
+#include <message.h>
+#include <libcman.h>
 #include <resgroup.h>
 #include <msgsimple.h>
 
@@ -52,11 +53,105 @@ build_message(SmMessageSt *msgp, int action, char *svcName, uint64_t target)
 }
 
 
+int
+do_lock_req(int req)
+{
+	cman_handle_t ch;
+	msgctx_t ctx;
+	int ret = RG_FAIL;
+	cluster_member_list_t *membership = NULL;
+	int me;
+	generic_msg_hdr hdr;
+
+	ch = cman_init(NULL);
+	if (!ch) {
+		printf("Could not connect to cluster service\n");
+		goto out;
+	}
+
+	membership = get_member_list(ch);
+	me = get_my_nodeid(ch);
+
+	if (msg_open(0, RG_PORT, &ctx, 5) < 0) {
+		printf("Could not connect to resource group manager\n");
+		goto out;
+	}
+
+	if (msg_send_simple(&ctx, req, 0, 0) < 0) {
+		printf("Communication failed\n");
+		goto out;
+	}
+
+	if (msg_receive(&ctx, &hdr, sizeof(hdr), 5) < sizeof(hdr)) {
+		printf("Receive failed\n");
+		goto out;
+	}
+
+	swab_generic_msg_hdr(&hdr);
+	ret = hdr.gh_command;
+
+out:
+	if (membership)
+		free_member_list(membership);
+
+	if (ctx.type >= 0)
+		msg_close(&ctx);
+
+	if (ch)
+		cman_finish(ch);
+
+	return ret;
+}
+
+
+int
+do_lock(void)
+{
+	if (do_lock_req(RG_LOCK) != RG_SUCCESS) {
+		printf("Lock operation failed\n");
+		return 1;
+	}
+	printf("Resource groups locked\n");
+	return 0;
+}
+
+
+int
+do_unlock(void)
+{
+	if (do_lock_req(RG_UNLOCK) != RG_SUCCESS) {
+		printf("Unlock operation failed\n");
+		return 1;
+	}
+	printf("Resource groups unlocked\n");
+	return 0;
+}
+
+
+int
+do_query_lock(void)
+{
+	switch(do_lock_req(RG_QUERY_LOCK)) {
+	case RG_LOCK:
+		printf("Resource groups locked\n");
+		break;
+	case RG_UNLOCK:
+		printf("Resource groups unlocked\n");
+		break;
+	default:
+		printf("Query operation failed\n");
+		return 1;
+	}
+	return 0;
+}
+
 
 void
 usage(char *name)
 {
-printf("usage: %s -d <group>             Disable <group>\n", name);
+printf("Resource Group Control Commands:\n");
+printf("       %s -v                     Display version and exit\n",name);
+printf("       %s -d <group>             Disable <group>\n", name);
 printf("       %s -e <group>             Enable <group>\n",
        name);
 printf("       %s -e <group> -m <member> Enable <group>"
@@ -67,7 +162,16 @@ printf("       %s -q                     Quiet operation\n", name);
 printf("       %s -R <group>             Restart a group in place.\n",
        name);
 printf("       %s -s <group>             Stop <group>\n", name);
-printf("       %s -v                     Display version and exit\n",name);
+printf("\n");
+printf("Resource Group Locking (for cluster Shutdown / Debugging):\n");
+printf("       %s -l                     Lock local resource group manager.\n"
+       "                                 This prevents resource groups from\n"
+       "                                 starting on the local node.\n",
+       name);
+printf("       %s -S                     Show lock state\n", name);
+printf("       %s -u                     Unlock local resource group manager.\n"
+       "                                 This allows resource groups to start\n"
+       "                                 on the local node.\n", name);
 }
 
 
@@ -77,11 +181,12 @@ main(int argc, char **argv)
 	extern char *optarg;
 	char *svcname=NULL, nodename[256];
 	int opt;
-	int msgfd = -1, fd;
+	msgctx_t ctx;
+	cman_handle_t ch;
 	SmMessageSt msg;
 	int action = RG_STATUS;
 	int node_specified = 0;
-       	uint64_t msgtarget, me, svctarget = NODE_ID_NONE;
+       	int msgtarget, me, svctarget = 0;
 	char *actionstr = NULL;
 	cluster_member_list_t *membership;
 
@@ -90,8 +195,17 @@ main(int argc, char **argv)
 		return 1;
 	}
 
-	while ((opt = getopt(argc, argv, "e:d:r:n:m:vR:s:S:qh?")) != EOF) {
+	while ((opt = getopt(argc, argv, "lSue:d:r:n:m:vR:s:qh?")) != EOF) {
 		switch (opt) {
+		case 'l':
+			return do_lock();
+
+		case 'S':
+			return do_query_lock();
+
+		case 'u':
+			return do_unlock();
+
 		case 'e':
 			/* ENABLE */
 			actionstr = "trying to enable";
@@ -148,28 +262,29 @@ main(int argc, char **argv)
 	
 
 	/* No login */
-	fd = clu_connect(RG_SERVICE_GROUP, 0);
-	if (fd < 0) {
+	ch = cman_init(NULL);
+	if (!ch) {
 		printf("Could not connect to cluster service\n");
 		return 1;
 	}
 
-	membership = clu_member_list(RG_SERVICE_GROUP);
-	msg_update(membership);
-	clu_local_nodeid(RG_SERVICE_GROUP, &me);
+	membership = get_member_list(ch);
+	me = get_my_nodeid(ch);
 
 	if (node_specified) {
 		msgtarget = memb_name_to_id(membership, nodename);
-		if (msgtarget == NODE_ID_NONE) {
+		if (msgtarget == 0) {
 			fprintf(stderr, "Member %s not in membership list\n",
 				nodename);
 			return 1;
 		}
 		svctarget = msgtarget;
 	} else {
-		clu_local_nodeid(RG_SERVICE_GROUP, &msgtarget);
+		msgtarget = me;
+		/*
 		clu_local_nodename(RG_SERVICE_GROUP, nodename,
 				   sizeof(nodename));
+				   */
 	}
 	
 	build_message(&msg, action, svcname, svctarget);
@@ -178,27 +293,27 @@ main(int argc, char **argv)
 		printf("Member %s %s %s", nodename, actionstr, svcname);
 		printf("...");
 		fflush(stdout);
-		msgfd = msg_open(msgtarget, RG_PORT, 0, 5);
+		msg_open(0, RG_PORT, &ctx, 5);
 	} else {
 		printf("Trying to relocate %s to %s", svcname, nodename);
 		printf("...");
 		fflush(stdout);
-		msgfd = msg_open(me, RG_PORT, 0, 5);
+		msg_open(0, RG_PORT, &ctx, 5);
 	}
 
-	if (msgfd < 0) {
+	if (ctx.type < 0) {
 		fprintf(stderr,
 			"Could not connect to resource group manager!\n");
 		return 1;
 	}
 
-	if (msg_send(msgfd, &msg, sizeof(msg)) != sizeof(msg)) {
+	if (msg_send(&ctx, &msg, sizeof(msg)) != sizeof(msg)) {
 		perror("msg_send");
 		fprintf(stderr, "Could not send entire message!\n");
 		return 1;
 	}
 
-	if (msg_receive(msgfd, &msg, sizeof(msg)) != sizeof(msg)) {
+	if (msg_receive(&ctx, &msg, sizeof(msg), 0) != sizeof(msg)) {
 		perror("msg_receive");
 		fprintf(stderr, "Error receiving reply!\n");
 		return 1;

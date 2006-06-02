@@ -1,22 +1,5 @@
-* Not currently tested with GuLM.
-
-* Online configuration works, but needs SIGHUP from either ccsd or
-  a ccsd-called-program
-
-* I suspect View-Formation is not scalable more than about 32 nodes
-the way it's currently implemented.
-  - Another implementation would be to only keep track of pieces of data
-    relevant to resource groups running on each node and update a
-    centralized server.  This is more scalable, but requires more recovery
-    in the event that the centralized server fails.  Centralized server
-    can simply be high-node-ID or low-node-ID of the current active
-    membership.
-
-* No man pages.
-
-* Init script 100% broken.
-  - Ok, all we need to do is start clurgmgrd and stop it.
-
-* Write RHEL 3 -> LCP upgrade.
-  - Should be simple; the resource group structure is based on the RHEL3
-    cluster manager model.
+* Rewrite locking infrastructure to use the DLM directly.  Make sure
+  the lockspace is protected by a thread mutex, as multiple writers
+  could be bad...
+* Remove VF code.  It's not needed anymore with the totem protocol in
+  openais / cman

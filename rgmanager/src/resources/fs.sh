@@ -39,6 +39,13 @@ NO=1
 YES_STR="yes"
 INVALIDATEBUFFERS="/bin/true"
 
+# Grab nfs lock tricks if available
+export NFS_TRICKS=1
+if [ -f "$(dirname $0)/svclib_nfslock" ]; then
+	. $(dirname $0)/svclib_nfslock
+	NFS_TRICKS=0
+fi
+
 . $(dirname $0)/ocf-shellfuncs
 
 meta_data()
@@ -126,7 +133,6 @@ meta_data()
         </parameter>
 	-->
 
-
 	<parameter name="self_fence">
 	    <longdesc lang="en">
 	        If set and unmounting the file system fails, the node will
@@ -135,6 +141,18 @@ meta_data()
 	    </longdesc>
 	    <shortdesc lang="en">
 	        Seppuku Unmount
+	    </shortdesc>
+	    <content type="boolean"/>
+	</parameter>
+
+	<parameter name="nfslock" inherit="service%nfslock">
+	    <longdesc lang="en">
+	        If set and unmounting the file system fails, the node will
+		try to kill lockd and issue reclaims across all remaining
+		network interface cards.
+	    </longdesc>
+	    <shortdesc lang="en">
+	        Enable NFS lock workarounds
 	    </shortdesc>
 	    <content type="boolean"/>
 	</parameter>
@@ -205,7 +223,6 @@ meta_data()
 	<attributes maxinstances="1"/>
         <child type="fs" start="1" stop="3"/>
         <child type="clusterfs" start="1" stop="3"/>
-        <child type="nfsserver" start="2" stop="2"/>
         <child type="nfsexport" start="3" stop="1"/>
     </special>
 </resource-agent>
@@ -317,6 +334,7 @@ verify_fstype()
 verify_options()
 {
 	declare -i ret=$OCF_SUCCESS
+	declare o
 
 	#
 	# From mount(8)
@@ -763,6 +781,63 @@ activeMonitor() {
 }
 
 
+#
+# Enable quotas on the mount point if the user requested them
+#
+enable_fs_quotas()
+{
+	declare -i need_check=0
+	declare quotaopts=""
+	declare mopt
+	declare opts=$1
+	declare mp=$2
+
+	if [ -z "`which quotaon`" ]; then
+		ocf_log err "quotaon not found in $PATH"
+		return 1
+	fi
+
+	for mopt in `echo $opts | sed -e s/,/\ /g`; do
+		case $mopt in
+		usrquota)
+			quotaopts="u$quotaopts"
+			continue
+			;;
+		grpquota)
+			quotaopts="g$quotaopts"
+			continue
+			;;
+		noquota)
+			quotaopts=""
+			return 0
+			;;
+		esac
+	done
+
+	[ -z "$quotaopts" ] && return 0
+
+	# Ok, create quota files if they don't exist
+	for f in quota.user aquota.user quota.group aquota.group; do
+		if ! [ -f "$mp/$f" ]; then
+			ocf_log info "$mp/$f was missing - creating"
+			touch "$mp/$f" 
+			chmod 600 "$mp/$f"
+			need_check=1
+		fi
+	done
+
+	if [ $need_check -eq 1 ]; then
+		ocf_log info "Checking quota info in $mp"
+		quotacheck -$quotaopts $mp
+	fi
+
+	ocf_log info "Enabling Quotas on $mp"
+	ocf_log debug "quotaon -$quotaopts $mp"
+	quotaon -$quotaopts $mp
+
+	return $?
+}
+
 
 #
 # startFilesystem
@@ -959,6 +1034,18 @@ Unknown file system type '$fstype' for device $dev.  Assuming fsck is required."
 		return $FAIL
 	fi
 
+	#
+	# Create this for the NFS NLM broadcast bit
+	#
+	if [ $NFS_TRICKS -eq 0 ]; then
+		if [ "$OCF_RESKEY_nfslock" = "yes" ] || \
+	   	   [ "$OCF_RESKEY_nfslock" = "1" ]; then
+			mkdir -p $mp/.clumanager/statd
+			notify_list_merge $mp/.clumanager/statd
+		fi
+	fi
+
+	enable_fs_quotas $opts $mp
 	activeMonitor start || return $OCF_ERR_GENERIC
 	
 	return $SUCCESS
@@ -1049,6 +1136,7 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 
 			activeMonitor stop || return $OCF_ERR_GENERIC
 
+			quotaoff -gu $mp &> /dev/null
 			umount $mp
 			if  [ $? -eq 0 ]; then
 				umount_failed=
@@ -1060,6 +1148,21 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 
 			if [ "$force_umount" ]; then
 				killMountProcesses $mp
+				if [ $try -eq 1 ]; then
+	        		  if [ "$OCF_RESKEY_nfslock" = "yes" ] || \
+				     [ "$OCF_RESKEY_nfslock" = "1" ]; then
+				    ocf_log warning \
+					"Dropping node-wide NFS locks"
+	          		    mkdir -p $mp/.clumanager/statd
+				    # Copy out the notify list; our 
+				    # IPs are already torn down
+				    if notify_list_store $mp/.clumanager/statd
+				    then
+				      notify_list_broadcast \
+				        $mp/.clumanager/statd
+				    fi
+				  fi
+				fi
 			fi
 
 			if [ $try -ge $max_tries ]; then

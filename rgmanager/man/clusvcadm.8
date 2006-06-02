@@ -46,9 +46,9 @@ Enables and starts the user service named
 .I
 service
 .IP \-l
-Lock the cluster's service managers.  This should only be used if the 
+Lock the local resource group manager.  This should only be used if the 
 administrator intends to perform a global, cluster-wide shutdown.  This
-prevents ALL service operations on ALL currently running members, thus,
+prevents starting resource groups on the local node, allowing 
 services will not fail over during the shutdown of the cluster.  Generally,
 administrators should use the
 .B

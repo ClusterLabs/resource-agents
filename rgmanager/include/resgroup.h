@@ -14,7 +14,7 @@
 #include <sys/select.h>
 #include <gettid.h>
 #include <rg_locks.h>
-#include <magma.h>
+#include <message.h>
 #include <rg_queue.h>
 #include <signals.h>
 
@@ -48,41 +48,45 @@ typedef struct {
 }
 
 
-#define RG_PORT    41966
-#define RG_VF_PORT 41968
+#define RG_PORT    177
+#define RG_VF_PORT 178
 #define RG_PURPOSE 0x11398fed
 #define RG_SERVICE_GROUP "usrm::manager"
 
 #define RG_ACTION_REQUEST	/* Message header */ 0x138582
 
-#define RG_SUCCESS 0
-#define RG_FAIL    1
-#define RG_START    2
-#define RG_STOP     3
-#define RG_STATUS   4
-#define RG_DISABLE  5
-#define RG_STOP_RECOVER 6
-#define RG_START_RECOVER 7
-#define RG_RESTART  8
-#define RG_EXITING  9 
-#define RG_INIT    10
-#define RG_ENABLE  11
-#define RG_STATUS_INQUIRY  12
-#define RG_RELOCATE 13
-#define RG_CONDSTOP 14
-#define RG_CONDSTART 15
-#define RG_START_REMOTE 16	/* Part of a relocate */
-#define RG_STOP_USER 17		/* User-stop request */
-#define RG_NONE     999
+#define RG_SUCCESS	  0
+#define RG_FAIL		  1
+#define RG_START	  2
+#define RG_STOP		  3
+#define RG_STATUS	  4
+#define RG_DISABLE	  5
+#define RG_STOP_RECOVER	  6
+#define RG_START_RECOVER  7
+#define RG_RESTART	  8
+#define RG_EXITING	  9 
+#define RG_INIT		  10
+#define RG_ENABLE	  11
+#define RG_STATUS_INQUIRY 12
+#define RG_RELOCATE	  13
+#define RG_CONDSTOP	  14
+#define RG_CONDSTART	  15
+#define RG_START_REMOTE   16	/* Part of a relocate */
+#define RG_STOP_USER	  17	/* User-stop request */
+#define RG_STOP_EXITING	  18	/* Exiting. */
+#define RG_LOCK		  19
+#define RG_UNLOCK	  20
+#define RG_QUERY_LOCK	  21
+#define RG_NONE		  999
 
 extern const char *rg_req_strings[];
 
 #define rg_req_str(req) (rg_req_strings[req])
 
-int handle_relocate_req(char *svcName, int request, uint64_t preferred_target,
-			uint64_t *new_owner);
-int handle_start_req(char *svcName, int req, uint64_t *new_owner);
-int handle_recover_req(char *svcName, uint64_t *new_owner);
+int handle_relocate_req(char *svcName, int request, int preferred_target,
+			int *new_owner);
+int handle_start_req(char *svcName, int req, int *new_owner);
+int handle_recover_req(char *svcName, int *new_owner);
 int handle_start_remote_req(char *svcName, int req);
 
 /* Resource group states (for now) */
@@ -114,11 +118,12 @@ int svc_stop(char *svcName, int error);
 int svc_status(char *svcName);
 int svc_disable(char *svcName);
 int svc_fail(char *svcName);
-int rt_enqueue_request(const char *resgroupname, int request, int response_fd,
+int rt_enqueue_request(const char *resgroupname, int request,
+		       msgctx_t *resp_ctx,
        		       int max, uint64_t target, int arg0, int arg1);
 
 void send_response(int ret, request_t *req);
-void send_ret(int fd, char *name, int ret, int req);
+void send_ret(msgctx_t *ctx, char *name, int ret, int req);
 
 /* do this op on all resource groups.  The handler for the request 
    will sort out whether or not it's a valid request given the state */
@@ -150,7 +155,7 @@ int rg_unlock(char *name, void *p);
  */
 void member_list_update(cluster_member_list_t *new_ml);
 cluster_member_list_t *member_list(void);
-uint64_t my_id(void);
+int my_id(void);
 
 #define RG_EAGAIN	-6
 #define RG_EDEADLCK	-5
@@ -181,7 +186,7 @@ uint64_t my_id(void);
  */
 #define FOD_ORDERED		(1<<0)
 #define FOD_RESTRICTED		(1<<1)
-
+#define FOD_NOFAILBACK		(1<<2)
 
 //#define DEBUG
 #ifdef DEBUG

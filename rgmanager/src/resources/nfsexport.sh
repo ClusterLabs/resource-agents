@@ -114,7 +114,6 @@ meta_data()
     </actions>
 
     <special tag="rgmanager">
-	<child type="nfsserver" forbid="1"/>
 	<child type="nfsexport" forbid="1"/>
 	<child type="nfsclient"/>
     </special>

@@ -19,6 +19,9 @@
 /** @file
  * Fail-over Domain & Preferred Node Ordering Driver.  Ripped right from
  * the clumanager 1.2 code base.
+ *
+ * April 2006 - Nofailback option added to restrict failover behavior in ordered
+ *		+ restricted failover domains by Josef Whiter
  */
 #include <string.h>
 #include <list.h>
@@ -29,6 +32,7 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <members.h>
 
 
 //#define DEBUG
@@ -153,6 +157,13 @@ get_domain(int ccsfd, char *base, int idx, fod_t **domains)
 		free(ret);
 	}
 
+	snprintf(xpath, sizeof(xpath), "%s/failoverdomain[%d]/@nofailback",
+		 base, idx);
+	if (ccs_get(ccsfd, xpath, &ret) == 0) {
+		if (atoi(ret) != 0)
+			fod->fd_flags |= FOD_NOFAILBACK;
+		free(ret);
+	}
 
 	snprintf(xpath, sizeof(xpath), "%s/failoverdomain[%d]",
 		 base, idx);
@@ -226,7 +237,9 @@ print_domains(fod_t **domains)
 			if (fod->fd_flags & FOD_ORDERED)
 				printf("Ordered ");
 			if (fod->fd_flags & FOD_RESTRICTED)
-				printf("Restricted");
+				printf("Restricted ");
+			if (fod->fd_flags & FOD_NOFAILBACK)
+				printf("No Failback");
 			printf("\n");
 		}
 
@@ -316,8 +329,12 @@ node_should_start(uint64_t nodeid, cluster_member_list_t *membership,
 	char domainname[128];
 	int ordered = 0;
 	int restricted = 0;
+	int nofailback = 0;
 	fod_t *fod = NULL;
 	int found = 0;
+	int owned_by_node = 0, started = 0, no_owner = 0;
+	rg_state_t svc_state;
+	void *lockp;
 
 	ENTER();
 
@@ -370,6 +387,11 @@ node_should_start(uint64_t nodeid, cluster_member_list_t *membership,
 	}
 
 	/*
+	 * Determine whtehter this domain has failback turned on or not..
+	 */
+	nofailback = !!(fod->fd_flags & FOD_NOFAILBACK);
+
+	/*
 	 * Determine whether this domain is restricted or not...
 	 */
 	restricted = !!(fod->fd_flags & FOD_RESTRICTED);
@@ -378,6 +400,37 @@ node_should_start(uint64_t nodeid, cluster_member_list_t *membership,
 	 * Determine whether this domain is ordered or not...
 	 */
 	ordered = !!(fod->fd_flags & FOD_ORDERED);
+
+#ifndef NO_CCS
+	if(nofailback) {
+		if (rg_lock(rg_name, &lockp) != 0) {
+			clulog(LOG_WARNING, "Error getting a lock\n");
+			RETURN(FOD_BEST);
+		}
+                
+		if (get_rg_state(rg_name, &svc_state) == FAIL) {
+                	/*
+			 * Couldn't get the service state, thats odd
+			 */
+			clulog(LOG_WARNING, "Problem getting state information for "
+			       "%s\n", rg_name);
+			rg_unlock(rg_name, lockp);
+			RETURN(FOD_BEST);
+		}
+		rg_unlock(rg_name, lockp);
+
+		/*
+		 * Check to see if the service is started and if we are the owner in case of
+		 * restricted+owner+no failback
+		 */
+		if (svc_state.rs_state == RG_STATE_STARTED)
+			started = 1;
+		if (svc_state.rs_owner == nodeid)
+			owned_by_node = 1;
+		if (!memb_online(membership, svc_state.rs_owner))
+			no_owner = 1;
+	}
+#endif
 
 	switch (node_in_domain(nodename, fod, membership)) {
 	case 0:
@@ -429,6 +482,17 @@ node_should_start(uint64_t nodeid, cluster_member_list_t *membership,
 		       "lowest-ordered\n", nodeid);
 #endif
 		if (ordered) {
+			/*
+			 * If we are ordered we want to see if failback is
+			 * turned on
+			 */
+			if (nofailback && started && owned_by_node && !no_owner) {
+#ifdef DEBUG
+				clulog(LOG_DEBUG,"Ordered mode and no "
+				       "failback -> BEST\n");
+#endif
+				RETURN(FOD_BEST);
+			}
 #ifdef DEBUG
 			clulog(LOG_DEBUG,"Ordered mode -> BETTER\n");
 #endif
@@ -444,6 +508,16 @@ node_should_start(uint64_t nodeid, cluster_member_list_t *membership,
 		 * Node is a member of the domain and is the lowest-ordered,
 		 * online member.
 		 */
+
+		if(nofailback && started && !owned_by_node && !no_owner) {
+#ifdef DEBUG
+			clulog(LOG_DEBUG, "Member #%d is the lowest-ordered "
+			       "memeber of the domain, but is not the owner "
+			       "-> BETTER\n", nodeid);
+#endif
+			RETURN(FOD_BETTER);
+		}
+ 
 		/* In this case, we can ignore 'ordered' */
 #ifdef DEBUG
 		clulog(LOG_DEBUG, "Member #%d is the lowest-ordered member "

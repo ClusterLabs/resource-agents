@@ -50,7 +50,7 @@ do { \
 	if (*list && (curr = *list)) do
 
 #define list_done(list, curr) \
-	(((curr = (void *)le(curr)->le_next)) && (curr == *list))
+	(curr && (((curr = (void *)le(curr)->le_next)) && (curr == *list)))
 
 /*
    list_do(list, node) {

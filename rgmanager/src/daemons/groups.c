@@ -19,15 +19,18 @@
 */
 //#define DEBUG
 #include <platform.h>
-#include <magma.h>
-#include <magmamsg.h>
 #include <resgroup.h>
 #include <vf.h>
-#include <magma.h>
+#include <message.h>
 #include <ccs.h>
 #include <clulog.h>
+#include <members.h>
 #include <list.h>
 #include <reslist.h>
+#include <assert.h>
+
+#define cm_svccount cm_pad[0] /* Theses are uint8_t size */
+#define cm_svcexcl  cm_pad[1]
 
 
 static int config_version = 0;
@@ -38,6 +41,12 @@ static fod_t *_domains = NULL;
 
 pthread_mutex_t config_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_rwlock_t resource_lock = PTHREAD_RWLOCK_INITIALIZER;
+
+
+struct status_arg {
+	msgctx_t *ctx;
+	int fast;
+};
 
 
 /**
@@ -60,16 +69,22 @@ node_should_start_safe(uint64_t nodeid, cluster_member_list_t *membership,
 
 
 int
-count_resource_groups(uint64_t nodeid, int *excl)
+count_resource_groups(cluster_member_list_t *ml)
 {
+#if 0
 	resource_t *res;
 	char *rgname, *val;
-	int count = 0, exclusive = 0;
+	int x;
 	rg_state_t st;
 	void *lockp;
+	cman_node_t *mp;
 
-	if (excl)
-		*excl = 0;
+	for (x = 0; x < ml->cml_count; x++) {
+		ml->cml_members[x].cm_svccount = 0;
+		ml->cml_members[x].cm_svcexcl = 0;
+	}
+
+	pthread_rwlock_rdlock(&resource_lock);
 
 	list_do(&_resources, res) {
 		if (res->r_rule->rr_root == 0)
@@ -77,34 +92,43 @@ count_resource_groups(uint64_t nodeid, int *excl)
 
 		rgname = res->r_attrs[0].ra_value;
 
-		if (rg_lock(rgname, &lockp) < 0)
+		if (rg_lock(rgname, &lockp) < 0) {
+			clulog(LOG_ERR, "#XX: Unable to obtain cluster "
+			       "lock @ %s:%d: %s\n", __FILE__, __LINE__,
+			       strerror(errno));
 			continue;
+		}
 
 		if (get_rg_state(rgname, &st) < 0) {
+			clulog(LOG_ERR, "#34: Cannot get status "
+			       "for service %s\n", rgname);
 			rg_unlock(rgname, lockp);
 			continue;
 		}
+
 		rg_unlock(rgname, lockp);
 
-		if (st.rs_owner != nodeid ||
-		    (st.rs_state == RG_STATE_STARTED &&
-		     st.rs_state == RG_STATE_STARTING))
+		if (st.rs_state != RG_STATE_STARTED &&
+		     st.rs_state != RG_STATE_STARTING)
 			continue;
 
-		if (excl) {
-			/* Count exclusive resources */
-			val = res_attr_value(res, "exclusive");
-			exclusive = val && ((!strcmp(val, "yes") ||
-					     (atoi(val)>0)));
-		}
+		mp = memb_id_to_p(ml, st.rs_owner);
+		if (!mp)
+			continue;
 
-		++count;
-		if (exclusive && excl)
-			++(*excl);
+		++mp->cm_svccount;
+
+		val = res_attr_value(res, "exclusive");
+		if (val && ((!strcmp(val, "yes") ||
+				     (atoi(val)>0))) ) {
+			++mp->cm_svcexcl;
+		}
 
 	} while (!list_done(&_resources, res));
 
-	return count;
+	pthread_rwlock_unlock(&resource_lock);
+#endif
+	return 0;
 }
 
 
@@ -125,23 +149,30 @@ best_target_node(cluster_member_list_t *allowed, uint64_t owner,
 	uint64_t highnode = owner, nodeid;
 	char *val;
 	resource_t *res;
-	int exclusive, count, excl;
+	int exclusive;
+
+	if (lock)
+		pthread_rwlock_rdlock(&resource_lock);
+	count_resource_groups(allowed);
+	if (lock)
+		pthread_rwlock_unlock(&resource_lock);
 
 	for (x=0; x < allowed->cml_count; x++) {
-		if (allowed->cml_members[x].cm_state != STATE_UP)
+		if (!allowed->cml_members[x].cn_member)
 			continue;
 
-		nodeid = allowed->cml_members[x].cm_id;
+		nodeid = allowed->cml_members[x].cn_nodeid;
 
 		/* Don't allow trying a restart just yet */
-		if (owner != NODE_ID_NONE && nodeid == owner)
+		if (owner != 0 && nodeid == owner)
 			continue;
 		
 		if (lock)
 			pthread_rwlock_rdlock(&resource_lock);
 		score = node_should_start(nodeid, allowed, rg_name, &_domains);
 		if (!score) { /* Illegal -- failover domain constraint */
-			pthread_rwlock_unlock(&resource_lock);
+			if (lock)
+				pthread_rwlock_unlock(&resource_lock);
 			continue;
 		}
 
@@ -153,19 +184,18 @@ best_target_node(cluster_member_list_t *allowed, uint64_t owner,
 		val = res_attr_value(res, "exclusive");
 		exclusive = val && ((!strcmp(val, "yes") || (atoi(val)>0)));
 
-		count = count_resource_groups(nodeid, &excl);
-
 		if (lock)
 			pthread_rwlock_unlock(&resource_lock);
 
 		if (exclusive) {
-		       	if (count > 0) {
+
+			if (0) {//(allowed->cml_members[x].cm_svccount > 0) {
 				/* Definitely not this guy */
 				continue;
 			} else {
 				score += 2;
 			}
-		} else if (excl) {
+		} else if (0) { //(allowed->cml_members[x].cm_svcexcl) {
 			/* This guy has an exclusive resource group.
 			   Can't relocate / failover to him. */
 			continue;
@@ -192,14 +222,19 @@ consider_start(resource_node_t *node, char *svcName, rg_state_t *svcStatus,
 	       cluster_member_list_t *membership)
 {
 	char *val;
-	int autostart, exclusive, count = 0, excl = 0;
+	cman_node_t *mp;
+	int autostart, exclusive;
+	void *lockp;
+
+	mp = memb_id_to_p(membership, my_id());
+	assert(mp);
 
 	/*
 	 * Service must be not be running elsewhere to consider for a
 	 * local start.
 	 */
 	if (svcStatus->rs_state == RG_STATE_STARTED &&
-	    svcStatus->rs_state == my_id())
+	    svcStatus->rs_owner == mp->cn_nodeid)
 		return;
 
 	if (svcStatus->rs_state == RG_STATE_DISABLED)
@@ -218,6 +253,32 @@ consider_start(resource_node_t *node, char *svcName, rg_state_t *svcStatus,
 			       "Skipping RG %s: Autostart disabled\n",
 			       svcName);
 			 */
+			/*
+			   Mark non-autostart services as disabled to avoid
+			   confusion!
+			 */
+			if (rg_lock(svcName, &lockp) < 0) {
+				clulog(LOG_ERR, "#XX: Unable to obtain cluster "
+				       "lock @ %s:%d: %s\n", __FILE__, __LINE__,
+				       strerror(errno));
+				return;
+			}
+
+			if (get_rg_state(svcName, svcStatus) != 0) {
+				clulog(LOG_ERR, "#34: Cannot get status "
+				       "for service %s\n", svcName);
+				rg_unlock(svcName, lockp);
+				return;
+			}
+
+			if (svcStatus->rs_transition == 0 &&
+			    svcStatus->rs_state == RG_STATE_STOPPED) {
+				svcStatus->rs_state = RG_STATE_DISABLED;
+				set_rg_state(svcName, svcStatus);
+			}
+
+			rg_unlock(svcName, lockp);
+
 			return;
 		}
 	}
@@ -225,17 +286,10 @@ consider_start(resource_node_t *node, char *svcName, rg_state_t *svcStatus,
 	val = res_attr_value(node->rn_resource, "exclusive");
 	exclusive = val && ((!strcmp(val, "yes") || (atoi(val)>0)));
 
-	/*
-	   Count the normal + exclusive resource groups running locally
-	 */
-	count = count_resource_groups(my_id(), &excl);
-
-	if (exclusive && count_resource_groups(my_id(), NULL)) {
-		/*
-		clulog(LOG_DEBUG,
+	if (0) { //(exclusive && mp->cm_svccount) {
+		clulog(LOG_INFO,
 		       "Skipping RG %s: Exclusive and I am running services\n",
 		       svcName);
-		 */
 		return;
 	}
 
@@ -243,12 +297,10 @@ consider_start(resource_node_t *node, char *svcName, rg_state_t *svcStatus,
 	   Don't start other services if I'm running an exclusive
 	   service.
 	 */
-	if (excl) {
-		/*
-		clulog(LOG_DEBUG,
+	if (0) { //(mp->cm_svcexcl) {
+		clulog(LOG_INFO,
 		       "Skipping RG %s: I am running an exclusive service\n",
 		       svcName);
-		 */
 		return;
 	}
 
@@ -256,9 +308,10 @@ consider_start(resource_node_t *node, char *svcName, rg_state_t *svcStatus,
 	 * Start any stopped services, or started services
 	 * that are owned by a down node.
 	 */
-	if (node_should_start(my_id(), membership, svcName, &_domains) ==
+	if (node_should_start(mp->cn_nodeid, membership, svcName, &_domains) ==
 	    FOD_BEST)
-		rt_enqueue_request(svcName, RG_START, -1, 0, my_id(), 0, 0);
+		rt_enqueue_request(svcName, RG_START, NULL, 0, mp->cn_nodeid,
+				   0, 0);
 }
 
 
@@ -267,6 +320,7 @@ consider_relocate(char *svcName, rg_state_t *svcStatus, uint64_t nodeid,
 		  cluster_member_list_t *membership)
 {
 	int a, b;
+
 	/*
 	   Service must be running locally in order to consider for
 	   a relocate
@@ -291,12 +345,11 @@ consider_relocate(char *svcName, rg_state_t *svcStatus, uint64_t nodeid,
 	if (a <= b)
 		return;
 
-
 	clulog(LOG_DEBUG, "Relocating group %s to better node %s\n",
 	       svcName,
 	       memb_id_to_name(membership, nodeid));
 
-	rt_enqueue_request(svcName, RG_RELOCATE, -1, 0, nodeid, 0, 0);
+	rt_enqueue_request(svcName, RG_RELOCATE, NULL, 0, nodeid, 0, 0);
 }
 
 
@@ -318,12 +371,18 @@ eval_groups(int local, uint64_t nodeid, int nodeStatus)
 	int ret;
 
 	if (rg_locked()) {
-		clulog(LOG_NOTICE, "Services locked\n");
+		clulog(LOG_NOTICE,
+			"Resource groups locked; not evaluating\n");
 		return -EAGAIN;
 	}
 
- 	membership = member_list();
+	membership = member_list();
+
 	pthread_rwlock_rdlock(&resource_lock);
+
+	/* Requires read lock */
+	count_resource_groups(membership);
+
 	list_do(&_tree, node) {
 
 		if (node->rn_resource->r_rule->rr_root == 0)
@@ -340,7 +399,7 @@ eval_groups(int local, uint64_t nodeid, int nodeStatus)
 			       "#33: Unable to obtain cluster lock: %s\n",
 			       strerror(-ret));
 			pthread_rwlock_unlock(&resource_lock);
-			cml_free(membership);
+			free_member_list(membership);
 			return ret;
 		}
 		
@@ -354,7 +413,7 @@ eval_groups(int local, uint64_t nodeid, int nodeStatus)
 
 		rg_unlock(svcName, lockp);
 
-		if (svcStatus.rs_owner == NODE_ID_NONE)
+		if (svcStatus.rs_owner == 0)
 			nodeName = "none";
 		else
 			nodeName = memb_id_to_name(membership,
@@ -372,11 +431,12 @@ eval_groups(int local, uint64_t nodeid, int nodeStatus)
 		       rg_state_str(svcStatus.rs_state),
 		       nodeName);
 
-		if (local && (nodeStatus == STATE_UP)) {
+		if ((local && nodeStatus) ||
+		    svcStatus.rs_state == RG_STATE_STOPPED) {
 
 			consider_start(node, svcName, &svcStatus, membership);
 
-		} else if (!local && (nodeStatus == STATE_DOWN)) {
+		} else if (!local && !nodeStatus) {
 
 			/*
 			 * Start any stopped services, or started services
@@ -399,7 +459,10 @@ eval_groups(int local, uint64_t nodeid, int nodeStatus)
 	} while (!list_done(&_tree, node));
 
 	pthread_rwlock_unlock(&resource_lock);
-	cml_free(membership);
+	free_member_list(membership);
+
+	clulog(LOG_INFO, "Event (%d:%d:%d) Processed\n", local,
+	       (int)nodeid, nodeStatus);
 
 	return 0;
 }
@@ -513,8 +576,9 @@ group_property(char *groupname, char *property, char *ret, size_t len)
   @param rgname		Resource group name whose state we want to send.
   @see send_rg_states
  */
+int get_rg_state_local(char *, rg_state_t *);
 void
-send_rg_state(int fd, char *rgname)
+send_rg_state(msgctx_t *ctx, char *rgname, int fast)
 {
 	rg_state_msg_t msg, *msgp = &msg;
 	void *lockp;
@@ -523,18 +587,23 @@ send_rg_state(int fd, char *rgname)
 	msgp->rsm_hdr.gh_length = sizeof(msg);
 	msgp->rsm_hdr.gh_command = RG_STATUS;
 
-	if (rg_lock(rgname, &lockp) < 0)
-		return;
-
-	if (get_rg_state(rgname, &msgp->rsm_state) < 0) {
+	/* try fast read -- only if it fails and fast is not 
+	   specified should we do the full locked read */
+	if (get_rg_state_local(rgname, &msgp->rsm_state) != 0 &&
+	    !fast) {
+		if (rg_lock(rgname, &lockp) < 0)
+			return;
+		if (get_rg_state(rgname, &msgp->rsm_state) < 0) {
+			rg_unlock(rgname, lockp);
+			return;
+		}
 		rg_unlock(rgname, lockp);
-		return;
 	}
 
-	rg_unlock(rgname, lockp);
 	swab_rg_state_msg_t(msgp);
 
-	msg_send(fd, msgp, sizeof(msg));
+	if (msg_send(ctx, msgp, sizeof(msg)) < 0)
+		perror("msg_send");
 }
 
 
@@ -545,8 +614,10 @@ send_rg_state(int fd, char *rgname)
 static void *
 status_check_thread(void *arg)
 {
-	int fd = *(int *)arg;
+	msgctx_t *ctx = ((struct status_arg *)arg)->ctx;
+	int fast = ((struct status_arg *)arg)->fast;
 	resource_t *res;
+	generic_msg_hdr hdr;
 
 	free(arg);
 
@@ -556,13 +627,18 @@ status_check_thread(void *arg)
 		if (res->r_rule->rr_root == 0)
 			continue;
 
-		send_rg_state(fd, res->r_attrs[0].ra_value);
+		send_rg_state(ctx, res->r_attrs[0].ra_value, fast);
 	} while (!list_done(&_resources, res));
 
 	pthread_rwlock_unlock(&resource_lock);
 
-	msg_send_simple(fd, RG_SUCCESS, 0, 0);
-	msg_close(fd);
+	msg_send_simple(ctx, RG_SUCCESS, 0, 0);
+
+	/* XXX wait for client to tell us it's done; I don't know why
+	   this is needed when doing fast I/O, but it is. */
+	msg_receive(ctx, &hdr, sizeof(hdr), 10);
+
+	msg_close(ctx);
 
 	return NULL;
 }
@@ -575,26 +651,27 @@ status_check_thread(void *arg)
   @return		0
  */
 int
-send_rg_states(int fd)
+send_rg_states(msgctx_t *ctx, int fast)
 {
-	int *fdp;
+	struct status_arg *arg;
 	pthread_t newthread;
 	pthread_attr_t attrs;
 
-	fdp = malloc(sizeof(int));
-	if (!fdp) {
-		msg_send_simple(fd, RG_FAIL, 0, 0);
+	arg = malloc(sizeof(struct status_arg));
+	if (!arg) {
+		msg_send_simple(ctx, RG_FAIL, 0, 0);
 		return -1;
 	}
 
-	*fdp = fd;
+	arg->ctx = ctx;
+	arg->fast = fast;
 
         pthread_attr_init(&attrs);
         pthread_attr_setinheritsched(&attrs, PTHREAD_INHERIT_SCHED);
         pthread_attr_setdetachstate(&attrs, PTHREAD_CREATE_DETACHED);
 	pthread_attr_setstacksize(&attrs, 65535);
 
-	pthread_create(&newthread, &attrs, status_check_thread, fdp);
+	pthread_create(&newthread, &attrs, status_check_thread, arg);
         pthread_attr_destroy(&attrs);
 
 	return 0;
@@ -631,6 +708,7 @@ rg_doall(int request, int block, char *debugfmt)
 {
 	resource_node_t *curr;
 	char *name;
+	rg_state_t svcblk;
 
 	pthread_rwlock_rdlock(&resource_lock);
 	list_do(&_tree, curr) {
@@ -644,11 +722,27 @@ rg_doall(int request, int block, char *debugfmt)
 		if (debugfmt)
 			clulog(LOG_DEBUG, debugfmt, name);
 
-		rt_enqueue_request(name, request, -1, 0,
-				   NODE_ID_NONE, 0, 0);
+		/* Optimization: Don't bother even queueing the request
+		   during the exit case if we don't own it */
+		if (request == RG_STOP_EXITING) {
+			if (get_rg_state_local(name, &svcblk) < 0)
+				continue;
+
+			/* Always run stop if we're the owner, regardless
+			   of state; otherwise, don't run stop */
+			if (svcblk.rs_owner != my_id())
+				continue;
+		}
+
+		rt_enqueue_request(name, request, NULL, 0,
+				   0, 0, 0);
 	} while (!list_done(&_tree, curr));
 
 	pthread_rwlock_unlock(&resource_lock);
+
+	/* XXX during shutdown, if we're doing a simultaenous shutdown,
+	   this will cause this rgmanager to hang waiting for all the
+	   other rgmanagers to complete. */
 	if (block) 
 		rg_wait_threads();
 }
@@ -657,8 +751,8 @@ rg_doall(int request, int block, char *debugfmt)
 /**
   Stop changed resources.
  */
-void
-do_status_checks(void)
+void *
+q_status_checks(void *arg)
 {
 	resource_node_t *curr;
 	char *name;
@@ -674,29 +768,41 @@ do_status_checks(void)
 		/* Group name */
 		name = curr->rn_resource->r_attrs->ra_value;
 
-		/* If we're not running it, no need to CONDSTOP */
-		if (rg_lock(name, &lockp) != 0)
-			continue;
-		if (get_rg_state(name, &svcblk) < 0) {
-			rg_unlock(name, lockp);
+		/* Local check - no one will make us take a service */
+		if (get_rg_state_local(name, &svcblk) < 0) {
 			continue;
 		}
-		rg_unlock(name, lockp);
 
 		if (svcblk.rs_owner != my_id() ||
 		    svcblk.rs_state != RG_STATE_STARTED)
 			continue;
 
-		/*clulog(LOG_DEBUG, "Checking status of %s\n", name);*/
-
 		rt_enqueue_request(name, RG_STATUS,
-				   -1, 0, NODE_ID_NONE, 0, 0);
+				   NULL, 0, 0, 0, 0);
 
 	} while (!list_done(&_tree, curr));
 
 	pthread_rwlock_unlock(&resource_lock);
-	/*rg_wait_threads();*/
+
+	return NULL;
 }
+
+
+void
+do_status_checks(void)
+{
+	pthread_attr_t attrs;
+	pthread_t newthread;
+
+        pthread_attr_init(&attrs);
+        pthread_attr_setinheritsched(&attrs, PTHREAD_INHERIT_SCHED);
+        pthread_attr_setdetachstate(&attrs, PTHREAD_CREATE_DETACHED);
+	pthread_attr_setstacksize(&attrs, 65535);
+
+	pthread_create(&newthread, &attrs, q_status_checks, NULL);
+        pthread_attr_destroy(&attrs);
+}
+
 
 /**
   Stop changed resources.
@@ -722,13 +828,9 @@ do_condstops(void)
 		name = curr->rn_resource->r_attrs->ra_value;
 
 		/* If we're not running it, no need to CONDSTOP */
-		if (rg_lock(name, &lockp) != 0)
-			continue;
-		if (get_rg_state(name, &svcblk) < 0) {
-			rg_unlock(name, lockp);
+		if (get_rg_state_local(name, &svcblk) < 0) {
 			continue;
 		}
-		rg_unlock(name, lockp);
 
 		if (svcblk.rs_owner != my_id())
 			continue;
@@ -741,7 +843,7 @@ do_condstops(void)
 		}
 
 		rt_enqueue_request(name, need_kill ? RG_DISABLE : RG_CONDSTOP,
-				   -1, 0, NODE_ID_NONE, 0, 0);
+				   NULL, 0, 0, 0, 0);
 
 	} while (!list_done(&_tree, curr));
 
@@ -757,9 +859,9 @@ void
 do_condstarts(void)
 {
 	resource_node_t *curr;
-	char *name;
+	char *name, *val;
 	rg_state_t svcblk;
-	int need_init, new_groups = 0;
+	int need_init, new_groups = 0, autostart;
 	void *lockp;
 
 	clulog(LOG_INFO, "Starting changed resources.\n");
@@ -779,19 +881,13 @@ do_condstarts(void)
 		if (curr->rn_resource->r_flags & RF_NEEDSTART)
 			need_init = 1;
 
-		if (rg_lock(name, &lockp) != 0)
-			continue;
-
-		if (get_rg_state(name, &svcblk) < 0) {
-			rg_unlock(name, lockp);
+		if (get_rg_state_local(name, &svcblk) < 0) {
 			continue;
 		}
 
 		if (!need_init && svcblk.rs_owner != my_id()) {
-			rg_unlock(name, lockp);
 			continue;
 		}
-		rg_unlock(name, lockp);
 
 		if (need_init) {
 			++new_groups;
@@ -799,7 +895,7 @@ do_condstarts(void)
 		}
 
 		rt_enqueue_request(name, need_init ? RG_INIT : RG_CONDSTART,
-				   -1, 0, NODE_ID_NONE, 0, 0);
+				   NULL, 0, 0, 0, 0);
 
 	} while (!list_done(&_tree, curr));
 
@@ -842,7 +938,14 @@ do_condstarts(void)
 		}
 
 		/* Set it up for an auto-start */
-		svcblk.rs_state = RG_STATE_STOPPED;
+		val = res_attr_value(curr->rn_resource, "autostart");
+		autostart = !(val && ((!strcmp(val, "no") ||
+				     (atoi(val)==0))));
+		if (autostart)
+			svcblk.rs_state = RG_STATE_STOPPED;
+		else
+			svcblk.rs_state = RG_STATE_DISABLED;
+
 		set_rg_state(name, &svcblk);
 
 		rg_unlock(name, lockp);
@@ -851,7 +954,7 @@ do_condstarts(void)
 	pthread_rwlock_unlock(&resource_lock);
 
 	/* Pass 3: See if we should start new resource groups */
-	eval_groups(1, my_id(), STATE_UP);
+	eval_groups(1, my_id(), 1);
 }
 
 

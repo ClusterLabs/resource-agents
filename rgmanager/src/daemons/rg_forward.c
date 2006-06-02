@@ -17,13 +17,13 @@
   MA 02139, USA.
 */
 //#define DEBUG
-#include <magma.h>
-#include <magmamsg.h>
+#include <rg_types.h>
 #include <resgroup.h>
 #include <rg_queue.h>
 #include <platform.h>
 #include <msgsimple.h>
 #include <clulog.h>
+#include <message.h>
 
 
 void
@@ -48,18 +48,18 @@ forwarding_thread(void *arg)
 	rg_state_t rgs;
 	request_t *req = (request_t *)arg;
 	void *lockp;
-	int fd;
+	msgctx_t ctx;
 	SmMessageSt msg;
 
 	if (rg_lock(req->rr_group, &lockp) != 0) {
-		msg_close(req->rr_resp_fd);
+		msg_close(req->rr_resp_ctx);
 		rq_free(req);
 		pthread_exit(NULL);
 	}
 
 	if (get_rg_state(req->rr_group, &rgs) != 0) {
 		rg_unlock(req->rr_group, lockp);
-		msg_close(req->rr_resp_fd);
+		msg_close(req->rr_resp_ctx);
 		rq_free(req);
 		pthread_exit(NULL);
 	}
@@ -74,27 +74,26 @@ forwarding_thread(void *arg)
 	       rg_req_str(req->rr_request), (int)rgs.rs_owner);
 	 */
 
-	fd = msg_open(rgs.rs_owner, RG_PORT, RG_PURPOSE, 10);
-	if (fd == -1) {
-		msg_close(req->rr_resp_fd);
+	if (msg_open(rgs.rs_owner, RG_PORT, &ctx, 10) < 0)  {
+		msg_close(req->rr_resp_ctx);
 		rq_free(req);
 		pthread_exit(NULL);
 	}
 
-	if (msg_send(fd, &msg, sizeof(msg)) != sizeof(msg)) {
-		msg_close(fd);
-		msg_close(req->rr_resp_fd);
+	if (msg_send(&ctx, &msg, sizeof(msg)) != sizeof(msg)) {
+		msg_close(&ctx);
+		msg_close(req->rr_resp_ctx);
 		rq_free(req);
 		pthread_exit(NULL);
 	}
 
-	if (msg_receive(fd, &msg, sizeof(msg)) != sizeof(msg)) {
-		msg_close(fd);
-		msg_close(req->rr_resp_fd);
+	if (msg_receive(&ctx, &msg, sizeof(msg),10) != sizeof(msg)) {
+		msg_close(&ctx);
+		msg_close(req->rr_resp_ctx);
 		rq_free(req);
 		pthread_exit(NULL);
 	}
-	msg_close(fd);
+	msg_close(&ctx);
 
 	swab_SmMessageSt(&msg);
 	send_response(msg.sm_data.d_ret, req);

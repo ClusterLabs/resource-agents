@@ -22,7 +22,6 @@
 #ifndef __VF_H
 #define __VF_H
 
-#include <magma.h>
 #include <stdint.h>
 #include <sys/types.h>
 #include <msgsimple.h>
@@ -78,7 +77,7 @@ typedef int32_t (*vf_commit_cb_t)(char *, uint64_t, void *, uint32_t);
 typedef struct _view_node {
 	struct _view_node *
 			vn_next;	/**< Next pointer. */
-	int		vn_fd;		/**< Associated file descriptor. */
+	msgctx_t 	*vn_ctx;		/**< Associated file descriptor. */
 	uint32_t	vn_nodeid;	/**< Node ID of coordinator. */
 	struct timeval  vn_timeout;	/**< Expiration time. */
 	uint64_t	vn_viewno;	/**< View Number. */
@@ -164,7 +163,7 @@ typedef struct _key_node {
 /* 
  * VF Stuff.  VF only talks to peers.
  */
-int vf_init(uint64_t, uint16_t, vf_vote_cb_t, vf_commit_cb_t);
+int vf_init(int, uint16_t, vf_vote_cb_t, vf_commit_cb_t);
 int vf_shutdown(void);
 
 /*

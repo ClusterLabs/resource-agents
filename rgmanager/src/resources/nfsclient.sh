@@ -71,7 +71,7 @@ meta_data()
             <content type="string"/>
         </parameter>
 
-        <parameter name="path" inherit="nfsserver%path">
+        <parameter name="path" inherit="path">
             <longdesc lang="en">
                 This is the path to export to the target.  This
                 field is generally left blank, as it inherits the
@@ -104,6 +104,19 @@ meta_data()
                 Export Options
             </shortdesc>
             <content type="string"/>
+        </parameter>
+
+        <parameter name="allow_recover">
+            <longdesc lang="en">
+		Allows recovery of this NFS client (default = 1) if it
+		disappears from the export list.  If set to 0, the service
+		will be restarted.  This is useful to help preserve export
+		ordering.
+            </longdesc>
+            <shortdesc lang="en">
+		Allow recovery
+            </shortdesc>
+            <content type="boolean"/>
         </parameter>
 
     </parameters>
@@ -299,9 +312,26 @@ status|monitor)
 	# * Exports longer than 14 chars have line breaks inserted, which
 	#   broke the way the status check worked.
 	#
-	exportfs -v | tr -d "\n" | sed -e 's/([^)]*)/\n/g' | grep -q \
-		"^${OCF_RESKEY_path}[\t ]*.*${OCF_RESKEY_target}"
-	rv=$?
+        # Status check fix from Craig Lewis: 
+        # * Exports with RegExp metacharacters need to be escaped. 
+        #   These metacharacters are: * ? . 
+        # 
+	export OCF_RESKEY_target_regexp=$(echo $OCF_RESKEY_target | \ 
+		sed -e 's/*/[*]/g' -e 's/?/[?]/g' -e 's/\./\\./g') 
+        exportfs -v | tr -d "\n" | sed -e 's/([^)]*)/\n/g' | grep -q \ 
+		"^${OCF_RESKEY_path}[\t ]*.*${OCF_RESKEY_target_regexp}" 
+	rv=$? 
+	;;
+
+recover)
+	if [ "$OCF_RESKEY_allow_recover" = "0" ] || \
+	   [ "$OCF_RESKEY_allow_recover" = "no" ] || \
+	   [ "$OCF_RESKEY_allow_recover" = "false" ]; then
+		exit 1
+	fi
+
+	$0 stop || exit 1
+	$0 start || exit 1
 	;;
 
 restart)

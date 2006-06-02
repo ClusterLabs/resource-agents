@@ -19,8 +19,8 @@
 #include <libxml/parser.h>
 #include <libxml/xmlmemory.h>
 #include <libxml/xpath.h>
-#include <magma.h>
 #include <ccs.h>
+#include <rg_locks.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <resgroup.h>
@@ -54,6 +54,7 @@ void * act_dup(resource_act_t *acts);
 
 /* XXX from reslist.c */
 void * act_dup(resource_act_t *acts);
+time_t get_time(char *action, int depth, resource_node_t *node);
 
 
 const char *res_ops[] = {
@@ -512,7 +513,7 @@ build_tree(int ccsfd, resource_node_t **tree,
 		node->rn_parent = parent;
 		node->rn_resource = curres;
 		node->rn_state = RES_STOPPED;
-               node->rn_actions = (resource_act_t *)act_dup(curres->r_actions);
+		node->rn_actions = (resource_act_t *)act_dup(curres->r_actions);
 		curres->r_refs++;
 
 		list_insert(tree, node);
@@ -862,6 +863,44 @@ do_status(resource_node_t *node)
 
 
 void
+set_time(char *action, int depth, resource_node_t *node)
+{
+	time_t now;
+	int x = 0;
+
+	time(&now);
+
+	for (; node->rn_actions[x].ra_name; x++) {
+
+		if (strcmp(node->rn_actions[x].ra_name, action) ||
+	    	    node->rn_actions[x].ra_depth != depth)
+			continue;
+
+		node->rn_actions[x].ra_last = now;
+		break;
+	}
+}
+
+
+time_t
+get_time(char *action, int depth, resource_node_t *node)
+{
+	int x = 0;
+
+	for (; node->rn_actions[x].ra_name; x++) {
+
+		if (strcmp(node->rn_actions[x].ra_name, action) ||
+	    	    node->rn_actions[x].ra_depth != depth)
+			continue;
+
+		return node->rn_actions[x].ra_last;
+	}
+
+	return (time_t)0;
+}
+
+
+void
 clear_checks(resource_node_t *node)
 {
 	time_t now;
@@ -899,8 +938,8 @@ clear_checks(resource_node_t *node)
    @see			_res_op_by_level res_exec
  */
 int
-_res_op(resource_node_t **tree, resource_t *first, char *type,
-	   void * __attribute__((unused))ret, int realop)
+_res_op(resource_node_t **tree, resource_t *first,
+	char *type, void * __attribute__((unused))ret, int realop)
 {
 	int rv, me;
 	resource_node_t *node;
@@ -965,13 +1004,20 @@ _res_op(resource_node_t **tree, resource_t *first, char *type,
 		/* Start starts before children */
 		if (me && (op == RS_START)) {
 			node->rn_flags &= ~RF_NEEDSTART;
-			rv = res_exec(node, op, 0);
-			if (rv != 0)
-				return rv;
 
-			time(&node->rn_resource->r_started);
+			rv = res_exec(node, op, 0);
+			if (rv != 0) {
+				node->rn_state = RES_FAILED;
+				return rv;
+			}
+
+			set_time("start", 0, node);
 			clear_checks(node);
-			++node->rn_resource->r_incarnations;
+
+			if (node->rn_state != RES_STARTED) {
+				++node->rn_resource->r_incarnations;
+				node->rn_state = RES_STARTED;
+			}
 		}
 
 		if (node->rn_child) {
@@ -983,13 +1029,18 @@ _res_op(resource_node_t **tree, resource_t *first, char *type,
 		/* Stop/status/etc stops after children have stopped */
 		if (me && (op == RS_STOP)) {
 			node->rn_flags &= ~RF_NEEDSTOP;
-			--node->rn_resource->r_incarnations;
 			rv = res_exec(node, op, 0);
 
 			if (rv != 0) {
-				++node->rn_resource->r_incarnations;
+				node->rn_state = RES_FAILED;
 				return rv;
 			}
+
+			if (node->rn_state != RES_STOPPED) {
+				--node->rn_resource->r_incarnations;
+				node->rn_state = RES_STOPPED;
+			}
+
 		} else if (me && (op == RS_STATUS)) {
 
 			rv = do_status(node);

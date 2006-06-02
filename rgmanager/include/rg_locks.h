@@ -4,9 +4,8 @@
 int rg_running(void);
 
 int rg_locked(void);
-int rg_lockall(void);
-int rg_unlockall(void);
-int rg_wait_unlockall(void);
+int rg_lockall(int flag);
+int rg_unlockall(int flag);
 
 int rg_quorate(void);
 int rg_set_quorate(void);

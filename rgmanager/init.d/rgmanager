@@ -16,7 +16,7 @@
 # Grab the network config file
 . /etc/sysconfig/network
 
-# Grap cluster start config if it exists
+# Grab cluster start config if it exists
 [ -f /etc/sysconfig/cluster ] && . /etc/sysconfig/cluster
 
 PATH=/sbin:/bin:/usr/sbin:/usr/bin

@@ -19,8 +19,8 @@
 //#define DEBUG
 #include <assert.h>
 #include <platform.h>
-#include <magma.h>
-#include <magmamsg.h>
+#include <message.h>
+#include <members.h>
 #include <vf.h>
 #include <stdio.h>
 #include <string.h>
@@ -51,7 +51,7 @@ next_node_id(cluster_member_list_t *membership, uint64_t me)
 	int x;
 
 	for (x = 0; x < membership->cml_count; x++) {
-		curr = membership->cml_members[x].cm_id;
+		curr = membership->cml_members[x].cn_nodeid;
 		if (curr < low)
 			low = curr;
 
@@ -70,6 +70,7 @@ next_node_id(cluster_member_list_t *membership, uint64_t me)
 int
 svc_report_failure(char *svcName)
 {
+#if 0
 	void *lockp = NULL;
 	rg_state_t svcStatus;
 	char *nodeName;
@@ -100,12 +101,13 @@ svc_report_failure(char *svcName)
 		       svcName, (int)svcStatus.rs_last_owner);
 	}
 
-	cml_free(membership);
+	free_member_list(membership);
 
 	clulog(LOG_ALERT,
 	       "#4: Administrator intervention required.\n",
 	       svcName, nodeName);
 
+#endif
 	return 0;
 }
 
@@ -113,6 +115,7 @@ svc_report_failure(char *svcName)
 int
 clu_lock_verbose(char *resource, int dflt_flags, void **lockpp)
 {
+#if 0
 	int ret, timed_out = 0;
 	struct timeval start, now;
 	uint64_t nodeid, *p;
@@ -144,6 +147,7 @@ clu_lock_verbose(char *resource, int dflt_flags, void **lockpp)
 			}
 		}
 
+		*lockpp = NULL;
 		ret = clu_lock(resource, flags | CLK_NOWAIT, lockpp);
 
 		if ((ret != 0) && (errno == EAGAIN) && block) {
@@ -176,6 +180,8 @@ clu_lock_verbose(char *resource, int dflt_flags, void **lockpp)
 	}
 
 	return ret;
+#endif
+	return -1;
 }
 
 
@@ -186,10 +192,13 @@ _rg_lock(char *name, void **p)
 rg_lock(char *name, void **p)
 #endif
 {
+#if 0
 	char res[256];
 
 	snprintf(res, sizeof(res), "usrm::rg=\"%s\"", name);
 	return clu_lock_verbose(res, CLK_EX, p);
+#endif
+	return -1;
 }
 
 
@@ -211,10 +220,13 @@ _rg_unlock(char *name, void *p)
 rg_unlock(char *name, void *p)
 #endif
 {
+#if 0
 	char res[256];
 
 	snprintf(res, sizeof(res), "usrm::rg=\"%s\"", name);
 	return clu_unlock(res, p);
+#endif
+	return -1;
 }
 
 
@@ -229,10 +241,10 @@ _rg_unlock_dbg(char *name, void *p, char *file, int line)
 
 
 void
-send_ret(int fd, char *name, int ret, int orig_request)
+send_ret(msgctx_t *ctx, char *name, int ret, int orig_request)
 {
 	SmMessageSt msg, *msgp = &msg;
-	if (fd < 0)
+	if (!ctx)
 		return;
 
 	msgp->sm_hdr.gh_magic = GENERIC_HDR_MAGIC;
@@ -245,10 +257,10 @@ send_ret(int fd, char *name, int ret, int orig_request)
 	msgp->sm_data.d_ret = ret;
 
 	swab_SmMessageSt(msgp);
-	msg_send(fd, msgp, sizeof(*msgp));
+	msg_send(ctx, msgp, sizeof(*msgp));
 
 	/* :) */
-	msg_close(fd);
+	msg_close(ctx);
 }
 
 	
@@ -257,7 +269,7 @@ send_response(int ret, request_t *req)
 {
 	SmMessageSt msg, *msgp = &msg;
 
-	if (req->rr_resp_fd < 0)
+	if (req->rr_resp_ctx == NULL)
 		return;
 
 	msgp->sm_hdr.gh_magic = GENERIC_HDR_MAGIC;
@@ -270,17 +282,18 @@ send_response(int ret, request_t *req)
 	msgp->sm_data.d_ret = ret;
 
 	swab_SmMessageSt(msgp);
-	msg_send(req->rr_resp_fd, msgp, sizeof(*msgp));
+	msg_send(req->rr_resp_ctx, msgp, sizeof(*msgp));
 
 	/* :) */
-	msg_close(req->rr_resp_fd);
-	req->rr_resp_fd = -1;
+	msg_close(req->rr_resp_ctx);
+	req->rr_resp_ctx = NULL;
 }
 
 
 int
 set_rg_state(char *name, rg_state_t *svcblk)
 {
+#if 0
 	cluster_member_list_t *membership;
 	char res[256];
 	int ret;
@@ -292,16 +305,18 @@ set_rg_state(char *name, rg_state_t *svcblk)
 	snprintf(res, sizeof(res), "usrm::rg=\"%s\"", name);
 	ret = vf_write(membership, VFF_IGN_CONN_ERRORS, res, svcblk,
        		       sizeof(*svcblk));
-	cml_free(membership);
+	free_member_list(membership);
 	return ret;
+#endif
+	return -1;
 }
 
 
 static int
 init_rg(char *name, rg_state_t *svcblk)
 {
-	svcblk->rs_owner = NODE_ID_NONE;
-	svcblk->rs_last_owner = NODE_ID_NONE;
+	svcblk->rs_owner = 0;
+	svcblk->rs_last_owner = 0;
 	svcblk->rs_state = RG_STATE_STOPPED;
        	svcblk->rs_restarts = 0;
 	svcblk->rs_transition = 0;	
@@ -314,6 +329,7 @@ init_rg(char *name, rg_state_t *svcblk)
 int
 get_rg_state(char *name, rg_state_t *svcblk)
 {
+#if 0
 	char res[256];
 	int ret;
 	void *data = NULL;
@@ -336,7 +352,7 @@ get_rg_state(char *name, rg_state_t *svcblk)
 
 		ret = init_rg(name, svcblk);
 		if (ret != VFR_OK) {
-			cml_free(membership);
+			free_member_list(membership);
 			printf("Couldn't initialize rg %s!\n", name);
 			return FAIL;
 		}
@@ -345,7 +361,7 @@ get_rg_state(char *name, rg_state_t *svcblk)
 		if (ret != VFR_OK) {
 			if (data)
 				free(data);
-			cml_free(membership);
+			free_member_list(membership);
 			printf("Couldn't reread rg %s! (%d)\n", name, ret);
 			return FAIL;
 		}
@@ -356,16 +372,59 @@ get_rg_state(char *name, rg_state_t *svcblk)
 		       (int)sizeof(*svcblk), datalen);
 		if (data)
 			free(data);
-		cml_free(membership);
+		free_member_list(membership);
 		return FAIL;
 	}
 
 	/* Copy out the data. */
 	memcpy(svcblk, data, sizeof(*svcblk));
 	free(data);
-	cml_free(membership);
+	free_member_list(membership);
 
-	return 0;
+#endif
+	return -1;
+}
+
+
+int vf_read_local(char *, uint64_t *, void *, uint32_t *);
+int
+get_rg_state_local(char *name, rg_state_t *svcblk)
+{
+#if 0
+	char res[256];
+	int ret;
+	void *data = NULL;
+	uint32_t datalen = 0;
+	uint64_t viewno;
+
+	/* ... */
+	if (name)
+		strncpy(svcblk->rs_name, name, sizeof(svcblk->rs_name));
+
+	snprintf(res, sizeof(res),"usrm::rg=\"%s\"", svcblk->rs_name);
+	ret = vf_read_local(res, &viewno, &data, &datalen);
+
+	if (ret != VFR_OK || datalen == 0 ||
+	    datalen != sizeof(*svcblk)) {
+		if (data)
+			free(data);
+
+		svcblk->rs_owner = 0;
+		svcblk->rs_last_owner = 0;
+		svcblk->rs_state = RG_STATE_UNINITIALIZED;
+       		svcblk->rs_restarts = 0;
+		svcblk->rs_transition = 0;	
+		strncpy(svcblk->rs_name, name, sizeof(svcblk->rs_name));
+
+		return FAIL;
+	}
+
+	/* Copy out the data. */
+	memcpy(svcblk, data, sizeof(*svcblk));
+	free(data);
+
+#endif
+	return -1;
 }
 
 
@@ -380,6 +439,7 @@ get_rg_state(char *name, rg_state_t *svcblk)
  *			1 = STOP service - return whatever it returns.
  *			2 = DO NOT stop service, return 0 (success)
  *                      3 = DO NOT stop service, return RG_EFORWARD
+ *			4 = DO NOT stop service, return RG_EAGAIN
  */
 int
 svc_advise_stop(rg_state_t *svcStatus, char *svcName, int req)
@@ -429,11 +489,11 @@ svc_advise_stop(rg_state_t *svcStatus, char *svcName, int req)
 			break;
 		}
 
-		if (svcStatus->rs_owner == NODE_ID_NONE ||
+		if (svcStatus->rs_owner == 0 ||
 		    (svcStatus->rs_owner == my_id())) {
 			/*
 			   Service is marked as running locally or on
-			   NODE_ID_NONE (e.g. no member).  Safe
+			   0 (e.g. no member).  Safe
 			   to do a full stop.
 			 */
 			ret = 1;
@@ -488,7 +548,7 @@ svc_advise_stop(rg_state_t *svcStatus, char *svcName, int req)
 		break;
 	}
 
-	cml_free(membership);
+	free_member_list(membership);
 	return ret;
 }
 
@@ -504,6 +564,7 @@ svc_advise_stop(rg_state_t *svcStatus, char *svcName, int req)
  * @return		0 = DO NOT start service, return FAIL
  *			1 = START service - return whatever it returns.
  *			2 = DO NOT start service, return 0
+ *			3 = DO NOT start service, return RG_EAGAIN
  */
 int
 svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
@@ -519,10 +580,6 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 		break;
 		
 	case RG_STATE_STOPPING:
-		clulog(LOG_DEBUG, "RG %s is stopping\n", svcName);
-		ret = 2;
-		break;
-
 	case RG_STATE_STARTED:
 	case RG_STATE_CHECK:
 	case RG_STATE_STARTING:
@@ -548,11 +605,25 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 			break;
 		}
 
-		if (svcStatus->rs_owner == NODE_ID_NONE) {
+		/* We are allowed to do something with the service.  Make
+		   sure we're not locked */
+		if (svcStatus->rs_owner == 0) {
+			if (rg_locked()) {
+				ret = 3;
+				break;
+			}
+
 			clulog(LOG_NOTICE,
 			       "Starting stopped service%s\n",
 			       svcName);
 			ret = 1;
+			break;
+		}
+
+		if (rg_locked()) {
+			clulog(LOG_WARNING, "Not initiating failover of %s: "
+			       "Resource groups locked!\n", svcName);
+			ret = 3;
 			break;
 		}
 
@@ -588,6 +659,12 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 		break;
 
 	case RG_STATE_STOPPED:
+		/* Don't actually enable if the RG is locked! */
+		if (rg_locked()) {
+			ret = 3;
+			break;
+		}
+
 		clulog(LOG_NOTICE, "Starting stopped service %s\n",
 		       svcName);
 		ret = 1;
@@ -596,6 +673,12 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 	case RG_STATE_DISABLED:
 	case RG_STATE_UNINITIALIZED:
 		if (req == RG_ENABLE) {
+			/* Don't actually enable if the RG is locked! */
+			if (rg_locked()) {
+				ret = 3;
+				break;
+			}
+
 			clulog(LOG_NOTICE,
 			       "Starting disabled service %s\n",
 			       svcName);
@@ -615,7 +698,7 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 		break;
 	}
 
-	cml_free(membership);
+	free_member_list(membership);
 	return ret;
 }
 
@@ -656,6 +739,9 @@ svc_start(char *svcName, int req)
 	case 2: /* Don't start service, return 0 */
 		rg_unlock(svcName, lockp);
 		return 0;
+	case 3:
+		rg_unlock(svcName, lockp);
+		return RG_EAGAIN;
 	default:
 		break;
 	}
@@ -738,14 +824,12 @@ svc_status(char *svcName)
 	}
 	rg_unlock(svcName, lockp);
 
-	if (svcStatus.rs_state == RG_STATE_STARTED &&
-	    svcStatus.rs_owner != my_id())
-		/* Don't check status for other resource groups */
+	if (svcStatus.rs_owner != my_id())
+		/* Don't check status for anything not owned */
 		return SUCCESS;
 
-	if (svcStatus.rs_state != RG_STATE_STARTED &&
-	    svcStatus.rs_owner == my_id())
-		/* Not-running RGs should not be checked yet. */
+	if (svcStatus.rs_state != RG_STATE_STARTED)
+		/* Not-running RGs should not be checked either. */
 		return SUCCESS;
 
 	return group_op(svcName, RG_STATUS);
@@ -798,6 +882,9 @@ _svc_stop(char *svcName, int req, int recover, uint32_t newstate)
 	case 3:
 		rg_unlock(svcName, lockp);
 		return RG_EFORWARD;
+	case 4:
+		rg_unlock(svcName, lockp);
+		return RG_EAGAIN;
 	default:
 		break;
 	}
@@ -853,7 +940,7 @@ _svc_stop_finish(char *svcName, int failed, uint32_t newstate)
 	}
 
 	svcStatus.rs_last_owner = svcStatus.rs_owner;
-	svcStatus.rs_owner = NODE_ID_NONE;
+	svcStatus.rs_owner = 0;
 
 	if (failed) {
 		clulog(LOG_CRIT, "#12: RG %s failed to stop; intervention "
@@ -941,9 +1028,9 @@ svc_fail(char *svcName)
 	/*
 	 * Leave a bread crumb so we can debug the problem with the service!
 	 */
-	if (svcStatus.rs_owner != NODE_ID_NONE) {
+	if (svcStatus.rs_owner != 0) {
 		svcStatus.rs_last_owner = svcStatus.rs_owner;
-		svcStatus.rs_owner = NODE_ID_NONE;
+		svcStatus.rs_owner = 0;
 	}
 	svcStatus.rs_state = RG_STATE_FAILED;
 	svcStatus.rs_transition = (uint64_t)time(NULL);
@@ -966,8 +1053,9 @@ static int
 relocate_service(char *svcName, int request, uint64_t target)
 {
 	SmMessageSt msg_relo;
-	int fd_relo, msg_ret;
+	int msg_ret;
 	cluster_member_list_t *ml;
+	msgctx_t ctx;
 
 	/* Build the message header */
 	msg_relo.sm_hdr.gh_magic = GENERIC_HDR_MAGIC;
@@ -980,7 +1068,7 @@ relocate_service(char *svcName, int request, uint64_t target)
 
 	/* Open a connection to the other node */
 
-	if ((fd_relo = msg_open(target, RG_PORT, RG_PURPOSE, 2)) < 0) {
+	if (msg_open(target, RG_PORT, &ctx, 2)< 0) {
 		clulog(LOG_ERR,
 		       "#58: Failed opening connection to member #%d\n",
 		       target);
@@ -991,12 +1079,12 @@ relocate_service(char *svcName, int request, uint64_t target)
 	swab_SmMessageSt(&msg_relo);
 
 	/* Send relocate message to the other node */
-	if (msg_send(fd_relo, &msg_relo, sizeof (SmMessageSt)) !=
+	if (msg_send(&ctx, &msg_relo, sizeof (SmMessageSt)) !=
 	    sizeof (SmMessageSt)) {
 		clulog(LOG_ERR,
 		       "#59: Error sending relocate request to member #%d\n",
 		       target);
-		msg_close(fd_relo);
+		msg_close(&ctx);
 		return -1;
 	}
 
@@ -1004,7 +1092,7 @@ relocate_service(char *svcName, int request, uint64_t target)
 
 	/* Check the response */
 	do {
-		msg_ret = msg_receive_timeout(fd_relo, &msg_relo,
+		msg_ret = msg_receive(&ctx, &msg_relo,
 					      sizeof (SmMessageSt), 10);
 		if ((msg_ret == -1 && errno != ETIMEDOUT) ||
 		    (msg_ret >= 0)) {
@@ -1016,20 +1104,20 @@ relocate_service(char *svcName, int request, uint64_t target)
 		if (rg_locked()) {
 			clulog(LOG_WARNING,
 			       "#XX: Cancelling relocation: Shutting down\n");
-			msg_close(fd_relo);
+			msg_close(&ctx);
 			return NO;
 		}
 
 		/* Check for node transition in the middle of a relocate */
 		ml = member_list();
 		if (memb_online(ml, target)) {
-			cml_free(ml);
+			free_member_list(ml);
 			continue;
 		}
 		clulog(LOG_WARNING,
 		       "#XX: Cancelling relocation: Target node down\n");
-		cml_free(ml);
-		msg_close(fd_relo);
+		free_member_list(ml);
+		msg_close(&ctx);
 		return FAIL;
 	} while (1);
 
@@ -1040,12 +1128,12 @@ relocate_service(char *svcName, int request, uint64_t target)
 		 */
 		clulog(LOG_ERR, "#60: Mangled reply from member #%d during RG "
 		       "relocate\n", target);
-		msg_close(fd_relo);
+		msg_close(&ctx);
 		return 0;	/* XXX really UNKNOWN */
 	}
 
 	/* Got a valid response from other node. */
-	msg_close(fd_relo);
+	msg_close(&ctx);
 
 	/* Decode */
 	swab_SmMessageSt(&msg_relo);
@@ -1074,10 +1162,10 @@ relocate_service(char *svcName, int request, uint64_t target)
  * @param new_owner	Member who actually ends up owning the service.
  */
 int
-handle_relocate_req(char *svcName, int request, uint64_t preferred_target,
-		    uint64_t *new_owner)
+handle_relocate_req(char *svcName, int request, int preferred_target,
+		    int *new_owner)
 {
-	cluster_member_list_t *allowed_nodes;
+	cluster_member_list_t *allowed_nodes, *backup = NULL;
 	uint64_t target = preferred_target, me = my_id();
 	int ret, x;
 	
@@ -1094,7 +1182,7 @@ handle_relocate_req(char *svcName, int request, uint64_t preferred_target,
 			return RG_EFORWARD;
 	}
 
-	if (preferred_target != NODE_ID_NONE) {
+	if (preferred_target != 0) {
 
 		allowed_nodes = member_list();
 		/*
@@ -1102,22 +1190,26 @@ handle_relocate_req(char *svcName, int request, uint64_t preferred_target,
 		   If we can't start it on the preferred target, then we'll try
 	 	   other nodes.
 		 */
+		//count_resource_groups(allowed_nodes);
+		backup = member_list_dup(allowed_nodes);
+
 		for (x = 0; x < allowed_nodes->cml_count; x++) {
-			if (allowed_nodes->cml_members[x].cm_id == me ||
-		    	    allowed_nodes->cml_members[x].cm_id == preferred_target)
+			if (allowed_nodes->cml_members[x].cn_nodeid == me ||
+		    	    allowed_nodes->cml_members[x].cn_nodeid ==
+			    		preferred_target)
 				continue;
-			allowed_nodes->cml_members[x].cm_state = STATE_DOWN;
+			allowed_nodes->cml_members[x].cn_member = 0;
 		}
 
 		/*
-		 * First, see if it's legal to relocate to the target node.  Legal
-		 * means: the node is online and is in the [restricted] failover
-		 * domain of the service, or the service has no failover domain.
+		 * First, see if it's legal to relocate to the target node.
+		 * Legal means: the node is online and is in the
+		 * [restricted] failover domain of the service, or the
+		 * service has no failover domain.
 		 */
-
 		target = best_target_node(allowed_nodes, me, svcName, 1);
 
-		cml_free(allowed_nodes);
+		free_member_list(allowed_nodes);
 
 		/*
 		 * I am the ONLY one capable of running this service,
@@ -1155,9 +1247,14 @@ handle_relocate_req(char *svcName, int request, uint64_t preferred_target,
 	 * Ok, so, we failed to send it to the preferred target node.
 	 * Try to start it on all other nodes.
 	 */
-	allowed_nodes = member_list();
+	if (backup) {
+		allowed_nodes = backup;
+	} else {
+		allowed_nodes = member_list();
+		//count_resource_groups(allowed_nodes);
+	}
 
-	if (preferred_target != NODE_ID_NONE)
+	if (preferred_target != 0)
 		memb_mark_down(allowed_nodes, preferred_target);
 	memb_mark_down(allowed_nodes, me);
 
@@ -1172,11 +1269,11 @@ handle_relocate_req(char *svcName, int request, uint64_t preferred_target,
 			continue;
 		case RG_EABORT:
 			svc_report_failure(svcName);
-			cml_free(allowed_nodes);
+			free_member_list(allowed_nodes);
 			return FAIL;
 		case NO:
 			/* state uncertain */
-			cml_free(allowed_nodes);
+			free_member_list(allowed_nodes);
 			clulog(LOG_DEBUG, "State Uncertain: svc:%s "
 			       "nid:%08x%08x req:%d\n", svcName,
 			       (uint32_t)(target>>32)&0xffffffff,
@@ -1186,7 +1283,7 @@ handle_relocate_req(char *svcName, int request, uint64_t preferred_target,
 			*new_owner = target;
 			clulog(LOG_NOTICE, "Service %s is now running "
 			       "on member %d\n", svcName, (int)target);
-			cml_free(allowed_nodes);
+			free_member_list(allowed_nodes);
 			return 0;
 		default:
 			clulog(LOG_ERR,
@@ -1194,7 +1291,7 @@ handle_relocate_req(char *svcName, int request, uint64_t preferred_target,
 			       " relocate operation!\n", target);
 		}
 	}
-	cml_free(allowed_nodes);
+	free_member_list(allowed_nodes);
 
 	/*
 	 * We got sent here from handle_start_req.
@@ -1208,12 +1305,14 @@ handle_relocate_req(char *svcName, int request, uint64_t preferred_target,
 	 * We're done.
 	 */
 exhausted:
-	clulog(LOG_WARNING,
-	       "#70: Attempting to restart service %s locally.\n",
-	       svcName);
-	if (svc_start(svcName, RG_START_RECOVER) == 0) {
-		*new_owner = me;
-		return FAIL;
+	if (!rg_locked()) {
+		clulog(LOG_WARNING,
+		       "#70: Attempting to restart service %s locally.\n",
+		       svcName);
+		if (svc_start(svcName, RG_START_RECOVER) == 0) {
+			*new_owner = me;
+			return FAIL;
+		}
 	}
 
 	if (svc_stop(svcName, RG_STOP) != 0) {
@@ -1236,7 +1335,7 @@ exhausted:
  *			0 - The service is running.
  */
 int
-handle_start_req(char *svcName, int req, uint64_t *new_owner)
+handle_start_req(char *svcName, int req, int *new_owner)
 {
 	int ret, tolerance = FOD_BEST;
 	cluster_member_list_t *membership = member_list();
@@ -1252,16 +1351,22 @@ handle_start_req(char *svcName, int req, uint64_t *new_owner)
 	    req != RG_START_RECOVER &&
 	    (node_should_start_safe(my_id(), membership, svcName) <
 	     tolerance)) {
-		cml_free(membership);
+		free_member_list(membership);
 		return FAIL;
 	}
-	cml_free(membership);
+	free_member_list(membership);
 	
 	/*
 	 * This is a 'root' start request.  We need to clear out our failure
 	 * mask here - so that we can try all nodes if necessary.
 	 */
 	ret = svc_start(svcName, req);
+
+	/* 
+	   If services are locked, return the error 
+	  */
+	if (ret == RG_EAGAIN)
+		return RG_EAGAIN;
 
 	/*
 	 * If we succeeded, then we're done.
@@ -1336,10 +1441,10 @@ handle_start_remote_req(char *svcName, int req)
 	/* XXX ok, so we need to say "should I start this if I was the
 	   only cluster member online */
 	for (x = 0; x < membership->cml_count; x++) {
-		if (membership->cml_members[x].cm_id == me)
+		if (membership->cml_members[x].cn_nodeid == me)
 			continue;
 
-		membership->cml_members[x].cm_state = STATE_DOWN;
+		membership->cml_members[x].cn_member = 0;
 	}
 
 	if (req == RG_ENABLE)
@@ -1349,10 +1454,10 @@ handle_start_remote_req(char *svcName, int req)
 	 * See if we agree with our ability to start the given service.
 	 */
 	if (node_should_start_safe(me, membership, svcName) < tolerance){
-		cml_free(membership);
+		free_member_list(membership);
 		return FAIL;
 	}
-	cml_free(membership);
+	free_member_list(membership);
 
 	if (svc_start(svcName, req) == 0)
 		return 0;
@@ -1369,7 +1474,7 @@ handle_start_remote_req(char *svcName, int req)
   handle_recover_req
  */
 int
-handle_recover_req(char *svcName, uint64_t *new_owner)
+handle_recover_req(char *svcName, int *new_owner)
 {
 	char policy[20];
 

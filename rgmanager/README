@@ -1,7 +1,3 @@
-WARNING
-
-This code is not ready for production use.
-
 This is a clustered resource group manager layered on top of Magma, a
 single API which can talk to multiple cluster infrastructures via their
 native APIs.  This resource manager requires both magma and one or more

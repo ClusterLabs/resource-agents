@@ -14,9 +14,9 @@ top_srcdir=../..
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 include ${top_srcdir}/make/defines.mk
-INCLUDE += -I ${ccsincdir} -I $(top_srcdir)/include
+INCLUDE += -I $(top_srcdir)/include
 
-CFLAGS+= -g -I${magmaincdir} -I${incdir} -DCMAN_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS+= -g -I${incdir} -DCMAN_RELEASE_NAME=\"${RELEASE}\"
 
 CFLAGS+= -g -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
 
@@ -30,7 +30,8 @@ install: all
 uninstall:
 
 libclulib.a: clulog.o daemon_init.o signals.o msgsimple.o \
-		vft.o gettid.o rg_strings.o
+		gettid.o rg_strings.o message.o members.o fdops.o
+		# lock.o lockspace.o 
 	${AR} cru $@ $^
 	ranlib $@
 

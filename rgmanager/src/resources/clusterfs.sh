@@ -37,7 +37,16 @@ FAIL=2
 YES=0
 NO=1
 YES_STR="yes"
-INVALIDATEBUFFERS="/bin/true"
+
+# Grab nfs lock tricks if available
+export NFS_TRICKS=1
+if [ -f "$(dirname $0)/svclib_nfslock" ]; then
+	. $(dirname $0)/svclib_nfslock
+	NFS_TRICKS=0
+else
+	unset OCF_RESKEY_nfslock
+fi
+
 
 . $(dirname $0)/ocf-shellfuncs
 
@@ -135,6 +144,18 @@ meta_data()
 	    <content type="string"/>
 	</parameter>
 
+	<parameter name="nfslock" inherit="service%nfslock">
+	    <longdesc lang="en">
+	        If set, the node will try to kill lockd and issue 
+		reclaims across all remaining network interface cards.
+		This happens always, regardless of unmounting failed.
+	    </longdesc>
+	    <shortdesc lang="en">
+	        Enable NFS lock workarounds
+	    </shortdesc>
+	    <content type="boolean"/>
+	</parameter>
+
     </parameters>
 
     <actions>
@@ -162,7 +183,6 @@ meta_data()
     <special tag="rgmanager">
     	<child type="fs" start="1" stop="3"/>
     	<child type="clusterfs" start="1" stop="3"/>
-        <child type="nfsserver" start="2" stop="2"/>
         <child type="nfsexport" start="3" stop="1"/>
     </special>
 </resource-agent>
@@ -775,6 +795,23 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 		esac
 	fi
 
+	#
+	# Always do this hackery on clustered file systems.
+	#
+	if [ "$OCF_RESKEY_nfslock" = "yes" ] || \
+	   [ "$OCF_RESKEY_nfslock" = "1" ]; then
+		ocf_log warning "Dropping node-wide NFS locks"
+		mkdir -p $mp/.clumanager/statd
+		# Copy out the notify list; our 
+		# IPs are already torn down
+		if notify_list_store $mp/.clumanager/statd; then
+			notify_list_broadcast $mp/.clumanager/statd
+		fi
+	fi
+
+	# Always invalidate buffers on clusterfs resources
+	clubufflush -f $dev
+
 	if [ -z "$force_umount" ]; then
 		ocf_log debug "Not umounting $dev (clustered file system)"
 		return $SUCCESS
@@ -783,7 +820,6 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 	#
 	# Unmount the device.  
 	#
-
 	while [ ! "$done" ]; do
 		isMounted $dev $mp
 		case $? in

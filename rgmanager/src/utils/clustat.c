@@ -1,5 +1,5 @@
-#include <magma.h>
-#include <magmamsg.h>
+#include <members.h>
+#include <message.h>
 #include <msgsimple.h>
 #include <resgroup.h>
 #include <platform.h>
@@ -8,6 +8,7 @@
 #include <term.h>
 #include <termios.h>
 #include <ccs.h>
+#include <libcman.h>
 
 #ifdef HAVE_CONFIG_H
 #include <config.h>
@@ -17,6 +18,12 @@
 #define FLAG_LOCAL 0x2
 #define FLAG_RGMGR 0x4
 #define FLAG_NOCFG 0x8	/* Shouldn't happen */
+
+#define RG_VERBOSE 0x1
+
+#define QSTAT_ONLY 1
+#define VERSION_ONLY 2
+#define NODEID_ONLY 3
 
 
 int running = 1;
@@ -35,21 +42,22 @@ typedef struct {
 
 
 rg_state_list_t *
-rg_state_list(uint64_t local_node_id)
+rg_state_list(int local_node_id, int fast)
 {
-	int fd, n, x;
+	msgctx_t ctx;
+	int max, n, x;
 	rg_state_list_t *rsl = NULL;
 	generic_msg_hdr *msgp = NULL;
 	rg_state_msg_t *rsmp = NULL;
 	fd_set rfds;
+
 	struct timeval tv;
 
-	fd = msg_open(local_node_id, RG_PORT, RG_PURPOSE, 10);
-	if (fd == -1) {
+	if (msg_open(0, RG_PORT, &ctx, 10) < 0) {
 		return NULL;
 	}
 
-	msg_send_simple(fd, RG_STATUS, 0, 0);
+	msg_send_simple(&ctx, RG_STATUS, fast, 0);
 
 	rsl = malloc(sizeof(rg_state_list_t));
 	if (!rsl) {
@@ -60,18 +68,20 @@ rg_state_list(uint64_t local_node_id)
 
 	while (1) {
 		FD_ZERO(&rfds);
-		FD_SET(fd, &rfds);
+		msg_fd_set(&ctx, &rfds, &max);
 		tv.tv_sec = 10;
 		tv.tv_usec = 0;
 
-		n = select(fd+1, &rfds, NULL, NULL, &tv);
+		n = select(max+1, &rfds, NULL, NULL, &tv);
 		if (n == 0) {
 			fprintf(stderr, "Timed out waiting for a response "
 				"from Resource Group Manager\n");
 			break;
 		}
+
 		if (n < 0) {
-			if (errno == EINTR)
+			if (errno == EAGAIN ||
+			    errno == EINTR)
 				continue;
 			fprintf(stderr, "Failed to receive "
 				"service data: select: %s\n",
@@ -79,9 +89,17 @@ rg_state_list(uint64_t local_node_id)
 			break;
 		}
 
-		n = msg_receive_simple(fd, &msgp, tv.tv_sec);
-	        if (n < sizeof(generic_msg_hdr))
+		n = msg_receive_simple(&ctx, &msgp, tv.tv_sec);
+		if (n < 0) {
+			if (errno == EAGAIN)
+				continue;
+			perror("msg_receive_simple");
 			break;
+		}
+	        if (n < sizeof(generic_msg_hdr)) {
+			printf("Error: Malformed message\n");
+			break;
+		}
 
 		if (!msgp) {
 			printf("Error: no message?!\n");
@@ -95,9 +113,10 @@ rg_state_list(uint64_t local_node_id)
 		}
 
 		if (n < sizeof(*rsmp)) {
-			msg_close(fd);
+			msg_close(&ctx);
 			return NULL;
 		}
+
 
 		rsmp = (rg_state_msg_t *)msgp;
 
@@ -119,7 +138,8 @@ rg_state_list(uint64_t local_node_id)
 		msgp = NULL;
 	}
 
-	msg_close(fd);
+	msg_send_simple(&ctx, RG_SUCCESS, 0, 0);
+	msg_close(&ctx);
 
 	if (!rsl->rgl_count) {
 		free(rsl);
@@ -165,9 +185,9 @@ cluster_member_list_t *ccs_member_list(void)
 			}
 		}
 
-		memset(&ret->cml_members[x-1], 0, sizeof(cluster_member_t));
-		strncpy(ret->cml_members[x-1].cm_name, name,
-			sizeof(ret->cml_members[x-1].cm_name));
+		memset(&ret->cml_members[x-1], 0, sizeof(cman_node_t));
+		strncpy(ret->cml_members[x-1].cn_name, name,
+			sizeof(ret->cml_members[x-1].cn_name));
 		free(name);
 
 		ret->cml_count = x;
@@ -186,15 +206,15 @@ flag_nodes(cluster_member_list_t *all, cluster_member_list_t *these,
 	   uint8_t flag)
 {
 	int x;
-	cluster_member_t *m;
+	cman_node_t *m;
 
 	for (x=0; x<all->cml_count; x++) {
 
-		m = memb_name_to_p(these, all->cml_members[x].cm_name);
+		m = memb_name_to_p(these, all->cml_members[x].cn_name);
 
 		if (m) {
-			all->cml_members[x].cm_id = m->cm_id;
-			all->cml_members[x].cm_state |= flag;
+			all->cml_members[x].cn_nodeid = m->cn_nodeid;
+			all->cml_members[x].cn_member |= flag;
 		}
 	}
 }
@@ -204,19 +224,19 @@ cluster_member_list_t *
 add_missing(cluster_member_list_t *all, cluster_member_list_t *these)
 {
 	int x, y;
-	cluster_member_t *m, *new;
+	cman_node_t *m, *new;
 
 	for (x=0; x<these->cml_count; x++) {
 
 		m = NULL;
         	for (y = 0; y < all->cml_count; y++) {
-			if (!strcmp(all->cml_members[y].cm_name,
-				    these->cml_members[x].cm_name))
+			if (!strcmp(all->cml_members[y].cn_name,
+				    these->cml_members[x].cn_name))
                         	m = &all->cml_members[y];
 		}
 
 		if (!m) {
-			printf("%s not found\n", these->cml_members[x].cm_name);
+			printf("%s not found\n", these->cml_members[x].cn_name);
 			/* WTF? It's not in our config */
 			printf("realloc %d\n", (int)cml_size((all->cml_count+1)));
 			all = realloc(all, cml_size((all->cml_count+1)));
@@ -228,12 +248,12 @@ add_missing(cluster_member_list_t *all, cluster_member_list_t *these)
 			new = &all->cml_members[all->cml_count];
 
 			memcpy(new, &these->cml_members[x],
-			       sizeof(cluster_member_t));
+			       sizeof(cman_node_t));
 
-			if (new->cm_state == STATE_UP) {
-				new->cm_state = FLAG_UP | FLAG_NOCFG;
+			if (new->cn_member) {
+				new->cn_member = FLAG_UP | FLAG_NOCFG;
 			} else {
-				new->cm_state = FLAG_NOCFG;
+				new->cn_member = FLAG_NOCFG;
 			}
 			++all->cml_count;
 
@@ -249,19 +269,20 @@ my_memb_id_to_name(cluster_member_list_t *members, uint64_t memb_id)
 {
 	int x;
 
-	if (memb_id == NODE_ID_NONE)
+	if (memb_id == 0)
 		return "none";
 
 	for (x = 0; x < members->cml_count; x++) {
-		if (members->cml_members[x].cm_id == memb_id)
-			return members->cml_members[x].cm_name;
+		if (members->cml_members[x].cn_nodeid == memb_id)
+			return members->cml_members[x].cn_name;
 	}
 
 	return "unknown";
 }
 
+
 void
-txt_rg_state(rg_state_t *rs, cluster_member_list_t *members)
+_txt_rg_state(rg_state_t *rs, cluster_member_list_t *members, int flags)
 {
 	char owner[31];
 
@@ -286,39 +307,90 @@ txt_rg_state(rg_state_t *rs, cluster_member_list_t *members)
 
 
 void
-xml_rg_state(rg_state_t *rs, cluster_member_list_t *members)
+_txt_rg_state_v(rg_state_t *rs, cluster_member_list_t *members, int flags)
 {
+	printf("Service Name      : %s\n", rs->rs_name);
+	printf("  Current State   : %s (%d)\n",
+	       rg_state_str(rs->rs_state), rs->rs_state);
+	printf("  Owner           : %s\n",
+	       my_memb_id_to_name(members, rs->rs_owner));
+	printf("  Last Owner      : %s\n",
+	       my_memb_id_to_name(members, rs->rs_last_owner));
+	printf("  Last Transition : %s\n",
+	       ctime((time_t *)(&rs->rs_transition)));
+}
+
+
+void
+txt_rg_state(rg_state_t *rs, cluster_member_list_t *members, int flags)
+{
+	if (flags & RG_VERBOSE) 
+		_txt_rg_state_v(rs, members, flags);
+	else
+		_txt_rg_state(rs, members, flags);
+}
+
+
+void
+xml_rg_state(rg_state_t *rs, cluster_member_list_t *members, int flags)
+{
+	char time_str[32];
+	int x;
+
+	/* Chop off newlines */
+	ctime_r((time_t *)&rs->rs_transition, time_str);
+	for (x = 0; time_str[x]; x++) {
+		if (time_str[x] < 32) {
+			time_str[x] = 0;
+			break;
+		}
+	}
+
 	printf("    <group name=\"%s\" state=\"%d\" state_str=\"%s\" "
-	       " owner=\"%s\" last_owner=\"%s\" restarts=\"%d\"/>\n",
+	       " owner=\"%s\" last_owner=\"%s\" restarts=\"%d\""
+	       " last_transition=\"%llu\" last_transition_str=\"%s\"/>\n",
 	       rs->rs_name,
 	       rs->rs_state,
 	       rg_state_str(rs->rs_state),
 	       my_memb_id_to_name(members, rs->rs_owner),
 	       my_memb_id_to_name(members, rs->rs_last_owner),
-	       rs->rs_restarts);
+	       rs->rs_restarts,
+	       (long long unsigned)rs->rs_transition,
+	       time_str);
 }
 
 
 void
-txt_rg_states(rg_state_list_t *rgl, cluster_member_list_t *members)
+txt_rg_states(rg_state_list_t *rgl, cluster_member_list_t *members, 
+	      char *svcname, int flags)
 {
 	int x;
 
 	if (!rgl || !members)
 		return;
 
-	printf("  %-20.20s %-30.30s %-14.14s\n",
-	       "Service Name", "Owner (Last)", "State");
-	printf("  %-20.20s %-30.30s %-14.14s\n",
-	       "------- ----", "----- ------", "-----");
+	if (!(flags & RG_VERBOSE)) {
+		printf("  %-20.20s %-30.30s %-14.14s\n",
+		       "Service Name", "Owner (Last)", "State");
+		printf("  %-20.20s %-30.30s %-14.14s\n",
+		       "------- ----", "----- ------", "-----");
+	} else {
+		printf("Service Information\n"
+		       "------- -----------\n\n");
+	}
 
-	for (x = 0; x < rgl->rgl_count; x++)
-		txt_rg_state(&rgl->rgl_states[x], members);
+	for (x = 0; x < rgl->rgl_count; x++) {
+		if (svcname &&
+		    strcmp(rgl->rgl_states[x].rs_name, svcname))
+			continue;
+		txt_rg_state(&rgl->rgl_states[x], members, flags);
+	}
 }
 
 
 void
-xml_rg_states(rg_state_list_t *rgl, cluster_member_list_t *members)
+xml_rg_states(rg_state_list_t *rgl, cluster_member_list_t *members,
+	      char *svcname)
 {
 	int x;
 
@@ -327,8 +399,12 @@ xml_rg_states(rg_state_list_t *rgl, cluster_member_list_t *members)
 
 	printf("  <groups>\n");
 
-	for (x = 0; x < rgl->rgl_count; x++)
-		xml_rg_state(&rgl->rgl_states[x], members);
+	for (x = 0; x < rgl->rgl_count; x++) {
+		if (svcname &&
+		    strcmp(rgl->rgl_states[x].rs_name, svcname))
+			continue;
+		xml_rg_state(&rgl->rgl_states[x], members, 0);
+	}
 
 	printf("  </groups>\n");
 }
@@ -340,9 +416,9 @@ txt_quorum_state(int qs)
 {
 	printf("Member Status: ");
 
-	if (qs & QF_QUORATE)
+	if (qs) {
 		printf("Quorate\n\n");
-	else {
+	} else {
 		printf("Inquorate\n\n");
 	}
 }
@@ -353,37 +429,31 @@ xml_quorum_state(int qs)
 {
 	printf("  <quorum ");
 
-	if (qs & QF_QUORATE)
-		printf("quorate=\"1\"");
-	else {
-		printf("quorate=\"0\" groupmember=\"0\"/>\n");
-		return;
+	if (qs) {
+		printf("quorate=\"1\"/>");
+	} else {
+		printf("quorate=\"0\"/>\n");
 	}
-
-	if (qs & QF_GROUPMEMBER)
-		printf(" groupmember=\"1\"");
-
-	printf("/>\n");
 }
 
 
 void
-txt_member_state(cluster_member_t *node)
+txt_member_state(cman_node_t *node)
 {
-	printf("  %-40.40s ", node->cm_name);
+	printf("  %-40.40s ", node->cn_name);
 
-	if (node->cm_state & FLAG_UP)
+	if (node->cn_member & FLAG_UP)
 		printf("Online");
 	else
 		printf("Offline");
 
-	if (node->cm_state & FLAG_LOCAL)
+	if (node->cn_member & FLAG_LOCAL)
 		printf(", Local");
 	
-	if (node->cm_state & FLAG_NOCFG)
+	if (node->cn_member & FLAG_NOCFG)
 		printf(", Estranged");
 
-	if (node->cm_state & FLAG_RGMGR)
+	if (node->cn_member & FLAG_RGMGR)
 		printf(", rgmanager");
 
 	printf("\n");
@@ -393,37 +463,39 @@ txt_member_state(cluster_member_t *node)
 
 
 void
-xml_member_state(cluster_member_t *node)
+xml_member_state(cman_node_t *node)
 {
 	printf("    <node name=\"%s\" state=\"%d\" local=\"%d\" "
-	       "estranged=\"%d\" rgmanager=\"%d\" nodeid=\"0x%08x%08x\"/>\n",
-	       node->cm_name,
-	       !!(node->cm_state & FLAG_UP),
-	       !!(node->cm_state & FLAG_LOCAL),
-	       !!(node->cm_state & FLAG_NOCFG),
-	       !!(node->cm_state & FLAG_RGMGR),
-	       (uint32_t)((node->cm_id >> 32)&0xffffffff),
-	       (uint32_t)((node->cm_id      )&0xffffffff));
+	       "estranged=\"%d\" rgmanager=\"%d\" nodeid=\"0x%08x\"/>\n",
+	       node->cn_name,
+	       !!(node->cn_member & FLAG_UP),
+	       !!(node->cn_member & FLAG_LOCAL),
+	       !!(node->cn_member & FLAG_NOCFG),
+	       !!(node->cn_member & FLAG_RGMGR),
+	       (uint32_t)((node->cn_nodeid      )&0xffffffff));
 }
 
 
 void
-txt_member_states(cluster_member_list_t *membership)
+txt_member_states(cluster_member_list_t *membership, char *name)
 {
 	int x;
 
 	printf("  %-40.40s %s\n", "Member Name", "Status");
 	printf("  %-40.40s %s\n", "------ ----", "------");
 
-	for (x = 0; x < membership->cml_count; x++)
+	for (x = 0; x < membership->cml_count; x++) {
+		if (name && strcmp(membership->cml_members[x].cn_name, name))
+			continue;
 		txt_member_state(&membership->cml_members[x]);
+	}
 
 	printf("\n");
 }
 
 
 void
-xml_member_states(cluster_member_list_t *membership)
+xml_member_states(cluster_member_list_t *membership, char *name)
 {
 	int x;
 
@@ -431,46 +503,59 @@ xml_member_states(cluster_member_list_t *membership)
 		return;
 
 	printf("  <nodes>\n");
-	for (x = 0; x < membership->cml_count; x++)
+	for (x = 0; x < membership->cml_count; x++) {
+		if (name && strcmp(membership->cml_members[x].cn_name, name))
+			continue;
 		xml_member_state(&membership->cml_members[x]);
+	}
 	printf("  </nodes>\n");
 }
 
 
 void
 txt_cluster_status(int qs, cluster_member_list_t *membership,
-		   rg_state_list_t *rgs)
+		   rg_state_list_t *rgs, char *name, char *svcname, 
+		   int flags)
 {
-	txt_quorum_state(qs);
-
-	if (!membership || !(qs & QF_GROUPMEMBER)) {
-		printf("Resource Group Manager not running; no service "
-		       "information available.\n\n");
+	if (!svcname && !name) {
+		txt_quorum_state(qs);
+		if (!membership) {
+			/* XXX Check for rgmanager?! */
+			printf("Resource Group Manager not running; "
+			       "no service information available.\n\n");
+		}
 	}
 
-	txt_member_states(membership);
-	txt_rg_states(rgs, membership);
+	if (!svcname || (name && svcname))
+		txt_member_states(membership, name);
+	if (!name || (name && svcname))
+		txt_rg_states(rgs, membership, svcname, flags);
 }
 
 
 void
 xml_cluster_status(int qs, cluster_member_list_t *membership,
-		   rg_state_list_t *rgs)
+		   rg_state_list_t *rgs, char *name, char *svcname,
+		   int flags)
 {
 	printf("<?xml version=\"1.0\"?>\n");
-	printf("<clustat version=\"4.1\">\n");
-	xml_quorum_state(qs);
-	xml_member_states(membership);
-	if (rgs)
-		xml_rg_states(rgs, membership);
+	printf("<clustat version=\"4.1.1\">\n");
+
+	if (!svcname && !name)
+		xml_quorum_state(qs);
+	if (!svcname || (name && svcname)) 
+		xml_member_states(membership, name);
+	if (rgs &&
+	    (!name || (name && svcname)))
+		xml_rg_states(rgs, membership, svcname);
 	printf("</clustat>\n");
 }
 
 
 void
-dump_node(cluster_member_t *node)
+dump_node(cman_node_t *node)
 {
-	printf("Node %s state %02x\n", node->cm_name, node->cm_state);
+	printf("Node %s state %02x\n", node->cn_name, node->cn_member);
 }
 
 
@@ -487,10 +572,10 @@ dump_nodes(cluster_member_list_t *nodes)
 
 
 cluster_member_list_t *
-build_member_list(uint64_t *lid)
+build_member_list(cman_handle_t ch, int *lid)
 {
 	cluster_member_list_t *all, *part;
-	cluster_member_t *m;
+	cman_node_t *m;
 	int root = 0;
 	int x;
 
@@ -498,8 +583,7 @@ build_member_list(uint64_t *lid)
 	   infrastructure */
 	root = (getuid() == 0 || geteuid() == 0);
 
-	part = clu_member_list(NULL);
-	msg_update(part); /* XXX magmamsg is awful. */
+	part = get_member_list(ch);
 
 	if (root && (all = ccs_member_list())) {
 
@@ -510,7 +594,7 @@ build_member_list(uint64_t *lid)
 		/* Flag online nodes */
 		flag_nodes(all, part, FLAG_UP);
 
-		cml_free(part);
+		free_member_list(part);
 	} else {
 		/* not root - keep it simple for the next block */
 		all = part;
@@ -518,19 +602,14 @@ build_member_list(uint64_t *lid)
 
 	/* Grab the local node ID and flag it from the list of reported
 	   online nodes */
-	clu_local_nodeid(NULL, lid);
+	*lid = get_my_nodeid(ch);
 	for (x=0; x<all->cml_count; x++) {
-		if (all->cml_members[x].cm_id == *lid) {
+		if (all->cml_members[x].cn_nodeid == *lid) {
 			m = &all->cml_members[x];
-			m->cm_state |= FLAG_LOCAL;
+			m->cn_member |= FLAG_LOCAL;
 			break;
 		}
 	}
-
-	/* Flag rgmanager nodes, if any */
-	part = clu_member_list(RG_SERVICE_GROUP);
-	flag_nodes(all, part, FLAG_RGMGR);
-	cml_free(part);
 
 	return all;
 }
@@ -545,9 +624,12 @@ usage(char *arg0)
 "                       with -x.\n"
 "    -I                 Display local node ID and exit\n"
 "    -m <member>        Display status of <member> and exit\n"
-"    -s <service>       Display statis of <service> and exit\n"
+"    -s <service>       Display status of <service> and exit\n"
 "    -v                 Display version & cluster plugin and exit\n"
 "    -x                 Dump information as XML\n"
+"    -Q			Return 0 if quorate, 1 if not (no output)\n"
+"    -f			Enable fast clustat reports\n"
+"    -l			Use long format for services\n"
 "\n", basename(arg0));
 }
 
@@ -558,37 +640,33 @@ main(int argc, char **argv)
 	int fd, qs, ret = 0;
 	cluster_member_list_t *membership;
 	rg_state_list_t *rgs = NULL;
-	uint64_t local_node_id;
+	int local_node_id;
+	int fast = 0;
+	int runtype = 0;
+	cman_handle_t ch;
 
 	int refresh_sec = 0, errors = 0;
-	int opt, xml = 0;
-	char *member_name;
-	char *rg_name;
+	int opt, xml = 0, flags = 0;
+	char *member_name = NULL;
+	char *rg_name = NULL;
 
-	/* Connect & grab all our info */
-	fd = clu_connect(RG_SERVICE_GROUP, 0);
-	if (fd < 0) {
-		printf("Could not connect to cluster service\n");
-		return 1;
-	}
-	
-	while ((opt = getopt(argc, argv, "Is:m:i:xvQh?")) != EOF) {
+	while ((opt = getopt(argc, argv, "fIls:m:i:xvQh?")) != EOF) {
 		switch(opt) {
 		case 'v':
-			printf("%s version %s\n", basename(argv[0]),
-			       PACKAGE_VERSION);
-			printf("Connected via: %s\n", clu_plugin_version());
-			goto cleanup;
+			runtype = VERSION_ONLY;
+			break;
 
 		case 'I':
-			printf("0x%08x%08x\n",(uint32_t)(local_node_id>>32),
-			       (uint32_t)(local_node_id&0xffffffff)); 
-			goto cleanup;
+			runtype = NODEID_ONLY;
+			break;
 
 		case 'i':
 			refresh_sec = atoi(optarg);
 			if (refresh_sec <= 0)
 				refresh_sec = 1;
+			break;
+		case 'l':
+			flags |= RG_VERBOSE;
 			break;
 
 		case 'm':
@@ -597,9 +675,8 @@ main(int argc, char **argv)
 
 		case 'Q':
 			/* Return to shell: 0 true, 1 false... */
-			ret = !(clu_quorum_status(RG_SERVICE_GROUP) &
-				QF_QUORATE);
-			goto cleanup;
+			runtype = QSTAT_ONLY;
+			break;
 
 		case 's':
 			rg_name = optarg;
@@ -614,6 +691,9 @@ main(int argc, char **argv)
 			}
 
 			xml = 1;
+			break;
+		case 'f':
+			++fast;
 			break;
 		case '?':
 		case 'h':
@@ -631,15 +711,43 @@ main(int argc, char **argv)
 		return 1;
 	}
 
+	/* Connect & grab all our info */
+	ch = cman_init(NULL);
+
+	switch(runtype) {
+	case QSTAT_ONLY:
+		if (fd < 0)
+		       break;
+		ret = !(cman_is_quorate(ch));
+		goto cleanup;
+	case VERSION_ONLY:
+		printf("%s version %s\n", basename(argv[0]),
+		       PACKAGE_VERSION);
+		if (fd < 0)
+		       break;
+		goto cleanup;
+	case NODEID_ONLY:
+		if (fd < 0)
+		       break;
+		local_node_id = get_my_nodeid(ch);
+		printf("0x%08x\n",(uint32_t)(local_node_id)); 
+		goto cleanup;
+	}
+
+	if (fd < 0) {
+		printf("Could not connect to cluster service\n");
+		return 1;
+	}
+
 	/* XXX add member/rg single-shot state */
 	signal(SIGINT, term_handler);
 	signal(SIGTERM, term_handler);
 
 	while (1) {
-		qs = clu_quorum_status(RG_SERVICE_GROUP);
-		membership = build_member_list(&local_node_id);
+		qs = cman_is_quorate(ch);
+		membership = build_member_list(ch, &local_node_id);
 		
-		rgs = rg_state_list(local_node_id);
+		rgs = rg_state_list(local_node_id, fast);
 
 		if (refresh_sec) {
 			setupterm((char *) 0, STDOUT_FILENO, (int *) 0);
@@ -647,12 +755,14 @@ main(int argc, char **argv)
 		}
 
 		if (xml)
-			xml_cluster_status(qs, membership, rgs);
+			xml_cluster_status(qs, membership, rgs, member_name,
+					   rg_name,flags);
 		else
-			txt_cluster_status(qs, membership, rgs);
+			txt_cluster_status(qs, membership, rgs, member_name,
+					   rg_name,flags);
 
 		if (membership)
-			cml_free(membership);
+			free_member_list(membership);
 		if (rgs)
 			free(rgs);
 
@@ -663,6 +773,6 @@ main(int argc, char **argv)
 	}
 
 cleanup:
-	clu_disconnect(fd);
+	cman_finish(ch);
 	return ret;
 }

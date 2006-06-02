@@ -20,11 +20,12 @@
 #include <malloc.h>
 #include <string.h>
 #include <stdio.h>
+#include <message.h>
 
 
 int
 _rq_queue_request(request_t **queue, char *name, uint32_t request,
-		 uint32_t err, uint32_t oldreq, uint32_t fd, time_t when,
+		 uint32_t err, uint32_t oldreq, msgctx_t *ctx, time_t when,
 		 uint64_t target, uint32_t arg0, uint32_t arg1, char *file,
 		 int line)
 {
@@ -40,7 +41,7 @@ _rq_queue_request(request_t **queue, char *name, uint32_t request,
 	req->rr_request = request;
 	req->rr_errorcode = err;
 	req->rr_orig_request = oldreq;
-	req->rr_resp_fd = fd;
+	req->rr_resp_ctx = ctx;
 	req->rr_target = target;
 	req->rr_when = when;
 	req->rr_arg0 = arg0;
