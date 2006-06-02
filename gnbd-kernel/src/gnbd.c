@@ -1047,6 +1047,6 @@ MODULE_DESCRIPTION("Network Block Device");
 MODULE_LICENSE("GPL");
 
 #ifndef NDEBUG
-MODULE_PARM(debugflags, "i");
+module_param(debugflags, uint, 0644);
 MODULE_PARM_DESC(debugflags, "flags for controlling debug output");
 #endif
