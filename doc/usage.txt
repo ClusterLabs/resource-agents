@@ -36,6 +36,9 @@ updated yet, so just build the minimum bits shown here.
         cd cluster/gfs/lock_dlm/daemon; make; make install
 
         edit INCLUDEPATH in cluster/gfs2/mkfs/Makefile
+		cd cluster/gfs2/libgfs2;        make; make install
+		cd cluster/gfs2/convert;        make; make install
+		cd cluster/gfs2/fsck;           make; make install
         cd cluster/gfs2/mkfs;           make; make install
         cd cluster/gfs2/mount;          make; make install
 
@@ -161,3 +164,26 @@ Notes:
 - You need util-linux 2.13-pre6 version of umount(8), older versions do not
   call the umount.gfs2 helper.
 
+
+Converting from GFS1 to GFS2
+----------------------------
+
+If you have GFS1 filesystems that you need to convert to GFS2, follow
+this procedure:
+
+1. Back up your entire filesystem first.
+
+   e.g. cp /dev/your_vg/lvol0 /your_gfs_backup
+
+2. Run gfs_fsck to ensure filesystem integrity.
+
+   e.g. gfs2_fsck /dev/your_vg/lvol0
+
+3. Make sure the filesystem is not mounted from any node.
+
+   e.g. for i in `grep "<clusternode name" /etc/cluster/cluster.conf | cut -d '"' -f2` ; do ssh $i "mount | grep gfs" ; done
+
+4. Make sure you have the latest software versions.
+5. Run gfs2_convert <blockdev> from one of the nodes.
+
+   e.g. gfs2_convert /dev/your_vg/lvol0
