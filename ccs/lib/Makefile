@@ -17,9 +17,9 @@ include ${top_srcdir}/make/defines.mk
 INCLUDE = -I../include -I../common
 
 ifeq ($(DEBUG),y)
-CFLAGS+= -O2 -D_FILE_OFFSET_BITS=64 -DDEBUG -g
+CFLAGS+= -O2 -fPIC -D_FILE_OFFSET_BITS=64 -DDEBUG -g
 else
-CFLAGS+= -O2 -D_FILE_OFFSET_BITS=64
+CFLAGS+= -O2 -fPIC -D_FILE_OFFSET_BITS=64
 endif
  
 all: libccs.a
