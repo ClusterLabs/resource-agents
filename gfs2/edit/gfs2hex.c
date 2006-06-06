@@ -84,7 +84,7 @@ void print_it(const char *label, const char *fmt, const char *fmt2, ...)
 	int decimalsize;
 
 	if (!termlines || line < termlines) {
-		va_start(args, fmt);
+		va_start(args, fmt2);
 		if (termlines) {
 			if (line == edit_row[display_mode] + 4)
 				COLORS_HIGHLIGHT;
@@ -160,6 +160,26 @@ void print_it(const char *label, const char *fmt, const char *fmt2, ...)
 	}
 }
 
+int indirect_dirent(struct indirect_info *indir, char *ptr, int d)
+{
+	struct gfs2_dirent de;
+
+	gfs2_dirent_in(&de, ptr);
+	if (de.de_rec_len < sizeof(struct gfs2_dirent) ||
+		de.de_rec_len > 4096 - sizeof(struct gfs2_dirent))
+		return -1;
+	if (de.de_inum.no_addr) {
+		indir->block = de.de_inum.no_addr;
+		memcpy(&indir->dirent[d].dirent, &de, sizeof(struct gfs2_dirent));
+		memcpy(&indir->dirent[d].filename,
+			   ptr + sizeof(struct gfs2_dirent), de.de_name_len);
+		indir->dirent[d].block = de.de_inum.no_addr;
+		indir->is_dir = TRUE;
+		indir->dirents++;
+	}
+	return de.de_rec_len;
+}
+
 /******************************************************************************
 *******************************************************************************
 **
@@ -177,8 +197,7 @@ void print_it(const char *label, const char *fmt, const char *fmt2, ...)
 ******************************************************************************/
 void do_dinode_extended(struct gfs2_dinode *di, char *buf)
 {
-	unsigned int x, y, count;
-	struct gfs2_dirent de;
+	unsigned int x, y;
 	uint64_t p, last;
 	int isdir = !!(S_ISDIR(di->di_mode));
 
@@ -199,18 +218,14 @@ void do_dinode_extended(struct gfs2_dinode *di, char *buf)
 	}
 	else if (isdir &&
 			 !(di->di_flags & GFS2_DIF_EXHASH)) {
+		int skip = 0;
 		/* Directory Entries: */
-		for (x = sizeof(struct gfs2_dinode); x < bufsize; x += de.de_rec_len) {
-			gfs2_dirent_in(&de, buf + x);
-			if (de.de_inum.no_addr) {
-				indirect[indirect_blocks].block = de.de_inum.no_addr;
-				memcpy(&indirect[indirect_blocks].dirent, &de,
-					   sizeof(struct gfs2_dirent));
-				memcpy(&indirect[indirect_blocks].filename,
-					   buf + x + sizeof(struct gfs2_dirent), de.de_name_len);
-				indirect[indirect_blocks].is_dir = TRUE;
-				indirect_blocks++;
-			}
+		indirect[indirect_blocks].dirents = 0;
+		for (x = sizeof(struct gfs2_dinode); x < bufsize; x += skip) {
+			skip = indirect_dirent(&indirect[indirect_blocks], buf + x, 0);
+			if (skip <= 0)
+				break;
+			indirect_blocks++;
 		}
 	}
 	else if (isdir &&
@@ -219,29 +234,38 @@ void do_dinode_extended(struct gfs2_dinode *di, char *buf)
 		/* Leaf Pointers: */
 		
 		last = be64_to_cpu(*(uint64_t *)(buf + sizeof(struct gfs2_dinode)));
-		count = 0;
     
 		for (x = sizeof(struct gfs2_dinode), y = 0;
 			 y < (1 << di->di_depth);
 			 x += sizeof(uint64_t), y++) {
 			p = be64_to_cpu(*(uint64_t *)(buf + x));
 
-			if (p != last) {
-				indirect[indirect_blocks++].block = last;
-				/*printf("  %u:  %"PRIu64"\n", count, last);*/
+			if (p != last || ((y + 1) * sizeof(uint64_t) == di->di_size)) {
+				struct gfs2_buffer_head *tmp_bh;
+				int skip = 0, direntcount = 0;
+				struct gfs2_leaf leaf;
+				unsigned int bufoffset;
+
+				tmp_bh = bread(&sbd, last);
+				gfs2_leaf_in(&leaf, tmp_bh->b_data);
+				indirect[indirect_blocks].dirents = 0;
+				for (direntcount = 0, bufoffset = sizeof(struct gfs2_leaf);
+					 bufoffset < bufsize;
+					 direntcount++, bufoffset += skip) {
+					skip = indirect_dirent(&indirect[indirect_blocks],
+										   tmp_bh->b_data + bufoffset,
+										   direntcount);
+					if (skip <= 0)
+						break;
+				}
+				brelse(tmp_bh, not_updated);
+				indirect[indirect_blocks].block = last;
+				indirect_blocks++;
 				last = p;
-				count = 1;
-			}
-			else
-				count++;
-
-			if ((y + 1) * sizeof(uint64_t) == di->di_size)
-				indirect[indirect_blocks++].block = last;
-				; /*printf("  %u:  %"PRIu64"\n", count, last);*/
-		}
-	}
-}
-
+			} /* if not duplicate pointer */
+		} /* for indirect pointers found */
+	} /* if exhash */
+}/* do_dinode_extended */
 
 /******************************************************************************
 *******************************************************************************

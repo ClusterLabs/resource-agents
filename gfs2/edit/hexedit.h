@@ -76,17 +76,23 @@ EXTERN int identify INIT(FALSE);
 EXTERN int color_scheme INIT(0);
 EXTERN WINDOW *wind;
 
-struct indirect_info {
-	int is_dir;
+struct gfs2_dirents {
 	uint64_t block;
 	struct gfs2_dirent dirent;
 	char filename[NAME_MAX];
 };
 
+struct indirect_info {
+	int is_dir;
+	uint64_t block;
+	uint32_t dirents;
+	struct gfs2_dirents dirent[64];
+};
+
 EXTERN struct indirect_info indirect[512]; /* more than the most indirect
 											  pointers possible for any given
 											  4K block */
-EXTERN struct indirect_info masterdir[8]; /* Master directory info */
+EXTERN struct indirect_info masterdir; /* Master directory info */
 EXTERN int indirect_blocks INIT(0);  /* count of indirect blocks */
 EXTERN enum dsp_mode display_mode INIT(HEX_MODE);
 
