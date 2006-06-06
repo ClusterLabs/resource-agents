@@ -295,6 +295,7 @@ void gfs2_dinode_in(struct gfs2_dinode *di, char *buf)
 
 	CPIN_32(di, str, di_flags);
 	CPIN_32(di, str, di_payload_format);
+	CPIN_16(di, str, __pad1);
 	CPIN_16(di, str, di_height);
 
 	CPIN_16(di, str, di_depth);

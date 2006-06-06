@@ -17,7 +17,7 @@ top_srcdir=..
 include ${top_srcdir}/make/defines.mk
 
 LIBGFS2=libgfs2.a
-INCLUDEPATH=-I${top_srcdir}/include -I${top_srcdir}/config -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
+INCLUDEPATH=-I${top_srcdir}/include -I${top_srcdir}/config -I/usr/include -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
 
 INSTALL=install
 CC=gcc -c
@@ -26,8 +26,8 @@ LD=gcc
 CFLAGS=-Wall -ggdb -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
        -D_GNU_SOURCE -DGFS2_RELEASE_NAME=\"2\" ${INCLUDEPATH}
 
-H=gfs2_disk_hash.h iddev.h libgfs2.h linux_endian.h ondisk.h osi_list.h
-C=buf.c device_geometry.c fs_geometry.c fs_ops.c iddev.c locking.c misc.c ondisk.c size.c structures.c
+H=gfs2_disk_hash.h libgfs2.h linux_endian.h ondisk.h osi_list.h
+C=bitmap.c block_list.c buf.c device_geometry.c fs_bits.c fs_geometry.c fs_ops.c locking.c misc.c ondisk.c size.c structures.c rgrp.c
 O=$(subst .c,.o,${C})
 
 all: ${LIBGFS2}

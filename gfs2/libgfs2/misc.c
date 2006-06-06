@@ -33,7 +33,7 @@ compute_constants(struct gfs2_sbd *sdp)
 	uint32_t tmp_blocks;
 	unsigned int x;
 
-	sdp->next_inum = 1;
+	sdp->md.next_inum = 1;
 
 	sdp->bsize_shift = ffs(sdp->bsize) - 1;
 	sdp->sb_addr = GFS2_SB_ADDR * GFS2_BASIC_BLOCK / sdp->bsize;

@@ -118,15 +118,13 @@ compute_rgrp_layout(struct gfs2_sbd *sdp, int new_fs)
  * @rgblocks:
  * @bitblocks:
  *
- * Give a number of blocks in a RG, figure out the number of blocks
+ * Given a number of blocks in a RG, figure out the number of blocks
  * needed for bitmaps.
  *
  */
 
 static void
-rgblocks2bitblocks(unsigned int bsize,
-		   uint32_t *rgblocks,
-		   uint32_t *bitblocks)
+rgblocks2bitblocks(unsigned int bsize, uint32_t *rgblocks, uint32_t *bitblocks)
 {
 	unsigned int bitbytes_provided, last = 0;
 	unsigned int bitbytes_needed;
@@ -151,8 +149,7 @@ rgblocks2bitblocks(unsigned int bsize,
 	*rgblocks = bitbytes_needed * GFS2_NBBY;
 }
 
-void
-build_rgrps(struct gfs2_sbd *sdp)
+void build_rgrps(struct gfs2_sbd *sdp)
 {
 	osi_list_t *tmp, *head;
 	struct rgrp_list *rl;
@@ -196,7 +193,7 @@ build_rgrps(struct gfs2_sbd *sdp)
 					gfs2_meta_header_out(&mh, bh->b_data);
 				} else
 					gfs2_rgrp_out(rg, bh->b_data);
-				brelse(bh);
+				brelse(bh, updated);
 			}
 
 		if (sdp->debug) {

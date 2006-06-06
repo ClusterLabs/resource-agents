@@ -32,7 +32,7 @@ void build_master(struct gfs2_sbd *sdp)
 	struct gfs2_buffer_head *bh;
 
 	bn = dinode_alloc(sdp);
-	inum.no_formal_ino = sdp->next_inum++;
+	inum.no_formal_ino = sdp->md.next_inum++;
 	inum.no_addr = bn;
 
 	bh = init_dinode(sdp, &inum, S_IFDIR | 0755, GFS2_DIF_SYSTEM, &inum);
@@ -56,7 +56,7 @@ build_sb(struct gfs2_sbd *sdp)
 	for (x = 0; x < sdp->sb_addr; x++) {
 		bh = bget(sdp, x);
 		bh->b_uninit = TRUE;
-		brelse(bh);
+		brelse(bh, not_updated);
 	}
 
 	memset(&sb, 0, sizeof(struct gfs2_sb));
@@ -68,13 +68,13 @@ build_sb(struct gfs2_sbd *sdp)
 	sb.sb_bsize = sdp->bsize;
 	sb.sb_bsize_shift = sdp->bsize_shift;
 	sb.sb_master_dir = sdp->master_dir->i_di.di_num;
-	sb.sb_root_dir = sdp->root_dir->i_di.di_num;
+	sb.sb_root_dir = sdp->md.rooti->i_di.di_num;
 	strcpy(sb.sb_lockproto, sdp->lockproto);
 	strcpy(sb.sb_locktable, sdp->locktable);
 
 	bh = bget(sdp, sdp->sb_addr);
 	gfs2_sb_out(&sb, bh->b_data);
-	brelse(bh);
+	brelse(bh, updated);
 
 	if (sdp->debug) {
 		printf("\nSuper Block:\n");
@@ -114,7 +114,7 @@ void build_journal(struct gfs2_inode *jindex, unsigned int j)
 		hash = gfs2_disk_hash(bh->b_data, sizeof(struct gfs2_log_header));
 		((struct gfs2_log_header *)bh->b_data)->lh_hash = cpu_to_be32(hash);
 
-		brelse(bh);
+		brelse(bh, updated);
 
 		if (++seq == blocks)
 			seq = 0;
@@ -125,7 +125,7 @@ void build_journal(struct gfs2_inode *jindex, unsigned int j)
 		gfs2_dinode_print(&ip->i_di);
 	}
 
-	inode_put(ip);
+	inode_put(ip, updated);
 }
 
 void
@@ -137,7 +137,7 @@ build_jindex(struct gfs2_sbd *sdp)
 	jindex = createi(sdp->master_dir, "jindex", S_IFDIR | 0700,
 			 GFS2_DIF_SYSTEM);
 
-	for (j = 0; j < sdp->journals; j++)
+	for (j = 0; j < sdp->md.journals; j++)
 		build_journal(jindex, j);
 
 	if (sdp->debug) {
@@ -145,7 +145,7 @@ build_jindex(struct gfs2_sbd *sdp)
 		gfs2_dinode_print(&jindex->i_di);
 	}
 
-	inode_put(jindex);
+	inode_put(jindex, updated);
 }
 
 static void
@@ -165,7 +165,7 @@ build_inum_range(struct gfs2_inode *per_node, unsigned int j)
 		gfs2_dinode_print(&ip->i_di);
 	}
 
-	inode_put(ip);
+	inode_put(ip, updated);
 }
 
 static void
@@ -185,7 +185,7 @@ build_statfs_change(struct gfs2_inode *per_node, unsigned int j)
 		gfs2_dinode_print(&ip->i_di);
 	}
 
-	inode_put(ip);
+	inode_put(ip, updated);
 }
 
 static void
@@ -214,7 +214,7 @@ build_unlinked_tag(struct gfs2_inode *per_node, unsigned int j)
 
 		gfs2_meta_header_out(&mh, bh->b_data);
 
-		brelse(bh);
+		brelse(bh, updated);
 	}
 
 	if (sdp->debug) {
@@ -222,7 +222,7 @@ build_unlinked_tag(struct gfs2_inode *per_node, unsigned int j)
 		gfs2_dinode_print(&ip->i_di);
 	}
 
-	inode_put(ip);
+	inode_put(ip, updated);
 }
 
 static void
@@ -251,7 +251,7 @@ build_quota_change(struct gfs2_inode *per_node, unsigned int j)
 
 		gfs2_meta_header_out(&mh, bh->b_data);
 
-		brelse(bh);
+		brelse(bh, updated);
 	}
 
 	if (sdp->debug) {
@@ -259,7 +259,7 @@ build_quota_change(struct gfs2_inode *per_node, unsigned int j)
 		gfs2_dinode_print(&ip->i_di);
 	}
 
-	inode_put(ip);
+	inode_put(ip, updated);
 }
 
 void
@@ -271,7 +271,7 @@ build_per_node(struct gfs2_sbd *sdp)
 	per_node = createi(sdp->master_dir, "per_node", S_IFDIR | 0700,
 			   GFS2_DIF_SYSTEM);
 
-	for (j = 0; j < sdp->journals; j++) {
+	for (j = 0; j < sdp->md.journals; j++) {
 		build_inum_range(per_node, j);
 		build_statfs_change(per_node, j);
 		build_unlinked_tag(per_node, j);
@@ -283,7 +283,7 @@ build_per_node(struct gfs2_sbd *sdp)
 		gfs2_dinode_print(&per_node->i_di);
 	}
 
-	inode_put(per_node);
+	inode_put(per_node, updated);
 }
 
 void
@@ -299,7 +299,7 @@ build_inum(struct gfs2_sbd *sdp)
 		gfs2_dinode_print(&ip->i_di);
 	}
 
-	sdp->inum_inode = ip;
+	sdp->md.inum = ip;
 }
 
 void
@@ -315,7 +315,7 @@ build_statfs(struct gfs2_sbd *sdp)
 		gfs2_dinode_print(&ip->i_di);
 	}
 
-	sdp->statfs_inode = ip;
+	sdp->md.statfs = ip;
 }
 
 void
@@ -349,7 +349,7 @@ build_rindex(struct gfs2_sbd *sdp)
 		gfs2_dinode_print(&ip->i_di);
 	}
 
-	inode_put(ip);
+	inode_put(ip, updated);
 }
 
 void
@@ -380,7 +380,7 @@ build_quota(struct gfs2_sbd *sdp)
 		gfs2_quota_print(&qu);
 	}
 
-	inode_put(ip);
+	inode_put(ip, updated);
 }
 
 void
@@ -391,15 +391,15 @@ build_root(struct gfs2_sbd *sdp)
 	struct gfs2_buffer_head *bh;
 
 	bn = dinode_alloc(sdp);
-	inum.no_formal_ino = sdp->next_inum++;
+	inum.no_formal_ino = sdp->md.next_inum++;
 	inum.no_addr = bn;
 
 	bh = init_dinode(sdp, &inum, S_IFDIR | 0755, 0, &inum);
-	sdp->root_dir = inode_get(sdp, bh);
+	sdp->md.rooti = inode_get(sdp, bh);
 
 	if (sdp->debug) {
 		printf("\nRoot directory:\n");
-		gfs2_dinode_print(&sdp->root_dir->i_di);
+		gfs2_dinode_print(&sdp->md.rooti->i_di);
 	}
 }
 
@@ -407,22 +407,22 @@ void
 do_init(struct gfs2_sbd *sdp)
 {
 	{
-		struct gfs2_inode *ip = sdp->inum_inode;
+		struct gfs2_inode *ip = sdp->md.inum;
 		uint64_t buf;
 		int count;
 
-		buf = cpu_to_be64(sdp->next_inum);
+		buf = cpu_to_be64(sdp->md.next_inum);
 		count = gfs2_writei(ip, &buf, 0, sizeof(uint64_t));
 		if (count != sizeof(uint64_t))
 			die("do_init (1)\n");
 
 		if (sdp->debug)
 			printf("\nNext Inum: %"PRIu64"\n",
-			       sdp->next_inum);
+			       sdp->md.next_inum);
 	}
 
 	{
-		struct gfs2_inode *ip = sdp->statfs_inode;
+		struct gfs2_inode *ip = sdp->md.statfs;
 		struct gfs2_statfs_change sc;
 		char buf[sizeof(struct gfs2_statfs_change)];
 		int count;
@@ -443,4 +443,184 @@ do_init(struct gfs2_sbd *sdp)
 	}
 }
 
+struct gfs2_inode *gfs2_load_inode(struct gfs2_sbd *sbp, uint64_t block)
+{
+	struct gfs2_buffer_head *bh;
+	struct gfs2_inode *ip;
 
+	bh = bread(sbp, block);
+	ip = inode_get(sbp, bh);
+	return ip;
+}
+
+int gfs2_check_meta(struct gfs2_buffer_head *bh, int type)
+{
+	uint32_t check_magic = ((struct gfs2_meta_header *)(bh->b_data))->mh_magic;
+	uint32_t check_type = ((struct gfs2_meta_header *)(bh->b_data))->mh_type;
+
+	check_magic = be32_to_cpu(check_magic);
+	check_type = be32_to_cpu(check_type);
+	if((check_magic != GFS2_MAGIC) || (type && (check_type != type)))
+		return -1;
+	return 0;
+}
+
+/*
+ * set_meta - set the meta header of a buffer
+ * @bh
+ * @type
+ *
+ * Returns: 0 if ok, -1 on error
+ */
+int gfs2_set_meta(struct gfs2_buffer_head *bh, int type, int format)
+{
+	struct gfs2_meta_header header;
+
+	if(!gfs2_check_meta(bh, 0)){
+		((struct gfs2_meta_header *)bh->b_data)->mh_type = cpu_to_be32(type);
+		((struct gfs2_meta_header *)bh->b_data)->mh_format = 
+			cpu_to_be32(format);
+	} else {
+		memset(&header, 0, sizeof(struct gfs2_meta_header));
+		header.mh_magic = GFS2_MAGIC;
+		header.mh_type = type;
+		header.mh_format = format;
+		
+		gfs2_meta_header_out(&header, bh->b_data);
+	}
+	return 0;
+}
+
+/**
+ * gfs2_next_rg_meta
+ * @rgd:
+ * @block:
+ * @first: if set, start at zero and ignore block
+ *
+ * The position to start looking from is *block.  When a block
+ * is found, it is returned in block.
+ *
+ * Returns: 0 on success, -1 when finished
+ */
+int gfs2_next_rg_meta(struct rgrp_list *rgd, uint64_t *block, int first)
+{
+	struct gfs2_bitmap *bits = NULL;
+	uint32_t length = rgd->ri.ri_length;
+	uint32_t blk = (first)? 0: (uint32_t)((*block+1)-rgd->ri.ri_data0);
+	int i;
+
+	if(!first && (*block < rgd->ri.ri_data0))
+		exit(1);
+	if (*block == 0x11366)
+		bits = NULL;
+	for(i=0; i < length; i++){
+		bits = &rgd->bits[i];
+		if(blk < bits->bi_len*GFS2_NBBY)
+			break;
+		blk -= bits->bi_len*GFS2_NBBY;
+	}
+	for(; i < length; i++){
+		bits = &rgd->bits[i];
+		blk = gfs2_bitfit((unsigned char *)rgd->bh[i]->b_data +
+						  bits->bi_offset, bits->bi_len, blk,
+						  GFS2_BLKST_DINODE);
+		if(blk != BFITNOENT){
+            *block = blk + (bits->bi_start * GFS2_NBBY) + rgd->ri.ri_data0;
+            break;
+		}
+		blk=0;
+	}
+	if(i == length)
+		return -1;
+	return 0;
+}
+
+/**
+ * gfs2_next_rg_meta_free - finds free or used metadata
+ * @rgd:
+ * @block:
+ * @first: if set, start at zero and ignore block
+ *
+ * The position to start looking from is *block.  When a block
+ * is found, it is returned in block.
+ *
+ * Returns: 0 on success, -1 when finished
+ */
+int gfs2_next_rg_meta_free(struct rgrp_list *rgd, uint64_t *block, int first,
+						   int *mfree)
+{
+	gfs2_bitmap_t *bits = NULL;
+	uint32_t length = rgd->ri.ri_length;
+	uint32_t blk = (first)? 0: (uint32_t)((*block+1)-rgd->ri.ri_data0);
+	uint32_t iblk, ublk, fblk;
+	int i;
+	
+	if(!first && (*block < rgd->ri.ri_data0))
+		exit(1);
+
+	for(i=0; i < length; i++){
+		bits = &rgd->bits[i];
+		if(blk < bits->bi_len*GFS2_NBBY)
+			break;
+		blk -= bits->bi_len*GFS2_NBBY;
+	}
+	for(; i < length; i++){
+		bits = &rgd->bits[i];
+
+		iblk = gfs2_bitfit((unsigned char *)rgd->bh[i]->b_data +
+						   bits->bi_offset, bits->bi_len, blk,
+						   GFS2_BLKST_DINODE);
+		ublk = gfs2_bitfit((unsigned char *)rgd->bh[i]->b_data +
+						   bits->bi_offset, bits->bi_len, blk,
+						   GFS2_BLKST_USED);
+		fblk = gfs2_bitfit((unsigned char *)rgd->bh[i]->b_data +
+						   bits->bi_offset, bits->bi_len, blk,
+						   GFS2_BLKST_FREE);
+		if(ublk < fblk) {
+            blk = ublk;
+            *mfree = 0;
+		}
+		else if(iblk < fblk) {
+            blk = iblk;
+            *mfree = 0;
+		} else {
+            blk = fblk;
+            *mfree = 1;
+		}
+		if(blk != BFITNOENT){
+            *block = blk + (bits->bi_start * GFS2_NBBY) + rgd->ri.ri_data0;
+            break;
+		}
+		blk=0;
+	}
+
+	if(i == length)
+		return -1;
+	return 0;
+}
+
+/**
+ * next_rg_metatype
+ * @rgd:
+ * @block:
+ * @type: the type of metadata we're looking for
+ * @first: if set we should start at block zero and block is ignored
+ *
+ * Returns: 0 on success, -1 on error or finished
+ */
+int gfs2_next_rg_metatype(struct gfs2_sbd *sdp, struct rgrp_list *rgd,
+						  uint64_t *block, uint32_t type, int first)
+{
+	struct gfs2_buffer_head *bh = NULL;
+
+	do{
+		if (bh)
+			brelse(bh, not_updated);
+		if (gfs2_next_rg_meta(rgd, block, first))
+			return -1;
+		bh = bread(sdp, *block);
+		first = 0;
+	} while(gfs2_check_meta(bh, type));
+	brelse(bh, not_updated);
+	return 0;
+}

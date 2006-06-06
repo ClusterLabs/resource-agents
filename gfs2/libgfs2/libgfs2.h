@@ -63,18 +63,6 @@ static __inline__ uint64_t do_div_i(uint64_t *num, unsigned int den)
 #define RESRANDOM do { srandom(RANDOM(1000000000)); } while (0)
 #define RANDOM(values) ((values) * (random() / (RAND_MAX + 1.0)))
 
-/* Stolen (and must match) include/linux/fs.h: */
-/* (They're not pulled in when fs.h is included from userspace */
-#define DT_UNKNOWN	0
-#define DT_FIFO		1
-#define DT_CHR		2
-#define DT_DIR		4
-#define DT_BLK		6
-#define DT_REG		8
-#define DT_LNK		10
-#define DT_SOCK		12
-#define DT_WHT		14
-
 struct subdevice {
 	uint64_t start;
 	uint64_t length;
@@ -86,17 +74,27 @@ struct device {
 	struct subdevice *subdev;
 };
 
+struct gfs2_bitmap
+{
+	uint32_t   bi_offset;  /* The offset in the buffer of the first byte */
+	uint32_t   bi_start;   /* The position of the first byte in this block */
+	uint32_t   bi_len;     /* The number of bytes in this block */
+};
+typedef struct gfs2_bitmap gfs2_bitmap_t;
+
 struct rgrp_list {
 	osi_list_t list;
 
 	uint32_t subdevice;	/* The subdevice who holds this resource group */
 
-	uint64_t start;	        /* The offset of the beginning of this resource group */
+	uint64_t start;	   /* The offset of the beginning of this resource group */
 	uint64_t length;	/* The length of this resource group */
 	uint32_t rgf_flags;
 
 	struct gfs2_rindex ri;
 	struct gfs2_rgrp rg;
+	gfs2_bitmap_t *bits;
+	struct gfs2_buffer_head **bh;
 };
 
 struct gfs2_buffer_head {
@@ -109,6 +107,7 @@ struct gfs2_buffer_head {
 	unsigned int b_size;
 
 	int b_uninit;
+	int b_changed;
 };
 
 struct gfs2_sbd;
@@ -122,15 +121,50 @@ struct gfs2_inode {
 #define BUF_HASH_SIZE        (1 << BUF_HASH_SHIFT)
 #define BUF_HASH_MASK        (BUF_HASH_SIZE - 1)
 
+/* FIXME not sure that i want to keep a record of the inodes or the
+ * contents of them, or both ... if I need to write back to them, it
+ * would be easier to hold the inode as well  */
+struct per_node
+{
+	struct gfs2_inode *inum;
+	struct gfs2_inum_range inum_range;
+	struct gfs2_inode *statfs;
+	struct gfs2_statfs_change statfs_change;
+	struct gfs2_inode *unlinked;
+	struct gfs2_unlinked_tag unlinked_tag;
+	struct gfs2_inode *quota;
+	struct gfs2_quota_change quota_change;
+};
+
+struct master_dir
+{
+	struct gfs2_inode *inum;
+	uint64_t next_inum;
+	struct gfs2_inode *statfs;
+	struct gfs2_statfs_change statfs_change;
+
+	struct gfs2_rindex rindex;
+	struct gfs2_inode *qinode;
+	struct gfs2_quota quotas;
+
+	struct gfs2_inode       *jiinode;
+	struct gfs2_inode       *riinode;
+	struct gfs2_inode       *rooti;
+	struct gfs2_inode       *pinode;
+	
+	struct gfs2_inode **journal;      /* Array of journals */
+	uint32_t journals;                /* Journal count */
+	struct per_node *pn;              /* Array of per_node entries */
+};
+
 struct gfs2_sbd {
 	struct gfs2_sb sd_sb;    /* a copy of the ondisk structure */
 	char lockproto[GFS2_LOCKNAME_LEN];
 	char locktable[GFS2_LOCKNAME_LEN];
 
-	unsigned int bsize;	 /* The block size of the FS (in bytes) */
-	unsigned int journals;
-	unsigned int jsize;	 /* Size of journals (in MB) */
-        unsigned int rgsize;     /* Size of resource groups (in MB) */
+	unsigned int bsize;	     /* The block size of the FS (in bytes) */
+	unsigned int jsize;	     /* Size of journals (in MB) */
+	unsigned int rgsize;     /* Size of resource groups (in MB) */
 	unsigned int utsize;     /* Size of unlinked tag files (in MB) */
 	unsigned int qcsize;     /* Size of quota change files (in MB) */
 
@@ -170,7 +204,6 @@ struct gfs2_sbd {
 	int device_fd;
 	int path_fd;
 
-	uint64_t next_inum;
 	uint64_t sb_addr;
 
 	uint64_t orig_fssize;
@@ -191,9 +224,7 @@ struct gfs2_sbd {
 	osi_list_t buf_hash[BUF_HASH_SIZE];
 
 	struct gfs2_inode *master_dir;
-	struct gfs2_inode *inum_inode;
-	struct gfs2_inode *statfs_inode;
-	struct gfs2_inode *root_dir;
+	struct master_dir md;
 
 	unsigned int spills;
 	unsigned int writes;
@@ -212,12 +243,108 @@ extern char *prog_name;
 #define META (2)
 #define DINODE (3)
 
+#define NOT_UPDATED (0)
+#define UPDATED (1)
+
+/* A bit of explanation is in order: */
+/* updated flag means the buffer was updated from THIS function before */
+/*         brelse was called. */
+/* not_updated flag means the buffer may or may not have been updated  */
+/*         by a function called within this one, but it wasn't updated */
+/*         by this function. */
+enum update_flags {
+	not_updated = NOT_UPDATED,
+	updated = UPDATED
+};
+
+/* bitmap.c */
+struct gfs2_bmap {
+        uint64_t size;
+        uint64_t mapsize;
+        int chunksize;
+        int chunks_per_byte;
+        char *map;
+};
+
+int gfs2_bitmap_create(struct gfs2_bmap *bmap, uint64_t size, uint8_t bitsize);
+int gfs2_bitmap_set(struct gfs2_bmap *bmap, uint64_t offset, uint8_t val);
+int gfs2_bitmap_get(struct gfs2_bmap *bmap, uint64_t bit, uint8_t *val);
+int gfs2_bitmap_clear(struct gfs2_bmap *bmap, uint64_t offset);
+void gfs2_bitmap_destroy(struct gfs2_bmap *bmap);
+uint64_t gfs2_bitmap_size(struct gfs2_bmap *bmap);
+
+/* block_list.c */
+/* Must be kept in sync with mark_to_bitmap array in block_list.c */
+enum gfs2_mark_block {
+        gfs2_block_free = 0,
+        gfs2_block_used,
+        gfs2_indir_blk,
+        gfs2_inode_dir,
+        gfs2_inode_file,
+        gfs2_inode_lnk,
+        gfs2_inode_blk,
+        gfs2_inode_chr,
+        gfs2_inode_fifo,
+        gfs2_inode_sock,
+        gfs2_leaf_blk,
+        gfs2_journal_blk,
+        gfs2_meta_other,
+        gfs2_meta_eattr,
+        gfs2_meta_inval = 15,
+        gfs2_bad_block,      /* Contains at least one bad block */
+        gfs2_dup_block,      /* Contains at least one duplicate block */
+        gfs2_eattr_block,    /* Contains an eattr */
+};
+
+struct gfs2_block_query {
+        uint8_t block_type;
+        uint8_t bad_block;
+        uint8_t dup_block;
+        uint8_t eattr_block;
+};
+
+struct gfs2_gbmap {
+        struct gfs2_bmap group_map;
+        struct gfs2_bmap bad_map;
+        struct gfs2_bmap dup_map;
+        struct gfs2_bmap eattr_map;
+};
+
+union gfs2_block_lists {
+        struct gfs2_gbmap gbmap;
+};
+
+/* bitmap implementation */
+struct gfs2_block_list {
+        union gfs2_block_lists list;
+};
+
+struct gfs2_block_list *gfs2_block_list_create(uint64_t size);
+int gfs2_block_mark(struct gfs2_block_list *il, uint64_t block,
+					enum gfs2_mark_block mark);
+int gfs2_block_set(struct gfs2_block_list *il, uint64_t block,
+				   enum gfs2_mark_block mark);
+int gfs2_block_clear(struct gfs2_block_list *il, uint64_t block,
+					 enum gfs2_mark_block m);
+int gfs2_block_check(struct gfs2_block_list *il, uint64_t block,
+					 struct gfs2_block_query *val);
+int gfs2_block_check_for_mark(struct gfs2_block_list *il, uint64_t block,
+							  enum gfs2_mark_block mark);
+void *gfs2_block_list_destroy(struct gfs2_block_list *il);
+int gfs2_find_next_block_type(struct gfs2_block_list *il,
+							  enum gfs2_mark_block m, uint64_t *b);
+
 /* buf.c */
+struct gfs2_buffer_head *bget_generic(struct gfs2_sbd *sdp, uint64_t num,
+									  int find_existing, int read_disk);
 struct gfs2_buffer_head *bget(struct gfs2_sbd *sdp, uint64_t num);
 struct gfs2_buffer_head *bread(struct gfs2_sbd *sdp, uint64_t num);
+struct gfs2_buffer_head *bget_zero(struct gfs2_sbd *sdp, uint64_t num);
 struct gfs2_buffer_head *bhold(struct gfs2_buffer_head *bh);
-void brelse(struct gfs2_buffer_head *bh);
+void brelse(struct gfs2_buffer_head *bh, enum update_flags updated);
 void bsync(struct gfs2_sbd *sdp);
+void bcommit(struct gfs2_sbd *sdp);
+void bcheck(struct gfs2_sbd *sdp);
 void write_buffer(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh);
 
 /* device_geometry.c */
@@ -225,13 +352,34 @@ void device_geometry(struct gfs2_sbd *sdp);
 void fix_device_geometry(struct gfs2_sbd *sdp);
 void munge_device_geometry_for_grow(struct gfs2_sbd *sdp);
 
+/* fs_bits.c */
+#define BFITNOENT (0xFFFFFFFF)
+
+/* functions with blk #'s that are buffer relative */
+uint32_t gfs2_bitcount(unsigned char *buffer, unsigned int buflen,
+                     unsigned char state);
+uint32_t gfs2_bitfit(unsigned char *buffer, unsigned int buflen,
+					 uint32_t goal, unsigned char old_state);
+
+/* functions with blk #'s that are rgrp relative */
+uint32_t gfs2_blkalloc_internal(struct rgrp_list *rgd, uint32_t goal,
+								unsigned char old_state,
+								unsigned char new_state, int do_it);
+int gfs2_check_range(struct gfs2_sbd *sdp, uint64_t blkno);
+
+/* functions with blk #'s that are file system relative */
+int gfs2_get_bitmap(struct gfs2_sbd *sdp, uint64_t blkno,
+                                        struct rgrp_list *rgd);
+int gfs2_set_bitmap(struct gfs2_sbd *sdp, uint64_t blkno, int state);
+
 /* fs_geometry.c */
 void compute_rgrp_layout(struct gfs2_sbd *sdp, int new_fs);
 void build_rgrps(struct gfs2_sbd *sdp);
 
 /* fs_ops.c */
-struct gfs2_inode *inode_get(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh);
-void inode_put(struct gfs2_inode *ip);
+struct gfs2_inode *inode_get(struct gfs2_sbd *sdp,
+							 struct gfs2_buffer_head *bh);
+void inode_put(struct gfs2_inode *ip, enum update_flags updated);
 uint64_t data_alloc(struct gfs2_inode *ip);
 uint64_t meta_alloc(struct gfs2_inode *ip);
 uint64_t dinode_alloc(struct gfs2_sbd *sdp);
@@ -240,26 +388,32 @@ int gfs2_readi(struct gfs2_inode *ip, void *buf,
 int gfs2_writei(struct gfs2_inode *ip, void *buf,
 				uint64_t offset, unsigned int size);
 struct gfs2_buffer_head *get_file_buf(struct gfs2_inode *ip, uint64_t lbn);
-struct gfs2_buffer_head *init_dinode(struct gfs2_sbd *sdp, struct gfs2_inum *inum,
-				unsigned int mode, uint32_t flags,
-				struct gfs2_inum *parent);
+struct gfs2_buffer_head *init_dinode(struct gfs2_sbd *sdp,
+									 struct gfs2_inum *inum,
+									 unsigned int mode, uint32_t flags,
+									 struct gfs2_inum *parent);
 struct gfs2_inode *createi(struct gfs2_inode *dip, char *filename,
-			  unsigned int mode, uint32_t flags);
-/* iddev.c */
-/**
- * identify_device - figure out what's on a device
- * @fd: a file descriptor open on a device open for (at least) reading
- * @type: a buffer that contains the type of filesystem
- * @type_len: the amount of space pointed to by @type
- *
- * The offset of @fd will be changed by the function.
- * This routine will not write to this device.
- *
- * Returns: -1 on error (with errno set), 1 if unabled to identify,
- *          0 if device identified (with @type set)
- */
-
-int identify_device(int fd, char *type, unsigned type_len);
+						   unsigned int mode, uint32_t flags);
+void dirent2_del(struct gfs2_inode *dip, struct gfs2_buffer_head *bh,
+				 struct gfs2_dirent *prev, struct gfs2_dirent *cur);
+struct gfs2_inode *gfs2_load_inode(struct gfs2_sbd *sbp, uint64_t block);
+int gfs2_lookupi(struct gfs2_inode *dip, const char *filename, int len,
+				 struct gfs2_inode **ipp);
+void dir_add(struct gfs2_inode *dip, char *filename, int len,
+			 struct gfs2_inum *inum, unsigned int type);
+int gfs2_dirent_del(struct gfs2_inode *dip, struct gfs2_buffer_head *bh,
+					const char *filename, int filename_len);
+void block_map(struct gfs2_inode *ip, uint64_t lblock, int *new,
+			   uint64_t *dblock, uint32_t *extlen);
+void gfs2_get_leaf_nr(struct gfs2_inode *dip, uint32_t index,
+					  uint64_t *leaf_out);
+int gfs2_freedi(struct gfs2_sbd *sdp, uint64_t block);
+int gfs2_get_leaf(struct gfs2_inode *dip, uint64_t leaf_no,
+				  struct gfs2_buffer_head **bhp);
+int gfs2_dirent_first(struct gfs2_inode *dip, struct gfs2_buffer_head *bh,
+					  struct gfs2_dirent **dent);
+int gfs2_dirent_next(struct gfs2_inode *dip, struct gfs2_buffer_head *bh,
+					 struct gfs2_dirent **dent);
 
 /**
  * device_size - figure out a device's size
@@ -290,6 +444,13 @@ void test_locking(char *lockproto, char *locktable);
 /* misc.c */
 void compute_constants(struct gfs2_sbd *sdp);
 
+/* rgrp.c */
+int gfs2_compute_bitstructs(struct gfs2_sbd *sdp, struct rgrp_list *rgd);
+struct rgrp_list *gfs2_blk2rgrpd(struct gfs2_sbd *sdp, uint64_t blk);
+uint64_t gfs2_rgrp_read(struct gfs2_sbd *sdp, struct rgrp_list *rgd);
+void gfs2_rgrp_relse(struct rgrp_list *rgd, enum update_flags updated);
+void gfs2_rgrp_free(struct gfs2_sbd *sdp, enum update_flags updated);
+
 /* structures.c */
 void build_master(struct gfs2_sbd *sdp);
 void build_sb(struct gfs2_sbd *sdp);
@@ -301,6 +462,14 @@ void build_rindex(struct gfs2_sbd *sdp);
 void build_quota(struct gfs2_sbd *sdp);
 void build_root(struct gfs2_sbd *sdp);
 void do_init(struct gfs2_sbd *sdp);
+int gfs2_check_meta(struct gfs2_buffer_head *bh, int type);
+int gfs2_set_meta(struct gfs2_buffer_head *bh, int type, int format);
+int gfs2_next_rg_meta(struct rgrp_list *rgd, uint64_t *block, int first);
+int gfs2_next_rg_meta_free(struct rgrp_list *rgd, uint64_t *block, int first,
+						   int *mfree);
+int gfs2_next_rg_metatype(struct gfs2_sbd *sdp, struct rgrp_list *rgd,
+						  uint64_t *block, uint32_t type, int first);
+
 /* ondisk.c */
 uint32_t gfs2_disk_hash(const char *data, int len);
 
