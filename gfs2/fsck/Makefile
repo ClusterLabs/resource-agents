@@ -14,32 +14,31 @@ top_srcdir=..
 
 include ${top_srcdir}/make/defines.mk
 
-INCLUDES= -I${top_srcdir}/include -I${top_srcdir}/config
+INCLUDES= -I${top_srcdir}/include -I${top_srcdir}/config -I${top_srcdir}/libgfs2 -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
+LIBS=-L${top_srcdir}/libgfs2
 
 .PHONY: all clean
 
-sources = main.c initialize.c pass1.c pass1b.c pass1c.c \
-	  pass2.c pass3.c pass4.c pass5.c \
-	  block_list.c super.c bio.c file.c rgrp.c fs_bits.c util.c \
-	  fs_bmap.c fs_inode.c fs_dir.c fs_recovery.c log.c hash.c \
-	  inode_hash.c bitmap.c lost_n_found.c inode.c link.c metawalk.c \
-	  eattr.c ondisk.c
+sources = main.c initialize.c pass1.c pass1b.c pass1c.c pass2.c pass3.c \
+	pass4.c pass5.c super.c util.c fs_recovery.c \
+	log.c lost_n_found.c link.c eattr.c hash.c inode_hash.c \
+	metawalk.c
 
 CFLAGS+=-D_FILE_OFFSET_BITS=64 -DHELPER_PROGRAM -DGFS_RELEASE_NAME=\"${RELEASE}\" -Wall -g
 
 all: gfs2_fsck
 
-gfs2_fsck: $(sources:.c=.o)
-	$(CC) $(CFLAGS) $^ -o $@
+gfs2_fsck: $(sources:.c=.o) ../libgfs2/libgfs2.a
+	$(CC) $(CFLAGS) $(LIBS) $^ -o $@ -lgfs2
 
 %.o: %.c
 	$(CC) -MMD -c $(INCLUDES) $(CFLAGS) $< -o $@
 
 
-test_block_list: block_list.o bitmap.o log.o test_block_list.o
+test_block_list: log.o test_block_list.o
 	$(CC) $(CFLAGS) $^ -o $@
 
-test_bitmap: bitmap.o test_bitmap.o log.o
+test_bitmap: test_bitmap.o log.o
 	$(CC) $(CFLAGS) $^ -o $@
 clean:
 	@rm -f gfs2_fsck *.o *~

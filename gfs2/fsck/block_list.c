@@ -18,9 +18,11 @@
 #include <string.h>
 #include <errno.h>
 
+#include "libgfs2.h"
 #include "bitmap.h"
 #include "block_list.h"
 #include "fsck.h"
+#include "log.h"
 
 #define FREE		(0x0)  /*   0000 */
 #define BLOCK_IN_USE	(0x1)  /*   0001 */
@@ -177,32 +179,30 @@ int block_check(struct block_list *il, uint64_t block, struct block_query *val)
 	case gbmap:
 		if((err = bitmap_get(&il->list.gbmap.group_map, block,
 				     &val->block_type))) {
-			log_err("Unable to get block type for block %"
-				PRIu64"\n", block);
+			log_err("Unable to get block type for block %" PRIu64 "\n", block);
 			break;
 		}
 		if((err = bitmap_get(&il->list.gbmap.bad_map, block,
-				     &val->bad_block))) {
+							 &val->bad_block))) {
 			log_err("Unable to get bad block status for block %"
 				PRIu64"\n", block);
 			break;
 		}
 		if((err = bitmap_get(&il->list.gbmap.dup_map, block,
-				     &val->dup_block))) {
+							 &val->dup_block))) {
 			log_err("Unable to get duplicate status for block %"
 				PRIu64"\n", block);
 			break;
 		}
 		if((err = bitmap_get(&il->list.gbmap.eattr_map, block,
-				     &val->eattr_block))) {
+							 &val->eattr_block))) {
 			log_err("Unable to get eattr status for block %"
-				PRIu64"\n", block);
+					PRIu64"\n", block);
 			break;
 		}
 		break;
 	default:
-		log_err("block list type %d not implemented\n",
-			il->type);
+		log_err("block list type %d not implemented\n", il->type);
 		err = -1;
 		break;
 	}

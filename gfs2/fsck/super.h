@@ -14,11 +14,11 @@
 #ifndef _SUPER_H
 #define _SUPER_H
 
-#include "fsck_incore.h"
+#include "libgfs2.h"
 
-int read_sb(struct fsck_sb *sdp);
-int ji_update(struct fsck_sb *sdp);
-int ri_update(struct fsck_sb *sdp);
-int write_sb(struct fsck_sb *sdp);
+int read_sb(struct gfs2_sbd *sdp);
+int ji_update(struct gfs2_sbd *sdp);
+int ri_update(struct gfs2_sbd *sdp);
+int write_sb(struct gfs2_sbd *sdp);
 
 #endif /* _SUPER_H */

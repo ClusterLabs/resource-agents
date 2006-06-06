@@ -18,11 +18,10 @@
 #include <string.h>
 #include <errno.h>
 
+#include "libgfs2.h"
 #include "bitmap.h"
 #include "block_list.h"
-#include "fsck_incore.h"
 #include "log.h"
-
 
 #define BITMAP_SIZE(size, cpb) (size / cpb)
 
@@ -103,7 +102,6 @@ int bitmap_get(struct bmap *bmap, uint64_t bit, uint8_t *val)
 	log_debug("offset %d out of bounds\n", bit);
 	return -1;
 }
-
 
 int bitmap_clear(struct bmap *bmap, uint64_t offset)
 {

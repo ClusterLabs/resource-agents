@@ -17,16 +17,13 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "fsck_incore.h"
+#include "libgfs2.h"
 #include "fsck.h"
 #include "osi_list.h"
-#include "bio.h"
-#include "fs_inode.h"
-#include "block_list.h"
 #include "util.h"
-#include "inode.h"
-#include "inode_hash.h"
+#include "log.h"
 #include "metawalk.h"
+#include "inode_hash.h"
 
 struct inode_with_dups {
 	osi_list_t list;
@@ -65,86 +62,78 @@ static inline void inc_if_found(uint64_t block, int not_ea, void *private) {
 	}
 }
 
-static int check_metalist(struct fsck_inode *ip, uint64_t block,
-			  struct buffer_head **bh, void *private)
+static int check_metalist(struct gfs2_inode *ip, uint64_t block,
+			  struct gfs2_buffer_head **bh, void *private)
 {
 	inc_if_found(block, 1, private);
 
 	return 0;
 }
 
-static int check_data(struct fsck_inode *ip, uint64_t block, void *private)
+static int check_data(struct gfs2_inode *ip, uint64_t block, void *private)
 {
 	inc_if_found(block, 1, private);
 
 	return 0;
 }
 
-static int check_eattr_indir(struct fsck_inode *ip, uint64_t block,
-			     uint64_t parent, struct buffer_head **bh, void *private)
+static int check_eattr_indir(struct gfs2_inode *ip, uint64_t block,
+			     uint64_t parent, struct gfs2_buffer_head **bh, void *private)
 {
-	struct fsck_sb *sbp = ip->i_sbd;
-	struct buffer_head *indir_bh = NULL;
+	struct gfs2_sbd *sbp = ip->i_sbd;
+	struct gfs2_buffer_head *indir_bh = NULL;
 
 	inc_if_found(block, 0, private);
-	if(get_and_read_buf(sbp, block, &indir_bh, 0)){
-		log_warn("Unable to read EA leaf block #%"PRIu64".\n",
-			 block);
-		return 1;
-	}
-
+	indir_bh = bread(sbp, block);
 	*bh = indir_bh;
 
 	return 0;
 }
 
-static int check_eattr_leaf(struct fsck_inode *ip, uint64_t block,
-			    uint64_t parent, struct buffer_head **bh, void *private)
+static int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
+			    uint64_t parent, struct gfs2_buffer_head **bh, void *private)
 {
-	struct fsck_sb *sbp = ip->i_sbd;
-	struct buffer_head *leaf_bh = NULL;
+	struct gfs2_sbd *sbp = ip->i_sbd;
+	struct gfs2_buffer_head *leaf_bh = NULL;
 
 	inc_if_found(block, 0, private);
-	if(get_and_read_buf(sbp, block, &leaf_bh, 0)){
-		log_warn("Unable to read EA leaf block #%"PRIu64".\n",
-			 block);
-		return 1;
-	}
+	leaf_bh = bread(sbp, block);
 
 	*bh = leaf_bh;
 	return 0;
 }
 
-static int check_eattr_entry(struct fsck_inode *ip, struct buffer_head *leaf_bh,
-			     struct gfs2_ea_header *ea_hdr,
-			     struct gfs2_ea_header *ea_hdr_prev,
-			     void *private)
+static int check_eattr_entry(struct gfs2_inode *ip,
+							 struct gfs2_buffer_head *leaf_bh,
+							 struct gfs2_ea_header *ea_hdr,
+							 struct gfs2_ea_header *ea_hdr_prev,
+							 void *private)
 {
 	return 0;
 }
 
-static int check_eattr_extentry(struct fsck_inode *ip, uint64_t *ea_data_ptr,
-				struct buffer_head *leaf_bh,
+static int check_eattr_extentry(struct gfs2_inode *ip, uint64_t *ea_data_ptr,
+				struct gfs2_buffer_head *leaf_bh,
 				struct gfs2_ea_header *ea_hdr,
 				struct gfs2_ea_header *ea_hdr_prev,
 				void *private)
 {
-	uint64_t block = gfs2_64_to_cpu(*ea_data_ptr);
+	uint64_t block = be64_to_cpu(*ea_data_ptr);
 
 	inc_if_found(block, 0, private);
 
 	return 0;
 }
 
-static int find_dentry(struct fsck_inode *ip, struct gfs2_dirent *de,
+static int find_dentry(struct gfs2_inode *ip, struct gfs2_dirent *de,
 		       struct gfs2_dirent *prev,
-		       struct buffer_head *bh, char *filename, int *update,
+		       struct gfs2_buffer_head *bh, char *filename, int *update,
 		       uint16_t *count, void *priv)
 {
 	osi_list_t *tmp1, *tmp2;
 	struct blocks *b;
 	struct inode_with_dups *id;
-	osi_list_foreach(tmp1, &ip->i_sbd->dup_list) {
+	osi_list_foreach(tmp1, &dup_list) {
 		b = osi_list_entry(tmp1, struct blocks, list);
 		osi_list_foreach(tmp2, &b->ref_inode_list) {
 			id = osi_list_entry(tmp2, struct inode_with_dups,
@@ -171,8 +160,8 @@ static int find_dentry(struct fsck_inode *ip, struct gfs2_dirent *de,
 	return 0;
 }
 
-static int clear_dup_metalist(struct fsck_inode *ip, uint64_t block,
-			      struct buffer_head **bh, void *private)
+static int clear_dup_metalist(struct gfs2_inode *ip, uint64_t block,
+			      struct gfs2_buffer_head **bh, void *private)
 {
 	struct dup_handler *dh = (struct dup_handler *) private;
 
@@ -186,14 +175,15 @@ static int clear_dup_metalist(struct fsck_inode *ip, uint64_t block,
 		log_err("inode %s is in directory %"PRIu64"\n",
 			dh->id->name ? dh->id->name : "",
 			dh->id->parent);
-		inode_hash_remove(ip->i_sbd->inode_hash, ip->i_di.di_num.no_addr);
+		inode_hash_remove(inode_hash, ip->i_di.di_num.no_addr);
 		/* Setting the block to invalid means the inode is
 		 * cleared in pass2 */
-		block_set(ip->i_sbd->bl, ip->i_di.di_num.no_addr, meta_inval);
+		gfs2_block_set(bl, ip->i_di.di_num.no_addr, gfs2_meta_inval);
 	}
 	return 0;
 }
-static int clear_dup_data(struct fsck_inode *ip, uint64_t block, void *private)
+
+static int clear_dup_data(struct gfs2_inode *ip, uint64_t block, void *private)
 {
 	struct dup_handler *dh = (struct dup_handler *) private;
 
@@ -202,22 +192,21 @@ static int clear_dup_data(struct fsck_inode *ip, uint64_t block, void *private)
 	}
 	if(block == dh->b->block_no) {
 		log_err("Found dup in inode \"%s\" (block #%"PRIu64
-			") with block #%"PRIu64"\n",
-			dh->id->name ? dh->id->name : "unknown name",
-			ip->i_di.di_num.no_addr, block);
+				") with block #%"PRIu64"\n",
+				dh->id->name ? dh->id->name : "unknown name",
+				ip->i_di.di_num.no_addr, block);
 		log_err("inode %s is in directory %"PRIu64"\n",
-			dh->id->name ? dh->id->name : "",
-			dh->id->parent);
-		inode_hash_remove(ip->i_sbd->inode_hash, ip->i_di.di_num.no_addr);
+				dh->id->name ? dh->id->name : "", dh->id->parent);
+		inode_hash_remove(inode_hash, ip->i_di.di_num.no_addr);
 		/* Setting the block to invalid means the inode is
 		 * cleared in pass2 */
-		block_set(ip->i_sbd->bl, ip->i_di.di_num.no_addr, meta_inval);
+		gfs2_block_set(bl, ip->i_di.di_num.no_addr, gfs2_meta_inval);
 	}
 
 	return 0;
 }
-static int clear_dup_eattr_indir(struct fsck_inode *ip, uint64_t block,
-				 uint64_t parent, struct buffer_head **bh,
+static int clear_dup_eattr_indir(struct gfs2_inode *ip, uint64_t block,
+				 uint64_t parent, struct gfs2_buffer_head **bh,
 				 void *private)
 {
 	struct dup_handler *dh = (struct dup_handler *) private;
@@ -233,40 +222,39 @@ static int clear_dup_eattr_indir(struct fsck_inode *ip, uint64_t block,
 		log_err("inode %s is in directory %"PRIu64"\n",
 			dh->id->name ? dh->id->name : "",
 			dh->id->parent);
-		block_set(ip->i_sbd->bl, ip->i_di.di_eattr, meta_inval);
+		gfs2_block_set(bl, ip->i_di.di_eattr, gfs2_meta_inval);
 	}
 
 	return 0;
 }
-static int clear_dup_eattr_leaf(struct fsck_inode *ip, uint64_t block,
-				uint64_t parent, struct buffer_head **bh, void *private)
+static int clear_dup_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
+				uint64_t parent, struct gfs2_buffer_head **bh, void *private)
 {
 	struct dup_handler *dh = (struct dup_handler *) private;
 	if(dh->ref_count == 1)
 		return 1;
 	if(block == dh->b->block_no) {
 		log_err("Found dup in inode \"%s\" (block #%"PRIu64
-			") with block #%"PRIu64"\n",
-			dh->id->name ? dh->id->name : "unknown name",
-			ip->i_di.di_num.no_addr, block);
+				") with block #%"PRIu64"\n",
+				dh->id->name ? dh->id->name : "unknown name",
+				ip->i_di.di_num.no_addr, block);
 		log_err("inode %s is in directory %"PRIu64"\n",
-			dh->id->name ? dh->id->name : "",
-			dh->id->parent);
+				dh->id->name ? dh->id->name : "", dh->id->parent);
 
 		/* mark the main eattr block invalid */
-		block_set(ip->i_sbd->bl, ip->i_di.di_eattr, meta_inval);
+		gfs2_block_set(bl, ip->i_di.di_eattr, gfs2_meta_inval);
 	}
 
 	return 0;
 }
 
-static int clear_eattr_entry (struct fsck_inode *ip,
-		       struct buffer_head *leaf_bh,
+static int clear_eattr_entry (struct gfs2_inode *ip,
+		       struct gfs2_buffer_head *leaf_bh,
 		       struct gfs2_ea_header *ea_hdr,
 		       struct gfs2_ea_header *ea_hdr_prev,
 		       void *private)
 {
-	struct fsck_sb *sdp = ip->i_sbd;
+	struct gfs2_sbd *sdp = ip->i_sbd;
 	char ea_name[256];
 
 	if(!ea_hdr->ea_name_len){
@@ -288,28 +276,25 @@ static int clear_eattr_entry (struct fsck_inode *ip,
 		uint32_t avail_size;
 		int max_ptrs;
 
-		avail_size = sdp->sb.sb_bsize - sizeof(struct gfs2_meta_header);
-		max_ptrs = (gfs2_32_to_cpu(ea_hdr->ea_data_len)+avail_size-1)/avail_size;
+		avail_size = sdp->sd_sb.sb_bsize - sizeof(struct gfs2_meta_header);
+		max_ptrs = (be32_to_cpu(ea_hdr->ea_data_len) + avail_size - 1) /
+			avail_size;
 
-		if(max_ptrs > ea_hdr->ea_num_ptrs) {
+		if(max_ptrs > ea_hdr->ea_num_ptrs)
 			return 1;
-		} else {
-			log_debug("  Pointers Required: %d\n"
-				  "  Pointers Reported: %d\n",
-				  max_ptrs,
-				  ea_hdr->ea_num_ptrs);
+		else {
+			log_debug("  Pointers Required: %d\n  Pointers Reported: %d\n",
+					  max_ptrs, ea_hdr->ea_num_ptrs);
 		}
-
-
 	}
 	return 0;
 }
 
-static int clear_eattr_extentry(struct fsck_inode *ip, uint64_t *ea_data_ptr,
-			 struct buffer_head *leaf_bh, struct gfs2_ea_header *ea_hdr,
+static int clear_eattr_extentry(struct gfs2_inode *ip, uint64_t *ea_data_ptr,
+			 struct gfs2_buffer_head *leaf_bh, struct gfs2_ea_header *ea_hdr,
 			 struct gfs2_ea_header *ea_hdr_prev, void *private)
 {
-	uint64_t block = gfs2_64_to_cpu(*ea_data_ptr);
+	uint64_t block = be64_to_cpu(*ea_data_ptr);
 	struct dup_handler *dh = (struct dup_handler *) private;
 	if(dh->ref_count == 1)
 		return 1;
@@ -322,7 +307,7 @@ static int clear_eattr_extentry(struct fsck_inode *ip, uint64_t *ea_data_ptr,
 			dh->id->name ? dh->id->name : "",
 			dh->id->parent);
 		/* mark the main eattr block invalid */
-		block_set(ip->i_sbd->bl, ip->i_di.di_eattr, meta_inval);
+		gfs2_block_set(bl, ip->i_di.di_eattr, gfs2_meta_inval);
 	}
 
 	return 0;
@@ -330,9 +315,9 @@ static int clear_eattr_extentry(struct fsck_inode *ip, uint64_t *ea_data_ptr,
 }
 
 /* Finds all references to duplicate blocks in the metadata */
-int find_block_ref(struct fsck_sb *sbp, uint64_t inode, struct blocks *b)
+int find_block_ref(struct gfs2_sbd *sbp, uint64_t inode, struct blocks *b)
 {
-	struct fsck_inode *ip;
+	struct gfs2_inode *ip;
 	struct fxn_info myfi = {b->block_no, 0, 1};
 	struct inode_with_dups *id = NULL;
 	struct metawalk_fxns find_refs = {
@@ -347,15 +332,12 @@ int find_block_ref(struct fsck_sb *sbp, uint64_t inode, struct blocks *b)
 		.check_eattr_extentry = check_eattr_extentry,
 	};
 
-	if(load_inode(sbp, inode, &ip)) {
-		stack;
-		return -1;
-	}
+	ip = gfs2_load_inode(sbp, inode); /* bread, inode_get */
 	log_info("Checking inode %"PRIu64"'s metatree for references to block %"PRIu64"\n",
 		 inode, b->block_no);
 	if(check_metatree(ip, &find_refs)) {
 		stack;
-		free_inode(&ip);
+		inode_put(ip, not_updated); /* out, brelse, free */
 		return -1;
 	}
 	log_info("Done checking metatree\n");
@@ -376,20 +358,18 @@ int find_block_ref(struct fsck_sb *sbp, uint64_t inode, struct blocks *b)
 		id->block_no = inode;
 		id->ea_only = myfi.ea_only;
 		osi_list_add_prev(&id->list, &b->ref_inode_list);
-		free_inode(&ip);
-		return 0;
 	}
-	free_inode(&ip);
+	inode_put(ip, updated); /* out, brelse, free */
 	return 0;
 }
 
 /* Finds all blocks marked in the duplicate block bitmap */
-int find_dup_blocks(struct fsck_sb *sbp)
+int find_dup_blocks(struct gfs2_sbd *sbp)
 {
 	uint64_t block_no = 0;
 	struct blocks *b;
 
-	while (!find_next_block_type(sbp->bl, dup_block, &block_no)) {
+	while (!gfs2_find_next_block_type(bl, gfs2_dup_block, &block_no)) {
 		if(!(b = malloc(sizeof(*b)))) {
 			log_crit("Unable to allocate blocks structure\n");
 			return -1;
@@ -401,7 +381,7 @@ int find_dup_blocks(struct fsck_sb *sbp)
 		b->block_no = block_no;
 		osi_list_init(&b->ref_inode_list);
 		log_notice("Found dup block at %"PRIu64"\n", block_no);
-		osi_list_add(&b->list, &sbp->dup_list);
+		osi_list_add(&b->list, &dup_list);
 		block_no++;
 	}
 	return 0;
@@ -409,7 +389,7 @@ int find_dup_blocks(struct fsck_sb *sbp)
 
 
 
-int handle_dup_blk(struct fsck_sb *sbp, struct blocks *b)
+int handle_dup_blk(struct gfs2_sbd *sbp, struct blocks *b)
 {
 	osi_list_t *tmp;
 	struct inode_with_dups *id;
@@ -424,7 +404,7 @@ int handle_dup_blk(struct fsck_sb *sbp, struct blocks *b)
 		.check_eattr_entry = clear_eattr_entry,
 		.check_eattr_extentry = clear_eattr_extentry,
 	};
-	struct fsck_inode *ip;
+	struct gfs2_inode *ip;
 	struct dup_handler dh = {0};
 
 	osi_list_foreach(tmp, &b->ref_inode_list) {
@@ -442,7 +422,7 @@ int handle_dup_blk(struct fsck_sb *sbp, struct blocks *b)
 			 "\n", id->name, id->dup_count, b->block_no);
 		/* FIXME: User input */
 		log_warn("Clearing...\n");
-		load_inode(sbp, id->block_no, &ip);
+		ip = gfs2_load_inode(sbp, id->block_no);
 		dh.b = b;
 		dh.id = id;
 		clear_dup_fxns.private = (void *) &dh;
@@ -452,7 +432,7 @@ int handle_dup_blk(struct fsck_sb *sbp, struct blocks *b)
 		if(!id->ea_only)
 			check_metatree(ip, &clear_dup_fxns);
 
-		free_inode(&ip);
+		inode_put(ip, not_updated); /* out, brelse, free */
 		dh.ref_inode_count--;
 		if(dh.ref_inode_count == 1)
 			break;
@@ -468,22 +448,22 @@ int handle_dup_blk(struct fsck_sb *sbp, struct blocks *b)
 /* Pass 1b handles finding the previous inode for a duplicate block
  * When found, store the inodes pointing to the duplicate block for
  * use in pass2 */
-int pass1b(struct fsck_sb *sbp)
+int pass1b(struct gfs2_sbd *sbp)
 {
 	struct blocks *b;
 	uint64_t i;
-	struct block_query q;
+	struct gfs2_block_query q;
 	osi_list_t *tmp;
 	struct metawalk_fxns find_dirents = {0};
 	find_dirents.check_dentry = &find_dentry;
 
-	osi_list_init(&sbp->dup_list);
+	osi_list_init(&dup_list);
 	/* Shove all blocks marked as duplicated into a list */
 	log_info("Looking for duplicate blocks...\n");
 	find_dup_blocks(sbp);
 
 	/* If there were no dups in the bitmap, we don't need to do anymore */
-	if(osi_list_empty(&sbp->dup_list)) {
+	if(osi_list_empty(&dup_list)) {
 		log_info("No duplicate blocks found\n");
 		return 0;
 	}
@@ -491,21 +471,21 @@ int pass1b(struct fsck_sb *sbp)
 	/* Rescan the fs looking for pointers to blocks that are in
 	 * the duplicate block map */
 	log_info("Scanning filesystem for inodes containing duplicate blocks...\n");
-	log_debug("Filesystem has %"PRIu64" blocks total\n", sbp->last_fs_block);
-	for(i = 0; i < sbp->last_fs_block; i += 1) {
+	log_debug("Filesystem has %"PRIu64" blocks total\n", last_fs_block);
+	for(i = 0; i < last_fs_block; i += 1) {
 		log_debug("Scanning block %"PRIu64" for inodes\n", i);
-		if(block_check(sbp->bl, i, &q)) {
+		if(gfs2_block_check(bl, i, &q)) {
 			stack;
 			return -1;
 		}
-		if((q.block_type == inode_dir) ||
-		   (q.block_type == inode_file) ||
-		   (q.block_type == inode_lnk) ||
-		   (q.block_type == inode_blk) ||
-		   (q.block_type == inode_chr) ||
-		   (q.block_type == inode_fifo) ||
-		   (q.block_type == inode_sock)) {
-			osi_list_foreach(tmp, &sbp->dup_list) {
+		if((q.block_type == gfs2_inode_dir) ||
+		   (q.block_type == gfs2_inode_file) ||
+		   (q.block_type == gfs2_inode_lnk) ||
+		   (q.block_type == gfs2_inode_blk) ||
+		   (q.block_type == gfs2_inode_chr) ||
+		   (q.block_type == gfs2_inode_fifo) ||
+		   (q.block_type == gfs2_inode_sock)) {
+			osi_list_foreach(tmp, &dup_list) {
 				b = osi_list_entry(tmp, struct blocks, list);
 				if(find_block_ref(sbp, i, b)) {
 					stack;
@@ -519,12 +499,12 @@ int pass1b(struct fsck_sb *sbp)
 	 * with duplicate blocks - might need this to deal with the
 	 * inode correctly */
 	log_info("Looking through directory entries for inodes with duplicate blocks...\n");
-	for(i = 0; i < sbp->last_fs_block; i++) {
-		if(block_check(sbp->bl, i, &q)) {
+	for(i = 0; i < last_fs_block; i++) {
+		if(gfs2_block_check(bl, i, &q)) {
 			stack;
 			return 0;
 		}
-		if(q.block_type == inode_dir) {
+		if(q.block_type == gfs2_inode_dir) {
 			check_dir(sbp, i, &find_dirents);
 		}
 	}
@@ -533,7 +513,7 @@ int pass1b(struct fsck_sb *sbp)
 	/* Fix dups here - it's going to slow things down a lot to fix
 	 * it later */
 	log_info("Handling duplicate blocks\n");
-	osi_list_foreach(tmp, &sbp->dup_list) {
+	osi_list_foreach(tmp, &dup_list) {
 		b = osi_list_entry(tmp, struct blocks, list);
 		handle_dup_blk(sbp, b);
 	}

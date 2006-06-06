@@ -13,6 +13,9 @@
 #ifndef __LOG_H
 #define __LOG_H
 
+#include "libgfs2.h"
+#include "fsck.h"
+
 #define MSG_DEBUG	7
 #define MSG_INFO	6
 #define MSG_NOTICE	5
@@ -20,8 +23,6 @@
 #define MSG_ERROR	3
 #define MSG_CRITICAL	2
 #define MSG_NULL	1
-
-
 
 #define print_log(iif, priority, format...)	\
 do { \
@@ -92,8 +93,8 @@ do { \
 
 void increase_verbosity(void);
 void decrease_verbosity(void);
-void print_fsck_log(int iif, int priority, char *file, int line, const char *format, ...);
-int query(struct fsck_sb *sbp, const char *format, ...);
-
+void print_fsck_log(int iif, int priority, char *file, int line,
+					const char *format, ...);
+int query(struct options *opts, const char *format, ...);
 
 #endif /* __LOG_H */

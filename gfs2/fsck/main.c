@@ -16,16 +16,40 @@
 #include <stdlib.h>
 #include <libgen.h>
 #include <string.h>
+#include <stdarg.h>
 
 #include "copyright.cf"
-#include "fsck_incore.h"
+#include "libgfs2.h"
 #include "fsck.h"
 #include "log.h"
+#include "osi_list.h"
 
-void print_map(struct block_list *il, int count)
+struct options opts = {0};
+struct gfs2_inode *lf_dip; /* Lost and found directory inode */
+osi_list_t dir_hash[FSCK_HASH_SIZE];
+osi_list_t inode_hash[FSCK_HASH_SIZE];
+struct gfs2_block_list *bl;
+uint64_t last_fs_block;
+uint64_t last_data_block;
+uint64_t first_data_block;
+osi_list_t dup_list;
+char *prog_name = "gfs2_fsck"; /* needed by libgfs2 */
+
+/* This function is for libgfs2's sake.                                      */
+void print_it(const char *label, const char *fmt, const char *fmt2, ...)
+{
+	va_list args;
+
+	va_start(args, fmt2);
+	printf("%s: ", label);
+	vprintf(fmt, args);
+	va_end(args);
+}
+
+void print_map(struct gfs2_block_list *il, int count)
 {
 	int i, j;
-	struct block_query k;
+	struct gfs2_block_query k;
 
 	log_info("Printing map of blocks - 80 blocks per row\n");
 	j = 0;
@@ -38,7 +62,7 @@ void print_map(struct block_list *il, int count)
 			log_info(" ");
 		}
 		j++;
-		block_check(il, i, &k);
+		gfs2_block_check(il, i, &k);
 		log_info("%X", k.block_type);
 
 	}
@@ -112,13 +136,11 @@ int read_cmdline(int argc, char **argv, struct options *opts)
 
 int main(int argc, char **argv)
 {
-	struct fsck_sb sb;
-	struct options opts = {0};
+	struct gfs2_sbd sb;
+	struct gfs2_sbd *sbp = &sb;
+	int j;
 
-	struct fsck_sb *sbp = &sb;
 	memset(sbp, 0, sizeof(*sbp));
-
-	sbp->opts = &opts;
 
 	if(read_cmdline(argc, argv, &opts))
 		return 1;
@@ -130,7 +152,7 @@ int main(int argc, char **argv)
 	log_notice("Starting pass1\n");
 	if (pass1(sbp))
 		return 1;
-	log_notice("Pass1 complete\n");
+	log_notice("Pass1 complete      \n");
 
 	log_notice("Starting pass1b\n");
 	if(pass1b(sbp))
@@ -143,31 +165,43 @@ int main(int argc, char **argv)
 	log_notice("Pass1c complete\n");
 
 	log_notice("Starting pass2\n");
-	if (pass2(sbp, &opts))
+	if (pass2(sbp))
 		return 1;
-	log_notice("Pass2 complete\n");
+	log_notice("Pass2 complete      \n");
 
 	log_notice("Starting pass3\n");
-	if (pass3(sbp, &opts))
+	if (pass3(sbp))
 		return 1;
-	log_notice("Pass3 complete\n");
+	log_notice("Pass3 complete      \n");
 
 	log_notice("Starting pass4\n");
-	if (pass4(sbp, &opts))
+	if (pass4(sbp))
 		return 1;
-	log_notice("Pass4 complete\n");
+	log_notice("Pass4 complete      \n");
 
 	log_notice("Starting pass5\n");
-	if (pass5(sbp, &opts))
+	if (pass5(sbp))
 		return 1;
-	log_notice("Pass5 complete\n");
+	log_notice("Pass5 complete      \n");
 
+	/* Free up our system inodes */
+	inode_put(sbp->md.inum, updated);
+	inode_put(sbp->md.statfs, updated);
+	for (j = 0; j < sbp->md.journals; j++)
+		inode_put(sbp->md.journal[j], updated);
+	inode_put(sbp->md.jiinode, updated);
+	inode_put(sbp->md.riinode, updated);
+	inode_put(sbp->md.qinode, updated);
+	inode_put(sbp->md.pinode, updated);
+	inode_put(sbp->md.rooti, updated);
+	inode_put(sbp->master_dir, updated);
+	if (lf_dip)
+		inode_put(lf_dip, updated);
 /*	print_map(sbp->bl, sbp->last_fs_block); */
 
+	bsync(sbp);
 	destroy(sbp);
+	log_notice("gfs2_fsck complete    \n");
 
 	return 0;
 }
-
-
-

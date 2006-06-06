@@ -15,7 +15,7 @@
 
 #include <stdint.h>
 #include <unistd.h>
-#include "fsck_incore.h"
+#include "libgfs2.h"
 #include "hash.h"
 #include "osi_list.h"
 

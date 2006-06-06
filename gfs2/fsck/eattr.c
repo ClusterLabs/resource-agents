@@ -14,14 +14,14 @@
 #include <string.h>
 #include <linux_endian.h>
 
-#include "fsck_incore.h"
+#include "libgfs2.h"
+#include "log.h"
 
-
-static int clear_blk_nodup(struct fsck_sb *sbp, uint64_t block)
+static int clear_blk_nodup(struct gfs2_sbd *sbp, uint64_t block)
 {
-	struct block_query q;
+	struct gfs2_block_query q;
 
-	if(block_check(sbp->bl, block, &q)) {
+	if(gfs2_block_check(bl, block, &q)) {
 		stack;
 		return -1;
 	}
@@ -31,22 +31,22 @@ static int clear_blk_nodup(struct fsck_sb *sbp, uint64_t block)
 		return 1;
 	}
 
-	block_set(sbp->bl, block, block_free);
+	gfs2_block_set(bl, block, gfs2_block_free);
 
 	return 0;
 
 }
 
-int clear_eattr_indir(struct fsck_inode *ip, uint64_t block,
-		      uint64_t parent, struct buffer_head **bh,
+int clear_eattr_indir(struct gfs2_inode *ip, uint64_t block,
+		      uint64_t parent, struct gfs2_buffer_head **bh,
 		      void *private)
 {
 	return clear_blk_nodup(ip->i_sbd, block);
 }
 
 
-int clear_eattr_leaf(struct fsck_inode *ip, uint64_t block,
-		     uint64_t parent, struct buffer_head **bh,
+int clear_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
+		     uint64_t parent, struct gfs2_buffer_head **bh,
 		     void *private)
 {
 
@@ -55,13 +55,13 @@ int clear_eattr_leaf(struct fsck_inode *ip, uint64_t block,
 }
 
 
-int clear_eattr_entry (struct fsck_inode *ip,
-		       struct buffer_head *leaf_bh,
+int clear_eattr_entry (struct gfs2_inode *ip,
+		       struct gfs2_buffer_head *leaf_bh,
 		       struct gfs2_ea_header *ea_hdr,
 		       struct gfs2_ea_header *ea_hdr_prev,
 		       void *private)
 {
-	struct fsck_sb *sdp = ip->i_sbd;
+	struct gfs2_sbd *sdp = ip->i_sbd;
 	char ea_name[256];
 
 	if(!ea_hdr->ea_name_len){
@@ -83,8 +83,8 @@ int clear_eattr_entry (struct fsck_inode *ip,
 		uint32_t avail_size;
 		int max_ptrs;
 
-		avail_size = sdp->sb.sb_bsize - sizeof(struct gfs2_meta_header);
-		max_ptrs = (gfs2_32_to_cpu(ea_hdr->ea_data_len)+avail_size-1)/avail_size;
+		avail_size = sdp->sd_sb.sb_bsize - sizeof(struct gfs2_meta_header);
+		max_ptrs = (be32_to_cpu(ea_hdr->ea_data_len)+avail_size-1)/avail_size;
 
 		if(max_ptrs > ea_hdr->ea_num_ptrs) {
 			return 1;
@@ -100,11 +100,11 @@ int clear_eattr_entry (struct fsck_inode *ip,
 	return 0;
 }
 
-int clear_eattr_extentry(struct fsck_inode *ip, uint64_t *ea_data_ptr,
-			 struct buffer_head *leaf_bh, struct gfs2_ea_header *ea_hdr,
+int clear_eattr_extentry(struct gfs2_inode *ip, uint64_t *ea_data_ptr,
+			 struct gfs2_buffer_head *leaf_bh, struct gfs2_ea_header *ea_hdr,
 			 struct gfs2_ea_header *ea_hdr_prev, void *private)
 {
-	uint64_t block = gfs2_64_to_cpu(*ea_data_ptr);
+	uint64_t block = be64_to_cpu(*ea_data_ptr);
 
 	return clear_blk_nodup(ip->i_sbd, block);
 

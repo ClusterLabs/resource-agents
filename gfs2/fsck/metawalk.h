@@ -18,12 +18,13 @@
 
 struct metawalk_fxns;
 
-int check_inode_eattr(struct fsck_inode *ip, struct metawalk_fxns *pass);
-int check_metatree(struct fsck_inode *ip, struct metawalk_fxns *pass);
-int check_dir(struct fsck_sb *sbp, uint64_t block, struct metawalk_fxns *pass);
-int remove_dentry_from_dir(struct fsck_sb *sbp, uint64_t dir,
-			   uint64_t dentryblock);
-int find_di(struct fsck_sb *sbp, uint64_t childblock, struct dir_info **dip);
+int check_inode_eattr(struct gfs2_inode *ip, struct metawalk_fxns *pass);
+int check_metatree(struct gfs2_inode *ip, struct metawalk_fxns *pass);
+int check_dir(struct gfs2_sbd *sbp, uint64_t block,
+			  struct metawalk_fxns *pass);
+int remove_dentry_from_dir(struct gfs2_sbd *sbp, uint64_t dir,
+						   uint64_t dentryblock);
+int find_di(struct gfs2_sbd *sbp, uint64_t childblock, struct dir_info **dip);
 int dinode_hash_insert(osi_list_t *buckets, uint64_t key, struct dir_info *di);
 int dinode_hash_remove(osi_list_t *buckets, uint64_t key);
 
@@ -44,34 +45,32 @@ int dinode_hash_remove(osi_list_t *buckets, uint64_t key);
  */
 struct metawalk_fxns {
 	void *private;
-	int (*check_leaf) (struct fsck_inode *ip, uint64_t block,
-			   struct buffer_head **bh, void *private);
-	int (*check_metalist) (struct fsck_inode *ip, uint64_t block,
-			       struct buffer_head **bh, void *private);
-	int (*check_data) (struct fsck_inode *ip, uint64_t block,
-			   void *private);
-	int (*check_eattr_indir) (struct fsck_inode *ip, uint64_t block,
-				  uint64_t parent, struct buffer_head **bh,
-				  void *private);
-	int (*check_eattr_leaf) (struct fsck_inode *ip, uint64_t block,
-				 uint64_t parent, struct buffer_head **bh,
-				 void *private);
-	int (*check_dentry) (struct fsck_inode *ip, struct gfs2_dirent *de,
-			     struct gfs2_dirent *prev,
-			     struct buffer_head *bh, char *filename, int *update,
-			     uint16_t *count,
-			     void *private);
-	int (*check_eattr_entry) (struct fsck_inode *ip,
-				  struct buffer_head *leaf_bh,
-				  struct gfs2_ea_header *ea_hdr,
-				  struct gfs2_ea_header *ea_hdr_prev,
-				  void *private);
-	int (*check_eattr_extentry) (struct fsck_inode *ip,
-				     uint64_t *ea_data_ptr,
-				     struct buffer_head *leaf_bh,
-				     struct gfs2_ea_header *ea_hdr,
-				     struct gfs2_ea_header *ea_hdr_prev,
-				     void *private);
+	int (*check_leaf) (struct gfs2_inode *ip, uint64_t block,
+					   struct gfs2_buffer_head **bh, void *private);
+	int (*check_metalist) (struct gfs2_inode *ip, uint64_t block,
+						   struct gfs2_buffer_head **bh, void *private);
+	int (*check_data) (struct gfs2_inode *ip, uint64_t block,
+					   void *private);
+	int (*check_eattr_indir) (struct gfs2_inode *ip, uint64_t block,
+							  uint64_t parent, struct gfs2_buffer_head **bh,
+							  void *private);
+	int (*check_eattr_leaf) (struct gfs2_inode *ip, uint64_t block,
+							 uint64_t parent, struct gfs2_buffer_head **bh,
+							 void *private);
+	int (*check_dentry) (struct gfs2_inode *ip, struct gfs2_dirent *de,
+						 struct gfs2_dirent *prev, struct gfs2_buffer_head *bh,
+						 char *filename, int *update, uint16_t *count,
+						 void *private);
+	int (*check_eattr_entry) (struct gfs2_inode *ip,
+							  struct gfs2_buffer_head *leaf_bh,
+							  struct gfs2_ea_header *ea_hdr,
+							  struct gfs2_ea_header *ea_hdr_prev,
+							  void *private);
+	int (*check_eattr_extentry) (struct gfs2_inode *ip, uint64_t *ea_data_ptr,
+								 struct gfs2_buffer_head *leaf_bh,
+								 struct gfs2_ea_header *ea_hdr,
+								 struct gfs2_ea_header *ea_hdr_prev,
+								 void *private);
 };
 
 #endif /* _METAWALK_H */

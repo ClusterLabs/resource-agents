@@ -18,11 +18,10 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "libgfs2.h"
 #include "util.h"
-#include "bio.h"
-#include "fs_bmap.h"
-
 #include "fs_recovery.h"
+#include "log.h"
 
 #define RANDOM(values) ((values) * (random() / (RAND_MAX + 1.0)))
 
@@ -37,10 +36,10 @@
  *
  * Returns: -1 on error, 0 otherwise
  */
-static int reconstruct_single_journal(struct fsck_sb *sdp, int jnum){
+static int reconstruct_single_journal(struct gfs2_sbd *sdp, int jnum){
 	struct gfs2_log_header	lh;
 	unsigned int blocks;
-	struct fsck_inode *ip = sdp->md.journal[jnum];
+	struct gfs2_inode *ip = sdp->md.journal[jnum];
 	uint64_t seq;
 	uint64_t dblock;
 	uint32_t hash, extlen;
@@ -60,27 +59,21 @@ static int reconstruct_single_journal(struct fsck_sb *sdp, int jnum){
 	lh.lh_flags = GFS2_LOG_HEAD_UNMOUNT;
 
 	for (x = 0; x < blocks; x++) {
-		struct buffer_head *bh;
+		struct gfs2_buffer_head *bh;
 
-		fs_block_map(ip, x, &new, &dblock, &extlen);
-		get_and_read_buf(sdp, dblock, &bh, 0);
+		block_map(ip, x, &new, &dblock, &extlen);
+		bh = bread(sdp, dblock);
 		if (!bh) {
-			log_err("Unable to read journal block at %"PRIu64"\n",
-				dblock);
+			log_err("Unable to read journal block at %"PRIu64"\n", dblock);
 			return -1;
 		}
 
-		lh.lh_header.mh_blkno = bh->b_blocknr;
 		lh.lh_sequence = seq;
 		lh.lh_blkno = x;
 		gfs2_log_header_out(&lh, bh->b_data);
 		hash = gfs2_disk_hash(bh->b_data, sizeof(struct gfs2_log_header));
-		((struct gfs2_log_header *)bh->b_data)->lh_hash = cpu_to_gfs2_32(hash);
-		if(write_buf(sdp, bh, 0)) {
-			stack;
-			return -1;
-		}
-		relse_buf(sdp, bh);
+		((struct gfs2_log_header *)bh->b_data)->lh_hash = cpu_to_be32(hash);
+		brelse(bh, updated);
 
 		if (++seq == blocks)
 			seq = 0;
@@ -101,7 +94,7 @@ static int reconstruct_single_journal(struct fsck_sb *sdp, int jnum){
  *
  * Returns: 0 on success, -1 on failure
  */
-int reconstruct_journals(struct fsck_sb *sdp){
+int reconstruct_journals(struct gfs2_sbd *sdp){
 	int i;
 
 	log_warn("Clearing journals (this may take a while)\n");

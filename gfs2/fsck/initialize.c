@@ -22,16 +22,13 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "fsck_incore.h"
+#include "libgfs2.h"
 #include "fsck.h"
-#include "file.h"
 #include "util.h"
 #include "super.h"
-#include "fs_inode.h"
 #include "fs_recovery.h"
-#include "inode.h"
-#include "bio.h"
-#include "ondisk.h"
+#include "log.h"
+#include "linux_endian.h"
 
 #define CLEAR_POINTER(x) \
 	if(x) { \
@@ -39,28 +36,19 @@
 		x = NULL; \
 	}
 
+extern struct options opts;
+
 /**
  * init_journals
  *
  * Go through journals and replay them - then clear them
  */
-int init_journals(struct fsck_sb *sbp)
+int init_journals(struct gfs2_sbd *sbp)
 {
-
-	if(!sbp->opts->no) {
-		/* Next, Replay the journals */
-		if(sbp->flags & SBF_RECONSTRUCT_JOURNALS){
-			if(reconstruct_journals(sbp)){
-				stack;
-				return 1;
-			}
-		} else {
-			/* ATTENTION -- Journal replay is not supported */
-			if(reconstruct_journals(sbp)){
-				stack;
-				return 1;
-			}
-		}
+	if(!opts.no) {
+		/* ATTENTION -- Journal replay is not supported */
+		if(reconstruct_journals(sbp))
+			return 1;
 	}
 	return 0;
 }
@@ -71,22 +59,22 @@ int init_journals(struct fsck_sb *sbp)
  * Change the lock protocol so nobody can mount the fs
  *
  */
-int block_mounters(struct fsck_sb *sbp, int block_em)
+int block_mounters(struct gfs2_sbd *sbp, int block_em)
 {
 	if(block_em) {
 		/* verify it starts with lock_ */
-		if(!strncmp(sbp->sb.sb_lockproto, "lock_", 5)) {
+		if(!strncmp(sbp->sd_sb.sb_lockproto, "lock_", 5)) {
 			/* Change lock_ to fsck_ */
-			memcpy(sbp->sb.sb_lockproto, "fsck_", 5);
+			memcpy(sbp->sd_sb.sb_lockproto, "fsck_", 5);
 		}
 		/* FIXME: Need to do other verification in the else
 		 * case */
 	} else {
 		/* verify it starts with fsck_ */
 		/* verify it starts with lock_ */
-		if(!strncmp(sbp->sb.sb_lockproto, "fsck_", 5)) {
+		if(!strncmp(sbp->sd_sb.sb_lockproto, "fsck_", 5)) {
 			/* Change fsck_ to lock_ */
-			memcpy(sbp->sb.sb_lockproto, "lock_", 5);
+			memcpy(sbp->sd_sb.sb_lockproto, "lock_", 5);
 		}
 	}
 
@@ -107,60 +95,36 @@ int block_mounters(struct fsck_sb *sbp, int block_em)
  *
  * Returns: Nothing
  */
-static void empty_super_block(struct fsck_sb *sdp)
+static void empty_super_block(struct gfs2_sbd *sdp)
 {
 	uint32_t i;
 
-	CLEAR_POINTER(sdp->md.inum);
-	CLEAR_POINTER(sdp->md.statfs);
-	CLEAR_POINTER(sdp->md.qinode);
-	CLEAR_POINTER(sdp->md.riinode);
-	CLEAR_POINTER(sdp->md.jiinode);
-	CLEAR_POINTER(sdp->md.rooti);
-	CLEAR_POINTER(sdp->md.pinode);
-
-	CLEAR_POINTER(sdp->lf_dip);
-
 	while(!osi_list_empty(&sdp->rglist)){
-		struct fsck_rgrp *rgd;
-		unsigned int x;
-		rgd = osi_list_entry(sdp->rglist.next,
-				     struct fsck_rgrp, rd_list);
-		osi_list_del(&rgd->rd_list);
-		if(rgd->rd_bits)
-			free(rgd->rd_bits);
-		if(rgd->rd_bh) {
-			for(x = 0; x < rgd->rd_ri.ri_length; x++) {
-				if(rgd->rd_bh[x]) {
-					if(BH_DATA(rgd->rd_bh[x])) {
-						free(BH_DATA(rgd->rd_bh[x]));
-					}
-					free(rgd->rd_bh[x]);
-				}
-			}
-			free(rgd->rd_bh);
-		}
+		struct rgrp_list *rgd;
+
+		rgd = osi_list_entry(sdp->rglist.next, struct rgrp_list, list);
+		osi_list_del(&rgd->list);
+		if(rgd->bits)
+			free(rgd->bits);
 		free(rgd);
 	}
 
 	for(i = 0; i < FSCK_HASH_SIZE; i++) {
-		while(!osi_list_empty(&sdp->inode_hash[i])) {
+		while(!osi_list_empty(&inode_hash[i])) {
 			struct inode_info *ii;
-			ii = osi_list_entry(sdp->inode_hash[i].next,
-					    struct inode_info, list);
+			ii = osi_list_entry(inode_hash[i].next, struct inode_info, list);
 			osi_list_del(&ii->list);
 			free(ii);
 		}
-		while(!osi_list_empty(&sdp->dir_hash[i])) {
+		while(!osi_list_empty(&dir_hash[i])) {
 			struct dir_info *di;
-			di = osi_list_entry(sdp->dir_hash[i].next,
-					    struct dir_info, list);
+			di = osi_list_entry(dir_hash[i].next, struct dir_info, list);
 			osi_list_del(&di->list);
 			free(di);
 		}
 	}
 
-	block_list_destroy(sdp->bl);
+	gfs2_block_list_destroy(bl);
 }
 
 
@@ -173,15 +137,14 @@ static void empty_super_block(struct fsck_sb *sdp)
  *
  * Returns: 0 on success, -1 on failure
  */
-static int set_block_ranges(struct fsck_sb *sdp)
+static int set_block_ranges(struct gfs2_sbd *sdp)
 {
 
-	struct fsck_rgrp *rgd;
+	struct rgrp_list *rgd;
 	struct gfs2_rindex *ri;
 	osi_list_t *tmp;
-	char buf[sdp->sb.sb_bsize];
+	char buf[sdp->sd_sb.sb_bsize];
 	uint64_t rmax = 0;
-	uint64_t jmax = 0;
 	uint64_t rmin = 0;
 	int error;
 
@@ -189,31 +152,30 @@ static int set_block_ranges(struct fsck_sb *sdp)
 
 	for (tmp = sdp->rglist.next; tmp != &sdp->rglist; tmp = tmp->next)
 	{
-		rgd = osi_list_entry(tmp, struct fsck_rgrp, rd_list);
-		ri = &rgd->rd_ri;
+		rgd = osi_list_entry(tmp, struct rgrp_list, list);
+		ri = &rgd->ri;
 		if (ri->ri_data0 + ri->ri_data - 1 > rmax)
 			rmax = ri->ri_data0 + ri->ri_data - 1;
 		if (!rmin || ri->ri_data0 < rmin)
 			rmin = ri->ri_data0;
 	}
 
-	sdp->last_fs_block = rmax;
+	last_fs_block = rmax;
 
-	sdp->last_data_block = rmax;
-	sdp->first_data_block = rmin;
+	last_data_block = rmax;
+	first_data_block = rmin;
 
-	if(do_lseek(sdp->diskfd, (sdp->last_fs_block * sdp->sb.sb_bsize))){
+	if(do_lseek(sdp->device_fd, (last_fs_block * sdp->sd_sb.sb_bsize))){
 		log_crit("Can't seek to last block in file system: %"
-			 PRIu64"\n", sdp->last_fs_block);
+			 PRIu64"\n", last_fs_block);
 		goto fail;
 	}
 
-	memset(buf, 0, sdp->sb.sb_bsize);
-	error = read(sdp->diskfd, buf, sdp->sb.sb_bsize);
-	if (error != sdp->sb.sb_bsize){
+	memset(buf, 0, sdp->sd_sb.sb_bsize);
+	error = read(sdp->device_fd, buf, sdp->sd_sb.sb_bsize);
+	if (error != sdp->sd_sb.sb_bsize){
 		log_crit("Can't read last block in file system (%u), "
-			 "last_fs_block: %"PRIu64"\n",
-			 error, sdp->last_fs_block);
+			 "last_fs_block: %"PRIu64"\n", error, last_fs_block);
 		goto fail;
 	}
 
@@ -230,12 +192,11 @@ static int set_block_ranges(struct fsck_sb *sdp)
  *
  * Returns: 0 on success, -1 on failure
  */
-static int fill_super_block(struct fsck_sb *sdp)
+static int fill_super_block(struct gfs2_sbd *sdp)
 {
 	uint32_t i;
-	struct fsck_inode *ip = NULL;
 	char *buf;
-	struct gfs2_inum_range ir;
+	uint64_t inumbuf;
 	struct gfs2_statfs_change sc;
 
 	sync();
@@ -245,28 +206,29 @@ static int fill_super_block(struct fsck_sb *sdp)
 	 ********************************************************************/
 	log_info("Initializing lists...\n");
 	osi_list_init(&sdp->rglist);
+	osi_list_init(&sdp->buf_list);
 	for(i = 0; i < FSCK_HASH_SIZE; i++) {
-		osi_list_init(&sdp->dir_hash[i]);
-		osi_list_init(&sdp->inode_hash[i]);
+		osi_list_init(&dir_hash[i]);
+		osi_list_init(&inode_hash[i]);
+		osi_list_init(&sdp->buf_hash[i]);
 	}
 
 	/********************************************************************
 	 ************  next, read in on-disk SB and set constants  **********
 	 ********************************************************************/
-	sdp->sb.sb_bsize = 512;
-	if (sdp->sb.sb_bsize < GFS2_BASIC_BLOCK)
-		sdp->sb.sb_bsize = GFS2_BASIC_BLOCK;
+	sdp->sd_sb.sb_bsize = GFS2_DEFAULT_BSIZE;
+	sdp->bsize = sdp->sd_sb.sb_bsize;
 
-	if(sizeof(struct gfs2_sb) > sdp->sb.sb_bsize){
+	if(sizeof(struct gfs2_sb) > sdp->sd_sb.sb_bsize){
 		log_crit("GFS superblock is larger than the blocksize!\n");
-		log_debug("sizeof(struct gfs2_sb) > sdp->sb.sb_bsize\n");
+		log_debug("sizeof(struct gfs2_sb) > sdp->sd_sb.sb_bsize\n");
 		return -1;
 	}
 
+	compute_constants(sdp);
 	if(read_sb(sdp) < 0){
 		return -1;
 	}
-
 
 	/*******************************************************************
 	 ******************  Initialize important inodes  ******************
@@ -275,40 +237,34 @@ static int fill_super_block(struct fsck_sb *sdp)
 	log_info("Initializing special inodes...\n");
 
 	/* Get master dinode */
-	load_inode(sdp, sdp->sb.sb_master_dir.no_addr, &sdp->sb_master_dir);
+	sdp->master_dir = gfs2_load_inode(sdp, sdp->sd_sb.sb_master_dir.no_addr);
+	/* Get root dinode */
+	sdp->md.rooti = gfs2_load_inode(sdp, sdp->sd_sb.sb_root_dir.no_addr);
+
 	/* Look for "inum" entry in master dinode */
-	fs_lookupi(sdp->sb_master_dir, &(osi_filename_t){"inum",4}, &sdp->md.inum);
+	gfs2_lookupi(sdp->master_dir, "inum", 4, &sdp->md.inum);
 	/* Read inum entry into buffer */
-	/* FIXME finish this */
-	buf = malloc(sdp->md.inum->i_di.di_size);
-
-	readi(sdp->md.inum, buf, 0, sdp->md.inum->i_di.di_size);
+	gfs2_readi(sdp->md.inum, &inumbuf, 0, sdp->md.inum->i_di.di_size);
 	/* call gfs2_inum_range_in() to retrieve range */
-	sdp->md.next_inum = le64_to_cpu((uint64_t) buf);
+	sdp->md.next_inum = be64_to_cpu(inumbuf);
 
-	free(buf);
-
-	fs_lookupi(sdp->sb_master_dir, &(osi_filename_t){"statfs",6}, &sdp->md.statfs);
+	gfs2_lookupi(sdp->master_dir, "statfs", 6, &sdp->md.statfs);
 	/* Read inum entry into buffer */
 	/* FIXME finish this */
 	buf = malloc(sdp->md.statfs->i_di.di_size);
-	readi(sdp->md.statfs, buf, 0, sdp->md.statfs->i_di.di_size);
+	gfs2_readi(sdp->md.statfs, buf, 0, sdp->md.statfs->i_di.di_size);
 	/* call gfs2_inum_range_in() to retrieve range */
 	gfs2_statfs_change_in(&sc, buf);
 	free(buf);
 
 
-	fs_lookupi(sdp->sb_master_dir, &(osi_filename_t){"jindex",6}, &sdp->md.jiinode);
+	gfs2_lookupi(sdp->master_dir, "jindex", 6, &sdp->md.jiinode);
 
-	fs_lookupi(sdp->sb_master_dir, &(osi_filename_t){"rindex",6}, &sdp->md.riinode);
+	gfs2_lookupi(sdp->master_dir, "rindex", 6, &sdp->md.riinode);
 
-	fs_lookupi(sdp->sb_master_dir, &(osi_filename_t){"quota",5}, &sdp->md.qinode);
+	gfs2_lookupi(sdp->master_dir, "quota", 5, &sdp->md.qinode);
 
-	fs_lookupi(sdp->sb_master_dir, &(osi_filename_t){"root",4}, &sdp->md.rooti);
-
-	fs_lookupi(sdp->sb_master_dir, &(osi_filename_t){"quota",5}, &sdp->md.qinode);
-
-	fs_lookupi(sdp->sb_master_dir, &(osi_filename_t){"per_node",8}, &sdp->md.pinode);
+	gfs2_lookupi(sdp->master_dir, "per_node", 8, &sdp->md.pinode);
 
 	/* FIXME fill in per_node structure */
 
@@ -336,7 +292,7 @@ static int fill_super_block(struct fsck_sb *sdp)
 		goto fail;
 	}
 
-	sdp->bl = block_list_create(sdp->last_fs_block+1, gbmap);
+	bl = gfs2_block_list_create(last_fs_block+1);
 
 	return 0;
 
@@ -350,17 +306,17 @@ static int fill_super_block(struct fsck_sb *sdp)
  * init_sbp - initialize superblock pointer
  *
  */
-static int init_sbp(struct fsck_sb *sbp)
+static int init_sbp(struct gfs2_sbd *sbp)
 {
-	if(sbp->opts->no) {
-		if ((sbp->diskfd = open(sbp->opts->device, O_RDONLY)) < 0) {
-			log_crit("Unable to open device: %s\n", sbp->opts->device);
+	if(opts.no) {
+		if ((sbp->device_fd = open(opts.device, O_RDONLY)) < 0) {
+			log_crit("Unable to open device: %s\n", opts.device);
 			return -1;
 		}
 	} else {
 		/* read in sb from disk */
-		if ((sbp->diskfd = open(sbp->opts->device, O_RDWR)) < 0){
-			log_crit("Unable to open device: %s\n", sbp->opts->device);
+		if ((sbp->device_fd = open(opts.device, O_RDWR)) < 0){
+			log_crit("Unable to open device: %s\n", opts.device);
 			return -1;
 		}
 	}
@@ -370,7 +326,7 @@ static int init_sbp(struct fsck_sb *sbp)
 	}
 
 	/* Change lock protocol to be fsck_* instead of lock_* */
-	if(!sbp->opts->no) {
+	if(!opts.no) {
 		if(block_mounters(sbp, 1)) {
 			log_err("Unable to block other mounters\n");
 			return -1;
@@ -387,28 +343,27 @@ static int init_sbp(struct fsck_sb *sbp)
 	return 0;
 }
 
-static void destroy_sbp(struct fsck_sb *sbp)
+static void destroy_sbp(struct gfs2_sbd *sbp)
 {
-	if(!sbp->opts->no) {
+	if(!opts.no) {
 		if(block_mounters(sbp, 0)) {
 			log_warn("Unable to unblock other mounters - manual intevention required\n");
 			log_warn("Use 'gfs_tool sb <device> proto' to fix\n");
 		}
-		fsync(sbp->diskfd);
+		fsync(sbp->device_fd);
 	}
 	empty_super_block(sbp);
-	close(sbp->diskfd);
+	close(sbp->device_fd);
 }
 
-int initialize(struct fsck_sb *sbp)
+int initialize(struct gfs2_sbd *sbp)
 {
 
 	return init_sbp(sbp);
 
 }
 
-void destroy(struct fsck_sb *sbp)
+void destroy(struct gfs2_sbd *sbp)
 {
 	destroy_sbp(sbp);
-
 }

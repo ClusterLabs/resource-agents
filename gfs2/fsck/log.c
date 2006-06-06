@@ -18,7 +18,7 @@
 #include <sys/select.h>
 #include <unistd.h>
 
-#include "fsck_incore.h"
+#include "libgfs2.h"
 #include "log.h"
 
 #define _(String) gettext(String)
@@ -38,7 +38,8 @@ void decrease_verbosity(void)
 	_state.print_level--;
 }
 
-void print_msg(int priority, char *file, int line, const char *format, va_list args) {
+void print_msg(int priority, char *file, int line, const char *format,
+			   va_list args) {
 
 	switch (priority) {
 
@@ -61,7 +62,8 @@ void print_msg(int priority, char *file, int line, const char *format, va_list a
 }
 
 
-void print_fsck_log(int iif, int priority, char *file, int line, const char *format, ...)
+void print_fsck_log(int iif, int priority, char *file, int line,
+					const char *format, ...)
 {
 
 	va_list args;
@@ -80,7 +82,7 @@ void print_fsck_log(int iif, int priority, char *file, int line, const char *for
 
 
 
-int query(struct fsck_sb *sbp, const char *format, ...)
+int query(struct options *opts, const char *format, ...)
 {
 
 	va_list args;
@@ -95,9 +97,9 @@ int query(struct fsck_sb *sbp, const char *format, ...)
 
 	transform = _(format);
 
-	if(sbp->opts->yes)
+	if(opts->yes)
 		return 1;
-	if(sbp->opts->no)
+	if(opts->no)
 		return 0;
 
 	/* Watch stdin (fd 0) to see when it has input. */

@@ -14,12 +14,13 @@
 #include <stdint.h>
 #include <unistd.h>
 
+#include "libgfs2.h"
 #include "osi_list.h"
-#include "fsck_incore.h"
 #include "hash.h"
 #include "inode_hash.h"
+#include "fsck.h"
 
-static uint32_t inode_hash(uint64_t block_no)
+static uint32_t gfs2_inode_hash(uint64_t block_no)
 {
 	unsigned int h;
 
@@ -33,7 +34,7 @@ struct inode_info *inode_hash_search(osi_list_t *buckets, uint64_t key)
 {
 	struct inode_info *ii;
 	osi_list_t *tmp;
-	osi_list_t *bucket = &buckets[inode_hash(key)];
+	osi_list_t *bucket = &buckets[gfs2_inode_hash(key)];
 
 	osi_list_foreach(tmp, bucket) {
 		ii = osi_list_entry(tmp, struct inode_info, list);
@@ -47,7 +48,7 @@ struct inode_info *inode_hash_search(osi_list_t *buckets, uint64_t key)
 int inode_hash_insert(osi_list_t *buckets, uint64_t key, struct inode_info *ii)
 {
 	osi_list_t *tmp;
-	osi_list_t *bucket = &buckets[inode_hash(key)];
+	osi_list_t *bucket = &buckets[gfs2_inode_hash(key)];
 	struct inode_info *itmp = NULL;
 
 	if(osi_list_empty(bucket)) {
@@ -72,7 +73,7 @@ int inode_hash_insert(osi_list_t *buckets, uint64_t key, struct inode_info *ii)
 int inode_hash_remove(osi_list_t *buckets, uint64_t key)
 {
 	osi_list_t *tmp;
-	osi_list_t *bucket = &buckets[inode_hash(key)];
+	osi_list_t *bucket = &buckets[gfs2_inode_hash(key)];
 	struct inode_info *itmp = NULL;
 
 	if(osi_list_empty(bucket)) {
