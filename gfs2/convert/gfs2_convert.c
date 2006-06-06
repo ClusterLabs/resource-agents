@@ -20,6 +20,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <stdarg.h>
+#include <dirent.h>
 
 #include "libgfs.h"
 #include "linux_endian.h"
@@ -47,7 +48,6 @@ char device[256];
 struct inode_block dirs_to_fix;  /* linked list of directories to fix */
 int seconds;
 struct timeval tv;
-uint64_t inode_count;
 uint64_t dirs_fixed;
 uint64_t dirents_fixed;
 char *prog_name = "gfs2_convert"; /* needed by libgfs2 */
@@ -70,27 +70,29 @@ void print_it(const char *label, const char *fmt, const char *fmt2, ...)
 /*                   Fixes all unallocated metadata bitmap states (which are */
 /*                   valid in gfs1 but invalid in gfs2).                     */
 /* ------------------------------------------------------------------------- */
-void convert_bitmaps(int disk_fd, struct gfs2_sbd *sdp, struct rgrp_list *rgd2)
+void convert_bitmaps(struct gfs2_sbd *sdp, struct rgrp_list *rgd2,
+					 int read_disk)
 {
-	uint32_t block;
+	uint32_t blk;
 	int x, y;
 	struct gfs2_rindex *ri;
-	struct gfs2_buffer_head *bh;
 	unsigned char state;
 
 	ri = &rgd2->ri;
-	for (block = 0; block < ri->ri_length; block++) {
-		bh = bread(sdp, ri->ri_addr + block);
-		x = (block) ? sizeof(struct gfs2_meta_header) : 
-			sizeof(struct gfs2_rgrp);
+	gfs2_compute_bitstructs(sdp, rgd2); /* mallocs bh as array */
+	for (blk = 0; blk < ri->ri_length; blk++) {
+		rgd2->bh[blk] = bget_generic(sdp, ri->ri_addr + blk, read_disk,
+									 read_disk);
+		x = (blk) ? sizeof(struct gfs2_meta_header) : sizeof(struct gfs2_rgrp);
 
 		for (; x < sdp->bsize; x++)
 			for (y = 0; y < GFS2_NBBY; y++) {
-				state = (bh->b_data[x] >> (GFS2_BIT_SIZE * y)) & 0x03;
+				state = (rgd2->bh[blk]->b_data[x] >>
+						 (GFS2_BIT_SIZE * y)) & 0x03;
 				if (state == 0x02) /* unallocated metadata state invalid */
-					bh->b_data[x] &= ~(0x02 << (GFS2_BIT_SIZE * y));
+					rgd2->bh[blk]->b_data[x] &= ~(0x02 << (GFS2_BIT_SIZE * y));
 			}
-		brelse(bh);
+		brelse(rgd2->bh[blk], updated);
 	}
 }/* convert_bitmaps */
 
@@ -99,19 +101,20 @@ void convert_bitmaps(int disk_fd, struct gfs2_sbd *sdp, struct rgrp_list *rgd2)
 /* Returns: 0 on success, -1 on failure                                      */
 /* ------------------------------------------------------------------------- */
 static int superblock_cvt(int disk_fd, const struct gfs_sbd *sb1,
-						  struct gfs2_sbd *sb2, uint64_t inode_count)
+						  struct gfs2_sbd *sb2)
 {
 	int x;
 	struct gfs_rgrpd *rgd;
 	struct rgrp_list *rgd2;
 	osi_list_t *tmp;
+	struct gfs2_buffer_head *bh;
 
 	/* --------------------------------- */
 	/* convert the incore sb structure   */
 	/* --------------------------------- */
 	memset(sb2, 0, sizeof(sb2));
 	sb2->bsize = sb1->sd_sb.sb_bsize; /* block size */
-	sb2->journals = sb1->sd_journals; /* number of journals */
+	sb2->md.journals = sb1->sd_journals; /* number of journals */
 	sb2->jsize = GFS2_DEFAULT_JSIZE;
 	sb2->rgsize = GFS2_DEFAULT_RGSIZE;
 	sb2->utsize = GFS2_DEFAULT_UTSIZE;
@@ -126,7 +129,6 @@ static int superblock_cvt(int disk_fd, const struct gfs_sbd *sb1,
 	for (x = 0; x < BUF_HASH_SIZE; x++)
 		osi_list_init(&sb2->buf_hash[x]);
 	compute_constants(sb2);
-	sb2->next_inum = inode_count; /* next inode number available for use */
 
 	/* --------------------------------- */
 	/* convert the ondisk sb structure   */
@@ -156,30 +158,98 @@ static int superblock_cvt(int disk_fd, const struct gfs_sbd *sb1,
 		memset(rgd2, 0, sizeof(struct rgrp_list));
 
 		rgd2->length = rgd->rd_ri.ri_data;
-		sb2->blks_total += rgd->rd_ri.ri_data;
-		sb2->blks_alloced += (rgd->rd_ri.ri_data - rgd->rd_rg.rg_free);
-		sb2->dinodes_alloced += rgd->rd_rg.rg_useddi;
-
 		rgd2->rg.rg_header.mh_magic = GFS_MAGIC;
 		rgd2->rg.rg_header.mh_type = GFS_METATYPE_RG;
 		rgd2->rg.rg_header.mh_format = GFS_FORMAT_RG;
 		rgd2->rg.rg_flags = rgd->rd_rg.rg_flags;
-		rgd2->rg.rg_free = rgd->rd_rg.rg_free;
+		rgd2->rg.rg_free = rgd->rd_rg.rg_free + rgd->rd_rg.rg_freemeta;
 		rgd2->rg.rg_dinodes = rgd->rd_rg.rg_useddi;
+
+		sb2->blks_total += rgd->rd_ri.ri_data;
+		sb2->blks_alloced += (rgd->rd_ri.ri_data - rgd2->rg.rg_free);
+		sb2->dinodes_alloced += rgd->rd_rg.rg_useddi;
 
 		rgd2->ri.ri_addr = rgd->rd_ri.ri_addr;
 		rgd2->ri.ri_length = rgd->rd_ri.ri_length;
 		rgd2->ri.ri_data0 = rgd->rd_ri.ri_data1;
 		rgd2->ri.ri_data = rgd->rd_ri.ri_data;
 		rgd2->ri.ri_bitbytes = rgd->rd_ri.ri_bitbytes;
+		/* commit the changes to a gfs2 buffer */
+		bh = bread(sb2, rgd2->ri.ri_addr); /* get a gfs2 buffer for the rg */
+		gfs2_rgrp_out(&rgd2->rg, bh->b_data);
+		brelse(bh, updated); /* release the buffer */
 		/* Add the new gfs2 rg to our list: We'll output the index later. */
 		osi_list_add_prev((osi_list_t *)&rgd2->list,
 						  (osi_list_t *)&sb2->rglist);
-		for (x = 0; x < rgd->rd_ri.ri_length; x++)
-			convert_bitmaps(disk_fd, sb2, rgd2);
+		convert_bitmaps(sb2, rgd2, TRUE);
 	}
 	return 0;
 }/* superblock_cvt */
+
+/* ------------------------------------------------------------------------- */
+/* adjust_inode - change an inode from gfs1 to gfs2                          */
+/*                                                                           */
+/* Returns: 0 on success, -1 on failure                                      */
+/* ------------------------------------------------------------------------- */
+int adjust_inode(struct gfs2_sbd *sbp, struct gfs2_buffer_head *bh)
+{
+	struct gfs2_inode *inode;
+	struct inode_block *fixdir;
+
+	inode = inode_get(sbp, bh);
+	/* Fix the inode number: */
+	inode->i_di.di_num.no_formal_ino = sbp->md.next_inum;           ;
+	
+	/* Fix the inode type: gfs1 uses di_type, gfs2 uses di_mode. */
+	switch (inode->i_di.__pad1) { /* formerly di_type */
+	case GFS_FILE_DIR:           /* directory        */
+		inode->i_di.di_mode |= S_IFDIR;
+		/* Add this directory to the list of dirs to fix later. */
+		fixdir = malloc(sizeof(struct inode_block));
+		if (!fixdir) {
+			fprintf(stderr,"Error: out of memory.\n");
+			return -1;
+		}
+		memset(fixdir, 0, sizeof(struct inode_block));
+		fixdir->di_addr = inode->i_di.di_num.no_addr;
+		osi_list_add_prev((osi_list_t *)&fixdir->list,
+						  (osi_list_t *)&dirs_to_fix);
+		break;
+	case GFS_FILE_REG:           /* regular file     */
+		inode->i_di.di_mode |= S_IFREG;
+		break;
+	case GFS_FILE_LNK:           /* symlink          */
+		inode->i_di.di_mode |= S_IFLNK;
+		break;
+	case GFS_FILE_BLK:           /* block device     */
+		inode->i_di.di_mode |= S_IFBLK;
+		break;
+	case GFS_FILE_CHR:           /* character device */
+		inode->i_di.di_mode |= S_IFCHR;
+		break;
+	case GFS_FILE_FIFO:          /* fifo / pipe      */
+		inode->i_di.di_mode |= S_IFIFO;
+		break;
+	case GFS_FILE_SOCK:          /* socket           */
+		inode->i_di.di_mode |= S_IFSOCK;
+		break;
+	}
+			
+	/* ----------------------------------------------------------- */
+	/* gfs2 inodes are slightly different from gfs1 inodes in that */
+	/* di_goal_meta has shifted locations and di_goal_data has     */
+	/* changed from 32-bits to 64-bits.  The following code        */
+	/* adjusts for the shift.                                      */
+	/* ----------------------------------------------------------- */
+	inode->i_di.di_goal_meta = inode->i_di.di_goal_data;
+	inode->i_di.di_goal_data = 0; /* make sure the upper 32b are 0 */
+	inode->i_di.di_goal_data = inode->i_di.__pad[0];
+	inode->i_di.__pad[1] = 0;
+	
+	gfs2_dinode_out(&inode->i_di, bh->b_data);
+	sbp->md.next_inum++; /* update inode count */
+	return 0;
+} /* adjust_inode */
 
 /* ------------------------------------------------------------------------- */
 /* inode_renumber - renumber the inodes                                      */
@@ -189,30 +259,27 @@ static int superblock_cvt(int disk_fd, const struct gfs_sbd *sb1,
 /*                                                                           */
 /* Returns: 0 on success, -1 on failure                                      */
 /* ------------------------------------------------------------------------- */
-int inode_renumber(int disk_fd, struct gfs_sbd *sbp,
-				   struct gfs2_sbd *sb2, uint64_t *inode_count)
+int inode_renumber(struct gfs2_sbd *sbp, uint64_t root_inode_addr)
 {
-	struct gfs_rgrpd *rgd;
+	struct rgrp_list *rgd;
 	osi_list_t *tmp;
 	uint64_t block;
-	osi_buf_t *bh;
-	struct gfs_inode *inode;
+	struct gfs2_buffer_head *bh;
 	int first;
-	struct inode_block *fixdir;
+	int error = 0;
 
 	printf("Converting inodes.\n");
-	*inode_count = 1; /* starting inode number */
+	sbp->md.next_inum = 1; /* starting inode numbering */
 	gettimeofday(&tv, NULL);
 	seconds = tv.tv_sec;
 
 	/* ---------------------------------------------------------------- */
 	/* Traverse the resource groups to figure out where the inodes are. */
 	/* ---------------------------------------------------------------- */
-	for (tmp = (osi_list_t *)sbp->sd_rglist.next;
-		 tmp != (osi_list_t *)&sbp->sd_rglist; tmp = tmp->next) {
-		rgd = osi_list_entry(tmp, struct gfs_rgrpd, rd_list);
+	osi_list_foreach(tmp, &sbp->rglist) {
+		rgd = osi_list_entry(tmp, struct rgrp_list, list);
 		first = 1;
-		if (fs_rgrp_read(disk_fd, rgd, FALSE)) {
+		if (gfs2_rgrp_read(sbp, rgd)) {
 			log_crit("Unable to read rgrp.\n");
 			return -1;
 		}
@@ -222,118 +289,74 @@ int inode_renumber(int disk_fd, struct gfs_sbd *sbp,
 			/* doesn't think we hung.  (This may take a long time).       */
 			if (tv.tv_sec - seconds) {
 				seconds = tv.tv_sec;
-				printf("\r%" PRIu64" inodes converted.", *inode_count);
+				printf("\r%" PRIu64" inodes converted.", sbp->md.next_inum);
 				fflush(stdout);
 			}
-			/* Get the next disk inode.  Break out if we reach the end. */
-			if (next_rg_metatype(disk_fd, rgd, &block, GFS_METATYPE_DI, first))
+			/* Get the next metadata block.  Break out if we reach the end. */
+            /* We have to check all metadata blocks because the bitmap may  */
+			/* be "11" (used meta) for both inodes and indirect blocks.     */
+			/* We need to process the inodes and change the indirect blocks */
+			/* to have a bitmap type of "01" (data).                        */
+			if (gfs2_next_rg_metatype(sbp, rgd, &block, 0, first))
 				break;
 			/* If this is the root inode block, remember it for later: */
-			if (block == sbp->sd_sb.sb_root_di.no_addr) {
-				sb2->sd_sb.sb_root_dir.no_addr = block;
-				sb2->sd_sb.sb_root_dir.no_formal_ino = *inode_count;
+			if (block == root_inode_addr) {
+				sbp->sd_sb.sb_root_dir.no_addr = block;
+				sbp->sd_sb.sb_root_dir.no_formal_ino = sbp->md.next_inum;
 			}
-			if (get_and_read_buf(disk_fd, sbp->sd_sb.sb_bsize, block, &bh, 0)){
-				log_crit("Unable to retrieve block %" PRIu64 "\n", block);
-				return -1;
-			}
-			if (copyin_inode(sbp, bh, &inode)) {
-				log_crit("Error fetching inode.\n");
-				relse_buf(bh);
-				return -1;
-			}
-			/* Fix the inode number: */
-			inode->i_di.di_num.no_formal_ino = *inode_count;
+			bh = bread(sbp, block);
+			if (!gfs2_check_meta(bh, GFS_METATYPE_DI)) /* if it is an dinode */
+				error = adjust_inode(sbp, bh);
+			else { /* It's metadata, but not an inode, so fix the bitmap. */
+				int blk, buf_offset;
+				int bitmap_byte; /* byte within the bitmap to fix */
+				int byte_bit; /* bit within the byte */
 
-			/* Fix the inode type: gfs1 uses di_type, gfs2 uses di_mode. */
-			switch (inode->i_di.di_type) {
-			case GFS_FILE_DIR:           /* directory        */
-				inode->i_di.di_mode |= S_IFDIR;
-				/* Add this directory to the list of dirs to fix later. */
-				fixdir = malloc(sizeof(struct inode_block));
-				if (!fixdir) {
-					fprintf(stderr,"Error: out of memory.\n");
-					return -1;
+				/* Figure out the absolute bitmap byte we need to fix.   */
+				/* ignoring structure offsets and bitmap blocks for now. */
+				bitmap_byte = (block - rgd->ri.ri_data0) / GFS2_NBBY;
+				byte_bit = (block - rgd->ri.ri_data0) % GFS2_NBBY;
+				/* Now figure out which bitmap block the byte is on */
+				for (blk = 0; blk < rgd->ri.ri_length; blk++) {
+                    /* figure out offset of first bitmap byte for this map: */
+					buf_offset = (blk) ? sizeof(struct gfs2_meta_header) :
+						sizeof(struct gfs2_rgrp);
+					if (bitmap_byte < sbp->bsize) { /* if it's on this page */
+						rgd->bh[blk]->b_data[buf_offset + bitmap_byte] &=
+							~(0x03 << (GFS2_BIT_SIZE * byte_bit));
+						rgd->bh[blk]->b_data[buf_offset + bitmap_byte] |=
+							(0x01 << (GFS2_BIT_SIZE * byte_bit));
+						break;
+					}
+					bitmap_byte -= (sbp->bsize - buf_offset);
 				}
-				memset(fixdir, 0, sizeof(struct inode_block));
-				fixdir->di_addr = inode->i_di.di_num.no_addr;
-				osi_list_add_prev((osi_list_t *)&fixdir->list,
-								  (osi_list_t *)&dirs_to_fix);
-				break;
-			case GFS_FILE_REG:           /* regular file     */
-				inode->i_di.di_mode |= S_IFREG;
-				break;
-			case GFS_FILE_LNK:           /* symlink          */
-				inode->i_di.di_mode |= S_IFLNK;
-				break;
-			case GFS_FILE_BLK:           /* block device     */
-				inode->i_di.di_mode |= S_IFBLK;
-				break;
-			case GFS_FILE_CHR:           /* character device */
-				inode->i_di.di_mode |= S_IFCHR;
-				break;
-			case GFS_FILE_FIFO:          /* fifo / pipe      */
-				inode->i_di.di_mode |= S_IFIFO;
-				break;
-			case GFS_FILE_SOCK:          /* socket           */
-				inode->i_di.di_mode |= S_IFSOCK;
-				break;
 			}
-			
-			/* ----------------------------------------------------------- */
-			/* gfs2 inodes are slightly different from gfs1 inodes in that */
-			/* di_goal_meta has shifted locations and di_goal_data has     */
-			/* changed from 32-bits to 64-bits.  The following code        */
-			/* adjusts for the shift.                                      */
-			/* ----------------------------------------------------------- */
-			inode->i_di.di_rgrp = inode->i_di.di_goal_rgrp;
-			inode->i_di.di_goal_rgrp = 0; /* make sure the upper 32b are 0 */
-			inode->i_di.di_goal_rgrp = inode->i_di.di_goal_dblk;
-			inode->i_di.di_goal_mblk = 0;
-
-			*inode_count = *inode_count + 1; /* update inode count */
-			gfs_dinode_out(&inode->i_di, BH_DATA(bh));
-			if (write_buf(disk_fd, bh, 0) < 0) { /* write out inode */
-				log_crit("Error updating inode.\n");
-				relse_buf(bh);
-				return -1;
-			}
-			relse_buf(bh);
+			brelse(bh, updated);
 			first = 0;
 		} /* while 1 */
-		fs_rgrp_relse(rgd);
+		gfs2_rgrp_relse(rgd, updated);
 	} /* for all rgs */
-	fsync(disk_fd);
+	printf("\r%" PRIu64" inodes converted.", sbp->md.next_inum);
+	fflush(stdout);
 	return 0;
 }/* inode_renumber */
 
 /* ------------------------------------------------------------------------- */
 /* fetch_inum - fetch an inum entry from disk, given its block               */
 /* ------------------------------------------------------------------------- */
-int fetch_inum(int disk_fd, struct gfs_sbd *sbp, uint64_t iblock,
-			   struct gfs_inum *inum)
+int fetch_and_fix_inum(struct gfs2_sbd *sbp, uint64_t iblock,
+					   struct gfs2_inum *inum)
 {
-	osi_buf_t *bh_fix;
-	int error;
-	struct gfs_inode *fix_inode;
+	struct gfs2_buffer_head *bh_fix;
+	struct gfs2_inode *fix_inode;
 
-	error = 0;
-	if (get_and_read_buf(disk_fd, sbp->sd_sb.sb_bsize,
-						 iblock, &bh_fix, 0)) {
-		log_crit("Unable to retrieve block %" PRIu64 "\n", iblock);
-		error = -1;
-	}
-	else if (copyin_inode(sbp, bh_fix, &fix_inode)) {
-		log_crit("Error fetching inode.\n");
-		error = -1;
-	}
-	else {
-		inum->no_formal_ino = fix_inode->i_di.di_num.no_formal_ino;
-		inum->no_addr = fix_inode->i_di.di_num.no_addr;
-	}
-	relse_buf(bh_fix);
-	return error;
-}/* fetch_inum */
+	bh_fix = bread(sbp, iblock);
+	fix_inode = inode_get(sbp, bh_fix);
+	inum->no_formal_ino = fix_inode->i_di.di_num.no_formal_ino;
+	inum->no_addr = fix_inode->i_di.di_num.no_addr;
+	brelse(bh_fix, updated);
+	return 0;
+}/* fetch_and_fix_inum */
 
 /* ------------------------------------------------------------------------- */
 /* process_dirent_info - fix one dirent (directory entry) buffer             */
@@ -343,22 +366,24 @@ int fetch_inum(int disk_fd, struct gfs_sbd *sbp, uint64_t iblock,
 /*                                                                           */
 /* Returns: 0 on success, -1 on failure                                      */
 /* ------------------------------------------------------------------------- */
-int process_dirent_info(int disk_fd, struct gfs_sbd *sbp, osi_buf_t *bh,
-						int dir_entries)
+int process_dirent_info(struct gfs2_inode *dip, struct gfs2_sbd *sbp,
+						struct gfs2_buffer_head *bh, int dir_entries)
 {
 	int error;
-	struct gfs_dirent *dent;
+	struct gfs2_dirent *dent;
 	int de; /* directory entry index */
-
-	error = dirent_first(bh, &dent);
+	
+	error = gfs2_dirent_first(dip, bh, &dent);
 	if (error != IS_LEAF && error != IS_DINODE) {
 		printf("Error retrieving directory.\n");
 		return -1;
 	}
-	/* go through every dirent in the buffer and process it */
-	for (de = 0; de < dir_entries; de++) {
-		struct gfs_inum inum;
+	/* Go through every dirent in the buffer and process it. */
+	/* Turns out you can't trust dir_entries is correct.     */
+	for (de = 0; ; de++) {
+		struct gfs2_inum inum;
 		
+		gettimeofday(&tv, NULL);
 		/* Do more warm fuzzy stuff for the customer. */
 		dirents_fixed++;
 		if (tv.tv_sec - seconds) {
@@ -368,13 +393,14 @@ int process_dirent_info(int disk_fd, struct gfs_sbd *sbp, osi_buf_t *bh,
 			fflush(stdout);
 		}
 		/* fix the dirent's inode number based on the inode */
-		gfs_inum_in(&inum, (char *)&dent->de_inum);
-		error = fetch_inum(disk_fd, sbp, inum.no_addr, &inum);
-		if (error) {
-			printf("Error retrieving inode %" PRIx64 "\n", inum.no_addr);
-			break;
+		gfs2_inum_in(&inum, (char *)&dent->de_inum);
+		if (inum.no_formal_ino) { /* if not a sentinel (placeholder) */
+			error = fetch_and_fix_inum(sbp, inum.no_addr, &inum);
+			if (error) {
+				printf("Error retrieving inode %" PRIx64 "\n", inum.no_addr);
+				break;
+			}
 		}
-		gfs_inum_out(&inum, (char *)&dent->de_inum);
 		/* Fix the dirent's filename hash: They are the same as gfs1 */
 		/* dent->de_hash = cpu_to_be32(gfs2_disk_hash((char *)(dent + 1), */
 		/*                             be16_to_cpu(dent->de_name_len))); */
@@ -407,32 +433,12 @@ int process_dirent_info(int disk_fd, struct gfs_sbd *sbp, osi_buf_t *bh,
 			break;
 		}
 
-		error = dirent_next(bh, &dent);
+		error = gfs2_dirent_next(dip, bh, &dent);
 		if (error)
 			break;
-	}
+	} /* for every directory entry */
 	return 0;
 }/* process_dirent_info */
-
-/* ------------------------------------------------------------------------- */
-/* fix_one_directory_linear - fix one directory's inode numbers.             */
-/*                                                                           */
-/* This is for linear (stuffed) directories (data is in the inode itself).   */
-/*                                                                           */
-/* Returns: 0 on success, -1 on failure                                      */
-/* ------------------------------------------------------------------------- */
-int fix_one_directory_linear(int disk_fd, struct gfs_sbd *sbp,
-							 struct gfs_inode *dip, osi_buf_t *bh)
-{
-	int error;
-
-	error = process_dirent_info(disk_fd, sbp, bh, dip->i_di.di_entries);
-	if (write_buf(disk_fd, bh, 0) < 0) {
-		log_crit("Error updating linear directory.\n");
-		return -1;
-	}
-	return 0;
-}/* fix_one_directory_linear */
 
 /* ------------------------------------------------------------------------- */
 /* fix_one_directory_exhash - fix one directory's inode numbers.             */
@@ -442,10 +448,9 @@ int fix_one_directory_linear(int disk_fd, struct gfs_sbd *sbp,
 /*                                                                           */
 /* Returns: 0 on success, -1 on failure                                      */
 /* ------------------------------------------------------------------------- */
-int fix_one_directory_exhash(int disk_fd, struct gfs_sbd *sbp,
-							 struct gfs_inode *dip)
+int fix_one_directory_exhash(struct gfs2_sbd *sbp, struct gfs2_inode *dip)
 {
-	osi_buf_t *bh_leaf;
+	struct gfs2_buffer_head *bh_leaf;
 	int error;
 	uint64_t leaf_block, prev_leaf_block;
 	uint32_t leaf_num;
@@ -454,10 +459,10 @@ int fix_one_directory_exhash(int disk_fd, struct gfs_sbd *sbp,
 	/* for all the leafs, get the leaf block and process the dirents inside */
 	for (leaf_num = 0; ; leaf_num++) {
 		uint64 buf;
-		struct gfs_leaf leaf;
+		struct gfs2_leaf leaf;
 
-		error = readi(disk_fd, dip, (char *)&buf,
-					  leaf_num * sizeof(uint64), sizeof(uint64));
+		error = gfs2_readi(dip, (char *)&buf, leaf_num * sizeof(uint64),
+						   sizeof(uint64));
 		if (!error) /* end of file */
 			return 0; /* success */
 		else if (error != sizeof(uint64)) {
@@ -465,7 +470,7 @@ int fix_one_directory_exhash(int disk_fd, struct gfs_sbd *sbp,
 			return -1;
 		}
 		else {
-			leaf_block = gfs64_to_cpu(buf);
+			leaf_block = be64_to_cpu(buf);
 			error = 0;
 		}
 		/* leaf blocks may be repeated, so skip the duplicates: */
@@ -473,21 +478,14 @@ int fix_one_directory_exhash(int disk_fd, struct gfs_sbd *sbp,
 			continue;                      /* already converted */
 		prev_leaf_block = leaf_block;
 		/* read the leaf buffer in */
-		error = get_leaf(disk_fd, dip, leaf_block, &bh_leaf);
+		error = gfs2_get_leaf(dip, leaf_block, &bh_leaf);
 		if (error) {
 			printf("Error reading leaf %" PRIx64 "\n", leaf_block);
 			break;
 		}
-		gfs_leaf_in(&leaf, (char *)BH_DATA(bh_leaf)); /* buffer to structure */
-		error = process_dirent_info(disk_fd, sbp, bh_leaf, leaf.lf_entries);
-		if (bh_leaf) {
-			if (write_buf(disk_fd, bh_leaf, 0) < 0) {
-				log_crit("Error updating directory.\n");
-				relse_buf(bh_leaf);
-				return -1;
-			}
-			relse_buf(bh_leaf);
-		}
+		gfs2_leaf_in(&leaf, (char *)bh_leaf->b_data); /* buffer to structure */
+		error = process_dirent_info(dip, sbp, bh_leaf, leaf.lf_entries);
+		brelse(bh_leaf, updated);
 	} /* for leaf_num */
 	return 0;
 }/* fix_one_directory_exhash */
@@ -496,14 +494,13 @@ int fix_one_directory_exhash(int disk_fd, struct gfs_sbd *sbp,
 /* fix_directory_info - sync new inode numbers with directory info           */
 /* Returns: 0 on success, -1 on failure                                      */
 /* ------------------------------------------------------------------------- */
-int fix_directory_info(int disk_fd, struct gfs_sbd *sbp,
-					   osi_list_t *dirs_to_fix)
+int fix_directory_info(struct gfs2_sbd *sbp, osi_list_t *dirs_to_fix)
 {
 	osi_list_t *tmp, *fix;
 	struct inode_block *dir_iblk;
 	uint64_t offset, dirblock;
-	struct gfs_inode *dip;
-	osi_buf_t *bh_dir;
+	struct gfs2_inode *dip;
+	struct gfs2_buffer_head *bh_dir;
 
 	dirs_fixed = 0;
 	dirents_fixed = 0;
@@ -524,33 +521,24 @@ int fix_directory_info(int disk_fd, struct gfs_sbd *sbp,
 		dir_iblk = (struct inode_block *)fix;
 		dirblock = dir_iblk->di_addr; /* addr of dir inode */
 		/* read in the directory inode */
-		if (get_and_read_buf(disk_fd, sbp->sd_sb.sb_bsize, dirblock,
-							 &bh_dir, 0)){
-			log_crit("Unable to retrieve block %" PRIu64 " (%" PRIx64
-					 ")\n", dirblock, dirblock);
-			return -1;
-		}
-		if (copyin_inode(sbp, bh_dir, &dip)) {
-			log_crit("Error fetching inode.\n");
-			relse_buf(bh_dir);
-			return -1;
-		}
+		bh_dir = bread(sbp, dirblock);
+		dip = inode_get(sbp, bh_dir);
 		/* fix the directory: either exhash (leaves) or linear (stuffed) */
 		if (dip->i_di.di_flags & GFS_DIF_EXHASH) {
-			if (fix_one_directory_exhash(disk_fd, sbp, dip)) {
+			if (fix_one_directory_exhash(sbp, dip)) {
 				log_crit("Error fixing exhash directory.\n");
-				relse_buf(bh_dir);
+				brelse(bh_dir, updated);
 				return -1;
 			}
 		}
 		else {
-			if (fix_one_directory_linear(disk_fd, sbp, dip, bh_dir)) {
+			if (process_dirent_info(dip, sbp, bh_dir, dip->i_di.di_entries)) {
 				log_crit("Error fixing linear directory.\n");
-				relse_buf(bh_dir);
+				brelse(bh_dir, updated);
 				return -1;
 			}
 		}
-		relse_buf(bh_dir);
+		brelse(bh_dir, updated);
 	}
 	/* Free the last entry in memory: */
 	if (tmp) {
@@ -582,15 +570,12 @@ static int fill_super_block(int disk_fd, struct gfs_sbd *sdp)
 	sdp->sd_jiinode = ip;
 	/* get root dinode */
 	if(!load_inode(disk_fd, sdp, sdp->sd_sb.sb_root_di.no_addr, &ip)) {
-		if(!check_inode(ip)) {
+		if(!check_inode(ip))
 			sdp->sd_rooti = ip;
-		}
-		else {
+		else
 			free(ip);
-		}
-	} else {
+	} else
 		log_warn("Unable to load root inode\n");
-	}
 	/* read in the journal index data */
 	if (ji_update(disk_fd, sdp)){
 		log_err("Unable to read in journal index inode.\n");
@@ -702,7 +687,6 @@ int journ_space_to_rg(int disk_fd, struct gfs_sbd *sdp, struct gfs2_sbd *sdp2)
 	struct gfs_rgrpd *rgd, *rgdhigh;
 	struct rgrp_list *rgd2;
 	osi_list_t *tmp;
-	struct gfs2_buffer_head *bh;
 	struct gfs2_meta_header mh;
 
 	mh.mh_magic = GFS2_MAGIC;
@@ -740,7 +724,6 @@ int journ_space_to_rg(int disk_fd, struct gfs_sbd *sdp, struct gfs2_sbd *sdp2)
 		rgd = malloc(sizeof(struct gfs_rgrpd));
 		if (!rgd) {
 			log_crit("Error: out of memory creating new rg entry.\n");
-			free(rgd);
 			return -1;
 		}
 		memset(rgd, 0, sizeof(struct gfs_rgrpd));
@@ -771,9 +754,9 @@ int journ_space_to_rg(int disk_fd, struct gfs_sbd *sdp, struct gfs2_sbd *sdp2)
 			return -1;
 		}
 		memset(rgd2, 0, sizeof(struct rgrp_list));
-		rgd2->rg.rg_header.mh_magic = GFS_MAGIC;
-		rgd2->rg.rg_header.mh_type = GFS_METATYPE_RG;
-		rgd2->rg.rg_header.mh_format = GFS_FORMAT_RG;
+		rgd2->rg.rg_header.mh_magic = GFS2_MAGIC;
+		rgd2->rg.rg_header.mh_type = GFS2_METATYPE_RG;
+		rgd2->rg.rg_header.mh_format = GFS2_FORMAT_RG;
 		rgd2->rg.rg_flags = 0;
 		rgd2->rg.rg_free = rgd->rd_ri.ri_data;
 		rgd2->rg.rg_dinodes = 0;
@@ -783,14 +766,12 @@ int journ_space_to_rg(int disk_fd, struct gfs_sbd *sdp, struct gfs2_sbd *sdp2)
 		rgd2->ri.ri_data0 = rgd->rd_ri.ri_data1;
 		rgd2->ri.ri_data = rgd->rd_ri.ri_data;
 		rgd2->ri.ri_bitbytes = rgd->rd_ri.ri_bitbytes;
-		for (x = 0; x < rgd->rd_ri.ri_length; x++) {
-			bh = bread(sdp2, rgd->rd_ri.ri_addr + x);
-			convert_bitmaps(disk_fd, sdp2, rgd2);
+		convert_bitmaps(sdp2, rgd2, FALSE); /* allocates rgd2->bh */
+		for (x = 0; x < rgd2->ri.ri_length; x++) {
 			if (x)
-				gfs2_meta_header_out(&mh, bh->b_data);
+				gfs2_meta_header_out(&mh, rgd2->bh[x]->b_data);
 			else
-				gfs2_rgrp_out(&rgd2->rg, bh->b_data);
-			brelse(bh);
+				gfs2_rgrp_out(&rgd2->rg, rgd2->bh[x]->b_data);
 		}
 		/* Add the new rg to our list: We'll output the rg index later. */
 		osi_list_add_prev((osi_list_t *)&rgd->rd_list,
@@ -807,17 +788,17 @@ int journ_space_to_rg(int disk_fd, struct gfs_sbd *sdp, struct gfs2_sbd *sdp2)
 /* ------------------------------------------------------------------------- */
 void update_inode_file(struct gfs2_sbd *sdp)
 {
-	struct gfs2_inode *ip = sdp->inum_inode;
+	struct gfs2_inode *ip = sdp->md.inum;
 	uint64_t buf;
 	int count;
 	
-	buf = cpu_to_be64(sdp->next_inum);
+	buf = cpu_to_be64(sdp->md.next_inum);
 	count = gfs2_writei(ip, &buf, 0, sizeof(uint64_t));
 	if (count != sizeof(uint64_t))
 		die("update_inode_file\n");
 	
 	if (sdp->debug)
-		printf("\nNext Inum: %"PRIu64"\n", sdp->next_inum);
+		printf("\nNext Inum: %"PRIu64"\n", sdp->md.next_inum);
 }/* update_inode_file */
 
 /* ------------------------------------------------------------------------- */
@@ -825,7 +806,7 @@ void update_inode_file(struct gfs2_sbd *sdp)
 /* ------------------------------------------------------------------------- */
 void write_statfs_file(struct gfs2_sbd *sdp)
 {
-	struct gfs2_inode *ip = sdp->statfs_inode;
+	struct gfs2_inode *ip = sdp->md.statfs;
 	struct gfs2_statfs_change sc;
 	char buf[sizeof(struct gfs2_statfs_change)];
 	int count;
@@ -899,18 +880,29 @@ int main(int argc, char **argv)
 			fprintf(stderr, "%s: Unable to fill superblock.\n", device);
 	}
 	/* ---------------------------------------------- */
+	/* Convert incore gfs1 sb to gfs2 sb              */
+	/* ---------------------------------------------- */
+	if (!error) {
+		printf("Converting superblock.\n");
+		error = superblock_cvt(disk_fd, &sb, &sb2);
+		if (error)
+			fprintf(stderr, "%s: Unable to convert superblock.\n", device);
+		bcommit(&sb2); /* write the buffers to disk */
+	}
+	/* ---------------------------------------------- */
 	/* Renumber the inodes consecutively.             */
 	/* ---------------------------------------------- */
 	if (!error) {
-		error = inode_renumber(disk_fd, &sb, &sb2, &inode_count);
+		error = inode_renumber(&sb2, sb.sd_sb.sb_root_di.no_addr);
 		if (error)
 			fprintf(stderr, "\n%s: Error renumbering inodes.\n", device);
+		bcommit(&sb2); /* write the buffers to disk */
 	}
 	/* ---------------------------------------------- */
 	/* Fix the directories to match the new numbers.  */
 	/* ---------------------------------------------- */
 	if (!error) {
-		error = fix_directory_info(disk_fd, &sb, (osi_list_t *)&dirs_to_fix);
+		error = fix_directory_info(&sb2, (osi_list_t *)&dirs_to_fix);
 		printf("\r%" PRIu64 " directories, %" PRIu64 " dirents fixed.",
 			   dirs_fixed, dirents_fixed);
 		fflush(stdout);
@@ -918,24 +910,14 @@ int main(int argc, char **argv)
 			fprintf(stderr, "\n%s: Error fixing directories.\n", device);
 	}
 	/* ---------------------------------------------- */
-	/* Convert incore gfs1 sb to gfs2 sb              */
-	/* ---------------------------------------------- */
-	if (!error) {
-		printf("\nConverting superblock.\n");
-		error = superblock_cvt(disk_fd, &sb, &sb2, inode_count);
-		if (error)
-			fprintf(stderr, "%s: Unable to convert superblock.\n", device);
-		bsync(&sb2); /* write the buffers to disk */
-	}
-	/* ---------------------------------------------- */
 	/* Convert journal space to rg space              */
 	/* ---------------------------------------------- */
 	if (!error) {
-		printf("Converting journals.\n");
+		printf("\nConverting journals.\n");
 		error = journ_space_to_rg(disk_fd, &sb, &sb2);
 		if (error)
 			fprintf(stderr, "%s: Error converting journal space.\n", device);
-		bsync(&sb2); /* write the buffers to disk */
+		bcommit(&sb2); /* write the buffers to disk */
 	}
 	/* ---------------------------------------------- */
 	/* Create our system files and directories.       */
@@ -953,6 +935,7 @@ int main(int argc, char **argv)
 		build_inum(&sb2); /* Does not do inode_put */
 		/* Create the statfs file */
 		build_statfs(&sb2); /* Does not do inode_put */
+
 		/* Create the resource group index file */
 		build_rindex(&sb2);
 		/* Create the quota file */
@@ -961,13 +944,30 @@ int main(int argc, char **argv)
 		update_inode_file(&sb2);
 		write_statfs_file(&sb2);
 
-		inode_put(sb2.master_dir);
-		inode_put(sb2.inum_inode);
-		inode_put(sb2.statfs_inode);
+		inode_put(sb2.master_dir, updated);
+		inode_put(sb2.md.inum, updated);
+		inode_put(sb2.md.statfs, updated);
 
 		bh = bread(&sb2, sb2.sb_addr);
 		gfs2_sb_out(&sb2.sd_sb, bh->b_data);
-		brelse(bh);
+		brelse(bh, updated);
+		bcommit(&sb2); /* write the buffers to disk */
+
+		/* Now delete the now-obsolete gfs1 files: */
+		printf("Removing obsolete gfs1 structures.\n");
+		fflush(stdout);
+		/* Delete the Journal index: */
+		gfs2_freedi(&sb2, sb.sd_sb.sb_jindex_di.no_addr);
+		/* Delete the rgindex: */
+		gfs2_freedi(&sb2, sb.sd_sb.sb_rindex_di.no_addr);
+		/* Delete the Quota file: */
+		gfs2_freedi(&sb2, sb.sd_sb.sb_quota_di.no_addr);
+		/* Delete the License file: */
+		gfs2_freedi(&sb2, sb.sd_sb.sb_license_di.no_addr);
+		/* Now free all the rgrps */
+		gfs2_rgrp_free(&sb2, updated);
+		printf("Committing changes to disk.\n");
+		fflush(stdout);
 		bsync(&sb2); /* write the buffers to disk */
 		error = fsync(disk_fd);
 		if (error)
