@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.527 $) dnl cvs revision
+AC_REVISION($Revision: 1.528 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -2585,6 +2585,7 @@ include/Makefile						\
         include/clplumbing/Makefile				\
 	include/crm/Makefile					\
 		include/crm/common/Makefile			\
+		include/crm/pengine/Makefile			\
 	include/lrm/Makefile					\
 	include/mgmt/Makefile					\
         include/ocf/Makefile					\
@@ -2607,6 +2608,7 @@ dnl			lib/bindings/perl/cl_raw/Makefile.PL	\
 	lib/crm/Makefile					\
 	lib/crm/common/Makefile					\
 	lib/crm/cib/Makefile					\
+	lib/crm/pengine/Makefile				\
 	lib/crm/transition/Makefile				\
 	lib/lrm/Makefile					\
 	lib/mgmt/Makefile					\
