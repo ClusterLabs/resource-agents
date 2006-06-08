@@ -33,3 +33,5 @@ ocf-shellfuncs
 ClusterMon
 Xen
 pingd
+SysInfo
+VIPArip
