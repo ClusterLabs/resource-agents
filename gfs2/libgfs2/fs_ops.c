@@ -502,14 +502,12 @@ int gfs2_readi(struct gfs2_inode *ip, void *buf,
 	return copied;
 }
 
-static void
-copy_from_mem(struct gfs2_buffer_head *bh, void **buf,
-	      unsigned int offset, unsigned int size)
+static void copy_from_mem(struct gfs2_buffer_head *bh, void **buf,
+						  unsigned int offset, unsigned int size)
 {
 	char **p = (char **)buf;
 
 	memcpy(bh->b_data + offset, *p, size);
-
 	*p += size;
 }
 
@@ -526,7 +524,6 @@ int gfs2_writei(struct gfs2_inode *ip, void *buf,
 	int isdir = !!(S_ISDIR(ip->i_di.di_flags));
 	const uint64_t start = offset;
 	int copied = 0;
-	enum update_flags f;
 
 	if (!size)
 		return 0;
@@ -558,7 +555,6 @@ int gfs2_writei(struct gfs2_inode *ip, void *buf,
 			block_map(ip, lblock, &new, &dblock, &extlen);
 		}
 
-		f = not_updated;
 		if (new) {
 			bh = bget(sdp, dblock);
 			if (isdir) {
@@ -567,12 +563,11 @@ int gfs2_writei(struct gfs2_inode *ip, void *buf,
 				mh.mh_type = GFS2_METATYPE_JD;
 				mh.mh_format = GFS2_FORMAT_JD;
 				gfs2_meta_header_out(&mh, bh->b_data);
-				f = updated;
 			}
 		} else
 			bh = bread(sdp, dblock);
 		copy_from_mem(bh, &buf, o, amount);
-		brelse(bh, f);
+		brelse(bh, updated);
 
 		copied += amount;
 		lblock++;
@@ -1084,9 +1079,8 @@ dir_make_exhash(struct gfs2_inode *dip)
 	dip->i_di.di_depth = y;
 }
 
-static void
-dir_l_add(struct gfs2_inode *dip, char *filename, int len,
-		  struct gfs2_inum *inum, unsigned int type)
+static void dir_l_add(struct gfs2_inode *dip, char *filename, int len,
+					  struct gfs2_inum *inum, unsigned int type)
 {
 	struct gfs2_dirent *dent;
 
@@ -1564,11 +1558,10 @@ int gfs2_freedi(struct gfs2_sbd *sdp, uint64_t block)
 	struct gfs2_inode *ip;
 	struct gfs2_buffer_head *bh;
 	int x;
-	uint64_t p, freed_blocks;
+	uint64_t p;
 	unsigned char *buf;
 	struct rgrp_list *rgd;
 	
-	freed_blocks = 0;
 	bh = bread(sdp, block);
 	ip = inode_get(sdp, bh);
 	if (ip->i_di.di_height > 0) {
@@ -1578,14 +1571,19 @@ int gfs2_freedi(struct gfs2_sbd *sdp, uint64_t block)
 			 x += sizeof(uint64_t)) {
 			p = be64_to_cpu(*(uint64_t *)(buf + x));
 			if (p) {
-				freed_blocks++;
 				gfs2_set_bitmap(sdp, p, GFS2_BLKST_FREE);
+				/* We need to adjust the free space count for the freed */
+                /* indirect block. */
+				rgd = gfs2_blk2rgrpd(sdp, p); /* find the rg for indir block */
+				bh = bget(sdp, rgd->ri.ri_addr); /* get the buffer its rg */
+				rgd->rg.rg_free++; /* adjust the free count */
+				gfs2_rgrp_out(&rgd->rg, bh->b_data); /* back to the buffer */
+				brelse(bh, updated); /* release the buffer */
 			}
 		}
 	}
 	/* Set the bitmap type for inode to free space: */
 	gfs2_set_bitmap(sdp, ip->i_di.di_num.no_addr, GFS2_BLKST_FREE);
-	freed_blocks++; /* one for the inode itself */
 	inode_put(ip, updated);
 	/* Now we have to adjust the rg freespace count and inode count: */
 	rgd = gfs2_blk2rgrpd(sdp, block);
@@ -1593,7 +1591,7 @@ int gfs2_freedi(struct gfs2_sbd *sdp, uint64_t block)
 	/* buffer in memory for the rg on disk because we used it to fix the */
 	/* bitmaps, some of which are on the same block on disk.             */
 	bh = bread(sdp, rgd->ri.ri_addr); /* get the buffer */
-	rgd->rg.rg_free += freed_blocks;
+	rgd->rg.rg_free++;
 	rgd->rg.rg_dinodes--; /* one less inode in use */
 	gfs2_rgrp_out(&rgd->rg, bh->b_data);
 	brelse(bh, updated); /* release the buffer */

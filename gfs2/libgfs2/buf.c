@@ -188,15 +188,17 @@ void bsync(struct gfs2_sbd *sdp)
 /* commit buffers to disk but do not discard */
 void bcommit(struct gfs2_sbd *sdp)
 {
-	osi_list_t *tmp;
+	osi_list_t *tmp, *x;
 	struct gfs2_buffer_head *bh;
 
-	osi_list_foreach(tmp, &sdp->buf_list) {
+	osi_list_foreach_safe(tmp, &sdp->buf_list, x) {
 		bh = osi_list_entry(tmp, struct gfs2_buffer_head, b_list);
-		if (bh->b_changed) {
+		if (!bh->b_count)             /* if not reserved for later */
+			write_buffer(sdp, bh);    /* write the data, free the memory */
+		else if (bh->b_changed) {     /* if buffer has changed */
 			do_lseek(sdp, bh->b_blocknr * sdp->bsize);
-			do_write(sdp, bh->b_data, sdp->bsize);
-			bh->b_changed = FALSE;
+			do_write(sdp, bh->b_data, sdp->bsize); /* write it out */
+			bh->b_changed = FALSE;    /* no longer changed */
 		}
 	}
 }
