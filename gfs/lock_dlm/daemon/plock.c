@@ -32,8 +32,9 @@
 #include <limits.h>
 #include <unistd.h>
 
-#include "lock_dlm.h"
 #include "lock_dlm_plock.h"
+
+#include "lock_dlm.h"
 
 #define PROC_MISC               "/proc/misc"
 #define PROC_DEVICES            "/proc/devices"
@@ -494,7 +495,7 @@ static int lock_internal(struct mountgroup *mg, struct resource *r,
 			 struct gdlm_plock_info *in)
 {
 	struct posix_lock *po, *safe;
-	int rv;
+	int rv = 0;
 
 	list_for_each_entry_safe(po, safe, &r->locks, list) {
 		if (po->pid != in->pid)
@@ -700,7 +701,7 @@ void receive_plock(struct mountgroup *mg, char *buf, int len, int from)
 {
 	struct gdlm_plock_info info;
 	struct gdlm_header *hd = (struct gdlm_header *) buf;
-	int rv;
+	int rv = 0;
 
 	memcpy(&info, buf + sizeof(struct gdlm_header), sizeof(info));
 

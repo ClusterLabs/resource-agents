@@ -30,15 +30,13 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/errno.h>
-#include <linux/netlink.h>
+
+#include "netlink.h"
 
 #include "list.h"
 #include "linux_endian.h"
 #include "libgroup.h"
 #include "libdlm.h"
-
-/* FIXME: linux-2.6.11/include/linux/netlink.h (use header) */
-#define NETLINK_KOBJECT_UEVENT  15
 
 #define MAXARGS			64
 #define MAXLINE			256
@@ -201,11 +199,16 @@ enum {
 	MSG_RECOVERY_DONE,
 };
 
+#define GDLM_VER_MAJOR 1
+#define GDLM_VER_MINOR 0
+#define GDLM_VER_PATCH 0
+
 struct gdlm_header {
 	uint16_t		version[3];
 	uint16_t		type;			/* MSG_ */
 	uint32_t		nodeid;			/* sender */
 	uint32_t		to_nodeid;		/* 0 if to all */
+	char			name[MAXNAME];
 };
 
 
@@ -214,6 +217,8 @@ struct mountgroup *find_mg_id(uint32_t id);
 
 int setup_cman(void);
 int process_cman(void);
+int setup_cpg(void);
+int process_cpg(void);
 int setup_groupd(void);
 int process_groupd(void);
 int setup_libdlm(void);

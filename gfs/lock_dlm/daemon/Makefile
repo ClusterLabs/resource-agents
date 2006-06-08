@@ -15,14 +15,15 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 include ${top_srcdir}/make/defines.mk
 
-CFLAGS+= -g \
+CFLAGS+= -g -I. -O2 \
+	-idirafter ${KERNEL_SRC}/include/linux \
 	-I${incdir} \
 	-I${top_srcdir}/config \
 	-I../../include/ \
 	-I../../../group/lib/ \
 	-I../../../cman/lib/ \
-	-I../../../dlm/lib/ \
-	-I../../../gfs-kernel/src/dlm/
+	-I../../../cman/daemon/openais/trunk/include/ \
+	-I../../../dlm/lib/
 
 TARGET=gfs_controld
 
@@ -33,12 +34,14 @@ copytobin: all
 
 gfs_controld: 	main.o \
 		member_cman.o \
+		cpg.o \
 		group.o \
 		plock.o \
 		recover.o \
 		withdraw.o \
 		../../../dlm/lib/libdlm_lt.a \
 		../../../cman/lib/libcman.a \
+		../../../cman/daemon/openais/trunk/lib/libcpg.a \
 		../../../group/lib/libgroup.a
 	$(CC) $(LDFLAGS) -o $@ $^
 
@@ -47,6 +50,9 @@ main.o: main.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 member_cman.o: member_cman.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+cpg.o: cpg.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 recover.o: recover.c

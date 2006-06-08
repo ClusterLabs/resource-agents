@@ -25,6 +25,7 @@ static struct client client[MAX_CLIENTS];
 static struct pollfd pollfd[MAX_CLIENTS];
 
 static int cman_fd;
+static int cpg_fd;
 static int listen_fd;
 static int groupd_fd;
 static int uevent_fd;
@@ -249,6 +250,11 @@ int loop(void)
 		goto out;
 	client_add(cman_fd, &maxi);
 
+	rv = cpg_fd = setup_cpg();
+	if (rv < 0)
+		goto out;
+	client_add(cpg_fd, &maxi);
+
 	rv = groupd_fd = setup_groupd();
 	if (rv < 0)
 		goto out;
@@ -271,6 +277,8 @@ int loop(void)
 	if (rv < 0)
 		goto out;
 	client_add(plocks_fd, &maxi);
+
+	log_debug("setup done");
 
 	for (;;) {
 		rv = poll(pollfd, maxi + 1, -1);
@@ -296,6 +304,8 @@ int loop(void)
 					process_groupd();
 				else if (pollfd[i].fd == cman_fd)
 					process_cman();
+				else if (pollfd[i].fd == cpg_fd)
+					process_cpg();
 				else if (pollfd[i].fd == uevent_fd)
 					process_uevent();
 				else if (!no_withdraw &&
@@ -310,7 +320,6 @@ int loop(void)
 			if (pollfd[i].revents & POLLHUP) {
 				if (pollfd[i].fd == cman_fd)
 					exit_cman();
-				log_debug("closing fd %d", pollfd[i].fd);
 				close(pollfd[i].fd);
 			}
 		}

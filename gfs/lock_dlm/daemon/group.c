@@ -21,24 +21,13 @@ static char cb_name[MAX_GROUP_NAME_LEN+1];
 static int cb_event_nr;
 static unsigned int cb_id;
 static int cb_type;
-static int cb_nodeid;
-static int cb_len;
 static int cb_member_count;
 static int cb_members[MAX_GROUP_MEMBERS];
-static char cb_message[MAX_MSGLEN+1];
 
 int do_stop(struct mountgroup *mg);
 int do_finish(struct mountgroup *mg);
 int do_terminate(struct mountgroup *mg);
 int do_start(struct mountgroup *mg, int type, int count, int *nodeids);
-
-void receive_journals(struct mountgroup *mg, char *buf, int len, int from);
-void receive_options(struct mountgroup *mg, char *buf, int len, int from);
-void receive_remount(struct mountgroup *mg, char *buf, int len, int from);
-void receive_plock(struct mountgroup *mg, char *buf, int len, int from);
-void receive_recovery_status(struct mountgroup *mg, char *buf, int len,
-			     int from);
-void receive_recovery_done(struct mountgroup *mg, char *buf, int len, int from);
 
 
 static void stop_cbfn(group_handle_t h, void *private, char *name)
@@ -87,17 +76,9 @@ static void setid_cbfn(group_handle_t h, void *private, char *name,
 static void deliver_cbfn(group_handle_t h, void *private, char *name,
 			 int nodeid, int len, char *buf)
 {
-	int n;
-	cb_action = DO_DELIVER;
-	strncpy(cb_name, name, MAX_GROUP_NAME_LEN);
-	cb_nodeid = nodeid;
-	cb_len = n = len;
-	if (len > MAX_MSGLEN)
-		n = MAX_MSGLEN;
-	memcpy(&cb_message, buf, n);
 }
 
-group_callbacks_t callbacks = {
+static group_callbacks_t callbacks = {
 	stop_cbfn,
 	start_cbfn,
 	finish_cbfn,
@@ -105,53 +86,6 @@ group_callbacks_t callbacks = {
 	setid_cbfn,
 	deliver_cbfn
 };
-
-static void do_deliver(struct mountgroup *mg)
-{
-	struct gdlm_header *hd;
-
-	hd = (struct gdlm_header *) cb_message;
-
-	/* If there are some group messages between a new node being added to
-	   the cpg group and being added to the app group, the new node should
-	   discard them since they're only relevant to the app group. */
-
-	if (!mg->last_callback) {
-		log_group(mg, "discard message type %d len %d from %d",
-			  hd->type, cb_len, cb_nodeid);
-		return;
-	}
-
-	switch (hd->type) {
-	case MSG_JOURNAL:
-		receive_journals(mg, cb_message, cb_len, cb_nodeid);
-		break;
-
-	case MSG_OPTIONS:
-		receive_options(mg, cb_message, cb_len, cb_nodeid);
-		break;
-
-	case MSG_REMOUNT:
-		receive_remount(mg, cb_message, cb_len, cb_nodeid);
-		break;
-
-	case MSG_PLOCK:
-		receive_plock(mg, cb_message, cb_len, cb_nodeid);
-		break;
-
-	case MSG_RECOVERY_STATUS:
-		receive_recovery_status(mg, cb_message, cb_len, cb_nodeid);
-		break;
-
-	case MSG_RECOVERY_DONE:
-		receive_recovery_done(mg, cb_message, cb_len, cb_nodeid);
-		break;
-
-	default:
-		log_error("unknown message type %d from %d",
-			  hd->type, hd->nodeid);
-	}
-}
 
 char *str_members(void)
 {
@@ -222,12 +156,6 @@ int process_groupd(void)
 		mg->id = cb_id;
 		break;
 
-	case DO_DELIVER:
-		log_debug("groupd callback: deliver %s len %d nodeid %d",
-			  cb_name, cb_len, cb_nodeid);
-		do_deliver(mg);
-		break;
-
 	default:
 		error = -EINVAL;
 	}
@@ -255,17 +183,5 @@ int setup_groupd(void)
 	log_debug("groupd %d", rv);
 
 	return rv;
-}
-
-int send_group_message(struct mountgroup *mg, int len, char *buf)
-{
-	int error;
-
-	error = group_send(gh, mg->name, len, buf);
-	if (error < 0)
-		log_error("group_send error %d errno %d", error, errno);
-	else
-		error = 0;
-	return error;
 }
 
