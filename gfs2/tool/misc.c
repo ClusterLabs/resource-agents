@@ -152,10 +152,6 @@ print_flags(struct gfs2_dinode *di)
 			printf("  noatime\n");
 		if (di->di_flags & GFS2_DIF_SYNC)
 			printf("  sync\n");
-		if (di->di_flags & GFS2_DIF_INHERIT_DIRECTIO)
-			printf("  inherit_directio\n");
-		if (di->di_flags & GFS2_DIF_INHERIT_JDATA)
-			printf("  inherit_jdata\n");
 		if (di->di_flags & GFS2_DIF_TRUNC_IN_PROG)
 			printf("  trunc_in_prog\n");
 	}
@@ -182,10 +178,6 @@ get_flag_from_name(char *name)
 		return IFLAG_NOATIME;
 	else if (strncmp(name, "sync", 4) == 0)
 		return IFLAG_SYNC;
-	else if (strncmp(name, "inherit_directio", 16) == 0)
-		return IFLAG_INHERITDIRECTIO;
-	else if (strncmp(name, "inherit_jdata", 13) == 0)
-		return IFLAG_INHERITJDATA;
 	else 
 		return 0;
 }
