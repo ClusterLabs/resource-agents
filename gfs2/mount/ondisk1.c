@@ -28,5 +28,5 @@
 #define RETURN(x, y) return y
 
 #define WANT_GFS_CONVERSION_FUNCTIONS
-#include <linux/gfs_ondisk.h>
+#include "gfs_ondisk.h"
 
