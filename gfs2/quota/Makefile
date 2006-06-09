@@ -36,7 +36,8 @@ else
 INCLUDE += -I${incdir}
 endif
 
-all: ${TARGET}
+all:
+#all: ${TARGET}
 
 gfs2_quota: ${SOURCE}
 	${CC} ${CFLAGS} ${INCLUDE} ${LDFLAGS} ${SOURCE} ${LOADLIBES} ${LDLIBS} -o $@
