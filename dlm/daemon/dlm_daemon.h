@@ -38,10 +38,8 @@
 #include <unistd.h>
 #include <time.h>
 #include <syslog.h>
-#include <linux/netlink.h>
 
-/* FIXME: linux-2.6.11/include/linux/netlink.h (use header) */
-#define NETLINK_KOBJECT_UEVENT  15
+#include "netlink.h"
 
 #include "list.h"
 #include "libgroup.h"
