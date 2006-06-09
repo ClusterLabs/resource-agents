@@ -10,7 +10,11 @@
 ###############################################################################
 ###############################################################################
 
-INCLUDES=-I../../gfs/libgfs -I../../gfs/include -I../libgfs2 -I../config -I/home/devel/gfs2-2.6/include/
+top_srcdir=..
+
+include ${top_srcdir}/make/defines.mk
+
+INCLUDES=-I../../gfs/libgfs -I../../gfs/include -I../libgfs2 -I../config -I${KERNEL_SRC}/include/
 LIBS=-L../../gfs/libgfs -L../../gfs/libgfs/.libs -L../libgfs2
 
 CFLAGS+=-D_FILE_OFFSET_BITS=64 -DHELPER_PROGRAM -DGFS2_RELEASE_NAME=\"2\" -Wall -g
