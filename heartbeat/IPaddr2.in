@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr2.in,v 1.17 2006/03/10 04:14:20 xunsun Exp $
+#	$Id: IPaddr2.in,v 1.18 2006/06/09 19:01:32 alan Exp $
 #
 #       OCF Resource Agent compliant IPaddr2 script.
 #
@@ -47,7 +47,7 @@
 #	OCF_RESKEY_ip
 #	OCF_RESKEY_broadcast
 #	OCF_RESKEY_nic
-#	OCF_RESKEY_netmask
+#	OCF_RESKEY_cidr_netmask
 #	OCF_RESKEY_iflabel
 #	OCF_RESKEY_mac
 #	OCF_RESKEY_incarnations_max_global
@@ -114,9 +114,10 @@ rather, specify the base interface only.
 <content type="string" default="eth0"/>
 </parameter>
 
-<parameter name="netmask">
+<parameter name="cidr_netmask">
 <longdesc lang="en">
-The netmask for the interface in CIDR format.
+The netmask for the interface in CIDR format
+(e.g., 24 and not 255.255.255.0)
 
 If unspecified, the script will also try to determine this from the
 routing table.
@@ -136,7 +137,9 @@ determine this from the netmask.
 
 <parameter name="iflabel">
 <longdesc lang="en">
-You can specify an additional label for your IP address here. This label is appended to your interface name. If a label is specified in nic name, this parameter takes no effect.
+You can specify an additional label for your IP address here.
+This label is appended to your interface name.
+If a label is specified in nic name, this parameter has no effect.
 </longdesc>
 <shortdesc lang="en">Interface label</shortdesc>
 <content type="string" default=""/>
@@ -232,8 +235,15 @@ END
 }
 
 ip_init() {
-	if ocf_is_root ; then : ; else
-		ocf_log err "You must be root."
+	if
+          case $__OCF_ACTION in
+            start|stop)		ocf_is_root;;
+            *)			true;;
+          esac
+        then
+          : YAY!
+        else
+		ocf_log err "You must be root for $__OCF_ACTION operation."
 		exit $OCF_ERR_PERM
 	fi
 	
@@ -245,7 +255,14 @@ ip_init() {
 	BASEIP="$OCF_RESKEY_ip"
 	BRDCAST="$OCF_RESKEY_broadcast"
 	NIC="$OCF_RESKEY_nic"
-	NETMASK="$OCF_RESKEY_netmask"
+        if
+          [ -n "$OCF_RESKEY_netmask" -a -z "$OCF_RESKEY_cidr_netmask" ]
+        then
+	  ocf_log err "Obsolete parameter netmask supplied"
+	  ocf_log info "Please use cidr_netmask instead."
+          OCF_RESKEY_cidr_netmask=$OCF_RESKEY_netmask
+        fi
+	NETMASK="$OCF_RESKEY_cidr_netmask"
 	IFLABEL="$OCF_RESKEY_iflabel"
 	IF_MAC="$OCF_RESKEY_mac"
 

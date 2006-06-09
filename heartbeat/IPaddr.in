@@ -17,7 +17,7 @@
 #       OCF_RESKEY_ip
 #       OCF_RESKEY_broadcast
 #       OCF_RESKEY_nic
-#       OCF_RESKEY_netmask
+#       OCF_RESKEY_cidr_netmask
 #       OCF_RESKEY_lvs_support  ( e.g. true, on, 1 )
 #       OCF_RESKEY_ARP_INTERVAL_MS
 #       OCF_RESKEY_ARP_REPEAT
@@ -75,7 +75,7 @@ meta_data() {
 This script manages IP alias IP addresses
 It can add an IP alias, or remove one.
 </longdesc>
-<shortdesc lang="en">OCF Resource Agent compliant IPaddr script.</shortdesc>
+<shortdesc lang="en">Manages virtual IPv4 addresses</shortdesc>
 
 <parameters>
 <parameter name="ip" unique="1" required="1">
@@ -102,9 +102,10 @@ rather, specify the base interface only.
 <content type="string" default="eth0"/>
 </parameter>
 
-<parameter name="netmask">
+<parameter name="cidr_netmask">
 <longdesc lang="en">
 The netmask for the interface in CIDR format.
+(e.g., 24 and not 255.255.255.0)
 
 If unspecified, the script will also try to determine this from the
 routing table.
@@ -158,13 +159,13 @@ Script called when the IP is added
 <longdesc lang="en">
 milliseconds between ARPs
 </longdesc>
-<shortdesc lang="en">milliseconds between ARPs</shortdesc>
+<shortdesc lang="en">milliseconds between gratuitous ARPs</shortdesc>
 <content type="integer" default="500"/>
 </parameter>
 
 <parameter name="ARP_REPEAT">
 <longdesc lang="en">
-repeat count
+How many gratuitous ARPs to send out when bringing up a new address
 </longdesc>
 <shortdesc lang="en">repeat count</shortdesc>
 <content type="integer" default="10"/>
@@ -180,7 +181,7 @@ run in background (no longer any reason to do this)
 
 <parameter name="ARP_NETMASK">
 <longdesc lang="en">
-netmask for ARP
+netmask for ARP - in nonstandard hexadecimal format.
 </longdesc>
 <shortdesc lang="en">netmask for ARP</shortdesc>
 <content type="string" default="ffffffffffff"/>
@@ -208,10 +209,17 @@ ip_init() {
 
         #
         # $FINDIF can NOT deal with the condition of empty intermediate parameters.
-        #	
+        #
+	if
+          [ -n "OCF_RESKEY_netmask" -a -z "OCF_RESKEY_cidr_netmask" ]
+        then
+	  ocf_log err "Obsolete parameter netmask supplied"
+	  ocf_log info "Please use cidr_netmask instead."
+          OCF_RESKEY_cidr_netmask=$OCF_RESKEY_netmask
+        fi
 	IFCMD="$FINDIF -C $OCF_RESKEY_ip"
-	if [ -n "$OCF_RESKEY_netmask" ]; then
-	    IFCMD="$IFCMD/$OCF_RESKEY_netmask"
+	if [ -n "$OCF_RESKEY_cidr_netmask" ]; then
+	    IFCMD="$IFCMD/$OCF_RESKEY_cidr_netmask"
 	    if [ -n "$OCF_RESKEY_nic" ]; then
 		IFCMD="$IFCMD/$OCF_RESKEY_nic"
 		if [ -n "$OCF_RESKEY_broadcast" ]; then
@@ -224,7 +232,7 @@ ip_init() {
 
 	if [ $? -eq 0 ]; then
             OCF_RESKEY_nic=`echo "$NICINFO" | cut -f1`
-	    OCF_RESKEY_netmask=`echo "$NICINFO" | cut -f2 | cut -d ' ' -f2`
+	    OCF_RESKEY_cidr_netmask=`echo "$NICINFO" | cut -f2 | cut -d ' ' -f2`
 	    OCF_RESKEY_broadcast=`echo "$NICINFO" | cut -f3 | cut -d ' ' -f2`
 	else
 	    ocf_log err "Failed: $IFCMD . Parameter error."
@@ -706,7 +714,8 @@ ip_start() {
 	fi
     fi
     
-    add_interface "$OCF_RESKEY_ip" "$OCF_RESKEY_nic" "$NIC_unique" "$OCF_RESKEY_netmask" "$OCF_RESKEY_broadcast"
+    add_interface "$OCF_RESKEY_ip" "$OCF_RESKEY_nic" "$NIC_unique" \
+		 "$OCF_RESKEY_cidr_netmask" "$OCF_RESKEY_broadcast"
     rc=$?
     if [ $rc != 0 ]; then
 	return $rc
