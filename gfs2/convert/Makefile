@@ -21,6 +21,9 @@ CFLAGS+=-D_FILE_OFFSET_BITS=64 -DHELPER_PROGRAM -DGFS2_RELEASE_NAME=\"2\" -Wall 
 
 all: gfs2_convert
 
+copytobin: gfs2_convert
+	cp gfs2_convert ${top_srcdir}/bin
+
 gfs2_convert.o: gfs2_convert.c
 	$(CC) $(INCLUDES) $(LIBS) $(CFLAGS) -c -o gfs2_convert.o gfs2_convert.c
 

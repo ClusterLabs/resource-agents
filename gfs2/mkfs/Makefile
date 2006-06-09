@@ -36,6 +36,9 @@ ${MKFS}: ${O}
 .c.o: $<
 	${CC} ${CFLAGS} -o $@ $^
 
+copytobin: ${MKFS}
+	cp ${MKFS} ${top_srcdir}/bin
+
 install: ${MKFS}
 	${INSTALL} -m 0755 -g root -o root ${MKFS} ${INSTALLPATH}
 

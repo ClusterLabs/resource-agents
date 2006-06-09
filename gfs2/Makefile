@@ -22,7 +22,7 @@ all:
 	cd tool && ${MAKE} all
 
 copytobin:
-	cd libgfs2 && ${MAKE} copytobin
+#	cd libgfs2 && ${MAKE} copytobin
 	cd convert && ${MAKE} copytobin
 	cd edit && ${MAKE} copytobin
 	cd fsck && ${MAKE} copytobin

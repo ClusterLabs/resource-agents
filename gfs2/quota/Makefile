@@ -42,8 +42,9 @@ all:
 gfs2_quota: ${SOURCE}
 	${CC} ${CFLAGS} ${INCLUDE} ${LDFLAGS} ${SOURCE} ${LOADLIBES} ${LDLIBS} -o $@
 
-copytobin: ${TARGET}
-	cp ${TARGET} ${top_srcdir}/bin
+copytobin:
+#copytobin: ${TARGET}
+#	cp ${TARGET} ${top_srcdir}/bin
 
 clean:
 	rm -f *.o ${TARGET}
