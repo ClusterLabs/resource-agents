@@ -14,14 +14,20 @@ all:
 	cd lib && ${MAKE} all
 	cd daemon && ${MAKE} all
 	cd tool && ${MAKE} all
+	cd dlm_controld && ${MAKE} all
+	cd gfs_controld && ${MAKE} all
 
 clean:
 	cd lib && ${MAKE} clean
 	cd daemon && ${MAKE} clean
 	cd tool && ${MAKE} clean
+	cd dlm_controld && ${MAKE} clean
+	cd gfs_controld && ${MAKE} clean
 
 install:
 	cd lib && ${MAKE} install
 	cd daemon && ${MAKE} install
 	cd tool && ${MAKE} install
+	cd dlm_controld && ${MAKE} install
+	cd gfs_controld && ${MAKE} install
 
