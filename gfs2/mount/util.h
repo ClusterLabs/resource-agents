@@ -24,17 +24,9 @@
 #include <signal.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-
-#define __be16 uint16_t
-#define __be32 uint32_t
-#define __be64 uint64_t
-#define __u16 uint16_t
-#define __u32 uint32_t
-#define __u64 uint64_t
-#define __u8 uint8_t
-
+#include <linux/types.h>
 #include <linux/gfs2_ondisk.h>
-#include "../../gfs-kernel/src/gfs/gfs_ondisk.h"
+#include "gfs_ondisk.h"
 #include "linux_endian.h"
 
 #define die(fmt, args...) \

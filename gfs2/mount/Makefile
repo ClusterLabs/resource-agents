@@ -19,8 +19,11 @@ TARGET2= umount.gfs2
 CFLAGS+= -O2 -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 \
 	-DGFS2_RELEASE_NAME=\"${RELEASE}\" -D_GNU_SOURCE
 
-INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config \
-	-I${gfs2kincdir} -I${incdir}
+INCLUDE= -I${top_srcdir}/include \
+	  -I${top_srcdir}/config \
+	  -I${gfs2kincdir} \
+	  -I${incdir} \
+	  -I../../gfs-kernel/src/gfs
 
 ifneq (${KERNEL_SRC}, )
 # Use the kernel tree if patched, otherwise, look where cluster headers
