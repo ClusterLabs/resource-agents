@@ -211,7 +211,7 @@ ip_init() {
         # $FINDIF can NOT deal with the condition of empty intermediate parameters.
         #
 	if
-          [ -n "OCF_RESKEY_netmask" -a -z "OCF_RESKEY_cidr_netmask" ]
+          [ ! -z "$OCF_RESKEY_netmask" -a -z "$OCF_RESKEY_cidr_netmask" ]
         then
 	  ocf_log err "Obsolete parameter netmask supplied"
 	  ocf_log info "Please use cidr_netmask instead."

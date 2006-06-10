@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr2.in,v 1.18 2006/06/09 19:01:32 alan Exp $
+#	$Id: IPaddr2.in,v 1.19 2006/06/10 17:33:30 alan Exp $
 #
 #       OCF Resource Agent compliant IPaddr2 script.
 #
@@ -256,7 +256,7 @@ ip_init() {
 	BRDCAST="$OCF_RESKEY_broadcast"
 	NIC="$OCF_RESKEY_nic"
         if
-          [ -n "$OCF_RESKEY_netmask" -a -z "$OCF_RESKEY_cidr_netmask" ]
+          [ ! -z "$OCF_RESKEY_netmask" -a -z "$OCF_RESKEY_cidr_netmask" ]
         then
 	  ocf_log err "Obsolete parameter netmask supplied"
 	  ocf_log info "Please use cidr_netmask instead."
