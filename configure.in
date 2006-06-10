@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.529 $) dnl cvs revision
+AC_REVISION($Revision: 1.530 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -220,7 +220,7 @@ do
   if
     test ! -d "$dirname"
   then
-    AC_MSG_ERROR([$j directory ($dirname) does not exist!])
+    AC_MSG_WARN([$j directory ($dirname) does not exist!])
   fi
 done
 
