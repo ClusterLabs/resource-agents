@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.528 $) dnl cvs revision
+AC_REVISION($Revision: 1.529 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -194,6 +194,36 @@ mandir=`var "$mandir" "$exec_prefix/man"`
 docdir=${datadir}/doc/${HB_PKG}-${VERSION}
 libdir=`var "$libdir" "$exec_prefix/lib"`
 libexecdir=`var "$libexecdir" "$exec_prefix/libexec"`
+
+for var in libdir libexecdir
+do
+  dir=`eval echo '${'${var}'}'`
+  case $dir in
+    *64)  if 
+	    test ! -d "$dir" 
+	  then
+            newdir=`echo "$dir" | sed 's%64$%%'`
+            if
+	      test -d "$newdir"
+            then
+              eval $var="$newdir"
+	      AC_MSG_WARN([$var value now set to $newdir since $dir doesn't exist])
+            fi
+	  fi;;
+  esac
+done
+
+for j in exec_prefix bindir sbindir datadir sysconfdir localstatedir \
+	includedir oldincludedir mandir docdir libdir
+do 
+  dirname=`eval echo '${'${j}'}'`
+  if
+    test ! -d "$dirname"
+  then
+    AC_MSG_ERROR([$j directory ($dirname) does not exist!])
+  fi
+done
+
 
 dnl	The GNU conventions for installation directories don't always
 dnl	sit well with this software.  In particular, GNU's stated:
