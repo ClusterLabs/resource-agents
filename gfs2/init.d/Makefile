@@ -23,8 +23,8 @@ copytobin:
 clean:
 
 install:
-	install -d ${DESTDIR}/etc/init.d
-	install ${TARGET} ${DESTDIR}/etc/init.d
+	install -d ${DESTDIR}/etc/rc.d/init.d
+	install ${TARGET} ${DESTDIR}/etc/rc.d/init.d
 
 uninstall:
-	${UNINSTALL} ${TARGET} ${DESTDIR}/etc/init.d
+	${UNINSTALL} ${TARGET} ${DESTDIR}/etc/rc.d/init.d
