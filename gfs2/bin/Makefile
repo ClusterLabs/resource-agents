@@ -19,7 +19,7 @@ SBINPROGS= \
 	mount.gfs2 \
 	gfs2_edit \
 	gfs2_convert \
-	umount.gfs2
+	umount.gfs2 \
 	gfs2_fsck \
 #	gfs2_quota \
 
