@@ -11,47 +11,54 @@
 ###############################################################################
 ###############################################################################
 
-all:
-	cd libgfs2 && ${MAKE} all
-	cd convert && ${MAKE} all
-	cd edit && ${MAKE} all
-	cd fsck && ${MAKE} all
-	cd mkfs && ${MAKE} all
-	cd mount && ${MAKE} all
-	cd quota && ${MAKE} all
-	cd tool && ${MAKE} all
+all: tag_libgfs2 tag_convert tag_edit tag_fsck tag_mkfs tag_mount tag_tool
+
+tag_libgfs2:
+	${MAKE} -C libgfs2 all
+tag_convert:
+	${MAKE} -C convert all
+tag_edit:
+	${MAKE} -C edit all
+tag_fsck:
+	${MAKE} -C fsck all
+tag_mkfs:
+	${MAKE} -C mkfs all
+tag_mount:
+	${MAKE} -C mount all
+tag_quota:
+	${MAKE} -C quota all
+tag_tool:
+	${MAKE} -C tool all
 
 copytobin:
-#	cd libgfs2 && ${MAKE} copytobin
-	cd convert && ${MAKE} copytobin
-	cd edit && ${MAKE} copytobin
-	cd fsck && ${MAKE} copytobin
-	cd mkfs && ${MAKE} copytobin
-	cd mount && ${MAKE} copytobin
-	cd quota && ${MAKE} copytobin
-	cd tool && ${MAKE} copytobin
+	${MAKE} -C convert copytobin
+	${MAKE} -C edit copytobin
+	${MAKE} -C fsck copytobin
+	${MAKE} -C mkfs copytobin
+	${MAKE} -C mount copytobin
+	${MAKE} -C quota copytobin
+	${MAKE} -C tool copytobin
 
 clean:
-	cd libgfs2 && ${MAKE} clean
-	cd convert && ${MAKE} clean
-	cd bin && ${MAKE} clean
-	cd fsck && ${MAKE} clean
-	cd edit && ${MAKE} clean
-	cd mkfs && ${MAKE} clean
-	cd mount && ${MAKE} clean
-	cd quota && ${MAKE} clean
-	cd tool && ${MAKE} clean
+	${MAKE} -C libgfs2 clean
+	${MAKE} -C convert clean
+	${MAKE} -C edit clean
+	${MAKE} -C fsck clean
+	${MAKE} -C mkfs clean
+	${MAKE} -C mount clean
+	${MAKE} -C quota clean
+	${MAKE} -C tool clean
+	${MAKE} -C bin clean
 
 distclean: clean
 	rm -f make/defines.mk
 
 install:
-	cd bin && ${MAKE} install
-	cd man && ${MAKE} install
-	cd init.d && ${MAKE} install
+	${MAKE} -C bin install
+	${MAKE} -C man install
+	${MAKE} -C init.d install
 
 deinstall uninstall:
-	cd bin && ${MAKE} uninstall
-	cd man && ${MAKE} uninstall
-	cd init.d && ${MAKE} uninstall
-
+	${MAKE} -C bin uninstall
+	${MAKE} -C man uninstall
+	${MAKE} -C init.d uninstall
