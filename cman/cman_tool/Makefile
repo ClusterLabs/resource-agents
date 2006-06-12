@@ -28,7 +28,7 @@ copytobin: all
 	cp ${TARGET} ${top_srcdir}/bin
 
 cman_tool: main.o join.o ../lib/libcman.a
-	$(CC) $(LDFLAGS) -L$(libdir) -o $@ $^ -L../lib -lccs
+	$(CC) $(LDFLAGS) -L$(ccslibdir) -o $@ $^ -L../lib -lccs
 
 main.o: main.c cman_tool.h
 	$(CC) $(CFLAGS) -c -o $@ $<
