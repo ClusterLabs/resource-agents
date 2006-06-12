@@ -15,14 +15,17 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <libgen.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <stdarg.h>
 #include <dirent.h>
+#include <string.h>
+#include <time.h>
+#include <sys/time.h>
 
-#include "libgfs.h"
 #include "linux_endian.h"
 #include <linux/types.h>
 #include <linux/gfs2_ondisk.h>
@@ -30,19 +33,96 @@
 #include "copyright.cf"
 #include "ondisk.h"
 #include "libgfs2.h"
-#include "incore.h"
-
 #include "global.h"
 
-#define RGRP_STUFFED_BLKS(sb) (((sb)->sb_bsize - sizeof(struct gfs_rgrp)) * GFS_NBBY)
-#define RGRP_BITMAP_BLKS(sb) (((sb)->sb_bsize - sizeof(struct gfs_meta_header)) * GFS_NBBY)
+#define RGRP_STUFFED_BLKS(sb) (((sb)->sb_bsize - sizeof(struct gfs2_rgrp)) * GFS2_NBBY)
+#define RGRP_BITMAP_BLKS(sb) (((sb)->sb_bsize - sizeof(struct gfs2_meta_header)) * GFS2_NBBY)
+
+/* Define some gfs1 constants from gfs1's gfs_ondisk.h */
+#define GFS_METATYPE_NONE       (0)
+#define GFS_METATYPE_SB         (1)    /* Super-Block */
+#define GFS_METATYPE_RG         (2)    /* Resource Group Header */
+#define GFS_METATYPE_RB         (3)    /* Resource Group Block Alloc BitBlock */
+#define GFS_METATYPE_DI         (4)    /* "Disk" inode (dinode) */
+#define GFS_METATYPE_IN         (5)    /* Indirect dinode block list */
+#define GFS_METATYPE_LF         (6)    /* Leaf dinode block list */
+#define GFS_METATYPE_JD         (7)    /* Journal Data */
+#define GFS_METATYPE_LH         (8)    /* Log Header (gfs_log_header) */
+#define GFS_METATYPE_LD         (9)    /* Log Descriptor (gfs_log_descriptor) */
+#define GFS_METATYPE_EA         (10)   /* Extended Attribute */
+#define GFS_METATYPE_ED         (11)   /* Extended Attribute data */
+
+/* GFS1 Dinode types  */
+#define GFS_FILE_NON            (0)
+#define GFS_FILE_REG            (1)    /* regular file */
+#define GFS_FILE_DIR            (2)    /* directory */
+#define GFS_FILE_LNK            (5)    /* link */
+#define GFS_FILE_BLK            (7)    /* block device node */
+#define GFS_FILE_CHR            (8)    /* character device node */
+#define GFS_FILE_FIFO           (101)  /* fifo/pipe */
+#define GFS_FILE_SOCK           (102)  /* socket */
+
+#define GFS_FORMAT_SB           (100)  /* Super-Block */
+#define GFS_FORMAT_FS           (1309) /* Filesystem (all-encompassing) */
+#define GFS_FORMAT_MULTI        (1401) /* Multi-Host */
+
+struct gfs1_rgrp {
+	struct gfs2_meta_header rg_header; /* hasn't changed from gfs1 to 2 */
+	uint32_t rg_flags;
+	uint32_t rg_free;       /* Number (qty) of free data blocks */
+	/* Dinodes are USEDMETA, but are handled separately from other METAs */
+	uint32_t rg_useddi;     /* Number (qty) of dinodes (used or free) */
+	uint32_t rg_freedi;     /* Number (qty) of unused (free) dinodes */
+	struct gfs2_inum rg_freedi_list; /* hasn't changed from gfs1 to 2 */
+	/* These META statistics do not include dinodes (used or free) */
+	uint32_t rg_usedmeta;   /* Number (qty) of used metadata blocks */
+	uint32_t rg_freemeta;   /* Number (qty) of unused metadata blocks */
+	char rg_reserved[64];
+};
+
+struct gfs1_jindex {
+	uint64_t ji_addr;       /* starting block of the journal */
+	uint32_t ji_nsegment;   /* number (quantity) of segments in journal */
+	uint32_t ji_pad;
+
+	char ji_reserved[64];
+};
+
+struct gfs1_sb {
+	/*  Order is important; need to be able to read old superblocks
+		in order to support on-disk version upgrades */
+	struct gfs2_meta_header sb_header;
+
+	uint32_t sb_fs_format;         /* GFS_FORMAT_FS (on-disk version) */
+	uint32_t sb_multihost_format;  /* GFS_FORMAT_MULTI */
+	uint32_t sb_flags;             /* ?? */
+
+	uint32_t sb_bsize;             /* fundamental FS block size in bytes */
+	uint32_t sb_bsize_shift;       /* log2(sb_bsize) */
+	uint32_t sb_seg_size;          /* Journal segment size in FS blocks */
+
+	/* These special inodes do not appear in any on-disk directory. */
+	struct gfs2_inum sb_jindex_di;  /* journal index inode */
+	struct gfs2_inum sb_rindex_di;  /* resource group index inode */
+	struct gfs2_inum sb_root_di;    /* root directory inode */
+	
+	/* Default inter-node locking protocol (lock module) and namespace */
+	char sb_lockproto[GFS2_LOCKNAME_LEN]; /* lock protocol name */
+	char sb_locktable[GFS2_LOCKNAME_LEN]; /* unique name for this FS */
+	
+	/* More special inodes */
+	struct gfs2_inum sb_quota_di;   /* quota inode */
+	struct gfs2_inum sb_license_di; /* license inode */
+
+	char sb_reserved[96];
+};
 
 struct inode_block {
 	osi_list_t list;
 	uint64_t di_addr;
 };
 
-struct gfs_sbd sb;
+struct gfs1_sb  raw_gfs1_ondisk_sb;
 struct gfs2_sbd sb2;
 char device[256];
 struct inode_block dirs_to_fix;  /* linked list of directories to fix */
@@ -51,6 +131,7 @@ struct timeval tv;
 uint64_t dirs_fixed;
 uint64_t dirents_fixed;
 char *prog_name = "gfs2_convert"; /* needed by libgfs2 */
+struct gfs1_jindex *sd_jindex = NULL;    /* gfs1 journal index in memory */
 
 /* ------------------------------------------------------------------------- */
 /* This function is for libgfs's sake.                                       */
@@ -77,12 +158,14 @@ void convert_bitmaps(struct gfs2_sbd *sdp, struct rgrp_list *rgd2,
 	int x, y;
 	struct gfs2_rindex *ri;
 	unsigned char state;
+	struct gfs2_buffer_head *bh;
 
 	ri = &rgd2->ri;
 	gfs2_compute_bitstructs(sdp, rgd2); /* mallocs bh as array */
 	for (blk = 0; blk < ri->ri_length; blk++) {
-		rgd2->bh[blk] = bget_generic(sdp, ri->ri_addr + blk, read_disk,
-									 read_disk);
+		bh = bget_generic(sdp, ri->ri_addr + blk, read_disk, read_disk);
+		if (!rgd2->bh[blk])
+			rgd2->bh[blk] = bh;
 		x = (blk) ? sizeof(struct gfs2_meta_header) : sizeof(struct gfs2_rgrp);
 
 		for (; x < sdp->bsize; x++)
@@ -92,96 +175,39 @@ void convert_bitmaps(struct gfs2_sbd *sdp, struct rgrp_list *rgd2,
 				if (state == 0x02) /* unallocated metadata state invalid */
 					rgd2->bh[blk]->b_data[x] &= ~(0x02 << (GFS2_BIT_SIZE * y));
 			}
-		brelse(rgd2->bh[blk], updated);
 	}
 }/* convert_bitmaps */
 
 /* ------------------------------------------------------------------------- */
-/* superblock_cvt - Convert gfs1 superblock and the existing rgs to gfs2.    */
+/* convert_rgs - Convert gfs1 resource groups to gfs2.                       */
 /* Returns: 0 on success, -1 on failure                                      */
 /* ------------------------------------------------------------------------- */
-static int superblock_cvt(int disk_fd, const struct gfs_sbd *sb1,
-						  struct gfs2_sbd *sb2)
+static int convert_rgs(struct gfs2_sbd *sbp)
 {
-	int x;
-	struct gfs_rgrpd *rgd;
-	struct rgrp_list *rgd2;
+	struct rgrp_list *rgd;
 	osi_list_t *tmp;
 	struct gfs2_buffer_head *bh;
-
-	/* --------------------------------- */
-	/* convert the incore sb structure   */
-	/* --------------------------------- */
-	memset(sb2, 0, sizeof(sb2));
-	sb2->bsize = sb1->sd_sb.sb_bsize; /* block size */
-	sb2->md.journals = sb1->sd_journals; /* number of journals */
-	sb2->jsize = GFS2_DEFAULT_JSIZE;
-	sb2->rgsize = GFS2_DEFAULT_RGSIZE;
-	sb2->utsize = GFS2_DEFAULT_UTSIZE;
-	sb2->qcsize = GFS2_DEFAULT_QCSIZE;
-	sb2->time = time(NULL);
-	sb2->device_fd = disk_fd;
-	sb2->blks_total = 0;   /* total blocks         - total them up later */
-	sb2->blks_alloced = 0; /* blocks allocated     - total them up later */
-	sb2->dinodes_alloced = 0; /* dinodes allocated - total them up later */
-	osi_list_init(&sb2->rglist);
-	osi_list_init(&sb2->buf_list);
-	for (x = 0; x < BUF_HASH_SIZE; x++)
-		osi_list_init(&sb2->buf_hash[x]);
-	compute_constants(sb2);
-
-	/* --------------------------------- */
-	/* convert the ondisk sb structure   */
-	/* --------------------------------- */
-	sb2->sd_sb.sb_header.mh_magic = GFS2_MAGIC;
-	sb2->sd_sb.sb_fs_format = GFS2_FORMAT_FS;
-	sb2->sd_sb.sb_header.mh_type = GFS2_METATYPE_SB;
-	sb2->sd_sb.sb_header.mh_format = GFS2_FORMAT_SB;
-	sb2->sd_sb.sb_multihost_format = GFS2_FORMAT_MULTI;
-	sb2->sd_sb.sb_bsize = sb1->sd_sb.sb_bsize;
-	sb2->sd_sb.sb_bsize_shift = sb1->sd_sb.sb_bsize_shift;
-	strcpy(sb2->sd_sb.sb_lockproto, sb1->sd_sb.sb_lockproto);
-	strcpy(sb2->sd_sb.sb_locktable, sb1->sd_sb.sb_locktable);
+	struct gfs1_rgrp *rgd1;
 
 	/* --------------------------------- */
 	/* Now convert its rgs into gfs2 rgs */
 	/* --------------------------------- */
-	for (tmp = (osi_list_t *)sb1->sd_rglist.next;
-		 tmp != (osi_list_t *)&sb1->sd_rglist; tmp = tmp->next) {
-		rgd = osi_list_entry(tmp, struct gfs_rgrpd, rd_list);
-		/* convert the gfs1 rgrp into a new gfs2 rgrp */
-		rgd2 = malloc(sizeof(struct rgrp_list));
-		if (!rgd2) {
-			log_crit("Error: unable to allocate memory for rg conversion.\n");
-			return -1;
-		}
-		memset(rgd2, 0, sizeof(struct rgrp_list));
+	osi_list_foreach(tmp, &sbp->rglist) {
+		rgd = osi_list_entry(tmp, struct rgrp_list, list);
+		rgd1 = (struct gfs1_rgrp *)&rgd->rg; /* recast as gfs1 structure */
+		/* rg_freemeta is a gfs1 structure, so libgfs2 doesn't know to */
+		/* convert from be to cpu. We must do it now. */
+		rgd->rg.rg_free = rgd1->rg_free + be32_to_cpu(rgd1->rg_freemeta);
 
-		rgd2->length = rgd->rd_ri.ri_data;
-		rgd2->rg.rg_header.mh_magic = GFS_MAGIC;
-		rgd2->rg.rg_header.mh_type = GFS_METATYPE_RG;
-		rgd2->rg.rg_header.mh_format = GFS_FORMAT_RG;
-		rgd2->rg.rg_flags = rgd->rd_rg.rg_flags;
-		rgd2->rg.rg_free = rgd->rd_rg.rg_free + rgd->rd_rg.rg_freemeta;
-		rgd2->rg.rg_dinodes = rgd->rd_rg.rg_useddi;
+		sbp->blks_total += rgd->ri.ri_data;
+		sbp->blks_alloced += (rgd->ri.ri_data - rgd->rg.rg_free);
+		sbp->dinodes_alloced += rgd1->rg_useddi;
 
-		sb2->blks_total += rgd->rd_ri.ri_data;
-		sb2->blks_alloced += (rgd->rd_ri.ri_data - rgd2->rg.rg_free);
-		sb2->dinodes_alloced += rgd->rd_rg.rg_useddi;
-
-		rgd2->ri.ri_addr = rgd->rd_ri.ri_addr;
-		rgd2->ri.ri_length = rgd->rd_ri.ri_length;
-		rgd2->ri.ri_data0 = rgd->rd_ri.ri_data1;
-		rgd2->ri.ri_data = rgd->rd_ri.ri_data;
-		rgd2->ri.ri_bitbytes = rgd->rd_ri.ri_bitbytes;
-		/* commit the changes to a gfs2 buffer */
-		bh = bread(sb2, rgd2->ri.ri_addr); /* get a gfs2 buffer for the rg */
-		gfs2_rgrp_out(&rgd2->rg, bh->b_data);
+		convert_bitmaps(sbp, rgd, TRUE);
+		/* Write the updated rgrp to the gfs2 buffer */
+		bh = bget(sbp, rgd->ri.ri_addr); /* get a gfs2 buffer for the rg */
+		gfs2_rgrp_out(&rgd->rg, rgd->bh[0]->b_data);
 		brelse(bh, updated); /* release the buffer */
-		/* Add the new gfs2 rg to our list: We'll output the index later. */
-		osi_list_add_prev((osi_list_t *)&rgd2->list,
-						  (osi_list_t *)&sb2->rglist);
-		convert_bitmaps(sb2, rgd2, TRUE);
 	}
 	return 0;
 }/* superblock_cvt */
@@ -195,8 +221,12 @@ int adjust_inode(struct gfs2_sbd *sbp, struct gfs2_buffer_head *bh)
 {
 	struct gfs2_inode *inode;
 	struct inode_block *fixdir;
+	int inode_was_gfs1;
 
 	inode = inode_get(sbp, bh);
+
+	inode_was_gfs1 = (inode->i_di.di_num.no_formal_ino ==
+					  inode->i_di.di_num.no_addr);
 	/* Fix the inode number: */
 	inode->i_di.di_num.no_formal_ino = sbp->md.next_inum;           ;
 	
@@ -207,7 +237,7 @@ int adjust_inode(struct gfs2_sbd *sbp, struct gfs2_buffer_head *bh)
 		/* Add this directory to the list of dirs to fix later. */
 		fixdir = malloc(sizeof(struct inode_block));
 		if (!fixdir) {
-			fprintf(stderr,"Error: out of memory.\n");
+			log_crit("Error: out of memory.\n");
 			return -1;
 		}
 		memset(fixdir, 0, sizeof(struct inode_block));
@@ -240,11 +270,23 @@ int adjust_inode(struct gfs2_sbd *sbp, struct gfs2_buffer_head *bh)
 	/* di_goal_meta has shifted locations and di_goal_data has     */
 	/* changed from 32-bits to 64-bits.  The following code        */
 	/* adjusts for the shift.                                      */
+	/*                                                             */
+	/* Note: It may sound absurd, but we need to check if this     */
+	/*       inode has already been converted to gfs2 or if it's   */
+	/*       still a gfs1 inode.  That's just in case there was a  */
+	/*       prior attempt to run gfs2_convert that never finished */
+	/*       (due to power out, ctrl-c, kill, segfault, whatever.) */
+	/*       If it is unconverted gfs1 we want to do a full        */
+	/*       conversion.  If it's a gfs2 inode from a prior run,   */
+	/*       we still need to renumber the inode, but here we      */
+	/*       don't want to shift the data around.                  */
 	/* ----------------------------------------------------------- */
-	inode->i_di.di_goal_meta = inode->i_di.di_goal_data;
-	inode->i_di.di_goal_data = 0; /* make sure the upper 32b are 0 */
-	inode->i_di.di_goal_data = inode->i_di.__pad[0];
-	inode->i_di.__pad[1] = 0;
+	if (inode_was_gfs1) {
+		inode->i_di.di_goal_meta = inode->i_di.di_goal_data;
+		inode->i_di.di_goal_data = 0; /* make sure the upper 32b are 0 */
+		inode->i_di.di_goal_data = inode->i_di.__pad[0];
+		inode->i_di.__pad[1] = 0;
+	}
 	
 	gfs2_dinode_out(&inode->i_di, bh->b_data);
 	sbp->md.next_inum++; /* update inode count */
@@ -268,7 +310,7 @@ int inode_renumber(struct gfs2_sbd *sbp, uint64_t root_inode_addr)
 	int first;
 	int error = 0;
 
-	printf("Converting inodes.\n");
+	log_notice("Converting inodes.\n");
 	sbp->md.next_inum = 1; /* starting inode numbering */
 	gettimeofday(&tv, NULL);
 	seconds = tv.tv_sec;
@@ -289,7 +331,8 @@ int inode_renumber(struct gfs2_sbd *sbp, uint64_t root_inode_addr)
 			/* doesn't think we hung.  (This may take a long time).       */
 			if (tv.tv_sec - seconds) {
 				seconds = tv.tv_sec;
-				printf("\r%" PRIu64" inodes converted.", sbp->md.next_inum);
+				log_notice("\r%" PRIu64" inodes converted.",
+						   sbp->md.next_inum);
 				fflush(stdout);
 			}
 			/* Get the next metadata block.  Break out if we reach the end. */
@@ -336,7 +379,7 @@ int inode_renumber(struct gfs2_sbd *sbp, uint64_t root_inode_addr)
 		} /* while 1 */
 		gfs2_rgrp_relse(rgd, updated);
 	} /* for all rgs */
-	printf("\r%" PRIu64" inodes converted.", sbp->md.next_inum);
+	log_notice("\r%" PRIu64" inodes converted.", sbp->md.next_inum);
 	fflush(stdout);
 	return 0;
 }/* inode_renumber */
@@ -344,7 +387,7 @@ int inode_renumber(struct gfs2_sbd *sbp, uint64_t root_inode_addr)
 /* ------------------------------------------------------------------------- */
 /* fetch_inum - fetch an inum entry from disk, given its block               */
 /* ------------------------------------------------------------------------- */
-int fetch_and_fix_inum(struct gfs2_sbd *sbp, uint64_t iblock,
+int fetch_inum(struct gfs2_sbd *sbp, uint64_t iblock,
 					   struct gfs2_inum *inum)
 {
 	struct gfs2_buffer_head *bh_fix;
@@ -356,7 +399,7 @@ int fetch_and_fix_inum(struct gfs2_sbd *sbp, uint64_t iblock,
 	inum->no_addr = fix_inode->i_di.di_num.no_addr;
 	brelse(bh_fix, updated);
 	return 0;
-}/* fetch_and_fix_inum */
+}/* fetch_inum */
 
 /* ------------------------------------------------------------------------- */
 /* process_dirent_info - fix one dirent (directory entry) buffer             */
@@ -375,64 +418,71 @@ int process_dirent_info(struct gfs2_inode *dip, struct gfs2_sbd *sbp,
 	
 	error = gfs2_dirent_first(dip, bh, &dent);
 	if (error != IS_LEAF && error != IS_DINODE) {
-		printf("Error retrieving directory.\n");
+		log_crit("Error retrieving directory.\n");
 		return -1;
 	}
 	/* Go through every dirent in the buffer and process it. */
 	/* Turns out you can't trust dir_entries is correct.     */
 	for (de = 0; ; de++) {
 		struct gfs2_inum inum;
+		int dent_was_gfs1;
 		
 		gettimeofday(&tv, NULL);
 		/* Do more warm fuzzy stuff for the customer. */
 		dirents_fixed++;
 		if (tv.tv_sec - seconds) {
 			seconds = tv.tv_sec;
-			printf("\r%" PRIu64 " directories, %" PRIu64 " dirents fixed.",
-				   dirs_fixed, dirents_fixed);
+			log_notice("\r%" PRIu64 " directories, %" PRIu64 " dirents fixed.",
+					   dirs_fixed, dirents_fixed);
 			fflush(stdout);
 		}
 		/* fix the dirent's inode number based on the inode */
 		gfs2_inum_in(&inum, (char *)&dent->de_inum);
+		dent_was_gfs1 = (dent->de_inum.no_addr == dent->de_inum.no_formal_ino);
 		if (inum.no_formal_ino) { /* if not a sentinel (placeholder) */
-			error = fetch_and_fix_inum(sbp, inum.no_addr, &inum);
+			error = fetch_inum(sbp, inum.no_addr, &inum);
 			if (error) {
-				printf("Error retrieving inode %" PRIx64 "\n", inum.no_addr);
+				log_crit("Error retrieving inode %" PRIx64 "\n", inum.no_addr);
 				break;
 			}
+			/* fix the dirent's inode number from the fetched inum. */
+			dent->de_inum.no_formal_ino = cpu_to_be64(inum.no_formal_ino);
 		}
 		/* Fix the dirent's filename hash: They are the same as gfs1 */
 		/* dent->de_hash = cpu_to_be32(gfs2_disk_hash((char *)(dent + 1), */
 		/*                             be16_to_cpu(dent->de_name_len))); */
 		/* Fix the dirent's file type.  Gfs1 used home-grown values.  */
 		/* Gfs2 uses standard values from include/linux/fs.h          */
-		switch be16_to_cpu(dent->de_type) {
-		case GFS_FILE_NON:
-			dent->de_type = cpu_to_be16(DT_UNKNOWN);
-			break;
-		case GFS_FILE_REG:    /* regular file */
-			dent->de_type = cpu_to_be16(DT_REG);
-			break;
-		case GFS_FILE_DIR:    /* directory */
-			dent->de_type = cpu_to_be16(DT_DIR);
-			break;
-		case GFS_FILE_LNK:    /* link */
-			dent->de_type = cpu_to_be16(DT_LNK);
-			break;
-		case GFS_FILE_BLK:    /* block device node */
-			dent->de_type = cpu_to_be16(DT_BLK);
-			break;
-		case GFS_FILE_CHR:    /* character device node */
-			dent->de_type = cpu_to_be16(DT_CHR);
-			break;
-		case GFS_FILE_FIFO:   /* fifo/pipe */
-			dent->de_type = cpu_to_be16(DT_FIFO);
-			break;
-		case GFS_FILE_SOCK:   /* socket */
-			dent->de_type = cpu_to_be16(DT_SOCK);
-			break;
+		/* Only do this if the dent was a true gfs1 dent, and not a   */
+		/* gfs2 dent converted from a previously aborted run.         */
+		if (dent_was_gfs1) {
+			switch be16_to_cpu(dent->de_type) {
+			case GFS_FILE_NON:
+				dent->de_type = cpu_to_be16(DT_UNKNOWN);
+				break;
+			case GFS_FILE_REG:    /* regular file */
+				dent->de_type = cpu_to_be16(DT_REG);
+				break;
+			case GFS_FILE_DIR:    /* directory */
+				dent->de_type = cpu_to_be16(DT_DIR);
+				break;
+			case GFS_FILE_LNK:    /* link */
+				dent->de_type = cpu_to_be16(DT_LNK);
+				break;
+			case GFS_FILE_BLK:    /* block device node */
+				dent->de_type = cpu_to_be16(DT_BLK);
+				break;
+			case GFS_FILE_CHR:    /* character device node */
+				dent->de_type = cpu_to_be16(DT_CHR);
+				break;
+			case GFS_FILE_FIFO:   /* fifo/pipe */
+				dent->de_type = cpu_to_be16(DT_FIFO);
+				break;
+			case GFS_FILE_SOCK:   /* socket */
+				dent->de_type = cpu_to_be16(DT_SOCK);
+				break;
+			}
 		}
-
 		error = gfs2_dirent_next(dip, bh, &dent);
 		if (error)
 			break;
@@ -480,7 +530,7 @@ int fix_one_directory_exhash(struct gfs2_sbd *sbp, struct gfs2_inode *dip)
 		/* read the leaf buffer in */
 		error = gfs2_get_leaf(dip, leaf_block, &bh_leaf);
 		if (error) {
-			printf("Error reading leaf %" PRIx64 "\n", leaf_block);
+			log_crit("Error reading leaf %" PRIx64 "\n", leaf_block);
 			break;
 		}
 		gfs2_leaf_in(&leaf, (char *)bh_leaf->b_data); /* buffer to structure */
@@ -506,7 +556,7 @@ int fix_directory_info(struct gfs2_sbd *sbp, osi_list_t *dirs_to_fix)
 	dirents_fixed = 0;
 	gettimeofday(&tv, NULL);
 	seconds = tv.tv_sec;
-	printf("\nFixing file and directory information.\n");
+	log_notice("\nFixing file and directory information.\n");
 	offset = 0;
 	tmp = NULL;
 	/* for every directory in the list */
@@ -524,7 +574,7 @@ int fix_directory_info(struct gfs2_sbd *sbp, osi_list_t *dirs_to_fix)
 		bh_dir = bread(sbp, dirblock);
 		dip = inode_get(sbp, bh_dir);
 		/* fix the directory: either exhash (leaves) or linear (stuffed) */
-		if (dip->i_di.di_flags & GFS_DIF_EXHASH) {
+		if (dip->i_di.di_flags & GFS2_DIF_EXHASH) {
 			if (fix_one_directory_exhash(sbp, dip)) {
 				log_crit("Error fixing exhash directory.\n");
 				brelse(bh_dir, updated);
@@ -549,44 +599,151 @@ int fix_directory_info(struct gfs2_sbd *sbp, osi_list_t *dirs_to_fix)
 }/* fix_directory_info */
 
 /* ------------------------------------------------------------------------- */
-/* fill_super_block                                                          */
+/* Fetch gfs1 jindex structure from buffer                                   */
+/* ------------------------------------------------------------------------- */
+void gfs1_jindex_in(struct gfs1_jindex *jindex, char *buf)
+{
+	struct gfs1_jindex *str = (struct gfs1_jindex *)buf;
+
+	jindex->ji_addr = be64_to_cpu(str->ji_addr);
+	jindex->ji_nsegment = be32_to_cpu(str->ji_nsegment);
+	memset(jindex->ji_reserved, 0, 64);
+}
+
+/* ------------------------------------------------------------------------- */
+/* read_gfs1_jiindex - read the gfs1 jindex file.                            */
 /* Returns: 0 on success, -1 on failure                                      */
 /* ------------------------------------------------------------------------- */
-static int fill_super_block(int disk_fd, struct gfs_sbd *sdp)
+int read_gfs1_jiindex(struct gfs2_sbd *sdp)
 {
-	struct gfs_inode *ip = NULL;
+	struct gfs2_inode *ip = sdp->md.jiinode;
+	char buf[sizeof(struct gfs1_jindex)];
+	unsigned int j;
+	int error=0;
 
-	log_info("Reading old filesystem information.\n");
-	/* get ri inode */
-	if(load_inode(disk_fd, sdp, sdp->sd_sb.sb_rindex_di.no_addr, &ip))
-		return -1;
-	sdp->sd_riinode = ip;
-
-	/* get ji inode */
-	if(load_inode(disk_fd, sdp, sdp->sd_sb.sb_jindex_di.no_addr, &ip)) {
-		stack;
+	if(ip->i_di.di_size % sizeof(struct gfs1_jindex) != 0){
+		log_crit("The size reported in the journal index"
+				" inode is not a\n"
+				"\tmultiple of the size of a journal index.\n");
 		return -1;
 	}
-	sdp->sd_jiinode = ip;
-	/* get root dinode */
-	if(!load_inode(disk_fd, sdp, sdp->sd_sb.sb_root_di.no_addr, &ip)) {
-		if(!check_inode(ip))
-			sdp->sd_rooti = ip;
-		else
-			free(ip);
-	} else
-		log_warn("Unable to load root inode\n");
+	if(!(sd_jindex = (struct gfs1_jindex *)malloc(ip->i_di.di_size))) {
+		log_crit("Unable to allocate journal index\n");
+		return -1;
+	}
+	if(!memset(sd_jindex, 0, ip->i_di.di_size)) {
+		log_crit("Unable to zero journal index\n");
+		return -1;
+	}
+	for (j = 0; ; j++) {
+		struct gfs1_jindex *journ;
+
+		error = gfs2_readi(ip, buf, j * sizeof(struct gfs1_jindex),
+						   sizeof(struct gfs1_jindex));
+		if(!error)
+			break;
+		if (error != sizeof(struct gfs1_jindex)){
+			log_crit("An error occurred while reading the"
+					" journal index file.\n");
+			goto fail;
+		}
+		journ = sd_jindex + j;
+		gfs1_jindex_in(journ, buf);
+	}
+	if(j * sizeof(struct gfs1_jindex) != ip->i_di.di_size){
+		log_crit("journal inode size invalid\n");
+		goto fail;
+	}
+	sdp->orig_journals = j;
+	return 0;
+
+ fail:
+	free(sd_jindex);
+	return -1;
+}
+
+/* ------------------------------------------------------------------------- */
+/* init - initialization code                                                */
+/* Returns: 0 on success, -1 on failure                                      */
+/* ------------------------------------------------------------------------- */
+static int init(struct gfs2_sbd *sbp)
+{
+	struct gfs2_buffer_head *bh;
+	int rgcount, i;
+	struct gfs2_inum inum;
+
+	memset(sbp, 0, sizeof(struct gfs2_sbd));
+	if ((sbp->device_fd = open(device, O_RDWR)) < 0) {
+		perror(device);
+		exit(-1);
+	}
+	/* --------------------------------- */
+	/* initialize the incore superblock  */
+	/* --------------------------------- */
+	sbp->sd_sb.sb_header.mh_magic = GFS2_MAGIC;
+	sbp->sd_sb.sb_header.mh_type = GFS2_METATYPE_SB;
+	sbp->sd_sb.sb_header.mh_format = GFS2_FORMAT_SB;
+
+	osi_list_init((osi_list_t *)&dirs_to_fix);
+	/* ---------------------------------------------- */
+	/* Initialize lists and read in the superblock.   */
+	/* ---------------------------------------------- */
+	sbp->jsize = GFS2_DEFAULT_JSIZE;
+	sbp->rgsize = GFS2_DEFAULT_RGSIZE;
+	sbp->utsize = GFS2_DEFAULT_UTSIZE;
+	sbp->qcsize = GFS2_DEFAULT_QCSIZE;
+	sbp->time = time(NULL);
+	sbp->blks_total = 0;   /* total blocks         - total them up later */
+	sbp->blks_alloced = 0; /* blocks allocated     - total them up later */
+	sbp->dinodes_alloced = 0; /* dinodes allocated - total them up later */
+	sbp->sd_sb.sb_bsize = GFS2_DEFAULT_BSIZE;
+	sbp->bsize = sbp->sd_sb.sb_bsize;
+	osi_list_init(&sbp->rglist);
+	osi_list_init(&sbp->buf_list);
+	for(i = 0; i < BUF_HASH_SIZE; i++)
+		osi_list_init(&sbp->buf_hash[i]);
+	compute_constants(sbp);
+
+	bh = bread(sbp, GFS2_SB_ADDR >> sbp->sd_fsb2bb_shift);
+	memcpy(&raw_gfs1_ondisk_sb, (struct gfs1_sb *)bh->b_data,
+		   sizeof(struct gfs1_sb));
+	gfs2_sb_in(&sbp->sd_sb, bh->b_data);
+	brelse(bh, not_updated);
+	/* ---------------------------------------------- */
+	/* Make sure we're really gfs1                    */
+	/* ---------------------------------------------- */
+	if (sbp->sd_sb.sb_fs_format != GFS_FORMAT_FS ||
+		sbp->sd_sb.sb_header.mh_type != GFS_METATYPE_SB ||
+		sbp->sd_sb.sb_header.mh_format != GFS_FORMAT_SB ||
+		sbp->sd_sb.sb_multihost_format != GFS_FORMAT_MULTI) {
+		log_crit("Error: %s does not look like a gfs1 filesystem.\n",
+				device);
+		close(sbp->device_fd);
+		exit(-1);
+	}
+	/* get gfs1 rindex inode - gfs1's rindex inode ptr became __pad2 */
+	gfs2_inum_in(&inum, (char *)&raw_gfs1_ondisk_sb.sb_rindex_di);
+	sbp->md.riinode = gfs2_load_inode(sbp, inum.no_addr);
+	/* get gfs1 jindex inode - gfs1's journal index inode ptr became master */
+	gfs2_inum_in(&inum, (char *)&raw_gfs1_ondisk_sb.sb_jindex_di);
+	sbp->md.jiinode = gfs2_load_inode(sbp, inum.no_addr);
 	/* read in the journal index data */
-	if (ji_update(disk_fd, sdp)){
-		log_err("Unable to read in journal index inode.\n");
+	read_gfs1_jiindex(sbp);
+	/* read in the resource group index data: */
+
+	/* We've got a slight dilemma here.  In gfs1, we used to have a meta */
+	/* header in front of the rgindex pages.  In gfs2, we don't.  That's */
+	/* apparently only for directories.  So we need to fake out libgfs2  */
+	/* so that it adjusts for the metaheader by faking out the inode to  */
+	/* look like a directory, temporarily.                               */
+	sbp->md.riinode->i_di.di_mode |= S_IFDIR; 
+	if (ri_update(sbp, &rgcount)){
+		log_crit("Unable to fill in resource group information.\n");
 		return -1;
 	}
-	/* read in the resource group index data */
-	if(ri_update(disk_fd, sdp)){
-		log_err("Unable to fill in resource group information.\n");
-		return -1;
-	}
-	printf("%d rgs found.\n", sdp->sd_rgcount);
+	inode_put(sbp->md.riinode, updated);
+	inode_put(sbp->md.jiinode, updated);
+	log_debug("%d rgs found.\n", rgcount);
 	return 0;
 }/* fill_super_block */
 
@@ -606,22 +763,39 @@ void give_warning(void)
 }/* give_warning */
 
 /* ------------------------------------------------------------------------- */
+/* version  - print version information                                      */
+/* ------------------------------------------------------------------------- */
+void version(void)
+{
+	log_notice("gfs2_convert version %s (built %s %s)\n", GFS2_RELEASE_NAME,
+			   __DATE__, __TIME__);
+	log_notice("%s\n\n", REDHAT_COPYRIGHT);
+}
+
+/* ------------------------------------------------------------------------- */
 /* usage - print usage information                                           */
 /* ------------------------------------------------------------------------- */
 void usage(const char *name)
 {
 	give_warning();
-	printf("\nFormat is:\n");
-	printf("%s [--verbose] [-y] /dev/your/device\n\n", name);
+	printf("\nUsage:\n");
+	printf("%s [-hnqvVy] <device>\n\n", name);
+	printf("Flags:\n");
+	printf("\th - print this help message\n");
+	printf("\tn - assume 'no' to all questions\n");
+	printf("\tq - quieter output\n");
+	printf("\tv - more verbose output\n");
+	printf("\tV - print version information\n");
+	printf("\ty - assume 'yes' to all questions\n");
 }/* usage */
 
 /* ------------------------------------------------------------------------- */
 /* process_parameters                                                        */
 /* ------------------------------------------------------------------------- */
-void process_parameters(int argc, char **argv, struct options *opts)
+void process_parameters(int argc, char **argv, struct gfs2_options *opts)
 
 {
-	int i;
+	char c;
 
 	opts->yes = 0;
 	opts->no = 0;
@@ -630,27 +804,51 @@ void process_parameters(int argc, char **argv, struct options *opts)
 		exit(0);
 	}
 	memset(device, 0, sizeof(device));
-	for (i = 1; i < argc; i++) {
-		if (!strcmp(argv[i], "--verbose"))
-			increase_verbosity();
-		else if (!strcmp(argv[i], "-y"))
-			opts->yes = 1;
-		else if (argv[i][0] == '-') {
+	while((c = getopt(argc, argv, "hnqvyV")) != -1) {
+		switch(c) {
+
+		case 'h':
 			usage(argv[0]);
-			fprintf(stderr, "Error: parameter %s not understood.\n", argv[i]);
-			exit(-1);
+			exit(0);
+			break;
+		case 'n':
+			opts->no = 1;
+			break;
+		case 'q':
+			decrease_verbosity();
+			break;
+		case 'v':
+			increase_verbosity();
+			break;
+		case 'V':
+			exit(0);
+		case 'y':
+			opts->yes = 1;
+			break;
+		default:
+			fprintf(stderr,"Parameter not understood: %c\n", c);
+			usage(argv[0]);
+			exit(0);
 		}
-		else
-			strcpy(device, argv[i]);
 	}
-	opts->device = device;
+	if(argc > optind) {
+		strcpy(device, argv[optind]);
+		opts->device = device;
+		if(!opts->device) {
+			fprintf(stderr, "Please use '-h' for usage.\n");
+			exit(1);
+		}
+	} else {
+		fprintf(stderr, "No device specified.  Use '-h' for usage.\n");
+		exit(1);
+	}
 } /* process_parameters */
 
 /* ------------------------------------------------------------------------- */
 /* rgrp_length - Calculate the length of a resource group                    */
 /* @size: The total size of the resource group                               */
 /* ------------------------------------------------------------------------- */
-uint64_t rgrp_length(uint64_t size, struct gfs_sbd *sdp)
+uint64_t rgrp_length(uint64_t size, struct gfs2_sbd *sdp)
 {
 	uint64_t bitbytes = RGRP_BITMAP_BLKS(&sdp->sd_sb) + 1;
 	uint64_t stuff = RGRP_STUFFED_BLKS(&sdp->sd_sb) + 1;
@@ -679,26 +877,24 @@ uint64_t rgrp_length(uint64_t size, struct gfs_sbd *sdp)
 /*                                                                           */
 /* Returns: 0 on success, -1 on failure                                      */
 /* ------------------------------------------------------------------------- */
-int journ_space_to_rg(int disk_fd, struct gfs_sbd *sdp, struct gfs2_sbd *sdp2)
+int journ_space_to_rg(struct gfs2_sbd *sdp)
 {
 	int error = 0;
 	int j, x;
-	struct gfs_jindex *jndx;
-	struct gfs_rgrpd *rgd, *rgdhigh;
-	struct rgrp_list *rgd2;
+	struct gfs1_jindex *jndx;
+	struct rgrp_list *rgd, *rgdhigh;
 	osi_list_t *tmp;
 	struct gfs2_meta_header mh;
 
 	mh.mh_magic = GFS2_MAGIC;
 	mh.mh_type = GFS2_METATYPE_RB;
 	mh.mh_format = GFS2_FORMAT_RB;
-	log_info("Converting journal space to rg space.\n");
+	log_notice("Converting journal space to rg space.\n");
 	/* Go through each journal, converting them one by one */
-	for (j = 0; j < sdp->sd_journals; j++) { /* for each journal */
+	for (j = 0; j < sdp->orig_journals; j++) { /* for each journal */
 		uint64_t size;
 
-		log_info("Processing journal %d.\n", j + 1);
-		jndx = &sdp->sd_jindex[j];
+		jndx = &sd_jindex[j];
 		/* go through all rg index entries, keeping track of the highest */
 		/* that's still in the first subdevice.                          */
 		/* Note: we really should go through all of the rgindex because  */
@@ -706,79 +902,55 @@ int journ_space_to_rg(int disk_fd, struct gfs_sbd *sdp, struct gfs2_sbd *sdp2)
 		/* by jadd.  gfs_grow adds rgs out of order, so we can't count   */
 		/* on them being in ascending order.                             */
 		rgdhigh = NULL;
-		for (tmp = (osi_list_t *)sdp->sd_rglist.next;
-			 tmp != (osi_list_t *)&sdp->sd_rglist; tmp = tmp->next) {
-			rgd = osi_list_entry(tmp, struct gfs_rgrpd, rd_list);
-			if (rgd->rd_ri.ri_addr < jndx->ji_addr &&
+		osi_list_foreach(tmp, &sdp->rglist) {
+			rgd = osi_list_entry(tmp, struct rgrp_list, list);
+			if (rgd->ri.ri_addr < jndx->ji_addr &&
 				((rgdhigh == NULL) ||
-				 (rgd->rd_ri.ri_addr > rgdhigh->rd_ri.ri_addr)))
+				 (rgd->ri.ri_addr > rgdhigh->ri.ri_addr)))
 				rgdhigh = rgd;
 		} /* for each rg */
 		log_info("Addr %" PRIx64 " comes after rg at addr %" PRIx64 "\n",
-				 jndx->ji_addr, rgdhigh->rd_ri.ri_addr);
+				 jndx->ji_addr, rgdhigh->ri.ri_addr);
 		if (!rgdhigh) { /* if we somehow didn't find one. */
 			log_crit("Error: No suitable rg found for journal.\n");
 			return -1;
 		}
 		/* Allocate a new rgd entry which includes rg and ri. */
-		rgd = malloc(sizeof(struct gfs_rgrpd));
-		if (!rgd) {
-			log_crit("Error: out of memory creating new rg entry.\n");
-			return -1;
-		}
-		memset(rgd, 0, sizeof(struct gfs_rgrpd));
-		rgd->rd_sbd = sdp;
-		size = jndx->ji_nsegment * sdp->sd_sb.sb_seg_size;
-
-		rgd->rd_ri.ri_addr = jndx->ji_addr; /* new rg addr becomes ji addr */
-		rgd->rd_ri.ri_length = rgrp_length(size, sdp); /* aka bitblocks */
-		rgd->rd_ri.ri_data1 = jndx->ji_addr + rgd->rd_ri.ri_length;
-		rgd->rd_ri.ri_data = size - rgd->rd_ri.ri_length;
-
-		sdp2->blks_total += rgd->rd_ri.ri_data; /* For statfs file update */
-
-		/* Round down to nearest multiple of GFS_NBBY */
-		while (rgd->rd_ri.ri_data & 0x03)
-			rgd->rd_ri.ri_data--;
-		rgd->rd_ri.ri_bitbytes = rgd->rd_ri.ri_data / GFS_NBBY;
-
-		rgd->rd_rg.rg_header.mh_magic = GFS_MAGIC;
-		rgd->rd_rg.rg_header.mh_type = GFS_METATYPE_RG;
-		rgd->rd_rg.rg_header.mh_format = GFS_FORMAT_RG;
-		rgd->rd_rg.rg_free = rgd->rd_ri.ri_data;
-
 		/* convert the gfs1 rgrp into a new gfs2 rgrp */
-		rgd2 = malloc(sizeof(struct rgrp_list));
-		if (!rgd2) {
+		rgd = malloc(sizeof(struct rgrp_list));
+		if (!rgd) {
 			log_crit("Error: unable to allocate memory for rg conversion.\n");
 			return -1;
 		}
-		memset(rgd2, 0, sizeof(struct rgrp_list));
-		rgd2->rg.rg_header.mh_magic = GFS2_MAGIC;
-		rgd2->rg.rg_header.mh_type = GFS2_METATYPE_RG;
-		rgd2->rg.rg_header.mh_format = GFS2_FORMAT_RG;
-		rgd2->rg.rg_flags = 0;
-		rgd2->rg.rg_free = rgd->rd_ri.ri_data;
-		rgd2->rg.rg_dinodes = 0;
+		memset(rgd, 0, sizeof(struct rgrp_list));
+		size = jndx->ji_nsegment * be32_to_cpu(raw_gfs1_ondisk_sb.sb_seg_size);
+		rgd->rg.rg_header.mh_magic = GFS2_MAGIC;
+		rgd->rg.rg_header.mh_type = GFS2_METATYPE_RG;
+		rgd->rg.rg_header.mh_format = GFS2_FORMAT_RG;
+		rgd->rg.rg_flags = 0;
+		rgd->rg.rg_dinodes = 0;
 
-		rgd2->ri.ri_addr = rgd->rd_ri.ri_addr;
-		rgd2->ri.ri_length = rgd->rd_ri.ri_length;
-		rgd2->ri.ri_data0 = rgd->rd_ri.ri_data1;
-		rgd2->ri.ri_data = rgd->rd_ri.ri_data;
-		rgd2->ri.ri_bitbytes = rgd->rd_ri.ri_bitbytes;
-		convert_bitmaps(sdp2, rgd2, FALSE); /* allocates rgd2->bh */
-		for (x = 0; x < rgd2->ri.ri_length; x++) {
+		rgd->ri.ri_addr = jndx->ji_addr; /* new rg addr becomes ji addr */
+		rgd->ri.ri_length = rgrp_length(size, sdp); /* aka bitblocks */
+
+		rgd->ri.ri_data0 = jndx->ji_addr + rgd->ri.ri_length;
+		rgd->ri.ri_data = size - rgd->ri.ri_length;
+		sdp->blks_total += rgd->ri.ri_data; /* For statfs file update */
+		/* Round down to nearest multiple of GFS2_NBBY */
+		while (rgd->ri.ri_data & 0x03)
+			rgd->ri.ri_data--;
+		rgd->rg.rg_free = rgd->ri.ri_data;
+		rgd->ri.ri_bitbytes = rgd->ri.ri_data / GFS2_NBBY;
+		convert_bitmaps(sdp, rgd, FALSE); /* allocates rgd2->bh */
+		for (x = 0; x < rgd->ri.ri_length; x++) {
 			if (x)
-				gfs2_meta_header_out(&mh, rgd2->bh[x]->b_data);
+				gfs2_meta_header_out(&mh, rgd->bh[x]->b_data);
 			else
-				gfs2_rgrp_out(&rgd2->rg, rgd2->bh[x]->b_data);
+				gfs2_rgrp_out(&rgd->rg, rgd->bh[x]->b_data);
 		}
-		/* Add the new rg to our list: We'll output the rg index later. */
-		osi_list_add_prev((osi_list_t *)&rgd->rd_list,
-						  (osi_list_t *)&sdp->sd_rglist);
 		/* Add the new gfs2 rg to our list: We'll output the rg index later. */
-		osi_list_add_prev((osi_list_t *)&rgd2->list,
-						  (osi_list_t *)&sdp2->rglist);
+		osi_list_add_prev((osi_list_t *)&rgd->list,
+						  (osi_list_t *)&sdp->rglist);
 	} /* for each journal */
 	return error;
 }/* journ_space_to_rg */
@@ -797,8 +969,7 @@ void update_inode_file(struct gfs2_sbd *sdp)
 	if (count != sizeof(uint64_t))
 		die("update_inode_file\n");
 	
-	if (sdp->debug)
-		printf("\nNext Inum: %"PRIu64"\n", sdp->md.next_inum);
+	log_debug("\nNext Inum: %"PRIu64"\n", sdp->md.next_inum);
 }/* update_inode_file */
 
 /* ------------------------------------------------------------------------- */
@@ -819,83 +990,76 @@ void write_statfs_file(struct gfs2_sbd *sdp)
 	count = gfs2_writei(ip, buf, 0, sizeof(struct gfs2_statfs_change));
 	if (count != sizeof(struct gfs2_statfs_change))
 		die("do_init (2)\n");
-	
-	if (sdp->debug) {
-		printf("\nStatfs:\n");
-		gfs2_statfs_change_print(&sc);
-	}
 }/* write_statfs_file */
+
+/* ------------------------------------------------------------------------- */
+/* remove_obsolete_gfs1 - remove obsolete gfs1 inodes.                       */
+/* ------------------------------------------------------------------------- */
+void remove_obsolete_gfs1(struct gfs2_sbd *sbp)
+{
+	struct gfs2_inum inum;
+
+	log_notice("Removing obsolete gfs1 structures.\n");
+	fflush(stdout);
+	/* Delete the old gfs1 Journal index: */
+	gfs2_inum_in(&inum, (char *)&raw_gfs1_ondisk_sb.sb_jindex_di);
+	gfs2_freedi(sbp, inum.no_addr);
+
+	/* Delete the old gfs1 rgindex: */
+	gfs2_inum_in(&inum, (char *)&raw_gfs1_ondisk_sb.sb_rindex_di);
+	gfs2_freedi(sbp, inum.no_addr);
+
+	/* Delete the old gfs1 Quota file: */
+	gfs2_inum_in(&inum, (char *)&raw_gfs1_ondisk_sb.sb_quota_di);
+	gfs2_freedi(sbp, inum.no_addr);
+
+	/* Delete the old gfs1 License file: */
+	gfs2_inum_in(&inum, (char *)&raw_gfs1_ondisk_sb.sb_license_di);
+	gfs2_freedi(sbp, inum.no_addr);
+}
 
 /* ------------------------------------------------------------------------- */
 /* main - mainline code                                                      */
 /* ------------------------------------------------------------------------- */
 int main(int argc, char **argv)
-{	
-	int disk_fd;
+{
 	int error;
 	struct gfs2_buffer_head *bh;
-	struct options opts;
+	struct gfs2_options opts;
 
-	printf("gfs2_convert version %s (built %s %s)\n", GFS2_RELEASE_NAME,
-		   __DATE__, __TIME__);
-	printf("%s\n\n", REDHAT_COPYRIGHT);
+	version();
 	process_parameters(argc, argv, &opts);
-	memset(&sb, 0, sizeof(sb));
-	if ((disk_fd = open(device, O_RDWR)) < 0){
-		perror(device);
-		exit(-1);
-	}
-	osi_list_init((osi_list_t *)&dirs_to_fix);
-	/* ---------------------------------------------- */
-	/* Initialize lists and read in the superblock.   */
-	/* ---------------------------------------------- */
-	error = read_super_block(disk_fd, &sb);
-	if (error)
-		fprintf(stderr, "%s: Unable to read superblock.\n", device);
-	/* ---------------------------------------------- */
-	/* Make sure we're really gfs1                    */
-	/* ---------------------------------------------- */
-	if (sb.sd_sb.sb_fs_format != GFS_FORMAT_FS ||
-		sb.sd_sb.sb_header.mh_type != GFS_METATYPE_SB ||
-		sb.sd_sb.sb_header.mh_format != GFS_FORMAT_SB ||
-		sb.sd_sb.sb_multihost_format != GFS_FORMAT_MULTI) {
-		fprintf(stderr, "Error: %s does not look like a gfs1 filesystem.\n",
-				device);
-		close(disk_fd);
-		exit(-1);
-	}
+	error = init(&sb2);
+
 	/* ---------------------------------------------- */
 	/* Make them seal their fate.                     */
 	/* ---------------------------------------------- */
-	give_warning();
-	if (!query(&opts, "Convert %s from GFS1 to GFS2? (y/n)", device)) {
-		fprintf(stderr, "%s not converted.\n", device);
-		close(disk_fd);
-		exit(0);
-	}
-	printf("Initializing...");
 	if (!error) {
-		error = fill_super_block(disk_fd, &sb);
-		if (error)
-			fprintf(stderr, "%s: Unable to fill superblock.\n", device);
+		give_warning();
+		if (!query(&opts, "Convert %s from GFS1 to GFS2? (y/n)", device)) {
+			log_crit("%s not converted.\n", device);
+			close(sb2.device_fd);
+			exit(0);
+		}
 	}
 	/* ---------------------------------------------- */
 	/* Convert incore gfs1 sb to gfs2 sb              */
 	/* ---------------------------------------------- */
 	if (!error) {
-		printf("Converting superblock.\n");
-		error = superblock_cvt(disk_fd, &sb, &sb2);
+		log_notice("Converting resource groups.\n");
+		error = convert_rgs(&sb2);
 		if (error)
-			fprintf(stderr, "%s: Unable to convert superblock.\n", device);
+			log_crit("%s: Unable to convert resource groups.\n",
+					device);
 		bcommit(&sb2); /* write the buffers to disk */
 	}
 	/* ---------------------------------------------- */
 	/* Renumber the inodes consecutively.             */
 	/* ---------------------------------------------- */
 	if (!error) {
-		error = inode_renumber(&sb2, sb.sd_sb.sb_root_di.no_addr);
+		error = inode_renumber(&sb2, sb2.sd_sb.sb_root_dir.no_addr);
 		if (error)
-			fprintf(stderr, "\n%s: Error renumbering inodes.\n", device);
+			log_crit("\n%s: Error renumbering inodes.\n", device);
 		bcommit(&sb2); /* write the buffers to disk */
 	}
 	/* ---------------------------------------------- */
@@ -903,27 +1067,27 @@ int main(int argc, char **argv)
 	/* ---------------------------------------------- */
 	if (!error) {
 		error = fix_directory_info(&sb2, (osi_list_t *)&dirs_to_fix);
-		printf("\r%" PRIu64 " directories, %" PRIu64 " dirents fixed.",
-			   dirs_fixed, dirents_fixed);
+		log_notice("\r%" PRIu64 " directories, %" PRIu64 " dirents fixed.",
+				   dirs_fixed, dirents_fixed);
 		fflush(stdout);
 		if (error)
-			fprintf(stderr, "\n%s: Error fixing directories.\n", device);
+			log_crit("\n%s: Error fixing directories.\n", device);
 	}
 	/* ---------------------------------------------- */
 	/* Convert journal space to rg space              */
 	/* ---------------------------------------------- */
 	if (!error) {
-		printf("\nConverting journals.\n");
-		error = journ_space_to_rg(disk_fd, &sb, &sb2);
+		log_notice("\nConverting journals.\n");
+		error = journ_space_to_rg(&sb2);
 		if (error)
-			fprintf(stderr, "%s: Error converting journal space.\n", device);
+			log_crit("%s: Error converting journal space.\n", device);
 		bcommit(&sb2); /* write the buffers to disk */
 	}
 	/* ---------------------------------------------- */
 	/* Create our system files and directories.       */
 	/* ---------------------------------------------- */
 	if (!error) {
-		printf("Building system structures.\n");
+		log_notice("Building system structures.\n");
 		/* Build the master subdirectory. */
 		build_master(&sb2); /* Does not do inode_put */
 		sb2.sd_sb.sb_master_dir = sb2.master_dir->i_di.di_num;
@@ -948,34 +1112,34 @@ int main(int argc, char **argv)
 		inode_put(sb2.md.inum, updated);
 		inode_put(sb2.md.statfs, updated);
 
-		bh = bread(&sb2, sb2.sb_addr);
-		gfs2_sb_out(&sb2.sd_sb, bh->b_data);
-		brelse(bh, updated);
 		bcommit(&sb2); /* write the buffers to disk */
 
 		/* Now delete the now-obsolete gfs1 files: */
-		printf("Removing obsolete gfs1 structures.\n");
-		fflush(stdout);
-		/* Delete the Journal index: */
-		gfs2_freedi(&sb2, sb.sd_sb.sb_jindex_di.no_addr);
-		/* Delete the rgindex: */
-		gfs2_freedi(&sb2, sb.sd_sb.sb_rindex_di.no_addr);
-		/* Delete the Quota file: */
-		gfs2_freedi(&sb2, sb.sd_sb.sb_quota_di.no_addr);
-		/* Delete the License file: */
-		gfs2_freedi(&sb2, sb.sd_sb.sb_license_di.no_addr);
-		/* Now free all the rgrps */
+		remove_obsolete_gfs1(&sb2);
+		/* Now free all the in memory */
 		gfs2_rgrp_free(&sb2, updated);
-		printf("Committing changes to disk.\n");
+		log_notice("Committing changes to disk.\n");
 		fflush(stdout);
+		/* Set filesystem type in superblock to gfs2.  We do this at the */
+		/* end because if the tool is interrupted in the middle, we want */
+		/* it to not reject the partially converted fs as already done   */
+		/* when it's run a second time.                                  */
+		bh = bread(&sb2, sb2.sb_addr);
+		sb2.sd_sb.sb_fs_format = GFS2_FORMAT_FS;
+		sb2.sd_sb.sb_multihost_format = GFS2_FORMAT_MULTI;
+		gfs2_sb_out(&sb2.sd_sb, bh->b_data);
+		brelse(bh, updated);
+
 		bsync(&sb2); /* write the buffers to disk */
-		error = fsync(disk_fd);
+		error = fsync(sb2.device_fd);
 		if (error)
-			die("can't fsync device (%d): %s\n",
-				error, strerror(errno));
+			perror(device);
 		else
-			printf("%s: filesystem converted successfully to gfs2.\n", device);
+			log_notice("%s: filesystem converted successfully to gfs2.\n",
+					   device);
 	}
-	close(disk_fd);
+	close(sb2.device_fd);
+	if (sd_jindex)
+		free(sd_jindex);
 	exit(0);
 }
