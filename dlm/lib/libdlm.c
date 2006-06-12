@@ -67,10 +67,6 @@ struct dlm_ls_info
 #endif
 };
 
-extern ssize_t dlm_read(int, struct dlm_lock_result *);
-extern ssize_t dlm_read_data(int, struct dlm_lock_result *, size_t);
-extern ssize_t dlm_write(int, struct dlm_write_request *, size_t);
-
 /* The default lockspace.
    I've resisted putting locking around this as the user should be
    "sensible" and only do lockspace operations either in the
@@ -270,6 +266,10 @@ static void set_version(struct dlm_write_request *req)
     req->version[0] = DLM_DEVICE_VERSION_MAJOR;
     req->version[1] = DLM_DEVICE_VERSION_MINOR;
     req->version[2] = DLM_DEVICE_VERSION_PATCH;
+    if (sizeof(long) == sizeof(long long))
+	req->is64bit = 1;
+    else
+	req->is64bit = 0;
 }
 
 /* Open the default lockspace */
@@ -412,7 +412,7 @@ static int do_dlm_dispatch(int fd)
     void (*astaddr)(void *astarg);
 
     /* Just read the header first */
-    status = dlm_read(fd, result);
+    status = read(fd, result, sizeof(struct dlm_lock_result));
     if (status <= 0)
 	return -1;
 
@@ -424,7 +424,7 @@ static int do_dlm_dispatch(int fd)
 	if (!fullresult)
 	    return -1;
 
-	newstat = dlm_read_data(fd, (struct dlm_lock_result *)fullresult, result->length);
+	newstat = read(fd, (struct dlm_lock_result *)fullresult, result->length);
 
 	/* If it read OK then use the new data. otherwise we can
 	   still deliver the AST, it just might not have all the
@@ -489,7 +489,7 @@ static int sync_write(struct dlm_ls_info *lsinfo, struct dlm_write_request *req,
 	req->i.lock.castaddr  = dummy_ast_routine;
 	req->i.lock.castparam = NULL;
 
-	status = dlm_write(lsinfo->fd, req, len);
+	status = write(lsinfo->fd, req, len);
 	if (status < 0)
 	    return -1;
 
@@ -506,7 +506,7 @@ static int sync_write(struct dlm_ls_info *lsinfo, struct dlm_write_request *req,
 	req->i.lock.castaddr  = sync_ast_routine;
 	req->i.lock.castparam = &lwait;
 
-	status = dlm_write(lsinfo->fd, req, len);
+	status = write(lsinfo->fd, req, len);
 	if (status < 0)
 	    return -1;
 
@@ -523,7 +523,7 @@ static int sync_write(struct dlm_ls_info *lsinfo, struct dlm_write_request *req,
         req->i.lock.castaddr  = dummy_ast_routine;
         req->i.lock.castparam = NULL;
 
-        status = dlm_write(lsinfo->fd, req, len);
+        status = write(lsinfo->fd, req, len);
         if (status < 0)
             return -1;
 
@@ -624,7 +624,7 @@ int dlm_ls_lock(dlm_lshandle_t ls,
     if (flags & LKF_WAIT)
 	status = sync_write(lsinfo, req, len);
     else
-	status = dlm_write(lsinfo->fd, req, len);
+	status = write(lsinfo->fd, req, len);
 
     if (status < 0)
     {
@@ -781,7 +781,7 @@ int dlm_ls_unlock(dlm_lshandle_t ls, uint32_t lkid,
     if (flags & LKF_WAIT)
 	    status = sync_write(lsinfo, &req, sizeof(req));
     else
-	    status = dlm_write(lsinfo->fd, &req, sizeof(req));
+	    status = write(lsinfo->fd, &req, sizeof(req));
 
     if (status < 0)
 	return -1;
@@ -832,7 +832,7 @@ int dlm_ls_query(dlm_lshandle_t lockspace,
     req.i.query.lockinfo_max = qinfo->gqi_locksize;
     lksb->sb_status = EINPROG;
 
-    status = dlm_write(lsinfo->fd, &req, sizeof(req));
+    status = write(lsinfo->fd, &req, sizeof(req));
     if (status != sizeof(req))
 	return -1;
     else
@@ -995,7 +995,7 @@ dlm_lshandle_t dlm_create_lockspace(const char *name, mode_t mode)
     else
 	    req->i.lspace.flags = 0;
     strcpy(req->i.lspace.name, name);
-    minor = dlm_write(control_fd, req, sizeof(*req) + strlen(name));
+    minor = write(control_fd, req, sizeof(*req) + strlen(name));
 
     if (minor < 0 && errno != EEXIST)
     {
@@ -1041,7 +1041,7 @@ dlm_lshandle_t dlm_create_lockspace(const char *name, mode_t mode)
 	    /* Try to remove it */
 	    req->cmd = DLM_USER_REMOVE_LOCKSPACE;
 	    req->i.lspace.minor = minor;
-	    dlm_write(control_fd, req, sizeof(*req));
+	    write(control_fd, req, sizeof(*req));
 	    free(newls);
 	    return NULL;
 	}
@@ -1093,7 +1093,7 @@ int dlm_release_lockspace(const char *name, dlm_lshandle_t ls, int force)
     req.cmd = DLM_USER_REMOVE_LOCKSPACE;
     req.i.lspace.minor = minor(st.st_rdev);
 
-    status = dlm_write(control_fd, &req, sizeof(req));
+    status = write(control_fd, &req, sizeof(req));
     if (status < 0)
 	return status;
 

@@ -28,18 +28,18 @@ LDFLAGS +=
 all: $(STATICLIB) $(SHAREDLIB)
 
 
-$(LIBNAME).a: libdlm.o libaislock.o dlm32.o
+$(LIBNAME).a: libdlm.o libaislock.o
 	${AR} cr libdlm.a $^
 	${RANLIB} libdlm.a 
   
-$(LIBNAME)_lt.a: libdlm_lt.o dlm32.o
+$(LIBNAME)_lt.a: libdlm_lt.o
 	${AR} r libdlm_lt.a $^
 	${RANLIB} libdlm_lt.a 
   
-$(LIBNAME).so.${RELEASE_MAJOR}.${RELEASE_MINOR}: libdlm.po libaislock.po dlm32.po
+$(LIBNAME).so.${RELEASE_MAJOR}.${RELEASE_MINOR}: libdlm.po libaislock.po
 	$(CC) $(LDFLAGS) -shared -o $@ -Wl,-soname=$(LIBNAME).so.$(RELEASE_MAJOR) $^
   
-$(LIBNAME)_lt.so.${RELEASE_MAJOR}.${RELEASE_MINOR}: libdlm_lt.po dlm32.po
+$(LIBNAME)_lt.so.${RELEASE_MAJOR}.${RELEASE_MINOR}: libdlm_lt.po
 	$(CC) $(LDFLAGS) -shared -o $@ -Wl,-soname=$(LIBNAME)_lt.so.$(RELEASE_MAJOR) $^
   
 %_lt.o: %.c
