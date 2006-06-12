@@ -15,11 +15,13 @@ top_srcdir = ..
 UNINSTALL = ${top_srcdir}/scripts/uninstall.pl
 
 SBINPROGS= \
-	gfs2_mkfs \
-	gfs2_quota \
+	mkfs.gfs2 \
 	gfs2_tool \
 	mount.gfs2 \
+	gfs2_edit \
+	gfs2_convert \
 	umount.gfs2
+#	gfs2_quota \
 
 include ${top_srcdir}/make/defines.mk
 
@@ -39,12 +41,7 @@ install: all
 		install -m755 $${v} ${sbindir}; \
 	done
 	# Make the hardlink to mkfs_gfs2 instead of copying a separate version
-	(cd ${sbindir}; ln -f gfs2_mkfs mkfs.gfs2)
-	(cd ${sbindir}; ln -f gfs2_mkfs gfs2_grow)
-	(cd ${sbindir}; ln -f gfs2_mkfs gfs2_jadd)
-	(cd ${sbindir}; ln -f mount.gfs2 mount.gfs)
-	(cd ${sbindir}; ln -f umount.gfs2 umount.gfs)
-#	(cd ${sbindir}; ln -f gfs2_mkfs gfs2_shrink)
+	(cd ${sbindir}; ln -f mkfs.gfs2 gfs2_grow)
 
 uninstall:
 	#uninstall the hardlinked program as well
