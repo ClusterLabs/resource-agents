@@ -13,23 +13,18 @@
 
 all:
 	cd lib && ${MAKE} all
-	cd daemon && ${MAKE} all
 
 copytobin:
 	cd lib && ${MAKE} copytobin
-	cd daemon && ${MAKE} copytobin
 
 install:
 	cd lib && ${MAKE} install
-	cd daemon && ${MAKE} install
 
 uninstall:
 	cd lib && ${MAKE} uninstall
-	cd daemon && ${MAKE} uninstall
 
 clean:
 	cd lib && ${MAKE} clean
-	cd daemon && ${MAKE} clean
 	rm -f *~
 
 distclean: clean
