@@ -9,9 +9,8 @@ echo "configure ccs"
 echo "configure cman"
 (cd cman; ./configure $@ --ccsincdir=`pwd`/../ccs/lib --ccslibdir=`pwd`/../ccs/lib)
 
-# No config for group yet.
-#echo "configure group"
-#(cd group; ./configure $@)
+echo "configure group"
+(cd group; ./configure $@)
 
 echo "configure dlm"
 (cd dlm; ./configure $@)
