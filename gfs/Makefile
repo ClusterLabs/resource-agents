@@ -20,7 +20,6 @@ all:
 	cd gfs_mkfs && ${MAKE} all
 	cd gfs_quota && ${MAKE} all
 	cd gfs_tool && ${MAKE} all
-	cd lock_dlm && ${MAKE} all
 
 copytobin:
 	cd gfs_debug && ${MAKE} copytobin
@@ -31,7 +30,6 @@ copytobin:
 	cd gfs_mkfs && ${MAKE} copytobin
 	cd gfs_quota && ${MAKE} copytobin
 	cd gfs_tool && ${MAKE} copytobin
-	cd lock_dlm && ${MAKE} copytobin
 
 clean:
 	cd bin && ${MAKE} clean
@@ -43,7 +41,6 @@ clean:
 	cd gfs_mkfs && ${MAKE} clean
 	cd gfs_quota && ${MAKE} clean
 	cd gfs_tool && ${MAKE} clean
-	cd lock_dlm && ${MAKE} clean
 
 distclean: clean
 	rm -f make/defines.mk
@@ -52,11 +49,9 @@ install:
 	cd bin && ${MAKE} install
 	cd man && ${MAKE} install
 	cd init.d && ${MAKE} install
-	cd lock_dlm && ${MAKE} install
 
 deinstall uninstall:
 	cd bin && ${MAKE} uninstall
 	cd man && ${MAKE} uninstall
 	cd init.d && ${MAKE} uninstall
-	cd lock_dlm && ${MAKE} uninstall
 
