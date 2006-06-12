@@ -669,7 +669,11 @@ int display_extended(void)
 					total_dirents++;
 					if (indirect[e].dirents > 1) {
 						eol(5);
-						print_gfs2("%d. (%d). 0x%llx: ", total_dirents, d + 1,
+						print_gfs2("%d. (%d). %lld (0x%llx) / %lld (0x%llx): ",
+								   total_dirents, d + 1,
+								   indirect[e].dirent[d].dirent.de_inum.no_formal_ino,
+								   indirect[e].dirent[d].dirent.de_inum.no_formal_ino,
+								   indirect[e].dirent[d].block,
 								   indirect[e].dirent[d].block);
 					}
 					switch(indirect[e].dirent[d].dirent.de_type) {

@@ -220,12 +220,11 @@ void do_dinode_extended(struct gfs2_dinode *di, char *buf)
 			 !(di->di_flags & GFS2_DIF_EXHASH)) {
 		int skip = 0;
 		/* Directory Entries: */
-		indirect[indirect_blocks].dirents = 0;
+		indirect[0].dirents = 0;
 		for (x = sizeof(struct gfs2_dinode); x < bufsize; x += skip) {
-			skip = indirect_dirent(&indirect[indirect_blocks], buf + x, 0);
+			skip = indirect_dirent(&indirect[0], buf + x, indirect[0].dirents);
 			if (skip <= 0)
 				break;
-			indirect_blocks++;
 		}
 	}
 	else if (isdir &&
