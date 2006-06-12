@@ -27,5 +27,5 @@ clean:
 	rm -f *.o group_tool
 
 install: group_tool
-	install group_tool /sbin
+	install group_tool ${sbindir}
 

@@ -44,5 +44,5 @@ clean:
 	rm -f *.o groupd
 
 install: groupd
-	install groupd /sbin
+	install groupd ${sbindir}/sbin
 
