@@ -27,7 +27,7 @@ CFLAGS=-Wall -ggdb -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
        -D_GNU_SOURCE -DGFS2_RELEASE_NAME=\"2\" ${INCLUDEPATH}
 
 H=gfs2_disk_hash.h libgfs2.h linux_endian.h ondisk.h osi_list.h
-C=bitmap.c block_list.c buf.c device_geometry.c fs_bits.c fs_geometry.c fs_ops.c locking.c misc.c ondisk.c size.c structures.c rgrp.c
+C=bitmap.c block_list.c buf.c device_geometry.c fs_bits.c fs_geometry.c fs_ops.c locking.c gfs2_log.c misc.c ondisk.c size.c structures.c super.c rgrp.c
 O=$(subst .c,.o,${C})
 
 all: ${LIBGFS2}

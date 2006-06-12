@@ -509,8 +509,10 @@ int gfs2_next_rg_meta(struct rgrp_list *rgd, uint64_t *block, int first)
 	uint32_t blk = (first)? 0: (uint32_t)((*block+1)-rgd->ri.ri_data0);
 	int i;
 
-	if(!first && (*block < rgd->ri.ri_data0))
+	if(!first && (*block < rgd->ri.ri_data0)) {
+		log_err("next_rg_meta:  Start block is outside rgrp bounds.\n");
 		exit(1);
+	}
 	if (*block == 0x11366)
 		bits = NULL;
 	for(i=0; i < length; i++){
@@ -555,9 +557,10 @@ int gfs2_next_rg_meta_free(struct rgrp_list *rgd, uint64_t *block, int first,
 	uint32_t iblk, ublk, fblk;
 	int i;
 	
-	if(!first && (*block < rgd->ri.ri_data0))
+	if(!first && (*block < rgd->ri.ri_data0)) {
+		log_err("next_rg_meta_free:  Start block is outside rgrp bounds.\n");
 		exit(1);
-
+	}
 	for(i=0; i < length; i++){
 		bits = &rgd->bits[i];
 		if(blk < bits->bi_len*GFS2_NBBY)

@@ -183,7 +183,7 @@ void gfs2_rindex_in(struct gfs2_rindex *ri, char *buf)
 
 	CPIN_32(ri, str, ri_bitbytes);
 
-	CPIN_08(ri, str, ri_reserved, 32);
+	CPIN_08(ri, str, ri_reserved, 64);
 }
 
 void gfs2_rindex_out(struct gfs2_rindex *ri, char *buf)
@@ -199,7 +199,7 @@ void gfs2_rindex_out(struct gfs2_rindex *ri, char *buf)
 
 	CPOUT_32(ri, str, ri_bitbytes);
 
-	CPOUT_08(ri, str, ri_reserved, 32);
+	CPOUT_08(ri, str, ri_reserved, 64);
 }
 
 void gfs2_rindex_print(struct gfs2_rindex *ri)

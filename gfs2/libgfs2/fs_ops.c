@@ -606,9 +606,6 @@ struct gfs2_buffer_head *get_file_buf(struct gfs2_inode *ip, uint64_t lbn)
 		return bread(sdp, dbn);
 }
 
-#define IS_LEAF     (1)
-#define IS_DINODE   (2)
-
 int gfs2_dirent_first(struct gfs2_inode *dip, struct gfs2_buffer_head *bh,
 					  struct gfs2_dirent **dent)
 {
