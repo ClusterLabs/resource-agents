@@ -33,7 +33,6 @@
 #include "libgfs2.h"
 #include "fsck.h"
 #include "util.h"
-#include "log.h"
 #include "link.h"
 #include "linux_endian.h"
 #include "metawalk.h"
@@ -55,8 +54,8 @@ static int leaf(struct gfs2_inode *ip, uint64_t block,
 
 	f = not_updated;
 	if(gfs2_check_range(sdp, block)){
-		log_warn("Leaf block #%"PRIu64" (0x%" PRIx64 ") is out of range for "
-				 "directory #%"PRIu64" (0x%" PRIx64 ").\n",
+		log_warn("Leaf block #%" PRIu64 " (0x%" PRIx64 ") is out of range for "
+				 "directory #%" PRIu64 " (0x%" PRIx64 ").\n",
 				 block, block, ip->i_di.di_num.no_addr,
 				 ip->i_di.di_num.no_addr);
 		gfs2_block_set(bl, ip->i_di.di_num.no_addr, gfs2_bad_block);
@@ -68,7 +67,7 @@ static int leaf(struct gfs2_inode *ip, uint64_t block,
 
 	if(gfs2_check_meta(*bh, GFS2_METATYPE_LF)){
 		log_err("Bad meta header for leaf block #%" PRIu64 "(0x%" PRIx64 
-				") in directory #%"PRIu64". - is %u, should be %u\n",
+				") in directory #%" PRIu64 ". - is %u, should be %u\n",
 				(*bh)->b_data, (*bh)->b_data, ip->i_di.di_num.no_addr,
 				ip->i_di.di_num.no_addr,
 				(struct gfs2_meta_header *)mh->mh_type,
@@ -80,12 +79,12 @@ static int leaf(struct gfs2_inode *ip, uint64_t block,
 			log_err("Directory inode marked invalid\n");
 			f = updated;
 		} else
-			log_err("Invalid block %"PRIu64" (0x%" PRIx64 ") ignored\n",
+			log_err("Invalid block %" PRIu64 " (0x%" PRIx64 ") ignored\n",
 				ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr);
 		brelse(*bh, f);
 		return 1;
 	}
-	log_debug("\tLeaf block at %15"PRIu64" (0x%" PRIx64 ")\n",
+	log_debug("\tLeaf block at %15" PRIu64 " (0x%" PRIx64 ")\n",
 			  block, block);
 	gfs2_block_set(bl, block, gfs2_leaf_blk);
 	bc->indir_count++;
@@ -160,13 +159,13 @@ static int check_data(struct gfs2_inode *ip, uint64_t block, void *private)
 		return -1;
 	}
 	if(q.block_type != gfs2_block_free) {
-		log_debug("Found duplicate block at %" PRIu64 " (0x%"PRIx64")\n",
+		log_debug("Found duplicate block at %" PRIu64 " (0x%"PRIx64 ")\n",
 				  block, block);
 		gfs2_block_mark(bl, block, gfs2_dup_block);
 		bc->data_count++;
 		return 1;
 	}
-	log_debug("Setting %"PRIu64 " (0x%" PRIx64 ") to data block\n", block,
+	log_debug("Setting %" PRIu64 " (0x%" PRIx64 ") to data block\n", block,
 			  block);
 	gfs2_block_set(bl, block, gfs2_block_used);
 	bc->data_count++;
@@ -185,7 +184,7 @@ static int check_eattr_indir(struct gfs2_inode *ip, uint64_t indirect,
 
 	/* This inode contains an eattr - it may be invalid, but the
 	 * eattr attributes points to a non-zero block */
-	log_debug("Setting %"PRIu64 " (0x%" PRIx64 ") to eattr block\n", block,
+	log_debug("Setting %" PRIu64 " (0x%" PRIx64 ") to eattr block\n", block,
 			  block);
 	gfs2_block_set(bl, ip->i_di.di_num.no_addr, gfs2_eattr_block);
 
@@ -202,7 +201,7 @@ static int check_eattr_indir(struct gfs2_inode *ip, uint64_t indirect,
 		ret = -1;
 	}
 	else if(q.block_type != gfs2_block_free) {
-		log_debug("Duplicate block found at #%"PRIu64" (0x%" PRIx64 ").\n",
+		log_debug("Duplicate block found at #%" PRIu64 " (0x%" PRIx64 ").\n",
 				  indirect, indirect);
 		gfs2_block_set(bl, indirect, gfs2_dup_block);
 		bc->ea_count++;
@@ -219,8 +218,8 @@ static int check_eattr_indir(struct gfs2_inode *ip, uint64_t indirect,
 		}
 		else {
 			/* FIXME: do i need to differentiate this as an ea_indir? */
-			log_debug("Setting %"PRIu64 " (0x%" PRIx64 ") to indirect block\n",
-					  block, block);
+			log_debug("Setting %" PRIu64 " (0x%" PRIx64
+					  ") to indirect block\n", block, block);
 			gfs2_block_set(bl, block, gfs2_indir_blk);
 			bc->ea_count++;
 		}
@@ -253,7 +252,7 @@ static int check_extended_leaf_eattr(struct gfs2_inode *ip, uint64_t *data_ptr,
 	struct block_count *bc = (struct block_count *) private;
 
 	if(gfs2_check_range(sdp, el_blk)){
-		log_err("EA extended leaf block #%"PRIu64"  (0x%" PRIx64
+		log_err("EA extended leaf block #%" PRIu64 " (0x%" PRIx64
 				") is out of range.\n",	el_blk, el_blk);
 		gfs2_block_set(bl, ip->i_di.di_eattr, gfs2_bad_block);
 		return 1;
@@ -272,14 +271,14 @@ static int check_extended_leaf_eattr(struct gfs2_inode *ip, uint64_t *data_ptr,
 	el_buf = bread(sdp, el_blk);
 
 	if(gfs2_check_meta(el_buf, GFS2_METATYPE_ED)) {
-		log_err("EA extended leaf block %" PRIu64 "(0x%" PRIx64
+		log_err("EA extended leaf block %" PRIu64 " (0x%" PRIx64
 				") has incorrect type.\n", el_blk, el_blk);
 		brelse(el_buf, not_updated);
 		gfs2_block_set(bl, el_blk, gfs2_meta_inval);
 		return 1;
 	}
 
-	log_debug("Setting %"PRIu64 " (0x%" PRIx64 ") to eattr block\n",
+	log_debug("Setting %" PRIu64 " (0x%" PRIx64 ") to eattr block\n",
 			  el_blk, el_blk);
 	gfs2_block_set(bl, el_blk, gfs2_meta_eattr);
 	bc->ea_count++;
@@ -298,12 +297,12 @@ static int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
 
 	/* This inode contains an eattr - it may be invalid, but the
 	 * eattr attributes points to a non-zero block */
-	log_debug("Setting %"PRIu64 " (0x%" PRIx64 ") to eattr block\n",
+	log_debug("Setting %" PRIu64 " (0x%" PRIx64 ") to eattr block\n",
 			  ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr);
 	gfs2_block_set(bl, ip->i_di.di_num.no_addr, gfs2_eattr_block);
 
 	if(gfs2_check_range(sdp, block)){
-		log_warn("EA leaf block #%"PRIu64" (0x%" PRIx64 ") in inode %"PRIu64
+		log_warn("EA leaf block #%" PRIu64 " (0x%" PRIx64 ") in inode %" PRIu64
 				 " (0x%" PRIx64 ") is out of range.\n",
 				 ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr,
 				 block, block);
@@ -315,7 +314,7 @@ static int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
 		return -1;
 	}
 	else if(q.block_type != gfs2_block_free) {
-		log_debug("Duplicate block found at #%"PRIu64" (0x%" PRIx64 ").\n",
+		log_debug("Duplicate block found at #%" PRIu64 " (0x%" PRIx64 ").\n",
 				  block, block);
 		gfs2_block_set(bl, block, gfs2_dup_block);
 		bc->ea_count++;
@@ -329,7 +328,7 @@ static int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
 			ret = 1;
 		}
 		else {
-			log_debug("Setting %"PRIu64 " (0x%" PRIx64 ") to eattr block\n",
+			log_debug("Setting %" PRIu64 " (0x%" PRIx64 ") to eattr block\n",
 					  (uint64_t)*leaf_bh->b_data, (uint64_t)*leaf_bh->b_data);
 			gfs2_block_set(bl, (uint64_t)*leaf_bh->b_data, gfs2_meta_eattr);
 			bc->ea_count++;
@@ -432,7 +431,7 @@ int clear_leaf(struct gfs2_inode *ip, uint64_t block,
 	       struct gfs2_buffer_head **bh, void *private)
 {
 	struct gfs2_block_query q = {0};
-	log_crit("Clearing leaf %"PRIu64" (0x%" PRIx64 ")\n", block, block);
+	log_crit("Clearing leaf %" PRIu64 " (0x%" PRIx64 ")\n", block, block);
 
 	if(gfs2_block_check(bl, block, &q)) {
 		stack;
@@ -462,7 +461,7 @@ int add_to_dir_list(struct gfs2_sbd *sbp, uint64_t block)
 	 * matter too much */
 	find_di(sbp, block, &di);
 	if(di) {
-		log_err("Attempting to add directory block %"PRIu64
+		log_err("Attempting to add directory block %" PRIu64
 				" (0x%" PRIx64 ") which is already in list\n", block, block);
 		return -1;
 	}
@@ -472,7 +471,7 @@ int add_to_dir_list(struct gfs2_sbd *sbp, uint64_t block)
 		return -1;
 	}
 	if(!memset(newdi, 0, sizeof(*newdi))) {
-		log_crit("error while zeroing dir_info structure\n");
+		log_crit("Error while zeroing dir_info structure\n");
 		return -1;
 	}
 
@@ -498,17 +497,17 @@ int handle_di(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh,
 
 	ip = inode_get(sdp, bh);
 	if (ip->i_di.di_num.no_addr != block) {
-		log_err("inode #%" PRIu64 " (0x%" PRIx64
+		log_err("Inode #%" PRIu64 " (0x%" PRIx64
 				"): Bad inode address found: %"	PRIu64 " (0x%" PRIx64 ")\n",
 				block, block, ip->i_di.di_num.no_addr,
 				ip->i_di.di_num.no_addr);
 		if(query(&opts, "Fix address in inode at block %"
-				 PRIu64" (0x%" PRIx64 ")? (y/n) ", block, block)) {
+				 PRIu64 " (0x%" PRIx64 ")? (y/n) ", block, block)) {
 			ip->i_di.di_num.no_addr = ip->i_di.di_num.no_formal_ino = block;
 			gfs2_dinode_out(&ip->i_di, ip->i_bh->b_data);
 			f = updated;
 		} else
-			log_err("Address in inode at block %"PRIu64
+			log_err("Address in inode at block %" PRIu64
 				 " (0x%" PRIx64 ") not fixed\n", block, block);
 	}
 
@@ -619,7 +618,7 @@ int handle_di(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh,
 	/* FIXME: fix height and depth here - wasn't implemented in
 	 * old fsck either, so no biggy... */
 	if (ip->i_di.di_height < compute_height(sdp, ip->i_di.di_size)){
-		log_warn("Dinode #%"PRIu64" (0x%" PRIx64 ") has bad height  "
+		log_warn("Dinode #%" PRIu64 " (0x%" PRIx64 ") has bad height  "
 				 "Found %u, Expected >= %u\n", ip->i_di.di_num.no_addr, 
 				 ip->i_di.di_num.no_addr, ip->i_di.di_height,
 				 compute_height(sdp, ip->i_di.di_size));
@@ -678,7 +677,7 @@ int handle_di(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh,
 
 	if (ip->i_di.di_blocks != 
 		(1 + bc.indir_count + bc.data_count + bc.ea_count)) {
-		log_err("inode %" PRIu64 " (0x%" PRIx64 "): Ondisk block count (%"
+		log_err("Inode %" PRIu64 " (0x%" PRIx64 "): Ondisk block count (%"
 				PRIu64 ") does not match what fsck found (%" PRIu64 ")\n",
 				ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr,
 				ip->i_di.di_blocks,
@@ -702,7 +701,7 @@ int scan_meta(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh,
 			  uint64_t block)
 {
 	if (gfs2_check_meta(bh, 0)) {
-		log_debug("Found invalid metadata at %"PRIu64" (0x%" PRIx64 ")\n",
+		log_debug("Found invalid metadata at %" PRIu64 " (0x%" PRIx64 ")\n",
 				  block, block);
 		if(gfs2_block_set(bl, block, gfs2_meta_inval)) {
 			stack;
@@ -775,13 +774,14 @@ int pass1(struct gfs2_sbd *sbp)
 
 	for (tmp = sbp->rglist.next; tmp != &sbp->rglist;
 	     tmp = tmp->next, rg_count++){
-		log_info("Checking metadata in Resource Group %"PRIu64"\n", rg_count);
+		log_info("Checking metadata in Resource Group #%" PRIu64 "\n",
+				 rg_count);
 		rgd = osi_list_entry(tmp, struct rgrp_list, list);
 		if(gfs2_rgrp_read(sbp, rgd)){
 			stack;
 			return -1;
 		}
-		log_debug("RG at %"PRIu64" (0x%" PRIx64 ") is %u long\n",
+		log_debug("RG at %" PRIu64 " (0x%" PRIx64 ") is %u long\n",
 				  rgd->ri.ri_addr, rgd->ri.ri_addr, rgd->ri.ri_length);
 		for (i = 0; i < rgd->ri.ri_length; i++) {
 			if(gfs2_block_set(bl, rgd->ri.ri_addr + i, gfs2_meta_other)){

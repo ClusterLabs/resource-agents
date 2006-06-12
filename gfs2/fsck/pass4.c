@@ -18,7 +18,6 @@
 #include "libgfs2.h"
 #include "fsck.h"
 #include "lost_n_found.h"
-#include "log.h"
 #include "inode_hash.h"
 
 /* Updates the link count of an inode to what the fsck has seen for
@@ -26,13 +25,13 @@
 int fix_inode_count(struct gfs2_sbd *sbp, struct inode_info *ii,
 					struct gfs2_inode *ip)
 {
-	log_info("Fixing inode count for %"PRIu64" (0x%" PRIx64") \n",
+	log_info("Fixing inode count for %" PRIu64 " (0x%" PRIx64 ") \n",
 			 ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr);
 	if(ip->i_di.di_nlink == ii->counted_links)
 		return 0;
 	ip->i_di.di_nlink = ii->counted_links;
 
-	log_debug("Changing inode %"PRIu64" (0x%" PRIx64") to have %u links\n",
+	log_debug("Changing inode %" PRIu64 " (0x%" PRIx64 ") to have %u links\n",
 			  ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr,
 			  ii->counted_links);
 	return 0;
@@ -54,10 +53,10 @@ int scan_inode_list(struct gfs2_sbd *sbp, osi_list_t *list) {
 			log_crit("osi_list_foreach broken in scan_info_list!!\n");
 			exit(1);
 		}
-		log_info("Checking reference count on inode at block %"PRIu64
-			 " (0x%" PRIx64 "\n", ii->inode, ii->inode);
+		log_info("Checking reference count on inode at block %" PRIu64
+			 " (0x%" PRIx64 ")\n", ii->inode, ii->inode);
 		if(ii->counted_links == 0) {
-			log_err("Found unlinked inode at %"PRIu64" (0x%"PRIx64")\n",
+			log_err("Found unlinked inode at %" PRIu64 " (0x%" PRIx64 ")\n",
 					ii->inode, ii->inode);
 			if(gfs2_block_check(bl, ii->inode, &q)) {
 				stack;
@@ -98,7 +97,7 @@ int scan_inode_list(struct gfs2_sbd *sbp, osi_list_t *list) {
 				}
 
 			}
-			if(query(&opts, "Add unlinked inode to l+f? (y/n)")) {
+			if(query(&opts, "Add unlinked inode to lost+found? (y/n)")) {
 				f = updated;
 				if(add_inode_to_lf(ip)) {
 					stack;
@@ -114,31 +113,31 @@ int scan_inode_list(struct gfs2_sbd *sbp, osi_list_t *list) {
 			inode_put(ip, f);
 		} /* if(ii->counted_links == 0) */
 		else if(ii->link_count != ii->counted_links) {
-			log_err("Link count inconsistent for inode %"PRIu64
-					" (0x%" PRIx64") - %u %u\n", ii->inode, 
+			log_err("Link count inconsistent for inode %" PRIu64
+					" (0x%" PRIx64 ") has %u but fsck found %u.\n", ii->inode, 
 					ii->inode, ii->link_count, ii->counted_links);
 			/* Read in the inode, adjust the link count,
 			 * and write it back out */
 			if(query(&opts, "Update link count for inode %"
-				 PRIu64" (0x%" PRIx64") ? (y/n) ", ii->inode, ii->inode)) {
+				 PRIu64 " (0x%" PRIx64 ") ? (y/n) ", ii->inode, ii->inode)) {
 				ip = gfs2_load_inode(sbp, ii->inode); /* bread, inode_get */
 				fix_inode_count(sbp, ii, ip);
 				inode_put(ip, updated); /* out, brelse, free */
 				log_warn("Link count updated for inode %"
-						 PRIu64" (0x%" PRIx64") \n", ii->inode, ii->inode);
+						 PRIu64 " (0x%" PRIx64 ") \n", ii->inode, ii->inode);
 			} else {
-				log_err("Link count for inode %" PRIu64" (0x%" PRIx64
-						")  still incorrect\n", ii->inode, ii->inode);
+				log_err("Link count for inode %" PRIu64 " (0x%" PRIx64
+						") still incorrect\n", ii->inode, ii->inode);
 			}
 		}
-		log_debug("block %"PRIu64" (0x%" PRIx64") has link count %d\n",
+		log_debug("block %" PRIu64 " (0x%" PRIx64 ") has link count %d\n",
 				  ii->inode, ii->inode, ii->link_count);
 	} /* osi_list_foreach(tmp, list) */
 
 	if (lf_addition) {
 		if(!(ii = inode_hash_search(inode_hash,
 									lf_dip->i_di.di_num.no_addr))) {
-			log_crit("Unable to find l+f inode in inode_hash!!\n");
+			log_crit("Unable to find lost+found inode in inode_hash!!\n");
 			return -1;
 		} else {
 			fix_inode_count(sbp, ii, lf_dip);
@@ -162,7 +161,7 @@ int pass4(struct gfs2_sbd *sbp)
 	uint32_t i;
 	osi_list_t *list;
 	if(lf_dip)
-		log_debug("At beginning of pass4, l+f entries is %u\n",
+		log_debug("At beginning of pass4, lost+found entries is %u\n",
 				  lf_dip->i_di.di_entries);
 	for (i = 0; i < FSCK_HASH_SIZE; i++) {
 		list = &inode_hash[i];
@@ -173,7 +172,7 @@ int pass4(struct gfs2_sbd *sbp)
 	}
 
 	if(lf_dip)
-		log_debug("At end of pass4, l+f entries is %u\n",
+		log_debug("At end of pass4, lost+found entries is %u\n",
 				  lf_dip->i_di.di_entries);
 	return 0;
 }

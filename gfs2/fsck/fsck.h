@@ -19,12 +19,6 @@
 #define FSCK_HASH_SIZE          (1 << FSCK_HASH_SHIFT)
 #define FSCK_HASH_MASK          (FSCK_HASH_SIZE - 1)
 
-struct options {
-	char *device;
-	int yes:1;
-	int no:1;
-};
-
 struct inode_info
 {
         osi_list_t list;
@@ -59,7 +53,7 @@ int pass5(struct gfs2_sbd *sbp);
  * of pass1 and put somewhere else... */
 int add_to_dir_list(struct gfs2_sbd *sbp, uint64_t block);
 
-extern struct options opts;
+extern struct gfs2_options opts;
 extern struct gfs2_inode *lf_dip; /* Lost and found directory inode */
 extern osi_list_t dir_hash[FSCK_HASH_SIZE];
 extern osi_list_t inode_hash[FSCK_HASH_SIZE];

@@ -20,10 +20,10 @@
 #include <unistd.h>
 #include <dirent.h>
 
+#include "fsck.h"
 #include "libgfs2.h"
 #include "lost_n_found.h"
 #include "link.h"
-#include "log.h"
 
 /* add_inode_to_lf - Add dir entry to lost+found for the inode
  * @ip: inode to add to lost + found
@@ -45,13 +45,13 @@ int add_inode_to_lf(struct gfs2_inode *ip){
 
 		log_info("Locating/Creating lost and found directory\n");
 
-        lf_dip = createi(ip->i_sbd->md.rooti, "l+f", S_IFDIR | 0700, 0);
+        lf_dip = createi(ip->i_sbd->md.rooti, "lost+found", S_IFDIR | 0700, 0);
 		if(gfs2_block_check(bl, lf_dip->i_di.di_num.no_addr, &q)) {
 			stack;
 			return -1;
 		}
 		if(q.block_type != gfs2_inode_dir) {
-			/* This is a new l+f directory, so set its
+			/* This is a new lost+found directory, so set its
 			 * block type and increment link counts for
 			 * the directories */
 			/* FIXME: i'd feel better about this if
@@ -67,21 +67,21 @@ int add_inode_to_lf(struct gfs2_inode *ip){
 		}
 	}
 	if(ip->i_di.di_num.no_addr == lf_dip->i_di.di_num.no_addr) {
-		log_err("Trying to add l+f to itself...skipping");
+		log_err("Trying to add lost+found to itself...skipping");
 		return 0;
 	}
 	switch(ip->i_di.di_mode & S_IFMT){
 	case S_IFDIR:
-		log_info("Adding .. entry pointing to l+f for %"PRIu64"\n",
+		log_info("Adding .. entry pointing to lost+found for %"PRIu64"\n",
 				 ip->i_di.di_num.no_addr);
 		sprintf(tmp_name, "..");
 		filename_len = strlen(tmp_name);  /* no trailing NULL */
-		if(!(filename = malloc(sizeof(char) * filename_len))) {
+		if(!(filename = malloc((sizeof(char) * filename_len) + 1))) {
 			log_err("Unable to allocate name\n");
 			stack;
 			return -1;
 		}
-		if(!memset(filename, 0, sizeof(char) * filename_len)) {
+		if(!memset(filename, 0, (sizeof(char) * filename_len) + 1)) {
 			log_err("Unable to zero name\n");
 			stack;
 			return -1;
@@ -90,7 +90,7 @@ int add_inode_to_lf(struct gfs2_inode *ip){
 
 		if(gfs2_dirent_del(ip, NULL, filename, filename_len))
 			log_warn("add_inode_to_lf:  "
-				"Unable to remove \"..\" directory entry.\n");
+					 "Unable to remove \"..\" directory entry.\n");
 
 		dir_add(ip, filename, filename_len, &(lf_dip->i_di.di_num), DT_DIR);
 		free(filename);
@@ -145,6 +145,7 @@ int add_inode_to_lf(struct gfs2_inode *ip){
 		increment_link(ip->i_sbd, lf_dip->i_di.di_num.no_addr);
 
 	free(filename);
-	log_notice("Added inode #%"PRIu64" to l+f dir\n", ip->i_di.di_num.no_addr);
+	log_notice("Added inode #%"PRIu64" to lost+found dir\n",
+			   ip->i_di.di_num.no_addr);
 	return 0;
 }

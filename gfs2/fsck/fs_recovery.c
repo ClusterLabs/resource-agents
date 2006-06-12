@@ -21,7 +21,6 @@
 #include "libgfs2.h"
 #include "util.h"
 #include "fs_recovery.h"
-#include "log.h"
 
 #define RANDOM(values) ((values) * (random() / (RAND_MAX + 1.0)))
 
@@ -64,7 +63,8 @@ static int reconstruct_single_journal(struct gfs2_sbd *sdp, int jnum){
 		block_map(ip, x, &new, &dblock, &extlen);
 		bh = bread(sdp, dblock);
 		if (!bh) {
-			log_err("Unable to read journal block at %"PRIu64"\n", dblock);
+			log_err("Unable to read journal block at %" PRIu64
+					" (0x%" PRIx64")\n", dblock, dblock);
 			return -1;
 		}
 

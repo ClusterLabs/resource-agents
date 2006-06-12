@@ -22,7 +22,6 @@
 #include "fsck.h"
 #include "lost_n_found.h"
 #include "link.h"
-#include "log.h"
 #include "metawalk.h"
 
 static int attach_dotdot_to(struct gfs2_sbd *sbp, uint64_t newdotdot,
@@ -42,14 +41,14 @@ static int attach_dotdot_to(struct gfs2_sbd *sbp, uint64_t newdotdot,
 	 * this case? */
 
 	filename_len = strlen("..");
-	if(!(filename = malloc(sizeof(char) * filename_len))) {
+	if(!(filename = malloc((sizeof(char) * filename_len) + 1))) {
 		log_err("Unable to allocate name\n");
 		inode_put(ip, not_updated);
 		inode_put(pip, not_updated);
 		stack;
 		return -1;
 	}
-	if(!memset(filename, 0, sizeof(char) * filename_len)) {
+	if(!memset(filename, 0, (sizeof(char) * filename_len) + 1)) {
 		log_err("Unable to zero name\n");
 		inode_put(ip, not_updated);
 		inode_put(pip, not_updated);
@@ -80,20 +79,22 @@ struct dir_info *mark_and_return_parent(struct gfs2_sbd *sbp,
 		return NULL;
 
 	if(di->dotdot_parent != di->treewalk_parent) {
-		log_warn(".. and treewalk conections are not the same for %"PRIu64
-				 "\n", di->dinode);
-		log_notice("%"PRIu64" %"PRIu64"\n", di->dotdot_parent,
+		log_warn("Directory '..' and treewalk connections disagree for inode %"
+				 PRIu64 " (0x%" PRIx64 ")\n", di->dinode, di->dinode);
+		log_notice("'..' has %" PRIu64" (0x%" PRIx64 "), treewalk has %"
+				   PRIu64" (0x%" PRIx64 ")\n", di->dotdot_parent,
+				   di->dotdot_parent, di->treewalk_parent,
 				   di->treewalk_parent);
 		if(gfs2_block_check(bl, di->dotdot_parent, &q_dotdot)) {
 			log_err("Unable to find block %"PRIu64
-				" in block map\n",
-				di->dotdot_parent);
+					" (0x%" PRIx64 ") in block map.\n",
+					di->dotdot_parent, di->dotdot_parent);
 			return NULL;
 		}
 		if(gfs2_block_check(bl, di->treewalk_parent, &q_treewalk)) {
 			log_err("Unable to find block %"PRIu64
-				" in block map\n",
-				di->treewalk_parent);
+					" (0x%" PRIx64 ") in block map\n",
+					di->treewalk_parent, di->treewalk_parent);
 			return NULL;
 		}
 		/* if the dotdot entry isn't a directory, but the
@@ -101,34 +102,33 @@ struct dir_info *mark_and_return_parent(struct gfs2_sbd *sbp,
 		 * entry isn't a directory, but the dotdot is, dotdot
 		 * is correct - if both are directories, which do we
 		 * choose? if neither are directories, we have a
-		 * problem - need to move this directory into l+f
+		 * problem - need to move this directory into lost+found
 		 */
 		if(q_dotdot.block_type != gfs2_inode_dir) {
 			if(q_treewalk.block_type != gfs2_inode_dir) {
-				log_err( "Orphaned directory, move to l+f\n");
+				log_err( "Orphaned directory, move to lost+found\n");
 				return NULL;
 			}
 			else {
 				log_warn("Treewalk parent is correct,"
-					 " fixing dotdot -> %"PRIu64"\n",
-					 di->treewalk_parent);
+						 " fixing dotdot -> %"PRIu64" (0x%" PRIx64 ")\n",
+						 di->treewalk_parent, di->treewalk_parent);
 				attach_dotdot_to(sbp, di->treewalk_parent,
-						 di->dotdot_parent, di->dinode);
+								 di->dotdot_parent, di->dinode);
 				di->dotdot_parent = di->treewalk_parent;
-
 			}
 		}
 		else {
 			if(q_treewalk.block_type != gfs2_inode_dir) {
 				int error = 0;
 				log_warn(".. parent is valid, but treewalk"
-					 "is bad - reattaching to l+f");
+						 "is bad - reattaching to lost+found");
 
 				/* FIXME: add a dinode for this entry instead? */
 				if(query(&opts, "Remove directory entry for bad"
-					 " inode %"PRIu64" in %"PRIu64
-					 "? (y/n)", di->dinode,
-					 di->treewalk_parent)) {
+						 " inode %"PRIu64" (0x%" PRIx64 ") in %"PRIu64
+						 " (0x%" PRIx64 ")? (y/n)", di->dinode, di->dinode,
+						 di->treewalk_parent, di->treewalk_parent)) {
 					error = remove_dentry_from_dir(sbp, di->treewalk_parent,
 												   di->dinode);
 					if(error < 0) {
@@ -136,9 +136,10 @@ struct dir_info *mark_and_return_parent(struct gfs2_sbd *sbp,
 						return NULL;
 					}
 					if(error > 0) {
-						log_warn("Unable to find dentry for %"
-							 PRIu64" in %"PRIu64"\n",
-							 di->dinode, di->treewalk_parent);
+						log_warn("Unable to find dentry for block %"
+								 PRIu64" (0x%" PRIx64 ") in %" PRIu64 " (0x%"
+								 PRIx64 ")\n",di->dinode, di->dinode,
+								 di->treewalk_parent, di->treewalk_parent);
 					}
 					log_warn("Directory entry removed\n");
 				} else {
@@ -150,32 +151,30 @@ struct dir_info *mark_and_return_parent(struct gfs2_sbd *sbp,
 			}
 			else {
 				log_err("Both .. and treewalk parents are "
-					"directories, going with treewalk for "
-					"now...\n");
+						"directories, going with treewalk for "
+						"now...\n");
 				attach_dotdot_to(sbp, di->treewalk_parent,
-						 di->dotdot_parent, di->dinode);
+								 di->dotdot_parent, di->dinode);
 				di->dotdot_parent = di->treewalk_parent;
-
 			}
 		}
 	}
 	else {
 		if(gfs2_block_check(bl, di->dotdot_parent, &q_dotdot)) {
 			log_err("Unable to find parent block %"PRIu64
-				" in block map\n",
-				di->dotdot_parent);
+					" (0x%" PRIx64 ")  in block map\n",
+					di->dotdot_parent, di->dotdot_parent);
 			return NULL;
 		}
 		if(q_dotdot.block_type != gfs2_inode_dir) {
-			log_err("Orphaned directory, move to l+f (Block #%"
-				PRIu64")\n", di->dinode);
+			log_err("Orphaned directory at block %" PRIu64 " (0x%" PRIx64
+					") moved to lost+found\n", di->dinode, di->dinode);
 			return NULL;
 		}
 	}
 	find_di(sbp, di->dotdot_parent, &pdi);
 
 	return pdi;
-
 }
 
 /**
@@ -223,15 +222,13 @@ int pass3(struct gfs2_sbd *sbp)
 					return -1;
 				}
 				if(q.bad_block) {
-					log_err("Found unlinked directory containing"
-						"bad block\n");
+					log_err("Found unlinked directory containing bad block\n");
 					if(query(&opts,
 					   "Clear unlinked directory with bad blocks? (y/n) ")) {
 						gfs2_block_set(bl, di->dinode, gfs2_block_free);
 						break;
-					} else {
-						log_err("Unlinked directory with bad blocks remains\n");
-					}
+					} else
+						log_err("Unlinked directory with bad block remains\n");
 				}
 				if(q.block_type != gfs2_inode_dir &&
 				   q.block_type != gfs2_inode_file &&
@@ -246,7 +243,8 @@ int pass3(struct gfs2_sbd *sbp)
 					break;
 				}
 
-				log_err("Found unlinked directory %"PRIu64"\n", di->dinode);
+				log_err("Found unlinked directory at block %" PRIu64
+						" (0x%" PRIx64 ")\n", di->dinode, di->dinode);
 				ip = gfs2_load_inode(sbp, di->dinode);
 				/* Don't skip zero size directories
 				 * with eattrs */
@@ -260,13 +258,13 @@ int pass3(struct gfs2_sbd *sbp)
 						log_err("Zero-size unlinked directory remains\n");
 					}
 				}
-				if(query(&opts, "Add unlinked directory to l+f? (y/n) ")) {
+				if(query(&opts, "Add unlinked directory to lost+found? (y/n) ")) {
 					if(add_inode_to_lf(ip)) {
 						inode_put(ip, not_updated);
 						stack;
 						return -1;
 					}
-					log_warn("Directory relinked to l+f\n");
+					log_warn("Directory relinked to lost+found\n");
 				} else {
 					log_err("Unlinked directory remains unlinked\n");
 				}
@@ -274,15 +272,15 @@ int pass3(struct gfs2_sbd *sbp)
 				break;
 			}
 			else {
-				log_info("Directory at block %"PRIu64
-					 " connected\n", di->dinode);
+				log_info("Directory at block %" PRIu64 " (0x%" 
+						 PRIx64 ") connected\n", di->dinode, di->dinode);
 			}
 			di = tdi;
 		}
 	}
 	}
 	if(lf_dip)
-		log_debug("At end of pass3, l+f entries is %u\n",
+		log_debug("At end of pass3, lost+found entries is %u\n",
 				  lf_dip->i_di.di_entries);
 	return 0;
 }

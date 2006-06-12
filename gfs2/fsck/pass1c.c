@@ -19,7 +19,6 @@
 #include "libgfs2.h"
 #include "fsck.h"
 #include "util.h"
-#include "log.h"
 #include "metawalk.h"
 
 static int remove_eattr_entry(struct gfs2_sbd *sdp,
@@ -27,7 +26,8 @@ static int remove_eattr_entry(struct gfs2_sbd *sdp,
 							  struct gfs2_ea_header *curr,
 							  struct gfs2_ea_header *prev)
 {
-	log_warn("Removing EA located in block #%"PRIu64".\n", leaf_bh->b_blocknr);
+	log_warn("Removing EA located in block #%"PRIu64" (0x%" PRIx64 ").\n",
+			 leaf_bh->b_blocknr, leaf_bh->b_blocknr);
 	if(!prev)
 		curr->ea_type = GFS2_EATYPE_UNUSED;
 	else
@@ -199,11 +199,13 @@ int pass1c(struct gfs2_sbd *sbp)
 	log_info("Looking for inodes containing ea blocks...\n");
 	while (!gfs2_find_next_block_type(bl, gfs2_eattr_block, &block_no)) {
 
-		log_info("EA in inode %"PRIu64"\n", block_no);
+		log_info("EA in inode %"PRIu64" (0x%" PRIx64 ")\n", block_no,
+				 block_no);
 		bh = bread(sbp, block_no);
 		ip = inode_get(sbp, bh);
 
-		log_debug("Found eattr at %"PRIu64"\n", ip->i_di.di_eattr);
+		log_debug("Found eattr at %"PRIu64" (0x%" PRIx64 ")\n",
+				  ip->i_di.di_eattr, ip->i_di.di_eattr);
 		/* FIXME: Handle walking the eattr here */
 		error = check_inode_eattr(ip, &pass1c_fxns);
 		if(error < 0) {

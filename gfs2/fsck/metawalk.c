@@ -21,7 +21,6 @@
 #include "libgfs2.h"
 #include "fsck.h"
 #include "util.h"
-#include "log.h"
 #include "metawalk.h"
 #include "hash.h"
 
@@ -45,7 +44,8 @@ int check_entries(struct gfs2_inode *ip, struct gfs2_buffer_head *bh,
 	else if (type == DIR_EXHASH) {
 		dent = (struct gfs2_dirent *)(bh->b_data + sizeof(struct gfs2_leaf));
 		leaf = (struct gfs2_leaf *)bh->b_data;
-		log_debug("Checking leaf %"PRIu64"\n", bh->b_blocknr);
+		log_debug("Checking leaf %" PRIu64 " (0x%" PRIx64 ")\n",
+				  bh->b_blocknr, bh->b_blocknr);
 	}
 	else {
 		log_err("Invalid directory type %d specified\n", type);
@@ -68,13 +68,14 @@ int check_entries(struct gfs2_inode *ip, struct gfs2_buffer_head *bh,
 			} else {
 				/* FIXME: Do something about this */
 				log_err("Directory entry with inode number of zero in leaf %"
-						PRIu64" of directory %"PRIu64"!\n", bh->b_blocknr,
-						ip->i_di.di_num.no_addr);
+						PRIu64 "(0x%" PRIx64 ") of directory %" PRIu64
+						" (0x%" PRIx64 ")!\n", bh->b_blocknr, bh->b_blocknr,
+						ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr);
 				return 1;
 			}
 		} else {
 			error = pass->check_dentry(ip, dent, prev, bh, filename, update,
-						   count, pass->private);
+									   count, pass->private);
 			if(error < 0) {
 				stack;
 				return -1;
@@ -123,10 +124,11 @@ int check_leaf(struct gfs2_inode *ip, int *update, struct metawalk_fxns *pass)
 			continue;
 		} else {
 			if(ref_count != exp_count){
-				log_err("Dir #%"PRIu64" has an incorrect number "
-					 "of pointers to leaf #%"PRIu64"\n"
-					 "\tFound: %u,  Expected: %u\n",
-					 ip->i_di.di_num.no_addr, old_leaf, ref_count, exp_count);
+				log_err("Dir #%" PRIu64 " (0x%" PRIx64 ") has an incorrect "
+						"number of pointers to leaf #%" PRIu64 " (0x%" PRIx64
+						")\n\tFound: %u,  Expected: %u\n",
+						ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr,
+						old_leaf, old_leaf, ref_count, exp_count);
 				return 1;
 			}
 			ref_count = 1;
@@ -283,7 +285,8 @@ static int check_leaf_eattr(struct gfs2_inode *ip, uint64_t block,
 {
 	struct gfs2_buffer_head *bh = NULL;
 	int error = 0;
-	log_debug("Checking EA leaf block #%"PRIu64".\n", block);
+	log_debug("Checking EA leaf block #%"PRIu64" (0x%" PRIx64 ").\n",
+			  block, block);
 
 	if(pass->check_eattr_leaf) {
 		error = pass->check_eattr_leaf(ip, block, parent, &bh, pass->private);
@@ -315,7 +318,8 @@ static int check_indirect_eattr(struct gfs2_inode *ip, uint64_t indirect,
 	struct gfs2_buffer_head *indirect_buf = NULL;
 	struct gfs2_sbd *sdp = ip->i_sbd;
 
-	log_debug("Checking EA indirect block #%"PRIu64".\n", indirect);
+	log_debug("Checking EA indirect block #%"PRIu64" (0x%" PRIx64 ").\n",
+			  indirect, indirect);
 
 	if (!pass->check_eattr_indir ||
 	    !pass->check_eattr_indir(ip, indirect, ip->i_di.di_num.no_addr,
@@ -352,8 +356,9 @@ int check_inode_eattr(struct gfs2_inode *ip, struct metawalk_fxns *pass)
 		return 0;
 	}
 
-	log_debug("Extended attributes exist for inode #%"PRIu64".\n",
-		ip->i_di.di_num.no_formal_ino);
+	log_debug("Extended attributes exist for inode #%" PRIu64 " (0x%" PRIx64
+			  ").\n", ip->i_di.di_num.no_formal_ino,
+			  ip->i_di.di_num.no_formal_ino);
 
 	if(ip->i_di.di_flags & GFS2_DIF_EA_INDIRECT){
 		if((error = check_indirect_eattr(ip, ip->i_di.di_eattr, pass)))
@@ -416,7 +421,8 @@ static int build_and_check_metalist(struct gfs2_inode *ip,
 					goto fail;
 				}
 				if(err > 0) {
-					log_debug("Skipping block %" PRIu64 "\n", block);
+					log_debug("Skipping block %" PRIu64 " (0x%" PRIx64 ")\n",
+							  block, block);
 					continue;
 				}
 				subblock = be64_to_cpu(*subptr);
@@ -563,8 +569,8 @@ int remove_dentry_from_dir(struct gfs2_sbd *sbp, uint64_t dir,
 	struct gfs2_block_query q;
 	int error;
 
-	log_debug("Removing dentry %"PRIu64" from directory %"PRIu64"\n",
-			  dentryblock, dir);
+	log_debug("Removing dentry %" PRIu64 " (0x%" PRIx64 ") from directory %"
+			  PRIu64" (0x%" PRIx64 ")\n", dentryblock, dentryblock, dir, dir);
 	if(gfs2_check_range(sbp, dir)) {
 		log_err("Parent directory out of range\n");
 		return 1;

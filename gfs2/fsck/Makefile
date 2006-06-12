@@ -20,9 +20,8 @@ LIBS=-L${top_srcdir}/libgfs2
 .PHONY: all clean
 
 sources = main.c initialize.c pass1.c pass1b.c pass1c.c pass2.c pass3.c \
-	pass4.c pass5.c super.c util.c fs_recovery.c \
-	log.c lost_n_found.c link.c eattr.c hash.c inode_hash.c \
-	metawalk.c
+	pass4.c pass5.c util.c fs_recovery.c \
+	lost_n_found.c link.c eattr.c hash.c inode_hash.c metawalk.c
 
 CFLAGS+=-D_FILE_OFFSET_BITS=64 -DHELPER_PROGRAM -DGFS_RELEASE_NAME=\"${RELEASE}\" -Wall -g
 

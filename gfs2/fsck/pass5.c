@@ -18,7 +18,6 @@
 
 #include "libgfs2.h"
 #include "fsck.h"
-#include "log.h"
 #include "fs_bits.h"
 #include "util.h"
 
@@ -78,6 +77,7 @@ int check_block_status(struct gfs2_sbd *sbp, char *buffer, unsigned int buflen,
 	while(byte < end) {
 		rg_status = ((*byte >> bit) & GFS2_BIT_MASK);
 		block = rg_data + *rg_block;
+		warm_fuzzy_stuff(block);
 		gfs2_block_check(bl, block, &q);
 
 		block_status = convert_mark(q.block_type, count);
@@ -139,7 +139,7 @@ enum update_flags update_rgrp(struct gfs2_sbd *sbp, struct rgrp_list *rgp,
 		update = 1;
 	}
 	if(rgp->rg.rg_dinodes != count[1]) {
-		log_err("inode count inconsistent: is %u should be %u\n",
+		log_err("Inode count inconsistent: is %u should be %u\n",
 				rgp->rg.rg_dinodes, count[1]);
 		rgp->rg.rg_dinodes = count[1];
 		update = 1;
@@ -180,7 +180,7 @@ int pass5(struct gfs2_sbd *sbp)
 	for(tmp = sbp->rglist.next; tmp != &sbp->rglist; tmp = tmp->next){
 		enum update_flags f;
 
-		log_info("Verifying Resource Group %"PRIu64"\n", rg_count);
+		log_info("Verifying Resource Group #%" PRIu64 "\n", rg_count);
 		memset(count, 0, sizeof(count));
 		rgp = osi_list_entry(tmp, struct rgrp_list, list);
 

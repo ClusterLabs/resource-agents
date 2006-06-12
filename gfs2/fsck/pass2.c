@@ -21,7 +21,6 @@
 #include "libgfs2.h"
 #include "fsck.h"
 #include "util.h"
-#include "log.h"
 #include "eattr.h"
 #include "metawalk.h"
 #include "link.h"
@@ -87,17 +86,18 @@ static int check_leaf(struct gfs2_inode *ip, uint64_t block,
 /* Set children's parent inode in dir_info structure - ext2 does not set
  * dotdot inode here, but instead in pass3 - should we? */
 int set_parent_dir(struct gfs2_sbd *sbp, uint64_t childblock,
-		   uint64_t parentblock)
+				   uint64_t parentblock)
 {
 	struct dir_info *di;
 
 	if(!find_di(sbp, childblock, &di)) {
 		if(di->dinode == childblock) {
 			if (di->treewalk_parent) {
-				log_err("Another directory (%" PRIu64
-					") already contains"
-					" this child - checking %" PRIu64 "\n",
-					di->treewalk_parent, parentblock);
+				log_err("Another directory at block %" PRIu64
+						" (0x%" PRIx64 ") already contains"
+						" this child - checking %" PRIu64 " (0x%" PRIx64 ")\n",
+						di->treewalk_parent, di->treewalk_parent,
+						parentblock, parentblock);
 				return 1;
 			}
 			di->treewalk_parent = parentblock;
@@ -124,9 +124,9 @@ int set_dotdot_dir(struct gfs2_sbd *sbp, uint64_t childblock,
 			if(di->dotdot_parent && sbp->md.rooti->i_di.di_num.no_addr
 			   != di->dinode) {
 				/* This should never happen */
-				log_crit("dotdot parent already set for"
+				log_crit("Dotdot parent already set for"
 						 " block %"PRIu64" (0x%" PRIx64 ") -> %" PRIu64
-						 " (0x%" PRIx64")\n", childblock, childblock,
+						 " (0x%" PRIx64 ")\n", childblock, childblock,
 						 di->dotdot_parent, di->dotdot_parent);
 				return -1;
 			}
@@ -273,7 +273,7 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 
 	if(gfs2_check_range(ip->i_sbd, entryblock)) {
 		log_err("Block # referenced by directory entry %s is out of range\n",
-			tmp_name);
+				tmp_name);
 		if(query(&opts, 
 				 "Clear directory entry tp out of range block? (y/n) ")) {
 			log_err("Clearing %s\n", tmp_name);
@@ -375,12 +375,13 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 		}
 	}
 
-
 	if(!strcmp(".", tmp_name)) {
 		log_debug("Found . dentry\n");
 
 		if(ds->dotdir) {
-			log_err("already found '.' entry\n");
+			log_err("Already found '.' entry in directory %" PRIu64 " (0x%"
+					PRIx64 ")\n",
+					ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr);
 			if(query(&opts, "Clear duplicate '.' entry? (y/n) ")) {
 
 				entry_ip = gfs2_load_inode(sbp, de->de_inum.no_addr);
@@ -407,9 +408,12 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 
 		/* check that '.' refers to this inode */
 		if(de->de_inum.no_addr != ip->i_di.di_num.no_addr) {
-			log_err("'.' entry's value incorrect.  Points to %"PRIu64
-					" when it should point to %" PRIu64 ".\n",
-					de->de_inum.no_addr, ip->i_di.di_num.no_addr);
+			log_err("'.' entry's value incorrect in directory %" PRIu64
+					" (0x%" PRIx64 ").  Points to %"PRIu64
+					" (0x%" PRIx64 ") when it should point to %" PRIu64
+					" (0x%" PRIx64 ").\n",
+					de->de_inum.no_addr, de->de_inum.no_addr,
+					ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr);
 			if(query(&opts, "Remove '.' reference? (y/n) ")) {
 				entry_ip = gfs2_load_inode(sbp, de->de_inum.no_addr);
 				check_inode_eattr(entry_ip, &clear_eattrs);
@@ -441,7 +445,9 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 	if(!strcmp("..", tmp_name)) {
 		log_debug("Found .. dentry\n");
 		if(ds->dotdotdir) {
-			log_err("already found '..' entry\n");
+			log_err("Already found '..' entry in directory %" PRIu64 " (0x%"
+					PRIx64 ")\n",
+					ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr);
 			if(query(&opts, "Clear duplicate '..' entry? (y/n) ")) {
 
 				entry_ip = gfs2_load_inode(sbp, de->de_inum.no_addr);
@@ -465,8 +471,10 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 		}
 
 		if(q.block_type != gfs2_inode_dir) {
-			log_err("Found '..' entry pointing to"
-				" something that's not a directory");
+			log_err("Found '..' entry  in directory %" PRIu64 " (0x%"
+					PRIx64 ") pointing to"
+					" something that's not a directory",
+					ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr);
 			if(query(&opts, "Clear bad '..' directory entry? (y/n) ")) {
 				entry_ip = gfs2_load_inode(sbp, de->de_inum.no_addr);
 				check_inode_eattr(entry_ip, &clear_eattrs);
@@ -517,8 +525,8 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 	log_debug("Found plain directory dentry\n");
 	error = set_parent_dir(sbp, entryblock, ip->i_di.di_num.no_addr);
 	if(error > 0) {
-		log_err("%s: Hard link to block %"PRIu64" (0x%" PRIx64 ") detected.\n",
-				filename, entryblock, entryblock);
+		log_err("%s: Hard link to block %" PRIu64" (0x%" PRIx64
+				") detected.\n", filename, entryblock, entryblock);
 
 		if(query(&opts, "Clear hard link to directory? (y/n) ")) {
 			*update = 1;
@@ -580,8 +588,8 @@ int build_rooti(struct gfs2_sbd *sbp)
 	gfs2_block_set(bl, ip->i_di.di_num.no_addr, gfs2_inode_dir);
 	add_to_dir_list(sbp, ip->i_di.di_num.no_addr);
 
-	/* Attach l+f to it */
-	lf_dip = createi(sbp->md.rooti, "l+f", 00700, 0);
+	/* Attach lost+found to it */
+	lf_dip = createi(sbp->md.rooti, "lost+found", 00700, 0);
 
 	if(lf_dip){
 		inode_put(lf_dip, updated);
@@ -630,7 +638,7 @@ int check_root_dir(struct gfs2_sbd *sbp)
 
 		/* if there are errors with the root inode here, we need to
 		 * create a new root inode and get it all setup - of course,
-		 * everything will be in l+f then, but we *need* a root inode
+		 * everything will be in lost+found then, but we *need* a root inode
 		 * before we can do any of that.
 		 */
 
@@ -701,18 +709,20 @@ int check_root_dir(struct gfs2_sbd *sbp)
 	bh = bread(sbp, rootblock);
 	ip = inode_get(sbp, bh);
 	if(ip->i_di.di_entries != ds.entry_count) {
-		log_err("inode %" PRIu64 " (0x%" PRIx64
+		log_err("Inode %" PRIu64 " (0x%" PRIx64
 				"): Entries is %d - should be %d\n",
 				ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr,	
 				ip->i_di.di_entries, ds.entry_count);
-		if(query(&opts, "Fix entries for inode %"PRIu64"? (y/n) ",
-			 ip->i_di.di_num.no_addr)) {
+		if(query(&opts, "Fix entries for inode %" PRIu64 " (0x%" PRIx64
+				 ")? (y/n) ", ip->i_di.di_num.no_addr,
+				 ip->i_di.di_num.no_addr)) {
 			ip->i_di.di_entries = ds.entry_count;
 			log_warn("Entries updated\n");
 			update = 1;
 		} else {
-			log_err("Entries for inode %"PRIu64" left out of sync\n",
-					ip->i_di.di_num.no_addr);
+			log_err("Entries for inode %" PRIu64 " (0x%" PRIx64
+					") left out of sync\n",
+					ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr);
 		}
 	}
 
@@ -796,7 +806,8 @@ int pass2(struct gfs2_sbd *sbp)
 				/* FIXME: factor */
 				if(query(&opts, "Remove directory entry for bad"
 						 " inode %"PRIu64" (0x%" PRIx64 ") in %"PRIu64
-						 "? (y/n)", i, i, di->treewalk_parent)) {
+						 " (0x%" PRIx64 ")? (y/n)", i, i, di->treewalk_parent,
+						 di->treewalk_parent)) {
 					error = remove_dentry_from_dir(sbp, di->treewalk_parent,
 												   i);
 					if(error < 0) {
@@ -805,13 +816,13 @@ int pass2(struct gfs2_sbd *sbp)
 					}
 					if(error > 0) {
 						log_warn("Unable to find dentry for %"
-								 PRIu64" (0x%" PRIx64 ") in %"PRIu64"\n",
-								 i, i, di->treewalk_parent);
+								 PRIu64 " (0x%" PRIx64 ") in %" PRIu64
+								 " (0x%" PRIx64 ")\n", i, i,
+								 di->treewalk_parent, di->treewalk_parent);
 					}
 					log_warn("Directory entry removed\n");
-				} else {
-					log_err("Directory entry to invalid inode remains\n");
-				}
+				} else
+					log_err("Directory entry to invalid inode remains.\n");
 			}
 			gfs2_block_set(bl, i, gfs2_meta_inval);
 		}

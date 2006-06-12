@@ -15,7 +15,7 @@
 #include <linux_endian.h>
 
 #include "libgfs2.h"
-#include "log.h"
+#include "fsck.h"
 
 static int clear_blk_nodup(struct gfs2_sbd *sbp, uint64_t block)
 {

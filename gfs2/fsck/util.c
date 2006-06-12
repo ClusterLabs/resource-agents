@@ -21,9 +21,7 @@
 
 #include "libgfs2.h"
 #include "fs_bits.h"
-
 #include "util.h"
-#include "log.h"
 
 /**
  * compute_height

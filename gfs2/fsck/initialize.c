@@ -25,9 +25,7 @@
 #include "libgfs2.h"
 #include "fsck.h"
 #include "util.h"
-#include "super.h"
 #include "fs_recovery.h"
-#include "log.h"
 #include "linux_endian.h"
 
 #define CLEAR_POINTER(x) \
@@ -35,8 +33,6 @@
 		free(x); \
 		x = NULL; \
 	}
-
-extern struct options opts;
 
 /**
  * init_journals
@@ -167,15 +163,16 @@ static int set_block_ranges(struct gfs2_sbd *sdp)
 
 	if(do_lseek(sdp->device_fd, (last_fs_block * sdp->sd_sb.sb_bsize))){
 		log_crit("Can't seek to last block in file system: %"
-			 PRIu64"\n", last_fs_block);
+				 PRIu64" (0x%" PRIx64 ")\n", last_fs_block, last_fs_block);
 		goto fail;
 	}
 
 	memset(buf, 0, sdp->sd_sb.sb_bsize);
 	error = read(sdp->device_fd, buf, sdp->sd_sb.sb_bsize);
 	if (error != sdp->sd_sb.sb_bsize){
-		log_crit("Can't read last block in file system (%u), "
-			 "last_fs_block: %"PRIu64"\n", error, last_fs_block);
+		log_crit("Can't read last block in file system (error %u), "
+				 "last_fs_block: %"PRIu64" (0x%" PRIx64 ")\n", error,
+				 last_fs_block, last_fs_block);
 		goto fail;
 	}
 
@@ -198,6 +195,7 @@ static int fill_super_block(struct gfs2_sbd *sdp)
 	char *buf;
 	uint64_t inumbuf;
 	struct gfs2_statfs_change sc;
+	int rgcount;
 
 	sync();
 
@@ -278,7 +276,7 @@ static int fill_super_block(struct gfs2_sbd *sdp)
 		return -1;
 	}
 
-	if(ri_update(sdp)){
+	if(ri_update(sdp, &rgcount)){
 		log_err("Unable to fill in resource group information.\n");
 		goto fail;
 	}

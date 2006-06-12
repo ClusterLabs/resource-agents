@@ -21,10 +21,9 @@
 #include "copyright.cf"
 #include "libgfs2.h"
 #include "fsck.h"
-#include "log.h"
 #include "osi_list.h"
 
-struct options opts = {0};
+struct gfs2_options opts = {0};
 struct gfs2_inode *lf_dip; /* Lost and found directory inode */
 osi_list_t dir_hash[FSCK_HASH_SIZE];
 osi_list_t inode_hash[FSCK_HASH_SIZE];
@@ -81,7 +80,7 @@ void version(void)
 	printf("%s\n", REDHAT_COPYRIGHT);
 }
 
-int read_cmdline(int argc, char **argv, struct options *opts)
+int read_cmdline(int argc, char **argv, struct gfs2_options *opts)
 {
 	char c;
 
