@@ -213,8 +213,6 @@ ip_init() {
 	if
           [ ! -z "$OCF_RESKEY_netmask" -a -z "$OCF_RESKEY_cidr_netmask" ]
         then
-	  ocf_log err "Obsolete parameter netmask supplied"
-	  ocf_log info "Please use cidr_netmask instead."
           OCF_RESKEY_cidr_netmask=$OCF_RESKEY_netmask
         fi
 	IFCMD="$FINDIF -C $OCF_RESKEY_ip"
