@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: pingd.in,v 1.1 2006/04/10 14:54:46 andrew Exp $
+#	$Id: pingd.in,v 1.2 2006/06/13 06:50:21 andrew Exp $
 #
 #	pingd OCF RA. Does nothing but wait a few seconds, can be
 #	configured to fail occassionally.
@@ -151,22 +151,22 @@ pingd_exit() {
 
 pingd_start() {
     extras=""
-    if [ ! -z $OCF_RESKEY_multiplier ]; then 
+    if [ ! -z "$OCF_RESKEY_multiplier" ]; then
 	extras="$extras -m $OCF_RESKEY_multiplier"
     fi
-    if [ ! -z $OCF_RESKEY_set ]; then 
-	extras="$extras -m $OCF_RESKEY_set"
+    if [ ! -z "$OCF_RESKEY_set" ]; then
+	extras="$extras -s $OCF_RESKEY_set"
     fi
-    if [ ! -z $OCF_RESKEY_section ]; then 
-	extras="$extras -m $OCF_RESKEY_section"
+    if [ ! -z "$OCF_RESKEY_section" ]; then
+	extras="$extras -S $OCF_RESKEY_section"
     fi
-    for a_host in "$OCF_RESKEY_host_list"; do
-	extras="$extras -h $a_host"	
+    for a_host in $OCF_RESKEY_host_list; do
+	extras="$extras -h $a_host"
     done
-    pingd_cmd="@hb_libdir@/pingd -D -p $OCF_RESKEY_pidfile -n $OCF_RESKEY_name -d $OCF_RESKEY_dampen $extras"
+    pingd_cmd="@hb_libdir@/pingd -D -p $OCF_RESKEY_pidfile -a $OCF_RESKEY_name -d $OCF_RESKEY_dampen $extras"
 
     if [ ! -z $OCF_RESKEY_user ]; then
-	su - $OCF_RESKEY_user -c "$pingd_cmd"
+	echo "$pingd_cmd" | su - $OCF_RESKEY_user
     else
 	$pingd_cmd
     fi
@@ -237,7 +237,7 @@ if [ $# -ne 1 ]; then
 fi
 
 : ${OCF_RESKEY_pidfile:="$HA_VARRUNDIR/rsctmp/pingd-${OCF_RESOURCE_INSTANCE}"}
-: ${OCF_RESKEY_name:="${OCF_RESOURCE_INSTANCE}"}
+: ${OCF_RESKEY_name:="pingd"}
 : ${OCF_RESKEY_dampen:="1s"}
 
 case $__OCF_ACTION in
