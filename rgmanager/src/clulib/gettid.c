@@ -1,7 +1,9 @@
 #include <sys/types.h>
+#include <sys/syscall.h>
 #include <linux/unistd.h>
 #include <gettid.h>
 #include <errno.h>
+#include <unistd.h>
 
 /* Patch from Adam Conrad / Ubuntu: Don't use _syscall macro */
 
