@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.27 2006/06/01 13:40:30 lars Exp $
+# $Id: Filesystem.in,v 1.28 2006/06/14 13:48:20 lars Exp $
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
@@ -95,7 +95,7 @@ check_util () {
 usage() {
 	cat <<-EOT
 	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
-	$Id: Filesystem.in,v 1.27 2006/06/01 13:40:30 lars Exp $
+	$Id: Filesystem.in,v 1.28 2006/06/14 13:48:20 lars Exp $
 	EOT
 }
 
@@ -674,16 +674,22 @@ case $DEVICE in
 	;;
 esac
 
-if [ "$FSTYPE" = "ocfs2" ]; then
+case $FSTYPE in
+  ocfs2)
 	ocfs2_init
-else 
+  ;;
+  nfs)
+	: # this is kind of safe too
+  ;;
+  *) 
 	if [ -n "$OCF_RESKEY_CRM_meta_clone_max" ]; then
 		ocf_log err "DANGER! $FSTYPE on $DEVICE is NOT cluster-aware!"
 		ocf_log err "DO NOT RUN IT AS A CLONE!"
 		ocf_log err "Politely refusing to proceed to avoid data corruption."
 		exit $OCF_ERR_GENERIC	
 	fi
-fi
+  ;;
+esac
 
 # It is possible that OCF_RESKEY_directory has one or even multiple trailing "/".
 # But the output of `mount` and /proc/mounts do not.
