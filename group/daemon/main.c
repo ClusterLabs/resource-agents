@@ -334,7 +334,7 @@ static void copy_group_data(group_t *g, group_data_t *data)
 		}
 	}
 
-	list_for_each_entry(node, &g->memb, list) {
+	list_for_each_entry(node, &g->app->nodes, list) {
 		data->members[i] = node->nodeid;
 		i++;
 	}
