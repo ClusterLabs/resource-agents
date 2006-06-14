@@ -31,7 +31,7 @@ echo "configure gnbd"
 (cd gnbd; ./configure $@ --gnbdkincdir=`pwd`/../gnbd-kernel/src) 
 
 echo "configure rgmanager"
-(cd rgmanager; ./configure $@ --ccsincdir=`pwd`/../ccs/lib --ccslibdir=`pwd`/../ccs/lib)
+(cd rgmanager; ./configure $@) 
 
 echo "configure cmirror"
 (cd cmirror; ./configure $@)
