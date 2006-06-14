@@ -600,29 +600,6 @@ void gfs2_statfs_change_print(struct gfs2_statfs_change *sc)
 	pv(sc, sc_dinodes, "%lld", "0x%llx");
 }
 
-void gfs2_unlinked_tag_in(struct gfs2_unlinked_tag *ut, char *buf)
-{
-	struct gfs2_unlinked_tag *str = (struct gfs2_unlinked_tag *)buf;
-
-	gfs2_inum_in(&ut->ut_inum, buf);
-	CPIN_32(ut, str, ut_flags);
-}
-
-void gfs2_unlinked_tag_out(struct gfs2_unlinked_tag *ut, char *buf)
-{
-	struct gfs2_unlinked_tag *str = (struct gfs2_unlinked_tag *)buf;
-
-	gfs2_inum_out(&ut->ut_inum, buf);
-	CPOUT_32(ut, str, ut_flags);
-	str->__pad = 0;
-}
-
-void gfs2_unlinked_tag_print(struct gfs2_unlinked_tag *ut)
-{
-	gfs2_inum_print(&ut->ut_inum);
-	pv(ut, ut_flags, "%u", "0x%x");
-}
-
 void gfs2_quota_change_in(struct gfs2_quota_change *qc, char *buf)
 {
 	struct gfs2_quota_change *str = (struct gfs2_quota_change *)buf;

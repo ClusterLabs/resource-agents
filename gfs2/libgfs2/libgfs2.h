@@ -131,7 +131,6 @@ struct per_node
 	struct gfs2_inode *statfs;
 	struct gfs2_statfs_change statfs_change;
 	struct gfs2_inode *unlinked;
-	struct gfs2_unlinked_tag unlinked_tag;
 	struct gfs2_inode *quota;
 	struct gfs2_quota_change quota_change;
 };

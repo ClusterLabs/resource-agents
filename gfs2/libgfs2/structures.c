@@ -189,43 +189,6 @@ build_statfs_change(struct gfs2_inode *per_node, unsigned int j)
 }
 
 static void
-build_unlinked_tag(struct gfs2_inode *per_node, unsigned int j)
-{
-	struct gfs2_sbd *sdp = per_node->i_sbd;
-	struct gfs2_meta_header mh;
-	char name[256];
-	struct gfs2_inode *ip;
-	unsigned int blocks = sdp->utsize << (20 - sdp->bsize_shift);
-	unsigned int x;
-
-	memset(&mh, 0, sizeof(struct gfs2_meta_header));
-	mh.mh_magic = GFS2_MAGIC;
-	mh.mh_type = GFS2_METATYPE_UT;
-	mh.mh_format = GFS2_FORMAT_UT;
-
-	sprintf(name, "unlinked_tag%u", j);
-	ip = createi(per_node, name, S_IFREG | 0600,
-		     GFS2_DIF_SYSTEM);
-
-	for (x = 0; x < blocks; x++) {
-		struct gfs2_buffer_head *bh = get_file_buf(ip, ip->i_di.di_size >> sdp->bsize_shift);
-		if (!bh)
-			die("build_unlinked_tag\n");
-
-		gfs2_meta_header_out(&mh, bh->b_data);
-
-		brelse(bh, updated);
-	}
-
-	if (sdp->debug) {
-		printf("\nUnlinked Tag %u:\n", j);
-		gfs2_dinode_print(&ip->i_di);
-	}
-
-	inode_put(ip, updated);
-}
-
-static void
 build_quota_change(struct gfs2_inode *per_node, unsigned int j)
 {
 	struct gfs2_sbd *sdp = per_node->i_sbd;
@@ -274,7 +237,6 @@ build_per_node(struct gfs2_sbd *sdp)
 	for (j = 0; j < sdp->md.journals; j++) {
 		build_inum_range(per_node, j);
 		build_statfs_change(per_node, j);
-		build_unlinked_tag(per_node, j);
 		build_quota_change(per_node, j);
 	}
 

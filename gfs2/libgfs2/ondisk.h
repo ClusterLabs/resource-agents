@@ -39,8 +39,6 @@ extern void gfs2_inum_range_in(struct gfs2_inum_range *ir, char *buf);
 extern void gfs2_inum_range_out(struct gfs2_inum_range *ir, char *buf);
 extern void gfs2_statfs_change_in(struct gfs2_statfs_change *sc, char *buf);
 extern void gfs2_statfs_change_out(struct gfs2_statfs_change *sc, char *buf);
-extern void gfs2_unlinked_tag_in(struct gfs2_unlinked_tag *ut, char *buf);
-extern void gfs2_unlinked_tag_out(struct gfs2_unlinked_tag *ut, char *buf);
 extern void gfs2_quota_change_in(struct gfs2_quota_change *qc, char *buf);
 extern void gfs2_quota_change_out(struct gfs2_quota_change *qc, char *buf);
 
@@ -60,7 +58,9 @@ extern void gfs2_log_header_print(struct gfs2_log_header *lh);
 extern void gfs2_log_descriptor_print(struct gfs2_log_descriptor *ld);
 extern void gfs2_inum_range_print(struct gfs2_inum_range *ir);
 extern void gfs2_statfs_change_print(struct gfs2_statfs_change *sc);
+#if 0
 extern void gfs2_unlinked_tag_print(struct gfs2_unlinked_tag *ut);
+#endif
 extern void gfs2_quota_change_print(struct gfs2_quota_change *qc);
 
 #endif /* __ONDISK_DOT_H__ */

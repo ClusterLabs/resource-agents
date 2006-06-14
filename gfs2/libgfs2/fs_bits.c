@@ -83,7 +83,7 @@ uint32_t gfs2_bitfit_core(struct gfs2_sbd *sbp, uint64_t goal, uint64_t start,
 				return block - start;
 			}
 			break;
-		case GFS2_BLKST_INVALID:
+		case GFS2_BLKST_UNLINKED:
 		default:
 			break;
 		}
