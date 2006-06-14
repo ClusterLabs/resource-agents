@@ -128,7 +128,7 @@ static int update_dir_members(char *name)
 		if (de->d_name[0] == '.')
 			continue;
 		dir_members[i++] = atoi(de->d_name);
-		log_error("dir_member %d", dir_members[i-1]);
+		log_debug("dir_member %d", dir_members[i-1]);
 	}
 	closedir(d);
 
