@@ -30,17 +30,10 @@ updated yet, so just build the minimum bits shown here.
         cd cluster/cman/lib;            make; make install
         cd cluster/ccs;                 make; make install
         cd cluster/cman;                make; make install (*)
+        cd cluster/dlm;                 make; make install
         cd cluster/group;               make; make install
         cd cluster/fence;               make; make install
-        cd cluster/dlm;                 make; make install
-        cd cluster/gfs/lock_dlm/daemon; make; make install
-
-        edit INCLUDEPATH in cluster/gfs2/mkfs/Makefile
-		cd cluster/gfs2/libgfs2;        make; make install
-		cd cluster/gfs2/convert;        make; make install
-		cd cluster/gfs2/fsck;           make; make install
-        cd cluster/gfs2/mkfs;           make; make install
-        cd cluster/gfs2/mount;          make; make install
+        cd cluster/gfs2;                make; make install
 
         (*) this step downloads and builds an openais tarball from
         http://people.redhat.com/pcaulfie/
