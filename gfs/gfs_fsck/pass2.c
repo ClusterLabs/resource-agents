@@ -808,6 +808,7 @@ int pass2(struct fsck_sb *sbp, struct options *opts)
 	}
 	int error = 0;
 
+	log_info("Checking directory inodes.\n");
 	/* Grab each directory inode, and run checks on it */
 	for(i = 0; i < sbp->last_fs_block; i++) {
 
@@ -824,7 +825,7 @@ int pass2(struct fsck_sb *sbp, struct options *opts)
 		if(q.block_type != inode_dir)
 			continue;
 
-		log_info("Checking directory inode at block %"PRIu64"\n", i);
+		log_debug("Checking directory inode at block %"PRIu64"\n", i);
 
 
 		memset(&ds, 0, sizeof(ds));

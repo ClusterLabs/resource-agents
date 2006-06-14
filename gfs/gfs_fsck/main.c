@@ -20,6 +20,8 @@
 #include "fsck.h"
 #include "log.h"
 
+uint64_t last_fs_block;
+
 void print_map(struct block_list *il, int count)
 {
 	int i, j;
@@ -128,40 +130,41 @@ int main(int argc, char **argv)
 	log_notice("Starting pass1\n");
 	if (pass1(sbp))
 		return 1;
-	log_notice("Pass1 complete\n");
+	log_notice("Pass1 complete      \n");
 
 	log_notice("Starting pass1b\n");
 	if(pass1b(sbp))
 		return 1;
-	log_notice("Pass1b complete\n");
+	log_notice("Pass1b complete      \n");
 
 	log_notice("Starting pass1c\n");
 	if(pass1c(sbp))
 		return 1;
-	log_notice("Pass1c complete\n");
+	log_notice("Pass1c complete      \n");
 
 	log_notice("Starting pass2\n");
 	if (pass2(sbp, &opts))
 		return 1;
-	log_notice("Pass2 complete\n");
+	log_notice("Pass2 complete      \n");
 
 	log_notice("Starting pass3\n");
 	if (pass3(sbp, &opts))
 		return 1;
-	log_notice("Pass3 complete\n");
+	log_notice("Pass3 complete      \n");
 
 	log_notice("Starting pass4\n");
 	if (pass4(sbp, &opts))
 		return 1;
-	log_notice("Pass4 complete\n");
+	log_notice("Pass4 complete      \n");
 
 	log_notice("Starting pass5\n");
 	if (pass5(sbp, &opts))
 		return 1;
-	log_notice("Pass5 complete\n");
+	log_notice("Pass5 complete      \n");
 
 /*	print_map(sbp->bl, sbp->last_fs_block); */
 
+	log_notice("Writing changes to disk\n");
 	destroy(sbp);
 
 	return 0;

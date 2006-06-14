@@ -98,6 +98,7 @@ static void empty_super_block(struct fsck_sb *sdp)
 {
 	uint32_t i;
 
+	log_info("Freeing buffers.\n");
 	if(sdp->riinode){
 		free(sdp->riinode);
 		sdp->riinode = NULL;
@@ -108,7 +109,7 @@ static void empty_super_block(struct fsck_sb *sdp)
 	}
 	if(sdp->rooti){
 		free(sdp->rooti);
-		sdp->rooti=NULL;
+		sdp->rooti = NULL;
 	}
 
 	if(sdp->jindex){
@@ -196,6 +197,7 @@ static int set_block_ranges(struct fsck_sb *sdp)
 			rmin = ri->ri_data1;
 	}
 
+	last_fs_block = rmax;
 
 	for (i = 0; i < sdp->journals; i++)
 	{
@@ -406,6 +408,7 @@ static void destroy_sbp(struct fsck_sb *sbp)
 			log_warn("Unable to unblock other mounters - manual intevention required\n");
 			log_warn("Use 'gfs_tool sb <device> proto' to fix\n");
 		}
+		log_info("Syncing the device.\n");
 		fsync(sbp->diskfd);
 	}
 	empty_super_block(sbp);

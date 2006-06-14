@@ -1081,9 +1081,9 @@ int ri_update(struct fsck_sb *sdp)
 						  gfs_grow or something.  Count the RGs by hand. */
 	} trust_lvl;
 
-	log_warn("Validating Resource Group index.\n");
+	log_info("Validating Resource Group index.\n");
 	for (trust_lvl = blind_faith; trust_lvl <= distrust; trust_lvl++) {
-		log_warn("Level %d check.\n", trust_lvl + 1);
+		log_info("Level %d check.\n", trust_lvl + 1);
 		count1 = count2 = 0;
 		/* ---------------------------------------------------------------- */
 		/* Step 1 - Calculate or figure out our own RG index                */
@@ -1097,7 +1097,7 @@ int ri_update(struct fsck_sb *sdp)
 			error = gfs_rgindex_calculate(sdp, &expected_rglist,
 										  &calc_rg_count);
 			if (error) { /* If calculated RGs don't reasonably match the fs */
-				log_warn("(failed--trying again at level 3)\n");
+				log_info("(failed--trying again at level 3)\n");
 				ri_cleanup(&sdp->rglist);
 				continue; /* Try again, this time counting them manually */
 			}
@@ -1106,7 +1106,7 @@ int ri_update(struct fsck_sb *sdp)
 			error = gfs_rgindex_rebuild(sdp, &expected_rglist,
 										&calc_rg_count); /* count the RGs. */
 			if (error) { /* If calculated RGs don't reasonably match the fs */
-				log_err("(failed--giving up)\n");
+				log_info("(failed--giving up)\n");
 				goto fail; /* try again, this time counting them manually */
 			}
 		}
@@ -1177,7 +1177,7 @@ int ri_update(struct fsck_sb *sdp)
 			count1++;
 		} /* for all RGs in the index */
 		if (!error) {
-			log_warn("%u resource groups found.\n", rg);
+			log_info("%u resource groups found.\n", rg);
 			if (trust_lvl != blind_faith && rg != calc_rg_count)
 				log_warn("Resource group count discrepancy. Index says %d. " \
 						 "Should be %d.\n", rg, calc_rg_count);
@@ -1205,15 +1205,15 @@ int ri_update(struct fsck_sb *sdp)
 			sdp->rgcount = count1;
 		}
 		if (!error) { /* if no problems encountered with the rgs */
-			log_warn("(passed)\n");
+			log_info("(passed)\n");
 			break;  /* no reason to distrust what we saw. Otherwise, we
 					   reiterate and become a little less trusting. */
 		}
 		else {
 			if (trust_lvl < distrust)
-				log_warn("(failed--trying again at level 2)\n");
+				log_info("(failed--trying again at level 2)\n");
 			else
-				log_err("(failed--recovery impossible)\n");
+				log_info("(failed--recovery impossible)\n");
 		}
 		ri_cleanup(&sdp->rglist);
 	} /* for trust_lvl */

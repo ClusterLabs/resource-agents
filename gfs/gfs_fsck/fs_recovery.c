@@ -75,15 +75,15 @@ static int reconstruct_single_journal(struct fsck_sb *sdp, int jnum){
  * Returns: 0 on success, -1 on failure
  */
 int reconstruct_journals(struct fsck_sb *sdp){
-  int i;
+	int i;
 
-  log_warn("Clearing journals (this may take a while)\n");
-  for(i=0; i < sdp->journals; i++) {
-    if((i % 10) == 0)
-      log_at_notice(".");
-    if(reconstruct_single_journal(sdp, i))
-      return -1;
-  }
-  log_notice("Cleared journals\n");
-  return 0;
+	log_notice("Clearing journals (this may take a while)");
+	for(i=0; i < sdp->journals; i++) {
+		if((i % 2) == 0)
+			log_at_notice(".");
+		if(reconstruct_single_journal(sdp, i))
+			return -1;
+	}
+	log_notice("\nJournals cleared.\n");
+	return 0;
 }

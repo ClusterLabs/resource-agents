@@ -883,7 +883,8 @@ int pass1(struct fsck_sb *sbp)
 			stack;
 			return -1;
 		}
-		log_debug("RG at %"PRIu64" is %u long\n", rgd->rd_ri.ri_addr, rgd->rd_ri.ri_length);
+		log_debug("RG at %"PRIu64" is %u long\n", rgd->rd_ri.ri_addr,
+				  rgd->rd_ri.ri_length);
 		for (i = 0; i < rgd->rd_ri.ri_length; i++) {
 			if(block_set(sbp->bl, rgd->rd_ri.ri_addr + i,
 				     meta_other)){
@@ -903,7 +904,7 @@ int pass1(struct fsck_sb *sbp)
 			if(next_rg_meta_free(rgd, &block, first, &mfree))
 				break;
 
-
+			warm_fuzzy_stuff(block);
 			if(get_and_read_buf(sbp, block, &bh, 0)){
 				stack;
 				log_crit("Unable to retrieve block %"PRIu64

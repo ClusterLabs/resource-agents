@@ -17,6 +17,7 @@
 #include "ondisk.h"
 #include "fs_bits.h"
 #include "bio.h"
+#include "util.h"
 
 #ifdef DEBUG
 int rgrp_countbits(unsigned char *buffer, unsigned int buflen,
@@ -191,6 +192,8 @@ int check_block_status(struct fsck_sb *sbp, char *buffer, unsigned int buflen,
 	while(byte < end) {
 		rg_status = ((*byte >> bit) & GFS_BIT_MASK);
 		block = rg_data + *rg_block;
+		log_debug("Checking block %" PRIu64 "\n", block);
+		warm_fuzzy_stuff(block);
 		block_check(sbp->bl, block, &q);
 
 		block_status = convert_mark(q.block_type, count);

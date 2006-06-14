@@ -59,8 +59,8 @@ int scan_inode_list(struct fsck_sb *sbp, osi_list_t *list) {
 		   (ii->inode == sbp->sb.sb_quota_di.no_addr) ||
 		   (ii->inode == sbp->sb.sb_license_di.no_addr))
 			continue;
-		log_info("Checking reference count on inode at block %"PRIu64
-			 "\n", ii->inode);
+		log_debug("Checking reference count on inode at block %"PRIu64
+				  "\n", ii->inode);
 		if(ii->counted_links == 0) {
 			log_err("Found unlinked inode at %"PRIu64"\n",
 				ii->inode);
@@ -174,6 +174,7 @@ int pass4(struct fsck_sb *sbp, struct options *opts)
 	if(sbp->lf_dip)
 		log_debug("At beginning of pass4, l+f entries is %u\n",
 			  sbp->lf_dip->i_di.di_entries);
+	log_info("Checking inode reference counts.\n");
 	for (i = 0; i < FSCK_HASH_SIZE; i++) {
 		list = &sbp->inode_hash[i];
 		if(scan_inode_list(sbp, list)) {

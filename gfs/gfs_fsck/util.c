@@ -313,3 +313,24 @@ struct di_info *search_list(osi_list_t *list, uint64 addr)
   return NULL;
 }
 #endif
+
+/* Put out a warm, fuzzy message every second so the user     */
+/* doesn't think we hung.  (This may take a long time).       */
+void warm_fuzzy_stuff(uint64_t block)
+{
+	static struct timeval tv;
+	static uint32_t seconds = 0;
+	
+	gettimeofday(&tv, NULL);
+	if (!seconds)
+		seconds = tv.tv_sec;
+	if (tv.tv_sec - seconds) {
+		uint64_t percent;
+		
+		seconds = tv.tv_sec;
+		if (last_fs_block) {
+			percent = (block * 100) / last_fs_block;
+			log_notice("\r%" PRIu64 " percent complete.\r", percent);
+		}
+	}
+}
