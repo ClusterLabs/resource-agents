@@ -115,7 +115,7 @@ static int update_dir_members(char *name)
 
 	d = opendir(path);
 	if (!d) {
-		log_error("%s: opendir failed: %d", path, errno);
+		log_debug("%s: opendir failed: %d", path, errno);
 		return -1;
 	}
 
@@ -384,7 +384,7 @@ static int update_comms_nodes(void)
 
 	d = opendir(path);
 	if (!d) {
-		log_error("%s: opendir failed: %d", path, errno);
+		log_debug("%s: opendir failed: %d", path, errno);
 		return -1;
 	}
 
@@ -461,7 +461,7 @@ void clear_configfs_spaces(void)
 
 	d = opendir(path);
 	if (!d) {
-		log_error("%s: opendir failed: %d", path, errno);
+		log_debug("%s: opendir failed: %d", path, errno);
 		return;
 	}
 
