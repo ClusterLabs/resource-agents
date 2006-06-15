@@ -201,9 +201,10 @@ int process_uevent(void)
 
 	if (!strcmp(act, "change@"))
 		kernel_recovery_done(argv[3]);
-
 	else if (!strcmp(act, "offline@"))
 		do_withdraw(argv[3]);
+	else
+		ping_kernel_mount(argv[3]);
 
 	return 0;
 }

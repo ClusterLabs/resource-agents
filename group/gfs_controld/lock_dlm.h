@@ -111,37 +111,37 @@ struct mountgroup {
 	char			dir[PATH_MAX+1];
 	char			options[MAX_OPTIONS_LEN+1];
 
-	char			error_msg[128];
-	int			mount_client;
-	int			remount_client;
 	int			last_stop;
 	int			last_start;
 	int			last_finish;
 	int			last_callback;
 	int			start_event_nr;
 	int			start_type;
-	int			needs_recovery;
-	int			our_jid;
+
+	char			error_msg[128];
+	int			mount_client;
+	int			remount_client;
+	int			init;
+	int			got_our_options;
+	int			got_our_journals;
+	int			mount_client_notified;
+	int			mount_client_delay;
+	int			delay_send_journals;
+	int			got_kernel_mount;
 	int			first_mounter;
 	int			first_mounter_done;
 	int			emulate_first_mounter;
 	int			wait_first_done;
-	int			init;
-	int			init2;
 	int			low_finished_nodeid;
+
+	int			needs_recovery;
+	int			our_jid;
 	int			spectator;
 	int			readonly;
 	int			rw;
 	int			withdraw;
 
-	void			*journals_msg;
-	int			journals_msg_len;
-	int			journals_msg_from;
-	void			*options_msg;
-	int			options_msg_len;
-	int			options_msg_from;
-	struct list_head	saved_recovery_status;
-
+	struct list_head	saved_messages;
 	void			*start2_fn;
 };
 
@@ -174,11 +174,12 @@ struct mg_member {
 	struct list_head	list;
 	int			nodeid;
 	int			jid;
-	int			new;
+
 	int			spectator;
 	int			readonly;
 	int			rw;
 	uint32_t		opts;
+
 	int			tell_gfs_to_recover;
 	int			wait_gfs_recover_done;
 	int			gone_event;
@@ -188,6 +189,7 @@ struct mg_member {
 	int			recovery_status;
 	int			withdraw;
 	struct dlm_lksb		wd_lksb;
+	int			needs_journals;
 };
 
 enum {
@@ -234,6 +236,7 @@ int do_unmount(int ci, char *dir);
 int do_remount(int ci, char *dir, char *mode);
 int do_withdraw(char *name);
 int kernel_recovery_done(char *name);
+void ping_kernel_mount(char *table);
 
 int client_send(int ci, char *buf, int len);
 

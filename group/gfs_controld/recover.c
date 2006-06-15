@@ -16,10 +16,12 @@ struct save_msg {
 	struct list_head list;
 	int nodeid;
 	int len;
-	char buf[MAX_MSGLEN];
+	int type;
+	char buf[0];
 };
 
 #define SYSFS_DIR	"/sys/fs"
+#define JID_INIT	-9
 
 extern char *clustername;
 extern int our_nodeid;
@@ -27,12 +29,12 @@ extern group_handle_t gh;
 
 struct list_head mounts;
 
+void send_journals(struct mountgroup *mg, int nodeid);
 int hold_withdraw_locks(struct mountgroup *mg);
 void release_withdraw_lock(struct mountgroup *mg, struct mg_member *memb);
 void release_withdraw_locks(struct mountgroup *mg);
 
 void start_participant_init_2(struct mountgroup *mg);
-void start_participant_2(struct mountgroup *mg);
 void start_spectator_init_2(struct mountgroup *mg);
 void start_spectator_2(struct mountgroup *mg);
 
@@ -52,6 +54,8 @@ int set_sysfs(struct mountgroup *mg, char *field, int val)
 		log_error("open %s error %d %d", fname, fd, errno);
 		return -1;
 	}
+
+	mg->got_kernel_mount = 1;
 
 	memset(out, 0, 16);
 	sprintf(out, "%d", val);
@@ -80,6 +84,8 @@ int get_sysfs(struct mountgroup *mg, char *field, char *buf, int len)
 		log_error("open %s error %d %d", fname, fd, errno);
 		return -1;
 	}
+
+	mg->got_kernel_mount = 1;
 
 	rv = read(fd, buf, len);
 	if (rv < 0)
@@ -115,13 +121,6 @@ struct mg_member *find_memb_jid(struct mountgroup *mg, int jid)
 			return memb;
 	}
 	return NULL;
-}
-
-void clear_new(struct mountgroup *mg)
-{
-	struct mg_member *memb;
-	list_for_each_entry(memb, &mg->members, list)
-		memb->new = 0;
 }
 
 static void start_done(struct mountgroup *mg)
@@ -239,37 +238,59 @@ void process_saved_recovery_status(struct mountgroup *mg)
 {
 	struct save_msg *sm, *sm2;
 
-	if (list_empty(&mg->saved_recovery_status))
+	if (list_empty(&mg->saved_messages))
 		return;
 
 	log_group(mg, "process_saved_recovery_status");
 
-	list_for_each_entry_safe(sm, sm2, &mg->saved_recovery_status, list) {
+	list_for_each_entry_safe(sm, sm2, &mg->saved_messages, list) {
+		if (sm->type != MSG_RECOVERY_STATUS)
+			continue;
 		_receive_recovery_status(mg, sm->buf, sm->len, sm->nodeid);
 		list_del(&sm->list);
 		free(sm);
 	}
 }
 
+char *msg_name(int type)
+{
+	switch (type) {
+	case MSG_JOURNAL:
+		return "MSG_JOURNAL";
+	case MSG_OPTIONS:
+		return "MSG_OPTIONS";
+	case MSG_REMOUNT:
+		return "MSG_REMOUNT";
+	case MSG_PLOCK:
+		return "MSG_PLOCK";
+	case MSG_RECOVERY_STATUS:
+		return "MSG_RECOVERY_STATUS";
+	case MSG_RECOVERY_DONE:
+		return "MSG_RECOVERY_DONE";
+	}
+	return "unknown";
+}
+
 /* we can receive recovery_status messages from other nodes doing start before
    we actually process the corresponding start callback ourselves */
 
-void save_recovery_status(struct mountgroup *mg, char *buf, int len, int from)
+void save_message(struct mountgroup *mg, char *buf, int len, int from, int type)
 {
 	struct save_msg *sm;
 
-	sm = malloc(sizeof(struct save_msg));
+	sm = malloc(sizeof(struct save_msg) + len);
 	if (!sm)
 		return;
-	memset(sm, 0, sizeof(struct save_msg));
+	memset(sm, 0, sizeof(struct save_msg) + len);
 
 	memcpy(&sm->buf, buf, len);
+	sm->type = type;
 	sm->len = len;
 	sm->nodeid = from;
 
-	list_add_tail(&sm->list, &mg->saved_recovery_status);
+	log_group(mg, "save %s from %d len %d", msg_name(type), from, len);
 
-	log_group(mg, "save_recovery_status from %d len %d", from, len);
+	list_add_tail(&sm->list, &mg->saved_messages);
 }
 
 void receive_recovery_status(struct mountgroup *mg, char *buf, int len,
@@ -277,7 +298,7 @@ void receive_recovery_status(struct mountgroup *mg, char *buf, int len,
 {
 	switch (mg->last_callback) {
 	case DO_STOP:
-		save_recovery_status(mg, buf, len, from);
+		save_message(mg, buf, len, from, MSG_RECOVERY_STATUS);
 		break;
 	case DO_START:
 		_receive_recovery_status(mg, buf, len, from);
@@ -460,6 +481,97 @@ void send_options(struct mountgroup *mg)
 	free(buf);
 }
 
+/* We set the new member's jid to the lowest unused jid.
+   If we're the lowest existing member (by nodeid), then
+   send jid info to the new node. */
+
+/* Look at rw/ro/spectator status of all existing mounters and whether
+   we need to do recovery.  Based on that, decide if the current mount
+   mode (ro/spectator) is permitted; if not, set jid = -2.  If spectator
+   mount and it's ok, set jid = -1.  If ro or rw mount and it's ok, set
+   real jid. */
+
+int assign_journal(struct mountgroup *mg, struct mg_member *new)
+{
+	struct mg_member *memb;
+	int i, total, rw_count, ro_count, spect_count, invalid_count;
+
+	total = rw_count = ro_count = spect_count = invalid_count = 0;
+
+	list_for_each_entry(memb, &mg->members, list) {
+		if (memb->nodeid == new->nodeid)
+			continue;
+		total++;
+		if (memb->jid == -2)
+			invalid_count++;
+		else if (memb->spectator)
+			spect_count++;
+		else if (memb->rw)
+			rw_count++;
+		else if (memb->readonly)
+			ro_count++;
+	}
+
+	log_group(mg, "assign_journal: total %d iv %d rw %d ro %d spect %d",
+		  total, invalid_count, rw_count, ro_count, spect_count);
+
+	/* do we let the new member mount? jid=-2 means no.
+	   - we only allow an rw mount when the fs needs recovery
+	   - we only allow a single rw mount when the fs needs recovery */
+
+	if (mg->needs_recovery) {
+		if (!new->rw || rw_count)
+			new->jid = -2;
+	}
+
+	if (new->jid == -2) {
+		log_group(mg, "assign_journal: fail - needs_recovery %d",
+			  mg->needs_recovery);
+		goto out;
+	}
+
+	if (new->spectator) {
+		log_group(mg, "assign_journal: new spectator allowed");
+		new->jid = -1;
+		goto out;
+	}
+
+	for (i = 0; i < 1024; i++) {
+		memb = find_memb_jid(mg, i);
+		if (!memb) {
+			new->jid = i;
+			break;
+		}
+	}
+
+	/* Currently the fs needs recovery, i.e. none of the current
+	   mounters (ro/spectators) can recover journals.  So, this new rw
+	   mounter is told to do first-mounter recovery of all the journals. */
+
+	if (mg->needs_recovery) {
+		log_group(mg, "assign_journal: new member OPT_RECOVER");
+		new->opts |= MEMB_OPT_RECOVER;
+	}
+
+ out:
+	log_group(mg, "assign_journal: new member %d got jid %d",
+		  new->nodeid, new->jid);
+
+	/* if we're the first mounter and haven't gotten others_may_mount
+	   yet, then don't send journals until kernel_recovery_done_first
+	   so the second node won't mount the fs until omm. */
+
+	if (mg->low_finished_nodeid == our_nodeid) {
+		if (mg->first_mounter && !mg->first_mounter_done) {
+			log_group(mg, "delay sending journals to %d",
+				  new->nodeid);
+			mg->delay_send_journals = new->nodeid;
+		} else
+			send_journals(mg, new->nodeid);
+	}
+	return 0;
+}
+
 void _receive_options(struct mountgroup *mg, char *buf, int len, int from)
 {
 	struct mg_member *memb;
@@ -475,9 +587,6 @@ void _receive_options(struct mountgroup *mg, char *buf, int len, int from)
 		return;
 	}
 
-	if (from == our_nodeid)
-		return;
-
 	if (strstr(options, "spectator")) {
 		memb->spectator = 1;
 		memb->opts |= MEMB_OPT_SPECT;
@@ -489,34 +598,58 @@ void _receive_options(struct mountgroup *mg, char *buf, int len, int from)
 		memb->opts |= MEMB_OPT_RO;
 	}
 
-	log_group(mg, "receive_options from %d rw=%d ro=%d spect=%d opts=%x",
+	log_group(mg, "_receive_options from %d rw=%d ro=%d spect=%d opts=%x",
 		  from, memb->rw, memb->readonly, memb->spectator, memb->opts);
+
+	assign_journal(mg, memb);
 }
 
 void receive_options(struct mountgroup *mg, char *buf, int len, int from)
 {
 	struct gdlm_header *hd = (struct gdlm_header *)buf;
-
-	if (hd->nodeid == our_nodeid)
-		return;
+	struct mg_member *memb;
 
 	log_group(mg, "receive_options from %d len %d last_cb %d",
 		  from, len, mg->last_callback);
 
-	/* If last_callback isn't DO_START it means we've not gotten
-	   the start callback for the new node addition yet, and we need to
-	   save this message to be processed after we get our first start. */
+	if (hd->nodeid == our_nodeid) {
+		mg->got_our_options = 1;
+		return;
+	}
 
-	if (mg->last_callback != DO_START) {
-		mg->options_msg = malloc(len);
-		mg->options_msg_len = len;
-		mg->options_msg_from = from;
-		memcpy(mg->options_msg, buf, len);
-	} else {
-		void (*start2)(struct mountgroup *mg) = mg->start2_fn;
+	if (!mg->got_our_options) {
+		log_group(mg, "ignore options from %d", from);
+		return;
+	}
+
+	/* we can receive an options message before getting the start
+	   that adds the mounting node that sent the options, or
+	   we can receive options messages before we get the journals
+	   message for out own mount */
+
+	memb = find_memb_nodeid(mg, from);
+
+	if (!memb || !mg->got_our_journals)
+		save_message(mg, buf, len, from, MSG_OPTIONS);
+	else
 		_receive_options(mg, buf, len, from);
-		start2(mg);
-		mg->start2_fn = NULL;
+}
+
+void process_saved_options(struct mountgroup *mg)
+{
+	struct save_msg *sm, *sm2;
+
+	if (list_empty(&mg->saved_messages))
+		return;
+
+	log_group(mg, "process_saved_options");
+
+	list_for_each_entry_safe(sm, sm2, &mg->saved_messages, list) {
+		if (sm->type != MSG_OPTIONS)
+			continue;
+		_receive_options(mg, sm->buf, sm->len, sm->nodeid);
+		list_del(&sm->list);
+		free(sm);
 	}
 }
 
@@ -564,6 +697,7 @@ void send_journals(struct mountgroup *mg, int nodeid)
 
 void _receive_journals(struct mountgroup *mg, char *buf, int len, int from)
 {
+	void (*start2)(struct mountgroup *mg) = mg->start2_fn;
 	struct mg_member *memb, *memb2;
 	struct gdlm_header *hd;
 	int *ids, count, i, nodeid, jid, opts;
@@ -571,13 +705,6 @@ void _receive_journals(struct mountgroup *mg, char *buf, int len, int from)
 	hd = (struct gdlm_header *)buf;
 
 	count = (len - sizeof(struct gdlm_header)) / (NUM * sizeof(int));
-
-	if (count != mg->memb_count) {
-		log_error("invalid journals message len %d counts %d %d",
-			  len, count, mg->memb_count);
-		return;
-	}
-
 	ids = (int *) (buf + sizeof(struct gdlm_header));
 
 	for (i = 0; i < count; i++) {
@@ -615,140 +742,47 @@ void _receive_journals(struct mountgroup *mg, char *buf, int len, int from)
 				memb->spectator = 1;
 		}
 	}
+
+	/* we delay processing any options messages from new mounters
+	   until after we receive the journals message for our own mount */
+	process_saved_options(mg);
+
+	start2(mg);
 }
 
 void receive_journals(struct mountgroup *mg, char *buf, int len, int from)
 {
 	struct gdlm_header *hd = (struct gdlm_header *)buf;
+	struct mg_member *memb;
 	int count;
+
+	count = (len - sizeof(struct gdlm_header)) / (NUM * sizeof(int));
+
+	log_group(mg, "receive_journals from %d to %d len %d count %d cb %d",
+		  from, hd->to_nodeid, len, count, mg->last_callback);
+
+	/* just like we can receive an options msg from a newly added node
+	   before we get the start adding it, we can receive the journals
+	   message sent to it before we get the start adding it */
+
+	memb = find_memb_nodeid(mg, hd->to_nodeid);
+	if (!memb) {
+		log_group(mg, "receive_journals from %d to unknown %d",
+			  from, hd->to_nodeid);
+		return;
+	}
+	memb->needs_journals = 0;
 
 	if (hd->to_nodeid && hd->to_nodeid != our_nodeid)
 		return;
 
-	count = (len - sizeof(struct gdlm_header)) / (NUM * sizeof(int));
-
-	log_group(mg, "receive_journals from %d len %d count %d last_cb %d",
-		  from, len, count, mg->last_callback);
-
-	/* If init is still 1 it means we've not run do_start()
-	   for our join yet, and we need to save this message to be
-	   processed after we get our first start. */
-
-
-	/* it should now be impossible to receive a journals message prior to
-	   our start because the node sending journals won't do so until
-	   receiving our options message
-	if (mg->init) {
-		mg->journals_msg = malloc(len);
-		mg->journals_msg_len = len;
-		mg->journals_msg_from = from;
-		memcpy(mg->journals_msg, buf, len);
-	} else {
-	*******/
-
-	ASSERT(mg->last_callback == DO_START);
-
-	{
-		void (*start2)(struct mountgroup *mg) = mg->start2_fn;
-		_receive_journals(mg, buf, len, from);
-		start2(mg);
-		mg->start2_fn = NULL;
+	if (mg->got_our_journals) {
+		log_group(mg, "receive_journals from %d duplicate", from);
+		return;
 	}
-}
+	mg->got_our_journals = 1;
 
-/* We set the new member's jid to the lowest unused jid.
-   If we're the lowest existing member (by nodeid), then
-   send jid info to the new node. */
-
-/* Look at rw/ro/spectator status of all existing mounters and whether
-   we need to do recovery.  Based on that, decide if the current mount
-   mode (ro/spectator) is permitted; if not, set jid = -2.  If spectator
-   mount and it's ok, set jid = -1.  If ro or rw mount and it's ok, set
-   real jid. */
-
-int discover_journals(struct mountgroup *mg)
-{
-	struct mg_member *memb, *new = NULL;
-	int i, total, rw_count, ro_count, spect_count, invalid_count;
-
-	total = rw_count = ro_count = spect_count = invalid_count = 0;
-
-	list_for_each_entry(memb, &mg->members, list) {
-		if (memb->new && new) {
-			log_error("more than one new member %d %d",
-				  new->nodeid, memb->nodeid);
-			return -1;
-		} else if (memb->new) {
-			new = memb;
-		} else {
-			total++;
-			if (memb->jid == -2)
-				invalid_count++;
-			else if (memb->spectator)
-				spect_count++;
-			else if (memb->rw)
-				rw_count++;
-			else if (memb->readonly)
-				ro_count++;
-		}
-	}
-
-	if (!new) {
-		log_group(mg, "discover_journals: no new member");
-		return 0;
-	}
-
-	log_group(mg, "discover_journals: total %d iv %d rw %d ro %d spect %d",
-		  total, invalid_count, rw_count, ro_count, spect_count);
-
-	log_group(mg, "discover_journals: new member %d rw=%d ro=%d spect=%d",
-		  new->nodeid, new->rw, new->readonly, new->spectator);
-
-	/* do we let the new member mount? jid=-2 means no.
-	   - we only allow an rw mount when the fs needs recovery
-	   - we only allow a single rw mount when the fs needs recovery */
-
-	if (mg->needs_recovery) {
-		if (!new->rw || rw_count)
-			new->jid = -2;
-	}
-
-	if (new->jid == -2) {
-		log_group(mg, "discover_journals: fail - needs_recovery %d",
-			  mg->needs_recovery);
-		goto out;
-	}
-
-	if (new->spectator) {
-		log_group(mg, "discover_journals: new spectator allowed");
-		new->jid = -1;
-		goto out;
-	}
-
-	for (i = 0; i < 1024; i++) {
-		memb = find_memb_jid(mg, i);
-		if (!memb) {
-			new->jid = i;
-			break;
-		}
-	}
-
-	/* Currently the fs needs recovery, i.e. none of the current
-	   mounters (ro/spectators) can recover journals.  So, this new rw
-	   mounter is told to do first-mounter recovery of all the journals. */
-
-	if (mg->needs_recovery) {
-		log_group(mg, "discover_journals: new member OPT_RECOVER");
-		new->opts |= MEMB_OPT_RECOVER;
-	}
-
- out:
-	log_group(mg, "discover_journals: new member %d got jid %d",
-		  new->nodeid, new->jid);
-
-	if (mg->low_finished_nodeid == our_nodeid)
-		send_journals(mg, new->nodeid);
-	return 0;
+	_receive_journals(mg, buf, len, from);
 }
 
 static void add_ordered_member(struct mountgroup *mg, struct mg_member *new)
@@ -786,10 +820,13 @@ int add_member(struct mountgroup *mg, int nodeid)
 	memset(memb, 0, sizeof(*memb));
 
 	memb->nodeid = nodeid;
-	memb->jid = -9;
-	memb->new = 1;
+	memb->jid = JID_INIT;
 	add_ordered_member(mg, memb);
 	mg->memb_count++;
+
+	if (!mg->init)
+		memb->needs_journals = 1;
+
 	return 0;
 }
 
@@ -837,6 +874,8 @@ void clear_members_gone(struct mountgroup *mg)
 	clear_memb_list(&mg->members_gone);
 }
 
+/* This can happen before we receive a journals message for our mount. */
+
 void recover_members(struct mountgroup *mg, int num_nodes,
  		     int *nodeids, int *pos_out, int *neg_out)
 {
@@ -867,13 +906,13 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 			memb->local_recovery_status = 0;
 
 			/* - journal cb for failed or withdrawing nodes
-			   - journal cb only if failed node finished joining
+			   - failed node was assigned a journal
 			   - no journal cb if failed node was spectator
 			   - no journal cb if we've already done a journl cb */
 
 			if ((memb->gone_type == GROUP_NODE_FAILED ||
 			    memb->withdraw) &&
-			    memb->mount_finished &&
+			    memb->jid != JID_INIT &&
 			    !memb->spectator &&
 			    !memb->wait_gfs_recover_done) {
 				memb->tell_gfs_to_recover = 1;
@@ -887,7 +926,7 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 				  mg->spectator,
 				  mg->start_type,
 				  memb->withdraw,
-				  memb->mount_finished,
+				  memb->jid,
 				  memb->spectator,
 				  memb->wait_gfs_recover_done);
 		}
@@ -929,9 +968,8 @@ struct mountgroup *create_mg(char *name)
 	INIT_LIST_HEAD(&mg->members);
 	INIT_LIST_HEAD(&mg->members_gone);
 	INIT_LIST_HEAD(&mg->resources);
-	INIT_LIST_HEAD(&mg->saved_recovery_status);
+	INIT_LIST_HEAD(&mg->saved_messages);
 	mg->init = 1;
-	mg->init2 = 1;
 
 	strncpy(mg->name, name, MAXNAME);
 
@@ -1130,10 +1168,11 @@ int kernel_recovery_done_first(struct mountgroup *mg)
 		   we delayed calling start_done() (to complete adding
 		   the second node) until here. */
 
-		if (mg->wait_first_done) {
-			clear_new(mg);
+		if (mg->wait_first_done)
 			start_done(mg);
-		}
+
+		if (mg->delay_send_journals)
+			send_journals(mg, mg->delay_send_journals);
 	}
 	return 0;
 }
@@ -1147,13 +1186,15 @@ void recover_journals(struct mountgroup *mg)
 	struct mg_member *memb;
 	int rv;
 
-	if (mg->spectator || mg->readonly) {
+	if (mg->spectator || mg->readonly || mg->our_jid == JID_INIT) {
 		list_for_each_entry(memb, &mg->members_gone, list) {
 			if (!memb->tell_gfs_to_recover)
 				continue;
 
-			log_group(mg, "recover journal %d nodeid %d skip ro",
-				  memb->jid, memb->nodeid);
+			log_group(mg, "recover journal %d nodeid %d skip, "
+				  "spect %d ro %d our_jid %d",
+				  memb->jid, memb->nodeid,
+				  mg->spectator, mg->readonly, mg->our_jid);
 			memb->tell_gfs_to_recover = 0;
 			memb->local_recovery_status = RS_READONLY;
 		}
@@ -1395,6 +1436,11 @@ void notify_mount_client(struct mountgroup *mg)
 		strncpy(buf, mg->error_msg, MAXLINE);
 		error = 1;
 	} else {
+		if (mg->mount_client_delay) {
+			log_group(mg, "notify_mount_client delayed");
+			return;
+		}
+
 		if (mg->our_jid < 0)
 			snprintf(buf, MAXLINE, "hostdata=id=%u:first=%d",
 		 		 mg->id, mg->first_mounter);
@@ -1414,7 +1460,24 @@ void notify_mount_client(struct mountgroup *mg)
 	if (error) {
 		log_group(mg, "leaving due to mount error: %s", mg->error_msg);
 		group_leave(gh, mg->name);
-	}
+	} else
+		mg->mount_client_notified = 1;
+}
+
+void ping_kernel_mount(char *table)
+{
+	struct mountgroup *mg;
+	char buf[MAXLINE];
+	char *name = strstr(table, ":") + 1;
+	int rv;
+
+	mg = find_mg(name);
+	if (!mg)
+		return;
+
+	rv = get_sysfs(mg, "id", buf, sizeof(buf));
+
+	log_group(mg, "ping_kernel_mount %d", rv);
 }
 
 /* When mounting a fs, we first join the mountgroup, then tell mount.gfs
@@ -1438,9 +1501,54 @@ void wait_for_kernel_mount(struct mountgroup *mg)
 	}
 }
 
+/* The processing of new mounters (send/recv options, send/recv journals,
+   notify mount.gfs) is not very integrated with the stop/start/finish
+   callbacks from libgroup.  A start callback just notifies us of a new
+   mounter and the options/journals messages drive things from there.
+   Recovery for failed nodes _is_ controlled more directly by the
+   stop/start/finish callbacks.  So, processing new mounters happens
+   independently of recovery and of the libgroup callbacks.  One place
+   where they need to intersect, though, is in stopping/suspending
+   gfs-kernel:
+   - When we get a stop callback, we need to be certain that gfs-kernel
+     is blocked.
+   - When a mounter notifies mount.gfs to go ahead, gfs-kernel will
+     shortly begin running in an unblocked fashion as it goes through
+     the kernel mounting process.
+   Given this, we need to be sure that if gfs-kernel is supposed to be
+   blocked, we don't notify mount.gfs to go ahead and do the kernel mount
+   since that starts gfs-kernel in an unblocked state. */
+
+/* - if we're unmounting, the kernel is gone, so no problem.
+   - if we've just mounted and notified mount.gfs, then wait for kernel
+     mount and then block.
+   - if we're mounting and have not yet notified mount.gfs, then set
+     a flag that delays the notification until block is set to 0. */
+
 int do_stop(struct mountgroup *mg)
 {
-	set_sysfs(mg, "block", 1);
+	int rv;
+
+	for (;;) {
+		rv = set_sysfs(mg, "block", 1);
+		if (!rv)
+			break;
+
+		/* if the kernel instance of gfs existed before but now
+		   we can't see it, that must mean it's been unmounted,
+		   so it's implicitly stopped */
+
+		if (mg->got_kernel_mount)
+			break;
+
+		if (mg->mount_client_notified)
+			wait_for_kernel_mount(mg);
+		else {
+			mg->mount_client_delay = 1;
+			break;
+		}
+	}
+
 	group_stop_done(gh, mg->name);
 	return 0;
 }
@@ -1498,11 +1606,16 @@ int do_finish(struct mountgroup *mg)
 		leave_blocked = 1;
 	}
 
-	if (mg->mount_client) {
-		notify_mount_client(mg);
-		wait_for_kernel_mount(mg);
-	} else if (!leave_blocked)
+	if (!leave_blocked) {
 		set_sysfs(mg, "block", 0);
+
+		/* we may have been holding back our local mount due to
+		   being stopped/blocked */
+		if (mg->mount_client_delay) {
+			mg->mount_client_delay = 0;
+			notify_mount_client(mg);
+		}
+	}
 
 	return 0;
 }
@@ -1544,9 +1657,7 @@ void start_first_mounter(struct mountgroup *mg)
 	struct mg_member *memb;
 
 	log_group(mg, "start_first_mounter");
-
 	set_our_memb_options(mg);
-
 	memb = find_memb_nodeid(mg, our_nodeid);
 	ASSERT(memb);
 
@@ -1561,11 +1672,12 @@ void start_first_mounter(struct mountgroup *mg)
 		mg->our_jid = 0;
 		mg->first_mounter = 1;
 		mg->first_mounter_done = 0;
+		mg->got_our_options = 1;
+		mg->got_our_journals = 1;
 		hold_withdraw_locks(mg);
 	}
-	clear_new(mg);
 	start_done(mg);
-	mg->init = 0;
+	notify_mount_client(mg);
 }
 
 /* called for the initial start on a rw/ro mounter;
@@ -1574,25 +1686,11 @@ void start_first_mounter(struct mountgroup *mg)
 void start_participant_init(struct mountgroup *mg)
 {
 	log_group(mg, "start_participant_init");
-
 	set_our_memb_options(mg);
 	send_options(mg);
 	hold_withdraw_locks(mg);
-
-	if (mg->journals_msg) {
-		_receive_journals(mg,
-				  mg->journals_msg,
-				  mg->journals_msg_len,
-				  mg->journals_msg_from);
-		free(mg->journals_msg);
-		mg->journals_msg = NULL;
-
-		start_participant_init_2(mg);
-	} else {
-		/* will be called in receive_journals() */
-		mg->start2_fn = start_participant_init_2;
-	}
-	mg->init = 0;
+	start_done(mg);
+	mg->start2_fn = start_participant_init_2;
 }
 
 /* called for the initial start on a rw/ro mounter after _receive_journals() */
@@ -1613,7 +1711,7 @@ void start_participant_init_2(struct mountgroup *mg)
 	/* fs needs recovery and existing mounters can't recover it,
 	   i.e. they're spectator/readonly, so we're told to do
 	   first-mounter recovery on the fs. */
-	 
+
 	if (first_mounter_recovery(mg)) {
 		log_group(mg, "first_mounter_recovery");
 		mg->emulate_first_mounter = 1;
@@ -1621,12 +1719,13 @@ void start_participant_init_2(struct mountgroup *mg)
 		mg->first_mounter_done = 0;
 	}
  out:
-	clear_new(mg);
-	start_done(mg);
-	mg->init2 = 0;
+	notify_mount_client(mg);
 }
 
-/* called for a non-initial start on a normal mounter */
+/* called for a non-initial start on a normal mounter.
+   NB we can get here without having received a journals message for
+   our (recent) mount yet in which case we don't know the jid or ro/rw
+   status of any members, and don't know our own jid. */
 
 void start_participant(struct mountgroup *mg, int pos, int neg)
 {
@@ -1635,54 +1734,28 @@ void start_participant(struct mountgroup *mg, int pos, int neg)
 	if (pos) {
 		hold_withdraw_locks(mg);
 
-		if (mg->options_msg) {
-			_receive_options(mg,
-				  	 mg->options_msg,
-				  	 mg->options_msg_len,
-				  	 mg->options_msg_from);
-			free(mg->options_msg);
-			mg->options_msg = NULL;
+		/* If we're the first mounter, and we're adding a second
+		   node here, but haven't gotten first_done (others_may_mount)
+		   from gfs yet, then don't do the start_done() to complete
+		   adding the second node.  Set wait_first_done=1 to have
+		   first_recovery_done() call start_done().  This also requires
+		   that we unblock locking on the first mounter if gfs hasn't
+		   done others_may_mount yet. */
 
-			start_participant_2(mg);
-		} else {
-			/* will be called in receive_options() */
-			mg->start2_fn = start_participant_2;
-		}
+		if (mg->first_mounter && !mg->first_mounter_done) {
+			mg->wait_first_done = 1;
+			set_sysfs(mg, "block", 0);
+			log_group(mg, "delay start_done til others_may_mount");
+		} else
+			start_done(mg);
+
+		mg->start2_fn = NULL;
+		process_saved_options(mg);
+
 	} else if (neg) {
 		recover_journals(mg);
 		process_saved_recovery_status(mg);
 	}
-}
-
-/* called for a non-initial start on a normal mounter when adding a node,
-   after _receive_options().  we need to know if the new node is a spectator
-   or not (from options) before deciding if it should be given a journal
-   in discover_journals() */
-
-void start_participant_2(struct mountgroup *mg)
-{
-	log_group(mg, "start_participant_2");
-
-	discover_journals(mg);
-
-	/* If we're the first mounter, and we're adding a second
-	   node here, but haven't gotten first_done (others_may_mount) from gfs
-	   yet, then don't do the start_done() to complete adding the
-	   second node.  Set wait_first_done=1 to have first_recovery_done()
-	   call start_done().
-	   This also requires that we unblock locking on the first
-	   mounter if gfs hasn't done others_may_mount yet. */
-
-	if (mg->init2 && mg->first_mounter && !mg->first_mounter_done) {
-		mg->wait_first_done = 1;
-		set_sysfs(mg, "block", 0);
-		log_group(mg, "delay start_done until others_may_mount");
-	} else {
-		clear_new(mg);
-		start_done(mg);
-	}
-
-	mg->init2 = 0;
 }
 
 /* called for the initial start on a spectator mounter */
@@ -1690,25 +1763,11 @@ void start_participant_2(struct mountgroup *mg)
 void start_spectator_init(struct mountgroup *mg)
 {
 	log_group(mg, "start_spectator_init");
-
 	set_our_memb_options(mg);
 	send_options(mg);
 	hold_withdraw_locks(mg);
-
-	if (mg->journals_msg) {
-		_receive_journals(mg,
-				  mg->journals_msg,
-				  mg->journals_msg_len,
-				  mg->journals_msg_from);
-		free(mg->journals_msg);
-		mg->journals_msg = NULL;
-
-		start_spectator_init_2(mg);
-	} else {
-		/* will be called in receive_journals() */
-		mg->start2_fn = start_spectator_init_2;
-	}
-	mg->init = 0;
+	start_done(mg);
+	mg->start2_fn = start_spectator_init_2;
 }
 
 /* called for the initial start on a spectator mounter,
@@ -1726,9 +1785,7 @@ void start_spectator_init_2(struct mountgroup *mg)
 	else
 		ASSERT(mg->our_jid == -1);
 
-	clear_new(mg);
-	start_done(mg);
-	mg->init2 = 0;
+	notify_mount_client(mg);
 }
 
 /* called for a non-initial start on a spectator mounter */
@@ -1739,35 +1796,12 @@ void start_spectator(struct mountgroup *mg, int pos, int neg)
 
 	if (pos) {
 		hold_withdraw_locks(mg);
-
-		if (mg->options_msg) {
-			_receive_options(mg,
-				  	 mg->options_msg,
-					 mg->options_msg_len,
-					 mg->options_msg_from);
-			free(mg->options_msg);
-			mg->options_msg = NULL;
-
-			start_spectator_2(mg);
-		} else {
-			/* will be called in receive_options() */
-			mg->start2_fn = start_spectator_2;
-		}
+		start_done(mg);
+		process_saved_options(mg);
 	} else if (neg) {
 		recover_journals(mg);
 		process_saved_recovery_status(mg);
 	}
-}
-
-/* called for a non-initial start on a spectator mounter when adding a
-   node, after _receive_options() */
-
-void start_spectator_2(struct mountgroup *mg)
-{
-	log_group(mg, "start_spectator_2");
-	discover_journals(mg);
-	clear_new(mg);
-	start_done(mg);
 }
 
 /* If nodeA fails, nodeB is recovering journalA and nodeB fails before
@@ -1792,7 +1826,25 @@ void reset_unfinished_recoveries(struct mountgroup *mg)
 	}
 }
 
+/* New mounters may be waiting for a journals message that a failed node (as
+   low nodeid) would have sent.  If the low nodeid failed and we're the new low
+   nodeid, then send a journals message to any nodes for whom we've not seen a
+   journals message. */
+
+void resend_journals(struct mountgroup *mg)
+{
+	struct mg_member *memb;
+
+	list_for_each_entry(memb, &mg->members, list) {
+		if (!memb->needs_journals)
+			continue;
+		log_group(mg, "resend_journals to %d", memb->nodeid);
+		send_journals(mg, memb->nodeid);
+	}
+}
+
 /*
+   old method:
    A is rw mount, B mounts rw
 
    do_start		do_start
@@ -1808,11 +1860,27 @@ void reset_unfinished_recoveries(struct mountgroup *mg)
 			start_participant_init_2
 			group_start_done
    do_finish		do_finish
+
+   new method: decouples stop/start/finish from mount processing
+   A is rw mount, B mounts rw
+
+   do_start		do_start
+   start_participant	start_participant_init
+   start_done		send_options
+   			start_done
+   do_finish		do_finish
+
+   receive_options
+   assign_journal
+   send_journals
+   			receive_journals
+			start_participant_init_2
+			notify_mount_client
 */
 
 void do_start(struct mountgroup *mg, int type, int member_count, int *nodeids)
 {
-	int pos = 0, neg = 0;
+	int pos = 0, neg = 0, low;
 
 	mg->start_event_nr = mg->last_start;
 	mg->start_type = type;
@@ -1820,9 +1888,17 @@ void do_start(struct mountgroup *mg, int type, int member_count, int *nodeids)
 	log_group(mg, "start %d init %d type %d member_count %d",
 		  mg->last_start, mg->init, type, member_count);
 
+	low = mg->low_finished_nodeid;
+
 	recover_members(mg, member_count, nodeids, &pos, &neg);
 
 	reset_unfinished_recoveries(mg);
+
+	if (neg && low != mg->low_finished_nodeid && low == our_nodeid) {
+		log_group(mg, "low nodeid failed old %d new %d",
+			  low, mg->low_finished_nodeid);
+		resend_journals(mg);
+	}
 
 	if (mg->init) {
 		if (member_count == 1)
@@ -1831,6 +1907,7 @@ void do_start(struct mountgroup *mg, int type, int member_count, int *nodeids)
 			start_spectator_init(mg);
 		else
 			start_participant_init(mg);
+		mg->init = 0;
 	} else {
 		if (mg->spectator)
 			start_spectator(mg, pos, neg);
@@ -1839,8 +1916,7 @@ void do_start(struct mountgroup *mg, int type, int member_count, int *nodeids)
 	}
 }
 
-/* FIXME:
-
+/*
   What repurcussions are there from umount shutting down gfs in the
   kernel before we leave the mountgroup?  We can no longer participate
   in recovery even though we're in the group -- what are the end cases

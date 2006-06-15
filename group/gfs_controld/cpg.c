@@ -27,7 +27,7 @@ void receive_plock(struct mountgroup *mg, char *buf, int len, int from);
 void receive_recovery_status(struct mountgroup *mg, char *buf, int len,
 			     int from);
 void receive_recovery_done(struct mountgroup *mg, char *buf, int len, int from);
-
+char *msg_name(int type);
 
 static void do_deliver(int nodeid, char *data, int len)
 {
@@ -58,8 +58,8 @@ static void do_deliver(int nodeid, char *data, int len)
 	   discard them since they're only relevant to the app group. */
 
 	if (!mg->last_callback) {
-		log_group(mg, "discard message type %d len %d from %d",
-			  hd->type, len, nodeid);
+		log_group(mg, "discard %s len %d from %d",
+			  msg_name(hd->type), len, nodeid);
 		return;
 	}
 
