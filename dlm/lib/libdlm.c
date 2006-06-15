@@ -41,10 +41,11 @@
 #ifdef HAVE_SELINUX
 #include <selinux/selinux.h>
 #endif
-#include "dlm.h"
-#include "libdlm_internal.h"
+#include <linux/types.h>
+#include <linux/dlm.h>
+#define BUILDING_LIBDLM
 #include "libdlm.h"
-#include "dlm_device.h"
+#include <linux/dlm_device.h>
 
 #define MISC_PREFIX "/dev/misc/"
 #define PROC_MISC "/proc/misc"

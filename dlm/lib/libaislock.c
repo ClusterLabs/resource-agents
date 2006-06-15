@@ -14,12 +14,12 @@
 #include <sys/file.h>
 #include <sys/stat.h>
 
-#include "libdlm_internal.h"
-#include "dlm.h"
+#include <linux/types.h>
+#include <linux/dlm.h>
 #define BUILDING_LIBDLM
 #include "libdlm.h"
 #include "libaislock.h"
-#include "dlm_device.h"
+#include <linux/dlm_device.h>
 
 enum {
 	SA_LCK_GRANT_CB = 1,

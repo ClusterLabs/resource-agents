@@ -22,7 +22,7 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 include ${top_srcdir}/make/defines.mk
 
-CFLAGS += -g -I. -O2 -idirafter ${KERNEL_SRC}/include/linux
+CFLAGS += -g -I. -O2 
 LDFLAGS +=  
 
 all: $(STATICLIB) $(SHAREDLIB)
