@@ -348,6 +348,7 @@ static void destroy_sbp(struct gfs2_sbd *sbp)
 			log_warn("Unable to unblock other mounters - manual intevention required\n");
 			log_warn("Use 'gfs_tool sb <device> proto' to fix\n");
 		}
+		log_info("Syncing the device.\n");
 		fsync(sbp->device_fd);
 	}
 	empty_super_block(sbp);

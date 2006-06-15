@@ -198,6 +198,7 @@ int main(int argc, char **argv)
 		inode_put(lf_dip, updated);
 /*	print_map(sbp->bl, sbp->last_fs_block); */
 
+	log_notice("Writing changes to disk\n");
 	bsync(sbp);
 	destroy(sbp);
 	log_notice("gfs2_fsck complete    \n");

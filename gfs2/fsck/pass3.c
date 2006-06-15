@@ -206,6 +206,7 @@ int pass3(struct gfs2_sbd *sbp)
 	 * until we find one that's been checked already.  If we don't
 	 * find a parent, put in lost+found.
 	 */
+	log_info("Checking directory linkage.\n");
 	for(i = 0; i < FSCK_HASH_SIZE; i++) {
 	osi_list_foreach(tmp, &dir_hash[i]) {
 		di = osi_list_entry(tmp, struct dir_info, list);
@@ -272,8 +273,8 @@ int pass3(struct gfs2_sbd *sbp)
 				break;
 			}
 			else {
-				log_info("Directory at block %" PRIu64 " (0x%" 
-						 PRIx64 ") connected\n", di->dinode, di->dinode);
+				log_debug("Directory at block %" PRIu64 " (0x%" 
+						  PRIx64 ") connected\n", di->dinode, di->dinode);
 			}
 			di = tdi;
 		}

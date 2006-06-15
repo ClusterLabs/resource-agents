@@ -53,8 +53,8 @@ int scan_inode_list(struct gfs2_sbd *sbp, osi_list_t *list) {
 			log_crit("osi_list_foreach broken in scan_info_list!!\n");
 			exit(1);
 		}
-		log_info("Checking reference count on inode at block %" PRIu64
-			 " (0x%" PRIx64 ")\n", ii->inode, ii->inode);
+		log_debug("Checking reference count on inode at block %" PRIu64
+				  " (0x%" PRIx64 ")\n", ii->inode, ii->inode);
 		if(ii->counted_links == 0) {
 			log_err("Found unlinked inode at %" PRIu64 " (0x%" PRIx64 ")\n",
 					ii->inode, ii->inode);
@@ -163,6 +163,7 @@ int pass4(struct gfs2_sbd *sbp)
 	if(lf_dip)
 		log_debug("At beginning of pass4, lost+found entries is %u\n",
 				  lf_dip->i_di.di_entries);
+	log_info("Checking inode reference counts.\n");
 	for (i = 0; i < FSCK_HASH_SIZE; i++) {
 		list = &inode_hash[i];
 		if(scan_inode_list(sbp, list)) {

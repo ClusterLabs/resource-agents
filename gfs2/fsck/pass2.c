@@ -226,6 +226,7 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 	struct gfs2_inode *entry_ip = NULL;
 	struct metawalk_fxns clear_eattrs = {0};
 	struct gfs2_dirent dentry, *de;
+	uint32_t calculated_hash;
 
 	memset(&dentry, 0, sizeof(struct gfs2_dirent));
 	gfs2_dirent_in(&dentry, (char *)dent);
@@ -250,18 +251,26 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 		/* FIXME: should probably delete the entry here at the
 		 * very least - maybe look at attempting to fix it */
 	}
-
-	if (de->de_hash != gfs2_disk_hash(filename, de->de_name_len)){
+	
+	calculated_hash = gfs2_disk_hash(filename, de->de_name_len);
+	if (de->de_hash != calculated_hash){
 	        log_err("Dir entry with bad hash or name length\n"
-			 "\tHash found         = %u\n"
-			 "\tName found         = %s\n"
-			 "\tName length found  = %u\n"
-			 "\tHash expected      = %u\n",
-			 de->de_hash,
-			 filename,
-			 de->de_name_len,
-			 gfs2_disk_hash(filename, de->de_name_len));
-		return 1;
+					"\tHash found         = %u (0x%x)\n"
+					"\tFilename           = %s\n", de->de_hash, de->de_hash,
+					filename);
+			log_err("\tName length found  = %u\n"
+					"\tHash expected      = %u (0x%x)\n",
+					de->de_name_len, calculated_hash, calculated_hash);
+			if(query(&opts, "Fix directory hash for %s? (y/n) ",
+					 filename)) {
+				de->de_hash = calculated_hash;
+				gfs2_dirent_out(de, (char *)dent);
+				log_err("Directory entry hash for %s fixed.\n", filename);
+			}
+			else {
+				log_err("Directory entry hash for %s not fixed.\n", filename);
+				return 1;
+			}
 	}
 	/* FIXME: This should probably go to the top of the fxn, and
 	 * references to filename should be replaced with tmp_name */
@@ -608,7 +617,6 @@ int check_root_dir(struct gfs2_sbd *sbp)
 {
 	uint64_t rootblock;
 	struct dir_status ds = {0};
-	struct gfs2_inode *ip;
 	struct gfs2_buffer_head b, *bh = &b;
 	char *filename;
 	int filename_len;
@@ -630,10 +638,6 @@ int check_root_dir(struct gfs2_sbd *sbp)
 			 * error out if the root block number is valid, but
 			 * gfs2_block_check fails */
 			return -1;
-/*		if(build_rooti(sbp)) {
-  stack;
-  return -1;
-  }*/
 		}
 
 		/* if there are errors with the root inode here, we need to
@@ -660,13 +664,10 @@ int check_root_dir(struct gfs2_sbd *sbp)
 	pass2_fxns.private = (void *) &ds;
 	if(ds.q.bad_block) {
 		/* First check that the directory's metatree is valid */
-		ip = gfs2_load_inode(sbp, rootblock);
-		if(check_metatree(ip, &pass2_fxns)) {
+		if(check_metatree(sbp->md.rooti, &pass2_fxns)) {
 			stack;
-			free(ip);
 			return -1;
 		}
-		inode_put(ip, not_updated);
 	}
 	error = check_dir(sbp, rootblock, &pass2_fxns);
 	if(error < 0) {
@@ -676,10 +677,8 @@ int check_root_dir(struct gfs2_sbd *sbp)
 	if (error > 0)
 		gfs2_block_set(bl, rootblock, gfs2_meta_inval);
 
-	bh = bread(sbp, rootblock);
-	ip = inode_get(sbp, bh);
-
-	if(check_inode_eattr(ip, &pass2_fxns)) {
+	bh = bhold(sbp->md.rooti->i_bh);
+	if(check_inode_eattr(sbp->md.rooti, &pass2_fxns)) {
 		stack;
 		return -1;
 	}
@@ -699,36 +698,35 @@ int check_root_dir(struct gfs2_sbd *sbp)
 		}
 		memcpy(filename, tmp_name, filename_len);
 		log_warn("Adding '.' entry\n");
-		dir_add(ip, filename, filename_len, &(ip->i_di.di_num), DT_DIR);
-		increment_link(ip->i_sbd, ip->i_di.di_num.no_addr);
+		dir_add(sbp->md.rooti, filename, filename_len,
+				&(sbp->md.rooti->i_di.di_num), DT_DIR);
+		increment_link(sbp->md.rooti->i_sbd,
+					   sbp->md.rooti->i_di.di_num.no_addr);
 		ds.entry_count++;
 		free(filename);
 		update = 1;
 	}
-	inode_put(ip, not_updated); /* does a brelse */
-	bh = bread(sbp, rootblock);
-	ip = inode_get(sbp, bh);
-	if(ip->i_di.di_entries != ds.entry_count) {
-		log_err("Inode %" PRIu64 " (0x%" PRIx64
+	if(sbp->md.rooti->i_di.di_entries != ds.entry_count) {
+		log_err("Root inode %" PRIu64 " (0x%" PRIx64
 				"): Entries is %d - should be %d\n",
-				ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr,	
-				ip->i_di.di_entries, ds.entry_count);
-		if(query(&opts, "Fix entries for inode %" PRIu64 " (0x%" PRIx64
-				 ")? (y/n) ", ip->i_di.di_num.no_addr,
-				 ip->i_di.di_num.no_addr)) {
-			ip->i_di.di_entries = ds.entry_count;
+				sbp->md.rooti->i_di.di_num.no_addr,
+				sbp->md.rooti->i_di.di_num.no_addr,
+				sbp->md.rooti->i_di.di_entries, ds.entry_count);
+		if(query(&opts, "Fix entries for root inode %" PRIu64 " (0x%" PRIx64
+				 ")? (y/n) ", sbp->md.rooti->i_di.di_num.no_addr,
+				 sbp->md.rooti->i_di.di_num.no_addr)) {
+			sbp->md.rooti->i_di.di_entries = ds.entry_count;
 			log_warn("Entries updated\n");
 			update = 1;
 		} else {
 			log_err("Entries for inode %" PRIu64 " (0x%" PRIx64
 					") left out of sync\n",
-					ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr);
+					sbp->md.rooti->i_di.di_num.no_addr,
+					sbp->md.rooti->i_di.di_num.no_addr);
 		}
 	}
 
-	if(update)
-		gfs2_dinode_out(&ip->i_di, bh->b_data);
-	inode_put(ip, update); /* does a brelse */
+	brelse(bh, update);
 	return 0;
 }
 
@@ -753,12 +751,12 @@ int pass2(struct gfs2_sbd *sbp)
 	char *filename;
 	int filename_len;
 	char tmp_name[256];
+	int error = 0;
+
 	if(check_root_dir(sbp)) {
 		stack;
 		return -1;
 	}
-	int error = 0;
-
 	/* Grab each directory inode, and run checks on it */
 	for(i = 0; i < last_fs_block; i++) {
 		/* Skip the root inode - it's checked above */
@@ -774,8 +772,8 @@ int pass2(struct gfs2_sbd *sbp)
 		if(q.block_type != gfs2_inode_dir)
 			continue;
 
-		log_info("Checking directory inode at block %"PRIu64" (0x%"
-				 PRIx64 ")\n", i, i);
+		log_debug("Checking directory inode at block %"PRIu64" (0x%"
+				  PRIx64 ")\n", i, i);
 
 		memset(&ds, 0, sizeof(ds));
 		pass2_fxns.private = (void *) &ds;

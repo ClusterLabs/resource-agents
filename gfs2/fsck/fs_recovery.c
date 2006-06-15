@@ -97,7 +97,7 @@ static int reconstruct_single_journal(struct gfs2_sbd *sdp, int jnum){
 int reconstruct_journals(struct gfs2_sbd *sdp){
 	int i;
 
-	log_warn("Clearing journals (this may take a while)\n");
+	log_notice("Clearing journals (this may take a while)");
 	for(i=0; i < sdp->md.journals; i++) {
 		/* Journal replay seems to have slowed down quite a bit in
 		 * the gfs2_fsck */
@@ -106,6 +106,6 @@ int reconstruct_journals(struct gfs2_sbd *sdp){
 		if(reconstruct_single_journal(sdp, i))
 			return -1;
 	}
-	log_notice("Cleared journals\n");
+	log_notice("\nJournals cleared.\n");
 	return 0;
 }

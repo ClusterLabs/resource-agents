@@ -54,7 +54,7 @@ int compute_height(struct gfs2_sbd *sdp, uint64_t sz)
 	return height;
 }
 
-/* Put out a warm, fuzzy message every second so the customer */
+/* Put out a warm, fuzzy message every second so the user     */
 /* doesn't think we hung.  (This may take a long time).       */
 void warm_fuzzy_stuff(uint64_t block)
 {
@@ -69,8 +69,7 @@ void warm_fuzzy_stuff(uint64_t block)
 
 		seconds = tv.tv_sec;
 		percent = (block * 100) / last_fs_block;
-		printf("\r%" PRIu64 " percent complete.\r", percent);
-		fflush(stdout);
+		log_notice("\r%" PRIu64 " percent complete.\r", percent);
 	}
 }
 
