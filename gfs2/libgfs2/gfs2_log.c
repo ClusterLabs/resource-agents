@@ -45,11 +45,13 @@ void print_msg(int priority, char *file, int line, const char *format,
 	case MSG_DEBUG:
 		printf("(%s:%d)\t", file, line);
 		vprintf(format, args);
+		fflush(stdout);
 		break;
 	case MSG_INFO:
 	case MSG_NOTICE:
 	case MSG_WARN:
 		vprintf(format, args);
+		fflush(stdout);
 		break;
 	case MSG_ERROR:
 	case MSG_CRITICAL:

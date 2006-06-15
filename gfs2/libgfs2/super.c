@@ -36,13 +36,20 @@
 static int check_sb(struct gfs2_sbd *sdp, struct gfs2_sb *sb)
 {
 	if (sb->sb_header.mh_magic != GFS2_MAGIC ||
-	    sb->sb_header.mh_type != GFS2_METATYPE_SB)
+	    sb->sb_header.mh_type != GFS2_METATYPE_SB) {
+		log_crit("Either the super block is corrupted, or this "
+				 "is not a GFS2 filesystem\n");
+		log_debug("Header magic: %X Header Type: %X\n",
+				  sb->sb_header.mh_magic,
+				  sb->sb_header.mh_type);
 		return -EINVAL;
-
+	}
 	/*  If format numbers match exactly, we're done.  */
 	if (sb->sb_fs_format != GFS2_FORMAT_FS ||
-	    sb->sb_multihost_format != GFS2_FORMAT_MULTI)
+	    sb->sb_multihost_format != GFS2_FORMAT_MULTI) {
+		log_crit("Old gfs1 file system detected.\n");
 		return -EINVAL;
+	}
 	return 0;
 }
 
@@ -91,6 +98,7 @@ int read_sb(struct gfs2_sbd *sdp)
 		sdp->sd_heightsize[x] = space;
 	}
 	if (x > GFS2_MAX_META_HEIGHT){
+		log_err("Bad max metadata height.\n");
 		error = -1;
 		goto out;
 	}
@@ -105,8 +113,10 @@ int read_sb(struct gfs2_sbd *sdp)
 		sdp->sd_jheightsize[x] = space;
 	}
 	sdp->sd_max_jheight = x;
-	if(sdp->sd_max_jheight > GFS2_MAX_META_HEIGHT)
+	if(sdp->sd_max_jheight > GFS2_MAX_META_HEIGHT) {
+		log_err("Bad max jheight.\n");
 		error = -1;
+	}
 	sdp->fssize = lseek(sdp->device_fd, 0, SEEK_END) / sdp->sd_sb.sb_bsize;
 
  out:
@@ -131,17 +141,21 @@ int ji_update(struct gfs2_sbd *sdp)
 	char journal_name[JOURNAL_NAME_SIZE];
 	int i;
 
-	if(!ip)
+	if(!ip) {
+		log_crit("Journal inode not found.\n");
 		return -1;
+	}
 
-	if(!(sdp->md.journal = calloc(ip->i_di.di_entries - 2, sizeof(struct gfs2_inode *))))
+	if(!(sdp->md.journal = calloc(ip->i_di.di_entries - 2, sizeof(struct gfs2_inode *)))) {
+		log_err("Unable to allocate journal index\n");
 		return -1;
+	}
 	sdp->md.journals = 0;
 	memset(journal_name, 0, sizeof(*journal_name));
 	for(i = 0; i < ip->i_di.di_entries - 2; i++) {
 		/* FIXME check snprintf return code */
 		snprintf(journal_name, JOURNAL_NAME_SIZE, "journal%u", i);
-		gfs2_lookupi(sdp->md.jiinode, journal_name, strlen(journal_name),
+		gfs2_lookupi(sdp->md.jiinode, journal_name, strlen(journal_name), 
 					 &jip);
 		sdp->md.journal[i] = jip;
 	}
@@ -227,13 +241,11 @@ int ri_update(struct gfs2_sbd *sdp, int *rgcount)
 
 int write_sb(struct gfs2_sbd *sbp)
 {
-	int error = 0;
 	struct gfs2_buffer_head *bh;
 
 	bh = bread(sbp, GFS2_SB_ADDR >> sbp->sd_fsb2bb_shift);
 	gfs2_sb_out(&sbp->sd_sb, bh->b_data);
 	brelse(bh, updated);
-	return error;
-
+	return 0;
 }
 
