@@ -22,8 +22,7 @@ CFLAGS+= -g -I. -O2 \
 	-I../include/ \
 	-I../lib/ \
 	-I../../cman/lib/ \
-	-I../../cman/daemon/openais/trunk/include/ \
-	-I../../dlm/lib/
+	-I../../cman/daemon/openais/trunk/include/
 
 TARGET=gfs_controld
 
@@ -38,8 +37,6 @@ gfs_controld: 	main.o \
 		group.o \
 		plock.o \
 		recover.o \
-		withdraw.o \
-		../../dlm/lib/libdlm_lt.a \
 		../../cman/lib/libcman.a \
 		../../cman/daemon/openais/trunk/lib/libcpg.a \
 		../lib/libgroup.a

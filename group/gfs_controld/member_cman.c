@@ -43,10 +43,7 @@ static void cman_callback(cman_handle_t h, void *private, int reason, int arg)
 
 void exit_cman(void)
 {
-	/* do we want to try to forcibly clean some stuff up
-	   in the kernel here? */
 	log_error("cluster is down, exiting");
-	exit_libdlm();
 	exit(1);
 }
 

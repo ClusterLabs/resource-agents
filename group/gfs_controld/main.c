@@ -29,10 +29,10 @@ static int cpg_fd;
 static int listen_fd;
 static int groupd_fd;
 static int uevent_fd;
-static int libdlm_fd;
 static int plocks_fd;
 
 extern struct list_head mounts;
+extern struct list_head withdrawn_mounts;
 int no_withdraw;
 
 static void make_args(char *buf, int *argc, char **argv, char sep)
@@ -266,14 +266,6 @@ int loop(void)
 		goto out;
 	client_add(uevent_fd, &maxi);
 
-	if (no_withdraw)
-		goto next;
-
-	rv = libdlm_fd = setup_libdlm();
-	if (rv < 0)
-		goto next;
-	client_add(libdlm_fd, &maxi);
- next:
 	rv = plocks_fd = setup_plocks();
 	if (rv < 0)
 		goto out;
@@ -309,9 +301,6 @@ int loop(void)
 					process_cpg();
 				else if (pollfd[i].fd == uevent_fd)
 					process_uevent();
-				else if (!no_withdraw &&
-					 pollfd[i].fd == libdlm_fd)
-					process_libdlm();
 				else if (pollfd[i].fd == plocks_fd)
 					process_plocks();
 				else
@@ -456,6 +445,7 @@ int main(int argc, char **argv)
 {
 	prog_name = argv[0];
 	INIT_LIST_HEAD(&mounts);
+	INIT_LIST_HEAD(&withdrawn_mounts);
 	client_init();
 
 	decode_arguments(argc, argv);

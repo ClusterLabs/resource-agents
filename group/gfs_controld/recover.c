@@ -26,14 +26,12 @@ struct save_msg {
 extern char *clustername;
 extern int our_nodeid;
 extern group_handle_t gh;
+extern int no_withdraw;
 
 struct list_head mounts;
+struct list_head withdrawn_mounts;
 
 void send_journals(struct mountgroup *mg, int nodeid);
-int hold_withdraw_locks(struct mountgroup *mg);
-void release_withdraw_lock(struct mountgroup *mg, struct mg_member *memb);
-void release_withdraw_locks(struct mountgroup *mg);
-
 void start_participant_init_2(struct mountgroup *mg);
 void start_spectator_init_2(struct mountgroup *mg);
 void start_spectator_2(struct mountgroup *mg);
@@ -144,6 +142,46 @@ void notify_remount_client(struct mountgroup *mg, char *msg)
 		log_error("notify_remount_client: send failed %d", rv);
 
 	mg->remount_client = 0;
+}
+
+void send_withdraw(struct mountgroup *mg)
+{
+	struct gdlm_header *hd;
+	int len;
+	char *buf;
+
+	len = sizeof(struct gdlm_header);
+
+	buf = malloc(len);
+	if (!buf)
+		return;
+	memset(buf, 0, len);
+
+	hd = (struct gdlm_header *)buf;
+	hd->type = MSG_WITHDRAW;
+	hd->nodeid = our_nodeid;
+	hd->to_nodeid = 0;
+
+	log_group(mg, "send_withdraw");
+
+	send_group_message(mg, len, buf);
+
+	free(buf);
+}
+
+void receive_withdraw(struct mountgroup *mg, char *buf, int len, int from)
+{
+	struct mg_member *memb;
+
+	memb = find_memb_nodeid(mg, from);
+	if (!memb) {
+		log_group(mg, "receive_withdraw no member %d", from);
+		return;
+	}
+	memb->withdrawing = 1;
+
+	if (from == our_nodeid)
+		group_leave(gh, mg->name);
 }
 
 #define SEND_RS_INTS 3
@@ -267,6 +305,8 @@ char *msg_name(int type)
 		return "MSG_RECOVERY_STATUS";
 	case MSG_RECOVERY_DONE:
 		return "MSG_RECOVERY_DONE";
+	case MSG_WITHDRAW:
+		return "MSG_WITHDRAW";
 	}
 	return "unknown";
 }
@@ -911,7 +951,7 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 			   - no journal cb if we've already done a journl cb */
 
 			if ((memb->gone_type == GROUP_NODE_FAILED ||
-			    memb->withdraw) &&
+			    memb->withdrawing) &&
 			    memb->jid != JID_INIT &&
 			    !memb->spectator &&
 			    !memb->wait_gfs_recover_done) {
@@ -925,7 +965,7 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 				  memb->nodeid, memb->tell_gfs_to_recover,
 				  mg->spectator,
 				  mg->start_type,
-				  memb->withdraw,
+				  memb->withdrawing,
 				  memb->jid,
 				  memb->spectator,
 				  memb->wait_gfs_recover_done);
@@ -944,7 +984,7 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 	}
 
 	list_for_each_entry(memb, &mg->members, list) {
-		if (!memb->mount_finished)
+		if (!memb->finished)
 			continue;
 		if (low == -1 || memb->nodeid < low)
 			low = memb->nodeid;
@@ -1186,7 +1226,12 @@ void recover_journals(struct mountgroup *mg)
 	struct mg_member *memb;
 	int rv;
 
-	if (mg->spectator || mg->readonly || mg->our_jid == JID_INIT) {
+	/* we can't do journal recovery if: we're a spectator or readonly
+	   mount, gfs is currently withdrawing, or we're mounting and haven't
+	   received a journals message yet */
+
+	if (mg->spectator || mg->readonly || mg->withdraw ||
+	    mg->our_jid == JID_INIT) {
 		list_for_each_entry(memb, &mg->members_gone, list) {
 			if (!memb->tell_gfs_to_recover)
 				continue;
@@ -1406,9 +1451,23 @@ int do_unmount(int ci, char *dir)
 {
 	struct mountgroup *mg;
 
+	list_for_each_entry(mg, &withdrawn_mounts, list) {
+		if (!strcmp(mg->dir, dir)) {
+			log_group(mg, "unmount withdrawn fs");
+			list_del(&mg->list);
+			free(mg);
+			return 0;
+		}
+	}
+
 	mg = find_mg_dir(dir);
 	if (!mg) {
 		log_error("do_unmount: unknown mount dir %s", dir);
+		return -1;
+	}
+
+	if (mg->withdraw) {
+		log_error("do_unmount: fs on %s is withdrawing", dir);
 		return -1;
 	}
 	
@@ -1567,9 +1626,6 @@ int do_finish(struct mountgroup *mg)
 	   from members_gone if their journals have been recovered */
 
 	list_for_each_entry_safe(memb, safe, &mg->members_gone, list) {
-		if (!memb->withdraw)
-			release_withdraw_lock(mg, memb);
-
 		if (!memb->recovery_status) {
 			list_del(&memb->list);
 			free(memb);
@@ -1588,18 +1644,8 @@ int do_finish(struct mountgroup *mg)
 		}
 	}
 
-	list_for_each_entry(memb, &mg->members, list) {
-		memb->mount_finished = 1;
-
-		/* If there are still withdrawing nodes that haven't left
-		   the group, we need to keep lock requests blocked */
-
-		if (memb->withdraw) {
-			log_group(mg, "finish: leave locks blocked for "
-				  "withdrawing node %d", memb->nodeid);
-			leave_blocked = 1;
-		}
-	}
+	list_for_each_entry(memb, &mg->members, list)
+		memb->finished = 1;
 
 	if (mg->needs_recovery) {
 		log_group(mg, "finish: leave locks blocked for needs_recovery");
@@ -1674,7 +1720,6 @@ void start_first_mounter(struct mountgroup *mg)
 		mg->first_mounter_done = 0;
 		mg->got_our_options = 1;
 		mg->got_our_journals = 1;
-		hold_withdraw_locks(mg);
 	}
 	start_done(mg);
 	notify_mount_client(mg);
@@ -1688,7 +1733,6 @@ void start_participant_init(struct mountgroup *mg)
 	log_group(mg, "start_participant_init");
 	set_our_memb_options(mg);
 	send_options(mg);
-	hold_withdraw_locks(mg);
 	start_done(mg);
 	mg->start2_fn = start_participant_init_2;
 }
@@ -1732,8 +1776,6 @@ void start_participant(struct mountgroup *mg, int pos, int neg)
 	log_group(mg, "start_participant pos=%d neg=%d", pos, neg);
 
 	if (pos) {
-		hold_withdraw_locks(mg);
-
 		/* If we're the first mounter, and we're adding a second
 		   node here, but haven't gotten first_done (others_may_mount)
 		   from gfs yet, then don't do the start_done() to complete
@@ -1765,7 +1807,6 @@ void start_spectator_init(struct mountgroup *mg)
 	log_group(mg, "start_spectator_init");
 	set_our_memb_options(mg);
 	send_options(mg);
-	hold_withdraw_locks(mg);
 	start_done(mg);
 	mg->start2_fn = start_spectator_init_2;
 }
@@ -1795,7 +1836,6 @@ void start_spectator(struct mountgroup *mg, int pos, int neg)
 	log_group(mg, "start_spectator pos=%d neg=%d", pos, neg);
 
 	if (pos) {
-		hold_withdraw_locks(mg);
 		start_done(mg);
 		process_saved_options(mg);
 	} else if (neg) {
@@ -1937,12 +1977,57 @@ void do_start(struct mountgroup *mg, int type, int member_count, int *nodeids)
   that needs journal recovery, we have a problem because we wait to
   call group_start_done() until gfs in the kernel to signal that
   the journal recovery is done.  If we've unmounted gfs isn't there
-  any more to give us this signal and we'll never call start_done. */
+  any more to give us this signal and we'll never call start_done.
+ 
+  update: we should be dealing with all these issues correctly now. */
 
 int do_terminate(struct mountgroup *mg)
 {
-	log_group(mg, "termination of our unmount leave");
-	release_withdraw_locks(mg);
+	/* FIXME: all group members aren't guaranteed to be stopped for
+	   our leave yet when we get terminate.  We need that guarantee
+	   before we tell a withdrawing gfs to drop locks. */
+
+	if (mg->withdraw) {
+		log_group(mg, "termination of our withdraw leave");
+		set_sysfs(mg, "withdraw", 1);
+		list_move(&mg->list, &withdrawn_mounts);
+	} else {
+		log_group(mg, "termination of our unmount leave");
+		list_del(&mg->list);
+		free(mg);
+	}
+
+	return 0;
+}
+
+/* The basic rule of withdraw is that we don't want to tell the kernel to drop
+   all locks until we know gfs has been stopped/blocked on all nodes.  They'll
+   be stopped for our leave, we just need to know when they've all arrived
+   there.
+
+   A withdrawing node is very much like a readonly node, differences are
+   that others recover its journal when they remove it from the group,
+   and when it's been removed from the group (gets terminate for its leave),
+   it tells the locally withdrawing gfs to clear out locks. */
+
+int do_withdraw(char *table)
+{
+	struct mountgroup *mg;
+	char *name = strstr(table, ":") + 1;
+
+	if (no_withdraw) {
+		log_error("withdraw feature not enabled");
+		return 0;
+	}
+
+	mg = find_mg(name);
+	if (!mg) {
+		log_error("do_withdraw no mountgroup %s", name);
+		return -1;
+	}
+
+	mg->withdraw = 1;
+	send_withdraw(mg);
 	return 0;
 }
 

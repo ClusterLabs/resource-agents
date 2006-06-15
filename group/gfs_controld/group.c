@@ -147,8 +147,6 @@ int process_groupd(void)
 		log_debug("groupd callback: terminate %s", cb_name);
 		mg->last_callback = DO_TERMINATE;
 		do_terminate(mg);
-		list_del(&mg->list);
-		free(mg);
 		break;
 
 	case DO_SETID:

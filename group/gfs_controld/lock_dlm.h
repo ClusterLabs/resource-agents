@@ -36,7 +36,6 @@
 #include "list.h"
 #include "linux_endian.h"
 #include "libgroup.h"
-#include "libdlm.h"
 
 #define MAXARGS			64
 #define MAXLINE			256
@@ -184,11 +183,10 @@ struct mg_member {
 	int			wait_gfs_recover_done;
 	int			gone_event;
 	int			gone_type;
-	int			mount_finished;
+	int			finished;
 	int			local_recovery_status;
 	int			recovery_status;
-	int			withdraw;
-	struct dlm_lksb		wd_lksb;
+	int			withdrawing;
 	int			needs_journals;
 };
 
@@ -197,6 +195,7 @@ enum {
 	MSG_OPTIONS,
 	MSG_REMOUNT,
 	MSG_PLOCK,
+	MSG_WITHDRAW,
 	MSG_RECOVERY_STATUS,
 	MSG_RECOVERY_DONE,
 };
@@ -223,12 +222,9 @@ int setup_cpg(void);
 int process_cpg(void);
 int setup_groupd(void);
 int process_groupd(void);
-int setup_libdlm(void);
-int process_libdlm(void);
 int setup_plocks(void);
 int process_plocks(void);
 void exit_cman(void);
-void exit_libdlm(void);
 
 int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 	     char *options);

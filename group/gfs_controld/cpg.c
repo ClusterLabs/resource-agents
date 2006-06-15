@@ -24,6 +24,7 @@ void receive_journals(struct mountgroup *mg, char *buf, int len, int from);
 void receive_options(struct mountgroup *mg, char *buf, int len, int from);
 void receive_remount(struct mountgroup *mg, char *buf, int len, int from);
 void receive_plock(struct mountgroup *mg, char *buf, int len, int from);
+void receive_withdraw(struct mountgroup *mg, char *buf, int len, int from);
 void receive_recovery_status(struct mountgroup *mg, char *buf, int len,
 			     int from);
 void receive_recovery_done(struct mountgroup *mg, char *buf, int len, int from);
@@ -86,6 +87,10 @@ static void do_deliver(int nodeid, char *data, int len)
 
 	case MSG_RECOVERY_DONE:
 		receive_recovery_done(mg, data, len, nodeid);
+		break;
+
+	case MSG_WITHDRAW:
+		receive_withdraw(mg, data, len, nodeid);
 		break;
 
 	default:
