@@ -27,12 +27,13 @@
 #include <libgen.h>
 #include <dirent.h>
 #include <string.h>
-#include <asm/page.h>
 
 #define __user
 #include <linux/gfs2_ondisk.h>
 
 #include "gfs2_tool.h"
+
+#define PAGE_SIZE (4096)
 
 static char sysfs_buf[PAGE_SIZE];
 

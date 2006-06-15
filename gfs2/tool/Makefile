@@ -11,22 +11,8 @@
 ###############################################################################
 ###############################################################################
 top_srcdir= ..
+
 include ${top_srcdir}/make/defines.mk
-
-TARGET= gfs2_tool
-
-SOURCE=	counters.c \
-	df.c \
-	layout.c \
-	main.c \
-	misc.c \
-	ondisk.c \
-	sb.c \
-	tune.c \
-	util.c
-
-CFLAGS+= -O2 -Wall -D_FILE_OFFSET_BITS=64 \
-	-DGFS2_RELEASE_NAME=\"${RELEASE}\"
 
 INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config -I${gfs2kincdir}
 
@@ -40,15 +26,31 @@ else
 INCLUDE += -I${incdir}
 endif
 
+LIBS=-L${top_srcdir}/libgfs2
+
+.PHONY: all clean copytobin distclean
+
+SOURCES= counters.c df.c layout.c main.c misc.c ondisk.c sb.c tune.c util.c
+
+OBJECTS=$(subst .c,.o,${SOURCES})
+
+TARGET= gfs2_tool
+
+CFLAGS+= -O2 -Wall -D_FILE_OFFSET_BITS=64 -DGFS2_RELEASE_NAME=\"${RELEASE}\"
+
 all: ${TARGET}
 
-gfs2_tool: ${SOURCE}
-	${CC} ${CFLAGS} ${INCLUDE} ${LDFLAGS} ${SOURCE} ${LOADLIBES} ${LDLIBS} -o $@ -L../libgfs2/ -lgfs2
+gfs2_tool: ${OBJECTS} ../libgfs2/libgfs2.a
+	$(CC) $(CFLAGS) $(LIBS) $^ -o $@ -lgfs2
+
+%.o: %.c
+	$(CC) -c $(INCLUDE) $(CFLAGS) $< -o $@
 
 copytobin: ${TARGET}
 	cp ${TARGET} ${top_srcdir}/bin
 
 clean:
-	rm -f *.o ${TARGET}
+	@rm -f ${TARGET} *.o *~
 
-
+distclean: clean
+	@rm -f *.d cscope.* *.orig *.rej
