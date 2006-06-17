@@ -896,9 +896,7 @@ gfs_get_sb(struct file_system_type *fs_type, int flags,
 
 		sb->s_flags = flags;
 		strlcpy(sb->s_id, bdevname(real, buf), sizeof(sb->s_id));
-		sb->s_old_blocksize = block_size(real);
-		sb_set_blocksize(sb, sb->s_old_blocksize);
-		set_blocksize(real, sb->s_old_blocksize);
+		sb_set_blocksize(sb, block_size(real));
 		error = fill_super(sb, data, (flags & MS_VERBOSE) ? 1 : 0);
 		if (error) {
 			up_write(&sb->s_umount);
@@ -930,7 +928,7 @@ gfs_kill_sb(struct super_block *sb)
 	ENTER(GFN_KILL_SB)
 	struct block_device *diaper = sb->s_bdev;
 	struct block_device *real = gfs_diaper_2real(diaper);
-	unsigned long bsize = sb->s_old_blocksize;
+	unsigned long bsize = block_size(real);
 
 	generic_shutdown_super(sb);
 	set_blocksize(diaper, bsize);

@@ -969,12 +969,12 @@ gfs_write(struct file *file, const char *buf, size_t size, loff_t *offset)
 	if (!access_ok(VERIFY_READ, buf, size))
 		RETURN(GFN_WRITE, -EFAULT);
 
-	down(&inode->i_sem);
+	down(&inode->i_mutex);
 	if (file->f_flags & O_DIRECT)
 		count = walk_vm(file, (char *)buf, size, offset, do_write_direct);
 	else
 		count = walk_vm(file, (char *)buf, size, offset, do_write_buf);
-	up(&inode->i_sem);
+	up(&inode->i_mutex);
 
 	RETURN(GFN_WRITE, count);
 }
