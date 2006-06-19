@@ -47,7 +47,6 @@ EXTERN char *prog_name;
 EXTERN int fd;
 EXTERN uint64_t block INIT(0);
 EXTERN int blockhist INIT(0);
-EXTERN uint64_t blockstack[BLOCK_STACK_SIZE];
 EXTERN int edit_mode INIT(0);
 EXTERN int line;
 EXTERN char edit_fmt[80];
@@ -89,6 +88,14 @@ struct indirect_info {
 	struct gfs2_dirents dirent[64];
 };
 
+struct blkstack_info {
+	uint64_t block;
+	int edit_row[DISPLAY_MODES];
+	int edit_col[DISPLAY_MODES];
+	enum dsp_mode display_mode;
+};
+
+EXTERN struct blkstack_info blockstack[BLOCK_STACK_SIZE];
 EXTERN struct indirect_info indirect[512]; /* more than the most indirect
 											  pointers possible for any given
 											  4K block */

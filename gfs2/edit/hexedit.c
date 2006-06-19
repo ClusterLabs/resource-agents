@@ -627,48 +627,77 @@ int print_quota(struct gfs2_inode *di)
 /* ------------------------------------------------------------------------ */
 int display_extended(void)
 {
-	int e, start_line, total_dirents;
+	int e, start_line, total_dirents, indir_blocks;
 	struct gfs2_inode *tmp_inode;
 
 	edit_last[display_mode] = 0;
 	eol(0);
 	start_line = line;
-	if (indirect_blocks) {
-		print_gfs2("This inode contains %d indirect blocks", indirect_blocks);
-		eol(0);
-		print_gfs2("Indirect blocks for this inode:");
-		eol(0);
+	if (indirect_blocks ||
+		(gfs2_struct_type == GFS2_METATYPE_DI && S_ISDIR(di.di_mode))) {
+		indir_blocks = indirect_blocks;
+		if (!indirect_blocks) {
+			print_gfs2("This directory contains %d directory entries.",
+					   indirect[0].dirents);
+			eol(0);
+			indir_blocks = 1; /* not really an indirect block, but treat it as one */
+		}
+		else {
+			if (gfs2_struct_type == GFS2_METATYPE_DI && S_ISDIR(di.di_mode))
+				print_gfs2("This directory contains %d indirect blocks",
+						   indirect_blocks);
+			else
+				print_gfs2("This inode contains %d indirect blocks",
+						   indirect_blocks);
+			eol(0);
+			print_gfs2("Indirect blocks for this inode:");
+			eol(0);
+		}
 		total_dirents = 0;
 		for (e = 0; (!termlines || e < termlines - start_line - 2) &&
-				 e < indirect_blocks; e++) {
+				 e < indir_blocks; e++) {
 			if (termlines) {
-				if (line - 6 == edit_row[display_mode])
+				if (edit_row[display_mode] >= 0 &&
+					line - start_line - 2 == edit_row[display_mode])
 					COLORS_HIGHLIGHT;
-				move(line, 5);
+				move(line, 1);
 			}
-			print_gfs2("%d => ", e + 1);
-			if (termlines)
-				move(line,14);
-			print_gfs2("0x%llx", indirect[e].block);
-			if (termlines) {
-				if (line - 6 == edit_row[display_mode]) { 
-					sprintf(edit_string, "%"PRIx64, indirect[e].block);
-					strcpy(edit_fmt, "%"PRIx64);
-					edit_size[display_mode] = strlen(edit_string);
-					COLORS_NORMAL;
+			if (indir_blocks == indirect_blocks) {
+				print_gfs2("%d => ", e + 1);
+				if (termlines)
+					move(line,9);
+				print_gfs2("0x%llx", indirect[e].block);
+				if (termlines) {
+					if (edit_row[display_mode] >= 0 &&
+						line - start_line - 2 == edit_row[display_mode]) { 
+						sprintf(edit_string, "%"PRIx64, indirect[e].block);
+						strcpy(edit_fmt, "%"PRIx64);
+						edit_size[display_mode] = strlen(edit_string);
+						COLORS_NORMAL;
+					}
 				}
 			}
-			print_gfs2("   ");
+			if (indir_blocks == indirect_blocks)
+				print_gfs2("   ");
 			if (indirect[e].is_dir) {
 				int d;
 
-				if (indirect[e].dirents > 1)
+				if (indirect[e].dirents > 1 && indir_blocks == indirect_blocks)
 					print_gfs2("(directory leaf with %d entries)",
 							   indirect[e].dirents);
 				for (d = 0; d < indirect[e].dirents; d++) {
 					total_dirents++;
 					if (indirect[e].dirents > 1) {
 						eol(5);
+						if (termlines) {
+							if (edit_row[display_mode] >=0 &&
+								line - start_line - 2 == edit_row[display_mode]) {
+								COLORS_HIGHLIGHT;
+								sprintf(edit_string, "%"PRIx64,
+										indirect[e].dirent[d].block);
+								strcpy(edit_fmt, "%"PRIx64);
+							}
+						}
 						print_gfs2("%d. (%d). %lld (0x%llx) / %lld (0x%llx): ",
 								   total_dirents, d + 1,
 								   indirect[e].dirent[d].dirent.de_inum.no_formal_ino,
@@ -708,6 +737,11 @@ int display_extended(void)
 					}
 
 					print_gfs2(" %s", indirect[e].dirent[d].filename);
+					if (termlines) {
+						if (edit_row[display_mode] >= 0 &&
+							line - start_line - 2 == edit_row[display_mode])
+							COLORS_NORMAL;
+					}
 				}
 			} /* if isdir */
 			else
@@ -860,9 +894,16 @@ int display(enum dsp_mode display_mode, int identify_only)
 /* ------------------------------------------------------------------------ */
 void push_block(uint64_t blk)
 {
+	int i;
+
 	if (blk) {
+		blockstack[blockhist % BLOCK_STACK_SIZE].display_mode = display_mode;
+		for (i = 0; i < DISPLAY_MODES; i++) {
+			blockstack[blockhist % BLOCK_STACK_SIZE].edit_row[i] = edit_row[i];
+			blockstack[blockhist % BLOCK_STACK_SIZE].edit_col[i] = edit_col[i];
+		}
 		blockhist++;
-		blockstack[blockhist % BLOCK_STACK_SIZE] = blk;
+		blockstack[blockhist % BLOCK_STACK_SIZE].block = blk;
 	}
 }
 
@@ -871,10 +912,17 @@ void push_block(uint64_t blk)
 /* ------------------------------------------------------------------------ */
 uint64_t pop_block(void)
 {
+	int i;
+
 	if (!blockhist)
 		return block;
 	blockhist--;
-	return blockstack[blockhist % BLOCK_STACK_SIZE];
+	display_mode = blockstack[blockhist % BLOCK_STACK_SIZE].display_mode;
+	for (i = 0; i < DISPLAY_MODES; i++) {
+		edit_row[i] = blockstack[blockhist % BLOCK_STACK_SIZE].edit_row[i];
+		edit_col[i] = blockstack[blockhist % BLOCK_STACK_SIZE].edit_col[i];
+	}
+	return blockstack[blockhist % BLOCK_STACK_SIZE].block;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -966,7 +1014,7 @@ void interactive_mode(void)
 			Quit=TRUE;
 			break;
 		/* -------------------------------------------------------------- */
-		/* home - return to the superblock */
+		/* home - return to the superblock                                */
 		/* -------------------------------------------------------------- */
 		case KEY_HOME:
 			block = 0x10;
@@ -974,7 +1022,7 @@ void interactive_mode(void)
 			offset = 0;
 			break;
 		/* -------------------------------------------------------------- */
-		/* backspace - return to the previous block */
+		/* backspace - return to the previous block on the stack          */
 		/* -------------------------------------------------------------- */
 		case KEY_BACKSPACE:
 		case 0x7f:
@@ -982,11 +1030,11 @@ void interactive_mode(void)
 			offset = 0;
 			break;
 		/* -------------------------------------------------------------- */
-		/* space */
+		/* space - go down the block stack (opposite of backspace)        */
 		/* -------------------------------------------------------------- */
 		case ' ':
 			blockhist++;
-			block = blockstack[blockhist % BLOCK_STACK_SIZE];
+			block = blockstack[blockhist % BLOCK_STACK_SIZE].block;
 			offset = 0;
 			break;
 		/* -------------------------------------------------------------- */
@@ -1046,10 +1094,15 @@ void interactive_mode(void)
 			else
 				sscanf(edit_string, "%"SCNx64, &temp_blk);/* retrieve in hex */
 			if (temp_blk < max_block) { /* if the block number is valid */
+				int i;
+
 				offset = 0;
-				display_mode = HEX_MODE;
 				block = temp_blk;
 				push_block(block);
+				for (i = 0; i < DISPLAY_MODES; i++) {
+					edit_row[i] = 0;
+					edit_col[i] = 0;
+				}
 			}
 			break;
 		/* -------------------------------------------------------------- */
@@ -1318,7 +1371,7 @@ void process_parameters(int argc, char *argv[], int pass)
 ******************************************************************************/
 int main(int argc, char *argv[])
 {
-	int i;
+	int i, j;
 
 	prog_name = argv[0];
 
@@ -1329,8 +1382,14 @@ int main(int argc, char *argv[])
 	display_mode = HEX_MODE;
 	type_alloc(buf, char, bufsize); /* allocate/malloc a new 4K buffer */
 	block = 0x10;
-	for (i = 0; i < BLOCK_STACK_SIZE; i++)
-		blockstack[i] = block;
+	for (i = 0; i < BLOCK_STACK_SIZE; i++) {
+		blockstack[i].display_mode = display_mode;
+		blockstack[i].block = block;
+		for (j = 0; j < DISPLAY_MODES; j++) {
+			blockstack[i].edit_row[j] = 0;
+			blockstack[i].edit_col[j] = 0;
+		}
+	}
 
 	memset(device, 0, sizeof(device));
 	termlines = 30;  /* assume interactive mode until we find -p */
@@ -1351,7 +1410,7 @@ int main(int argc, char *argv[])
 		interactive_mode();
 	else { /* print all the structures requested */
 		for (i = 0; i <= blockhist; i++) {
-			block = blockstack[i + 1];
+			block = blockstack[i + 1].block;
 			display(display_mode, identify);
 			if (!identify) {
 				display_extended();
