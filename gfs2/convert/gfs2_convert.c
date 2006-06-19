@@ -654,7 +654,7 @@ int read_gfs1_jiindex(struct gfs2_sbd *sdp)
 		log_crit("journal inode size invalid\n");
 		goto fail;
 	}
-	sdp->orig_journals = j;
+	sdp->md.journals = sdp->orig_journals = j;
 	return 0;
 
  fail:
