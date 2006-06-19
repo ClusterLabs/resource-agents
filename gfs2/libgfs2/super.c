@@ -246,6 +246,7 @@ int write_sb(struct gfs2_sbd *sbp)
 	bh = bread(sbp, GFS2_SB_ADDR >> sbp->sd_fsb2bb_shift);
 	gfs2_sb_out(&sbp->sd_sb, bh->b_data);
 	brelse(bh, updated);
+	bcommit(sbp); /* make sure the change gets to disk ASAP */
 	return 0;
 }
 

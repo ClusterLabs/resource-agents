@@ -427,19 +427,6 @@ int gfs2_dirent_next(struct gfs2_inode *dip, struct gfs2_buffer_head *bh,
 
 int device_size(int fd, uint64_t *bytes);
 
-/* live.c */
-void check_for_gfs2(struct gfs2_sbd *sdp);
-void lock_for_admin(struct gfs2_sbd *sdp);
-void path2device(struct gfs2_sbd *sdp);
-void find_block_size(struct gfs2_sbd *sdp);
-void find_current_fssize(struct gfs2_sbd *sdp);
-void add_to_rindex(struct gfs2_sbd *sdp);
-void statfs_sync(struct gfs2_sbd *sdp);
-void find_current_journals(struct gfs2_sbd *sdp);
-int rename2system(struct gfs2_sbd *sdp, char *new_dir, char *new_name);
-void make_jdata(int fd, char *value);
-uint64_t bmap(int fd, uint64_t lblock);
-
 /* locking.c */
 void test_locking(char *lockproto, char *locktable);
 
