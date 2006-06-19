@@ -1,4 +1,5 @@
 #include <sys/types.h>
+#include <sys/syscall.h>
 #include <linux/unistd.h>
 #include <gettid.h>
 #include <unistd.h>
