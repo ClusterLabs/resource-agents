@@ -176,3 +176,22 @@ void exit_groupd(void)
 	group_exit(gh);
 }
 
+int in_groupd_cpg(int nodeid)
+{
+	group_data_t data;
+	int i, rv;
+
+	memset(&data, 0, sizeof(data));
+
+	rv = group_get_group(-1, "groupd", &data);
+	if (rv)
+		return 0;
+
+	for (i = 0; i < data.member_count; i++) {
+		if (data.members[i] == nodeid)
+			return 1;
+	}
+
+	return 0;
+}
+

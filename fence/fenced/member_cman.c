@@ -16,12 +16,13 @@
 #define BUFLEN		128
 
 static cman_handle_t	ch;
-static cman_node_t	cluster_nodes[MAX_NODES];
-static cman_node_t	new_nodes[MAX_NODES];
-static int		cluster_count;
 static int		cman_cb;
 static int		cman_reason;
+static int		cman_quorate;
+static cman_node_t	cman_nodes[MAX_NODES];
+static int		cman_node_count;
 static char		name_buf[CMAN_MAX_NODENAME_LEN+1];
+
 extern struct list_head domains;
 
 char			*our_name;
@@ -69,14 +70,38 @@ static cman_node_t *find_cluster_node_name(char *name)
 {
 	int i;
 
-	for (i = 0; i < cluster_count; i++) {
-		if (name_equal(cluster_nodes[i].cn_name, name))
-			return &cluster_nodes[i];
+	for (i = 0; i < cman_node_count; i++) {
+		if (name_equal(cman_nodes[i].cn_name, name))
+			return &cman_nodes[i];
 	}
 	return NULL;
 }
 
-static void member_callback(cman_handle_t h, void *private, int reason, int arg)
+static void statechange(void)
+{
+	int rv;
+
+	cman_quorate = cman_is_quorate(ch);
+	cman_node_count = 0;
+	memset(&cman_nodes, 0, sizeof(cman_nodes));
+
+	rv = cman_get_nodes(ch, MAX_NODES, &cman_node_count, cman_nodes);
+	if (rv < 0)
+		log_print("cman_get_nodes error %d %d", rv, errno);
+}
+
+static void process_cman_callback(void)
+{
+	switch (cman_reason) {
+	case CMAN_REASON_STATECHANGE:
+		statechange();
+		break;
+	default:
+		break;
+	}
+}
+
+static void cman_callback(cman_handle_t h, void *private, int reason, int arg)
 {
 	cman_cb = 1;
 	cman_reason = reason;
@@ -100,9 +125,10 @@ int process_member(void)
 		if (rv < 0)
 			break;
 
-		if (cman_cb)
+		if (cman_cb) {
 			cman_cb = 0;
-		else
+			process_cman_callback();
+		} else
 			break;
 	}
 
@@ -125,12 +151,14 @@ int setup_member(void)
 		return -ENOTCONN;
 	}
 
-	rv = cman_start_notification(ch, member_callback);
+	rv = cman_start_notification(ch, cman_callback);
 	if (rv < 0) {
 		log_error("cman_start_notification error %d %d", rv, errno);
 		cman_finish(ch);
 		return rv;
 	}
+
+	statechange();
 
 	fd = cman_get_fd(ch);
 
@@ -151,6 +179,7 @@ int setup_member(void)
 
 	log_debug("our_nodeid %d our_name %s", our_nodeid, our_name);
 	rv = 0;
+
  out:
 	return fd;
 }
@@ -160,44 +189,20 @@ void exit_member(void)
 	cman_finish(ch);
 }
 
-/* FIXME: just use cman callbacks to keep the cman membership list up to
-   date and don't bother with this function */
-
-int update_cluster_members(void)
-{
-	int rv, count;
-
-	count = 0;
-	memset(new_nodes, 0, sizeof(new_nodes));
-
-	rv = cman_get_nodes(ch, MAX_NODES, &count, new_nodes);
-	if (rv < 0) {
-		log_error("cman_get_nodes error %d %d", rv, errno);
-		return rv;
-	}
-
-	if (count < cluster_count)
-		log_error("decrease in cluster nodes %d %d",
-			  count, cluster_count);
-
-	cluster_count = count;
-	memcpy(cluster_nodes, new_nodes, sizeof(cluster_nodes));
-
-	log_debug("node count %d", count);
-	return 0;
-}
-
-/* update_cluster_members() is usually called prior to calling this */
-
 int is_member(char *name)
 {
 	cman_node_t *cn;
 
 	cn = find_cluster_node_name(name);
-	if (cn && cn->cn_member)
-		return TRUE;
-	log_debug("node \"%s\" not a member, cn %d", name, cn ? 1 : 0);
-	return FALSE;
+	if (cn && cn->cn_member) {
+		if (in_groupd_cpg(cn->cn_nodeid))
+			return 1;
+		log_debug("node \"%s\" not in groupd cpg", name);
+		return 0;
+	}
+
+	log_debug("node \"%s\" not a cman member, cn %d", name, cn ? 1 : 0);
+	return 0;
 }
 
 fd_node_t *get_new_node(fd_t *fd, int nodeid, char *in_name)

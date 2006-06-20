@@ -155,8 +155,6 @@ static void add_first_victims(fd_t *fd)
 {
 	fd_node_t *prev_node, *safe;
 
-	update_cluster_members();
-
 	/* complete list initialised in init_nodes() to all nodes from ccs */
 	if (list_empty(&fd->complete))
 		log_debug("first complete list empty warning");
@@ -201,8 +199,6 @@ static int reduce_victims(fd_t *fd)
 	int num_victims;
 
 	num_victims = list_count(&fd->victims);
-
-	update_cluster_members();
 
 	list_for_each_entry_safe(node, safe, &fd->victims, list) {
 		if (is_member(node->name)) {
@@ -303,7 +299,6 @@ static void fence_victims(fd_t *fd, int start_type)
 	while (!list_empty(&fd->victims)) {
 		node = list_entry(fd->victims.next, fd_node_t, list);
 
-		update_cluster_members();
 		if (is_member(node->name)) {
 			log_debug("averting fence of node %s", node->name);
 			list_del(&node->list);

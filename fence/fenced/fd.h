@@ -179,6 +179,7 @@ int dispatch_fence_agent(int cd, char *victim);
 int setup_groupd(void);
 void exit_groupd(void);
 int process_groupd(void);
+int in_groupd_cpg(int nodeid);
 
 /* member_xxx.c */
 int setup_member(void);
