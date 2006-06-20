@@ -103,7 +103,6 @@ int check_uncontrolled_groups(void)
 	if (!rv)
 		return 0;
 
-	/* FIXME: make sure this is going into syslog */
 	log_print("local node must be reset to clear %d uncontrolled "
 		  "instances of gfs and/or dlm", rv);
 
@@ -350,7 +349,6 @@ static void client_alloc(void)
 
 void client_dead(int ci)
 {
-	log_print("client %d fd %d dead", ci, client[ci].fd);
 	close(client[ci].fd);
 	client[ci].workfn = NULL;
 	client[ci].fd = -1;
@@ -525,7 +523,7 @@ static void do_send(char *name, int level, int len, char *data)
 	msg->ms_type = MSG_APP_INTERNAL;
 	msg->ms_global_id = g->global_id;
 
-	log_print("%d:%s do_send %d bytes", level, name, total);
+	log_debug("%d:%s do_send %d bytes", level, name, total);
 
 	send_message(g, msg, total);
 
@@ -618,7 +616,7 @@ static void process_listener(int ci)
 	
 	i = client_add(fd, process_connection, NULL);
 
-	log_print("client connection %d", i);
+	log_debug("client connection %d", i);
 }
 
 static int setup_listener(void)
@@ -684,7 +682,7 @@ static int loop(void)
 	while (1) {
 		rv = poll(pollfd, client_maxi + 1, timeout);
 		if (rv < 0)
-			log_print("poll error %d %d", rv, errno);
+			log_debug("poll error %d %d", rv, errno);
 
 		for (i = 0; i <= client_maxi; i++) {
 			if (client[i].fd < 0)

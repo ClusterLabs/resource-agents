@@ -148,7 +148,7 @@ void process_groupd_confchg(void)
 {
 	int i, found = 0;
 
-	log_print("process_groupd_confchg members %d -%d +%d",
+	log_debug("process_groupd_confchg members %d -%d +%d",
 		  saved_member_count, saved_left_count, saved_joined_count);
 
 	memcpy(&groupd_cpg_member, &saved_member, sizeof(saved_member));
@@ -265,7 +265,7 @@ void process_confchg(void)
 
 	g = find_group_by_handle(saved_handle);
 	if (!g) {
-		log_print("process_confchg: no group for handle %u name %s",
+		log_debug("process_confchg: no group for handle %u name %s",
 			  saved_handle, saved_name.value);
 		return;
 	}
@@ -306,21 +306,21 @@ void confchg_cb(cpg_handle_t handle, struct cpg_name *group_name,
 		}
 	}
 
-	log_print("%d:%s confchg members %d -%d +%d", level, name,
+	log_debug("%d:%s confchg members %d -%d +%d", level, name,
 		  member_list_entries, left_list_entries, joined_list_entries);
 
 	saved_handle = handle;
 
 	if (left_list_entries > MAX_GROUP_MEMBERS) {
-		log_print("left_list_entries %d", left_list_entries);
+		log_debug("left_list_entries %d", left_list_entries);
 		left_list_entries = MAX_GROUP_MEMBERS;
 	}
 	if (joined_list_entries > MAX_GROUP_MEMBERS) {
-		log_print("joined_list_entries %d", joined_list_entries);
+		log_debug("joined_list_entries %d", joined_list_entries);
 		joined_list_entries = MAX_GROUP_MEMBERS;
 	}
 	if (member_list_entries > MAX_GROUP_MEMBERS) {
-		log_print("member_list_entries %d", joined_list_entries);
+		log_debug("member_list_entries %d", joined_list_entries);
 		member_list_entries = MAX_GROUP_MEMBERS;
 	}
 

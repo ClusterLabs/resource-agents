@@ -92,7 +92,7 @@ int do_join(char *name, int level, int ci)
 
 	a->client = ci;
 
-	log_print("%d:%s got join", level, name);
+	log_debug("%d:%s got join", level, name);
 
 	rv = do_cpg_join(g);
  out:
@@ -113,7 +113,7 @@ int do_leave(char *name, int level)
 		return -EINVAL;
 	}
 
-	log_print("%d:%s got leave", level, name);
+	log_debug("%d:%s got leave", level, name);
 
 	rv = do_cpg_leave(g);
  out:

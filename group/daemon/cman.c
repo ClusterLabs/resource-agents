@@ -85,14 +85,14 @@ static void statechange(void)
 	*/
 
 	if (old_quorate && !cman_quorate)
-		log_print("cman: lost quorum");
+		log_debug("cman: lost quorum");
 	if (!old_quorate && cman_quorate)
-		log_print("cman: have quorum");
+		log_debug("cman: have quorum");
 
 	for (i = 0; i < old_node_count; i++) {
 		if (old_nodes[i].cn_member &&
 		    !is_cman_member(old_nodes[i].cn_nodeid)) {
-			log_print("cman: node %d removed",
+			log_debug("cman: node %d removed",
 				  old_nodes[i].cn_nodeid);
 			rs = get_recovery_set(old_nodes[i].cn_nodeid);
 			rs->cman_update = 1;
@@ -109,7 +109,7 @@ static void statechange(void)
 	for (i = 0; i < cman_node_count; i++) {
 		if (cman_nodes[i].cn_member &&
 		    !is_old_member(cman_nodes[i].cn_nodeid))
-			log_print("cman: node %d added",
+			log_debug("cman: node %d added",
 				  cman_nodes[i].cn_nodeid);
 	}
 }
@@ -136,7 +136,7 @@ static void cman_callback(cman_handle_t h, void *private, int reason, int arg)
 
 static void close_cman(int ci)
 {
-	log_print("cluster is down, exiting");
+	log_debug("cluster is down, exiting");
 	exit(1);
 }
 

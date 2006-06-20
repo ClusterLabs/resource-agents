@@ -24,6 +24,7 @@
 #include <strings.h>
 #include <ctype.h>
 #include <dirent.h>
+#include <syslog.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/types.h>
@@ -71,21 +72,26 @@ do { \
 	groupd_dump_save(); \
 } while (0)
 
+#define log_print(fmt, args...) \
+do { \
+	log_debug(fmt, ##args); \
+	syslog(LOG_ERR, fmt, ##args); \
+} while (0)
 
-/* FIXME: these should do log_debug/log_group plus syslog */
-
-#define log_print log_debug
-#define log_error log_group
+#define log_error(g, fmt, args...) \
+do { \
+	log_group(g, fmt, ##args); \
+	syslog(LOG_ERR, fmt, ##args); \
+} while (0)
 
 
 #define ASSERT(x) \
-{ \
+do { \
 	if (!(x)) { \
-		fprintf(stderr, "Assertion failed on line %d of file %s\n" \
-				"Assertion:  \"%s\"\n", \
-				__LINE__, __FILE__, #x); \
+		log_print("Assertion failed on line %d of file %s\n" \
+			  "Assertion:  \"%s\"\n", __LINE__, __FILE__, #x); \
 	} \
-}
+} while (0)
 
 #ifndef TRUE
 #define TRUE (1)

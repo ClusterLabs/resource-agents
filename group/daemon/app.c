@@ -252,13 +252,13 @@ void _del_recovery_set(group_t *g, int nodeid)
 		}
 
 		if (entries_not_recovered) {
-			log_print("recovery set %d has %d entries not done",
+			log_debug("recovery set %d has %d entries not done",
 				  rs->nodeid, entries_not_recovered);
 			continue;
 		}
 
 		/* all entries in this rs are recovered, free it */
-		log_print("recovery set %d is all done", rs->nodeid);
+		log_debug("recovery set %d is all done", rs->nodeid);
 
 		list_for_each_entry_safe(re, re2, &rs->entries, list) {
 			list_del(&re->list);
@@ -305,7 +305,7 @@ int cman_quorum_updated(void)
 	list_for_each_entry(rs, &recovery_sets, list) {
 		if (rs->cman_update)
 			continue;
-		log_print("no cman update for recovery_set %d quorate %d",
+		log_debug("no cman update for recovery_set %d quorate %d",
 			  rs->nodeid, cman_quorate, cman_quorate);
 		return 0;
 	}
