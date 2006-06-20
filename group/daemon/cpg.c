@@ -10,6 +10,8 @@ static int groupd_joined = 0;
 static int groupd_ci;
 
 static int			got_confchg;
+static struct cpg_address	groupd_cpg_member[MAX_GROUP_MEMBERS];
+static int			groupd_cpg_member_count;
 static struct cpg_address	saved_member[MAX_GROUP_MEMBERS];
 static struct cpg_address	saved_joined[MAX_GROUP_MEMBERS];
 static struct cpg_address	saved_left[MAX_GROUP_MEMBERS];
@@ -149,6 +151,9 @@ void process_groupd_confchg(void)
 	log_print("process_groupd_confchg members %d -%d +%d",
 		  saved_member_count, saved_left_count, saved_joined_count);
 
+	memcpy(&groupd_cpg_member, &saved_member, sizeof(saved_member));
+	groupd_cpg_member_count = saved_member_count;
+
 	for (i = 0; i < saved_member_count; i++) {
 		if (saved_member[i].nodeId == our_nodeid &&
 		    saved_member[i].pid == (uint32_t) getpid()) {
@@ -162,10 +167,23 @@ void process_groupd_confchg(void)
 		log_print("we are not in groupd confchg: %u %u",
 			  our_nodeid, (uint32_t) getpid());
 
+	/* FIXME: we probably want to do a cman_kill_node() on a node
+	   where groupd exits but cman is still running. */
+
 	for (i = 0; i < saved_left_count; i++) {
 		if (saved_left[i].reason != CPG_REASON_LEAVE)
 			add_recovery_set(saved_left[i].nodeId);
 	}
+}
+
+void copy_groupd_data(group_data_t *data)
+{
+	int i;
+
+	data->level = -1;
+	data->member_count = groupd_cpg_member_count;
+	for (i = 0; i < groupd_cpg_member_count; i++)
+		data->members[i] = groupd_cpg_member[i].nodeId;
 }
 
 /* FIXME: also match name */

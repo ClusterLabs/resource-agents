@@ -12,7 +12,23 @@ static cman_node_t	cman_nodes[MAX_NODES];
 static int		cman_node_count;
 static int		cman_cb;
 static int		cman_reason;
+static char		name_buf[CMAN_MAX_NODENAME_LEN+1];
 
+
+int kill_cman(int nodeid)
+{
+	cman_handle_t ach;
+	int rv;
+
+	ach = cman_admin_init(NULL);
+	if (!ach) {
+		log_print("cman_admin_init error %d %d", (int) ch, errno);
+		return -ENOTCONN;
+	}
+	rv = cman_kill_node(ach, nodeid);
+	cman_finish(ach);
+	return rv;
+}
 
 static int is_member(cman_node_t *node_list, int count, int nodeid)
 {
@@ -181,8 +197,12 @@ int setup_cman(void)
 
 	cman_quorate = cman_is_quorate(ch);
 
+	memset(name_buf, 0, sizeof(name_buf));
+	strncpy(name_buf, node.cn_name, CMAN_MAX_NODENAME_LEN);
+	our_name = name_buf;
 	our_nodeid = node.cn_nodeid;
-	log_debug("cman: our nodeid %d quorum %d", our_nodeid, cman_quorate);
+	log_debug("cman: our nodeid %d name %s quorum %d",
+		  our_nodeid, our_name, cman_quorate);
 
 	fd = cman_get_fd(ch);
 	client_add(fd, process_cman, close_cman);

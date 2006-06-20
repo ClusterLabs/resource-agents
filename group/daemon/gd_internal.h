@@ -23,6 +23,7 @@
 #include <string.h>
 #include <strings.h>
 #include <ctype.h>
+#include <dirent.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/types.h>
@@ -93,15 +94,12 @@ do { \
 #define FALSE (0)
 #endif
 
-#define test_bit(nr, addr)	((*addr) &   (1 << nr))
-#define set_bit(nr, addr)	((*addr) |=  (1 << nr))
-#define clear_bit(nr, addr)	((*addr) &= ~(1 << nr))
-
 extern struct list_head		gd_groups;
 extern struct list_head		gd_levels[MAX_LEVELS];
 extern uint32_t			gd_event_nr;
 extern int			cman_quorate;
 extern int			our_nodeid;
+extern char			*our_name;
 
 struct group;
 struct app;
@@ -256,6 +254,7 @@ void client_dead(int ci);
 
 /* cman.c */
 int setup_cman(void);
+int kill_cman(int nodeid);
 
 /* cpg.c */
 int setup_cpg(void);
@@ -263,6 +262,7 @@ int do_cpg_join(group_t *g);
 int do_cpg_leave(group_t *g);
 int send_message(group_t *g, void *buf, int len);
 int send_message_groupd(group_t *g, void *buf, int len);
+void copy_groupd_data(group_data_t *data);
 
 /* joinleave.c */
 void remove_group(group_t *g);
