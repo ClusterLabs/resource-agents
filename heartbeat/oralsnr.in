@@ -1,0 +1,372 @@
+#!/bin/sh
+#
+# $Id: oralsnr.in,v 1.1 2006/06/20 21:03:51 alan Exp $
+# 
+# oralsnr
+#
+# Description:	Manages an Oracle Listener as a High-Availability
+#		resource
+#
+#
+# Author:	Dejan Muhamedagic
+# Support:	linux-ha@lists.linux-ha.org
+# License:	GNU General Public License (GPL)
+# Copyright:	(C) 2006 International Business Machines, Inc.
+#
+#		This code inspired by the DB2 resource script
+#		written by Alan Robertson
+#
+# An example usage in /etc/ha.d/haresources: 
+#       node1  10.0.0.170 oralsnr::sid::home::user::listener
+#
+# See usage() function below for more details...
+#
+# OCF instance parameters:
+#	OCF_RESKEY_sid (mandatory; for the monitor op)
+#	OCF_RESKEY_home (optional; else read it from /etc/oratab)
+#	OCF_RESKEY_user (optional; user to run the listener)
+#	OCF_RESKEY_listener (optional; defaults to LISTENER)
+#
+# Initialization:
+
+. @hb_libdir@/ocf-shellfuncs
+
+#######################################################################
+
+SH=/bin/sh
+
+usage() {
+  methods=`oralsnr_methods`
+  methods=`echo $methods | tr ' ' '|'`
+  cat <<-!
+	usage: $0 ($methods)
+
+	$0 manages an Oracle Database instance as an HA resource.
+
+	The 'start' operation starts the database.
+	The 'stop' operation stops the database.
+	The 'status' operation reports whether the database is running
+	The 'monitor' operation reports whether the database seems to be working
+	The 'validate-all' operation reports whether the parameters are valid
+	The 'methods' operation reports on the methods $0 supports
+
+	$Id: oralsnr.in,v 1.1 2006/06/20 21:03:51 alan Exp $
+	!
+}
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="oralsnr">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource script for Oracle Listener. It manages an
+Oracle Listener instance as an HA resource.
+</longdesc>
+<shortdesc lang="en">oralsnr resource agent</shortdesc>
+
+<parameters>
+
+<parameter name="sid" unique="1">
+<longdesc lang="en">
+The Oracle SID (aka ORACLE_SID). Necessary for the monitor op,
+i.e. to do tnsping SID.
+</longdesc>
+<shortdesc lang="en">sid</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="home" unique="0">
+<longdesc lang="en">
+The Oracle home directory (aka ORACLE_HOME).
+If not specified, then the SID should be listed in /etc/oratab.
+</longdesc>
+<shortdesc lang="en">home</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="user" unique="0" required="1">
+<longdesc lang="en">
+Run the listener as this user.
+</longdesc>
+<shortdesc lang="en">user</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="listener" unique="1">
+<longdesc lang="en">
+Listener instance to be started (as defined in listener.ora).
+Defaults to LISTENER.
+</longdesc>
+<shortdesc lang="en">listener</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start" timeout="120" />
+<action name="stop" timeout="120" />
+<action name="status" timeout="60" />
+<action name="monitor" depth="0" timeout="30" interval="10" start-delay="10" />
+<action name="validate-all" timeout="5" />
+<action name="meta-data" timeout="5" />
+<action name="methods" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+
+#
+# methods: What methods/operations do we support?
+#
+oralsnr_methods() {
+  cat <<-!
+	start
+	stop
+	status
+	monitor
+	validate-all
+	methods
+	meta-data
+	usage
+	!
+}
+
+
+#	Gather up information about our oralsnr instance
+
+ora_info() {
+	ORACLE_SID=$1
+	ORACLE_HOME=$2
+	ORACLE_OWNER=$3
+
+	# get ORACLE_HOME from /etc/oratab if not set
+	[ x = "x$ORACLE_HOME" ] &&
+		ORACLE_HOME=`awk -F: "/^$ORACLE_SID:/"'{print $2}' /etc/oratab`
+
+	# there a better way to find out ORACLE_OWNER?
+	[ x = "x$ORACLE_OWNER" ] &&
+		ORACLE_OWNER=`ls -ld $ORACLE_HOME/. 2>/dev/null | awk 'NR==1{print $3}'`
+
+	sqlplus=$ORACLE_HOME/bin/sqlplus
+	lsnrctl=$ORACLE_HOME/bin/lsnrctl
+	tnsping=$ORACLE_HOME/bin/tnsping
+}
+
+testoraenv() {
+	#	Let's make sure a few important things are set...
+	[ x != "x$ORACLE_HOME" -a x != "x$ORACLE_OWNER" ] ||
+		return 1
+	#	and some important things are there
+	[ -x "$sqlplus" -a -x "$lsnrctl" -a -x "$tnsping" ] ||
+		return 1
+	return 0
+}
+
+setoraenv() {
+	LD_LIBRARY_PATH=$ORACLE_HOME/lib
+	LIBPATH=$ORACLE_HOME/lib
+	TNS_ADMIN=$ORACLE_HOME/network/admin
+	pATH=$ORACLE_HOME/bin:$ORACLE_HOME/dbs:$PATH
+	export ORACLE_SID ORACLE_HOME ORACLE_OWNER TNS_ADMIN
+	export LD_LIBRARY_PATH LIBPATH
+}
+
+#
+#	Run commands as the Oracle owner...
+#
+runasdba() {
+	if [ "$US" = "$ORACLE_OWNER" ]; then
+		$SH
+	else
+		su $ORACLE_OWNER
+	fi
+}
+
+#
+# oralsnr_start: Start the Oracle listener instance
+#
+
+oralsnr_start() {
+	typeset output
+	if tnsping; then
+		: nothing to be done, we can leave right now
+		ocf_log info "Listener $listener already running"
+		return $OCF_SUCCESS
+	fi
+	output=`echo $lsnrctl start $listener | runasdba`
+	if tnsping; then
+		: cool, we are up and running
+		ocf_log info "Listener $listener running: $output"
+		return $OCF_SUCCESS
+	else
+		ocf_log err "Listener $listener stopped: $output"
+		return $OCF_ERR_GENERIC
+	fi
+}
+
+#
+# oralsnr_stop: Stop the Oracle instance
+#
+oralsnr_stop() {
+	typeset status output
+	if is_oralsnr_up; then
+		output=`echo $lsnrctl stop $listener | runasdba`
+	else
+		ocf_log info "Listener $listener already stopped"
+		return $OCF_SUCCESS
+	fi
+	oralsnr_kill  # kill the procs if they hanged
+	if is_oralsnr_up; then
+		ocf_log err "Listener $listener not stopped: $output"
+		return $OCF_ERR_GENERIC
+	else
+		ocf_log info "Listener $listener stopped: $output"
+		return $OCF_SUCCESS
+	fi
+}
+# kill the listener procs
+# give them 10 secs to exit cleanly (5 times 2)
+oralsnr_kill() {
+	killprocs TERM `eval $procs | awk '{print $1}'`
+	for i in 1 2 3 4 5; do
+		killprocs 0 `eval $procs | awk '{print $1}'` ||
+			return
+		sleep 2
+	done
+	killprocs KILL `eval $procs | awk '{print $1}'`
+}
+killprocs() {
+	typeset sig=$1
+	shift 1
+	kill -$sig $* >/dev/null 2>&1
+}
+
+#
+# is_oralsnr_up: is listener process running?
+# oralsnr_status: is the listener running?
+#
+is_oralsnr_up() {
+	[ x != "x`eval $procs`" ]
+}
+oralsnr_status() {
+	$lsnrctl status $listener | tail -1 | grep -qs 'completed successfully'
+}
+# and does it work?
+tnsping() {
+	$tnsping $ORACLE_SID | tail -1 | grep -qs '^OK'
+}
+
+#
+# oralsnr_monitor: Can we connect to the listener?
+#
+oralsnr_monitor() {
+	if oralsnr_status && tnsping
+	then
+		: good
+		#ocf_log info "Listener $listener running"
+		return $OCF_SUCCESS
+    else
+		ocf_log info "Listener $listener not running"
+		return $OCF_NOT_RUNNING
+    fi
+}
+
+#
+#	'main' starts here...
+#
+
+if [ $# -ne 1 ]
+then
+  usage
+  exit $OCF_ERR_ARGS
+fi
+
+# These operations don't require OCF instance parameters to be set
+case "$1" in
+  meta-data)	meta_data
+		exit $OCF_SUCCESS;;
+
+  usage) 	usage
+		exit $OCF_SUCCESS;;
+
+  methods)	oralsnr_methods
+		exit $?;;
+
+  *);;
+esac
+
+if [ x = "x$OCF_RESKEY_sid" ]
+then
+  ocf_log err "Please set OCF_RESKEY_sid to the Oracle SID !"
+  exit $OCF_ERR_ARGS
+fi
+
+ora_info "$OCF_RESKEY_sid" "$OCF_RESKEY_home" "$OCF_RESKEY_user"
+
+LSB_STATUS_STOPPED=3
+if ! testoraenv; then
+	ocf_log info "Oracle environment for SID $ORACLE_SID does not exist"
+	case "$1" in
+		stop) exit $OCF_SUCCESS;;
+		monitor) exit $OCF_NOT_RUNNING;;
+		status) exit $LSB_STATUS_STOPPED;;
+		*)
+			ocf_log err "Oracle environment for SID $ORACLE_SID broken"
+			exit $OCF_ERR_ARGS
+		;;
+	esac
+fi
+
+setoraenv # important: set the environment for the SID
+
+#
+# default listener is "LISTENER"
+#
+listener=${OCF_RESKEY_listener:-"LISTENER"}
+# how to get listener processes
+procs="ps -e -o pid,args | grep '[t]nslsnr' | grep -w $listener"
+
+US=`id -u -n`
+if [ $US != root -a $US != $ORACLE_OWNER ]
+then
+  ocf_log err "$0 must be run as root or $ORACLE_OWNER"
+  exit $OCF_ERR_PERM
+fi
+
+# What kind of method was invoked?
+case "$1" in
+
+  start)	oralsnr_start
+		exit $?;;
+
+  stop)		oralsnr_stop
+		exit $?;;
+
+  status)	if oralsnr_status
+		then
+		  echo Listener $listener is running
+		  exit $OCF_SUCCESS
+		else
+		  echo Listener $listener is stopped
+		  exit $OCF_NOT_RUNNING
+		fi
+		;;
+
+  monitor)	oralsnr_monitor
+		exit $?;;
+
+  validate-all)	# OCF_RESKEY_sid was already checked by ora_info(),
+		# just exit successfully here.
+		exit $OCF_SUCCESS;;
+
+  *)		oralsnr_methods
+		exit $OCF_ERR_UNIMPLEMENTED;;
+esac
+
+#
+# vim:tabstop=4:shiftwidth=4:textwidth=0:wrapmargin=0

@@ -55,6 +55,8 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			LinuxSCSI	\
 			LVM		\
 			MailTo		\
+			oracle		\
+			oralsnr		\
 			pingd		\
 			portblock	\
 			Raid1		\
