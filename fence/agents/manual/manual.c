@@ -28,6 +28,7 @@
 
 #include "copyright.cf"
 #include "libcman.h"
+#include "libgroup.h"
 
 /* FIFO_DIR needs to agree with the same in manual/ack.c */
 
@@ -45,6 +46,8 @@ char fname[256];
 char args[256];
 char agent[256];
 char victim[256];
+
+int victim_nodeid;
 
 cman_node_t nodes[MAX_NODES];
 
@@ -239,7 +242,7 @@ int check_ack(void)
 	return 1;
 }
 
-int check_cluster(void)
+int check_cman(void)
 {
 	cman_handle_t ch;
 	int i, error, rv = 0, count = 0;
@@ -258,14 +261,40 @@ int check_cluster(void)
 		if (strlen(nodes[i].cn_name) == strlen(victim) &&
 		    !strncmp(nodes[i].cn_name, victim, strlen(victim))) {
 
-			if (nodes[i].cn_member)
+			if (nodes[i].cn_member) {
 				rv = 1;
+				victim_nodeid = nodes[i].cn_nodeid;
+			}
 			break;
 		}
 	}
  out:
 	cman_finish(ch);
 	return rv;
+}
+
+int check_groupd(void)
+{
+	group_data_t data;
+	int i, rv;
+
+	memset(&data, 0, sizeof(data));
+
+	rv = group_get_group(-1, "groupd", &data);
+	if (rv)
+		return 0;
+
+	for (i = 0; i < data.member_count; i++) {
+		if (data.members[i] == victim_nodeid)
+			return 1;
+	}
+
+	return 0;
+}
+
+int check_cluster(void)
+{
+	return check_cman() && check_groupd();
 }
 
 void cleanup(void)

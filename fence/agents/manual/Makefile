@@ -13,13 +13,10 @@
 
 TARGET= fence_manual fence_ack_manual
 
-fence_manual_SOURCE= manual.c
-fence_ack_manual_SOURCE= ack.c
-
 top_srcdir=../..
 
 
-INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config -I${incdir} -I../../../cman/lib
+INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config -I${incdir} -I../../../cman/lib -I../../../group/lib
 
 
 include ${top_srcdir}/make/defines.mk
@@ -27,15 +24,20 @@ include ${top_srcdir}/make/defines.mk
 CFLAGS+= -DFENCE_RELEASE_NAME=\"${RELEASE}\"
 
 LDFLAGS+= -L../../../cman/lib
-LDLIBS+= -lcman
 
 all: ${TARGET}
 
-fence_manual: ${fence_manual_SOURCE:.c=.o}
-	${CC} ${CFLAGS} ${LDFLAGS} ${fence_manual_SOURCE:.c=.o} ${LOADLIBES} ${LDLIBS} -o $@
+fence_manual: manual.o ../../../group/lib/libgroup.a
+	$(CC) $(LDFLAGS) -o $@ $^ -lcman
 
-fence_ack_manual: ${fence_ack_manual_SOURCE:.c=.o}
-	${CC} ${CFLAGS} ${LDFLAGS} ${fence_ack_manual_SOURCE:.c=.o} ${LOADLIBES} ${LDLIBS} -o $@
+manual.o: manual.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+fence_ack_manual: ack.o
+	${CC} -o $@ $^
+
+ack.o: ack.c
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 copytobin: all
 	cp ${TARGET} ${top_srcdir}/bin
