@@ -185,7 +185,7 @@ typedef void (*cman_datacallback_t)(cman_handle_t handle, void *private,
  * cman_admin_init  opens admin socket for privileged operations.
  * cman_finish      destroys that handle.
  *
- * Note that admin sockets can't send data messages.
+ * Note that admin sockets can't send data messages or receive callbacks.
  */
 cman_handle_t cman_init(void *private);
 cman_handle_t cman_admin_init(void *private);
