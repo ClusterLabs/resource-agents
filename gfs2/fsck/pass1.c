@@ -184,9 +184,9 @@ static int check_eattr_indir(struct gfs2_inode *ip, uint64_t indirect,
 
 	/* This inode contains an eattr - it may be invalid, but the
 	 * eattr attributes points to a non-zero block */
-	log_debug("Setting %" PRIu64 " (0x%" PRIx64 ") to eattr block\n", block,
-			  block);
-	gfs2_block_set(bl, ip->i_di.di_num.no_addr, gfs2_eattr_block);
+	log_debug("Setting %" PRIu64 " (0x%" PRIx64 ") to eattr block\n",
+			  indirect, indirect);
+	gfs2_block_set(bl, indirect, gfs2_eattr_block);
 
 	if(gfs2_check_range(sdp, indirect)) {
 		/*log_warn("EA indirect block #%"PRIu64" is out of range.\n",
@@ -287,7 +287,8 @@ static int check_extended_leaf_eattr(struct gfs2_inode *ip, uint64_t *data_ptr,
 }
 
 static int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
-			    uint64_t parent, struct gfs2_buffer_head **bh, void *private)
+							uint64_t parent, struct gfs2_buffer_head **bh,
+							void *private)
 {
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_buffer_head *leaf_bh;
@@ -297,10 +298,11 @@ static int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
 
 	/* This inode contains an eattr - it may be invalid, but the
 	 * eattr attributes points to a non-zero block */
-	log_debug("Setting %" PRIu64 " (0x%" PRIx64 ") to eattr block\n",
-			  ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr);
-	gfs2_block_set(bl, ip->i_di.di_num.no_addr, gfs2_eattr_block);
-
+	if (parent != ip->i_di.di_num.no_addr) { /* if parent isn't the inode */
+		log_debug("Setting %" PRIu64 " (0x%" PRIx64 ") to eattr block\n",
+				  parent, parent);
+		gfs2_block_set(bl, parent, gfs2_eattr_block);
+	}
 	if(gfs2_check_range(sdp, block)){
 		log_warn("EA leaf block #%" PRIu64 " (0x%" PRIx64 ") in inode %" PRIu64
 				 " (0x%" PRIx64 ") is out of range.\n",
@@ -323,14 +325,14 @@ static int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
 		leaf_bh = bread(sdp, block);
 		if(gfs2_check_meta(leaf_bh, GFS2_METATYPE_EA)) {
 			log_warn("EA leaf block has incorrect type.\n");
-			gfs2_block_set(bl, (uint64_t)*leaf_bh->b_data, gfs2_meta_inval);
+			gfs2_block_set(bl, block, gfs2_meta_inval);
 			brelse(leaf_bh, not_updated);
 			ret = 1;
 		}
 		else {
-			log_debug("Setting %" PRIu64 " (0x%" PRIx64 ") to eattr block\n",
-					  (uint64_t)*leaf_bh->b_data, (uint64_t)*leaf_bh->b_data);
-			gfs2_block_set(bl, (uint64_t)*leaf_bh->b_data, gfs2_meta_eattr);
+			log_debug("Setting block %" PRIu64 " (0x%" PRIx64
+					  ") to eattr block\n", block, block);
+			gfs2_block_set(bl, block, gfs2_meta_eattr);
 			bc->ea_count++;
 		}
 		brelse(leaf_bh, not_updated);
