@@ -765,6 +765,7 @@ void daemonize(void)
 	close(0);
 	close(1);
 	close(2);
+	openlog("groupd", LOG_PID, LOG_DAEMON);
 
 	lockfile();
 }
