@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.530 $) dnl cvs revision
+AC_REVISION($Revision: 1.531 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -2743,6 +2743,8 @@ resources/Makefile						\
 	resources/OCF/LinuxSCSI					\
 	resources/OCF/LVM					\
 	resources/OCF/MailTo					\
+	resources/OCF/oracle					\
+	resources/OCF/oralsnr					\
 	resources/OCF/portblock					\
 	resources/OCF/Raid1					\
 	resources/OCF/ServeRAID					\
