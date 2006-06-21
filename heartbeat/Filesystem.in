@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.28 2006/06/14 13:48:20 lars Exp $
+# $Id: Filesystem.in,v 1.29 2006/06/21 19:04:03 lars Exp $
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
@@ -95,7 +95,7 @@ check_util () {
 usage() {
 	cat <<-EOT
 	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
-	$Id: Filesystem.in,v 1.28 2006/06/14 13:48:20 lars Exp $
+	$Id: Filesystem.in,v 1.29 2006/06/21 19:04:03 lars Exp $
 	EOT
 }
 
@@ -194,6 +194,22 @@ flushbufs() {
   fi
   
   return 0
+}
+
+# Take advantage of /proc/mounts if present, use portabel mount command
+# otherwise. Normalize format to "dev mountpoint fstype".
+list_mounts() {
+  if [ -f "/proc/mounts" -a -r "/proc/mounts" ]; then
+    cut -d' ' -f1,2,3 </proc/mounts
+  else
+    $MOUNT | cut -d' ' -f1,3,5
+  fi
+}
+
+# Lists all filesystems potentially mounted under a given path,
+# excluding the path itself.
+list_submounts() {
+  list_mounts | grep " $1/" | cut -d' ' -f2 | sort -r
 }
 
 #
@@ -432,62 +448,7 @@ Filesystem_notify() {
 	done
 }
 
-#
-# STOP: Unmount the filesystem
-#
-Filesystem_stop()
-{
-	# See if the device is currently mounted
-	Filesystem_status >/dev/null 2>&1
-	if [ $? -ne $OCF_NOT_RUNNING ]; then
-	    # Umount all sub-filesystems mounted under $MOUNTPOINT/
-	    # (e.g. /proc in chroots)
-	    for SUB in `$MOUNT | grep "on $MOUNTPOINT/" | cut -d' ' -f3 | tac` ; do
-		$FUSER -m -k $SUB
-		$UMOUNT $SUB
-	    done
-
-	    # By sending both signals twice, we eliminate the need
-	    # for `sleep` after them.
-	    for sig in SIGTERM SIGTERM SIGKILL SIGKILL; do
-		if [ $blockdevice = "yes" ]; then
-		    $FUSER -$sig -m -k $DEVICE
-		else
-		    $FUSER -$sig -m -k $MOUNTPOINT
-		fi
-		# fuser returns a non-zero return code if none of the
-		# specified files is accessed or in case of a fatal 
-		# error, in either case we stop sending signal. If at
-		# least one access has been found, fuser returns zero, 
-		# then we should try it again.
-		if [ $? -ne 0 ]; then
-		    break
-		fi
-	    done
-
-	    rc=$OCF_SUCCESS
-	    if [ $blockdevice = "yes" ]; then
-		$UMOUNT $DEVICE
-		DEV=$DEVICE
-	    else
-		# Get the current real device name...
-		# (specified devname could be -L or -U...)
-
-		DEV=`$MOUNT | grep "on $MOUNTPOINT " | cut -d' ' -f1`
-		# Unmount the filesystem
-		$UMOUNT $MOUNTPOINT
-	    fi
-
-	    if [ $? -ne 0 ] ; then
-	    	ocf_log err "Couldn't unmount $MOUNTPOINT"
-	    	rc=$OCF_ERR_GENERIC
-	    fi
-	    flushbufs $DEV
-	else
-	    # $MOUNTPOINT Not mounted.  No problema!
-	    rc=$OCF_SUCCESS
-	fi
-
+ocfs2_cleanup() {
 	# We'll never see the post-stop notification. We're gone now,
 	# have unmounted, and thus should remove the membership.
 	#
@@ -495,16 +456,87 @@ Filesystem_stop()
 	# because the admin might have manually unmounted but not
 	# cleared up the membership directory. Bad admin, no cookie.)
 	#
-	if [ "$FSTYPE" = "ocfs2" ]; then
-	    if [ ! -d "$OCFS2_FS_ROOT" ]; then
-	    	ocf_log info "$OCFS2_FS_ROOT: Filesystem membership already gone."
-	    else
-	    	ocf_log info "$OCFS2_FS_ROOT: Removing membership directory."
-	    	rm -rf $OCFS2_FS_ROOT/
-	    fi
+	if [ ! -d "$OCFS2_FS_ROOT" ]; then
+		ocf_log info "$OCFS2_FS_ROOT: Filesystem membership already gone."
+	else
+		ocf_log info "$OCFS2_FS_ROOT: Removing membership directory."
+		rm -rf $OCFS2_FS_ROOT/
 	fi
-	
-	return $rc
+}
+
+determine_blockdevice() {
+  if [ $blockdevice == "yes" ]; then
+    return
+  fi
+  
+  # Get the current real device name, if possible.
+  # (specified devname could be -L or -U...)
+  case "$FSTYPE" in
+    nfs|smbfs|cifs) ;;
+    *)	DEVICE=`list_mounts | grep " $MOUNTPOINT " | cut -d' ' -f1`
+    	if [ -b "$DEVICE" ]; then
+      	  blockdevice=yes
+	fi
+	;;
+  esac
+}
+
+#
+# STOP: Unmount the filesystem
+#
+Filesystem_stop()
+{
+  # See if the device is currently mounted
+  Filesystem_status >/dev/null 2>&1
+  if [ $? -ne $OCF_NOT_RUNNING ]; then
+    # Determine the real blockdevice this is mounted on (if
+    # possible) prior to unmounting.
+    determine_blockdevice
+    
+    # For networked filesystems, there's merit in trying -f:
+    case "$FSTYPE" in
+      nfs|cifs|smbfs) umount_force="-f" ;;
+    esac
+    
+    # Umount all sub-filesystems mounted under $MOUNTPOINT/ too.
+    for SUB in `list_submounts $MOUNTPOINT` $MOUNTPOINT; do
+      ocf_log info "Trying to unmount $MOUNTPOINT"
+      for sig in SIGTERM SIGTERM SIGTERM SIGKILL SIGKILL SIGKILL; do
+      	if $UMOUNT $umount_force $SUB ; then
+          rc=$OCF_SUCCESS
+      	  ocf_log info "unmounted $SUB successfully"
+	  break
+      	else
+          rc=$OCF_ERR_GENERIC
+          ocf_log err "Couldn't unmount $SUB; trying cleanup with $sig"
+          # fuser returns a non-zero return code if none of the
+          # specified files is accessed or in case of a fatal 
+          # error.
+          if $FUSER -$sig -m -k $SUB ; then
+	    ocf_log info "Some processes on $SUB were signalled"
+	  else
+	    ocf_log info "No processes on $SUB were signalled"
+          fi
+          sleep 1
+      	fi
+      done
+      
+      if [ $rc -ne $OCF_SUCCESS ]; then
+      	ocf_log err "Couldn't unmount $SUB, giving up!"
+      fi
+    done
+  else
+    # Already unmounted, wonderful.
+    rc=$OCF_SUCCESS
+  fi
+  
+  flushbufs $DEVICE
+  
+  if [ "$FSTYPE" = "ocfs2" ]; then
+    ocfs2_cleanup
+  fi
+  
+  return $rc
 }
 # end of Filesystem_stop
 
@@ -514,14 +546,7 @@ Filesystem_stop()
 Filesystem_status()
 {
 	if
-          [ $blockdevice = "yes" ]
-        then
-          greppat="^$DEVICE $MOUNTPOINT "
-	else	
-          greppat=" $MOUNTPOINT "
-	fi
-	if
-	  grep -q -e "${greppat}" /proc/mounts >/dev/null 2>&1
+	  list_mounts | grep -q " $MOUNTPOINT " >/dev/null 2>&1
         then
           rc=$OCF_SUCCESS
           msg="$MOUNTPOINT is mounted (running)"
@@ -554,6 +579,7 @@ Filesystem_validate_all()
 
 # Check if the $FSTYPE is workable
 # NOTE: Without inserting the $FSTYPE module, this step may be imprecise
+# TODO: This is Linux specific crap.
 	if [ ! -z $FSTYPE ]; then
 	    cut -f2 /proc/filesystems |grep -q ^$FSTYPE$
 	    if [ $? -ne 0 ]; then
