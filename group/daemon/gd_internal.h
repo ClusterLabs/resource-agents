@@ -25,13 +25,14 @@
 #include <ctype.h>
 #include <dirent.h>
 #include <syslog.h>
+#include <time.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/types.h>
 #include <sys/errno.h>
 #include <sys/poll.h>
-#include <sys/time.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 
 #include "list.h"
 #include "linux_endian.h"
@@ -256,6 +257,7 @@ void app_setid(app_t *a);
 void app_start(app_t *a);
 void app_finish(app_t *a);
 void app_terminate(app_t *a);
+void app_deliver(app_t *a, struct save_msg *save);
 int client_add(int fd, void (*workfn)(int ci), void (*deadfn)(int ci));
 void client_dead(int ci);
 

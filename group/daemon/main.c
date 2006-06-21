@@ -218,6 +218,7 @@ void app_finish(app_t *a)
 	app_action(a, buf);
 }
 
+#if 0
 static void make_args(char *buf, int *argc, char **argv, char sep)
 {
 	char *p = buf;
@@ -235,6 +236,7 @@ static void make_args(char *buf, int *argc, char **argv, char sep)
 	}
 	*argc = i;
 }
+#endif
 
 static char *get_args(char *buf, int *argc, char **argv, char sep, int want)
 {
@@ -659,7 +661,7 @@ static int setup_listener(void)
 
 static int loop(void)
 {
-	int rv, fd, i, timeout = -1;
+	int rv, i, timeout = -1;
 	void (*workfn) (int ci);
 	void (*deadfn) (int ci);
 

@@ -10,6 +10,10 @@
 ###############################################################################
 ###############################################################################
 
+top_srcdir=..
+include ${top_srcdir}/make/defines.mk
+UNINSTALL=${top_srcdir}/scripts/uninstall.pl
+
 CFLAGS+= -g -I. -I../include/ -I../../cman/lib/ -I../lib/ -I../../cman/daemon/openais/trunk/include/
 
 TARGET=groupd
@@ -45,4 +49,7 @@ clean:
 
 install: groupd
 	install groupd ${sbindir}
+
+uninstall:
+	${UNINSTALL} groupd ${sbindir}
 

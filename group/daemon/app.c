@@ -306,10 +306,17 @@ int cman_quorum_updated(void)
 		if (rs->cman_update)
 			continue;
 		log_debug("no cman update for recovery_set %d quorate %d",
-			  rs->nodeid, cman_quorate, cman_quorate);
+			  rs->nodeid, cman_quorate);
 		return 0;
 	}
 	return 1;
+}
+
+int is_recovery_event(event_t *ev)
+{
+	if (event_id_to_type(ev->id) == 3)
+		return 1;
+	return 0;
 }
 
 /* all groups referenced by a recovery set have been stopped on all nodes,
@@ -713,6 +720,7 @@ char *ev_state_str(event_t *ev)
 	}
 }
 
+#if 0
 static int count_nodes_not_stopped(app_t *a)
 {
 	node_t *node;
@@ -724,6 +732,7 @@ static int count_nodes_not_stopped(app_t *a)
 	}
 	return i;
 }
+#endif
 
 int event_state_stopping(app_t *a)
 {
@@ -764,10 +773,10 @@ int event_state_all_started(app_t *a)
 static int process_current_event(group_t *g)
 {
 	app_t *a = g->app;
-	event_t *ev = a->current_event, *ev_tmp, *ev_safe;
+	event_t *ev = a->current_event;
 	node_t *node, *n;
 	struct nodeid *id;
-	int rv = 0, do_start = 0, count;
+	int rv = 0, do_start = 0;
 
 	if (!(event_state_stopping(a) || event_state_starting(a)))
 		log_group(g, "process_current_event %llx %d %s",
@@ -1020,7 +1029,7 @@ static int mark_node_started(app_t *a, int nodeid)
 	node_t *node;
 
 	if (!event_state_starting(a)) {
-		log_error(a->g, "mark_node_started: event not starting %d ",
+		log_error(a->g, "mark_node_started: event not starting %d "
 			  "from %d", a->current_event->state, nodeid);
 		return -1;
 	}
@@ -1128,7 +1137,7 @@ static int process_app_messages(group_t *g)
 	return rv;
 }
 
-static int deliver_app_messages(group_t *g)
+static void deliver_app_messages(group_t *g)
 {
 	app_t *a = g->app;
 	struct save_msg *save, *tmp;
@@ -1160,6 +1169,7 @@ event_t *find_queued_recover_event(group_t *g)
 	return NULL;
 }
 
+#if 0
 static int group_started(event_t *ev)
 {
 	switch (ev->state) {
@@ -1177,6 +1187,7 @@ static int group_started(event_t *ev)
 		return 1;
 	};
 }
+#endif
 
 void dump_group(group_t *g)
 {
@@ -1189,7 +1200,7 @@ void dump_group(group_t *g)
 	printf("name: %s\n", g->name);
 	printf("level: %d\n", g->level);
 	printf("global_id: %u\n", g->global_id);
-	printf("cpg handle: %x\n", g->cpg_handle);
+	printf("cpg handle: %llx\n", g->cpg_handle);
 	printf("cpg client: %d\n", g->cpg_client);
 	printf("app client: %d\n", g->app->client);
 
@@ -1226,13 +1237,6 @@ void dump_all_groups(void)
 	group_t *g;
 	list_for_each_entry(g, &gd_groups, list)
 		dump_group(g);
-}
-
-int is_recovery_event(event_t *ev)
-{
-	if (event_id_to_type(ev->id) == 3)
-		return 1;
-	return 0;
 }
 
 /* handle a node failure while processing an event */
@@ -1288,7 +1292,7 @@ int recover_current_event(group_t *g)
 
 		list_del(&rev->list);
 		free_event(rev);
-		return;
+		return 0;
 	}
 
 	/* Before starting the rev we need to apply the node addition/removal

@@ -20,8 +20,6 @@ static int			saved_joined_count;
 static int			saved_left_count;
 static cpg_handle_t		saved_handle;
 static struct cpg_name		saved_name;
-static int			saved_nodeid;
-static int			saved_pid;
 
 
 static node_t *find_group_node(group_t *g, int nodeid)
@@ -229,7 +227,7 @@ void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 				len = MAX_NAMELEN;
 			memcpy(&name, &group_name->value, len);
 
-			log_print("deliver_cb no group handle %d name %s",
+			log_print("deliver_cb no group handle %llx name %s",
 				  handle, name);
 			return;
 		}
@@ -267,7 +265,7 @@ void process_confchg(void)
 
 	g = find_group_by_handle(saved_handle);
 	if (!g) {
-		log_debug("process_confchg: no group for handle %u name %s",
+		log_debug("process_confchg: no group for handle %llx name %s",
 			  saved_handle, saved_name.value);
 		return;
 	}

@@ -116,7 +116,6 @@ int do_leave(char *name, int level)
 	log_debug("%d:%s got leave", level, name);
 
 	rv = do_cpg_leave(g);
- out:
 	return rv;
 }
 
