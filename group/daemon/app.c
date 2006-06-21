@@ -592,9 +592,11 @@ static int is_our_leave(event_t *ev)
 	return (ev->nodeid == our_nodeid);
 }
 
-/* called after the local app has acked that it is stopped as part
-   of our own leave.  We've gotten the final confchg for our leave
-   so we can't send anything out to the group at this point. */
+/* Called after all nodes have acked that they're stopped for our
+   leave.  We get their stopped messages even though we've left the
+   cpg because the messages are sent through the groupd cpg.
+   groupd_down() will fill in stops for us for nodes that fail before
+   sending stopped for our leave. */
 
 void finalize_our_leave(group_t *g)
 {
@@ -619,15 +621,6 @@ static int send_stopped(group_t *g)
 {
 	msg_t msg;
 	event_t *ev = g->app->current_event;
-
-	/* FIXME: see other fixme that mentions that leaving nodes
-	   should also send a stopped message to be counted by the
-	   remaining nodes before they move on to restarted */
-
-	if (ev && ev->state == EST_LEAVE_STOP_WAIT && is_our_leave(ev)) {
-		finalize_our_leave(g);
-		return 0;
-	}
 
 	memset(&msg, 0, sizeof(msg));
 	msg.ms_type = MSG_APP_STOPPED;
@@ -855,18 +848,6 @@ static int process_current_event(group_t *g)
 	case EST_LEAVE_BEGIN:
 		ev->state = EST_LEAVE_STOP_WAIT;
 		app_stop(a);
-
-		/* FIXME: have leaving node send a stopped message after
-		   the app acks that it's stopped, and then make the
-		   other nodes wait for this stopped message instead of
-		   just setting the leaving node as stopped here */
-
-		if (!is_our_leave(ev)) {
-			node = find_app_node(a, ev->nodeid);
-			ASSERT(node);
-			node->stopped = 1;
-		}
-
 		break;
 
 	case EST_LEAVE_STOP_WAIT:
@@ -877,6 +858,12 @@ static int process_current_event(group_t *g)
 		break;
 
 	case EST_LEAVE_ALL_STOPPED:
+		if (is_our_leave(ev)) {
+			/* frees group structure */
+			finalize_our_leave(g);
+			rv = -1;
+			break;
+		}
 		ev->state = EST_LEAVE_START_WAIT;
 
 		node = find_app_node(a, ev->nodeid);
@@ -1358,14 +1345,16 @@ static int process_app(group_t *g)
 {
 	app_t *a = g->app;
 	event_t *ev = NULL;
-	int rv = 0;
+	int rv = 0, ret;
 
 	if (a->current_event) {
-		/* this assumes that we never remove/free the group in
-		   process_current_event */
-
 		rv += process_app_messages(g);
-		rv += process_current_event(g);
+
+		ret = process_current_event(g);
+		if (ret < 0)
+			goto out;
+		rv += ret;
+
 		rv += recover_current_event(g);
 	} else {
 		/* We only take on a new non-recovery event if there are
@@ -1405,5 +1394,32 @@ int process_apps(void)
 	}
 
 	return rv;
+}
+
+/* This is a bit of a hack that may not be entirely necessary.  The problem
+   we're solving with this function is when a node leaves a group and is
+   collecting all the "stopped" messages from the remaining members, some
+   of those members may fail, so we wouldn't get a stopped message from
+   them and never finalize_our_leave (terminate the group).  I'm not entirely
+   sure that we _need_ to wait for stopped messages from remaining members
+   before we do the finalize_our_leave/terminate... The reasoning at this
+   point is that when gfs is withdrawing, we want to be sure gfs is
+   suspended everywhere before we leave the lockspace (which happens at
+   terminate for the withdraw/leave) */
+
+void groupd_down(int nodeid)
+{
+	group_t *g;
+
+	list_for_each_entry(g, &gd_groups, list) {
+		if (g->app &&
+		    g->app->current_event &&
+		    g->app->current_event->state == EST_LEAVE_STOP_WAIT &&
+		    is_our_leave(g->app->current_event)) {
+			log_group(g, "groupd down on %d, push our leave",
+				  nodeid);
+			mark_node_stopped(g->app, nodeid);
+		}
+	}
 }
 

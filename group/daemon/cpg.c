@@ -171,8 +171,10 @@ void process_groupd_confchg(void)
 	   where groupd exits but cman is still running. */
 
 	for (i = 0; i < saved_left_count; i++) {
-		if (saved_left[i].reason != CPG_REASON_LEAVE)
+		if (saved_left[i].reason != CPG_REASON_LEAVE) {
 			add_recovery_set(saved_left[i].nodeId);
+			groupd_down(saved_left[i].nodeId);
+		}
 	}
 }
 

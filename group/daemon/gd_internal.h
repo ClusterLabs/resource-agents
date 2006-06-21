@@ -248,6 +248,7 @@ int event_state_starting(app_t *a);
 void msg_bswap_out(msg_t *msg);
 void msg_bswap_in(msg_t *msg);
 struct recovery_set *get_recovery_set(int nodeid);
+void groupd_down(int nodeid);
 
 /* main.c */
 void app_stop(app_t *a);
