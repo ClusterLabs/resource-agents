@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.29 2006/06/21 19:04:03 lars Exp $
+# $Id: Filesystem.in,v 1.30 2006/06/21 20:43:00 lars Exp $
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
@@ -95,7 +95,7 @@ check_util () {
 usage() {
 	cat <<-EOT
 	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
-	$Id: Filesystem.in,v 1.29 2006/06/21 19:04:03 lars Exp $
+	$Id: Filesystem.in,v 1.30 2006/06/21 20:43:00 lars Exp $
 	EOT
 }
 
@@ -222,6 +222,7 @@ Filesystem_start()
 		# we're being started means we didn't get the
 		# pre-notification, because we weren't running, so
 		# process the information now first.
+		ocf_log info "$OCFS2_UUID: Faking pre-notification on start."
 		OCF_RESKEY_CRM_meta_notify_type="pre"
 		OCF_RESKEY_CRM_meta_notify_operation="start"
 		Filesystem_notify
@@ -346,17 +347,17 @@ Filesystem_notify() {
 	local n_stop="$OCF_RESKEY_CRM_meta_notify_stop_uname"
 	local n_start="$OCF_RESKEY_CRM_meta_notify_start_uname"
 
-	ocf_log debug "$OCFS2_UUID - notify: $n_type for $n_op"
-	ocf_log debug "$OCFS2_UUID - notify active: $n_active"
-	ocf_log debug "$OCFS2_UUID - notify stop: $n_stop"
-	ocf_log debug "$OCFS2_UUID - notify start: $n_start"
+	ocf_log info "$OCFS2_UUID: notify: $n_type for $n_op"
+	ocf_log info "$OCFS2_UUID: notify active: $n_active"
+	ocf_log info "$OCFS2_UUID: notify stop: $n_stop"
+	ocf_log info "$OCFS2_UUID: notify start: $n_start"
 
 	case "$n_type" in
 	pre)
 		case "$n_op" in
 		stop)
-			ocf_log debug "$OCFS2_UUID: ignoring pre-notify for stop."
-			return $OCF_SUCCESS
+			ocf_log info "$OCFS2_UUID: ignoring pre-notify for stop."
+			return $infoUCCESS
 			;;
 		start)
 			# These are about to become active; prepare to
@@ -376,7 +377,7 @@ Filesystem_notify() {
 			;;
 		start)
 			if [ "$n_op" = "start" ]; then
-				ocf_log debug "$OCFS2_UUID: ignoring post-notify for start."
+				ocf_log info "$OCFS2_UUID: ignoring post-notify for start."
 				return $OCF_SUCCESS
 			fi
 			;;
@@ -384,10 +385,10 @@ Filesystem_notify() {
 		;;
 	esac
 	
-	ocf_log debug "$OCFS2_UUID - post-processed active: $n_active"
+	ocf_log info "$OCFS2_UUID: post-processed active: $n_active"
 
 	local n_myself=${HA_CURHOST:-$(uname -n | tr A-Z a-z)}
-	ocf_log debug "$OCFS2_UUID: I am node $n_myself."
+	ocf_log info "$OCFS2_UUID: I am node $n_myself."
 
 	case " $n_active " in
 	*" $n_myself "*) ;;
@@ -400,13 +401,13 @@ Filesystem_notify() {
 	entry_prefix=$OCFS2_FS_ROOT/
 	for entry in $OCFS2_FS_ROOT/* ; do
 		n_fs="${entry##$entry_prefix}"
-#		ocf_log debug "$OCFS2_UUID: Found current node $n_fs"
+#		ocf_log info "$OCFS2_UUID: Found current node $n_fs"
 		case " $n_active " in
 		*" $n_fs "*)
 			# Construct a list of nodes which are present
 			# already in the membership.
 			n_exists="$n_exists $n_fs"
-			ocf_log debug "$OCFS2_UUID: Keeping node: $n_fs"
+			ocf_log info "$OCFS2_UUID: Keeping node: $n_fs"
 			;;
 		*)
 			# Node is in the membership currently, but not on our 
@@ -426,21 +427,21 @@ Filesystem_notify() {
 		mkdir -p $OCFS2_FS_ROOT
 	fi
 
-	ocf_log debug "$OCFS2_UUID: Existing node list: $n_exists"
+	ocf_log info "$OCFS2_UUID: Existing node list: $n_exists"
 	
 	# (2)
 	for entry in $n_active ; do
-#		ocf_log debug "$OCFS2_UUID: Expected active node: $entry"
+#		ocf_log info "$OCFS2_UUID: Expected active node: $entry"
 		case " $n_exists " in
 		*" $entry "*)
-			ocf_log debug "$OCFS2_UUID: Already active: $entry"
+			ocf_log info "$OCFS2_UUID: Already active: $entry"
 			;;
 		*)
 			if [ "$n_op" = "stop" ]; then
 				ocf_log warn "$OCFS2_UUID: Adding nodes on stop"
 			fi
 			ocf_log info "$OCFS2_UUID: Activating node: $entry"
-			if ! ln -s $OCFS2_CLUSTER_ROOT/node/$entry  $OCFS2_FS_ROOT/$entry ; then
+			if ! ln -s $OCFS2_CLUSTER_ROOT/node/$entry $OCFS2_FS_ROOT/$entry ; then
 				ocf_log err "$OCFS2_CLUSTER_ROOT/node/$entry: failed to link"
 			fi
 			;;
@@ -614,7 +615,6 @@ ocfs2_init()
 	for f in "$OCF_RESKEY_ocfs2_configfs" /sys/kernel/config/cluster /configfs/cluster ; do
 		if [ -n "$f" -a -d "$f" ]; then
 			OCFS2_CONFIGFS="$f"
-			ocf_log debug "$OCFS2_CONFIGFS: used as configfs root."
 			break
 		fi
 	done
@@ -644,7 +644,6 @@ ocfs2_init()
 			exit $OCF_ERR_GENERIC
 		fi
 	fi
-	ocf_log debug "$DEVICE: using cluster $OCFS2_CLUSTER"
 
 	OCFS2_CLUSTER_ROOT="$OCFS2_CONFIGFS/$OCFS2_CLUSTER"
 	if [ ! -d "$OCFS2_CLUSTER_ROOT" ]; then
@@ -738,6 +737,10 @@ check_util $FSCK
 check_util $FUSER
 check_util $MOUNT
 check_util $UMOUNT
+
+if [ "$OP" != "monitor" ]; then
+	ocf_log info "Running $OP for $DEVICE on $MOUNTPOINT"
+fi
 
 case $OP in
   start)		Filesystem_start
