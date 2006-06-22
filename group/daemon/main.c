@@ -401,7 +401,6 @@ static void copy_group_data(group_t *g, group_data_t *data)
 	strncpy(data->name, g->name, MAX_GROUP_NAME_LEN);
 	data->level = g->level;
 	data->id = g->global_id;
-	data->member_count = g->memb_count;
 
 	if (g->app && g->app->current_event) {
 		event_t *ev = g->app->current_event;
@@ -421,6 +420,7 @@ static void copy_group_data(group_t *g, group_data_t *data)
 		}
 	}
 
+	data->member_count = g->app->node_count;
 	list_for_each_entry(node, &g->app->nodes, list) {
 		data->members[i] = node->nodeid;
 		i++;
