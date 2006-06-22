@@ -1373,7 +1373,7 @@ static int process_app(group_t *g)
 			log_group(g, "set current event to recovery for %d",
 				  ev->nodeid);
 			list_del(&ev->list);
-		} else if (list_empty(&recovery_sets) &&
+		} else if (list_empty(&recovery_sets) && cman_quorate &&
 			   !list_empty(&a->events)) {
 			ev = list_entry(a->events.next, event_t, list);
 			list_del(&ev->list);
