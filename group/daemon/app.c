@@ -10,6 +10,19 @@ struct nodeid {
 	int nodeid;
 };
 
+char *msg_type(int type)
+{
+	switch (type) {
+	case MSG_APP_STOPPED:
+		return "stopped";
+	case MSG_APP_STARTED:
+		return "started";
+	case MSG_APP_INTERNAL:
+		return "internal";
+	}
+	return "unknown";
+}
+
 void msg_bswap_out(msg_t *msg)
 {
 	msg->ms_version[0]	= cpu_to_le32(MSG_VER_MAJOR);
@@ -547,23 +560,8 @@ int queue_app_leave(group_t *g, int nodeid)
 
 int queue_app_message(group_t *g, struct save_msg *save)
 {
-	/*
-	char *m = "unknown";
-
-	switch (save->msg.ms_type) {
-	case MSG_APP_STOPPED:
-		m = "stopped";
-		break;
-	case MSG_APP_STARTED:
-		m = "started";
-		break;
-	case MSG_APP_INTERNAL:
-		m = "internal";
-		break;
-	}
-	log_group(g, "queue message %s from %d", m, save->nodeid);
-	*/
-
+	/* log_group(g, "queue message %s from %d",
+	             msg_type(save->msg.ms_type), save->nodeid); */
 	list_add_tail(&save->list, &g->messages);
 	return 0;
 }
@@ -1092,9 +1090,12 @@ static int process_app_messages(group_t *g)
 
 		ev = a->current_event;
 		if (!ev || ev->id != save->msg.ms_event_id) {
-			log_group(g, "ignore msg from %d id %llx type %d",
-				  save->nodeid, save->msg.ms_event_id,
-				  save->msg.ms_type);
+			if (!save->print_ignore) {
+				log_group(g, "ignore msg from %d id %llx %s",
+				  	  save->nodeid, save->msg.ms_event_id,
+				  	  msg_type(save->msg.ms_type));
+				save->print_ignore = 1;
+			}
 			continue;
 		}
 

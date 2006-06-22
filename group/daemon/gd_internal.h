@@ -201,6 +201,7 @@ struct msg {
 struct save_msg {
 	struct list_head	list;
 	int			nodeid;
+	int			print_ignore;
 	int			msg_len;
 	msg_t			msg;
 	char			*msg_long;
@@ -250,6 +251,7 @@ void msg_bswap_out(msg_t *msg);
 void msg_bswap_in(msg_t *msg);
 struct recovery_set *get_recovery_set(int nodeid);
 void groupd_down(int nodeid);
+char *msg_type(int type);
 
 /* main.c */
 void app_stop(app_t *a);

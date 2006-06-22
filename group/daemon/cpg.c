@@ -51,7 +51,7 @@ static void process_node_down(group_t *g, int nodeid)
 	g->memb_count--;
 	free(node);
 
-	log_group(g, "group del node %d total %d - down",
+	log_group(g, "cpg del node %d total %d - down",
 		  nodeid, g->memb_count);
 
 	/* purge any queued join/leave events from the dead node */
@@ -97,7 +97,7 @@ static void process_node_join(group_t *g, int nodeid)
 			node = new_node(saved_member[i].nodeId);
 			list_add_tail(&node->list, &g->memb);
 			g->memb_count++;
-			log_group(g, "group add node %d total %d - init",
+			log_group(g, "cpg add node %d total %d",
 				  node->nodeid, g->memb_count);
 		}
 
@@ -114,7 +114,7 @@ static void process_node_join(group_t *g, int nodeid)
 		node = new_node(nodeid);
 		list_add_tail(&node->list, &g->memb);
 		g->memb_count++;
-		log_group(g, "group add node %d total %d",
+		log_group(g, "cpg add node %d total %d",
 			  node->nodeid, g->memb_count);
 	}
 
@@ -137,7 +137,7 @@ static void process_node_leave(group_t *g, int nodeid)
 	g->memb_count--;
 	free(node);
 
-	log_group(g, "group del node %d total %d", nodeid, g->memb_count);
+	log_group(g, "cpg del node %d total %d", nodeid, g->memb_count);
 
 	queue_app_leave(g, nodeid);
 }
@@ -146,7 +146,7 @@ void process_groupd_confchg(void)
 {
 	int i, found = 0;
 
-	log_debug("process_groupd_confchg members %d -%d +%d",
+	log_debug("groupd confchg total %d left %d joined %d",
 		  saved_member_count, saved_left_count, saved_joined_count);
 
 	memcpy(&groupd_cpg_member, &saved_member, sizeof(saved_member));
@@ -234,7 +234,8 @@ void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 	}
 
 	/*
-	log_group(g, "deliver from %d len %d", nodeid, data_len);
+	log_group(g, "deliver_cb from %d len %d type %s", nodeid, data_len,
+		  msg_type(msg->ms_type));
 	*/
 
 	save = malloc(sizeof(struct save_msg));
@@ -265,19 +266,19 @@ void process_confchg(void)
 
 	g = find_group_by_handle(saved_handle);
 	if (!g) {
-		log_debug("process_confchg: no group for handle %llx name %s",
+		log_debug("confchg: no group for handle %llx name %s",
 			  saved_handle, saved_name.value);
 		return;
 	}
 
-	log_group(g, "process_confchg members %d -%d +%d",
-		  saved_member_count, saved_left_count, saved_joined_count);
+	log_group(g, "confchg left %d joined %d total %d",
+		  saved_left_count, saved_joined_count, saved_member_count);
 
 	for (i = 0; i < saved_joined_count; i++)
 		process_node_join(g, saved_joined[i].nodeId);
 
 	for (i = 0; i < saved_left_count; i++) {
-		log_group(g, "node %d removed reason %d",
+		log_group(g, "confchg removed node %d reason %d",
 			  saved_left[i].nodeId, saved_left[i].reason);
 
 		if (saved_left[i].reason == CPG_REASON_LEAVE)
@@ -306,8 +307,10 @@ void confchg_cb(cpg_handle_t handle, struct cpg_name *group_name,
 		}
 	}
 
-	log_debug("%d:%s confchg members %d -%d +%d", level, name,
+	/*
+	log_debug("%d:%s confchg_cb total %d left %d joined %d", level, name,
 		  member_list_entries, left_list_entries, joined_list_entries);
+	*/
 
 	saved_handle = handle;
 
