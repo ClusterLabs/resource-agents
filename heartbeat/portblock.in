@@ -16,6 +16,7 @@
 # Initialization:
 
 . @hb_libdir@/ocf-shellfuncs
+. @sysconfdir@/ha.d/shellfuncs
 
 #######################################################################
 HA_VARRUNDIR=@localstatedir@/run/@HB_PKG@
@@ -127,13 +128,7 @@ END
 # pseudo_resource filename operation
 pseudo_resource()
 {
-  file="$HA_VARRUNDIR/$1"
-  case $2 in
-    start|restart|reload)  touch "$file";;
-    stop) rm -f $file;;
-    status) test -f "$file";;
-    *)	exit 3;;
-  esac
+  ha_pseudo_resource $*
 }
 
 #iptables_spec {udp|tcp} portno,portno
