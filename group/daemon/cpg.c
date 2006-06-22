@@ -454,7 +454,13 @@ int do_cpg_join(group_t *g)
 
 	log_group(g, "is cpg client %d name %s handle %llx", ci, name.value, h);
 
+ retry:
 	error = cpg_join(h, &name);
+	if (error == CPG_ERR_TRY_AGAIN) {
+		log_debug("cpg_join error retry");
+		sleep(1);
+		goto retry;
+	}
 	if (error != CPG_OK) {
 		log_group(g, "cpg_join error %d", error);
 		cpg_finalize(h);
@@ -474,11 +480,16 @@ int do_cpg_leave(group_t *g)
 	sprintf(name.value, "%d_%s", g->level, g->name);
 	name.length = strlen(name.value) + 1;
 
+ retry:
 	error = cpg_leave(g->cpg_handle, &name);
+	if (error == CPG_ERR_TRY_AGAIN) {
+		log_debug("cpg_leave error retry");
+		sleep(1);
+		goto retry;
+	}
 	if (error != CPG_OK) {
 		log_group(g, "cpg_leave error %d", error);
-
-		/* FIXME: what do do here? */
+		return error;
 	}
 
 	log_group(g, "cpg_leave ok");
