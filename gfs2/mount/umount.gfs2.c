@@ -99,8 +99,6 @@ int main(int argc, char **argv)
 
 	prog_name = argv[0];
 
-	printf("%s called\n", prog_name);
-
 	if (!strstr(prog_name, "gfs"))
 		die("invalid umount helper name \"%s\"\n", prog_name);
 
