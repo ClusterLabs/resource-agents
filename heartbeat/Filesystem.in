@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.30 2006/06/21 20:43:00 lars Exp $
+# $Id: Filesystem.in,v 1.31 2006/06/22 18:13:53 lars Exp $
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
@@ -95,7 +95,7 @@ check_util () {
 usage() {
 	cat <<-EOT
 	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
-	$Id: Filesystem.in,v 1.30 2006/06/21 20:43:00 lars Exp $
+	$Id: Filesystem.in,v 1.31 2006/06/22 18:13:53 lars Exp $
 	EOT
 }
 
@@ -206,10 +206,98 @@ list_mounts() {
   fi
 }
 
+determine_blockdevice() {
+  if [ $blockdevice == "yes" ]; then
+    return
+  fi
+  
+  # Get the current real device name, if possible.
+  # (specified devname could be -L or -U...)
+  case "$FSTYPE" in
+    nfs|smbfs|cifs) ;;
+    *)	DEVICE=`list_mounts | grep " $MOUNTPOINT " | cut -d' ' -f1`
+    	if [ -b "$DEVICE" ]; then
+      	  blockdevice=yes
+	fi
+	;;
+  esac
+}
+
 # Lists all filesystems potentially mounted under a given path,
 # excluding the path itself.
 list_submounts() {
   list_mounts | grep " $1/" | cut -d' ' -f2 | sort -r
+}
+
+ocfs2_cleanup() {
+	# We'll never see the post-stop notification. We're gone now,
+	# have unmounted, and thus should remove the membership.
+	#
+	# (Do so regardless of whether we were unmounted already,
+	# because the admin might have manually unmounted but not
+	# cleared up the membership directory. Bad admin, no cookie.)
+	#
+	if [ ! -d "$OCFS2_FS_ROOT" ]; then
+		ocf_log info "$OCFS2_FS_ROOT: Filesystem membership already gone."
+	else
+		ocf_log info "$OCFS2_FS_ROOT: Removing membership directory."
+		rm -rf $OCFS2_FS_ROOT/
+	fi
+}
+
+ocfs2_init()
+{
+	# Check & initialize the OCFS2 specific variables.
+	if [ -z "$OCF_RESKEY_CRM_meta_clone_max" ]; then
+		ocf_log err "ocfs2 must be run as a clone."
+		exit $OCF_ERR_GENERIC
+	fi
+
+	if [ $blockdevice = "no" ]; then
+		ocf_log err "$DEVICE: ocfs2 needs a block device instead."
+		exit $OCF_ERR_GENERIC
+	fi
+	
+	for f in "$OCF_RESKEY_ocfs2_configfs" /sys/kernel/config/cluster /configfs/cluster ; do
+		if [ -n "$f" -a -d "$f" ]; then
+			OCFS2_CONFIGFS="$f"
+			break
+		fi
+	done
+	if [ ! -d "$OCFS2_CONFIGFS" ]; then
+		ocf_log err "ocfs2 needs configfs mounted."
+		exit $OCF_ERR_GENERIC
+	fi
+
+	OCFS2_UUID=$(mounted.ocfs2 -d $DEVICE|tail -1|awk '{print $3}'|tr -d -- -|tr a-z A-Z)
+	if [ -z "$OCFS2_UUID" -o "$OCFS2_UUID" = "UUID" ]; then
+		ocf_log err "$DEVICE: Could not determine ocfs2 UUID."
+		exit $OCF_ERR_GENERIC
+	fi
+	
+	if [ -n "$OCF_RESKEY_ocfs2_cluster" ]; then
+		OCFS2_CLUSTER=$(echo $OCF_RESKEY_ocfs2_cluster | tr a-z A-Z)
+	else
+		OCFS2_CLUSTER=$(find "$OCFS2_CONFIGFS" -maxdepth 1 -mindepth 1 -type d -printf %f 2>/dev/null)
+		set -- $OCFS2_CLUSTER
+		local n="$#"
+		if [ $n -gt 1 ]; then
+			ocf_log err "$OCFS2_CLUSTER: several clusters found."
+			exit $OCF_ERR_GENERIC
+		fi
+		if [ $n -eq 0 ]; then
+			ocf_log err "$OCFS2_CONFIGFS: no clusters found."
+			exit $OCF_ERR_GENERIC
+		fi
+	fi
+
+	OCFS2_CLUSTER_ROOT="$OCFS2_CONFIGFS/$OCFS2_CLUSTER"
+	if [ ! -d "$OCFS2_CLUSTER_ROOT" ]; then
+		ocf_log err "$OCFS2_CLUSTER: Cluster doesn't exist. Maybe o2cb hasn't been run?"
+		exit $OCF_ERR_GENERIC
+	fi
+	
+	OCFS2_FS_ROOT=$OCFS2_CLUSTER_ROOT/heartbeat/$OCFS2_UUID
 }
 
 #
@@ -300,10 +388,13 @@ Filesystem_start()
 
         if [ $? -ne 0 ]; then
 	  ocf_log err "Couldn't mount filesystem $DEVICE on $MOUNTPOINT"
+	  if [ "$FSTYPE" = "ocfs2" ]; then
+	  	ocfs2_cleanup
+	  fi
 	  return $OCF_ERR_GENERIC
 	fi
 
-	return $?
+	return 0
 }
 # end of Filesystem_start
 
@@ -449,39 +540,6 @@ Filesystem_notify() {
 	done
 }
 
-ocfs2_cleanup() {
-	# We'll never see the post-stop notification. We're gone now,
-	# have unmounted, and thus should remove the membership.
-	#
-	# (Do so regardless of whether we were unmounted already,
-	# because the admin might have manually unmounted but not
-	# cleared up the membership directory. Bad admin, no cookie.)
-	#
-	if [ ! -d "$OCFS2_FS_ROOT" ]; then
-		ocf_log info "$OCFS2_FS_ROOT: Filesystem membership already gone."
-	else
-		ocf_log info "$OCFS2_FS_ROOT: Removing membership directory."
-		rm -rf $OCFS2_FS_ROOT/
-	fi
-}
-
-determine_blockdevice() {
-  if [ $blockdevice == "yes" ]; then
-    return
-  fi
-  
-  # Get the current real device name, if possible.
-  # (specified devname could be -L or -U...)
-  case "$FSTYPE" in
-    nfs|smbfs|cifs) ;;
-    *)	DEVICE=`list_mounts | grep " $MOUNTPOINT " | cut -d' ' -f1`
-    	if [ -b "$DEVICE" ]; then
-      	  blockdevice=yes
-	fi
-	;;
-  esac
-}
-
 #
 # STOP: Unmount the filesystem
 #
@@ -597,61 +655,6 @@ Filesystem_validate_all()
 #TODO: How to check the $options ?
 
 	return $OCF_SUCCESS
-}
-
-ocfs2_init()
-{
-	# Check & initialize the OCFS2 specific variables.
-	if [ -z "$OCF_RESKEY_CRM_meta_clone_max" ]; then
-		ocf_log err "ocfs2 must be run as a clone."
-		exit $OCF_ERR_GENERIC
-	fi
-
-	if [ $blockdevice = "no" ]; then
-		ocf_log err "$DEVICE: ocfs2 needs a block device instead."
-		exit $OCF_ERR_GENERIC
-	fi
-	
-	for f in "$OCF_RESKEY_ocfs2_configfs" /sys/kernel/config/cluster /configfs/cluster ; do
-		if [ -n "$f" -a -d "$f" ]; then
-			OCFS2_CONFIGFS="$f"
-			break
-		fi
-	done
-	if [ ! -d "$OCFS2_CONFIGFS" ]; then
-		ocf_log err "ocfs2 needs configfs mounted."
-		exit $OCF_ERR_GENERIC
-	fi
-
-	OCFS2_UUID=$(mounted.ocfs2 -d $DEVICE|tail -1|awk '{print $3}'|tr -d -- -|tr a-z A-Z)
-	if [ -z "$OCFS2_UUID" -o "$OCFS2_UUID" = "UUID" ]; then
-		ocf_log err "$DEVICE: Could not determine ocfs2 UUID."
-		exit $OCF_ERR_GENERIC
-	fi
-	
-	if [ -n "$OCF_RESKEY_ocfs2_cluster" ]; then
-		OCFS2_CLUSTER=$(echo $OCF_RESKEY_ocfs2_cluster | tr a-z A-Z)
-	else
-		OCFS2_CLUSTER=$(find "$OCFS2_CONFIGFS" -maxdepth 1 -mindepth 1 -type d -printf %f 2>/dev/null)
-		set -- $OCFS2_CLUSTER
-		local n="$#"
-		if [ $n -gt 1 ]; then
-			ocf_log err "$OCFS2_CLUSTER: several clusters found."
-			exit $OCF_ERR_GENERIC
-		fi
-		if [ $n -eq 0 ]; then
-			ocf_log err "$OCFS2_CONFIGFS: no clusters found."
-			exit $OCF_ERR_GENERIC
-		fi
-	fi
-
-	OCFS2_CLUSTER_ROOT="$OCFS2_CONFIGFS/$OCFS2_CLUSTER"
-	if [ ! -d "$OCFS2_CLUSTER_ROOT" ]; then
-		ocf_log err "$OCFS2_CLUSTER: Cluster doesn't exist. Maybe o2cb hasn't been run?"
-		exit $OCF_ERR_GENERIC
-	fi
-	
-	OCFS2_FS_ROOT=$OCFS2_CLUSTER_ROOT/heartbeat/$OCFS2_UUID
 }
 
 # Check the arguments passed to this script
