@@ -36,7 +36,7 @@ qdiskd: disk.o crc32.o disk_util.o main.o score.o bitmap.o clulog.o \
 
 mkqdisk: disk.o crc32.o disk_util.o \
 	 proc.o mkqdisk.o
- 	gcc -o $@ $^ 
+	gcc -o $@ $^ 
 
 %.o: %.c
 	$(CC) -c -o $@ $^ $(INCLUDES) $(CFLAGS)
