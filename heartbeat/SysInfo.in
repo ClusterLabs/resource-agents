@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-#	$Id: SysInfo.in,v 1.3 2006/06/01 12:42:23 andrew Exp $
+#	$Id: SysInfo.in,v 1.4 2006/06/23 12:31:28 andrew Exp $
 #
 #	SysInfo OCF RA. Does nothing but wait a few seconds, can be
 #	configured to fail occassionally.
@@ -234,13 +234,20 @@ SysInfo_mem_units() {
 	mem=${mem/.*/}
     fi
 
-    # Round to the nearest 50
+    # Round to the next multiple of 50
     memlen=`expr ${#mem} - 2`
     mem_round="${mem:$memlen:2}"
     if [ x$mem_round = x ]; then 
 	:
-    elif [ $mem_round != "00" ]; then 
-	mem=$[mem+50-$mem_round]
+    elif [ $mem_round = "00" ]; then 
+	:
+    elif [ $mem_round -lt "50" ]; then 
+	mem=$[mem+50]
+	mem=$[mem-$mem_round]
+
+    else 
+	mem=$[mem+100]
+	mem=$[mem-$mem_round]
     fi
     echo $mem    
 }
@@ -328,7 +335,7 @@ if [ $# -ne 1 ]; then
 fi
 
 : ${OCF_RESKEY_pidfile:="$HA_VARRUNDIR/rsctmp/SysInfo-${OCF_RESOURCE_INSTANCE}"}
-
+: ${OCF_RESKEY_clone:="0"}
 if [ x != x${OCF_RESKEY_delay} ]; then
     OCF_RESKEY_delay="-d ${OCF_RESKEY_delay}"
 fi
