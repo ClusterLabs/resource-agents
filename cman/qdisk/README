@@ -213,8 +213,16 @@ This tag is a child of the top-level <cluster> tag.
     min_score="3"	  Absolute minimum score to be consider one's
 			  self "alive".  If omitted, or set to 0, the
 			  default function "floor((n+1)/2)" is used.
-    device="/dev/sda1"/>  This is the device the quorum daemon will use.
+    device="/dev/sda1"    This is the device the quorum daemon will use.
 			  This device must be the same on all nodes.
+    label="mylabel"/>     This overrides the device field if present.
+			  If specified, the quorum daemon will read
+			  /proc/partitions and check for qdisk signatures
+			  on every block device found, comparing the label
+			  against the specified label.  This is useful in
+			  configurations where the block device name
+			  differs on a per-node basis.
+
 
 3.2.  The <heuristic> tag
 
@@ -249,3 +257,18 @@ are considered failed.
 * The worst-case for improperly configured quorum heuristics is a race
 to fence where two partitions simultaneously try to kill each other.
 
+3.5. Creating a quorum disk partition
+
+3.5.1. The mkqdisk utility.
+
+The mkqdisk utility can create and list currently configured quorum disks
+visible to the local node.
+
+  mkqdisk -L		List available quorum disks.
+
+  mkqdisk -f <label>	Find a quorum device by the given label.
+
+  mkqdisk -c <device> -l <label>
+			Initialize <device> and name it <label>.  This
+			will destroy all data on the device, so be careful
+			when running this command.

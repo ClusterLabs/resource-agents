@@ -19,26 +19,30 @@ INCLUDES+=-I. -I../lib
 CFLAGS +=-I${ccsincdir} -I${incdir} -I${top_srcdir}/config \
          -Wall -Werror -Wstrict-prototypes -Wshadow -D_GNU_SOURCE -g
 
-TARGET=qdiskd
+TARGET=qdiskd mkqdisk
 
 all: ${TARGET}
 
 copytobin: all
 	cp ${TARGET} ${top_srcdir}/bin
 
-install: qdiskd
+install: ${TARGET}
 	install -d ${sbindir}
-	install qdiskd ${sbindir}
+	install ${TARGET} ${sbindir}
 
 qdiskd: disk.o crc32.o disk_util.o main.o score.o bitmap.o clulog.o \
-	gettid.o ../lib/libcman.a
+	gettid.o proc.o ../lib/libcman.a
 	gcc -o $@ $^ -lpthread -L../lib -L${ccslibdir} -lccs
+
+mkqdisk: disk.o crc32.o disk_util.o \
+	 proc.o mkqdisk.o
+ 	gcc -o $@ $^ 
 
 %.o: %.c
 	$(CC) -c -o $@ $^ $(INCLUDES) $(CFLAGS)
 
 clean:
-	rm -f *.o qdiskd
+	rm -f *.o ${TARGET}
 
 uninstall:
-	${UNINSTALL} qdiskd ${sbindir}
+	${UNINSTALL} ${TARGET} ${sbindir}

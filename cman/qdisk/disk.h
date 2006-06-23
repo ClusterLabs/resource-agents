@@ -238,6 +238,7 @@ typedef struct {
 	int qc_unused;
 	cman_handle_t qc_ch;
 	char *qc_device;
+	char *qc_label;
 	char *qc_status_file;
 } qd_ctx;
 
@@ -258,5 +259,11 @@ int qd_write_status(qd_ctx *ctx, int nid, disk_node_state_t state,
 int qd_read_print_status(int fd, int nid);
 int qd_init(qd_ctx *ctx, cman_handle_t ch, int me);
 void qd_destroy(qd_ctx *ctx);
+
+/* proc.c */
+int find_partitions(const char *partfile, const char *label,
+		    char *devname, size_t devlen, int print);
+int check_device(char *device, char *label, quorum_header_t *qh);
+
 
 #endif

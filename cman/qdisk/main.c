@@ -880,6 +880,12 @@ get_config_data(char *cluster_name, qd_ctx *ctx, struct h_data *h, int maxh,
 		ctx->qc_device = val;
 	}
 
+	/* Get label (overrides device) */
+	snprintf(query, sizeof(query), "/cluster/quorumd/@label");
+	if (ccs_get(ccsfd, query, &val) == 0) {
+		ctx->qc_label = val;
+	}
+
 	/* Get status file */
 	snprintf(query, sizeof(query), "/cluster/quorumd/@status_file");
 	if (ccs_get(ccsfd, query, &val) == 0) {
@@ -917,6 +923,7 @@ main(int argc, char **argv)
 	node_info_t ni[MAX_NODES_DISK];
 	struct h_data h[10];
 	char debug = 0, foreground = 0;
+	char device[128];
 
 	while ((rv = getopt(argc, argv, "fd")) != EOF) {
 		switch (rv) {
@@ -956,6 +963,32 @@ main(int argc, char **argv)
 	if (get_config_data(NULL, &ctx, h, 10, &cfh, debug) < 0) {
 		clulog_and_print(LOG_CRIT, "Configuration failed\n");
 		return -1;
+	}
+
+	if (ctx.qc_label) {
+		if (find_partitions("/proc/partitions",
+				    ctx.qc_label, device,
+				    sizeof(device), 0) != 0) {
+			clulog_and_print(LOG_CRIT, "Unable to match label"
+					 " '%s' to any device\n",
+					 ctx.qc_label);
+			return -1;
+		}
+
+		if (ctx.qc_device)
+			free(ctx.qc_device);
+
+		ctx.qc_device = strdup(device);
+
+		clulog(LOG_INFO, "Quorum Partition: %s Label: %s\n",
+		       ctx.qc_device, ctx.qc_label);
+	} else if (ctx.qc_device) {
+		if (check_device(ctx.qc_device, NULL, NULL) != 0) {
+			clulog(LOG_CRIT,
+			       "Specified partition %s does not have a "
+			       "qdisk label\n", ctx.qc_device);
+			return -1;
+		}
 	}
 
 	if (!foreground)

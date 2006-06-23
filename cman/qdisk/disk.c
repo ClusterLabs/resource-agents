@@ -336,7 +336,8 @@ diskRawReadShadow(int fd, off_t readOffset, char *buf, int len)
 		       "diskRawReadShadow: can't seek to offset %d.\n",
 		       (int) readOffset);
 #endif
-		return ENODATA;
+		errno = ENODATA;
+		return -1;
 	}
 
 	ret = diskRawRead(fd, buf, len);
@@ -345,7 +346,8 @@ diskRawReadShadow(int fd, off_t readOffset, char *buf, int len)
 		fprintf(stderr, "diskRawReadShadow: aligned read "
 		       "returned %d, not %d.\n", ret, len);
 #endif
-		return ENODATA;
+		errno = ENODATA;
+		return -1;
 	}
 
 	/* Decode the header portion so we can run a checksum on it. */
@@ -360,7 +362,8 @@ diskRawReadShadow(int fd, off_t readOffset, char *buf, int len)
 		       "fd = %d offset = %d len = %d\n", fd,
 		       (int) readOffset, len);
 #endif
-		return EPROTO;
+		errno = EPROTO;
+		return -1;
 	}
 
 	return 0;
@@ -655,7 +658,7 @@ qdisk_write(int fd, __off64_t offset, const void *buf, int count)
 
 
 static int
-header_init(int fd, char *clustername)
+header_init(int fd, char *label)
 {
 	quorum_header_t qh;
 
@@ -675,6 +678,9 @@ header_init(int fd, char *clustername)
 		return -1;
 	}
 
+	/* Copy in the cluster/label name */
+	snprintf(qh.qh_cluster, sizeof(qh.qh_cluster)-1, label);
+
 	if ((qh.qh_timestamp = (uint64_t)time(NULL)) <= 0) {
 		perror("time");
 		return -1;
@@ -691,7 +697,7 @@ header_init(int fd, char *clustername)
 
 
 int
-qdisk_init(char *partname, char *clustername)
+qdisk_init(char *partname, char *label)
 {
 	int fd;
 	status_block_t ps, wps;
@@ -710,7 +716,7 @@ qdisk_init(char *partname, char *clustername)
 		return -1;
 	}
 
-	if (header_init(fd, clustername) < 0) {
+	if (header_init(fd, label) < 0) {
 		return -1;
 	}
 
