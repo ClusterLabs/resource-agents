@@ -202,10 +202,17 @@ END
 }
 
 ip_init() {
-	if ocf_is_root ; then : ; else
-                ocf_log err "You must be root."
-                exit $OCF_ERR_PERM
-        fi
+	if
+          case $__OCF_ACTION in
+            start|stop)		ocf_is_root;;
+            *)			true;;
+          esac
+        then
+          : YAY!
+        else
+		ocf_log err "You must be root for $__OCF_ACTION operation."
+		exit $OCF_ERR_PERM
+	fi
 
         #
         # $FINDIF can NOT deal with the condition of empty intermediate parameters.
