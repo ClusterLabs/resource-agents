@@ -1,0 +1,10 @@
+#!/bin/sh
+set -e
+
+base_uid=`/sbin/scsi_id -g -u -s /block/$1 2> /dev/null`
+if echo $1 | grep -q '^.*\/[^0-9]*[0-9]*$' > /dev/null 2>&1 ; then
+	part=`echo $1 | sed 's/^.*\/[^0-9]*\([0-9]*\)$/\1/'`
+	echo GNBD-${part}-${base_uid}
+else
+	echo GNBD--${base_uid}
+fi

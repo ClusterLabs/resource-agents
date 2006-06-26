@@ -101,9 +101,10 @@ int talk_to_server(char *host, uint32_t request, char **buf, void *request_data,
                      ssize_t request_data_size)
 {
   int sock_fd;
-  int n, total;
+  int n, total = 0;
   uint32_t msg;
 
+  *buf = NULL;
   sock_fd = connect_to_server(host, (uint16_t)server_port);
   if (sock_fd < 0){
     printe("cannot connect to server %s (%d) : %s\n", host, sock_fd,
@@ -136,13 +137,14 @@ int talk_to_server(char *host, uint32_t request, char **buf, void *request_data,
     exit(1);
   }
   msg = be32_to_cpu(msg);
+  if (!msg)
+    goto exit;
   *buf = malloc(msg);
   if (*buf == NULL){
     printe("couldn't allocate memory for server reply : %s\n", strerror(errno));
     exit(1);
   }
   memset(*buf, 0, msg);
-  total = 0;
   while(total < msg){
     n = read(sock_fd, *buf + total, msg - total);
     if (n <= 0){
@@ -152,6 +154,7 @@ int talk_to_server(char *host, uint32_t request, char **buf, void *request_data,
     }
     total += n;
   }
+exit:
   close(sock_fd);
   return total;
 }
@@ -170,6 +173,10 @@ int start_gnbd_monitor(int minor_nr, int timeout, char *host)
     return 0;
 
   read_from_server(host, EXTERN_NODENAME_REQ, &serv_node);
+  if (!serv_node) {
+    printe("got empty server name\n");
+    return -1;
+  }
 
   snprintf(cmd, 256, "gnbd_monitor %d %d %s", minor_nr, timeout, serv_node);
   ret = system(cmd);
@@ -569,6 +576,46 @@ void cleanup_device(char *name, int minor, int fd)
   }
 }
 
+
+#define MULTIPATH_SCRIPT "/etc/dev.d/block/multipath.dev"
+void run_multipath_code(int minor_nr, int add)
+{
+  int i_am_parent, fd;
+  char *envp[6];
+  char devpath[32];
+  char devname[32];
+
+  i_am_parent = daemonize();
+  if (i_am_parent < 0){
+    printm("cannot daemonize to exec multipath code : %s\n", strerror(errno));	
+    return;
+  }
+  if (i_am_parent)
+    return;
+  if ((fd = open("/dev/null", O_RDWR)) < 0) {
+    printm("cannot open /dev/null in daemon : %s\n", strerror(errno));
+    exit(1);
+  }
+  dup2(fd, 0);
+  dup2(fd, 1);
+  dup2(fd, 2);
+  if (fd > 2)
+    close(fd);
+  envp[0] = "HOME=/";
+  envp[1] = "PATH=/sbin:/bin:/usr/sbin:/usr/bin";
+  envp[2] = (add)? "ACTION=add" : "ACTION=remove";
+  snprintf(devpath, 31, "DEVPATH=/block/gnbd%d", minor_nr);
+  devpath[31] = '\0';
+  envp[3] = devpath;
+  snprintf(devname, 31, "DEVNAME=/dev/gnbd%d", minor_nr);
+  devname[31] = '\0';
+  envp[4] = devname;
+  envp[5] = NULL;
+  execle(MULTIPATH_SCRIPT, MULTIPATH_SCRIPT, NULL, envp);
+  log_verbose("cannot exec %s : %s", MULTIPATH_SCRIPT, strerror(errno));
+  exit(1);
+}
+
 void remove_gnbd(char *name, int minor, int pid)
 {
   int fd;
@@ -595,6 +642,7 @@ void remove_gnbd(char *name, int minor, int pid)
   if (pid > 0)
   	kill(pid, SIGKILL);
   cleanup_device(name, minor, fd);
+  run_multipath_code(minor, 0);
   close(fd);
 }
 
@@ -980,6 +1028,8 @@ void setclients(char *host)
   int size;
   int minor_nr;
   size = read_from_server(host, EXTERN_NAMES_REQ, &buf);
+  if (!size)
+    return;
   ptr = (import_info_t *)buf;
   while ((char *)ptr < buf + size){
     if (ptr->timeout != 0 && is_clustered == 0){
@@ -992,6 +1042,7 @@ void setclients(char *host)
         exit(1);
       if (start_receiver(minor_nr))
         exit(1);
+      run_multipath_code(minor_nr, 1);
     }
     ptr++;
   }
@@ -1003,10 +1054,12 @@ void get_serv_list(char *host)
   import_info_t *ptr;
   int size;
   size = read_from_server(host, EXTERN_NAMES_REQ, &buf);
-  ptr = (import_info_t *)buf;
-  while ((char *)ptr < buf + size){
-    printf("%s\n", ptr->name);
-    ptr++;
+  if (size) {
+    ptr = (import_info_t *)buf;
+    while ((char *)ptr < buf + size){
+      printf("%s\n", ptr->name);
+      ptr++;
+    }
   }
   printf("\n");
   free(buf);
@@ -1018,10 +1071,12 @@ void get_banned_list(char *host)
   node_req_t *ptr;
   int size;
   size = read_from_server(host, EXTERN_LIST_BANNED_REQ, &buf);
-  ptr = (node_req_t *)buf;
-  while ((char *)ptr < buf + size){
-    printf("%s\n", ptr->node_name);
-    ptr++;
+  if (size) {
+    ptr = (node_req_t *)buf;
+    while ((char *)ptr < buf + size){
+      printf("%s\n", ptr->node_name);
+      ptr++;
+    }
   }
   printf("\n");
   free(buf);
@@ -1067,7 +1122,7 @@ void get_uid(char *name){
   sscanf(name, "/block/gnbd%d", &minor_nr);
   list_foreach(item, &gnbd_list){
     gnbd = list_entry(item, gnbd_info_t, list);
-    if (minor_nr >= 0 && minor_nr == gnbd->minor_nr);
+    if (minor_nr >= 0 && minor_nr == gnbd->minor_nr)
       break;
     if (strncmp(gnbd->name, name, 32) == 0)
       break;
@@ -1080,7 +1135,8 @@ void get_uid(char *name){
   strncpy(req.name, gnbd->name, 32);
   req.name[31] = 0;
   talk_to_server(gnbd->server_name, EXTERN_UID_REQ, &uid, &req, sizeof(req));
-  printf("%s\n", uid);
+  if (uid)
+  	printf("%s\n", uid);
   free(uid);
 }
   

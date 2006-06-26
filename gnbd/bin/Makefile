@@ -22,7 +22,8 @@ SBINPROGS= \
 	gnbd_recvd \
 	gnbd_serv \
 	gnbd_monitor \
-	gnbd_clusterd
+	gnbd_clusterd \
+	gnbd_get_uid
 
 include ${top_srcdir}/make/defines.mk
 

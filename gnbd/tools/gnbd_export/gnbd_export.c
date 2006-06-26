@@ -40,7 +40,7 @@
 #define TIMEOUT_DEFAULT 60
 
 #define MAN_MSG "Please see man page for details.\n"
-#define DEFAULT_GETUID "/sbin/scsi_id -g -u -s /block/%n"
+#define DEFAULT_GETUID "/sbin/gnbd_get_uid %n"
 
 int start_gnbd_clusterd(void)
 {
@@ -313,7 +313,8 @@ int list(void){
       printf("   timeout : %u\n", info->timeout);
     else
       printf("   timeout : no\n");
-    printf("       uid : %s\n", info->uid);
+    if (info->uid[0] != '\0')
+      printf("       uid : %s\n", info->uid);
     printf("\n");
     info++;
   }
@@ -341,54 +342,102 @@ void get_dev(char *path, int *major, int *minor)
   *minor = minor(stat_buf.st_rdev);
 }
 
+char *get_sysfs_info(char *path) {
+  int fd;
+  int bytes;
+  int count = 0;
+
+  if ((fd = open(path, O_RDONLY)) < 0) {
+    printe("cannot open %s : %s\n", path, strerror(errno));
+    exit(1);
+  }
+  while (count < 4096) {
+    bytes = read(fd, &sysfs_buf[count], 4096 - count);
+    if (bytes < 0 && errno != EINTR) {
+      printe("cannot read from %s : %s\n", path, strerror(errno));
+      exit(1);
+    }
+    if (bytes == 0)
+      break;
+    count += bytes;
+  }
+  if (sysfs_buf[count - 1] == '\n' || count == 4096)
+    sysfs_buf[count - 1] = '\0';
+  else
+    sysfs_buf[count] = '\0';
+  close(fd);
+  return sysfs_buf;
+}
+    
 #define SYSFS_PATH_MAX 64
 #define SYSFS_PATH_BASE "/sys/block"
 #define SYSFS_PATH_BASE_SIZE 10
-char *get_sysfs_name(char *dev_t){
+int get_sysfs_majmin(char *dev, int *major, int *minor)
+{
   char path[SYSFS_PATH_MAX];
+  char *buf;
+
+  if (snprintf(path, SYSFS_PATH_MAX, "%s/%s/dev", SYSFS_PATH_BASE, dev) >=
+      SYSFS_PATH_MAX) {
+    printe("sysfs path name '%s/%s/dev' too long\n", SYSFS_PATH_BASE, dev);
+    exit(1);
+  }
+  buf = get_sysfs_info(path);
+  if (sscanf(buf, "%u:%u", major, minor) != 2){
+    printe("cannot parse %s entry '%s'\n", path, buf);
+    exit(1);
+  }
+  return 0;
+}
+
+int get_sysfs_range(char *dev, int *range)
+{
+  char path[SYSFS_PATH_MAX];
+  char *buf;
+
+  if (snprintf(path, SYSFS_PATH_MAX, "%s/%s/range", SYSFS_PATH_BASE, dev) >=
+      SYSFS_PATH_MAX) {
+    printe("sysfs path name '%s/%s/range' too long\n", SYSFS_PATH_BASE, dev);
+    exit(1);
+  }
+  buf = get_sysfs_info(path);
+  if (sscanf(buf, "%u", range) != 1){
+    printe("cannot parse %s etnry '%s'\n", path, buf);
+    exit(1);
+  }
+  return 0;
+}
+
+char *get_sysfs_name(int major, int minor){
   char *name = NULL;
   DIR *dir;
   struct dirent *dp;
 
-  memset(path, 0, sizeof(path));
-  strcpy(path, SYSFS_PATH_BASE);
-  dir = opendir(path);
+  dir = opendir(SYSFS_PATH_BASE);
   if (!dir) {
-    printe("cannot open /sys/block to find the device name for %s : %s\n",
-           dev_t, strerror(errno));
+    printe("cannot open %s to find the device name for %d:%d : %s\n",
+           SYSFS_PATH_BASE, major, minor, strerror(errno));
     exit(1);
   }
   while ((dp = readdir(dir))) {
-    int fd;
-    int bytes;
-    int count = 0;
-
+    int dev_major, dev_minor, dev_range;
     if (!strcmp(dp->d_name, ".") || !strcmp(dp->d_name, ".."))
       continue;
-    snprintf(path + SYSFS_PATH_BASE_SIZE,
-	     SYSFS_PATH_MAX - SYSFS_PATH_BASE_SIZE - 1, "/%s/dev", dp->d_name);
-    fd = open(path, O_RDONLY);
-    if (fd < 0) {
-      printe("cannot open %s to find device name for %s : %s\n", path, dev_t,
-             strerror(errno));
-      exit(1);
-    }
-    while (count < 4096){
-      bytes = read(fd, &sysfs_buf[count], 4096 - count);
-      if (bytes < 0 && errno != EINTR) {
-        printe("cannot read from %s: %s\n", path, strerror(errno));
-        exit(1);
+    get_sysfs_majmin(dp->d_name, &dev_major, &dev_minor);
+    get_sysfs_range(dp->d_name, &dev_range);
+    if (major == dev_major && minor >= dev_minor &&
+        minor < dev_minor + dev_range){
+      if (minor == dev_minor)
+        name = strdup(dp->d_name);
+      else {
+        name = malloc(SYSFS_PATH_MAX);
+        if (!name){
+          printe("cannot allocate memory for sysfs name : %s\n",
+                 strerror(errno));
+          exit(1);
+        }
+        sprintf(name, "%s/%s%d", dp->d_name, dp->d_name, minor - dev_minor);
       }
-      if (bytes == 0)
-         break;
-      count += bytes;
-    }
-    if (count == 4096)
-      sysfs_buf[4095] = 0;
-    else
-      sysfs_buf[count] = 0;
-    if (strcmp(dev_t, sysfs_buf) == 0){
-      name = strdup(dp->d_name);
       break;
     }
   }
@@ -397,7 +446,7 @@ char *get_sysfs_name(char *dev_t){
     exit(1);
   }
   if (!name) {
-    printe("cannot find sysfs block device %s\n", dev_t);
+    printe("cannot find sysfs block device %d:%d\n", major, minor);
     exit(1);
   }
   return name;
@@ -569,8 +618,7 @@ char *get_uid(char *format, char *path)
         if (!name){
           if (major == -1)
             get_dev(path, &major, &minor);
-          sprintf(temp, "%d:%d\n", major, minor);
-          name = get_sysfs_name(temp);
+          name = get_sysfs_name(major, minor);
         }
         len = strlen(name);
         if (len > SPACE_LEFT){
@@ -627,7 +675,7 @@ int usage(void){
 "  -u <uid>         manually set the Unique ID of a device (used with -e)\n"
 "  -U[command]      command to get the Unique ID of a device (used with -e)\n"
 "                   If no command is specificed, the default is\n"
-"                   \"/sbin/scsi_id -g -u -s /block/%%n\"\n"
+"                   \"/sbin/gnbd_get_uid %%n\"\n"
 "  -v               verbose output (useful with -l)\n"
 "  -V               version information\n");
   return 0;

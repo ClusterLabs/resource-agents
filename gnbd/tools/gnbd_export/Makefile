@@ -33,8 +33,9 @@ all: ${TARGET}
 gnbd_export: ${SOURCE}
 	${CC} ${CFLAGS} ${LDFLAGS} ${SOURCE} ${LOADLIBES} ${LDLIBS} -o $@
 
-copytobin: all
+copytobin: all gnbd_get_uid
 	cp ${TARGET} ${top_srcdir}/bin
+	cp gnbd_get_uid ${top_srcdir}/bin
 
 clean:
 	rm -f *.o ${TARGET}
