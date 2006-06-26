@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.531 $) dnl cvs revision
+AC_REVISION($Revision: 1.532 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -2370,7 +2370,11 @@ AC_SUBST(MGMT_ENABLED)
 AM_CONDITIONAL(MGMT_BUILD, test "x${enable_mgmt}" != "xno")
 if test "x${enable_mgmt}" != "xno"; then
      AC_DEFINE_UNQUOTED(MGMT_ENABLED, 1, Define to 1 if the mgmt is enabled.)
+     MGMT_RUNTIME_REQUIRES="libglade2, python-gtk"
+else
+     MGMT_RUNTIME_REQUIRES=
 fi
+AC_SUBST(MGMT_RUNTIME_REQUIRES)
    
 AC_MSG_NOTICE([whether to enable the management tool... ${enable_mgmt}])
 
