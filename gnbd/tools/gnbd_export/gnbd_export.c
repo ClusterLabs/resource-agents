@@ -23,8 +23,7 @@
 #include <sys/un.h>
 #include <sys/wait.h>
 #include <arpa/inet.h>
-#include <sysfs/dlist.h>
-#include <sysfs/libsysfs.h>
+#include <dirent.h>
 #include <ctype.h>
 #define _GNU_SOURCE
 #include <getopt.h>
@@ -342,54 +341,65 @@ void get_dev(char *path, int *major, int *minor)
   *minor = minor(stat_buf.st_rdev);
 }
 
-
+#define SYSFS_PATH_MAX 64
+#define SYSFS_PATH_BASE "/sys/block"
+#define SYSFS_PATH_BASE_SIZE 10
 char *get_sysfs_name(char *dev_t){
-  unsigned char path[SYSFS_PATH_MAX], *name;
-  struct sysfs_directory *dir, *devdir;
-  struct dlist *devlist;
+  char path[SYSFS_PATH_MAX];
+  char *name = NULL;
+  DIR *dir;
+  struct dirent *dp;
 
-  name = NULL;
-  if (sysfs_get_mnt_path(path, SYSFS_PATH_MAX) < 0){
-    printe("cannot get sysfs mount path for get_uid command : %s\n",
-           strerror(errno));
-    exit(1);
-  }
-  strcat(path, "/block");
-  dir = sysfs_open_directory(path);
+  memset(path, 0, sizeof(path));
+  strcpy(path, SYSFS_PATH_BASE);
+  dir = opendir(path);
   if (!dir) {
-    printe("cannot open sysfs directory '%s' for get_uid command : %s\n",
-           path, strerror(errno));
+    printe("cannot open /sys/block to find the device name for %s : %s\n",
+           dev_t, strerror(errno));
     exit(1);
   }
-  devlist = sysfs_get_dir_subdirs(dir);
-  if (!devlist){
-    printe("cannot read sysfs subdirs for get_uid command : %s\n",
-           strerror(errno));
-    exit(1);
-  }
-  dlist_for_each_data(devlist, devdir, struct sysfs_directory) {
-    struct sysfs_attribute *attr;
-    attr = sysfs_get_directory_attribute(devdir, "dev");
-    if (!attr){
-      printe("cannot get 'dev' sysfs attribute for get_uid command : %s\n",
+  while ((dp = readdir(dir))) {
+    int fd;
+    int bytes;
+    int count = 0;
+
+    if (!strcmp(dp->d_name, ".") || !strcmp(dp->d_name, ".."))
+      continue;
+    snprintf(path + SYSFS_PATH_BASE_SIZE,
+	     SYSFS_PATH_MAX - SYSFS_PATH_BASE_SIZE - 1, "/%s/dev", dp->d_name);
+    fd = open(path, O_RDONLY);
+    if (fd < 0) {
+      printe("cannot open %s to find device name for %s : %s\n", path, dev_t,
              strerror(errno));
       exit(1);
     }
-    if (sysfs_read_attribute(attr) < 0){
-      printe("cannot get sysfs attribute data for get_uid command : %s\n",
-             strerror(errno));
-      exit(1);
+    while (count < 4096){
+      bytes = read(fd, &sysfs_buf[count], 4096 - count);
+      if (bytes < 0 && errno != EINTR) {
+        printe("cannot read from %s: %s\n", path, strerror(errno));
+        exit(1);
+      }
+      if (bytes == 0)
+         break;
+      count += bytes;
     }
-    if (strcmp(dev_t, attr->value) == 0){
-      name = strdup(devdir->name);
+    if (count == 4096)
+      sysfs_buf[4095] = 0;
+    else
+      sysfs_buf[count] = 0;
+    if (strcmp(dev_t, sysfs_buf) == 0){
+      name = strdup(dp->d_name);
       break;
     }
   }
-  if (!name){
-    printe("cannot find a sysfs block device for get_uid command\n");
+  if (closedir(dir) < 0){
+    printe("cannot close dir %s : %s\n", SYSFS_PATH_BASE, strerror(errno));
     exit(1);
   }
-  sysfs_close_directory(dir);
+  if (!name) {
+    printe("cannot find sysfs block device %s\n", dev_t);
+    exit(1);
+  }
   return name;
 }
 
