@@ -182,13 +182,14 @@ static void nolock_sync_lvb(lm_lock_t *lock, char *lvb)
 static int nolock_plock_get(lm_lockspace_t *lockspace, struct lm_lockname *name,
 			    struct file *file, struct file_lock *fl)
 {
-	struct file_lock *tmp;
+	struct file_lock tmp;
+	int ret;
 
 	lock_kernel();
-	tmp = posix_test_lock(file, fl);
+	ret = posix_test_lock(file, fl, &tmp);
 	fl->fl_type = F_UNLCK;
-	if (tmp)
-		memcpy(fl, tmp, sizeof(struct file_lock));
+	if (ret)
+		memcpy(fl, &tmp, sizeof(struct file_lock));
 	unlock_kernel();
 
 	return 0;
