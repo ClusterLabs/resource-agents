@@ -120,7 +120,9 @@ static int cluster_core_ctr(struct dirty_log *log, struct dm_target *ti,
  *
  * argv contains:
  *   <disk> <region_size> <uuid> [[no]sync] "block_on_error"
- *--------------------------------------------------------------*/
+ *
+ * Returns: 0 on success, -XXX on failure
+ */
 static int cluster_disk_ctr(struct dirty_log *log, struct dm_target *ti,
 			    unsigned int argc, char **argv)
 {
@@ -137,29 +139,71 @@ static int cluster_disk_ctr(struct dirty_log *log, struct dm_target *ti,
 	return cluster_ctr(log, ti, argc, argv, 1);
 }
 
+/*
+ * cluster_dtr
+ * @log
+ */
 static void cluster_dtr(struct dirty_log *log)
 {
+	int r;
 	struct log_c *lc = (struct log_c *)log->context;
 
-	/* FIXME: Send shutdown to server */
+	r = dm_clog_consult_server(lc->uuid, DM_CLOG_DTR,
+				   NULL, 0,
+				   NULL, NULL);
+
+	/* FIXME: What do we do on failure? */
 	kfree(lc);
 
 	return;
 }
 
+/*
+ * cluster_presuspend
+ * @log
+ */
 static int cluster_presuspend(struct dirty_log *log)
 {
-	return -ENOSYS;
+	int r;
+	struct log_c *lc = (struct log_c *)log->context;
+
+	r = dm_clog_consult_server(lc->uuid, DM_CLOG_PRESUSPEND,
+				   NULL, 0,
+				   NULL, NULL);
+
+	return (r > 0) ? -r : r;
 }
 
+/*
+ * cluster_postsuspend
+ * @log
+ */
 static int cluster_postsuspend(struct dirty_log *log)
 {
-	return -ENOSYS;
+	int r;
+	struct log_c *lc = (struct log_c *)log->context;
+
+	r = dm_clog_consult_server(lc->uuid, DM_CLOG_POSTSUSPEND,
+				   NULL, 0,
+				   NULL, NULL);
+
+	return (r > 0) ? -r : r;
 }
 
+/*
+ * cluster_resume
+ * @log
+ */
 static int cluster_resume(struct dirty_log *log)
 {
-	return -ENOSYS;
+	int r;
+	struct log_c *lc = (struct log_c *)log->context;
+
+	r = dm_clog_consult_server(lc->uuid, DM_CLOG_RESUME,
+				   NULL, 0,
+				   NULL, NULL);
+
+	return (r > 0) ? -r : r;
 }
 
 /*
@@ -177,14 +221,55 @@ static uint32_t cluster_get_region_size(struct dirty_log *log)
 	return lc->region_size;
 }
 
+/*
+ * cluster_is_clean
+ * @log
+ * @region
+ *
+ * Check whether a region is clean.  If there is any sort of
+ * failure when consulting the server, we return not clean.
+ *
+ * Returns: 1 if clean, 0 otherwise
+ */
 static int cluster_is_clean(struct dirty_log *log, region_t region)
 {
-	return 0; /* not clean for now */
+	int r;
+	int is_clean;
+	int rdata_size;
+	struct log_c *lc = (struct log_c *)log->context;
+
+	rdata_size = sizeof(is_clean);
+	r = dm_clog_consult_server(lc->uuid, DM_CLOG_IS_CLEAN,
+				   (char *)&region, sizeof(region),
+				   (char *)&is_clean, &rdata_size);
+
+	return (r) ? 0 : is_clean;
 }
 
+/*
+ * cluster_is_remote_recovering
+ * @log
+ * @region
+ *
+ * Check whether a region is being resync'ed on a remote node.
+ * If there is any sort of failure when consulting the server,
+ * we assume that the region is being remotely recovered.
+ *
+ * Returns: 1 if remote recovering, 0 otherwise
+ */
 static int cluster_is_remote_recovering(struct dirty_log *log, region_t region)
 {
-	return 1; /* yes for now */
+	int r;
+	int is_recovering;
+	int rdata_size;
+	struct log_c *lc = (struct log_c *)log->context;
+
+	rdata_size = sizeof(is_recovering);
+	r = dm_clog_consult_server(lc->uuid, DM_CLOG_IS_REMOTE_RECOVERING,
+				   (char *)&region, sizeof(region),
+				   (char *)&is_recovering, &rdata_size);
+
+	return (r) ? 1 : is_recovering;
 }
 
 /*
@@ -193,14 +278,28 @@ static int cluster_is_remote_recovering(struct dirty_log *log, region_t region)
  * @region
  * @can_block: if set, return immediately
  *
- * Returns: 1 if in-sync, 0 if not-in-sync, < 0 on error
+ * Check if the region is in-sync.  If there is any sort
+ * of failure when consulting the server, we assume that
+ * the region is not in sync.
+ *
+ * Returns: 1 if in-sync, 0 if not-in-sync, -EWOULDBLOCK
  */
 static int cluster_in_sync(struct dirty_log *log, region_t region, int can_block)
 {
+	int r;
+	int in_sync;
+	int rdata_size;
+	struct log_c *lc = (struct log_c *)log->context;
+
 	if (!can_block)
 		return -EWOULDBLOCK;
 
-	return 0; /* not in sync for now */
+	rdata_size = sizeof(in_sync);
+	r = dm_clog_consult_server(lc->uuid, DM_CLOG_IN_SYNC,
+				   (char *)&region, sizeof(region),
+				   (char *)&in_sync, &rdata_size);
+
+	return (r) ? 0 : in_sync;
 }
 
 /*
@@ -245,7 +344,7 @@ static int cluster_flush(struct dirty_log *log)
 		r = dm_clog_consult_server(lc->uuid, fe->type,
 					   (char *)&fe->region,
 					   sizeof(fe->region),
-					   NULL, 0);
+					   NULL, NULL);
 		if (r) {
 			r = (r > 0) ? -r : r;
 			goto fail;
@@ -253,7 +352,7 @@ static int cluster_flush(struct dirty_log *log)
 	}
 
 	r = dm_clog_consult_server(lc->uuid, DM_CLOG_FLUSH,
-				   NULL, 0, NULL, 0);
+				   NULL, 0, NULL, NULL);
 	if (r)
 		r = (r > 0) ? -r : r;
 
@@ -327,26 +426,115 @@ static void cluster_clear_region(struct dirty_log *log, region_t region)
 	return;
 }
 
+/*
+ * cluster_get_resync_work
+ * @log
+ * @region
+ *
+ * Get a region that needs recovery.  It is valid to return
+ * an error for this function.
+ *
+ * Returns: 1 if region filled, 0 if no work, <0 on error
+ */
 static int cluster_get_resync_work(struct dirty_log *log, region_t *region)
 {
-	return -ENOSYS;
+	int r;
+	int rdata_size;
+	struct log_c *lc = (struct log_c *)log->context;
+	struct { int i; region_t r; } pkg;
+
+	rdata_size = sizeof(pkg);
+	r = dm_clog_consult_server(lc->uuid, DM_CLOG_GET_RESYNC_WORK,
+				   NULL, 0,
+				   &pkg, &rdata_size);
+
+	r = (r > 0) ? -r : r;
+
+	*region = pkg.r;
+
+	return (r) ? r : pkg.i;
 }
 
+/*
+ * cluster_set_region_sync
+ * @log
+ * @region
+ * @in_sync
+ *
+ * Set the sync status of a given region.  This function
+ * must not fail.
+ */
 static void cluster_set_region_sync(struct dirty_log *log,
 				    region_t region, int in_sync)
 {
+	int r;
+	struct log_c *lc = (struct log_c *)log->context;
+	struct { region_t r; int i; } pkg;
+
+	pkg.r = region;
+	pkg.i = in_sync;
+
+	r = dm_clog_consult_server(lc->uuid, DM_CLOG_SET_REGION_SYNC,
+				   &pkg, sizeof(pkg),
+				   NULL, NULL);
+
+	/* FIXME: It would be nice to be able to report failures */
 	return;
 }
 
+/*
+ * cluster_get_sync_count
+ * @log
+ *
+ * If there is any sort of failure when consulting the server,
+ * we assume that the sync count is zero.
+ *
+ * Returns: sync count on success, 0 on failure
+ */
 static region_t cluster_get_sync_count(struct dirty_log *log)
 {
-	return 0;
+	int r;
+	int rdata_size;
+	region_t sync_count;
+	struct log_c *lc = (struct log_c *)log->context;
+
+	rdata_size = sizeof(sync_count);
+	r = dm_clog_consult_server(lc->uuid, DM_CLOG_GET_SYNC_COUNT,
+				   NULL, 0,
+				   (char *)&sync_count, &rdata_size);
+
+	return (r) ? 0 : sync_count;
 }
 
+/*
+ * cluster_status
+ * @log
+ * @status_type
+ * @result
+ * @maxlen
+ *
+ * Returns: amount of space consumed
+ */
 static int cluster_status(struct dirty_log *log, status_type_t status_type,
 			  char *result, unsigned int maxlen)
 {
-	return -ENOSYS;
+	int r;
+	unsigned int sz = maxlen;
+	struct log_c *lc = (struct log_c *)log->context;
+
+	switch(status) {
+	case STATUSTYPE_INFO:
+		r = dm_clog_consult_server(lc->uuid, DM_CLOG_STATUS_INFO,
+					   NULL, 0,
+					   result, &sz);
+		break;
+	case STATUSTYPE_TABLE:
+		r = dm_clog_consult_server(lc->uuid, DM_CLOG_STATUS_INFO,
+					   NULL, 0,
+					   result, &sz);
+		break;
+	}
+	return (r) ? 0: sz;
 }
 
 status int cluster_get_failure_response(struct dirty_log *log)
