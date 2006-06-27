@@ -19,7 +19,8 @@ include ${top_srcdir}/make/defines.mk
 
 CFLAGS+= -fPIC -g -I${ccsincdir} -I${incdir} -I${top_srcdir}/config \
 	-DCMAN_RELEASE_NAME=\"${RELEASE}\" -I../lib -DDEBUG \
-	-I ${AISDIR}/${AISTAG}/exec -L ${AISDIR}/${AISTAG}/exec
+	-I ${AISDIR}/${AISTAG}/exec -L ${AISDIR}/${AISTAG}/exec \
+	-I ${AISDIR}/${AISTAG}/include
 
 TARGET=service_cman.lcrso
 CMAN_OBJS=daemon.o config.o logging.o ais.o commands.o barrier.o cmanccs.o
