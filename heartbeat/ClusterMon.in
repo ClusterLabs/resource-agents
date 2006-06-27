@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: ClusterMon.in,v 1.10 2006/03/10 04:14:20 xunsun Exp $
+#	$Id: ClusterMon.in,v 1.11 2006/06/27 17:03:07 lars Exp $
 #
 #	ClusterMon OCF RA. Does nothing but wait a few seconds, can be
 #	configured to fail occassionally.
@@ -130,9 +130,9 @@ ClusterMon_start() {
     cmd_prefix=""
     cmd_suffix=""
     if [ ! -z $OCF_RESKEY_user ]; then
-	su - $OCF_RESKEY_user -c "@hb_libdir@/crm_mon -p $OCF_RESKEY_pidfile -d -i $OCF_RESKEY_update $OCF_RESKEY_extra_options -h $OCF_RESKEY_htmlfile"
+	su - $OCF_RESKEY_user -c "@sbindir@/crm_mon -p $OCF_RESKEY_pidfile -d -i $OCF_RESKEY_update $OCF_RESKEY_extra_options -h $OCF_RESKEY_htmlfile"
     else
-	@hb_libdir@/crm_mon -p $OCF_RESKEY_pidfile -d -i $OCF_RESKEY_update $OCF_RESKEY_extra_options -h $OCF_RESKEY_htmlfile
+	@sbindir@/crm_mon -p $OCF_RESKEY_pidfile -d -i $OCF_RESKEY_update $OCF_RESKEY_extra_options -h $OCF_RESKEY_htmlfile
     fi
     ClusterMon_exit $?
 }
