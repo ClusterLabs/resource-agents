@@ -35,7 +35,6 @@
 static char *prog_name;
 static int operation;
 static int opt_ind;
-static char *ls_name;
 static int verbose;
 
 static void print_usage(void)
@@ -265,14 +264,14 @@ int do_ls(int argc, char **argv)
 		}
 		printf("]\n");
 	}
-
+	return 0;
 }
 
 static int connect_groupd(void)
 {
 	struct sockaddr_un sun;
 	socklen_t addrlen;
-	int i, rv, fd;
+	int rv, fd;
 
 	fd = socket(PF_UNIX, SOCK_STREAM, 0);
 	if (fd < 0)
@@ -295,7 +294,7 @@ static int connect_groupd(void)
 int do_dump(int argc, char **argv)
 {
 	char buf[DUMP_SIZE];
-	int i, rv, fd = connect_groupd();
+	int rv, fd = connect_groupd();
 
 	rv = write(fd, "dump", 4);
 	if (rv != 4)
