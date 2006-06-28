@@ -48,6 +48,7 @@ clean:
 	rm -f *.o groupd
 
 install: groupd
+	install -d ${sbindir}
 	install groupd ${sbindir}
 
 uninstall:
