@@ -525,9 +525,44 @@ static void add_event_nodes(group_t *g, event_t *ev)
 	}
 }
 
+event_t *search_event(group_t *g, int nodeid)
+{
+	event_t *ev;
+
+	list_for_each_entry(ev, &g->app->events, list) {
+		if (ev->nodeid == nodeid)
+			return ev;
+	}
+	return NULL;
+}
+
+void dump_queued_events(group_t *g)
+{
+	event_t *ev;
+
+	list_for_each_entry(ev, &g->app->events, list) {
+		log_group(g, "    queued ev %d %llx %s",
+			  ev->nodeid, ev->id, ev_state_str(ev));
+	}
+}
+
 int queue_app_join(group_t *g, int nodeid)
 {
 	event_t *ev;
+
+	/* sanity check */
+	ev = g->app->current_event;
+	if (ev && ev->nodeid == nodeid) {
+		log_group(g, "queue_app_join: current event %d %llx %s",
+			  nodeid, ev->id, ev_state_str(ev));
+	}
+
+	/* sanity check */
+	ev = search_event(g, nodeid);
+	if (ev) {
+		log_group(g, "queue_app_join: queued event %d %llx %s",
+			  nodeid, ev->id, ev_state_str(ev));
+	}
 
 	ev = create_event(g);
 	ev->nodeid = nodeid;
@@ -535,6 +570,7 @@ int queue_app_join(group_t *g, int nodeid)
 	ev->id = make_event_id(g, EST_JOIN_BEGIN, nodeid);
 
 	log_group(g, "queue join event for nodeid %d", nodeid);
+	dump_queued_events(g);
 
 	if (nodeid == our_nodeid)
 		add_event_nodes(g, ev);
@@ -547,12 +583,27 @@ int queue_app_leave(group_t *g, int nodeid)
 {
 	event_t *ev;
 
+	/* sanity check */
+	ev = g->app->current_event;
+	if (ev && ev->nodeid == nodeid) {
+		log_group(g, "queue_app_leave: current event %d %llx %s",
+			  nodeid, ev->id, ev_state_str(ev));
+	}
+
+	/* sanity check */
+	ev = search_event(g, nodeid);
+	if (ev) {
+		log_group(g, "queue_app_leave: queued event %d %llx %s",
+			  nodeid, ev->id, ev_state_str(ev));
+	}
+
 	ev = create_event(g);
 	ev->nodeid = nodeid;
 	ev->state = EST_LEAVE_BEGIN;
 	ev->id = make_event_id(g, EST_LEAVE_BEGIN, nodeid);
 
 	log_group(g, "queue leave event for nodeid %d", nodeid);
+	dump_queued_events(g);
 
 	list_add_tail(&ev->list, &g->app->events);
 	return 0;
@@ -845,8 +896,10 @@ static int process_current_event(group_t *g)
 	case EST_JOIN_ALL_STARTED:
 		app_finish(a);
 
-		if (is_our_join(ev))
+		if (is_our_join(ev)) {
 			purge_messages(g);
+			g->joining = 0;
+		}
 		free_event(ev);
 		a->current_event = NULL;
 		rv = 1;

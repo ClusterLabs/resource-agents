@@ -169,6 +169,8 @@ struct group {
 	int			cpg_fd;
 	int			cpg_client;
 	int			have_set_id;
+	int			joining;
+	int			leaving;
 };
 
 struct app {
