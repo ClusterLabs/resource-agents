@@ -10,6 +10,9 @@
 ###############################################################################
 ###############################################################################
 
+top_srcdir=..
+include ${top_srcdir}/make/defines.mk
+
 CFLAGS+= -g -I. -I../lib/ -I../daemon/
 
 TARGET=group_tool
@@ -27,5 +30,6 @@ clean:
 	rm -f *.o group_tool
 
 install: group_tool
+	install -d ${sbindir}
 	install group_tool ${sbindir}
 
