@@ -33,5 +33,5 @@ echo "configure gnbd"
 echo "configure rgmanager"
 (cd rgmanager; ./configure $@) 
 
-echo "configure cmirror"
-(cd cmirror; ./configure $@)
+#echo "configure cmirror"
+#(cd cmirror; ./configure $@)
