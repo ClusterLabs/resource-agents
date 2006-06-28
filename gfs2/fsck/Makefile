@@ -40,13 +40,13 @@ test_block_list: log.o test_block_list.o
 test_bitmap: test_bitmap.o log.o
 	$(CC) $(CFLAGS) $^ -o $@
 clean:
-	@rm -f gfs2_fsck *.o *~
+	@rm -f gfs2_fsck *.o *~ *.d
 
 copytobin: gfs2_fsck
 	cp gfs2_fsck ${top_srcdir}/bin
 
 distclean: clean
-	@rm -f *.d cscope.* gfs2_fsck test_inode_list *.orig *.rej test_block_list test_bitmap
+	@rm -f cscope.* gfs2_fsck test_inode_list *.orig *.rej test_block_list test_bitmap
 
 
 gfs2_fsck.pot: $(sources)
