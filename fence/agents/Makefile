@@ -29,6 +29,7 @@ all:
 	cd rps10 && ${MAKE} all
 	cd rsa && ${MAKE} all
 	cd rsb && ${MAKE} all
+	cd scsi && ${MAKE} all
 	cd sanbox2 && ${MAKE} all
 	cd vixel && ${MAKE} all
 	cd wti && ${MAKE} all
@@ -50,6 +51,7 @@ copytobin:
 	cd mcdata && ${MAKE} copytobin
 	# cd rackswitch && ${MAKE} copytobin
 	cd rps10 && ${MAKE} copytobin
+	cd scsi && ${MAKE} copytobin
 	cd sanbox2 && ${MAKE} copytobin
 	cd vixel && ${MAKE} copytobin
 	cd wti && ${MAKE} copytobin
@@ -73,6 +75,7 @@ clean:
 	cd rps10 && ${MAKE} clean
 	cd rsa && ${MAKE} clean
 	cd rsb && ${MAKE} clean
+	cd scsi && ${MAKE} clean
 	cd sanbox2 && ${MAKE} clean
 	cd vixel && ${MAKE} clean
 	cd wti && ${MAKE} clean
