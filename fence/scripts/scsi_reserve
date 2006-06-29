@@ -1,0 +1,122 @@
+#!/bin/bash
+#
+# chkconfig:
+# description: start/stop persistent reservation service for lvm
+
+. /etc/init.d/functions
+
+# check for sg_persist command provided by sg3_utils package
+#
+if ! sg_persist -V &> /dev/null ; then
+    echo "error: sg_persist not found"
+    exit 2
+fi
+
+# check for gethostip command provided by syslinux package
+#
+if ! gethostip -h &> /dev/null ; then
+    echo "error: gethostip not found"
+    exit 3
+fi
+
+# get scsi devices that are part of clustered volumes
+#
+scsi_devices=$( lvs -o vg_attr,devices --noheadings \
+                | awk --posix ' $1 ~ /[-a-z]{5}c/ { print $2 } ' \
+                | sed -e 's/([0-9]*)//' | sort | uniq )
+
+# if not scsi devices were found we can exit now
+#
+[ -z "$scsi_devices" ] && exit 0
+
+# get the node name and node addr from cman
+#
+node_name=$( cman_tool status | grep "Node name" | awk -F": " '{print $2}' )
+node_addr=$( cman_tool status | grep "Node addr" | awk -F": " '{print $2}' )
+
+# create unique key for this host
+#
+key=$( gethostip -x $node_name )
+
+case $1 in
+
+start)
+
+rval=0
+
+touch /var/lock/subsys/${0##*/}
+
+# register each device using our key
+#
+for dev in $scsi_devices
+do
+  echo -n "Registering device: $dev"
+  for error in 1
+  do
+    sg_persist -d $dev -o -G -S $key &>/dev/null || break
+    sg_persist -d $dev -o -R -K $key -T 5 &>/dev/null || break
+    error=0
+  done
+  if [ $error -ne 0 ]; then
+      rval=1
+  fi
+  echo
+done
+;;
+
+stop)
+
+rval=0
+
+# unregister each device for this node
+#
+for dev in $scsi_devices
+do
+
+  if sg_persist -d $dev -i -r 2>/dev/null | grep -qiE "${key#0}" ; then
+      echo "Unable to unregister device: $dev"
+      error=0
+  else
+      echo -n "Unregistering device: $dev"
+      for error in 1
+	do
+	sg_persist -d $dev -o -G -K $key -S 0 &>/dev/null || break
+	error=0
+      done
+  fi
+  if [ $error -ne 0 ]; then
+      rval=1
+  fi
+  echo
+done
+
+rm -f /var/lock/subsys/${0##*/}
+;;
+
+status)
+
+rval=0
+
+# find devices that are registered with our key
+#
+for dev in $scsi_devices
+do
+  if sg_persist -d $dev -i -k 2>/dev/null | grep -qiE "${key#0}" ; then
+      devices[${#devices[@]}]=$dev
+  fi
+done
+
+if [ -z $devices ]; then
+    echo "No devices registered."
+else
+    echo "Found ${#devices[@]} registered device(s):"
+
+    for i in "${devices[@]}" ; do
+	echo $i
+    done
+fi
+;;
+
+esac
+
+exit $status
