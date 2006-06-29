@@ -39,7 +39,6 @@ install:
 	cd ccs_test && ${MAKE} install
 	cd ccs_tool && ${MAKE} install
 	cd man && ${MAKE} install
-	cd init.d && ${MAKE} install
 
 uninstall:
 	cd daemon && ${MAKE} uninstall 
@@ -47,4 +46,3 @@ uninstall:
 	cd ccs_test && ${MAKE} uninstall
 	cd ccs_tool && ${MAKE} uninstall
 	cd man && ${MAKE} uninstall
-	cd init.d && ${MAKE} uninstall
