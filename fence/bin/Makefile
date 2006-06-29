@@ -20,6 +20,7 @@ SBINPROGS= \
 	fence_apc \
 	fence_rsa \
 	fence_rsb \
+	fence_scsi \
 	fence_bladecenter \
 	fence_brocade \
 	fence_drac \
