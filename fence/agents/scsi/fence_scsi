@@ -155,25 +155,24 @@ sub fence_node
 
     my $host_key = get_key($name);
     my $node_key = get_key($opt_n);
+    
+    my $cmd;
+    my ($in, $out, $err);
 
     foreach $dev (@volumes)
     {
-	my ($in, $out, $err);
-
 	if ($host_key eq $node_key)
 	{
-	    my $cmd = "sg_persist -d $dev -o -G -K $host_key -S 0";
+	    $cmd = "sg_persist -d $dev -o -G -K $host_key -S 0";
 	}
 	else
 	{
-	    my $cmd = "sg_persist -d $dev -o -A -K $host_key -S $node_key -T 5";
+	    $cmd = "sg_persist -d $dev -o -A -K $host_key -S $node_key -T 5";
 	}
 
 	my $pid = open3($in, $out, $err, $cmd) or die "$!\n";
 
 	waitpid($pid, 0);
-
-	die "Unable to execute sg_persist.\n" if ($?>>8);
 
 	if ($opt_v)
 	{
@@ -184,6 +183,8 @@ sub fence_node
 		print "OUT: $_\n";
 	    }
 	}
+
+	die "Unable to execute sg_persist.\n" if ($?>>8);
 
 	close($in);
 	close($out);
