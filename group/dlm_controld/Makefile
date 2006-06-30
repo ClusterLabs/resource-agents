@@ -18,7 +18,6 @@ include ${top_srcdir}/make/defines.mk
 CFLAGS+= -g -I${incdir} -I${top_srcdir}/config
 
 CFLAGS+= -idirafter ${KERNEL_SRC}/include/linux \
-	-I../../cman/lib/ \
 	-I../../group/lib/ \
 	-I../../ccs/lib/ \
 	-I../include/
@@ -35,10 +34,9 @@ dlm_controld:	main.o \
 		member_cman.o \
 		group.o \
 		action.o \
-		../../cman/lib/libcman.a \
 		../lib/libgroup.a \
 		../../ccs/lib/libccs.a
-	$(CC) $(LDFLAGS) -o $@ $^
+	$(CC) $(LDFLAGS) -lcman -o $@ $^
 
 main.o: main.c
 	$(CC) $(CFLAGS) -c -o $@ $<
