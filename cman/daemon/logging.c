@@ -21,8 +21,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#include "print.h"
-#include "totemip.h"
+/* openais header */
+#include <openais/service/print.h>
 
 #include "logging.h"
 

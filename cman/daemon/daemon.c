@@ -29,9 +29,10 @@
 #include <netinet/in.h>
 #include <sys/errno.h>
 
-#include "aispoll.h"
+#include <openais/totem/aispoll.h>
+#include <openais/totem/totemip.h>
+
 #include "list.h"
-#include "totemip.h"
 #include "cnxman-socket.h"
 #include "cnxman-private.h"
 #include "daemon.h"

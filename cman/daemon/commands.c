@@ -30,9 +30,11 @@
 #include <netinet/in.h>
 #include <sys/errno.h>
 
+#include <openais/totem/totemip.h>
+#include <openais/totem/totempg.h>
+#include <openais/service/swab.h>
+#include <openais/totem/aispoll.h>
 #include "list.h"
-#include "totemip.h"
-#include "totempg.h"
 #include "cnxman-socket.h"
 #include "cnxman-private.h"
 #include "daemon.h"
@@ -41,8 +43,6 @@
 #include "cmanccs.h"
 #include "commands.h"
 #include "ais.h"
-#include "aispoll.h"
-#include "swab.h"
 
 #define max(a,b) (((a) > (b)) ? (a) : (b))
 

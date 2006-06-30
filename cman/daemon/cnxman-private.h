@@ -14,12 +14,7 @@
 #ifndef __CNXMAN_PRIVATE_H
 #define __CNXMAN_PRIVATE_H
 
-#include <totem.h>
-
-// PJC: Remove this later
-#ifndef INTERFACE_MAX
-#define INTERFACE_MAX 2
-#endif
+#include <openais/totem/totem.h>
 
 /* Protocol Version triplet */
 #define CNXMAN_MAJOR_VERSION 6

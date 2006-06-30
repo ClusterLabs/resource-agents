@@ -25,19 +25,19 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
-#include "totemip.h"
-#include "totemconfig.h"
-#include "commands.h"
-#include "totempg.h"
-#include "aispoll.h"
-#include "service.h"
-#include "config.h"
-#include "print.h"
-#include "../lcr/lcr_comp.h"
+/* openais headers */
+#include <openais/totem/totemip.h>
+#include <openais/totem/totempg.h>
+#include <openais/totem/aispoll.h>
+#include <openais/service/service.h>
+#include <openais/service/config.h>
+#include <openais/lcr/lcr_comp.h>
+#include <openais/service/swab.h>
 
 #include "cnxman-socket.h"
+#include "commands.h"
 #include "logging.h"
-#include "swab.h"
+
 #include "ais.h"
 #include "cmanccs.h"
 #include "daemon.h"

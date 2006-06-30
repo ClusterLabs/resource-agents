@@ -14,8 +14,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <openais/service/objdb.h>
 #include "ccs.h"
-#include "objdb.h"
 #include "logging.h"
 
 static int read_config_for(int ccs_fd, struct objdb_iface_ver0 *objdb, unsigned int parent,

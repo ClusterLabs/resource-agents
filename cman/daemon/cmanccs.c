@@ -26,7 +26,6 @@
 #include "cnxman-socket.h"
 #include "cnxman-private.h"
 #include "logging.h"
-#include "totemip.h"
 #include "commands.h"
 #include "ais.h"
 #include "ccs.h"
