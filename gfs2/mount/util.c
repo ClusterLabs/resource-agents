@@ -320,12 +320,12 @@ int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb)
 	do {
 		sleep(1);
 		fd = gfs_controld_connect();
-		if (!fd)
+		if (fd < 0)
 			warn("waiting for gfs_controld to start");
-	} while (!fd && ++i < 10);
+	} while (fd < 0 && ++i < 10);
 
 	/* FIXME: should we start the daemon here? */
-	if (!fd) {
+	if (fd < 0) {
 		warn("gfs_controld not running");
 		rv = -1;
 		goto out;
