@@ -92,8 +92,10 @@ static void statechange(void)
 	for (i = 0; i < old_node_count; i++) {
 		if (old_nodes[i].cn_member &&
 		    !is_cman_member(old_nodes[i].cn_nodeid)) {
+
 			log_debug("cman: node %d removed",
 				  old_nodes[i].cn_nodeid);
+
 			rs = get_recovery_set(old_nodes[i].cn_nodeid);
 			rs->cman_update = 1;
 
@@ -102,7 +104,10 @@ static void statechange(void)
 					  rs->nodeid);
 				list_del(&rs->list);
 				free(rs);
-			} else if (rs->cpg_update && list_empty(&rs->entries)) {
+				continue;
+			}
+
+			if (rs->cpg_update && list_empty(&rs->entries)) {
 				log_debug("free unused recovery set %d cman",
 					  rs->nodeid);
 				list_del(&rs->list);
