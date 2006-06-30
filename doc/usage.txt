@@ -21,6 +21,14 @@ Build and install
 
 Compile kernel with GFS2, DLM, configfs, IPV6 and SCTP.
 
+Build and install the latest openais development tarball from
+  http://developer.osdl.org/dev/openais/
+  make; make install
+
+Build and install the latest libvolume_id from the udev tarball
+  http://www.us.kernel.org/pub/linux/utils/kernel/hotplug/udev-094.tar.bz2
+  make EXTRAS="extras/volume_id" install
+
 Build and install from cluster tree.  Various parts of the tree aren't
 updated yet, so just build the minimum bits shown here.
 
@@ -29,14 +37,11 @@ updated yet, so just build the minimum bits shown here.
 
         cd cluster/cman/lib;            make; make install
         cd cluster/ccs;                 make; make install
-        cd cluster/cman;                make; make install (*)
+        cd cluster/cman;                make; make install
         cd cluster/dlm;                 make; make install
         cd cluster/group;               make; make install
         cd cluster/fence;               make; make install
         cd cluster/gfs2;                make; make install
-
-        (*) this step downloads and builds an openais tarball from
-        http://people.redhat.com/pcaulfie/
 
 To build LVM2 & clvm:
 
