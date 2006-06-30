@@ -97,7 +97,12 @@ static void statechange(void)
 			rs = get_recovery_set(old_nodes[i].cn_nodeid);
 			rs->cman_update = 1;
 
-			if (rs->cpg_update && list_empty(&rs->entries)) {
+			if (!rs->cpg_update && !in_groupd_cpg(rs->nodeid)) {
+				log_debug("free recovery set %d not in cpg",
+					  rs->nodeid);
+				list_del(&rs->list);
+				free(rs);
+			} else if (rs->cpg_update && list_empty(&rs->entries)) {
 				log_debug("free unused recovery set %d cman",
 					  rs->nodeid);
 				list_del(&rs->list);

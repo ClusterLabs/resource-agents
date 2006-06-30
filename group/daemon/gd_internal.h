@@ -33,13 +33,12 @@
 #include <sys/poll.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <openais/cpg.h>
 
 #include "list.h"
 #include "linux_endian.h"
 #include "groupd.h"
 #include "libgroup.h"
-#include "saAis.h"
-#include "cpg.h"
 
 #define MAX_NAMELEN		(32)	/* should match libgroup.h */
 #define MAX_LEVELS		(4)
@@ -276,6 +275,7 @@ int do_cpg_leave(group_t *g);
 int send_message(group_t *g, void *buf, int len);
 int send_message_groupd(group_t *g, void *buf, int len);
 void copy_groupd_data(group_data_t *data);
+int in_groupd_cpg(int nodeid);
 
 /* joinleave.c */
 void remove_group(group_t *g);

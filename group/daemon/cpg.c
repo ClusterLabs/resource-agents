@@ -94,7 +94,7 @@ static void process_node_join(group_t *g, int nodeid)
 
 	if (nodeid == our_nodeid) {
 		for (i = 0; i < saved_member_count; i++) {
-			node = new_node(saved_member[i].nodeId);
+			node = new_node(saved_member[i].nodeid);
 			list_add_tail(&node->list, &g->memb);
 			g->memb_count++;
 			log_group(g, "cpg add node %d total %d",
@@ -153,7 +153,7 @@ void process_groupd_confchg(void)
 	groupd_cpg_member_count = saved_member_count;
 
 	for (i = 0; i < saved_member_count; i++) {
-		if (saved_member[i].nodeId == our_nodeid &&
+		if (saved_member[i].nodeid == our_nodeid &&
 		    saved_member[i].pid == (uint32_t) getpid()) {
 			found = 1;
 		}
@@ -170,8 +170,8 @@ void process_groupd_confchg(void)
 
 	for (i = 0; i < saved_left_count; i++) {
 		if (saved_left[i].reason != CPG_REASON_LEAVE) {
-			add_recovery_set(saved_left[i].nodeId);
-			groupd_down(saved_left[i].nodeId);
+			add_recovery_set(saved_left[i].nodeid);
+			groupd_down(saved_left[i].nodeid);
 		}
 	}
 }
@@ -183,10 +183,18 @@ void copy_groupd_data(group_data_t *data)
 	data->level = -1;
 	data->member_count = groupd_cpg_member_count;
 	for (i = 0; i < groupd_cpg_member_count; i++)
-		data->members[i] = groupd_cpg_member[i].nodeId;
+		data->members[i] = groupd_cpg_member[i].nodeid;
 }
 
-/* FIXME: also match name */
+int in_groupd_cpg(int nodeid)
+{
+	int i;
+	for (i = 0; i < groupd_cpg_member_count; i++) {
+		if (nodeid == groupd_cpg_member[i].nodeid)
+			return 1;
+	}
+	return 0;
+}
 
 group_t *find_group_by_handle(cpg_handle_t h)
 {
@@ -275,16 +283,16 @@ void process_confchg(void)
 		  saved_left_count, saved_joined_count, saved_member_count);
 
 	for (i = 0; i < saved_joined_count; i++)
-		process_node_join(g, saved_joined[i].nodeId);
+		process_node_join(g, saved_joined[i].nodeid);
 
 	for (i = 0; i < saved_left_count; i++) {
 		log_group(g, "confchg removed node %d reason %d",
-			  saved_left[i].nodeId, saved_left[i].reason);
+			  saved_left[i].nodeid, saved_left[i].reason);
 
 		if (saved_left[i].reason == CPG_REASON_LEAVE)
-			process_node_leave(g, saved_left[i].nodeId);
+			process_node_leave(g, saved_left[i].nodeid);
 		else
-			process_node_down(g, saved_left[i].nodeId);
+			process_node_down(g, saved_left[i].nodeid);
 	}
 }
 
@@ -335,14 +343,26 @@ void confchg_cb(cpg_handle_t handle, struct cpg_name *group_name,
 	saved_name.length = group_name->length;
 	memcpy(&saved_name.value, &group_name->value, group_name->length);
 
-	for (i = 0; i < left_list_entries; i++)
+	/* fprintf(stderr, "CONFCHG LEFT: "); */
+	for (i = 0; i < left_list_entries; i++) {
 		saved_left[i] = left_list[i];
+		/* fprintf(stderr, "%d ", left_list[i].nodeid); */
+	}
+	/* fprintf(stderr, "\n"); */
 
-	for (i = 0; i < joined_list_entries; i++)
+	/* fprintf(stderr, "CONFCHG JOIN: "); */
+	for (i = 0; i < joined_list_entries; i++) {
 		saved_joined[i] = joined_list[i];
+		/* fprintf(stderr, "%d ", joined_list[i].nodeid); */
+	}
+	/* fprintf(stderr, "\n"); */
 
-	for (i = 0; i < member_list_entries; i++)
+	/* fprintf(stderr, "CONFCHG MEMB: "); */
+	for (i = 0; i < member_list_entries; i++) {
 		saved_member[i] = member_list[i];
+		/* fprintf(stderr, "%d ", member_list[i].nodeid); */
+	}
+	/* fprintf(stderr, "\n"); */
 
 	got_confchg = 1;
 }
@@ -510,7 +530,6 @@ static int _send_message(cpg_handle_t h, group_t *g, void *buf, int len)
 	if (error != CPG_OK)
 		log_group(g, "cpg_mcast_joined error %d handle %llx", error, h);
 	if (error == CPG_ERR_TRY_AGAIN) {
-		/* FIXME: backoff say .25 sec, .5 sec, .75 sec, 1 sec */
 		retries++;
 		if (retries > 3)
 			sleep(1);
