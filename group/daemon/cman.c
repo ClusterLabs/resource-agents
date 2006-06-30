@@ -1,8 +1,8 @@
 
 /* Interface with openais's cman API */
 
+#include <libcman.h>
 #include "gd_internal.h"
-#include "libcman.h"
 
 static cman_handle_t	ch;
 static int		old_quorate;
