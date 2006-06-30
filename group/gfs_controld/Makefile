@@ -20,9 +20,8 @@ CFLAGS+= -g -I. -O2 \
 	-I${incdir} \
 	-I${top_srcdir}/config \
 	-I../include/ \
-	-I../lib/ \
-	-I../../cman/lib/ \
-	-I../../cman/daemon/openais/trunk/include/
+	-I../lib/
+LDFLAGS+= -L/usr/lib/openais -L/usr/lib
 
 TARGET=gfs_controld
 
@@ -37,10 +36,8 @@ gfs_controld: 	main.o \
 		group.o \
 		plock.o \
 		recover.o \
-		../../cman/lib/libcman.a \
-		../../cman/daemon/openais/trunk/lib/libcpg.a \
 		../lib/libgroup.a
-	$(CC) $(LDFLAGS) -o $@ $^
+	$(CC) $(LDFLAGS) -lcman -lcpg -o $@ $^
 
 
 main.o: main.c

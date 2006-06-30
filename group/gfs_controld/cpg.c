@@ -10,8 +10,8 @@
 *******************************************************************************
 ******************************************************************************/
 
+#include <openais/cpg.h>
 #include "lock_dlm.h"
-#include "cpg.h"
 
 static cpg_handle_t	daemon_handle;
 static struct cpg_name	daemon_name;

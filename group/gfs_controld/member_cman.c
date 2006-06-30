@@ -18,9 +18,9 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <libcman.h>
 
 #include "lock_dlm.h"
-#include "libcman.h"
 
 int			our_nodeid;
 char *			clustername;
