@@ -506,12 +506,12 @@ static int get_ccs_join_info(void)
 
 		error = ccs_get(cd, path, &str);
 		if (!error) {
-			int votes = atoi(str);
-			if (votes < 0 || votes > 255) {
+			int votestmp = atoi(str);
+			if (votestmp < 0 || votestmp > 255) {
 				log_msg(LOG_ERR, "invalid votes value %d", votes);
 				return -EINVAL;
 			}
-			votes = votes;
+			votes = votestmp;
 			free(str);
 		}
 		else {
@@ -535,6 +535,11 @@ static int get_ccs_join_info(void)
 			nodeid = atoi(str);
 			free(str);
 		}
+	}
+
+	if (!nodeid) {
+		log_msg(LOG_ERR, "No nodeid specified in cluster.conf");
+		return -EINVAL;
 	}
 
 	if (getenv("CMAN_MCAST_ADDR")) {
