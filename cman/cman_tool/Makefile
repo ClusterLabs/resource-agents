@@ -15,10 +15,14 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 include ${top_srcdir}/make/defines.mk
 
-CFLAGS+= -g -I${ccsincdir} -I${incdir} -I${top_srcdir}/config \
+CFLAGS+= -I${ccsincdir} -I${incdir} -I${top_srcdir}/config \
 	-DCMAN_RELEASE_NAME=\"${RELEASE}\" -I../lib
 
-CFLAGS+=-DDEBUG -fstack-protector -Wp,-D_FORTIFY_SOURCE=2
+ifeq ($(DEBUG),y)
+CFLAGS+= -O0 -g -DDEBUG
+else
+CFLAGS+= -O2
+endif
 
 TARGET=cman_tool
 
