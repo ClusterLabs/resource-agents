@@ -18,7 +18,7 @@ include ${top_srcdir}/make/defines.mk
 CFLAGS+= -g -I${ccsincdir} -I${incdir} -I${top_srcdir}/config \
 	-DCMAN_RELEASE_NAME=\"${RELEASE}\" -I../lib
 
-CFLAGS+=-DDEBUG
+CFLAGS+=-DDEBUG -fstack-protector -Wp,-D_FORTIFY_SOURCE=2
 
 TARGET=cman_tool
 
@@ -34,7 +34,7 @@ main.o: main.c cman_tool.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 join.o: join.c cman_tool.h
-	$(CC) $(CFLAGS) -c -o $@ $< -DLIBEXECDIR=\"${libexecdir}/cman\"
+	$(CC) $(CFLAGS) -c -o $@ $< -DSBINDIR=\"${sbindir}/cman\"
 
 install: cman_tool
 	install -d ${sbindir}
