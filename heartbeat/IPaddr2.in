@@ -1,16 +1,14 @@
 #!/bin/sh
 #
-#	$Id: IPaddr2.in,v 1.20 2006/06/12 15:31:25 alan Exp $
+#	$Id: IPaddr2.in,v 1.21 2006/07/04 14:59:48 lars Exp $
 #
 #       OCF Resource Agent compliant IPaddr2 script.
 #
 # 	Based on work by Tuomo Soini, ported to the OCF RA API by Lars
 # 	Marowsky-Brée. Implements Cluster Alias IP functionality too.
 #
-# WARNING: Untested so far!
-#
 # Copyright (c) 2003 Tuomo Soini
-# Copyright (c) 2004 SUSE LINUX AG, Lars Marowsky-Brée
+# Copyright (c) 2004-2006 SUSE LINUX AG, Lars Marowsky-Brée
 #                    All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -36,7 +34,7 @@
 
 
 # TODO: 
-# - Implement Cluster IP functionality
+# - Fix up Cluster IP functionality
 # - There ought to be an ocf_run_cmd function which does all logging,
 #   timeout handling etc for us
 # - Make this the standard IP address agent on Linux; the other
@@ -143,6 +141,17 @@ If a label is specified in nic name, this parameter has no effect.
 </longdesc>
 <shortdesc lang="en">Interface label</shortdesc>
 <content type="string" default=""/>
+</parameter>
+
+<parameter name="lvs_support">
+<longdesc lang="en">
+Enable support for LVS Direct Routing configurations. In case a IP
+address is stopped, only move it to the loopback device to allow the
+local node to continue to service requests, but no longer advertise it
+on the network.
+</longdesc>
+<shortdesc lang="en">Enable support for LVS DR</shortdesc>
+<content type="boolean" default="false"/>
 </parameter>
 
 <parameter name="incarnations_max_global">
@@ -264,6 +273,15 @@ ip_init() {
 	IFLABEL="$OCF_RESKEY_iflabel"
 	IF_MAC="$OCF_RESKEY_mac"
 
+	LVS_SUPPORT=0
+	if [ $SYSTYPE = "Linux" -o $SYSTYPE = "SunOS" ]; then
+	    if [ x"${OCF_RESKEY_lvs_support}" = x"true" \
+		-o x"${OCF_RESKEY_lvs_support}" = x"on" \
+		-o x"${OCF_RESKEY_lvs_support}" = x"1" ]; then
+		LVS_SUPPORT=1
+	    fi
+	fi
+	
 	IP_INC_GLOBAL=${OCF_RESKEY_incarnations_max_global:-1}
 	IP_INC_NO=${OCF_RESKEY_incarnation_no:-0}
 	IP_CIP_HASH="$OCF_RESKEY_clusterip_hash"
@@ -508,15 +526,22 @@ run_send_arp() {
 #
 ip_served() {
 	case `find_interface $BASEIP` in
-	lo|"")	echo "no"
+	lo*)	if [ "$LVS_SUPPORT" = "1" ]; then
+			echo "no"
+			return 0
+		fi
+		;;
+	"")	echo "no"
 		return 0
+		;;
+	*)	if [ -z "$IP_CIP" ]; then
+			echo "ok"
+			return 0
+		fi
 		;;
 	esac
 
-	if [ -z "$IP_CIP" ]; then
-		echo "ok"
-		return 0
-	fi
+	# Special handling for the CIP:
 
 	if grep -q "\<${IP_INC_NO}\>" $IP_CIP_FILE ; then
 		echo "ok"
@@ -578,12 +603,13 @@ ip_start() {
 	fi
 	
 	if [ "$ip_status" = "no" ]; then
-		# TODO: Needs to be an instance parameter!
-		case `find_interface $BASEIP` in
-		lo)
-			remove_conflicting_loopback $BASEIP 32 255.255.255.255 lo
-			;;
-		esac
+		if [ "$LVS_SUPPORT" = "1" ]; then
+			case `find_interface $BASEIP` in
+			lo*)
+				remove_conflicting_loopback $BASEIP 32 255.255.255.255 lo
+				;;
+			esac
+		fi
 		
 		add_interface $BASEIP $NETMASK $BRDCAST $NIC $IFLABEL
 		
@@ -650,8 +676,10 @@ ip_stop() {
 		if [ $? -ne 0 ]; then
 			exit $OCF_ERR_GENERIC
 		fi
-		
-		restore_loopback "$BASEIP"
+	
+		if [ "$LVS_SUPPORT" = 1 ]; then
+			restore_loopback "$BASEIP"
+		fi
 	fi
 
 	exit $OCF_SUCCESS

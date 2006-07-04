@@ -133,9 +133,12 @@ You can specify an additional label for your IP address here.
 
 <parameter name="lvs_support">
 <longdesc lang="en">
-Enable support for LVS.  Allows stopped IPs to exist on the loopback device or something like that"
+Enable support for LVS Direct Routing configurations. In case a IP
+address is stopped, only move it to the loopback device to allow the
+local node to continue to service requests, but no longer advertise it
+on the network.
 </longdesc>
-<shortdesc lang="en">Enable support for LVS</shortdesc>
+<shortdesc lang="en">Enable support for LVS DR</shortdesc>
 <content type="boolean" default="false"/>
 </parameter>
 
