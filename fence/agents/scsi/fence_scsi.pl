@@ -93,7 +93,7 @@ sub get_options_stdin
 
 	next unless $opt;
 
-	($name, $val) = split /\s*=\s/, $opt;
+	($name, $val) = split /\s*=\s*/, $opt;
 
 	if ($name eq "")
 	{
