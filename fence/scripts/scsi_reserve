@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# chkconfig:
+# chkconfig: 345 25 75
 # description: start/stop persistent reservation service for lvm
 
 . /etc/init.d/functions
