@@ -141,6 +141,10 @@ sub get_scsi_devices
 	    push @volumes, $device;
 	}
     }
+
+    close($in);
+    close($out);
+    close($err);
 }
 
 sub check_sg_persist
@@ -152,6 +156,12 @@ sub check_sg_persist
     waitpid($pid, 0);
 
     die "Unable to execute sg_persist.\n" if ($?>>8);
+
+    while (<$out>)
+    {
+	chomp;
+	print "OUT: $_\n" if $opt_v;
+    }
 
     close($in);
     close($out);
