@@ -34,7 +34,7 @@ while (0)
 static char *prog_name;
 static int force;
 
-int dispatch_fence_agent(int cd, char *victim, int in);
+int dispatch_fence_agent(int cd, char *victim);
 
 static void print_usage(void)
 {
@@ -116,7 +116,7 @@ int main(int argc, char *argv[])
 		goto fail;
 	}
 
-	error = dispatch_fence_agent(cd, victim, 0);
+	error = dispatch_fence_agent(cd, victim);
 	if (error)
 		goto fail_ccs;
 
