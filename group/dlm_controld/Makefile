@@ -20,7 +20,10 @@ CFLAGS+= -g -I${incdir} -I${top_srcdir}/config
 CFLAGS+= -idirafter ${KERNEL_SRC}/include/linux \
 	-I../../group/lib/ \
 	-I../../ccs/lib/ \
+	-I../../cman/lib/ \
 	-I../include/
+
+LDFLAGS+= -L../../cman/lib
 
 
 TARGET=dlm_controld
@@ -36,7 +39,7 @@ dlm_controld:	main.o \
 		action.o \
 		../lib/libgroup.a \
 		../../ccs/lib/libccs.a
-	$(CC) $(LDFLAGS) -lcman -o $@ $^
+	$(CC) $(LDFLAGS) -o $@ $^ -lcman 
 
 main.o: main.c
 	$(CC) $(CFLAGS) -c -o $@ $<

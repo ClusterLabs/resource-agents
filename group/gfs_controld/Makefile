@@ -19,9 +19,10 @@ CFLAGS+= -g -I. -O2 \
 	-idirafter ${KERNEL_SRC}/include/linux \
 	-I${incdir} \
 	-I${top_srcdir}/config \
+	-I../../cman/lib \
 	-I../include/ \
 	-I../lib/
-LDFLAGS+= -L/usr/lib/openais -L/usr/lib
+LDFLAGS+= -L../../cman/lib -L/usr/lib/openais -L/usr/lib
 
 TARGET=gfs_controld
 
@@ -37,7 +38,7 @@ gfs_controld: 	main.o \
 		plock.o \
 		recover.o \
 		../lib/libgroup.a
-	$(CC) $(LDFLAGS) -lcman -lcpg -o $@ $^
+	$(CC) $(LDFLAGS) -o $@ $^ -lcman -lcpg 
 
 
 main.o: main.c

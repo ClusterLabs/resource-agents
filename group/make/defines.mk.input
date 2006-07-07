@@ -16,6 +16,7 @@ sbindir ?= ${DESTDIR}/@SBINDIR@
 mandir ?= ${DESTDIR}/@MANDIR@
 libdir ?= ${DESTDIR}/@LIBDIR@
 iddevlibdir ?= ${DESTDIR}/@IDDEVLIBDIR@
+cmanlibdir ?= ${DESTDIR}/@CMANLIBDIR@
 incdir ?= ${DESTDIR}/@INCDIR@
 gfskincdir ?= ${DESTDIR}/@GFSKINCDIR@
 iddevincdir ?= ${DESTDIR}/@IDDEVINCDIR@

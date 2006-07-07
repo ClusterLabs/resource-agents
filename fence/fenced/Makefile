@@ -22,7 +22,10 @@ CFLAGS+= -g -DFENCE_RELEASE_NAME=\"${RELEASE}\" \
 	-I${ccsincdir} \
 	-I${incdir} \
 	-I${top_srcdir}/config \
+	-I${top_srcdir}/../cman/lib \
 	-I${top_srcdir}/../group/lib
+
+LDFLAGS += -L${top_srcdir}/../cman/lib
 
 all: ${TARGET}
 
@@ -34,7 +37,7 @@ ${TARGET}: \
 	agent.o \
 	../../ccs/lib/libccs.a \
 	../../group/lib/libgroup.a
-	$(CC) -lcman -o $@ $^
+	$(CC) $(LDFLAGS) -o $@ $^ -lcman 
 
 main.o: main.c fd.h
 	$(CC) $(CFLAGS) -c -o $@ $<

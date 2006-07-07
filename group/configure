@@ -30,6 +30,7 @@ $ret = 0;
 	kernel_src => \$kernel_src,
 	libdir => \$libdir,
 	iddevlibdir => \$iddevlibdir,
+	cmanlibdir => \$cmanlibdir,
 	mandir  => \$mandir,
 	prefix => \$prefix,
 	sbindir => \$sbindir,
@@ -44,6 +45,7 @@ $err = &GetOptions (\%options,
 		    'kernel_src=s',
 		    'libdir=s',
 		    'iddevlibdir=s',
+		    'cmanlibdir=s',
 		    'mandir=s',
 		    'prefix=s',
 		    'sbindir=s',
@@ -68,6 +70,7 @@ if ($help || !$err) {
   print "--kernel_src=\tthe directory containing the kernel source you wish to\n\t\tcompile against. (Default: system dependant)\n";
   print "--libdir=\tthe base directory for libraries.  (Default: /usr/lib)\n";
   print "--iddevlibdir=\tthe base directory for libraries.  (Default: {libdir})\n";
+  print "--cmanlibdir=\tthe base directory for cman libraries.  (Default: {libdir})\n";
   print "--mandir=\tthe base directory for man pages.  (Default: /usr/share/man)\n";
   print "--prefix=\tthe base directory to install into.  (Default: /)\n";
   print "--sbindir=\tthe base directory for system binaries.  (Default: /sbin)\n";
@@ -96,6 +99,9 @@ if (!$libdir) {
 if (!$iddevlibdir) {
   $iddevlibdir="${libdir}";
 }
+if (!$cmanlibdir) {
+  $cmanlibdir="${libdir}";
+}
 if (!$mandir) {
   $mandir="${prefix}/usr/share/man";
 }
@@ -121,6 +127,7 @@ while (<IFILE>) {
   $_ =~ s/\@KERNEL_SRC\@/$kernel_src/;
   $_ =~ s/\@LIBDIR\@/$libdir/;
   $_ =~ s/\@IDDEVLIBDIR\@/$iddevlibdir/;
+  $_ =~ s/\@CMANLIBDIR\@/$cmanlibdir/;
   $_ =~ s/\@MANDIR\@/$mandir/;
   $_ =~ s/\@SBINDIR\@/$sbindir/;
   $_ =~ s/\@SHAREDIR\@/$sharedir/;

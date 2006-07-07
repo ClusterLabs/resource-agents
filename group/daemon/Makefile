@@ -15,7 +15,7 @@ include ${top_srcdir}/make/defines.mk
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 CFLAGS+= -g -I. -I../include/ -I../../cman/lib/ -I../lib/
-LDFLAGS+= -L/usr/lib/openais -L/usr/lib
+LDFLAGS+= -L${cmanlibdir} -L/usr/lib/openais -L/usr/lib
 
 TARGET=groupd
 
@@ -26,7 +26,7 @@ groupd: app.o \
 	cman.o \
 	joinleave.o \
 	main.o
-	$(CC) $(LDFLAGS) -lcman -lcpg -o $@ $^
+	$(CC) $(LDFLAGS) -o $@ $^ -lcman -lcpg 
 
 app.o: app.c gd_internal.h
 	$(CC) $(CFLAGS) -c -o $@ $<
