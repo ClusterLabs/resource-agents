@@ -289,10 +289,19 @@ void process_confchg(void)
 		log_group(g, "confchg removed node %d reason %d",
 			  saved_left[i].nodeid, saved_left[i].reason);
 
-		if (saved_left[i].reason == CPG_REASON_LEAVE)
+		switch (saved_left[i].reason) {
+		case CPG_REASON_LEAVE:
 			process_node_leave(g, saved_left[i].nodeid);
-		else
+			break;
+		case CPG_REASON_NODEDOWN:
+		case CPG_REASON_PROCDOWN:
 			process_node_down(g, saved_left[i].nodeid);
+			break;
+		default:
+			log_error(g, "unknown leave reason %d node %d",
+				  saved_left[i].reason,
+				  saved_joined[i].nodeid);
+		}
 	}
 }
 
@@ -343,26 +352,14 @@ void confchg_cb(cpg_handle_t handle, struct cpg_name *group_name,
 	saved_name.length = group_name->length;
 	memcpy(&saved_name.value, &group_name->value, group_name->length);
 
-	/* fprintf(stderr, "CONFCHG LEFT: "); */
-	for (i = 0; i < left_list_entries; i++) {
+	for (i = 0; i < left_list_entries; i++)
 		saved_left[i] = left_list[i];
-		/* fprintf(stderr, "%d ", left_list[i].nodeid); */
-	}
-	/* fprintf(stderr, "\n"); */
 
-	/* fprintf(stderr, "CONFCHG JOIN: "); */
-	for (i = 0; i < joined_list_entries; i++) {
+	for (i = 0; i < joined_list_entries; i++)
 		saved_joined[i] = joined_list[i];
-		/* fprintf(stderr, "%d ", joined_list[i].nodeid); */
-	}
-	/* fprintf(stderr, "\n"); */
 
-	/* fprintf(stderr, "CONFCHG MEMB: "); */
-	for (i = 0; i < member_list_entries; i++) {
+	for (i = 0; i < member_list_entries; i++)
 		saved_member[i] = member_list[i];
-		/* fprintf(stderr, "%d ", member_list[i].nodeid); */
-	}
-	/* fprintf(stderr, "\n"); */
 
 	got_confchg = 1;
 }
