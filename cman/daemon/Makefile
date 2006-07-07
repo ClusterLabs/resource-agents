@@ -61,6 +61,7 @@ logging.o: logging.c list.h cnxman-socket.h cnxman-private.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 install: 
+	install -d ${libexecdir}/lcrso
 	install -s service_cman.lcrso ${libexecdir}/lcrso
 
 uninstall:
