@@ -15,7 +15,7 @@ include ${top_srcdir}/make/defines.mk
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 CFLAGS+= -g -I. -I../include/ -I../../cman/lib/ -I../lib/
-LDFLAGS+= -L${cmanlibdir} -L/usr/lib/openais -L/usr/lib
+LDFLAGS+= -L${cmanlibdir} -L${libdir}/openais -L${libdir}
 
 TARGET=groupd
 

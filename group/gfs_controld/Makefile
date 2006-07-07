@@ -22,7 +22,7 @@ CFLAGS+= -g -I. -O2 \
 	-I../../cman/lib \
 	-I../include/ \
 	-I../lib/
-LDFLAGS+= -L../../cman/lib -L/usr/lib/openais -L/usr/lib
+LDFLAGS+= -L../../cman/lib -L${libdir}/openais -L${libdir}
 
 TARGET=gfs_controld
 
