@@ -16,6 +16,7 @@
 
 extern int our_nodeid;
 extern commandline_t comline;
+extern char *our_name;
 
 /* Fencing recovery algorithm
 
@@ -309,7 +310,7 @@ static void fence_victims(fd_t *fd, int start_type)
 		log_debug("fencing node %s", node->name);
 		syslog(LOG_INFO, "fencing node \"%s\"", node->name);
 
-		error = dispatch_fence_agent(cd, node->name);
+		error = dispatch_fence_agent(cd, node->name, our_name);
 
 		syslog(LOG_INFO, "fence \"%s\" %s", node->name,
 		       error ? "failed" : "success");
