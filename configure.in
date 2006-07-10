@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.533 $) dnl cvs revision
+AC_REVISION($Revision: 1.534 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -2370,16 +2370,19 @@ AC_SUBST(MGMT_ENABLED)
 AM_CONDITIONAL(MGMT_BUILD, test "x${enable_mgmt}" != "xno")
 if test "x${enable_mgmt}" != "xno"; then
      AC_DEFINE_UNQUOTED(MGMT_ENABLED, 1, Define to 1 if the mgmt is enabled.)
+    dnl If this system might be RPM-based, then adjust some RPM-build details
+    if test x"${RPM}" != x""; then
 dnl FIXME: a flawy solution but no better one now
-     if rpm -q python-gtk > /dev/null; then
-          MGMT_RUNTIME_REQUIRES="libglade2, python-gtk";
-     else
-          MGMT_RUNTIME_REQUIRES="libglade2, pygtk2";
-     fi
+         if rpm -q python-gtk > /dev/null; then
+              RPM_MGMT_RUNTIME_REQUIRES="libglade2, python-gtk";
+         else
+              RPM_MGMT_RUNTIME_REQUIRES="libglade2, pygtk2";
+         fi
+    fi
 else
-     MGMT_RUNTIME_REQUIRES=
+     RPM_MGMT_RUNTIME_REQUIRES=
 fi
-AC_SUBST(MGMT_RUNTIME_REQUIRES)
+AC_SUBST(RPM_MGMT_RUNTIME_REQUIRES)
    
 AC_MSG_NOTICE([whether to enable the management tool... ${enable_mgmt}])
 
