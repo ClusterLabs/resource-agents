@@ -56,7 +56,7 @@ while (0)
 char *prog_name;
 int operation;
 
-int dispatch_fence_agent(int cd, char *victim);
+int dispatch_fence_agent(int cd, char *victim, char *self);
 
 static int check_mounted(void)
 {
