@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.534 $) dnl cvs revision
+AC_REVISION($Revision: 1.535 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -2378,6 +2378,8 @@ dnl FIXME: a flawy solution but no better one now
          else
               RPM_MGMT_RUNTIME_REQUIRES="libglade2, pygtk2";
          fi
+    else
+         RPM_MGMT_RUNTIME_REQUIRES=
     fi
 else
      RPM_MGMT_RUNTIME_REQUIRES=
