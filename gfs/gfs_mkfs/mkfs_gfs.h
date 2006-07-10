@@ -115,7 +115,7 @@ struct commandline
 
   uint64 rgrps;             /*  Number of rgrps  */
   int fd;                   /*  fd of the device  */
-  struct gfs_sb *sb;             /*  A copy of the superblock  */
+  struct gfs_sbd *sbd;      /*  A copy of the superblock */
   uint64 fssize;            /*  size of the filesystem  */
 
   uint64 sb_addr;
@@ -178,7 +178,7 @@ int test_locking(char *lockproto, char *locktable, char *estr, unsigned int elen
 
 /*  structures.c  */
 
-void write_sb(commandline_t *comline, osi_list_t *rlist);
+void write_mkfs_sb(commandline_t *comline, osi_list_t *rlist);
 void write_jindex(commandline_t *comline, osi_list_t *jlist);
 void write_rindex(commandline_t *comline, osi_list_t *rlist);
 void write_root(commandline_t *comline);

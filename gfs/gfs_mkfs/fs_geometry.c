@@ -29,10 +29,6 @@
 
 #include "mkfs_gfs.h"
 
-
-
-
-
 /**
  * how_many_rgrps - figure out how many RG to put in a subdevice
  * @comline: the command line
@@ -43,20 +39,19 @@
 
 static uint64 how_many_rgrps(commandline_t *comline, mkfs_subdevice_t *sdev)
 {
-  uint64 nrgrp;
-  unsigned int min = (comline->expert) ? 1 : 4;
+	uint64 nrgrp;
+	unsigned int min = (comline->expert) ? 1 : 4;
 
-  nrgrp = DIV_RU(sdev->length, (comline->rgsize << 20) / comline->bsize);
+	nrgrp = DIV_RU(sdev->length, (comline->rgsize << 20) / comline->bsize);
 
-  if (nrgrp < min)
-    nrgrp = min;
+	if (nrgrp < min)
+		nrgrp = min;
 
-  if (comline->debug)
-    printf("  nrgrp = %"PRIu64"\n", nrgrp);
+	if (comline->debug)
+		printf("  nrgrp = %"PRIu64"\n", nrgrp);
 
-  return nrgrp;
+	return nrgrp;
 }
-
 
 /**
  * compute_rgrp_layout - figure out where the RG in a FS are
@@ -69,78 +64,66 @@ static uint64 how_many_rgrps(commandline_t *comline, mkfs_subdevice_t *sdev)
 
 void compute_rgrp_layout(commandline_t *comline, mkfs_device_t *device, osi_list_t *rlist)
 {
-  mkfs_subdevice_t *sdev;
-  rgrp_list_t *rl, *rlast = NULL;
-  osi_list_t *tmp;
-  uint64 rgrp, nrgrp;
-  unsigned int x;
-  int first_sdev = TRUE;
+	mkfs_subdevice_t *sdev;
+	rgrp_list_t *rl, *rlast = NULL;
+	osi_list_t *tmp;
+	uint64 rgrp, nrgrp;
+	unsigned int x;
+	int first_sdev = TRUE;
 
+	for (x = 0; x < device->nsubdev; x++) {
+		sdev = &device->subdev[x];
 
-  for (x = 0; x < device->nsubdev; x++)
-  {
-    sdev = &device->subdev[x];
+		if (!sdev->is_journal) {
+			/* If this is the 1st subdevice reserve space for the superblock */
 
-    if (!sdev->is_journal)
-    {
-      /*  If this is the first subdevice reserve space for the superblock  */
+			if (first_sdev)
+				sdev->length -= comline->sb_addr + 1;
 
-      if (first_sdev)
-	sdev->length -= comline->sb_addr + 1;
+			if (comline->debug)
+				printf("\nData Subdevice %u\n", x);
 
+			nrgrp = how_many_rgrps(comline, sdev);
 
-      if (comline->debug)
-	printf("\nData Subdevice %u\n", x);
+			for (rgrp = 0; rgrp < nrgrp; rgrp++) {
+				type_zalloc(rl, rgrp_list_t, 1);
 
-      nrgrp = how_many_rgrps(comline, sdev);
+				rl->subdevice = x;
 
+				if (rgrp) {
+					rl->rg_offset = rlast->rg_offset + rlast->rg_length;
+					rl->rg_length = sdev->length / nrgrp;
+				}
+				else {
+					rl->rg_offset = sdev->start;
+					rl->rg_length = sdev->length - (nrgrp - 1) * (sdev->length / nrgrp);
 
-      for (rgrp = 0; rgrp < nrgrp; rgrp++)
-      {
-	type_zalloc(rl, rgrp_list_t, 1);
+					if (first_sdev)
+						rl->rg_offset += comline->sb_addr + 1;
+				}
 
-	rl->subdevice = x;
+				osi_list_add_prev(&rl->list, rlist);
 
-	if (rgrp)
-	{
-	  rl->rg_offset = rlast->rg_offset + rlast->rg_length;
-	  rl->rg_length = sdev->length / nrgrp;
+				rlast = rl;
+			}
+
+			first_sdev = FALSE;
+
+			comline->rgrps += nrgrp;
+		}
 	}
-	else
-	{
-	  rl->rg_offset = sdev->start;
-	  rl->rg_length = sdev->length - (nrgrp - 1) * (sdev->length / nrgrp);
 
-	  if (first_sdev)
-	    rl->rg_offset += comline->sb_addr + 1;
+	if (comline->debug) {
+		printf("\n");
+
+		for (tmp = rlist->next; tmp != rlist; tmp = tmp->next) {
+			rl = osi_list_entry(tmp, rgrp_list_t, list);
+			printf("subdevice %u:  rg_o = %"PRIu64", rg_l = %"PRIu64"\n",
+				   rl->subdevice,
+				   rl->rg_offset, rl->rg_length);
+		}
 	}
-
-	osi_list_add_prev(&rl->list, rlist);
-
-	rlast = rl;
-      }
-
-      first_sdev = FALSE;
-
-      comline->rgrps += nrgrp;
-    }
-  }
-
-
-  if (comline->debug)
-  {
-    printf("\n");
-
-    for (tmp = rlist->next; tmp != rlist; tmp = tmp->next)
-    {
-      rl = osi_list_entry(tmp, rgrp_list_t, list);
-      printf("subdevice %u:  rg_o = %"PRIu64", rg_l = %"PRIu64"\n",
-	     rl->subdevice,
-	     rl->rg_offset, rl->rg_length);
-    }
-  }
 }
-
 
 /**
  * compute_journal_layout - figure out where the journals in a FS are
@@ -153,56 +136,48 @@ void compute_rgrp_layout(commandline_t *comline, mkfs_device_t *device, osi_list
 
 void compute_journal_layout(commandline_t *comline, mkfs_device_t *device, osi_list_t *jlist)
 {
-  mkfs_subdevice_t *sdev;
-  journal_list_t *jl;
-  osi_list_t *tmp;
-  unsigned int x, j = 0;
-  uint64 boffset, bcount;
-  unsigned int min_jsize = (comline->expert) ? 1 : 32;
+	mkfs_subdevice_t *sdev;
+	journal_list_t *jl;
+	osi_list_t *tmp;
+	unsigned int x, j = 0;
+	uint64 boffset, bcount;
+	unsigned int min_jsize = (comline->expert) ? 1 : 32;
 
+	for (x = 0; x < device->nsubdev; x++) {
+		sdev = &device->subdev[x];
 
-  for (x = 0; x < device->nsubdev; x++)
-  {
-    sdev = &device->subdev[x];
+		if (sdev->is_journal) {
+			type_zalloc(jl, journal_list_t, 1);
 
-    if (sdev->is_journal)
-    {
-      type_zalloc(jl, journal_list_t, 1);
+			/*  Align the journals on seg_size boundries  */
 
-      /*  Align the journals on seg_size boundries  */
+			boffset = sdev->start;
+			bcount = sdev->length;
 
-      boffset = sdev->start;
-      bcount = sdev->length;
+			if ((bcount + comline->seg_size) * comline->bsize < min_jsize << 20)
+				die("journal %d is too small (minimum size is %u MB)\n", j, min_jsize);
 
-      if ((bcount + comline->seg_size) * comline->bsize < min_jsize << 20)
-	die("journal %d is too small (minimum size is %u MB)\n", j, min_jsize);
+			if (boffset % comline->seg_size) {
+				bcount -= comline->seg_size - (boffset % comline->seg_size);
+				boffset += comline->seg_size - (boffset % comline->seg_size);
+			}
 
-      if (boffset % comline->seg_size)
-      {
-	bcount -= comline->seg_size - (boffset % comline->seg_size);
-	boffset += comline->seg_size - (boffset % comline->seg_size);
-      }
+			jl->start = boffset;
+			jl->segments = bcount / comline->seg_size;
+			
+			osi_list_add_prev(&jl->list, jlist);
 
-      jl->start = boffset;
-      jl->segments = bcount / comline->seg_size;
+			j++;
+		}
+	}
 
-      osi_list_add_prev(&jl->list, jlist);
-
-      j++;
-    }
-  }
-
-
-  if (comline->debug)
-  {
-    printf("\n");
-
-    for (tmp = jlist->next, j = 0; tmp != jlist; tmp = tmp->next, j++)
-    {
-      jl = osi_list_entry(tmp, journal_list_t, list);
-      printf("journal %u:  start = %"PRIu64", segments = %u\n",
-	     j, jl->start, jl->segments);
-    }
-  }
+	if (comline->debug) {
+		printf("\n");
+		
+		for (tmp = jlist->next, j = 0; tmp != jlist; tmp = tmp->next, j++) {
+			jl = osi_list_entry(tmp, journal_list_t, list);
+			printf("journal %u:  start = %"PRIu64", segments = %u\n",
+				   j, jl->start, jl->segments);
+		}
+	}
 }
-

@@ -28,7 +28,7 @@ CFLAGS+= -O2 -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 \
 	-DGFS_RELEASE_NAME=\"${RELEASE}\"
 
 INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config \
-	-I${gfskincdir} -I${iddevincdir} -I${incdir}
+	-I${gfskincdir} -I${incdir} -I${top_srcdir}/libgfs
 
 ifneq (${KERNEL_SRC}, )
 # Use the kernel tree if patched, otherwise, look where cluster headers
@@ -40,13 +40,12 @@ else
 INCLUDE += -I${incdir}
 endif
 
-LDFLAGS+= -L${iddevlibdir} -L${libdir}
-LOADLIBES+= -liddev
+LDFLAGS+=-L${top_srcdir}/libgfs -L${libdir}
 
 all: ${TARGET}
 
 gfs_mkfs: ${SOURCE}
-	${CC} ${CFLAGS} ${INCLUDE} ${LDFLAGS} ${SOURCE} ${LOADLIBES} ${LDLIBS} -o $@
+	${CC} ${CFLAGS} ${INCLUDE} ${LDFLAGS} ${SOURCE} ${LOADLIBES} ${LDLIBS} -o $@ -lgfs -lvolume_id
 
 copytobin: ${TARGET}
 	cp ${TARGET} ${top_srcdir}/bin

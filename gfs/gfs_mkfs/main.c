@@ -26,8 +26,8 @@
 #include "global.h"
 #include <linux/gfs_ondisk.h>
 #include "osi_list.h"
-#include "iddev.h"
-
+#include "libvolume_id.h"
+#include "libgfs.h"
 #include "copyright.cf"
 
 #define EXTERN
@@ -218,25 +218,27 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 
 void are_you_sure(commandline_t *comline)
 {
-  char buf[1024];
-  char input[32];
-  int unknown;
+	char input[32];
+	struct volume_id *vid = NULL;
 
-  unknown = identify_device(comline->fd, buf, 1024);
-  if (unknown < 0)
-    die("error identifying the contents of %s: %s\n", comline->device, strerror(errno));
+	vid = volume_id_open_node(comline->device);
+	if (vid == NULL)
+		die("error identifying the contents of %s: %s\n",
+		    comline->device, strerror(errno));
 
-  printf("This will destroy any data on %s.\n", comline->device);
-  if (!unknown)
-    printf("  It appears to contain a %s.\n", buf);
+	printf("This will destroy any data on %s.\n",
+	       comline->device);
+	if (volume_id_probe_all(vid, 0, MKFS_DEFAULT_BSIZE) == 0)
+		printf("  It appears to contain a %s %s.\n", vid->type,
+			   vid->usage_id == VOLUME_ID_OTHER? "partition" : vid->usage);
+	volume_id_close(vid);
+	printf("\nAre you sure you want to proceed? [y/n] ");
+	fgets(input, 32, stdin);
 
-  printf("\nAre you sure you want to proceed? [y/n] ");
-  fgets(input, 32, stdin);
-
-  if (input[0] != 'y')
-    die("aborted\n");
-  else
-    printf("\n");
+	if (input[0] != 'y')
+		die("aborted\n");
+	else
+		printf("\n");
 }
 
 
@@ -283,125 +285,105 @@ void print_results(commandline_t *comline)
 
 int main(int argc, char *argv[])
 {
-  commandline_t comline;
-  mkfs_device_t device;
-  osi_list_t rlist;
-  osi_list_t jlist;
-  unsigned int x;
+	commandline_t comline;
+	mkfs_device_t device;
+	osi_list_t rlist;
+	osi_list_t jlist;
+	unsigned int x;
 
+	prog_name = argv[0];
 
-  prog_name = argv[0];
+	osi_list_init(&rlist);
+	osi_list_init(&jlist);
 
-  osi_list_init(&rlist);
-  osi_list_init(&jlist);
+	/*  Process the command line arguments  */
 
+	memset(&comline, 0, sizeof(commandline_t));
+	comline.bsize = MKFS_DEFAULT_BSIZE;
+	comline.seg_size = MKFS_DEFAULT_SEG_SIZE;
+	comline.jsize = MKFS_DEFAULT_JSIZE;
+	comline.rgsize = MKFS_DEFAULT_RGSIZE;
 
-  /*  Process the command line arguments  */
+	decode_arguments(argc, argv, &comline);
 
-  memset(&comline, 0, sizeof(commandline_t));
-  comline.bsize = MKFS_DEFAULT_BSIZE;
-  comline.seg_size = MKFS_DEFAULT_SEG_SIZE;
-  comline.jsize = MKFS_DEFAULT_JSIZE;
-  comline.rgsize = MKFS_DEFAULT_RGSIZE;
+	if (!comline.expert) {
+		char buf[256];
+		if (test_locking(comline.lockproto, comline.locktable, buf, 256))
+			die("%s\n", buf);
+	}
 
-  decode_arguments(argc, argv, &comline);
+	/*  Block sizes must be a power of two from 512 to 65536  */
 
-  if (!comline.expert)
-  {
-    char buf[256];
-    if (test_locking(comline.lockproto, comline.locktable, buf, 256))
-      die("%s\n", buf);
-  }
+	for (x = 512; x; x <<= 1)
+		if (x == comline.bsize)
+			break;
 
+	if (!x || comline.bsize > 65536)
+		die("block size must be a power of two between 512 and 65536\n");
 
+	comline.sb_addr = GFS_SB_ADDR * GFS_BASIC_BLOCK / comline.bsize;
 
-  /*  Block sizes must be a power of two from 512 to 65536  */
+	if (comline.seg_size < 2)
+		die("segment size too small\n");
 
-  for (x = 512; x; x <<= 1)
-    if (x == comline.bsize)
-      break;
+	if (!comline.expert && (uint64)comline.seg_size * comline.bsize > 4194304)
+		die("segment size too large\n");
 
-  if (!x || comline.bsize > 65536)
-    die("block size must be a power of two between 512 and 65536\n");
+	if (comline.expert) {
+		if (1 > comline.rgsize || comline.rgsize > 2048)
+			die("bad resource group size\n");
+	}
+	else {
+		if (32 > comline.rgsize || comline.rgsize > 2048)
+			die("bad resource group size\n");
+	}
 
-  comline.sb_addr = GFS_SB_ADDR * GFS_BASIC_BLOCK / comline.bsize;
+	/*  Get the device geometry  */
 
-  if (comline.seg_size < 2)
-    die("segment size too small\n");
+	memset(&device, 0, sizeof(mkfs_device_t));
 
-  if (!comline.expert && (uint64)comline.seg_size * comline.bsize > 4194304)
-    die("segment size too large\n");
+	device_geometry(&comline, &device);
+	add_journals_to_device(&comline, &device);
 
-  if (comline.expert)
-  {
-    if (1 > comline.rgsize || comline.rgsize > 2048)
-      die("bad resource group size\n");
-  }
-  else
-  {
-    if (32 > comline.rgsize || comline.rgsize > 2048)
-      die("bad resource group size\n");
-  }
+	fix_device_geometry(&comline, &device);
 
+	/*  Compute the resource group layouts  */
 
+	compute_rgrp_layout(&comline, &device, &rlist);
 
-  /*  Get the device geometry  */
+	compute_journal_layout(&comline, &device, &jlist);
 
-  memset(&device, 0, sizeof(mkfs_device_t));
+	/*  Start writing stuff out  */
 
-  device_geometry(&comline, &device);
-  add_journals_to_device(&comline, &device);
+	comline.fd = open(comline.device, O_RDWR);
+	if (comline.fd < 0)
+		die("can't open device %s\n", comline.device);
 
-  fix_device_geometry(&comline, &device);
+	if (!comline.override)
+		are_you_sure(&comline);
 
+	write_mkfs_sb(&comline, &rlist);
 
+	/*  Figure out where we start allocating in rgrp 0  */
+	comline.rgrp0_next = comline.sbd->sd_sb.sb_root_di.no_addr + 1;
 
-  /*  Compute the resource group layouts  */
+	write_jindex(&comline, &jlist);
 
-  compute_rgrp_layout(&comline, &device, &rlist);
+	write_rindex(&comline, &rlist);
 
-  compute_journal_layout(&comline, &device, &jlist);
+	write_root(&comline);
 
+	write_quota(&comline);
 
-  /*  Start writing stuff out  */
+	write_license(&comline);
 
-  comline.fd = open(comline.device, O_RDWR);
-  if (comline.fd < 0)
-    die("can't open device %s\n", comline.device);
+	write_rgrps(&comline, &rlist);
 
+	write_journals(&comline, &jlist);
 
-  if (!comline.override)
-    are_you_sure(&comline);
+	close(comline.fd);
+	free(comline.sbd);
+	print_results(&comline);
 
-
-  write_sb(&comline, &rlist);
-
-  /*  Figure out where we start allocting in rgrp 0  */
-  comline.rgrp0_next = comline.sb->sb_root_di.no_addr + 1;
-
-  write_jindex(&comline, &jlist);
-
-  write_rindex(&comline, &rlist);
-
-  write_root(&comline);
-
-  write_quota(&comline);
-
-  write_license(&comline);
-
-  write_rgrps(&comline, &rlist);
-
-  write_journals(&comline, &jlist);
-
-
-  close(comline.fd);
-
-
-  print_results(&comline);
-
-
-  exit(EXIT_SUCCESS);
+	exit(EXIT_SUCCESS);
 }
-
-
-

@@ -28,8 +28,7 @@
 #define __user
 #include <linux/gfs_ioctl.h>
 #include "osi_list.h"
-typedef uint64_t uint64;
-#include "iddev.h"
+#include "libgfs.h"
 
 #include "copyright.cf"
 
