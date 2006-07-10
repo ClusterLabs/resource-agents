@@ -23,7 +23,7 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 include ${top_srcdir}/make/defines.mk
 
 CFLAGS += -g -I. -O2 
-LDFLAGS +=  
+LDFLAGS += -lpthread 
 
 all: $(STATICLIB) $(SHAREDLIB)
 
