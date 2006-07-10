@@ -61,7 +61,6 @@ case "$1" in
 	fi
 
 	modprobe -r gfs
-	modprobe -r lock_gulm
 	modprobe -r lock_dlm
 	rm -f /var/lock/subsys/gfs
 	;;
