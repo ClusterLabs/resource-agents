@@ -17,7 +17,7 @@ top_srcdir=..
 include ${top_srcdir}/make/defines.mk
 
 LIBGFS=libgfs.a
-INCLUDEPATH=-I${top_srcdir}/include -I${top_srcdir}/config -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
+INCLUDEPATH=-I${top_srcdir}/include -I${top_srcdir}/config -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/ -I${gfskincdir}
 
 INSTALL=install
 CC=gcc -c
@@ -27,7 +27,7 @@ CFLAGS=-Wall -ggdb -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
 
 H=gfs_ondisk.h incore.h libgfs.h
 C=bio.c bitmap.c block_list.c file.c fs_bits.c fs_bmap.c fs_dir.c \
-	fs_inode.c inode.c log.c ondisk.c rgrp.c super.c util.c
+	fs_inode.c inode.c log.c ondisk.c rgrp.c size.c super.c util.c
 O=$(subst .c,.o,${C})
 
 all: ${LIBGFS}

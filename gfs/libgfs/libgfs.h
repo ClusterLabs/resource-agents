@@ -260,6 +260,11 @@ int fs_block_map(int disk_fd, struct gfs_inode *ip, uint64 lblock, int *new,
 		 uint64 *dblock, uint32 *extlen);
 
 /* ------------------------------------------------------------------------- */
+/* formerly iddev.h                                                          */
+/* ------------------------------------------------------------------------- */
+int device_size(int fd, uint64_t *bytes);
+
+/* ------------------------------------------------------------------------- */
 /* formerly util.h:                                                          */
 /* ------------------------------------------------------------------------- */
 #define do_lseek(fd, off) \
@@ -328,7 +333,6 @@ int make_dinode(int disk_fd, struct gfs_inode *dip,
 int fs_copyin_dinode(int disk_fd, uint32_t sb_bsize, struct gfs_inode *ip, osi_buf_t *bh);
 int fs_copyout_dinode(int disk_fd, uint32_t sb_bsize, struct gfs_inode *ip);
 int fs_mkdir(int disk_fd, struct gfs_inode *dip, char *new_dir, int mode, struct gfs_inode **nip);
-int fs_remove(struct gfs_inode *ip);
 
 static __inline__ int fs_is_stuffed(struct gfs_inode *ip)
 {
