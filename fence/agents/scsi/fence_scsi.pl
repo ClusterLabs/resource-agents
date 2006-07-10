@@ -103,7 +103,7 @@ sub get_options_stdin
 	elsif ($name eq "agent")
 	{
 	}
-	elsif ($name eq "node")
+	elsif ($name eq "nodename")
 	{
 	    $opt_n = $val;
 	}
@@ -227,7 +227,7 @@ if (@ARGV > 0) {
 
     get_options_stdin();
 
-    fail "failed: missing 'node'" unless defined $node;
+    fail "failed: missing 'node'" unless defined $opt_n;
 
 }
 
