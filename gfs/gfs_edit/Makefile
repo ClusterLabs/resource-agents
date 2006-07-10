@@ -15,8 +15,7 @@ TARGET= gfs_edit
 
 SOURCE=	\
 	gfshex.c \
-	hexedit.c \
-	ondisk.c
+	hexedit.c
 
 top_srcdir=..
 include ${top_srcdir}/make/defines.mk
@@ -31,15 +30,15 @@ ifneq (${KERNEL_SRC}, )
 #  should be installed
 INCLUDE += $(shell if [ -e ${KERNEL_SRC}/include/linux/gfs_ondisk.h ]; then \
 		echo '-I${KERNEL_SRC}/include'; else \
-		echo '-I${incdir}'; fi)
+		echo '-I${gfskincdir}'; fi)
 else
-INCLUDE += -I${incdir}
+INCLUDE += -I${gfskincdir}
 endif
 
 all: gfs_edit
 
 gfs_edit: ${SOURCE}
-	${CC} ${CFLAGS} ${INCLUDE} ${LDFLAGS} ${SOURCE} ${LOADLIBES} ${LDLIBS} -o $@
+	${CC} ${CFLAGS} ${INCLUDE} ${LDFLAGS} ${SOURCE} ${LOADLIBES} ${LDLIBS} -lncurses -o $@
 
 copytobin: all
 	cp ${TARGET} ${top_srcdir}/bin
