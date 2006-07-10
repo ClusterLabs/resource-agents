@@ -23,7 +23,7 @@ Compile kernel with GFS2, DLM, configfs, IPV6 and SCTP.
 
 Build and install the latest openais development tarball from
   http://developer.osdl.org/dev/openais/
-  make; make install
+  make; make install DESTDIR=/
 
 Build and install the latest libvolume_id from the udev tarball
   http://www.us.kernel.org/pub/linux/utils/kernel/hotplug/udev-094.tar.bz2
