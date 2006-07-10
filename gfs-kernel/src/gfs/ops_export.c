@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -57,13 +57,12 @@ gfs_decode_fh(struct super_block *sb, __u32 *fh, int fh_len, int fh_type,
 	      int (*acceptable)(void *context, struct dentry *dentry),
 	      void *context)
 {
-	ENTER(GFN_DECODE_FH)
 	struct inode_cookie this, parent;
 
 	atomic_inc(&get_v2sdp(sb)->sd_ops_export);
 
 	if (fh_type != fh_len)
-		RETURN(GFN_DECODE_FH, NULL);
+		return NULL;
 
 	memset(&parent, 0, sizeof(struct inode_cookie));
 
@@ -81,12 +80,11 @@ gfs_decode_fh(struct super_block *sb, __u32 *fh, int fh_len, int fh_type,
 		this.formal_ino |= (uint64_t)gfs32_to_cpu(fh[1]);
 		break;
 	default:
-		RETURN(GFN_DECODE_FH, NULL);
+		return NULL;
 	}
 
-	RETURN(GFN_DECODE_FH,
-	       gfs_export_ops.find_exported_dentry(sb, &this, &parent,
-						   acceptable, context));
+	return gfs_export_ops.find_exported_dentry(sb, &this, &parent,
+						   acceptable, context);
 }
 
 /**
@@ -104,7 +102,6 @@ int
 gfs_encode_fh(struct dentry *dentry, __u32 *fh, int *len,
 	      int connectable)
 {
-	ENTER(GFN_ENCODE_FH)
 	struct inode *inode = dentry->d_inode;
 	struct gfs_inode *ip = get_v2ip(inode);
 	int maxlen = *len;
@@ -112,7 +109,7 @@ gfs_encode_fh(struct dentry *dentry, __u32 *fh, int *len,
 	atomic_inc(&ip->i_sbd->sd_ops_export);
 
 	if (maxlen < 3)
-		RETURN(GFN_ENCODE_FH, 255);
+		return 255;
 
 	fh[0] = cpu_to_gfs32((uint32_t)(ip->i_num.no_formal_ino >> 32));
 	fh[1] = cpu_to_gfs32((uint32_t)(ip->i_num.no_formal_ino & 0xFFFFFFFF));
@@ -120,7 +117,7 @@ gfs_encode_fh(struct dentry *dentry, __u32 *fh, int *len,
 	*len = 3;
 
 	if (maxlen < 5 || !connectable)
-		RETURN(GFN_ENCODE_FH, 3);
+		return 3;
 
 	spin_lock(&dentry->d_lock);
 
@@ -133,7 +130,7 @@ gfs_encode_fh(struct dentry *dentry, __u32 *fh, int *len,
 
 	if (maxlen < 6) {
 		spin_unlock(&dentry->d_lock);
-		RETURN(GFN_ENCODE_FH, 5);
+		return 5;
 	}
 
 	fh[5] = cpu_to_gfs32(inode->i_generation);  /* dinode's mh_incarn */
@@ -142,7 +139,7 @@ gfs_encode_fh(struct dentry *dentry, __u32 *fh, int *len,
 
 	*len = 6;
 
-	RETURN(GFN_ENCODE_FH, 6);
+	return 6;
 }
 
 /**
@@ -162,16 +159,15 @@ get_name_filldir(void *opaque,
 		 uint64_t offset,
 		 struct gfs_inum *inum, unsigned int type)
 {
-	ENTER(GFN_GET_NAME_FILLDIR)
 	struct get_name_filldir *gnfd = (struct get_name_filldir *)opaque;
 
 	if (inum->no_formal_ino != gnfd->formal_ino)
-		RETURN(GFN_GET_NAME_FILLDIR, 0);
+		return 0;
 
 	memcpy(gnfd->name, name, length);
 	gnfd->name[length] = 0;
 
-	RETURN(GFN_GET_NAME_FILLDIR, 1);
+	return 1;
 }
 
 /**
@@ -188,7 +184,6 @@ get_name_filldir(void *opaque,
 int gfs_get_name(struct dentry *parent, char *name,
 		 struct dentry *child)
 {
-	ENTER(GFN_GET_NAME)
 	struct inode *dir = parent->d_inode;
 	struct inode *inode = child->d_inode;
 	struct gfs_inode *dip, *ip;
@@ -198,12 +193,12 @@ int gfs_get_name(struct dentry *parent, char *name,
 	int error;
 
 	if (!dir)
-		RETURN(GFN_GET_NAME, -EINVAL);
+		return -EINVAL;
 
 	atomic_inc(&get_v2sdp(dir->i_sb)->sd_ops_export);
 
 	if (!S_ISDIR(dir->i_mode) || !inode)
-		RETURN(GFN_GET_NAME, -EINVAL);
+		return -EINVAL;
 
 	dip = get_v2ip(dir);
 	ip = get_v2ip(inode);
@@ -214,7 +209,7 @@ int gfs_get_name(struct dentry *parent, char *name,
 
 	error = gfs_glock_nq_init(dip->i_gl, LM_ST_SHARED, 0, &gh);
 	if (error)
-		RETURN(GFN_GET_NAME, error);
+		return error;
 
 	error = gfs_dir_read(dip, &offset, &gnfd, get_name_filldir);
 
@@ -223,7 +218,7 @@ int gfs_get_name(struct dentry *parent, char *name,
 	if (!error & !*name)
 		error = -ENOENT;
 
-	RETURN(GFN_GET_NAME, error);
+	return error;
 }
 
 /**
@@ -240,7 +235,6 @@ int gfs_get_name(struct dentry *parent, char *name,
 struct dentry *
 gfs_get_parent(struct dentry *child)
 {
-	ENTER(GFN_GET_PARENT)
 	struct gfs_inode *dip = get_v2ip(child->d_inode);
 	struct gfs_holder d_gh, i_gh;
 	struct qstr dotdot = { .name = "..", .len = 2 };
@@ -269,19 +263,19 @@ gfs_get_parent(struct dentry *child)
 	gfs_inode_put(ip);
 
 	if (!inode)
-		RETURN(GFN_GET_PARENT, ERR_PTR(-ENOMEM));
+		return ERR_PTR(-ENOMEM);
 
 	dentry = d_alloc_anon(inode);
 	if (!dentry) {
 		iput(inode);
-		RETURN(GFN_GET_PARENT, ERR_PTR(-ENOMEM));
+		return ERR_PTR(-ENOMEM);
 	}
 
-	RETURN(GFN_GET_PARENT, dentry);
+	return dentry;
 
  fail:
 	gfs_holder_uninit(&d_gh);
-	RETURN(GFN_GET_PARENT, ERR_PTR(error));
+	return ERR_PTR(error);
 }
 
 /**
@@ -298,7 +292,6 @@ gfs_get_parent(struct dentry *child)
 struct dentry *
 gfs_get_dentry(struct super_block *sb, void *inump)
 {
-	ENTER(GFN_GET_DENTRY)
 	struct gfs_sbd *sdp = get_v2sdp(sb);
 	struct inode_cookie *cookie = (struct inode_cookie *)inump;
 	struct gfs_inum inum;
@@ -318,7 +311,7 @@ gfs_get_dentry(struct super_block *sb, void *inump)
 	    cookie->formal_ino == sdp->sd_riinode->i_num.no_formal_ino ||
 	    cookie->formal_ino == sdp->sd_qinode->i_num.no_formal_ino ||
 	    cookie->formal_ino == sdp->sd_linode->i_num.no_formal_ino)
-		RETURN(GFN_GET_DENTRY, ERR_PTR(-EINVAL));
+		return ERR_PTR(-EINVAL);
 
 	inum.no_formal_ino = cookie->formal_ino;
 	inum.no_addr = cookie->formal_ino;
@@ -328,7 +321,7 @@ gfs_get_dentry(struct super_block *sb, void *inump)
 				 LM_ST_SHARED, LM_FLAG_ANY | GL_LOCAL_EXCL,
 				 &i_gh);
 	if (error)
-		RETURN(GFN_GET_DENTRY, ERR_PTR(error));
+		return ERR_PTR(error);
 
 	error = gfs_inode_get(i_gh.gh_gl, &inum, NO_CREATE, &ip);
 	if (error)
@@ -383,21 +376,21 @@ gfs_get_dentry(struct super_block *sb, void *inump)
 	gfs_inode_put(ip);
 
 	if (!inode)
-		RETURN(GFN_GET_DENTRY, ERR_PTR(-ENOMEM));
+		return ERR_PTR(-ENOMEM);
 
 	/* inode->i_generation is GFS dinode's mh_incarn value */
 	if (cookie->gen_valid && cookie->gen != inode->i_generation) {
 		iput(inode);
-		RETURN(GFN_GET_DENTRY, ERR_PTR(-ESTALE));
+		return ERR_PTR(-ESTALE);
 	}
 
 	dentry = d_alloc_anon(inode);
 	if (!dentry) {
 		iput(inode);
-		RETURN(GFN_GET_DENTRY, ERR_PTR(-ENOMEM));
+		return ERR_PTR(-ENOMEM);
 	}
 
-	RETURN(GFN_GET_DENTRY, dentry);
+	return dentry;
 
  fail_relse:
         brelse(bh);
@@ -410,7 +403,7 @@ gfs_get_dentry(struct super_block *sb, void *inump)
 
  fail:
 	gfs_glock_dq_uninit(&i_gh);
-	RETURN(GFN_GET_DENTRY, ERR_PTR(error));
+	return ERR_PTR(error);
 }
 
 struct export_operations gfs_export_ops = {

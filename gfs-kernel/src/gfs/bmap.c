@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -56,14 +56,13 @@ int
 gfs_unstuffer_sync(struct gfs_inode *ip, struct buffer_head *dibh,
 		   uint64_t block, void *private)
 {
-	ENTER(GFN_UNSTUFFER_SYNC)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct buffer_head *bh;
 	int error;
 
 	error = gfs_get_data_buffer(ip, block, TRUE, &bh);
 	if (error)
-		RETURN(GFN_UNSTUFFER_SYNC, error);
+		return error;
 
 	gfs_buffer_copy_tail(bh, 0, dibh, sizeof(struct gfs_dinode));
 
@@ -71,7 +70,7 @@ gfs_unstuffer_sync(struct gfs_inode *ip, struct buffer_head *dibh,
 
 	brelse(bh);
 
-	RETURN(GFN_UNSTUFFER_SYNC, error);
+	return error;
 }
 
 /**
@@ -88,14 +87,13 @@ int
 gfs_unstuffer_async(struct gfs_inode *ip, struct buffer_head *dibh,
 		    uint64_t block, void *private)
 {
-	ENTER(GFN_UNSTUFFER_ASYNC)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct buffer_head *bh;
 	int error;
 
 	error = gfs_get_data_buffer(ip, block, TRUE, &bh);
 	if (error)
-		RETURN(GFN_UNSTUFFER_ASYNC, error);
+		return error;
 
 	gfs_buffer_copy_tail(bh, 0, dibh, sizeof(struct gfs_dinode));
 
@@ -103,7 +101,7 @@ gfs_unstuffer_async(struct gfs_inode *ip, struct buffer_head *dibh,
 
 	brelse(bh);
 
-	RETURN(GFN_UNSTUFFER_ASYNC, error);
+	return error;
 }
 
 /**
@@ -122,18 +120,17 @@ int
 gfs_unstuff_dinode(struct gfs_inode *ip, gfs_unstuffer_t unstuffer,
 		   void *private)
 {
-	ENTER(GFN_UNSTUFF_DINODE)
 	struct buffer_head *bh, *dibh;
 	uint64_t block = 0;
 	int journaled = gfs_is_jdata(ip);
 	int error;
 
 	down_write(&ip->i_rw_mutex);
-
+ 
 	error = gfs_get_inode_buffer(ip, &dibh);
 	if (error)
 		goto out;
-		
+
 	if (ip->i_di.di_size) {
 		/* Get a free block, fill it with the stuffed data,
 		   and write it out to disk */
@@ -179,9 +176,9 @@ gfs_unstuff_dinode(struct gfs_inode *ip, gfs_unstuffer_t unstuffer,
 	brelse(dibh);
 
  out:
-	up_write(&ip->i_rw_mutex);
+ 	up_write(&ip->i_rw_mutex);
 
-	RETURN(GFN_UNSTUFF_DINODE, error);
+	return error;
 }
 
 /**
@@ -200,7 +197,6 @@ gfs_unstuff_dinode(struct gfs_inode *ip, gfs_unstuffer_t unstuffer,
 static unsigned int
 calc_tree_height(struct gfs_inode *ip, uint64_t size)
 {
-	ENTER(GFN_CALC_TREE_HEIGHT)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	uint64_t *arr;
 	unsigned int max, height;
@@ -220,7 +216,7 @@ calc_tree_height(struct gfs_inode *ip, uint64_t size)
 		if (arr[height] >= size)
 			break;
 
-	RETURN(GFN_CALC_TREE_HEIGHT, height);
+	return height;
 }
 
 /**
@@ -237,7 +233,6 @@ calc_tree_height(struct gfs_inode *ip, uint64_t size)
 static int
 build_height(struct gfs_inode *ip, int height)
 {
-	ENTER(GFN_BUILD_HEIGHT)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct buffer_head *bh, *dibh;
 	uint64_t block, *bp;
@@ -248,7 +243,7 @@ build_height(struct gfs_inode *ip, int height)
 	while (ip->i_di.di_height < height) {
 		error = gfs_get_inode_buffer(ip, &dibh);
 		if (error)
-			RETURN(GFN_BUILD_HEIGHT, error);
+			return error;
 
 		new_block = FALSE;
 		bp = (uint64_t *)(dibh->b_data + sizeof(struct gfs_dinode));
@@ -302,12 +297,12 @@ build_height(struct gfs_inode *ip, int height)
 		brelse(dibh);
 	}
 
-	RETURN(GFN_BUILD_HEIGHT, 0);
+	return 0;
 
  fail:
 	brelse(dibh);
 
-	RETURN(GFN_BUILD_HEIGHT, error);
+	return error;
 }
 
 /**
@@ -372,7 +367,6 @@ build_height(struct gfs_inode *ip, int height)
 static struct metapath *
 find_metapath(struct gfs_inode *ip, uint64_t block)
 {
-	ENTER(GFN_FIND_METAPATH)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct metapath *mp;
 	uint64_t b = block;
@@ -384,7 +378,7 @@ find_metapath(struct gfs_inode *ip, uint64_t block)
 	for (i = ip->i_di.di_height; i--;)
 		mp->mp_list[i] = do_div(b, sdp->sd_inptrs);
 
-	RETURN(GFN_FIND_METAPATH, mp);
+	return mp;
 }
 
 /**
@@ -429,23 +423,22 @@ get_metablock(struct gfs_inode *ip,
 	      struct buffer_head *bh, unsigned int height, struct metapath *mp,
 	      int create, int *new, uint64_t *block)
 {
-	ENTER(GFN_GET_METABLOCK)
 	uint64_t *ptr = metapointer(bh, height, mp);
 	int error;
 
 	if (*ptr) {
 		*block = gfs64_to_cpu(*ptr);
-		RETURN(GFN_GET_METABLOCK, 0);
+		return 0;
 	}
 
 	*block = 0;
 
 	if (!create)
-		RETURN(GFN_GET_METABLOCK, 0);
+		return 0;
 
 	error = gfs_metaalloc(ip, block);
 	if (error)
-		RETURN(GFN_GET_METABLOCK, error);
+		return error;
 
 	gfs_trans_add_bh(ip->i_gl, bh);
 
@@ -454,7 +447,7 @@ get_metablock(struct gfs_inode *ip,
 
 	*new = 1;
 
-	RETURN(GFN_GET_METABLOCK, 0);
+	return 0;
 }
 
 /**
@@ -478,24 +471,23 @@ get_datablock(struct gfs_inode *ip,
 	      struct buffer_head *bh, struct metapath *mp,
 	      int create, int *new, uint64_t *block)
 {
-	ENTER(GFN_GET_DATABLOCK)
 	uint64_t *ptr = metapointer(bh, ip->i_di.di_height - 1, mp);
 
 	if (*ptr) {
 		*block = gfs64_to_cpu(*ptr);
-		RETURN(GFN_GET_DATABLOCK, 0);
+		return 0;
 	}
 
 	*block = 0;
 
 	if (!create)
-		RETURN(GFN_GET_DATABLOCK, 0);
+		return 0;
 
 	if (gfs_is_jdata(ip)) {
 		int error;
 		error = gfs_metaalloc(ip, block);
 		if (error)
-			RETURN(GFN_GET_DATABLOCK, error);
+			return error;
 	} else
 		gfs_blkalloc(ip, block);
 
@@ -506,7 +498,7 @@ get_datablock(struct gfs_inode *ip,
 
 	*new = 1;
 
-	RETURN(GFN_GET_DATABLOCK, 0);
+	return 0;
 }
 
 /**
@@ -528,7 +520,6 @@ gfs_block_map(struct gfs_inode *ip,
 	      uint64_t lblock, int *new,
 	      uint64_t *dblock, uint32_t *extlen)
 {
-	ENTER(GFN_BLOCK_MAP)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct buffer_head *bh;
 	struct metapath *mp;
@@ -630,8 +621,8 @@ gfs_block_map(struct gfs_inode *ip,
 		up_write(&ip->i_rw_mutex);
 	else
 		up_read(&ip->i_rw_mutex);
-
-	RETURN(GFN_BLOCK_MAP, error);
+ 
+	return error;
 }
 
 /**
@@ -647,7 +638,6 @@ gfs_block_map(struct gfs_inode *ip,
 static int
 do_grow(struct gfs_inode *ip, uint64_t size)
 {
-	ENTER(GFN_DO_GROW)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct gfs_alloc *al;
 	struct buffer_head *dibh;
@@ -727,7 +717,7 @@ do_grow(struct gfs_inode *ip, uint64_t size)
  out:
 	gfs_alloc_put(ip);
 
-	RETURN(GFN_DO_GROW, error);
+	return error;
 }
 
 /**
@@ -752,7 +742,6 @@ recursive_scan(struct gfs_inode *ip, struct buffer_head *dibh,
 	       struct metapath *mp, unsigned int height, uint64_t block,
 	       int first, block_call_t bc, void *data)
 {
-	ENTER(GFN_RECURSIVE_SCAN)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct buffer_head *bh = NULL;
 	uint64_t *top, *bottom;
@@ -800,13 +789,13 @@ recursive_scan(struct gfs_inode *ip, struct buffer_head *dibh,
 
 	brelse(bh);
 
-	RETURN(GFN_RECURSIVE_SCAN, 0);
+	return 0;
 
  fail:
 	if (bh)
 		brelse(bh);
 
-	RETURN(GFN_RECURSIVE_SCAN, error);
+	return error;
 }
 
 /**
@@ -827,7 +816,6 @@ do_strip(struct gfs_inode *ip, struct buffer_head *dibh,
 	 struct buffer_head *bh, uint64_t *top, uint64_t *bottom,
 	 unsigned int height, void *data)
 {
-	ENTER(GFN_DO_STRIP)
 	struct strip_mine *sm = (struct strip_mine *)data;
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct gfs_rgrp_list rlist;
@@ -843,7 +831,7 @@ do_strip(struct gfs_inode *ip, struct buffer_head *dibh,
 		sm->sm_first = FALSE;
 
 	if (height != sm->sm_height)
-		RETURN(GFN_DO_STRIP, 0);
+		return 0;
 
 	if (sm->sm_first) {
 		top++;
@@ -854,7 +842,7 @@ do_strip(struct gfs_inode *ip, struct buffer_head *dibh,
 
 	error = gfs_rindex_hold(sdp, &ip->i_alloc->al_ri_gh);
 	if (error)
-		RETURN(GFN_DO_STRIP, error);
+		return error;
 
 	memset(&rlist, 0, sizeof(struct gfs_rgrp_list));
 	bstart = 0;
@@ -961,7 +949,7 @@ do_strip(struct gfs_inode *ip, struct buffer_head *dibh,
  out:
 	gfs_glock_dq_uninit(&ip->i_alloc->al_ri_gh);
 
-	RETURN(GFN_DO_STRIP, error);
+	return error;
 }
 
 /**
@@ -975,7 +963,6 @@ do_strip(struct gfs_inode *ip, struct buffer_head *dibh,
 int
 gfs_truncator_default(struct gfs_inode *ip, uint64_t size)
 {
-	ENTER(GFN_TRUNCATOR_DEFAULT)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct buffer_head *bh;
 	uint64_t bn;
@@ -985,13 +972,13 @@ gfs_truncator_default(struct gfs_inode *ip, uint64_t size)
 	error = gfs_block_map(ip, size >> sdp->sd_sb.sb_bsize_shift, &not_new,
 			      &bn, NULL);
 	if (error)
-		RETURN(GFN_TRUNCATOR_DEFAULT, error);
+		return error;
 	if (!bn)
-		RETURN(GFN_TRUNCATOR_DEFAULT, 0);
+		return 0;
 
 	error = gfs_get_data_buffer(ip, bn, FALSE, &bh);
 	if (error)
-		RETURN(GFN_TRUNCATOR_DEFAULT, error);
+		return error;
 
 	gfs_buffer_clear_tail(bh, size & (sdp->sd_sb.sb_bsize - 1));
 
@@ -999,7 +986,7 @@ gfs_truncator_default(struct gfs_inode *ip, uint64_t size)
 
 	brelse(bh);
 
-	RETURN(GFN_TRUNCATOR_DEFAULT, error);
+	return error;
 }
 
 /**
@@ -1013,7 +1000,6 @@ gfs_truncator_default(struct gfs_inode *ip, uint64_t size)
 static int
 truncator_journaled(struct gfs_inode *ip, uint64_t size)
 {
-	ENTER(GFN_TRUNCATOR_JOURNALED)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct buffer_head *bh;
 	uint64_t lbn, dbn;
@@ -1026,13 +1012,13 @@ truncator_journaled(struct gfs_inode *ip, uint64_t size)
 
 	error = gfs_block_map(ip, lbn, &not_new, &dbn, NULL);
 	if (error)
-		RETURN(GFN_TRUNCATOR_JOURNALED, error);
+		return error;
 	if (!dbn)
-		RETURN(GFN_TRUNCATOR_JOURNALED, 0);
+		return 0;
 
 	error = gfs_trans_begin(sdp, 1, 0);
 	if (error)
-		RETURN(GFN_TRUNCATOR_JOURNALED, error);
+		return error;
 
 	error = gfs_get_data_buffer(ip, dbn, FALSE, &bh);
 	if (!error) {
@@ -1045,7 +1031,7 @@ truncator_journaled(struct gfs_inode *ip, uint64_t size)
 
 	gfs_trans_end(sdp);
 
-	RETURN(GFN_TRUNCATOR_JOURNALED, error);
+	return error;
 }
 
 /**
@@ -1062,7 +1048,6 @@ truncator_journaled(struct gfs_inode *ip, uint64_t size)
 int
 gfs_shrink(struct gfs_inode *ip, uint64_t size, gfs_truncator_t truncator)
 {
-	ENTER(GFN_SHRINK)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct gfs_holder ri_gh;
 	struct gfs_rgrpd *rgd;
@@ -1092,7 +1077,7 @@ gfs_shrink(struct gfs_inode *ip, uint64_t size, gfs_truncator_t truncator)
 		if (error) {
 			gfs_alloc_put(ip);
 			kfree(mp);
-			RETURN(GFN_SHRINK, error);
+			return error;
 		}
 
 		while (height--) {
@@ -1107,7 +1092,7 @@ gfs_shrink(struct gfs_inode *ip, uint64_t size, gfs_truncator_t truncator)
 				gfs_quota_unhold_m(ip);
 				gfs_alloc_put(ip);
 				kfree(mp);
-				RETURN(GFN_SHRINK, error);
+				return error;
 			}
 		}
 
@@ -1124,12 +1109,12 @@ gfs_shrink(struct gfs_inode *ip, uint64_t size, gfs_truncator_t truncator)
 		if (do_mod(size, sdp->sd_jbsize)) {
 			error = truncator_journaled(ip, size);
 			if (error)
-				RETURN(GFN_SHRINK, error);
+				return error;
 		}
 	} else if (size & (uint64_t)(sdp->sd_sb.sb_bsize - 1)) {
 		error = truncator(ip, size);
 		if (error)
-			RETURN(GFN_SHRINK, error);
+			return error;
 	}
 
 	/*  Set the new size (and possibly the height)  */
@@ -1137,7 +1122,7 @@ gfs_shrink(struct gfs_inode *ip, uint64_t size, gfs_truncator_t truncator)
 	if (!size) {
 		error = gfs_rindex_hold(sdp, &ri_gh);
 		if (error)
-			RETURN(GFN_SHRINK, error);
+			return error;
 	}
 
 	error = gfs_trans_begin(sdp, 1, 0);
@@ -1187,7 +1172,7 @@ gfs_shrink(struct gfs_inode *ip, uint64_t size, gfs_truncator_t truncator)
 	if (!size)
 		gfs_glock_dq_uninit(&ri_gh);
 
-	RETURN(GFN_SHRINK, error);
+	return error;
 }
 
 /**
@@ -1200,14 +1185,13 @@ gfs_shrink(struct gfs_inode *ip, uint64_t size, gfs_truncator_t truncator)
 static int
 do_same(struct gfs_inode *ip)
 {
-	ENTER(GFN_DO_SAME)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct buffer_head *dibh;
 	int error;
 
 	error = gfs_trans_begin(sdp, 1, 0);
 	if (error)
-		RETURN(GFN_DO_SAME, error);
+		return error;
 
 	error = gfs_get_inode_buffer(ip, &dibh);
 	if (error)
@@ -1223,7 +1207,7 @@ do_same(struct gfs_inode *ip)
  out:
 	gfs_trans_end(sdp);
 
-	RETURN(GFN_DO_SAME, error);
+	return error;
 }
 
 /**
@@ -1241,17 +1225,15 @@ int
 gfs_truncatei(struct gfs_inode *ip, uint64_t size,
 	      gfs_truncator_t truncator)
 {
-	ENTER(GFN_TRUNCATEI)
-
 	if (gfs_assert_warn(ip->i_sbd, ip->i_di.di_type == GFS_FILE_REG))
-		RETURN(GFN_TRUNCATEI, -EINVAL);
+		return -EINVAL;
 
 	if (size == ip->i_di.di_size)
-		RETURN(GFN_TRUNCATEI, do_same(ip));
+		return do_same(ip);
 	else if (size > ip->i_di.di_size)
-		RETURN(GFN_TRUNCATEI, do_grow(ip, size));
+		return do_grow(ip, size);
 	else
-		RETURN(GFN_TRUNCATEI, gfs_shrink(ip, size, truncator));
+		return gfs_shrink(ip, size, truncator);
 }
 
 /**
@@ -1267,7 +1249,6 @@ void
 gfs_write_calc_reserv(struct gfs_inode *ip, unsigned int len,
 		      unsigned int *data_blocks, unsigned int *ind_blocks)
 {
-	ENTER(GFN_WRITE_CALC_RESERV)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	unsigned int tmp;
 
@@ -1283,8 +1264,6 @@ gfs_write_calc_reserv(struct gfs_inode *ip, unsigned int len,
 		tmp = DIV_RU(tmp, sdp->sd_inptrs);
 		*ind_blocks += tmp;
 	}
-
-	RET(GFN_WRITE_CALC_RESERV);
 }
 
 /**
@@ -1302,7 +1281,6 @@ gfs_write_alloc_required(struct gfs_inode *ip,
 			 uint64_t offset, unsigned int len,
 			 int *alloc_required)
 {
-	ENTER(GFN_WRITE_ALLOC_REQUIRED)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	uint64_t lblock, lblock_stop, dblock;
 	uint32_t extlen;
@@ -1312,12 +1290,12 @@ gfs_write_alloc_required(struct gfs_inode *ip,
 	*alloc_required = FALSE;
 
 	if (!len)
-		RETURN(GFN_WRITE_ALLOC_REQUIRED, 0);
+		return 0;
 
 	if (gfs_is_stuffed(ip)) {
 		if (offset + len > sdp->sd_sb.sb_bsize - sizeof(struct gfs_dinode))
 			*alloc_required = TRUE;
-		RETURN(GFN_WRITE_ALLOC_REQUIRED, 0);
+		return 0;
 	}
 
 	if (gfs_is_jdata(ip)) {
@@ -1335,15 +1313,15 @@ gfs_write_alloc_required(struct gfs_inode *ip,
 	for (; lblock < lblock_stop; lblock += extlen) {
 		error = gfs_block_map(ip, lblock, &not_new, &dblock, &extlen);
 		if (error)
-			RETURN(GFN_WRITE_ALLOC_REQUIRED, error);
+			return error;
 
 		if (!dblock) {
 			*alloc_required = TRUE;
-			RETURN(GFN_WRITE_ALLOC_REQUIRED, 0);
+			return 0;
 		}
 	}
 
-	RETURN(GFN_WRITE_ALLOC_REQUIRED, 0);
+	return 0;
 }
 
 /**
@@ -1366,17 +1344,16 @@ do_gfm(struct gfs_inode *ip, struct buffer_head *dibh,
        struct buffer_head *bh, uint64_t *top, uint64_t *bottom,
        unsigned int height, void *data)
 {
-	ENTER(GFN_DO_GFM)
 	struct gfs_user_buffer *ub = (struct gfs_user_buffer *)data;
 	int error;
 
 	error = gfs_add_bh_to_ub(ub, bh);
 	if (error)
-		RETURN(GFN_DO_GFM, error);
+		return error;
 
 	if (ip->i_di.di_type != GFS_FILE_DIR ||
 	    height + 1 != ip->i_di.di_height)
-		RETURN(GFN_DO_GFM, 0);
+		return 0;
 
 	for (; top < bottom; top++)
 		if (*top) {
@@ -1386,17 +1363,17 @@ do_gfm(struct gfs_inode *ip, struct buffer_head *dibh,
 					  DIO_START | DIO_WAIT,
 					  &data_bh);
 			if (error)
-				RETURN(GFN_DO_GFM, error);
+				return error;
 
 			error = gfs_add_bh_to_ub(ub, data_bh);
 
 			brelse(data_bh);
 
 			if (error)
-				RETURN(GFN_DO_GFM, error);
+				return error;
 		}
 
-	RETURN(GFN_DO_GFM, 0);
+	return 0;
 }
 
 /**
@@ -1410,7 +1387,6 @@ do_gfm(struct gfs_inode *ip, struct buffer_head *dibh,
 int
 gfs_get_file_meta(struct gfs_inode *ip, struct gfs_user_buffer *ub)
 {
-	ENTER(GFN_GET_FILE_META)
 	int error;
 
 	if (gfs_is_stuffed(ip)) {
@@ -1426,5 +1402,5 @@ gfs_get_file_meta(struct gfs_inode *ip, struct gfs_user_buffer *ub)
 		kfree(mp);
 	}
 
-	RETURN(GFN_GET_FILE_META, error);
+	return error;
 }

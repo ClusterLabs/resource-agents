@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -16,13 +16,12 @@
 
 #define GFS_RELEASE_NAME "<CVS>"
 
+#include <linux/lm_interface.h>
 #include <linux/gfs_ondisk.h>
 
-#include "lm_interface.h"
 #include "fixed_div64.h"
 #include "lvb.h"
 #include "incore.h"
-#include "debug.h"
 #include "util.h"
 
 #ifndef TRUE
@@ -84,5 +83,20 @@
 #define set_gl2rgd(gl, rgd) (gl)->gl_object = (rgd)
 #define get_gl2gl(gl) ((struct gfs_glock *)(gl)->gl_object)
 #define set_gl2gl(gl, gl2) (gl)->gl_object = (gl2)
+
+#define gfs_printf(fmt, args...) \
+do { \
+	if (buf) { \
+		int gspf_left = size - *count, gspf_out; \
+		if (gspf_left <= 0) \
+			goto out; \
+		gspf_out = snprintf(buf + *count, gspf_left, fmt, ##args); \
+		if (gspf_out < gspf_left) \
+			*count += gspf_out; \
+		else \
+			goto out; \
+	} else \
+		printk(fmt, ##args); \
+} while (0)
 
 #endif /* __GFS_DOT_H__ */

@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -20,6 +20,7 @@
 #include <linux/buffer_head.h>
 #include <asm/uaccess.h>
 #include <linux/xattr.h>
+#include <linux/posix_acl.h>
 
 #include "gfs.h"
 #include "acl.h"
@@ -47,15 +48,12 @@ ea_calc_size(struct gfs_sbd *sdp,
 	    struct gfs_ea_request *er,
 	    unsigned int *size)
 {
-	ENTER(GFN_EA_CALC_SIZE)
-
 	*size = GFS_EAREQ_SIZE_STUFFED(er);
 	if (*size <= sdp->sd_jbsize)
-		RETURN(GFN_EA_CALC_SIZE, TRUE);
+		return TRUE;
 
 	*size = GFS_EAREQ_SIZE_UNSTUFFED(sdp, er);
-
-	RETURN(GFN_EA_CALC_SIZE, FALSE);
+	return FALSE;
 }
 
 /**
@@ -69,19 +67,16 @@ ea_calc_size(struct gfs_sbd *sdp,
 int
 gfs_ea_check_size(struct gfs_sbd *sdp, struct gfs_ea_request *er)
 {
-	ENTER(GFN_EA_CHECK_SIZE)
 	unsigned int size;
 
 	if (er->er_data_len > GFS_EA_MAX_DATA_LEN)
-		RETURN(GFN_EA_CHECK_SIZE, -ERANGE);
+		return -ERANGE;
 
 	ea_calc_size(sdp, er, &size);
-
-	/* This can only happen with 512 byte blocks */
 	if (size > sdp->sd_jbsize)
-		RETURN(GFN_EA_CHECK_SIZE, -ERANGE);
+		return -ERANGE; /* This can only happen with 512 byte blocks */
 
-	RETURN(GFN_EA_CHECK_SIZE, 0);
+	return 0;
 }
 
 typedef int (*ea_call_t) (struct gfs_inode *ip,
@@ -105,12 +100,11 @@ ea_foreach_i(struct gfs_inode *ip,
 	     struct buffer_head *bh,
 	     ea_call_t ea_call, void *data)
 {
-	ENTER(GFN_EA_FOREACH_I)
 	struct gfs_ea_header *ea, *prev = NULL;
 	int error = 0;
 
 	if (gfs_metatype_check(ip->i_sbd, bh, GFS_METATYPE_EA))
-		RETURN(GFN_EA_FOREACH_I, -EIO);
+		return -EIO;
 
 	for (ea = GFS_EA_BH2FIRST(bh);; prev = ea, ea = GFS_EA2NEXT(ea)) {
 		if (!GFS_EA_REC_LEN(ea))
@@ -124,7 +118,7 @@ ea_foreach_i(struct gfs_inode *ip,
 
 		error = ea_call(ip, bh, ea, prev, data);
 		if (error)
-			RETURN(GFN_EA_FOREACH_I, error);
+			return error;
 
 		if (GFS_EA_IS_LAST(ea)) {
 			if ((char *)GFS_EA2NEXT(ea) !=
@@ -134,11 +128,11 @@ ea_foreach_i(struct gfs_inode *ip,
 		}
 	}
 
-	RETURN(GFN_EA_FOREACH_I, error);
+	return error;
 
  fail:
 	gfs_consist_inode(ip);
-	RETURN(GFN_EA_FOREACH_I, -EIO);
+	return -EIO;
 }
 
 /**
@@ -155,14 +149,13 @@ ea_foreach(struct gfs_inode *ip,
 	   ea_call_t ea_call,
 	   void *data)
 {
-	ENTER(GFN_EA_FOREACH)
 	struct buffer_head *bh;
 	int error;
 
 	error = gfs_dread(ip->i_gl, ip->i_di.di_eattr,
 			  DIO_START | DIO_WAIT, &bh);
 	if (error)
-		RETURN(GFN_EA_FOREACH, error);
+		return error;
 
 	if (!(ip->i_di.di_flags & GFS_DIF_EA_INDIRECT))
 		error = ea_foreach_i(ip, bh, ea_call, data);
@@ -199,7 +192,7 @@ ea_foreach(struct gfs_inode *ip,
  out:
 	brelse(bh);
 
-	RETURN(GFN_EA_FOREACH, error);
+	return error;
 }
 
 struct ea_find {
@@ -226,12 +219,11 @@ ea_find_i(struct gfs_inode *ip,
 	  struct gfs_ea_header *prev,
 	  void *private)
 {
-	ENTER(GFN_EA_FIND_I)
 	struct ea_find *ef = (struct ea_find *)private;
 	struct gfs_ea_request *er = ef->ef_er;
 
 	if (ea->ea_type == GFS_EATYPE_UNUSED)
-		RETURN(GFN_EA_FIND_I, 0);
+		return 0;
 
 	if (ea->ea_type == er->er_type) {
 		if (ea->ea_name_len == er->er_name_len &&
@@ -241,17 +233,17 @@ ea_find_i(struct gfs_inode *ip,
 			el->el_bh = bh;
 			el->el_ea = ea;
 			el->el_prev = prev;
-			RETURN(GFN_EA_FIND_I, 1);
+			return 1;
 		}
 	}
 
 #if 0
 	else if ((ip->i_di.di_flags & GFS_DIF_EA_PACKED) &&
 		 er->er_type == GFS_EATYPE_SYS)
-		RETURN(GFN_EA_FIND_I, 1);
+		return 1;
 #endif
 
-	RETURN(GFN_EA_FIND_I, 0);
+	return 0;
 }
 
 /**
@@ -268,7 +260,6 @@ gfs_ea_find(struct gfs_inode *ip,
 	    struct gfs_ea_request *er,
 	    struct gfs_ea_location *el)
 {
-	ENTER(GFN_EA_FIND)
 	struct ea_find ef;
 	int error;
 
@@ -279,9 +270,9 @@ gfs_ea_find(struct gfs_inode *ip,
 
 	error = ea_foreach(ip, ea_find_i, &ef);
 	if (error > 0)
-		RETURN(GFN_EA_FIND, 0);
+		return 0;
 
-	RETURN(GFN_EA_FIND, error);
+	return error;
 }
 
 /**
@@ -306,7 +297,6 @@ ea_dealloc_unstuffed(struct gfs_inode *ip,
 		     struct gfs_ea_header *prev,
 		     void *private)
 {
-	ENTER(GFN_EA_DEALLOC_UNSTUFFED)
 	int *leave = (int *)private;
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct gfs_rgrpd *rgd;
@@ -319,7 +309,7 @@ ea_dealloc_unstuffed(struct gfs_inode *ip,
 	int error;
 
 	if (GFS_EA_IS_STUFFED(ea))
-		RETURN(GFN_EA_DEALLOC_UNSTUFFED, 0);
+		return 0;
 
 	dataptrs = GFS_EA2DATAPTRS(ea);
 	for (x = 0; x < ea->ea_num_ptrs; x++, dataptrs++)
@@ -328,17 +318,17 @@ ea_dealloc_unstuffed(struct gfs_inode *ip,
 			break;
 		}
 	if (!bn)
-		RETURN(GFN_EA_DEALLOC_UNSTUFFED, 0);
+		return 0;
 
 	rgd = gfs_blk2rgrpd(sdp, bn);
 	if (!rgd) {
 		gfs_consist_inode(ip);
-		RETURN(GFN_EA_DEALLOC_UNSTUFFED, -EIO);
+		return -EIO;
 	}
 
 	error = gfs_glock_nq_init(rgd->rd_gl, LM_ST_EXCLUSIVE, 0, &rg_gh);
 	if (error)
-		RETURN(GFN_EA_DEALLOC_UNSTUFFED, error);
+		return error;
 
 	error = gfs_trans_begin(sdp, 2 + rgd->rd_ri.ri_length, 1);
 	if (error)
@@ -395,7 +385,7 @@ ea_dealloc_unstuffed(struct gfs_inode *ip,
  out_gunlock:
 	gfs_glock_dq_uninit(&rg_gh);
 
-	RETURN(GFN_EA_DEALLOC_UNSTUFFED, error);
+	return error;
 }
 
 /**
@@ -416,7 +406,6 @@ ea_remove_unstuffed(struct gfs_inode *ip,
 		    struct gfs_ea_header *prev,
 		    int leave)
 {
-	ENTER(GFN_EA_REMOVE_UNSTUFFED)
 	struct gfs_alloc *al;
 	int error;
 
@@ -442,7 +431,7 @@ ea_remove_unstuffed(struct gfs_inode *ip,
  out_alloc:
 	gfs_alloc_put(ip);
 
-	RETURN(GFN_EA_REMOVE_UNSTUFFED, error);
+	return error;
 }
 
 /**************************************************************************************************/
@@ -457,8 +446,7 @@ ea_remove_unstuffed(struct gfs_inode *ip,
 int
 gfs_ea_repack_i(struct gfs_inode *ip)
 {
-	ENTER(GFN_EA_REPACK_I)
-	RETURN(GFN_EA_REPACK_I, -ENOSYS);
+	return -ENOSYS;
 }
 
 /**
@@ -470,13 +458,12 @@ gfs_ea_repack_i(struct gfs_inode *ip)
 
 int gfs_ea_repack(struct gfs_inode *ip)
 {
-	ENTER(GFN_EA_REPACK)
 	struct gfs_holder gh;
 	int error;
 
 	error = gfs_glock_nq_init(ip->i_gl, LM_ST_EXCLUSIVE, 0, &gh);
 	if (error)
-		RETURN(GFN_EA_REPACK, error);
+		return error;
 
 	/* Some sort of permissions checking would be nice */
 
@@ -484,7 +471,7 @@ int gfs_ea_repack(struct gfs_inode *ip)
 
 	gfs_glock_dq_uninit(&gh);
 
-	RETURN(GFN_EA_REPACK, error);
+	return error;
 }
 
 struct ea_list {
@@ -510,13 +497,12 @@ ea_list_i(struct gfs_inode *ip,
 	  struct gfs_ea_header *prev,
 	  void *private)
 {
-	ENTER(GFN_EA_LIST_I)
 	struct ea_list *ei = (struct ea_list *)private;
 	struct gfs_ea_request *er = ei->ei_er;
 	unsigned int ea_size = GFS_EA_STRLEN(ea);
 
 	if (ea->ea_type == GFS_EATYPE_UNUSED)
-		RETURN(GFN_EA_LIST_I, 0);
+		return 0;
 
 	if (er->er_data_len) {
 		char *prefix;
@@ -524,7 +510,7 @@ ea_list_i(struct gfs_inode *ip,
 		char c = 0;
 
 		if (ei->ei_size + ea_size > er->er_data_len)
-			RETURN(GFN_EA_LIST_I, -ERANGE);
+			return -ERANGE;
 
 		if (ea->ea_type == GFS_EATYPE_USR) {
 			prefix = "user.";
@@ -546,7 +532,7 @@ ea_list_i(struct gfs_inode *ip,
 
 	ei->ei_size += ea_size;
 
-	RETURN(GFN_EA_LIST_I, 0);
+	return 0;
 }
 
 /**
@@ -560,7 +546,6 @@ ea_list_i(struct gfs_inode *ip,
 int
 gfs_ea_list(struct gfs_inode *ip, struct gfs_ea_request *er)
 {
-	ENTER(GFN_EA_LIST)
 	struct gfs_holder i_gh;
 	int error;
 
@@ -573,7 +558,7 @@ gfs_ea_list(struct gfs_inode *ip, struct gfs_ea_request *er)
 				  LM_ST_SHARED, LM_FLAG_ANY,
 				  &i_gh);
 	if (error)
-		RETURN(GFN_EA_LIST, error);
+		return error;
 
 	if (ip->i_di.di_eattr) {
 		struct ea_list ei = { .ei_er = er, .ei_size = 0 };
@@ -585,7 +570,7 @@ gfs_ea_list(struct gfs_inode *ip, struct gfs_ea_request *er)
 
 	gfs_glock_dq_uninit(&i_gh);
 
-	RETURN(GFN_EA_LIST, error);
+	return error;
 }
 
 /**
@@ -602,7 +587,6 @@ static int
 ea_get_unstuffed(struct gfs_inode *ip, struct gfs_ea_header *ea,
 		 char *data)
 {
-	ENTER(GFN_EA_GET_UNSTUFFED)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct buffer_head **bh;
 	unsigned int amount = GFS_EA_DATA_LEN(ea);
@@ -613,7 +597,7 @@ ea_get_unstuffed(struct gfs_inode *ip, struct gfs_ea_header *ea,
 
 	bh = kmalloc(nptrs * sizeof(struct buffer_head *), GFP_KERNEL);
 	if (!bh)
-		RETURN(GFN_EA_GET_UNSTUFFED, -ENOMEM);
+		return -ENOMEM;
 
 	for (x = 0; x < nptrs; x++) {
 		error = gfs_dread(ip->i_gl, gfs64_to_cpu(*dataptrs),
@@ -654,7 +638,7 @@ ea_get_unstuffed(struct gfs_inode *ip, struct gfs_ea_header *ea,
  out:
 	kfree(bh);
 
-	RETURN(GFN_EA_GET_UNSTUFFED, error);
+	return error;
 }
 
 /**
@@ -671,16 +655,13 @@ gfs_ea_get_copy(struct gfs_inode *ip,
 		struct gfs_ea_location *el,
 		char *data)
 {
-	ENTER(GFN_EA_GET_COPY)
-
 	if (GFS_EA_IS_STUFFED(el->el_ea)) {
 		memcpy(data,
 		       GFS_EA2DATA(el->el_ea),
 		       GFS_EA_DATA_LEN(el->el_ea));
-		RETURN(GFN_EA_GET_COPY, 0);
+		return 0;
 	} else
-		RETURN(GFN_EA_GET_COPY,
-		       ea_get_unstuffed(ip, el->el_ea, data));
+		return ea_get_unstuffed(ip, el->el_ea, data);
 }
 
 /**
@@ -694,18 +675,17 @@ gfs_ea_get_copy(struct gfs_inode *ip,
 int
 gfs_ea_get_i(struct gfs_inode *ip, struct gfs_ea_request *er)
 {
-	ENTER(GFN_EA_GET_I)
 	struct gfs_ea_location el;
 	int error;
 
 	if (!ip->i_di.di_eattr)
-		RETURN(GFN_EA_GET_I, -ENODATA);
+		return -ENODATA;
 
 	error = gfs_ea_find(ip, er, &el);
 	if (error)
-		RETURN(GFN_EA_GET_I, error);
+		return error;
 	if (!el.el_ea)
-		RETURN(GFN_EA_GET_I, -ENODATA);
+		return -ENODATA;
 
 	if (er->er_data_len) {
 		if (GFS_EA_DATA_LEN(el.el_ea) > er->er_data_len)
@@ -718,7 +698,7 @@ gfs_ea_get_i(struct gfs_inode *ip, struct gfs_ea_request *er)
 
 	brelse(el.el_bh);
 
-	RETURN(GFN_EA_GET_I, error);
+	return error;
 }
 
 /**
@@ -732,13 +712,12 @@ gfs_ea_get_i(struct gfs_inode *ip, struct gfs_ea_request *er)
 int
 gfs_ea_get(struct gfs_inode *ip, struct gfs_ea_request *er)
 {
-	ENTER(GFN_EA_GET)
 	struct gfs_holder i_gh;
 	int error;
 
 	if (!er->er_name_len ||
 	    er->er_name_len > GFS_EA_MAX_NAME_LEN)
-		RETURN(GFN_EA_GET, -EINVAL);
+		return -EINVAL;
 	if (!er->er_data || !er->er_data_len) {
 		er->er_data = NULL;
 		er->er_data_len = 0;
@@ -748,13 +727,13 @@ gfs_ea_get(struct gfs_inode *ip, struct gfs_ea_request *er)
 				  LM_ST_SHARED, LM_FLAG_ANY,
 				  &i_gh);
 	if (error)
-		RETURN(GFN_EA_GET, error);
+		return error;
 
 	error = gfs_ea_ops[er->er_type]->eo_get(ip, er);
 
 	gfs_glock_dq_uninit(&i_gh);
 
-	RETURN(GFN_EA_GET, error);
+	return error;
 }
 
 /**
@@ -769,7 +748,6 @@ static int
 ea_alloc_blk(struct gfs_inode *ip,
 	     struct buffer_head **bhp)
 {
-	ENTER(GFN_EA_ALLOC_BLK)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct gfs_ea_header *ea;
 	uint64_t block;
@@ -777,12 +755,12 @@ ea_alloc_blk(struct gfs_inode *ip,
 
 	error = gfs_metaalloc(ip, &block);
 	if (error)
-		RETURN(GFN_EA_ALLOC_BLK, error);
+		return error;
 
 	error = gfs_dread(ip->i_gl, block,
 			  DIO_NEW | DIO_START | DIO_WAIT, bhp);
 	if (error)
-		RETURN(GFN_EA_ALLOC_BLK, error);
+		return error;
 
 	gfs_trans_add_bh(ip->i_gl, *bhp);
 	gfs_metatype_set(*bhp, GFS_METATYPE_EA, GFS_FORMAT_EA);
@@ -795,7 +773,7 @@ ea_alloc_blk(struct gfs_inode *ip,
 
 	ip->i_di.di_blocks++;
 
-	RETURN(GFN_EA_ALLOC_BLK, 0);
+	return 0;
 }
 
 /**
@@ -815,7 +793,6 @@ ea_write(struct gfs_inode *ip,
 	 struct gfs_ea_header *ea,
 	 struct gfs_ea_request *er)
 {
-	ENTER(GFN_EA_WRITE)
 	struct gfs_sbd *sdp = ip->i_sbd;
 
 	ea->ea_data_len = cpu_to_gfs32(er->er_data_len);
@@ -843,12 +820,12 @@ ea_write(struct gfs_inode *ip,
 
 			error = gfs_metaalloc(ip, &block);
 			if (error)
-				RETURN(GFN_EA_WRITE, error);
+				return error;
 
 			error = gfs_dread(ip->i_gl, block,
 					  DIO_NEW | DIO_START | DIO_WAIT, &bh);
 			if (error)
-				RETURN(GFN_EA_WRITE, error);
+				return error;
 
 			gfs_trans_add_bh(ip->i_gl, bh);
 			gfs_metatype_set(bh, GFS_METATYPE_ED, GFS_FORMAT_ED);
@@ -869,7 +846,7 @@ ea_write(struct gfs_inode *ip,
 		gfs_assert_withdraw(sdp, !data_len);
 	}
 
-	RETURN(GFN_EA_WRITE, 0);
+	return 0;
 }
 
 typedef int (*ea_skeleton_call_t) (struct gfs_inode *ip,
@@ -891,7 +868,6 @@ ea_alloc_skeleton(struct gfs_inode *ip, struct gfs_ea_request *er,
 		  unsigned int blks,
 		  ea_skeleton_call_t skeleton_call, void *private)
 {
-	ENTER(GFN_EA_ALLOC_SKELETON)
 	struct gfs_alloc *al;
 	struct buffer_head *dibh;
 	int error;
@@ -949,7 +925,7 @@ ea_alloc_skeleton(struct gfs_inode *ip, struct gfs_ea_request *er,
  out:
 	gfs_alloc_put(ip);
 
-	RETURN(GFN_EA_ALLOC_SKELETON, error);
+	return error;
 }
 
 /**
@@ -966,20 +942,19 @@ ea_init_i(struct gfs_inode *ip,
 	  struct gfs_ea_request *er,
 	  void *private)
 {
-	ENTER(GFN_EA_INIT_I)
 	struct buffer_head *bh;
 	int error;
 
 	error = ea_alloc_blk(ip, &bh);
 	if (error)
-		RETURN(GFN_EA_INIT_I, error);
+		return error;
 
 	ip->i_di.di_eattr = bh->b_blocknr;
 	error = ea_write(ip, GFS_EA_BH2FIRST(bh), er);
 
 	brelse(bh);
 
-	RETURN(GFN_EA_INIT_I, error);
+	return error;
 }
 
 /**
@@ -993,17 +968,15 @@ ea_init_i(struct gfs_inode *ip,
 static int
 ea_init(struct gfs_inode *ip, struct gfs_ea_request *er)
 {
-	ENTER(GFN_EA_INIT)
 	unsigned int jbsize = ip->i_sbd->sd_jbsize;
 	unsigned int blks = 1;
 
 	if (GFS_EAREQ_SIZE_STUFFED(er) > jbsize)
 		blks += DIV_RU(er->er_data_len, jbsize);
 
-	RETURN(GFN_EA_INIT,
-	       ea_alloc_skeleton(ip, er,
+	return ea_alloc_skeleton(ip, er,
 				 blks,
-				 ea_init_i, NULL));
+				 ea_init_i, NULL);
 }
 
 /**
@@ -1016,7 +989,6 @@ ea_init(struct gfs_inode *ip, struct gfs_ea_request *er)
 static struct gfs_ea_header *
 ea_split_ea(struct gfs_ea_header *ea)
 {
-	ENTER(GFN_EA_SPLIT_EA)
 	uint32_t ea_size = GFS_EA_SIZE(ea);
 	struct gfs_ea_header *new = (struct gfs_ea_header *)((char *)ea + ea_size);
 	uint32_t new_size = GFS_EA_REC_LEN(ea) - ea_size;
@@ -1028,7 +1000,7 @@ ea_split_ea(struct gfs_ea_header *ea)
 	new->ea_rec_len = cpu_to_gfs32(new_size);
 	new->ea_flags = last;
 
-	RETURN(GFN_EA_SPLIT_EA, new);
+	return new;
 }
 
 /**
@@ -1041,7 +1013,6 @@ ea_split_ea(struct gfs_ea_header *ea)
 static void
 ea_set_remove_stuffed(struct gfs_inode *ip, struct gfs_ea_location *el)
 {
-	ENTER(GFN_EA_SET_REMOVE_STUFFED)
 	struct gfs_ea_header *ea = el->el_ea;
 	struct gfs_ea_header *prev = el->el_prev;
 	uint32_t len;
@@ -1050,7 +1021,7 @@ ea_set_remove_stuffed(struct gfs_inode *ip, struct gfs_ea_location *el)
 
 	if (!prev || !GFS_EA_IS_STUFFED(ea)) {
 		ea->ea_type = GFS_EATYPE_UNUSED;
-		RET(GFN_EA_SET_REMOVE_STUFFED);
+		return;
 	} else if (GFS_EA2NEXT(prev) != ea) {
 		prev = GFS_EA2NEXT(prev);
 		gfs_assert_withdraw(ip->i_sbd, GFS_EA2NEXT(prev) == ea);
@@ -1061,8 +1032,6 @@ ea_set_remove_stuffed(struct gfs_inode *ip, struct gfs_ea_location *el)
 
 	if (GFS_EA_IS_LAST(ea))
 		prev->ea_flags |= GFS_EAFLAG_LAST;
-
-	RET(GFN_EA_SET_REMOVE_STUFFED);
 }
 
 struct ea_set {
@@ -1090,13 +1059,12 @@ ea_set_simple_noalloc(struct gfs_inode *ip,
 		      struct gfs_ea_header *ea,
 		      struct ea_set *es)
 {
-	ENTER(GFN_EA_SET_SIMPLE_NOALLOC)
 	struct gfs_ea_request *er = es->es_er;
 	int error;
 
 	error = gfs_trans_begin(ip->i_sbd, 3, 0);
 	if (error)
-		RETURN(GFN_EA_SET_SIMPLE_NOALLOC, error);
+		return error;
 
 	gfs_trans_add_bh(ip->i_gl, bh);
 
@@ -1125,7 +1093,7 @@ ea_set_simple_noalloc(struct gfs_inode *ip,
 
 	gfs_trans_end(ip->i_sbd);
 
-	RETURN(GFN_EA_SET_SIMPLE_NOALLOC, error);
+	return error;
 }
 
 /**
@@ -1142,7 +1110,6 @@ ea_set_simple_alloc(struct gfs_inode *ip,
 		    struct gfs_ea_request *er,
 		    void *private)
 {
-	ENTER(GFN_EA_SET_SIMPLE_ALLOC)
 	struct ea_set *es = (struct ea_set *)private;
 	struct gfs_ea_header *ea = es->es_ea;
 	int error;
@@ -1154,12 +1121,12 @@ ea_set_simple_alloc(struct gfs_inode *ip,
 
 	error =  ea_write(ip, ea, er);
 	if (error)
-		RETURN(GFN_EA_SET_SIMPLE_ALLOC, error);
+		return error;
 
 	if (es->es_el)
 		ea_set_remove_stuffed(ip, es->es_el);
 
-	RETURN(GFN_EA_SET_SIMPLE_ALLOC, 0);
+	return 0;
 }
 
 /**
@@ -1177,7 +1144,6 @@ ea_set_simple(struct gfs_inode *ip,
 	      struct gfs_ea_header *prev,
 	      void *private)
 {
-	ENTER(GFN_EA_SET_SIMPLE)
 	struct ea_set *es = (struct ea_set *)private;
 	unsigned int size;
 	int stuffed;
@@ -1187,22 +1153,22 @@ ea_set_simple(struct gfs_inode *ip,
 
 	if (ea->ea_type == GFS_EATYPE_UNUSED) {
 		if (GFS_EA_REC_LEN(ea) < size)
-			RETURN(GFN_EA_SET_SIMPLE, 0);
+			return 0;
 		if (!GFS_EA_IS_STUFFED(ea)) {
 			error = ea_remove_unstuffed(ip, bh, ea, prev, TRUE);
 			if (error)
-				RETURN(GFN_EA_SET_SIMPLE, error);
+				return error;
 		}
 		es->ea_split = FALSE;
 	} else if (GFS_EA_REC_LEN(ea) - GFS_EA_SIZE(ea) >= size)
 		es->ea_split = TRUE;
 	else
-		RETURN(GFN_EA_SET_SIMPLE, 0);
+		return 0;
 
 	if (stuffed) {
 		error = ea_set_simple_noalloc(ip, bh, ea, es);
 		if (error)
-			RETURN(GFN_EA_SET_SIMPLE, error);
+			return error;
 	} else {
 		unsigned int blks;
 
@@ -1215,10 +1181,10 @@ ea_set_simple(struct gfs_inode *ip,
 					  blks,
 					  ea_set_simple_alloc, es);
 		if (error)
-			RETURN(GFN_EA_SET_SIMPLE, error);
+			return error;
 	}
 
-	RETURN(GFN_EA_SET_SIMPLE, 1);
+	return 1;
 }
 
 /**
@@ -1235,7 +1201,6 @@ ea_set_block(struct gfs_inode *ip,
 	     struct gfs_ea_request *er,
 	     void *private)
 {
-	ENTER(GFN_EA_SET_BLOCK)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct buffer_head *indbh, *newbh;
 	uint64_t *eablk;
@@ -1247,7 +1212,7 @@ ea_set_block(struct gfs_inode *ip,
 		error = gfs_dread(ip->i_gl, ip->i_di.di_eattr,
 				  DIO_START | DIO_WAIT, &indbh);
 		if (error)
-			RETURN(GFN_EA_SET_BLOCK, error);
+			return error;
 
 		if (gfs_metatype_check(sdp, indbh, GFS_METATYPE_IN)) {
 			error = -EIO;
@@ -1272,12 +1237,12 @@ ea_set_block(struct gfs_inode *ip,
 
 		error = gfs_metaalloc(ip, &blk);
 		if (error)
-			RETURN(GFN_EA_SET_BLOCK, error);
+			return error;
 
 		error = gfs_dread(ip->i_gl, blk,
 				  DIO_NEW | DIO_START | DIO_WAIT, &indbh);
 		if (error)
-			RETURN(GFN_EA_SET_BLOCK, error);
+			return error;
 
 		gfs_trans_add_bh(ip->i_gl, indbh);
 		gfs_metatype_set(indbh, GFS_METATYPE_IN, GFS_FORMAT_IN);
@@ -1308,7 +1273,7 @@ ea_set_block(struct gfs_inode *ip,
  out:
 	brelse(indbh);
 
-	RETURN(GFN_EA_SET_BLOCK, error);
+	return error;
 }
 
 /**
@@ -1324,8 +1289,6 @@ ea_set_i(struct gfs_inode *ip,
 	 struct gfs_ea_request *er,
 	 struct gfs_ea_location *el)
 {
-	ENTER(GFN_EA_SET_I2)
-
 	{
 		struct ea_set es;
 		int error;
@@ -1336,9 +1299,9 @@ ea_set_i(struct gfs_inode *ip,
 
 		error = ea_foreach(ip, ea_set_simple, &es);
 		if (error > 0)
-			RETURN(GFN_EA_SET_I2, 0);
+			return 0;
 		if (error)
-			RETURN(GFN_EA_SET_I2, error);
+			return error;
 	}
 	{
 		unsigned int blks = 2;
@@ -1348,8 +1311,7 @@ ea_set_i(struct gfs_inode *ip,
 			blks += DIV_RU(er->er_data_len,
 				       ip->i_sbd->sd_jbsize);
 
-		RETURN(GFN_EA_SET_I2,
-		       ea_alloc_skeleton(ip, er, blks, ea_set_block, el));
+		return ea_alloc_skeleton(ip, er, blks, ea_set_block, el);
 	}
 }
 
@@ -1364,16 +1326,13 @@ ea_set_i(struct gfs_inode *ip,
 static int
 ea_set_remove_unstuffed(struct gfs_inode *ip, struct gfs_ea_location *el)
 {
-	ENTER(GFN_EA_SET_REMOVE_UNSTUFFED)
-
 	if (el->el_prev && GFS_EA2NEXT(el->el_prev) != el->el_ea) {
 		el->el_prev = GFS_EA2NEXT(el->el_prev);
 		gfs_assert_withdraw(ip->i_sbd,
 				    GFS_EA2NEXT(el->el_prev) == el->el_ea);
 	}
 
-	RETURN(GFN_EA_SET_REMOVE_UNSTUFFED,
-	       ea_remove_unstuffed(ip, el->el_bh, el->el_ea, el->el_prev, FALSE));
+	return ea_remove_unstuffed(ip, el->el_bh, el->el_ea, el->el_prev, FALSE);
 }
 
 /**
@@ -1387,24 +1346,23 @@ ea_set_remove_unstuffed(struct gfs_inode *ip, struct gfs_ea_location *el)
 int
 gfs_ea_set_i(struct gfs_inode *ip, struct gfs_ea_request *er)
 {
-	ENTER(GFN_EA_SET_I)
 	struct gfs_ea_location el;
 	int error;
 
 	if (!ip->i_di.di_eattr) {
 		if (er->er_flags & XATTR_REPLACE)
-			RETURN(GFN_EA_SET_I, -ENODATA);
-		RETURN(GFN_EA_SET_I, ea_init(ip, er));
+			return -ENODATA;
+		return ea_init(ip, er);
 	}
 
 	error = gfs_ea_find(ip, er, &el);
 	if (error)
-		RETURN(GFN_EA_SET_I, error);
+		return error;
 
 	if (el.el_ea) {
 		if (IS_APPEND(ip->i_vnode)) {
 			brelse(el.el_bh);
-			RETURN(GFN_EA_SET_I, -EPERM);
+			return -EPERM;
 		}
 
 		error = -EEXIST;
@@ -1422,7 +1380,7 @@ gfs_ea_set_i(struct gfs_inode *ip, struct gfs_ea_request *er)
 			error = ea_set_i(ip, er, NULL);
 	}
 
-	RETURN(GFN_EA_SET_I, error);
+	return error;
 }
 
 /**
@@ -1436,24 +1394,23 @@ gfs_ea_set_i(struct gfs_inode *ip, struct gfs_ea_request *er)
 int
 gfs_ea_set(struct gfs_inode *ip, struct gfs_ea_request *er)
 {
-	ENTER(GFN_EA_SET)
 	struct gfs_holder i_gh;
 	int error;
 
 	if (!er->er_name_len ||
 	    er->er_name_len > GFS_EA_MAX_NAME_LEN)
-		RETURN(GFN_EA_SET, -EINVAL);
+		return -EINVAL;
 	if (!er->er_data || !er->er_data_len) {
 		er->er_data = NULL;
 		er->er_data_len = 0;
 	}
 	error = gfs_ea_check_size(ip->i_sbd, er);
 	if (error)
-		RETURN(GFN_EA_SET, error);
+		return error;
 
 	error = gfs_glock_nq_init(ip->i_gl, LM_ST_EXCLUSIVE, 0, &i_gh);
 	if (error)
-		RETURN(GFN_EA_SET, error);
+		return error;
 
 	if (IS_IMMUTABLE(ip->i_vnode))
 		error = -EPERM;
@@ -1462,7 +1419,7 @@ gfs_ea_set(struct gfs_inode *ip, struct gfs_ea_request *er)
 
 	gfs_glock_dq_uninit(&i_gh);
 
-	RETURN(GFN_EA_SET, error);
+	return error;
 }
 
 /**
@@ -1478,14 +1435,13 @@ static int
 ea_remove_stuffed(struct gfs_inode *ip,
 		  struct gfs_ea_location *el)
 {
-	ENTER(GFN_EA_REMOVE_STUFFED)
 	struct gfs_ea_header *ea = el->el_ea;
 	struct gfs_ea_header *prev = el->el_prev;
 	int error;
 
 	error = gfs_trans_begin(ip->i_sbd, 2, 0);
 	if (error)
-		RETURN(GFN_EA_REMOVE_STUFFED, error);
+		return error;
 
 	gfs_trans_add_bh(ip->i_gl, el->el_bh);
 
@@ -1513,7 +1469,7 @@ ea_remove_stuffed(struct gfs_inode *ip,
 
 	gfs_trans_end(ip->i_sbd);
 
-	RETURN(GFN_EA_REMOVE_STUFFED, error);
+	return error;
 }
 
 /**
@@ -1527,18 +1483,17 @@ ea_remove_stuffed(struct gfs_inode *ip,
 int
 gfs_ea_remove_i(struct gfs_inode *ip, struct gfs_ea_request *er)
 {
-	ENTER(GFN_EA_REMOVE_I)
 	struct gfs_ea_location el;
 	int error;
 
 	if (!ip->i_di.di_eattr)
-		RETURN(GFN_EA_REMOVE_I, -ENODATA);
+		return -ENODATA;
 
 	error = gfs_ea_find(ip, er, &el);
 	if (error)
-		RETURN(GFN_EA_REMOVE_I, error);
+		return error;
 	if (!el.el_ea)
-		RETURN(GFN_EA_REMOVE_I, -ENODATA);
+		return -ENODATA;
 
 	if (GFS_EA_IS_STUFFED(el.el_ea))
 		error = ea_remove_stuffed(ip, &el);
@@ -1547,7 +1502,7 @@ gfs_ea_remove_i(struct gfs_inode *ip, struct gfs_ea_request *er)
 
 	brelse(el.el_bh);
 
-	RETURN(GFN_EA_REMOVE_I, error);
+	return error;
 }
 
 /**
@@ -1561,17 +1516,16 @@ gfs_ea_remove_i(struct gfs_inode *ip, struct gfs_ea_request *er)
 int
 gfs_ea_remove(struct gfs_inode *ip, struct gfs_ea_request *er)
 {
-	ENTER(GFN_EA_REMOVE)
 	struct gfs_holder i_gh;
 	int error;
 
 	if (!er->er_name_len ||
 	    er->er_name_len > GFS_EA_MAX_NAME_LEN)
-		RETURN(GFN_EA_REMOVE, -EINVAL);
+		return -EINVAL;
 
 	error = gfs_glock_nq_init(ip->i_gl, LM_ST_EXCLUSIVE, 0, &i_gh);
 	if (error)
-		RETURN(GFN_EA_REMOVE, error);
+		return error;
 
 	if (IS_IMMUTABLE(ip->i_vnode) || IS_APPEND(ip->i_vnode))
 		error = -EPERM;
@@ -1580,7 +1534,7 @@ gfs_ea_remove(struct gfs_inode *ip, struct gfs_ea_request *er)
 
 	gfs_glock_dq_uninit(&i_gh);
 
-	RETURN(GFN_EA_REMOVE, error);
+	return error;
 }
 
 /**
@@ -1594,11 +1548,10 @@ gfs_ea_remove(struct gfs_inode *ip, struct gfs_ea_request *er)
 int
 gfs_ea_acl_init(struct gfs_inode *ip, struct gfs_ea_request *er)
 {
-	ENTER(GFN_EA_ACL_INIT)
 	int error;
 
 	if (!ip->i_di.di_eattr)
-		RETURN(GFN_EA_ACL_INIT, ea_init_i(ip, er, NULL));
+		return ea_init_i(ip, er, NULL);
 
 	{
 		struct buffer_head *bh;
@@ -1610,11 +1563,11 @@ gfs_ea_acl_init(struct gfs_inode *ip, struct gfs_ea_request *er)
 		error = gfs_dread(ip->i_gl, ip->i_di.di_eattr,
 				  DIO_START | DIO_WAIT, &bh);
 		if (error)
-			RETURN(GFN_EA_ACL_INIT, error);
+			return error;
 
 		if (gfs_metatype_check(ip->i_sbd, bh, GFS_METATYPE_EA)) {
 			brelse(bh);
-			RETURN(GFN_EA_ACL_INIT, -EIO);
+			return -EIO;
 		}
 
 		ea = GFS_EA_BH2FIRST(bh);
@@ -1622,7 +1575,7 @@ gfs_ea_acl_init(struct gfs_inode *ip, struct gfs_ea_request *er)
 			ea = ea_split_ea(ea);
 			ea_write(ip, ea, er);
 			brelse(bh);
-			RETURN(GFN_EA_ACL_INIT, 0);
+			return 0;
 		}
 
 		brelse(bh);
@@ -1631,18 +1584,18 @@ gfs_ea_acl_init(struct gfs_inode *ip, struct gfs_ea_request *er)
 	error = ea_set_block(ip, er, NULL);
 	gfs_assert_withdraw(ip->i_sbd, error != -ENOSPC);
 	if (error)
-		RETURN(GFN_EA_ACL_INIT, error);
+		return error;
 
 	{
 		struct buffer_head *dibh;
 		error = gfs_get_inode_buffer(ip, &dibh);
 		if (error)
-			RETURN(GFN_EA_ACL_INIT, error);
+			return error;
 		gfs_dinode_out(&ip->i_di, dibh->b_data);
 		brelse(dibh);
 	}
 
-	RETURN(GFN_EA_ACL_INIT, error);
+	return error;
 }
 
 /**
@@ -1659,7 +1612,6 @@ ea_acl_chmod_unstuffed(struct gfs_inode *ip,
 		       struct gfs_ea_header *ea,
 		       char *data)
 {
-	ENTER(GFN_EA_ACL_CHMOD_UNSTUFFED)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct buffer_head **bh;
 	unsigned int amount = GFS_EA_DATA_LEN(ea);
@@ -1670,7 +1622,7 @@ ea_acl_chmod_unstuffed(struct gfs_inode *ip,
 
 	bh = kmalloc(nptrs * sizeof(struct buffer_head *), GFP_KERNEL);
 	if (!bh)
-		RETURN(GFN_EA_ACL_CHMOD_UNSTUFFED, -ENOMEM);
+		return -ENOMEM;
 
 	error = gfs_trans_begin(sdp, 1 + nptrs, 0);
 	if (error)
@@ -1717,13 +1669,13 @@ ea_acl_chmod_unstuffed(struct gfs_inode *ip,
  out:
 	kfree(bh);
 
-	RETURN(GFN_EA_ACL_CHMOD_UNSTUFFED, error);
+	return error;
 
  fail:
 	gfs_trans_end(sdp);
 	kfree(bh);
 
-	RETURN(GFN_EA_ACL_CHMOD_UNSTUFFED, error);
+	return error;
 }
 
 /**
@@ -1740,14 +1692,13 @@ int
 gfs_ea_acl_chmod(struct gfs_inode *ip, struct gfs_ea_location *el,
 		 struct iattr *attr, char *data)
 {
-	ENTER(GFN_EA_ACL_CHMOD)
 	struct buffer_head *dibh;
 	int error;
 
 	if (GFS_EA_IS_STUFFED(el->el_ea)) {
 		error = gfs_trans_begin(ip->i_sbd, 2, 0);
 		if (error)
-			RETURN(GFN_EA_ACL_CHMOD, error);
+			return error;
 
 		gfs_trans_add_bh(ip->i_gl, el->el_bh);
 		memcpy(GFS_EA2DATA(el->el_ea),
@@ -1757,7 +1708,7 @@ gfs_ea_acl_chmod(struct gfs_inode *ip, struct gfs_ea_location *el,
 		error = ea_acl_chmod_unstuffed(ip, el->el_ea, data);
 
 	if (error)
-		RETURN(GFN_EA_ACL_CHMOD, error);
+		return error;
 
 	error = gfs_get_inode_buffer(ip, &dibh);
 	if (!error) {
@@ -1771,7 +1722,7 @@ gfs_ea_acl_chmod(struct gfs_inode *ip, struct gfs_ea_location *el,
 
 	gfs_trans_end(ip->i_sbd);
 
-	RETURN(GFN_EA_ACL_CHMOD, error);
+	return error;
 }
 
 /**
@@ -1784,7 +1735,6 @@ gfs_ea_acl_chmod(struct gfs_inode *ip, struct gfs_ea_location *el,
 static int
 ea_dealloc_indirect(struct gfs_inode *ip)
 {
-	ENTER(GFN_EA_DEALLOC_INDIRECT)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct gfs_rgrp_list rlist;
 	struct buffer_head *indbh, *dibh;
@@ -1800,7 +1750,7 @@ ea_dealloc_indirect(struct gfs_inode *ip)
 	error = gfs_dread(ip->i_gl, ip->i_di.di_eattr,
 			  DIO_START | DIO_WAIT, &indbh);
 	if (error)
-		RETURN(GFN_EA_DEALLOC_INDIRECT, error);
+		return error;
 
 	if (gfs_metatype_check(sdp, indbh, GFS_METATYPE_IN)) {
 		error = -EIO;
@@ -1897,7 +1847,7 @@ ea_dealloc_indirect(struct gfs_inode *ip)
  out:
 	brelse(indbh);
 
-	RETURN(GFN_EA_DEALLOC_INDIRECT, error);
+	return error;
 }
 
 /**
@@ -1910,7 +1860,6 @@ ea_dealloc_indirect(struct gfs_inode *ip)
 static int
 ea_dealloc_block(struct gfs_inode *ip)
 {
-	ENTER(GFN_EA_DEALLOC_BLOCK)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct gfs_alloc *al = ip->i_alloc;
 	struct gfs_rgrpd *rgd;
@@ -1920,12 +1869,12 @@ ea_dealloc_block(struct gfs_inode *ip)
 	rgd = gfs_blk2rgrpd(sdp, ip->i_di.di_eattr);
 	if (!rgd) {
 		gfs_consist_inode(ip);
-		RETURN(GFN_EA_DEALLOC_BLOCK, -EIO);
+		return -EIO;
 	}
 
 	error = gfs_glock_nq_init(rgd->rd_gl, LM_ST_EXCLUSIVE, 0, &al->al_rgd_gh);
 	if (error)
-		RETURN(GFN_EA_DEALLOC_BLOCK, error);
+		return error;
 
 	error = gfs_trans_begin(sdp, 1 + rgd->rd_ri.ri_length, 1);
 	if (error)
@@ -1950,7 +1899,7 @@ ea_dealloc_block(struct gfs_inode *ip)
  out_gunlock:
 	gfs_glock_dq_uninit(&al->al_rgd_gh);
 
-	RETURN(GFN_EA_DEALLOC_BLOCK, error);
+	return error;
 }
 
 /**
@@ -1963,7 +1912,6 @@ ea_dealloc_block(struct gfs_inode *ip)
 int
 gfs_ea_dealloc(struct gfs_inode *ip)
 {
-	ENTER(GFN_EA_DEALLOC)
 	struct gfs_alloc *al;
 	int error;
 
@@ -1998,7 +1946,7 @@ gfs_ea_dealloc(struct gfs_inode *ip)
  out_alloc:
 	gfs_alloc_put(ip);
 
-	RETURN(GFN_EA_DEALLOC, error);
+	return error;
 }
 
 /**
@@ -2012,14 +1960,13 @@ gfs_ea_dealloc(struct gfs_inode *ip)
 int
 gfs_get_eattr_meta(struct gfs_inode *ip, struct gfs_user_buffer *ub)
 {
-	ENTER(GFN_GET_EATTR_META)
 	struct buffer_head *bh;
 	int error;
 
 	error = gfs_dread(ip->i_gl, ip->i_di.di_eattr,
 			  DIO_START | DIO_WAIT, &bh);
 	if (error)
-		RETURN(GFN_GET_EATTR_META, error);
+		return error;
 
 	gfs_add_bh_to_ub(ub, bh);
 
@@ -2056,5 +2003,5 @@ gfs_get_eattr_meta(struct gfs_inode *ip, struct gfs_user_buffer *ub)
  out:
 	brelse(bh);
 
-	RETURN(GFN_GET_EATTR_META, error);
+	return error;
 }

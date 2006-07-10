@@ -2,7 +2,7 @@
 ###############################################################################
 ##
 ##  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+##  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
 ##
 ##  This copyrighted material is made available to anyone wishing to use,
 ##  modify, copy, or redistribute it subject to the terms and conditions
@@ -11,7 +11,7 @@
 ###############################################################################
 ###############################################################################
 
-top_srcdir = ../..
+top_srcdir = $(shell pwd)/../..
 ifndef USING_KBUILD
 include ${top_srcdir}/make/defines.mk
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
@@ -20,18 +20,16 @@ endif
 linux_orig = ${top_srcdir}/src/linux-orig
 linux_patched = ${top_srcdir}/src/linux-patched
 
-TARGET = gfs.patch
-
 PWD := $(shell pwd)
 
+TARGET = gfs.patch
+SYMVERFILE := ${KERNEL_SRC}/Module.symvers
+
 obj-m := gfs.o
-gfs-objs := \
-	acl.o \
+gfs-objs := acl.o \
 	bits.o \
 	bmap.o \
 	daemon.o \
-	debug.o \
-	diaper.o \
 	dio.o \
 	dir.o \
 	eaops.o \
@@ -57,24 +55,22 @@ gfs-objs := \
 	ops_super.o \
 	ops_vm.o \
 	page.o \
-	proc.o \
 	quota.o \
 	recovery.o \
 	rgrp.o \
 	super.o \
+	sys.o \
 	trans.o \
 	unlinked.o \
-	util.o \
-	locking.o
+	util.o
 
-EXTRA_CFLAGS += -I$(obj)
-
-#EXTRA_CFLAGS += -DGFS_TRACE
-#EXTRA_CFLAGS += -DGFS_PROFILE
+EXTRA_CFLAGS += -I$(obj) -I${incdir} -I/usr/include 
 
 all:
-	${top_srcdir}/../kdbl/scripts/build_debug gfs *.[ch] > gfs_debug_const.h
-	${MAKE} -C ${KERNEL_SRC} M=${PWD} modules USING_KBUILD=yes
+	rm -f linux lm_interface.h
+	ln -s . linux
+	ln -s ${KERNEL_SRC}/fs/gfs2/lm_interface.h .
+	${MAKE} -C ${KERNEL_SRC} M=${PWD} symverfile=${SYMVERFILE} modules USING_KBUILD=yes
 
 install: all
 	install -d ${module_dir}/fs/gfs
@@ -87,8 +83,8 @@ uninstall:
 	${UNINSTALL} gfs_ondisk.h gfs_ioctl.h ${incdir}/linux
 
 clean:
-	rm -rf linux *.o .*.o.cmd .gfs.ko.cmd \
-		gfs.ko gfs.mod.c .tmp_versions *~ gfs_debug_const.h
+	rm -rf linux *.o .*.o.cmd .gfs.ko.cmd lm_interface.h \
+		gfs.ko gfs.mod.c .tmp_versions *~ *~* Modules.symvers
 
 
 patches: pre add post

@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -19,6 +19,7 @@ void gfs_sys_uninit(void);
 void gfs_sys_fs_del(struct gfs_sbd *sdp);
 int gfs_test_bdev_super(struct super_block *sb, void *data);
 int gfs_set_bdev_super(struct super_block *sb, void *data);
+int init_names(struct gfs_sbd *sdp, int silent);
 
 extern struct file_system_type gfs_fs_type;
 

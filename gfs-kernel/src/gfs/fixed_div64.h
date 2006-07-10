@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2000-2003 Silicon Graphics, Inc.  All Rights Reserved.
+ * Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
@@ -29,8 +30,6 @@
  *
  * http://oss.sgi.com/projects/GenInfo/SGIGPLNoticeExplan/
  *
- * Additional munging:
- * Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
  */
 
 #ifndef __FIXED_DIV64_DOT_H__

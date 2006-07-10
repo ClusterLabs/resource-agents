@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -32,11 +32,12 @@
 #include "ops_fstype.h"
 #include "ops_super.h"
 #include "page.h"
-#include "proc.h"
+#include "sys.h"
 #include "quota.h"
 #include "recovery.h"
 #include "rgrp.h"
 #include "super.h"
+#include "mount.h"
 
 /**
  * gfs_write_inode - Make sure the inode is stable on the disk
@@ -49,7 +50,6 @@
 static int
 gfs_write_inode(struct inode *inode, int sync)
 {
-	ENTER(GFN_WRITE_INODE)
 	struct gfs_inode *ip = get_v2ip(inode);
 
 	atomic_inc(&ip->i_sbd->sd_ops_super);
@@ -57,7 +57,7 @@ gfs_write_inode(struct inode *inode, int sync)
 	if (ip && sync)
 		gfs_log_flush_glock(ip->i_gl);
 
-	RETURN(GFN_WRITE_INODE, 0);
+	return 0;
 }
 
 /**
@@ -72,7 +72,6 @@ gfs_write_inode(struct inode *inode, int sync)
 static void
 gfs_put_inode(struct inode *inode)
 {
-	ENTER(GFN_PUT_INODE)
 	struct gfs_sbd *sdp = get_v2sdp(inode->i_sb);
 	struct gfs_inode *ip = get_v2ip(inode);
 
@@ -83,8 +82,6 @@ gfs_put_inode(struct inode *inode)
 	    S_ISREG(inode->i_mode) &&
 	    !sdp->sd_args.ar_localcaching)
 		gfs_sync_page_i(inode, DIO_START | DIO_WAIT);
-
-	RET(GFN_PUT_INODE);
 }
 
 /**
@@ -96,16 +93,13 @@ gfs_put_inode(struct inode *inode)
 static void
 gfs_put_super(struct super_block *sb)
 {
-	ENTER(GFN_PUT_SUPER)
 	struct gfs_sbd *sdp = get_v2sdp(sb);
 	int error;
 
         if (!sdp)
-                RET(GFN_PUT_SUPER);
+                return;
 
 	atomic_inc(&sdp->sd_ops_super);
-
-	gfs_proc_fs_del(sdp);
 
 	/*  Unfreeze the filesystem, if we need to  */
 
@@ -156,6 +150,10 @@ gfs_put_super(struct super_block *sb)
 	wait_for_completion(&sdp->sd_thread_completion);
 
 	if (!test_bit(SDF_ROFS, &sdp->sd_flags)) {
+		gfs_log_flush(sdp);
+		gfs_quota_sync(sdp);
+		gfs_quota_sync(sdp);
+
 		error = gfs_make_fs_ro(sdp);
 		if (error)
 			gfs_io_error(sdp);
@@ -169,8 +167,6 @@ gfs_put_super(struct super_block *sb)
 	gfs_inode_put(sdp->sd_jiinode);
 	gfs_inode_put(sdp->sd_rooti);
 	gfs_inode_put(sdp->sd_qinode);
-	gfs_inode_put(sdp->sd_linode);
-
 	gfs_glock_put(sdp->sd_trans_gl);
 	gfs_glock_put(sdp->sd_rename_gl);
 
@@ -202,8 +198,6 @@ gfs_put_super(struct super_block *sb)
 	vfree(sdp);
 
 	set_v2sdp(sb, NULL);
-
-	RET(GFN_PUT_SUPER);
 }
 
 /**
@@ -217,11 +211,9 @@ gfs_put_super(struct super_block *sb)
 static void
 gfs_write_super(struct super_block *sb)
 {
-	ENTER(GFN_WRITE_SUPER)
 	struct gfs_sbd *sdp = get_v2sdp(sb);
 	atomic_inc(&sdp->sd_ops_super);
 	gfs_log_flush(sdp);
-	RET(GFN_WRITE_SUPER);
 }
 
 /**
@@ -233,7 +225,6 @@ gfs_write_super(struct super_block *sb)
 static void
 gfs_write_super_lockfs(struct super_block *sb)
 {
-	ENTER(GFN_WRITE_SUPER_LOCKFS)
 	struct gfs_sbd *sdp = get_v2sdp(sb);
 	int error;
 
@@ -261,8 +252,6 @@ gfs_write_super_lockfs(struct super_block *sb)
 		set_current_state(TASK_UNINTERRUPTIBLE);
 		schedule_timeout(HZ);
 	}
-
-	RET(GFN_WRITE_SUPER_LOCKFS);
 }
 
 /**
@@ -274,13 +263,11 @@ gfs_write_super_lockfs(struct super_block *sb)
 static void
 gfs_unlockfs(struct super_block *sb)
 {
-	ENTER(GFN_UNLOCKFS)
 	struct gfs_sbd *sdp = get_v2sdp(sb);
 
 	atomic_inc(&sdp->sd_ops_super);
-	gfs_unfreeze_fs(sdp);
 
-	RET(GFN_UNLOCKFS);
+	gfs_unfreeze_fs(sdp);
 }
 
 /**
@@ -291,10 +278,9 @@ gfs_unlockfs(struct super_block *sb)
  * Returns: 0 on success or error code
  */
 
-static int
-gfs_statfs(struct super_block *sb, struct kstatfs *buf)
+static int gfs_statfs(struct dentry *dentry, struct kstatfs *buf)
 {
-	ENTER(GFN_STATFS)
+	struct super_block *sb = dentry->d_inode->i_sb;
 	struct gfs_sbd *sdp = get_v2sdp(sb);
 	struct gfs_stat_gfs sg;
 	int error;
@@ -303,7 +289,7 @@ gfs_statfs(struct super_block *sb, struct kstatfs *buf)
 
 	error = gfs_stat_gfs(sdp, &sg, TRUE);
 	if (error)
-		RETURN(GFN_STATFS, error);
+		return error;
 
 	memset(buf, 0, sizeof(struct kstatfs));
 
@@ -317,7 +303,7 @@ gfs_statfs(struct super_block *sb, struct kstatfs *buf)
 	buf->f_ffree = sg.sg_free_dinode + sg.sg_free_meta + sg.sg_free;
 	buf->f_namelen = GFS_FNAMESIZE;
 
-	RETURN(GFN_STATFS, 0);
+	return 0;
 }
 
 /**
@@ -332,11 +318,29 @@ gfs_statfs(struct super_block *sb, struct kstatfs *buf)
 static int
 gfs_remount_fs(struct super_block *sb, int *flags, char *data)
 {
-	ENTER(GFN_REMOUNT_FS)
 	struct gfs_sbd *sdp = get_v2sdp(sb);
 	int error = 0;
+	struct gfs_args *args;
 
 	atomic_inc(&sdp->sd_ops_super);
+
+	args = kmalloc(sizeof(struct gfs_args), GFP_KERNEL);
+	if (!args)
+		return -ENOMEM;
+
+	error = gfs_make_args(data, args, FALSE);
+	if (error) {
+		printk("GFS: can't parse remount arguments\n");
+		goto out;
+	}
+	if (args->ar_posix_acls) {
+		sdp->sd_args.ar_posix_acls = TRUE;
+		sb->s_flags |= MS_POSIXACL;
+	}
+	else {
+		sdp->sd_args.ar_posix_acls = FALSE;
+		sb->s_flags &= ~MS_POSIXACL;
+	}
 
 	if (*flags & (MS_NOATIME | MS_NODIRATIME))
 		set_bit(SDF_NOATIME, &sdp->sd_flags);
@@ -358,7 +362,9 @@ gfs_remount_fs(struct super_block *sb, int *flags, char *data)
 	/*  Don't let the VFS update atimes.  GFS handles this itself. */
 	*flags |= MS_NOATIME | MS_NODIRATIME;
 
-	RETURN(GFN_REMOUNT_FS, error);
+out:
+	kfree(args);
+	return error;
 }
 
 /**
@@ -374,7 +380,6 @@ gfs_remount_fs(struct super_block *sb, int *flags, char *data)
 static void
 gfs_clear_inode(struct inode *inode)
 {
-	ENTER(GFN_CLEAR_INODE)
 	struct gfs_inode *ip = get_v2ip(inode);
 
 	atomic_inc(&get_v2sdp(inode->i_sb)->sd_ops_super);
@@ -388,8 +393,6 @@ gfs_clear_inode(struct inode *inode)
 		gfs_glock_schedule_for_reclaim(ip->i_gl);
 		gfs_inode_put(ip);
 	}
-
-	RET(GFN_CLEAR_INODE);
 }
 
 /**
@@ -403,7 +406,6 @@ gfs_clear_inode(struct inode *inode)
 static int
 gfs_show_options(struct seq_file *s, struct vfsmount *mnt)
 {
-	ENTER(GFN_SHOW_OPTIONS)
 	struct gfs_sbd *sdp = get_v2sdp(mnt->mnt_sb);
 	struct gfs_args *args = &sdp->sd_args;
 
@@ -442,7 +444,7 @@ gfs_show_options(struct seq_file *s, struct vfsmount *mnt)
 	if (args->ar_suiddir)
 		seq_printf(s, ",suiddir");
 
-	RETURN(GFN_SHOW_OPTIONS, 0);
+	return 0;
 }
 
 struct super_operations gfs_super_ops = {

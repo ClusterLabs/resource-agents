@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -11,8 +11,8 @@
 *******************************************************************************
 ******************************************************************************/
 
-#ifndef __GLOCK_DOT_H__
-#define __GLOCK_DOT_H__
+#ifndef __GFS_GLOCK_DOT_H__
+#define __GFS_GLOCK_DOT_H__
 
 /* Flags for lock requests; used in gfs_holder gh_flag field. */
 /*	These are defined in lm_interface.h, commented out here.
@@ -147,4 +147,4 @@ void gfs_gl_hash_clear(struct gfs_sbd *sdp, int wait);
 
 int gfs_dump_lockstate(struct gfs_sbd *sdp, struct gfs_user_buffer *ub);
 
-#endif /* __GLOCK_DOT_H__ */
+#endif /* __GFS_GLOCK_DOT_H__ */

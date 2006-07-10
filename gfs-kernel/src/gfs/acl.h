@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -33,6 +33,7 @@ int gfs_acl_validate_set(struct gfs_inode *ip, int access,
 			 struct gfs_ea_request *er,
 			 int *remove, mode_t *mode);
 int gfs_acl_validate_remove(struct gfs_inode *ip, int access);
+int gfs_acl_get(struct gfs_inode *ip, int access, struct posix_acl **acl);
 int gfs_check_acl(struct inode *inode, int mask);
 int gfs_acl_new_prep(struct gfs_inode *dip,
 		     unsigned int type, mode_t *mode,

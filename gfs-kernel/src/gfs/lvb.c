@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -42,7 +42,6 @@
 void
 gfs_rgrp_lvb_in(struct gfs_rgrp_lvb *rb, char *lvb)
 {
-	ENTER(GFN_RGRP_LVB_IN)
 	struct gfs_rgrp_lvb *str = (struct gfs_rgrp_lvb *)lvb;
 
 	CPIN_32(rb, str, rb_magic);
@@ -51,8 +50,6 @@ gfs_rgrp_lvb_in(struct gfs_rgrp_lvb *rb, char *lvb)
 	CPIN_32(rb, str, rb_freedi);
 	CPIN_32(rb, str, rb_usedmeta);
 	CPIN_32(rb, str, rb_freemeta);
-
-	RET(GFN_RGRP_LVB_IN);
 }
 
 /**
@@ -65,7 +62,6 @@ gfs_rgrp_lvb_in(struct gfs_rgrp_lvb *rb, char *lvb)
 void
 gfs_rgrp_lvb_out(struct gfs_rgrp_lvb *rb, char *lvb)
 {
-	ENTER(GFN_RGRP_LVB_OUT)
 	struct gfs_rgrp_lvb *str = (struct gfs_rgrp_lvb *)lvb;
 
 	CPOUT_32(rb, str, rb_magic);
@@ -74,8 +70,6 @@ gfs_rgrp_lvb_out(struct gfs_rgrp_lvb *rb, char *lvb)
 	CPOUT_32(rb, str, rb_freedi);
 	CPOUT_32(rb, str, rb_usedmeta);
 	CPOUT_32(rb, str, rb_freemeta);
-
-	RET(GFN_RGRP_LVB_OUT);
 }
 
 /**
@@ -89,16 +83,12 @@ gfs_rgrp_lvb_out(struct gfs_rgrp_lvb *rb, char *lvb)
 void
 gfs_rgrp_lvb_print(struct gfs_rgrp_lvb *rb)
 {
-	ENTER(GFN_RGRP_LVB_PRINT)
-
 	pv(rb, rb_magic, "%u");
 	pv(rb, rb_free, "%u");
 	pv(rb, rb_useddi, "%u");
 	pv(rb, rb_freedi, "%u");
 	pv(rb, rb_usedmeta, "%u");
 	pv(rb, rb_freemeta, "%u");
-
-	RET(GFN_RGRP_LVB_PRINT);
 }
 
 /**
@@ -111,7 +101,6 @@ gfs_rgrp_lvb_print(struct gfs_rgrp_lvb *rb)
 void
 gfs_quota_lvb_in(struct gfs_quota_lvb *qb, char *lvb)
 {
-	ENTER(GFN_QUOTA_LVB_IN)
 	struct gfs_quota_lvb *str = (struct gfs_quota_lvb *)lvb;
 
 	CPIN_32(qb, str, qb_magic);
@@ -119,8 +108,6 @@ gfs_quota_lvb_in(struct gfs_quota_lvb *qb, char *lvb)
 	CPIN_64(qb, str, qb_limit);
 	CPIN_64(qb, str, qb_warn);
 	CPIN_64(qb, str, qb_value);
-
-	RET(GFN_QUOTA_LVB_IN);
 }
 
 /**
@@ -133,7 +120,6 @@ gfs_quota_lvb_in(struct gfs_quota_lvb *qb, char *lvb)
 void
 gfs_quota_lvb_out(struct gfs_quota_lvb *qb, char *lvb)
 {
-	ENTER(GFN_QUOTA_LVB_OUT)
 	struct gfs_quota_lvb *str = (struct gfs_quota_lvb *)lvb;
 
 	CPOUT_32(qb, str, qb_magic);
@@ -141,8 +127,6 @@ gfs_quota_lvb_out(struct gfs_quota_lvb *qb, char *lvb)
 	CPOUT_64(qb, str, qb_limit);
 	CPOUT_64(qb, str, qb_warn);
 	CPOUT_64(qb, str, qb_value);
-
-	RET(GFN_QUOTA_LVB_OUT);
 }
 
 /**
@@ -156,13 +140,9 @@ gfs_quota_lvb_out(struct gfs_quota_lvb *qb, char *lvb)
 void
 gfs_quota_lvb_print(struct gfs_quota_lvb *qb)
 {
-	ENTER(GFN_QUOTA_LVB_PRINT)
-
 	pv(qb, qb_magic, "%u");
 	pv(qb, qb_pad, "%u");
 	pv(qb, qb_limit, "%"PRIu64);
 	pv(qb, qb_warn, "%"PRIu64);
 	pv(qb, qb_value, "%"PRId64);
-
-	RET(GFN_QUOTA_LVB_PRINT);
 }

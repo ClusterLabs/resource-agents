@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -38,7 +38,6 @@
 static int
 gfs_drevalidate(struct dentry *dentry, struct nameidata *nd)
 {
-	ENTER(GFN_DREVALIDATE)
 	struct dentry *parent = dget_parent(dentry);
 	struct gfs_inode *dip = get_v2ip(parent->d_inode);
 	struct gfs_sbd *sdp = dip->i_sbd;
@@ -94,7 +93,7 @@ gfs_drevalidate(struct dentry *dentry, struct nameidata *nd)
  valid:
 	unlock_kernel();
 	dput(parent);
-	RETURN(GFN_DREVALIDATE, 1);
+	return 1;
 
  invalid_gunlock:
 	gfs_glock_dq_uninit(&d_gh);
@@ -109,7 +108,7 @@ gfs_drevalidate(struct dentry *dentry, struct nameidata *nd)
 
 	unlock_kernel();
 	dput(parent);
-	RETURN(GFN_DREVALIDATE, 0);
+	return 0;
 
  fail_gunlock:
 	gfs_glock_dq_uninit(&d_gh);
@@ -117,7 +116,7 @@ gfs_drevalidate(struct dentry *dentry, struct nameidata *nd)
  fail:
 	unlock_kernel();
 	dput(parent);
-	RETURN(GFN_DREVALIDATE, 0);
+	return 0;
 }
 
 struct dentry_operations gfs_dops = {

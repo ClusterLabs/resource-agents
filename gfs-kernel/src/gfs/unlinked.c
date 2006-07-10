@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -41,7 +41,6 @@
 struct gfs_unlinked *
 gfs_unlinked_get(struct gfs_sbd *sdp, struct gfs_inum *inum, int create)
 {
-	ENTER(GFN_UNLINKED_GET)
 	struct gfs_unlinked *ul = NULL, *new_ul = NULL;
 	struct list_head *tmp, *head;
 
@@ -76,7 +75,7 @@ gfs_unlinked_get(struct gfs_sbd *sdp, struct gfs_inum *inum, int create)
 			if (new_ul)
 				/* someone beat us to it; forget our new_ul */
 				kfree(new_ul);
-			RETURN(GFN_UNLINKED_GET, ul);
+			return ul;
 		}
 
 		/* No match on list, 1st time through loop.
@@ -105,14 +104,10 @@ gfs_unlinked_get(struct gfs_sbd *sdp, struct gfs_inum *inum, int create)
 void
 gfs_unlinked_hold(struct gfs_sbd *sdp, struct gfs_unlinked *ul)
 {
-	ENTER(GFN_UNLINKED_HOLD)
-
 	spin_lock(&sdp->sd_unlinked_lock);
 	gfs_assert(sdp, ul->ul_count,);
 	ul->ul_count++;
 	spin_unlock(&sdp->sd_unlinked_lock);
-
-	RET(GFN_UNLINKED_HOLD);
 }
 
 /**
@@ -127,8 +122,6 @@ gfs_unlinked_hold(struct gfs_sbd *sdp, struct gfs_unlinked *ul)
 void
 gfs_unlinked_put(struct gfs_sbd *sdp, struct gfs_unlinked *ul)
 {
-	ENTER(GFN_UNLINKED_PUT)
-
 	spin_lock(&sdp->sd_unlinked_lock);
 
 	gfs_assert(sdp, ul->ul_count,);
@@ -144,8 +137,6 @@ gfs_unlinked_put(struct gfs_sbd *sdp, struct gfs_unlinked *ul)
 		kfree(ul);
 	} else
 		spin_unlock(&sdp->sd_unlinked_lock);
-
-	RET(GFN_UNLINKED_PUT);
 }
 
 /**
@@ -161,12 +152,11 @@ gfs_unlinked_put(struct gfs_sbd *sdp, struct gfs_unlinked *ul)
 struct gfs_unlinked *
 unlinked_find(struct gfs_sbd *sdp)
 {
-	ENTER(GFN_UNLINKED_FIND)
 	struct list_head *tmp, *head;
 	struct gfs_unlinked *ul = NULL;
 
 	if (test_bit(SDF_ROFS, &sdp->sd_flags))
-		RETURN(GFN_UNLINKED_FIND, NULL);
+		return NULL;
 
 	gfs_log_lock(sdp);
 	spin_lock(&sdp->sd_unlinked_lock);
@@ -198,7 +188,7 @@ unlinked_find(struct gfs_sbd *sdp)
 	spin_unlock(&sdp->sd_unlinked_lock);
 	gfs_log_unlock(sdp);
 
-	RETURN(GFN_UNLINKED_FIND, ul);
+	return ul;
 }
 
 /**
@@ -211,8 +201,6 @@ unlinked_find(struct gfs_sbd *sdp)
 void
 gfs_unlinked_lock(struct gfs_sbd *sdp, struct gfs_unlinked *ul)
 {
-	ENTER(GFN_UNLINKED_LOCK)
-
 	spin_lock(&sdp->sd_unlinked_lock);
 
 	gfs_assert_warn(sdp, !test_bit(ULF_LOCK, &ul->ul_flags));
@@ -221,8 +209,6 @@ gfs_unlinked_lock(struct gfs_sbd *sdp, struct gfs_unlinked *ul)
 	ul->ul_count++;
 
 	spin_unlock(&sdp->sd_unlinked_lock);	
-
-	RET(GFN_UNLINKED_LOCK);
 }
 
 /**
@@ -235,8 +221,6 @@ gfs_unlinked_lock(struct gfs_sbd *sdp, struct gfs_unlinked *ul)
 void
 gfs_unlinked_unlock(struct gfs_sbd *sdp, struct gfs_unlinked *ul)
 {
-	ENTER(GFN_UNLINKED_UNLOCK)
-
 	spin_lock(&sdp->sd_unlinked_lock);
 
 	gfs_assert_warn(sdp, test_bit(ULF_LOCK, &ul->ul_flags));
@@ -253,8 +237,6 @@ gfs_unlinked_unlock(struct gfs_sbd *sdp, struct gfs_unlinked *ul)
 		kfree(ul);
 	} else
 		spin_unlock(&sdp->sd_unlinked_lock);
-
-	RET(GFN_UNLINKED_UNLOCK);
 }
 
 /**
@@ -270,7 +252,6 @@ void
 gfs_unlinked_merge(struct gfs_sbd *sdp, unsigned int type,
 		   struct gfs_inum *inum)
 {
-	ENTER(GFN_UNLINKED_MERGE)
 	struct gfs_unlinked *ul;
 
 	gfs_assert(sdp, atomic_read(&sdp->sd_unlinked_ic_count) ==
@@ -311,8 +292,6 @@ gfs_unlinked_merge(struct gfs_sbd *sdp, unsigned int type,
 	gfs_log_unlock(sdp);
 
 	gfs_unlinked_put(sdp, ul);
-
-	RET(GFN_UNLINKED_MERGE);
 }
 
 /**
@@ -324,7 +303,6 @@ gfs_unlinked_merge(struct gfs_sbd *sdp, unsigned int type,
 void
 gfs_unlinked_cleanup(struct gfs_sbd *sdp)
 {
-	ENTER(GFN_UNLINKED_CLEANUP)
 	struct gfs_unlinked *ul;
 
  restart:
@@ -369,8 +347,6 @@ gfs_unlinked_cleanup(struct gfs_sbd *sdp)
 		   !atomic_read(&sdp->sd_unlinked_od_count),);
 
 	gfs_log_unlock(sdp);
-
-	RET(GFN_UNLINKED_CLEANUP);
 }
 
 /**
@@ -383,7 +359,6 @@ gfs_unlinked_cleanup(struct gfs_sbd *sdp)
 void
 gfs_unlinked_limit(struct gfs_sbd *sdp)
 {
-	ENTER(GFN_UNLINKED_LIMIT)
 	unsigned int tries = 0, min = 0;
 	int error;
 
@@ -412,8 +387,6 @@ gfs_unlinked_limit(struct gfs_sbd *sdp)
 		} else if (error != 1)
 			break;
 	}
-
-	RET(GFN_UNLINKED_LIMIT);
 }
 
 /**
@@ -426,7 +399,6 @@ gfs_unlinked_limit(struct gfs_sbd *sdp)
 void
 gfs_unlinked_dealloc(struct gfs_sbd *sdp)
 {
-	ENTER(GFN_UNLINKED_DEALLOC)
 	unsigned int hits, strikes;
 	int error;
 
@@ -437,7 +409,7 @@ gfs_unlinked_dealloc(struct gfs_sbd *sdp)
 		for (;;) {
 			struct gfs_unlinked *ul = unlinked_find(sdp);
 			if (!ul)
-				RET(GFN_UNLINKED_DEALLOC);
+				return;
 
 			error = gfs_inode_dealloc(sdp, &ul->ul_inum);
 
@@ -469,6 +441,4 @@ gfs_unlinked_dealloc(struct gfs_sbd *sdp)
 	    !test_bit(SDF_SHUTDOWN, &sdp->sd_flags))
 		printk("GFS: fsid=%s: error deallocating inodes: %d\n",
 		       sdp->sd_fsname, error);
-
-	RET(GFN_UNLINKED_DEALLOC);
 }

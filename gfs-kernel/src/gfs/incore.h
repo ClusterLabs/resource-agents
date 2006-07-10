@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -817,14 +817,23 @@ struct gfs_trans {
 #define GFS_GLOCKD_DEFAULT (1)
 #define GFS_GLOCKD_MAX (32)
 
+#define GFS_QUOTA_DEFAULT      GFS_QUOTA_OFF
+#define GFS_QUOTA_OFF          0
+#define GFS_QUOTA_ACCOUNT      1
+#define GFS_QUOTA_ON           2
+
+#define GFS_DATA_DEFAULT       GFS_DATA_ORDERED
+#define GFS_DATA_WRITEBACK     1
+#define GFS_DATA_ORDERED       2
+
+
 struct gfs_args {
 	char ar_lockproto[GFS_LOCKNAME_LEN]; /* The name of the Lock Protocol */
 	char ar_locktable[GFS_LOCKNAME_LEN]; /* The name of the Lock Table */
 	char ar_hostdata[GFS_LOCKNAME_LEN]; /* The host specific data */
 
 	int ar_spectator; /* Don't get a journal because we're always RO. */
-
-        /*
+	/*
 	 * GFS can invoke some flock and disk caching optimizations if it is
 	 * not in a cluster, i.e. is a local filesystem.  The chosen lock
 	 * module tells GFS, at mount time, if it supports clustering.
@@ -1051,6 +1060,7 @@ struct gfs_sbd {
 
 	/* Scan for glocks and inodes to toss from memory */
 	struct task_struct *sd_scand_process; /* Scand places on reclaim list*/
+	struct task_struct *sd_glockd_process[GFS_GLOCKD_MAX];
 	unsigned int sd_glockd_num;    /* # of glockd procs to do reclaiming*/
 
 	/* Recover journal of a crashed node */

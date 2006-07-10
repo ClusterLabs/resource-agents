@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -39,7 +39,6 @@
 static void
 generic_le_add(struct gfs_sbd *sdp, struct gfs_log_element *le)
 {
-	ENTER(GFN_GENERIC_LE_ADD)
 	struct gfs_trans *tr;
 
 	/* Make sure it's not attached to a transaction already */
@@ -53,8 +52,6 @@ generic_le_add(struct gfs_sbd *sdp, struct gfs_log_element *le)
 
 	le->le_trans = tr;
 	list_add(&le->le_list, &tr->tr_elements);
-
-	RET(GFN_GENERIC_LE_ADD);
 }
 
 /**
@@ -69,14 +66,11 @@ generic_le_add(struct gfs_sbd *sdp, struct gfs_log_element *le)
 static void
 glock_trans_end(struct gfs_sbd *sdp, struct gfs_log_element *le)
 {
-	ENTER(GFN_GLOCK_TRANS_END)
 	struct gfs_glock *gl = container_of(le, struct gfs_glock, gl_new_le);
 
 	gfs_assert(sdp, gfs_glock_is_locked_by_me(gl) &&
 		   gfs_glock_is_held_excl(gl),);
 	gfs_glock_put(gl);
-
-	RET(GFN_GLOCK_TRANS_END);
 }
 
 /**
@@ -90,7 +84,6 @@ glock_trans_end(struct gfs_sbd *sdp, struct gfs_log_element *le)
 static void
 glock_print(struct gfs_sbd *sdp, struct gfs_log_element *le, unsigned int where)
 {
-	ENTER(GFN_GLOCK_PRINT)
 	struct gfs_glock *gl;
 
 	switch (where) {
@@ -102,14 +95,12 @@ glock_print(struct gfs_sbd *sdp, struct gfs_log_element *le, unsigned int where)
 		break;
 	default:
 		gfs_assert_warn(sdp, FALSE);
-		RET(GFN_GLOCK_PRINT);
+		return;
 	}
 
 	printk("  Glock:  (%u, %"PRIu64")\n",
 	       gl->gl_name.ln_type,
 	       gl->gl_name.ln_number);
-
-	RET(GFN_GLOCK_PRINT);
 }
 
 /**
@@ -132,9 +123,9 @@ glock_print(struct gfs_sbd *sdp, struct gfs_log_element *le, unsigned int where)
 static struct gfs_trans *
 glock_overlap_trans(struct gfs_sbd *sdp, struct gfs_log_element *le)
 {
-	ENTER(GFN_GLOCK_OVERLAP_TRANS)
 	struct gfs_glock *gl = container_of(le, struct gfs_glock, gl_new_le);
-	RETURN(GFN_GLOCK_OVERLAP_TRANS, gl->gl_incore_le.le_trans);
+
+	return gl->gl_incore_le.le_trans;
 }
 
 /**
@@ -167,7 +158,6 @@ static void
 glock_incore_commit(struct gfs_sbd *sdp, struct gfs_trans *tr,
 		    struct gfs_log_element *le)
 {
-	ENTER(GFN_GLOCK_INCORE_COMMIT)
 	struct gfs_glock *gl = container_of(le, struct gfs_glock, gl_new_le);
 
 	/* Transactions were combined, based on this glock */
@@ -187,8 +177,6 @@ glock_incore_commit(struct gfs_sbd *sdp, struct gfs_trans *tr,
 	/* Remove gl->gl_new_le from "new" trans */
 	le->le_trans = NULL;
 	list_del_init(&le->le_list);
-
-	RET(GFN_GLOCK_INCORE_COMMIT);
 }
 
 /**
@@ -203,10 +191,8 @@ glock_incore_commit(struct gfs_sbd *sdp, struct gfs_trans *tr,
 static void
 glock_add_to_ail(struct gfs_sbd *sdp, struct gfs_log_element *le)
 {
-	ENTER(GFN_GLOCK_ADD_TO_AIL)
 	le->le_trans = NULL;
 	list_del_init(&le->le_list);
-	RET(GFN_GLOCK_ADD_TO_AIL);
 }
 
 /**
@@ -221,9 +207,7 @@ static void
 glock_trans_combine(struct gfs_sbd *sdp, struct gfs_trans *tr,
 		    struct gfs_trans *new_tr)
 {
-	ENTER(GFN_GLOCK_TRANS_COMBINE)
 	tr->tr_num_gl += new_tr->tr_num_gl;
-	RET(GFN_GLOCK_TRANS_COMBINE);
 }
 
 /**
@@ -237,7 +221,6 @@ glock_trans_combine(struct gfs_sbd *sdp, struct gfs_trans *tr,
 static void
 buf_print(struct gfs_sbd *sdp, struct gfs_log_element *le, unsigned int where)
 {
-	ENTER(GFN_BUF_PRINT)
 	struct gfs_bufdata *bd;
 
 	switch (where) {
@@ -249,12 +232,10 @@ buf_print(struct gfs_sbd *sdp, struct gfs_log_element *le, unsigned int where)
 		break;
 	default:
 		gfs_assert_warn(sdp, FALSE);
-		RET(GFN_BUF_PRINT);
+		return;
 	}
 
 	printk("  Buffer:  %"PRIu64"\n", (uint64_t)bd->bd_bh->b_blocknr);
-
-	RET(GFN_BUF_PRINT);
 }
 
 /**
@@ -279,7 +260,6 @@ static void
 buf_incore_commit(struct gfs_sbd *sdp, struct gfs_trans *tr,
 		  struct gfs_log_element *le)
 {
-	ENTER(GFN_BUF_INCORE_COMMIT)
 	struct gfs_bufdata *bd = container_of(le, struct gfs_bufdata, bd_new_le);
 
 	/* We've completed our (atomic) changes to this buffer for this trans.
@@ -307,8 +287,6 @@ buf_incore_commit(struct gfs_sbd *sdp, struct gfs_trans *tr,
 	/* Reset buffer's bd_new_le */
 	le->le_trans = NULL;
 	list_del_init(&le->le_list);
-
-	RET(GFN_BUF_INCORE_COMMIT);
 }
 
 /**
@@ -321,7 +299,6 @@ buf_incore_commit(struct gfs_sbd *sdp, struct gfs_trans *tr,
 static void
 buf_add_to_ail(struct gfs_sbd *sdp, struct gfs_log_element *le)
 {
-	ENTER(GFN_BUF_ADD_TO_AIL)
 	struct gfs_bufdata *bd = container_of(le,
 					       struct gfs_bufdata,
 					       bd_incore_le);
@@ -333,8 +310,6 @@ buf_add_to_ail(struct gfs_sbd *sdp, struct gfs_log_element *le)
 
 	gfs_assert(sdp, sdp->sd_log_buffers,);
 	sdp->sd_log_buffers--;
-
-	RET(GFN_BUF_ADD_TO_AIL);
 }
 
 /**
@@ -353,7 +328,6 @@ buf_trans_size(struct gfs_sbd *sdp, struct gfs_trans *tr,
 	       unsigned int *mblks, unsigned int *eblks,
 	       unsigned int *blocks, unsigned int *bmem)
 {
-	ENTER(GFN_BUF_TRANS_SIZE)
 	unsigned int cblks;
 
 	if (tr->tr_num_buf) {
@@ -367,8 +341,6 @@ buf_trans_size(struct gfs_sbd *sdp, struct gfs_trans *tr,
 		if (bmem)
 			*bmem += cblks;
 	}
-
-	RET(GFN_BUF_TRANS_SIZE);
 }
 
 /**
@@ -383,9 +355,7 @@ static void
 buf_trans_combine(struct gfs_sbd *sdp, struct gfs_trans *tr,
 		  struct gfs_trans *new_tr)
 {
-	ENTER(GFN_BUF_TRANS_COMBINE)
 	tr->tr_num_buf += new_tr->tr_num_buf;
-	RET(GFN_BUF_TRANS_COMBINE);
 }
 
 /**
@@ -404,7 +374,6 @@ buf_trans_combine(struct gfs_sbd *sdp, struct gfs_trans *tr,
 static void
 increment_generation(struct gfs_sbd *sdp, struct gfs_bufdata *bd)
 {
-	ENTER(GFN_INCREMENT_GENERATION)
 	struct gfs_meta_header *mh, *mh2;
 	uint64_t tmp64;
 
@@ -419,8 +388,6 @@ increment_generation(struct gfs_sbd *sdp, struct gfs_bufdata *bd)
 		mh2->mh_generation = tmp64;
 	}
 	mh->mh_generation = tmp64;
-
-	RET(GFN_INCREMENT_GENERATION);
 }
 
 /**
@@ -434,7 +401,6 @@ increment_generation(struct gfs_sbd *sdp, struct gfs_bufdata *bd)
 static void
 buf_build_bhlist(struct gfs_sbd *sdp, struct gfs_trans *tr)
 {
-	ENTER(GFN_BUF_BUILD_BHLIST)
 	struct list_head *tmp, *head;
 	struct gfs_log_element *le;
 	struct gfs_bufdata *bd;
@@ -446,7 +412,7 @@ buf_build_bhlist(struct gfs_sbd *sdp, struct gfs_trans *tr)
 	unsigned int x, bufs;
 
 	if (!tr->tr_num_buf)
-		RET(GFN_BUF_BUILD_BHLIST);
+		return;
 
 	/* set up control buffers for descriptor and tags */
 
@@ -521,8 +487,6 @@ buf_build_bhlist(struct gfs_sbd *sdp, struct gfs_trans *tr)
 
 	gfs_assert(sdp, x == num_ctl,);
 	gfs_assert(sdp, bufs == tr->tr_num_buf,);
-
-	RET(GFN_BUF_BUILD_BHLIST);
 }
 
 /**
@@ -538,12 +502,10 @@ static void
 buf_before_scan(struct gfs_sbd *sdp, unsigned int jid,
 		struct gfs_log_header *head, unsigned int pass)
 {
-	ENTER(GFN_BUF_BEFORE_SCAN)
 	if (pass == GFS_RECPASS_A1)
 		sdp->sd_recovery_replays =
 			sdp->sd_recovery_skips =
 			sdp->sd_recovery_sames = 0;
-	RET(GFN_BUF_BEFORE_SCAN);
 }
 
 /**
@@ -568,7 +530,6 @@ static int
 replay_block(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 	     struct gfs_glock *gl, struct gfs_block_tag *tag, uint64_t blkno)
 {
-	ENTER(GFN_REPLAY_BLOCK)
 	struct buffer_head *inplace_bh, *log_bh;
 	struct gfs_meta_header inplace_mh, log_mh;
 	int replay_block = TRUE;
@@ -583,22 +544,22 @@ replay_block(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 	error = gfs_dread(gl, tag->bt_blkno,
 			  DIO_START | DIO_WAIT, &inplace_bh);
 	if (error)
-		RETURN(GFN_REPLAY_BLOCK, error);
+		return error;
 	if (gfs_meta_check(sdp, inplace_bh)) {
 		brelse(inplace_bh);
-		RETURN(GFN_REPLAY_BLOCK, -EIO);
+		return -EIO;
 	}
 	gfs_meta_header_in(&inplace_mh, inplace_bh->b_data);
 
 	error = gfs_dread(gl, blkno, DIO_START | DIO_WAIT, &log_bh);
 	if (error) {
 		brelse(inplace_bh);
-		RETURN(GFN_REPLAY_BLOCK, error);
+		return error;
 	}
 	if (gfs_meta_check(sdp, log_bh)) {
 		brelse(inplace_bh);
 		brelse(log_bh);
-		RETURN(GFN_REPLAY_BLOCK, -EIO);
+		return -EIO;
 	}
 	gfs_meta_header_in(&log_mh, log_bh->b_data);
 
@@ -627,7 +588,7 @@ replay_block(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 	brelse(log_bh);
 	brelse(inplace_bh);
 
-	RETURN(GFN_REPLAY_BLOCK, error);
+	return error;
 }
 
 /**
@@ -647,7 +608,6 @@ buf_scan_elements(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 		  struct gfs_glock *gl, uint64_t start,
 		  struct gfs_log_descriptor *desc, unsigned int pass)
 {
-	ENTER(GFN_BUF_SCAN_ELEMENTS)
 	struct gfs_block_tag tag;
 	struct buffer_head *bh;
 	uint64_t cblk = start;
@@ -657,15 +617,15 @@ buf_scan_elements(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 	int error;
 
 	if (pass != GFS_RECPASS_A1)
-		RETURN(GFN_BUF_SCAN_ELEMENTS, 0);
+		return 0;
 	if (desc->ld_type != GFS_LOG_DESC_METADATA)
-		RETURN(GFN_BUF_SCAN_ELEMENTS, 0);
+		return 0;
 
 	x = gfs_struct2blk(sdp, num_tags, sizeof(struct gfs_block_tag));
 	while (x--) {
 		error = gfs_increment_blkno(sdp, jdesc, gl, &start, TRUE);
 		if (error)
-			RETURN(GFN_BUF_SCAN_ELEMENTS, error);
+			return error;
 	}
 
 	for (;;) {
@@ -673,7 +633,7 @@ buf_scan_elements(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 
 		error = gfs_dread(gl, cblk, DIO_START | DIO_WAIT, &bh);
 		if (error)
-			RETURN(GFN_BUF_SCAN_ELEMENTS, error);
+			return error;
 
 		/* Do readahead for the inplace blocks in this control block */
 		{
@@ -712,17 +672,17 @@ buf_scan_elements(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 
 		error = gfs_increment_blkno(sdp, jdesc, gl, &cblk, TRUE);
 		if (error)
-			RETURN(GFN_BUF_SCAN_ELEMENTS, error);
+			return error;
 
 		offset = 0;
 	}
 
-	RETURN(GFN_BUF_SCAN_ELEMENTS, 0);
+	return 0;
 
  out_drelse:
 	brelse(bh);
 
-	RETURN(GFN_BUF_SCAN_ELEMENTS, error);
+	return error;
 }
 
 /**
@@ -736,8 +696,6 @@ buf_scan_elements(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 static void
 buf_after_scan(struct gfs_sbd *sdp, unsigned int jid, unsigned int pass)
 {
-	ENTER(GFN_BUF_AFTER_SCAN)
-
 	if (pass == GFS_RECPASS_A1) {
 		printk("GFS: fsid=%s: jid=%u: Replayed %u of %u blocks\n",
 		       sdp->sd_fsname, jid,
@@ -748,8 +706,6 @@ buf_after_scan(struct gfs_sbd *sdp, unsigned int jid, unsigned int pass)
 		       sdp->sd_fsname, jid, sdp->sd_recovery_replays,
 		       sdp->sd_recovery_skips, sdp->sd_recovery_sames);
 	}
-
-	RET(GFN_BUF_AFTER_SCAN);
 }
 
 /**
@@ -764,7 +720,6 @@ static void
 unlinked_print(struct gfs_sbd *sdp, struct gfs_log_element *le,
 	       unsigned int where)
 {
-	ENTER(GFN_UNLINKED_PRINT)
 	struct gfs_unlinked *ul;
 	char *type;
 
@@ -781,14 +736,12 @@ unlinked_print(struct gfs_sbd *sdp, struct gfs_log_element *le,
 		break;
 	default:
 		gfs_assert_warn(sdp, FALSE);
-		RET(GFN_UNLINKED_PRINT);
+		return;
 	}
 
 	printk("  unlinked:  %"PRIu64"/%"PRIu64", %s\n",
 	       ul->ul_inum.no_formal_ino, ul->ul_inum.no_addr,
 	       type);
-
-	RET(GFN_UNLINKED_PRINT);
 }
 
 /**
@@ -803,7 +756,6 @@ static void
 unlinked_incore_commit(struct gfs_sbd *sdp, struct gfs_trans *tr,
 		       struct gfs_log_element *le)
 {
-	ENTER(GFN_UNLINKED_INCORE_COMMIT)
 	struct gfs_unlinked *ul = container_of(le,
 					       struct gfs_unlinked,
 					       ul_new_le);
@@ -857,8 +809,6 @@ unlinked_incore_commit(struct gfs_sbd *sdp, struct gfs_trans *tr,
 	le->le_trans = NULL;
 	list_del_init(&le->le_list);
 	gfs_unlinked_put(sdp, ul);
-
-	RET(GFN_UNLINKED_INCORE_COMMIT);
 }
 
 /**
@@ -871,7 +821,6 @@ unlinked_incore_commit(struct gfs_sbd *sdp, struct gfs_trans *tr,
 static void
 unlinked_add_to_ail(struct gfs_sbd *sdp, struct gfs_log_element *le)
 {
-	ENTER(GFN_UNLINKED_ADD_TO_AIL)
 	struct gfs_unlinked *ul = container_of(le,
 						struct gfs_unlinked,
 						ul_incore_le);
@@ -893,8 +842,6 @@ unlinked_add_to_ail(struct gfs_sbd *sdp, struct gfs_log_element *le)
 	le->le_trans = NULL;
 	list_del_init(&le->le_list);
 	gfs_unlinked_put(sdp, ul);
-
-	RET(GFN_UNLINKED_ADD_TO_AIL);
 }
 
 /**
@@ -907,10 +854,8 @@ unlinked_add_to_ail(struct gfs_sbd *sdp, struct gfs_log_element *le)
 static void
 unlinked_clean_dump(struct gfs_sbd *sdp, struct gfs_log_element *le)
 {
-	ENTER(GFN_UNLINKED_CLEAN_DUMP)
 	le->le_trans = NULL;
 	list_del_init(&le->le_list);
-	RET(GFN_UNLINKED_CLEAN_DUMP);
 }
 
 /**
@@ -929,7 +874,6 @@ unlinked_trans_size(struct gfs_sbd *sdp, struct gfs_trans *tr,
 		    unsigned int *mblks, unsigned int *eblks,
 		    unsigned int *blocks, unsigned int *bmem)
 {
-	ENTER(GFN_UNLINKED_TRANS_SIZE)
 	unsigned int ublks = 0;
 
 	if (tr->tr_num_iul)
@@ -945,8 +889,6 @@ unlinked_trans_size(struct gfs_sbd *sdp, struct gfs_trans *tr,
 		*blocks += ublks;
 	if (bmem)
 		*bmem += ublks;
-
-	RET(GFN_UNLINKED_TRANS_SIZE);
 }
 
 /**
@@ -961,10 +903,8 @@ static void
 unlinked_trans_combine(struct gfs_sbd *sdp, struct gfs_trans *tr,
 		       struct gfs_trans *new_tr)
 {
-	ENTER(GFN_UNLINKED_TRANS_COMBINE)
 	tr->tr_num_iul += new_tr->tr_num_iul;
 	tr->tr_num_ida += new_tr->tr_num_ida;
-	RET(GFN_UNLINKED_TRANS_COMBINE);
 }
 
 /**
@@ -983,7 +923,6 @@ unlinked_trans_combine(struct gfs_sbd *sdp, struct gfs_trans *tr,
 static void
 unlinked_build_bhlist(struct gfs_sbd *sdp, struct gfs_trans *tr)
 {
-	ENTER(GFN_UNLINKED_BUILD_BHLIST)
 	struct list_head *tmp, *head;
 	struct gfs_log_element *le;
 	struct gfs_unlinked *ul;
@@ -1064,8 +1003,6 @@ unlinked_build_bhlist(struct gfs_sbd *sdp, struct gfs_trans *tr)
 
 		gfs_assert(sdp, entries == number,);
 	}
-
-	RET(GFN_UNLINKED_BUILD_BHLIST);
 }
 
 /**
@@ -1081,7 +1018,6 @@ static void
 unlinked_dump_size(struct gfs_sbd *sdp, unsigned int *elements,
 		   unsigned int *blocks, unsigned int *bmem)
 {
-	ENTER(GFN_UNLINKED_DUMP_SIZE)
 	unsigned int c = atomic_read(&sdp->sd_unlinked_od_count);
 	unsigned int b = gfs_struct2blk(sdp, c, sizeof(struct gfs_inum));
 
@@ -1091,8 +1027,6 @@ unlinked_dump_size(struct gfs_sbd *sdp, unsigned int *elements,
 		*blocks += b;
 	if (bmem)
 		*bmem += b;
-
-	RET(GFN_UNLINKED_DUMP_SIZE);
 }
 
 /**
@@ -1105,7 +1039,6 @@ unlinked_dump_size(struct gfs_sbd *sdp, unsigned int *elements,
 static void
 unlinked_build_dump(struct gfs_sbd *sdp, struct gfs_trans *tr)
 {
-	ENTER(GFN_UNLINKED_BUILD_DUMP)
 	struct list_head *tmp, *head;
 	struct gfs_unlinked *ul;
 	unsigned int x = 0;
@@ -1131,8 +1064,6 @@ unlinked_build_dump(struct gfs_sbd *sdp, struct gfs_trans *tr)
 	spin_unlock(&sdp->sd_unlinked_lock);
 
 	gfs_assert(sdp, x == atomic_read(&sdp->sd_unlinked_od_count),);
-
-	RET(GFN_UNLINKED_BUILD_DUMP);
 }
 
 /**
@@ -1148,10 +1079,8 @@ static void
 unlinked_before_scan(struct gfs_sbd *sdp, unsigned int jid,
 		     struct gfs_log_header *head, unsigned int pass)
 {
-	ENTER(GFN_UNLINKED_BEFORE_SCAN)
 	if (pass == GFS_RECPASS_B1)
 		clear_bit(SDF_FOUND_UL_DUMP, &sdp->sd_flags);
-	RET(GFN_UNLINKED_BEFORE_SCAN);
 }
 
 /**
@@ -1171,7 +1100,6 @@ unlinked_scan_elements(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 		       struct gfs_glock *gl, uint64_t start,
 		       struct gfs_log_descriptor *desc, unsigned int pass)
 {
-	ENTER(GFN_UNLINKED_SCAN_ELEMENTS)
 	struct gfs_inum inum;
 	struct buffer_head *bh;
 	unsigned int offset = sizeof(struct gfs_log_descriptor);
@@ -1179,7 +1107,7 @@ unlinked_scan_elements(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 	int error;
 
 	if (pass != GFS_RECPASS_B1)
-		RETURN(GFN_UNLINKED_SCAN_ELEMENTS, 0);
+		return 0;
 
 	switch (desc->ld_type) {
 	case GFS_LOG_DESC_IUL:
@@ -1196,13 +1124,13 @@ unlinked_scan_elements(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 		break;
 
 	default:
-		RETURN(GFN_UNLINKED_SCAN_ELEMENTS, 0);
+		return 0;
 	}
 
 	for (x = 0; x < desc->ld_length; x++) {
 		error = gfs_dread(gl, start, DIO_START | DIO_WAIT, &bh);
 		if (error)
-			RETURN(GFN_UNLINKED_SCAN_ELEMENTS, error);
+			return error;
 
 		for (;
 		     offset + sizeof(struct gfs_inum) <= sdp->sd_sb.sb_bsize;
@@ -1217,12 +1145,12 @@ unlinked_scan_elements(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 
 		error = gfs_increment_blkno(sdp, jdesc, gl, &start, TRUE);
 		if (error)
-			RETURN(GFN_UNLINKED_SCAN_ELEMENTS, error);
+			return error;
 
 		offset = 0;
 	}
 
-	RETURN(GFN_UNLINKED_SCAN_ELEMENTS, 0);
+	return 0;
 }
 
 /**
@@ -1236,13 +1164,11 @@ unlinked_scan_elements(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 static void
 unlinked_after_scan(struct gfs_sbd *sdp, unsigned int jid, unsigned int pass)
 {
-	ENTER(GFN_UNLINKED_AFTER_SCAN)
 	if (pass == GFS_RECPASS_B1) {
 		gfs_assert(sdp, test_bit(SDF_FOUND_UL_DUMP, &sdp->sd_flags),);
 		printk("GFS: fsid=%s: Found %d unlinked inodes\n",
 		       sdp->sd_fsname, atomic_read(&sdp->sd_unlinked_ic_count));
 	}
-	RET(GFN_UNLINKED_AFTER_SCAN);
 }
 
 /**
@@ -1256,15 +1182,12 @@ unlinked_after_scan(struct gfs_sbd *sdp, unsigned int jid, unsigned int pass)
 static void
 quota_print(struct gfs_sbd *sdp, struct gfs_log_element *le, unsigned int where)
 {
-	ENTER(GFN_QUOTA_PRINT_LOP)
 	struct gfs_quota_le *ql;
 
 	ql = container_of(le, struct gfs_quota_le, ql_le);
 	printk("  quota:  %s %u:  %"PRId64" blocks\n",
 	       (test_bit(QDF_USER, &ql->ql_data->qd_flags)) ? "user" : "group",
 	       ql->ql_data->qd_id, ql->ql_change);
-
-	RET(GFN_QUOTA_PRINT_LOP);
 }
 
 /**
@@ -1279,7 +1202,6 @@ static void
 quota_incore_commit(struct gfs_sbd *sdp, struct gfs_trans *tr,
 		    struct gfs_log_element *le)
 {
-	ENTER(GFN_QUOTA_INCORE_COMMIT)
 	struct gfs_quota_le *ql = container_of(le, struct gfs_quota_le, ql_le);
 	struct gfs_quota_data *qd = ql->ql_data;
 
@@ -1332,8 +1254,6 @@ quota_incore_commit(struct gfs_sbd *sdp, struct gfs_trans *tr,
 			list_add(&ql->ql_data_list, &qd->qd_le_list);
 		}
 	}
-
-	RET(GFN_QUOTA_INCORE_COMMIT);
 }
 
 /**
@@ -1346,7 +1266,6 @@ quota_incore_commit(struct gfs_sbd *sdp, struct gfs_trans *tr,
 static void
 quota_add_to_ail(struct gfs_sbd *sdp, struct gfs_log_element *le)
 {
-	ENTER(GFN_QUOTA_ADD_TO_AIL)
 	struct gfs_quota_le *ql = container_of(le, struct gfs_quota_le, ql_le);
 	struct gfs_quota_data *qd = ql->ql_data;
 
@@ -1369,8 +1288,6 @@ quota_add_to_ail(struct gfs_sbd *sdp, struct gfs_log_element *le)
 	list_del(&le->le_list);
 	gfs_quota_put(sdp, qd);
 	kfree(ql);
-
-	RET(GFN_QUOTA_ADD_TO_AIL);
 }
 
 /**
@@ -1383,10 +1300,8 @@ quota_add_to_ail(struct gfs_sbd *sdp, struct gfs_log_element *le)
 static void
 quota_clean_dump(struct gfs_sbd *sdp, struct gfs_log_element *le)
 {
-	ENTER(GFN_QUOTA_CLEAN_DUMP)
 	le->le_trans = NULL;
 	list_del_init(&le->le_list);
-	RET(GFN_QUOTA_CLEAN_DUMP);
 }
 
 /**
@@ -1405,7 +1320,6 @@ quota_trans_size(struct gfs_sbd *sdp, struct gfs_trans *tr,
 		 unsigned int *mblks, unsigned int *eblks,
 		 unsigned int *blocks, unsigned int *bmem)
 {
-	ENTER(GFN_QUOTA_TRANS_SIZE)
 	unsigned int qblks;
 
 	if (tr->tr_num_q) {
@@ -1419,8 +1333,6 @@ quota_trans_size(struct gfs_sbd *sdp, struct gfs_trans *tr,
 		if (bmem)
 			*bmem += qblks;
 	}
-
-	RET(GFN_QUOTA_TRANS_SIZE);
 }
 
 /**
@@ -1435,9 +1347,7 @@ static void
 quota_trans_combine(struct gfs_sbd *sdp, struct gfs_trans *tr,
 		    struct gfs_trans *new_tr)
 {
-	ENTER(GFN_QUOTA_TRANS_COMBINE)
 	tr->tr_num_q += new_tr->tr_num_q;
-	RET(GFN_QUOTA_TRANS_COMBINE);
 }
 
 /**
@@ -1450,7 +1360,6 @@ quota_trans_combine(struct gfs_sbd *sdp, struct gfs_trans *tr,
 static void
 quota_build_bhlist(struct gfs_sbd *sdp, struct gfs_trans *tr)
 {
-	ENTER(GFN_QUOTA_BUILD_BHLIST)
 	struct list_head *tmp, *head;
 	struct gfs_log_element *le;
 	struct gfs_quota_le *ql;
@@ -1460,7 +1369,7 @@ quota_build_bhlist(struct gfs_sbd *sdp, struct gfs_trans *tr)
 	unsigned int offset = sizeof(struct gfs_log_descriptor), entries = 0;
 
 	if (!tr->tr_num_q && !(tr->tr_flags & TRF_LOG_DUMP))
-		RET(GFN_QUOTA_BUILD_BHLIST);
+		return;
 
 	lb = gfs_log_get_buf(sdp, tr);
 
@@ -1503,8 +1412,6 @@ quota_build_bhlist(struct gfs_sbd *sdp, struct gfs_trans *tr)
 	}
 
 	gfs_assert(sdp, entries == tr->tr_num_q,);
-
-	RET(GFN_QUOTA_BUILD_BHLIST);
 }
 
 /**
@@ -1520,7 +1427,6 @@ static void
 quota_dump_size(struct gfs_sbd *sdp, unsigned int *elements,
 		unsigned int *blocks, unsigned int *bmem)
 {
-	ENTER(GFN_QUOTA_DUMP_SIZE)
 	unsigned int c = atomic_read(&sdp->sd_quota_od_count);
 	unsigned int b = gfs_struct2blk(sdp, c, sizeof(struct gfs_quota_tag));
 
@@ -1530,8 +1436,6 @@ quota_dump_size(struct gfs_sbd *sdp, unsigned int *elements,
 		*blocks += b;
 	if (bmem)
 		*bmem += b;
-
-	RET(GFN_QUOTA_DUMP_SIZE);
 }
 
 /**
@@ -1544,7 +1448,6 @@ quota_dump_size(struct gfs_sbd *sdp, unsigned int *elements,
 static void
 quota_build_dump(struct gfs_sbd *sdp, struct gfs_trans *tr)
 {
-	ENTER(GFN_QUOTA_BUILD_DUMP)
 	struct list_head *tmp, *head;
 	struct gfs_quota_data *qd;
 	struct gfs_quota_le *ql;
@@ -1577,8 +1480,6 @@ quota_build_dump(struct gfs_sbd *sdp, struct gfs_trans *tr)
 	spin_unlock(&sdp->sd_quota_lock);
 
 	gfs_assert(sdp, x == atomic_read(&sdp->sd_quota_od_count),);
-
-	RET(GFN_QUOTA_BUILD_DUMP);
 }
 
 /**
@@ -1594,10 +1495,8 @@ static void
 quota_before_scan(struct gfs_sbd *sdp, unsigned int jid,
 		  struct gfs_log_header *head, unsigned int pass)
 {
-	ENTER(GFN_QUOTA_BEFORE_SCAN)
 	if (pass == GFS_RECPASS_B1)
 		clear_bit(SDF_FOUND_Q_DUMP, &sdp->sd_flags);
-	RET(GFN_QUOTA_BEFORE_SCAN);
 }
 
 /**
@@ -1617,7 +1516,6 @@ quota_scan_elements(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 		    struct gfs_glock *gl, uint64_t start,
 		    struct gfs_log_descriptor *desc, unsigned int pass)
 {
-	ENTER(GFN_QUOTA_SCAN_ELEMENTS)
 	struct gfs_quota_tag tag;
 	struct buffer_head *bh;
 	unsigned int num_tags = desc->ld_data1;
@@ -1626,9 +1524,9 @@ quota_scan_elements(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 	int error;
 
 	if (pass != GFS_RECPASS_B1)
-		RETURN(GFN_QUOTA_SCAN_ELEMENTS, 0);
+		return 0;
 	if (desc->ld_type != GFS_LOG_DESC_Q)
-		RETURN(GFN_QUOTA_SCAN_ELEMENTS, 0);
+		return 0;
 
 	if (test_bit(SDF_FOUND_Q_DUMP, &sdp->sd_flags))
 		gfs_assert(sdp, !desc->ld_data2,);
@@ -1638,12 +1536,12 @@ quota_scan_elements(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 	}
 
 	if (!num_tags)
-		RETURN(GFN_QUOTA_SCAN_ELEMENTS, 0);
+		return 0;
 
 	for (x = 0; x < desc->ld_length; x++) {
 		error = gfs_dread(gl, start, DIO_START | DIO_WAIT, &bh);
 		if (error)
-			RETURN(GFN_QUOTA_SCAN_ELEMENTS, error);
+			return error;
 
 		while (offset + sizeof(struct gfs_quota_tag) <=
 		       sdp->sd_sb.sb_bsize) {
@@ -1663,17 +1561,17 @@ quota_scan_elements(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 
 		error = gfs_increment_blkno(sdp, jdesc, gl, &start, TRUE);
 		if (error)
-			RETURN(GFN_QUOTA_SCAN_ELEMENTS, error);
+			return error;
 
 		offset = 0;
 	}
 
-	RETURN(GFN_QUOTA_SCAN_ELEMENTS, 0);
+	return 0;
 
  out_drelse:
 	brelse(bh);
 
-	RETURN(GFN_QUOTA_SCAN_ELEMENTS, error);
+	return error;
 }
 
 /**
@@ -1687,16 +1585,12 @@ quota_scan_elements(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 static void
 quota_after_scan(struct gfs_sbd *sdp, unsigned int jid, unsigned int pass)
 {
-	ENTER(GFN_QUOTA_AFTER_SCAN)
-
 	if (pass == GFS_RECPASS_B1) {
 		gfs_assert(sdp, !sdp->sd_sb.sb_quota_di.no_formal_ino ||
 			   test_bit(SDF_FOUND_Q_DUMP, &sdp->sd_flags),);
 		printk("GFS: fsid=%s: Found quota changes for %d IDs\n",
 		       sdp->sd_fsname, atomic_read(&sdp->sd_quota_od_count));
 	}
-
-	RET(GFN_QUOTA_AFTER_SCAN);
 }
 
 struct gfs_log_operations gfs_glock_lops = {

@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -42,8 +42,6 @@
 void
 gfs_tune_init(struct gfs_tune *gt)
 {
-	ENTER(GFN_TUNE_INIT)
-
 	spin_lock_init(&gt->gt_spin);
 
 	gt->gt_ilimit1 = 100;
@@ -85,8 +83,6 @@ gfs_tune_init(struct gfs_tune *gt)
 	gt->gt_greedy_quantum = HZ / 40;
 	gt->gt_greedy_max = HZ / 4;
 	gt->gt_rgrp_try_threshold = 100;
-
-	RET(GFN_TUNE_INIT);
 }
 
 /**
@@ -103,21 +99,20 @@ gfs_tune_init(struct gfs_tune *gt)
 int
 gfs_check_sb(struct gfs_sbd *sdp, struct gfs_sb *sb, int silent)
 {
-	ENTER(GFN_CHECK_SB)
 	unsigned int x;
 
 	if (sb->sb_header.mh_magic != GFS_MAGIC ||
 	    sb->sb_header.mh_type != GFS_METATYPE_SB) {
 		if (!silent)
 			printk("GFS: not a GFS filesystem\n");
-		RETURN(GFN_CHECK_SB, -EINVAL);
+		return -EINVAL;
 	}
 
 	/*  If format numbers match exactly, we're done.  */
 
 	if (sb->sb_fs_format == GFS_FORMAT_FS &&
 	    sb->sb_multihost_format == GFS_FORMAT_MULTI)
-		RETURN(GFN_CHECK_SB, 0);
+		return 0;
 
 	if (sb->sb_fs_format != GFS_FORMAT_FS) {
 		for (x = 0; gfs_old_fs_formats[x]; x++)
@@ -129,7 +124,7 @@ gfs_check_sb(struct gfs_sbd *sdp, struct gfs_sb *sb, int silent)
 			       GFS_FORMAT_FS, GFS_FORMAT_MULTI,
 			       sb->sb_fs_format, sb->sb_multihost_format);
 			printk("GFS: I don't know how to upgrade this FS\n");
-			RETURN(GFN_CHECK_SB, -EINVAL);
+			return -EINVAL;
 		}
 	}
 
@@ -143,7 +138,7 @@ gfs_check_sb(struct gfs_sbd *sdp, struct gfs_sb *sb, int silent)
 			     GFS_FORMAT_FS, GFS_FORMAT_MULTI,
 			       sb->sb_fs_format, sb->sb_multihost_format);
 			printk("GFS: I don't know how to upgrade this FS\n");
-			RETURN(GFN_CHECK_SB, -EINVAL);
+			return -EINVAL;
 		}
 	}
 
@@ -153,10 +148,10 @@ gfs_check_sb(struct gfs_sbd *sdp, struct gfs_sb *sb, int silent)
 		       sb->sb_fs_format, sb->sb_multihost_format);
 		printk("GFS: Use the \"upgrade\" mount option to upgrade the FS\n");
 		printk("GFS: See the manual for more details\n");
-		RETURN(GFN_CHECK_SB, -EINVAL);
+		return -EINVAL;
 	}
 
-	RETURN(GFN_CHECK_SB, 0);
+	return 0;
 }
 
 /**
@@ -170,7 +165,6 @@ gfs_check_sb(struct gfs_sbd *sdp, struct gfs_sb *sb, int silent)
 int
 gfs_read_sb(struct gfs_sbd *sdp, struct gfs_glock *gl, int silent)
 {
-	ENTER(GFN_READ_SB)
 	struct buffer_head *bh;
 	uint32_t hash_blocks, ind_blocks, leaf_blocks;
 	uint32_t tmp_blocks;
@@ -183,7 +177,7 @@ gfs_read_sb(struct gfs_sbd *sdp, struct gfs_glock *gl, int silent)
 		if (!silent)
 			printk("GFS: fsid=%s: can't read superblock\n",
 			       sdp->sd_fsname);
-		RETURN(GFN_READ_SB, error);
+		return error;
 	}
 
 	gfs_assert(sdp, sizeof(struct gfs_sb) <= bh->b_size,);
@@ -192,7 +186,7 @@ gfs_read_sb(struct gfs_sbd *sdp, struct gfs_glock *gl, int silent)
 
 	error = gfs_check_sb(sdp, &sdp->sd_sb, silent);
 	if (error)
-		RETURN(GFN_READ_SB, error);
+		return error;
 
 	sdp->sd_fsb2bb_shift = sdp->sd_sb.sb_bsize_shift -
 		GFS_BASIC_BLOCK_SHIFT;
@@ -255,7 +249,7 @@ gfs_read_sb(struct gfs_sbd *sdp, struct gfs_glock *gl, int silent)
 	sdp->sd_max_jheight = x;
 	gfs_assert(sdp, sdp->sd_max_jheight <= GFS_MAX_META_HEIGHT,);
 
-	RETURN(GFN_READ_SB, 0);
+	return 0;
 }
 
 /**
@@ -267,7 +261,6 @@ gfs_read_sb(struct gfs_sbd *sdp, struct gfs_glock *gl, int silent)
 int
 gfs_do_upgrade(struct gfs_sbd *sdp, struct gfs_glock *sb_gl)
 {
-	ENTER(GFN_DO_UPGRADE)
 	struct gfs_holder ji_gh, t_gh, j_gh;
 	struct gfs_log_header lh;
 	struct buffer_head *bh;
@@ -281,7 +274,7 @@ gfs_do_upgrade(struct gfs_sbd *sdp, struct gfs_glock *sb_gl)
 		printk("GFS: fsid=%s: no upgrade necessary\n",
 		       sdp->sd_fsname);
 		sdp->sd_args.ar_upgrade = FALSE;
-		RETURN(GFN_DO_UPGRADE, 0);
+		return 0;
 	}
 
 	error = gfs_jindex_hold(sdp, &ji_gh);
@@ -373,7 +366,7 @@ gfs_do_upgrade(struct gfs_sbd *sdp, struct gfs_glock *sb_gl)
 		sdp->sd_args.ar_upgrade = FALSE;
 	}
 
-	RETURN(GFN_DO_UPGRADE, error);
+	return error;
 
  fail_gunlock_tr:
 	gfs_glock_dq_uninit(&t_gh);
@@ -389,7 +382,7 @@ gfs_do_upgrade(struct gfs_sbd *sdp, struct gfs_glock *sb_gl)
 		printk("GFS: fsid=%s: can't upgrade: %d\n",
 		       sdp->sd_fsname, error);
 
-	RETURN(GFN_DO_UPGRADE, error);
+	return error;
 }
 
 /**
@@ -401,15 +394,11 @@ gfs_do_upgrade(struct gfs_sbd *sdp, struct gfs_glock *sb_gl)
 static void
 clear_journalsi(struct gfs_sbd *sdp)
 {
-	ENTER(GFN_CLEAR_JOURNALSI)
-
 	if (sdp->sd_jindex) {
 		kfree(sdp->sd_jindex);
 		sdp->sd_jindex = NULL;
 	}
 	sdp->sd_journals = 0;
-
-	RET(GFN_CLEAR_JOURNALSI);
 }
 
 /**
@@ -421,11 +410,9 @@ clear_journalsi(struct gfs_sbd *sdp)
 void
 gfs_clear_journals(struct gfs_sbd *sdp)
 {
-	ENTER(GFN_CLEAR_JOURNALS)
 	down(&sdp->sd_jindex_lock);
 	clear_journalsi(sdp);
 	up(&sdp->sd_jindex_lock);
-	RET(GFN_CLEAR_JOURNALS);
 }
 
 /**
@@ -438,7 +425,6 @@ gfs_clear_journals(struct gfs_sbd *sdp)
 static int
 gfs_ji_update(struct gfs_inode *ip)
 {
-	ENTER(GFN_JI_UPDATE)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	char buf[sizeof(struct gfs_jindex)];
 	unsigned int j;
@@ -446,14 +432,14 @@ gfs_ji_update(struct gfs_inode *ip)
 
 	if (do_mod(ip->i_di.di_size, sizeof(struct gfs_jindex))) {
 		gfs_consist_inode(ip);
-		RETURN(GFN_JI_UPDATE, -EIO);
+		return -EIO;
 	}
 
 	clear_journalsi(sdp);
 
 	sdp->sd_jindex = kmalloc(ip->i_di.di_size, GFP_KERNEL);
 	if (!sdp->sd_jindex)
-		RETURN(GFN_JI_UPDATE, -ENOMEM);
+		return -ENOMEM;
 	memset(sdp->sd_jindex, 0, ip->i_di.di_size);
 
 	for (j = 0;; j++) {
@@ -474,11 +460,11 @@ gfs_ji_update(struct gfs_inode *ip)
 	sdp->sd_journals = j;
 	sdp->sd_jiinode_vn = ip->i_gl->gl_vn;
 
-	RETURN(GFN_JI_UPDATE, 0);
+	return 0;
 
  fail:
 	clear_journalsi(sdp);
-	RETURN(GFN_JI_UPDATE, error);
+	return error;
 }
 
 /**
@@ -501,14 +487,13 @@ gfs_ji_update(struct gfs_inode *ip)
 int
 gfs_jindex_hold(struct gfs_sbd *sdp, struct gfs_holder *ji_gh)
 {
-	ENTER(GFN_JINDEX_HOLD)
 	struct gfs_inode *ip = sdp->sd_jiinode;
 	struct gfs_glock *gl = ip->i_gl;
 	int error;
 
 	error = gfs_glock_nq_init(gl, LM_ST_SHARED, 0, ji_gh);
 	if (error)
-		RETURN(GFN_JINDEX_HOLD, error);
+		return error;
 
 	/* Read new copy from disk if we don't have the latest */
 	if (sdp->sd_jiinode_vn != gl->gl_vn) {
@@ -521,7 +506,7 @@ gfs_jindex_hold(struct gfs_sbd *sdp, struct gfs_holder *ji_gh)
 	if (error)
 		gfs_glock_dq_uninit(ji_gh);
 
-	RETURN(GFN_JINDEX_HOLD, error);
+	return error;
 }
 
 /**
@@ -537,7 +522,6 @@ gfs_jindex_hold(struct gfs_sbd *sdp, struct gfs_holder *ji_gh)
 int
 gfs_get_jiinode(struct gfs_sbd *sdp)
 {
-	ENTER(GFN_GET_JIINODE)
 	struct gfs_holder ji_gh;
 	int error;
 
@@ -547,7 +531,7 @@ gfs_get_jiinode(struct gfs_sbd *sdp)
 				 LM_ST_SHARED, GL_LOCAL_EXCL,
 				 &ji_gh);
 	if (error)
-		RETURN(GFN_GET_JIINODE, error);
+		return error;
 
 	error = gfs_inode_get(ji_gh.gh_gl, &sdp->sd_sb.sb_jindex_di,
 			      CREATE, &sdp->sd_jiinode);
@@ -558,7 +542,7 @@ gfs_get_jiinode(struct gfs_sbd *sdp)
 
 	gfs_glock_dq_uninit(&ji_gh);
 
-	RETURN(GFN_GET_JIINODE, error);
+	return error;
 }
 
 /**
@@ -574,7 +558,6 @@ gfs_get_jiinode(struct gfs_sbd *sdp)
 int
 gfs_get_riinode(struct gfs_sbd *sdp)
 {
-	ENTER(GFN_GET_RIINODE)
 	struct gfs_holder ri_gh;
 	int error;
 
@@ -584,7 +567,7 @@ gfs_get_riinode(struct gfs_sbd *sdp)
 				 LM_ST_SHARED, GL_LOCAL_EXCL,
 				 &ri_gh);
 	if (error)
-		RETURN(GFN_GET_RIINODE, error);
+		return error;
 
 	error = gfs_inode_get(ri_gh.gh_gl, &sdp->sd_sb.sb_rindex_di,
 			      CREATE, &sdp->sd_riinode);
@@ -595,7 +578,7 @@ gfs_get_riinode(struct gfs_sbd *sdp)
 
 	gfs_glock_dq_uninit(&ri_gh);
 
-	RETURN(GFN_GET_RIINODE, error);
+	return error;
 }
 
 /**
@@ -608,7 +591,6 @@ gfs_get_riinode(struct gfs_sbd *sdp)
 int
 gfs_get_rootinode(struct gfs_sbd *sdp)
 {
-	ENTER(GFN_GET_ROOTINODE)
 	struct gfs_holder i_gh;
 	int error;
 
@@ -618,14 +600,14 @@ gfs_get_rootinode(struct gfs_sbd *sdp)
 				 LM_ST_SHARED, GL_LOCAL_EXCL,
 				 &i_gh);
 	if (error)
-		RETURN(GFN_GET_ROOTINODE, error);
+		return error;
 
 	error = gfs_inode_get(i_gh.gh_gl, &sdp->sd_sb.sb_root_di,
 			      CREATE, &sdp->sd_rooti);
 
 	gfs_glock_dq_uninit(&i_gh);
 
-	RETURN(GFN_GET_ROOTINODE, error);
+	return error;
 }
 
 /**
@@ -641,7 +623,6 @@ gfs_get_rootinode(struct gfs_sbd *sdp)
 int
 gfs_get_qinode(struct gfs_sbd *sdp)
 {
-	ENTER(GFN_GET_QINODE)
 	struct gfs_holder i_gh;
 	int error;
 
@@ -649,7 +630,7 @@ gfs_get_qinode(struct gfs_sbd *sdp)
 	if (!sdp->sd_sb.sb_quota_di.no_formal_ino) {
 		error = gfs_alloc_qinode(sdp);
 		if (error)
-			RETURN(GFN_GET_QINODE, error);
+			return error;
 	}
 
 	error = gfs_glock_nq_num(sdp,
@@ -658,14 +639,14 @@ gfs_get_qinode(struct gfs_sbd *sdp)
 				 LM_ST_SHARED, GL_LOCAL_EXCL,
 				 &i_gh);
 	if (error)
-		RETURN(GFN_GET_QINODE, error);
+		return error;
 
 	error = gfs_inode_get(i_gh.gh_gl, &sdp->sd_sb.sb_quota_di,
 			      CREATE, &sdp->sd_qinode);
 
 	gfs_glock_dq_uninit(&i_gh);
 
-	RETURN(GFN_GET_QINODE, error);
+	return error;
 }
 
 /**
@@ -681,7 +662,6 @@ gfs_get_qinode(struct gfs_sbd *sdp)
 int
 gfs_get_linode(struct gfs_sbd *sdp)
 {
-	ENTER(GFN_GET_LINODE)
 	struct gfs_holder i_gh;
 	int error;
 
@@ -689,7 +669,7 @@ gfs_get_linode(struct gfs_sbd *sdp)
 	if (!sdp->sd_sb.sb_license_di.no_formal_ino) {
 		error = gfs_alloc_linode(sdp);
 		if (error)
-			RETURN(GFN_GET_LINODE, error);
+			return error;
 	}
 
 	error = gfs_glock_nq_num(sdp,
@@ -698,14 +678,14 @@ gfs_get_linode(struct gfs_sbd *sdp)
 				 LM_ST_SHARED, GL_LOCAL_EXCL,
 				 &i_gh);
 	if (error)
-		RETURN(GFN_GET_LINODE, error);
+		return error;
 
 	error = gfs_inode_get(i_gh.gh_gl, &sdp->sd_sb.sb_license_di,
 			      CREATE, &sdp->sd_linode);
 
 	gfs_glock_dq_uninit(&i_gh);
 
-	RETURN(GFN_GET_LINODE, error);
+	return error;
 }
 
 /**
@@ -718,7 +698,6 @@ gfs_get_linode(struct gfs_sbd *sdp)
 int
 gfs_make_fs_rw(struct gfs_sbd *sdp)
 {
-	ENTER(GFN_MAKE_FS_RW)
 	struct gfs_glock *j_gl = sdp->sd_journal_gh.gh_gl;
 	struct gfs_holder t_gh;
 	struct gfs_log_header head;
@@ -729,7 +708,7 @@ gfs_make_fs_rw(struct gfs_sbd *sdp)
 				  GL_LOCAL_EXCL | GL_EXACT,
 				  &t_gh);
 	if (error)
-		RETURN(GFN_MAKE_FS_RW, error);
+		return error;
 
 	j_gl->gl_ops->go_inval(j_gl, DIO_METADATA | DIO_DATA);
 
@@ -759,13 +738,13 @@ gfs_make_fs_rw(struct gfs_sbd *sdp)
 
 	gfs_glock_dq_uninit(&t_gh);
 
-	RETURN(GFN_MAKE_FS_RW, 0);
+	return 0;
 
  fail:
 	t_gh.gh_flags |= GL_NOCACHE;
 	gfs_glock_dq_uninit(&t_gh);
 
-	RETURN(GFN_MAKE_FS_RW, error);
+	return error;
 }
 
 /**
@@ -778,7 +757,6 @@ gfs_make_fs_rw(struct gfs_sbd *sdp)
 int
 gfs_make_fs_ro(struct gfs_sbd *sdp)
 {
-	ENTER(GFN_MAKE_FS_RO)
 	struct gfs_holder t_gh;
 	int error;
 
@@ -788,11 +766,11 @@ gfs_make_fs_ro(struct gfs_sbd *sdp)
 				  &t_gh);
 	if (error &&
 	    !test_bit(SDF_SHUTDOWN, &sdp->sd_flags))
-		RETURN(GFN_MAKE_FS_RO, error);
+		return error;
 
+	gfs_log_flush(sdp);
 	gfs_quota_sync(sdp);
 	gfs_quota_scan(sdp);
-	gfs_log_flush(sdp);
 
 	gfs_sync_meta(sdp);
 	gfs_log_dump(sdp, TRUE);
@@ -807,7 +785,7 @@ gfs_make_fs_ro(struct gfs_sbd *sdp)
 	gfs_unlinked_cleanup(sdp);
 	gfs_quota_cleanup(sdp);
 
-	RETURN(GFN_MAKE_FS_RO, error);
+	return error;
 }
 
 /**
@@ -821,11 +799,10 @@ gfs_make_fs_ro(struct gfs_sbd *sdp)
 static int
 stat_gfs_fill(struct gfs_rgrpd *rgd, struct gfs_stat_gfs *sg)
 {
-	ENTER(GFN_STAT_GFS_FILL)
 	struct gfs_rgrp_lvb *rb = (struct gfs_rgrp_lvb *)rgd->rd_gl->gl_lvb;
 
 	if (gfs32_to_cpu(rb->rb_magic) != GFS_MAGIC)
-		RETURN(GFN_STAT_GFS_FILL, -ESTALE);
+		return -ESTALE;
 
 	sg->sg_total_blocks += rgd->rd_ri.ri_data;
 	sg->sg_free += gfs32_to_cpu(rb->rb_free);
@@ -834,7 +811,7 @@ stat_gfs_fill(struct gfs_rgrpd *rgd, struct gfs_stat_gfs *sg)
 	sg->sg_used_meta += gfs32_to_cpu(rb->rb_usedmeta);
 	sg->sg_free_meta += gfs32_to_cpu(rb->rb_freemeta);
 
-	RETURN(GFN_STAT_GFS_FILL, 0);
+	return 0;
 }
 
 /**
@@ -854,7 +831,6 @@ stat_gfs_fill(struct gfs_rgrpd *rgd, struct gfs_stat_gfs *sg)
 static int
 stat_gfs_async(struct gfs_sbd *sdp, struct gfs_stat_gfs *sg, int interruptible)
 {
-	ENTER(GFN_STAT_GFS_ASYNC)
 	struct gfs_rgrpd *rgd_next = gfs_rgrpd_get_first(sdp);
 	struct gfs_holder *gha, *gh;
 	unsigned int slots = gfs_tune_get(sdp, gt_statfs_slots);
@@ -866,7 +842,7 @@ stat_gfs_async(struct gfs_sbd *sdp, struct gfs_stat_gfs *sg, int interruptible)
 
 	gha = kmalloc(slots * sizeof(struct gfs_holder), GFP_KERNEL);
 	if (!gha)
-		RETURN(GFN_STAT_GFS_ASYNC, -ENOMEM);
+		return -ENOMEM;
 	memset(gha, 0, slots * sizeof(struct gfs_holder));
 
 	for (;;) {
@@ -910,7 +886,7 @@ stat_gfs_async(struct gfs_sbd *sdp, struct gfs_stat_gfs *sg, int interruptible)
 
 	kfree(gha);
 
-	RETURN(GFN_STAT_GFS_ASYNC, error);
+	return error;
 }
 
 /**
@@ -925,26 +901,27 @@ stat_gfs_async(struct gfs_sbd *sdp, struct gfs_stat_gfs *sg, int interruptible)
 static int
 stat_gfs_sync(struct gfs_sbd *sdp, struct gfs_stat_gfs *sg, int interruptible)
 {
-	ENTER(GFN_STAT_GFS_SYNC)
 	struct gfs_holder rgd_gh;
 	struct gfs_rgrpd *rgd;
-	int error;
+	int error,i=1;
 
 	memset(sg, 0, sizeof(struct gfs_stat_gfs));
 
 	for (rgd = gfs_rgrpd_get_first(sdp);
 	     rgd;
 	     rgd = gfs_rgrpd_get_next(rgd)) {
+		printk("Bob says: stat_gfs_sync i=%d addr=",i++);
+		printk("%llu\n",rgd->rd_ri.ri_addr);
 		for (;;) {
 			error = gfs_glock_nq_init(rgd->rd_gl,
 						  LM_ST_SHARED,
 						  GL_LOCAL_EXCL | GL_SKIP,
 						  &rgd_gh);
 			if (error)
-				RETURN(GFN_STAT_GFS_SYNC, error);
+				return error;
 
 			error = stat_gfs_fill(rgd, sg);
-
+			
 			gfs_glock_dq_uninit(&rgd_gh);
 
 			if (!error)
@@ -952,14 +929,14 @@ stat_gfs_sync(struct gfs_sbd *sdp, struct gfs_stat_gfs *sg, int interruptible)
 
 			error = gfs_rgrp_lvb_init(rgd);
 			if (error)
-				RETURN(GFN_STAT_GFS_SYNC, error);
+				return error;
 		}
 
 		if (interruptible && signal_pending(current))
-			RETURN(GFN_STAT_GFS_SYNC, -ERESTARTSYS);
+			return -ERESTARTSYS;
 	}
 
-	RETURN(GFN_STAT_GFS_SYNC, 0);
+	return 0;
 }
 
 /**
@@ -974,13 +951,12 @@ stat_gfs_sync(struct gfs_sbd *sdp, struct gfs_stat_gfs *sg, int interruptible)
 int
 gfs_stat_gfs(struct gfs_sbd *sdp, struct gfs_stat_gfs *sg, int interruptible)
 {
-	ENTER(GFN_STAT_GFS)
 	struct gfs_holder ri_gh;
 	int error;
 
 	error = gfs_rindex_hold(sdp, &ri_gh);
 	if (error)
-		RETURN(GFN_STAT_GFS, error);
+		return error;
 
 	error = stat_gfs_async(sdp, sg, interruptible);
 	if (error == -ESTALE)
@@ -988,7 +964,7 @@ gfs_stat_gfs(struct gfs_sbd *sdp, struct gfs_stat_gfs *sg, int interruptible)
 
 	gfs_glock_dq_uninit(&ri_gh);
 
-	RETURN(GFN_STAT_GFS, error);
+	return error;
 }
 
 /**
@@ -1004,7 +980,6 @@ int
 gfs_lock_fs_check_clean(struct gfs_sbd *sdp, unsigned int state,
 			struct gfs_holder *t_gh)
 {
-	ENTER(GFN_LOCK_FS_CHECK_CLEAN)
 	struct gfs_holder ji_gh, cl_gh;
 	struct gfs_log_header lh;
 	unsigned int x;
@@ -1012,7 +987,7 @@ gfs_lock_fs_check_clean(struct gfs_sbd *sdp, unsigned int state,
 
 	error = gfs_jindex_hold(sdp, &ji_gh);
 	if (error)
-		RETURN(GFN_LOCK_FS_CHECK_CLEAN, error);
+		return error;
 
 	error = gfs_glock_nq_num(sdp,
 				 GFS_CRAP_LOCK, &gfs_meta_glops,
@@ -1042,7 +1017,7 @@ gfs_lock_fs_check_clean(struct gfs_sbd *sdp, unsigned int state,
 	gfs_glock_dq_uninit(&cl_gh);
 	gfs_glock_dq_uninit(&ji_gh);
 
-	RETURN(GFN_LOCK_FS_CHECK_CLEAN, 0);
+	return 0;
 
  fail_gunlock_trans:
 	gfs_glock_dq_uninit(t_gh);
@@ -1053,7 +1028,7 @@ gfs_lock_fs_check_clean(struct gfs_sbd *sdp, unsigned int state,
  fail:
 	gfs_glock_dq_uninit(&ji_gh);
 
-	RETURN(GFN_LOCK_FS_CHECK_CLEAN, error);
+	return error;
 }
 
 /**
@@ -1070,7 +1045,6 @@ gfs_lock_fs_check_clean(struct gfs_sbd *sdp, unsigned int state,
 int
 gfs_freeze_fs(struct gfs_sbd *sdp)
 {
-	ENTER(GFN_FREEZE_FS)
 	int error = 0;
 
 	down(&sdp->sd_freeze_lock);
@@ -1086,7 +1060,7 @@ gfs_freeze_fs(struct gfs_sbd *sdp)
 
 	up(&sdp->sd_freeze_lock);
 
-	RETURN(GFN_FREEZE_FS, error);
+	return error;
 }
 
 /**
@@ -1102,14 +1076,10 @@ gfs_freeze_fs(struct gfs_sbd *sdp)
 void
 gfs_unfreeze_fs(struct gfs_sbd *sdp)
 {
-	ENTER(GFN_UNFREEZE_FS)
-
 	down(&sdp->sd_freeze_lock);
 
 	if (sdp->sd_freeze_count && !--sdp->sd_freeze_count)
 		gfs_glock_dq_uninit(&sdp->sd_freeze_gh);
 
 	up(&sdp->sd_freeze_lock);
-
-	RET(GFN_UNFREEZE_FS);
 }

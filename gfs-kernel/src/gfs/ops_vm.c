@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -40,7 +40,6 @@
 static void
 pfault_be_greedy(struct gfs_inode *ip)
 {
-	ENTER(GFN_PFAULT_BE_GREEDY)
 	unsigned int time;
 
 	spin_lock(&ip->i_spin);
@@ -51,8 +50,6 @@ pfault_be_greedy(struct gfs_inode *ip)
 	gfs_inode_hold(ip);
 	if (gfs_glock_be_greedy(ip->i_gl, time))
 		gfs_inode_put(ip);
-
-	RET(GFN_PFAULT_BE_GREEDY);
 }
 
 /**
@@ -68,7 +65,6 @@ static struct page *
 gfs_private_nopage(struct vm_area_struct *area,
 		   unsigned long address, int *type)
 {
-	ENTER(GFN_PRIVATE_NOPAGE)
 	struct gfs_inode *ip = get_v2ip(area->vm_file->f_mapping->host);
 	struct gfs_holder i_gh;
 	struct page *result;
@@ -78,7 +74,7 @@ gfs_private_nopage(struct vm_area_struct *area,
 
 	error = gfs_glock_nq_init(ip->i_gl, LM_ST_SHARED, 0, &i_gh);
 	if (error)
-		RETURN(GFN_PRIVATE_NOPAGE, NULL);
+		return NULL;
 
 	set_bit(GIF_PAGED, &ip->i_flags);
 
@@ -89,7 +85,7 @@ gfs_private_nopage(struct vm_area_struct *area,
 
 	gfs_glock_dq_uninit(&i_gh);
 
-	RETURN(GFN_PRIVATE_NOPAGE, result);
+	return result;
 }
 
 /**
@@ -103,7 +99,6 @@ gfs_private_nopage(struct vm_area_struct *area,
 static int
 alloc_page_backing(struct gfs_inode *ip, unsigned long index)
 {
-	ENTER(GFN_ALLOC_PAGE_BACKING)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	uint64_t lblock = index << (PAGE_CACHE_SHIFT - sdp->sd_sb.sb_bsize_shift);
 	unsigned int blocks = PAGE_CACHE_SIZE >> sdp->sd_sb.sb_bsize_shift;
@@ -171,7 +166,7 @@ alloc_page_backing(struct gfs_inode *ip, unsigned long index)
  out:
 	gfs_alloc_put(ip);
 
-	RETURN(GFN_ALLOC_PAGE_BACKING, error);
+	return error;
 }
 
 /**
@@ -187,7 +182,6 @@ static struct page *
 gfs_sharewrite_nopage(struct vm_area_struct *area,
 		      unsigned long address, int *type)
 {
-	ENTER(GFN_SHAREWRITE_NOPAGE)
 	struct gfs_inode *ip = get_v2ip(area->vm_file->f_mapping->host);
 	struct gfs_holder i_gh;
 	struct page *result = NULL;
@@ -199,7 +193,7 @@ gfs_sharewrite_nopage(struct vm_area_struct *area,
 
 	error = gfs_glock_nq_init(ip->i_gl, LM_ST_EXCLUSIVE, 0, &i_gh);
 	if (error)
-		RETURN(GFN_SHAREWRITE_NOPAGE, NULL);
+		return NULL;
 
 	if (gfs_is_jdata(ip))
 		goto out;
@@ -231,7 +225,7 @@ gfs_sharewrite_nopage(struct vm_area_struct *area,
  out:
 	gfs_glock_dq_uninit(&i_gh);
 
-	RETURN(GFN_SHAREWRITE_NOPAGE, result);
+	return result;
 }
 
 struct vm_operations_struct gfs_vm_ops_private = {

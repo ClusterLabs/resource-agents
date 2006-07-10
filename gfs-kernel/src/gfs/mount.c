@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -21,7 +21,7 @@
 
 #include "gfs.h"
 #include "mount.h"
-#include "proc.h"
+#include "sys.h"
 
 /**
  * gfs_make_args - Parse mount arguments
@@ -32,26 +32,29 @@
  */
 
 int
-gfs_make_args(char *data_arg, struct gfs_args *args)
+gfs_make_args(char *data_arg, struct gfs_args *args, int remount)
 {
-	ENTER(GFN_MAKE_ARGS)
 	char *data = data_arg;
 	char *options, *x, *y;
 	int error = 0;
 
 	/*  If someone preloaded options, use those instead  */
 
-	spin_lock(&gfs_proc_margs_lock);
-	if (gfs_proc_margs) {
-		data = gfs_proc_margs;
-		gfs_proc_margs = NULL;
-	}
-	spin_unlock(&gfs_proc_margs_lock);
-
-	/*  Set some defaults  */
-
 	memset(args, 0, sizeof(struct gfs_args));
 	args->ar_num_glockd = GFS_GLOCKD_DEFAULT;
+
+	if (!remount) {
+		/*  If someone preloaded options, use those instead  */
+		spin_lock(&gfs_sys_margs_lock);
+		if (gfs_sys_margs) {
+			data = gfs_sys_margs;
+			gfs_sys_margs = NULL;
+		}
+		spin_unlock(&gfs_sys_margs_lock);
+		
+		/*  Set some defaults  */
+		args->ar_num_glockd = GFS_GLOCKD_DEFAULT;
+	}
 
 	/*  Split the options into tokens with the "," character and
 	    process them  */
@@ -92,6 +95,7 @@ gfs_make_args(char *data_arg, struct gfs_args *args)
 			}
 			strncpy(args->ar_hostdata, y, GFS_LOCKNAME_LEN);
 			args->ar_hostdata[GFS_LOCKNAME_LEN - 1] = 0;
+			printk("Bob says: hostdata=%s\n",args->ar_hostdata);
 		}
 
 		else if (!strcmp(x, "spectator"))
@@ -134,6 +138,9 @@ gfs_make_args(char *data_arg, struct gfs_args *args)
 		else if (!strcmp(x, "acl"))
 			args->ar_posix_acls = TRUE;
 
+		else if (!strcmp(x, "noacl"))
+			args->ar_posix_acls = FALSE;
+
 		else if (!strcmp(x, "suiddir"))
 			args->ar_suiddir = TRUE;
 
@@ -152,6 +159,6 @@ gfs_make_args(char *data_arg, struct gfs_args *args)
 	if (data != data_arg)
 		kfree(data);
 
-	RETURN(GFN_MAKE_ARGS, error);
+	return error;
 }
 

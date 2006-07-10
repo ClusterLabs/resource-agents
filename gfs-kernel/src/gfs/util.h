@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -338,18 +338,6 @@ gfs_tune_get_i(struct gfs_tune *gt, unsigned int *p)
 }
 #define gfs_tune_get(sdp, field) \
 gfs_tune_get_i(&(sdp)->sd_tune, &(sdp)->sd_tune.field)
-
-
-int
-gfs_printf_i(char *buf, unsigned int size, unsigned int *count,
-	     char *fmt, ...)
-__attribute__ ((format(printf, 4, 5)));
-
-#define gfs_printf(fmt, args...) \
-do { \
-	if (gfs_printf_i(buf, size, count, fmt, ##args)) \
-		goto out; \
-} while(0)
 
 
 #endif /* __UTIL_DOT_H__ */

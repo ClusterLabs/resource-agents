@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -41,7 +41,6 @@ int
 gfs_copy2mem(struct buffer_head *bh, void **buf, unsigned int offset,
 	     unsigned int size)
 {
-	ENTER(GFN_COPY2MEM)
 	char **p = (char **)buf;
 
 	if (bh)
@@ -51,7 +50,7 @@ gfs_copy2mem(struct buffer_head *bh, void **buf, unsigned int offset,
 
 	*p += size;
 
-	RETURN(GFN_COPY2MEM, 0);
+	return 0;
 }
 
 /**
@@ -68,7 +67,6 @@ int
 gfs_copy2user(struct buffer_head *bh, void **buf,
 	      unsigned int offset, unsigned int size)
 {
-	ENTER(GFN_COPY2USER)
 	char **p = (char **)buf;
 	int error;
 
@@ -82,7 +80,7 @@ gfs_copy2user(struct buffer_head *bh, void **buf,
 	else
 		*p += size;
 
-	RETURN(GFN_COPY2USER, error);
+	return error;
 }
 
 /**
@@ -106,7 +104,6 @@ gfs_readi(struct gfs_inode *ip, void *buf,
 	  uint64_t offset, unsigned int size,
 	  read_copy_fn_t copy_fn)
 {
-	ENTER(GFN_READI)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct buffer_head *bh;
 	uint64_t lblock, dblock;
@@ -119,13 +116,13 @@ gfs_readi(struct gfs_inode *ip, void *buf,
 	int error = 0;
 
 	if (offset >= ip->i_di.di_size)
-		RETURN(GFN_READI, 0);
+		return 0;
 
 	if ((offset + size) > ip->i_di.di_size)
 		size = ip->i_di.di_size - offset;
 
 	if (!size)
-		RETURN(GFN_READI, 0);
+		return 0;
 
 	if (journaled) {
 		lblock = offset;
@@ -183,10 +180,10 @@ gfs_readi(struct gfs_inode *ip, void *buf,
 		o = (journaled) ? sizeof(struct gfs_meta_header) : 0;
 	}
 
-	RETURN(GFN_READI, copied);
+	return copied;
 
  fail:
-	RETURN(GFN_READI, (copied) ? copied : error);
+	return (copied) ? copied : error;
 }
 
 /**
@@ -205,14 +202,13 @@ int
 gfs_copy_from_mem(struct gfs_inode *ip, struct buffer_head *bh, void **buf,
 		  unsigned int offset, unsigned int size, int new)
 {
-	ENTER(GFN_COPY_FROM_MEM)
 	char **p = (char **)buf;
 	int error = 0;
 
 	/* The dinode block always gets journaled */
 	if (bh->b_blocknr == ip->i_num.no_addr) {
 		if (gfs_assert_warn(ip->i_sbd, !new))
-			RETURN(GFN_COPY_FROM_MEM, -EIO);
+			return -EIO;
 		gfs_trans_add_bh(ip->i_gl, bh);
 		memcpy(bh->b_data + offset, *p, size);
 
@@ -234,7 +230,7 @@ gfs_copy_from_mem(struct gfs_inode *ip, struct buffer_head *bh, void **buf,
 	if (!error)
 		*p += size;
 
-	RETURN(GFN_COPY_FROM_MEM, error);
+	return error;
 }
 
 /**
@@ -253,14 +249,13 @@ int
 gfs_copy_from_user(struct gfs_inode *ip, struct buffer_head *bh, void **buf,
 		   unsigned int offset, unsigned int size, int new)
 {
-	ENTER(GFN_COPY_FROM_USER)
 	char **p = (char **)buf;
 	int error = 0;
 
 	/* the dinode block always gets journaled */
 	if (bh->b_blocknr == ip->i_num.no_addr) {
 		if (gfs_assert_warn(ip->i_sbd, !new))
-			RETURN(GFN_COPY_FROM_USER, -EIO);
+			return -EIO;
 		gfs_trans_add_bh(ip->i_gl, bh);
 		if (copy_from_user(bh->b_data + offset, *p, size))
 			error = -EFAULT;
@@ -294,7 +289,7 @@ gfs_copy_from_user(struct gfs_inode *ip, struct buffer_head *bh, void **buf,
 	if (!error)
 		*p += size;
 
-	RETURN(GFN_COPY_FROM_USER, error);
+	return error;
 }
 
 /**
@@ -313,7 +308,6 @@ gfs_writei(struct gfs_inode *ip, void *buf,
 	   uint64_t offset, unsigned int size,
 	   write_copy_fn_t copy_fn)
 {
-	ENTER(GFN_WRITEI)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct buffer_head *dibh, *bh;
 	uint64_t lblock, dblock;
@@ -327,13 +321,13 @@ gfs_writei(struct gfs_inode *ip, void *buf,
 	int error = 0;
 
 	if (!size)
-		RETURN(GFN_WRITEI, 0);
+		return 0;
 
 	if (gfs_is_stuffed(ip) &&
 	    ((start + size) > (sdp->sd_sb.sb_bsize - sizeof(struct gfs_dinode)))) {
 		error = gfs_unstuff_dinode(ip, gfs_unstuffer_async, NULL);
 		if (error)
-			RETURN(GFN_WRITEI, error);
+			return error;
 	}
 
 	if (journaled) {
@@ -392,7 +386,7 @@ gfs_writei(struct gfs_inode *ip, void *buf,
  out:
 	error = gfs_get_inode_buffer(ip, &dibh);
 	if (error)
-		RETURN(GFN_WRITEI, error);
+		return error;
 
 	if (ip->i_di.di_size < start + copied)
 		ip->i_di.di_size = start + copied;
@@ -402,12 +396,12 @@ gfs_writei(struct gfs_inode *ip, void *buf,
 	gfs_dinode_out(&ip->i_di, dibh->b_data);
 	brelse(dibh);
 
-	RETURN(GFN_WRITEI, copied);
+	return copied;
 
  fail:
 	if (copied)
 		goto out;
-	RETURN(GFN_WRITEI, error);
+	return error;
 }
 
 /*
