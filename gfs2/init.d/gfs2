@@ -24,11 +24,6 @@ case "$1" in
   start)
         if [ -n "$GFS2FSTAB" ] 
 	then
-		#load_module lock_harness MODULE_LOCK_HARNESS
-		#load_module crc32        MODULE_CRC32
-		#load_module lock_gulm    MODULE_LOCK_GULM
-		#load_module gfs2          MODULE_GFS2
-
 		action $"Mounting GFS2 filesystems: " mount -a -t gfs2
 	fi
 	touch /var/lock/subsys/gfs2
@@ -53,16 +48,17 @@ case "$1" in
 			sleep 2
 			remaining=`LC_ALL=C awk '!/^#/ && $3 ~ /^gfs2/ && $2 != "/" {print $2}' /proc/mounts`
 			[ -z "$remaining" ] && break
-			/sbin/fuser -k -m $sig $remaining >/dev/null
+			/sbin/fuser -k -m $sig $remaining &> /dev/null
 			sleep 10
 			retry=$(($retry - 1))
 			sig=-9
 		done
 	fi
 
-	modprobe -r gfs2
-	modprobe -r lock_gulm
+	modprobe -r lock_nolock
 	modprobe -r lock_dlm
+	modprobe -r gfs2
+
 	rm -f /var/lock/subsys/gfs2
 	;;
 
