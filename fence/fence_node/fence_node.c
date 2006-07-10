@@ -20,7 +20,7 @@
 #include "copyright.cf"
 #include "ccs.h"
 
-#define OPTION_STRING           ("hOuV")
+#define OPTION_STRING           ("hOs:uV")
 
 #define die(fmt, args...) \
 do \
@@ -34,7 +34,7 @@ while (0)
 static char *prog_name;
 static int force;
 
-int dispatch_fence_agent(int cd, char *victim);
+int dispatch_fence_agent(int cd, char *victim, char *self);
 
 static void print_usage(void)
 {
@@ -46,6 +46,7 @@ static void print_usage(void)
 	printf("\n");
 	printf("  -h               Print this help, then exit\n");
 	printf("  -O               Force connection to CCS\n");
+	printf("  -s               Name of current node\n");
 	printf("  -V               Print program version information, then exit\n");
 	printf("\n");
 }
@@ -54,6 +55,7 @@ int main(int argc, char *argv[])
 {
 	int cont = 1, optchar, error, cd;
 	char *victim = NULL;
+	char *self = NULL;
 
 	prog_name = argv[0];
 
@@ -65,6 +67,10 @@ int main(int argc, char *argv[])
 		case 'h':
 			print_usage();
 			exit(EXIT_SUCCESS);
+			break;
+
+		case 's':
+			self = optarg;
 			break;
 
 		case 'O':
@@ -116,7 +122,7 @@ int main(int argc, char *argv[])
 		goto fail;
 	}
 
-	error = dispatch_fence_agent(cd, victim);
+	error = dispatch_fence_agent(cd, victim, self);
 	if (error)
 		goto fail_ccs;
 
