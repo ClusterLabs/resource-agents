@@ -25,8 +25,8 @@
 #include <stdarg.h>
 
 #include <linux/types.h>
-#include "gfs2_mkfs.h"
 #include "libgfs2.h"
+#include "gfs2_mkfs.h"
 #include "libvolume_id.h"
 
 char *prog_name;
