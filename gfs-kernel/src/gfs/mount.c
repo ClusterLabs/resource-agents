@@ -95,7 +95,6 @@ gfs_make_args(char *data_arg, struct gfs_args *args, int remount)
 			}
 			strncpy(args->ar_hostdata, y, GFS_LOCKNAME_LEN);
 			args->ar_hostdata[GFS_LOCKNAME_LEN - 1] = 0;
-			printk("Bob says: hostdata=%s\n",args->ar_hostdata);
 		}
 
 		else if (!strcmp(x, "spectator"))

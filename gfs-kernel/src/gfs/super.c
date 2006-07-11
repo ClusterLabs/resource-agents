@@ -903,15 +903,13 @@ stat_gfs_sync(struct gfs_sbd *sdp, struct gfs_stat_gfs *sg, int interruptible)
 {
 	struct gfs_holder rgd_gh;
 	struct gfs_rgrpd *rgd;
-	int error,i=1;
+	int error;
 
 	memset(sg, 0, sizeof(struct gfs_stat_gfs));
 
 	for (rgd = gfs_rgrpd_get_first(sdp);
 	     rgd;
 	     rgd = gfs_rgrpd_get_next(rgd)) {
-		printk("Bob says: stat_gfs_sync i=%d addr=",i++);
-		printk("%llu\n",rgd->rd_ri.ri_addr);
 		for (;;) {
 			error = gfs_glock_nq_init(rgd->rd_gl,
 						  LM_ST_SHARED,
