@@ -24,6 +24,16 @@
 #include "util.h"
 #include "lvb.h"
 
+int gfs_mount_lockproto(char *proto_name, char *table_name, char *host_data,
+						lm_callback_t cb, lm_fsdata_t *fsdata,
+						unsigned int min_lvb_size, int flags,
+						struct lm_lockstruct *lockstruct,
+						struct kobject *fskobj);
+
+void gfs_unmount_lockproto(struct lm_lockstruct *lockstruct);
+
+void gfs_withdraw_lockproto(struct lm_lockstruct *lockstruct);
+
 /**
  * gfs_lm_mount - mount a locking protocol
  * @sdp: the filesystem
@@ -45,7 +55,7 @@ int gfs_lm_mount(struct gfs_sbd *sdp, int silent)
 
 	printk("Trying to join cluster \"%s\", \"%s\"\n", proto, table);
 
-	error = gfs2_mount_lockproto(proto, table, sdp->sd_args.ar_hostdata,
+	error = gfs_mount_lockproto(proto, table, sdp->sd_args.ar_hostdata,
 				     gfs_glock_cb, sdp,
 				     GFS_MIN_LVB_SIZE, flags,
 				     &sdp->sd_lockstruct, &sdp->sd_kobj);
@@ -59,7 +69,7 @@ int gfs_lm_mount(struct gfs_sbd *sdp, int silent)
 	    gfs_assert_warn(sdp, sdp->sd_lockstruct.ls_ops) ||
 	    gfs_assert_warn(sdp, sdp->sd_lockstruct.ls_lvb_size >=
 				  GFS_MIN_LVB_SIZE)) {
-		gfs2_unmount_lockproto(&sdp->sd_lockstruct);
+		gfs_unmount_lockproto(&sdp->sd_lockstruct);
 		goto out;
 	}
 
@@ -90,7 +100,7 @@ void gfs_lm_others_may_mount(struct gfs_sbd *sdp)
 void gfs_lm_unmount(struct gfs_sbd *sdp)
 {
 	if (likely(!test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
-		gfs2_unmount_lockproto(&sdp->sd_lockstruct);
+		gfs_unmount_lockproto(&sdp->sd_lockstruct);
 }
 
 int gfs_lm_withdraw(struct gfs_sbd *sdp, char *fmt, ...)
@@ -114,7 +124,7 @@ int gfs_lm_withdraw(struct gfs_sbd *sdp, char *fmt, ...)
 	   and all further io requests fail */
 
 	printk("telling LM to withdraw\n");
-	gfs2_withdraw_lockproto(&sdp->sd_lockstruct);
+	gfs_withdraw_lockproto(&sdp->sd_lockstruct);
 	printk("withdrawn\n");
 	dump_stack();
 

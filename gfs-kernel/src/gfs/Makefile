@@ -40,6 +40,7 @@ gfs-objs := acl.o \
 	inode.o \
 	ioctl.o \
 	lm.o \
+	locking.o \
 	log.o \
 	lops.o \
 	lvb.o \
