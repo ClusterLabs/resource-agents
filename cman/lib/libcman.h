@@ -30,9 +30,10 @@
 /*
  * Some maxima
  */
-#define CMAN_MAX_ADDR_LEN sizeof(struct sockaddr_in6)
-#define CMAN_MAX_NODENAME_LEN 255
-#define MAX_CLUSTER_NAME_LEN   16
+#define CMAN_MAX_ADDR_LEN             sizeof(struct sockaddr_in6)
+#define CMAN_MAX_NODENAME_LEN         255
+#define MAX_CLUSTER_NAME_LEN           16
+#define CMAN_MAX_FENCE_AGENT_NAME_LEN 255
 
 /*
  * Pass this into cman_get_node() as the nodeid to get local node information
@@ -286,6 +287,7 @@ int cman_get_cluster(cman_handle_t handle, cman_cluster_t *clinfo);
 /* Get fence information for a node.
  * 'int *fenced' is only valid if the node is down, it is set to
  * 1 if the node has been fenced since it left the cluster.
+ * agent should be CMAN_MAX_FENCE_AGENT_NAME_LEN
  */
 int cman_get_fenceinfo(cman_handle_t handle, int nodeid, uint64_t *fence_time, int *fenced, char *agent);
 

@@ -943,7 +943,8 @@ int cman_get_fenceinfo(cman_handle_t handle, int nodeid, uint64_t *time, int *fe
 	ret = info_call(h, CMAN_CMD_GET_FENCE_INFO, &nodeid, sizeof(int), &f, sizeof(f));
 	if (!ret) {
 		*time = f.fence_time;
-		strcpy(agent, f.fence_agent);
+		if (agent)
+			strcpy(agent, f.fence_agent);
 		*fenced = ((f.flags & FENCE_FLAGS_FENCED) != 0);
 	}
 	return ret;
