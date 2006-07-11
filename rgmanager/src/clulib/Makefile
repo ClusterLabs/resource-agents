@@ -21,7 +21,7 @@ CFLAGS+= -g -I${incdir} -DCMAN_RELEASE_NAME=\"${RELEASE}\"
 CFLAGS+= -g -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
 
 
-TARGETS=libclulib.a liblalloc.a
+TARGETS=libclulib.a liblalloc.a msgtest 
 
 all: ${TARGETS}
 
@@ -29,9 +29,12 @@ install: all
 
 uninstall:
 
+msgtest: msgtest.o libclulib.a
+	gcc -o msgtest msgtest.o -lcman -L. -lclulib -llalloc -lpthread
+
 libclulib.a: clulog.o daemon_init.o signals.o msgsimple.o \
-		gettid.o rg_strings.o message.o members.o fdops.o
-		# lock.o lockspace.o 
+		gettid.o rg_strings.o message.o members.o fdops.o \
+		lock.o cman.o vft.o msg_cluster.o msg_socket.o
 	${AR} cru $@ $^
 	ranlib $@
 

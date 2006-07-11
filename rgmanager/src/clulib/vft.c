@@ -1,5 +1,5 @@
 /*
-  Copyright Red Hat, Inc. 2002-2003
+  Copyright Red Hat, Inc. 2002-2006
 
   This program is free software; you can redistribute it and/or modify it
   under the terms of the GNU General Public License as published by the
@@ -40,12 +40,8 @@
 #include <stdio.h>
 #include <assert.h>
 #include <signals.h>
+#include <lock.h>
 
-
-int clu_lock_verbose(char *lockname, int flags, void **lockpp);
-
-static int vf_lfds[2];
-static int vf_lfd = 0;
 static key_node_t *key_list = NULL;	/** List of key nodes. */
 static int _node_id = (int)-1;/** Our node ID, set with vf_init. */
 static uint16_t _port = 0;		/** Our daemon ID, set with vf_init. */
@@ -57,7 +53,7 @@ static uint16_t _port = 0;		/** Our daemon ID, set with vf_init. */
 static pthread_mutex_t key_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t vf_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_t vf_thread = (pthread_t)-1;
-static int thread_ready = 0;
+static int vf_thread_ready = 0;
 static vf_vote_cb_t default_vote_cb = NULL;
 static vf_vote_cb_t default_commit_cb = NULL;
 
@@ -65,43 +61,42 @@ static vf_vote_cb_t default_commit_cb = NULL;
 /*
  * Internal Functions
  */
-static int send_to_all(msgctx_t *peer_ctx, int32_t command, int arg1, int arg2,
-		       int log_errors);
-static int vf_send_abort(msgctx_t *ctx);
-static int vf_send_commit(msgctx_t *ctx);
-static void close_all(msgctx_t *fds);
+static int _send_simple(msgctx_t *ctx, int32_t command, int arg1, int arg2,
+		        int log_errors);
+static int vf_send_abort(msgctx_t *ctx, uint32_t trans);
+static int vf_send_commit(msgctx_t *ctx, uint32_t trans);
 static key_node_t * kn_find_key(char *keyid);
-static key_node_t * kn_find_fd(msgctx_t *ctx);
-static int vf_handle_join_view_msg(msgctx_t *ctx, vf_msg_t * hdrp);
+static key_node_t * kn_find_trans(uint32_t trans);
+static int vf_handle_join_view_msg(msgctx_t *ctx, int nodeid, vf_msg_t * hdrp);
 static int vf_resolve_views(key_node_t *key_node);
-static int vf_unanimous(msgctx_t *peer_ctx, int remain, int timeout);
-static view_node_t * vn_new(msgctx_t *ctx, uint32_t nodeid, int viewno,
+static int vf_unanimous(msgctx_t *ctx, int trans, int remain, int timeout);
+static view_node_t * vn_new(uint32_t trans, uint32_t nodeid, int viewno,
 			    void *data, uint32_t datalen);
 static int vf_request_current(cluster_member_list_t *membership, char *keyid,
-		   	      int *viewno, void **data, uint32_t *datalen);
-static int _vf_purge(key_node_t *key_node, msgctx_t **fd);
+		   	      uint64_t *viewno, void **data, uint32_t *datalen);
+static int _vf_purge(key_node_t *key_node, uint32_t *trans);
 
 /* Join-view buffer list functions */
 static int vn_cmp(view_node_t *left, view_node_t *right);
 static int vn_insert_sorted(view_node_t **head, view_node_t *node);
-static view_node_t * vn_remove(view_node_t **head, msgctx_t *ctx);
-static int vf_buffer_join_msg(int fd, vf_msg_t *hdr,
+static view_node_t * vn_remove(view_node_t **head, uint32_t trans);
+static int vf_buffer_join_msg(vf_msg_t *hdr,
 			      struct timeval *timeout);
 
 /* Commits buffer list functions */
 static int vc_cmp(commit_node_t *left, commit_node_t *right);
 static int vc_insert_sorted(commit_node_t **head, commit_node_t *node);
-static commit_node_t * vc_remove(commit_node_t **head, int fd);
-static int vf_buffer_commit(int fd);
+static commit_node_t * vc_remove(commit_node_t **head, uint32_t trans);
+static int vf_buffer_commit(uint32_t trans);
 
 /* Simple functions which client calls to vote/abort */
-static int vf_vote_yes(msgctx_t *ctx);
-static int vf_vote_no(msgctx_t *ctx);
-static int vf_abort(msgctx_t *ctx);
+static int vf_vote_yes(msgctx_t *ctx, uint32_t trans);
+static int vf_vote_no(msgctx_t *ctx, uint32_t trans);
+static int vf_abort(uint32_t trans);
 static int tv_cmp(struct timeval *left, struct timeval *right);
 
 /* Resolution */
-static int vf_try_commit(key_node_t *key_node);
+static uint32_t vf_try_commit(key_node_t *key_node);
 
 int vf_init(int my_node_id, uint16_t my_port,
 	    vf_vote_cb_t vote_cb, vf_commit_cb_t commit_cb);
@@ -111,7 +106,7 @@ static int vf_key_init_nt(char *keyid, int timeout, vf_vote_cb_t vote_cb,
 			  vf_commit_cb_t commit_cb);
 int vf_write(cluster_member_list_t *memberhip, uint32_t flags,
 	     char *keyid, void *data, uint32_t datalen);
-int vf_process_msg(int handle, generic_msg_hdr *msgp, int nbytes);
+int vf_process_msg(msgctx_t *ctx, int nodeid, generic_msg_hdr *msgp, int nbytes);
 int vf_end(char *keyid);
 int vf_read(cluster_member_list_t *membership, char *keyid, uint64_t *view,
 	    void **data, uint32_t *datalen);
@@ -123,14 +118,14 @@ static int vf_send_current(msgctx_t *, char *);
 struct vf_args {
 	uint16_t port;
 	int local_node_id;
+	msgctx_t *ctx;
 };
 
 
 static int
-send_to_all(msgctx_t *peer_ctx, int32_t command, int arg1, int arg2, int log_errors)
+_send_simple(msgctx_t *ctx, int32_t command, int arg1, int arg2, int log_errors)
 {
 	generic_msg_hdr hdr;
-	int x, rv = 0;
 
 	hdr.gh_magic = GENERIC_HDR_MAGIC;
 	hdr.gh_length = sizeof(hdr);
@@ -140,51 +135,27 @@ send_to_all(msgctx_t *peer_ctx, int32_t command, int arg1, int arg2, int log_err
 
 	swab_generic_msg_hdr(&hdr);
 
-	for (x=0; peer_ctx[x].type != -1; x++) {
-		if (msg_send(&peer_ctx[x], &hdr, sizeof(hdr)) == sizeof(hdr))
-			continue;
-
-		if (log_errors) {
-#if 0
-			clulog(LOG_ERR, "#14: Failed to send %d "
-			       "bytes to %d!\n", sizeof(hdr),
-			       x);
-#endif
-		}
-		rv = -1;
-	}
-
-	return rv;
+	return msg_send(ctx, &hdr, sizeof(hdr));
 }
 
 
 static int 
-vf_send_abort(msgctx_t *ctx)
+vf_send_abort(msgctx_t *ctx, uint32_t trans)
 {
 #ifdef DEBUG
-	printf("VF: Broadcasting ABORT\n");
+	printf("VF: Broadcasting ABORT (X#%08x)\n", trans);
 #endif
-	return send_to_all(ctx, VF_MESSAGE, VF_ABORT, 0, 0);
+	return _send_simple(ctx, VF_MESSAGE, VF_ABORT, trans, 0);
 }
 
 
 static int
-vf_send_commit(msgctx_t *ctx)
+vf_send_commit(msgctx_t *ctx, uint32_t trans)
 {
 #ifdef DEBUG
 	printf("VF: Broadcasting FORMED\n");
 #endif
-	return send_to_all(ctx, VF_MESSAGE, VF_VIEW_FORMED, 0, 1);
-}
-
-
-static void
-close_all(msgctx_t *ctx)
-{
-	int x;
-	for (x = 0; ctx[x].type != -1; x++) {
-		msg_close(&ctx[x]);
-	}
+	return _send_simple(ctx, VF_MESSAGE, VF_VIEW_FORMED, trans, 1);
 }
 
 
@@ -202,14 +173,14 @@ kn_find_key(char *keyid)
 
 
 static key_node_t *
-kn_find_fd(msgctx_t *ctx)
+kn_find_trans(uint32_t trans)
 {
 	key_node_t *cur;
 	view_node_t *curvn;
 
 	for (cur = key_list; cur; cur = cur->kn_next)
 		for (curvn = cur->kn_jvlist; curvn; curvn = curvn->vn_next)
-			if (curvn->vn_ctx == ctx)
+			if (curvn->vn_transaction == trans)
 				return cur;
 
 	return NULL;
@@ -217,15 +188,17 @@ kn_find_fd(msgctx_t *ctx)
 
 
 static int
-vf_handle_join_view_msg(msgctx_t *ctx, vf_msg_t * hdrp)
+vf_handle_join_view_msg(msgctx_t *ctx, int nodeid, vf_msg_t * hdrp)
 {
 	struct timeval timeout;
 	key_node_t *key_node;
+	uint32_t trans;
 
+	trans = hdrp->vm_msg.vf_transaction;
 #ifdef DEBUG
-	printf("VF_JOIN_VIEW from member #%d! Key: %s #%d\n",
+	printf("VF_JOIN_VIEW from member #%d! Key: %s #%d (X#%08x)\n",
 	       hdrp->vm_msg.vf_coordinator, hdrp->vm_msg.vf_keyid,
-	       (int) hdrp->vm_msg.vf_view);
+	       (int) hdrp->vm_msg.vf_view, trans);
 #endif
 
 	pthread_mutex_lock(&key_list_mutex);
@@ -241,7 +214,7 @@ vf_handle_join_view_msg(msgctx_t *ctx, vf_msg_t * hdrp)
 			pthread_mutex_unlock(&key_list_mutex);
 			printf("VF: Error: Failed to initialize %s\n",
 			       hdrp->vm_msg.vf_keyid);
-			vf_vote_no(ctx);
+			vf_vote_no(ctx, trans);  
 			return VFR_ERROR;
 		}
 
@@ -258,7 +231,7 @@ vf_handle_join_view_msg(msgctx_t *ctx, vf_msg_t * hdrp)
 #ifdef DEBUG
 			printf("VF: Voting NO (via callback)\n");
 #endif
-			vf_vote_no(ctx);
+			vf_vote_no(ctx, trans);
 			return VFR_OK;
 		}
 	}
@@ -269,12 +242,12 @@ vf_handle_join_view_msg(msgctx_t *ctx, vf_msg_t * hdrp)
 	timeout.tv_sec = key_node->kn_tsec;
 	timeout.tv_usec = 0;
 
-	if (vf_buffer_join_msg(ctx, (vf_msg_t *) hdrp, &timeout)) {
+	if (vf_buffer_join_msg((vf_msg_t *) hdrp, &timeout)) {
 		pthread_mutex_unlock(&key_list_mutex);
 #ifdef DEBUG
-		printf("VF: Voting YES\n");
+		printf("VF: Voting YES (X#%08x)\n", trans);
 #endif
-		vf_vote_yes(ctx);
+		vf_vote_yes(ctx, trans);
 		return VFR_OK;
 	}
 
@@ -282,7 +255,7 @@ vf_handle_join_view_msg(msgctx_t *ctx, vf_msg_t * hdrp)
 #ifdef DEBUG
 	printf("VF: Voting NO\n");
 #endif
-	vf_vote_no(ctx);
+	vf_vote_no(ctx, trans);
 	return VFR_NO;
 }
 
@@ -297,13 +270,10 @@ vf_resolve_views(key_node_t *key_node)
 	int commits = 0;
 	void *data;
 	uint32_t datalen;
-	msgctx_t *ctx;
+	uint32_t trans;
 
-	while ((ctx = vf_try_commit(key_node)) != -1) {
-
-		/* XXX in general, this shouldn't kill the fd... */
+	while ((trans = vf_try_commit(key_node)) != 0) {
 		commits++;
-		msg_close(commitfd);
 	}
 
 	if (key_node->kn_commit_cb) {
@@ -327,12 +297,12 @@ vf_resolve_views(key_node_t *key_node)
 
 
 static int
-vf_unanimous(msgctx_t *peer_ctx, int remain, int timeout)
+vf_unanimous(msgctx_t *mcast_ctx, int trans, int remain,
+	     int timeout)
 {
 	generic_msg_hdr response;
 	struct timeval tv;
-	fd_set rfds;
-	int nready, x, max;
+	int x;
 
 	/* Set up for the select */
 	tv.tv_sec = timeout;
@@ -346,68 +316,61 @@ vf_unanimous(msgctx_t *peer_ctx, int remain, int timeout)
 	 * Flag hosts which we received messages from so we don't
 	 * read a second message.
 	 */
-	while (remain) {
-		FD_ZERO(&rfds);
-		for (x = 0; peer_ctx[x].type != M_NONE; x++)
-			msg_fd_set(&peer_ctx[x], &rfds, &max);
+	while (remain && timeout) {
 
-		nready = select(max + 1, &rfds, NULL, NULL, &tv);
-		if (nready <= -1) {
-			if (nready == 0)
-				printf("VF Abort: Timed out!\n");
-			else
-				printf("VF Abort: %s\n",
-				       strerror(errno));
+		if (msg_wait(mcast_ctx, 5) <= 0) {
+			--timeout;
+			continue;
+		}
+
+		x = msg_receive(mcast_ctx, &response, sizeof(response), 1);
+		if (x < sizeof(response))
+			continue;
+		
+		/*
+		 * Decode & validate message
+		 */
+		swab_generic_msg_hdr(&response);
+		if ((response.gh_magic != GENERIC_HDR_MAGIC) ||
+		    (response.gh_command != VF_MESSAGE)) {
+			/* Don't process anything but votes */
+			continue;
+		}
+
+		if (vf_command(response.gh_arg1) != VF_VOTE)
+			/* Don't process anything but votes */
+			continue;
+
+		if (response.gh_arg2 != trans)
+			continue;
+
+		/*
+		 * If we get a 'NO', we are done.
+		 */
+		if (!(vf_flags(response.gh_arg1) & VFMF_AFFIRM)) {
+			/*
+			 * XXX ok, it might be a mangled message;
+			 * treat it as no anyway!
+			 */
+#ifdef DEBUG
+			printf("VF: Abort: someone voted NO\n");
+#endif
 			return 0;
 		}
 
-		for (x = 0; (peer_ctx[x].type != M_NONE) && nready; x++) {
-			if (!msg_fd_isset(&peer_fds[x], &rfds))
-				continue;
-
-			remain--;
-			nready--;
-			/*
-			 * Get reply from node x. XXX 1 second timeout?
-			 */
-			if (msg_receive(&peer_ctx[x], &response,
-						sizeof(response),
-						1) == -1) {
-				printf("VF: Abort: Timed out during "
-				       "receive from fd #%p\n", &peer_ctx[x]);
-				return 0;
-			}
-			
-			/*
-			 * Decode & validate message
-			 */
-			swab_generic_msg_hdr(&response);
-			if ((response.gh_magic != GENERIC_HDR_MAGIC) ||
-			    (response.gh_command != VF_MESSAGE) ||
-			    (response.gh_arg1 != VF_VOTE)) {
-				printf("VF: Abort: Invalid header in"
-				       " reply from fd #%p\n", &peer_fds[x]);
-				return 0;
-			}
-			
-			/*
-			 * If we get a 'NO', we are done.
-			 */
-			if (response.gh_arg2 != 1) {
-				/*
-				 * XXX ok, it might be a mangled message;
-				 * treat it as no anyway!
-				 */
-				printf("VF: Abort: fd #%d voted NO\n",
-				       peer_fds[x]);
-				return 0;
-			}
-
 #ifdef DEBUG
-			printf("VF: fd #%d voted YES\n", peer_fds[x]);
+		printf("VF: YES\n");
 #endif
-		}
+		--remain;
 	}
+
+	if (remain) {
+#ifdef DEBUG
+		printf("VF: Timed out waiting for %d responses\n", remain);
+#endif
+		return 0;
+	}
+		
 
 	/*
 	 * Whohoooooooo!
@@ -420,7 +383,7 @@ vf_unanimous(msgctx_t *peer_ctx, int remain, int timeout)
  * ...
  */
 static view_node_t *
-vn_new(msgctx_t *ctx, uint32_t nodeid, int viewno, void *data,
+vn_new(uint32_t trans, uint32_t nodeid, int viewno, void *data,
        uint32_t datalen)
 {
 	view_node_t *new;
@@ -433,7 +396,7 @@ vn_new(msgctx_t *ctx, uint32_t nodeid, int viewno, void *data,
 
 	memset(new,0,totallen);
 
-	new->vn_ctx = ctx;
+	new->vn_transaction = trans;
 	new->vn_nodeid = nodeid;
 	new->vn_viewno = viewno;
 	new->vn_datalen = datalen;
@@ -502,7 +465,7 @@ vn_insert_sorted(view_node_t **head, view_node_t *node)
 
 
 static view_node_t *
-vn_remove(view_node_t **head, msgctx_t *ctx)
+vn_remove(view_node_t **head, uint32_t trans)
 {
 	view_node_t *cur = *head, *back = NULL;
 
@@ -510,7 +473,7 @@ vn_remove(view_node_t **head, msgctx_t *ctx)
 		return NULL;
 
 	do {
-		if (cur->vn_ctx == ctx) {
+		if (cur->vn_transaction == trans) {
 			if (back) {
 				back->vn_next = cur->vn_next;
 				cur->vn_next = NULL;
@@ -537,7 +500,7 @@ vn_remove(view_node_t **head, msgctx_t *ctx)
  * (b) we don't receive any messages.
  */
 static int
-vf_buffer_join_msg(msgctx_t *ctx, vf_msg_t *hdr, struct timeval *timeout)
+vf_buffer_join_msg(vf_msg_t *hdr, struct timeval *timeout)
 {
 	key_node_t *key_node;
 	view_node_t *newp;
@@ -557,7 +520,8 @@ vf_buffer_join_msg(msgctx_t *ctx, vf_msg_t *hdr, struct timeval *timeout)
 		return 0;
 	}
 
-	newp = vn_new(ctx, hdr->vm_msg.vf_coordinator, hdr->vm_msg.vf_view, 
+	newp = vn_new(hdr->vm_msg.vf_transaction, hdr->vm_msg.vf_coordinator,
+		      hdr->vm_msg.vf_view, 
 		      hdr->vm_msg.vf_data, hdr->vm_msg.vf_datalen);
 
 	if (timeout && (timeout->tv_sec || timeout->tv_usec)) {
@@ -585,10 +549,10 @@ vf_buffer_join_msg(msgctx_t *ctx, vf_msg_t *hdr, struct timeval *timeout)
 static int
 vc_cmp(commit_node_t *left, commit_node_t *right)
 {
-	if (left->vc_fd < right->vc_fd)
+	if (left->vc_transaction < right->vc_transaction)
 		return -1;
 
-	if (left->vc_fd == right->vc_fd)
+	if (left->vc_transaction == right->vc_transaction)
 		return 0;
 
 	return 1;
@@ -637,7 +601,7 @@ vc_insert_sorted(commit_node_t **head, commit_node_t *node)
 
 
 static commit_node_t *
-vc_remove(commit_node_t **head, int fd)
+vc_remove(commit_node_t **head, uint32_t trans)
 {
 	commit_node_t *cur = *head, *back = NULL;
 
@@ -645,7 +609,7 @@ vc_remove(commit_node_t **head, int fd)
 		return NULL;
 
 	do {
-		if (cur->vc_fd == fd) {
+		if (cur->vc_transaction == trans) {
 			if (back) {
 				back->vc_next = cur->vc_next;
 				cur->vc_next = NULL;
@@ -671,13 +635,13 @@ vc_remove(commit_node_t **head, int fd)
  * the last 'join-view' message.
  */
 static int
-vf_buffer_commit(int fd)
+vf_buffer_commit(uint32_t trans)
 {
 	key_node_t *key_node;
 	commit_node_t *newp;
 	int rv;
 
-	key_node = kn_find_fd(fd);
+	key_node = kn_find_trans(trans);
 	if (!key_node)
 		return 0;
 
@@ -686,7 +650,7 @@ vf_buffer_commit(int fd)
 		return 0;
 
 	newp->vc_next = NULL;
-	newp->vc_fd = fd;
+	newp->vc_transaction = trans;
 
 	rv = vc_insert_sorted(&key_node->kn_clist, newp);
 	if (!rv)
@@ -697,31 +661,32 @@ vf_buffer_commit(int fd)
 
 
 static int
-vf_vote_yes(msgctx_t *ctx)
+vf_vote_yes(msgctx_t *ctx, uint32_t trans)
 {
-	return msg_send_simple(ctx, VF_MESSAGE, VF_VOTE, 1);
-
+	/* XXX */
+	return _send_simple(ctx, VF_MESSAGE, VF_VOTE | VFMF_AFFIRM, trans, 0);
 }
 
 
 static int
-vf_vote_no(msgctx_t *ctx)
+vf_vote_no(msgctx_t *ctx, uint32_t trans)
 {
-	return msg_send_simple(ctx, VF_MESSAGE, VF_VOTE, 0);
+	/* XXX */
+	return _send_simple(ctx, VF_MESSAGE, VF_VOTE, trans, 0);
 }
 
 
 static int
-vf_abort(msgctx_t *ctx)
+vf_abort(uint32_t trans)
 {
 	key_node_t *key_node;
 	view_node_t *cur;
 
-	key_node = kn_find_fd(ctx);
+	key_node = kn_find_trans(trans);
 	if (!key_node)
 		return -1;
 
-	cur = vn_remove(&key_node->kn_jvlist, ctx);
+	cur = vn_remove(&key_node->kn_jvlist, trans);
 	if (!cur)
 		return -1;
 
@@ -787,30 +752,30 @@ getuptime(struct timeval *tv)
 /**
  * Try to commit views in a given key_node.
  */
-static msgctx_t *
+static uint32_t
 vf_try_commit(key_node_t *key_node)
 {
 	view_node_t *vnp;
 	commit_node_t *cmp;
-	msgctx_t *ctx = NULL;
+	uint32_t trans = 0;
 
 	if (!key_node)
-		return NULL;
+		return 0;
 
 	if (!key_node->kn_jvlist)
-		return NULL;
+		return 0;
 
-	ctx = key_node->kn_jvlist->vn_ctx;
+	trans = key_node->kn_jvlist->vn_transaction;
 		
-	cmp = vc_remove(&key_node->kn_clist, ctx);
+	cmp = vc_remove(&key_node->kn_clist, trans);
 	if (!cmp) {
 		/*printf("VF: Commit for fd%d not received yet!", fd);*/
-		return NULL;
+		return 0;
 	}
 
 	free(cmp); /* no need for it any longer */
 		
-	vnp = vn_remove(&key_node->kn_jvlist, ctx);
+	vnp = vn_remove(&key_node->kn_jvlist, trans);
 	if (!vnp) {
 		/*
 		 * But, we know it was the first element on the list?!!
@@ -835,46 +800,27 @@ vf_try_commit(key_node_t *key_node)
 	memcpy(key_node->kn_data, vnp->vn_data, vnp->vn_datalen);
 
 	free(vnp);
-	return ctx;
+	return trans;
 }
 
 
 void
-vf_event_loop(int my_node_id)
+vf_event_loop(msgctx_t *ctx, int my_node_id)
 {
-	int max, nready, n, fd, flags;
-	struct timeval tv;
-	fd_set rfds;
+	int n;
 	generic_msg_hdr *hdrp = NULL;
 
-	FD_ZERO(&rfds);
-	max = msg_fill_fdset(&rfds, MSG_ALL, MSGP_VFS);
+	if (msg_wait(ctx, 3) != 0) {
 
-	tv.tv_sec = 1;
-	tv.tv_usec = 0;
-	nready = select(max + 1, &rfds, NULL, NULL, &tv);
-	if (nready <= 0)
-		return;
-
-	while (nready) {
-		fd = msg_next_fd(&rfds);
-		--nready;
-
-		flags = msg_get_flags(fd);
-
-		if (flags & MSG_LISTEN)
-			fd = msg_accept(fd, 1, NULL);
-
-		n = msg_receive_simple(fd, &hdrp, 5);
+		n = msg_receive_simple(ctx, &hdrp, 2);
 
 		if (n <= 0 || !hdrp) {
-			msg_close(fd);
-			continue;
+			return;
 		}
 
 		swab_generic_msg_hdr(hdrp);
 		if (hdrp->gh_command == VF_MESSAGE) {
-			if (vf_process_msg(fd, hdrp, n) == VFR_COMMIT) {
+			if (vf_process_msg(ctx, 0, hdrp, n) == VFR_COMMIT) {
 #ifdef DEBUG
 				printf("VFT: View committed\n");
 #endif
@@ -893,7 +839,7 @@ static void
 vf_wait_ready(void)
 {
 	pthread_mutex_lock(&vf_mutex);
-	while (!thread_ready) {
+	while (!vf_thread_ready) {
 		pthread_mutex_unlock(&vf_mutex);
 		usleep(50000);
 		pthread_mutex_lock(&vf_mutex);
@@ -908,12 +854,14 @@ vf_server(void *arg)
 	int my_node_id;
 	uint16_t port;
 	key_node_t *cur;
-	int fd;
+	uint32_t trans;
+	msgctx_t *ctx;
 
 	block_all_signals();
 
 	port = ((struct vf_args *)arg)->port;
 	my_node_id = ((struct vf_args *)arg)->local_node_id;
+	ctx = ((struct vf_args *)arg)->ctx;
 	free(arg);
 
 #ifdef DEBUG
@@ -921,29 +869,20 @@ vf_server(void *arg)
 #endif
 
 	pthread_mutex_lock(&vf_mutex);
-#if 0
-	if ((vf_lfd = msg_listen(port, MSGP_VFS, vf_lfds, 2)) <= 0) {
-		printf("Unable to set up listen socket on port %d\n",
-		       port);
-		pthread_mutex_unlock(&vf_mutex);
-		pthread_exit(NULL);
-	}
-
-	thread_ready = 1;
+	vf_thread_ready = 1;
 	pthread_mutex_unlock(&vf_mutex);
-#endif
 
-	while (1) {
+	while (vf_thread_ready) {
 		pthread_mutex_lock(&key_list_mutex);
 		for (cur = key_list; cur; cur = cur->kn_next) {
 			/* Destroy timed-out join views */
-			while (_vf_purge(cur, &fd) != VFR_NO) {
-				msg_close(fd);
-			}
+			while (_vf_purge(cur, &trans) != VFR_NO);
 		}
 		pthread_mutex_unlock(&key_list_mutex);
-		vf_event_loop(my_node_id);
+		vf_event_loop(ctx, my_node_id);
 	}
+
+	msg_close(ctx);
 	return NULL;
 }
 
@@ -952,39 +891,42 @@ vf_server(void *arg)
 /**
  * Initialize VF.  Initializes the View Formation sub system.
  * @param my_node_id	The node ID of the caller.
- * @param my_port	The port of the caller.
  * @return		0 on success, -1 on failure.
  */
 int
 vf_init(int my_node_id, uint16_t my_port, vf_vote_cb_t vcb,
 	vf_commit_cb_t ccb)
 {
-	struct vf_args *va;
-
+	struct vf_args *args;
+	msgctx_t *ctx;
 	if (my_node_id == (int)-1)
 		return -1;
+	
+	while((ctx = msg_new_ctx()) == NULL)
+		sleep(1);
 
-	if (my_port == 0)
+	while((args = malloc(sizeof(*args))) == NULL)
+		sleep(1);
+
+	if (msg_open(MSG_CLUSTER, 0, my_port, ctx, 1) < 0) {
+		free(ctx);	
+		free(args);
 		return -1;
-
-	pthread_mutex_lock(&vf_mutex);
-	if (vf_thread != (pthread_t)-1) {
-		pthread_mutex_unlock(&vf_mutex);
-		return 0;
 	}
 
-	va = malloc(sizeof(*va));
-	va->local_node_id = my_node_id;
-	va->port = my_port;
+	args->port = my_port;
+	args->local_node_id = my_node_id;
+	args->ctx = ctx;
 
-	pthread_create(&vf_thread, NULL, vf_server, va);
 
-	/* Write/read needs this */
+	pthread_mutex_lock(&vf_mutex);
 	_port = my_port;
 	_node_id = my_node_id;
 	default_vote_cb = vcb;
 	default_commit_cb = ccb;
 	pthread_mutex_unlock(&vf_mutex);
+
+	pthread_create(&vf_thread, NULL, vf_server, args);
 
 	vf_wait_ready();
 
@@ -998,20 +940,14 @@ vf_init(int my_node_id, uint16_t my_port, vf_vote_cb_t vcb,
 int
 vf_shutdown(void)
 {
-	int x;
 	key_node_t *c_key;
 	view_node_t *c_jv;
 	commit_node_t *c_cn;
 
 	pthread_mutex_lock(&vf_mutex);
+	vf_thread_ready = 0;
 	pthread_cancel(vf_thread);
 	pthread_join(vf_thread, NULL);
-	thread_ready = 0;
-	vf_thread = (pthread_t)0;
-
-	for (x = 0 ; x < vf_lfd; x++)
-		msg_close(vf_lfds[x]);
-
 	_port = 0;
 	_node_id = (int)-1;
 	pthread_mutex_lock(&key_list_mutex);
@@ -1019,7 +955,6 @@ vf_shutdown(void)
 	while ((c_key = key_list) != NULL) {
 
 		while ((c_jv = c_key->kn_jvlist) != NULL) {
-			msg_close(c_jv->vn_ctx);
 			key_list->kn_jvlist = c_jv->vn_next;
 			free(c_jv);
 		}
@@ -1120,7 +1055,7 @@ vf_key_init(char *keyid, int timeout, vf_vote_cb_t vote_cb,
 
 vf_msg_t *
 build_vf_data_message(int cmd, char *keyid, void *data, uint32_t datalen,
-		      int viewno, uint32_t *retlen)
+		      int viewno, int trans, uint32_t *retlen)
 {
 	uint32_t totallen;
 	vf_msg_t *msg;
@@ -1142,6 +1077,7 @@ build_vf_data_message(int cmd, char *keyid, void *data, uint32_t datalen,
 
 	/* Data */
 	strncpy(msg->vm_msg.vf_keyid,keyid,sizeof(msg->vm_msg.vf_keyid));
+	msg->vm_msg.vf_transaction = trans;
 	msg->vm_msg.vf_datalen = datalen;
 	msg->vm_msg.vf_coordinator = _node_id;
 	msg->vm_msg.vf_view = viewno;
@@ -1171,89 +1107,52 @@ int
 vf_write(cluster_member_list_t *membership, uint32_t flags, char *keyid,
 	 void *data, uint32_t datalen)
 {
-	int nodeid;
-	msgctx_t *peer_ctx;
-	int count;
+	msgctx_t everyone;
 	key_node_t *key_node;
 	vf_msg_t *join_view;
-	int remain = 0, x, y, rv = 1;
+	int remain = 0, x, y, rv = VFR_ERROR;
 	uint32_t totallen;
+#ifdef DEBUG
 	struct timeval start, end, dif;
-	void *lockp = NULL;
+#endif
+	struct dlm_lksb lockp;
 	int l;
 	char lock_name[256];
+	static uint32_t trans = 0;
 
 	if (!data || !datalen || !keyid || !strlen(keyid) || !membership)
 		return -1;
 
+
 	pthread_mutex_lock(&vf_mutex);
+	if (!trans) {
+		trans = _node_id << 16;
+	}
+	++trans;
+
 	/* Obtain cluster lock on it. */
 	snprintf(lock_name, sizeof(lock_name), "usrm::vf");
-	l = clu_lock_verbose(lock_name, CLK_EX, &lockp);
+	l = clu_lock(LKM_EXMODE, &lockp, 0, lock_name);
 	if (l < 0) {
-		clu_unlock(lock_name, lockp);
+		clu_unlock(&lockp);
 		pthread_mutex_unlock(&vf_mutex);
 		return l;
 	}
 
-	/* set to -1 */
-	count = sizeof(msgctx_t) * (membership->cml_count + 1);
-	peer_ctx = malloc(count);
-	if(!peer_ctx) {
-		pthread_mutex_unlock(&vf_mutex);
-		return -1;
-	}
-
-	memset(peer_ctx, 0, sizeof(msgctx_t) * (membership->cml_count +1));
-	for (x = 0; x < (membership->cml_count + 1); x++) {
-		peer_ctx[x].type = M_NONE;
-	}
+#ifdef DEBUG
 	getuptime(&start);
+#endif
 
-retry_top:
-	/*
-	 * Connect to everyone, except ourself.  We separate this from the
-	 * initial send cycle because the connect cycle can cause timeouts
-	 * within the code - ie, if a node is down, it is likely the connect
-	 * will take longer than the client is expecting to wait for the
-	 * commit/abort messages!
-	 *
-	 * We assume we're up.  Since challenge-response needs both
-	 * processes to be operational...
-	 */
+	remain = 0;
 	for (x = 0, y = 0; x < membership->cml_count; x++) {
-		if (!memb_online(membership,
-				 membership->cml_members[x].cn_nodeid)) {
-			continue;
+		if (membership->cml_members[x].cn_member) {
+			remain++;
 		}
-
-		if (peer_fds[x].type != M_NONE)
-			continue;
-
-		nodeid = membership->cml_members[x].cn_nodeid;
-#ifdef DEBUG
-		printf("VF: Connecting to member #%d\n", (int)nodeid);
-		fflush(stdout);
-#endif
-
-		if (msg_open(nodeid, _port, &peer_ctx[y], 15) != 0) {
-#ifdef DEBUG
-			printf("VF: Connect to %d failed: %s\n", (int)nodeid,
-			       strerror(errno));
-#endif
-			if (flags & VFF_RETRY)
-				goto retry_top;
-			if (flags & VFF_IGN_CONN_ERRORS)
-				continue;
-			free(peer_ctx);
-
-			clu_unlock(lock_name, lockp);
-			pthread_mutex_unlock(&vf_mutex);
-			return -1;
-		}
-
-		++y;
 	}
+
+#ifdef DEBUG
+	printf("aight, need responses from %d guys\n", remain);
+#endif
 
 	pthread_mutex_lock(&key_list_mutex);
 	key_node = kn_find_key(keyid);
@@ -1261,7 +1160,7 @@ retry_top:
 
 		if ((vf_key_init_nt(keyid, 10, NULL, NULL) < 0)) {
 			pthread_mutex_unlock(&key_list_mutex);
-			clu_unlock(lock_name, lockp);
+			clu_unlock(&lockp);
 			pthread_mutex_unlock(&vf_mutex);
 			return -1;
 		}
@@ -1270,19 +1169,19 @@ retry_top:
 	}
 
 	join_view = build_vf_data_message(VF_JOIN_VIEW, keyid, data, datalen,
-					  key_node->kn_viewno+1, &totallen);
+					  key_node->kn_viewno+1, trans, &totallen);
 
 	pthread_mutex_unlock(&key_list_mutex);
 
 	if (!join_view) {
-		clu_unlock(lock_name, lockp);
+		clu_unlock(&lockp);
 		pthread_mutex_unlock(&vf_mutex);
 		return -1;
 	}
 
 #ifdef DEBUG
-	printf("VF: Push %d.%d #%d\n", (int)_node_id, getpid(),
-	       (int)join_view->vm_msg.vf_view);
+	printf("VF: Push %d.%d #%d (X#%08x)\n", (int)_node_id, getpid(),
+	       (int)join_view->vm_msg.vf_view, trans);
 #endif
 	/* 
 	 * Encode the package.
@@ -1292,20 +1191,23 @@ retry_top:
 	/*
 	 * Send our message to everyone
 	 */
-	for (x = 0; peer_ctx[x].type != M_NONE; x++) {
-
-		if (msg_send(&peer_ctx[x], join_view, totallen) != totallen) {
-			vf_send_abort(peer_ctx);
-			close_all(peer_ctx);
-
-			free(join_view);
-			clu_unlock(lock_name, lockp);
-			pthread_mutex_unlock(&vf_mutex);
-			return -1;
-		} 
-
-		remain++;
+	if (msg_open(MSG_CLUSTER, 0, _port, &everyone, 0) < 0) {
+		printf("msg_open: fail: %s\n", strerror(errno));
+		return -1;
 	}
+
+	x = msg_send(&everyone, join_view, totallen);
+	if (x < totallen) {
+		vf_send_abort(&everyone, trans);
+#ifdef DEBUG
+		printf("VF: Aborted: Send failed (%d/%d)\n", x, totallen);
+#endif
+		msg_close(&everyone);
+		free(join_view);
+		clu_unlock(&lockp);
+		pthread_mutex_unlock(&vf_mutex);
+		return -1;
+	} 
 
 #ifdef DEBUG
 	printf("VF: Checking for consensus...\n");
@@ -1313,29 +1215,29 @@ retry_top:
 	/*
 	 * See if we have a consensus =)
 	 */
-	if ((rv = (vf_unanimous(peer_ctx, remain, VF_COORD_TIMEOUT)))) {
-		vf_send_commit(peer_ctx);
+	if ((rv = (vf_unanimous(&everyone, trans, remain,
+				5)))) {
+		vf_send_commit(&everyone, trans);
+#ifdef DEBUG
+		printf("VF: Consensus reached!\n");
+#endif
 	} else {
-		vf_send_abort(peer_ctx);
+		vf_send_abort(&everyone, trans);
 #ifdef DEBUG
 		printf("VF: Aborted!\n");
 #endif
 	}
 
 	/*
-	 * Clean up
-	 */
-	close_all(peer_fds);
-
-	/*
 	 * unanimous returns 1 for true; 0 for false, so negate it and
 	 * return our value...
 	 */
+	msg_close(&everyone);
 	free(join_view);
-	free(peer_fds);
-	clu_unlock(lock_name, lockp);
+	clu_unlock(&lockp);
 	pthread_mutex_unlock(&vf_mutex);
 
+#ifdef DEBUG
 	if (rv) {
 		getuptime(&end);
 
@@ -1347,11 +1249,10 @@ retry_top:
 		    dif.tv_sec--;
 		}
 
-#ifdef DEBUG
 		printf("VF: Converge Time: %d.%06d\n", (int)dif.tv_sec,
 		       (int)dif.tv_usec);
-#endif
 	}
+#endif
 
 	return (rv?0:-1);
 }
@@ -1378,12 +1279,12 @@ retry_top:
  *			VFR_COMMIT if new views	were committed.  
  */
 static int
-_vf_purge(key_node_t *key_node, msgctx_t **ctx)
+_vf_purge(key_node_t *key_node, uint32_t *trans)
 {
 	view_node_t *cur, *dead = NULL;
 	struct timeval tv;
 
-	*fd = -1;
+	*trans = 0;
 	
 	if (!key_node)
 		return VFR_NO;
@@ -1401,11 +1302,11 @@ _vf_purge(key_node_t *key_node, msgctx_t **ctx)
 		if (tv_cmp(&tv, &cur->vn_timeout) < 0)
 			continue;
 
-		*ctx = cur->vn_ctx;
-		dead = vn_remove(&key_node->kn_jvlist, *ctx);
+		*trans = cur->vn_transaction;
+		dead = vn_remove(&key_node->kn_jvlist, *trans);
 		free(dead);
 
-		printf("VF: Killed ctx %p\n", *ctx);
+		printf("VF: Killed transaction %08x\n", *trans);
 		/*
 		 * returns the removed associated file descriptor
 		 * so that we can close it and get on with life
@@ -1413,7 +1314,7 @@ _vf_purge(key_node_t *key_node, msgctx_t **ctx)
 		break;
 	}
 
-	if (*fd == -1)
+	if (*trans == 0)
 		return VFR_NO;
 		
 	if (vf_resolve_views(key_node))
@@ -1425,13 +1326,13 @@ _vf_purge(key_node_t *key_node, msgctx_t **ctx)
 /**
  * Process a VF message.
  *
- * @param handle	File descriptor on which msgp was received.
+ * @param nodeid	Node id from which msgp was received.
  * @param msgp		Pointer to already-received message.
  * @param nbytes	Length of msgp.
  * @return		-1 on failure, 0 on success.
  */
 int
-vf_process_msg(int handle, generic_msg_hdr *msgp, int nbytes)
+vf_process_msg(msgctx_t *ctx, int nodeid, generic_msg_hdr *msgp, int nbytes)
 {
 	vf_msg_t *hdrp;
 	int ret;
@@ -1440,7 +1341,7 @@ vf_process_msg(int handle, generic_msg_hdr *msgp, int nbytes)
 	    (msgp->gh_command != VF_MESSAGE))
 		return VFR_ERROR;
 
-	switch(msgp->gh_arg1) {
+	switch(vf_command(msgp->gh_arg1)) {
 	case VF_CURRENT:
 #ifdef DEBUG
 		printf("VF: Received request for current data\n");
@@ -1455,7 +1356,7 @@ vf_process_msg(int handle, generic_msg_hdr *msgp, int nbytes)
 		hdrp = (vf_msg_t *)msgp;
 		swab_vf_msg_info_t(&hdrp->vm_msg);
 
-		return vf_send_current(handle, hdrp->vm_msg.vf_keyid);
+		return vf_send_current(ctx, hdrp->vm_msg.vf_keyid);
 	
 	case VF_JOIN_VIEW:
 		/* Validate size... */
@@ -1475,28 +1376,28 @@ vf_process_msg(int handle, generic_msg_hdr *msgp, int nbytes)
 
 			return VFR_ERROR;
 		}
-		return vf_handle_join_view_msg(handle, hdrp);
+		return vf_handle_join_view_msg(ctx, nodeid, hdrp);
 		
 	case VF_ABORT:
-		printf("VF: Received VF_ABORT, fd%d\n", handle);
-		vf_abort(handle);
+		printf("VF: Received VF_ABORT (X#%08x)\n", msgp->gh_arg2);
+		vf_abort(msgp->gh_arg2);
 		return VFR_ABORT;
 		
 	case VF_VIEW_FORMED:
 #ifdef DEBUG
-		printf("VF: Received VF_VIEW_FORMED, fd%d\n",
-		       handle);
+		printf("VF: Received VF_VIEW_FORMED, %d\n",
+		       nodeid);
 #endif
 		pthread_mutex_lock(&key_list_mutex);
-		vf_buffer_commit(handle);
-		ret = (vf_resolve_views(kn_find_fd(handle)) ?
+		vf_buffer_commit(msgp->gh_arg2);
+		ret = (vf_resolve_views(kn_find_trans(msgp->gh_arg2)) ?
 			VFR_COMMIT : VFR_OK);
 		pthread_mutex_unlock(&key_list_mutex);
 		return ret;
-			
+
 	default:
-		printf("VF: Unknown msg type 0x%08x\n",
-		       msgp->gh_arg1);
+		/* Ignore votes and the like from this part */
+		break;
 	}
 
 	return VFR_OK;
@@ -1521,15 +1422,15 @@ vf_read(cluster_member_list_t *membership, char *keyid, uint64_t *view,
 {
 	key_node_t *key_node;
 	char lock_name[256];
-	void *lockp = NULL;
+	struct dlm_lksb lockp;
 	int l;
 
 	/* Obtain cluster lock on it. */
 	pthread_mutex_lock(&vf_mutex);
 	snprintf(lock_name, sizeof(lock_name), "usrm::vf");
-	l = clu_lock_verbose(lock_name, CLK_EX, &lockp);
+	l = clu_lock(LKM_EXMODE, &lockp, 0, lock_name);
 	if (l < 0) {
-		clu_unlock(lock_name, lockp);
+		clu_unlock(&lockp);
 		pthread_mutex_unlock(&vf_mutex);
 		printf("Couldn't lock %s\n", keyid);
 		return l;
@@ -1542,7 +1443,7 @@ vf_read(cluster_member_list_t *membership, char *keyid, uint64_t *view,
 		if (!key_node) {
 			if ((vf_key_init_nt(keyid, 10, NULL, NULL) < 0)) {
 				pthread_mutex_unlock(&key_list_mutex);
-				clu_unlock(lock_name, lockp);
+				clu_unlock(&lockp);
 				pthread_mutex_unlock(&vf_mutex);
 				printf("Couldn't locate %s\n", keyid);
 				return VFR_ERROR;
@@ -1564,7 +1465,7 @@ vf_read(cluster_member_list_t *membership, char *keyid, uint64_t *view,
 		pthread_mutex_unlock(&key_list_mutex);
 
 		if (!membership) {
-			clu_unlock(lock_name, lockp);
+			clu_unlock(&lockp);
 			//printf("Membership NULL, can't find %s\n", keyid);
 			pthread_mutex_unlock(&vf_mutex);
 			return VFR_ERROR;
@@ -1573,7 +1474,7 @@ vf_read(cluster_member_list_t *membership, char *keyid, uint64_t *view,
 		l = vf_request_current(membership, keyid, view, data,
 				       datalen);
 	       	if (l == VFR_NODATA || l == VFR_ERROR) {
-			clu_unlock(lock_name, lockp);
+			clu_unlock(&lockp);
 			//printf("Requesting current failed %s %d\n", keyid, l);
 			pthread_mutex_unlock(&vf_mutex);
 			return l;
@@ -1583,7 +1484,7 @@ vf_read(cluster_member_list_t *membership, char *keyid, uint64_t *view,
 	*data = malloc(key_node->kn_datalen);
 	if (! *data) {
 		pthread_mutex_unlock(&key_list_mutex);
-		clu_unlock(lock_name, lockp);
+		clu_unlock(&lockp);
 		pthread_mutex_unlock(&vf_mutex);
 		printf("Couldn't malloc %s\n", keyid);
 		return VFR_ERROR;
@@ -1594,7 +1495,7 @@ vf_read(cluster_member_list_t *membership, char *keyid, uint64_t *view,
 	*view = key_node->kn_viewno;
 
 	pthread_mutex_unlock(&key_list_mutex);
-	clu_unlock(lock_name, lockp);
+	clu_unlock(&lockp);
 	pthread_mutex_unlock(&vf_mutex);
 
 	return VFR_OK;
@@ -1659,7 +1560,7 @@ vf_send_current(msgctx_t *ctx, char *keyid)
 	if (!key_node || !key_node->kn_data || !key_node->kn_datalen) {
 		pthread_mutex_unlock(&key_list_mutex);
 		printf("VFT: No data for keyid %s\n", keyid);
-		return (msg_send_simple(ctx, VF_NACK, 0, 0) != -1)?
+		return (_send_simple(ctx, VF_NACK, 0, 0, 0) != -1)?
 			VFR_OK : VFR_ERROR;
 	}
 
@@ -1670,11 +1571,12 @@ vf_send_current(msgctx_t *ctx, char *keyid)
 	msg = build_vf_data_message(VF_ACK, keyid, key_node->kn_data,
 				    key_node->kn_datalen,
 				    key_node->kn_viewno,
+				    0,
 				    &totallen);
 
 	pthread_mutex_unlock(&key_list_mutex);
 	if (!msg)
-		return (msg_send_simple(ctx, VFR_ERROR, 0, 0) != -1)?
+		return (_send_simple(ctx, VFR_ERROR, 0, 0, 0) != -1)?
 			VFR_OK : VFR_ERROR;
 
 	swab_vf_msg_t(msg);
@@ -1733,7 +1635,7 @@ vf_set_current(char *keyid, int view, void *data, uint32_t datalen)
  */
 static int
 vf_request_current(cluster_member_list_t *membership, char *keyid,
-		   int *viewno, void **data, uint32_t *datalen)
+		   uint64_t *viewno, void **data, uint32_t *datalen)
 {
 	int x, n, rv = VFR_OK, port;
 	msgctx_t ctx;
@@ -1761,8 +1663,7 @@ vf_request_current(cluster_member_list_t *membership, char *keyid,
 	swab_vf_msg_info_t(&(msg->vm_msg));
 
 	for (x = 0; x < membership->cml_count; x++) {
-		if (!memb_online(membership,
-				 membership->cml_members[x].cn_nodeid))
+		if (!membership->cml_members[x].cn_member)
 			continue;
 
 		/* Can't request from self. */
@@ -1770,10 +1671,11 @@ vf_request_current(cluster_member_list_t *membership, char *keyid,
 			continue;
 
 		rv = VFR_ERROR;
-		fd = msg_open(membership->cml_members[x].cn_nodeid, port,
-			      &ctx, 15);
-		if (fd == -1)
+		if (msg_open(MSG_CLUSTER,
+			     membership->cml_members[x].cn_nodeid,
+			     port, &ctx, 15) < 0) {
 			continue;
+		}
 
 		msg = &rmsg;
 		//printf("VF: Requesting current value of %s from %d\n",

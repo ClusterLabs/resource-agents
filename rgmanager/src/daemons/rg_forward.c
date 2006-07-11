@@ -47,24 +47,26 @@ forwarding_thread(void *arg)
 {
 	rg_state_t rgs;
 	request_t *req = (request_t *)arg;
-	void *lockp;
+	struct dlm_lksb lockp;
 	msgctx_t ctx;
 	SmMessageSt msg;
 
 	if (rg_lock(req->rr_group, &lockp) != 0) {
 		msg_close(req->rr_resp_ctx);
+		msg_free_ctx(req->rr_resp_ctx);
 		rq_free(req);
 		pthread_exit(NULL);
 	}
 
 	if (get_rg_state(req->rr_group, &rgs) != 0) {
-		rg_unlock(req->rr_group, lockp);
+		rg_unlock(&lockp);
 		msg_close(req->rr_resp_ctx);
+		msg_free_ctx(req->rr_resp_ctx);
 		rq_free(req);
 		pthread_exit(NULL);
 	}
 
-	rg_unlock(req->rr_group, lockp);
+	rg_unlock(&lockp);
 
 	/* Construct message */
 	build_message(&msg, req->rr_request, req->rr_group, req->rr_target);
@@ -74,8 +76,9 @@ forwarding_thread(void *arg)
 	       rg_req_str(req->rr_request), (int)rgs.rs_owner);
 	 */
 
-	if (msg_open(rgs.rs_owner, RG_PORT, &ctx, 10) < 0)  {
+	if (msg_open(MSG_CLUSTER, rgs.rs_owner, RG_PORT, &ctx, 10) < 0)  {
 		msg_close(req->rr_resp_ctx);
+		msg_free_ctx(req->rr_resp_ctx);
 		rq_free(req);
 		pthread_exit(NULL);
 	}
@@ -83,6 +86,7 @@ forwarding_thread(void *arg)
 	if (msg_send(&ctx, &msg, sizeof(msg)) != sizeof(msg)) {
 		msg_close(&ctx);
 		msg_close(req->rr_resp_ctx);
+		msg_free_ctx(req->rr_resp_ctx);
 		rq_free(req);
 		pthread_exit(NULL);
 	}
@@ -90,6 +94,7 @@ forwarding_thread(void *arg)
 	if (msg_receive(&ctx, &msg, sizeof(msg),10) != sizeof(msg)) {
 		msg_close(&ctx);
 		msg_close(req->rr_resp_ctx);
+		msg_free_ctx(req->rr_resp_ctx);
 		rq_free(req);
 		pthread_exit(NULL);
 	}

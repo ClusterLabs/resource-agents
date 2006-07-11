@@ -76,9 +76,8 @@ int
 msg_receive_simple(msgctx_t *ctx, generic_msg_hdr ** buf, int timeout)
 {
 	int ret;
-	char msgbuf[16384];
+	char msgbuf[4096];
 	generic_msg_hdr *peek_msg = (generic_msg_hdr *)msgbuf;
-	int size;
 
 	/*
 	 * Peek at the header.  We need the size of the inbound buffer!
@@ -102,6 +101,7 @@ msg_receive_simple(msgctx_t *ctx, generic_msg_hdr ** buf, int timeout)
 		return -1;
 	}
 
+	/* Decode so we know how much to allocate */
 	swab_generic_msg_hdr(peek_msg);
 	if (peek_msg->gh_magic != GENERIC_HDR_MAGIC) {
 		fprintf(stderr, "Invalid magic: Wanted 0x%08x, got 0x%08x\n",
@@ -113,14 +113,15 @@ msg_receive_simple(msgctx_t *ctx, generic_msg_hdr ** buf, int timeout)
 	 * allocate enough memory to receive the header + diff buffer
 	 */
 	*buf = malloc(peek_msg->gh_length);
-
 	if (!*buf) {
 		fprintf(stderr, "%s: malloc: %s", __FUNCTION__,
 		       strerror(errno));
 		return -1;
 	}
-	memset(*buf, 0, peek_msg->gh_length);
-	memcpy(*buf, msgbuf + sizeof(generic_msg_hdr), peek_msg->gh_length);
+	memcpy(*buf, msgbuf, peek_msg->gh_length);
+
+	/* Put it back into the original order... */
+	swab_generic_msg_hdr((generic_msg_hdr *)(*buf));
 
 	return ret;
 }

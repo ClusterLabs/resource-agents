@@ -33,6 +33,13 @@
 char *attr_value(resource_node_t *node, char *attrname);
 char *rg_attr_value(resource_node_t *node, char *attrname);
 
+void
+res_build_name(char *buf, size_t buflen, resource_t *res)
+{
+	snprintf(buf, buflen, "%s:%s", res->r_rule->rr_type,
+		 res->r_attrs[0].ra_value);
+}
+
 /**
    Find and determine an attribute's value. 
 
@@ -265,11 +272,23 @@ resource_t *
 find_root_by_ref(resource_t **reslist, char *ref)
 {
 	resource_t *curr;
+	char ref_buf[128];
+	char *type;
+	char *name;
 	int x;
 
+	snprintf(ref_buf, sizeof(ref_buf), "%s", ref);
+
+	type = ref_buf;
+	if ((name = strchr(ref_buf, ':'))) {
+		*name = 0;
+		name++;
+	} else {
+		/* Default type */
+		type = "service";
+	}
+
 	list_do(reslist, curr) {
-		if (curr->r_rule->rr_root == 0)
-			continue;
 
 		/*
 		   This should be one operation - the primary attr
@@ -277,14 +296,17 @@ find_root_by_ref(resource_t **reslist, char *ref)
 		 */
 		for (x = 0; curr->r_attrs && curr->r_attrs[x].ra_name;
 		     x++) {
+			if (strcmp(type, curr->r_rule->rr_type))
+				continue;
 			if (!(curr->r_attrs[x].ra_flags & RA_PRIMARY))
 				continue;
-			if (strcmp(ref, curr->r_attrs[x].ra_value))
+			if (strcmp(name, curr->r_attrs[x].ra_value))
 				continue;
 
 			return curr;
 		}
 	} while (!list_done(reslist, curr));
+
 
 	return NULL;
 }
@@ -447,8 +469,6 @@ print_resource(resource_t *res)
 	int x;
 
 	printf("Resource type: %s", res->r_rule->rr_type);
-	if (res->r_rule->rr_root)
-		printf(" [ROOT]");
 	if (res->r_flags & RF_INLINE)
 		printf(" [INLINE]");
 	if (res->r_flags & RF_NEEDSTART)

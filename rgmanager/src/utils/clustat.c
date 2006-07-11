@@ -6,6 +6,7 @@
 #include <libgen.h>
 #include <ncurses.h>
 #include <term.h>
+#include <rg_types.h>
 #include <termios.h>
 #include <ccs.h>
 #include <libcman.h>
@@ -53,7 +54,7 @@ rg_state_list(int local_node_id, int fast)
 
 	struct timeval tv;
 
-	if (msg_open(0, RG_PORT, &ctx, 10) < 0) {
+	if (msg_open(MSG_SOCKET, 0, 0, &ctx, 10) < 0) {
 		return NULL;
 	}
 
@@ -107,6 +108,7 @@ rg_state_list(int local_node_id, int fast)
 		}
 
 		swab_generic_msg_hdr(msgp);
+
 		if (msgp->gh_command == RG_SUCCESS) {
 			free(msgp);
 			break;
@@ -116,7 +118,6 @@ rg_state_list(int local_node_id, int fast)
 			msg_close(&ctx);
 			return NULL;
 		}
-
 
 		rsmp = (rg_state_msg_t *)msgp;
 
@@ -157,46 +158,63 @@ cluster_member_list_t *ccs_member_list(void)
 	char buf[128];
 	char *name;
 	cluster_member_list_t *ret = NULL;
+	cman_node_t *nodes = NULL;
 
 	desc = ccs_connect();
 	if (desc < 0) {
 		return NULL;
 	}
 
-	x = 1;
+	while ((ret = malloc(sizeof(*ret))) == NULL)
+		sleep(1);
 	
-	snprintf(buf, sizeof(buf),
-		 "/cluster/clusternodes/clusternode[%d]/@name", x);
-	while (ccs_get(desc, buf, &name) == 0) {
-		if (!ret) {
-			ret = malloc(cml_size(x));
-			if (!ret) {
+	x = 1;
+	while (1) {
+		snprintf(buf, sizeof(buf),
+			"/cluster/clusternodes/clusternode[%d]/@name", x);
+
+		if (ccs_get(desc, buf, &name) != 0)
+			break;
+
+		if (!nodes) {
+			nodes = malloc(x * sizeof(cman_node_t));
+			if (!nodes ) {
 				perror("malloc");
 				ccs_disconnect(desc);
 				exit(1);
 			}
-			memset(ret, 0, cml_size(x));
+			memset(nodes, 0, x * sizeof(cman_node_t));
 		} else {
-			ret = realloc(ret, cml_size(x));
-			if (!ret) {
+			nodes = realloc(ret, x * sizeof(cman_node_t));
+			if (!nodes) {
 				perror("realloc");
 				ccs_disconnect(desc);
 				exit(1);
 			}
 		}
 
-		memset(&ret->cml_members[x-1], 0, sizeof(cman_node_t));
-		strncpy(ret->cml_members[x-1].cn_name, name,
-			sizeof(ret->cml_members[x-1].cn_name));
+		memset(&nodes[x-1], 0, sizeof(cman_node_t));
+		strncpy(nodes[x-1].cn_name, name,
+			sizeof(nodes[x-1].cn_name));
 		free(name);
+
+		/* Add node ID */
+		snprintf(buf, sizeof(buf),
+			 "/cluster/clusternodes/clusternode[%d]/@nodeid", x);
+		if (ccs_get(desc, buf, &name) == 0) {
+			nodes[x-1].cn_nodeid = atoi(name);
+			free(name);
+		}
 
 		ret->cml_count = x;
 		++x;
-		snprintf(buf, sizeof(buf),
-			 "/cluster/clusternodes/clusternode[%d]/@name", x);
 	}
 
 	ccs_disconnect(desc);
+
+	ret->cml_members = nodes;
+
+
 	return ret;
 }
 
@@ -238,9 +256,12 @@ add_missing(cluster_member_list_t *all, cluster_member_list_t *these)
 		if (!m) {
 			printf("%s not found\n", these->cml_members[x].cn_name);
 			/* WTF? It's not in our config */
-			printf("realloc %d\n", (int)cml_size((all->cml_count+1)));
-			all = realloc(all, cml_size((all->cml_count+1)));
-			if (!all) {
+			printf("realloc %d\n", (int)((all->cml_count+1) *
+			       sizeof(cman_node_t)));
+			all->cml_members = realloc(all->cml_members,
+						   (all->cml_count+1) *
+						   sizeof(cman_node_t));
+			if (!all->cml_members) {
 				perror("realloc");
 				exit(1);
 			}
@@ -440,7 +461,8 @@ xml_quorum_state(int qs)
 void
 txt_member_state(cman_node_t *node)
 {
-	printf("  %-40.40s ", node->cn_name);
+	printf("  %-34.34s %4d ", node->cn_name,
+	       node->cn_nodeid);
 
 	if (node->cn_member & FLAG_UP)
 		printf("Online");
@@ -481,8 +503,8 @@ txt_member_states(cluster_member_list_t *membership, char *name)
 {
 	int x;
 
-	printf("  %-40.40s %s\n", "Member Name", "Status");
-	printf("  %-40.40s %s\n", "------ ----", "------");
+	printf("  %-34.34s %-4.4s %s\n", "Member Name", "ID", "Status");
+	printf("  %-34.34s %-4.4s %s\n", "------ ----", "----", "------");
 
 	for (x = 0; x < membership->cml_count; x++) {
 		if (name && strcmp(membership->cml_members[x].cn_name, name))

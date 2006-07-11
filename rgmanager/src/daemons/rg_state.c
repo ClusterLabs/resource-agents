@@ -26,6 +26,7 @@
 #include <string.h>
 #include <resgroup.h>
 #include <clulog.h>
+#include <lock.h>
 #include <rg_locks.h>
 #include <ccs.h>
 #include <rg_queue.h>
@@ -41,6 +42,7 @@ static int _svc_stop_finish(char *svcName, int failed, uint32_t newstate);
 int set_rg_state(char *servicename, rg_state_t *svcblk);
 int get_rg_state(char *servicename, rg_state_t *svcblk);
 void get_recovery_policy(char *rg_name, char *buf, size_t buflen);
+int check_depend_safe(char *servicename);
 
 
 uint64_t
@@ -67,11 +69,35 @@ next_node_id(cluster_member_list_t *membership, uint64_t me)
 }
 
 
+void
+broadcast_event(char *svcName, uint32_t state)
+{
+	SmMessageSt msgp;
+	msgctx_t everyone;
+
+	msgp.sm_hdr.gh_magic = GENERIC_HDR_MAGIC;
+	msgp.sm_hdr.gh_command = RG_EVENT;
+	msgp.sm_hdr.gh_length = sizeof(msgp);
+	msgp.sm_data.d_action = state;
+	strncpy(msgp.sm_data.d_svcName, svcName,
+		sizeof(msgp.sm_data.d_svcName));
+	msgp.sm_data.d_svcOwner = 0;
+	msgp.sm_data.d_ret = 0;
+
+	swab_SmMessageSt(&msgp);
+
+	if (msg_open(MSG_CLUSTER, 0, RG_PORT, &everyone, 0) < 0)
+		return;
+
+	msg_send(&everyone, &msgp, sizeof(msgp));
+	msg_close(&everyone);
+}
+
+
 int
 svc_report_failure(char *svcName)
 {
-#if 0
-	void *lockp = NULL;
+	struct dlm_lksb lockp;
 	rg_state_t svcStatus;
 	char *nodeName;
 	cluster_member_list_t *membership;
@@ -85,10 +111,10 @@ svc_report_failure(char *svcName)
 	if (get_rg_state(svcName, &svcStatus) != 0) {
 		clulog(LOG_ERR, "#42: Couldn't obtain status for RG %s\n",
 		       svcName);
-		clu_unlock(svcName, lockp);
+		rg_unlock(&lockp);
 		return -1;
 	}
-	rg_unlock(svcName, lockp);
+	rg_unlock(&lockp);
 
 	membership = member_list();
 	nodeName = memb_id_to_name(membership, svcStatus.rs_last_owner);
@@ -107,104 +133,27 @@ svc_report_failure(char *svcName)
 	       "#4: Administrator intervention required.\n",
 	       svcName, nodeName);
 
-#endif
 	return 0;
 }
 
 
 int
-clu_lock_verbose(char *resource, int dflt_flags, void **lockpp)
-{
-#if 0
-	int ret, timed_out = 0;
-	struct timeval start, now;
-	uint64_t nodeid, *p;
-	int flags;
-	int block = !(dflt_flags & CLK_NOWAIT);
-
-	/* Holder not supported for this call */
-	dflt_flags &= ~CLK_HOLDER;
-
-	flags = dflt_flags;
-
-	if (block) {
-		gettimeofday(&start, NULL);
-		start.tv_sec += 30;
-	}
-	while (1) {
-		if (block) {
-			gettimeofday(&now, NULL);
-
-			if ((now.tv_sec > start.tv_sec) ||
-			    ((now.tv_sec == start.tv_sec) &&
-	 		     (now.tv_usec >= start.tv_usec))) {
-
-				gettimeofday(&start, NULL);
-				start.tv_sec += 30;
-
-				timed_out = 1;
-				flags |= CLK_HOLDER;
-			}
-		}
-
-		*lockpp = NULL;
-		ret = clu_lock(resource, flags | CLK_NOWAIT, lockpp);
-
-		if ((ret != 0) && (errno == EAGAIN) && block) {
-			if (timed_out) {
-				p = (uint64_t *)*lockpp;
-				if (p) {
-					nodeid = *p;
-					clulog(LOG_WARNING, "Node ID:%08x%08x"
-					       " stuck with lock %s\n",
-					       (uint32_t)(nodeid>>32&0xffffffff),
-					       (uint32_t)nodeid&0xffffffff,
-					       resource);
-					free(p);
-				} else {
-					clulog(LOG_WARNING, "Starving for lock"
-					       " %s\n", resource);
-				}
-				flags = dflt_flags;
-				timed_out = 0;
-			}
-			usleep(random()&32767<<1);
-			continue;
-
-		} else if (ret == 0) {
-			/* Success */
-			return 0;
-		}
-
-		break;
-	}
-
-	return ret;
-#endif
-	return -1;
-}
-
-
-int
 #ifdef DEBUG
-_rg_lock(char *name, void **p)
+_rg_lock(char *name, struct dlm_lksb *p)
 #else
-rg_lock(char *name, void **p)
+rg_lock(char *name, struct dlm_lksb *p)
 #endif
 {
-#if 0
 	char res[256];
 
 	snprintf(res, sizeof(res), "usrm::rg=\"%s\"", name);
-	return clu_lock_verbose(res, CLK_EX, p);
-#endif
-	return -1;
+	return clu_lock(LKM_EXMODE, p, 0, res);
 }
 
 
 #ifdef DEBUG
 int
-_rg_lock_dbg(char *name, void **p, char *file, int line)
+_rg_lock_dbg(char *name, struct dlm_lksb *p, char *file, int line)
 {
 	dprintf("rg_lock(%s) @ %s:%d\n", name, file, line);
 	return _rg_lock(name, p);
@@ -215,27 +164,21 @@ _rg_lock_dbg(char *name, void **p, char *file, int line)
 
 int
 #ifdef DEBUG
-_rg_unlock(char *name, void *p)
+_rg_unlock(struct dlm_lksb *p)
 #else
-rg_unlock(char *name, void *p)
+rg_unlock(struct dlm_lksb *p)
 #endif
 {
-#if 0
-	char res[256];
-
-	snprintf(res, sizeof(res), "usrm::rg=\"%s\"", name);
-	return clu_unlock(res, p);
-#endif
-	return -1;
+	return clu_unlock(p);
 }
 
 
 #ifdef DEBUG
 int
-_rg_unlock_dbg(char *name, void *p, char *file, int line)
+_rg_unlock_dbg(void *p, char *file, int line)
 {
-	dprintf("rg_unlock(%s) @ %s:%d\n", name, file, line);
-	return _rg_unlock(name, p);
+	dprintf("rg_unlock() @ %s:%d\n", file, line);
+	return _rg_unlock(p);
 }
 #endif
 
@@ -293,7 +236,6 @@ send_response(int ret, request_t *req)
 int
 set_rg_state(char *name, rg_state_t *svcblk)
 {
-#if 0
 	cluster_member_list_t *membership;
 	char res[256];
 	int ret;
@@ -307,8 +249,6 @@ set_rg_state(char *name, rg_state_t *svcblk)
        		       sizeof(*svcblk));
 	free_member_list(membership);
 	return ret;
-#endif
-	return -1;
 }
 
 
@@ -329,7 +269,6 @@ init_rg(char *name, rg_state_t *svcblk)
 int
 get_rg_state(char *name, rg_state_t *svcblk)
 {
-#if 0
 	char res[256];
 	int ret;
 	void *data = NULL;
@@ -381,8 +320,7 @@ get_rg_state(char *name, rg_state_t *svcblk)
 	free(data);
 	free_member_list(membership);
 
-#endif
-	return -1;
+	return 0;
 }
 
 
@@ -390,7 +328,6 @@ int vf_read_local(char *, uint64_t *, void *, uint32_t *);
 int
 get_rg_state_local(char *name, rg_state_t *svcblk)
 {
-#if 0
 	char res[256];
 	int ret;
 	void *data = NULL;
@@ -422,9 +359,7 @@ get_rg_state_local(char *name, rg_state_t *svcblk)
 	/* Copy out the data. */
 	memcpy(svcblk, data, sizeof(*svcblk));
 	free(data);
-
-#endif
-	return -1;
+	return 0;
 }
 
 
@@ -714,7 +649,7 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 int
 svc_start(char *svcName, int req)
 {
-	void *lockp = NULL;
+	struct dlm_lksb lockp;
 	int ret;
 	rg_state_t svcStatus;
 
@@ -725,7 +660,7 @@ svc_start(char *svcName, int req)
 	}
 
 	if (get_rg_state(svcName, &svcStatus) != 0) {
-		rg_unlock(svcName, lockp);
+		rg_unlock(&lockp);
 		clulog(LOG_ERR, "#46: Failed getting status for RG %s\n",
 		       svcName);
 		return FAIL;
@@ -734,13 +669,13 @@ svc_start(char *svcName, int req)
 	/* LOCK HELD */
 	switch (svc_advise_start(&svcStatus, svcName, req)) {
 	case 0: /* Don't start service, return FAIL */
-		rg_unlock(svcName, lockp);
+		rg_unlock(&lockp);
 		return FAIL;
 	case 2: /* Don't start service, return 0 */
-		rg_unlock(svcName, lockp);
+		rg_unlock(&lockp);
 		return 0;
 	case 3:
-		rg_unlock(svcName, lockp);
+		rg_unlock(&lockp);
 		return RG_EAGAIN;
 	default:
 		break;
@@ -760,11 +695,11 @@ svc_start(char *svcName, int req)
 	if (set_rg_state(svcName, &svcStatus) != 0) {
 		clulog(LOG_ERR,
 		       "#47: Failed changing service status\n");
-		rg_unlock(svcName, lockp);
+		rg_unlock(&lockp);
 		return FAIL;
 	}
 	
-	rg_unlock(svcName, lockp);
+	rg_unlock(&lockp);
 
 	ret = group_op(svcName, RG_START);
 	ret = !!ret; /* Either it worked or it didn't.  Ignore all the
@@ -780,19 +715,22 @@ svc_start(char *svcName, int req)
 	if (set_rg_state(svcName, &svcStatus) != 0) {
 		clulog(LOG_ERR,
 		       "#75: Failed changing service status\n");
-		rg_unlock(svcName, lockp);
+		rg_unlock(&lockp);
 		return FAIL;
 	}
-	rg_unlock(svcName, lockp);
+	rg_unlock(&lockp);
        
-	if (ret == 0)
+	if (ret == 0) {
 		clulog(LOG_NOTICE,
 		       "Service %s started\n",
 		       svcName);
-	else
+
+		broadcast_event(svcName, RG_STATE_STARTED);
+	} else {
 		clulog(LOG_WARNING,
 		       "#68: Failed to start %s; return value: %d\n",
 		       svcName, ret);
+	}
 
 	return ret;
 }
@@ -807,7 +745,7 @@ svc_start(char *svcName, int req)
 int
 svc_status(char *svcName)
 {
-	void *lockp = NULL;
+	struct dlm_lksb lockp;
 	rg_state_t svcStatus;
 
 	if (rg_lock(svcName, &lockp) < 0) {
@@ -817,12 +755,12 @@ svc_status(char *svcName)
 	}
 
 	if (get_rg_state(svcName, &svcStatus) != 0) {
-		rg_unlock(svcName, lockp);
+		rg_unlock(&lockp);
 		clulog(LOG_ERR, "#49: Failed getting status for RG %s\n",
 		       svcName);
 		return FAIL;
 	}
-	rg_unlock(svcName, lockp);
+	rg_unlock(&lockp);
 
 	if (svcStatus.rs_owner != my_id())
 		/* Don't check status for anything not owned */
@@ -847,7 +785,7 @@ svc_status(char *svcName)
 static int
 _svc_stop(char *svcName, int req, int recover, uint32_t newstate)
 {
-	void *lockp = NULL;
+	struct dlm_lksb lockp;
 	rg_state_t svcStatus;
 	int ret;
 
@@ -864,7 +802,7 @@ _svc_stop(char *svcName, int req, int recover, uint32_t newstate)
 	}
 
 	if (get_rg_state(svcName, &svcStatus) != 0) {
-		rg_unlock(svcName, lockp);
+		rg_unlock(&lockp);
 		clulog(LOG_ERR, "#51: Failed getting status for RG %s\n",
 		       svcName);
 		return FAIL;
@@ -872,18 +810,18 @@ _svc_stop(char *svcName, int req, int recover, uint32_t newstate)
 
 	switch (svc_advise_stop(&svcStatus, svcName, req)) {
 	case 0:
-		rg_unlock(svcName, lockp);
+		rg_unlock(&lockp);
 		clulog(LOG_DEBUG, "Unable to stop RG %s in %s state\n",
 		       svcName, rg_state_str(svcStatus.rs_state));
 		return FAIL;
 	case 2:
-		rg_unlock(svcName, lockp);
+		rg_unlock(&lockp);
 		return SUCCESS;
 	case 3:
-		rg_unlock(svcName, lockp);
+		rg_unlock(&lockp);
 		return RG_EFORWARD;
 	case 4:
-		rg_unlock(svcName, lockp);
+		rg_unlock(&lockp);
 		return RG_EAGAIN;
 	default:
 		break;
@@ -900,11 +838,11 @@ _svc_stop(char *svcName, int req, int recover, uint32_t newstate)
 	//printf("rg state = %s\n", rg_state_str(svcStatus.rs_state));
 
 	if (set_rg_state(svcName, &svcStatus) != 0) {
-		rg_unlock(svcName, lockp);
+		rg_unlock(&lockp);
 		clulog(LOG_ERR, "#52: Failed changing RG status\n");
 		return FAIL;
 	}
-	rg_unlock(svcName, lockp);
+	rg_unlock(&lockp);
 
 	ret = group_op(svcName, RG_STOP);
 
@@ -918,7 +856,7 @@ static int
 _svc_stop_finish(char *svcName, int failed, uint32_t newstate)
 {
 	rg_state_t svcStatus;
-	void *lockp;
+	struct dlm_lksb lockp;
 
 	if (rg_lock(svcName, &lockp) == FAIL) {
 		clulog(LOG_ERR, "#53: Unable to obtain cluster lock: %s\n",
@@ -927,7 +865,7 @@ _svc_stop_finish(char *svcName, int failed, uint32_t newstate)
 	}
 
 	if (get_rg_state(svcName, &svcStatus) != 0) {
-		rg_unlock(svcName, lockp);
+		rg_unlock(&lockp);
 		clulog(LOG_ERR, "#54: Failed getting status for RG %s\n",
 		       svcName);
 		return FAIL;
@@ -935,7 +873,7 @@ _svc_stop_finish(char *svcName, int failed, uint32_t newstate)
 
 	if ((svcStatus.rs_state != RG_STATE_STOPPING) &&
 	     (svcStatus.rs_state != RG_STATE_ERROR)) {
-		rg_unlock(svcName, lockp);
+		rg_unlock(&lockp);
 		return 0;
 	}
 
@@ -945,11 +883,13 @@ _svc_stop_finish(char *svcName, int failed, uint32_t newstate)
 	if (failed) {
 		clulog(LOG_CRIT, "#12: RG %s failed to stop; intervention "
 		       "required\n", svcName);
-		svcStatus.rs_state = RG_STATE_FAILED;
-	} else if (svcStatus.rs_state == RG_STATE_ERROR)
+		newstate = RG_STATE_FAILED;
+	} else if (svcStatus.rs_state == RG_STATE_ERROR) {
 		svcStatus.rs_state = RG_STATE_RECOVER;
-	else
-		svcStatus.rs_state = newstate;
+		newstate = RG_STATE_RECOVER;
+	}
+
+	svcStatus.rs_state = newstate;
 
 	clulog(LOG_NOTICE, "Service %s is %s\n", svcName,
 	       rg_state_str(svcStatus.rs_state));
@@ -957,11 +897,13 @@ _svc_stop_finish(char *svcName, int failed, uint32_t newstate)
 
 	svcStatus.rs_transition = (uint64_t)time(NULL);
 	if (set_rg_state(svcName, &svcStatus) != 0) {
-		rg_unlock(svcName, lockp);
+		rg_unlock(&lockp);
 		clulog(LOG_ERR, "#55: Failed changing RG status\n");
 		return FAIL;
 	}
-	rg_unlock(svcName, lockp);
+	rg_unlock(&lockp);
+
+	broadcast_event(svcName, newstate);
 
 	return 0;
 }
@@ -999,7 +941,7 @@ svc_stop(char *svcName, int req)
 int
 svc_fail(char *svcName)
 {
-	void *lockp = NULL;
+	struct dlm_lksb lockp;
 	rg_state_t svcStatus;
 
 	if (rg_lock(svcName, &lockp) == FAIL) {
@@ -1011,7 +953,7 @@ svc_fail(char *svcName)
 	clulog(LOG_DEBUG, "Handling failure request for RG %s\n", svcName);
 
 	if (get_rg_state(svcName, &svcStatus) != 0) {
-		rg_unlock(svcName, lockp);
+		rg_unlock(&lockp);
 		clulog(LOG_ERR, "#56: Failed getting status for RG %s\n",
 		       svcName);
 		return FAIL;
@@ -1019,7 +961,7 @@ svc_fail(char *svcName)
 
 	if ((svcStatus.rs_state == RG_STATE_STARTED) &&
 	    (svcStatus.rs_owner != my_id())) {
-		rg_unlock(svcName, lockp);
+		rg_unlock(&lockp);
 		clulog(LOG_DEBUG, "Unable to disable RG %s in %s state\n",
 		       svcName, rg_state_str(svcStatus.rs_state));
 		return FAIL;
@@ -1036,11 +978,13 @@ svc_fail(char *svcName)
 	svcStatus.rs_transition = (uint64_t)time(NULL);
 	svcStatus.rs_restarts = 0;
 	if (set_rg_state(svcName, &svcStatus) != 0) {
-		rg_unlock(svcName, lockp);
+		rg_unlock(&lockp);
 		clulog(LOG_ERR, "#57: Failed changing RG status\n");
 		return FAIL;
 	}
-	rg_unlock(svcName, lockp);
+	rg_unlock(&lockp);
+
+	broadcast_event(svcName, RG_STATE_FAILED);
 
 	return 0;
 }
@@ -1068,7 +1012,7 @@ relocate_service(char *svcName, int request, uint64_t target)
 
 	/* Open a connection to the other node */
 
-	if (msg_open(target, RG_PORT, &ctx, 2)< 0) {
+	if (msg_open(MSG_CLUSTER, target, RG_PORT, &ctx, 2)< 0) {
 		clulog(LOG_ERR,
 		       "#58: Failed opening connection to member #%d\n",
 		       target);
@@ -1355,6 +1299,11 @@ handle_start_req(char *svcName, int req, int *new_owner)
 		return FAIL;
 	}
 	free_member_list(membership);
+
+	/* Check for dependency.  We cannot start unless our
+	   dependency is met */
+	if (check_depend_safe(svcName) == 0)
+		return RG_EDEPEND;
 	
 	/*
 	 * This is a 'root' start request.  We need to clear out our failure

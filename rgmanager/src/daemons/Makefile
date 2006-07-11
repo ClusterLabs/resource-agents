@@ -41,8 +41,8 @@ uninstall:
 clurgmgrd: rg_thread.o rg_locks.o main.o groups.o  \
 		rg_queue.o rg_forward.o reslist.o \
 		resrules.o restree.o fo_domain.o nodeevent.o \
-		watchdog.o rg_state.o
-	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS) $(LDFLAGS) -lccs -lcman 
+		rg_event.o watchdog.o rg_state.o ../clulib/libclulib.a
+	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS) $(LDFLAGS) -lccs -lcman -lpthread -ldlm
 
 #
 # Our test program links against the local allocator so that

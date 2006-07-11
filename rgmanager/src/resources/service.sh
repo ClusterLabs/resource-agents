@@ -125,6 +125,17 @@ meta_data()
             </shortdesc>
             <content type="string"/>
         </parameter>
+
+        <parameter name="depend">
+            <longdesc lang="en">
+		Top-level service this depends on, in "service:name" format.
+            </longdesc>
+            <shortdesc lang="en">
+		Service dependency; will not start without the specified
+		service running.
+            </shortdesc>
+            <content type="string"/>
+        </parameter>
     </parameters>
 
     <actions>

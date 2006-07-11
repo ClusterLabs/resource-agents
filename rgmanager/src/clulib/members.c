@@ -1,3 +1,21 @@
+/*
+  Copyright Red Hat, Inc. 2006
+
+  This program is free software; you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as published by the
+  Free Software Foundation; either version 2, or (at your option) any
+  later version.
+
+  This program is distributed in the hope that it will be useful, but
+  WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; see the file COPYING.  If not, write to the
+  Free Software Foundation, Inc.,  675 Mass Ave, Cambridge, 
+  MA 02139, USA.
+*/
 #include <sys/types.h>
 #include <arpa/inet.h>
 #include <stdint.h>
@@ -8,10 +26,12 @@
 #include <members.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <signal.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <rg_types.h>
 #include <pthread.h>
+#include <errno.h>
 
 static int my_node_id = -1;
 static pthread_rwlock_t memblock = PTHREAD_RWLOCK_INITIALIZER;
@@ -73,29 +93,32 @@ memb_gained(cluster_member_list_t *old, cluster_member_list_t *new)
 {
 	int count, x, y;
 	char in_old = 0;
-	cluster_member_list_t *gained;
+	cluster_member_list_t *gained = NULL;
 
 	/* No nodes in new?  Then nothing could have been gained */
 	if (!new || !new->cml_count)
 		return NULL;
 
 	/* Nothing in old?  Duplicate 'new' and return it. */
-	if (!old || !old->cml_count) {
-		gained = cml_alloc(new->cml_count);
-		if (!gained)
-			return NULL;
-		memcpy(gained, new, cml_size(new->cml_count));
-		return gained;
-	}
+	if (!old || !old->cml_count)
+		return member_list_dup(new);
 
 	/* Use greatest possible count */
 	count = (old->cml_count > new->cml_count ?
-		 cml_size(old->cml_count) : cml_size(new->cml_count));
+		 old->cml_count : new->cml_count);
+	count *= sizeof(cman_node_t);
 
-	gained = malloc(count);
+	gained = malloc(sizeof(cluster_member_list_t));
 	if (!gained)
 		return NULL;
-	memset(gained, 0, count);
+	memset(gained, 0, sizeof(*gained));
+
+	gained->cml_members = malloc(count);
+	if (!gained->cml_members) {
+		free(gained);
+		return NULL;
+	}
+	memset(gained->cml_members, 0, count);
 
 	for (x = 0; x < new->cml_count; x++) {
 
@@ -121,6 +144,7 @@ memb_gained(cluster_member_list_t *old, cluster_member_list_t *new)
 	}
 
 	if (gained->cml_count == 0) {
+		free(gained->cml_members);
 		free(gained);
 		gained = NULL;
 	}
@@ -145,7 +169,7 @@ memb_gained(cluster_member_list_t *old, cluster_member_list_t *new)
 cluster_member_list_t *
 memb_lost(cluster_member_list_t *old, cluster_member_list_t *new)
 {
-	cluster_member_list_t *ret;
+	cluster_member_list_t *ret = NULL;
 	int x;
 
 	/* Reverse. ;) */
@@ -213,26 +237,42 @@ cluster_member_list_t *
 get_member_list(cman_handle_t h)
 {
 	int c;
+	int tries = 0, local = 0;
 	cluster_member_list_t *ml = NULL;
 	cman_node_t *nodes = NULL;
 
-	do {
+	if (h == NULL) {
+		local = 1;
+		h = cman_init(NULL);
+		if (!h)
+			return NULL;
+	}
+
+	do {	
+		++tries;
 		if (nodes)
 			free(nodes);
 
 		c = cman_get_node_count(h);
-		if (c <= 0)
-			return NULL;
+		if (c <= 0) {
+			if (errno == EINTR)
+				continue;
+			if (ml)
+				free(ml);
+			ml = NULL;
+			goto out;
+		}
 
 		if (!ml)
 			ml = malloc(sizeof(*ml));
 		if (!ml)
-			return NULL;
+			goto out;
 
 		nodes = malloc(sizeof(*nodes) * c);
 		if (!nodes) {
 			free(ml);
-			return NULL;
+			ml = NULL;
+			goto out;
 		}
 
 		memset(ml, 0, sizeof(*ml));
@@ -244,6 +284,10 @@ get_member_list(cman_handle_t h)
 
 	ml->cml_members = nodes;
 	ml->cml_count = c;
+
+out:
+	if (local)
+		cman_finish(h);
 	return ml;
 }
 
@@ -264,6 +308,9 @@ memb_online(cluster_member_list_t *ml, int nodeid)
 {
 	int x = 0;
 
+	if (!ml)
+		return 0;
+
 	for (x = 0; x < ml->cml_count; x++) {
 		if (ml->cml_members[x].cn_nodeid == nodeid)
 			return ml->cml_members[x].cn_member;
@@ -277,6 +324,9 @@ int
 memb_count(cluster_member_list_t *ml)
 {
 	int x = 0, count = 0;
+
+	if (!ml)
+		return 0;
 
 	for (x = 0; x < ml->cml_count; x++) {
 		if (ml->cml_members[x].cn_member)
@@ -292,6 +342,9 @@ memb_mark_down(cluster_member_list_t *ml, int nodeid)
 {
 	int x = 0;
 
+	if (!ml)
+		return -1;
+
 	for (x = 0; x < ml->cml_count; x++) {
 		if (ml->cml_members[x].cn_nodeid == nodeid)
 			ml->cml_members[x].cn_member = 0;
@@ -306,13 +359,15 @@ char *
 memb_id_to_name(cluster_member_list_t *ml, int nodeid)
 {
 	int x = 0;
+	if (!ml)
+		return NULL;
 
 	for (x = 0; x < ml->cml_count; x++) {
 		if (ml->cml_members[x].cn_nodeid == nodeid)
 			return ml->cml_members[x].cn_name;
 	}
 
-	return 0;
+	return NULL;
 }
 
 
@@ -320,13 +375,15 @@ cman_node_t *
 memb_id_to_p(cluster_member_list_t *ml, int nodeid)
 {
 	int x = 0;
+	if (!ml)
+		return NULL;
 
 	for (x = 0; x < ml->cml_count; x++) {
 		if (ml->cml_members[x].cn_nodeid == nodeid)
 			return &ml->cml_members[x];
 	}
 
-	return 0;
+	return NULL;
 }
 
 
@@ -334,6 +391,8 @@ int
 memb_online_name(cluster_member_list_t *ml, char *name)
 {
 	int x = 0;
+	if (!ml)
+		return 0;
 
 	for (x = 0; x < ml->cml_count; x++) {
 		if (!strcasecmp(ml->cml_members[x].cn_name, name))
@@ -348,6 +407,8 @@ int
 memb_name_to_id(cluster_member_list_t *ml, char *name)
 {
 	int x = 0;
+	if (!ml)
+		return 0;
 
 	for (x = 0; x < ml->cml_count; x++) {
 		if (!strcasecmp(ml->cml_members[x].cn_name, name))
@@ -362,13 +423,15 @@ cman_node_t *
 memb_name_to_p(cluster_member_list_t *ml, char *name)
 {
 	int x = 0;
+	if (!ml)
+		return NULL;
 
 	for (x = 0; x < ml->cml_count; x++) {
 		if (!strcasecmp(ml->cml_members[x].cn_name, name))
 			return &ml->cml_members[x];
 	}
 
-	return 0;
+	return NULL;
 }
 
 /**
@@ -388,9 +451,19 @@ member_list_dup(cluster_member_list_t *orig)
 	if (!orig)
 		return NULL;
 
-	ret = malloc(cml_size(orig->cml_count));
-	memset(ret, 0, cml_size(orig->cml_count));
-	memcpy(ret, orig, cml_size(orig->cml_count));
+	ret = malloc(sizeof(cluster_member_list_t));
+	if (!ret)
+		return NULL;
+	memset(ret, 0, sizeof(cluster_member_list_t));
+	ret->cml_members = malloc(sizeof(cman_node_t) * orig->cml_count);
+
+	if (!ret->cml_members) {
+		free(ret);
+		return NULL;
+	}
+	ret->cml_count = orig->cml_count;
+	memcpy(ret->cml_members, orig->cml_members,
+	       orig->cml_count * sizeof(cman_node_t));
 
 	return ret;
 }

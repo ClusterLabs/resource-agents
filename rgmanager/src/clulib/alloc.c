@@ -129,8 +129,9 @@
 #undef  AGGR_RECLAIM		/* consolidate_all on free (*slow*) */
 
 #undef  STACKSIZE	/*4	   backtrace to store if DEBUG is set */
+//#define STACKSIZE 4
 
-#undef  GDB_HOOK		/* Dump program addresses in malloc_table
+#undef	GDB_HOOK		/* Dump program addresses in malloc_table
 				   using a fork/exec of gdb (SLOW but fun)
 				   building this defeats the purpose of
 				   a bounded memory allocator, and is only

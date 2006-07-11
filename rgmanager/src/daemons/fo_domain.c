@@ -334,7 +334,7 @@ node_should_start(uint64_t nodeid, cluster_member_list_t *membership,
 	int found = 0;
 	int owned_by_node = 0, started = 0, no_owner = 0;
 	rg_state_t svc_state;
-	void *lockp;
+	struct dlm_lksb lockp;
 
 	ENTER();
 
@@ -414,10 +414,10 @@ node_should_start(uint64_t nodeid, cluster_member_list_t *membership,
 			 */
 			clulog(LOG_WARNING, "Problem getting state information for "
 			       "%s\n", rg_name);
-			rg_unlock(rg_name, lockp);
+			rg_unlock(&lockp);
 			RETURN(FOD_BEST);
 		}
-		rg_unlock(rg_name, lockp);
+		rg_unlock(&lockp);
 
 		/*
 		 * Check to see if the service is started and if we are the owner in case of

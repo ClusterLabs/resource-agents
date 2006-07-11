@@ -72,7 +72,7 @@ do_lock_req(int req)
 	membership = get_member_list(ch);
 	me = get_my_nodeid(ch);
 
-	if (msg_open(0, RG_PORT, &ctx, 5) < 0) {
+	if (msg_open(MSG_SOCKET, 0, RG_PORT, &ctx, 5) < 0) {
 		printf("Could not connect to resource group manager\n");
 		goto out;
 	}
@@ -179,7 +179,7 @@ int
 main(int argc, char **argv)
 {
 	extern char *optarg;
-	char *svcname=NULL, nodename[256];
+	char *svcname=NULL, nodename[256], realsvcname[64];
 	int opt;
 	msgctx_t ctx;
 	cman_handle_t ch;
@@ -259,7 +259,12 @@ main(int argc, char **argv)
 		usage(basename(argv[0]));
 		return 1;
 	}
-	
+
+	if (!strchr(svcname,':')) {
+		snprintf(realsvcname, sizeof(realsvcname), "service:%s",
+			 svcname);
+		svcname = realsvcname;
+	}
 
 	/* No login */
 	ch = cman_init(NULL);
@@ -287,18 +292,19 @@ main(int argc, char **argv)
 				   */
 	}
 	
+	strcpy(nodename,"me");
 	build_message(&msg, action, svcname, svctarget);
 
 	if (action != RG_RELOCATE) {
 		printf("Member %s %s %s", nodename, actionstr, svcname);
 		printf("...");
 		fflush(stdout);
-		msg_open(0, RG_PORT, &ctx, 5);
+		msg_open(MSG_SOCKET, 0, RG_PORT, &ctx, 5);
 	} else {
 		printf("Trying to relocate %s to %s", svcname, nodename);
 		printf("...");
 		fflush(stdout);
-		msg_open(0, RG_PORT, &ctx, 5);
+		msg_open(MSG_SOCKET, 0, RG_PORT, &ctx, 5);
 	}
 
 	if (ctx.type < 0) {
@@ -307,7 +313,9 @@ main(int argc, char **argv)
 		return 1;
 	}
 
-	if (msg_send(&ctx, &msg, sizeof(msg)) != sizeof(msg)) {
+	opt = msg_send(&ctx, &msg, sizeof(msg));
+
+	if (opt < sizeof(msg)) {
 		perror("msg_send");
 		fprintf(stderr, "Could not send entire message!\n");
 		return 1;
@@ -339,6 +347,9 @@ main(int argc, char **argv)
 		break;
 	case RG_EAGAIN:
 		printf("failed: Try again (resource groups locked)\n");
+		break;
+	case RG_EDEPEND:
+		printf("failed: Operation would break dependency\n");
 		break;
 	default:
 		printf("failed: unknown reason %d\n", msg.sm_data.d_ret);
