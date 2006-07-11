@@ -40,8 +40,7 @@ else
 INCLUDE += -I${incdir}
 endif
 
-LDFLAGS+= -L${iddevlibdir} -L${libdir}
-LOADLIBES+= -liddev
+LDFLAGS+= -L${libdir}
 
 all: ${TARGET}
 
