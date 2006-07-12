@@ -64,13 +64,17 @@ typedef struct {
 	swab32((ptr)->src_nodeid);\
 }
 
-typedef struct {
+
+typedef struct _msgctx {
+	struct _msg_ops *ops;
 	msgctx_type_t type;
+	int flags;
+	/* XXX todo make this opaque */
 	union {
 		struct {
+			msg_q_t *queue;
 			pthread_mutex_t mutex;
 			pthread_cond_t cond;
-			msg_q_t *queue;
 			cman_handle_t cman_handle;
 			int nodeid;
 			int port;
@@ -80,21 +84,59 @@ typedef struct {
 		} cluster_info;
 		struct {
 			int sockfd;
-			int flags;
+			int pad;
 		} local_info;
 	} u;
 } msgctx_t;
 
 
+typedef int (*msg_open_t)(int type, int nodeid, int port, msgctx_t *ctx,
+			  int timeout);
+typedef int (*msg_close_t)(msgctx_t *);
+typedef int (*msg_listen_t)(int me, void *, msgctx_t **);
+typedef int (*msg_accept_t)(msgctx_t *, msgctx_t *);
+typedef int (*msg_shutdown_t)(void);
+typedef int (*msg_send_t)(msgctx_t *, void *, size_t);
+typedef int (*msg_receive_t)(msgctx_t *, void *, size_t, int);
+typedef int (*msg_wait_t)(msgctx_t *, int);
+typedef int (*msg_fd_set_t)(msgctx_t *, fd_set *, int *);
+typedef int (*msg_fd_isset_t)(msgctx_t *, fd_set *);
+typedef int (*msg_fd_clr_t)(msgctx_t *, fd_set *);
+typedef void (*msg_print_t)(msgctx_t *);
+typedef int (*msg_init_t)(msgctx_t *);
+
+typedef struct _msg_ops {
+	msg_open_t	mo_open;
+	msg_close_t	mo_close;
+	msg_listen_t	mo_listen;
+	msg_accept_t	mo_accept;
+	msg_shutdown_t	mo_shutdown;
+	msg_wait_t	mo_wait;
+	msg_send_t	mo_send;
+	msg_receive_t	mo_receive;
+	msg_fd_set_t	mo_fd_set;
+	msg_fd_isset_t	mo_fd_isset;
+	msg_fd_clr_t	mo_fd_clr;
+	msg_print_t	mo_print;
+	msg_init_t	mo_init;
+} msg_ops_t;
+
+
 /* Ripped from ccsd's setup_local_socket */
-#define RGMGR_SOCK "/var/run/cluster/rgmanager.sk"
 #define MAX_CONTEXTS 32  /* Testing; production should be 1024-ish */
 
 #define SKF_LISTEN (1<<0)
+#define SKF_READ   (1<<1)
+#define SKF_WRITE  (1<<2)
+#define SKF_MCAST  (1<<3)
 
-int msg_open(int nodeid, int port, msgctx_t *ctx, int timeout);
-int msg_init(chandle_t *ch);
 
+/* Call once for MSG_CLUSTER, once for MSG_SOCKET */
+/* Private is should be a null-terminated char string for MSG_SOCKET,
+   and a pointer to int type for MSG_CLUSTER */
+int msg_listen(int type, void *port, int me, msgctx_t **new_ctx);
+int msg_open(int type, int nodeid, int port, msgctx_t *ctx, int timeout);
+int msg_init(msgctx_t *ctx);
 int msg_accept(msgctx_t *listenctx, msgctx_t *acceptctx);
 int msg_get_nodeid(msgctx_t *ctx);
 int msg_close(msgctx_t *ctx);
@@ -106,5 +148,7 @@ void msg_free_ctx(msgctx_t *old);
 int msg_fd_set(msgctx_t *ctx, fd_set *fds, int *max);
 int msg_fd_isset(msgctx_t *ctx, fd_set *fds);
 int msg_fd_clr(msgctx_t *ctx, fd_set *fds);
+void msg_print(msgctx_t *ctx);
+int msg_shutdown(void);
 
 #endif

@@ -21,11 +21,4 @@ cluster_member_list_t *memb_lost(cluster_member_list_t *old,
 
 cluster_member_list_t *member_list_dup(cluster_member_list_t *old);
 
-#define cml_size(c) \
-	(sizeof(cluster_member_list_t) + \
-	 sizeof(cman_node_t) * c)
-
-#define cml_alloc(size) malloc(cml_size(size))
-
-
 #endif

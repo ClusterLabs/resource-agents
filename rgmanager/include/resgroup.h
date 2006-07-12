@@ -54,6 +54,7 @@ typedef struct {
 #define RG_SERVICE_GROUP "usrm::manager"
 
 #define RG_ACTION_REQUEST	/* Message header */ 0x138582
+#define RG_EVENT		0x138583
 
 #define RG_SUCCESS	  0
 #define RG_FAIL		  1
@@ -138,15 +139,15 @@ uint64_t best_target_node(cluster_member_list_t *allowed, uint64_t owner,
 			  char *rg_name, int lock);
 
 #ifdef DEBUG
-int _rg_lock_dbg(char *, void **, char *, int);
+int _rg_lock_dbg(char *, struct dlm_lksb *, char *, int);
 #define rg_lock(name, p) _rg_lock_dbg(name, p, __FILE__, __LINE__)
 
-int _rg_unlock_dbg(char *, void *, char *, int);
+int _rg_unlock_dbg(struct dlm_lksb *, char *, int);
 #define rg_unlock(name, p) _rg_unlock_dbg(name, p, __FILE__, __LINE__)
 
 #else
-int rg_lock(char *name, void **p);
-int rg_unlock(char *name, void *p);
+int rg_lock(char *name, struct dlm_lksb *p);
+int rg_unlock(struct dlm_lksb *p);
 #endif
 
 
@@ -157,6 +158,7 @@ void member_list_update(cluster_member_list_t *new_ml);
 cluster_member_list_t *member_list(void);
 int my_id(void);
 
+#define RG_EDEPEND 	-7
 #define RG_EAGAIN	-6
 #define RG_EDEADLCK	-5
 #define RG_ENOSERVICE	-4

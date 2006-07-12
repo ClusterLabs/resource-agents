@@ -12,15 +12,7 @@ typedef struct cluster_members {
 	cman_node_t *cml_members;
 } cluster_member_list_t;
 
-
-typedef struct _cluster_stuff {
-	pthread_mutex_t c_lock;
-	cman_handle_t c_cluster;
-	dlm_lshandle_t c_lockspace;
-	int c_nodeid;
-	void *local_ctx;
-	void *cluster_ctx;
-} chandle_t;
-
+#define RG_PORT 177
+#define RGMGR_SOCK "/var/run/cluster/rgmanager.sk"
 
 #endif

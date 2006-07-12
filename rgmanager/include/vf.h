@@ -31,7 +31,7 @@
  */
 typedef struct __attribute__ ((packed)) _vf_msg_info {
 	uint32_t	vf_command;
-	uint32_t	vf_pad;
+	uint32_t	vf_transaction;
 	char 		vf_keyid[64];
 	uint32_t	vf_coordinator; /* Node ID of who coordinates */
 	uint32_t	vf_datalen;
@@ -42,6 +42,7 @@ typedef struct __attribute__ ((packed)) _vf_msg_info {
 #define swab_vf_msg_info_t(ptr) \
 {\
 	swab32((ptr)->vf_command);\
+	swab32((ptr)->vf_transaction);\
 	swab32((ptr)->vf_coordinator);\
 	swab64((ptr)->vf_view);\
 	swab32((ptr)->vf_datalen);\
@@ -77,7 +78,7 @@ typedef int32_t (*vf_commit_cb_t)(char *, uint64_t, void *, uint32_t);
 typedef struct _view_node {
 	struct _view_node *
 			vn_next;	/**< Next pointer. */
-	msgctx_t 	*vn_ctx;		/**< Associated file descriptor. */
+	uint32_t 	vn_transaction;	/**< Transaction ID */
 	uint32_t	vn_nodeid;	/**< Node ID of coordinator. */
 	struct timeval  vn_timeout;	/**< Expiration time. */
 	uint64_t	vn_viewno;	/**< View Number. */
@@ -94,7 +95,7 @@ typedef struct _view_node {
 typedef struct _commit_node {
 	struct _commit_node *
 			vc_next;	/**< Next pointer. */
-	int		vc_fd;		/**< File descriptor. */
+	uint32_t 	vc_transaction;	/**< Transaction ID */
 } commit_node_t;
 
 
@@ -127,6 +128,7 @@ typedef struct _key_node {
 /* Main programs handle this */
 #define VF_MESSAGE		0x3000
 
+/* Subtypes */
 #define VF_JOIN_VIEW		0x3001
 #define VF_VOTE			0x3002
 #define VF_ABORT		0x3004
@@ -135,10 +137,14 @@ typedef struct _key_node {
 #define VF_ACK			0x3007
 #define VF_NACK			0x3008
 
+#define vf_command(x)  (x&0x0000ffff)
+#define vf_flags(x)    (x&0xffff0000)
+
+#define VFMF_AFFIRM	0x00010000
+
 
 #define VF_COORD_TIMEOUT	60	/* 60 seconds MAX timeout */
 #define VF_COMMIT_TIMEOUT_MIN	(2 * VF_COORD_TIMEOUT)
-#define MAX_FDS			1024
 
 /* Return codes for vf_handle_msg... */
 #define VFR_ERROR	100
@@ -179,6 +185,7 @@ int vf_read(cluster_member_list_t *membership, char *keyid,
 int vf_key_init(char *keyid, int timeout, vf_vote_cb_t vote_cb,
 		vf_commit_cb_t commit_cb);
 int getuptime(struct timeval *tv);
+int vf_process_msg(msgctx_t *ctx, int nodeid, generic_msg_hdr *msgp, int nbytes);
 
 #define MSGP_VFS 0x18dcf1
 #define MSGP_VFC 0x0103fab
