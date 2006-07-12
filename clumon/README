@@ -1,1 +1,11 @@
-Work in progress, everything subject to change, including MIB and CIM schema
+clumon project has moved under Conga umbrella.
+This cvs tree is officially abandoned.
+
+new webpage: http://sources.redhat.com/cluster/conga
+
+new cvs:
+cvs -d :pserver:cvs@sources.redhat.com:/cvs/cluster login cvs
+cvs -d :pserver:cvs@sources.redhat.com:/cvs/cluster checkout conga
+The password is cvs.
+Source is under cluster module: ricci/modules/cluster
+
