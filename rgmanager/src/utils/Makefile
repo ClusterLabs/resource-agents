@@ -14,7 +14,7 @@ top_srcdir=../..
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 include ${top_srcdir}/make/defines.mk
-INCLUDE += -I $(top_srcdir)/include
+INCLUDE += -I $(top_srcdir)/include -I $(top_srcdir)/../cman/lib -I $(top_srcdir)/../ccs/lib -I $(top_srcdir)/../dlm/lib
 
 CFLAGS+= -g -I${incdir}
 
@@ -22,7 +22,7 @@ CFLAGS+= -g -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
 
 CFLAGS+= -L${libdir} -DPACKAGE_VERSION=\"${RELEASE}\"
 
-LDFLAGS+= -lcman -lpthread -ldl -lncurses -L../clulib -lclulib -lccs
+LDFLAGS+= -L../../../cman/lib -L../../../ccs/lib -lcman -lpthread -ldl -lncurses -L../clulib -lclulib -lccs
 TARGETS=clubufflush clufindhostname clustat clusvcadm clulog clunfslock
 
 all: ${TARGETS}

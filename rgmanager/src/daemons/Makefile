@@ -14,7 +14,7 @@ top_srcdir=../..
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 include ${top_srcdir}/make/defines.mk
-INCLUDE += -I $(top_srcdir)/include
+INCLUDE += -I $(top_srcdir)/include -I $(top_srcdir)/../cman/lib -I $(top_srcdir)/../ccs/lib -I $(top_srcdir)/../dlm/lib
 
 CFLAGS+= -g -I${incdir} -I/usr/include/libxml2 -L${libdir}
 
@@ -22,7 +22,7 @@ CFLAGS+= -g -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
 
 CFLAGS+= -L ../clulib 
 
-LDFLAGS+= -lclulib -lxml2 -lpthread -ldl
+LDFLAGS+= -lclulib -lxml2 -lpthread -ldl -L../../../cman/lib -L../../../ccs/lib -L../../../dlm/lib
 TARGETS=clurgmgrd clurmtabd rg_test
 
 all: ${TARGETS}

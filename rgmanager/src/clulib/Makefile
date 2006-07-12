@@ -14,7 +14,7 @@ top_srcdir=../..
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 include ${top_srcdir}/make/defines.mk
-INCLUDE += -I $(top_srcdir)/include
+INCLUDE += -I $(top_srcdir)/include -I $(top_srcdir)/../cman/lib -I $(top_srcdir)/../ccs/lib -I $(top_srcdir)/../dlm/lib
 
 CFLAGS+= -g -I${incdir} -DCMAN_RELEASE_NAME=\"${RELEASE}\"
 
@@ -30,7 +30,7 @@ install: all
 uninstall:
 
 msgtest: msgtest.o libclulib.a
-	gcc -o msgtest msgtest.o -lcman -L. -lclulib -llalloc -lpthread
+	gcc -o msgtest msgtest.o -L$(top_srcdir)/../cman/lib -lcman -L. -lclulib -llalloc -lpthread
 
 libclulib.a: clulog.o daemon_init.o signals.o msgsimple.o \
 		gettid.o rg_strings.o message.o members.o fdops.o \
