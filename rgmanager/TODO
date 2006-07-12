@@ -1,5 +1,4 @@
-* Rewrite locking infrastructure to use the DLM directly.  Make sure
-  the lockspace is protected by a thread mutex, as multiple writers
-  could be bad...
-* Remove VF code.  It's not needed anymore with the totem protocol in
-  openais / cman
+* Make live-migration of resources work; preferrably so that admins
+can manually migrate Xen VMs to other nodes without telling the cluster
+about it.  That is, the cluster should be able to acquire running VMs
+and update its state accordingly.
