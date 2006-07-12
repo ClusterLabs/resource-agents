@@ -619,7 +619,7 @@ int dlm_ls_lock(dlm_lshandle_t ls,
     {
 	memcpy(req->i.lock.lvb, lksb->sb_lvbptr, DLM_LVB_LEN);
     }
-    len = sizeof(struct dlm_write_request) + namelen - 1;
+    len = sizeof(struct dlm_write_request) + namelen;
     lksb->sb_status = EINPROG;
 
     if (flags & LKF_WAIT)
