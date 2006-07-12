@@ -103,9 +103,13 @@ sub get_options_stdin
 	elsif ($name eq "agent")
 	{
 	}
-	elsif ($name eq "nodename")
+	elsif ($name eq "node")
 	{
 	    $opt_n = $val;
+	}
+	elsif ($name eq "self")
+	{
+	    $opt_s = $val;
 	}
 	elsif ($name eq "verbose")
 	{
@@ -170,9 +174,9 @@ sub check_sg_persist
 
 sub fence_node
 {
-    my $name = (POSIX::uname())[1];
+    # my $name = (POSIX::uname())[1];
 
-    my $host_key = get_key($name);
+    my $host_key = get_key($opt_s);
     my $node_key = get_key($opt_n);
     
     my $cmd;
@@ -222,12 +226,14 @@ if (@ARGV > 0) {
 
     fail_usage "Unkown parameter." if (@ARGV > 0);
     fail_usage "No '-n' flag specified." unless defined $opt_n;
+    fail_usage "No '-s' flag specified." unless defined $opt_s;
 
 } else {
 
     get_options_stdin();
 
     fail "failed: missing 'node'" unless defined $opt_n;
+    fail "failed: missing 'self'" unless defined $opt_s;
 
 }
 
