@@ -50,17 +50,29 @@ touch /var/lock/subsys/${0##*/}
 #
 for dev in $scsi_devices
 do
+
   echo -n "Registering device: $dev"
+
   for error in 1
   do
     sg_persist -d $dev -o -G -S $key &>/dev/null || break
-    sg_persist -d $dev -o -R -K $key -T 5 &>/dev/null || break
+    # sg_persist -d $dev -o -R -K $key -T 5 &>/dev/null || break
     error=0
   done
-  if [ $error -ne 0 ]; then
+
+  if [ $error -eq 0 ]; then
+      success
+  else
+      failure
       rval=1
   fi
+
   echo
+
+  # attempt to create a reservation
+  #
+  sg_persist -d $dev -o -R -K $key -T 5 &>/dev/null
+
 done
 ;;
 
@@ -75,7 +87,7 @@ do
 
   if sg_persist -d $dev -i -r 2>/dev/null | grep -qiE "${key#0}" ; then
       echo "Unable to unregister device: $dev"
-      error=0
+      error=1
   else
       echo -n "Unregistering device: $dev"
       for error in 1
@@ -84,9 +96,14 @@ do
 	error=0
       done
   fi
-  if [ $error -ne 0 ]; then
+
+  if [ $error -eq 0 ]; then
+      success
+  else
+      failure
       rval=1
   fi
+
   echo
 done
 
