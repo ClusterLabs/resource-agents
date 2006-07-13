@@ -488,15 +488,15 @@ static int do_get_group(int ci, int argc, char **argv)
 
 static int do_dump(int ci, int argc, char **argv)
 {
-	int rv, len = DUMP_SIZE;
+	int rv, len;
 
 	if (dump_wrap) {
 		len = DUMP_SIZE - dump_point;
 		rv = write(client[ci].fd, dump_buf + dump_point, len);
 		if (rv != len)
 			log_print("write error %d errno %d", rv, errno);
-		len = dump_point;
 	}
+	len = dump_point;
 
 	rv = write(client[ci].fd, dump_buf, len);
 	if (rv != len)
