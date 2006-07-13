@@ -87,6 +87,8 @@ int process_uevent(void)
 	if (!strstr(buf, "dlm"))
 		return 0;
 
+	log_debug("uevent: %s", buf);
+
 	make_args(buf, &argc, argv, '/');
 	act = argv[0];
 	sys = argv[2];
