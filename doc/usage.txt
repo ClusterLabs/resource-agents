@@ -57,7 +57,6 @@ modprobe gfs2
 modprobe lock_dlm
 modprobe lock_nolock
 modprobe dlm
-modprobe dlm_device
 
 
 Configuration
