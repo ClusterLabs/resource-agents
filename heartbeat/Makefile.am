@@ -59,6 +59,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			oralsnr		\
 			pingd		\
 			portblock	\
+			pgsql		\
 			Raid1		\
 			ServeRAID	\
 			SysInfo		\

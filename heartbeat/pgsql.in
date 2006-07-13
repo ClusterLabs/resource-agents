@@ -1,0 +1,305 @@
+#!/bin/sh
+#
+# Description:	Manages a PostrgreSQL Server as an OCF High-Availability
+#		resource under Heartbeat/LinuxHA control
+#
+#
+# Author:	Serge Dubrouski
+# License:	GNU General Public License (GPL)
+#
+# OCF parameters:
+#  OCF_RESKEY_pgctl  - Path to pg_ctl. Default /usr/bin/pg_ctl
+#  OCF_RESKET_start_opt - Startup options. Default ""
+#  OCF_RESKEY_psql   - Path to psql. Defauilt is /usr/bin/psql
+#  OCF_RESKEY_pgdata - PGDATA directory. Default is /var/lib/pgsql/data
+#  OCF_RESKEY_pgdba  - userID that manages DB. Default is postgres
+#  OCF_RESKEY_pgdb   - database to monitor. Default is template1
+###############################################################################
+# Initialization:
+
+. @hb_libdir@/ocf-shellfuncs
+
+unset LC_ALL; export LC_ALL
+unset LANGUAGE; export LANGUAGE
+
+SH=@SHELL@
+
+usage() {
+    cat <<-! >&1
+	usage: $0 start|stop|status|monitor|methods
+
+	$0 manages a PostgreSQL Server as an HA resource.
+
+        The 'start' operation starts the PostgreSQL server.
+        The 'stop' operation stops the PostgreSQL server.
+        The 'status' operation reports whether the PostgreSQL is up.
+        The 'monitor' operation reports whether the PostgreSQL is running.
+        The 'methods' operation reports on the methods $0 supports.
+!
+  return $OCF_ERR_ARGS
+}
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="pgsql">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource script for PostgreSQL. It manages a PostgreSQL as an HA resource.
+</longdesc>
+<shortdesc lang="en">pgsql resource agent</shortdesc>
+
+<parameters>
+<parameter name="pgctl" unique="0" required="0">
+<longdesc lang="en">
+Path to pg_ctl command.
+</longdesc>
+<shortdesc lang="en">pgctl</shortdesc>
+<content type="string" default="/usr/bin/pgctl" />
+</parameter>
+<parameter name="start_opt" unique="0" required="0">
+<longdesc lang="en">
+Start options. "-i -p 5432" for example.
+</longdesc>
+<shortdesc lang="en">start_opt</shortdesc>
+<content type="string" default="" />
+</parameter>
+<parameter name="psql" unique="0" required="0">
+<longdesc lang="en">
+Path to psql command.
+</longdesc>
+<shortdesc lang="en">psql</shortdesc>
+<content type="string" default="/usr/bin/psql" />
+</parameter>
+<parameter name="pgdata" unique="0" required="0">
+<longdesc lang="en">
+Path PostgreSQL data directory.
+</longdesc>
+<shortdesc lang="en">pgdata</shortdesc>
+<content type="string" default="/var/lib/pgsql/data" />
+</parameter>
+<parameter name="pgdba" unique="0" required="0">
+<longdesc lang="en">
+User that owns PostgreSQL.
+</longdesc>
+<shortdesc lang="en">pgdba</shortdesc>
+<content type="string" default="postgres" />
+</parameter>
+<parameter name="pgdb" unique="0" required="0">
+<longdesc lang="en">
+Database that will be used for monitoring.
+</longdesc>
+<shortdesc lang="en">pgdb</shortdesc>
+<content type="string" default="template1" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start" timeout="120" />
+<action name="stop" timeout="120" />
+<action name="status" timeout="60" />
+<action name="monitor" depth="0" timeout="30" interval="30" start-delay="10" />
+<action name="meta-data" timeout="5" />
+<action name="methods" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+
+#
+#	Run the given command in the Resource owner environment...
+#
+runasowner() {
+    su $PGDBA -c ". ~${PGDBA}/.bash_profile; $*"
+}
+
+#
+# methods: What methods/operations do we support?
+#
+
+pgsql_methods() {
+  cat <<-!
+	start
+	stop
+	status
+	monitor
+	methods	
+	!
+}
+
+
+#pgsql_start: Starts PostgreSQL
+pgsql_start() {
+    if pgsql_status
+    then
+        ocf_log info "PostgreSQL is already running. PID=`cat $PIDFILE`"
+        return $OCF_SUCCESS
+    fi
+    
+    if [ -x $PGCTL ]
+    then
+        # Check if we need to create a log file
+        [ ! -f /var/log/pgsql.log ] && touch /var/log/pgsql.log
+        # Set the right ownership
+
+	if runasowner "$PGCTL -D $PGDATA -l /var/log/pgsql.log -o "\'$STARTOPT\'" start > /dev/null 2>&1"
+	then
+	   # Probably started.....
+            ocf_log info "PostgreSQL start command sent."
+	else
+	    ocf_log err "Can't start PostgreSQL."; return $OCF_ERR_GENERIC
+	fi
+    else
+	ocf_log err "$PGCTL not found!"
+	return $OCF_ERR_GENERIC
+    fi
+	
+    if ! pgsql_status
+    then
+	sleep 5
+	if ! pgsql_status
+	then	
+	    echo "ERROR: PostgreSQL is not running!"
+            return $OCF_ERR_GENERIC
+	fi
+    fi
+
+    return $OCF_SUCCESS
+}
+
+#pgsql_stop: Stop PostgreSQL	
+pgsql_stop() {
+    if ! pgsql_status
+    then
+        #Already stopped
+        return $OCF_SUCCESS
+    fi
+    
+    # Stop PostgreSQL do not wait for clients to disconnect
+    runasowner "$PGCTL -D $PGDATA stop -m fast > /dev/null 2>&1"
+
+    if pgsql_status
+    then
+       #PostgreSQL is still up. Use another shutdown mode.
+       runasowner "$PGCTL -D $PGDATA stop -m immediate > /dev/null 2>&1"
+    fi
+
+    return $OCF_SUCCESS
+}
+
+#
+# pgsql_status: is PostgreSQL up?
+#
+
+pgsql_status() {
+    if [ -f $PIDFILE  ]
+    then
+        PID=`head -n 1 $PIDFILE`
+        process_running $PID && [ `ps -p $PID | grep postmaster | wc -l` -eq 1 ]
+    else
+        : No pid file
+        false
+    fi
+}
+
+
+#
+# return TRUE if a process with given PID is running
+#
+process_running() {
+    kill -0 "$1" >/dev/null 2>&1
+}
+
+#
+# pgsql_monitor
+#
+
+pgsql_monitor() {
+    if ! pgsql_status
+    then
+	ocf_log info "PostgreSQL is down"
+	return $OCF_NOT_RUNNING
+    fi
+    
+    $PSQL -U $PGDBA $PGDB -c 'select now();' >/dev/null 2>&1
+    
+    if [ $? -ne  0 ]
+    then
+	ocf_log err "PostgreSQL $PGDB isn't running"
+	return $OCF_ERR_GENERIC
+    fi
+    
+    return $OCF_SUCCESS
+}
+
+#
+#   'main' starts here...
+#
+
+
+if [ $# -ne 1 ]
+then
+    usage
+    exit 1
+fi
+
+US=`id -u -n`
+
+if [ $US != root ]
+then
+    ocf_log err "$0 must be run as root"
+    exit 1
+fi
+
+PGCTL=${OCF_RESKEY_pgctl:-/usr/bin/pg_ctl}
+STARTOPT=${OCF_RESKEY_start_opt:-""}
+PSQL=${OCF_RESKEY_psql:-/usr/bin/psql}
+PGDATA=${OCF_RESKEY_pgdata:-/var/lib/pgctl/data}
+PGDBA=${OCF_RESKEY_pgdba:-postgres}
+PGDB=${OCF_RESKEY_pgdb:-template1}
+PIDFILE=${PGDATA}/postmaster.pid
+
+if [ ! -x $PGCTL ]
+then
+    ocf_log err "Can't run $PGCTL"
+    exit $OCF_ERR_GENERIC
+fi
+    
+if [ ! -x $PSQL ]
+then
+    ocf_log err "Can't run $PSQL"
+    exit $OCF_ERR_GENERIC
+fi
+
+# What kind of method was invoked?
+case "$1" in
+    start)      pgsql_start               
+                exit $?;;
+
+    stop)       pgsql_stop
+                exit $?;;
+
+    status)     if pgsql_status
+                then
+                    ocf_log info "PostgreSQL is up"
+                    exit $OCF_SUCCESS
+                else
+                    ocf_log info "PostgreSQL is down"
+                    exit $OCF_NOT_RUNNING
+                fi
+                exit $?;;
+
+    monitor)    pgsql_monitor
+                exit $?;;
+
+    methods)    pgsql_methods
+                exit $?;;
+		
+    meta_data)  meta_data
+                exit $OCF_SUCCESS;;
+esac
+
+usage
