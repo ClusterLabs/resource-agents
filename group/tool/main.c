@@ -20,6 +20,7 @@
 #include <stddef.h>
 #include <fcntl.h>
 #include <string.h>
+#include <errno.h>
 #include <netinet/in.h>
 
 #include "libgroup.h"
@@ -293,20 +294,26 @@ static int connect_groupd(void)
 
 int do_dump(int argc, char **argv)
 {
-	char buf[DUMP_SIZE];
+	char inbuf[DUMP_SIZE];
+	char outbuf[GROUPD_MSGLEN];
 	int rv, fd = connect_groupd();
 
-	rv = write(fd, "dump", 4);
-	if (rv != 4)
+	memset(inbuf, 0, sizeof(inbuf));
+	memset(outbuf, 0, sizeof(outbuf));
+
+	sprintf(outbuf, "dump");
+
+	rv = write(fd, outbuf, sizeof(outbuf));
+	if (rv != sizeof(outbuf)) {
+		printf("dump write error %d errno %d\n", rv, errno);;
 		return -1;
+	}
 
-	memset(buf, 0, sizeof(buf));
-
-	rv = read(fd, buf, sizeof(buf));
+	rv = read(fd, inbuf, sizeof(inbuf));
 	if (rv <= 0)
-		return rv;
-
-	write(STDOUT_FILENO, buf, rv);
+		printf("dump read returned %d errno %d\n", rv, errno);
+	else
+		write(STDOUT_FILENO, inbuf, rv);
 
 	close(fd);
 	return 0;
