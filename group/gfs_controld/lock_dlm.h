@@ -37,7 +37,7 @@
 #include "linux_endian.h"
 #include "libgroup.h"
 
-#define MAXARGS			64
+#define MAXARGS			16
 #define MAXLINE			256
 #define MAXNAME			255
 #define MAX_CLIENTS		8

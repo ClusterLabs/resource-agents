@@ -538,6 +538,7 @@ static void process_connection(int ci)
 	int argc = 0, rv, act;
 
 	memset(buf, 0, sizeof(buf));
+	memset(argv, 0, sizeof(char *) * MAXARGS);
 
 	rv = read(client[ci].fd, buf, GROUPD_MSGLEN);
 	if (!rv) {

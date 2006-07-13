@@ -43,7 +43,7 @@
 #define MAX_NAMELEN		(32)	/* should match libgroup.h */
 #define MAX_LEVELS		(4)
 #define MAX_NODES		(256)
-#define MAXARGS			(32)
+#define MAXARGS			(16)
 #define MAXCON			(16)
 #define NALLOC			(16)
 #define DUMP_SIZE		(1024 * 1024)

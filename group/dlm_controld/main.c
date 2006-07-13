@@ -48,6 +48,7 @@ struct lockspace *find_ls(char *name)
 	return NULL;
 }
 
+#if 0
 void make_args(char *buf, int *argc, char **argv, char sep)
 {
 	char *p = buf;
@@ -65,6 +66,38 @@ void make_args(char *buf, int *argc, char **argv, char sep)
 	}
 	*argc = i;
 }
+#endif
+
+static char *get_args(char *buf, int *argc, char **argv, char sep, int want)
+{
+	char *p = buf, *rp = NULL;
+	int i;
+
+	argv[0] = p;
+
+	for (i = 1; i < MAXARGS; i++) {
+		p = strchr(buf, sep);
+		if (!p)
+			break;
+		*p = '\0';
+
+		if (want == i) {
+			rp = p + 1;
+			break;
+		}
+
+		argv[i] = p + 1;
+		buf = p + 1;
+	}
+	*argc = i;
+
+	/* we ended by hitting \0, return the point following that */
+	if (!rp)
+		rp = strchr(buf, '\0') + 1;
+
+	return rp;
+}
+
 
 /* recv "online" (join) and "offline" (leave) 
    messages from dlm via uevents and pass them on to groupd */
@@ -77,6 +110,7 @@ int process_uevent(void)
 	int rv, argc = 0;
 
 	memset(buf, 0, sizeof(buf));
+	memset(argv, 0, sizeof(char *) * MAXARGS);
 
 	rv = recv(uevent_fd, &buf, sizeof(buf), 0);
 	if (rv < 0) {
@@ -89,7 +123,9 @@ int process_uevent(void)
 
 	log_debug("uevent: %s", buf);
 
-	make_args(buf, &argc, argv, '/');
+	get_args(buf, &argc, argv, '/', 4);
+	if (argc != 4)
+		log_error("uevent message has %d args", argc);
 	act = argv[0];
 	sys = argv[2];
 
@@ -291,9 +327,9 @@ static void print_usage(void)
 	printf("\n");
 	printf("Options:\n");
 	printf("\n");
-	printf("  -D               Enable debugging code and don't fork\n");
-	printf("  -h               Print this help, then exit\n");
-	printf("  -V               Print program version information, then exit\n");
+	printf("  -D	       Enable debugging code and don't fork\n");
+	printf("  -h	       Print this help, then exit\n");
+	printf("  -V	       Print program version information, then exit\n");
 }
 
 static void decode_arguments(int argc, char **argv)

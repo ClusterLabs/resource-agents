@@ -44,7 +44,7 @@
 #include "list.h"
 #include "libgroup.h"
 
-#define MAXARGS		64
+#define MAXARGS		8
 #define MAXLINE		256
 #define MAXCON		4
 #define MAXNAME		255
