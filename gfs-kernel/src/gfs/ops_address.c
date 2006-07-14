@@ -32,6 +32,8 @@
 #include "quota.h"
 #include "trans.h"
 
+static int gfs_commit_write(struct file *file, struct page *page,
+							unsigned from, unsigned to);
 /**
  * get_block - Fills in a buffer head with details about a block
  * @inode: The inode
@@ -320,6 +322,13 @@ gfs_prepare_write(struct file *file, struct page *page,
 
 	atomic_inc(&sdp->sd_ops_address);
 
+	/* We can't set commit_write in the structure in the declare         */
+	/* because if we do, loopback (loop.c) will interpret that to mean   */
+	/* it's okay to do buffered writes without locking through sendfile. */
+	/* This is a kludge to get around the problem with loop.c because    */
+	/* the upstream community rejected my changes to loop.c.             */
+	gfs_file_aops.commit_write = gfs_commit_write;
+
 	if (gfs_assert_warn(sdp, gfs_glock_is_locked_by_me(ip->i_gl)))
 		return -ENOSYS;
 
@@ -466,7 +475,6 @@ struct address_space_operations gfs_file_aops = {
 	.readpage = gfs_readpage,
 	.sync_page = block_sync_page,
 	.prepare_write = gfs_prepare_write,
-	.commit_write = gfs_commit_write,
 	.bmap = gfs_bmap,
 	.direct_IO = gfs_direct_IO,
 };
