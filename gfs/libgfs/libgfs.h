@@ -386,6 +386,7 @@ int ri_update(int disk_fd, struct gfs_sbd *sdp);
 int write_sb(int disk_fd, struct gfs_sbd *sdp);
 int set_block_ranges(int disk_fd, struct gfs_sbd *sdp);
 int read_super_block(int disk_fd, struct gfs_sbd *sdp);
+int compute_constants(struct gfs_sbd *sdp);
 
 /* ------------------------------------------------------------------------- */
 /* formerly rgrp.h:                                                          */

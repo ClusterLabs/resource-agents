@@ -73,40 +73,19 @@ static int check_sb(struct gfs_sbd *sdp, struct gfs_sb *sb)
 	return error;
 }
 
-
 /*
- * read_sb: read the super block from disk
- * sdp: in-core super block
+ * compute_constants: compute constants for the superblock
  *
- * This function reads in the super block from disk and
- * initializes various constants maintained in the super
- * block
- *
- * Returns: 0 on success, -1 on failure.
+ * assumes:
+ *    sb_bsize_shift is set either from the ondisk superblock or otherwise.
+ *    sb_bsize is set either from the ondisk superblock or otherwise.
  */
-int read_sb(int disk_fd, struct gfs_sbd *sdp)
+int compute_constants(struct gfs_sbd *sdp)
 {
-	osi_buf_t *bh;
-	uint64 space = 0;
 	unsigned int x;
-	int error;
-	error = get_and_read_buf(disk_fd, 512, /* assume 512 block size at first */
-							 GFS_SB_ADDR >> sdp->sd_fsb2bb_shift, &bh, 0);
-	if (error){
-		log_crit("Unable to read superblock\n");
-		goto out;
-	}
+	uint64 space = 0;
+	int error = 0;
 
-	gfs_sb_in(&sdp->sd_sb, BH_DATA(bh));
-
-	relse_buf(bh);
-
-	error = check_sb(sdp, &sdp->sd_sb);
-	if (error)
-		goto out;
-
-/* FIXME: Need to verify all this */
-	/* FIXME: What's this 9? */
 	sdp->sd_fsb2bb_shift = sdp->sd_sb.sb_bsize_shift - 9;
 	sdp->sd_diptrs =
 		(sdp->sd_sb.sb_bsize-sizeof(struct gfs_dinode)) /
@@ -115,7 +94,6 @@ int read_sb(int disk_fd, struct gfs_sbd *sdp)
 		(sdp->sd_sb.sb_bsize-sizeof(struct gfs_indirect)) /
 		sizeof(uint64);
 	sdp->sd_jbsize = sdp->sd_sb.sb_bsize - sizeof(struct gfs_meta_header);
-	/* FIXME: Why is this /2 */
 	sdp->sd_hash_bsize = sdp->sd_sb.sb_bsize / 2;
 	sdp->sd_hash_ptrs = sdp->sd_hash_bsize / sizeof(uint64);
 	sdp->sd_heightsize[0] = sdp->sd_sb.sb_bsize -
@@ -133,7 +111,7 @@ int read_sb(int disk_fd, struct gfs_sbd *sdp)
 	if(sdp->sd_max_height > GFS_MAX_META_HEIGHT){
 		log_err("Bad max metadata height.\n");
 		error = -1;
-		goto out;
+		return error;
 	}
 
 	sdp->sd_jheightsize[0] = sdp->sd_sb.sb_bsize -
@@ -151,6 +129,39 @@ int read_sb(int disk_fd, struct gfs_sbd *sdp)
 		log_err("Bad max jheight.\n");
 		error = -1;
 	}
+	return error;
+}
+
+/*
+ * read_sb: read the super block from disk
+ * sdp: in-core super block
+ *
+ * This function reads in the super block from disk and
+ * initializes various constants maintained in the super
+ * block
+ *
+ * Returns: 0 on success, -1 on failure.
+ */
+int read_sb(int disk_fd, struct gfs_sbd *sdp)
+{
+	osi_buf_t *bh;
+	int error;
+	error = get_and_read_buf(disk_fd, 512, /* assume 512 block size at first */
+							 GFS_SB_ADDR >> sdp->sd_fsb2bb_shift, &bh, 0);
+	if (error){
+		log_crit("Unable to read superblock\n");
+		goto out;
+	}
+
+	gfs_sb_in(&sdp->sd_sb, BH_DATA(bh));
+
+	relse_buf(bh);
+
+	error = check_sb(sdp, &sdp->sd_sb);
+	if (error)
+		goto out;
+
+	compute_constants(sdp);
 
  out:
 
