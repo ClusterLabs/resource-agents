@@ -122,6 +122,8 @@ void write_mkfs_sb(commandline_t *comline, osi_list_t *rlist)
 	sbd->sd_sb.sb_bsize = comline->bsize;
 	sbd->sd_sb.sb_bsize_shift = ffs(comline->bsize) - 1;
 	sbd->sd_sb.sb_seg_size = comline->seg_size;
+	
+	compute_constants(sbd);
 
 	sbd->sd_sb.sb_jindex_di.no_formal_ino = jindex_dinode;
 	sbd->sd_sb.sb_jindex_di.no_addr = jindex_dinode;
