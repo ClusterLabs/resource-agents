@@ -28,7 +28,17 @@
 
 #define MAX_GROUPS			64
 #define OPTION_STRING			"hVv"
+
+/* copied from cluster/group/gfs_controld/lock_dlm.h */
+#define LOCK_DLM_SOCK_PATH		"gfs_controld_sock"
+
+/* needs to match the same in cluster/group/daemon/gd_internal.h and
+   cluster/group/gfs_controld/lock_dlm.h */
 #define DUMP_SIZE			(1024 * 1024)
+
+/* needs to match the same in cluster/group/gfs_controld/lock_dlm.h,
+   it's the message size that gfs_controld takes */
+#define MAXLINE				256
 
 #define OP_LS				1
 #define OP_DUMP				2
@@ -268,7 +278,7 @@ int do_ls(int argc, char **argv)
 	return 0;
 }
 
-static int connect_groupd(void)
+static int connect_daemon(char *path)
 {
 	struct sockaddr_un sun;
 	socklen_t addrlen;
@@ -280,7 +290,7 @@ static int connect_groupd(void)
 
 	memset(&sun, 0, sizeof(sun));
 	sun.sun_family = AF_UNIX;
-	strcpy(&sun.sun_path[1], GROUPD_SOCK_PATH);
+	strcpy(&sun.sun_path[1], path);
 	addrlen = sizeof(sa_family_t) + strlen(sun.sun_path+1) + 1;
 
 	rv = connect(fd, (struct sockaddr *) &sun, addrlen);
@@ -292,11 +302,38 @@ static int connect_groupd(void)
 	return fd;
 }
 
-int do_dump(int argc, char **argv)
+int do_dump(int argc, char **argv, int fd)
 {
 	char inbuf[DUMP_SIZE];
 	char outbuf[GROUPD_MSGLEN];
-	int rv, fd = connect_groupd();
+	int rv;
+
+	memset(inbuf, 0, sizeof(inbuf));
+	memset(outbuf, 0, sizeof(outbuf));
+
+	sprintf(outbuf, "dump");
+
+	rv = write(fd, outbuf, sizeof(outbuf));
+	if (rv != sizeof(outbuf)) {
+		printf("dump write error %d errno %d\n", rv, errno);;
+		return -1;
+	}
+
+	rv = read(fd, inbuf, sizeof(inbuf));
+	if (rv <= 0)
+		printf("dump read returned %d errno %d\n", rv, errno);
+	else
+		write(STDOUT_FILENO, inbuf, rv);
+
+	close(fd);
+	return 0;
+}
+
+int do_gfsdump(int argc, char **argv, int fd)
+{
+	char inbuf[DUMP_SIZE];
+	char outbuf[MAXLINE];
+	int rv;
 
 	memset(inbuf, 0, sizeof(inbuf));
 	memset(outbuf, 0, sizeof(outbuf));
@@ -321,14 +358,29 @@ int do_dump(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
+	int fd;
+
 	prog_name = argv[0];
 	decode_arguments(argc, argv);
 
 	switch (operation) {
 	case OP_LS:
 		return do_ls(argc, argv);
+
 	case OP_DUMP:
-		return do_dump(argc, argv);
+		if (opt_ind && opt_ind < argc) {
+			if (!strncmp(argv[opt_ind], "gfs", 3)) {
+				fd = connect_daemon(LOCK_DLM_SOCK_PATH);
+				if (fd < 0)
+					return -1;
+				return do_gfsdump(argc, argv, fd);
+			}
+		}
+
+		fd = connect_daemon(GROUPD_SOCK_PATH);
+		if (fd < 0)
+			break;
+		return do_dump(argc, argv, fd);
 	}
 
 	return 0;
