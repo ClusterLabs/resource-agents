@@ -43,6 +43,7 @@
 #define MAX_CLIENTS		8
 #define MAX_MSGLEN		2048
 #define MAX_OPTIONS_LEN		1024
+#define DUMP_SIZE		(1024 * 1024)
 
 #define LOCK_DLM_GROUP_LEVEL	2
 #define LOCK_DLM_GROUP_NAME	"gfs"
@@ -67,11 +68,17 @@ enum {
 extern char *prog_name;
 extern int daemon_debug_opt;
 extern char daemon_debug_buf[256];
+extern char dump_buf[DUMP_SIZE];
+extern int dump_point;
+extern int dump_wrap;
+
+extern void daemon_dump_save(void);
 
 #define log_debug(fmt, args...) \
 do { \
 	snprintf(daemon_debug_buf, 255, "%ld " fmt "\n", time(NULL), ##args); \
 	if (daemon_debug_opt) fprintf(stderr, "%s", daemon_debug_buf); \
+	daemon_dump_save(); \
 } while (0)
 
 #define log_group(g, fmt, args...) \
@@ -79,6 +86,7 @@ do { \
 	snprintf(daemon_debug_buf, 255, "%ld %s " fmt "\n", time(NULL), \
 		 (g)->name, ##args); \
 	if (daemon_debug_opt) fprintf(stderr, "%s", daemon_debug_buf); \
+	daemon_dump_save(); \
 } while (0)
 
 #define log_error(fmt, args...) \

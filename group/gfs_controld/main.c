@@ -125,6 +125,24 @@ int client_send(int ci, char *buf, int len)
 	return write(client[ci].fd, buf, len);
 }
 
+static int do_dump(int ci)
+{
+	int rv, len;
+
+	if (dump_wrap) {
+		len = DUMP_SIZE - dump_point;
+		rv = write(client[ci].fd, dump_buf + dump_point, len);
+		if (rv != len)
+			log_debug("write error %d errno %d", rv, errno);
+	}
+	len = dump_point;
+
+	rv = write(client[ci].fd, dump_buf, len);
+	if (rv != len)
+		log_debug("write error %d errno %d", rv, errno);
+	return 0;
+}
+
 static int process_client(int ci)
 {
 	char *cmd, *dir, *type, *proto, *table, *extra;
@@ -163,7 +181,10 @@ static int process_client(int ci)
 		rv = do_unmount(ci, dir);
 	else if (!strcmp(cmd, "remount"))
 		rv = do_remount(ci, dir, argv[3]);
-	else
+	else if (!strcmp(cmd, "dump")) {
+		do_dump(ci);
+		return 0;
+	} else
 		rv = -EINVAL;
 
 	sprintf(out, "%d", rv);
@@ -492,7 +513,26 @@ int main(int argc, char **argv)
 	return loop();
 }
 
+void daemon_dump_save(void)
+{
+	int len, i;
+
+	len = strlen(daemon_debug_buf);
+
+	for (i = 0; i < len; i++) {
+		dump_buf[dump_point++] = daemon_debug_buf[i];
+
+		if (dump_point == DUMP_SIZE) {
+			dump_point = 0;
+			dump_wrap = 1;
+		}
+	}
+}
+
 char *prog_name;
 int daemon_debug_opt;
 char daemon_debug_buf[256];
+char dump_buf[DUMP_SIZE];
+int dump_point;
+int dump_wrap;
 
