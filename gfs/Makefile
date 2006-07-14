@@ -12,6 +12,7 @@
 ###############################################################################
 
 all:
+	cd libgfs && ${MAKE} all
 	cd gfs_debug && ${MAKE} all
 	cd gfs_edit && ${MAKE} all
 	cd gfs_fsck && ${MAKE} all
@@ -23,6 +24,7 @@ all:
 
 copytobin:
 	cd gfs_debug && ${MAKE} copytobin
+	cd gfs_debug && ${MAKE} copytobin
 	cd gfs_edit && ${MAKE} copytobin
 	cd gfs_fsck && ${MAKE} copytobin
 	cd gfs_grow && ${MAKE} copytobin
@@ -33,6 +35,7 @@ copytobin:
 
 clean:
 	cd bin && ${MAKE} clean
+	cd libgfs && ${MAKE} clean
 	cd gfs_debug && ${MAKE} clean
 	cd gfs_edit && ${MAKE} clean
 	cd gfs_fsck && ${MAKE} clean
