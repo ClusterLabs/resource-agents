@@ -55,16 +55,16 @@ static int do_sysfs(char *name, char *file, char *val)
 
 	fd = open(fname, O_WRONLY);
 	if (fd < 0) {
-		printf("open \"%s\" error %d %d\n", fname, fd, errno);
+		log_error("open \"%s\" error %d %d\n", fname, fd, errno);
 		return -1;
 	}
 
-	printf("write \"%s\" to \"%s\"\n", val, fname);
+	log_debug("write \"%s\" to \"%s\"\n", val, fname);
 
 	len = strlen(val) + 1;
 	rv = write(fd, val, len);
 	if (rv != len) {
-		printf("write %d error %d %d\n", len, rv, errno);
+		log_error("write %d error %d %d\n", len, rv, errno);
 		rv = -1;
 	} else
 		rv = 0;
