@@ -4,7 +4,8 @@
 #		resource under Heartbeat/LinuxHA control
 #
 #
-# Author:	Serge Dubrouski
+# Author:	Serge Dubrouski (sergeyfd@gmail.com)
+# Copyright 2006 Serge Dubrouski <sergeyfd@gmail.com>
 # License:	GNU General Public License (GPL)
 #
 # OCF parameters:
@@ -262,6 +263,14 @@ PGDBA=${OCF_RESKEY_pgdba:-postgres}
 PGDB=${OCF_RESKEY_pgdb:-template1}
 PIDFILE=${PGDATA}/postmaster.pid
 
+case "$1" in
+    methods)    pgsql_methods
+                exit $?;;
+		
+    meta_data)  meta_data
+                exit $OCF_SUCCESS;;
+esac
+
 if [ ! -x $PGCTL ]
 then
     ocf_log err "Can't run $PGCTL"
@@ -294,12 +303,6 @@ case "$1" in
 
     monitor)    pgsql_monitor
                 exit $?;;
-
-    methods)    pgsql_methods
-                exit $?;;
-		
-    meta_data)  meta_data
-                exit $OCF_SUCCESS;;
 esac
 
 usage
