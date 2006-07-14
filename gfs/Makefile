@@ -24,7 +24,6 @@ all:
 
 copytobin:
 	cd gfs_debug && ${MAKE} copytobin
-	cd gfs_debug && ${MAKE} copytobin
 	cd gfs_edit && ${MAKE} copytobin
 	cd gfs_fsck && ${MAKE} copytobin
 	cd gfs_grow && ${MAKE} copytobin
