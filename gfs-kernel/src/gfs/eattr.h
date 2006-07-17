@@ -64,6 +64,21 @@ struct gfs_ea_location {
 	struct gfs_ea_header *el_prev;
 };
 
+static inline unsigned int
+gfs_ea_strlen(struct gfs_ea_header *ea)
+{
+	switch (ea->ea_type) {
+	case GFS_EATYPE_USR:
+		return (5 + (ea->ea_name_len + 1));
+	case GFS_EATYPE_SYS:
+		return (7 + (ea->ea_name_len + 1));
+	case GFS_EATYPE_SECURITY:
+		return (9 + (ea->ea_name_len + 1));
+	default:
+		return (0);
+	}
+}
+
 int gfs_ea_repack(struct gfs_inode *ip);
 
 int gfs_ea_get_i(struct gfs_inode *ip, struct gfs_ea_request *er);

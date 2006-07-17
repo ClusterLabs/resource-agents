@@ -499,7 +499,7 @@ ea_list_i(struct gfs_inode *ip,
 {
 	struct ea_list *ei = (struct ea_list *)private;
 	struct gfs_ea_request *er = ei->ei_er;
-	unsigned int ea_size = GFS_EA_STRLEN(ea);
+	unsigned int ea_size = gfs_ea_strlen(ea);
 
 	if (ea->ea_type == GFS_EATYPE_UNUSED)
 		return 0;
@@ -512,13 +512,27 @@ ea_list_i(struct gfs_inode *ip,
 		if (ei->ei_size + ea_size > er->er_data_len)
 			return -ERANGE;
 
-		if (ea->ea_type == GFS_EATYPE_USR) {
+		switch (ea->ea_type) {
+		case GFS_EATYPE_USR:
 			prefix = "user.";
 			l = 5;
-		} else {
+			break;
+		case GFS_EATYPE_SYS:
 			prefix = "system.";
 			l = 7;
+			break;
+		case GFS_EATYPE_SECURITY:
+			prefix = "security.";
+			l = 9;
+			break;
+		default:
+			prefix = NULL;
+			l = 0;
+			break;
 		}
+
+		if (prefix == NULL || l == 0)
+			return -EIO;
 
 		memcpy(er->er_data + ei->ei_size,
 		       prefix, l);
