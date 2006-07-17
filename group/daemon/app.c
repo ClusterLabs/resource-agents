@@ -1080,7 +1080,7 @@ static int mark_node_started(app_t *a, int nodeid)
 	node_t *node;
 
 	if (!event_state_starting(a))
-		log_debug("mark_node_started: event not starting %d "
+		log_group(a->g, "mark_node_started: event not starting %d "
 			  "from %d", a->current_event->state, nodeid);
 
 	node = find_app_node(a, nodeid);
