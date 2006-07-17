@@ -35,6 +35,8 @@
 #include "libgfs2.h"
 #include "global.h"
 
+/* The following declares are needed because gfs2 can't have  */
+/* dependencies on gfs1:                                      */
 #define RGRP_STUFFED_BLKS(sb) (((sb)->sb_bsize - sizeof(struct gfs2_rgrp)) * GFS2_NBBY)
 #define RGRP_BITMAP_BLKS(sb) (((sb)->sb_bsize - sizeof(struct gfs2_meta_header)) * GFS2_NBBY)
 
@@ -115,6 +117,52 @@ struct gfs1_sb {
 	struct gfs2_inum sb_license_di; /* license inode */
 
 	char sb_reserved[96];
+};
+
+struct gfs1_dinode {
+	struct gfs2_meta_header di_header;
+
+	struct gfs2_inum di_num; /* formal inode # and block address */
+
+	uint32_t di_mode;	/* mode of file */
+	uint32_t di_uid;	/* owner's user id */
+	uint32_t di_gid;	/* owner's group id */
+	uint32_t di_nlink;	/* number (qty) of links to this file */
+	uint64_t di_size;	/* number (qty) of bytes in file */
+	uint64_t di_blocks;	/* number (qty) of blocks in file */
+	int64_t di_atime;	/* time last accessed */
+	int64_t di_mtime;	/* time last modified */
+	int64_t di_ctime;	/* time last changed */
+
+	/*  Non-zero only for character or block device nodes  */
+	uint32_t di_major;	/* device major number */
+	uint32_t di_minor;	/* device minor number */
+
+	/*  Block allocation strategy  */
+	uint64_t di_rgrp;	/* dinode rgrp block number */
+	uint64_t di_goal_rgrp;	/* rgrp to alloc from next */
+	uint32_t di_goal_dblk;	/* data block goal */
+	uint32_t di_goal_mblk;	/* metadata block goal */
+
+	uint32_t di_flags;	/* GFS_DIF_... */
+
+	/*  struct gfs_rindex, struct gfs_jindex, or struct gfs_dirent */
+	uint32_t di_payload_format;  /* GFS_FORMAT_... */
+	uint16_t di_type;	/* GFS_FILE_... type of file */
+	uint16_t di_height;	/* height of metadata (0 == stuffed) */
+	uint32_t di_incarn;	/* incarnation (unused, see gfs_meta_header) */
+	uint16_t di_pad;
+
+	/*  These only apply to directories  */
+	uint16_t di_depth;	/* Number of bits in the table */
+	uint32_t di_entries;	/* The # (qty) of entries in the directory */
+
+	/*  This formed an on-disk chain of unused dinodes  */
+	struct gfs2_inum di_next_unused;  /* used in old versions only */
+
+	uint64_t di_eattr;	/* extended attribute block number */
+
+	char di_reserved[56];
 };
 
 struct inode_block {
@@ -282,10 +330,13 @@ int adjust_inode(struct gfs2_sbd *sbp, struct gfs2_buffer_head *bh)
 	/*       don't want to shift the data around.                  */
 	/* ----------------------------------------------------------- */
 	if (inode_was_gfs1) {
+		struct gfs1_dinode *gfs1_dinode_struct;
+
+		gfs1_dinode_struct = (struct gfs1_dinode *)&inode->i_di;
 		inode->i_di.di_goal_meta = inode->i_di.di_goal_data;
 		inode->i_di.di_goal_data = 0; /* make sure the upper 32b are 0 */
-		inode->i_di.di_goal_data = inode->i_di.__pad[0];
-		inode->i_di.__pad[1] = 0;
+		inode->i_di.di_goal_data = gfs1_dinode_struct->di_goal_dblk;
+		inode->i_di.di_generation = 0;
 	}
 	
 	gfs2_dinode_out(&inode->i_di, bh->b_data);
