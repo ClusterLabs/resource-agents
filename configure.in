@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.536 $) dnl cvs revision
+AC_REVISION($Revision: 1.537 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1708,6 +1708,7 @@ dnl ************ printw **********************
         WARNLIST="all missing-prototypes 
 		missing-declarations 
 		strict-prototypes 
+		declaration-after-statement
 		pointer-arith 
 		write-strings
 		cast-qual cast-align 
