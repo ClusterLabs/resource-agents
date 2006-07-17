@@ -561,7 +561,13 @@ add_interface () {
 		  return $rc
 	      fi
 	  fi
-	  CMD="$IFCONFIG $iface inet $ipaddr $netmask_text up"
+	  # At Solaris 10, this single-command version sometimes broke.
+	  # Almost certainly an S10 bug.
+	  #	CMD="$IFCONFIG $iface inet $ipaddr $netmask_text up"
+	  # So hack the following workaround:
+	  CMD="$IFCONFIG $iface inet $ipaddr"
+	  CMD="$CMD && $IFCONFIG $iface $netmask_text"
+	  CMD="$CMD && $IFCONFIG $iface up"
 	  ;;
       
     *BSD)
@@ -573,11 +579,11 @@ add_interface () {
 	  ;;
   esac
 
-  ocf_log info "$CMD"
-  $CMD
+  ocf_log info "eval $CMD"
+  eval $CMD
   rc=$?
   if [ $rc != 0 ]; then
-      echo "ERROR: $CMD failed (rc=$rc)"
+      echo "ERROR: eval $CMD failed (rc=$rc)"
   fi
 
   return $rc
