@@ -28,11 +28,8 @@
 #include "sys.h"
 #include "super.h"
 
-struct list_head gfs_fs_list;
-struct semaphore gfs_fs_lock;
 char *gfs_sys_margs;
 spinlock_t gfs_sys_margs_lock;
-spinlock_t req_lock;
 
 static ssize_t id_show(struct gfs_sbd *sdp, char *buf)
 {

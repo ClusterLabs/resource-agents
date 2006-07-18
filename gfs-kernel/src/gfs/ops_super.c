@@ -32,11 +32,12 @@
 #include "ops_fstype.h"
 #include "ops_super.h"
 #include "page.h"
-#include "sys.h"
+#include "proc.h"
 #include "quota.h"
 #include "recovery.h"
 #include "rgrp.h"
 #include "super.h"
+#include "sys.h"
 #include "mount.h"
 
 /**
@@ -100,6 +101,8 @@ gfs_put_super(struct super_block *sb)
                 return;
 
 	atomic_inc(&sdp->sd_ops_super);
+
+	gfs_proc_fs_del(sdp);
 
 	/*  Unfreeze the filesystem, if we need to  */
 

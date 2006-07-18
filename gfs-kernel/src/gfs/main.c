@@ -25,6 +25,7 @@
 #include "gfs.h"
 #include "ops_fstype.h"
 #include "sys.h"
+#include "proc.h"
 
 /**
  * init_gfs_fs - Register GFS as a filesystem
@@ -41,6 +42,9 @@ int __init init_gfs_fs(void)
 	error = gfs_sys_init();
 	if (error)
 		return error;
+	error = gfs_proc_init();
+	if (error)
+		goto fail;
 
 	gfs_random_number = xtime.tv_nsec;
 
@@ -94,6 +98,8 @@ int __init init_gfs_fs(void)
 	if (gfs_glock_cachep)
 		kmem_cache_destroy(gfs_glock_cachep);
 
+	gfs_proc_uninit();
+	
  fail:
 	gfs_sys_uninit();
 
@@ -115,6 +121,7 @@ exit_gfs_fs(void)
 	kmem_cache_destroy(gfs_inode_cachep);
 	kmem_cache_destroy(gfs_glock_cachep);
 
+	gfs_proc_uninit();
 	gfs_sys_uninit();
 }
 

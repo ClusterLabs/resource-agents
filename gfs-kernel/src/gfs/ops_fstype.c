@@ -28,11 +28,12 @@
 #include "ops_export.h"
 #include "ops_fstype.h"
 #include "ops_super.h"
-#include "sys.h"
+#include "proc.h"
 #include "quota.h"
 #include "recovery.h"
 #include "rgrp.h"
 #include "super.h"
+#include "sys.h"
 #include "unlinked.h"
 
 #define DO 0
@@ -669,6 +670,7 @@ static int fill_super(struct super_block *sb, void *data, int silent)
 	if (error)
 		goto fail_journal;
 
+	gfs_proc_fs_add(sdp);
 	gfs_glock_dq_uninit(&mount_gh);
 
 	return 0;

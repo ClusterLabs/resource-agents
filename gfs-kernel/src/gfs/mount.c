@@ -21,6 +21,7 @@
 
 #include "gfs.h"
 #include "mount.h"
+#include "proc.h"
 #include "sys.h"
 
 /**
@@ -39,6 +40,15 @@ gfs_make_args(char *data_arg, struct gfs_args *args, int remount)
 	int error = 0;
 
 	/*  If someone preloaded options, use those instead  */
+
+	spin_lock(&gfs_proc_margs_lock);
+	if (gfs_proc_margs) {
+		data = gfs_proc_margs;
+		gfs_proc_margs = NULL;
+	}
+	spin_unlock(&gfs_proc_margs_lock);
+
+	/*  Set some defaults  */
 
 	memset(args, 0, sizeof(struct gfs_args));
 	args->ar_num_glockd = GFS_GLOCKD_DEFAULT;
