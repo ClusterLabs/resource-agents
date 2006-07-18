@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.537 $) dnl cvs revision
+AC_REVISION($Revision: 1.538 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1006,7 +1006,10 @@ AC_CHECK_HEADERS(ucd-snmp/snmp.h,[],[],[#include <sys/types.h>
 #include <ucd-snmp/asn1.h>])
 AC_CHECK_HEADERS(net-snmp/net-snmp-config.h)
 
-if test "x${ac_cv_header_net_snmp_net_snmp_config_h}" = "xyes"; then
+if test "x${enable_snmp_subagent}" = "xno"; then
+   # nothing
+   :
+elif test "x${ac_cv_header_net_snmp_net_snmp_config_h}" = "xyes"; then
 	AC_PATH_PROGS(SNMPCONFIG, net-snmp-config)
 	if test "X${SNMPCONFIG}" = "X"; then
 		AC_MSG_RESULT(You need the net_snmp development package to continue.)
