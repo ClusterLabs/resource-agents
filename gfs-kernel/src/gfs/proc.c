@@ -32,7 +32,7 @@ struct list_head gfs_fs_list;
 struct semaphore gfs_fs_lock;
 char *gfs_proc_margs;
 spinlock_t gfs_proc_margs_lock;
-spinlock_t req_lock;
+spinlock_t gfs_req_lock;
 
 /**
  * gfs_proc_fs_add - Add a FS to the list of mounted FSs
@@ -357,10 +357,10 @@ gfs_proc_write(struct file *file, const char *buf, size_t size, loff_t *offset)
 {
 	char *p;
 
-	spin_lock(&req_lock);
+	spin_lock(&gfs_req_lock);
 	p = file->private_data;
 	file->private_data = NULL;
-	spin_unlock(&req_lock);
+	spin_unlock(&gfs_req_lock);
 
 	if (p)
 		kfree(p);
@@ -378,9 +378,9 @@ gfs_proc_write(struct file *file, const char *buf, size_t size, loff_t *offset)
 		return -EFAULT;
 	}
 
-	spin_lock(&req_lock);
+	spin_lock(&gfs_req_lock);
 	file->private_data = p;
-	spin_unlock(&req_lock);
+	spin_unlock(&gfs_req_lock);
 
 	return size;
 }
@@ -401,10 +401,10 @@ gfs_proc_read(struct file *file, char *buf, size_t size, loff_t *offset)
 	char *p;
 	int error;
 
-	spin_lock(&req_lock);
+	spin_lock(&gfs_req_lock);
 	p = file->private_data;
 	file->private_data = NULL;
-	spin_unlock(&req_lock);
+	spin_unlock(&gfs_req_lock);
 
 	if (!p)
 		return -ENOENT;
@@ -472,7 +472,7 @@ gfs_proc_init(void)
 	init_MUTEX(&gfs_fs_lock);
 	gfs_proc_margs = NULL;
 	spin_lock_init(&gfs_proc_margs_lock);
-	spin_lock_init(&req_lock);
+	spin_lock_init(&gfs_req_lock);
 
 	pde = create_proc_entry("fs/gfs", S_IFREG | 0600, NULL);
 	if (!pde)
