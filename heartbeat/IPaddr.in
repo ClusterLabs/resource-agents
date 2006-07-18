@@ -517,7 +517,7 @@ delete_interface () {
 		fi
 		;;
 	*BSD)
-		CMD="$IFCONFIG $ifname inet $ipaddr -alias"
+		CMD="$IFCONFIG $ifname inet $ipaddr delete"
 		;;
 
 	*)
