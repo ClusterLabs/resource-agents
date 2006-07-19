@@ -1298,7 +1298,7 @@ int recover_current_event(group_t *g)
 	app_t *a = g->app;
 	event_t *ev, *rev;
 	node_t *node;
-	struct nodeid *id;
+	struct nodeid *id, *safe;
 
 	ev = a->current_event;
 	if (!ev)
@@ -1335,7 +1335,7 @@ int recover_current_event(group_t *g)
 		log_group(g, "extend active rev %d with failed node %d",
 			  ev->nodeid, rev->nodeid);
 
-		list_for_each_entry(id, &rev->extended, list) {
+		list_for_each_entry_safe(id, safe, &rev->extended, list) {
 			list_del(&id->list);
 			list_add(&id->list, &ev->extended);
 			log_group(g, "extend active rev %d with failed node %d",
