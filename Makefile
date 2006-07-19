@@ -64,6 +64,7 @@ distclean:
 	cd gnbd-kernel && ${MAKE} distclean
 	cd ccs && ${MAKE} distclean
 	cd cman && ${MAKE} distclean
+	cd group && ${MAKE} distclean
 	cd dlm && ${MAKE} distclean
 	cd fence && ${MAKE} distclean
 	cd gfs && ${MAKE} distclean
