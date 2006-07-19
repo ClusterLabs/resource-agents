@@ -22,10 +22,10 @@ echo "configure gfs-kernel"
 (cd gfs-kernel; ./configure $@ --dlmkincdir=`pwd`/../dlm-kernel/src2)
 
 echo "configure gfs"
-(cd gfs; ./configure $@ --gfskincdir=`pwd`/../gfs-kernel/src/gfs --iddevlibdir=`pwd`/../iddev/lib --iddevincdir=`pwd`/../iddev/lib)
+(cd gfs; ./configure $@ --gfskincdir=`pwd`/../gfs-kernel/src/gfs
 
 echo "configure gfs2"
-(cd gfs2; ./configure $@ --gfs2kincdir=`pwd`/../gfs2-kernel/src/gfs2 --iddevlibdir=`pwd`/../iddev/lib --iddevincdir=`pwd`/../iddev/lib)
+(cd gfs2; ./configure $@ --gfs2kincdir=`pwd`/../gfs2-kernel/src/gfs2
 
 echo "configure gnbd"
 (cd gnbd; ./configure $@ --gnbdkincdir=`pwd`/../gnbd-kernel/src) 
