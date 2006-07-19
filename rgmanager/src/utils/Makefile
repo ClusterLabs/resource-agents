@@ -35,22 +35,22 @@ uninstall:
 	${UNINSTALL} $(TARGETS) ${sbindir}
 
 cluarp: cluarp.o
-	$(CC) -o $@ $^ $(INLUDE) $(CFLAGS) $(LDFLAGS)
+	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS) $(LDFLAGS)
 
 clulog: clulog.o
-	$(CC) -o $@ $^ $(INLUDE) $(CFLAGS) $(LDFLAGS)
+	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS) $(LDFLAGS)
 
 clubufflush: clubufflush.o
-	$(CC) -o $@ $^ $(INLUDE) $(CFLAGS) $(LDFLAGS)
+	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS) $(LDFLAGS)
 
 clufindhostname: clufindhostname.o
-	$(CC) -o $@ $^ $(INLUDE) $(CFLAGS)
+	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS)
 
 clustat: clustat.o
-	$(CC) -o $@ $^ $(INLUDE) $(CFLAGS) $(LDFLAGS)
+	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS) $(LDFLAGS)
 
 clusvcadm: clusvcadm.o
-	$(CC) -o $@ $^ $(INLUDE) $(CFLAGS) $(LDFLAGS)
+	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS) $(LDFLAGS)
 
 clunfslock: clunfslock.sh
 	cp clunfslock.sh clunfslock
