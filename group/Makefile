@@ -31,3 +31,6 @@ install:
 	cd dlm_controld && ${MAKE} install
 	cd gfs_controld && ${MAKE} install
 
+distclean: clean
+	rm -f make/defines.mk
+
