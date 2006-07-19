@@ -31,8 +31,7 @@
 #include <netdb.h>
 #include <limits.h>
 #include <unistd.h>
-
-#include "lock_dlm_plock.h"
+#include <linux/lock_dlm_plock.h>
 
 #include "lock_dlm.h"
 

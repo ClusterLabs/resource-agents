@@ -38,8 +38,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <syslog.h>
-
-#include "netlink.h"
+#include <linux/netlink.h>
 
 #include "list.h"
 #include "libgroup.h"

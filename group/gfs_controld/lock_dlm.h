@@ -30,8 +30,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/errno.h>
-
-#include "netlink.h"
+#include <linux/netlink.h>
 
 #include "list.h"
 #include "linux_endian.h"
