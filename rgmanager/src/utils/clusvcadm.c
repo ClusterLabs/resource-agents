@@ -158,6 +158,9 @@ printf("       %s -e <group> -m <member> Enable <group>"
        " on <member>\n", name);
 printf("       %s -r <group> -m <member> Relocate <group> [to <member>]\n",
 	       name);
+printf("       %s -M <group> -m <member> Migrate <group> [to <member>]\n",
+	       name);
+printf("                                 (e.g. for live migration of Xen VMs)\n");
 printf("       %s -q                     Quiet operation\n", name);
 printf("       %s -R <group>             Restart a group in place.\n",
        name);
@@ -186,7 +189,7 @@ main(int argc, char **argv)
 	SmMessageSt msg;
 	int action = RG_STATUS;
 	int node_specified = 0;
-       	int msgtarget, me, svctarget = 0;
+       	int me, svctarget = 0;
 	char *actionstr = NULL;
 	cluster_member_list_t *membership;
 
@@ -224,6 +227,12 @@ main(int argc, char **argv)
 			action = RG_RELOCATE;
 			svcname = optarg;
 			break;
+		case 'M':
+			/* MIGRATE */
+			actionstr = "trying to migrate";
+			action = RG_MIGRATE;
+			svcname = optarg;
+			break;
 		case 's':
 			/* stop */
 			actionstr = "stopping";
@@ -237,7 +246,6 @@ main(int argc, char **argv)
 			break;
 		case 'm': /* member ... */
 		case 'n': /* node .. same thing */
-
 			strncpy(nodename,optarg,sizeof(nodename));
 			node_specified = 1;
 			break;
@@ -277,15 +285,14 @@ main(int argc, char **argv)
 	me = get_my_nodeid(ch);
 
 	if (node_specified) {
-		msgtarget = memb_name_to_id(membership, nodename);
-		if (msgtarget == 0) {
+		svctarget = memb_name_to_id(membership, nodename);
+		if (svctarget == 0) {
 			fprintf(stderr, "Member %s not in membership list\n",
 				nodename);
 			return 1;
 		}
-		svctarget = msgtarget;
 	} else {
-		msgtarget = me;
+		svctarget = me;
 		/*
 		clu_local_nodename(RG_SERVICE_GROUP, nodename,
 				   sizeof(nodename));
@@ -295,7 +302,7 @@ main(int argc, char **argv)
 	strcpy(nodename,"me");
 	build_message(&msg, action, svcname, svctarget);
 
-	if (action != RG_RELOCATE) {
+	if (action != RG_RELOCATE && action != RG_MIGRATE) {
 		printf("Member %s %s %s", nodename, actionstr, svcname);
 		printf("...");
 		fflush(stdout);
@@ -330,7 +337,7 @@ main(int argc, char **argv)
 	/* Decode */
 	swab_SmMessageSt(&msg);
 	switch (msg.sm_data.d_ret) {
-	case SUCCESS:
+	case RG_ESUCCESS:
 		printf("success\n");
 		break;
 	case RG_EFAIL:

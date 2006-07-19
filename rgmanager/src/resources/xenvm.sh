@@ -181,6 +181,7 @@ meta_data()
 	<!-- Suspend: if available, suspend this resource instead of
 	     doing a full stop. -->
 	<!-- <action name="suspend" timeout="10m"/> -->
+	<action name="migrate" timeout="10m"/>
 
         <action name="meta-data" timeout="5"/>
         <action name="verify-all" timeout="5"/>
@@ -403,6 +404,15 @@ verify_all()
 	fi
 }
 
+
+migrate()
+{
+	declare target=$1
+
+	# XXX TODO; requires working Xen
+	return 1
+}
+
 #
 # A Resource group is abstract, but the OCF RA API doesn't allow for abstract
 # resources, so here it is.
@@ -425,6 +435,10 @@ case $1 in
 		;;
 	status|monitor)
 		status
+		exit $?
+		;;
+	migrate)
+		migrate $2 # Send Xen VM to this node
 		exit $?
 		;;
 	reload)

@@ -52,12 +52,6 @@ store_rule(resource_rule_t **rulelist, resource_rule_t *newrule)
 				newrule->rr_type);
 			return -1;
 		}
-		if (newrule->rr_root && curr->rr_root) {
-			fprintf(stderr, "Error storing %s: root "
-				"resource type %s exists already\n",
-				newrule->rr_type, curr->rr_type);
-			return -1;
-		}
 
 	} while (!list_done(rulelist, curr));
 			
@@ -182,30 +176,6 @@ _get_version(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
 		free(ret);
 	}
 	rr->rr_version = NULL;
-}
-
-
-/**
-   Get and store the root attribute.
-
-   @param doc		Pre-parsed XML document pointer.
-   @param ctx		Pre-allocated XML XPath context pointer.
-   @param base		XPath prefix to search
-   @param rr		Resource rule to store new information in.
- */
-void
-_get_root(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
-	  resource_rule_t *rr)
-{
-	char xpath[256];
-	char *ret = NULL;
-
-	snprintf(xpath, sizeof(xpath), "%s/attributes/@root", base);
-	ret = xpath_get_one(doc, ctx, xpath);
-	if (ret) {
-		rr->rr_root = 1;
-		free(ret);
-	}
 }
 
 
@@ -355,8 +325,6 @@ _get_actions(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
 			free(act);
 		
 	} while (1);
-
-
 }
 
 
@@ -486,10 +454,7 @@ print_resource_rule(resource_rule_t *rr)
 {
 	int x;
 
-	printf("Resource Rules for \"%s\"", rr->rr_type);
-	if (rr->rr_root)
-		printf(" [ROOT]");
-	printf("\n");
+	printf("Resource Rules for \"%s\"\n", rr->rr_type);
 
 	if (rr->rr_version)
 		printf("OCF API Version: %s\n", rr->rr_version);
@@ -550,7 +515,7 @@ actions:
 
 
 children:
-	printf("Recognized child resource types:\n");
+	printf("Explicitly defined child resource types:\n");
 	if (!rr->rr_childtypes) {
 		printf("  - None -\n\n");
 		return;
@@ -917,12 +882,11 @@ load_resource_rulefile(char *filename, resource_rule_t **rules)
 		snprintf(base, sizeof(base),
 			 "/resource-agent[%d]/special[@tag=\"rgmanager\"]",
 			 ruleid);
-		_get_root(doc, ctx, base, rr);
 		_get_maxparents(doc, ctx, base, rr);
 		rr->rr_agent = strdup(filename);
 
 		/*
-		   Second, add the allowable-children fields
+		   Second, add the children fields
 		 */
 		_get_childtypes(doc, ctx, base, rr);
 

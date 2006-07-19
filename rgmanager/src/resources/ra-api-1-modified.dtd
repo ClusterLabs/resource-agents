@@ -42,7 +42,7 @@
 
 <!ELEMENT action EMPTY>
 <!ATTLIST action
-	name	(start|stop|recover|status|monitor|reload|meta-data|verify-all)	#REQUIRED
+	name	(start|stop|recover|status|monitor|reload|meta-data|verify-all|migrate)	#REQUIRED
 	timeout		CDATA	#REQUIRED
 	interval 	CDATA	#IMPLIED
 	start-delay 	CDATA	#IMPLIED

@@ -36,6 +36,7 @@
 #define cn_svccount cn_address.cna_address[0] /* Theses are uint8_t size */
 #define cn_svcexcl  cn_address.cna_address[1]
 
+extern char *res_ops[];
 static int config_version = 0;
 static resource_t *_resources = NULL;
 static resource_rule_t *_rules = NULL;
@@ -61,7 +62,7 @@ struct status_arg {
    @see node_should_start
  */
 int
-node_should_start_safe(uint64_t nodeid, cluster_member_list_t *membership,
+node_should_start_safe(uint32_t nodeid, cluster_member_list_t *membership,
 		       char *rg_name)
 {
 	int ret;
@@ -78,7 +79,7 @@ int
 count_resource_groups(cluster_member_list_t *ml)
 {
 	resource_t *res;
-	char *rgname, *val;
+	char rgname[64], *val;
 	int x;
 	rg_state_t st;
 	struct dlm_lksb lockp;
@@ -92,10 +93,8 @@ count_resource_groups(cluster_member_list_t *ml)
 	pthread_rwlock_rdlock(&resource_lock);
 
 	list_do(&_resources, res) {
-		if (res->r_rule->rr_root == 0)
-			continue;
 
-		rgname = res->r_attrs[0].ra_value;
+		res_build_name(rgname, sizeof(rgname), res);
 
 		if (rg_lock(rgname, &lockp) < 0) {
 			clulog(LOG_ERR, "#XX: Unable to obtain cluster "
@@ -143,14 +142,14 @@ count_resource_groups(cluster_member_list_t *ml)
    - Failover domain (ordering / restricted policy)
    - Exclusive service policy
  */
-uint64_t
-best_target_node(cluster_member_list_t *allowed, uint64_t owner,
+uint32_t
+best_target_node(cluster_member_list_t *allowed, uint32_t owner,
 		 char *rg_name, int lock)
 {
 	int x;
 	int highscore = 1;
 	int score;
-	uint64_t highnode = owner, nodeid;
+	uint32_t highnode = owner, nodeid;
 	char *val;
 	resource_t *res;
 	int exclusive;
@@ -364,7 +363,7 @@ consider_start(resource_node_t *node, char *svcName, rg_state_t *svcStatus,
 
 
 void
-consider_relocate(char *svcName, rg_state_t *svcStatus, uint64_t nodeid,
+consider_relocate(char *svcName, rg_state_t *svcStatus, uint32_t nodeid,
 		  cluster_member_list_t *membership)
 {
 	int a, b;
@@ -409,7 +408,7 @@ consider_relocate(char *svcName, rg_state_t *svcStatus, uint64_t nodeid,
  * @see			node_event
  */
 int
-eval_groups(int local, uint64_t nodeid, int nodeStatus)
+eval_groups(int local, uint32_t nodeid, int nodeStatus)
 {
 	struct dlm_lksb lockp;
 	char svcName[64], *nodeName;
@@ -611,6 +610,56 @@ group_event(char *rg_name, uint32_t state, int owner)
 }
 
 
+/**
+  Tells us if a resource group can be migrated.
+ */
+int
+group_migratory(char *groupname)
+{
+	resource_node_t *rn;
+	resource_t *res;
+	int migrate = 0, x;
+
+	pthread_rwlock_rdlock(&resource_lock);
+
+	res = find_root_by_ref(&_resources, groupname);
+	if (!res) {
+		pthread_rwlock_unlock(&resource_lock);
+		/* Nonexistent or non-TL RG cannot be migrated */
+		return 0;
+	}
+
+	for (x = 0; res->r_rule->rr_actions[x].ra_name; x++) {
+		if (!strcmp(res->r_rule->rr_actions[x].ra_name,
+		    "migrate")) {
+			migrate = 1;
+			break;
+		}
+	}
+
+	if (!migrate) {
+		pthread_rwlock_unlock(&resource_lock);
+		/* resource rule missing 'migrate' command */
+		return 0;
+	}
+
+	list_do(&_tree, rn) {
+		if (rn->rn_resource == res && rn->rn_child) {
+			pthread_rwlock_unlock(&resource_lock);
+			/* TL service w/ children cannot be migrated */
+			return 0;
+		}
+	} while (!list_done(&_tree, rn));
+
+	pthread_rwlock_unlock(&resource_lock);
+
+	/* Ok, we have a migrate option to the resource group,
+	   the resource group has no children, and the resource
+	   group exists.  We're all good */
+	return 1;
+}
+
+
 
 /**
    Perform an operation on a resource group.  That is, walk down the
@@ -674,6 +723,38 @@ group_op(char *groupname, int op)
 		}
 	}
 
+	return ret;
+}
+
+
+int
+group_migrate(char *groupname, int target)
+{
+	resource_t *res;
+	char *tgt_name;
+	int ret = RG_ENOSERVICE;
+	cluster_member_list_t *membership;
+
+	membership = member_list();
+	if (!membership)
+		return RG_EFAIL;
+
+	pthread_rwlock_rdlock(&resource_lock);
+	
+	tgt_name = memb_id_to_name(membership, target);
+	res = find_root_by_ref(&_resources, groupname);
+	if (!res)
+		goto out;
+
+	if (!tgt_name) {
+		ret = RG_EINVAL;
+		goto out;
+	}
+	ret = res_exec(res, res_ops[RG_MIGRATE], tgt_name);
+
+out:
+	pthread_rwlock_unlock(&resource_lock);
+	free_member_list(membership);
 	return ret;
 }
 

@@ -53,6 +53,10 @@
 #define	RS_RECOVER	(7)
 #define RS_CONDSTART	(8)	/** Start if flagged with RF_NEEDSTART */
 #define RS_CONDSTOP	(9)	/** STOP if flagged with RF_NEEDSTOP */
+#define RS_MONITOR	(10)
+#define RS_META_DATA	(11)
+#define RS_VALIDATE	(12)
+#define RS_MIGRATE	(13)
 
 
 #ifndef SHAREDIR
@@ -100,7 +104,7 @@ typedef struct _resource_rule {
 	char *	rr_type;
 	char *	rr_agent;
 	char *	rr_version;	/** agent XML spec version; OCF-ism */
-	int	rr_root;
+	int	rr_flags;
 	int	rr_maxrefs;
 	resource_attr_t *	rr_attrs;
 	resource_child_t *	rr_childtypes;

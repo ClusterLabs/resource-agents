@@ -90,7 +90,7 @@ test_func(int argc, char **argv)
 
 	conf_setconfig(argv[1]);
        	ccsfd = ccs_lock();
-	if (ccsfd == FAIL) {
+	if (ccsfd < 0) {
 		printf("Error parsing %s\n", argv[1]);
 		goto out;
 	}

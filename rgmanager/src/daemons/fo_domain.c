@@ -333,8 +333,10 @@ node_should_start(uint64_t nodeid, cluster_member_list_t *membership,
 	fod_t *fod = NULL;
 	int found = 0;
 	int owned_by_node = 0, started = 0, no_owner = 0;
+#ifndef NO_CCS
 	rg_state_t svc_state;
 	struct dlm_lksb lockp;
+#endif
 
 	ENTER();
 
@@ -408,7 +410,7 @@ node_should_start(uint64_t nodeid, cluster_member_list_t *membership,
 			RETURN(FOD_BEST);
 		}
                 
-		if (get_rg_state(rg_name, &svc_state) == FAIL) {
+		if (get_rg_state(rg_name, &svc_state) == RG_EFAIL) {
                 	/*
 			 * Couldn't get the service state, thats odd
 			 */

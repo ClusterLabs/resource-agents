@@ -20,9 +20,9 @@ CFLAGS+= -g -I${incdir}
 
 CFLAGS+= -g -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
 
-CFLAGS+= -L${libdir} -DPACKAGE_VERSION=\"${RELEASE}\"
+CFLAGS+= -DPACKAGE_VERSION=\"${RELEASE}\"
 
-LDFLAGS+= -L../../../cman/lib -L../../../ccs/lib -lcman -lpthread -ldl -lncurses -L../clulib -lclulib -lccs
+LDFLAGS+= -L${libdir} -L../../../cman/lib -L../../../ccs/lib -lcman -lpthread -ldl -lncurses -L../clulib -lclulib -lccs
 TARGETS=clubufflush clufindhostname clustat clusvcadm clulog clunfslock
 
 all: ${TARGETS}
@@ -44,7 +44,7 @@ clubufflush: clubufflush.o
 	$(CC) -o $@ $^ $(INLUDE) $(CFLAGS) $(LDFLAGS)
 
 clufindhostname: clufindhostname.o
-	$(CC) -o $@ $^ $(INLUDE) $(CFLAGS) $(LDFLAGS)
+	$(CC) -o $@ $^ $(INLUDE) $(CFLAGS)
 
 clustat: clustat.o
 	$(CC) -o $@ $^ $(INLUDE) $(CFLAGS) $(LDFLAGS)

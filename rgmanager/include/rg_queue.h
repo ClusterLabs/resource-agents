@@ -16,9 +16,10 @@ typedef struct _request {
 	uint32_t	rr_request;		/** Request */
 	uint32_t	rr_errorcode;		/** Error condition */
 	uint32_t	rr_orig_request;	/** Original request */
-	uint64_t	rr_target;		/** Target node */
+	uint32_t	rr_target;		/** Target node */
 	uint32_t	rr_arg0;		/** Integer argument */
 	uint32_t	rr_arg1;		/** Integer argument */
+	uint32_t	rr_arg3;		/** Integer argument */
 	uint32_t	rr_line;		/** Line no */
 	msgctx_t *	rr_resp_ctx;		/** FD to send response */
 	char 		*rr_file;		/** Who made req */
@@ -28,7 +29,7 @@ typedef struct _request {
 
 int _rq_queue_request(request_t **queue, char *name, uint32_t request,
     		     uint32_t err, uint32_t oldreq, msgctx_t *ctx, time_t when,
-    		     uint64_t target, uint32_t arg0, uint32_t arg1, char *file,
+    		     uint32_t target, uint32_t arg0, uint32_t arg1, char *file,
 		     int line);
 
 #define rq_queue_request(queue, name, request, err, oldreq,\

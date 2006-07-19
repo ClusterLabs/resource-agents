@@ -48,7 +48,7 @@ static pthread_mutex_t reslist_mutex = PTHREAD_MUTEX_INITIALIZER;
 static resthread_t *find_resthread_byname(const char *resgroupname);
 static int spawn_if_needed(const char *resgroupname);
 int rt_enqueue_request(const char *resgroupname, int request,
-		       msgctx_t *response_ctx, int max, uint64_t target,
+		       msgctx_t *response_ctx, int max, uint32_t target,
 		       int arg0, int arg1);
 
 
@@ -246,6 +246,26 @@ resgroup_thread_main(void *arg)
    						    &newowner);
 			if (error == RG_EFORWARD)
 				ret = RG_NONE;
+			break;
+
+		case RG_MIGRATE:
+			error = svc_migrate(myname, req->rr_target);
+
+			if (error == 0) {
+				ret = RG_SUCCESS;
+
+				pthread_mutex_lock(&my_queue_mutex);
+				purge_status_checks(&my_queue);
+				pthread_mutex_unlock(&my_queue_mutex);
+			} else if (error == RG_EFORWARD) {
+				ret = RG_NONE;
+				break;
+			} else {
+				/*
+				 * Bad news. 
+				 */
+				ret = RG_FAIL;
+			}
 			break;
 
 		case RG_INIT:
@@ -551,7 +571,7 @@ find_resthread_byname(const char *resgroupname)
 int
 rt_enqueue_request(const char *resgroupname, int request, 
 		   msgctx_t *response_ctx,
-   		   int max, uint64_t target, int arg0, int arg1)
+   		   int max, uint32_t target, int arg0, int arg1)
 {
 	request_t *curr;
 	int count = 0, ret;

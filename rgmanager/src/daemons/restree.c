@@ -70,7 +70,8 @@ const char *res_ops[] = {
 	"condstop",
 	"monitor",
 	"meta-data",		/* printenv */
-	"validate-all"
+	"validate-all",
+	"migrate"
 };
 
 
@@ -215,14 +216,13 @@ add_ocf_stuff(resource_t *res, char **env, int depth)
    Allocate and fill an environment variable array.
 
    @param node		Node in resource tree to use for parameters
-   @param op		Operation (start/stop/status/monitor/etc.)
    @param depth		Depth (status/monitor/etc.)
    @return		Newly allocated environment array or NULL if
    			one could not be formed.
    @see			kill_env res_exec add_ocf_stuff
  */
 static char **
-build_env(resource_node_t *node, int op, int depth)
+build_env(resource_node_t *node, int depth)
 {
 	resource_t *res = node->rn_resource;
 	char **env;
@@ -327,7 +327,7 @@ restore_signals(void)
    @see			build_env
  */
 int
-res_exec(resource_node_t *node, int op, int depth)
+res_exec(resource_node_t *node, const char *op, const char *arg, int depth)
 {
 	int childpid, pid;
 	int ret = 0;
@@ -339,7 +339,7 @@ res_exec(resource_node_t *node, int op, int depth)
 		return 0;
 
 #ifdef DEBUG
-	env = build_env(node, op);
+	env = build_env(node, depth);
 	if (!env)
 		return -errno;
 #endif
@@ -360,7 +360,7 @@ res_exec(resource_node_t *node, int op, int depth)
 #endif
 
 #ifndef DEBUG
-		env = build_env(node, op, depth);
+		env = build_env(node, depth);
 #endif
 
 		if (!env)
@@ -375,7 +375,10 @@ res_exec(resource_node_t *node, int op, int depth)
 
 		restore_signals();
 
-		execle(fullpath, fullpath, res_ops[op], NULL, env);
+		if (arg)
+			execle(fullpath, fullpath, op, arg, NULL, env);
+		else
+			execle(fullpath, fullpath, op, NULL, env);
 	}
 
 #ifdef DEBUG
@@ -395,7 +398,7 @@ res_exec(resource_node_t *node, int op, int depth)
 		if (ret) {
 			clulog(LOG_NOTICE,
 			       "%s on %s \"%s\" returned %d (%s)\n",
-			       res_ops[op], res->r_rule->rr_type,
+			       op, res->r_rule->rr_type,
 			       res->r_attrs->ra_value, ret,
 			       ocf_strerror(ret));
 		}
@@ -583,9 +586,6 @@ build_resource_tree(int ccsfd, resource_node_t **tree,
 
 	/* Find and build the list of root nodes */
 	list_do(rulelist, curr) {
-
-		if (!curr->rr_root)
-			continue;
 
 		build_tree(ccsfd, &root, NULL, curr, rulelist, reslist, tok);
 
@@ -847,7 +847,7 @@ do_status(resource_node_t *node)
 		return 0;
 
        node->rn_actions[idx].ra_last = now;
-	if ((x = res_exec(node, RS_STATUS,
+	if ((x = res_exec(node, res_ops[RS_STATUS], NULL,
                          node->rn_actions[idx].ra_depth)) == 0)
 		return 0;
 
@@ -855,7 +855,7 @@ do_status(resource_node_t *node)
 		return x;
 
 	/* Strange/failed status. Try to recover inline. */
-	if ((x = res_exec(node, RS_RECOVER, 0)) == 0)
+	if ((x = res_exec(node, res_ops[RS_RECOVER], NULL, 0)) == 0)
 		return 0;
 
 	return x;
@@ -1005,7 +1005,7 @@ _res_op(resource_node_t **tree, resource_t *first,
 		if (me && (op == RS_START)) {
 			node->rn_flags &= ~RF_NEEDSTART;
 
-			rv = res_exec(node, op, 0);
+			rv = res_exec(node, res_ops[op], NULL, 0);
 			if (rv != 0) {
 				node->rn_state = RES_FAILED;
 				return rv;
@@ -1029,7 +1029,7 @@ _res_op(resource_node_t **tree, resource_t *first,
 		/* Stop/status/etc stops after children have stopped */
 		if (me && (op == RS_STOP)) {
 			node->rn_flags &= ~RF_NEEDSTOP;
-			rv = res_exec(node, op, 0);
+			rv = res_exec(node, res_ops[op], NULL, 0);
 
 			if (rv != 0) {
 				node->rn_state = RES_FAILED;

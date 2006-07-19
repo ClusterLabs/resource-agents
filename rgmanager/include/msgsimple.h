@@ -11,7 +11,7 @@ typedef struct __attribute__ ((packed)) {
     uint32_t gh_command;
     uint32_t gh_arg1;
     uint32_t gh_arg2;
-    /* XXX alignment issue on ia64 */
+    uint32_t gh_arg3;
 } generic_msg_hdr;
 
 #define swab_generic_msg_hdr(ptr)\
@@ -29,9 +29,8 @@ typedef struct __attribute__ ((packed)) {
 	char 		d_svcName[64];
         uint32_t	d_action;
         uint32_t	d_svcState;
-        uint64_t	d_svcOwner;
+        uint32_t	d_svcOwner;
         int32_t		d_ret;
-	uint32_t	d_pad;
     } sm_data;
 } SmMessageSt;
 
@@ -40,7 +39,7 @@ typedef struct __attribute__ ((packed)) {
 	swab_generic_msg_hdr(&((ptr)->sm_hdr));\
 	swab32((ptr)->sm_data.d_action);\
 	swab32((ptr)->sm_data.d_svcState);\
-	swab64((ptr)->sm_data.d_svcOwner);\
+	swab32((ptr)->sm_data.d_svcOwner);\
 	swab32((ptr)->sm_data.d_ret);\
 }
 
