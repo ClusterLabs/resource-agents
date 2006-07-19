@@ -10,7 +10,7 @@ echo "configure cman"
 (cd cman; ./configure $@ --ccsincdir=`pwd`/../ccs/lib --ccslibdir=`pwd`/../ccs/lib)
 
 echo "configure group"
-(cd group; ./configure $@)
+(cd group; ./configure $@ --cmanlibdir=`pwd`/../cman/lib)
 
 echo "configure dlm"
 (cd dlm; ./configure $@)
