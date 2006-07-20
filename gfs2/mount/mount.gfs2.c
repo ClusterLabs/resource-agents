@@ -123,10 +123,10 @@ static int mount_lockproto(char *proto, struct mount_options *mo,
 }
 
 static void umount_lockproto(char *proto, struct mount_options *mo,
-			     struct gen_sb *sb)
+			     struct gen_sb *sb, int mnterr)
 {
 	if (!strcmp(proto, "lock_dlm"))
-		lock_dlm_leave(mo, sb);
+		lock_dlm_leave(mo, sb, mnterr);
 }
 
 int main(int argc, char **argv)
@@ -167,7 +167,7 @@ int main(int argc, char **argv)
 	rv = mount(mo.dev, mo.dir, fsname, mo.flags, mo.extra_plus);
 	if (rv) {
 		if (!(mo.flags & MS_REMOUNT))
-			umount_lockproto(proto, &mo, &sb);
+			umount_lockproto(proto, &mo, &sb, errno);
 
 		block_signals(SIG_UNBLOCK);
 

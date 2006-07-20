@@ -83,7 +83,7 @@ static int umount_lockproto(char *proto, struct mount_options *mo,
 	int rv = 0;
 
 	if (!strcmp(proto, "lock_dlm"))
-		rv = lock_dlm_leave(mo, sb);
+		rv = lock_dlm_leave(mo, sb, 0);
 	return rv;
 }
 

@@ -441,7 +441,7 @@ int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb)
 	return rv;
 }
 
-int lock_dlm_leave(struct mount_options *mo, struct gen_sb *sb)
+int lock_dlm_leave(struct mount_options *mo, struct gen_sb *sb, int mnterr)
 {
 	int i, fd, rv;
 	char buf[MAXLINE];
@@ -462,11 +462,16 @@ int lock_dlm_leave(struct mount_options *mo, struct gen_sb *sb)
 
 	/*
 	 * send request to gfs_controld for it to leave mountgroup:
-	 * "leave <mountpoint> gfs2"
+	 * "leave <mountpoint> <fstype> <mnterr>"
+	 *
+	 * mnterr is 0 if this leave is associated with an unmount.
+	 * mnterr is !0 if this leave is due to a failed kernel mount
+	 * in which case gfs_controld shouldn't wait for the kernel mount
+	 * to complete before doing the leave.
 	 */
 
 	memset(buf, 0, sizeof(buf));
-	rv = snprintf(buf, MAXLINE, "leave %s %s", mo->dir, fsname);
+	rv = snprintf(buf, MAXLINE, "leave %s %s %d", mo->dir, fsname, mnterr);
 	if (rv >= MAXLINE) {
 		warn("lock_dlm_leave: message too long: %d \"%s\"\n", rv, buf);
 		rv = -1;

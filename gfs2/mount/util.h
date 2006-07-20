@@ -87,7 +87,7 @@ void parse_opts(struct mount_options *mo);
 void read_proc_mounts(struct mount_options *mo);
 int get_sb(char *device, struct gen_sb *sb_out);
 int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb);
-int lock_dlm_leave(struct mount_options *mo, struct gen_sb *sb);
+int lock_dlm_leave(struct mount_options *mo, struct gen_sb *sb, int mnterr);
 int lock_dlm_remount(struct mount_options *mo, struct gen_sb *sb);
 
 /* mtab.c */
