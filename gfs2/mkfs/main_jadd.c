@@ -115,7 +115,6 @@ print_usage(void)
 	printf("  -J <MB>           Size of journals\n");
 	printf("  -j <num>          Number of journals\n");
 	printf("  -q                Don't print anything\n");
-	printf("  -T                Test, do everything except update FS\n");
 	printf("  -V                Print program version information, then exit\n");
 }
 
@@ -134,7 +133,7 @@ decode_arguments(int argc, char *argv[], struct gfs2_sbd *sdp)
 	int optchar;
 	
 	while (cont) {
-		optchar = getopt(argc, argv, "c:DhJ:j:qTu:VX");
+		optchar = getopt(argc, argv, "c:DhJ:j:qu:VX");
 		
 		switch (optchar) {
 		case 'c':
@@ -155,9 +154,6 @@ decode_arguments(int argc, char *argv[], struct gfs2_sbd *sdp)
 			break;
 		case 'q':
 			sdp->quiet = TRUE;
-			break;
-		case 'T':
-			sdp->test = TRUE;
 			break;
 		case 'V':
 			printf("gfs2_jadd %s (built %s %s)\n", GFS2_RELEASE_NAME,
@@ -197,7 +193,6 @@ decode_arguments(int argc, char *argv[], struct gfs2_sbd *sdp)
 		printf("  jsize = %u\n", sdp->jsize);
 		printf("  journals = %u\n", sdp->md.journals);
 		printf("  quiet = %d\n", sdp->quiet);
-		printf("  test = %d\n", sdp->test);
 		printf("  path = %s\n", sdp->path_name);
 	}
 }
@@ -227,8 +222,6 @@ print_results(struct gfs2_sbd *sdp)
 	else if (sdp->quiet)
 		return;
 
-	if (sdp->test)
-		printf("Test mode:              on\n");
 	if (sdp->expert)
 		printf("Expert mode:            on\n");
 
@@ -236,8 +229,6 @@ print_results(struct gfs2_sbd *sdp)
 	printf("Old Journals           %u\n", sdp->orig_journals);
 	printf("New Journals           %u\n", sdp->md.journals);
 
-	if (sdp->test)
-		printf("\nThe filesystem was not modified.\n");
 }
 
 int 
@@ -282,14 +273,14 @@ add_ir(struct gfs2_sbd *sdp)
 		memset(&ir, 0, sizeof(struct gfs2_inum_range));
 		do_write(fd, (void*)&ir, sizeof(struct gfs2_inum_range));
 	}
-
+	
 	close(fd);
 	
 	sprintf(new_name, "inum_range%u", sdp->md.journals);
 	error = rename2system(sdp, "per_node", new_name);
 	if (error < 0 && errno != EEXIST)
 		die("can't rename2system %s (%d): %s\n", 
-		    new_name, error, strerror(errno));
+		new_name, error, strerror(errno));
 }
 
 void 
@@ -477,7 +468,7 @@ add_j(struct gfs2_sbd *sdp)
 			lh.lh_blkno = x;
 			gfs2_log_header_out(&lh, buf);
 			hash = gfs2_disk_hash(buf, sizeof(struct gfs2_log_header));
-			((struct gfs2_log_header *)buf)->lh_hash = cpu_to_le32(hash);
+			((struct gfs2_log_header *)buf)->lh_hash = cpu_to_be32(hash);
 
 			do_write(fd, buf, sdp->bsize);
 
@@ -563,8 +554,6 @@ mount_gfs2_meta(struct gfs2_sbd *sdp)
 {
 	int ret;
 	/* mount the meta fs */
-	fprintf(stderr, "mount %s %s %s %d\n", sdp->device_name,
-		meta_mount, "gfs2_meta", 0);
 	if (!dir_exists(meta_mount)) {
 		ret = mkdir(meta_mount, 0700);
 		if (ret)
@@ -663,6 +652,11 @@ main_jadd(int argc, char *argv[])
 	check_for_gfs2(sdp);
 
 	gather_info(sdp);
+	/* umount gfs2 to be able to mount gfs2meta */
+	{
+		close(sdp->path_fd);
+		umount(sdp->path_name);
+	}
 	if (!find_gfs2_meta(sdp))
 		mount_gfs2_meta(sdp);
 	lock_for_admin(sdp);
@@ -681,7 +675,7 @@ main_jadd(int argc, char *argv[])
 	}
 
 	close(metafs_fd);
-	close(sdp->path_fd);
+	//close(sdp->path_fd);
 
 	cleanup(sdp);
 
