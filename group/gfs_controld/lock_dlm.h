@@ -133,6 +133,7 @@ struct mountgroup {
 	int			mount_client_notified;
 	int			mount_client_delay;
 	int			delay_send_journals;
+	int			kernel_mount_error;
 	int			got_kernel_mount;
 	int			first_mounter;
 	int			first_mounter_done;
@@ -235,7 +236,7 @@ void exit_cman(void);
 
 int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 	     char *options);
-int do_unmount(int ci, char *dir);
+int do_unmount(int ci, char *dir, int mnterr);
 int do_remount(int ci, char *dir, char *mode);
 int do_withdraw(char *name);
 int kernel_recovery_done(char *name);

@@ -178,7 +178,7 @@ static int process_client(int ci)
 	if (!strcmp(cmd, "join"))
 		rv = do_mount(ci, dir, type, proto, table, extra);
 	else if (!strcmp(cmd, "leave"))
-		rv = do_unmount(ci, dir);
+		rv = do_unmount(ci, dir, atoi(proto));
 	else if (!strcmp(cmd, "remount"))
 		rv = do_remount(ci, dir, argv[3]);
 	else if (!strcmp(cmd, "dump")) {

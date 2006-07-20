@@ -1447,7 +1447,7 @@ int do_remount(int ci, char *dir, char *mode)
 	return 0;
 }
 
-int do_unmount(int ci, char *dir)
+int do_unmount(int ci, char *dir, int mnterr)
 {
 	struct mountgroup *mg;
 
@@ -1466,11 +1466,17 @@ int do_unmount(int ci, char *dir)
 		return -1;
 	}
 
+	if (mnterr) {
+		log_group(mg, "do_unmount: kernel mount error %d", mnterr);
+		mg->kernel_mount_error = mnterr;
+		goto out;
+	}
+
 	if (mg->withdraw) {
 		log_error("do_unmount: fs on %s is withdrawing", dir);
 		return -1;
 	}
-	
+
 	/* Check to see if we're waiting for a kernel recovery_done to do a
 	   start_done().  If so, call the start_done() here because we won't be
 	   getting anything else from gfs-kernel which is now gone. */
@@ -1479,7 +1485,7 @@ int do_unmount(int ci, char *dir)
 		log_group(mg, "do_unmount: fill in start_done");
 		start_done(mg);
 	}
-
+ out:
 	group_leave(gh, mg->name);
 	return 0;
 }
@@ -1600,9 +1606,22 @@ int do_stop(struct mountgroup *mg)
 		if (mg->got_kernel_mount)
 			break;
 
-		if (mg->mount_client_notified)
-			wait_for_kernel_mount(mg);
-		else {
+		if (mg->mount_client_notified) {
+
+			/* this kernel_mount_error check isn't perfect, we
+			   could still 1) notify mount.gfs, 2) get a stop cb,
+			   3) kernel mount fails, 4) mount.gfs sends a leave
+			   with mnterr, 5) we don't recv it and don't set
+			   kernel_mount_error because we're stuck in
+			   wait_for_kernel_mount() from do_stop */
+
+			if (!mg->kernel_mount_error)
+				wait_for_kernel_mount(mg);
+			else {
+				log_group(mg, "ignore stop, failed mount");
+				break;
+			}
+		} else {
 			mg->mount_client_delay = 1;
 			break;
 		}
