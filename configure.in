@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.538 $) dnl cvs revision
+AC_REVISION($Revision: 1.539 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -382,8 +382,8 @@ fi
 
 AC_SYS_LARGEFILE
 
-AC_CHECK_PROG(HTML2TXT, lynx, lynx)
-AC_CHECK_PROG(POD2MAN, pod2man, pod2man)
+AC_PATH_PROGS(HTML2TXT, lynx, lynx)
+AC_PATH_PROGS(POD2MAN, pod2man, pod2man)
 AC_PATH_PROGS(ROUTE, route)
 AC_PATH_PROGS(RPM, rpmbuild)
 if test x"${RPM}" = x""; then
