@@ -44,7 +44,6 @@ load_modules()
 {
     errmsg=$( /sbin/modprobe configfs 2>&1 ) || return 1
     errmsg=$( /sbin/modprobe dlm 2>&1 ) || return 1
-    errmsg=$( /sbin/modprobe dlm_device 2>&1 ) || return 1
     errmsg=$( /sbin/modprobe lock_dlm 2>&1 ) || return 1
     return 0
 }
@@ -69,6 +68,8 @@ start_ccsd()
     if [ $? -ne 0 ]
     then
 	errmsg=$(/sbin/ccsd $CCSD_OPTS 2>&1)
+	# give ccsd time to start up before we start cman
+	sleep 1
 	return $?
     fi
     return 0
@@ -186,16 +187,16 @@ stop_cman()
 stop_daemons()
 {
     if pid=$(/sbin/pidof gfs_controld 2>&1); then
-	errmsg=$(/usr/bin/kill -9 $pid 2>&1) || return 1
+	errmsg=$(/usr/bin/kill $pid 2>&1) || return 1
     fi
     if pid=$(/sbin/pidof dlm_controld 2>&1); then
-	errmsg=$(/usr/bin/kill -9 $pid 2>&1) || return 1
+	errmsg=$(/usr/bin/kill $pid 2>&1) || return 1
     fi
     if pid=$(/sbin/pidof fenced 2>&1); then
-	errmsg=$(/usr/bin/kill -9 $pid 2>&1) || return 1
+	errmsg=$(/usr/bin/kill $pid 2>&1) || return 1
     fi
     if pid=$(/sbin/pidof groupd 2>&1); then
-	errmsg=$(/usr/bin/kill -9 $pid 2>&1) || return 1
+	errmsg=$(/usr/bin/kill $pid 2>&1) || return 1
     fi
     return 0 # all ok
 }
@@ -213,21 +214,31 @@ stop_fence()
 stop()
 {
     echo -n "Stopping cluster: "
-    stop_fence
-    [ $? -ne 0 ] && return 1
-    stop_daemons
-    [ $? -ne 0 ] && return 1
     if [ $1 ]; then
 	stop_cman $1
     else
 	stop_cman
     fi
     [ $? -ne 0 ] && return 1
+#    stop_daemons
+#    [ $? -ne 0 ] && return 1
+    stop_fence
+#    [ $? -ne 0 ] && return 1
     stop_ccsd
     [ $? -ne 0 ] && return 1
     stop_configfs
     [ $? -ne 0 ] && return 1
     return 0
+}
+
+cmanstatus()
+{
+	errmsg=$( status ccsd 2>&1) || return 1
+	errmsg=$( status groupd 2>&1) || return 1
+	errmsg=$( status fenced 2>&1) || return 1
+	errmsg=$( status dlm_controld 2>&1) || return 1
+	errmsg=$( status gfs_controld 2>&1) || return 1
+	return 0
 }
 
 rtrn=1
@@ -274,8 +285,13 @@ case "$1" in
 	;;
 
     status)
-	/sbin/cman_tool status 2>/dev/null
+	cmanstatus
 	rtrn=$?
+	if [ $rtrn -ne 0 ] ; then
+	    echo $errmsg
+	else
+	    echo "cman is running."
+	fi
 	;;
 
     *)
