@@ -20,9 +20,9 @@ SOURCE= gnbd_export.c $(top_srcdir)/utils/gnbd_utils.c \
 
 INCLUDE= -I$(top_srcdir)/include -I$(top_srcdir)/server \
 	-I$(top_srcdir)/utils -I${top_srcdir}/config \
-	-I${gnbdkincdir} -I${incdir}
+	-I${gnbdkincdir} -I${incdir} -I${cmanincdir}
 
-LDLIBS+= -L${libdir} -lcman -ldl -lpthread
+LDLIBS+= -L${libdir} -L${cmanincdir} -lcman -ldl -lpthread
 
 include ${top_srcdir}/make/defines.mk
 

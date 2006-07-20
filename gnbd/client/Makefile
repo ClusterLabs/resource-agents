@@ -33,7 +33,7 @@ INCLUDE += $(shell if [ -e ${KERNEL_SRC}/include/linux/gnbd.h ]; then \
 		echo '-I${KERNEL_SRC}/include'; fi)
 endif
 
-LDLIBS+= -L${libdir} -L../../group/lib -lcman -lgroup -ldl -lpthread
+LDLIBS+= -L${libdir} -L${cmanincdir} -L../../group/lib -lcman -lgroup -ldl -lpthread
 
 CFLAGS+= -O2 -DGNBD_RELEASE_NAME=\"${RELEASE}\"
 
