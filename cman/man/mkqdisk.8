@@ -1,0 +1,23 @@
+.TH "mkqdisk" "8" "July 2006" "" "Quorum Disk Management"
+.SH "NAME"
+mkqdisk \- Cluster Quorum Disk Utility
+.SH "WARNING"
+Use of this command can cause the cluster to malfunction.
+.SH "SYNOPSIS"
+\fBmkqdisk [\-?|\-h] | [\-L] | [\-f \fPlabel\fB] [\-c \fPdevice \fB -l \fPlabel\fB]
+.SH "DESCRIPTION"
+.PP 
+The \fBmkqdisk\fP command is used to create a new quorum disk or display
+existing quorum disks accessible from a given cluster node.
+.SH "OPTIONS"
+.IP "\-c device \-l label"
+Initialize a new cluster quorum disk.  This will destroy all data on the given
+device.  If a cluster is currently using that device as a quorum disk, the
+entire cluster will malfunction.  Do not ru
+.IP "\-f label"
+Find the cluster quorum disk with the given label and display information about it..
+.IP "\-L"
+Display information on all accessible cluster quorum disks.
+
+.SH "SEE ALSO"
+qdisk(5) qdiskd(8)

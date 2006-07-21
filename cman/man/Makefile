@@ -18,10 +18,10 @@ include ${top_srcdir}/make/defines.mk
 install:
 	install -d ${mandir}/man5
 	install -d ${mandir}/man8
-	install cman.5 ${mandir}/man5
-	install cman_tool.8 ${mandir}/man8
+	install cman.5 qdisk.5 ${mandir}/man5
+	install cman_tool.8 qdiskd.8 mkqdisk.8 ${mandir}/man8
 
 uninstall:
-	${UNINSTALL} cman.5 ${mandir}/man5
-	${UNINSTALL} cman_tool.8 ${mandir}/man8
+	${UNINSTALL} cman.5 qdisk.5 ${mandir}/man5
+	${UNINSTALL} cman_tool.8 qdiskd.8 mkqdisk.8 ${mandir}/man8
 
