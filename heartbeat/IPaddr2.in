@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr2.in,v 1.21 2006/07/04 14:59:48 lars Exp $
+#	$Id: IPaddr2.in,v 1.22 2006/07/21 08:19:54 panjiam Exp $
 #
 #       OCF Resource Agent compliant IPaddr2 script.
 #
@@ -257,7 +257,7 @@ ip_init() {
 	fi
 	
 	if [ ! -x "$IP2UTIL" ]; then
-		ocf_log err "iputils not installed."
+		ocf_log err "$IP2UTIL not found."
 		exit $OCF_ERR_INSTALLED
 	fi
 	
