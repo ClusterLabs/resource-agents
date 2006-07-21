@@ -307,7 +307,8 @@ static void copy_to_usernode(struct cluster_node *node,
 {
 	struct sockaddr_storage ss;
 	int addrlen=0;
-	unsigned int numaddrs;
+	unsigned int numaddrs=1;
+	char **status;
 	struct totem_ip_address node_ifs[num_interfaces];
 
 	strcpy(unode->name, node->name);
@@ -322,7 +323,7 @@ static void copy_to_usernode(struct cluster_node *node,
 
 	/* Just send the first address. If the user wants the full set they
 	   must ask for them */
-	totempg_ifaces_get(node->node_id, node_ifs, &numaddrs);
+	totempg_ifaces_get(node->node_id, node_ifs, &status, &numaddrs);
 
 
 	totemip_totemip_to_sockaddr_convert(&node_ifs[0], 0, &ss, &addrlen);
@@ -1073,6 +1074,7 @@ static int do_cmd_get_node_addrs(char *cmdbuf, char **retbuf, int retsize, int *
 	struct cl_get_node_addrs *addrs = (struct cl_get_node_addrs *)outbuf;
 	struct totem_ip_address node_ifs[num_interfaces];
 	struct cluster_node *node;
+	char **status;
 
 	if (retsize < sizeof(struct cl_node_addrs))
 		return -EINVAL;
@@ -1088,7 +1090,7 @@ static int do_cmd_get_node_addrs(char *cmdbuf, char **retbuf, int retsize, int *
 	if (node->state != NODESTATE_MEMBER)
 		return 0;
 
-	if (totempg_ifaces_get(nodeid, node_ifs, (unsigned int *)&addrs->numaddrs))
+	if (totempg_ifaces_get(nodeid, node_ifs, &status, (unsigned int *)&addrs->numaddrs))
 		return -errno;
 
 	for (i=0; i<addrs->numaddrs; i++) {
@@ -1711,7 +1713,7 @@ void add_ccs_node(char *nodename, int nodeid, int votes, int expected_votes)
 	struct totem_ip_address ipaddr;
 	struct cluster_node *node;
 
-	if (totemip_parse(&ipaddr, nodename))
+	if (totemip_parse(&ipaddr, nodename, 0))
 	{
 		if (!nodeid) {
 			log_msg(LOG_ERR, "Error, can't find IP address and no nodeid for node %s - ignoring it\n", nodename);

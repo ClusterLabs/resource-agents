@@ -301,9 +301,10 @@ int ais_add_ifaddr(char *mcast, char *ifaddr, int portnum)
 							tmp, strlen(tmp)+1);
 
 			/* Save a local copy */
-			ret = totemip_parse(&mcast_addr[num_interfaces], mcast);
+			ret = totemip_parse(&mcast_addr[num_interfaces], mcast, 0);
 			if (!ret)
-				ret = totemip_parse(&ifaddrs[num_interfaces], ifaddr);
+				ret = totemip_parse(&ifaddrs[num_interfaces], ifaddr,
+						    mcast_addr[num_interfaces].family);
 			if (!ret)
 				num_interfaces++;
 			else
