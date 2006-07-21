@@ -78,15 +78,15 @@ start_ccsd()
 start_cman()
 {
     # cman
-    /sbin/cman_tool status &> /dev/null
+    /usr/sbin/cman_tool status &> /dev/null
     if [ $? -ne 0 ]
     then
-	errmsg=$( /sbin/cman_tool -t $CMAN_CLUSTER_TIMEOUT -w join \
+	errmsg=$( /usr/sbin/cman_tool -t $CMAN_CLUSTER_TIMEOUT -w join \
 	    $cman_join_opts 2>&1 ) || return 1
 
 	if [ $CMAN_QUORUM_TIMEOUT -gt 0 ]
 	then
-	    errmsg=$( /sbin/cman_tool -t $CMAN_QUORUM_TIMEOUT \
+	    errmsg=$( /usr/sbin/cman_tool -t $CMAN_QUORUM_TIMEOUT \
 		    -q wait 2>&1 ) || return 1
 	fi
     fi
@@ -175,10 +175,10 @@ stop_ccsd()
 
 stop_cman()
 {
-    /sbin/cman_tool status &> /dev/null
+    /usr/sbin/cman_tool status &> /dev/null
     if [ $? -eq 0 ]
     then
-    errmsg=$( /sbin/cman_tool -t $CMAN_SHUTDOWN_TIMEOUT \
+    errmsg=$( /usr/sbin/cman_tool -t $CMAN_SHUTDOWN_TIMEOUT \
 	    -w leave $1 2>&1 ) || return 1
     fi
     return 0 # all ok
