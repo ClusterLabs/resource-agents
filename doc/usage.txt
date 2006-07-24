@@ -73,7 +73,7 @@ Create /etc/cluster/cluster.conf and copy it to all nodes.
      <clusternode name="node12.mycluster.mycompany.com" votes="1" nodeid="12">
 
   If you already have a cluster.conf file with no nodeids in it, then you can
-  use the 'ccstool addnodeids' command to add them.
+  use the 'ccs_tool addnodeids' command to add them.
 
 Example cluster.conf
 --------------------
