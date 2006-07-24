@@ -16,10 +16,8 @@ UNINSTALL = ${top_srcdir}/scripts/uninstall.pl
 
 SBINPROGS= \
 	mkfs.gfs2 \
-	mount.gfs2 \
 	gfs2_edit \
 	gfs2_convert \
-	umount.gfs2 \
 	gfs2_fsck \
 #	gfs2_quota \
 
@@ -45,6 +43,6 @@ install: all
 
 uninstall:
 	#uninstall the hardlinked program as well
-	${UNINSTALL} ${SBINPROGS} gfs2_convert mkfs.gfs2 gfs2_fsck gfs2_grow gfs2_jadd gfs2_shrink mount.gfs2 umount.gfs2 ${sbindir}
+	${UNINSTALL} ${SBINPROGS} gfs2_convert mkfs.gfs2 gfs2_fsck gfs2_grow gfs2_jadd gfs2_shrink ${sbindir}
 
 

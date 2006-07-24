@@ -12,6 +12,7 @@
 
 top_srcdir=..
 include ${top_srcdir}/make/defines.mk
+UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 TARGET1= mount.gfs2
 TARGET2= umount.gfs2
@@ -62,15 +63,14 @@ mount.gfs2: mount.gfs2.o ondisk1.o ondisk2.o util.o mtab.o
 umount.gfs2: umount.gfs2.o ondisk1.o ondisk2.o util.o mtab.o
 	${CC} ${LDFLAGS} -o $@ $^
 
-install: ${TARGET1} ${TARGET2}
-	install ${TARGET1} ${sbindir}
-	install ${TARGET2} ${sbindir}
+install: mount.gfs2 umount.gfs2
+	install mount.gfs2 ${sbindir}
+	install umount.gfs2 ${sbindir}
 	(cd ${sbindir}; ln -f mount.gfs2 mount.gfs)
 	(cd ${sbindir}; ln -f umount.gfs2 umount.gfs)
 
-copytobin: ${TARGET1} ${TARGET2}
-	cp ${TARGET1} ${top_srcdir}/bin
-	cp ${TARGET2} ${top_srcdir}/bin
+uninstall:
+	${UNINSTALL} mount.gfs2 umount.gfs2 mount.gfs umount.gfs ${sbindir}
 
 clean:
 	rm -f *.o ${TARGET1} ${TARGET2}

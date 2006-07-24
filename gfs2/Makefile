@@ -35,7 +35,6 @@ copytobin:
 	${MAKE} -C edit copytobin
 	${MAKE} -C fsck copytobin
 	${MAKE} -C mkfs copytobin
-	${MAKE} -C mount copytobin
 	${MAKE} -C quota copytobin
 	${MAKE} -C tool copytobin
 
@@ -54,11 +53,13 @@ distclean: clean
 	rm -f make/defines.mk
 
 install:
+	${MAKE} -C mount install
 	${MAKE} -C bin install
 	${MAKE} -C man install
 	${MAKE} -C init.d install
 
 deinstall uninstall:
+	${MAKE} -C mount uninstall
 	${MAKE} -C bin uninstall
 	${MAKE} -C man uninstall
 	${MAKE} -C init.d uninstall
