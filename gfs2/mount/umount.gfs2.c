@@ -32,6 +32,7 @@ static void read_options(int argc, char **argv, struct mount_options *mo)
 {
 	int cont = 1;
 	int optchar;
+	int l;
 
 	/* FIXME: check for "quiet" option and don't print in that case */
 
@@ -65,8 +66,12 @@ static void read_options(int argc, char **argv, struct mount_options *mo)
 		}
 	}
 
-	if (optind < argc && argv[optind])
+	if (optind < argc && argv[optind]) {
 		strncpy(mo->dir, argv[optind], PATH_MAX);
+		l = strlen(mo->dir);
+		if (mo->dir[l-1] == '/')
+			mo->dir[l-1] = 0;
+	}
 
 	log_debug("umount %s", mo->dir);
 }
