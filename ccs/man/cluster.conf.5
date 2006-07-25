@@ -84,7 +84,7 @@ section may look as follows:
       <fence>
         <!-- "power" method is tried before all others -->
         <method name="power">
-          <device name="apc" port="1:1"/>
+          <device name="apc" switch="1" port="1"/>
         </method>
         <!-- If the "power" method fails,
              try fencing through the "fabric" -->
@@ -110,7 +110,7 @@ might look like:
       <fence>
         <!-- "power" method is tried before all others -->
         <method name="power">
-          <device name="apc" port="1:1"/>
+          <device name="apc" switch="1" port="1"/>
         </method>
         <!-- If the "power" method fails,
              try fencing through the "fabric" -->
@@ -128,7 +128,7 @@ might look like:
       <fence>
         <!-- "power" method is tried before all others -->
         <method name="power">
-          <device name="apc" port="1:2"/>
+          <device name="apc" switch="1" port="2"/>
         </method>
         <!-- If the "power" method fails,
              try fencing through the "fabric" -->
@@ -147,7 +147,7 @@ might look like:
         <!-- "power" method is tried before all others -->
         <method name="power">
           <!-- This machine has 2 power supplies -->
-          <device name="apc" port="2:1"/>
+          <device name="apc" switch="2" port="1"/>
           <device name="wti" port="1"/>
         </method>
         <!-- If the "power" method fails,
