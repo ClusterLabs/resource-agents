@@ -283,6 +283,24 @@ static void client_init(void)
 		client[i].fd = -1;
 }
 
+static int do_dump(int ci)
+{
+	int rv, len;
+
+	if (dump_wrap) {
+		len = DUMP_SIZE - dump_point;
+		rv = write(client[ci].fd, dump_buf + dump_point, len);
+		if (rv != len)
+			log_debug("write error %d errno %d", rv, errno);
+	}
+	len = dump_point;
+
+	rv = write(client[ci].fd, dump_buf, len);
+	if (rv != len)
+		log_debug("write error %d errno %d", rv, errno);
+	return 0;
+}
+
 static int client_process(int ci)
 {
 	char buf[MAXLINE], *argv[MAXARGS], *cmd, *name, out[MAXLINE];
@@ -312,15 +330,16 @@ static int client_process(int ci)
 		rv = do_join(name);
 	else if (!strcmp(cmd, "leave"))
 		rv = do_leave(name);
-	else
+	else if (!strcmp(cmd, "dump")) {
+		do_dump(ci);
+		return 0;
+	} else
 		rv = -EINVAL;
 
 	sprintf(out, "%d", rv);
 	rv = write(client[ci].fd, out, MAXLINE);
 
-	/* monitor: set var to cause log_debug messages to be
-	   sent down client socket
-           exit: cause fenced loop to exit */
+	/* exit: cause fenced loop to exit */
 
 	return rv;
 }
@@ -511,7 +530,7 @@ static void decode_arguments(int argc, char **argv, commandline_t *comline)
 			break;
 
 		case 'D':
-			fenced_debug_opt = TRUE;
+			daemon_debug_opt = TRUE;
 			break;
 
 		case 'h':
@@ -558,7 +577,7 @@ int main(int argc, char **argv)
 	INIT_LIST_HEAD(&domains);
 	client_init();
 
-	if (!fenced_debug_opt) {
+	if (!daemon_debug_opt) {
 		pid_t pid = fork();
 		if (pid < 0) {
 			perror("main: cannot fork");
@@ -584,7 +603,26 @@ int main(int argc, char **argv)
 	return error;
 }
 
+void daemon_dump_save(void)
+{
+	int len, i;
+
+	len = strlen(daemon_debug_buf);
+
+	for (i = 0; i < len; i++) {
+		dump_buf[dump_point++] = daemon_debug_buf[i];
+
+		if (dump_point == DUMP_SIZE) {
+			dump_point = 0;
+			dump_wrap = 1;
+		}
+	}
+}
+
 char *prog_name;
-int fenced_debug_opt;
-char fenced_debug_buf[256];
+int daemon_debug_opt;
+char daemon_debug_buf[256];
+char dump_buf[DUMP_SIZE];
+int dump_point;
+int dump_wrap;
 

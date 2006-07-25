@@ -87,7 +87,7 @@ static void statechange(void)
 
 	rv = cman_get_nodes(ch, MAX_NODES, &cman_node_count, cman_nodes);
 	if (rv < 0)
-		log_print("cman_get_nodes error %d %d", rv, errno);
+		log_error("cman_get_nodes error %d %d", rv, errno);
 }
 
 static void process_cman_callback(void)

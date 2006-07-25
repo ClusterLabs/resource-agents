@@ -42,22 +42,27 @@
 #include "list.h"
 #include "libgroup.h"
 
-extern char			*prog_name;
-extern int			fenced_debug_opt;
-extern char			fenced_debug_buf[256];
-
 #define MAX_NODENAME_LEN	255   /* should match libcman.h */
 #define MAX_GROUPNAME_LEN	32    /* should match libgroup.h */
 #define MAX_NODES		256
 #define MAXARGS                 100  /* FIXME */
 #define MAXLINE                 256
 #define MAX_CLIENTS		5
+#define DUMP_SIZE               (1024 * 1024)
 
 #define DEFAULT_POST_JOIN_DELAY	6
 #define DEFAULT_POST_FAIL_DELAY	0
 #define DEFAULT_CLEAN_START	0
 #define FENCED_SOCK_PATH	"fenced_socket"
 
+extern char			*prog_name;
+extern int			daemon_debug_opt;
+extern char			daemon_debug_buf[256];
+extern char dump_buf[DUMP_SIZE];
+extern int dump_point;
+extern int dump_wrap;
+
+extern void daemon_dump_save(void);
 
 /* use this one before we fork into the background */
 #define die1(fmt, args...) \
@@ -100,16 +105,11 @@ for (;;) \
   sleep(1); \
 }
 
-#define log_print(fmt, args...) \
-do { \
-	snprintf(fenced_debug_buf, 255, "%ld " fmt "\n", time(NULL), ##args); \
-	if (fenced_debug_opt) fprintf(stderr, "%s", fenced_debug_buf); \
-} while (0)
-
-/* FIXME: send down debug client connection */
 #define log_debug(fmt, args...) \
 do { \
-	log_print(fmt, ##args); \
+	snprintf(daemon_debug_buf, 255, "%ld " fmt "\n", time(NULL), ##args); \
+	if (daemon_debug_opt) fprintf(stderr, "%s", daemon_debug_buf); \
+	daemon_dump_save(); \
 } while (0)
 
 #define log_error(fmt, args...) \
