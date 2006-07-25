@@ -32,8 +32,11 @@
 /* copied from cluster/group/gfs_controld/lock_dlm.h */
 #define LOCK_DLM_SOCK_PATH		"gfs_controld_sock"
 
+/* copied from cluster/fence/fenced/fd.h */
+#define FENCED_SOCK_PATH		"fenced_socket"
+
 /* needs to match the same in cluster/group/daemon/gd_internal.h and
-   cluster/group/gfs_controld/lock_dlm.h */
+   cluster/group/gfs_controld/lock_dlm.h and cluster/fence/fenced/fd.h */
 #define DUMP_SIZE			(1024 * 1024)
 
 /* needs to match the same in cluster/group/gfs_controld/lock_dlm.h,
@@ -329,7 +332,7 @@ int do_dump(int argc, char **argv, int fd)
 	return 0;
 }
 
-int do_gfsdump(int argc, char **argv, int fd)
+int do_maxline_dump(int argc, char **argv, int fd)
 {
 	char inbuf[DUMP_SIZE];
 	char outbuf[MAXLINE];
@@ -373,7 +376,14 @@ int main(int argc, char **argv)
 				fd = connect_daemon(LOCK_DLM_SOCK_PATH);
 				if (fd < 0)
 					return -1;
-				return do_gfsdump(argc, argv, fd);
+				return do_maxline_dump(argc, argv, fd);
+			}
+
+			if (!strncmp(argv[opt_ind], "fence", 5)) {
+				fd = connect_daemon(FENCED_SOCK_PATH);
+				if (fd < 0)
+					return -1;
+				return do_maxline_dump(argc, argv, fd);
 			}
 		}
 
