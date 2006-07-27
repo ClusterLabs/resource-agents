@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: Dummy.in,v 1.4 2006/03/10 04:14:20 xunsun Exp $
+#	$Id: Dummy.in,v 1.5 2006/07/27 09:19:36 andrew Exp $
 #
 #	Dummy OCF RA. Does nothing but wait a few seconds, can be
 #	configured to fail occassionally.
@@ -100,41 +100,58 @@ dummy_exit() {
 	if [ -e /tmp/Dummy.$__OCF_ACTION ]; then
 		exit $OCF_ERR_GENERIC
 	else
-		exit $OCF_SUCCESS
+		exit $1
 	fi
 }
 
 dummy_start() {
 	sleep $OCF_RESKEY_start_delay
+	if [ -f ${OCF_RESKEY_state} ]; then
+	    return 0
+	fi
+	touch ${OCF_RESKEY_state}
 }
 
 dummy_stop() {
 	sleep $OCF_RESKEY_stop_delay
+	if [ -f ${OCF_RESKEY_state} ]; then
+	    rm ${OCF_RESKEY_state}
+	fi
+	return 0
 }
 
 dummy_monitor() {
 	sleep $OCF_RESKEY_monitor_delay
+	if [ -f ${OCF_RESKEY_state} ]; then
+	    return 0
+	fi
+	return 7
 }
 
 dummy_validate() {
 	exit $OC_ERR_UNIMPLEMENTED
 }
 
+: ${OCF_RESKEY_start_delay=10}
+: ${OCF_RESKEY_stop_delay=$OCF_RESKEY_start_delay}
+: ${OCF_RESKEY_monitor_delay=$OCF_RESKEY_start_delay}
+: ${OCF_RESKEY_state=@localstatedir@/run/@HB_PKG@/rsctmp/Dummy-${OCF_RESOURCE_INSTANCE}.state}
+
 case $__OCF_ACTION in
 meta-data)	meta_data
 		exit $OCF_SUCCESS
 		;;
 start)		dummy_start
-		dummy_exit
+		dummy_exit $?
 		;;
 stop)		dummy_stop
-		dummy_exit
+		dummy_exit $?
 		;;
 monitor)	dummy_monitor
-		dummy_exit
+		dummy_exit $?
 		;;
 validate-all)	dummy_validate
-		dummy_exit
+		dummy_exit $?
 		;;
 usage|help)	dummy_usage
 		exit $OCF_SUCCESS
