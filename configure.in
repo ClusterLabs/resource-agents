@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.539 $) dnl cvs revision
+AC_REVISION($Revision: 1.540 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1000,13 +1000,18 @@ dnl
 SNMPLIB=""
 SNMPAGENTLIB=""
 SNMPCONFIG=""
+
 ENABLE_SNMP="yes"
+if test "x${enable_snmp}" = "xno"; then
+   ENABLE_SNMP="no"
+   enable_snmp_subagent="no"
+fi
 
 AC_CHECK_HEADERS(ucd-snmp/snmp.h,[],[],[#include <sys/types.h>
 #include <ucd-snmp/asn1.h>])
 AC_CHECK_HEADERS(net-snmp/net-snmp-config.h)
 
-if test "x${enable_snmp_subagent}" = "xno"; then
+if test "x${ENABLE_SNMP}" = "xno"; then
    # nothing
    :
 elif test "x${ac_cv_header_net_snmp_net_snmp_config_h}" = "xyes"; then
@@ -1513,6 +1518,10 @@ AM_CONDITIONAL(LDIRECTORD_BUILD, test "X$enable_ldirectord" = "Xyes")
 AC_ARG_ENABLE([thread-safe],
 [  --enable-thread-safe Enable some client libraries to be thread safe.
                           [default=no]])
+
+AC_ARG_ENABLE([snmp],
+[  --enable-snmp Enable building of SNMP related functionality.
+                          [default=yes]])
 
 
 CC_WARNINGS=""
