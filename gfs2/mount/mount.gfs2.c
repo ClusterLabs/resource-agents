@@ -30,6 +30,7 @@ static void block_signals(int how)
 	sigfillset(&sigs);
 	sigdelset(&sigs, SIGTRAP);
 	sigdelset(&sigs, SIGSEGV);
+	sigdelset(&sigs, SIGINT);
 	sigprocmask(how, &sigs, (sigset_t *) 0);
 }
 
@@ -83,9 +84,11 @@ static void read_options(int argc, char **argv, struct mount_options *mo)
 
 	if (optind < argc && argv[optind]) {
 		strncpy(mo->dir, argv[optind], PATH_MAX);
-		l = strlen(mo->dir);
-		if (mo->dir[l-1] == '/')
-			mo->dir[l-1] = 0;
+		l = strlen(mo->dir) - 1;
+		while (l > 0 && mo->dir[l] == '/') {
+			mo->dir[l] = '\0';
+			l--;
+		};
 	}
 
 	log_debug("mount %s %s", mo->dev, mo->dir);
