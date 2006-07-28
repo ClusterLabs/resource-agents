@@ -193,6 +193,10 @@ int is_member(char *name)
 {
 	cman_node_t *cn;
 
+	/* Note: in fence delay loop we aren't processing callbacks so won't
+	   have done a statechange() in response to a cman callback */
+	statechange();
+
 	cn = find_cluster_node_name(name);
 	if (cn && cn->cn_member) {
 		if (in_groupd_cpg(cn->cn_nodeid))
