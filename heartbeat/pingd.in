@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: pingd.in,v 1.2 2006/06/13 06:50:21 andrew Exp $
+#	$Id: pingd.in,v 1.3 2006/07/29 20:28:21 andrew Exp $
 #
 #	pingd OCF RA. Does nothing but wait a few seconds, can be
 #	configured to fail occassionally.
@@ -119,6 +119,8 @@ The list of ping nodes to count.  Defaults to all configured ping nodes.  Rarely
 <shortdesc lang="en">Host list</shortdesc>
 <content type="integer" default=""/>
 </parameter>
+
+</parameters>
 
 <actions>
 <action name="start"   timeout="90" />
