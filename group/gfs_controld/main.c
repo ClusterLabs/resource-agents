@@ -125,7 +125,7 @@ int client_send(int ci, char *buf, int len)
 	return write(client[ci].fd, buf, len);
 }
 
-static int do_dump(int ci)
+static int dump_debug(int ci)
 {
 	int rv, len;
 
@@ -182,7 +182,11 @@ static int process_client(int ci)
 	else if (!strcmp(cmd, "remount"))
 		rv = do_remount(ci, dir, argv[3]);
 	else if (!strcmp(cmd, "dump")) {
-		do_dump(ci);
+		dump_debug(ci);
+		return 0;
+	} else if (!strcmp(cmd, "plocks")) {
+		dump_plocks(dir, client[ci].fd);
+		client_dead(ci);
 		return 0;
 	} else
 		rv = -EINVAL;

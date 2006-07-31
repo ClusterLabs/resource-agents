@@ -602,6 +602,7 @@ int assign_journal(struct mountgroup *mg, struct mg_member *new)
 	   so the second node won't mount the fs until omm. */
 
 	if (mg->low_finished_nodeid == our_nodeid) {
+		store_plocks(mg);
 		if (mg->first_mounter && !mg->first_mounter_done) {
 			log_group(mg, "delay sending journals to %d",
 				  new->nodeid);
@@ -1781,6 +1782,9 @@ void start_participant_init_2(struct mountgroup *mg)
 		mg->first_mounter = 1;
 		mg->first_mounter_done = 0;
 	}
+
+	retrieve_plocks(mg);
+	/* process_saved_plocks(mg); */
  out:
 	notify_mount_client(mg);
 }

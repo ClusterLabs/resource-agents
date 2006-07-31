@@ -38,7 +38,7 @@ gfs_controld: 	main.o \
 		plock.o \
 		recover.o \
 		../lib/libgroup.a
-	$(CC) $(LDFLAGS) -o $@ $^ -lcman -lcpg 
+	$(CC) $(LDFLAGS) -o $@ $^ -lcman -lcpg -lSaCkpt
 
 
 main.o: main.c

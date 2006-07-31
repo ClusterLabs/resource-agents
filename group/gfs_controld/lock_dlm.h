@@ -141,6 +141,10 @@ struct mountgroup {
 	int			wait_first_done;
 	int			low_finished_nodeid;
 
+	uint64_t		cp_handle;
+	time_t			last_checkpoint_time;
+	time_t			last_plock_time;
+
 	int			needs_recovery;
 	int			our_jid;
 	int			spectator;
@@ -245,5 +249,9 @@ void ping_kernel_mount(char *table);
 int client_send(int ci, char *buf, int len);
 
 int send_group_message(struct mountgroup *mg, int len, char *buf);
+
+void store_plocks(struct mountgroup *mg);
+void retrieve_plocks(struct mountgroup *mg);
+int dump_plocks(char *name, int fd);
 
 #endif

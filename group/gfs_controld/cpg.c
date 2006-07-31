@@ -38,8 +38,11 @@ static void do_deliver(int nodeid, char *data, int len)
 	hd = (struct gdlm_header *) data;
 
 	mg = find_mg(hd->name);
-	if (!mg)
+	if (!mg) {
+		log_error("cpg message from %d len %d no group %s",
+			  nodeid, len, hd->name);
 		return;
+	}
 
 	hd->version[0]	= le16_to_cpu(hd->version[0]);
 	hd->version[1]	= le16_to_cpu(hd->version[1]);
@@ -152,8 +155,10 @@ int setup_cpg(void)
 	}
 
 	cpg_fd_get(daemon_handle, &fd);
-	if (fd < 0)
+	if (fd < 0) {
+		log_error("cpg_fd_get error %d", error);
 		return -1;
+	}
 
 	memset(&daemon_name, 0, sizeof(daemon_name));
 	strcpy(daemon_name.value, "gfs_controld");
@@ -187,14 +192,16 @@ static int _send_message(cpg_handle_t h, void *buf, int len)
 
  retry:
 	error = cpg_mcast_joined(h, CPG_TYPE_AGREED, &iov, 1);
-	if (error != CPG_OK)
-		log_error("cpg_mcast_joined error %d handle %llx", error, h);
 	if (error == CPG_ERR_TRY_AGAIN) {
-		/* FIXME: backoff say .25 sec, .5 sec, .75 sec, 1 sec */
+		log_debug("cpg_mcast_joined error %d", error);
 		retries++;
 		if (retries > 3)
 			sleep(1);
 		goto retry;
+	}
+	if (error != CPG_OK) {
+		log_error("cpg_mcast_joined error %d handle %llx", error, h);
+		return -1;
 	}
 
 	return 0;
