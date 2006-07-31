@@ -359,6 +359,39 @@ int do_maxline_dump(int argc, char **argv, int fd)
 	return 0;
 }
 
+int do_plock_dump(int argc, char **argv, int fd)
+{
+	char inbuf[MAXLINE];
+	char outbuf[MAXLINE];
+	int rv;
+
+	memset(outbuf, 0, sizeof(outbuf));
+
+	if (opt_ind + 1 >= argc) {
+		printf("plocks option requires a group name\n");
+		return -1;
+	}
+
+	sprintf(outbuf, "plocks %s", argv[opt_ind + 1]);
+
+	rv = write(fd, outbuf, sizeof(outbuf));
+	if (rv != sizeof(outbuf)) {
+		printf("dump write error %d errno %d\n", rv, errno);;
+		return -1;
+	}
+
+	while (1) {
+		memset(&inbuf, 0, sizeof(inbuf));
+		rv = read(fd, inbuf, sizeof(inbuf));
+		if (rv <= 0)
+			break;
+		write(STDOUT_FILENO, inbuf, rv);
+	}
+
+	close(fd);
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	int fd;
@@ -384,6 +417,13 @@ int main(int argc, char **argv)
 				if (fd < 0)
 					return -1;
 				return do_maxline_dump(argc, argv, fd);
+			}
+
+			if (!strncmp(argv[opt_ind], "plocks", 5)) {
+				fd = connect_daemon(LOCK_DLM_SOCK_PATH);
+				if (fd < 0)
+					return -1;
+				return do_plock_dump(argc, argv, fd);
 			}
 		}
 
