@@ -23,6 +23,8 @@ Compile kernel with GFS2, DLM, configfs, IPV6 and SCTP.
 
 Build and install the latest openais development tarball from
   http://developer.osdl.org/dev/openais/
+  useradd -u 39 ais
+  cd branches/whitetank
   make; make install DESTDIR=/
 
 Build and install the latest libvolume_id from the udev tarball
@@ -42,6 +44,8 @@ updated yet, so just build the minimum bits shown here.
         cd cluster/group;               make; make install
         cd cluster/fence;               make; make install
         cd cluster/gfs2;                make; make install
+        cd cluster/gfs-kernel;          make; make install
+        cd cluster/gfs;                 make; make install
 
 To build LVM2 & clvm:
 
