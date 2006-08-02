@@ -191,7 +191,9 @@ gfs_iget(struct gfs_inode *ip, int create)
 	if (ip->i_di.di_type == GFS_FILE_REG) {
 		tmp->i_op = &gfs_file_iops;
 		tmp->i_fop = &gfs_file_fops;
-		tmp->i_mapping->a_ops = &gfs_file_aops;
+		memcpy(&ip->gfs_file_aops, &gfs_file_aops,
+			   sizeof(struct address_space_operations));
+		tmp->i_mapping->a_ops = &ip->gfs_file_aops;
 	} else if (ip->i_di.di_type == GFS_FILE_DIR) {
 		tmp->i_op = &gfs_dir_iops;
 		tmp->i_fop = &gfs_dir_fops;

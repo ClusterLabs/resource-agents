@@ -327,7 +327,7 @@ gfs_prepare_write(struct file *file, struct page *page,
 	/* it's okay to do buffered writes without locking through sendfile. */
 	/* This is a kludge to get around the problem with loop.c because    */
 	/* the upstream community rejected my changes to loop.c.             */
-	gfs_file_aops.commit_write = gfs_commit_write;
+	ip->gfs_file_aops.commit_write = gfs_commit_write;
 
 	if (gfs_assert_warn(sdp, gfs_glock_is_locked_by_me(ip->i_gl)))
 		return -ENOSYS;
@@ -397,6 +397,7 @@ gfs_commit_write(struct file *file, struct page *page,
 			goto fail;
 	}
 
+	ip->gfs_file_aops.commit_write = NULL;
 	return 0;
 
  fail:

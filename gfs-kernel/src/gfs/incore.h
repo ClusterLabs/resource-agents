@@ -617,6 +617,7 @@ struct gfs_inode {
 
 	unsigned int i_greedy; /* The amount of time to be greedy */
 	unsigned long i_last_pfault; /* The time of the last page fault */
+	struct address_space_operations gfs_file_aops;
 };
 
 /*
