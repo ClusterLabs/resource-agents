@@ -25,7 +25,7 @@ echo "configure gfs"
 (cd gfs; ./configure $@ --gfskincdir=`pwd`/../gfs-kernel/src/gfs)
 
 echo "configure gfs2"
-(cd gfs2; ./configure $@ --gfs2kincdir=`pwd`/../gfs2-kernel/src/gfs2)
+(cd gfs2; ./configure $@)
 
 echo "configure gnbd"
 (cd gnbd; ./configure $@ --gnbdkincdir=`pwd`/../gnbd-kernel/src --cmanincdir=`pwd`/../cman/lib)
