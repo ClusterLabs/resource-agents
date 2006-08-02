@@ -840,7 +840,7 @@ stat_gfs_async(struct gfs_sbd *sdp, struct gfs_stat_gfs *sg, int interruptible)
 
 	memset(sg, 0, sizeof(struct gfs_stat_gfs));
 
-	gha = kmalloc(slots * sizeof(struct gfs_holder), GFP_KERNEL);
+	gha = vmalloc(slots * sizeof(struct gfs_holder));
 	if (!gha)
 		return -ENOMEM;
 	memset(gha, 0, slots * sizeof(struct gfs_holder));
@@ -884,7 +884,7 @@ stat_gfs_async(struct gfs_sbd *sdp, struct gfs_stat_gfs *sg, int interruptible)
 		yield();
 	}
 
-	kfree(gha);
+	vfree(gha);
 
 	return error;
 }
