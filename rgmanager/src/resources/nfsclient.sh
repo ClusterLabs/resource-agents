@@ -316,9 +316,9 @@ status|monitor)
         # * Exports with RegExp metacharacters need to be escaped. 
         #   These metacharacters are: * ? . 
         # 
-	export OCF_RESKEY_target_regexp=$(echo $OCF_RESKEY_target | \ 
+	export OCF_RESKEY_target_regexp=$(echo $OCF_RESKEY_target | \
 		sed -e 's/*/[*]/g' -e 's/?/[?]/g' -e 's/\./\\./g') 
-        exportfs -v | tr -d "\n" | sed -e 's/([^)]*)/\n/g' | grep -q \ 
+        exportfs -v | tr -d "\n" | sed -e 's/([^)]*)/\n/g' | grep -q \
 		"^${OCF_RESKEY_path}[\t ]*.*${OCF_RESKEY_target_regexp}" 
 	rv=$? 
 	;;
