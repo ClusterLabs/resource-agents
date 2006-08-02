@@ -140,6 +140,7 @@ struct mountgroup {
 	int			emulate_first_mounter;
 	int			wait_first_done;
 	int			low_finished_nodeid;
+	int			save_plocks;
 
 	uint64_t		cp_handle;
 	time_t			last_checkpoint_time;
@@ -224,6 +225,13 @@ struct gdlm_header {
 	char			name[MAXNAME];
 };
 
+struct save_msg {
+	struct list_head list;
+	int nodeid;
+	int len;
+	int type;
+	char buf[0];
+};
 
 struct mountgroup *find_mg(char *name);
 struct mountgroup *find_mg_id(uint32_t id);
@@ -245,6 +253,7 @@ int do_remount(int ci, char *dir, char *mode);
 int do_withdraw(char *name);
 int kernel_recovery_done(char *name);
 void ping_kernel_mount(char *table);
+void save_message(struct mountgroup *mg, char *buf, int len, int from, int type);
 
 int client_send(int ci, char *buf, int len);
 
@@ -253,5 +262,6 @@ int send_group_message(struct mountgroup *mg, int len, char *buf);
 void store_plocks(struct mountgroup *mg);
 void retrieve_plocks(struct mountgroup *mg);
 int dump_plocks(char *name, int fd);
+void process_saved_plocks(struct mountgroup *mg);
 
 #endif

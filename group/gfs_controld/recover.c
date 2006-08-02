@@ -12,14 +12,6 @@
 
 #include "lock_dlm.h"
 
-struct save_msg {
-	struct list_head list;
-	int nodeid;
-	int len;
-	int type;
-	char buf[0];
-};
-
 #define SYSFS_DIR	"/sys/fs"
 #define JID_INIT	-9
 
@@ -597,12 +589,14 @@ int assign_journal(struct mountgroup *mg, struct mg_member *new)
 	log_group(mg, "assign_journal: new member %d got jid %d",
 		  new->nodeid, new->jid);
 
+	if (mg->low_finished_nodeid == our_nodeid || mg->cp_handle)
+		store_plocks(mg);
+
 	/* if we're the first mounter and haven't gotten others_may_mount
 	   yet, then don't send journals until kernel_recovery_done_first
 	   so the second node won't mount the fs until omm. */
 
 	if (mg->low_finished_nodeid == our_nodeid) {
-		store_plocks(mg);
 		if (mg->first_mounter && !mg->first_mounter_done) {
 			log_group(mg, "delay sending journals to %d",
 				  new->nodeid);
@@ -655,6 +649,7 @@ void receive_options(struct mountgroup *mg, char *buf, int len, int from)
 
 	if (hd->nodeid == our_nodeid) {
 		mg->got_our_options = 1;
+		mg->save_plocks = 1;
 		return;
 	}
 
@@ -1784,7 +1779,7 @@ void start_participant_init_2(struct mountgroup *mg)
 	}
 
 	retrieve_plocks(mg);
-	/* process_saved_plocks(mg); */
+	process_saved_plocks(mg);
  out:
 	notify_mount_client(mg);
 }

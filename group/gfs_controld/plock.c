@@ -226,9 +226,6 @@ int setup_plocks(void)
 	else
 		log_error("ckpt init error %d - plocks unavailable", err);
 
-	/* REMOVEME: disable actual use of checkpoints for now */
-	plocks_online = 0;
-
 	rv = open_control();
 	if (rv)
 		return rv;
@@ -740,7 +737,17 @@ static int do_unlock(struct mountgroup *mg, struct gdlm_plock_info *in)
 	return rv;
 }
 
-void receive_plock(struct mountgroup *mg, char *buf, int len, int from)
+/* When mg members receive our options message (for our mount), one of them
+   saves all plock state received to that point in a checkpoint and then sounds
+   us our journals message.  We know to retrieve the plock state from the
+   checkpoint when we receive our journals message.  Any plocks messages that
+   arrive between seeing our options message and our journals message needs to
+   be saved and processed after we synchronize our plock state from the
+   checkpoint.  Any plock message received while we're mounting but before we
+   set save_plocks (when we see our options message) can be ignored because it
+   should be reflected in the checkpointed state. */
+
+void _receive_plock(struct mountgroup *mg, char *buf, int len, int from)
 {
 	struct gdlm_plock_info info;
 	struct gdlm_header *hd = (struct gdlm_header *) buf;
@@ -754,15 +761,15 @@ void receive_plock(struct mountgroup *mg, char *buf, int len, int from)
 		  from, info.optype, info.fsid, info.number, info.ex,
 		  info.wait);
 
+	if (info.optype == GDLM_PLOCK_OP_GET && from != our_nodeid)
+		return;
+
 	if (from != hd->nodeid || from != info.nodeid) {
 		log_error("receive_plock from %d header %d info %d",
 			  from, hd->nodeid, info.nodeid);
 		rv = -EINVAL;
 		goto out;
 	}
-
-	if (info.optype == GDLM_PLOCK_OP_GET && from != our_nodeid)
-		return;
 
 	switch (info.optype) {
 	case GDLM_PLOCK_OP_LOCK:
@@ -787,6 +794,41 @@ void receive_plock(struct mountgroup *mg, char *buf, int len, int from)
 	}
 }
 
+void receive_plock(struct mountgroup *mg, char *buf, int len, int from)
+{
+	if (mg->save_plocks) {
+		save_message(mg, buf, len, from, MSG_PLOCK);
+		return;
+	}
+
+	if (!mg->got_our_journals) {
+		log_group(mg, "not saving plock messages yet");
+		return;
+	}
+
+	_receive_plock(mg, buf, len, from);
+}
+
+void process_saved_plocks(struct mountgroup *mg)
+{
+	struct save_msg *sm, *sm2;
+
+	mg->save_plocks = 0;
+
+	if (list_empty(&mg->saved_messages))
+		return;
+
+	log_group(mg, "process_saved_plocks");
+
+	list_for_each_entry_safe(sm, sm2, &mg->saved_messages, list) {
+		if (sm->type != MSG_PLOCK)
+			continue;
+		_receive_plock(mg, sm->buf, sm->len, sm->nodeid);
+		list_del(&sm->list);
+		free(sm);
+	}
+}
+
 void plock_exit(void)
 {
 	if (plocks_online)
@@ -807,6 +849,7 @@ void pack_section_buf(struct mountgroup *mg, struct resource *r)
 	list_for_each_entry(po, &r->locks, list) {
 		pp->start	= po->start;
 		pp->end		= po->end;
+		pp->owner	= po->owner;
 		pp->pid		= po->pid;
 		pp->nodeid	= po->nodeid;
 		pp->ex		= po->ex;
@@ -818,6 +861,7 @@ void pack_section_buf(struct mountgroup *mg, struct resource *r)
 	list_for_each_entry(w, &r->waiters, list) {
 		pp->start	= w->info.start;
 		pp->end		= w->info.end;
+		pp->owner	= w->info.owner;
 		pp->pid		= w->info.pid;
 		pp->nodeid	= w->info.nodeid;
 		pp->ex		= w->info.ex;
@@ -844,8 +888,9 @@ int unpack_section_buf(struct mountgroup *mg, char *numbuf, int buflen)
 	if (!r)
 		return -ENOMEM;
 	memset(r, 0, sizeof(struct resource));
-
-	sscanf(numbuf, "%llu", &r->number);
+	INIT_LIST_HEAD(&r->locks);
+	INIT_LIST_HEAD(&r->waiters);
+	sscanf(numbuf, "r%llu", &r->number);
 
 	log_group(mg, "unpack %llx count %d", r->number, count);
 
@@ -856,13 +901,16 @@ int unpack_section_buf(struct mountgroup *mg, char *numbuf, int buflen)
 			po = malloc(sizeof(struct posix_lock));
 			po->start	= pp->start;
 			po->end		= pp->end;
+			po->owner	= pp->owner;
 			po->pid		= pp->pid;
+			po->nodeid	= pp->nodeid;
 			po->ex		= pp->ex;
 			list_add_tail(&po->list, &r->locks);
 		} else {
 			w = malloc(sizeof(struct lock_waiter));
 			w->info.start	= pp->start;
 			w->info.end	= pp->end;
+			w->info.owner	= pp->owner;
 			w->info.pid	= pp->pid;
 			w->info.nodeid	= pp->nodeid;
 			w->info.ex	= pp->ex;
@@ -875,7 +923,76 @@ int unpack_section_buf(struct mountgroup *mg, char *numbuf, int buflen)
 	return 0;
 }
 
-/* copy all plock state into a checkpoint so new node can retrieve it */
+int unlink_checkpoint(struct mountgroup *mg, SaNameT *name)
+{
+	SaCkptCheckpointHandleT h;
+	SaCkptCheckpointDescriptorT s;
+	SaAisErrorT rv;
+	int ret = 0;
+
+	h = (SaCkptCheckpointHandleT) mg->cp_handle;
+	log_group(mg, "unlink ckpt %llx", h);
+
+ unlink_retry:
+	rv = saCkptCheckpointUnlink(h, name);
+	if (rv == SA_AIS_ERR_TRY_AGAIN) {
+		log_group(mg, "unlink ckpt retry");
+		sleep(1);
+		goto unlink_retry;
+	}
+	if (rv == SA_AIS_OK)
+		goto out_close;
+
+	log_error("unlink ckpt error %d %s", rv, mg->name);
+	ret = -1;
+
+ status_retry:
+	rv = saCkptCheckpointStatusGet(h, &s);
+	if (rv == SA_AIS_ERR_TRY_AGAIN) {
+		log_group(mg, "unlink ckpt status retry");
+		sleep(1);
+		goto status_retry;
+	}
+	if (rv != SA_AIS_OK) {
+		log_error("unlink ckpt status error %d %s", rv, mg->name);
+		goto out_close;
+	}
+
+	log_group(mg, "unlink ckpt status: size %llu, max sections %u, "
+		      "max section size %llu, section count %u, mem %u",
+		 s.checkpointCreationAttributes.checkpointSize,
+		 s.checkpointCreationAttributes.maxSections,
+		 s.checkpointCreationAttributes.maxSectionSize,
+		 s.numberOfSections, s.memoryUsed);
+
+ out_close:
+	rv = saCkptCheckpointClose(h);
+	if (rv == SA_AIS_ERR_TRY_AGAIN) {
+		log_group(mg, "unlink ckpt close retry");
+		sleep(1);
+		goto out_close;
+	}
+	if (rv != SA_AIS_OK) {
+		log_error("unlink ckpt close error %d %s", rv, mg->name);
+		ret = -1;
+	}
+
+	mg->cp_handle = 0;
+	return ret;
+}
+
+/* Copy all plock state into a checkpoint so new node can retrieve it.
+
+   The low node in the group and the previous node to create the ckpt (with
+   non-zero cp_handle) may be different if a new node joins with a lower nodeid
+   than the previous low node that created the ckpt.  In this case, the prev
+   node has the old ckpt open and will reuse it if no plock state has changed,
+   or will unlink it and create a new one.  The low node will also attempt to
+   create a new ckpt.  That open-create will either fail due to the prev node
+   reusing the old ckpt, or it will race with the open-create on the prev node
+   after the prev node unlinks the old ckpt.  Either way, when there are two
+   different nodes in the group calling store_plocks(), one of them will fail
+   at the Open(CREATE) step with ERR_EXIST due to the other. */
 
 void store_plocks(struct mountgroup *mg)
 {
@@ -883,13 +1000,15 @@ void store_plocks(struct mountgroup *mg)
 	SaCkptCheckpointHandleT h;
 	SaCkptSectionIdT section_id;
 	SaCkptSectionCreationAttributesT section_attr;
+	SaCkptCheckpointOpenFlagsT flags;
 	SaNameT name;
 	SaAisErrorT rv;
 	char buf[32];
 	struct resource *r;
 	struct posix_lock *po;
 	struct lock_waiter *w;
-	int len, r_count, total_size, section_size, max_section_size;
+	int r_count, lock_count, total_size, section_size, max_section_size;
+	int len;
 
 	if (!plocks_online)
 		return;
@@ -906,65 +1025,75 @@ void store_plocks(struct mountgroup *mg)
 
 	/* unlink an old checkpoint before we create a new one */
 	if (mg->cp_handle) {
-		log_group(mg, "store_plocks: unlink ckpt");
-		h = (SaCkptCheckpointHandleT) mg->cp_handle;
-		rv = saCkptCheckpointUnlink(h, &name);
-		if (rv != SA_AIS_OK)
-			log_error("ckpt unlink error %d %s", rv, mg->name);
-		h = 0;
-		mg->cp_handle = 0;
+		if (unlink_checkpoint(mg, &name))
+			return;
 	}
 
 	/* loop through all plocks to figure out sizes to set in
 	   the attr fields */
 
 	r_count = 0;
+	lock_count = 0;
 	total_size = 0;
 	max_section_size = 0;
 
 	list_for_each_entry(r, &mg->resources, list) {
 		r_count++;
 		section_size = 0;
-		list_for_each_entry(po, &r->locks, list)
+		list_for_each_entry(po, &r->locks, list) {
 			section_size += sizeof(struct pack_plock);
-		list_for_each_entry(w, &r->waiters, list)
+			lock_count++;
+		}
+		list_for_each_entry(w, &r->waiters, list) {
 			section_size += sizeof(struct pack_plock);
+			lock_count++;
+		}
 		total_size += section_size;
 		if (section_size > max_section_size)
 			max_section_size = section_size;
 	}
 
-	log_group(mg, "store_plocks: r_count %d total %d max_section %d",
-		  r_count, total_size, max_section_size);
+	log_group(mg, "store_plocks: r_count %d, lock_count %d, pp %d bytes",
+		  r_count, lock_count, sizeof(struct pack_plock));
+
+	log_group(mg, "store_plocks: total %d bytes, max_section %d bytes",
+		  total_size, max_section_size);
 
 	attr.creationFlags = SA_CKPT_WR_ALL_REPLICAS;
 	attr.checkpointSize = total_size;
 	attr.retentionDuration = SA_TIME_MAX;
-	attr.maxSections = r_count;
+	attr.maxSections = r_count + 1;      /* don't know why we need +1 */
 	attr.maxSectionSize = max_section_size;
-	attr.maxSectionIdSize = 21;             /* 20 digits in max uint64 */
+	attr.maxSectionIdSize = 22;
+	
+	/* 22 = 20 digits in max uint64 + "r" prefix + \0 suffix */
+
+	flags = SA_CKPT_CHECKPOINT_READ |
+		SA_CKPT_CHECKPOINT_WRITE |
+		SA_CKPT_CHECKPOINT_CREATE;
 
  open_retry:
-	rv = saCkptCheckpointOpen(ckpt_handle, &name, &attr,
-				  SA_CKPT_CHECKPOINT_CREATE |
-				  SA_CKPT_CHECKPOINT_READ |
-				  SA_CKPT_CHECKPOINT_WRITE,
-				  0, &h);
+	rv = saCkptCheckpointOpen(ckpt_handle, &name, &attr, flags, 0, &h);
 	if (rv == SA_AIS_ERR_TRY_AGAIN) {
 		log_group(mg, "store_plocks: ckpt open retry");
 		sleep(1);
 		goto open_retry;
+	}
+	if (rv == SA_AIS_ERR_EXIST) {
+		log_group(mg, "store_plocks: ckpt already exists");
+		return;
 	}
 	if (rv != SA_AIS_OK) {
 		log_error("store_plocks: ckpt open error %d %s", rv, mg->name);
 		return;
 	}
 
+	log_group(mg, "store_plocks: open ckpt handle %llx", h);
 	mg->cp_handle = (uint64_t) h;
 
 	list_for_each_entry(r, &mg->resources, list) {
 		memset(&buf, 0, 32);
-		len = snprintf(buf, 32, "%llu", r->number);
+		len = snprintf(buf, 32, "r%llu", r->number);
 
 		section_id.id = buf;
 		section_id.idLen = len + 1;
@@ -973,7 +1102,7 @@ void store_plocks(struct mountgroup *mg)
 
 		pack_section_buf(mg, r);
 
- create_retry:
+	 create_retry:
 		rv = saCkptSectionCreate(h, &section_attr, &section_buf,
 					 section_len);
 		if (rv == SA_AIS_ERR_TRY_AGAIN) {
@@ -982,7 +1111,7 @@ void store_plocks(struct mountgroup *mg)
 			goto create_retry;
 		}
 		if (rv != SA_AIS_OK) {
-			log_error("store_plocks: ckpt create error %d %s",
+			log_error("store_plocks: ckpt section create err %d %s",
 				  rv, mg->name);
 			break;
 		}
@@ -1004,6 +1133,8 @@ void retrieve_plocks(struct mountgroup *mg)
 
 	if (!plocks_online)
 		return;
+
+	log_group(mg, "retrieve_plocks");
 
 	len = snprintf(name.value, SA_MAX_NAME_LENGTH, "gfsplock.%s", mg->name);
 	name.length = len;
@@ -1032,11 +1163,11 @@ void retrieve_plocks(struct mountgroup *mg)
 	if (rv != SA_AIS_OK) {
 		log_error("retrieve_plocks: ckpt iterinit error %d %s",
 			  rv, mg->name);
-		return;
+		goto out;
 	}
 
 	while (1) {
- next_retry:
+	 next_retry:
 		rv = saCkptSectionIterationNext(itr, &desc);
 		if (rv == SA_AIS_ERR_NO_SECTIONS)
 			break;
@@ -1048,7 +1179,7 @@ void retrieve_plocks(struct mountgroup *mg)
 		if (rv != SA_AIS_OK) {
 			log_error("retrieve_plocks: ckpt iternext error %d %s",
 				  rv, mg->name);
-			break;
+			goto out_it;
 		}
 
 		iov.sectionId = desc.sectionId;
@@ -1056,7 +1187,7 @@ void retrieve_plocks(struct mountgroup *mg)
 		iov.dataSize = desc.sectionSize;
 		iov.dataOffset = 0;
 
- read_retry:
+	 read_retry:
 		rv = saCkptCheckpointRead(h, &iov, 1, NULL);
 		if (rv == SA_AIS_ERR_TRY_AGAIN) {
 			log_group(mg, "retrieve_plocks: ckpt read retry");
@@ -1066,13 +1197,19 @@ void retrieve_plocks(struct mountgroup *mg)
 		if (rv != SA_AIS_OK) {
 			log_error("retrieve_plocks: ckpt read error %d %s",
 				  rv, mg->name);
-			break;
+			goto out_it;
 		}
+
+		log_group(mg, "retrieve_plocks: ckpt read %llu bytes",
+			  iov.readSize);
+		section_len = iov.readSize;
 
 		unpack_section_buf(mg, desc.sectionId.id, desc.sectionId.idLen);
 	}
 
+ out_it:
 	saCkptSectionIterationFinalize(itr);
+ out:
 	saCkptCheckpointClose(h);
 }
 
