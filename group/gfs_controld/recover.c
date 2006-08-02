@@ -1887,15 +1887,23 @@ void reset_unfinished_recoveries(struct mountgroup *mg)
 /* New mounters may be waiting for a journals message that a failed node (as
    low nodeid) would have sent.  If the low nodeid failed and we're the new low
    nodeid, then send a journals message to any nodes for whom we've not seen a
-   journals message. */
+   journals message.  We also need to checkpoint the plock state for the new
+   nodes to read after they get their journals message. */
 
 void resend_journals(struct mountgroup *mg)
 {
 	struct mg_member *memb;
+	int stored_plocks = 0;
 
 	list_for_each_entry(memb, &mg->members, list) {
 		if (!memb->needs_journals)
 			continue;
+
+		if (!stored_plocks) {
+			store_plocks(mg);
+			stored_plocks = 1;
+		}
+
 		log_group(mg, "resend_journals to %d", memb->nodeid);
 		send_journals(mg, memb->nodeid);
 	}

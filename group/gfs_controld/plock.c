@@ -1235,6 +1235,12 @@ void retrieve_plocks(struct mountgroup *mg)
 			  iov.readSize);
 		section_len = iov.readSize;
 
+		if (!section_len || section_len % sizeof(struct pack_plock)) {
+			log_error("retrieve_plocks: bad section len %d %s",
+				  section_len, mg->name);
+			continue;
+		}
+
 		unpack_section_buf(mg, desc.sectionId.id, desc.sectionId.idLen);
 	}
 
