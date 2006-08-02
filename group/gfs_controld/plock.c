@@ -87,6 +87,36 @@ struct lock_waiter {
 	struct gdlm_plock_info	info;
 };
 
+static void info_bswap_out(struct gdlm_plock_info *i)
+{
+	i->version[0]	= cpu_to_le32(i->version[0]);
+	i->version[1]	= cpu_to_le32(i->version[1]);
+	i->version[2]	= cpu_to_le32(i->version[2]);
+	i->pid		= cpu_to_le32(i->pid);
+	i->nodeid	= cpu_to_le32(i->nodeid);
+	i->rv		= cpu_to_le32(i->rv);
+	i->fsid		= cpu_to_le32(i->fsid);
+	i->number	= cpu_to_le64(i->number);
+	i->start	= cpu_to_le64(i->start);
+	i->end		= cpu_to_le64(i->end);
+	i->owner	= cpu_to_le64(i->owner);
+}
+
+static void info_bswap_in(struct gdlm_plock_info *i)
+{
+	i->version[0]	= le32_to_cpu(i->version[0]);
+	i->version[1]	= le32_to_cpu(i->version[1]);
+	i->version[2]	= le32_to_cpu(i->version[2]);
+	i->pid		= le32_to_cpu(i->pid);
+	i->nodeid	= le32_to_cpu(i->nodeid);
+	i->rv		= le32_to_cpu(i->rv);
+	i->fsid		= le32_to_cpu(i->fsid);
+	i->number	= le64_to_cpu(i->number);
+	i->start	= le64_to_cpu(i->start);
+	i->end		= le64_to_cpu(i->end);
+	i->owner	= le64_to_cpu(i->owner);
+}
+
 static int get_proc_number(const char *file, const char *name, uint32_t *number)
 {
 	FILE *fl;
@@ -267,13 +297,14 @@ int process_plocks(void)
 
 	info.nodeid = our_nodeid;
 
-	/* FIXME: do byte swapping */
-
 	hd = (struct gdlm_header *)buf;
 	hd->type = MSG_PLOCK;
 	hd->nodeid = our_nodeid;
 	hd->to_nodeid = 0;
 	memcpy(buf + sizeof(struct gdlm_header), &info, sizeof(info));
+
+	info_bswap_out((struct gdlm_plock_info *) buf +
+						  sizeof(struct gdlm_header));
 
 	rv = send_group_message(mg, len, buf);
 
@@ -755,7 +786,7 @@ void _receive_plock(struct mountgroup *mg, char *buf, int len, int from)
 
 	memcpy(&info, buf + sizeof(struct gdlm_header), sizeof(info));
 
-	/* FIXME: do byte swapping */
+	info_bswap_in(&info);
 
 	log_group(mg, "receive_plock from %d op %d fs %x num %llx ex %d w %d",
 		  from, info.optype, info.fsid, info.number, info.ex,
@@ -847,11 +878,11 @@ void pack_section_buf(struct mountgroup *mg, struct resource *r)
 	pp = (struct pack_plock *) &section_buf;
 
 	list_for_each_entry(po, &r->locks, list) {
-		pp->start	= po->start;
-		pp->end		= po->end;
-		pp->owner	= po->owner;
-		pp->pid		= po->pid;
-		pp->nodeid	= po->nodeid;
+		pp->start	= cpu_to_le64(po->start);
+		pp->end		= cpu_to_le64(po->end);
+		pp->owner	= cpu_to_le64(po->owner);
+		pp->pid		= cpu_to_le32(po->pid);
+		pp->nodeid	= cpu_to_le32(po->nodeid);
 		pp->ex		= po->ex;
 		pp->waiter	= 0;
 		pp++;
@@ -859,11 +890,11 @@ void pack_section_buf(struct mountgroup *mg, struct resource *r)
 	}
 
 	list_for_each_entry(w, &r->waiters, list) {
-		pp->start	= w->info.start;
-		pp->end		= w->info.end;
-		pp->owner	= w->info.owner;
-		pp->pid		= w->info.pid;
-		pp->nodeid	= w->info.nodeid;
+		pp->start	= cpu_to_le64(w->info.start);
+		pp->end		= cpu_to_le64(w->info.end);
+		pp->owner	= cpu_to_le64(w->info.owner);
+		pp->pid		= cpu_to_le32(w->info.pid);
+		pp->nodeid	= cpu_to_le32(w->info.nodeid);
 		pp->ex		= w->info.ex;
 		pp->waiter	= 1;
 		pp++;
@@ -899,20 +930,20 @@ int unpack_section_buf(struct mountgroup *mg, char *numbuf, int buflen)
 	for (i = 0; i < count; i++) {
 		if (!pp->waiter) {
 			po = malloc(sizeof(struct posix_lock));
-			po->start	= pp->start;
-			po->end		= pp->end;
-			po->owner	= pp->owner;
-			po->pid		= pp->pid;
-			po->nodeid	= pp->nodeid;
+			po->start	= le64_to_cpu(pp->start);
+			po->end		= le64_to_cpu(pp->end);
+			po->owner	= le64_to_cpu(pp->owner);
+			po->pid		= le32_to_cpu(pp->pid);
+			po->nodeid	= le32_to_cpu(pp->nodeid);
 			po->ex		= pp->ex;
 			list_add_tail(&po->list, &r->locks);
 		} else {
 			w = malloc(sizeof(struct lock_waiter));
-			w->info.start	= pp->start;
-			w->info.end	= pp->end;
-			w->info.owner	= pp->owner;
-			w->info.pid	= pp->pid;
-			w->info.nodeid	= pp->nodeid;
+			w->info.start	= le64_to_cpu(pp->start);
+			w->info.end	= le64_to_cpu(pp->end);
+			w->info.owner	= le64_to_cpu(pp->owner);
+			w->info.pid	= le32_to_cpu(pp->pid);
+			w->info.nodeid	= le32_to_cpu(pp->nodeid);
 			w->info.ex	= pp->ex;
 			list_add_tail(&w->list, &r->waiters);
 		}
