@@ -107,14 +107,6 @@ int read_ccs_nodes(unsigned int *config_version)
     if (!ccs_get(ctree, CONFIG_VERSION_PATH, &str)) {
 	    config = atoi(str);
 	    free(str);
-
-	    /* config_version is zero at startup when we read initial config */
-	    if (*config_version && config != *config_version) {
-		    ccs_disconnect(ctree);
-		    log_msg(LOG_ERR, "CCS version is %d, we expected %d. config not updated\n",
-			    config, *config_version);
-		    return -1;
-	    }
 	    *config_version = config;
     }
 

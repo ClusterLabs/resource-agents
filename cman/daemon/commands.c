@@ -63,6 +63,7 @@ static int quorum;
 static int two_node;
        unsigned int quorumdev_poll=10000;
        unsigned int shutdown_timeout=5000;
+       unsigned int ccsd_poll_interval=1000;
 static int cluster_is_quorate;
        char cluster_name[MAX_CLUSTER_NAME_LEN+1];
 static char nodename[MAX_CLUSTER_MEMBER_NAME_LEN+1];
@@ -72,6 +73,11 @@ static struct cluster_node *quorum_device;
 static uint16_t cluster_id;
 static int ais_running;
 static poll_timer_handle quorum_device_timer;
+
+/* If CCS gets out of sync, we poll it until it isn't */
+static poll_timer_handle ccsd_timer;
+static unsigned int wanted_config_version;
+static int config_error;
 
 static poll_timer_handle shutdown_timer;
 static struct connection *shutdown_con;
@@ -128,7 +134,7 @@ static void set_quorate(int total_votes)
 {
 	int quorate;
 
-	if (quorum > total_votes) {
+	if (quorum > total_votes || config_error) {
 		quorate = 0;
 	}
 	else {
@@ -457,7 +463,7 @@ static int do_cmd_get_extrainfo(char *cmdbuf, char **retbuf, int retsize, int *r
 	einfo->flags = 0;
 	if (two_node)
 		einfo->flags |= CMAN_EXTRA_FLAG_2NODE;
-	if (us->expected_votes == INT_MAX)
+	if (config_error)
 		einfo->flags |= CMAN_EXTRA_FLAG_ERROR;
 	if (shutdown_con)
 		einfo->flags |= CMAN_EXTRA_FLAG_SHUTDOWN;
@@ -962,6 +968,27 @@ static int do_cmd_unregister_quorum_device(char *cmdbuf, int *retlen)
         return 0;
 }
 
+static void ccsd_timer_fn(void *arg)
+{
+	int ccs_err;
+
+	log_msg(LOG_DEBUG, "Polling ccsd for updated information\n");
+	ccs_err = read_ccs_nodes(&config_version);
+	if (ccs_err || config_version < wanted_config_version) {
+		log_msg(LOG_ERR, "Can't read CCS to get updated config version %d. Activity suspended on this node\n",
+				wanted_config_version);
+
+		poll_timer_add(ais_poll_handle, ccsd_poll_interval, NULL,
+			       ccsd_timer_fn, &ccsd_timer);
+	}
+	else {
+		log_msg(LOG_ERR, "Now got CCS information version %d, continuing\n", config_version);
+		config_error = 0;
+		recalculate_quorum(0);
+	}
+}
+
+
 static void quorum_device_timer_fn(void *arg)
 {
 	struct timeval now;
@@ -1352,20 +1379,20 @@ int our_nodeid()
 static int valid_transition_msg(int nodeid, struct cl_transmsg *msg)
 {
 	if (strcmp(msg->clustername, cluster_name) != 0) {
-		log_msg(LOG_ERR, "Node %d refused, remote cluster name='%s', local='%s'\n",
+		log_msg(LOG_ERR, "Node %d conflict, remote cluster name='%s', local='%s'\n",
 			nodeid, msg->clustername, cluster_name);
 		return -1;
 	}
 
 	if (msg->cluster_id != cluster_id) {
-		log_msg(LOG_ERR, "Node %d refused, remote cluster id=%d, local=%d\n",
+		log_msg(LOG_ERR, "Node %d conflict, remote cluster id=%d, local=%d\n",
 			nodeid, msg->cluster_id, cluster_id);
 		return -1;
 	}
 
 	if (msg->major_version != CNXMAN_MAJOR_VERSION) {
 
-		log_msg(LOG_ERR, "Node %d refused, remote version id=%d, local=%d\n",
+		log_msg(LOG_ERR, "Node %d conflict, remote version id=%d, local=%d\n",
 			nodeid, msg->major_version, CNXMAN_MAJOR_VERSION);
 		return -1;
 	}
@@ -1376,9 +1403,13 @@ static int valid_transition_msg(int nodeid, struct cl_transmsg *msg)
 
 		ccs_err = read_ccs_nodes(&config_version);
 		if (ccs_err || config_version < msg->config_version) {
-			us->expected_votes = INT_MAX; /* Force us to stop */
+			config_error = 1;
 			log_msg(LOG_ERR, "Can't read CCS to get updated config version %d. Activity suspended on this node\n",
 				msg->config_version);
+
+			wanted_config_version = msg->config_version;
+			poll_timer_add(ais_poll_handle, ccsd_poll_interval, NULL,
+				       ccsd_timer_fn, &ccsd_timer);
 		}
 		if (config_version > msg->config_version) {
 			// TODO tell everyone else to update...
@@ -1388,7 +1419,7 @@ static int valid_transition_msg(int nodeid, struct cl_transmsg *msg)
 
 
 	if (msg->config_version != config_version) {
-		log_msg(LOG_ERR, "Node %d refused, remote config version id=%d, local=%d\n",
+		log_msg(LOG_ERR, "Node %d conflict, remote config version id=%d, local=%d\n",
 			nodeid, msg->config_version, config_version);
 		return -1;
 	}
@@ -1528,8 +1559,12 @@ static void do_reconfigure_msg(void *data)
 			log_msg(LOG_ERR, "Can't read CCS to get updated config version %d. Activity suspended on this node\n",
 				msg->value);
 
-			us->expected_votes = INT_MAX; /* Force us to stop */
+			config_error = 1;
 			recalculate_quorum(0);
+
+			wanted_config_version = config_version;
+			poll_timer_add(ais_poll_handle, ccsd_poll_interval, NULL,
+				       ccsd_timer_fn, &ccsd_timer);
 		}
 		break;
 	}

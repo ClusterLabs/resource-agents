@@ -46,6 +46,7 @@ extern int our_nodeid();
 extern char cluster_name[MAX_CLUSTER_NAME_LEN+1];
 extern char *key_filename;
 extern unsigned int quorumdev_poll;
+extern unsigned int ccsd_poll_interval;
 extern unsigned int shutdown_timeout;
 extern int init_config(struct objdb_iface_ver0 *objdb);
 
@@ -239,6 +240,7 @@ static int cman_exec_init_fn(struct objdb_iface_ver0 *objdb)
 	{
 		objdb_get_int(objdb, object_handle, "quorum_dev_poll", &quorumdev_poll);
 		objdb_get_int(objdb, object_handle, "shutdown_timeout", &shutdown_timeout);
+		objdb_get_int(objdb, object_handle, "ccsd_poll", &ccsd_poll_interval);
 
 		/* Only use the CCS version of this if it was not overridden on the command-line */
 		if (!getenv("CMAN_DEBUGLOG"))
