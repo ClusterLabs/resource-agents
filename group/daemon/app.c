@@ -656,6 +656,8 @@ static int is_our_leave(event_t *ev)
 
 void finalize_our_leave(group_t *g)
 {
+	struct recovery_set *rs;
+	struct recovery_entry *re, *re2;
 	app_t *a = g->app;
 
 	log_group(g, "finalize_our_leave");
@@ -667,8 +669,19 @@ void finalize_our_leave(group_t *g)
 	del_app_nodes(a);
 	free(a);
 
-	/* FIXME: check if there are any recovery_sets
-	   referencing this group somehow */
+	/* this group shouldn't be in any recovery sets... sanity check
+	   and avoid future segfault by removing re's referencing this g */
+
+	list_for_each_entry(rs, &recovery_sets, list) {
+		list_for_each_entry_safe(re, re2, &rs->entries, list) {
+			if (re->group == g) {
+				log_error(g, "finalize: still in recovery "
+					  "set %d", rs->nodeid);
+				list_del(&rs->list);
+				free(rs);
+			}
+		}
+	}
 
 	remove_group(g);
 }
