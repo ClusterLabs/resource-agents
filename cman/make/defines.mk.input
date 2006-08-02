@@ -11,12 +11,19 @@
 ###############################################################################
 ###############################################################################
 
+ARCH=$(shell uname -p)
+
 #Install Locations
 sbindir ?= ${DESTDIR}/@SBINDIR@
 mandir ?= ${DESTDIR}/@MANDIR@
+ifeq (,$(findstring 64,$(ARCH)))
 libdir ?= ${DESTDIR}/@LIBDIR@
-libexecdir ?= ${DESTDIR}/@LIBEXECDIR@
 ccslibdir ?= ${DESTDIR}/@CCSLIBDIR@
+else
+libdir ?= ${DESTDIR}/@LIBDIR@64
+ccslibdir ?= ${DESTDIR}/@CCSLIBDIR@64
+endif
+libexecdir ?= ${DESTDIR}/@LIBEXECDIR@
 incdir ?= ${DESTDIR}/@INCDIR@
 ccsincdir ?= ${DESTDIR}/@CCSINCDIR@
 
