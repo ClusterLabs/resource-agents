@@ -965,6 +965,8 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 				  memb->jid,
 				  memb->spectator,
 				  memb->wait_gfs_recover_done);
+
+			purge_plocks(mg, memb->nodeid);
 		}
 	}	
 

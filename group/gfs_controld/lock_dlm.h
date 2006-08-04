@@ -263,5 +263,6 @@ void store_plocks(struct mountgroup *mg);
 void retrieve_plocks(struct mountgroup *mg);
 int dump_plocks(char *name, int fd);
 void process_saved_plocks(struct mountgroup *mg);
+void purge_plocks(struct mountgroup *mg, int nodeid);
 
 #endif

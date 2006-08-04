@@ -117,6 +117,30 @@ static void info_bswap_in(struct gdlm_plock_info *i)
 	i->owner	= le64_to_cpu(i->owner);
 }
 
+static char *op_str(int optype)
+{
+	switch (optype) {
+	case GDLM_PLOCK_OP_LOCK:
+		return "LK";
+	case GDLM_PLOCK_OP_UNLOCK:
+		return "UN";
+	case GDLM_PLOCK_OP_GET:
+		return "GET";
+	default:
+		return "??";
+	}
+}
+
+static char *ex_str(int optype, int ex)
+{
+	if (optype == GDLM_PLOCK_OP_UNLOCK || optype == GDLM_PLOCK_OP_GET)
+		return "-";
+	if (ex)
+		return "WR";
+	else
+		return "RD";
+}
+
 static int get_proc_number(const char *file, const char *name, uint32_t *number)
 {
 	FILE *fl;
@@ -277,15 +301,20 @@ int process_plocks(void)
 
 	rv = read(control_fd, &info, sizeof(info));
 
-	log_debug("process_plocks %d op %d fs %x num %llx ex %d wait %d", rv,
-		  info.optype, info.fsid, info.number, info.ex, info.wait);
-
 	mg = find_mg_id(info.fsid);
 	if (!mg) {
 		log_debug("process_plocks: no mg id %x", info.fsid);
 		rv = -EEXIST;
 		goto fail;
 	}
+
+	log_group(mg, "read plock %llx %s %s %llx-%llx %d/%u/%llx w %d",
+		  info.number,
+		  op_str(info.optype),
+		  ex_str(info.optype, info.ex),
+		  info.start, info.end,
+		  info.nodeid, info.pid, info.owner,
+		  info.wait);
 
 	len = sizeof(struct gdlm_header) + sizeof(struct gdlm_plock_info);
 	buf = malloc(len);
@@ -478,7 +507,7 @@ static int shrink_range(struct posix_lock *po, uint64_t start, uint64_t end)
 	return shrink_range2(&po->start, &po->end, start, end);
 }
 
-static int is_conflict(struct resource *r, struct gdlm_plock_info *in)
+static int is_conflict(struct resource *r, struct gdlm_plock_info *in, int get)
 {
 	struct posix_lock *po;
 
@@ -488,8 +517,15 @@ static int is_conflict(struct resource *r, struct gdlm_plock_info *in)
 		if (!ranges_overlap(po->start, po->end, in->start, in->end))
 			continue;
 
-		if (in->ex || po->ex)
+		if (in->ex || po->ex) {
+			if (get) {
+				in->ex = po->ex;
+				in->pid = po->pid;
+				in->start = po->start;
+				in->end = po->end;
+			}
 			return 1;
+		}
 	}
 	return 0;
 }
@@ -523,19 +559,22 @@ static int lock_case1(struct posix_lock *po, struct resource *r,
 		      struct gdlm_plock_info *in)
 {
 	uint64_t start2, end2;
+	int rv;
 
 	/* non-overlapping area start2:end2 */
 	start2 = po->start;
 	end2 = po->end;
-	shrink_range2(&start2, &end2, in->start, in->end);
+	rv = shrink_range2(&start2, &end2, in->start, in->end);
+	if (rv)
+		goto out;
 
 	po->start = in->start;
 	po->end = in->end;
 	po->ex = in->ex;
 
-	add_lock(r, in->nodeid, in->owner, in->pid, !in->ex, start2, end2);
-
-	return 0;
+	rv = add_lock(r, in->nodeid, in->owner, in->pid, !in->ex, start2, end2);
+ out:
+	return rv;
 }
 
 /* RN within RE (RE overlaps RN on both sides)
@@ -547,17 +586,23 @@ static int lock_case2(struct posix_lock *po, struct resource *r,
 		      struct gdlm_plock_info *in)
 
 {
-	add_lock(r, in->nodeid, in->owner, in->pid,
-		 !in->ex, po->start, in->start - 1);
+	int rv;
 
-	add_lock(r, in->nodeid, in->owner, in->pid,
-		 !in->ex, in->end + 1, po->end);
+	rv = add_lock(r, in->nodeid, in->owner, in->pid,
+		      !in->ex, po->start, in->start - 1);
+	if (rv)
+		goto out;
+
+	rv = add_lock(r, in->nodeid, in->owner, in->pid,
+		      !in->ex, in->end + 1, po->end);
+	if (rv)
+		goto out;
 
 	po->start = in->start;
 	po->end = in->end;
 	po->ex = in->ex;
-
-	return 0;
+ out:
+	return rv;
 }
 
 static int lock_internal(struct mountgroup *mg, struct resource *r,
@@ -618,7 +663,6 @@ static int lock_internal(struct mountgroup *mg, struct resource *r,
 
 	rv = add_lock(r, in->nodeid, in->owner, in->pid,
 		      in->ex, in->start, in->end);
-
  out:
 	return rv;
 
@@ -638,7 +682,7 @@ static int unlock_internal(struct mountgroup *mg, struct resource *r,
 
 		/* existing range (RE) overlaps new range (RN) */
 
-		switch(overlap_type(in->start, in->end, po->start, po->end)) {
+		switch (overlap_type(in->start, in->end, po->start, po->end)) {
 
 		case 0:
 			/* ranges the same - just remove the existing lock */
@@ -651,15 +695,15 @@ static int unlock_internal(struct mountgroup *mg, struct resource *r,
 			/* RN within RE and starts or ends on RE boundary -
 			 * shrink and update RE */
 
-			shrink_range(po, in->start, in->end);
+			rv = shrink_range(po, in->start, in->end);
 			goto out;
 
 		case 2:
 			/* RN within RE - shrink and update RE to be front
 			 * fragment, and add a new lock for back fragment */
 
-			add_lock(r, in->nodeid, in->owner, in->pid,
-				 po->ex, in->end + 1, po->end);
+			rv = add_lock(r, in->nodeid, in->owner, in->pid,
+				      po->ex, in->end + 1, po->end);
 			po->end = in->start - 1;
 			goto out;
 
@@ -676,7 +720,7 @@ static int unlock_internal(struct mountgroup *mg, struct resource *r,
 			 * update RE, then continue because RN could cover
 			 * other locks */
 
-			shrink_range(po, in->start, in->end);
+			rv = shrink_range(po, in->start, in->end);
 			continue;
 
 		default:
@@ -684,7 +728,6 @@ static int unlock_internal(struct mountgroup *mg, struct resource *r,
 			goto out;
 		}
 	}
-
  out:
 	return rv;
 }
@@ -702,6 +745,17 @@ static int add_waiter(struct mountgroup *mg, struct resource *r,
 	return 0;
 }
 
+static void write_result(struct mountgroup *mg, struct gdlm_plock_info *in,
+			 int rv)
+{
+	int err;
+
+	in->rv = rv;
+	err = write(control_fd, in, sizeof(struct gdlm_plock_info));
+	if (err != sizeof(struct gdlm_plock_info))
+		log_error("plock result write err %d errno %d", err, errno);
+}
+
 static void do_waiters(struct mountgroup *mg, struct resource *r)
 {
 	struct lock_waiter *w, *safe;
@@ -711,61 +765,86 @@ static void do_waiters(struct mountgroup *mg, struct resource *r)
 	list_for_each_entry_safe(w, safe, &r->waiters, list) {
 		in = &w->info;
 
-		if (is_conflict(r, in))
+		if (is_conflict(r, in, 0))
 			continue;
 
 		list_del(&w->list);
 
+		/*
+		log_group(mg, "take waiter %llx %llx-%llx %d/%u/%llx",
+			  in->number, in->start, in->end,
+			  in->nodeid, in->pid, in->owner);
+		*/
+
 		rv = lock_internal(mg, r, in);
+
+		if (in->nodeid == our_nodeid)
+			write_result(mg, in, rv);
 
 		free(w);
 	}
 }
 
-static int do_lock(struct mountgroup *mg, struct gdlm_plock_info *in)
+static void do_lock(struct mountgroup *mg, struct gdlm_plock_info *in)
 {
 	struct resource *r = NULL;
 	int rv;
 
 	rv = find_resource(mg, in->number, 1, &r);
-	if (rv || !r)
-		goto out;
-
-	if (is_conflict(r, in)) {
-		if (!in->wait)
-			rv = -EAGAIN;
-		else
-			rv = add_waiter(mg, r, in);
-		goto out;
-	}
-
-	rv = lock_internal(mg, r, in);
 	if (rv)
 		goto out;
 
+	if (is_conflict(r, in, 0)) {
+		if (!in->wait)
+			rv = -EAGAIN;
+		else {
+			rv = add_waiter(mg, r, in);
+			if (rv)
+				goto out;
+			rv = -EINPROGRESS;
+		}
+	} else
+		rv = lock_internal(mg, r, in);
+
+ out:
+	if (in->nodeid == our_nodeid && rv != -EINPROGRESS)
+		write_result(mg, in, rv);
+
 	do_waiters(mg, r);
 	put_resource(r);
- out:
-	return rv;
 }
 
-static int do_unlock(struct mountgroup *mg, struct gdlm_plock_info *in)
+static void do_unlock(struct mountgroup *mg, struct gdlm_plock_info *in)
 {
 	struct resource *r = NULL;
 	int rv;
 
 	rv = find_resource(mg, in->number, 0, &r);
-	if (rv || !r)
-		goto out;
+	if (!rv)
+		rv = unlock_internal(mg, r, in);
 
-	rv = unlock_internal(mg, r, in);
-	if (rv)
-		goto out;
+	if (in->nodeid == our_nodeid)
+		write_result(mg, in, rv);
 
 	do_waiters(mg, r);
 	put_resource(r);
+}
+
+static void do_get(struct mountgroup *mg, struct gdlm_plock_info *in)
+{
+	struct resource *r = NULL;
+	int rv;
+
+	rv = find_resource(mg, in->number, 0, &r);
+	if (rv)
+		goto out;
+
+	if (is_conflict(r, in, 1))
+		in->rv = 1;
+	else
+		in->rv = 0;
  out:
-	return rv;
+	write_result(mg, in, rv);
 }
 
 /* When mg members receive our options message (for our mount), one of them
@@ -788,8 +867,12 @@ void _receive_plock(struct mountgroup *mg, char *buf, int len, int from)
 
 	info_bswap_in(&info);
 
-	log_group(mg, "receive_plock from %d op %d fs %x num %llx ex %d w %d",
-		  from, info.optype, info.fsid, info.number, info.ex,
+	log_group(mg, "receive plock %llx %s %s %llx-%llx %d/%u/%llx w %d",
+		  info.number,
+		  op_str(info.optype),
+		  ex_str(info.optype, info.ex),
+		  info.start, info.end,
+		  info.nodeid, info.pid, info.owner,
 		  info.wait);
 
 	if (info.optype == GDLM_PLOCK_OP_GET && from != our_nodeid)
@@ -805,24 +888,23 @@ void _receive_plock(struct mountgroup *mg, char *buf, int len, int from)
 	switch (info.optype) {
 	case GDLM_PLOCK_OP_LOCK:
 		mg->last_plock_time = time(NULL);
-		rv = do_lock(mg, &info);
+		do_lock(mg, &info);
 		break;
 	case GDLM_PLOCK_OP_UNLOCK:
 		mg->last_plock_time = time(NULL);
-		rv = do_unlock(mg, &info);
+		do_unlock(mg, &info);
 		break;
 	case GDLM_PLOCK_OP_GET:
-		/* rv = do_get(mg, &info); */
+		do_get(mg, &info);
 		break;
 	default:
+		log_error("receive_plock from %d optype %d", from, info.optype);
 		rv = -EINVAL;
 	}
 
  out:
-	if (from == our_nodeid) {
-		info.rv = rv;
-		rv = write(control_fd, &info, sizeof(info));
-	}
+	if (from == our_nodeid && rv)
+		write_result(mg, &info, rv);
 }
 
 void receive_plock(struct mountgroup *mg, char *buf, int len, int from)
@@ -858,6 +940,43 @@ void process_saved_plocks(struct mountgroup *mg)
 		list_del(&sm->list);
 		free(sm);
 	}
+}
+
+void purge_plocks(struct mountgroup *mg, int nodeid)
+{
+	struct posix_lock *po, *po2;
+	struct lock_waiter *w, *w2;
+	struct resource *r, *r2;
+	int purged = 0;
+
+	list_for_each_entry_safe(r, r2, &mg->resources, list) {
+		list_for_each_entry_safe(po, po2, &r->locks, list) {
+			if (po->nodeid == nodeid) {
+				list_del(&po->list);
+				free(po);
+				purged++;
+			}
+		}
+
+		list_for_each_entry_safe(w, w2, &r->waiters, list) {
+			if (w->info.nodeid == nodeid) {
+				list_del(&w->list);
+				free(w);
+				purged++;
+			}
+		}
+
+		if (list_empty(&r->locks) && list_empty(&r->waiters)) {
+			list_del(&r->list);
+			free(r);
+		} else
+			do_waiters(mg, r);
+	}
+	
+	if (purged)
+		mg->last_plock_time = time(NULL);
+
+	log_group(mg, "purged %d plocks for %d", purged, nodeid);
 }
 
 void plock_exit(void)
@@ -1283,9 +1402,9 @@ int dump_plocks(char *name, int fd)
 			snprintf(line, MAXLINE,
 			      "%llu WAITING %s %llu-%llu nodeid %d pid %u owner %llx\n",
 			      r->number,
-			      po->ex ? "WR" : "RD",
-			      po->start, po->end,
-			      po->nodeid, po->pid, po->owner);
+			      w->info.ex ? "WR" : "RD",
+			      w->info.start, w->info.end,
+			      w->info.nodeid, w->info.pid, w->info.owner);
 
 			rv = write(fd, line, strlen(line));
 		}
