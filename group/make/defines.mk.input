@@ -12,15 +12,9 @@
 ###############################################################################
 
 #Install Locations
-ARCH=$(shell uname -p)
-
 sbindir ?= ${DESTDIR}/@SBINDIR@
 mandir ?= ${DESTDIR}/@MANDIR@
-ifeq (,$(findstring 64,$(ARCH)))
 libdir ?= ${DESTDIR}/@LIBDIR@
-else
-libdir ?= ${DESTDIR}/@LIBDIR@64
-endif
 iddevlibdir ?= ${DESTDIR}/@IDDEVLIBDIR@
 cmanlibdir ?= ${DESTDIR}/@CMANLIBDIR@
 incdir ?= ${DESTDIR}/@INCDIR@
