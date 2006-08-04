@@ -1,6 +1,6 @@
 /*
  * Copyright (C) Sistina Software, Inc.  1997-2003 All rights reserved.
- * Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
+ * Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
  *
  * This copyrighted material is made available to anyone wishing to use,
  * modify, copy, or redistribute it subject to the terms and conditions
@@ -260,11 +260,16 @@ struct lm_lockstruct {
 	int ls_flags;
 };
 
-void __init gfs_init_lmh(void);
+void __init gfs2_init_lmh(void);
 
 /*
  * Lock module bottom interface.  A lock module makes itself available to GFS
  * with these functions.
+ *
+ * For the time being, we copy the gfs1 lock module bottom interface so the
+ * same lock modules can be used with both gfs1 and gfs2 (it won't be possible
+ * to load both gfs1 and gfs2 at once.)  Eventually the lock modules will fork
+ * for gfs1/gfs2 and this API can change to the gfs2_ prefix.
  */
 
 int gfs_register_lockproto(struct lm_lockops *proto);
@@ -276,15 +281,15 @@ void gfs_unregister_lockproto(struct lm_lockops *proto);
  * unmounting a file system.
  */
 
-int gfs_mount_lockproto(char *proto_name, char *table_name, char *host_data,
-			lm_callback_t cb, lm_fsdata_t *fsdata,
-			unsigned int min_lvb_size, int flags,
-			struct lm_lockstruct *lockstruct,
-			struct kobject *fskobj);
+int gfs2_mount_lockproto(char *proto_name, char *table_name, char *host_data,
+			 lm_callback_t cb, lm_fsdata_t *fsdata,
+			 unsigned int min_lvb_size, int flags,
+			 struct lm_lockstruct *lockstruct,
+			 struct kobject *fskobj);
 
-void gfs_unmount_lockproto(struct lm_lockstruct *lockstruct);
+void gfs2_unmount_lockproto(struct lm_lockstruct *lockstruct);
 
-void gfs_withdraw_lockproto(struct lm_lockstruct *lockstruct);
+void gfs2_withdraw_lockproto(struct lm_lockstruct *lockstruct);
 
 #endif /* __LM_INTERFACE_DOT_H__ */
 
