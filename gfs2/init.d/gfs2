@@ -16,8 +16,8 @@
 #
 # This script's behavior is modeled closely after the netfs script.  
 #
-GFS2FSTAB=$(LC_ALL=C awk '!/^#/ && $3 ~ /^gfs2/ && $4 !~ /noauto/ { print $2 }' /etc/fstab)
-GFS2MTAB=$(LC_ALL=C awk '!/^#/ && $3 ~ /^gfs2/ && $2 != "/" { print $2 }' /proc/mounts)
+GFS2FSTAB=$(LC_ALL=C awk '!/^#/ && $3 == "gfs2" && $4 !~ /noauto/ { print $2 }' /etc/fstab)
+GFS2MTAB=$(LC_ALL=C awk '!/^#/ && $3 == "gfs2" && $2 != "/" { print $2 }' /proc/mounts)
 
 # See how we were called.
 case "$1" in
@@ -34,7 +34,7 @@ case "$1" in
 	then
 		sig=
 		retry=6
-		remaining=`LC_ALL=C awk '!/^#/ && $3 ~ /^gfs2/ && $2 != "/" {print $2}' /proc/mounts`
+		remaining=`LC_ALL=C awk '!/^#/ && $3 == "gfs2" && $2 != "/" {print $2}' /proc/mounts`
 		while [ -n "$remaining" -a "$retry" -gt 0 ]
 		do
 			action $"Unmounting GFS2 filesystems: " umount -a -t gfs2
@@ -46,7 +46,7 @@ case "$1" in
 			fi
 
 			sleep 2
-			remaining=`LC_ALL=C awk '!/^#/ && $3 ~ /^gfs2/ && $2 != "/" {print $2}' /proc/mounts`
+			remaining=`LC_ALL=C awk '!/^#/ && $3 == "gfs2" && $2 != "/" {print $2}' /proc/mounts`
 			[ -z "$remaining" ] && break
 			/sbin/fuser -k -m $sig $remaining &> /dev/null
 			sleep 10
