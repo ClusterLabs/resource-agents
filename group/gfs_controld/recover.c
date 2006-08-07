@@ -966,7 +966,7 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 				  memb->spectator,
 				  memb->wait_gfs_recover_done);
 
-			purge_plocks(mg, memb->nodeid);
+			purge_plocks(mg, memb->nodeid, 0);
 		}
 	}	
 
@@ -2011,9 +2011,7 @@ void do_start(struct mountgroup *mg, int type, int member_count, int *nodeids)
 
 int do_terminate(struct mountgroup *mg)
 {
-	/* FIXME: all group members aren't guaranteed to be stopped for
-	   our leave yet when we get terminate.  We need that guarantee
-	   before we tell a withdrawing gfs to drop locks. */
+	purge_plocks(mg, 0, 1);
 
 	if (mg->withdraw) {
 		log_group(mg, "termination of our withdraw leave");

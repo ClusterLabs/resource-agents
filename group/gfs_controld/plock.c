@@ -942,7 +942,7 @@ void process_saved_plocks(struct mountgroup *mg)
 	}
 }
 
-void purge_plocks(struct mountgroup *mg, int nodeid)
+void purge_plocks(struct mountgroup *mg, int nodeid, int unmount)
 {
 	struct posix_lock *po, *po2;
 	struct lock_waiter *w, *w2;
@@ -951,7 +951,7 @@ void purge_plocks(struct mountgroup *mg, int nodeid)
 
 	list_for_each_entry_safe(r, r2, &mg->resources, list) {
 		list_for_each_entry_safe(po, po2, &r->locks, list) {
-			if (po->nodeid == nodeid) {
+			if (po->nodeid == nodeid || unmount) {
 				list_del(&po->list);
 				free(po);
 				purged++;
@@ -959,7 +959,7 @@ void purge_plocks(struct mountgroup *mg, int nodeid)
 		}
 
 		list_for_each_entry_safe(w, w2, &r->waiters, list) {
-			if (w->info.nodeid == nodeid) {
+			if (w->info.nodeid == nodeid || unmount) {
 				list_del(&w->list);
 				free(w);
 				purged++;
