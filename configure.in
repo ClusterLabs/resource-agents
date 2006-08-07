@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.541 $) dnl cvs revision
+AC_REVISION($Revision: 1.542 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -350,14 +350,15 @@ dnl Defaults to GNU C compiler if available.
 dnl Always tries to set the compiler to ANSI C via options (AM)
 dnl Can force other with environment variable "CC".
 AC_PROG_CC
-AM_PROG_CC_STDC
-AC_LIBTOOL_DLOPEN               dnl Enable dlopen support...
-AC_LIBLTDL_CONVENIENCE          dnl make libltdl a convenience lib
+AC_PROG_CC_STDC
 AC_PROG_YACC
 AC_DECL_YYTEXT
 AM_PROG_LEX
 AM_PATH_PYTHON
+AC_LIBTOOL_DLOPEN               dnl Enable dlopen support...
+AC_LIBLTDL_CONVENIENCE          dnl make libltdl a convenience lib
 AC_PROG_LIBTOOL
+
 dnl Replacing AC_PROG_LIBTOOL with AC_CHECK_PROG because LIBTOOL
 dnl was NOT being expanded all the time thus causing things to fail.
 AC_CHECK_PROGS(LIBTOOL, glibtool libtool libtool15 libtool13)
@@ -2554,7 +2555,7 @@ if test x"${enable_pretty}" = "xyes"; then
    CC="\$(PRETTY_CC) ${CC}"
 fi
 if test "x${enable_quiet}" = "xyes"; then
-   QUIET_LIBTOOL_OPTS="--tag=CC --quiet"
+   QUIET_LIBTOOL_OPTS="--quiet"
    QUIET_MAKE_OPTS="--quiet"
 fi
 
@@ -2562,7 +2563,7 @@ AC_MSG_RESULT(Supressing make details: ${enable_quiet})
 AC_MSG_RESULT(Pretty printing of compiler output: ${enable_pretty})
 
 dnl Put the above variables to use
-LIBTOOL="${LIBTOOL} \$(QUIET_LIBTOOL_OPTS)"
+LIBTOOL="${LIBTOOL} --tag=CC \$(QUIET_LIBTOOL_OPTS)"
 MAKE="${MAKE} \$(QUIET_MAKE_OPTS)"
 
 AC_SUBST(CC)
@@ -2723,6 +2724,7 @@ heartbeat/Makefile						\
 	heartbeat/logrotate.d/Makefile				\
 ldirectord/Makefile						\
 	ldirectord/init.d/Makefile				\
+	ldirectord/init.d/ldirectord   				\
 	ldirectord/logrotate.d/Makefile				\
 membership/Makefile						\
 	membership/ccm/Makefile					\
