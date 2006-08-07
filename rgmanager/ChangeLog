@@ -1,3 +1,31 @@
+2006-08-07 Lon Hohberger <lhh at redhat.com>
+	* src/clulib/ckpt_state.c: Preliminary implementation of replacement
+	for VF using AIS CKPT B.02.01 (w/ built-in test program)
+	* include/cman-private.h: Clean up APIs (cman APIs return
+	cman_handle_t, which is void*, should be using void ** all over)
+	* include/message.h: Bump context count to 128, add destination
+	node ID in header of packets.
+	* src/clulib/alloc.c: If we alloc the same size, return the same
+	block
+	* src/clulib/cman.c: API cleanups
+	* src/clulib/message.c: Add error checking to msg_print
+	* src/clulib/msg_cluster.c: Check destination in header before 
+        processing message remove dup #define for MAX_CONTEXTS, add
+	proto_error() macro for displaying protocol errors.  Use 'max' 
+	instead of 'fd' for select().  Use correct var when assigning
+	contexts.  Fix CMAN handles.  Return correct size from msg_send()
+	requests.
+	* src/clulib/msgtest.c: Fix CMAN handles
+	* src/clulib/vft.c: Don't handle VF_CURRENT inside comms thread
+	* src/daemons/main.c: Check to see if nodes are listening on our
+	port before we consider them running.  Handle VF_CURRENT requests
+	from other nodes.  Fail if we can't determine local node ID
+	* src/daemons/rg_forward.c: Give 10 minutes for responses to
+	forwarded requests.
+	* src/daemons/rg_state.c: Shorten RG state names.  Fix 'Uncertain'
+	output line.
+	* src/utils/clustat.c: Fix ccs_member_list() function.
+
 2006-05-23 Lon Hohberger <lhh at redhat.com>
 	* src/daemons/members.c: Zap pad fields on copy-out
 	* src/daemons/main.c: Give notice if skipping an event because of

@@ -91,7 +91,7 @@ forwarding_thread(void *arg)
 		pthread_exit(NULL);
 	}
 
-	if (msg_receive(&ctx, &msg, sizeof(msg),10) != sizeof(msg)) {
+	if (msg_receive(&ctx, &msg, sizeof(msg), 600) != sizeof(msg)) {
 		msg_close(&ctx);
 		msg_close(req->rr_resp_ctx);
 		msg_free_ctx(req->rr_resp_ctx);

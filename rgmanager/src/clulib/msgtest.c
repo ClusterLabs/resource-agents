@@ -28,7 +28,7 @@
 #include <signal.h>
 #include <cman-private.h>
 
-#define MYPORT 190
+#define MYPORT 67
 
 int my_node_id = 0;
 int running = 1;
@@ -121,7 +121,7 @@ private(void *arg)
 
 
 void
-clu_initialize(cman_handle_t **ch)
+clu_initialize(cman_handle_t *ch)
 {
 	if (!ch)
 		exit(1);
@@ -198,23 +198,34 @@ main(int argc, char **argv)
 	pthread_t piggy, priv;
 	fd_set rfds;
 	int max = 0;
-	int port = MYPORT;
-	cman_handle_t *clu = NULL;
+	uint8_t port = MYPORT;
+	cman_handle_t clu = NULL;
 
 
 	clu_initialize(&clu);
+
+	if (clu == NULL) {
+		printf("Failed to connect to CMAN\n");
+	}
 
 	if (cman_init_subsys(clu) < 0) {
 		perror("cman_init_subsys");
 		return -1;
 	}
-        cman_get_node(clu, CMAN_NODEID_US, &me);
+
+	memset(&me, 0, sizeof(me));
+
+        if (cman_get_node(clu, CMAN_NODEID_US, &me) < 0) {
+		perror("cman_get_node");
+		return -1;
+	}
 
 	my_node_id = me.cn_nodeid;
+	printf("I am node ID %d\n", my_node_id);
 
-	if (msg_listen(MSG_CLUSTER, (void *)&port,
-	    me.cn_nodeid, &cluster_ctx) < 0) {
-		printf("Couldn't set up cluster message system\n");
+	if (msg_listen(MSG_CLUSTER, (void *)&port, me.cn_nodeid, &cluster_ctx) < 0) {
+		printf("Couldn't set up cluster message system: %s\n",
+			strerror(errno));
 		return -1;
 	}
 

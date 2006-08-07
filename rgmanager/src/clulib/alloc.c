@@ -885,6 +885,12 @@ realloc(void *oldp, size_t newsize)
 #endif
 	void *newp;
 
+	if (oldp) {
+		oldb = block(oldp);
+		if (newsize <= oldb->mb_size)
+			return oldp;
+	}
+
 	newp = malloc(newsize);
 
 	if (!newp) {

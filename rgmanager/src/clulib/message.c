@@ -251,8 +251,17 @@ msg_listen(int type, void *port, int me, msgctx_t **ctx)
 void
 msg_print(msgctx_t *ctx)
 {
+	if (!ctx) {
+		printf("Attempt to call %s on NULL\n", __FUNCTION__);
+		return;
+	}
+
 	if (ctx->ops && ctx->ops->mo_print)
 		return ctx->ops->mo_print(ctx);
+
+	printf("Warning: Attempt to call %s on uninitialized context %p\n",
+	       __FUNCTION__, ctx);
+	printf("  ctx->type = %d\n", ctx->type);
 }
 
 

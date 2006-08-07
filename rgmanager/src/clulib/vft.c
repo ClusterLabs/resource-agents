@@ -819,7 +819,8 @@ vf_event_loop(msgctx_t *ctx, int my_node_id)
 		}
 
 		swab_generic_msg_hdr(hdrp);
-		if (hdrp->gh_command == VF_MESSAGE) {
+		if (hdrp->gh_command == VF_MESSAGE &&
+		    hdrp->gh_arg1 != VF_CURRENT) {
 			if (vf_process_msg(ctx, 0, hdrp, n) == VFR_COMMIT) {
 #ifdef DEBUG
 				printf("VFT: View committed\n");

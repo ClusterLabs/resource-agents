@@ -21,7 +21,11 @@
 #include <platform.h>
 #include <message.h>
 #include <members.h>
+#ifdef OPENAIS
+#include <ds.h>
+#else
 #include <vf.h>
+#endif
 #include <stdio.h>
 #include <string.h>
 #include <resgroup.h>
@@ -147,7 +151,7 @@ rg_lock(char *name, struct dlm_lksb *p)
 {
 	char res[256];
 
-	snprintf(res, sizeof(res), "usrm::rg=\"%s\"", name);
+	snprintf(res, sizeof(res), "rg=\"%s\"", name);
 	return clu_lock(LKM_EXMODE, p, 0, res);
 }
 
@@ -228,8 +232,9 @@ send_response(int ret, request_t *req)
 	swab_SmMessageSt(msgp);
 	msg_send(req->rr_resp_ctx, msgp, sizeof(*msgp));
 
-	/* :) */
+	/* :( */
 	msg_close(req->rr_resp_ctx);
+	msg_free_ctx(req->rr_resp_ctx);
 	req->rr_resp_ctx = NULL;
 }
 
@@ -237,19 +242,27 @@ send_response(int ret, request_t *req)
 int
 set_rg_state(char *name, rg_state_t *svcblk)
 {
-	cluster_member_list_t *membership;
 	char res[256];
+#ifndef OPENAIS
+	cluster_member_list_t *membership;
 	int ret;
+#endif
 
 	if (name)
 		strncpy(svcblk->rs_name, name, sizeof(svcblk->rs_name));
 
+	snprintf(res, sizeof(res), "rg=\"%s\"", name);
+#ifdef OPENAIS
+	if (ds_write(res, svcblk, sizeof(*svcblk)) < 0)
+		return -1;
+	return 0;
+#else
 	membership = member_list();
-	snprintf(res, sizeof(res), "usrm::rg=\"%s\"", name);
 	ret = vf_write(membership, VFF_IGN_CONN_ERRORS, res, svcblk,
        		       sizeof(*svcblk));
 	free_member_list(membership);
 	return ret;
+#endif
 }
 
 
@@ -272,18 +285,50 @@ get_rg_state(char *name, rg_state_t *svcblk)
 {
 	char res[256];
 	int ret;
-	void *data = NULL;
-	uint32_t datalen = 0;
+#ifdef OPENAIS
+	char data[DS_MIN_SIZE];
+	int datalen;
+#else
 	uint64_t viewno;
+	void *data = NULL;
 	cluster_member_list_t *membership;
+	uint32_t datalen = 0;
+#endif
 
 	/* ... */
 	if (name)
 		strncpy(svcblk->rs_name, name, sizeof(svcblk->rs_name));
 
-	membership = member_list();
+	snprintf(res, sizeof(res),"rg=\"%s\"", svcblk->rs_name);
 
-	snprintf(res, sizeof(res),"usrm::rg=\"%s\"", svcblk->rs_name);
+#ifdef OPENAIS
+	while((datalen = ds_read(res, data, sizeof(data))) < 0) {
+		if (errno == ENOENT) {
+			ds_key_init(res, DS_MIN_SIZE, 10);
+		} else {
+			return -1;
+		}
+	}
+
+	if (datalen < 0) {
+
+		ret = init_rg(name, svcblk);
+		if (ret < 0) {
+			printf("Couldn't initialize rg %s!\n", name);
+			return RG_EFAIL;
+		}
+
+		datalen = ds_read(res, &data, sizeof(data));
+		if (ret < 0) {
+			printf("Couldn't reread rg %s! (%d)\n", name, ret);
+			return RG_EFAIL;
+		}
+	}
+
+	memcpy(svcblk, data, sizeof(*svcblk));
+	return 0;
+#else
+	membership = member_list();
 	ret = vf_read(membership, res, &viewno, &data, &datalen);
 
 	if (ret != VFR_OK || datalen == 0) {
@@ -307,7 +352,7 @@ get_rg_state(char *name, rg_state_t *svcblk)
 		}
 	}
 
-	if (datalen != sizeof(*svcblk)) {
+	if (datalen < sizeof(*svcblk)) {
 		printf("Size mismatch; expected %d got %d\n",
 		       (int)sizeof(*svcblk), datalen);
 		if (data)
@@ -322,6 +367,7 @@ get_rg_state(char *name, rg_state_t *svcblk)
 	free_member_list(membership);
 
 	return 0;
+#endif
 }
 
 
@@ -331,22 +377,32 @@ get_rg_state_local(char *name, rg_state_t *svcblk)
 {
 	char res[256];
 	int ret;
+#ifdef OPENAIS
+	char data[1024];
+	int datalen;
+#else
 	void *data = NULL;
-	uint32_t datalen = 0;
 	uint64_t viewno;
+	uint32_t datalen;
+#endif
 
 	/* ... */
 	if (name)
 		strncpy(svcblk->rs_name, name, sizeof(svcblk->rs_name));
 
-	snprintf(res, sizeof(res),"usrm::rg=\"%s\"", svcblk->rs_name);
+	snprintf(res, sizeof(res),"rg=\"%s\"", svcblk->rs_name);
+
+#ifdef OPENAIS
+	ret = ds_read(res, data, sizeof(data));
+	if (ret <= 0) {
+#else
 	ret = vf_read_local(res, &viewno, &data, &datalen);
 
 	if (ret != VFR_OK || datalen == 0 ||
 	    datalen != sizeof(*svcblk)) {
 		if (data)
 			free(data);
-
+#endif
 		svcblk->rs_owner = 0;
 		svcblk->rs_last_owner = 0;
 		svcblk->rs_state = RG_STATE_UNINITIALIZED;
@@ -359,7 +415,9 @@ get_rg_state_local(char *name, rg_state_t *svcblk)
 
 	/* Copy out the data. */
 	memcpy(svcblk, data, sizeof(*svcblk));
+#ifndef OPENAIS
 	free(data);
+#endif
 	return 0;
 }
 
@@ -693,7 +751,7 @@ svc_start(char *svcName, int req)
 	else
 		svcStatus.rs_restarts = 0;
 
-	if (set_rg_state(svcName, &svcStatus) != 0) {
+	if (set_rg_state(svcName, &svcStatus) < 0) {
 		clulog(LOG_ERR,
 		       "#47: Failed changing service status\n");
 		rg_unlock(&lockp);
@@ -1318,9 +1376,8 @@ handle_relocate_req(char *svcName, int request, int preferred_target,
 			/* state uncertain */
 			free_member_list(allowed_nodes);
 			clulog(LOG_DEBUG, "State Uncertain: svc:%s "
-			       "nid:%08x%08x req:%d\n", svcName,
-			       (uint32_t)(target>>32)&0xffffffff,
-			       (uint32_t)(target&0xffffffff), request);
+			       "nid:%08x req:%d\n", svcName,
+			       target, request);
 			return 0;
 		case 0:
 			*new_owner = target;

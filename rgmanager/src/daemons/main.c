@@ -58,6 +58,7 @@ int watchdog_init(void);
 int shutdown_pending = 0, running = 1, need_reconfigure = 0;
 char debug = 0; /* XXX* */
 static int signalled = 0;
+static int port = RG_PORT;
 
 uint64_t next_node_id(cluster_member_list_t *membership, uint64_t me);
 int rg_event_q(char *svcName, uint32_t state, int owner);
@@ -135,6 +136,38 @@ membership_update(void)
 
 	old_membership = member_list();
 	new_ml = get_member_list(h);
+
+	for (x = 0; x < new_ml->cml_count; x++) {
+
+		if (new_ml->cml_members[x].cn_member == 0)
+			continue;
+		if (new_ml->cml_members[x].cn_nodeid == my_id())
+			continue;
+
+		do {
+			quorate = cman_is_listening(h,
+					new_ml->cml_members[x].cn_nodeid,
+					port);
+			if (quorate == 0) {
+				clulog(LOG_DEBUG, "Node %d is not listening\n",
+					new_ml->cml_members[x].cn_nodeid);
+				new_ml->cml_members[x].cn_member = 0;
+			} else if (quorate == -1 && errno == EBUSY) {
+				usleep(50000);
+				continue;
+			}
+
+			if (quorate < 0) {
+				perror("cman_is_listening");
+			}
+
+			if (quorate > 0) {
+				printf("Node %d IS listenin\n", new_ml->cml_members[x].cn_nodeid);
+			}
+
+		} while(0);
+	}
+
 	member_list_update(new_ml);
 	cman_finish(h);
 
@@ -295,11 +328,21 @@ do_lockreq(msgctx_t *ctx, int req)
 {
 	int ret;
 	char state;
+#ifdef OPENAIS
+	msgctx_t everyone;
+#else
 	cluster_member_list_t *m = member_list();
+#endif
 
 	state = (req==RG_LOCK)?1:0;
+
+#ifdef OPENAIS
+	ret = ds_write("rg_lockdown", &state, 1);
+	clulog(LOG_INFO, "FIXME: send RG_LOCK update to all!\n");
+#else
 	ret = vf_write(m, VFF_IGN_CONN_ERRORS, "rg_lockdown", &state, 1);
 	free_member_list(m);
+#endif
 
 	if (ret == 0) {
 		msg_send_simple(ctx, RG_SUCCESS, 0, 0);
@@ -331,7 +374,7 @@ dispatch_msg(msgctx_t *ctx, int nodeid, int need_close)
 	memset(msgbuf, 0, sizeof(msgbuf));
 
 	/* Peek-a-boo */
-	sz = msg_receive(ctx, msg_hdr, sizeof(msgbuf), 10);
+	sz = msg_receive(ctx, msg_hdr, sizeof(msgbuf), 1);
 	if (sz < sizeof (generic_msg_hdr)) {
 		clulog(LOG_ERR, "#37: Error receiving message header (%d)\n", sz);
 		goto out;
@@ -447,7 +490,10 @@ dispatch_msg(msgctx_t *ctx, int nodeid, int need_close)
 		break;
 
 	case VF_MESSAGE:
-		/* Ignore; our VF thread handles these */
+		/* Ignore; our VF thread handles these
+		    - except for VF_CURRENT XXX (bad design) */
+		if (msg_hdr->gh_arg1 == VF_CURRENT)
+			vf_process_msg(ctx, 0, msg_hdr, sz);
 		break;
 
 	default:
@@ -477,7 +523,6 @@ handle_cluster_event(msgctx_t *ctx)
 	int nodeid;
 	
 	ret = msg_wait(ctx, 0);
-
 
 	switch(ret) {
 	case M_PORTOPENED:
@@ -706,7 +751,7 @@ configure_logging(int ccsfd, int dbg)
 
 
 void
-clu_initialize(cman_handle_t **ch)
+clu_initialize(cman_handle_t *ch)
 {
 	if (!ch)
 		exit(1);
@@ -765,10 +810,8 @@ main(int argc, char **argv)
 	cman_node_t me;
 	msgctx_t *cluster_ctx;
 	msgctx_t *local_ctx;
-	int port = RG_PORT;
 	pthread_t th;
-
-	cman_handle_t *clu = NULL;
+	cman_handle_t clu = NULL;
 
 	while ((rv = getopt(argc, argv, "fd")) != EOF) {
 		switch (rv) {
@@ -809,7 +852,15 @@ main(int argc, char **argv)
 
 	memset(&me, 0, sizeof(me));
         cman_get_node(clu, CMAN_NODEID_US, &me);
+
+	if (me.cn_nodeid == 0) {
+		printf("Unable to determine local node ID\n");
+		perror("cman_get_node");
+		return -1;
+	}
 	set_my_id(me.cn_nodeid);
+
+	clulog(LOG_INFO, "I am node #%d\n", my_id());
 
 	/*
 	   We know we're quorate.  At this point, we need to
@@ -842,7 +893,7 @@ main(int argc, char **argv)
 		return -1;
 	}
 
-	if (msg_listen(MSG_CLUSTER, &port , me.cn_nodeid, &cluster_ctx) < 0) {
+	if (msg_listen(MSG_CLUSTER, &port, me.cn_nodeid, &cluster_ctx) < 0) {
 		clulog(LOG_CRIT,
 		       "#10b: Couldn't set up cluster message system: %s\n",
 		       strerror(errno));
@@ -859,12 +910,21 @@ main(int argc, char **argv)
 	/*
 	   Initialize the VF stuff.
 	 */
-	if (vf_init(me.cn_nodeid, RG_PORT, NULL, NULL) != 0) {
+#ifdef OPENAIS
+	if (ds_init() < 0) {
+		clulog(LOG_CRIT, "#11b: Couldn't initialize SAI AIS CKPT\n");
+		return -1;
+	}
+
+	ds_key_init("rg_lockdown", 32, 10);
+#else
+	if (vf_init(me.cn_nodeid, port, NULL, NULL) != 0) {
 		clulog(LOG_CRIT, "#11: Couldn't set up VF listen socket\n");
 		return -1;
 	}
 
 	vf_key_init("rg_lockdown", 10, NULL, lock_commit_cb);
+#endif
 
 	/*
 	   Do everything useful

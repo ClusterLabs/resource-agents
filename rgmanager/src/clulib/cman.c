@@ -32,7 +32,7 @@
 #include <sys/socket.h>
 #include <fcntl.h>
 
-static cman_handle_t *_chandle = NULL;
+static cman_handle_t _chandle = NULL;
 static pthread_mutex_t _chandle_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t _chandle_cond = PTHREAD_COND_INITIALIZER;
 static pthread_t _chandle_holder = 0;
@@ -60,7 +60,7 @@ _set_nonblock(int fd)
   @return		NULL / errno on failure; the global CMAN handle
 			on success.
  */
-cman_handle_t *
+cman_handle_t 
 cman_lock(int block, int preempt)
 {
 	pthread_t tid;
@@ -110,7 +110,7 @@ out_unlock:
   @return		NULL / errno on failure; the global CMAN handle
 			on success.
  */
-cman_handle_t *
+cman_handle_t
 cman_lock_preemptible(int block, int *preempt_fd)
 {
 	pthread_t tid;
@@ -160,7 +160,7 @@ out_unlock:
   @return		-1 on failure, 0 on success
  */
 int
-cman_unlock(cman_handle_t *ch)
+cman_unlock(cman_handle_t ch)
 {
 	int ret = -1;
 	char c;

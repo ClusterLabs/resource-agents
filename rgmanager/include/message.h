@@ -30,14 +30,17 @@ typedef enum {
 
 /* Header is never presented to applications */
 typedef struct {
-	uint32_t	dest_ctx;
 	uint32_t	src_ctx;
-	/* 8 */
 	uint32_t	src_nodeid;
+	/* 8 */
+	uint32_t	dest_ctx;
+	uint32_t	dest_nodeid;
+	/* 16 */
 	uint8_t		msg_control;
 	uint8_t		msg_port;
 	uint8_t		pad[2];
-	/* 16 */
+	/* 20 */
+	uint8_t		msg_reserved[12];
 } cluster_msg_hdr_t;
 
 /* Header is never presented to applications */
@@ -62,6 +65,7 @@ typedef struct {
 	swab32((ptr)->dest_ctx);\
 	swab32((ptr)->src_ctx);\
 	swab32((ptr)->src_nodeid);\
+	swab32((ptr)->dest_nodeid);\
 }
 
 
@@ -123,7 +127,7 @@ typedef struct _msg_ops {
 
 
 /* Ripped from ccsd's setup_local_socket */
-#define MAX_CONTEXTS 32  /* Testing; production should be 1024-ish */
+#define MAX_CONTEXTS 128  /* Testing; production should be 1024-ish */
 
 #define SKF_LISTEN (1<<0)
 #define SKF_READ   (1<<1)

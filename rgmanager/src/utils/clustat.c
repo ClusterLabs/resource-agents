@@ -168,24 +168,31 @@ cluster_member_list_t *ccs_member_list(void)
 	while ((ret = malloc(sizeof(*ret))) == NULL)
 		sleep(1);
 	
-	x = 1;
-	while (1) {
+	x = 0;
+	while (++x) {
+		name = NULL;
 		snprintf(buf, sizeof(buf),
 			"/cluster/clusternodes/clusternode[%d]/@name", x);
 
 		if (ccs_get(desc, buf, &name) != 0)
 			break;
 
+		if (!name)
+			break;
+		if (!strlen(name)) {
+			free(name);
+			continue;
+		}
+
 		if (!nodes) {
 			nodes = malloc(x * sizeof(cman_node_t));
-			if (!nodes ) {
+			if (!nodes) {
 				perror("malloc");
 				ccs_disconnect(desc);
 				exit(1);
 			}
-			memset(nodes, 0, x * sizeof(cman_node_t));
 		} else {
-			nodes = realloc(ret, x * sizeof(cman_node_t));
+			nodes = realloc(nodes, x * sizeof(cman_node_t));
 			if (!nodes) {
 				perror("realloc");
 				ccs_disconnect(desc);
@@ -207,13 +214,10 @@ cluster_member_list_t *ccs_member_list(void)
 		}
 
 		ret->cml_count = x;
-		++x;
 	}
 
 	ccs_disconnect(desc);
-
 	ret->cml_members = nodes;
-
 
 	return ret;
 }
@@ -615,7 +619,6 @@ build_member_list(cman_handle_t ch, int *lid)
 
 		/* Flag online nodes */
 		flag_nodes(all, part, FLAG_UP);
-
 		free_member_list(part);
 	} else {
 		/* not root - keep it simple for the next block */
