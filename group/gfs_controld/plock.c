@@ -1094,20 +1094,18 @@ int unlink_checkpoint(struct mountgroup *mg, SaNameT *name)
 	return ret;
 }
 
-/* Copy all plock state into a checkpoint so new node can retrieve it.
+/* Copy all plock state into a checkpoint so new node can retrieve it.  The
+   node creating the ckpt for the mounter needs to be the same node that's
+   sending the mounter its journals message (i.e. the low nodeid).  The new
+   mounter knows the ckpt is ready to read only after it gets its journals
+   message.
+ 
+   If the mounter is becoming the new low nodeid in the group, the node doing
+   the store closes the ckpt and the new node unlinks the ckpt after reading
+   it.  The ckpt should then disappear and the new node can create a new ckpt
+   for the next mounter. */
 
-   The low node in the group and the previous node to create the ckpt (with
-   non-zero cp_handle) may be different if a new node joins with a lower nodeid
-   than the previous low node that created the ckpt.  In this case, the prev
-   node has the old ckpt open and will reuse it if no plock state has changed,
-   or will unlink it and create a new one.  The low node will also attempt to
-   create a new ckpt.  That open-create will either fail due to the prev node
-   reusing the old ckpt, or it will race with the open-create on the prev node
-   after the prev node unlinks the old ckpt.  Either way, when there are two
-   different nodes in the group calling store_plocks(), one of them will fail
-   at the Open(CREATE) step with ERR_EXIST due to the other. */
-
-void store_plocks(struct mountgroup *mg)
+void store_plocks(struct mountgroup *mg, int nodeid)
 {
 	SaCkptCheckpointCreationAttributesT attr;
 	SaCkptCheckpointHandleT h;
@@ -1128,8 +1126,8 @@ void store_plocks(struct mountgroup *mg)
 
 	/* no change to plock state since we created the last checkpoint */
 	if (mg->last_checkpoint_time > mg->last_plock_time) {
-		log_group(mg, "store_plocks: ckpt uptodate");
-		return;
+		log_group(mg, "store_plocks: saved ckpt uptodate");
+		goto out;
 	}
 	mg->last_checkpoint_time = time(NULL);
 
@@ -1236,6 +1234,17 @@ void store_plocks(struct mountgroup *mg)
 			break;
 		}
 	}
+
+ out:
+	/* If the new nodeid is becoming the low nodeid it will now be in
+	   charge of creating ckpt's for mounters instead of us. */
+
+	if (nodeid < our_nodeid) {
+		log_group(mg, "store_plocks: closing ckpt for new low node %d",
+			  nodeid);
+		saCkptCheckpointClose(h);
+		mg->cp_handle = 0;
+	}
 }
 
 /* called by a node that's just been added to the group to get existing plock
@@ -1336,7 +1345,11 @@ void retrieve_plocks(struct mountgroup *mg)
  out_it:
 	saCkptSectionIterationFinalize(itr);
  out:
-	saCkptCheckpointClose(h);
+	if (mg->low_nodeid == our_nodeid) {
+		log_group(mg, "retrieve_plocks: unlink ckpt from old low node");
+		unlink_checkpoint(mg, &name);
+	} else
+		saCkptCheckpointClose(h);
 }
 
 void purge_plocks(struct mountgroup *mg, int nodeid, int unmount)

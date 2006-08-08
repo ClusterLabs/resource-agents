@@ -140,6 +140,7 @@ struct mountgroup {
 	int			emulate_first_mounter;
 	int			wait_first_done;
 	int			low_finished_nodeid;
+	int			low_nodeid;
 	int			save_plocks;
 
 	uint64_t		cp_handle;
@@ -259,7 +260,7 @@ int client_send(int ci, char *buf, int len);
 
 int send_group_message(struct mountgroup *mg, int len, char *buf);
 
-void store_plocks(struct mountgroup *mg);
+void store_plocks(struct mountgroup *mg, int nodeid);
 void retrieve_plocks(struct mountgroup *mg);
 int dump_plocks(char *name, int fd);
 void process_saved_plocks(struct mountgroup *mg);

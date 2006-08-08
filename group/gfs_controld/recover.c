@@ -589,8 +589,8 @@ int assign_journal(struct mountgroup *mg, struct mg_member *new)
 	log_group(mg, "assign_journal: new member %d got jid %d",
 		  new->nodeid, new->jid);
 
-	if (mg->low_finished_nodeid == our_nodeid || mg->cp_handle)
-		store_plocks(mg);
+	if (mg->low_finished_nodeid == our_nodeid)
+		store_plocks(mg, new->nodeid);
 
 	/* if we're the first mounter and haven't gotten others_may_mount
 	   yet, then don't send journals until kernel_recovery_done_first
@@ -982,6 +982,8 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 	}
 
 	list_for_each_entry(memb, &mg->members, list) {
+		if (mg->low_nodeid == -1 || memb->nodeid < mg->low_nodeid)
+			mg->low_nodeid = memb->nodeid;
 		if (!memb->finished)
 			continue;
 		if (low == -1 || memb->nodeid < low)
@@ -1008,6 +1010,7 @@ struct mountgroup *create_mg(char *name)
 	INIT_LIST_HEAD(&mg->resources);
 	INIT_LIST_HEAD(&mg->saved_messages);
 	mg->init = 1;
+	mg->low_nodeid = -1;
 
 	strncpy(mg->name, name, MAXNAME);
 
@@ -1902,7 +1905,7 @@ void resend_journals(struct mountgroup *mg)
 			continue;
 
 		if (!stored_plocks) {
-			store_plocks(mg);
+			store_plocks(mg, memb->nodeid);
 			stored_plocks = 1;
 		}
 
