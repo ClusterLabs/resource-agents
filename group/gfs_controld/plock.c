@@ -942,43 +942,6 @@ void process_saved_plocks(struct mountgroup *mg)
 	}
 }
 
-void purge_plocks(struct mountgroup *mg, int nodeid, int unmount)
-{
-	struct posix_lock *po, *po2;
-	struct lock_waiter *w, *w2;
-	struct resource *r, *r2;
-	int purged = 0;
-
-	list_for_each_entry_safe(r, r2, &mg->resources, list) {
-		list_for_each_entry_safe(po, po2, &r->locks, list) {
-			if (po->nodeid == nodeid || unmount) {
-				list_del(&po->list);
-				free(po);
-				purged++;
-			}
-		}
-
-		list_for_each_entry_safe(w, w2, &r->waiters, list) {
-			if (w->info.nodeid == nodeid || unmount) {
-				list_del(&w->list);
-				free(w);
-				purged++;
-			}
-		}
-
-		if (list_empty(&r->locks) && list_empty(&r->waiters)) {
-			list_del(&r->list);
-			free(r);
-		} else
-			do_waiters(mg, r);
-	}
-	
-	if (purged)
-		mg->last_plock_time = time(NULL);
-
-	log_group(mg, "purged %d plocks for %d", purged, nodeid);
-}
-
 void plock_exit(void)
 {
 	if (plocks_online)
@@ -1260,6 +1223,13 @@ void store_plocks(struct mountgroup *mg)
 			sleep(1);
 			goto create_retry;
 		}
+		if (rv == SA_AIS_ERR_EXIST) {
+			/* this shouldn't happen in general */
+			log_group(mg, "store_plocks: clearing old ckpt");
+			saCkptCheckpointClose(h);
+			unlink_checkpoint(mg, &name);
+			goto open_retry;
+		}
 		if (rv != SA_AIS_OK) {
 			log_error("store_plocks: ckpt section create err %d %s",
 				  rv, mg->name);
@@ -1367,6 +1337,55 @@ void retrieve_plocks(struct mountgroup *mg)
 	saCkptSectionIterationFinalize(itr);
  out:
 	saCkptCheckpointClose(h);
+}
+
+void purge_plocks(struct mountgroup *mg, int nodeid, int unmount)
+{
+	struct posix_lock *po, *po2;
+	struct lock_waiter *w, *w2;
+	struct resource *r, *r2;
+	int len, purged = 0;
+	SaNameT name;
+
+	list_for_each_entry_safe(r, r2, &mg->resources, list) {
+		list_for_each_entry_safe(po, po2, &r->locks, list) {
+			if (po->nodeid == nodeid || unmount) {
+				list_del(&po->list);
+				free(po);
+				purged++;
+			}
+		}
+
+		list_for_each_entry_safe(w, w2, &r->waiters, list) {
+			if (w->info.nodeid == nodeid || unmount) {
+				list_del(&w->list);
+				free(w);
+				purged++;
+			}
+		}
+
+		if (list_empty(&r->locks) && list_empty(&r->waiters)) {
+			list_del(&r->list);
+			free(r);
+		} else
+			do_waiters(mg, r);
+	}
+	
+	if (purged)
+		mg->last_plock_time = time(NULL);
+
+	log_group(mg, "purged %d plocks for %d", purged, nodeid);
+
+	/* we may have a saved ckpt that we created for the last mounter,
+	   we need to unlink it so another node can create a new ckpt for
+	   the next mounter after we leave */
+
+	if (unmount && mg->cp_handle) {
+		len = snprintf(name.value, SA_MAX_NAME_LENGTH,
+			       "gfsplock.%s", mg->name);
+		name.length = len;
+		unlink_checkpoint(mg, &name);
+	}
 }
 
 int dump_plocks(char *name, int fd)
