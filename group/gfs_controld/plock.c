@@ -1084,7 +1084,7 @@ int unlink_checkpoint(struct mountgroup *mg, SaNameT *name)
 	log_group(mg, "unlink ckpt %llx", h);
 
  unlink_retry:
-	rv = saCkptCheckpointUnlink(h, name);
+	rv = saCkptCheckpointUnlink(ckpt_handle, name);
 	if (rv == SA_AIS_ERR_TRY_AGAIN) {
 		log_group(mg, "unlink ckpt retry");
 		sleep(1);
