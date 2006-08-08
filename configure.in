@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.543 $) dnl cvs revision
+AC_REVISION($Revision: 1.544 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -383,7 +383,7 @@ fi
 
 AC_SYS_LARGEFILE
 
-AC_PATH_PROGS(HTML2TXT, lynx, w3m)
+AC_PATH_PROGS(HTML2TXT, lynx w3m)
 case $HTML2TXT in
   */*)	;;
   *)	HTML2TXT="";;
