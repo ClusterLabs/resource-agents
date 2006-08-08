@@ -109,9 +109,9 @@ cluster_msg_send(msgctx_t *ctx, void *msg, size_t len)
 
 	swab_cluster_msg_hdr_t(h);
 
-	ret = cman_send_data_unlocked((void *)h, len + sizeof(*h),
-			       ctx->u.cluster_info.nodeid,
-			       ctx->u.cluster_info.port, 0);
+	ret = cman_send_data_unlocked((void *)h, len + sizeof(*h), 0,
+			       ctx->u.cluster_info.port,
+			       ctx->u.cluster_info.nodeid);
 
 	if (ret < 0)
 		return ret;
