@@ -30,7 +30,6 @@
 #include <linux/buffer_head.h>
 #include <linux/miscdevice.h>
 #include <linux/moduleparam.h>
-#include <linux/devfs_fs_kernel.h>
 
 #include <asm/uaccess.h>
 #include <asm/types.h>
@@ -844,7 +843,6 @@ static struct miscdevice _gnbd_misc =
 {
         .minor = MISC_DYNAMIC_MINOR,
         .name  = "gnbd_ctl",
-        .devfs_name = "gnbd_ctl",
         .fops = &_gnbd_ctl_fops
 };
 
@@ -925,7 +923,6 @@ static int __init gnbd_init(void)
 	printk(KERN_INFO "gnbd: registered device at major %d\n", major_nr);
 	dprintk(DBG_INIT, "gnbd: debugflags=0x%x\n", debugflags);
 
-	devfs_mk_dir("gnbd_minor");
 	err = class_register(&gnbd_class);
 	if (err)
 		goto out_unregister;
@@ -981,7 +978,6 @@ static int __init gnbd_init(void)
 		disk->fops = &gnbd_fops;
 		disk->private_data = &gnbd_dev[i];
 		sprintf(disk->disk_name, "gnbd%d", i);
-		sprintf(disk->devfs_name, "gnbd_minor/%d", i);
 		set_capacity(disk, 0);
 		add_disk(disk);
 		if(sysfs_create_link(&gnbd_dev[i].class_dev.kobj,
@@ -994,6 +990,7 @@ static int __init gnbd_init(void)
         if (err)
                 goto out_unregister_class;
         
+	do_gettimeofday(&tv); 
 	insmod_time = (uint64_t) tv.tv_sec * 1000000 + tv.tv_usec;
 
 	return 0;
@@ -1035,7 +1032,6 @@ static void __exit gnbd_cleanup(void)
 			kfree(gnbd_dev[i].server_name);
 	}
 	class_unregister(&gnbd_class);
-	devfs_remove("gnbd");
 	unregister_blkdev(major_nr, "gnbd");
 	printk(KERN_INFO "gnbd: unregistered device at major %d\n", major_nr);
 }
