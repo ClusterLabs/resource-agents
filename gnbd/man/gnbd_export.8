@@ -130,7 +130,7 @@ of any executeable that you wish to run. A command can contain the %M, %m or
 %n escape sequences. %M will be expanded to the major number of the exported
 device, %m will be expaned to the minor number of the exported device, and
 %n will be expanded to the sysfs name for the device. If no command is given,
-gnbd will use the default command \fI"/sbin/scsi_id -g -u -s /block/%n"\fR. This
+gnbd will use the default command \fI"/usr/sbin/gnbd_get_uid"\fR. This
 command will work for most scsi devices.
 .TP
 \fB-t\fP [\fIseconds\fR]
