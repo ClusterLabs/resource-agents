@@ -38,18 +38,18 @@ POWER_OFF="outletOff"
 POWER_REBOOT="outletReboot"
 
 def usage():
-        print "Usage:\n";
-        print "\n";
-        print "Options:\n";
-        print "  -a <ip>          IP address or hostname of MasterSwitch\n";
-        print "  -h               usage\n";
-        print "  -l <name>        Login name\n";
-        print "  -n <num>         Outlet number to change\n";
-        print "  -o <string>      Action: Reboot (default), Off or On\n";
-        print "  -p <string>      Login password\n";
-        print "  -q               quiet mode\n";
-        print "  -V               version\n";
-        print "  -v               Log to file /tmp/apclog\n";
+        print "Usage:";
+        print "";
+        print "Options:";
+        print "  -a <ip>          IP address or hostname of MasterSwitch";
+        print "  -h               usage";
+        print "  -l <name>        Login name";
+        print "  -n <num>         Outlet number to change";
+        print "  -o <string>      Action: Reboot (default), Off or On";
+        print "  -p <string>      Login password";
+        print "  -q               quiet mode";
+        print "  -V               version";
+        print "  -v               Log to file /tmp/apclog";
                                                                                 
         sys.exit(0);
 
