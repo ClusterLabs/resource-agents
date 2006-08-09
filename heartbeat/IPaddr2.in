@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr2.in,v 1.22 2006/07/21 08:19:54 panjiam Exp $
+#	$Id: IPaddr2.in,v 1.23 2006/08/09 12:58:14 lars Exp $
 #
 #       OCF Resource Agent compliant IPaddr2 script.
 #
@@ -73,6 +73,8 @@ VLDIR=$HA_VARRUNDIR/rsctmp/IPaddr
 SENDARPPIDDIR=$HA_VARRUNDIR/rsctmp/send_arp
 
 #######################################################################
+
+SYSTYPE="`uname -s`"
 
 meta_data() {
 	cat <<END
