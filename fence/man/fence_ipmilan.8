@@ -8,7 +8,7 @@
 .TH fence_ipmilan 8
 
 .SH NAME
-fence_ipmilan - I/O Fencing agent for Bull machines controlled by IPMI over
+fence_ipmilan - I/O Fencing agent for machines controlled by IPMI over
 LAN.
 
 .SH SYNOPSIS
@@ -17,10 +17,9 @@ fence_ipmilan
 [\fIOPTION\fR]...
 
 .SH DESCRIPTION
-fence_ipmilan is an I/O Fencing agent which can be used with Bull's NovaScale
-machines controlled by IPMI.  This agent calls Bull's support software
-provided by the NSMasterHW RPM available from Bull, but is known to work 
-using other versions of ipmitool (http://ipmitool.sf.net/).
+fence_ipmilan is an I/O Fencing agent which can be used with 
+machines controlled by IPMI.  This agent calls support software
+using ipmitool (http://ipmitool.sf.net/).
 
 fence_ipmilan accepts options on the command line as well as from stdin.  
 fenced sends the options through stdin when it execs the agent.  fence_ipmilan
