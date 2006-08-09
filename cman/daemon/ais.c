@@ -19,6 +19,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <syslog.h>
+#include <signal.h>
 #include <sys/socket.h>
 #include <sys/utsname.h>
 #include <netinet/in.h>
