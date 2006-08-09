@@ -308,7 +308,7 @@ int process_plocks(void)
 		goto fail;
 	}
 
-	log_group(mg, "read plock %llx %s %s %llx-%llx %d/%u/%llx w %d",
+	log_plock(mg, "read plock %llx %s %s %llx-%llx %d/%u/%llx w %d",
 		  info.number,
 		  op_str(info.optype),
 		  ex_str(info.optype, info.ex),
@@ -867,7 +867,7 @@ void _receive_plock(struct mountgroup *mg, char *buf, int len, int from)
 
 	info_bswap_in(&info);
 
-	log_group(mg, "receive plock %llx %s %s %llx-%llx %d/%u/%llx w %d",
+	log_plock(mg, "receive plock %llx %s %s %llx-%llx %d/%u/%llx w %d",
 		  info.number,
 		  op_str(info.optype),
 		  ex_str(info.optype, info.ex),
@@ -985,7 +985,7 @@ void pack_section_buf(struct mountgroup *mg, struct resource *r)
 
 	section_len = count * sizeof(struct pack_plock);
 
-	log_group(mg, "pack %llx count %d", r->number, count);
+	log_plock(mg, "pack %llx count %d", r->number, count);
 }
 
 int unpack_section_buf(struct mountgroup *mg, char *numbuf, int buflen)
@@ -1005,7 +1005,7 @@ int unpack_section_buf(struct mountgroup *mg, char *numbuf, int buflen)
 	INIT_LIST_HEAD(&r->waiters);
 	sscanf(numbuf, "r%llu", &r->number);
 
-	log_group(mg, "unpack %llx count %d", r->number, count);
+	log_plock(mg, "unpack %llx count %d", r->number, count);
 
 	pp = (struct pack_plock *) &section_buf;
 

@@ -39,8 +39,10 @@ static void do_deliver(int nodeid, char *data, int len)
 
 	mg = find_mg(hd->name);
 	if (!mg) {
+		/*
 		log_error("cpg message from %d len %d no group %s",
 			  nodeid, len, hd->name);
+		*/
 		return;
 	}
 

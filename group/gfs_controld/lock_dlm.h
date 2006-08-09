@@ -65,6 +65,7 @@ enum {
 };
 
 extern char *prog_name;
+extern int plock_debug_opt;
 extern int daemon_debug_opt;
 extern char daemon_debug_buf[256];
 extern char dump_buf[DUMP_SIZE];
@@ -86,6 +87,13 @@ do { \
 		 (g)->name, ##args); \
 	if (daemon_debug_opt) fprintf(stderr, "%s", daemon_debug_buf); \
 	daemon_dump_save(); \
+} while (0)
+
+#define log_plock(g, fmt, args...) \
+do { \
+	snprintf(daemon_debug_buf, 255, "%ld %s " fmt "\n", time(NULL), \
+		 (g)->name, ##args); \
+	if (plock_debug_opt) fprintf(stderr, "%s", daemon_debug_buf); \
 } while (0)
 
 #define log_error(fmt, args...) \

@@ -12,7 +12,7 @@
 
 #include "lock_dlm.h"
 
-#define OPTION_STRING			"DhVw"
+#define OPTION_STRING			"DPhVw"
 #define LOCKFILE_NAME			"/var/run/gfs_controld.pid"
 
 struct client {
@@ -473,6 +473,10 @@ static void decode_arguments(int argc, char **argv)
 			daemon_debug_opt = 1;
 			break;
 
+		case 'P':
+			plock_debug_opt = 1;
+			break;
+
 		case 'h':
 			print_usage();
 			exit(EXIT_SUCCESS);
@@ -534,6 +538,7 @@ void daemon_dump_save(void)
 }
 
 char *prog_name;
+int plock_debug_opt;
 int daemon_debug_opt;
 char daemon_debug_buf[256];
 char dump_buf[DUMP_SIZE];
