@@ -114,6 +114,8 @@ void print_it(const char *label, const char *fmt, const char *fmt2, ...)
 
 		if (fmt2) {
 			decimalsize = strlen(tmp_string);
+			va_end(args);
+			va_start(args, fmt2);
 			vsprintf(tmp_string, fmt2, args);
 			if (termlines) {
 				move(line, 50);

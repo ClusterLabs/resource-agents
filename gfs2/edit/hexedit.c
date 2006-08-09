@@ -945,7 +945,7 @@ uint64_t goto_block(void)
 		else if (string[0] == '0' && string[1] == 'x')
 			sscanf(string, "%"SCNx64, &temp_blk); /* retrieve in hex */
 		else
-			sscanf(string, "%lld", &temp_blk); /* retrieve decimal */
+			sscanf(string, "%" PRIu64, &temp_blk); /* retrieve decimal */
 
 		if (temp_blk < max_block) {
 			offset = 0;
