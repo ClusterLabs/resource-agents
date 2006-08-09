@@ -64,6 +64,8 @@ USAGE="usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
   CMDSHOW="$IPROUTE route show   to exact 0/0"
 CMDCHANGE="$IPROUTE route change to "
 
+SYSTYPE="`uname -s`"
+
 usage() {
 	echo $USAGE >&2
 }
@@ -339,7 +341,6 @@ find_interface() {
 ip_status() {
 
   BASEIP="$1"
-  SYSTYPE="`uname -s`"
   case "$SYSTYPE" in
     Darwin)
 	# Treat Darwin the same as the other BSD variants (matched as *BSD)
