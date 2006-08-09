@@ -1,3 +1,12 @@
+2006-08-08 Lon Hohberger <lhh at redhat.com>
+	* src/clulib/members.c: Fix gained/lost list creation so that the
+	count is actually nonzero (#201713)
+	* src/daemons/main.c: Fix typo in debug information.  Kill CMAN handle
+	before doing a member list update.  Don't call memb_online; just
+	check the cn_member field (optimization).  Don't process node event
+	until the node actually closes port (#201713).
+	* src/utils/clusvcadm.c: Fix relocation issues (#201711).
+
 2006-08-07 Lon Hohberger <lhh at redhat.com>
 	* src/clulib/ckpt_state.c: Preliminary implementation of replacement
 	for VF using AIS CKPT B.02.01 (w/ built-in test program)

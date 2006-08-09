@@ -162,15 +162,15 @@ membership_update(void)
 			}
 
 			if (quorate > 0) {
-				printf("Node %d IS listenin\n", new_ml->cml_members[x].cn_nodeid);
+				printf("Node %d IS listening\n",
+				       new_ml->cml_members[x].cn_nodeid);
 			}
 
 		} while(0);
 	}
 
-	member_list_update(new_ml);
 	cman_finish(h);
-
+	member_list_update(new_ml);
 
 	/*
 	 * Handle nodes lost.  Do our local node event first.
@@ -217,8 +217,7 @@ membership_update(void)
 
 	for (x=0; node_delta && x < node_delta->cml_count; x++) {
 
-		if (!memb_online(node_delta,
-				 node_delta->cml_members[x].cn_nodeid))
+		if (!node_delta->cml_members[x].cn_member)
 			continue;
 
 		if (node_delta->cml_members[x].cn_nodeid == my_id())
@@ -484,9 +483,7 @@ dispatch_msg(msgctx_t *ctx, int nodeid, int need_close)
 		break;
 
 	case RG_EXITING:
-
-		clulog(LOG_NOTICE, "Member %d is now offline\n", (int)nodeid);
-		node_event(0, nodeid, 0);
+		clulog(LOG_NOTICE, "Member %d is going offline\n", (int)nodeid);
 		break;
 
 	case VF_MESSAGE:

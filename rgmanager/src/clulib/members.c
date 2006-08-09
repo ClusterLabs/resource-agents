@@ -139,7 +139,7 @@ memb_gained(cluster_member_list_t *old, cluster_member_list_t *new)
 
 		if (in_old)
 			continue;
-		memcpy(&gained->cml_members[gained->cml_count],
+		memcpy(&gained->cml_members[gained->cml_count++],
 		       &new->cml_members[x], sizeof(cman_node_t));
 	}
 

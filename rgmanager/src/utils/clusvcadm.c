@@ -38,7 +38,7 @@
 
 
 void
-build_message(SmMessageSt *msgp, int action, char *svcName, uint64_t target)
+build_message(SmMessageSt *msgp, int action, char *svcName, int target)
 {
 	msgp->sm_hdr.gh_magic = GENERIC_HDR_MAGIC;
 	msgp->sm_hdr.gh_command = RG_ACTION_REQUEST;
@@ -292,7 +292,7 @@ main(int argc, char **argv)
 			return 1;
 		}
 	} else {
-		svctarget = me;
+		svctarget = 0;
 		/*
 		clu_local_nodename(RG_SERVICE_GROUP, nodename,
 				   sizeof(nodename));
