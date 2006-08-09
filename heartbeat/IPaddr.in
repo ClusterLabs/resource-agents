@@ -270,7 +270,7 @@ ip_init() {
 	esac
 
 	LVS_SUPPORT=0
-	if [ $SYSTYPE = "Linux" -o $SYSTYPE = "SunOS" ]; then
+	if [ "$SYSTYPE" = "Linux" -o "$SYSTYPE" = "SunOS" ]; then
 	    if [ x"${OCF_RESKEY_lvs_support}" = x"true" \
 		-o x"${OCF_RESKEY_lvs_support}" = x"on" \
 		-o x"${OCF_RESKEY_lvs_support}" = x"1" ]; then
@@ -368,7 +368,7 @@ find_interface_generic() {
     esac
 
 
-    case $SYSTYPE in
+    case "$SYSTYPE" in
       *BSD)
 		$IFCONFIG | grep "$ipaddr" -B20 | grep "UP," | tail -n 1 | cut -d ":" -f 1
 		return 0;;
@@ -393,7 +393,7 @@ find_interface_generic() {
 #
 find_interface() {
     ipaddr="$1"
-    case $SYSTYPE in
+    case "$SYSTYPE" in
 	SunOS)
 		NIC=`find_interface_solaris $ipaddr`
         ;;
@@ -419,7 +419,7 @@ find_free_interface() {
 	return $OCF_ERR_GENERIC;
     fi
 
-  case $SYSTYPE in
+  case "$SYSTYPE" in
 	*BSD)
 		echo $NIC;
 		return $OCF_SUCCESS;;
@@ -438,7 +438,7 @@ find_free_interface() {
   NICBASE="$VLDIR/$NIC"
   touch "$NICBASE"
 
-  case $SYSTYPE in
+  case "$SYSTYPE" in
        SunOS)
 		j=1
 		;;
@@ -485,7 +485,7 @@ ifconfig2sendarp() {
 delete_route () {
   ipaddr="$1"
 
-  case $SYSTYPE in
+  case "$SYSTYPE" in
 	SunOS)
 		CMD=""
 		;;
@@ -508,7 +508,7 @@ delete_interface () {
   ifname="$1"
   ipaddr="$2"
 
-  case $SYSTYPE in
+  case "$SYSTYPE" in
 	SunOS)
 		if [ "$SYSVERSION" -ge 8 ] ; then
 		    CMD="$IFCONFIG $ifname unplumb"
