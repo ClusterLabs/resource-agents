@@ -170,6 +170,7 @@ void receive_withdraw(struct mountgroup *mg, char *buf, int len, int from)
 		log_group(mg, "receive_withdraw no member %d", from);
 		return;
 	}
+	log_group(mg, "receive_withdraw from %d", from);
 	memb->withdrawing = 1;
 
 	if (from == our_nodeid)
