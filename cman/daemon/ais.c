@@ -25,6 +25,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <signal.h>
 
 /* openais headers */
 #include <openais/totem/totemip.h>
