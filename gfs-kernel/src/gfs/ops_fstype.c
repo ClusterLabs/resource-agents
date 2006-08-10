@@ -658,7 +658,9 @@ static int fill_super(struct super_block *sb, void *data, int silent)
 		goto fail_sb;
 	}
 
-	init_journal(sdp, DO);
+	error = init_journal(sdp, DO);
+	if (error)
+		goto fail_sb;
 	/*  Get a handle on the rename lock  */
 
 	error = gfs_glock_get(sdp, GFS_RENAME_LOCK, &gfs_nondisk_glops,
