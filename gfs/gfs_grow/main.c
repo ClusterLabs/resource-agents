@@ -24,7 +24,7 @@
 #include <stdint.h>
 #include <inttypes.h>
 
-#include <linux/gfs_ondisk.h>
+#include "gfs_ondisk.h"
 #define __user
 #include "gfs_ioctl.h"
 #include "osi_list.h"
