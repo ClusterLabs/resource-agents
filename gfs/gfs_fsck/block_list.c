@@ -20,33 +20,12 @@
 #include "block_list.h"
 #include "fsck.h"
 
-#define FREE		(0x0)  /*   0000 */
-#define BLOCK_IN_USE	(0x1)  /*   0001 */
-
-#define DIR_INDIR_BLK	(0x2)  /*   0010 */
-#define DIR_INODE	(0x3)  /*   0011 */
-#define FILE_INODE	(0x4)  /*   0100 */
-#define LNK_INODE	(0x5)
-#define BLK_INODE	(0x6)
-#define CHR_INODE	(0x7)
-#define FIFO_INODE	(0x8)
-#define SOCK_INODE	(0x9)
-#define DIR_LEAF_INODE  (0xA)  /*   1010 */
-#define JOURNAL_BLK     (0xB)  /*   1011 */
-#define OTHER_META	(0xC)  /*   1100 */
-#define FREE_META	(0xD)  /*   1101 */
-#define EATTR_META	(0xE)  /*   1110 */
-
-#define INVALID_META	(0xF)  /*   1111 */
-
-
 /* Must be kept in sync with mark_block enum in block_list.h */
-/* FIXME: Fragile */
 static int mark_to_gbmap[16] = {
-	FREE, BLOCK_IN_USE, DIR_INDIR_BLK, DIR_INODE, FILE_INODE,
-	LNK_INODE, BLK_INODE, CHR_INODE, FIFO_INODE, SOCK_INODE,
-	DIR_LEAF_INODE, JOURNAL_BLK, OTHER_META, FREE_META,
-	EATTR_META, INVALID_META
+	block_free, block_used, indir_blk, inode_dir, inode_file,
+	inode_lnk, inode_blk, inode_chr, inode_fifo, inode_sock,
+	leaf_blk, journal_blk, meta_other, meta_free,
+	meta_eattr, meta_inval
 };
 
 struct block_list *block_list_create(uint64_t size, enum block_list_type type)
@@ -241,8 +220,7 @@ int find_next_block_type(struct block_list *il, enum mark_block m, uint64_t *b)
 
 			switch(m) {
 			case dup_block:
-				if(bitmap_get(&il->list.gbmap.dup_map, i,
-					      &val)) {
+				if(bitmap_get(&il->list.gbmap.dup_map, i, &val)) {
 					stack;
 					return -1;
 				}
@@ -251,8 +229,7 @@ int find_next_block_type(struct block_list *il, enum mark_block m, uint64_t *b)
 					found = 1;
 				break;
 			case eattr_block:
-				if(bitmap_get(&il->list.gbmap.eattr_map, i,
-					      &val)) {
+				if(bitmap_get(&il->list.gbmap.eattr_map, i, &val)) {
 					stack;
 					return -1;
 				}

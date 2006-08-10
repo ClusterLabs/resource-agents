@@ -26,24 +26,25 @@ enum block_list_type {
 /* Must be kept in sync with mark_to_bitmap array in block_list.c */
 enum mark_block {
 	block_free = 0,
-	block_used,
-	indir_blk,
-	inode_dir,
-	inode_file,
-	inode_lnk,
-	inode_blk,
-	inode_chr,
-	inode_fifo,
-	inode_sock,
-	leaf_blk,
-	journal_blk,
-	meta_other,
-	meta_free,
-	meta_eattr,
+	block_used = 1,
+	indir_blk = 2,
+	inode_dir = 3,
+	inode_file = 4,
+	inode_lnk = 5,
+	inode_blk = 6,
+	inode_chr = 7,
+	inode_fifo = 8,
+	inode_sock = 9,
+	leaf_blk = 10,
+	journal_blk = 11,
+	meta_other = 12,
+	meta_free = 13,
+	meta_eattr = 14,
 	meta_inval = 15,
-	bad_block,	/* Contains at least one bad block */
-	dup_block,	/* Contains at least one duplicate block */
-	eattr_block,	/* Contains an eattr */
+	/* above this are nibble-values 0x0-0xf */
+	bad_block = 16,	/* Contains at least one bad block */
+	dup_block = 17,	/* Contains at least one duplicate block */
+	eattr_block = 18,	/* Contains an eattr */
 };
 
 struct block_query {
