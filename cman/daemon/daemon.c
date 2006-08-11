@@ -312,6 +312,7 @@ static int open_local_sock(const char *name, int name_len, mode_t mode, poll_han
 	local_socket = socket(PF_UNIX, SOCK_STREAM, 0);
 	if (local_socket < 0) {
 		log_msg(LOG_ERR, "Can't create local socket %s: %s\n", name, strerror(errno));
+		write_cman_pipe("Can't create local cman socket");
 		return -1;
 	}
 	/* Set Close-on-exec */
@@ -323,11 +324,13 @@ static int open_local_sock(const char *name, int name_len, mode_t mode, poll_han
 	sockaddr.sun_family = AF_UNIX;
 	if (bind(local_socket, (struct sockaddr *) &sockaddr, sizeof(sockaddr))) {
 		log_msg(LOG_ERR, "can't bind local socket to %s: %s\n", name, strerror(errno));
+		write_cman_pipe("Can't bind to local cman socket");
 		close(local_socket);
 		return -1;
 	}
 	if (listen(local_socket, 1) != 0) {
 		log_msg(LOG_ERR, "listen on %s failed: %s\n", name, strerror(errno));
+		write_cman_pipe("listen failed on local cman socket");
 		close(local_socket);
 		return -1;
 	}
@@ -338,6 +341,7 @@ static int open_local_sock(const char *name, int name_len, mode_t mode, poll_han
 	con = malloc(sizeof(struct connection));
 	if (!con) {
 		log_msg(LOG_ERR, "Can't allocate space for local connection: %s\n", strerror(errno));
+		write_cman_pipe("malloc failed for connection info");
 		close(local_socket);
 		return -1;
 	}

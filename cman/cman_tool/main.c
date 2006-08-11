@@ -735,21 +735,9 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 
 static void check_arguments(commandline_t *comline)
 {
-	int error;
-
 	if (comline->two_node && comline->expected_votes != 1)
 		die("expected_votes value (%d) invalid in two node mode",
 		    comline->expected_votes);
-
-	if (!comline->nodenames[0]) {
-		struct utsname utsname;
-		error = uname(&utsname);
-		if (error)
-			die("cannot get node name, uname failed");
-
-		comline->nodenames[0] = strdup(utsname.nodename);
-		comline->num_nodenames++;
-	}
 
 	if (comline->port_opt &&
 	    (comline->port <= 0 || comline->port > 65535))

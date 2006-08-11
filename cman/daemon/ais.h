@@ -19,6 +19,7 @@ extern int comms_send_message(void *buf, int len,
 			      unsigned char toport, unsigned char fromport,
 			      int nodeid,
 			      unsigned int flags);
+extern void write_cman_pipe(char *message);
 
 extern uint64_t incarnation;
 extern struct totem_ip_address mcast_addr[MAX_INTERFACES];

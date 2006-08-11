@@ -58,6 +58,7 @@ uint64_t incarnation;
 
 static int config_run;
 static char errorstring[512];
+static int startup_pipe;
 static unsigned int debug_mask;
 static struct objdb_iface_ver0 *global_objdb;
 static totempg_groups_handle group_handle;
@@ -201,6 +202,9 @@ static int cman_readconfig(struct objdb_iface_ver0 *objdb, char **error_string)
 		debug_mask = atoi(getenv("CMAN_DEBUGLOG"));
 	}
 
+	if (getenv("CMAN_PIPE"))
+		startup_pipe = atoi(getenv("CMAN_PIPE"));
+
 	init_debug(debug_mask);
 
 	/* We need to set this up to internal defaults too early */
@@ -215,6 +219,7 @@ static int cman_readconfig(struct objdb_iface_ver0 *objdb, char **error_string)
 	error = read_ccs_config();
 	if (error)
 	{
+		write_cman_pipe("Error reading config from CCS");
 		sprintf(errorstring, "Error reading config from CCS");
 		return -1;
 	}
@@ -254,6 +259,10 @@ static int cman_exec_init_fn(struct objdb_iface_ver0 *objdb)
 	/* Open local sockets and initialise I/O queues */
 	cman_init();
 
+	/* Let cman_tool know we are running */
+	close(startup_pipe);
+	startup_pipe = 0;
+
 	/* Start totem */
 	totempg_groups_initialize(&group_handle, cman_deliver_fn, cman_confchg_fn);
 	totempg_groups_join(group_handle, cman_group, 1);
@@ -275,7 +284,7 @@ int ais_add_ifaddr(char *mcast, char *ifaddr, int portnum)
 	unsigned int totem_object_handle;
 	unsigned int interface_object_handle;
 	char tmp[132];
-	int ret = -1;
+	int ret = 0;
 
 	P_AIS("Adding local address %s\n", ifaddr);
 
@@ -513,4 +522,13 @@ static int comms_init_ais(struct objdb_iface_ver0 *objdb)
 				 "0", 2);
 
 	return 0;
+}
+
+
+/* Write an error message down the CMAN startup pipe so
+   that cman_tool can display it */
+void write_cman_pipe(char *message)
+{
+	if (startup_pipe)
+		write(startup_pipe, message, strlen(message)+1);
 }

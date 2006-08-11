@@ -59,6 +59,7 @@ int join(commandline_t *comline)
 	cman_handle_t h;
 	pid_t aisexec_pid;
 	int ctree;
+	int p[2];
 
 	ctree = ccs_force_connect(NULL, 1);
 	if (ctree < 0)
@@ -116,6 +117,12 @@ int join(commandline_t *comline)
 	/* Use cman to configure services */
 	envp[envptr++] = strdup("OPENAIS_DEFAULT_CONFIG_IFACE=cmanconfig");
 
+	/* Create a pipe to monitor cman startup progress */
+	pipe(p);
+	fcntl(p[1], F_SETFD, 0); /* Don't close on exec */
+	snprintf(scratch, sizeof(scratch), "CMAN_PIPE=%d", p[1]);
+	envp[envptr++] = strdup(scratch);
+
 	envp[envptr++] = NULL;
 
 	argv[0] = "aisexec";
@@ -127,6 +134,7 @@ int join(commandline_t *comline)
 		die("fork of aisexec daemon failed: %s", strerror(errno));
 
 	case 0: // child
+		close(p[0]);
 		be_daemon(!comline->verbose);
 		chdir(SBINDIR);
 		execve("./aisexec", argv, envp);
@@ -138,21 +146,33 @@ int join(commandline_t *comline)
 
 	}
 
-#ifdef DEBUG
-	if (getenv("DEBUG_WAIT"))
-	{
-		printf("Waiting to attach gdb to aisexec (pid %d), press ENTER to continue\n", aisexec_pid);
-		getchar();
-	}
-#endif
-	/* Give the daemon a chance to start up */
+	/* Give the daemon a chance to start up, and monitor the pipe FD for messages */
 	i = 0;
 	do {
-		sleep(2);
-		h = cman_admin_init(NULL);
-		if (!h && comline->verbose)
-		{
-			fprintf(stderr, "waiting for aisexec to start\n");
+		fd_set fds;
+		struct timeval tv={1, 0};
+		int status;
+		char message[1024];
+
+		FD_ZERO(&fds);
+		FD_SET(p[0], &fds);
+
+		status = select(p[0]+1, &fds, NULL, NULL, &tv);
+		if (status == 0) {
+			h = cman_admin_init(NULL);
+			if (!h && comline->verbose)
+			{
+				fprintf(stderr, "waiting for aisexec to start\n");
+			}
+		}
+
+		/* Did we get an error? */
+		if (status == 1) {
+			if (read(p[0], message, sizeof(message)) != 0) {
+				fprintf(stderr, "cman not started: %s\n", message);
+				break;
+			}
+
 		}
 	} while (!h && ++i < 20);
 

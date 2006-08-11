@@ -100,6 +100,7 @@ int read_ccs_nodes(unsigned int *config_version)
     ctree = ccs_force_connect(NULL, 1);
     if (ctree < 0) {
 	    log_msg(LOG_ERR, "Error connecting to CCS");
+	    write_cman_pipe("Cannot connect to CCS");
 	    return -1;
     }
 
@@ -175,6 +176,7 @@ static char *default_mcast(uint16_t cluster_id)
         ret = getaddrinfo(nodenames[0], NULL, &ahints, &ainfo);
 	if (ret) {
 		log_msg(LOG_ERR, "Can't determine address family of nodename %s\n", nodenames[0]);
+		write_cman_pipe("Can't determine address family of nodename");
 		return NULL;
 	}
 
@@ -205,16 +207,20 @@ static int join(void)
 	 */
 	error = cman_join_cluster(cluster_name, cluster_id,
 				  two_node, expected_votes);
-	if (error)
+	if (error) {
+		write_cman_pipe("Cannot start, ais may already be running");
 		return error;
+	}
 
 	/*
 	 * Setup the interface/multicast addresses
 	 */
 	for (i = 0; i<num_nodenames; i++) {
 		error = ais_add_ifaddr(mcast[i], nodenames[i], portnums[i]);
-		if (error)
+		if (error) {
+			write_cman_pipe("Multicast and node address families differ.");
 			return error;
+		}
 	}
 
 	return 0;
@@ -358,6 +364,7 @@ static int get_ccs_join_info(void)
 	cd = ccs_force_connect(cname, 1);
 	if (cd < 0) {
 		log_msg(LOG_ERR, "Error connecting to CCS");
+		write_cman_pipe("Can't connect to CCSD");
 		return -ENOTCONN;
 	}
 
@@ -365,12 +372,14 @@ static int get_ccs_join_info(void)
 	error = ccs_get(cd, CLUSTER_NAME_PATH, &str);
 	if (error) {
 		log_msg(LOG_ERR, "cannot find cluster name in config file");
+		write_cman_pipe("Can't find cluster name in CCS");
 		return -ENOENT;
 	}
 
 	if (cname) {
 		if (strcmp(cname, str)) {
 			log_msg(LOG_ERR, "cluster names not equal %s %s", cname, str);
+			write_cman_pipe("Cluster name in CCS does not match that passed to cman_tool");
 			return -ENOENT;
 		}
 	} else {
@@ -385,12 +394,25 @@ static int get_ccs_join_info(void)
 	if (getenv("CMAN_NODENAME")) {
 		strcpy(nodename, getenv("CMAN_NODENAME"));
 		log_msg(LOG_INFO, "Using override node name %s\n", nodename);
+
+		sprintf(path, NODE_NAME_PATH_BYNAME, nodename);
+
+		error = ccs_get(cd, path, &str);
+		if (!error) {
+			free(str);
+		}
+		else {
+			log_msg(LOG_ERR, "Overridden node name %s is not in CCS", nodename);
+			write_cman_pipe("Overridden node name is not in CCS");
+			return -ENOENT;
+		}
 	}
 	else {
 		struct utsname utsname;
 		error = uname(&utsname);
 		if (error) {
 			log_msg(LOG_ERR, "cannot get node name, uname failed");
+			write_cman_pipe("Can't determine local node name");
 			return -ENOENT;
 		}
 		strcpy(nodename, utsname.nodename);
@@ -402,6 +424,7 @@ static int get_ccs_join_info(void)
 	if (error) {
 		log_msg(LOG_ERR, "local node name \"%s\" not found in cluster.conf",
 			nodename);
+		write_cman_pipe("Can't find local node name in cluster.conf");
 		return -ENOENT;
 	}
 	nodenames[0] = strdup(nodename);
@@ -441,6 +464,7 @@ static int get_ccs_join_info(void)
 			else {
 				if (atoi(str) < 0) {
 					log_msg(LOG_ERR, "negative votes not allowed");
+					write_cman_pipe("Found negative votes for this node in CCS");
 					return -EINVAL;
 				}
 				vote_sum += atoi(str);
@@ -501,6 +525,7 @@ static int get_ccs_join_info(void)
 			int votestmp = atoi(str);
 			if (votestmp < 0 || votestmp > 255) {
 				log_msg(LOG_ERR, "invalid votes value %d", votes);
+				write_cman_pipe("Found invalid votes for node in CCS");
 				return -EINVAL;
 			}
 			votes = votestmp;
@@ -531,6 +556,7 @@ static int get_ccs_join_info(void)
 
 	if (!nodeid) {
 		log_msg(LOG_ERR, "No nodeid specified in cluster.conf");
+		write_cman_pipe("CCS does not have a nodeid for this node, run 'ccs_tool addnodeids' to fix");
 		return -EINVAL;
 	}
 
@@ -604,6 +630,7 @@ static int get_ccs_join_info(void)
 					"nodes with one vote each and expected "
 					"votes of 1 (node_count=%d vote_sum=%d)",
 					node_count, vote_sum);
+				write_cman_pipe("two_node set but there are more than 2 nodes");
 				return -EINVAL;
 			}
 
@@ -611,6 +638,7 @@ static int get_ccs_join_info(void)
 				log_msg(LOG_ERR, "the two-node option requires exactly two "
 					"nodes with one vote each and expected "
 					"votes of 1 (votes=%d)", votes);
+				write_cman_pipe("two_node set but votes not set to 1");
 				return -EINVAL;
 			}
 		}
