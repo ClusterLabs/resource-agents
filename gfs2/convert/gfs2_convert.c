@@ -787,6 +787,7 @@ static int init(struct gfs2_sbd *sbp)
 	/* apparently only for directories.  So we need to fake out libgfs2  */
 	/* so that it adjusts for the metaheader by faking out the inode to  */
 	/* look like a directory, temporarily.                               */
+	sbp->md.riinode->i_di.di_mode &= ~S_IFMT;
 	sbp->md.riinode->i_di.di_mode |= S_IFDIR; 
 	if (ri_update(sbp, &rgcount)){
 		log_crit("Unable to fill in resource group information.\n");
