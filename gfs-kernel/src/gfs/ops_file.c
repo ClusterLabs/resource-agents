@@ -24,8 +24,8 @@
 #include <linux/blkdev.h>
 #include <linux/mm.h>
 #include <asm/uaccess.h>
-#include <linux/gfs_ioctl.h>
 
+#include "gfs_ioctl.h"
 #include "gfs.h"
 #include "bmap.h"
 #include "dio.h"

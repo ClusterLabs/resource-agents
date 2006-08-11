@@ -19,8 +19,8 @@
 #include <linux/completion.h>
 #include <linux/buffer_head.h>
 #include <asm/uaccess.h>
-#include <linux/gfs_ioctl.h>
 
+#include "gfs_ioctl.h"
 #include "gfs.h"
 #include "bmap.h"
 #include "dio.h"

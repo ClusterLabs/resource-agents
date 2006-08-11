@@ -68,9 +68,6 @@ gfs-objs := acl.o \
 EXTRA_CFLAGS += -I$(obj) -I${incdir} -I/usr/include 
 
 all:
-	rm -f linux lm_interface.h
-	ln -s . linux
-	ln -s ${KERNEL_SRC}/fs/gfs2/lm_interface.h .
 	${MAKE} -C ${KERNEL_SRC} M=${PWD} symverfile=${SYMVERFILE} modules USING_KBUILD=yes
 
 install: all
@@ -84,9 +81,10 @@ uninstall:
 	${UNINSTALL} gfs_ondisk.h gfs_ioctl.h ${incdir}/linux
 
 clean:
-	rm -rf linux *.o .*.o.cmd .gfs.ko.cmd lm_interface.h \
+	rm -rf linux *.o .*.o.cmd .gfs.ko.cmd \
 		gfs.ko gfs.mod.c .tmp_versions *~ *~* Modules.symvers
 
+distclean: clean
 
 patches: pre add post
 

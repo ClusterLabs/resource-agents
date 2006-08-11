@@ -24,5 +24,5 @@
 #define pv(struct, member, fmt) printk("  "#member" = "fmt"\n", struct->member);
 
 #define WANT_GFS_CONVERSION_FUNCTIONS
-#include <linux/gfs_ondisk.h>
+#include "gfs_ondisk.h"
 
