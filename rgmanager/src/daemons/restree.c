@@ -15,6 +15,9 @@
   along with this program; see the file COPYING.  If not, write to the
   Free Software Foundation, Inc.,  675 Mass Ave, Cambridge, 
   MA 02139, USA.
+
+  Fix for #193859 - relocation of a service w/o umounting file-systems
+    by Navid Sheikhol-Eslami [ navid at redhat dot com ]
 */
 #include <libxml/parser.h>
 #include <libxml/xmlmemory.h>
@@ -702,18 +705,18 @@ _do_child_levels(resource_node_t **tree, resource_t *first, void *ret,
 #endif
 
 			/* Do op on all children at our level */
-			rv = _res_op(&node->rn_child, first,
+			rv += _res_op(&node->rn_child, first,
 			     	     rule->rr_childtypes[x].rc_name, 
 		     		     ret, op);
-			if (rv != 0)
+			if (rv != 0 && op != RS_STOP)
 				return rv;
 		}
 
-		if (rv != 0)
+		if (rv != 0 && op != RS_STOP)
 			return rv;
 	}
 
-	return 0;
+	return rv;
 }
 
 
