@@ -87,7 +87,10 @@ int main()
 		perror("get_node failed");
 	}
 
-	cman_start_notification(h, cman_callback);
+	if (!cman_start_notification(h, cman_callback))
+	{
+		perror("start_notification");
+	}
 	while (1) {
 	  int ret = cman_dispatch(h, CMAN_DISPATCH_BLOCKING | CMAN_DISPATCH_ALL);
 	  if (ret == -1) {
