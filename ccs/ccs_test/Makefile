@@ -30,16 +30,13 @@ LOADLIBES+= -lccs
 
 all: ccs_test
 
-copytobin: all
-	cp ccs_test ${top_srcdir}/bin
-
 ccs_test: ccs_test.c ${ccs_libdir}/libccs.a
 	${CC} ${CFLAGS} ${INCLUDE} ccs_test.c ${LDFLAGS} ${LOADLIBES} ${LDLIBS}-o $@
 
 ${ccs_libdir}/libccs.a:
-	cd ${ccs_libdir} && ${MAKE} libccs.a
+	${MAKE} -C ${ccs_libdir} libccs.a
 
-install: ccs_test
+install: all
 	install -d ${sbindir}
 	install ccs_test ${sbindir}
 

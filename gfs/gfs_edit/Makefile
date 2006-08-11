@@ -35,13 +35,16 @@ else
 INCLUDE += -I${gfskincdir}
 endif
 
-all: gfs_edit
+all: ${TARGET}
 
 gfs_edit: ${SOURCE}
 	${CC} ${CFLAGS} ${INCLUDE} ${LDFLAGS} ${SOURCE} ${LOADLIBES} ${LDLIBS} -lncurses -o $@
 
-copytobin: all
-	cp ${TARGET} ${top_srcdir}/bin
+install: all
+	if [ ! -d ${sbindir} ]; then \
+		install -d ${sbindir}; \
+	fi
+	install -m755 ${TARGET} ${sbindir}
 
 clean:
 	rm -f *.o ${TARGET}

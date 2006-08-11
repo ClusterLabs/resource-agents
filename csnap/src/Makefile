@@ -34,8 +34,12 @@ csnap-create csnap-delete: create.c $(deps)
 	cc -Wall create.c -DCREATE -o csnap-create -lpopt
 	cc -Wall create.c -DDELETE -o csnap-delete -lpopt
 
-copytobin: all
-	cp $(binaries) $(top_srcdir)/bin
+install: all
+	if [ ! -d ${sbindir} ]; then \
+		install -d ${sbindir}; \
+	fi
+	strip ${TARGET}
+	install -m755 ${binaries} ${sbindir}
 
 clean:
 	rm -f $(binaries) *.o a.out

@@ -14,6 +14,8 @@ top_srcdir= ..
  
 include ${top_srcdir}/make/defines.mk
 
+TARGET= gfs_fsck
+
 INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config
 
 .PHONY: all clean
@@ -27,7 +29,7 @@ sources = main.c initialize.c pass1.c pass1b.c pass1c.c \
 
 CFLAGS+=-D_FILE_OFFSET_BITS=64 -DHELPER_PROGRAM -DGFS_RELEASE_NAME=\"${RELEASE}\" -Wall -g
 
-all: gfs_fsck
+all: ${TARGET}
 
 gfs_fsck: $(sources:.c=.o)
 	$(CC) $(CFLAGS) $^ -o $@
@@ -44,8 +46,12 @@ test_bitmap: bitmap.o test_bitmap.o log.o
 clean:
 	@rm -f *.o *~ *.d gfs_fsck
 
-copytobin: gfs_fsck
-	cp gfs_fsck ${top_srcdir}/bin
+install: all
+	if [ ! -d ${sbindir} ]; then \
+		install -d ${sbindir}; \
+	fi
+	install -m755 ${TARGET} ${sbindir}
+	(cd ${sbindir}; ln -f gfs_fsck fsck.gfs)
 
 distclean: clean
 	@rm -f cscope.* test_inode_list *.orig *.rej test_block_list test_bitmap

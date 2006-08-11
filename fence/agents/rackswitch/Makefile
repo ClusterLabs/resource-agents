@@ -31,9 +31,11 @@ all: ${TARGET}
 fence_rackswitch: ${SOURCE:.c=.o}
 	${CC} ${CFLAGS} ${LDFLAGS} ${SOURCE:.c=.o} ${LOADLIBES} ${LDLIBS} -o $@
 
-copytobin: all
-	cp ${TARGET} ${top_srcdir}/bin
-
+install: all
+	if [ ! -d ${sbindir} ]; then \
+		install -d ${sbindir}; \
+	fi
+	install -m755 ${TARGET} ${sbindir}
 
 clean:
 	rm -f *.o ${TARGET} *~

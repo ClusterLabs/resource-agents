@@ -21,31 +21,25 @@ Build and install
 
 Compile kernel with GFS2, DLM, configfs, IPV6 and SCTP.
 
-Build and install the latest openais development tarball from
+Build and install the latest openais development from
   http://developer.osdl.org/dev/openais/
-  useradd -u 39 ais
-  cd branches/whitetank
+or install subversion and type:
+  svn checkout http://svn.osdl.org/openais
+Then:
+  cd /path/to/openais/branches/whitetank
   make; make install DESTDIR=/
 
 Build and install the latest libvolume_id from the udev tarball
   http://www.us.kernel.org/pub/linux/utils/kernel/hotplug/udev-094.tar.bz2
   make EXTRAS="extras/volume_id" install
 
-Build and install from cluster tree.  Various parts of the tree aren't
-updated yet, so just build the minimum bits shown here.
+Build and install from the cluster CVS tree:
 
         cd cluster
         ./configure --kernel_src=/path/to/kernel
-
-        cd cluster/cman/lib;            make; make install
-        cd cluster/ccs;                 make; make install
-        cd cluster/cman;                make; make install
-        cd cluster/dlm;                 make; make install
-        cd cluster/group;               make; make install
-        cd cluster/fence;               make; make install
-        cd cluster/gfs2;                make; make install
-        cd cluster/gfs-kernel;          make; make install
-        cd cluster/gfs;                 make; make install
+		make ; make install
+		depmod -a  
+(New kernel module dependencies aren't automatically generated)
 
 To build LVM2 & clvm:
 
@@ -61,7 +55,7 @@ modprobe gfs2
 modprobe lock_dlm
 modprobe lock_nolock
 modprobe dlm
-
+modprobe gfs
 
 Configuration
 -------------

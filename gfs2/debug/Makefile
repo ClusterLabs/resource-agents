@@ -28,7 +28,7 @@ CFLAGS+= -O2 -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 \
 	-DGFS2_RELEASE_NAME=\"${RELEASE}\"
 
 INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config \
-	-I${iddevincdir} -I${gfs2kincdir} -I${incdir}
+	-I${gfs2kincdir} -I${incdir}
 
 ifneq (${KERNEL_SRC}, )
 # Use the kernel tree if patched, otherwise, look where cluster headers
@@ -40,16 +40,18 @@ else
 INCLUDE += -I${incdir}
 endif
 
-LDFLAGS+= -L${iddevlibdir} -L${libdir}
-LOADLIBES+= -liddev
+LDFLAGS+= -L${libdir}
 
 all: ${TARGET}
 
 gfs2_debug: ${SOURCE}
-	${CC} ${CFLAGS} ${INCLUDE} ${LDFLAGS} ${SOURCE} ${LOADLIBES} ${LDLIBS} -o $@
+	${CC} ${CFLAGS} ${INCLUDE} ${LDFLAGS} ${SOURCE} ${LDLIBS} -o $@
 
-copytobin: ${TARGET}
-	cp ${TARGET} ${top_srcdir}/bin
+install: all
+	if [ ! -d ${sbindir} ]; then \
+		install -d ${sbindir}; \
+	fi
+	install -m755 ${TARGET} ${sbindir}
 
 clean:
 	rm -f *.o ${TARGET}

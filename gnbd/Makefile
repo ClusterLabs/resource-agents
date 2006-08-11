@@ -13,24 +13,26 @@
 
 
 all:
-	cd client && ${MAKE} copytobin
-	cd server && ${MAKE} copytobin
-	cd tools && ${MAKE} copytobin
+	${MAKE} -C client all
+	${MAKE} -C server all
+	${MAKE} -C tools all
 
 clean:
-	cd bin && ${MAKE} clean
-	cd client && ${MAKE} clean
-	cd server && ${MAKE} clean
-	cd tools && ${MAKE} clean
+	${MAKE} -C client clean
+	${MAKE} -C server clean
+	${MAKE} -C tools clean
 
 distclean: clean
 	rm -f make/defines.mk
 
-install:
-	cd bin && ${MAKE} install
-	cd man && ${MAKE} install
+install: all
+	${MAKE} -C client install
+	${MAKE} -C server install
+	${MAKE} -C tools install
+	${MAKE} -C man install
 
 deinstall uninstall:
-	cd bin && ${MAKE} uninstall
-	cd man && ${MAKE} uninstall
-
+	${MAKE} -C client uninstall
+	${MAKE} -C server uninstall
+	${MAKE} -C tools uninstall
+	${MAKE} -C man uninstall

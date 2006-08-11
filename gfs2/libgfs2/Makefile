@@ -39,6 +39,8 @@ ${LIBGFS2}: ${O}
 .c.o: $<
 	${CC} ${CFLAGS} -o $@ $^
 
+install: all
+
 clean:
 	rm -f *.o ${LIBGFS2}
 

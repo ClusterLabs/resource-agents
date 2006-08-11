@@ -43,6 +43,3 @@ lvb: lvb.c
 
 clean:
 	rm -f *.o $(BINARIES) *~ core
-
-copytobin:
-

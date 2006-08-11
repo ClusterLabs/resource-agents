@@ -39,11 +39,14 @@ LOADLIBS+= -lgfs
 
 all: ${TARGET}
 
-gfs_grow:
+gfs_grow: ${top_srcdir}/libgfs/libgfs.a
 	${CC} ${CFLAGS} ${INCLUDE} main.c ondisk.c ${LDFLAGS} ${LOADLIBS} -o $@
 
-copytobin: all
-	cp ${TARGET} ${top_srcdir}/bin
+install: all
+	if [ ! -d ${sbindir} ]; then \
+		install -d ${sbindir}; \
+	fi
+	install -m755 ${TARGET} ${sbindir}
 
 clean:
 	rm -f *.o ${TARGET}

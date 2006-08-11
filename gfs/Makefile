@@ -12,48 +12,52 @@
 ###############################################################################
 
 all:
-	cd libgfs && ${MAKE} all
-	cd gfs_debug && ${MAKE} all
-	cd gfs_edit && ${MAKE} all
-	cd gfs_fsck && ${MAKE} all
-	cd gfs_grow && ${MAKE} all
-	cd gfs_jadd && ${MAKE} all
-	cd gfs_mkfs && ${MAKE} all
-	cd gfs_quota && ${MAKE} all
-	cd gfs_tool && ${MAKE} all
-
-copytobin:
-	cd gfs_debug && ${MAKE} copytobin
-	cd gfs_edit && ${MAKE} copytobin
-	cd gfs_fsck && ${MAKE} copytobin
-	cd gfs_grow && ${MAKE} copytobin
-	cd gfs_jadd && ${MAKE} copytobin
-	cd gfs_mkfs && ${MAKE} copytobin
-	cd gfs_quota && ${MAKE} copytobin
-	cd gfs_tool && ${MAKE} copytobin
+	${MAKE} -C libgfs all
+	${MAKE} -C gfs_debug all
+	${MAKE} -C gfs_edit all
+	${MAKE} -C gfs_fsck all
+	${MAKE} -C gfs_grow all
+	${MAKE} -C gfs_jadd all
+	${MAKE} -C gfs_mkfs all
+	${MAKE} -C gfs_quota all
+	${MAKE} -C gfs_tool all
 
 clean:
-	cd bin && ${MAKE} clean
-	cd libgfs && ${MAKE} clean
-	cd gfs_debug && ${MAKE} clean
-	cd gfs_edit && ${MAKE} clean
-	cd gfs_fsck && ${MAKE} clean
-	cd gfs_grow && ${MAKE} clean
-	cd gfs_jadd && ${MAKE} clean
-	cd gfs_mkfs && ${MAKE} clean
-	cd gfs_quota && ${MAKE} clean
-	cd gfs_tool && ${MAKE} clean
+	${MAKE} -C libgfs clean
+	${MAKE} -C gfs_debug clean
+	${MAKE} -C gfs_edit clean
+	${MAKE} -C gfs_fsck clean
+	${MAKE} -C gfs_grow clean
+	${MAKE} -C gfs_jadd clean
+	${MAKE} -C gfs_mkfs clean
+	${MAKE} -C gfs_quota clean
+	${MAKE} -C gfs_tool clean
 
 distclean: clean
 	rm -f make/defines.mk
 
-install:
-	cd bin && ${MAKE} install
-	cd man && ${MAKE} install
-	cd init.d && ${MAKE} install
+install: all
+	${MAKE} -C libgfs install
+	${MAKE} -C gfs_debug install
+	${MAKE} -C gfs_edit install
+	${MAKE} -C gfs_fsck install
+	${MAKE} -C gfs_grow install
+	${MAKE} -C gfs_jadd install
+	${MAKE} -C gfs_mkfs install
+	${MAKE} -C gfs_quota install
+	${MAKE} -C gfs_tool install
+	${MAKE} -C man install
+	${MAKE} -C init.d install
 
 deinstall uninstall:
-	cd bin && ${MAKE} uninstall
-	cd man && ${MAKE} uninstall
-	cd init.d && ${MAKE} uninstall
-
+	${MAKE} -C libgfs uninstall
+	${MAKE} -C gfs_debug uninstall
+	${MAKE} -C gfs_edit uninstall
+	${MAKE} -C gfs_fsck uninstall
+	${MAKE} -C gfs_grow uninstall
+	${MAKE} -C gfs_jadd uninstall
+	${MAKE} -C gfs_mkfs uninstall
+	${MAKE} -C gfs_quota uninstall
+	${MAKE} -C gfs_tool uninstall
+	${MAKE} -C man uninstall
+	${MAKE} -C init.d uninstall

@@ -26,9 +26,9 @@ else
 INCLUDE += -I${incdir}
 endif
 
-LIBS=-L${top_srcdir}/libgfs2
+LIBS=${top_srcdir}/libgfs2
 
-.PHONY: all clean copytobin distclean
+.PHONY: all clean distclean
 
 SOURCES= counters.c df.c layout.c main.c misc.c ondisk.c sb.c tune.c util.c
 
@@ -40,14 +40,17 @@ CFLAGS+= -O2 -Wall -D_FILE_OFFSET_BITS=64 -DGFS2_RELEASE_NAME=\"${RELEASE}\"
 
 all: ${TARGET}
 
-gfs2_tool: ${OBJECTS} ../libgfs2/libgfs2.a
-	$(CC) $(CFLAGS) $(LIBS) $^ -o $@ -lgfs2
+gfs2_tool: ${OBJECTS} $(LIBS)/libgfs2.a
+	$(CC) $(CFLAGS) -L$(LIBS) $^ -o $@ -lgfs2
 
 %.o: %.c
 	$(CC) -c $(INCLUDE) $(CFLAGS) $< -o $@
 
-copytobin: ${TARGET}
-	cp ${TARGET} ${top_srcdir}/bin
+install: all
+	if [ ! -d ${sbindir} ]; then \
+		install -d ${sbindir}; \
+	fi
+	install -m755 ${TARGET} ${sbindir}
 
 clean:
 	@rm -f ${TARGET} *.o *~

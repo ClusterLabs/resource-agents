@@ -41,7 +41,7 @@ devspam: devspam.c trace.h
 clean:
 	rm -f $(binaries) *.o a.out
 
-install:
+install: all
 	cp $(binaries) /usr/bin
 
 kernel:

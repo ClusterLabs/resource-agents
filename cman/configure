@@ -14,6 +14,7 @@
 ###############################################################################
 
 use Getopt::Long;
+use POSIX;
 
 print "\nConfiguring Makefiles for your system...\n";
 
@@ -88,7 +89,13 @@ if (!$ccsincdir) {
   $ccsincdir="${incdir}/cluster";
 }
 if (!$libdir) {
-  $libdir="${prefix}/usr/lib";
+  my $arch = (POSIX::uname())[4];
+  if ($arch eq "x86_64") {
+	$libdir="${prefix}/usr/lib64";
+  }
+  else {
+	$libdir="${prefix}/usr/lib";
+  }
 }
 if (!$libexecdir) {
   $libexecdir="${prefix}/usr/libexec";

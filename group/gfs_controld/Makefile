@@ -28,9 +28,6 @@ TARGET=gfs_controld
 
 all: ${TARGET}
 
-copytobin: all
-	cp ${TARGET} ${top_srcdir}/bin
-
 gfs_controld: 	main.o \
 		member_cman.o \
 		cpg.o \
@@ -62,13 +59,12 @@ group.o: group.c
 plock.o: plock.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-install: gfs_controld
+install: all
 	install -d ${sbindir}
-	install gfs_controld ${sbindir}
+	install ${TARGET} ${sbindir}
 
 uninstall:
-	${UNINSTALL} gfs_controld ${sbindir}
+	${UNINSTALL} ${TARGET} ${sbindir}
 
 clean:
-	rm -f *.o gfs_controld
-
+	rm -f *.o ${TARGET}

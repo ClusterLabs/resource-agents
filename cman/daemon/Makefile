@@ -29,9 +29,6 @@ CMAN_OBJS=daemon.o config.o logging.o ais.o commands.o barrier.o cmanccs.o
 
 all:  ${TARGET}
 
-copytobin: all
-	cp ${TARGET} ${top_srcdir}/bin
-
 service_cman.lcrso: ${CMAN_OBJS}
 	$(CC) $(CFLAGS) -shared -Wl,-soname,service_cman.lcrso -o $@ ${CMAN_OBJS} -L../lib -L${ccslibdir} -lccs
 
@@ -60,7 +57,7 @@ commands.o: commands.c list.h cnxman-socket.h cnxman-private.h \
 logging.o: logging.c list.h cnxman-socket.h cnxman-private.h 
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-install: 
+install: all
 	install -d ${libexecdir}/lcrso
 	install -s service_cman.lcrso ${libexecdir}/lcrso
 

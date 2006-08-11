@@ -30,9 +30,6 @@ TARGET=dlm_controld
 
 all: ${TARGET}
 
-copytobin: all
-	cp ${TARGET} ${top_srcdir}/bin
-
 dlm_controld:	main.o \
 		member_cman.o \
 		group.o \
@@ -53,13 +50,13 @@ group.o: group.c
 action.o: action.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-install: dlm_controld
+install: all
 	install -d ${sbindir}
-	install dlm_controld ${sbindir}
+	install ${TARGET} ${sbindir}
 
 uninstall:
-	${UNINSTALL} dlm_controld ${sbindir}
+	${UNINSTALL} ${TARGET} ${sbindir}
 
 clean:
-	rm -f *.o dlm_controld
+	rm -f *.o ${TARGET}
 

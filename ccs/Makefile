@@ -11,38 +11,31 @@
 ###############################################################################
 
 all:
-	cd daemon && ${MAKE} all
-	cd lib && ${MAKE} all
-	cd ccs_test && ${MAKE} all
-	cd ccs_tool && ${MAKE} all
-
-copytobin:
-	cd daemon && ${MAKE} copytobin
-	cd lib && ${MAKE} copytobin
-	cd ccs_test && ${MAKE} copytobin
-	cd ccs_tool && ${MAKE} copytobin
+	${MAKE} -C daemon all
+	${MAKE} -C lib all
+	${MAKE} -C ccs_test all
+	${MAKE} -C ccs_tool all
 
 clean:
-	cd bin && ${MAKE} clean
-	cd daemon && ${MAKE} clean
-	cd lib && ${MAKE} clean
-	cd ccs_test && ${MAKE} clean
-	cd ccs_tool && ${MAKE} clean
+	${MAKE} -C daemon clean
+	${MAKE} -C lib clean
+	${MAKE} -C ccs_test clean
+	${MAKE} -C ccs_tool clean
 	rm -f *~
 
 distclean: clean
 	rm -f make/defines.mk
 
-install:
-	cd daemon && ${MAKE} install 
-	cd lib && ${MAKE} install
-	cd ccs_test && ${MAKE} install
-	cd ccs_tool && ${MAKE} install
-	cd man && ${MAKE} install
+install: all
+	${MAKE} -C daemon install 
+	${MAKE} -C lib install
+	${MAKE} -C ccs_test install
+	${MAKE} -C ccs_tool install
+	${MAKE} -C man install
 
 uninstall:
-	cd daemon && ${MAKE} uninstall 
-	cd lib && ${MAKE} uninstall
-	cd ccs_test && ${MAKE} uninstall
-	cd ccs_tool && ${MAKE} uninstall
-	cd man && ${MAKE} uninstall
+	${MAKE} -C daemon uninstall 
+	${MAKE} -C lib uninstall
+	${MAKE} -Cccs_test  uninstall
+	${MAKE} -C ccs_tool uninstall
+	${MAKE} -Cman  uninstall

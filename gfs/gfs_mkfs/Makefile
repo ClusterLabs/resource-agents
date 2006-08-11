@@ -44,11 +44,15 @@ LDFLAGS+=-L${top_srcdir}/libgfs -L${libdir}
 
 all: ${TARGET}
 
-gfs_mkfs: ${SOURCE}
+gfs_mkfs: ${SOURCE} ${top_srcdir}/libgfs/libgfs.a
 	${CC} ${CFLAGS} ${INCLUDE} ${LDFLAGS} ${SOURCE} ${LOADLIBES} ${LDLIBS} -o $@ -lgfs -lvolume_id
 
-copytobin: ${TARGET}
-	cp ${TARGET} ${top_srcdir}/bin
+install: all
+	if [ ! -d ${sbindir} ]; then \
+		install -d ${sbindir}; \
+	fi
+	install -m755 ${TARGET} ${sbindir}
+	(cd ${sbindir}; ln -f gfs_mkfs mkfs.gfs)
 
 clean:
 	rm -f *.o ${TARGET}

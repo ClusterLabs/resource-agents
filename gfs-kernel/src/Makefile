@@ -12,19 +12,19 @@
 ###############################################################################
 
 all:
-	cd gfs && ${MAKE} all
+	${MAKE} -C gfs all
 
 install:
-	cd gfs && ${MAKE} install
+	${MAKE} -C gfs install
 
 uninstall:
-	cd gfs && ${MAKE} uninstall
+	${MAKE} -C gfs uninstall
 
 clean:
 	rm -rf *.patch linux-patched
-	cd gfs && ${MAKE} clean
+	${MAKE} -C gfs clean
+
+distclean: clean
 
 patches:
-	cd gfs && ${MAKE} patches
-
-
+	${MAKE} -C gfs patches

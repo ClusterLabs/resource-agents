@@ -40,9 +40,12 @@ fence_node: ${FENCE_NODE_SRC:.c=.o}
 agent.c:
 	ln -s ${top_srcdir}/fenced/agent.c .
 
-copytobin: all
+install: all
+	if [ ! -d ${sbindir} ]; then \
+		install -d ${sbindir}; \
+	fi
 	strip ${TARGET}
-	cp ${TARGET} ${top_srcdir}/bin
+	install -m755 ${TARGET} ${sbindir}
 
 clean:
 	rm -rf *~ *.o ${TARGET} agent.c

@@ -12,35 +12,35 @@
 
 
 all:
-	cd common && ${MAKE} all
-	cd daemon && ${MAKE} all
-	cd snmp-agent && ${MAKE} all
-	cd cim-provider && ${MAKE} all
+	${MAKE} -C common all
+	${MAKE} -C daemon all
+	${MAKE} -C snmp-agent all
+	${MAKE} -C cim-provider all
 
 clean:
-	cd common && ${MAKE} clean
-	cd daemon && ${MAKE} clean
-	cd snmp-agent && ${MAKE} clean
-	cd cim-provider && ${MAKE} clean
+	${MAKE} -C common clean
+	${MAKE} -C daemon clean
+	${MAKE} -C snmp-agent clean
+	${MAKE} -C cim-provider clean
 
 check:
-	cd common && ${MAKE} check
-	cd daemon && ${MAKE} check
-	cd snmp-agent && ${MAKE} check
-	cd cim-provider && ${MAKE} check
+	${MAKE} -C common check
+	${MAKE} -C daemon check
+	${MAKE} -C snmp-agent check
+	${MAKE} -C cim-provider check
 
 distclean: clean
 
-install:
-	cd common && ${MAKE} install
-	cd daemon && ${MAKE} install
-	cd snmp-agent && ${MAKE} install
-	cd cim-provider && ${MAKE} install
+install: all
+	${MAKE} -C common install
+	${MAKE} -C daemon install
+	${MAKE} -C snmp-agent install
+	${MAKE} -C cim-provider install
 
 uninstall:
-	cd common && ${MAKE} uninstall
-	cd daemon && ${MAKE} uninstall
-	cd snmp-agent && ${MAKE} uninstall
-	cd cim-provider && ${MAKE} uninstall
+	${MAKE} -C common uninstall
+	${MAKE} -C daemon uninstall
+	${MAKE} -C snmp-agent uninstall
+	${MAKE} -C cim-provider uninstall
 
 rebuild: clean all

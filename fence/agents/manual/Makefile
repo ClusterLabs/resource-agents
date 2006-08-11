@@ -39,8 +39,11 @@ fence_ack_manual: ack.o
 ack.o: ack.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-copytobin: all
-	cp ${TARGET} ${top_srcdir}/bin
+install: all
+	if [ ! -d ${sbindir} ]; then \
+		install -d ${sbindir}; \
+	fi
+	install -m755 ${TARGET} ${sbindir}
 
 clean:
 	rm -f *.o ${TARGET}

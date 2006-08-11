@@ -19,7 +19,6 @@ License: GPL
 Group: System Environment/Kernel
 Summary: GFS - The Global File System
 BuildRequires: GFS-kernheaders >= 2.6.9
-BuildRequires: iddev-devel
 
 Source0: gfs-%{version}-%{release}.tar.gz
 

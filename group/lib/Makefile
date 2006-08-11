@@ -31,8 +31,6 @@ $(LIBNAME).a: libgroup.o
 libgroup.o: libgroup.c
 	$(CC) $(CFLAGS) -c -o $@ $< -I../daemon
 
-copytobin: all
-
 install: all
 
 uninstall:

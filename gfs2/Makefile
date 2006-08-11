@@ -30,14 +30,6 @@ tag_quota:
 tag_tool:
 	${MAKE} -C tool all
 
-copytobin:
-	${MAKE} -C convert copytobin
-	${MAKE} -C edit copytobin
-	${MAKE} -C fsck copytobin
-	${MAKE} -C mkfs copytobin
-	${MAKE} -C quota copytobin
-	${MAKE} -C tool copytobin
-
 clean:
 	${MAKE} -C libgfs2 clean
 	${MAKE} -C convert clean
@@ -47,19 +39,28 @@ clean:
 	${MAKE} -C mount clean
 	${MAKE} -C quota clean
 	${MAKE} -C tool clean
-	${MAKE} -C bin clean
 
 distclean: clean
 	rm -f make/defines.mk
 
-install:
-	${MAKE} -C mount install
-	${MAKE} -C bin install
-	${MAKE} -C man install
+install: all
+	${MAKE} -C convert install
+	${MAKE} -C edit install
+	${MAKE} -C fsck install
 	${MAKE} -C init.d install
+	${MAKE} -C man install
+	${MAKE} -C mkfs install
+	${MAKE} -C mount install
+	${MAKE} -C quota install
+	${MAKE} -C tool install
 
 deinstall uninstall:
-	${MAKE} -C mount uninstall
-	${MAKE} -C bin uninstall
-	${MAKE} -C man uninstall
+	${MAKE} -C convert uninstall
+	${MAKE} -C edit uninstall
+	${MAKE} -C fsck uninstall
 	${MAKE} -C init.d uninstall
+	${MAKE} -C man uninstall
+	${MAKE} -C mkfs uninstall
+	${MAKE} -C mount uninstall
+	${MAKE} -C quota uninstall
+	${MAKE} -C tool uninstall

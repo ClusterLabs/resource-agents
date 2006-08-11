@@ -1,7 +1,7 @@
 #
 # Makefile for GFS2 mkfs
 #
-.PHONY: all clean install copytobin
+.PHONY: all clean install
 
 top_srcdir=..
 
@@ -9,7 +9,6 @@ include ${top_srcdir}/make/defines.mk
 
 MKFS=mkfs.gfs2
 JADD=gfs2_jadd
-INSTALLPATH=/sbin
 INCLUDEPATH=-I${KERNEL_SRC}/include/ -I${top_srcdir}/include/ -I${top_srcdir}/libgfs2/ -I${top_srcdir}/config/
 
 INSTALL=install
@@ -25,7 +24,7 @@ O=$(subst .c,.o,${C})
 
 all: ${MKFS} ${JADD}
 
-${MKFS}: ${O}
+${MKFS}: ${O} ${top_srcdir}/libgfs2/libgfs2.a
 	${LD} ${LDFLAGS} ${O} -o ${@} -lgfs2 -lvolume_id
 
 ${JADD}: ${MKFS}
@@ -34,13 +33,9 @@ ${JADD}: ${MKFS}
 .c.o: $<
 	${CC} ${CFLAGS} -o $@ $^
 
-copytobin: ${MKFS}
-	cp ${MKFS} ${top_srcdir}/bin
-	ln -sf ${MKFS} ${top_srcdir}/bin/${JADD}
-
-install: ${MKFS}
-	${INSTALL} -m 0755 -g root -o root ${MKFS} ${INSTALLPATH}
-	ln -sf ${MKFS} ${INSTALLPATH}/${JADD}
+install: all
+	${INSTALL} -m 0755 -g root -o root ${MKFS} ${sbindir}
+	ln -f ${MKFS} ${sbindir}/${JADD}
 
 clean:
 	rm -f *.o ${MKFS} ${JADD}

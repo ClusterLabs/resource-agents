@@ -1,14 +1,14 @@
 all:
-	cd src && ${MAKE} all
+	${MAKE} -C src all
 
 clean:
-	cd src && ${MAKE} clean
+	${MAKE} -C src clean
 
-install:
-	cd src && ${MAKE} install
+install: all
+	${MAKE} -C src install
 
 uninstall:
-	cd src && ${MAKE} uninstall
+	${MAKE} -C src uninstall
 
 distclean: clean
 	rm -f make/defines.mk

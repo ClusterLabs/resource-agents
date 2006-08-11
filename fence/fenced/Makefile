@@ -54,9 +54,12 @@ member_cman.o: member_cman.c fd.h
 agent.o: agent.c fd.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-copytobin: all
+install: all
+	if [ ! -d ${sbindir} ]; then \
+		install -d ${sbindir}; \
+	fi
 	strip ${TARGET}
-	cp ${TARGET} ${top_srcdir}/bin
+	install -m755 ${TARGET} ${sbindir}
 
 clean:
 	rm -rf *~ *.o ${TARGET}

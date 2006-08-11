@@ -21,7 +21,7 @@
 #include <inttypes.h>
 #include <sys/mount.h>
 
-#include <linux/gnbd.h>
+#include "gnbd.h"
 
 #ifndef BLKGETSIZE64
 #define BLKGETSIZE64 _IOR(0x12, 114, uint64_t)

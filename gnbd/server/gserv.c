@@ -21,8 +21,8 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <fcntl.h>
-#include <linux/gnbd.h>
 
+#include "gnbd.h"
 #include "gnbd_endian.h"
 #include "list.h"
 #include "gnbd_utils.h"

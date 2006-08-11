@@ -16,30 +16,30 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 include ${top_srcdir}/make/defines.mk
 
 all:
-	cd src && ${MAKE} all
+	${MAKE} -C src all
 
 clean:
-	cd src && ${MAKE} clean
+	${MAKE} -C src clean
 
 distclean: clean
 	rm -f make/defines.mk
 
-install:
-	cd src && ${MAKE} install
-	cd man && ${MAKE} install
-	cd init.d && ${MAKE} install
+install: all
+	${MAKE} -C src install
+	${MAKE} -C man install
+	${MAKE} -C init.d install
 	install -d ${DESTDIR}/usr/share/snmp/mibs
 	install REDHAT-MIB ${DESTDIR}/usr/share/snmp/mibs/
 	install REDHAT-CLUSTER-MIB ${DESTDIR}/usr/share/snmp/mibs/
 
 uninstall:
-	cd src && ${MAKE} uninstall
-	cd man && ${MAKE} uninstall
-	cd init.d && ${MAKE} uninstall
+	${MAKE} -C src uninstall
+	${MAKE} -C man uninstall
+	${MAKE} -C init.d uninstall
 	${UNINSTALL} REDHAT-MIB ${DESTDIR}/usr/share/snmp/mibs/
 	${UNINSTALL} REDHAT-CLUSTER-MIB ${DESTDIR}/usr/share/snmp/mibs/
 
 check:
-	cd src && ${MAKE} check
+	${MAKE} -C src check
 
 rebuild: clean all

@@ -12,21 +12,21 @@
 ###############################################################################
 
 all:
-	cd src && ${MAKE} all
+	${MAKE} -C src all
 
 clean:
-	cd src && ${MAKE} clean
+	${MAKE} -C src clean
 
 distclean: clean
 	rm -f make/defines.mk
 
-install:
-	cd src && ${MAKE} install
-	cd man && ${MAKE} install
-	cd init.d && ${MAKE} install
+install: all
+	${MAKE} -C src install
+	${MAKE} -C man install
+	${MAKE} -C init.d install
 
 check:
-	cd src && ${MAKE} check
+	${MAKE} -C src check
 
 uninstall:
-	cd src && ${MAKE} uninstall
+	${MAKE} -C src uninstall

@@ -46,7 +46,7 @@ main.o: main.c gd_internal.h
 clean:
 	rm -f *.o groupd
 
-install: groupd
+install: all
 	install -d ${sbindir}
 	install groupd ${sbindir}
 

@@ -28,9 +28,6 @@ TARGET=cman_tool
 
 all: ${TARGET}
 
-copytobin: all
-	cp ${TARGET} ${top_srcdir}/bin
-
 cman_tool: main.o join.o ../lib/libcman.a
 	$(CC) $(LDFLAGS) -L$(ccslibdir) -o $@ $^ -L../lib -lccs
 
@@ -40,7 +37,7 @@ main.o: main.c cman_tool.h
 join.o: join.c cman_tool.h
 	$(CC) $(CFLAGS) -c -o $@ $< -DSBINDIR=\"${sbindir}\"
 
-install: cman_tool
+install: all
 	install -d ${sbindir}
 	install cman_tool ${sbindir}
 

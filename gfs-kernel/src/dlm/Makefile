@@ -36,7 +36,6 @@ lock_dlm-objs := lock.o \
 EXTRA_CFLAGS += -I$(obj)
 
 all:
-	if [ ! -e linux ]; then ln -s . linux; fi
 	if [ ! -e dlm.h ]; then cp ../../../dlm-kernel/src2/dlm.h .; fi
 	${MAKE} -C ${KERNEL_SRC} M=${PWD} modules USING_KBUILD=yes
 

@@ -26,9 +26,9 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <sys/utsname.h>
-#include <linux/gnbd.h>
 #include <inttypes.h>
 
+#include "gnbd.h"
 #include "fence_return.h"
 #include "gnbd_endian.h"
 #include "gnbd_utils.h"

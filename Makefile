@@ -16,89 +16,77 @@ MAKELINE =  sbindir=${BUILDDIR}/sbin libdir=${BUILDDIR}/lib mandir=${BUILDDIR}/m
 
 
 all:
-	cd gnbd-kernel && ${MAKE}
-	cd cman/lib && ${MAKE}
-	cd ccs && ${MAKE}
-	cd cman && ${MAKE}
-	cd group && ${MAKE}
-	cd dlm && ${MAKE}
-	cd fence && ${MAKE}
-	cd gfs-kernel && ${MAKE}
-	cd gfs && ${MAKE}
-	cd gfs2 && ${MAKE}
-	cd gnbd && ${MAKE}
-	cd rgmanager && ${MAKE}
-#	cd cmirror && ${MAKE}
-
-copytobin:
-	cd gfs-kernel && ${MAKE} copytobin
-	cd gnbd-kernel && ${MAKE} copytobin
-	cd ccs && ${MAKE} copytobin
-	cd cman && ${MAKE} copytobin
-	cd dlm && ${MAKE} copytobin
-	cd fence && ${MAKE} copytobin
-	cd gfs && ${MAKE} copytobin
-	cd gfs2 && ${MAKE} copytobin
-	cd gnbd && ${MAKE} copytobin
-	cd rgmanager && ${MAKE} copytobin
-#	cd cmirror && ${MAKE} copytobin
+	${MAKE} -C gnbd-kernel all
+	${MAKE} -C cman/lib all
+	${MAKE} -C ccs all
+	${MAKE} -C cman all
+	${MAKE} -C group all
+	${MAKE} -C dlm all
+	${MAKE} -C fence all
+	${MAKE} -C gfs-kernel all
+	${MAKE} -C gfs all
+	${MAKE} -C gfs2 all
+	${MAKE} -C gnbd all
+	${MAKE} -C rgmanager all
+#	${MAKE} -C cmirror all
 
 clean:
 	rm -f *tar.gz
 	rm -rf build
-	cd gfs-kernel && ${MAKE} clean
-	cd gnbd-kernel && ${MAKE} clean
-	cd ccs && ${MAKE} clean
-	cd cman && ${MAKE} clean
-	cd group && ${MAKE} clean
-	cd dlm && ${MAKE} clean
-	cd fence && ${MAKE} clean
-	cd gfs && ${MAKE} clean
-	cd gfs2 && ${MAKE} clean
-	cd gnbd && ${MAKE} clean
-	cd rgmanager && ${MAKE} clean
-#	cd cmirror && ${MAKE} clean
+	${MAKE} -C gfs-kernel clean
+	${MAKE} -C gnbd-kernel clean
+	${MAKE} -C ccs clean
+	${MAKE} -C cman clean
+	${MAKE} -C group clean
+	${MAKE} -C dlm clean
+	${MAKE} -C fence clean
+	${MAKE} -C gfs clean
+	${MAKE} -C gfs2 clean
+	${MAKE} -C gnbd clean
+	${MAKE} -C rgmanager clean
+#	${MAKE} -C cmirror clean
 
 distclean:
-	cd gfs-kernel && ${MAKE} distclean
-	cd gnbd-kernel && ${MAKE} distclean
-	cd ccs && ${MAKE} distclean
-	cd cman && ${MAKE} distclean
-	cd group && ${MAKE} distclean
-	cd dlm && ${MAKE} distclean
-	cd fence && ${MAKE} distclean
-	cd gfs && ${MAKE} distclean
-	cd gfs2 && ${MAKE} distclean
-	cd gnbd && ${MAKE} distclean
-	cd rgmanager && ${MAKE} distclean
-#	cd cmirror && ${MAKE} distclean
+	${MAKE} -C gfs-kernel distclean
+	${MAKE} -C gnbd-kernel distclean
+	${MAKE} -C ccs distclean
+	${MAKE} -C cman distclean
+	${MAKE} -C group distclean
+	${MAKE} -C dlm distclean
+	${MAKE} -C fence distclean
+	${MAKE} -C gfs distclean
+	${MAKE} -C gfs2 distclean
+	${MAKE} -C gnbd distclean
+	${MAKE} -C rgmanager distclean
+#	${MAKE} -C cmirror distclean
 
-install:
-	cd gfs-kernel && ${MAKE} install
-	cd gnbd-kernel && ${MAKE} install
-	cd ccs && ${MAKE} install
-	cd cman && ${MAKE} install
-	cd group && ${MAKE} install
-	cd dlm && ${MAKE} install
-	cd fence && ${MAKE} install
-	cd gfs && ${MAKE} install
-	cd gfs2 && ${MAKE} install
-	cd gnbd && ${MAKE} install
-	cd rgmanager && ${MAKE} install
-#	cd cmirror && ${MAKE} install
+install: all
+	${MAKE} -C gfs-kernel install
+	${MAKE} -C gnbd-kernel install
+	${MAKE} -C ccs install
+	${MAKE} -C cman install
+	${MAKE} -C group install
+	${MAKE} -C dlm install
+	${MAKE} -C fence install
+	${MAKE} -C gfs install
+	${MAKE} -C gfs2 install
+	${MAKE} -C gnbd install
+	${MAKE} -C rgmanager install
+#	${MAKE} -C cmirror install
 
 uninstall:
-	cd gfs-kernel && ${MAKE} uninstall
-	cd gnbd-kernel && ${MAKE} uninstall
-	cd ccs && ${MAKE} uninstall
-	cd cman && ${MAKE} uninstall
-	cd dlm && ${MAKE} uninstall
-	cd fence && ${MAKE} uninstall
-	cd gfs && ${MAKE} uninstall
-	cd gfs2 && ${MAKE} uninstall
-	cd gnbd && ${MAKE} uninstall
-	cd rgmanager && ${MAKE} uninstall
-#	cd cmirror && ${MAKE} uninstall
+	${MAKE} -C gfs-kernel uninstall
+	${MAKE} -C gnbd-kernel uninstall
+	${MAKE} -C ccs uninstall
+	${MAKE} -C cman uninstall
+	${MAKE} -C group uninstall
+	${MAKE} -C dlm uninstall
+	${MAKE} -C fence uninstall
+	${MAKE} -C gfs uninstall
+	${MAKE} -C gfs2 uninstall
+	${MAKE} -C gnbd uninstall
+	${MAKE} -C rgmanager uninstall
+#	${MAKE} -C cmirror uninstall
 
 latest_tags:
 	${LATEST_TAG} gfs-kernel

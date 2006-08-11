@@ -16,6 +16,8 @@ all: ${TARGET}
 .c:
 	$(CC) $(CFLAGS) $(OUTPUT_OPTION) $< $(LDFLAGS)
 
+install: all
+
 clean:
 	rm -f *.o ${TARGET}
 

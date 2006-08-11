@@ -26,8 +26,6 @@ include ${top_srcdir}/make/defines.mk
 
 all:
 
-copytobin:
-
 clean:
 
 install: all

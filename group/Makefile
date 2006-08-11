@@ -11,26 +11,25 @@
 ###############################################################################
 
 all:
-	cd lib && ${MAKE} all
-	cd daemon && ${MAKE} all
-	cd tool && ${MAKE} all
-	cd dlm_controld && ${MAKE} all
-	cd gfs_controld && ${MAKE} all
+	${MAKE} -C lib all
+	${MAKE} -C daemon all
+	${MAKE} -C tool all
+	${MAKE} -C dlm_controld all
+	${MAKE} -C gfs_controld all
 
 clean:
-	cd lib && ${MAKE} clean
-	cd daemon && ${MAKE} clean
-	cd tool && ${MAKE} clean
-	cd dlm_controld && ${MAKE} clean
-	cd gfs_controld && ${MAKE} clean
+	${MAKE} -C lib clean
+	${MAKE} -C daemon clean
+	${MAKE} -C tool clean
+	${MAKE} -C dlm_controld clean
+	${MAKE} -C gfs_controld clean
 
-install:
-	cd lib && ${MAKE} install
-	cd daemon && ${MAKE} install
-	cd tool && ${MAKE} install
-	cd dlm_controld && ${MAKE} install
-	cd gfs_controld && ${MAKE} install
+install: all
+	${MAKE} -C lib install
+	${MAKE} -C daemon install
+	${MAKE} -C tool install
+	${MAKE} -C dlm_controld install
+	${MAKE} -C gfs_controld install
 
 distclean: clean
 	rm -f make/defines.mk
-

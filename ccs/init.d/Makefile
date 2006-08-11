@@ -18,8 +18,7 @@ top_srcdir=..
 
 include ${top_srcdir}/make/defines.mk
 
-copytobin:
-
+all:
 clean:
 
 install:

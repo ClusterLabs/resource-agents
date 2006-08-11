@@ -10,28 +10,34 @@
 ##
 ###############################################################################
 ###############################################################################
-all: copytobin
-
-copytobin:
-	cd agents && ${MAKE} copytobin
-	cd fence_node && ${MAKE} copytobin
-	cd fence_tool && ${MAKE} copytobin
-	cd fenced && ${MAKE} copytobin
+all:
+	${MAKE} -C agents all
+	${MAKE} -C fence_node all
+	${MAKE} -C fence_tool all
+	${MAKE} -C fenced all
 
 clean:
-	cd agents && ${MAKE} clean
-	cd bin && ${MAKE} clean
-	cd fence_node && ${MAKE} clean
-	cd fence_tool && ${MAKE} clean
-	cd fenced && ${MAKE} clean
+	${MAKE} -C agents clean
+	${MAKE} -C fence_node clean
+	${MAKE} -C fence_tool clean
+	${MAKE} -C fenced clean
 
 distclean: clean
 	rm -f make/defines.mk
 
-install:
-	cd bin && ${MAKE} install
-	cd man && ${MAKE} install
+install: all
+	if [ ! -d ${sbindir} ]; then \
+		install -d ${sbindir}; \
+	fi
+	${MAKE} -C agents install
+	${MAKE} -C fence_node install
+	${MAKE} -C fence_tool install
+	${MAKE} -C fenced install
+	${MAKE} -C man install
 
 uninstall:
-	cd bin && ${MAKE} uninstall
-	cd man && ${MAKE} uninstall
+	${MAKE} -C agents uninstall
+	${MAKE} -C fence_node uninstall
+	${MAKE} -C fence_tool uninstall
+	${MAKE} -C fenced uninstall
+	${MAKE} -C man uninstall

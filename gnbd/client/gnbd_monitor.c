@@ -26,8 +26,8 @@
 #include <inttypes.h>
 #include <netdb.h>
 #include <netinet/in.h>
-#include <linux/gnbd.h>
 
+#include "gnbd.h"
 #include "group.h"
 #include "member_cman.h"
 #include "gnbd_endian.h"

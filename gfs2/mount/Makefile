@@ -63,7 +63,7 @@ mount.gfs2: mount.gfs2.o ondisk1.o ondisk2.o util.o mtab.o
 umount.gfs2: umount.gfs2.o ondisk1.o ondisk2.o util.o mtab.o
 	${CC} ${LDFLAGS} -o $@ $^
 
-install: mount.gfs2 umount.gfs2
+install: all
 	install mount.gfs2 ${sbindir}
 	install umount.gfs2 ${sbindir}
 	(cd ${sbindir}; ln -f mount.gfs2 mount.gfs)

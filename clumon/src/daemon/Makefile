@@ -29,7 +29,7 @@ OBJECTS = main.o \
 
 all: ${TARGET}
 
-install: 
+install: all
 	install -d ${sbindir}
 	install ${TARGET} ${sbindir}
 

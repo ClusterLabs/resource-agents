@@ -24,17 +24,15 @@ linux_patched = ${top_srcdir}/patches/linux-patched
 PATCH_TARGET = gnbd.patch
 
 PWD := $(shell pwd)
-   
+
 obj-m := gnbd.o
 lock_gnbd-objs := gnbd.c
 
 EXTRA_CFLAGS += -I$(obj)
 
 all:
-	rm -f linux
-	ln -s . linux
 	${MAKE} -C ${KERNEL_SRC} M=${PWD} modules USING_KBUILD=yes
- 
+
 install: all
 	install -d ${incdir}/linux
 	install gnbd.h ${incdir}/linux

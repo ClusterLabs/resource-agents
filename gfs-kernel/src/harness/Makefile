@@ -30,18 +30,14 @@ lock_harness-objs := main.o
 EXTRA_CFLAGS += -I$(obj)
 
 all:
-	rm -f linux
-	ln -s . linux
 	${MAKE} -C ${KERNEL_SRC} M=${PWD} modules USING_KBUILD=yes
 
 install: all
 	install -d ${incdir}/linux
-	install lm_interface.h ${incdir}/linux
 	install -d ${module_dir}/fs/gfs_locking/lock_harness
 	install lock_harness.ko ${module_dir}/fs/gfs_locking/lock_harness
 
 uninstall:
-	${UNINSTALL} lm_interface.h ${incdir}/linux
 	${UNINSTALL} lock_harness.ko ${module_dir}/fs/gfs_locking/lock_harness
  
 clean:

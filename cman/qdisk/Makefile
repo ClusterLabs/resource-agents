@@ -23,10 +23,7 @@ TARGET=qdiskd mkqdisk
 
 all: ${TARGET}
 
-copytobin: all
-	cp ${TARGET} ${top_srcdir}/bin
-
-install: ${TARGET}
+install: all
 	install -d ${sbindir}
 	install ${TARGET} ${sbindir}
 

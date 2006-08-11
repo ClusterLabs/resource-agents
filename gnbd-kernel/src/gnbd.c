@@ -34,7 +34,7 @@
 #include <asm/uaccess.h>
 #include <asm/types.h>
 
-#include <linux/gnbd.h>
+#include "gnbd.h"
 
 static int major_nr = 0;
 uint64_t insmod_time;

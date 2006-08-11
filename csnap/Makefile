@@ -1,15 +1,15 @@
 all:
-	cd src && ${MAKE} copytobin
+	${MAKE} -C src all
 
 clean:
-	cd src && ${MAKE} clean
-	cd tests && ${MAKE} clean
+	${MAKE} -C src clean
+	${MAKE} -C tests clean
 
-install:
-	cd bin && ${MAKE} install
+install: all
+	${MAKE} -C src install
 
 uninstall:
-	cd bin && ${MAKE} uninstall
+	${MAKE} -C src uninstall
 
 distclean: clean
 	rm -f make/defines.mk

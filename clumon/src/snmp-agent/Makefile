@@ -43,7 +43,7 @@ TARGET = libClusterMonitorSnmp.so
 
 all: ${TARGET}
 
-install: 
+install: all
 	install -d ${libdir}/clumon-snmp
 	install ${TARGET} ${libdir}/clumon-snmp
 

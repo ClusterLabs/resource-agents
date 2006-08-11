@@ -24,7 +24,7 @@ CFLAGS+= -ggdb -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 \
 	 -DGFS2_RELEASE_NAME=\"${RELEASE}\"
 
 INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config -I../libgfs2 
-LIBS=-L../libgfs2/
+LIBS=../libgfs2/
 
 ifneq (${KERNEL_SRC}, )
 # Use the kernel tree if patched, otherwise, look where cluster headers
@@ -38,11 +38,14 @@ endif
 
 all: gfs2_edit
 
-gfs2_edit: ${SOURCE} hexedit.h gfs2hex.h
-	${CC} ${CFLAGS} ${INCLUDE} ${LIBS} ${LDFLAGS} ${SOURCE} ${LOADLIBES} ${LDLIBS} -lncurses -o $@ -lgfs2
+gfs2_edit: ${SOURCE} hexedit.h gfs2hex.h ${LIBS}/libgfs2.a
+	${CC} ${CFLAGS} ${INCLUDE} -L${LIBS} ${LDFLAGS} ${SOURCE} ${LOADLIBES} ${LDLIBS} -lncurses -o $@ -lgfs2
 
-copytobin: all
-	cp ${TARGET} ${top_srcdir}/bin
+install: all
+	if [ ! -d ${sbindir} ]; then \
+		install -d ${sbindir}; \
+	fi
+	install -m755 ${TARGET} ${sbindir}
 
 clean:
 	rm -f *.o ${TARGET}

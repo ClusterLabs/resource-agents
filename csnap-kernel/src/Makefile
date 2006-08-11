@@ -24,17 +24,15 @@ linux_patched = ${top_srcdir}/patches/linux-patched
 PATCH_TARGET = dm-csnap.patch
 
 PWD := $(shell pwd)
-   
+
 obj-m := dm-csnap.o
 csnap-objs := dm-csnap.c
 
 EXTRA_CFLAGS += -I$(obj) -Idrivers/md
 
 all:
-	rm -f linux
-	ln -s . linux
 	${MAKE} -C ${KERNEL_SRC} M=${PWD} modules USING_KBUILD=yes
- 
+
 install: all
 	install -d ${incdir}/linux
 	install dm-csnap.h ${incdir}/linux

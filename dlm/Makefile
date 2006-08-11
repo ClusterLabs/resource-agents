@@ -12,21 +12,17 @@
 ###############################################################################
 
 all:
-	cd lib && ${MAKE} all
+	${MAKE} -C lib all
 
-copytobin:
-	cd lib && ${MAKE} copytobin
-
-install:
-	cd lib && ${MAKE} install
+install: all
+	${MAKE} -C lib install
 
 uninstall:
-	cd lib && ${MAKE} uninstall
+	${MAKE} -C lib uninstall
 
 clean:
-	cd lib && ${MAKE} clean
+	${MAKE} -C lib clean
 	rm -f *~
 
 distclean: clean
 	rm -f make/defines.mk
-

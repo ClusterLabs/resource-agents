@@ -37,9 +37,6 @@ $(LIBNAME).so.${RELEASE_MAJOR}.${RELEASE_MINOR}: libcman.o
 libcman.o: libcman.c
 	$(CC) $(CFLAGS) -c -o $@ $< -I../daemon
 
-copytobin: all
-
-
 install: all
 	install -d ${incdir}
 	install libcman.h ${incdir}

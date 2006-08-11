@@ -14,8 +14,10 @@ top_srcdir=..
 
 include ${top_srcdir}/make/defines.mk
 
+TARGET= gfs2_fsck
+
 INCLUDES= -I${top_srcdir}/include -I${top_srcdir}/config -I${top_srcdir}/libgfs2 -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
-LIBS=-L${top_srcdir}/libgfs2
+LIBS=${top_srcdir}/libgfs2
 
 .PHONY: all clean
 
@@ -25,10 +27,10 @@ sources = main.c initialize.c pass1.c pass1b.c pass1c.c pass2.c pass3.c \
 
 CFLAGS+=-D_FILE_OFFSET_BITS=64 -DHELPER_PROGRAM -DGFS_RELEASE_NAME=\"${RELEASE}\" -Wall -g
 
-all: gfs2_fsck
+all: ${TARGET}
 
-gfs2_fsck: $(sources:.c=.o) ../libgfs2/libgfs2.a
-	$(CC) $(CFLAGS) $(LIBS) $^ -o $@ -lgfs2
+gfs2_fsck: $(sources:.c=.o) $(LIBS)/libgfs2.a
+	$(CC) $(CFLAGS) -L$(LIBS) $^ -o $@ -lgfs2
 
 %.o: %.c
 	$(CC) -MMD -c $(INCLUDES) $(CFLAGS) $< -o $@
@@ -42,8 +44,12 @@ test_bitmap: test_bitmap.o log.o
 clean:
 	@rm -f gfs2_fsck *.o *~ *.d
 
-copytobin: gfs2_fsck
-	cp gfs2_fsck ${top_srcdir}/bin
+install: all
+	if [ ! -d ${sbindir} ]; then \
+		install -d ${sbindir}; \
+	fi
+	strip ${TARGET}
+	install -m755 ${TARGET} ${sbindir}
 
 distclean: clean
 	@rm -f cscope.* gfs2_fsck test_inode_list *.orig *.rej test_block_list test_bitmap

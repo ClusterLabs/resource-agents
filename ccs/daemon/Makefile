@@ -15,6 +15,7 @@ UNINSTALL = ${top_srcdir}/scripts/uninstall.pl
 
 include ${top_srcdir}/make/defines.mk
 
+TARGET= ccsd
 INCLUDE= -I. -I../include -I../common -I${top_srcdir}/config -I../../cman/lib
 
 ifeq ($(DEBUG),y)
@@ -27,21 +28,18 @@ endif
 
 LDFLAGS+= -L${libdir} `xml2-config --libs` -lpthread -ldl
 
-all: ccsd
-
-copytobin: all
-	cp ccsd ${top_srcdir}/bin
+all: ${TARGET}
 
 ccsd: ccsd.c cnx_mgr.c cluster_mgr.c misc.c ../common/log.c globals.c
 	${CC} ${CFLAGS} ${INCLUDE} -o $@ $^ ${LDFLAGS} \
 	../../cman/lib/libcman.a
 
-install: ccsd
+install: all
 	install -d ${sbindir}
-	install ccsd ${sbindir}
+	install ${TARGET} ${sbindir}
 
 uninstall:
-	${UNINSTALL} ccsd ${sbindir}
+	${UNINSTALL} ${TARGET} ${sbindir}
 
 clean:
-	rm -rf *.o ccsd *~
+	rm -rf *.o ${TARGET} *~

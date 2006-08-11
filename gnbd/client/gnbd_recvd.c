@@ -22,9 +22,9 @@
 #include <fcntl.h>
 #include <string.h>
 #include <errno.h>
-#include <linux/gnbd.h>
 #include <inttypes.h>
 
+#include "gnbd.h"
 #include "gnbd_endian.h"
 #include "gnbd_utils.h"
 #include "gserv.h"

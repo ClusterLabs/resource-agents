@@ -67,7 +67,7 @@ TARGET_TEST = clusterCIM_test
 
 all: ${TARGET} $(TARGET_TEST)
 
-install: 
+install: all
 	install -d ${pegasus_providers_dir}
 	install ${TARGET} ${pegasus_providers_dir}
 

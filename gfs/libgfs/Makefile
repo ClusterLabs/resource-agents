@@ -39,5 +39,7 @@ ${LIBGFS}: ${O}
 .c.o: $<
 	${CC} ${CFLAGS} -o $@ $^
 
+install: all
+
 clean:
 	rm -f *.o ${LIBGFS}

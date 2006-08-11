@@ -40,11 +40,14 @@ LOADLIBES+= -lgfs
 
 all: ${TARGET}
 
-gfs_jadd:
+gfs_jadd: ${top_srcdir}/libgfs/libgfs.a
 	${CC} ${CFLAGS} ${INCLUDE} ${LDFLAGS} ${SOURCE} ${LOADLIBES} ${LDLIBS} -o $@
 
-copytobin: ${TARGET}
-	cp ${TARGET} ${top_srcdir}/bin
+install: all
+	if [ ! -d ${sbindir} ]; then \
+		install -d ${sbindir}; \
+	fi
+	install -m755 ${TARGET} ${sbindir}
 
 clean:
 	rm -f *.o ${TARGET}

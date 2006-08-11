@@ -31,8 +31,6 @@ lock_nolock-objs := main.o
 EXTRA_CFLAGS += -I$(obj)
 
 all:
-	rm -f linux
-	ln -s . linux
 	${MAKE} -C ${KERNEL_SRC} M=${PWD} modules USING_KBUILD=yes
 
 install: all

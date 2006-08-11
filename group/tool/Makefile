@@ -29,7 +29,7 @@ main.o: main.c
 clean:
 	rm -f *.o group_tool
 
-install: group_tool
+install: all
 	install -d ${sbindir}
 	install group_tool ${sbindir}
 

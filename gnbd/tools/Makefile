@@ -13,16 +13,16 @@
 
 
 all:
-	cd fence_gnbd && ${MAKE} all
-	cd gnbd_export && ${MAKE} all
-	cd gnbd_import && ${MAKE} all
+	${MAKE} -C fence_gnbd all
+	${MAKE} -C gnbd_export all
+	${MAKE} -C gnbd_import all
 
-copytobin:
-	cd fence_gnbd && ${MAKE} copytobin
-	cd gnbd_export && ${MAKE} copytobin
-	cd gnbd_import && ${MAKE} copytobin
+install: all
+	${MAKE} -C fence_gnbd install
+	${MAKE} -C gnbd_export install
+	${MAKE} -C gnbd_import install
 
 clean:
-	cd fence_gnbd && ${MAKE} clean
-	cd gnbd_export && ${MAKE} clean
-	cd gnbd_import && ${MAKE} clean
+	${MAKE} -C fence_gnbd clean
+	${MAKE} -C gnbd_export clean
+	${MAKE} -C gnbd_import clean
