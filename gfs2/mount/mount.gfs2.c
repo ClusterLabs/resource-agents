@@ -174,6 +174,7 @@ int main(int argc, char **argv)
 
 	rv = mount(mo.dev, mo.dir, fsname, mo.flags, mo.extra_plus);
 	if (rv) {
+		log_debug("mount(2) failed error %d errno %d", rv, errno);
 		if (!(mo.flags & MS_REMOUNT))
 			umount_lockproto(proto, &mo, &sb, errno);
 
@@ -181,10 +182,9 @@ int main(int argc, char **argv)
 
 		die("error %d mounting %s on %s\n", errno, mo.dev, mo.dir);
 	}
+	log_debug("mount(2) ok");
 
 	block_signals(SIG_UNBLOCK);
-
-	log_debug("mount syscall returned %d", rv);
 
 	if (!(mo.flags & MS_REMOUNT))
 		add_mtab_entry(&mo);
