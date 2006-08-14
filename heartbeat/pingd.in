@@ -1,11 +1,12 @@
 #!/bin/sh
 #
-#	$Id: pingd.in,v 1.3 2006/07/29 20:28:21 andrew Exp $
+#	$Id: pingd.in,v 1.4 2006/08/14 09:12:46 andrew Exp $
 #
-#	pingd OCF RA. Does nothing but wait a few seconds, can be
-#	configured to fail occassionally.
+#	pingd OCF Resource Agent
+#	Records (in the CIB) the current number of ping nodes a 
+#	   cluster node can connect to.
 #
-# Copyright (c) 2004 SUSE LINUX AG, Lars Marowsky-Brée
+# Copyright (c) 2006 Andrew Beekhof
 #                    All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -27,12 +28,6 @@
 # along with this program; if not, write the Free Software Foundation,
 # Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
 #
-# OCF instance parameters:
-#	OCF_RESKEY_user
-#	OCF_RESKEY_pidfile
-#	OCF_RESKEY_update
-#	OCF_RESKEY_htmlfile
-
 #######################################################################
 # Initialization:
 
