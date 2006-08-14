@@ -667,6 +667,8 @@ ip_monitor() {
 	return $rc
     fi
     
+    ocf_log info "Checking IP stack"
+
     case "$SYSTYPE" in
         Linux)
             # -c count -t timetolive -q(uiet) -n(umeric) -W timeout
