@@ -415,7 +415,8 @@ int inode_renumber(struct gfs2_sbd *sbp, uint64_t root_inode_addr)
                     /* figure out offset of first bitmap byte for this map: */
 					buf_offset = (blk) ? sizeof(struct gfs2_meta_header) :
 						sizeof(struct gfs2_rgrp);
-					if (bitmap_byte < sbp->bsize) { /* if it's on this page */
+					/* if it's on this page */
+					if (buf_offset + bitmap_byte < sbp->bsize) {
 						rgd->bh[blk]->b_data[buf_offset + bitmap_byte] &=
 							~(0x03 << (GFS2_BIT_SIZE * byte_bit));
 						rgd->bh[blk]->b_data[buf_offset + bitmap_byte] |=
