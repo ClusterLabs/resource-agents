@@ -379,19 +379,6 @@ static int all_levels_all_stopped(group_t *g, event_t *rev)
 	return 1;
 }
 
-static int level_is_recovered(struct recovery_set *rs, int level)
-{
-	struct recovery_entry *re;
-
-	list_for_each_entry(re, &rs->entries, list) {
-		if (re->group->level != level)
-			continue;
-		if (!re->recovered)
-			return 0;
-	}
-	return 1;
-}
-
 void dump_recovery_sets(void)
 {
 	struct recovery_set *rs;
@@ -407,33 +394,47 @@ void dump_recovery_sets(void)
 	}
 }
 
-/* lower level group should be recovered in each recovery set */
-
-static int lower_level_recovered(group_t *g)
+static int group_in_recovery_set(struct recovery_set *rs, group_t *g)
 {
-	struct recovery_set *rs;
 	struct recovery_entry *re;
-	int found = 0;
 
 	list_for_each_entry(rs, &recovery_sets, list) {
 		list_for_each_entry(re, &rs->entries, list) {
-			if (re->group == g) {
-				found = 1;
-				if (level_is_recovered(rs, g->level - 1))
-					break;
-				else {
-					log_group(g, "lower level %d is not "
-						  "recovered in rs %d",
-						  g->level - 1, rs->nodeid);
-					/* dump_recovery_sets(); */
-					return 0;
-				}
-			}
+			if (re->group == g)
+				return 1;
 		}
 	}
+	return 0;
+}
 
-	if (!found)
+static int rs_lower_levels_recovered(struct recovery_set *rs, int level)
+{
+	struct recovery_entry *re;
+
+	list_for_each_entry(re, &rs->entries, list) {
+		if (re->group->level < level && !re->recovered)
+			return 0;
+	}
+	return 1;
+}
+
+/* lower level groups should be recovered in each rs this group is in */
+
+static int lower_levels_recovered(group_t *g)
+{
+	struct recovery_set *rs;
+
+	list_for_each_entry(rs, &recovery_sets, list) {
+		if (!group_in_recovery_set(rs, g))
+			continue;
+
+		if (rs_lower_levels_recovered(rs, g->level))
+			continue;
+
+		log_group(g, "lower levels not recovered in rs %d", rs->nodeid);
 		return 0;
+	}
+
 	return 1;
 }
 
@@ -453,24 +454,14 @@ static int level_is_lowest(struct recovery_set *rs, int level)
 static int lowest_level(group_t *g)
 {
 	struct recovery_set *rs;
-	struct recovery_entry *re;
-	int found = 0;
 
 	list_for_each_entry(rs, &recovery_sets, list) {
-		list_for_each_entry(re, &rs->entries, list) {
-			if (re->group == g) {
-				found = 1;
-				if (level_is_lowest(rs, g->level))
-					break;
-				else
-					return 0;
-			}
-
-		}
-	}
-
-	if (!found)
+		if (!group_in_recovery_set(rs, g))
+			continue;
+		if (level_is_lowest(rs, g->level))
+			continue;
 		return 0;
+	}
 	return 1;
 }
 
@@ -1006,11 +997,11 @@ static int process_current_event(group_t *g)
 			} else
 				log_group(g, "wait for all_levels_all_stopped");
 		} else {
-			if (lower_level_recovered(g)) {
+			if (lower_levels_recovered(g)) {
 				ev->state = EST_FAIL_START_WAIT;
 				do_start = 1;
 			} else
-				log_group(g, "wait for lower_level_recovered");
+				log_group(g, "wait for lower_levels_recovered");
 		}
 
 		if (!do_start)
