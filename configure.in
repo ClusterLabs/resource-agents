@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.546 $) dnl cvs revision
+AC_REVISION($Revision: 1.547 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -54,22 +54,27 @@ case "$host_os" in
 *bsd*)		LIBS="-L/usr/local/lib"
 		CPPFLAGS="$CPPFLAGS -I/usr/local/include"
 		INIT_EXT=".sh"
+		REBOOT_OPTIONS="-f"
 		;;
 
 *solaris*)
 		pf_argv_set="PF_ARGV_NONE"
+		REBOOT_OPTIONS="-f"
 		;;
 
 *linux*)	USE_MODULES=1
+		REBOOT_OPTIONS="-nf"
  		;;
 dnl anything?
 darwin*)	
 		AC_DEFINE_UNQUOTED(ON_DARWIN, 1, Compiling for Darwin platform)
+		REBOOT_OPTIONS="-f"
 		;;
 esac
 
 AC_SUBST(INIT_EXT)
 AC_SUBST(USE_MODULES)
+AC_SUBST(REBOOT_OPTIONS)
 
 dnl Info for building/packaging systems.
 dnl
@@ -421,6 +426,8 @@ AC_PATH_PROGS(GETENT, getent)
 AC_PATH_PROGS(IP2UTIL, ip)
 AC_PATH_PROGS(IPTABLES, iptables)
 AC_PATH_PROGS(XML2CONFIG, xml2-config)
+AC_PATH_PROGS(REBOOT, reboot)
+AC_SUBST(REBOOT)
 dnl "whoami", if it exists, may be hidden away on some System-V (e.g. Solaris)
 AC_PATH_PROGS(WHOAMI, whoami, , ${PATH}:/usr/ucb)
 AC_PATH_PROGS(STRINGSCMD, strings)
@@ -681,6 +688,7 @@ do
   fi
 done
 AC_SUBST(PING_TIMEOUT_OPT)
+
 
 dnl Determining a route (particularly for "findif").
 dnl There are various mechanisms on different systems.
@@ -1084,7 +1092,7 @@ if test "$enable_snmp_subagent" = "yes"; then
 fi
 
 AC_ARG_WITH(mibsdir, 
-	[  --with-mibsdir=DIR      directory for mib files. ],
+	[  --with-miBsdir=DIR      directory for mib files. ],
 	[ MIBS_DIR="$withval" ])
 
 if test "x${enable_snmp_subagent}"  = "xyes" -a "X${MIBS_DIR}" = "X"; then
@@ -2726,6 +2734,7 @@ heartbeat/Makefile						\
 	heartbeat/libnet_util/Makefile				\
 	heartbeat/logrotate.d/Makefile				\
 ldirectord/Makefile						\
+ldirectord/ldirectord   					\
 	ldirectord/init.d/Makefile				\
 	ldirectord/init.d/ldirectord   				\
 	ldirectord/logrotate.d/Makefile				\
