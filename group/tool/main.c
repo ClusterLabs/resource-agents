@@ -55,13 +55,23 @@ static void print_usage(void)
 {
 	printf("Usage:\n");
 	printf("\n");
-	printf("%s [options]\n", prog_name);
+	printf("%s [options] [ls|dump]\n", prog_name);
 	printf("\n");
 	printf("Options:\n");
-	printf("\n");
 	printf("  -v               Verbose output, extra event information\n");
 	printf("  -h               Print this help, then exit\n");
 	printf("  -V               Print program version information, then exit\n");
+	printf("\n");
+	printf("Display group information from groupd\n");
+	printf("ls                 Show information for all groups\n");
+	printf("ls <level> <name>  Show information one group\n");
+	printf("\n");
+	printf("Display debugging information\n");
+	printf("dump               Show debug log from groupd\n");
+	printf("dump fence         Show debug log from fenced\n");
+	printf("dump gfs           Show debug log from gfs_controld\n");
+	printf("dump plocks <name> Show posix locks for gfs with given name\n");
+	printf("\n");
 }
 
 static void decode_arguments(int argc, char **argv)
