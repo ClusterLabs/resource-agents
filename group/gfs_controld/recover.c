@@ -1174,6 +1174,8 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 
 	list_add(&mg->list, &mounts);
 
+	setup_mount_error_fd(mg);
+
 	group_join(gh, name);
 	return 0;
 
@@ -1565,7 +1567,29 @@ void wait_for_kernel_mount(struct mountgroup *mg)
 		if (!rv)
 			break;
 		usleep(100000);
+
+		memset(buf, 0, sizeof(buf));
+
+		/* attempt to solve the problem described below where we
+		   don't get the kernel_mount_error until after the stop and
+		   this loop... this mount_error_fd was sent from mount.gfs and
+		   mount.gfs will write on this fd if there was a mount(2)
+		   error */
+
+		if (!mg->mount_error_fd)
+			continue;
+
+		rv = read(mg->mount_error_fd, buf, sizeof(buf));
+		if (rv > 0) {
+			log_group(mg, "wait_for_kernel_mount: mount error %s",
+				  buf);
+			mg->kernel_mount_error = 1;
+			break;
+		}
 	}
+
+	close(mg->mount_error_fd);
+	mg->mount_error_fd = 0;
 }
 
 /* The processing of new mounters (send/recv options, send/recv journals,
@@ -1615,7 +1639,8 @@ int do_stop(struct mountgroup *mg)
 			   3) kernel mount fails, 4) mount.gfs sends a leave
 			   with mnterr, 5) we don't recv it and don't set
 			   kernel_mount_error because we're stuck in
-			   wait_for_kernel_mount() from do_stop */
+			   wait_for_kernel_mount() from do_stop.  update:
+			   attempt to fix above using mount_error_fd */
 
 			if (!mg->kernel_mount_error)
 				wait_for_kernel_mount(mg);

@@ -11,6 +11,7 @@
 extern char *prog_name;
 extern char *fsname;
 extern int verbose;
+static int mount_error_fd;
 
 #define LOCK_DLM_SOCK_PATH "gfs_controld_sock"	/* FIXME: use a header */
 #define MAXLINE 256			/* size of messages with gfs_controld */
@@ -310,6 +311,57 @@ static int gfs_controld_connect(void)
 	return fd;
 }
 
+/* We create a pipe and pass the receiving end to gfs_controld.  If the
+   mount fails, we write an error message to this pipe.  gfs_controld monitors
+   this fd outside its main poll loop because it may need to detect a mount
+   failure while watching for the kernel mount (while waiting for the kernel
+   mount, gfs_controld is _not_ in its main poll loop which is why the normal
+   leave message w/ mnterr we send isn't sufficient.) */
+
+void setup_mount_error_fd(int socket)
+{
+	struct msghdr msg;
+	struct cmsghdr *cmsg;
+	struct iovec vec;
+	char tmp[CMSG_SPACE(sizeof(int))];
+	char ch = '\0';
+	ssize_t n;
+	int rv, fds[2];
+
+	rv = pipe(fds);
+	if (rv < 0) {
+		log_debug("setup_mount_error_fd pipe error %d %d", rv, errno);
+		return;
+	}
+
+	memset(&msg, 0, sizeof(msg));
+
+	msg.msg_control = (caddr_t)tmp;
+	msg.msg_controllen = CMSG_LEN(sizeof(int));
+	cmsg = CMSG_FIRSTHDR(&msg);
+	cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+	cmsg->cmsg_level = SOL_SOCKET;
+	cmsg->cmsg_type = SCM_RIGHTS;
+	*(int *)CMSG_DATA(cmsg) = fds[0];
+
+	vec.iov_base = &ch;
+	vec.iov_len = 1;
+	msg.msg_iov = &vec;
+	msg.msg_iovlen = 1;
+
+	n = sendmsg(socket, &msg, 0);
+	if (n < 0) {
+		log_debug("setup_mount_error_fd sendmsg error %d %d", n, errno);
+		close(fds[0]);
+		close(fds[1]);
+		return;
+	}
+
+	mount_error_fd = fds[1];
+
+	log_debug("setup_mount_error_fd %d %d", fds[0], fds[1]);
+}
+
 int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb)
 {
 	int i, fd, rv;
@@ -362,6 +414,8 @@ int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb)
 		warn("lock_dlm_join: gfs_controld write error: %d", rv);
 		goto out;
 	}
+
+	setup_mount_error_fd(fd);
 
 	/*
 	 * read response from gfs_controld to our join request:
@@ -480,6 +534,11 @@ int lock_dlm_leave(struct mount_options *mo, struct gen_sb *sb, int mnterr)
 
 	log_debug("message to gfs_controld: asking to leave mountgroup:");
 	log_debug("lock_dlm_leave: write \"%s\"", buf);
+
+	if (mnterr && mount_error_fd) {
+		rv = write(mount_error_fd, buf, sizeof(buf));
+		log_debug("lock_dlm_leave: write to mount_error_fd %d", rv);
+	}
 
 	rv = write(fd, buf, sizeof(buf));
 	if (rv < 0) {

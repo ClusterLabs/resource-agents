@@ -143,6 +143,56 @@ static int dump_debug(int ci)
 	return 0;
 }
 
+/* mount.gfs sends us a special fd that it will write an error message to
+   if mount(2) fails.  We can monitor this fd for an error message while
+   waiting for the kernel mount outside our main poll loop */
+
+void setup_mount_error_fd(struct mountgroup *mg)
+{
+	struct msghdr msg;
+	struct cmsghdr *cmsg;
+	struct iovec vec;
+	char tmp[CMSG_SPACE(sizeof(int))];
+	int fd, socket = client[mg->mount_client].fd;
+	char ch;
+	ssize_t n;
+
+	memset(&msg, 0, sizeof(msg));
+
+	vec.iov_base = &ch;
+	vec.iov_len = 1;
+	msg.msg_iov = &vec;
+	msg.msg_iovlen = 1;
+	msg.msg_control = tmp;
+	msg.msg_controllen = sizeof(tmp);
+
+	n = recvmsg(socket, &msg, 0);
+	if (n < 0) {
+		log_group(mg, "setup_mount_error_fd recvmsg err %d errno %d",
+			  n, errno);
+		return;
+	}
+	if (n != 1) {
+		log_group(mg, "setup_mount_error_fd recvmsg got %ld", (long)n);
+		return;
+	}
+
+	cmsg = CMSG_FIRSTHDR(&msg);
+
+	if (cmsg->cmsg_type != SCM_RIGHTS) {
+		log_group(mg, "setup_mount_error_fd expected type %d got %d",
+			  SCM_RIGHTS, cmsg->cmsg_type);
+		return;
+	}
+
+	fd = (*(int *)CMSG_DATA(cmsg));
+	mg->mount_error_fd = fd;
+
+	fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
+
+	log_group(mg, "setup_mount_error_fd got fd %d", fd);
+}
+
 static int process_client(int ci)
 {
 	char *cmd, *dir, *type, *proto, *table, *extra;

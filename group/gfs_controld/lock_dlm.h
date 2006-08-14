@@ -142,6 +142,7 @@ struct mountgroup {
 	int			mount_client_delay;
 	int			delay_send_journals;
 	int			kernel_mount_error;
+	int			mount_error_fd;
 	int			got_kernel_mount;
 	int			first_mounter;
 	int			first_mounter_done;
@@ -254,6 +255,8 @@ int process_groupd(void);
 int setup_plocks(void);
 int process_plocks(void);
 void exit_cman(void);
+
+void setup_mount_error_fd(struct mountgroup *mg);
 
 int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 	     char *options);
