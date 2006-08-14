@@ -1086,7 +1086,8 @@ int unlink_checkpoint(struct mountgroup *mg, SaNameT *name)
 		goto out_close;
 	}
 	if (rv != SA_AIS_OK) {
-		log_error("unlink ckpt close error %d %s", rv, mg->name);
+		/* should this be log_error */
+		log_group(mg, "unlink ckpt close error %d", rv);
 		ret = -1;
 	}
 
@@ -1333,7 +1334,10 @@ void retrieve_plocks(struct mountgroup *mg)
 			  iov.readSize);
 		section_len = iov.readSize;
 
-		if (!section_len || section_len % sizeof(struct pack_plock)) {
+		if (!section_len)
+		       continue;
+
+		if (section_len % sizeof(struct pack_plock)) {
 			log_error("retrieve_plocks: bad section len %d %s",
 				  section_len, mg->name);
 			continue;
