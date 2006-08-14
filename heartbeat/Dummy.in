@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: Dummy.in,v 1.5 2006/07/27 09:19:36 andrew Exp $
+#	$Id: Dummy.in,v 1.6 2006/08/14 09:09:14 andrew Exp $
 #
 #	Dummy OCF RA. Does nothing but wait a few seconds, can be
 #	configured to fail occassionally.
@@ -73,6 +73,15 @@ How long to delay on monitor.
 <shortdesc lang="en">Monitor delay</shortdesc>
 <content type="integer" default="2" />
 </parameter>
+
+<parameter name="state" unique="1">
+<longdesc lang="en">
+Location to store the resource state in
+</longdesc>
+<shortdesc lang="en">State file</shortdesc>
+<content type="string" default="@localstatedir@/run/@HB_PKG@/rsctmp/Dummy-{OCF_RESOURCE_INSTANCE}.state" />
+</parameter>
+
 </parameters>
 
 <actions>

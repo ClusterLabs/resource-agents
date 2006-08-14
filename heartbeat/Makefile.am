@@ -62,6 +62,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			pgsql		\
 			Raid1		\
 			ServeRAID	\
+			Stateful	\
 			SysInfo		\
 			VIPArip		\
 			WAS		\
