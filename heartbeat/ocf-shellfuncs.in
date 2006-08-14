@@ -1,5 +1,5 @@
 #
-# 	$Id: ocf-shellfuncs.in,v 1.31 2006/05/22 11:03:41 andrew Exp $
+# 	$Id: ocf-shellfuncs.in,v 1.32 2006/08/14 09:39:06 andrew Exp $
 #
 # 	Common helper functions for the OCF Resource Agents supplied by
 # 	heartbeat.
@@ -36,6 +36,11 @@
 #   prefixes
 # TODO: Move more common functionality for OCF RAs here.
 #
+
+# This was common throughout all legacy Heartbeat agents
+unset LC_ALL; export LC_ALL
+unset LANGUAGE; export LANGUAGE
+
 HA_D=@sysconfdir@/ha.d
 __SCRIPT_NAME=`basename $0`
 . ${HA_D}/shellfuncs
