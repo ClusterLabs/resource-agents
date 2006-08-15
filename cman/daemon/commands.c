@@ -374,7 +374,7 @@ int cman_join_cluster(char *name, unsigned short cl_id, int two_node_flag, int e
 	quit_threads = 0;
 	ais_running = 1;
 
-	if (read_ccs_nodes(&config_version)) {
+	if (read_ccs_nodes(&config_version, 1)) {
 		log_msg(LOG_ERR, "Can't initialise list of nodes from CCS\n");
 		return -EINVAL;
 	}
@@ -973,7 +973,7 @@ static void ccsd_timer_fn(void *arg)
 	int ccs_err;
 
 	log_msg(LOG_DEBUG, "Polling ccsd for updated information\n");
-	ccs_err = read_ccs_nodes(&config_version);
+	ccs_err = read_ccs_nodes(&config_version, 0);
 	if (ccs_err || config_version < wanted_config_version) {
 		log_msg(LOG_ERR, "Can't read CCS to get updated config version %d. Activity suspended on this node\n",
 				wanted_config_version);
@@ -1401,7 +1401,7 @@ static int valid_transition_msg(int nodeid, struct cl_transmsg *msg)
 	if (msg->config_version > config_version) {
 		int ccs_err;
 
-		ccs_err = read_ccs_nodes(&config_version);
+		ccs_err = read_ccs_nodes(&config_version, 0);
 		if (ccs_err || config_version < msg->config_version) {
 			config_error = 1;
 			log_msg(LOG_ERR, "Can't read CCS to get updated config version %d. Activity suspended on this node\n",
@@ -1555,7 +1555,7 @@ static void do_reconfigure_msg(void *data)
 		break;
 
 	case RECONFIG_PARAM_CONFIG_VERSION:
-		if (read_ccs_nodes(&config_version)) {
+		if (read_ccs_nodes(&config_version, 0)) {
 			log_msg(LOG_ERR, "Can't read CCS to get updated config version %d. Activity suspended on this node\n",
 				msg->value);
 

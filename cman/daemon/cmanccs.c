@@ -86,7 +86,7 @@ static uint16_t generate_cluster_id(char *name)
  * add them to our node list.
  * Called when we start up and on "cman_tool version".
  */
-int read_ccs_nodes(unsigned int *config_version)
+int read_ccs_nodes(unsigned int *config_version, int check_nodeids)
 {
     int ctree;
     char *nodename;
@@ -144,6 +144,16 @@ int read_ccs_nodes(unsigned int *config_version)
 	if (!ccs_get(ctree, key, &str))	{
 	    nodeid = atoi(str);
 	    free(str);
+
+	}
+
+	if (check_nodeids && nodeid == 0) {
+		char message[132];
+
+		sprintf(message, "No node ID for %s, run 'ccs_tool addnodeids' to fix", nodename);
+		log_msg(LOG_ERR, message);
+		write_cman_pipe(message);
+		return -1;
 	}
 
 	P_MEMB("Got node %s from ccs (id=%d, votes=%d)\n", nodename, nodeid, votes);
