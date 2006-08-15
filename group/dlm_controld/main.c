@@ -246,7 +246,11 @@ int loop(void)
 					log_error("cluster is down, exiting");
 					exit(1);
 				}
-				log_error("closing fd %d", pollfd[i].fd);
+				if (pollfd[i].fd == groupd_fd) {
+					log_error("groupd is down, exiting");
+					exit(1);
+				}
+				log_debug("closing fd %d", pollfd[i].fd);
 				close(pollfd[i].fd);
 			}
 		}

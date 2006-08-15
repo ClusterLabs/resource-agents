@@ -425,6 +425,10 @@ static int loop(void)
 					log_error("cluster is down, exiting");
 					exit(1);
 				}
+				if (pollfd[i].fd == groupd_fd) {
+					log_error("groupd is down, exiting");
+					exit(1);
+				}
 				client_dead(i);
 			} else if (pollfd[i].revents & POLLIN) {
 				if (pollfd[i].fd == groupd_fd)

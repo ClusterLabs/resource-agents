@@ -419,8 +419,16 @@ int loop(void)
 			}
 
 			if (pollfd[i].revents & POLLHUP) {
-				if (pollfd[i].fd == cman_fd)
+				if (pollfd[i].fd == cman_fd) {
+					log_error("cman connection died");
 					exit_cman();
+				} else if (pollfd[i].fd == groupd_fd) {
+					log_error("groupd connection died");
+					exit_cman();
+				} else if (pollfd[i].fd == cpg_fd) {
+					log_error("cpg connection died");
+					exit_cman();
+				}
 				close(pollfd[i].fd);
 			}
 		}
