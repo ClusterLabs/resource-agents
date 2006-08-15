@@ -41,7 +41,7 @@ int set_sysfs(struct mountgroup *mg, char *field, int val)
 
 	fd = open(fname, O_RDWR);
 	if (fd < 0) {
-		log_error("open %s error %d %d", fname, fd, errno);
+		log_group(mg, "set open %s error %d %d", fname, fd, errno);
 		return -1;
 	}
 
@@ -71,7 +71,7 @@ int get_sysfs(struct mountgroup *mg, char *field, char *buf, int len)
 
 	fd = open(fname, O_RDONLY);
 	if (fd < 0) {
-		log_error("open %s error %d %d", fname, fd, errno);
+		log_group(mg, "get open %s error %d %d", fname, fd, errno);
 		return -1;
 	}
 
