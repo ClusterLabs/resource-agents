@@ -11,10 +11,11 @@
 # OCF parameters:
 #  OCF_RESKEY_pgctl  - Path to pg_ctl. Default /usr/bin/pg_ctl
 #  OCF_RESKET_start_opt - Startup options. Default ""
-#  OCF_RESKEY_psql   - Path to psql. Defauilt is /usr/bin/psql
+#  OCF_RESKEY_psql   - Path to psql. Default is /usr/bin/psql
 #  OCF_RESKEY_pgdata - PGDATA directory. Default is /var/lib/pgsql/data
 #  OCF_RESKEY_pgdba  - userID that manages DB. Default is postgres
 #  OCF_RESKEY_pgdb   - database to monitor. Default is template1
+#  OCF_RESKEY_logfile - Path to PostgreSQL log file. Default is /dev/null
 ###############################################################################
 # Initialization:
 
@@ -58,7 +59,7 @@ Resource script for PostgreSQL. It manages a PostgreSQL as an HA resource.
 Path to pg_ctl command.
 </longdesc>
 <shortdesc lang="en">pgctl</shortdesc>
-<content type="string" default="/usr/bin/pgctl" />
+<content type="string" default="/usr/bin/pg_ctl" />
 </parameter>
 <parameter name="start_opt" unique="0" required="0">
 <longdesc lang="en">
@@ -94,6 +95,13 @@ Database that will be used for monitoring.
 </longdesc>
 <shortdesc lang="en">pgdb</shortdesc>
 <content type="string" default="template1" />
+</parameter>
+<parameter name="logfile" unique="0" required="0">
+<longdesc lang="en">
+Path to PostgreSQL server log file.
+</longdesc>
+<shortdesc lang="en">logfile</shortdesc>
+<content type="string" default="/dev/null" />
 </parameter>
 </parameters>
 
@@ -143,10 +151,13 @@ pgsql_start() {
     if [ -x $PGCTL ]
     then
         # Check if we need to create a log file
-        [ ! -f /var/log/pgsql.log ] && touch /var/log/pgsql.log
-        # Set the right ownership
+        if ! check_log_file $LOGFILE
+	then
+            ocf_log err "PostgreSQL can't create a log file: $LOGFILE"
+	    return $OCF_ERR_GENERIC
+	fi
 
-	if runasowner "$PGCTL -D $PGDATA -l /var/log/pgsql.log -o "\'$STARTOPT\'" start > /dev/null 2>&1"
+	if runasowner "$PGCTL -D $PGDATA -l $LOGFILE -o "\'$STARTOPT\'" start > /dev/null 2>&1"
 	then
 	   # Probably started.....
             ocf_log info "PostgreSQL start command sent."
@@ -237,6 +248,22 @@ pgsql_monitor() {
 }
 
 #
+# Check if we need to create a log file
+#
+
+check_log_file() {
+    if [ ! -w "$1" ]
+    then
+        if ! runasowner "touch $1 > /dev/null 2>&1"
+        then
+	    return 1
+        fi
+    fi
+
+    return 0
+}
+
+#
 #   'main' starts here...
 #
 
@@ -258,9 +285,10 @@ fi
 PGCTL=${OCF_RESKEY_pgctl:-/usr/bin/pg_ctl}
 STARTOPT=${OCF_RESKEY_start_opt:-""}
 PSQL=${OCF_RESKEY_psql:-/usr/bin/psql}
-PGDATA=${OCF_RESKEY_pgdata:-/var/lib/pgctl/data}
+PGDATA=${OCF_RESKEY_pgdata:-/var/lib/pgsql/data}
 PGDBA=${OCF_RESKEY_pgdba:-postgres}
 PGDB=${OCF_RESKEY_pgdb:-template1}
+LOGFILE=${OCF_RESKEY_logfile:-/dev/null}
 PIDFILE=${PGDATA}/postmaster.pid
 
 case "$1" in
