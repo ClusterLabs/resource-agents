@@ -867,11 +867,6 @@ get_options_stdin(char *ip, size_t iplen,
 				strncpy(op, val, oplen);
 			else
 				op[0] = 0;
-		} else {
-			fprintf(stderr,
-				"parse error: illegal name on line %d\n",
-				line);
-			return 1;
 		}
 	}
 
