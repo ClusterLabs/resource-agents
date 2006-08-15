@@ -826,8 +826,10 @@ static void do_unlock(struct mountgroup *mg, struct gdlm_plock_info *in)
 	if (in->nodeid == our_nodeid)
 		write_result(mg, in, rv);
 
-	do_waiters(mg, r);
-	put_resource(r);
+	if (r) {
+		do_waiters(mg, r);
+		put_resource(r);
+	}
 }
 
 static void do_get(struct mountgroup *mg, struct gdlm_plock_info *in)
