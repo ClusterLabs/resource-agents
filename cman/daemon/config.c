@@ -131,7 +131,7 @@ void init_config(struct objdb_iface_ver0 *objdb)
 	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "logging", "logging", 1);
 	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "event", "event", 1);
 	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "aisexec", "aisexec", 1);
-	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "group", "group", 1);
+	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "amf", "amf", 1);
 
 	/* This is stuff specific to us, eg quorum device timeout */
 	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "cman", "cman", 1);
