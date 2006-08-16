@@ -987,7 +987,7 @@ void pack_section_buf(struct mountgroup *mg, struct resource *r)
 
 	section_len = count * sizeof(struct pack_plock);
 
-	log_plock(mg, "pack %llx count %d", r->number, count);
+	log_group(mg, "plock pack %llx count %d", r->number, count);
 }
 
 int unpack_section_buf(struct mountgroup *mg, char *numbuf, int buflen)
@@ -1007,7 +1007,7 @@ int unpack_section_buf(struct mountgroup *mg, char *numbuf, int buflen)
 	INIT_LIST_HEAD(&r->waiters);
 	sscanf(numbuf, "r%llu", &r->number);
 
-	log_plock(mg, "unpack %llx count %d", r->number, count);
+	log_group(mg, "plock unpack %llx count %d", r->number, count);
 
 	pp = (struct pack_plock *) &section_buf;
 
