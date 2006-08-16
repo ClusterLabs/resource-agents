@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-#	$Id: SysInfo.in,v 1.5 2006/08/14 09:12:46 andrew Exp $
+#	$Id: SysInfo.in,v 1.6 2006/08/16 17:26:12 davidlee Exp $
 #
 #	SysInfo OCF Resource Agent
 #	It records (in the CIB) various attributes of a node
@@ -34,7 +34,7 @@
 
 #######################################################################
 
-HA_VARRUNDIR=@localstatedir@/run/@HB_PKG@
+HA_VARRUNHBDIR=@HA_VARRUNHBDIR@
 
 meta_data() {
 	cat <<END
@@ -84,7 +84,7 @@ Units:
 <parameter name="pidfile" unique="0">
 <longdesc lang="en">PID file</longdesc>
 <shortdesc lang="en">PID file</shortdesc>
-<content type="string" default="$HA_VARRUNDIR/rsctmp/SysInfo-${OCF_RESOURCE_INSTANCE}" />
+<content type="string" default="$OCF_RESKEY_pidfile" />
 </parameter>
 
 <parameter name="delay" unique="0">
@@ -173,14 +173,20 @@ SysInfoStats() {
     load15=${load15/.*/}
     UpdateStat cpu_load $load15
 
-    if [ ! -z $mem ]; then
+    if [ ! -z "$mem" ]; then
         # Massage the memory values
  	UpdateStat ram_total `SysInfo_mem_units $mem_total`
 	UpdateStat ram_free `SysInfo_mem_units $mem`
     fi
 
-    disk=`df -h / | tail -n 1 | awk '{print $4}'`
-    UpdateStat root_free `SysInfo_hdd_units $disk`
+    # Portability notes:
+    #   o df:   -h flag not available on Solaris 8.  (OK on 9, 10, ...) #FIXME#
+    #   o tail: explicit "-n" not available in Solaris; instead simplify
+    #	  'tail -n <c>' to the equivalent 'tail -<c>'.
+    disk=`df -h / | tail -1 | awk '{print $4}'`
+    if [ x != x"$disk" ]; then
+        UpdateStat root_free `SysInfo_hdd_units $disk`
+    fi
 }
 
 SysInfo_mem_units() {
@@ -330,7 +336,7 @@ if [ $# -ne 1 ]; then
     exit $OCF_ERR_ARGS
 fi
 
-: ${OCF_RESKEY_pidfile:="$HA_VARRUNDIR/rsctmp/SysInfo-${OCF_RESOURCE_INSTANCE}"}
+: ${OCF_RESKEY_pidfile:="$HA_VARRUNHBDIR/rsctmp/SysInfo-${OCF_RESOURCE_INSTANCE}"}
 : ${OCF_RESKEY_clone:="0"}
 if [ x != x${OCF_RESKEY_delay} ]; then
     OCF_RESKEY_delay="-d ${OCF_RESKEY_delay}"
