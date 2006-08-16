@@ -1081,6 +1081,9 @@ int unlink_checkpoint(struct mountgroup *mg, SaNameT *name)
 		 s.numberOfSections, s.memoryUsed);
 
  out_close:
+	if (!h)
+		goto out;
+
 	rv = saCkptCheckpointClose(h);
 	if (rv == SA_AIS_ERR_TRY_AGAIN) {
 		log_group(mg, "unlink ckpt close retry");
@@ -1088,11 +1091,12 @@ int unlink_checkpoint(struct mountgroup *mg, SaNameT *name)
 		goto out_close;
 	}
 	if (rv != SA_AIS_OK) {
-		/* should this be log_error */
-		log_group(mg, "unlink ckpt close error %d", rv);
-		ret = -1;
+		log_error("unlink ckpt %llx close err %d %s", h, rv, mg->name);
+		/* should we return an error here and possibly cause
+		   store_plocks() to fail on this? */
+		/* ret = -1; */
 	}
-
+ out:
 	mg->cp_handle = 0;
 	return ret;
 }
