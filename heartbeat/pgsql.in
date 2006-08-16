@@ -295,7 +295,7 @@ case "$1" in
     methods)    pgsql_methods
                 exit $?;;
 		
-    meta_data)  meta_data
+    meta-data)  meta_data
                 exit $OCF_SUCCESS;;
 esac
 
