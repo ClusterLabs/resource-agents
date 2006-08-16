@@ -404,11 +404,6 @@ sub get_options_stdin
 		{
 			$opt_v = $val;
 		} 
-		# Excess name/vals will fail
-		else 
-		{
-			fail "parse error: unknown option \"$opt\"";
-		}
 	}
 }
 		
