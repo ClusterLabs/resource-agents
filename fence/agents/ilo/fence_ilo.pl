@@ -461,10 +461,6 @@ sub get_options_stdin
 			$verbose = $val;
 		}
 
-		else
-		{
-			fail "parse error: unknown option \"$opt\"\n";
-		}
 	}
 }
 

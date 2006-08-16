@@ -194,10 +194,6 @@ sub get_options_stdin
 	    $opt_n = $val;
 	} 
 
-	else 
-	{
-	   fail "parse error: unknown option \"$opt\"";
-	}
     }
 }
 
