@@ -495,10 +495,11 @@ add_interface () {
 	  CMD="$IFCONFIG $iface $ipaddr netmask $netmask broadcast $broadcast";;
   esac
 
-  $CMD
+  # Use "eval $CMD" (not "$CMD"): it might be a chain of two or more commands.
+  eval $CMD
   rc=$?
   if [ $rc != 0 ]; then
-      echo "ERROR: $CMD failed (rc=$rc)"
+      echo "ERROR: eval $CMD failed (rc=$rc)"
   fi
 
   return $rc
