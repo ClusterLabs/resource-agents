@@ -227,12 +227,5 @@ sub get_options_stdin
 	{
             $opt_n = $val;
         } 
-
-        # FIXME should we do more error checking?  
-        # Excess name/vals will be eaten for now
-	else 
-	{
-           fail "parse error: unknown option \"$opt\"";
-        }
     }
 }
