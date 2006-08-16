@@ -1,5 +1,5 @@
 #
-# 	$Id: ocf-shellfuncs.in,v 1.32 2006/08/14 09:39:06 andrew Exp $
+# 	$Id: ocf-shellfuncs.in,v 1.33 2006/08/16 09:20:16 davidlee Exp $
 #
 # 	Common helper functions for the OCF Resource Agents supplied by
 # 	heartbeat.
@@ -208,7 +208,7 @@ ocf_log() {
           warn)	__OCF_PRIO="WARNING";;
           info)	__OCF_PRIO="INFO";;
           debug)__OCF_PRIO="DEBUG";;
-          *)	__OCF_PRIO=`echo ${__OCF_PRIO}| tr 'a-z' 'A-Z'`;;
+          *)	__OCF_PRIO=`echo ${__OCF_PRIO}| tr '[a-z]' '[A-Z]'`;;
 	esac
 
 	ha_log "${__OCF_PRIO}: $__OCF_MSG"
