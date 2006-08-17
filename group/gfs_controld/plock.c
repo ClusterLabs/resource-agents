@@ -986,8 +986,6 @@ void pack_section_buf(struct mountgroup *mg, struct resource *r)
 	}
 
 	section_len = count * sizeof(struct pack_plock);
-
-	log_group(mg, "plock pack %llx count %d", r->number, count);
 }
 
 int unpack_section_buf(struct mountgroup *mg, char *numbuf, int buflen)
@@ -1006,8 +1004,6 @@ int unpack_section_buf(struct mountgroup *mg, char *numbuf, int buflen)
 	INIT_LIST_HEAD(&r->locks);
 	INIT_LIST_HEAD(&r->waiters);
 	sscanf(numbuf, "r%llu", &r->number);
-
-	log_group(mg, "plock unpack %llx count %d", r->number, count);
 
 	pp = (struct pack_plock *) &section_buf;
 
@@ -1220,6 +1216,9 @@ void store_plocks(struct mountgroup *mg, int nodeid)
 
 		pack_section_buf(mg, r);
 
+		log_group(mg, "store_plocks: section size %u id %u \"%s\"",
+			  section_len, section_id.idLen, buf);
+
 	 create_retry:
 		rv = saCkptSectionCreate(h, &section_attr, &section_buf,
 					 section_len);
@@ -1265,6 +1264,7 @@ void retrieve_plocks(struct mountgroup *mg)
 	SaCkptIOVectorElementT iov;
 	SaNameT name;
 	SaAisErrorT rv;
+	char buf[32];
 	int len;
 
 	if (!plocks_online)
@@ -1322,6 +1322,11 @@ void retrieve_plocks(struct mountgroup *mg)
 		iov.dataBuffer = &section_buf;
 		iov.dataSize = desc.sectionSize;
 		iov.dataOffset = 0;
+
+		memset(&buf, 0, 32);
+		snprintf(buf, 32, "%s", desc.sectionId.id);
+		log_group(mg, "retrieve_plocks: section size %llu id %u \"%s\"",
+			  iov.dataSize, iov.sectionId.idLen, buf);
 
 	 read_retry:
 		rv = saCkptCheckpointRead(h, &iov, 1, NULL);
