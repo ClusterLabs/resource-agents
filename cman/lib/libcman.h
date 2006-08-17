@@ -181,6 +181,11 @@ typedef void (*cman_datacallback_t)(cman_handle_t handle, void *private,
 				    char *buf, int len, uint8_t port, int nodeid);
 
 
+typedef void (*cman_confchgcallback_t)(cman_handle_t handle, void *private,
+				       unsigned int *member_list, int member_list_entries,
+				       unsigned int *left_list, int left_list_entries,
+				       unsigned int *joined_list, int joined_list_entries);
+
 /*
  * cman_init        returns the handle you need to pass to the other API calls.
  * cman_admin_init  opens admin socket for privileged operations.
@@ -202,6 +207,15 @@ int cman_get_private(cman_handle_t *h, void **private);
  */
 int cman_start_notification(cman_handle_t handle, cman_callback_t callback);
 int cman_stop_notification(cman_handle_t handle);
+
+/*
+ * Start/stop AIS-style confchg callbacks. These are less racy than the
+ * old cman callbacks in that the caller will get one for each AIS
+ * confchg message and it will contain all of the nodes that joined &
+ * left in that transition.
+ */
+int cman_start_confchg(cman_handle_t handle, cman_confchgcallback_t callback);
+int cman_stop_confchg(cman_handle_t handle);
 
 /* Call this if you get a TRY_SHUTDOWN event to signal whether you
  * will let cman shutdown or not.

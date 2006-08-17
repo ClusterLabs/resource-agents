@@ -50,10 +50,13 @@
 #define CMAN_CMD_UPDATE_FENCE_INFO  0x800000bd
 #define CMAN_CMD_GET_FENCE_INFO     0x000000be
 #define CMAN_CMD_GET_NODEADDRS      0x000000bf
+#define CMAN_CMD_START_CONFCHG      0x000000c0
+#define CMAN_CMD_STOP_CONFCHG       0x000000c1
 
 #define CMAN_CMD_DATA               0x00000100
 #define CMAN_CMD_BIND               0x00000101
 #define CMAN_CMD_EVENT              0x00000102
+#define CMAN_CMD_CONFCHG            0x00000103
 
 #define CMAN_CMDFLAG_PRIV           0x80000000
 #define CMAN_CMDFLAG_REPLY          0x40000000
@@ -148,6 +151,15 @@ struct sock_event_message {
 	struct sock_header header;
 	int reason;
 	int arg;
+};
+
+/* confchg message */
+struct sock_confchg_message {
+	struct sock_header header;
+	int member_entries;
+	int left_entries;
+	int joined_entries;
+	unsigned int entries[]; // In above order.
 };
 
 /* Flags */

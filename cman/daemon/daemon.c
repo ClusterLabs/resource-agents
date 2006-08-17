@@ -412,6 +412,16 @@ void notify_listeners(struct connection *con, int event, int arg)
 	}
 }
 
+void notify_confchg(struct sock_header *message)
+{
+	struct connection *thiscon;
+
+	list_iterate_items(thiscon, &client_list) {
+		if (thiscon->confchg)
+			send_reply_message(thiscon, message);
+	}
+}
+
 void wake_daemon(void)
 {
 	P_DAEMON("Wake daemon called\n");

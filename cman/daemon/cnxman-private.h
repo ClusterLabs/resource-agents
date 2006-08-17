@@ -70,7 +70,7 @@ struct cl_barriermsg {
 
 struct cl_transmsg {
 	unsigned char cmd;
-	unsigned char pad;
+	unsigned char first_trans;
 	uint16_t cluster_id;
 	int high_nodeid;
 	int expected_votes;
@@ -129,6 +129,7 @@ struct connection
 	uint32_t   port;        /* If bound client */
 	enum {SHUTDOWN_REPLY_UNK=0, SHUTDOWN_REPLY_YES, SHUTDOWN_REPLY_NO} shutdown_reply;
 	uint32_t   events;      /* Registered for events */
+	uint32_t   confchg;     /* Registered for confchg */
 	struct list write_msgs; /* Queued messages to go to data clients */
 	struct cl_comms_socket *clsock;
 	struct connection *next;

@@ -49,6 +49,7 @@ struct cman_handle
 	int want_reply;
 	cman_callback_t event_callback;
 	cman_datacallback_t data_callback;
+	cman_confchgcallback_t confchg_callback;
 
 	void *reply_buffer;
 	int reply_buflen;
@@ -192,18 +193,28 @@ static int process_cman_message(struct cman_handle *h, int flags, struct sock_he
 	}
 
 	/* OOB event */
-	if (msg->command == CMAN_CMD_EVENT)
+	if (msg->command == CMAN_CMD_EVENT || msg->command == CMAN_CMD_CONFCHG)
 	{
-		struct sock_event_message *emsg = (struct sock_event_message *)msg;
-
 		if (flags & CMAN_DISPATCH_IGNORE_EVENT)
 		{
 			add_to_waitlist(&h->saved_event_msg, msg);
 		}
 		else
 		{
-			if (h->event_callback)
+			if (msg->command == CMAN_CMD_EVENT && h->event_callback) {
+				struct sock_event_message *emsg = (struct sock_event_message *)msg;
 				h->event_callback(h, h->private, emsg->reason, emsg->arg);
+			}
+
+			if (msg->command == CMAN_CMD_CONFCHG && h->confchg_callback)
+			{
+				struct sock_confchg_message *cmsg = (struct sock_confchg_message *)msg;
+
+				h->confchg_callback(h, h->private,
+						    cmsg->entries,cmsg->member_entries, 
+						    &cmsg->entries[cmsg->member_entries], cmsg->left_entries, 
+						    &cmsg->entries[cmsg->member_entries+cmsg->left_entries], cmsg->joined_entries);
+			}
 		}
 	}
 
@@ -400,6 +411,35 @@ int cman_stop_notification(cman_handle_t handle)
 	if (info_call(h, CMAN_CMD_REMOVENOTIFY, NULL, 0, NULL, 0))
 		return -1;
 	h->event_callback = NULL;
+
+	return 0;
+}
+
+int cman_start_confchg(cman_handle_t handle, cman_confchgcallback_t callback)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
+
+	if (!callback)
+	{
+		errno = EINVAL;
+		return -1;
+	}
+	if (info_call(h, CMAN_CMD_START_CONFCHG, NULL, 0, NULL, 0))
+		return -1;
+	h->confchg_callback = callback;
+
+	return 0;
+}
+
+int cman_stop_confchg(cman_handle_t handle)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
+
+	if (info_call(h, CMAN_CMD_STOP_CONFCHG, NULL, 0, NULL, 0))
+		return -1;
+	h->confchg_callback = NULL;
 
 	return 0;
 }

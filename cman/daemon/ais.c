@@ -34,6 +34,7 @@
 #include <openais/service/config.h>
 #include <openais/lcr/lcr_comp.h>
 #include <openais/service/swab.h>
+#include <openais/service/print.h>
 
 #include "cnxman-socket.h"
 #include "commands.h"
@@ -60,6 +61,7 @@ static int config_run;
 static char errorstring[512];
 static int startup_pipe;
 static unsigned int debug_mask;
+static int first_trans = 1;
 static struct objdb_iface_ver0 *global_objdb;
 static totempg_groups_handle group_handle;
 static struct totempg_group cman_group[1] = {
@@ -390,6 +392,9 @@ static void cman_confchg_fn(enum totem_configuration_type configuration_type,
 {
 	int i;
 	static int last_memb_count = 0;
+	static int saved_left_list_entries;
+	static int saved_left_list_size;
+	static unsigned int *saved_left_list = NULL;
 
 	P_AIS("confchg_fn called type = %d, seq=%lld\n", configuration_type, ring_id->seq);
 
@@ -401,10 +406,37 @@ static void cman_confchg_fn(enum totem_configuration_type configuration_type,
 	for (i=0; i<joined_list_entries; i++)
 		add_ais_node(joined_list[i], incarnation, member_list_entries);
 
+	/* Save the left list for later so we can do a consolidated confchg message */
+	if (configuration_type == TOTEM_CONFIGURATION_TRANSITIONAL) {
+		if (saved_left_list == NULL) {
+			saved_left_list_size = left_list_entries*2;
+			saved_left_list = malloc(sizeof(int) * saved_left_list_size);
+			if (!saved_left_list) {
+				log_printf(LOG_LEVEL_CRIT, "cannot allocate memory for confchg message");
+				exit(3);
+			}
+		}
+		if (saved_left_list_size < left_list_entries) {
+			saved_left_list_size = left_list_entries*2;
+			saved_left_list = realloc(saved_left_list, sizeof(int) * saved_left_list_size);
+			if (!saved_left_list) {
+				log_printf(LOG_LEVEL_CRIT, "cannot reallocate memory for confchg message");
+				exit(3);
+			}
+		}
+		saved_left_list_entries = left_list_entries;
+		memcpy(saved_left_list, left_list, left_list_entries * sizeof(int));
+	}
+
 	if (configuration_type == TOTEM_CONFIGURATION_REGULAR) {
 		P_AIS("last memb_count = %d, current = %d\n", last_memb_count, member_list_entries);
-		send_transition_msg(last_memb_count);
+		send_transition_msg(last_memb_count, first_trans);
 		last_memb_count = member_list_entries;
+		first_trans = 0;
+
+		cman_send_confchg(member_list,  member_list_entries,
+				  saved_left_list, saved_left_list_entries,
+				  joined_list, joined_list_entries);
 	}
 }
 

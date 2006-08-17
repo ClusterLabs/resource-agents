@@ -24,12 +24,17 @@ extern void unbind_con(struct connection *con);
 extern void commands_init(void);
 extern int process_command(struct connection *con, int cmd, char *cmdbuf,
 			   char **retbuf, int *retlen, int retsize, int offset);
-extern void send_transition_msg(int last_memb_count);
+extern void send_transition_msg(int last_memb_count, int first_trans);
 
 extern void add_ais_node(int nodeid, uint64_t incarnation, int total_members);
 extern void del_ais_node(int nodeid);
 extern void add_ccs_node(char *name, int nodeid, int votes, int expected_votes);
 extern void override_expected(int expected);
+extern void cman_send_confchg(unsigned int *member_list, int member_list_entries,
+			      unsigned int *left_list, int left_list_entries,
+			      unsigned int *joined_list, int joined_list_entries);
+
+
 
 /* Startup stuff called from cmanccs: */
 extern int cman_set_nodename(char *name);

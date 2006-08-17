@@ -1157,6 +1157,16 @@ int process_command(struct connection *con, int cmd, char *cmdbuf,
 		err = 0;
 		break;
 
+	case CMAN_CMD_START_CONFCHG:
+		con->confchg = 1;
+		err = 0;
+		break;
+
+	case CMAN_CMD_STOP_CONFCHG:
+		con->confchg = 0;
+		err = 0;
+		break;
+
 		/* Return the cnxman version number */
 	case CMAN_CMD_GET_VERSION:
 		err = 0;
@@ -1297,6 +1307,31 @@ int send_to_userport(unsigned char fromport, unsigned char toport,
 	return ret;
 }
 
+void cman_send_confchg(unsigned int *member_list, int member_list_entries,
+		       unsigned int *left_list, int left_list_entries,
+		       unsigned int *joined_list, int joined_list_entries)
+{
+	char buf[sizeof(struct sock_confchg_message) +
+		 (member_list_entries+left_list_entries+joined_list_entries) * sizeof(int)];
+	struct sock_confchg_message *msg = (struct sock_confchg_message *)buf;
+
+	msg->header.magic = CMAN_MAGIC;
+	msg->header.command = CMAN_CMD_CONFCHG;
+	msg->header.length = sizeof(buf);
+	msg->header.flags = 0;
+
+	msg->member_entries = member_list_entries;
+	msg->joined_entries = joined_list_entries;
+	msg->left_entries = left_list_entries;
+
+	memcpy(msg->entries, member_list, sizeof(int)*member_list_entries);
+	memcpy(msg->entries+member_list_entries, left_list, sizeof(int)*left_list_entries);
+	memcpy(msg->entries+member_list_entries+left_list_entries, joined_list, sizeof(int)*joined_list_entries);
+
+	notify_confchg((struct sock_header *)msg);
+}
+
+
 /* Send a port closedown message to all cluster nodes - this tells them that a
  * port listener has gone away */
 static int send_port_close_msg(unsigned char port)
@@ -1428,7 +1463,7 @@ static int valid_transition_msg(int nodeid, struct cl_transmsg *msg)
 }
 
 
-void send_transition_msg(int last_memb_count)
+void send_transition_msg(int last_memb_count, int first_trans)
 {
 	char buf[sizeof(struct cl_transmsg)+1024];
 	struct cl_transmsg *msg = (struct cl_transmsg *)buf;
@@ -1438,6 +1473,7 @@ void send_transition_msg(int last_memb_count)
 
 	P_MEMB("sending TRANSITION message. cluster_name = %s\n", cluster_name);
 	msg->cmd = CLUSTER_MSG_TRANSITION;
+	msg->first_trans = first_trans;
 	msg->high_nodeid = get_highest_nodeid();
 	msg->expected_votes = us->expected_votes;
 	msg->cluster_id = cluster_id;
@@ -1601,6 +1637,9 @@ static void do_process_transition(int nodeid, char *data, int len)
 	node = find_node_by_nodeid(nodeid);
 	assert(node);
 
+	if (node->flags & NODE_FLAGS_GOTTRANSITION) {
+
+	}
 	node->flags = msg->flags;
 	if (node->fence_agent && msg->fence_agent[0] && strcmp(node->fence_agent, msg->fence_agent))
 	{

@@ -10,6 +10,24 @@ static void cman_callback(cman_handle_t handle, void *private, int reason, int a
 	printf("callback called reason = %d, arg=%d\n", reason, arg);
 }
 
+static void confchg_callback(cman_handle_t handle, void *private,
+			     unsigned int *member_list, int member_list_entries,
+			     unsigned int *left_list, int left_list_entries,
+			     unsigned int *joined_list, int joined_list_entries)
+{
+	int i;
+	printf("Confchg callback\n");
+	printf("member_list: %d entries:\n", member_list_entries);
+	for (i=0; i<member_list_entries; i++)
+		printf("  %d\n", member_list[i]);
+	printf("left_list: %d entries:\n", left_list_entries);
+	for (i=0; i<left_list_entries; i++)
+		printf("  %d\n", left_list[i]);
+	printf("joined_list: %d entries:\n", joined_list_entries);
+	for (i=0; i<joined_list_entries; i++)
+		printf("  %d\n", joined_list[i]);
+}
+
 static void print_node(cman_node_t *node)
 {
 	printf("  node id     %d\n", node->cn_nodeid);
@@ -87,10 +105,17 @@ int main()
 		perror("get_node failed");
 	}
 
-	if (!cman_start_notification(h, cman_callback))
+	if (cman_start_notification(h, cman_callback))
 	{
 		perror("start_notification");
 	}
+
+	if (cman_start_confchg(h, confchg_callback))
+	{
+		perror("start_confchg");
+	}
+
+
 	while (1) {
 	  int ret = cman_dispatch(h, CMAN_DISPATCH_BLOCKING | CMAN_DISPATCH_ALL);
 	  if (ret == -1) {
