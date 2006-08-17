@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.550 $) dnl cvs revision
+AC_REVISION($Revision: 1.551 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -2810,6 +2810,7 @@ cim/Makefile		        				\
         cim/mof/register_providers.sh                           \
         cim/mof/unregister_providers.sh                         \
 tsa_plugin/Makefile						\
+tsa_plugin/testrun.sh						\
 telecom/Makefile						\
 	telecom/apphbd/Makefile					\
 	telecom/recoverymgrd/Makefile				\
