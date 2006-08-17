@@ -95,6 +95,9 @@ int main()
 		perror("get_nodes failed");
 	}
 
+	// Need to clear this.
+	// Who wrote this rubbish? oh, I did.
+	nodes[0].cn_name[0] = '\0';
 	if (!cman_get_node(h, CMAN_NODEID_US, &nodes[0]))
 	{
 		printf("Getting our info:\n");
