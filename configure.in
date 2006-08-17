@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.548 $) dnl cvs revision
+AC_REVISION($Revision: 1.549 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1133,8 +1133,12 @@ AC_SUBST(CRYPTOLIB)
 dnl ***************************************************************************
 dnl TIPC communication module
 dnl ***************************************************************************
+AC_ARG_ENABLE([tipc],
+ [  --enable-tipc 	Enable TIPC Communication module,
+		[default=try]], [], [enable_tipc=try])
 AC_ARG_WITH([tipc],
  [  --with-tipc-source      TIPC source code directory], [], [])
+
 
 TIPC_DEV_ROOT=${with_tipc_source}
 tipc_headers_found=yes
@@ -1151,7 +1155,8 @@ else
 fi
 
 AC_SUBST(TIPC_INCLUDE)
-AM_CONDITIONAL(BUILD_TIPC_MODULE, test "x${tipc_headers_found}" = "xyes")
+AM_CONDITIONAL(BUILD_TIPC_MODULE, 
+	test "x${tipc_headers_found}" = "xyes" && test "x${enable_tipc}" != "xno")
 
 dnl ***************************************************************************
 dnl  CIM provider configuration
