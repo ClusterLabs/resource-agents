@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.549 $) dnl cvs revision
+AC_REVISION($Revision: 1.550 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -2436,6 +2436,37 @@ AC_SUBST(RPM_MGMT_RUNTIME_REQUIRES)
    
 AC_MSG_NOTICE([whether to enable the management tool... ${enable_mgmt}])
 
+dnl **********************************************
+dnl TSA plugin configuration
+dnl **********************************************
+AC_ARG_ENABLE([tsa-plugin],
+[  --enable-tsa-plugin Enable TSA plugin.  [default=no]],
+		[], [enable_tsa_plugin=no])
+AC_ARG_WITH([JAVA_HOME],
+ [  --with-java-home        JAVA_HOME dir], [], [])
+
+AC_ARG_WITH([TSA_DIR],
+ [  --with-tsa-dir          TSA diretory, default = /opt/IBM/tsamp/], [], [])
+
+JAVA_HOME=${with_java_home}
+TSA_DIR=${with_tsa_dir}
+
+if test "x${enable_tsa_plugin}" != "xno"; then
+	if test "x${JAVA_HOME}" = "x"; then
+		JAVA_BIN=`which java`
+		JAVA_BIN_DIR=`dirname ${JAVA_BIN}`
+		JAVA_HOME=`dirname ${JAVA_BIN_DIR}`	
+	fi
+
+	if test "x${TSA_DIR}" = "x"; then
+		TSA_DIR="/opt/IBM/tsamp/"
+	fi
+fi
+
+AC_SUBST(JAVA_HOME)
+AC_SUBST(TSA_DIR)
+AM_CONDITIONAL(TSA_PLUGIN_BUILD, test "x${enable_tsa_plugin}" != "xno")
+
 hb_libdir="${libdir}/${HB_PKG}"
 AC_SUBST(hb_libdir)
 
@@ -2778,6 +2809,7 @@ cim/Makefile		        				\
         cim/mof/Makefile                                        \
         cim/mof/register_providers.sh                           \
         cim/mof/unregister_providers.sh                         \
+tsa_plugin/Makefile						\
 telecom/Makefile						\
 	telecom/apphbd/Makefile					\
 	telecom/recoverymgrd/Makefile				\
@@ -2905,6 +2937,13 @@ if test "x${enable_cim_provider}" = "xyes"; then
     AC_MSG_RESULT([  CIM providers dir    = "${CMPI_PROVIDER_DIR}"])
     AC_MSG_RESULT([  CMPI header files    = "${CMPI_HEADER_PATH}"])    
 fi
+
+AC_MSG_RESULT([  Build TSA plugin     = "${enable_tsa_plugin}"])
+if test "x${enable_tsa_plugin}" != "xno"; then
+AC_MSG_RESULT([      JAVA_HOME        = "${JAVA_HOME}"])
+AC_MSG_RESULT([      TSA_DIR          = "${TSA_DIR}"])
+fi
+
 AC_MSG_RESULT([  Enable times kludge  = "${enable_times_kludge}"])    
 AC_SUBST(DISABLE_TIMES_KLUDGE)
 
