@@ -25,7 +25,8 @@
 	primary (1|0)   "0"
 	required (1|0)	"0"
 	inherit CDATA	""
-	unique	(1|0)	"0">
+	unique	(1|0)	"0"
+	reconfig (1|0)  "0">
 
 <!ELEMENT longdesc ANY>
 <!ATTLIST longdesc
@@ -42,7 +43,7 @@
 
 <!ELEMENT action EMPTY>
 <!ATTLIST action
-	name	(start|stop|recover|status|monitor|reload|meta-data|verify-all|migrate)	#REQUIRED
+	name	(start|stop|recover|status|reconfig|monitor|reload|meta-data|verify-all|migrate)	#REQUIRED
 	timeout		CDATA	#REQUIRED
 	interval 	CDATA	#IMPLIED
 	start-delay 	CDATA	#IMPLIED

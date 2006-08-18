@@ -306,11 +306,12 @@ get_rg_state(char *name, rg_state_t *svcblk)
 		if (errno == ENOENT) {
 			ds_key_init(res, DS_MIN_SIZE, 10);
 		} else {
+			perror("ds_read");
 			return -1;
 		}
 	}
 
-	if (datalen < 0) {
+	if (datalen <= 0) {
 
 		ret = init_rg(name, svcblk);
 		if (ret < 0) {
@@ -326,6 +327,7 @@ get_rg_state(char *name, rg_state_t *svcblk)
 	}
 
 	memcpy(svcblk, data, sizeof(*svcblk));
+
 	return 0;
 #else
 	membership = member_list();

@@ -792,6 +792,7 @@ set_nonblock(int fd)
 void *
 shutdown_thread(void *arg)
 {
+	rg_lockall(L_SYS);
 	rg_doall(RG_STOP_EXITING, 1, NULL);
 	running = 0;
 

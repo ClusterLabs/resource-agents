@@ -889,12 +889,16 @@ stop)
 	;;
 status|monitor)
   	isMounted ${OCF_RESKEY_device} ${OCF_RESKEY_mountpoint}
- 	[ $? -ne $YES ] && exit $OCF_ERR_GENERIC
+ 	if [ $? -ne $YES ]; then
+		ocf_log err "fs:${OCF_RESKEY_name}: ${OCF_RESKEY_device} is not mounted on ${OCF_RESKEY_mountpoint}"
+		exit $OCF_ERR_GENERIC
+	fi
 
  	isAlive ${OCF_RESKEY_mountpoint}
- 	[ $? -ne $YES ] && exit $OCF_ERR_GENERIC
- 	
-	exit 0
+ 	[ $? -eq $YES ] && exit 0
+
+	ocf_log err "fs:${OCF_RESKEY_name}: Mount point is not accessible!"
+	exit $OCF_ERR_GENERIC
 	;;
 restart)
 	stopFilesystem

@@ -320,7 +320,11 @@ status|monitor)
 		sed -e 's/*/[*]/g' -e 's/?/[?]/g' -e 's/\./\\./g') 
         exportfs -v | tr -d "\n" | sed -e 's/([^)]*)/\n/g' | grep -q \
 		"^${OCF_RESKEY_path}[\t ]*.*${OCF_RESKEY_target_regexp}" 
+
 	rv=$? 
+	if [ $rv -ne 0 ]; then
+		ocf_log err "nfsclient:$OCF_RESKEY_name is missing!"
+	fi
 	;;
 
 recover)

@@ -1,3 +1,16 @@
+2006-08-18 Lon Hohberger <lhh at redhat.com>
+	* include/resgroup.h: Change ordering and add magic field to
+	rgmanager state field (warning: breaks compatibility from 08/08 CVS!)
+	* src/clulib/ckpt_state.c, src/daemons/rg_state.c: Fix bug
+	preventing correct operation of ckpt operation after initial boot.
+	Get rid of debug info.
+	* src/daemons/groups,c, main.c: Fix #202499 - shutdown while handling
+	transitions sometimes allows services to restart (due to not locking
+	RGs locally)
+	* src/resources/clusterfs.sh, fs.sh, nfsclient.sh: Add proper
+	warning messages if status check fails
+	* src/resources/ra-api-1-modified.dtd: Allow 'migrate' option
+
 2006-08-08 Lon Hohberger <lhh at redhat.com>
 	* src/clulib/members.c: Fix gained/lost list creation so that the
 	count is actually nonzero (#201713)

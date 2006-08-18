@@ -418,7 +418,7 @@ eval_groups(int local, uint32_t nodeid, int nodeStatus)
 	int ret;
 
 	if (rg_locked()) {
-		clulog(LOG_NOTICE,
+		clulog(LOG_DEBUG,
 			"Resource groups locked; not evaluating\n");
 		return -EAGAIN;
 	}

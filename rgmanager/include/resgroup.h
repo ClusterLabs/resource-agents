@@ -27,31 +27,30 @@
  */
 typedef struct {
 	char		rs_name[64];	/**< Service name */
+	uint32_t	rs_id;		/**< Service ID */
+	uint32_t	rs_magic;	/**< Magic ID */
 	uint32_t	rs_owner;	/**< Member ID running service. */
 	uint32_t	rs_last_owner;	/**< Last member to run the service. */
 	uint32_t	rs_state;	/**< State of service. */
 	uint32_t	rs_restarts;	/**< Number of cluster-induced 
 					     restarts */
 	uint64_t	rs_transition;	/**< Last service transition time */
-	uint32_t	rs_id;		/**< Service ID */
-	uint32_t	rs_pad;		/**< pad to 64-bit boundary */
 } rg_state_t;
 
 #define swab_rg_state_t(ptr) \
 {\
+	swab32((ptr)->rs_id);\
+	swab32((ptr)->rs_magic);\
 	swab32((ptr)->rs_owner);\
 	swab32((ptr)->rs_last_owner);\
 	swab32((ptr)->rs_state);\
 	swab32((ptr)->rs_restarts);\
 	swab64((ptr)->rs_transition);\
-	swab32((ptr)->rs_pad);\
 }
 
 
 #define RG_PORT    177
-#define RG_VF_PORT 178
-#define RG_PURPOSE 0x11398fed
-#define RG_SERVICE_GROUP "usrm::manager"
+#define RG_MAGIC   0x11398fed
 
 #define RG_ACTION_REQUEST	/* Message header */ 0x138582
 #define RG_EVENT		0x138583

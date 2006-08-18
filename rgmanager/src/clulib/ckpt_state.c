@@ -75,8 +75,10 @@ ds_key_init_nt(char *keyid, int maxsize, int timeout)
 {
 	SaCkptCheckpointCreationAttributesT attrs;
 	SaCkptCheckpointOpenFlagsT flags;
+#if 0
 	SaCkptCheckpointDescriptorT status;
-	SaAisErrorT err;
+#endif
+	SaAisErrorT err = SA_AIS_OK;
 	key_node_t *newnode = NULL;
 	
 	newnode = kn_find_key(keyid);
@@ -111,6 +113,7 @@ ds_key_init_nt(char *keyid, int maxsize, int timeout)
 				   &newnode->kn_cph);
 
 	if (err == SA_AIS_OK) {
+#if 0
 		saCkptCheckpointStatusGet(newnode->kn_cph,
 					  &status);
 
@@ -141,11 +144,9 @@ ds_key_init_nt(char *keyid, int maxsize, int timeout)
 			(int)status.checkpointCreationAttributes.maxSectionIdSize);
 		printf("Section count = %d\n", status.numberOfSections);
 		printf("\n");
-		
+#endif
 		goto good;
 	}
-
-	printf("Retrying w/ create\n");
 
 	attrs.creationFlags = SA_CKPT_WR_ALL_REPLICAS;
 	attrs.checkpointSize = (SaSizeT)maxsize;
@@ -175,7 +176,9 @@ good:
 	newnode->kn_ready = 1;
 	newnode->kn_next = key_list;
 	key_list = newnode;
+#if 0
 	printf("Opened ckpt %s\n", keyid);
+#endif
 
 	return err;
 }

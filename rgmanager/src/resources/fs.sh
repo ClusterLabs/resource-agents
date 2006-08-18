@@ -243,7 +243,7 @@ verify_mountpoint()
 {
 	if [ -z "$OCF_RESKEY_mountpoint" ]; then
 		ocf_log err "No mount point specified."
-		return 1
+		return $OCF_ERR_ARGS
 	fi
 
 	if ! [ -e "$OCF_RESKEY_mountpoint" ]; then
@@ -514,7 +514,7 @@ isMounted () {
 	dev=$(real_device $1)
 	if [ -z "$dev" ]; then
 		ocf_log err \
-			"isMounted: Could not match $1 with a real device"
+			"fs (isMounted): Could not match $1 with a real device"
 		return $FAIL
 	fi
 	mp=$2
@@ -553,14 +553,14 @@ isAlive()
 	declare rw
 	
 	if [ $# -ne 1 ]; then
-	        logAndPrint $LOG_ERR "Usage: isAlive mount_point"
+	        ocf_log err "Usage: isAlive mount_point"
 		return $FAIL
 	fi
 	mount_point=$1
 	
 	test -d $mount_point
 	if [ $? -ne 0 ]; then
-		logAndPrint $LOG_ERR "$mount_point is not a directory"
+		ocf_log err "fs (isAlive): $mount_point is not a directory"
 		return $FAIL
 	fi
 	
@@ -707,6 +707,7 @@ killMountProcesses()
 	return $ret
 }
 
+
 activeMonitor() {
 	declare monpath=$OCF_RESKEY_mountpoint/.clumanager
 	declare p
@@ -733,7 +734,7 @@ activeMonitor() {
 	case $1 in
 	start)
 		ocf_log info "Starting active monitoring of $OCF_RESKEY_mountpoint"
-		mkdir -p $(dirname $monpath) || return 1
+		mkdir -p $(dirname $monpath) || return $OCF_ERR_GENERIC
 		devmon $args -p $monpath/devmon.data -P $monpath/devmon.pid
 		;;
 	stop)
@@ -794,7 +795,7 @@ enable_fs_quotas()
 
 	if [ -z "`which quotaon`" ]; then
 		ocf_log err "quotaon not found in $PATH"
-		return 1
+		return $OCF_ERR_GENERIC
 	fi
 
 	for mopt in `echo $opts | sed -e s/,/\ /g`; do
@@ -1211,29 +1212,35 @@ stop)
 	;;
 status|monitor)
   	isMounted ${OCF_RESKEY_device} ${OCF_RESKEY_mountpoint}
- 	[ $? -ne $YES ] && exit $OCF_ERR_GENERIC
+ 	if [ $? -ne $YES ]; then
+		ocf_log err "fs:${OCF_RESKEY_name}: ${OCF_RESKEY_device} is not mounted on ${OCF_RESKEY_mountpoint}"
+		exit $OCF_ERR_GENERIC
+	fi
 
 	if [ "$OCF_RESKEY_active_monitor" = "yes" ] ||
 	   [ "$OCF_RESKEY_active_monitor" = "1" ]; then
 
-		activeMonitor status || exit $OCF_ERR_GENERIC
-		exit 0
+	   	activeMonitor status
+		[ $? -eq 0 ] && exit 0
+		ocf_log err "fs:${OCF_RESKEY_name}: Active Monitoring reported a failure"
+		exit $OCF_ERR_GENERIC
 	fi
  	
  	isAlive ${OCF_RESKEY_mountpoint}
- 	[ $? -ne $YES ] && exit $OCF_ERR_GENERIC
- 	
-	exit 0
+ 	[ $? -eq $YES ] && exit 0
+
+	ocf_log err "fs:${OCF_RESKEY_name}: Mount point is not accessible!"
+	exit $OCF_ERR_GENERIC
 	;;
 restart)
 	stopFilesystem
 	if [ $? -ne 0 ]; then
-		exit 1
+		exit $OCF_ERR_GENERIC
 	fi
 
 	startFilesystem
 	if [ $? -ne 0 ]; then
-		exit 1
+		exit $OCF_ERR_GENERIC
 	fi
 
 	exit 0

@@ -110,4 +110,10 @@ esac
 
 # Don't need to catch return codes; this one will work.
 ocf_log info "Executing ${OCF_RESKEY_file} $1"
-exec /bin/sh ${OCF_RESKEY_file} $1
+${OCF_RESKEY_file} $1
+
+declare -i rv=$?
+if [ $rv -ne 0 ]; then
+	ocf_log err "script:$OCF_RESKEY_name: $1 of $OCF_RESKEY_file failed (returned $rv)"
+	return $OCF_ERR_GENERIC
+fi
