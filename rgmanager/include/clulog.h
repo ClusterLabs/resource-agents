@@ -38,7 +38,7 @@ extern "C" {
 #include <syslog.h>
 #include <sys/types.h>
 
-#define LOGLEVEL_DFLT         LOG_INFO
+#define LOGLEVEL_DFLT         LOG_NOTICE
 #define MAX_LOGMSG_LEN        512
 
 /*

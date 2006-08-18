@@ -33,9 +33,7 @@
 
 int configure_logging(int);
 
-
 #define MAX_TOKENLEN   64
-#define DFLT_LOGLEVEL  LOG_NOTICE   /* taken from msgsvc.h */
 
 void
 usage(char *progname)
@@ -131,7 +129,7 @@ main(int argc, char **argv)
 	 * Let's see what loglevel the SM is running at.
 	 * TODO Get rgmgr log level
 	 */
-	clu_set_loglevel(DFLT_LOGLEVEL);
+	clu_set_loglevel(LOGLEVEL_DFLT);
     }
     result = clulog_pid(severity, pid, progname, logmsg);
     free(progname);

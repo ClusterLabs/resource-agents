@@ -10,6 +10,8 @@
 	* src/resources/clusterfs.sh, fs.sh, nfsclient.sh: Add proper
 	warning messages if status check fails
 	* src/resources/ra-api-1-modified.dtd: Allow 'migrate' option
+	* include/clulog.h, src/daemons/clulog.c: Fix default log levels so
+	that they're LOG_NOTICE, and only one default is used (#200776)
 
 2006-08-08 Lon Hohberger <lhh at redhat.com>
 	* src/clulib/members.c: Fix gained/lost list creation so that the
