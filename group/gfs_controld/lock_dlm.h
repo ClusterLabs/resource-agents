@@ -276,5 +276,6 @@ void retrieve_plocks(struct mountgroup *mg);
 int dump_plocks(char *name, int fd);
 void process_saved_plocks(struct mountgroup *mg);
 void purge_plocks(struct mountgroup *mg, int nodeid, int unmount);
+int unlink_checkpoint(struct mountgroup *mg);
 
 #endif

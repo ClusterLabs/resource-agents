@@ -917,7 +917,7 @@ void recover_members(struct mountgroup *mg, int num_nodes,
  		     int *nodeids, int *pos_out, int *neg_out)
 {
 	struct mg_member *memb, *safe;
-	int i, found, id, pos = 0, neg = 0, low = -1;
+	int i, found, id, pos = 0, neg = 0, low = -1, old_low_finished_nodeid;
 
 	/* move departed nodes from members list to members_gone */
 
@@ -990,6 +990,7 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 		if (low == -1 || memb->nodeid < low)
 			low = memb->nodeid;
 	}
+	old_low_finished_nodeid = mg->low_finished_nodeid;
 	mg->low_finished_nodeid = low;
 
 	*pos_out = pos;
@@ -997,6 +998,15 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 
 	log_group(mg, "total members %d low_finished_nodeid %d",
 		  mg->memb_count, low);
+
+	/* the low nodeid failed and we're the new low nodeid, we need
+	   to unlink the ckpt that the failed node had open so new ckpts
+	   can be created down the road */
+	if ((old_low_finished_nodeid != low) && (our_nodeid == low)) {
+		log_group(mg, "unlink ckpt for failed low node %d",
+			  old_low_finished_nodeid);
+		unlink_checkpoint(mg);
+	}
 }
 
 struct mountgroup *create_mg(char *name)

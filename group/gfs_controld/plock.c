@@ -1034,7 +1034,7 @@ int unpack_section_buf(struct mountgroup *mg, char *numbuf, int buflen)
 	return 0;
 }
 
-int unlink_checkpoint(struct mountgroup *mg, SaNameT *name)
+int _unlink_checkpoint(struct mountgroup *mg, SaNameT *name)
 {
 	SaCkptCheckpointHandleT h;
 	SaCkptCheckpointDescriptorT s;
@@ -1097,6 +1097,16 @@ int unlink_checkpoint(struct mountgroup *mg, SaNameT *name)
 	return ret;
 }
 
+int unlink_checkpoint(struct mountgroup *mg)
+{
+	SaNameT name;
+	int len;
+
+	len = snprintf(name.value, SA_MAX_NAME_LENGTH, "gfsplock.%s", mg->name);
+	name.length = len;
+	return _unlink_checkpoint(mg, &name);
+}
+
 /* Copy all plock state into a checkpoint so new node can retrieve it.  The
    node creating the ckpt for the mounter needs to be the same node that's
    sending the mounter its journals message (i.e. the low nodeid).  The new
@@ -1139,7 +1149,7 @@ void store_plocks(struct mountgroup *mg, int nodeid)
 
 	/* unlink an old checkpoint before we create a new one */
 	if (mg->cp_handle) {
-		if (unlink_checkpoint(mg, &name))
+		if (_unlink_checkpoint(mg, &name))
 			return;
 	}
 
@@ -1231,7 +1241,7 @@ void store_plocks(struct mountgroup *mg, int nodeid)
 			/* this shouldn't happen in general */
 			log_group(mg, "store_plocks: clearing old ckpt");
 			saCkptCheckpointClose(h);
-			unlink_checkpoint(mg, &name);
+			_unlink_checkpoint(mg, &name);
 			goto open_retry;
 		}
 		if (rv != SA_AIS_OK) {
@@ -1318,6 +1328,9 @@ void retrieve_plocks(struct mountgroup *mg)
 			goto out_it;
 		}
 
+		if (!desc.sectionSize)
+			continue;
+
 		iov.sectionId = desc.sectionId;
 		iov.dataBuffer = &section_buf;
 		iov.dataSize = desc.sectionSize;
@@ -1362,7 +1375,7 @@ void retrieve_plocks(struct mountgroup *mg)
  out:
 	if (mg->low_nodeid == our_nodeid) {
 		log_group(mg, "retrieve_plocks: unlink ckpt from old low node");
-		unlink_checkpoint(mg, &name);
+		_unlink_checkpoint(mg, &name);
 	} else
 		saCkptCheckpointClose(h);
 }
@@ -1372,8 +1385,7 @@ void purge_plocks(struct mountgroup *mg, int nodeid, int unmount)
 	struct posix_lock *po, *po2;
 	struct lock_waiter *w, *w2;
 	struct resource *r, *r2;
-	int len, purged = 0;
-	SaNameT name;
+	int purged = 0;
 
 	list_for_each_entry_safe(r, r2, &mg->resources, list) {
 		list_for_each_entry_safe(po, po2, &r->locks, list) {
@@ -1408,12 +1420,8 @@ void purge_plocks(struct mountgroup *mg, int nodeid, int unmount)
 	   we need to unlink it so another node can create a new ckpt for
 	   the next mounter after we leave */
 
-	if (unmount && mg->cp_handle) {
-		len = snprintf(name.value, SA_MAX_NAME_LENGTH,
-			       "gfsplock.%s", mg->name);
-		name.length = len;
-		unlink_checkpoint(mg, &name);
-	}
+	if (unmount && mg->cp_handle)
+		unlink_checkpoint(mg);
 }
 
 int dump_plocks(char *name, int fd)
