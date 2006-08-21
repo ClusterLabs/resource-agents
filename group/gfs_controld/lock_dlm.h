@@ -148,8 +148,8 @@ struct mountgroup {
 	int			first_mounter_done;
 	int			emulate_first_mounter;
 	int			wait_first_done;
-	int			low_finished_nodeid;
 	int			low_nodeid;
+	int			master_nodeid;
 	int			save_plocks;
 
 	uint64_t		cp_handle;

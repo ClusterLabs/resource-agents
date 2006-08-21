@@ -514,9 +514,8 @@ void send_options(struct mountgroup *mg)
 	free(buf);
 }
 
-/* We set the new member's jid to the lowest unused jid.
-   If we're the lowest existing member (by nodeid), then
-   send jid info to the new node. */
+/* We set the new member's jid to the lowest unused jid.  If we're the lowest
+   existing member (by nodeid), then send jid info to the new node. */
 
 /* Look at rw/ro/spectator status of all existing mounters and whether
    we need to do recovery.  Based on that, decide if the current mount
@@ -590,14 +589,14 @@ int assign_journal(struct mountgroup *mg, struct mg_member *new)
 	log_group(mg, "assign_journal: new member %d got jid %d",
 		  new->nodeid, new->jid);
 
-	if (mg->low_finished_nodeid == our_nodeid)
+	if (mg->master_nodeid == our_nodeid) {
 		store_plocks(mg, new->nodeid);
 
-	/* if we're the first mounter and haven't gotten others_may_mount
-	   yet, then don't send journals until kernel_recovery_done_first
-	   so the second node won't mount the fs until omm. */
+		/* if we're the first mounter and haven't gotten
+		   others_may_mount yet, then don't send journals until
+		   kernel_recovery_done_first so the second node won't mount
+		   the fs until omm. */
 
-	if (mg->low_finished_nodeid == our_nodeid) {
 		if (mg->first_mounter && !mg->first_mounter_done) {
 			log_group(mg, "delay sending journals to %d",
 				  new->nodeid);
@@ -911,13 +910,63 @@ void clear_members_gone(struct mountgroup *mg)
 	clear_memb_list(&mg->members_gone);
 }
 
+/* New mounters may be waiting for a journals message that a failed node (as
+   master) would have sent.  If the master failed and we're the new master,
+   then send a journals message to any nodes for whom we've not seen a journals
+   message.  We also need to checkpoint the plock state for the new nodes to
+   read after they get their journals message. */
+
+void resend_journals(struct mountgroup *mg)
+{
+	struct mg_member *memb;
+	int stored_plocks = 0;
+
+	list_for_each_entry(memb, &mg->members, list) {
+		if (!memb->needs_journals)
+			continue;
+
+		if (!stored_plocks) {
+			store_plocks(mg, memb->nodeid);
+			stored_plocks = 1;
+		}
+
+		log_group(mg, "resend_journals to %d", memb->nodeid);
+		send_journals(mg, memb->nodeid);
+	}
+}
+
+/* The master node is the member of the group with the lowest nodeid who
+   was also a member of the last "finished" group, i.e. a member of the
+   group the last time it got a finish callback.  The job of the master
+   is to send state info to new nodes joining the group, and doing that
+   requires that the master has all the state to send -- a new joining
+   node that has the lowest nodeid doesn't have any state, which is why
+   we add the "finished" requirement. */
+
+void update_master_nodeid(struct mountgroup *mg)
+{
+	struct mg_member *memb;
+	int new = -1, low = -1;
+
+	list_for_each_entry(memb, &mg->members, list) {
+		if (low == -1 || memb->nodeid < low)
+			low = memb->nodeid;
+		if (!memb->finished)
+			continue;
+		if (new == -1 || memb->nodeid < new)
+			new = memb->nodeid;
+	}
+	mg->master_nodeid = new;
+	mg->low_nodeid = low;
+}
+
 /* This can happen before we receive a journals message for our mount. */
 
 void recover_members(struct mountgroup *mg, int num_nodes,
  		     int *nodeids, int *pos_out, int *neg_out)
 {
 	struct mg_member *memb, *safe;
-	int i, found, id, pos = 0, neg = 0, low = -1, old_low_finished_nodeid;
+	int i, found, id, pos = 0, neg = 0, prev_master_nodeid;
 
 	/* move departed nodes from members list to members_gone */
 
@@ -982,30 +1031,31 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 		log_group(mg, "add member %d", id);
 	}
 
-	list_for_each_entry(memb, &mg->members, list) {
-		if (mg->low_nodeid == -1 || memb->nodeid < mg->low_nodeid)
-			mg->low_nodeid = memb->nodeid;
-		if (!memb->finished)
-			continue;
-		if (low == -1 || memb->nodeid < low)
-			low = memb->nodeid;
-	}
-	old_low_finished_nodeid = mg->low_finished_nodeid;
-	mg->low_finished_nodeid = low;
+	prev_master_nodeid = mg->master_nodeid;
+	update_master_nodeid(mg);
 
 	*pos_out = pos;
 	*neg_out = neg;
 
-	log_group(mg, "total members %d low_finished_nodeid %d",
-		  mg->memb_count, low);
+	log_group(mg, "total members %d master_nodeid %d prev %d",
+		  mg->memb_count, mg->master_nodeid, prev_master_nodeid);
 
-	/* the low nodeid failed and we're the new low nodeid, we need
-	   to unlink the ckpt that the failed node had open so new ckpts
-	   can be created down the road */
-	if ((old_low_finished_nodeid != low) && (our_nodeid == low)) {
-		log_group(mg, "unlink ckpt for failed low node %d",
-			  old_low_finished_nodeid);
+	/* the master failed and we're the new master, we need to:
+	   - unlink the ckpt that the failed master had open so new ckpts
+	     can be created down the road
+	   - resend journals msg to any nodes that needed one from the
+	     failed master
+	   - store plocks in ckpt for the new mounters to read when they
+	     get the journals msg from us */
+
+	if (neg &&
+	    (prev_master_nodeid != -1) &&
+	    (prev_master_nodeid != mg->master_nodeid) &&
+	    (our_nodeid == mg->master_nodeid)) {
+		log_group(mg, "unlink ckpt for failed master %d",
+			  prev_master_nodeid);
 		unlink_checkpoint(mg);
+		resend_journals(mg);
 	}
 }
 
@@ -1021,6 +1071,7 @@ struct mountgroup *create_mg(char *name)
 	INIT_LIST_HEAD(&mg->resources);
 	INIT_LIST_HEAD(&mg->saved_messages);
 	mg->init = 1;
+	mg->master_nodeid = -1;
 	mg->low_nodeid = -1;
 
 	strncpy(mg->name, name, MAXNAME);
@@ -1925,31 +1976,6 @@ void reset_unfinished_recoveries(struct mountgroup *mg)
 	}
 }
 
-/* New mounters may be waiting for a journals message that a failed node (as
-   low nodeid) would have sent.  If the low nodeid failed and we're the new low
-   nodeid, then send a journals message to any nodes for whom we've not seen a
-   journals message.  We also need to checkpoint the plock state for the new
-   nodes to read after they get their journals message. */
-
-void resend_journals(struct mountgroup *mg)
-{
-	struct mg_member *memb;
-	int stored_plocks = 0;
-
-	list_for_each_entry(memb, &mg->members, list) {
-		if (!memb->needs_journals)
-			continue;
-
-		if (!stored_plocks) {
-			store_plocks(mg, memb->nodeid);
-			stored_plocks = 1;
-		}
-
-		log_group(mg, "resend_journals to %d", memb->nodeid);
-		send_journals(mg, memb->nodeid);
-	}
-}
-
 /*
    old method:
    A is rw mount, B mounts rw
@@ -1987,7 +2013,7 @@ void resend_journals(struct mountgroup *mg)
 
 void do_start(struct mountgroup *mg, int type, int member_count, int *nodeids)
 {
-	int pos = 0, neg = 0, low;
+	int pos = 0, neg = 0;
 
 	mg->start_event_nr = mg->last_start;
 	mg->start_type = type;
@@ -1995,17 +2021,8 @@ void do_start(struct mountgroup *mg, int type, int member_count, int *nodeids)
 	log_group(mg, "start %d init %d type %d member_count %d",
 		  mg->last_start, mg->init, type, member_count);
 
-	low = mg->low_finished_nodeid;
-
 	recover_members(mg, member_count, nodeids, &pos, &neg);
-
 	reset_unfinished_recoveries(mg);
-
-	if (neg && low != mg->low_finished_nodeid && low == our_nodeid) {
-		log_group(mg, "low nodeid failed old %d new %d",
-			  low, mg->low_finished_nodeid);
-		resend_journals(mg);
-	}
 
 	if (mg->init) {
 		if (member_count == 1)

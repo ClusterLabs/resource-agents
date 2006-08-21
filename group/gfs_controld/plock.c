@@ -1374,7 +1374,8 @@ void retrieve_plocks(struct mountgroup *mg)
 	saCkptSectionIterationFinalize(itr);
  out:
 	if (mg->low_nodeid == our_nodeid) {
-		log_group(mg, "retrieve_plocks: unlink ckpt from old low node");
+		/* we're the new low nodeid, will be master */
+		log_group(mg, "retrieve_plocks: unlink ckpt from old master");
 		_unlink_checkpoint(mg, &name);
 	} else
 		saCkptCheckpointClose(h);
