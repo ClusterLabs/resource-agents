@@ -26,8 +26,8 @@
 #include <libgen.h>
 
 #define __user
-#include <linux/gfs_ioctl.h>
-#include <linux/gfs_ondisk.h>
+#include "gfs_ioctl.h"
+#include "gfs_ondisk.h"
 
 #include "gfs_tool.h"
 

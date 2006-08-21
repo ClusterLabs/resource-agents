@@ -21,8 +21,8 @@ include ${top_srcdir}/make/defines.mk
 clean:
 
 install:
-	install -d ${DESTDIR}/etc/init.d
-	install ${TARGET} ${DESTDIR}/etc/init.d
+	install -d ${DESTDIR}/etc/rc.d/init.d
+	install ${TARGET} ${DESTDIR}/etc/rc.d/init.d
 
 uninstall:
 	${UNINSTALL} ${TARGET} ${DESTDIR}/etc/init.d

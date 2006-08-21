@@ -24,7 +24,7 @@
 #include <limits.h>
 #include <errno.h>
 
-#include <linux/gfs_ondisk.h>
+#include "gfs_ondisk.h"
 
 #include "gfs_tool.h"
 

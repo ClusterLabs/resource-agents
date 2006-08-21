@@ -17,8 +17,8 @@
 #include "global.h"
 #include "linux_endian.h"
 
-#include <linux/gfs_ondisk.h>
+#include "gfs_ondisk.h"
 
 #define WANT_GFS_CONVERSION_FUNCTIONS
-#include <linux/gfs_ondisk.h>
+#include "gfs_ondisk.h"
 

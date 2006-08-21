@@ -22,7 +22,7 @@
 #include <stdint.h>
 #include <inttypes.h>
 
-#include <linux/gfs_ondisk.h>
+#include "gfs_ondisk.h"
 #include "linux_endian.h"
 
 #include "gfs_debug.h"

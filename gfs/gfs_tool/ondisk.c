@@ -17,7 +17,7 @@
 #include <inttypes.h>
 
 #include "linux_endian.h"
-#include <linux/gfs_ondisk.h>
+#include "gfs_ondisk.h"
 
 #define printk printf
 #define pv(struct, member, fmt) \
@@ -29,6 +29,6 @@ printf("  "#member" = "fmt"\n", struct->member);
 #define RETURN(x, y) return y
 
 #define WANT_GFS_CONVERSION_FUNCTIONS
-#include <linux/gfs_ondisk.h>
+#include "gfs_ondisk.h"
 
 

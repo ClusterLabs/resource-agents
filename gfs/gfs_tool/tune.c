@@ -25,7 +25,7 @@
 #include <errno.h>
 
 #define __user
-#include <linux/gfs_ioctl.h>
+#include "gfs_ioctl.h"
 
 #include "gfs_tool.h"
 
