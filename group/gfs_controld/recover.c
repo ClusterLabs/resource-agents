@@ -1286,25 +1286,49 @@ int kernel_recovery_done_first(struct mountgroup *mg)
    and moves the memb structs for those nodes into members_gone
    and sets memb->tell_gfs_to_recover on them */
 
+/* we don't want to tell gfs-kernel to do journal recovery for a failed
+   node in a number of cases:
+   - we're a spectator or readonly mount
+   - gfs-kernel is currently withdrawing
+   - we're mounting and haven't received a journals message yet
+   - we're mounting and got a kernel mount error back from mount.gfs
+   - we're mounting and haven't notified mount.gfs yet (to do mount(2))
+   - we're mounting and got_kernel_mount is 0, i.e. we've not seen a uevent
+     related to the kernel mount yet
+   (some of the mounting checks should be obviated by others)
+
+   the problem we're trying to avoid here is telling gfs-kernel to do
+   recovery when it can't for some reason and then waiting forever for
+   a recovery_done signal that will never arrive. */
+
 void recover_journals(struct mountgroup *mg)
 {
 	struct mg_member *memb;
 	int rv;
 
-	/* we can't do journal recovery if: we're a spectator or readonly
-	   mount, gfs is currently withdrawing, or we're mounting and haven't
-	   received a journals message yet */
+	if (mg->spectator ||
+	    mg->readonly ||
+	    mg->withdraw ||
+	    mg->our_jid == JID_INIT ||
+	    mg->kernel_mount_error ||
+	    !mg->mount_client_notified ||
+	    !mg->got_kernel_mount) {
 
-	if (mg->spectator || mg->readonly || mg->withdraw ||
-	    mg->our_jid == JID_INIT) {
 		list_for_each_entry(memb, &mg->members_gone, list) {
 			if (!memb->tell_gfs_to_recover)
 				continue;
 
-			log_group(mg, "recover journal %d nodeid %d skip, "
-				  "spect %d ro %d our_jid %d",
+			log_group(mg, "recover journal %d nodeid %d skip: "
+				  "%d %d %d %d %d %d %d",
 				  memb->jid, memb->nodeid,
-				  mg->spectator, mg->readonly, mg->our_jid);
+				  mg->spectator,
+				  mg->readonly,
+				  mg->withdraw,
+				  mg->our_jid,
+				  mg->kernel_mount_error,
+				  mg->mount_client_notified,
+				  mg->got_kernel_mount);
+
 			memb->tell_gfs_to_recover = 0;
 			memb->local_recovery_status = RS_READONLY;
 		}
