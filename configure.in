@@ -2696,6 +2696,7 @@ crm/Makefile							\
 	crm/tengine/Makefile					\
 	crm/admin/Makefile					\
 	        crm/admin/crm_primitive.py			\
+	        crm/admin/cluster				\
 debian/Makefile							\
 doc/Makefile							\
 	doc/startstop						\
