@@ -24,7 +24,7 @@
 #include <time.h>
 
 #include "global.h"
-#include <linux/gfs_ondisk.h>
+#include "gfs_ondisk.h"
 #include "osi_list.h"
 #include "linux_endian.h"
 #include "libgfs.h"
