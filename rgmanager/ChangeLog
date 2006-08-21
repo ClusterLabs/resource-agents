@@ -1,3 +1,10 @@
+2006-08-21 Lon Hohberger <lhh at redhat.com>
+	* src/daemons/main.c: Fix #202500 - simultaneous starts confuse
+	rgmanager.  This happened due to the fact that rgmanager was not
+	correctly determining port listening status of other nodes on the
+	first pass, and subsequent attempts to determine status of other 
+	nodes were not tried.
+
 2006-08-18 Lon Hohberger <lhh at redhat.com>
 	* include/resgroup.h: Change ordering and add magic field to
 	rgmanager state field (warning: breaks compatibility from 08/08 CVS!)

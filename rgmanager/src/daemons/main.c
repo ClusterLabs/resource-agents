@@ -144,6 +144,10 @@ membership_update(void)
 		if (new_ml->cml_members[x].cn_nodeid == my_id())
 			continue;
 
+#ifdef DEBUG
+		printf("Checking for listening status of %d\n", new_ml->cml_members[x].cn_nodeid);
+#endif
+
 		do {
 			quorate = cman_is_listening(h,
 					new_ml->cml_members[x].cn_nodeid,
@@ -152,21 +156,18 @@ membership_update(void)
 				clulog(LOG_DEBUG, "Node %d is not listening\n",
 					new_ml->cml_members[x].cn_nodeid);
 				new_ml->cml_members[x].cn_member = 0;
-			} else if (quorate == -1 && errno == EBUSY) {
+			} else if (quorate < 0) {
+				perror("cman_is_listening");
 				usleep(50000);
 				continue;
 			}
 
-			if (quorate < 0) {
-				perror("cman_is_listening");
-			}
-
-			if (quorate > 0) {
-				printf("Node %d IS listening\n",
-				       new_ml->cml_members[x].cn_nodeid);
-			}
-
-		} while(0);
+#ifdef DEBUG
+			printf("Node %d IS listening\n",
+			       new_ml->cml_members[x].cn_nodeid);
+#endif
+			break;
+		} while(1);
 	}
 
 	cman_finish(h);
