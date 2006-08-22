@@ -2846,6 +2846,7 @@ resources/Makefile						\
 	resources/OCF/portblock					\
 	resources/OCF/Raid1					\
 	resources/OCF/pgsql					\
+	resources/OCF/Pure-FTPd					\
 	resources/OCF/ServeRAID					\
 	resources/OCF/Stateful					\
 	resources/OCF/SysInfo					\

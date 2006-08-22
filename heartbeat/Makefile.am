@@ -60,6 +60,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			pingd		\
 			portblock	\
 			pgsql		\
+			Pure-FTPd	\
 			Raid1		\
 			ServeRAID	\
 			Stateful	\
