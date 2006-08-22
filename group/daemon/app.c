@@ -787,6 +787,15 @@ static int count_nodes_not_stopped(app_t *a)
 }
 #endif
 
+int event_state_begin(app_t *a)
+{
+	if (a->current_event->state == EST_JOIN_BEGIN ||
+	    a->current_event->state == EST_LEAVE_BEGIN ||
+	    a->current_event->state == EST_FAIL_BEGIN)
+		return TRUE;
+	return FALSE;
+}
+
 int event_state_stopping(app_t *a)
 {
 	if (a->current_event->state == EST_JOIN_STOP_WAIT ||
@@ -1058,8 +1067,12 @@ static int mark_node_stopped(app_t *a, int nodeid)
 {
 	node_t *node;
 
-	if (!event_state_stopping(a)) {
-		log_error(a->g, "mark_node_stopped: event not stopping: "
+	/* we might get a stopped message from another node who's going
+	   through X_BEGIN before we get to X_BEGIN ourselves, so we need
+	   to accept their message if we're in X_BEGIN, too */
+
+	if (!event_state_stopping(a) && !event_state_begin(a)) {
+		log_error(a->g, "mark_node_stopped: event not stopping/begin: "
 			  "state %s from %d",
 			  ev_state_str(a->current_event), nodeid);
 		return -1;
