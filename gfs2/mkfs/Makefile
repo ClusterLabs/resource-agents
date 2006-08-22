@@ -34,7 +34,7 @@ ${JADD}: ${MKFS}
 	${CC} ${CFLAGS} -o $@ $^
 
 install: all
-	${INSTALL} -m 0755 -g root -o root ${MKFS} ${sbindir}
+	${INSTALL} -m 0755 ${MKFS} ${sbindir}
 	ln -f ${MKFS} ${sbindir}/${JADD}
 
 clean:
