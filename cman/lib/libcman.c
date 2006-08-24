@@ -300,6 +300,7 @@ static cman_handle_t open_socket(const char *name, int namelen, void *private)
 	h->private = private;
 	h->event_callback = NULL;
 	h->data_callback = NULL;
+	h->confchg_callback = NULL;
 	h->want_reply = 0;
 	h->saved_data_msg = NULL;
 	h->saved_event_msg = NULL;
