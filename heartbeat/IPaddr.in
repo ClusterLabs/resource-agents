@@ -119,6 +119,18 @@ routing table.
 <content type="string" default=""/>
 </parameter>
 
+<parameter name="netmask">
+<longdesc lang="en">
+The netmask for the interface in CIDR format.
+(e.g., 255.255.255.0 and not 24)
+
+If unspecified, the script will also try to determine this from the
+routing table.
+</longdesc>
+<shortdesc lang="en">netmask</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
 <parameter name="broadcast">
 <longdesc lang="en">
 Broadcast address associated with the IP. If left empty, the script will
@@ -496,6 +508,7 @@ add_interface () {
   esac
 
   # Use "eval $CMD" (not "$CMD"): it might be a chain of two or more commands.
+  echo $CMD
   eval $CMD
   rc=$?
   if [ $rc != 0 ]; then
@@ -594,7 +607,7 @@ ip_start() {
     fi
 
     add_interface "$OCF_RESKEY_ip" "$OCF_RESKEY_nic" "$NIC_unique" \
-		 "$OCF_RESKEY_cidr_netmask" "$OCF_RESKEY_broadcast"
+		 "$OCF_RESKEY_netmask" "$OCF_RESKEY_broadcast"
     rc=$?
     if [ $rc != 0 ]; then
 	ocf_log err "Could not add $OCF_RESKEY_ip to $OCF_RESKEY_nic: $rc"
@@ -752,16 +765,16 @@ ip_validate_all() {
             ;;
     esac
 
-    if [ ! -z "$OCF_RESKEY_netmask" -a -z "$OCF_RESKEY_cidr_netmask" ]; then
-	OCF_RESKEY_cidr_netmask=$OCF_RESKEY_netmask
-    fi
-
     #
     # $FINDIF can NOT deal with the condition of empty intermediate parameters. 
     #
-    IFCMD="$FINDIF -C $OCF_RESKEY_ip"
-    if [ -n "$OCF_RESKEY_cidr_netmask" ]; then
-	IFCMD="$IFCMD/$OCF_RESKEY_cidr_netmask"
+    IFCMD="$FINDIF $OCF_RESKEY_ip"
+    if [ -n "$OCF_RESKEY_cidr_netmask" -o -n "$OCF_RESKEY_netmask" ]; then
+	if [ -n "$OCF_RESKEY_netmask" ]; then
+	    IFCMD="$IFCMD/$OCF_RESKEY_netmask"
+	else
+	    IFCMD="$IFCMD/$OCF_RESKEY_cidr_netmask"
+	fi
 	if [ -n "$OCF_RESKEY_nic" ]; then
 	    IFCMD="$IFCMD/$OCF_RESKEY_nic"
 	    if [ -n "$OCF_RESKEY_broadcast" ]; then
@@ -789,13 +802,13 @@ ip_validate_all() {
     fi
 
     tmp=`echo "$NICINFO" | cut -f2 | cut -d ' ' -f2`
-    if [ "x$OCF_RESKEY_cidr_netmask" = "x" ]; then
-	ocf_log info "Using calculated cidr netmask for ${OCF_RESKEY_ip}: $tmp"
-	OCF_RESKEY_cidr_netmask=$tmp
-
-    elif [ x$tmp != x${OCF_RESKEY_cidr_netmask} ]; then
-	ocf_log err "Invalid parameter value: netmask [$OCF_RESKEY_cidr_netmask [Calculated netmask: $tmp]"
-	return $OCF_ERR_ARGS
+    if [ "x$OCF_RESKEY_netmask" = "x" ]; then
+	ocf_log info "Using calculated netmask for ${OCF_RESKEY_ip}: $tmp"
+	OCF_RESKEY_netmask=$tmp
+# We cant do this because netmask used to take the CIDR form...
+#    elif [ x$tmp != x${OCF_RESKEY_netmask} ]; then
+#	ocf_log err "Invalid parameter value: netmask [$OCF_RESKEY_netmask [Calculated netmask: $tmp]"
+#	return $OCF_ERR_ARGS
     fi
     
     tmp=`echo "$NICINFO" | cut -f3 | cut -d ' ' -f2`
