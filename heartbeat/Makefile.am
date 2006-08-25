@@ -55,6 +55,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			LinuxSCSI	\
 			LVM		\
 			MailTo		\
+			mysql		\
 			oracle		\
 			oralsnr		\
 			pingd		\

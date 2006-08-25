@@ -2841,6 +2841,7 @@ resources/Makefile						\
 	resources/OCF/LinuxSCSI					\
 	resources/OCF/LVM					\
 	resources/OCF/MailTo					\
+        resources/OCF/mysql					\
 	resources/OCF/oracle					\
 	resources/OCF/oralsnr					\
 	resources/OCF/portblock					\
