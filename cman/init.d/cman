@@ -68,9 +68,10 @@ start_ccsd()
     if [ $? -ne 0 ]
     then
 	errmsg=$(/sbin/ccsd $CCSD_OPTS 2>&1)
+	rtrn=$?
 	# give ccsd time to start up before we start cman
 	sleep 1
-	return $?
+	return $rtrn
     fi
     return 0
 }
@@ -123,19 +124,61 @@ start_fence()
 
 start()
 {
-    echo -n "Starting cluster: "
+    echo "Starting cluster: "
+    echo -n "   Loading modules... "
     load_modules
-    [ $? -ne 0 ] && return 1
+    if [ $? -eq 0 ] 
+    then
+	echo "done"
+    else
+	echo "failed"
+	return 1
+    fi
+    echo -n "   Mounting configfs... "
     start_configfs
-    [ $? -ne 0 ] && return 1
+    if [ $? -eq 0 ] 
+    then
+	echo "done"
+    else
+	echo "failed"
+	return 1
+    fi	
+    echo -n "   Starting ccsd... "
     start_ccsd
-    [ $? -ne 0 ] && return 1
+    if [ $? -eq 0 ] 
+    then
+	echo "done"
+    else
+	echo "failed"
+	return 1
+    fi
+    echo -n "   Starting cman... "
     start_cman
-    [ $? -ne 0 ] && return 1
+    if [ $? -eq 0 ] 
+    then
+	echo "done"
+    else
+	echo "failed"
+	return 1
+    fi
+    echo -n "   Starting daemons... "
     start_daemons
-    [ $? -ne 0 ] && return 1
+    if [ $? -eq 0 ] 
+    then
+	echo "done"
+    else
+	echo "failed"
+	return 1
+    fi
+    echo -n "   Starting fencing... "
     start_fence
-    [ $? -ne 0 ] && return 1
+    if [ $? -eq 0 ] 
+    then
+	echo "done"
+    else
+	echo "failed"
+	return 1
+    fi
     
     return 0
 }
@@ -206,28 +249,59 @@ stop_fence()
     if /sbin/pidof fenced &> /dev/null
     then
 	/sbin/fence_tool leave > /dev/null 2>&1
-	return $?
+	rtrn=$?
+	sleep 1 # A bit of time for fenced to exit
+	return $rtrn
     fi
     return 0 # all ok
 }
 
 stop()
 {
-    echo -n "Stopping cluster: "
+    echo "Stopping cluster: "
+    echo -n "   Stopping fencing... "
+    stop_fence
+    if [ $? -eq 0 ]
+    then
+	echo "done"
+    else
+	echo "failed"
+	return 1
+    fi
+    echo -n "   Stopping cman... "
     if [ $1 ]; then
 	stop_cman $1
     else
 	stop_cman
     fi
-    [ $? -ne 0 ] && return 1
+    if [ $? -eq 0 ]
+    then
+	echo "done"
+    else
+	echo "failed"
+	return 1
+    fi
 #    stop_daemons
 #    [ $? -ne 0 ] && return 1
-    stop_fence
-#    [ $? -ne 0 ] && return 1
+    echo -n "   Stopping ccsd... "
     stop_ccsd
-    [ $? -ne 0 ] && return 1
+    if [ $? -eq 0 ]
+    then
+	echo "done"
+    else
+	echo "failed"
+	return 1
+    fi
+    echo -n "   Unmounting configfs... "
     stop_configfs
-    [ $? -ne 0 ] && return 1
+    if [ $? -eq 0 ]
+    then
+	echo "done"
+    else
+	echo "failed"
+	return 1
+    fi
+
     return 0
 }
 
