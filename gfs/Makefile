@@ -11,6 +11,9 @@
 ###############################################################################
 ###############################################################################
 
+top_srcdir=.
+include ${top_srcdir}/make/defines.mk
+
 all:
 	${MAKE} -C libgfs all
 	${MAKE} -C gfs_debug all
@@ -48,6 +51,9 @@ install: all
 	${MAKE} -C gfs_tool install
 	${MAKE} -C man install
 	${MAKE} -C init.d install
+	(cd ${sbindir}; ln -sf mount.gfs2 mount.gfs)
+	(cd ${sbindir}; ln -sf umount.gfs2 umount.gfs)
+
 
 deinstall uninstall:
 	${MAKE} -C libgfs uninstall
