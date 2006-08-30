@@ -515,7 +515,8 @@ find_gfs2_meta(struct gfs2_sbd *sdp)
 			   &fspass) != 6)
 			continue;
 		
-		if (strcmp(meta_device, sdp->device_name) != 0)
+		if (strcmp(meta_device, sdp->device_name) != 0
+		    && strcmp(meta_device, sdp->path_name) != 0)
 			continue;
 		
 		metafs_mounted = 1;
@@ -652,11 +653,7 @@ main_jadd(int argc, char *argv[])
 	check_for_gfs2(sdp);
 
 	gather_info(sdp);
-	/* umount gfs2 to be able to mount gfs2meta */
-	{
-		close(sdp->path_fd);
-		umount(sdp->path_name);
-	}
+
 	if (!find_gfs2_meta(sdp))
 		mount_gfs2_meta(sdp);
 	lock_for_admin(sdp);
@@ -675,7 +672,7 @@ main_jadd(int argc, char *argv[])
 	}
 
 	close(metafs_fd);
-	//close(sdp->path_fd);
+	close(sdp->path_fd);
 
 	cleanup(sdp);
 
