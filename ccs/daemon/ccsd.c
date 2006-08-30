@@ -728,10 +728,6 @@ static void daemonize(void){
 	exit(EXIT_SUCCESS);
 
       switch(WEXITSTATUS(status)){
-      case EXIT_MAGMA_PLUGINS:
-	fprintf(stderr, "Failed to connect to cluster manager.\n"
-		"Hint: Magma plugins are not in the right spot.\n");
-	break;
       case EXIT_CLUSTER_FAIL:
 	fprintf(stderr, "Failed to connect to cluster manager.\n");
 	break;
