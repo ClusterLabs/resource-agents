@@ -1316,6 +1316,7 @@ int recover_current_event(group_t *g)
 	event_t *ev, *rev;
 	node_t *node;
 	struct nodeid *id, *safe;
+	int rv = 0;
 
 	ev = a->current_event;
 	if (!ev)
@@ -1361,7 +1362,7 @@ int recover_current_event(group_t *g)
 
 		list_del(&rev->list);
 		free_event(rev);
-		return 0;
+		return 1;
 	}
 
 	/* Before starting the rev we need to apply the node addition/removal
@@ -1383,7 +1384,7 @@ int recover_current_event(group_t *g)
 		list_del(&rev->list);
 		a->current_event = rev;
 		free_event(ev);
-
+		rv = 1;
 	} else if (event_state_stopping(a)) {
 
 		/* We'll come back through here multiple times until all the
@@ -1397,9 +1398,7 @@ int recover_current_event(group_t *g)
 		mark_node_stopped(a, rev->nodeid);
 		list_for_each_entry(id, &rev->extended, list)
 			mark_node_stopped(a, id->nodeid);
-
-		process_current_event(g);
-
+		rv = 1;
 	} else {
 		log_group(g, "rev for %d delayed for ev %d %s",
 			  rev->nodeid, ev->nodeid, ev_state_str(ev));
@@ -1411,7 +1410,7 @@ int recover_current_event(group_t *g)
 	/* FIXME: if the current event is a leave and the leaving node has
 	   failed, then replace the current event with the rev */
 
-	return 0;
+	return rv;
 }
 
 static int process_app(group_t *g)
@@ -1428,7 +1427,18 @@ static int process_app(group_t *g)
 			goto out;
 		rv += ret;
 
-		rv += recover_current_event(g);
+		ret = recover_current_event(g);
+		if (ret > 0) {
+			rv += ret;
+
+			/* it's important that we call process_current_event()
+			   when recover_current_event() returns 1 */
+
+			ret = process_current_event(g);
+			if (ret < 0)
+				goto out;
+			rv += ret;
+		}
 	} else {
 		/* We only take on a new non-recovery event if there are
 		   no recovery sets outstanding.  The new event may be
