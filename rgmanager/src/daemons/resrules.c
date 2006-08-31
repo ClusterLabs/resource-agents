@@ -22,6 +22,7 @@
 #include <ccs.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <resgroup.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -953,6 +954,10 @@ load_resource_rules(const char *rpath, resource_rule_t **rules)
 		
 		fn = basename(de->d_name);
 		if (!fn)
+			continue;
+		
+		if ((fn != NULL) && (strlen(fn) > 0) && 
+			(fn[strlen(fn)-1] == '~')) 
 			continue;
 
 		snprintf(path, sizeof(path), "%s/%s",
