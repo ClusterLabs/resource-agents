@@ -967,6 +967,7 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 {
 	struct mg_member *memb, *safe;
 	int i, found, id, pos = 0, neg = 0, prev_master_nodeid;
+	int master_failed = 0;
 
 	/* move departed nodes from members list to members_gone */
 
@@ -1017,6 +1018,10 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 				  memb->wait_gfs_recover_done);
 
 			purge_plocks(mg, memb->nodeid, 0);
+
+			if (mg->master_nodeid == memb->nodeid &&
+			    memb->gone_type == GROUP_NODE_FAILED)
+				master_failed = 1;
 		}
 	}	
 
@@ -1048,7 +1053,7 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 	   - store plocks in ckpt for the new mounters to read when they
 	     get the journals msg from us */
 
-	if (neg &&
+	if (neg && master_failed &&
 	    (prev_master_nodeid != -1) &&
 	    (prev_master_nodeid != mg->master_nodeid) &&
 	    (our_nodeid == mg->master_nodeid)) {
