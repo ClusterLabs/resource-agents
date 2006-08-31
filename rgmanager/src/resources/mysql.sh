@@ -46,7 +46,7 @@ verify_all()
 	fi
 
 	if [ -z "$OCF_RESKEY_configFile" ]; then
-		clog_check_file_exist $CLOG_FAILED_INVALID
+		clog_check_file_exist $CLOG_FAILED_INVALID "$OCF_RESKEY_configFile"
 		clog_service_verify $CLOG_FAILED
 		return $OCF_ERR_ARGS
 	fi
@@ -159,7 +159,7 @@ status()
 
 	if [ ! -e "$MYSQL_pidFile" ]; then
 		clog_check_file_exist $CLOG_FAILED_NOT_FOUND "$MYSQL_pidFile"
-		clog_service_statuts $CLOG_FAILED
+		clog_service_status $CLOG_FAILED
 		return $OCF_GENERIC_ERROR
 	fi
 
