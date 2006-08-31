@@ -20,9 +20,9 @@ struct client {
 	char type[32];
 };
 
-static int client_size = MAX_CLIENTS;
-static struct client client[MAX_CLIENTS];
-static struct pollfd pollfd[MAX_CLIENTS];
+static int client_size = 0;
+static struct client *client = NULL;
+static struct pollfd *pollfd = NULL;
 
 static int cman_fd;
 static int cpg_fd;
@@ -89,19 +89,36 @@ static int client_add(int fd, int *maxi)
 {
 	int i;
 
-	for (i = 0; i < client_size; i++) {
-		if (client[i].fd == -1) {
-			client[i].fd = fd;
-			pollfd[i].fd = fd;
-			pollfd[i].events = POLLIN;
-			if (i > *maxi)
-				*maxi = i;
-			/* log_debug("client %d fd %d added", i, fd); */
-			return i;
+	while (1) { /* I hate gotos */
+		/* This is expected to fail the first time, with nothing allocated: */
+		for (i = 0; i < client_size; i++) {
+			if (client[i].fd == -1) {
+				client[i].fd = fd;
+				pollfd[i].fd = fd;
+				pollfd[i].events = POLLIN;
+				if (i > *maxi)
+					*maxi = i;
+				/* log_debug("client %d fd %d added", i, fd); */
+				return i;
+			}
+		}
+		/* We didn't find an empty slot, so allocate more. */
+		client_size += MAX_CLIENTS;
+		if (!client) {
+			client = malloc(client_size * sizeof(struct client));
+			pollfd = malloc(client_size * sizeof(struct pollfd));
+		}
+		else {
+			client = realloc(client, client_size * sizeof(struct client));
+			pollfd = realloc(pollfd, client_size * sizeof(struct pollfd));
+		}
+		if (!client || !pollfd)
+			log_error("Can't allocate client memory.");
+		for (i = client_size - MAX_CLIENTS; i < client_size; i++) {
+			client[i].fd = -1;
+			pollfd[i].fd = -1;
 		}
 	}
-	log_debug("client add failed");
-	return -1;
 }
 
 static void client_dead(int ci)

@@ -25,8 +25,8 @@ int			our_nodeid;
 int			cman_quorate;
 
 static int client_maxi;
-static int client_size;
-static struct client *client;
+static int client_size = 0;
+static struct client *client = NULL;
 static struct pollfd *pollfd;
 static char last_action[16];
 
@@ -334,17 +334,25 @@ static void client_alloc(void)
 
 	if (!client)
 		client = malloc(NALLOC * sizeof(struct client));
-	else
+	else {
 		client = realloc(client, (client_size + NALLOC) *
 				         sizeof(struct client));
+		pollfd = realloc(pollfd, (client_size + NALLOC) *
+						 sizeof(struct pollfd));
+		if (!pollfd)
+			log_print("can't alloc for pollfd");
+	}
 	if (!client)
 		log_print("can't alloc for client array");
 
 	for (i = client_size; i < client_size + NALLOC; i++) {
 		client[i].workfn = NULL;
+		client[i].deadfn = NULL;
 		client[i].fd = -1;
 		client[i].level = -1;
 		memset(client[i].type, 0, sizeof(client[i].type));
+		pollfd[i].fd = -1;
+		pollfd[i].revents = 0;
 	}
 	client_size += NALLOC;
 }
@@ -844,7 +852,7 @@ int main(int argc, char *argv[])
 	if (!groupd_debug_opt)
 		daemonize();
 
-	pollfd = malloc(MAXCON * sizeof(struct pollfd));
+	pollfd = malloc(NALLOC * sizeof(struct pollfd));
 	if (!pollfd)
 		return -1;
 
