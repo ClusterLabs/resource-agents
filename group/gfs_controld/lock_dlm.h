@@ -243,6 +243,7 @@ struct save_msg {
 	char buf[0];
 };
 
+int do_write(int fd, void *buf, size_t count);
 struct mountgroup *find_mg(char *name);
 struct mountgroup *find_mg_id(uint32_t id);
 

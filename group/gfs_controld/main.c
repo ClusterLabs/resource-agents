@@ -35,6 +35,28 @@ extern struct list_head mounts;
 extern struct list_head withdrawn_mounts;
 int no_withdraw;
 
+
+int do_write(int fd, void *buf, size_t count)
+{
+	int rv, off = 0;
+
+ retry:
+	rv = write(fd, buf + off, count);
+	if (rv == -1 && errno == EINTR)
+		goto retry;
+	if (rv < 0) {
+		log_error("write errno %d", errno);
+		return rv;
+	}
+
+	if (rv != count) {
+		count -= rv;
+		off += rv;
+		goto retry;
+	}
+	return 0;
+}
+
 #if 0
 static void make_args(char *buf, int *argc, char **argv, char sep)
 {
@@ -134,24 +156,20 @@ static void client_dead(int ci)
 
 int client_send(int ci, char *buf, int len)
 {
-	return write(client[ci].fd, buf, len);
+	return do_write(client[ci].fd, buf, len);
 }
 
 static int dump_debug(int ci)
 {
-	int rv, len;
+	int len;
 
 	if (dump_wrap) {
 		len = DUMP_SIZE - dump_point;
-		rv = write(client[ci].fd, dump_buf + dump_point, len);
-		if (rv != len)
-			log_debug("write error %d errno %d", rv, errno);
+		do_write(client[ci].fd, dump_buf + dump_point, len);
 	}
 	len = dump_point;
 
-	rv = write(client[ci].fd, dump_buf, len);
-	if (rv != len)
-		log_debug("write error %d errno %d", rv, errno);
+	do_write(client[ci].fd, dump_buf, len);
 	return 0;
 }
 

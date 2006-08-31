@@ -1451,7 +1451,7 @@ int dump_plocks(char *name, int fd)
 			      po->start, po->end,
 			      po->nodeid, po->pid, po->owner);
 
-			rv = write(fd, line, strlen(line));
+			rv = do_write(fd, line, strlen(line));
 		}
 
 		list_for_each_entry(w, &r->waiters, list) {
@@ -1462,7 +1462,7 @@ int dump_plocks(char *name, int fd)
 			      w->info.start, w->info.end,
 			      w->info.nodeid, w->info.pid, w->info.owner);
 
-			rv = write(fd, line, strlen(line));
+			rv = do_write(fd, line, strlen(line));
 		}
 	}
 
