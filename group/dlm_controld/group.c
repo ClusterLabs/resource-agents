@@ -85,14 +85,22 @@ group_callbacks_t callbacks = {
 char *str_members(void)
 {
 	static char str_members_buf[MAXLINE];
-	int i, len = 0;
+	int i, ret, pos = 0, len = MAXLINE;
 
 	memset(str_members_buf, 0, MAXLINE);
 
 	for (i = 0; i < cb_member_count; i++) {
-		if (i != 0)
-			len += sprintf(str_members_buf+len, " ");
-		len += sprintf(str_members_buf+len, "%d", cb_members[i]);
+		if (i != 0) {
+			ret = snprintf(str_members_buf + pos, len - pos, " ");
+			if (ret >= len - pos)
+				break;
+			pos += ret;
+		}
+		ret = snprintf(str_members_buf + pos, len - pos, "%d",
+			       cb_members[i]);
+		if (ret >= len - pos)
+			break;
+		pos += ret;
 	}
 	return str_members_buf;
 }

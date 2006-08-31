@@ -29,10 +29,11 @@ struct lockspace *create_ls(char *name)
 	struct lockspace *ls;
 
 	ls = malloc(sizeof(*ls));
+	if (!ls)
+		goto out;
 	memset(ls, 0, sizeof(*ls));
-
 	strncpy(ls->name, name, MAXNAME);
-
+ out:
 	return ls;
 }
 
@@ -112,7 +113,12 @@ int process_uevent(void)
 	memset(buf, 0, sizeof(buf));
 	memset(argv, 0, sizeof(char *) * MAXARGS);
 
+ retry_recv:
 	rv = recv(uevent_fd, &buf, sizeof(buf), 0);
+	if (rv == -1 && rv == EINTR)
+		goto retry_recv;
+	if (rv == -1 && rv == EAGAIN)
+		return 0;
 	if (rv < 0) {
 		log_error("uevent recv error %d errno %d", rv, errno);
 		goto out;
@@ -226,8 +232,10 @@ int loop(void)
 
 	for (;;) {
 		rv = poll(pollfd, maxi + 1, -1);
+		if (rv == -1 && errno == EINTR)
+			continue;
 		if (rv < 0) {
-			log_error("poll");
+			log_error("poll errno %d", errno);
 			goto out;
 		}
 

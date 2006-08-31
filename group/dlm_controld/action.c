@@ -46,10 +46,31 @@ static int comms_nodes_count;
 #define COMMS_DIR     "/sys/kernel/config/dlm/cluster/comms"
 
 
+static int do_write(int fd, void *buf, size_t count)
+{
+	int rv, off = 0;
+
+ retry:
+	rv = write(fd, buf + off, count);
+	if (rv == -1 && errno == EINTR)
+		goto retry;
+	if (rv < 0) {
+		log_error("write errno %d", errno);
+		return rv;
+	}
+
+	if (rv != count) {
+		count -= rv;
+		off += rv;
+		goto retry;
+	}
+	return 0;
+}
+
 static int do_sysfs(char *name, char *file, char *val)
 {
 	char fname[512];
-	int rv, fd, len;
+	int rv, fd;
 
 	sprintf(fname, "%s/%s/%s", DLM_SYSFS_DIR, name, file);
 
@@ -61,14 +82,7 @@ static int do_sysfs(char *name, char *file, char *val)
 
 	log_debug("write \"%s\" to \"%s\"", val, fname);
 
-	len = strlen(val) + 1;
-	rv = write(fd, val, len);
-	if (rv != len) {
-		log_error("write %d error %d %d", len, rv, errno);
-		rv = -1;
-	} else
-		rv = 0;
-
+	rv = do_write(fd, val, strlen(val) + 1);
 	close(fd);
 	return rv;
 }
@@ -314,7 +328,7 @@ int set_members(char *name, int new_count, int *new_members)
 		memset(buf, 0, 32);
 		snprintf(buf, 32, "%d", id);
 
-		rv = write(fd, buf, strlen(buf));
+		rv = do_write(fd, buf, strlen(buf));
 		if (rv < 0) {
 			log_error("%s: write failed: %d, %s", path, errno, buf);
 			close(fd);
@@ -344,7 +358,7 @@ int set_members(char *name, int new_count, int *new_members)
 		memset(buf, 0, 32);
 		snprintf(buf, 32, "%d", w);
 
-		rv = write(fd, buf, strlen(buf));
+		rv = do_write(fd, buf, strlen(buf));
 		if (rv < 0) {
 			log_error("%s: write failed: %d, %s", path, errno, buf);
 			close(fd);
@@ -360,6 +374,7 @@ int set_members(char *name, int new_count, int *new_members)
 	return rv;
 }
 
+#if 0
 char *str_ip(char *addr)
 {
 	static char ip[256];
@@ -367,6 +382,24 @@ char *str_ip(char *addr)
 	memset(ip, 0, sizeof(ip));
 	inet_ntop(AF_INET, &sin->sin_addr, ip, 256);
 	return ip;
+}
+#endif
+
+char *str_ip(char *addr)
+{
+	static char str_ip_buf[INET6_ADDRSTRLEN];
+	struct sockaddr_storage *ss = (struct sockaddr_storage *)addr;
+	struct sockaddr_in *sin = (struct sockaddr_in *)addr;
+	struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)addr;
+	void *saddr;
+
+	if (ss->ss_family == AF_INET6)
+		saddr = &sin6->sin6_addr;
+	else
+		saddr = &sin->sin_addr;
+
+	inet_ntop(ss->ss_family, saddr, str_ip_buf, sizeof(str_ip_buf));
+	return str_ip_buf;
 }
 
 /* record the nodeids that are currently listed under
@@ -539,7 +572,7 @@ int add_configfs_node(int nodeid, char *addr, int addrlen, int local)
 	memset(buf, 0, sizeof(buf));
 	snprintf(buf, 32, "%d", nodeid);
 
-	rv = write(fd, buf, strlen(buf));
+	rv = do_write(fd, buf, strlen(buf));
 	if (rv < 0) {
 		log_error("%s: write failed: %d, %s", path, errno, buf);
 		close(fd);
@@ -563,8 +596,8 @@ int add_configfs_node(int nodeid, char *addr, int addrlen, int local)
 		return -1;
 	}
 
-	rv = write(fd, padded_addr, sizeof(struct sockaddr_storage));
-	if (rv != sizeof(struct sockaddr_storage)) {
+	rv = do_write(fd, padded_addr, sizeof(struct sockaddr_storage));
+	if (rv < 0) {
 		log_error("%s: write failed: %d %d", path, errno, rv);
 		close(fd);
 		return -1;
@@ -587,7 +620,7 @@ int add_configfs_node(int nodeid, char *addr, int addrlen, int local)
 		return -1;
 	}
 
-	rv = write(fd, "1", strlen("1"));
+	rv = do_write(fd, "1", strlen("1"));
 	if (rv < 0) {
 		log_error("%s: write failed: %d", path, errno);
 		close(fd);
