@@ -181,6 +181,9 @@ int main(int argc, char *argv[]){
   if (sfds[2] >= 0) 
     FD_SET(sfds[2], &rset);
 
+  log_dbg("Sending SIGTERM to parent\n");
+  kill(getppid(), SIGTERM);
+
   while(1){
     unsigned int len = addr_size;
 
@@ -755,7 +758,7 @@ static void daemonize(void){
     }
 
     /* Make the parent stop waiting */
-    kill(getppid(), SIGTERM);
+    /* kill(getppid(), SIGTERM); */
   }
 
   signal(SIGINT, &sig_handler);
