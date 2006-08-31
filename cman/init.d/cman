@@ -69,8 +69,6 @@ start_ccsd()
     then
 	errmsg=$(/sbin/ccsd $CCSD_OPTS 2>&1)
 	rtrn=$?
-	# give ccsd time to start up before we start cman
-	sleep 1
 	return $rtrn
     fi
     return 0
