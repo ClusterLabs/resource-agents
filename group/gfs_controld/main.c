@@ -89,8 +89,8 @@ static int client_add(int fd, int *maxi)
 {
 	int i;
 
-	while (1) { /* I hate gotos */
-		/* This is expected to fail the first time, with nothing allocated: */
+	while (1) {
+		/* This fails the first time with client_size of zero */
 		for (i = 0; i < client_size; i++) {
 			if (client[i].fd == -1) {
 				client[i].fd = fd;
@@ -98,22 +98,25 @@ static int client_add(int fd, int *maxi)
 				pollfd[i].events = POLLIN;
 				if (i > *maxi)
 					*maxi = i;
-				/* log_debug("client %d fd %d added", i, fd); */
 				return i;
 			}
 		}
+
 		/* We didn't find an empty slot, so allocate more. */
 		client_size += MAX_CLIENTS;
+
 		if (!client) {
 			client = malloc(client_size * sizeof(struct client));
 			pollfd = malloc(client_size * sizeof(struct pollfd));
-		}
-		else {
-			client = realloc(client, client_size * sizeof(struct client));
-			pollfd = realloc(pollfd, client_size * sizeof(struct pollfd));
+		} else {
+			client = realloc(client, client_size *
+						 sizeof(struct client));
+			pollfd = realloc(pollfd, client_size *
+						 sizeof(struct pollfd));
 		}
 		if (!client || !pollfd)
 			log_error("Can't allocate client memory.");
+
 		for (i = client_size - MAX_CLIENTS; i < client_size; i++) {
 			client[i].fd = -1;
 			pollfd[i].fd = -1;
@@ -127,14 +130,6 @@ static void client_dead(int ci)
 	close(client[ci].fd);
 	client[ci].fd = -1;
 	pollfd[ci].fd = -1;
-}
-
-static void client_init(void)
-{
-	int i;
-
-	for (i = 0; i < client_size; i++)
-		client[i].fd = -1;
 }
 
 int client_send(int ci, char *buf, int len)
@@ -586,7 +581,6 @@ int main(int argc, char **argv)
 	prog_name = argv[0];
 	INIT_LIST_HEAD(&mounts);
 	INIT_LIST_HEAD(&withdrawn_mounts);
-	client_init();
 
 	decode_arguments(argc, argv);
 
