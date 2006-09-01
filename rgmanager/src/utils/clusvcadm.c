@@ -31,6 +31,7 @@
 #include <libcman.h>
 #include <resgroup.h>
 #include <msgsimple.h>
+#include <signal.h>
 
 #ifdef HAVE_CONFIG_H
 #include <config.h>
@@ -187,6 +188,7 @@ main(int argc, char **argv)
 	msgctx_t ctx;
 	cman_handle_t ch;
 	SmMessageSt msg;
+	generic_msg_hdr *h = (generic_msg_hdr *)&msg;
 	int action = RG_STATUS;
 	int node_specified = 0;
        	int me, svctarget = 0;
@@ -274,6 +276,8 @@ main(int argc, char **argv)
 		svcname = realsvcname;
 	}
 
+	signal(SIGPIPE, SIG_IGN);
+
 	/* No login */
 	ch = cman_init(NULL);
 	if (!ch) {
@@ -320,48 +324,23 @@ main(int argc, char **argv)
 		return 1;
 	}
 
-	opt = msg_send(&ctx, &msg, sizeof(msg));
+	msg_send(&ctx, &msg, sizeof(msg));
 
-	if (opt < sizeof(msg)) {
-		perror("msg_send");
-		fprintf(stderr, "Could not send entire message!\n");
-		return 1;
-	}
-
-	if (msg_receive(&ctx, &msg, sizeof(msg), 0) != sizeof(msg)) {
+	/* Reusing opt here */
+	if ((opt = msg_receive(&ctx, &msg, sizeof(msg), 0)) < sizeof(*h)) {
 		perror("msg_receive");
 		fprintf(stderr, "Error receiving reply!\n");
 		return 1;
 	}
 
 	/* Decode */
-	swab_SmMessageSt(&msg);
-	switch (msg.sm_data.d_ret) {
-	case RG_ESUCCESS:
-		printf("success\n");
-		break;
-	case RG_EFAIL:
-		printf("failed\n");
-		break;
-	case RG_EABORT:
-		printf("cancelled by resource manager\n");
-		break;
-	case RG_ENOSERVICE:
-		printf("failed: Service does not exist\n");
-		break;
-	case RG_EDEADLCK:
-		printf("failed: Operation would deadlock\n");
-		break;
-	case RG_EAGAIN:
-		printf("failed: Try again (resource groups locked)\n");
-		break;
-	case RG_EDEPEND:
-		printf("failed: Operation would break dependency\n");
-		break;
-	default:
-		printf("failed: unknown reason %d\n", msg.sm_data.d_ret);
-		break;
+	if (opt < sizeof(msg)) {
+		swab_generic_msg_hdr(h);
+		printf("%s\n", rg_strerror(h->gh_arg1));
+		return h->gh_arg1;
 	}
 
+	swab_SmMessageSt(&msg);
+	printf("%s\n", rg_strerror(msg.sm_data.d_ret));
 	return msg.sm_data.d_ret;
 }

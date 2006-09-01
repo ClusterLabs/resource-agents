@@ -1,3 +1,25 @@
+2006-09-01 Lon Hohberger <lhh at redhat.com>
+	* include/resgroup.h: Add proto for rg_strerror
+	* include/vf.h: Add proto for vf_invalidate (flushes vf cache)
+	* src/clulib/rg_strings.c: Add rg_strerror function, define
+	human-readable strings for rgmanager error values
+	* src/clulib/vft.c: Add vf_invalidate (separate from vf_shutdown)
+	* src/daemons/groups.c: Fix obvious logic error
+	* src/daemons/main.c: Fix rg_doall() message during loss of quorum.
+	Invalidate local VF cache and kill resource configurations on
+	loss of quorum (#202497).  Send RG_EQUORUM back to clustat/clusvcadm
+	so that they report why they can't get information.  Don't queue
+	status checks if we've lost quorum.  Add command line parameter to
+	disable internal crash watchdog
+	* src/utils/clustat.c, clusvcadm.c: Handle SIGPIPE, and produce
+	useful errors if possible.
+
+2006-08-31 Marek Grác <mgrac at redhat.com>
+	* src/daemons/restree.c: Fix #203720. Do not run backup copies (ends
+	with ~) of resource agents.
+	* src/resources/apache.*, mysql.*: Add Apache & MySQL resource agents
+	* src/resources/utils/*: Add utility scripts for resource agents
+
 2006-08-21 Lon Hohberger <lhh at redhat.com>
 	* src/daemons/main.c: Fix #202500 - simultaneous starts confuse
 	rgmanager.  This happened due to the fact that rgmanager was not

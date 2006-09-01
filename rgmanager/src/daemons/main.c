@@ -123,7 +123,13 @@ membership_update(void)
 		rg_set_inquorate();
 		member_list_update(NULL);/* Clear member list */
 		rg_lockall(L_SYS);
-		rg_doall(RG_INIT, 1, "Emergency stop of %s");
+		rg_doall(RG_INIT, 1, "Emergency stop of %s\n");
+#ifndef USE_OPENAIS
+		clulog(LOG_DEBUG, "Invalidating local VF cache\n");
+		vf_invalidate();
+#endif
+		clulog(LOG_DEBUG, "Flushing resource group cache\n");
+		kill_resource_groups();
 		rg_set_uninitialized();
 		return -1;
 	} else if (!rg_quorate()) {
@@ -131,7 +137,7 @@ membership_update(void)
 		rg_set_quorate();
 		rg_unlockall(L_SYS);
 		rg_unlockall(L_USER);
-		clulog(LOG_NOTICE, "Quorum Formed\n");
+		clulog(LOG_NOTICE, "Quorum Regained\n");
 	}
 
 	old_membership = member_list();
@@ -562,7 +568,7 @@ handle_cluster_event(msgctx_t *ctx)
 	case M_STATECHANGE:
 		msg_receive(ctx, NULL, 0, 0);
 		clulog(LOG_DEBUG, "Membership Change Event\n");
-		if (rg_quorate() && running) {
+		if (running) {
 			rg_unlockall(L_SYS);
 			membership_update();
 		}
@@ -644,6 +650,7 @@ event_loop(msgctx_t *localctx, msgctx_t *clusterctx)
 		}
 			
 		if (!rg_initialized()) {
+			msg_send_simple(newctx, RG_FAIL, RG_EQUORUM, 0);
 			msg_close(newctx);
 			msg_free_ctx(newctx);
 			continue;
@@ -651,6 +658,7 @@ event_loop(msgctx_t *localctx, msgctx_t *clusterctx)
 
 		if (!rg_quorate()) {
 			printf("Dropping connect: NO QUORUM\n");
+			msg_send_simple(newctx, RG_FAIL, RG_EQUORUM, 0);
 			msg_close(newctx);
 			msg_free_ctx(newctx);
 		}
@@ -668,7 +676,7 @@ event_loop(msgctx_t *localctx, msgctx_t *clusterctx)
 		return 0;
 
 	/* No new messages.  Drop in the status check requests.  */
-	if (n == 0) {
+	if (n == 0 && rg_quorate()) {
 		do_status_checks();
 		return 0;
 	}
@@ -805,15 +813,18 @@ int
 main(int argc, char **argv)
 {
 	int rv;
-	char foreground = 0;
+	char foreground = 0, wd = 1;
 	cman_node_t me;
 	msgctx_t *cluster_ctx;
 	msgctx_t *local_ctx;
 	pthread_t th;
 	cman_handle_t clu = NULL;
 
-	while ((rv = getopt(argc, argv, "fd")) != EOF) {
+	while ((rv = getopt(argc, argv, "wfd")) != EOF) {
 		switch (rv) {
+		case 'w':
+			wd = 0;
+			break;
 		case 'd':
 			debug = 1;
 			break;
@@ -834,7 +845,7 @@ main(int argc, char **argv)
 
 	if (!foreground && (geteuid() == 0)) {
 		daemon_init(argv[0]);
-		if (!debug && !watchdog_init())
+		if (wd && !debug && !watchdog_init())
 			clulog(LOG_NOTICE, "Failed to start watchdog\n");
 	}
 

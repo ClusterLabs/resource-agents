@@ -935,22 +935,13 @@ vf_init(int my_node_id, uint16_t my_port, vf_vote_cb_t vcb,
 }
 
 
-/**
-  Shut down VF
-  */
 int
-vf_shutdown(void)
+vf_invalidate(void)
 {
 	key_node_t *c_key;
 	view_node_t *c_jv;
 	commit_node_t *c_cn;
 
-	pthread_mutex_lock(&vf_mutex);
-	vf_thread_ready = 0;
-	pthread_cancel(vf_thread);
-	pthread_join(vf_thread, NULL);
-	_port = 0;
-	_node_id = (int)-1;
 	pthread_mutex_lock(&key_list_mutex);
 
 	while ((c_key = key_list) != NULL) {
@@ -974,6 +965,29 @@ vf_shutdown(void)
 	}
 
 	pthread_mutex_unlock(&key_list_mutex);
+	return 0;
+}
+
+
+/**
+  Shut down VF
+  */
+int
+vf_shutdown(void)
+{
+	key_node_t *c_key;
+	view_node_t *c_jv;
+	commit_node_t *c_cn;
+
+	pthread_mutex_lock(&vf_mutex);
+	vf_thread_ready = 0;
+	pthread_cancel(vf_thread);
+	pthread_join(vf_thread, NULL);
+	_port = 0;
+	_node_id = (int)-1;
+
+	vf_invalidate();
+
 	pthread_mutex_unlock(&vf_mutex);
 
 	return 0;

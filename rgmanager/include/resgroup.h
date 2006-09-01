@@ -174,6 +174,9 @@ int my_id(void);
 #define RG_YES		1
 #define RG_NO		2
 
+char *rg_strerror(int val);
+
+
 /*
  * Fail-over domain states
  */

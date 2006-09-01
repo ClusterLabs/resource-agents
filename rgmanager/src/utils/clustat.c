@@ -10,6 +10,7 @@
 #include <termios.h>
 #include <ccs.h>
 #include <libcman.h>
+#include <signal.h>
 
 #ifdef HAVE_CONFIG_H
 #include <config.h>
@@ -46,7 +47,7 @@ rg_state_list_t *
 rg_state_list(int local_node_id, int fast)
 {
 	msgctx_t ctx;
-	int max, n, x;
+	int max = 0, n, x;
 	rg_state_list_t *rsl = NULL;
 	generic_msg_hdr *msgp = NULL;
 	rg_state_msg_t *rsmp = NULL;
@@ -91,6 +92,7 @@ rg_state_list(int local_node_id, int fast)
 		}
 
 		n = msg_receive_simple(&ctx, &msgp, tv.tv_sec);
+
 		if (n < 0) {
 			if (errno == EAGAIN)
 				continue;
@@ -108,6 +110,13 @@ rg_state_list(int local_node_id, int fast)
 		}
 
 		swab_generic_msg_hdr(msgp);
+
+		if (msgp->gh_command == RG_FAIL) {
+			printf("Service states unavailable: %s\n", 
+			       rg_strerror(msgp->gh_arg1));
+			msg_close(&ctx);
+			return NULL;
+		}	
 
 		if (msgp->gh_command == RG_SUCCESS) {
 			free(msgp);
@@ -735,6 +744,8 @@ main(int argc, char **argv)
 		usage(argv[0]);
 		return 1;
 	}
+
+	signal(SIGPIPE, SIG_IGN);
 
 	/* Connect & grab all our info */
 	ch = cman_init(NULL);
