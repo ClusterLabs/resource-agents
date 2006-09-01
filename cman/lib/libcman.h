@@ -174,14 +174,14 @@ typedef struct cman_extra_info {
  */
 
 /* Callback routine for a membership event */
-typedef void (*cman_callback_t)(cman_handle_t handle, void *private, int reason, int arg);
+typedef void (*cman_callback_t)(cman_handle_t handle, void *privdata, int reason, int arg);
 
 /* Callback routine for data received */
-typedef void (*cman_datacallback_t)(cman_handle_t handle, void *private,
+typedef void (*cman_datacallback_t)(cman_handle_t handle, void *privdata,
 				    char *buf, int len, uint8_t port, int nodeid);
 
 
-typedef void (*cman_confchgcallback_t)(cman_handle_t handle, void *private,
+typedef void (*cman_confchgcallback_t)(cman_handle_t handle, void *privdata,
 				       unsigned int *member_list, int member_list_entries,
 				       unsigned int *left_list, int left_list_entries,
 				       unsigned int *joined_list, int joined_list_entries);
@@ -193,13 +193,13 @@ typedef void (*cman_confchgcallback_t)(cman_handle_t handle, void *private,
  *
  * Note that admin sockets can't send data messages or receive callbacks.
  */
-cman_handle_t cman_init(void *private);
-cman_handle_t cman_admin_init(void *private);
+cman_handle_t cman_init(void *privdata);
+cman_handle_t cman_admin_init(void *privdata);
 int cman_finish(cman_handle_t handle);
 
 /* Update/retrieve the private data */
-int cman_set_private(cman_handle_t *h, void *private);
-int cman_get_private(cman_handle_t *h, void **private);
+int cman_set_private(cman_handle_t *h, void *privdata);
+int cman_get_private(cman_handle_t *h, void **privdata);
 
 /*
  * Notification of membership change events. Note that these are sent after
