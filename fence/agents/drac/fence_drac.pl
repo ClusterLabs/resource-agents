@@ -17,6 +17,8 @@
 #  Model 		DRAC Version	Firmware
 #  -------------------	--------------	----------------------
 #  PowerEdge 750	DRAC III/XT	3.20 (Build 10.25)
+#  Dell Remote Access Controller - ERA and DRAC III/XT, v.3.20, A00
+#  
 #  PowerEdge 1855	DRAC/MC		1.1  (Build 03.03)
 #  PowerEdge 1855	DRAC/MC		1.2  (Build 03.03)
 #  PowerEdge 1850	DRAC 4/I	1.35 (Build 09.27)
@@ -130,6 +132,10 @@ sub login
 		fail "failed: telnet failed: ". $t->errmsg."\n" ;
 
 	# Determine DRAC version
+  if (/Dell Embedded Remote Access Controller \(ERA\)\nFirmware Version/m)
+  {
+    $drac_version = $DRAC_VERSION_III_XT;
+  } else {
 	if (/.*\((DRAC[^)]*)\)/m)
 	{
 		print "detected drac version '$1'\n" if $verbose;
@@ -144,6 +150,7 @@ sub login
 		print "WARNING: unable to detect DRAC version '$_'\n";
 		$drac_version = $DRAC_VERSION_UNKNOWN;
 	}
+  }
 
 	# Setup prompt
 	if ($drac_version =~ /$DRAC_VERSION_III_XT/)
@@ -508,7 +515,11 @@ sub get_options_stdin
 		{
 			$cmd_prompt = $val;
 		} 
-		# Excess name/vals won't fail
+		# Excess name/vals will fail
+		else 
+		{
+			fail "parse error: unknown option \"$opt\"";
+		}
 	}
 }
 
