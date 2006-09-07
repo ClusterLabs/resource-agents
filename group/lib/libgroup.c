@@ -88,7 +88,7 @@ static char *get_args(char *buf, int *argc, char **argv, char sep, int want)
 	return rp;
 }
 
-void get_nodeids(char *buf, int memb_count, int *nodeids)
+static void get_nodeids(char *buf, int memb_count, int *nodeids)
 {
 	char *p;
 	int i, count = 0;
@@ -112,7 +112,7 @@ void get_nodeids(char *buf, int memb_count, int *nodeids)
 	}
 }
 
-int get_action(char *buf)
+static int get_action(char *buf)
 {
 	char act[16];
 	int i;
@@ -151,15 +151,32 @@ static int do_write(int fd, void *buf, size_t count)
 {
 	int rv, off = 0;
 
- again:
+ retry:
 	rv = write(fd, buf + off, count);
+	if (rv == -1 && errno == EINTR)
+		goto retry;
 	if (rv < 0)
 		return rv;
 
 	if (rv != count) {
 		count -= rv;
 		off += rv;
-		goto again;
+		goto retry;
+	}
+	return 0;
+}
+
+static int do_read(int fd, void *buf, size_t count)
+{
+	int rv, off = 0;
+
+	while (off < count) {
+		rv = read(fd, buf + off, count - off);
+		if (rv == 0)
+			return -1;
+		if (rv == -1 && errno == EINTR)
+			continue;
+		off += rv;
 	}
 	return 0;
 }
@@ -231,7 +248,7 @@ int group_send(group_handle_t handle, char *name, int len, char *data)
 		return -EINVAL;
 
 	memset(buf, 0, sizeof(buf));
-	rv = sprintf(buf, "send %s %d", name, len);
+	rv = snprintf(buf, sizeof(buf), "send %s %d", name, len);
 	memcpy(buf + rv + 1, data, len);
 
 	return do_write(h->fd, buf, GROUPD_MSGLEN);
@@ -359,8 +376,8 @@ int group_dispatch(group_handle_t handle)
 
 	memset(buf, 0, sizeof(buf));
 
-	rv = read(h->fd, &buf, GROUPD_MSGLEN);
-	if (rv != GROUPD_MSGLEN)
+	rv = do_read(h->fd, &buf, GROUPD_MSGLEN);
+	if (rv < 0)
 		goto out;
 
 	act = get_action(buf);
@@ -378,6 +395,10 @@ int group_dispatch(group_handle_t handle)
 
 		count = atoi(argv[4]);
 		nodeids = malloc(count * sizeof(int));
+		if (!nodeids) {
+			rv = -ENOMEM;
+			goto out;
+		}
 		get_nodeids(p, count, nodeids);
 
 		h->cbs.start(h, h->private, argv[1], atoi(argv[2]),
@@ -403,9 +424,8 @@ int group_dispatch(group_handle_t handle)
 	case DO_SET_ID:
 		get_args(buf, &argc, argv, ' ', 3);
 
-		/* FIXME: id is unsigned, use strtoul() here */
-
-		h->cbs.set_id(h, h->private, argv[1], atoi(argv[2]));
+		h->cbs.set_id(h, h->private, argv[1],
+			      (unsigned int) strtoul(argv[2], NULL, 10));
 		break;
 
 	case DO_DELIVER:
@@ -472,9 +492,9 @@ int group_get_group(int level, char *name, group_data_t *data)
 	if (rv < 0)
 		goto out;
 
-	rv = read(fd, &data_buf, sizeof(data_buf));
-
-	/* FIXME: check rv */
+	rv = do_read(fd, &data_buf, sizeof(data_buf));
+	if (rv < 0)
+		goto out;
 
 	memcpy(data, data_buf, sizeof(group_data_t));
 	rv = 0;
