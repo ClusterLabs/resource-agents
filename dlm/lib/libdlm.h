@@ -176,7 +176,7 @@ extern int dlm_query_wait(struct dlm_lksb *lksb,
 /* These two are for users that want to do their
  * own FD handling
  */
-extern int dlm_get_fd();
+extern int dlm_get_fd(void);
 extern int dlm_dispatch(int fd);
 
 /* Lockspace manipulation calls
