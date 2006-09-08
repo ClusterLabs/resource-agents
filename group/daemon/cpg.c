@@ -528,10 +528,14 @@ static int _send_message(cpg_handle_t h, group_t *g, void *buf, int len)
 		log_group(g, "cpg_mcast_joined error %d handle %llx", error, h);
 	if (error == CPG_ERR_TRY_AGAIN) {
 		retries++;
-		if (retries > 3)
-			sleep(1);
+		usleep(1000);
+		if (!(retries % 100))
+			log_error(g, "cpg_mcast_joined retry %d", retries);
 		goto retry;
 	}
+
+	if (retries)
+		log_group(g, "cpg_mcast_joined retried %d", retries);
 
 	return 0;
 }
