@@ -73,4 +73,4 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			Xinetd
 
 commondir	     = @hb_libdir@
-common_SCRIPTS	     = ocf-shellfuncs
+common_SCRIPTS	     = ocf-shellfuncs ocf-returncodes
