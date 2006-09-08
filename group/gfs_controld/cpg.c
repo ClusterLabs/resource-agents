@@ -183,7 +183,7 @@ int setup_cpg(void)
 	return fd;
 }
 
-static int _send_message(cpg_handle_t h, void *buf, int len)
+static int _send_message(cpg_handle_t h, void *buf, int len, int type)
 {
 	struct iovec iov;
 	cpg_error_t error;
@@ -195,16 +195,22 @@ static int _send_message(cpg_handle_t h, void *buf, int len)
  retry:
 	error = cpg_mcast_joined(h, CPG_TYPE_AGREED, &iov, 1);
 	if (error == CPG_ERR_TRY_AGAIN) {
-		log_debug("cpg_mcast_joined error %d", error);
 		retries++;
-		if (retries > 3)
-			sleep(1);
+		usleep(1000);
+		if (!(retries % 100))
+			log_error("cpg_mcast_joined retry %d %s",
+				   retries, msg_name(type));
 		goto retry;
 	}
 	if (error != CPG_OK) {
-		log_error("cpg_mcast_joined error %d handle %llx", error, h);
+		log_error("cpg_mcast_joined error %d handle %llx %s",
+			  error, h, msg_name(type));
 		return -1;
 	}
+
+	if (retries)
+		log_debug("cpg_mcast_joined retried %d %s",
+			  retries, msg_name(type));
 
 	return 0;
 }
@@ -212,6 +218,7 @@ static int _send_message(cpg_handle_t h, void *buf, int len)
 int send_group_message(struct mountgroup *mg, int len, char *buf)
 {
 	struct gdlm_header *hd = (struct gdlm_header *) buf;
+	int type = hd->type;
 
 	hd->version[0]	= cpu_to_le16(GDLM_VER_MAJOR);
 	hd->version[1]	= cpu_to_le16(GDLM_VER_MINOR);
@@ -221,6 +228,6 @@ int send_group_message(struct mountgroup *mg, int len, char *buf)
 	hd->to_nodeid	= cpu_to_le32(hd->to_nodeid);
 	memcpy(hd->name, mg->name, strlen(mg->name));
 	
-	return _send_message(daemon_handle, buf, len);
+	return _send_message(daemon_handle, buf, len, type);
 }
 
