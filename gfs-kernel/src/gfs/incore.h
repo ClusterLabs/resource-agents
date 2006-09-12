@@ -947,6 +947,8 @@ struct gfs_gl_hash_bucket {
 #define SDF_FOUND_Q_DUMP        (12) /* Recovery found qutoa tags */
 #define SDF_IN_LOG_DUMP         (13) /* Serializes log dumps */
 
+#define SDF_UNMOUNTING		(14)
+
 /* Glock cache */
 #define GFS_GL_HASH_SHIFT       (13)    /* # hash buckets = 8K */
 #define GFS_GL_HASH_SIZE        (1 << GFS_GL_HASH_SHIFT)

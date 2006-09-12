@@ -159,6 +159,8 @@ unsigned int gfs_lm_unlock(struct gfs_sbd *sdp, lm_lock_t *lock,
 	int ret;
 	if (unlikely(test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
 		ret = 0;
+	else if (test_bit(SDF_UNMOUNTING, &sdp->sd_flags)) /* && LM_UNMOUNT_UNLOCK */
+		ret = 0;
 	else
 		ret =  sdp->sd_lockstruct.ls_ops->lm_unlock(lock, cur_state);
 	return ret;
