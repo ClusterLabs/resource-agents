@@ -1644,7 +1644,7 @@ static void do_process_transition(int nodeid, char *data, int len)
 	if (node->fence_agent && msg->fence_agent[0] && strcmp(node->fence_agent, msg->fence_agent))
 	{
 		free(node->fence_agent);
-		strdup(node->fence_agent);
+		node->fence_agent = strdup(msg->fence_agent);
 		node->fence_time = msg->fence_time;
 	}
 
