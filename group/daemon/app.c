@@ -720,15 +720,23 @@ int do_stopdone(char *name, int level)
 	return send_stopped(g);
 }
 
-int do_startdone(char *name, int level)
+int do_startdone(char *name, int level, int event_nr)
 {
 	group_t *g;
+	event_t *ev = g->app->current_event;
+	char *state;
 
 	g = find_group_level(name, level);
 
-	if (!g->app->current_event || !event_state_starting(g->app)) {
-		log_error(g, "IGNORE startdone state %d",
-		    g->app->current_event ?  g->app->current_event->state : -1);
+	state = ev ? ev_state_str(ev) : "no-event";
+
+	if (!ev || ev->event_nr != event_nr) {
+		log_group(g, "ignore startdone %d state %s", event_nr, state);
+		return 0;
+	}
+
+	if (!event_state_starting(g->app)) {
+		log_error(g, "IGNORE startdone %d state %s", event_nr, state);
 		return 0;
 	}
 

@@ -237,7 +237,7 @@ int queue_app_join(group_t *g, int nodeid);
 int queue_app_leave(group_t *g, int nodeid);
 int queue_app_message(group_t *g, struct save_msg *save);
 int do_stopdone(char *name, int level);
-int do_startdone(char *name, int level);
+int do_startdone(char *name, int level, int event_nr);
 char *ev_state_str(event_t *ev);
 event_t *find_queued_recover_event(group_t *g);
 void extend_recover_event(group_t *g, event_t *ev, int nodeid);

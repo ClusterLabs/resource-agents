@@ -336,9 +336,9 @@ static void client_alloc(void)
 		client = malloc(NALLOC * sizeof(struct client));
 	else {
 		client = realloc(client, (client_size + NALLOC) *
-				         sizeof(struct client));
+					 sizeof(struct client));
 		pollfd = realloc(pollfd, (client_size + NALLOC) *
-						 sizeof(struct pollfd));
+					 sizeof(struct pollfd));
 		if (!pollfd)
 			log_print("can't alloc for pollfd");
 	}
@@ -586,8 +586,8 @@ static void process_connection(int ci)
 		break;
 
 	case DO_START_DONE:
-		get_args(buf, &argc, argv, ' ', 2);
-		do_startdone(argv[1], client[ci].level);
+		get_args(buf, &argc, argv, ' ', 3);
+		do_startdone(argv[1], client[ci].level, atoi(argv[2]));
 		break;
 
 	case DO_SEND:
