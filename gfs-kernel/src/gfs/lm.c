@@ -122,7 +122,7 @@ int gfs_lm_withdraw(struct gfs_sbd *sdp, char *fmt, ...)
 }
 
 int gfs_lm_get_lock(struct gfs_sbd *sdp, struct lm_lockname *name,
-		     lm_lock_t **lockp)
+		     void **lockp)
 {
 	int error;
 	if (unlikely(test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
@@ -133,13 +133,13 @@ int gfs_lm_get_lock(struct gfs_sbd *sdp, struct lm_lockname *name,
 	return error;
 }
 
-void gfs_lm_put_lock(struct gfs_sbd *sdp, lm_lock_t *lock)
+void gfs_lm_put_lock(struct gfs_sbd *sdp, void *lock)
 {
 	if (likely(!test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
 		sdp->sd_lockstruct.ls_ops->lm_put_lock(lock);
 }
 
-unsigned int gfs_lm_lock(struct gfs_sbd *sdp, lm_lock_t *lock,
+unsigned int gfs_lm_lock(struct gfs_sbd *sdp, void *lock,
 			  unsigned int cur_state, unsigned int req_state,
 			  unsigned int flags)
 {
@@ -153,7 +153,7 @@ unsigned int gfs_lm_lock(struct gfs_sbd *sdp, lm_lock_t *lock,
 	return ret;
 }
 
-unsigned int gfs_lm_unlock(struct gfs_sbd *sdp, lm_lock_t *lock,
+unsigned int gfs_lm_unlock(struct gfs_sbd *sdp, void *lock,
 			    unsigned int cur_state)
 {
 	int ret;
@@ -164,13 +164,13 @@ unsigned int gfs_lm_unlock(struct gfs_sbd *sdp, lm_lock_t *lock,
 	return ret;
 }
 
-void gfs_lm_cancel(struct gfs_sbd *sdp, lm_lock_t *lock)
+void gfs_lm_cancel(struct gfs_sbd *sdp, void *lock)
 {
 	if (likely(!test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
 		sdp->sd_lockstruct.ls_ops->lm_cancel(lock);
 }
 
-int gfs_lm_hold_lvb(struct gfs_sbd *sdp, lm_lock_t *lock, char **lvbp)
+int gfs_lm_hold_lvb(struct gfs_sbd *sdp, void *lock, char **lvbp)
 {
 	int error;
 	if (unlikely(test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
@@ -180,17 +180,19 @@ int gfs_lm_hold_lvb(struct gfs_sbd *sdp, lm_lock_t *lock, char **lvbp)
 	return error;
 }
 
-void gfs_lm_unhold_lvb(struct gfs_sbd *sdp, lm_lock_t *lock, char *lvb)
+void gfs_lm_unhold_lvb(struct gfs_sbd *sdp, void *lock, char *lvb)
 {
 	if (likely(!test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
 		sdp->sd_lockstruct.ls_ops->lm_unhold_lvb(lock, lvb);
 }
 
-void gfs_lm_sync_lvb(struct gfs_sbd *sdp, lm_lock_t *lock, char *lvb)
+#if 0
+void gfs_lm_sync_lvb(struct gfs_sbd *sdp, void *lock, char *lvb)
 {
 	if (likely(!test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
 		sdp->sd_lockstruct.ls_ops->lm_sync_lvb(lock, lvb);
 }
+#endif
 
 int gfs_lm_plock_get(struct gfs_sbd *sdp, struct lm_lockname *name,
 		      struct file *file, struct file_lock *fl)

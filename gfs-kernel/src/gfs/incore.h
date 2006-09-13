@@ -512,7 +512,7 @@ struct gfs_glock {
 	struct gfs_holder *gl_req_gh; /* Holder for request being serviced */
 	gfs_glop_bh_t gl_req_bh;  /* The bottom half to execute */
 
-	lm_lock_t *gl_lock;       /* Lock module's private lock data */
+	void *gl_lock;            /* Lock module's private lock data */
 	char *gl_lvb;             /* Lock Value Block */
 	atomic_t gl_lvb_count;    /* LVB recursive usage (hold/unhold) count */
 

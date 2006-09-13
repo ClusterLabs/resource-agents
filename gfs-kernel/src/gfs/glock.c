@@ -2137,6 +2137,7 @@ gfs_lvb_unhold(struct gfs_glock *gl)
 	glock_put(gl);
 }
 
+#if 0
 /**
  * gfs_lvb_sync - sync a LVB
  * @gl: The glock in question
@@ -2156,6 +2157,7 @@ gfs_lvb_sync(struct gfs_glock *gl)
 
 	unlock_on_glock(gl);
 }
+#endif
 
 /**
  * blocking_cb -
@@ -2205,9 +2207,9 @@ blocking_cb(struct gfs_sbd *sdp, struct lm_lockname *name, unsigned int state)
  */
 
 void
-gfs_glock_cb(lm_fsdata_t *fsdata, unsigned int type, void *data)
+gfs_glock_cb(void *fsdata, unsigned int type, void *data)
 {
-	struct gfs_sbd *sdp = (struct gfs_sbd *)fsdata;
+	struct gfs_sbd *sdp = fsdata;
 
 	atomic_inc(&sdp->sd_lm_callbacks);
 

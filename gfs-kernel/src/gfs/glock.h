@@ -134,7 +134,7 @@ int gfs_lvb_hold(struct gfs_glock *gl);
 void gfs_lvb_unhold(struct gfs_glock *gl);
 void gfs_lvb_sync(struct gfs_glock *gl);
 
-void gfs_glock_cb(lm_fsdata_t *fsdata, unsigned int type, void *data);
+void gfs_glock_cb(void *fsdata, unsigned int type, void *data);
 
 void gfs_try_toss_inode(struct gfs_sbd *sdp, struct gfs_inum *inum);
 void gfs_iopen_go_callback(struct gfs_glock *gl, unsigned int state);
