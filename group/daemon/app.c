@@ -723,10 +723,17 @@ int do_stopdone(char *name, int level)
 int do_startdone(char *name, int level, int event_nr)
 {
 	group_t *g;
-	event_t *ev = g->app->current_event;
+	event_t *ev;
 	char *state;
 
 	g = find_group_level(name, level);
+	if (!g) {
+		log_print("do_startdone: no group level %d name %s",
+			  level, name);
+		return -1;
+	}
+
+	ev = g->app->current_event;
 
 	state = ev ? ev_state_str(ev) : "no-event";
 
