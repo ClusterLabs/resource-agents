@@ -34,6 +34,7 @@ declare LDAP_url_list
 . $(dirname $0)/ocf-shellfuncs
 . $(dirname $0)/utils/config-utils.sh
 . $(dirname $0)/utils/messages.sh
+. $(dirname $0)/utils/ra-skelet.sh
 
 verify_all()
 {
@@ -97,15 +98,15 @@ start()
 	if [ -e "$LDAP_pid_file" ]; then
 		clog_check_pid $CLOG_FAILED "$LDAP_pid_file"
 		clog_service_start $CLOG_FAILED
-		return $OCF_GENERIC_ERROR
+		return $OCF_ERR_GENERIC
 	fi
 
-	clog_looking_for $CLOG_INIT "IP Address"
+	clog_looking_for $CLOG_INIT "IP Addresses"
 
         ccs_fd=$(ccs_connect);
         if [ $? -ne 0 ]; then
 		clog_looking_for $CLOG_FAILED_CCS
-                return $OCF_GENERIC_ERROR
+                return $OCF_ERR_GENERIC
         fi
 
         get_service_ip_keys "$ccs_fd" "$OCF_RESKEY_service_name"
@@ -113,16 +114,16 @@ start()
 
 	if [ -z "$ip_addresses" ]; then
 		clog_looking_for $CLOG_FAILED_NOT_FOUND "IP Addresses"
-		return $OCF_GENERIC_ERROR
+		return $OCF_ERR_GENERIC
 	fi
 	
-	clog_looking_for $CLOG_SUCCEED "IP Address"
+	clog_looking_for $CLOG_SUCCEED "IP Addresses"
 
 	LDAP_url_list=`generate_url_list "$OCF_RESKEY_url_list" "$ip_addresses"`
 
 	if [ -z "$LDAP_url_list" ]; then
 		ocf_log error "Generating URL List for $OCF_RESOURCE_INSTANCE > Failed"
-		return $OCF_GENERIC_ERROR
+		return $OCF_ERR_GENERIC
 	fi
 
 	$LDAP_SLAPD -f "$OCF_RESKEY_config_file" -n "$OCF_RESOURCE_INSTANCE" \
@@ -130,7 +131,7 @@ start()
 
 	if [ $? -ne 0 ]; then
 		clog_service_start $CLOG_FAILED
-		return $OCF_GENERIC_ERROR
+		return $OCF_ERR_GENERIC
 	fi
 
 	clog_service_start $CLOG_SUCCEED
@@ -145,14 +146,14 @@ stop()
 	if [ ! -e "$LDAP_pid_file" ]; then
 		clog_check_file_exist $CLOG_FAILED_NOT_FOUND "$LDAP_pid_file"
 		clog_service_stop $CLOG_FAILED
-		return $OCF_GENERIC_ERROR
+		return $OCF_ERR_GENERIC
 	fi
 
 	kill `cat "$LDAP_pid_file"`
 
 	if [ $? -ne 0 ]; then
 		clog_service_stop $CLOG_FAILED
-		return $OCF_GENERIC_ERROR
+		return $OCF_ERR_GENERIC
 	else
 		clog_service_stop $CLOG_SUCCEED
 	fi
@@ -164,16 +165,11 @@ status()
 {
 	clog_service_status $CLOG_INIT
 
-	if [ ! -e "$LDAP_pid_file" ]; then
-		clog_check_file_exist $CLOG_FAILED_NOT_FOUND "$LDAP_pid_file"
-		clog_service_status $CLOG_FAILED
-		return $OCF_GENERIC_ERROR
+	status_check_pid "$LDAP_pid_file"
+	if [ $? -ne 0 ]; then
+		clog_service_status $CLOG_FAILED "$LDAP_pid_file"
+		return $OCF_ERR_GENERIC
 	fi
-
-	if [ ! -d /proc/`cat "$LDAP_pid_file"` ]; then
-		clog_service_status $CLOG_FAILED
-		return $OCF_GENERIC_ERROR
-	fi	
 
 	clog_service_status $CLOG_SUCCEED
 	return 0

@@ -29,12 +29,13 @@ export PATH=/bin:/sbin:/usr/bin:/usr/sbin
 
 declare MYSQL_MYSQLD=/usr/bin/mysqld_safe
 declare MYSQL_ipAddress
-declare MYSQL_pidFile="/var/run/mysqld/mysql.$OCF_RESKEY_name.pid"
+declare MYSQL_pid_file="/var/run/mysqld/mysql.$OCF_RESKEY_name.pid"
 declare MYSQL_timeout=30
 
 . $(dirname $0)/ocf-shellfuncs
 . $(dirname $0)/utils/config-utils.sh
 . $(dirname $0)/utils/messages.sh
+. $(dirname $0)/utils/ra-skelet.sh
 
 verify_all()
 {
@@ -57,7 +58,7 @@ verify_all()
 		return $OCF_ERR_ARGS
 	fi
 
-	if [ -z "$MYSQL_pidFile" ]; then
+	if [ -z "$MYSQL_pid_file" ]; then
 		clog_service_verify $CLOG_FAILED "Invalid name of PID file"
 		return $OCF_ERR_ARGS
 	fi
@@ -72,10 +73,10 @@ start()
 	
 	clog_service_start $CLOG_INIT
 
-	if [ -e "$MYSQL_pidFile" ]; then
-		clog_check_pid $CLOG_FAILED "$MYSQL_pidFile"
+	if [ -e "$MYSQL_pid_file" ]; then
+		clog_check_pid $CLOG_FAILED "$MYSQL_pid_file"
 		clog_service_start $CLOG_FAILED
-		return $OCF_GENERIC_ERROR
+		return $OCF_ERR_GENERIC
 	fi
 
 	if [ -n "$OCF_RESKEY_ipAddress" ]; then
@@ -86,7 +87,7 @@ start()
 	        ccs_fd=$(ccs_connect);
 	        if [ $? -ne 0 ]; then
 			clog_looking_for $CLOG_FAILED_CCS
-	                return $OCF_GENERIC_ERROR
+	                return $OCF_ERR_GENERIC
 	        fi
 
 	        get_service_ip_keys "$ccs_fd" "$OCF_RESKEY_service_name"
@@ -105,16 +106,16 @@ start()
 	clog_looking_for $CLOG_SUCCEED "IP Address"
 
 	$MYSQL_MYSQLD --defaults-file="$OCF_RESKEY_configFile" \
-		--pid-file="$MYSQL_pidFile" \
+		--pid-file="$MYSQL_pid_file" \
 		--bind-address="$MYSQL_ipAddress" > /dev/null 2>&1 &
 
 	if [ $? -ne 0 ]; then
 		clog_service_start $CLOG_FAILED
-		return $OCF_GENERIC_ERROR
+		return $OCF_ERR_GENERIC
 	fi
 
 	while [ "$MYSQL_timeout" -gt 0 ]; do
-		if [ -f "$MYSQL_pidFile" ]; then
+		if [ -f "$MYSQL_pid_file" ]; then
 			break;			
 		fi
 		sleep 1
@@ -123,7 +124,7 @@ start()
 
         if [ "$MYSQL_timeout" -eq 0 ]; then
 		clog_service_start $CLOG_FAILED_TIMEOUT
-		return $OCF_GENERIC_ERROR
+		return $OCF_ERR_GENERIC
 	fi
 	
 	clog_service_start $CLOG_SUCCEED
@@ -135,17 +136,17 @@ stop()
 {
 	clog_service_stop $CLOG_INIT
 
-	if [ ! -e "$MYSQL_pidFile" ]; then
-		clog_check_file_exist $CLOG_FAILED_NOT_FOUND "$MYSQL_pidFile"
+	if [ ! -e "$MYSQL_pid_file" ]; then
+		clog_check_file_exist $CLOG_FAILED_NOT_FOUND "$MYSQL_pid_file"
 		clog_service_stop $CLOG_FAILED
-		return $OCF_GENERIC_ERROR
+		return $OCF_ERR_GENERIC
 	fi
 
-	kill `cat "$MYSQL_pidFile"`
+	kill `cat "$MYSQL_pid_file"`
 
 	if [ $? -ne 0 ]; then
 		clog_service_stop $CLOG_FAILED
-		return $OCF_GENERIC_ERROR
+		return $OCF_ERR_GENERIC
 	else
 		clog_service_stop $CLOG_SUCCEED
 	fi
@@ -157,16 +158,11 @@ status()
 {
 	clog_service_status $CLOG_INIT
 
-	if [ ! -e "$MYSQL_pidFile" ]; then
-		clog_check_file_exist $CLOG_FAILED_NOT_FOUND "$MYSQL_pidFile"
-		clog_service_status $CLOG_FAILED
-		return $OCF_GENERIC_ERROR
+	status_check_pid "$MYSQL_pid_file"
+	if [ $? -ne 0 ]; then
+		clog_service_status $CLOG_FAILED "$MYSQL_pid_file"
+		return $OCF_ERR_GENERIC
 	fi
-
-	if [ ! -d /proc/`cat "$MYSQL_pidFile"` ]; then
-		clog_service_status $CLOG_FAILED
-		return $OCF_GENERIC_ERROR
-	fi	
 
 	clog_service_status $CLOG_SUCCEED
 	return 0

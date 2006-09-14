@@ -29,13 +29,14 @@ export PATH=/bin:/sbin:/usr/bin:/usr/sbin
 
 declare APACHE_HTTPD=/usr/sbin/httpd
 declare APACHE_genConfig="/tmp/httpd.$OCF_RESKEY_name"
-declare APACHE_pidFile
+declare APACHE_pid_file
 declare APACHE_serverConfigFile
 declare APACHE_defaultPidFile=run/httpd.pid
 
 . $(dirname $0)/ocf-shellfuncs
 . $(dirname $0)/utils/config-utils.sh
 . $(dirname $0)/utils/messages.sh
+. $(dirname $0)/utils/ra-skelet.sh
 
 declare APACHE_parseConfig=$(dirname $0)/utils/httpd-parse-config.pl
 
@@ -71,9 +72,9 @@ apache_pidFile()
 	fi
 
 	if [[ "$CFG_pidFile" =~ '^/' ]]; then
-		APACHE_pidFile="$CFG_pidFile"
+		APACHE_pid_file="$CFG_pidFile"
 	else 
-		APACHE_pidFile="$CFG_serverRoot/$CFG_pidFile"
+		APACHE_pid_file="$CFG_serverRoot/$CFG_pidFile"
 	fi
 
 	rm -f "$tmpFile"
@@ -116,7 +117,7 @@ verify_all()
 		return $OCF_ERR_ARGS
 	fi
 
-	if [ -z "$APACHE_pidFile" ]; then
+	if [ -z "$APACHE_pid_file" ]; then
 		clog_service_verify $CLOG_FAILED "Invalid name of PID file"
 		return $OCF_ERR_ARGS
 	fi
@@ -190,10 +191,10 @@ start()
 
 	clog_service_start $CLOG_INIT	
 
-	if [ -e "$APACHE_pidFile" ]; then
-		clog_check_pid $CLOG_FAILED "$APACHE_pidFile"
+	if [ -e "$APACHE_pid_file" ]; then
+		clog_check_pid $CLOG_FAILED "$APACHE_pid_file"
 		clog_service_start $CLOG_FAILED
-		return $OCF_GENERIC_ERROR
+		return $OCF_ERR_GENERIC
 	fi
 
 	clog_looking_for $CLOG_INIT "IP Addresses"
@@ -201,7 +202,7 @@ start()
 	ccs_fd=$(ccs_connect);
 	if [ $? -ne 0 ]; then
 		clog_looking_for $CLOG_FAILED_CCS
-		return $OCF_GENERIC_ERROR
+		return $OCF_ERR_GENERIC
 	fi
 	
 	get_service_ip_keys "$ccs_fd" "$OCF_RESKEY_service_name"
@@ -209,7 +210,7 @@ start()
 
 	if [ -z "$ip_addresses" ]; then
 		clog_looking_for $CLOG_FAILED_NOT_FOUND "IP Addresses"
-		return $OCF_GENERIC_ERROR
+		return $OCF_ERR_GENERIC
 	fi
 	
 	clog_looking_for $CLOG_SUCCEED "IP Addresses"
@@ -236,17 +237,17 @@ stop()
 {
 	clog_service_stop $CLOG_INIT
 
-	if [ ! -e "$APACHE_pidFile" ]; then
-		clog_check_file_exist $CLOG_FAILED_NOT_FOUND "$APACHE_pidFile"
+	if [ ! -e "$APACHE_pid_file" ]; then
+		clog_check_file_exist $CLOG_FAILED_NOT_FOUND "$APACHE_pid_file"
 		clog_service_stop $CLOG_FAILED
-		return $OCF_GENERIC_ERROR
+		return $OCF_ERR_GENERIC
 	fi
 
 	"$APACHE_HTTPD" -k stop
 
 	if [ $? -ne 0 ]; then
 		clog_service_stop $CLOG_FAILED
-		return $OCF_GENERIC_ERROR
+		return $OCF_ERR_GENERIC
 	else
 		clog_service_stop $CLOG_SUCCEED
 	fi
@@ -258,16 +259,11 @@ status()
 {
 	clog_service_status $CLOG_INIT
 
-	if [ ! -e "$APACHE_pidFile" ]; then
-		clog_check_file_exist $CLOG_FAILED "$APACHE_pidFile"
-		clog_service_status $CLOG_FAILED
-		return $OCF_GENERIC_ERROR
+	status_check_pid "$APACHE_pid_file"
+	if [ $? -ne 0 ]; then
+		clog_service_status $CLOG_FAILED "$APACHE_pid_file"
+		return $OCF_ERR_GENERIC
 	fi
-
-	if [ ! -d /proc/`cat "$APACHE_pidFile"` ]; then
-		clog_service_status $CLOG_FAILED
-		return $OCF_GENERIC_ERROR
-	fi	
 
 	clog_service_status $CLOG_SUCCEED
 	return 0
