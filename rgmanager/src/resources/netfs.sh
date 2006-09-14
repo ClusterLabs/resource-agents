@@ -194,7 +194,7 @@ verify_mountpoint()
 verify_host()
 {
 	if [ -z "$OCF_RESKEY_host" ]; then
-	       ocf_log err "No server hostname or IP addess specified."
+	       ocf_log err "No server hostname or IP address specified."
 	       return 1
 	fi
 
