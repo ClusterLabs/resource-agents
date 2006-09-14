@@ -38,6 +38,42 @@ struct client {
 	void *deadfn;
 };
 
+static int do_write(int fd, void *buf, size_t count)
+{
+	int rv, off = 0;
+
+ retry:
+	rv = write(fd, buf + off, count);
+	if (rv == -1 && errno == EINTR)
+		goto retry;
+	if (rv < 0) {
+		log_print("write fd %d errno %d", fd, errno);
+		return rv;
+	}
+
+	if (rv != count) {
+		count -= rv;
+		off += rv;
+		goto retry;
+	}
+	return 0;
+}
+
+static int do_read(int fd, void *buf, size_t count)
+{
+	int rv, off = 0;
+
+	while (off < count) {
+		rv = read(fd, buf + off, count - off);
+		if (rv == 0)
+			return -1;
+		if (rv == -1 && errno == EINTR)
+			continue;
+		off += rv;
+	}
+	return 0;
+}
+
 /* Look for any instances of gfs or dlm in the kernel, if we find any, it
    means they're uncontrolled by us (via gfs_controld/dlm_controld/groupd).
    We need to be rebooted to clear out this uncontrolled kernel state.  Most
@@ -130,9 +166,9 @@ static void app_action(app_t *a, char *buf)
 
 	log_group(a->g, "action for app: %s", buf);
 
-	rv = write(client[a->client].fd, buf, GROUPD_MSGLEN);
-	if (rv != GROUPD_MSGLEN)
-		log_print("write error %d errno %d", rv, errno);
+	rv = do_write(client[a->client].fd, buf, GROUPD_MSGLEN);
+	if (rv < 0)
+		log_error(a->g, "app_action write error");
 }
 
 void app_deliver(app_t *a, struct save_msg *save)
@@ -154,9 +190,9 @@ void app_deliver(app_t *a, struct save_msg *save)
 		  save->msg_long + sizeof(msg_t));
 	*/
 
-	rv = write(client[a->client].fd, buf, GROUPD_MSGLEN);
-	if (rv != GROUPD_MSGLEN)
-		log_print("write error %d errno %d", rv, errno);
+	rv = do_write(client[a->client].fd, buf, GROUPD_MSGLEN);
+	if (rv < 0)
+		log_error(a->g, "app_deliver write error");
 }
 
 void app_terminate(app_t *a)
@@ -325,7 +361,7 @@ int get_action(char *buf)
 	if (!strncmp(act, "dump", 16))
 		return DO_DUMP;
 
-        return -1;
+	return -1;
 }
 
 static void client_alloc(void)
@@ -459,9 +495,9 @@ static int do_get_groups(int ci, int argc, char **argv)
 		i++;
 	}
 
-	rv = write(client[ci].fd, data, len);
-	if (rv != len)
-		log_print("write error %d errno %d", rv, errno);
+	rv = do_write(client[ci].fd, data, len);
+	if (rv < 0)
+		log_print("do_get_groups write error");
 
 	free(data);
 	return 0;
@@ -487,9 +523,9 @@ static int do_get_group(int ci, int argc, char **argv)
 
 	copy_group_data(g, &data);
  out:
-	rv = write(client[ci].fd, &data, sizeof(data));
-	if (rv != sizeof(data))
-		log_print("write error %d errno %d", rv, errno);
+	rv = do_write(client[ci].fd, &data, sizeof(data));
+	if (rv < 0)
+		log_print("do_get_group write error");
 
 	return 0;
 }
@@ -548,14 +584,11 @@ static void process_connection(int ci)
 	memset(buf, 0, sizeof(buf));
 	memset(argv, 0, sizeof(char *) * MAXARGS);
 
-	rv = read(client[ci].fd, buf, GROUPD_MSGLEN);
-	if (!rv) {
-		client_dead(ci);
-		return;
-	}
-	if (rv != GROUPD_MSGLEN) {
+	rv = do_read(client[ci].fd, buf, GROUPD_MSGLEN);
+	if (rv < 0) {
 		log_print("client %d fd %d read error %d %d", ci,
 			  client[ci].fd, rv, errno);
+		client_dead(ci);
 		return;
 	}
 
@@ -577,7 +610,7 @@ static void process_connection(int ci)
 
 	case DO_LEAVE:
 		get_args(buf, &argc, argv, ' ', 2);
-	        do_leave(argv[1], client[ci].level);
+		do_leave(argv[1], client[ci].level);
 		break;
 
 	case DO_STOP_DONE:
@@ -789,9 +822,9 @@ static void print_usage(void)
 	printf("\n");
 	printf("Options:\n");
 	printf("\n");
-	printf("  -D               Enable debugging code and don't fork\n");
-	printf("  -h               Print this help, then exit\n");
-	printf("  -V               Print program version information, then exit\n");
+	printf("  -D	       Enable debugging code and don't fork\n");
+	printf("  -h	       Print this help, then exit\n");
+	printf("  -V	       Print program version information, then exit\n");
 }
 
 static void decode_arguments(int argc, char **argv)
