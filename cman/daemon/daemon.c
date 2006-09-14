@@ -44,6 +44,7 @@
 struct queued_reply
 {
 	struct list list;
+	int offset;
 	char buf[1];
 };
 
@@ -66,7 +67,8 @@ static int send_reply_message(struct connection *con, struct sock_header *msg)
 
 	P_DAEMON("sending reply %x to fd %d\n", msg->command, con->fd);
 	ret = send(con->fd, (char *)msg, msg->length, MSG_DONTWAIT);
-	if (ret == -1 && errno == EAGAIN) {
+	if ((ret > 0 && ret != msg->length) ||
+	    (ret == -1 && errno == EAGAIN)) {
 		/* Queue it */
 		struct queued_reply *qm = malloc(sizeof(struct queued_reply) + msg->length);
 		if (!qm)
@@ -75,6 +77,10 @@ static int send_reply_message(struct connection *con, struct sock_header *msg)
 			return -1;
 		}
 		memcpy(qm->buf, msg, msg->length);
+		if (ret > 0)
+			qm->offset = ret;
+		else
+			qm->offset = 0;
 		list_add(&con->write_msgs, &qm->list);
 		P_DAEMON("queued last message\n");
 		poll_dispatch_modify(ais_poll_handle, con->fd, POLLIN | POLLOUT, process_client);
@@ -108,14 +114,16 @@ static void send_queued_reply(struct connection *con)
 	list_iterate_safe(qmh, tmp, &con->write_msgs) {
 		qm = list_item(qmh, struct queued_reply);
 		msg = (struct sock_header *)qm->buf;
-		ret = send(con->fd, qm->buf, msg->length, MSG_DONTWAIT);
-		if (ret == msg->length)
+		ret = send(con->fd, qm->buf + qm->offset, msg->length - qm->offset, MSG_DONTWAIT);
+		if (ret == msg->length - qm->offset)
 		{
 			list_del(&qm->list);
 			free(qm);
 		}
 		else
 		{
+			if (ret > 0)
+				qm->offset += ret;
 			break;
 		}
 	}
