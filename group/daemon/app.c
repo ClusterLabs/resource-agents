@@ -1323,7 +1323,8 @@ void dump_all_groups(void)
 		dump_group(g);
 }
 
-/* handle a node failure while processing an event */
+/* handle a node failure while processing an event. returning > 0 means
+   we want process_current_event() to be called for the group */
 
 int recover_current_event(group_t *g)
 {
@@ -1443,17 +1444,13 @@ static int process_app(group_t *g)
 		rv += ret;
 
 		ret = recover_current_event(g);
-		if (ret > 0) {
-			rv += ret;
+		if (ret <= 0)
+			goto out;
 
-			/* it's important that we call process_current_event()
-			   when recover_current_event() returns 1 */
-
-			ret = process_current_event(g);
-			if (ret < 0)
-				goto out;
-			rv += ret;
-		}
+		ret = process_current_event(g);
+		if (ret < 0)
+			goto out;
+		rv += ret;
 	} else {
 		/* We only take on a new non-recovery event if there are
 		   no recovery sets outstanding.  The new event may be
@@ -1480,6 +1477,8 @@ static int process_app(group_t *g)
  out:
 	return rv;
 }
+
+/* process_apps() will be called again immediately if it returns > 0 */
 
 int process_apps(void)
 {
