@@ -870,6 +870,24 @@ static void decode_arguments(int argc, char **argv)
 	}
 }
 
+void set_scheduler(void)
+{
+	struct sched_param sched_param;
+	int rv;
+
+	rv = sched_get_priority_max(SCHED_RR);
+	if (rv != -1) {
+		sched_param.sched_priority = 2;
+		rv = sched_setscheduler(0, SCHED_RR, &sched_param);
+		if (rv == -1)
+			log_print("could not set SCHED_RR priority %d err %d",
+				   sched_param.sched_priority, errno);
+	} else {
+		log_print("could not get maximum scheduler priority err %d",
+			  errno);
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	prog_name = argv[0];
@@ -884,6 +902,8 @@ int main(int argc, char *argv[])
 
 	if (!groupd_debug_opt)
 		daemonize();
+
+	set_scheduler();
 
 	pollfd = malloc(NALLOC * sizeof(struct pollfd));
 	if (!pollfd)

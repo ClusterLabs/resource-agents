@@ -26,6 +26,7 @@
 #include <dirent.h>
 #include <syslog.h>
 #include <time.h>
+#include <sched.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/types.h>
