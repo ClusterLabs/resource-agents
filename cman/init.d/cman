@@ -8,7 +8,7 @@
 # Provides:
 ### END INIT INFO
 . /etc/init.d/functions
-CCSD_OPTS=-X
+CCSD_OPTS=
 # CMAN_CLUSTER_TIMEOUT -- amount of time to wait for joinging a cluster
 #     before giving up.  If CMAN_CLUSTER_TIMEOUT is positive, then we will
 #     wait CMAN_CLUSTER_TIMEOUT seconds before giving up and failing when

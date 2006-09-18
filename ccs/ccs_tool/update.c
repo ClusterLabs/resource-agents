@@ -649,14 +649,15 @@ static ssize_t read_retry(int fd, void *buf, int count, struct timeval *timeout)
 static int ccs_open(cman_node_t node, uint16_t port, int timeout)
 {
   struct in_addr *addr;
+  int fd;
 
   addr = &(((struct sockaddr_in *)&(node.cn_address.cna_address))->sin_addr);
 
-  if (ipv4_connect(addr, port, timeout) < 0) {
+  if ((fd = ipv4_connect(addr, port, timeout)) < 0) {
     return -1;
   }
 
-  return 0;
+  return fd;
 }
 
 
