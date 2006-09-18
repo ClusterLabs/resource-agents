@@ -27,15 +27,15 @@ export LC_ALL=C
 export LANG=C
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin
 
-declare MYSQL_MYSQLD=/usr/bin/mysqld_safe
-declare MYSQL_ipAddress
-declare MYSQL_pid_file="/var/run/mysqld/mysql.$OCF_RESKEY_name.pid"
-declare MYSQL_timeout=30
-
 . $(dirname $0)/ocf-shellfuncs
 . $(dirname $0)/utils/config-utils.sh
 . $(dirname $0)/utils/messages.sh
 . $(dirname $0)/utils/ra-skelet.sh
+
+declare MYSQL_MYSQLD=/usr/bin/mysqld_safe
+declare MYSQL_ipAddress
+declare MYSQL_pid_file="`generate_name_for_pid_file`"
+declare MYSQL_timeout=30
 
 verify_all()
 {
@@ -72,6 +72,8 @@ start()
 	declare ccs_fd;
 	
 	clog_service_start $CLOG_INIT
+
+	create_pid_directory
 
 	if [ -e "$MYSQL_pid_file" ]; then
 		clog_check_pid $CLOG_FAILED "$MYSQL_pid_file"
@@ -136,21 +138,14 @@ stop()
 {
 	clog_service_stop $CLOG_INIT
 
-	if [ ! -e "$MYSQL_pid_file" ]; then
-		clog_check_file_exist $CLOG_FAILED_NOT_FOUND "$MYSQL_pid_file"
-		clog_service_stop $CLOG_FAILED
-		return $OCF_ERR_GENERIC
-	fi
-
-	kill `cat "$MYSQL_pid_file"`
-
+	stop_generic "$MYSQL_pid_file"
+	
 	if [ $? -ne 0 ]; then
 		clog_service_stop $CLOG_FAILED
 		return $OCF_ERR_GENERIC
-	else
-		clog_service_stop $CLOG_SUCCEED
 	fi
 	
+	clog_service_stop $CLOG_SUCCEED
 	return 0;
 }
 
@@ -170,7 +165,7 @@ status()
 
 case $1 in
 	meta-data)
-		cat $(dirname $0)/mysql.metadata
+		cat `echo $0 | sed 's/^\(.*\)\.sh$/\1.metadata/'`
 		exit 0
 		;;
 	verify-all)

@@ -27,14 +27,15 @@ export LC_ALL=C
 export LANG=C
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin
 
-declare LDAP_SLAPD=/usr/sbin/slapd
-declare LDAP_pid_file=/var/run/slapd.pid
-declare LDAP_url_list
-
 . $(dirname $0)/ocf-shellfuncs
 . $(dirname $0)/utils/config-utils.sh
 . $(dirname $0)/utils/messages.sh
 . $(dirname $0)/utils/ra-skelet.sh
+
+declare LDAP_SLAPD=/usr/sbin/slapd
+declare LDAP_pid_file="`generate_name_for_pid_file`"
+declare LDAP_gen_config_file="/tmp/openldap.$OCF_RESKEY_name"
+declare LDAP_url_list
 
 verify_all()
 {
@@ -88,12 +89,39 @@ generate_url_list()
 	echo $url_list
 }
 
+generate_config_file()
+{
+	declare original_file="$1"
+	declare generated_file="$2"
+
+	if [ -f "$generated_file" ]; then
+		sha1_verify "$generated_file"
+		if [ $? -ne 0 ]; then
+			clog_check_sha1 $CLOG_FAILED
+			return 0
+		fi
+	fi	
+
+	clog_generate_config $CLOG_INIT "$original_file" "$generated_file"
+
+	generate_configTemplate "$generated_file" "$1"
+	echo "pidfile \"$LDAP_pid_file\"" >> $generated_file
+	echo >> $generated_file	
+	sed 's/^[[:space:]]*pidfile/### pidfile/i' < "$original_file" >> "$generated_file"
+	
+        sha1_addToFile "$generated_file"
+	clog_generate_config $CLOG_SUCCEED "$original_file" "$generated_file"
+               
+	return 0;
+}
 
 start()
 {
 	declare ccs_fd;
 	
 	clog_service_start $CLOG_INIT
+
+	create_pid_directory
 
 	if [ -e "$LDAP_pid_file" ]; then
 		clog_check_pid $CLOG_FAILED "$LDAP_pid_file"
@@ -126,7 +154,9 @@ start()
 		return $OCF_ERR_GENERIC
 	fi
 
-	$LDAP_SLAPD -f "$OCF_RESKEY_config_file" -n "$OCF_RESOURCE_INSTANCE" \
+	generate_config_file "$OCF_RESKEY_config_file" "$LDAP_gen_config_file"
+
+	$LDAP_SLAPD -f "$LDAP_gen_config_file" -n "$OCF_RESOURCE_INSTANCE" \
 		-h "$LDAP_url_list" $OCF_RESKEY_slapd_options
 
 	if [ $? -ne 0 ]; then
@@ -143,21 +173,14 @@ stop()
 {
 	clog_service_stop $CLOG_INIT
 
-	if [ ! -e "$LDAP_pid_file" ]; then
-		clog_check_file_exist $CLOG_FAILED_NOT_FOUND "$LDAP_pid_file"
-		clog_service_stop $CLOG_FAILED
-		return $OCF_ERR_GENERIC
-	fi
-
-	kill `cat "$LDAP_pid_file"`
-
+	stop_generic "$LDAP_pid_file"
+	
 	if [ $? -ne 0 ]; then
 		clog_service_stop $CLOG_FAILED
 		return $OCF_ERR_GENERIC
-	else
-		clog_service_stop $CLOG_SUCCEED
 	fi
 	
+	clog_service_stop $CLOG_SUCCEED
 	return 0;
 }
 

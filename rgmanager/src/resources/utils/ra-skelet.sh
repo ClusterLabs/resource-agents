@@ -24,7 +24,7 @@
 #
 status_check_pid()
 {
-	declare pid_file=$1
+	declare pid_file="$1"
 
 	if [ -z "$pid_file" ]; then
 		clog_check_file_exist $CLOG_FAILED_INVALID "$pid_file"
@@ -41,4 +41,23 @@ status_check_pid()
 	fi	
 
 	return 0
+}
+
+stop_generic()
+{
+	declare pid_file="$1"
+
+	if [ ! -e "$pid_file" ]; then
+		clog_check_file_exist $CLOG_FAILED_NOT_FOUND "$pid_file"
+		clog_service_stop $CLOG_FAILED
+		return $OCF_ERR_GENERIC
+	fi
+
+	kill -TERM `cat "$pid_file"`
+
+	if [ $? -ne 0 ]; then
+		return $OCF_ERR_GENERIC
+	fi
+	
+	return 0;
 }

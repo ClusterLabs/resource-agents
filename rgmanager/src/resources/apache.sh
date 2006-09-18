@@ -27,23 +27,21 @@ export LC_ALL=C
 export LANG=C
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin
 
-declare APACHE_HTTPD=/usr/sbin/httpd
-declare APACHE_genConfig="/tmp/httpd.$OCF_RESKEY_name"
-declare APACHE_pid_file
-declare APACHE_serverConfigFile
-declare APACHE_defaultPidFile=run/httpd.pid
-
 . $(dirname $0)/ocf-shellfuncs
 . $(dirname $0)/utils/config-utils.sh
 . $(dirname $0)/utils/messages.sh
 . $(dirname $0)/utils/ra-skelet.sh
+
+declare APACHE_HTTPD=/usr/sbin/httpd
+declare APACHE_genConfig="/tmp/httpd.$OCF_RESKEY_name"
+declare APACHE_serverConfigFile
+declare APACHE_pid_file="`generate_name_for_pid_file`"
 
 declare APACHE_parseConfig=$(dirname $0)/utils/httpd-parse-config.pl
 
 apache_pidFile()
 {
 	declare tmpFile="/tmp/httpd.$OCF_RESKEY_name.$$"
-	declare CFG_pidFile
 	declare CFG_serverRoot
 
 	if [ -f "$APACHE_genConfig" ]; then
@@ -58,23 +56,11 @@ apache_pidFile()
 		generate_configFile "$APACHE_serverConfigFile" "$tmpFile"
 	fi	
 
-	CFG_pidFile=`grep -e '^PidFile' "$tmpFile" | head -n 1 | \
-		sed 's/^PidFile "\(.*\)"/\1/;s/^PidFile \(.*\)/\1/'`
 	CFG_serverRoot=`grep -e '^ServerRoot' "$tmpFile" | head -n 1 | \
 		sed 's/^ServerRoot "\(.*\)"/\1/;s/^ServerRoot \(.*\)/\1/'`
 
-	if [ -z "$CFG_pidFile" ]; then
-		CFG_pidFile="$APACHE_defaultPidFile"
-	fi
-
 	if [ -z "$CFG_serverRoot" ]; then
 		CFG_serverRoot="$OCF_RESKEY_serverRoot"
-	fi
-
-	if [[ "$CFG_pidFile" =~ '^/' ]]; then
-		APACHE_pid_file="$CFG_pidFile"
-	else 
-		APACHE_pid_file="$CFG_serverRoot/$CFG_pidFile"
 	fi
 
 	rm -f "$tmpFile"
@@ -159,7 +145,6 @@ generate_configFile()
 	cat >> "$generatedConfigFile" << EOT
 # From a cluster perspective, the key fields are:
 #     Listen - must be set to service floating IP address.
-#     PidFile - path to the file where PID of running application is stored
 #     ServerRoot - path to the ServerRoot (initial value is set in service conf)
 #
 
@@ -177,7 +162,10 @@ EOT
 	done;
 	IFS="$IFS_old"
 
-	cat "$originalConfigFile" | sed 's/^Listen/### Listen/;s/^Port/### Port/' | \
+	echo "PidFile \"$APACHE_pid_file\"" >> "$generatedConfigFile";
+	echo >> "$generatedConfigFile"
+
+	cat "$originalConfigFile" | sed 's/^Listen/### Listen/;s/^Port/### Port/;s/^PidFile/### PidFile/' | \
 	"$APACHE_parseConfig" -D"$OCF_RESKEY_name" >> "$generatedConfigFile"
 
 	sha1_addToFile "$generatedConfigFile"
@@ -190,6 +178,8 @@ start()
 	declare ip_addresses
 
 	clog_service_start $CLOG_INIT	
+
+	create_pid_directory
 
 	if [ -e "$APACHE_pid_file" ]; then
 		clog_check_pid $CLOG_FAILED "$APACHE_pid_file"
@@ -237,21 +227,14 @@ stop()
 {
 	clog_service_stop $CLOG_INIT
 
-	if [ ! -e "$APACHE_pid_file" ]; then
-		clog_check_file_exist $CLOG_FAILED_NOT_FOUND "$APACHE_pid_file"
-		clog_service_stop $CLOG_FAILED
-		return $OCF_ERR_GENERIC
-	fi
-
-	"$APACHE_HTTPD" -k stop
-
+	stop_generic "$APACHE_pid_file"
+	
 	if [ $? -ne 0 ]; then
 		clog_service_stop $CLOG_FAILED
 		return $OCF_ERR_GENERIC
-	else
-		clog_service_stop $CLOG_SUCCEED
 	fi
 	
+	clog_service_stop $CLOG_SUCCEED
 	return 0;
 }
 
@@ -276,7 +259,7 @@ fi;
 		
 case $1 in
 	meta-data)
-		cat $(dirname $0)/apache.metadata
+		cat `echo $0 | sed 's/^\(.*\)\.sh$/\1.metadata/'`
 		exit 0
 		;;
 	verify-all)

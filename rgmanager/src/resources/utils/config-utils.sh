@@ -19,6 +19,8 @@
 #  MA 02139, USA.
 #
 
+declare RA_COMMON_pid_dir=/var/run/cluster
+
 declare -i FAIL=-1
 declare -a ip_keys
 
@@ -214,4 +216,32 @@ build_ip_list()
         done
 
         echo $ipaddrs
+}
+
+generate_name_for_pid_file()
+{
+	declare filename=$(basename $0)
+	
+	echo "$RA_COMMON_pid_dir/$(basename $0 | sed 's/^\(.*\)\..*/\1/')/$OCF_RESOURCE_INSTANCE.pid"
+	
+	return 0;
+}
+
+create_pid_directory()
+{
+	declare program_name="$(basename $0 | sed 's/^\(.*\)\..*/\1/')"
+	declare dirname="$RA_COMMON_pid_dir/$program_name"
+
+	if [ -d "$dirname" ]; then
+		return 0;
+	fi
+	
+	chmod 711 "$RA_COMMON_pid_dir"
+	mkdir -p "$dirname"
+	
+	if [ "$program_name" = "mysql" ]; then
+		chown mysql.root "$dirname"
+	fi
+
+	return 0;
 }
