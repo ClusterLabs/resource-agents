@@ -115,7 +115,7 @@ static void print_usage(FILE *stream){
 	  "  upgrade <location>  Upgrade old CCS format to new xml format.\n"
 	  "  addnode <node>      Add a node\n"
           "  delnode <node>      Delete a node\n"
-          "  lsnodes             List nodes\n"
+          "  lsnode              List nodes\n"
           "  lsfence             List fence devices\n"
 	  "  addfence <fencedev> Add a new fence device\n"
 	  "  delfence <fencedev> Delete a fence device\n"
