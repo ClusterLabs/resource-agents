@@ -30,7 +30,7 @@ status_check_pid()
 		clog_check_file_exist $CLOG_FAILED_INVALID "$pid_file"
 		return $OCF_ERR_GENERIC
 	fi
-	
+
 	if [ ! -e "$pid_file" ]; then
 		clog_check_file_exist $CLOG_FAILED "$pid_file"
 		return $OCF_ERR_GENERIC
@@ -49,7 +49,6 @@ stop_generic()
 
 	if [ ! -e "$pid_file" ]; then
 		clog_check_file_exist $CLOG_FAILED_NOT_FOUND "$pid_file"
-		clog_service_stop $CLOG_FAILED
 		return $OCF_ERR_GENERIC
 	fi
 
