@@ -343,6 +343,8 @@ static int fill_super_block(struct fsck_sb *sdp)
 	}
 
 	sdp->bl = block_list_create(sdp->last_fs_block+1, gbmap);
+	if (!sdp->bl)
+		goto fail;
 
 	return 0;
 

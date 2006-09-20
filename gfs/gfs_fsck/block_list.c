@@ -31,6 +31,7 @@ static int mark_to_gbmap[16] = {
 struct block_list *block_list_create(uint64_t size, enum block_list_type type)
 {
 	struct block_list *il;
+	uint64_t addl_mem_needed = 0L;
 	log_info("Creating a block list of size %"PRIu64"...\n", size);
 
 	if ((il = malloc(sizeof(*il)))) {
@@ -43,24 +44,45 @@ struct block_list *block_list_create(uint64_t size, enum block_list_type type)
 		switch(type) {
 		case gbmap:
 			if(bitmap_create(&il->list.gbmap.group_map, size, 4)) {
+				/* Note on addl_mem_needed: We've tried to allocate ram   */
+				/* for our bitmaps, but we failed.  The fs is too big.    */
+				/* We should tell them how much to allocate.  This first  */
+				/* bitmap is the biggest, but we need three more smaller  */
+				/* for the code that immediately follows.  I'm rounding   */
+				/* up to twice the memory for this bitmap, even though    */
+				/* it's actually 1 + 3/4.  That will allow for future     */
+				/* mallocs that happen after this point in the code.      */
+				/* For the bad_map, we have two more to go (total of 3)   */
+				/* but again I'm rounding it up to 4 smaller ones.        */
+				/* For the dup_map, I'm rounding from 2 to 3, and for     */
+				/* eattr_map, I'm rounding up from 1 to 2.                */
+				addl_mem_needed = il->list.gbmap.group_map.mapsize * 2;
 				stack;
 				free(il);
 				il = NULL;
 			}
-			if(bitmap_create(&il->list.gbmap.bad_map, size, 1)) {
+			else if(bitmap_create(&il->list.gbmap.bad_map, size, 1)) {
+				addl_mem_needed = il->list.gbmap.group_map.mapsize * 4;
 				stack;
 				free(il);
 				il = NULL;
 			}
-			if(bitmap_create(&il->list.gbmap.dup_map, size, 1)) {
+			else if(bitmap_create(&il->list.gbmap.dup_map, size, 1)) {
+				addl_mem_needed = il->list.gbmap.group_map.mapsize * 3;
 				stack;
 				free(il);
 				il = NULL;
 			}
-			if(bitmap_create(&il->list.gbmap.eattr_map, size, 1)) {
+			else if(bitmap_create(&il->list.gbmap.eattr_map, size, 1)) {
+				addl_mem_needed = il->list.gbmap.group_map.mapsize * 2;
 				stack;
 				free(il);
 				il = NULL;
+			}
+			if (addl_mem_needed) {
+				log_err("This system doesn't have enough memory + swap space to fsck this file system.\n");
+				log_err("Additional memory needed is approximately: %ldMB\n", addl_mem_needed / 1048576);
+				log_err("Please increase your swap space by that amount and run gfs_fsck again.\n");
 			}
 			break;
 		default:

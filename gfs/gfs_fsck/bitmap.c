@@ -54,14 +54,14 @@ int bitmap_create(struct bmap *bmap, uint64_t size, uint8_t chunksize)
 	if(!(bmap->map = malloc(sizeof(char) * bmap->mapsize))) {
 		log_err("Unable to allocate bitmap of size %"PRIu64"\n",
 			bmap->mapsize);
-		return ENOMEM;
+		return -ENOMEM;
 	}
 	if(!memset(bmap->map, 0, sizeof(char) * bmap->mapsize)) {
 		log_err("Unable to zero bitmap of size %"PRIu64"\n",
 			bmap->mapsize);
 		free(bmap->map);
 		bmap->map = NULL;
-		return ENOMEM;
+		return -ENOMEM;
 	}
 	log_debug("Allocated bitmap of size %"PRIu64
 		  " with %d chunks per byte\n",
