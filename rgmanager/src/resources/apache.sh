@@ -39,35 +39,6 @@ declare APACHE_pid_file="`generate_name_for_pid_file`"
 
 declare APACHE_parseConfig=$(dirname $0)/utils/httpd-parse-config.pl
 
-apache_pidFile()
-{
-	declare tmpFile="/tmp/httpd.$OCF_RESKEY_name.$$"
-	declare CFG_serverRoot
-
-	if [ -f "$APACHE_genConfig" ]; then
-		sha1_verify "$APACHE_genConfig"
-		if [ $? -ne 0 ]; then
-			ocf_log debug "Config file changed; skipping"
-			cp "$APACHE_genConfig" "$tmpFile"
-		else 
-			generate_configFile "$APACHE_serverConfigFile" "$tmpFile"
-		fi
-	else
-		generate_configFile "$APACHE_serverConfigFile" "$tmpFile"
-	fi	
-
-	CFG_serverRoot=`grep -e '^ServerRoot' "$tmpFile" | head -n 1 | \
-		sed 's/^ServerRoot "\(.*\)"/\1/;s/^ServerRoot \(.*\)/\1/'`
-
-	if [ -z "$CFG_serverRoot" ]; then
-		CFG_serverRoot="$OCF_RESKEY_server_root"
-	fi
-
-	rm -f "$tmpFile"
-
-	return;
-}
-
 apache_serverConfigFile()
 {
 	if [[ "$OCF_RESKEY_config_file" =~ '^/' ]]; then
@@ -256,7 +227,6 @@ status()
 
 if [ "$1" != "meta-data" ]; then
 	apache_serverConfigFile
-	apache_pidFile
 fi;
 		
 case $1 in
