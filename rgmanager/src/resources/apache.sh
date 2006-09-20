@@ -60,7 +60,7 @@ apache_pidFile()
 		sed 's/^ServerRoot "\(.*\)"/\1/;s/^ServerRoot \(.*\)/\1/'`
 
 	if [ -z "$CFG_serverRoot" ]; then
-		CFG_serverRoot="$OCF_RESKEY_serverRoot"
+		CFG_serverRoot="$OCF_RESKEY_server_root"
 	fi
 
 	rm -f "$tmpFile"
@@ -70,10 +70,10 @@ apache_pidFile()
 
 apache_serverConfigFile()
 {
-	if [[ "$OCF_RESKEY_serverConfigFile" =~ '^/' ]]; then
-		APACHE_serverConfigFile="$OCF_RESKEY_serverConfigFile"
+	if [[ "$OCF_RESKEY_config_file" =~ '^/' ]]; then
+		APACHE_serverConfigFile="$OCF_RESKEY_config_file"
 	else 
-		APACHE_serverConfigFile="$OCF_RESKEY_serverRoot/$OCF_RESKEY_serverConfigFile"
+		APACHE_serverConfigFile="$OCF_RESKEY_server_root/$OCF_RESKEY_config_file"
 	fi
 
 	return;
@@ -83,23 +83,23 @@ verify_all()
 {
 	clog_service_verify $CLOG_INIT 
 	
-	if [ -z "$OCF_RESKEY_serverRoot" ]; then
+	if [ -z "$OCF_RESKEY_server_root" ]; then
 		clog_service_verify $CLOG_FAILED "Invalid ServerRoot"
 		return $OCF_ERR_ARGS
 	fi
 
-	if [ ! -d "$OCF_RESKEY_serverRoot" ]; then
+	if [ ! -d "$OCF_RESKEY_server_root" ]; then
 		clog_service_verify $CLOG_FAILED "ServerRoot Directory Is Missing"
 		return $OCF_ERR_ARGS
 	fi
 
-	if [ -z "$OCF_RESKEY_serverConfigFile" ]; then
-		clog_check_file_exist $CLOG_FAILED_INVALID "$OCF_RESKEY_serverConfigFile"
+	if [ -z "$OCF_RESKEY_config_file" ]; then
+		clog_check_file_exist $CLOG_FAILED_INVALID "$OCF_RESKEY_config_file"
 		return $OCF_ERR_ARGS
 	fi
 
 	if [ ! -r "$APACHE_serverConfigFile" ]; then
-		clog_check_file_exist $CLOG_FAILED_NOT_READABLE "$APACHE_serverConfigFile"
+		clog_check_file_exist $CLOG_FAILED_NOT_READABLE "$APACHE_config_file"
 		return $OCF_ERR_ARGS
 	fi
 
@@ -112,15 +112,16 @@ verify_all()
 
 	"$APACHE_HTTPD" -t \
 		-D"$OCF_RESKEY_name" \
-		-d "$OCF_RESKEY_serverRoot" \
-		-f "$APACHE_serverConfigFile" &> /dev/null
+		-d "$OCF_RESKEY_server_root" \
+		-f "$APACHE_serverConfigFile" \
+		$OCF_RESKEY_httpd_options &> /dev/null
 		
 	if [ $? -ne 0 ]; then
-		clog_check_syntax $CLOG_FAILED "$APACHE_serverConfigFile"
+		clog_check_syntax $CLOG_FAILED "$APACHE_config_file"
 		return $OCF_ERR_GENERIC
 	fi
 
-	clog_check_syntax $CLOG_SUCCEED "$APACHE_serverConfigFile"
+	clog_check_syntax $CLOG_SUCCEED "$APACHE_config_file"
 
 	return 0
 }
@@ -209,8 +210,9 @@ start()
 
 	"$APACHE_HTTPD" \
 		"-D$OCF_RESKEY_name" \
-		-d "$OCF_RESKEY_serverRoot" \
+		-d "$OCF_RESKEY_server_root" \
 		-f "$APACHE_genConfig" \
+		$OCF_RESKEY_httpd_options \
 		-k start
 
 	if [ $? -ne 0 ]; then
