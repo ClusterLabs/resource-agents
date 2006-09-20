@@ -389,13 +389,17 @@ static int init_sbp(struct fsck_sb *sbp)
 
 	/* initialize important inodes, fill the rgrp and journal indexes, etc */
 	if(fill_super_block(sbp)) {
-	        stack;
+		if(!sbp->opts->no)
+			block_mounters(sbp, 0);
+		stack;
 		return -1;
 	}
 
 	/* verify various things */
 
 	if(init_journals(sbp)) {
+		if(!sbp->opts->no)
+			block_mounters(sbp, 0);
 		stack;
 		return -1;
 	}
