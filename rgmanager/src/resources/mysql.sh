@@ -46,14 +46,14 @@ verify_all()
 		return $OCF_ERR_ARGS
 	fi
 
-	if [ -z "$OCF_RESKEY_configFile" ]; then
-		clog_check_file_exist $CLOG_FAILED_INVALID "$OCF_RESKEY_configFile"
+	if [ -z "$OCF_RESKEY_config_file" ]; then
+		clog_check_file_exist $CLOG_FAILED_INVALID "$OCF_RESKEY_config_file"
 		clog_service_verify $CLOG_FAILED
 		return $OCF_ERR_ARGS
 	fi
 
-	if [ ! -r "$OCF_RESKEY_configFile" ]; then
-		clog_check_file_exist $CLOG_FAILED_NOT_READABLE $OCF_RESKEY_configFile
+	if [ ! -r "$OCF_RESKEY_config_file" ]; then
+		clog_check_file_exist $CLOG_FAILED_NOT_READABLE $OCF_RESKEY_config_file
 		clog_service_verify $CLOG_FAILED
 		return $OCF_ERR_ARGS
 	fi
@@ -81,8 +81,8 @@ start()
 		return $OCF_ERR_GENERIC
 	fi
 
-	if [ -n "$OCF_RESKEY_ipAddress" ]; then
-		MYSQL_ipAddress="$OCF_RESKEY_ipAddress"
+	if [ -n "$OCF_RESKEY_listen_address" ]; then
+		MYSQL_ipAddress="$OCF_RESKEY_listen_address"
 	else
 		clog_looking_for $CLOG_INIT "IP Address"
 
@@ -107,9 +107,10 @@ start()
 
 	clog_looking_for $CLOG_SUCCEED "IP Address"
 
-	$MYSQL_MYSQLD --defaults-file="$OCF_RESKEY_configFile" \
+	$MYSQL_MYSQLD --defaults-file="$OCF_RESKEY_config_file" \
 		--pid-file="$MYSQL_pid_file" \
-		--bind-address="$MYSQL_ipAddress" > /dev/null 2>&1 &
+		--bind-address="$MYSQL_ipAddress" \
+		$OCF_RESKEY_mysqld_options > /dev/null 2>&1 &
 
 	if [ $? -ne 0 ]; then
 		clog_service_start $CLOG_FAILED
