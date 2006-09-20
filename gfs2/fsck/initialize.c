@@ -340,6 +340,8 @@ static int init_sbp(struct gfs2_sbd *sbp)
 	/* verify various things */
 
 	if(init_journals(sbp)) {
+		if(!opts.no)
+			block_mounters(sbp, 0);
 		stack;
 		return -1;
 	}
