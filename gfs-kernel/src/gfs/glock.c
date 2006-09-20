@@ -19,9 +19,9 @@
 #include <linux/completion.h>
 #include <linux/buffer_head.h>
 #include <asm/uaccess.h>
+#include <linux/lm_interface.h>
 
 #include "gfs.h"
-#include "lm_interface.h"
 #include "dio.h"
 #include "glock.h"
 #include "glops.h"
