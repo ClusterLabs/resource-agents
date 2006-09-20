@@ -196,6 +196,7 @@ static int fill_super_block(struct gfs2_sbd *sdp)
 	uint64_t inumbuf;
 	struct gfs2_statfs_change sc;
 	int rgcount;
+	uint64_t addl_mem_needed;
 
 	sync();
 
@@ -290,8 +291,13 @@ static int fill_super_block(struct gfs2_sbd *sdp)
 		goto fail;
 	}
 
-	bl = gfs2_block_list_create(last_fs_block+1);
-
+	bl = gfs2_block_list_create(last_fs_block+1, &addl_mem_needed);
+	if (!bl) {
+		log_crit("This system doesn't have enough memory + swap space to fsck this file system.\n");
+		log_crit("Additional memory needed is approximately: %ldMB\n", addl_mem_needed / 1048576);
+		log_crit("Please increase your swap space by that amount and run gfs_fsck again.\n");
+		goto fail;
+	}
 	return 0;
 
  fail:

@@ -318,7 +318,8 @@ struct gfs2_block_list {
         union gfs2_block_lists list;
 };
 
-struct gfs2_block_list *gfs2_block_list_create(uint64_t size);
+struct gfs2_block_list *gfs2_block_list_create(uint64_t size,
+											   uint64_t *addl_mem_needed);
 int gfs2_block_mark(struct gfs2_block_list *il, uint64_t block,
 					enum gfs2_mark_block mark);
 int gfs2_block_set(struct gfs2_block_list *il, uint64_t block,

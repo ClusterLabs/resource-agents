@@ -48,11 +48,11 @@ int gfs2_bitmap_create(struct gfs2_bmap *bmap, uint64_t size,
 	bmap->mapsize = BITMAP_SIZE(size, bmap->chunks_per_byte)+1;
 
 	if(!(bmap->map = malloc(sizeof(char) * bmap->mapsize)))
-		return ENOMEM;
+		return -ENOMEM;
 	if(!memset(bmap->map, 0, sizeof(char) * bmap->mapsize)) {
 		free(bmap->map);
 		bmap->map = NULL;
-		return ENOMEM;
+		return -ENOMEM;
 	}
 	return 0;
 }
