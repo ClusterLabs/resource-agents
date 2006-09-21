@@ -182,11 +182,13 @@ add_ocf_stuff(resource_t *res, char **env, int depth)
 	   Store the OCF Resource Instance (primary attr)
 	 */
 	n = strlen(OCF_RESOURCE_INSTANCE_STR) +
+		strlen(res->r_rule->rr_type) + 1 +
 		strlen(res->r_attrs[0].ra_value) + 2;
 	val = malloc(n);
 	if (!val)
 		return;
-	snprintf(val, n, "%s=%s", OCF_RESOURCE_INSTANCE_STR,
+	snprintf(val, n, "%s=%s:%s", OCF_RESOURCE_INSTANCE_STR,
+		 res->r_rule->rr_type,
 		 res->r_attrs[0].ra_value);
 	*env = val; env++;
 
