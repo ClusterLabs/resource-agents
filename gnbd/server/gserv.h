@@ -49,6 +49,8 @@ typedef struct login_reply_s login_reply_t;
 (x)->sectors = cpu_to_be64((x)->sectors);\
 (x)->version = cpu_to_be16((x)->version);
 
+extern int is_gserv;
+
 void gserv(int sock, char *node, uint64_t sectors, unsigned int flags,
            char *name, int devfd);
 int add_gserv_info(int sock, char *node, dev_info_t *dev, pid_t pid);

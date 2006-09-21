@@ -337,7 +337,9 @@ void parse_cmdline(int argc, char **argv)
 
 void exit_main(void)
 {
-    kill_all_gserv();
+    if (!is_gserv) /* don't do this is you are a gserv process. Only
+		      the main process should kill the gservs */
+    	kill_all_gserv();
 }
 
 int main(int argc, char **argv)

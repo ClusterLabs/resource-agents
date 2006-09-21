@@ -34,6 +34,10 @@
 
 #include <sys/socket.h>
 
+int is_gserv = 0; /* This gets set when child is forked. It is needed so that
+		     the gserv processes don't execute the atexit commands
+		     set up for the main program */
+
 list_decl(waiter_list);
 list_decl(gserv_list);
 off_t file_offset = (off_t)-1;
@@ -402,6 +406,7 @@ void fork_gserv(int sock, char *node, dev_info_t *dev, int devfd)
     unblock_sigchld();
     return;
   }
+  is_gserv = 1;
   unblock_sigchld();
   
   memset(&act,0,sizeof(act));
