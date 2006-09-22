@@ -144,6 +144,7 @@ struct connection
 
 #define NODE_FLAGS_GOTTRANSITION      1
 #define NODE_FLAGS_FENCED             2
+#define NODE_FLAGS_FENCEDWHILEUP      4
 
 /* There's one of these for each node in the cluster */
 struct cluster_node {

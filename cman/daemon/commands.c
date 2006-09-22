@@ -1053,6 +1053,8 @@ static int do_cmd_update_fence_info(char *cmdbuf)
 		return -EINVAL;
 
 	node->flags |= NODE_FLAGS_FENCED;
+	if (node->state == NODESTATE_MEMBER)
+		node->flags |= NODE_FLAGS_FENCEDWHILEUP;
 
 	/* Tell the rest of the cluster (and us!) */
 	fence_msg->cmd = CLUSTER_MSG_FENCESTATUS;
@@ -1083,7 +1085,7 @@ static int do_cmd_get_fence_info(char *cmdbuf, char **retbuf, int retsize, int *
 
 	f->nodeid = nodeid;
 	f->fence_time = node->fence_time;
-	f->flags = node->flags;
+	f->flags = node->flags&NODE_FLAGS_FENCED;
 
 	if (node->fence_agent)
 		strcpy(f->fence_agent, node->fence_agent);
@@ -1621,8 +1623,13 @@ static void do_fence_msg(void *data)
 	if (node->fence_agent)
 		free(node->fence_agent);
 	node->fence_agent = strdup(msg->agent);
-	if (msg->fenced)
+	if (msg->fenced) {
 		node->flags |= NODE_FLAGS_FENCED;
+
+		if (node->state == NODESTATE_MEMBER)
+			node->flags |= NODE_FLAGS_FENCEDWHILEUP;
+	}
+
 }
 
 static void do_process_transition(int nodeid, char *data, int len)
@@ -1850,12 +1857,24 @@ void add_ais_node(int nodeid, uint64_t incarnation, int total_members)
 void del_ais_node(int nodeid)
 {
 	struct cluster_node *node;
+	time_t t;
 	P_MEMB("del_ais_node %d\n", nodeid);
 
 	node = find_node_by_nodeid(nodeid);
 	assert(node);
 
-	node->flags &= ~NODE_FLAGS_FENCED;
+	/* If the node was fenced while up (ie independantly of fenced) then
+	 * don't clear the fenced flag. There is a timeout associated with
+	 * this so if we get the node down more than 2 minutes after the
+	 * fence message then we still clear fenced just to be certain that
+	 * fenced will do the job too.
+	 */
+	time(&t);
+	if (!(node->flags & NODE_FLAGS_FENCEDWHILEUP) || (t - node->fence_time > 120))
+		node->flags &= ~NODE_FLAGS_FENCED;
+
+	node->flags &= ~NODE_FLAGS_FENCEDWHILEUP;
+
 	if (node->state == NODESTATE_MEMBER) {
 		node->state = NODESTATE_DEAD;
 		cluster_members--;
