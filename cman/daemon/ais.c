@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <unistd.h>
 #include <string.h>
 #include <syslog.h>
 #include <signal.h>
@@ -134,6 +135,7 @@ static inline void objdb_get_int(struct objdb_iface_ver0 *objdb, unsigned int ob
 static struct openais_service_handler cman_service_handler = {
 	.name		    		= (unsigned char *)"openais CMAN membership service 2.01",
 	.id			        = CMAN_SERVICE,
+	.flow_control			= OPENAIS_FLOW_CONTROL_NOT_REQUIRED,
 	.lib_exit_fn		       	= cman_exit_fn,
 	.exec_init_fn		       	= cman_exec_init_fn,
 	.config_init_fn                 = NULL,
