@@ -63,6 +63,7 @@ app_t *create_app(group_t *g)
 	a = malloc(sizeof(app_t));
 	memset(a, 0, sizeof(app_t));
 
+	a->need_first_event = 1;
 	INIT_LIST_HEAD(&a->nodes);
 	INIT_LIST_HEAD(&a->events);
 	a->g = g;

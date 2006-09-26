@@ -692,6 +692,7 @@ static int send_stopped(group_t *g)
 	msg_bswap_out(&msg);
 
 	log_group(g, "send stopped");
+	g->app->sent_event_id = ev->id;
 	return send_message_groupd(g, &msg, sizeof(msg));
 }
 
@@ -710,6 +711,7 @@ static int send_started(group_t *g)
 	msg_bswap_out(&msg);
 
 	log_group(g, "send started");
+	g->app->sent_event_id = ev->id;
 	return send_message_groupd(g, &msg, sizeof(msg));
 }
 
@@ -788,7 +790,6 @@ char *ev_state_str(event_t *ev)
 	}
 }
 
-#if 0
 static int count_nodes_not_stopped(app_t *a)
 {
 	node_t *node;
@@ -800,7 +801,6 @@ static int count_nodes_not_stopped(app_t *a)
 	}
 	return i;
 }
-#endif
 
 int event_state_begin(app_t *a)
 {
@@ -853,7 +853,7 @@ static int process_current_event(group_t *g)
 	event_t *ev = a->current_event;
 	node_t *node, *n;
 	struct nodeid *id;
-	int rv = 0, do_start = 0;
+	int rv = 0, do_start = 0, count;
 
 	if (!(event_state_stopping(a) || event_state_starting(a)))
 		log_group(g, "process_current_event %llx %d %s",
@@ -904,10 +904,9 @@ static int process_current_event(group_t *g)
 		break;
 
 	case EST_JOIN_STOP_WAIT:
-		/*
 		count = count_nodes_not_stopped(a);
-		log_group(g, "waiting for %d more nodes to be stopped", count);
-		*/
+		log_group(g, "waiting for %d more stopped messages "
+			  "before JOIN_ALL_STOPPED", count);
 		break;
 
 	case EST_JOIN_ALL_STOPPED:
@@ -939,10 +938,9 @@ static int process_current_event(group_t *g)
 		break;
 
 	case EST_LEAVE_STOP_WAIT:
-		/*
 		count = count_nodes_not_stopped(a);
-		log_group(g, "waiting for %d more nodes to be stopped", count);
-		*/
+		log_group(g, "waiting for %d more stopped messages "
+			  "before LEAVE_ALL_STOPPED", count);
 		break;
 
 	case EST_LEAVE_ALL_STOPPED:
@@ -993,10 +991,9 @@ static int process_current_event(group_t *g)
 		break;
 
 	case EST_FAIL_STOP_WAIT:
-		/*
 		count = count_nodes_not_stopped(a);
-		log_group(g, "waiting for %d more nodes to be stopped", count);
-		*/
+		log_group(g, "waiting for %d more stopped messages "
+			  "before FAIL_ALL_STOPPED", count);
 		break;
 
 	case EST_FAIL_ALL_STOPPED:
@@ -1470,8 +1467,11 @@ static int process_app(group_t *g)
 		}
 
 		if (ev) {
+			a->need_first_event = 0;
 			a->current_event = ev;
 			rv = process_current_event(g);
+		} else if (a->need_first_event) {
+			log_group(g, "waiting for our own cpg join event");
 		}
 	}
  out:

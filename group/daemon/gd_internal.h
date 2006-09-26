@@ -180,6 +180,8 @@ struct app {
 	struct list_head	events;
 	event_t			*current_event;
 	group_t			*g;
+	uint64_t		sent_event_id; /* for debugging */
+	int			need_first_event; /* for debugging */
 };
 
 #define MSG_APP_STOPPED        1

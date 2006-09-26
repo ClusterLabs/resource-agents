@@ -20,6 +20,7 @@ static int			saved_joined_count;
 static int			saved_left_count;
 static cpg_handle_t		saved_handle;
 static struct cpg_name		saved_name;
+static int			message_flow_control_on;
 
 
 static node_t *find_group_node(group_t *g, int nodeid)
@@ -246,6 +247,9 @@ void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 		  msg_type(msg->ms_type));
 	*/
 
+	if (nodeid == our_nodeid && g->app->sent_event_id == msg->ms_event_id)
+		g->app->sent_event_id = 0;
+
 	save = malloc(sizeof(struct save_msg));
 	memset(save, 0, sizeof(struct save_msg));
 	save->nodeid = nodeid;
@@ -375,6 +379,7 @@ void process_cpg(int ci)
 	cpg_error_t error;
 	cpg_handle_t handle;
 	int found = 0;
+	cpg_flow_control_state_t flow_control_state;
 
 	if (ci == groupd_ci) {
 		handle = groupd_handle;
@@ -402,6 +407,18 @@ void process_cpg(int ci)
 	if (error != CPG_OK) {
 		log_print("cpg_dispatch error %d", error);
 		return;
+	}
+
+	error = cpg_flow_control_state_get(handle, &flow_control_state);
+	if (error != CPG_OK)
+		log_error(g, "cpg_flow_control_state_get %d", error);
+	else if (flow_control_state == CPG_FLOW_CONTROL_ENABLED) {
+		message_flow_control_on = 1;
+		log_debug("flow control on");
+	} else {
+		if (message_flow_control_on)
+			log_debug("flow control off");
+		message_flow_control_on = 0;
 	}
 
 	if (got_confchg)

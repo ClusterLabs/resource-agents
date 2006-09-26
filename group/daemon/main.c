@@ -462,6 +462,10 @@ static void copy_group_data(group_t *g, group_data_t *data)
 			else
 				data->event_local_status = -1;
 		}
+
+		if (g->app->sent_event_id)
+			log_group(g, "sent_event_id %llx",
+				  g->app->sent_event_id);
 	}
 
 	data->member_count = g->app->node_count;
