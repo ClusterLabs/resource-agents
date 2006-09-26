@@ -693,7 +693,7 @@ static int send_stopped(group_t *g)
 
 	log_group(g, "send stopped");
 	g->app->sent_event_id = ev->id;
-	return send_message_groupd(g, &msg, sizeof(msg));
+	return send_message_groupd(g, &msg, sizeof(msg), MSG_APP_STOPPED);
 }
 
 static int send_started(group_t *g)
@@ -712,7 +712,7 @@ static int send_started(group_t *g)
 
 	log_group(g, "send started");
 	g->app->sent_event_id = ev->id;
-	return send_message_groupd(g, &msg, sizeof(msg));
+	return send_message_groupd(g, &msg, sizeof(msg), MSG_APP_STARTED);
 }
 
 int do_stopdone(char *name, int level)

@@ -12,7 +12,7 @@
 
 #include "gd_internal.h"
 
-#define OPTION_STRING			"DhV"
+#define OPTION_STRING			"DhVv"
 #define LOCKFILE_NAME			"/var/run/groupd.pid"
 
 extern struct list_head recovery_sets;
@@ -598,7 +598,7 @@ static void process_connection(int ci)
 
 	act = get_action(buf);
 
-	log_debug("got %d bytes from client %d %s", rv, ci, last_action);
+	log_debug("got client %d %s", ci, last_action);
 
 	switch (act) {
 
@@ -850,6 +850,10 @@ static void decode_arguments(int argc, char **argv)
 			exit(EXIT_SUCCESS);
 			break;
 
+		case 'v':
+			groupd_debug_verbose++;
+			break;
+
 		case 'V':
 			printf("groupd (built %s %s)\n", __DATE__, __TIME__);
 			/* printf("%s\n", REDHAT_COPYRIGHT); */
@@ -934,6 +938,7 @@ void groupd_dump_save(void)
 
 char *prog_name;
 int groupd_debug_opt;
+int groupd_debug_verbose;
 char groupd_debug_buf[256];
 char dump_buf[DUMP_SIZE];
 int dump_point;

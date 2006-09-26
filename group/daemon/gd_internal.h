@@ -51,6 +51,7 @@
 
 extern char *prog_name;
 extern int groupd_debug_opt;
+extern int groupd_debug_verbose;
 extern char groupd_debug_buf[256];
 extern char dump_buf[DUMP_SIZE];
 extern int dump_point;
@@ -276,7 +277,7 @@ int setup_cpg(void);
 int do_cpg_join(group_t *g);
 int do_cpg_leave(group_t *g);
 int send_message(group_t *g, void *buf, int len);
-int send_message_groupd(group_t *g, void *buf, int len);
+int send_message_groupd(group_t *g, void *buf, int len, int type);
 void copy_groupd_data(group_data_t *data);
 int in_groupd_cpg(int nodeid);
 
