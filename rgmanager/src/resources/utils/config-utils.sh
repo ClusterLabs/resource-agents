@@ -30,13 +30,11 @@ generate_configTemplate()
 #
 # "$1" was created from the "$2"
 #
-# This template configuration was automatically generated, and will
-# be automatically regenerated if removed. Please modify this file to
-# speficy subdirectories and/or client access permissions.
-#
-# Once this file has been altered, automatic re-generation will stop.
-# Remember to copy this file to all other cluster members after making
-# changes, or your service will not operate correctly.
+# This template configuration was automatically generated, and will be
+# automatically regenerated if removed. Once this file has been altered,
+# automatic re-generation will stop. Remember to copy this file to all 
+# other cluster members after making changes, or your service will not 
+# operate correctly.
 #
 EOT
 }
@@ -226,6 +224,16 @@ generate_name_for_pid_file()
 	
 	return 0;
 }
+
+generate_name_for_pid_dir()
+{
+	declare filename=$(basename $0)
+	
+	echo "$RA_COMMON_pid_dir/$(basename $0 | sed 's/^\(.*\)\..*/\1/')/$OCF_RESOURCE_INSTANCE"
+	
+	return 0;
+}
+
 
 create_pid_directory()
 {

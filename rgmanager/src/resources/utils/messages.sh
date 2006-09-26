@@ -110,7 +110,7 @@ clog_service_verify()
 {
 	case $1 in
 		$CLOG_INIT)
-			ocf_log info "Verifying Configuration Of $OCF_RESOURCE_INSTANCE"
+			ocf_log debug "Verifying Configuration Of $OCF_RESOURCE_INSTANCE"
 			;;
 		$CLOG_SUCCEED)
 			ocf_log debug "Verifying Configuration Of $OCF_RESOURCE_INSTANCE > Succeed"
