@@ -2751,6 +2751,7 @@ dnl			lib/bindings/perl/cl_raw/Makefile.PL	\
 		lib/plugins/AppHBNotification/Makefile		\
 		lib/plugins/HBcompress/Makefile			\
 		lib/plugins/quorum/Makefile			\
+		lib/plugins/quorumd/Makefile			\
 		lib/plugins/tiebreaker/Makefile			\
 	lib/recoverymgr/Makefile				\
 	lib/stonith/Makefile					\
@@ -2796,6 +2797,7 @@ ldirectord/ldirectord   					\
 	ldirectord/logrotate.d/Makefile				\
 membership/Makefile						\
 	membership/ccm/Makefile					\
+	membership/quorumd/Makefile				\
 pkg/Makefile							\
 	pkg/InfoFiles/pkginfo					\
 	pkg/InfoFiles/preinstall 				\
