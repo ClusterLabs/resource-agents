@@ -1,0 +1,207 @@
+#!/bin/sh
+#
+# Resource script for Pure-FTPd
+#
+# Description:  Manages Pure-FTPd as an OCF resource in 
+#		an Active-Passive High Availability setup.
+#
+# Author:	Rajat Upadhyaya <urajat@novell.com>
+# License:      GNU General Public License (GPL) 
+#
+#
+#	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
+#
+#	The "start" arg starts Pure-FTPd.
+#
+#	The "stop" arg stops it.
+#
+# OCF parameters:
+#  OCF_RESKEY_script
+#  OCF_RESKEY_conffile
+#
+##########################################################################
+# Initialization:
+
+. @hb_libdir@/ocf-shellfuncs
+
+HA_VARRUNDIR=@localstatedir@/run/@HB_PKG@
+PIDFILE=$HA_VARRUNDIR/rsctmp/pure-ftpd-${OCF_RESOURCE_INSTANCE}.pid
+USAGE="Usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
+
+##########################################################################
+
+usage() {
+	echo $USAGE >&2
+}
+
+meta_data() {
+        cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="Pure-FTPd">
+<version>1.0</version>
+<longdesc lang="en">
+This script manages Pure-FTPd in an Active-Passive setup
+</longdesc>
+<shortdesc lang="en">OCF Resource Agent compliant FTP script.</shortdesc>
+
+<parameters>
+<parameter name="script" unique="1" required="1">
+<longdesc lang="en">
+The full path to the Pure-FTPd startup script. 
+For example, "/sbin/pure-config.pl"
+</longdesc>
+<shortdesc lang="en">Script name with full path</shortdesc>
+<content type="string" default="/sbin/pure-config.pl" />
+</parameter>
+<parameter name="conffile" unique="1" required="1">
+<longdesc lang="en">
+The Pure-FTPd configuration file name with full path. 
+For example, "/etc/pure-ftpd/pure-ftpd.conf"
+</longdesc>
+<shortdesc lang="en">Configuration file name with full path</shortdesc>
+<content type="string" default="/etc/pure-ftpd/pure-ftpd.conf" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start"   timeout="90" />
+<action name="stop"    timeout="100" />
+<action name="monitor" depth="10"  timeout="20s" interval="60s" start-delay="1s" /
+<action name="validate-all"  timeout="30s" />
+<action name="meta-data"  timeout="5s" />
+</actions>
+</resource-agent>
+END
+        exit $OCF_SUCCESS
+}
+
+isRunning()
+{
+	kill -0 "$1" > /dev/null
+}
+
+PureFTPd_status()
+{
+	if [ -f $PIDFILE ]
+	then
+	# Pure-FTPd is probably running
+		PID=`head -n 1 $PIDFILE`
+		if [ ! -z $PID ] ; then
+			isRunning "$PID" && [ `ps -p $PID | grep pure-ftpd | wc -l` -eq 1 ]
+			return $?
+		fi
+	fi
+	
+	# Pure-FTPd is not running
+	false
+}
+
+PureFTPd_start()
+{
+  #
+  # make a few checks and start Pure-FTPd
+  #
+  	if ocf_is_root ; then : ; else
+                ocf_log err "You must be root."
+                exit $OCF_ERR_PERM
+        fi
+	
+  # if Pure-FTPd is running return success
+
+	if PureFTPd_status ; then
+		exit $OCF_SUCCESS
+	fi
+
+	if [ -n "$OCF_RESKEY_script" -a -n "$OCF_RESKEY_conffile" ]
+	then
+		$OCF_RESKEY_script $OCF_RESKEY_conffile -g $PIDFILE
+	else
+		ocf_log err "One or more empty arguments"
+		exit $OCF_ERR_GENERIC
+	fi
+  
+	if [ $? -ne 0 ]; then
+		ocf_log info "Pure-FTPd returned error" $?
+		exit $OCF_ERR_GENERIC
+	fi
+
+	exit $OCF_SUCCESS
+}
+
+
+PureFTPd_stop()
+{
+	if PureFTPd_status ; then
+		PID=`head -n 1 $PIDFILE`
+		if [ ! -z $PID ] ; then
+			kill $PID
+		fi
+	fi
+
+	exit $OCF_SUCCESS
+}
+
+PureFTPd_monitor()
+{
+
+  if PureFTPd_status ; then
+	return $OCF_SUCCESS
+  fi
+
+  return $OCF_NOT_RUNNING
+}
+
+PureFTPd_validate_all()
+{
+
+  return $OCF_SUCCESS
+}
+
+#
+# Main
+#
+
+if [ $# -ne 1 ]
+then
+  usage
+  exit $OCF_ERR_ARGS
+fi
+
+case $1 in
+    start)	PureFTPd_start
+		;;
+	
+    stop)	PureFTPd_stop
+    		;;
+		
+    status)	if PureFTPd_status
+    		then
+			ocf_log info "Pure-FTPd is running"
+			exit $OCF_SUCCESS
+		else
+			ocf_log info "Pure-FTPd is stopped"
+			exit $OCF_NOT_RUNNING
+		fi
+    		;;
+		
+    monitor)	PureFTPd_monitor
+    		exit $?
+    		;;
+		
+    validate-all)	PureFTPd_validate_all
+    			exit $?
+    			;;
+			
+    meta-data)	meta_data
+  		;;
+		
+    usage)	usage
+    		exit $OCF_SUCCESS
+		;;
+		
+    *)		usage
+ 		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+

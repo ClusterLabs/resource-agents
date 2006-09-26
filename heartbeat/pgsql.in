@@ -153,7 +153,7 @@ pgsql_start() {
         # Check if we need to create a log file
         if ! check_log_file $LOGFILE
 	then
-            ocf_log err "PostgreSQL can't create a log file: $LOGFILE"
+            ocf_log err "PostgreSQL can't write to the log file: $LOGFILE"
 	    return $OCF_ERR_GENERIC
 	fi
 
@@ -252,12 +252,16 @@ pgsql_monitor() {
 #
 
 check_log_file() {
-    if [ ! -w "$1" ]
+    if [ ! -f "$1" ]
     then
-        if ! runasowner "touch $1 > /dev/null 2>&1"
-        then
-	    return 1
-        fi
+        touch $1 > /dev/null 2>&1
+        chown $PGDBA:$(cat /etc/passwd | grep $PGDBA | cut -d ":" -f 4) $1
+    fi
+
+    #Check if $PGDBA can write to the log file
+    if ! runasowner "test -w $1"
+    then
+        return 1
     fi
 
     return 0

@@ -55,11 +55,13 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			LinuxSCSI	\
 			LVM		\
 			MailTo		\
+			mysql		\
 			oracle		\
 			oralsnr		\
 			pingd		\
 			portblock	\
 			pgsql		\
+			Pure-FTPd	\
 			Raid1		\
 			ServeRAID	\
 			Stateful	\
