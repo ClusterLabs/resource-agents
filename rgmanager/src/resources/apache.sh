@@ -53,7 +53,17 @@ apache_serverConfigFile()
 verify_all()
 {
 	clog_service_verify $CLOG_INIT 
-	
+
+	if [ -z "$OCF_RESKEY_name" ]; then
+		clog_service_verify $CLOG_FAILED "Invalid Name Of Service"
+		return $OCF_ERR_ARGS
+	fi
+
+	if [ -z "$OCF_RESKEY_service_name" ]; then
+		clog_service_verify $CLOG_FAILED_NOT_CHILD
+		return $OCF_ERR_ARGS
+	fi
+                                                	
 	if [ -z "$OCF_RESKEY_server_root" ]; then
 		clog_service_verify $CLOG_FAILED "Invalid ServerRoot"
 		return $OCF_ERR_ARGS

@@ -45,6 +45,11 @@ verify_all()
 		return $OCF_ERR_ARGS
 	fi
 
+	if [ -z "$OCF_RESKEY_service_name" ]; then
+		clog_service_verify $CLOG_FAILED_NOT_CHILD
+		return $OCF_ERR_ARGS
+	fi
+
 	if [ -z "$OCF_RESKEY_config_file" ]; then
 		clog_check_file_exist $CLOG_FAILED_INVALID "$OCF_RESKEY_config_file"
 		clog_service_verify $CLOG_FAILED
