@@ -232,8 +232,14 @@ resgroup_thread_main(void *arg)
 							req->rr_request);
 			break;
 
-		case RG_START:
 		case RG_ENABLE:
+			if (req->rr_target != 0 &&
+			    req->rr_target != my_id()) {
+				error = RG_EFORWARD;
+				ret = RG_NONE;
+				break;
+			}
+		case RG_START:
 			error = handle_start_req(myname, req->rr_request,
 						 &newowner);
 			break;
@@ -431,7 +437,6 @@ resgroup_thread_main(void *arg)
 		    (req->rr_resp_ctx)) {
 			send_response(error, req);
 		}
-
 		
 		rq_free(req);
 	}

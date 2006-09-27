@@ -27,7 +27,7 @@
 
 
 void
-build_message(SmMessageSt *msgp, int action, char *svcName, uint64_t target)
+build_message(SmMessageSt *msgp, int action, char *svcName, int target)
 {
 	msgp->sm_hdr.gh_magic = GENERIC_HDR_MAGIC;
 	msgp->sm_hdr.gh_command = RG_ACTION_REQUEST;
@@ -71,10 +71,18 @@ forwarding_thread(void *arg)
 	/* Construct message */
 	build_message(&msg, req->rr_request, req->rr_group, req->rr_target);
 
-	/* 
+	if (rgs.rs_owner == 0)
+		rgs.rs_owner = req->rr_target;
+	if (rgs.rs_owner == 0) {
+		msg_close(req->rr_resp_ctx);
+		msg_free_ctx(req->rr_resp_ctx);
+		rq_free(req);
+		clulog(LOG_ERR, "Attempt to forward to invalid node ID\n");
+		pthread_exit(NULL);
+	}
+
 	clulog(LOG_DEBUG, "Forwarding %s request to %d\n",
-	       rg_req_str(req->rr_request), (int)rgs.rs_owner);
-	 */
+	       rg_req_str(req->rr_request), rgs.rs_owner);
 
 	if (msg_open(MSG_CLUSTER, rgs.rs_owner, RG_PORT, &ctx, 10) < 0)  {
 		msg_close(req->rr_resp_ctx);
