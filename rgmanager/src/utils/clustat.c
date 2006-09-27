@@ -683,7 +683,7 @@ main(int argc, char **argv)
 	int refresh_sec = 0, errors = 0;
 	int opt, xml = 0, flags = 0;
 	char *member_name = NULL;
-	char *rg_name = NULL;
+	char *rg_name = NULL, real_rg_name[64];
 
 	while ((opt = getopt(argc, argv, "fIls:m:i:xvQh?")) != EOF) {
 		switch(opt) {
@@ -715,6 +715,9 @@ main(int argc, char **argv)
 
 		case 's':
 			rg_name = optarg;
+			if (!strchr(rg_name,':')) {
+				snprintf(real_rg_name, , sizeof(real_rg_name), "service:%s", rg_name);
+				rg_name = real_rg_name;
 			break;
 
 		case 'x':
