@@ -66,6 +66,7 @@ int
 get_my_nodeid(cman_handle_t h)
 {
 	cman_node_t node;
+	memset(&node,0,sizeof(node));
 
 	if (cman_get_node(h, CMAN_NODEID_US, &node) != 0)
 		return -1;
@@ -212,8 +213,51 @@ member_list(void)
 }
 
 
+void
+member_set_state(int nodeid, int state)
+{
+	int x = 0;
+
+	pthread_rwlock_wrlock(&memblock);
+	if (!membership) {
+		pthread_rwlock_unlock(&memblock);
+		return;
+	}
+
+	for (x = 0; x < membership->cml_count; x++) {
+		if (membership->cml_members[x].cn_nodeid == nodeid)
+			membership->cml_members[x].cn_member = state;
+	}
+	pthread_rwlock_unlock(&memblock);
+}
+
+
+int
+member_online(int nodeid)
+{
+	int x = 0, ret = 0;
+
+	pthread_rwlock_rdlock(&memblock);
+	if (!membership) {
+		pthread_rwlock_unlock(&memblock);
+		return 0;
+	}
+
+	for (x = 0; x < membership->cml_count; x++) {
+		if (membership->cml_members[x].cn_nodeid == nodeid) {
+			ret = membership->cml_members[x].cn_member;
+			break;
+		}
+	}
+	pthread_rwlock_unlock(&memblock);
+
+	return ret;
+}
+
+
+
 char *
-member_name(uint64_t id, char *buf, int buflen)
+member_name(int id, char *buf, int buflen)
 {
 	char *n;
 

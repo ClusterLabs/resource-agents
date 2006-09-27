@@ -273,7 +273,7 @@ consider_start(resource_node_t *node, char *svcName, rg_state_t *svcStatus,
 	 * local start.
 	 */
 	if (svcStatus->rs_state == RG_STATE_STARTED &&
-	    svcStatus->rs_owner != mp->cn_nodeid)
+	    svcStatus->rs_owner == mp->cn_nodeid)
 		return;
 
 	if (svcStatus->rs_state == RG_STATE_DISABLED)

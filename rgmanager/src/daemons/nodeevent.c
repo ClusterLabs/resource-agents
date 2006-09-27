@@ -27,8 +27,9 @@
 typedef struct __ne_q {
 	list_head();
 	int ne_local;
-	uint64_t ne_nodeid;
+	int ne_nodeid;
 	int ne_state;
+	int ne_clean;
 } nevent_t;
 
 /**
@@ -37,7 +38,7 @@ typedef struct __ne_q {
 static nevent_t *event_queue = NULL;
 static pthread_mutex_t ne_queue_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_t ne_thread = 0;
-int ne_queue_request(int local, uint64_t nodeid, int state);
+int ne_queue_request(int local, int nodeid, int state);
 
 void hard_exit(void);
 int init_resource_groups(int);
@@ -59,7 +60,7 @@ extern int shutdown_pending;
   @see eval_groups
  */
 void
-node_event(int local, uint64_t nodeID, int nodeStatus)
+node_event(int local, int nodeID, int nodeStatus, int clean)
 {
 	if (!running)
 		return;
@@ -136,7 +137,7 @@ node_fenced(int nodeid)
 {
 	cman_handle_t ch;
 	int fenced = 0;
-	uint64_t fence_time;
+	int fence_time;
 
 	ch = cman_init(NULL);
 	if (cman_get_fenceinfo(ch, nodeid, &fence_time, &fenced, NULL) < 0)
@@ -163,7 +164,8 @@ node_event_thread(void *arg)
 			break; /* We're outta here */
 		pthread_mutex_unlock(&ne_queue_mutex);
 
-		if (ev->ne_state == 0 && node_has_fencing(ev->ne_nodeid)) {
+		if (ev->ne_state == 0 && !ev->ne_clean &&
+		    node_has_fencing(ev->ne_nodeid)) {
 			notice = 0;
 			while (!node_fenced(ev->ne_nodeid)) {
 				if (!notice) {
@@ -179,7 +181,8 @@ node_event_thread(void *arg)
 				       "continuing\n", ev->ne_nodeid);
 		}
 
-		node_event(ev->ne_local, ev->ne_nodeid, ev->ne_state);
+		node_event(ev->ne_local, ev->ne_nodeid, ev->ne_state,
+			   ev->ne_clean);
 
 		free(ev);
 	}
@@ -192,7 +195,7 @@ node_event_thread(void *arg)
 
 
 void
-node_event_q(int local, uint64_t nodeID, int state)
+node_event_q(int local, int nodeID, int state, int clean)
 {
 	nevent_t *ev;
 	pthread_attr_t attrs;
@@ -210,6 +213,7 @@ node_event_q(int local, uint64_t nodeID, int state)
 	ev->ne_state = state;
 	ev->ne_local = local;
 	ev->ne_nodeid = nodeID;
+	ev->ne_clean = clean;
 
 	pthread_mutex_lock (&ne_queue_mutex);
 	list_insert(&event_queue, ev);

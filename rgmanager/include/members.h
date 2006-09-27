@@ -3,10 +3,19 @@
 
 #include <rg_types.h>
 
+typedef enum {
+	NODE_STATE_DOWN = 0,
+	NODE_STATE_UP = 1,
+	NODE_STATE_CLEAN = 2
+} node_state_t;
+
+
 int get_my_nodeid(cman_handle_t h);
 int my_id(void);
 cluster_member_list_t * get_member_list(cman_handle_t h);
 void free_member_list(cluster_member_list_t *ml);
+void member_set_state(int nodeid, int state);
+int member_online(int nodeid);
 int memb_online(cluster_member_list_t *ml, int nodeid);
 int memb_online_name(cluster_member_list_t *ml, char *name);
 int memb_name_to_id(cluster_member_list_t *ml, char *name);

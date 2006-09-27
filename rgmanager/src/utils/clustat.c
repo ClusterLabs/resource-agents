@@ -243,7 +243,7 @@ flag_nodes(cluster_member_list_t *all, cluster_member_list_t *these,
 
 		m = memb_name_to_p(these, all->cml_members[x].cn_name);
 
-		if (m) {
+		if (m && m->cn_member) {
 			all->cml_members[x].cn_nodeid = m->cn_nodeid;
 			all->cml_members[x].cn_member |= flag;
 		}
@@ -299,7 +299,7 @@ add_missing(cluster_member_list_t *all, cluster_member_list_t *these)
 
 
 char *
-my_memb_id_to_name(cluster_member_list_t *members, uint64_t memb_id)
+my_memb_id_to_name(cluster_member_list_t *members, int memb_id)
 {
 	int x;
 
@@ -637,6 +637,7 @@ build_member_list(cman_handle_t ch, int *lid)
 	/* Grab the local node ID and flag it from the list of reported
 	   online nodes */
 	*lid = get_my_nodeid(ch);
+	/* */
 	for (x=0; x<all->cml_count; x++) {
 		if (all->cml_members[x].cn_nodeid == *lid) {
 			m = &all->cml_members[x];
@@ -677,7 +678,7 @@ main(int argc, char **argv)
 	int local_node_id;
 	int fast = 0;
 	int runtype = 0;
-	cman_handle_t ch;
+	cman_handle_t ch = NULL;
 
 	int refresh_sec = 0, errors = 0;
 	int opt, xml = 0, flags = 0;

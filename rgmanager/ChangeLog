@@ -1,6 +1,29 @@
 2006-09-27 Lon Hohberger <lhh at redhat.com>
 	* src/daemons/rg_state.c: Fix #208011 - failed->disabled state 
-	transition
+	transition.  Fix node ID type.
+	* include/members.h: Add a third state to note that a node does
+	not need to be fenced as a result of rgmanager crashing.  Add protos
+	for memb_set_state and member_online functions.
+	* include/reslist.h: Fix type error; node IDs are 32-bit ints, not 
+	64-bit ints.
+	* src/clulib/members.c: Add member_set_state/online functions for
+	quick checks and sets of the protected member list.  Zero out
+	the node structure prior to calling cman_get_nodeid so that we 
+	don't get ENOENT (fixed clustat bug where clustat didn't report
+	the "local" flag).  Fix node ID type.
+	* src/daemons/fo_domain.c: Fix node ID type, fix shadow declaration
+	of member_online
+	* src/daemons/sgroups.c: Unfix logic error that wasn't broken in the
+	first place.
+	* src/daemons/main.c: Fix node ID types.  Add fourth ("clean")
+	param to node_event* to decide whether a node death is clean or not.
+	Nodes get marked clean if we get an RG_EXITING message, otherwise,
+	they are unclean, and we wait for fencing.  
+	* src/daemons/nodeevent.c: Add fourth param to node_event* to help
+	decide if we need to wait for a node to be fenced or not.  Fix
+	node ID type.
+	* src/utils/clustat.c: Fix logic error preventing nodes from properly
+	being flagged.
 
 2006-09-01 Lon Hohberger <lhh at redhat.com>
 	* include/resgroup.h: Add proto for rg_strerror

@@ -196,7 +196,7 @@ void destroy_resource_tree(resource_node_t **tree);
 int construct_domains(int ccsfd, fod_t **domains);
 void deconstruct_domains(fod_t **domains);
 void print_domains(fod_t **domains);
-int node_should_start(uint64_t nodeid, cluster_member_list_t *membership,
+int node_should_start(int nodeid, cluster_member_list_t *membership,
 		      char *rg_name, fod_t **domains);
 
 

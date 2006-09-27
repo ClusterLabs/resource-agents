@@ -38,7 +38,7 @@
 
 int node_should_start_safe(uint32_t, cluster_member_list_t *, char *);
 
-uint32_t next_node_id(cluster_member_list_t *membership, uint32_t me);
+int next_node_id(cluster_member_list_t *membership, int me);
 
 int rg_exec_script(char *rgname, char *script, char *action);
 static int _svc_stop_finish(char *svcName, int failed, uint32_t newstate);
@@ -50,11 +50,11 @@ int check_depend_safe(char *servicename);
 int group_migratory(char *servicename);
 
 
-uint32_t
-next_node_id(cluster_member_list_t *membership, uint32_t me)
+int 
+next_node_id(cluster_member_list_t *membership, int me)
 {
-	uint32_t low = (uint32_t)(-1);
-	uint32_t next = me, curr;
+	int low = (int)(-1);
+	int next = me, curr;
 	int x;
 
 	for (x = 0; x < membership->cml_count; x++) {

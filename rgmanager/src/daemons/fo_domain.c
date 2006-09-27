@@ -266,7 +266,7 @@ int
 node_in_domain(char *nodename, fod_t *domain,
 	       cluster_member_list_t *membership)
 {
-	int member_online = 0, member_match = 0, preferred = 100, myprio = -1;
+	int online = 0, member_match = 0, preferred = 100, myprio = -1;
 	fod_node_t *fodn;
 
 	list_do(&domain->fd_nodes, fodn) {
@@ -283,7 +283,7 @@ node_in_domain(char *nodename, fod_t *domain,
 		 * If we get here, we know:
 		 * A member of the domain is online somewhere
 		 */
-		member_online = 1;
+		online = 1;
 		if (!strcmp(nodename, fodn->fdn_name)) {
 			/*
 			 * If we get here, we know:
@@ -297,7 +297,7 @@ node_in_domain(char *nodename, fod_t *domain,
 			preferred = fodn->fdn_prio;
 	} while (!list_done(&domain->fd_nodes, fodn));
 
-	if (!member_online)
+	if (!online)
 		return 0;
 
 	if (!member_match)
@@ -322,7 +322,7 @@ node_in_domain(char *nodename, fod_t *domain,
  * @return		0 on NO, 1 for YES
  */
 int
-node_should_start(uint64_t nodeid, cluster_member_list_t *membership,
+node_should_start(int nodeid, cluster_member_list_t *membership,
 		  char *rg_name, fod_t **domains)
 {
 	char *nodename = NULL;

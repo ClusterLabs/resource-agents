@@ -41,13 +41,13 @@
 
 int configure_logging(int ccsfd, int debug);
 
-void node_event(int, uint64_t, int);
-void node_event_q(int, uint64_t, int);
+void node_event(int, int, int, int);
+void node_event_q(int, int, int, int);
 int daemon_init(char *);
 int init_resource_groups(int);
 void kill_resource_groups(void);
 void set_my_id(int);
-int eval_groups(int, uint64_t, int);
+int eval_groups(int, int, int);
 void flag_shutdown(int sig);
 void hard_exit(void);
 int send_rg_states(msgctx_t *, int);
@@ -60,7 +60,7 @@ char debug = 0; /* XXX* */
 static int signalled = 0;
 static int port = RG_PORT;
 
-uint64_t next_node_id(cluster_member_list_t *membership, uint64_t me);
+int next_node_id(cluster_member_list_t *membership, int me);
 int rg_event_q(char *svcName, uint32_t state, int owner);
 
 
@@ -190,7 +190,7 @@ membership_update(void)
 		clulog(LOG_INFO, "State change: LOCAL OFFLINE\n");
 		if (node_delta)
 			free_member_list(node_delta);
-		node_event(1, my_id(), 0);
+		node_event(1, my_id(), 0, 0);
 		/* NOTREACHED */
 	}
 
@@ -202,9 +202,9 @@ membership_update(void)
 		   locked.  This is just a performance thing */
 		if (!rg_locked()) {
 			node_event_q(0, node_delta->cml_members[x].cn_nodeid,
-			     		0);
+				     0, 0);
 		} else {
-			clulog(LOG_NOTICE, "Not taking action - services"
+			clulog(LOG_DEBUG, "Not taking action - services"
 			       " locked\n");
 		}
 	}
@@ -219,7 +219,7 @@ membership_update(void)
 	me = memb_online(node_delta, my_id());
 	if (me) {
 		clulog(LOG_INFO, "State change: Local UP\n");
-		node_event_q(1, my_id(), 1);
+		node_event_q(1, my_id(), 1, 1);
 	}
 
 	for (x=0; node_delta && x < node_delta->cml_count; x++) {
@@ -232,7 +232,7 @@ membership_update(void)
 
 		clulog(LOG_INFO, "State change: %s UP\n",
 		       node_delta->cml_members[x].cn_name);
-		node_event_q(0, node_delta->cml_members[x].cn_nodeid, 1);
+		node_event_q(0, node_delta->cml_members[x].cn_nodeid, 1, 1);
 	}
 
 	free_member_list(node_delta);
@@ -490,7 +490,13 @@ dispatch_msg(msgctx_t *ctx, int nodeid, int need_close)
 		break;
 
 	case RG_EXITING:
-		clulog(LOG_NOTICE, "Member %d is going offline\n", (int)nodeid);
+		if (!member_online(msg_hdr->gh_arg1))
+			break;
+
+		clulog(LOG_NOTICE, "Member %d shutting down\n",
+		       msg_hdr->gh_arg1);
+	       	member_set_state(msg_hdr->gh_arg1, 0);
+		node_event_q(0, msg_hdr->gh_arg1, 0, 1);
 		break;
 
 	case VF_MESSAGE:
