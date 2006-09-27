@@ -716,8 +716,11 @@ main(int argc, char **argv)
 		case 's':
 			rg_name = optarg;
 			if (!strchr(rg_name,':')) {
-				snprintf(real_rg_name, , sizeof(real_rg_name), "service:%s", rg_name);
+				snprintf(real_rg_name,
+					 sizeof(real_rg_name),
+					 "service:%s", rg_name);
 				rg_name = real_rg_name;
+			}
 			break;
 
 		case 'x':
