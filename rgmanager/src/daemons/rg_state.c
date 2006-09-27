@@ -947,6 +947,7 @@ _svc_stop(char *svcName, int req, int recover, uint32_t newstate)
 	struct dlm_lksb lockp;
 	rg_state_t svcStatus;
 	int ret;
+	int old_state;
 
 	if (!rg_quorate()) {
 		clulog(LOG_WARNING, "#69: Unclean %s of %s\n", 
@@ -986,6 +987,8 @@ _svc_stop(char *svcName, int req, int recover, uint32_t newstate)
 		break;
 	}
 
+	old_state = svcStatus.rs_state;
+
 	clulog(LOG_NOTICE, "Stopping service %s\n", svcName);
 
 	if (recover)
@@ -1005,7 +1008,14 @@ _svc_stop(char *svcName, int req, int recover, uint32_t newstate)
 
 	ret = group_op(svcName, RG_STOP);
 
-	_svc_stop_finish(svcName, ret, newstate);
+	if (old_state == RG_STATE_FAILED && newstate == RG_STATE_DISABLED) {
+		if (ret)
+			clulog(LOG_ALERT, "Marking %s as 'disabled', "
+			       "but some resources may still be allocated!\n");
+		_svc_stop_finish(svcName, 0, newstate);
+	} else {
+		_svc_stop_finish(svcName, ret, newstate);
+	}
 
 	return ret;
 }
