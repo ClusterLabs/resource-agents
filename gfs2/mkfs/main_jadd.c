@@ -373,7 +373,7 @@ read_superblock(struct gfs2_sbd *sdp)
 			sdp->device_name, strerror(errno));
 	}
 	do_lseek(fd, 0x10 * 4096);
-	do_read(fd, buf, 4096);
+	do_read(fd, buf, PATH_MAX);
 	gfs2_sb_in(&(sdp->sd_sb), buf);
 	sdp->bsize = sdp->sd_sb.sb_bsize;
 	strcpy(lock_table,sdp->sd_sb.sb_locktable);
