@@ -1011,7 +1011,8 @@ _svc_stop(char *svcName, int req, int recover, uint32_t newstate)
 	if (old_state == RG_STATE_FAILED && newstate == RG_STATE_DISABLED) {
 		if (ret)
 			clulog(LOG_ALERT, "Marking %s as 'disabled', "
-			       "but some resources may still be allocated!\n");
+			       "but some resources may still be allocated!\n",
+			       svcName);
 		_svc_stop_finish(svcName, 0, newstate);
 	} else {
 		_svc_stop_finish(svcName, ret, newstate);
