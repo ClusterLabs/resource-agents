@@ -74,6 +74,9 @@ clog_service_stop()
 		$CLOG_FAILED)
 			ocf_log error "Stopping Service $OCF_RESOURCE_INSTANCE > Failed"
 			;;
+		$CLOG_FAILED_NOT_STOPPED)
+			ocf_log error "Stopping Service $OCF_RESOURCE_INSTANCE > Failed - Application Is Still Running"
+			;;
 	esac
 	return 0
 }
@@ -114,6 +117,9 @@ clog_service_verify()
 			;;
 		$CLOG_SUCCEED)
 			ocf_log debug "Verifying Configuration Of $OCF_RESOURCE_INSTANCE > Succeed"
+			;;
+		$CLOG_FAILED_NOT_CHILD)
+			ocf_log error "Service $OCF_RESOURCE_INSTANCE Is Not A Child Of A Service"
 			;;
 		$CLOG_FAILED)
 			if [ "x$2" = "x" ]; then

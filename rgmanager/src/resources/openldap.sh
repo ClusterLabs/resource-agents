@@ -178,7 +178,7 @@ stop()
 {
 	clog_service_stop $CLOG_INIT
 
-	stop_generic "$LDAP_pid_file"
+	stop_generic "$LDAP_pid_file" "$OCF_RESKEY_shutdown_wait"
 	
 	if [ $? -ne 0 ]; then
 		clog_service_stop $CLOG_FAILED

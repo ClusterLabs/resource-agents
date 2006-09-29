@@ -51,6 +51,16 @@
 		<content type="string" />
 	</parameter>
 
+	<parameter name="shutdown_wait">
+		<longdesc lang="en">
+			Wait X seconds for correct end of service shutdown
+		</longdesc>
+		<shortdesc lang="en">
+			Wait X seconds for correct end of service shutdown
+		</shortdesc>
+		<content type="number" />
+	</parameter>
+
         <parameter name="service_name" inherit="service%name">
             <longdesc lang="en">
 	    	Inherit the service name.  We need to know

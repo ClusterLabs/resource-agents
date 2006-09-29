@@ -46,15 +46,35 @@ status_check_pid()
 stop_generic()
 {
 	declare pid_file="$1"
+	declare kill_timeout="$2"
+	declare pid;
+	declare count=0;
 
 	if [ ! -e "$pid_file" ]; then
 		clog_check_file_exist $CLOG_FAILED_NOT_FOUND "$pid_file"
 		return $OCF_ERR_GENERIC
 	fi
 
-	kill -TERM `cat "$pid_file"`
+	if [ -z "$kill_timeout" ]; then
+		kill_timeout=20
+	fi
+
+	read pid < "$pid_file"
+
+	kill -TERM "$pid"
 
 	if [ $? -ne 0 ]; then
+		return $OCF_ERR_GENERIC
+	fi
+
+	until [ `ps --pid "$pid" &> /dev/null; echo $?` = '1' ] || [ $count -gt $kill_timeout ]
+	do
+		sleep 1
+		let count=$count+1
+	done
+
+	if [ $count -gt $kill_timeout ]; then
+		clog_service_stop $CLOG_FAILED_NOT_STOPPED
 		return $OCF_ERR_GENERIC
 	fi
 	
