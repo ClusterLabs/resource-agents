@@ -127,13 +127,13 @@ start()
 	clog_service_start $CLOG_INIT
 
 	create_pid_directory
+	check_pid_file "$LDAP_pid_file"
 
-	if [ -e "$LDAP_pid_file" ]; then
+	if [ $? -ne 0 ]; then
 		clog_check_pid $CLOG_FAILED "$LDAP_pid_file"
 		clog_service_start $CLOG_FAILED
 		return $OCF_ERR_GENERIC
 	fi
-
 	clog_looking_for $CLOG_INIT "IP Addresses"
 
         ccs_fd=$(ccs_connect);

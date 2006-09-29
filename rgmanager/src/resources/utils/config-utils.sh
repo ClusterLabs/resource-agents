@@ -253,3 +253,23 @@ create_pid_directory()
 
 	return 0;
 }
+
+check_pid_file() {
+	declare pid_file="$1"
+
+	if [ -z "$pid_file" ]; then
+		return 1;
+	fi
+
+	if [ ! -e "$pid_file" ]; then
+		return 0;
+	fi
+
+	if [ ! -d /proc/`cat "$pid_file"` ]; then	
+		rm "$pid_file"
+		ocf_log debug "PID File \"$pid_file\" Was Removed - PID Does Not Exist";
+		return 0;
+	fi
+
+	return 1;
+}

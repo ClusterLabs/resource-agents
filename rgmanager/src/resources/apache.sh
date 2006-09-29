@@ -162,8 +162,9 @@ start()
 	clog_service_start $CLOG_INIT	
 
 	create_pid_directory
+	check_pid_file "$APACHE_pid_file"
 
-	if [ -e "$APACHE_pid_file" ]; then
+	if [ $? -ne 0 ]; then
 		clog_check_pid $CLOG_FAILED "$APACHE_pid_file"
 		clog_service_start $CLOG_FAILED
 		return $OCF_ERR_GENERIC

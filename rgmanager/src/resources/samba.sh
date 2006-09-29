@@ -110,14 +110,17 @@ start()
 
 	create_pid_directory
 	mkdir -p "$SAMBA_pid_dir"
+	check_pid_file "$SAMBA_smbd_pid_file"
 
-	if [ -e "$SAMBA_smbd_pid_file" ]; then
+	if [ $? -ne 0 ]; then
 		clog_check_pid $CLOG_FAILED "$SAMBA_smbd_pid_file"
 		clog_service_start $CLOG_FAILED
 		return $OCF_ERR_GENERIC
 	fi
 
-	if [ -e "$SAMBA_nmbd_pid_file" ]; then
+	check_pid_file "$SAMBA_nmbd_pid_file"
+
+	if [ $? -ne 0 ]; then
 		clog_check_pid $CLOG_FAILED "$SAMBA_nmbd_pid_file"
 		clog_service_start $CLOG_FAILED
 		return $OCF_ERR_GENERIC
