@@ -239,9 +239,11 @@ if [ $# -ne 1 ]; then
     exit $OCF_ERR_ARGS
 fi
 
-: ${OCF_RESKEY_update:="15"}
+: ${OCF_RESKEY_update:="15000"}
 : ${OCF_RESKEY_pidfile:="/tmp/ClusterMon_${OCF_RESOURCE_INSTANCE}.pid"}
 : ${OCF_RESKEY_htmlfile:="/tmp/ClusterMon_${OCF_RESOURCE_INSTANCE}.html"}
+
+OCF_RESKEY_update=`expr $OCF_RESKEY_update / 1000`
 
 case $__OCF_ACTION in
 meta-data)	meta_data
