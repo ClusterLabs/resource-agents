@@ -285,6 +285,7 @@ int cman_exit_fn(void *conn_info)
 
 int ais_add_ifaddr(char *mcast, char *ifaddr, int portnum)
 {
+	struct totem_ip_address localhost;
 	unsigned int totem_object_handle;
 	unsigned int interface_object_handle;
 	char tmp[132];
@@ -321,10 +322,19 @@ int ais_add_ifaddr(char *mcast, char *ifaddr, int portnum)
 			if (!ret)
 				ret = totemip_parse(&ifaddrs[num_interfaces], ifaddr,
 						    mcast_addr[num_interfaces].family);
-			if (!ret)
-				num_interfaces++;
-			else
+			if (ret) {
+				errno = EPROTOTYPE;
 				return ret;
+			}
+
+			/* Check it's not bound to localhost, sigh */
+			totemip_localhost(mcast_addr[num_interfaces].family, &localhost);
+			if (totemip_equal(&localhost, &ifaddrs[num_interfaces])) {
+				errno = EADDRINUSE;
+				return -1;
+			}
+
+			num_interfaces++;
 		}
 	}
 

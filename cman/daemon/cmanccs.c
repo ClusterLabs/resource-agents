@@ -228,7 +228,10 @@ static int join(void)
 	for (i = 0; i<num_nodenames; i++) {
 		error = ais_add_ifaddr(mcast[i], nodenames[i], portnums[i]);
 		if (error) {
-			write_cman_pipe("Multicast and node address families differ.");
+			if (errno == EADDRINUSE)
+				write_cman_pipe("Local host name resolves to 127.0.0.1; fix /etc/hosts before starting cluster.");
+			else
+				write_cman_pipe("Multicast and node address families differ.");
 			return error;
 		}
 	}
