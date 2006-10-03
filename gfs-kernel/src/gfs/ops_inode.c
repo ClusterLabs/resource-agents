@@ -24,6 +24,7 @@
 #include <linux/mm.h>
 #include <linux/xattr.h>
 #include <linux/posix_acl.h>
+#include <linux/security.h>
 
 #include "gfs.h"
 #include "acl.h"
@@ -41,6 +42,48 @@
 #include "rgrp.h"
 #include "trans.h"
 #include "unlinked.h"
+
+/**
+ * gfs_security_init -
+ * @dip:
+ * @ip:
+ *
+ * Returns: errno
+ */
+
+static int
+gfs_security_init(struct gfs_inode *dip, struct gfs_inode *ip)
+{
+	int err;
+	size_t len;
+	void *value;
+	char *name;
+	struct gfs_ea_request er;
+
+	err = security_inode_init_security(ip->i_vnode, dip->i_vnode,
+					   &name, &value, &len);
+
+	if (err) {
+		if (err == -EOPNOTSUPP)
+			return 0;
+		return err;
+	}
+
+	memset(&er, 0, sizeof(struct gfs_ea_request));
+
+	er.er_type = GFS_EATYPE_SECURITY;
+	er.er_name = name;
+	er.er_data = value;
+	er.er_name_len = strlen(name);
+	er.er_data_len = len;
+
+	err = gfs_ea_set_i(ip, &er);
+
+	kfree(value);
+	kfree(name);
+
+	return err;
+}
 
 /**
  * gfs_create - Create a file
@@ -104,14 +147,19 @@ gfs_create(struct inode *dir, struct dentry *dentry,
 		gfs_alloc_put(dip);
 	}
 
-	gfs_glock_dq_uninit(&d_gh);
-	gfs_glock_dq_uninit(&i_gh);
-
 	inode = gfs_iget(ip, CREATE);
 	gfs_inode_put(ip);
 
 	if (!inode)
 		return -ENOMEM;
+
+	error = gfs_security_init(dip, ip);
+
+	gfs_glock_dq_uninit(&d_gh);
+	gfs_glock_dq_uninit(&i_gh);
+
+	if (error)
+		return error;
 
 	d_instantiate(dentry, inode);
 	if (new)
@@ -595,11 +643,16 @@ gfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 	gfs_unlinked_unlock(sdp, dip->i_alloc->al_ul);
 	gfs_alloc_put(dip);
 
+	inode = gfs_iget(ip, CREATE);
+	gfs_inode_put(ip);
+
+	error = gfs_security_init(dip, ip);
+
 	gfs_glock_dq_uninit(&d_gh);
 	gfs_glock_dq_uninit(&i_gh);
 
-	inode = gfs_iget(ip, CREATE);
-	gfs_inode_put(ip);
+	if (error)
+		return error;
 
 	if (!inode)
 		return -ENOMEM;
@@ -689,14 +742,19 @@ gfs_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 	gfs_unlinked_unlock(sdp, dip->i_alloc->al_ul);
 	gfs_alloc_put(dip);
 
-	gfs_glock_dq_uninit(&d_gh);
-	gfs_glock_dq_uninit(&i_gh);
-
 	inode = gfs_iget(ip, CREATE);
 	gfs_inode_put(ip);
 
 	if (!inode)
 		return -ENOMEM;
+
+	error = gfs_security_init(dip, ip);
+
+	gfs_glock_dq_uninit(&d_gh);
+	gfs_glock_dq_uninit(&i_gh);
+
+	if (error)
+		return error;
 
 	d_instantiate(dentry, inode);
 	mark_inode_dirty(inode);
@@ -861,11 +919,16 @@ gfs_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t dev)
 	gfs_unlinked_unlock(sdp, dip->i_alloc->al_ul);
 	gfs_alloc_put(dip);
 
+	inode = gfs_iget(ip, CREATE);
+	gfs_inode_put(ip);
+
+	error = gfs_security_init(dip, ip);
+
 	gfs_glock_dq_uninit(&d_gh);
 	gfs_glock_dq_uninit(&i_gh);
 
-	inode = gfs_iget(ip, CREATE);
-	gfs_inode_put(ip);
+	if (error)
+		return error;
 
 	if (!inode)
 		return -ENOMEM;
