@@ -236,6 +236,13 @@ or set to 0, the default function "floor((n+1)/2)" is used, where \fIn\fP
 is the sum-total of all of defined heuristics' \fIscore\fP attribute.
 
 .in 9
+\fIreboot\fP\fB="\fP1\fB"\fP
+.in 12
+If set to 0 (off), qdiskd will *not* reboot after a negative transition
+as a result in a change in score (see section 2.2).  The default for
+this value is 1 (on).
+
+.in 9
 \fIdevice\fP\fB="\fP/dev/sda1\fB"\fP
 .in 12
 This is the device the quorum daemon will use.  This device must be the

@@ -664,7 +664,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 
 		score_req = ctx->qc_scoremin;
 		if (score_req <= 0)
-			score_req = ((score_max + 1) / 2);
+			score_req = (score_max/2 + 1);
 
 		if (score < score_req) {
 			clear_bit(mask, (ctx->qc_my_id-1), sizeof(mask));
@@ -679,7 +679,8 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 				++msg.m_seq;
 				bid_pending = 0;
 				cman_poll_quorum_device(ctx->qc_ch, 0);
-				/* reboot??? */
+				if (ctx->qc_flags & RF_REBOOT)
+					reboot(RB_AUTOBOOT);
 			}
 		}  else {
 			set_bit(mask, (ctx->qc_my_id-1), sizeof(mask));
@@ -827,6 +828,7 @@ get_config_data(char *cluster_name, qd_ctx *ctx, struct h_data *h, int maxh,
 	ctx->qc_interval = 1;
 	ctx->qc_tko = 10;
 	ctx->qc_scoremin = 0;
+	ctx->qc_flags = RF_REBOOT;
 
 	/* Get log log_facility */
 	snprintf(query, sizeof(query), "/cluster/quorumd/@log_facility");
@@ -899,6 +901,15 @@ get_config_data(char *cluster_name, qd_ctx *ctx, struct h_data *h, int maxh,
 		free(val);
 		if (ctx->qc_scoremin < 0)
 			ctx->qc_scoremin = 0;
+	}
+
+	/* Get reboot flag for when we transition -> offline */
+	/* default = on, so, 0 to turn off */
+	snprintf(query, sizeof(query), "/cluster/quorumd/@reboot");
+	if (ccs_get(ccsfd, query, &val) == 0) {
+		if (!atoi(val))
+			ctx->qc_flags &= ~RF_REBOOT;
+		free(val);
 	}
 
 	*cfh = configure_heuristics(ccsfd, h, maxh);

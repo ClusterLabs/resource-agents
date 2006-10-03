@@ -66,6 +66,11 @@ typedef enum {
 } disk_state_flag_t;
 
 
+typedef enum {
+	RF_REBOOT = 0x1		/* Reboot if we go from master->none */
+} run_flag_t;
+
+
 /* RHEL 2.1 / RHCS3 old magic numbers */
 #define HEADER_MAGIC_OLD	0x39119FCD	/* partition header */
 #define STATE_MAGIC_OLD		0xF1840DCE	/* Status block */
@@ -235,7 +240,7 @@ typedef struct {
 	disk_node_state_t qc_disk_status;
 	disk_node_state_t qc_status;
 	int qc_master;		/* Master?! */
-	int qc_unused;
+	run_flag_t qc_flags;
 	cman_handle_t qc_ch;
 	char *qc_device;
 	char *qc_label;
