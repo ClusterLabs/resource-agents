@@ -55,6 +55,8 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			LinuxSCSI	\
 			LVM		\
 			MailTo		\
+			ManageRAID	\
+			ManageVE	\
 			mysql		\
 			oracle		\
 			oralsnr		\

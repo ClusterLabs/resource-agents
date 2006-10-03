@@ -2844,6 +2844,8 @@ resources/Makefile						\
 	resources/OCF/LinuxSCSI					\
 	resources/OCF/LVM					\
 	resources/OCF/MailTo					\
+	resources/OCF/ManageRAID				\
+	resources/OCF/ManageVE					\
         resources/OCF/mysql					\
 	resources/OCF/oracle					\
 	resources/OCF/oralsnr					\

@@ -1,0 +1,301 @@
+#!/bin/sh
+#
+# Name     ManageVE
+# Author   Matthias Dahl, m.dahl@designassembly.de
+# License  GPL version 2
+#
+# (c) 2006 The Design Assembly GmbH.
+#
+#
+# WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING
+#
+# This resource agent is most likely function complete but not error free. Please
+# consider it BETA quality for the moment until it has proven itself stable...
+#
+# USE AT YOUR OWN RISK.
+#
+# WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING
+#
+#
+# partly based on/inspired by original Heartbeat2 OCF resource agents
+#
+# Description
+#
+# This OCF complaint resource agent manages OpenVZ VEs and thus requires
+# a proper OpenVZ installation including a recent vzctl util.
+#
+#
+# Created  07. Sep 2006
+# Updated  18. Sep 2006
+#
+# rev. 1.00.3
+#
+# Changelog
+#
+# 12/Sep/06 1.00.3 more cleanup
+# 12/Sep/06 1.00.2 fixed some logic in start_ve
+#                  general cleanup all over the place
+# 11/Sep/06 1.00.1 fixed some typos
+# 07/Sep/06 1.00.0 it's alive... muahaha... ALIVE... :-)
+# 
+
+###
+. @hb_libdir@/ocf-shellfuncs
+###
+
+# required utilities
+VZCTL=/usr/sbin/vzctl
+AWK=/usr/bin/awk
+
+#
+# check_util()
+#
+# taken from Raid1 Heartbeat2 OCF resource agent
+check_util ()
+{
+    if [[ ! -x "$1" ]]; then
+	ocf_log err "setup problem: Couldn't find utility $1"
+	exit $OCF_ERR_GENERIC
+    fi
+}
+
+#
+# usage()
+#
+# taken from Raid1 Heartbeat2 OCF resource agent
+usage()
+{
+	cat <<-EOT
+	usage: $0 {start|stop|status|monitor|validate-all|usage|meta-data}
+	EOT
+}
+
+#
+# meta_data()
+#
+meta_data()
+{
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="ManageVE">
+  <version>1.00.3</version>
+
+  <longdesc lang="en">
+    This OCF complaint resource agent manages OpenVZ VEs and thus requires
+    a proper OpenVZ installation including a recent vzctl util.
+  </longdesc>
+
+  <shortdesc lang="en">OpenVZ VE resource agent</shortdesc>
+
+  <parameters>
+    <parameter name="veid" unique="0" required="1">
+      <longdesc lang="en">
+        OpenVZ ID of virtual environment (see output of vzlist -a for all assigned IDs)
+      </longdesc>
+      <shortdesc lang="en">OpenVZ ID of VE</shortdesc>
+      <content type="integer" default="" />
+    </parameter>
+  </parameters>
+
+  <actions>
+    <action name="start" timeout="75" />
+    <action name="stop" timeout="75" />
+    <action name="status" depth="0" timeout="10" interval="10" start-delay="10" />
+    <action name="monitor" depth="0" timeout="10" interval="10" start-delay="10" />
+    <action name="validate-all" timeout="5" />
+    <action name="meta-data" timeout="5" />
+  </actions>
+</resource-agent>
+END
+}
+
+#
+# start_ve()
+#
+# ATTENTION: The following code relies on vzctl's exit codes, especially:
+#
+#   0 : success
+#  32 : VE already running
+#
+# In case any of those exit codes change, this function will need fixing.
+#
+start_ve()
+{
+  declare -i retcode
+
+  status_ve
+  retcode=$?
+
+  if [[ $retcode == $OCF_SUCCESS ]]; then
+    return $OCF_SUCCESS
+  elif [[ $retcode != $OCF_NOT_RUNNING ]]; then
+    return $retcode
+  fi
+
+  $VZCTL start $VEID >& /dev/null
+  retcode=$?
+
+  if [[ $retcode != 0 && $retcode != 32 ]]; then
+    ocf_log err "vzctl start $VEID returned: $retcode"
+    return $OCF_ERR_GENERIC
+  fi
+
+  return $OCF_SUCCESS
+}
+
+#
+# stop_ve()
+#
+# ATTENTION: The following code relies on vzctl's exit codes, especially:
+#
+#   0 : success
+#
+# In case any of those exit codes change, this function will need fixing.
+#
+stop_ve()
+{
+  declare -i retcode
+
+  $VZCTL stop $VEID >& /dev/null
+  retcode=$?
+
+  if [[ $retcode != 0 ]]; then
+    ocf_log err "vzctl stop $VEID returned: $retcode"
+    return $OCF_ERR_GENERIC
+  fi
+
+  return $OCF_SUCCESS
+}
+
+#
+# status_ve()
+#
+# ATTENTION: The following code relies on vzctl's status output. The fifth
+# column is interpreted as the VE status (either up or down).
+#
+# In case the output format should change, this function will need fixing.
+#
+status_ve()
+{ 
+  declare -i retcode
+
+  veexists=`$VZCTL status $VEID 2>/dev/null | $AWK '{print $3}'`
+  vestatus=`$VZCTL status $VEID 2>/dev/null | $AWK '{print $5}'`
+  retcode=$?
+
+  if [[ $retcode != 0 ]]; then
+    ocf_log err "vzctl status $VEID returned: $retcode"
+    return $OCF_ERR_GENERIC
+  fi
+
+  if [[ $veexists != "exist" ]]; then
+    ocf_log err "vzctl status $VEID returned: $VEID does not exist."
+    return $OCF_ERR_INSTALLED
+  fi
+
+  case "$vestatus" in
+    running)
+        return $OCF_SUCCESS
+        ;;
+    down)
+	return $OCF_NOT_RUNNING
+        ;;
+    *)
+	ocf_log err "vzctl status $VEID, wrong output format. (5th column: $vestatus)"
+	return $OCF_ERR_GENERIC
+        ;;
+  esac
+}    
+
+#
+# validate_all_ve()
+#
+# ATTENTION: The following code relies on vzctl's status output. The fifth
+# column is interpreted as the VE status (either up or down).
+#
+# In case the output format should change, this function will need fixing.
+#
+validate_all_ve()
+{
+  declare -i retcode
+
+  # VEID should be a valid VE
+  `status_ve`
+  retcode=$?
+
+  if [[ $retcode != $OCF_SUCCESS && $retcode != $OCF_NOT_RUNNING ]]; then
+    return $retcode
+  fi
+
+  return $OCF_SUCCESS
+}
+	
+
+if [[ $# != 1 ]]; then
+  usage
+  exit $OCF_ERR_ARGS
+fi
+
+case "$1" in
+  meta-data)
+	meta_data
+	exit $OCF_SUCCESS
+	;;
+  usage) 
+	usage
+	exit $OCF_SUCCESS
+	;;
+  *)
+	;;
+esac
+
+#
+# check relevant environment variables for sanity and security
+#
+
+# empty string?
+`test -z "$OCF_RESKEY_veid"`
+
+declare -i veidtest1=$?
+
+# really a number?
+`echo "$OCF_RESKEY_veid" | egrep -q '^[[:digit:]]+$'`
+
+if [[ $veidtest1 != 1 || $? != 0 ]]; then
+  ocf_log err "OCF_RESKEY_veid not set or not a number."
+  exit $OCF_ERR_ARGS
+fi
+
+declare -i VEID=$OCF_RESKEY_veid
+
+#
+# check that all relevant utilities are available
+# 
+check_util $VZCTL
+check_util $AWK
+
+#
+# finally... let's see what we are ordered to do :-)
+#
+case "$1" in
+  start)
+	start_ve
+	;;
+  stop)
+	stop_ve
+	;;
+  status|monitor) 
+	status_ve
+	;;
+  validate-all)
+	validate_all_ve
+	;;
+  *)
+	usage
+	exit $OCF_ERR_UNIMPLEMENTED 
+	;;
+esac
+
+exit $?
+
