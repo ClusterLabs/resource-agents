@@ -29,13 +29,14 @@
 
 #include "ccs.h"
 #include "copyright.cf"
+#include "libgroup.h"
 
 #ifndef TRUE
 #define TRUE 1
 #define FALSE 0
 #endif
 
-#define OPTION_STRING			("Vhcj:f:")
+#define OPTION_STRING			("Vhcj:f:t:w")
 #define FENCED_SOCK_PATH                "fenced_socket"
 #define MAXLINE				256
 
@@ -55,8 +56,22 @@ while (0)
 
 char *prog_name;
 int operation;
+int child_wait = FALSE;
+int fenced_start_timeout = 30;
 
-int dispatch_fence_agent(int cd, char *victim, char *self);
+static int get_int_arg(char argopt, char *arg)
+{
+	char *tmp;
+	int val;                                                                                 
+	val = strtol(arg, &tmp, 10);
+	if (tmp == arg || tmp != arg + strlen(arg))
+		die("argument to %c (%s) is not an integer", argopt, arg);
+	
+	if (val < 0)
+		die("argument to %c cannot be negative", argopt);
+	
+	return val;
+}
 
 static int check_mounted(void)
 {
@@ -79,6 +94,7 @@ static int check_mounted(void)
 	}
 
 	fclose(file);
+	return 0;
 }
 
 int fenced_connect(void)
@@ -103,6 +119,35 @@ int fenced_connect(void)
 	}
  out:
 	return fd;
+}
+
+static int we_are_in_fence_domain(void)
+{
+	group_data_t gdata;
+	int rv;
+
+	memset(&gdata, 0, sizeof(gdata));
+	rv = group_get_group(0, "default", &gdata);
+
+	if (rv || strcmp(gdata.client_name, "fence"))
+		return 0;
+
+	return gdata.member;
+}
+
+static int do_wait(void)
+{
+	int i;
+
+	for (i=0; !fenced_start_timeout || i < fenced_start_timeout; i++) {
+		if (we_are_in_fence_domain())
+			return 0;
+		if (!(i % 5))
+			printf("Waiting for fenced to join the fence group.\n");
+		sleep(1);
+	}
+	printf("Error joining the fence group.\n");
+	return -1;
 }
 
 static int do_join(int argc, char *argv[])
@@ -130,8 +175,11 @@ static int do_join(int argc, char *argv[])
 
 	memset(buf, 0, sizeof(buf));
 	rv = read(fd, buf, sizeof(buf));
-
 	/* printf("join result %d %s\n", rv, buf); */
+
+	if (child_wait)
+		do_wait();
+	close(fd);
 	return EXIT_SUCCESS;
 }
 
@@ -146,7 +194,6 @@ static int do_leave(void)
 
 	check_mounted();
 
-
 	memset(buf, 0, sizeof(buf));
 	sprintf(buf, "leave default");
 
@@ -158,6 +205,7 @@ static int do_leave(void)
 	rv = read(fd, buf, sizeof(buf));
 
 	/* printf("leave result %d %s\n", rv, buf); */
+	close(fd);
 	return EXIT_SUCCESS;
 }
 
@@ -182,6 +230,7 @@ static int do_monitor(void)
 		printf("%s", buf);
 	}
 
+	close(fd);
 	return EXIT_SUCCESS;
 }
 
@@ -197,8 +246,10 @@ static void print_usage(void)
 	printf("  wait             Wait for node to be member of default fence domain\n");
 	printf("\n");
 	printf("Options:\n");
+	printf("  -w               Wait for join to complete\n");
 	printf("  -V               Print program version information, then exit\n");
 	printf("  -h               Print this help, then exit\n");
+	printf("  -t               Maximum time in seconds to wait\n");
 	printf("\n");
 	printf("Fenced options:\n");
 	printf("  these are passed on to fenced when it's started\n");
@@ -230,6 +281,10 @@ static void decode_arguments(int argc, char *argv[])
 			exit(EXIT_SUCCESS);
 			break;
 
+		case 'w':
+			child_wait = TRUE;
+			break;
+
 		case ':':
 		case '?':
 			fprintf(stderr, "Please use '-h' for usage.\n");
@@ -238,6 +293,10 @@ static void decode_arguments(int argc, char *argv[])
 
 		case EOF:
 			cont = FALSE;
+			break;
+
+		case 't':
+			fenced_start_timeout = get_int_arg(optchar, optarg);
 			break;
 
 		case 'c':
