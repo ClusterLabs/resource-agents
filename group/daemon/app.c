@@ -629,7 +629,7 @@ node_t *find_app_node(app_t *a, int nodeid)
 	return NULL;
 }
 
-static int is_our_join(event_t *ev)
+int is_our_join(event_t *ev)
 {
 	return (ev->nodeid == our_nodeid);
 }

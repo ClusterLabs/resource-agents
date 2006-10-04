@@ -439,6 +439,7 @@ static void do_setup(int ci, int argc, char **argv)
 static void copy_group_data(group_t *g, group_data_t *data)
 {
 	node_t *node;
+	event_t *ev;
 	int i = 0;
 
 	strncpy(data->client_name, client[g->app->client].type, 32);
@@ -472,6 +473,16 @@ static void copy_group_data(group_t *g, group_data_t *data)
 	list_for_each_entry(node, &g->app->nodes, list) {
 		data->members[i] = node->nodeid;
 		i++;
+
+		if (node->nodeid == our_nodeid)
+			data->member = 1;
+	}
+
+	/* we're in the member list but are still joining */
+	if (data->member) {
+		ev = g->app->current_event;
+		if (ev && is_our_join(ev))
+			data->member = 0;
 	}
 }
 

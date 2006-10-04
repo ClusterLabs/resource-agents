@@ -257,6 +257,7 @@ void msg_bswap_in(msg_t *msg);
 struct recovery_set *get_recovery_set(int nodeid);
 void groupd_down(int nodeid);
 char *msg_type(int type);
+int is_our_join(event_t *ev);
 
 /* main.c */
 void app_stop(app_t *a);
