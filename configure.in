@@ -2696,13 +2696,14 @@ crm/Makefile							\
 	crm/tengine/Makefile					\
 	crm/admin/Makefile					\
 	        crm/admin/crm_primitive.py			\
-	        crm/admin/crm_commands.py			\
-	        crm/admin/crm_utils.py				\
-	        crm/admin/cluster.py				\
+	        crm/admin/cluster				\
+		crm/admin/crm_utils.py                          \
+		crm/admin/crm_commands.py			\
 debian/Makefile							\
 doc/Makefile							\
 	doc/startstop						\
 	doc/cibadmin.8						\
+	doc/crm_resource.8					\
 contrib/Makefile						\
 	contrib/ipfail/Makefile					\
         contrib/mlock/Makefile					\
@@ -2845,11 +2846,15 @@ resources/Makefile						\
 	resources/OCF/LinuxSCSI					\
 	resources/OCF/LVM					\
 	resources/OCF/MailTo					\
+	resources/OCF/ManageRAID				\
+	resources/OCF/ManageVE					\
+        resources/OCF/mysql					\
 	resources/OCF/oracle					\
 	resources/OCF/oralsnr					\
 	resources/OCF/portblock					\
 	resources/OCF/Raid1					\
 	resources/OCF/pgsql					\
+	resources/OCF/Pure-FTPd					\
 	resources/OCF/ServeRAID					\
 	resources/OCF/Stateful					\
 	resources/OCF/SysInfo					\

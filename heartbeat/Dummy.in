@@ -44,34 +44,17 @@ meta_data() {
 
 <longdesc lang="en">
 This is a Dummy Resource Agent. It does absolutely nothing except wait
-for various amounts of time on execution, and fail actions if it sees a
-/tmp/Dummy.{start,stop,monitor,validate-all} around.
+for various amounts of time on execution.
 </longdesc>
 <shortdesc lang="en">Dummy resource agent</shortdesc>
 
 <parameters>
-<parameter name="start_delay" unique="0">
+<parameter name="delay" unique="0">
 <longdesc lang="en">
-How long to delay on start.
+How long to delay before each action.
 </longdesc>
-<shortdesc lang="en">Start delay</shortdesc>
+<shortdesc lang="en">Action delay</shortdesc>
 <content type="integer" default="5" />
-</parameter>
-
-<parameter name="stop_delay" unique="0">
-<longdesc lang="en">
-How long to delay on stop.
-</longdesc>
-<shortdesc lang="en">Stop delay</shortdesc>
-<content type="integer" default="5" />
-</parameter>
-
-<parameter name="monitor_delay" unique="0">
-<longdesc lang="en">
-How long to delay on monitor.
-</longdesc>
-<shortdesc lang="en">Monitor delay</shortdesc>
-<content type="integer" default="2" />
 </parameter>
 
 <parameter name="state" unique="1">
@@ -114,7 +97,7 @@ dummy_exit() {
 }
 
 dummy_start() {
-	sleep $OCF_RESKEY_start_delay
+	sleep $OCF_RESKEY_delay
 	if [ -f ${OCF_RESKEY_state} ]; then
 	    return 0
 	fi
@@ -122,7 +105,7 @@ dummy_start() {
 }
 
 dummy_stop() {
-	sleep $OCF_RESKEY_stop_delay
+	sleep $OCF_RESKEY_delay
 	if [ -f ${OCF_RESKEY_state} ]; then
 	    rm ${OCF_RESKEY_state}
 	fi
@@ -130,7 +113,7 @@ dummy_stop() {
 }
 
 dummy_monitor() {
-	sleep $OCF_RESKEY_monitor_delay
+	sleep $OCF_RESKEY_delay
 	if [ -f ${OCF_RESKEY_state} ]; then
 	    return 0
 	fi
@@ -141,9 +124,7 @@ dummy_validate() {
 	exit $OC_ERR_UNIMPLEMENTED
 }
 
-: ${OCF_RESKEY_start_delay=10}
-: ${OCF_RESKEY_stop_delay=$OCF_RESKEY_start_delay}
-: ${OCF_RESKEY_monitor_delay=$OCF_RESKEY_start_delay}
+: ${OCF_RESKEY_delay=1}
 : ${OCF_RESKEY_state=@localstatedir@/run/@HB_PKG@/rsctmp/Dummy-${OCF_RESOURCE_INSTANCE}.state}
 
 case $__OCF_ACTION in

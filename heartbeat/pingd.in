@@ -138,14 +138,6 @@ Expects to have a fully populated OCF RA-compliant environment set.
 END
 }
 
-pingd_exit() {
-	if [ $1 != 0 ]; then
-		exit $OCF_ERR_GENERIC
-	else
-		exit $OCF_SUCCESS
-	fi
-}
-
 pingd_start() {
     extras=""
     if [ ! -z "$OCF_RESKEY_multiplier" ]; then
@@ -167,7 +159,14 @@ pingd_start() {
     else
 	$pingd_cmd
     fi
-    pingd_exit $?
+
+    rc=$?
+    if [ $rc = 0 ]; then
+	exit $OCF_SUCCESS
+    fi
+    
+    ocf_log err "Could not run $pingd_cmd : rc=$rc"
+    exit $OCF_ERR_GENERIC
 }
 
 pingd_stop() {
@@ -177,12 +176,16 @@ pingd_stop() {
     if [ ! -z $pid ]; then
 	kill -9 $pid
 	rc=$?
-	if [ $rc = 0 ]; then
+
+	if [ $rc = 0 -o $rc = 1 ]; then
 	    rm $OCF_RESKEY_pidfile
+	    exit $OCF_SUCCESS
 	fi
-	pingd_exit $rc
+
+	ocf_log err "Unexpected result from kill -9 $pid: $rc"
+	exit $OCF_ERR_GENERIC
     fi
-    pingd_exit 0
+    exit $OCF_SUCCESS
 }
 
 pingd_monitor() {

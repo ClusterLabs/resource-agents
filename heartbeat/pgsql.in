@@ -28,7 +28,7 @@ SH=@SHELL@
 
 usage() {
     cat <<-! >&1
-	usage: $0 start|stop|status|monitor|methods
+	usage: $0 start|stop|status|monitor|meta-data|validate-all|methods
 
 	$0 manages a PostgreSQL Server as an HA resource.
 
@@ -36,6 +36,7 @@ usage() {
         The 'stop' operation stops the PostgreSQL server.
         The 'status' operation reports whether the PostgreSQL is up.
         The 'monitor' operation reports whether the PostgreSQL is running.
+        The 'validate-all' operation reports whether the parameters are valid.
         The 'methods' operation reports on the methods $0 supports.
 !
   return $OCF_ERR_ARGS
@@ -111,6 +112,7 @@ Path to PostgreSQL server log file.
 <action name="status" timeout="60" />
 <action name="monitor" depth="0" timeout="30" interval="30" start-delay="10" />
 <action name="meta-data" timeout="5" />
+<action name="validate-all" timeout="5" />
 <action name="methods" timeout="5" />
 </actions>
 </resource-agent>
@@ -136,6 +138,8 @@ pgsql_methods() {
 	status
 	monitor
 	methods	
+        meta-data
+        validate-all
 	!
 }
 
@@ -153,7 +157,7 @@ pgsql_start() {
         # Check if we need to create a log file
         if ! check_log_file $LOGFILE
 	then
-            ocf_log err "PostgreSQL can't create a log file: $LOGFILE"
+            ocf_log err "PostgreSQL can't write to the log file: $LOGFILE"
 	    return $OCF_ERR_GENERIC
 	fi
 
@@ -247,17 +251,39 @@ pgsql_monitor() {
     return $OCF_SUCCESS
 }
 
+# Validate most critical parameters
+pgsql_validate_all() {
+    if [ ! -x $PGCTL ]
+    then
+        ocf_log err "Can't run $PGCTL"
+        return $OCF_ERR_CONFIGURED
+    fi
+
+    if [ ! -x $PSQL ]
+    then
+        ocf_log err "Can't run $PSQL"
+        return $OCF_ERR_CONFIGURED
+    fi
+
+    return $OCF_SUCCESS
+}
+
+
 #
 # Check if we need to create a log file
 #
 
 check_log_file() {
-    if [ ! -w "$1" ]
+    if [ ! -f "$1" ]
     then
-        if ! runasowner "touch $1 > /dev/null 2>&1"
-        then
-	    return 1
-        fi
+        touch $1 > /dev/null 2>&1
+        chown $PGDBA:$(cat /etc/passwd | grep $PGDBA | cut -d ":" -f 4) $1
+    fi
+
+    #Check if $PGDBA can write to the log file
+    if ! runasowner "test -w $1"
+    then
+        return 1
     fi
 
     return 0
@@ -297,18 +323,14 @@ case "$1" in
 		
     meta-data)  meta_data
                 exit $OCF_SUCCESS;;
+
+    validate-all) pgsql_validate_all
+                exit $?;;
 esac
 
-if [ ! -x $PGCTL ]
+if ! pgsql_validate_all
 then
-    ocf_log err "Can't run $PGCTL"
-    exit $OCF_ERR_GENERIC
-fi
-    
-if [ ! -x $PSQL ]
-then
-    ocf_log err "Can't run $PSQL"
-    exit $OCF_ERR_GENERIC
+    exit $OCF_ERR_CONFIGURED
 fi
 
 # What kind of method was invoked?

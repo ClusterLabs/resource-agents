@@ -1,0 +1,398 @@
+#!/bin/sh
+#
+# Name     ManageRAID
+# Author   Matthias Dahl, m.dahl@designassembly.de
+# License  GPL version 2
+#
+# (c) 2006 The Design Assembly GmbH.
+#
+#
+# WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING
+#
+# This resource agent is most likely function complete but not error free. Please
+# consider it BETA quality for the moment until it has proven itself stable...
+#
+# USE AT YOUR OWN RISK.
+#
+# WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING
+#
+#
+# partly based on/inspired by original Heartbeat2 OCF resource agents
+#
+# Description
+#
+# Manages starting, mounting, unmounting, stopping and monitoring of RAID devices
+# which are preconfigured in /etc/conf.d/HB-ManageRAID.
+#
+# 
+# Created  11. Sep 2006
+# Updated  18. Sep 2006
+#
+# rev. 1.00.2
+#
+# Changelog
+#
+# 18/Sep/06 1.00.1 more cleanup
+# 12/Sep/06 1.00.1 add more functionality
+#                  add sanity check for config parameters
+#                  general cleanup all over the place
+# 11/Sep/06 1.00.0 it's alive... muahaha... ALIVE... :-)
+#
+#
+# TODO
+#
+#   - check if at least one disk out of PREFIX_LOCALDISKS is still active
+#     in RAID otherwise consider RAID broken and stop it.
+#
+#     The reason behind this: consider a RAID-1 which contains iSCSI devices
+#     shared over Ethernet which get dynamically added/removed to/from the RAID.
+#     Once all local disks have failed and only those iSCSI disks remain, the RAID
+#     should really stop to prevent bad performance and possible data loss.
+# 
+
+###
+. @hb_libdir@/ocf-shellfuncs
+###
+
+## required configuration
+#
+. /etc/conf.d/HB-ManageRAID
+#
+##
+
+# required utilities
+MDADM=/sbin/mdadm
+MOUNT=/bin/mount
+UMOUNT=/bin/umount
+GREP=/bin/grep
+CAT=/bin/cat
+TEST=/usr/bin/test
+ECHO=/bin/echo
+
+# required files/devices
+RAID_MDSTAT=/proc/mdstat
+
+#
+# check_util()
+#
+# taken from Raid1 Heartbeat2 OCF resource agent
+check_util ()
+{
+    if [[ ! -x $1 ]]; then
+	ocf_log err "setup problem: utility $1 required."
+	exit $OCF_ERR_INSTALLED
+    fi
+}
+
+#
+# check_file()
+#
+check_file ()
+{
+    if [[ ! -e $1 ]]; then
+        ocf_log err "setup problem: file $1 does not exist."
+        exit $OCF_ERR_GENERIC
+    fi
+}
+
+#
+# usage()
+#
+usage()
+{
+	cat <<-EOT
+	usage: $0 {start|stop|status|monitor|validate-all|usage|meta-data}
+	EOT
+}
+
+#
+# meta_data()
+#
+meta_data()
+{
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="ManageRAID">
+  <version>1.00.2</version>
+
+  <longdesc lang="en">
+    Manages starting, stopping and monitoring of RAID devices which
+    are preconfigured in /etc/conf.d/HB-ManageRAID.
+  </longdesc>
+
+  <shortdesc lang="en">Manages RAID devices</shortdesc>
+
+  <parameters>
+    <parameter name="raidname" unique="0" required="1">
+      <longdesc lang="en">
+        Name (case sensitive) of RAID to manage. (preconfigured in /etc/conf.d/HB-ManageRAID)
+      </longdesc>
+      <shortdesc lang="en">RAID name</shortdesc>
+      <content type="string" default="" />
+    </parameter>
+  </parameters>
+
+  <actions>
+    <action name="start" timeout="75" />
+    <action name="stop" timeout="75" />
+    <action name="status" depth="0" timeout="10" interval="10" start-delay="10" />
+    <action name="monitor" depth="0" timeout="10" interval="10" start-delay="10" />
+    <action name="validate-all" timeout="5" />
+    <action name="meta-data" timeout="5" />
+  </actions>
+</resource-agent>
+END
+}
+
+#
+# start_raid()
+#
+start_raid()
+{
+  declare -i retcode
+
+  status_raid
+  retcode=$?
+  if [[ $retcode == $OCF_SUCCESS ]]; then
+    return $OCF_SUCCESS
+  elif [[ $retcode != $OCF_NOT_RUNNING ]]; then
+    return $retcode
+  fi
+
+  for ldev in ${RAID_LOCALDISKS[@]}; do
+    if [[ ! -b $ldev ]]; then
+      ocf_log err "$ldev is not a (local) block device."
+      return $OCF_ERR_ARGS
+    fi
+  done
+
+  $MDADM -A $RAID_DEVPATH -a yes -u ${!RAID_UUID} ${RAID_LOCALDISKS[@]} &> /dev/null
+  if [[ $? != 0 ]]; then
+    ocf_log err "starting ${!RAID_DEV} with ${RAID_LOCALDISKS[@]} failed."
+    return $OCF_ERR_GENERIC
+  fi
+
+  $MOUNT -o ${!RAID_MOUNTOPTIONS} $RAID_DEVPATH ${!RAID_MOUNTPOINT} &> /dev/null
+  if [[ $? != 0 ]]; then
+    $MDADM -S $RAID_DEVPATH &> /dev/null
+    
+    if [[ $? != 0 ]]; then
+      ocf_log err "mounting ${!RAID_DEV} to ${!RAID_MOUNTPOINT} failed as well as stopping the RAID itself."
+    else
+      ocf_log err "mounting ${!RAID_DEV} to ${!RAID_MOUNTPOINT} failed. RAID stopped again."
+    fi
+
+    return $OCF_ERR_GENERIC
+  fi
+
+  return $OCF_SUCCESS
+}
+
+#
+# stop_raid()
+#
+stop_raid()
+{
+  status_raid
+  if [[ $? == $OCF_NOT_RUNNING ]]; then
+    return $OCF_SUCCESS
+  fi
+
+  $UMOUNT ${!RAID_MOUNTPOINT} &> /dev/null
+  if [[ $? != 0 ]]; then
+    ocf_log err "unmounting ${!RAID_MOUNTPOINT} failed. not stopping ${!RAID_DEV}!"
+    return $OCF_ERR_GENERIC
+  fi
+
+  $MDADM -S $RAID_DEVPATH &> /dev/null
+  if [[ $? != 0 ]]; then
+    ocf_log err "stopping RAID ${!RAID_DEV} failed."
+    return $OCF_ERR_GENERIC
+  fi
+
+  return $OCF_SUCCESS
+}
+
+#
+# status_raid()
+#
+status_raid()
+{ 
+  declare -i retcode_raidcheck
+  declare -i retcode_uuidcheck
+
+  $CAT $RAID_MDSTAT | $GREP -e "${!RAID_DEV}[\ ]*:[\ ]*active" &> /dev/null
+  if [[ $? != 0 ]]; then
+    return $OCF_NOT_RUNNING
+  fi
+ 
+  if [[ ! -e $RAID_DEVPATH ]]; then
+    return $OCF_ERR_GENERIC
+  fi
+
+  $MDADM --detail -t $RAID_DEVPATH &> /dev/null
+  retcode_raidcheck=$?
+  $MDADM --detail -t $RAID_DEVPATH | $GREP -qEe "^[\ ]*UUID[\ ]*:[\ ]*${!RAID_UUID}" &> /dev/null
+  retcode_uuidcheck=$?
+
+  if [[ $retcode_raidcheck > 3 ]]; then
+    ocf_log err "mdadm returned error code $retcode_raidcheck while checking ${!RAID_DEV}."
+    return $OCF_ERR_GENERIC
+  elif [[ $retcode_raidcheck == 3 ]]; then
+    ocf_log err "${!RAID_DEV} has failed."
+    return $OCF_ERR_GENERIC
+  elif [[ $retcode_raidcheck < 3 && $retcode_uuidcheck != 0  ]]; then
+    ocf_log err "active RAID ${!RAID_DEV} and configured UUID (!$RAID_UUID) do not match."
+    return $OCF_ERR_GENERIC
+  fi
+
+  $MOUNT | $GREP -e "$RAID_DEVPATH on ${!RAID_MOUNTPOINT}" &> /dev/null
+  if [[ $? != 0 ]]; then
+    ocf_log err "${!RAID_DEV} seems to be no longer mounted at ${!RAID_MOUNTPOINT}"
+    return $OCF_ERR_GENERIC
+  fi
+
+  return $OCF_SUCCESS
+}    
+
+#
+# validate_all_raid()
+#
+validate_all_raid()
+{
+  #
+  # since all parameters are checked every time ManageRAID is
+  # invoked, there not much more to check...
+  #
+  # status_raid should cover the rest.
+  # 
+  declare -i retcode
+
+  status_ve
+  retcode=$?
+
+  if [[ $retcode != $OCF_SUCCESS && $retcode != $OCF_NOT_RUNNING ]]; then
+    return $retcode
+  fi
+
+  return $OCF_SUCCESS
+}
+
+if [ $# -ne 1 ]; then
+  usage
+  exit $OCF_ERR_ARGS
+fi
+
+case "$1" in
+  meta-data)
+	meta_data
+	exit $OCF_SUCCESS
+	;;
+  usage) 
+	usage
+	exit $OCF_SUCCESS
+	;;
+  *)
+	;;
+esac
+
+#
+# check relevant environment variables for sanity and security
+#
+
+declare -i retcode_test
+declare -i retcode_grep
+
+$TEST -z "$OCF_RESKEY_raidname"
+retcode_test=$?
+$ECHO "$OCF_RESKEY_raidname" | $GREP -qEe "^[[:alnum:]\_]+$"
+retcode_grep=$?
+
+if [[ $retcode_test != 1 || $retcode_grep != 0 ]]; then
+  ocf_log err "OCF_RESKEY_raidname not set or invalid."
+  exit $OCF_ERR_ARGS
+fi
+
+RAID_UUID=${OCF_RESKEY_raidname}_UUID
+
+$ECHO ${!RAID_UUID} | $GREP -qEe "^[[:alnum:]]{8}:[[:alnum:]]{8}:[[:alnum:]]{8}:[[:alnum:]]{8}$"
+if [[ $? != 0 ]]; then
+  ocf_log err "${OCF_RESKEY_raidname}_UUID is invalid."
+  exit $OCF_ERR_ARGS
+fi
+
+RAID_DEV=${OCF_RESKEY_raidname}_DEV
+
+$ECHO ${!RAID_DEV} | $GREP -qEe "^md[0-9]+$"
+if [[ $? != 0 ]]; then
+  ocf_log err "${OCF_RESKEY_raidname}_DEV is invalid."
+  exit $OCF_ERR_ARGS
+fi
+
+RAID_DEVPATH=/dev/${!RAID_DEV/md/md\/}
+RAID_MOUNTPOINT=${OCF_RESKEY_raidname}_MOUNTPOINT
+
+$ECHO ${!RAID_MOUNTPOINT} | $GREP -qEe "^[[:alnum:]\/\_\"\ ]+$"
+if [[ $? != 0 ]]; then
+  ocf_log err "${OCF_RESKEY_raidname}_MOUNTPOINT is invalid."
+  exit $OCF_ERR_ARGS
+fi
+
+RAID_MOUNTOPTIONS=${OCF_RESKEY_raidname}_MOUNTOPTIONS
+
+$ECHO ${!RAID_MOUNTOPTIONS} | $GREP -qEe "^[[:alpha:]\,]+$"
+if [[ $? != 0 ]]; then
+  ocf_log err "${OCF_RESKEY_raidname}_MOUNTOPTIONS is invalid."
+  exit $OCF_ERR_ARGS
+fi
+
+RAID_LOCALDISKS=${OCF_RESKEY_raidname}_LOCALDISKS[@]
+RAID_LOCALDISKS=( "${!RAID_LOCALDISKS}" )
+
+if [[ ${#RAID_LOCALDISKS[@]} < 1 ]]; then
+  ocf_log err "you have to specify at least one local disk."
+  exit $OCF_ERR_ARGS
+fi
+
+#
+# check that all relevant utilities are available
+# 
+check_util $MDADM
+check_util $MOUNT
+check_util $UMOUNT
+check_util $GREP
+check_util $CAT
+check_util $TEST
+check_util $ECHO
+
+
+#
+# check that all relevant devices are available
+#
+check_file $RAID_MDSTAT 
+
+#
+# finally... let's see what we are ordered to do :-)
+#
+case "$1" in
+  start)
+	start_raid
+	;;
+  stop)
+	stop_raid
+	;;
+  status|monitor) 
+	status_raid
+	;;
+  validate-all)
+	validate_all_raid
+	;;
+  *)
+	usage
+	exit $OCF_ERR_UNIMPLEMENTED 
+	;;
+esac
+
+exit $?
+

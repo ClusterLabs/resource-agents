@@ -1,0 +1,343 @@
+#!/bin/sh
+#
+# $Id: db2.in,v 1.8 2006/01/26 18:00:05 lars Exp $
+# 
+# MySQL
+#
+# Description:	Manages a MySQL database as Linux-HA resource
+
+#
+# Author:	Alan Robertson : DB2 Script
+# Author:	Jakub Janczak  : Rewrite as MySQL
+# Author:	Andrew Beekhof : Cleanup and import
+#
+# Support:	linux-ha@lists.linux-ha.org
+# License:	GNU General Public License (GPL)
+# Copyright:	(C) 2002 - 2005 International Business Machines, Inc.
+#
+# An example usage in /etc/ha.d/haresources: 
+#       node1  10.0.0.170 mysql
+#
+# See usage() function below for more details...
+#
+# OCF instance parameters:
+#   OCF_RESKEY_mysql_config
+#   OCF_RESKEY_mysql_datadir
+#   OCF_RESKEY_mysql_user
+#   OCF_RESKEY_mysql_group
+#   OCF_RESKEY_mysql_test_table
+
+#######################################################################
+# Initialization:
+
+. @hb_libdir@/ocf-shellfuncs
+
+#######################################################################
+
+SH=/bin/sh
+MYSQL_BINDIR=/usr/bin
+
+# Fill in some defaults if no values are specified
+: ${OCF_RESKEY_config="/etc/my.cnf"}
+: ${OCF_RESKEY_datadir="/var/lib/mysql"}
+
+: ${OCF_RESKEY_user="mysql"}
+: ${OCF_RESKEY_group="mysql"}
+
+: ${OCF_RESKEY_log="/var/log/mysqld.log"}
+: ${OCF_RESKEY_pid="/var/lib/mysql/mysqld.pid"}
+: ${OCF_RESKEY_socket="/var/lib/mysql/mysql.sock"}
+
+: ${OCF_RESKEY_test_user="root"}
+: ${OCF_RESKEY_test_table="mysql.user"}
+: ${OCF_RESKEY_test_passwd=""}
+
+: ${OCF_RESKEY_enable_creation=0}
+
+usage() {
+  cat <<UEND
+	usage: $0 (start|stop|validate-all|meta-data|monitor)
+
+	$0 manages a MySQL Database as an HA resource.
+
+	The 'start' operation starts the database.
+	The 'stop' operation stops the database.
+	The 'status' operation reports whether the database is running
+	The 'monitor' operation reports whether the database seems to be working
+	The 'validate-all' operation reports whether the parameters are valid
+
+	$Id: mysql.in,v 1.8 2006/01/26 18:00:05 lars Exp $
+UEND
+}
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="mysql">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource script for MySQL. 
+It manages a MySQL Database instance as an HA resource.
+</longdesc>
+<shortdesc lang="en">MySQL resource agent</shortdesc>
+
+<parameters>
+
+<parameter name="config" unique="0" required="0">
+<longdesc lang="en">
+Configuration file
+</longdesc>
+<shortdesc lang="en">MySQL config</shortdesc>
+<content type="string" default="/etc/my.cnf" />
+</parameter>
+
+<parameter name="datadir" unique="0" required="0">
+<longdesc lang="en">
+Directory containing databases
+</longdesc>
+<shortdesc lang="en">MySQL datadir</shortdesc>
+<content type="string" default="/var/lib/mysql" />
+</parameter>
+
+<parameter name="user" unique="0" required="0">
+<longdesc lang="en">
+User running MySQL daemon
+</longdesc>
+<shortdesc lang="en">MySQL user</shortdesc>
+<content type="string" default="mysql" />
+</parameter>
+
+<parameter name="group" unique="0" required="0">
+<longdesc lang="en">
+Group running MySQL daemon (for logfile and directory permissions)
+</longdesc>
+<shortdesc lang="en">MySQL group</shortdesc>
+<content type="string" default="mysql"/>
+</parameter>
+
+<parameter name="test_table" unique="0" required="0">
+<longdesc lang="en">
+Table to be tested in monitor statement (in <database>.<table> notation)
+</longdesc>
+<shortdesc lang="en">MySQL test table</shortdesc>
+<content type="string" default="mysql.user" />
+</parameter>
+
+<parameter name="test_user" unique="0" required="0">
+<longdesc lang="en">
+MySQL test user
+</longdesc>
+<shortdesc lang="en">MySQL test user</shortdesc>
+<content type="string" default="root" />
+</parameter>
+
+<parameter name="test_passwd" unique="0" required="0">
+<longdesc lang="en">
+MySQL test user password
+</longdesc>
+<shortdesc lang="en">MySQL test user password</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="enable_creation" unique="0" required="0">
+<longdesc lang="en">
+If the MySQL database does not exist, it will be created 
+</longdesc>
+<shortdesc lang="en">Create the database if it does not exist</shortdesc>
+<content type="integer" default="0"/>
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start" timeout="120" />
+<action name="stop" timeout="120" />
+<action name="status" timeout="60" />
+<action name="monitor" depth="0" timeout="30" interval="10" start-delay="10" />
+<action name="validate-all" timeout="5" />
+<action name="meta-data" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+mysql_validate() {
+# checking the parameters
+    if [ ! -f $OCF_RESKEY_config ]; then
+	ocf_log err "Config $OCF_RESKEY_mysql_config doesn't exist";
+	exit $OCF_ERR_ARGS;
+    fi
+    
+    if [ ! -d $OCF_RESKEY_datadir ]; then
+	ocf_log err "Datadir $OCF_RESKEY_datadir dosen't exist";
+	exit $OCF_ERR_ARGS;
+    fi
+    
+    grep $OCF_RESKEY_user /etc/passwd >/dev/null 2>&1
+    if [ ! $? -eq 0 ]; then
+	ocf_log err "User $OCF_RESKEY_user doesn't exit";
+	exit $OCF_ERR_ARGS;
+    fi
+    
+    grep $OCF_RESKEY_test_user /etc/passwd >/dev/null 2>&1
+    if [ ! $? -eq 0 ]; then
+	ocf_log err "Test user $OCF_RESKEY_test_user doesn't exit";
+	exit $OCF_ERR_ARGS;
+    fi
+    
+    grep $OCF_RESKEY_group /etc/group >/dev/null 2>&1
+    if [ ! $? -eq 0 ]; then
+	ocf_log err "Group $OCF_RESKEY_group doesn't exist";
+	exit $OCF_ERR_ARGS;
+    fi
+}
+
+mysql_status() {
+	if [ ! -e $OCF_RESKEY_pid ]; then
+		ocf_log debug "MySQL is not running"
+		return $OCF_NOT_RUNNING;
+	fi
+	
+	pid=`cat $OCF_RESKEY_pid`;
+	if [ -d /proc -a -d /proc/1 ]; then
+		[ "u$pid" != "u" -a -d /proc/$pid ]
+	else
+		kill -0 $pid >/dev/null 2>&1
+	fi
+
+	if $?; then
+		return $OCF_SUCCESS;
+	else	
+		ocf_log debug "MySQL not running: removing old PID file"
+		rm -f $OCF_RESKEY_pid
+		return $OCF_NOT_RUNNING;
+	fi
+}
+
+mysql_monitor() {
+    mysql_status
+    rc=$?
+
+    if [ $OCF_CHECK_LEVEL = 0 -o $rc != 0 ]; then
+	return $rc
+    fi
+
+    # Do a detailed status check
+    buf=`echo "SELECT * FROM $OCF_RESKEY_test_table" | mysql --user=$OCF_RESKEY_test_user --password=$OCF_RESKEY_test_passwd --socket=$OCF_RESKEY_socket -O connect_timeout=1 2>&1`
+    rc=$?
+    if [ ! $rc -eq 0 ]; then
+	ocf_log err "MySQL $test_table monitor failed:";
+	if [ ! -z "$buf" ]; then ocf_log err $buf; fi
+	return $OCF_ERR_GENERIC;
+    else
+	ocf_log info "MySQL monitor succeded";
+	return $OCF_SUCCESS;
+    fi
+}
+
+mysql_start() {
+    mysql_status
+    if [ $? == $OCF_SUCCESS ]; then
+	ocf_log info "MySQL already running"
+	return $OCF_SUCCESS
+    fi
+	
+    touch $OCF_RESKEY_log
+    chown $OCF_RESKEY_user:$OCF_RESKEY_group $OCF_RESKEY_log
+    chmod 0640 $OCF_RESKEY_log
+    [ -x /sbin/restorecon ] && /sbin/restorecon $OCF_RESKEY_log
+    
+    if [ $OCF_RESKEY_enable_creation -a ! -d $OCF_RESKEY_datadir/mysql ] ; then	
+        ocf_log info "Initializing MySQL database: " 
+	$MYSQL_BINDIR/mysql_install_db --datadir=$OCF_RESKEY_datadir
+        rc=$?
+        if [ $rc -ne 0 ] ; then
+	    ocf_log err "Initialization failed: $rc";
+            exit $OCF_ERR_GENERIC
+        fi
+        chown -R $OCF_RESKEY_user:$OCF_RESKEY_group $OCF_RESKEY_datadir
+    fi
+
+    # Uncomment to perform permission clensing
+    # - not convinced this should be enabled by default
+    #
+    #chmod 0755 $OCF_RESKEY_datadir
+    #chown -R $OCF_RESKEY_user $OCF_RESKEY_datadir
+    #chgrp -R $OCF_RESKEY_group $OCF_RESKEY_datadir
+
+    $MYSQL_BINDIR/safe_mysqld  --defaults-file=$OCF_RESKEY_config --pid-file=$OCF_RESKEY_pid --socket=$OCF_RESKEY_socket --datadir=$OCF_RESKEY_datadir --user=$OCF_RESKEY_user >/dev/null 2>&1 &
+    rc=$?
+    
+    if [ $rc != 0 ]; then
+	ocf_log err "MySQL start command failed: $rc"
+  	return $rc
+    fi
+    
+    # Spin waiting for the server to come up.
+    # Let the CRM/LRM time us out if required
+    start_wait=1
+    while [ $start_wait = 1 ]; do
+	mysql_status
+	rc=$?
+	if [ $rc = $OCF_SUCCESS ]; then
+	    start_wait=0
+
+	elif [ $rc != $OCF_NOT_RUNNING ]; then
+	    ocf_log info "MySQL start failed: $rc"
+	    return $rc
+	fi
+        sleep 2
+    done
+    
+    ocf_log info "MySQL started"
+    return $OCF_SUCCESS
+}
+
+mysql_stop() {
+    if [ ! -f $OCF_RESKEY_pid ]; then
+        return $OCF_SUCCESS
+    fi
+
+    pid=`cat $OCF_RESKEY_pid 2> /dev/null `
+    /bin/kill $pid > /dev/null 2>&1
+    rc=$?
+    if [ $rc != 0 ]; then
+        ocf_log err "MySQL couldn't be stopped"
+	return $OCF_ERR_GENERIC
+    fi
+
+    stop_wait=1
+    while [ $stop_wait = 1 ]; do
+	mysql_status
+	rc=$?
+	if [ $rc == $OCF_NOT_RUNNING ]; then
+	    stop_wait=0
+	fi
+        sleep 1
+    done
+
+    ocf_log info "MySQL stopped";
+    rm -f /var/lock/subsys/mysqld
+    rm -f $OCF_RESKEY_datadir/mysql.sock
+    return $OCF_SUCCESS
+}
+
+
+# What kind of method was invoked?
+case "$1" in
+  start)	mysql_validate; 
+		mysql_start;;
+  stop)		mysql_stop;;
+  status)	mysql_status;;
+  monitor)	mysql_monitor;;
+
+  meta-data)	meta_data; exit $OCF_SUCCESS;;
+  validate-all)	mysql_validate; exit $OCF_SUCCESS;;
+
+ *)		usage
+		exit $OCF_ERR_UNIMPLEMENTED;;
+esac
+exit $?
+
