@@ -35,9 +35,10 @@ export PATH=/bin:/sbin:/usr/bin:/usr/sbin
 declare SAMBA_SMBD=/usr/sbin/smbd
 declare SAMBA_NMBD=/usr/sbin/nmbd
 declare SAMBA_pid_dir="`generate_name_for_pid_dir`"
+declare SAMBA_conf_dir="`generate_name_for_conf_dir`"
 declare SAMBA_smbd_pid_file="$SAMBA_pid_dir/smbd.pid"
 declare SAMBA_nmbd_pid_file="$SAMBA_pid_dir/nmbd.pid"
-declare SAMBA_gen_config_file="/tmp/samba.$OCF_RESKEY_name"
+declare SAMBA_gen_config_file="$SAMBA_conf_dir/smb.conf"
 
 verify_all()
 {
@@ -110,6 +111,7 @@ start()
 
 	create_pid_directory
 	mkdir -p "$SAMBA_pid_dir"
+	create_conf_directory "$SAMBA_conf_dir"
 	check_pid_file "$SAMBA_smbd_pid_file"
 
 	if [ $? -ne 0 ]; then

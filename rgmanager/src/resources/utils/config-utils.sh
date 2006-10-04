@@ -20,6 +20,7 @@
 #
 
 declare RA_COMMON_pid_dir=/var/run/cluster
+declare RA_COMMON_conf_dir=/etc/cluster
 
 declare -i FAIL=-1
 declare -a ip_keys
@@ -234,6 +235,14 @@ generate_name_for_pid_dir()
 	return 0;
 }
 
+generate_name_for_conf_dir()
+{
+	declare filename=$(basename $0)
+
+	echo "$RA_COMMON_conf_dir/$(basename $0 | sed 's/^\(.*\)\..*/\1/')/$OCF_RESOURCE_INSTANCE"
+	
+	return 0;
+}
 
 create_pid_directory()
 {
@@ -251,6 +260,19 @@ create_pid_directory()
 		chown mysql.root "$dirname"
 	fi
 
+	return 0;
+}
+
+create_conf_directory()
+{
+	declare dirname="$1"
+
+	if [ -d "$dirname" ]; then
+		return 0;
+	fi
+	
+	mkdir -p "$dirname"
+	
 	return 0;
 }
 

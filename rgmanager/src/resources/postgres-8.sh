@@ -34,7 +34,8 @@ export PATH=/bin:/sbin:/usr/bin:/usr/sbin
 
 declare PSQL_POSTMASTER="/usr/bin/postmaster"
 declare PSQL_pid_file="`generate_name_for_pid_file`"
-declare PSQL_gen_config_file="/tmp/postgresql.$OCF_RESKEY_name"
+declare PSQL_conf_dir="`generate_name_for_conf_dir`"
+declare PSQL_gen_config_file="$PSQL_conf_dir/postgresql.conf"
 
 verify_all()
 {
@@ -120,6 +121,7 @@ start()
 	clog_service_start $CLOG_INIT
 
 	create_pid_directory
+	create_conf_directory "$PSQL_conf_dir"
 	check_pid_file "$PSQL_pid_file"
 
 	if [ $? -ne 0 ]; then

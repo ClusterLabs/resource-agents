@@ -34,7 +34,8 @@ export PATH=/bin:/sbin:/usr/bin:/usr/sbin
 
 declare LDAP_SLAPD=/usr/sbin/slapd
 declare LDAP_pid_file="`generate_name_for_pid_file`"
-declare LDAP_gen_config_file="/tmp/openldap.$OCF_RESKEY_name"
+declare LDAP_conf_dir="`generate_name_for_conf_dir`"
+declare LDAP_gen_config_file="$LDAP_conf_dir/slapd.conf"
 declare LDAP_url_list
 
 verify_all()
@@ -127,6 +128,7 @@ start()
 	clog_service_start $CLOG_INIT
 
 	create_pid_directory
+	create_conf_directory "$LDAP_conf_dir"
 	check_pid_file "$LDAP_pid_file"
 
 	if [ $? -ne 0 ]; then

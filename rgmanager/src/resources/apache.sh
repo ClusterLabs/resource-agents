@@ -33,9 +33,10 @@ export PATH=/bin:/sbin:/usr/bin:/usr/sbin
 . $(dirname $0)/utils/ra-skelet.sh
 
 declare APACHE_HTTPD=/usr/sbin/httpd
-declare APACHE_genConfig="/tmp/httpd.$OCF_RESKEY_name"
 declare APACHE_serverConfigFile
 declare APACHE_pid_file="`generate_name_for_pid_file`"
+declare APACHE_conf_dir="`generate_name_for_conf_dir`"
+declare APACHE_genConfig="$APACHE_conf_dir/httpd.conf"
 
 declare APACHE_parseConfig=$(dirname $0)/utils/httpd-parse-config.pl
 
@@ -162,6 +163,7 @@ start()
 	clog_service_start $CLOG_INIT	
 
 	create_pid_directory
+	create_conf_directory "$APACHE_conf_dir"
 	check_pid_file "$APACHE_pid_file"
 
 	if [ $? -ne 0 ]; then
