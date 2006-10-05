@@ -11,39 +11,30 @@
 ###############################################################################
 ###############################################################################
 
-TARGET8= \
-	fence.8 \
-	fence_ack_manual.8 \
-	fence_apc.8 \
-	fence_rsa.8 \
-	fence_bladecenter.8 \
-	fence_brocade.8 \
-	fence_drac.8 \
-	fence_egenera.8 \
-	fence_ilo.8 \
-	fence_manual.8 \
-	fence_mcdata.8 \
-	fence_node.8 \
-        fence_rib.8 \
-	fence_sanbox2.8 \
-	fence_tool.8 \
-	fence_vixel.8 \
-	fence_wti.8 \
-	fence_bullpap.8 \
-	fence_ipmilan.8 \
-	fence_xvm.8 \
-	fence_xvmd.8 \
-	fenced.8
+TARGET= fence_ipmilan
 
-UNINSTALL=${top_srcdir}/scripts/uninstall.pl
+fence_ipmilan_SOURCE= expect.c ipmilan.c
 
-top_srcdir=..
+top_srcdir=../..
+
+
+INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config
+
 
 include ${top_srcdir}/make/defines.mk
 
-install:
-	install -d ${mandir}/man8
-	install ${TARGET8} ${mandir}/man8
+CFLAGS+= -DFENCE_RELEASE_NAME=\"${RELEASE}\" -DFENCE
 
-uninstall:
-	${UNINSTALL} ${TARGET8} ${mandir}/man8
+all: ${TARGET}
+
+fence_ipmilan: ${fence_ipmilan_SOURCE:.c=.o}
+	${CC} ${CFLAGS} ${LDFLAGS} ${fence_ipmilan_SOURCE:.c=.o} -o $@
+
+install: all
+	if [ ! -d ${sbindir} ]; then \
+		install -d ${sbindir}; \
+	fi
+	install -m755 ${TARGET} ${sbindir}
+
+clean:
+	rm -f *.o ${TARGET}
