@@ -10,6 +10,8 @@
 ##
 ###############################################################################
 ###############################################################################
+top_srcdir=..
+include ${top_srcdir}/make/defines.mk
 
 
 all:
@@ -34,7 +36,7 @@ all:
 	${MAKE} -C vixel all
 	${MAKE} -C wti all
 	# ${MAKE} -C xcat all
-	${MAKE} -C xvm all
+	[ "${enable_xen}" != "1" ] || ${MAKE} -C xvm all
 	# ${MAKE} -C zvm all
 
 install: all
@@ -59,7 +61,7 @@ install: all
 	${MAKE} -C vixel install
 	${MAKE} -C wti install
 	# ${MAKE} -C xcat install
-	${MAKE} -C xvm install
+	[ "${enable_xen}" != "1" ] || ${MAKE} -C xvm install
 	# ${MAKE} -C zvm install
 
 clean:
@@ -84,5 +86,5 @@ clean:
 	${MAKE} -C vixel clean
 	${MAKE} -C wti clean
 	# ${MAKE} -C xcat clean
-	${MAKE} -C xvm clean
+	[ "${enable_xen}" != "1" ] || ${MAKE} -C xvm clean
 	# ${MAKE} -C zvm clean

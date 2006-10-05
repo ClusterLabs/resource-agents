@@ -19,6 +19,7 @@ ccslibdir ?= ${DESTDIR}/@CCSLIBDIR@
 incdir ?= ${DESTDIR}/@INCDIR@
 cmanincdir ?= ${DESTDIR}@CMANINCDIR@
 ccsincdir ?= ${DESTDIR}@CCSINCDIR@
+enable_xen ?= @ENABLE_XEN@
 
 # Where's the kernel?
 KERNEL_SRC = @KERNEL_SRC@

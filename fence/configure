@@ -33,6 +33,7 @@ $ret = 0;
 	mandir  => \$mandir,
 	prefix => \$prefix,
 	sbindir => \$sbindir,
+	enable_xen => \$enable_xen,
 	verbose => \$verbose
 );
 
@@ -48,6 +49,7 @@ $err = &GetOptions (\%options,
 		    'prefix=s',
 		    'sbindir=s',
 		    'sharedir=s',
+		    'enable_xen',
 		    'verbose');
 
 if(!$err) {
@@ -72,6 +74,7 @@ if ($help || !$err) {
   print "--prefix=\tthe base directory to install into.  (Default: /)\n";
   print "--sbindir=\tthe base directory for system binaries.  (Default: /sbin)\n";
   print "--sharedir=\tthe base directory for misc cluster files.  (Default: /usr/share/cluster)\n";
+  print "--enable_xen\t\tEnable building of Xen-specific pieces\n";
   print "--verbose\t\tVerbose output\n";
   exit $ret;
 }
@@ -105,6 +108,9 @@ if (!$sbindir) {
 if (!$sharedir) {
   $sharedir="${prefix}/usr/share/cluster";
 }
+if ($enable_xen) {
+  verbose("Xen support enabled\n");
+}
 
 
 open IFILE, "<make/defines.mk.input" or die "Can't redirect stdin";
@@ -124,6 +130,7 @@ while (<IFILE>) {
   $_ =~ s/\@MANDIR\@/$mandir/;
   $_ =~ s/\@SBINDIR\@/$sbindir/;
   $_ =~ s/\@SHAREDIR\@/$sharedir/;
+  $_ =~ s/\@ENABLE_XEN\@/$enable_xen/;
   print OFILE "$_\n";
 }
 

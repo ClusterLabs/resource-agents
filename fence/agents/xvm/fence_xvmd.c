@@ -580,7 +580,7 @@ main(int argc, char **argv)
 	int mc_sock;
 	char key[4096];
 	int key_len;
-	char *my_options = "dfi:a:p:C:c:k:u?h";
+	char *my_options = "dfi:a:p:C:c:k:u?hV";
 	void *h;
 
 	args_init(&args);

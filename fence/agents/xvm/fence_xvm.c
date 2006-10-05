@@ -308,7 +308,7 @@ int
 main(int argc, char **argv)
 {
 	fence_xvm_args_t args;
-	char *my_options = "di:a:p:r:C:c:k:H:uo:t:?h";
+	char *my_options = "di:a:p:r:C:c:k:H:uo:t:?hV";
 
 	args_init(&args);
 	if (argc == 1) {
