@@ -150,9 +150,10 @@ typedef struct cman_cluster
  */
 
 /* Flags in ei_flags */
-#define CMAN_EXTRA_FLAG_2NODE    1
-#define CMAN_EXTRA_FLAG_ERROR    2
-#define CMAN_EXTRA_FLAG_SHUTDOWN 4
+#define CMAN_EXTRA_FLAG_2NODE      1
+#define CMAN_EXTRA_FLAG_ERROR      2
+#define CMAN_EXTRA_FLAG_SHUTDOWN   4
+#define CMAN_EXTRA_FLAG_DISALLOWED 8
 
 typedef struct cman_extra_info {
 	int           ei_node_state;
@@ -198,8 +199,8 @@ cman_handle_t cman_admin_init(void *privdata);
 int cman_finish(cman_handle_t handle);
 
 /* Update/retrieve the private data */
-int cman_set_private(cman_handle_t *h, void *privdata);
-int cman_get_private(cman_handle_t *h, void **privdata);
+int cman_setprivdata(cman_handle_t *h, void *privdata);
+int cman_getprivdata(cman_handle_t *h, void **privdata);
 
 /*
  * Notification of membership change events. Note that these are sent after
@@ -258,6 +259,10 @@ int cman_get_subsys_count(cman_handle_t handle);
 /* Returns an array of node info structures. Call cman_get_node_count() first
    to determine how big your array needs to be */
 int cman_get_nodes(cman_handle_t handle, int maxnodes, int *retnodes, cman_node_t *nodes);
+
+/* Returns a list of nodes that are known to AIS but blocked from joining the CMAN
+   cluster because they rejoined with cluster without a cman_tool join */
+int cman_get_disallowed_nodes(cman_handle_t handle, int maxnodes, int *retnodes, cman_node_t *nodes);
 
 /*
  * cman_get_node() can get node info by nodeid OR by name. If the first

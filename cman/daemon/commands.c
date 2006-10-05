@@ -33,6 +33,7 @@
 #include <openais/totem/totemip.h>
 #include <openais/totem/totempg.h>
 #include <openais/service/swab.h>
+#include <openais/service/print.h>
 #include <openais/totem/aispoll.h>
 #include "list.h"
 #include "cnxman-socket.h"
@@ -72,6 +73,7 @@ extern poll_handle ais_poll_handle;
 static struct cluster_node *quorum_device;
 static uint16_t cluster_id;
 static int ais_running;
+static time_t join_time;
 static poll_timer_handle quorum_device_timer;
 
 /* If CCS gets out of sync, we poll it until it isn't */
@@ -94,6 +96,7 @@ static int send_port_open_msg(unsigned char port);
 static int send_port_enquire(int nodeid);
 static void process_internal_message(char *data, int len, int nodeid, int byteswap);
 static void recalculate_quorum(int allow_decrease);
+static void send_kill(int nodeid, uint16_t reason);
 
 static void set_port_bit(struct cluster_node *node, uint8_t port)
 {
@@ -145,6 +148,18 @@ static void set_quorate(int total_votes)
 		log_msg(LOG_INFO, "quorum lost, blocking activity\n");
 	if (!cluster_is_quorate && quorate)
 		log_msg(LOG_INFO, "quorum regained, resuming activity\n");
+
+	/* If we are newly quorate, then kill any AISONLY nodes */
+	if (!cluster_is_quorate && quorate) {
+		struct cluster_node *node = NULL;
+		struct list *tmp;
+
+		list_iterate(tmp, &cluster_members_list) {
+			node = list_item(tmp, struct cluster_node);
+			if (node->state == NODESTATE_AISONLY)
+				send_kill(node->node_id, CLUSTER_KILL_REJOIN);
+		}
+	}
 
 	cluster_is_quorate = quorate;
 
@@ -386,6 +401,7 @@ int cman_join_cluster(char *name, unsigned short cl_id, int two_node_flag, int e
 		strcpy(nodename, un.nodename);
 	}
 
+	time(&join_time);
 	us = add_new_node(nodename, wanted_nodeid, -1, expected_votes,
 			  NODESTATE_MEMBER);
 	set_port_bit(us, 0);
@@ -424,6 +440,7 @@ static int do_cmd_get_extrainfo(char *cmdbuf, char **retbuf, int retsize, int *r
 	int total_votes = 0;
 	int max_expected = 0;
 	int addrlen;
+	int uncounted = 0;
 	struct cluster_node *node;
 	struct sockaddr_storage *ss;
 	char *ptr;
@@ -437,6 +454,8 @@ static int do_cmd_get_extrainfo(char *cmdbuf, char **retbuf, int retsize, int *r
 			total_votes += node->votes;
 			max_expected = max(max_expected, node->expected_votes);
 		}
+		if (node->state == NODESTATE_AISONLY)
+			uncounted = 1;
 	}
 	if (quorum_device && quorum_device->state == NODESTATE_MEMBER)
 		total_votes += quorum_device->votes;
@@ -467,6 +486,8 @@ static int do_cmd_get_extrainfo(char *cmdbuf, char **retbuf, int retsize, int *r
 		einfo->flags |= CMAN_EXTRA_FLAG_ERROR;
 	if (shutdown_con)
 		einfo->flags |= CMAN_EXTRA_FLAG_SHUTDOWN;
+	if (uncounted)
+		einfo->flags |= CMAN_EXTRA_FLAG_UNCOUNTED;
 
 	ptr = einfo->addresses;
 	for (i=0; i<num_interfaces; i++) {
@@ -585,9 +606,22 @@ static int do_cmd_set_expected(char *cmdbuf, int *retlen)
 	unsigned int total_votes;
 	unsigned int newquorum;
 	unsigned int newexp;
+	struct cluster_node *node = NULL;
+	struct list *tmp;
 
 	if (!we_are_a_cluster_member)
 		return -ENOENT;
+
+	/* If there are any AISONLY nodes then we can't allow
+	   the user to set expected votes as it may destroy data */
+	list_iterate(tmp, &cluster_members_list) {
+		node = list_item(tmp, struct cluster_node);
+		if (node->state == NODESTATE_AISONLY) {
+			log_printf(LOG_NOTICE, "Attempt to set expected votes when cluster has AISONLY nodes in it.");
+			return -EINVAL;
+		}
+	}
+
 	memcpy(&newexp, cmdbuf, sizeof(int));
 	newquorum = calculate_quorum(1, newexp, &total_votes);
 
@@ -647,7 +681,7 @@ static int do_cmd_kill_node(char *cmdbuf, int *retlen)
 	if ((node = find_node_by_nodeid(nodeid)) == NULL)
 		return -EINVAL;
 
-	if (node->state != NODESTATE_MEMBER)
+	if (node->state != NODESTATE_MEMBER && node->state != NODESTATE_AISONLY)
 		return -EINVAL;
 
 	node->leave_reason = CLUSTER_LEAVEFLAG_KILLED;
@@ -1485,6 +1519,7 @@ void send_transition_msg(int last_memb_count, int first_trans)
 	msg->config_version = config_version;
 	msg->flags = us->flags;
 	msg->fence_time = us->fence_time;
+	msg->join_time = join_time;
 	strcpy(msg->clustername, cluster_name);
 	if (us->fence_agent)
 	{
@@ -1644,10 +1679,27 @@ static void do_process_transition(int nodeid, char *data, int len)
 	node = find_node_by_nodeid(nodeid);
 	assert(node);
 
-	if (node->flags & NODE_FLAGS_GOTTRANSITION) {
-
+        /* This is the killer. If the join_time of the node matches that already stored AND
+	   the node has been down, then we kill it as this must be a rejoin */
+	if (msg->join_time == node->cman_join_time && node->flags & NODE_FLAGS_BEENDOWN) {
+		if (cluster_is_quorate) {
+			P_MEMB("Killing node %s because it has rejoined the cluster without cman_tool join", node->name);
+			log_printf(LOG_CRIT, "Killing node %s because it has rejoined the cluster without cman_tool join", node->name);
+			send_kill(nodeid, CLUSTER_KILL_REJOIN);
+		}
+		else {
+			P_MEMB("Node %s not joined to cman because it has rejoined an inquorate cluster", node->name);
+			log_printf(LOG_CRIT, "Node %s not joined to cman because it has rejoined an inquorate cluster", node->name);
+			node->state = NODESTATE_AISONLY;
+		}
+		return;
 	}
-	node->flags = msg->flags;
+	else {
+		node->cman_join_time = msg->join_time;
+		add_ais_node(nodeid, incarnation, num_ais_nodes);
+	}
+
+	node->flags = msg->flags; /* This will clear the BEENDOWN flag of course */
 	if (node->fence_agent && msg->fence_agent[0] && strcmp(node->fence_agent, msg->fence_agent))
 	{
 		free(node->fence_agent);
@@ -1748,7 +1800,7 @@ static void process_internal_message(char *data, int len, int nodeid, int need_b
 			node->leave_reason = leavemsg->reason;
 
 		/* Mark it as leaving, and remove it when we get an AIS node down event for it */
-		if (node && node->state == NODESTATE_MEMBER)
+		if (node && (node->state == NODESTATE_MEMBER || node->state == NODESTATE_AISONLY))
 			node->state = NODESTATE_LEAVING;
 		break;
 
@@ -1843,11 +1895,9 @@ void add_ais_node(int nodeid, uint64_t incarnation, int total_members)
 		node->name = strdup(tempname);
 	}
 
-	node->incarnation = incarnation;
-
-	gettimeofday(&node->join_time, NULL);
-
 	if (node->state == NODESTATE_DEAD) {
+		gettimeofday(&node->join_time, NULL);
+		node->incarnation = incarnation;
 		node->state = NODESTATE_MEMBER;
 		cluster_members++;
 		recalculate_quorum(0);
@@ -1874,6 +1924,7 @@ void del_ais_node(int nodeid)
 		node->flags &= ~NODE_FLAGS_FENCED;
 
 	node->flags &= ~NODE_FLAGS_FENCEDWHILEUP;
+	node->flags |= NODE_FLAGS_BEENDOWN;
 
 	if (node->state == NODESTATE_MEMBER) {
 		node->state = NODESTATE_DEAD;

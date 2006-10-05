@@ -81,6 +81,7 @@ struct cl_transmsg {
 	unsigned int   config_version;
 	unsigned int   flags;
 	uint64_t       fence_time;
+	uint64_t       join_time;
         char           clustername[16];
 	char           fence_agent[];
 };
@@ -142,7 +143,10 @@ struct connection
 #define RECONFIG_PARAM_CONFIG_VERSION 3
 #define RECONFIG_PARAM_CCS            4
 
-#define NODE_FLAGS_GOTTRANSITION      1
+/* NODE_FLAGS_BEENDOWN   - this node has been down.
+   NODE_FLAGS_FENCED     - This node has been fenced since it last went down.
+*/
+#define NODE_FLAGS_BEENDOWN           1
 #define NODE_FLAGS_FENCED             2
 #define NODE_FLAGS_FENCEDWHILEUP      4
 
@@ -160,6 +164,8 @@ struct cluster_node {
 	/* When & how this node was last fenced */
 	uint64_t fence_time; /* A time_t */
 	char    *fence_agent;
+
+	uint64_t cman_join_time; /* A time_t */
 
 	struct timeval last_hello; /* Only used for quorum devices */
 
@@ -189,6 +195,7 @@ struct cluster_node {
 /* Kill reasons */
 #define CLUSTER_KILL_REJECTED   1
 #define CLUSTER_KILL_CMANTOOL   2
+#define CLUSTER_KILL_REJOIN     3
 
 #define MAX_ADDR_PRINTED_LEN (address_length*3 + 1)
 

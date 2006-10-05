@@ -232,6 +232,8 @@ static void show_status(void)
 		printf(" Shutdown");
 	if (einfo->ei_flags & CMAN_EXTRA_FLAG_ERROR)
 		printf(" Error");
+	if (einfo->ei_flags & CMAN_EXTRA_FLAG_DISALLOWED)
+		printf(" DisallowedNodes");
 	printf(" \n");
 
 	printf("Ports Bound: ");

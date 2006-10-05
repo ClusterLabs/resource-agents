@@ -57,6 +57,7 @@ struct totem_ip_address mcast_addr[MAX_INTERFACES];
 struct totem_ip_address ifaddrs[MAX_INTERFACES];
 int num_interfaces;
 uint64_t incarnation;
+int num_ais_nodes;
 
 static int config_run;
 static char errorstring[512];
@@ -411,12 +412,15 @@ static void cman_confchg_fn(enum totem_configuration_type configuration_type,
 	P_AIS("confchg_fn called type = %d, seq=%lld\n", configuration_type, ring_id->seq);
 
 	incarnation = ring_id->seq;
+	num_ais_nodes = member_list_entries;
 
 	/* Tell the cman membership layer */
 	for (i=0; i<left_list_entries; i++)
 		del_ais_node(left_list[i]);
-	for (i=0; i<joined_list_entries; i++)
-		add_ais_node(joined_list[i], incarnation, member_list_entries);
+
+	/* Joining nodes are only added after a valid TRANSITION message
+	 * is received.
+	 */
 
 	/* Save the left list for later so we can do a consolidated confchg message */
 	if (configuration_type == TOTEM_CONFIGURATION_TRANSITIONAL) {

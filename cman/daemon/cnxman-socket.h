@@ -113,7 +113,7 @@
 #define MSG_BCASTSELF    0x4000000
 
 typedef enum { NODESTATE_JOINING=1, NODESTATE_MEMBER,
-	       NODESTATE_DEAD, NODESTATE_LEAVING } nodestate_t;
+	       NODESTATE_DEAD, NODESTATE_LEAVING, NODESTATE_AISONLY } nodestate_t;
 
 static const char CLIENT_SOCKNAME[]= "/var/run/cman_client";
 static const char ADMIN_SOCKNAME[]=  "/var/run/cman_admin";
@@ -163,9 +163,10 @@ struct sock_confchg_message {
 };
 
 /* Flags */
-#define CMAN_EXTRA_FLAG_2NODE    1
-#define CMAN_EXTRA_FLAG_ERROR    2
-#define CMAN_EXTRA_FLAG_SHUTDOWN 4
+#define CMAN_EXTRA_FLAG_2NODE     1
+#define CMAN_EXTRA_FLAG_ERROR     2
+#define CMAN_EXTRA_FLAG_SHUTDOWN  4
+#define CMAN_EXTRA_FLAG_UNCOUNTED 8
 
 struct cl_extra_info {
 	int           node_state;

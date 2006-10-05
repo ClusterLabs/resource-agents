@@ -45,7 +45,7 @@ struct cman_handle
 	int magic;
 	int fd;
 	int zero_fd;
-	void *private;
+	void *privdata;
 	int want_reply;
 	cman_callback_t event_callback;
 	cman_datacallback_t data_callback;
@@ -161,7 +161,7 @@ static int process_cman_message(struct cman_handle *h, int flags, struct sock_he
 		else
 		{
 			if (h->data_callback)
-				h->data_callback(h, h->private,
+				h->data_callback(h, h->privdata,
 						 buf+sizeof(*dmsg), msg->length-sizeof(*dmsg),
 						 dmsg->port, dmsg->nodeid);
 		}
@@ -203,14 +203,14 @@ static int process_cman_message(struct cman_handle *h, int flags, struct sock_he
 		{
 			if (msg->command == CMAN_CMD_EVENT && h->event_callback) {
 				struct sock_event_message *emsg = (struct sock_event_message *)msg;
-				h->event_callback(h, h->private, emsg->reason, emsg->arg);
+				h->event_callback(h, h->privdata, emsg->reason, emsg->arg);
 			}
 
 			if (msg->command == CMAN_CMD_CONFCHG && h->confchg_callback)
 			{
 				struct sock_confchg_message *cmsg = (struct sock_confchg_message *)msg;
 
-				h->confchg_callback(h, h->private,
+				h->confchg_callback(h, h->privdata,
 						    cmsg->entries,cmsg->member_entries, 
 						    &cmsg->entries[cmsg->member_entries], cmsg->left_entries, 
 						    &cmsg->entries[cmsg->member_entries+cmsg->left_entries], cmsg->joined_entries);
@@ -287,7 +287,7 @@ static int info_call(struct cman_handle *h, int msgtype, void *inbuf, int inlen,
 	return wait_for_reply(h, outbuf, outlen);
 }
 
-static cman_handle_t open_socket(const char *name, int namelen, void *private)
+static cman_handle_t open_socket(const char *name, int namelen, void *privdata)
 {
 	struct cman_handle *h;
 	struct sockaddr_un sockaddr;
@@ -297,7 +297,7 @@ static cman_handle_t open_socket(const char *name, int namelen, void *private)
 		return NULL;
 
 	h->magic = CMAN_MAGIC;
-	h->private = private;
+	h->privdata = privdata;
 	h->event_callback = NULL;
 	h->data_callback = NULL;
 	h->confchg_callback = NULL;
@@ -344,14 +344,14 @@ static cman_handle_t open_socket(const char *name, int namelen, void *private)
 	return (cman_handle_t)h;
 }
 
-cman_handle_t cman_admin_init(void *private)
+cman_handle_t cman_admin_init(void *privdata)
 {
-	return open_socket(ADMIN_SOCKNAME, sizeof(ADMIN_SOCKNAME), private);
+	return open_socket(ADMIN_SOCKNAME, sizeof(ADMIN_SOCKNAME), privdata);
 }
 
-cman_handle_t cman_init(void *private)
+cman_handle_t cman_init(void *privdata)
 {
-	return open_socket(CLIENT_SOCKNAME, sizeof(CLIENT_SOCKNAME), private);
+	return open_socket(CLIENT_SOCKNAME, sizeof(CLIENT_SOCKNAME), privdata);
 }
 
 int cman_finish(cman_handle_t handle)
@@ -367,21 +367,21 @@ int cman_finish(cman_handle_t handle)
 	return 0;
 }
 
-int cman_set_private(cman_handle_t *handle, void *private)
+int cman_setprivdata(cman_handle_t *handle, void *privdata)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
 	VALIDATE_HANDLE(h);
 
-	h->private = private;
+	h->privdata = privdata;
 	return 0;
 }
 
-int cman_get_private(cman_handle_t *handle, void **private)
+int cman_getprivdata(cman_handle_t *handle, void **privdata)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
 	VALIDATE_HANDLE(h);
 
-	*private = h->private;
+	*privdata = h->privdata;
 
 	return 0;
 }
@@ -628,6 +628,53 @@ int cman_get_nodes(cman_handle_t handle, int maxnodes, int *retnodes, cman_node_
 	}
 	free(cman_nodes);
 	*retnodes = status;
+	return 0;
+}
+
+int cman_get_disallowed_nodes(cman_handle_t handle, int maxnodes, int *retnodes, cman_node_t *nodes)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	struct cl_cluster_node *cman_nodes;
+	int status;
+	int buflen;
+	int count = 0;
+	int out_count = 0;
+	VALIDATE_HANDLE(h);
+
+	if (!retnodes || !nodes || maxnodes < 1)
+	{
+		errno = EINVAL;
+		return -1;
+	}
+
+	buflen = sizeof(struct cl_cluster_node) * maxnodes;
+	cman_nodes = malloc(buflen);
+	if (!cman_nodes)
+		return -1;
+
+	status = info_call(h, CMAN_CMD_GETALLMEMBERS, NULL, 0, cman_nodes, buflen);
+	if (status < 0)
+	{
+		int saved_errno = errno;
+		free(cman_nodes);
+		errno = saved_errno;
+		return -1;
+	}
+
+	if (cman_nodes[0].size != sizeof(struct cl_cluster_node))
+	{
+		free(cman_nodes);
+		errno = EINVAL;
+		return -1;
+	}
+
+	for (count = 0; count < status; count++)
+	{
+		if (cman_nodes[count].state == NODESTATE_AISONLY && out_count < maxnodes)
+			copy_node(&nodes[out_count++], &cman_nodes[count]);
+	}
+	free(cman_nodes);
+	*retnodes = out_count;
 	return 0;
 }
 
