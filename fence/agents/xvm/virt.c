@@ -19,7 +19,7 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <stdlib.h>
-#include <libvirt.h>
+#include <libvirt/libvirt.h>
 #include <string.h>
 #include <malloc.h>
 #include <stdint.h>

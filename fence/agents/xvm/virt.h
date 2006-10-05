@@ -18,7 +18,7 @@
 */
 #ifndef _VIRT_H
 #define _VIRT_H
-#include <libvirt.h>
+#include <libvirt/libvirt.h>
 #include <stdint.h>
 #include <netinet/in.h>
 

@@ -40,7 +40,6 @@
 #include <errno.h>
 #include <pthread.h>
 #include <virterror.h>
-#include <libcman.h>
 #include <nss.h>
 #include <libgen.h>
 
@@ -51,6 +50,7 @@
 #include "mcast.h"
 #include "tcp.h"
 #include "virt.h"
+#include "libcman.h"
 
 static int running = 1;
 
