@@ -67,8 +67,8 @@
 
 #define get_v2sdp(sb) ((struct gfs_sbd *)(sb)->s_fs_info)
 #define set_v2sdp(sb, sdp) (sb)->s_fs_info = (sdp)
-#define get_v2ip(inode) ((struct gfs_inode *)(inode)->u.generic_ip)
-#define set_v2ip(inode, ip) (inode)->u.generic_ip = (ip)
+#define get_v2ip(inode) ((struct gfs_inode *)(inode)->i_private)
+#define set_v2ip(inode, ip) (inode)->i_private = (ip)
 #define get_v2fp(file) ((struct gfs_file *)(file)->private_data)
 #define set_v2fp(file, fp) (file)->private_data = (fp)
 #define get_v2bd(bh) ((struct gfs_bufdata *)(bh)->b_private)

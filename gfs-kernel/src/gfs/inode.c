@@ -97,7 +97,6 @@ inode_attr_in(struct gfs_inode *ip, struct inode *inode)
 	inode->i_mtime.tv_sec = ip->i_di.di_mtime;
 	inode->i_ctime.tv_sec = ip->i_di.di_ctime;
 	inode->i_atime.tv_nsec = inode->i_mtime.tv_nsec = inode->i_ctime.tv_nsec = 0;
-	inode->i_blksize = PAGE_SIZE;
 	inode->i_blocks = ip->i_di.di_blocks <<
 		(ip->i_sbd->sd_sb.sb_bsize_shift - GFS_BASIC_BLOCK_SHIFT);
 	inode->i_generation = ip->i_di.di_header.mh_incarn;
