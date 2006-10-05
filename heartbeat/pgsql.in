@@ -14,6 +14,7 @@
 #  OCF_RESKEY_psql   - Path to psql. Default is /usr/bin/psql
 #  OCF_RESKEY_pgdata - PGDATA directory. Default is /var/lib/pgsql/data
 #  OCF_RESKEY_pgdba  - userID that manages DB. Default is postgres
+#  OCF_RESKEY_pghost - Host/IP Address where PostgreSQL is listening
 #  OCF_RESKEY_pgdb   - database to monitor. Default is template1
 #  OCF_RESKEY_logfile - Path to PostgreSQL log file. Default is /dev/null
 ###############################################################################
@@ -89,6 +90,13 @@ User that owns PostgreSQL.
 </longdesc>
 <shortdesc lang="en">pgdba</shortdesc>
 <content type="string" default="postgres" />
+</parameter>
+<parameter name="pghost" unique="0" required="0">
+<longdesc lang="en">
+Hostname/IP Addreess where PosrgeSQL is listening
+</longdesc>
+<shortdesc lang="en">pghost</shortdesc>
+<content type="string" default="" />
 </parameter>
 <parameter name="pgdb" unique="0" required="0">
 <longdesc lang="en">
@@ -214,7 +222,7 @@ pgsql_status() {
     if [ -f $PIDFILE  ]
     then
         PID=`head -n 1 $PIDFILE`
-        process_running $PID && [ `ps -p $PID | grep postmaster | wc -l` -eq 1 ]
+        process_running $PID
     else
         : No pid file
         false
@@ -239,8 +247,13 @@ pgsql_monitor() {
 	ocf_log info "PostgreSQL is down"
 	return $OCF_NOT_RUNNING
     fi
-    
-    $PSQL -U $PGDBA $PGDB -c 'select now();' >/dev/null 2>&1
+
+    if [ "x" -eq "x$PGHOST" ]
+    then
+       $PSQL -U $PGDBA $PGDB -c 'select now();' >/dev/null 2>&1
+    else
+       $PSQL -h $PGHOST -U $PGDBA $PGDB -c 'select now();' >/dev/null 2>&1
+    fi
     
     if [ $? -ne  0 ]
     then
@@ -313,6 +326,7 @@ STARTOPT=${OCF_RESKEY_start_opt:-""}
 PSQL=${OCF_RESKEY_psql:-/usr/bin/psql}
 PGDATA=${OCF_RESKEY_pgdata:-/var/lib/pgsql/data}
 PGDBA=${OCF_RESKEY_pgdba:-postgres}
+PGHOST=${OCF_RESKEY_pghost:-""}
 PGDB=${OCF_RESKEY_pgdb:-template1}
 LOGFILE=${OCF_RESKEY_logfile:-/dev/null}
 PIDFILE=${PGDATA}/postmaster.pid
