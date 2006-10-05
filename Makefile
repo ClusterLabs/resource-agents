@@ -16,14 +16,14 @@ MAKELINE =  sbindir=${BUILDDIR}/sbin libdir=${BUILDDIR}/lib mandir=${BUILDDIR}/m
 
 
 all:
-	${MAKE} -C gnbd-kernel all
+#	${MAKE} -C gnbd-kernel all
 	${MAKE} -C cman/lib all
 	${MAKE} -C ccs all
 	${MAKE} -C cman all
 	${MAKE} -C group all
 	${MAKE} -C dlm all
 	${MAKE} -C fence all
-	${MAKE} -C gfs-kernel all
+#	${MAKE} -C gfs-kernel all
 	${MAKE} -C gfs all
 	${MAKE} -C gfs2 all
 	${MAKE} -C gnbd all
@@ -33,8 +33,8 @@ all:
 clean:
 	rm -f *tar.gz
 	rm -rf build
-	${MAKE} -C gfs-kernel clean
-	${MAKE} -C gnbd-kernel clean
+#	${MAKE} -C gfs-kernel clean
+#	${MAKE} -C gnbd-kernel clean
 	${MAKE} -C ccs clean
 	${MAKE} -C cman clean
 	${MAKE} -C group clean
@@ -47,8 +47,8 @@ clean:
 #	${MAKE} -C cmirror clean
 
 distclean:
-	${MAKE} -C gfs-kernel distclean
-	${MAKE} -C gnbd-kernel distclean
+#	${MAKE} -C gfs-kernel distclean
+#	${MAKE} -C gnbd-kernel distclean
 	${MAKE} -C ccs distclean
 	${MAKE} -C cman distclean
 	${MAKE} -C group distclean
@@ -61,8 +61,8 @@ distclean:
 #	${MAKE} -C cmirror distclean
 
 install: all
-	${MAKE} -C gfs-kernel install
-	${MAKE} -C gnbd-kernel install
+#	${MAKE} -C gfs-kernel install
+#	${MAKE} -C gnbd-kernel install
 	${MAKE} -C ccs install
 	${MAKE} -C cman install
 	${MAKE} -C group install
@@ -75,8 +75,8 @@ install: all
 #	${MAKE} -C cmirror install
 
 uninstall:
-	${MAKE} -C gfs-kernel uninstall
-	${MAKE} -C gnbd-kernel uninstall
+#	${MAKE} -C gfs-kernel uninstall
+#	${MAKE} -C gnbd-kernel uninstall
 	${MAKE} -C ccs uninstall
 	${MAKE} -C cman uninstall
 	${MAKE} -C group uninstall
@@ -89,8 +89,8 @@ uninstall:
 #	${MAKE} -C cmirror uninstall
 
 latest_tags:
-	${LATEST_TAG} gfs-kernel
-	${LATEST_TAG} gnbd-kernel
+#	${LATEST_TAG} gfs-kernel
+#	${LATEST_TAG} gnbd-kernel
 	${LATEST_TAG} ccs
 	${LATEST_TAG} cman
 	${LATEST_TAG} dlm
@@ -111,8 +111,8 @@ srpms:
 	$(BUILD_SRPMS)
 
 tarballs: TAG
-	make -s COMPONENT=gfs-kernel RELEASE_FILE=gfs-kernel/make/release.mk.input tarball
-	make -s COMPONENT=gnbd-kernel RELEASE_FILE=gnbd-kernel/make/release.mk.input tarball
+#	make -s COMPONENT=gfs-kernel RELEASE_FILE=gfs-kernel/make/release.mk.input tarball
+#	make -s COMPONENT=gnbd-kernel RELEASE_FILE=gnbd-kernel/make/release.mk.input tarball
 	make -s COMPONENT=ccs RELEASE_FILE=ccs/make/release.mk.input tarball
 	make -s COMPONENT=cman RELEASE_FILE=cman/make/release.mk.input tarball
 	make -s COMPONENT=dlm RELEASE_FILE=dlm/make/release.mk.input tarball
