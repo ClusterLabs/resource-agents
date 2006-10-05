@@ -297,6 +297,8 @@ int set_members(char *name, int new_count, int *new_members)
 		if (id_exists(id, old_count, old_members))
 			continue;
 
+		if (!is_cman_member(id))
+			cman_statechange();
 		/*
 		 * create node's dir
 		 */

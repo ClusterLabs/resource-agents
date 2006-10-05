@@ -66,6 +66,7 @@ char *nodeid2name(int nodeid)
 	return cn->cn_name;
 }
 
+
 /* add a configfs dir for cluster members that don't have one,
    del the configfs dir for cluster members that are now gone */
 
@@ -219,3 +220,8 @@ int setup_member(void)
 	return fd;
 }
 
+/* Force re-read of cman nodes */
+void cman_statechange()
+{
+	statechange();
+}

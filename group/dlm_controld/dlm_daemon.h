@@ -94,5 +94,9 @@ int process_groupd(void);
 struct lockspace *create_ls(char *name);
 struct lockspace *find_ls(char *name);
 
+/* member_cman.c */
+int is_cman_member(int nodeid);
+void cman_statechange(void);
+
 #endif
 
