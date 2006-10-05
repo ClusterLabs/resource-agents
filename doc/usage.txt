@@ -30,7 +30,6 @@ Install the cluster CVS tree from source:
   cd cluster
   ./configure --kernel_src=/path/to/kernel
   make install
-  (this builds and installs some optional things like gfs(1) also)
 
 Install LVM2/CLVM (optional)
   cvs -d :pserver:cvs@sources.redhat.com:/cvs/lvm2 login cvs
@@ -155,7 +154,7 @@ Run these commands on each cluster node:
 > cman_tool leave
 
 Notes:
-- You need the util-linux 2.13-pre6 version of umount(8) or later,
+- the util-linux 2.13-pre6 or later version of umount(8) is required,
   older versions do not call the umount.gfs2 helper.
 
 
