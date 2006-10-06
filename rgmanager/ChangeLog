@@ -1,11 +1,11 @@
 2006-10-06 Lon Hohberger <lhh at redhat.com>
-	* src/daemons/main.c: Fix #202497: provide rgmanager's view of
+	* src/daemons/main.c: Fix #202492: provide rgmanager's view of
 	who is running rgmanager to clustat.
 	* src/daemons/groups.c: Fix tiny memory leak during configuration
 	changes
-	* include/resgroup.h: #202497: Flip unused RG_STATUS_INQUIRY to
+	* include/resgroup.h: #202492: Flip unused RG_STATUS_INQUIRY to
 	RG_STATUS_NODE.
-	* src/utils/clustat.c: #202497: Send RG_STATUS_NODE to clurgmgrd
+	* src/utils/clustat.c: #202492: Send RG_STATUS_NODE to clurgmgrd
 	in order to obtain rgmanager "group" status information
 
 2006-09-27 Lon Hohberger <lhh at redhat.com>
