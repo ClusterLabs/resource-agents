@@ -46,6 +46,7 @@
 static int control_fd = -1;
 extern int our_nodeid;
 static int plocks_online = 0;
+extern int message_flow_control_on;
 
 static SaCkptHandleT ckpt_handle;
 static SaCkptCallbacksT callbacks = { 0, 0 };
@@ -296,6 +297,10 @@ int process_plocks(void)
 	struct gdlm_header *hd;
 	char *buf;
 	int len, rv;
+
+	/* Don't send more messages while the cpg message queue is backed up */
+	if (message_flow_control_on)
+		return 0;
 
 	memset(&info, 0, sizeof(info));
 

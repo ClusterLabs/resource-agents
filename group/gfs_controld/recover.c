@@ -27,6 +27,7 @@ void send_journals(struct mountgroup *mg, int nodeid);
 void start_participant_init_2(struct mountgroup *mg);
 void start_spectator_init_2(struct mountgroup *mg);
 void start_spectator_2(struct mountgroup *mg);
+void notify_mount_client(struct mountgroup *mg);
 
 int set_sysfs(struct mountgroup *mg, char *field, int val)
 {
@@ -1062,6 +1063,41 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 		unlink_checkpoint(mg);
 		resend_journals(mg);
 	}
+
+	/* Tricky situation when we're mounting and the failed node was
+	   the only other node that had the fs mounted.  If the failed node
+	   didn't send us a journals message, we need to: unlink ckpt, pick a
+	   journal for ourselves, act like the first mounter of the fs (do
+	   first-mounter-recovery, the dead node may have been mounting itself
+	   and not finished first-mounter-recovery). */
+
+	else if (neg && mg->memb_count == 1) {
+		if (!mg->got_our_journals) {
+			log_group(mg, "we are left alone, act first mounter");
+
+			unlink_checkpoint(mg);
+			memb = find_memb_nodeid(mg, our_nodeid);
+			memb->jid = 0;
+			mg->our_jid = 0;
+			mg->first_mounter = 1;
+			mg->first_mounter_done = 0;
+			mg->got_our_options = 1;
+			mg->got_our_journals = 1;
+			mg->mount_client_delay = 0;
+			notify_mount_client(mg);
+		} else if (mg->mount_client_notified && !mg->got_kernel_mount) {
+
+			/* FIXME */
+
+			log_group(mg, "FIXME: case not handled");
+
+			/* we got journals message from other node before it
+			   died which means it finished first mounter recovery,
+			   but we now need to tell gfs to recover the journal
+			   after our own mount(2) completes */
+
+		}
+	}
 }
 
 struct mountgroup *create_mg(char *name)
@@ -1121,7 +1157,7 @@ struct mountgroup *find_mg_dir(char *dir)
 static int we_are_in_fence_domain(void)
 {
 	group_data_t data;
-	int i, rv;
+	int rv;
 
 	memset(&data, 0, sizeof(data));
 
@@ -1130,11 +1166,8 @@ static int we_are_in_fence_domain(void)
 	if (rv || strcmp(data.client_name, "fence"))
 		return 0;
 
-	for (i = 0; i < data.member_count; i++) {
-		if (data.members[i] == our_nodeid)
-			return 1;
-	}
-
+	if (data.member == 1)
+		return 1;
 	return 0;
 }
 
@@ -1304,8 +1337,16 @@ int kernel_recovery_done_first(struct mountgroup *mg)
 
    the problem we're trying to avoid here is telling gfs-kernel to do
    recovery when it can't for some reason and then waiting forever for
-   a recovery_done signal that will never arrive. */
+   a recovery_done signal that will never arrive.
 
+   FIXME: we want to do more here to avoid telling gfs-kernel to do recovery
+   until our mount is really complete.  I want to keep the join/mount
+   connection between mount.gfs and gfs_controld open throughout the mount
+   and have mount.gfs use it to return the result from mount(2).  Then we'll
+   know when the mount(2) is done and we should also be able to remove the
+   special mount_error_fd since errors can be sent back through the original
+   connection as well. */
+ 
 void recover_journals(struct mountgroup *mg)
 {
 	struct mg_member *memb;
@@ -1318,24 +1359,25 @@ void recover_journals(struct mountgroup *mg)
 	    mg->kernel_mount_error ||
 	    !mg->mount_client_notified ||
 	    !mg->got_kernel_mount) {
+		log_group(mg, "recover_journals: unable %d,%d,%d,%d,%d,%d,%d",
+			  mg->spectator,
+			  mg->readonly,
+			  mg->withdraw,
+			  mg->our_jid,
+			  mg->kernel_mount_error,
+			  mg->mount_client_notified,
+			  mg->got_kernel_mount);
 
 		list_for_each_entry(memb, &mg->members_gone, list) {
-			if (!memb->tell_gfs_to_recover)
-				continue;
+			log_group(mg, "member gone %d jid %d "
+				  "tell_gfs_to_recover %d",
+				  memb->nodeid, memb->jid,
+				  memb->tell_gfs_to_recover);
 
-			log_group(mg, "recover journal %d nodeid %d skip: "
-				  "%d %d %d %d %d %d %d",
-				  memb->jid, memb->nodeid,
-				  mg->spectator,
-				  mg->readonly,
-				  mg->withdraw,
-				  mg->our_jid,
-				  mg->kernel_mount_error,
-				  mg->mount_client_notified,
-				  mg->got_kernel_mount);
-
-			memb->tell_gfs_to_recover = 0;
-			memb->local_recovery_status = RS_READONLY;
+			if (memb->tell_gfs_to_recover) {
+				memb->tell_gfs_to_recover = 0;
+				memb->local_recovery_status = RS_READONLY;
+			}
 		}
 		start_done(mg);
 		return;
@@ -1344,6 +1386,15 @@ void recover_journals(struct mountgroup *mg)
 	/* we feed one jid into the kernel for recovery instead of all
 	   at once because we need to get the result of each independently
 	   through the single recovery_done sysfs file */
+
+	list_for_each_entry(memb, &mg->members_gone, list) {
+		if (memb->wait_gfs_recover_done) {
+			log_group(mg, "delay new gfs recovery, "
+			  	  "wait_gfs_recover_done for nodeid %d jid %d",
+			  	  memb->nodeid, memb->jid);
+			return;
+		}
+	}
 
 	list_for_each_entry(memb, &mg->members_gone, list) {
 		if (!memb->tell_gfs_to_recover)
@@ -1412,6 +1463,17 @@ int kernel_recovery_done_emulate_first(struct mountgroup *mg)
 		log_group(mg, "kernel_recovery_done_emulate_first");
 		mg->first_mounter_done = 1;
 		send_recovery_done(mg);
+	}
+	return 0;
+}
+
+int need_kernel_recovery_done(struct mountgroup *mg)
+{
+	struct mg_member *memb;
+
+	list_for_each_entry(memb, &mg->members_gone, list) {
+		if (memb->wait_gfs_recover_done)
+			return 1;
 	}
 	return 0;
 }
@@ -1500,19 +1562,13 @@ int kernel_recovery_done(char *table)
 
 	log_group(mg, "recovery_done jid %d nodeid %d %s",
 		  memb->jid, memb->nodeid, ss);
+
+	/* sanity check */
+	if (need_kernel_recovery_done(mg))
+		log_error("recovery_done: should be no pending gfs recoveries");
+
  out:
 	recover_journals(mg);
-	return 0;
-}
-
-int need_kernel_recovery_done(struct mountgroup *mg)
-{
-	struct mg_member *memb;
-
-	list_for_each_entry(memb, &mg->members_gone, list) {
-		if (memb->wait_gfs_recover_done)
-			return 1;
-	}
 	return 0;
 }
 

@@ -19,6 +19,7 @@ static int		got_msg;
 static int		saved_nodeid;
 static int		saved_len;
 static char		saved_data[MAX_MSGLEN];
+int			message_flow_control_on;
 
 void receive_journals(struct mountgroup *mg, char *buf, int len, int from);
 void receive_options(struct mountgroup *mg, char *buf, int len, int from);
@@ -127,6 +128,7 @@ static cpg_callbacks_t callbacks = {
 
 int process_cpg(void)
 {
+	cpg_flow_control_state_t flow_control_state;
 	cpg_error_t error;
 	
 	got_msg = 0;
@@ -142,6 +144,22 @@ int process_cpg(void)
 
 	if (got_msg)
 		do_deliver(saved_nodeid, saved_data, saved_len);
+
+	error = cpg_flow_control_state_get(daemon_handle, &flow_control_state);
+	if (error != CPG_OK) {
+		log_error("cpg_flow_control_state_get %d", error);
+		return -1;
+	}
+
+	if (flow_control_state == CPG_FLOW_CONTROL_ENABLED) {
+		message_flow_control_on = 1;
+		log_debug("flow control on");
+	} else {
+		if (message_flow_control_on)
+			log_debug("flow control off");
+		message_flow_control_on = 0;
+	}
+
 	return 0;
 }
 
