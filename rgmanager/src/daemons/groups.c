@@ -1228,6 +1228,7 @@ init_resource_groups(int reconfigure)
 		pthread_mutex_lock(&config_mutex);
 		config_version = atoi(val);
 		pthread_mutex_unlock(&config_mutex);
+		free(val);
 	}
 
 	clulog(LOG_DEBUG, "Building Resource Trees\n");

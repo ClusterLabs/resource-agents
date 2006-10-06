@@ -43,6 +43,94 @@ typedef struct {
 } rg_state_list_t;
 
 
+void
+flag_rgmanager_nodes(cluster_member_list_t *cml)
+{
+	msgctx_t ctx;
+	int max = 0, n;
+	generic_msg_hdr *msgp;
+	fd_set rfds;
+
+	struct timeval tv;
+
+	if (msg_open(MSG_SOCKET, 0, 0, &ctx, 10) < 0)
+		return;
+
+	msg_send_simple(&ctx, RG_STATUS_NODE, 0, 0);
+
+	while (1) {
+		FD_ZERO(&rfds);
+		msg_fd_set(&ctx, &rfds, &max);
+		tv.tv_sec = 10;
+		tv.tv_usec = 0;
+
+		n = select(max+1, &rfds, NULL, NULL, &tv);
+		if (n == 0) {
+			fprintf(stderr, "Timed out waiting for a response "
+				"from Resource Group Manager\n");
+			break;
+		}
+
+		if (n < 0) {
+			if (errno == EAGAIN ||
+			    errno == EINTR)
+				continue;
+			fprintf(stderr, "Failed to receive "
+				"service data: select: %s\n",
+				strerror(errno));
+			break;
+		}
+
+		n = msg_receive_simple(&ctx, &msgp, tv.tv_sec);
+
+		if (n < 0) {
+			if (errno == EAGAIN)
+				continue;
+			perror("msg_receive_simple");
+			break;
+		}
+	        if (n < sizeof(generic_msg_hdr)) {
+			printf("Error: Malformed message\n");
+			break;
+		}
+
+		if (!msgp) {
+			printf("Error: no message?!\n");
+			break;
+		}
+
+		swab_generic_msg_hdr(msgp);
+
+		if (msgp->gh_command == RG_FAIL) {
+			printf("Member states unavailable: %s\n", 
+			       rg_strerror(msgp->gh_arg1));
+			free(msgp);
+			msg_close(&ctx);
+			return;
+		}	
+
+		if (msgp->gh_command == RG_SUCCESS) {
+			free(msgp);
+			break;
+		}
+
+		for (n = 0; n < cml->cml_count; n++) {
+			if (cml->cml_members[n].cn_nodeid != msgp->gh_arg1)
+				continue;
+			cml->cml_members[n].cn_member |= FLAG_RGMGR;
+		}
+
+		free(msgp);
+		msgp = NULL;
+	}
+
+	msg_send_simple(&ctx, RG_SUCCESS, 0, 0);
+	msg_close(&ctx);
+
+	return;
+}
+
+
 rg_state_list_t *
 rg_state_list(int local_node_id, int fast)
 {
@@ -791,6 +879,9 @@ main(int argc, char **argv)
 		membership = build_member_list(ch, &local_node_id);
 		
 		rgs = rg_state_list(local_node_id, fast);
+		if (rgs) {
+			flag_rgmanager_nodes(membership);
+		}
 
 		if (refresh_sec) {
 			setupterm((char *) 0, STDOUT_FILENO, (int *) 0);

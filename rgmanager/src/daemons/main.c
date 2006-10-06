@@ -87,6 +87,26 @@ send_exit_msg(msgctx_t *ctx)
 
 
 void
+send_node_states(msgctx_t *ctx)
+{
+	int x;
+	generic_msg_hdr hdr;
+	cluster_member_list_t *ml = member_list();
+
+	for (x = 0; x < ml->cml_count; x++) {
+		if (ml->cml_members[x].cn_member == 1) {
+			msg_send_simple(ctx, RG_STATUS_NODE,
+					ml->cml_members[x].cn_nodeid, 0);
+		}
+	}
+	msg_send_simple(ctx, RG_SUCCESS,
+			ml->cml_members[x].cn_nodeid, 0);
+	msg_receive(ctx, &hdr, sizeof(hdr), 10);
+	free_member_list(ml);
+}
+
+
+void
 flag_reconfigure(int sig)
 {
 	need_reconfigure++;
@@ -417,8 +437,13 @@ dispatch_msg(msgctx_t *ctx, int nodeid, int need_close)
 	switch (msg_hdr->gh_command) {
 	case RG_STATUS:
 		clulog(LOG_DEBUG, "Sending service states to CTX%p\n",ctx);
-		send_rg_states(ctx, msg_hdr->gh_arg1);
-		need_close = 0;
+		if (send_rg_states(ctx, msg_hdr->gh_arg1) == 0)
+			need_close = 0;
+		break;
+
+	case RG_STATUS_NODE:
+		clulog(LOG_DEBUG, "Sending node states to CTX%p\n",ctx);
+		send_node_states(ctx);
 		break;
 
 	case RG_LOCK:

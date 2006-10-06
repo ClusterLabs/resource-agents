@@ -68,7 +68,7 @@ typedef struct {
 #define RG_EXITING	  9 
 #define RG_INIT		  10
 #define RG_ENABLE	  11
-#define RG_STATUS_INQUIRY 12
+#define RG_STATUS_NODE	  12
 #define RG_RELOCATE	  13
 #define RG_CONDSTOP	  14
 #define RG_CONDSTART	  15
