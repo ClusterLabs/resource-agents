@@ -120,6 +120,12 @@ static void process_node_join(group_t *g, int nodeid)
 	}
 
 	queue_app_join(g, nodeid);
+
+	/* if this is for our own join, then make it current immediately;
+	   other code gets confused if we're not joined and have no current
+	   event */
+	if (nodeid == our_nodeid)
+		process_app(g);
 }
 
 static void process_node_leave(group_t *g, int nodeid)
@@ -252,9 +258,6 @@ void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 	if (groupd_debug_verbose > 1)
 		log_group(g, "RECV len %d %s from %d", data_len,
 			  msg_type(msg->ms_type), nodeid);
-
-	if (nodeid == our_nodeid && g->app->sent_event_id == msg->ms_event_id)
-		g->app->sent_event_id = 0;
 
 	save = malloc(sizeof(struct save_msg));
 	memset(save, 0, sizeof(struct save_msg));

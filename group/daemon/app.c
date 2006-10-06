@@ -17,6 +17,8 @@ char *msg_type(int type)
 		return "stopped";
 	case MSG_APP_STARTED:
 		return "started";
+	case MSG_APP_RECOVER:
+		return "recover";
 	case MSG_APP_INTERNAL:
 		return "internal";
 	}
@@ -125,9 +127,12 @@ static void purge_messages(group_t *g)
 		type = event_id_to_type(save->msg.ms_event_id);
 		node = find_app_node(g->app, nodeid);
 
-		if ((type == 1 && node) || (type != 1 && !node)) {
+		if ((type == 1 && node) || (type != 1 && !node) ||
+		    (save->msg.ms_type == MSG_APP_RECOVER)) {
 
-			if (type == 1)
+			if (save->msg.ms_type == MSG_APP_RECOVER)
+				state_str = "MSG_APP_RECOVER";
+			else if (type == 1)
 				state_str = "EST_JOIN_BEGIN";
 			else if (type == 2)
 				state_str = "EST_LEAVE_BEGIN";
@@ -240,7 +245,7 @@ void add_recovery_set(int nodeid)
 	}
 }
 
-void _del_recovery_set(group_t *g, int nodeid)
+void _del_recovery_set(group_t *g, int nodeid, int purge)
 {
 	struct recovery_set *rs, *rs2;
 	struct recovery_entry *re, *re2;
@@ -254,10 +259,17 @@ void _del_recovery_set(group_t *g, int nodeid)
 
 		list_for_each_entry_safe(re, re2, &rs->entries, list) {
 			if (re->group == g) {
-				re->recovered = 1;
-				log_group(g, "done in recovery set %d",
-					  rs->nodeid);
-				found++;
+				if (purge) {
+					list_del(&re->list);
+					free(re);
+					log_group(g, "purged from rs %d",
+						  rs->nodeid);
+				} else {
+					re->recovered = 1;
+					log_group(g, "done in recovery set %d",
+					  	  rs->nodeid);
+					found++;
+				}
 			} else {
 				if (re->recovered == 0)
 					entries_not_recovered++;
@@ -289,18 +301,18 @@ void _del_recovery_set(group_t *g, int nodeid)
    one failed nodeid).  Remove this group from recovery sets for those nodeids
    and free any recovery sets that are now completed. */
 
-void del_recovery_set(group_t *g, event_t *ev)
+void del_recovery_set(group_t *g, event_t *ev, int purge)
 {
 	struct nodeid *id;
 
 	log_group(g, "rev %llx done, remove group from rs %d",
 		  ev->id, ev->nodeid);
-	_del_recovery_set(g, ev->nodeid);
+	_del_recovery_set(g, ev->nodeid, purge);
 
 	list_for_each_entry(id, &ev->extended, list) {
 		log_group(g, "rev %llx done, remove group from rs %d",
 			  ev->id, id->nodeid);
-		_del_recovery_set(g, id->nodeid);
+		_del_recovery_set(g, id->nodeid, purge);
 	}
 }
 
@@ -332,7 +344,7 @@ int is_recovery_event(event_t *ev)
 	return 0;
 }
 
-/* all groups referenced by a recovery set have been stopped on all nodes,
+/* all groups referenced by a recovery set are stopped on all nodes,
    and stopped for recovery */
 
 static int set_is_all_stopped(struct recovery_set *rs, event_t *rev)
@@ -342,6 +354,17 @@ static int set_is_all_stopped(struct recovery_set *rs, event_t *rev)
 
 	list_for_each_entry(re, &rs->entries, list) {
 		ev = re->group->app->current_event;
+
+#if 0
+		/* if we're not in the group yet, skip it */
+		if (ev &&
+		    ev->state == EST_JOIN_STOP_WAIT &&
+		    is_our_join(ev)) {
+			log_group(re->group, "skip all_stopped check for rs %d",
+				  rs->nodeid);
+			continue;
+		}
+#endif
 
 		if (ev &&
 		    is_recovery_event(ev) &&
@@ -434,8 +457,23 @@ static int lower_levels_recovered(group_t *g)
 		log_group(g, "lower levels not recovered in rs %d", rs->nodeid);
 		return 0;
 	}
-
 	return 1;
+}
+
+/* We're interested in any unrecovered group at a lower level than g, not
+   just lower groups in the same recovery set. */
+
+static int lower_groups_need_recovery(group_t *g)
+{
+	struct recovery_set *rs;
+
+	list_for_each_entry(rs, &recovery_sets, list) {
+		if (rs_lower_levels_recovered(rs, g->level))
+			continue;
+		log_group(g, "lower group not recovered in rs %d", rs->nodeid);
+		return 1;
+	}
+	return 0;
 }
 
 static int level_is_lowest(struct recovery_set *rs, int level)
@@ -692,7 +730,6 @@ static int send_stopped(group_t *g)
 	msg_bswap_out(&msg);
 
 	log_group(g, "send stopped");
-	g->app->sent_event_id = ev->id;
 	return send_message_groupd(g, &msg, sizeof(msg), MSG_APP_STOPPED);
 }
 
@@ -711,8 +748,24 @@ static int send_started(group_t *g)
 	msg_bswap_out(&msg);
 
 	log_group(g, "send started");
-	g->app->sent_event_id = ev->id;
 	return send_message_groupd(g, &msg, sizeof(msg), MSG_APP_STARTED);
+}
+
+static int send_recover(group_t *g, event_t *rev)
+{
+	msg_t msg;
+
+	memset(&msg, 0, sizeof(msg));
+	msg.ms_type = MSG_APP_RECOVER;
+	msg.ms_global_id = g->global_id;
+	msg.ms_event_id = rev->id;
+	msg.ms_level = g->level;
+	memcpy(&msg.ms_name, &g->name, MAX_NAMELEN);
+
+	msg_bswap_out(&msg);
+
+	log_group(g, "send recover");
+	return send_message_groupd(g, &msg, sizeof(msg), MSG_APP_RECOVER);
 }
 
 int do_stopdone(char *name, int level)
@@ -906,10 +959,28 @@ static int process_current_event(group_t *g)
 	case EST_JOIN_STOP_WAIT:
 		count = count_nodes_not_stopped(a);
 		log_group(g, "waiting for %d more stopped messages "
-			  "before JOIN_ALL_STOPPED", count);
+			  "before JOIN_ALL_STOPPED %d", count, ev->nodeid);
 		break;
 
 	case EST_JOIN_ALL_STOPPED:
+		if (!cman_quorate) {
+			log_group(g, "wait for quorum before starting app");
+			break;
+		}
+
+		/* We want to move ahead to start here if this ev is to be
+		   started before a pending rev that will abort it.  Once
+		   started, the rev becomes current and stops the app
+		   immediately. */
+
+		if (lower_groups_need_recovery(g) &&
+		    !ev->start_app_before_pending_rev) {
+			log_group(g, "wait for lower_groups_need_recovery "
+				  "before starting app");
+			break;
+		}
+		ev->start_app_before_pending_rev = 0;
+
 		ev->state = EST_JOIN_START_WAIT;
 
 		if (!g->have_set_id) {
@@ -940,7 +1011,7 @@ static int process_current_event(group_t *g)
 	case EST_LEAVE_STOP_WAIT:
 		count = count_nodes_not_stopped(a);
 		log_group(g, "waiting for %d more stopped messages "
-			  "before LEAVE_ALL_STOPPED", count);
+			  "before LEAVE_ALL_STOPPED %d", count, ev->nodeid);
 		break;
 
 	case EST_LEAVE_ALL_STOPPED:
@@ -993,7 +1064,7 @@ static int process_current_event(group_t *g)
 	case EST_FAIL_STOP_WAIT:
 		count = count_nodes_not_stopped(a);
 		log_group(g, "waiting for %d more stopped messages "
-			  "before FAIL_ALL_STOPPED", count);
+			  "before FAIL_ALL_STOPPED %d", count, ev->nodeid);
 		break;
 
 	case EST_FAIL_ALL_STOPPED:
@@ -1058,7 +1129,7 @@ static int process_current_event(group_t *g)
 
 	case EST_FAIL_ALL_STARTED:
 		app_finish(a);
-		del_recovery_set(g, ev);
+		del_recovery_set(g, ev, 0);
 		free_event(ev);
 		a->current_event = NULL;
 		rv = 1;
@@ -1073,6 +1144,14 @@ static int process_current_event(group_t *g)
 	}
 
 	return rv;
+}
+
+static void clear_all_nodes_stopped(app_t *a)
+{
+	node_t *node;
+	log_group(a->g, "clear_all_nodes_stopped");
+	list_for_each_entry(node, &a->nodes, list)
+		node->stopped = 0;
 }
 
 static int mark_node_stopped(app_t *a, int nodeid)
@@ -1169,6 +1248,27 @@ static int process_app_messages(group_t *g)
 			continue;
 
 		ev = a->current_event;
+
+		if (save->msg.ms_type == MSG_APP_RECOVER) {
+			if (ev && ev->state == EST_JOIN_STOP_WAIT &&
+			    is_our_join(ev)) {
+				/* keep this msg around for
+				   recover_current_event() to see, it will
+				   be purged later */
+				if (!save->print_ignore) {
+					log_group(g, "rev %llx taken on "
+						  "node %d",
+						  save->msg.ms_event_id,
+						  save->nodeid);
+					save->print_ignore = 1;
+				}
+				continue;
+			} else {
+				goto free_save;
+			}
+		}
+
+
 		if (!ev || ev->id != save->msg.ms_event_id) {
 			if (!save->print_ignore) {
 				log_group(g, "ignore msg from %d id %llx %s",
@@ -1199,7 +1299,7 @@ static int process_app_messages(group_t *g)
 			log_group(g, "set global_id %x from %d",
 				  g->global_id, save->nodeid);
 		}
-
+	 free_save:
 		list_del(&save->list);
 		if (save->msg_long)
 			free(save->msg_long);
@@ -1328,6 +1428,7 @@ int recover_current_event(group_t *g)
 	app_t *a = g->app;
 	event_t *ev, *rev;
 	node_t *node;
+	struct save_msg *save;
 	struct nodeid *id, *safe;
 	int rv = 0;
 
@@ -1351,9 +1452,7 @@ int recover_current_event(group_t *g)
 
 		if (ev->state > EST_FAIL_ALL_STOPPED) {
 			ev->state = EST_FAIL_BEGIN;
-			list_for_each_entry(node, &a->nodes, list)
-				node->stopped = 0;
-
+			clear_all_nodes_stopped(a);
 		} else if (event_state_stopping(a)) {
 			mark_node_stopped(a, rev->nodeid);
 			list_for_each_entry(id, &rev->extended, list)
@@ -1365,7 +1464,6 @@ int recover_current_event(group_t *g)
 		list_add(&id->list, &ev->extended);
 		log_group(g, "extend active rev %d with failed node %d",
 			  ev->nodeid, rev->nodeid);
-
 		list_for_each_entry_safe(id, safe, &rev->extended, list) {
 			list_del(&id->list);
 			list_add(&id->list, &ev->extended);
@@ -1373,11 +1471,106 @@ int recover_current_event(group_t *g)
 				  ev->nodeid, id->nodeid);
 		}
 
+		send_recover(g, rev);
 		list_del(&rev->list);
 		free_event(rev);
 		return 1;
 	}
 
+	/* This is a really gross situation, wish I could find a better way
+	   to deal with it... (rev's skip ahead of other queued ev's, I think
+	   that's the root of the difficulties here, we don't know if the
+	   rev has skipped ahead of our join on remote nodes or not).
+
+	   If our own join event is current on other nodes, then we want a
+	   rev (which will replace our join ev once it's starting).  If our
+	   join event isn't current on other nodes, then recovery will occur
+	   before we're added to the app group and the rev doesn't apply to us
+	   (apart from needing to remove the failed node from the memb list).
+
+	   We won't know if our join ev is current on other nodes, though,
+	   until we see a message -- if the message event id is for our join,
+	   then our ev is current and we'll process the rev after our ev, if
+	   the message event id is for the rev, then the rev is being done
+	   by the current members without us and our ev will be done later;
+	   the rev doesn't apply to us.
+
+	   Do nothing until we see a message indicating whether other nodes
+	   are on our join ev (in which case go to "rev will abort curr" code),
+	   or whether they're processing this rev (before our join ev comes
+	   up) in which case we can drop the rev (NB attend to rs, too). */
+
+	if (ev->state == EST_JOIN_STOP_WAIT && is_our_join(ev)) {
+
+		log_group(g, "rev %d is for group we're waiting to join",
+			  rev->nodeid);
+
+		/* Look for a remote node with stopped of 1, if we find one,
+		   then fall through to the 'else if (event_state_stopping)'
+		   below.  A remote node with stopped of 1 means we've received
+		   a stopped message with an event_id of our join event. */
+
+		list_for_each_entry(node, &a->nodes, list) {
+			if (node->nodeid == our_nodeid)
+				continue;
+			if (node->stopped) {
+				log_group(g, "our join is current on %d",
+					  node->nodeid);
+				log_group(g, "rev %d behind our join ev %llx",
+					  rev->nodeid, ev->id);
+				goto next;
+			}
+		}
+
+		/* Look through saved messages for one with an event_id
+		   matching the rev, if we find one, then we get rid of this
+		   rev and clear this group (that we're joining) from any
+		   recovery sets that are sequencing recovery of groups the
+		   failed node was in.  The other nodes are processing the
+		   rev before processing our join ev. */
+		   
+		list_for_each_entry(save, &g->messages, list) {
+			if (save->msg.ms_type == MSG_APP_INTERNAL)
+				continue;
+			if (save->msg.ms_event_id != rev->id)
+				continue;
+
+			log_group(g, "rev %d %llx ahead of our join ev %llx",
+				  rev->nodeid, rev->id, ev->id);
+
+			node = find_app_node(a, rev->nodeid);
+			if (node) {
+				a->node_count--;
+				log_group(g, "not joined, remove %d rev %d",
+					  node->nodeid, rev->nodeid);
+				list_del(&node->list);
+				free(node);
+			}
+			list_for_each_entry(id, &rev->extended, list) {
+				node = find_app_node(a, id->nodeid);
+				if (node) {
+					a->node_count--;
+					log_group(g, "not joined, remove %d "
+						  "rev %d", id->nodeid,
+						  rev->nodeid);
+					list_del(&node->list);
+					free(node);
+				}
+			}
+
+			del_recovery_set(g, rev, 1);
+			list_del(&rev->list);
+			log_group(g, "got rid of rev %d for unjoined group",
+				  rev->nodeid);
+			free_event(rev);
+			return 0;
+		}
+
+		log_group(g, "no messages indicating remote state of group");
+		return 0;
+	}
+
+ next:
 	/* Before starting the rev we need to apply the node addition/removal
 	 * of the current ev to the app.  This means processing the current ev
 	 * up through the starting stage.  So, we're sending the app the start
@@ -1390,30 +1583,31 @@ int recover_current_event(group_t *g)
 	 * starting state so the recovery event can then take over. */
 
 	if (event_state_starting(a) || event_state_all_started(a)) {
-
-		log_group(g, "rev for %d replaces current ev %d %s",
+		log_group(g, "rev %d replaces current ev %d %s",
 			  rev->nodeid, ev->nodeid, ev_state_str(ev));
-
+		clear_all_nodes_stopped(a);
 		list_del(&rev->list);
 		a->current_event = rev;
 		free_event(ev);
+		send_recover(g, rev);
 		rv = 1;
 	} else if (event_state_stopping(a)) {
-
 		/* We'll come back through here multiple times until all the
 		   stopped messages are received; we need to continue to
 		   process this event that's stopping so it will get to the
 		   starting state at which point the rev can replace it. */
 
-		log_group(g, "rev for %d will abort current ev %d %s",
+		log_group(g, "rev %d will abort current ev %d %s",
 			  rev->nodeid, ev->nodeid, ev_state_str(ev));
+
+		ev->start_app_before_pending_rev = 1;
 
 		mark_node_stopped(a, rev->nodeid);
 		list_for_each_entry(id, &rev->extended, list)
 			mark_node_stopped(a, id->nodeid);
 		rv = 1;
 	} else {
-		log_group(g, "rev for %d delayed for ev %d %s",
+		log_group(g, "rev %d delayed for ev %d %s",
 			  rev->nodeid, ev->nodeid, ev_state_str(ev));
 	}
 
@@ -1426,7 +1620,7 @@ int recover_current_event(group_t *g)
 	return rv;
 }
 
-static int process_app(group_t *g)
+int process_app(group_t *g)
 {
 	app_t *a = g->app;
 	event_t *ev = NULL;
@@ -1449,19 +1643,31 @@ static int process_app(group_t *g)
 			goto out;
 		rv += ret;
 	} else {
+
 		/* We only take on a new non-recovery event if there are
 		   no recovery sets outstanding.  The new event may be
 		   to mount gfs X where there are no living mounters of X,
 		   and the pending recovery set is to fence a node that
-		   had X mounted. */
+		   had X mounted.  update: relax this so events are taken
+		   if there are unrecovered groups _at a lower level_. */
 
 		ev = find_queued_recover_event(g);
 		if (ev) {
 			log_group(g, "set current event to recovery for %d",
 				  ev->nodeid);
 			list_del(&ev->list);
-		} else if (list_empty(&recovery_sets) && cman_quorate &&
-			   !list_empty(&a->events)) {
+		} else if (!list_empty(&a->events)) {
+#if 0
+			if (!cman_quorate) {
+				log_group(g, "no new event while inquorate");
+			} else if (lower_groups_need_recovery(g)) {
+				log_group(g, "no new event while lower level "
+					  "groups need recovery");
+			} else {
+				ev = list_entry(a->events.next, event_t, list);
+				list_del(&ev->list);
+			}
+#endif
 			ev = list_entry(a->events.next, event_t, list);
 			list_del(&ev->list);
 		}
@@ -1471,7 +1677,7 @@ static int process_app(group_t *g)
 			a->current_event = ev;
 			rv = process_current_event(g);
 		} else if (a->need_first_event) {
-			log_group(g, "waiting for our own cpg join event");
+			log_group(g, "waiting for first cpg event");
 		}
 	}
  out:

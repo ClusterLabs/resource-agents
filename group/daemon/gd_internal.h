@@ -149,6 +149,7 @@ struct event {
 	int			nodeid;
 	uint64_t		id;
 	struct list_head	extended;
+	int			start_app_before_pending_rev;
 };
 
 /*
@@ -181,13 +182,13 @@ struct app {
 	struct list_head	events;
 	event_t			*current_event;
 	group_t			*g;
-	uint64_t		sent_event_id; /* for debugging */
 	int			need_first_event; /* for debugging */
 };
 
 #define MSG_APP_STOPPED        1
 #define MSG_APP_STARTED        2
-#define MSG_APP_INTERNAL       3
+#define MSG_APP_RECOVER        3
+#define MSG_APP_INTERNAL       4
 
 #define MSG_VER_MAJOR          1
 #define MSG_VER_MINOR          0
@@ -257,6 +258,7 @@ void msg_bswap_in(msg_t *msg);
 struct recovery_set *get_recovery_set(int nodeid);
 void groupd_down(int nodeid);
 char *msg_type(int type);
+int process_app(group_t *g);
 int is_our_join(event_t *ev);
 
 /* main.c */
