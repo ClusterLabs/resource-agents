@@ -20,6 +20,7 @@ struct client {
 	char type[32];
 };
 
+static int client_maxi;
 static int client_size = 0;
 static struct client *client = NULL;
 static struct pollfd *pollfd = NULL;
@@ -107,7 +108,7 @@ static char *get_args(char *buf, int *argc, char **argv, char sep, int want)
 	return rp;
 }
 
-static int client_add(int fd, int *maxi)
+static int client_add(int fd)
 {
 	int i;
 
@@ -118,8 +119,8 @@ static int client_add(int fd, int *maxi)
 				client[i].fd = fd;
 				pollfd[i].fd = fd;
 				pollfd[i].events = POLLIN;
-				if (i > *maxi)
-					*maxi = i;
+				if (i > client_maxi)
+					client_maxi = i;
 				return i;
 			}
 		}
@@ -380,42 +381,42 @@ int setup_uevent(void)
 
 int loop(void)
 {
-	int rv, i, f, maxi = 0;
+	int rv, i, f;
 
 	rv = listen_fd = setup_listen();
 	if (rv < 0)
 		goto out;
-	client_add(listen_fd, &maxi);
+	client_add(listen_fd);
 
 	rv = cman_fd = setup_cman();
 	if (rv < 0)
 		goto out;
-	client_add(cman_fd, &maxi);
+	client_add(cman_fd);
 
 	rv = cpg_fd = setup_cpg();
 	if (rv < 0)
 		goto out;
-	client_add(cpg_fd, &maxi);
+	client_add(cpg_fd);
 
 	rv = groupd_fd = setup_groupd();
 	if (rv < 0)
 		goto out;
-	client_add(groupd_fd, &maxi);
+	client_add(groupd_fd);
 
 	rv = uevent_fd = setup_uevent();
 	if (rv < 0)
 		goto out;
-	client_add(uevent_fd, &maxi);
+	client_add(uevent_fd);
 
 	rv = plocks_fd = setup_plocks();
 	if (rv < 0)
 		goto out;
-	client_add(plocks_fd, &maxi);
+	client_add(plocks_fd);
 
 	log_debug("setup done");
 
 	for (;;) {
-		rv = poll(pollfd, maxi + 1, -1);
+		rv = poll(pollfd, client_maxi + 1, -1);
 		if (rv < 0)
 			log_error("poll error %d errno %d", rv, errno);
 
@@ -426,10 +427,10 @@ int loop(void)
 			if (f < 0)
 				log_debug("accept error %d %d", f, errno);
 			else
-				client_add(f, &maxi);
+				client_add(f);
 		}
 
-		for (i = 1; i <= maxi; i++) {
+		for (i = 1; i <= client_maxi; i++) {
 			if (client[i].fd < 0)
 				continue;
 
