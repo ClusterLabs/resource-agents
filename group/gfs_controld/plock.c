@@ -47,6 +47,7 @@ static int control_fd = -1;
 extern int our_nodeid;
 static int plocks_online = 0;
 extern int message_flow_control_on;
+extern int no_plock;
 
 static SaCkptHandleT ckpt_handle;
 static SaCkptCallbacksT callbacks = { 0, 0 };
@@ -275,12 +276,16 @@ int setup_plocks(void)
 	SaAisErrorT err;
 	int rv;
 
+	if (no_plock)
+		goto control;
+
 	err = saCkptInitialize(&ckpt_handle, &callbacks, &version);
 	if (err == SA_AIS_OK)
 		plocks_online = 1;
 	else
 		log_error("ckpt init error %d - plocks unavailable", err);
 
+ control:
 	rv = open_control();
 	if (rv)
 		return rv;

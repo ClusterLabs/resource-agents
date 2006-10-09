@@ -12,7 +12,7 @@
 
 #include "lock_dlm.h"
 
-#define OPTION_STRING			"DPhVw"
+#define OPTION_STRING			"DPhVwp"
 #define LOCKFILE_NAME			"/var/run/gfs_controld.pid"
 
 struct client {
@@ -35,6 +35,7 @@ static int plocks_fd;
 extern struct list_head mounts;
 extern struct list_head withdrawn_mounts;
 int no_withdraw;
+int no_plock;
 
 
 int do_write(int fd, void *buf, size_t count)
@@ -564,6 +565,10 @@ static void decode_arguments(int argc, char **argv)
 
 		case 'P':
 			plock_debug_opt = 1;
+			break;
+
+		case 'p':
+			no_plock = 1;
 			break;
 
 		case 'h':
