@@ -300,7 +300,7 @@ static void fence_victims(fd_t *fd, int start_type)
 	while (!list_empty(&fd->victims)) {
 		node = list_entry(fd->victims.next, fd_node_t, list);
 
-		if (is_member(node->name)) {
+		if (is_member(node->name) || is_fenced(node->name)) {
 			log_debug("averting fence of node %s", node->name);
 			list_del(&node->list);
 			free(node);

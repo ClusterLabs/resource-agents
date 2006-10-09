@@ -209,6 +209,29 @@ int is_member(char *name)
 	return 0;
 }
 
+int is_fenced(char *name)
+{
+	cman_node_t *cn;
+	char agent[255];
+	uint64_t fence_time;
+	int fenced = 0;
+
+	/* If the node is a cluster member then we won't even get called */
+	cn = find_cluster_node_name(name);
+	if (cn && cn->cn_member) {
+		return 1;
+	}
+
+	/* If this call fails (though it shouldn't) then regard the node as unfenced */
+	if (cman_get_fenceinfo(ch, cn->cn_nodeid, &fence_time, &fenced, agent)) {
+		log_debug("cman_get_fenceinfo failed: %s", strerror(errno));
+		fenced = 0;
+	}
+
+	log_debug("node \"%s\" has%s been fenced", name, fenced?"":" not");
+	return fenced;
+}
+
 fd_node_t *get_new_node(fd_t *fd, int nodeid, char *in_name)
 {
 	cman_node_t cn;

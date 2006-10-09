@@ -187,6 +187,7 @@ int process_member(void);
 void exit_member(void);
 int update_cluster_members(void);
 int is_member(char *name);
+int is_fenced(char *name);
 fd_node_t *get_new_node(fd_t *fd, int nodeid, char *in_name);
 
 #endif				/*  __FD_DOT_H__  */
