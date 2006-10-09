@@ -270,6 +270,23 @@ static void show_status(void)
 	}
 	printf("\n");
 
+	if (einfo->ei_flags & CMAN_EXTRA_FLAG_DISALLOWED) {
+		int count;
+		int numnodes;
+		cman_node_t *nodes;
+
+		count = cman_get_node_count(h);
+		nodes = malloc(sizeof(cman_node_t) * count);
+
+		if (cman_get_disallowed_nodes(h, count, &numnodes, nodes) == 0) {
+			printf("Disallowed nodes: ");
+			for (i=0; i<numnodes; i++) {
+				printf("%s ", nodes[i].cn_name);
+			}
+			printf("\n");
+		}
+	}
+
 }
 
 static int node_compare(const void *va, const void *vb)
