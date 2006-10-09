@@ -311,6 +311,11 @@ int process_plocks(void)
 
 	rv = read(control_fd, &info, sizeof(info));
 
+	if (!plocks_online) {
+		rv = -ENOSYS;
+		goto fail;
+	}
+
 	mg = find_mg_id(info.fsid);
 	if (!mg) {
 		log_debug("process_plocks: no mg id %x", info.fsid);
