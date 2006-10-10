@@ -258,6 +258,8 @@ create_pid_directory()
 	
 	if [ "$program_name" = "mysql" ]; then
 		chown mysql.root "$dirname"
+	elif [ "$program_name" = "tomcat-5" ]; then
+		chown tomcat.root "$dirname"
 	fi
 
 	return 0;
