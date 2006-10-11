@@ -577,13 +577,11 @@ void cleanup_device(char *name, int minor, int fd)
 }
 
 
-#define MULTIPATH_SCRIPT "/etc/dev.d/block/multipath.dev"
-void run_multipath_code(int minor_nr, int add)
+#define MULTIPATH_CTL "/sbin/mpath_ctl"
+void stop_mpath_monitoring(int minor_nr)
 {
   int i_am_parent, fd;
-  char *envp[6];
-  char devpath[32];
-  char devname[32];
+  char args[32];
 
   i_am_parent = daemonize();
   if (i_am_parent < 0){
@@ -601,18 +599,10 @@ void run_multipath_code(int minor_nr, int add)
   dup2(fd, 2);
   if (fd > 2)
     close(fd);
-  envp[0] = "HOME=/";
-  envp[1] = "PATH=/sbin:/bin:/usr/sbin:/usr/bin";
-  envp[2] = (add)? "ACTION=add" : "ACTION=remove";
-  snprintf(devpath, 31, "DEVPATH=/block/gnbd%d", minor_nr);
-  devpath[31] = '\0';
-  envp[3] = devpath;
-  snprintf(devname, 31, "DEVNAME=/dev/gnbd%d", minor_nr);
-  devname[31] = '\0';
-  envp[4] = devname;
-  envp[5] = NULL;
-  execle(MULTIPATH_SCRIPT, MULTIPATH_SCRIPT, NULL, envp);
-  log_verbose("cannot exec %s : %s", MULTIPATH_SCRIPT, strerror(errno));
+  snprintf(args, 31, "remove path gnbd%d", minor_nr);
+  args[31] = '\0';
+  execl(MULTIPATH_CTL, MULTIPATH_CTL, args, NULL);
+  log_verbose("cannot exec %s : %s", MULTIPATH_CTL, strerror(errno));
   exit(1);
 }
 
@@ -642,7 +632,7 @@ void remove_gnbd(char *name, int minor, int pid)
   if (pid > 0)
   	kill(pid, SIGKILL);
   cleanup_device(name, minor, fd);
-  run_multipath_code(minor, 0);
+  stop_mpath_monitoring(minor);
   close(fd);
 }
 
@@ -1042,7 +1032,7 @@ void setclients(char *host)
         exit(1);
       if (start_receiver(minor_nr))
         exit(1);
-      run_multipath_code(minor_nr, 1);
+      do_set_sysfs_attr(minor_nr, "block/uevent", "1");
     }
     ptr++;
   }
