@@ -295,10 +295,12 @@ AddSCSI() {
 # start: Enable the given ServeRAID device
 #
 ServeRAID_start() {
-  parseinst "$@"
   if
-    ocf_run $IPS UNMERGE $sr_adapter $sr_mergegroup
+     ServeRAID_status $serveraid $mergegroup
   then
+     ocf_log debug "ServeRAID merge group $serveraid $mergegroup is running."
+     return $OCF_SUCCESS
+  else
     if
       #
       # Normally we do a MERGE PARTNER, but if we still own the drive for
@@ -321,13 +323,11 @@ ServeRAID_start() {
       # ServeRAID support CD.
       # To avoid issues when called by lrmd, redirect stdout->stderr.
       # Use () to create a subshell to make the redirection be synchronized.
-      ( ocf_run $IPS SYNCH $sr_adapter GROUP $sr_mergegroup & ) >&2
+      ( ocf_run $IPS SYNCH $sr_adapter $sr_mergegroup & ) >&2
       AddSCSI
     else
       return $?
     fi
-  else
-    return $?
   fi
   if
     ServeRAID_status "$@"
@@ -435,7 +435,7 @@ case "$1" in
 	  ServeRAID_status $serveraid $mergegroup
 	then
 	  ocf_log debug "ServeRAID merge group $serveraid $mergegroup is running."
-	  return $OCF_SUCCESS
+	  exit $OCF_SUCCESS
 	else
 	  ocf_log debug "ServeRAID merge group $serveraid $mergegroup is stopped."
 	  exit $OCF_NOT_RUNNING
