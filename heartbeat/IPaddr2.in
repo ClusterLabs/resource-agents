@@ -244,6 +244,11 @@ END
 }
 
 ip_init() {
+	if [ `uname -s` != "XLinux" ]; then
+		ocf_log err "IPaddr2 only supported Linux."
+		exit $OCF_ERR_INSTALLED
+	fi
+
 	if
           case $__OCF_ACTION in
             start|stop)		ocf_is_root;;
