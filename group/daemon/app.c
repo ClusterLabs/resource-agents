@@ -1427,7 +1427,7 @@ int recover_current_event(group_t *g)
 {
 	app_t *a = g->app;
 	event_t *ev, *rev;
-	node_t *node;
+	node_t *node, *us;
 	struct save_msg *save;
 	struct nodeid *id, *safe;
 	int rv = 0;
@@ -1504,6 +1504,31 @@ int recover_current_event(group_t *g)
 
 		log_group(g, "rev %d is for group we're waiting to join",
 			  rev->nodeid);
+
+		/* If the failed node is the only other app member apart
+		   from us in the pending membership list, then we must go
+		   ahead with our own join event, there will be no remote nodes
+		   processing a rev or an ev for this group.  We send a recover
+		   message so other nodes waiting to join after us will purge
+		   their rev on the group. */
+
+		if (a->node_count == 2) {
+			node = find_app_node(a, rev->nodeid);
+			us = find_app_node(a, our_nodeid);
+
+			if (node && us) {
+				log_group(g, "joining group with one other node"
+					  " now dead rev %d", rev->nodeid);
+				a->node_count--;
+				list_del(&node->list);
+				free(node);
+				send_recover(g, rev);
+				del_recovery_set(g, rev, 1);
+				list_del(&rev->list);
+				free_event(rev);
+				return 0;
+			}
+		}
 
 		/* Look for a remote node with stopped of 1, if we find one,
 		   then fall through to the 'else if (event_state_stopping)'
