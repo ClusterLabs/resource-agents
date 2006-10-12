@@ -34,7 +34,7 @@ install: all
 		install -d ${sbindir}; \
 	fi
 	install -m755 ${TARGET} ${sbindir}
-	install -m755 ${SCRIPT} /etc/init.d/
+	install -m755 ${SCRIPT} ${initdir}
 
 clean:
 	rm -f $(TARGET) $(SCRIPT)

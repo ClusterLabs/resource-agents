@@ -33,6 +33,7 @@ $ret = 0;
 	mandir  => \$mandir,
 	prefix => \$prefix,
 	sbindir => \$sbindir,
+	initdir => \$initdir,
 	enable_xen => \$enable_xen,
 	verbose => \$verbose
 );
@@ -48,6 +49,7 @@ $err = &GetOptions (\%options,
 		    'mandir=s',
 		    'prefix=s',
 		    'sbindir=s',
+		    'initdir=s',
 		    'sharedir=s',
 		    'enable_xen',
 		    'verbose');
@@ -73,6 +75,7 @@ if ($help || !$err) {
   print "--mandir=\tthe base directory for man pages.  (Default: /usr/share/man)\n";
   print "--prefix=\tthe base directory to install into.  (Default: /)\n";
   print "--sbindir=\tthe base directory for system binaries.  (Default: /sbin)\n";
+  print "--initdir=\tthe base directory for init scripts.  (Default: /etc/init.d)\n";
   print "--sharedir=\tthe base directory for misc cluster files.  (Default: /usr/share/cluster)\n";
   print "--enable_xen\t\tEnable building of Xen-specific pieces\n";
   print "--verbose\t\tVerbose output\n";
@@ -105,6 +108,9 @@ if (!$mandir) {
 if (!$sbindir) {
   $sbindir="${prefix}/sbin";
 }
+if (!$initdir) {
+  $initdir="${prefix}/etc/init.d";
+}
 if (!$sharedir) {
   $sharedir="${prefix}/usr/share/cluster";
 }
@@ -129,6 +135,7 @@ while (<IFILE>) {
   $_ =~ s/\@CCSLIBDIR\@/$ccslibdir/;
   $_ =~ s/\@MANDIR\@/$mandir/;
   $_ =~ s/\@SBINDIR\@/$sbindir/;
+  $_ =~ s/\@INITDIR\@/$initdir/;
   $_ =~ s/\@SHAREDIR\@/$sharedir/;
   $_ =~ s/\@ENABLE_XEN\@/$enable_xen/;
   print OFILE "$_\n";
