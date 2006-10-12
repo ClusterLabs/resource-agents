@@ -17,7 +17,7 @@ SCRIPT= scsi_reserve
 top_srcdir=../..
 include ${top_srcdir}/make/defines.mk
 
-all: $(TARGET) $(SCRIPT)
+all: $(TARGET)
 
 fence_scsi: fence_scsi.pl
 	: > $(TARGET)
