@@ -74,8 +74,6 @@ SENDARPPIDDIR=$HA_VARRUNDIR/rsctmp/send_arp
 
 #######################################################################
 
-SYSTYPE="`uname -s`"
-
 meta_data() {
 	cat <<END
 <?xml version="1.0"?>
@@ -276,12 +274,10 @@ ip_init() {
 	IF_MAC="$OCF_RESKEY_mac"
 
 	LVS_SUPPORT=0
-	if [ "$SYSTYPE" = "Linux" -o "$SYSTYPE" = "SunOS" ]; then
-	    if [ x"${OCF_RESKEY_lvs_support}" = x"true" \
-		-o x"${OCF_RESKEY_lvs_support}" = x"on" \
-		-o x"${OCF_RESKEY_lvs_support}" = x"1" ]; then
-		LVS_SUPPORT=1
-	    fi
+	if [ x"${OCF_RESKEY_lvs_support}" = x"true" \
+	    -o x"${OCF_RESKEY_lvs_support}" = x"on" \
+	    -o x"${OCF_RESKEY_lvs_support}" = x"1" ]; then
+	    LVS_SUPPORT=1
 	fi
 	
 	IP_INC_GLOBAL=${OCF_RESKEY_incarnations_max_global:-1}

@@ -2724,7 +2724,7 @@ crm/Makefile							\
 	crm/tengine/Makefile					\
 	crm/admin/Makefile					\
 	        crm/admin/crm_primitive.py			\
-	        crm/admin/cluster				\
+	        crm/admin/crm_sh				\
 		crm/admin/crm_utils.py                          \
 		crm/admin/crm_commands.py			\
 debian/Makefile							\
