@@ -34,6 +34,9 @@ install: all
 		install -d ${sbindir}; \
 	fi
 	install -m755 ${TARGET} ${sbindir}
+	if [ ! -d ${initdir} ]; then \
+		install -d ${initdir}; \
+	fi
 	install -m755 ${SCRIPT} ${initdir}
 
 clean:
