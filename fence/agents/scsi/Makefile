@@ -12,11 +12,12 @@
 
 SOURCE= fence_scsi.pl
 TARGET= fence_scsi
+SCRIPT= scsi_reserve
 
 top_srcdir=../..
 include ${top_srcdir}/make/defines.mk
 
-all: $(TARGET)
+all: $(TARGET) $(SCRIPT)
 
 fence_scsi: fence_scsi.pl
 	: > $(TARGET)
@@ -26,12 +27,14 @@ fence_scsi: fence_scsi.pl
 	echo "\$$BUILD_DATE=\"(built `date`)\";" >> $(TARGET)
 	awk -v p=0 "(\$$1 ~ /#END_VERSION_GENERATION/){p = 1} {if(p==1)print}" $(SOURCE) >> $(TARGET)
 	chmod +x $(TARGET)
+	chmod +x $(SCRIPT)
 
 install: all
 	if [ ! -d ${sbindir} ]; then \
 		install -d ${sbindir}; \
 	fi
 	install -m755 ${TARGET} ${sbindir}
+	install -m755 ${SCRIPT} /etc/init.d/
 
 clean:
-	rm -f $(TARGET)
+	rm -f $(TARGET) $(SCRIPT)
