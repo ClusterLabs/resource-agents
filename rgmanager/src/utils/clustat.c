@@ -549,13 +549,20 @@ txt_quorum_state(int qs)
 void
 xml_quorum_state(int qs)
 {
+	/* XXX output groupmember attr (carry over from RHCS4) */
 	printf("  <quorum ");
 
-	if (qs) {
-		printf("quorate=\"1\"/>");
+	if (qs & FLAG_UP) {
+		printf("quorate=\"1\"");
 	} else {
-		printf("quorate=\"0\"/>\n");
+		printf("quorate=\"0\"\n");
 	}
+	if (qs & FLAG_RGMGR) {
+		printf(" groupmember=\"1\"");
+	} else {
+		printf(" groupmember=\"0\"");
+	}
+	printf("/>\n");
 }
 
 
@@ -661,8 +668,24 @@ xml_cluster_status(int qs, cluster_member_list_t *membership,
 		   rg_state_list_t *rgs, char *name, char *svcname,
 		   int flags)
 {
+	int x;
+
 	printf("<?xml version=\"1.0\"?>\n");
 	printf("<clustat version=\"4.1.1\">\n");
+
+	if (qs) {
+		qs = FLAG_UP;
+		if (membership) {
+			for (x = 0; x < membership->cml_count; x++) {
+				if ((membership->cml_members[x].cn_member &
+				     (FLAG_LOCAL|FLAG_RGMGR)) ==
+				     (FLAG_LOCAL|FLAG_RGMGR)) {
+					qs |= FLAG_RGMGR;
+					break;
+				}
+			}
+		}
+	}
 
 	if (!svcname && !name)
 		xml_quorum_state(qs);
@@ -720,6 +743,11 @@ build_member_list(cman_handle_t ch, int *lid)
 	} else {
 		/* not root - keep it simple for the next block */
 		all = part;
+	}
+
+	if (!all) {
+		*lid = 0;
+		return NULL;
 	}
 
 	/* Grab the local node ID and flag it from the list of reported
@@ -844,6 +872,10 @@ main(int argc, char **argv)
 
 	/* Connect & grab all our info */
 	ch = cman_init(NULL);
+	if (!ch) {
+		printf("CMAN is not running.\n");
+		return 1;
+	}
 
 	switch(runtype) {
 	case QSTAT_ONLY:
