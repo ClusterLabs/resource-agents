@@ -15,6 +15,8 @@
 /* save all the params from callback functions here because we can't
    do the processing within the callback function itself */
 
+#define GROUPD_TIMEOUT 10 /* seconds */
+
 group_handle_t gh;
 static int cb_action;
 static char cb_name[MAX_GROUP_NAME_LEN+1];
@@ -168,7 +170,7 @@ int setup_groupd(void)
 	int rv;
 
 	gh = group_init(NULL, LOCK_DLM_GROUP_NAME, LOCK_DLM_GROUP_LEVEL,
-			&callbacks);
+					&callbacks, GROUPD_TIMEOUT);
 	if (!gh) {
 		log_error("group_init error %d %d", (int) gh, errno);
 		return -ENOTCONN;

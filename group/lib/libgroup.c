@@ -279,11 +279,11 @@ static int connect_groupd(void)
 }
 
 group_handle_t group_init(void *private, char *prog_name, int level,
-			  group_callbacks_t *cbs)
+			  group_callbacks_t *cbs, int timeout)
 {
 	struct group_handle *h;
 	char buf[GROUPD_MSGLEN];
-	int rv, saved_errno;
+	int rv, saved_errno, i;
 
 	h = malloc(sizeof(struct group_handle));
 	if (!h)
@@ -295,20 +295,25 @@ group_handle_t group_init(void *private, char *prog_name, int level,
 	h->level = level;
 	strncpy(h->prog_name, prog_name, 32);
 
-	h->fd = connect_groupd();
-	if (h->fd < 0)
-		goto fail;
+	for (i = 0; !timeout || i < timeout * 2; i++) {
+		h->fd = connect_groupd();
+		if (h->fd > 0 || !timeout) /* if successful or only once allowed */
+			break;
+		usleep(500000);
+	}
+	if (h->fd > 0) {
+		memset(buf, 0, sizeof(buf));
+		snprintf(buf, sizeof(buf), "setup %s %d", prog_name, level);
 
-	memset(buf, 0, sizeof(buf));
-	snprintf(buf, sizeof(buf), "setup %s %d", prog_name, level);
-
-	rv = do_write(h->fd, &buf, GROUPD_MSGLEN);
-	if (rv < 0)
-		goto fail;
-
-	return (group_handle_t) h;
-
- fail:
+		for (; !timeout || i < timeout * 2; i++) {
+			rv = do_write(h->fd, &buf, GROUPD_MSGLEN);
+			if (rv >= 0)
+				return (group_handle_t) h;
+			if (!timeout)
+				break;
+			usleep(500000);
+		}
+	}
 	saved_errno = errno;
 	close(h->fd);
 	free(h);
@@ -475,31 +480,30 @@ int group_get_groups(int max, int *count, group_data_t *data)
 	return rv;
 }
 
-int group_get_group(int level, char *name, group_data_t *data)
+int group_get_group(int level, const char *name, group_data_t *data)
 {
-	char buf[GROUPD_MSGLEN];
-	char data_buf[sizeof(group_data_t)];
-	int fd, rv, len;
+       char buf[GROUPD_MSGLEN];
+       char data_buf[sizeof(group_data_t)];
+       int fd, rv, len;
 
-	fd = connect_groupd();
-	if (fd < 0)
-		return fd;
+       fd = connect_groupd();
+       if (fd < 0)
+               return fd;
 
-	memset(buf, 0, sizeof(buf));
-	snprintf(buf, sizeof(buf), "get_group %d %s", level, name);
+       memset(buf, 0, sizeof(buf));
+       snprintf(buf, sizeof(buf), "get_group %d %s", level, name);
 
-	rv = do_write(fd, &buf, GROUPD_MSGLEN);
-	if (rv < 0)
-		goto out;
+       rv = do_write(fd, &buf, GROUPD_MSGLEN);
+       if (rv < 0)
+               goto out;
 
-	rv = do_read(fd, &data_buf, sizeof(data_buf));
-	if (rv < 0)
-		goto out;
+       rv = do_read(fd, &data_buf, sizeof(data_buf));
+       if (rv < 0)
+               goto out;
 
-	memcpy(data, data_buf, sizeof(group_data_t));
-	rv = 0;
+       memcpy(data, data_buf, sizeof(group_data_t));
+       rv = 0;
  out:
-	close(fd);
-	return rv;
+       close(fd);
+       return rv;
 }
-

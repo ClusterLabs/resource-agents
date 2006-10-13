@@ -182,7 +182,7 @@ int do_join(char *name)
 
 	fd = find_domain(name);
 	if (fd) {
-		log_debug("join error: domain exists");
+		log_debug("join error: domain %s exists", name);
 		rv = -EEXIST;
 		goto out;
 	}
@@ -204,6 +204,7 @@ int do_join(char *name)
 	rv = group_join(gh, name);
 	if (rv) {
 		log_error("group_join error %d", rv);
+		list_del(&fd->list);
 		free(fd);
 	}
  out:

@@ -18,6 +18,8 @@
 #define DO_TERMINATE 4
 #define DO_SETID 5
 
+#define GROUPD_TIMEOUT 10 /* seconds */
+
 /* save all the params from callback functions here because we can't
    do the processing within the callback function itself */
 
@@ -157,17 +159,14 @@ int setup_groupd(void)
 {
 	int rv;
 
-	gh = group_init(NULL, "fence", 0, &callbacks);
+	gh = group_init(NULL, "fence", 0, &callbacks, GROUPD_TIMEOUT);
 	if (!gh) {
 		log_error("group_init error %d %d", (int) gh, errno);
 		return -ENOTCONN;
 	}
-
 	rv = group_get_fd(gh);
-	if (rv < 0) {
+	if (rv < 0)
 		log_error("group_get_fd error %d %d", rv, errno);
-	}
-
 	return rv;
 }
 

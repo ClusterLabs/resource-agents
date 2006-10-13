@@ -21,6 +21,7 @@
 #include "group.h"
 
 #define MAXLINE 256
+#define GROUPD_TIMEOUT 10
 
 /* save all the params from callback functions here because we can't
    do the processing within the callback function itself */
@@ -139,7 +140,7 @@ int setup_groupd(char *name)
 {
 	int rv;
 
-	gh = group_init(NULL, name, 0, &callbacks);
+	gh = group_init(NULL, name, 0, &callbacks, GROUPD_TIMEOUT);
 	if (!gh) {
 		log_err("group_init error %d %d", (int) gh, errno);
 		return -ENOTCONN;

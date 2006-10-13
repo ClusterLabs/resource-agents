@@ -54,7 +54,7 @@ typedef struct {
 	group_deliver_t deliver;
 } group_callbacks_t;
 
-group_handle_t group_init(void *private, char *prog_name, int level, group_callbacks_t *cbs);
+group_handle_t group_init(void *private, char *prog_name, int level, group_callbacks_t *cbs, int timeout);
 int group_exit(group_handle_t handle);
 
 int group_join(group_handle_t handle, char *name);
@@ -88,7 +88,7 @@ typedef struct group_data {
    don't interfere with dispatchable callback messages. */
 
 int group_get_groups(int max, int *count, group_data_t *data);
-int group_get_group(int level, char *name, group_data_t *data);
+int group_get_group(int level, const char *name, group_data_t *data);
 
 #endif
 
