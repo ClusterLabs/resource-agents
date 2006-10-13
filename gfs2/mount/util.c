@@ -45,6 +45,18 @@ static struct opt_map opt_map[] = {
   { "noatime",  0, 0, MS_NOATIME },     /* Do not update access time */
   { "diratime", 0, 1, MS_NODIRATIME },  /* Update dir access times */
   { "nodiratime", 0, 0, MS_NODIRATIME },/* Do not update dir access times */
+
+  /* options used by the mount command only (not in sys/mount.h): */
+  { "dirsync",  0, 0, 0  },           /* synchronous directory modifications */
+  { "loop",     1, 0, 0  },             /* use a loop device */
+  { "auto",     0, 1, 0  },             /* Can be mounted using -a */
+  { "noauto",   0, 0, 0  },             /* Can  only be mounted explicitly */
+  { "users",    0, 0, 0  },             /* Allow ordinary user to mount */
+  { "nousers",  0, 1, 0  },             /* Forbid ordinary user to mount */
+  { "user",     0, 0, 0  },             /* Allow ordinary user to mount */
+  { "nouser",   0, 1, 0  },             /* Forbid ordinary user to mount */
+  { "owner",    0, 0, 0  },             /* Let the owner of the device mount */
+  { "noowner",  0, 1, 0  },             /* Device owner has no special privs */
   { NULL,       0, 0, 0	 }
 };
 
