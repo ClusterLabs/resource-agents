@@ -57,7 +57,7 @@ while (0)
 char *prog_name;
 int operation;
 int child_wait = FALSE;
-int fenced_start_timeout = 30;
+int fenced_start_timeout = 300; /* five minutes */
 
 static int get_int_arg(char argopt, char *arg)
 {
@@ -135,15 +135,16 @@ static int we_are_in_fence_domain(void)
 	return gdata.member;
 }
 
-static int do_wait(void)
+static int do_wait(int joining)
 {
 	int i;
 
 	for (i=0; !fenced_start_timeout || i < fenced_start_timeout; i++) {
-		if (we_are_in_fence_domain())
+		if (we_are_in_fence_domain() == joining)
 			return 0;
 		if (!(i % 5))
-			printf("Waiting for fenced to join the fence group.\n");
+			printf("Waiting for fenced to %s the fence group.\n",
+				   (joining?"join":"leave"));
 		sleep(1);
 	}
 	printf("Error joining the fence group.\n");
@@ -178,7 +179,7 @@ static int do_join(int argc, char *argv[])
 	/* printf("join result %d %s\n", rv, buf); */
 
 	if (child_wait)
-		do_wait();
+		do_wait(1);
 	close(fd);
 	return EXIT_SUCCESS;
 }
@@ -205,6 +206,8 @@ static int do_leave(void)
 	rv = read(fd, buf, sizeof(buf));
 
 	/* printf("leave result %d %s\n", rv, buf); */
+	if (child_wait)
+		do_wait(0);
 	close(fd);
 	return EXIT_SUCCESS;
 }

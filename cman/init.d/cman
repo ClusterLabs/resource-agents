@@ -34,7 +34,7 @@ CMAN_SHUTDOWN_TIMEOUT=60
 #     wait FENCED_START_TIMEOUT seconds before giving up and failing when
 #     fenced does not start.  If FENCED_START_TIMEOUT is zero, then
 #     wait indefinately for fenced to start.
-FENCED_START_TIMEOUT=120
+FENCED_START_TIMEOUT=300
 
 LOCK_FILE="/var/lock/subsys/cman"
 
@@ -115,7 +115,7 @@ start_daemons()
 
 start_fence()
 {
-    errmsg=$( /sbin/fence_tool -w -j $FENCED_START_TIMEOUT join \
+    errmsg=$( /sbin/fence_tool -w -t $FENCED_START_TIMEOUT join \
 	     > /dev/null 2>&1 ) || return 1
     return 0
 }
@@ -246,7 +246,7 @@ stop_fence()
 {
     if /sbin/pidof fenced &> /dev/null
     then
-	/sbin/fence_tool leave > /dev/null 2>&1
+	/sbin/fence_tool -w leave > /dev/null 2>&1
 	rtrn=$?
 	sleep 1 # A bit of time for fenced to exit
 	return $rtrn

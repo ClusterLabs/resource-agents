@@ -34,7 +34,7 @@ FENCE_TOOL_SRC = \
 
 all: ${TARGET}
 
-fence_tool: ${FENCE_TOOL_SRC:.c=.o}
+fence_tool: ${FENCE_TOOL_SRC:.c=.o} ${top_srcdir}/../group/lib/libgroup.a
 	${CC} ${CFLAGS} ${INCLUDE} ${FENCE_TOOL_SRC:.c=.o} ${LDFLAGS} ${LOADLIBES} ${LDLIBS} -o $@
 
 agent.c:
