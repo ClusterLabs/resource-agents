@@ -18,6 +18,7 @@
 struct client {
 	int fd;
 	char type[32];
+	struct mountgroup *mg;
 };
 
 static int client_maxi;
@@ -150,10 +151,11 @@ static int client_add(int fd)
 
 static void client_dead(int ci)
 {
-	/* log_debug("client %d fd %d dead", ci, client[ci].fd); */
+	log_debug("client %d fd %d dead", ci, client[ci].fd);
 	close(client[ci].fd);
 	client[ci].fd = -1;
 	pollfd[ci].fd = -1;
+	client[ci].mg = NULL;
 }
 
 int client_send(int ci, char *buf, int len)
@@ -175,6 +177,7 @@ static int dump_debug(int ci)
 	return 0;
 }
 
+#if 0
 /* mount.gfs sends us a special fd that it will write an error message to
    if mount(2) fails.  We can monitor this fd for an error message while
    waiting for the kernel mount outside our main poll loop */
@@ -224,14 +227,15 @@ void setup_mount_error_fd(struct mountgroup *mg)
 
 	log_group(mg, "setup_mount_error_fd got fd %d", fd);
 }
+#endif
 
 static int process_client(int ci)
 {
-	char *cmd, *dir, *type, *proto, *table, *extra;
+	struct mountgroup *mg;
 	char buf[MAXLINE], *argv[MAXARGS], out[MAXLINE];
-	int argc = 0, rv;
+	char *cmd = NULL;
+	int argc = 0, rv, fd;
 
-	cmd = dir = type = proto = table = extra = NULL;
 	memset(buf, 0, MAXLINE);
 	memset(out, 0, MAXLINE);
 	memset(argv, 0, sizeof(char *) * MAXARGS);
@@ -251,31 +255,46 @@ static int process_client(int ci)
 
 	get_args(buf, &argc, argv, ' ', 6);
 	cmd = argv[0];
-	dir = argv[1];
-	type = argv[2];
-	proto = argv[3];
-	table = argv[4];
-	extra = argv[5];
+	rv = 0;
 
-	if (!strcmp(cmd, "join"))
-		rv = do_mount(ci, dir, type, proto, table, extra);
-	else if (!strcmp(cmd, "leave"))
-		rv = do_unmount(ci, dir, atoi(proto));
-	else if (!strcmp(cmd, "remount"))
-		rv = do_remount(ci, dir, argv[3]);
-	else if (!strcmp(cmd, "dump")) {
+	if (!strcmp(cmd, "join")) {
+		/* ci, dir, type, proto, table, extra */
+		rv = do_mount(ci, argv[1], argv[2], argv[3], argv[4], argv[5],
+			      &mg);
+		client[ci].mg = mg;
+		fd = client[ci].fd;
+		fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
+		mg->mount_client_fd = fd;
+		goto reply;
+
+	} else if (!strcmp(cmd, "mount_result")) {
+		got_mount_result(client[ci].mg, atoi(argv[3]));
+
+	} else if (!strcmp(cmd, "leave")) {
+		rv = do_unmount(ci, argv[1], atoi(argv[3]));
+		goto reply;
+
+	} else if (!strcmp(cmd, "remount")) {
+		rv = do_remount(ci, argv[1], argv[3]);
+		goto reply;
+
+	} else if (!strcmp(cmd, "dump")) {
 		dump_debug(ci);
-		return 0;
-	} else if (!strcmp(cmd, "plocks")) {
-		dump_plocks(dir, client[ci].fd);
-		client_dead(ci);
-		return 0;
-	} else
-		rv = -EINVAL;
 
+	} else if (!strcmp(cmd, "plocks")) {
+		dump_plocks(argv[1], client[ci].fd);
+		client_dead(ci);
+
+	} else {
+		rv = -EINVAL;
+		goto reply;
+	}
+
+	return rv;
+
+ reply:
 	sprintf(out, "%d", rv);
 	rv = client_send(ci, out, MAXLINE);
-
 	return rv;
 }
 

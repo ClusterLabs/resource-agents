@@ -15,8 +15,6 @@
 /* save all the params from callback functions here because we can't
    do the processing within the callback function itself */
 
-#define GROUPD_TIMEOUT 10 /* seconds */
-
 group_handle_t gh;
 static int cb_action;
 static char cb_name[MAX_GROUP_NAME_LEN+1];
@@ -124,14 +122,14 @@ int process_groupd(void)
 
 	switch (cb_action) {
 	case DO_STOP:
-		log_debug("groupd callback: stop %s", cb_name);
+		log_debug("groupd cb: stop %s", cb_name);
 		mg->last_callback = DO_STOP;
 		mg->last_stop = mg->last_start;
 		do_stop(mg);
 		break;
 
 	case DO_START:
-		log_debug("groupd callback: start %s type %d count %d members %s",
+		log_debug("groupd cb: start %s type %d count %d members %s",
 			  cb_name, cb_type, cb_member_count, str_members());
 		mg->last_callback = DO_START;
 		mg->last_start = cb_event_nr;
@@ -139,20 +137,20 @@ int process_groupd(void)
 		break;
 
 	case DO_FINISH:
-		log_debug("groupd callback: finish %s", cb_name);
+		log_debug("groupd cb: finish %s", cb_name);
 		mg->last_callback = DO_FINISH;
 		mg->last_finish = cb_event_nr;
 		do_finish(mg);
 		break;
 
 	case DO_TERMINATE:
-		log_debug("groupd callback: terminate %s", cb_name);
+		log_debug("groupd cb: terminate %s", cb_name);
 		mg->last_callback = DO_TERMINATE;
 		do_terminate(mg);
 		break;
 
 	case DO_SETID:
-		log_debug("groupd callback: set_id %s %x", cb_name, cb_id);
+		log_debug("groupd cb: set_id %s %x", cb_name, cb_id);
 		mg->id = cb_id;
 		break;
 
@@ -170,7 +168,7 @@ int setup_groupd(void)
 	int rv;
 
 	gh = group_init(NULL, LOCK_DLM_GROUP_NAME, LOCK_DLM_GROUP_LEVEL,
-					&callbacks, GROUPD_TIMEOUT);
+			&callbacks, 10);
 	if (!gh) {
 		log_error("group_init error %d %d", (int) gh, errno);
 		return -ENOTCONN;

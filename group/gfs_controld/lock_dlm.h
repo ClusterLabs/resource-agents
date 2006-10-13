@@ -135,16 +135,18 @@ struct mountgroup {
 
 	char			error_msg[128];
 	int			mount_client;
+	int			mount_client_fd;
+	int			mount_client_notified;
+	int			mount_client_delay;
 	int			remount_client;
 	int			init;
 	int			got_our_options;
 	int			got_our_journals;
-	int			mount_client_notified;
-	int			mount_client_delay;
 	int			delay_send_journals;
 	int			kernel_mount_error;
-	int			mount_error_fd;
+	int			kernel_mount_done;
 	int			got_kernel_mount;
+	int			first_mount_pending_stop;
 	int			first_mounter;
 	int			first_mounter_done;
 	int			emulate_first_mounter;
@@ -212,6 +214,10 @@ struct mg_member {
 	int			recovery_status;
 	int			withdrawing;
 	int			needs_journals;
+
+	int			ms_kernel_mount_done;
+	int			ms_first_mounter;
+	int			ms_kernel_mount_error;
 };
 
 enum {
@@ -220,6 +226,7 @@ enum {
 	MSG_REMOUNT,
 	MSG_PLOCK,
 	MSG_WITHDRAW,
+	MSG_MOUNT_STATUS,
 	MSG_RECOVERY_STATUS,
 	MSG_RECOVERY_DONE,
 };
@@ -258,16 +265,15 @@ int setup_plocks(void);
 int process_plocks(void);
 void exit_cman(void);
 
-void setup_mount_error_fd(struct mountgroup *mg);
-
 int do_mount(int ci, char *dir, char *type, char *proto, char *table,
-	     char *options);
+	     char *options, struct mountgroup **mg_ret);
 int do_unmount(int ci, char *dir, int mnterr);
 int do_remount(int ci, char *dir, char *mode);
 int do_withdraw(char *name);
 int kernel_recovery_done(char *name);
 void ping_kernel_mount(char *table);
 void save_message(struct mountgroup *mg, char *buf, int len, int from, int type);
+void got_mount_result(struct mountgroup *mg, int result);
 
 int client_send(int ci, char *buf, int len);
 

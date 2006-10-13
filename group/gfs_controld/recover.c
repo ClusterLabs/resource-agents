@@ -24,7 +24,6 @@ struct list_head mounts;
 struct list_head withdrawn_mounts;
 
 void send_journals(struct mountgroup *mg, int nodeid);
-void start_participant_init_2(struct mountgroup *mg);
 void start_spectator_init_2(struct mountgroup *mg);
 void start_spectator_2(struct mountgroup *mg);
 void notify_mount_client(struct mountgroup *mg);
@@ -112,6 +111,37 @@ struct mg_member *find_memb_jid(struct mountgroup *mg, int jid)
 			return memb;
 	}
 	return NULL;
+}
+
+int first_mounter_recovery(struct mountgroup *mg)
+{
+	struct mg_member *memb;
+
+	list_for_each_entry(memb, &mg->members, list) {
+		if (memb->opts & MEMB_OPT_RECOVER)
+			return memb->nodeid;
+	}
+	return 0;
+}
+
+int local_first_mounter_recovery(struct mountgroup *mg)
+{
+	int nodeid;
+
+	nodeid = first_mounter_recovery(mg);
+	if (nodeid == our_nodeid)
+		return 1;
+	return 0;
+}
+
+int remote_first_mounter_recovery(struct mountgroup *mg)
+{
+	int nodeid;
+
+	nodeid = first_mounter_recovery(mg);
+	if (nodeid && (nodeid != our_nodeid))
+		return 1;
+	return 0;
 }
 
 static void start_done(struct mountgroup *mg)
@@ -284,6 +314,175 @@ void process_saved_recovery_status(struct mountgroup *mg)
 	}
 }
 
+void assign_next_first_mounter(struct mountgroup *mg)
+{
+	struct mg_member *memb, *next = NULL;
+	int low = -1;
+
+	list_for_each_entry(memb, &mg->members, list) {
+		if (memb->jid == -2)
+			continue;
+		if (memb->jid == -9)
+			continue;
+		if (low == -1 || memb->nodeid < low) {
+			next = memb;
+			low = memb->nodeid;
+		}
+	}
+
+	if (next) {
+		log_group(mg, "next first mounter is %d jid %d opts %x",
+			  next->nodeid, next->jid, next->opts);
+		next->opts |= MEMB_OPT_RECOVER;
+		ASSERT(next->jid >= 0);
+	} else
+		log_group(mg, "no next mounter available yet");
+}
+
+#define SEND_MS_INTS 4
+
+void send_mount_status(struct mountgroup *mg)
+{
+	struct gdlm_header *hd;
+	int len, *p;
+	char *buf;
+
+	len = sizeof(struct gdlm_header) + (SEND_MS_INTS * sizeof(int));
+
+	buf = malloc(len);
+	if (!buf)
+		return;
+	memset(buf, 0, len);
+
+	hd = (struct gdlm_header *)buf;
+	hd->type = MSG_MOUNT_STATUS;
+	hd->nodeid = our_nodeid;
+	hd->to_nodeid = 0;
+
+	p = (int *) (buf + sizeof(struct gdlm_header));
+
+	p[0] = cpu_to_le32(mg->first_mounter);
+	p[1] = cpu_to_le32(mg->kernel_mount_error);
+	p[2] = 0; /* unused */
+	p[3] = 0; /* unused */
+
+	log_group(mg, "send_mount_status kernel_mount_error %d "
+		      "first_mounter %d",
+		      mg->kernel_mount_error,
+		      mg->first_mounter);
+
+	send_group_message(mg, len, buf);
+
+	free(buf);
+}
+
+void _receive_mount_status(struct mountgroup *mg, char *buf, int len, int from)
+{
+	struct mg_member *memb, *us;
+	int *p;
+
+	p = (int *) (buf + sizeof(struct gdlm_header));
+
+	memb = find_memb_nodeid(mg, from);
+	if (!memb) {
+		log_group(mg, "_receive_mount_status no node %d", from);
+		return;
+	}
+
+	memb->ms_kernel_mount_done = 1;
+	memb->ms_first_mounter = le32_to_cpu(p[0]);
+	memb->ms_kernel_mount_error = le32_to_cpu(p[1]);
+
+	log_group(mg, "_receive_mount_status from %d kernel_mount_error %d "
+		      "first_mounter %d opts %x", from,
+		      memb->ms_kernel_mount_error, memb->ms_first_mounter,
+		      memb->opts);
+
+	if (memb->opts & MEMB_OPT_RECOVER) {
+		ASSERT(memb->ms_first_mounter);
+	}
+	if (memb->ms_first_mounter) {
+		ASSERT(memb->opts & MEMB_OPT_RECOVER);
+	}
+
+	if (memb->ms_first_mounter) {
+		memb->opts &= ~MEMB_OPT_RECOVER;
+
+		if (!memb->ms_kernel_mount_error) {
+			/* the first mounter has successfully mounted, we can
+			   go ahead and mount now */
+
+			if (mg->mount_client_delay) {
+				mg->mount_client_delay = 0;
+				notify_mount_client(mg);
+			}
+		} else {
+			/* first mounter mount failed, next low node should be
+			   made first mounter */
+
+			memb->jid = -2;
+			if (from == our_nodeid)
+				mg->our_jid = -2;
+
+			assign_next_first_mounter(mg);
+
+			/* if we became the next first mounter, then notify
+			   mount client */
+
+			us = find_memb_nodeid(mg, our_nodeid);
+			if (us->opts & MEMB_OPT_RECOVER) {
+				log_group(mg, "we are next first mounter");
+				mg->first_mounter = 1;
+				mg->first_mounter_done = 0;
+				mg->mount_client_delay = 0;
+				notify_mount_client(mg);
+			}
+		}
+	}
+}
+
+void receive_mount_status(struct mountgroup *mg, char *buf, int len, int from)
+{
+	log_group(mg, "receive_mount_status from %d len %d last_cb %d",
+		  from, len, mg->last_callback);
+
+	if (!mg->got_our_options) {
+		log_group(mg, "ignore mount_status from %d", from);
+		return;
+	}
+
+	if (!mg->got_our_journals)
+		save_message(mg, buf, len, from, MSG_MOUNT_STATUS);
+	else
+		_receive_mount_status(mg, buf, len, from);
+}
+
+/* We delay processing mount_status msesages until we receive the journals
+   message for our own mount.  Our journals message is a snapshot of the memb
+   list at the time our options message is received on the remote node.  We
+   ignore any messages that would change the memb list prior to seeing our own
+   options message and we save any messages that would change the memb list
+   after seeing our own options message and before we receive the memb list
+   from the journals message. */
+
+void process_saved_mount_status(struct mountgroup *mg)
+{
+	struct save_msg *sm, *sm2;
+
+	if (list_empty(&mg->saved_messages))
+		return;
+
+	log_group(mg, "process_saved_mount_status");
+
+	list_for_each_entry_safe(sm, sm2, &mg->saved_messages, list) {
+		if (sm->type != MSG_MOUNT_STATUS)
+			continue;
+		_receive_mount_status(mg, sm->buf, sm->len, sm->nodeid);
+		list_del(&sm->list);
+		free(sm);
+	}
+}
+
 char *msg_name(int type)
 {
 	switch (type) {
@@ -295,6 +494,8 @@ char *msg_name(int type)
 		return "MSG_REMOUNT";
 	case MSG_PLOCK:
 		return "MSG_PLOCK";
+	case MSG_MOUNT_STATUS:
+		return "MSG_MOUNT_STATUS";
 	case MSG_RECOVERY_STATUS:
 		return "MSG_RECOVERY_STATUS";
 	case MSG_RECOVERY_DONE:
@@ -526,7 +727,7 @@ void send_options(struct mountgroup *mg)
 
 int assign_journal(struct mountgroup *mg, struct mg_member *new)
 {
-	struct mg_member *memb;
+	struct mg_member *memb, *memb_recover = NULL, *memb_mounted = NULL;
 	int i, total, rw_count, ro_count, spect_count, invalid_count;
 
 	total = rw_count = ro_count = spect_count = invalid_count = 0;
@@ -543,6 +744,12 @@ int assign_journal(struct mountgroup *mg, struct mg_member *new)
 			rw_count++;
 		else if (memb->readonly)
 			ro_count++;
+
+		if (memb->opts & MEMB_OPT_RECOVER)
+			memb_recover = memb;
+
+		if (memb->ms_kernel_mount_done && !memb->ms_kernel_mount_error)
+			memb_mounted = memb;
 	}
 
 	log_group(mg, "assign_journal: total %d iv %d rw %d ro %d spect %d",
@@ -582,28 +789,52 @@ int assign_journal(struct mountgroup *mg, struct mg_member *new)
 	   mounter is told to do first-mounter recovery of all the journals. */
 
 	if (mg->needs_recovery) {
-		log_group(mg, "assign_journal: new member OPT_RECOVER");
+		log_group(mg, "assign_journal: memb %d gets OPT_RECOVER, "
+			  "needs_recovery", new->nodeid);
 		new->opts |= MEMB_OPT_RECOVER;
+		goto out;
 	}
 
+	/* it shouldn't be possible to have someone doing first mounter
+	   recovery and also have someone with the fs fully mounted */
+
+	if (memb_mounted && memb_recover) {
+		log_group(mg, "memb_mounted %d memb_recover %d",
+			  memb_mounted->nodeid, memb_recover->nodeid);
+		ASSERT(0);
+	}
+
+	/* someone has successfully mounted the fs which means the fs doesn't
+	   need first mounter recovery */
+
+	if (memb_mounted) {
+		log_group(mg, "assign_journal: no first recovery needed %d",
+			  memb_mounted->nodeid);
+		goto out;
+	}
+
+	/* someone is currently doing first mounter recovery, they'll send
+	   mount_status when they're done letting everyone know the result */
+
+	if (memb_recover) {
+		log_group(mg, "assign_journal: %d doing first recovery",
+			  memb_recover->nodeid);
+		goto out;
+	}
+
+	/* no one has done kernel mount successfully and no one is doing first
+	   mounter recovery, the new node gets to try first mounter recovery */
+
+	log_group(mg, "assign_journal: memb %d gets OPT_RECOVER", new->nodeid);
+	new->opts |= MEMB_OPT_RECOVER;
+
  out:
-	log_group(mg, "assign_journal: new member %d got jid %d",
-		  new->nodeid, new->jid);
+	log_group(mg, "assign_journal: new member %d got jid %d opts %x",
+		  new->nodeid, new->jid, new->opts);
 
 	if (mg->master_nodeid == our_nodeid) {
 		store_plocks(mg, new->nodeid);
-
-		/* if we're the first mounter and haven't gotten
-		   others_may_mount yet, then don't send journals until
-		   kernel_recovery_done_first so the second node won't mount
-		   the fs until omm. */
-
-		if (mg->first_mounter && !mg->first_mounter_done) {
-			log_group(mg, "delay sending journals to %d",
-				  new->nodeid);
-			mg->delay_send_journals = new->nodeid;
-		} else
-			send_journals(mg, new->nodeid);
+		send_journals(mg, new->nodeid);
 	}
 	return 0;
 }
@@ -732,9 +963,47 @@ void send_journals(struct mountgroup *mg, int nodeid)
 	free(buf);
 }
 
+void received_our_jid(struct mountgroup *mg)
+{
+	log_group(mg, "received_our_jid %d", mg->our_jid);
+
+	/* we've been given jid of -2 which means we're not permitted
+	   to mount the fs; probably because we're trying to mount readonly
+	   but the next mounter is required to be rw */
+
+	if (mg->our_jid == -2) {
+		strcpy(mg->error_msg, "error: jid is -2, try rw");
+		goto out;
+	}
+
+	/* fs needs recovery and existing mounters can't recover it,
+	   i.e. they're spectator/readonly or the first mounter's
+	   mount(2) failed, so we're told to do first-mounter recovery
+	   on the fs. */
+
+	if (local_first_mounter_recovery(mg)) {
+		log_group(mg, "we're told to do first mounter recovery");
+		mg->first_mounter = 1;
+		mg->first_mounter_done = 0;
+		mg->mount_client_delay = 0;
+		goto out;
+	} else if (remote_first_mounter_recovery(mg)) {
+		/* delay notifying mount client until we get a successful
+		   mount status from the first mounter */
+		log_group(mg, "other node doing first mounter recovery, "
+			  "delay notify_mount_client");
+		mg->mount_client_delay = 1;
+		return;
+	}
+
+	retrieve_plocks(mg);
+	process_saved_plocks(mg);
+ out:
+	notify_mount_client(mg);
+}
+
 void _receive_journals(struct mountgroup *mg, char *buf, int len, int from)
 {
-	void (*start2)(struct mountgroup *mg) = mg->start2_fn;
 	struct mg_member *memb, *memb2;
 	struct gdlm_header *hd;
 	int *ids, count, i, nodeid, jid, opts;
@@ -759,8 +1028,9 @@ void _receive_journals(struct mountgroup *mg, char *buf, int len, int from)
 			log_error("invalid journals message "
 				  "nodeid %d jid %d opts %x",
 				  nodeid, jid, opts);
-			continue;
 		}
+		if (!memb)
+			continue;
 
 		memb->jid = jid;
 
@@ -780,11 +1050,14 @@ void _receive_journals(struct mountgroup *mg, char *buf, int len, int from)
 		}
 	}
 
+	process_saved_mount_status(mg);
+
 	/* we delay processing any options messages from new mounters
 	   until after we receive the journals message for our own mount */
+
 	process_saved_options(mg);
 
-	start2(mg);
+	received_our_jid(mg);
 }
 
 void receive_journals(struct mountgroup *mg, char *buf, int len, int from)
@@ -966,7 +1239,7 @@ void update_master_nodeid(struct mountgroup *mg)
 void recover_members(struct mountgroup *mg, int num_nodes,
  		     int *nodeids, int *pos_out, int *neg_out)
 {
-	struct mg_member *memb, *safe;
+	struct mg_member *memb, *safe, *memb_gone_recover = NULL;
 	int i, found, id, pos = 0, neg = 0, prev_master_nodeid;
 	int master_failed = 0;
 
@@ -1001,6 +1274,7 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 			if ((memb->gone_type == GROUP_NODE_FAILED ||
 			    memb->withdrawing) &&
 			    memb->jid != JID_INIT &&
+			    memb->jid != -2 &&
 			    !memb->spectator &&
 			    !memb->wait_gfs_recover_done) {
 				memb->tell_gfs_to_recover = 1;
@@ -1023,6 +1297,9 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 			if (mg->master_nodeid == memb->nodeid &&
 			    memb->gone_type == GROUP_NODE_FAILED)
 				master_failed = 1;
+
+			if (memb->opts & MEMB_OPT_RECOVER)
+				memb_gone_recover = memb;
 		}
 	}	
 
@@ -1046,7 +1323,9 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 	log_group(mg, "total members %d master_nodeid %d prev %d",
 		  mg->memb_count, mg->master_nodeid, prev_master_nodeid);
 
-	/* the master failed and we're the new master, we need to:
+
+	/* The master failed and we're the new master, we need to:
+
 	   - unlink the ckpt that the failed master had open so new ckpts
 	     can be created down the road
 	   - resend journals msg to any nodes that needed one from the
@@ -1064,38 +1343,55 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 		resend_journals(mg);
 	}
 
-	/* Tricky situation when we're mounting and the failed node was
-	   the only other node that had the fs mounted.  If the failed node
-	   didn't send us a journals message, we need to: unlink ckpt, pick a
-	   journal for ourselves, act like the first mounter of the fs (do
-	   first-mounter-recovery, the dead node may have been mounting itself
-	   and not finished first-mounter-recovery). */
+	/* Do we need a new first mounter?
 
-	else if (neg && mg->memb_count == 1) {
-		if (!mg->got_our_journals) {
-			log_group(mg, "we are left alone, act first mounter");
+	   If we've not gotten a journals message yet (implies we're mounting)
+	   and there's only one node left in the group (us, after removing the
+	   failed node), then it's possible that the failed node was doing
+	   first mounter recovery, so we need to become first mounter.
 
+	   If we've received a journals message, we can check if the failed
+	   node was doing first mounter recovery (MEMB_OPT_RECOVER set) and
+	   if so select the next first mounter. */
+
+	if (!neg)
+		return;
+
+	if (!mg->got_our_journals && mg->memb_count == 1) {
+		log_group(mg, "we are left alone, act as first mounter");
+		unlink_checkpoint(mg);
+		memb = find_memb_nodeid(mg, our_nodeid);
+		memb->jid = 0;
+		memb->opts |= MEMB_OPT_RECOVER;
+		mg->our_jid = 0;
+		mg->first_mounter = 1;
+		mg->first_mounter_done = 0;
+		mg->got_our_options = 1;
+		mg->got_our_journals = 1;
+		mg->mount_client_delay = 0;
+		notify_mount_client(mg);
+		return;
+	}
+
+	if (memb_gone_recover) {
+		log_group(mg, "failed node %d had MEMB_OPT_RECOVER",
+			  memb_gone_recover->nodeid);
+		ASSERT(!mg->mount_client_notified);
+		memb_gone_recover->tell_gfs_to_recover = 0;
+	}
+
+	if (memb_gone_recover && mg->got_our_journals) {
+		assign_next_first_mounter(mg);
+		memb = find_memb_nodeid(mg, our_nodeid);
+		if (memb->opts & MEMB_OPT_RECOVER) {
+			log_group(mg, "first mounter failed, we get "
+				  "MEMB_OPT_RECOVER");
 			unlink_checkpoint(mg);
-			memb = find_memb_nodeid(mg, our_nodeid);
-			memb->jid = 0;
-			mg->our_jid = 0;
+			memb->opts |= MEMB_OPT_RECOVER;
 			mg->first_mounter = 1;
 			mg->first_mounter_done = 0;
-			mg->got_our_options = 1;
-			mg->got_our_journals = 1;
 			mg->mount_client_delay = 0;
 			notify_mount_client(mg);
-		} else if (mg->mount_client_notified && !mg->got_kernel_mount) {
-
-			/* FIXME */
-
-			log_group(mg, "FIXME: case not handled");
-
-			/* we got journals message from other node before it
-			   died which means it finished first mounter recovery,
-			   but we now need to tell gfs to recover the journal
-			   after our own mount(2) completes */
-
 		}
 	}
 }
@@ -1172,7 +1468,7 @@ static int we_are_in_fence_domain(void)
 }
 
 int do_mount(int ci, char *dir, char *type, char *proto, char *table,
-	     char *options)
+	     char *options, struct mountgroup **mg_ret)
 {
 	struct mountgroup *mg;
 	char table2[MAXLINE];
@@ -1272,8 +1568,7 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 	}
 
 	list_add(&mg->list, &mounts);
-
-	setup_mount_error_fd(mg);
+	*mg_ret = mg;
 
 	group_join(gh, name);
 	return 0;
@@ -1281,43 +1576,6 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
  fail:
 	log_error("mount: failed %d", rv);
 	return rv;
-}
-
-/* When we're the first mounter, gfs does recovery on all the journals
-   and does "recovery_done" callbacks when it finishes each.  We ignore
-   these and wait for gfs to be finished with all at which point it calls
-   others_may_mount() and first_done is set. */
-
-int kernel_recovery_done_first(struct mountgroup *mg)
-{
-	char buf[MAXLINE];
-	int rv, first_done;
-
-	memset(buf, 0, sizeof(buf));
-
-	rv = get_sysfs(mg, "first_done", buf, sizeof(buf));
-	if (rv < 0)
-		return rv;
-
-	first_done = atoi(buf);
-
-	log_group(mg, "recovery_done_first first_done %d wait_first_done %d",
-		  first_done, mg->wait_first_done);
-
-	if (first_done) {
-		mg->first_mounter_done = 1;
-
-		/* If a second node was added before we got first_done,
-		   we delayed calling start_done() (to complete adding
-		   the second node) until here. */
-
-		if (mg->wait_first_done)
-			start_done(mg);
-
-		if (mg->delay_send_journals)
-			send_journals(mg, mg->delay_send_journals);
-	}
-	return 0;
 }
 
 /* recover_members() discovers which nodes need journal recovery
@@ -1337,15 +1595,7 @@ int kernel_recovery_done_first(struct mountgroup *mg)
 
    the problem we're trying to avoid here is telling gfs-kernel to do
    recovery when it can't for some reason and then waiting forever for
-   a recovery_done signal that will never arrive.
-
-   FIXME: we want to do more here to avoid telling gfs-kernel to do recovery
-   until our mount is really complete.  I want to keep the join/mount
-   connection between mount.gfs and gfs_controld open throughout the mount
-   and have mount.gfs use it to return the result from mount(2).  Then we'll
-   know when the mount(2) is done and we should also be able to remove the
-   special mount_error_fd since errors can be sent back through the original
-   connection as well. */
+   a recovery_done signal that will never arrive. */
  
 void recover_journals(struct mountgroup *mg)
 {
@@ -1358,15 +1608,17 @@ void recover_journals(struct mountgroup *mg)
 	    mg->our_jid == JID_INIT ||
 	    mg->kernel_mount_error ||
 	    !mg->mount_client_notified ||
-	    !mg->got_kernel_mount) {
-		log_group(mg, "recover_journals: unable %d,%d,%d,%d,%d,%d,%d",
+	    !mg->got_kernel_mount ||
+	    !mg->kernel_mount_done) {
+		log_group(mg, "recover_journals: unable %d,%d,%d,%d,%d,%d,%d,%d",
 			  mg->spectator,
 			  mg->readonly,
 			  mg->withdraw,
 			  mg->our_jid,
 			  mg->kernel_mount_error,
 			  mg->mount_client_notified,
-			  mg->got_kernel_mount);
+			  mg->got_kernel_mount,
+			  mg->kernel_mount_done);
 
 		list_for_each_entry(memb, &mg->members_gone, list) {
 			log_group(mg, "member gone %d jid %d "
@@ -1437,21 +1689,21 @@ void recover_journals(struct mountgroup *mg)
    like the first mounter to cause gfs to try to recovery all journals
    when it mounts.  When gfs does this, we'll get recovery_done's for
    the individual journals it recovers (ignored) and finally, if all
-   journals are ok, an others_may_mount/first_done.
+   journals are ok, an others_may_mount/first_done. */
  
-   This all happens outside the context of a start event.  The last start
-   event was used to add the new emulate_first mounter to the group.
-
-   Only a single rw node is allowed to mount while the fs needs_recovery. */
-
 /* When gfs does first-mount recovery, the mount(2) fails if it can't
    recover one of the journals.  If we get o_m_m, then we know it was
    able to successfully recover all the journals. */
 
-int kernel_recovery_done_emulate_first(struct mountgroup *mg)
+/* When we're the first mounter, gfs does recovery on all the journals
+   and does "recovery_done" callbacks when it finishes each.  We ignore
+   these and wait for gfs to be finished with all at which point it calls
+   others_may_mount() and first_done is set. */
+
+int kernel_recovery_done_first(struct mountgroup *mg)
 {
 	char buf[MAXLINE];
-	int rv;
+	int rv, first_done;
 
 	memset(buf, 0, sizeof(buf));
 
@@ -1459,11 +1711,19 @@ int kernel_recovery_done_emulate_first(struct mountgroup *mg)
 	if (rv < 0)
 		return rv;
 
-	if (atoi(buf)) {
-		log_group(mg, "kernel_recovery_done_emulate_first");
+	first_done = atoi(buf);
+
+	log_group(mg, "kernel_recovery_done_first first_done %d", first_done);
+
+	if (mg->kernel_mount_done)
+		log_group(mg, "FIXME: assuming kernel_mount_done comes after "
+			  "first_done");
+
+	if (first_done) {
 		mg->first_mounter_done = 1;
 		send_recovery_done(mg);
 	}
+
 	return 0;
 }
 
@@ -1499,10 +1759,6 @@ int kernel_recovery_done(char *table)
 		log_error("recovery_done: unknown mount group %s", table);
 		return -1;
 	}
-
-	if (mg->first_mounter && !mg->first_mounter_done &&
-	    mg->emulate_first_mounter)
-		return kernel_recovery_done_emulate_first(mg);
 
 	if (mg->first_mounter && !mg->first_mounter_done)
 		return kernel_recovery_done_first(mg);
@@ -1618,7 +1874,15 @@ int do_unmount(int ci, char *dir, int mnterr)
 
 	if (mnterr) {
 		log_group(mg, "do_unmount: kernel mount error %d", mnterr);
-		mg->kernel_mount_error = mnterr;
+
+		/* sanity check: we should already have gotten the error from
+		   the mount_result message sent by mount.gfs */
+		if (!mg->kernel_mount_error) {
+			log_group(mg, "do_unmount: mount_error is new %d %d",
+				  mg->kernel_mount_error, mnterr);
+			mg->kernel_mount_error = mnterr;
+			mg->kernel_mount_done = 1;
+		}
 		goto out;
 	}
 
@@ -1695,6 +1959,21 @@ void ping_kernel_mount(char *table)
 	log_group(mg, "ping_kernel_mount %d", rv);
 }
 
+void got_mount_result(struct mountgroup *mg, int result)
+{
+	struct mg_member *memb;
+
+	memb = find_memb_nodeid(mg, our_nodeid);
+
+	log_group(mg, "mount_result: kernel_mount_error %d first_mounter %d "
+		  "opts %x", result, mg->first_mounter, memb->opts);
+
+	mg->kernel_mount_done = 1;
+	mg->kernel_mount_error = result;
+
+	send_mount_status(mg);
+}
+
 /* When mounting a fs, we first join the mountgroup, then tell mount.gfs
    to procede with the kernel mount.  Once we're in the mountgroup, we
    can get a stop callback at any time, which requires us to block the
@@ -1703,10 +1982,16 @@ void ping_kernel_mount(char *table)
    has actually created the sysfs files for the fs.  This function delays
    any further processing until the sysfs files exist. */
 
-void wait_for_kernel_mount(struct mountgroup *mg)
+/* This function returns 0 when the kernel mount is successfully detected
+   and we know that do_stop() will be able to block the fs.
+   This function returns a negative error if it detects the kernel mount
+   has failed which means there's nothing to stop and do_stop() can assume
+   an implicit stop. */
+
+int wait_for_kernel_mount(struct mountgroup *mg)
 {
-	char buf[MAXLINE];
-	int rv;
+	char buf[MAXLINE], cmd[32], dir[PATH_MAX], type[32];
+	int rv, result;
 
 	while (1) {
 		rv = get_sysfs(mg, "id", buf, sizeof(buf));
@@ -1714,28 +1999,59 @@ void wait_for_kernel_mount(struct mountgroup *mg)
 			break;
 		usleep(100000);
 
-		memset(buf, 0, sizeof(buf));
+		/* If mount.gfs reports an error from mount(2), it means
+		   the mount failed and we don't need to block gfs (and
+		   we're not going to get any sysfs files).
+		   If mount.gfs reports successful mount(2), it means
+		   we need to wait for sysfs files to appear so we can
+		   block gfs for the stop */
 
-		/* attempt to solve the problem described below where we
-		   don't get the kernel_mount_error until after the stop and
-		   this loop... this mount_error_fd was sent from mount.gfs and
-		   mount.gfs will write on this fd if there was a mount(2)
-		   error */
-
-		if (!mg->mount_error_fd)
+		if (mg->kernel_mount_done)
 			continue;
 
-		rv = read(mg->mount_error_fd, buf, sizeof(buf));
+		memset(buf, 0, sizeof(buf));
+
+		rv = read(mg->mount_client_fd, buf, sizeof(buf));
 		if (rv > 0) {
-			log_group(mg, "wait_for_kernel_mount: mount error %s",
-				  buf);
-			mg->kernel_mount_error = 1;
-			break;
+			log_group(mg, "wait_for_kernel_mount: %s", buf);
+
+			memset(cmd, 0, sizeof(cmd));
+			memset(dir, 0, sizeof(dir));
+			memset(type, 0, sizeof(type));
+
+			rv = sscanf(buf, "%s %s %s %d",
+				    cmd, dir, type, &result);
+			if (rv < 4) {
+				log_error("bad mount_result args %d \"%s\"",
+					  rv, buf);
+				continue;
+			}
+
+			if (strncmp(cmd, "mount_result", 12)) {
+				log_error("bad mount_result \"%s\"", buf);
+				continue;
+			}
+
+			log_group(mg, "mount_result: kernel_mount_error %d",
+				  result);
+
+			mg->kernel_mount_done = 1;
+			mg->kernel_mount_error = result;
+
+			send_mount_status(mg);
+
+			if (result < 0) {
+				rv = result;
+				break;
+			}
+
+			/* if result is 0 then the mount(2) was successful
+			   and we expect to successfully get the "id"
+			   sysfs file very shortly */
 		}
 	}
 
-	close(mg->mount_error_fd);
-	mg->mount_error_fd = 0;
+	return rv;
 }
 
 /* The processing of new mounters (send/recv options, send/recv journals,
@@ -1766,40 +2082,52 @@ int do_stop(struct mountgroup *mg)
 {
 	int rv;
 
+	if (mg->first_mounter && !mg->kernel_mount_done) {
+		log_group(mg, "do_stop skip during first mount recovery");
+		goto out;
+	}
+
 	for (;;) {
 		rv = set_sysfs(mg, "block", 1);
 		if (!rv)
 			break;
 
-		/* if the kernel instance of gfs existed before but now
-		   we can't see it, that must mean it's been unmounted,
-		   so it's implicitly stopped */
-
-		if (mg->got_kernel_mount)
+		/* We get an error trying to block gfs, this could be due
+		   to a number of things:
+		   1. if the kernel instance of gfs existed before but now
+		      we can't see it, that must mean it's been unmounted,
+		      so it's implicitly stopped
+		   2. we're in the process of mounting and gfs hasn't created
+		      the sysfs files for this fs yet
+		   3. we're mounting and mount(2) returned an error
+		   4. we're mounting but haven't told mount.gfs to go ahead
+		      with mount(2) yet
+		   We also need to handle the situation where we get here in
+		   case 2 but it turns into case 3 while we're in
+		   wait_for_kernel_mount() */
+		   
+		if (mg->got_kernel_mount) {
+			log_group(mg, "do_stop skipped fs unmounted");
 			break;
+		}
 
 		if (mg->mount_client_notified) {
-
-			/* this kernel_mount_error check isn't perfect, we
-			   could still 1) notify mount.gfs, 2) get a stop cb,
-			   3) kernel mount fails, 4) mount.gfs sends a leave
-			   with mnterr, 5) we don't recv it and don't set
-			   kernel_mount_error because we're stuck in
-			   wait_for_kernel_mount() from do_stop.  update:
-			   attempt to fix above using mount_error_fd */
-
-			if (!mg->kernel_mount_error)
-				wait_for_kernel_mount(mg);
-			else {
-				log_group(mg, "ignore stop, failed mount");
+			if (!mg->kernel_mount_error) {
+				log_group(mg, "do_stop wait for kernel mount");
+				rv = wait_for_kernel_mount(mg);
+				if (rv < 0)
+					break;
+			} else {
+				log_group(mg, "do_stop ignore, failed mount");
 				break;
 			}
 		} else {
+			log_group(mg, "do_stop causes mount_client_delay");
 			mg->mount_client_delay = 1;
 			break;
 		}
 	}
-
+ out:
 	group_stop_done(gh, mg->name);
 	return 0;
 }
@@ -1849,24 +2177,12 @@ int do_finish(struct mountgroup *mg)
 
 		/* we may have been holding back our local mount due to
 		   being stopped/blocked */
-		if (mg->mount_client_delay) {
+		if (mg->mount_client_delay && !first_mounter_recovery(mg)) {
 			mg->mount_client_delay = 0;
 			notify_mount_client(mg);
 		}
 	}
 
-	return 0;
-}
-
-int first_mounter_recovery(struct mountgroup *mg)
-{
-	struct mg_member *memb;
-
-	memb = find_memb_nodeid(mg, our_nodeid);
-	ASSERT(memb);
-
-	if (memb->opts & MEMB_OPT_RECOVER)
-		return 1;
 	return 0;
 }
 
@@ -1906,6 +2222,7 @@ void start_first_mounter(struct mountgroup *mg)
 			  mg->readonly, mg->spectator);
 		strcpy(mg->error_msg, "error: first mounter must be read-write");
 	} else {
+		memb->opts |= MEMB_OPT_RECOVER;
 		memb->jid = 0;
 		mg->our_jid = 0;
 		mg->first_mounter = 1;
@@ -1926,39 +2243,6 @@ void start_participant_init(struct mountgroup *mg)
 	set_our_memb_options(mg);
 	send_options(mg);
 	start_done(mg);
-	mg->start2_fn = start_participant_init_2;
-}
-
-/* called for the initial start on a rw/ro mounter after _receive_journals() */
-
-void start_participant_init_2(struct mountgroup *mg)
-{
-	log_group(mg, "start_participant_init_2 our_jid=%d", mg->our_jid);
-
-	/* we've been given jid of -2 which means we're not permitted
-	   to mount the fs; probably because we're trying to mount readonly
-	   but the next mounter is required to be rw */
-
-	if (mg->our_jid == -2) {
-		strcpy(mg->error_msg, "error: jid is -2, try rw");
-		goto out;
-	}
-
-	/* fs needs recovery and existing mounters can't recover it,
-	   i.e. they're spectator/readonly, so we're told to do
-	   first-mounter recovery on the fs. */
-
-	if (first_mounter_recovery(mg)) {
-		log_group(mg, "first_mounter_recovery");
-		mg->emulate_first_mounter = 1;
-		mg->first_mounter = 1;
-		mg->first_mounter_done = 0;
-	}
-
-	retrieve_plocks(mg);
-	process_saved_plocks(mg);
- out:
-	notify_mount_client(mg);
 }
 
 /* called for a non-initial start on a normal mounter.
@@ -1971,24 +2255,10 @@ void start_participant(struct mountgroup *mg, int pos, int neg)
 	log_group(mg, "start_participant pos=%d neg=%d", pos, neg);
 
 	if (pos) {
-		/* If we're the first mounter, and we're adding a second
-		   node here, but haven't gotten first_done (others_may_mount)
-		   from gfs yet, then don't do the start_done() to complete
-		   adding the second node.  Set wait_first_done=1 to have
-		   first_recovery_done() call start_done().  This also requires
-		   that we unblock locking on the first mounter if gfs hasn't
-		   done others_may_mount yet. */
-
-		if (mg->first_mounter && !mg->first_mounter_done) {
-			mg->wait_first_done = 1;
-			set_sysfs(mg, "block", 0);
-			log_group(mg, "delay start_done til others_may_mount");
-		} else
-			start_done(mg);
-
-		mg->start2_fn = NULL;
+		start_done(mg);
+		/* we save options messages from nodes for whom we've not
+		   received a start yet */
 		process_saved_options(mg);
-
 	} else if (neg) {
 		recover_journals(mg);
 		process_saved_recovery_status(mg);
