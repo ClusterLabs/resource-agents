@@ -309,8 +309,7 @@ gfs_get_dentry(struct super_block *sb, void *inump)
 	if (!cookie->formal_ino ||
 	    cookie->formal_ino == sdp->sd_jiinode->i_num.no_formal_ino ||
 	    cookie->formal_ino == sdp->sd_riinode->i_num.no_formal_ino ||
-	    cookie->formal_ino == sdp->sd_qinode->i_num.no_formal_ino ||
-	    cookie->formal_ino == sdp->sd_linode->i_num.no_formal_ino)
+	    cookie->formal_ino == sdp->sd_qinode->i_num.no_formal_ino)
 		return ERR_PTR(-EINVAL);
 
 	inum.no_formal_ino = cookie->formal_ino;

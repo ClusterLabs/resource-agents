@@ -651,45 +651,6 @@ gfs_get_qinode(struct gfs_sbd *sdp)
 }
 
 /**
- * gfs_get_linode - Read in the special (hidden) license inode
- * @sdp: The GFS superblock
- *
- * If one is not on-disk already, create a new one.
- * Does not read in file contents, just the dinode.
- *
- * Returns: errno
- */
-
-int
-gfs_get_linode(struct gfs_sbd *sdp)
-{
-	struct gfs_holder i_gh;
-	int error;
-
-	/* Create, if not on-disk already */
-	if (!sdp->sd_sb.sb_license_di.no_formal_ino) {
-		error = gfs_alloc_linode(sdp);
-		if (error)
-			return error;
-	}
-
-	error = gfs_glock_nq_num(sdp,
-				 sdp->sd_sb.sb_license_di.no_formal_ino,
-				 &gfs_inode_glops,
-				 LM_ST_SHARED, GL_LOCAL_EXCL,
-				 &i_gh);
-	if (error)
-		return error;
-
-	error = gfs_inode_get(i_gh.gh_gl, &sdp->sd_sb.sb_license_di,
-			      CREATE, &sdp->sd_linode);
-
-	gfs_glock_dq_uninit(&i_gh);
-
-	return error;
-}
-
-/**
  * gfs_make_fs_rw - Turn a Read-Only FS into a Read-Write one
  * @sdp: the filesystem
  *
