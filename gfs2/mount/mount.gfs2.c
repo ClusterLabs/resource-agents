@@ -130,6 +130,13 @@ static int mount_lockproto(char *proto, struct mount_options *mo,
 	return rv;
 }
 
+static void mount_result_lockproto(char *proto, struct mount_options *mo,
+			     	    struct gen_sb *sb, int result)
+{
+	if (!strcmp(proto, "lock_dlm"))
+		lock_dlm_mount_result(mo, sb, result);
+}
+
 static void umount_lockproto(char *proto, struct mount_options *mo,
 			     struct gen_sb *sb, int mnterr)
 {
@@ -175,14 +182,16 @@ int main(int argc, char **argv)
 	rv = mount(mo.dev, mo.dir, fsname, mo.flags, mo.extra_plus);
 	if (rv) {
 		log_debug("mount(2) failed error %d errno %d", rv, errno);
+		mount_result_lockproto(proto, &mo, &sb, rv);
+
 		if (!(mo.flags & MS_REMOUNT))
 			umount_lockproto(proto, &mo, &sb, errno);
 
 		block_signals(SIG_UNBLOCK);
-
 		die("error %d mounting %s on %s\n", errno, mo.dev, mo.dir);
 	}
 	log_debug("mount(2) ok");
+	mount_result_lockproto(proto, &mo, &sb, 0);
 
 	block_signals(SIG_UNBLOCK);
 

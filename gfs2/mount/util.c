@@ -11,7 +11,7 @@
 extern char *prog_name;
 extern char *fsname;
 extern int verbose;
-static int mount_error_fd;
+static int gfs_controld_fd;
 
 #define LOCK_DLM_SOCK_PATH "gfs_controld_sock"	/* FIXME: use a header */
 #define MAXLINE 256			/* size of messages with gfs_controld */
@@ -311,6 +311,7 @@ static int gfs_controld_connect(void)
 	return fd;
 }
 
+#if 0
 /* We create a pipe and pass the receiving end to gfs_controld.  If the
    mount fails, we write an error message to this pipe.  gfs_controld monitors
    this fd outside its main poll loop because it may need to detect a mount
@@ -361,6 +362,7 @@ void setup_mount_error_fd(int socket)
 
 	log_debug("setup_mount_error_fd %d %d", fds[0], fds[1]);
 }
+#endif
 
 int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb)
 {
@@ -370,10 +372,11 @@ int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb)
 
 	i = 0;
 	do {
-		sleep(1);
 		fd = gfs_controld_connect();
-		if (fd < 0)
+		if (fd < 0) {
 			warn("waiting for gfs_controld to start");
+			sleep(1);
+		}
 	} while (fd < 0 && ++i < 10);
 
 	/* FIXME: should we start the daemon here? */
@@ -415,7 +418,9 @@ int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb)
 		goto out;
 	}
 
+#if 0
 	setup_mount_error_fd(fd);
+#endif
 
 	/*
 	 * read response from gfs_controld to our join request:
@@ -491,8 +496,36 @@ int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb)
 	log_debug("lock_dlm_join: extra_plus: \"%s\"", mo->extra_plus);
 	rv = 0;
  out:
+#if 0
 	close(fd);
+#endif
+	gfs_controld_fd = fd;
 	return rv;
+}
+
+void lock_dlm_mount_result(struct mount_options *mo, struct gen_sb *sb,
+			   int result)
+{
+	int rv;
+	char buf[MAXLINE];
+
+	memset(buf, 0, sizeof(buf));
+	rv = snprintf(buf, MAXLINE, "mount_result %s %s %d", mo->dir, fsname,
+		      result);
+	if (rv >= MAXLINE) {
+		warn("lock_dlm_mount_result: message too long: %d \"%s\"\n",
+		     rv, buf);
+		goto out;
+	}
+
+	log_debug("lock_dlm_mount_result: write \"%s\"", buf);
+
+	rv = write(gfs_controld_fd, buf, sizeof(buf));
+	if (rv < 0) {
+		warn("lock_dlm_mount_result: gfs_controld write error: %d", rv);
+	}
+ out:
+	close(gfs_controld_fd);
 }
 
 int lock_dlm_leave(struct mount_options *mo, struct gen_sb *sb, int mnterr)
@@ -502,13 +535,14 @@ int lock_dlm_leave(struct mount_options *mo, struct gen_sb *sb, int mnterr)
 
 	i = 0;
 	do {
-		sleep(1);
 		fd = gfs_controld_connect();
-		if (!fd)
+		if (fd < 0) {
 			warn("waiting for gfs_controld to start");
+			sleep(1);
+		}
 	} while (!fd && ++i < 10);
 
-	if (!fd) {
+	if (fd < 0) {
 		warn("gfs_controld not running");
 		rv = -1;
 		goto out;
@@ -535,10 +569,12 @@ int lock_dlm_leave(struct mount_options *mo, struct gen_sb *sb, int mnterr)
 	log_debug("message to gfs_controld: asking to leave mountgroup:");
 	log_debug("lock_dlm_leave: write \"%s\"", buf);
 
+#if 0
 	if (mnterr && mount_error_fd) {
 		rv = write(mount_error_fd, buf, sizeof(buf));
 		log_debug("lock_dlm_leave: write to mount_error_fd %d", rv);
 	}
+#endif
 
 	rv = write(fd, buf, sizeof(buf));
 	if (rv < 0) {
