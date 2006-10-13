@@ -475,7 +475,7 @@ int do_cpg_join(group_t *g)
 	cpg_error_t error;
 	cpg_handle_t h;
 	struct cpg_name name;
-	int fd, ci;
+	int fd, ci, i = 0;
 
 	error = cpg_initialize(&h, &callbacks);
 	if (error != CPG_OK) {
@@ -502,6 +502,8 @@ int do_cpg_join(group_t *g)
 	if (error == CPG_ERR_TRY_AGAIN) {
 		log_debug("cpg_join error retry");
 		sleep(1);
+		if (!(++i % 10))
+			log_error(g, "cpg_join error retrying");
 		goto retry;
 	}
 	if (error != CPG_OK) {
@@ -518,6 +520,7 @@ int do_cpg_leave(group_t *g)
 {
 	cpg_error_t error;
 	struct cpg_name name;
+	int i = 0;
 
 	memset(&name, 0, sizeof(name));
 	sprintf(name.value, "%d_%s", g->level, g->name);
@@ -528,6 +531,8 @@ int do_cpg_leave(group_t *g)
 	if (error == CPG_ERR_TRY_AGAIN) {
 		log_debug("cpg_leave error retry");
 		sleep(1);
+		if (!(++i % 10))
+			log_error(g, "cpg_leave error retrying");
 		goto retry;
 	}
 	if (error != CPG_OK) {
