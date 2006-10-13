@@ -23,6 +23,7 @@
 #define RESET_STATE 2
 #define RESTARTABLE_STATE 3
 #define FENCED_STATE 4
+#define FAILED_STATE 5
 
 struct monitor_info_s {
   int minor_nr;

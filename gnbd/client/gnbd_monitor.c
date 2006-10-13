@@ -28,7 +28,6 @@
 #include <netinet/in.h>
 
 #include "gnbd.h"
-#include "group.h"
 #include "member_cman.h"
 #include "gnbd_endian.h"
 #include "list.h"
@@ -52,8 +51,15 @@ struct waiter_s {
 };
 typedef struct waiter_s waiter_t;
 
+struct down_node_s {
+  int nodeid;
+  list_t list;
+};
+typedef struct down_node_s down_node_t;
+
 #define MAX_NODES 256
 
+list_decl(down_node_list);
 list_decl(waiter_list);
 connection_t *connections;
 struct pollfd *polls;
@@ -63,8 +69,6 @@ unsigned int checks = 0;
 cman_handle_t ch;
 cman_node_t nodes[MAX_NODES];
 int num_nodes;
-cman_node_t old_nodes[MAX_NODES];
-int old_num_nodes;
 int cman_cb;
 int cman_reason;
 
@@ -74,7 +78,6 @@ int cman_reason;
 
 #define CLUSTER 0
 #define CONNECT 1
-#define GROUP 2
 
 list_t monitor_list;
 
@@ -159,15 +162,7 @@ void setup_poll(void)
   connections[CLUSTER].dev = -1;
   polls[CONNECT].fd = start_comm_device("gnbd_monitorcomm");
   polls[CONNECT].events = POLLIN;
-  polls[GROUP].fd = setup_groupd("gnbd_monitor");
-  if (polls[GROUP].fd < 0)
-    fail_startup("cannot get group fd\n");
-  polls[GROUP].events = POLLIN;
-  connections[GROUP].buf = NULL;
-  connections[GROUP].action = 0;
-  connections[GROUP].size = 0;
-  connections[GROUP].dev = -1;
-  for(i = 3; i < open_max(); i++){
+  for(i = 2; i < open_max(); i++){
     polls[i].fd = -1;
     polls[i].revents = 0;
   }
@@ -185,10 +180,6 @@ void close_poller(int index){
     log_err("lost request socket\n");
     /* FIXME -- again, don't do this */
     exit(1);
-  }
-  if (index == GROUP){
-    log_err("lost connection to groupd\n");
-     exit(1);
   }
   polls[index].fd = -1;
   polls[index].revents = 0;
@@ -356,6 +347,7 @@ void fail_device(monitor_t *dev)
   waiter_t *waiter;
 
   block_sigchld();
+  dev->state = FAILED_STATE;
   
   list_foreach_safe(list_item, &waiter_list, tmp) {
     waiter = list_entry(list_item, waiter_t, list);
@@ -375,14 +367,75 @@ void fail_device(monitor_t *dev)
   unblock_sigchld();
 }
 
+static void fail_devices(char *node)
+{
+  monitor_t *dev;
+  list_t *item;
+
+  list_foreach(item, &monitor_list) {
+    dev = list_entry(item, monitor_t, list);
+    if (strcmp(dev->server, node) == 0)
+      fail_device(dev);
+  }
+}
+
+static char *nodeid_to_name(int nodeid)
+{
+  int i;
+
+  for(i = 0; i < num_nodes; i++)
+    if (nodes[i].cn_nodeid == nodeid)
+      return nodes[i].cn_name;
+  log_err("cannot find node that matches nodeid %d\n", nodeid);
+  exit(1);
+}
+
+static void check_down_nodes(void)
+{
+  uint64_t fence_time;
+  int fenced;
+  down_node_t *node;
+  list_t *item, *next;
+  
+  list_foreach_safe(item, &down_node_list, next){
+    node = list_entry(item, down_node_t, list);
+    if (cman_get_fenceinfo(ch, node->nodeid, &fence_time, &fenced, NULL) < 0) {
+      log_err("cannot get fence info for nodeid %d : %s\n", node->nodeid,
+              strerror(errno));
+      exit(1);
+    }
+    if (fenced){
+      fail_devices(nodeid_to_name(node->nodeid));
+      list_del(&node->list);
+      free(node);
+    }
+  }
+}
+
+static down_node_t *get_down_node(int nodeid)
+{
+  list_t *item;
+  down_node_t *node;
+
+  list_foreach(item, &down_node_list) {
+    node = list_entry(item, down_node_t, list);
+    if (node->nodeid == nodeid)
+      return node;
+  }
+  return NULL;
+}
+
+static void get_initial_nodelist(void)
+{
+  if (cman_get_nodes(ch, MAX_NODES, &num_nodes, nodes) < 0) {
+    log_err("can't get initial cluster node list : %s\n", strerror(errno));
+    exit(1);
+  }
+}
+
 static void statechange(void)
 {
-  int ret;
-  monitor_t *dev;
-  list_t *item, *next;
-
-  old_num_nodes = num_nodes;
-  memcpy(&old_nodes, &nodes, sizeof(old_nodes));
+  int ret, i;
 
   num_nodes = 0;
   memset(&nodes, 0, sizeof(nodes));
@@ -391,13 +444,41 @@ static void statechange(void)
     log_err("can't get cluster node list : %s\n", strerror(errno));
     exit(1);
   }
-  list_foreach_safe(item, &monitor_list, next){
-    dev = list_entry(item, monitor_t, list);
-    if (check_for_node(old_nodes, old_num_nodes, dev->server) &&
-        !check_for_node(nodes,  num_nodes, dev->server))
-      fail_device(dev);
+  for (i = 0; i < num_nodes; i++){
+    if (nodes[i].cn_member) {
+      down_node_t *node = get_down_node(nodes[i].cn_nodeid);
+      if (!node)
+        continue;
+      fail_devices(nodes[i].cn_name);
+      list_del(&node->list);
+      free(node);
+    }
+    else {
+      monitor_t *dev;
+      list_t *item;
+      if (get_down_node(nodes[i].cn_nodeid))
+        continue;
+      list_foreach(item, &monitor_list) {
+        down_node_t *node;
+        dev = list_entry(item, monitor_t, list);
+	if (strcmp(dev->server, nodes[i].cn_name) != 0)
+          continue;
+        if (dev->state == RESET_STATE || dev->state == RESTARTABLE_STATE ||
+            dev->state == FAILED_STATE)
+          continue;
+        node = malloc(sizeof(down_node_t));
+        if (!node) {
+          log_err("cannot allocate memory for down node %s\n",
+                  nodes[i].cn_name);
+          exit(1);
+        }
+        node->nodeid = nodes[i].cn_nodeid;
+        list_add(&node->list, &down_node_list);
+        break;
+      }
+    }
   }
-}
+}       
 
 void handle_cluster_msg(void)
 {
@@ -608,7 +689,7 @@ int start_recvd(monitor_t *dev)
     exit(1);
   for(i = open_max()-1; i > 2; --i) 
     close(i);
-  execlp("gnbd_recvd", "gnbd_recvd", "-f", "-d", minor_str);
+  execlp("gnbd_recvd", "gnbd_recvd", "-f", "-d", minor_str, NULL);
   exit(1);
 }
 
@@ -661,9 +742,9 @@ void check_devices(void)
             log_err("cman_admin_init failure : %s\n", strerror(errno));
             goto cant_fence;
           }
-          if (cman_kill_node(ch, server->cn_nodeid) < 0){
+          if (cman_kill_node(ach, server->cn_nodeid) < 0){
             log_err("fence of %s failed : %s\n", dev->server, strerror(errno));
-            cman_finish(ch);
+            cman_finish(ach);
             goto cant_fence;
           }
           cman_finish(ach);
@@ -685,6 +766,7 @@ void check_devices(void)
         start_recvd(dev);
       break;
     /* FENCED_STATE */
+    /* FAILED_STATE */
     }
   }
 }
@@ -717,6 +799,9 @@ void list_monitored_devs(void){
     case FENCED_STATE:
       strcpy(state, "fenced");
       break;
+    case FAILED_STATE:
+      strcpy(state, "failed");
+      break;
     }
     printf("%8d   %7d   %s\n", ptr->minor_nr, ptr->timeout, state);
   }
@@ -734,8 +819,11 @@ void do_poll(void)
       log_err("poll error : %s\n", strerror(errno));
     return;
   }
-  if (err == 0)
+  if (err == 0) {
     check_devices();
+    check_down_nodes();
+    return;
+  }
   for (i = 0; i <= max_id; i++){
     if (polls[i].revents & (POLLERR | POLLHUP | POLLNVAL)){
       log_err("Bad poll result, 0x%x on id %d\n", polls[i].revents, i);
@@ -747,8 +835,6 @@ void do_poll(void)
         accept_connection();
       else if (i == CLUSTER)
         handle_cluster_msg();
-      else if (i == GROUP)
-        default_process_groupd();
       else
         handle_msg(i);
     }
@@ -819,14 +905,13 @@ int main(int argc, char *argv[])
   list_init(&monitor_list);
 
   setup_poll();
-
   err = monitor_device(minor_nr, timeout, argv[3]);
   if (err)
     fail_startup("cannot add device #%d to monitor_list : %s\n", minor_nr,
                  strerror(err));
   
   finish_startup("gnbd_monitor started. Monitoring device #%d\n", minor_nr);
-  
+  get_initial_nodelist();  
   while(1){
     do_poll();
   }

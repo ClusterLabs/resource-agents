@@ -20,15 +20,12 @@
 
 #include "gnbd_utils.h"
 #include "member_cman.h"
-#include "group.h"
 
 
 #define CMAN 0
-#define GROUP 1
 
-struct pollfd polls[2];
+struct pollfd polls[1];
 static int quit = 0;
-group_callbacks_t callbacks;
 
 static void sig_usr1(int sig)
 {}
@@ -56,28 +53,16 @@ void setup_poll(void)
 {
   polls[CMAN].fd = setup_member(NULL);
   if (polls[CMAN].fd < 0)
-    finish_startup("cannot join cman\n");
-  polls[GROUP].fd = setup_groupd("gnbd_clusterd");
-  if (polls[GROUP].fd < 0) {
-    exit_member();
-    fail_startup("cannot init group\n");
-  }
-  if (group_join(gh, "default")) {
-    exit_groupd();
-    exit_member();
-    fail_startup("cannot join group\n");
-  }
+    fail_startup("cannot join cman\n");
   polls[CMAN].events = POLLIN;
   polls[CMAN].revents = 0;
-  polls[GROUP].events = POLLIN;
-  polls[GROUP].revents = 0;
 }
 
 void do_poll(void)
 {
   int err;
 
-  err = poll(polls, 2, -1);
+  err = poll(polls, 1, -1);
   if (err < 0) {
     if (errno != EINTR)
       log_err("poll error : %s\n", strerror(errno));
@@ -87,15 +72,9 @@ void do_poll(void)
     log_err("Bad poll result 0x%x from cluster\n", polls[CMAN].revents);
     exit(1);
   }
-  if (polls[GROUP].revents & (POLLERR | POLLHUP | POLLNVAL)) {
-    log_err("Bad poll result 0x%x from groupd\n", polls[GROUP].revents);
-    exit(1);
-  }
 
   if (polls[CMAN].revents & POLLIN)
     default_process_member();
-  if (polls[GROUP].revents & POLLIN)
-    default_process_groupd();
 }
     
 int main(int argc, char **argv){
@@ -137,8 +116,6 @@ int main(int argc, char **argv){
   while(!quit){
     do_poll();
   }
-  group_leave(gh, "default");
-  group_exit(gh);
   cman_finish(ch);
   return 0;
 } 

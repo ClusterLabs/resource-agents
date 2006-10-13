@@ -19,12 +19,11 @@ RECV_SOURCE= gnbd_recvd.c $(top_srcdir)/utils/trans.c \
 	$(top_srcdir)/utils/gnbd_utils.c
 
 MONITOR_SRC= gnbd_monitor.c monitor_req.c $(top_srcdir)/utils/trans.c \
-	$(top_srcdir)/utils/gnbd_utils.c $(top_srcdir)/utils/group.c \
+	$(top_srcdir)/utils/gnbd_utils.c \
 	$(top_srcdir)/utils/member_cman.c
 
 INCLUDE= -I$(top_srcdir)/include -I$(top_srcdir)/server -I$(top_srcdir)/utils \
-	-I${top_srcdir}/config -I${gnbdkincdir} -I${incdir} -I${cmanincdir} \
-	-I../../group/lib
+	-I${top_srcdir}/config -I${gnbdkincdir} -I${incdir} -I${cmanincdir}
 
 ifneq (${KERNEL_SRC}, )
 # Use the kernel tree if patched, otherwise, look where cluster headers
@@ -33,7 +32,7 @@ INCLUDE += $(shell if [ -e ${KERNEL_SRC}/include/linux/gnbd.h ]; then \
 		echo '-I${KERNEL_SRC}/include'; fi)
 endif
 
-LDLIBS+= -L${libdir} -L${cmanincdir} -L../../group/lib -lcman -lgroup -ldl -lpthread
+LDLIBS+= -L${libdir} -L${cmanincdir} -lcman -ldl -lpthread
 
 CFLAGS+= -O2 -DGNBD_RELEASE_NAME=\"${RELEASE}\"
 
