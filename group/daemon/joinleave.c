@@ -116,25 +116,25 @@ int do_leave(char *name, int level)
 	}
 
 	if (g->joining) {
-		log_group(g, "leave: still joining");
+		log_error(g, "leave: still joining");
 		return -EAGAIN;
 	}
 
 	if (g->leaving) {
-		log_group(g, "leave: already leaving");
+		log_error(g, "leave: already leaving");
 		return -EBUSY;
 	}
 
 	if (g->app->current_event &&
 	    g->app->current_event->nodeid == our_nodeid) {
-		log_group(g, "leave: busy event %llx state %s",
+		log_error(g, "leave: busy event %llx state %s",
 			  ev->id, ev_state_str(g->app->current_event));
 		return -EAGAIN;
 	}
 
 	list_for_each_entry(ev, &g->app->events, list) {
 		ASSERT(ev->nodeid != our_nodeid);
-		log_group(g, "event id %llx", ev->id);
+		log_group(g, "do_leave: found queued event id %llx", ev->id);
 	}
 
 	log_debug("%d:%s got leave", level, name);

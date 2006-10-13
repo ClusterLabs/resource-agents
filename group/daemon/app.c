@@ -1610,6 +1610,12 @@ int recover_current_event(group_t *g)
 	if (event_state_starting(a) || event_state_all_started(a)) {
 		log_group(g, "rev %d replaces current ev %d %s",
 			  rev->nodeid, ev->nodeid, ev_state_str(ev));
+
+		/* what we do for our own join when reaching JOIN_ALL_STARTED */
+		if (is_our_join(ev)) {
+			purge_messages(g);
+			g->joining = 0;
+		}
 		clear_all_nodes_stopped(a);
 		list_del(&rev->list);
 		a->current_event = rev;
