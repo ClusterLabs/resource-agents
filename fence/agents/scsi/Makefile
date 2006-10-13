@@ -27,7 +27,6 @@ fence_scsi: fence_scsi.pl
 	echo "\$$BUILD_DATE=\"(built `date`)\";" >> $(TARGET)
 	awk -v p=0 "(\$$1 ~ /#END_VERSION_GENERATION/){p = 1} {if(p==1)print}" $(SOURCE) >> $(TARGET)
 	chmod +x $(TARGET)
-	chmod +x $(SCRIPT)
 
 install: all
 	if [ ! -d ${sbindir} ]; then \
