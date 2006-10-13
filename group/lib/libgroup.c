@@ -482,28 +482,28 @@ int group_get_groups(int max, int *count, group_data_t *data)
 
 int group_get_group(int level, const char *name, group_data_t *data)
 {
-       char buf[GROUPD_MSGLEN];
-       char data_buf[sizeof(group_data_t)];
-       int fd, rv, len;
+	char buf[GROUPD_MSGLEN];
+	char data_buf[sizeof(group_data_t)];
+	int fd, rv, len;
 
-       fd = connect_groupd();
-       if (fd < 0)
-               return fd;
+	fd = connect_groupd();
+	if (fd < 0)
+		 return fd;
 
-       memset(buf, 0, sizeof(buf));
-       snprintf(buf, sizeof(buf), "get_group %d %s", level, name);
+	memset(buf, 0, sizeof(buf));
+	snprintf(buf, sizeof(buf), "get_group %d %s", level, name);
 
-       rv = do_write(fd, &buf, GROUPD_MSGLEN);
-       if (rv < 0)
-               goto out;
+	rv = do_write(fd, &buf, GROUPD_MSGLEN);
+	if (rv < 0)
+		 goto out;
 
-       rv = do_read(fd, &data_buf, sizeof(data_buf));
-       if (rv < 0)
-               goto out;
+	rv = do_read(fd, &data_buf, sizeof(data_buf));
+	if (rv < 0)
+		 goto out;
 
-       memcpy(data, data_buf, sizeof(group_data_t));
-       rv = 0;
+	memcpy(data, data_buf, sizeof(group_data_t));
+	rv = 0;
  out:
-       close(fd);
-       return rv;
+	close(fd);
+	return rv;
 }
