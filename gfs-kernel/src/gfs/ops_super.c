@@ -331,7 +331,7 @@ gfs_remount_fs(struct super_block *sb, int *flags, char *data)
 	if (!args)
 		return -ENOMEM;
 
-	error = gfs_make_args(data, args, FALSE);
+	error = gfs_make_args(data, args, TRUE);
 	if (error) {
 		printk("GFS: can't parse remount arguments\n");
 		goto out;

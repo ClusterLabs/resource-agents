@@ -42,7 +42,7 @@ gfs_make_args(char *data_arg, struct gfs_args *args, int remount)
 	/*  If someone preloaded options, use those instead  */
 
 	spin_lock(&gfs_proc_margs_lock);
-	if (gfs_proc_margs) {
+	if (!remount && gfs_proc_margs) {
 		data = gfs_proc_margs;
 		gfs_proc_margs = NULL;
 	}

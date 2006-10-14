@@ -11,7 +11,7 @@
 extern char *prog_name;
 extern char *fsname;
 extern int verbose;
-static int gfs_controld_fd;
+static int gfs_controld_fd = -1;
 
 #define LOCK_DLM_SOCK_PATH "gfs_controld_sock"	/* FIXME: use a header */
 #define MAXLINE 256			/* size of messages with gfs_controld */
@@ -385,11 +385,11 @@ int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb)
 	i = 0;
 	do {
 		fd = gfs_controld_connect();
-		if (fd < 0) {
+		if (fd <= 0) {
 			warn("waiting for gfs_controld to start");
 			sleep(1);
 		}
-	} while (fd < 0 && ++i < 10);
+	} while (fd <= 0 && ++i < 10);
 
 	/* FIXME: should we start the daemon here? */
 	if (fd < 0) {
@@ -521,6 +521,8 @@ void lock_dlm_mount_result(struct mount_options *mo, struct gen_sb *sb,
 	int rv;
 	char buf[MAXLINE];
 
+	if(gfs_controld_fd <= 0) /* if we didn't do the lock_dlm_join */
+		return;              /* forget the rest */
 	memset(buf, 0, sizeof(buf));
 	rv = snprintf(buf, MAXLINE, "mount_result %s %s %d", mo->dir, fsname,
 		      result);
@@ -548,13 +550,13 @@ int lock_dlm_leave(struct mount_options *mo, struct gen_sb *sb, int mnterr)
 	i = 0;
 	do {
 		fd = gfs_controld_connect();
-		if (fd < 0) {
+		if (fd <= 0) {
 			warn("waiting for gfs_controld to start");
 			sleep(1);
 		}
-	} while (!fd && ++i < 10);
+	} while (fd <= 0 && ++i < 10);
 
-	if (fd < 0) {
+	if (fd <= 0) {
 		warn("gfs_controld not running");
 		rv = -1;
 		goto out;
@@ -627,13 +629,14 @@ int lock_dlm_remount(struct mount_options *mo, struct gen_sb *sb)
 
 	i = 0;
 	do {
-		sleep(1);
 		fd = gfs_controld_connect();
-		if (!fd)
+		if (fd <= 0) {
 			warn("waiting for gfs_controld to start");
-	} while (!fd && ++i < 10);
+			sleep(1);
+		}
+	} while (fd <= 0 && ++i < 10);
 
-	if (!fd) {
+	if (fd <= 0) {
 		warn("gfs_controld not running");
 		rv = -1;
 		goto out;

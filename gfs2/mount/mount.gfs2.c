@@ -120,8 +120,10 @@ static int mount_lockproto(char *proto, struct mount_options *mo,
 	int rv = 0;
 
 	if (!strcmp(proto, "lock_dlm")) {
-		if (mo->flags & MS_REMOUNT)
+		if (mo->flags & MS_REMOUNT) {
 			rv = lock_dlm_remount(mo, sb);
+			strncpy(mo->extra_plus, mo->extra, PATH_MAX);
+		}
 		else
 			rv = lock_dlm_join(mo, sb);
 	} else
