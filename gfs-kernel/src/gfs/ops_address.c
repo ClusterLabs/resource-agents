@@ -466,9 +466,15 @@ gfs_direct_IO(int rw, struct kiocb *iocb, const struct iovec *iov,
 	if (rw == WRITE && !get_transaction)
 		gb = get_blocks_noalloc;
 
-	return blockdev_direct_IO(rw, iocb, inode,
+	if (rw == WRITE)
+		return blockdev_direct_IO(rw, iocb, inode,
 				  inode->i_sb->s_bdev, iov,
 				  offset, nr_segs, gb, NULL);
+	else
+		return blockdev_direct_IO_no_locking(rw, iocb, inode,
+				  inode->i_sb->s_bdev, iov,
+				  offset, nr_segs, gb, NULL);
+
 }
 
 struct address_space_operations gfs_file_aops = {

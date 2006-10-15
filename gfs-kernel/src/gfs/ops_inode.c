@@ -1340,7 +1340,36 @@ gfs_setattr(struct dentry *dentry, struct iattr *attr)
 
 	atomic_inc(&sdp->sd_ops_inode);
 
+	/* Bugzilla 203170: we'll have the same deadlock as described 
+	 * in bugzilla 173912 if
+	 * 1. without RHEL4's DIO_CLUSTER_LOCKING, and
+	 * 2. we come down to this line of code from do_truncate()
+	 *    where i_sem(i_mutex) and i_alloc_sem have been taken, and
+	 * 3. grab the exclusive glock here.
+	 * To avoid this to happen, i_alloc_sem must be dropped and trust
+	 * be put into glock that it can carry the same protection. 
+	 *
+	 * One issue with dropping i_alloc_sem is gfs_setattr() can be 
+	 * called from other code path without this sempaphore. Since linux
+	 * semaphore implementation doesn't include owner id, we have no way 
+	 * to reliably decide whether the following "up" is a correct reset. 
+	 * This implies if i_alloc_sem is ever used by non-direct_IO code 
+	 * path in the future, this hack will fall apart. In short, with this 
+	 * change, i_alloc_sem has become a meaningless lock within GFS and 
+	 * don't expect its counter representing any correct state. 
+	 *
+	 * wcheng@redhat.com 10/14/06  
+	 */ 
+	if (attr->ia_valid & ATTR_SIZE) {
+		up_write(&dentry->d_inode->i_alloc_sem); 
+	}
+	
 	error = gfs_glock_nq_init(ip->i_gl, LM_ST_EXCLUSIVE, 0, &i_gh);
+
+	if (attr->ia_valid & ATTR_SIZE) {
+		down_write(&dentry->d_inode->i_alloc_sem); 
+	}
+	
 	if (error)
 		return error;
 
