@@ -1349,14 +1349,13 @@ gfs_setattr(struct dentry *dentry, struct iattr *attr)
 	 * To avoid this to happen, i_alloc_sem must be dropped and trust
 	 * be put into glock that it can carry the same protection. 
 	 *
-	 * One issue with dropping i_alloc_sem is gfs_setattr() can be 
-	 * called from other code path without this sempaphore. Since linux
-	 * semaphore implementation doesn't include owner id, we have no way 
-	 * to reliably decide whether the following "up" is a correct reset. 
-	 * This implies if i_alloc_sem is ever used by non-direct_IO code 
-	 * path in the future, this hack will fall apart. In short, with this 
-	 * change, i_alloc_sem has become a meaningless lock within GFS and 
-	 * don't expect its counter representing any correct state. 
+	 * One issue with dropping i_alloc_sem is that the gfs_setattr() 
+	 * can be invoked from other code path without this sempaphore. 
+	 * We'll need a new rwsem function that can "up" the semaphore 
+	 * only when it is needed. Before that happens (will research the 
+	 * possibility), i_alloc_sem (now) is a meaningless lock within 
+	 * GFS. If it is ever been used by other non-directIO code, this
+	 * hack will fall apart.
 	 *
 	 * wcheng@redhat.com 10/14/06  
 	 */ 
