@@ -102,15 +102,27 @@ meta_data()
             <content type="integer"/>
         </parameter>
 
-	<parameter name="bootloader" required="1">
+	<parameter name="bootloader">
 	    <longdesc lang="en">
-		Root disk for the Xen VM (as presented to the VM)
+		Boot loader that can start the Xen VM from physical image
 	    </longdesc>
 	    <shortdesc lang="en">
 		Boot loader that can start the Xen VM from physical image
 	    </shortdesc>
             <content type="string"/>
         </parameter>
+
+	<parameter name="path">
+	    <longdesc lang="en">
+	    	Path specification 'xm create' will search for the specified
+		VM configuration file
+	    </longdesc>
+	    <shortdesc lang="en">
+	    	Path to Xen configuration files
+	    </shortdesc>
+            <content type="string"/>
+        </parameter>
+
 
 	<parameter name="rootdisk_physical" unique="1">
 	    <longdesc lang="en">
@@ -168,7 +180,7 @@ meta_data()
 
     <actions>
         <action name="start" timeout="20"/>
-        <action name="stop" timeout="240"/>
+        <action name="stop" timeout="120"/>
 	
 	<!-- No-ops.  Groups are abstract resource types.  -->
         <action name="status" timeout="10" interval="30m"/>
@@ -196,28 +208,6 @@ EOT
 }
 
 
-#
-# Find a list of possible IP addresses to try.
-#
-xen_host_ips()
-{
-	declare xen_ips=$(ip -f inet -o addr list | grep 'xen-br[0-9]\+[^:]' | awk '{print $4}')
-	declare tmp1=""
-	declare i
-
-	for i in $xen_ips; do
-                i=${i/\/*/}
-		if [ -z "$tmp1" ]; then
-			tmp1="$i"
-		else
-			tmp1="$i,$tmp1"
-		fi
-	done
-
-	echo $tmp1
-}
-
-
 build_xen_cmdline()
 {
 	#
@@ -227,7 +217,6 @@ build_xen_cmdline()
 	#
 	declare cmdline="restart=\"never\""
 	declare varp val temp
-
 
 	#
 	# Transliterate the OCF_RESKEY_* to something the xm
@@ -261,11 +250,20 @@ build_xen_cmdline()
 			;;
 		rootdisk_virtual)
 			;;
+		name)	# Do nothing with name; add it later
+			;;
+		path)
+			cmdline="$cmdline --path=\"$val\""
+			;;
 		*)
 			cmdline="$cmdline $varp=\"$val\""
 			;;
 		esac
 	done
+
+	if [ -n "$OCF_RESKEY_name" ]; then
+		cmdline="$OCF_RESKEY_name $cmdline"
+	fi
 
 	echo $cmdline
 }
@@ -282,13 +280,9 @@ start()
 	#
 	declare cmdline
 
-	if [ -f "/etc/xen/xmdefconfig" ]; then
-		cmdline="`build_xen_cmdline`"
-	else
-		cmdline="`build_xen_cmdline` /dev/null"
-	fi
+	cmdline="`build_xen_cmdline`"
 
-	echo $cmdline
+	echo "# Xen Command Line: $cmdline"
 
 	eval xm create $cmdline
 	return $?
@@ -301,7 +295,7 @@ start()
 #
 stop()
 {
-	declare -i timeout=120
+	declare -i timeout=60
 	declare -i ret=1
 	declare st
 
@@ -309,7 +303,7 @@ stop()
 		echo xm $op $OCF_RESKEY_name ...
 		xm $op $OCF_RESKEY_name
 
-		timeout=120
+		timeout=60
 		while [ $timeout -gt 0 ]; do
 			sleep 5
 			((timeout -= 5))
@@ -362,45 +356,11 @@ status()
 verify_all()
 {
 	declare errors=0
-	declare tmp1, tmp2
 
-	if [ -z "$OCF_RESKEY_kernel" ]; then
-		echo "Required parameter OCF_RESKEY_kernel is not present"
+	if [ -n "$OCF_RESKEY_bootloader" ] && \
+	   ! [ -x "$OCF_RESKEY_bootloader" ]; then
+		echo "$OCF_RESKEY_bootloader is not executable"
 		((errors++))
-	elif ! [ -f "$OCF_RESKEY_kernel" ]; then
-		echo "$OCF_RESKEY_kernel (OCF_RESKEY_kernel) is not valid"
-		((errors++))
-	fi
-
-	tmp1=`echo $OCF_RESKEY_swapdisk | cut -f1 -d,`
-	tmp2=`echo $OCF_RESKEY_swapdisk | cut -f2 -d,`
-		
-	if [ -z "$tmp2" ]; then
-		echo "Swapdisk option malformed"
-		((errors++))
-	fi
-
-	if ! [ -b "$tmp1" ]; then
-		echo "Specified swapdisk device $tmp1 is not a block device"
-		((errors++))
-	fi
-
-	if [ -z "$OCF_RESKEY_rootdisk" ]; then
-		echo "Required parameter OCF_RESKEY_rootdisk is not present"
-		((errors++))
-	else
-		tmp1=`echo $OCF_RESKEY_rootdisk | cut -f1 -d,`
-		tmp2=`echo $OCF_RESKEY_rootdisk | cut -f2 -d,`
-		
-		if [ -z "$tmp2" ]; then
-			echo "Rootdisk option malformed"
-			((errors++))
-		fi
-
-		if ! [ -b "$tmp1" ]; then
-			echo "Specified rootdisk device $tmp1 is not a block device"
-			((errors++))
-		fi
 	fi
 }
 
