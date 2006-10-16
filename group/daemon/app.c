@@ -706,8 +706,8 @@ void finalize_our_leave(group_t *g)
 			if (re->group == g) {
 				log_error(g, "finalize: still in recovery "
 					  "set %d", rs->nodeid);
-				list_del(&rs->list);
-				free(rs);
+				list_del(&re->list);
+				free(re);
 			}
 		}
 	}
