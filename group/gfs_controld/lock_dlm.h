@@ -149,6 +149,7 @@ struct mountgroup {
 	int			first_mount_pending_stop;
 	int			first_mounter;
 	int			first_mounter_done;
+	int			global_first_recover_done;
 	int			emulate_first_mounter;
 	int			wait_first_done;
 	int			low_nodeid;

@@ -822,8 +822,21 @@ int assign_journal(struct mountgroup *mg, struct mg_member *new)
 		goto out;
 	}
 
+	/* when we received our journals, no one was flagged with OPT_RECOVER
+	   which means no first mounter recovery is needed or is current */
+
+	if (mg->global_first_recover_done) {
+		log_group(mg, "assign_journal: global_firsts_recover_done");
+		goto out;
+	}
+
 	/* no one has done kernel mount successfully and no one is doing first
 	   mounter recovery, the new node gets to try first mounter recovery */
+
+	log_group(mg, "kernel_mount_done %d kernel_mount_error %d "
+		      "first_mounter %d first_mounter_done %d",
+		      mg->kernel_mount_done, mg->kernel_mount_error,
+		      mg->first_mounter, mg->first_mounter_done);
 
 	log_group(mg, "assign_journal: memb %d gets OPT_RECOVER", new->nodeid);
 	new->opts |= MEMB_OPT_RECOVER;
@@ -1007,6 +1020,7 @@ void _receive_journals(struct mountgroup *mg, char *buf, int len, int from)
 	struct mg_member *memb, *memb2;
 	struct gdlm_header *hd;
 	int *ids, count, i, nodeid, jid, opts;
+	int current_first_recover = 0;
 
 	hd = (struct gdlm_header *)buf;
 
@@ -1048,7 +1062,15 @@ void _receive_journals(struct mountgroup *mg, char *buf, int len, int from)
 			else if (opts & MEMB_OPT_SPECT)
 				memb->spectator = 1;
 		}
+
+		if (opts & MEMB_OPT_RECOVER)
+			current_first_recover = 1;
 	}
+
+	/* FIXME: use global_first_recover_done more widely instead of
+	   as a single special case */
+	if (!current_first_recover)
+		mg->global_first_recover_done = 1;
 
 	process_saved_mount_status(mg);
 
