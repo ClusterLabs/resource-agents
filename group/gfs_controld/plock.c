@@ -865,7 +865,7 @@ static void do_get(struct mountgroup *mg, struct gdlm_plock_info *in)
 }
 
 /* When mg members receive our options message (for our mount), one of them
-   saves all plock state received to that point in a checkpoint and then sounds
+   saves all plock state received to that point in a checkpoint and then sends
    us our journals message.  We know to retrieve the plock state from the
    checkpoint when we receive our journals message.  Any plocks messages that
    arrive between seeing our options message and our journals message needs to
@@ -942,8 +942,6 @@ void receive_plock(struct mountgroup *mg, char *buf, int len, int from)
 void process_saved_plocks(struct mountgroup *mg)
 {
 	struct save_msg *sm, *sm2;
-
-	mg->save_plocks = 0;
 
 	if (list_empty(&mg->saved_messages))
 		return;

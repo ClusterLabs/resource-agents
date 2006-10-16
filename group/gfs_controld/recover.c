@@ -999,6 +999,7 @@ void received_our_jid(struct mountgroup *mg)
 		mg->first_mounter = 1;
 		mg->first_mounter_done = 0;
 		mg->mount_client_delay = 0;
+		mg->save_plocks = 0;
 		goto out;
 	} else if (remote_first_mounter_recovery(mg)) {
 		/* delay notifying mount client until we get a successful
@@ -1006,10 +1007,12 @@ void received_our_jid(struct mountgroup *mg)
 		log_group(mg, "other node doing first mounter recovery, "
 			  "delay notify_mount_client");
 		mg->mount_client_delay = 1;
+		mg->save_plocks = 0;
 		return;
 	}
 
 	retrieve_plocks(mg);
+	mg->save_plocks = 0;
 	process_saved_plocks(mg);
  out:
 	notify_mount_client(mg);
