@@ -521,8 +521,10 @@ void lock_dlm_mount_result(struct mount_options *mo, struct gen_sb *sb,
 	int rv;
 	char buf[MAXLINE];
 
-	if(gfs_controld_fd <= 0) /* if we didn't do the lock_dlm_join */
-		return;              /* forget the rest */
+	/* if we didn't do the lock_dlm_join */
+	if (gfs_controld_fd <= 0)
+		return;
+
 	memset(buf, 0, sizeof(buf));
 	rv = snprintf(buf, MAXLINE, "mount_result %s %s %d", mo->dir, fsname,
 		      result);
