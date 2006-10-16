@@ -802,6 +802,7 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 	   [ "$OCF_RESKEY_nfslock" = "1" ]; then
 		ocf_log warning "Dropping node-wide NFS locks"
 		mkdir -p $mp/.clumanager/statd
+		pkill -KILL -x lockd
 		# Copy out the notify list; our 
 		# IPs are already torn down
 		if notify_list_store $mp/.clumanager/statd; then
@@ -889,16 +890,12 @@ stop)
 	;;
 status|monitor)
   	isMounted ${OCF_RESKEY_device} ${OCF_RESKEY_mountpoint}
- 	if [ $? -ne $YES ]; then
-		ocf_log err "fs:${OCF_RESKEY_name}: ${OCF_RESKEY_device} is not mounted on ${OCF_RESKEY_mountpoint}"
-		exit $OCF_ERR_GENERIC
-	fi
+ 	[ $? -ne $YES ] && exit $OCF_ERR_GENERIC
 
  	isAlive ${OCF_RESKEY_mountpoint}
- 	[ $? -eq $YES ] && exit 0
-
-	ocf_log err "fs:${OCF_RESKEY_name}: Mount point is not accessible!"
-	exit $OCF_ERR_GENERIC
+ 	[ $? -ne $YES ] && exit $OCF_ERR_GENERIC
+ 	
+	exit 0
 	;;
 restart)
 	stopFilesystem
