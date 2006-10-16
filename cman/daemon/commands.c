@@ -1682,9 +1682,8 @@ static void do_process_transition(int nodeid, char *data, int len)
         /* This is the killer. If the join_time of the node matches that already stored AND
 	   the node has been down, then we kill it as this must be a rejoin */
 	if (msg->join_time == node->cman_join_time && node->flags & NODE_FLAGS_BEENDOWN) {
-
 		/* Don't duplicate messages */
-		if (node->state == NODESTATE_AISONLY) {
+		if (node->state != NODESTATE_AISONLY) {
 			if (cluster_is_quorate) {
 				P_MEMB("Killing node %s because it has rejoined the cluster without cman_tool join", node->name);
 				log_printf(LOG_CRIT, "Killing node %s because it has rejoined the cluster without cman_tool join", node->name);
