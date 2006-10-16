@@ -826,7 +826,7 @@ int assign_journal(struct mountgroup *mg, struct mg_member *new)
 	   which means no first mounter recovery is needed or is current */
 
 	if (mg->global_first_recover_done) {
-		log_group(mg, "assign_journal: global_firsts_recover_done");
+		log_group(mg, "assign_journal: global_first_recover_done");
 		goto out;
 	}
 
