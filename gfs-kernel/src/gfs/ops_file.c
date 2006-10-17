@@ -23,6 +23,7 @@
 #include <linux/uio.h>
 #include <linux/blkdev.h>
 #include <linux/mm.h>
+#include <linux/aio.h>
 #include <asm/uaccess.h>
 
 #include "gfs_ioctl.h"
@@ -76,6 +77,7 @@ struct filldir_reg {
 typedef ssize_t(*do_rw_t) (struct file * file,
 			   char *buf,
 			   size_t size, loff_t * offset,
+                           struct kiocb *iocb,
 			   unsigned int num_gh, struct gfs_holder * ghs);
 
 /**
@@ -129,7 +131,7 @@ gfs_llseek(struct file *file, loff_t offset, int origin)
 
 static ssize_t
 walk_vm_hard(struct file *file, char *buf, size_t size, loff_t *offset,
-	     do_rw_t operation)
+             struct kiocb *iocb, do_rw_t operation)
 {
 	struct gfs_holder *ghs;
 	unsigned int num_gh = 0;
@@ -178,7 +180,7 @@ walk_vm_hard(struct file *file, char *buf, size_t size, loff_t *offset,
 		gfs_assert(get_v2sdp(sb), x == num_gh,);
 	}
 
-	count = operation(file, buf, size, offset, num_gh, ghs);
+	count = operation(file, buf, size, offset, iocb, num_gh, ghs);
 
 	while (num_gh--)
 		gfs_holder_uninit(&ghs[num_gh]);
@@ -204,6 +206,7 @@ walk_vm_hard(struct file *file, char *buf, size_t size, loff_t *offset,
 
 static ssize_t
 walk_vm(struct file *file, char *buf, size_t size, loff_t *offset,
+	struct kiocb *iocb,	
 	do_rw_t operation)
 {
 	if (current->mm) {
@@ -231,11 +234,11 @@ walk_vm(struct file *file, char *buf, size_t size, loff_t *offset,
 
 	{
 		struct gfs_holder gh;
-		return operation(file, buf, size, offset, 0, &gh);
+		return operation(file, buf, size, offset, iocb, 0, &gh);
 	}
 
  do_locks:
-	return walk_vm_hard(file, buf, size, offset, operation);
+	return walk_vm_hard(file, buf, size, offset, iocb, operation);
 }
 
 /**
@@ -250,7 +253,8 @@ walk_vm(struct file *file, char *buf, size_t size, loff_t *offset,
  */
 
 static ssize_t
-do_read_readi(struct file *file, char *buf, size_t size, loff_t *offset)
+do_read_readi(struct file *file, char *buf, size_t size, loff_t *offset,
+              struct kiocb *iocb)
 {
 	struct gfs_inode *ip = get_v2ip(file->f_mapping->host);
 	ssize_t count = 0;
@@ -267,6 +271,8 @@ do_read_readi(struct file *file, char *buf, size_t size, loff_t *offset)
 			size = 0x7FFFFFFFull - *offset;
 	}
 
+	/* ToDo: not sure about iocb .. wcheng
+	 */
 	count = gfs_readi(ip, buf, *offset, size, gfs_copy2user);
 
 	if (count > 0)
@@ -291,7 +297,8 @@ do_read_readi(struct file *file, char *buf, size_t size, loff_t *offset)
 
 static ssize_t
 do_read_direct(struct file *file, char *buf, size_t size, loff_t *offset,
-	       unsigned int num_gh, struct gfs_holder *ghs)
+		struct kiocb *iocb,
+		unsigned int num_gh, struct gfs_holder *ghs)
 {
 	struct inode *inode = file->f_mapping->host;
 	struct gfs_inode *ip = get_v2ip(inode);
@@ -324,10 +331,16 @@ do_read_direct(struct file *file, char *buf, size_t size, loff_t *offset,
 		if (((*offset) & mask) || (((unsigned long)buf) & mask))
 			goto out_gunlock;
 
-		count = do_read_readi(file, buf, size & ~mask, offset);
+		count = do_read_readi(file, buf, size & ~mask, offset, iocb);
 	}
-	else
-		count = generic_file_read(file, buf, size, offset);
+	else {
+		if (!iocb) 
+			count = generic_file_read(file, buf, size, offset);
+		else {
+		        struct iovec local_iov = { .iov_base = buf, .iov_len = size};
+			count = __generic_file_aio_read(iocb, &local_iov, 1, offset);
+		}
+	}
 
 	error = 0;
 
@@ -356,7 +369,8 @@ do_read_direct(struct file *file, char *buf, size_t size, loff_t *offset,
 
 static ssize_t
 do_read_buf(struct file *file, char *buf, size_t size, loff_t *offset,
-	    unsigned int num_gh, struct gfs_holder *ghs)
+		struct kiocb *iocb,
+		unsigned int num_gh, struct gfs_holder *ghs)
 {
 	struct gfs_inode *ip = get_v2ip(file->f_mapping->host);
 	ssize_t count = 0;
@@ -370,9 +384,22 @@ do_read_buf(struct file *file, char *buf, size_t size, loff_t *offset,
 
 	if (gfs_is_jdata(ip) ||
 	    (gfs_is_stuffed(ip) && !test_bit(GIF_PAGED, &ip->i_flags)))
-		count = do_read_readi(file, buf, size, offset);
-	else
-		count = generic_file_read(file, buf, size, offset);
+		count = do_read_readi(file, buf, size, offset, iocb);
+	else {
+		if (!iocb) {
+			count = generic_file_read(file, buf, size, offset);
+		} else {
+			struct iovec local_iov = {
+				.iov_base = (char __user *)buf,
+				.iov_len = size 
+			};
+
+		        count = __generic_file_aio_read(iocb, 
+					&local_iov, 1, offset);
+			if (count == -EIOCBQUEUED)
+				count = wait_on_sync_kiocb(iocb);
+		}
+	}
 
 	gfs_glock_dq_m(num_gh + 1, ghs);
 
@@ -380,6 +407,17 @@ do_read_buf(struct file *file, char *buf, size_t size, loff_t *offset,
 	gfs_holder_uninit(&ghs[num_gh]);
 
 	return (count) ? count : error;
+}
+
+static ssize_t
+__gfs_read(struct file *file, char *buf, size_t size, loff_t *offset, struct kiocb *iocb)
+{
+	atomic_inc(&get_v2sdp(file->f_mapping->host->i_sb)->sd_ops_file);
+
+	if (file->f_flags & O_DIRECT)
+		return walk_vm(file, buf, size, offset, iocb, do_read_direct);
+	else
+		return walk_vm(file, buf, size, offset, iocb, do_read_buf);
 }
 
 /**
@@ -397,12 +435,20 @@ do_read_buf(struct file *file, char *buf, size_t size, loff_t *offset,
 static ssize_t
 gfs_read(struct file *file, char *buf, size_t size, loff_t *offset)
 {
-	atomic_inc(&get_v2sdp(file->f_mapping->host->i_sb)->sd_ops_file);
+	return(__gfs_read(file, buf, size, offset, NULL));
+}
 
-	if (file->f_flags & O_DIRECT)
-		return walk_vm(file, buf, size, offset, do_read_direct);
-	else
-		return walk_vm(file, buf, size, offset, do_read_buf);
+/*
+ * gfs_aio_read: match with vfs generic_file_aio_read as:
+ * 	(struct kiocb *iocb, char __user *buf, size_t count, loff_t pos)
+ */
+static ssize_t
+gfs_aio_read(struct kiocb *iocb, char __user *buf, size_t count, loff_t pos)
+{
+	struct file *filp = iocb->ki_filp;
+
+	BUG_ON(iocb->ki_pos != pos);
+	return(__gfs_read(filp, buf, count, &iocb->ki_pos, iocb));
 }
 
 /**
@@ -449,7 +495,8 @@ grope_mapping(char *buf, size_t size)
  */
 
 static ssize_t
-do_write_direct_alloc(struct file *file, char *buf, size_t size, loff_t *offset)
+do_write_direct_alloc(struct file *file, char *buf, size_t size, loff_t *offset,
+			struct kiocb *iocb)
 {
 	struct inode *inode = file->f_mapping->host;
 	struct gfs_inode *ip = get_v2ip(inode);
@@ -502,13 +549,15 @@ do_write_direct_alloc(struct file *file, char *buf, size_t size, loff_t *offset)
 		brelse(dibh);
 	}
 
-	if (gfs_is_stuffed(ip)) {
-		error = gfs_unstuff_dinode(ip, gfs_unstuffer_sync, NULL);
-		if (error)
+	if (gfs_is_stuffed(ip)) { error = gfs_unstuff_dinode(ip, gfs_unstuffer_sync, NULL); if (error)
 			goto fail_end_trans;
 	}
 
-	count = generic_file_write_nolock(file, &local_iov, 1, offset);
+	if (!iocb)
+		count = generic_file_write_nolock(file, &local_iov, 1, offset);
+	else {
+		count = generic_file_aio_write_nolock(iocb, &local_iov, 1, offset);
+	}
 	if (count < 0) {
 		error = count;
 		goto fail_end_trans;
@@ -528,6 +577,10 @@ do_write_direct_alloc(struct file *file, char *buf, size_t size, loff_t *offset)
 
 	gfs_trans_end(sdp);
 
+	/* Question (wcheng)
+	 * 1. should IS_SYNC flush glock ?
+	 * 2. does gfs_log_flush_glock flush data ?
+	 */
 	if (file->f_flags & O_SYNC)
 		gfs_log_flush_glock(ip->i_gl);
 
@@ -576,6 +629,7 @@ do_write_direct_alloc(struct file *file, char *buf, size_t size, loff_t *offset)
 
 static ssize_t
 do_write_direct(struct file *file, char *buf, size_t size, loff_t *offset,
+		struct kiocb *iocb,
 		unsigned int num_gh, struct gfs_holder *ghs)
 {
 	struct gfs_inode *ip = get_v2ip(file->f_mapping->host);
@@ -652,7 +706,7 @@ do_write_direct(struct file *file, char *buf, size_t size, loff_t *offset,
 			if (s > size)
 				s = size;
 
-			error = do_write_direct_alloc(file, buf, s, offset);
+			error = do_write_direct_alloc(file, buf, s, offset, iocb);
 			if (error < 0)
 				goto out_gunlock;
 
@@ -670,8 +724,16 @@ do_write_direct(struct file *file, char *buf, size_t size, loff_t *offset,
 		if (error)
 			goto out_gunlock;
 
-		count = generic_file_write_nolock(file, &local_iov, 1, offset);
-
+		/* Todo: It would be nice if init_sync_kiocb is exported.
+		 *  .. wcheng
+		 */
+		if (!iocb) 
+			count = 
+			generic_file_write_nolock(file, &local_iov, 1, offset);
+		else {
+			count = 
+			generic_file_aio_write_nolock(iocb, &local_iov, 1, offset);
+		}
 		gfs_glock_dq_uninit(&t_gh);
 	}
 
@@ -699,7 +761,8 @@ out:
  */
 
 static ssize_t
-do_do_write_buf(struct file *file, char *buf, size_t size, loff_t *offset)
+do_do_write_buf(struct file *file, char *buf, size_t size, loff_t *offset,
+		struct kiocb *iocb)
 {
 	struct inode *inode = file->f_mapping->host;
 	struct gfs_inode *ip = get_v2ip(inode);
@@ -777,7 +840,7 @@ do_do_write_buf(struct file *file, char *buf, size_t size, loff_t *offset)
 	    (gfs_is_stuffed(ip) && !test_bit(GIF_PAGED, &ip->i_flags) &&
 	     *offset + size <= sdp->sd_sb.sb_bsize - sizeof(struct gfs_dinode))) {
 
-		count = gfs_writei(ip, buf, *offset, size, gfs_copy_from_user);
+		count = gfs_writei(ip, buf, *offset, size, gfs_copy_from_user, iocb);
 		if (count < 0) {
 			error = count;
 			goto fail_end_trans;
@@ -794,7 +857,14 @@ do_do_write_buf(struct file *file, char *buf, size_t size, loff_t *offset)
 	} else {
 		struct iovec local_iov = { .iov_base = buf, .iov_len = size };
 
-		count = generic_file_write_nolock(file, &local_iov, 1, offset);
+		if (!iocb) {
+			count = generic_file_write_nolock(file, &local_iov, 1, offset);
+		} else {
+			count = generic_file_aio_write_nolock(iocb, 
+				&local_iov, 1, offset);
+			if (count == -EIOCBQUEUED)
+				count = wait_on_sync_kiocb(iocb);
+		}
 		if (count < 0) {
 			error = count;
 			goto fail_end_trans;
@@ -869,8 +939,9 @@ do_do_write_buf(struct file *file, char *buf, size_t size, loff_t *offset)
 
 static ssize_t
 do_write_buf(struct file *file,
-	     char *buf, size_t size, loff_t *offset,
-	     unsigned int num_gh, struct gfs_holder *ghs)
+		char *buf, size_t size, loff_t *offset,
+		struct kiocb *iocb,
+		unsigned int num_gh, struct gfs_holder *ghs)
 {
 	struct gfs_inode *ip = get_v2ip(file->f_mapping->host);
 	struct gfs_sbd *sdp = ip->i_sbd;
@@ -907,7 +978,7 @@ do_write_buf(struct file *file,
 		if (s > size)
 			s = size;
 
-		error = do_do_write_buf(file, buf, s, offset);
+		error = do_do_write_buf(file, buf, s, offset, iocb);
 		if (error < 0)
 			goto out_gunlock;
 
@@ -940,7 +1011,7 @@ do_write_buf(struct file *file,
  */
 
 static ssize_t
-gfs_write(struct file *file, const char *buf, size_t size, loff_t *offset)
+__gfs_write(struct file *file, const char *buf, size_t size, loff_t *offset, struct kiocb *iocb)
 {
 	struct inode *inode = file->f_mapping->host;
 	ssize_t count;
@@ -954,12 +1025,28 @@ gfs_write(struct file *file, const char *buf, size_t size, loff_t *offset)
 
 	mutex_lock(&inode->i_mutex);
 	if (file->f_flags & O_DIRECT)
-		count = walk_vm(file, (char *)buf, size, offset, do_write_direct);
+		count = walk_vm(file, (char *)buf, size, offset, iocb, do_write_direct);
 	else
-		count = walk_vm(file, (char *)buf, size, offset, do_write_buf);
+		count = walk_vm(file, (char *)buf, size, offset, iocb, do_write_buf);
 	mutex_unlock(&inode->i_mutex);
 
 	return count;
+}
+
+static ssize_t
+gfs_write(struct file *file, const char *buf, size_t size, loff_t *offset)
+{
+	return(__gfs_write(file, buf, size, offset, NULL));
+}
+
+static ssize_t
+gfs_aio_write(struct kiocb *iocb, const char __user *buf, size_t size, loff_t pos)
+{
+	struct file *file = iocb->ki_filp;
+
+	BUG_ON(iocb->ki_pos != pos);
+
+	return(__gfs_write(file, buf, size, &iocb->ki_pos, iocb));
 }
 
 /**
@@ -1642,6 +1729,8 @@ struct file_operations gfs_file_fops = {
 	.llseek = gfs_llseek,
 	.read = gfs_read,
 	.write = gfs_write,
+        .aio_read = gfs_aio_read,
+        .aio_write = gfs_aio_write,
 	.ioctl = gfs_ioctl,
 	.mmap = gfs_mmap,
 	.open = gfs_open,

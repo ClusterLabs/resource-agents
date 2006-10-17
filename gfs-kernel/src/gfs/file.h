@@ -32,7 +32,8 @@ int gfs_copy_from_mem(struct gfs_inode *ip, struct buffer_head *bh, void **buf,
 int gfs_copy_from_user(struct gfs_inode *ip, struct buffer_head *bh, void **buf,
 		       unsigned int offset, unsigned int size, int new);
 int gfs_writei(struct gfs_inode *ip, void *buf, uint64_t offset,
-	       unsigned int size, write_copy_fn_t copy_fn);
+               unsigned int size, write_copy_fn_t copy_fn,
+               struct kiocb *iocb);
 
 int gfs_zero_blocks(struct gfs_inode *ip, struct buffer_head *bh, void **buf,
 		    unsigned int offset, unsigned int size, int new);
@@ -48,7 +49,7 @@ static __inline__ int
 gfs_internal_write(struct gfs_inode *ip, char *buf, uint64_t offset,
 		   unsigned int size)
 {
-	return gfs_writei(ip, buf, offset, size, gfs_copy_from_mem);
+	return gfs_writei(ip, buf, offset, size, gfs_copy_from_mem, NULL);
 }
 
 #endif /* __FILE_DOT_H__ */

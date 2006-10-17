@@ -1229,7 +1229,7 @@ gi_do_hfile_write(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 	}
 
 	error = gfs_writei(ip, gi->gi_data, gi->gi_offset, gi->gi_size,
-			   gfs_copy_from_user);
+			   gfs_copy_from_user, NULL);
 
 	gfs_trans_end(sdp);
 

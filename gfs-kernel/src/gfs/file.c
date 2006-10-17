@@ -306,7 +306,8 @@ gfs_copy_from_user(struct gfs_inode *ip, struct buffer_head *bh, void **buf,
 int
 gfs_writei(struct gfs_inode *ip, void *buf,
 	   uint64_t offset, unsigned int size,
-	   write_copy_fn_t copy_fn)
+	   write_copy_fn_t copy_fn,
+           struct kiocb *iocb)
 {
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct buffer_head *dibh, *bh;

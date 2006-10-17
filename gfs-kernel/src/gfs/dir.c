@@ -2210,7 +2210,7 @@ leaf_free(struct gfs_inode *dip,
 		dip->i_di.di_blocks--;
 	}
 
-	error = gfs_writei(dip, ht, index * sizeof (uint64_t), size, gfs_zero_blocks);
+	error = gfs_writei(dip, ht, index * sizeof (uint64_t), size, gfs_zero_blocks, NULL);
 
 	if (error != size) {
 		if (error >= 0)
