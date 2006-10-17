@@ -431,6 +431,8 @@ restart:
     ppid = 0;
   }
 
+  cman_start_notification(handle, cman_callback);
+
   cman_fd = cman_get_fd(handle);
   quorate = cman_is_quorate(handle);
 
@@ -438,7 +440,7 @@ restart:
 
   members = get_member_list(handle);
 
-  cman_start_notification(handle, cman_callback);
+
 
   while (1)
   {
