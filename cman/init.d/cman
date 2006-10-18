@@ -124,6 +124,7 @@ start()
 {
     echo "Starting cluster: "
     echo -n "   Loading modules... "
+    ulimit -c unlimited
     load_modules
     if [ $? -eq 0 ] 
     then
