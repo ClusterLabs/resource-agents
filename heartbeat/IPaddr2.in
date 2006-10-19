@@ -528,24 +528,27 @@ run_send_arp() {
 # no = nothing
 #
 ip_served() {
-	case `find_interface $BASEIP` in
-	lo*)	if [ "$LVS_SUPPORT" = "1" ]; then
-			echo "no"
-			return 0
-		fi
-		;;
-	"")	echo "no"
+	cur_nic="`find_interface $BASEIP`"
+
+	if [ -z "$cur_nic" ]; then
+		echo "no"
 		return 0
-		;;
-	*)	if [ -z "$IP_CIP" ]; then
-			echo "ok"
-			return 0
-		fi
-		;;
-	esac
+	fi
+
+	if [ -z "$IP_CIP" ]; then
+		case $cur_nic in
+		lo*)	if [ "$LVS_SUPPORT" = "1" ]; then
+				echo "no"
+				return 0
+			fi
+			;;
+		esac
+
+		echo "ok"
+		return 0
+	fi
 
 	# Special handling for the CIP:
-
 	if grep -q "\<${IP_INC_NO}\>" $IP_CIP_FILE ; then
 		echo "ok"
 		return 0
