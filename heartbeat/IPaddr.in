@@ -450,16 +450,17 @@ delete_interface () {
   ipaddr="$2"
 
   case "$SYSTYPE" in
-	SunOS)
+      SunOS)
 		if [ "$SYSVERSION" -ge 8 ] ; then
 		    CMD="$IFCONFIG $ifname unplumb"
 		else
 		    CMD="$IFCONFIG $ifname 0 down"
 		fi;;
-	*BSD)
+      Darwin*)
+		CMD="$IFCONFIG $ifname $ipaddr delete";;
+      *BSD)
 		CMD="$IFCONFIG $ifname inet $ipaddr delete";;
-
-	*)
+      *)
 		CMD="$IFCONFIG $ifname down";;
   esac
 
