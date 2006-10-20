@@ -10,10 +10,14 @@
 *******************************************************************************
 ******************************************************************************/
 
+#include <signal.h>
+#include <time.h>
+
 #include "gd_internal.h"
 
 #define OPTION_STRING			"DhVv"
 #define LOCKFILE_NAME			"/var/run/groupd.pid"
+#define LOG_FILE				"/var/log/groupd.log"
 
 extern struct list_head recovery_sets;
 
@@ -541,19 +545,19 @@ static int do_get_group(int ci, int argc, char **argv)
 	return 0;
 }
 
-static int do_dump(int ci, int argc, char **argv)
+static int do_dump(int fd)
 {
 	int rv, len;
 
 	if (dump_wrap) {
 		len = DUMP_SIZE - dump_point;
-		rv = write(client[ci].fd, dump_buf + dump_point, len);
+		rv = write(fd, dump_buf + dump_point, len);
 		if (rv != len)
 			log_print("write error %d errno %d", rv, errno);
 	}
 	len = dump_point;
 
-	rv = write(client[ci].fd, dump_buf, len);
+	rv = write(fd, dump_buf, len);
 	if (rv != len)
 		log_print("write error %d errno %d", rv, errno);
 	return 0;
@@ -650,7 +654,7 @@ static void process_connection(int ci)
 		break;
 
 	case DO_DUMP:
-		do_dump(ci, argc, argv);
+		do_dump(client[ci].fd);
 		break;
 
 	default:
@@ -903,6 +907,30 @@ void set_scheduler(void)
 	}
 }
 
+void bail_with_log(int sig)
+{
+	int fd;
+	time_t now;
+
+	unlink(LOG_FILE);
+	fd = creat(LOG_FILE, S_IRUSR | S_IWUSR);
+	if (fd > 0) {
+		char now_ascii[32];
+
+		do_dump(fd);
+		memset(now_ascii, 0, sizeof(now_ascii));
+		time(&now);
+		sprintf(now_ascii, "%ld", now);
+		write(fd, now_ascii, strlen(now_ascii));
+		write(fd, " groupd segfault log follows:\n", 30);
+		close(fd);
+	}
+	else
+		perror(LOG_FILE);
+	if (sig == SIGSEGV)
+		exit(0);
+}
+
 int main(int argc, char *argv[])
 {
 	prog_name = argv[0];
@@ -915,6 +943,8 @@ int main(int argc, char *argv[])
 
 	decode_arguments(argc, argv);
 
+	signal(SIGSEGV, bail_with_log);
+	signal(SIGUSR1, bail_with_log);
 	if (!groupd_debug_opt)
 		daemonize();
 
