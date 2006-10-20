@@ -480,7 +480,7 @@ int loop(void)
 					log_error("cpg connection died");
 					exit_cman();
 				}
-				close(pollfd[i].fd);
+				client_dead(i);
 			}
 		}
 	}
