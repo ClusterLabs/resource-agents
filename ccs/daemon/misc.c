@@ -34,7 +34,7 @@
 #include "debug.h"
 #include "misc.h"
 
-int quorate = 0;
+volatile int quorate = 0;
 
 int update_required = 0;
 pthread_mutex_t update_lock;

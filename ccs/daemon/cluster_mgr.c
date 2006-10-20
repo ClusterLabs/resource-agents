@@ -433,18 +433,16 @@ restart:
 
   cman_start_notification(handle, cman_callback);
 
-  cman_fd = cman_get_fd(handle);
   quorate = cman_is_quorate(handle);
 
   log_msg("Initial status:: %s\n", (quorate)? "Quorate" : "Inquorate");
 
   members = get_member_list(handle);
 
-
-
   while (1)
   {
     FD_ZERO(&rset);
+    cman_fd = cman_get_fd(handle);
 
     FD_SET(ccsd_fd, &rset);
     FD_SET(cman_fd, &rset);

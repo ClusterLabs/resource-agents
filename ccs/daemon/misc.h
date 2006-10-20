@@ -18,7 +18,7 @@ typedef struct open_doc {
 } open_doc_t;
 
 
-extern int quorate;
+extern volatile int quorate;
 extern int update_required;
 extern pthread_mutex_t update_lock;
 extern open_doc_t *master_doc;
