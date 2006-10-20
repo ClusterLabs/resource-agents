@@ -394,6 +394,48 @@ store_attribute(resource_attr_t **attrsp, char *name, char *value, int flags)
 
 
 /**
+  Take the first unique + required attr and call it the 'primary' attr
+  for rgmanager.  If there's no primary, index 0 becomes the primary attr.
+ */
+int
+choose_primary(resource_attr_t *attrs)
+{
+	int x = 0, primary = 0;
+	int flags;
+	char *name, *val;
+
+	if (!attrs)
+		return 0;
+
+	for (x = 0; attrs[x].ra_name; x++) {
+
+		if ((attrs[x].ra_flags & (RA_UNIQUE | RA_REQUIRED)) == 
+		    (RA_UNIQUE | RA_REQUIRED)) {
+			primary = x;
+			break;
+		}
+	}
+
+	if (primary != 0) {
+		flags = attrs[primary].ra_flags | RA_PRIMARY;
+		name = attrs[primary].ra_name;
+		val = attrs[primary].ra_value;
+
+		attrs[primary].ra_flags = attrs[0].ra_flags;
+		attrs[primary].ra_name = attrs[0].ra_name;
+		attrs[primary].ra_value = attrs[0].ra_value;
+
+		attrs[0].ra_flags = flags;
+		attrs[0].ra_name = name;
+		attrs[0].ra_value = val;
+	} else {
+		attrs[0].ra_flags |= RA_PRIMARY;
+	}
+
+	return 0;
+}
+
+/**
    Store a child type in the child array of a resource rule.
    XXX Could be rewritten to use list macros.
 
@@ -661,6 +703,9 @@ _get_rule_attrs(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
 		if (attrname)
 			store_attribute(&rr->rr_attrs, attrname, ret, flags);
 	}
+
+	if (!primary_found)
+		choose_primary(rr->rr_attrs);
 
 	return 0;
 }
