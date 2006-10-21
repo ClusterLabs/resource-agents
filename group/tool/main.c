@@ -247,6 +247,10 @@ int do_ls(int argc, char **argv)
 	} else
 		rv = group_get_groups(MAX_GROUPS, &count, data);
 
+	if (rv < 0) {
+		fprintf(stderr,"Unable to connect to groupd.  Is it running?\n");
+		return rv;
+	}
 	for (i = 0; i < count; i++) {
 		len = strlen(data[i].name);
 		if (len > max_name)

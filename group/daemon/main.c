@@ -490,30 +490,24 @@ static int do_get_groups(int ci, int argc, char **argv)
 {
 	group_t *g;
 	group_data_t *data;
-	int i, rv, len, count = 0, max = atoi(argv[1]);
+	int rv, count = 0, max = atoi(argv[1]);
 
-	list_for_each_entry(g, &gd_groups, list)
-		count++;
-	if (count > max)
-		count = max;
-	/* if no groups, send back one empty data struct */
-	if (!count)
-		count = 1;
-
-	len = count * sizeof(group_data_t);
-	data = malloc(len);
-	memset(data, 0, len);
-
-	i = 0;
+	data = malloc(sizeof(group_data_t));
+	count = 0;
 	list_for_each_entry(g, &gd_groups, list) {
-		copy_group_data(g, &data[i]);
-		i++;
+		copy_group_data(g, data);
+		rv = do_write(client[ci].fd, data, sizeof(group_data_t));
+		if (rv < 0) {
+			log_print("do_get_groups write error");
+			break;
+		}
+		count++;
+		if (count >= max)
+			break;
 	}
-
-	rv = do_write(client[ci].fd, data, len);
-	if (rv < 0)
-		log_print("do_get_groups write error");
-
+	/* Now write an empty one indicating there aren't anymore: */
+	memset(data, 0, sizeof(group_data_t));
+	rv = do_write(client[ci].fd, data, sizeof(group_data_t));
 	free(data);
 	return 0;
 }

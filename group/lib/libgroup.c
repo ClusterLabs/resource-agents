@@ -446,11 +446,11 @@ int group_dispatch(group_handle_t handle)
 	return rv;
 }
 
-int group_get_groups(int max, int *count, group_data_t *data)
+int group_get_groups(int max, int *count, group_data_t  *data)
 {
 	char buf[GROUPD_MSGLEN];
 	group_data_t empty;
-	int fd, rv, maxlen;
+	int fd, rv;
 
 	fd = connect_groupd();
 	if (fd < 0)
@@ -461,21 +461,20 @@ int group_get_groups(int max, int *count, group_data_t *data)
 	snprintf(buf, sizeof(buf), "get_groups %d", max);
 
 	rv = do_write(fd, &buf, GROUPD_MSGLEN);
-	if (rv < 0)
-		goto out;
-
-	maxlen = max * sizeof(group_data_t);
-
-	rv = read(fd, data, maxlen);
-	if (rv > 0) {
-		/* a blank data struct is returned when there are none */
-		if (rv == sizeof(empty) && !memcmp(data, &empty, rv))
-			*count = 0;
-		else
-			*count = rv / sizeof(group_data_t);
-		rv = 0;
+	*count = 0;
+	if (!rv) {
+		while (1) {
+			rv = read(fd, &data[*count], sizeof(group_data_t));
+			/* a blank data struct is returned when there are none */
+			if (rv <= 0 || (rv == sizeof(group_data_t) &&
+							!memcmp(&data[*count], &empty, rv))) {
+				rv = 0;
+				break;
+			}
+			else
+				(*count)++;
+		}
 	}
- out:
 	close(fd);
 	return rv;
 }
