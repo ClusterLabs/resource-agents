@@ -855,6 +855,7 @@ struct gfs_args {
 				       (more daemons => faster cleanup)  */
 	int ar_posix_acls; /* Enable posix acls */
 	int ar_suiddir; /* suiddir support */
+	int ar_noquota; /* Turn off quota support */
 };
 
 struct gfs_tune {

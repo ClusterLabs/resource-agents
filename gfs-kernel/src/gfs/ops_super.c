@@ -322,6 +322,7 @@ static int
 gfs_remount_fs(struct super_block *sb, int *flags, char *data)
 {
 	struct gfs_sbd *sdp = get_v2sdp(sb);
+	struct gfs_tune *gt = &sdp->sd_tune;
 	int error = 0;
 	struct gfs_args *args;
 
@@ -360,6 +361,25 @@ gfs_remount_fs(struct super_block *sb, int *flags, char *data)
 			   test_bit(SDF_ROFS, &sdp->sd_flags)) {
 			error = gfs_make_fs_rw(sdp);
 		}
+	}
+
+	if (args->ar_noquota) {
+		if (sdp->sd_args.ar_noquota == FALSE)
+			printk("GFS: remounting without quota\n");
+		sdp->sd_args.ar_noquota = TRUE;
+		spin_lock(&gt->gt_spin);
+		gt->gt_quota_enforce = 0;
+		gt->gt_quota_account = 0;
+		spin_unlock(&gt->gt_spin);
+	}
+	else {
+		if (sdp->sd_args.ar_noquota == TRUE)
+			printk("GFS: remounting with quota\n");
+		sdp->sd_args.ar_noquota = FALSE;
+		spin_lock(&gt->gt_spin);
+		gt->gt_quota_enforce = 1;
+		gt->gt_quota_account = 1;
+		spin_unlock(&gt->gt_spin);
 	}
 
 	/*  Don't let the VFS update atimes.  GFS handles this itself. */
@@ -444,6 +464,8 @@ gfs_show_options(struct seq_file *s, struct vfsmount *mnt)
 		seq_printf(s, ",num_glockd=%u", args->ar_num_glockd);
 	if (args->ar_posix_acls)
 		seq_printf(s, ",acl");
+	if (args->ar_noquota)
+		seq_printf(s, ",noquota");
 	if (args->ar_suiddir)
 		seq_printf(s, ",suiddir");
 

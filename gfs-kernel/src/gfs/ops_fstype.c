@@ -612,6 +612,14 @@ static int fill_super(struct super_block *sb, void *data, int silent)
 
 	init_vfs(sb, SDF_NOATIME);
 
+	/*  Turn off quota stuff if we get the noquota mount option, don't 
+	    need to grab the sd_tune lock here since its before anything 
+	    touches the sd_tune values */
+	if (sdp->sd_args.ar_noquota) {
+		sdp->sd_tune.gt_quota_enforce = 0;
+		sdp->sd_tune.gt_quota_account = 0;
+	}
+
 	/*  Set up the buffer cache and fill in some fake block size values
 	   to allow us to read-in the on-disk superblock.  */
 
