@@ -33,6 +33,7 @@
 #include <signals.h>
 #include <gettid.h>
 #include <cman-private.h>
+#include <clulog.h>
 
 /* Ripped from ccsd's setup_local_socket */
 
@@ -711,9 +712,10 @@ queue_for_context(msgctx_t *ctx, char *buf, int len)
 {
 	msg_q_t *node;
 
-	if (ctx->type == MSG_NONE) {
-		printf("Queue_for_context called w/o valid context\n");
-		raise(SIGSEGV);
+	if (ctx->type != MSG_CLUSTER) {
+		clulog(LOG_WARNING, "%s called on invalid context %p\n",
+		       __FUNCTION__, ctx);
+		return;
 	}
 
 	while ((node = malloc(sizeof(*node))) == NULL) {
@@ -826,8 +828,15 @@ process_cman_msg(cman_handle_t h, void *priv, char *buf, int len,
 			}
 		}
 #endif
-		
-		queue_for_context(contexts[m->dest_ctx], buf, len);
+		if (m->msg_control == M_CLOSE &&
+		    contexts[m->dest_ctx]->type != MSG_CLUSTER) {
+			/* XXX Work around bug where M_CLOSE is called
+			   on a context which has been destroyed */
+			clulog(LOG_WARNING, "Ignoring M_CLOSE for destroyed "
+			       "context %d\n", m->dest_ctx);
+		} else {
+			queue_for_context(contexts[m->dest_ctx], buf, len);
+		}
 	}
 	/* If none of the above, then we msg for something we've already
 	   detached from our list.  No big deal, just ignore. */

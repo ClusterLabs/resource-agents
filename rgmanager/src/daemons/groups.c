@@ -79,6 +79,7 @@ int
 count_resource_groups(cluster_member_list_t *ml)
 {
 	resource_t *res;
+	resource_node_t *node;
 	char rgname[64], *val;
 	int x;
 	rg_state_t st;
@@ -92,7 +93,9 @@ count_resource_groups(cluster_member_list_t *ml)
 
 	pthread_rwlock_rdlock(&resource_lock);
 
-	list_do(&_resources, res) {
+	list_do(&_tree, node) {
+
+		res = node->rn_resource;
 
 		res_build_name(rgname, sizeof(rgname), res);
 
@@ -128,7 +131,7 @@ count_resource_groups(cluster_member_list_t *ml)
 			++mp->cn_svcexcl;
 		}
 
-	} while (!list_done(&_resources, res));
+	} while (!list_done(&_tree, node));
 
 	pthread_rwlock_unlock(&resource_lock);
 	return 0;
@@ -527,7 +530,7 @@ group_event(char *rg_name, uint32_t state, int owner)
 	int depend;
 
 	if (rg_locked()) {
-		clulog(LOG_NOTICE,
+		clulog(LOG_DEBUG,
 			"Resource groups locked; not evaluating\n");
 		return -EAGAIN;
 	}
@@ -1090,8 +1093,20 @@ do_condstarts(void)
 		if (curr->rn_resource->r_flags & RF_NEEDSTART)
 			need_init = 1;
 
-		if (get_rg_state_local(rg, &svcblk) < 0)
-			continue;
+		if (!need_init) {
+			if (get_rg_state_local(rg, &svcblk) < 0)
+				continue;
+		} else {
+			if (rg_lock(rg, &lockp) != 0)
+				continue;
+
+			if (get_rg_state(rg, &svcblk) < 0) {
+				rg_unlock(&lockp);
+				continue;
+			}
+
+			rg_unlock(&lockp);
+		}
 
 		if (!need_init && svcblk.rs_owner != my_id())
 			continue;

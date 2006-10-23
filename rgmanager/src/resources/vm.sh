@@ -23,27 +23,27 @@ PATH=/bin:/sbin:/usr/bin:/usr/sbin
 export PATH
 
 #
-# Xen para VM start/stop script.
+# Virtual Machine start/stop script (requires the xm command)
 #
 
 meta_data()
 {
     cat <<EOT
 <?xml version="1.0"?>
-<resource-agent version="rgmanager 2.0" name="xenvm">
+<resource-agent version="rgmanager 2.0" name="vm">
     <version>1.0</version>
 
     <longdesc lang="en">
-	Defines a Xen Para-Virtual Machine
+	Defines a Virtual Machine
     </longdesc>
     <shortdesc lang="en">
-        Defines a Xen domain.
+        Defines a Virtual Machine
     </shortdesc>
 
     <parameters>
         <parameter name="name" primary="1">
             <longdesc lang="en">
-                This is the name of the Xen domain.
+                This is the name of the virtual machine.
             </longdesc>
             <shortdesc lang="en">
                 Name
@@ -54,7 +54,7 @@ meta_data()
         <parameter name="domain">
             <longdesc lang="en">
                 Fail over domains define lists of cluster members
-                to try in the event that the host of the Xen domain
+                to try in the event that the host of the virtual machine
 		fails.
             </longdesc>
             <shortdesc lang="en">
@@ -66,9 +66,9 @@ meta_data()
         <parameter name="autostart">
             <longdesc lang="en">
 	    	If set to yes, this resource group will automatically be started
-		after the cluster forms a quorum.  If set to no, this resource
-		group will start in the 'disabled' state after the cluster forms
-		a quorum.
+		after the cluster forms a quorum.  If set to no, this virtual
+		machine will start in the 'disabled' state after the cluster
+		forms a quorum.
             </longdesc>
             <shortdesc lang="en">
 	    	Automatic start after quorum formation
@@ -79,12 +79,10 @@ meta_data()
         <parameter name="recovery" reconfig="1">
             <longdesc lang="en">
 	        This currently has three possible options: "restart" tries
-		to restart failed parts of this resource group locally before
+		to restart this virtual machine locally before
 		attempting to relocate (default); "relocate" does not bother
-		trying to restart the service locally; "disable" disables
-		the resource group if any component fails.  Note that
-		any resource with a valid "recover" operation which can be
-		recovered without a restart will be.
+		trying to restart the VM locally; "disable" disables
+		the VM if it fails.
             </longdesc>
             <shortdesc lang="en">
 	    	Failure recovery policy
@@ -104,10 +102,10 @@ meta_data()
 
 	<parameter name="bootloader">
 	    <longdesc lang="en">
-		Boot loader that can start the Xen VM from physical image
+		Boot loader that can start the VM from physical image
 	    </longdesc>
 	    <shortdesc lang="en">
-		Boot loader that can start the Xen VM from physical image
+		Boot loader that can start the VM from physical image
 	    </shortdesc>
             <content type="string"/>
         </parameter>
@@ -118,7 +116,7 @@ meta_data()
 		VM configuration file
 	    </longdesc>
 	    <shortdesc lang="en">
-	    	Path to Xen configuration files
+	    	Path to virtual machine configuration files
 	    </shortdesc>
             <content type="string"/>
         </parameter>
@@ -126,20 +124,20 @@ meta_data()
 
 	<parameter name="rootdisk_physical" unique="1">
 	    <longdesc lang="en">
-		root disk for the Xen VM.  (physical, on the host)
+		Root disk for the virtual machine.  (physical, on the host)
 	    </longdesc>
 	    <shortdesc lang="en">
-		root disk for the Xen VM.  (physical, on the host)
+		Root disk (physical)
 	    </shortdesc>
             <content type="string"/>
         </parameter>
         
 	<parameter name="rootdisk_virtual">
 	    <longdesc lang="en">
-		rootdisk for the Xen VM.  (as presented to the VM)
+		Root disk for the virtual machine.  (as presented to the VM)
 	    </longdesc>
 	    <shortdesc lang="en">
-		rootdisk for the Xen VM.  (as presented to the VM)
+		Root disk (virtual)
 	    </shortdesc>
             <content type="string"/>
         </parameter>
@@ -147,20 +145,20 @@ meta_data()
 
 	<parameter name="swapdisk_physical" unique="1">
 	    <longdesc lang="en">
-		Swap disk for the Xen VM.  (physical, on the host)
+		Swap disk for the virtual machine.  (physical, on the host)
 	    </longdesc>
 	    <shortdesc lang="en">
-		Swap disk for the Xen VM.  (physical, on the host)
+		Swap disk (physical)
 	    </shortdesc>
             <content type="string"/>
         </parameter>
         
 	<parameter name="swapdisk_virtual">
 	    <longdesc lang="en">
-		Swap disk for the Xen VM.  (as presented to the VM)
+		Swap disk for the virtual machine.  (as presented to the VM)
 	    </longdesc>
 	    <shortdesc lang="en">
-		Swap disk for the Xen VM.  (as presented to the VM)
+		Swap disk (virtual)
 	    </shortdesc>
             <content type="string"/>
         </parameter>
@@ -208,7 +206,7 @@ EOT
 }
 
 
-build_xen_cmdline()
+build_xm_cmdline()
 {
 	#
 	# Virtual domains should never restart themselves when 
@@ -270,7 +268,7 @@ build_xen_cmdline()
 
 
 #
-# Start a Xen para-virtual machine given the parameters from
+# Start a virtual machine given the parameters from
 # the environment.
 #
 start()
@@ -280,9 +278,9 @@ start()
 	#
 	declare cmdline
 
-	cmdline="`build_xen_cmdline`"
+	cmdline="`build_xm_cmdline`"
 
-	echo "# Xen Command Line: $cmdline"
+	echo "# xm command line: $cmdline"
 
 	eval xm create $cmdline
 	return $?
@@ -290,7 +288,7 @@ start()
 
 
 #
-# Stop a Xen VM.  Try to shut it down.  Wait a bit, and if it
+# Stop a VM.  Try to shut it down.  Wait a bit, and if it
 # doesn't shut down, destroy it.
 #
 stop()
@@ -328,7 +326,7 @@ stop()
 
 
 #
-# Reconfigure a running Xen VM.  Currently, all we support is
+# Reconfigure a running VM.  Currently, all we support is
 # memory ballooning.
 #
 reconfigure()
@@ -343,7 +341,7 @@ reconfigure()
 
 
 #
-# Simple status check: Find the Xen VM in the list of running
+# Simple status check: Find the VM in the list of running
 # VMs
 #
 status()
@@ -369,7 +367,7 @@ migrate()
 {
 	declare target=$1
 
-	# XXX TODO; requires working Xen
+	# XXX TODO
 	return 1
 }
 
@@ -398,7 +396,7 @@ case $1 in
 		exit $?
 		;;
 	migrate)
-		migrate $2 # Send Xen VM to this node
+		migrate $2 # Send VM to this node
 		exit $?
 		;;
 	reload)

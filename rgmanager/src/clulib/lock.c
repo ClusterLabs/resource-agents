@@ -176,6 +176,12 @@ clu_lock(int mode,
 
 	block = !(options & LKF_NOQUEUE);
 
+	errno = EINVAL;
+	if (!lksb)
+		return -1;
+
+	memset(lksb, 0, sizeof(struct dlm_lksb));
+
 	/*
 	   Try to use a conversion lock mechanism when possible
 	   If the caller calls explicitly with a NULL lock, then

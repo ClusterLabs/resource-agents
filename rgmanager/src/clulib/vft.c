@@ -301,24 +301,15 @@ vf_unanimous(msgctx_t *mcast_ctx, int trans, int remain,
 	     int timeout)
 {
 	generic_msg_hdr response;
-	struct timeval tv;
 	int x;
 
-	/* Set up for the select */
-	tv.tv_sec = timeout;
-	tv.tv_usec = 0;
-
-	/*
-	 * Wait for activity
-	 */
-	
 	/*
 	 * Flag hosts which we received messages from so we don't
 	 * read a second message.
 	 */
 	while (remain && timeout) {
 
-		if (msg_wait(mcast_ctx, 5) <= 0) {
+		if (msg_wait(mcast_ctx, 1) <= 0) {
 			--timeout;
 			continue;
 		}
@@ -355,7 +346,7 @@ vf_unanimous(msgctx_t *mcast_ctx, int trans, int remain,
 #ifdef DEBUG
 			printf("VF: Abort: someone voted NO\n");
 #endif
-			return 0;
+			return VFR_ABORT;
 		}
 
 #ifdef DEBUG
@@ -368,14 +359,14 @@ vf_unanimous(msgctx_t *mcast_ctx, int trans, int remain,
 #ifdef DEBUG
 		printf("VF: Timed out waiting for %d responses\n", remain);
 #endif
-		return 0;
+		return VFR_TIMEOUT;
 	}
 		
 
 	/*
 	 * Whohoooooooo!
 	 */
-	return 1;
+	return VFR_OK;
 }
 
 
@@ -884,6 +875,7 @@ vf_server(void *arg)
 	}
 
 	msg_close(ctx);
+	msg_free_ctx(ctx);
 	return NULL;
 }
 
@@ -910,7 +902,7 @@ vf_init(int my_node_id, uint16_t my_port, vf_vote_cb_t vcb,
 		sleep(1);
 
 	if (msg_open(MSG_CLUSTER, 0, my_port, ctx, 1) < 0) {
-		free(ctx);	
+		msg_free_ctx(ctx);	
 		free(args);
 		return -1;
 	}
@@ -975,10 +967,6 @@ vf_invalidate(void)
 int
 vf_shutdown(void)
 {
-	key_node_t *c_key;
-	view_node_t *c_jv;
-	commit_node_t *c_cn;
-
 	pthread_mutex_lock(&vf_mutex);
 	vf_thread_ready = 0;
 	pthread_cancel(vf_thread);
@@ -1138,7 +1126,6 @@ vf_write(cluster_member_list_t *membership, uint32_t flags, char *keyid,
 	if (!data || !datalen || !keyid || !strlen(keyid) || !membership)
 		return -1;
 
-
 	pthread_mutex_lock(&vf_mutex);
 	if (!trans) {
 		trans = _node_id << 16;
@@ -1231,7 +1218,7 @@ vf_write(cluster_member_list_t *membership, uint32_t flags, char *keyid,
 	 * See if we have a consensus =)
 	 */
 	if ((rv = (vf_unanimous(&everyone, trans, remain,
-				5)))) {
+				5))) == VFR_OK) {
 		vf_send_commit(&everyone, trans);
 #ifdef DEBUG
 		printf("VF: Consensus reached!\n");
@@ -1253,7 +1240,7 @@ vf_write(cluster_member_list_t *membership, uint32_t flags, char *keyid,
 	pthread_mutex_unlock(&vf_mutex);
 
 #ifdef DEBUG
-	if (rv) {
+	if (rv == VFR_OK) {
 		getuptime(&end);
 
 		dif.tv_usec = end.tv_usec - start.tv_usec;
@@ -1269,7 +1256,7 @@ vf_write(cluster_member_list_t *membership, uint32_t flags, char *keyid,
 	}
 #endif
 
-	return (rv?0:-1);
+	return rv;
 }
 
 
@@ -1595,7 +1582,7 @@ vf_send_current(msgctx_t *ctx, char *keyid)
 			VFR_OK : VFR_ERROR;
 
 	swab_vf_msg_t(msg);
-	ret = (msg_send(ctx, msg, totallen) != -1)?VFR_OK:VFR_ERROR;
+	ret = (msg_send(ctx, msg, totallen) >= 0)?VFR_OK:VFR_ERROR;
 	free(msg);
 	return ret;
 }
@@ -1697,14 +1684,15 @@ vf_request_current(cluster_member_list_t *membership, char *keyid,
 		       //msg->vm_msg.vf_keyid,
 		       //(int)membership->cml_members[x].cn_nodeid);
 
-		if (msg_send(&ctx, msg, sizeof(*msg)) != sizeof(*msg)) {
+		if (msg_send(&ctx, msg, sizeof(*msg)) < sizeof(*msg)) {
 			printf("Couldn't send entire message\n");
+			msg_close(&ctx);
 			continue;
 		}
 
 		gh = NULL;
 		if ((n = msg_receive_simple(&ctx, (generic_msg_hdr **)&gh, 10))
-		    == -1) {
+		    < 0) {
 			if (gh)
 				free(gh);
 			msg_close(&ctx);

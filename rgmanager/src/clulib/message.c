@@ -184,6 +184,9 @@ msg_open(int type, int nodeid, int port, msgctx_t *ctx, int timeout)
 		return -1;
 	}
 
+	/* Record where this was called, in case we have to debug */
+	ctx->sp = __builtin_return_address(0);
+
 	if (ctx->ops && ctx->ops->mo_open)
 		return ctx->ops->mo_open(ctx->type, nodeid, port, ctx, timeout);
 	errno = ENOSYS;

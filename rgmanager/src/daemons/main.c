@@ -36,6 +36,7 @@
 #include <malloc.h>
 #include <cman-private.h>
 
+#define L_SHUTDOWN (1<<2)
 #define L_SYS (1<<1)
 #define L_USER (1<<0)
 
@@ -59,6 +60,7 @@ int shutdown_pending = 0, running = 1, need_reconfigure = 0;
 char debug = 0; /* XXX* */
 static int signalled = 0;
 static int port = RG_PORT;
+static char *rgmanager_lsname = "rgmanager"; /* XXX default */
 
 int next_node_id(cluster_member_list_t *membership, int me);
 int rg_event_q(char *svcName, uint32_t state, int owner);
@@ -479,7 +481,7 @@ dispatch_msg(msgctx_t *ctx, int nodeid, int need_close)
 			/* No such service! */
 			swab_SmMessageSt(msg_sm);
 
-			if (msg_send(ctx, msg_sm, sizeof (SmMessageSt)) !=
+			if (msg_send(ctx, msg_sm, sizeof (SmMessageSt)) <
 		    	    sizeof (SmMessageSt))
 				clulog(LOG_ERR, "#40: Error replying to "
 				       "action request.\n");
@@ -832,7 +834,7 @@ set_nonblock(int fd)
 void *
 shutdown_thread(void *arg)
 {
-	rg_lockall(L_SYS);
+	rg_lockall(L_SYS|L_SHUTDOWN);
 	rg_doall(RG_STOP_EXITING, 1, NULL);
 	running = 0;
 
@@ -886,7 +888,7 @@ main(int argc, char **argv)
 		return -1;
 	}
 
-	if (clu_lock_init("rgmanager") != 0) {
+	if (clu_lock_init(rgmanager_lsname) != 0) {
 		printf("Locks not working!\n");
 		return -1;
 	}
@@ -982,6 +984,7 @@ main(int argc, char **argv)
 
 	cleanup(cluster_ctx);
 	clulog(LOG_NOTICE, "Shutdown complete, exiting\n");
+	clu_lock_finished(rgmanager_lsname);
 	cman_finish(clu);
 	
 	/*malloc_dump_table(); */ /* Only works if alloc.c us used */

@@ -1,3 +1,8 @@
+2006-10-23 Lon Hohberger <lhh at redhat.com>
+	* src/resources/xenvm.sh: Gone; replaced with vm.sh.
+	* The C code parts: Fix deadlocks incurred while testing
+	rgmanager on larger node counts. #211701
+
 2006-10-06 Lon Hohberger <lhh at redhat.com>
 	* src/daemons/main.c: Fix #202492: provide rgmanager's view of
 	who is running rgmanager to clustat.

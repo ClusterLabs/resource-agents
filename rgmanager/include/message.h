@@ -74,6 +74,7 @@ typedef struct _msgctx {
 	msgctx_type_t type;
 	int flags;
 	/* XXX todo make this opaque */
+	void *sp;
 	union {
 		struct {
 			msg_q_t *queue;

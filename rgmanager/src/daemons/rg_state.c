@@ -245,7 +245,7 @@ set_rg_state(char *name, rg_state_t *svcblk)
 	char res[256];
 #ifndef OPENAIS
 	cluster_member_list_t *membership;
-	int ret;
+	int ret, tries = 0;
 #endif
 
 	if (name)
@@ -257,11 +257,16 @@ set_rg_state(char *name, rg_state_t *svcblk)
 		return -1;
 	return 0;
 #else
-	membership = member_list();
-	ret = vf_write(membership, VFF_IGN_CONN_ERRORS, res, svcblk,
-       		       sizeof(*svcblk));
-	free_member_list(membership);
-	return ret;
+	do {
+		/* Retry up to 3 times just in case members transition
+		   while we're trying to commit something */
+		membership = member_list();
+		ret = vf_write(membership, VFF_IGN_CONN_ERRORS, res, svcblk,
+       		       	       sizeof(*svcblk));
+		free_member_list(membership);
+	} while (ret == VFR_TIMEOUT && ++tries < 3);
+
+	return (ret==VFR_OK?0:-1);
 #endif
 }
 
@@ -1193,7 +1198,7 @@ relocate_service(char *svcName, int request, uint32_t target)
 	swab_SmMessageSt(&msg_relo);
 
 	/* Send relocate message to the other node */
-	if (msg_send(&ctx, &msg_relo, sizeof (SmMessageSt)) !=
+	if (msg_send(&ctx, &msg_relo, sizeof (SmMessageSt)) < 
 	    sizeof (SmMessageSt)) {
 		clulog(LOG_ERR,
 		       "#59: Error sending relocate request to member #%d\n",

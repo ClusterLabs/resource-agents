@@ -48,22 +48,15 @@ forwarding_thread(void *arg)
 	rg_state_t rgs;
 	request_t *req = (request_t *)arg;
 	struct dlm_lksb lockp;
-	msgctx_t ctx;
+	msgctx_t *ctx = NULL;
 	SmMessageSt msg;
 
-	if (rg_lock(req->rr_group, &lockp) != 0) {
-		msg_close(req->rr_resp_ctx);
-		msg_free_ctx(req->rr_resp_ctx);
-		rq_free(req);
-		pthread_exit(NULL);
-	}
+	if (rg_lock(req->rr_group, &lockp) != 0)
+		goto out_fail;
 
 	if (get_rg_state(req->rr_group, &rgs) != 0) {
 		rg_unlock(&lockp);
-		msg_close(req->rr_resp_ctx);
-		msg_free_ctx(req->rr_resp_ctx);
-		rq_free(req);
-		pthread_exit(NULL);
+		goto out_fail;
 	}
 
 	rg_unlock(&lockp);
@@ -84,35 +77,32 @@ forwarding_thread(void *arg)
 	clulog(LOG_DEBUG, "Forwarding %s request to %d\n",
 	       rg_req_str(req->rr_request), rgs.rs_owner);
 
-	if (msg_open(MSG_CLUSTER, rgs.rs_owner, RG_PORT, &ctx, 10) < 0)  {
-		msg_close(req->rr_resp_ctx);
-		msg_free_ctx(req->rr_resp_ctx);
-		rq_free(req);
-		pthread_exit(NULL);
-	}
+	while ((ctx = msg_new_ctx()) == NULL)
+		sleep(1);
 
-	if (msg_send(&ctx, &msg, sizeof(msg)) != sizeof(msg)) {
-		msg_close(&ctx);
-		msg_close(req->rr_resp_ctx);
-		msg_free_ctx(req->rr_resp_ctx);
-		rq_free(req);
-		pthread_exit(NULL);
-	}
+	if (msg_open(MSG_CLUSTER, rgs.rs_owner, RG_PORT, ctx, 10) < 0)
+		goto out_fail;
+	if (msg_send(ctx, &msg, sizeof(msg)) < sizeof(msg))
+		goto out_fail;
+	if (msg_receive(ctx, &msg, sizeof(msg), 600) < sizeof(msg))
+		goto out_fail;
 
-	if (msg_receive(&ctx, &msg, sizeof(msg), 600) != sizeof(msg)) {
-		msg_close(&ctx);
-		msg_close(req->rr_resp_ctx);
-		msg_free_ctx(req->rr_resp_ctx);
-		rq_free(req);
-		pthread_exit(NULL);
-	}
-	msg_close(&ctx);
+	msg_close(ctx);
+	msg_free_ctx(ctx);
 
 	swab_SmMessageSt(&msg);
 	send_response(msg.sm_data.d_ret, req);
-
 	rq_free(req);
-
+	pthread_exit(NULL);
+	
+out_fail: /* Failure path */
+	if (ctx) {
+		msg_close(ctx);
+		msg_free_ctx(ctx);
+	}
+	msg_close(req->rr_resp_ctx);
+	msg_free_ctx(req->rr_resp_ctx);
+	rq_free(req);
 	pthread_exit(NULL);
 }
 

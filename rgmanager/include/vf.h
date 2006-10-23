@@ -148,6 +148,7 @@ typedef struct _key_node {
 
 /* Return codes for vf_handle_msg... */
 #define VFR_ERROR	100
+#define VFR_TIMEOUT	101
 #define VFR_OK		0
 #define VFR_YES		VFR_OK
 #define VFR_NO		1
