@@ -118,7 +118,7 @@ gfs_create(struct inode *dir, struct dentry *dentry,
 		if (!error)
 			break;
 		else if (error != -EEXIST ||
-			 (nd->intent.open.flags & O_EXCL)) {
+			 (nd && (nd->intent.open.flags & O_EXCL))) {
 			gfs_holder_uninit(&d_gh);
 			return error;
 		}
