@@ -1933,6 +1933,9 @@ void notify_mount_client(struct mountgroup *mg)
 {
 	char buf[MAXLINE];
 	int rv, error = 0;
+	struct mg_member *memb;
+	
+	memb = find_memb_nodeid(mg, our_nodeid);
 
 	memset(buf, 0, MAXLINE);
 
@@ -1963,9 +1966,15 @@ void notify_mount_client(struct mountgroup *mg)
 
 	if (error) {
 		log_group(mg, "leaving due to mount error: %s", mg->error_msg);
-		group_leave(gh, mg->name);
-	} else
+		if (memb->finished)
+			group_leave(gh, mg->name);
+		else {
+			log_group(mg, "delay leave until after join");
+			mg->group_leave_on_finish = 1;
+		}
+	} else {
 		mg->mount_client_notified = 1;
+	}
 }
 
 void ping_kernel_mount(char *table)
@@ -2191,6 +2200,13 @@ int do_finish(struct mountgroup *mg)
 
 	list_for_each_entry(memb, &mg->members, list)
 		memb->finished = 1;
+
+	if (mg->group_leave_on_finish) {
+		log_group(mg, "leaving group after delay for join to finish");
+		group_leave(gh, mg->name);
+		mg->group_leave_on_finish = 0;
+		return 0;
+	}
 
 	if (mg->needs_recovery) {
 		log_group(mg, "finish: leave locks blocked for needs_recovery");

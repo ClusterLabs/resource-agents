@@ -138,6 +138,7 @@ struct mountgroup {
 	int			mount_client_fd;
 	int			mount_client_notified;
 	int			mount_client_delay;
+	int                     group_leave_on_finish;
 	int			remount_client;
 	int			init;
 	int			got_our_options;
