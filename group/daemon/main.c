@@ -493,7 +493,9 @@ static int do_get_groups(int ci, int argc, char **argv)
 	int rv, count = 0, max = atoi(argv[1]);
 
 	data = malloc(sizeof(group_data_t));
+	memset(data, 0, sizeof(group_data_t));
 	count = 0;
+
 	list_for_each_entry(g, &gd_groups, list) {
 		copy_group_data(g, data);
 		rv = do_write(client[ci].fd, data, sizeof(group_data_t));
