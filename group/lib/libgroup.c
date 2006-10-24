@@ -297,23 +297,24 @@ group_handle_t group_init(void *private, char *prog_name, int level,
 
 	for (i = 0; !timeout || i < timeout * 2; i++) {
 		h->fd = connect_groupd();
-		if (h->fd > 0 || !timeout) /* if successful or only once allowed */
+		if (h->fd > 0 || !timeout)
 			break;
 		usleep(500000);
 	}
-	if (h->fd > 0) {
-		memset(buf, 0, sizeof(buf));
-		snprintf(buf, sizeof(buf), "setup %s %d", prog_name, level);
 
-		for (; !timeout || i < timeout * 2; i++) {
-			rv = do_write(h->fd, &buf, GROUPD_MSGLEN);
-			if (rv >= 0)
-				return (group_handle_t) h;
-			if (!timeout)
-				break;
-			usleep(500000);
-		}
-	}
+	if (h->fd <= 0)
+		goto fail;
+
+	memset(buf, 0, sizeof(buf));
+	snprintf(buf, sizeof(buf), "setup %s %d", prog_name, level);
+
+	rv = do_write(h->fd, &buf, GROUPD_MSGLEN);
+	if (rv < 0)
+		goto fail;
+
+	return (group_handle_t) h;
+
+ fail:
 	saved_errno = errno;
 	close(h->fd);
 	free(h);
@@ -446,35 +447,43 @@ int group_dispatch(group_handle_t handle)
 	return rv;
 }
 
-int group_get_groups(int max, int *count, group_data_t  *data)
+int group_get_groups(int max, int *count, group_data_t *data)
 {
 	char buf[GROUPD_MSGLEN];
-	group_data_t empty;
+	group_data_t dbuf, empty;
 	int fd, rv;
+
+	*count = 0;
 
 	fd = connect_groupd();
 	if (fd < 0)
 		return fd;
 
-	memset(&empty, 0, sizeof(empty));
 	memset(buf, 0, sizeof(buf));
 	snprintf(buf, sizeof(buf), "get_groups %d", max);
 
 	rv = do_write(fd, &buf, GROUPD_MSGLEN);
-	*count = 0;
-	if (!rv) {
-		while (1) {
-			rv = read(fd, &data[*count], sizeof(group_data_t));
-			/* a blank data struct is returned when there are none */
-			if (rv <= 0 || (rv == sizeof(group_data_t) &&
-							!memcmp(&data[*count], &empty, rv))) {
-				rv = 0;
-				break;
-			}
-			else
-				(*count)++;
+	if (rv < 0)
+		goto out;
+
+	memset(&empty, 0, sizeof(empty));
+
+	while (1) {
+		memset(&dbuf, 0, sizeof(dbuf));
+
+		rv = do_read(fd, &dbuf, sizeof(group_data_t));
+		if (rv < 0)
+			break;
+
+		if (!memcmp(&dbuf, &empty, sizeof(group_data_t))) {
+			rv = 0;
+			break;
+		} else {
+			memcpy(&data[*count], &dbuf, sizeof(group_data_t));
+			(*count)++;
 		}
 	}
+ out:
 	close(fd);
 	return rv;
 }
@@ -506,3 +515,4 @@ int group_get_group(int level, const char *name, group_data_t *data)
 	close(fd);
 	return rv;
 }
+
