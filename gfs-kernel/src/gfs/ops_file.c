@@ -303,7 +303,7 @@ do_read_direct(struct file *file, char *buf, size_t size, loff_t *offset,
 	struct inode *inode = file->f_mapping->host;
 	struct gfs_inode *ip = get_v2ip(inode);
 	unsigned int state = LM_ST_DEFERRED;
-	int flags = 0;
+	int flags = LM_FLAG_ANY;
 	unsigned int x;
 	ssize_t count = 0;
 	int error;
@@ -635,7 +635,7 @@ do_write_direct(struct file *file, char *buf, size_t size, loff_t *offset,
 	struct gfs_inode *ip = get_v2ip(file->f_mapping->host);
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct gfs_file *fp = get_v2fp(file);
-	unsigned int state = LM_ST_DEFERRED;
+	unsigned int state = LM_ST_EXCLUSIVE;
 	int alloc_required;
 	unsigned int x;
 	size_t s;
