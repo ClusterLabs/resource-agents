@@ -522,6 +522,7 @@ void clear_configfs(void)
 {
 	clear_configfs_comms();
 	clear_configfs_spaces();
+	rmdir("/sys/kernel/config/dlm/cluster");
 }
 
 int add_configfs_node(int nodeid, char *addr, int addrlen, int local)

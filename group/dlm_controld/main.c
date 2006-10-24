@@ -252,10 +252,12 @@ int loop(void)
 			if (pollfd[i].revents & POLLHUP) {
 				if (pollfd[i].fd == member_fd) {
 					log_error("cluster is down, exiting");
+					clear_configfs();
 					exit(1);
 				}
 				if (pollfd[i].fd == groupd_fd) {
 					log_error("groupd is down, exiting");
+					clear_configfs();
 					exit(1);
 				}
 				log_debug("closing fd %d", pollfd[i].fd);
@@ -387,6 +389,26 @@ static void decode_arguments(int argc, char **argv)
 	}
 }
 
+#if 0
+void set_scheduler(void)
+{
+	struct sched_param sched_param;
+	int rv;
+
+	rv = sched_get_priority_max(SCHED_RR);
+	if (rv != -1) {
+		sched_param.sched_priority = 2;
+		rv = sched_setscheduler(0, SCHED_RR, &sched_param);
+		if (rv == -1)
+			log_error("could not set SCHED_RR priority %d err %d",
+				   sched_param.sched_priority, errno);
+	} else {
+		log_error("could not get maximum scheduler priority err %d",
+			  errno);
+	}
+}
+#endif
+
 int main(int argc, char **argv)
 {
 	prog_name = argv[0];
@@ -397,6 +419,10 @@ int main(int argc, char **argv)
 
 	if (!daemon_debug_opt)
 		daemonize();
+
+#if 0
+	set_scheduler();
+#endif
 
 	return loop();
 }

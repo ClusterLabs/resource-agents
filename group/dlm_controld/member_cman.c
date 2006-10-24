@@ -165,6 +165,7 @@ int process_member(void)
 		/* do we want to try to forcibly clean some stuff up
 		   in the kernel here? */
 		log_error("cluster is down, exiting");
+		clear_configfs();
 		exit(1);
 	}
 	return 0;
