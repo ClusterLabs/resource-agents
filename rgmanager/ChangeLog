@@ -1,3 +1,6 @@
+2006-10-25 Lon Hohberger <lhh at redhat.com>
+	* src/resources/clusterfs.sh: Fix unmounting problem (#212074)
+
 2006-10-23 Lon Hohberger <lhh at redhat.com>
 	* src/resources/xenvm.sh: Gone; replaced with vm.sh.
 	* The C code parts: Fix deadlocks incurred while testing
