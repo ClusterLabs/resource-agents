@@ -569,7 +569,7 @@ int cman_dispatch(cman_handle_t handle, int flags)
 			break;
 
 	} while ( flags & CMAN_DISPATCH_ALL &&
-		  (len < 0 && errno == EAGAIN) );
+		  !(len < 0 && errno == EAGAIN) );
 
 	return len;
 }
