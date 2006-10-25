@@ -836,7 +836,7 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 			sync; sync; sync
 			ocf_log info "unmounting $dev ($mp)"
 
-			umount $dev
+			umount $mp
 			if  [ $? -eq 0 ]; then
 				umount_failed=
 				done=$YES
