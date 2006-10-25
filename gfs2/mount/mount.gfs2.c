@@ -190,6 +190,8 @@ int main(int argc, char **argv)
 			umount_lockproto(proto, &mo, &sb, errno);
 
 		block_signals(SIG_UNBLOCK);
+		if (errno == EBUSY)
+			die("%s already mounted or %s busy\n", mo.dev, mo.dir);
 		die("error %d mounting %s on %s\n", errno, mo.dev, mo.dir);
 	}
 	log_debug("mount(2) ok");

@@ -448,6 +448,10 @@ int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb)
 	rv = atoi(buf);
 	if (rv < 0) {
 		warn("lock_dlm_join: gfs_controld join error: %d", rv);
+		if (rv == -EEXIST)
+			warn("lock_dlm_join: mountgroup already exists. "
+			     "Duplicate locktable name %s, or %s already "
+			     "mounted\n", table, mo->dev);
 		goto out;
 	}
 
