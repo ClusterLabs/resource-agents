@@ -28,7 +28,7 @@
 
 #define __user
 #include <linux/gfs2_ondisk.h>
-#include <linux/iflags.h>
+#include <linux/fs.h>
 
 #include "gfs2_tool.h"
 
@@ -158,7 +158,7 @@ print_flags(struct gfs2_dinode *di)
 }
 
 /*
- * Use IFLAG_XXX defined in <linux/iflags.h> which correspond to
+ * Use FS_XXX_FL flags defined in <linux/fs.h> which correspond to
  * GFS2_DIF_XXX
  */
 static unsigned int 
@@ -167,17 +167,17 @@ get_flag_from_name(char *name)
 	if (strncmp(name, "system", 6) == 0)
 		return GFS2_DIF_SYSTEM;
 	else if (strncmp(name, "jdata", 5) == 0)
-		return IFLAG_JOURNAL_DATA;
+		return FS_JOURNAL_DATA_FL;
 	else if (strncmp(name, "directio", 8) == 0)
-		return IFLAG_DIRECTIO;
+		return FS_DIRECTIO_FL;
 	else if (strncmp(name, "immutable", 9) == 0)
-		return IFLAG_IMMUTABLE;
+		return FS_IMMUTABLE_FL;
 	else if (strncmp(name, "appendonly", 10) == 0)
-		return IFLAG_APPEND;
+		return FS_APPEND_FL;
 	else if (strncmp(name, "noatime", 7) == 0)
-		return IFLAG_NOATIME;
+		return FS_NOATIME_FL;
 	else if (strncmp(name, "sync", 4) == 0)
-		return IFLAG_SYNC;
+		return FS_SYNC_FL;
 	else 
 		return 0;
 }
@@ -208,18 +208,17 @@ set_flag(int argc, char **argv)
 		die("unrecognized flag %s\n", argv[optind -1]);
 	
 	for (; optind < argc; optind++) {
-		fprintf(stdout, "opening %s\n", argv[optind]);
 		fd = open(argv[optind], O_RDONLY);
 		if (fd < 0)
 			die("can't open %s: %s\n", argv[optind], strerror(errno));
 		/* first get the existing flags on the file */
-		error = ioctl(fd, IFLAGS_GET_IOC, &newflags);
+		error = ioctl(fd, FS_IOC_GETFLAGS, &newflags);
 		if (error)
 			die("can't get flags on %s: %s\n", 
 			    argv[optind], strerror(errno));
 		newflags = set ? newflags | flag : newflags & ~flag;
 		/* new flags */
-		error = ioctl(fd, IFLAGS_SET_IOC, &newflags);
+		error = ioctl(fd, FS_IOC_SETFLAGS, &newflags);
 		if (error)
 			die("can't set flags on %s: %s\n", 
 			    argv[optind], strerror(errno));

@@ -10,6 +10,7 @@
 #include <sys/file.h>
 #include <sys/vfs.h>
 #include <sys/mount.h>
+//#include <linux/fs.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <time.h>
@@ -17,7 +18,6 @@
 #include <stdarg.h>
 
 #include <linux/types.h>
-#include <linux/iflags.h>
 #include "libgfs2.h"
 #include "gfs2_mkfs.h"
 
@@ -38,14 +38,14 @@ make_jdata(int fd, char *value)
         int err;
         uint32_t val;
 
-        err = ioctl(fd, IFLAGS_GET_IOC, &val);
+        err = ioctl(fd, FS_IOC_GETFLAGS, &val);
         if (err)
                 die("error doing get flags (%d): %s\n", err, strerror(errno));
         if (strcmp(value, "set") == 0)
-                val |= IFLAG_JOURNAL_DATA;
+                val |= FS_JOURNAL_DATA_FL;
         if (strcmp(value, "clear") == 0)
-                val &= ~IFLAG_JOURNAL_DATA;
-        err = ioctl(fd, IFLAGS_SET_IOC, &val);
+                val &= ~FS_JOURNAL_DATA_FL;
+        err = ioctl(fd, FS_IOC_SETFLAGS, &val);
         if (err)
                 die("error doing set flags (%d): %s\n", err, strerror(errno));
 }
