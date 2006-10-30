@@ -8,35 +8,38 @@
 # Provides:
 ### END INIT INFO
 . /etc/init.d/functions
-CCSD_OPTS=
+
+[ -f /etc/sysconfig/cman ] && . /etc/sysconfig/cman
+[ -z "$CCSD_OPTS" ] && CCSD_OPTS=
+
 # CMAN_CLUSTER_TIMEOUT -- amount of time to wait for joinging a cluster
 #     before giving up.  If CMAN_CLUSTER_TIMEOUT is positive, then we will
 #     wait CMAN_CLUSTER_TIMEOUT seconds before giving up and failing when
 #     a cluster is not joined.  If CMAN_CLUSTER_TIMEOUT is zero, then
 #     wait indefinately for a cluster join.  If CMAN_CLUSTER_TIMEOUT is
 #     negative, do not check to see that the cluster has been joined
-CMAN_CLUSTER_TIMEOUT=120
+[ -z "$CMAN_CLUSTER_TIMEOUT" ] && CMAN_CLUSTER_TIMEOUT=120
 
 # CMAN_QUORUM_TIMEOUT -- amount of time to wait for a quorate cluster on 
 #     startup quorum is needed by many other applications, so we may as 
 #     well wait here.  If CMAN_QUORUM_TIMEOUT is less than 1, quorum will 
 #     be ignored.
 #CMAN_QUORUM_TIMEOUT=300
-CMAN_QUORUM_TIMEOUT=0
+[ -z "$CMAN_QUORUM_TIMEOUT" ] && CMAN_QUORUM_TIMEOUT=0
 
 # CMAN_SHUTDOWN_TIMEOUT -- amount of time to wait for cman to become a 
 #     cluster member before calling cman_tool leave during shutdown.  
 #     default is 60 seconds
-CMAN_SHUTDOWN_TIMEOUT=60
+[ -z "$CMAN_SHUTDOWN_TIMEOUT" ] && CMAN_SHUTDOWN_TIMEOUT=60
 
 # FENCED_START_TIMEOUT -- amount of time to wait for starting fenced
 #     before giving up.  If FENCED_START_TIMEOUT is positive, then we will
 #     wait FENCED_START_TIMEOUT seconds before giving up and failing when
 #     fenced does not start.  If FENCED_START_TIMEOUT is zero, then
 #     wait indefinately for fenced to start.
-FENCED_START_TIMEOUT=300
+[ -z "$FENCED_START_TIMEOUT" ] && FENCED_START_TIMEOUT=300
 
-LOCK_FILE="/var/lock/subsys/cman"
+[ -z "$LOCK_FILE" ] && LOCK_FILE="/var/lock/subsys/cman"
 
 [ -n "$CLUSTERNAME" ] && cman_join_opts="-c $CLUSTERNAME"
 
