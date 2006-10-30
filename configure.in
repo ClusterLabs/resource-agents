@@ -2644,7 +2644,7 @@ if test x"${enable_pretty}" = "xyes"; then
    PRETTY_CC="`pwd`/tools/ccdv"
    dnl It would be nice if this was rebuilt when needed too...
    mkdir `pwd`/tools/ 2>/dev/null
-   gcc -o `pwd`/tools/ccdv ${srcdir}/tools/ccdv.c
+   gcc $CFLAGS -o `pwd`/tools/ccdv ${srcdir}/tools/ccdv.c
    CC="\$(PRETTY_CC) ${CC}"
 fi
 if test "x${enable_quiet}" = "xyes"; then
