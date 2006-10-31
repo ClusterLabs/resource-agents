@@ -470,7 +470,7 @@ static int comms_init_ais(struct objdb_iface_ver0 *objdb)
 			       "totem", strlen("totem"),
 			       &object_handle) == 0)
 	{
-		void *value = NULL;
+		char *value;
 
 		objdb->object_key_create(object_handle, "version", strlen("version"),
 					 "2", 2);
@@ -482,11 +482,16 @@ static int comms_init_ais(struct objdb_iface_ver0 *objdb)
 		objdb->object_key_create(object_handle, "vsftype", strlen("vsftype"),
 					 "none", strlen("none")+1);
 
-		/* Set the token timeout is 5 seconds, but don't overrride anything that
+		/* Set the token timeout is 5 seconds - 20 losses, but don't overrride anything that
 		   might be in cluster.conf */
-		if (objdb->object_key_get(object_handle, "token", strlen("token"), &value, NULL) || value == NULL) {
+		if (objdb_get_string(objdb, object_handle, "token", &value)) {
 			global_objdb->object_key_create(object_handle, "token", strlen("token"),
 							"5000", strlen("5000")+1);
+		}
+		if (objdb_get_string(objdb, object_handle, "token_retransmits_before_loss_const", &value)) {
+			global_objdb->object_key_create(object_handle, "token_retransmits_before_loss_const",
+							strlen("token_retransmits_before_loss_const"),
+							"20", strlen("20")+1);
 		}
 
 		/* Set RRP mode appropriately */
@@ -509,7 +514,7 @@ static int comms_init_ais(struct objdb_iface_ver0 *objdb)
 						 key_filename, strlen(key_filename)+1);
 		}
 		else /* Use the cluster name as key,
-		      * This isn't a good isolation strategey but it does make sure that
+		      * This isn't a good isolation strategy but it does make sure that
 		      * clusters on the same port/multicast by mistake don't actually interfere
 		      * and that we have some form of encryption going.
 		      */
@@ -536,7 +541,7 @@ static int comms_init_ais(struct objdb_iface_ver0 *objdb)
 		char *logstr;
 
 		/* Default logging facility is "local4" unless overridden by the user */
-		if (!objdb_get_string(objdb, object_handle, "syslog_facility", &logstr)) {
+		if (objdb_get_string(objdb, object_handle, "syslog_facility", &logstr)) {
 			objdb->object_key_create(object_handle, "syslog_facility", strlen("syslog_facility"),
 						 "local4", strlen("local4")+1);
 		}
