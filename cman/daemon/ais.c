@@ -470,6 +470,8 @@ static int comms_init_ais(struct objdb_iface_ver0 *objdb)
 			       "totem", strlen("totem"),
 			       &object_handle) == 0)
 	{
+		void *value = NULL;
+
 		objdb->object_key_create(object_handle, "version", strlen("version"),
 					 "2", 2);
 
@@ -479,6 +481,13 @@ static int comms_init_ais(struct objdb_iface_ver0 *objdb)
 
 		objdb->object_key_create(object_handle, "vsftype", strlen("vsftype"),
 					 "none", strlen("none")+1);
+
+		/* Set the token timeout is 5 seconds, but don't overrride anything that
+		   might be in cluster.conf */
+		if (objdb->object_key_get(object_handle, "token", strlen("token"), &value, NULL) || value == NULL) {
+			global_objdb->object_key_create(object_handle, "token", strlen("token"),
+							"5000", strlen("5000")+1);
+		}
 
 		/* Set RRP mode appropriately */
 		if (num_interfaces > 1) {
