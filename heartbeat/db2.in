@@ -357,11 +357,18 @@ case "$1" in
 		  exit $OCF_SUCCESS
 		else
 		  echo DB2 UDB instance $instance is stopped
-		  exit $OCF_NOT_RUNNING
+		  exit 3  # status: stopped exit code is 3
 		fi
 		;;
 
-  monitor)	db2_monitor $instance
+  monitor)	
+		if
+		  db2_status $instance
+		then
+		  db2_monitor $instance
+		else
+		  exit $OCF_NOT_RUNNING
+		fi
 		exit $?;;
 
   validate-all)	# OCF_RESKEY_instance has already checked within db2info(),
