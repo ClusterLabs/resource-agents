@@ -32,6 +32,10 @@
 #include <stdlib.h>
 #include <netdb.h>
 
+#ifndef IFA_MAX
+#include <linux/if_addr.h>
+#endif
+
 /* Local includes */
 #include "ip_lookup.h"
 
