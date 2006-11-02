@@ -892,6 +892,9 @@ AC_CHECK_HEADERS(uuid/uuid.h)
 AC_CHECK_HEADERS(sys/param.h)
 AC_CHECK_HEADERS(netinet/in.h)
 AC_CHECK_HEADERS([stdint.h unistd.h])
+AC_CHECK_HEADERS(sys/termios.h)
+AC_CHECK_HEADERS(termios.h)
+
 
 dnl ************************************************************************
 dnl  FreeBSD requires sys/param.h and in.h to compile test netinet headers.
