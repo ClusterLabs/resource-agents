@@ -509,6 +509,15 @@ AC_CHECK_LIB(dl, dlopen)			dnl -ldl (for Linux)
 AC_CHECK_LIB(rt, sched_getscheduler)            dnl -lrt (for Tru64)
 AC_CHECK_LIB(gnugetopt, getopt_long)		dnl -lgnugetopt ( if available )
 
+#	Not sure what OSes need this... Linux and AIX don't...
+#	and AIX barfs on it...
+if test "$DLPREOPEN" = yes; then
+  DLOPEN_FORCE_FLAGS="-dlpreopen force -dlopen-self"
+  AC_DEFINE(DLPREOPEN, 1, [enable -dlpreopen flag])
+else
+  DLOPEN_FORCE_FLAGS=""
+fi
+AC_SUBST(DLOPEN_FORCE_FLAGS)
 
 dnl ************ uuid **********************
 AC_ARG_WITH(uuid,
