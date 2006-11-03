@@ -47,7 +47,7 @@
 #include <nss.h>
 
 /* Local includes */
-#include "virt.h"
+#include "xvm.h"
 #include "ip_lookup.h"
 #include "simple_auth.h"
 #include "options.h"

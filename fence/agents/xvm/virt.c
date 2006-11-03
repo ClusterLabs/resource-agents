@@ -176,25 +176,15 @@ vl_print(virt_list_t *vl)
 virt_state_t *
 vl_find_name(virt_list_t *vl, char *name)
 {
-	int b,e,x,y;
+	int x;
 
 	if (!vl || !name || !vl->vm_count)
 		return NULL;
 
-	b = 0;
-	e = vl->vm_count;
-
-	do {
-		x = (b + e) / 2;
-		y = strcasecmp(vl->vm_states[x].v_name, name);
-		if (y == 0) {
+	for (x = 0; x < vl->vm_count; x++) {
+		if (!strcasecmp(vl->vm_states[x].v_name, name))
 			return &vl->vm_states[x];
-		} else if (y < 0) {
-			e = x;
-		} else {
-			b = x;
-		}
-	} while (b != e);
+	}
 
 	return NULL;
 }

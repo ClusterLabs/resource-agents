@@ -27,10 +27,10 @@ INCLUDE=-I${top_srcdir}/include -I${top_srcdir}/config \
 	-I../../../cman/lib
 
 CFLAGS+=-DFENCE_RELEASE_NAME=\"${RELEASE}\" \
-	-Wall -Werror -Wstrict-prototypes -Wshadow -ggdb
+	-Wall -Werror -Wstrict-prototypes -Wshadow -ggdb -D_GNU_SOURCE
 
 LIBS+=-L../../../cman/lib -L../../../ccs/lib -L${libdir}/openais \
-      -L../../../dlm/lib -lccs -lcman -ldlm -lnss3 -lvirt -lSaCkpt
+      -L../../../dlm/lib -lnss3
 
 all: ${TARGETS}
 
@@ -38,7 +38,7 @@ fence_xvm: ${fence_xvm_SOURCE:.c=.o}
 	gcc -o $@ $^ $(LIBS)
 
 fence_xvmd: ${fence_xvmd_SOURCE:.c=.o}
-	gcc -o $@ $^ $(LIBS)
+	gcc -o $@ $^ $(LIBS) -lvirt -lccs -lcman -lSaCkpt
 
 %.o: %.c
 	gcc $(CFLAGS) -c -o $@ $^ $(INCLUDES)

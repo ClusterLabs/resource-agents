@@ -24,6 +24,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -164,6 +165,45 @@ get_domain(fence_req_t *req, virConnectPtr vp)
 }
 
 
+/*
+   Nuke the OS block if this domain was booted using a bootloader.
+   XXX We probably should use libxml2 to do this, but this is very fast
+ */
+void
+cleanup_xmldesc(char *xmldesc)
+{
+	char *start = NULL;
+	char *end = NULL;
+
+#define STARTBOOTTAG "<bootloader>"
+#define ENDBOOTTAG   "</bootloader>"
+#define STARTOSTAG   "<os>"
+#define ENDOSTAG     "</os>"
+
+	/* Part 1: Check for a boot loader */
+	start = strcasestr(xmldesc, STARTBOOTTAG);
+	if (start) {
+		start += strlen(STARTBOOTTAG);
+		end = strcasestr(start, ENDBOOTTAG);
+		if (end == start) {
+			/* Empty bootloader tag -> return */
+			return;
+		}
+	}
+
+	/* Part 2: Nuke the <os> tag */
+	start = strcasestr(xmldesc, STARTOSTAG);
+	if (!start)
+		return;
+	end = strcasestr(start, ENDOSTAG);
+	if (!end)
+		return;
+	end += strlen(ENDOSTAG);
+
+	memset(start, ' ', end-start);
+}
+
+
 int
 do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 		     void *key, size_t key_len, virConnectPtr vp)
@@ -211,6 +251,9 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 		printf("Rebooting domain %s...\n",
 		       (char *)req->domain);
 		domain_desc = virDomainGetXMLDesc(vdp, 0);
+
+		if (domain_desc)
+			cleanup_xmldesc(domain_desc);
 		ret = virDomainDestroy(vdp);
 		if (ret < 0) {
 			if (domain_desc)
@@ -218,7 +261,7 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 			break;
 		} else {
 			/* Give it time for the operation to complete */
-			sleep(1);
+			sleep(3);
 		}
 
 		/* Check domain liveliness.  If the domain is still here,

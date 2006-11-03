@@ -299,7 +299,7 @@ static struct arg_info _arg_info[] = {
 	  assign_key },
 
 	{ 'o', "-o <operation>", "option",
-	  "Fencing operation (null, [off], reboot)",
+	  "Fencing operation (null, off, [reboot])",
 	  assign_op },
 
 	{ 'H', "-H <domain>", "domain",
@@ -375,7 +375,7 @@ args_init(fence_xvm_args_t *args)
 	args->addr = NULL;
 	args->domain = NULL;
 	args->key_file = DEFAULT_KEY_FILE;
-	args->op = FENCE_OFF;
+	args->op = FENCE_REBOOT;
 	args->hash = DEFAULT_HASH;
 	args->auth = DEFAULT_AUTH;
 	args->port = 1229;
