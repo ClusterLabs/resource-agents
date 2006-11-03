@@ -302,6 +302,8 @@ static void show_nodes(commandline_t *comline)
 	int count;
 	int i;
 	int numnodes;
+	int dis_count;
+	cman_node_t *dis_nodes;
 	cman_node_t *nodes;
 	struct tm *jtime;
 	struct tm *ftime;
@@ -322,11 +324,46 @@ static void show_nodes(commandline_t *comline)
 	if (cman_get_nodes(h, count, &numnodes, nodes) < 0)
 		die("cman_get_nodes failed: %s", cman_error(errno));
 
+
+	/* Get Disallowed nodes, so we can show them as such */
+	dis_nodes = malloc(sizeof(cman_node_t) * count);
+
+	if (cman_get_disallowed_nodes(h, count, &dis_count, dis_nodes) == 0) {
+		int i,j;
+		for (i=0; i<numnodes; i++) {
+			for (j=0; j<dis_count; j++) {
+				if (dis_nodes[j].cn_nodeid == nodes[i].cn_nodeid)
+					nodes[i].cn_member = 2;
+			}
+		}
+	}
+
 	/* Sort by nodeid to be friendly */
 	qsort(nodes, numnodes, sizeof(cman_node_t), node_compare);
 
+	if (dis_count) {
+		printf("NOTE: There are %d disallowed nodes,\n", dis_count);
+		printf("      members list may seem inconsistent across the cluster\n");
+	}
+
 	printf("Node  Sts   Inc   Joined               Name\n");
 	for (i=0; i<numnodes; i++) {
+		char member_type;
+
+		switch (nodes[i].cn_member) {
+		case 0:
+			member_type = 'X';
+			break;
+		case 1:
+			member_type = 'M';
+			break;
+		case 2:
+			member_type = 'd';
+			break;
+		default:
+			member_type = '?';
+			break;
+		}
 
 		jtime = localtime(&nodes[i].cn_jointime.tv_sec);
 		if (nodes[i].cn_jointime.tv_sec && nodes[i].cn_member)
@@ -335,7 +372,7 @@ static void show_nodes(commandline_t *comline)
 			strcpy(jstring, "                   ");
 
 		printf("%4d   %c  %5d   %s  %s\n",
-		       nodes[i].cn_nodeid, nodes[i].cn_member?'M':'X',
+		       nodes[i].cn_nodeid, member_type,
 		       nodes[i].cn_incarnation, jstring, nodes[i].cn_name);
 
 		if (comline->fence_opt) {

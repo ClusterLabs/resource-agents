@@ -143,12 +143,15 @@ struct connection
 #define RECONFIG_PARAM_CONFIG_VERSION 3
 #define RECONFIG_PARAM_CCS            4
 
-/* NODE_FLAGS_BEENDOWN   - this node has been down.
-   NODE_FLAGS_FENCED     - This node has been fenced since it last went down.
+/* NODE_FLAGS_BEENDOWN       - This node has been down.
+   NODE_FLAGS_FENCED         - This node has been fenced since it last went down.
+   NODE_FLAGS_FENCEDWHILEUP  - This node was fenced manually (probably).
+   NODE_FLAGS_SEESDISALLOWED - Only set in a transition message
 */
 #define NODE_FLAGS_BEENDOWN           1
 #define NODE_FLAGS_FENCED             2
 #define NODE_FLAGS_FENCEDWHILEUP      4
+#define NODE_FLAGS_SEESDISALLOWED     8
 
 /* There's one of these for each node in the cluster */
 struct cluster_node {

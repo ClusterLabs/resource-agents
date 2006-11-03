@@ -131,6 +131,18 @@ static int get_port_bit(struct cluster_node *node, uint8_t port)
 	return ((node->port_bits[byte] & (1<<bit)) != 0);
 }
 
+static int have_disallowed(void)
+{
+	struct cluster_node *node;
+
+	list_iterate_items(node, &cluster_members_list) {
+		if (node->state == NODESTATE_AISONLY)
+			return 1;
+	}
+
+	return 0;
+}
+
 /* If "cluster_is_quorate" is 0 then all activity apart from protected ports is
  * blocked. */
 static void set_quorate(int total_votes)
@@ -1532,6 +1544,9 @@ void send_transition_msg(int last_memb_count, int first_trans)
 		len += 1;
 	}
 
+	if (have_disallowed())
+		msg->flags |= NODE_FLAGS_SEESDISALLOWED;
+
 	comms_send_message(msg, len,
 			   0,0,
 			   0,  /* multicast */
@@ -1676,6 +1691,16 @@ static void do_process_transition(int nodeid, char *data, int len)
 		P_MEMB("Transition message from %d does not match current config - should quit ?\n", nodeid);
 		return; // PJC ???
 	}
+
+	/* If the remote node can see AISONLY nodes then we can't join as we don't
+	   know the full state */
+	if (msg->flags & NODE_FLAGS_SEESDISALLOWED && !have_disallowed()) {
+		/* Must use syslog directly here or the message will never arrive */
+		syslog(LOG_CRIT, "CMAN: Joined a cluster with disallowed nodes. must die");
+		exit(2);
+	}
+	msg->flags &= ~NODE_FLAGS_SEESDISALLOWED;
+
 	node = find_node_by_nodeid(nodeid);
 	assert(node);
 
@@ -1702,6 +1727,12 @@ static void do_process_transition(int nodeid, char *data, int len)
 		node->cman_join_time = msg->join_time;
 		add_ais_node(nodeid, incarnation, num_ais_nodes);
 	}
+
+	/* If the cluster already has some AISONLY nodes then we can't make
+	   sense of the membership. So the new node has to also be AISONLY
+	   until we are consistent again */
+	if (have_disallowed() && !node->us)
+		node->state = NODESTATE_AISONLY;
 
 	node->flags = msg->flags; /* This will clear the BEENDOWN flag of course */
 	if (node->fence_agent && msg->fence_agent[0] && strcmp(node->fence_agent, msg->fence_agent))
