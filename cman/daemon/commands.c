@@ -1961,13 +1961,18 @@ void del_ais_node(int nodeid)
 	node->flags &= ~NODE_FLAGS_FENCEDWHILEUP;
 	node->flags |= NODE_FLAGS_BEENDOWN;
 
-	if (node->state == NODESTATE_MEMBER) {
+	switch (node->state) {
+	case NODESTATE_MEMBER:
 		node->state = NODESTATE_DEAD;
 		cluster_members--;
 		recalculate_quorum(0);
-		return;
-	}
-	if (node->state == NODESTATE_LEAVING) {
+		break;
+
+	case NODESTATE_AISONLY:
+		node->state = NODESTATE_DEAD;
+		break;
+
+	case NODESTATE_LEAVING:
 		node->state = NODESTATE_DEAD;
 		cluster_members--;
 
@@ -1975,6 +1980,11 @@ void del_ais_node(int nodeid)
 			recalculate_quorum(1);
 		else
 			recalculate_quorum(0);
+		break;
+
+	case NODESTATE_JOINING:
+	case NODESTATE_DEAD:
+		break;
 	}
 }
 
