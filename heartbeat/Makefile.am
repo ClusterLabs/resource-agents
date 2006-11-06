@@ -72,6 +72,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			SysInfo		\
 			VIPArip		\
 			WAS		\
+			WAS6		\
 			WinPopup	\
 			Xen		\
 			Xinetd

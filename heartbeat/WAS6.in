@@ -1,0 +1,546 @@
+#!/bin/sh
+# WAS6 
+#
+# Description:  Manages a Websphere Application Server as an HA resource
+#
+#
+# Author:       Ru Xiang Min
+# Support:      linux-ha@lists.linux-ha.org
+# License:      GNU General Public License (GPL)
+# Copyright:    (C) 2006 International Business Machines China, Ltd., Inc.
+#
+#
+# An example usage in /etc/ha.d/haresources:
+#       node1  10.0.0.170 WAS::/opt/IBM/WebSphere/AppServer/profiles/default/config/cells/Node01Cell/nodes/Node01/serverindex.xml
+#
+# See usage() function below for more details...
+#
+#         OCF parameters are as below:
+#               OCF_RESKEY_profile
+#                 (WAS profile name, used for the single server edition of WAS6)
+
+#######################################################################
+# Initialization:
+
+. @hb_libdir@/ocf-shellfuncs
+
+#######################################################################
+
+WAS_DIR=/opt/IBM/WebSphere/AppServer
+if
+  [ ! -d $WAS_DIR ]
+then
+  WAS_DIR=/usr/IBM/WebSphere/AppServer
+fi
+STARTTIME=300   #       5 minutes
+WGET=/usr/bin/wget
+DEFAULT_WASPORTS="9080"
+#
+#
+WAS_BIN=$WAS_DIR/bin
+DEFAULT=default
+#
+#       Print usage message
+#
+usage() {
+  methods=`WAS_methods | grep -v methods`
+  methods=`echo $methods | tr ' ' '|'`
+  cat <<-!
+        usage: $0 ($methods)
+
+        For the single server edition of WAS6, you have to set the following
+        enviroment virable:
+                OCF_RESKEY_profile
+                        (WAS profile name)
+
+
+        $0 manages a Websphere Application Server 6(WAS6) as an HA resource
+
+        The 'start' operation starts WAS6.
+        The 'stop' operation stops WAS6.
+        The 'status' operation reports whether WAS6 is running
+        The 'monitor' operation reports whether the WAS6 seems to be working
+                (httpd also needs to be working for this case)
+        The 'validate-all' operation reports whether the OCF instance parameter (OCF_RESKEY_profileName ) is valid
+        The 'methods' operation reports on the methods $0 supports
+
+        This is known to work with the Single Server edition of Websphere.
+
+        The default profile name for the single server edition is:
+        $DEFAULT
+
+        The start and stop operations must be run as root.
+
+        The status operation will report a pid of "-" for the
+        WAS root process using unless it is run as root.
+
+        If you don't have xmllint on your system, parsing of WAS
+        configuration files is very primitive.
+
+        We run servlet/snoop on the seventh transport port listed in
+        the config file for the "monitor" operation.
+
+	!
+}
+
+meta_data() {
+        cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="WAS6">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource script for WAS6. It manages a Websphere Application Server (WAS6) as
+an HA resource.
+</longdesc>
+<shortdesc lang="en">WAS6 resource agent</shortdesc>
+
+<parameters>
+<parameter name="profile" unique="0" required="1">
+<longdesc lang="en">
+The WAS profile name.
+</longdesc>
+<shortdesc lang="en">profile name</shortdesc>
+<content type="string" default="$DEFAULT" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start" timeout="300" />
+<action name="stop" timeout="300" />
+<action name="status" depth="0" timeout="30" interval="10" start-delay="10" />
+<action name="monitor" depth="0" timeout="30" interval="10" start-delay="10" />
+<action name="validate-all" timeout="5" />
+<action name="meta-data" timeout="5" />
+<action name="methods" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+#
+#       Reformat the XML document in a sort of canonical form
+#       if we can.  If we don't have xmllint, we just cat it out
+#       and hope for the best ;-)
+#
+xmlcat() {
+  if
+    [ "X$XMLcat" = X ]
+  then
+    XMLcat=`which xmllint 2>/dev/null`
+    if
+      [ "X${XMLcat}" = X  -o ! -x "${XMLcat}" ]
+    then
+      XMLcat=cat
+    else
+      XMLcat="$XMLcat --recover --format"
+    fi
+  fi
+  for j in "$@"
+  do
+    ${XMLcat} "$j"
+  done
+}
+
+#
+#This is a bit skanky, but it works anyway...
+#
+# It's not really skanky if we can find xmllint on the system, because it
+# reformats tags so they are all on one line, which is all we we need...
+#
+#
+# Get the numbers of the ports WAS should be listening on...
+#
+# If we don't have xmllint around, then the applicationserver and the
+# port= specification have to be on the same line in the XML config file.
+#
+GetWASPorts() {
+  case $1 in
+    [0-9]*)     echo "$1" | tr ',' '\012';;
+    *)
+        xmlcat ${WAS_DIR}/profiles/${WAS_PROFILE_NAME}/config/cells/${WAS_CELL}/nodes/${WAS_NODE}/serverindex.xml | 
+        grep port=                              |
+        sed -e 's%.*port= *"* *%%'              \
+                -e 's%[^0-9][^0-9]*.*$%%'
+        # Delete up to port=, throw away optional quote and optional
+        #       white space.
+        # Throw away everything after the first non-digit.
+        # This should leave us the port number all by itself...
+  esac
+}
+
+#
+#       We assume that the seventh port listed in the serverindex.xml
+#       is the one we should run servlet/snoop on.
+#
+GetWASSnoopPort() {
+        GetWASPorts "$@" | sed -n '7p' 
+}
+
+#
+#       Return information on the processname/id for the WAS ports
+#
+#       pid/java        is the expected output.  Several lines, one per port...
+#
+#
+WASPortInfo() {
+  pat=""
+  once=yes
+  PortCount=0
+  for j in $*
+  do
+    case $pat in
+      "")       pat="$j";;
+      *)        pat="$pat|$j";;
+    esac
+    PortCount=`expr $PortCount + 1`
+  done
+  netstat -ltnp  2>/dev/null| egrep -i "($pat) .*LISTEN" | sed 's%.*LISTEN *%%'
+}
+
+#
+#       Return the number of WAS ports which are open
+#
+CheckWASPortsInUse() {
+  count=`WASPortInfo "$@" | wc -l`
+  echo $count
+}
+
+#
+#       Return the pid(s) of the processes that have WAS ports open
+#
+WASPIDs() {
+  WASPortInfo "$@" | sort -u | cut -f1 -d/
+}
+
+#
+#       The version of ps that returns all processes and their (long) args
+#       It's only used by WAS_procs, which isn't used for anything ;-)
+#
+ps_long() {
+  ps axww
+}
+
+
+#
+#       The total set of WAS processes (single server only)
+#
+WAS_procs() {
+  ps_long | grep -i "config=$1"  | grep -i java | cut -d' ' -f1
+}
+
+
+
+#
+# methods: What methods/operations do we support?
+#
+WAS_methods() {
+  cat <<-!
+        start
+        stop
+        status
+        methods
+        validate-all
+        meta-data
+        usage
+	!
+  if
+    [ -f $WGET -a -x $WGET ]
+  then
+    echo "	monitor"
+  fi
+}
+
+#
+#       Return WAS status (silently)
+#
+WAS_status() {
+  WASPorts=`GetWASPorts $1`
+  PortsInUse=`CheckWASPortsInUse $WASPorts`
+  case $PortsInUse in
+    0)  false;;
+    *)  true;;
+  esac
+}
+
+#
+#       Report on WAS status to stdout...
+#
+WAS_report_status() {
+  WASPorts=`GetWASPorts $1`
+  PortCount=`echo $WASPorts | wc -w`
+  PortCount=`echo $PortCount`
+  PortsInUse=`CheckWASPortsInUse $WASPorts`
+  case $PortsInUse in
+    0)  ocf_log debug "WAS: server $1 is stopped."; return $OCF_NOT_RUNNING;;
+    *)
+        pids=`WASPIDs $WASPorts`
+        if
+          [ $PortsInUse -ge $PortCount ]
+        then
+          ocf_log debug "WAS: server $1 is running (pid" $pids "et al)."
+        else
+          ocf_log debug "WAS: server $1 is running (pid $pids et al) but not listening on all ports."
+        fi
+        return $OCF_SUCCESS;;
+  esac
+}
+
+#
+#       Monitor WAS - does it really seem to be working?
+#
+#       For this we invoke the snoop applet via wget.
+#
+#       This is actually faster than WAS_status above...
+#
+WAS_monitor() {
+  tmpfile=`maketempfile`
+  SnoopPort=`GetWASSnoopPort $1`
+  output=`$WGET -nv -O$tmpfile  http://localhost:$SnoopPort/snoop 2>&1`
+  rc=$?
+  if
+    [ $rc -eq 0 ]
+  then
+    if
+      grep -i 'user-agent.*Wget' $tmpfile >/dev/null
+    then
+      : OK
+    else
+      ocf_log "err" "WAS: $1: no user-agent from snoop application"
+      rc=$OCF_ERR_GENERIC
+    fi
+  else
+    ocf_log "err" "WAS: $1: wget failure: $output"
+    rc=$OCF_ERR_GENERIC
+  fi
+  rm -fr $tmpfile
+  return $rc
+}
+
+#
+#       Start WAS instance
+#
+WAS_start() {
+# Launch Arguments:
+#     -nowait
+#     -quiet
+#     -logfile <filename>
+#     -replacelog
+#     -trace
+#     -script [<script filename >] [-background]
+#     -timeout <seconds>
+#     -statusport <portnumber>
+#     -profileName <profile>
+#     -help
+  if
+    [ -x $WAS_BIN/startServer.sh ]
+  then
+    cmd="$WAS_BIN/startServer.sh server1  -profileName $1"
+  fi
+
+  if
+    ocf_run $cmd
+  then
+    if
+      WAS_wait_4_start $STARTTIME "$@"
+    then
+      #true
+      return $OCF_SUCCESS
+    else
+      ocf_log "err" "WAS server $1 did not start correctly"
+      return $OCF_ERR_GENERIC
+    fi
+  else
+    #false
+    if 
+       WAS_wait_4_start $STARTTIME "$@"
+    then
+       #true
+       return $OCF_SUCCESS
+    else
+       ocf_log "err" "WAS server $1 did not start correctly"
+       return $OCF_ERR_GENERIC
+    fi
+  fi
+}
+
+#
+#       Wait for WAS to actually start up.
+#
+#       It seems to take between 30 and 60 seconds for it to
+#       start up on a trivial WAS instance.
+#
+WAS_wait_4_start() {
+  max=$1
+  retries=0
+  shift
+  while
+    [ $retries -lt $max ]
+  do
+    if
+      WAS_status "$@"
+    then
+      return $OCF_SUCCESS
+    else
+      sleep 1
+    fi
+    retries=`expr $retries + 1`
+  done
+  WAS_status "$@"
+}
+
+
+#
+#       Shut down WAS
+#
+WAS_stop() {
+  # They don't return good return codes...
+  # And, they seem to allow anyone to stop WAS (!)
+  if
+    [ -x $WAS_BIN/stopServer.sh ]
+  then
+    ocf_run $WAS_BIN/stopServer.sh server1 -profileName $1
+  else
+    WASPorts=`GetWASPorts $1`
+    kill `WASPIDs $WASPorts`
+  fi
+  if
+    WAS_status $1
+  then
+    ocf_log "err" "WAS: $1 did not stop correctly"
+    #false
+    return $OCF_ERR_GENERIC
+  else
+    #true
+    return $OCF_SUCCESS
+  fi
+}
+
+#
+#       Check if the port is valid
+#
+CheckPort() {
+  ocf_is_decimal "$1" && [ $1 -gt 0 ]
+}
+
+WAS_validate_all() {
+  if [ -x $WAS_BIN/startServer.sh ]; then
+  # $arg should be profile name 
+        if [ ! -f ${WAS_DIR}/profiles/${arg}/config/cells/${WAS_CELL}/nodes/${WAS_NODE}/serverindex.xml ]; then
+            ocf_log err "profile [$arg] does not exist"
+            exit $OCF_ERR_ARGS
+        fi
+
+  # $arg should specify a valid port number at the very least
+        local WASPorts=`GetWASPorts $arg`
+        if [ -z "$WASPorts" ]; then
+            ocf_log err "No port number specified in configuration file of profile [$arg]"
+            exit $OCF_ERR_CONFIGURED
+        fi
+
+        local port
+        local have_valid_port=false
+        for port in "$WASPorts"; do
+            if CheckPort $port; then
+                have_valid_port=true
+                break
+            fi
+        done
+        if [ "false" = "$have_valid_port" ]; then
+            ocf_log err "No valid port number specified in configuration file of profile [$arg]"
+            exit $OCF_ERR_CONFIGURED
+        fi
+
+  elif [ -x $WAS_BIN/startupServer.sh ]; then
+  # $arg should be port number
+        if CheckPort "$arg"; then
+            ocf_log err "Port number is required but [$arg] is not valid port number"
+            exit $OCF_ERR_ARGS
+        fi
+  else
+  # Do not know hot to validate_all
+        ocf_log warn "Do not know how to validate-all, assuming validation OK"
+        return $OCF_SUCCESS
+  fi
+}
+#
+#       'main' starts here...
+#
+
+if
+  ( [ $# -ne 1 ] )
+then
+  usage
+  exit $OCF_ERR_ARGS
+fi
+
+# These operations don't require OCF instance parameters to be set
+case "$1" in
+
+  meta-data)    meta_data
+                exit $OCF_SUCCESS;;
+
+  usage)        usage
+                exit $OCF_SUCCESS;;
+
+  methods)      WAS_methods
+                exit $?;;
+  *);;
+esac
+
+
+#
+#       Supply default configuration parameter(s)
+#
+
+if
+   [ -z $OCF_RESKEY_profile ] 
+then
+    arg=$DEFAULT
+else
+    arg=$OCF_RESKEY_profile
+fi
+
+if
+   [ ! -d ${WAS_DIR}/profiles/$arg ]
+then
+    ocf_log "err" "WAS profile $arg does not exist!"
+    usage
+    exit $OCF_ERR_ARGS
+fi
+
+WAS_PROFILE_NAME=$arg
+if [ "${WAS_PROFILE_NAME:=}" != "" ]; then
+    WAS_PROFILE_FSDB_SCRIPT=${WAS_DIR}/properties/fsdb/${WAS_PROFILE_NAME}.sh
+fi
+
+if [ "${WAS_PROFILE_FSDB_SCRIPT:=}" != "" ] && [ -f ${WAS_PROFILE_FSDB_SCRIPT} ]; then
+    . ${WAS_PROFILE_FSDB_SCRIPT}
+fi
+
+if [ "${WAS_USER_SCRIPT:=}" != "" ]; then
+    . ${WAS_USER_SCRIPT}
+fi
+
+# What kind of method was invoked?
+case "$1" in
+
+  start)        WAS_start $arg
+                exit $?;;
+
+  stop)         WAS_stop $arg
+                exit $?;;
+
+  status)       WAS_report_status $arg
+                exit $?;;
+
+  monitor)      WAS_monitor $arg
+                exit $?;;
+
+  validate-all) WAS_validate_all $arg
+                exit $?;;
+
+  *)            usage
+                exit $OCF_ERR_UNIMPLEMENTED;;
+esac

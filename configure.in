@@ -2901,6 +2901,7 @@ resources/Makefile						\
 	resources/OCF/SysInfo					\
 	resources/OCF/VIPArip					\
 	resources/OCF/WAS					\
+	resources/OCF/WAS6					\
 	resources/OCF/WinPopup					\
 	resources/OCF/Xen					\
 	resources/OCF/Xinetd					\
