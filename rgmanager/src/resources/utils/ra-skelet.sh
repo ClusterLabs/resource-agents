@@ -62,10 +62,10 @@ stop_generic()
 	read pid < "$pid_file"
 
 	# @todo: PID is not running -> error?
-	if [ ! -d "/proc/$pid_file" ]; then
+	if [ ! -d "/proc/$pid" ]; then
 		return 0;
 	fi
-                                
+
 	kill -TERM "$pid"
 
 	if [ $? -ne 0 ]; then
