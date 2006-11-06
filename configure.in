@@ -2428,10 +2428,16 @@ if test "x${enable_mgmt}" != "xno"; then
 	fi
 fi
 
-AC_SUBST(MGMT_ENABLED)
+if test "x${enable_mgmt}" != "xno"; then
+  RPM_ENABLE_MGMT_CONFIG=1
+else
+  RPM_ENABLE_MGMT_CONFIG=0
+fi
+AC_SUBST(RPM_ENABLE_MGMT_CONFIG)
+
 AM_CONDITIONAL(MGMT_BUILD, test "x${enable_mgmt}" != "xno")
 if test "x${enable_mgmt}" != "xno"; then
-     AC_DEFINE_UNQUOTED(MGMT_ENABLED, 1, Define to 1 if the mgmt is enabled.)
+     AC_DEFINE_UNQUOTED(MGMT_ENABLED, 1, Define to 1 if the mgmt-daemon and friends are enabled.)
     dnl If this system might be RPM-based, then adjust some RPM-build details
     if test x"${RPM}" != x""; then
 dnl FIXME: a flawy solution but no better one now
