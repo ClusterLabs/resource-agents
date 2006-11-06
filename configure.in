@@ -2895,6 +2895,7 @@ resources/Makefile						\
 	resources/OCF/Raid1					\
 	resources/OCF/pgsql					\
 	resources/OCF/Pure-FTPd					\
+	resources/OCF/SendArp					\
 	resources/OCF/ServeRAID					\
 	resources/OCF/Stateful					\
 	resources/OCF/SysInfo					\

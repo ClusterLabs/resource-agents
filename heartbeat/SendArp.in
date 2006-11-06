@@ -1,0 +1,254 @@
+#!/bin/sh
+#
+#	$Id: Dummy.in,v 1.6 2006/08/14 09:09:14 andrew Exp $
+#
+#	Copyright (c) 2006, Huang Zhen <zhen.huang@gmail.com>
+#	Converting original heartbeat RA to OCF RA.
+#
+#	Copyright (C) 2004 Horms <horms@verge.net.au>
+#
+#       Based on IPaddr2: Copyright (C) 2003 Tuomo Soini <tis@foobar.fi>
+#
+# 	License:      GNU General Public License (GPL)
+# 	Support:      linux-ha@lists.linux-ha.org
+#
+#	This script send out gratuitous Arp for an IP address
+#
+#       It can be used _instead_ of the IPaddr2 or IPaddr resource
+#       to send gratuitous arp for an IP address on a given interface, 
+#       without adding the address to that interface. I.e. if for
+#       some reason you want to send gratuitous arp for addresses
+#       managed by IPaddr2 or IPaddr on an additional interface.
+#
+#	OCF parameters are as below:
+#		OCF_RESKEY_ip
+#		OCF_RESKEY_nic
+#
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+#######################################################################
+# Initialization:
+
+. @hb_libdir@/ocf-shellfuncs
+
+SENDARP=$HA_BIN/send_arp
+HA_VARRUNDIR=@localstatedir@/run/@HB_PKG@
+VLDIR=$HA_VARRUNDIR/rsctmp/IPaddr
+SENDARPPIDDIR=$HA_VARRUNDIR/rsctmp/send_arp
+
+BASEIP="$OCF_RESKEY_ip"
+INTERFACE="$OCF_RESKEY_nic"
+RESIDUAL=""
+SENDARPPIDFILE="$SENDARPPIDDIR/send_arp-$BASEIP"
+
+# Set default values
+
+	: ${ARP_INTERVAL_MS=200}	# milliseconds between ARPs
+	: ${ARP_REPEAT=5}		# repeat count
+	: ${ARP_BACKGROUND=yes}		# no to run in foreground
+	: ${ARP_NETMASK=ffffffffffff}	# netmask for ARP
+
+#######################################################################
+
+sendarp_meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="SendArp" version="1.0">
+<version>1.0</version>
+
+<longdesc lang="en">
+This script send out gratuitous Arp for an IP address
+</longdesc>
+<shortdesc lang="en">SendArp resource agent</shortdesc>
+
+<parameters>
+<parameter name="ip" unique="0" required="1">
+<longdesc lang="en">
+The IP address for sending arp package.
+</longdesc>
+<shortdesc lang="en">IP address</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="nic" unique="0" required="1">
+<longdesc lang="en">
+The nic for sending arp package.
+</longdesc>
+<shortdesc lang="en">NIC</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"   timeout="90" />
+<action name="stop"    timeout="100" />
+<action name="monitor" depth="0"  timeout="20" interval="10" start-delay="10" />
+<action name="meta-data"  timeout="5" />
+<action name="verify-all"  timeout="30" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+sendarp_usage() {
+	cat <<END
+usage: $0 {start|stop|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+#
+#	Check if ip-address is running.
+#	We return stopped or running.
+#
+sendarp_status() {
+    if
+	[ -f "$SENDARPPIDFILE" ]
+    then
+	return $OCF_SUCCESS
+    else
+	return $OCF_NOT_RUNNING
+    fi
+}
+
+#
+#	Send gratuitous arp
+#
+sendarp_start() {
+    
+    sendarp_validate
+    if [ $? = $OCF_ERR_ARGS ]; then
+	return $OCF_ERR_ARGS;
+    fi
+    
+    sendarp_status
+    if [ $? = $OCF_SUCCESS ]; then
+	return $OCF_SUCCESS;
+    fi
+    
+    [ -r ${HA_CONFDIR}/arp_config ] && . ${HA_CONFDIR}/arp_config
+    if [ -r "${HA_CONFDIR}/arp_config:${TARGET_INTERFACE}" ]; then
+	. "${HA_CONFDIR}/arp_config:${TARGET_INTERFACE}"
+    fi
+
+
+    ARGS="-i $ARP_INTERVAL_MS -r $ARP_REPEAT -p $SENDARPPIDFILE $INTERFACE $BASEIP auto $BASEIP $ARP_NETMASK"
+    ocf_log debug "$SENDARP $ARGS"
+    case $ARP_BACKGROUND in
+	yes) 
+	    ($SENDARP $ARGS || 
+	        (ocf_log err "Could not send gratuitous arps";return $OCF_ERR_GENERIC)) &
+	    ;;
+	*)
+	    $SENDARP $ARGS || (ocf_log err "Could not send gratuitous arps"; return $OCF_ERR_GENERIC)
+	    ;;
+    esac
+    return $OCF_SUCCESS;
+}
+
+#
+#	Stop sending gratuitous arp
+#
+sendarp_stop() {
+    sendarp_validate
+    if [ $? = $OCF_ERR_ARGS ]; then
+	return $OCF_ERR_ARGS;
+    fi
+    
+    rc=$OCF_SUCCESS
+    
+    if
+	[ -f "$SENDARPPIDFILE" ]
+    then
+	kill `cat "$SENDARPPIDFILE"`
+	rc=$?
+	case $rc in
+	    0)
+		ocf_log info "killed previously running send_arp for $BASEIP"
+		rm -f "$SENDARPPIDFILE"
+		rc=$OCF_SUCCESS
+		;;
+	    *)
+		ocf_log warn "Could not kill previously running send_arp for $BASEIP"
+		rc=$OCF_ERR_GENERIC
+		;;
+	esac
+    fi
+
+    case $rc in
+	$OCF_SUCCESS)
+	    ocf_log info "SendArp for $BASEIP/$INTERFACE released"
+	    ;;
+	*)
+	    ocf_log warn "SendArp for $BASEIP/$INTERFACE NOT released"
+	    ;;
+    esac
+    return $rc
+}
+#
+#	This is always active, because it doesn't do much
+#
+sendarp_monitor() {
+    return $OCF_SUCCESS
+}
+
+sendarp_validate() {
+    if [ -z "$INTERFACE" -o -z "$BASEIP" -o -n "$RESIDUAL" ]
+    then
+        return $OCF_ERR_ARGS
+    fi
+    return $OCF_SUCCESS
+}
+
+case $__OCF_ACTION in
+meta-data)	sendarp_meta_data
+		exit $OCF_SUCCESS
+		;;
+start)		sendarp_start
+		;;
+stop)		sendarp_stop
+		;;
+monitor)	sendarp_monitor
+		;;
+status)		sendarp_status
+		if [ $? = $OCF_SUCCESS ]; then
+			echo "running"
+			exit $OCF_SUCCESS;
+		else 
+			echo "stopped"
+			exit $OCF_NOT_RUNNING;
+    		fi
+    		;;
+validate-all)	sendarp_validate
+		;;
+usage|help)	sendarp_usage
+		exit $OCF_SUCCESS
+		;;
+*)		sendarp_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+
