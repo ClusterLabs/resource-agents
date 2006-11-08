@@ -50,7 +50,6 @@ void init_debug(int subsystems)
 	subsys_mask = subsystems;
 }
 
-#ifdef DEBUG
 void log_debug(int subsys, int stamp, const char *fmt, ...)
 {
 	va_list va;
@@ -91,4 +90,3 @@ void log_debug(int subsys, int stamp, const char *fmt, ...)
 	log_printf(LOG_LEVEL_DEBUG, log_buf);
 	va_end(va);
 }
-#endif
