@@ -773,6 +773,17 @@ static int init(struct gfs2_sbd *sbp)
 		close(sbp->device_fd);
 		exit(-1);
 	}
+	if (sbp->sd_sb.sb_bsize != GFS2_DEFAULT_BSIZE) {
+		log_crit("Error: GFS2 only supports a 4K block size.\n");
+		log_crit("Volume %s has a block size of ", device);
+		if (!(sbp->sd_sb.sb_bsize % 1024)) /* if even K boundary */
+			log_crit("%dK bytes.\n", sbp->sd_sb.sb_bsize / 1024);
+		else
+			log_crit("%d bytes.\n", sbp->sd_sb.sb_bsize);
+		log_crit("This file system cannot be converted with this tool.\n");
+		close(sbp->device_fd);
+		exit(-1);
+	}
 	/* get gfs1 rindex inode - gfs1's rindex inode ptr became __pad2 */
 	gfs2_inum_in(&inum, (char *)&raw_gfs1_ondisk_sb.sb_rindex_di);
 	sbp->md.riinode = gfs2_load_inode(sbp, inum.no_addr);
