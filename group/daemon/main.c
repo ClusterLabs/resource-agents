@@ -318,6 +318,7 @@ enum {
 	DO_GET_GROUPS,
 	DO_GET_GROUP,
 	DO_DUMP,
+	DO_LOG,
 };
 
 int get_action(char *buf)
@@ -364,6 +365,9 @@ int get_action(char *buf)
 
 	if (!strncmp(act, "dump", 16))
 		return DO_DUMP;
+
+	if (!strncmp(act, "log", 16))
+		return DO_LOG;
 
 	return -1;
 }
@@ -559,6 +563,13 @@ static int do_dump(int fd)
 	return 0;
 }
 
+static int do_log(int fd, const char *comment)
+{
+
+	log_print("%s", comment);
+	return 0;
+}
+
 static void do_send(char *name, int level, int len, char *data)
 {
 	group_t *g;
@@ -651,6 +662,10 @@ static void process_connection(int ci)
 
 	case DO_DUMP:
 		do_dump(client[ci].fd);
+		break;
+
+	case DO_LOG:
+		do_log(client[ci].fd, &buf[4]);
 		break;
 
 	default:

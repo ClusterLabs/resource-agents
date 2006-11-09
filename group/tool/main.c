@@ -45,6 +45,7 @@
 
 #define OP_LS				1
 #define OP_DUMP				2
+#define OP_LOG				3
 
 static char *prog_name;
 static int operation;
@@ -71,6 +72,8 @@ static void print_usage(void)
 	printf("dump fence         Show debug log from fenced\n");
 	printf("dump gfs           Show debug log from gfs_controld\n");
 	printf("dump plocks <name> Show posix locks for gfs with given name\n");
+	printf("\n");
+	printf("log <comments>     Add information to the groupd log.\n");
 	printf("\n");
 }
 
@@ -124,6 +127,10 @@ static void decode_arguments(int argc, char **argv)
 		} else if (strcmp(argv[optind], "ls") == 0 ||
 		           strcmp(argv[optind], "list") == 0) {
 			operation = OP_LS;
+			opt_ind = optind + 1;
+			break;
+		} else if (strcmp(argv[optind], "log") == 0) {
+			operation = OP_LOG;
 			opt_ind = optind + 1;
 			break;
 		}
@@ -406,6 +413,21 @@ int do_plock_dump(int argc, char **argv, int fd)
 	return 0;
 }
 
+int do_log(char *comment)
+{
+	char buf[GROUPD_MSGLEN];
+	int fd, rv;
+
+	fd = connect_daemon(GROUPD_SOCK_PATH);
+	if (fd < 0)
+		return fd;
+	memset(buf, 0, sizeof(buf));
+	snprintf(buf, sizeof(buf), "log %s", comment);
+	rv = write(fd, &buf, GROUPD_MSGLEN);
+	close(fd);
+	return rv;
+}
+
 int main(int argc, char **argv)
 {
 	int fd;
@@ -445,6 +467,11 @@ int main(int argc, char **argv)
 		if (fd < 0)
 			break;
 		return do_dump(argc, argv, fd);
+
+	case OP_LOG:
+		if (opt_ind && opt_ind < argc) {
+			return do_log(argv[opt_ind]);
+		}
 	}
 
 	return 0;
