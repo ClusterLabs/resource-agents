@@ -343,11 +343,17 @@ int do_dump(int argc, char **argv, int fd)
 		return -1;
 	}
 
-	rv = read(fd, inbuf, sizeof(inbuf));
-	if (rv <= 0)
-		printf("dump read returned %d errno %d\n", rv, errno);
-	else
-		write(STDOUT_FILENO, inbuf, rv);
+	while (1) {
+		rv = read(fd, inbuf, sizeof(inbuf));
+		fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
+		if (rv <= 0) {
+			if (errno != EAGAIN)
+				printf("dump read returned %d errno %d\n", rv, errno);
+			break;
+		}
+		else
+			write(STDOUT_FILENO, inbuf, rv);
+	}
 
 	close(fd);
 	return 0;
@@ -370,11 +376,17 @@ int do_maxline_dump(int argc, char **argv, int fd)
 		return -1;
 	}
 
-	rv = read(fd, inbuf, sizeof(inbuf));
-	if (rv <= 0)
-		printf("dump read returned %d errno %d\n", rv, errno);
-	else
-		write(STDOUT_FILENO, inbuf, rv);
+	while (1) {
+		rv = read(fd, inbuf, sizeof(inbuf));
+		fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
+		if (rv <= 0) {
+			if (errno != EAGAIN)
+				printf("dump read returned %d errno %d\n", rv, errno);
+			break;
+		}
+		else
+			write(STDOUT_FILENO, inbuf, rv);
+	}
 
 	close(fd);
 	return 0;
