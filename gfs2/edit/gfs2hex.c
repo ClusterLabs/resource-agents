@@ -201,7 +201,8 @@ void do_dinode_extended(struct gfs2_dinode *di, char *buf)
 {
 	unsigned int x, y;
 	uint64_t p, last;
-	int isdir = !!(S_ISDIR(di->di_mode));
+	int isdir = !!(S_ISDIR(di->di_mode)) || 
+		(gfs1 && di->__pad1 == GFS_FILE_DIR);
 
 	indirect_blocks = 0;
 	memset(&indirect, 0, sizeof(indirect));
@@ -400,11 +401,20 @@ void gfs2_sb_print2(struct gfs2_sb *sb)
 
 	pv(sb, sb_bsize, "%u", "0x%x");
 	pv(sb, sb_bsize_shift, "%u", "0x%x");
-	gfs2_inum_print2("master dir", &sb->sb_master_dir);
+	if (gfs1) {
+		gfs2_inum_print2("jindex ino", &sbd1->sb_jindex_di);
+		gfs2_inum_print2("rindex ino", &sbd1->sb_rindex_di);
+	}
+	else
+		gfs2_inum_print2("master dir", &sb->sb_master_dir);
 	gfs2_inum_print2("root dir  ", &sb->sb_root_dir);
 
 	pv(sb, sb_lockproto, "%s", NULL);
 	pv(sb, sb_locktable, "%s", NULL);
+	if (gfs1) {
+		gfs2_inum_print2("quota ino ", &gfs1_quota_di);
+		gfs2_inum_print2("license   ", &gfs1_license_di);
+	}
 }
 
 /******************************************************************************

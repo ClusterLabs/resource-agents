@@ -36,7 +36,6 @@
 
 #define EXTERN
 #include "hexedit.h"
-#include "linux/gfs2_ondisk.h"
 #include "linux_endian.h"
 #include "libgfs2.h"
 #include "gfs2hex.h"
@@ -286,6 +285,7 @@ void print_usage(void)
 	move(line++, 0);
 	printw("Other commands:");
 	gfs2instr("   h","This Help display");
+	gfs2instr("   c","Toggle the color scheme");
 	gfs2instr("   m","Switch display mode: hex -> GFS2 structure -> Extended");
 	gfs2instr("   q","Quit (same as hitting <escape> key)");
 	gfs2instr("<enter>","Edit a value (enter to save, esc to discard)");
@@ -346,7 +346,10 @@ int display_block_type(const char *lpBuffer)
 		switch (*(lpBuffer+7)) {
 		case GFS2_METATYPE_SB:   /* 1 */
 			print_gfs2("(superblock)");
-			struct_len = sizeof(struct gfs2_sb);
+			if (gfs1)
+				struct_len = sizeof(struct gfs_sb);
+			else
+				struct_len = sizeof(struct gfs2_sb);
 			break;
 		case GFS2_METATYPE_RG:   /* 2 */
 			print_gfs2("(rsrc grp hdr)");
@@ -410,25 +413,37 @@ int display_block_type(const char *lpBuffer)
 	}
 	if (block == sbd.sd_sb.sb_root_dir.no_addr)
 		print_gfs2("-------------------- Root direcory -------------------");
-	else if (block == sbd.sd_sb.sb_master_dir.no_addr)
+	else if (!gfs1 && block == sbd.sd_sb.sb_master_dir.no_addr)
 		print_gfs2("------------------- Master directory -----------------");
 	else {
-		int d;
+		if (gfs1) {
+			if (block == sbd1->sb_rindex_di.no_addr)
+				print_gfs2("--------------------- rindex file -------------------");
+			else if (block == gfs1_quota_di.no_addr)
+				print_gfs2("--------------------- Quota file --------------------");
+			else if (block == sbd1->sb_jindex_di.no_addr)
+				print_gfs2("-------------------- Journal Index ------------------");
+			else if (block == gfs1_license_di.no_addr)
+				print_gfs2("-------------------- License file -------------------");
+		}
+		else {
+			int d;
 
-		for (d = 2; d < 8; d++) {
-			if (block == masterdir.dirent[d].block) {
-				if (!strncmp(masterdir.dirent[d].filename, "jindex", 6))
-					print_gfs2("-------------------- Journal Index ------------------");
-				else if (!strncmp(masterdir.dirent[d].filename, "per_node", 8))
-					print_gfs2("-------------------- Per-node Dir -------------------");
-				else if (!strncmp(masterdir.dirent[d].filename, "inum", 4))
-					print_gfs2("--------------------- Inum file ---------------------");
-				else if (!strncmp(masterdir.dirent[d].filename, "statfs", 6))
-					print_gfs2("--------------------- statfs file -------------------");
-				else if (!strncmp(masterdir.dirent[d].filename, "rindex", 6))
-					print_gfs2("--------------------- rindex file -------------------");
-				else if (!strncmp(masterdir.dirent[d].filename, "quota", 5))
-					print_gfs2("--------------------- Quota file --------------------");
+			for (d = 2; d < 8; d++) {
+				if (block == masterdir.dirent[d].block) {
+					if (!strncmp(masterdir.dirent[d].filename, "jindex", 6))
+						print_gfs2("-------------------- Journal Index ------------------");
+					else if (!strncmp(masterdir.dirent[d].filename, "per_node", 8))
+						print_gfs2("-------------------- Per-node Dir -------------------");
+					else if (!strncmp(masterdir.dirent[d].filename, "inum", 4))
+						print_gfs2("--------------------- Inum file ---------------------");
+					else if (!strncmp(masterdir.dirent[d].filename, "statfs", 6))
+						print_gfs2("--------------------- statfs file -------------------");
+					else if (!strncmp(masterdir.dirent[d].filename, "rindex", 6))
+						print_gfs2("--------------------- rindex file -------------------");
+					else if (!strncmp(masterdir.dirent[d].filename, "quota", 5))
+						print_gfs2("--------------------- Quota file --------------------");
+				}
 			}
 		}
 	}
@@ -513,6 +528,11 @@ int hexdump(uint64_t startaddr, const char *lpBuffer, int len)
 		eol(0);
 		l+=16;
 	} /* while */
+	if (gfs1) {
+		COLORS_NORMAL;
+		print_gfs2("         *** This seems to be a GFS-1 file system ***");
+		eol(0);
+	}
 	return (offset+len);
 }/* hexdump */
 
@@ -634,7 +654,8 @@ int display_extended(void)
 	eol(0);
 	start_line = line;
 	if (indirect_blocks ||
-		(gfs2_struct_type == GFS2_METATYPE_DI && S_ISDIR(di.di_mode))) {
+		(gfs2_struct_type == GFS2_METATYPE_DI &&
+		 (S_ISDIR(di.di_mode) || (gfs1 && di.__pad1 == GFS_FILE_DIR)))) {
 		indir_blocks = indirect_blocks;
 		if (!indirect_blocks) {
 			print_gfs2("This directory contains %d directory entries.",
@@ -754,7 +775,8 @@ int display_extended(void)
 	else
 		print_gfs2("This block does not have indirect blocks.");
 	eol(0);
-	if (block == masterblock("rindex")) {
+	if ((gfs1 && block == sbd1->sb_rindex_di.no_addr) ||
+		(block == masterblock("rindex"))) {
 		struct gfs2_buffer_head *tmp_bh;
 
 		tmp_bh = bread(&sbd, block);
@@ -762,7 +784,7 @@ int display_extended(void)
 		print_rindex(tmp_inode);
 		brelse(tmp_bh, not_updated);
 	}
-	else if (block == masterblock("inum")) {
+	else if (!gfs1 && block == masterblock("inum")) {
 		struct gfs2_buffer_head *tmp_bh;
 
 		tmp_bh = bread(&sbd, block);
@@ -770,7 +792,7 @@ int display_extended(void)
 		print_inum(tmp_inode);
 		brelse(tmp_bh, not_updated);
 	}
-	else if (block == masterblock("statfs")) {
+	else if (!gfs1 && block == masterblock("statfs")) {
 		struct gfs2_buffer_head *tmp_bh;
 
 		tmp_bh = bread(&sbd, block);
@@ -778,7 +800,8 @@ int display_extended(void)
 		print_statfs(tmp_inode);
 		brelse(tmp_bh, not_updated);
 	}
-	else if (block == masterblock("quota")) {
+	else if ((gfs1 && block == gfs1_quota_di.no_addr) ||
+			 (block == masterblock("quota"))) {
 		struct gfs2_buffer_head *tmp_bh;
 
 		tmp_bh = bread(&sbd, block);
@@ -796,6 +819,7 @@ void read_superblock(void)
 {
 	int x;
 
+	sbd1 = (struct gfs_sb *)&sbd.sd_sb;
 	ioctl(fd, BLKFLSBUF, 0);
 	do_lseek(fd, 0x10 * bufsize);
 	do_read(fd, buf, bufsize); /* read in the desired block */
@@ -813,6 +837,20 @@ void read_superblock(void)
 		osi_list_init(&sbd.buf_hash[x]);
 	compute_constants(&sbd);
 	gfs2_sb_in(&sbd.sd_sb, buf); /* parse it out into the sb structure */
+	/* Check to see if this is really gfs1 */
+	if (sbd1->sb_fs_format == GFS_FORMAT_FS &&
+		sbd1->sb_header.mh_type == GFS_METATYPE_SB &&
+		sbd1->sb_header.mh_format == GFS_FORMAT_SB &&
+		sbd1->sb_multihost_format == GFS_FORMAT_MULTI) {
+		struct gfs_sb *sbbuf = (struct gfs_sb *)buf;
+
+		gfs1 = TRUE;
+		gfs2_inum_in(&sbd1->sb_rindex_di, (void *)&sbbuf->sb_rindex_di);
+		gfs2_inum_in(&gfs1_quota_di, (void *)&sbbuf->sb_quota_di);
+		gfs2_inum_in(&gfs1_license_di, (void *)&sbbuf->sb_license_di);
+	}
+	else
+		gfs1 = FALSE;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -938,10 +976,20 @@ uint64_t goto_block(void)
 	if (bobgets(string, 1, 7, 16)) {
 		if (!strcmp(string,"root"))
 			temp_blk = sbd.sd_sb.sb_root_dir.no_addr;
-		else if (!strcmp(string,"master"))
+		else if (!gfs1 && !strcmp(string,"master"))
 			temp_blk = sbd.sd_sb.sb_master_dir.no_addr;
-		else if (isalpha(string[0]))
-			temp_blk = masterblock(string);
+		else if (isalpha(string[0])) {
+			if (gfs1) {
+				if (!strcmp(string, "jindex"))
+					temp_blk = sbd1->sb_jindex_di.no_addr;
+				else if (!strcmp(string, "rindex"))
+					temp_blk = sbd1->sb_rindex_di.no_addr;
+				else if (!strcmp(string, "quota"))
+					temp_blk = gfs1_quota_di.no_addr;
+			}
+			else
+				temp_blk = masterblock(string);
+		}
 		else if (string[0] == '0' && string[1] == 'x')
 			sscanf(string, "%"SCNx64, &temp_blk); /* retrieve in hex */
 		else
@@ -954,6 +1002,32 @@ uint64_t goto_block(void)
 		}
 	}
 	return block;
+}
+
+/* ------------------------------------------------------------------------ */
+/* init_colors                                                              */
+/* ------------------------------------------------------------------------ */
+void init_colors()
+{
+
+	if (color_scheme) {
+		init_pair(COLOR_TITLE, COLOR_BLACK,  COLOR_CYAN);  /* title lines */
+		init_pair(COLOR_NORMAL, COLOR_WHITE,  COLOR_BLACK); /* normal text */
+		init_pair(COLOR_INVERSE, COLOR_BLACK,  COLOR_WHITE); /* inverse text */
+		init_pair(COLOR_SPECIAL, COLOR_RED,    COLOR_BLACK); /* special text */
+		init_pair(COLOR_HIGHLIGHT, COLOR_GREEN, COLOR_BLACK); /* highlighted */
+		init_pair(COLOR_OFFSETS, COLOR_CYAN,   COLOR_BLACK); /* offsets */
+		init_pair(COLOR_CONTENTS, COLOR_YELLOW, COLOR_BLACK); /* file data */
+	}
+	else {
+		init_pair(COLOR_TITLE, COLOR_BLACK,  COLOR_CYAN);  /* title lines */
+		init_pair(COLOR_NORMAL, COLOR_BLACK,  COLOR_WHITE); /* normal text */
+		init_pair(COLOR_INVERSE, COLOR_WHITE,  COLOR_BLACK); /* inverse text */
+		init_pair(COLOR_SPECIAL, COLOR_RED,    COLOR_WHITE); /* special text */
+		init_pair(COLOR_HIGHLIGHT, COLOR_GREEN, COLOR_WHITE); /* highlighted */
+		init_pair(COLOR_OFFSETS, COLOR_CYAN,   COLOR_WHITE); /* offsets */
+		init_pair(COLOR_CONTENTS, COLOR_BLUE, COLOR_WHITE); /* file data */
+	}
 }
 
 /* ------------------------------------------------------------------------ */
@@ -980,24 +1054,7 @@ void interactive_mode(void)
 	keypad(stdscr, TRUE);
 	raw();
 	curs_set(0);
-	if (color_scheme) {
-		init_pair(COLOR_TITLE, COLOR_BLACK,  COLOR_CYAN);  /* title lines */
-		init_pair(COLOR_NORMAL, COLOR_WHITE,  COLOR_BLACK); /* normal text */
-		init_pair(COLOR_INVERSE, COLOR_BLACK,  COLOR_WHITE); /* inverse text */
-		init_pair(COLOR_SPECIAL, COLOR_RED,    COLOR_BLACK); /* special text */
-		init_pair(COLOR_HIGHLIGHT, COLOR_GREEN, COLOR_BLACK); /* highlighted */
-		init_pair(COLOR_OFFSETS, COLOR_CYAN,   COLOR_BLACK); /* offsets */
-		init_pair(COLOR_CONTENTS, COLOR_YELLOW, COLOR_BLACK); /* file data */
-	}
-	else {
-		init_pair(COLOR_TITLE, COLOR_BLACK,  COLOR_CYAN);  /* title lines */
-		init_pair(COLOR_NORMAL, COLOR_BLACK,  COLOR_WHITE); /* normal text */
-		init_pair(COLOR_INVERSE, COLOR_WHITE,  COLOR_BLACK); /* inverse text */
-		init_pair(COLOR_SPECIAL, COLOR_RED,    COLOR_WHITE); /* special text */
-		init_pair(COLOR_HIGHLIGHT, COLOR_GREEN, COLOR_WHITE); /* highlighted */
-		init_pair(COLOR_OFFSETS, COLOR_CYAN,   COLOR_WHITE); /* offsets */
-		init_pair(COLOR_CONTENTS, COLOR_BLUE, COLOR_WHITE); /* file data */
-	}
+	init_colors();
 	/* Accept keystrokes and act on them accordingly */
 	Quit = FALSE;
 	while (!Quit) {
@@ -1126,6 +1183,13 @@ void interactive_mode(void)
 				block--;
 			}
 			offset = 0;
+			break;
+		/* -------------------------------------------------------------- */
+		/* c - Change color scheme */
+		/* -------------------------------------------------------------- */
+		case 'c':
+			color_scheme = !color_scheme;
+			init_colors();
 			break;
 		/* -------------------------------------------------------------- */
 		/* page up key */
@@ -1295,6 +1359,7 @@ void process_parameters(int argc, char *argv[], int pass)
 				exit(0);
 			}
 			else if (!strcasecmp(argv[i], "-h") ||
+					 !strcasecmp(argv[i], "-help") ||
 					 !strcasecmp(argv[i], "-usage")) {
 				usage();
 				exit(0);
@@ -1303,7 +1368,8 @@ void process_parameters(int argc, char *argv[], int pass)
 				i++;
 				color_scheme = atoi(argv[i]);
 			}
-			else if (!strcasecmp(argv[i], "-p")) {
+			else if (!strcasecmp(argv[i], "-p") ||
+					 !strcasecmp(argv[i], "-print")) {
 				termlines = 0; /* initial value--we'll figure it out later */
 				display_mode = GFS2_MODE;
 			}
@@ -1323,24 +1389,39 @@ void process_parameters(int argc, char *argv[], int pass)
 				else if (!strcmp(argv[i], "size"))
 					printf("Device size: %" PRIu64 " (0x%" PRIx64 ")\n",
 						   max_block, max_block);
-				else if (!strcmp(argv[i], "sb"))
+				else if (!strcmp(argv[i], "sb") ||
+						 !strcmp(argv[i], "superblock"))
 					push_block(0x10); /* superblock */
-				else if (!strcmp(argv[i], "root"))
+				else if (!strcmp(argv[i], "root") ||
+						 !strcmp(argv[i], "rootdir"))
 					push_block(sbd.sd_sb.sb_root_dir.no_addr);
-				else if (!strcmp(argv[i], "master"))
+				else if (!gfs1 && !strcmp(argv[i], "master"))
 					push_block(sbd.sd_sb.sb_master_dir.no_addr);
-				else if (!strcmp(argv[i], "jindex"))
-					push_block(masterblock("jindex"));/* journal index */
-				else if (!strcmp(argv[i], "per_node"))
+				else if (!strcmp(argv[i], "jindex")) {
+					if (gfs1)
+						push_block(sbd1->sb_jindex_di.no_addr);
+					else
+						push_block(masterblock("jindex"));/* journal index */
+				}
+				else if (!gfs1 && !strcmp(argv[i], "per_node"))
 					push_block(masterblock("per_node"));
-				else if (!strcmp(argv[i], "inum"))
+				else if (!gfs1 && !strcmp(argv[i], "inum"))
 					push_block(masterblock("inum"));
-				else if (!strcmp(argv[i], "statfs"))
+				else if (!gfs1 && !strcmp(argv[i], "statfs"))
 					push_block(masterblock("statfs"));
-				else if (!strcmp(argv[i], "rindex"))
-					push_block(masterblock("rindex"));
-				else if (!strcmp(argv[i], "quota"))
-					push_block(masterblock("quota"));
+				else if (!strcmp(argv[i], "rindex") ||
+						 !strcmp(argv[i], "rgindex")) {
+					if (gfs1)
+						push_block(sbd1->sb_rindex_di.no_addr);
+					else
+						push_block(masterblock("rindex"));
+				}
+				else if (!strcmp(argv[i], "quota")) {
+					if (gfs1)
+						push_block(gfs1_quota_di.no_addr);
+					else
+						push_block(masterblock("quota"));
+				}
 				else if (argv[i][0]=='0' && argv[i][1]=='x') { /* hex addr */
 					sscanf(argv[i], "%"SCNx64, &temp_blk);/* retrieve in hex */
 					push_block(temp_blk);
@@ -1401,7 +1482,8 @@ int main(int argc, char *argv[])
 	max_block = lseek(fd, 0, SEEK_END) / bufsize;
 
 	read_superblock();
-	read_master_dir();
+	if (!gfs1)
+		read_master_dir();
 	block_in_mem = -1;
 	if (!termlines)    /* if printing to stdout */
 		process_parameters(argc, argv, 1); /* get what to print from cmdline */

@@ -43,6 +43,20 @@
 enum dsp_mode { HEX_MODE = 0, GFS2_MODE = 1, EXTENDED_MODE = 2 };
 #define BLOCK_STACK_SIZE 256
 
+#define GFS_FORMAT_SB           (100)  /* Super-Block */
+#define GFS_METATYPE_SB         (1)    /* Super-Block */
+#define GFS_FORMAT_FS           (1309) /* Filesystem (all-encompassing) */
+#define GFS_FORMAT_MULTI        (1401) /* Multi-Host */
+/* GFS1 Dinode types  */
+#define GFS_FILE_NON            (0)
+#define GFS_FILE_REG            (1)    /* regular file */
+#define GFS_FILE_DIR            (2)    /* directory */
+#define GFS_FILE_LNK            (5)    /* link */
+#define GFS_FILE_BLK            (7)    /* block device node */
+#define GFS_FILE_CHR            (8)    /* character device node */
+#define GFS_FILE_FIFO           (101)  /* fifo/pipe */
+#define GFS_FILE_SOCK           (102)  /* socket */
+
 EXTERN char *prog_name;
 EXTERN int fd;
 EXTERN uint64_t block INIT(0);
@@ -66,6 +80,9 @@ EXTERN int edit_row[DISPLAY_MODES], edit_col[DISPLAY_MODES];
 EXTERN int edit_size[DISPLAY_MODES], edit_last[DISPLAY_MODES];
 EXTERN char edit_string[1024], edit_fmt[80];
 EXTERN struct gfs2_sbd sbd;
+EXTERN struct gfs_sb *sbd1;
+EXTERN struct gfs2_inum gfs1_quota_di;   /* kludge because gfs2 sb too small */
+EXTERN struct gfs2_inum gfs1_license_di; /* kludge because gfs2 sb too small */
 EXTERN struct gfs2_dinode di;
 EXTERN int screen_chunk_size INIT(512); /* how much of the 4K can fit on screen */
 EXTERN int gfs2_struct_type;
@@ -74,6 +91,7 @@ EXTERN char device[NAME_MAX];
 EXTERN int identify INIT(FALSE);
 EXTERN int color_scheme INIT(0);
 EXTERN WINDOW *wind;
+EXTERN int gfs1 INIT(0);
 
 struct gfs2_dirents {
 	uint64_t block;
@@ -93,6 +111,35 @@ struct blkstack_info {
 	int edit_row[DISPLAY_MODES];
 	int edit_col[DISPLAY_MODES];
 	enum dsp_mode display_mode;
+};
+
+struct gfs_sb {
+	/*  Order is important; need to be able to read old superblocks
+	    in order to support on-disk version upgrades */
+	struct gfs2_meta_header sb_header;
+
+	uint32_t sb_fs_format;         /* GFS_FORMAT_FS (on-disk version) */
+	uint32_t sb_multihost_format;  /* GFS_FORMAT_MULTI */
+	uint32_t sb_flags;             /* ?? */
+
+	uint32_t sb_bsize;             /* fundamental FS block size in bytes */
+	uint32_t sb_bsize_shift;       /* log2(sb_bsize) */
+	uint32_t sb_seg_size;          /* Journal segment size in FS blocks */
+
+	/* These special inodes do not appear in any on-disk directory. */
+	struct gfs2_inum sb_jindex_di;  /* journal index inode */
+	struct gfs2_inum sb_rindex_di;  /* resource group index inode */
+	struct gfs2_inum sb_root_di;    /* root directory inode */
+
+	/* Default inter-node locking protocol (lock module) and namespace */
+	char sb_lockproto[GFS2_LOCKNAME_LEN]; /* lock protocol name */
+	char sb_locktable[GFS2_LOCKNAME_LEN]; /* unique name for this FS */
+
+	/* More special inodes */
+	struct gfs2_inum sb_quota_di;   /* quota inode */
+	struct gfs2_inum sb_license_di; /* license inode */
+
+	char sb_reserved[96];
 };
 
 EXTERN struct blkstack_info blockstack[BLOCK_STACK_SIZE];
