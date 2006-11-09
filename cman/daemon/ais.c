@@ -494,6 +494,17 @@ static int comms_init_ais(struct objdb_iface_ver0 *objdb)
 							"20", strlen("20")+1);
 		}
 
+		/* Extend consensus & join timeouts per bz#214290 */
+		if (objdb_get_string(objdb, object_handle, "join", &value)) {
+			global_objdb->object_key_create(object_handle, "join", strlen("join"),
+							"60", strlen("60")+1);
+		}
+		if (objdb_get_string(objdb, object_handle, "consensus", &value)) {
+			global_objdb->object_key_create(object_handle, "consensus", strlen("consensus"),
+							"4800", strlen("4800")+1);
+		}
+
+
 		/* Set RRP mode appropriately */
 		if (num_interfaces > 1) {
 			global_objdb->object_key_create(object_handle, "rrp_mode", strlen("rrp_mode"),
