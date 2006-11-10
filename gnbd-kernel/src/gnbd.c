@@ -288,7 +288,7 @@ static void gnbd_end_request(struct request *req)
  *  Send or receive packet.
  */
 static int sock_xmit(struct socket *sock, int send, void *buf, int size,
-		int msg_flags)
+		int msg_flags, int can_signal)
 {
 	mm_segment_t oldfs;
 	int result;
@@ -299,13 +299,12 @@ static int sock_xmit(struct socket *sock, int send, void *buf, int size,
 
 	oldfs = get_fs();
 	set_fs(get_ds());
-	/* Allow interception of SIGKILL only
-	 * Don't allow other signals to interrupt the transmission */
 	spin_lock_irqsave(&current->sighand->siglock, flags);
 	oldset = current->blocked;
 	sigfillset(&current->blocked);
-	sigdelsetmask(&current->blocked, sigmask(SIGKILL) | sigmask(SIGTERM) |
-	              sigmask(SIGHUP));
+	if (can_signal)
+		sigdelsetmask(&current->blocked, sigmask(SIGKILL) |
+			      sigmask(SIGTERM) | sigmask(SIGHUP));
 	recalc_sigpending();
 	spin_unlock_irqrestore(&current->sighand->siglock, flags);
 
@@ -327,13 +326,9 @@ static int sock_xmit(struct socket *sock, int send, void *buf, int size,
 		else
 			result = sock_recvmsg(sock, &msg, size, 0);
 
-		if (signal_pending(current)) {
-			siginfo_t info;
-			spin_lock_irqsave(&current->sighand->siglock, flags);
-			printk(KERN_WARNING "gnbd (pid %d: %s) got signal %d\n",
-				current->pid, current->comm, 
-				dequeue_signal(current, &current->blocked, &info));
-			spin_unlock_irqrestore(&current->sighand->siglock, flags);
+		if (can_signal && signal_pending(current)) {
+			printk(KERN_WARNING "gnbd (pid %d: %s) got signal\n",
+				current->pid, current->comm);
 			result = -EINTR;
 			break;
 		}
@@ -357,21 +352,22 @@ static int sock_xmit(struct socket *sock, int send, void *buf, int size,
 }
 
 static inline int sock_send_bvec(struct socket *sock, struct bio_vec *bvec,
-		int flags)
+		int flags, int can_signal)
 {
 	int result;
 	void *kaddr = kmap(bvec->bv_page);
 	result = sock_xmit(sock, 1, kaddr + bvec->bv_offset, bvec->bv_len,
-			flags);
+			flags, can_signal);
 	kunmap(bvec->bv_page);
 	return result;
 }
 
 
-#define gnbd_send_req(dev, req) __gnbd_send_req((dev), (dev)->sock, (req))
+#define gnbd_send_req(dev, req, can_sig) \
+__gnbd_send_req((dev), (dev)->sock, (req), (can_sig))
 	
 int __gnbd_send_req(struct gnbd_device *dev, struct socket *sock,
-		struct request *req)
+		struct request *req, int can_signal)
 {
 	int result, i, flags;
 	struct gnbd_request request;
@@ -398,7 +394,8 @@ int __gnbd_send_req(struct gnbd_device *dev, struct socket *sock,
 			(unsigned long long)req->sector << 9,
 			req->nr_sectors << 9);
 	result = sock_xmit(sock, 1, &request, sizeof(request),
-			(gnbd_cmd(req) == GNBD_CMD_WRITE)? MSG_MORE: 0);
+			(gnbd_cmd(req) == GNBD_CMD_WRITE)? MSG_MORE: 0,
+			can_signal);
 	if (result < 0) {
 		printk(KERN_ERR "%s: Send control failed (result %d)\n",
 				dev->disk->disk_name, result);
@@ -420,7 +417,8 @@ int __gnbd_send_req(struct gnbd_device *dev, struct socket *sock,
 				dprintk(DBG_TX, "%s: request %p: sending %d bytes data\n",
 						dev->disk->disk_name, req,
 						bvec->bv_len);
-				result = sock_send_bvec(sock, bvec, flags);
+				result = sock_send_bvec(sock, bvec, flags,
+							can_signal);
 				if (result < 0) {
 					printk(KERN_ERR "%s: Send data failed (result %d)\n",
 							dev->disk->disk_name,
@@ -458,7 +456,7 @@ static inline int sock_recv_bvec(struct socket *sock, struct bio_vec *bvec)
 	int result;
 	void *kaddr = kmap(bvec->bv_page);
 	result = sock_xmit(sock, 0, kaddr + bvec->bv_offset, bvec->bv_len,
-			MSG_WAITALL);
+			MSG_WAITALL, 1);
 	kunmap(bvec->bv_page);
 	return result;
 }
@@ -494,7 +492,7 @@ int gnbd_do_it(struct gnbd_device *dev)
 
 	BUG_ON(dev->magic != GNBD_MAGIC);
 
-	while((result = sock_xmit(sock, 0, &reply,sizeof(reply), MSG_WAITALL)) > 0){
+	while((result = sock_xmit(sock, 0, &reply,sizeof(reply), MSG_WAITALL, 1)) > 0){
 		if (ntohl(reply.magic) == GNBD_KEEP_ALIVE_MAGIC)
 			/* FIXME -- I should reset the wait time here */
 			continue;
@@ -609,7 +607,7 @@ static void do_gnbd_request(request_queue_t * q)
 		list_add(&req->queuelist, &dev->queue_head);
 		spin_unlock(&dev->queue_lock);
 
-		err = gnbd_send_req(dev, req);
+		err = gnbd_send_req(dev, req, 0);
 
 		spin_lock_irq(q->queue_lock);
 		if (err)
@@ -641,7 +639,7 @@ static int gnbd_resend_requests(struct gnbd_device *dev, struct socket *sock)
 	printk("resending requests\n");
 	list_for_each(tmp, &dev->queue_head) {
 		req = list_entry(tmp, struct request, queuelist);
-		err = __gnbd_send_req(dev, sock, req);
+		err = __gnbd_send_req(dev, sock, req, 1);
 
 		if (err){
 			printk("failed trying to resend request (%d)\n", err);
@@ -705,7 +703,7 @@ static int gnbd_ctl_ioctl(struct inode *inode, struct file *file,
 		/* There is no one using the device, you can disconnect it */
 		if (dev->sock == NULL)
 			return -ENOTCONN;
-		gnbd_send_req(dev, &shutdown_req);
+		gnbd_send_req(dev, &shutdown_req, 1);
                 return 0;
 	case GNBD_CLEAR_QUE:
 		if (down_interruptible(&dev->do_it_lock))
@@ -782,7 +780,7 @@ static int gnbd_ctl_ioctl(struct inode *inode, struct file *file,
 			list_add(&ping_req.queuelist, &dev->queue_head);
 		}
 		spin_unlock(&dev->queue_lock);
-		gnbd_send_req(dev, &ping_req); /* ignore the errors */
+		gnbd_send_req(dev, &ping_req, 1); /* ignore the errors */
 		return 0;
 	case GNBD_PRINT_DEBUG:
 		printk(KERN_INFO "%s: next = %p, prev = %p, head = %p\n",

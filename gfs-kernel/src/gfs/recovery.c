@@ -244,9 +244,10 @@ int
 gfs_find_jhead(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 	       struct gfs_glock *gl, struct gfs_log_header *head)
 {
-	struct gfs_log_header lh1, lh_m;
+	struct gfs_log_header lh;
 	uint32_t seg1, seg2, seg_m;
 	int error;
+	uint64_t lh1_sequence;
 
 	seg1 = 0;
 	seg2 = jdesc->ji_nsegment - 1;
@@ -254,24 +255,26 @@ gfs_find_jhead(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 	for (;;) {
 		seg_m = (seg1 + seg2) / 2;
 
-		error = find_good_lh(sdp, jdesc, gl, &seg1, &lh1, TRUE);
+		error = find_good_lh(sdp, jdesc, gl, &seg1, &lh, TRUE);
 		if (error)
 			break;
 
 		if (seg1 == seg_m) {
-			error = verify_jhead(sdp, jdesc, gl, &lh1);
+			error = verify_jhead(sdp, jdesc, gl, &lh);
 			if (unlikely(error)) 
 				printk("GFS: verify_jhead error=%d\n", error);
 			else
-				memcpy(head, &lh1, sizeof(struct gfs_log_header));
+				memcpy(head, &lh, sizeof(struct gfs_log_header));
 			break;
 		}
 
-		error = find_good_lh(sdp, jdesc, gl, &seg_m, &lh_m, FALSE);
+		lh1_sequence = lh.lh_sequence;
+
+		error = find_good_lh(sdp, jdesc, gl, &seg_m, &lh, FALSE);
 		if (error)
 			break;
 
-		if (lh1.lh_sequence <= lh_m.lh_sequence)
+		if (lh1_sequence <= lh.lh_sequence)
 			seg1 = seg_m;
 		else
 			seg2 = seg_m;
@@ -443,7 +446,7 @@ foreach_descriptor(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
  * Returns: errno
  */
 
-static int
+static int noinline
 clean_journal(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 	      struct gfs_glock *gl, struct gfs_log_header *head)
 {
@@ -565,7 +568,7 @@ gfs_recover_journal(struct gfs_sbd *sdp,
 		    unsigned int jid, struct gfs_jindex *jdesc,
 		    int wait)
 {
-	struct gfs_log_header head;
+	struct gfs_log_header *head;
 	struct gfs_holder j_gh, t_gh;
 	unsigned long t;
 	int error;
@@ -596,16 +599,23 @@ gfs_recover_journal(struct gfs_sbd *sdp,
 	printk("GFS: fsid=%s: jid=%u: Looking at journal...\n",
 	       sdp->sd_fsname, jid);
 
-	error = gfs_find_jhead(sdp, jdesc, j_gh.gh_gl, &head);
-	if (error)
+	head = kmalloc(sizeof(struct gfs_log_header), GFP_KERNEL);
+	if (!head) {
+		printk("GFS: fsid=%s jid=%u: Can't replay: Not enough memory",
+		       sdp->sd_fsname, jid);
 		goto fail_gunlock;
+	}
 
-	if (!(head.lh_flags & GFS_LOG_HEAD_UNMOUNT)) {
+	error = gfs_find_jhead(sdp, jdesc, j_gh.gh_gl, head);
+	if (error)
+		goto fail_header;
+
+	if (!(head->lh_flags & GFS_LOG_HEAD_UNMOUNT)) {
 		if (test_bit(SDF_ROFS, &sdp->sd_flags)) {
 			printk("GFS: fsid=%s: jid=%u: Can't replay: read-only FS\n",
 			       sdp->sd_fsname, jid);
 			error = -EROFS;
-			goto fail_gunlock;
+			goto fail_header;
 		}
 
 		printk("GFS: fsid=%s: jid=%u: Acquiring the transaction lock...\n",
@@ -623,7 +633,7 @@ gfs_recover_journal(struct gfs_sbd *sdp,
 					  GL_NOCACHE,
 					  &t_gh);
 		if (error)
-			goto fail_gunlock;
+			goto fail_header;
 
 		if (test_bit(SDF_ROFS, &sdp->sd_flags)) {
 			printk("GFS: fsid=%s: jid=%u: Can't replay: read-only FS\n",
@@ -637,10 +647,10 @@ gfs_recover_journal(struct gfs_sbd *sdp,
 
 		set_bit(GLF_DIRTY, &j_gh.gh_gl->gl_flags);
 
-		LO_BEFORE_SCAN(sdp, jid, &head, GFS_RECPASS_A1);
+		LO_BEFORE_SCAN(sdp, jid, head, GFS_RECPASS_A1);
 
 		error = foreach_descriptor(sdp, jdesc, j_gh.gh_gl,
-					   head.lh_tail, head.lh_first,
+					   head->lh_tail, head->lh_first,
 					   GFS_RECPASS_A1);
 		if (error)
 			goto fail_gunlock_tr;
@@ -649,7 +659,7 @@ gfs_recover_journal(struct gfs_sbd *sdp,
 
 		gfs_replay_wait(sdp);
 
-		error = clean_journal(sdp, jdesc, j_gh.gh_gl, &head);
+		error = clean_journal(sdp, jdesc, j_gh.gh_gl, head);
 		if (error)
 			goto fail_gunlock_tr;
 
@@ -663,6 +673,8 @@ gfs_recover_journal(struct gfs_sbd *sdp,
 
 	gfs_lm_recovery_done(sdp, jid, LM_RD_SUCCESS);
 
+	kfree(head);
+
 	gfs_glock_dq_uninit(&j_gh);
 
 	printk("GFS: fsid=%s: jid=%u: Done\n", sdp->sd_fsname, jid);
@@ -672,6 +684,9 @@ gfs_recover_journal(struct gfs_sbd *sdp,
  fail_gunlock_tr:
 	gfs_replay_wait(sdp);
 	gfs_glock_dq_uninit(&t_gh);
+
+ fail_header:
+	kfree(head);
 
  fail_gunlock:
 	gfs_glock_dq_uninit(&j_gh);
