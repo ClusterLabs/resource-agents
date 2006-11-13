@@ -345,6 +345,8 @@ gi_get_counters(struct gfs_inode *ip,
 		   atomic_read(&sdp->sd_glock_count));
 	gfs_printf("sd_glock_held_count:locks held::%d\n",
 		   atomic_read(&sdp->sd_glock_held_count));
+	gfs_printf("sd_freeze_count:freeze count::%d\n",
+		   sdp->sd_freeze_count);
 	gfs_printf("sd_inode_count:incore inodes::%d\n",
 		   atomic_read(&sdp->sd_inode_count));
 	gfs_printf("sd_bufdata_count:metadata buffers::%d\n",
