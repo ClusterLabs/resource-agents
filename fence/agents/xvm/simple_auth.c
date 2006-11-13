@@ -375,7 +375,7 @@ read_key_file(char *file, char *key, size_t max_len)
 	char *p;
 
 	dprintf(3, "Reading in key file %s into %p (%d len)",
-		file, key, max_len);
+		file, key, (int)max_len);
 	fd = open(file, O_RDONLY);
 	if (fd < 0) {
 		return -1;
@@ -395,7 +395,7 @@ read_key_file(char *file, char *key, size_t max_len)
 
 		if (nread == 0) {
 			dprintf(3, "Stopped reading @ %d bytes",
-				max_len-remain);
+				(int)max_len-remain);
 			break;
 		}
 		
@@ -403,7 +403,7 @@ read_key_file(char *file, char *key, size_t max_len)
 		remain -= nread;
 	}
 
-	dprintf(3, "Actual key length = %d bytes", max_len-remain);
+	dprintf(3, "Actual key length = %d bytes", (int)max_len-remain);
 	close(fd);	
 	
 	return 0;
