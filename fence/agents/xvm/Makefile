@@ -24,7 +24,7 @@ fence_xvmd_SOURCE= fence_xvmd.c mcast.c simple_auth.c tcp.c virt.c \
 INCLUDE=-I${top_srcdir}/include -I${top_srcdir}/config \
 	-I/usr/include/openais -I/usr/include/libvirt \
 	-I/usr/include/nss3 -I/usr/include/nspr4 \
-	-I../../../cman/lib
+	-I../../../cman/lib -I../../../ccs/lib
 
 CFLAGS+=-DFENCE_RELEASE_NAME=\"${RELEASE}\" \
 	-Wall -Werror -Wstrict-prototypes -Wshadow -ggdb -D_GNU_SOURCE
