@@ -84,6 +84,8 @@ add_ip(ip_list_t *ipl, char *ipaddr, char family)
 		if (!strncmp(ipaddr, "feb0", 4))
 			return -1;
 	}
+	
+	dprintf(4, "Adding IP %s to list (family %d)\n", ipaddr, family);
 
 	ipa = malloc(sizeof(*ipa));
 	memset(ipa, 0, sizeof(*ipa));
@@ -108,19 +110,25 @@ add_ip_addresses(int family, ip_list_t *ipl)
 	char outbuf[256];
 	int x, fd, len;
 
+	dprintf(5, "Connecting to Netlink...\n");
 	fd = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE);
 	if (fd < 0) {
 		perror("socket");
 		exit(1);
 	}
-
+	
+	dprintf(5, "Sending address dump request\n");
 	send_addr_dump(fd, family);
 	memset(buf, 0, sizeof(buf));
+	
+	dprintf(5, "Waiting for response\n");
 	x = recvfrom(fd, buf, sizeof(buf), 0, NULL, 0);
 	if (x < 0) {
 		perror("recvfrom");
 		return -1;
 	}
+	
+	dprintf(5, "Received %d bytes\n", x);
 
 	nh = (struct nlmsghdr *)buf;
 	while (NLMSG_OK(nh, x)) {
@@ -164,8 +172,10 @@ add_ip_addresses(int family, ip_list_t *ipl)
 		len -= sizeof(*ifa);
 		do {
 			/* Make sure we've got a valid rtaddr field */
-			if (!RTA_OK(rta, len))
+			if (!RTA_OK(rta, len)) {
+				dprintf(5, "!RTA_OK(rta, len)\n");
 				break;
+			}
 
 			if (rta->rta_type == IFA_ADDRESS) {
 				inet_ntop(family, RTA_DATA(rta), outbuf,
@@ -174,7 +184,8 @@ add_ip_addresses(int family, ip_list_t *ipl)
 			}
 
 			if (rta->rta_type == IFA_LABEL) {
-				printf("label: %s\n", (char *)RTA_DATA(rta));
+				dprintf(5, "Skipping label: %s\n",
+					(char *)RTA_DATA(rta));
 			}
 
 			nrta = RTA_NEXT(rta, len);
@@ -188,6 +199,7 @@ add_ip_addresses(int family, ip_list_t *ipl)
 		nh = NLMSG_NEXT(nh, x);
 	}
 
+	dprintf(5, "Closing Netlink connection\n");
 	close(fd);
 	return 0;
 }
@@ -197,13 +209,16 @@ int
 ip_search(ip_list_t *ipl, char *ip_name)
 {
 	ip_addr_t *ipa;
-
+	
+	dprintf(5, "Looking for IP address %s in IP list %p...", ip_name, ipl);
 	ipa = ipl->tqh_first;
 	for (ipa = ipl->tqh_first; ipa; ipa = ipa->ipa_entries.tqe_next) {
 		if (!strcmp(ip_name, ipa->ipa_address)) {
+			dprintf(4,"Found\n");
 			return 0;
 		}
 	}
+	dprintf(5, "Not found\n");
 	return 1;
 }
 
@@ -212,7 +227,8 @@ int
 ip_free_list(ip_list_t *ipl)
 {
 	ip_addr_t *ipa;
-
+	
+	dprintf(5, "Tearing down IP list @ %p\n", ipl);
 	while ((ipa = ipl->tqh_first)) {
 		TAILQ_REMOVE(ipl, ipa, ipa_entries);
 		free(ipa->ipa_address);
@@ -225,6 +241,7 @@ ip_free_list(ip_list_t *ipl)
 int
 ip_build_list(ip_list_t *ipl)
 {
+	dprintf(5, "Build IP address list\n");
 	TAILQ_INIT(ipl);
 	if (add_ip_addresses(PF_INET6, ipl) < 0) {
 		ip_free_list(ipl);
@@ -258,6 +275,7 @@ ip_lookup(char *nodename, struct addrinfo **ret_ai)
 	ip_list_t ipl;
 	int ret = -1;
 
+	dprintf(5, "Looking for IP matching %s\n", nodename);
 	/* Build list of IP addresses configured locally */
 	if (ip_build_list(&ipl) < 0)
 		return -1;
@@ -265,6 +283,7 @@ ip_lookup(char *nodename, struct addrinfo **ret_ai)
 	/* Get list of addresses for the host-name/ip */
 	if (getaddrinfo(nodename, NULL, NULL, &ai) != 0) 
 		return -1;
+	
 
 	/* Traverse list of addresses for given host-name/ip */
 	for (n = ai; n; n = n->ai_next) {

@@ -123,6 +123,43 @@ start_fence()
     return 0
 }
 
+start_fence_xvmd()
+{
+    status fence_xvmd &> /dev/null
+    if [ $? -ne 0 ]; then
+	errmsg=$( /sbin/fence_xvmd $FENCE_XVMD_OPTS 2>&1 ) || return 1
+    fi
+    return 0
+}
+
+
+fence_xvmd_enabled()
+{
+    #
+    # Check for the 'xm' binary.  If it's not here, we are not
+    # running on a machine capable of running xvmd.
+    #
+    which xm &> /dev/null || return 1
+	
+    #
+    # Check for presence of Domain-0; if it's not there, we can't
+    # run xvmd.
+    #
+    xm list --long | grep -q "Domain-0" || return 1
+	
+    #
+    # Check for presence of /cluster/fence_xvmd in cluster.conf
+    # (If -X is specified, it doesn't matter if it's in cluster.conf;
+    #  we'll start it anyway since ccsd is not required)
+    #
+    if [ "$FENCE_XVMD_OPTS" = "${FENCE_XVMD_OPTS/-X/}" ]; then
+        xmllint --shell /etc/cluster/cluster.conf 2> /dev/null \
+            < <(echo ls cluster) | grep -q fence_xvmd || return 1
+    fi   
+    
+    return 0
+}
+
 start()
 {
     echo "Starting cluster: "
@@ -180,6 +217,18 @@ start()
     else
 	echo "failed"
 	return 1
+    fi
+    
+    if fence_xvmd_enabled; then
+	echo -n "   Starting virtual machine fencing host... "
+	start_fence_xvmd
+	if [ $? -eq 0 ]
+	then
+	    echo "done"
+	else
+	    echo "failed"
+	return 1
+	fi
     fi
     
     return 0
@@ -258,9 +307,32 @@ stop_fence()
     return 0 # all ok
 }
 
+stop_fence_xvmd()
+{
+    if /sbin/pidof fence_xvmd &> /dev/null
+    then
+    	pkill -TERM fence_xvmd
+	sleep 1 # A bit of time for fenced to exit
+    fi
+    
+    [ -z "`pidof fence_xvmd`" ]
+    return $?
+}
+
 stop()
 {
     echo "Stopping cluster: "
+    if fence_xvmd_enabled; then
+	echo -n "   Stopping virtual machine fencing host... "
+	stop_fence_xvmd
+	if [ $? -eq 0 ]
+	then
+	    echo "done"
+	else
+	    echo "failed"
+	    return 1
+	fi
+    fi        
     echo -n "   Stopping fencing... "
     stop_fence
     if [ $? -eq 0 ]
@@ -314,6 +386,10 @@ cmanstatus()
 	errmsg=$( status fenced 2>&1) || return 1
 	errmsg=$( status dlm_controld 2>&1) || return 1
 	errmsg=$( status gfs_controld 2>&1) || return 1
+	
+	fence_xvmd_enabled || return 0
+	errmsg=$( status fence_xvmd 2>&1) || return 1
+
 	return 0
 }
 

@@ -30,7 +30,8 @@ useful for testing.
 .SH OPTIONS
 .TP
 \fB-d\fP
-Enable debugging output
+Enable debugging output.  The more times you specify this parameter,
+the more debugging output you will receive.
 .TP
 \fB-i\fP \fIfamily\fP
 IP family to use (auto, ipv4, or ipv6; default = auto)
@@ -62,6 +63,8 @@ machines and the host domain-0 cluster.
 .TP
 \fB-k\fP \fIkey_file\fP
 Use the specified key file for packet hashing / SHA authentication.
+When both the hash type and the authentication type are set to "none",
+this parameter is ignored.
 .TP
 \fB-H\fP \fIdomain\fP
 This specifies unique domain name of the Xen guest which needs to be fenced.
@@ -94,7 +97,7 @@ Print out a version message, then exit.
 .SH STDIN PARAMETERS
 .TP
 \fIdebug = 1\fR
-Same as the -d option.
+Same as the -d option.  Specify numbers >1 for more debugging information.
 .TP
 \fIfamily = < param >\fR
 Same as the -i option.

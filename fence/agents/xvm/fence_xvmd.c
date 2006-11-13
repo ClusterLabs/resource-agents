@@ -200,6 +200,9 @@ cleanup_xmldesc(char *xmldesc)
 		return;
 	end += strlen(ENDOSTAG);
 
+	dprintf(3, "Clearing %d bytes starting @ %p\n", (int)(end-start),
+		start);
+
 	memset(start, ' ', end-start);
 }
 
@@ -213,12 +216,17 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 	char response = 1;
 	char *domain_desc;
 
-	if (!(vdp = get_domain(req, vp)))
+	if (!(vdp = get_domain(req, vp))) {
+		dprintf(2, "Could not find domain: %s\n", req->domain);
 		goto out;
+	}
 
 	fd = connect_tcp(req, auth, key, key_len);
-	if (fd < 0)
+	if (fd < 0) {
+		dprintf(2, "Could call back for fence request: %s\n", 
+			strerror(errno));
 		goto out;
+	}
 
 	switch(req->request) {
 	case FENCE_NULL:
@@ -252,10 +260,21 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 		       (char *)req->domain);
 		domain_desc = virDomainGetXMLDesc(vdp, 0);
 
-		if (domain_desc)
+		if (domain_desc) {
+			dprintf(3, "[[ XML Domain Info ]]\n");
+			dprintf(3, "%s\n[[ XML END ]]\n", domain_desc);
 			cleanup_xmldesc(domain_desc);
+			dprintf(3, "[[ XML Domain Info (modified) ]]\n");
+			dprintf(3, "%s\n[[ XML END ]]\n", domain_desc);
+		} else {
+			printf("Failed getting domain description from "
+			       "libvirt\n");
+		}
+
+		dprintf(2, "Calling virDomainDestroy\n");
 		ret = virDomainDestroy(vdp);
 		if (ret < 0) {
+			printf("virDomainDestroy() failed: %d\n", ret);
 			if (domain_desc)
 				free(domain_desc);
 			break;
@@ -271,8 +290,10 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 		   be necessary */
 		vdp = get_domain(req, vp);
 		if (!vdp) {
+			dprintf(2, "Domain no longer exists\n");
 			response = 0;	/* Success! */
 		} else {
+			printf("Domain still exists; fencing failed\n");
 			virDomainFree(vdp);
 			ret = 1;	/* Failed to kill it */
 		}
@@ -280,6 +301,7 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 		/* Recreate the domain if possible */
 		if (ret == 0 && domain_desc) {
 			/* Success */
+			dprintf(2, "Calling virDomainCreateLinux()...\n");
 			virDomainCreateLinux(vp, domain_desc, 0);
 		}
 
@@ -288,6 +310,7 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 		break;
 	}
 	
+	dprintf(3, "Sending response to caller...\n");
 	if (write(fd, &response, 1) < 0) {
 		perror("write");
 	}
@@ -622,15 +645,20 @@ main(int argc, char **argv)
 	fence_xvm_args_t args;
 	int mc_sock;
 	char key[4096];
-	int key_len;
-	char *my_options = "dfi:a:p:C:c:k:u?hV";
+	int key_len = 0;
+	char *my_options = "dfi:a:p:C:c:k:u?hVX";
 	void *h;
 
 	args_init(&args);
 	args_get_getopt(argc, argv, my_options, &args);
+	if (!(args.flags & F_NOCCS)) {
+		args_get_ccs(my_options, &args);
+	}
 	args_finalize(&args);
-	if (args.flags & F_DEBUG)
+	if (args.debug > 0) {
+		dset(args.debug);
 		args_print(&args);
+	}
 
 	if (args.flags & F_ERR) {
 		args_usage(argv[0], my_options, 0);
@@ -650,10 +678,12 @@ main(int argc, char **argv)
 		exit(0);
 	}
 
-	key_len = read_key_file(args.key_file, key, sizeof(key));
-	if (key_len < 0) {
-		printf("Could not read key file\n");
-		return 1;
+	if (args.auth != AUTH_NONE || args.hash != HASH_NONE) {
+		key_len = read_key_file(args.key_file, key, sizeof(key));
+		if (key_len < 0) {
+			printf("Could not read key file\n");
+			return 1;
+		}
 	}
 
 	/* Fork in to background */

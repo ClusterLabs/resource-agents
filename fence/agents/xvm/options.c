@@ -43,15 +43,6 @@
 #include "options.h"
 
 
-/* Private structure for commandline / stdin fencing args */
-struct arg_info {
-	char opt;
-	char *opt_desc;
-	char *stdin_opt;
-	char *desc;
-	void (*assign)(fence_xvm_args_t *, struct arg_info *, char *);
-};
-
 
 /* Assignment functions */
 
@@ -61,11 +52,14 @@ assign_debug(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 	if (!value) {
 		/* GNU getopt sets optarg to NULL for options w/o a param
 		   We rely on this here... */
-		args->flags |= F_DEBUG;
+		args->debug++;
 		return;
 	}
 
-	args->flags |= ( !!atoi(value) ? F_DEBUG : 0);
+	args->debug = atoi(value);
+	if (args->debug < 0) {
+		args->debug = 1;
+	}
 }
 
 
@@ -252,6 +246,20 @@ assign_version(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 }
 
 
+static inline void
+assign_noccs(fence_xvm_args_t *args, struct arg_info *arg, char *value)
+{
+	args->flags |= F_NOCCS;
+}
+
+
+static inline void
+assign_noccs(fence_xvm_args_t *args, struct arg_info *arg, char *value)
+{
+	args->flags |= F_NOCCS;
+}
+
+
 /** ALL valid command line and stdin arguments for this fencing agent */
 static struct arg_info _arg_info[] = {
 	{ '\xff', NULL, "agent",
@@ -322,17 +330,20 @@ static struct arg_info _arg_info[] = {
  	  "Help (alternate)", 
 	  assign_help },
 
+	{ 'X', "-X", NULL,
+ 	  "Do not connect to CCS for configuration", 
+	  assign_noccs }, 
+	  
 	{ 'V', "-V", NULL,
  	  "Display version and exit", 
 	  assign_version },
-
 
 	/* Terminator */
 	{ 0, NULL, NULL, NULL, NULL }
 };
 
 
-static struct arg_info *
+struct arg_info *
 find_arg_by_char(char arg)
 {
 	int x = 0;
@@ -346,7 +357,7 @@ find_arg_by_char(char arg)
 }
 
 
-static struct arg_info *
+struct arg_info *
 find_arg_by_string(char *arg)
 {
 	int x = 0;
@@ -383,6 +394,7 @@ args_init(fence_xvm_args_t *args)
 	args->timeout = 30;
 	args->retr_time = 20;
 	args->flags = 0;
+	args->debug = 0;
 }
 
 
@@ -410,6 +422,7 @@ args_print(fence_xvm_args_t *args)
 	_pr_int(args->timeout);
 	_pr_int(args->retr_time);
 	_pr_int(args->flags);
+	_pr_int(args->debug);
 	printf("-- end args --\n");
 }
 
@@ -475,7 +488,7 @@ cleanup(char *line, size_t linelen)
 {
 	char *p;
 	int x;
-
+	
 	/* Remove leading whitespace. */
 	p = line;
 	for (x = 0; x <= linelen; x++) {

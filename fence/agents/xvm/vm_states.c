@@ -238,9 +238,10 @@ ckpt_init(char *ckpt_name, int maxlen, int maxsec,
 
 	err = saCkptInitialize(&h->ck_handle, NULL, &ver);
 
-	if (err != SA_AIS_OK)
+	if (err != SA_AIS_OK) {
 		free(h);
-	else
+		return NULL;
+	} else
 		h->ck_ready = READY_MAGIC;
 
 	if (ckpt_open(h, ckpt_name, maxlen, maxsec, maxseclen,

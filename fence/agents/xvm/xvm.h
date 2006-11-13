@@ -23,7 +23,7 @@
 #include <sechash.h>
 #include <netinet/in.h>
 
-#define XVM_VERSION "0.9.0"
+#define XVM_VERSION "0.9.3"
 
 #define MAX_DOMAINNAME_LENGTH 64 /* XXX MAXHOSTNAMELEN */
 #define MAX_ADDR_LEN		sizeof(struct sockaddr_in6)
@@ -71,5 +71,16 @@ typedef struct __attribute__ ((packed)) _fence_req {
 	uint32_t family;		/* Address family */
 	uint8_t  hash[MAX_HASH_LENGTH];	/* Binary hash */
 } fence_req_t;
+
+
+inline void dset(int);
+inline int dget(void);
+
+#define dprintf(level, fmt, args...) \
+do { \
+	if (dget()>=level) \
+		printf(fmt, ##args); \
+} while(0)
+	
 
 #endif

@@ -4,9 +4,6 @@ High Priority / Blockers:
 
 Medium Priority:
 
-* Enable retrieval of options from ccs rather than only on the
-command line for fence_xvmd.
-
 * Need to add ability for fence_xvmd to forcefully fence the host
 dom0 if it's not responding.  Medium because it should not be the
 default behavior since fencing a host can affect multiple domains
@@ -26,12 +23,6 @@ away and comes back.  (If CMAN dies, we have big problems anyway)
 
 * Add SSL connection support.  (Challenge/response on a trusted
 network should be okay.)
-
-* Destroy/Create doesn't work very well with pygrub-loaded or
-xenguest-install images. (Maybe just wait for solid virDomainReboot
-operation based on Xen 3.0.4 API).  For now, rely on external 
-management to restart the domain (a person, VM manager, or failover
-manager like rgmanager)
 
 * Make sure addresses contained in the multicast packet are always
 in network-byte order.  Low because it will be unlikely that the

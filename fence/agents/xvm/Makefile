@@ -16,9 +16,9 @@ include ${top_srcdir}/make/defines.mk
 TARGETS=fence_xvm fence_xvmd
 
 fence_xvm_SOURCE = fence_xvm.c mcast.c ip_lookup.c simple_auth.c tcp.c \
-		   options.c
+		   options.c debug.c
 fence_xvmd_SOURCE= fence_xvmd.c mcast.c simple_auth.c tcp.c virt.c \
-		   options.c vm_states.c
+		   options.c options-ccs.c vm_states.c debug.c
 
 
 INCLUDE=-I${top_srcdir}/include -I${top_srcdir}/config \

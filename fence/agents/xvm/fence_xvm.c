@@ -63,6 +63,7 @@ tcp_wait_connect(int lfd, int retry_tenths)
 	int n;
 	struct timeval tv;
 
+	dprintf(3, "Waiting for connection from XVM host daemon.\n");
 	FD_ZERO(&rfds);
 	FD_SET(lfd, &rfds);
 	tv.tv_sec = retry_tenths / 10;
@@ -93,6 +94,7 @@ tcp_exchange(int fd, fence_auth_type_t auth, void *key,
 	struct timeval tv;
 
 	/* Ok, we're connected */
+	dprintf(3, "Issuing TCP challenge\n");
 	if (tcp_challenge(fd, auth, key, key_len, timeout) <= 0) {
 		/* Challenge failed */
 		printf("Invalid response to challenge\n");
@@ -100,12 +102,13 @@ tcp_exchange(int fd, fence_auth_type_t auth, void *key,
 	}
 
 	/* Now they'll send us one, so we need to respond here */
+	dprintf(3, "Responding to TCP challenge\n");
 	if (tcp_response(fd, auth, key, key_len, timeout) <= 0) {
 		printf("Invalid response to challenge\n");
 		return 0;
 	}
 
-	printf("TCP Exchange + Authentication done... \n");
+	dprintf(2, "TCP Exchange + Authentication done... \n");
 
 	FD_ZERO(&rfds);
 	FD_SET(fd, &rfds);
@@ -113,6 +116,7 @@ tcp_exchange(int fd, fence_auth_type_t auth, void *key,
 	tv.tv_usec = 0;
 
 	ret = 1;
+	dprintf(3, "Waiting for return value from XVM host\n");
 	if (select(fd + 1, &rfds, NULL, NULL, &tv) <= 0)
 		return -1;
 
@@ -142,7 +146,7 @@ send_multicast_packets(ip_list_t *ipl, fence_xvm_args_t *args, void *key,
 	for (ipa = ipl->tqh_first; ipa; ipa = ipa->ipa_entries.tqe_next) {
 
 		if (ipa->ipa_family != args->family) {
-			printf("Ignoring %s: wrong family\n", ipa->ipa_address);
+			dprintf(2, "Ignoring %s: wrong family\n", ipa->ipa_address);
 			continue;
 		}
 
@@ -162,7 +166,7 @@ send_multicast_packets(ip_list_t *ipl, fence_xvm_args_t *args, void *key,
 			tgt = (struct sockaddr *)&tgt6;
 			tgt_len = sizeof(tgt6);
 		} else {
-			printf("Unsupported family %d\n", args->family);
+			dprintf(2, "Unsupported family %d\n", args->family);
 			return -1;
 		}
 
@@ -194,8 +198,8 @@ send_multicast_packets(ip_list_t *ipl, fence_xvm_args_t *args, void *key,
 
 		sign_request(&freq, key, key_len);
 
-		printf("Sending to %s via %s\n", args->addr,
-		       ipa->ipa_address);
+		dprintf(3, "Sending to %s via %s\n", args->addr,
+		        ipa->ipa_address);
 
 		sendto(mc_sock, &freq, sizeof(freq), 0,
 		       (struct sockaddr *)tgt, tgt_len);
@@ -213,13 +217,15 @@ fence_xen_domain(fence_xvm_args_t *args)
 {
 	ip_list_t ipl;
 	char key[4096];
-	int lfd, key_len, fd;
+	int lfd, key_len = 0, fd;
 	int attempts = 0;
-
-	key_len = read_key_file(args->key_file, key, sizeof(key));
-	if (key_len < 0) {
-		printf("Key file unreadable!\n");
-		return 1;
+	
+	if (args->auth != AUTH_NONE || args->hash != HASH_NONE) {
+		key_len = read_key_file(args->key_file, key, sizeof(key));
+		if (key_len < 0) {
+			printf("Could not read key file\n");
+			return 1;
+		}
 	}
 
 	/* Do the real work */
@@ -246,7 +252,7 @@ fence_xen_domain(fence_xvm_args_t *args)
 	}
 
 	if (lfd < 0) {
-		printf("failed to listen: %s\n", strerror(errno));
+		printf("Failed to listen: %s\n", strerror(errno));
 		return 1;
 	}
 
@@ -332,8 +338,9 @@ main(int argc, char **argv)
 	}
 
 	args_finalize(&args);
-
-	if (args.flags & F_DEBUG)
+	dset(args.debug);
+	
+	if (args.debug > 0) 
 		args_print(&args);
 
 	/* Additional validation here */

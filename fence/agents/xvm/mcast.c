@@ -62,6 +62,7 @@ ipv4_recv_sk(char *addr, int port)
 	/********************************
 	 * SET UP MULTICAST RECV SOCKET *
 	 ********************************/
+	dprintf(4, "Setting up ipv4 multicast receive (%s:%d)\n", addr, port);
 	sock = socket(PF_INET, SOCK_DGRAM, 0);
 	if (sock < 0) {
 		printf("socket: %s\n", strerror(errno));
@@ -89,6 +90,7 @@ ipv4_recv_sk(char *addr, int port)
 	 */
 	/* mreq.imr_multiaddr.s_addr is set above */
 	mreq.imr_interface.s_addr = htonl(INADDR_ANY);
+	dprintf(4, "Joining multicast group\n");
 	if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP,
 		       &mreq, sizeof(mreq)) == -1) {
 		printf("Failed to bind multicast receive socket to "
@@ -98,6 +100,7 @@ ipv4_recv_sk(char *addr, int port)
 		return -1;
 	}
 
+	dprintf(4, "%s: success, fd = %d\n", __FUNCTION__, sock);
 	return sock;
 }
 
@@ -144,6 +147,7 @@ ipv4_send_sk(char *send_addr, char *addr, int port, struct sockaddr *tgt,
 	/*************************
 	 * SET UP MULTICAST SEND *
 	 *************************/
+	dprintf(4, "Setting up ipv4 multicast send (%s:%d)\n", addr, port);
 	sock = socket(PF_INET, SOCK_DGRAM, 0);
 	if (sock < 0) {
 		perror("socket");
@@ -153,6 +157,7 @@ ipv4_send_sk(char *send_addr, char *addr, int port, struct sockaddr *tgt,
 	/*
 	 * Join Multicast group.
 	 */
+	dprintf(4, "Joining IP Multicast group (pass 1)\n");
 	if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq,
 		       sizeof(mreq)) == -1) {
 		printf("Failed to add multicast membership to transmit "
@@ -164,6 +169,7 @@ ipv4_send_sk(char *send_addr, char *addr, int port, struct sockaddr *tgt,
 	/*
 	 * Join Multicast group.
 	 */
+	dprintf(4, "Joining IP Multicast group (pass 2)\n");
 	if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_IF, &src.sin_addr,
 		       sizeof(src.sin_addr)) == -1) {
 		printf("Failed to bind multicast transmit socket to "
@@ -175,6 +181,7 @@ ipv4_send_sk(char *send_addr, char *addr, int port, struct sockaddr *tgt,
 	/*
 	 * set time to live to 2 hops.
 	 */
+	dprintf(4, "Setting TTL to 2 for fd%d\n", sock);
 	val = 2;
 	if (setsockopt(sock, SOL_IP, IP_MULTICAST_TTL, &val,
 		       sizeof(val)))
@@ -182,6 +189,7 @@ ipv4_send_sk(char *send_addr, char *addr, int port, struct sockaddr *tgt,
 
 	memcpy((struct sockaddr_in *)tgt, &mcast, sizeof(struct sockaddr_in));
 
+	dprintf(4, "%s: success, fd = %d\n", __FUNCTION__, sock);
 	return sock;
 }
 
@@ -214,6 +222,7 @@ ipv6_recv_sk(char *addr, int port)
 	/********************************
 	 * SET UP MULTICAST RECV SOCKET *
 	 ********************************/
+	dprintf(4, "Setting up ipv6 multicast receive (%s:%d)\n", addr, port);
 	sock = socket(PF_INET6, SOCK_DGRAM, IPPROTO_UDP);
 	if (sock < 0) {
 		printf("socket: %s\n", strerror(errno));
@@ -237,6 +246,7 @@ ipv6_recv_sk(char *addr, int port)
 		return -1;
 	}
 
+	dprintf(4, "Disabling IP Multicast loopback\n");
 	val = 1;
 	if (setsockopt(sock, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, &val,
 		       sizeof(val)) != 0) {
@@ -248,6 +258,7 @@ ipv6_recv_sk(char *addr, int port)
 	/*
 	 * Join multicast group
 	 */
+	dprintf(4, "Joining IP Multicast group\n");
 	if (setsockopt(sock, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, &mreq,
 		       sizeof(mreq)) == -1) {
 		printf("Failed to add multicast to socket %s: %s\n",
@@ -256,6 +267,7 @@ ipv6_recv_sk(char *addr, int port)
 		return -1;
 	}
 
+	dprintf(4, "%s: success, fd = %d\n", __FUNCTION__, sock);
 	return sock;
 }
 
@@ -304,12 +316,14 @@ ipv6_send_sk(char *send_addr, char *addr, int port, struct sockaddr *tgt,
 	/*************************
 	 * SET UP MULTICAST SEND *
 	 *************************/
+	dprintf(4, "Setting up ipv6 multicast send (%s:%d)\n", addr, port);
 	sock = socket(PF_INET6, SOCK_DGRAM, 0);
 	if (sock < 0) {
 		perror("socket");
 		return -1;
 	}
 
+	dprintf(4, "Disabling IP Multicast loopback\n");
 	val = 1;
 	if (setsockopt(sock, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, &val,
 		       sizeof(val)) != 0) {
@@ -321,6 +335,7 @@ ipv6_send_sk(char *send_addr, char *addr, int port, struct sockaddr *tgt,
 	/*
 	 * Join Multicast group.
 	 */
+	dprintf(4, "Joining IP Multicast group\n");
 	if (setsockopt(sock, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, &mreq,
 		       sizeof(mreq)) == -1) {
 		printf("Failed to add multicast membership to transmit "
@@ -352,5 +367,6 @@ ipv6_send_sk(char *send_addr, char *addr, int port, struct sockaddr *tgt,
 
 	memcpy((struct sockaddr_in *)tgt, &mcast, sizeof(struct sockaddr_in6));
 
+	dprintf(4, "%s: success, fd = %d\n", __FUNCTION__, sock);
 	return sock;
 }
