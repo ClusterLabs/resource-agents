@@ -15,6 +15,8 @@
 #define OPTION_STRING			"DPhVwpl:"
 #define LOCKFILE_NAME			"/var/run/gfs_controld.pid"
 
+#define DEFAULT_PLOCK_RATE_LIMIT 10
+
 struct client {
 	int fd;
 	char type[32];
@@ -38,7 +40,7 @@ extern struct list_head mounts;
 extern struct list_head withdrawn_mounts;
 int no_withdraw;
 int no_plock;
-uint32_t plock_rate_limit;
+uint32_t plock_rate_limit = DEFAULT_PLOCK_RATE_LIMIT;
 
 
 int do_write(int fd, void *buf, size_t count)
@@ -595,6 +597,7 @@ static void print_usage(void)
 	printf("  -P	       Enable plock debugging\n");
 	printf("  -p	       Disable plocks\n");
 	printf("  -l <limit>   Limit the rate of plock operations\n");
+	printf("               Default is %d, set to 0 for no limit\n", DEFAULT_PLOCK_RATE_LIMIT);
 	printf("  -w	       Disable withdraw\n");
 	printf("  -h	       Print this help, then exit\n");
 	printf("  -V	       Print program version information, then exit\n");
