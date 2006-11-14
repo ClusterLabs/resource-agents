@@ -12,7 +12,7 @@
 
 #include "lock_dlm.h"
 
-#define OPTION_STRING			"DPhVwp"
+#define OPTION_STRING			"DPhVwpl:"
 #define LOCKFILE_NAME			"/var/run/gfs_controld.pid"
 
 struct client {
@@ -32,11 +32,13 @@ static int listen_fd;
 static int groupd_fd;
 static int uevent_fd;
 static int plocks_fd;
+static int plocks_ci;
 
 extern struct list_head mounts;
 extern struct list_head withdrawn_mounts;
 int no_withdraw;
 int no_plock;
+uint32_t plock_rate_limit;
 
 
 int do_write(int fd, void *buf, size_t count)
@@ -156,6 +158,18 @@ static void client_dead(int ci)
 	client[ci].fd = -1;
 	pollfd[ci].fd = -1;
 	client[ci].mg = NULL;
+}
+
+static void client_ignore(int ci, int fd)
+{
+	pollfd[ci].fd = -1;
+	pollfd[ci].events = 0;
+}
+
+static void client_back(int ci, int fd)
+{
+	pollfd[ci].fd = fd;
+	pollfd[ci].events = POLLIN;
 }
 
 int client_send(int ci, char *buf, int len)
@@ -401,7 +415,7 @@ int setup_uevent(void)
 
 int loop(void)
 {
-	int rv, i, f;
+	int rv, i, f, error, poll_timeout = -1, ignore_plocks_fd = 0;
 
 	rv = listen_fd = setup_listen();
 	if (rv < 0)
@@ -431,12 +445,12 @@ int loop(void)
 	rv = plocks_fd = setup_plocks();
 	if (rv < 0)
 		goto out;
-	client_add(plocks_fd);
+	plocks_ci = client_add(plocks_fd);
 
 	log_debug("setup done");
 
 	for (;;) {
-		rv = poll(pollfd, client_maxi + 1, -1);
+		rv = poll(pollfd, client_maxi + 1, poll_timeout);
 		if (rv < 0)
 			log_error("poll error %d errno %d", rv, errno);
 
@@ -463,9 +477,15 @@ int loop(void)
 					process_cpg();
 				else if (pollfd[i].fd == uevent_fd)
 					process_uevent();
-				else if (pollfd[i].fd == plocks_fd)
-					process_plocks();
-				else
+				else if (pollfd[i].fd == plocks_fd) {
+					error = process_plocks();
+					if (error == -EBUSY) {
+						client_ignore(plocks_ci,
+							      plocks_fd);
+						ignore_plocks_fd = 1;
+						poll_timeout = 100;
+					}
+				} else
 					process_client(i);
 			}
 
@@ -481,6 +501,18 @@ int loop(void)
 					exit_cman();
 				}
 				client_dead(i);
+			}
+
+			/* check if our plock rate limit has expired so we
+			   can start taking more local plock requests again */
+
+			if (ignore_plocks_fd) {
+				error = process_plocks();
+				if (error != -EBUSY) {
+					client_back(plocks_ci, plocks_fd);
+					ignore_plocks_fd = 0;
+					poll_timeout = -1;
+				}
 			}
 		}
 	}
@@ -560,6 +592,10 @@ static void print_usage(void)
 	printf("Options:\n");
 	printf("\n");
 	printf("  -D	       Enable debugging code and don't fork\n");
+	printf("  -P	       Enable plock debugging\n");
+	printf("  -p	       Disable plocks\n");
+	printf("  -l <limit>   Limit the rate of plock operations\n");
+	printf("  -w	       Disable withdraw\n");
 	printf("  -h	       Print this help, then exit\n");
 	printf("  -V	       Print program version information, then exit\n");
 }
@@ -584,6 +620,10 @@ static void decode_arguments(int argc, char **argv)
 
 		case 'P':
 			plock_debug_opt = 1;
+			break;
+
+		case 'l':
+			plock_rate_limit = atoi(optarg);
 			break;
 
 		case 'p':

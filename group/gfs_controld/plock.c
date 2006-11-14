@@ -18,6 +18,7 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/utsname.h>
+#include <sys/time.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <net/if.h>
@@ -48,6 +49,14 @@ extern int our_nodeid;
 static int plocks_online = 0;
 extern int message_flow_control_on;
 extern int no_plock;
+
+extern uint32_t plock_rate_limit;
+uint32_t plock_read_count;
+uint32_t plock_recv_count;
+uint32_t plock_rate_delays;
+struct timeval plock_read_time;
+struct timeval plock_recv_time;
+struct timeval plock_rate_last;
 
 static SaCkptHandleT ckpt_handle;
 static SaCkptCallbacksT callbacks = { 0, 0 };
@@ -276,6 +285,13 @@ int setup_plocks(void)
 	SaAisErrorT err;
 	int rv;
 
+	plock_read_count = 0;
+	plock_recv_count = 0;
+	plock_rate_delays = 0;
+	gettimeofday(&plock_read_time, NULL);
+	gettimeofday(&plock_recv_time, NULL);
+	gettimeofday(&plock_rate_last, NULL);
+
 	if (no_plock)
 		goto control;
 
@@ -300,12 +316,26 @@ int process_plocks(void)
 	struct mountgroup *mg;
 	struct gdlm_plock_info info;
 	struct gdlm_header *hd;
+	struct timeval now;
 	char *buf;
 	int len, rv;
 
 	/* Don't send more messages while the cpg message queue is backed up */
 	if (message_flow_control_on)
 		return 0;
+
+	/* do we want to do something a little more accurate than tv_sec? */
+
+	/* limit plock rate within one second */
+	if (plock_rate_limit && plock_read_count &&
+	    !(plock_read_count % plock_rate_limit)) {
+		gettimeofday(&now, NULL);
+		if (now.tv_sec - plock_rate_last.tv_sec <= 0) {
+			plock_rate_delays++;
+			return -EBUSY;
+		}
+		plock_rate_last = now;
+	}
 
 	memset(&info, 0, sizeof(info));
 
@@ -330,6 +360,18 @@ int process_plocks(void)
 		  info.start, info.end,
 		  info.nodeid, info.pid, info.owner,
 		  info.wait);
+
+	/* report plock rate and any delays since the last report */
+	plock_read_count++;
+	if (!(plock_read_count % 1000)) {
+		gettimeofday(&now, NULL);
+		log_group(mg, "plock_read_count %u time %us delays %u",
+			  plock_read_count,
+			  (unsigned) (now.tv_sec - plock_read_time.tv_sec),
+			  plock_rate_delays);
+		plock_read_time = now;
+		plock_rate_delays = 0;
+	}
 
 	len = sizeof(struct gdlm_header) + sizeof(struct gdlm_plock_info);
 	buf = malloc(len);
@@ -878,6 +920,7 @@ void _receive_plock(struct mountgroup *mg, char *buf, int len, int from)
 {
 	struct gdlm_plock_info info;
 	struct gdlm_header *hd = (struct gdlm_header *) buf;
+	struct timeval now;
 	int rv = 0;
 
 	memcpy(&info, buf + sizeof(struct gdlm_header), sizeof(info));
@@ -891,6 +934,14 @@ void _receive_plock(struct mountgroup *mg, char *buf, int len, int from)
 		  info.start, info.end,
 		  info.nodeid, info.pid, info.owner,
 		  info.wait);
+
+	plock_recv_count++;
+	if (!(plock_recv_count % 1000)) {
+		gettimeofday(&now, NULL);
+		log_group(mg, "plock_recv_count %u time %us", plock_recv_count,
+			  (unsigned) (now.tv_sec - plock_recv_time.tv_sec));
+		plock_recv_time = now;
+	}
 
 	if (info.optype == GDLM_PLOCK_OP_GET && from != our_nodeid)
 		return;
