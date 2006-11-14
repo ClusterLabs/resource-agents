@@ -74,15 +74,26 @@ int check_entries(struct gfs2_inode *ip, struct gfs2_buffer_head *bh,
 				return 1;
 			}
 		} else {
-			error = pass->check_dentry(ip, dent, prev, bh, filename, update,
-									   count, pass->private);
-			if(error < 0) {
-				stack;
-				return -1;
+			if (!de.de_inum.no_addr && first) { /* reverse sentinel */
+				log_debug("First dirent is a Sentinel (place holder).\n");
+				/* Swap the two to silently make it a proper sentinel */
+				de.de_inum.no_addr = de.de_inum.no_formal_ino;
+				de.de_inum.no_formal_ino = 0;
+				gfs2_dirent_out(&de, (char *)dent);
+				*update = 1; /* Mark dirent buffer as modified */
+				first = 0;
 			}
-			/*if(error > 0) {
-			  return 1;
-			  }*/
+			else {
+				error = pass->check_dentry(ip, dent, prev, bh, filename,
+							   update, count, pass->private);
+				if(error < 0) {
+					stack;
+					return -1;
+				}
+				/*if(error > 0) {
+				  return 1;
+				  }*/
+			}
 		}
 
 		if ((char *)dent + de.de_rec_len >= bh_end){
@@ -165,7 +176,7 @@ int check_leaf(struct gfs2_inode *ip, int *update, struct metawalk_fxns *pass)
 				/* Since the buffer possibly got
 				   updated directly, release it now,
 				   and grab it again later if we need it */
-				brelse(lbh, not_updated);
+				brelse(lbh, *update);
 				if(error < 0) {
 					stack;
 					return -1;
