@@ -44,6 +44,7 @@
 
 int display(enum dsp_mode display_mode, int identify_only);
 extern void eol(int col);
+extern void do_indirect_extended(char *buf);
 
 /* ------------------------------------------------------------------------ */
 /* UpdateSize - screen size changed, so update it                           */
@@ -684,10 +685,11 @@ int display_extended(void)
 				move(line, 1);
 			}
 			if (indir_blocks == indirect_blocks) {
-				print_gfs2("%d => ", e + 1);
+				print_gfs2("%d => ", e);
 				if (termlines)
 					move(line,9);
-				print_gfs2("0x%llx", indirect[e].block);
+				print_gfs2("0x%llx / %lld", indirect[e].block,
+						   indirect[e].block);
 				if (termlines) {
 					if (edit_row[display_mode] >= 0 &&
 						line - start_line - 2 == edit_row[display_mode]) { 
@@ -892,6 +894,9 @@ int display(enum dsp_mode display_mode, int identify_only)
 	else if (gfs2_struct_type == GFS2_METATYPE_DI) {
 		gfs2_dinode_in(&di, buf); /* parse disk inode into structure */
 		do_dinode_extended(&di, buf); /* get extended data, if any */
+	}
+	else if (gfs2_struct_type == GFS2_METATYPE_IN) { /* indirect block list */
+		do_indirect_extended(buf);
 	}
 	else if (gfs2_struct_type == GFS2_METATYPE_LF) { /* directory leaf */
 		int x;

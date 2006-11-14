@@ -106,6 +106,12 @@ struct indirect_info {
 	struct gfs2_dirents dirent[64];
 };
 
+struct gfs_indirect {
+	struct gfs2_meta_header in_header;
+
+	char in_reserved[64];
+};
+
 struct blkstack_info {
 	uint64_t block;
 	int edit_row[DISPLAY_MODES];

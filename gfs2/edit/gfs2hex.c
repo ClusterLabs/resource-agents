@@ -291,22 +291,19 @@ void do_indirect_extended(char *buf)
 	unsigned int x, y;
 	uint64_t p;
 
-	eol(0);
-	printf("Pointers");
-	eol(0);
-	eol(0);
-
-	for (x = sizeof(struct gfs2_meta_header), y = 0; x < bufsize; x += 8, y++)
-	{
+	indirect_blocks = 0;
+	memset(&indirect, 0, sizeof(indirect));
+	for (x = sizeof(struct gfs_indirect), y = 0;
+		 x < bufsize;
+		 x += sizeof(uint64_t), y++) {
 		p = be64_to_cpu(*(uint64_t *)(buf + x));
-		
 		if (p) {
-			printf("  %u -> %" PRIu64, y, p);
-			eol(0);
+			indirect[indirect_blocks].block = p;
+			indirect[indirect_blocks].is_dir = FALSE;
+			indirect_blocks++;
 		}
 	}
 }
-
 
 /******************************************************************************
 *******************************************************************************
