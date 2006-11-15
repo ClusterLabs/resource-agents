@@ -136,6 +136,8 @@ int check_uncontrolled_groups(void)
 	char *argv[4];
 	int status, rv = 0;
 
+	/* FIXME: ignore gfs/gfs2 nolock fs's */
+
 	rv += kernel_instance_count("/sys/kernel/dlm");
 	rv += kernel_instance_count("/sys/fs/gfs");
 	rv += kernel_instance_count("/sys/fs/gfs2");
@@ -907,7 +909,7 @@ void set_scheduler(void)
 
 	rv = sched_get_priority_max(SCHED_RR);
 	if (rv != -1) {
-		sched_param.sched_priority = 2;
+		sched_param.sched_priority = rv;
 		rv = sched_setscheduler(0, SCHED_RR, &sched_param);
 		if (rv == -1)
 			log_print("could not set SCHED_RR priority %d err %d",

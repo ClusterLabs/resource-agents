@@ -669,7 +669,7 @@ void set_scheduler(void)
 
 	rv = sched_get_priority_max(SCHED_RR);
 	if (rv != -1) {
-		sched_param.sched_priority = 2;
+		sched_param.sched_priority = rv;
 		rv = sched_setscheduler(0, SCHED_RR, &sched_param);
 		if (rv == -1)
 			log_error("could not set SCHED_RR priority %d err %d",
