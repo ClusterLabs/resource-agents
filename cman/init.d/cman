@@ -145,7 +145,7 @@ fence_xvmd_enabled()
     # Check for presence of Domain-0; if it's not there, we can't
     # run xvmd.
     #
-    xm list --long | grep -q "Domain-0" || return 1
+    xm list --long 2> /dev/null | grep -q "Domain-0" || return 1
 	
     #
     # Check for presence of /cluster/fence_xvmd in cluster.conf
