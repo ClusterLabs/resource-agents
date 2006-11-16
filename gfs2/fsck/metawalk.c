@@ -162,21 +162,39 @@ int check_leaf(struct gfs2_inode *ip, int *update, struct metawalk_fxns *pass)
 				}
 			}
 
+			enum update_flags u = not_updated;
+
 			lbh = bread(sbp, leaf_no);
 			gfs2_leaf_in(&leaf, lbh->b_data);
+
+			/*
+			 * Early versions of GFS2 had an endianess bug in the kernel
+			 * that set lf_dirent_format to cpu_to_be16(GFS2_FORMAT_DE).
+			 * This was fixed to use cpu_to_be32(), but we should check
+			 * for incorrect values and replace them with the correct value. */
+
+			if (leaf.lf_dirent_format == (GFS2_FORMAT_DE << 16)) {
+				log_debug("incorrect lf_dirent_format at leaf #%" PRIu64 "\n", leaf_no);
+				leaf.lf_dirent_format = GFS2_FORMAT_DE;
+				gfs2_leaf_out(&leaf, lbh->b_data);
+				u = updated;
+			}
 
 			exp_count = (1 << (ip->i_di.di_depth - leaf.lf_depth));
 			log_debug("expected count %u - di_depth %u, leaf depth %u\n",
 					  exp_count, ip->i_di.di_depth, leaf.lf_depth);
+
 			if(pass->check_dentry &&
 			   S_ISDIR(ip->i_di.di_mode)) {
 				error = check_entries(ip, lbh, index, DIR_EXHASH, update,
 									  &count, pass);
 
 				/* Since the buffer possibly got
-				   updated directly, release it now,
-				   and grab it again later if we need it */
+				 * updated directly, release it now,
+				 * and grab it again later if we need it. */
+
 				brelse(lbh, *update);
+
 				if(error < 0) {
 					stack;
 					return -1;
@@ -186,9 +204,8 @@ int check_leaf(struct gfs2_inode *ip, int *update, struct metawalk_fxns *pass)
 					return 1;
 
 				if(update && (count != leaf.lf_entries)) {
-					enum update_flags f;
+					enum update_flags f = not_updated;
 
-					f = not_updated;
 					lbh = bread(sbp, leaf_no);
 					gfs2_leaf_in(&leaf, lbh->b_data);
 
@@ -210,7 +227,9 @@ int check_leaf(struct gfs2_inode *ip, int *update, struct metawalk_fxns *pass)
 				 * compare it against leaf->lf_entries */
 				break;
 			} else {
-				brelse(lbh, not_updated);
+				if (u == updated)
+					log_debug("Fixing lf_dirent_format.\n");
+				brelse(lbh, u);
 				if(!leaf.lf_next)
 					break;
 				leaf_no = leaf.lf_next;
