@@ -600,7 +600,7 @@ struct gfs_quota_tag {
 #define GFS_EATYPE_UNUSED       (0)
 #define GFS_EATYPE_USR          (1)     /* user attribute */
 #define GFS_EATYPE_SYS          (2)     /* system attribute */
-#define GFS_EATYPE_SECURITY	(3)	/* security attribute */
+#define GFS_EATYPE_SECURITY     (3)	/* security attribute */
 
 #define GFS_EATYPE_LAST         (3)
 #define GFS_EATYPE_VALID(x)     ((x) <= GFS_EATYPE_LAST)
