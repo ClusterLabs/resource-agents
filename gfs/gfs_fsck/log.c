@@ -102,7 +102,8 @@ int query(struct fsck_sb *sbp, const char *format, ...)
 	if(sbp->opts->no)
 		return 0;
 
-	/* Watch stdin (fd 0) to see when it has input. */
+	fsck_query = TRUE;
+    /* Watch stdin (fd 0) to see when it has input. */
 	FD_ZERO(&rfds);
 	FD_SET(STDIN_FILENO, &rfds);
 
@@ -149,5 +150,6 @@ int query(struct fsck_sb *sbp, const char *format, ...)
 		read(STDIN_FILENO, &response, sizeof(char));
 	}
 
+	fsck_query = FALSE;
 	return ret;
 }

@@ -252,6 +252,8 @@ int pass1c(struct fsck_sb *sbp)
 	log_info("Looking for inodes containing ea blocks...\n");
 	while (!find_next_block_type(sbp->bl, eattr_block, &block_no)) {
 
+		if (skip_this_pass || fsck_abort) /* if asked to skip the rest */
+			return 0;
 		log_info("EA in inode %"PRIu64"\n", block_no);
 		if(get_and_read_buf(sbp, block_no, &bh, 0)) {
 			stack;

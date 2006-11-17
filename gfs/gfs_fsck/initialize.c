@@ -210,6 +210,12 @@ static int set_block_ranges(struct fsck_sb *sdp)
 	}
 
 	sdp->last_fs_block = (jmax > rmax) ? jmax : rmax;
+	if (sdp->last_fs_block > 0xffffffff && sizeof(unsigned long) <= 4) {
+		log_crit("This file system is too big for this computer to handle.\n");
+		log_crit("Last fs block = 0x%llx, but sizeof(unsigned long) is %d bytes.\n",
+				 sdp->last_fs_block, sizeof(unsigned long));
+		goto fail;
+	}
 
 	sdp->last_data_block = rmax;
 	sdp->first_data_block = rmin;

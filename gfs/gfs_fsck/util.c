@@ -321,6 +321,7 @@ void warm_fuzzy_stuff(uint64_t block)
 	static struct timeval tv;
 	static uint32_t seconds = 0;
 	
+	last_reported_block = block;
 	gettimeofday(&tv, NULL);
 	if (!seconds)
 		seconds = tv.tv_sec;

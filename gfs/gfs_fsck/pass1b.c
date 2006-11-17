@@ -470,6 +470,7 @@ int pass1b(struct fsck_sb *sbp)
 	osi_list_t *tmp;
 	struct metawalk_fxns find_dirents = {0};
 	find_dirents.check_dentry = &find_dentry;
+	int rc = 0;
 
 	osi_list_init(&sbp->dup_list);
 	/* Shove all blocks marked as duplicated into a list */
@@ -487,10 +488,14 @@ int pass1b(struct fsck_sb *sbp)
 	log_info("Scanning filesystem for inodes containing duplicate blocks...\n");
 	log_debug("Filesystem has %"PRIu64" blocks total\n", sbp->last_fs_block);
 	for(i = 0; i < sbp->last_fs_block; i += 1) {
+		warm_fuzzy_stuff(i);
+		if (skip_this_pass || fsck_abort) /* if asked to skip the rest */
+			goto out;
 		log_debug("Scanning block %"PRIu64" for inodes\n", i);
 		if(block_check(sbp->bl, i, &q)) {
 			stack;
-			return -1;
+			rc = -1;
+			goto out;
 		}
 		if((q.block_type == inode_dir) ||
 		   (q.block_type == inode_file) ||
@@ -503,33 +508,27 @@ int pass1b(struct fsck_sb *sbp)
 				b = osi_list_entry(tmp, struct blocks, list);
 				if(find_block_ref(sbp, i, b)) {
 					stack;
-					return -1;
+					rc = -1;
+					goto out;
 				}
 			}
-		}
-	}
-
-	/* Rescan the fs looking for directory entries to the inodes
-	 * with duplicate blocks - might need this to deal with the
-	 * inode correctly */
-	log_info("Looking through directory entries for inodes with duplicate blocks...\n");
-	for(i = 0; i < sbp->last_fs_block; i++) {
-		if(block_check(sbp->bl, i, &q)) {
-			stack;
-			return 0;
 		}
 		if(q.block_type == inode_dir) {
 			check_dir(sbp, i, &find_dirents);
 		}
 	}
 
-
 	/* Fix dups here - it's going to slow things down a lot to fix
 	 * it later */
 	log_info("Handling duplicate blocks\n");
-	osi_list_foreach(tmp, &sbp->dup_list) {
-		b = osi_list_entry(tmp, struct blocks, list);
-		handle_dup_blk(sbp, b);
+out:
+	/*osi_list_foreach(tmp, &sbp->dup_list) {*/
+	while (!osi_list_empty(&sbp->dup_list)) {
+		b = osi_list_entry(sbp->dup_list.next, struct blocks, list);
+		if (!skip_this_pass && !rc) /* no error & not asked to skip the rest */
+			handle_dup_blk(sbp, b);
+		osi_list_del(&b->list);
+		free(b);
 	}
-	return 0;
+	return rc;
 }

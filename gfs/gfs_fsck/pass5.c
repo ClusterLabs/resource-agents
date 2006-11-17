@@ -194,6 +194,8 @@ int check_block_status(struct fsck_sb *sbp, char *buffer, unsigned int buflen,
 		block = rg_data + *rg_block;
 		log_debug("Checking block %" PRIu64 "\n", block);
 		warm_fuzzy_stuff(block);
+		if (skip_this_pass || fsck_abort) /* if asked to skip the rest */
+			return 0;
 		block_check(sbp->bl, block, &q);
 
 		block_status = convert_mark(q.block_type, count);
@@ -266,6 +268,8 @@ int update_rgrp(struct fsck_rgrp *rgp, uint32_t *count, int rgcount)
 				   BH_DATA(rgp->rd_bh[i]) + bits->bi_offset,
 				   bits->bi_len, &rg_block,
 				   rgp->rd_ri.ri_data1, count);
+		if (skip_this_pass || fsck_abort) /* if asked to skip the rest */
+			return 0;
 	}
 
 	/* Compare the rgrps counters with what we found */
@@ -351,6 +355,8 @@ int pass5(struct fsck_sb *sbp, struct options *opts)
 
 	/* Reconcile RG bitmaps with fsck bitmap */
 	for(tmp = sbp->rglist.next; tmp != &sbp->rglist; tmp = tmp->next){
+		if (skip_this_pass || fsck_abort) /* if asked to skip the rest */
+			return 0;
 		log_info("Updating Resource Group %"PRIu64"\n", rg_count);
 		memset(count, 0, sizeof(*count) * 5);
 		rgp = osi_list_entry(tmp, struct fsck_rgrp, rd_list);

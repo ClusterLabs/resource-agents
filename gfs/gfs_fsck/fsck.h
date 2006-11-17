@@ -26,7 +26,8 @@ struct options {
 	int no:1;
 };
 
-extern uint64_t last_fs_block;
+extern uint64_t last_fs_block, last_reported_block;
+extern int skip_this_pass, fsck_abort, fsck_query;
 
 int initialize(struct fsck_sb *sbp);
 void destroy(struct fsck_sb *sbp);

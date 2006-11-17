@@ -905,6 +905,13 @@ int pass1(struct fsck_sb *sbp)
 				break;
 
 			warm_fuzzy_stuff(block);
+			if (fsck_abort) /* if asked to abort */
+				return 0;
+			if (skip_this_pass) {
+				printf("Skipping pass 1 is not a good idea.\n");
+				skip_this_pass = FALSE;
+				fflush(stdout);
+			}
 			if(get_and_read_buf(sbp, block, &bh, 0)){
 				stack;
 				log_crit("Unable to retrieve block %"PRIu64
