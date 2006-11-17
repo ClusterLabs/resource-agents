@@ -176,6 +176,8 @@ static int do_read(int fd, void *buf, size_t count)
 			return -1;
 		if (rv == -1 && errno == EINTR)
 			continue;
+		if (rv == -1)
+			return -1;
 		off += rv;
 	}
 	return 0;
