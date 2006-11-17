@@ -700,15 +700,18 @@ do_write_direct(struct file *file, char *buf, size_t size, loff_t *offset,
 	if (alloc_required) {
 		set_bit(GFF_DID_DIRECT_ALLOC, &fp->f_flags);
 
+		/* for asynchronous IO, the buffer can not be splitted */
+		if (iocb) {
+			count = do_write_direct_alloc(file, buf, size, offset, iocb);
+			goto out_iocb_write;
+		}
+
 		/* split large writes into smaller atomic transactions */
 		while (size) {
-			if (iocb)
+			s = gfs_tune_get(sdp, gt_max_atomic_write);
+			if (s > size)
 				s = size;
-			else {
-				s = gfs_tune_get(sdp, gt_max_atomic_write);
-				if (s > size) 
-					s = size;
-			}
+
 			error = do_write_direct_alloc(file, buf, s, offset, iocb);
 			if (error < 0)
 				goto out_gunlock;
@@ -740,6 +743,7 @@ do_write_direct(struct file *file, char *buf, size_t size, loff_t *offset,
 		gfs_glock_dq_uninit(&t_gh);
 	}
 
+out_iocb_write:
 	error = 0;
 
 out_gunlock:
@@ -977,13 +981,9 @@ do_write_buf(struct file *file,
 
 	/* split large writes into smaller atomic transactions */
 	while (size) {
-		if (iocb)
+		s = gfs_tune_get(sdp, gt_max_atomic_write);
+		if (s > size)
 			s = size;
-		else {
-			s = gfs_tune_get(sdp, gt_max_atomic_write);
-			if (s > size)
-				s = size;
-		}
 
 		error = do_do_write_buf(file, buf, s, offset, iocb);
 		if (error < 0)
