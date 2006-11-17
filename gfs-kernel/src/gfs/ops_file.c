@@ -702,10 +702,13 @@ do_write_direct(struct file *file, char *buf, size_t size, loff_t *offset,
 
 		/* split large writes into smaller atomic transactions */
 		while (size) {
-			s = gfs_tune_get(sdp, gt_max_atomic_write);
-			if (s > size)
+			if (iocb)
 				s = size;
-
+			else {
+				s = gfs_tune_get(sdp, gt_max_atomic_write);
+				if (s > size) 
+					s = size;
+			}
 			error = do_write_direct_alloc(file, buf, s, offset, iocb);
 			if (error < 0)
 				goto out_gunlock;
@@ -974,9 +977,13 @@ do_write_buf(struct file *file,
 
 	/* split large writes into smaller atomic transactions */
 	while (size) {
-		s = gfs_tune_get(sdp, gt_max_atomic_write);
-		if (s > size)
+		if (iocb)
 			s = size;
+		else {
+			s = gfs_tune_get(sdp, gt_max_atomic_write);
+			if (s > size)
+				s = size;
+		}
 
 		error = do_do_write_buf(file, buf, s, offset, iocb);
 		if (error < 0)
