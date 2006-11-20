@@ -162,8 +162,7 @@ int check_leaf(struct gfs2_inode *ip, int *update, struct metawalk_fxns *pass)
 				}
 			}
 
-			enum update_flags u = not_updated;
-
+			*update = not_updated;
 			lbh = bread(sbp, leaf_no);
 			gfs2_leaf_in(&leaf, lbh->b_data);
 
@@ -177,7 +176,8 @@ int check_leaf(struct gfs2_inode *ip, int *update, struct metawalk_fxns *pass)
 				log_debug("incorrect lf_dirent_format at leaf #%" PRIu64 "\n", leaf_no);
 				leaf.lf_dirent_format = GFS2_FORMAT_DE;
 				gfs2_leaf_out(&leaf, lbh->b_data);
-				u = updated;
+				log_debug("Fixing lf_dirent_format.\n");
+				*update = updated;
 			}
 
 			exp_count = (1 << (ip->i_di.di_depth - leaf.lf_depth));
@@ -227,9 +227,7 @@ int check_leaf(struct gfs2_inode *ip, int *update, struct metawalk_fxns *pass)
 				 * compare it against leaf->lf_entries */
 				break;
 			} else {
-				if (u == updated)
-					log_debug("Fixing lf_dirent_format.\n");
-				brelse(lbh, u);
+				brelse(lbh, *update);
 				if(!leaf.lf_next)
 					break;
 				leaf_no = leaf.lf_next;
