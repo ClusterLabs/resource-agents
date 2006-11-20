@@ -311,6 +311,21 @@ int setup_plocks(void)
 	return control_fd;
 }
 
+static unsigned long time_diff_ms(struct timeval *begin, struct timeval *end)
+{
+	unsigned long a_us, b_us, c_us, s, us, ms;
+
+	a_us = begin->tv_sec * 1000000 + begin->tv_usec;
+	b_us = end->tv_sec * 1000000 + end->tv_usec;
+	c_us = b_us - a_us;
+
+	s = c_us / 1000000;
+	us = c_us % 1000000;
+	ms = us / 1000;
+
+	return (s * 1000 + ms);
+}
+
 int process_plocks(void)
 {
 	struct mountgroup *mg;
@@ -324,13 +339,13 @@ int process_plocks(void)
 	if (message_flow_control_on)
 		return 0;
 
-	/* do we want to do something a little more accurate than tv_sec? */
+	/* Every N ops we check how long it's taken to do those N ops.
+	   If it's less than 1000 ms, we don't take any more. */
 
-	/* limit plock rate within one second */
 	if (plock_rate_limit && plock_read_count &&
 	    !(plock_read_count % plock_rate_limit)) {
 		gettimeofday(&now, NULL);
-		if (now.tv_sec - plock_rate_last.tv_sec <= 0) {
+		if (time_diff_ms(&plock_rate_last, &now) < 1000) {
 			plock_rate_delays++;
 			return -EBUSY;
 		}
