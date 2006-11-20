@@ -313,17 +313,9 @@ int setup_plocks(void)
 
 static unsigned long time_diff_ms(struct timeval *begin, struct timeval *end)
 {
-	unsigned long a_us, b_us, c_us, s, us, ms;
-
-	a_us = begin->tv_sec * 1000000 + begin->tv_usec;
-	b_us = end->tv_sec * 1000000 + end->tv_usec;
-	c_us = b_us - a_us;
-
-	s = c_us / 1000000;
-	us = c_us % 1000000;
-	ms = us / 1000;
-
-	return (s * 1000 + ms);
+	struct timeval result;
+	timersub(end, begin, &result);
+	return (result.tv_sec * 1000) + (result.tv_usec / 1000);
 }
 
 int process_plocks(void)
