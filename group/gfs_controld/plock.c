@@ -336,8 +336,12 @@ int process_plocks(void)
 	int len, rv;
 
 	/* Don't send more messages while the cpg message queue is backed up */
-	if (message_flow_control_on)
-		return 0;
+
+	if (message_flow_control_on) {
+		update_flow_control_status();
+		if (message_flow_control_on)
+			return -EBUSY;
+	}
 
 	/* Every N ops we check how long it's taken to do those N ops.
 	   If it's less than 1000 ms, we don't take any more. */

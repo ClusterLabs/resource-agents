@@ -280,6 +280,7 @@ void got_mount_result(struct mountgroup *mg, int result);
 int client_send(int ci, char *buf, int len);
 
 int send_group_message(struct mountgroup *mg, int len, char *buf);
+void update_flow_control_status(void);
 
 void store_plocks(struct mountgroup *mg, int nodeid);
 void retrieve_plocks(struct mountgroup *mg);

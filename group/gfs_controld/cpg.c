@@ -131,11 +131,31 @@ static cpg_callbacks_t callbacks = {
 	.cpg_confchg_fn = confchg_cb,
 };
 
-int process_cpg(void)
+void update_flow_control_status(void)
 {
 	cpg_flow_control_state_t flow_control_state;
 	cpg_error_t error;
 	
+	error = cpg_flow_control_state_get(daemon_handle, &flow_control_state);
+	if (error != CPG_OK) {
+		log_error("cpg_flow_control_state_get %d", error);
+		return;
+	}
+
+	if (flow_control_state == CPG_FLOW_CONTROL_ENABLED) {
+		message_flow_control_on = 1;
+		log_debug("flow control on");
+	} else {
+		if (message_flow_control_on)
+			log_debug("flow control off");
+		message_flow_control_on = 0;
+	}
+}
+
+int process_cpg(void)
+{
+	cpg_error_t error;
+
 	got_msg = 0;
 	saved_len = 0;
 	saved_nodeid = 0;
@@ -150,20 +170,7 @@ int process_cpg(void)
 	if (got_msg)
 		do_deliver(saved_nodeid, saved_data, saved_len);
 
-	error = cpg_flow_control_state_get(daemon_handle, &flow_control_state);
-	if (error != CPG_OK) {
-		log_error("cpg_flow_control_state_get %d", error);
-		return -1;
-	}
-
-	if (flow_control_state == CPG_FLOW_CONTROL_ENABLED) {
-		message_flow_control_on = 1;
-		log_debug("flow control on");
-	} else {
-		if (message_flow_control_on)
-			log_debug("flow control off");
-		message_flow_control_on = 0;
-	}
+	update_flow_control_status();
 
 	return 0;
 }
