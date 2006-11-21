@@ -350,7 +350,12 @@ int process_plocks(void)
 
 	memset(&info, 0, sizeof(info));
 
-	rv = read(control_fd, &info, sizeof(info));
+	rv = do_read(control_fd, &info, sizeof(info));
+	if (rv < 0) {
+		log_debug("process_plocks: read error %d fd %d\n",
+			  errno, control_fd);
+		return 0;
+	}
 
 	if (!plocks_online) {
 		rv = -ENOSYS;

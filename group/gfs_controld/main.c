@@ -42,6 +42,22 @@ int no_withdraw;
 int no_plock;
 uint32_t plock_rate_limit = DEFAULT_PLOCK_RATE_LIMIT;
 
+int do_read(int fd, void *buf, size_t count)
+{
+	int rv, off = 0;
+
+	while (off < count) {
+		rv = read(fd, buf + off, count - off);
+		if (rv == 0)
+			return -1;
+		if (rv == -1 && errno == EINTR)
+			continue;
+		if (rv == -1)
+			return -1;
+		off += rv;
+	}
+	return 0;
+}
 
 int do_write(int fd, void *buf, size_t count)
 {
@@ -597,7 +613,7 @@ static void print_usage(void)
 	printf("  -P	       Enable plock debugging\n");
 	printf("  -p	       Disable plocks\n");
 	printf("  -l <limit>   Limit the rate of plock operations\n");
-	printf("               Default is %d, set to 0 for no limit\n", DEFAULT_PLOCK_RATE_LIMIT);
+	printf("	       Default is %d, set to 0 for no limit\n", DEFAULT_PLOCK_RATE_LIMIT);
 	printf("  -w	       Disable withdraw\n");
 	printf("  -h	       Print this help, then exit\n");
 	printf("  -V	       Print program version information, then exit\n");
