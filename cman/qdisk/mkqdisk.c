@@ -39,9 +39,9 @@ main(int argc, char **argv)
 	char *newdev = NULL, *newlabel = NULL;
 	int rv;
 
-	printf("mkqdisk v0.5\n");
+	printf("mkqdisk v0.5.1\n");
 
-	while ((rv = getopt(argc, argv, "Lfc:l:h")) != EOF) {
+	while ((rv = getopt(argc, argv, "Lf:c:l:h")) != EOF) {
 		switch (rv) {
 		case 'L':
 			/* List */
@@ -53,7 +53,7 @@ main(int argc, char **argv)
 			close(2);
 			return find_partitions("/proc/partitions",
 					       optarg, device,
-					       sizeof(device), 0);
+					       sizeof(device), 1);
 		case 'c':
 			newdev = optarg;
 			break;
