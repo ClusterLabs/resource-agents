@@ -464,6 +464,7 @@ delete_interface () {
 		CMD="$IFCONFIG $ifname down";;
   esac
 
+  ocf_log info "$CMD"
   $CMD
 
   return $?
@@ -494,10 +495,10 @@ add_interface () {
 	  fi
 	  # At Solaris 10, this single-command version sometimes broke.
 	  # Almost certainly an S10 bug.
-	  #	CMD="$IFCONFIG $iface inet $ipaddr $netmask_text up"
+	  #	CMD="$IFCONFIG $iface inet $ipaddr $text up"
 	  # So hack the following workaround:
 	  CMD="$IFCONFIG $iface inet $ipaddr"
-	  CMD="$CMD && $IFCONFIG $iface $netmask_text"
+	  CMD="$CMD && $IFCONFIG $iface $netmask"
 	  CMD="$CMD && $IFCONFIG $iface up"
 	  ;;
       
@@ -509,7 +510,7 @@ add_interface () {
   esac
 
   # Use "eval $CMD" (not "$CMD"): it might be a chain of two or more commands.
-  echo $CMD
+  ocf_log info "eval $CMD"
   eval $CMD
   rc=$?
   if [ $rc != 0 ]; then
@@ -526,12 +527,6 @@ ip_stop() {
 
   SENDARPPIDFILE="$SENDARPPIDDIR/send_arp-$OCF_RESKEY_ip"
   NIC=`find_interface $OCF_RESKEY_ip`
-  : ${OCF_RESKEY_nic=$NIC}
-
-  if [ x$NIC != x -a $OCF_RESKEY_nic != $NIC ]; then
-      ocf_log err "Attempt to remove $OCF_RESKEY_ip from an interface other than the one supplied"
-      return $OCF_ERR_ARGS
-  fi
 
   if [ -f "$SENDARPPIDFILE" ]; then
 	cat "$SENDARPPIDFILE" | xargs kill
@@ -653,6 +648,14 @@ ip_status_internal() {
 	    *)	 return $OCF_SUCCESS;;
 	esac
     else
+	if [ x$OCF_RESKEY_nic != x ]; then
+	    simple_OCF_NIC=`echo $OCF_RESKEY_nic | awk -F: '{print $1}'`
+	    simple_NIC=`echo $NIC | awk -F: '{print $1}'`
+	    if [ $simple_OCF_NIC != $simple_NIC ]; then
+		ocf_log err "$OCF_RESKEY_ip is running an interface ($simple_NIC) instead of the configured one ($simple_OCF_NIC)"
+		return $OCF_ERR_GENERIC
+	    fi
+	fi
 	return $OCF_SUCCESS
     fi
 }
@@ -781,6 +784,18 @@ ip_validate_all() {
 	    if [ -n "$OCF_RESKEY_broadcast" ]; then
 		IFCMD="$IFCMD/$OCF_RESKEY_broadcast"
 	    fi
+	elif [ x$OCF_RESKEY_broadcast != x ]; then
+	    ocf_log err "Configured broadcast value is ignored when no value for nic is specified"
+	    OCF_RESKEY_broadcast=""
+	fi
+    else
+	if [ x$OCF_RESKEY_broadcast != x ]; then
+	    ocf_log err "Configured broadcast value is ignored when no value for netmask is specified"
+	    OCF_RESKEY_broadcast=""
+	fi
+	if [ x$OCF_RESKEY_nic != x ]; then
+	    ocf_log err "Configured nic value is ignored when no value for netmask is specified"
+	    OCF_RESKEY_nic=""
 	fi
     fi
 
