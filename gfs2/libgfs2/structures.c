@@ -55,8 +55,9 @@ build_sb(struct gfs2_sbd *sdp)
 	/* Zero out the beginning of the device up to the superblock */
 	for (x = 0; x < sdp->sb_addr; x++) {
 		bh = bget(sdp, x);
+		memset(bh->b_data, 0, GFS2_DEFAULT_BSIZE);
 		bh->b_uninit = TRUE;
-		brelse(bh, not_updated);
+		brelse(bh, updated);
 	}
 
 	memset(&sb, 0, sizeof(struct gfs2_sb));
