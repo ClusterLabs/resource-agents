@@ -104,10 +104,20 @@ int gfs_lm_withdraw(struct gfs_sbd *sdp, char *fmt, ...)
 	vprintk(fmt, args);
 	va_end(args);
 
+#if !defined(BZ_215962)
+	/* 
+	 * Temporarily disable GFS1 withdraw function until bz215962 
+	 * is ready. 
+	 *
+	 * A side note: BUG() does stack dump too.    
+	 */
+        printk("GFS: fsid=%s: about to withdraw from the cluster\n",
+                sdp->sd_fsname);
+        BUG();
+#else
 	printk("about to withdraw from the cluster\n");
 	BUG_ON(sdp->sd_args.ar_debug);
 	
-
 	printk("waiting for outstanding I/O\n");
 
 	/* FIXME: suspend dm device so oustanding bio's complete
@@ -117,6 +127,7 @@ int gfs_lm_withdraw(struct gfs_sbd *sdp, char *fmt, ...)
 	gfs2_withdraw_lockproto(&sdp->sd_lockstruct);
 	printk("withdrawn\n");
 	dump_stack();
+#endif
 
 	return -1;
 }
