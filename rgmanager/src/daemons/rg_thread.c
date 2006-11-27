@@ -111,18 +111,22 @@ static void
 purge_status_checks(request_t **list)
 {
 	request_t *curr;
+	int found;
 	
 	if (!list)
 		return;
 
-	list_do(list, curr) {
-		if (curr->rr_request != RG_STATUS)
-			continue;
-
-		list_remove(list, curr);
-		rq_free(curr);
-		curr = *list;
-	} while (!list_done(list, curr));
+	do {
+		found = 0;
+		list_do(list, curr) {
+			if (curr->rr_request == RG_STATUS) {
+				list_remove(list, curr);
+				rq_free(curr);
+				found = 1;
+				break;
+			}
+		} while (!list_done(list, curr));
+	} while (found);
 }
 
 
