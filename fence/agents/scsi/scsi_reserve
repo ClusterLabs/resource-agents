@@ -25,9 +25,9 @@ scsi_devices=$( lvs -o vg_attr,devices --noheadings \
                 | awk --posix ' $1 ~ /[-a-z]{5}c/ { print $2 } ' \
                 | sed -e 's/([0-9]*)//' | sort | uniq )
 
-# if not scsi devices were found we can exit now
+# if no scsi devices were found we can exit now
 #
-[ -z "$scsi_devices" ] && exit 0
+[ -z $scsi_devices ] && exit 0
 
 # get the node name and node addr from cman
 #
@@ -136,4 +136,5 @@ fi
 
 esac
 
-exit $status
+exit $rval
+
