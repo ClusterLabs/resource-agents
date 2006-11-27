@@ -293,12 +293,13 @@ static int process_client(int ci)
 		/* ci, dir, type, proto, table, extra */
 		rv = do_mount(ci, argv[1], argv[2], argv[3], argv[4], argv[5],
 			      &mg);
-		client[ci].mg = mg;
-		fd = client[ci].fd;
-		fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
-		mg->mount_client_fd = fd;
-		goto reply;
-
+		if (!rv) {
+			client[ci].mg = mg;
+			fd = client[ci].fd;
+			fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
+			mg->mount_client_fd = fd;
+			goto reply;
+		}
 	} else if (!strcmp(cmd, "mount_result")) {
 		got_mount_result(client[ci].mg, atoi(argv[3]));
 
