@@ -222,7 +222,7 @@ int update(char *location)
   ch->comm_flags= COMM_UPDATE_NOTICE;
   ch->comm_payload_size = doc_size;
 
-  handle = cman_init(NULL);
+  handle = cman_admin_init(NULL);
 
   cluster_fd = cman_get_fd(handle);
 
@@ -357,7 +357,13 @@ int update(char *location)
   ccs_disconnect(desc);
 
   if (v2 == v3) {
+    cman_version_t cman_ver;
     printf("Config file updated from version %d to %d\n", v1, v2);
+    cman_get_version(handle, &cman_ver);
+    cman_ver.cv_config = v2;
+    if (cman_set_version(handle, &cman_ver)) {
+	    perror("Failed to tell cman of new version number");
+    }
   } else {
     fprintf(stderr, "Warning:: Simultaneous update requests detected.\n"
 	    "  You have lost the race.\n"
