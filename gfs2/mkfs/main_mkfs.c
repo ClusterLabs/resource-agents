@@ -58,7 +58,6 @@ print_usage(void)
 	printf("\n");
 	printf("Options:\n");
 	printf("\n");
-	printf("  -b <bytes>       Filesystem block size\n");
 	printf("  -c <MB>          Size of quota change file\n");
 	printf("  -D               Enable debugging code\n");
 	printf("  -h               Print this help, then exit\n");
@@ -90,12 +89,9 @@ decode_arguments(int argc, char *argv[], struct gfs2_sbd *sdp)
 	sdp->device_name = NULL;
 
 	while (cont) {
-		optchar = getopt(argc, argv, "-b:c:DhJ:j:Op:qr:t:u:VX");
+		optchar = getopt(argc, argv, "-c:DhJ:j:Op:qr:t:u:VX");
 
 		switch (optchar) {
-		case 'b':
-			sdp->bsize = atoi(optarg);
-			break;
 
 		case 'c':
 			sdp->qcsize = atoi(optarg);
@@ -195,7 +191,6 @@ decode_arguments(int argc, char *argv[], struct gfs2_sbd *sdp)
 
 	if (sdp->debug) {
 		printf("Command Line Arguments:\n");
-		printf("  bsize = %u\n", sdp->bsize);
 		printf("  qcsize = %u\n", sdp->qcsize);
 		printf("  jsize = %u\n", sdp->jsize);
 		printf("  journals = %u\n", sdp->md.journals);

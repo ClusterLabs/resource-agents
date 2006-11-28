@@ -15,14 +15,6 @@ mkfs.gfs2 is used to create a Global File System.
 
 .SH OPTIONS
 .TP
-\fB-b\fP \fIBlockSize\fR 
-Set the filesystem block size to \fIBlockSize\fR (must be a power of
-two).  The minimum block size is 512.  The FS block size cannot exceed
-the machine's memory page size.  On the most architectures (i386,
-x86_64, s390, s390x), the memory page size is 4096 bytes.  On other
-architectures it may be bigger.  The default block size is 4096 bytes.
-In general, GFS2 filesystems should not deviate from the default value.
-.TP
 \fB-c MegaBytes\fP
 Initial size of each journal's quota change file
 .TP
