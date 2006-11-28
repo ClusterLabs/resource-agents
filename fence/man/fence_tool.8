@@ -48,9 +48,6 @@ Help.  Print out the usage syntax.
 \fB-V\fP
 Print version information.
 .TP
-\fB-D\fP
-Enable debugging output and don't fork (also passed to fenced)
-.TP
 \fB-j\fP \fIsecs\fP
 Post-join fencing delay (passed to fenced)
 .TP
@@ -59,6 +56,9 @@ Post-fail fencing delay (passed to fenced)
 .TP
 \fB-c\fP
 All nodes are in a clean state to start (passed to fenced)
+.TP
+\fB-t\fP
+Maximum time in seconds to wait (default: 300 seconds)
 
 .SH SEE ALSO
 fenced(8), fence(8), fence_node(8)
