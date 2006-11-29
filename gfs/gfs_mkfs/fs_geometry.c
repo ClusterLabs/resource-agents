@@ -42,13 +42,23 @@ static uint64 how_many_rgrps(commandline_t *comline, mkfs_subdevice_t *sdev)
 	uint64 nrgrp;
 	unsigned int min = (comline->expert) ? 1 : 4;
 
-	nrgrp = DIV_RU(sdev->length, (comline->rgsize << 20) / comline->bsize);
+	while (TRUE) {
+		nrgrp = DIV_RU(sdev->length, (comline->rgsize << 20) / comline->bsize);
 
-	if (nrgrp < min)
-		nrgrp = min;
+		if (nrgrp < min)
+			nrgrp = min;
+
+		if (comline->rgsize_specified || /* If user specified an rg size or */
+			nrgrp <= MKFS_EXCESSIVE_RGS || /* not an excessive # of rgs or  */
+			comline->rgsize >= 2048)     /* we've reached the max rg size */
+			break;
+
+		comline->rgsize += MKFS_DEFAULT_RGSIZE; /* Try again w/bigger rgs */
+	}
 
 	if (comline->debug)
-		printf("  nrgrp = %"PRIu64"\n", nrgrp);
+		printf("  rg sz = %"PRIu32"\n  nrgrp = %"PRIu64"\n", comline->rgsize,
+			   nrgrp);
 
 	return nrgrp;
 }
@@ -118,9 +128,9 @@ void compute_rgrp_layout(commandline_t *comline, mkfs_device_t *device, osi_list
 
 		for (tmp = rlist->next; tmp != rlist; tmp = tmp->next) {
 			rl = osi_list_entry(tmp, rgrp_list_t, list);
-			printf("subdevice %u:  rg_o = %"PRIu64", rg_l = %"PRIu64"\n",
-				   rl->subdevice,
-				   rl->rg_offset, rl->rg_length);
+			printf("subdevice %u:  rg_o = %"PRIu64", rg_l = %"PRIu64" blocks (%"PRIu64"MB)\n",
+				   rl->subdevice, rl->rg_offset, rl->rg_length, 
+				   rl->rg_length * comline->bsize / (1024 * 1024));
 		}
 	}
 }

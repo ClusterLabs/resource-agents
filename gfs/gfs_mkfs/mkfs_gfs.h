@@ -102,6 +102,7 @@ struct commandline
   uint32 journals;          /*  Number of journals  */
   uint32 jsize;             /*  Size of journals  */
   uint32 rgsize;            /*  The Resource Group size  */
+  int rgsize_specified;     /*  Did the user specify a rg size? */
 
   int debug;                /*  Print out debugging information?  */
   int quiet;                /*  No messages  */
@@ -156,7 +157,7 @@ EXTERN char *prog_name;
 #define MKFS_DEFAULT_SEG_SIZE       (16)
 #define MKFS_DEFAULT_JSIZE          (128)
 #define MKFS_DEFAULT_RGSIZE         (256)
-
+#define MKFS_EXCESSIVE_RGS          (10000)
 
 /*  device_geometry.c  */
 

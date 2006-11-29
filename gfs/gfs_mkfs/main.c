@@ -82,7 +82,6 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
   int cont = TRUE;
   int optchar;
 
-
   while (cont)
   {
     optchar = getopt(argc, argv, OPTION_STRING);
@@ -133,6 +132,7 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 
 
     case 'r':
+      comline->rgsize_specified = TRUE;
       comline->rgsize = atoi(optarg);
       break;
 
@@ -303,6 +303,7 @@ int main(int argc, char *argv[])
 	comline.seg_size = MKFS_DEFAULT_SEG_SIZE;
 	comline.jsize = MKFS_DEFAULT_JSIZE;
 	comline.rgsize = MKFS_DEFAULT_RGSIZE;
+	comline.rgsize_specified = FALSE;
 
 	decode_arguments(argc, argv, &comline);
 

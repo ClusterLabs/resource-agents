@@ -52,8 +52,12 @@ as a local filesystem (\fB1 node only\fP), you can specify the
 Be quiet.  Don't print anything.
 .TP
 \fB-r\fP \fIMegaBytes\fR
-gfs_mkfs will try to make Resource Groups about this big.
-The default is 256 MB.
+gfs_mkfs will try to make Resource Groups (RGs) about this big.
+Minimum RG size is 32 MB.  Maximum RG size is 2048 MB.
+A large RG size may increase performance on very large file systems.
+If not specified, gfs_mkfs will choose the RG size based on the size
+of the file system: average size file systems will have 256 MB RGs, and
+bigger file systems will have bigger RGs for better performance.
 .TP
 \fB-s\fP \fIBlocks\fR 
 Journal segment size in filesystem blocks.  This value must be at
