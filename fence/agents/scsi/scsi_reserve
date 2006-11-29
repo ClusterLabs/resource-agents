@@ -83,12 +83,13 @@ rval=0
 #
 for dev in $scsi_devices
 do
+  echo -n "Unregistering device: $dev"
 
+  # check if this node/key is the node/key holding the reservation
+  #
   if sg_persist -d $dev -i -r 2>/dev/null | grep -qiE "${key#0}" ; then
-      echo "Unable to unregister device: $dev"
       error=1
   else
-      echo -n "Unregistering device: $dev"
       for error in 1
 	do
 	sg_persist -d $dev -o -G -K $key -S 0 &>/dev/null || break
