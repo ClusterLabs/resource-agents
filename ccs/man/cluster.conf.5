@@ -11,22 +11,22 @@ cluster.conf - The configuration file for cluster products
 The \fBcluster.conf\fP file is located in the /etc/cluster directory.  It
 is the source of information used by the cluster products - accessed
 indirectly through CCS (see \fBccs(7)\fP).  This file contains all the
-information needed for the cluster to operate, such as: what nodes compose
+information needed for the cluster to operate, such as: what nodes are in
 the cluster and how to I/O fence those nodes.  There is generic information
-which is applicable to all cluster infrastructures, as well as specific
-information relevent for specific cluster products.
+that is applicable to all cluster infrastructures, as well as specific
+information relevant for specific cluster products.
 
 This man page describes the generic contents of the \fBcluster.conf\fP file.
 The product specific sections of \fBcluster.conf\fP are left to their
 respective man pages.  For example, after constructing the generic content,
-a user would look at the \fBlock_gulmd(5)\fP man page for specific instructions
+a user should look at the \fBlock_gulmd(5)\fP man page for specific instructions
 if using lock_gulmd as their lock server.  Conversely, a user employing
-\fBcman\fP and the \fBdlm\fP would look at \fBcman(5)\fP and \fBdlm(5)\fP for
+\fBcman\fP and the \fBdlm\fP locking protocol should look at \fBcman(5)\fP and \fBdlm(5)\fP for
 further instruction.
 
-The \fBcluster.conf\fP file is an XML file.  It has one encompasing section
+The \fBcluster.conf\fP file is an XML file.  It has one encompassing section
 in which everything is contained.  That entity's name is \fIcluster\fP and it
-has two manditory attributes: \fIname\fP and \fIconfig_version\fP.  The
+has two mandatory attributes: \fIname\fP and \fIconfig_version\fP.  The
 \fIname\fP attribute specifies the name of the cluster.  It is important
 that this name is unique from other clusters the user might set up.  The
 \fIconfig_version\fP attribute is a number used to identify the revision
@@ -37,7 +37,10 @@ level of the \fBcluster.conf\fP file.  Given this information, your
 
 </cluster>
 
-A manditory subsection of \fIcluster\fP is \fIfencedevices\fP.  It contains
+The users should specify a <cman/> tag or a <gulm/> tag to indicate the
+locking protocol used for the cluster.
+
+A mandatory subsection of \fIcluster\fP is \fIfencedevices\fP.  It contains
 all of the I/O fencing devices at the disposal of the cluster.  The I/O
 fencing devices are listed as entities designated as \fIfencedevice\fP and have
 attributes that describe the particular fencing device.  For example:
@@ -49,11 +52,12 @@ attributes that describe the particular fencing device.  For example:
 
 Concerning the \fIfencedevice\fP entity, the \fIname\fP and \fIagent\fP attributes
 must be specified for all I/O fence devices.  The remaining attributes are
-device specific and are used to specify the neccessary information to
+device specific and are used to specify the necessary information to
 access the device.  The \fIname\fP attribute must be unique and is used to
 reference the I/O fence device in other sections of the \fBcluster.conf\fP file.  The \fIagent\fP attribute is used to specify the binary fence agent program used to communicate with the particular device.  Your \fBcluster.conf\fP file might now look something like:
 
 <cluster name="alpha" config_version="1">
+  <cman/>
   <fencedevices>
     <fencedevice name="apc" agent="fence_apc"
             ipaddr="apc_1" login="apc" passwd="apc"/>
@@ -69,18 +73,20 @@ reference the I/O fence device in other sections of the \fBcluster.conf\fP file.
   </fencedevices>
 </cluster>
 
-The final manditory subsection of \fIcluster\fP is \fIclusternodes\fP.  It contains
+The final mandatory subsection of \fIcluster\fP is \fIclusternodes\fP.  It contains
 the individual specification of all the machines (members) in the cluster.
-Each machine has it's own section, \fIclusternode\fP, which has the \fIname\fP
-attribute - this should be the name of the machine.  The \fIclusternode\fP section
+Each machine has its own section, \fIclusternode\fP, which has the \fIname\fP
+attribute - this should be the name of the machine.  Each machine should be
+given a unique node id number with the option \fInodeid\fP attribute.
+For example, nodeid="3".  The \fIclusternode\fP section
 also contains the \fIfence\fP section.  Not to be confused with \fIfencedevices\fP the \fIfence\fP section is used to specify all the possible "methods" for
 fencing a particular machine, as well as the device used to perform that method
-and the machine specific parameters neccessary.  By example, the \fIclusternodes\fP
+and the machine specific parameters necessary.  By example, the \fIclusternodes\fP
 section may look as follows:
 
   <!-- This example only contains one machine -->
   <clusternodes>
-    <clusternode name="nd01">
+    <clusternode name="nd01" nodeid="1">
       <fence>
         <!-- "power" method is tried before all others -->
         <method name="power">
@@ -105,8 +111,9 @@ might look like:
 
 
 <cluster name="example" config_version="1">
+  <cman/>
   <clusternodes>
-    <clusternode name="nd01">
+    <clusternode name="nd01" nodeid="1">
       <fence>
         <!-- "power" method is tried before all others -->
         <method name="power">
@@ -124,7 +131,7 @@ might look like:
         </method>
       </fence>
     </clusternode>
-    <clusternode name="nd02">
+    <clusternode name="nd02" nodeid="2">
       <fence>
         <!-- "power" method is tried before all others -->
         <method name="power">
@@ -142,7 +149,7 @@ might look like:
         </method>
       </fence>
     </clusternode>
-    <clusternode name="nd11">
+    <clusternode name="nd11" nodeid="3">
       <fence>
         <!-- "power" method is tried before all others -->
         <method name="power">
@@ -178,6 +185,39 @@ might look like:
     <fencedevice name="last_resort" agent="fence_manual"/>
   </fencedevices>
 </cluster>
+
+\fBSpecial two-node cluster options:\fP
+
+Two-node clusters have special options in cluster.conf because they need to
+decide quorum between them without a majority of votes.  These options are
+placed with the <cman/> tag.  For example:
+
+
+  <cman two_node="1" expected_votes="1"/>
+
+
+\fBValidating your cluster.conf file:\fP
+
+While cluster.conf files produced by the system-config-cluster GUI are pretty
+certain to be well-formed, it is convenient to have a way to validate legacy
+configuration files, or files that were produced by hand in an editor. If you
+have the system-config-cluster GUI, you can validate a cluster.conf file with
+this command:
+
+xmllint --relaxng /usr/share/system-config-cluster/misc/cluster.ng /etc/cluster/cluster.conf
+
+If validation errors are detected in your conf file, the first place to start
+is with the first error.  Sometimes addressing the first error will remove 
+all error messages. Another good troubleshooting approach is to comment out 
+sections of the conf file.  For example, it is okay to have nothing beneath 
+the <rm> tag.  If you have services, failoverdomains and resources defined 
+there, temporarily comment them all out and rerun xmllint to see if the
+problems go away.  This may help you locate the problem.  Errors that 
+contain the string IDREF mean that an attribute value is supposed to be
+shared two places in the file, and that no other instance of the name string
+could be located. Finally, the most common problem with hand-edited 
+cluster.conf files is spelling errors. Check your attribute and tag names
+carefully.
 
 .SH SEE ALSO
 ccs(7), ccs_tool(8), lock_gulmd(5), cman(5)
