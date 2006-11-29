@@ -19,10 +19,8 @@ information relevant for specific cluster products.
 This man page describes the generic contents of the \fBcluster.conf\fP file.
 The product specific sections of \fBcluster.conf\fP are left to their
 respective man pages.  For example, after constructing the generic content,
-a user should look at the \fBlock_gulmd(5)\fP man page for specific instructions
-if using lock_gulmd as their lock server.  Conversely, a user employing
-\fBcman\fP and the \fBdlm\fP locking protocol should look at \fBcman(5)\fP and \fBdlm(5)\fP for
-further instruction.
+a user should look at the \fBcman(5)\fP man page for further information
+about the \fBcman\fP section of cluster.conf.
 
 The \fBcluster.conf\fP file is an XML file.  It has one encompassing section
 in which everything is contained.  That entity's name is \fIcluster\fP and it
@@ -37,8 +35,8 @@ level of the \fBcluster.conf\fP file.  Given this information, your
 
 </cluster>
 
-The users should specify a <cman/> tag or a <gulm/> tag to indicate the
-locking protocol used for the cluster.
+You should specify a <cman/> tag even if no special cman parameters
+are needed for the cluster.
 
 A mandatory subsection of \fIcluster\fP is \fIfencedevices\fP.  It contains
 all of the I/O fencing devices at the disposal of the cluster.  The I/O
@@ -220,5 +218,5 @@ cluster.conf files is spelling errors. Check your attribute and tag names
 carefully.
 
 .SH SEE ALSO
-ccs(7), ccs_tool(8), lock_gulmd(5), cman(5)
+ccs(7), ccs_tool(8), cman(5)
 
