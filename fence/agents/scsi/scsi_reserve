@@ -27,12 +27,12 @@ scsi_devices=$( lvs -o vg_attr,devices --noheadings \
 
 # if no scsi devices were found we can exit now
 #
-[ -z $scsi_devices ] && exit 0
+[ -z "$scsi_devices" ] && exit 0
 
 # get the node name and node addr from cman
 #
-node_name=$( cman_tool status | grep "Node name" | awk -F": " '{print $2}' )
-node_addr=$( cman_tool status | grep "Node addr" | awk -F": " '{print $2}' )
+node_name=$( cman_tool status | grep "Node name" | awk -F": " '{ print $2 }' )
+node_addr=$( cman_tool status | grep "Node addr" | awk -F": " '{ print $2 }' )
 
 # create unique key for this host
 #
@@ -56,7 +56,6 @@ do
   for error in 1
   do
     sg_persist -d $dev -o -G -S $key &>/dev/null || break
-    # sg_persist -d $dev -o -R -K $key -T 5 &>/dev/null || break
     error=0
   done
 
@@ -69,7 +68,7 @@ do
 
   echo
 
-  # attempt to create a reservation
+  # create a reservation
   #
   sg_persist -d $dev -o -R -K $key -T 5 &>/dev/null
 
@@ -123,7 +122,7 @@ do
   fi
 done
 
-if [ -z $devices ]; then
+if [ -z "$devices" ]; then
     echo "No devices registered."
 else
     echo "Found ${#devices[@]} registered device(s):"
