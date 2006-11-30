@@ -253,13 +253,6 @@ assign_noccs(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 }
 
 
-static inline void
-assign_noccs(fence_xvm_args_t *args, struct arg_info *arg, char *value)
-{
-	args->flags |= F_NOCCS;
-}
-
-
 /** ALL valid command line and stdin arguments for this fencing agent */
 static struct arg_info _arg_info[] = {
 	{ '\xff', NULL, "agent",
