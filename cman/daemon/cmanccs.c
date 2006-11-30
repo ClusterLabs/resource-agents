@@ -283,6 +283,7 @@ static int verify_nodename(int cd, char *nodename)
 	/* If nodename (from uname) is domain-less, try to match against
 	   cluster.conf names which may have domainname specified */
 	for (i = 1; ; i++) {
+		int len;
 		str = NULL;
 		memset(path, 0, 256);
 		sprintf(path, "/cluster/clusternodes/clusternode[%d]/@name", i);
@@ -294,10 +295,12 @@ static int verify_nodename(int cd, char *nodename)
 		strcpy(nodename3, str);
 		dot = strstr(nodename3, ".");
 		if (dot)
-			*dot = '\0';
+			len = dot-nodename3;
+		else
+			len = strlen(nodename3);
 
-		if (strlen(nodename2) == strlen(nodename3) &&
-		    !strncmp(nodename2, nodename3, strlen(nodename3))) {
+		if (strlen(nodename2) == len &&
+		    !strncmp(nodename2, nodename3, len)) {
 			free(str);
 			strcpy(nodename, nodename3);
 			return 0;
