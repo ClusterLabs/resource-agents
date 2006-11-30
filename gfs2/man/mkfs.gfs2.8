@@ -48,7 +48,11 @@ Be quiet.  Don't print anything.
 .TP
 \fB-r\fP \fIMegaBytes\fR
 gfs2_mkfs will try to make Resource Groups about this big.
-The default is 256 MB.
+Minimum RG size is 32 MB.  Maximum RG size is 2048 MB.
+A large RG size may increase performance on very large file systems.
+If not specified, mkfs.gfs2 will choose the RG size based on the size
+of the file system: average size file systems will have 256 MB RGs, and
+bigger file systems will have bigger RGs for better performance.
 .TP
 \fB-t\fP \fILockTableName\fR 
 The lock table field appropriate to the lock module you're using.

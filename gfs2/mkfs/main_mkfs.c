@@ -197,7 +197,10 @@ decode_arguments(int argc, char *argv[], struct gfs2_sbd *sdp)
 		printf("  override = %d\n", sdp->override);
 		printf("  proto = %s\n", sdp->lockproto);
 		printf("  quiet = %d\n", sdp->quiet);
-		printf("  rgsize = %u\n", sdp->rgsize);
+		if (sdp->rgsize==-1)
+			printf("  rgsize = optimize for best performance\n");
+		else
+			printf("  rgsize = %u\n", sdp->rgsize);
 		printf("  table = %s\n", sdp->locktable);
 		printf("  utsize = %u\n", sdp->utsize);
 		printf("  device = %s\n", sdp->device_name);
@@ -327,11 +330,12 @@ main_mkfs(int argc, char *argv[])
 	struct gfs2_sbd sbd, *sdp = &sbd;
 	unsigned int x;
 	int error;
+	int rgsize_specified = 0;
 
 	memset(sdp, 0, sizeof(struct gfs2_sbd));
 	sdp->bsize = GFS2_DEFAULT_BSIZE;
 	sdp->jsize = GFS2_DEFAULT_JSIZE;
-	sdp->rgsize = GFS2_DEFAULT_RGSIZE;
+	sdp->rgsize = -1;
 	sdp->utsize = GFS2_DEFAULT_UTSIZE;
 	sdp->qcsize = GFS2_DEFAULT_QCSIZE;
 	sdp->time = time(NULL);
@@ -341,6 +345,11 @@ main_mkfs(int argc, char *argv[])
 		osi_list_init(&sdp->buf_hash[x]);
 
 	decode_arguments(argc, argv, sdp);
+	if (sdp->rgsize == -1)                 /* if rg size not specified */
+		sdp->rgsize = GFS2_DEFAULT_RGSIZE; /* default it for now */
+	else
+		rgsize_specified = TRUE;
+
 	verify_arguments(sdp);
 
 	sdp->device_fd = open(sdp->device_name, O_RDWR);
@@ -360,7 +369,7 @@ main_mkfs(int argc, char *argv[])
 
 	/* Compute the resource group layouts */
 
-	compute_rgrp_layout(sdp, TRUE);
+	compute_rgrp_layout(sdp, rgsize_specified);
 
 	/* Build ondisk structures */
 

@@ -237,6 +237,7 @@ extern char *prog_name;
 #define GFS2_DEFAULT_UTSIZE         (1)
 #define GFS2_DEFAULT_QCSIZE         (1)
 #define GFS2_MIN_GROW_SIZE          (10)
+#define GFS2_EXCESSIVE_RGS          (10000)
 
 #define DATA (1)
 #define META (2)
@@ -373,7 +374,7 @@ int gfs2_get_bitmap(struct gfs2_sbd *sdp, uint64_t blkno,
 int gfs2_set_bitmap(struct gfs2_sbd *sdp, uint64_t blkno, int state);
 
 /* fs_geometry.c */
-void compute_rgrp_layout(struct gfs2_sbd *sdp, int new_fs);
+void compute_rgrp_layout(struct gfs2_sbd *sdp, int rgsize_specified);
 void build_rgrps(struct gfs2_sbd *sdp);
 
 /* fs_ops.c */

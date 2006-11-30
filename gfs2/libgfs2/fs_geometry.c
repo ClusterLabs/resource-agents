@@ -34,13 +34,25 @@
  */
 
 static uint64_t
-how_many_rgrps(struct gfs2_sbd *sdp, struct subdevice *sdev)
+how_many_rgrps(struct gfs2_sbd *sdp, struct subdevice *sdev,
+			   int rgsize_specified)
 {
-	uint64_t nrgrp = DIV_RU(sdev->length,
-				(sdp->rgsize << 20) / sdp->bsize);
+	uint64_t nrgrp;
+
+	while (TRUE) {
+		nrgrp = DIV_RU(sdev->length, (sdp->rgsize << 20) / sdp->bsize);
+
+		if (rgsize_specified || /* If user specified an rg size or */
+			nrgrp <= GFS2_EXCESSIVE_RGS || /* not an excessive # of rgs or  */
+			sdp->rgsize >= 2048)     /* we've reached the max rg size */
+			break;
+
+		sdp->rgsize += GFS2_DEFAULT_RGSIZE; /* Try again w/bigger rgs */
+	}
 
 	if (sdp->debug)
-		printf("  nrgrp = %"PRIu64"\n", nrgrp);
+		printf("  rg sz = %"PRIu32"\n  nrgrp = %"PRIu64"\n", sdp->rgsize,
+			   nrgrp);
 
 	return nrgrp;
 }
@@ -53,14 +65,16 @@ how_many_rgrps(struct gfs2_sbd *sdp, struct subdevice *sdev)
  */
 
 void
-compute_rgrp_layout(struct gfs2_sbd *sdp, int new_fs)
+compute_rgrp_layout(struct gfs2_sbd *sdp, int rgsize_specified)
 {
 	struct subdevice *sdev;
 	struct rgrp_list *rl, *rlast = NULL;
 	osi_list_t *tmp, *head = &sdp->rglist;
 	uint64_t rgrp, nrgrp;
 	unsigned int x;
+	int new_fs;
 
+	new_fs = TRUE;
 	for (x = 0; x < sdp->device.nsubdev; x++) {
 		sdev = sdp->device.subdev + x;
 
@@ -74,7 +88,7 @@ compute_rgrp_layout(struct gfs2_sbd *sdp, int new_fs)
 		if (sdp->debug)
 			printf("\nData Subdevice %u\n", x);
 
-		nrgrp = how_many_rgrps(sdp, sdev);
+		nrgrp = how_many_rgrps(sdp, sdev, rgsize_specified);
 
 		for (rgrp = 0; rgrp < nrgrp; rgrp++) {
 			zalloc(rl, sizeof(struct rgrp_list));
