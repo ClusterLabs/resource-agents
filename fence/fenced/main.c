@@ -583,19 +583,13 @@ int main(int argc, char **argv)
 	client_init();
 
 	if (!daemon_debug_opt) {
-		pid_t pid = fork();
-		if (pid < 0) {
+		if (daemon(0,0) < 0) {
 			perror("main: cannot fork");
 			exit(EXIT_FAILURE);
 		}
-		if (pid)
-			exit(EXIT_SUCCESS);
-		setsid();
+		
 		chdir("/");
 		umask(0);
-		close(0);
-		close(1);
-		close(2);
 		openlog("fenced", LOG_PID, LOG_DAEMON);
 	}
 
