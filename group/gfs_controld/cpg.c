@@ -15,10 +15,6 @@
 
 static cpg_handle_t	daemon_handle;
 static struct cpg_name	daemon_name;
-static int		got_msg;
-static int		saved_nodeid;
-static int		saved_len;
-static char		saved_data[MAX_MSGLEN];
 int			message_flow_control_on;
 
 void receive_journals(struct mountgroup *mg, char *buf, int len, int from);
@@ -113,10 +109,7 @@ static void do_deliver(int nodeid, char *data, int len)
 void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 		uint32_t nodeid, uint32_t pid, void *data, int data_len)
 {
-	saved_nodeid = nodeid;
-	saved_len = data_len;
-	memcpy(saved_data, data, data_len);
-	got_msg = 1;
+	do_deliver(nodeid, data, data_len);
 }
 
 void confchg_cb(cpg_handle_t handle, struct cpg_name *group_name,
@@ -143,11 +136,14 @@ void update_flow_control_status(void)
 	}
 
 	if (flow_control_state == CPG_FLOW_CONTROL_ENABLED) {
+		if (message_flow_control_on == 0) {
+			log_debug("flow control on");
+		}
 		message_flow_control_on = 1;
-		log_debug("flow control on");
 	} else {
-		if (message_flow_control_on)
+		if (message_flow_control_on) {
 			log_debug("flow control off");
+		}
 		message_flow_control_on = 0;
 	}
 }
@@ -156,19 +152,11 @@ int process_cpg(void)
 {
 	cpg_error_t error;
 
-	got_msg = 0;
-	saved_len = 0;
-	saved_nodeid = 0;
-	memset(saved_data, 0, sizeof(saved_data));
-
-	error = cpg_dispatch(daemon_handle, CPG_DISPATCH_ONE);
+	error = cpg_dispatch(daemon_handle, CPG_DISPATCH_ALL);
 	if (error != CPG_OK) {
 		log_error("cpg_dispatch error %d", error);
 		return -1;
 	}
-
-	if (got_msg)
-		do_deliver(saved_nodeid, saved_data, saved_len);
 
 	update_flow_control_status();
 
