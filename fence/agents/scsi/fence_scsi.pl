@@ -4,7 +4,6 @@ use Getopt::Std;
 use IPC::Open3;
 use POSIX;
 
-my $verbose = 0;
 my @volumes;
 
 $_ = $0;
@@ -71,6 +70,45 @@ sub get_key
     return unpack("H*", $addr);
 }
 
+sub get_node_name
+{
+    return $opt_n;
+}
+
+sub get_host_name
+{
+    my $host_name;
+
+    my ($in, $out, $err);
+    my $cmd = "cman_tool status";
+
+    my $pid = open3($in, $out, $err, $cmd) or die "$!\n";
+
+    waitpid($pid, 0);
+
+    die "Unable to execute cman_tool.\n" if ($?>>8);
+
+    while (<$out>)
+    {
+	chomp;
+	print "OUT: $_\n" if $opt_v;
+
+	my ($name, $value) = split(/\s*:\s*/, $_);
+
+	if ($name eq "Node name")
+	{
+	    $host_name = $value;
+	    last;
+	}
+    }
+
+    close($in);
+    close($out);
+    close($err);
+
+    return $host_name;
+}
+
 sub get_options_stdin
 {
     my $opt;
@@ -106,10 +144,6 @@ sub get_options_stdin
 	elsif ($name eq "node")
 	{
 	    $opt_n = $val;
-	}
-	elsif ($name eq "self")
-	{
-	    $opt_s = $val;
 	}
 	elsif ($name eq "verbose")
 	{
@@ -174,10 +208,11 @@ sub check_sg_persist
 
 sub fence_node
 {
-    # my $name = (POSIX::uname())[1];
+    my $host_name = get_host_name();
+    my $node_name = get_node_name();
 
-    my $host_key = get_key($opt_s);
-    my $node_key = get_key($opt_n);
+    my $host_key = get_key($host_name);
+    my $node_key = get_key($node_name);
     
     my $cmd;
     my ($in, $out, $err);
@@ -197,17 +232,13 @@ sub fence_node
 
 	waitpid($pid, 0);
 
-	if ($opt_v)
-	{
-	    print "$cmd\n";
-	    while (<$out>)
-	    {
-		chomp;
-		print "OUT: $_\n";
-	    }
-	}
-
 	die "Unable to execute sg_persist.\n" if ($?>>8);
+
+	while (<$out>)
+	{
+	    chomp;
+	    print "OUT: $_\n" if $opt_v;
+	}
 
 	close($in);
 	close($out);
@@ -225,15 +256,14 @@ if (@ARGV > 0) {
     version if defined $opt_V;
 
     fail_usage "Unkown parameter." if (@ARGV > 0);
+
     fail_usage "No '-n' flag specified." unless defined $opt_n;
-    fail_usage "No '-s' flag specified." unless defined $opt_s;
 
 } else {
 
     get_options_stdin();
 
     fail "failed: missing 'node'" unless defined $opt_n;
-    fail "failed: missing 'self'" unless defined $opt_s;
 
 }
 
@@ -242,3 +272,4 @@ check_sg_persist;
 get_scsi_devices;
 
 fence_node;
+
