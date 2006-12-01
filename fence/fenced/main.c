@@ -33,6 +33,43 @@ static int fenced_exit;
 commandline_t comline;
 struct list_head domains;
 
+static int do_write(int fd, void *buf, size_t count)
+{
+	int rv, off = 0;
+
+ retry:
+	rv = write(fd, buf + off, count);
+	if (rv == -1 && errno == EINTR)
+		goto retry;
+	if (rv < 0)
+		return rv;
+
+	if (rv != count) {
+		count -= rv;
+		off += rv;
+		goto retry;
+	}
+	return 0;
+}
+
+/*
+static int do_read(int fd, void *buf, size_t count)
+{
+	int rv, off = 0;
+
+	while (off < count) {
+		rv = read(fd, buf + off, count - off);
+		if (rv == 0)
+			return -1;
+		if (rv == -1 && errno == EINTR)
+			continue;
+		if (rv == -1)
+			return -1;
+		off += rv;
+	}
+	return 0;
+}
+*/
 
 static int setup_ccs(fd_t *fd)
 {
@@ -286,18 +323,18 @@ static void client_init(void)
 
 static int do_dump(int ci)
 {
-	int rv, len;
+	int rv, len = DUMP_SIZE;
 
 	if (dump_wrap) {
 		len = DUMP_SIZE - dump_point;
-		rv = write(client[ci].fd, dump_buf + dump_point, len);
-		if (rv != len)
+		rv = do_write(client[ci].fd, dump_buf + dump_point, len);
+		if (rv < 0)
 			log_debug("write error %d errno %d", rv, errno);
+		len = dump_point;
 	}
-	len = dump_point;
 
-	rv = write(client[ci].fd, dump_buf, len);
-	if (rv != len)
+	rv = do_write(client[ci].fd, dump_buf, len);
+	if (rv < 0)
 		log_debug("write error %d errno %d", rv, errno);
 	return 0;
 }

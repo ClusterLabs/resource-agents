@@ -52,6 +52,42 @@ static int operation;
 static int opt_ind;
 static int verbose;
 
+static int do_write(int fd, void *buf, size_t count)
+{
+	int rv, off = 0;
+
+ retry:
+	rv = write(fd, buf + off, count);
+	if (rv == -1 && errno == EINTR)
+		goto retry;
+	if (rv < 0)
+		return rv;
+
+	if (rv != count) {
+		count -= rv;
+		off += rv;
+		goto retry;
+	}
+	return 0;
+}
+
+static int do_read(int fd, void *buf, size_t count)
+{
+	int rv, off = 0;
+
+	while (off < count) {
+		rv = read(fd, buf + off, count - off);
+		if (rv == 0)
+			return -1;
+		if (rv == -1 && errno == EINTR)
+			continue;
+		if (rv == -1)
+			return -1;
+		off += rv;
+	}
+	return 0;
+}
+
 static void print_usage(void)
 {
 	printf("Usage:\n");
@@ -337,23 +373,16 @@ int do_dump(int argc, char **argv, int fd)
 
 	sprintf(outbuf, "dump");
 
-	rv = write(fd, outbuf, sizeof(outbuf));
-	if (rv != sizeof(outbuf)) {
-		printf("dump write error %d errno %d\n", rv, errno);;
+	rv = do_write(fd, outbuf, sizeof(outbuf));
+	if (rv < 0) {
+		printf("dump write error %d errno %d\n", rv, errno);
 		return -1;
 	}
 
-	while (1) {
-		rv = read(fd, inbuf, sizeof(inbuf));
-		fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
-		if (rv <= 0) {
-			if (errno != EAGAIN)
-				printf("dump read returned %d errno %d\n", rv, errno);
-			break;
-		}
-		else
-			write(STDOUT_FILENO, inbuf, rv);
-	}
+	rv = do_read(fd, inbuf, sizeof(inbuf));
+	if (rv < 0)
+		printf("dump read error %d errno %d\n", rv, errno);
+	do_write(STDOUT_FILENO, inbuf, sizeof(inbuf));
 
 	close(fd);
 	return 0;
@@ -370,23 +399,16 @@ int do_maxline_dump(int argc, char **argv, int fd)
 
 	sprintf(outbuf, "dump");
 
-	rv = write(fd, outbuf, sizeof(outbuf));
-	if (rv != sizeof(outbuf)) {
-		printf("dump write error %d errno %d\n", rv, errno);;
+	rv = do_write(fd, outbuf, sizeof(outbuf));
+	if (rv < 0) {
+		printf("dump write error %d errno %d\n", rv, errno);
 		return -1;
 	}
 
-	while (1) {
-		rv = read(fd, inbuf, sizeof(inbuf));
-		fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
-		if (rv <= 0) {
-			if (errno != EAGAIN)
-				printf("dump read returned %d errno %d\n", rv, errno);
-			break;
-		}
-		else
-			write(STDOUT_FILENO, inbuf, rv);
-	}
+	rv = do_read(fd, inbuf, sizeof(inbuf));
+	if (rv < 0)
+		printf("dump read error %d errno %d\n", rv, errno);
+	do_write(STDOUT_FILENO, inbuf, sizeof(inbuf));
 
 	close(fd);
 	return 0;
@@ -407,8 +429,8 @@ int do_plock_dump(int argc, char **argv, int fd)
 
 	sprintf(outbuf, "plocks %s", argv[opt_ind + 1]);
 
-	rv = write(fd, outbuf, sizeof(outbuf));
-	if (rv != sizeof(outbuf)) {
+	rv = do_write(fd, outbuf, sizeof(outbuf));
+	if (rv < 0) {
 		printf("dump write error %d errno %d\n", rv, errno);;
 		return -1;
 	}

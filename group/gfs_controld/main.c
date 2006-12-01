@@ -197,13 +197,13 @@ int client_send(int ci, char *buf, int len)
 
 static int dump_debug(int ci)
 {
-	int len;
+	int len = DUMP_SIZE;
 
 	if (dump_wrap) {
 		len = DUMP_SIZE - dump_point;
 		do_write(client[ci].fd, dump_buf + dump_point, len);
+		len = dump_point;
 	}
-	len = dump_point;
 
 	do_write(client[ci].fd, dump_buf, len);
 	return 0;

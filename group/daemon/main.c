@@ -551,25 +551,24 @@ static int do_get_group(int ci, int argc, char **argv)
 
 static int do_dump(int fd)
 {
-	int rv, len;
+	int rv, len = DUMP_SIZE;
 
 	if (dump_wrap) {
 		len = DUMP_SIZE - dump_point;
-		rv = write(fd, dump_buf + dump_point, len);
-		if (rv != len)
-			log_print("write error %d errno %d", rv, errno);
+		rv = do_write(fd, dump_buf + dump_point, len);
+		if (rv < 0)
+			log_print("dump write error %d errno %d", rv, errno);
+		len = dump_point;
 	}
-	len = dump_point;
 
-	rv = write(fd, dump_buf, len);
-	if (rv != len)
-		log_print("write error %d errno %d", rv, errno);
+	rv = do_write(fd, dump_buf, len);
+	if (rv < 0)
+		log_print("dump write error %d errno %d", rv, errno);
 	return 0;
 }
 
 static int do_log(int fd, const char *comment)
 {
-
 	log_print("%s", comment);
 	return 0;
 }
@@ -673,7 +672,7 @@ static void process_connection(int ci)
 		break;
 
 	default:
-		log_print("unknown action %d client %d bytes %d", act, ci, rv);
+		log_print("unknown action %d client %d", act, ci);
 		log_print("invalid message: \"%s\"", buf);
 	}
 }
