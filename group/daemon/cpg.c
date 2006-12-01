@@ -151,6 +151,7 @@ static void process_node_leave(group_t *g, int nodeid)
 
 void process_groupd_confchg(void)
 {
+	struct recovery_set *rs;
 	int i, found = 0;
 
 	log_debug("groupd confchg total %d left %d joined %d",
@@ -172,14 +173,26 @@ void process_groupd_confchg(void)
 		log_print("we are not in groupd confchg: %u %u",
 			  our_nodeid, (uint32_t) getpid());
 
-	/* FIXME: we probably want to do a cman_kill_node() on a node
-	   where groupd exits but cman is still running. */
-
 	for (i = 0; i < saved_left_count; i++) {
-		if (saved_left[i].reason != CPG_REASON_LEAVE) {
-			add_recovery_set(saved_left[i].nodeid);
-			groupd_down(saved_left[i].nodeid);
+		if (saved_left[i].reason == CPG_REASON_LEAVE)
+			continue;
+
+		if (saved_left[i].reason == CPG_REASON_NODEDOWN) {
+			/* a nice clean failure */
+			add_recovery_set_cpg(saved_left[i].nodeid, 0);
+		} else if (saved_left[i].reason == CPG_REASON_PROCDOWN) {
+			/* groupd failed, but the node is still up; if
+			   the node was in any groups (non-NULL rs is
+			   returned), then kill the node so it'll be a
+			   real nodedown */
+			rs = add_recovery_set_cpg(saved_left[i].nodeid, 1);
+			if (rs) {
+				log_print("kill node %d - groupd PROCDOWN",
+					  saved_left[i].nodeid);
+				kill_cman(saved_left[i].nodeid);
+			}
 		}
+		groupd_down(saved_left[i].nodeid);
 	}
 }
 

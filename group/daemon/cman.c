@@ -53,7 +53,6 @@ static int is_cman_member(int nodeid)
 
 static void statechange(void)
 {
-	struct recovery_set *rs;
 	int i, rv;
 
 	old_quorate = cman_quorate;
@@ -95,24 +94,7 @@ static void statechange(void)
 
 			log_debug("cman: node %d removed",
 				  old_nodes[i].cn_nodeid);
-
-			rs = get_recovery_set(old_nodes[i].cn_nodeid);
-			rs->cman_update = 1;
-
-			if (!rs->cpg_update && !in_groupd_cpg(rs->nodeid)) {
-				log_debug("free recovery set %d not in cpg",
-					  rs->nodeid);
-				list_del(&rs->list);
-				free(rs);
-				continue;
-			}
-
-			if (rs->cpg_update && list_empty(&rs->entries)) {
-				log_debug("free unused recovery set %d cman",
-					  rs->nodeid);
-				list_del(&rs->list);
-				free(rs);
-			}
+			add_recovery_set_cman(old_nodes[i].cn_nodeid);
 		}
 	}
 

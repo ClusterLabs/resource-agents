@@ -236,7 +236,8 @@ struct recovery_entry {
 
 
 /* app.c */
-void add_recovery_set(int nodeid);
+void add_recovery_set_cman(int nodeid);
+struct recovery_set *add_recovery_set_cpg(int nodeid, int procdown);
 int queue_app_recover(group_t *g, int nodeid);
 int queue_app_join(group_t *g, int nodeid);
 int queue_app_leave(group_t *g, int nodeid);

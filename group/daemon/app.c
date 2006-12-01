@@ -209,20 +209,61 @@ struct recovery_set *get_recovery_set(int nodeid)
    level must complete recovery (on all nodes) before recovery can begin for
    the next level. */
 
-void add_recovery_set(int nodeid)
+/* FIXME: do we need to worry about the case where we get an
+   add_recovery_set_cman() that finds an old rs, the old rs completes
+   and goes away, and then we get the add_recovery_set_cpg() matching
+   the _cman() variant that we ignored? */
+
+void add_recovery_set_cman(int nodeid)
+{
+	struct recovery_set *rs;
+
+	log_debug("add_recovery_set_cman nodeid %d", nodeid);
+
+	rs = get_recovery_set(nodeid);
+	if (rs->cman_update) {
+		log_debug("old recovery for %d still in progress", nodeid);
+		return;
+	}
+	rs->cman_update = 1;
+
+	if (!rs->cpg_update && !in_groupd_cpg(nodeid)) {
+		log_debug("free recovery set %d not running groupd", nodeid);
+		list_del(&rs->list);
+		free(rs);
+		return;
+	}
+
+	if (list_empty(&rs->entries) && rs->cpg_update) {
+		log_debug("free unused recovery set %d cman", nodeid);
+		list_del(&rs->list);
+		free(rs);
+	}
+}
+
+/* procdown of 1 means the groupd daemon process exited, but the node didn't
+   fail.  when only the process fails, we won't get a cman callback which is
+   only for nodedown.  if the node wasn't in any groups we don't add a recovery
+   set and don't care about the exited groupd; if the node with the failed
+   groupd _was_ in any groups, we add a rs and process_groupd_confchg() will do
+   cman_kill_node() to make the node really fail (and we'll get an
+   add_recovery_set_cman()). */
+
+struct recovery_set *add_recovery_set_cpg(int nodeid, int procdown)
 {
 	struct recovery_set *rs;
 	struct recovery_entry *re;
 	group_t *g;
 	node_t *node;
 
-	log_debug("add_recovery_set for nodeid %d", nodeid);
+	log_debug("add_recovery_set_cpg nodeid %d procdown %d",
+		  nodeid, procdown);
 
 	rs = get_recovery_set(nodeid);
-
-	ASSERT(list_empty(&rs->entries));
-	ASSERT(!rs->cpg_update);
-
+	if (rs->cpg_update) {
+		log_debug("old recovery for %d still in progress", nodeid);
+		return rs;
+	}
 	rs->cpg_update = 1;
 
 	list_for_each_entry(g, &gd_groups, list) {
@@ -238,11 +279,16 @@ void add_recovery_set(int nodeid)
 		}
 	}
 
-	if (list_empty(&rs->entries) && rs->cman_update) {
-		log_debug("free unused recovery set %d cpg", nodeid);
-		list_del(&rs->list);
-		free(rs);
+	if (list_empty(&rs->entries)) {
+		if (rs->cman_update || procdown) {
+			log_debug("free unused recovery set %d cpg", nodeid);
+			list_del(&rs->list);
+			free(rs);
+			return NULL;
+		}
 	}
+
+	return rs;
 }
 
 void _del_recovery_set(group_t *g, int nodeid, int purge)
