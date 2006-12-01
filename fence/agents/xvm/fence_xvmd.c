@@ -207,6 +207,54 @@ cleanup_xmldesc(char *xmldesc)
 }
 
 
+static inline int
+wait_domain(fence_req_t *req, virConnectPtr vp, int timeout)
+{
+	int tries = 0;
+	int response = 1;
+	virDomainPtr vdp;
+	virDomainInfo di;
+
+	if (!(vdp = get_domain(req, vp)))
+		return 0;
+
+	/* Check domain liveliness.  If the domain is still here,
+	   we return failure, and the client must then retry */
+	/* XXX On the xen 3.0.4 API, we will be able to guarantee
+	   synchronous virDomainDestroy, so this check will not
+	   be necessary */
+	do {
+		sleep(1);
+		vdp = get_domain(req, vp);
+		if (!vdp) {
+			dprintf(2, "Domain no longer exists\n");
+			response = 0;
+			break;
+		}
+
+		memset(&di, 0, sizeof(di));
+		virDomainGetInfo(vdp, &di);
+		virDomainFree(vdp);
+
+		if (di.state == VIR_DOMAIN_SHUTOFF) {
+			dprintf(2, "Domain has been shut off\n");
+			response = 0;
+			break;
+		}
+		
+		dprintf(4, "Domain still exists (state %d) after %d seconds\n",
+			di.state, tries);
+
+		if (++tries >= timeout)
+			break;
+	} while (1);
+
+	return response;
+}
+
+
+
+
 int
 do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 		     void *key, size_t key_len, virConnectPtr vp)
@@ -235,24 +283,18 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 		break;
 	case FENCE_OFF:
 		printf("Destroying domain %s...\n", (char *)req->domain);
+
+		dprintf(2, "[OFF] Calling virDomainDestroy\n");
 		ret = virDomainDestroy(vdp);
 		if (ret < 0) {
-			/* raise_error(vp); */
+			printf("virDomainDestroy() failed: %d\n", ret);
 			break;
-		} else { 
-			sleep(1);
 		}
 
-		/* Check domain liveliness.  If the domain is still here,
-		   we return failure, and the client must then retry */
-		/* XXX On the xen 3.0.4 API, we will be able to guarantee
-		   synchronous virDomainDestroy, so this check will not
-		   be necessary */
-		vdp = get_domain(req, vp);
-		if (!vdp) {
-			response = 0;	/* Success! */
-		} else {
-			virDomainFree(vdp);
+		response = wait_domain(req, vp, 15);
+
+		if (response) {
+			printf("Domain still exists; fencing failed\n");
 		}
 		break;
 	case FENCE_REBOOT:
@@ -271,42 +313,26 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 			       "libvirt\n");
 		}
 
-		dprintf(2, "Calling virDomainDestroy\n");
+		dprintf(2, "[REBOOT] Calling virDomainDestroy\n");
 		ret = virDomainDestroy(vdp);
 		if (ret < 0) {
 			printf("virDomainDestroy() failed: %d\n", ret);
 			if (domain_desc)
 				free(domain_desc);
 			break;
-		} else {
-			/* Give it time for the operation to complete */
-			sleep(3);
 		}
 
-		/* Check domain liveliness.  If the domain is still here,
-		   we return failure, and the client must then retry */
-		/* XXX On the xen 3.0.4 API, we will be able to guarantee
-		   synchronous virDomainDestroy, so this check will not
-		   be necessary */
-		vdp = get_domain(req, vp);
-		if (!vdp) {
-			dprintf(2, "Domain no longer exists\n");
-			response = 0;	/* Success! */
-		} else {
+		response = wait_domain(req, vp, 15);
+
+		if (response) {
 			printf("Domain still exists; fencing failed\n");
-			virDomainFree(vdp);
-			ret = 1;	/* Failed to kill it */
-		}
-
-		/* Recreate the domain if possible */
-		if (ret == 0 && domain_desc) {
+		} else if (domain_desc) {
+			/* Recreate the domain if possible */
 			/* Success */
 			dprintf(2, "Calling virDomainCreateLinux()...\n");
 			virDomainCreateLinux(vp, domain_desc, 0);
-		}
-
-		if (domain_desc)
 			free(domain_desc);
+		}
 		break;
 	}
 	
@@ -646,17 +672,14 @@ main(int argc, char **argv)
 	int mc_sock;
 	char key[4096];
 	int key_len = 0;
-	char *my_options = "dfi:a:p:C:c:k:u?hVX";
+	char *my_options = "dfi:a:p:C:c:k:u?hV";
 	void *h;
 
 	args_init(&args);
 	args_get_getopt(argc, argv, my_options, &args);
-	if (!(args.flags & F_NOCCS)) {
-		args_get_ccs(my_options, &args);
-	}
 	args_finalize(&args);
 	if (args.debug > 0) {
-		dset(args.debug);
+		_debug = args.debug;
 		args_print(&args);
 	}
 

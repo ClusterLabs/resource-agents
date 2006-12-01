@@ -1,4 +1,4 @@
-I. Fence_xvm - the Xen virtual machine fencing agent
+I. Fence_xvm - virtual machine fencing agent
 
 Fence_xvm is an agent which establishes a communications link between
 a cluster of virtual machines (VC) and a cluster of domain0/physical
@@ -20,11 +20,11 @@ would hate to receive a false positive response from a node not in the
 cluster!).
 
 
-II. Fence_xvmd - The Xen virtual machine fencing host
+II. Fence_xvmd - The virtual machine fencing host
 
 Fence_xvmd is a daemon which runs on physical hosts (e.g. in domain0)
-of the cluster hosting the Xen virtual cluster.  It listens on a port
-for multicast traffic from Xen virtual cluster(s), and takes actions.
+of the cluster hosting the virtual cluster.  It listens on a port
+for multicast traffic from virtual cluster(s), and takes actions.
 Multiple disjoint virtual clusters can coexist on a single physical
 host cluster, but this requires multiple instances of fence_xvmd.
 
@@ -41,11 +41,11 @@ In order to be able to guarantee safe fencing of a VM even if the
 last- known host is down, we must store the last-known locations of
 each virtual machine in some sort of cluster-wide way.  For this, we
 use the AIS Checkpointing API, which is provided by OpenAIS.  Every
-few seconds, fence_xvmd queries the Xen Hypervisor via libvirt and
+few seconds, fence_xvmd queries the hypervisor via libvirt and
 stores any local VM states in a checkpoint.  In the event of a
 physical node failure (which consequently causes the failure of one
-or more Xen guests), we can then read the checkpoint section
-corresponding to the guest we need to fence to find out the previous
+or more guests), we can then read the checkpoint section corresponding
+to the guest we need to fence to find out the previous
 owner.  With that information, we can then check with CMAN to see if
 the last-known host node has been fenced.  If so, then the VM is
 clean as well.  The physical cluster must, therefore, have fencing
@@ -71,8 +71,10 @@ Operation of high-node-ID:
   (e) Open connection to host contained within multicast
       packet.
   (f) Check with CMAN to see if last-known host has been fenced.
-  (g) If last-known host has been fenced, send success response.
-  (h) Authenticate server & send response.
+      (If it has not; do nothing -- this is why the physical 
+      cluster also needs fencing!)
+  (g) Authenticate server & send response.
+  (h) If last-known host has been fenced, send success response.
 
 NOTE: There is always a possibility that a VM is started again
 before the fencing operation and checkpoint update for that VM
@@ -111,14 +113,70 @@ Generate a random key file.  An example of how to generate it is:
 
     dd if=/dev/urandom of=/etc/cluster/fence_xvm.key bs=4096 count=1
 
-Distribute the generated key file to all domUs in a cluster as well
-as all dom0s which will be hosting that particular cluster of domUs.
+Distribute the generated key file to all virtual machines in a
+cluster as well as all physical host nodes which will be hosting
+that particular cluster of guests.  More simply, everything involved
+with hosting the virtual cluster as well as the virtual cluster
+itself must have the same key file; it acts as a password.
+
 The key should not be placed on shared file systems (because shared
-file systems require the cluster, which requires fencing...).
+file systems require the cluster, which requires fencing...).  
+Furthermore, it is considered 'unsupported' to join a host cluster
+and a guest cluster in one management domain.
 
-Start fence_xvmd on all dom0s
+A. Configuring the host (physical) cluster
 
-Configure fence_xvm on the domU cluster...
+On the host cluster, you need to add the following tag as a
+child of the <cluster> tag in /etc/cluster/cluster.conf:
 
-rest...tbd
+    <fence_xvmd/>
 
+(Do not forget to increment the configuration version number and
+run 'ccs_tool update /etc/cluster/cluster.conf' !).
+
+Start fence_xvmd on all host nodes if it isn't already running.
+Just run 'fence_xvmd'.  The next time the cluster is restarted,
+fence_xvmd will start automatically; it is started by the cman
+script if you have the above tag in cluster.conf.
+
+B.  Configuring the guest (virtual) cluster
+
+On the guest cluster, you need to set up per-node fencing.  This
+is a fairly simple task as well.  First, you need to add a fence
+device for 'xvm'.  Simply add the following to the <fencedevices/>
+tag in the guest cluster's cluster.conf:
+
+    <fencedevice name="xvm" agent="fence_xvm"/>
+
+After doing this, each node also needs individual fencing set up.
+For each <clusternode/> tag, you will need to add something like
+the following:
+
+    <fence>
+        <method name="1">
+            <device name="xvm" domain="doman-name"/>
+        </method>
+    </fence>
+
+For example, if you have a virtual host named 'vm1.test.com' with a
+corresponding virtual domain name of 'domU-vm1' in the dom0 cluster,
+and a node ID of 1, the <clusternode> tag for that virtual machine
+would look like so:
+
+    <clusternode name="vm1.test.com" nodeid="1" votes="1">
+        <fence>
+            <method name="1">
+                <device name="xvm" domain="domU-vm1"/>
+            </method>
+        </fence>
+    </clusternode>
+
+C. Advanced configuration
+
+Any advanced configuration parameters (e.g. changing authentication,
+hashing, key file, etc.) should be included in the <fence_xvmd/> tag
+in the host cluster and the <fencedevice .../> tag in the guest
+cluster.  For a complete list of advanced parameters, see:
+
+    fence_xvmd -h
+    fence_xvm -h
