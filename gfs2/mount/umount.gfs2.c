@@ -130,9 +130,12 @@ int main(int argc, char **argv)
 	parse_opts(&mo);
 
 	rv = umount(mo.dir);
-	if (rv)
-		die("error %d unmounting %s\n", errno, mo.dir);
-
+	if (rv) {
+		if (errno == EBUSY)
+			die("%s: device is busy.\n", mo.dir);
+		else
+			die("error %d unmounting %s\n", errno, mo.dir);
+	}
 	proto = select_lockproto(&mo, &sb);
 	umount_lockproto(proto, &mo, &sb);
 
