@@ -28,9 +28,6 @@
 #include <grp.h>
 #include <stdint.h>
 #include <inttypes.h>
-
-#include <linux/gfs2_ondisk.h>
-
 #include "gfs2_quota.h"
 
 uint32_t

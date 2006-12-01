@@ -14,6 +14,9 @@
 #ifndef __GFS2_QUOTA_DOT_H__
 #define __GFS2_QUOTA_DOT_H__
 
+#include "libgfs2.h"
+#include "linux_endian.h"
+#include <linux/gfs2_ondisk.h>
 
 #ifndef TRUE
 #define TRUE (1)
@@ -64,6 +67,16 @@ do { \
 #define GQ_UNITS_FSBLOCK     (35)
 #define GQ_UNITS_BASICBLOCK  (36)
 
+#define BUF_SIZE 4096
+#define meta_mount "/tmp/.gfs2meta"
+char device_name[256];
+char fspath[256];
+char fsoptions[256];
+//char meta_mount[PATH_MAX]; = "/tmp/.gfs2meta";
+char metafs_path[BUF_SIZE];
+int metafs_fd;
+int metafs_mounted; /* If metafs was already mounted */
+
 struct commandline {
 	unsigned int operation;
 
@@ -85,18 +98,64 @@ extern char *prog_name;
 
 /*  main.c  */
 
-void check_for_gfs2(int fd, char *path);
+void check_for_gfs2(const char *path);
 void do_get_super(int fd, struct gfs2_sb *sb);
 void do_sync(commandline_t *comline);
+void lock_for_admin();
+int find_gfs2_meta(const char *mnt);
+void mount_gfs2_meta();
+void cleanup();
+void read_superblock(struct gfs2_sb *sb);
 
 /*  check.c  */
 
 void do_check(commandline_t *comline);
-void do_init(commandline_t *comline);
+void do_quota_init(commandline_t *comline);
 
 /*  names.c  */
 
 uint32_t name_to_id(int user, char *name, int numbers);
 char *id_to_name(int user, uint32_t id, int numbers);
+
+
+static inline int __do_read(int fd, char *buff, size_t len, 
+			    const char *file, int line)
+{
+	int ret = read(fd, buff, len);
+	if (ret < 0) {
+		die("bad read: %s on line %d of file %s\n", 
+		    strerror(errno), line, file);
+	}
+	return ret;
+}
+
+#define do_read(fd, buf, len) \
+	__do_read((fd), (buf), (len), __FILE__, __LINE__)
+
+static inline int __do_write(int fd, char *buff, size_t len,
+			     const char *file, int line)
+{
+	int ret = write(fd, buff, len);
+	if (ret != len) {
+		die("bad write: %s on line %d of file %s\n",
+		    strerror(errno), line, file);
+	}
+	return ret;
+}
+
+#define do_write(fd, buf, len) \
+	__do_write((fd), (buf), (len), __FILE__, __LINE__)
+
+static inline int __do_lseek(int fd, off_t off, const char *file, int line)
+{
+	if (lseek(fd, off, SEEK_SET) != off) {
+		die("bad seek: %s on line %d of file %s\n",
+		    strerror(errno), line, file);
+	}
+	return 0;
+}
+
+#define do_lseek(fd, off) \
+	__do_lseek((fd), (off), __FILE__, __LINE__)
 
 #endif /* __GFS2_QUOTA_DOT_H__ */

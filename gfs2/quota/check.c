@@ -26,10 +26,7 @@
 #include <stdint.h>
 #include <inttypes.h>
 
-#include "linux_endian.h"
-#include <linux/gfs2_ondisk.h>
 #define __user
-#include <linux/gfs2_ioctl.h>
 #include "osi_list.h"
 
 #include "gfs2_quota.h"
@@ -182,44 +179,48 @@ scan_fs(dev_t device, char *dirname,
  * @gid: returned list of GIDs for the filesystem
  *
  */
-
 static void
 read_quota_file(commandline_t *comline, osi_list_t *uid, osi_list_t *gid)
 {
 	int fd;
 	struct gfs2_sb sb;
-	struct gfs2_ioctl gi;
 	char buf[sizeof(struct gfs2_quota)];
 	struct gfs2_quota q;
 	uint64_t offset = 0;
 	uint32_t id;
 	int error;
+	char quota_file[BUF_SIZE];
+	
+	check_for_gfs2(comline->filesystem);
+	read_superblock(&sb);
+	if (!find_gfs2_meta(comline->filesystem))
+		mount_gfs2_meta();
+	lock_for_admin();
+	
+	strcpy(quota_file, metafs_path);
+	strcat(quota_file, "/quota");
 
-	fd = open(comline->filesystem, O_RDONLY);
-	if (fd < 0)
+	fd = open(quota_file, O_RDONLY);
+	if (fd < 0) {
+		close(metafs_fd);
+		cleanup();
 		die("can't open file %s: %s\n", comline->filesystem,
 		    strerror(errno));
-
-	check_for_gfs2(fd, comline->filesystem);
-
-	do_get_super(fd, &sb);
+	}
 
 	do {
-		char *argv[] = { "do_hfile_read", "quota" };
-
-		gi.gi_argc = 2;
-		gi.gi_argv = argv;
-		gi.gi_data = buf;
-		gi.gi_size = sizeof(struct gfs2_quota);
-		gi.gi_offset = offset;
-
+		
 		memset(buf, 0, sizeof(struct gfs2_quota));
-
-		error = ioctl(fd, GFS2_IOCTL_SUPER, &gi);
-		if (error < 0)
+		/* read hidden quota file here */
+		lseek(fd, offset, SEEK_SET);
+		error = read(fd, buf, sizeof(struct gfs2_quota));
+		if (error < 0) {
+			close(fd);
+			close(metafs_fd);
+			cleanup();
 			die("can't read quota file (%d): %s\n",
 			    error, strerror(errno));
-
+		}
 		gfs2_quota_in(&q, buf);
 
 		id = (offset / sizeof(struct gfs2_quota)) >> 1;
@@ -236,6 +237,8 @@ read_quota_file(commandline_t *comline, osi_list_t *uid, osi_list_t *gid)
 	} while (error == sizeof(struct gfs2_quota));
 
 	close(fd);
+	close(metafs_fd);
+	cleanup();
 }
 
 /**
@@ -422,23 +425,32 @@ do_check(commandline_t *comline)
 static void
 set_list(commandline_t *comline, int user, osi_list_t *list, int64_t multiplier)
 {
-	int fd;
+	int fd, fd1;
 	struct gfs2_sb sb;
 	osi_list_t *tmp;
 	values_t *v;
 	uint64_t offset;
 	int64_t value;
-	struct gfs2_ioctl gi;
-	char buf[256];
 	int error;
+	char quota_file[BUF_SIZE];
+	char sys_q_refresh[BUF_SIZE];
+	
+	check_for_gfs2(comline->filesystem);
+	read_superblock(&sb);
+	if (!find_gfs2_meta(comline->filesystem))
+		mount_gfs2_meta();
+	lock_for_admin();
+	
+	strcpy(quota_file, metafs_path);
+	strcat(quota_file, "/quota");
 
-	fd = open(comline->filesystem, O_RDONLY);
-	if (fd < 0)
+	fd = open(quota_file, O_WRONLY);
+	if (fd < 0) {
+		close(metafs_fd);
+		cleanup();
 		die("can't open file %s: %s\n", comline->filesystem,
 		    strerror(errno));
-
-	check_for_gfs2(fd, comline->filesystem);
-	do_get_super(fd, &sb);
+	}
 
 	for (tmp = list->next; tmp != list; tmp = tmp->next) {
 		v = osi_list_entry(tmp, values_t, v_list);
@@ -449,51 +461,49 @@ set_list(commandline_t *comline, int user, osi_list_t *list, int64_t multiplier)
 
 		value = v->v_blocks * multiplier;
 		value >>= sb.sb_bsize_shift - 9;
-		value = cpu_to_le64(value);
+		value = cpu_to_be64(value);
 
-		{
-			char *argv[] = { "do_hfile_write", "quota"};
-
-			gi.gi_argc = 2;
-			gi.gi_argv = argv;
-			gi.gi_data = (char *)&value;
-			gi.gi_size = sizeof(int64_t);
-			gi.gi_offset = offset;
-
-			error = ioctl(fd, GFS2_IOCTL_SUPER, &gi);
-			if (error != sizeof(int64_t))
-				die("can't write quota file (%d): %s\n",
-				    error, strerror(errno));
+		lseek(fd, offset, SEEK_SET);
+		error = write(fd, (char*)&value, sizeof(uint64_t));
+		if (error != sizeof(uint64_t)) {
+			fprintf(stderr, "can't write quota file (%d): %s\n",
+			    error, strerror(errno));
+			goto out;
 		}
 
-		sprintf(buf, "%s:%u",
-			(user) ? "u" : "g",
-			v->v_id);
-
-		{
-			char *argv[] = { "do_quota_refresh", buf };
-
-			gi.gi_argc = 2;
-			gi.gi_argv = argv;
-
-			error = ioctl(fd, GFS2_IOCTL_SUPER, &gi);
-			if (error)
-				die("can't refresh the quota LVB 1: %s\n",
-				    strerror(errno));
+		/* Write "1" to sysfs quota refresh file to refresh gfs quotas */
+		sprintf(sys_q_refresh, "%s%s%s", "/sys/fs/gfs2/", sb.sb_locktable, 
+			(user) ? "/quota_refresh_user" : "/quota_refresh_group");
+		
+		fd1 = open(sys_q_refresh, O_WRONLY);
+		if (fd1 < 0) {
+			fprintf(stderr, "can't open file %s: %s\n", 
+				sys_q_refresh, strerror(errno));
+			goto out;
 		}
+		if (write(fd1,(void*)"1", 1) != 1) {
+			close(fd1);
+			fprintf(stderr, "failed to write to %s: %s\n", 
+				sys_q_refresh, strerror(errno));
+			goto out;
+		}
+		close(fd1);
 	}
 
+out:
 	close(fd);
+	close(metafs_fd);
+	cleanup();
 }
 
 /**
- * do_init - initialize the quota file
+ * do_quota_init - initialize the quota file
  * @comline: the command line arguments
  *
  */
 
 void
-do_init(commandline_t *comline)
+do_quota_init(commandline_t *comline)
 {
 	dev_t device;
 	osi_list_t fs_uid, fs_gid, qf_uid, qf_gid;
@@ -530,7 +540,7 @@ do_init(commandline_t *comline)
 	set_list(comline, FALSE, &qf_gid, 0);
 	set_list(comline, TRUE, &fs_uid, 1);
 	set_list(comline, FALSE, &fs_gid, 1);
-
+	
 	do_sync(comline);
 
 	do_check(comline);
