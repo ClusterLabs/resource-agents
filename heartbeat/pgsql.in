@@ -10,10 +10,12 @@
 #
 # OCF parameters:
 #  OCF_RESKEY_pgctl  - Path to pg_ctl. Default /usr/bin/pg_ctl
-#  OCF_RESKET_start_opt - Startup options. Default ""
+#  OCF_RESKEY_start_opt - Startup options, options passed to postgress with -o
+#  OCF_RESKEY_ctl_opt - Additional options for pg_ctl (-w, -W etc...)
 #  OCF_RESKEY_psql   - Path to psql. Default is /usr/bin/psql
 #  OCF_RESKEY_pgdata - PGDATA directory. Default is /var/lib/pgsql/data
 #  OCF_RESKEY_pgdba  - userID that manages DB. Default is postgres
+#  OCF_RESKEY_pghost - Host/IP Address where PostgreSQL is listening
 #  OCF_RESKEY_pgdb   - database to monitor. Default is template1
 #  OCF_RESKEY_logfile - Path to PostgreSQL log file. Default is /dev/null
 ###############################################################################
@@ -64,9 +66,16 @@ Path to pg_ctl command.
 </parameter>
 <parameter name="start_opt" unique="0" required="0">
 <longdesc lang="en">
-Start options. "-i -p 5432" for example.
+Start options (-o start_opt in pgi_ctl). "-i -p 5432" for example.
 </longdesc>
 <shortdesc lang="en">start_opt</shortdesc>
+<content type="string" default="" />
+</parameter>
+<parameter name="ctl_opt" unique="0" required="0">
+<longdesc lang="en">
+Additional pg_ctl options (-w, -W etc..). Default is ""
+</longdesc>
+<shortdesc lang="en">ctl_opt</shortdesc>
 <content type="string" default="" />
 </parameter>
 <parameter name="psql" unique="0" required="0">
@@ -90,6 +99,13 @@ User that owns PostgreSQL.
 <shortdesc lang="en">pgdba</shortdesc>
 <content type="string" default="postgres" />
 </parameter>
+<parameter name="pghost" unique="0" required="0">
+<longdesc lang="en">
+Hostname/IP Addreess where PosrgeSQL is listening
+</longdesc>
+<shortdesc lang="en">pghost</shortdesc>
+<content type="string" default="" />
+</parameter>
 <parameter name="pgdb" unique="0" required="0">
 <longdesc lang="en">
 Database that will be used for monitoring.
@@ -99,7 +115,7 @@ Database that will be used for monitoring.
 </parameter>
 <parameter name="logfile" unique="0" required="0">
 <longdesc lang="en">
-Path to PostgreSQL server log file.
+Path to PostgreSQL server log output file.
 </longdesc>
 <shortdesc lang="en">logfile</shortdesc>
 <content type="string" default="/dev/null" />
@@ -161,7 +177,7 @@ pgsql_start() {
 	    return $OCF_ERR_GENERIC
 	fi
 
-	if runasowner "$PGCTL -D $PGDATA -l $LOGFILE -o "\'$STARTOPT\'" start > /dev/null 2>&1"
+	if runasowner "$PGCTL $CTLOPT -D $PGDATA -l $LOGFILE -o "\'$STARTOPT\'" start > /dev/null 2>&1"
 	then
 	   # Probably started.....
             ocf_log info "PostgreSQL start command sent."
@@ -214,7 +230,7 @@ pgsql_status() {
     if [ -f $PIDFILE  ]
     then
         PID=`head -n 1 $PIDFILE`
-        process_running $PID && [ `ps -p $PID | grep postmaster | wc -l` -eq 1 ]
+        process_running $PID
     else
         : No pid file
         false
@@ -239,8 +255,13 @@ pgsql_monitor() {
 	ocf_log info "PostgreSQL is down"
 	return $OCF_NOT_RUNNING
     fi
-    
-    $PSQL -U $PGDBA $PGDB -c 'select now();' >/dev/null 2>&1
+
+    if [ -z "$PGHOST" ]
+    then
+       $PSQL -U $PGDBA $PGDB -c 'select now();' >/dev/null 2>&1
+    else
+       $PSQL -h $PGHOST -U $PGDBA $PGDB -c 'select now();' >/dev/null 2>&1
+    fi
     
     if [ $? -ne  0 ]
     then
@@ -310,9 +331,11 @@ fi
 
 PGCTL=${OCF_RESKEY_pgctl:-/usr/bin/pg_ctl}
 STARTOPT=${OCF_RESKEY_start_opt:-""}
+CTLOPT=${OCF_RESKEY_ctl_opt:-""}
 PSQL=${OCF_RESKEY_psql:-/usr/bin/psql}
 PGDATA=${OCF_RESKEY_pgdata:-/var/lib/pgsql/data}
 PGDBA=${OCF_RESKEY_pgdba:-postgres}
+PGHOST=${OCF_RESKEY_pghost:-""}
 PGDB=${OCF_RESKEY_pgdb:-template1}
 LOGFILE=${OCF_RESKEY_logfile:-/dev/null}
 PIDFILE=${PGDATA}/postmaster.pid
