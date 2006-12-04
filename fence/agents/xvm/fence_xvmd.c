@@ -679,7 +679,7 @@ main(int argc, char **argv)
 	args_get_getopt(argc, argv, my_options, &args);
 	args_finalize(&args);
 	if (args.debug > 0) {
-		_debug = args.debug;
+		dset(args.debug);
 		args_print(&args);
 	}
 
