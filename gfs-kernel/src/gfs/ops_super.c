@@ -227,6 +227,9 @@ gfs_write_super_lockfs(struct super_block *sb)
 	struct gfs_sbd *sdp = get_v2sdp(sb);
 	int error;
 
+	if (test_bit(SDF_SHUTDOWN, &sdp->sd_flags))
+		return;
+
 	atomic_inc(&sdp->sd_ops_super);
 
 	for (;;) {
