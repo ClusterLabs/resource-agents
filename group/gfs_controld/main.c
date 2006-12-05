@@ -15,7 +15,7 @@
 #define OPTION_STRING			"DPhVwpl:"
 #define LOCKFILE_NAME			"/var/run/gfs_controld.pid"
 
-#define DEFAULT_PLOCK_RATE_LIMIT 10
+#define DEFAULT_PLOCK_RATE_LIMIT 100
 
 struct client {
 	int fd;
