@@ -30,6 +30,7 @@
 #include <sys/un.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <sys/errno.h>
 #include <linux/netlink.h>
 
@@ -125,6 +126,7 @@ struct mountgroup {
 	char			type[5];
 	char			dir[PATH_MAX+1];
 	char			options[MAX_OPTIONS_LEN+1];
+	char			dev[PATH_MAX+1];
 
 	int			last_stop;
 	int			last_start;
@@ -167,6 +169,8 @@ struct mountgroup {
 	int			readonly;
 	int			rw;
 	int			withdraw;
+	int			dmsetup_wait;
+	pid_t			dmsetup_pid;
 
 	struct list_head	saved_messages;
 	void			*start2_fn;
@@ -269,7 +273,7 @@ int process_plocks(void);
 void exit_cman(void);
 
 int do_mount(int ci, char *dir, char *type, char *proto, char *table,
-	     char *options, struct mountgroup **mg_ret);
+	     char *options, char *dev, struct mountgroup **mg_ret);
 int do_unmount(int ci, char *dir, int mnterr);
 int do_remount(int ci, char *dir, char *mode);
 int do_withdraw(char *name);
@@ -289,5 +293,6 @@ int dump_plocks(char *name, int fd);
 void process_saved_plocks(struct mountgroup *mg);
 void purge_plocks(struct mountgroup *mg, int nodeid, int unmount);
 int unlink_checkpoint(struct mountgroup *mg);
+void update_dmsetup_wait(void);
 
 #endif

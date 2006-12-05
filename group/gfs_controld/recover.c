@@ -19,6 +19,7 @@ extern char *clustername;
 extern int our_nodeid;
 extern group_handle_t gh;
 extern int no_withdraw;
+extern int dmsetup_wait;
 
 struct list_head mounts;
 struct list_head withdrawn_mounts;
@@ -1493,15 +1494,15 @@ static int we_are_in_fence_domain(void)
 }
 
 int do_mount(int ci, char *dir, char *type, char *proto, char *table,
-	     char *options, struct mountgroup **mg_ret)
+	     char *options, char *dev, struct mountgroup **mg_ret)
 {
 	struct mountgroup *mg;
 	char table2[MAXLINE];
 	char *cluster = NULL, *name = NULL;
 	int rv;
 
-	log_debug("mount: %s %s %s %s %s",
-		  dir, type, proto, table, options);
+	log_debug("mount: %s %s %s %s %s %s",
+		  dir, type, proto, table, options, dev);
 
 	if (strcmp(proto, "lock_dlm")) {
 		log_error("mount: lockproto %s not supported", proto);
@@ -1554,6 +1555,7 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 	strncpy(mg->type, type, sizeof(mg->type));
 	strncpy(mg->table, table, sizeof(mg->table));
 	strncpy(mg->options, options, sizeof(mg->options));
+	strncpy(mg->dev, dev, sizeof(mg->dev));
 
 	if (strlen(cluster) != strlen(clustername) ||
 	    strlen(cluster) == 0 || strcmp(cluster, clustername)) {
@@ -2478,6 +2480,41 @@ int do_terminate(struct mountgroup *mg)
 	return 0;
 }
 
+static int run_dmsetup_suspend(struct mountgroup *mg, char *dev)
+{
+	struct sched_param sched_param;
+	char buf[PATH_MAX];
+	pid_t pid;
+	int i, rv;
+
+	memset(buf, 0, sizeof(buf));
+	rv = readlink(dev, buf, PATH_MAX);
+	if (rv < 0)
+		strncpy(buf, dev, sizeof(buf));
+
+	log_group(mg, "run_dmsetup_suspend %s (orig %s)", buf, dev);
+
+	pid = fork();
+	if (pid < 0)
+		return -1;
+
+	if (pid) {
+		mg->dmsetup_wait = 1;
+		mg->dmsetup_pid = pid;
+		return 0;
+	} else {
+		sched_param.sched_priority = 0; 
+		sched_setscheduler(0, SCHED_OTHER, &sched_param);
+
+		for (i = 0; i < 50; i++)
+			close(i);
+	
+		execlp("dmsetup", "dmsetup", "suspend", buf, NULL);
+		exit(EXIT_FAILURE);
+	}
+	return -1;
+}
+
 /* The basic rule of withdraw is that we don't want to tell the kernel to drop
    all locks until we know gfs has been stopped/blocked on all nodes.  They'll
    be stopped for our leave, we just need to know when they've all arrived
@@ -2492,6 +2529,7 @@ int do_withdraw(char *table)
 {
 	struct mountgroup *mg;
 	char *name = strstr(table, ":") + 1;
+	int rv;
 
 	if (no_withdraw) {
 		log_error("withdraw feature not enabled");
@@ -2504,8 +2542,66 @@ int do_withdraw(char *table)
 		return -1;
 	}
 
-	mg->withdraw = 1;
-	send_withdraw(mg);
+	rv = run_dmsetup_suspend(mg, mg->dev);
+	if (rv) {
+		log_error("do_withdraw %s: dmsetup %s error %d", mg->name,
+			  mg->dev, rv);
+		return -1;
+	}
+
+	dmsetup_wait = 1;
 	return 0;
+}
+
+void dmsetup_suspend_done(struct mountgroup *mg, int rv)
+{
+	log_group(mg, "dmsetup_suspend_done result %d", rv);
+	mg->dmsetup_wait = 0;
+	mg->dmsetup_pid = 0;
+
+	if (!rv) {
+		mg->withdraw = 1;
+		send_withdraw(mg);
+	}
+}
+
+void update_dmsetup_wait(void)
+{
+	struct mountgroup *mg;
+	int status;
+	int waiting = 0;
+	pid_t pid;
+
+	list_for_each_entry(mg, &mounts, list) {
+		if (mg->dmsetup_wait) {
+			pid = waitpid(mg->dmsetup_pid, &status, WNOHANG);
+
+			/* process not exited yet */
+			if (!pid) {
+				waiting++;
+				continue;
+			}
+
+			if (pid < 0) {
+				log_error("update_dmsetup_wait %s: waitpid %d "
+					  "error %d", mg->name,
+					  mg->dmsetup_pid, errno);
+				dmsetup_suspend_done(mg, -2);
+				continue;
+			}
+
+			/* process exited */
+
+			if (!WIFEXITED(status) || WEXITSTATUS(status))
+				dmsetup_suspend_done(mg, -1);
+			else
+				dmsetup_suspend_done(mg, 0);
+		}
+	}
+
+	if (!waiting) {
+		dmsetup_wait = 0;
+		log_debug("dmsetup_wait off");
+	}
 }
 

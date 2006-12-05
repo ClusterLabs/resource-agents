@@ -41,6 +41,7 @@ extern struct list_head withdrawn_mounts;
 int no_withdraw;
 int no_plock;
 uint32_t plock_rate_limit = DEFAULT_PLOCK_RATE_LIMIT;
+int dmsetup_wait;
 
 int do_read(int fd, void *buf, size_t count)
 {
@@ -285,14 +286,16 @@ static int process_client(int ci)
 
 	log_debug("client %d: %s", ci, buf);
 
-	get_args(buf, &argc, argv, ' ', 6);
+	get_args(buf, &argc, argv, ' ', 7);
 	cmd = argv[0];
 	rv = 0;
 
 	if (!strcmp(cmd, "join")) {
-		/* ci, dir, type, proto, table, extra */
+		/* ci, dir (mountpoint), type (gfs/gfs2), proto (lock_dlm),
+		   table (fsname:clustername), extra (rw), dev (/dev/sda1) */
+
 		rv = do_mount(ci, argv[1], argv[2], argv[3], argv[4], argv[5],
-			      &mg);
+			      argv[6], &mg);
 		fd = client[ci].fd;
 		fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
 		if (!rv) {
@@ -531,6 +534,17 @@ int loop(void)
 					client_back(plocks_ci, plocks_fd);
 					ignore_plocks_fd = 0;
 					poll_timeout = -1;
+				}
+			}
+
+			if (dmsetup_wait) {
+				update_dmsetup_wait();
+				if (dmsetup_wait) {
+					if (poll_timeout == -1)
+						poll_timeout = 1000;
+				} else {
+					if (poll_timeout == 1000)
+						poll_timeout = -1;
 				}
 			}
 		}
