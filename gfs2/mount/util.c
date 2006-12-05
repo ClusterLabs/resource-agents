@@ -409,12 +409,12 @@ int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb)
 
 	/*
 	 * send request to gfs_controld for it to join mountgroup:
-	 * "join <mountpoint> gfs2 lock_dlm <locktable> <options>"
+	 * "join <mountpoint> gfs2 lock_dlm <locktable> <options> <dev>"
 	 */
 
 	memset(buf, 0, sizeof(buf));
-	rv = snprintf(buf, MAXLINE, "join %s %s %s %s %s",
-		      dir, fsname, proto, table, options);
+	rv = snprintf(buf, MAXLINE, "join %s %s %s %s %s %s",
+		      dir, fsname, proto, table, options, mo->dev);
 	if (rv >= MAXLINE) {
 		warn("lock_dlm_join: message too long: %d \"%s\"", rv, buf);
 		rv = -1;
