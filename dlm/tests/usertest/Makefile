@@ -12,7 +12,7 @@
 top_srcdir = ../../..
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
-BINARIES=dlmtest asttest lstest pingtest lvb
+BINARIES=dlmtest asttest lstest pingtest lvb dlmtest2
 
 all: $(BINARIES)
 
@@ -27,6 +27,9 @@ CFLAGS += -I${top_srcdir}/lib/dlm
 
 
 dlmtest: dlmtest.c
+	$(CC) $(CFLAGS) -o $@ $< -ldlm -lpthread
+
+dlmtest2: dlmtest2.c
 	$(CC) $(CFLAGS) -o $@ $< -ldlm -lpthread
 
 asttest: asttest.c
