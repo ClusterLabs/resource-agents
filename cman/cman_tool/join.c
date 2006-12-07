@@ -11,6 +11,7 @@
 *******************************************************************************
 ******************************************************************************/
 
+#include <sys/wait.h>
 #include <stdint.h>
 #include <signal.h>
 #include <netinet/in.h>
@@ -148,6 +149,7 @@ int join(commandline_t *comline)
 
 	/* Give the daemon a chance to start up, and monitor the pipe FD for messages */
 	i = 0;
+	close(p[1]);
 	do {
 		fd_set fds;
 		struct timeval tv={1, 0};
@@ -158,13 +160,6 @@ int join(commandline_t *comline)
 		FD_SET(p[0], &fds);
 
 		status = select(p[0]+1, &fds, NULL, NULL, &tv);
-		if (status == 0) {
-			h = cman_admin_init(NULL);
-			if (!h && comline->verbose)
-			{
-				fprintf(stderr, "waiting for aisexec to start\n");
-			}
-		}
 
 		/* Did we get an error? */
 		if (status == 1) {
@@ -172,9 +167,22 @@ int join(commandline_t *comline)
 				fprintf(stderr, "cman not started: %s\n", message);
 				break;
 			}
-
+			else {
+				int pidstatus;
+				if (waitpid(aisexec_pid, &pidstatus, WNOHANG) == 0)
+					fprintf(stderr, "cman died with status: %d\n", WEXITSTATUS(pidstatus));
+				else
+					status = 0; /* Try to connect */
+			}
 		}
-	} while (!h && ++i < 20);
+		if (status == 0) {
+			h = cman_admin_init(NULL);
+			if (!h && comline->verbose)
+			{
+				fprintf(stderr, "waiting for aisexec to start\n");
+			}
+		}
+	} while (!h && ++i < 100);
 
 	if (!h)
 		die("aisexec daemon didn't start");
