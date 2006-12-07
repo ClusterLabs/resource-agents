@@ -1,0 +1,406 @@
+#!/bin/sh
+#
+# SAPInstance
+#
+# Description:	Manages a single SAP Instance as a High-Availability
+#		resource. One SAP Instance is defined by one 
+#               SAP Instance-Profile. start/stop handels all services
+#               of the START-Profile, status and monitor care only
+#               about essential services.
+#
+# Author:       Alexander Krauth, June 2006
+# Support:      liunx@sap.com
+# License:      GNU General Public License (GPL)
+# Copyright:    (c) 2006 Alexander Krauth
+#
+# An example usage: 
+#      See usage() function below for more details...
+#
+# OCF instance parameters:
+#	OCF_RESKEY_InstanceName
+#       OCF_RESKEY_DIR_EXECUTABLE   (optional, well known directories will be searched by default)
+#       OCF_RESKEY_DIR_PROFILE      (optional, well known directories will be searched by default)
+#       OCF_RESKEY_START_PROFILE    (optional, well known directories will be searched by default)
+#
+#######################################################################
+# Initialization:
+
+if [ -f @hb_libdir@/ocf-shellfuncs ]; then
+	. @hb_libdir@/ocf-shellfuncs
+elif [ -f /usr/share/cluster/ocf-shellfuncs ]; then
+	. /usr/share/cluster/ocf-shellfuncs
+else
+	echo Could not find ocf-shellfuncs!
+	exit 1
+fi
+
+#######################################################################
+
+SH=/bin/sh
+
+usage() {
+  methods=`sapinstance_methods`
+  methods=`echo $methods | tr ' ' '|'`
+  cat <<-!
+	usage: $0 ($methods)
+
+	$0 manages a SAP Instance as an HA resource.
+
+	The 'start' operation starts the instance.
+	The 'stop' operation stops the instance.
+	The 'status' operation reports whether the instance is running
+	The 'monitor' operation reports whether the instance seems to be working
+	The 'validate-all' operation reports whether the parameters are valid
+	The 'methods' operation reports on the methods $0 supports
+
+	!
+}
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="SAPInstance">
+<version>1.6</version>
+
+<longdesc lang="en">
+Resource script for SAP. It manages a SAP Instance as an HA resource.
+</longdesc>
+<shortdesc lang="en">SAP instance resource agent</shortdesc>
+
+<parameters>
+ <parameter name="InstanceName" unique="1" required="1">
+  <longdesc lang="en">The full qualified SAP instance name. e.g. P01_DVEBMGS00_sapp01ci</longdesc>
+  <shortdesc lang="en">instance name: SID_INSTANCE_VIR-HOSTNAME</shortdesc>
+  <content type="string" default="" />
+ </parameter>
+ <parameter name="DIR_EXECUTABLE" unique="1" required="0">
+  <longdesc lang="en">The full qualified path where to find sapstartsrv and sapcontrol.</longdesc>
+  <shortdesc lang="en">path of sapstartsrv and sapcontrol</shortdesc>
+  <content type="string" default="" />
+ </parameter>
+ <parameter name="DIR_PROFILE" unique="1" required="0">
+  <longdesc lang="en">The full qualified path where to find the SAP START profile.</longdesc>
+  <shortdesc lang="en">path of start profile</shortdesc>
+  <content type="string" default="" />
+ </parameter>
+ <parameter name="START_PROFILE" unique="1" required="0">
+  <longdesc lang="en">The name of the SAP START profile.</longdesc>
+  <shortdesc lang="en">start profile name</shortdesc>
+  <content type="string" default="" />
+ </parameter>
+</parameters>
+
+<actions>
+<action name="start" timeout="180" />
+<action name="stop" timeout="240" />
+<action name="status" timeout="60" />
+<action name="monitor" depth="0" timeout="60" interval="120" start-delay="240" />
+<action name="validate-all" timeout="5" />
+<action name="meta-data" timeout="5" />
+<action name="methods" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+
+#
+# methods: What methods/operations do we support?
+#
+sapinstance_methods() {
+  cat <<-!
+	start
+	stop
+	status
+	monitor
+	validate-all
+	methods
+	meta-data
+	usage
+	!
+}
+
+
+#
+# check_sapstartsrv : Before using sapcontrol we make sure that the sapstartsrv is running for the correct instance.
+#                     We cannot use sapinit and the /usr/sap/sapservices file in case of an enquerep instance,
+#                     because then we have two instances with the same instance number.
+#
+check_sapstartsrv() {
+  restart=0
+  output=`$SAPCONTROL -nr $InstanceNr -function ParameterValue INSTANCE_NAME -format script`
+  if [ $? -eq 0 ]
+  then
+    runninginst=`echo "$output" | grep '^0 : ' | cut -d' ' -f3`
+    if [ "$runninginst" != "$InstanceName" ]
+    then 
+      ocf_log warn "sapstartsrv is running for instance $runninginst, that service will be killed"
+      restart=1
+    fi
+  else
+    ocf_log warn "sapstartsrv is not running for instance $SID-$InstanceName, it will be started now"
+    restart=1
+  fi
+
+  if [ -z "$runninginst" ]; then runninginst=$InstanceName; fi
+
+  if [ $restart -eq 1 ]
+  then
+    pkill -9 -f "sapstartsrv.*$runninginst"
+    $SAPSTARTSRV pf=$SAPSTARTPROFILE -D -u $sidadm
+
+    ocf_log info "sapstartsrv for instance $SID-$InstanceName was restarted !"
+  fi
+
+  return 0
+}
+
+
+#
+# sapinstance_start : Start the SAP instance
+#
+sapinstance_start() {
+  check_sapstartsrv
+
+  output=`$SAPCONTROL -nr $InstanceNr -function Start`
+  if [ $? -eq 0 ]
+  then
+    output=`$SAPCONTROL -nr $InstanceNr -function WaitforStarted 3600 1`
+    if [ $? -eq 0 ]
+    then
+      ocf_log info "SAP Instance $SID-$InstanceName started: $output"
+      rc=$OCF_SUCCESS
+    else
+      ocf_log err "SAP Instance $SID-$InstanceName start failed: $output"
+      rc=$OCF_ERR_GENERIC
+    fi
+  else
+    ocf_log err "SAP Instance $SID-$InstanceName start failed: $output"
+    rc=$OCF_ERR_GENERIC
+  fi
+  return $rc
+}
+
+#
+# sapinstance_stop: Stop the SAP instance
+#
+sapinstance_stop() {
+  check_sapstartsrv
+
+  output=`$SAPCONTROL -nr $InstanceNr -function Stop`
+  if [ $? -eq 0 ]
+  then
+    output=`$SAPCONTROL -nr $InstanceNr -function WaitforStopped 3600 1`
+    if [ $? -eq 0 ]
+    then
+      ocf_log info "SAP Instance $SID-$InstanceName stopped: $output"
+      rc=$OCF_SUCCESS
+    else
+      ocf_log err "SAP Instance $SID-$InstanceName stop failed: $output"
+      rc=$OCF_ERR_GENERIC
+    fi
+  else
+    ocf_log err "SAP Instance $SID-$InstanceName stop failed: $output"
+    rc=$OCF_ERR_GENERIC
+  fi
+  return $rc
+}
+
+
+#
+# sapinstance_monitor: Can the given SAP instance do anything useful?
+#
+sapinstance_monitor() {
+  check_sapstartsrv
+
+  rc=$OCF_SUCCESS
+  count=0
+  LOCALHOST=`hostname`
+  output=`$SAPCONTROL -nr $InstanceNr -host $LOCALHOST -function GetProcessList -format script`
+
+  # we have to parse the output, because the returncode doesn't tell anything about the instance status
+  for SERVNO in `echo "$output" | grep '^[0-9] ' | cut -d' ' -f1 | sort -u`
+  do
+    COLOR=`echo "$output" | grep "^$SERVNO dispstatus: " | cut -d' ' -f3`
+    SERVICE=`echo "$output" | grep "^$SERVNO name: " | cut -d' ' -f3`
+    STATE=0
+
+    case $COLOR in
+      GREEN|YELLOW)       STATE=$OCF_SUCCESS;;
+      *)                  STATE=$OCF_NOT_RUNNING;;
+    esac 
+
+    case $SERVICE in
+      disp+work|msg_server|enserver|enrepserver)
+                    if [ $STATE -eq $OCF_NOT_RUNNING ]
+                    then
+                      ocf_log err "SAP instance service $SERVICE is not running with status $COLOR !"
+                      rc=$STATE
+                    fi
+                    count=1;;
+      *);;
+    esac
+  done
+
+  if [ $count -eq 0 -a $rc -eq $OCF_SUCCESS ]
+  then
+    ocf_log err "The SAP instance does not run any services which this RA could monitor!"
+    rc=$OCF_ERR_ARGS
+  fi
+
+  return $rc
+}
+
+#
+# sapinstance_vaildate: Check the symantic of the input parameters 
+#
+sapinstance_vaildate() {
+  rc=$OCF_SUCCESS
+  if [ `echo "$SID" | grep -c '^[A-Z][A-Z0-9][A-Z0-9]$'` -ne 1 ]
+  then
+    ocf_log err "Parsing instance profile name: '$SID' is not a valid system ID!"
+    rc=$OCF_ERR_ARGS
+  fi
+
+  if [ `echo "$InstanceName" | grep -c '^[A-Z].*[0-9][0-9]$'` -ne 1 ]
+  then
+    ocf_log err "Parsing instance profile name: '$InstanceName' is not a valid instance name!"
+    rc=$OCF_ERR_ARGS
+  fi
+
+  if [ `echo "$InstanceNr" | grep -c '^[0-9][0-9]$'` -ne 1 ]
+  then
+    ocf_log err "Parsing instance profile name: '$InstanceNr' is not a valid instance number!"
+    rc=$OCF_ERR_ARGS
+  fi
+
+  if [ `echo "$SAPVIRHOST" | grep -c '^[A-Za-z][A-Za-z0-9_-]*$'` -ne 1 ]
+  then
+    ocf_log err "Parsing instance profile name: '$SAPVIRHOST' is not a valid hostname!"
+    rc=$OCF_ERR_ARGS
+  fi
+
+  return $rc
+}
+
+
+#
+#	'main' starts here...
+#
+
+if
+  ( [ $# -ne 1 ] )
+then
+  usage
+  exit $OCF_ERR_ARGS
+fi
+
+# These operations don't require OCF instance parameters to be set
+case "$1" in
+  meta-data)	meta_data
+		exit $OCF_SUCCESS;;
+
+  usage) 	usage
+		exit $OCF_SUCCESS;;
+
+  methods)	sapinstance_methods
+		exit $?;;
+
+  *);;
+esac
+
+US=`id -u -n`
+US=`echo $US`
+if
+  [ $US != root  ]
+then
+  ocf_log err "$0 must be run as root"
+  exit $OCF_ERR_PERM
+fi
+
+# parameter check
+if  [ -z "$OCF_RESKEY_InstanceName" ]
+then
+  ocf_log err "Please set OCF_RESKEY_InstanceName to the name to the SAP instance profile!"
+  exit $OCF_ERR_ARGS
+fi
+
+SID=`echo "$OCF_RESKEY_InstanceName" | cut -d_ -f1`
+InstanceName=`echo "$OCF_RESKEY_InstanceName" | cut -d_ -f2`
+InstanceNr=`echo "$InstanceName" | sed 's/.*\([0-9][0-9]\)$/\1/'`
+SAPVIRHOST=`echo "$OCF_RESKEY_InstanceName" | cut -d_ -f3`
+
+# optional OCF parameters, we try to guess which directories are correct
+if  [ -z "$OCF_RESKEY_DIR_EXECUTABLE" ]
+then
+  if [ -x /usr/sap/$SID/$InstanceName/exe/sapstartsrv -a -x /usr/sap/$SID/$InstanceName/exe/sapcontrol ]
+  then
+    DIR_EXECUTABLE="/usr/sap/$SID/$InstanceName/exe"
+    SAPSTARTSRV="/usr/sap/$SID/$InstanceName/exe/sapstartsrv"
+    SAPCONTROL="/usr/sap/$SID/$InstanceName/exe/sapcontrol"
+  elif [ -x /usr/sap/$SID/SYS/exe/run/sapstartsrv -a -x /usr/sap/$SID/SYS/exe/run/sapcontrol ]
+  then
+    DIR_EXECUTABLE="/usr/sap/$SID/SYS/exe/run"
+    SAPSTARTSRV="/usr/sap/$SID/SYS/exe/run/sapstartsrv"
+    SAPCONTROL="/usr/sap/$SID/SYS/exe/run/sapcontrol"
+  else
+    ocf_log err "Cannot find sapstartsrv and sapcontrol executable, please set DIR_EXECUTABLE parameter!"
+    exit $OCF_ERR_GENERIC
+  fi
+else
+  DIR_EXECUTABLE="$OCF_RESKEY_DIR_EXECUTABLE"
+  SAPSTARTSRV="$OCF_RESKEY_DIR_EXECUTABLE/sapstartsrv"
+  SAPCONTROL="$OCF_RESKEY_DIR_EXECUTABLE/sapcontrol"
+fi
+
+if [ -z "$OCF_RESKEY_DIR_PROFILE" ]
+then
+  if [ -d /usr/sap/$SID/SYS/profile/ ]
+  then
+    DIR_PROFILE="/usr/sap/$SID/SYS/profile"
+  else
+    ocf_log err "Expected /usr/sap/$SID/SYS/profile/ to be a directory, please set DIR_PROFILE parameter!"
+    exit $OCF_ERR_GENERIC
+  fi
+else
+  DIR_PROFILE="$OCF_RESKEY_DIR_PROFILE"
+fi
+
+if [ -z "$OCF_RESKEY_START_PROFILE" ]
+then
+  SAPSTARTPROFILE="$DIR_PROFILE/START_${InstanceName}_${SAPVIRHOST}"
+  if [ ! -r $SAPSTARTPROFILE ]
+  then
+    ocf_log err "Expected $SAPSTARTPROFILE to be the instance START profile, please set START_PROFILE parameter!"
+    exit $OCF_ERR_GENERIC
+  fi
+else
+  SAPSTARTPROFILE="$OCF_RESKEY_START_PROFILE"
+fi
+
+# as root user we need the library path to the SAP kernel to be able to call sapcontrol
+if [ `echo $LD_LIBRARY_PATH | grep -c "^$DIR_EXECUTABLE\>"` -eq 0 ]; then
+  LD_LIBRARY_PATH=$DIR_EXECUTABLE:$LD_LIBRARY_PATH; export LD_LIBRARY_PATH
+fi
+sidadm="`echo $SID | tr [:upper:] [:lower:]`adm"
+
+# What kind of method was invoked?
+case "$1" in
+
+  start)	sapinstance_start
+		exit $?;;
+
+  stop)		sapinstance_stop
+		exit $?;;
+
+  status|monitor)
+          	sapinstance_monitor
+		exit $?;;
+
+  validate-all)	sapinstance_vaildate
+		exit $?;;
+
+  *)		sapinstance_methods
+		exit $OCF_ERR_UNIMPLEMENTED;;
+esac

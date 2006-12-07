@@ -66,6 +66,8 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			pgsql		\
 			Pure-FTPd	\
 			Raid1		\
+			SAPDatabase	\
+			SAPInstance	\
 			SendArp		\
 			ServeRAID	\
 			Stateful	\
