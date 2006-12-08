@@ -44,7 +44,7 @@ start)
 
 rval=0
 
-touch /var/lock/subsys/${0##*/}
+touch /var/lock/subsys/scsi_reserve
 
 # register each device using our key
 #
@@ -107,7 +107,7 @@ do
   echo
 done
 
-rm -f /var/lock/subsys/${0##*/}
+rm -f /var/lock/subsys/scsi_reserve
 ;;
 
 status)
