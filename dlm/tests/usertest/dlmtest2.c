@@ -98,7 +98,7 @@ void dump(void)
 	int i;
 
 	for (i = 0; i < LOCKS; i++) {
-		printf("i %d lkid %x grmode %d rqmode %d wait_ast %d\n", i,
+		printf("x %d lkid %x grmode %d rqmode %d wait_ast %d\n", i,
 			locks[i].lksb.sb_lkid,
 			locks[i].grmode,
 			locks[i].rqmode,
@@ -159,6 +159,9 @@ void lock(int i, int mode)
 	int flags = 0;
 	int rv;
 
+	if (i < 0 || i >= LOCKS)
+		return;
+
 	if (noqueue)
 		flags |= LKF_NOQUEUE;
 
@@ -188,6 +191,9 @@ void lock_sync(int i, int mode)
 	char name[DLM_RESNAME_MAXLEN];
 	int flags = 0;
 	int rv;
+
+	if (i < 0 || i >= LOCKS)
+		return;
 
 	if (noqueue)
 		flags |= LKF_NOQUEUE;
@@ -233,6 +239,9 @@ void unlock(int i)
 	uint32_t lkid;
 	int rv;
 
+	if (i < 0 || i >= LOCKS)
+		return;
+
 	lkid = locks[i].lksb.sb_lkid;
 	if (!lkid) {
 		printf("unlock %d skip zero lkid\n", i);
@@ -263,6 +272,9 @@ void unlock_sync(int i)
 {
 	uint32_t lkid;
 	int rv;
+
+	if (i < 0 || i >= LOCKS)
+		return;
 
 	lkid = locks[i].lksb.sb_lkid;
 	if (!lkid) {
@@ -451,6 +463,7 @@ void process_command(int *quit)
 
 	if (!strncmp(cmd, "help", 4)) {
 		printf("Usage:\n");
+		printf("MAX locks is %d (x of 0 to %d)\n", LOCKS, LOCKS-1);
 		printf("EXIT		 - exit program after unlocking any held locks\n");
 		printf("kill		 - exit program without unlocking any locks\n");
 		printf("lock x mode	 - request/convert lock on resource x\n");
@@ -465,7 +478,7 @@ void process_command(int *quit)
 		printf("release		 - for x in 0 to MAX, unlock x\n");
 		printf("dump		 - show info for all resources\n");
 		printf("loop x n	 - lock_sync x PR / unlock_sync x, n times\n");
-		printf("hammer n	 - loop doing random lock/unlock on all locks, n times");
+		printf("hammer n	 - loop doing random lock/unlock on all locks, n times\n");
 		printf("noqueue		 - toggle NOQUEUE flag for all requests\n"); 
 		return;
 	}
@@ -486,6 +499,8 @@ int main(int argc, char *argv[])
 		locks[i].rqmode = -1;
 	}
 
+	printf("Joining test lockspace...\n");
+
 	dh = dlm_create_lockspace("test", 0600);
 	if (!dh) {
 		printf("dlm_create_lockspace error %d %d\n", (int) dh, errno);
@@ -503,7 +518,7 @@ int main(int argc, char *argv[])
 	client_add(libdlm_fd, &maxi);
 	client_add(STDIN_FILENO, &maxi);
 
-	printf("Type EXIT to finish\n");
+	printf("Type EXIT to finish, help for usage\n");
 
 	while (1) {
 		rv = poll(pollfd, maxi + 1, -1);
