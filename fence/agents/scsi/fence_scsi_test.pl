@@ -19,6 +19,7 @@ $BUILD_DATE="";
 
 sub get_key
 {
+    my $name = @_;
     my $addr = gethostbyname($name) or die "$!\n";
 
     return unpack("H*", $addr);
@@ -32,7 +33,7 @@ sub register_device
     print "DEBUG: $func ($dev, $key)\n" if ($opt_d);
 
     my ($in, $out, $err);
-    my $cmd = "sg_persist $dev -o -G -S $key";
+    my $cmd = "sg_persist -d $dev -o -G -S $key";
 
     my $pid = open3($in, $out, $err, $cmd) or die "$!\n";
 
@@ -42,7 +43,7 @@ sub register_device
 
     $results{$dev}[0] = $rval;
 
-    print "DEBUG: [$rval] $cmd\n" if $opt_d;
+    print "DEBUG: [$rval] $cmd\n" if ($opt_d);
 
     close($in);
     close($out);
@@ -56,10 +57,10 @@ sub unregister_device
     my $func = (caller(0))[3];
     my ($dev, $key) = @_;
 
-    print "DEBUG: $func ($dev, $key)\n" if $opt_d;
+    print "DEBUG: $func ($dev, $key)\n" if ($opt_d);
 
     my ($in, $out, $err);
-    my $cmd = "sg_persist $dev -o -G -K $key -S 0";
+    my $cmd = "sg_persist -d $dev -o -G -K $key -S 0";
 
     my $pid = open3($in, $out, $err, $cmd) or die "$!\n";
 
@@ -69,7 +70,7 @@ sub unregister_device
 
     $results{$dev}[1] = $rval;
 
-    print "DEBUG: [$rval] $cmd\n" if $opt_d;
+    print "DEBUG: [$rval] $cmd\n" if ($opt_d);
 
     close($in);
     close($out);
@@ -98,6 +99,7 @@ sub get_cluster_devices
 {
     my ($in, $out, $err);
     my $cmd = "lvs --noheadings --separator : -o vg_attr,devices";
+
     my $pid = open3($in, $out, $err, $cmd) or die "$!\n";
 
     waitpid($pid, 0);
@@ -108,7 +110,7 @@ sub get_cluster_devices
     {
 	chomp;
 
-	my ($vg_attr, $dev) = split /:/, $_, 3;
+	my ($vg_attr, $dev) = split(/:/, $_);
 
 	if ($vg_attr =~ /.*c$/)
 	{
@@ -125,8 +127,7 @@ sub get_cluster_devices
 sub test_devices
 {
     my $name = hostname() or die "$!\n";
-    my $addr = gethostbyname($name) or die "$!\n";
-    my $key = unpack("H*", $addr);
+    my $key = get_key($name);
 
     foreach $dev (@devices)
     {
@@ -195,7 +196,7 @@ sub print_usage
     print "  -h     Help. Prints out this usage information.\n\n";
 }
 
-### main ###
+### MAIN #######################################################
 
 if (getopts("cdhsv") == 0)
 {
@@ -231,4 +232,6 @@ if (!$opt_c && !$opt_s)
 test_devices;
 
 print_results;
+
+exit 0;
 
