@@ -241,7 +241,10 @@ stop_configfs()
     if [ $? -eq 0 ]
     then
 	errmsg=$( /bin/umount /sys/kernel/config 2>&1 )
-	return $?
+	if [ $? -ne 0 ]
+	then
+	    echo -n $errmsg " "
+	fi
     fi
     return 0
 }
