@@ -38,6 +38,8 @@ node_addr=$( cman_tool status | grep "Node addr" | awk -F": " '{ print $2 }' )
 #
 key=$( gethostip -x $node_name )
 
+###############################################################################
+
 case $1 in
 
 start)
@@ -62,8 +64,14 @@ do
   if [ $error -eq 0 ]; then
       success
   else
-      failure
-      rval=1
+      # perhaps we are already resgistered
+      #
+      if sg_persist -d $dev -i -k 2>/dev/null | grep -qiE "${key#0}" ; then
+          success
+      else
+          failure
+          rval=1
+      fi
   fi
 
   echo
@@ -108,6 +116,7 @@ do
 done
 
 rm -f /var/lock/subsys/scsi_reserve
+
 ;;
 
 status)
