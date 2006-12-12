@@ -48,6 +48,8 @@ rval=0
 
 touch /var/lock/subsys/scsi_reserve
 
+cat /dev/null > /var/run/scsi_reserve
+
 # register each device using our key
 #
 for dev in $scsi_devices
@@ -62,11 +64,13 @@ do
   done
 
   if [ $error -eq 0 ]; then
+      echo $dev >> /var/run/scsi_reserve
       success
   else
       # perhaps we are already resgistered
       #
       if sg_persist -d $dev -i -k 2>/dev/null | grep -qiE "${key#0}" ; then
+	  echo $dev >> /var/run/scsi_reserve
           success
       else
           failure
