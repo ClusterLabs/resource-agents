@@ -702,22 +702,8 @@ case $DEVICE in
 	;;
 esac
 
-case $FSTYPE in
-  ocfs2)
-	ocfs2_init
-  ;;
-  nfs)
-	: # this is kind of safe too
-  ;;
-  *) 
-	if [ -n "$OCF_RESKEY_CRM_meta_clone_max" ]; then
-		ocf_log err "DANGER! $FSTYPE on $DEVICE is NOT cluster-aware!"
-		ocf_log err "DO NOT RUN IT AS A CLONE!"
-		ocf_log err "Politely refusing to proceed to avoid data corruption."
-		exit $OCF_ERR_GENERIC	
-	fi
-  ;;
-esac
+
+# Normalize instance parameters:
 
 # It is possible that OCF_RESKEY_directory has one or even multiple trailing "/".
 # But the output of `mount` and /proc/mounts do not.
@@ -745,16 +731,40 @@ if [ "$OP" != "monitor" ]; then
 	ocf_log info "Running $OP for $DEVICE on $MOUNTPOINT"
 fi
 
+# These operations do not require the clone checking + OCFS2
+# initialization.
+case $OP in
+  status|monitor)	Filesystem_status
+			exit $?
+			;;
+  validate-all)		Filesystem_validate_all
+			exit $?
+			;;
+esac
+
+case $FSTYPE in
+  ocfs2)
+	ocfs2_init
+  ;;
+  nfs)
+	: # this is kind of safe too
+  ;;
+  *) 
+	if [ -n "$OCF_RESKEY_CRM_meta_clone_max" ]; then
+		ocf_log err "DANGER! $FSTYPE on $DEVICE is NOT cluster-aware!"
+		ocf_log err "DO NOT RUN IT AS A CLONE!"
+		ocf_log err "Politely refusing to proceed to avoid data corruption."
+		exit $OCF_ERR_GENERIC	
+	fi
+  ;;
+esac
+
 case $OP in
   start)		Filesystem_start
 			;;
   notify)		Filesystem_notify
 			;;
   stop)			Filesystem_stop
-			;;
-  status|monitor)	Filesystem_status
-			;;
-  validate-all)		Filesystem_validate_all
 			;;
   *)			usage
 			exit $OCF_ERR_UNIMPLEMENTED
