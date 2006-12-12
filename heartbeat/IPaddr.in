@@ -858,7 +858,6 @@ else
     OCF_RESKEY_lvs_support=0
 fi
 
-ocf_log warn "Running OCF $0 $*"
 case $1 in
     meta-data)		meta_data;;
     start)		ip_validate_all	&& ip_start;;
