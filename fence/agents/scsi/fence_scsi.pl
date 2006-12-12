@@ -156,33 +156,46 @@ sub get_options_stdin
     }
 }
 
+#sub get_scsi_devices
+#{
+#    my ($in, $out, $err);
+#    my $cmd = "lvs --noheadings --separator : -o vg_attr,devices";
+#    my $pid = open3($in, $out, $err, $cmd) or die "$!\n";
+#
+#    waitpid($pid, 0);
+#
+#    die "Unable to execute lvs.\n" if ($?>>8);
+#
+#    while (<$out>)
+#    {
+#	chomp;
+#	print "OUT: $_\n" if $opt_v;
+#
+#	my ($vg_attrs, $device) = split(/:/, $_);
+#
+#	if ($vg_attrs =~ /.*c$/)
+#	{
+#	    $device =~ s/\(.*\)//;
+#	    push @volumes, $device;
+#	}
+#    }
+#
+#    close($in);
+#    close($out);
+#    close($err);
+#}
+
 sub get_scsi_devices
 {
-    my ($in, $out, $err);
-    my $cmd = "lvs --noheadings --separator : -o vg_attr,devices";
-    my $pid = open3($in, $out, $err, $cmd) or die "$!\n";
+    open(FILE, "/var/run/scsi_reserve") or die "$!\n";
 
-    waitpid($pid, 0);
-
-    die "Unable to execute lvs.\n" if ($?>>8);
-
-    while (<$out>)
+    while (<FILE>)
     {
 	chomp;
-	print "OUT: $_\n" if $opt_v;
-
-	my ($vg_attrs, $device) = split(/:/, $_);
-
-	if ($vg_attrs =~ /.*c$/)
-	{
-	    $device =~ s/\(.*\)//;
-	    push @volumes, $device;
-	}
+	push(@volumes, $_);
     }
 
-    close($in);
-    close($out);
-    close($err);
+    close FILE;
 }
 
 sub check_sg_persist
