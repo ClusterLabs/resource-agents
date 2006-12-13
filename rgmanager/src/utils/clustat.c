@@ -485,14 +485,17 @@ xml_rg_state(rg_state_t *rs, cluster_member_list_t *members, int flags)
 }
 
 
-void
+int
 txt_rg_states(rg_state_list_t *rgl, cluster_member_list_t *members, 
 	      char *svcname, int flags)
 {
-	int x;
+	int x, ret = 0;
 
 	if (!rgl || !members)
-		return;
+		return -1;
+
+	if (svcname)
+		ret = -1;
 
 	if (!(flags & RG_VERBOSE)) {
 		printf("  %-20.20s %-30.30s %-14.14s\n",
@@ -509,18 +512,32 @@ txt_rg_states(rg_state_list_t *rgl, cluster_member_list_t *members,
 		    strcmp(rgl->rgl_states[x].rs_name, svcname))
 			continue;
 		txt_rg_state(&rgl->rgl_states[x], members, flags);
+		if (svcname) {
+			switch (rgl->rgl_states[x].rs_state) {
+			case RG_STATE_STARTING:
+			case RG_STATE_STARTED:
+			case RG_STATE_STOPPING:
+				ret = 0;
+				break;
+			default:
+				ret = rgl->rgl_states[x].rs_state;
+			}
+		}
 	}
+	
+	return ret;
 }
 
 
-void
+int
 xml_rg_states(rg_state_list_t *rgl, cluster_member_list_t *members,
 	      char *svcname)
 {
 	int x;
+	int ret = 0;
 
 	if (!rgl || !members)
-		return;
+		return -1;
 
 	printf("  <groups>\n");
 
@@ -528,12 +545,21 @@ xml_rg_states(rg_state_list_t *rgl, cluster_member_list_t *members,
 		if (svcname &&
 		    strcmp(rgl->rgl_states[x].rs_name, svcname))
 			continue;
-		xml_rg_state(&rgl->rgl_states[x], members, 0);
+		if (svcname) {
+			switch (rgl->rgl_states[x].rs_state) {
+			case RG_STATE_STARTING:
+			case RG_STATE_STARTED:
+			case RG_STATE_STOPPING:
+				break;
+			default:
+				ret = rgl->rgl_states[x].rs_state;
+			}
+		}
 	}
 
 	printf("  </groups>\n");
+	return ret;
 }
-
 
 
 void
@@ -609,10 +635,15 @@ xml_member_state(cman_node_t *node)
 }
 
 
-void
+int
 txt_member_states(cluster_member_list_t *membership, char *name)
 {
-	int x;
+	int x, ret = 0;
+
+  	if (!membership) {
+  		printf("Membership information not available\n");
+ 		return -1;
+  	}
 
 	printf("  %-34.34s %-4.4s %s\n", "Member Name", "ID", "Status");
 	printf("  %-34.34s %-4.4s %s\n", "------ ----", "----", "------");
@@ -621,35 +652,45 @@ txt_member_states(cluster_member_list_t *membership, char *name)
 		if (name && strcmp(membership->cml_members[x].cn_name, name))
 			continue;
 		txt_member_state(&membership->cml_members[x]);
+ 		ret = !(membership->cml_members[x].cn_member & FLAG_UP);
 	}
 
 	printf("\n");
+	return ret;
 }
 
 
-void
+int
 xml_member_states(cluster_member_list_t *membership, char *name)
 {
-	int x;
+	int x, ret = 0;
 
-	if (!membership)
-		return;
+	if (!membership) {
+		printf("  <nodes/>\n");
+		return -1;
+	}
 
 	printf("  <nodes>\n");
 	for (x = 0; x < membership->cml_count; x++) {
 		if (name && strcmp(membership->cml_members[x].cn_name, name))
 			continue;
 		xml_member_state(&membership->cml_members[x]);
+		if (name)
+			ret = !(membership->cml_members[x].cn_member & FLAG_UP);
 	}
 	printf("  </nodes>\n");
+	
+	return ret;
 }
 
 
-void
+int 
 txt_cluster_status(int qs, cluster_member_list_t *membership,
 		   rg_state_list_t *rgs, char *name, char *svcname, 
 		   int flags)
 {
+	int ret;
+	
 	if (!svcname && !name) {
 		txt_quorum_state(qs);
 		if (!membership) {
@@ -659,18 +700,22 @@ txt_cluster_status(int qs, cluster_member_list_t *membership,
 		}
 	}
 
-	if (!svcname || (name && svcname))
-		txt_member_states(membership, name);
-	if (!name || (name && svcname))
-		txt_rg_states(rgs, membership, svcname, flags);
+  	if (!svcname || (name && svcname))
+ 		ret = txt_member_states(membership, name);
+ 	if (name && !svcname)
+ 		return ret;
+ 	if (!name || (name && svcname))
+ 		ret = txt_rg_states(rgs, membership, svcname, flags);
+ 	return ret;
 }
 
 
-void
+int
 xml_cluster_status(int qs, cluster_member_list_t *membership,
 		   rg_state_list_t *rgs, char *name, char *svcname,
 		   int flags)
 {
+ 	int ret1 = 0, ret2 = -1;
 	int x;
 
 	printf("<?xml version=\"1.0\"?>\n");
@@ -690,34 +735,22 @@ xml_cluster_status(int qs, cluster_member_list_t *membership,
 		}
 	}
 
-	if (!svcname && !name)
-		xml_quorum_state(qs);
-	if (!svcname || (name && svcname)) 
-		xml_member_states(membership, name);
-	if (rgs &&
-	    (!name || (name && svcname)))
-		xml_rg_states(rgs, membership, svcname);
-	printf("</clustat>\n");
+  	if (!svcname && !name)
+  		xml_quorum_state(qs);
+  	if (!svcname || (name && svcname)) 
+ 		ret1 = xml_member_states(membership, name);
+ 	
+  	if (rgs &&
+  	    (!name || (name && svcname)))
+ 		ret2 = xml_rg_states(rgs, membership, svcname);
+  	printf("</clustat>\n");
+ 	
+ 	if (name && ret1)
+ 		return ret1;
+ 	if (svcname && ret2)
+ 		return ret2;
+ 	return 0;
 }
-
-
-void
-dump_node(cman_node_t *node)
-{
-	printf("Node %s state %02x\n", node->cn_name, node->cn_member);
-}
-
-
-void 
-dump_nodes(cluster_member_list_t *nodes)
-{
-	int x;
-
-	for (x=0; x<nodes->cml_count; x++) {
-		dump_node(&nodes->cml_members[x]);
-	}
-}
-
 
 
 cluster_member_list_t *
@@ -924,11 +957,13 @@ main(int argc, char **argv)
 		}
 
 		if (xml)
-			xml_cluster_status(qs, membership, rgs, member_name,
-					   rg_name,flags);
+			ret = xml_cluster_status(qs, membership, rgs,
+						 member_name, rg_name,
+						 flags);
 		else
-			txt_cluster_status(qs, membership, rgs, member_name,
-					   rg_name,flags);
+			ret = txt_cluster_status(qs, membership, rgs,
+						 member_name, rg_name,
+						 flags);
 
 		if (membership)
 			free_member_list(membership);
