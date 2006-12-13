@@ -1,0 +1,270 @@
+#!/bin/sh
+#
+# Resource script for rsync daemon
+#
+# Description:  Manages rsync daemon as an OCF resource in 
+#               an High Availability setup.
+#
+# Author: Dhairesh Oza <odhairesh@novell.com>
+# License: GNU General Public License (GPL) 
+#
+#
+#	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
+#
+#	The "start" arg starts rsyncd.
+#
+#	The "stop" arg stops it.
+#
+# OCF parameters:
+# OCF_RESKEY_binpath
+# OCF_RESKEY_conffile
+# OCF_RESKEY_bwlimit
+#
+# Note:This RA requires that the rsyncd config files has a "pid file" 
+# entry so that it is able to act on the correct process
+##########################################################################
+# Initialization:
+
+. @hb_libdir@/ocf-shellfuncs
+
+HA_VARRUNDIR=@localstatedir@/run/@HB_PKG@
+USAGE="Usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
+
+##########################################################################
+
+usage() 
+{
+	echo $USAGE >&2
+}
+
+meta_data() 
+{
+cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="rsyncd">
+<version>1.0</version>
+<longdesc lang="en">
+This script manages rsync daemon
+</longdesc>
+<shortdesc lang="en">OCF Resource Agent compliant rsync daemon script.</shortdesc>
+
+<parameters>
+
+<parameter name="binpath">
+<longdesc lang="en">
+The rsync binary path.
+For example, "/usr/bin/rsync"
+</longdesc>
+<shortdesc lang="en">Full path to the rsync binary</shortdesc>
+<content type="string" default="rsync"/>
+</parameter>
+
+<parameter name="conffile">
+<longdesc lang="en">
+The rsync daemon configuration file name with full path. 
+For example, "/etc/rsyncd.conf"
+</longdesc>
+<shortdesc lang="en">Configuration file name with full path</shortdesc>
+<content type="string" default="/etc/rsyncd.conf" />
+</parameter>
+
+<parameter name="bwlimit">
+<longdesc lang="en">
+This  option allows you to specify a maximum transfer 
+rate in kilobytes per second.  This  option  is
+most  effective  when  using rsync with large files
+(several megabytes and up). Due to  the  nature  of
+rsync  transfers,  blocks of data are sent, then if
+rsync determines the transfer was too fast, it will
+wait before sending the next data block. The result
+is an average transfer rate equaling the  specified
+limit. A value of zero specifies no limit.
+</longdesc>
+<shortdesc lang="en">limit I/O bandwidth, KBytes per second</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start" timeout="90"/>
+<action name="stop" timeout="100"/>
+<action name="monitor" depth="10" timeout="30s" interval="60s" start-delay="1s" />
+<action name="validate-all" timeout="30s"/>
+<action name="meta-data"  timeout="5s"/>
+</actions>
+</resource-agent>
+END
+exit $OCF_SUCCESS
+}
+
+get_pid_and_conf_file()
+{
+	if [ -n "$OCF_RESKEY_conffile" ]; then
+		CONF_FILE=$OCF_RESKEY_conffile
+	else
+		CONF_FILE="/etc/rsyncd.conf"
+	fi
+               
+	grep -v "^#" "$CONF_FILE" | grep "pid file" > /dev/null
+	if [ $? -eq 0 ]; then
+		PIDFILE=`grep -v "^#" "$CONF_FILE" | grep "pid file" | awk -F "=" '{ print $2 }'`
+	fi
+}
+
+rsyncd_status()
+{
+	if [ -n "$PIDFILE" -a -f $PIDFILE ]; then
+		# rsync is probably running
+		PID=`cat $PIDFILE`
+		if [ -n "$PID" ]; then
+			if ps -p $PID | grep rsync >/dev/null ; then
+				ocf_log info "rsync daemon running"
+				return $OCF_SUCCESS
+			else
+				ocf_log info "rsync daemon is not running but pid file exists"
+				return $OCF_ERR_GENERIC
+			fi
+		else
+			ocf_log err "PID file empty!"
+			return $OCF_ERR_GENERIC
+		fi
+	fi
+		
+	# rsyncd is not running
+	ocf_log info "rsync daemon is not running"
+	return $OCF_NOT_RUNNING
+}
+
+rsyncd_start()
+{
+	# if rsyncd is running return success
+	rsyncd_status
+	retVal=$?
+	if [ $retVal -eq $OCF_SUCCESS ]; then
+		exit $OCF_SUCCESS
+	elif [ $retVal -ne $OCF_NOT_RUNNING ]; then
+		ocf_log err "Error. Unknown status."
+		exit $OCF_ERR_GENERIC
+	fi
+
+	if [ -n "$OCF_RESKEY_binpath" ]; then
+		COMMAND="$OCF_RESKEY_binpath --daemon"
+	else
+		COMMAND="rsync --daemon"
+	fi
+	if [ -n "$OCF_RESKEY_conffile" ]; then
+		COMMAND="$COMMAND --config $OCF_RESKEY_conffile"
+	fi
+	if [ -n "$OCF_RESKEY_bwlimit" ]; then
+		COMMAND="$COMMAND --bwlimit $OCF_RESKEY_bwlimit"
+	fi
+
+	if  grep -v "^#" "$CONF_FILE" | grep "pid file" > /dev/null ; then
+		$COMMAND;
+		if [ $? -ne 0 ]; then
+			ocf_log err "Error. rsycn daemon returned error $?."
+			exit $OCF_ERR_GENERIC
+		fi
+	else
+		ocf_log err "Error. \"pid file\" entry required in the rsyncd config file by rsyncd OCF RA."
+		return $OCF_ERR_GENERIC
+	fi
+
+	ocf_log info "Started rsync daemon."
+	exit $OCF_SUCCESS
+}
+
+
+rsyncd_stop()
+{
+	if rsyncd_status ; then
+		PID=`cat $PIDFILE`
+		if [ -n "$PID" ] ; then
+			kill $PID
+			if [ $? -ne 0 ]; then
+				kill -SIGKILL $PID
+				if [ $? -ne 0 ]; then
+					ocf_log err "Error. Could not stop rsync daemon."
+					return $OCF_ERR_GENERIC
+				fi
+			fi
+			rm $PIDFILE 2>/dev/null
+		fi
+	fi
+	ocf_log info "Stopped rsync daemon."
+	exit $OCF_SUCCESS
+}
+
+rsyncd_monitor()
+{
+	rsyncd_status
+}
+
+rsyncd_validate_all()
+{
+	if [ -n "$OCF_RESKEY_binpath" -a ! -x "$OCF_RESKEY_binpath" ]; then
+		ocf_log err "Binary path $OCF_RESKEY_binpath does not exist."
+		exit $OCF_ERR_ARGS
+	fi
+	if [ -n "$OCF_RESKEY_conffile" -a ! -f "$OCF_RESKEY_conffile" ]; then
+		ocf_log err "Config file $OCF_RESKEY_conffile does not exist."
+		exit $OCF_ERR_ARGS
+	fi
+
+	if  grep -v "^#" "$CONF_FILE" | grep "pid file" > /dev/null ; then
+		:
+	else
+		ocf_log err "Error. \"pid file\" entry required in the rsyncd config file by rsyncd OCF RA."
+		return $OCF_ERR_GENERIC
+	fi
+
+#Not checking "$OCF_RESKEY_bwlimit"
+
+	return $OCF_SUCCESS
+}
+
+
+#
+# Main
+#
+ 
+if [ $# -ne 1 ]; then
+	usage
+	exit $OCF_ERR_ARGS
+fi
+
+case $1 in
+	start)	get_pid_and_conf_file
+		rsyncd_start
+		;;
+	
+	stop)	get_pid_and_conf_file
+		rsyncd_stop
+		;;
+
+	status)	get_pid_and_conf_file
+		rsyncd_status
+		;;
+
+	monitor)get_pid_and_conf_file
+		rsyncd_monitor
+		;;
+
+	validate-all)	get_pid_and_conf_file
+			rsyncd_validate_all
+			;;
+
+	meta-data)	meta_data
+			;;
+
+	usage)	usage
+		exit $OCF_SUCCESS
+		;;
+
+	*)	usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+
