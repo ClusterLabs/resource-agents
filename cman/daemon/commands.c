@@ -1428,7 +1428,7 @@ void unbind_con(struct connection *con)
 	   then we take its closedown as a "Yes" to the "can we shutdown"
 	   question. If it previously answered "No", we need to change its vote */
 	if (shutdown_con && con->events) {
-		if (!con->shutdown_reply) {
+		if (con->shutdown_reply) {
 			if (con->shutdown_reply == SHUTDOWN_REPLY_YES)
 				shutdown_yes--;
 			if (con->shutdown_reply == SHUTDOWN_REPLY_NO)
