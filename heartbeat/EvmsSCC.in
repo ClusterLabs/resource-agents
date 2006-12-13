@@ -1,0 +1,190 @@
+#!/bin/sh
+#
+# Support:      linux-ha@lists.linux-ha.org
+# License:      GNU General Public License (GPL)
+# 
+# EvmsSCC
+#      Description: Runs evms_activate in a heartbeat cluster to activate a 
+#		    EVMS shared cluster container in the cluster.
+#  Original Author: Jo De Baer (jdebaer@novell.com)
+# Original Release: 06 Nov 2006
+#
+# usage: ./EvmsSCC {start|stop|status|monitor|validate-all|meta-data}
+#
+
+#######################################################################
+# Initialization:
+
+. @hb_libdir@/ocf-shellfuncs
+
+#######################################################################
+
+# Utilities used by this script
+CUT=/usr/bin/cut
+EVMSACTIVATE=/sbin/evms_activate
+
+check_util () {
+    if [ ! -x "$1" ] ; then
+	ocf_log err "Setup problem: Couldn't find utility $1"
+	exit $OCF_ERR_GENERIC
+    fi
+}
+
+usage() {
+	cat <<-EOT
+	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
+	EOT
+}
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="EvmsSCC">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource script for EVMS shared cluster container. It runs evms_activate on one node in the cluster.
+</longdesc>
+<shortdesc lang="en">EVMS SCC resource agent</shortdesc>
+
+<actions>
+<action name="start" timeout="60" />
+<action name="stop" timeout="60" />
+<action name="notify" timeout="60" />
+<action name="status" depth="0" timeout="10" interval="10" start-delay="10" />
+<action name="monitor" depth="0" timeout="10" interval="10" start-delay="10" />
+<action name="validate-all" timeout="5" />
+<action name="meta-data" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+EvmsSCC_status()
+{
+	# At the moment we don't support monitoring EVMS activations. We just return "not running" to cope with the pre-start monitor call.
+	rc=$OCF_NOT_RUNNING
+	return $rc
+}
+
+EvmsSCC_notify()
+{
+	local n_type="$OCF_RESKEY_CRM_meta_notify_type"
+        local n_op="$OCF_RESKEY_CRM_meta_notify_operation"
+        local n_active="$OCF_RESKEY_CRM_meta_notify_active_uname"
+        local n_stop="$OCF_RESKEY_CRM_meta_notify_stop_uname"
+        local n_start="$OCF_RESKEY_CRM_meta_notify_start_uname"
+
+	case "$n_type" in
+        pre)
+                case "$n_op" in
+                start)
+			#in comment: we prefer evms_activate to run on a starting node whenever possible
+                        #n_active="$n_active $n_start"
+		
+        		ocf_log debug "EvmsSCC: Notify: Starting node(s): $n_start."
+			EvmsSCC_start_notify_common
+                        ;;
+                esac
+                ;;
+	esac
+	
+
+	return 0
+}
+
+EvmsSCC_start()
+{   
+
+	local evmsd_started=no
+	while [ "$evmsd_started" = "no" ] ; do
+		if pgrep evmsd ; then
+			evmsd_started=yes
+		else
+			sleep 1
+		fi
+	done
+
+	local n_type="$OCF_RESKEY_CRM_meta_notify_type"
+	local n_op="$OCF_RESKEY_CRM_meta_notify_operation"
+	local n_active="$OCF_RESKEY_CRM_meta_notify_active_uname"
+	local n_stop="$OCF_RESKEY_CRM_meta_notify_stop_uname"
+	local n_start="$OCF_RESKEY_CRM_meta_notify_start_uname"
+
+	#in comment : see above
+        #n_active="$n_active $n_start"
+
+        ocf_log debug "EvmsSCC: Start: starting node(s): $n_start."
+	
+	EvmsSCC_start_notify_common
+
+	return 0
+}
+
+EvmsSCC_start_notify_common()
+{
+	local n_myself=${HA_CURHOST:-$(uname -n | tr A-Z a-z)}
+        ocf_log debug "EvmsSCC: Start_Notify: I am node $n_myself."
+
+	#sanity test
+        n_active="$n_active $n_start"
+        case " $n_active " in
+        *" $n_myself "*) ;;
+        *)      ocf_log err "EvmsSCC: $n_myself (local) not on active list!"
+                return $OCF_ERR_GENERIC
+                ;;
+        esac
+
+	#pick a node from the starting list
+	#when the cluster boots this will be one of the many booting nodes 
+	#when a node later joins the cluster, this will be the joinging node 
+        local n_first=$(echo $n_start | cut -d ' ' -f 1)
+        ocf_log debug "EvmsSCC: Start_Notify: First node in starting list is $n_first."
+
+        if [ "$n_myself" = "$n_first" ] ; then
+                ocf_log debug "EvmsSCC: Start_Notify: I am running evms_activate."
+                evms_activate
+        fi
+
+        return 0
+}
+
+# Check the arguments passed to this script
+if
+  [ $# -ne 1 ]
+then
+  usage
+  exit $OCF_ERR_ARGS
+fi
+
+OP=$1
+
+case $OP in
+  meta-data)		meta_data
+			exit $OCF_SUCCESS
+			;;
+  usage)		usage
+			exit $OCF_SUCCESS
+			;;
+esac
+
+check_util $CUT
+check_util $EVMSACTIVATE
+
+case $OP in
+  start)		EvmsSCC_start
+			;;
+  notify)		EvmsSCC_notify	
+			;;
+  stop)			
+			;;
+  status|monitor)	EvmsSCC_status
+			;;
+  validate-all)		
+			;;
+  *)			usage
+			exit $OCF_ERR_UNIMPLEMENTED
+			;;
+esac
+exit $?

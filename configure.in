@@ -2884,6 +2884,7 @@ resources/Makefile						\
 	resources/OCF/Delay					\
 	resources/OCF/db2					\
 	resources/OCF/drbd					\
+	resources/OCF/EvmsSCC					\
 	resources/OCF/Filesystem				\
 	resources/OCF/ICP					\
 	resources/OCF/IPaddr					\
