@@ -489,7 +489,8 @@ static void copy_group_data(group_t *g, group_data_t *data)
 	/* we're in the member list but are still joining */
 	if (data->member) {
 		ev = g->app->current_event;
-		if (ev && is_our_join(ev))
+		if (ev && is_our_join(ev) &&
+		    (ev->state <= EST_JOIN_ALL_STARTED))
 			data->member = 0;
 	}
 }
