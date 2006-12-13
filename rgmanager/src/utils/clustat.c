@@ -345,6 +345,9 @@ add_missing(cluster_member_list_t *all, cluster_member_list_t *these)
 	int x, y;
 	cman_node_t *m, *new;
 
+	if (!these)
+		return all;
+
 	for (x=0; x<these->cml_count; x++) {
 
 		m = NULL;
