@@ -19,6 +19,7 @@
 #include <resgroup.h>
 
 struct { int val; char *str; } rg_error_strings[] = {
+	{ RG_ERUN,      "Service is already running" },
 	{ RG_EQUORUM,	"Operation requires quorum" },
 	{ RG_EINVAL,	"Invalid operation for resource" },
 	{ RG_EDEPEND,	"Operation violates dependency rule" },

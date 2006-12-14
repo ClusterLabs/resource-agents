@@ -344,13 +344,16 @@ main(int argc, char **argv)
 		clu_local_nodename(RG_SERVICE_GROUP, nodename,
 				   sizeof(nodename));
 				   */
-		strcpy(nodename,"me");
+		//strcpy(nodename,"me");
 	}
 	
 	build_message(&msg, action, svcname, svctarget);
 
 	if (action != RG_RELOCATE && action != RG_MIGRATE) {
-		printf("Member %s %s %s", nodename, actionstr, svcname);
+		if (!node_specified)
+			printf("Local machine %s %s", actionstr, svcname);
+		else
+			printf("Member %s %s %s", nodename, actionstr, svcname);
 		printf("...");
 		fflush(stdout);
 		msg_open(MSG_SOCKET, 0, RG_PORT, &ctx, 5);
@@ -389,13 +392,18 @@ main(int argc, char **argv)
 
 	swab_SmMessageSt(&msg);
 	printf("%s\n", rg_strerror(msg.sm_data.d_ret));
+
+	if (msg.sm_data.d_ret == RG_ERUN)
+		return 0;
+	
 	switch (action) {
 	case RG_MIGRATE:
 	case RG_RELOCATE:
 	case RG_START:
 	case RG_ENABLE:
 		printf("%s%s is now running on %s\n",
-		       msg.sm_data.d_svcOwner==svctarget?"":"Warning: ",
+		       (!node_specified ||
+		       msg.sm_data.d_svcOwner==svctarget)?"":"Warning: ",
 		       svcname, memb_id_to_name(membership,
 		       			        msg.sm_data.d_svcOwner));
 		break;

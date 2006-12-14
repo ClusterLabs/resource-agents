@@ -569,6 +569,7 @@ svc_advise_stop(rg_state_t *svcStatus, char *svcName, int req)
  *			1 = START service - return whatever it returns.
  *			2 = DO NOT start service, return 0
  *			3 = DO NOT start service, return RG_EAGAIN
+ *			4 = DO NOT start service, return RG_ERUN
  */
 int
 svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
@@ -593,7 +594,7 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 			clulog(LOG_DEBUG,
 			       "RG %s is already running locally\n", svcName);
 			 */
-			ret = 2;
+			ret = 4;
 			break;
 		}
 
@@ -605,7 +606,7 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 			       svcName,
 			       memb_id_to_name(membership,svcStatus->rs_owner));
 			 */
-			ret = 2;
+			ret = 4;
 			break;
 		}
 
@@ -663,6 +664,7 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 		break;
 
 	case RG_STATE_STOPPED:
+	case RG_STATE_ERROR:
 		/* Don't actually enable if the RG is locked! */
 		if (rg_locked()) {
 			ret = 3;
@@ -694,7 +696,6 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 		       svcName);
 		break;
 
-	case RG_STATE_ERROR:
 	default:
 		clulog(LOG_ERR,
 		       "#44: Cannot start RG %s: Invalid State %d\n",
@@ -746,6 +747,9 @@ svc_start(char *svcName, int req)
 	case 3:
 		rg_unlock(&lockp);
 		return RG_EAGAIN;
+	case 4:
+		rg_unlock(&lockp);
+		return RG_ERUN;
 	default:
 		break;
 	}
@@ -1491,8 +1495,8 @@ handle_start_req(char *svcName, int req, int *new_owner)
 	/* 
 	   If services are locked, return the error 
 	  */
-	if (ret == RG_EAGAIN)
-		return RG_EAGAIN;
+	if (ret == RG_EAGAIN || ret == RG_ERUN)
+		return ret;
 
 	/*
 	 * If we succeeded, then we're done.

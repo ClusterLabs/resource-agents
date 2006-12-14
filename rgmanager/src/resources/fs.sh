@@ -496,6 +496,18 @@ mountInUse () {
 
 
 #
+# trim_trailing_slash path
+#
+# Trim trailing slash from given path.
+#
+trim_trailing_slash() {
+	declare mpath=$1
+
+	echo $mpath | sed -e 's/\/*$//'
+}
+
+
+#
 # isMounted device mount_point
 #
 # Check to see if the device is mounted.  Print a warning if its not
@@ -523,6 +535,8 @@ isMounted () {
 	do
 		#echo "spec=$1 dev=$dev  tmp_dev=$tmp_dev"
 		tmp_dev=$(real_device $tmp_dev)
+		tmp_mp=$(trim_trailing_slash $tmp_mp)
+		mp=$(trim_trailing_slash $mp)
 
 		if [ -n "$tmp_dev" -a "$tmp_dev" = "$dev" ]; then
 			#

@@ -161,6 +161,7 @@ cluster_member_list_t *member_list(void);
 int my_id(void);
 
 /* Return codes */
+#define RG_ERUN		-10		/* Service is already running */
 #define RG_EQUORUM	-9		/* Operation requires quorum */
 #define RG_EINVAL	-8		/* Invalid operation for resource */
 #define RG_EDEPEND 	-7		/* Operation violates dependency */
