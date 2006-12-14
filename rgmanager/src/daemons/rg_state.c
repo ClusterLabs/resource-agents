@@ -213,7 +213,7 @@ send_ret(msgctx_t *ctx, char *name, int ret, int orig_request)
 
 	
 void
-send_response(int ret, request_t *req)
+send_response(int ret, int nodeid, request_t *req)
 {
 	SmMessageSt msg, *msgp = &msg;
 
@@ -226,7 +226,10 @@ send_response(int ret, request_t *req)
 	msgp->sm_data.d_action = req->rr_orig_request;
 	strncpy(msgp->sm_data.d_svcName, req->rr_group,
 		sizeof(msgp->sm_data.d_svcName));
-	msgp->sm_data.d_svcOwner = my_id(); /* XXX Broken */
+	if (!nodeid)
+		msgp->sm_data.d_svcOwner = my_id();
+	else 
+		msgp->sm_data.d_svcOwner = nodeid;
 	msgp->sm_data.d_ret = ret;
 
 	swab_SmMessageSt(msgp);

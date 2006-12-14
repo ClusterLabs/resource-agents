@@ -125,7 +125,7 @@ int rt_enqueue_request(const char *resgroupname, int request,
 		       msgctx_t *resp_ctx,
        		       int max, uint32_t target, int arg0, int arg1);
 
-void send_response(int ret, request_t *req);
+void send_response(int ret, int node, request_t *req);
 void send_ret(msgctx_t *ctx, char *name, int ret, int req);
 
 /* do this op on all resource groups.  The handler for the request 

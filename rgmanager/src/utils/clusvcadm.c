@@ -180,6 +180,46 @@ printf("       %s -u                     Unlock local resource group manager.\n"
 
 
 int
+find_closest_node(cluster_member_list_t *cml, char *name, size_t maxlen)
+{
+	int x, c = 0, cl = 0, nc = 0, ncl = 0, cur = 0;
+
+	for (x=0; x<cml->cml_count; x++) {
+		cur = 0;
+
+		while (cml->cml_members[x].cn_name[cur] && name[cur] &&
+		       (cml->cml_members[x].cn_name[cur] == name[cur]))
+			cur++;
+		if (!cur)
+			continue;
+		if (cur >= cl) {
+			ncl = cl; /* Next-closest */
+			nc = c;
+			cl = cur;
+			c = x;
+		}
+	}
+
+	if (!cl) {
+		printf("No matches for '%s' found\n", name);
+		return 0;
+	}
+
+	if (ncl == cl) {
+		printf("More than one possible match for '%s' found\n",
+		       name);
+		return 0;
+	}
+
+	printf("Closest match: '%s'\n", 
+	       cml->cml_members[c].cn_name);
+
+	strncpy(name, cml->cml_members[c].cn_name, maxlen);
+	return cml->cml_members[c].cn_nodeid;
+}
+
+
+int
 main(int argc, char **argv)
 {
 	extern char *optarg;
@@ -291,9 +331,12 @@ main(int argc, char **argv)
 	if (node_specified) {
 		svctarget = memb_name_to_id(membership, nodename);
 		if (svctarget == 0) {
-			fprintf(stderr, "Member %s not in membership list\n",
-				nodename);
-			return 1;
+			printf("'%s' not in membership list\n",
+			       nodename);
+			svctarget = find_closest_node(membership, nodename,
+						      sizeof(nodename));
+			if (!svctarget)
+				return 1;
 		}
 	} else {
 		svctarget = 0;
@@ -301,9 +344,9 @@ main(int argc, char **argv)
 		clu_local_nodename(RG_SERVICE_GROUP, nodename,
 				   sizeof(nodename));
 				   */
+		strcpy(nodename,"me");
 	}
 	
-	strcpy(nodename,"me");
 	build_message(&msg, action, svcname, svctarget);
 
 	if (action != RG_RELOCATE && action != RG_MIGRATE) {
@@ -312,7 +355,11 @@ main(int argc, char **argv)
 		fflush(stdout);
 		msg_open(MSG_SOCKET, 0, RG_PORT, &ctx, 5);
 	} else {
-		printf("Trying to relocate %s to %s", svcname, nodename);
+		if (!svctarget)
+			printf("Trying to relocate %s", svcname);
+		else 
+			printf("Trying to relocate %s to %s", svcname,
+			       nodename);
 		printf("...");
 		fflush(stdout);
 		msg_open(MSG_SOCKET, 0, RG_PORT, &ctx, 5);
@@ -342,5 +389,19 @@ main(int argc, char **argv)
 
 	swab_SmMessageSt(&msg);
 	printf("%s\n", rg_strerror(msg.sm_data.d_ret));
+	switch (action) {
+	case RG_MIGRATE:
+	case RG_RELOCATE:
+	case RG_START:
+	case RG_ENABLE:
+		printf("%s%s is now running on %s\n",
+		       msg.sm_data.d_svcOwner==svctarget?"":"Warning: ",
+		       svcname, memb_id_to_name(membership,
+		       			        msg.sm_data.d_svcOwner));
+		break;
+	default:
+		break;
+	}
+	
 	return msg.sm_data.d_ret;
 }

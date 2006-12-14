@@ -91,7 +91,7 @@ forwarding_thread(void *arg)
 	msg_free_ctx(ctx);
 
 	swab_SmMessageSt(&msg);
-	send_response(msg.sm_data.d_ret, req);
+	send_response(msg.sm_data.d_ret, msg.sm_data.d_svcOwner, req);
 	rq_free(req);
 	pthread_exit(NULL);
 	
