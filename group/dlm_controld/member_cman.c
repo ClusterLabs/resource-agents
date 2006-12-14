@@ -18,8 +18,6 @@ static cman_node_t      old_nodes[MAX_NODES];
 static int              old_node_count;
 static cman_node_t      cman_nodes[MAX_NODES];
 static int              cman_node_count;
-static int		cman_cb;
-static int		cman_reason;
 static int		local_nodeid;
 extern struct list_head lockspaces;
 
@@ -66,7 +64,6 @@ char *nodeid2name(int nodeid)
 	return cn->cn_name;
 }
 
-
 /* add a configfs dir for cluster members that don't have one,
    del the configfs dir for cluster members that are now gone */
 
@@ -112,36 +109,20 @@ static void statechange(void)
 	}
 }
 
-static void process_cman_callback(void)
+static void member_callback(cman_handle_t h, void *private, int reason, int arg)
 {
-	switch (cman_reason) {
+	switch (reason) {
+	case CMAN_REASON_TRY_SHUTDOWN:
+		if (list_empty(&lockspaces))
+			cman_replyto_shutdown(ch, 1);
+		else {
+			log_debug("no to cman shutdown");
+			cman_replyto_shutdown(ch, 0);
+		}
+		break;
 	case CMAN_REASON_STATECHANGE:
 		statechange();
 		break;
-	default:
-		break;
-	}
-}
-
-static void member_callback(cman_handle_t h, void *private, int reason, int arg)
-{
-	struct lockspace *ls;
-
-	cman_cb = 1;
-	cman_reason = reason;
-
-	if (reason == CMAN_REASON_TRY_SHUTDOWN) {
-		/* special case: we don't block cluster shutdown
-		   for the gfs_controld lockspace */
-
-		list_for_each_entry(ls, &lockspaces, list) {
-			if (!strncmp(ls->name, "gfs_controld", 12))
-				continue;
-			log_debug("no to cman shutdown");
-			cman_replyto_shutdown(ch, 0);
-			return;
-		}
-		cman_replyto_shutdown(ch, 1);
 	}
 }
 
@@ -149,18 +130,7 @@ int process_member(void)
 {
 	int rv;
 
-	while (1) {
-		rv = cman_dispatch(ch, CMAN_DISPATCH_ONE);
-		if (rv < 0)
-			break;
-
-		if (cman_cb) {
-			cman_cb = 0;
-			process_cman_callback();
-		} else
-			break;
-	}
-
+	rv = cman_dispatch(ch, CMAN_DISPATCH_ALL);
 	if (rv == -1 && errno == EHOSTDOWN) {
 		/* do we want to try to forcibly clean some stuff up
 		   in the kernel here? */
@@ -215,8 +185,7 @@ int setup_member(void)
 	memset(&cman_nodes, 0, sizeof(cman_nodes));
 
 	/* add configfs entries for existing nodes */
-	cman_reason = CMAN_REASON_STATECHANGE;
-	process_cman_callback();
+	statechange();
  out:
 	return fd;
 }

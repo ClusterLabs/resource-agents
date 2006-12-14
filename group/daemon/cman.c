@@ -10,8 +10,6 @@ static cman_node_t	old_nodes[MAX_NODES];
 static int		old_node_count;
 static cman_node_t	cman_nodes[MAX_NODES];
 static int		cman_node_count;
-static int		cman_cb;
-static int		cman_reason;
 static char		name_buf[CMAN_MAX_NODENAME_LEN+1];
 
 
@@ -106,24 +104,16 @@ static void statechange(void)
 	}
 }
 
-static void process_cman_callback(void)
+static void cman_callback(cman_handle_t h, void *private, int reason, int arg)
 {
-	switch (cman_reason) {
+	switch (reason) {
+	case CMAN_REASON_TRY_SHUTDOWN:
+		cman_replyto_shutdown(ch, 1);
+		break;
 	case CMAN_REASON_STATECHANGE:
 		statechange();
 		break;
-	default:
-		break;
 	}
-}
-
-static void cman_callback(cman_handle_t h, void *private, int reason, int arg)
-{
-	cman_cb = 1;
-	cman_reason = reason;
-
-	if (reason == CMAN_REASON_TRY_SHUTDOWN)
-		cman_replyto_shutdown(ch, 1);
 }
 
 static void close_cman(int ci)
@@ -135,19 +125,7 @@ static void close_cman(int ci)
 static void process_cman(int ci)
 {
 	int rv;
-
-	while (1) {
-		rv = cman_dispatch(ch, CMAN_DISPATCH_ONE);
-		if (rv < 0)
-			break;
-
-		if (cman_cb) {
-			cman_cb = 0;
-			process_cman_callback();
-		} else
-			break;
-	}
-
+	rv = cman_dispatch(ch, CMAN_DISPATCH_ALL);
 	if (rv == -1 && errno == EHOSTDOWN)
 		close_cman(ci);
 }

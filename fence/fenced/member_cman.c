@@ -16,8 +16,6 @@
 #define BUFLEN		128
 
 static cman_handle_t	ch;
-static int		cman_cb;
-static int		cman_reason;
 static int		cman_quorate;
 static cman_node_t	cman_nodes[MAX_NODES];
 static int		cman_node_count;
@@ -90,53 +88,31 @@ static void statechange(void)
 		log_error("cman_get_nodes error %d %d", rv, errno);
 }
 
-static void process_cman_callback(void)
-{
-	switch (cman_reason) {
-	case CMAN_REASON_STATECHANGE:
-		statechange();
-		break;
-	default:
-		break;
-	}
-}
-
 static void cman_callback(cman_handle_t h, void *private, int reason, int arg)
 {
-	cman_cb = 1;
-	cman_reason = reason;
-
-	if (reason == CMAN_REASON_TRY_SHUTDOWN) {
+	switch (reason) {
+	case CMAN_REASON_TRY_SHUTDOWN:
 		if (list_empty(&domains))
 			cman_replyto_shutdown(ch, 1);
 		else {
 			log_debug("no to cman shutdown");
 			cman_replyto_shutdown(ch, 0);
 		}
+		break;
+	case CMAN_REASON_STATECHANGE:
+		statechange();
+		break;
 	}
 }
 
 int process_member(void)
 {
 	int rv;
-
-	while (1) {
-		rv = cman_dispatch(ch, CMAN_DISPATCH_ONE);
-		if (rv < 0)
-			break;
-
-		if (cman_cb) {
-			cman_cb = 0;
-			process_cman_callback();
-		} else
-			break;
-	}
-
+	rv = cman_dispatch(ch, CMAN_DISPATCH_ALL);
 	if (rv == -1 && errno == EHOSTDOWN) {
 		log_error("cluster is down, exiting");
 		exit(1);
 	}
-
 	return 0;
 }
 
