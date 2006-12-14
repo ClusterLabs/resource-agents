@@ -156,6 +156,38 @@ sub get_options_stdin
     }
 }
 
+sub get_key_list
+{
+    ($dev) = @_;
+
+    my ($in, $out, $err);
+    my $cmd = "sg_persist -d $dev -i -k";
+    my $pid = open3($in, $out, $err, $cmd) or die "$!\n";
+
+    waitpid($pid, 0);
+
+    die "Unable to execute sg_persist.\n" if ($?>>8);
+
+    while (<$out>)
+    {
+	chomp;
+	if ($_ =~ /^\s*0x/)
+	{
+	    s/^\s+0x//;
+	    s/\s+$//;
+
+	    my $key = sprintf("%8.8x", hex($_));
+	    $key_list{$key} = 1;
+	}
+    }
+
+    close($in);
+    close($out);
+    close($err);
+
+    return %key_list;
+}
+
 #sub get_scsi_devices
 #{
 #    my ($in, $out, $err);
@@ -176,7 +208,7 @@ sub get_options_stdin
 #	if ($vg_attrs =~ /.*c$/)
 #	{
 #	    $device =~ s/\(.*\)//;
-#	    push @volumes, $device;
+#	    push(@volumes, $device);
 #	}
 #    }
 #
@@ -219,6 +251,29 @@ sub check_sg_persist
     close($err);
 }
 
+sub do_register
+{
+    ($dev, $key) = @_;
+
+    my ($in, $out, $err);
+    my $cmd = "sg_persist -d $dev -o -G -S $key";
+    my $pid = open3($in, $out, $err, $cmd) or die "$!\n";
+
+    waitpid($pid, 0);
+
+    die "Unable to execute sg_persist.\n" if ($?>>8);
+
+    while (<$out>)
+    {
+	chomp;
+	print "OUT: $_\n" if $opt_v;
+    }
+
+    close($in);
+    close($out);
+    close($err);
+}
+
 sub fence_node
 {
     my $host_name = get_host_name();
@@ -226,12 +281,18 @@ sub fence_node
 
     my $host_key = get_key($host_name);
     my $node_key = get_key($node_name);
-    
-    my $cmd;
+
     my ($in, $out, $err);
 
     foreach $dev (@volumes)
     {
+	my %key_list = get_key_list($dev);
+
+	if (!$key_list{$host_key})
+	{
+	    do_register($dev, $host_key);
+	}
+
 	if ($host_key eq $node_key)
 	{
 	    $cmd = "sg_persist -d $dev -o -G -K $host_key -S 0";
