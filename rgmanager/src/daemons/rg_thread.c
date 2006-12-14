@@ -146,7 +146,7 @@ purge_all(request_t **list)
 		list_remove(list, curr);
 		dprintf("Removed request %d\n", curr->rr_request);
 		if (curr->rr_resp_ctx) {
-			send_response(RG_EABORT, curr);
+			send_response(RG_EABORT, 0, curr);
 		}
 		rq_free(curr);
 	}
@@ -439,7 +439,7 @@ resgroup_thread_main(void *arg)
 
 		if (ret != RG_NONE && rg_initialized() &&
 		    (req->rr_resp_ctx)) {
-			send_response(error, req);
+			send_response(error, newowner, req);
 		}
 		
 		rq_free(req);
