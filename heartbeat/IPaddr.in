@@ -818,18 +818,19 @@ ip_validate_all() {
     fi
 
     tmp=`echo "$NICINFO" | cut -f2 | cut -d ' ' -f2`
-    if [ "x$OCF_RESKEY_netmask" = "x" ]; then
+    if [ "x$OCF_RESKEY_netmask" = "x" -a "x$OCF_RESKEY_cidr_netmask" = "x" ]; then
+	ocf_log debug "Using calculated netmask for ${OCF_RESKEY_ip}: $tmp"
+
+    elif [ "x$OCF_RESKEY_netmask" != "x$tmp" ]; then
 	ocf_log info "Using calculated netmask for ${OCF_RESKEY_ip}: $tmp"
-	OCF_RESKEY_netmask=$tmp
-# We cant do this because netmask used to take the CIDR form...
-#    elif [ x$tmp != x${OCF_RESKEY_netmask} ]; then
-#	ocf_log err "Invalid parameter value: netmask [$OCF_RESKEY_netmask [Calculated netmask: $tmp]"
-#	return $OCF_ERR_ARGS
     fi
+    # Always use the calculated version becuase it might have been specified 
+    #  using CIDR notation which not every system accepts
+    OCF_RESKEY_netmask=$tmp
     
     tmp=`echo "$NICINFO" | cut -f3 | cut -d ' ' -f2`
     if [ "x$OCF_RESKEY_broadcast" = "x" ]; then
-	ocf_log info "Using calculated broadcast for ${OCF_RESKEY_ip}: $tmp"
+	ocf_log debug "Using calculated broadcast for ${OCF_RESKEY_ip}: $tmp"
 	OCF_RESKEY_broadcast=$tmp
 
     elif [ x$tmp != x${OCF_RESKEY_broadcast} ]; then
@@ -837,7 +838,7 @@ ip_validate_all() {
 	return $OCF_ERR_ARGS
     fi
     
-  return $OCF_SUCCESS
+    return $OCF_SUCCESS
 }
   
 usage() {
