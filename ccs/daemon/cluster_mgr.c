@@ -30,9 +30,6 @@
 #include "globals.h"
 #include "libcman.h"
 
-static int cman_flag;
-static int cman_reason;
-
 typedef struct member_list {
   int count;
   int pad;
@@ -331,11 +328,19 @@ fail:
 
 static void cman_callback(cman_handle_t handle, void *private, int reason, int arg)
 {
-  cman_flag = 1;
-  cman_reason = reason;
+  switch (reason) {
+    case CMAN_REASON_TRY_SHUTDOWN:
+      cman_replyto_shutdown(handle, 1);
+      break;
 
-  if (reason == CMAN_REASON_TRY_SHUTDOWN) {
-    cman_replyto_shutdown(handle, 1);
+    case CMAN_REASON_STATECHANGE:
+      quorate = cman_is_quorate(handle);
+      free_member_list(members);
+      members = get_member_list(handle);
+      break;
+
+    default:
+      break;
   }
 }
 
@@ -344,17 +349,12 @@ static int handle_cluster_event(cman_handle_t handle)
 {
   ENTER("handle_cluster_event");
 
-  if (cman_dispatch(handle, CMAN_DISPATCH_ONE) < 0) {
-    return -1;
+  int rv = 1;
+  while (rv > 0) {
+    rv = cman_dispatch(handle, CMAN_DISPATCH_ALL);
   }
-
-  if (cman_flag) {
-    cman_flag = 0;
-    if (cman_reason == CMAN_REASON_STATECHANGE) {
-      quorate = cman_is_quorate(handle);
-      free_member_list(members);
-      members = get_member_list(handle);
-    }
+  if (rv < 0) {
+    return -1;
   }
 
   EXIT("handle_cluster_event");
