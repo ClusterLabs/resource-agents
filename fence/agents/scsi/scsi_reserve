@@ -8,22 +8,22 @@
 # check for sg_persist command provided by sg3_utils package
 #
 if ! sg_persist -V &> /dev/null ; then
-    echo "error: sg_persist not found"
-    exit 2
+   echo "error: sg_persist not found"
+   exit 2
 fi
 
 # check for gethostip command provided by syslinux package
 #
 if ! gethostip -h &> /dev/null ; then
-    echo "error: gethostip not found"
-    exit 3
+   echo "error: gethostip not found"
+   exit 3
 fi
 
 # get scsi devices that are part of clustered volumes
 #
 scsi_devices=$( lvs -o vg_attr,devices --noheadings \
-                | awk --posix ' $1 ~ /[-a-z]{5}c/ { print $2 } ' \
-                | sed -e 's/([0-9]*)//' | sort | uniq )
+		| awk --posix ' $1 ~ /[-a-z]{5}c/ { print $2 } ' \
+		| sed -e 's/([0-9]*)//' | sort | uniq )
 
 # if no scsi devices were found we can exit now
 #
@@ -97,13 +97,25 @@ for dev in $scsi_devices
 do
   echo -n "Unregistering device: $dev"
 
+  # get list of keys registered for this device
+  #
+  reg_keys=$( sg_persist -d $dev -i -k | grep '^[[:space:]]*0x' )
+
   # check if this node/key is the node/key holding the reservation
   #
   if sg_persist -d $dev -i -r 2>/dev/null | grep -qiE "${key#0}" ; then
-      error=1
+      if echo "$reg_keys" | grep -qivE "${key#0}" ; then
+	  error=1
+      else
+	  for error in 1
+	  do
+	    sg_persist -d $dev -o -G -K $key -S 0 &>/dev/null || break
+	    error=0
+	  done
+      fi
   else
       for error in 1
-	do
+      do
 	sg_persist -d $dev -o -G -K $key -S 0 &>/dev/null || break
 	error=0
       done
@@ -137,7 +149,7 @@ do
 done
 
 if [ -z "$devices" ]; then
-    echo "No devices registered."
+    echo "No devices resgistered."
 else
     echo "Found ${#devices[@]} registered device(s):"
 
