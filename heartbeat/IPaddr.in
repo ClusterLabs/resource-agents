@@ -107,27 +107,15 @@ rather, specify the base interface only.
 <content type="string" default="eth0"/>
 </parameter>
 
-<parameter name="cidr_netmask">
-<longdesc lang="en">
-The netmask for the interface in CIDR format.
-(e.g., 24 and not 255.255.255.0)
-
-If unspecified, the script will also try to determine this from the
-routing table.
-</longdesc>
-<shortdesc lang="en">CIDR netmask</shortdesc>
-<content type="string" default=""/>
-</parameter>
-
 <parameter name="netmask">
 <longdesc lang="en">
-The netmask for the interface in CIDR format.
-(e.g., 255.255.255.0 and not 24)
+The netmask for the interface dot-quad notation or CIDR format. (ie,
+either 255.255.255.0 or 24)
 
 If unspecified, the script will also try to determine this from the
 routing table.
 </longdesc>
-<shortdesc lang="en">netmask</shortdesc>
+<shortdesc lang="en">Netmask</shortdesc>
 <content type="string" default=""/>
 </parameter>
 
@@ -773,6 +761,8 @@ ip_validate_all() {
     # $FINDIF can NOT deal with the condition of empty intermediate parameters. 
     #
     IFCMD="$FINDIF $OCF_RESKEY_ip"
+    # Note: We had a version out there for a while which renamed the
+    # parameter to cidr_netmask. So, don't remove this aliasing code!
     if [ -n "$OCF_RESKEY_cidr_netmask" -o -n "$OCF_RESKEY_netmask" ]; then
 	if [ -n "$OCF_RESKEY_netmask" ]; then
 	    IFCMD="$IFCMD/$OCF_RESKEY_netmask"
