@@ -36,6 +36,7 @@
 #define CONFIG_VERSION_PATH	"/cluster/@config_version"
 #define CLUSTER_NAME_PATH	"/cluster/@name"
 
+#define CLUSTER_ID_PATH 	"/cluster/cman/@cluster_id"
 #define EXP_VOTES_PATH		"/cluster/cman/@expected_votes"
 #define TWO_NODE_PATH		"/cluster/cman/@two_node"
 #define MCAST_ADDR_PATH		"/cluster/cman/multicast/@addr"
@@ -402,7 +403,15 @@ static int get_ccs_join_info(void)
 		strcpy(cluster_name, str);
 	}
 	free(str);
-	cluster_id = generate_cluster_id(cluster_name);
+
+	error = ccs_get(cd, CLUSTER_ID_PATH, &str);
+	if (!error) {
+		cluster_id = atoi(str);
+		free(str);
+	}
+	else {
+		cluster_id = generate_cluster_id(cluster_name);
+	}
 
 	/* our nodename */
 	memset(nodename, 0, sizeof(nodename));
