@@ -802,6 +802,10 @@ int main(int argc, char **argv){
       return 1;
     }
   }
+  if (cached && (uid || uid_program)){
+    printe("the -c option may not be used with the -u or -U option\n" MAN_MSG);
+    return 1;
+  }
   if (timeout && cached){
     printe("the -t option may not be used with the -c option\n" MAN_MSG);
     return 1;
