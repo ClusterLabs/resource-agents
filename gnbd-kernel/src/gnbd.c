@@ -910,6 +910,13 @@ static int __init gnbd_init(void)
 			put_disk(disk);
 			goto out;
 		}
+		elevator_exit(disk->queue->elevator);
+		err = elevator_init(disk->queue, "anticipatory");
+		if (err) {
+			blk_cleanup_queue(disk->queue);
+			put_disk(disk);
+			goto out;
+		}
 	}
 	major_nr = register_blkdev(major_nr, "gnbd");
 	if (major_nr < 0) {
