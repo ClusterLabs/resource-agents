@@ -482,11 +482,11 @@ static int comms_init_ais(struct objdb_iface_ver0 *objdb)
 		objdb->object_key_create(object_handle, "vsftype", strlen("vsftype"),
 					 "none", strlen("none")+1);
 
-		/* Set the token timeout is 5 seconds - 20 losses, but don't overrride anything that
+		/* Set the token timeout is 10 seconds, but don't overrride anything that
 		   might be in cluster.conf */
 		if (objdb_get_string(objdb, object_handle, "token", &value)) {
 			global_objdb->object_key_create(object_handle, "token", strlen("token"),
-							"5000", strlen("5000")+1);
+							"10000", strlen("10000")+1);
 		}
 		if (objdb_get_string(objdb, object_handle, "token_retransmits_before_loss_const", &value)) {
 			global_objdb->object_key_create(object_handle, "token_retransmits_before_loss_const",
