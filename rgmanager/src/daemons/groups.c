@@ -1,5 +1,5 @@
 /*
-  Copyright Red Hat, Inc. 2002-2003
+  Copyright Red Hat, Inc. 2002-2006
   Copyright Mission Critical Linux, Inc. 2000
 
   This program is free software; you can redistribute it and/or modify it
@@ -849,6 +849,15 @@ status_check_thread(void *arg)
 
 	free(arg);
 
+	/* See if we have a slot... */
+	if (rg_inc_status() < 0) {
+		/* Too many outstanding status checks.  try again later. */
+		msg_send_simple(ctx, RG_FAIL, RG_EAGAIN, 0);
+		msg_close(ctx);
+		msg_free_ctx(ctx);
+		return NULL;
+	}
+	
 	pthread_rwlock_rdlock(&resource_lock);
 
 	list_do(&_tree, node) {
@@ -866,6 +875,8 @@ status_check_thread(void *arg)
 	msg_receive(ctx, &hdr, sizeof(hdr), 10);
 	msg_close(ctx);
 	msg_free_ctx(ctx);
+	
+	rg_dec_status();
 
 	return NULL;
 }
@@ -1243,6 +1254,12 @@ init_resource_groups(int reconfigure)
 		pthread_mutex_lock(&config_mutex);
 		config_version = atoi(val);
 		pthread_mutex_unlock(&config_mutex);
+		free(val);
+	}
+	
+	if (ccs_get(fd, "/cluster/rm/@statusmax", &val) == 0) {
+		if (strlen(val)) 
+			rg_set_statusmax(atoi(val));
 		free(val);
 	}
 

@@ -33,6 +33,9 @@ static int __rg_lock = 0;
 static int __rg_threadcnt = 0;
 static int __rg_initialized = 0;
 
+static int _rg_statuscnt = 0;
+static int _rg_statusmax = 5; /* XXX */
+
 static pthread_mutex_t locks_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t unlock_cond = PTHREAD_COND_INITIALIZER;
 static pthread_cond_t zero_cond = PTHREAD_COND_INITIALIZER;
@@ -258,6 +261,48 @@ rg_dec_threads(void)
 #ifdef DEBUG
 	printf("%s: %d threads active\n", __FILE__, __rg_threadcnt);
 #endif
+	pthread_mutex_unlock(&locks_mutex);
+	return 0;
+}
+
+
+int
+rg_set_statusmax(int max)
+{
+	int old;
+	
+	if (max <= 3)
+		max = 3;
+	
+	pthread_mutex_lock(&locks_mutex);
+	old = _rg_statusmax;
+	_rg_statusmax = max;
+	pthread_mutex_unlock(&locks_mutex);
+	return old;
+}
+
+
+int
+rg_inc_status(void)
+{
+	pthread_mutex_lock(&locks_mutex);
+	if (_rg_statuscnt >= _rg_statusmax) {
+		pthread_mutex_unlock(&locks_mutex);
+		return -1;
+	}
+	++_rg_statuscnt;
+	pthread_mutex_unlock(&locks_mutex);
+	return 0;
+}
+
+
+int
+rg_dec_status(void)
+{
+	pthread_mutex_lock(&locks_mutex);
+	--_rg_statuscnt;
+	if (_rg_statuscnt < 0)
+		_rg_statuscnt = 0;
 	pthread_mutex_unlock(&locks_mutex);
 	return 0;
 }

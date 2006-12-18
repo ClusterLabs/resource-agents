@@ -20,6 +20,10 @@ int rg_set_initialized(void);
 int rg_set_uninitialized(void);
 int rg_wait_initialized(void);
 
+int rg_inc_status(void);
+int rg_dec_status(void);
+int rg_set_statusmax(int max);
+
 int ccs_lock(void);
 int ccs_unlock(int fd);
 
