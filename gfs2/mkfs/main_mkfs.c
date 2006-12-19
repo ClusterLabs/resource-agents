@@ -87,6 +87,8 @@ decode_arguments(int argc, char *argv[], struct gfs2_sbd *sdp)
 	int optchar;
 
 	sdp->device_name = NULL;
+	sdp->md.journals = 1;
+	strcpy(sdp->lockproto, "lock_nolock");
 
 	while (cont) {
 		optchar = getopt(argc, argv, "-c:DhJ:j:Op:qr:t:u:VX");

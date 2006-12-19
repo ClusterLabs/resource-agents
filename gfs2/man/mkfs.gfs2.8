@@ -1,5 +1,5 @@
 .\"  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+.\"  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
 
 .TH mkfs.gfs2 8
 
@@ -31,7 +31,8 @@ The size of the journals in Megabytes. The default journal size is
 .TP
 \fB-j\fP \fINumber\fR 
 The number of journals for gfs2_mkfs to create.  You need at least one
-journal per machine that will mount the filesystem.
+journal per machine that will mount the filesystem.  If this option is
+not specified, one journal will be created.
 .TP
 \fB-O\fP
 This option prevents gfs2_mkfs from asking for confirmation before writing
@@ -41,7 +42,8 @@ the filesystem.
 LockProtoName is the name of the  locking  protocol to use.  Acceptable
 locking protocols are \fIlock_dlm\fR or if you are using GFS2
 as a local filesystem (\fB1 node only\fP), you can specify the
-\fIlock_nolock\fR protocol.
+\fIlock_nolock\fR protocol.  If this option is not specified,
+\fIlock_nolock\fR protocol will be assumed.
 .TP
 \fB-q\fP
 Be quiet.  Don't print anything.
