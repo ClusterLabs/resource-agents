@@ -113,6 +113,11 @@ do { \
         } \
 }
 
+struct mountpoint {
+	struct list_head	list;
+	char			dir[MAXNAME+1];
+};
+
 struct mountgroup {
 	struct list_head	list;
 	uint32_t		id;
@@ -124,7 +129,7 @@ struct mountgroup {
 	char			name[MAXNAME+1];
 	char			table[MAXNAME+1];
 	char			type[5];
-	char			dir[PATH_MAX+1];
+	struct list_head mntpoints;
 	char			options[MAX_OPTIONS_LEN+1];
 	char			dev[PATH_MAX+1];
 

@@ -28,6 +28,8 @@ void send_journals(struct mountgroup *mg, int nodeid);
 void start_spectator_init_2(struct mountgroup *mg);
 void start_spectator_2(struct mountgroup *mg);
 void notify_mount_client(struct mountgroup *mg);
+int do_finish(struct mountgroup *mg);
+int do_terminate(struct mountgroup *mg);
 
 int set_sysfs(struct mountgroup *mg, char *field, int val)
 {
@@ -1468,10 +1470,13 @@ struct mountgroup *find_mg_id(uint32_t id)
 struct mountgroup *find_mg_dir(char *dir)
 {
 	struct mountgroup *mg;
+	struct mountpoint *mt_point;
 
 	list_for_each_entry(mg, &mounts, list) {
-		if (!strcmp(mg->dir, dir))
-			return mg;
+		list_for_each_entry(mt_point, &mg->mntpoints, list) {
+			if (!strcmp(mt_point->dir, dir))
+				return mg;
+		}
 	}
 	return NULL;
 }
@@ -1496,7 +1501,8 @@ static int we_are_in_fence_domain(void)
 int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 	     char *options, char *dev, struct mountgroup **mg_ret)
 {
-	struct mountgroup *mg;
+	struct mountgroup *mg, *new_mg = NULL;
+	struct mountpoint *mp;
 	char table2[MAXLINE];
 	char *cluster = NULL, *name = NULL;
 	int rv;
@@ -1538,24 +1544,33 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 		goto fail;
 	}
 
-	mg = find_mg(name);
-	if (mg) {
-		rv = -EEXIST;
-		goto fail;
-	}
-
-	mg = create_mg(name);
-	if (!mg) {
+	/* Allocate and populate a new mountpoint entry */
+	mp = malloc(sizeof(struct mountpoint));
+	if (!mp) {
 		rv = -ENOMEM;
 		goto fail;
 	}
+	strncpy(mp->dir, dir, sizeof(mp->dir));
+
+	/* Check if we already have a mount group or need a new one */
+	mg = find_mg(name);
+	if (!mg) {
+		mg = new_mg = create_mg(name);
+		if (!mg) {
+			free(mp);
+			rv = -ENOMEM;
+			goto fail;
+		}
+		strncpy(mg->type, type, sizeof(mg->type));
+		strncpy(mg->table, table, sizeof(mg->table));
+		strncpy(mg->options, options, sizeof(mg->options));
+		strncpy(mg->dev, dev, sizeof(mg->dev));
+		INIT_LIST_HEAD(&mg->mntpoints);
+	}
 
 	mg->mount_client = ci;
-	strncpy(mg->dir, dir, sizeof(mg->dir));
-	strncpy(mg->type, type, sizeof(mg->type));
-	strncpy(mg->table, table, sizeof(mg->table));
-	strncpy(mg->options, options, sizeof(mg->options));
-	strncpy(mg->dev, dev, sizeof(mg->dev));
+	/* Add the mount point to the list in the mountgroup. */
+	list_add(&mp->list, &mg->mntpoints);
 
 	if (strlen(cluster) != strlen(clustername) ||
 	    strlen(cluster) == 0 || strcmp(cluster, clustername)) {
@@ -1566,38 +1581,42 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 	} else
 		log_group(mg, "cluster name matches: %s", clustername);
 
-	if (strstr(options, "spectator")) {
-		log_group(mg, "spectator mount");
-		mg->spectator = 1;
-	} else {
-		if (!we_are_in_fence_domain()) {
+	if (new_mg) {
+		if (strstr(options, "spectator")) {
+			log_group(mg, "spectator mount");
+			mg->spectator = 1;
+		} else {
+			if (!we_are_in_fence_domain()) {
+				rv = -EINVAL;
+				log_error("mount: not in default fence domain");
+				goto fail;
+			}
+		}
+
+		if (!mg->spectator && strstr(options, "rw"))
+			mg->rw = 1;
+		else if (strstr(options, "ro")) {
+			if (mg->spectator) {
+				rv = -EINVAL;
+				log_error("mount: readonly invalid with spectator");
+				goto fail;
+			}
+			mg->readonly = 1;
+		}
+
+		if (strlen(options) > MAX_OPTIONS_LEN-1) {
 			rv = -EINVAL;
-			log_error("mount: not in default fence domain");
+			log_error("mount: options too long %d", strlen(options));
 			goto fail;
 		}
+		list_add(&mg->list, &mounts);
 	}
-
-	if (!mg->spectator && strstr(options, "rw"))
-		mg->rw = 1;
-	else if (strstr(options, "ro")) {
-		if (mg->spectator) {
-			rv = -EINVAL;
-			log_error("mount: readonly invalid with spectator");
-			goto fail;
-		}
-		mg->readonly = 1;
-	}
-
-	if (strlen(options) > MAX_OPTIONS_LEN-1) {
-		rv = -EINVAL;
-		log_error("mount: options too long %d", strlen(options));
-		goto fail;
-	}
-
-	list_add(&mg->list, &mounts);
 	*mg_ret = mg;
 
-	group_join(gh, name);
+	if (new_mg)
+		group_join(gh, name);
+	else
+		notify_mount_client(mg);
 	return 0;
 
  fail:
@@ -1883,14 +1902,27 @@ int do_remount(int ci, char *dir, char *mode)
 int do_unmount(int ci, char *dir, int mnterr)
 {
 	struct mountgroup *mg;
+	struct mountpoint *mt_point, *safe;
 
 	list_for_each_entry(mg, &withdrawn_mounts, list) {
-		if (!strcmp(mg->dir, dir)) {
+		int is_withdrawn = FALSE;
+
+		list_for_each_entry(mt_point, &mg->mntpoints, list) {
+			if (!strcmp(mt_point->dir, dir)) {
+				is_withdrawn = TRUE;
+				break;
+			}
+		}
+		if (is_withdrawn) {
+			list_for_each_entry_safe(mt_point, safe, &mg->mntpoints, list) {
+				list_del(&mt_point->list);
+				free(mt_point);
+			}
 			log_group(mg, "unmount withdrawn fs");
 			list_del(&mg->list);
 			free(mg);
-			return 0;
 		}
+		return 0;
 	}
 
 	mg = find_mg_dir(dir);
@@ -1910,7 +1942,6 @@ int do_unmount(int ci, char *dir, int mnterr)
 			mg->kernel_mount_error = mnterr;
 			mg->kernel_mount_done = 1;
 		}
-		goto out;
 	}
 
 	if (mg->withdraw) {
@@ -1918,16 +1949,26 @@ int do_unmount(int ci, char *dir, int mnterr)
 		return -1;
 	}
 
+	/* Delete this mount point out of the list */
+	list_for_each_entry(mt_point, &mg->mntpoints, list) {
+		if (!strcmp(mt_point->dir, dir)) {
+			list_del(&mt_point->list);
+			free(mt_point);
+			break;
+		}
+	}
 	/* Check to see if we're waiting for a kernel recovery_done to do a
 	   start_done().  If so, call the start_done() here because we won't be
 	   getting anything else from gfs-kernel which is now gone. */
 
-	if (need_kernel_recovery_done(mg)) {
+	if (!mg->kernel_mount_error &&
+		list_empty(&mg->mntpoints) && need_kernel_recovery_done(mg)) {
 		log_group(mg, "do_unmount: fill in start_done");
 		start_done(mg);
 	}
- out:
-	group_leave(gh, mg->name);
+
+	if (list_empty(&mg->mntpoints))
+		group_leave(gh, mg->name);
 	return 0;
 }
 
