@@ -24,11 +24,6 @@ case "$1" in
   start)
         if [ -n "$GFSFSTAB" ] 
 	then
-		#load_module lock_harness MODULE_LOCK_HARNESS
-		#load_module crc32        MODULE_CRC32
-		#load_module lock_gulm    MODULE_LOCK_GULM
-		#load_module gfs          MODULE_GFS
-
 		action $"Mounting GFS filesystems: " mount -a -t gfs
 	fi
 	touch /var/lock/subsys/gfs
@@ -61,7 +56,6 @@ case "$1" in
 	fi
 
 	modprobe -r gfs
-	modprobe -r lock_dlm
 	rm -f /var/lock/subsys/gfs
 	;;
 
