@@ -436,7 +436,7 @@ static int init_journal(struct gfs_sbd *sdp, int undo)
 		for (x = 0; x < sdp->sd_journals; x++) {
 			error = gfs_recover_journal(sdp,
 						    x, sdp->sd_jindex + x,
-						    TRUE);
+						    FALSE);
 			if (error) {
 				printk("GFS: fsid=%s: error recovering journal %u: %d\n",
 				       sdp->sd_fsname, x, error);
