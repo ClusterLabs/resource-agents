@@ -29,6 +29,7 @@ void start_spectator_init_2(struct mountgroup *mg);
 void start_spectator_2(struct mountgroup *mg);
 void notify_mount_client(struct mountgroup *mg);
 
+
 int set_sysfs(struct mountgroup *mg, char *field, int val)
 {
 	char fname[512];
@@ -324,6 +325,9 @@ void assign_next_first_mounter(struct mountgroup *mg)
 		if (memb->jid == -2)
 			continue;
 		if (memb->jid == -9)
+			continue;
+		if (memb->spectator || memb->readonly || memb->withdrawing ||
+		    memb->ms_kernel_mount_done)
 			continue;
 		if (low == -1 || memb->nodeid < low) {
 			next = memb;
@@ -641,12 +645,11 @@ void receive_remount(struct mountgroup *mg, char *buf, int len, int from)
 		goto out;
 	}
 
-	if (mg->needs_recovery) {
-		log_group(mg, "receive_remount from %d needs_recovery", from);
-		msg = "error: needs recovery";
-		error = -1;
-		goto out;
-	}
+	/* FIXME: check if we've even fully completed our normal mount yet
+	   (received our own mount-status?)  if not, then disallow remount */
+
+	/* FIXME: going ro->rw may mean we can now do journal or first-mounter
+	   recovery that we couldn't do before. */
 
 	memb->readonly = ro;
 	memb->rw = !ro;
@@ -746,30 +749,19 @@ int assign_journal(struct mountgroup *mg, struct mg_member *new)
 		else if (memb->readonly)
 			ro_count++;
 
-		if (memb->opts & MEMB_OPT_RECOVER)
+		if (memb->opts & MEMB_OPT_RECOVER) {
 			memb_recover = memb;
+			log_group(mg, "assign_journal: memb %d has OPT_RECOVER",
+				  memb->nodeid);
+		}
 
 		if (memb->ms_kernel_mount_done && !memb->ms_kernel_mount_error)
 			memb_mounted = memb;
 	}
 
-	log_group(mg, "assign_journal: total %d iv %d rw %d ro %d spect %d",
-		  total, invalid_count, rw_count, ro_count, spect_count);
-
-	/* do we let the new member mount? jid=-2 means no.
-	   - we only allow an rw mount when the fs needs recovery
-	   - we only allow a single rw mount when the fs needs recovery */
-
-	if (mg->needs_recovery) {
-		if (!new->rw || rw_count)
-			new->jid = -2;
-	}
-
-	if (new->jid == -2) {
-		log_group(mg, "assign_journal: fail - needs_recovery %d",
-			  mg->needs_recovery);
-		goto out;
-	}
+	log_group(mg, "assign_journal: total %d iv %d rw %d ro %d spect %d "
+		  "needs_recovery %d", total, invalid_count, rw_count,
+		  ro_count, spect_count, mg->needs_recovery);
 
 	if (new->spectator) {
 		log_group(mg, "assign_journal: new spectator allowed");
@@ -785,16 +777,32 @@ int assign_journal(struct mountgroup *mg, struct mg_member *new)
 		}
 	}
 
-	/* Currently the fs needs recovery, i.e. none of the current
-	   mounters (ro/spectators) can recover journals.  So, this new rw
-	   mounter is told to do first-mounter recovery of all the journals. */
-
+	/* Repeat first-mounter recovery: the fs has been mounted and in-use,
+	   but nodes have failed and none of the current mounters has been able
+	   to do recovery (all remaining nodes may be ro/spect for example).
+	   This puts us into the special "needs_recovery" state where new
+	   mounters are asked to do first-mounter recovery of the fs while
+	   the current mounters sit in a blocked state. */
+	   
 	if (mg->needs_recovery) {
-		log_group(mg, "assign_journal: memb %d gets OPT_RECOVER, "
-			  "needs_recovery", new->nodeid);
-		new->opts |= MEMB_OPT_RECOVER;
+		if (!memb_recover) {
+			log_group(mg, "assign_journal: needs_recovery: "
+				  "new memb %d gets OPT_RECOVER",
+				  new->nodeid);
+			new->opts |= MEMB_OPT_RECOVER;
+		} else {
+			log_group(mg, "assign_journal: needs_recovery: "
+				  "new memb %d memb %d has OPT_RECOVER",
+				  new->nodeid, memb_recover->nodeid);
+		}
 		goto out;
 	}
+
+	/* Initial first-mounter recovery: the fs is coming online, the first
+	   mg member assumes first-mounter role and other nodes join the mg
+	   while the first-mounter is working.  These non-first mounters wait
+	   for the first-mounter to finish before notifying mount.gfs.  If the
+	   first-mounter fails, one of them will become the first-mounter. */
 
 	/* it shouldn't be possible to have someone doing first mounter
 	   recovery and also have someone with the fs fully mounted */
@@ -839,7 +847,8 @@ int assign_journal(struct mountgroup *mg, struct mg_member *new)
 		      mg->kernel_mount_done, mg->kernel_mount_error,
 		      mg->first_mounter, mg->first_mounter_done);
 
-	log_group(mg, "assign_journal: memb %d gets OPT_RECOVER", new->nodeid);
+	log_group(mg, "assign_journal: new memb %d gets OPT_RECOVER for: "
+		  "fs not mounted", new->nodeid);
 	new->opts |= MEMB_OPT_RECOVER;
 
  out:
@@ -1006,7 +1015,7 @@ void received_our_jid(struct mountgroup *mg)
 		/* delay notifying mount client until we get a successful
 		   mount status from the first mounter */
 		log_group(mg, "other node doing first mounter recovery, "
-			  "delay notify_mount_client");
+			  "set mount_client_delay");
 		mg->mount_client_delay = 1;
 		mg->save_plocks = 0;
 		return;
@@ -1402,7 +1411,6 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 	if (memb_gone_recover) {
 		log_group(mg, "failed node %d had MEMB_OPT_RECOVER",
 			  memb_gone_recover->nodeid);
-		ASSERT(!mg->mount_client_notified);
 		memb_gone_recover->tell_gfs_to_recover = 0;
 	}
 
@@ -2168,14 +2176,39 @@ int do_stop(struct mountgroup *mg)
 	return 0;
 }
 
-/* FIXME: what happens if a node is unmounting, others have it in members_gone,
-   and it crashes?  It shouldn't need journal recovery since the kernel umount
-   happens before leaving the group. */
+/*  After a start that initiated a recovery, everyone will go and see if they
+    can do recovery and try if they can.  If a node can't, it does start_done,
+    if it tries and fails, it does start_done, if it tries and succeeds it
+    sends a message and then does start_done once it receives's it back.  So,
+    when we get a finish we know that we have all the results from the recovery
+    cycle and can judge if everything is recovered properly or not.  If so, we
+    can unblock locks (in the finish), if not, we leave them blocked (in the
+    finish).
+
+    If we leave locks blocked in the finish, then they can only be unblocked
+    after someone is able to do the recovery that's needed.  So, leaving locks
+    blocked in a finish because recovery hasn't worked puts us into a special
+    state: the fs needs recovery, none of the current mounters has been able to
+    recover it, all current mounters have locks blocked in gfs, new mounters
+    are allowed, nodes can unmount, new mounters are asked to do first-mounter
+    recovery, if one of them succeeds then we can all clear this special state
+    and unblock locks (the unblock would happen upon recving the success
+    message from the new pseudo-first mounter, not as part of a finish), future
+    finishes would then go back to being able to unblock locks.
+
+    While in this special state, a new node has been added and asked to do
+    first-mounter recovery, other nodes can also be added while the new
+    first-mounter is active.  These other nodes don't notify mount.gfs.
+    They'll receive the result of the first mounter and if it succeeded they'll
+    notify mount.gfs, otherwise one of them will become the next first-mounter
+    and notify mount.gfs. */
 
 int do_finish(struct mountgroup *mg)
 {
 	struct mg_member *memb, *safe;
-	int leave_blocked = 0;
+
+	log_group(mg, "finish %d needs_recovery %d", mg->last_finish,
+		  mg->needs_recovery);
 
 	/* members_gone list are the members that were removed from the
 	   members list when processing a start.  members are removed
@@ -2192,11 +2225,10 @@ int do_finish(struct mountgroup *mg)
 			list_del(&memb->list);
 			free(memb);
 		} else {
+			log_error("%s finish: needs recovery jid %d nodeid %d "
+				  "status %d", mg->name, memb->jid,
+				  memb->nodeid, memb->recovery_status);
 			mg->needs_recovery = 1;
-			log_group(mg, "finish: needs recovery "
-				  "jid %d nodeid %d status %d",
-				  memb->jid, memb->nodeid,
-				  memb->recovery_status);
 		}
 	}
 
@@ -2210,12 +2242,7 @@ int do_finish(struct mountgroup *mg)
 		return 0;
 	}
 
-	if (mg->needs_recovery) {
-		log_group(mg, "finish: leave locks blocked for needs_recovery");
-		leave_blocked = 1;
-	}
-
-	if (!leave_blocked) {
+	if (!mg->needs_recovery) {
 		set_sysfs(mg, "block", 0);
 
 		/* we may have been holding back our local mount due to
@@ -2224,7 +2251,8 @@ int do_finish(struct mountgroup *mg)
 			mg->mount_client_delay = 0;
 			notify_mount_client(mg);
 		}
-	}
+	} else
+		log_group(mg, "finish: leave locks blocked for needs_recovery");
 
 	return 0;
 }
