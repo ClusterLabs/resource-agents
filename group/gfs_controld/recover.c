@@ -1430,22 +1430,35 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 	}
 }
 
-struct mountgroup *create_mg(char *name)
+struct mountgroup *create_mg(char *name, char *dir)
 {
 	struct mountgroup *mg;
+	struct mountpoint *mp;
 
 	mg = malloc(sizeof(struct mountgroup));
+	if (!mg)
+		return NULL;
 	memset(mg, 0, sizeof(struct mountgroup));
 
 	INIT_LIST_HEAD(&mg->members);
 	INIT_LIST_HEAD(&mg->members_gone);
 	INIT_LIST_HEAD(&mg->resources);
 	INIT_LIST_HEAD(&mg->saved_messages);
+	INIT_LIST_HEAD(&mg->mountpoints);
 	mg->init = 1;
 	mg->master_nodeid = -1;
 	mg->low_nodeid = -1;
 
 	strncpy(mg->name, name, MAXNAME);
+
+	mp = malloc(sizeof(struct mountpoint));
+	if (!mp) {
+		free(mg);
+		return NULL;
+	}
+	memset(mp, 0, sizeof(struct mountpoint));
+	strncpy(mp->dir, dir, sizeof(mp->dir));
+	list_add(&mp->list, &mg->mountpoints);
 
 	return mg;
 }
@@ -1473,12 +1486,23 @@ struct mountgroup *find_mg_id(uint32_t id)
 	return NULL;
 }
 
+struct mountpoint *find_mountpoint(struct mountgroup *mg, char *dir)
+{
+	struct mountpoint *mp;
+
+	list_for_each_entry(mp, &mg->mountpoints, list) {
+		if (!strcmp(mp->dir, dir))
+			return mp;
+	}
+	return NULL;
+}
+
 struct mountgroup *find_mg_dir(char *dir)
 {
 	struct mountgroup *mg;
 
 	list_for_each_entry(mg, &mounts, list) {
-		if (!strcmp(mg->dir, dir))
+		if (find_mountpoint(mg, dir))
 			return mg;
 	}
 	return NULL;
@@ -1501,10 +1525,54 @@ static int we_are_in_fence_domain(void)
 	return 0;
 }
 
+int add_another_mountpoint(struct mountgroup *mg, char *dir, char *dev, int ci)
+{
+	struct mountpoint *mp;
+
+	log_group(mg, "add_another_mountpoint dir %s dev %s ci %d",
+		  dir, dev, ci);
+
+	/* check if this is the same fs mounted on another dir or a different
+	   fs with the same name (which is an error) */
+
+	if (strcmp(mg->dev, dev)) {
+		log_group(mg, "different fs dev %s with same name", mg->dev);
+		return -EINVAL;
+	}
+
+	if (find_mountpoint(mg, dir)) {
+		log_group(mg, "mount point %s already used", dir);
+		return -EBUSY;
+	}
+
+	/* we only really need to check one of these */
+	if (mg->mount_client || mg->mount_client_fd || !mg->kernel_mount_done) {
+		log_group(mg, "other mount in progress client %d fd %d done %d",
+			  mg->mount_client, mg->mount_client_fd,
+			  mg->kernel_mount_done);
+		return -EBUSY;
+	}
+
+	mp = malloc(sizeof(struct mountpoint));
+	if (!mp)
+		return -ENOMEM;
+
+	memset(mp, 0, sizeof(struct mountpoint));
+	strncpy(mp->dir, dir, sizeof(mp->dir));
+	list_add(&mp->list, &mg->mountpoints);
+	mg->mount_client = ci;
+
+	/* we return this special error to mount.gfs which mount.gfs will
+	   recognize as meaning the fs is already mounted, so it shouldn't
+	   read any hostdata from us, but just go ahead and mount(2) */
+
+	return -EALREADY;
+}
+
 int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 	     char *options, char *dev, struct mountgroup **mg_ret)
 {
-	struct mountgroup *mg;
+	struct mountgroup *mg = NULL;
 	char table2[MAXLINE];
 	char *cluster = NULL, *name = NULL;
 	int rv;
@@ -1515,7 +1583,7 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 	if (strcmp(proto, "lock_dlm")) {
 		log_error("mount: lockproto %s not supported", proto);
 		rv = -EINVAL;
-		goto fail;
+		goto out;
 	}
 
 	if (strstr(options, "jid=") ||
@@ -1523,7 +1591,7 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 	    strstr(options, "id=")) {
 		log_error("mount: jid, first and id are reserved options");
 		rv = -EINVAL;
-		goto fail;
+		goto out;
 	}
 
 	/* table is <cluster>:<name> */
@@ -1534,7 +1602,7 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 	name = strstr(table2, ":");
 	if (!name) {
 		rv = -EINVAL;
-		goto fail;
+		goto out;
 	}
 
 	*name = '\0';
@@ -1543,23 +1611,22 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 
 	if (strlen(name) > MAXNAME) {
 		rv = -ENAMETOOLONG;
-		goto fail;
+		goto out;
 	}
 
 	mg = find_mg(name);
 	if (mg) {
-		rv = -EEXIST;
-		goto fail;
+		rv = add_another_mountpoint(mg, dir, dev, ci);
+		goto out;
 	}
 
-	mg = create_mg(name);
+	mg = create_mg(name, dir);
 	if (!mg) {
 		rv = -ENOMEM;
-		goto fail;
+		goto out;
 	}
 
 	mg->mount_client = ci;
-	strncpy(mg->dir, dir, sizeof(mg->dir));
 	strncpy(mg->type, type, sizeof(mg->type));
 	strncpy(mg->table, table, sizeof(mg->table));
 	strncpy(mg->options, options, sizeof(mg->options));
@@ -1570,7 +1637,7 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 		rv = -1;
 		log_error("mount: fs requires cluster=\"%s\" current=\"%s\"",
 			  cluster, clustername);
-		goto fail;
+		goto out;
 	} else
 		log_group(mg, "cluster name matches: %s", clustername);
 
@@ -1581,7 +1648,7 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 		if (!we_are_in_fence_domain()) {
 			rv = -EINVAL;
 			log_error("mount: not in default fence domain");
-			goto fail;
+			goto out;
 		}
 	}
 
@@ -1591,7 +1658,7 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 		if (mg->spectator) {
 			rv = -EINVAL;
 			log_error("mount: readonly invalid with spectator");
-			goto fail;
+			goto out;
 		}
 		mg->readonly = 1;
 	}
@@ -1599,17 +1666,15 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 	if (strlen(options) > MAX_OPTIONS_LEN-1) {
 		rv = -EINVAL;
 		log_error("mount: options too long %d", strlen(options));
-		goto fail;
+		goto out;
 	}
 
 	list_add(&mg->list, &mounts);
-	*mg_ret = mg;
-
 	group_join(gh, name);
-	return 0;
-
- fail:
-	log_error("mount: failed %d", rv);
+	rv = 0;
+ out:
+	*mg_ret = mg;
+	log_group(mg, "do_mount: rv %d", rv);
 	return rv;
 }
 
@@ -1891,14 +1956,20 @@ int do_remount(int ci, char *dir, char *mode)
 int do_unmount(int ci, char *dir, int mnterr)
 {
 	struct mountgroup *mg;
+	struct mountpoint *mp;
 
 	list_for_each_entry(mg, &withdrawn_mounts, list) {
-		if (!strcmp(mg->dir, dir)) {
-			log_group(mg, "unmount withdrawn fs");
+		mp = find_mountpoint(mg, dir);
+		if (!mp)
+			continue;
+		log_group(mg, "unmount %s for withdrawn fs", dir);
+		list_del(&mp->list);
+		free(mp);
+		if (list_empty(&mg->mountpoints)) {
 			list_del(&mg->list);
 			free(mg);
-			return 0;
 		}
+		return 0;
 	}
 
 	mg = find_mg_dir(dir);
@@ -1922,8 +1993,25 @@ int do_unmount(int ci, char *dir, int mnterr)
 	}
 
 	if (mg->withdraw) {
-		log_error("do_unmount: fs on %s is withdrawing", dir);
+		log_error("%s do_unmount: fs on %s is withdrawing",
+			  mg->name, dir);
 		return -1;
+	}
+
+	if (!mg->kernel_mount_done) {
+		log_error("%s do_unmount: fs on %s is still mounting",
+			  mg->name, dir);
+		return -1;
+	}
+
+	mp = find_mountpoint(mg, dir);
+	ASSERT(mp);
+	list_del(&mp->list);
+	free(mp);
+
+	if (!list_empty(&mg->mountpoints)) {
+		log_group(mg, "removed mountpoint %s, more remaining", dir);
+		return 0;
 	}
 
 	/* Check to see if we're waiting for a kernel recovery_done to do a
@@ -1934,6 +2022,7 @@ int do_unmount(int ci, char *dir, int mnterr)
 		log_group(mg, "do_unmount: fill in start_done");
 		start_done(mg);
 	}
+
  out:
 	group_leave(gh, mg->name);
 	return 0;
@@ -1972,8 +2061,6 @@ void notify_mount_client(struct mountgroup *mg)
 	if (rv < 0)
 		log_error("notify_mount_client: send failed %d", rv);
 
-	mg->mount_client = 0;
-
 	if (error) {
 		log_group(mg, "leaving due to mount error: %s", mg->error_msg);
 		if (memb->finished)
@@ -2003,14 +2090,42 @@ void ping_kernel_mount(char *table)
 	log_group(mg, "ping_kernel_mount %d", rv);
 }
 
-void got_mount_result(struct mountgroup *mg, int result)
+/* remove the mountpoint that this client added */
+void remove_failed_mountpoint(struct mountgroup *mg, int ci)
+{
+	struct mountpoint *mp;
+	int found = 0;
+
+	list_for_each_entry(mp, &mg->mountpoints, list) {
+		if (mp->client == ci) {
+			list_del(&mp->list);
+			free(mp);
+			found = 1;
+			break;
+		}
+	}
+	ASSERT(found);
+	ASSERT(!list_empty(&mg->mountpoints));
+}
+
+void got_mount_result(struct mountgroup *mg, int result, int ci, int another)
 {
 	struct mg_member *memb;
 
 	memb = find_memb_nodeid(mg, our_nodeid);
 
-	log_group(mg, "mount_result: kernel_mount_error %d first_mounter %d "
-		  "opts %x", result, mg->first_mounter, memb->opts);
+	log_group(mg, "got_mount_result: ci %d result %d another %d "
+		  "first_mounter %d opts %x",
+		  ci, result, another, mg->first_mounter, memb->opts);
+
+	mg->mount_client = 0;
+	mg->mount_client_fd = 0;
+
+	if (another) {
+		if (result)
+			remove_failed_mountpoint(mg, ci);
+		return;
+	}
 
 	mg->kernel_mount_done = 1;
 	mg->kernel_mount_error = result;

@@ -12,6 +12,7 @@ extern char *prog_name;
 extern char *fsname;
 extern int verbose;
 static int gfs_controld_fd = -1;
+static int adding_another_mountpoint;
 
 #define LOCK_DLM_SOCK_PATH "gfs_controld_sock"	/* FIXME: use a header */
 #define MAXLINE 256			/* size of messages with gfs_controld */
@@ -446,6 +447,13 @@ int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb)
 		goto out;
 	}
 	rv = atoi(buf);
+
+	if (rv == -EALREADY) {
+		log_debug("fs already mounted, adding mountpoint");
+		adding_another_mountpoint = 1;
+		rv = 0;
+		goto out;
+	}
 	if (rv < 0) {
 		warn("lock_dlm_join: gfs_controld join error: %d", rv);
 		if (rv == -EEXIST)
@@ -552,6 +560,9 @@ int lock_dlm_leave(struct mount_options *mo, struct gen_sb *sb, int mnterr)
 {
 	int i, fd, rv;
 	char buf[MAXLINE];
+
+	if (mnterr && adding_another_mountpoint)
+		return 0;
 
 	i = 0;
 	do {

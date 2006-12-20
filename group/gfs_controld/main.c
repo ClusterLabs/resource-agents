@@ -21,6 +21,7 @@ struct client {
 	int fd;
 	char type[32];
 	struct mountgroup *mg;
+	int another_mount;
 };
 
 static int client_maxi;
@@ -298,14 +299,15 @@ static int process_client(int ci)
 			      argv[6], &mg);
 		fd = client[ci].fd;
 		fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
-		if (!rv) {
+		if (!rv || rv == -EALREADY) {
+			client[ci].another_mount = rv;
 			client[ci].mg = mg;
 			mg->mount_client_fd = fd;
 		}
 		goto reply;
 	} else if (!strcmp(cmd, "mount_result")) {
-		got_mount_result(client[ci].mg, atoi(argv[3]));
-
+		got_mount_result(client[ci].mg, atoi(argv[3]), ci,
+				 client[ci].another_mount);
 	} else if (!strcmp(cmd, "leave")) {
 		rv = do_unmount(ci, argv[1], atoi(argv[3]));
 		goto reply;

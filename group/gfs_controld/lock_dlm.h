@@ -113,6 +113,12 @@ do { \
         } \
 }
 
+struct mountpoint {
+	struct list_head	list;
+	char			dir[PATH_MAX+1];
+	int			client;
+};
+
 struct mountgroup {
 	struct list_head	list;
 	uint32_t		id;
@@ -120,11 +126,11 @@ struct mountgroup {
 	struct list_head	members_gone;
 	int			memb_count;
 	struct list_head	resources; /* for plocks */
+	struct list_head	mountpoints;
 
 	char			name[MAXNAME+1];
 	char			table[MAXNAME+1];
 	char			type[5];
-	char			dir[PATH_MAX+1];
 	char			options[MAX_OPTIONS_LEN+1];
 	char			dev[PATH_MAX+1];
 
@@ -280,7 +286,7 @@ int do_withdraw(char *name);
 int kernel_recovery_done(char *name);
 void ping_kernel_mount(char *table);
 void save_message(struct mountgroup *mg, char *buf, int len, int from, int type);
-void got_mount_result(struct mountgroup *mg, int result);
+void got_mount_result(struct mountgroup *mg, int result, int ci, int another);
 
 int client_send(int ci, char *buf, int len);
 
