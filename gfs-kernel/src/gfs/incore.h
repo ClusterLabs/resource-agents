@@ -930,14 +930,6 @@ struct gfs_gl_hash_bucket {
 #define SDF_JOURNAL_LIVE        (0)  /* Journaling is active (journal is writeable)*/
 #define SDF_SHUTDOWN            (1)  /* FS abnormaly shutdown */
 
-/* Run (1) / stop (0) flags for various daemons */
-#define SDF_SCAND_RUN           (2)  /* Put unused glocks on reclaim queue */
-#define SDF_GLOCKD_RUN          (3)  /* Reclaim (dealloc) unused glocks */
-#define SDF_RECOVERD_RUN        (4)  /* Recover journal of a crashed node */
-#define SDF_LOGD_RUN            (5)  /* Update log tail after AIL flushed */
-#define SDF_QUOTAD_RUN          (6)  /* Sync quota changes to file, cleanup */
-#define SDF_INODED_RUN          (7)  /* Deallocate unlinked inodes */
-
 /* (Re)mount options from Linux VFS */
 #define SDF_NOATIME             (8)  /* Don't change access time */
 #define SDF_ROFS                (9)  /* Read-only mode */
@@ -1076,10 +1068,6 @@ struct gfs_sbd {
 
 	/* Clean up unused inode structures */
 	struct task_struct *sd_inoded_process;
-
-	/* Support for starting/stopping daemons */
-	struct semaphore sd_thread_lock;
-	struct completion sd_thread_completion;
 
 	/*  Log stuff  */
 

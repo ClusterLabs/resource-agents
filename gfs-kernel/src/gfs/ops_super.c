@@ -11,12 +11,12 @@
 *******************************************************************************
 ******************************************************************************/
 
+#include <linux/kthread.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/smp_lock.h>
 #include <linux/spinlock.h>
 #include <asm/semaphore.h>
-#include <linux/completion.h>
 #include <linux/buffer_head.h>
 #include <linux/vmalloc.h>
 #include <linux/statfs.h>
@@ -112,45 +112,23 @@ gfs_put_super(struct super_block *sb)
 	up(&sdp->sd_freeze_lock);
 
 	/*  Kill off the inode thread  */
-	down(&sdp->sd_thread_lock);
-	clear_bit(SDF_INODED_RUN, &sdp->sd_flags);
-	wake_up_process(sdp->sd_inoded_process);
-	up(&sdp->sd_thread_lock);
-	wait_for_completion(&sdp->sd_thread_completion);
+	kthread_stop(sdp->sd_inoded_process);
 
 	/*  Kill off the quota thread  */
-	down(&sdp->sd_thread_lock);
-	clear_bit(SDF_QUOTAD_RUN, &sdp->sd_flags);
-	wake_up_process(sdp->sd_quotad_process);
-	up(&sdp->sd_thread_lock);
-	wait_for_completion(&sdp->sd_thread_completion);
+	kthread_stop(sdp->sd_quotad_process);
 
 	/*  Kill off the log thread  */
-	down(&sdp->sd_thread_lock);
-	clear_bit(SDF_LOGD_RUN, &sdp->sd_flags);
-	wake_up_process(sdp->sd_logd_process);
-	up(&sdp->sd_thread_lock);
-	wait_for_completion(&sdp->sd_thread_completion);
+	kthread_stop(sdp->sd_logd_process);
 
 	/*  Kill off the recoverd thread  */
-	down(&sdp->sd_thread_lock);
-	clear_bit(SDF_RECOVERD_RUN, &sdp->sd_flags);
-	wake_up_process(sdp->sd_recoverd_process);
-	up(&sdp->sd_thread_lock);
-	wait_for_completion(&sdp->sd_thread_completion);
+	kthread_stop(sdp->sd_recoverd_process);
 
 	/*  Kill off the glockd threads  */
-	clear_bit(SDF_GLOCKD_RUN, &sdp->sd_flags);
-	wake_up(&sdp->sd_reclaim_wchan);
 	while (sdp->sd_glockd_num--)
-		wait_for_completion(&sdp->sd_thread_completion);
+		kthread_stop(sdp->sd_glockd_process[sdp->sd_glockd_num]);
 
 	/*  Kill off the scand thread  */
-	down(&sdp->sd_thread_lock);
-	clear_bit(SDF_SCAND_RUN, &sdp->sd_flags);
-	wake_up_process(sdp->sd_scand_process);
-	up(&sdp->sd_thread_lock);
-	wait_for_completion(&sdp->sd_thread_completion);
+	kthread_stop(sdp->sd_scand_process);
 
 	if (!test_bit(SDF_ROFS, &sdp->sd_flags)) {
 		error = gfs_make_fs_ro(sdp);

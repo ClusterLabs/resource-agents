@@ -11,6 +11,7 @@
 *******************************************************************************
 ******************************************************************************/
 
+#include <linux/kthread.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/smp_lock.h>
@@ -429,7 +430,7 @@ gfs_unlinked_dealloc(struct gfs_sbd *sdp)
 				goto out;
 		}
 
-		if (!hits || !test_bit(SDF_INODED_RUN, &sdp->sd_flags))
+		if (!hits || kthread_should_stop())
 			break;
 
 		cond_resched();

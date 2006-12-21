@@ -86,9 +86,6 @@ static struct gfs_sbd *init_sbd(struct super_block *sb)
 
 	init_MUTEX(&sdp->sd_freeze_lock);
 
-	init_MUTEX(&sdp->sd_thread_lock);
-	init_completion(&sdp->sd_thread_completion);
-
 	spin_lock_init(&sdp->sd_log_seg_lock);
 	INIT_LIST_HEAD(&sdp->sd_log_seg_list);
 	init_waitqueue_head(&sdp->sd_log_seg_wait);
@@ -279,11 +276,10 @@ static int init_sb(struct gfs_sbd *sdp, int silent, int undo)
 	struct super_block *sb = sdp->sd_vfs;
 	struct gfs_holder sb_gh;
 	int error = 0;
-	int super = TRUE;
+	struct inode *inode;
 
-	if (undo) {
-		return 0;
-	}
+	if (undo)
+		goto fail_dput;
 
 	/*  Read the SuperBlock from disk, get enough info to enable us
 	    to read-in the journal index and replay all journals. */
@@ -312,13 +308,13 @@ static int init_sb(struct gfs_sbd *sdp, int silent, int undo)
 	if (sdp->sd_sb.sb_bsize < bdev_hardsect_size(sb->s_bdev)) {
 		printk("GFS: fsid=%s: FS block size (%u) is too small for device block size (%u)\n",
 		       sdp->sd_fsname, sdp->sd_sb.sb_bsize, bdev_hardsect_size(sb->s_bdev));
-		goto out;
+		goto fail;
 	}
 	if (sdp->sd_sb.sb_bsize > PAGE_SIZE) {
 		printk("GFS: fsid=%s: FS block size (%u) is too big for machine page size (%u)\n",
 		       sdp->sd_fsname, sdp->sd_sb.sb_bsize,
 		       (unsigned int)PAGE_SIZE);
-		goto out;
+		goto fail;
 	}
 
 	/*  Get rid of buffers from the original block size  */
@@ -333,7 +329,7 @@ static int init_sb(struct gfs_sbd *sdp, int silent, int undo)
 	if (error) {
 		printk("GFS: fsid=%s: can't get resource index inode: %d\n",
 		       sdp->sd_fsname, error);
-		goto out;
+		goto fail;
 	}
 
 	/*  Get the root inode  */
@@ -341,12 +337,22 @@ static int init_sb(struct gfs_sbd *sdp, int silent, int undo)
 	if (error) {
 		printk("GFS: fsid=%s: can't read in root inode: %d\n",
 		       sdp->sd_fsname, error);
-		goto out;
+		goto fail_ri_free;
 	}
-	sb->s_root = d_alloc_root(gfs_iget(sdp->sd_rooti, TRUE));
-	if (!sb->s_root) {
-		printk("GFS: can't get root dentry\n");
+	/*  Get the root inode/dentry  */
+
+	inode = gfs_iget(sdp->sd_rooti, CREATE);
+	if (!inode) {
+		printk("GFS: fsid=%s: can't get root inode\n", sdp->sd_fsname);
 		error = -ENOMEM;
+		goto fail_ri_free;
+	}
+	sb->s_root = d_alloc_root(inode);
+	if (!sb->s_root) {
+		iput(inode);
+		printk("GFS: fsid=%s: can't get root dentry\n", sdp->sd_fsname);
+		error = -ENOMEM;
+		goto fail_root_free;
 	}
 	sb->s_root->d_op = &gfs_dops;
 
@@ -355,13 +361,28 @@ static int init_sb(struct gfs_sbd *sdp, int silent, int undo)
 	if (error) {
 		printk("GFS: fsid=%s: can't get quota file inode: %d\n",
 		       sdp->sd_fsname, error);
-		goto out;
+		goto fail_root_free;
 	}
 
 	/*  We're through with the superblock lock  */
 out:
 	gfs_glock_dq_uninit(&sb_gh);
-	super = FALSE;
+	return error;
+
+fail_dput:
+	if (sb->s_root) {
+		dput(sb->s_root);
+		sb->s_root = NULL;
+	}
+	gfs_inode_put(sdp->sd_qinode);
+fail_root_free:
+	gfs_inode_put(sdp->sd_rooti);
+fail_ri_free:
+	gfs_inode_put(sdp->sd_riinode);
+	gfs_clear_rgrpd(sdp);
+fail:
+	if (!undo)
+		gfs_glock_dq_uninit(&sb_gh);
 	return error;
 }
 
@@ -386,7 +407,7 @@ static int init_journal(struct gfs_sbd *sdp, int undo)
 	error = gfs_glock_get(sdp, GFS_TRANS_LOCK, &gfs_trans_glops,
 			      CREATE, &sdp->sd_trans_gl);
 	if (error)
-		goto fail;
+		return error;
 	set_bit(GLF_STICKY, &sdp->sd_trans_gl->gl_flags);
 
 	/*  Load in the journal index special file */
@@ -395,7 +416,7 @@ static int init_journal(struct gfs_sbd *sdp, int undo)
 	if (error) {
 		printk("GFS: fsid=%s: can't read journal index: %d\n",
 		       sdp->sd_fsname, error);
-		goto fail_jindex;
+		goto fail_jhold;
 	}
 
 	if (sdp->sd_args.ar_spectator) {
@@ -469,7 +490,7 @@ static int init_journal(struct gfs_sbd *sdp, int undo)
 		if (error) {
 			printk("GFS: fsid=%s: can't make file system RW: %d\n",
 			       sdp->sd_fsname, error);
-			goto fail;
+			goto fail_journal_gh;
 		}
 	}
 
@@ -497,7 +518,9 @@ fail_journal_gh:
 fail_jindex:
 	if (jindex)
 		gfs_glock_dq_uninit(&ji_gh);
-fail:
+
+fail_jhold:
+	gfs_glock_put(sdp->sd_trans_gl);
 	return error;
 }
 
@@ -533,7 +556,7 @@ static int init_threads(struct gfs_sbd *sdp, int undo)
 
 	/*  Start up the inoded thread  */
 
-	error = kernel_thread(gfs_inoded, sdp, 0);
+	p = kthread_run(gfs_inoded, sdp, "gfs_inoded");
 	if (error < 0) {
 		printk("GFS: fsid=%s: can't start inoded thread: %d\n",
 		       sdp->sd_fsname, error);
@@ -543,7 +566,7 @@ static int init_threads(struct gfs_sbd *sdp, int undo)
 	return 0;
 
 fail_logd:
-	kthread_stop(sdp->sd_logd_process);
+	kthread_stop(sdp->sd_inoded_process);
 fail_inoded:
 	kthread_stop(sdp->sd_quotad_process);
 fail_quotad:
@@ -663,7 +686,7 @@ static int fill_super(struct super_block *sb, void *data, int silent)
 	if (error) {
 		printk("GFS: fsid=%s: can't get journal index inode: %d\n",
 		       sdp->sd_fsname, error);
-		goto fail_sb;
+		goto fail_jiinode;
 	}
 
 	error = init_journal(sdp, DO);
@@ -689,13 +712,18 @@ fail_journal:
 	init_journal(sdp, UNDO);
 
 fail_sb:
+	gfs_inode_put(sdp->sd_jiinode);
+
+fail_jiinode:
 	init_sb(sdp, 0, UNDO);
 
 fail_locking:
 	init_locking(sdp, &mount_gh, UNDO);
 
 fail_lm:
+	gfs_gl_hash_clear(sdp, TRUE);
 	gfs_lm_unmount(sdp);
+	gfs_clear_dirty_j(sdp);
 	while (invalidate_inodes(sb))
 		yield();
 

@@ -11,12 +11,11 @@
 *******************************************************************************
 ******************************************************************************/
 
+#include <linux/kthread.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/smp_lock.h>
 #include <linux/spinlock.h>
-#include <asm/semaphore.h>
-#include <linux/completion.h>
 #include <linux/buffer_head.h>
 
 #include "gfs.h"
@@ -41,25 +40,10 @@ gfs_scand(void *data)
 {
 	struct gfs_sbd *sdp = (struct gfs_sbd *)data;
 
-	daemonize("gfs_scand");
-	sdp->sd_scand_process = current;
-	set_bit(SDF_SCAND_RUN, &sdp->sd_flags);
-	complete(&sdp->sd_thread_completion);
-
-	for (;;) {
+	while (!kthread_should_stop()) {
 		gfs_scand_internal(sdp);
-
-		if (!test_bit(SDF_SCAND_RUN, &sdp->sd_flags))
-			break;
-
-		set_current_state(TASK_INTERRUPTIBLE);
-		schedule_timeout(gfs_tune_get(sdp, gt_scand_secs) * HZ);
+		schedule_timeout_interruptible(gfs_tune_get(sdp, gt_scand_secs) * HZ);
 	}
-
-	down(&sdp->sd_thread_lock);
-	up(&sdp->sd_thread_lock);
-
-	complete(&sdp->sd_thread_completion);
 
 	return 0;
 }
@@ -79,30 +63,14 @@ gfs_glockd(void *data)
 {
 	struct gfs_sbd *sdp = (struct gfs_sbd *)data;
 
-	daemonize("gfs_glockd");
-	set_bit(SDF_GLOCKD_RUN, &sdp->sd_flags);
-	complete(&sdp->sd_thread_completion);
-
-	for (;;) {
+	while (!kthread_should_stop()) {
 		while (atomic_read(&sdp->sd_reclaim_count))
 			gfs_reclaim_glock(sdp);
 
-		if (!test_bit(SDF_GLOCKD_RUN, &sdp->sd_flags))
-			break;
-
-		{
-			DECLARE_WAITQUEUE(__wait_chan, current);
-			set_current_state(TASK_INTERRUPTIBLE);
-			add_wait_queue(&sdp->sd_reclaim_wchan, &__wait_chan);
-			if (!atomic_read(&sdp->sd_reclaim_count)
-			    && test_bit(SDF_GLOCKD_RUN, &sdp->sd_flags))
-				schedule();
-			remove_wait_queue(&sdp->sd_reclaim_wchan, &__wait_chan);
-			set_current_state(TASK_RUNNING);
-		}
+		wait_event_interruptible(sdp->sd_reclaim_wchan,
+								 (atomic_read(&sdp->sd_reclaim_count) ||
+								  kthread_should_stop()));
 	}
-
-	complete(&sdp->sd_thread_completion);
 
 	return 0;
 }
@@ -118,25 +86,10 @@ gfs_recoverd(void *data)
 {
 	struct gfs_sbd *sdp = (struct gfs_sbd *)data;
 
-	daemonize("gfs_recoverd");
-	sdp->sd_recoverd_process = current;
-	set_bit(SDF_RECOVERD_RUN, &sdp->sd_flags);
-	complete(&sdp->sd_thread_completion);
-
-	for (;;) {
+	while (!kthread_should_stop()) {
 		gfs_check_journals(sdp);
-
-		if (!test_bit(SDF_RECOVERD_RUN, &sdp->sd_flags))
-			break;
-
-		set_current_state(TASK_INTERRUPTIBLE);
-		schedule_timeout(gfs_tune_get(sdp, gt_recoverd_secs) * HZ);
+		schedule_timeout_interruptible(gfs_tune_get(sdp, gt_recoverd_secs) * HZ);
 	}
-
-	down(&sdp->sd_thread_lock);
-	up(&sdp->sd_thread_lock);
-
-	complete(&sdp->sd_thread_completion);
 
 	return 0;
 }
@@ -155,12 +108,7 @@ gfs_logd(void *data)
 	struct gfs_sbd *sdp = (struct gfs_sbd *)data;
 	struct gfs_holder ji_gh;
 
-	daemonize("gfs_logd");
-	sdp->sd_logd_process = current;
-	set_bit(SDF_LOGD_RUN, &sdp->sd_flags);
-	complete(&sdp->sd_thread_completion);
-
-	for (;;) {
+	while (!kthread_should_stop()) {
 		/* Advance the log tail */
 		gfs_ail_empty(sdp);
 
@@ -174,17 +122,8 @@ gfs_logd(void *data)
 			sdp->sd_jindex_refresh_time = jiffies;
 		}
 
-		if (!test_bit(SDF_LOGD_RUN, &sdp->sd_flags))
-			break;
-
-		set_current_state(TASK_INTERRUPTIBLE);
-		schedule_timeout(gfs_tune_get(sdp, gt_logd_secs) * HZ);
+		schedule_timeout_interruptible(gfs_tune_get(sdp, gt_logd_secs) * HZ);
 	}
-
-	down(&sdp->sd_thread_lock);
-	up(&sdp->sd_thread_lock);
-
-	complete(&sdp->sd_thread_completion);
 
 	return 0;
 }
@@ -201,12 +140,7 @@ gfs_quotad(void *data)
 	struct gfs_sbd *sdp = (struct gfs_sbd *)data;
 	int error;
 
-	daemonize("gfs_quotad");
-	sdp->sd_quotad_process = current;
-	set_bit(SDF_QUOTAD_RUN, &sdp->sd_flags);
-	complete(&sdp->sd_thread_completion);
-
-	for (;;) {
+	while (!kthread_should_stop()) {
 		/* Update quota file */
 		if (time_after_eq(jiffies,
 				  sdp->sd_quota_sync_time +
@@ -222,18 +156,8 @@ gfs_quotad(void *data)
 
 		/* Clean up */
 		gfs_quota_scan(sdp);
-
-		if (!test_bit(SDF_QUOTAD_RUN, &sdp->sd_flags))
-			break;
-
-		set_current_state(TASK_INTERRUPTIBLE);
-		schedule_timeout(gfs_tune_get(sdp, gt_quotad_secs) * HZ);
+		schedule_timeout_interruptible(gfs_tune_get(sdp, gt_quotad_secs) * HZ);
 	}
-
-	down(&sdp->sd_thread_lock);
-	up(&sdp->sd_thread_lock);
-
-	complete(&sdp->sd_thread_completion);
 
 	return 0;
 }
@@ -249,25 +173,10 @@ gfs_inoded(void *data)
 {
 	struct gfs_sbd *sdp = (struct gfs_sbd *)data;
 
-	daemonize("gfs_inoded");
-	sdp->sd_inoded_process = current;
-	set_bit(SDF_INODED_RUN, &sdp->sd_flags);
-	complete(&sdp->sd_thread_completion);
-
-	for (;;) {
+	while (!kthread_should_stop()) {
 		gfs_unlinked_dealloc(sdp);
-
-		if (!test_bit(SDF_INODED_RUN, &sdp->sd_flags))
-			break;
-
-		set_current_state(TASK_INTERRUPTIBLE);
-		schedule_timeout(gfs_tune_get(sdp, gt_inoded_secs) * HZ);
+		schedule_timeout_interruptible(gfs_tune_get(sdp, gt_inoded_secs) * HZ);
 	}
-
-	down(&sdp->sd_thread_lock);
-	up(&sdp->sd_thread_lock);
-
-	complete(&sdp->sd_thread_completion);
 
 	return 0;
 }

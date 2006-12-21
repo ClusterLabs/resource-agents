@@ -19,7 +19,6 @@
 #include <linux/completion.h>
 #include <linux/buffer_head.h>
 #include <asm/uaccess.h>
-#include <linux/lm_interface.h>
 
 #include "gfs.h"
 #include "dio.h"
@@ -2242,7 +2241,7 @@ gfs_glock_cb(void *fsdata, unsigned int type, void *data)
 
 	case LM_CB_NEED_RECOVERY:
 		gfs_add_dirty_j(sdp, *(unsigned int *)data);
-		if (test_bit(SDF_RECOVERD_RUN, &sdp->sd_flags))
+		if (sdp->sd_recoverd_process)
 			wake_up_process(sdp->sd_recoverd_process);
 		return;
 
@@ -2710,7 +2709,7 @@ gfs_gl_hash_clear(struct gfs_sbd *sdp, int wait)
 		}
 
 		invalidate_inodes(sdp->sd_vfs);
-		yield();
+		schedule_timeout_interruptible(HZ / 10);
 	}
 }
 
