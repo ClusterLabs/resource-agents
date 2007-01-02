@@ -218,6 +218,10 @@ static int join(void)
 	 */
 	error = cman_join_cluster(cluster_name, cluster_id,
 				  two_node, expected_votes);
+	if (error == -EINVAL) {
+		write_cman_pipe("Cannot start, cluster name is too long or other CCS error");
+		return error;
+	}
 	if (error) {
 		write_cman_pipe("Cannot start, ais may already be running");
 		return error;
