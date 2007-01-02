@@ -143,7 +143,8 @@ void del_mtab_entry(struct mount_options *mo)
 
 		if ((sscanf(line, "%s %s %s", device, path, type) == 3) &&
 		    (strncmp(type, "gfs", 3) == 0) &&
-		    (strcmp(path, mo->dir) == 0)) {
+		    (strcmp(path, mo->dir) == 0) &&
+		    (strcmp(device, mo->dev) == 0)) {
 			found = 1;
 			continue;
 		}

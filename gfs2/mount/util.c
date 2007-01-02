@@ -157,6 +157,12 @@ void parse_opts(struct mount_options *mo)
 	log_debug("parse_opts: locktable = \"%s\"", mo->locktable);
 }
 
+/* - when unmounting, we don't know the dev and need this function to set it;
+   we also want to select the _last_ line with a matching dir since it will
+   be the top-most fs that the umount(2) will unmount
+   - when mounting, we do know the dev and need this function to use it in the
+   comparison (for multiple fs's with the same mountpoint) */
+
 void read_proc_mounts(struct mount_options *mo)
 {
 	FILE *file;
@@ -165,6 +171,9 @@ void read_proc_mounts(struct mount_options *mo)
 	char type[PATH_MAX];
 	char opts[PATH_MAX];
 	char device[PATH_MAX];
+	char save_line[PATH_MAX];
+	char save_opts[PATH_MAX];
+	char save_device[PATH_MAX];
 	int found = 0;
 
 	file = fopen("/proc/mounts", "r");
@@ -176,20 +185,31 @@ void read_proc_mounts(struct mount_options *mo)
 			continue;
 		if (strcmp(path, mo->dir))
 			continue;
+		if (mo->dev[0] && strcmp(device, mo->dev))
+			continue;
 		if (strcmp(type, fsname))
 			die("%s is not a %s filesystem\n", mo->dir, fsname);
 
-		strncpy(mo->dev, device, PATH_MAX);
-		strncpy(mo->opts, opts, PATH_MAX);
-		strncpy(mo->proc_entry, line, PATH_MAX);
+		/* when there is an input dev specified (mount), we should get
+		   only one matching line; when there is no input dev specified
+		   (umount), we want the _last_ matching line */
+
+		strncpy(save_device, device, PATH_MAX);
+		strncpy(save_opts, opts, PATH_MAX);
+		strncpy(save_line, line, PATH_MAX);
 		found = 1;
-		break;
 	}
 
 	fclose(file);
 
 	if (!found)
 		die("can't find /proc/mounts entry for directory %s\n", mo->dir);
+	else {
+		strncpy(mo->dev, save_device, PATH_MAX);
+		strncpy(mo->opts, save_opts, PATH_MAX);
+		strncpy(mo->proc_entry, save_line, PATH_MAX);
+	}
+
 	log_debug("read_proc_mounts: device = \"%s\"", mo->dev);
 	log_debug("read_proc_mounts: opts = \"%s\"", mo->opts);
 }
