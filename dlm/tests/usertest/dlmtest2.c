@@ -219,6 +219,69 @@ void astfn_flood(void *arg)
 	}
 }
 
+void astfn_flood_unlock(void *arg)
+{
+	struct lk *lk = arg;
+	int i = lk->id, unlock = 0, rv;
+
+	if (!lk->wait_ast) {
+		printf("lk %d not waiting for ast\n", lk->id);
+		exit(-1);
+	}
+
+	lk->wait_ast = 0;
+
+	if (lk->lksb.sb_status == EUNLOCK) {
+		memset(&lk->lksb, 0, sizeof(struct dlm_lksb));
+		lk->grmode = -1;
+		lk->rqmode = -1;
+		unlock = 1;
+		locks_flood_ast_done++;
+	} else if (lk->lksb.sb_status == EAGAIN) {
+		if (lk->grmode == -1)
+			memset(&lk->lksb, 0, sizeof(struct dlm_lksb));
+		lk->rqmode = -1;
+	} else {
+		if (lk->lksb.sb_status != 0) {
+			printf("lk %d unknown sb_status %d\n", lk->id,
+				lk->lksb.sb_status);
+			exit(-1);
+		}
+
+		/* lock completed, now unlock it immediately */
+
+		lk->grmode = lk->rqmode;
+		lk->rqmode = -1;
+
+		rv = dlm_ls_unlock(dh, lk->lksb.sb_lkid, 0, &lk->lksb,
+				   (void *)lk);
+		if (!rv) {
+			lk->wait_ast = 1;
+			lk->rqmode = -1;
+		} else {
+			char input[32];
+			printf("astfn_flood_unlock: dlm_ls_unlock: %d rv %d "
+			       "errno %d\n", i, rv, errno);
+			printf("press X to exit, D to dispatch, "
+			       "other to continue\n");
+			fgets(input, 32, stdin);
+			if (input[0] == 'X')
+				exit(-1);
+			else if (input[0] == 'D')
+				dlm_dispatch(libdlm_fd);
+		}
+	}
+
+	if (locks_flood_ast_done == locks_flood_n) {
+		printf("astfn_flood_unlock all %d unlocked\n", locks_flood_n);
+		if (unlock) {
+			free(locks_flood);
+			locks_flood = NULL;
+			locks_flood_n = 0;
+		}
+	}
+}
+
 void process_libdlm(void)
 {
 	dlm_dispatch(libdlm_fd);
@@ -453,6 +516,44 @@ void unlock_flood(void)
 	}
 }
 
+void flood(int n, int mode)
+{
+	struct lk *lk;
+	char name[DLM_RESNAME_MAXLEN];
+	int flags = 0, rv, i;
+
+	if (noqueue)
+		flags |= LKF_NOQUEUE;
+
+	if (locks_flood) {
+		printf("unlock_flood required first\n");
+		return;
+	}
+
+	locks_flood = malloc(n * sizeof(struct lk));
+	if (!locks_flood) {
+		printf("no mem for %d locks\n", n);
+		return;
+	}
+	locks_flood_n = n;
+	locks_flood_ast_done = 0;
+	memset(locks_flood, 0, sizeof(*locks_flood));
+
+	for (i = 0; i < n; i++) {
+		memset(name, 0, sizeof(name));
+		snprintf(name, sizeof(name), "testflood%d", i);
+		lk = &locks_flood[i];
+
+		rv = dlm_ls_lock(dh, mode, &lk->lksb, flags,
+			 name, strlen(name), 0, astfn_flood_unlock, (void *) lk,
+			 bastfn_flood, NULL);
+		if (!rv) {
+			lk->wait_ast = 1;
+			lk->rqmode = mode;
+		}
+	}
+}
+
 void loop(int i, int num)
 {
 	int n;
@@ -598,6 +699,11 @@ void process_command(int *quit)
 		return;
 	}
 
+	if (!strncmp(cmd, "flood", 5)) {
+		flood(x, y);
+		return;
+	}
+
 	if (!strncmp(cmd, "hold", 4)) {
 		lock_all(LKM_PRMODE);
 		return;
@@ -650,6 +756,7 @@ void process_command(int *quit)
 		printf("unlock_flood-kill - unlock all from lock_flood and exit\n");
 		printf("ex x		 - equivalent to: lock x 5\n");
 		printf("pr x		 - equivalent to: lock x 3\n");
+		printf("flood n mode     - request n locks, unlock each as it completes\n");
 		printf("hold		 - for x in 0 to MAX, lock x 3\n");
 		printf("release		 - for x in 0 to MAX, unlock x\n");
 		printf("dump		 - show info for all resources\n");
