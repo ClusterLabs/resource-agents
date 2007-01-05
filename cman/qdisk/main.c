@@ -957,6 +957,7 @@ main(int argc, char **argv)
 		return -1;
 	}
 
+	memset(&me, 0, sizeof(me));
 	if (cman_get_node(ch, CMAN_NODEID_US, &me) < 0) {
 		printf("Could not determine local node ID; cannot start\n");
 		return -1;
