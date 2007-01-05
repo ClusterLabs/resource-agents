@@ -1002,7 +1002,7 @@ int cman_register_quorum_device(cman_handle_t handle, char *name, int votes)
 
 	memcpy(buf, &votes, sizeof(int));
 	strcpy(buf+sizeof(int), name);
-	return info_call(h, CMAN_CMD_REG_QUORUMDEV, buf, strlen(name)+sizeof(int), NULL, 0);
+	return info_call(h, CMAN_CMD_REG_QUORUMDEV, buf, strlen(name)+1+sizeof(int), NULL, 0);
 }
 
 int cman_unregister_quorum_device(cman_handle_t handle)
