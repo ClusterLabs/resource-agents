@@ -189,6 +189,7 @@ struct app {
 #define MSG_APP_STARTED        2
 #define MSG_APP_RECOVER        3
 #define MSG_APP_INTERNAL       4
+#define MSG_GLOBAL_ID          5
 
 #define MSG_VER_MAJOR          1
 #define MSG_VER_MINOR          0

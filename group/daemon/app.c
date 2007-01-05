@@ -21,6 +21,8 @@ char *msg_type(int type)
 		return "recover";
 	case MSG_APP_INTERNAL:
 		return "internal";
+	case MSG_GLOBAL_ID:
+		return "global_id";
 	}
 	return "unknown";
 }

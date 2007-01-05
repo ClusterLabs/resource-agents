@@ -149,10 +149,47 @@ static void process_node_leave(group_t *g, int nodeid)
 	queue_app_leave(g, nodeid);
 }
 
+static uint32_t max_global_id(uint32_t add_nodeid)
+{
+	group_t *g;
+	uint32_t nodeid, counter, max_counter = 0, max_gid = 0;
+
+	list_for_each_entry(g, &gd_groups, list) {
+		nodeid = g->global_id & 0x0000FFFF;
+		counter = (g->global_id >> 16) & 0x0000FFFF;
+		if (nodeid != add_nodeid)
+			continue;
+		if (!max_counter || counter > max_counter) {
+			max_counter = counter;
+			max_gid = g->global_id;
+		}
+	}
+	return max_gid;
+}
+
+static int send_gid(uint32_t gid)
+{
+	group_t g;
+	msg_t msg;
+
+	/* just so log_group will work */
+	memset(&g, 0, sizeof(group_t));
+	strcpy(g.name, "groupd");
+
+	memset(&msg, 0, sizeof(msg));
+	msg.ms_type = MSG_GLOBAL_ID;
+	msg.ms_global_id = gid;
+
+	msg_bswap_out(&msg);
+
+	return send_message_groupd(&g, &msg, sizeof(msg), MSG_GLOBAL_ID);
+}
+
 void process_groupd_confchg(void)
 {
 	struct recovery_set *rs;
 	int i, found = 0;
+	uint32_t gid;
 
 	log_debug("groupd confchg total %d left %d joined %d",
 		  saved_member_count, saved_left_count, saved_joined_count);
@@ -167,6 +204,23 @@ void process_groupd_confchg(void)
 		}
 	}
 
+	if (!groupd_joined)
+		goto next;
+
+	/* find any groups that were created in the past by a new node
+	   and send it the id it used so it can initialize global_id_counter
+	   to avoid creating a new group with a duplicate id */
+
+	for (i = 0; i < saved_joined_count; i++) {
+		gid = max_global_id(saved_joined[i].nodeid);
+		if (!gid)
+			continue;
+		log_debug("joined node %d had old max gid %x",
+			  saved_joined[i].nodeid, gid);
+		send_gid(gid);
+	}
+
+ next:
 	if (found)
 		groupd_joined = 1;
 	else
@@ -235,11 +289,25 @@ void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 	msg_t *msg = (msg_t *) data;
 	char *buf;
 	char name[MAX_NAMELEN+1];
+	uint32_t to_nodeid, counter;
 	int len;
 
 	memset(&name, 0, sizeof(name));
 
 	msg_bswap_in(msg);
+
+	if (msg->ms_type == MSG_GLOBAL_ID) {
+		to_nodeid = msg->ms_global_id & 0x0000FFFF;
+		counter = (msg->ms_global_id >> 16) & 0x0000FFFF;
+
+		if (to_nodeid == our_nodeid) {
+			log_debug("recv global_id %x from %u cur counter %u",
+			  	  msg->ms_global_id, nodeid, global_id_counter);
+			if (counter > global_id_counter)
+				global_id_counter = counter;
+		}
+		return;
+	}
 
 	if (handle == groupd_handle) {
 		memcpy(&name, &msg->ms_name, MAX_NAMELEN);
