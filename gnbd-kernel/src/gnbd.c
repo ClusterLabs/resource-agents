@@ -574,12 +574,12 @@ static void do_gnbd_request(request_queue_t * q)
 		struct gnbd_device *dev;
 
 		blkdev_dequeue_request(req);
-		dprintk(DBG_BLKDEV, "%s: request %p: dequeued (flags=%lx)\n",
-				req->rq_disk->disk_name, req, req->flags);
+		dprintk(DBG_BLKDEV, "%s: request %p: dequeued (flags=%x)\n",
+				req->rq_disk->disk_name, req, req->cmd_type);
 
-		if (!(req->flags & REQ_CMD))
+		if (!blk_fs_request(req))
 			goto error_out;
-		
+
 		dev = req->rq_disk->private_data;
 
 		if (dev->receiver_pid == -1)
@@ -885,12 +885,12 @@ static int __init gnbd_init(void)
 		printk(KERN_CRIT "gnbd: sizeof gnbd_request needs to be 28 in order to work!\n" );
 		return -EIO;
 	}
-	shutdown_req.flags = REQ_SPECIAL;
+	shutdown_req.cmd_type = REQ_TYPE_SPECIAL;
 	gnbd_cmd(&shutdown_req) = GNBD_CMD_DISC;
 	shutdown_req.sector = 0;
 	shutdown_req.nr_sectors = 0;
 
-	ping_req.flags = REQ_SPECIAL;
+	ping_req.cmd_type = REQ_TYPE_SPECIAL;
 	gnbd_cmd(&ping_req) = GNBD_CMD_PING;
 	ping_req.sector = 0;
 	ping_req.nr_sectors = 0;
