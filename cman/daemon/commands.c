@@ -1088,7 +1088,7 @@ static int do_cmd_update_fence_info(char *cmdbuf)
 {
 	struct cl_fence_info *f = (struct cl_fence_info *)cmdbuf;
 	struct cluster_node *node;
-	char msg[sizeof(struct cl_fencemsg)+strlen(f->fence_agent)];
+	char msg[sizeof(struct cl_fencemsg)+strlen(f->fence_agent)+1];
 	struct cl_fencemsg *fence_msg = (struct cl_fencemsg *)msg;
 
 	node = find_node_by_nodeid(f->nodeid);
@@ -1749,7 +1749,7 @@ static void do_process_transition(int nodeid, char *data, int len)
 	if (node->fence_time && !msg->fence_time &&
 	    node->fence_agent && !msg->fence_agent[0])
 	{
-		char msg[sizeof(struct cl_fencemsg)+strlen(node->fence_agent)];
+		char msg[sizeof(struct cl_fencemsg)+strlen(node->fence_agent)+1];
 		struct cl_fencemsg *fence_msg = (struct cl_fencemsg *)msg;
 
 		fence_msg->cmd = CLUSTER_MSG_FENCESTATUS;
