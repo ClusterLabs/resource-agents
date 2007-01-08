@@ -66,7 +66,17 @@ static int send_reply_message(struct connection *con, struct sock_header *msg)
 	int ret;
 
 	P_DAEMON("sending reply %x to fd %d\n", msg->command, con->fd);
-	ret = send(con->fd, (char *)msg, msg->length, MSG_DONTWAIT);
+
+	/* If there are already queued messages then don't send this one
+	   out of order */
+	if (!list_empty(&con->write_msgs)) {
+		ret = -1;
+		errno = EAGAIN;
+	}
+	else {
+		ret = send(con->fd, (char *)msg, msg->length, MSG_DONTWAIT);
+	}
+
 	if ((ret > 0 && ret != msg->length) ||
 	    (ret == -1 && errno == EAGAIN)) {
 		/* Queue it */
