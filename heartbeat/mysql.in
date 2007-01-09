@@ -35,9 +35,11 @@
 #######################################################################
 
 SH=/bin/sh
-MYSQL_BINDIR=/usr/bin
 
 # Fill in some defaults if no values are specified
+: ${OCF_RESKEY_binary="/usr/bin/safe_mysqld"}
+MYSQL_BINDIR=`dirname ${OCF_RESKEY_binary}`
+
 : ${OCF_RESKEY_config="/etc/my.cnf"}
 : ${OCF_RESKEY_datadir="/var/lib/mysql"}
 
@@ -45,7 +47,7 @@ MYSQL_BINDIR=/usr/bin
 : ${OCF_RESKEY_group="mysql"}
 
 : ${OCF_RESKEY_log="/var/log/mysqld.log"}
-: ${OCF_RESKEY_pid="/var/lib/mysql/mysqld.pid"}
+: ${OCF_RESKEY_pid="/var/run/mysql/mysqld.pid"}
 : ${OCF_RESKEY_socket="/var/lib/mysql/mysql.sock"}
 
 : ${OCF_RESKEY_test_user="root"}
@@ -84,6 +86,14 @@ It manages a MySQL Database instance as an HA resource.
 <shortdesc lang="en">MySQL resource agent</shortdesc>
 
 <parameters>
+
+<parameter name="binary" unique="0" required="0">
+<longdesc lang="en">
+Location of the MySQL binary
+</longdesc>
+<shortdesc lang="en">MySQL binary</shortdesc>
+<content type="string" default="/usr/bin/safe_mysqld" />
+</parameter>
 
 <parameter name="config" unique="0" required="0">
 <longdesc lang="en">
@@ -207,7 +217,7 @@ mysql_status() {
 		kill -0 $pid >/dev/null 2>&1
 	fi
 
-	if $?; then
+	if [ $? -eq 0 ]; then
 		return $OCF_SUCCESS;
 	else	
 		ocf_log debug "MySQL not running: removing old PID file"
@@ -267,7 +277,7 @@ mysql_start() {
     #chown -R $OCF_RESKEY_user $OCF_RESKEY_datadir
     #chgrp -R $OCF_RESKEY_group $OCF_RESKEY_datadir
 
-    $MYSQL_BINDIR/safe_mysqld  --defaults-file=$OCF_RESKEY_config --pid-file=$OCF_RESKEY_pid --socket=$OCF_RESKEY_socket --datadir=$OCF_RESKEY_datadir --user=$OCF_RESKEY_user >/dev/null 2>&1 &
+    ${OCF_RESKEY_binary}  --defaults-file=$OCF_RESKEY_config --pid-file=$OCF_RESKEY_pid --socket=$OCF_RESKEY_socket --datadir=$OCF_RESKEY_datadir --user=$OCF_RESKEY_user >/dev/null 2>&1 &
     rc=$?
     
     if [ $rc != 0 ]; then
