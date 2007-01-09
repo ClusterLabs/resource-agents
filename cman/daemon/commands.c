@@ -1042,7 +1042,7 @@ static void quorum_device_timer_fn(void *arg)
 		return;
 
 	gettimeofday(&now, NULL);
-	if (quorum_device->last_hello.tv_sec + quorumdev_poll < now.tv_sec) {
+	if (quorum_device->last_hello.tv_sec + quorumdev_poll/1000 < now.tv_sec) {
 		quorum_device->state = NODESTATE_DEAD;
 		log_msg(LOG_INFO, "lost contact with quorum device\n");
 		recalculate_quorum(0);
