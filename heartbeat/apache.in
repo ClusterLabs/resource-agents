@@ -417,7 +417,7 @@ This file is parsed to provide defaults for various other
 resource agent parameters.
 </longdesc>
 <shortdesc lang="en">configuration file path</shortdesc>
-<content type="string" default="/etc/httpd/httpd.conf" />
+<content type="string" default="/etc/apache2/httpd.conf" />
 </parameter>
 
 <parameter name="httpd">
