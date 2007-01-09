@@ -69,10 +69,13 @@ Location to store the resource state in
 
 <actions>
 <action name="start"   timeout="90" />
-<action name="stop"    timeout="100" />
+<action name="stop"         timeout="100" />
 <action name="monitor" depth="0"  timeout="20" interval="10" start-delay="1m" />
-<action name="meta-data"  timeout="5" />
-<action name="verify-all"  timeout="30" />
+<action name="reload"       timeout="90" />
+<action name="migrate_to"   timeout="100" />
+<action name="migrate_form" timeout="90" />
+<action name="meta-data"    timeout="5" />
+<action name="verify-all"   timeout="30" />
 </actions>
 </resource-agent>
 END
@@ -131,18 +134,19 @@ case $__OCF_ACTION in
 meta-data)	meta_data
 		exit $OCF_SUCCESS
 		;;
-start)		dummy_start
-		dummy_exit $?
+start)		dummy_start;;
+stop)		dummy_stop;;
+monitor)	dummy_monitor;;
+migrate_to)	ocf_log info "Migrating ${OCF_RESOURCE_INSTANCE} to ${OCF_RESKEY_CRM_meta_migrate_to}."
+	        dummy_stop
 		;;
-stop)		dummy_stop
-		dummy_exit $?
+migrate_from)	ocf_log info "Migrating ${OCF_RESOURCE_INSTANCE} to ${OCF_RESKEY_CRM_meta_migrated_from}."
+	        dummy_start
 		;;
-monitor)	dummy_monitor
-		dummy_exit $?
+reload)		ocf_log err "Reloading..."
+	        dummy_start
 		;;
-validate-all)	dummy_validate
-		dummy_exit $?
-		;;
+validate-all)	dummy_validate;;
 usage|help)	dummy_usage
 		exit $OCF_SUCCESS
 		;;
@@ -150,4 +154,7 @@ usage|help)	dummy_usage
 		exit $OCF_ERR_UNIMPLEMENTED
 		;;
 esac
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+dummy_exit $rc
 
