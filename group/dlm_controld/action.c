@@ -42,6 +42,7 @@ static int comms_nodes[MAX_NODES];
 static int comms_nodes_count;
 
 #define DLM_SYSFS_DIR "/sys/kernel/dlm"
+#define CLUSTER_DIR   "/sys/kernel/config/dlm/cluster"
 #define SPACES_DIR    "/sys/kernel/config/dlm/cluster/spaces"
 #define COMMS_DIR     "/sys/kernel/config/dlm/cluster/comms"
 
@@ -525,15 +526,9 @@ void clear_configfs(void)
 	rmdir("/sys/kernel/config/dlm/cluster");
 }
 
-int add_configfs_node(int nodeid, char *addr, int addrlen, int local)
+static int add_configfs_base(void)
 {
-	char path[PATH_MAX];
-	char padded_addr[sizeof(struct sockaddr_storage)];
-	char buf[32];
-	int rv, fd;
-
-	log_debug("set_configfs_node %d %s local %d",
-		  nodeid, str_ip(addr), local);
+	int rv = 0;
 
 	if (!path_exists("/sys/kernel/config")) {
 		log_error("No /sys/kernel/config, is configfs loaded?");
@@ -546,7 +541,24 @@ int add_configfs_node(int nodeid, char *addr, int addrlen, int local)
 	}
 
 	if (!path_exists("/sys/kernel/config/dlm/cluster"))
-		create_path("/sys/kernel/config/dlm/cluster");
+		rv = create_path("/sys/kernel/config/dlm/cluster");
+
+	return rv;
+}
+
+int add_configfs_node(int nodeid, char *addr, int addrlen, int local)
+{
+	char path[PATH_MAX];
+	char padded_addr[sizeof(struct sockaddr_storage)];
+	char buf[32];
+	int rv, fd;
+
+	log_debug("set_configfs_node %d %s local %d",
+		  nodeid, str_ip(addr), local);
+
+	rv = add_configfs_base();
+	if (rv < 0)
+		return rv;
 
 	/*
 	 * create comm dir for this node
@@ -647,5 +659,36 @@ void del_configfs_node(int nodeid)
 	rv = rmdir(path);
 	if (rv)
 		log_error("%s: rmdir failed: %d", path, errno);
+}
+
+int set_configfs_debug(int val)
+{
+	char path[PATH_MAX];
+	char buf[32];
+	int fd, rv;
+
+	rv = add_configfs_base();
+	if (rv < 0)
+		return rv;
+
+	memset(path, 0, PATH_MAX);
+	snprintf(path, PATH_MAX, "%s/log_debug", CLUSTER_DIR);
+
+	fd = open(path, O_WRONLY);
+	if (fd < 0) {
+		log_debug("%s: open failed: %d", path, errno);
+		return fd;
+	}
+
+	memset(buf, 0, sizeof(buf));
+	snprintf(buf, 32, "%d", val);
+
+	rv = do_write(fd, buf, strlen(buf));
+	if (rv < 0) {
+		log_error("%s: write failed: %d", path, errno);
+		return rv;
+	}
+	close(fd);
+	return 0;
 }
 

@@ -12,7 +12,7 @@
 
 #include "dlm_daemon.h"
 
-#define OPTION_STRING			"DhV"
+#define OPTION_STRING			"KDhV"
 #define LOCKFILE_NAME			"/var/run/dlm_controld.pid"
 
 static int uevent_fd;
@@ -342,6 +342,7 @@ static void print_usage(void)
 	printf("Options:\n");
 	printf("\n");
 	printf("  -D	       Enable debugging code and don't fork\n");
+	printf("  -K	       Enable kernel dlm debugging messages\n");
 	printf("  -h	       Print this help, then exit\n");
 	printf("  -V	       Print program version information, then exit\n");
 }
@@ -358,6 +359,10 @@ static void decode_arguments(int argc, char **argv)
 
 		case 'D':
 			daemon_debug_opt = 1;
+			break;
+
+		case 'K':
+			kernel_debug_opt = 1;
 			break;
 
 		case 'h':
@@ -426,4 +431,5 @@ int main(int argc, char **argv)
 char *prog_name;
 int daemon_debug_opt;
 char daemon_debug_buf[256];
+int kernel_debug_opt;
 

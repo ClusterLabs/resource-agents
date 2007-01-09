@@ -179,6 +179,8 @@ int setup_member(void)
 
 	clear_configfs();
 
+	set_configfs_debug(kernel_debug_opt);
+
 	old_node_count = 0;
 	memset(&old_nodes, 0, sizeof(old_nodes));
 	cman_node_count = 0;
