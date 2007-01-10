@@ -91,6 +91,7 @@ struct ipmi {
 	pid_t i_pid;
 	int i_config;
 	int i_verbose;
+	int i_lanplus;
 };
 
 
@@ -175,8 +176,13 @@ build_cmd(char *command, size_t cmdlen, struct ipmi *ipmi, int op)
 	int x;
 
 	/* Store path */
-	snprintf(cmd, sizeof(cmd), "%s -I lan -H %s", ipmi->i_ipmitool,
-		 ipmi->i_host);
+	if (ipmi->i_lanplus) {
+		snprintf(cmd, sizeof(cmd), "%s -I lanplus -H %s", 
+				ipmi->i_ipmitool, ipmi->i_host);
+	} else {
+		snprintf(cmd, sizeof(cmd), "%s -I lan -H %s", ipmi->i_ipmitool,
+				ipmi->i_host);
+	}
 
 	if (ipmi->i_user) {
 		snprintf(arg, sizeof(arg), " -U %s", ipmi->i_user);
@@ -456,7 +462,7 @@ ipmi_destroy(struct ipmi *i)
  */
 static struct ipmi *
 ipmi_init(struct ipmi *i, char *host, char *authtype,
-	  char *user, char *password, int verbose)
+	  char *user, char *password, int lanplus, int verbose)
 {
 	const char *p;
 
@@ -526,6 +532,7 @@ ipmi_init(struct ipmi *i, char *host, char *authtype,
 	i->i_pid = -1;
 	i->i_id = IPMIID;
 	i->i_verbose = verbose;
+	i->i_lanplus = lanplus;
 
 	return i;
 }
@@ -570,7 +577,7 @@ st_new(void)
 	}
 
 	memset((void *)i, 0, sizeof(*i));
-	ipmi_init(i, NULL, NULL, NULL, NULL, 0);
+	ipmi_init(i, NULL, NULL, NULL, NULL, 0, 0);
 	return i;
 }
 
@@ -699,7 +706,7 @@ _ipmilan_setconfinfo(Stonith *s, const char *info)
 		user = NULL;
 
 	/* IPMI auth type not supported on RHEL3 */
-	i = ipmi_init(i, host, NULL, user, passwd, 0);
+	i = ipmi_init(i, host, NULL, user, passwd, 0, 0);
 	if (!i)
 		return S_OOPS;
 	i->i_config = 1;
@@ -804,7 +811,7 @@ get_options_stdin(char *ip, size_t iplen,
 		  char *passwd, size_t pwlen,
 		  char *user, size_t userlen,
 		  char *op, size_t oplen,
-		  int *verbose)
+		  int *lanplus, int *verbose)
 {
 	char in[256];
 	int line = 0;
@@ -860,6 +867,8 @@ get_options_stdin(char *ip, size_t iplen,
 			else
 				user[0] = 0;
 
+		} else if (!strcasecmp(name, "lanplus")) {
+			(*lanplus) = 1;
 		} else if (!strcasecmp(name, "option") ||
 			   !strcasecmp(name, "operation") ||
 			   !strcasecmp(name, "action")) {
@@ -923,6 +932,7 @@ main(int argc, char **argv)
 	char passwd[64];
 	char user[64];
 	char op[64];
+	int lanplus=0;
 	int verbose=0;
 	char *pname = basename(argv[0]);
 	struct ipmi *i;
@@ -937,7 +947,7 @@ main(int argc, char **argv)
 		/*
 		   Parse command line options if any were specified
 		 */
-		while ((opt = getopt(argc, argv, "A:a:i:l:p:o:vV?hH")) != EOF) {
+		while ((opt = getopt(argc, argv, "A:a:i:l:p:Po:vV?hH")) != EOF) {
 			switch(opt) {
 			case 'A':
 				/* Auth type */
@@ -955,6 +965,9 @@ main(int argc, char **argv)
 			case 'p':
 				/* password */
 				strncpy(passwd, optarg, sizeof(passwd));
+				break;
+			case 'P':
+				lanplus = 1;
 				break;
 			case 'o':
 				/* Operation */
@@ -982,7 +995,7 @@ main(int argc, char **argv)
 				      authtype, sizeof(authtype),
 				      passwd, sizeof(passwd),
 				      user, sizeof(user),
-				      op, sizeof(op), &verbose) != 0)
+				      op, sizeof(op), &lanplus, &verbose) != 0)
 			return 1;
 	}
 
@@ -1011,7 +1024,7 @@ main(int argc, char **argv)
 
 
 	/* Ok, set up the IPMI struct */
-	i = ipmi_init(NULL, ip, authtype, user, passwd, verbose);
+	i = ipmi_init(NULL, ip, authtype, user, passwd, lanplus, verbose);
 	if (!i)
 		fail_exit("Failed to initialize\n");
 

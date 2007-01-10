@@ -42,6 +42,9 @@ Action to perform (on, off, reboot).
 \fB-p\fP \fIpassword\fP
 Password (if required) for login.
 .TP
+\fB-P\fP
+Use the lanplus option if this is a lanplus capable interface (for example iLo2)
+.TP
 \fB-A\fP \fIAuthentication Type\fP
 Can be set to none, password, md2, or md5.
 .TP
@@ -70,6 +73,9 @@ Password (if required) for login.
 .TP
 \fIauth = < param >\fR
 Authentication type (none, password, md2, md5).
+.TP
+\fIlanplus\fR
+If we are using the lanplus option for ipmitool
 
 .SH SEE ALSO
 fence(8), fence_node(8)
