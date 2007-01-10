@@ -409,7 +409,7 @@ get_cman_ids(cman_handle_t ch, int *my_id, int *high_id)
 		goto out;
 
 	for (x = 0; x < actual; x++)
-		if (nodes[x].cn_nodeid > high)
+		if (nodes[x].cn_nodeid > high && nodes[x].cn_member)
 			high = nodes[x].cn_nodeid;
 
 	*high_id = high;
@@ -487,19 +487,28 @@ handle_remote_domain(cman_handle_t ch, void *h, fence_req_t *data,
 	uint64_t fence_time;
 	char ret = 1;
 	cman_node_t node;
+	
 
 	if (get_domain_state_ckpt(h, data->domain, &vst) < 0) {
-		printf("XXX I have no record of that domain\n");
+		printf("Evaluating Domain: %s   Last Owner/State Unknown\n",
+		       data->domain);
+		memset(&vst, 0, sizeof(vst));
+	} else {
+		printf("Evaluating Domain: %s   Last Owner: %d   State %d\n",
+		       data->domain, vst.s_owner, vst.s_state);
+	}
+			
+	if (get_cman_ids(ch, NULL, &high_id) < 0) {
+		printf("Error: Could not determine high node ID; unable to "
+		       "process fencing request\n");
 		return;
 	}
-
-	printf("Evaluating Domain: %s   Last Owner: %d   State %d\n",
-	       data->domain, vst.s_owner, vst.s_state);
-			
-	if (get_cman_ids(ch, NULL, &high_id) < 0)
-		return;
-
-	if (my_id == high_id && vst.s_owner != my_id) {
+	
+	if (my_id == high_id && vst.s_owner == 0) {
+		printf("There is no record of that domain; "
+		       "returning success\n");
+		ret = 0;
+	} else if (my_id == high_id && vst.s_owner != my_id) {
 
 		memset(&node, 0, sizeof(node));
 		cman_get_node(ch, vst.s_owner, &node);
@@ -547,7 +556,7 @@ handle_remote_domain(cman_handle_t ch, void *h, fence_req_t *data,
 
 
 int
-xvmd_loop(void *h, int fd, fence_xvm_args_t *args,
+xvmd_loop(cman_handle_t ch, void *h, int fd, fence_xvm_args_t *args,
 	  void *key, size_t key_len)
 {
 	fd_set rfds;
@@ -559,23 +568,25 @@ xvmd_loop(void *h, int fd, fence_xvm_args_t *args,
 	socklen_t slen;
 	fence_req_t data;
 	virConnectPtr vp;
-	virt_list_t *vl;
-	virt_state_t *dom;
-	cman_handle_t ch;
+	virt_list_t *vl = NULL;
+	virt_state_t *dom = NULL;
 
 	vp = virConnectOpen(NULL);
-	if (!vp) {
+	if (!vp)
 		perror("virConnectOpen");
-		return -1;
-	}
-
-	ch = cman_init(NULL);
 
 	get_cman_ids(ch, &my_id, NULL);
 	printf("My Node ID = %d\n", my_id);
-
-	vl = vl_get(vp, my_id);
-	vl_print(vl);
+	
+	if (vp) {
+		vl = vl_get(vp, my_id);
+		vl_print(vl);
+		virt_list_update(vp, &vl, my_id);
+		if (args->flags & F_USE_UUID) 
+			store_domains_by_uuid(h, vl);
+		else
+			store_domains_by_name(h, vl);
+	}
 
 	while (running) {
 		FD_ZERO(&rfds);
@@ -583,19 +594,38 @@ xvmd_loop(void *h, int fd, fence_xvm_args_t *args,
 		tv.tv_sec = 10;
 		tv.tv_usec = 0;
 
+		/* Close the connection */
+		if (vp) {
+			virConnectClose(vp);
+			vp = NULL;
+		}
+		
 		n = select(fd+1, &rfds, NULL, NULL, &tv);
 		if (n < 0)
 			continue;
-		if (n == 0) {
-			virt_list_update(vp, &vl, my_id);
-			vl_print(vl);
-			/* Store information here */
-			if (args->flags & F_USE_UUID) 
-				store_domains_by_uuid(h, vl);
-			else
-				store_domains_by_name(h, vl);
+	
+		/* Request and/or timeout: open connection */
+		vp = virConnectOpen(NULL);
+		if (!vp) {
+			printf("NOTICE: virConnectOpen(): %s; cannot fence!\n",
+			       strerror(errno));
 			continue;
 		}
+			
+		/* Update list of VMs from libvirt. */
+		virt_list_update(vp, &vl, my_id);
+		vl_print(vl);
+		/* Store information here */
+		if (args->flags & F_USE_UUID) 
+			store_domains_by_uuid(h, vl);
+		else
+			store_domains_by_name(h, vl);
+		
+		/* 
+		 * If no requests, we're done 
+		 */
+		if (n == 0)
+			continue;
 
 		slen = sizeof(sin);
 		len = recvfrom(fd, &data, sizeof(data), 0,
@@ -626,11 +656,7 @@ xvmd_loop(void *h, int fd, fence_xvm_args_t *args,
 		}
 
 		printf("Request to fence: %s\n", data.domain);
-
-		/* Do a quick update to make sure we're current */
-		virt_list_update(vp, &vl, my_id);
-		vl_print(vl);
-
+		
 		if (args->flags & F_USE_UUID)
 			dom = vl_find_uuid(vl, (char *)data.domain);
 		else
@@ -659,7 +685,11 @@ xvmd_loop(void *h, int fd, fence_xvm_args_t *args,
 	}
 
 	cman_finish(ch);
-	virConnectClose(vp);
+	
+	if (vp) {
+		virConnectClose(vp);
+		vp = NULL;
+	}
 
 	return 0;
 }
@@ -671,8 +701,9 @@ main(int argc, char **argv)
 	fence_xvm_args_t args;
 	int mc_sock;
 	char key[4096];
-	int key_len = 0;
+	int key_len = 0, x;
 	char *my_options = "dfi:a:p:C:c:k:u?hV";
+	cman_handle_t ch;
 	void *h;
 
 	args_init(&args);
@@ -726,12 +757,33 @@ main(int argc, char **argv)
 		printf("Could not initialize NSS\n");
 		return 1;
 	}
-
-	h = ckpt_init("vm_states", 262144, 4096, 64, 10);
-	if (!h) {
-		printf("Could not initialize Checkpoint\n");
-		return 1;
+	
+	/* Wait for cman to start. */
+	x = 0;
+	while ((ch = cman_init(NULL)) == NULL) {
+		if (!x) {
+			printf("Could not connect to CMAN; retrying...\n");
+			x = 1;
+		}
+		sleep(3);
 	}
+	if (x)
+		printf("Connected to CMAN\n");
+	/* Wait for quorum */
+	while (!cman_is_quorate(ch))
+		sleep(3);
+
+	/* Wait for openais checkpointing to become available */
+	x = 0;
+	while ((h = ckpt_init("vm_states", 262144, 4096, 64, 10)) == NULL) {
+		if (!x) {
+			printf("Could not initialize saCkPt; retrying...\n");
+			x = 1;
+		}
+		sleep(3);
+	}
+	if (x)
+		printf("Checkpoint initialized\n");
 
 	if (args.family == PF_INET)
 		mc_sock = ipv4_recv_sk(args.addr, args.port);
@@ -742,7 +794,7 @@ main(int argc, char **argv)
 		return 1;
 	}
 
-	xvmd_loop(h, mc_sock, &args, key, key_len);
+	xvmd_loop(ch, h, mc_sock, &args, key, key_len);
 
 	return 0;
 }
