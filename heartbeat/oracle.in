@@ -246,7 +246,7 @@ dbasql() {
 		$sqlplus -S /nolog
 	else
 		su $ORACLE_OWNER -c "$sqlplus -S /nolog"
-	fi
+	fi | grep -v '^Connected'
 }
 
 #
@@ -353,7 +353,7 @@ ipcrm_instance() {
 #
 # quick check to see if the instance is up
 is_oracle_up() {
-	ps -ef | grep -iqs "[_]pmon_${ORACLE_SID}"
+	ps -ef | grep -wiqs "[^ ]*[_]pmon_${ORACLE_SID}"
 }
 # instance in OPEN state?
 instance_live() {
