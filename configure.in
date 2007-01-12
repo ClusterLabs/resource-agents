@@ -2793,8 +2793,9 @@ dnl			lib/bindings/perl/cl_raw/Makefile.PL	\
 		lib/plugins/stonith/Makefile			\
 		lib/plugins/stonith/ribcl.py			\
 		lib/plugins/stonith/external/Makefile		\
-		lib/plugins/stonith/external/ssh		\
+		lib/plugins/stonith/external/ibmrsa		\
 		lib/plugins/stonith/external/riloe		\
+		lib/plugins/stonith/external/ssh		\
 		lib/plugins/AppHBNotification/Makefile		\
 		lib/plugins/HBcompress/Makefile			\
 		lib/plugins/quorum/Makefile			\
