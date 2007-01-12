@@ -2513,6 +2513,22 @@ AC_SUBST(JAVA_HOME)
 AC_SUBST(TSA_DIR)
 AM_CONDITIONAL(TSA_PLUGIN_BUILD, test "x${enable_tsa_plugin}" != "xno")
 
+dnl **********************************************
+dnl drbd peer outdate plugin configuration
+dnl **********************************************
+case "$host_os" in
+*linux*)
+	AC_ARG_ENABLE([dopd],
+	[  --enable-dopd  Compile the Drbd Outdate Peer Daemon and tools.  [default=yes]],
+			[], [enable_dopd=yes])
+ 	;;
+*)
+	enable_dopd=no
+ 	;;
+esac
+
+AM_CONDITIONAL(BUILD_DRBD_OUTDATE_PEER, test "x${enable_dopd}" != "xno")
+
 hb_libdir="${libdir}/${HB_PKG}"
 AC_SUBST(hb_libdir)
 
@@ -3008,6 +3024,7 @@ if test "x${enable_tsa_plugin}" != "xno"; then
 AC_MSG_RESULT([      JAVA_HOME        = "${JAVA_HOME}"])
 AC_MSG_RESULT([      TSA_DIR          = "${TSA_DIR}"])
 fi
+AC_MSG_RESULT([  Build dopd plugin    = "${enable_dopd}"])
 
 AC_MSG_RESULT([  Enable times kludge  = "${enable_times_kludge}"])    
 AC_SUBST(DISABLE_TIMES_KLUDGE)

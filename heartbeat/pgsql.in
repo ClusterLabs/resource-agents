@@ -256,7 +256,7 @@ pgsql_monitor() {
 	return $OCF_NOT_RUNNING
     fi
 
-    if [ -z "$PGHOST" ]
+    if [ "x" -eq "x$PGHOST" ]
     then
        $PSQL -U $PGDBA $PGDB -c 'select now();' >/dev/null 2>&1
     else
