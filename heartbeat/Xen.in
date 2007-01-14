@@ -127,7 +127,7 @@ Xen_Stop() {
 }
 
 Xen_Migrate_To {
-  target_node="$OCF_RESKEY_CRM_meta_migrate_to"
+  target_node="$OCF_RESKEY_CRM_meta_migrate_target"
   if 
     Xen_Status
   then
@@ -144,7 +144,7 @@ Xen_Migrate_To {
       return $OCF_SUCCESS
     fi
   else
-    ocf_log err "$DOMAIN_NAME: migrate_from: Not active locally!"
+    ocf_log err "$DOMAIN_NAME: migrate_to: Not active locally!"
     return $OCF_ERR_PERM
   fi
 }
