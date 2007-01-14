@@ -126,7 +126,7 @@ Xen_Stop() {
   fi
 }
 
-Xen_Migrate_From {
+Xen_Migrate_To {
   target_node="$OCF_RESKEY_CRM_meta_migrate_to"
   if 
     Xen_Status
@@ -149,7 +149,7 @@ Xen_Migrate_From {
   fi
 }
 
-Xen_Migrate_To {
+Xen_Migrate_From {
   if 
     Xen_Status
   then
