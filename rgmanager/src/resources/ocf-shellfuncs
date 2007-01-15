@@ -4,7 +4,7 @@
 # 	Common helper functions for the OCF Resource Agents supplied by
 # 	heartbeat.
 #
-# Copyright (c) 2004 SUSE LINUX AG, Lars Marowsky-Brée
+# Copyright (c) 2004 SUSE LINUX AG, Lars Marowsky-Brï¿½e
 #                    All Rights Reserved.
 #
 # Modified for linux-cluster 2005 by Lon Hohberger
@@ -175,7 +175,7 @@ ocf_log() {
 
 	pretty_echo $__OCF_PRIO "$__OCF_MSG"
 	clulog -p $__LOG_PID -n $__LOG_NAME \
-		-l $__OCF_PRIO_N -s $__OCF_PRIO_N "$__OCF_MSG"
+		-s $__OCF_PRIO_N "$__OCF_MSG"
 }
 
 __ocf_set_defaults "$@"
