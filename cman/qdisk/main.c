@@ -135,6 +135,7 @@ read_node_blocks(qd_ctx *ctx, node_info_t *ni, int max)
 			       sb, sizeof(*sb)) < 0) {
 			clulog(LOG_WARNING,"Error reading node ID block %d\n",
 			       x+1);
+			continue;
 		}
 		swab_status_block_t(sb);
 
