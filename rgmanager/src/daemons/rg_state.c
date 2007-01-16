@@ -1292,7 +1292,7 @@ handle_relocate_req(char *svcName, int request, int preferred_target,
 		    int *new_owner)
 {
 	cluster_member_list_t *allowed_nodes, *backup = NULL;
-	uint32_t target = preferred_target, me = my_id();
+	int target = preferred_target, me = my_id();
 	int ret, x;
 	
 	/*
@@ -1308,7 +1308,7 @@ handle_relocate_req(char *svcName, int request, int preferred_target,
 			return RG_EFORWARD;
 	}
 
-	if (preferred_target != 0) {
+	if (preferred_target >= 0) {
 
 		allowed_nodes = member_list();
 		/*
@@ -1380,7 +1380,7 @@ handle_relocate_req(char *svcName, int request, int preferred_target,
 		//count_resource_groups(allowed_nodes);
 	}
 
-	if (preferred_target != 0)
+	if (preferred_target >= 0)
 		memb_mark_down(allowed_nodes, preferred_target);
 	memb_mark_down(allowed_nodes, me);
 
