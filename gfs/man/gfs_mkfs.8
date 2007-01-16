@@ -1,5 +1,5 @@
 .\"  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+.\"  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 
 .TH gfs_mkfs 8
 
@@ -43,9 +43,9 @@ This option prevents gfs_mkfs from asking for confirmation before writing
 the filesystem.
 .TP
 \fB-p\fP \fILockProtoName\fR 
-LockProtoName is the name of the  locking  protocol to use.  Acceptable
-locking protocols are \fIlock_dlm\fR, \fIlock_gulm\fR or if you are using GFS
-as a local filesystem (\fB1 node only\fP), you can specify the
+LockProtoName is the name of the  locking  protocol to use.  The locking
+protocol should be \fIlock_dlm\fR for a clustered file system or if you 
+are using GFS as a local filesystem (\fB1 node only\fP), you can specify the
 \fIlock_nolock\fR protocol.
 .TP
 \fB-q\fP
@@ -82,10 +82,4 @@ gfs_mkfs -t mycluster:mygfs -p lock_dlm -j 2 /dev/vg0/mygfs
 This will make a Global File System on the block device
 "/dev/vg0/mygfs".  It will belong to "mycluster" and register itself
 as wanting locking for "mygfs".  It will use DLM for locking and make
-two journals.
-.TP
-gfs_mkfs -t mycluster:mygfs -p lock_gulm -j 2 /dev/vg0/mygfs
-This will make a Global File System on the block device
-"/dev/vg0/mygfs".  It will belong to "mycluster" and register itself
-as wanting locking for "mygfs".  It will use GULM for locking and make
 two journals.

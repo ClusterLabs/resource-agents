@@ -1,3 +1,4 @@
+.\"  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 .\"  Portions copyright (c) 2001-2003 The OpenGFS Project
 .\"  Portions copyright (c) 2004 ben.m.cahill@intel.com
 .\"
@@ -75,7 +76,7 @@ filesystem's on-disk superblock.
 The \fILockModuleName\fR must be an exact match of the protocol name presented
 by the lock module when it registers with the lock harness.  Traditionally,
 this matches the .o filename of the lock module, e.g. \fIlock_dlm\fR,
-\fIlock_gulm\fR, or \fIlock_nolock\fR.
+or \fIlock_nolock\fR.
 
 The default lock protocol name is written to disk initially when creating the
 filesystem with \fBgfs_mkfs\fP(8), -p option.  It can be changed on-disk by
@@ -93,8 +94,8 @@ globally throughout the cluster, and establishes a unique namespace for
 the inter-node locking system, enabling the mounting of multiple GFS
 filesystems.
 
-The format of \fILockTableName\fR is lock-module-specific.  For lock_gulm
-and lock_dlm, the format is \fIclustername:fsname\fR.  For
+The format of \fILockTableName\fR is lock-module-specific.  For
+lock_dlm, the format is \fIclustername:fsname\fR.  For
 lock_nolock, the field is ignored.
 
 The default cluster/filesystem name is written to disk initially when creating
@@ -105,16 +106,6 @@ The \fBlocktable\fP mount option should be used only under special
 circumstances in which you want to mount the filesystem in a different cluster,
 or mount it as a different filesystem name, without changing the on-disk
 default.
-.TP
-\fBhostdata=\fP\fIHostIDInfo\fR
-This field sends host (the computer on which the filesystem is being mounted)
-identity information to the lock module.
-
-The format and behavior of \fIHostIDInfo\fR is lock-module-specific.
-For lock_gulm, it overrides the \fBuname\fP(1) -n network node name
-used as default by lock_gulm.
-
-This field is ignored by \fIlock_dlm\fR and \fIlock_nolock\fR.
 .TP
 \fBlocalcaching\fP
 This flag tells GFS that it is running as a local (not clustered) filesystem,
@@ -205,7 +196,6 @@ http://www.suse.de/~agruen/acl/linux-acls/
 \fBacl\fP(5) for access control lists,
 \fBlvm\fP(8) for volume management,
 \fBccs\fP(7) for cluster management,
-\fBlock_gulmd\fP(8),
 \fBumount\fP(8),
 \fBinitrd\fP(4).
 
