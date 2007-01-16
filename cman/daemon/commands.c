@@ -869,13 +869,13 @@ static void check_shutdown_status()
 		}
 		else {
 			reply = -EBUSY;
+
+			/* Tell originator that shutdown was cancelled */
+			send_status_return(shutdown_con, CMAN_CMD_TRY_SHUTDOWN, reply);
+			shutdown_con = NULL;
 		}
 
 		P_MEMB("shutdown decision is: %d (yes=%d, no=%d) flags=%x\n", reply, shutdown_yes, shutdown_no, shutdown_flags);
-
-		/* Tell originator what we decided */
-		send_status_return(shutdown_con, CMAN_CMD_TRY_SHUTDOWN, reply);
-		shutdown_con = NULL;
 	}
 }
 
@@ -1827,8 +1827,12 @@ static void process_internal_message(char *data, int len, int nodeid, int need_b
 		P_MEMB("got LEAVE from node %d, reason = %d\n", nodeid, leavemsg->reason);
 
 		/* We got our own leave message back. now quit */
-		if (node && node->node_id == us->node_id)
+		if (node && node->node_id == us->node_id) {
+			/* Tell whomever asked us to leave that we are now going down */
+			if (shutdown_con)
+				send_status_return(shutdown_con, CMAN_CMD_TRY_SHUTDOWN, 0);
 			exit(0);
+		}
 
 		/* Someone else, make a note of the reason for leaving */
 		if (node)
