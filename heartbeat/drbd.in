@@ -80,6 +80,17 @@ Full path to the drbd.conf file.
 <content type="string" default="/etc/drbd.conf"/>
 </parameter>
 
+<parameter name="clone_overrides_hostname">
+<longdesc lang="en">
+Whether or not to override the hostname with the clone number. This can
+be used to create floating peer configurations; drbd will be told to
+use node_&le;cloneno&ge; as the hostname instead of the real uname,
+which can then be used in drbd.conf.
+</longdesc>
+<shortdesc lang="en">Override drbd hostname</shortdesc>
+<content type="boolean" default="no"/>
+</parameter>
+
 
 <parameter name="clone_max" required="1">
 <longdesc lang="en">
@@ -168,7 +179,15 @@ drbd_init() {
 	RESOURCE="$OCF_RESKEY_drbd_resource"
 	CLONE_NO="$OCF_RESKEY_CRM_meta_clone"
 	DRBDCONF="${OCF_RESKEY_drbdconf:=/etc/drbd.conf}"
-	
+
+	case "$OCF_RESKEY_clone_overrides_hostname" in
+	[Yy][Ee][Ss]|[Tt][Rr][Uu][Ee]|[Oo][Nn]|1)
+		__DRBD_NODE__="node_${CLONE_NO}"
+		export __DRBD_NODE__
+		ocf_log err "$RESOURCE: Using hostname $__DRBD_NODE__"
+		;;
+	esac
+
 	if [ ! -f "$DRBDCONF" ]; then
 		ocf_log err "drbd.conf not installed."
 		exit $OCF_ERR_CONFIGURED
