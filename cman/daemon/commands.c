@@ -2055,7 +2055,7 @@ static char *killmsg_reason(int reason)
 		return "we were killed by cman_tool or other application";
 
 	case CLUSTER_KILL_REJOIN:
-		return "we node rejoined cluster without a full restart";
+		return "we rejoined the cluster without a full restart";
 
 	default:
 		sprintf(msg, "we got kill message number %d", reason);
