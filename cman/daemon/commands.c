@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -97,6 +97,7 @@ static int send_port_enquire(int nodeid);
 static void process_internal_message(char *data, int len, int nodeid, int byteswap);
 static void recalculate_quorum(int allow_decrease);
 static void send_kill(int nodeid, uint16_t reason);
+static char *killmsg_reason(int reason);
 
 static void set_port_bit(struct cluster_node *node, uint8_t port)
 {
@@ -1817,7 +1818,8 @@ static void process_internal_message(char *data, int len, int nodeid, int need_b
 		killmsg = (struct cl_killmsg *)data;
 		P_MEMB("got KILL for node %d\n", killmsg->nodeid);
 		if (killmsg->nodeid == wanted_nodeid) {
-			log_msg(LOG_INFO, "cman killed by node %d for reason %d\n", nodeid, killmsg->reason);
+			log_msg(LOG_INFO, "cman killed by node %d because %s\n", nodeid,
+				killmsg_reason(killmsg->reason));
 			exit(1);
 		}
 		break;
@@ -2040,3 +2042,23 @@ static struct cluster_node *find_node_by_name(char *name)
 	return NULL;
 }
 
+static char *killmsg_reason(int reason)
+{
+	static char msg[1024];
+
+	switch (reason)
+	{
+	case CLUSTER_KILL_REJECTED:
+		return "our membership application was rejected";
+
+	case CLUSTER_KILL_CMANTOOL:
+		return "we were killed by cman_tool or other application";
+
+	case CLUSTER_KILL_REJOIN:
+		return "we node rejoined cluster without a full restart";
+
+	default:
+		sprintf(msg, "we got kill message number %d", reason);
+		return msg;
+	}
+}
