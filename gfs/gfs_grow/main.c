@@ -668,7 +668,7 @@ make_rgrp(uint64_t offset, uint64_t size)
 	rgl->rg.rg_header.mh_format = GFS_FORMAT_RG;
 	rgl->rg.rg_free = rgl->ri.ri_data;
 
-	osi_list_add(&rgl->list, &rglist_new);
+	osi_list_add_prev(&rgl->list, &rglist_new);
 	return offset + size;
 }
 
