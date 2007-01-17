@@ -531,7 +531,7 @@ txt_rg_states(rg_state_list_t *rgl, cluster_member_list_t *members,
 
 int
 xml_rg_states(rg_state_list_t *rgl, cluster_member_list_t *members,
-	      char *svcname)
+	      char *svcname, int flags)
 {
 	int x;
 	int ret = 0;
@@ -545,6 +545,7 @@ xml_rg_states(rg_state_list_t *rgl, cluster_member_list_t *members,
 		if (svcname &&
 		    strcmp(rgl->rgl_states[x].rs_name, svcname))
 			continue;
+		xml_rg_state(&rgl->rgl_states[x], members, flags);
 		if (svcname) {
 			switch (rgl->rgl_states[x].rs_state) {
 			case RG_STATE_STARTING:
@@ -742,7 +743,7 @@ xml_cluster_status(int qs, cluster_member_list_t *membership,
  	
   	if (rgs &&
   	    (!name || (name && svcname)))
- 		ret2 = xml_rg_states(rgs, membership, svcname);
+ 		ret2 = xml_rg_states(rgs, membership, svcname, flags);
   	printf("</clustat>\n");
  	
  	if (name && ret1)
