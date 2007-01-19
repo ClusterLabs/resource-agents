@@ -316,22 +316,31 @@ struct di_info *search_list(osi_list_t *list, uint64 addr)
 
 /* Put out a warm, fuzzy message every second so the user     */
 /* doesn't think we hung.  (This may take a long time).       */
+/* We only check whether to report every one percent because  */
+/* checking every block kills performance.  We only report    */
+/* every second because we don't need 100 extra messages in   */
+/* logs made from verbose mode.                               */
 void warm_fuzzy_stuff(uint64_t block)
 {
+	static uint64_t one_percent = 0;
 	static struct timeval tv;
 	static uint32_t seconds = 0;
 	
-	last_reported_block = block;
-	gettimeofday(&tv, NULL);
-	if (!seconds)
-		seconds = tv.tv_sec;
-	if (tv.tv_sec - seconds) {
-		uint64_t percent;
-		
-		seconds = tv.tv_sec;
-		if (last_fs_block) {
-			percent = (block * 100) / last_fs_block;
-			log_notice("\r%" PRIu64 " percent complete.\r", percent);
+	if (!one_percent)
+		one_percent = last_fs_block / 100;
+	if (block - last_reported_block >= one_percent) {
+		last_reported_block = block;
+		gettimeofday(&tv, NULL);
+		if (!seconds)
+			seconds = tv.tv_sec;
+		if (tv.tv_sec - seconds) {
+			static uint64_t percent;
+
+			seconds = tv.tv_sec;
+			if (last_fs_block) {
+				percent = (block * 100) / last_fs_block;
+				log_notice("\r%" PRIu64 " percent complete.\r", percent);
+			}
 		}
 	}
 }

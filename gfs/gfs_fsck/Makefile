@@ -27,7 +27,7 @@ sources = main.c initialize.c pass1.c pass1b.c pass1c.c \
 	  inode_hash.c bitmap.c lost_n_found.c inode.c link.c metawalk.c \
 	  eattr.c
 
-CFLAGS+=-D_FILE_OFFSET_BITS=64 -DHELPER_PROGRAM -DGFS_RELEASE_NAME=\"${RELEASE}\" -Wall -g
+CFLAGS+=-D_FILE_OFFSET_BITS=64 -DHELPER_PROGRAM -DGFS_RELEASE_NAME=\"${RELEASE}\" -Wall -O2
 
 all: ${TARGET}
 
