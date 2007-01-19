@@ -22,7 +22,7 @@
 HA_VARRUNDIR=@localstatedir@/run/@HB_PKG@
 CMD=`basename $0`
 
-iptables=`which iptables`
+iptables=@IPTABLES@
 
 usage()
 {
