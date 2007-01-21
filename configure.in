@@ -405,7 +405,7 @@ AC_DEFINE_UNQUOTED(NETSTAT, "$NETSTAT", path to the netstat command)
 AC_PATH_PROGS(PING, ping, /bin/ping)
 AC_PATH_PROGS(IFCONFIG, ifconfig, /sbin/ifconfig)
 AC_PATH_PROGS(SSH, ssh, /usr/bin/ssh)
-AC_PATH_PROGS(SCP, scp, /usr/binscp)
+AC_PATH_PROGS(SCP, scp, /usr/bin/scp)
 AC_PATH_PROGS(PYTHON, python)
 dnl - Determine which mail program exists. Mailx is Solaris
 AC_PATH_PROGS(MAILCMD, mail, mailx)
