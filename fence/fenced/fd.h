@@ -53,6 +53,7 @@
 #define DEFAULT_POST_JOIN_DELAY	6
 #define DEFAULT_POST_FAIL_DELAY	0
 #define DEFAULT_CLEAN_START	0
+#define DEFAULT_OVERRIDE_PATH	"/var/run/cluster/fenced_override"
 #define FENCED_SOCK_PATH	"fenced_socket"
 
 extern char			*prog_name;
@@ -131,10 +132,12 @@ struct commandline
 {
 	int post_join_delay;
 	int post_fail_delay;
+	char *override_path;
 	int8_t clean_start;
 	int8_t post_join_delay_opt;
 	int8_t post_fail_delay_opt;
 	int8_t clean_start_opt;
+	int8_t override_path_opt;
 };
 
 #define FDFL_RUN        (0)

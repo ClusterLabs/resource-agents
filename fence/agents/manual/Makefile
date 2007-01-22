@@ -36,6 +36,12 @@ manual.o: manual.c
 fence_ack_manual: ack.o
 	${CC} -o $@ $^
 
+# Using manual override instead of the binary version.
+# (this version does not require any configuration params
+#  in cluster.conf, but fencing must fail first)
+#fence_ack_manual: fence_ack_manual.sh
+#	cp $@ $^
+
 ack.o: ack.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 

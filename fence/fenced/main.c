@@ -15,7 +15,7 @@
 #include "ccs.h"
 #include "copyright.cf"
 
-#define OPTION_STRING			("cj:f:Dn:hVSw")
+#define OPTION_STRING			("cj:f:Dn:O:hVSw")
 #define LOCKFILE_NAME			"/var/run/fenced.pid"
 
 struct client {
@@ -141,6 +141,23 @@ static int setup_ccs(fd_t *fd)
 			comline.post_fail_delay = atoi(str);
 		else
 			comline.post_fail_delay = DEFAULT_POST_FAIL_DELAY;
+		if (str)
+			free(str);
+	}
+
+	if (comline.override_path_opt == FALSE) {
+		str = NULL;
+		memset(path, 0, 256);
+		sprintf(path, "/cluster/fence_daemon/@override_path");
+
+		error = ccs_get(cd, path, &str);
+		if (!error)
+			/* XXX These are not explicitly freed on exit; if
+			   we decide to make fenced handle SIGHUP at a later
+			   time, we will need to free this. */
+			comline.override_path = strdup(str);
+		else
+			comline.override_path = strdup(DEFAULT_OVERRIDE_PATH);
 		if (str)
 			free(str);
 	}
@@ -500,6 +517,8 @@ static void print_usage(void)
 				   DEFAULT_POST_JOIN_DELAY);
 	printf("  -f <secs>	Post-fail fencing delay (default %d)\n",
 				   DEFAULT_POST_FAIL_DELAY);
+	printf("  -O <path>    Override path (default %s)\n",
+	       			   DEFAULT_OVERRIDE_PATH);
 	printf("  -D	       Enable debugging code and don't fork\n");
 	printf("  -h	       Print this help, then exit\n");
 	printf("  -V	       Print program version information, then exit\n");
@@ -547,6 +566,8 @@ static void decode_arguments(int argc, char **argv, commandline_t *comline)
 	int cont = TRUE;
 	int optchar;
 
+	comline->override_path_opt = FALSE;
+	comline->override_path = NULL;
 	comline->post_join_delay_opt = FALSE;
 	comline->post_fail_delay_opt = FALSE;
 	comline->clean_start_opt = FALSE;
@@ -569,6 +590,11 @@ static void decode_arguments(int argc, char **argv, commandline_t *comline)
 		case 'f':
 			comline->post_fail_delay = atoi(optarg);
 			comline->post_fail_delay_opt = TRUE;
+			break;
+
+		case 'O':
+			comline->override_path = strdup(optarg);
+			comline->override_path_opt = TRUE;
 			break;
 
 		case 'D':

@@ -13,6 +13,9 @@
 
 #include "fd.h"
 #include "ccs.h"
+#include <sys/time.h>
+#include <sys/types.h>
+#include <sys/select.h>
 
 extern int our_nodeid;
 extern commandline_t comline;
@@ -213,6 +216,79 @@ static int reduce_victims(fd_t *fd)
 	return num_victims;
 }
 
+static inline void close_override(int *fd, char *path)
+{
+	unlink(path);
+	if (fd && *fd >= 0)
+		close(*fd);
+	*fd = -1;
+}
+
+static int open_override(char *path)
+{
+	int ret;
+	mode_t om;
+
+	om = umask(077);
+	ret = mkfifo(path, (S_IRUSR | S_IWUSR));
+	umask(om);
+
+	if (ret < 0)
+		return -1;
+        return open(path, O_RDONLY | O_NONBLOCK);
+}
+
+static int check_override(int ofd, char *nodename, int timeout)
+{
+	char buf[128];
+	fd_set rfds;
+	struct timeval tv = {0, 0};
+	int ret, x;
+
+	if (ofd < 0 || !nodename || !strlen(nodename)) {
+		sleep(timeout);
+		return 0;
+	}
+
+	FD_ZERO(&rfds);
+	FD_SET(ofd, &rfds);
+	tv.tv_usec = 0;
+	tv.tv_sec = timeout;
+
+	ret = select(ofd + 1, &rfds, NULL, NULL, &tv);
+	if (ret < 0) {
+		syslog(LOG_ERR, "select: %s\n", strerror(errno));
+		return -1;
+	}
+
+	if (ret == 0)
+		return 0;
+
+	memset(buf, 0, sizeof(buf));
+	ret = read(ofd, buf, sizeof(buf) - 1);
+	if (ret < 0) {
+		syslog(LOG_ERR, "read: %s\n", strerror(errno));
+		return -1;
+	}
+
+	/* chop off control characters */
+	for (x = 0; x < ret; x++) {
+		if (buf[x] < 0x20) {
+			buf[x] = 0;
+			break;
+		}
+	}
+
+	if (!strcasecmp(nodename, buf)) {
+		/* Case insensitive, but not as nice as, say, name_equal
+		   in the other file... */
+		return 1;
+	}
+
+	return 0;
+}
+
+
 /* If there are victims after a node has joined, it's a good indication that
    they may be joining the cluster shortly.  If we delay a bit they might
    become members and we can avoid fencing them.  This is only really an issue
@@ -283,6 +359,7 @@ static void fence_victims(fd_t *fd, int start_type)
 	fd_node_t *node;
 	char *master_name;
 	int master, error, cd;
+	int override = -1;
 
 	master = find_master_nodeid(fd, &master_name);
 
@@ -319,7 +396,22 @@ static void fence_victims(fd_t *fd, int start_type)
 			list_del(&node->list);
 			free(node);
 		}
-		sleep(5);
+
+		if (!comline.override_path) {
+			sleep(5);
+			continue;
+		}
+
+		/* Check for manual intervention */
+		override = open_override(comline.override_path);
+		if (check_override(override, node->name, 5) > 0) {
+			syslog(LOG_WARNING, "fence \"%s\" overridden by "
+			       "administrator intervention", node->name);
+
+			list_del(&node->list);
+			free(node);
+		}
+		close_override(&override, comline.override_path);
 	}
 
 	ccs_disconnect(cd);
