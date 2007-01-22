@@ -13,11 +13,16 @@ existing quorum disks accessible from a given cluster node.
 .IP "\-c device \-l label"
 Initialize a new cluster quorum disk.  This will destroy all data on the given
 device.  If a cluster is currently using that device as a quorum disk, the
-entire cluster will malfunction.  Do not ru
+entire cluster will malfunction.  Do not run this on an active cluster when
+qdiskd is running.  Only one device on the SAN should ever have the given
+label; using multiple different devices is currently not supported (it is
+expected a RAID array is used for quorum disk redundancy).  The label can be
+any textual string up to 127 characters - and is therefore enough space to hold
+a UUID created with uuidgen(1).
 .IP "\-f label"
-Find the cluster quorum disk with the given label and display information about it..
+Find the cluster quorum disk with the given label and display information about it.
 .IP "\-L"
 Display information on all accessible cluster quorum disks.
 
 .SH "SEE ALSO"
-qdisk(5) qdiskd(8)
+qdisk(5), qdiskd(8), uuidgen(1)

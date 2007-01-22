@@ -1,6 +1,6 @@
-.TH "QDisk" "8" "July 2006" "" "Cluster Quorum Disk"
+.TH "QDisk" "21" "Jan 2007" "" "Cluster Quorum Disk"
 .SH "NAME"
-QDisk 1.0 \- a disk-based quorum daemon for CMAN / Linux-Cluster
+QDisk 1.2 \- a disk-based quorum daemon for CMAN / Linux-Cluster
 .SH "1. Overview"
 .SH "1.1 Problem"
 In some situations, it may be necessary or desirable to sustain
@@ -75,16 +75,24 @@ must be numbered from 1..16 (there can be gaps, of course).
 
 * Cluster node votes should be more or less equal.
 
-* CMAN must be running before the qdisk program can start.
+* CMAN must be running before the qdisk program can operate in full
+capacity.  If CMAN is not running, qdisk will wait for it.
 
 * CMAN's eviction timeout should be at least 2x the quorum daemon's
 to give the quorum daemon adequate time to converge on a master during a
 failure + load spike situation.
 
-* The total number of votes assigned to the quorum device should be
-equal to or greater than the total number of node-votes in the cluster.
-While it is possible to assign only one (or a few) votes to the quorum
-device, the effects of doing so have not been explored.
+* For 'all-but-one' failure operation, the total number of votes assigned
+to the quorum device should be equal to or greater than the total number
+of node-votes in the cluster.  While it is possible to assign only one
+(or a few) votes to the quorum device, the effects of doing so have not
+been explored.
+
+* For 'tiebreaker' operation in a two-node cluster, unset CMAN's two_node
+flag (or set it to 0), set CMAN's expected votes to '3', set each node's
+vote to '1', and set qdisk's vote count to '1' as well.  This will allow
+the cluster to operate if either both nodes are online, or a single node &
+the heuristics.
 
 * Currently, the quorum disk daemon is difficult to use with CLVM if
 the quorum disk resides on a CLVM logical volume.  CLVM requires a
@@ -217,23 +225,27 @@ This controls the verbosity of the quorum daemon in the system logs.
 0 = emergencies; 7 = debug.
 
 .in 9
-\fIlog_facility\fP\fB="\fPlocal4\fB"\fP
+\fIlog_facility\fP\fB="\fPdaemon\fB"\fP
 .in 12
 This controls the syslog facility used by the quorum daemon when logging.
 For a complete list of available facilities, see \fBsyslog.conf(5)\fP.
+The default value for this is 'daemon'.
 
 .in 9
 \fIstatus_file\fP\fB="\fP/foo\fB"\fP
 .in 12
 Write internal states out to this file periodically ("-" = use stdout).
-This is primarily used for debugging.
+This is primarily used for debugging.  The default value for this 
+attribute is undefined.
 
 .in 9
 \fImin_score\fP\fB="\fP3\fB"\fP
 .in 12
 Absolute minimum score to be consider one's self "alive".  If omitted,
 or set to 0, the default function "floor((n+1)/2)" is used, where \fIn\fP
-is the sum-total of all of defined heuristics' \fIscore\fP attribute.
+is the total of all of defined heuristics' \fIscore\fP attribute.  This
+must never exceed the sum of the heuristic scores, or else the quorum
+disk will never be available.
 
 .in 9
 \fIreboot\fP\fB="\fP1\fB"\fP
@@ -241,6 +253,45 @@ is the sum-total of all of defined heuristics' \fIscore\fP attribute.
 If set to 0 (off), qdiskd will *not* reboot after a negative transition
 as a result in a change in score (see section 2.2).  The default for
 this value is 1 (on).
+
+.in 9
+\fIallow_kill\fP\fB="\fP1\fB"\fP
+.in 12
+If set to 0 (off), qdiskd will *not* instruct to kill nodes it thinks
+are dead (as a result of not writing to the quorum disk).  The default
+for this value is 1 (on).
+
+.in 9
+\fIparanoid\fP\fB="\fP0\fB"\fP
+.in 12
+If set to 1 (on), qdiskd will watch internal timers and reboot the node
+if it takes more than (interval * tko) seconds to complete a quorum disk
+pass.  The default for this value is 0 (off).
+
+.in 9
+\fIscheduler\fP\fB="\fPrr\fB"\fP
+.in 12
+Valid values are 'rr', 'fifo', and 'other'.  Selects the scheduling queue
+in the Linux kernel for operation of the main & score threads (does not
+affect the heuristics; they are always run in the 'other' queue).  Default
+is 'rr'.  See sched_setscheduler(2) for more details.
+
+.in 9
+\fIpriority\fP\fB="\fP1\fB"\fP
+.in 12
+Valid values for 'rr' and 'fifo' are 1..100 inclusive.  Valid values
+for 'other' are -20..20 inclusive.  Sets the priority of the main & score
+threads.  The default value is 1 (in the RR and FIFO queues, higher numbers
+denote higher priority; in OTHER, lower values denote higher priority).
+
+.in 9
+\fIstop_cman\fP\fB="\fP0\fB"\fP
+.in 12
+Ordinarily, cluster membership is left up to CMAN, not qdisk.
+If this parameter is set to 1 (on), qdiskd will tell CMAN to leave the
+cluster if it is unable to initialize the quorum disk during startup.  This
+can be used to prevent cluster participation by a node which has been 
+disconnected from the SAN.  The default for this value is 0 (off).
 
 .in 9
 \fIdevice\fP\fB="\fP/dev/sda1\fB"\fP
@@ -256,6 +307,8 @@ daemon will read /proc/partitions and check for qdisk signatures
 on every block device found, comparing the label against the specified
 label.  This is useful in configurations where the block device name
 differs on a per-node basis.
+.in 8
+\fB...>\fP
 .in 0
 
 .SH "3.2.  The <heuristic> tag"
@@ -268,33 +321,79 @@ This tag is a child of the <quorumd> tag.
 .in 12
 This is the program used to determine if this heuristic is alive.  This
 can be anything which may be executed by \fI/bin/sh -c\fP.  A return
-value of zero indicates success; anything else indicates failure.
+value of zero indicates success; anything else indicates failure.  This
+is required.
 
 .in 9
 \fIscore\fP\fB="\fP1\fB"\fP
 .in 12
 This is the weight of this heuristic.  Be careful when determining scores
-for heuristics.
+for heuristics.  The default score for each heuristic is 1.
 
 .in 9
 \fIinterval\fP\fB="\fP2\fB"/>\fP
 .in 12
-This is the frequency at which we poll the heuristic.
+This is the frequency (in seconds) at which we poll the heuristic.  The
+default interval for every heuristic is 2 seconds.
 .in 0
 
-.SH "3.3. Example"
+.in 9
+\fItko\fP\fB="\fP1\fB"/>\fP
+.in 12
+After this many failed attempts to run the heuristic, it is considered DOWN,
+and its score is removed.  The default tko for each heuristic is 1, which 
+may be inadequate for things such as 'ping'.
 .in 8
+\fB/>\fP
+.in 0
+
+
+.SH "3.3. Examples"
+.SH "3.3.1. 3 cluster nodes & 3 routers"
+.in 8
+<cman expected_votes="6" .../>
+.br
+<clusternodes>
+.in 12
+<clusternode name="node1" votes="1" ... />
+.br
+<clusternode name="node2" votes="1" ... />
+.br
+<clusternode name="node3" votes="1" ... />
+.in 8
+</clusternodes>
+.br
 <quorumd interval="1" tko="10" votes="3" label="testing">
 .in 12
-<heuristic program="ping A -c1 -t1" score="1" interval="2"/>
+<heuristic program="ping A -c1 -t1" score="1" interval="2" tko="3"/>
 .br
-<heuristic program="ping B -c1 -t1" score="1" interval="2"/>
+<heuristic program="ping B -c1 -t1" score="1" interval="2" tko="3"/>
 .br
-<heuristic program="ping C -c1 -t1" score="1" interval="2"/>
+<heuristic program="ping C -c1 -t1" score="1" interval="2" tko="3"/>
+.br
+.in 8
+</quorumd>
+
+.SH "3.3.2. 2 cluster nodes & 1 IP tiebreaker"
+.in 8
+<cman two_node="0" expected_votes="3" .../>
+.br
+<clusternodes>
+.in 12
+<clusternode name="node1" votes="1" ... />
+.br
+<clusternode name="node2" votes="1" ... />
+.in 8
+</clusternodes>
+.br
+<quorumd interval="1" tko="10" votes="1" label="testing">
+.in 12
+<heuristic program="ping A -c1 -t1" score="1" interval="2" tko="3"/>
 .br
 .in 8
 </quorumd>
 .in 0
+
 
 .SH "3.4. Heuristic score considerations"
 * Heuristic timeouts should be set high enough to allow the previous run

@@ -67,7 +67,11 @@ typedef enum {
 
 
 typedef enum {
-	RF_REBOOT = 0x1		/* Reboot if we go from master->none */
+	RF_REBOOT = 0x1,		/* Reboot if we go from master->none */
+	RF_STOP_CMAN = 0x2,
+	RF_DEBUG = 0x4,
+	RF_PARANOID = 0x8,
+	RF_ALLOW_KILL = 0x10
 } run_flag_t;
 
 
@@ -237,6 +241,8 @@ typedef struct {
 	int qc_tko;
 	int qc_votes;
 	int qc_scoremin;
+	int qc_sched;
+	int qc_sched_prio;
 	disk_node_state_t qc_disk_status;
 	disk_node_state_t qc_status;
 	int qc_master;		/* Master?! */

@@ -20,8 +20,6 @@
 /** @file
  * Library routines for communicating with the logging daemon.
  *
- *  $Id$
- *
  *  Author: Jeff Moyer <moyer@missioncriticallinux.com>
  */
 #include <stdio.h>
@@ -49,8 +47,6 @@
 #include <clulog.h>
 #include <string.h>
 
-
-static const char *version __attribute__ ((unused)) = "$Revision$";
 
 #ifdef DEBUG
 #include <assert.h>
@@ -135,7 +131,7 @@ clu_get_facility(void)
 	}
 	
 	pthread_mutex_unlock(&log_mutex);
-	return "local4";
+	return "daemon";
 }
 
 
@@ -156,7 +152,6 @@ clu_set_facility(char *facilityname)
 	for (; facilitynames[x].c_name; x++) {
 		if (strcmp(facilityname, facilitynames[x].c_name))
 			continue;
-
 		syslog_facility = facilitynames[x].c_val;
 		break;
 	}

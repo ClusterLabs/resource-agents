@@ -32,7 +32,9 @@ struct h_data {
 	char *	program;
 	int	score;
 	int	available;
+	int	tko;
 	int	interval;
+	int	misses;
 	pid_t	childpid;
 	time_t	nextrun;
 };
@@ -50,7 +52,7 @@ int stop_score_thread(void);
 /*
    Start the thread which runs the scoring applets
  */
-int start_score_thread(struct h_data *h, int count);
+int start_score_thread(qd_ctx *ctx, struct h_data *h, int count);
 
 /* 
    Get our score + maxscore

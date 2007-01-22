@@ -28,7 +28,7 @@ install: all
 	install ${TARGET} ${sbindir}
 
 qdiskd: disk.o crc32.o disk_util.o main.o score.o bitmap.o clulog.o \
-	gettid.o proc.o ../lib/libcman.a
+	gettid.o proc.o daemon_init.o  ../lib/libcman.a
 	gcc -o $@ $^ -lpthread -L../lib -L${ccslibdir} -lccs
 
 mkqdisk: disk.o crc32.o disk_util.o \

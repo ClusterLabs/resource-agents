@@ -35,11 +35,21 @@
 #include <unistd.h>
 #include <time.h>
 #include <sys/reboot.h>
+#include <sys/time.h>
 #include <linux/reboot.h>
+#include <sched.h>
 #include <signal.h>
 #include <ccs.h>
 #include "score.h"
 #include "clulog.h"
+#if (!defined(LIBCMAN_VERSION) || \
+     (defined(LIBCMAN_VERSION) && LIBCMAN_VERSION < 2))
+#include <cluster/cnxman-socket.h>
+#endif
+
+int daemon_init(char *);
+int check_process_running(char *, pid_t *);
+
 /*
   TODO:
   1) Take into account timings to gracefully extend node timeouts during 
@@ -155,6 +165,11 @@ read_node_blocks(qd_ctx *ctx, node_info_t *ni, int max)
 		if (sb->ps_timestamp == ni[x].ni_last_seen) {
 			/* XXX check for average + allow grace */
 			ni[x].ni_misses++;
+			if (ni[x].ni_misses > 1) {
+				clulog(LOG_DEBUG,
+					"Node %d missed an update (%d/%d)\n",
+					x+1, ni[x].ni_misses, ctx->qc_tko);
+			}
 			continue;
 		}
 
@@ -208,6 +223,11 @@ check_transitions(qd_ctx *ctx, node_info_t *ni, int max, memb_mask_t mask)
 			ni[x].ni_misses = 0;
 			ni[x].ni_state = S_NONE;
 
+			/* Clear our master mask for the node after eviction
+			 * or shutdown */
+			if (mask)
+				clear_bit(mask, (ni[x].ni_status.ps_nodeid-1),
+					  sizeof(memb_mask_t));
 			continue;
 		}
 
@@ -227,15 +247,17 @@ check_transitions(qd_ctx *ctx, node_info_t *ni, int max, memb_mask_t mask)
 			   Write eviction notice if we're the master.
 			 */
 			if (ctx->qc_status == S_MASTER) {
-				clulog(LOG_DEBUG,
+				clulog(LOG_NOTICE,
 				       "Writing eviction notice for node %d\n",
 				       ni[x].ni_status.ps_nodeid);
 				qd_write_status(ctx, ni[x].ni_status.ps_nodeid,
 						S_EVICT, NULL, NULL, NULL);
-				clulog(LOG_DEBUG,
-				       "Telling CMAN to kill the node\n");
-				cman_kill_node(ctx->qc_ch,
-					       ni[x].ni_status.ps_nodeid);
+				if (ctx->qc_flags & RF_ALLOW_KILL) {
+					clulog(LOG_DEBUG, "Telling CMAN to "
+						"kill the node\n");
+					cman_kill_node(ctx->qc_ch,
+						ni[x].ni_status.ps_nodeid);
+				}
 			}
 
 			/*
@@ -255,6 +277,10 @@ check_transitions(qd_ctx *ctx, node_info_t *ni, int max, memb_mask_t mask)
 			ni[x].ni_evil_incarnation = 
 				ni[x].ni_status.ps_incarnation;
 			
+			/* Clear our master mask for the node after eviction */
+			if (mask)
+				clear_bit(mask, (ni[x].ni_status.ps_nodeid-1),
+					  sizeof(memb_mask_t));
 			continue;
 		}
 
@@ -279,9 +305,12 @@ check_transitions(qd_ctx *ctx, node_info_t *ni, int max, memb_mask_t mask)
 			ni[x].ni_status.ps_state = S_EVICT;
 
 			/* XXX Need to fence it again */
-			clulog(LOG_DEBUG, "Telling CMAN to kill the node\n");
-			cman_kill_node(ctx->qc_ch,
-				       ni[x].ni_status.ps_nodeid);
+			if (ctx->qc_flags & RF_ALLOW_KILL) {
+				clulog(LOG_DEBUG, "Telling CMAN to "
+					"kill the node\n");
+				cman_kill_node(ctx->qc_ch,
+					ni[x].ni_status.ps_nodeid);
+			}
 			continue;
 		}
 
@@ -416,6 +445,10 @@ quorum_init(qd_ctx *ctx, node_info_t *ni, int max, struct h_data *h, int maxh)
 	int x = 0, score, maxscore;
 
 	clulog(LOG_INFO, "Quorum Daemon Initializing\n");
+	
+	if (mlockall(MCL_CURRENT|MCL_FUTURE) != 0) {
+		clulog(LOG_ERR, "Unable to mlockall()\n");
+	}
 
 	if (qdisk_validate(ctx->qc_device) < 0)
 		return -1;
@@ -427,7 +460,7 @@ quorum_init(qd_ctx *ctx, node_info_t *ni, int max, struct h_data *h, int maxh)
 		return -1;
 	}
 	
-	start_score_thread(h, maxh);
+	start_score_thread(ctx, h, maxh);
 
 	node_info_init(ni, max);
 	if (qd_write_status(ctx, ctx->qc_my_id,
@@ -447,7 +480,6 @@ quorum_init(qd_ctx *ctx, node_info_t *ni, int max, struct h_data *h, int maxh)
 		}
 
 		sleep(ctx->qc_interval);
-
 	}
 
 	get_my_score(&score,&maxscore);
@@ -500,12 +532,16 @@ check_cman(qd_ctx *ctx, memb_mask_t mask, memb_mask_t master_mask)
 		return;
 
 	memset(master_mask, 0, sizeof(master_mask));
-
 	for (x = 0; x < retnodes; x++) {
 		if (is_bit_set(mask, nodes[x].cn_nodeid-1, sizeof(mask)) &&
-		    nodes[x].cn_member)
+		    nodes[x].cn_member) {
 			set_bit(master_mask, nodes[x].cn_nodeid-1,
 				sizeof(master_mask));
+		} else {
+			/* Not in CMAN output = not allowed */
+			clear_bit(master_mask, (nodes[x].cn_nodeid-1),
+				  sizeof(memb_mask_t));
+		}
 	}
 }
 
@@ -604,12 +640,25 @@ update_local_status(qd_ctx *ctx, node_info_t *ni, int max, int score,
 	}
 
 	fprintf(fp, "Node ID: %d\n", ctx->qc_my_id);
-	fprintf(fp, "Score (current / min req. / max allowed): %d / %d / %d\n",
-		score, score_req, score_max);
+	
+	if (ctx->qc_master)
+		fprintf(fp, "Master Node ID: %d\n", ctx->qc_master);
+	else 
+		fprintf(fp, "Master Node ID: (none)\n");
+	
+	fprintf(fp, "Score: %d/%d (Minimum required = %d)\n",
+		score, score_max, score_req);
 	fprintf(fp, "Current state: %s\n", state_str(ctx->qc_status));
 	fprintf(fp, "Current disk state: %s\n",
 		state_str(ctx->qc_disk_status));
 
+	fprintf(fp, "Initializing Set: {");
+	for (x=0; x<max; x++) {
+		if (ni[x].ni_state == S_INIT)
+			fprintf(fp," %d", ni[x].ni_status.ps_nodeid);
+	}
+	fprintf(fp, " }\n");
+	
 	fprintf(fp, "Visible Set: {");
 	for (x=0; x<max; x++) {
 		if (ni[x].ni_state >= S_RUN || ni[x].ni_status.ps_nodeid == 
@@ -617,13 +666,10 @@ update_local_status(qd_ctx *ctx, node_info_t *ni, int max, int score,
 			fprintf(fp," %d", ni[x].ni_status.ps_nodeid);
 	}
 	fprintf(fp, " }\n");
-
-	if (!ctx->qc_master) {
-		fprintf(fp, "No master node\n");
+	
+	if (!ctx->qc_master)
 		goto out;
-	}
 
-	fprintf(fp, "Master Node ID: %d\n", ctx->qc_master);
 	fprintf(fp, "Quorate Set: {");
 	for (x=0; x<max; x++) {
 		if (is_bit_set(ni[ctx->qc_master-1].ni_status.ps_master_mask,
@@ -642,18 +688,141 @@ out:
 }
 
 
+/* Timeval functions from clumanager */
+/**
+ * Scale a (struct timeval).
+ *
+ * @param tv		The timeval to scale.
+ * @param scale		Positive multiplier.
+ * @return		tv
+ */
+struct timeval *
+_scale_tv(struct timeval *tv, int scale)
+{
+	tv->tv_sec *= scale;
+	tv->tv_usec *= scale;
+
+	if (tv->tv_usec > 1000000) {
+		tv->tv_sec += (tv->tv_usec / 1000000);
+		tv->tv_usec = (tv->tv_usec % 1000000);
+	}
+
+	return tv;
+}
+
+
+static inline void
+_diff_tv(struct timeval *dest, struct timeval *start, struct timeval *end)
+{
+	dest->tv_sec = end->tv_sec - start->tv_sec;
+	dest->tv_usec = end->tv_usec - start->tv_usec;
+
+	if (dest->tv_usec < 0) {
+		dest->tv_usec += 1000000;
+		dest->tv_sec--;
+	}
+}
+
+
+#define _print_tv(val) \
+	printf("%s: %d.%06d\n", #val, (int)((val)->tv_sec), \
+			(int)((val)->tv_usec))
+
+
+static inline int
+_cmp_tv(struct timeval *left, struct timeval *right)
+{
+	if (left->tv_sec > right->tv_sec)
+		return -1;
+
+	if (left->tv_sec < right->tv_sec)
+		return 1;
+
+	if (left->tv_usec > right->tv_usec)
+		return -1;
+	
+	if (left->tv_usec < right->tv_usec)
+		return 1;
+
+	return 0;
+}
+
+
+void
+set_priority(int queue, int prio)
+{
+	struct sched_param s;
+	int ret;
+	char *func = "nice";
+	
+	if (queue == SCHED_OTHER) {
+		s.sched_priority = 0;
+		ret = sched_setscheduler(0, queue, &s);
+		errno = 0;
+		ret = nice(prio);
+	} else {
+		memset(&s,0,sizeof(s));
+		s.sched_priority = prio;
+		ret = sched_setscheduler(0, queue, &s);
+		func = "sched_setscheduler";
+	}
+	
+	if (ret < 0 && errno) {
+		clulog(LOG_WARNING, "set_priority [%s] failed: %s\n", func,
+		       strerror(errno));
+	}
+}
+
+
+int
+cman_alive(cman_handle_t ch)
+{
+	fd_set rfds;
+	int fd = cman_get_fd(ch);
+	struct timeval tv = {0, 0};
+	
+	FD_ZERO(&rfds);
+	FD_SET(fd, &rfds);
+	if (select(fd + 1, &rfds, NULL, NULL, &tv) == 1) {
+		if (cman_dispatch(ch, CMAN_DISPATCH_ALL) < 0) {
+			if (errno == EAGAIN)
+				return 0;
+			return -1;
+		}
+	}
+	return 0;
+}
+
 
 int
 quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 {
 	disk_msg_t msg = {0, 0, 0};
-	int low_id, bid_pending = 0, score, score_max, score_req;
+	int low_id, bid_pending = 0, score, score_max, score_req,
+	    upgrade = 0;
 	memb_mask_t mask, master_mask;
+	struct timeval maxtime, oldtime, newtime, diff, sleeptime, interval;
 
-	ctx->qc_status = S_RUN;
+	ctx->qc_status = S_NONE;
+	
+	maxtime.tv_usec = 0;
+	maxtime.tv_sec = ctx->qc_interval * ctx->qc_tko;
+	
+	interval.tv_usec = 0;
+	interval.tv_sec = ctx->qc_interval;
+	
+	get_my_score(&score, &score_max);
+	if (score_max < ctx->qc_scoremin) {
+		clulog(LOG_WARNING, "Minimum score (%d) is impossible to "
+		       "achieve (heuristic total = %d)\n",
+		       ctx->qc_scoremin, score_max);
+	}
 	
 	_running = 1;
 	while (_running) {
+		/* XXX this was getuptime() in clumanager */
+		gettimeofday(&oldtime, NULL);
+		
 		/* Read everyone else's status */
 		read_node_blocks(ctx, ni, max);
 
@@ -662,6 +831,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 
 		/* Check heuristics and remove ourself if necessary */
 		get_my_score(&score, &score_max);
+		upgrade = 0;
 
 		score_req = ctx->qc_scoremin;
 		if (score_req <= 0)
@@ -672,14 +842,19 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 			if (ctx->qc_status > S_NONE) {
 				clulog(LOG_NOTICE,
 				       "Score insufficient for master "
-				       "operation (%d/%d; max=%d); "
+				       "operation (%d/%d; required=%d); "
 				       "downgrading\n",
-				       score, score_req, score_max);
+				       score, score_max, score_req);
 				ctx->qc_status = S_NONE;
 				msg.m_msg = M_NONE;
 				++msg.m_seq;
 				bid_pending = 0;
-				cman_poll_quorum_device(ctx->qc_ch, 0);
+				if (cman_alive(ctx->qc_ch) < 0) {
+					clulog(LOG_ERR, "cman: %s\n",
+					       strerror(errno));
+				} else {
+					cman_poll_quorum_device(ctx->qc_ch, 0);
+				}
 				if (ctx->qc_flags & RF_REBOOT)
 					reboot(RB_AUTOBOOT);
 			}
@@ -688,10 +863,13 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 			if (ctx->qc_status == S_NONE) {
 				clulog(LOG_NOTICE,
 				       "Score sufficient for master "
-				       "operation (%d/%d; max=%d); "
+				       "operation (%d/%d; required=%d); "
 				       "upgrading\n",
-				       score, score_req, score_max);
+				       score, score_max, score_req);
 				ctx->qc_status = S_RUN;
+				upgrade = (ctx->qc_tko / 3);
+				if (upgrade == 0)
+					upgrade = 1;
 			}
 		}
 
@@ -702,11 +880,13 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 		if (!ctx->qc_master &&
 		    low_id == ctx->qc_my_id &&
 		    ctx->qc_status == S_RUN &&
-		    !bid_pending ) {
+		    !bid_pending &&
+		    !upgrade) {
 			/*
 			   If there's no master, and we are the lowest node
 			   ID, make a bid to become master if we're not 
-			   already bidding.
+			   already bidding.  We can't do this if we've just
+			   upgraded.
 			 */
 
 			clulog(LOG_DEBUG,"Making bid for master\n");
@@ -724,10 +904,18 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 			/* We're currently bidding for master.
 			   See if anyone's voted, or if we should
 			   rescind our bid */
+			++bid_pending;
 
 			/* Yes, those are all deliberate fallthroughs */
 			switch (check_votes(ctx, ni, max, &msg)) {
 			case 3:
+				/* 
+				 * Give ample time to become aware of other
+				 * nodes
+				 */
+				if (bid_pending < (ctx->qc_tko / 3))
+					break;
+				
 				clulog(LOG_INFO,
 				       "Assuming master role\n");
 				ctx->qc_status = S_MASTER;
@@ -755,6 +943,13 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 			/* We are the master.  Poll the quorum device.
 			   We can't be the master unless we score high
 			   enough on our heuristics. */
+			if (cman_alive(ctx->qc_ch) < 0) {
+				clulog(LOG_ERR, "cman_dispatch: %s\n",
+				       strerror(errno));
+				clulog(LOG_ERR,
+				       "Halting qdisk operations\n");
+				return -1;
+			}
 			check_cman(ctx, mask, master_mask);
 			cman_poll_quorum_device(ctx->qc_ch, 1);
 
@@ -768,6 +963,13 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 			      ni[ctx->qc_master-1].ni_status.ps_master_mask,
 				       ctx->qc_my_id-1,
 				       sizeof(memb_mask_t))) {
+				if (cman_alive(ctx->qc_ch) < 0) {
+					clulog(LOG_ERR, "cman_dispatch: %s\n",
+						strerror(errno));
+					clulog(LOG_ERR,
+						"Halting qdisk operations\n");
+					return -1;
+				}
 				cman_poll_quorum_device(ctx->qc_ch, 1);
 			}
 		}
@@ -783,8 +985,43 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 
 		/* Cycle. We could time the loop and sleep
 		   usleep(interval-looptime), but this is fine for now.*/
+		gettimeofday(&newtime, NULL);
+		_diff_tv(&diff, &oldtime, &newtime);
+		
+		/*
+		 * Reboot if we didn't send a heartbeat in interval*TKO_COUNT
+		 */
+		if (_cmp_tv(&maxtime, &diff) == 1 &&
+		    ctx->qc_flags & RF_PARANOID) {
+			clulog(LOG_EMERG, "Failed to complete a cycle within "
+			       "%d second%s (%d.%06d) - REBOOTING\n",
+			       (int)maxtime.tv_sec,
+			       maxtime.tv_sec==1?"":"s",
+			       (int)diff.tv_sec,
+			       (int)diff.tv_usec);
+			if (!(ctx->qc_flags & RF_DEBUG)) 
+				reboot(RB_AUTOBOOT);
+		}
+
+		/*
+		 * If the amount we took to complete a loop is greater or less
+		 * than our interval, we adjust by the difference each round.
+		 *
+		 * It's not really "realtime", but it helps!
+		 */
+		if (_cmp_tv(&diff, &interval) == 1) {
+			_diff_tv(&sleeptime, &diff, &interval);
+		} else {
+			clulog(LOG_WARNING, "qdisk cycle took more "
+			       "than %d second%s to complete (%d.%06d)\n",
+			       ctx->qc_interval, ctx->qc_interval==1?"":"s",
+			       (int)diff.tv_sec, (int)diff.tv_usec);
+			memcpy(&sleeptime, &interval, sizeof(sleeptime));
+		}
+		
+		/* Could hit a watchdog timer here if we wanted to */
 		if (_running)
-			sleep(ctx->qc_interval);
+			select(0, NULL, NULL, NULL, &sleeptime);
 	}
 
 	return 0;
@@ -829,12 +1066,15 @@ get_config_data(char *cluster_name, qd_ctx *ctx, struct h_data *h, int maxh,
 	ctx->qc_interval = 1;
 	ctx->qc_tko = 10;
 	ctx->qc_scoremin = 0;
-	ctx->qc_flags = RF_REBOOT;
+	ctx->qc_flags = RF_REBOOT | RF_ALLOW_KILL; /* | RF_STOP_CMAN;*/
+	ctx->qc_sched = SCHED_RR;
+	ctx->qc_sched_prio = 1;
 
 	/* Get log log_facility */
 	snprintf(query, sizeof(query), "/cluster/quorumd/@log_facility");
 	if (ccs_get(ccsfd, query, &val) == 0) {
 		clu_set_facility(val);
+		clulog(LOG_DEBUG, "Log facility: %s\n", val);
 		free(val);
 	}
 
@@ -903,6 +1143,37 @@ get_config_data(char *cluster_name, qd_ctx *ctx, struct h_data *h, int maxh,
 		if (ctx->qc_scoremin < 0)
 			ctx->qc_scoremin = 0;
 	}
+	
+	/* Get scheduling queue */
+	snprintf(query, sizeof(query), "/cluster/quorumd/@scheduler");
+	if (ccs_get(ccsfd, query, &val) == 0) {
+		switch(val[0]) {
+		case 'r':
+		case 'R':
+			ctx->qc_sched = SCHED_RR;
+			break;
+		case 'f':
+		case 'F':
+			ctx->qc_sched = SCHED_FIFO;
+			break;
+		case 'o':
+		case 'O':
+			ctx->qc_sched = SCHED_OTHER;
+			break;
+		default:
+			clulog(LOG_WARNING, "Invalid scheduling queue '%s'\n",
+			       val);
+			break;
+		}
+		free(val);
+	}
+	
+	/* Get priority */
+	snprintf(query, sizeof(query), "/cluster/quorumd/@priority");
+	if (ccs_get(ccsfd, query, &val) == 0) {
+		ctx->qc_sched_prio = atoi(val);
+		free(val);
+	}	
 
 	/* Get reboot flag for when we transition -> offline */
 	/* default = on, so, 0 to turn off */
@@ -910,6 +1181,50 @@ get_config_data(char *cluster_name, qd_ctx *ctx, struct h_data *h, int maxh,
 	if (ccs_get(ccsfd, query, &val) == 0) {
 		if (!atoi(val))
 			ctx->qc_flags &= ~RF_REBOOT;
+		free(val);
+	}
+	
+	/*
+	 * Get flag to see if we're supposed to kill cman if qdisk is not 
+	 * available.
+	 */
+	/* default = off, so, 1 to turn on */
+	snprintf(query, sizeof(query), "/cluster/quorumd/@stop_cman");
+	if (ccs_get(ccsfd, query, &val) == 0) {
+		if (!atoi(val))
+			ctx->qc_flags &= ~RF_STOP_CMAN;
+		else
+			ctx->qc_flags |= RF_STOP_CMAN;
+		free(val);
+	}
+	
+	
+	/*
+	 * Get flag to see if we're supposed to reboot if we can't complete
+	 * a pass in failure time
+	 */
+	/* default = off, so, 1 to turn on */
+	snprintf(query, sizeof(query), "/cluster/quorumd/@paranoid");
+	if (ccs_get(ccsfd, query, &val) == 0) {
+		if (!atoi(val))
+			ctx->qc_flags &= ~RF_PARANOID;
+		else
+			ctx->qc_flags |= RF_PARANOID;
+		free(val);
+	}
+	
+	
+	/*
+	 * Get flag to see if we're supposed to reboot if we can't complete
+	 * a pass in failure time
+	 */
+	/* default = off, so, 1 to turn on */
+	snprintf(query, sizeof(query), "/cluster/quorumd/@allow_kill");
+	if (ccs_get(ccsfd, query, &val) == 0) {
+		if (!atoi(val))
+			ctx->qc_flags &= ~RF_ALLOW_KILL;
+		else
+			ctx->qc_flags |= RF_ALLOW_KILL;
 		free(val);
 	}
 
@@ -925,18 +1240,47 @@ get_config_data(char *cluster_name, qd_ctx *ctx, struct h_data *h, int maxh,
 }
 
 
+void
+check_stop_cman(qd_ctx *ctx)
+{
+	if (!(ctx->qc_flags & RF_STOP_CMAN))
+		return;
+	
+	clulog(LOG_WARNING, "Telling CMAN to leave the cluster; qdisk is not"
+		" available\n");
+#if (defined(LIBCMAN_VERSION) && LIBCMAN_VERSION >= 2)
+	if (cman_shutdown(ctx->qc_ch, 0) < 0) {
+#else
+	int x = 0;
+	if (ioctl(cman_get_fd(ctx->qc_ch), SIOCCLUSTER_LEAVE_CLUSTER, &x) < 0) {
+#endif
+		clulog(LOG_CRIT, "Could not leave the cluster - rebooting\n");
+		sleep(5);
+		if (ctx->qc_flags & RF_DEBUG)
+			return;
+		reboot(RB_AUTOBOOT);
+	}
+}
+
+
 int
 main(int argc, char **argv)
 {
 	cman_node_t me;
-	int cfh, rv;
+	int cfh, rv, forked = 0;
 	qd_ctx ctx;
 	cman_handle_t ch;
 	node_info_t ni[MAX_NODES_DISK];
 	struct h_data h[10];
 	char debug = 0, foreground = 0;
 	char device[128];
-
+	pid_t pid;
+	
+	if (check_process_running(argv[0], &pid) && pid !=getpid()) {
+		printf("QDisk services already running\n");
+		return 0;
+	}
+	
 	while ((rv = getopt(argc, argv, "fd")) != EOF) {
 		switch (rv) {
 		case 'd':
@@ -944,40 +1288,64 @@ main(int argc, char **argv)
 			break;
 		case 'f':
 			foreground = 1;
+			clu_log_console(1);
 		default:
 			break;
 		}
 	}
+	
 #if (defined(LIBCMAN_VERSION) && LIBCMAN_VERSION >= 2)
 	ch = cman_admin_init(NULL);
 #else
 	ch = cman_init(NULL);
 #endif
 	if (!ch) {
-		printf("Could not connect to cluster (CMAN not running?)\n");
-		return -1;
+		if (!foreground && !forked) {
+			if (daemon_init(argv[0]) < 0)
+				return -1;
+			else
+				forked = 1;
+		}
+		
+		clulog(LOG_INFO, "Waiting for CMAN to start\n");
+		
+		do {
+			sleep(5);
+#if (defined(LIBCMAN_VERSION) && LIBCMAN_VERSION >= 2)
+			ch = cman_admin_init(NULL);
+#else
+			ch = cman_init(NULL);
+#endif
+		} while (!ch);
 	}
 
 	memset(&me, 0, sizeof(me));
-	if (cman_get_node(ch, CMAN_NODEID_US, &me) < 0) {
-		printf("Could not determine local node ID; cannot start\n");
-		return -1;
+	while (cman_get_node(ch, CMAN_NODEID_US, &me) < 0) {
+		if (!foreground && !forked) {
+			if (daemon_init(argv[0]) < 0)
+				return -1;
+			else
+				forked = 1;
+		}
+		sleep(5);
 	}
 
 	qd_init(&ctx, ch, me.cn_nodeid);
 
 	signal(SIGINT, int_handler);
+	signal(SIGTERM, int_handler);
 
-        if (debug)
+        if (debug) {
                 clu_set_loglevel(LOG_DEBUG);
-        if (foreground)
-                clu_log_console(1);
+                ctx.qc_flags |= RF_DEBUG;
+        }
 		
 	if (get_config_data(NULL, &ctx, h, 10, &cfh, debug) < 0) {
 		clulog_and_print(LOG_CRIT, "Configuration failed\n");
+		check_stop_cman(&ctx);
 		return -1;
 	}
-
+	
 	if (ctx.qc_label) {
 		if (find_partitions("/proc/partitions",
 				    ctx.qc_label, device,
@@ -985,6 +1353,7 @@ main(int argc, char **argv)
 			clulog_and_print(LOG_CRIT, "Unable to match label"
 					 " '%s' to any device\n",
 					 ctx.qc_label);
+			check_stop_cman(&ctx);
 			return -1;
 		}
 
@@ -1000,15 +1369,21 @@ main(int argc, char **argv)
 			clulog(LOG_CRIT,
 			       "Specified partition %s does not have a "
 			       "qdisk label\n", ctx.qc_device);
+			check_stop_cman(&ctx);
 			return -1;
 		}
 	}
 
-	if (!foreground)
-                daemon(0,0);
+	if (!foreground && !forked) {
+                if (daemon_init(argv[0]) < 0)
+			return -1;
+	}
+	
+	set_priority(ctx.qc_sched, ctx.qc_sched_prio);
 
 	if (quorum_init(&ctx, ni, MAX_NODES_DISK, h, cfh) < 0) {
 		clulog_and_print(LOG_CRIT, "Initialization failed\n");
+		check_stop_cman(&ctx);
 		return -1;
 	}
 	
@@ -1026,14 +1401,12 @@ main(int argc, char **argv)
 	}
 	*/
 
-	quorum_loop(&ctx, ni, MAX_NODES_DISK);
-	cman_unregister_quorum_device(ctx.qc_ch);
+	if (quorum_loop(&ctx, ni, MAX_NODES_DISK) == 0)
+		cman_unregister_quorum_device(ctx.qc_ch);
 
 	quorum_logout(&ctx);
-
 	qd_destroy(&ctx);
 
 	return 0;
-
 }
 
