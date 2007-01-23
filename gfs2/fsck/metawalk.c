@@ -247,6 +247,7 @@ static int check_eattr_entries(struct gfs2_inode *ip,
 	uint64_t *ea_data_ptr = NULL;
 	int i;
 	int error = 0;
+	uint32_t offset = (uint32_t)sizeof(struct gfs2_meta_header);
 
 	if(!pass->check_eattr_entry) {
 		return 0;
@@ -287,11 +288,11 @@ static int check_eattr_entries(struct gfs2_inode *ip,
 				}
 			}
 		}
-		if(ea_hdr->ea_flags & GFS2_EAFLAG_LAST){
-			/* FIXME: better equal the end of the block */
+		offset += be32_to_cpu(ea_hdr->ea_rec_len);
+		if(ea_hdr->ea_flags & GFS2_EAFLAG_LAST ||
+		   offset >= ip->i_sbd->sd_sb.sb_bsize || ea_hdr->ea_rec_len == 0){
 			break;
 		}
-		/* FIXME: be sure this doesn't go beyond the end */
 		ea_hdr_prev = ea_hdr;
 		ea_hdr = (struct gfs2_ea_header *)
 			((char *)(ea_hdr) +
