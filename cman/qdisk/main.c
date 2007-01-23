@@ -62,6 +62,10 @@ int check_process_running(char *, pid_t *);
 int clear_bit(uint8_t *mask, uint32_t bitidx, uint32_t masklen);
 int set_bit(uint8_t *mask, uint32_t bitidx, uint32_t masklen);
 int is_bit_set(uint8_t *mask, uint32_t bitidx, uint32_t masklen);
+inline int get_time(struct timeval *tv, int use_uptime);
+inline void _diff_tv(struct timeval *dest, struct timeval *start,
+		     struct timeval *end);
+
 static int _running = 0;
 
 
@@ -711,18 +715,6 @@ _scale_tv(struct timeval *tv, int scale)
 }
 
 
-static inline void
-_diff_tv(struct timeval *dest, struct timeval *start, struct timeval *end)
-{
-	dest->tv_sec = end->tv_sec - start->tv_sec;
-	dest->tv_usec = end->tv_usec - start->tv_usec;
-
-	if (dest->tv_usec < 0) {
-		dest->tv_usec += 1000000;
-		dest->tv_sec--;
-	}
-}
-
 
 #define _print_tv(val) \
 	printf("%s: %d.%06d\n", #val, (int)((val)->tv_sec), \
@@ -821,7 +813,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 	_running = 1;
 	while (_running) {
 		/* XXX this was getuptime() in clumanager */
-		gettimeofday(&oldtime, NULL);
+		get_time(&oldtime, (ctx->qc_flags&RF_UPTIME));
 		
 		/* Read everyone else's status */
 		read_node_blocks(ctx, ni, max);
@@ -985,7 +977,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 
 		/* Cycle. We could time the loop and sleep
 		   usleep(interval-looptime), but this is fine for now.*/
-		gettimeofday(&newtime, NULL);
+		get_time(&newtime, ctx->qc_flags&RF_UPTIME);
 		_diff_tv(&diff, &oldtime, &newtime);
 		
 		/*
@@ -1066,7 +1058,8 @@ get_config_data(char *cluster_name, qd_ctx *ctx, struct h_data *h, int maxh,
 	ctx->qc_interval = 1;
 	ctx->qc_tko = 10;
 	ctx->qc_scoremin = 0;
-	ctx->qc_flags = RF_REBOOT | RF_ALLOW_KILL; /* | RF_STOP_CMAN;*/
+	ctx->qc_flags = RF_REBOOT | RF_ALLOW_KILL | RF_UPTIME;
+			/* | RF_STOP_CMAN;*/
 	ctx->qc_sched = SCHED_RR;
 	ctx->qc_sched_prio = 1;
 
@@ -1225,6 +1218,20 @@ get_config_data(char *cluster_name, qd_ctx *ctx, struct h_data *h, int maxh,
 			ctx->qc_flags &= ~RF_ALLOW_KILL;
 		else
 			ctx->qc_flags |= RF_ALLOW_KILL;
+		free(val);
+	}
+
+	/*
+	 * Get flag to see if we're supposed to use /proc/uptime instead of
+	 * gettimeofday(2)
+	 */
+	/* default = off, so, 1 to turn on */
+	snprintf(query, sizeof(query), "/cluster/quorumd/@use_uptime");
+	if (ccs_get(ccsfd, query, &val) == 0) {
+		if (!atoi(val))
+			ctx->qc_flags &= ~RF_UPTIME;
+		else
+			ctx->qc_flags |= RF_UPTIME;
 		free(val);
 	}
 

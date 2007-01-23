@@ -294,6 +294,16 @@ can be used to prevent cluster participation by a node which has been
 disconnected from the SAN.  The default for this value is 0 (off).
 
 .in 9
+\fIuse_uptime\fP\fB="\fP1\fB"\fP
+.in 12
+If this parameter is set to 1 (on), qdiskd will use values from
+/proc/uptime for internal timings.  This is a bit less precise
+than \fBgettimeofday(2)\fP, but the benefit is that changing the 
+system clock will not affect qdiskd's behavior - even if \fBparanoid\fP
+is enabled.  If set to 0, qdiskd will use \fBgettimeofday(2)\fP, which
+is more precise.  The default for this value is 1 (on / use uptime).
+
+.in 9
 \fIdevice\fP\fB="\fP/dev/sda1\fB"\fP
 .in 12
 This is the device the quorum daemon will use.  This device must be the
@@ -412,4 +422,4 @@ visible to the local node; see
 for more details.
 
 .SH "SEE ALSO"
-mkqdisk(8), qdiskd(8), cman(5), syslog.conf(5)
+mkqdisk(8), qdiskd(8), cman(5), syslog.conf(5), gettimeofday(2)

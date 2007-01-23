@@ -37,19 +37,65 @@
 #include <time.h>
 
 
-static inline void
+inline void
 _diff_tv(struct timeval *dest, struct timeval *start, struct timeval *end)
 {
-	        dest->tv_sec = end->tv_sec - start->tv_sec;
-	        dest->tv_usec = end->tv_usec - start->tv_usec;
+	dest->tv_sec = end->tv_sec - start->tv_sec;
+	dest->tv_usec = end->tv_usec - start->tv_usec;
 
-		if (dest->tv_usec < 0) {
-			dest->tv_usec += 1000000;
-			dest->tv_sec--;
-		}
+	if (dest->tv_usec < 0) {
+		dest->tv_usec += 1000000;
+		dest->tv_sec--;
+	}
 }
 
 
+/**
+ *
+ * Grab the uptime from /proc/uptime.
+ * 
+ * @param tv		Timeval struct to store time in.  The sec
+ * 			field contains seconds, the usec field 
+ * 			contains the hundredths-of-seconds (converted
+ * 			to micro-seconds)
+ * @return		-1 on failure, 0 on success.
+ */
+static inline int
+getuptime(struct timeval *tv)
+{
+	FILE *fp;
+	struct timeval junk;
+	int rv;
+	
+	fp = fopen("/proc/uptime","r");
+	if (!fp)
+		return -1;
+
+	rv = fscanf(fp,"%ld.%ld %ld.%ld\n", &tv->tv_sec, &tv->tv_usec,
+		    &junk.tv_sec, &junk.tv_usec);
+	fclose(fp);
+	
+	if (rv != 4) {
+		return -1;
+	}
+	
+	tv->tv_usec *= 10000;
+	
+	return 0;
+}
+
+
+inline int
+get_time(struct timeval *tv, int use_uptime)
+{
+	if (use_uptime) {
+		return getuptime(tv);
+	} else {
+		return gettimeofday(tv, NULL);
+	}
+}
+
+ 
 /**
   Update write times and calculate a new average time
  */
@@ -147,7 +193,7 @@ qd_write_status(qd_ctx *ctx, int nid, disk_node_state_t state,
 		ps.ps_arg = 0;
 	}
 
-	if (gettimeofday(&start, NULL) < 0)
+	if (get_time(&start, ctx->qc_flags&RF_UPTIME) < 0)
 		utime_ok = 0;
 	swab_status_block_t(&ps);
 	if (qdisk_write(ctx->qc_fd, qdisk_nodeid_offset(nid), &ps,
@@ -155,7 +201,7 @@ qd_write_status(qd_ctx *ctx, int nid, disk_node_state_t state,
 		printf("Error writing node ID block %d\n", nid);
 		return -1;
 	}
-	if (utime_ok && (gettimeofday(&end, NULL) < 0))
+	if (utime_ok && (get_time(&end, ctx->qc_flags&RF_UPTIME) < 0))
 		utime_ok = 0;
 
 	if (utime_ok) {

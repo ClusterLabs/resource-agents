@@ -71,7 +71,8 @@ typedef enum {
 	RF_STOP_CMAN = 0x2,
 	RF_DEBUG = 0x4,
 	RF_PARANOID = 0x8,
-	RF_ALLOW_KILL = 0x10
+	RF_ALLOW_KILL = 0x10,
+	RF_UPTIME = 0x20
 } run_flag_t;
 
 
