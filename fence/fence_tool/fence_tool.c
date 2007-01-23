@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 **  
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -29,6 +29,7 @@
 
 #include "ccs.h"
 #include "copyright.cf"
+#include "libcman.h"
 #include "libgroup.h"
 
 #ifndef TRUE
@@ -36,7 +37,7 @@
 #define FALSE 0
 #endif
 
-#define OPTION_STRING			("Vhcj:f:t:w")
+#define OPTION_STRING			("Vhcj:f:t:wQ")
 #define FENCED_SOCK_PATH                "fenced_socket"
 #define MAXLINE				256
 
@@ -57,7 +58,10 @@ while (0)
 char *prog_name;
 int operation;
 int child_wait = FALSE;
+int quorum_wait = TRUE;
 int fenced_start_timeout = 300; /* five minutes */
+int signalled = 0;
+cman_handle_t ch;
 
 static int get_int_arg(char argopt, char *arg)
 {
@@ -95,6 +99,11 @@ static int check_mounted(void)
 
 	fclose(file);
 	return 0;
+}
+
+static void sigalarm_handler(int sig)
+{
+	signalled = 1;
 }
 
 int fenced_connect(void)
@@ -135,6 +144,50 @@ static int we_are_in_fence_domain(void)
 	return gdata.member;
 }
 
+/*
+ * We wait for the cluster to be quorate in this program because it's easy to
+ * kill this program if we want to quit waiting.  If we just started fenced
+ * without waiting for quorum, fenced's join would then wait for quorum in SM
+ * but we can't kill/cancel it at that point -- we have to wait for it to
+ * complete.
+ *
+ * A second reason to wait for quorum is that the unfencing step involves
+ * cluster.conf lookups through ccs, but ccsd may wait for the cluster to be
+ * quorate before responding to the lookups.  There wouldn't be a problem
+ * blocking there per se, but it's cleaner I think to just wait here first.
+ *
+ * In the case where we're leaving, we want to wait for quorum because if we go
+ * ahead and shut down fenced, the fence domain leave will block in SM where it
+ * will wait for quorum before the leave can be processed.  We can't
+ * kill/cancel the leave at that point, but we can if we're waiting here.
+ *
+ * Waiting here doesn't guarantee we won't end up blocking in SM on the join or
+ * leave, but it avoids it in some common cases which can be helpful.  (Quorum
+ * could easily be lost between the time we wait for it here and then begin the
+ * join/leave process.)
+ */
+
+static int check_quorum(void)
+{
+	int rv = 0, i = 0;
+
+	while (!signalled) {
+		rv = cman_is_quorate(ch);
+		if (rv)
+			return TRUE;
+		else if (!quorum_wait)
+			return FALSE;
+
+		sleep(1);
+
+		if (!signalled && ++i > 9 && !(i % 10))
+			printf("%s: waiting for cluster quorum\n", prog_name);
+	}
+
+	errno = ETIMEDOUT;
+	return FALSE;
+}
+
 static int do_wait(int joining)
 {
 	int i;
@@ -155,6 +208,22 @@ static int do_join(int argc, char *argv[])
 {
 	int i, fd, rv;
 	char buf[MAXLINE];
+
+	ch = cman_init(NULL);
+
+	if (fenced_start_timeout) {
+		signal(SIGALRM, sigalarm_handler);
+		alarm(fenced_start_timeout);
+	}
+
+	if (!check_quorum()) {
+		if (errno == ETIMEDOUT)
+			printf("%s: Timed out waiting for cluster "
+			       "quorum to form.\n", prog_name);
+		cman_finish(ch);
+		return EXIT_FAILURE;
+	}
+	cman_finish(ch);
 
 	i = 0;
 	do {
@@ -253,6 +322,7 @@ static void print_usage(void)
 	printf("  -V               Print program version information, then exit\n");
 	printf("  -h               Print this help, then exit\n");
 	printf("  -t               Maximum time in seconds to wait\n");
+	printf("  -Q               Fail if cluster is not quorate, don't wait\n");
 	printf("\n");
 	printf("Fenced options:\n");
 	printf("  these are passed on to fenced when it's started\n");
@@ -282,6 +352,10 @@ static void decode_arguments(int argc, char *argv[])
 		case 'h':
 			print_usage();
 			exit(EXIT_SUCCESS);
+			break;
+
+		case 'Q':
+			quorum_wait = FALSE;
 			break;
 
 		case 'w':
