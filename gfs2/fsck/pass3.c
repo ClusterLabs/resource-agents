@@ -214,6 +214,8 @@ int pass3(struct gfs2_sbd *sbp)
 			/* FIXME: Change this so it returns success or
 			 * failure and put the parent inode in a
 			 * param */
+			if (skip_this_pass || fsck_abort) /* if asked to skip the rest */
+				return 0;
 			tdi = mark_and_return_parent(sbp, di);
 
 			/* FIXME: Factor this ? */

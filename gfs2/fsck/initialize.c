@@ -95,6 +95,7 @@ static void empty_super_block(struct gfs2_sbd *sdp)
 {
 	uint32_t i;
 
+	log_info("Freeing buffers.\n");
 	while(!osi_list_empty(&sdp->rglist)){
 		struct rgrp_list *rgd;
 
@@ -157,6 +158,12 @@ static int set_block_ranges(struct gfs2_sbd *sdp)
 	}
 
 	last_fs_block = rmax;
+	if (last_fs_block > 0xffffffff && sizeof(unsigned long) <= 4) {
+		log_crit("This file system is too big for this computer to handle.\n");
+		log_crit("Last fs block = 0x%llx, but sizeof(unsigned long) is %d bytes.\n",
+				 last_fs_block, sizeof(unsigned long));
+		goto fail;
+	}
 
 	last_data_block = rmax;
 	first_data_block = rmin;

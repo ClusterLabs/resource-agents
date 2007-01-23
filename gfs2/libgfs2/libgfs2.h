@@ -437,6 +437,7 @@ struct gfs2_options {
 	char *device;
 	int yes:1;
 	int no:1;
+	int query:1;
 };
 
 #define MSG_DEBUG       7

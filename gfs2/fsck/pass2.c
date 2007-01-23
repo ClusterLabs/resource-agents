@@ -757,8 +757,13 @@ int pass2(struct gfs2_sbd *sbp)
 		stack;
 		return -1;
 	}
+	log_info("Checking directory inodes.\n");
 	/* Grab each directory inode, and run checks on it */
 	for(i = 0; i < last_fs_block; i++) {
+		warm_fuzzy_stuff(i);
+		if (skip_this_pass || fsck_abort) /* if asked to skip the rest */
+			return 0;
+
 		/* Skip the root inode - it's checked above */
 		if(i == sbp->md.rooti->i_di.di_num.no_addr)
 			continue;

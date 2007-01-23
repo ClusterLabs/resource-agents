@@ -103,6 +103,7 @@ int query(struct gfs2_options *opts, const char *format, ...)
 	if(opts->no)
 		return 0;
 
+	opts->query = TRUE;
 	/* Watch stdin (fd 0) to see when it has input. */
 	FD_ZERO(&rfds);
 	FD_SET(STDIN_FILENO, &rfds);
@@ -150,5 +151,6 @@ int query(struct gfs2_options *opts, const char *format, ...)
 		read(STDIN_FILENO, &response, sizeof(char));
 	}
 
+	opts->query = FALSE;
 	return ret;
 }

@@ -48,6 +48,8 @@ int scan_inode_list(struct gfs2_sbd *sbp, osi_list_t *list) {
 	/* FIXME: should probably factor this out into a generic
 	 * scanning fxn */
 	osi_list_foreach(tmp, list) {
+		if (skip_this_pass || fsck_abort) /* if asked to skip the rest */
+			return 0;
 		f = not_updated;
 		if(!(ii = osi_list_entry(tmp, struct inode_info, list))) {
 			log_crit("osi_list_foreach broken in scan_info_list!!\n");
@@ -165,6 +167,8 @@ int pass4(struct gfs2_sbd *sbp)
 				  lf_dip->i_di.di_entries);
 	log_info("Checking inode reference counts.\n");
 	for (i = 0; i < FSCK_HASH_SIZE; i++) {
+		if (skip_this_pass || fsck_abort) /* if asked to skip the rest */
+			return 0;
 		list = &inode_hash[i];
 		if(scan_inode_list(sbp, list)) {
 			stack;

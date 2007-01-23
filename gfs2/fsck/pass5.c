@@ -77,7 +77,10 @@ int check_block_status(struct gfs2_sbd *sbp, char *buffer, unsigned int buflen,
 	while(byte < end) {
 		rg_status = ((*byte >> bit) & GFS2_BIT_MASK);
 		block = rg_data + *rg_block;
+		log_debug("Checking block %" PRIu64 "\n", block);
 		warm_fuzzy_stuff(block);
+		if (skip_this_pass || fsck_abort) /* if asked to skip the rest */
+			return 0;
 		gfs2_block_check(bl, block, &q);
 
 		block_status = convert_mark(q.block_type, count);
@@ -128,6 +131,8 @@ enum update_flags update_rgrp(struct gfs2_sbd *sbp, struct rgrp_list *rgp,
 		/* update the bitmaps */
 		check_block_status(sbp, rgp->bh[i]->b_data + bits->bi_offset,
 						   bits->bi_len, &rg_block, rgp->ri.ri_data0, count);
+		if (skip_this_pass || fsck_abort) /* if asked to skip the rest */
+			return 0;
 	}
 
 	/* actually adjust counters and write out to disk */
@@ -180,6 +185,8 @@ int pass5(struct gfs2_sbd *sbp)
 	for(tmp = sbp->rglist.next; tmp != &sbp->rglist; tmp = tmp->next){
 		enum update_flags f;
 
+		if (skip_this_pass || fsck_abort) /* if asked to skip the rest */
+			return 0;
 		log_info("Verifying Resource Group #%" PRIu64 "\n", rg_count);
 		memset(count, 0, sizeof(count));
 		rgp = osi_list_entry(tmp, struct rgrp_list, list);

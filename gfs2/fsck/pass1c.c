@@ -235,6 +235,8 @@ int pass1c(struct gfs2_sbd *sbp)
 	log_info("Looking for inodes containing ea blocks...\n");
 	while (!gfs2_find_next_block_type(bl, gfs2_eattr_block, &block_no)) {
 
+		if (skip_this_pass || fsck_abort) /* if asked to skip the rest */
+			return 0;
 		log_info("EA in inode %"PRIu64" (0x%" PRIx64 ")\n", block_no,
 				 block_no);
 		bh = bread(sbp, block_no);
