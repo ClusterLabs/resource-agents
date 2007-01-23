@@ -485,6 +485,7 @@ int write_sb(int disk_fd, struct gfs_sbd *sbp)
 		goto out;
 	}
 
+	memset(BH_DATA(bh), 0, sbp->sd_sb.sb_bsize);
 	gfs_sb_out(&sbp->sd_sb, BH_DATA(bh));
 
 	/* FIXME: Should this set the BW_WAIT flag? */
