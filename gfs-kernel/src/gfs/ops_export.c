@@ -25,6 +25,7 @@
 #include "glock.h"
 #include "glops.h"
 #include "inode.h"
+#include "ops_dentry.h"
 #include "ops_export.h"
 #include "rgrp.h"
 
@@ -271,6 +272,7 @@ gfs_get_parent(struct dentry *child)
 		return ERR_PTR(-ENOMEM);
 	}
 
+	dentry->d_op = &gfs_dops;
 	return dentry;
 
  fail:
@@ -389,6 +391,7 @@ gfs_get_dentry(struct super_block *sb, void *inump)
 		return ERR_PTR(-ENOMEM);
 	}
 
+	dentry->d_op = &gfs_dops;
 	return dentry;
 
  fail_relse:
