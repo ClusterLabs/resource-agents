@@ -29,6 +29,14 @@ do { \
 	} \
 } while (0)
 
+	
+#define list_prepend(list, newnode) \
+do { \
+	list_insert(list, newnode); \
+	*list = newnode; \
+} while (0)
+
+
 #define list_remove(list, oldnode) \
 do { \
 	if (le(oldnode) == le(*list)) { \
@@ -46,6 +54,11 @@ do { \
 	} \
 } while (0)
 
+/*
+   list_do(list, node) {
+   	stuff;
+   } while (!list_done(list, node));
+ */
 #define list_do(list, curr) \
 	if (*list && (curr = *list)) do
 
@@ -53,9 +66,29 @@ do { \
 	(curr && (((curr = (void *)le(curr)->le_next)) && (curr == *list)))
 
 /*
-   list_do(list, node) {
-   	stuff;
-   } while (!list_done(list, node));
+ * list_for(list, tmp, counter) {
+ *     stuff;
+ * }
+ * 
+ * counter = # of items in list when done.
+ * * sets cnt to 0 before even checking list;
+ * * checks for valid list
+ * * traverses list, incrementing counter.  If we get to the for loop,
+ *   there must be at least one item in the list
  */
+#define list_for(list, curr, cnt) \
+	if (!(cnt=0) && list && *list) \
+		for (curr = *list; \
+		     (cnt == 0) || (curr != *list); \
+		     curr = (void*)le(curr)->le_next, \
+		     cnt++)
+			
+#define list_for_rev(list, curr, cnt) \
+	if (!(cnt=0) && list && *list) \
+		for (curr = (void *)(le(*list)->le_prev); \
+		     (cnt == 0) || ((void *)curr != le(*list)->le_prev); \
+		     curr = (void*)(le(curr)->le_prev), \
+		     cnt++)
+				   
 
 #endif
