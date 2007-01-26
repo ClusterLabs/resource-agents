@@ -20,6 +20,7 @@
 #define FLAG_LOCAL 0x2
 #define FLAG_RGMGR 0x4
 #define FLAG_NOCFG 0x8	/* Shouldn't happen */
+#define FLAG_QDISK 0x10
 
 #define RG_VERBOSE 0x1
 
@@ -342,8 +343,8 @@ flag_nodes(cluster_member_list_t *all, cluster_member_list_t *these,
 cluster_member_list_t *
 add_missing(cluster_member_list_t *all, cluster_member_list_t *these)
 {
-	int x, y;
-	cman_node_t *m, *new;
+	int x, y, addflag;
+	cman_node_t *m, *nn;
 
 	if (!these)
 		return all;
@@ -356,12 +357,8 @@ add_missing(cluster_member_list_t *all, cluster_member_list_t *these)
 				    these->cml_members[x].cn_name))
                         	m = &all->cml_members[y];
 		}
-
+        	
 		if (!m) {
-			printf("%s not found\n", these->cml_members[x].cn_name);
-			/* WTF? It's not in our config */
-			printf("realloc %d\n", (int)((all->cml_count+1) *
-			       sizeof(cman_node_t)));
 			all->cml_members = realloc(all->cml_members,
 						   (all->cml_count+1) *
 						   sizeof(cman_node_t));
@@ -370,15 +367,21 @@ add_missing(cluster_member_list_t *all, cluster_member_list_t *these)
 				exit(1);
 			}
 			
-			new = &all->cml_members[all->cml_count];
+			nn = &all->cml_members[all->cml_count];
 
-			memcpy(new, &these->cml_members[x],
+			memcpy(nn, &these->cml_members[x],
 			       sizeof(cman_node_t));
-
-			if (new->cn_member) {
-				new->cn_member = FLAG_UP | FLAG_NOCFG;
+			
+			if (nn->cn_nodeid == 0) { /* quorum disk? */
+				addflag = FLAG_QDISK;
 			} else {
-				new->cn_member = FLAG_NOCFG;
+				addflag = FLAG_NOCFG;
+			}
+
+			if (nn->cn_member) {
+				nn->cn_member = FLAG_UP | addflag;
+			} else {
+				nn->cn_member = addflag;
 			}
 			++all->cml_count;
 
@@ -612,9 +615,12 @@ txt_member_state(cman_node_t *node)
 	
 	if (node->cn_member & FLAG_NOCFG)
 		printf(", Estranged");
-
+	
 	if (node->cn_member & FLAG_RGMGR)
 		printf(", rgmanager");
+	
+	if (node->cn_member & FLAG_QDISK)
+		printf(", Quorum Disk");
 
 	printf("\n");
 		
@@ -626,12 +632,13 @@ void
 xml_member_state(cman_node_t *node)
 {
 	printf("    <node name=\"%s\" state=\"%d\" local=\"%d\" "
-	       "estranged=\"%d\" rgmanager=\"%d\" nodeid=\"0x%08x\"/>\n",
+	       "estranged=\"%d\" rgmanager=\"%d\" qdisk=\"%d\" nodeid=\"0x%08x\"/>\n",
 	       node->cn_name,
 	       !!(node->cn_member & FLAG_UP),
 	       !!(node->cn_member & FLAG_LOCAL),
 	       !!(node->cn_member & FLAG_NOCFG),
 	       !!(node->cn_member & FLAG_RGMGR),
+	       !!(node->cn_member & FLAG_QDISK),
 	       (uint32_t)((node->cn_nodeid      )&0xffffffff));
 }
 
