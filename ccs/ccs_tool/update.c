@@ -243,6 +243,8 @@ int update(char *location)
   swab_header(ch);
   
   for (i = 0; i < members->count; i++) {
+    if (members->nodes[i].cn_nodeid == 0)
+      continue;
     fd = ccs_open(members->nodes[i], cluster_base_port, 5);
 
     if (fd < 0) {
@@ -292,6 +294,8 @@ int update(char *location)
   swab_header(ch);
 
   for (i=0; i < members->count; i++) {
+    if (members->nodes[i].cn_nodeid == 0)
+      continue;
     fd = ccs_open(members->nodes[i], cluster_base_port, 5);
     if(fd < 0){
       fprintf(stderr, "Unable to open connection to %s: %s\n",
