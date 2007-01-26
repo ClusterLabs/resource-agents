@@ -71,8 +71,13 @@ getuptime(struct timeval *tv)
 	if (!fp)
 		return -1;
 
+#if defined(__sparc__) || defined(__hppa__) || defined(__sparc64__) || defined (__hppa64__)
+	rv = fscanf(fp,"%ld.%d %ld.%d\n", &tv->tv_sec, &tv->tv_usec,
+		    &junk.tv_sec, &junk.tv_usec);
+#else
 	rv = fscanf(fp,"%ld.%ld %ld.%ld\n", &tv->tv_sec, &tv->tv_usec,
 		    &junk.tv_sec, &junk.tv_usec);
+#endif
 	fclose(fp);
 	
 	if (rv != 4) {
