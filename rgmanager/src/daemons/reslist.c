@@ -28,6 +28,9 @@
 #include <list.h>
 #include <reslist.h>
 #include <pthread.h>
+#ifndef NO_CCS
+#include <clulog.h>
+#endif
 
 
 char *attr_value(resource_node_t *node, char *attrname);
@@ -261,6 +264,8 @@ find_resource_by_ref(resource_t **reslist, char *type, char *ref)
 
 /**
    Find a root resource by ref (service, usually).  No name is required.
+   Only one type of root resource may exist because of the primary
+   attribute flag
 
    @param reslist	List of resources to traverse.
    @param ref		Reference
@@ -359,12 +364,29 @@ store_resource(resource_t **reslist, resource_t *newres)
 					/*
 					   Unique/primary is not unique
 					 */
-					printf("Unique/primary not unique "
-					       "type %s, %s=%s\n",
+#ifdef NO_CCS
+					printf("Error: "
+                                               "%s attribute collision. "
+                                               "type=%s attr=%s value=%s\n",
+					       (newres->r_attrs[x].ra_flags&
+                                                RA_PRIMARY)?"Primary":
+                                               "Unique",
 					       newres->r_rule->rr_type,
 					       newres->r_attrs[x].ra_name,
 					       newres->r_attrs[x].ra_value
 					       );
+#else 
+					clulog(LOG_ERR,
+                                               "%s attribute collision. "
+                                               "type=%s attr=%s value=%s\n",
+					       (newres->r_attrs[x].ra_flags&
+                                                RA_PRIMARY)?"Primary":
+                                               "Unique",
+					       newres->r_rule->rr_type,
+					       newres->r_attrs[x].ra_name,
+					       newres->r_attrs[x].ra_value
+					       );
+#endif
 					return -1;
 				}
 				break;
@@ -756,14 +778,21 @@ load_resources(int ccsfd, resource_t **reslist, resource_rule_t **rulelist)
 		for (resID = 1; ; resID++) {
 			snprintf(tok, sizeof(tok), RESOURCE_BASE "/%s[%d]",
 				 currule->rr_type, resID);
-
+			
 			newres = load_resource(ccsfd, currule, tok);
 			if (!newres)
 				break;
 
 		       if (store_resource(reslist, newres) != 0) {
+#ifdef NO_CCS
 	       		       printf("Error storing %s resource\n",
 				      newres->r_rule->rr_type);
+#else
+	       		       clulog(LOG_ERR,
+				      "Error storing %s resource\n",
+				      newres->r_rule->rr_type);
+#endif
+
 			       destroy_resource(newres);
 		       }
 

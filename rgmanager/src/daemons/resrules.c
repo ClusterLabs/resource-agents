@@ -31,7 +31,9 @@
 #include <pthread.h>
 #include <dirent.h>
 #include <libgen.h>
+#ifndef NO_CCS
 #include <clulog.h>
+#endif
 
 
 /**
@@ -46,11 +48,16 @@ int
 store_rule(resource_rule_t **rulelist, resource_rule_t *newrule)
 {
 	resource_rule_t *curr;
-	
+
 	list_do(rulelist, curr) {
 		if (!strcasecmp(newrule->rr_type, curr->rr_type)) {
+#ifdef NO_CCS
 			fprintf(stderr, "Error storing %s: Duplicate\n",
 				newrule->rr_type);
+#else
+			clulog(LOG_ERR, "Error storing %s: Duplicate\n",
+			       newrule->rr_type);
+#endif
 			return -1;
 		}
 
@@ -920,9 +927,15 @@ load_resource_rulefile(char *filename, resource_rule_t **rules)
 			break;
 		
 		if (!strcasecmp(type, "action")) {
+#ifdef NO_CCS
 			fprintf(stderr,
 				"Error: Resource type '%s' is reserved",
 				type);
+#else
+			clulog(LOG_ERR,
+				"Error: Resource type '%s' is reserved",
+				type);
+#endif
 			free(type);
 			break;
 		}

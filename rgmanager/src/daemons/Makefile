@@ -59,7 +59,7 @@ clurgmgrd: rg_thread.o rg_locks.o main.o groups.o  \
 # packages should run 'make check' as part of the build process.
 #
 rg_test: rg_locks-noccs.o test-noccs.o reslist-noccs.o \
-		resrules.o restree-noccs.o fo_domain-noccs.o
+		resrules-noccs.o restree-noccs.o fo_domain-noccs.o
 	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS) -llalloc $(LDFLAGS) -lccs -lcman
 
 clurmtabd: clurmtabd.o clurmtabd_lib.o
