@@ -4,28 +4,31 @@ Agent: script.sh
 Attributes:
   name = initscript [ primary unique ]
   file = /etc/init.d/sshd [ unique required ]
+  service_name [ inherit("service%name") ]
 
-Resource type: service [ROOT]
+Resource type: service
 Instances: 1/1
 Agent: service.sh
 Attributes:
   name = test1 [ primary unique required ]
 
 === New Resource List ===
-Resource type: script
-Agent: script.sh
-Attributes:
-  name = initscript [ primary unique ]
-  file = /etc/init.d/sshd [ unique required ]
-
 Resource type: ip [NEEDSTART]
 Instances: 1/1
 Agent: ip.sh
 Attributes:
   address = 192.168.1.2 [ primary unique ]
   monitor_link = 1
+  nfslock [ inherit("service%nfslock") ]
 
-Resource type: service [ROOT]
+Resource type: script
+Agent: script.sh
+Attributes:
+  name = initscript [ primary unique ]
+  file = /etc/init.d/sshd [ unique required ]
+  service_name [ inherit("service%name") ]
+
+Resource type: service
 Instances: 1/1
 Agent: service.sh
 Attributes:
@@ -37,6 +40,7 @@ service {
   script {
     name = "initscript";
     file = "/etc/init.d/sshd";
+    service_name = "test1";
   }
 }
 === New Resource Tree ===
@@ -45,9 +49,10 @@ service {
   ip [ NEEDSTART ] {
     address = "192.168.1.2";
     monitor_link = "1";
-  }
+      }
   script {
     name = "initscript";
     file = "/etc/init.d/sshd";
+    service_name = "test1";
   }
 }

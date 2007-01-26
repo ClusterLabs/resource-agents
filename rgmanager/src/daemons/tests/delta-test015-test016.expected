@@ -1,45 +1,5 @@
 Warning: Max references exceeded for resource address (type ip)
 === Old Resource List ===
-Resource type: nfsclient
-Agent: nfsclient.sh
-Attributes:
-  name = User group [ primary unique ]
-  target = @users [ required ]
-  path [ inherit("path") ]
-  options = rw,sync
-
-Resource type: nfsclient
-Agent: nfsclient.sh
-Attributes:
-  name = Admin group [ primary unique ]
-  target = @admin [ required ]
-  path [ inherit("path") ]
-  options = rw
-
-Resource type: nfsclient
-Agent: nfsclient.sh
-Attributes:
-  name = yellow [ primary unique ]
-  target = yellow [ required ]
-  path [ inherit("path") ]
-  options = rw,no_root_squash
-
-Resource type: nfsclient
-Agent: nfsclient.sh
-Attributes:
-  name = magenta [ primary unique ]
-  target = magenta [ required ]
-  path [ inherit("path") ]
-  options = rw,no_root_squash
-
-Resource type: nfsclient
-Agent: nfsclient.sh
-Attributes:
-  name = red [ primary unique ]
-  target = red [ required ]
-  path [ inherit("path") ]
-  options = rw
-
 Resource type: fs
 Instances: 1/1
 Agent: fs.sh
@@ -48,6 +8,7 @@ Attributes:
   mountpoint = /mnt/cluster [ unique required ]
   device = /dev/sdb8 [ unique required ]
   fstype = ext3
+  nfslock [ inherit("service%nfslock") ]
 
 Resource type: fs
 Instances: 1/1
@@ -57,12 +18,7 @@ Attributes:
   mountpoint = /mnt/cluster2 [ unique required ]
   device = /dev/sdb9 [ unique required ]
   fstype = ext3
-
-Resource type: script
-Agent: script.sh
-Attributes:
-  name = initscript [ primary unique ]
-  file = /etc/init.d/sshd [ unique required ]
+  nfslock [ inherit("service%nfslock") ]
 
 Resource type: ip
 Instances: 1/1
@@ -70,6 +26,7 @@ Agent: ip.sh
 Attributes:
   address = 192.168.1.3 [ primary unique ]
   monitor_link = yes
+  nfslock [ inherit("service%nfslock") ]
 
 Resource type: ip
 Instances: 1/1
@@ -77,6 +34,52 @@ Agent: ip.sh
 Attributes:
   address = 192.168.1.4 [ primary unique ]
   monitor_link = yes
+  nfslock [ inherit("service%nfslock") ]
+
+Resource type: nfsclient
+Agent: nfsclient.sh
+Attributes:
+  name = User group [ primary unique ]
+  target = @users [ required ]
+  path [ inherit("path") ]
+  fsid [ inherit("fsid") ]
+  options = rw,sync
+
+Resource type: nfsclient
+Agent: nfsclient.sh
+Attributes:
+  name = Admin group [ primary unique ]
+  target = @admin [ required ]
+  path [ inherit("path") ]
+  fsid [ inherit("fsid") ]
+  options = rw
+
+Resource type: nfsclient
+Agent: nfsclient.sh
+Attributes:
+  name = yellow [ primary unique ]
+  target = yellow [ required ]
+  path [ inherit("path") ]
+  fsid [ inherit("fsid") ]
+  options = rw,no_root_squash
+
+Resource type: nfsclient
+Agent: nfsclient.sh
+Attributes:
+  name = magenta [ primary unique ]
+  target = magenta [ required ]
+  path [ inherit("path") ]
+  fsid [ inherit("fsid") ]
+  options = rw,no_root_squash
+
+Resource type: nfsclient
+Agent: nfsclient.sh
+Attributes:
+  name = red [ primary unique ]
+  target = red [ required ]
+  path [ inherit("path") ]
+  fsid [ inherit("fsid") ]
+  options = rw
 
 Resource type: nfsexport
 Agent: nfsexport.sh
@@ -84,60 +87,28 @@ Attributes:
   name = Dummy Export [ primary ]
   device [ inherit("device") ]
   path [ inherit("mountpoint") ]
+  fsid [ inherit("fsid") ]
 
-Resource type: service [ROOT]
+Resource type: script
+Agent: script.sh
+Attributes:
+  name = initscript [ primary unique ]
+  file = /etc/init.d/sshd [ unique required ]
+  service_name [ inherit("service%name") ]
+
+Resource type: service
 Instances: 1/1
 Agent: service.sh
 Attributes:
   name = test1 [ primary unique required ]
 
-Resource type: service [ROOT]
+Resource type: service
 Instances: 1/1
 Agent: service.sh
 Attributes:
   name = test2 [ primary unique required ]
 
 === New Resource List ===
-Resource type: nfsclient
-Agent: nfsclient.sh
-Attributes:
-  name = User group [ primary unique ]
-  target = @users [ required ]
-  path [ inherit("path") ]
-  options = rw,sync
-
-Resource type: nfsclient
-Agent: nfsclient.sh
-Attributes:
-  name = Admin group [ primary unique ]
-  target = @admin [ required ]
-  path [ inherit("path") ]
-  options = rw
-
-Resource type: nfsclient
-Agent: nfsclient.sh
-Attributes:
-  name = yellow [ primary unique ]
-  target = yellow [ required ]
-  path [ inherit("path") ]
-  options = rw,no_root_squash
-
-Resource type: nfsclient
-Agent: nfsclient.sh
-Attributes:
-  name = magenta [ primary unique ]
-  target = magenta [ required ]
-  path [ inherit("path") ]
-  options = rw,no_root_squash
-
-Resource type: nfsclient
-Agent: nfsclient.sh
-Attributes:
-  name = red [ primary unique ]
-  target = red [ required ]
-  path [ inherit("path") ]
-  options = rw
-
 Resource type: fs
 Instances: 1/1
 Agent: fs.sh
@@ -146,6 +117,7 @@ Attributes:
   mountpoint = /mnt/cluster [ unique required ]
   device = /dev/sdb8 [ unique required ]
   fstype = ext3
+  nfslock [ inherit("service%nfslock") ]
 
 Resource type: fs
 Instances: 1/1
@@ -155,12 +127,7 @@ Attributes:
   mountpoint = /mnt/cluster2 [ unique required ]
   device = /dev/sdb9 [ unique required ]
   fstype = ext3
-
-Resource type: script
-Agent: script.sh
-Attributes:
-  name = initscript [ primary unique ]
-  file = /etc/init.d/sshd [ unique required ]
+  nfslock [ inherit("service%nfslock") ]
 
 Resource type: ip
 Instances: 1/1
@@ -168,6 +135,7 @@ Agent: ip.sh
 Attributes:
   address = 192.168.1.3 [ primary unique ]
   monitor_link = yes
+  nfslock [ inherit("service%nfslock") ]
 
 Resource type: ip
 Instances: 1/1
@@ -175,6 +143,52 @@ Agent: ip.sh
 Attributes:
   address = 192.168.1.4 [ primary unique ]
   monitor_link = yes
+  nfslock [ inherit("service%nfslock") ]
+
+Resource type: nfsclient
+Agent: nfsclient.sh
+Attributes:
+  name = User group [ primary unique ]
+  target = @users [ required ]
+  path [ inherit("path") ]
+  fsid [ inherit("fsid") ]
+  options = rw,sync
+
+Resource type: nfsclient
+Agent: nfsclient.sh
+Attributes:
+  name = Admin group [ primary unique ]
+  target = @admin [ required ]
+  path [ inherit("path") ]
+  fsid [ inherit("fsid") ]
+  options = rw
+
+Resource type: nfsclient
+Agent: nfsclient.sh
+Attributes:
+  name = yellow [ primary unique ]
+  target = yellow [ required ]
+  path [ inherit("path") ]
+  fsid [ inherit("fsid") ]
+  options = rw,no_root_squash
+
+Resource type: nfsclient
+Agent: nfsclient.sh
+Attributes:
+  name = magenta [ primary unique ]
+  target = magenta [ required ]
+  path [ inherit("path") ]
+  fsid [ inherit("fsid") ]
+  options = rw,no_root_squash
+
+Resource type: nfsclient
+Agent: nfsclient.sh
+Attributes:
+  name = red [ primary unique ]
+  target = red [ required ]
+  path [ inherit("path") ]
+  fsid [ inherit("fsid") ]
+  options = rw
 
 Resource type: nfsexport
 Agent: nfsexport.sh
@@ -182,14 +196,22 @@ Attributes:
   name = Dummy Export [ primary ]
   device [ inherit("device") ]
   path [ inherit("mountpoint") ]
+  fsid [ inherit("fsid") ]
 
-Resource type: service [ROOT]
+Resource type: script
+Agent: script.sh
+Attributes:
+  name = initscript [ primary unique ]
+  file = /etc/init.d/sshd [ unique required ]
+  service_name [ inherit("service%name") ]
+
+Resource type: service
 Instances: 1/1
 Agent: service.sh
 Attributes:
   name = test1 [ primary unique required ]
 
-Resource type: service [ROOT]
+Resource type: service
 Instances: 1/1
 Agent: service.sh
 Attributes:
@@ -203,37 +225,38 @@ service {
     mountpoint = "/mnt/cluster";
     device = "/dev/sdb8";
     fstype = "ext3";
-    nfsexport {
+        nfsexport {
       name = "Dummy Export";
       device = "/dev/sdb8";
       path = "/mnt/cluster";
-      nfsclient {
+            nfsclient {
         name = "Admin group";
         target = "@admin";
         path = "/mnt/cluster";
-        options = "rw";
+                options = "rw";
       }
       nfsclient {
         name = "User group";
         target = "@users";
         path = "/mnt/cluster";
-        options = "rw,sync";
+                options = "rw,sync";
       }
       nfsclient {
         name = "red";
         target = "red";
         path = "/mnt/cluster";
-        options = "rw";
+                options = "rw";
       }
     }
   }
   ip {
     address = "192.168.1.3";
     monitor_link = "yes";
-  }
+      }
   script {
     name = "initscript";
     file = "/etc/init.d/sshd";
+    service_name = "test1";
   }
 }
 service {
@@ -243,37 +266,38 @@ service {
     mountpoint = "/mnt/cluster2";
     device = "/dev/sdb9";
     fstype = "ext3";
-    nfsexport {
+        nfsexport {
       name = "Dummy Export";
       device = "/dev/sdb9";
       path = "/mnt/cluster2";
-      nfsclient {
+            nfsclient {
         name = "Admin group";
         target = "@admin";
         path = "/mnt/cluster2";
-        options = "rw";
+                options = "rw";
       }
       nfsclient {
         name = "User group";
         target = "@users";
         path = "/mnt/cluster2";
-        options = "rw,sync";
+                options = "rw,sync";
       }
       nfsclient {
         name = "red";
         target = "red";
         path = "/mnt/cluster2";
-        options = "rw";
+                options = "rw";
       }
     }
   }
   ip {
     address = "192.168.1.4";
     monitor_link = "yes";
-  }
+      }
   script {
     name = "initscript";
     file = "/etc/init.d/sshd";
+    service_name = "test2";
   }
 }
 === New Resource Tree ===
@@ -284,37 +308,38 @@ service {
     mountpoint = "/mnt/cluster";
     device = "/dev/sdb8";
     fstype = "ext3";
-    nfsexport {
+        nfsexport {
       name = "Dummy Export";
       device = "/dev/sdb8";
       path = "/mnt/cluster";
-      nfsclient {
+            nfsclient {
         name = "Admin group";
         target = "@admin";
         path = "/mnt/cluster";
-        options = "rw";
+                options = "rw";
       }
       nfsclient {
         name = "User group";
         target = "@users";
         path = "/mnt/cluster";
-        options = "rw,sync";
+                options = "rw,sync";
       }
       nfsclient {
         name = "red";
         target = "red";
         path = "/mnt/cluster";
-        options = "rw";
+                options = "rw";
       }
     }
   }
   ip {
     address = "192.168.1.3";
     monitor_link = "yes";
-  }
+      }
   script {
     name = "initscript";
     file = "/etc/init.d/sshd";
+    service_name = "test1";
   }
 }
 service {
@@ -324,36 +349,37 @@ service {
     mountpoint = "/mnt/cluster2";
     device = "/dev/sdb9";
     fstype = "ext3";
-    nfsexport {
+        nfsexport {
       name = "Dummy Export";
       device = "/dev/sdb9";
       path = "/mnt/cluster2";
-      nfsclient {
+            nfsclient {
         name = "Admin group";
         target = "@admin";
         path = "/mnt/cluster2";
-        options = "rw";
+                options = "rw";
       }
       nfsclient {
         name = "User group";
         target = "@users";
         path = "/mnt/cluster2";
-        options = "rw,sync";
+                options = "rw,sync";
       }
       nfsclient {
         name = "red";
         target = "red";
         path = "/mnt/cluster2";
-        options = "rw";
+                options = "rw";
       }
     }
   }
   ip {
     address = "192.168.1.4";
     monitor_link = "yes";
-  }
+      }
   script {
     name = "initscript";
     file = "/etc/init.d/sshd";
+    service_name = "test2";
   }
 }

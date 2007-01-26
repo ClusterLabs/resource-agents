@@ -1,5 +1,5 @@
 === Old Resource List ===
-Resource type: service [ROOT]
+Resource type: service
 Instances: 1/1
 Agent: service.sh
 Attributes:
@@ -11,8 +11,9 @@ Agent: script.sh
 Attributes:
   name = initscript [ primary unique ]
   file = /etc/init.d/httpd [ unique required ]
+  service_name [ inherit("service%name") ]
 
-Resource type: service [ROOT]
+Resource type: service
 Instances: 1/1
 Agent: service.sh
 Attributes:
@@ -28,5 +29,6 @@ service {
   script [ NEEDSTART ] {
     name = "initscript";
     file = "/etc/init.d/httpd";
+    service_name = "test1";
   }
 }

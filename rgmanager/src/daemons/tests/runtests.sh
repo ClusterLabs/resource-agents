@@ -23,11 +23,17 @@ echo "Running sanity+memory leak checks on rgmanager tree operations..."
 for t in $TESTS; do
 	echo -n "  Checking $t.conf..."
 	../rg_test ../../resources test $t.conf > $t.out 2> $t.out.stderr
-	diff -w $t.expected $t.out
+	diff -uw $t.expected $t.out
 	if [ $? -ne 0 ]; then
 		echo "FAILED"
 		echo "*** Basic Test $t failed"
-		exit 1
+		echo -n "Accept new output [y/N] ? "
+		read ovr
+		if [ "$ovr" = "y" ]; then
+			cp $t.out $t.expected
+		else 
+			exit 1
+		fi
 	fi
 	if grep -q "allocation trace" $t.out.stderr; then
 		echo "FAILED - memory leak"
@@ -54,11 +60,17 @@ for t in $TESTS; do
 	echo -n "  Checking delta between $prev and $t..."
 	../rg_test ../../resources delta \
 		$prev.conf $t.conf > delta-$prev-$t.out 2> delta-$prev-$t.out.stderr
-	diff -w delta-$prev-$t.expected delta-$prev-$t.out 
+	diff -uw delta-$prev-$t.expected delta-$prev-$t.out 
 	if [ $? -ne 0 ]; then
 		echo "FAILED"
 		echo "*** Differential test between $prev and $t failed"
-		exit 1
+		echo -n "Accept new output [y/N] ? "
+		read ovr
+		if [ "$ovr" = "y" ]; then
+			cp delta-$prev-$t.out delta-$prev-$t.expected
+		else 
+			exit 1
+		fi
 	fi
 	if grep -q "allocation trace" delta-$prev-$t.out.stderr; then
 		echo "FAILED - memory leak"
