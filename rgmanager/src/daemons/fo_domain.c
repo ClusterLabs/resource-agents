@@ -65,11 +65,12 @@
 int group_property(char *, char *, char *, size_t);
 
 fod_node_t *
-get_node(int ccsfd, char *base, int idx, fod_t *domain)
+fod_get_node(int ccsfd, char *base, int idx, fod_t *domain)
 {
 	fod_node_t *fodn;
 	char xpath[256];
-	char *ret;
+	char *ret, *nid;
+	int nodeid;
 
 	snprintf(xpath, sizeof(xpath), "%s/failoverdomainnode[%d]/@name",
 		 base, idx);
@@ -86,6 +87,20 @@ get_node(int ccsfd, char *base, int idx, fod_t *domain)
 		return NULL;
 	} while (!list_done(&domain->fd_nodes, fodn));
 
+	snprintf(xpath, sizeof(xpath),
+		 "/cluster/clusternodes/clusternode[@name=\"%s\"]/@nodeid",
+		 ret);
+	if ((ccs_get(ccsfd, xpath, &nid) == 0) && nid) {
+		nodeid = atoi(nid);
+		free(nid);
+	} else {
+		clulog(LOG_ERR, "#XX: Node %s in domain %s is not in "
+				"the configuration\n", ret, domain->fd_name);
+		/* No nodeid == bad failover domain */
+		free(ret);
+		return NULL;
+	}
+
 	fodn = malloc(sizeof(*fodn));
 	if (!fodn)
 		return NULL;
@@ -94,7 +109,8 @@ get_node(int ccsfd, char *base, int idx, fod_t *domain)
 	/* Already malloc'd; simply store */
 	fodn->fdn_name = ret;
 	fodn->fdn_prio = 0;
-
+	fodn->fdn_nodeid = nodeid;
+	
 	snprintf(xpath, sizeof(xpath), "%s/failoverdomainnode[%d]/@priority",
 		 base, idx);
 	if (ccs_get(ccsfd, xpath, &ret) != 0)
@@ -110,10 +126,10 @@ get_node(int ccsfd, char *base, int idx, fod_t *domain)
 
 
 fod_t *
-get_domain(int ccsfd, char *base, int idx, fod_t **domains)
+fod_get_domain(int ccsfd, char *base, int idx, fod_t **domains)
 {
 	fod_t *fod;
-	fod_node_t *fodn;
+	fod_node_t *fodn, *curr;
 	char xpath[256];
 	char *ret;
 	int x = 1;
@@ -169,12 +185,22 @@ get_domain(int ccsfd, char *base, int idx, fod_t **domains)
 		 base, idx);
 
 	do {
-		fodn = get_node(ccsfd, xpath, x++, fod);
+		fodn = fod_get_node(ccsfd, xpath, x++, fod);
 		if (fodn) {
+			/*
+			list_do(&fod->fd_nodes, curr) {
+				// insert sorted 
+				if (fodn->fdn_prio < curr->fdn_prio) {
+					list_insert(&fod->fd_nodes, fodn);
+					if (curr == fod->fd_nodes)
+						fod->fd_nodes = fodn;
+				}
+			} while (!list_done(&fod->fd_nodes, curr));
+			*/
 			list_insert(&fod->fd_nodes, fodn);
 		}
 	} while (fodn);
-
+	
 	return fod;
 }
 
@@ -190,13 +216,29 @@ construct_domains(int ccsfd, fod_t **domains)
 		 RESOURCE_TREE_ROOT "/failoverdomains");
 
 	do {
-		fod = get_domain(ccsfd, xpath, x++, domains);
+		fod = fod_get_domain(ccsfd, xpath, x++, domains);
 		if (fod) {
 			list_insert(domains, fod);
 		}
 	} while (fod);
 
 	return 0;
+}
+
+
+fod_t *
+fod_find_domain(fod_t **domains, char *name)
+{
+	fod_t *dom;
+	
+	list_do(domains, dom) {
+		
+		if (!strcasecmp(dom->fd_name, name))
+			return dom;
+	
+	} while (!list_done(domains,dom));
+	
+	return NULL;
 }
 
 
@@ -244,8 +286,12 @@ print_domains(fod_t **domains)
 		}
 
 		list_do(&fod->fd_nodes, fodn) {
-			printf("  Node %s (priority %d)\n",
+			printf("  Node %s priority %d",
 			       fodn->fdn_name, fodn->fdn_prio);
+			if (fodn->fdn_nodeid) {
+				printf(" nodeid %d", fodn->fdn_nodeid);
+			}
+			printf("\n");
 		} while (!list_done(&fod->fd_nodes, fodn));
 	} while (!list_done(domains, fod));
 }

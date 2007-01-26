@@ -632,6 +632,7 @@ _print_resource_tree(resource_node_t **tree, int level)
 {
 	resource_node_t *node;
 	int x, y;
+	char *val;
 
 	list_do(tree, node) {
 		for (x = 0; x < level; x++)
@@ -654,11 +655,14 @@ _print_resource_tree(resource_node_t **tree, int level)
 		     node->rn_resource->r_attrs[x].ra_value; x++) {
 			for (y = 0; y < level+1; y++)
 				printf("  ");
+
+			val = attr_value(node,
+					 node->rn_resource->r_attrs[x].ra_name);
+			if (!val &&
+			    node->rn_resource->r_attrs[x].ra_flags&RA_INHERIT)
+				continue;
 			printf("%s = \"%s\";\n",
-			       node->rn_resource->r_attrs[x].ra_name,
-			       attr_value(node,
-					  node->rn_resource->r_attrs[x].ra_name)
-			      );
+			       node->rn_resource->r_attrs[x].ra_name, val);
 		}
 
 		_print_resource_tree(&node->rn_child, level + 1);

@@ -46,16 +46,28 @@ int
 store_rule(resource_rule_t **rulelist, resource_rule_t *newrule)
 {
 	resource_rule_t *curr;
-
+	
 	list_do(rulelist, curr) {
-		if (!strcmp(newrule->rr_type, curr->rr_type)) {
+		if (!strcasecmp(newrule->rr_type, curr->rr_type)) {
 			fprintf(stderr, "Error storing %s: Duplicate\n",
 				newrule->rr_type);
 			return -1;
 		}
 
 	} while (!list_done(rulelist, curr));
-			
+	
+	/* insert sorted in alphabetical order so rg_test produces
+	 * reproducible output all the time */
+	list_do(rulelist, curr) {
+		if (strcasecmp(newrule->rr_type, curr->rr_type) < 0) {
+			list_insert(&curr, newrule);
+			/* reset list if we have a new low */
+			if (curr == *rulelist)
+				*rulelist = newrule;
+			return 0;
+		}
+	} while (!list_done(rulelist, curr));
+		
 	list_insert(rulelist, newrule);
 	return 0;
 }
@@ -218,17 +230,36 @@ expand_time(char *val)
 }
 
 
+/**
+ * Store a resource action
+ * @param actsp		Action array; may be modified and returned!
+ * @param name		Name of the action
+ * @param depth		Resource depth (status/monitor; -1 means *ALL LEVELS*
+ * 			... this means that only the highest-level check depth
+ * 			will ever be performed!)
+ * @param timeout	Timeout (not used)
+ * @param interval	Time interval for status/monitor
+ * @return		0 on success, -1 on failure
+ * 
+ */
 int
 store_action(resource_act_t **actsp, char *name, int depth,
 	     int timeout, int interval)
 {
-	int x = 0;
+	int x = 0, replace = 0;
 	resource_act_t *acts = *actsp;
 
 	if (!name)
 		return -1;
+	
+	if (depth < 0 && timeout < 0 && interval < 0)
+		return -1;
 
 	if (!acts) {
+		/* Can't create with anything < 0 */
+		if (depth < 0 || timeout < 0 || interval < 0)
+			return -1;
+		
 		acts = malloc(sizeof(resource_act_t) * 2);
 		if (!acts)
 			return -1;
@@ -244,17 +275,38 @@ store_action(resource_act_t **actsp, char *name, int depth,
 
 	for (x = 0; acts[x].ra_name; x++) {
 		if (!strcmp(acts[x].ra_name, name) &&
-		    depth == acts[x].ra_depth) {
-			printf("Skipping duplicate action/depth %s/%d\n",
-			       name, depth);
-			return -1;
+		    (depth == acts[x].ra_depth || depth == -1)) {
+			printf("Replacing action '%s' depth %d: ",
+			       name, acts[x].ra_depth);
+			if (timeout >= 0) {
+				printf("timeout: %d->%d ",
+				       (int)acts[x].ra_timeout,
+				       (int)timeout);
+				acts[x].ra_timeout = timeout;
+			}
+			if (interval >= 0) {
+				printf("interval: %d->%d",
+				       (int)acts[x].ra_interval,
+				       (int)interval);
+				acts[x].ra_interval = interval;
+			}
+			printf("\n");
+			replace = 1;
 		}
 	}
+	
+	if (replace)
+		/* If we replaced something, we're done */
+		return 1;
+	
+	/* Can't create with anything < 0 */
+	if (depth < 0 || timeout < 0 || interval < 0)
+		return -1;
 
 	acts = realloc(acts, sizeof(resource_act_t) * (x+2));
 	if (!acts)
 		return -1;
-
+	
 	acts[x].ra_name = name;
 	acts[x].ra_depth = depth;
 	acts[x].ra_timeout = timeout;
@@ -265,6 +317,7 @@ store_action(resource_act_t **actsp, char *name, int depth,
 	*actsp = acts;
 	return 0;
 }
+
 
 
 void
@@ -294,8 +347,8 @@ _get_actions(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
 		ret = xpath_get_one(doc, ctx, xpath);
 		if (ret) {
 			timeout = expand_time(ret);
-			if (interval < 0)
-				interval = 0;
+			if (timeout < 0)
+				timeout = 0;
 			free(ret);
 		}
 
@@ -322,9 +375,8 @@ _get_actions(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
 		}
 
 		if (store_action(&rr->rr_actions, act, depth, timeout,
-				 interval) < 0)
+				 interval) != 0)
 			free(act);
-		
 	} while (1);
 }
 
@@ -866,6 +918,14 @@ load_resource_rulefile(char *filename, resource_rule_t **rules)
 		type = xpath_get_one(doc, ctx, base);
 		if (!type)
 			break;
+		
+		if (!strcasecmp(type, "action")) {
+			fprintf(stderr,
+				"Error: Resource type '%s' is reserved",
+				type);
+			free(type);
+			break;
+		}
 
 		rr = malloc(sizeof(*rr));
 		if (!rr)
@@ -944,6 +1004,7 @@ load_resource_rules(const char *rpath, resource_rule_t **rules)
 	struct dirent *de;
 	char *fn;//, *dot;
 	char path[2048];
+	struct stat st_buf;
 
 	dir = opendir(rpath);
 	if (!dir)
@@ -962,8 +1023,15 @@ load_resource_rules(const char *rpath, resource_rule_t **rules)
 
 		snprintf(path, sizeof(path), "%s/%s",
 			 rpath, de->d_name);
-
-		load_resource_rulefile(path, rules);
+		
+		if (stat(path, &st_buf))
+			continue;
+		
+		if (S_ISDIR(st_buf.st_mode))
+			continue;
+		
+		if (st_buf.st_mode & (S_IXUSR|S_IXOTH|S_IXGRP))
+			load_resource_rulefile(path, rules);
 	}
 	xmlCleanupParser();
 

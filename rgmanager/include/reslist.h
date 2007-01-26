@@ -75,18 +75,19 @@
 
 
 typedef struct _resource_attribute {
-	int	ra_flags;
-	/* XXX possible alignment problem on ia64 */
 	char	*ra_name;
 	char	*ra_value;
+	int	ra_flags;
+	int	_pad_;
 } resource_attr_t;
 
 
 typedef struct _resource_child {
-	char    rc_forbid;
+	char	*rc_name;
 	int	rc_startlevel;
 	int	rc_stoplevel;
-	char	*rc_name;
+	int	rc_forbid;
+	int	_pad_;
 } resource_child_t;
 
 
@@ -96,6 +97,7 @@ typedef struct _resource_act {
 	time_t	ra_last;
 	time_t	ra_interval;
 	int	ra_depth;
+	int	ra_flags;
 } resource_act_t;
 
 
@@ -139,7 +141,7 @@ typedef struct _fod_node {
 	list_head();
 	char	*fdn_name;
 	int	fdn_prio;
-	int	_pad_; /* align */
+	int	fdn_nodeid;
 } fod_node_t;
 
 typedef struct _fod {

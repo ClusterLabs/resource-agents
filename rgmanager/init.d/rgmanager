@@ -95,10 +95,14 @@ case $1 in
 	start)
 		echo -n $"Starting $ID: "
 		daemon $RGMGRD $RGMGR_OPTS
+		ret=$?
 		echo
 
 		# To be consistent...
-		touch /var/lock/subsys/rgmanager
+		if [ $ret -eq 0 ]; then
+			touch /var/lock/subsys/rgmanager
+		fi
+		exit $ret
 		;;
 
 	restart)

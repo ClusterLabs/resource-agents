@@ -261,8 +261,6 @@ find_resource_by_ref(resource_t **reslist, char *type, char *ref)
 
 /**
    Find a root resource by ref (service, usually).  No name is required.
-   Only one type of root resource may exist because of the primary
-   attribute flag
 
    @param reslist	List of resources to traverse.
    @param ref		Reference
@@ -286,6 +284,7 @@ find_root_by_ref(resource_t **reslist, char *ref)
 	} else {
 		/* Default type */
 		type = "service";
+		name = ref;
 	}
 
 	list_do(reslist, curr) {
@@ -542,6 +541,83 @@ act_dup(resource_act_t *acts)
 }
 
 
+/* Copied from resrules.c -- _get_actions */
+void
+_get_actions_ccs(int ccsfd, char *base, resource_t *res)
+{
+	char xpath[256];
+	int idx = 0;
+	char *act, *ret;
+	int interval, timeout, depth;
+
+	do {
+		/* setting these to -1 prevents overwriting with 0 */
+		interval = -1;
+		depth = -1;
+		act = NULL;
+		timeout = -1;
+
+		snprintf(xpath, sizeof(xpath),
+			 "%s/action[%d]/@name", base, ++idx);
+
+#ifndef NO_CCS
+		if (ccs_get(ccsfd, xpath, &act) != 0)
+#else
+		if (conf_get(xpath, &act) != 0)
+#endif
+			break;
+
+		snprintf(xpath, sizeof(xpath),
+			 "%s/action[%d]/@timeout", base, idx);
+#ifndef NO_CCS
+		if (ccs_get(ccsfd, xpath, &ret) == 0 && ret) {
+#else
+		if (conf_get(xpath, &ret) == 0 && ret) {
+#endif
+			timeout = expand_time(ret);
+			if (timeout < 0)
+				timeout = 0;
+			free(ret);
+		}
+
+		snprintf(xpath, sizeof(xpath),
+			 "%s/action[%d]/@interval", base, idx);
+#ifndef NO_CCS
+		if (ccs_get(ccsfd, xpath, &ret) == 0 && ret) {
+#else
+		if (conf_get(xpath, &ret) == 0 && ret) {
+#endif
+			interval = expand_time(ret);
+			if (interval < 0)
+				interval = 0;
+			free(ret);
+		}
+
+		if (!strcmp(act, "status") || !strcmp(act, "monitor")) {
+			snprintf(xpath, sizeof(xpath),
+				 "%s/action[%d]/@depth", base, idx);
+#ifndef NO_CCS
+			if (ccs_get(ccsfd, xpath, &ret) == 0 && ret) {
+#else
+			if (conf_get(xpath, &ret) == 0 && ret) {
+#endif
+				depth = atoi(ret);
+				if (depth < 0)
+					depth = 0;
+				
+				/* */
+				if (ret[0] == '*')
+					depth = -1;
+				free(ret);
+			}
+		}
+
+		if (store_action(&res->r_actions, act, depth, timeout,
+				 interval) != 0)
+			free(act);
+	} while (1);
+}
+
 
 /**
    Try to load all the attributes in our rule set.  If none are found,
@@ -653,6 +729,7 @@ load_resource(int ccsfd, resource_rule_t *rule, char *base)
 	}
 
 	res->r_actions = act_dup(rule->rr_actions);
+	_get_actions_ccs(ccsfd, base, res);
 
 	return res;
 }
