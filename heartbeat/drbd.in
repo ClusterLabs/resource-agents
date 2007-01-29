@@ -4,10 +4,7 @@
 #
 #       OCF Resource Agent compliant drbd resource script.
 #
-# WARNING: This is experimental code and still has a lot of open
-# TODOs.
-#
-# Copyright (c) 2004 - 2005 SUSE LINUX Products GmbH, Lars Marowsky-Br�
+# Copyright (c) 2004 - 2007 SUSE LINUX Products GmbH, Lars Marowsky-Bree
 #                    All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -59,9 +56,13 @@ meta_data() {
 <version>1.1</version>
 
 <longdesc lang="en">
-OCF Resource Agent compliant drbd resource script
+Master/Slave OCF Resource Agent for DRBD
 </longdesc>
-<shortdesc lang="en">OCF Resource Agent compliant drbd resource script</shortdesc>
+
+<shortdesc lang="en">This resource agent manages a Distributed
+Replicated Block Device (DRBD) object as a master/slave
+resource. DRBD is a mechanism for replicating storage; please see the
+documentation for setup details.</shortdesc>
 
 <parameters>
 <parameter name="drbd_resource" unique="1" required="1">
@@ -171,27 +172,36 @@ drbd_init() {
 	DRBDADM=$(which drbdadm 2>/dev/null)
 	CRM_MASTER=@sbindir@/crm_master
 	
-	if [ -z "$DRBDADM" -o ! -x "$DRBDADM" ]; then
-		ocf_log err "drbdadm not installed."
-		exit $OCF_ERR_INSTALLED
-	fi
-	
 	RESOURCE="$OCF_RESKEY_drbd_resource"
 	CLONE_NO="$OCF_RESKEY_CRM_meta_clone"
 	DRBDCONF="${OCF_RESKEY_drbdconf:=/etc/drbd.conf}"
+
+	if [ -z "$DRBDADM" -o ! -x "$DRBDADM" ]; then
+		ocf_log err "drbdadm not installed."
+		if [ '$ACTION' = 'monitor' ]; then
+			exit $OCF_NOT_RUNNING
+		else
+			exit $OCF_ERR_INSTALLED
+		fi
+	fi
+	
+	if [ ! -f "$DRBDCONF" ]; then
+		ocf_log err "drbd.conf not installed."
+		if [ '$ACTION' = 'monitor' ]; then
+			exit $OCF_NOT_RUNNING
+		else
+			exit $OCF_ERR_INSTALLED
+		fi
+	fi
 
 	case "$OCF_RESKEY_clone_overrides_hostname" in
 	[Yy][Ee][Ss]|[Tt][Rr][Uu][Ee]|[Oo][Nn]|1)
 		__DRBD_NODE__="node_${CLONE_NO}"
 		export __DRBD_NODE__
-		ocf_log err "$RESOURCE: Using hostname $__DRBD_NODE__"
+		ocf_log info "$RESOURCE: Using hostname $__DRBD_NODE__"
 		;;
 	esac
 
-	if [ ! -f "$DRBDCONF" ]; then
-		ocf_log err "drbd.conf not installed."
-		exit $OCF_ERR_CONFIGURED
-	fi
 }
 
 
@@ -232,7 +242,7 @@ drbd_start() {
 	    : OK
 	else
 	    do_cmd modprobe -s drbd `$DRBDADM sh-mod-parms` || { 
-		    ocf_log err "Can not load the drbd module."$'\n'; 
+		    ocf_log err "Cannot load the drbd module."$'\n'; 
 		    return $OCF_ERR_GENERIC 
 	    }
 	    ocf_log debug "$RESOURCE start: Module loaded."
@@ -246,10 +256,22 @@ drbd_start() {
 	fi
 
 	# Clear preference for becoming master
-	do_cmd $CRM_MASTER -D
+# XXX TODO BUG This aborts the start transaction!
+#	do_cmd $CRM_MASTER -D
 	
 	if do_drbdadm up $RESOURCE ; then
+		drbd_get_status
+		if [ "$DRBD_STATE_LOCAL" != "Secondary" ]; then
+			ocf_log err "$RESOURCE start: not in Secondary mode after start."
+			return $OCF_ERR_GENERIC
+		fi
+
 		ocf_log debug "$RESOURCE start: succeeded."
+		# TODO: This shouldn't be needed here if the PE would
+		# send us our post-notifications. This will abort the
+		# transition, causing other notifications to be
+		# potentially lost as well :-(
+		drbd_update_prefs
 		return $OCF_SUCCESS
 	else
 		ocf_log err "$RESOURCE: Failed to start up."
@@ -257,31 +279,26 @@ drbd_start() {
 	fi
 }
 
-drbd_start_phase_2() {
-	if [ "$1" = "yes" ]; then
-		do_drbdadm connect $RESOURCE
-		do_drbdadm wait_connect $RESOURCE
-	fi
-
+drbd_update_prefs() {
 	drbd_get_status
 
 	# TODO: This is probably way too complex. 
 	case $DRBD_CSTATE in
 	Connected) 
-		do_cmd $CRM_MASTER -v 75
+		do_cmd $CRM_MASTER -v 75 -l reboot
 		;;
 	SyncSource|PausedSyncS|WFBitMapS|SkippedSyncS)
-		do_cmd $CRM_MASTER -v 100
+		do_cmd $CRM_MASTER -v 100 -l reboot
 		;;
         # TODO:
         # (Inconsistent || Diskless && WFConnection) should be -infinity
 	# This one implies we'll try to promote even on disconnected
 	# nodes, but that might not work.
 	WFConnection) 
-		do_cmd $CRM_MASTER -v 10
+		do_cmd $CRM_MASTER -v 10 -l reboot
 		;;
 	*)
-		do_cmd $CRM_MASTER -v 5
+		do_cmd $CRM_MASTER -v 5 -l reboot
 		;;
 	esac
 
@@ -302,11 +319,20 @@ drbd_stop() {
 		# levels to be able to down drbd. figure out how...
 		if do_drbdadm down $RESOURCE ; then
 			ocf_log debug "$RESOURCE stop: drbdadm down succeeded."
-			return $OCF_SUCCESS
+			
+			# TODO: If drbdadm propagated error codes, this
+			# wouldn't be needed.
+			drbd_get_status
+
+			if [ "$DRBD_STATE_LOCAL" = "Not configured" ]; then
+				return $OCF_SUCCESS
+			else
+				ocf_log err "$RESOURCE stop: Not stopped."
+			fi
 		else
 			ocf_log err "$RESOURCE stop: Failed with exit code: $?"
-			return $OCF_ERR_GENERIC
 		fi
+		return $OCF_ERR_GENERIC
 	else
 		ocf_log debug "$RESOURCE stop: drbd not loaded."
 	fi
@@ -319,6 +345,10 @@ drbd_monitor() {
 	# failure cases...
 	# diskless etc?
 	# A secondary node which is supposed to be primary?
+
+	# TODO: we ought to update the preferences here occasionally,
+	# but that causes transitions right now ...
+
 	if is_drbd_enabled; then
 	    : OK
 	else
@@ -328,12 +358,14 @@ drbd_monitor() {
 
 	drbd_get_status
 
-	if [ "$DRBD_STATE_LOCAL" == "Not configured" ]; then
+	if [ "$DRBD_STATE_LOCAL" = "Not configured" ]; then
 	    ocf_log debug "$RESOURCE monitor: resource not configured"
 	    return $OCF_NOT_RUNNING
-	elif [ "$DRBD_STATE_LOCAL" == "Primary" ]; then
+	elif [ "$DRBD_STATE_LOCAL" = "Primary" ]; then
+#	    drbd_update_prefs
 	    return $OCF_RUNNING_MASTER
-	elif [ "$DRBD_STATE_LOCAL" == "Secondary" ]; then
+	elif [ "$DRBD_STATE_LOCAL" = "Secondary" ]; then
+#	    drbd_update_prefs
 	    return $OCF_SUCCESS
 	else
 	    ocf_log err "$RESOURCE monitor: unexpected local state: $DRBD_STATE_LOCAL"
@@ -352,21 +384,31 @@ drbd_promote() {
 
 	drbd_get_status
 
-	if [ "x$DRBD_STATE_LOCAL" = "xPrimary" ]; then
-		ocf_log debug "$RESOURCE promote: already primary"
+	if [ "$DRBD_STATE_LOCAL" = "Primary" ]; then
+		ocf_log info "$RESOURCE promote: already primary"
 		return $OCF_SUCCESS
 	fi
-	if [ "x$DRBD_STATE_LOCAL" != "xSecondary" ]; then
-		ocf_log debug "$RESOURCE promote: Not secondary to start with"
+	
+	if [ "$DRBD_STATE_LOCAL" != "Secondary" ]; then
+		ocf_log warn "$RESOURCE promote: Not secondary to start with."
 		return $OCF_ERR_GENERIC
 	fi
 	if do_drbdadm primary $RESOURCE ; then
-		ocf_log debug "$RESOURCE promote: primary succeeded"
-		return $OCF_SUCCESS
+		# TODO: WORK AROUND because drbdadm has a bug and
+		# reports success even if it failed :-(
+		drbd_get_status
+
+		if [ "$DRBD_STATE_LOCAL" = "Primary" ]; then
+			ocf_log info "$RESOURCE promote: primary succeeded"
+			return $OCF_SUCCESS
+		else 
+			ocf_log err "$RESOURCE promote: Not primary despite drbdadm call."
+		fi
+		
 	else
 		ocf_log err "$RESOURCE promote: Failed with exit code $?."
-		return $OCF_ERR_GENERIC
 	fi
+	return $OCF_ERR_GENERIC
 }
 
 drbd_demote() {
@@ -391,6 +433,11 @@ drbd_demote() {
 	# levels (or switch them to r/o) to be able to demote drbd.
 	# figure out how...
 	if do_drbdadm secondary $RESOURCE ; then
+		if [ "$DRBD_STATE_LOCAL" = "Primary" ]; then
+			ocf_log err "$RESOURCE demote: still primary!"
+			return $OCF_ERR_GENERIC
+		fi
+	
 	        ocf_log debug "$RESOURCE demote: succeeded"
 		return $OCF_SUCCESS
 	else
@@ -421,34 +468,38 @@ drbd_notify() {
 			;;
 		esac
 		;;
-	post)
+	post)	# TODO: Entire case statement which follows redundant?
 		case $n_op in
 		start)
 			if [ "$n_active" -eq 2 ]; then
 				# The other side is running, so we ought
 				# to connect and wait for that.
-				drbd_start_phase_2 yes
-			else
-				drbd_start_phase_2 no
+				do_drbdadm connect $RESOURCE
+				do_drbdadm wait_connect $RESOURCE
+				# TODO: If this can cause a hang if the
+				# other side isn't connected or goes
+				# away during that, maybe just sleep
+				# here for 5-10s or take out the entire
+				# case statement
 			fi
 			;;
 		# TODO: Does "fence" actually happen?
-		stop|fence)
+		stop)
 			# This MUST be a notification for the other side
 			# having been stopped, because for sure we won't
 			# receive one for ourselves being stopped ;-)
 			# So to allow continuing with freeze_io, we need
 			# to explicitly disconnect.
-			do_drbdadm disconnect $RESOURCE
+			# TODO BUG: disconnect seems to force
+			# non-primary mode?!?
+			#### do_drbdadm disconnect $RESOURCE
+
 			# TODO: If we are secondary, do we need to do
 			# anything about a stopped primary in case we
 			# had an outdated flag...?
 			;;
-		monitor)
-			# TODO: We don't get notifications for failed
-			# monitors yet.
-			;;
 		esac
+		drbd_update_prefs
 		;;
 	esac
 	
