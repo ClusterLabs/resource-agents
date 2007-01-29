@@ -54,8 +54,10 @@ flag_rgmanager_nodes(cluster_member_list_t *cml)
 
 	struct timeval tv;
 
-	if (msg_open(MSG_SOCKET, 0, 0, &ctx, 10) < 0)
+	if (msg_open(MSG_SOCKET, 0, 0, &ctx, 10) < 0) {
+		perror("msg_open");
 		return;
+	}
 
 	msg_send_simple(&ctx, RG_STATUS_NODE, 0, 0);
 
@@ -145,6 +147,7 @@ rg_state_list(int local_node_id, int fast)
 	struct timeval tv;
 
 	if (msg_open(MSG_SOCKET, 0, 0, &ctx, 10) < 0) {
+		perror("msg_open");
 		return NULL;
 	}
 
