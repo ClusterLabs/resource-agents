@@ -197,6 +197,9 @@ build_cmd(char *command, size_t cmdlen, struct ipmi *ipmi, int op)
 	if (ipmi->i_password) {
 		snprintf(arg, sizeof(arg), " -P %s", ipmi->i_password);
 		strncat(cmd, arg, sizeof(cmd) - strlen(arg));
+	} else {
+		snprintf(arg, sizeof(arg), " -P ''");
+		strncat(cmd, arg, sizeof(cmd) - strlen(arg));
 	}
 
 	/* Tack on the -v flags for ipmitool; in most cases, i_verbose
