@@ -186,6 +186,7 @@ if (($opt_o eq "off") || ($opt_o eq "reboot")) {
 # at this point, failing to turn the machine back on shouldn't be a failure
 
 if (($opt_o eq "on") || ($opt_o eq "reboot")) {
+  sleep 5;
   $t->print("/on $opt_n");
   ($line, $match) = $t->waitfor('/\(Y\/N\)|(TPS|IPS|RPC|NPS|NBB)\>/');
 
@@ -352,5 +353,9 @@ sub get_options_stdin
 
         # FIXME should we do more error checking?  
         # Excess name/vals will be eaten for now
+        else
+        {
+           fail "parse error: unknown option \"$opt\"\n";
+        }
     }
 }
