@@ -406,14 +406,14 @@ static int open_control_device()
 
 static int do_dlm_dispatch(int fd)
 {
-    struct dlm_lock_result resultbuf;
-    struct dlm_lock_result *result = &resultbuf;
+    char resultbuf[sizeof(struct dlm_lock_result) + DLM_USER_LVB_LEN];
+    struct dlm_lock_result *result = (struct dlm_lock_result *)resultbuf;
     char *fullresult = NULL;
     int status;
     void (*astaddr)(void *astarg);
 
-    /* Just read the header first */
-    status = read(fd, result, sizeof(struct dlm_lock_result));
+    /* Just read the header & LVB first */
+    status = read(fd, result, sizeof(resultbuf));
     if (status <= 0)
 	return -1;
 
@@ -432,6 +432,10 @@ static int do_dlm_dispatch(int fd)
 	   info in it...hmmm */
 	if (newstat == result->length)
 		result = (struct dlm_lock_result *)fullresult;
+    }
+    else
+    {
+	fullresult = resultbuf;
     }
 
     /* Copy lksb to user's buffer - except the LVB ptr */
@@ -468,7 +472,7 @@ static int do_dlm_dispatch(int fd)
 	astaddr(result->user_astparam);
     }
 
-    if (fullresult)
+    if (fullresult != resultbuf)
 	free(fullresult);
     return 0;
 }
