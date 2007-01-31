@@ -74,7 +74,7 @@ def main():
   regex_list = list()
   regex_list.append("username:")
   regex_list.append("password:")
-  regex_list.append("SN#.*>")
+  regex_list.append(".*>")
   regex_list.append("Power:")
   regex_list.append("Error:")
 
