@@ -11,7 +11,7 @@
 ###############################################################################
 ###############################################################################
 
-SOURCE= fence_apc.pl
+SOURCE= fence_apc.py
 TARGET= fence_apc
 
 top_srcdir=../..
@@ -19,12 +19,12 @@ include ${top_srcdir}/make/defines.mk
 
 all: $(TARGET)
 
-fence_apc: fence_apc.pl
+fence_apc: fence_apc.py
 	: > $(TARGET)
 	awk "{print}(\$$1 ~ /#BEGIN_VERSION_GENERATION/){exit 0}" $(SOURCE) >> $(TARGET)
-	echo "\$$FENCE_RELEASE_NAME=\"${RELEASE}\";" >> $(TARGET)
-	${top_srcdir}/scripts/define2var ${top_srcdir}/config/copyright.cf perl REDHAT_COPYRIGHT >> $(TARGET)
-	echo "\$$BUILD_DATE=\"(built `date`)\";" >> $(TARGET)
+	echo "FENCE_RELEASE_NAME=\"${RELEASE}\";" >> $(TARGET)
+	${top_srcdir}/scripts/define2var ${top_srcdir}/config/copyright.cf sh REDHAT_COPYRIGHT >> $(TARGET)
+	echo "BUILD_DATE=\"(built `date`)\";" >> $(TARGET)
 	awk -v p=0 "(\$$1 ~ /#END_VERSION_GENERATION/){p = 1} {if(p==1)print}" $(SOURCE) >> $(TARGET)
 	chmod +x $(TARGET)
 
