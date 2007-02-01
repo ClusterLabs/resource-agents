@@ -12,7 +12,7 @@
 top_srcdir = ../../..
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
-BINARIES=dlmtest asttest lstest pingtest lvb dlmtest2 flood alternate-lvb joinleave
+BINARIES=dlmtest asttest lstest pingtest lvb dlmtest2 flood alternate-lvb joinleave threads
 
 all: $(BINARIES)
 
@@ -51,6 +51,9 @@ pingtest: pingtest.c
 	$(CC) $(CFLAGS) -o $@ $< -ldlm -lpthread
 
 lvb: lvb.c	
+	$(CC) $(CFLAGS) -o $@ $< -ldlm -lpthread
+
+threads: threads.c	
 	$(CC) $(CFLAGS) -o $@ $< -ldlm -lpthread
 
 clean:
