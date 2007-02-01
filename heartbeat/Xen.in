@@ -44,8 +44,12 @@ Resource Agent for the Xen Hypervisor.
 Manages Xen virtual machine instances by
 mapping cluster resource start and stop,  
 to Xen create and shutdown, respectively.
+
+Para-virtualized guests can alsy be migrated by enabling the
+meta_attribute allow_migrate.
+
 </longdesc>
-<shortdesc lang="en">Xen resource agent</shortdesc>
+<shortdesc lang="en">Manages Xen DomUs</shortdesc>
 
 <parameters>
 
@@ -63,6 +67,8 @@ for this virtual machine.
 <actions>
 <action name="start" timeout="30" />
 <action name="stop" timeout="30" />
+<action name="migrate_from" timeout="120" />
+<action name="migrate_to" timeout="120" />
 <action name="status" depth="0" timeout="30" interval="10" start-delay="30" />
 <action name="monitor" depth="0" timeout="30" interval="10" start-delay="30" />
 <action name="meta-data" timeout="5" />
