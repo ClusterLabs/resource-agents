@@ -45,7 +45,7 @@ Manages Xen virtual machine instances by
 mapping cluster resource start and stop,  
 to Xen create and shutdown, respectively.
 
-Para-virtualized guests can alsy be migrated by enabling the
+Para-virtualized guests can also be migrated by enabling the
 meta_attribute allow_migrate.
 
 </longdesc>
