@@ -190,17 +190,17 @@ lookup_cdpn_sub_at(struct gfs_sbd *sdp, struct dentry *dentry)
 	parent = dget_parent(dentry);
 
 	if (gfs_filecmp(&dentry->d_name, "@hostname", 9))
-		new = lookup_one_len(system_utsname.nodename,
+		new = lookup_one_len(init_utsname()->nodename,
 				     parent,
-				     strlen(system_utsname.nodename));
+				     strlen(init_utsname()->nodename));
 	else if (gfs_filecmp(&dentry->d_name, "@mach", 5))
-		new = lookup_one_len(system_utsname.machine,
+		new = lookup_one_len(init_utsname()->machine,
 				     parent,
-				     strlen(system_utsname.machine));
+				     strlen(init_utsname()->machine));
 	else if (gfs_filecmp(&dentry->d_name, "@os", 3))
-		new = lookup_one_len(system_utsname.sysname,
+		new = lookup_one_len(init_utsname()->sysname,
 				     parent,
-				     strlen(system_utsname.sysname));
+				     strlen(init_utsname()->sysname));
 	else if (gfs_filecmp(&dentry->d_name, "@uid", 4))
 		new = lookup_one_len(buf,
 				     parent,
@@ -213,8 +213,8 @@ lookup_cdpn_sub_at(struct gfs_sbd *sdp, struct dentry *dentry)
 		new = lookup_one_len(buf,
 				     parent,
 				     sprintf(buf, "%s_%s",
-					     system_utsname.machine,
-					     system_utsname.sysname));
+					     init_utsname()->machine,
+					     init_utsname()->sysname));
 	else if (gfs_filecmp(&dentry->d_name, "@jid", 4))
 		new = lookup_one_len(buf,
 				     parent,
@@ -249,17 +249,17 @@ lookup_cdpn_sub_brace(struct gfs_sbd *sdp, struct dentry *dentry)
 	parent = dget_parent(dentry);
 
 	if (gfs_filecmp(&dentry->d_name, "{hostname}", 10))
-		new = lookup_one_len(system_utsname.nodename,
+		new = lookup_one_len(init_utsname()->nodename,
 				     parent,
-				     strlen(system_utsname.nodename));
+				     strlen(init_utsname()->nodename));
 	else if (gfs_filecmp(&dentry->d_name, "{mach}", 6))
-		new = lookup_one_len(system_utsname.machine,
+		new = lookup_one_len(init_utsname()->machine,
 				     parent,
-				     strlen(system_utsname.machine));
+				     strlen(init_utsname()->machine));
 	else if (gfs_filecmp(&dentry->d_name, "{os}", 4))
-		new = lookup_one_len(system_utsname.sysname,
+		new = lookup_one_len(init_utsname()->sysname,
 				     parent,
-				     strlen(system_utsname.sysname));
+				     strlen(init_utsname()->sysname));
 	else if (gfs_filecmp(&dentry->d_name, "{uid}", 5))
 		new = lookup_one_len(buf,
 				     parent,
@@ -272,8 +272,8 @@ lookup_cdpn_sub_brace(struct gfs_sbd *sdp, struct dentry *dentry)
 		new = lookup_one_len(buf,
 				     parent,
 				     sprintf(buf, "%s_%s",
-					     system_utsname.machine,
-					     system_utsname.sysname));
+					     init_utsname()->machine,
+					     init_utsname()->sysname));
 	else if (gfs_filecmp(&dentry->d_name, "{jid}", 5))
 		new = lookup_one_len(buf,
 				     parent,

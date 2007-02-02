@@ -13,7 +13,6 @@
 #include <linux/completion.h>
 #include <linux/buffer_head.h>
 #include <linux/delay.h>
-#include <linux/lm_interface.h>
 
 #include "gfs_ondisk.h"
 #include "gfs.h"

@@ -551,7 +551,7 @@ clean_journal(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 }
 
 /**
- * gfs_recover_journal - recovery a given journal
+ * gfs_recover_journal - recover a given journal
  * @sdp: the filesystem
  * @jid: the number of the journal to recover
  * @jdesc: the struct gfs_jindex describing the journal
@@ -576,7 +576,7 @@ gfs_recover_journal(struct gfs_sbd *sdp,
 	printk("GFS: fsid=%s: jid=%u: Trying to acquire journal lock...\n",
 	       sdp->sd_fsname, jid);
 
-	/*  Aquire the journal lock so we can do recovery  */
+	/*  Acquire the journal lock so we can do recovery  */
 
 	error = gfs_glock_nq_num(sdp,
 				 jdesc->ji_addr, &gfs_meta_glops,

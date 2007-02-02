@@ -334,11 +334,13 @@ do_read_direct(struct file *file, char *buf, size_t size, loff_t *offset,
 		count = do_read_readi(file, buf, size & ~mask, offset, iocb);
 	}
 	else {
-		if (!iocb) 
-			count = generic_file_read(file, buf, size, offset);
+		if (!iocb)
+			count = do_sync_read(file, buf, size, offset);
 		else {
-		        struct iovec local_iov = { .iov_base = buf, .iov_len = size};
-			count = __generic_file_aio_read(iocb, &local_iov, 1, offset);
+			struct iovec local_iov = { .iov_base = buf, .iov_len = size};
+
+			count = generic_file_aio_read(iocb, &local_iov, 1, *offset);
+			iocb->ki_pos = *offset;
 		}
 	}
 
@@ -387,17 +389,12 @@ do_read_buf(struct file *file, char *buf, size_t size, loff_t *offset,
 		count = do_read_readi(file, buf, size, offset, iocb);
 	else {
 		if (!iocb) {
-			count = generic_file_read(file, buf, size, offset);
+			count = do_sync_read(file, buf, size, offset);
 		} else {
-			struct iovec local_iov = {
-				.iov_base = (char __user *)buf,
-				.iov_len = size 
-			};
+			struct iovec local_iov = { .iov_base = buf, .iov_len = size};
 
-		        count = __generic_file_aio_read(iocb, 
-					&local_iov, 1, offset);
-			if (count == -EIOCBQUEUED)
-				count = wait_on_sync_kiocb(iocb);
+			count = generic_file_aio_read(iocb, &local_iov, 1, *offset);
+			iocb->ki_pos = *offset;
 		}
 	}
 
@@ -443,12 +440,13 @@ gfs_read(struct file *file, char *buf, size_t size, loff_t *offset)
  * 	(struct kiocb *iocb, char __user *buf, size_t count, loff_t pos)
  */
 static ssize_t
-gfs_aio_read(struct kiocb *iocb, char __user *buf, size_t count, loff_t pos)
+gfs_aio_read(struct kiocb *iocb, const struct iovec *iov, unsigned long count,
+			 loff_t pos)
 {
 	struct file *filp = iocb->ki_filp;
 
 	BUG_ON(iocb->ki_pos != pos);
-	return(__gfs_read(filp, buf, count, &iocb->ki_pos, iocb));
+	return(__gfs_read(filp, iov->iov_base, iov->iov_len, &iocb->ki_pos, iocb));
 }
 
 /**
@@ -483,6 +481,41 @@ grope_mapping(char *buf, size_t size)
 }
 
 /**
+ * gfs_file_aio_write_nolock - Call vfs aio layer to write bytes to a file
+ * @file: The file to write to
+ * @buf: The buffer to copy from
+ * @size: The amount of data requested
+ * @offset: The offset in the file to write
+ * @iocb: The io control block.  If NULL, a temporary one will be used.
+ *
+ * Returns: The number of bytes written, errno on failure
+ */
+static ssize_t
+gfs_file_aio_write_nolock(struct file *file, char *buf, size_t size,
+						  loff_t *offset, struct kiocb *iocb)
+{
+	struct iovec local_iov = { .iov_base = buf, .iov_len = size };
+	struct kiocb local_iocb, *kiocb = NULL;
+	ssize_t count;
+
+	if (!iocb) {
+		init_sync_kiocb(&local_iocb, file);
+		local_iocb.ki_nr_segs = 1;
+		kiocb = &local_iocb;
+	}
+	else
+		kiocb = iocb;
+	
+	kiocb->ki_pos = *offset;
+	count = generic_file_aio_write_nolock(kiocb, &local_iov, kiocb->ki_nr_segs,
+										  kiocb->ki_pos);
+	*offset = kiocb->ki_pos;
+	if (kiocb == &local_iocb && count == -EIOCBQUEUED)
+		count = wait_on_sync_kiocb(kiocb);
+	return count;
+}
+
+/**
  * do_write_direct_alloc - Write bytes to a file
  * @file: The file to write to
  * @buf: The buffer to copy from
@@ -502,7 +535,6 @@ do_write_direct_alloc(struct file *file, char *buf, size_t size, loff_t *offset,
 	struct gfs_inode *ip = get_v2ip(inode);
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct gfs_alloc *al = NULL;
-	struct iovec local_iov = { .iov_base = buf, .iov_len = size };
 	struct buffer_head *dibh;
 	unsigned int data_blocks, ind_blocks;
 	ssize_t count;
@@ -553,11 +585,7 @@ do_write_direct_alloc(struct file *file, char *buf, size_t size, loff_t *offset,
 			goto fail_end_trans;
 	}
 
-	if (!iocb)
-		count = generic_file_write_nolock(file, &local_iov, 1, offset);
-	else {
-		count = generic_file_aio_write_nolock(iocb, &local_iov, 1, offset);
-	}
+	count = gfs_file_aio_write_nolock(file, buf, size, offset, iocb);
 	if (count < 0) {
 		error = count;
 		goto fail_end_trans;
@@ -721,7 +749,6 @@ do_write_direct(struct file *file, char *buf, size_t size, loff_t *offset,
 			count += error;
 		}
 	} else {
-		struct iovec local_iov = { .iov_base = buf, .iov_len = size };
 		struct gfs_holder t_gh;
 
 		clear_bit(GFF_DID_DIRECT_ALLOC, &fp->f_flags);
@@ -733,13 +760,7 @@ do_write_direct(struct file *file, char *buf, size_t size, loff_t *offset,
 		/* Todo: It would be nice if init_sync_kiocb is exported.
 		 *  .. wcheng
 		 */
-		if (!iocb) 
-			count = 
-			generic_file_write_nolock(file, &local_iov, 1, offset);
-		else {
-			count = 
-			generic_file_aio_write_nolock(iocb, &local_iov, 1, offset);
-		}
+		count = gfs_file_aio_write_nolock(file, buf, size, offset, iocb);
 		gfs_glock_dq_uninit(&t_gh);
 	}
 
@@ -862,16 +883,7 @@ do_do_write_buf(struct file *file, char *buf, size_t size, loff_t *offset,
 		}
 		*offset += count;
 	} else {
-		struct iovec local_iov = { .iov_base = buf, .iov_len = size };
-
-		if (!iocb) {
-			count = generic_file_write_nolock(file, &local_iov, 1, offset);
-		} else {
-			count = generic_file_aio_write_nolock(iocb, 
-				&local_iov, 1, offset);
-			if (count == -EIOCBQUEUED)
-				count = wait_on_sync_kiocb(iocb);
-		}
+		count = gfs_file_aio_write_nolock(file, buf, size, offset, iocb);
 		if (count < 0) {
 			error = count;
 			goto fail_end_trans;
@@ -1047,13 +1059,15 @@ gfs_write(struct file *file, const char *buf, size_t size, loff_t *offset)
 }
 
 static ssize_t
-gfs_aio_write(struct kiocb *iocb, const char __user *buf, size_t size, loff_t pos)
+gfs_aio_write(struct kiocb *iocb, const struct iovec *iov, unsigned long segs,
+			  loff_t pos)
 {
 	struct file *file = iocb->ki_filp;
 
 	BUG_ON(iocb->ki_pos != pos);
 
-	return(__gfs_write(file, buf, size, &iocb->ki_pos, iocb));
+	return(__gfs_write(file, iov->iov_base, iov->iov_len, &iocb->ki_pos, 
+					   iocb));
 }
 
 /**

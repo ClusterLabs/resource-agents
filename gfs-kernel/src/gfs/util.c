@@ -26,10 +26,10 @@
 
 uint32_t gfs_random_number;
 
-kmem_cache_t *gfs_glock_cachep = NULL;
-kmem_cache_t *gfs_inode_cachep = NULL;
-kmem_cache_t *gfs_bufdata_cachep = NULL;
-kmem_cache_t *gfs_mhc_cachep = NULL;
+struct kmem_cache *gfs_glock_cachep = NULL;
+struct kmem_cache *gfs_inode_cachep = NULL;
+struct kmem_cache *gfs_bufdata_cachep = NULL;
+struct kmem_cache *gfs_mhc_cachep = NULL;
 
 /**
  * gfs_random - Generate a random 32-bit number

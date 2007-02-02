@@ -666,6 +666,7 @@ compute_bitstructs(struct gfs_rgrpd *rgd)
 	rgd->rd_bh = kmalloc(length * sizeof(struct buffer_head *), GFP_KERNEL);
 	if (!rgd->rd_bh) {
 		kfree(rgd->rd_bits);
+		rgd->rd_bits = NULL;
 		return -ENOMEM;
 	}
 	memset(rgd->rd_bh, 0, length * sizeof(struct buffer_head *));

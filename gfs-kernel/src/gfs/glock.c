@@ -38,7 +38,7 @@ struct glock_plug {
 
 struct greedy {
 	struct gfs_holder gr_gh;
-	struct work_struct gr_work;
+	struct delayed_work gr_work;
 };
 
 typedef void (*glock_examiner) (struct gfs_glock * gl);
@@ -1757,9 +1757,9 @@ gfs_glock_force_drop(struct gfs_glock *gl)
  */
 
 static void
-greedy_work(void *data)
+greedy_work(struct work_struct *work)
 {
-	struct greedy *gr = (struct greedy *)data;
+	struct greedy *gr = container_of(work, struct greedy, gr_work.work);
 	struct gfs_holder *gh = &gr->gr_gh;
 	struct gfs_glock *gl = gh->gh_gl;
 	struct gfs_glock_operations *glops = gl->gl_ops;
@@ -1814,7 +1814,7 @@ gfs_glock_be_greedy(struct gfs_glock *gl, unsigned int time)
 	gfs_holder_init(gl, 0, 0, gh);
 	set_bit(HIF_GREEDY, &gh->gh_iflags);
 	gh->gh_owner = NULL;
-	INIT_WORK(&gr->gr_work, greedy_work, gr);
+	INIT_DELAYED_WORK(&gr->gr_work, greedy_work);
 
 	set_bit(GLF_SKIP_WAITERS2, &gl->gl_flags);
 	schedule_delayed_work(&gr->gr_work, time);

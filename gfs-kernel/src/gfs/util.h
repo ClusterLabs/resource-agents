@@ -311,10 +311,10 @@ for (;;) { \
 	yield(); \
 }
 
-extern kmem_cache_t *gfs_glock_cachep;
-extern kmem_cache_t *gfs_inode_cachep;
-extern kmem_cache_t *gfs_bufdata_cachep;
-extern kmem_cache_t *gfs_mhc_cachep;
+extern struct kmem_cache *gfs_glock_cachep;
+extern struct kmem_cache *gfs_inode_cachep;
+extern struct kmem_cache *gfs_bufdata_cachep;
+extern struct kmem_cache *gfs_mhc_cachep;
 
 void *gmalloc(unsigned int size);
 
