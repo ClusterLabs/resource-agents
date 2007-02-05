@@ -255,10 +255,6 @@ drbd_start() {
 		return $OCF_SUCCESS
 	fi
 
-	# Clear preference for becoming master
-# XXX TODO BUG This aborts the start transaction!
-#	do_cmd $CRM_MASTER -D
-	
 	if do_drbdadm up $RESOURCE ; then
 		drbd_get_status
 		if [ "$DRBD_STATE_LOCAL" != "Secondary" ]; then
@@ -267,11 +263,6 @@ drbd_start() {
 		fi
 
 		ocf_log debug "$RESOURCE start: succeeded."
-		# TODO: This shouldn't be needed here if the PE would
-		# send us our post-notifications. This will abort the
-		# transition, causing other notifications to be
-		# potentially lost as well :-(
-		drbd_update_prefs
 		return $OCF_SUCCESS
 	else
 		ocf_log err "$RESOURCE: Failed to start up."
@@ -310,6 +301,9 @@ drbd_stop() {
 	if is_drbd_enabled; then
 		drbd_get_status
 		
+		# Clear preference for becoming master
+		do_cmd $CRM_MASTER -D
+	
 		if [ "$DRBD_STATE_LOCAL" = "Not configured" ]; then
 			ocf_log debug "$RESOURCE stop: already unconfigured."
 			return $OCF_SUCCESS
@@ -483,13 +477,7 @@ drbd_notify() {
 				# case statement
 			fi
 			;;
-		# TODO: Does "fence" actually happen?
 		stop)
-			# This MUST be a notification for the other side
-			# having been stopped, because for sure we won't
-			# receive one for ourselves being stopped ;-)
-			# So to allow continuing with freeze_io, we need
-			# to explicitly disconnect.
 			# TODO BUG: disconnect seems to force
 			# non-primary mode?!?
 			#### do_drbdadm disconnect $RESOURCE
@@ -499,6 +487,9 @@ drbd_notify() {
 			# had an outdated flag...?
 			;;
 		esac
+
+		# After something has been done is a good time to
+		# recheck our status:
 		drbd_update_prefs
 		;;
 	esac
