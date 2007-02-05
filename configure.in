@@ -435,7 +435,7 @@ AC_DEFINE_UNQUOTED(STRINGSCMD, "$STRINGSCMD", path to strings command)
 AC_SUBST(STRINGSCMD)
 AC_PATH_PROGS(PERL, perl)
 AC_SUBST(PERL)
-AC_PATH_PROGS(SWIG, swig, [swig not found],)
+AC_PATH_PROGS(SWIG, swig)
 AC_SUBST(SWIG)
 AC_PATH_PROGS(EGREP, egrep)
 AC_SUBST(EGREP)
@@ -1570,7 +1570,7 @@ dnl - If requested, enable ALL subsystems.
 	  enable_fatal_warnings=yes;
 	  enable_lrm=yes;
 	  enable_snmp_subagent=try;
-	  enable_swig=try;
+dnl	  enable_swig=try;
 	  enable_mgmt=try;
 	  enable_quorumd=try;
 	  enable_cim_provider=try;
@@ -2390,6 +2390,12 @@ AM_CONDITIONAL(LRM_BUILD, test "x${enable_lrm}" = "xyes")
 
 AC_MSG_NOTICE([whether to enable the Local Resource Manager... ${enable_lrm}])
 
+dnl ************************************************************************
+dnl management and quorum daemons.
+
+AC_CHECK_HEADER(gnutls/gnutls.h)
+AC_PATH_PROGS(LIBGNUTLS_CONFIG, libgnutls-config)
+
 dnl management tool configuration
 AC_ARG_ENABLE([mgmt],
 [  --enable-mgmt  Compile the management tool.  [default=try]],
@@ -2421,10 +2427,24 @@ if test "x${enable_mgmt}" != "xno"; then
 		MGMT_ENABLED=0
 	fi
 
-	AC_CHECK_HEADER(gnutls/gnutls.h)
 	if test "$ac_cv_header_gnutls_gnutls_h" = "no"; then
   		$MISSING_FN "gnutls/gnutls.h" \
-		  "The GUI managment module needs GNU/TLS"
+		  "The GUI managment module needs GNU/TLS header files"
+		enable_mgmt="no"
+		MGMT_ENABLED=0
+	fi
+
+	if test -z "$LIBGNUTLS_CONFIG"; then
+		$MISSING_FN "libgnutls-config" \
+		  "The GUI managment module needs libgnutls-config"
+		enable_mgmt="no"
+		MGMT_ENABLED=0
+	fi
+
+	if test -z "$SWIG"; then
+		$MISSING_FN "swig" \
+		  "The GUI managment module needs swig" \
+		  "You can get it from http://swig.org/"
 		enable_mgmt="no"
 		MGMT_ENABLED=0
 	fi
@@ -2471,10 +2491,16 @@ if test "x${enable_quorumd}" != "xno"; then
 		MISSING_FN="FatalMissingThing"
 	fi
 
-	AC_CHECK_HEADER(gnutls/gnutls.h)
 	if test "$ac_cv_header_gnutls_gnutls_h" = "no"; then
   		$MISSING_FN "gnutls/gnutls.h" \
-		  "The quorum server module needs GNU/TLS"
+		  "The quorum server module needs GNU/TLS header files"
+		enable_quorumd="no"
+		QUORUMD_ENABLED=0
+	fi
+
+	if test -z "$LIBGNUTLS_CONFIG"; then
+		$MISSING_FN "libgnutls-config" \
+		  "The quorum server module needs libgnutls-config"
 		enable_quorumd="no"
 		QUORUMD_ENABLED=0
 	fi
