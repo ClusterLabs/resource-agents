@@ -957,7 +957,8 @@ main(int argc, char **argv)
 		qs = cman_is_quorate(ch);
 		membership = build_member_list(ch, &local_node_id);
 		
-		rgs = rg_state_list(local_node_id, fast);
+		if (!member_name)
+			rgs = rg_state_list(local_node_id, fast);
 		if (rgs) {
 			flag_rgmanager_nodes(membership);
 		}
