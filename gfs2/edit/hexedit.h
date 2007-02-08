@@ -39,7 +39,7 @@
 #define INIT(X) =X 
 #endif
 
-#define DISPLAY_MODES 3
+#define DMODES 3
 enum dsp_mode { HEX_MODE = 0, GFS2_MODE = 1, EXTENDED_MODE = 2 };
 #define BLOCK_STACK_SIZE 256
 
@@ -76,8 +76,9 @@ EXTERN const char *termtype;
 EXTERN int line INIT(1);
 EXTERN int struct_len INIT(0);
 EXTERN unsigned int offset;
-EXTERN int edit_row[DISPLAY_MODES], edit_col[DISPLAY_MODES];
-EXTERN int edit_size[DISPLAY_MODES], edit_last[DISPLAY_MODES];
+EXTERN int edit_row[DMODES], edit_col[DMODES];
+EXTERN int start_row[DMODES];
+EXTERN int edit_size[DMODES], edit_last[DMODES];
 EXTERN char edit_string[1024], edit_fmt[80];
 EXTERN struct gfs2_sbd sbd;
 EXTERN struct gfs_sb *sbd1;
@@ -114,9 +115,15 @@ struct gfs_indirect {
 
 struct blkstack_info {
 	uint64_t block;
-	int edit_row[DISPLAY_MODES];
-	int edit_col[DISPLAY_MODES];
-	enum dsp_mode display_mode;
+	int start_row[DMODES];
+	int edit_row[DMODES];
+	int edit_col[DMODES];
+	enum dsp_mode dmode;
+	int gfs2_struct_type;
+};
+
+struct metapath {
+	uint64_t mp_list[GFS2_MAX_META_HEIGHT];
 };
 
 struct gfs_sb {
@@ -154,7 +161,7 @@ EXTERN struct indirect_info indirect[512]; /* more than the most indirect
 											  4K block */
 EXTERN struct indirect_info masterdir; /* Master directory info */
 EXTERN int indirect_blocks INIT(0);  /* count of indirect blocks */
-EXTERN enum dsp_mode display_mode INIT(HEX_MODE);
+EXTERN enum dsp_mode dmode INIT(HEX_MODE);
 
 #define SCREEN_HEIGHT   (16)
 #define SCREEN_WIDTH    (16)

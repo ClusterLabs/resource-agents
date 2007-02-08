@@ -43,10 +43,10 @@ extern int line, termlines;
 extern char edit_fmt[80];
 extern char edit_string[1024];
 extern int edit_mode INIT(0);
-extern int edit_row[DISPLAY_MODES], edit_col[DISPLAY_MODES];
-extern int edit_size[DISPLAY_MODES], edit_last[DISPLAY_MODES];
+extern int edit_row[DMODES], edit_col[DMODES];
+extern int edit_size[DMODES], edit_last[DMODES];
 extern char edit_string[1024], edit_fmt[80];
-extern enum dsp_mode display_mode INIT(HEX_MODE);
+extern enum dsp_mode dmode INIT(HEX_MODE); /* display mode */
 
 void eol(int col) /* end of line */
 {
@@ -86,11 +86,11 @@ void print_it(const char *label, const char *fmt, const char *fmt2, ...)
 	if (!termlines || line < termlines) {
 		va_start(args, fmt2);
 		if (termlines) {
-			if (line == edit_row[display_mode] + 4)
+			if (line == edit_row[dmode] + 4)
 				COLORS_HIGHLIGHT;
 			move(line,0);
 			printw("%s", label);
-			if (line == edit_row[display_mode] + 4)
+			if (line == edit_row[dmode] + 4)
 				COLORS_NORMAL;
 			move(line,24);
 		}
@@ -103,10 +103,10 @@ void print_it(const char *label, const char *fmt, const char *fmt2, ...)
 		vsprintf(tmp_string, fmt, args);
 
 		if (termlines) {
-			if (line == edit_row[display_mode] + 4)
+			if (line == edit_row[dmode] + 4)
 				COLORS_HIGHLIGHT;
 			printw(tmp_string);
-			if (line == edit_row[display_mode] + 4)
+			if (line == edit_row[dmode] + 4)
 				COLORS_NORMAL;
 		}
 		else
@@ -119,10 +119,10 @@ void print_it(const char *label, const char *fmt, const char *fmt2, ...)
 			vsprintf(tmp_string, fmt2, args);
 			if (termlines) {
 				move(line, 50);
-				if (line == edit_row[display_mode] + 4)
+				if (line == edit_row[dmode] + 4)
 					COLORS_HIGHLIGHT;
 				printw("%s", tmp_string);
-				if (line == edit_row[display_mode] + 4)
+				if (line == edit_row[dmode] + 4)
 					COLORS_NORMAL;
 			}
 			else {
@@ -148,14 +148,14 @@ void print_it(const char *label, const char *fmt, const char *fmt2, ...)
 		}
 		if (termlines) {
 			refresh();
-			if (line == edit_row[display_mode] + 4) {
+			if (line == edit_row[dmode] + 4) {
 				strcpy(edit_string, tmp_string);
 				strcpy(edit_fmt, fmt);
-				edit_size[display_mode] = strlen(edit_string);
+				edit_size[dmode] = strlen(edit_string);
 				COLORS_NORMAL;
 			}
-			if (line - 3 > edit_last[display_mode])
-				edit_last[display_mode] = line - 4;
+			if (line - 3 > edit_last[dmode])
+				edit_last[dmode] = line - 4;
 		}
 		eol(0);
 		va_end(args);
@@ -293,7 +293,8 @@ void do_indirect_extended(char *buf)
 
 	indirect_blocks = 0;
 	memset(&indirect, 0, sizeof(indirect));
-	for (x = sizeof(struct gfs_indirect), y = 0;
+	for (x = (gfs1 ? sizeof(struct gfs_indirect):
+			  sizeof(struct gfs2_meta_header)), y = 0;
 		 x < bufsize;
 		 x += sizeof(uint64_t), y++) {
 		p = be64_to_cpu(*(uint64_t *)(buf + x));
