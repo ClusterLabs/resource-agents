@@ -403,20 +403,14 @@ static int set_is_all_stopped(struct recovery_set *rs, event_t *rev)
 	list_for_each_entry(re, &rs->entries, list) {
 		ev = re->group->app->current_event;
 
-#if 0
-		/* if we're not in the group yet, skip it */
-		if (ev &&
-		    ev->state == EST_JOIN_STOP_WAIT &&
-		    is_our_join(ev)) {
-			log_group(re->group, "skip all_stopped check for rs %d",
-				  rs->nodeid);
-			continue;
-		}
-#endif
+		/* we need to use ev->fail_all_stopped instead of checking
+		   ev->state == FAIL_ALL_STOPPED because if two groups are at
+		   the low level, one will detect all_levels_all_stopped first
+		   and then immediately move on to starting before the other,
+		   also checking all_levels_all_stopped, can see it's in
+		   FAIL_ALL_STOPPED */
 
-		if (ev &&
-		    is_recovery_event(ev) &&
-		    ev->state == EST_FAIL_ALL_STOPPED)
+		if (ev && is_recovery_event(ev) && ev->fail_all_stopped)
 			continue;
 		else
 			return 0;
@@ -574,6 +568,7 @@ int queue_app_recover(group_t *g, int nodeid)
 	ev = create_event(g);
 	ev->nodeid = nodeid;
 	ev->state = EST_FAIL_BEGIN;
+	ev->fail_all_stopped = 0;
 	ev->id = make_event_id(g, EST_FAIL_BEGIN, nodeid);
 
 	log_group(g, "queue recover event for nodeid %d", nodeid);
@@ -1116,6 +1111,7 @@ static int process_current_event(group_t *g)
 		break;
 
 	case EST_FAIL_ALL_STOPPED:
+		ev->fail_all_stopped = 1;
 
 		/* when recovering for failed nodes, we immediately stop all
 		   apps the node was involved with but wait for quorum before
@@ -1500,6 +1496,7 @@ int recover_current_event(group_t *g)
 
 		if (ev->state > EST_FAIL_ALL_STOPPED) {
 			ev->state = EST_FAIL_BEGIN;
+			ev->fail_all_stopped = 0;
 			clear_all_nodes_stopped(a);
 		} else if (event_state_stopping(a)) {
 			mark_node_stopped(a, rev->nodeid);

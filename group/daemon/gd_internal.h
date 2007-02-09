@@ -150,6 +150,7 @@ struct event {
 	uint64_t		id;
 	struct list_head	extended;
 	int			start_app_before_pending_rev;
+	int			fail_all_stopped;
 };
 
 /*
