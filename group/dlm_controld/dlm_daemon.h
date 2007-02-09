@@ -39,6 +39,7 @@
 #include <time.h>
 #include <syslog.h>
 #include <sched.h>
+#include <signal.h>
 #include <linux/netlink.h>
 
 #include "list.h"

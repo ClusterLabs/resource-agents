@@ -23,6 +23,11 @@ struct list_head lockspaces;
 
 extern group_handle_t gh;
 
+static void sigterm_handler(int sig)
+{
+	if (list_empty(&lockspaces))
+		clear_configfs();
+}
 
 struct lockspace *create_ls(char *name)
 {
@@ -422,6 +427,8 @@ int main(int argc, char **argv)
 
 	if (!daemon_debug_opt)
 		daemonize();
+
+	signal(SIGTERM, sigterm_handler);
 
 	set_scheduler();
 
