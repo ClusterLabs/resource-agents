@@ -2738,6 +2738,7 @@ doc/Makefile							\
 contrib/Makefile						\
 	contrib/ipfail/Makefile					\
         contrib/mlock/Makefile					\
+	contrib/drbd-outdate-peer/Makefile			\
 include/Makefile						\
         include/clplumbing/Makefile				\
 	include/crm/Makefile					\
