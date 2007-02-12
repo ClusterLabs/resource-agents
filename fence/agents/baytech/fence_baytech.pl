@@ -4,7 +4,7 @@
 ###############################################################################
 ##
 ##  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+##  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 ##  
 ##  This copyrighted material is made available to anyone wishing to use,
 ##  modify, copy, or redistribute it subject to the terms and conditions
@@ -32,7 +32,7 @@ use Getopt::Std;
 
 #BEGIN_VERSION_GENERATION
 $FENCE_RELEASE_NAME="";
-$SISTINA_COPYRIGHT="";
+$REDHAT_COPYRIGHT="";
 $BUILD_DATE="";
 #END_VERSION_GENERATION
 
@@ -70,6 +70,7 @@ sub usage
     print " -o string      action: On,Off,Status or Reboot (default)\n";
     print " -n string      outlet name\n";
     print " -p string      password\n";
+    print " -S path        script to run to retrieve password\n";
     print " -V             version\n";
 
     exit 0;
@@ -94,7 +95,7 @@ sub fail_usage
 sub version
 {
   print "$pname $FENCE_RELEASE_NAME $BUILD_DATE\n";
-  print "$SISTINA_COPYRIGHT\n" if ( $SISTINA_COPYRIGHT );
+  print "$REDHAT_COPYRIGHT\n" if ( $REDHAT_COPYRIGHT );
 
   exit 0;
 }
@@ -104,7 +105,7 @@ sub get_options
 {
    $action = "Reboot";
    if (@ARGV > 0) {
-      getopts("n:l:p:o:a:VhD") || fail_usage ;
+      getopts("n:l:p:S:o:a:VhD") || fail_usage ;
 
       usage if defined $opt_h;
       version if defined $opt_V;
@@ -130,6 +131,13 @@ sub get_options
    $quiet=$opt_q if defined $opt_q;
    $user=$opt_l if defined $opt_l;
    $passwd=$opt_p if defined $opt_p;
+   if (defined $opt_S) {
+     $pwd_script_out = `$opt_S`;
+     chomp($pwd_script_out);
+     if ($pwd_script_out) {
+       $passwd=$pwd_script_out;
+     }
+   }
 
    if(defined $passwd && !defined $user)
    {
@@ -183,6 +191,10 @@ sub get_options_stdin
 	{
 	    $opt_p = $val;
 	} 
+
+    elsif ($name eq "passwd_script") {
+        $opt_S = $val;
+    }
 
 	elsif ($name eq "action" ) 
 	{

@@ -4,7 +4,7 @@
 ###############################################################################
 ##
 ##  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+##  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 ##  
 ##  This copyrighted material is made available to anyone wishing to use,
 ##  modify, copy, or redistribute it subject to the terms and conditions
@@ -35,7 +35,7 @@ $action = "reboot"; # Default fence action
 
 #BEGIN_VERSION_GENERATION
 $FENCE_RELEASE_NAME="";
-$SISTINA_COPYRIGHT="";
+$REDHAT_COPYRIGHT="";
 $BUILD_DATE="";
 #END_VERSION_GENERATION
 
@@ -53,6 +53,7 @@ sub usage
 	print "  -n <num>         blade number to operate on\n";
 	print "  -o <string>      Action:  on, off, reboot (default) or status\n";
 	print "  -p <string>      Password for login\n";
+	print "  -S <path>        Script to run to retrieve password\n";
 	print "  -q               quiet mode\n";
 	print "  -V               version\n";
 
@@ -78,7 +79,7 @@ sub fail_usage
 sub version
 {
 	print "$pname $FENCE_RELEASE_NAME $BUILD_DATE\n";
-	print "$SISTINA_COPYRIGHT\n" if ( $SISTINA_COPYRIGHT );
+	print "$REDHAT_COPYRIGHT\n" if ( $REDHAT_COPYRIGHT );
 
 	exit 0;
 }
@@ -129,7 +130,10 @@ sub get_options_stdin
 		elsif ($name eq "passwd" ) 
 		{
 			$passwd = $val;
-		} 
+		}
+		elsif ($name eq "passwd_script" ) {
+			$passwd_script = $val;
+		}
 		elsif ($name eq "blade" ) 
 		{
 			$bladenum = $val;
@@ -199,7 +203,7 @@ sub set_power_state
 
 if (@ARGV > 0) 
 {
-	getopts("a:hl:n:o:p:qv:V") || fail_usage ;
+	getopts("a:hl:n:o:p:S:qv:V") || fail_usage ;
 
 	usage if defined $opt_h;
 	version if defined $opt_V;
@@ -212,12 +216,20 @@ if (@ARGV > 0)
 	$verbose  = $opt_v if defined $opt_v;
 	$quiet    = $opt_q if defined $opt_q;
 
+	if (defined $opt_S) {
+		$pwd_script_output = `$opt_S`;
+		chomp($pwd_script_output);
+		if ($pwd_script_output) {
+			$passwd = $pwd_script_output;
+		}
+	}
+
 	fail_usage "Unknown parameter." if (@ARGV > 0);
 
 	fail_usage "No '-a' flag specified." unless defined $host;
 	fail_usage "No '-n' flag specified." unless defined $bladenum;
 	fail_usage "No '-l' flag specified." unless defined $login;
-	fail_usage "No '-p' flag specified." unless defined $passwd;
+	fail_usage "No '-p' or '-S' flag specified." unless defined $passwd;
 	fail_usage "Unrecognised action '$action' for '-o' flag"
 		unless $action =~ /^(on|off|reboot|status)$/i;
 } 
@@ -228,9 +240,17 @@ else
 	fail "failed: no IP address" unless defined $host;
 	fail "failed: no blade number" unless defined $bladenum;
 	fail "failed: no login name" unless defined $login;
-	fail "failed: no password" unless defined $passwd;
 	fail "failed: unrecognised action: $action"
 		unless $action =~ /^(on|off|reboot|status)$/i;
+
+	if (defined $passwd_script) {
+		$pwd_script_output = `$passwd_script`;
+		chomp($pwd_script_output);
+		if ($pwd_script_output) {
+			$passwd = $pwd_script_output;
+		}
+	}
+	fail "failed: no password" unless defined $passwd;
 }
 
 # convert $action to lower case 

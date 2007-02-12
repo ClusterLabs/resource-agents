@@ -4,7 +4,7 @@
 ###############################################################################
 ##
 ##  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+##  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 ##  
 ##  This copyrighted material is made available to anyone wishing to use,
 ##  modify, copy, or redistribute it subject to the terms and conditions
@@ -21,7 +21,7 @@ use VMware::VmPerl;
 use VMware::VmPerl::VM;
 use VMware::VmPerl::Server;
 use VMware::VmPerl::ConnectParams;
-use vars qw( $opt_L $opt_v $opt_V $opt_h $opt_T $opt_n $opt_o $opt_p $opt_P $opt_l $opt_a $opt_q $vm_product $vm_platform $vm_build $vm_version_major $vm_version_minor $vm_version_revision );
+use vars qw( $opt_L $opt_v $opt_V $opt_h $opt_T $opt_n $opt_o $opt_p $opt_P $opt_S $opt_l $opt_a $opt_q $vm_product $vm_platform $vm_build $vm_version_major $vm_version_minor $vm_version_revision );
 
 # Get the program name from $0 and strip directory names
 $_=$0;
@@ -62,6 +62,7 @@ sub usage
 	print "  -h               usage\n";
 	print "  -l <name>        Login name\n";
 	print "  -p <string>      Login password\n";
+	print "  -S <path>        Script to run to retrieve login password\n";
 	print "  -n <name>        Name of VM to change \n";
 	print "  -o <string>      Action: Reboot (default), Off or On\n";
 	print "  -q               quiet mode\n";
@@ -99,7 +100,7 @@ sub fail_usage
 sub version
 {
 	print "$pname $FENCE_RELEASE_NAME $BUILD_DATE\n";
-	print "$SISTINA_COPYRIGHT\n" if ( $SISTINA_COPYRIGHT );
+	print "$REDHAT_COPYRIGHT\n" if ( $REDHAT_COPYRIGHT );
 	exit 0;
 }
 
@@ -240,7 +241,11 @@ sub get_options_stdin
 		elsif ($name eq "passwd" ) 
 		{
 			$opt_p = $val;
-		} 
+		}
+		elsif ($name eq "passwd_script" )
+		{
+			$opt_S = $val;
+		}
 		elsif ($name eq "port" ) 
 		{
 			$opt_n = $val;
@@ -275,7 +280,7 @@ sub connect_error
 ### MAIN #######################################################
 
 if (@ARGV > 0) {
-	getopts("a:hl:n:o:p:qTvVL") || fail_usage ;
+	getopts("a:hl:n:o:p:S:qTvVL") || fail_usage ;
 	
 	usage if defined $opt_h;
 	version if defined $opt_V;
@@ -285,9 +290,18 @@ if (@ARGV > 0) {
 	fail_usage "No '-a' flag specified." unless defined $opt_a;
 	fail_usage "No '-n' flag specified." unless defined $opt_n or defined $opt_L;
 	fail_usage "No '-l' flag specified." unless defined $opt_l;
-	fail_usage "No '-p' flag specified." unless defined $opt_p;
-	fail_usage "Unrecognised action '$opt_o' for '-o' flag"
-	unless $opt_o =~ /^(Off|On|Reboot)$/i;
+
+	if (defined $opt_S) {
+		$pwd_script_out = `$opt_S`;
+		chomp($pwd_script_out);
+		if ($pwd_script_out) {
+			$opt_p = $pwd_script_out;
+		}
+	}
+
+	fail_usage "No '-p' or '-S' flag specified." unless defined $opt_p;
+	fail_usage "Unrecognized action '$opt_o' for '-o' flag"
+		unless $opt_o =~ /^(Off|On|Reboot)$/i;
 
 	($opt_a, $opt_P) = split(/:/, $opt_a);
 	fail_usage "No port number specified." unless defined $opt_P;
@@ -298,9 +312,18 @@ if (@ARGV > 0) {
 	fail "failed: no IP address" unless defined $opt_a;
 	fail "failed: no vm name" unless defined $opt_n;
 	fail "failed: no login name" unless defined $opt_l;
+
+	if (defined $opt_S) {
+		$pwd_script_out = `$opt_S`;
+		chomp($pwd_script_out);
+		if ($pwd_script_out) {
+			$opt_p = $pwd_script_out;
+		}
+	}
+
 	fail "failed: no password" unless defined $opt_p;
-	fail "failed: unrecognised action: $opt_o"
-	unless $opt_o =~ /^(Off|On|Reboot)$/i;
+	fail "failed: unrecognized action: $opt_o"
+		unless $opt_o =~ /^(Off|On|Reboot)$/i;
 } 
 
 &login;

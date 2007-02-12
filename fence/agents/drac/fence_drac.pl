@@ -3,7 +3,7 @@
 ###############################################################################
 ###############################################################################
 ##
-##  Copyright (C) 2006 Red Hat, Inc.  All rights reserved.
+##  Copyright (C) 2006-2007 Red Hat, Inc.  All rights reserved.
 ##  
 ##  This copyrighted material is made available to anyone wishing to use,
 ##  modify, copy, or redistribute it subject to the terms and conditions
@@ -79,15 +79,17 @@ sub usage
 	print "  -m <modulename>  DRAC/MC module name\n";
 	print "  -o <string>      Action: reboot (default), off or on\n";
 	print "  -p <string>      Login password\n";
+	print "  -S <path>        Script to run to retrieve password\n";
 	print "  -q               quiet mode\n";
 	print "  -V               version\n";
 	print "\n";
 	print "CCS Options:\n";
-        print "  action = \"string\"      Action: reboot (default), off or on\n";
-        print "  debug  = \"debugfile\"   debugging output file\n";
+	print "  action = \"string\"      Action: reboot (default), off or on\n";
+	print "  debug  = \"debugfile\"   debugging output file\n";
 	print "  ipaddr = \"ip\"          IP address or hostname of DRAC\n";
 	print "  login  = \"name\"        Login name\n";
-        print "  passwd = \"string\"      Login password\n";
+	print "  passwd = \"string\"      Login password\n";
+	print "  passwd_script = \"path\" Script to run to retrieve password\n";
 
 	exit 0;
 }
@@ -125,7 +127,7 @@ sub fail_usage
 sub version
 {
 	print "$pname $FENCE_RELEASE_NAME $BUILD_DATE\n";
-	print "$SISTINA_COPYRIGHT\n" if ( $SISTINA_COPYRIGHT );
+	print "$REDHAT_COPYRIGHT\n" if ( $REDHAT_COPYRIGHT );
 	exit 0;
 }
 
@@ -540,7 +542,11 @@ sub get_options_stdin
 		elsif ($name eq "passwd" ) 
 		{
 			$passwd = $val;
-		} 
+		}
+		elsif ($name eq "passwd_script" )
+		{
+			$passwd_script = $val;
+		}
 		elsif ($name eq "debug" ) 
 		{
 			$debug = $val;
@@ -572,7 +578,7 @@ sub get_options_stdin
 # Check parameters
 #
 if (@ARGV > 0) {
-	getopts("a:c:d:D:hl:m:o:p:qVv") || fail_usage ;
+	getopts("a:c:d:D:hl:m:o:p:S:qVv") || fail_usage ;
 	
 	usage if defined $opt_h;
 	version if defined $opt_V;
@@ -590,7 +596,15 @@ if (@ARGV > 0) {
 
 	$modulename = $opt_m if defined $opt_m;
 
-	fail_usage "No '-p' flag specified." unless defined $opt_p;
+	if (defined $opt_S) {
+		$pwd_script_out = `$opt_S`;
+		chomp($pwd_script_out);
+		if ($pwd_script_out) {
+			$opt_p = $pwd_script_out;
+		}
+	}
+
+	fail_usage "No '-p' or '-S' flag specified." unless defined $opt_p;
 	$passwd = $opt_p;
 
 	$verbose = $opt_v if defined $opt_v;
@@ -610,9 +624,18 @@ if (@ARGV > 0) {
 
 	fail "failed: no IP address" unless defined $address;
 	fail "failed: no login name" unless defined $login;
+
+	if (defined $passwd_script) {
+		$pwd_script_out = `$passwd_script`;
+		chomp($pwd_script_out);
+		if ($pwd_script_out) {
+			$passwd = $pwd_script_out;
+		}
+	}
+
 	fail "failed: no password" unless defined $passwd;
 	fail "failed: unrecognised action: $action"
-	unless $action =~ /^(Off|On|Reboot|status)$/i;
+		unless $action =~ /^(Off|On|Reboot|status)$/i;
 } 
 
 

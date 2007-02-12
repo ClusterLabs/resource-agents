@@ -43,6 +43,7 @@ sub usage
     print "  -h               usage\n";
     print "  -n <num>         Physical plug number on NPS\n";
     print "  -p <string>      Password if NPS requires one\n";
+    print "  -S <path>        Script to run to retrieve login password\n";
     print "  -o <operation>   Operation to perform (on, off, reboot)\n";
     print "  -q               quiet mode\n";
     print "  -T               test reports state of plug (no power cycle)\n";
@@ -77,7 +78,7 @@ sub version
 
 $opt_o = "reboot";
 if (@ARGV > 0) {
-   getopts("a:hn:p:qTVo:") || fail_usage ;
+   getopts("a:hn:p:S:qTVo:") || fail_usage ;
 
    usage if defined $opt_h;
    version if defined $opt_V;
@@ -86,13 +87,31 @@ if (@ARGV > 0) {
 
    fail_usage "No '-a' flag specified." unless defined $opt_a;
    fail_usage "No '-n' flag specified." unless defined $opt_n;
-   fail_usage "No '-p' flag specified." unless defined $opt_p;
+
+   if (defined $opt_S) {
+       $pwd_script_out = `$opt_S`;
+       chomp($pwd_script_out);
+       if ($pwd_script_out) {
+           $opt_p = $pwd_script_out;
+       }
+   }
+
+   fail_usage "No '-p' or '-S' flag specified." unless defined $opt_p;
 
 } else {
    get_options_stdin();
 
    fail "failed: no IP address" unless defined $opt_a;
    fail "failed: no plug number" unless defined $opt_n;
+
+   if (defined $opt_S) {
+       $pwd_script_out = `$opt_S`;
+       chomp($pwd_script_out);
+       if ($pwd_script_out) {
+           $opt_p = $pwd_script_out;
+       }
+   }
+
    fail "failed: no password" unless defined $opt_p;
 }
 
@@ -338,6 +357,10 @@ sub get_options_stdin
         {
             $opt_p = $val;
         }
+		elsif ($name eq "passwd_script" )
+		{
+			$opt_S = $val;
+		}
         elsif ($name eq "port" )
         {
             $opt_n = $val;

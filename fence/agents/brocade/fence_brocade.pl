@@ -4,7 +4,7 @@
 ###############################################################################
 ##
 ##  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+##  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 ##  
 ##  This copyrighted material is made available to anyone wishing to use,
 ##  modify, copy, or redistribute it subject to the terms and conditions
@@ -46,6 +46,7 @@ sub usage
     print "  -n <num>         Port number to operate on\n";
     print "  -o <string>      Action:  disable (default) or enable\n";
     print "  -p <string>      Password for login\n";
+    print "  -S <path>        Script to run to retrieve password\n";
     print "  -q               quiet mode\n";
     print "  -V               version\n";
 
@@ -78,17 +79,25 @@ sub version
 
 
 if (@ARGV > 0) {
-   getopts("a:hl:n:o:p:qV") || fail_usage ;
+   getopts("a:hl:n:o:p:S:qV") || fail_usage ;
 
    usage if defined $opt_h;
    version if defined $opt_V;
 
    fail_usage "Unknown parameter." if (@ARGV > 0);
 
+   if (defined $opt_S) {
+     $pwd_script_out = `$opt_S`;
+     chomp($pwd_script_out);
+     if ($pwd_script_out) {
+       $opt_p = $pwd_script_out;
+     }
+   }
+
    fail_usage "No '-a' flag specified." unless defined $opt_a;
    fail_usage "No '-n' flag specified." unless defined $opt_n;
    fail_usage "No '-l' flag specified." unless defined $opt_l;
-   fail_usage "No '-p' flag specified." unless defined $opt_p;
+   fail_usage "No '-p' or '-S' flag specified." unless defined $opt_p;
    fail_usage "Unrecognised action '$opt_o' for '-o' flag"
       unless $opt_o =~ /^(disable|enable)$/i;
 
@@ -98,6 +107,15 @@ if (@ARGV > 0) {
    fail "failed: no IP address" unless defined $opt_a;
    fail "failed: no plug number" unless defined $opt_n;
    fail "failed: no login name" unless defined $opt_l;
+
+   if (defined $opt_S) {
+     $pwd_script_out = `$opt_S`;
+     chomp($pwd_script_out);
+     if ($pwd_script_out) {
+       $opt_p = $pwd_script_out;
+     }
+   }
+
    fail "failed: no password" unless defined $opt_p;
    fail "failed: unrecognised action: $opt_o"
       unless $opt_o =~ /^(disable|enable)$/i;
@@ -226,6 +244,9 @@ sub get_options_stdin
 	{
             $opt_p = $val;
         } 
+	elsif ($name eq "passwd_script") {
+		$opt_S = $val;
+	}
 	elsif ($name eq "port" ) 
 	{
             $opt_n = $val;

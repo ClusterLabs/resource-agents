@@ -4,7 +4,7 @@
 ###############################################################################
 ##
 ##  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+##  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 ##  
 ##  This copyrighted material is made available to anyone wishing to use,
 ##  modify, copy, or redistribute it subject to the terms and conditions
@@ -40,6 +40,7 @@ sub usage
     print "  -h               Usage\n";
     print "  -n <num>         Port number to disable\n";
     print "  -p <string>      Password for login\n";
+    print "  -S <path>        Script to run to retrieve login password\n";
     print "  -V               version\n\n";
 
     exit 0;
@@ -70,7 +71,7 @@ sub version
 }
 
 if (@ARGV > 0) {
-    getopts("a:hn:p:V") || fail_usage ;
+    getopts("a:hn:p:S:V") || fail_usage ;
 
     usage if defined $opt_h;
     version if defined $opt_V;
@@ -78,13 +79,31 @@ if (@ARGV > 0) {
     fail_usage "Unknown parameter." if (@ARGV > 0);
 
     fail_usage "No '-a' flag specified." unless defined $opt_a;
-    fail_usage "No '-p' flag specified." unless defined $opt_p;
+
+	if (defined $opt_S) {
+		$pwd_script_out = `$opt_S`;
+		chomp($pwd_script_out);
+		if ($pwd_script_out) {
+			$opt_p = $pwd_script_out;
+		}
+	}
+
+    fail_usage "No '-p' or '-S' flag specified." unless defined $opt_p;
     fail_usage "No '-n' flag specified." unless defined $opt_n;
 
 } else {
     get_options_stdin();
 
     fail "failed: no IP address for the Vixel." unless defined $opt_a;
+
+	if (defined $opt_S) {
+		$pwd_script_out = `$opt_S`;
+		chomp($pwd_script_out);
+		if ($pwd_script_out) {
+			$opt_p = $pwd_script_out;
+		}
+	}
+
     fail "failed: no password provided." unless defined $opt_p;
     fail "failed: no port number specified." unless defined $opt_n;
 }
@@ -130,7 +149,7 @@ $t->print("apply");
 
 ($text, $match) = $t->waitfor('/\>/');
 if ($text !~ /[Oo][Kk]/) {
-  fail "failed: error from switch\n";
+	fail "failed: error from switch\n";
 }
 
 $t->print("exit");
@@ -141,57 +160,57 @@ exit 0;
 
 sub get_options_stdin
 {
-    my $opt;
-    my $line = 0;
+	my $opt;
+	my $line = 0;
 
-    while( defined($in = <>) )
-    {   
-        $_ = $in;
-	chomp;
-        
-        # strip leading and trailing whitespace
-        s/^\s*//;
-        s/\s*$//;
-
-        # skip comments
-        next if /^#/;
-
-        $line+=1;
-        $opt=$_;
-        next unless $opt;
-
-        ($name,$val)=split /\s*=\s*/, $opt;
-
-        if ( $name eq "" ) {
-           print("parse error: illegal name in option $line\n");
-           exit 2;
-        } 
-
-        # DO NOTHING -- this field is used by fenced
-	elsif ($name eq "agent" ) { }
-
-	# FIXME -- depricated.  use "port" instead.
-	elsif ($name eq "fm" ) {
-            (my $dummy,$opt_n) = split /\s+/,$val;
-	    print STDERR "Depricated \"fm\" entry detected.  refer to man page.\n";
-        } 
-
-	elsif ($name eq "ipaddr" ) 
+	while( defined($in = <>) )
 	{
-            $opt_a = $val;
-        } 
+		$_ = $in;
+		chomp;
 
-	elsif ($name eq "name" ) { }
+		# strip leading and trailing whitespace
+		s/^\s*//;
+		s/\s*$//;
 
-        elsif ($name eq "passwd" ) 
-	{
-            $opt_p = $val;
-        } 
+		# skip comments
+		next if /^#/;
 
-        elsif ($name eq "port" ) 
-	{
-            $opt_n = $val;
-        } 
-    }
+		$line+=1;
+		$opt=$_;
+		next unless $opt;
+
+		($name,$val)=split /\s*=\s*/, $opt;
+
+		if ( $name eq "" ) {
+			print("parse error: illegal name in option $line\n");
+			exit 2;
+		} 
+
+		# DO NOTHING -- this field is used by fenced
+		elsif ($name eq "agent" ) { }
+
+		# FIXME -- depricated.  use "port" instead.
+		elsif ($name eq "fm" ) {
+			(my $dummy,$opt_n) = split /\s+/,$val;
+			print STDERR "Depricated \"fm\" entry detected. Refer to man page.\n";
+		} 
+		elsif ($name eq "ipaddr" ) 
+		{
+			$opt_a = $val;
+		} 
+		elsif ($name eq "name" ) { }
+		elsif ($name eq "passwd" ) 
+		{
+			$opt_p = $val;
+		}
+		elsif ($name eq "passwd_script" )
+		{
+			$opt_S = $val;
+		} 
+		elsif ($name eq "port" ) 
+		{
+			$opt_n = $val;
+		} 
+	}
 }
 

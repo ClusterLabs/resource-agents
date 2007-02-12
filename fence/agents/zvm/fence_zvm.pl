@@ -4,7 +4,7 @@
 ###############################################################################
 ##
 ##  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+##  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 ##  
 ##  This copyrighted material is made available to anyone wishing to use,
 ##  modify, copy, or redistribute it subject to the terms and conditions
@@ -45,7 +45,8 @@ sub usage
     print "  -a <ip>          IP address or hostname of the physical s390\n";
     print "  -h               usage\n";
     print "  -u <string>      userid of the virtual machine to fence\n";
-    print "  -p <string>      Password\n"; 
+    print "  -p <string>      Password\n";
+    print "  -S <path>        Script to run to retrieve login password\n";
     print "  -q               quiet mode\n";
     print "  -r <devnum>      ipl device <devnum>\n";
     print "  -V               Version\n";
@@ -267,6 +268,10 @@ sub get_options_stdin
         {
             $opt_p = $val;
         }
+		elsif ($name eq "passwd_script" )
+		{
+			$opt_S = $val;
+		}
 	      elsif ($name eq "userid" )
         {
             $opt_u = $val;
@@ -281,14 +286,23 @@ sub get_options_stdin
 }
 
 if (@ARGV > 0){
-    getopts("a:hp:qr:u:V") || fail_usage;
+    getopts("a:hp:S:qr:u:V") || fail_usage;
     usage if defined $opt_h;
     version if defined $opt_V;
 
     fail_usage "Unkown parameter." if (@ARGV > 0);
 
     fail_usage "No '-a' flag specified." unless defined $opt_a;
-    fail_usage "No '-p' flag specified." unless defined $opt_p;
+
+    if (defined $opt_S) {
+        $pwd_script_out = `$opt_S`;
+        chomp($pwd_script_out);
+        if ($pwd_script_out) {
+            $opt_p = $pwd_script_out;
+        }
+    }
+
+    fail_usage "No '-p' or '-S' flag specified." unless defined $opt_p;
     fail_usage "No '-u' flag specified." unless defined $opt_u;
 
 } else {
@@ -296,6 +310,15 @@ if (@ARGV > 0){
 
     fail "no IP address" unless defined $opt_a;
     fail "no userid" unless defined $opt_u;
+
+    if (defined $opt_S) {
+        $pwd_script_out = `$opt_S`;
+        chomp($pwd_script_out);
+        if ($pwd_script_out) {
+            $opt_p = $pwd_script_out;
+        }
+    }
+
     fail "no password" unless defined $opt_p;
 }
 

@@ -4,7 +4,7 @@
 ###############################################################################
 ##
 ##  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+##  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 ##  
 ##  This copyrighted material is made available to anyone wishing to use,
 ##  modify, copy, or redistribute it subject to the terms and conditions
@@ -31,7 +31,7 @@ die "NSMasterHW not installed correctly" if ! -d _;
 
 #BEGIN_VERSION_GENERATION
 $FENCE_RELEASE_NAME="";
-$SISTINA_COPYRIGHT="";
+$REDHAT_COPYRIGHT="";
 $BUILD_DATE="";
 #END_VERSION_GENERATION
 
@@ -49,17 +49,19 @@ sub usage
 	print "  -d <domain>      Domain to operate on\n";
 	print "  -o <string>      Action:  on, off, reboot (default) or status\n";
 	print "  -p <string>      Password for login\n";
+	print "  -S <path>        Script to run to retrieve password\n";
 	print "  -q               quiet mode\n";
 	print "  -V               version\n";
 	print "\n";
 	print "When run with no arguments, $pname takes arguments from ";
 	print "standard\ninput, one line per option.  They are as follows:\n";
 	print "\n";
-	print "  ipaddr=<ip>      Same as -a command line option\n";
-	print "  login=<name>     Same as -l command line option\n";
-	print "  domain=<domain>  Same as -d command line option\n";
-	print "  option=<string>  Same as -o command line option\n";
-	print "  passwd=<string>  Same as -p command line option\n\n";
+	print "  ipaddr=<ip>          Same as -a command line option\n";
+	print "  login=<name>         Same as -l command line option\n";
+	print "  domain=<domain>      Same as -d command line option\n";
+	print "  option=<string>      Same as -o command line option\n";
+	print "  passwd=<string>      Same as -p command line option\n";
+	print "  passwd_script=<path> Same as -S command line option\n\n";
 
 	exit 0;
 }
@@ -82,7 +84,7 @@ sub fail_usage
 sub version
 {
 	print "$pname $FENCE_RELEASE_NAME $BUILD_DATE\n";
-	print "$SISTINA_COPYRIGHT\n" if ( $SISTINA_COPYRIGHT );
+	print "$REDHAT_COPYRIGHT\n" if ( $REDHAT_COPYRIGHT );
 
 	exit 0;
 }
@@ -138,6 +140,9 @@ sub get_options_stdin
 		{
 			$passwd = $val;
 		} 
+		elsif ($name eq "passwd_script" ) {
+			$passwd_script = $val;
+		}
 		elsif ($name eq "domain" ) 
 		{
 			$domain = $val;
@@ -221,7 +226,7 @@ sub set_power_state
 
 if (@ARGV > 0) 
 {
-	getopts("a:hl:d:o:p:qv:V") || fail_usage ;
+	getopts("a:hl:d:o:p:S:qv:V") || fail_usage ;
 
 	usage if defined $opt_h;
 	version if defined $opt_V;
@@ -234,12 +239,20 @@ if (@ARGV > 0)
 	$verbose  = $opt_v if defined $opt_v;
 	$quiet    = $opt_q if defined $opt_q;
 
+	if (defined $opt_S) {
+		$pwd_script_out = `$opt_S`;
+		chomp($pwd_script_out);
+		if ($pwd_script_out) {
+			$passwd = $pwd_script_out;
+		}
+	}
+
 	fail_usage "Unknown parameter." if (@ARGV > 0);
 
 	fail_usage "No '-a' flag specified." unless defined $host;
 	fail_usage "No '-d' flag specified." unless defined $domain;
 	fail_usage "No '-l' flag specified." unless defined $login;
-	fail_usage "No '-p' flag specified." unless defined $passwd;
+	fail_usage "No '-p' or '-S' flag specified." unless defined $passwd;
 	fail_usage "Unrecognised action '$action' for '-o' flag"
 		unless $action =~ /^(on|off|reboot|status)$/i;
 } 
@@ -250,9 +263,17 @@ else
 	fail "failed: no IP address" unless defined $host;
 	fail "failed: no domain" unless defined $domain;
 	fail "failed: no login name" unless defined $login;
-	fail "failed: no password" unless defined $passwd;
 	fail "failed: unrecognized action: $action"
 		unless $action =~ /^(on|off|reboot|status)$/i;
+
+	if (defined $passwd_script) {
+		$pwd_script_out = `$passwd_script`;
+		chomp($pwd_script_out);
+		if ($pwd_script_out) {
+			$passwd = $pwd_script_out;
+		}
+	}
+	fail "failed: no password" unless defined $passwd;
 }
 
 # convert $action to lower case 
