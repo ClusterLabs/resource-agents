@@ -391,7 +391,8 @@ int gfs2_readi(struct gfs2_inode *ip, void *buf,
 			   uint64_t offset, unsigned int size);
 int gfs2_writei(struct gfs2_inode *ip, void *buf,
 				uint64_t offset, unsigned int size);
-struct gfs2_buffer_head *get_file_buf(struct gfs2_inode *ip, uint64_t lbn);
+struct gfs2_buffer_head *get_file_buf(struct gfs2_inode *ip, uint64_t lbn,
+									  int prealloc);
 struct gfs2_buffer_head *init_dinode(struct gfs2_sbd *sdp,
 									 struct gfs2_inum *inum,
 									 unsigned int mode, uint32_t flags,
@@ -408,7 +409,7 @@ void dir_add(struct gfs2_inode *dip, char *filename, int len,
 int gfs2_dirent_del(struct gfs2_inode *dip, struct gfs2_buffer_head *bh,
 					const char *filename, int filename_len);
 void block_map(struct gfs2_inode *ip, uint64_t lblock, int *new,
-			   uint64_t *dblock, uint32_t *extlen);
+			   uint64_t *dblock, uint32_t *extlen, int prealloc);
 void gfs2_get_leaf_nr(struct gfs2_inode *dip, uint32_t index,
 					  uint64_t *leaf_out);
 int gfs2_freedi(struct gfs2_sbd *sdp, uint64_t block);
@@ -418,6 +419,10 @@ int gfs2_dirent_first(struct gfs2_inode *dip, struct gfs2_buffer_head *bh,
 					  struct gfs2_dirent **dent);
 int gfs2_dirent_next(struct gfs2_inode *dip, struct gfs2_buffer_head *bh,
 					 struct gfs2_dirent **dent);
+void build_height(struct gfs2_inode *ip, int height);
+unsigned int calc_tree_height(struct gfs2_inode *ip, uint64_t size);
+void write_journal(struct gfs2_sbd *sdp, struct gfs2_inode *ip, unsigned int j,
+				   unsigned int blocks);
 
 /**
  * device_size - figure out a device's size

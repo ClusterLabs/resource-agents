@@ -209,7 +209,7 @@ static void unstuff_dinode(struct gfs2_inode *ip)
 	ip->i_di.di_height = 1;
 }
 
-static unsigned int calc_tree_height(struct gfs2_inode *ip, uint64_t size)
+unsigned int calc_tree_height(struct gfs2_inode *ip, uint64_t size)
 {
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	uint64_t *arr;
@@ -233,7 +233,7 @@ static unsigned int calc_tree_height(struct gfs2_inode *ip, uint64_t size)
 	return height;
 }
 
-static void build_height(struct gfs2_inode *ip, int height)
+void build_height(struct gfs2_inode *ip, int height)
 {
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_buffer_head *bh;
@@ -335,7 +335,7 @@ static void lookup_block(struct gfs2_inode *ip,
 }
 
 void block_map(struct gfs2_inode *ip, uint64_t lblock, int *new,
-			   uint64_t *dblock, uint32_t *extlen)
+			   uint64_t *dblock, uint32_t *extlen, int prealloc)
 {
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_buffer_head *bh;
@@ -395,7 +395,8 @@ void block_map(struct gfs2_inode *ip, uint64_t lblock, int *new,
 			bh = bread(sdp, *dblock);
 	}
 
-	lookup_block(ip, bh, end_of_metadata, mp, create, new, dblock);
+	if (!prealloc)
+		lookup_block(ip, bh, end_of_metadata, mp, create, new, dblock);
 
 	if (extlen && *dblock) {
 		*extlen = 1;
@@ -480,7 +481,7 @@ int gfs2_readi(struct gfs2_inode *ip, void *buf,
 			amount = sdp->bsize - o;
 
 		if (!extlen)
-			block_map(ip, lblock, &not_new, &dblock, &extlen);
+			block_map(ip, lblock, &not_new, &dblock, &extlen, FALSE);
 
 		if (dblock) {
 			bh = bread(sdp, dblock);
@@ -552,7 +553,7 @@ int gfs2_writei(struct gfs2_inode *ip, void *buf,
 
 		if (!extlen) {
 			new = TRUE;
-			block_map(ip, lblock, &new, &dblock, &extlen);
+			block_map(ip, lblock, &new, &dblock, &extlen, FALSE);
 		}
 
 		if (new) {
@@ -583,7 +584,8 @@ int gfs2_writei(struct gfs2_inode *ip, void *buf,
 	return copied;
 }
 
-struct gfs2_buffer_head *get_file_buf(struct gfs2_inode *ip, uint64_t lbn)
+struct gfs2_buffer_head *get_file_buf(struct gfs2_inode *ip, uint64_t lbn,
+									  int prealloc)
 {
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	uint64_t dbn;
@@ -592,11 +594,11 @@ struct gfs2_buffer_head *get_file_buf(struct gfs2_inode *ip, uint64_t lbn)
 	if (inode_is_stuffed(ip))
 		unstuff_dinode(ip);
 
-	block_map(ip, lbn, &new, &dbn, NULL);
+	block_map(ip, lbn, &new, &dbn, NULL, prealloc);
 	if (!dbn)
 		die("get_file_buf\n");
 
-	if (new &&
+	if (!prealloc && new &&
 	    ip->i_di.di_size < (lbn + 1) << sdp->bsize_shift)
 		ip->i_di.di_size = (lbn + 1) << sdp->bsize_shift;
 

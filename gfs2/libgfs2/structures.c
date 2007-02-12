@@ -83,20 +83,19 @@ build_sb(struct gfs2_sbd *sdp)
 	}
 }
 
-void build_journal(struct gfs2_inode *jindex, unsigned int j)
+void write_journal(struct gfs2_sbd *sdp, struct gfs2_inode *ip, unsigned int j,
+				   unsigned int blocks)
 {
-	struct gfs2_sbd *sdp = jindex->i_sbd;
-	char name[256];
-	struct gfs2_inode *ip;
 	struct gfs2_log_header lh;
-	unsigned int blocks = sdp->jsize << 20 >> sdp->bsize_shift;
 	unsigned int x;
 	uint64_t seq = RANDOM(blocks);
 	uint32_t hash;
+	unsigned int height;
 
-	sprintf(name, "journal%u", j);
-	ip = createi(jindex, name, S_IFREG | 0600,
-		     GFS2_DIF_SYSTEM);
+	/* Build the height up so our journal blocks will be contiguous and */
+	/* not broken up by indirect block pages.                           */
+	height = calc_tree_height(ip, (blocks + 1) * sdp->bsize);
+	build_height(ip, height);
 
 	memset(&lh, 0, sizeof(struct gfs2_log_header));
 	lh.lh_header.mh_magic = GFS2_MAGIC;
@@ -105,9 +104,15 @@ void build_journal(struct gfs2_inode *jindex, unsigned int j)
 	lh.lh_flags = GFS2_LOG_HEAD_UNMOUNT;
 
 	for (x = 0; x < blocks; x++) {
-		struct gfs2_buffer_head *bh = get_file_buf(ip, ip->i_di.di_size >> sdp->bsize_shift);
+		struct gfs2_buffer_head *bh = get_file_buf(ip, x, TRUE);
 		if (!bh)
-			die("build_journals\n");
+			die("write_journal\n");
+		brelse(bh, updated);
+	}
+	for (x = 0; x < blocks; x++) {
+		struct gfs2_buffer_head *bh = get_file_buf(ip, x, FALSE);
+		if (!bh)
+			die("write_journal\n");
 
 		lh.lh_sequence = seq;
 		lh.lh_blkno = x;
@@ -125,8 +130,6 @@ void build_journal(struct gfs2_inode *jindex, unsigned int j)
 		printf("\nJournal %u:\n", j);
 		gfs2_dinode_print(&ip->i_di);
 	}
-
-	inode_put(ip, updated);
 }
 
 void
@@ -138,8 +141,15 @@ build_jindex(struct gfs2_sbd *sdp)
 	jindex = createi(sdp->master_dir, "jindex", S_IFDIR | 0700,
 			 GFS2_DIF_SYSTEM);
 
-	for (j = 0; j < sdp->md.journals; j++)
-		build_journal(jindex, j);
+	for (j = 0; j < sdp->md.journals; j++) {
+		char name[256];
+		struct gfs2_inode *ip;
+
+		sprintf(name, "journal%u", j);
+		ip = createi(jindex, name, S_IFREG | 0600, GFS2_DIF_SYSTEM);
+		write_journal(sdp, ip, j, sdp->jsize << 20 >> sdp->bsize_shift);
+		inode_put(ip, updated);
+	}
 
 	if (sdp->debug) {
 		printf("\nJindex:\n");
@@ -209,7 +219,7 @@ build_quota_change(struct gfs2_inode *per_node, unsigned int j)
 		     GFS2_DIF_SYSTEM);
 
 	for (x = 0; x < blocks; x++) {
-		struct gfs2_buffer_head *bh = get_file_buf(ip, ip->i_di.di_size >> sdp->bsize_shift);
+		struct gfs2_buffer_head *bh = get_file_buf(ip, ip->i_di.di_size >> sdp->bsize_shift, FALSE);
 		if (!bh)
 			die("build_quota_change\n");
 
