@@ -16,6 +16,7 @@
 #  OCF_RESKEY_pgdata - PGDATA directory. Default is /var/lib/pgsql/data
 #  OCF_RESKEY_pgdba  - userID that manages DB. Default is postgres
 #  OCF_RESKEY_pghost - Host/IP Address where PostgreSQL is listening
+#  OCF_RESKEY_pgport - Port where PostgreSQL is listening
 #  OCF_RESKEY_pgdb   - database to monitor. Default is template1
 #  OCF_RESKEY_logfile - Path to PostgreSQL log file. Default is /dev/null
 ###############################################################################
@@ -105,6 +106,13 @@ Hostname/IP Addreess where PosrgeSQL is listening
 </longdesc>
 <shortdesc lang="en">pghost</shortdesc>
 <content type="string" default="" />
+</parameter>
+<parameter name="pgport" unique="0" required="0">
+<longdesc lang="en">
+Port where PosrgeSQL is listening
+</longdesc>
+<shortdesc lang="en">pgport</shortdesc>
+<content type="string" default="5432" />
 </parameter>
 <parameter name="pgdb" unique="0" required="0">
 <longdesc lang="en">
@@ -258,9 +266,9 @@ pgsql_monitor() {
 
     if [ "x" = "x$PGHOST" ]
     then
-       $PSQL -U $PGDBA $PGDB -c 'select now();' >/dev/null 2>&1
+       $PSQL -p $PGPORT -U $PGDBA $PGDB -c 'select now();' >/dev/null 2>&1
     else
-       $PSQL -h $PGHOST -U $PGDBA $PGDB -c 'select now();' >/dev/null 2>&1
+       $PSQL -h $PGHOST -p $PGPORT -U $PGDBA $PGDB -c 'select now();' >/dev/null 2>&1
     fi
     
     if [ $? -ne  0 ]
@@ -336,6 +344,7 @@ PSQL=${OCF_RESKEY_psql:-/usr/bin/psql}
 PGDATA=${OCF_RESKEY_pgdata:-/var/lib/pgsql/data}
 PGDBA=${OCF_RESKEY_pgdba:-postgres}
 PGHOST=${OCF_RESKEY_pghost:-""}
+PGPORT=${OCF_RESKEY_pgport:-"5432"}
 PGDB=${OCF_RESKEY_pgdb:-template1}
 LOGFILE=${OCF_RESKEY_logfile:-/dev/null}
 PIDFILE=${PGDATA}/postmaster.pid

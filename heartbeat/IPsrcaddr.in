@@ -302,7 +302,7 @@ find_interface_generic() {
 
     case "$SYSTYPE" in
       *BSD)
-		$IFCONFIG | grep "$BASEIP" -B4 | grep "UP," | cut -d ":" -f 1
+		$IFCONFIG | grep "$BASEIP" -B`$IFCONFIG | grep -c inet` | grep "UP," | cut -d ":" -f 1
 		return 0;;
       *)
     		: "comparing $BASEIP to $addr (from ifconfig)"
