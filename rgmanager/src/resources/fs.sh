@@ -320,7 +320,7 @@ verify_fstype()
 	[ -z "$OCF_RESKEY_fstype" ] && return 0
 
 	case $OCF_RESKEY_fstype in
-	ext2|ext3|jfs|xfs|reiserfs|vfat|tmpfs)
+	ext2|ext3|jfs|xfs|reiserfs|vfat|tmpfs|vxfs)
 		return 0
 		;;
 	*)
@@ -544,8 +544,8 @@ isMounted () {
 			# place
 			#
 			if [ -n "$tmp_mp"  -a "$tmp_mp"  != "$mp" ]; then
-				ocf_log warn "\
-Device $dev is mounted on $tmp_mp instead of $mp"
+				ocf_log warn \
+"Device $dev is mounted on $tmp_mp instead of $mp"
 			fi
 			return $YES
 		fi
@@ -802,6 +802,7 @@ activeMonitor() {
 enable_fs_quotas()
 {
 	declare -i need_check=0
+	declare -i rv
 	declare quotaopts=""
 	declare mopt
 	declare opts=$1
@@ -849,8 +850,13 @@ enable_fs_quotas()
 	ocf_log info "Enabling Quotas on $mp"
 	ocf_log debug "quotaon -$quotaopts $mp"
 	quotaon -$quotaopts $mp
+	rv=$?
+	if [ $rv -ne 0 ]; then
+		# Just a warning
+		ocf_log warn "Unable to turn on quotas for $mp; return = $rv"
+	fi
 
-	return $?
+	return $rv
 }
 
 
@@ -872,14 +878,14 @@ startFilesystem() {
 	mp=${OCF_RESKEY_mountpoint}
 	case "$mp" in 
       	""|"[ 	]*")		# nothing to mount
-    		return $SUCCESS
+    		return $OCF_SUCCESS
     		;;
 	/*)			# found it
 	  	;;
 	*)	 		# invalid format
 			ocf_log err \
 "startFilesystem: Invalid mount point format (must begin with a '/'): \'$mp\'"
-	    	return $FAIL
+	    	return $OCF_ERR_ARGS
 	    	;;
 	esac
 	
@@ -890,7 +896,7 @@ startFilesystem() {
 	if [ -z "$dev" ]; then
 			ocf_log err "\
 startFilesystem: Could not match $OCF_RESKEY_device with a real device"
-			return $FAIL
+			return $OCF_ERR_ARGS
 	fi
 
 	#
@@ -900,7 +906,7 @@ startFilesystem: Could not match $OCF_RESKEY_device with a real device"
 		if ! [ -d "$mp" ]; then
 			ocf_log err"\
 startFilesystem: Mount point $mp exists but is not a directory"
-			return $FAIL
+			return $OCF_ERR_ARGS
 		fi
 	else
 		ocf_log err "\
@@ -929,7 +935,7 @@ startFilesystem: Creating mount point $mp for device $dev"
 	case $? in
 	$YES)		# already mounted
 		ocf_log debug "$dev already mounted"
-		return $SUCCESS
+		return $OCF_SUCCESS
 		;;
 	$NO)		# not mounted, continue
 		;;
@@ -1076,7 +1082,8 @@ stopFilesystem() {
 	typeset -i ret_val=0
 	typeset -i try=1
 	typeset -i max_tries=3		# how many times to try umount
-	typeset -i sleep_time=2		# time between each umount failure
+	typeset -i sleep_time=5		# time between each umount failure
+	typeset -i nfslock_reclaim=0
 	typeset done=""
 	typeset umount_failed=""
 	typeset force_umount=""
@@ -1168,14 +1175,12 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 				     [ "$OCF_RESKEY_nfslock" = "1" ]; then
 				    ocf_log warning \
 					"Dropping node-wide NFS locks"
+				    pkill -KILL -x lockd
 	          		    mkdir -p $mp/.clumanager/statd
 				    # Copy out the notify list; our 
 				    # IPs are already torn down
-				    if notify_list_store $mp/.clumanager/statd
-				    then
-				      notify_list_broadcast \
-				        $mp/.clumanager/statd
-				    fi
+				    notify_list_store $mp/.clumanager/statd
+				    nfslock_reclaim=1
 				  fi
 				fi
 			fi
@@ -1199,6 +1204,11 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 			let try=try+1
 		fi
 	done # while 
+
+	if [ $nfslock_reclaim -eq 1 ]; then
+		# If we have this flag set, do a full reclaim broadcast
+		notify_list_broadcast $mp/.clumanager/statd
+	fi
 
 	if [ -n "$umount_failed" ]; then
 		ocf_log err "'umount $mp' failed, error=$ret_val"
