@@ -44,7 +44,7 @@ extern char edit_fmt[80];
 extern char edit_string[1024];
 extern int edit_mode INIT(0);
 extern int edit_row[DMODES], edit_col[DMODES];
-extern int edit_size[DMODES], edit_last[DMODES];
+extern int edit_size[DMODES], last_entry_onscreen[DMODES];
 extern char edit_string[1024], edit_fmt[80];
 extern enum dsp_mode dmode INIT(HEX_MODE); /* display mode */
 
@@ -76,6 +76,33 @@ void print_gfs2(const char *fmt, ...)
 	va_end(args);
 }
 
+void check_highlight(int highlight)
+{
+	if (!termlines || line >= termlines) /* If printing or out of bounds */
+		return;
+	if (dmode == HEX_MODE) {
+		if (line == (edit_row[dmode] * lines_per_row[dmode]) + 4) {
+			if (highlight) {
+				COLORS_HIGHLIGHT;
+				last_entry_onscreen[dmode] = print_entry_ndx;
+			}
+			else
+				COLORS_NORMAL;
+		}
+	}
+	else {
+		if ((line * lines_per_row[dmode]) - 4 == 
+			(edit_row[dmode] - start_row[dmode]) * lines_per_row[dmode]) {
+			if (highlight) {
+				COLORS_HIGHLIGHT;
+				last_entry_onscreen[dmode] = print_entry_ndx;
+			}
+			else
+				COLORS_NORMAL;
+		}
+	}
+}
+
 void print_it(const char *label, const char *fmt, const char *fmt2, ...)
 {
 	va_list args;
@@ -85,13 +112,10 @@ void print_it(const char *label, const char *fmt, const char *fmt2, ...)
 
 	if (!termlines || line < termlines) {
 		va_start(args, fmt2);
+		check_highlight(TRUE);
 		if (termlines) {
-			if (line == edit_row[dmode] + 4)
-				COLORS_HIGHLIGHT;
 			move(line,0);
 			printw("%s", label);
-			if (line == edit_row[dmode] + 4)
-				COLORS_NORMAL;
 			move(line,24);
 		}
 		else {
@@ -102,28 +126,21 @@ void print_it(const char *label, const char *fmt, const char *fmt2, ...)
 		}
 		vsprintf(tmp_string, fmt, args);
 
-		if (termlines) {
-			if (line == edit_row[dmode] + 4)
-				COLORS_HIGHLIGHT;
+		if (termlines)
 			printw(tmp_string);
-			if (line == edit_row[dmode] + 4)
-				COLORS_NORMAL;
-		}
 		else
 			printf(tmp_string);
+		check_highlight(FALSE);
 
 		if (fmt2) {
 			decimalsize = strlen(tmp_string);
 			va_end(args);
 			va_start(args, fmt2);
 			vsprintf(tmp_string, fmt2, args);
+			check_highlight(TRUE);
 			if (termlines) {
 				move(line, 50);
-				if (line == edit_row[dmode] + 4)
-					COLORS_HIGHLIGHT;
 				printw("%s", tmp_string);
-				if (line == edit_row[dmode] + 4)
-					COLORS_NORMAL;
 			}
 			else {
 				int i;
@@ -131,6 +148,7 @@ void print_it(const char *label, const char *fmt, const char *fmt2, ...)
 					printf(" ");
 				printf("%s", tmp_string);
 			}
+			check_highlight(FALSE);
 		}
 		else {
 			if (strstr(fmt,"X") || strstr(fmt,"x"))
@@ -148,14 +166,13 @@ void print_it(const char *label, const char *fmt, const char *fmt2, ...)
 		}
 		if (termlines) {
 			refresh();
-			if (line == edit_row[dmode] + 4) {
+			if (line == (edit_row[dmode] * lines_per_row[dmode]) + 4) {
 				strcpy(edit_string, tmp_string);
 				strcpy(edit_fmt, fmt);
 				edit_size[dmode] = strlen(edit_string);
 				COLORS_NORMAL;
 			}
-			if (line - 3 > edit_last[dmode])
-				edit_last[dmode] = line - 4;
+			last_entry_onscreen[dmode] = (line / lines_per_row[dmode]) - 4;
 		}
 		eol(0);
 		va_end(args);
@@ -327,7 +344,7 @@ void do_leaf_extended(char *buf)
 	unsigned int x;
 
 	eol(0);
-	printf("Directory Entries:");
+	print_gfs2("Directory Entries:");
 	eol(0);
 
 	for (x = sizeof(struct gfs2_leaf); x < bufsize; x += de.de_rec_len) {
@@ -361,7 +378,7 @@ void do_eattr_extended(char *buf)
 	unsigned int x;
 
 	eol(0);
-	printf("Eattr Entries:");
+	print_gfs2("Eattr Entries:");
 	eol(0);
 
 	for (x = sizeof(struct gfs2_meta_header); x < bufsize; x += ea.ea_rec_len)
@@ -375,8 +392,10 @@ void do_eattr_extended(char *buf)
 void gfs2_inum_print2(const char *title,struct gfs2_inum *no)
 {
 	if (termlines) {
+		check_highlight(TRUE);
 		move(line,2);
 		printw(title);
+		check_highlight(FALSE);
 	}
 	else
 		printf("  %s:",title);

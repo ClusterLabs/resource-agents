@@ -76,9 +76,9 @@ EXTERN const char *termtype;
 EXTERN int line INIT(1);
 EXTERN int struct_len INIT(0);
 EXTERN unsigned int offset;
-EXTERN int edit_row[DMODES], edit_col[DMODES];
-EXTERN int start_row[DMODES];
-EXTERN int edit_size[DMODES], edit_last[DMODES];
+EXTERN int edit_row[DMODES], edit_col[DMODES], print_entry_ndx;
+EXTERN int start_row[DMODES], end_row[DMODES], lines_per_row[DMODES];
+EXTERN int edit_size[DMODES], last_entry_onscreen[DMODES];
 EXTERN char edit_string[1024], edit_fmt[80];
 EXTERN struct gfs2_sbd sbd;
 EXTERN struct gfs_sb *sbd1;
@@ -116,6 +116,8 @@ struct gfs_indirect {
 struct blkstack_info {
 	uint64_t block;
 	int start_row[DMODES];
+	int end_row[DMODES];
+	int lines_per_row[DMODES];
 	int edit_row[DMODES];
 	int edit_col[DMODES];
 	enum dsp_mode dmode;
