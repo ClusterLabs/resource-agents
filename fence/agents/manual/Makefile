@@ -11,7 +11,7 @@
 ###############################################################################
 ###############################################################################
 
-TARGET= fence_manual fence_ack_manual
+TARGET= fence_ack_manual
 
 top_srcdir=../..
 
@@ -27,23 +27,11 @@ LDFLAGS+= -L../../../cman/lib
 
 all: ${TARGET}
 
-fence_manual: manual.o ../../../group/lib/libgroup.a
-	$(CC) $(LDFLAGS) -o $@ $^ -lcman
-
-manual.o: manual.c
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-fence_ack_manual: ack.o
-	${CC} -o $@ $^
-
 # Using manual override instead of the binary version.
 # (this version does not require any configuration params
-#  in cluster.conf, but fencing must fail first)
-#fence_ack_manual: fence_ack_manual.sh
-#	cp $@ $^
-
-ack.o: ack.c
-	$(CC) $(CFLAGS) -c -o $@ $<
+# in cluster.conf, but fencing must fail first)
+fence_ack_manual: fence_ack_manual.sh
+	cp $^ $@
 
 install: all
 	if [ ! -d ${sbindir} ]; then \
