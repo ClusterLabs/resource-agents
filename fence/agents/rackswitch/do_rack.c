@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 **  
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -24,6 +24,7 @@ char username[256];
 char password[256];
 char arg[256];
 char name[256];
+char pwd_script[PATH_MAX] = { 0, };
 
 char readbuf[MAXBUF];
 char writebuf[MAXBUF];
@@ -159,6 +160,7 @@ void print_usage(void)
 	 "  -n <dec num>     Physical plug number on RackSwitch\n"
 	 "  -l <string>      Username\n"
 	 "  -p <string>      Password\n"
+	 "  -S <path>        Script to retrieve password\n"
 	 "  -v               Verbose\n"
 	 "  -q               Quiet\n"
          "  -V               Version information\n", pname);
@@ -175,7 +177,7 @@ void get_options(int argc, char **argv)
     /*
      * Command line input
      */
-    while ((c = getopt(argc, argv, "ha:n:l:p:vqVd")) != -1)
+    while ((c = getopt(argc, argv, "ha:n:l:p:S:vqVd")) != -1)
       {
 	switch(c)
 	  {
@@ -198,6 +200,11 @@ void get_options(int argc, char **argv)
 	  case 'p':
 	    strncpy(password,optarg,254);
 	    break;
+
+	  case 'S':
+		strncpy(pwd_script, optarg, sizeof(pwd_script));
+		pwd_script[sizeof(pwd_script) - 1] = '\0';
+		break;
 
 	  case 'v':
 	    verbose_flag = 1;
@@ -265,9 +272,36 @@ void get_options(int argc, char **argv)
       
       if (!strcmp(arg, "password"))
         strcpy(password, value);
+
+	  if (!strcasecmp(arg, "passwd_script")) {
+		strncpy(pwd_script, optarg, sizeof(pwd_script));
+		pwd_script[sizeof(pwd_script) - 1] = '\0';
+	  }
     }
     errno = 0;
     
+  }
+
+  if (pwd_script[0] != '\0') {
+	FILE *fp;
+	char pwd_buf[1024];
+
+	fp = popen(pwd_script, "r");
+	if (fp != NULL) {
+		ssize_t len = fread(pwd_buf, 1, sizeof(pwd_buf), fp);
+		if (len > 0) {
+			char *p;
+			p = strchr(pwd_buf, '\n');
+			if (p != NULL)
+				*p = '\0';
+			p = strchr(pwd_buf, '\r');
+			if (p != NULL)
+				*p = '\0';
+			strncpy(password, pwd_buf, sizeof(password));
+			password[sizeof(password) - 1] = '\0';
+		}
+		pclose(fp);
+	}
   }
 }
 

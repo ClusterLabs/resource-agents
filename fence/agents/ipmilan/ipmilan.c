@@ -8,7 +8,7 @@
  *
  *  http://ipmitool.sourceforge.net
  *
- * Copyright 2005 Red Hat, Inc.
+ * Copyright 2005-2007 Red Hat, Inc.
  *  author: Lon Hohberger <lhh at redhat.com>
  *
  * This library is free software; you can redistribute it and/or
@@ -32,6 +32,7 @@
 #include <signal.h>
 #include <string.h>
 #include <errno.h>
+#include <limits.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <libintl.h>
@@ -765,7 +766,7 @@ int
 cleanup(char *line, size_t linelen)
 {
 	char *p;
-	int x;
+	size_t x;
 
 	/* Remove leading whitespace. */
 	p = line;
@@ -812,6 +813,7 @@ int
 get_options_stdin(char *ip, size_t iplen,
 		  char *authtype, size_t atlen,
 		  char *passwd, size_t pwlen,
+		  char *pwd_script, size_t pwd_script_len,
 		  char *user, size_t userlen,
 		  char *op, size_t oplen,
 		  int *lanplus, int *verbose)
@@ -862,14 +864,18 @@ get_options_stdin(char *ip, size_t iplen,
 			else
 				passwd[0] = 0;
 
-		} else if (!strcasecmp(name, "user") ||
-			   !strcasecmp(name, "login")) {
+		} else if (!strcasecmp(name, "passwd_script")) {
+			if (val) {
+				strncpy(pwd_script, val, pwd_script_len);
+				pwd_script[pwd_script_len - 1] = '\0';
+			} else
+				pwd_script[0] = '\0';
+		} else if (!strcasecmp(name, "user") || !strcasecmp(name, "login")) {
 			/* username */
 			if (val)
 				strncpy(user, val, userlen);
 			else
 				user[0] = 0;
-
 		} else if (!strcasecmp(name, "lanplus")) {
 			(*lanplus) = 1;
 		} else if (!strcasecmp(name, "option") ||
@@ -905,6 +911,8 @@ printf("   -a <ipaddr>    IPMI Lan IP to talk to\n");
 printf("   -i <ipaddr>    IPMI Lan IP to talk to (deprecated, use -i)\n");
 printf("   -p <password>  Password (if required) to control power on\n"
        "                  IPMI device\n");
+printf("   -P             Use Lanplus\n");
+printf("   -S <path>      Script to retrieve password (if required)\n");
 printf("   -l <login>     Username/Login (if required) to control power\n"
        "                  on IPMI device\n");
 printf("   -o <op>        Operation to perform.\n");
@@ -913,14 +921,16 @@ printf("   -V             Print version and exit\n");
 printf("   -v             Verbose mode\n\n");
 printf("If no options are specified, the following options will be read\n");
 printf("from standard input (one per line):\n\n");
-printf("   auth=<auth>    Same as -A\n");
-printf("   ipaddr=<#>     Same as -a\n");
-printf("   passwd=<pass>  Same as -p\n");
-printf("   login=<login>  Same as -u\n");
-printf("   option=<op>    Same as -o\n");
-printf("   operation=<op> Same as -o\n");
-printf("   action=<op>    Same as -o\n");
-printf("   verbose        Same as -v\n\n");
+printf("   auth=<auth>           Same as -A\n");
+printf("   ipaddr=<#>            Same as -a\n");
+printf("   passwd=<pass>         Same as -p\n");
+printf("   passwd_script=<path>  Same as -S\n");
+printf("   lanplus               Same as -P\n");
+printf("   login=<login>         Same as -u\n");
+printf("   option=<op>           Same as -o\n");
+printf("   operation=<op>        Same as -o\n");
+printf("   action=<op>           Same as -o\n");
+printf("   verbose               Same as -v\n\n");
 	exit(1);
 }
 
@@ -935,6 +945,7 @@ main(int argc, char **argv)
 	char passwd[64];
 	char user[64];
 	char op[64];
+	char pwd_script[PATH_MAX] = { 0, };
 	int lanplus=0;
 	int verbose=0;
 	char *pname = basename(argv[0]);
@@ -950,7 +961,7 @@ main(int argc, char **argv)
 		/*
 		   Parse command line options if any were specified
 		 */
-		while ((opt = getopt(argc, argv, "A:a:i:l:p:Po:vV?hH")) != EOF) {
+		while ((opt = getopt(argc, argv, "A:a:i:l:p:S:Po:vV?hH")) != EOF) {
 			switch(opt) {
 			case 'A':
 				/* Auth type */
@@ -971,6 +982,10 @@ main(int argc, char **argv)
 				break;
 			case 'P':
 				lanplus = 1;
+				break;
+			case 'S':
+				strncpy(pwd_script, optarg, sizeof(pwd_script));
+				pwd_script[sizeof(pwd_script) - 1] = '\0';
 				break;
 			case 'o':
 				/* Operation */
@@ -997,9 +1012,31 @@ main(int argc, char **argv)
 		if (get_options_stdin(ip, sizeof(ip),
 				      authtype, sizeof(authtype),
 				      passwd, sizeof(passwd),
+					  pwd_script, sizeof(pwd_script),
 				      user, sizeof(user),
 				      op, sizeof(op), &lanplus, &verbose) != 0)
 			return 1;
+	}
+
+	if (pwd_script[0] != '\0') {
+		char pwd_buf[1024];
+		FILE *fp;
+		fp = popen(pwd_script, "r");
+		if (fp != NULL) {
+			ssize_t len = fread(pwd_buf, 1, sizeof(pwd_buf), fp);
+			if (len > 0) {
+				char *p;
+				p = strchr(pwd_buf, '\n');
+				if (p != NULL)
+					*p = '\0';
+				p = strchr(pwd_buf, '\r');
+				if (p != NULL)
+					*p = '\0';
+				strncpy(passwd, pwd_buf, sizeof(passwd));
+				passwd[sizeof(passwd) - 1] = '\0';
+			}
+			pclose(fp);
+		}
 	}
 
 	/*
