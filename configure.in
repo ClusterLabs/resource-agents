@@ -2356,7 +2356,8 @@ AC_MSG_NOTICE([whether to enable the Local Resource Manager... ${enable_lrm}])
 dnl ************************************************************************
 dnl management and quorum daemons.
 
-AC_CHECK_HEADER(gnutls/gnutls.h)
+AC_CHECK_HEADERS(gnutls/gnutls.h)
+AC_CHECK_HEADERS(security/pam_appl.h pam/pam_appl.h)
 AC_PATH_PROGS(LIBGNUTLS_CONFIG, libgnutls-config)
 
 dnl management tool configuration
@@ -2382,7 +2383,6 @@ if test "x${enable_mgmt}" != "xno"; then
 		MGMT_ENABLED=0
 	fi
 
-	AC_CHECK_HEADERS(security/pam_appl.h pam/pam_appl.h)
 	if test "$ac_cv_header_security_pam_appl_h" = "no" -a "$ac_cv_header_pam_pam_appl_h" = "no"; then
   		$MISSING_FN "security/pam_appl.h" \
 		  "The GUI managment module needs the pam-devel package"
