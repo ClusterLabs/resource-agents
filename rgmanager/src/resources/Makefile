@@ -18,9 +18,18 @@ include ${top_srcdir}/make/defines.mk
 INCLUDE += -I $(top_srcdir)/include
 
 RESOURCES=fs.sh service.sh ip.sh nfsclient.sh nfsexport.sh \
-	script.sh netfs.sh clusterfs.sh smb.sh vm.sh
+	script.sh netfs.sh clusterfs.sh smb.sh \
+	apache.sh openldap.sh samba.sh mysql.sh \
+	postgres-8.sh tomcat-5.sh
+
+METADATA=apache.metadata openldap.metadata samba.metadata \
+	mysql.metadata postgres-8.metadata tomcat-5.metadata
 
 TARGETS=${RESOURCES} ocf-shellfuncs svclib_nfslock
+
+UTIL_TARGETS= \
+	utils/config-utils.sh utils/ra-skelet.sh utils/messages.sh \
+	utils/httpd-parse-config.pl utils/tomcat-parse-config.pl
 
 all:
 
@@ -28,9 +37,13 @@ install: all
 	echo ${sharedir}
 	echo ${sbindir}
 	install -d ${sharedir}
+	install -d ${sharedir}/utils
 	install $(TARGETS) ${sharedir}
+	install $(UTIL_TARGETS) ${sharedir}/utils
+	install -m 644 $(METADATA) ${sharedir}
 
 uninstall:
+	${UNINSTALL} ${UTIL_TARGETS} ${sharedir}/utils
 	${UNINSTALL} ${TARGETS} ${sharedir}
 
 clean:
