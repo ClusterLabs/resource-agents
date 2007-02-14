@@ -33,17 +33,18 @@ BUILD_DATE=""
 #END_VERSION_GENERATION
 
 def usage():
-  print "Usage:\n"
-  print "fence_rsb [options]\n"
-  print "Options:\n"
-  print "   -a <ipaddress>           ip or hostname of rsb\n"
-  print "   -h                       print out help\n"
-  print "   -l [login]               login name\n"
-  print "   -n [telnet port]         telnet port\n"
-  print "   -p [password]            password\n"
-  print "   -o [action]              Reboot (default), Off, On, or Status\n"
-  print "   -v Verbose               Verbose mode\n"
-  print "   -V                       Print Version, then exit\n"
+  print "Usage:"
+  print "fence_rsb [options]"
+  print "Options:"
+  print "   -a <ipaddress>           ip or hostname of rsb"
+  print "   -h                       print out help"
+  print "   -l [login]               login name"
+  print "   -n [telnet port]         telnet port"
+  print "   -p [password]            password"
+  print "   -S [path]                script to run to retrieve password"
+  print "   -o [action]              Reboot (default), Off, On, or Status"
+  print "   -v Verbose               Verbose mode"
+  print "   -V                       Print Version, then exit"
 
   sys.exit (0)
 
@@ -64,6 +65,7 @@ def main():
   address = ""
   login = ""
   passwd = ""
+  passwd_script = ""
   action = POWER_REBOOT   #default action
   telnet_port = 3172
   verbose = False
@@ -93,7 +95,7 @@ def main():
 
   if len(sys.argv) > 1:
     try:
-      opts, args = getopt.getopt(sys.argv[1:], "a:hl:n:o:p:vV", ["help", "output="])
+      opts, args = getopt.getopt(sys.argv[1:], "a:hl:n:o:p:S:vV", ["help", "output="])
     except getopt.GetoptError:
       #print help info and quit
       usage()
@@ -106,13 +108,15 @@ def main():
         version()
       if o in ("-h", "--help"):
         usage()
-        sys.exit()
+        sys.exit(0)
       if o == "-l":
         login = a
       if o == "-n":
         telnet_port = a
       if o == "-p":
         passwd = a
+      if o == "-S":
+        passwd_script = a
       if o  == "-o":
         if a == "Off" or a == "OFF" or a == "off":
           action = POWER_OFF
@@ -124,34 +128,44 @@ def main():
           action = POWER_REBOOT
         else:
           usage()
-          sys.exit()
+          sys.exit(1)
       if o == "-a":
         address = a
-    if address == "" or login == "" or passwd == "":
+    if address == "" or login == "" or (passwd == "" and passwd_script == ""):
       usage()
-      sys.exit()
+      sys.exit(1)
 
   else: #Take args from stdin...
     params = {}
     #place params in dict
     for line in sys.stdin:
       val = line.split("=")
-      params[val[0]] = val[1]
+      if len(val) == 2:
+        params[val[0].strip()] = val[1].strip()
 
     try:
       address = params["ipaddr"]
     except KeyError, e:
       os.write(standard_err, "FENCE: Missing ipaddr param for fence_rsb...exiting")
+      sys.exit(1)
+    
     try:
       login = params["login"]
     except KeyError, e:
       os.write(standard_err, "FENCE: Missing login param for fence_rsb...exiting")
-
+      sys.exit(1)
+    
     try:
-      passwd = params["passwd"]
+      if 'passwd' in params:
+        passwd = params["passwd"]
+      if 'passwd_script' in params:
+        passwd_script = params['passwd_script']
+      if passwd == "" and passwd_script == "":
+        raise "missing password"
     except KeyError, e:
       os.write(standard_err, "FENCE: Missing passwd param for fence_rsb...exiting")
-
+      sys.exit(1)
+    
     try:
       telnet_port = params["telnet_port"]
     except KeyError, e:
@@ -169,7 +183,65 @@ def main():
       action = POWER_REBOOT
 
     ####End of stdin section
-
+  
+  
+  # retrieve passwd from passwd_script (if specified)
+  passwd_scr = ''
+  if len(passwd_script):
+    try:
+      if not os.access(passwd_script, os.X_OK):
+        raise 'script not executable'
+      p = os.popen(passwd_script, 'r', 1024)
+      passwd_scr = p.readline().strip()
+      if p.close() != None:
+        raise 'script failed'
+    except:
+      sys.stderr.write('password-script "%s" failed\n' % passwd_script)
+      passwd_scr = ''
+  
+  if passwd == "" and passwd_scr == "":
+    sys.stderr.write('password not available, exiting...')
+    sys.exit(1)
+  elif passwd == passwd_scr:
+    pass
+  elif passwd and passwd_scr:
+    # execute self, with password_scr as passwd,
+    # if that fails, continue with "passwd" argument as password
+    if len(sys.argv) > 1:
+      comm = sys.argv[0]
+      skip_next = False
+      for w in sys.argv[1:]:
+        if skip_next:
+          skip_next = False
+        elif w in ['-p', '-S']:
+          skip_next = True
+        else:
+          comm += ' ' + w
+      comm += ' -p ' + passwd_scr
+      ret = os.system(comm)
+      if ret != -1 and os.WIFEXITED(ret) and os.WEXITSTATUS(ret) == 0:
+        # success
+        sys.exit(0)
+      else:
+        sys.stderr.write('Use of password from "passwd_script" failed, trying "passwd" argument\n')
+    else: # use stdin
+      p = os.popen(sys.argv[0], 'w', 1024)
+      for par in params:
+        if par not in ['passwd', 'passwd_script']:
+          p.write(par + '=' + params[par] + '\n')
+      p.write('passwd=' + passwd_scr + '\n')
+      p.flush()
+      if p.close() == None:
+        # success
+        sys.exit(0)
+      else:
+        sys.stderr.write('Use of password from "passwd_script" failed, trying "passwd" argument\n')
+  elif passwd_scr:
+    passwd = passwd_scr
+  # passwd all set
+  
+  
+  
   try:
     telnet_port = int(telnet_port)
   except:

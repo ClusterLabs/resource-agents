@@ -47,6 +47,7 @@ FAIL = "fail"
 address = ""
 login = ""
 passwd = ""
+passwd_script = ""
 port = ""
 switchnum = ""
 action = POWER_REBOOT   #default action
@@ -88,6 +89,7 @@ def usage():
   print "   -l [login]               login name"
   print "   -n [port]                switch port"
   print "   -p [password]            password"
+  print "   -S [path]                script to run to retrieve password"
   print "   -o [action]              Reboot (default), Off, On, or Status"
   print "   -v Verbose               Verbose mode - writes file to /tmp/apclog"
   print "   -V                       Print Version, then exit"
@@ -101,16 +103,16 @@ def version():
 
 def main():
 
-  global address, login, passwd, port, action, verbose, logfile, switchnum
+  global address, login, passwd, passwd_script, port, action, verbose, logfile, switchnum
 
   if len(sys.argv) > 1:
     try:
-      opts, args = getopt.getopt(sys.argv[1:], "a:hl:o:n:p:vV", ["help", "output="])
+      opts, args = getopt.getopt(sys.argv[1:], "a:hl:o:n:p:S:vV", ["help", "output="])
     except getopt.GetoptError:
       #print help info and quit
       usage()
       sys.exit(2)
-                                                                                
+      
     for o, a in opts:
       if o == "-v":
         verbose = True
@@ -123,6 +125,8 @@ def main():
         login = a
       if o == "-p":
         passwd = a
+      if o == "-S":
+        passwd_script = a
       if o == "-n":
         dex = a.find(":")
         if dex == (-1):
@@ -144,16 +148,17 @@ def main():
           sys.exit()
       if o == "-a":
         address = a
-    if address == "" or login == "" or passwd == "" or port == "":
+    if address == "" or login == "" or (passwd == "" and passwd_script == "") or port == "":
       usage()
       sys.exit()
-
+    
   else: #Take args from stdin...
     params = {}
     #place params in dict
     for line in sys.stdin:
       val = line.split("=")
-      params[val[0]] = val[1]
+      if len(val) == 2:
+        params[val[0].strip()] = val[1].strip()
 
     try:
       address = params["ipaddr"]
@@ -166,9 +171,14 @@ def main():
       sys.stderr.write("FENCE: Missing login param for fence_apc...exiting")
       sys.exit(1)
     try:
-      passwd = params["passwd"]
-    except KeyError, e:
-      sys.stderr.write("FENCE: Missing passwd param for fence_apc...exiting")
+      if 'passwd' in params:
+        passwd = params["passwd"]
+      if 'passwd_script' in params:
+        passwd_script = params['passwd_script']
+      if passwd == "" and passwd_script == "":
+        raise "missing password"
+    except:
+      sys.stderr.write("FENCE: Missing passwd for fence_apc...exiting")
       sys.exit(1)
     try:
       port = params["port"]
@@ -195,9 +205,67 @@ def main():
         action = POWER_REBOOT
     except KeyError, e:
       action = POWER_REBOOT
-
+    
     #### End of stdin section
-
+  
+  
+  # retrieve passwd from passwd_script (if specified)
+  passwd_scr = ''
+  if len(passwd_script):
+    try:
+      if not os.access(passwd_script, os.X_OK):
+        raise 'script not executable'
+      p = os.popen(passwd_script, 'r', 1024)
+      passwd_scr = p.readline().strip()
+      if p.close() != None:
+        raise 'script failed'
+    except:
+      sys.stderr.write('password-script "%s" failed\n' % passwd_script)
+      passwd_scr = ''
+    
+  if passwd == "" and passwd_scr == "":
+    sys.stderr.write('password not available, exiting...')
+    sys.exit(1)
+  elif passwd == passwd_scr:
+    pass
+  elif passwd and passwd_scr:
+    # execute self, with password_scr as passwd,
+    # if that fails, continue with "passwd" argument as password
+    if len(sys.argv) > 1:
+      comm = sys.argv[0]
+      skip_next = False
+      for w in sys.argv[1:]:
+        if skip_next:
+          skip_next = False
+        elif w in ['-p', '-S']:
+          skip_next = True
+        else:
+          comm += ' ' + w
+      comm += ' -p ' + passwd_scr
+      ret = os.system(comm)
+      if ret != -1 and os.WIFEXITED(ret) and os.WEXITSTATUS(ret) == 0:
+        # success
+        sys.exit(0)
+      else:
+        sys.stderr.write('Use of password from "passwd_script" failed, trying "passwd" argument\n')
+    else: # use stdin
+      p = os.popen(sys.argv[0], 'w', 1024)
+      for par in params:
+        if par not in ['passwd', 'passwd_script']:
+          p.write(par + '=' + params[par] + '\n')
+      p.write('passwd=' + passwd_scr + '\n')
+      p.flush()
+      if p.close() == None:
+        # success
+        sys.exit(0)
+      else:
+        sys.stderr.write('Use of password from "passwd_script" failed, trying "passwd" argument\n')
+  elif passwd_scr:
+    passwd = passwd_scr
+  # passwd all set
+  
+  
+  
   ### Order of events
   # 0) If verbose, prepare log file handle
   # 1) Open socket
