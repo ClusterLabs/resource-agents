@@ -1235,9 +1235,13 @@ int process_request(int afd){
  fail:
   error = write(afd, ch, sizeof(comm_header_t)+ch->comm_payload_size);
   if(error < 0){
-    log_sys_err("Unable to write package back to sender");
-    return error; 
-    goto fail;
+    if (errno == EINTR)
+      goto fail;
+    if (errno == EPIPE) {
+      error = 0;
+    } else {
+      log_sys_err("Unable to write package back to sender");
+    }
   } else if(error < (sizeof(comm_header_t)+ch->comm_payload_size)){
     log_err("Unable to write complete package.\n");
     error = -EBADE;
@@ -1248,7 +1252,6 @@ int process_request(int afd){
 
   if(ch){ free(ch); }
   if(payload){ free(payload); }
-  
 
   EXIT("process_request");
   return error;
