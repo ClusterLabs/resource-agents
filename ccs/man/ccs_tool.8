@@ -183,6 +183,14 @@ will increment the version number by 1 each time.
 .br
 \-c <file>         Config file to create. Defaults to /etc/cluster/cluster.conf
 
+.TP 
+\fBaddnodeids\fP
+Adds node ID numbers to all the nodes in cluster.conf. In RHEL4, node IDs were optional
+and assigned by cman when a node joined the cluster. In RHEL5 they must be pre-assigned
+in cluster.conf. This command will not change any node IDs that are already set in 
+cluster.conf, it will simply add unique node ID numbers to nodes that do not already
+have them.
+
 
 .SH "SEE ALSO"
 ccs(7), ccsd(8), cluster.conf(5)
