@@ -29,7 +29,8 @@ TARGETS=${RESOURCES} ocf-shellfuncs svclib_nfslock
 
 UTIL_TARGETS= \
 	utils/config-utils.sh utils/ra-skelet.sh utils/messages.sh \
-	utils/httpd-parse-config.pl utils/tomcat-parse-config.pl
+	utils/httpd-parse-config.pl utils/tomcat-parse-config.pl \
+	utils/member_util.sh
 
 all:
 
