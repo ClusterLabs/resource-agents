@@ -172,16 +172,17 @@ meta_data()
     
     <special tag="rgmanager">
         <attributes root="1" maxinstances="1"/>
-        <child type="fs" start="1" stop="8"/>
-        <child type="clusterfs" start="2" stop="7"/>
-        <child type="netfs" start="3" stop="6"/>
-	<child type="nfsexport" start="4" stop="5"/>
+        <child type="lvm" start="1" stop="9"/>
+        <child type="fs" start="2" stop="8"/>
+        <child type="clusterfs" start="3" stop="7"/>
+        <child type="netfs" start="4" stop="6"/>
+	<child type="nfsexport" start="5" stop="5"/>
 
-	<child type="nfsclient" start="5" stop=""/>
+	<child type="nfsclient" start="6" stop="4"/>
 
-        <child type="ip" start="6" stop="2"/>
-        <child type="smb" start="7" stop="3"/>
-        <child type="script" start="7" stop="1"/>
+        <child type="ip" start="7" stop="2"/>
+        <child type="smb" start="8" stop="3"/>
+        <child type="script" start="9" stop="1"/>
     </special>
 </resource-agent>
 EOT
