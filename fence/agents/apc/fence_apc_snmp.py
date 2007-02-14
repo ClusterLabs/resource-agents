@@ -17,7 +17,7 @@
 ## located in /usr/share/snmp/mibs/
 #############################################################################
 #############################################################################
-                                                                                
+
 
 
 import getopt, sys
@@ -50,7 +50,7 @@ def usage():
         print "  -q               quiet mode";
         print "  -V               version";
         print "  -v               Log to file /tmp/apclog";
-                                                                                
+	
         sys.exit(0);
 
 
@@ -89,7 +89,7 @@ def main():
         sys.exit(0)
       if o in ("-h", "--help"):
         usage()
-        sys.exit()
+        sys.exit(0)
       if o == "-n":
         port = a
       if o  == "-o":
@@ -123,8 +123,9 @@ def main():
     #place params in dict
     for line in sys.stdin:
       val = line.split("=")
-      params[val[0]] = val[1]
-
+      if len(val) == 2:
+        params[val[0].strip()] = val[1].strip()
+    
     try:
       address = params["ipaddr"]
     except KeyError, e:
@@ -135,13 +136,20 @@ def main():
     except KeyError, e:
       sys.stderr.write("FENCE: Missing login param for fence_apc...exiting")
       sys.exit(1)
-                                                                                
+    
     try:
       passwd = params["passwd"]
     except KeyError, e:
       sys.stderr.write("FENCE: Missing passwd param for fence_apc...exiting")
       sys.exit(1)
-                                                                                
+    
+    try:
+      port = params["port"]
+    except KeyError, e:
+      sys.stderr.write("FENCE: Missing port param for fence_apc...exiting")
+      sys.exit(1)
+    
+    
     try:
       a = params["option"]
       if a == "Off" or a == "OFF" or a == "off":
@@ -300,13 +308,13 @@ def main():
         sys.exit(1)
         
 def execWithCaptureStatus(command, argv, searchPath = 0, root = '/', stdin = 0,
-                    catchfd = 1, closefd = -1):
-                                                                                
+			  catchfd = 1, closefd = -1):
+	
     if not os.access (root + command, os.X_OK):
-        raise RuntimeError, command + " can not be run"
-                                                                                
+        raise RuntimeError, command + " cannot be run"
+    
     (read, write) = os.pipe()
-                                                                                
+    
     childpid = os.fork()
     if (not childpid):
         if (root and root != '/'): os.chroot (root)
@@ -317,42 +325,42 @@ def execWithCaptureStatus(command, argv, searchPath = 0, root = '/', stdin = 0,
             os.dup2(write, catchfd)
         os.close(write)
         os.close(read)
-                                                                                
+	
         if closefd != -1:
             os.close(closefd)
-                                                                                
+	
         if stdin:
             os.dup2(stdin, 0)
             os.close(stdin)
-                                                                                
+	
         if (searchPath):
             os.execvp(command, argv)
         else:
             os.execv(command, argv)
-                                                                                
+	
         sys.exit(1)
-                                                                                
+    
     os.close(write)
-                                                                                
+    
     rc = ""
     s = "1"
     while (s):
         select.select([read], [], [])
         s = os.read(read, 1000)
         rc = rc + s
-                                                                                
+    
     os.close(read)
-                                                                                
+    
     try:
         (pid, status) = os.waitpid(childpid, 0)
     except OSError, (errno, msg):
         print __name__, "waitpid:", msg
-                                                                                
+    
     if os.WIFEXITED(status) and (os.WEXITSTATUS(status) == 0):
         status = os.WEXITSTATUS(status)
     else:
         status = -1
-                                                                                
+    
     return (rc, status)
 
 if __name__ == "__main__":
