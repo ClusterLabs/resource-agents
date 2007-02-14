@@ -169,7 +169,7 @@ int join(commandline_t *comline)
 			}
 			else {
 				int pidstatus;
-				if (waitpid(aisexec_pid, &pidstatus, WNOHANG) == 0)
+				if (waitpid(aisexec_pid, &pidstatus, WNOHANG) == 0 && pidstatus != 0)
 					fprintf(stderr, "cman died with status: %d\n", WEXITSTATUS(pidstatus));
 				else
 					status = 0; /* Try to connect */
