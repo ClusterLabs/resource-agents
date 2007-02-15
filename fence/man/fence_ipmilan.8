@@ -1,5 +1,5 @@
 .\"  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+.\"  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 .\"  
 .\"  This copyrighted material is made available to anyone wishing to use,
 .\"  modify, copy, or redistribute it subject to the terms and conditions
@@ -42,6 +42,9 @@ Action to perform (on, off, reboot).
 \fB-p\fP \fIpassword\fP
 Password (if required) for login.
 .TP
+\fB-S\fP \fIpath\fR
+Full path to an executable to generate the password for login.
+.TP
 \fB-P\fP
 Use the lanplus option if this is a lanplus capable interface (for example iLo2)
 .TP
@@ -70,6 +73,9 @@ Action to perform (on, off, reboot).
 .TP
 \fIpasswd = < param >\fR
 Password (if required) for login.
+.TP
+\fIpasswd_script = < param >\fR
+Full path to an executable to generate the password for login.
 .TP
 \fIauth = < param >\fR
 Authentication type (none, password, md2, md5).

@@ -1,4 +1,4 @@
-.\"  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+.\"  Copyright (C) 2005-2007 Red Hat, Inc.  All rights reserved.
 .\"  
 .\"  This copyrighted material is made available to anyone wishing to use,
 .\"  modify, copy, or redistribute it subject to the terms and conditions
@@ -60,6 +60,9 @@ The action required.  reboot (default), off, on or status.
 \fB-p\fP \fIpassword\fR
 Password for login.
 .TP
+\fB-S\fP \fIpath\fR
+Full path to an executable to generate the password for login.
+.TP
 \fB-V\fP
 Print out a version message, then exit.
 
@@ -91,6 +94,9 @@ The module name of the blade when using DRAC/MC firmware.
 .TP
 \fIpasswd = < param >\fR
 Password for login.
+.TP
+\fIpasswd_script = < param >\fR
+Full path to an executable to generate the password for login.
 .TP
 
 .SH SEE ALSO

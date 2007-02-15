@@ -1,5 +1,5 @@
 .\"  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+.\"  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 .\"  
 .\"  This copyrighted material is made available to anyone wishing to use,
 .\"  modify, copy, or redistribute it subject to the terms and conditions
@@ -39,6 +39,9 @@ The plug number to power cycle.
 \fB-p\fP \fIpassword\fP
 Password for login.
 .TP
+\fB-S\fP \fIpath\fR
+Full path to an executable to generate the password for login.
+.TP
 \fB-T\fP
 Test only.  Do not power cycle.  Reports state of the plug.
 .TP
@@ -58,6 +61,9 @@ IP address or hostname of the switch.
 .TP
 \fIpasswd = < param >\fR
 Password for login.
+.TP
+\fIpasswd_script = < param >\fR
+Full path to an executable to generate the password for login.
 .TP
 \fIport = < param >\fR
 The outlet number to act upon.
