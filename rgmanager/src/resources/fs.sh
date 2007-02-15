@@ -145,7 +145,7 @@ meta_data()
 	    <content type="boolean"/>
 	</parameter>
 
-	<parameter name="nfslock" inherit="service%nfslock">
+	<parameter name="nfslock" inherit="nfslock">
 	    <longdesc lang="en">
 	        If set and unmounting the file system fails, the node will
 		try to kill lockd and issue reclaims across all remaining

@@ -20,10 +20,10 @@ INCLUDE += -I $(top_srcdir)/include
 RESOURCES=fs.sh service.sh ip.sh nfsclient.sh nfsexport.sh \
 	script.sh netfs.sh clusterfs.sh smb.sh \
 	apache.sh openldap.sh samba.sh mysql.sh \
-	postgres-8.sh tomcat-5.sh
+	postgres-8.sh tomcat-5.sh lvm.sh
 
 METADATA=apache.metadata openldap.metadata samba.metadata \
-	mysql.metadata postgres-8.metadata tomcat-5.metadata
+	mysql.metadata postgres-8.metadata tomcat-5.metadata 
 
 TARGETS=${RESOURCES} ocf-shellfuncs svclib_nfslock
 
