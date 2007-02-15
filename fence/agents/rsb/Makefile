@@ -28,6 +28,9 @@ fence_rsb: fence_rsb.py
 	awk -v p=0 "(\$$1 ~ /#END_VERSION_GENERATION/){p = 1} {if(p==1)print}" $(SOURCE) >> $(TARGET)
 	chmod +x $(TARGET)
 
+copytobin: ${TARGET}
+	cp ${TARGET} ${top_srcdir}/bin/${TARGET}
+
 install: all
 	if [ ! -d ${sbindir} ]; then \
 		install -d ${sbindir}; \
