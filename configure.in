@@ -2362,10 +2362,14 @@ AC_CHECK_HEADERS(security/pam_appl.h pam/pam_appl.h)
 AC_PATH_PROGS(LIBGNUTLS_CONFIG, libgnutls-config)
 
 if test -n "$LIBGNUTLS_CONFIG"; then
+	AC_MSG_CHECKING(for gnutls header flags)
+	GNUTLSHEAD="`$LIBGNUTLS_CONFIG --cflags`";
+	AC_MSG_RESULT($GNUTLSHEAD)
 	AC_MSG_CHECKING(for gnutls library flags)
 	GNUTLSLIBS="`$LIBGNUTLS_CONFIG --libs`";
 	AC_MSG_RESULT($GNUTLSLIBS)
 fi
+AC_SUBST(GNUTLSHEAD)
 AC_SUBST(GNUTLSLIBS)
 
 dnl management tool configuration
