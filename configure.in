@@ -2359,6 +2359,9 @@ dnl management and quorum daemons.
 
 AC_CHECK_HEADERS(gnutls/gnutls.h)
 AC_CHECK_HEADERS(security/pam_appl.h pam/pam_appl.h)
+
+dnl GNUTLS library: Attempt to determine by 'libgnutls-config' program.
+dnl If no 'libgnutls-config', try traditional autoconf means.
 AC_PATH_PROGS(LIBGNUTLS_CONFIG, libgnutls-config)
 
 if test -n "$LIBGNUTLS_CONFIG"; then
@@ -2368,6 +2371,8 @@ if test -n "$LIBGNUTLS_CONFIG"; then
 	AC_MSG_CHECKING(for gnutls library flags)
 	GNUTLSLIBS="`$LIBGNUTLS_CONFIG --libs`";
 	AC_MSG_RESULT($GNUTLSLIBS)
+else
+	AC_CHECK_LIB(gnutls, gnutls_init)
 fi
 AC_SUBST(GNUTLSHEAD)
 AC_SUBST(GNUTLSLIBS)
