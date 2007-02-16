@@ -1,6 +1,5 @@
 #!/bin/sh
 #
-#	$Id: pingd.in,v 1.4 2006/08/14 09:12:46 andrew Exp $
 #
 #	pingd OCF Resource Agent
 #	Records (in the CIB) the current number of ping nodes a 

@@ -1,7 +1,5 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.32 2006/08/16 09:20:16 davidlee Exp $
-#
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
 # 
@@ -95,7 +93,6 @@ check_util () {
 usage() {
 	cat <<-EOT
 	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
-	$Id: Filesystem.in,v 1.32 2006/08/16 09:20:16 davidlee Exp $
 	EOT
 }
 
@@ -168,7 +165,6 @@ need to specify this.
 <action name="start" timeout="60" />
 <action name="stop" timeout="60" />
 <action name="notify" timeout="60" />
-<action name="status" depth="0" timeout="10" interval="10" start-delay="10" />
 <action name="monitor" depth="0" timeout="10" interval="10" start-delay="10" />
 <action name="validate-all" timeout="5" />
 <action name="meta-data" timeout="5" />

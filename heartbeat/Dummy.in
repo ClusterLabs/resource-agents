@@ -1,6 +1,5 @@
 #!/bin/sh
 #
-#	$Id: Dummy.in,v 1.6 2006/08/14 09:09:14 andrew Exp $
 #
 #	Dummy OCF RA. Does nothing but wait a few seconds, can be
 #	configured to fail occassionally.

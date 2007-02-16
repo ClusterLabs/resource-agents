@@ -1,6 +1,5 @@
 #!/bin/sh
 #
-# $Id: WAS.in,v 1.11 2006/03/10 04:14:20 xunsun Exp $
 # 
 # WAS
 #
@@ -99,7 +98,6 @@ usage() {
 	We run servlet/snoop on the first transport port listed in
 	the config file for the "monitor" operation.
 
-	$Id: WAS.in,v 1.11 2006/03/10 04:14:20 xunsun Exp $
 	!
 }
 

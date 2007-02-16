@@ -1,6 +1,5 @@
 #!/bin/bash
 #
-#	$Id: SysInfo.in,v 1.6 2006/08/16 17:26:12 davidlee Exp $
 #
 #	SysInfo OCF Resource Agent
 #	It records (in the CIB) various attributes of a node

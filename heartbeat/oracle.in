@@ -1,6 +1,5 @@
 #!/bin/sh
 #
-# $Id: oracle.in,v 1.1 2006/06/20 21:03:51 alan Exp $
 # 
 # oracle
 #
@@ -50,7 +49,6 @@ usage() {
 	The 'validate-all' operation reports whether the parameters are valid
 	The 'methods' operation reports on the methods $0 supports
 
-	$Id: oracle.in,v 1.1 2006/06/20 21:03:51 alan Exp $
 	!
 }
 

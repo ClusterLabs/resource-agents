@@ -1,6 +1,4 @@
 #
-# 	$Id: ocf-shellfuncs.in,v 1.33 2006/08/16 09:20:16 davidlee Exp $
-#
 # 	Common varibales for the OCF Resource Agents supplied by
 # 	heartbeat.
 #

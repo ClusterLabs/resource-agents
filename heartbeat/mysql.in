@@ -1,6 +1,5 @@
 #!/bin/sh
 #
-# $Id: db2.in,v 1.8 2006/01/26 18:00:05 lars Exp $
 # 
 # MySQL
 #
@@ -68,7 +67,6 @@ usage() {
 	The 'monitor' operation reports whether the database seems to be working
 	The 'validate-all' operation reports whether the parameters are valid
 
-	$Id: mysql.in,v 1.8 2006/01/26 18:00:05 lars Exp $
 UEND
 }
 

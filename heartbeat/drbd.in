@@ -1,6 +1,5 @@
 #!/bin/sh
 #
-#	$Id: drbd.in,v 1.24 2006/05/22 11:03:41 andrew Exp $
 #
 #       OCF Resource Agent compliant drbd resource script.
 #

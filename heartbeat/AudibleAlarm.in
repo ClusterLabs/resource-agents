@@ -30,7 +30,6 @@ usage() {
 	echo "Usage: $0 {start|stop|restart|status|monitor|meta-data|validate-all}"
 	echo "  The node list is an optional space delimited"
 	echo "  list of hosts that should never sound the alarm."
-	echo "$Id: AudibleAlarm.in,v 1.9 2006/03/10 04:14:20 xunsun Exp $";
 }
 
 meta_data() {

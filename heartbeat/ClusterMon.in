@@ -1,6 +1,5 @@
 #!/bin/sh
 #
-#	$Id: ClusterMon.in,v 1.11 2006/06/27 17:03:07 lars Exp $
 #
 #	ClusterMon OCF RA. Does nothing but wait a few seconds, can be
 #	configured to fail occassionally.

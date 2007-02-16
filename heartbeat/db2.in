@@ -1,6 +1,5 @@
 #!/bin/sh
 #
-# $Id: db2.in,v 1.10 2006/03/10 04:14:20 xunsun Exp $
 # 
 # db2
 #
@@ -48,7 +47,6 @@ usage() {
 	The 'validate-all' operation reports whether the parameters are valid
 	The 'methods' operation reports on the methods $0 supports
 
-	$Id: db2.in,v 1.10 2006/03/10 04:14:20 xunsun Exp $
 	!
 }
 

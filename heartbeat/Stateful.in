@@ -1,6 +1,5 @@
 #!/bin/bash
 #
-#	$Id: Stateful.in,v 1.1 2006/08/14 12:57:29 andrew Exp $
 #
 #	Example of a stateful OCF Resource Agent. 
 #

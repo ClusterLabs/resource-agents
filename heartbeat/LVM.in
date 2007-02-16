@@ -1,6 +1,5 @@
 #!/bin/sh
 #
-# $Id: LVM.in,v 1.13 2006/06/02 06:33:16 andrew Exp $
 # 
 # LVM
 #
@@ -48,7 +47,6 @@ usage() {
 	The 'validate-all' operation checks whether the OCF parameters are valid
 	The 'methods' operation reports on the methods $0 supports
 
-	$Id: LVM.in,v 1.13 2006/06/02 06:33:16 andrew Exp $
 	!
   exit $OCF_ERR_GENERIC 
 

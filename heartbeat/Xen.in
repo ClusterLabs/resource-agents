@@ -1,6 +1,5 @@
 #!/bin/sh
 #
-# $Id: Xen.in,v 1.1 2006/03/18 00:54:54 lars Exp $
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)

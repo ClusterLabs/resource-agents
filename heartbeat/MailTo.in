@@ -39,7 +39,6 @@ us=`uname -n`
 
 usage() {
   echo "Usage: $0 {start|stop|status|monitor|meta-data|validate-all}"
-  echo "$Id: MailTo.in,v 1.8 2006/03/10 04:14:20 xunsun Exp $"
 }
 
 meta_data() {
