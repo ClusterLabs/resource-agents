@@ -164,7 +164,25 @@ do_cmd() {
 
 do_drbdadm() {
 	local cmd="$DRBDADM -c $DRBDCONF $*"
-	do_cmd $cmd
+	ocf_log debug "$RESOURCE: Calling $cmd"
+	local cmd_out=$($cmd 2>&1)
+	ret=$?
+	# Trim the garbage drbdadm likes to print when using the node
+	# override feature:
+	local cmd_ret=$(echo $cmd_out | sed -e 's/found __DRBD_NODE__.*<<//;')
+	
+	if [ $ret -ne 0 ]; then
+		ocf_log err "$RESOURCE: Called $cmd"
+		ocf_log err "$RESOURCE: Exit code $ret"
+		ocf_log err "$RESOURCE: Command output: $cmd_ret"
+	else
+		ocf_log debug "$RESOURCE: Exit code $ret"
+		ocf_log debug "$RESOURCE: Command output: $cmd_ret"
+	fi
+	
+	echo $cmd_ret
+	
+	return $ret
 }
 
 drbd_init() {
