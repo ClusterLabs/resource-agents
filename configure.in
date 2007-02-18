@@ -2600,16 +2600,15 @@ AC_ARG_WITH(valgrind-suppress,
     [ VALGRIND_SUPP="$withval" ], 
     [ VALGRIND_SUPP="/dev/null" ])
 
+if test "x" = "x$VALGRIND_LOG"; then 
+    VALGRIND_LOG="--log-socket=127.0.0.1:1234"
+    AC_MSG_NOTICE(Set default Valgrind options to: $VALGRIND_OPTS)
+    AC_MSG_NOTICE(Remember to start a receiver on localhost, port 1234)
+fi
+
 AC_PATH_PROG(VALGRIND_BIN, valgrind)
 if test "xyes" = "x$enable_valgrind" -a "x$VALGRIND_BIN" != "x"; then
    enable_libc_malloc=yes
-   AC_MSG_NOTICE(Enabling Valgrind support)
-   AC_DEFINE_UNQUOTED(WITH_VALGRIND, 1, $valgrind_desc)
-   if test "x" = "x$VALGRIND_LOG"; then
-      VALGRIND_LOG="--log-socket=127.0.0.1:1234"
-      AC_MSG_NOTICE(Set default Valgrind options to: $VALGRIND_OPTS)
-      AC_MSG_NOTICE(Remember to start a receiver on localhost, port 1234)
-   fi
 fi
 
 AC_DEFINE_UNQUOTED(VALGRIND_BIN, "$VALGRIND_BIN", Valgrind command)
