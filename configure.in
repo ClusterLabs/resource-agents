@@ -2603,7 +2603,7 @@ AC_ARG_WITH(valgrind-suppress,
 if test "x" = "x$VALGRIND_LOG"; then 
     VALGRIND_LOG="--log-socket=127.0.0.1:1234"
     AC_MSG_NOTICE(Set default Valgrind options to: $VALGRIND_OPTS)
-    AC_MSG_NOTICE(Remember to start a receiver on localhost, port 1234)
+    AC_MSG_NOTICE(Remember to start a receiver on localhost:1234)
 fi
 
 AC_PATH_PROG(VALGRIND_BIN, valgrind)
