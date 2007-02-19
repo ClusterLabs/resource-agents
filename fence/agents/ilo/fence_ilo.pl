@@ -346,13 +346,15 @@ sub set_power_state
 	# As of firmware version 1.71 (RIBCL 2.21) The SET_HOST_POWER command
 	# is no longer available.  HOLD_PWR_BTN and PRESS_PWR_BTN are used 
 	# instead now :(
-	if ($ribcl_vers < 2.21 )
+	if ($ribcl_vers < 2.21)
 	{
 		sendsock $socket, "<SET_HOST_POWER HOST_POWER = \"$state\"/>\n";
 	}
 	else
 	{
-		if ($state eq "Y" )
+		if ($ribcl_vers > 2.21) {
+			sendsock $socket, "<HOLD_PWR_BTN/>\n";
+		} elsif ($state eq "Y" )
 		{ 
 			sendsock $socket, "<PRESS_PWR_BTN/>\n";
 		} 
