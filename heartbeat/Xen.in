@@ -116,6 +116,10 @@ Xen_Stop() {
   if
     Xen_Status
   then
+    # TODO: If after 50% of our timeout this one doesn't return, we
+    # should instead switch to xm destroy
+    # TODO: Should we just always use xm destroy here in the meantime
+    # to make sure we indeed always stop?
     xm shutdown -w $DOMAIN_NAME
     rc=$?
     if
