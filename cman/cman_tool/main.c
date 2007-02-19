@@ -56,6 +56,7 @@ static void print_usage(int subcmd)
 		printf("  -e <votes>       Number of expected votes for the cluster\n");
 		printf("  -p <port>        UDP port number for cman communications\n");
 		printf("  -n <nodename>    The name of this node (defaults to hostname)\n");
+		printf("  -c <clustername> The name of the cluster to join\n");
 		printf("  -N <id>          Node id\n");
 		printf("  -w               Wait until node has joined a cluster\n");
 		printf("  -q               Wait until the cluster is quorate\n");
