@@ -165,7 +165,7 @@ need to specify this.
 <action name="start" timeout="60" />
 <action name="stop" timeout="60" />
 <action name="notify" timeout="60" />
-<action name="monitor" depth="0" timeout="10" interval="10" start-delay="10" />
+<action name="monitor" depth="0" timeout="40" interval="20" start-delay="10" />
 <action name="validate-all" timeout="5" />
 <action name="meta-data" timeout="5" />
 </actions>
