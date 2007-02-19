@@ -138,6 +138,7 @@ int main(int argc, char *argv[])
 {
     char *resource = "LOCK-NAME";
     int  flags = 0;
+    int  delay = 0;
     int  status;
     int  mode = LKM_EXMODE;
     int  convmode = -1;
@@ -148,7 +149,7 @@ int main(int argc, char *argv[])
     /* Deal with command-line arguments */
     opterr = 0;
     optind = 0;
-    while ((opt=getopt(argc,argv,"?m:nqupc:CvV")) != EOF)
+    while ((opt=getopt(argc,argv,"?m:nqupc:d:CvV")) != EOF)
     {
 	switch(opt)
 	{
@@ -186,6 +187,10 @@ int main(int argc, char *argv[])
 
 	case 'C':
 	    do_crash = 1;
+	    break;
+
+	case 'd':
+	    delay = atoi(optarg);	
 	    break;
 
 	case 'V':
@@ -241,6 +246,9 @@ int main(int argc, char *argv[])
 	pthread_cond_wait(&cond, &mutex);
     else
 	poll_for_ast();
+
+    if (delay)
+        sleep(delay);
 
     if (!quiet)
     {
