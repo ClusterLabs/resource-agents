@@ -245,13 +245,30 @@ drbd_get_status() {
 	DRBD_STATE_LOCAL=$(echo $DRBD_STATE | sed -e 's#/.*##')
 	DRBD_STATE_REMOTE=$(echo $DRBD_STATE | sed -e 's#.*/##')
 	DRBD_CSTATE=$(do_drbdadm cstate $RESOURCE)
+
+	# Sanitize the various states, drbdadm is quite annoying; so if it 
+	# outputs something which doesn't make sense, translate it into
+	# a harmless state:
+
+	case "$DRBD_STATE_LOCAL" in
+		"Not configured"|"Primary"|"Secondary") ;;
+		*)	DRBD_STATE_LOCAL="Not configured" ;;
+	esac
+
+	case "$DRBD_STATE_REMOTE" in
+		"Primary"|"Secondary"|"Unknown") ;;
+		*)	DRBD_STATE_REMOTE="Not configured" ;;
+	esac
+
+	case "$DRBD_CSTATE" in
+		Unconfigured|StandAlone|Unconnected|Timeout|BrokenPipe) ;;
+		NetworkFailure|WFConnection|WFReportParams|Connected|SkippedSyncS) ;;
+		SkippedSyncT|WFBitMapS|WFBitMapT|SyncSource|SyncTarget) ;; 
+		PausedSyncS|PausedSyncT) ;;
+		*) DRBD_CSTATE="Unconfigured" ;;
+	esac
+
 	ocf_log debug "$RESOURCE status: $DRBD_STATE $DRBD_STATE_LOCAL $DRBD_STATE_REMOTE $DRBD_CSTATE"
-	# SyncSource|PausedSyncS|WFBitMapS|SkippedSyncS)
-	# Diskless|Inconsistent)
-	# SyncTarget)
-	# Connected)
-	# WFConnection)
-	# StandAlone)
 }
 
 drbd_start() {
