@@ -139,7 +139,11 @@ int join(commandline_t *comline)
 		be_daemon(!comline->verbose);
 		chdir(SBINDIR);
 		execve("./aisexec", argv, envp);
-		die("execve of " SBINDIR "/aisexec failed: %s", strerror(errno));
+
+		// exec failed - tell the parent process */
+		sprintf(scratch, "execve of " SBINDIR "/aisexec failed: %s", strerror(errno));
+		write(p[1], scratch, strlen(scratch));
+		exit(1);
 		break;
 
 	default: //parent
