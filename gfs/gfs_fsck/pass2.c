@@ -277,10 +277,9 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *dent,
 			tmp_name);
 		if(query(ip->i_sbd, "Clear directory entry tp out of range block? (y/n) ")) {
 			log_err("Clearing %s\n", tmp_name);
-			if(dirent_del(ip, bh, prev_de, dent)) {
-				stack;
-				return -1;
-			}
+			if(dirent_del(ip, bh, prev_de, dent))
+				log_err("Error encountered while removing bad "
+					"directory entry.  Skipping.\n");
 			return 1;
 		} else {
 			log_err("Directory entry to out of range block remains\n");
@@ -339,10 +338,9 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *dent,
 			/* FIXME: make sure all blocks referenced by
 			 * this inode are cleared in the bitmap */
 
-			if(dirent_del(ip, bh, prev_de, dent)) {
-				stack;
-				return -1;
-			}
+			if(dirent_del(ip, bh, prev_de, dent))
+				log_err("Error encountered while removing bad "
+					"directory entry.  Skipping.\n");
 			log_warn("Directory entry '%s' cleared\n", tmp_name);
 			return 1;
 		} else {
@@ -369,10 +367,9 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *dent,
 			check_inode_eattr(entry_ip, &clear_eattrs);
 			free_inode(&entry_ip);
 
-			if(dirent_del(ip, bh, prev_de, dent)) {
-				stack;
-				return -1;
-			}
+			if(dirent_del(ip, bh, prev_de, dent))
+				log_err("Error encountered while removing bad "
+					"directory entry.  Skipping.\n");
 			return 1;
 		} else {
 			log_err("Stale directory entry remains\n");

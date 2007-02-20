@@ -83,6 +83,12 @@ int check_entries(struct fsck_inode *ip, osi_buf_t *bh, int index,
 			  }*/
 		}
 
+		if (de.de_rec_len < sizeof(struct gfs_dirent)) {
+			log_err("Entry %"PRIu64" of directory %"
+				PRIu64" is corrupt, skipping.\n",
+				BH_BLKNO(bh), ip->i_di.di_num.no_addr);
+			break;
+		}
 		if ((char *)dent + de.de_rec_len >= bh_end){
 			log_debug("Last entry processed.\n");
 			break;
@@ -184,6 +190,14 @@ int check_leaf(struct fsck_inode *ip, int *update, struct metawalk_fxns *pass)
 			}
 			gfs_leaf_in(&leaf, BH_DATA(lbh));
 
+			/* Make sure it's really a leaf. */
+			if (leaf.lf_header.mh_type != GFS_METATYPE_LF) {
+				log_err("Inode %" PRIu64 " points to bad leaf "
+					PRIu64 ".\n", ip->i_di.di_num.no_addr,
+					leaf_no);
+				relse_buf(sbp, lbh);
+				break;
+			}
 			exp_count = (1 << (ip->i_di.di_depth - leaf.lf_depth));
 			log_debug("expected count %u - %u %u\n", exp_count,
 				  ip->i_di.di_depth, leaf.lf_depth);
