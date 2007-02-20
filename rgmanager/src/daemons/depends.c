@@ -30,6 +30,9 @@
  *               (note that colocation doesn't mean that B must be running;
  *               to do both, you must enable a requirement).
  *               A X> B means that A must be run on a different node from B.
+ *
+ * Known bugs:  If more than 1 error is introduced in the graph,
+ *              the 'find-ideal-state' function sometimes will refuse to run
  */
 #include <string.h>
 #include <list.h>
