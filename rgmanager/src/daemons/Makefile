@@ -41,7 +41,8 @@ uninstall:
 clurgmgrd: rg_thread.o rg_locks.o main.o groups.o  \
 		rg_queue.o rg_forward.o reslist.o \
 		resrules.o restree.o fo_domain.o nodeevent.o \
-		rg_event.o watchdog.o rg_state.o ../clulib/libclulib.a
+		rg_event.o watchdog.o rg_state.o \
+	        depends.o ../clulib/libclulib.a
 	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS) $(LDFLAGS) -lccs -lcman -lpthread -ldlm
 
 #
@@ -59,8 +60,13 @@ clurgmgrd: rg_thread.o rg_locks.o main.o groups.o  \
 # packages should run 'make check' as part of the build process.
 #
 rg_test: rg_locks-noccs.o test-noccs.o reslist-noccs.o \
-		resrules-noccs.o restree-noccs.o fo_domain-noccs.o
+		resrules-noccs.o restree-noccs.o fo_domain-noccs.o depends-noccs.o
 	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS) -llalloc $(LDFLAGS) -lccs -lcman
+	
+dtest: rg_locks-noccs.o dtest-noccs.o reslist-noccs.o \
+		resrules.o restree-noccs.o fo_domain-noccs.o depends-noccs.o
+	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS) -llalloc $(LDFLAGS) -lccs -lcman \
+		-lreadline -ltermcap
 
 clurmtabd: clurmtabd.o clurmtabd_lib.o
 	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS) $(LDFLAGS)

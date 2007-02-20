@@ -27,6 +27,7 @@
 #include <list.h>
 #include <reslist.h>
 #include <pthread.h>
+#include <depends.h>
 
 #ifndef NO_CCS
 #error "Can not be built with CCS support."
@@ -78,9 +79,36 @@ rules_func(int argc, char **argv)
 
 
 int
+deps_func(int argc, char**argv)
+{
+	dep_t *depends = NULL;
+	int ccsfd;
+
+	conf_setconfig(argv[1]);
+       	ccsfd = ccs_lock();
+	if (ccsfd < 0) {
+		printf("Error parsing %s\n", argv[1]);
+		goto out;
+	}
+
+	construct_depends(ccsfd, &depends);
+	if (depends) {
+		print_depends(stdout, &depends);
+	}
+	
+	deconstruct_depends(&depends);
+
+out:
+	ccs_unlock(ccsfd);
+	return 0;
+}
+
+
+int
 test_func(int argc, char **argv)
 {
 	fod_t *domains = NULL;
+	dep_t *depends = NULL;
 	resource_rule_t *rulelist = NULL, *currule;
 	resource_t *reslist = NULL, *curres;
 	resource_node_t *tree = NULL;
@@ -97,6 +125,7 @@ test_func(int argc, char **argv)
 
 	load_resource_rules(agentpath, &rulelist);
 	construct_domains(ccsfd, &domains);
+	construct_depends(ccsfd, &depends);
 	load_resources(ccsfd, &reslist, &rulelist);
 	build_resource_tree(ccsfd, &tree, &rulelist, &reslist);
 
@@ -130,6 +159,11 @@ test_func(int argc, char **argv)
 		if (domains) {
 			printf("=== Failover Domains ===\n");
 			print_domains(&domains);
+		}
+		
+		if (depends) {
+			printf("=== Dependencies ===\n");
+			print_depends(stdout, &depends);
 		}
 	}
 
@@ -177,6 +211,7 @@ test_func(int argc, char **argv)
 	}
 
 out:
+	deconstruct_depends(&depends);
 	deconstruct_domains(&domains);
 	destroy_resource_tree(&tree);
 	destroy_resources(&reslist);
@@ -244,8 +279,6 @@ tree_delta_test(int argc, char **argv)
 		print_resource(curres);
 	} while (!list_done(&reslist2, curres));
 
-	curres = find_root_by_ref(&reslist, "oracle");
-
 	resource_tree_delta(&tree, &tree2);
 	printf("=== Old Resource Tree ===\n");
 	print_resource_tree(&tree);
@@ -294,6 +327,10 @@ main(int argc, char **argv)
 		if (!strcmp(argv[1], "test")) {
 			shift();
 			ret = test_func(argc, argv);
+			goto out;
+		} else if (!strcmp(argv[1], "depends")) {
+			shift();
+			ret = deps_func(argc, argv);
 			goto out;
 		} else if (!strcmp(argv[1], "rules")) {
 			shift();
