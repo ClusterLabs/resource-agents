@@ -460,10 +460,6 @@ svc_advise_stop(rg_state_t *svcStatus, char *svcName, int req)
 		break;
 		
 	case RG_STATE_STOPPING:
-		printf("Service %s is stopping right now\n", svcName);
-		ret = 2;
-		break;
-
 	case RG_STATE_STARTED:
 	case RG_STATE_CHECK:
 	case RG_STATE_STARTING:
