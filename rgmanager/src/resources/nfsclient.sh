@@ -200,9 +200,9 @@ verify_options()
 			;;
 		no_all_squash)
 			;;
-		anonuid)
+		anonuid=*)
 			;;
-		anongid)
+		anongid=*)
 			;;
 		*)
 			ocf_log err "Export Option $o invalid"
