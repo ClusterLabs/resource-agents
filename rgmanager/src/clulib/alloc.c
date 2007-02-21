@@ -128,8 +128,8 @@
 				   for instance) */
 #undef  AGGR_RECLAIM		/* consolidate_all on free (*slow*) */
 
-#undef  STACKSIZE	/*4	   backtrace to store if DEBUG is set */
-//#define STACKSIZE 4
+//#undef  STACKSIZE	/*4	   backtrace to store if DEBUG is set */
+#define STACKSIZE 1		/* at least 1 gets you free addr */
 
 #undef	GDB_HOOK		/* Dump program addresses in malloc_table
 				   using a fork/exec of gdb (SLOW but fun)
@@ -806,6 +806,10 @@ void
 free(void *p)
 {
 	memblock_t *b;
+#ifdef STACKSIZE
+	void *pc = __builtin_return_address(0);
+	int x;
+#endif
 
 	if (!p) {
 #if 0
@@ -826,6 +830,28 @@ free(void *p)
 		die_or_return();
 	}
 
+	if (!is_valid_alloc(b)) {
+#ifdef DEBUG
+		if (!is_valid_free(b))
+			fprintf(stderr,
+				"free(%p) @ %p - Invalid address\n",
+				p, __builtin_return_address(0));
+		else
+#ifdef STACKSIZE
+			fprintf(stderr,
+				"free(%p) @ %p - Already free @ %p\n",
+				p, __builtin_return_address(0), b->mb_pc[0]);
+#else
+			fprintf(stderr,
+				"free(%p) @ %p - Already free\n",
+				p, __builtin_return_address(0));
+#endif
+
+#endif
+		pthread_mutex_unlock(&_alloc_mutex);
+		die_or_return();
+	}
+
 #ifdef PARANOID
 	/* Remove from the allocated list if we're tracking it. */
 	if (!remove_alloc_block(b)) {
@@ -836,20 +862,11 @@ free(void *p)
 	}
 #endif
 
-	if (!is_valid_alloc(b)) {
-#ifdef DEBUG
-		if (!is_valid_free(b))
-			fprintf(stderr,
-				"free(%p) @ %p - Invalid address\n",
-				p, __builtin_return_address(0));
-		else
-			fprintf(stderr,
-				"free(%p) @ %p - Already free\n",
-				p, __builtin_return_address(0));
+#ifdef STACKSIZE
+	for (x = 0; x < STACKSIZE; x++)
+		b->mb_pc[x] = NULL;
+	b->mb_pc[0] = pc;
 #endif
-		pthread_mutex_unlock(&_alloc_mutex);
-		die_or_return();
-	}
 
 	b->mb_state = ST_FREE;
 	b->mb_next = NULL;

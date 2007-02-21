@@ -44,6 +44,7 @@ static resource_node_t *_tree = NULL;
 static fod_t *_domains = NULL;
 
 pthread_mutex_t config_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t status_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_rwlock_t resource_lock = PTHREAD_RWLOCK_INITIALIZER;
 
 void res_build_name(char *, size_t, resource_t *);
@@ -991,6 +992,10 @@ q_status_checks(void *arg)
 	resource_node_t *curr;
 	rg_state_t svcblk;
 	char rg[64];
+	
+	/* Only one status thread at a time, please! */
+	if (pthread_mutex_trylock(&status_mutex) != 0)
+		return NULL;
 
 	pthread_rwlock_rdlock(&resource_lock);
 	list_do(&_tree, curr) {
@@ -1013,6 +1018,7 @@ q_status_checks(void *arg)
 	} while (!list_done(&_tree, curr));
 
 	pthread_rwlock_unlock(&resource_lock);
+	pthread_mutex_unlock(&status_mutex);
 
 	return NULL;
 }
