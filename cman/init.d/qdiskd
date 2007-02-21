@@ -19,7 +19,7 @@ retries=0
 # See how we were called.
 case "$1" in
   start)
-	action "Starting the Quorum Disk Daemon:" qdiskd
+	action "Starting the Quorum Disk Daemon:" qdiskd -Q
 	rtrn=$?
 	[ $rtrn = 0 ] && touch $LOCK_FILE
 	;;

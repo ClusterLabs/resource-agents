@@ -59,4 +59,11 @@ int start_score_thread(qd_ctx *ctx, struct h_data *h, int count);
  */
 int get_my_score(int *score, int *maxscore);
 
+/* 
+   Set score + maxscore to 1.  Call if no heuristics are present
+   to enable master-wins mode
+ */
+int fudge_scoring(void);
+
+
 #endif

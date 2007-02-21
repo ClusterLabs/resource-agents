@@ -1,4 +1,4 @@
-.TH "QDisk" "21" "Jan 2007" "" "Cluster Quorum Disk"
+.TH "QDisk" "5" "20 Feb 2007" "" "Cluster Quorum Disk"
 .SH "NAME"
 QDisk 1.2 \- a disk-based quorum daemon for CMAN / Linux-Cluster
 .SH "1. Overview"
@@ -205,12 +205,32 @@ This tag is a child of the top-level <cluster> tag.
 .in 9
 \fIinterval\fP\fB="\fP1\fB"\fP
 .in 12 
-This is the frequency of read/write cycles
+This is the frequency of read/write cycles, in seconds.
 
 .in 9
 \fItko\fP\fB="\fP10\fB"\fP
 .in 12
 This is the number of cycles a node must miss in order to be declared dead.
+
+.in 9
+\fItko_up\fP\fB="\fPX\fB"\fP
+.in 12
+This is the number of cycles a node must be seen in order to be declared
+online.  Default is \fBfloor(tko/2)\fP.
+
+.in 9
+\fIupgrade_wait\fP\fB="\fP2\fB"\fP
+.in 12
+This is the number of cycles a node must wait before initiating a bid
+for master status after heuristic scoring becomes sufficient.  The
+default is 2.  This can not be set to 0, and should not exceed \fBtko\fP.
+
+.in 9
+\fImaster_wait\fP\fB="\fPX\fB"\fP
+.in 12
+This is the number of cycles a node must wait for votes before declaring
+itself master after making a bid.  Default is \fBfloor(tko/3)\fP. 
+This can not be less than 2 and should not exceed \fBtko\fP.
 
 .in 9
 \fIvotes\fP\fB="\fP3\fB"\fP

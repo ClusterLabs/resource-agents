@@ -15,6 +15,11 @@ for configuration information.
 Run in the foreground (do not fork / daemonize).
 .IP "\-d"
 Enable debug output.
+.IP "\-Q"
+Close stdin/out/err immediately before doing validations.  This
+is primarily for use when being called from an init script.  Using
+this option will stop all output, and can not be used with the -d 
+option.
 
 .SH "SEE ALSO"
 mkqdisk(8), qdisk(5), cman(5)

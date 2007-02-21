@@ -240,6 +240,9 @@ typedef struct {
 	int qc_writes;
 	int qc_interval;
 	int qc_tko;
+	int qc_tko_up;
+	int qc_upgrade_wait;
+	int qc_master_wait;
 	int qc_votes;
 	int qc_scoremin;
 	int qc_sched;
@@ -247,6 +250,7 @@ typedef struct {
 	disk_node_state_t qc_disk_status;
 	disk_node_state_t qc_status;
 	int qc_master;		/* Master?! */
+	int _pad_;
 	run_flag_t qc_flags;
 	cman_handle_t qc_ch;
 	char *qc_device;

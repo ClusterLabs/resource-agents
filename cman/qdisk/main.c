@@ -66,7 +66,9 @@ inline int get_time(struct timeval *tv, int use_uptime);
 inline void _diff_tv(struct timeval *dest, struct timeval *start,
 		     struct timeval *end);
 
-static int _running = 0;
+static int _running = 1;
+void update_local_status(qd_ctx *ctx, node_info_t *ni, int max, int score,
+		    	 int score_req, int score_max);
 
 
 static void
@@ -158,6 +160,8 @@ read_node_blocks(qd_ctx *ctx, node_info_t *ni, int max)
 			continue;
 		} 
 		/* message. */
+		memcpy(&(ni[x].ni_last_msg), &(ni[x].ni_msg),
+		       sizeof(ni[x].ni_last_msg));
 		ni[x].ni_msg.m_arg = sb->ps_arg;
 		ni[x].ni_msg.m_msg = sb->ps_msg;
 		ni[x].ni_msg.m_seq = sb->ps_seq;
@@ -325,7 +329,7 @@ check_transitions(qd_ctx *ctx, node_info_t *ni, int max, memb_mask_t mask)
 
 		   Transition from Offline -> Online
 		 */
-		if (ni[x].ni_seen > (ctx->qc_tko / 2) &&
+		if (ni[x].ni_seen > ctx->qc_tko_up &&
 		    !state_run(ni[x].ni_state)) {
 			/*
 			   Node-join - everyone just kind of "agrees"
@@ -446,7 +450,7 @@ master_exists(qd_ctx *ctx, node_info_t *ni, int max, int *low_id)
 int
 quorum_init(qd_ctx *ctx, node_info_t *ni, int max, struct h_data *h, int maxh)
 {
-	int x = 0, score, maxscore;
+	int x = 0, score, maxscore, score_req;
 
 	clulog(LOG_INFO, "Quorum Daemon Initializing\n");
 	
@@ -464,16 +468,22 @@ quorum_init(qd_ctx *ctx, node_info_t *ni, int max, struct h_data *h, int maxh)
 		return -1;
 	}
 	
-	start_score_thread(ctx, h, maxh);
+	if (h && maxh) {
+		start_score_thread(ctx, h, maxh);
+	} else {
+		clulog(LOG_DEBUG, "Permanently setting score to 1/1\n");
+		fudge_scoring();
+	}
 
 	node_info_init(ni, max);
+	ctx->qc_status = S_INIT;
 	if (qd_write_status(ctx, ctx->qc_my_id,
 			    S_INIT, NULL, NULL, NULL) != 0) {
 		clulog(LOG_CRIT, "Could not initialize status block!\n");
 		return -1;
 	}
 
-	while (++x <= ctx->qc_tko) {
+	while (++x <= ctx->qc_tko && _running) {
 		read_node_blocks(ctx, ni, max);
 		check_transitions(ctx, ni, max, NULL);
 
@@ -483,10 +493,16 @@ quorum_init(qd_ctx *ctx, node_info_t *ni, int max, struct h_data *h, int maxh)
 			return -1;
 		}
 
+		get_my_score(&score, &maxscore);
+		score_req = ctx->qc_scoremin;
+		if (score_req <= 0)
+			score_req = (maxscore/2 + 1);
+		update_local_status(ctx, ni, max, score, score_req, maxscore);
+
 		sleep(ctx->qc_interval);
 	}
 
-	get_my_score(&score,&maxscore);
+	get_my_score(&score, &maxscore);
 	clulog(LOG_INFO, "Initial score %d/%d\n", score, maxscore);
 	clulog(LOG_INFO, "Initialization complete\n");
 
@@ -625,11 +641,41 @@ state_str(disk_node_state_t s)
 
 
 void
+print_node_info(FILE *fp, node_info_t *ni)
+{
+	fprintf(fp, "node_info_t [node %d] {\n", ni->ni_status.ps_nodeid);
+	fprintf(fp, "    ni_incarnation = 0x%08x%08x\n",
+		((int)(ni->ni_incarnation>>32))&0xffffffff,
+		((int)(ni->ni_incarnation)&0xffffffff));
+	fprintf(fp, "    ni_evil_incarnation = 0x%08x%08x\n",
+		((int)(ni->ni_evil_incarnation>>32))&0xffffffff,
+		((int)(ni->ni_evil_incarnation)&0xffffffff));
+	fprintf(fp, "    ni_last_seen = %s", ctime(&ni->ni_last_seen));
+	fprintf(fp, "    ni_misses = %d\n", ni->ni_misses);
+	fprintf(fp, "    ni_seen = %d\n", ni->ni_seen);
+	fprintf(fp, "    ni_msg = {\n");
+	fprintf(fp, "        m_msg = 0x%08x\n", ni->ni_msg.m_msg);
+	fprintf(fp, "        m_arg = %d\n", ni->ni_msg.m_arg);
+	fprintf(fp, "        m_seq = %d\n", ni->ni_msg.m_seq);
+	fprintf(fp, "    }\n");
+	fprintf(fp, "    ni_last_msg = {\n");
+	fprintf(fp, "        m_msg = 0x%08x\n", ni->ni_last_msg.m_msg);
+	fprintf(fp, "        m_arg = %d\n", ni->ni_last_msg.m_arg);
+	fprintf(fp, "        m_seq = %d\n", ni->ni_last_msg.m_seq);
+	fprintf(fp, "    }\n");
+	fprintf(fp, "    ni_state = 0x%08x (%s)\n", ni->ni_state,
+		state_str(ni->ni_state));
+	fprintf(fp, "}\n\n");
+}
+
+
+void
 update_local_status(qd_ctx *ctx, node_info_t *ni, int max, int score,
 		    int score_req, int score_max)
 {
 	FILE *fp;
 	int x, need_close = 0;
+	time_t now;
 
 	if (!ctx->qc_status_file)
 		return;
@@ -643,26 +689,25 @@ update_local_status(qd_ctx *ctx, node_info_t *ni, int max, int score,
 		need_close = 1;
 	}
 
+	now = time(NULL);
+	fprintf(fp, "Time Stamp: %s", ctime(&now));
 	fprintf(fp, "Node ID: %d\n", ctx->qc_my_id);
-	
-	if (ctx->qc_master)
-		fprintf(fp, "Master Node ID: %d\n", ctx->qc_master);
-	else 
-		fprintf(fp, "Master Node ID: (none)\n");
 	
 	fprintf(fp, "Score: %d/%d (Minimum required = %d)\n",
 		score, score_max, score_req);
 	fprintf(fp, "Current state: %s\n", state_str(ctx->qc_status));
+
+	/*
 	fprintf(fp, "Current disk state: %s\n",
 		state_str(ctx->qc_disk_status));
-
+	 */
 	fprintf(fp, "Initializing Set: {");
 	for (x=0; x<max; x++) {
-		if (ni[x].ni_state == S_INIT)
+		if (ni[x].ni_status.ps_state == S_INIT && ni[x].ni_seen)
 			fprintf(fp," %d", ni[x].ni_status.ps_nodeid);
 	}
 	fprintf(fp, " }\n");
-	
+
 	fprintf(fp, "Visible Set: {");
 	for (x=0; x<max; x++) {
 		if (ni[x].ni_state >= S_RUN || ni[x].ni_status.ps_nodeid == 
@@ -671,6 +716,14 @@ update_local_status(qd_ctx *ctx, node_info_t *ni, int max, int score,
 	}
 	fprintf(fp, " }\n");
 	
+	if (ctx->qc_status == S_INIT)
+		goto out;
+	
+	if (ctx->qc_master)
+		fprintf(fp, "Master Node ID: %d\n", ctx->qc_master);
+	else 
+		fprintf(fp, "Master Node ID: (none)\n");
+
 	if (!ctx->qc_master)
 		goto out;
 
@@ -686,6 +739,11 @@ update_local_status(qd_ctx *ctx, node_info_t *ni, int max, int score,
 	fprintf(fp, " }\n");
 
 out:
+	if (ctx->qc_flags & RF_DEBUG) {
+		for (x = 0; x < max; x++)
+			print_node_info(fp, &ni[x]);
+	}
+
 	fprintf(fp, "\n");
 	if (need_close)
 		fclose(fp);
@@ -823,7 +881,10 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 
 		/* Check heuristics and remove ourself if necessary */
 		get_my_score(&score, &score_max);
-		upgrade = 0;
+
+		/* If we recently upgraded, decrement our wait time */
+		if (upgrade > 0)
+			--upgrade;
 
 		score_req = ctx->qc_scoremin;
 		if (score_req <= 0)
@@ -859,9 +920,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 				       "upgrading\n",
 				       score, score_max, score_req);
 				ctx->qc_status = S_RUN;
-				upgrade = (ctx->qc_tko / 3);
-				if (upgrade == 0)
-					upgrade = 1;
+				upgrade = ctx->qc_upgrade_wait;
 			}
 		}
 
@@ -905,7 +964,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 				 * Give ample time to become aware of other
 				 * nodes
 				 */
-				if (bid_pending < (ctx->qc_tko / 3))
+				if (bid_pending < (ctx->qc_master_wait))
 					break;
 				
 				clulog(LOG_INFO,
@@ -1060,6 +1119,8 @@ get_config_data(char *cluster_name, qd_ctx *ctx, struct h_data *h, int maxh,
 	ctx->qc_scoremin = 0;
 	ctx->qc_flags = RF_REBOOT | RF_ALLOW_KILL | RF_UPTIME;
 			/* | RF_STOP_CMAN;*/
+	if (debug)
+		ctx->qc_flags |= RF_DEBUG;
 	ctx->qc_sched = SCHED_RR;
 	ctx->qc_sched_prio = 1;
 
@@ -1100,6 +1161,38 @@ get_config_data(char *cluster_name, qd_ctx *ctx, struct h_data *h, int maxh,
 		if (ctx->qc_tko < 3)
 			ctx->qc_tko = 3;
 	}
+
+	/* Get up-tko (transition off->online) */
+	ctx->qc_tko_up = (ctx->qc_tko / 2);
+	snprintf(query, sizeof(query), "/cluster/quorumd/@tko_up");
+	if (ccs_get(ccsfd, query, &val) == 0) {
+		ctx->qc_tko_up = atoi(val);
+		free(val);
+	}
+	if (ctx->qc_tko_up < 2)
+		ctx->qc_tko_up = 2;
+
+	/* After coming online, wait this many intervals before
+	   being allowed to bid for master. */
+	ctx->qc_upgrade_wait = 2; /* (ctx->qc_tko / 3); */
+	snprintf(query, sizeof(query), "/cluster/quorumd/@upgrade_wait");
+	if (ccs_get(ccsfd, query, &val) == 0) {
+		ctx->qc_upgrade_wait = atoi(val);
+		free(val);
+	}
+	if (ctx->qc_upgrade_wait < 1)
+		ctx->qc_upgrade_wait = 1;
+
+	/* wait this many intervals after bidding for master before
+	   becoming Caesar  */
+	ctx->qc_master_wait = (ctx->qc_tko / 3);
+	snprintf(query, sizeof(query), "/cluster/quorumd/@master_wait");
+	if (ccs_get(ccsfd, query, &val) == 0) {
+		ctx->qc_master_wait = atoi(val);
+		free(val);
+	}
+	if (ctx->qc_master_wait < 2)
+		ctx->qc_master_wait = 2;
 		
 	/* Get votes */
 	snprintf(query, sizeof(query), "/cluster/quorumd/@votes");
@@ -1274,7 +1367,7 @@ int
 main(int argc, char **argv)
 {
 	cman_node_t me;
-	int cfh, rv, forked = 0;
+	int cfh, rv, forked = 0, nfd = -1;
 	qd_ctx ctx;
 	cman_handle_t ch;
 	node_info_t ni[MAX_NODES_DISK];
@@ -1282,13 +1375,13 @@ main(int argc, char **argv)
 	char debug = 0, foreground = 0;
 	char device[128];
 	pid_t pid;
-	
+
 	if (check_process_running(argv[0], &pid) && pid !=getpid()) {
 		printf("QDisk services already running\n");
 		return 0;
 	}
 	
-	while ((rv = getopt(argc, argv, "fd")) != EOF) {
+	while ((rv = getopt(argc, argv, "fdQ")) != EOF) {
 		switch (rv) {
 		case 'd':
 			debug = 1;
@@ -1296,6 +1389,18 @@ main(int argc, char **argv)
 		case 'f':
 			foreground = 1;
 			clu_log_console(1);
+			break;
+		case 'Q':
+			/* Make qdisk very quiet */
+			nfd = open("/dev/null", O_RDWR);
+			close(0);
+			close(1);
+			close(2);
+			dup2(nfd, 0);
+			dup2(nfd, 1);
+			dup2(nfd, 2);
+			close(nfd);
+			break;
 		default:
 			break;
 		}
@@ -1393,6 +1498,9 @@ main(int argc, char **argv)
 		check_stop_cman(&ctx);
 		return -1;
 	}
+
+	if (!_running)
+		return 0;
 	
 	cman_register_quorum_device(ctx.qc_ch, ctx.qc_device, ctx.qc_votes);
 	/*

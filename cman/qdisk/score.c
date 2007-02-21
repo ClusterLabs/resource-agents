@@ -143,6 +143,7 @@ total_score(struct h_data *h, int max, int *score, int *maxscore)
 	*score = 0;
 	*maxscore = 0;
 	
+	printf("max = %d\n", max);
 	/* Allow operation w/o any heuristics */
 	if (!max) {
 		*score = *maxscore = 1;
@@ -325,6 +326,20 @@ get_my_score(int *score, int *maxscore)
 	pthread_mutex_lock(&sc_lock);
 	*score = _score;
 	*maxscore = _maxscore;
+	pthread_mutex_unlock(&sc_lock);
+
+	return 0;
+}
+
+
+/**
+  Call this if no heuristics are set to run in master-wins mode
+ */
+int
+fudge_scoring(void)
+{
+	pthread_mutex_lock(&sc_lock);
+	_score = _maxscore = 1;
 	pthread_mutex_unlock(&sc_lock);
 
 	return 0;
