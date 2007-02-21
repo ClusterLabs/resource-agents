@@ -1,0 +1,11 @@
+dep
+online 1 2 3 4
+start a 1
+start c 2
+start b 4
+state
+online 2 3 4
+check
+calc
+apply
+state
