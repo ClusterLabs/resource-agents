@@ -30,7 +30,7 @@
 
 #include "gfs_tool.h"
 
-#define SIZE (65536)
+#define SIZE (4096)
 
 struct token_list {
 	osi_list_t list;
