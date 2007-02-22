@@ -1027,7 +1027,13 @@ _res_op(resource_node_t **tree, resource_t *first,
 				++node->rn_resource->r_incarnations;
 				node->rn_state = RES_STARTED;
 			}
+		} else if (me && (op == RS_STATUS)) {
+			/* Check status before children*/
+			rv = do_status(node);
+			if (rv != 0)
+				return rv;
 		}
+
 
 		if (node->rn_child) {
 			rv = _res_op_by_level(&node, me?NULL:first, ret, op);
@@ -1035,7 +1041,7 @@ _res_op(resource_node_t **tree, resource_t *first,
 				return rv;
 		}
 
-		/* Stop/status/etc stops after children have stopped */
+		/* Stop should occur after children have stopped */
 		if (me && (op == RS_STOP)) {
 			node->rn_flags &= ~RF_NEEDSTOP;
 			rv = res_exec(node, res_ops[op], NULL, 0);
@@ -1049,12 +1055,6 @@ _res_op(resource_node_t **tree, resource_t *first,
 				--node->rn_resource->r_incarnations;
 				node->rn_state = RES_STOPPED;
 			}
-
-		} else if (me && (op == RS_STATUS)) {
-
-			rv = do_status(node);
-			if (rv != 0)
-				return rv;
 		}
 
 		/*
