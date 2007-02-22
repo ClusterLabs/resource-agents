@@ -129,7 +129,7 @@ static int run_agent(char *agent, char *args)
 	return -1;
 }
 
-static int make_args(int cd, char *victim, char *self, char *method, int d,
+static int make_args(int cd, char *victim, char *method, int d,
 		     char *device, char **args_out)
 {
 	char path[256], *args, *str;
@@ -178,13 +178,6 @@ static int make_args(int cd, char *victim, char *self, char *method, int d,
 		strcat(args, str);
 		strcat(args, "\n");
 		free(str);
-	}
-
-	if (self != NULL) {
-		memset(path, 0, 256);
-		sprintf(path, "self=%s", self);
-		strcat(args, path);
-		strcat(args, "\n");
 	}
 
 	if (error) {
@@ -260,7 +253,7 @@ static int count_devices(int cd, char *victim, char *method)
 	return i;
 }
 
-static int use_device(int cd, char *victim, char *self,char *method, int d,
+static int use_device(int cd, char *victim, char *method, int d,
 		      char *device)
 {
 	char path[256], *agent, *args = NULL;
@@ -273,7 +266,7 @@ static int use_device(int cd, char *victim, char *self,char *method, int d,
 	if (error)
 		goto out;
 
-	error = make_args(cd, victim, self, method, d, device, &args);
+	error = make_args(cd, victim, method, d, device, &args);
 	if (error)
 		goto out_agent;
 
@@ -309,7 +302,7 @@ static void update_cman(char *victim, char *method)
 	cman_finish(ch);
 }
 
-int dispatch_fence_agent(int cd, char *victim, char *self)
+int dispatch_fence_agent(int cd, char *victim)
 {
 	char *method = NULL, *device = NULL;
 	int num_methods, num_devices, m, d, error = -1;
@@ -332,7 +325,7 @@ int dispatch_fence_agent(int cd, char *victim, char *self)
 			if (error)
 				break;
 
-			error = use_device(cd, victim, self, method, d, device);
+			error = use_device(cd, victim, method, d, device);
 			if (error)
 				break;
 

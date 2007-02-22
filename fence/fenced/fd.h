@@ -176,7 +176,7 @@ void do_recovery(fd_t *fd, int start_type, int member_count, int *nodeids);
 void do_recovery_done(fd_t *fd);
 
 /* agent.c */
-int dispatch_fence_agent(int cd, char *victim, char *self);
+int dispatch_fence_agent(int cd, char *victim);
 
 /* group.c */
 int setup_groupd(void);
