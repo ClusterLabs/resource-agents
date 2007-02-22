@@ -15,7 +15,20 @@ AC_CANONICAL_HOST
 
 
 dnl Where #defines go (e.g. `AC_CHECK_HEADERS' below)
-AM_CONFIG_HEADER(linux-ha/config.h)
+dnl
+dnl Internal header: include/config.h
+dnl   - Contains ALL defines
+dnl   - include/config.h.in is generated automatically by autoheader
+dnl   - NOT to be included in any header files except lha_internal.h
+dnl     (which is also not to be included in any other header files)
+dnl
+dnl External header: include/hb_config.h
+dnl   - Contains a subset of defines checked here
+dnl   - Manually edit include/hb_config.h.in to have configure include
+dnl     new defines
+dnl   - Should not include HAVE_* defines
+dnl   - Safe to include anywhere
+AM_CONFIG_HEADER(include/config.h include/hb_config.h)
 ALL_LINGUAS="en fr"
 
 AC_ARG_WITH(hapkgversion,
@@ -229,7 +242,6 @@ do
   fi
 done
 
-
 dnl	The GNU conventions for installation directories don't always
 dnl	sit well with this software.  In particular, GNU's stated:
 dnl
@@ -263,6 +275,9 @@ then
 	AC_MSG_WARN(Sleeping for $SNOOZING seconds.)
 	sleep $SNOOZING
 fi
+
+AC_DEFINE_UNQUOTED(HA_SYSCONFDIR, "$sysconfdir", Location of system configuration files)
+
 HA_URLBASE="http://linux-ha.org/"
 AC_SUBST(HA_URLBASE)
 AC_DEFINE_UNQUOTED(HA_URLBASE, "$HA_URLBASE", Web site base URL)
@@ -283,9 +298,20 @@ HA_VARRUNHBDIR="$HA_VARRUNDIR/${HB_PKG}"
 AC_SUBST(HA_VARRUNHBDIR)
 AC_DEFINE_UNQUOTED(HA_VARRUNHBDIR,"$HA_VARRUNHBDIR", var run heartbeat directory)
 
-HA_VARLOCKDIR="${localstatedir}/lock"
+dnl Test the default first (priority) and last (to make sure some value is set)
+AC_MSG_CHECKING(for the location of the lock directory)
+for HA_VARLOCKDIR in ${localstatedir}/lock ${localstatedir}/spool/lock ${localstatedir}/spool/locks ${localstatedir}/lock
+do
+  if
+    test -d "$HA_VARLOCKDIR"
+  then
+    AC_MSG_RESULT($HA_VARLOCKDIR)
+    break
+  fi
+done
+
 AC_SUBST(HA_VARLOCKDIR)
-AC_DEFINE_UNQUOTED(HA_VARLOCKDIR,"$HA_VARLOCKDIR", var lock directory)
+AC_DEFINE_UNQUOTED(HA_VARLOCKDIR,"$HA_VARLOCKDIR", System lock directory)
 
 HA_VARLIBDIR="${localstatedir}/lib"
 AC_SUBST(HA_VARLIBDIR)
@@ -728,19 +754,6 @@ do
   fi
 done
 
-AC_MSG_CHECKING(for the location of the lock directory)
-for TTY_LOCK_D in /var/lock /var/spool/lock /var/spool/locks
-do
-  if
-    test -d "$TTY_LOCK_D"
-  then
-    AC_MSG_RESULT($TTY_LOCK_D)
-    AC_DEFINE_UNQUOTED(TTY_LOCK_D, "$TTY_LOCK_D", tty lock file directory)
-    break
-  fi
-done
-
-
 AC_SUBST(IFCONFIG_A_OPT)
 AC_SUBST(WHOAMI)
 
@@ -942,7 +955,7 @@ AC_CHECK_HEADERS(sys/types.h)
 AC_CHECK_HEADERS(sys/socket.h)
 AC_CHECK_HEADERS(arpa/inet.h)
 AC_CHECK_HEADERS(net/ethernet.h)
-AC_CHECK_HEADERS(strings.h malloc.h)
+AC_CHECK_HEADERS(malloc.h)
 AC_CHECK_HEADERS(termio.h)
 AC_CHECK_HEADERS(getopt.h)
 AC_CHECK_HEADERS(sys/prctl.h)
@@ -1345,7 +1358,6 @@ dnl
 
 if check_for_type "nfds_t" "#include <poll.h>"; then
 	 AC_DEFINE(HAVE_NFDS_T,1,[Do we have nfds_t?])
-	 AC_DEFINE(HA_HAVE_NFDS_T,1,[Do we have nfds_t?])
 fi
 
 dnl ************************************************************************
@@ -2024,27 +2036,8 @@ dnl	getopt: If this is valid, define HAVE_DECL_GETOPT to make the getopt.h heade
 dnl
 
 AC_REPLACE_FUNCS(alphasort inet_pton NoSuchFunctionName scandir setenv strerror unsetenv strnlen strndup daemon uuid_parse)
-AC_CHECK_FUNCS(alphasort, 
-	AC_DEFINE(HA_HAVE_ALPHASORT, 1, [Have alphasort function]))
-AC_CHECK_FUNCS(inet_pton, 
-	AC_DEFINE(HA_HAVE_INET_PTON, 1, [Have inet_pton function]))
-AC_CHECK_FUNCS(NoSuchFunctionName)
-AC_CHECK_FUNCS(scandir, 
-	AC_DEFINE(HA_HAVE_SCANDIR,   1, [Have scandir function]))
-AC_CHECK_FUNCS(setenv, 
-	AC_DEFINE(HA_HAVE_SETENV,    1, [Have setenv function]))
-AC_CHECK_FUNCS(strerror, 
-	AC_DEFINE(HA_HAVE_STRERROR,  1, [Have strerror function]))
-AC_CHECK_FUNCS(unsetenv, 
-	AC_DEFINE(HA_HAVE_UNSETENV,  1, [Have unsetenv function]))
-AC_CHECK_FUNCS(strnlen, 
-	AC_DEFINE(HA_HAVE_STRNLEN,   1, [Have strnlen function]))
-AC_CHECK_FUNCS(strndup, 
-	AC_DEFINE(HA_HAVE_STRNDUP,   1, [Have strndup function]))
-AC_CHECK_FUNCS(daemon, 
-	AC_DEFINE(HA_HAVE_DAEMON,    1, [Have daemon function]))
-AC_CHECK_FUNCS(uuid_parse, 
-	AC_DEFINE(HA_HAVE_UUID_PARSE, 1, [Have uuid_parse function]))
+dnl AC_CHECK_FUNCS(alphasort inet_pton NoSuchFunctionName scandir setenv strerror unsetenv strnlen strndup daemon uuid_parse)
+
 AC_CHECK_FUNCS(getopt, 
 	AC_DEFINE(HAVE_DECL_GETOPT,  1, [Have getopt function]))
 
@@ -2287,29 +2280,17 @@ AC_SUBST(LIBADD_INTL)	dnl extra flags for GNU gettext stuff...
 
 AC_SUBST(LOCALE)
 
-HB_HA_DIR=$sysconfdir/ha.d
-AC_SUBST(HB_HA_DIR)
-AC_DEFINE_UNQUOTED(HB_HA_DIR,"$HB_HA_DIR", ha directory)
+HA_HBCONF_DIR=$sysconfdir/ha.d
+AC_SUBST(HA_HBCONF_DIR)
+AC_DEFINE_UNQUOTED(HA_HBCONF_DIR,"$HA_HBCONF_DIR", Heartbeat configuration directory)
 
-HB_RC_DIR=$HB_HA_DIR/rc.d
-AC_SUBST(HB_RC_DIR)
-AC_DEFINE_UNQUOTED(HB_RC_DIR,"$HB_RC_DIR", rc directory)
+HA_RC_DIR=$HA_HBCONF_DIR/rc.d
+AC_SUBST(HA_RC_DIR)
+AC_DEFINE_UNQUOTED(HA_RC_DIR,"$HB_RC_DIR", heartbeat v1 script directory)
 
 AC_ARG_ENABLE([crm],
 [  --enable-crm  Compile the Version 2 Cluster Resource Manager.  [default=yes]],
                           [], [enable_crm=yes])
-
-AC_ARG_ENABLE([crm-dev],
-[  --enable-crm-dev  Compile the new Cluster Resource Manager with 
-   		     developmental asserts turned on and extra code for testing.
-                     This is still in the development stage.  [default=no]],
-                     [], [enable_crm_dev=no])
-
-CRM_ENABLED=0
-if test "x${enable_crm_dev}" = "xyes"; then
-   enable_crm="yes"
-   AC_DEFINE_UNQUOTED(CRM_DEV_BUILD, 1, Enable extra asserts and testing code for the new Cluster Resource Manager)
-fi
 
 if test "x${enable_crm}" = "xyes"; then
      CRM_ENABLED=1
@@ -2540,20 +2521,17 @@ AM_CONDITIONAL(BUILD_DRBD_OUTDATE_PEER, test "x${enable_dopd}" != "xno")
 hb_libdir="${libdir}/${HB_PKG}"
 AC_SUBST(hb_libdir)
 
-ra_plugindir="${hb_libdir}/plugins/RAExec"
-AC_SUBST(ra_plugindir)
+HA_PLUGIN_DIR="${hb_libdir}/plugins"
+AC_SUBST(HA_PLUGIN_DIR)
+AC_DEFINE_UNQUOTED(HA_PLUGIN_DIR,"$HA_PLUGIN_DIR", PILS plugin dir)
 
-PLUGIN_DIR="${hb_libdir}/plugins"
-AC_SUBST(PLUGIN_DIR)
-AC_DEFINE_UNQUOTED(PLUGIN_DIR,"$PLUGIN_DIR", pils plugin dir)
-
-RA_PLUGIN_DIR="${ra_plugindir}"
-AC_SUBST(RA_PLUGIN_DIR)
-AC_DEFINE_UNQUOTED(RA_PLUGIN_DIR,"$RA_PLUGIN_DIR", ra plugin dir)
+LRM_PLUGIN_DIR="${hb_libdir}/plugins/RAExec"
+AC_SUBST(LRM_PLUGIN_DIR)
+AC_DEFINE_UNQUOTED(LRM_PLUGIN_DIR,"$LRM_PLUGIN_DIR", LRM plugin dir)
 
 HB_RA_DIR="${sysconfdir}/ha.d/resource.d/"
 AC_SUBST(HB_RA_DIR)
-AC_DEFINE_UNQUOTED(HB_RA_DIR,"$HB_RA_DIR", heartbeat ra dir)
+AC_DEFINE_UNQUOTED(HB_RA_DIR,"$HB_RA_DIR", Location for v1 Heartbeat v1 RAs)
 
 dnl ************ OCF (Open Cluster Framework) **********************
 dnl Must be consistent with remainder of platform (analogy with "initdir").
@@ -2566,29 +2544,23 @@ if test "X$OCF_ROOT_DIR" = X; then
   FatalMissingThing "OCF directory" "Could not locate OCF directory"
 fi
 AC_SUBST(OCF_ROOT_DIR)
-AC_DEFINE_UNQUOTED(OCF_ROOT_DIR,"$OCF_ROOT_DIR", ocf root dir)
+AC_DEFINE_UNQUOTED(OCF_ROOT_DIR,"$OCF_ROOT_DIR", OCF root dir)
 
 OCF_RA_DIR="${OCF_ROOT_DIR}/resource.d/"
 AC_SUBST(OCF_RA_DIR)
-AC_DEFINE_UNQUOTED(OCF_RA_DIR,"$OCF_RA_DIR", ocf ra dir)
+AC_DEFINE_UNQUOTED(OCF_RA_DIR,"$OCF_RA_DIR", Location for OCF RAs)
 
 LSB_RA_DIR="${INITDIR}"
 AC_SUBST(LSB_RA_DIR)
-AC_DEFINE_UNQUOTED(LSB_RA_DIR,"$LSB_RA_DIR", lsb ra dir)
+AC_DEFINE_UNQUOTED(LSB_RA_DIR,"$LSB_RA_DIR", Location for LSB RAs)
 
 STONITH_RA_DIR="${hb_libdir}/stonith.d/"
 AC_SUBST(STONITH_RA_DIR)
-AC_DEFINE_UNQUOTED(STONITH_RA_DIR,"$STONITH_RA_DIR", stonith ra dir)
+AC_DEFINE_UNQUOTED(STONITH_RA_DIR,"$STONITH_RA_DIR", Location for STONITH RAs)
 
-valgrind_desc="Run selected heartbeat components using Valgrind."
 AC_ARG_ENABLE([valgrind],
-	[  --enable-valgrind  $valgrind_desc  [default=no]],
+	[  --enable-valgrind  "Run selected heartbeat components using Valgrind."  [default=no]],
 			[], [enable_valgrind=no])
-
-malloc_desc="Use libc malloc instead of Heartbeat's custom one."
-AC_ARG_ENABLE([libc-malloc],
-	[  --enable-libc-malloc  $malloc_desc  [default=no]],
-			[], [enable_libc_malloc=no])
 
 AC_ARG_WITH(valgrind-log,
     [  --with-valgrind-log=options  Logging options to pass to valgrind],
@@ -2615,8 +2587,13 @@ AC_DEFINE_UNQUOTED(VALGRIND_BIN, "$VALGRIND_BIN", Valgrind command)
 AC_DEFINE_UNQUOTED(VALGRIND_LOG, "$VALGRIND_LOG", Valgrind logging options)
 AC_DEFINE_UNQUOTED(VALGRIND_SUPP, "$VALGRIND_SUPP", Name of a suppression file to pass to Valgrind)
 
+AC_ARG_ENABLE([libc-malloc],
+	[  --enable-libc-malloc  Use libc malloc instead of Heartbeat's custom one.  [default=no]],
+	[], [enable_libc_malloc=no])
+
+
 if test "xyes" = "x$enable_libc_malloc" -o "x1" = "x$enable_libc_malloc"; then
-   AC_DEFINE_UNQUOTED(USE_LIBC_MALLOC, 1, $malloc_desc)
+   AC_DEFINE_UNQUOTED(CL_USE_LIBC_MALLOC, 1, Use libc malloc instead of Heartbeat's custom one.)
 fi
 
 dnl **********************************************************************
@@ -2744,7 +2721,6 @@ include/Makefile						\
         include/stonith/Makefile				\
         include/fencing/Makefile				\
 replace/Makefile						\
-linux-ha/Makefile						\
 lib/Makefile							\
 	lib/apphb/Makefile					\
 	lib/clplumbing/Makefile					\
