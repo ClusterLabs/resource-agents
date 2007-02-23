@@ -19,6 +19,8 @@
 #  OCF_RESKEY_pgport - Port where PostgreSQL is listening
 #  OCF_RESKEY_pgdb   - database to monitor. Default is template1
 #  OCF_RESKEY_logfile - Path to PostgreSQL log file. Default is /dev/null
+#  OCF_RESKEY_start_wait - Start waiting time. Default is 30
+#  OCF_RESKEY_stop_wait - Stop waiting time. Default is 30
 ###############################################################################
 # Initialization:
 
@@ -128,6 +130,20 @@ Path to PostgreSQL server log output file.
 <shortdesc lang="en">logfile</shortdesc>
 <content type="string" default="/dev/null" />
 </parameter>
+<parameter name="start_wait" unique="0" required="0">
+<longdesc lang="en">
+Start waiting time.
+</longdesc>
+<shortdesc lang="en">start_wait</shortdesc>
+<content type="string" default="30" />
+</parameter>
+<parameter name="stop_wait" unique="0" required="0">
+<longdesc lang="en">
+Stop waiting time.
+</longdesc>
+<shortdesc lang="en">stop_wait</shortdesc>
+<content type="string" default="30" />
+</parameter>
 </parameters>
 
 <actions>
@@ -178,6 +194,9 @@ pgsql_start() {
     
     if [ -x $PGCTL ]
     then
+	# Remove postmastre.pid if it exists
+	rm -f $PIDFILE
+
         # Check if we need to create a log file
         if ! check_log_file $LOGFILE
 	then
@@ -196,15 +215,35 @@ pgsql_start() {
 	ocf_log err "$PGCTL not found!"
 	return $OCF_ERR_GENERIC
     fi
-	
-    if ! pgsql_status
+
+    # start waiting
+    count=0
+    PRESULT=1
+    while [ $count -lt $START_WAIT ]
+    do
+        if pgsql_status
+        then
+            if [ -z "$PGHOST" ]
+            then
+               $PSQL -p $PGPORT -U $PGDBA $PGDB -c 'select now();' >/dev/null 2>&1
+            else
+               $PSQL -h $PGHOST -p $PGPORT -U $PGDBA $PGDB -c 'select now();' >/dev/null 2>&1
+            fi
+            PRESULT=$?
+
+            if [ $PRESULT -eq 0 ]
+	    then
+                break;
+            fi
+        fi
+        count=`expr $count + 1`
+        sleep 1
+    done
+
+    if [ $PRESULT -ne  0 ]
     then
-	sleep 5
-	if ! pgsql_status
-	then	
-	    echo "ERROR: PostgreSQL is not running!"
-            return $OCF_ERR_GENERIC
-	fi
+	ocf_log err "PostgreSQL is not running!"
+	return $OCF_ERR_GENERIC
     fi
 
     return $OCF_SUCCESS
@@ -221,11 +260,27 @@ pgsql_stop() {
     # Stop PostgreSQL do not wait for clients to disconnect
     runasowner "$PGCTL -D $PGDATA stop -m fast > /dev/null 2>&1"
 
+    # stop waiting
+    count=0
+    while [ $count -lt $STOP_WAIT ]
+    do
+        if ! pgsql_status
+        then
+            #PostgreSQL stopped
+            break;
+        fi
+        count=`expr $count + 1`
+        sleep 1
+    done
+
     if pgsql_status
     then
        #PostgreSQL is still up. Use another shutdown mode.
        runasowner "$PGCTL -D $PGDATA stop -m immediate > /dev/null 2>&1"
     fi
+	
+    # Remove postmastre.pid if it exists
+    rm -f $PIDFILE
 
     return $OCF_SUCCESS
 }
@@ -348,6 +403,8 @@ PGPORT=${OCF_RESKEY_pgport:-"5432"}
 PGDB=${OCF_RESKEY_pgdb:-template1}
 LOGFILE=${OCF_RESKEY_logfile:-/dev/null}
 PIDFILE=${PGDATA}/postmaster.pid
+START_WAIT=${OCF_RESKEY_start_wait:-"30"}
+STOP_WAIT=${OCF_RESKEY_stop_wait:-"30"}
 
 case "$1" in
     methods)    pgsql_methods
