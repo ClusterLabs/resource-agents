@@ -244,7 +244,7 @@ ocfs2_cleanup() {
 ocfs2_init()
 {
 	# Check & initialize the OCFS2 specific variables.
-	if [ -z "$OCF_RESKEY_CRM_meta_clone_max" ]; then
+	if [ -z "$OCF_RESKEY_CRM_meta_clone" ]; then
 		ocf_log err "ocfs2 must be run as a clone."
 		exit $OCF_ERR_GENERIC
 	fi
@@ -746,7 +746,7 @@ case $FSTYPE in
 	: # this is kind of safe too
   ;;
   *) 
-	if [ -n "$OCF_RESKEY_CRM_meta_clone_max" ]; then
+	if [ -n "$OCF_RESKEY_CRM_meta_clone" ]; then
 		ocf_log err "DANGER! $FSTYPE on $DEVICE is NOT cluster-aware!"
 		ocf_log err "DO NOT RUN IT AS A CLONE!"
 		ocf_log err "Politely refusing to proceed to avoid data corruption."
