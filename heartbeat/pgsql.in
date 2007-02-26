@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # Description:	Manages a PostrgreSQL Server as an OCF High-Availability
 #		resource under Heartbeat/LinuxHA control
@@ -367,17 +367,14 @@ then
     exit 1
 fi
 
-: ${OCF_RESKEY_pgctl:-/usr/bin/pg_ctl}
-: ${OCF_RESKEY_start_opt:-""}
-: ${OCF_RESKEY_ctl_opt:-""}
-: ${OCF_RESKEY_psql:-/usr/bin/psql}
-: ${OCF_RESKEY_pgdata:-/var/lib/pgsql/data}
-: ${OCF_RESKEY_pgdba:-postgres}
-: ${OCF_RESKEY_pghost:-""}
-: ${OCF_RESKEY_pgport:-"5432"}
-: ${OCF_RESKEY_pgdb:-template1}
-: ${OCF_RESKEY_logfile:-/dev/null}
-: ${OCF_RESKEY_stop_escalate:-"30"}
+: ${OCF_RESKEY_pgctl=/usr/bin/pg_ctl}
+: ${OCF_RESKEY_psql=/usr/bin/psql}
+: ${OCF_RESKEY_pgdata=/var/lib/pgsql/data}
+: ${OCF_RESKEY_pgdba=postgres}
+: ${OCF_RESKEY_pgport=5432}
+: ${OCF_RESKEY_pgdb=template1}
+: ${OCF_RESKEY_logfile=/dev/null}
+: ${OCF_RESKEY_stop_escalate=30}
 
 PIDFILE=${PGDATA}/postmaster.pid
 
