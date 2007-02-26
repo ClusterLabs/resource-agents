@@ -130,18 +130,11 @@ Path to PostgreSQL server log output file.
 <shortdesc lang="en">logfile</shortdesc>
 <content type="string" default="/dev/null" />
 </parameter>
-<parameter name="start_wait" unique="0" required="0">
+<parameter name="stop_escalate" unique="0" required="0">
 <longdesc lang="en">
-Start waiting time.
+Number of retries (using -m fast) before resorting to -m immediate
 </longdesc>
-<shortdesc lang="en">start_wait</shortdesc>
-<content type="string" default="30" />
-</parameter>
-<parameter name="stop_wait" unique="0" required="0">
-<longdesc lang="en">
-Stop waiting time.
-</longdesc>
-<shortdesc lang="en">stop_wait</shortdesc>
+<shortdesc lang="en">stop escalation</shortdesc>
 <content type="string" default="30" />
 </parameter>
 </parameters>
@@ -150,7 +143,7 @@ Stop waiting time.
 <action name="start" timeout="120" />
 <action name="stop" timeout="120" />
 <action name="status" timeout="60" />
-<action name="monitor" depth="0" timeout="30" interval="30" start-delay="10" />
+<action name="monitor" depth="0" timeout="30" interval="30" start-delay="0"/>
 <action name="meta-data" timeout="5" />
 <action name="validate-all" timeout="5" />
 <action name="methods" timeout="5" />
@@ -164,7 +157,7 @@ END
 #	Run the given command in the Resource owner environment...
 #
 runasowner() {
-    su $PGDBA -c ". ~${PGDBA}/.bash_profile; $*"
+    su $OCF_RESKEY_pgdba -c ". ~${OCF_RESKEY_pgdba}/.bash_profile; $*"
 }
 
 #
@@ -192,19 +185,19 @@ pgsql_start() {
         return $OCF_SUCCESS
     fi
     
-    if [ -x $PGCTL ]
+    if [ -x $OCF_RESKEY_pgctl ]
     then
 	# Remove postmastre.pid if it exists
 	rm -f $PIDFILE
 
         # Check if we need to create a log file
-        if ! check_log_file $LOGFILE
+        if ! check_log_file $OCF_RESKEY_logfile
 	then
-            ocf_log err "PostgreSQL can't write to the log file: $LOGFILE"
+            ocf_log err "PostgreSQL can't write to the log file: $OCF_RESKEY_logfile"
 	    return $OCF_ERR_GENERIC
 	fi
 
-	if runasowner "$PGCTL $CTLOPT -D $PGDATA -l $LOGFILE -o "\'$STARTOPT\'" start > /dev/null 2>&1"
+	if runasowner "$OCF_RESKEY_pgctl $OCF_RESKEY_ctl_opt -D $OCF_RESKEY_pgdata -l $OCF_RESKEY_logfile -o "\'$OCF_RESKEY_start_opt\'" start > /dev/null 2>&1"
 	then
 	   # Probably started.....
             ocf_log info "PostgreSQL start command sent."
@@ -212,39 +205,15 @@ pgsql_start() {
 	    ocf_log err "Can't start PostgreSQL."; return $OCF_ERR_GENERIC
 	fi
     else
-	ocf_log err "$PGCTL not found!"
+	ocf_log err "$OCF_RESKEY_pgctl not found!"
 	return $OCF_ERR_GENERIC
     fi
 
-    # start waiting
-    count=0
-    PRESULT=1
-    while [ $count -lt $START_WAIT ]
-    do
-        if pgsql_status
-        then
-            if [ -z "$PGHOST" ]
-            then
-               $PSQL -p $PGPORT -U $PGDBA $PGDB -c 'select now();' >/dev/null 2>&1
-            else
-               $PSQL -h $PGHOST -p $PGPORT -U $PGDBA $PGDB -c 'select now();' >/dev/null 2>&1
-            fi
-            PRESULT=$?
-
-            if [ $PRESULT -eq 0 ]
-	    then
-                break;
-            fi
-        fi
-        count=`expr $count + 1`
-        sleep 1
+    rc=$OCF_ERR_GENERIC
+    while [ $rc != 0 ]; do
+        pgsql_monitor
+        rc=$? 
     done
-
-    if [ $PRESULT -ne  0 ]
-    then
-	ocf_log err "PostgreSQL is not running!"
-	return $OCF_ERR_GENERIC
-    fi
 
     return $OCF_SUCCESS
 }
@@ -258,7 +227,7 @@ pgsql_stop() {
     fi
     
     # Stop PostgreSQL do not wait for clients to disconnect
-    runasowner "$PGCTL -D $PGDATA stop -m fast > /dev/null 2>&1"
+    runasowner "$OCF_RESKEY_pgctl -D $OCF_RESKEY_pgdata stop -m fast > /dev/null 2>&1"
 
     # stop waiting
     count=0
@@ -276,8 +245,14 @@ pgsql_stop() {
     if pgsql_status
     then
        #PostgreSQL is still up. Use another shutdown mode.
-       runasowner "$PGCTL -D $PGDATA stop -m immediate > /dev/null 2>&1"
+       runasowner "$OCF_RESKEY_pgctl -D $OCF_RESKEY_pgdata stop -m immediate > /dev/null 2>&1"
     fi
+
+    rc=$OCF_ERR_GENERIC
+    while [ $rc != $OCF_NOT_RUNNING ]; do
+        pgsql_monitor
+        rc=$? 
+    done
 	
     # Remove postmastre.pid if it exists
     rm -f $PIDFILE
@@ -319,16 +294,16 @@ pgsql_monitor() {
 	return $OCF_NOT_RUNNING
     fi
 
-    if [ "x" = "x$PGHOST" ]
+    if [ "x" = "x$OCF_RESKEY_pghost" ]
     then
-       $PSQL -p $PGPORT -U $PGDBA $PGDB -c 'select now();' >/dev/null 2>&1
+       $OCF_RESKEY_psql -p $OCF_RESKEY_pgport -U $OCF_RESKEY_pgdba $OCF_RESKEY_pgdb -c 'select now();' >/dev/null 2>&1
     else
-       $PSQL -h $PGHOST -p $PGPORT -U $PGDBA $PGDB -c 'select now();' >/dev/null 2>&1
+       $OCF_RESKEY_psql -h $OCF_RESKEY_pghost -p $OCF_RESKEY_pgport -U $OCF_RESKEY_pgdba $OCF_RESKEY_pgdb -c 'select now();' >/dev/null 2>&1
     fi
     
     if [ $? -ne  0 ]
     then
-	ocf_log err "PostgreSQL $PGDB isn't running"
+	ocf_log err "PostgreSQL $OCF_RESKEY_pgdb isn't running"
 	return $OCF_ERR_GENERIC
     fi
     
@@ -337,15 +312,15 @@ pgsql_monitor() {
 
 # Validate most critical parameters
 pgsql_validate_all() {
-    if [ ! -x $PGCTL ]
+    if [ ! -x $OCF_RESKEY_pgctl ]
     then
-        ocf_log err "Can't run $PGCTL"
+        ocf_log err "Can't run $OCF_RESKEY_pgctl"
         return $OCF_ERR_CONFIGURED
     fi
 
-    if [ ! -x $PSQL ]
+    if [ ! -x $OCF_RESKEY_psql ]
     then
-        ocf_log err "Can't run $PSQL"
+        ocf_log err "Can't run $OCF_RESKEY_psql"
         return $OCF_ERR_CONFIGURED
     fi
 
@@ -361,10 +336,10 @@ check_log_file() {
     if [ ! -f "$1" ]
     then
         touch $1 > /dev/null 2>&1
-        chown $PGDBA:$(cat /etc/passwd | grep $PGDBA | cut -d ":" -f 4) $1
+        chown $OCF_RESKEY_pgdba:$(cat /etc/passwd | grep $OCF_RESKEY_pgdba | cut -d ":" -f 4) $1
     fi
 
-    #Check if $PGDBA can write to the log file
+    #Check if $OCF_RESKEY_pgdba can write to the log file
     if ! runasowner "test -w $1"
     then
         return 1
@@ -392,19 +367,19 @@ then
     exit 1
 fi
 
-PGCTL=${OCF_RESKEY_pgctl:-/usr/bin/pg_ctl}
-STARTOPT=${OCF_RESKEY_start_opt:-""}
-CTLOPT=${OCF_RESKEY_ctl_opt:-""}
-PSQL=${OCF_RESKEY_psql:-/usr/bin/psql}
-PGDATA=${OCF_RESKEY_pgdata:-/var/lib/pgsql/data}
-PGDBA=${OCF_RESKEY_pgdba:-postgres}
-PGHOST=${OCF_RESKEY_pghost:-""}
-PGPORT=${OCF_RESKEY_pgport:-"5432"}
-PGDB=${OCF_RESKEY_pgdb:-template1}
-LOGFILE=${OCF_RESKEY_logfile:-/dev/null}
+: ${OCF_RESKEY_pgctl:-/usr/bin/pg_ctl}
+: ${OCF_RESKEY_start_opt:-""}
+: ${OCF_RESKEY_ctl_opt:-""}
+: ${OCF_RESKEY_psql:-/usr/bin/psql}
+: ${OCF_RESKEY_pgdata:-/var/lib/pgsql/data}
+: ${OCF_RESKEY_pgdba:-postgres}
+: ${OCF_RESKEY_pghost:-""}
+: ${OCF_RESKEY_pgport:-"5432"}
+: ${OCF_RESKEY_pgdb:-template1}
+: ${OCF_RESKEY_logfile:-/dev/null}
+: ${OCF_RESKEY_stop_escalate:-"30"}
+
 PIDFILE=${PGDATA}/postmaster.pid
-START_WAIT=${OCF_RESKEY_start_wait:-"30"}
-STOP_WAIT=${OCF_RESKEY_stop_wait:-"30"}
 
 case "$1" in
     methods)    pgsql_methods
