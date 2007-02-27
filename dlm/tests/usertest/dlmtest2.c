@@ -30,12 +30,28 @@
 
 #include "libdlm.h"
 
+#define MAX_CLIENTS 4
+#define MAX_LOCKS 16
+
 static dlm_lshandle_t *dh;
 static int libdlm_fd;
 static int noqueue = 1;
+static int quiet = 1;
+static int verbose = 0;
+static int bast_cb;
+static int maxn = MAX_LOCKS;
 
-#define MAX_CLIENTS 4
-#define LOCKS 16
+#define log_print(fmt, args...) \
+do { \
+	if (!quiet) \
+		printf(fmt , ##args); \
+} while (0)
+
+#define log_verbose(fmt, args...) \
+do { \
+	if (verbose) \
+		printf(fmt , ##args); \
+} while (0)
 
 struct client {
 	int fd;
@@ -46,20 +62,519 @@ static int client_size = MAX_CLIENTS;
 static struct client client[MAX_CLIENTS];
 static struct pollfd pollfd[MAX_CLIENTS];
 
+enum {
+	Op_lock = 1,
+	Op_unlock,
+	Op_unlockf,
+	Op_cancel,
+};
+
 struct lk {
 	int id;
 	int rqmode;
 	int grmode;
 	int wait_ast;
+	int lastop;
+	int last_status;
+	int bast;
 	struct dlm_lksb lksb;
 };
 
-struct lk locks[LOCKS];
-struct lk *locks_flood;
-int locks_flood_n;
-int locks_flood_ast_done;
+struct lk *locks;
 
 void unlock(int i);
+void unlockf(int i);
+
+
+int rand_int(int a, int b)
+{
+	return a + (int) (((float)(b - a + 1)) * random() / (RAND_MAX+1.0)); 
+}
+
+char *status_str(int status)
+{
+	static char sts_str[8];
+
+	switch (status) {
+	case 0:
+		return "0      ";
+	case EUNLOCK:
+		return "EUNLOCK";
+	case ECANCEL:
+		return "ECANCEL";
+	case EAGAIN:
+		return "EAGAIN ";
+	case EBUSY:
+		return "EBUSY  ";
+	default:
+		snprintf(sts_str, 8, "%8x", status);
+		return sts_str;
+	}
+}
+
+char *op_str(int op)
+{
+	switch (op) {
+	case Op_lock:
+		return "lock";
+	case Op_unlock:
+		return "unlock";
+	case Op_unlockf:
+		return "unlockf";
+	case Op_cancel:
+		return "cancel";
+	default:
+		return "unknown";
+	}
+}
+
+struct lk *get_lock(int i)
+{
+	if (i < 0)
+		return NULL;
+	if (i >= maxn)
+		return NULL;
+	return &locks[i];
+}
+
+int all_unlocks_done(void)
+{
+	struct lk *lk;
+	int i;
+
+	for (i = 0; i < maxn; i++) {
+		lk = get_lock(i);
+		if (lk->grmode == -1 && !lk->wait_ast)
+			continue;
+		return 0;
+	}
+	return 1;
+}
+
+void dump(void)
+{
+	struct lk *lk;
+	int i;
+
+	for (i = 0; i < maxn; i++) {
+		lk = get_lock(i);
+		printf("x %2d lkid %06x gr %2d rq %2d wait_ast %d last op %s\t%s\n",
+			i,
+			lk->lksb.sb_lkid,
+			lk->grmode,
+			lk->rqmode,
+			lk->wait_ast,
+			op_str(lk->lastop),
+			status_str(lk->last_status));
+	}
+}
+
+void bastfn(void *arg)
+{
+	struct lk *lk = arg;
+	lk->bast = 1;
+	bast_cb = 1;
+}
+
+void do_bast(struct lk *lk)
+{
+	int skip = 0;
+
+	if (lk->lastop == Op_unlock || lk->lastop == Op_unlockf) {
+		skip = 1;
+	}
+	if (!lk->lksb.sb_lkid) {
+		skip = 1;
+	}
+
+	if (skip)
+		printf("    bast: skip    %3d\t%x\n", lk->id, lk->lksb.sb_lkid);
+	else {
+		printf("    bast: unlockf %3d\t%x\n", lk->id, lk->lksb.sb_lkid);
+		unlockf(lk->id);
+		lk->lastop = Op_unlockf;
+	}
+	lk->bast = 0;
+}
+
+void do_bast_unlocks(void)
+{
+	struct lk *lk;
+	int i;
+
+	for (i = 0; i < maxn; i++) {
+		lk = get_lock(i);
+		if (lk->bast)
+			do_bast(lk);
+	}
+	bast_cb = 0;
+}
+
+void process_libdlm(void)
+{
+	dlm_dispatch(libdlm_fd);
+	if (bast_cb)
+		do_bast_unlocks();
+}
+
+void astfn(void *arg)
+{
+	struct lk *lk = arg;
+	int i = lk->id;
+
+	if (!lk->wait_ast) {
+		printf("     ast: %s %3d\t%x: !wait_ast gr %d rq %d last op %s %s\n",
+		       status_str(lk->lksb.sb_status), i, lk->lksb.sb_lkid,
+		       lk->grmode, lk->rqmode,
+		       op_str(lk->lastop), status_str(lk->last_status));
+	}
+
+	log_print("     ast: %s %3d\t%x\n",
+		  status_str(lk->lksb.sb_status), i, lk->lksb.sb_lkid);
+
+	lk->last_status = lk->lksb.sb_status;
+
+	if (lk->lksb.sb_status == EUNLOCK) {
+		memset(&lk->lksb, 0, sizeof(struct dlm_lksb));
+		lk->grmode = -1;
+		lk->wait_ast = 0;
+
+	} else if (lk->lksb.sb_status == ECANCEL) {
+		if (lk->grmode == -1) {
+			memset(&lk->lksb, 0, sizeof(struct dlm_lksb));
+			lk->wait_ast = 0;
+		} else {
+			if (lk->lastop != Op_unlock && lk->lastop != Op_unlockf)
+				lk->wait_ast = 0;
+		}
+
+	} else if (lk->lksb.sb_status == EAGAIN) {
+		if (lk->grmode == -1) {
+			memset(&lk->lksb, 0, sizeof(struct dlm_lksb));
+			lk->wait_ast = 0;
+		} else {
+			if (lk->lastop != Op_unlockf)
+				lk->wait_ast = 0;
+		}
+
+	} else {
+		if (lk->lksb.sb_status != 0) {
+			printf("unknown sb_status %x\n", lk->lksb.sb_status);
+			exit(-1);
+		}
+
+		if (lk->lastop != Op_unlockf)
+			lk->wait_ast = 0;
+
+		lk->grmode = lk->rqmode;
+	}
+
+	lk->rqmode = -1;
+}
+
+void lock(int i, int mode)
+{
+	char name[DLM_RESNAME_MAXLEN];
+	struct lk *lk;
+	int flags = 0;
+	int rv;
+
+	lk = get_lock(i);
+	if (!lk)
+		return;
+
+	if (noqueue)
+		flags |= LKF_NOQUEUE;
+
+	if (lk->lksb.sb_lkid)
+		flags |= LKF_CONVERT;
+
+	memset(name, 0, sizeof(name));
+	snprintf(name, sizeof(name), "test%d", i);
+
+	log_verbose("lock: %d grmode %d rqmode %d flags %x lkid %x %s\n",
+	            i, lk->grmode, mode, flags, lk->lksb.sb_lkid, name);
+
+	rv = dlm_ls_lock(dh, mode, &lk->lksb, flags, name, strlen(name), 0,
+			 astfn, (void *) lk, bastfn, NULL);
+	if (!rv) {
+		lk->wait_ast = 1;
+		lk->rqmode = mode;
+	} else if (rv == -1 && errno == EBUSY) {
+		printf("        : lock    %3d\t%x: EBUSY gr %d rq %d wait_ast %d\n",
+			i, lk->lksb.sb_lkid, lk->grmode, lk->rqmode, lk->wait_ast);
+	} else {
+		printf("        : lock    %3d\t%x: errno %d gr %d rq %d wait_ast %d\n",
+			i, lk->lksb.sb_lkid, errno, lk->grmode, lk->rqmode, lk->wait_ast);
+	}
+
+	log_verbose("lock: %d rv %d sb_lkid %x sb_status %x\n",
+	            i, rv, lk->lksb.sb_lkid, lk->lksb.sb_status);
+
+	lk->lastop = Op_lock;
+}
+
+void lock_sync(int i, int mode)
+{
+	char name[DLM_RESNAME_MAXLEN];
+	int flags = 0;
+	int rv;
+	struct lk *lk;
+
+	lk = get_lock(i);
+	if (!lk)
+		return;
+
+	if (noqueue)
+		flags |= LKF_NOQUEUE;
+
+	if (lk->lksb.sb_lkid)
+		flags |= LKF_CONVERT;
+
+	memset(name, 0, sizeof(name));
+	snprintf(name, sizeof(name), "test%d", i);
+
+	log_verbose("lock_sync: %d rqmode %d flags %x lkid %x %s\n",
+	            i, mode, flags, lk->lksb.sb_lkid, name);
+
+	rv = dlm_ls_lock_wait(dh, mode, &lk->lksb, flags,
+			 name, strlen(name), 0, (void *) lk,
+			 bastfn, NULL);
+
+	log_verbose("lock_sync: %d rv %d sb_lkid %x sb_status %x\n",
+	            i, rv, lk->lksb.sb_lkid, lk->lksb.sb_status);
+
+	if (!rv) {
+		lk->grmode = mode;
+		lk->rqmode = -1;
+	} else if (rv == EAGAIN) {
+		if (lk->grmode == -1)
+			memset(&lk->lksb, 0, sizeof(struct dlm_lksb));
+	} else {
+		printf("unknown rv %d\n", rv);
+		exit(-1);
+	}
+}
+
+void lock_all(int mode)
+{
+	int i;
+
+	for (i = 0; i < maxn; i++)
+		lock(i, mode);
+}
+
+void _unlock(int i, uint32_t flags)
+{
+	struct lk *lk;
+	uint32_t lkid;
+	int rv;
+
+	lk = get_lock(i);
+	if (!lk)
+		return;
+
+	lkid = lk->lksb.sb_lkid;
+	if (!lkid)
+		return;
+
+	log_verbose("unlock: %d lkid %x flags %x\n", i, lkid, flags);
+
+	rv = dlm_ls_unlock(dh, lkid, flags, &lk->lksb, lk);
+	if (!rv) {
+		lk->wait_ast = 1;
+	} else if (rv == -1 && errno == EBUSY) {
+		printf("unlock: EBUSY %d %x flags %x gr %d rq %d wait_ast %d\n",
+			i, lk->lksb.sb_lkid, flags, lk->grmode, lk->rqmode, lk->wait_ast);
+	} else {
+		printf("unlock: error %d %x flags %x rv %d errno %d gr %d rq %d wait_ast %d\n",
+		       i, lk->lksb.sb_lkid, flags, rv, errno, lk->grmode, lk->rqmode,
+		       lk->wait_ast);
+#if 0
+		char input[32];
+		printf("press X to exit, D to dispatch, other to continue\n");
+		fgets(input, 32, stdin);
+		if (input[0] == 'X')
+			exit(-1);
+		else if (input[0] == 'D')
+			dlm_dispatch(libdlm_fd);
+#endif
+	}
+}
+
+void unlock(int i)
+{
+	struct lk *lk = get_lock(i);
+	_unlock(i, 0);
+	lk->rqmode = -1;
+	lk->lastop = Op_unlock;
+}
+
+void unlockf(int i)
+{
+	struct lk *lk = get_lock(i);
+	_unlock(i, LKF_FORCEUNLOCK);
+	lk->rqmode = -1;
+	lk->lastop = Op_unlockf;
+}
+
+void cancel(int i)
+{
+	struct lk *lk = get_lock(i);
+	_unlock(i, LKF_CANCEL);
+	lk->lastop = Op_cancel;
+}
+
+void unlock_sync(int i)
+{
+	uint32_t lkid;
+	int rv;
+	struct lk *lk;
+
+	lk = get_lock(i);
+	if (!lk)
+		return;
+
+	lkid = lk->lksb.sb_lkid;
+	if (!lkid) {
+		log_print("unlock %d skip zero lkid\n", i);
+		return;
+	}
+
+	log_verbose("unlock_sync: %d lkid %x\n", i, lkid);
+
+	rv = dlm_ls_unlock_wait(dh, lkid, 0, &lk->lksb);
+
+	log_verbose("unlock_sync: %d rv %d sb_status %x\n", i, rv,
+	            lk->lksb.sb_status);
+
+	memset(&lk->lksb, 0, sizeof(struct dlm_lksb));
+	lk->grmode = -1;
+	lk->rqmode = -1;
+}
+
+void unlock_all(void)
+{
+	struct lk *lk;
+	int i;
+
+	for (i = 0; i < maxn; i++) {
+		lk = get_lock(i);
+		unlock(i);
+		lk->lastop = Op_unlock;
+	}
+}
+
+void stress(int num)
+{
+	int i, o, op, skip;
+	unsigned int n, skips, lock_ops, unlock_ops, unlockf_ops, cancel_ops;
+	struct lk *lk;
+
+	n = skips = lock_ops = unlock_ops = unlockf_ops = cancel_ops = 0;
+
+	while (1) {
+		process_libdlm();
+
+		if (++n == num)
+			break;
+
+		i = rand_int(0, maxn-1);
+		lk = get_lock(i);
+		if (!lk)
+			continue;
+
+		o = rand_int(0, 5);
+		switch (o) {
+		case 0:
+		case 1:
+		case 2:
+			op = Op_lock;
+			break;
+		case 3:
+			op = Op_unlock;
+			break;
+		case 4:
+			op = Op_unlockf;
+			break;
+		case 5:
+			op = Op_cancel;
+			break;
+		}
+
+		skip = 0;
+
+		switch (op) {
+		case Op_lock:
+			if (lk->wait_ast) {
+				skip = 1;
+				break;
+			}
+
+			noqueue = !!o;
+
+			lock(i, rand_int(0, 5));
+			lock_ops++;
+			printf("%8u: lock    %3d\t%x\n", n, i, lk->lksb.sb_lkid);
+			break;
+
+		case Op_unlock:
+			if (lk->wait_ast) {
+				skip = 1;
+				break;
+			}
+			if (lk->lastop == Op_unlock || lk->lastop == Op_unlockf) {
+				skip = 1;
+				break;
+			}
+			if (!lk->lksb.sb_lkid) {
+				skip = 1;
+				break;
+			}
+
+			unlock(i);
+			unlock_ops++;
+			printf("%8u: unlock  %3d\t%x\n", n, i, lk->lksb.sb_lkid);
+			break;
+
+		case Op_unlockf:
+			if (lk->lastop == Op_unlock || lk->lastop == Op_unlockf) {
+				skip = 1;
+				break;
+			}
+			if (!lk->lksb.sb_lkid) {
+				skip = 1;
+				break;
+			}
+
+			unlockf(i);
+			unlockf_ops++;
+			printf("%8u: unlockf %3d\t%x\n", n, i, lk->lksb.sb_lkid);
+			break;
+
+		case Op_cancel:
+			if (!lk->wait_ast) {
+				skip = 1;
+				break;
+			}
+			if (lk->lastop > Op_lock) {
+				skip = 1;
+				break;
+			}
+
+			cancel(i);
+			cancel_ops++;
+			printf("%8u: cancel  %3d\t%x\n", n, i, lk->lksb.sb_lkid);
+			break;
+		}
+
+		if (skip)
+			skips++;
+	}
+
+	printf("skip %d lock %d unlock %d unlockf %d cancel %d\n",
+		skips, lock_ops, unlock_ops, unlockf_ops, cancel_ops);
+}
 
 static int client_add(int fd, int *maxi)
 {
@@ -96,543 +611,20 @@ static void client_init(void)
 		client[i].fd = -1;
 }
 
-void dump(void)
-{
-	int i;
-
-	for (i = 0; i < LOCKS; i++) {
-		printf("x %d lkid %x grmode %d rqmode %d wait_ast %d\n", i,
-			locks[i].lksb.sb_lkid,
-			locks[i].grmode,
-			locks[i].rqmode,
-			locks[i].wait_ast);
-	}
-}
-
-void dump_flood(void)
-{
-	struct lk *lk;
-	int i;
-
-	if (!locks_flood_n) {
-		printf("no current locks_flood\n");
-		return;
-	}
-
-	for (i = 0; i < locks_flood_n; i++) {
-		lk = &locks_flood[i];
-		printf("x %d lkid %x grmode %d rqmode %d wait_ast %d\n", i,
-			lk->lksb.sb_lkid,
-			lk->grmode,
-			lk->rqmode,
-			lk->wait_ast);
-	}
-}
-
-void bastfn(void *arg)
-{
-	struct lk *lk = arg;
-
-	printf("bast %d\n", lk->id);
-
-	unlock(lk->id);
-}
-
-void astfn(void *arg)
-{
-	struct lk *lk = arg;
-	int i = lk->id;
-
-	printf("ast %d sb_lkid %x sb_status %x\n", i, lk->lksb.sb_lkid,
-	       lk->lksb.sb_status);
-
-	if (!lk->wait_ast) {
-		printf("not waiting for ast\n");
-		exit(-1);
-	}
-
-	lk->wait_ast = 0;
-
-	if (lk->lksb.sb_status == EUNLOCK) {
-		memset(&locks[i].lksb, 0, sizeof(struct dlm_lksb));
-		locks[i].grmode = -1;
-	} else if (lk->lksb.sb_status == EAGAIN) {
-		if (locks[i].grmode == -1)
-			memset(&locks[i].lksb, 0, sizeof(struct dlm_lksb));
-	} else {
-		if (lk->lksb.sb_status != 0) {
-			printf("unknown sb_status\n");
-			exit(-1);
-		}
-
-		locks[i].grmode = locks[i].rqmode;
-	}
-
-	locks[i].rqmode = -1;
-}
-
-void bastfn_flood(void *arg)
-{
-	struct lk *lk = arg;
-	printf("bastfn_flood %d\n", lk->id);
-}
-
-void astfn_flood(void *arg)
-{
-	struct lk *lk = arg;
-	int i = lk->id, unlock = 0;
-
-	if (!lk->wait_ast) {
-		printf("lk %d not waiting for ast\n", lk->id);
-		exit(-1);
-	}
-
-	lk->wait_ast = 0;
-
-	if (lk->lksb.sb_status == EUNLOCK) {
-		memset(&lk->lksb, 0, sizeof(struct dlm_lksb));
-		lk->grmode = -1;
-		unlock = 1;
-	} else if (lk->lksb.sb_status == EAGAIN) {
-		if (lk->grmode == -1)
-			memset(&lk->lksb, 0, sizeof(struct dlm_lksb));
-	} else {
-		if (lk->lksb.sb_status != 0) {
-			printf("lk %d unknown sb_status %d\n", lk->id,
-				lk->lksb.sb_status);
-			exit(-1);
-		}
-
-		lk->grmode = lk->rqmode;
-	}
-
-	lk->rqmode = -1;
-	locks_flood_ast_done++;
-
-	if (locks_flood_ast_done == locks_flood_n) {
-		printf("astfn_flood all %d done\n", locks_flood_n);
-		if (unlock) {
-			free(locks_flood);
-			locks_flood = NULL;
-			locks_flood_n = 0;
-		}
-	}
-}
-
-void astfn_flood_unlock(void *arg)
-{
-	struct lk *lk = arg;
-	int i = lk->id, unlock = 0, rv;
-
-	if (!lk->wait_ast) {
-		printf("lk %d not waiting for ast\n", lk->id);
-		exit(-1);
-	}
-
-	lk->wait_ast = 0;
-
-	if (lk->lksb.sb_status == EUNLOCK) {
-		memset(&lk->lksb, 0, sizeof(struct dlm_lksb));
-		lk->grmode = -1;
-		lk->rqmode = -1;
-		unlock = 1;
-		locks_flood_ast_done++;
-	} else if (lk->lksb.sb_status == EAGAIN) {
-		if (lk->grmode == -1)
-			memset(&lk->lksb, 0, sizeof(struct dlm_lksb));
-		lk->rqmode = -1;
-	} else {
-		if (lk->lksb.sb_status != 0) {
-			printf("lk %d unknown sb_status %d\n", lk->id,
-				lk->lksb.sb_status);
-			exit(-1);
-		}
-
-		/* lock completed, now unlock it immediately */
-
-		lk->grmode = lk->rqmode;
-		lk->rqmode = -1;
-
-		rv = dlm_ls_unlock(dh, lk->lksb.sb_lkid, 0, &lk->lksb,
-				   (void *)lk);
-		if (!rv) {
-			lk->wait_ast = 1;
-			lk->rqmode = -1;
-		} else {
-			char input[32];
-			printf("astfn_flood_unlock: dlm_ls_unlock: %d rv %d "
-			       "errno %d\n", i, rv, errno);
-			printf("press X to exit, D to dispatch, "
-			       "other to continue\n");
-			fgets(input, 32, stdin);
-			if (input[0] == 'X')
-				exit(-1);
-			else if (input[0] == 'D')
-				dlm_dispatch(libdlm_fd);
-		}
-	}
-
-	if (locks_flood_ast_done == locks_flood_n) {
-		printf("astfn_flood_unlock all %d unlocked\n", locks_flood_n);
-		if (unlock) {
-			free(locks_flood);
-			locks_flood = NULL;
-			locks_flood_n = 0;
-		}
-	}
-}
-
-void process_libdlm(void)
-{
-	dlm_dispatch(libdlm_fd);
-}
-
-void lock(int i, int mode)
-{
-	char name[DLM_RESNAME_MAXLEN];
-	int flags = 0;
-	int rv;
-
-	if (i < 0 || i >= LOCKS)
-		return;
-
-	if (noqueue)
-		flags |= LKF_NOQUEUE;
-
-	if (locks[i].lksb.sb_lkid)
-		flags |= LKF_CONVERT;
-
-	memset(name, 0, sizeof(name));
-	snprintf(name, sizeof(name), "test%d", i);
-
-	printf("dlm_ls_lock: %d grmode %d rqmode %d flags %x lkid %x %s\n",
-	       i, locks[i].grmode, mode, flags, locks[i].lksb.sb_lkid, name);
-
-	rv = dlm_ls_lock(dh, mode, &locks[i].lksb, flags,
-			 name, strlen(name), 0, astfn, (void *) &locks[i],
-			 bastfn, NULL);
-	if (!rv) {
-		locks[i].wait_ast = 1;
-		locks[i].rqmode = mode;
-	}
-
-	printf("dlm_ls_lock: %d rv %d sb_lkid %x sb_status %x\n",
-	       i, rv, locks[i].lksb.sb_lkid, locks[i].lksb.sb_status);
-}
-
-void lock_sync(int i, int mode)
-{
-	char name[DLM_RESNAME_MAXLEN];
-	int flags = 0;
-	int rv;
-
-	if (i < 0 || i >= LOCKS)
-		return;
-
-	if (noqueue)
-		flags |= LKF_NOQUEUE;
-
-	if (locks[i].lksb.sb_lkid)
-		flags |= LKF_CONVERT;
-
-	memset(name, 0, sizeof(name));
-	snprintf(name, sizeof(name), "test%d", i);
-
-	printf("dlm_ls_lock_wait: %d rqmode %d flags %x lkid %x %s\n",
-	       i, mode, flags, locks[i].lksb.sb_lkid, name);
-
-	rv = dlm_ls_lock_wait(dh, mode, &locks[i].lksb, flags,
-			 name, strlen(name), 0, (void *) &locks[i],
-			 bastfn, NULL);
-
-	printf("dlm_ls_lock_wait: %d rv %d sb_lkid %x sb_status %x\n",
-	       i, rv, locks[i].lksb.sb_lkid, locks[i].lksb.sb_status);
-
-	if (!rv) {
-		locks[i].grmode = mode;
-		locks[i].rqmode = -1;
-	} else if (rv == EAGAIN) {
-		if (locks[i].grmode == -1)
-			memset(&locks[i].lksb, 0, sizeof(struct dlm_lksb));
-	} else {
-		printf("unknown rv %d\n", rv);
-		exit(-1);
-	}
-}
-
-void lock_all(int mode)
-{
-	int i;
-
-	for (i = 0; i < LOCKS; i++)
-		lock(i, mode);
-}
-
-void lock_flood(int n, int mode)
-{
-	struct lk *lk;
-	char name[DLM_RESNAME_MAXLEN];
-	int flags = 0, rv, i;
-
-	if (noqueue)
-		flags |= LKF_NOQUEUE;
-
-	if (locks_flood) {
-		printf("unlock_flood required before another lock_flood\n");
-		return;
-	}
-
-	locks_flood = malloc(n * sizeof(struct lk));
-	if (!locks_flood) {
-		printf("no mem for %d locks\n", n);
-		return;
-	}
-	locks_flood_n = n;
-	locks_flood_ast_done = 0;
-	memset(locks_flood, 0, sizeof(*locks_flood));
-
-	for (i = 0; i < n; i++) {
-		memset(name, 0, sizeof(name));
-		snprintf(name, sizeof(name), "testflood%d", i);
-		lk = &locks_flood[i];
-
-		rv = dlm_ls_lock(dh, mode, &lk->lksb, flags,
-			 name, strlen(name), 0, astfn_flood, (void *) lk,
-			 bastfn_flood, NULL);
-		if (!rv) {
-			lk->wait_ast = 1;
-			lk->rqmode = mode;
-		}
-	}
-}
-
-void unlock(int i)
-{
-	uint32_t lkid;
-	int rv;
-
-	if (i < 0 || i >= LOCKS)
-		return;
-
-	lkid = locks[i].lksb.sb_lkid;
-	if (!lkid) {
-		printf("unlock %d skip zero lkid\n", i);
-		return;
-	}
-
-	printf("dlm_ls_unlock: %d lkid %x\n", i, lkid);
-
-	rv = dlm_ls_unlock(dh, lkid, 0, &locks[i].lksb, &locks[i]);
-	if (!rv) {
-		locks[i].wait_ast = 1;
-		locks[i].rqmode = -1;
-		printf("dlm_ls_unlock: %d\n", i);
-	} else {
-		char input[32];
-		printf("dlm_ls_unlock: %d rv %d errno %d\n", i, rv, errno);
-		dump();
-		printf("press X to exit, D to dispatch, other to continue\n");
-		fgets(input, 32, stdin);
-		if (input[0] == 'X')
-			exit(-1);
-		else if (input[0] == 'D')
-			dlm_dispatch(libdlm_fd);
-	}
-}
-
-void unlock_sync(int i)
-{
-	uint32_t lkid;
-	int rv;
-
-	if (i < 0 || i >= LOCKS)
-		return;
-
-	lkid = locks[i].lksb.sb_lkid;
-	if (!lkid) {
-		printf("unlock %d skip zero lkid\n", i);
-		return;
-	}
-
-	printf("dlm_ls_unlock_wait: %d lkid %x\n", i, lkid);
-
-	rv = dlm_ls_unlock_wait(dh, lkid, 0, &locks[i].lksb);
-
-	printf("dlm_ls_unlock_wait: %d rv %d sb_status %x\n", i, rv,
-	       locks[i].lksb.sb_status);
-
-	memset(&locks[i].lksb, 0, sizeof(struct dlm_lksb));
-	locks[i].grmode = -1;
-	locks[i].rqmode = -1;
-}
-
-void unlock_all(void)
-{
-	int i;
-
-	for (i = 0; i < LOCKS; i++)
-		unlock(i);
-}
-
-void unlock_flood(void)
-{
-	struct lk *lk;
-	uint32_t lkid;
-	int rv, i;
-
-	if (!locks_flood)
-		return;
-
-	if (locks_flood_ast_done != locks_flood_n)
-		printf("warning: locks_flood_ast_done %d locks_flood_n %d\n",
-			locks_flood_ast_done, locks_flood_n);
-
-	locks_flood_ast_done = 0;
-
-	for (i = 0; i < locks_flood_n; i++) {
-		lk = &locks_flood[i];
-		lkid = lk->lksb.sb_lkid;
-		if (!lkid) {
-			printf("unlock_flood %d skip zero lkid\n", i);
-			continue;
-		}
-
-		rv = dlm_ls_unlock(dh, lkid, 0, &lk->lksb, (void *)lk);
-		if (!rv) {
-			lk->wait_ast = 1;
-			lk->rqmode = -1;
-		} else {
-			char input[32];
-			printf("flood: dlm_ls_unlock: %d rv %d errno %d\n",
-				i, rv, errno);
-			printf("press X to exit, D to dispatch, "
-			       "other to continue\n");
-			fgets(input, 32, stdin);
-			if (input[0] == 'X')
-				exit(-1);
-			else if (input[0] == 'D')
-				dlm_dispatch(libdlm_fd);
-		}
-	}
-}
-
-void flood(int n, int mode)
-{
-	struct lk *lk;
-	char name[DLM_RESNAME_MAXLEN];
-	int flags = 0, rv, i;
-
-	if (noqueue)
-		flags |= LKF_NOQUEUE;
-
-	if (locks_flood) {
-		printf("unlock_flood required first\n");
-		return;
-	}
-
-	locks_flood = malloc(n * sizeof(struct lk));
-	if (!locks_flood) {
-		printf("no mem for %d locks\n", n);
-		return;
-	}
-	locks_flood_n = n;
-	locks_flood_ast_done = 0;
-	memset(locks_flood, 0, sizeof(*locks_flood));
-
-	for (i = 0; i < n; i++) {
-		memset(name, 0, sizeof(name));
-		snprintf(name, sizeof(name), "testflood%d", i);
-		lk = &locks_flood[i];
-
-		rv = dlm_ls_lock(dh, mode, &lk->lksb, flags,
-			 name, strlen(name), 0, astfn_flood_unlock, (void *) lk,
-			 bastfn_flood, NULL);
-		if (!rv) {
-			lk->wait_ast = 1;
-			lk->rqmode = mode;
-		}
-	}
-}
-
-void loop(int i, int num)
-{
-	int n;
-
-	for (n = 0; n < num; n++) {
-		lock(i, LKM_PRMODE);
-		dlm_dispatch(libdlm_fd);
-		unlock(i);
-		dlm_dispatch(libdlm_fd);
-		/*
-		lock_sync(i, LKM_PRMODE);
-		unlock_sync(i);
-		*/
-	}
-}
-
-int rand_int(int a, int b)
-{
-	return a + (int) (((float)(b - a + 1)) * random() / (RAND_MAX+1.0)); 
-}
-
-void hammer(int num)
-{
-	int n, i, busy = 0, lock_ops = 0, unlock_ops = 0;
-
-	while (1) {
-		dlm_dispatch(libdlm_fd);
-
-		i = rand_int(0, LOCKS-1);
-
-		if (locks[i].wait_ast) {
-			busy++;
-			continue;
-		}
-
-		if (locks[i].grmode == -1) {
-			lock(i, rand_int(0, 5));
-			lock_ops++;
-		} else {
-			unlock(i);
-			unlock_ops++;
-		}
-
-		if (++n == num)
-			break;
-	}
-
-	printf("hammer: locks %d unlocks %d busy %d\n",
-		lock_ops, unlock_ops, busy);
-
-	unlock_all();;
-}
-
-int all_unlocks_done(void)
-{
-	int i;
-
-	for (i = 0; i < LOCKS; i++) {
-		if (locks[i].grmode == -1 && !locks[i].wait_ast)
-			continue;
-		return 0;
-	}
-	return 1;
-}
 
 void process_command(int *quit)
 {
 	char inbuf[132];
 	char cmd[32];
-	int x = 0, y = 0;
+	int x = 0, y = 0, z = 0;
 
 	fgets(inbuf, sizeof(inbuf), stdin);
 
-	sscanf(inbuf, "%s %d %d", cmd, &x, &y);
+	sscanf(inbuf, "%s %d %d", cmd, &x, &y, &z);
 
 	if (!strncmp(cmd, "EXIT", 4)) {
 		*quit = 1;
 		unlock_all();
-		unlock_flood();
 		return;
 	}
 
@@ -648,6 +640,16 @@ void process_command(int *quit)
 
 	if (!strncmp(cmd, "unlock", 6) && strlen(cmd) == 6) {
 		unlock(x);
+		return;
+	}
+
+	if (!strncmp(cmd, "unlockf", 7) && strlen(cmd) == 7) {
+		unlockf(x);
+		return;
+	}
+
+	if (!strncmp(cmd, "cancel", 6) && strlen(cmd) == 6) {
+		cancel(x);
 		return;
 	}
 
@@ -673,20 +675,18 @@ void process_command(int *quit)
 		exit(0);
 	}
 
-	if (!strncmp(cmd, "lock_flood", 10) && strlen(cmd) == 10) {
-		lock_flood(x, y);
+	if (!strncmp(cmd, "lock-cancel", 11) && strlen(cmd) == 11) {
+		lock(x, y);
+		/* usleep(1000 * z); */
+		cancel(x);
 		return;
 	}
 
-	if (!strncmp(cmd, "unlock_flood", 12) && strlen(cmd) == 12) {
-		unlock_flood();
+	if (!strncmp(cmd, "lock-unlockf", 12) && strlen(cmd) == 12) {
+		lock(x, y);
+		/* usleep(1000 * z); */
+		unlockf(x);
 		return;
-	}
-
-	if (!strncmp(cmd, "unlock_flood-kill", 17) && strlen(cmd) == 17) {
-		unlock_flood();
-		printf("process exiting\n");
-		exit(0);
 	}
 
 	if (!strncmp(cmd, "ex", 2)) {
@@ -699,19 +699,24 @@ void process_command(int *quit)
 		return;
 	}
 
-	if (!strncmp(cmd, "flood", 5)) {
-		flood(x, y);
-		return;
-	}
-
-	if (!strncmp(cmd, "hold", 4)) {
+	if (!strncmp(cmd, "hold", 4) && strlen(cmd) == 4) {
 		lock_all(LKM_PRMODE);
 		return;
 	}
 
-	if (!strncmp(cmd, "release", 6)) {
+	if (!strncmp(cmd, "hold-kill", 9) && strlen(cmd) == 9) {
+		lock_all(LKM_PRMODE);
+		exit(0);
+	}
+
+	if (!strncmp(cmd, "release", 7) && strlen(cmd) == 7) {
 		unlock_all();
 		return;
+	}
+
+	if (!strncmp(cmd, "release-kill", 12) && strlen(cmd) == 12) {
+		unlock_all();
+		exit(0);
 	}
 
 	if (!strncmp(cmd, "dump", 4) && strlen(cmd) == 4) {
@@ -719,18 +724,8 @@ void process_command(int *quit)
 		return;
 	}
 
-	if (!strncmp(cmd, "dump_flood", 10) && strlen(cmd) == 10) {
-		dump_flood();
-		return;
-	}
-
-	if (!strncmp(cmd, "loop", 4)) {
-		loop(x, y);
-		return;
-	}
-
-	if (!strncmp(cmd, "hammer", 6)) {
-		hammer(x);
+	if (!strncmp(cmd, "stress", 6)) {
+		stress(x);
 		return;
 	}
 
@@ -740,30 +735,48 @@ void process_command(int *quit)
 		return;
 	}
 
+	if (!strncmp(cmd, "quiet", 5)) {
+		quiet = !quiet;
+		printf("quiet is %d\n", quiet);
+		return;
+	}
+
+	if (!strncmp(cmd, "verbose", 7)) {
+		verbose = !verbose;
+		printf("verbose is %d\n", verbose);
+		return;
+	}
+
 	if (!strncmp(cmd, "help", 4)) {
 		printf("Usage:\n");
-		printf("MAX locks is %d (x of 0 to %d)\n", LOCKS, LOCKS-1);
+		printf("max locks is %d (x of 0 to %d)\n", maxn, maxn-1);
 		printf("EXIT		 - exit program after unlocking any held locks\n");
 		printf("kill		 - exit program without unlocking any locks\n");
 		printf("lock x mode	 - request/convert lock on resource x\n");
 		printf("unlock x 	 - unlock lock on resource x\n");
+		printf("unlockf x 	 - force unlock lock on resource x\n");
+		printf("cancel x 	 - cancel lock on resource x\n");
 		printf("lock_sync x mode - synchronous version of lock\n");
 		printf("unlock_sync x 	 - synchronous version of unlock\n");
-		printf("lock-kill x mode - request/convert lock on resource x, then exit\n");
-		printf("unlock-kill x	 - unlock lock on resource x, then exit\n");
-		printf("lock_flood n mode - request n locks (in flood namespace)\n");
-		printf("unlock_flood     - unlock all from lock_flood\n");
-		printf("unlock_flood-kill - unlock all from lock_flood and exit\n");
 		printf("ex x		 - equivalent to: lock x 5\n");
 		printf("pr x		 - equivalent to: lock x 3\n");
-		printf("flood n mode     - request n locks, unlock each as it completes\n");
-		printf("hold		 - for x in 0 to MAX, lock x 3\n");
-		printf("release		 - for x in 0 to MAX, unlock x\n");
+		printf("hold		 - for x in 0 to max, lock x 3\n");
+		printf("release		 - for x in 0 to max, unlock x\n");
+		printf("stress n	 - loop doing random lock/unlock/unlockf/cancel on all locks, n times\n");
 		printf("dump		 - show info for all resources\n");
-		printf("dump_flood	 - show info for all flood resources\n");
-		printf("loop x n	 - lock_sync x PR / unlock_sync x, n times\n");
-		printf("hammer n	 - loop doing random lock/unlock on all locks, n times\n");
-		printf("noqueue		 - toggle NOQUEUE flag for all requests\n"); 
+		printf("noqueue		 - toggle NOQUEUE flag for all requests\n");
+		printf("quiet		 - toggle quiet flag\n");
+		printf("verbose		 - toggle verbose flag\n");
+
+		printf("\ncombined operations\n");
+		printf("hold-kill                     - hold; kill\n");
+		printf("release-kill                  - release; kill\n");
+		printf("lock-kill x mode              - lock; kill\n");
+		printf("unlock-kill x                 - unlock; kill\n");
+		printf("lock-cancel x mode msec       - lock; sleep; cancel\n");
+		printf("lock-unlockf x mode msec      - lock; sleep; unlockf\n");
+		printf("lock-cancel-kill x mode msec  - lock; sleep; cancel; kill\n");
+		printf("lock-unlockf-kill x mode msec - lock; sleep; unlockf; kill\n");
 		return;
 	}
 
@@ -772,15 +785,28 @@ void process_command(int *quit)
 
 int main(int argc, char *argv[])
 {
+	struct lk *lk;
 	int i, rv, maxi = 0, quit = 0;
+
+	if (argc > 1)
+		maxn = atoi(argv[1]);
+	printf("maxn = %d\n", maxn);
 
 	client_init();
 
-	memset(&locks, 0, sizeof(locks));
-	for (i = 0; i < LOCKS; i++) {
-		locks[i].id = i;
-		locks[i].grmode = -1;
-		locks[i].rqmode = -1;
+	locks = malloc(maxn * sizeof(struct lk));
+	if (!locks) {
+		printf("no mem for %d locks\n", maxn);
+		return;
+	}
+	memset(locks, 0, sizeof(*locks));
+
+	lk = locks;
+	for (i = 0; i < maxn; i++) {
+		lk->id = i;
+		lk->grmode = -1;
+		lk->rqmode = -1;
+		lk++;
 	}
 
 	printf("Joining test lockspace...\n");
