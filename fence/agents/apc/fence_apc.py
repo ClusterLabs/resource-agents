@@ -718,7 +718,7 @@ def power_switch(buffer, escape, control_outlet, control_outlet2):
       for l in ls:
         words = l.strip().split()
         if len(words) > 3:
-          if words[3].strip() == portval:
+          if '----' not in words[0] and words[3].strip() == portval:
             outlet_str = words[0]
             dex = outlet_str.find("-")
             if dex <= (0):
