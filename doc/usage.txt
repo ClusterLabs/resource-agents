@@ -1,4 +1,4 @@
-How to install and run GFS2.
+How to install and run GFS.
 
 Refer to the cluster project page for the latest information.
 http://sources.redhat.com/cluster/
@@ -9,7 +9,14 @@ Install
 
 Install a Linux kernel with GFS2, DLM, configfs, IPV6 and SCTP,
   2.6.19-rc1 or later
- 
+
+  If you want to use gfs1 (from cluster/gfs-kernel), then you need to
+  export three additional symbols from gfs2 by adding the following lines
+  to the end of linux/fs/gfs2/locking.c:
+     EXPORT_SYMBOL_GPL(gfs2_unmount_lockproto);
+     EXPORT_SYMBOL_GPL(gfs2_mount_lockproto);
+     EXPORT_SYMBOL_GPL(gfs2_withdraw_lockproto);
+
 Install openais
   get the latest "whitetank" (stable) release from
   http://developer.osdl.org/dev/openais/
@@ -19,11 +26,15 @@ Install openais
   make; make install DESTDIR=/
 
 Install libvolume_id
+  (this is already installed in recent distributions)
   from udev-094 or later, e.g.
   http://www.us.kernel.org/pub/linux/utils/kernel/hotplug/udev-094.tar.bz2
   make EXTRAS="extras/volume_id" install
 
-Install the cluster CVS tree from source:
+Install gfs/dlm/fencing/etc components
+  get the latest cluster-2.xx.yy tarball from
+  ftp://sources.redhat.com/pub/cluster/
+  or
   cvs -d :pserver:cvs@sources.redhat.com:/cvs/cluster login cvs
   cvs -d :pserver:cvs@sources.redhat.com:/cvs/cluster checkout cluster
   the password is "cvs"
@@ -45,6 +56,7 @@ Load kernel modules
 -------------------
 
 modprobe gfs2
+modprobe gfs
 modprobe lock_dlm
 modprobe lock_nolock
 modprobe dlm
@@ -70,7 +82,7 @@ Create /etc/cluster/cluster.conf and copy it to all nodes.
 Example cluster.conf
 --------------------
 
-This is a basic cluster.conf file that uses manual fencing.  The node
+This is a basic cluster.conf file that requires manual fencing.  The node
 names should resolve to the address on the network interface you want to
 use for openais/cman/dlm communication.
 
@@ -80,31 +92,21 @@ use for openais/cman/dlm communication.
 <clusternodes>
 <clusternode name="node01" nodeid="1">
         <fence>
-                <method name="single">
-                        <device name="man" nodename="node01"/>
-                </method>
         </fence>
 </clusternode>
 
 <clusternode name="node02" nodeid="2">
         <fence>
-                <method name="single">
-                        <device name="man" nodename="node02"/>
-                </method>
         </fence>
 </clusternode>
 
 <clusternode name="node03" nodeid="3">
         <fence>
-                <method name="single">
-                        <device name="man" nodename="node03"/>
-                </method>
         </fence>
 </clusternode>
 </clusternodes>
 
 <fencedevices>
-        <fencedevice name="man" agent="fence_manual"/>
 </fencedevices>
 
 </cluster>
@@ -114,21 +116,21 @@ Startup procedure
 -----------------
 
 Run these commands on each cluster node:
-debug/verbose options are in []
 
 > mount -t configfs none /sys/kernel/config
-> ccsd -X
-> cman_tool join [-d]
-> groupd [-D]
-> fenced [-D]
+> ccsd
+> cman_tool join
+> groupd
+> fenced
 > fence_tool join
-> dlm_controld [-D]
-> gfs_controld [-D]
+> dlm_controld
+> gfs_controld
 > clvmd (optional)
 > mkfs -t gfs2 -p lock_dlm -t <clustername>:<fsname> -j <#journals> <blockdev>
 > mount -t gfs2 [-v] <blockdev> <mountpoint>
 
 Notes:
+- replace "gfs2" with "gfs" above to use gfs1 instead of gfs2
 - <clustername> in mkfs should match the one in cluster.conf.
 - <fsname> in mkfs is any name you pick, each fs must have a different name.
 - <#journals> in mkfs should be greater than or equal to the number of nodes
@@ -138,8 +140,8 @@ Notes:
   of them do fence_tool join.
 - The cman_tool "status" and "nodes" options show the status and members
   of the cluster.
-- The group_tool command shows all local groups which includes the
-  fencing group, dlm lockspaces and gfs mounts.
+- The group_tool command shows the status of fencing, dlm and gfs groups
+  that the local node is part of.
 - The "cman" init script can be used for starting everything up through
   gfs_controld in the list above.
 
@@ -152,10 +154,6 @@ Run these commands on each cluster node:
 > umount [-v] <mountpoint>
 > fence_tool leave
 > cman_tool leave
-
-Notes:
-- the util-linux 2.13-pre6 or later version of umount(8) is required,
-  older versions do not call the umount.gfs2 helper.
 
 
 Converting from GFS1 to GFS2
