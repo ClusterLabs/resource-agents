@@ -19,8 +19,7 @@
 #  OCF_RESKEY_pgport - Port where PostgreSQL is listening
 #  OCF_RESKEY_pgdb   - database to monitor. Default is template1
 #  OCF_RESKEY_logfile - Path to PostgreSQL log file. Default is /dev/null
-#  OCF_RESKEY_start_wait - Start waiting time. Default is 30
-#  OCF_RESKEY_stop_wait - Stop waiting time. Default is 30
+#  OCF_RESKEY_stop_escalate - Stop waiting time. Default is 30
 ###############################################################################
 # Initialization:
 
@@ -210,9 +209,11 @@ pgsql_start() {
     fi
 
     rc=$OCF_ERR_GENERIC
-    while [ $rc != 0 ]; do
+    while [ $rc -ne 0 ]; do
         pgsql_monitor
         rc=$? 
+        sleep 1
+	ocf_log debug "PostgreSQL still hasn't started yet. Waiting..."
     done
 
     return $OCF_SUCCESS
@@ -231,7 +232,7 @@ pgsql_stop() {
 
     # stop waiting
     count=0
-    while [ $count -lt $STOP_WAIT ]
+    while [ $count -lt $OCF_RESKEY_stop_escalate ]
     do
         if ! pgsql_status
         then
@@ -245,6 +246,7 @@ pgsql_stop() {
     if pgsql_status
     then
        #PostgreSQL is still up. Use another shutdown mode.
+       ocf_log info "PostgreSQL failed to stop after ${OCF_RESKEY_stop_escalate}s using -m fast. Trying -m immediate..."
        runasowner "$OCF_RESKEY_pgctl -D $OCF_RESKEY_pgdata stop -m immediate > /dev/null 2>&1"
     fi
 
@@ -252,6 +254,8 @@ pgsql_stop() {
     while [ $rc != $OCF_NOT_RUNNING ]; do
         pgsql_monitor
         rc=$? 
+	sleep 1
+	ocf_log debug "PostgreSQL still hasn't stopped yet. Waiting..."
     done
 	
     # Remove postmastre.pid if it exists
@@ -376,7 +380,7 @@ fi
 : ${OCF_RESKEY_logfile=/dev/null}
 : ${OCF_RESKEY_stop_escalate=30}
 
-PIDFILE=${PGDATA}/postmaster.pid
+PIDFILE=${OCF_RESKEY_pgdata}/postmaster.pid
 
 case "$1" in
     methods)    pgsql_methods
