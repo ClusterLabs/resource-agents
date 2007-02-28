@@ -64,7 +64,7 @@ EXTERN int blockhist INIT(0);
 EXTERN int edit_mode INIT(0);
 EXTERN int line;
 EXTERN char edit_fmt[80];
-EXTERN char edit_string[1024];
+EXTERN char estring[1024]; /* edit string */
 EXTERN uint64_t dev_offset INIT(0);
 EXTERN uint64_t max_block INIT(0);
 EXTERN char *buf INIT(NULL);
@@ -79,7 +79,7 @@ EXTERN unsigned int offset;
 EXTERN int edit_row[DMODES], edit_col[DMODES], print_entry_ndx;
 EXTERN int start_row[DMODES], end_row[DMODES], lines_per_row[DMODES];
 EXTERN int edit_size[DMODES], last_entry_onscreen[DMODES];
-EXTERN char edit_string[1024], edit_fmt[80];
+EXTERN char edit_fmt[80];
 EXTERN struct gfs2_sbd sbd;
 EXTERN struct gfs_sb *sbd1;
 EXTERN struct gfs2_inum gfs1_quota_di;   /* kludge because gfs2 sb too small */
@@ -93,6 +93,8 @@ EXTERN int identify INIT(FALSE);
 EXTERN int color_scheme INIT(0);
 EXTERN WINDOW *wind;
 EXTERN int gfs1 INIT(0);
+EXTERN int editing INIT(0);
+EXTERN uint64_t temp_blk;
 
 struct gfs2_dirents {
 	uint64_t block;
@@ -155,6 +157,14 @@ struct gfs_sb {
 	struct gfs2_inum sb_license_di; /* license inode */
 
 	char sb_reserved[96];
+};
+
+struct gfs_jindex {
+        uint64_t ji_addr;       /* starting block of the journal */
+        uint32_t ji_nsegment;   /* number (quantity) of segments in journal */
+        uint32_t ji_pad;
+
+        char ji_reserved[64];
 };
 
 EXTERN struct blkstack_info blockstack[BLOCK_STACK_SIZE];
@@ -230,12 +240,54 @@ EXTERN enum dsp_mode dmode INIT(HEX_MODE);
 #define COLOR_OFFSETS   6
 #define COLOR_CONTENTS  7
 
-#define COLORS_TITLE     do { attrset(COLOR_PAIR(COLOR_TITLE));attron(A_BOLD); } while (0)
-#define COLORS_NORMAL    do { attrset(COLOR_PAIR(COLOR_NORMAL));attron(A_BOLD); } while (0)
-#define COLORS_INVERSE   do { attrset(COLOR_PAIR(COLOR_INVERSE));attron(A_BOLD); } while (0)
-#define COLORS_SPECIAL   do { attrset(COLOR_PAIR(COLOR_SPECIAL));attron(A_BOLD); } while (0)
-#define COLORS_HIGHLIGHT do { attrset(COLOR_PAIR(COLOR_HIGHLIGHT));attron(A_BOLD); } while (0)
-#define COLORS_OFFSETS   do { attrset(COLOR_PAIR(COLOR_OFFSETS));attron(A_BOLD); } while (0)
-#define COLORS_CONTENTS  do { attrset(COLOR_PAIR(COLOR_CONTENTS));attron(A_BOLD); } while (0)
+#define COLORS_TITLE     \
+	do { \
+		if (termlines) { \
+			attrset(COLOR_PAIR(COLOR_TITLE)); \
+			attron(A_BOLD); \
+		} \
+	} while (0)
+#define COLORS_NORMAL    \
+	do { \
+		if (termlines) { \
+			attrset(COLOR_PAIR(COLOR_NORMAL)); \
+			attron(A_BOLD); \
+		} \
+	} while (0)
+#define COLORS_INVERSE   \
+	do { \
+		if (termlines) { \
+			attrset(COLOR_PAIR(COLOR_INVERSE)); \
+			attron(A_BOLD); \
+		} \
+	} while (0)
+#define COLORS_SPECIAL   \
+	do { \
+		if (termlines) { \
+			attrset(COLOR_PAIR(COLOR_SPECIAL)); \
+			attron(A_BOLD); \
+		} \
+	} while (0)
+#define COLORS_HIGHLIGHT \
+	do { \
+		if (termlines) { \
+			attrset(COLOR_PAIR(COLOR_HIGHLIGHT)); \
+			attron(A_BOLD); \
+		} \
+	} while (0)
+#define COLORS_OFFSETS   \
+	do { \
+		if (termlines) { \
+			attrset(COLOR_PAIR(COLOR_OFFSETS)); \
+			attron(A_BOLD); \
+		} \
+	} while (0)
+#define COLORS_CONTENTS  \
+	do { \
+		if (termlines) { \
+			attrset(COLOR_PAIR(COLOR_CONTENTS)); \
+			attron(A_BOLD); \
+		} \
+	} while (0)
 
 #endif /* __HEXVIEW_DOT_H__ */

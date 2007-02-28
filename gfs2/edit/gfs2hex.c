@@ -41,11 +41,11 @@ extern struct gfs2_dinode di;
 extern uint64_t bufsize;
 extern int line, termlines;
 extern char edit_fmt[80];
-extern char edit_string[1024];
+extern char estring[1024];
 extern int edit_mode INIT(0);
 extern int edit_row[DMODES], edit_col[DMODES];
 extern int edit_size[DMODES], last_entry_onscreen[DMODES];
-extern char edit_string[1024], edit_fmt[80];
+extern char edit_fmt[80];
 extern enum dsp_mode dmode INIT(HEX_MODE); /* display mode */
 
 void eol(int col) /* end of line */
@@ -167,9 +167,9 @@ void print_it(const char *label, const char *fmt, const char *fmt2, ...)
 		if (termlines) {
 			refresh();
 			if (line == (edit_row[dmode] * lines_per_row[dmode]) + 4) {
-				strcpy(edit_string, tmp_string);
+				strcpy(estring, tmp_string);
 				strcpy(edit_fmt, fmt);
-				edit_size[dmode] = strlen(edit_string);
+				edit_size[dmode] = strlen(estring);
 				COLORS_NORMAL;
 			}
 			last_entry_onscreen[dmode] = (line / lines_per_row[dmode]) - 4;

@@ -112,9 +112,9 @@ void display_title_lines(void)
 /* returns: 1 if user exited by hitting enter                                */
 /*          0 if user exited by hitting escape                               */
 /* ------------------------------------------------------------------------- */
-int bobgets(char string[],int x,int y,int sz)
+int bobgets(char string[],int x,int y,int sz,int *ch)
 {
-	int done,ch,runningy,rc;
+	int done,runningy,rc;
 
 	move(x,y);
 	done=FALSE;
@@ -127,23 +127,29 @@ int bobgets(char string[],int x,int y,int sz)
 	runningy=y;
 	rc=0;
 	while (!done) {
-		ch=getch();
+		*ch = getch();
 		
-		if(ch < 0x0100 && isprint(ch)) {
+		if(*ch < 0x0100 && isprint(*ch)) {
 			char *p=string+strlen(string); // end of the string
+
 			*(p+1)='\0';
 			while (insert && p > &string[runningy-y]) {
 				*p=*(p-1);
 				p--;
 			}
-			string[runningy-y]=ch;
+			string[runningy-y]=*ch;
 			runningy++;
 			move(x,y);
 			addstr(string);
+			if (runningy-y >= sz) {
+				rc=1;
+				*ch = KEY_RIGHT;
+				done = TRUE;
+			}
 		}
 		else {
 			// special character, is it one we recognize?
-			switch(ch)
+			switch(*ch)
 			{
 			case(KEY_ENTER):
 			case('\n'):
@@ -157,11 +163,20 @@ int bobgets(char string[],int x,int y,int sz)
 				done=TRUE;
 				break;
 			case(KEY_LEFT):
-				if (runningy>y)
+				if (dmode == HEX_MODE) {
+					done = TRUE;
+					rc = 1;
+				}
+				else
 					runningy--;
 				break;
 			case(KEY_RIGHT):
-				runningy++;
+				if (dmode == HEX_MODE) {
+					done = TRUE;
+					rc = 1;
+				}
+				else
+					runningy++;
 				break;
 			case(KEY_DC):
 			case(0x07F):
@@ -220,7 +235,7 @@ int bobgets(char string[],int x,int y,int sz)
 				break;
 			default:
 				move(0,70);
-				printw("%08X",ch);
+				printw("%08X",*ch);
 				// ignore all other characters
 				break;
 			} // end switch on non-printable character
@@ -503,8 +518,8 @@ int hexdump(uint64_t startaddr, const char *lpBuffer, int len)
 			if (termlines && line == edit_row[dmode] + 3 &&
 				i == edit_col[dmode]) {
 				COLORS_HIGHLIGHT; /* normal part of the structure */
-				memset(edit_string,0,3);
-				sprintf(edit_string,"%02X",*pointer);
+				memset(estring,0,3);
+				sprintf(estring,"%02X",*pointer);
 			}
 			print_gfs2("%02X",*pointer);
 			if (termlines && line == edit_row[dmode] + 3 &&
@@ -581,13 +596,78 @@ int print_rindex(struct gfs2_inode *di)
 			 termlines - start_line - 2)) {
 			if (edit_row[dmode] == print_entry_ndx) {
 				COLORS_HIGHLIGHT;
-				sprintf(edit_string, "%" PRIx64, ri.ri_addr);
+				sprintf(estring, "%" PRIx64, ri.ri_addr);
 			}
 			print_gfs2("RG #%d", print_entry_ndx);
 			eol(0);
 			if (edit_row[dmode] == print_entry_ndx)
 				COLORS_NORMAL;
 			gfs2_rindex_print(&ri);
+			last_entry_onscreen[dmode] = print_entry_ndx;
+		}
+	}
+	end_row[dmode] = print_entry_ndx;
+	return error;
+}
+
+/* ------------------------------------------------------------------------ */
+/* gfs_jindex_in - read in a gfs1 jindex structure.                         */
+/* ------------------------------------------------------------------------ */
+void gfs_jindex_in(struct gfs_jindex *jindex, char *buf)
+{
+        struct gfs_jindex *str = (struct gfs_jindex *) buf;
+
+        jindex->ji_addr = be64_to_cpu(str->ji_addr);
+        jindex->ji_nsegment = be32_to_cpu(str->ji_nsegment);
+        jindex->ji_pad = be32_to_cpu(str->ji_pad);
+        memcpy(jindex->ji_reserved, str->ji_reserved, 64);
+}
+
+/* ------------------------------------------------------------------------ */
+/* gfs_jindex_print - print an jindex entry.                                */
+/* ------------------------------------------------------------------------ */
+void gfs_jindex_print(struct gfs_jindex *ji)
+{
+        pv(ji, ji_addr, "%llu", "0x%llx");
+        pv(ji, ji_nsegment, "%u", "0x%x");
+        pv(ji, ji_pad, "%u", "0x%x");
+}
+
+/* ------------------------------------------------------------------------ */
+/* print_jindex - print the jindex file.                                    */
+/* ------------------------------------------------------------------------ */
+int print_jindex(struct gfs2_inode *di)
+{
+	int error, start_line;
+	struct gfs_jindex ji;
+	char buf[sizeof(struct gfs_jindex)];
+
+	start_line = line;
+	error = 0;
+	print_gfs2("Journal index entries found: %d.",
+		   di->i_di.di_size / sizeof(struct gfs_jindex));
+	eol(0);
+	lines_per_row[dmode] = 6;
+	for (print_entry_ndx=0; ; print_entry_ndx++) {
+		error = gfs2_readi(di, (void *)&buf,
+				   print_entry_ndx*sizeof(struct gfs_jindex),
+				   sizeof(struct gfs_jindex));
+		gfs_jindex_in(&ji, buf);
+		if (!error) /* end of file */
+			break;
+		if (!termlines ||
+		    (print_entry_ndx >= start_row[dmode] &&
+		     ((print_entry_ndx - start_row[dmode])+1) *
+		     lines_per_row[dmode] <= termlines - start_line - 2)) {
+			if (edit_row[dmode] == print_entry_ndx) {
+				COLORS_HIGHLIGHT;
+				sprintf(estring, "%" PRIx64, ji.ji_addr);
+			}
+			print_gfs2("Journal #%d", print_entry_ndx);
+			eol(0);
+			if (edit_row[dmode] == print_entry_ndx)
+				COLORS_NORMAL;
+			gfs_jindex_print(&ji);
 			last_entry_onscreen[dmode] = print_entry_ndx;
 		}
 	}
@@ -723,7 +803,7 @@ int display_indirect(void)
 	eol(0);
 	start_line = line;
 	if (!has_indirect_blocks())
-		return -01;
+		return -1;
 
 	indir_blocks = indirect_blocks;
 	if (!indirect_blocks) {
@@ -798,10 +878,10 @@ int display_indirect(void)
 				if (edit_row[dmode] >= 0 &&
 					line - start_line - 2 == edit_row[dmode] -
 					start_row[dmode]) { 
-					sprintf(edit_string, "%"PRIx64,
+					sprintf(estring, "%"PRIx64,
 							indirect[print_entry_ndx].block);
 					strcpy(edit_fmt, "%"PRIx64);
-					edit_size[dmode] = strlen(edit_string);
+					edit_size[dmode] = strlen(estring);
 					COLORS_NORMAL;
 				}
 			}
@@ -848,7 +928,7 @@ int display_indirect(void)
 							edit_row[dmode] -
 							start_row[dmode]) {
 							COLORS_HIGHLIGHT;
-							sprintf(edit_string, "%"PRIx64,
+							sprintf(estring, "%"PRIx64,
 									indirect[print_entry_ndx].dirent[d].block);
 							strcpy(edit_fmt, "%"PRIx64);
 						}
@@ -883,6 +963,73 @@ int display_indirect(void)
 }
 
 /* ------------------------------------------------------------------------ */
+/* block_is_rindex                                                          */
+/* ------------------------------------------------------------------------ */
+int block_is_rindex(void)
+{
+	if ((gfs1 && block == sbd1->sb_rindex_di.no_addr) ||
+	    (block == masterblock("rindex")))
+		return TRUE;
+	return FALSE;
+}
+
+/* ------------------------------------------------------------------------ */
+/* block_is_jindex                                                          */
+/* ------------------------------------------------------------------------ */
+int block_is_jindex(void)
+{
+	if ((gfs1 && block == sbd1->sb_jindex_di.no_addr))
+		return TRUE;
+	return FALSE;
+}
+
+/* ------------------------------------------------------------------------ */
+/* block_is_inum_file                                                       */
+/* ------------------------------------------------------------------------ */
+int block_is_inum_file(void)
+{
+	if (!gfs1 && block == masterblock("inum"))
+		return TRUE;
+	return FALSE;
+}
+
+/* ------------------------------------------------------------------------ */
+/* block_is_statfs_file                                                     */
+/* ------------------------------------------------------------------------ */
+int block_is_statfs_file(void)
+{
+	if (!gfs1 && block == masterblock("statfs"))
+		return TRUE;
+	return FALSE;
+}
+
+/* ------------------------------------------------------------------------ */
+/* block_is_quota_file                                                      */
+/* ------------------------------------------------------------------------ */
+int block_is_quota_file(void)
+{
+	if ((gfs1 && block == gfs1_quota_di.no_addr) ||
+	    (block == masterblock("quota")))
+		return TRUE;
+	return FALSE;
+}
+
+/* ------------------------------------------------------------------------ */
+/* block_has_extended_info                                                  */
+/* ------------------------------------------------------------------------ */
+int block_has_extended_info(void)
+{
+	if (has_indirect_blocks() ||
+	    block_is_rindex() ||
+	    block_is_jindex() ||
+	    block_is_inum_file() ||
+	    block_is_statfs_file() ||
+	    block_is_quota_file())
+		return TRUE;
+	return FALSE;
+}
+
+/* ------------------------------------------------------------------------ */
 /* display_extended                                                         */
 /* ------------------------------------------------------------------------ */
 int display_extended(void)
@@ -891,29 +1038,33 @@ int display_extended(void)
 	struct gfs2_buffer_head *tmp_bh;
 
 	/* Display any indirect pointers that we have. */
-	if (display_indirect() < 0)
+	if (display_indirect() == 0)
 		return -1;
-	if ((gfs1 && block == sbd1->sb_rindex_di.no_addr) ||
-		(block == masterblock("rindex"))) {
+	else if (block_is_rindex()) {
 		tmp_bh = bread(&sbd, block);
 		tmp_inode = inode_get(&sbd, tmp_bh);
 		print_rindex(tmp_inode);
 		brelse(tmp_bh, not_updated);
 	}
-	else if (!gfs1 && block == masterblock("inum")) {
+	else if (block_is_jindex()) {
+		tmp_bh = bread(&sbd, block);
+		tmp_inode = inode_get(&sbd, tmp_bh);
+		print_jindex(tmp_inode);
+		brelse(tmp_bh, not_updated);
+	}
+	else if (block_is_inum_file()) {
 		tmp_bh = bread(&sbd, block);
 		tmp_inode = inode_get(&sbd, tmp_bh);
 		print_inum(tmp_inode);
 		brelse(tmp_bh, not_updated);
 	}
-	else if (!gfs1 && block == masterblock("statfs")) {
+	else if (block_is_statfs_file()) {
 		tmp_bh = bread(&sbd, block);
 		tmp_inode = inode_get(&sbd, tmp_bh);
 		print_statfs(tmp_inode);
 		brelse(tmp_bh, not_updated);
 	}
-	else if ((gfs1 && block == gfs1_quota_di.no_addr) ||
-			 (block == masterblock("quota"))) {
+	else if (block_is_quota_file()) {
 		tmp_bh = bread(&sbd, block);
 		tmp_inode = inode_get(&sbd, tmp_bh);
 		print_quota(tmp_inode);
@@ -1035,7 +1186,8 @@ int display(int identify_only)
 		indirect_blocks = 1;
 		memset(&indirect, 0, sizeof(indirect));
 		/* Directory Entries: */
-		for (x = sizeof(struct gfs2_leaf); x < bufsize; x += de.de_rec_len) {
+		for (x = sizeof(struct gfs2_leaf); x < bufsize;
+		     x += de.de_rec_len) {
 			gfs2_dirent_in(&de, buf + x);
 			if (de.de_inum.no_addr) {
 				indirect[indirect_blocks].block = de.de_inum.no_addr;
@@ -1047,24 +1199,31 @@ int display(int identify_only)
 				indirect[indirect_blocks].is_dir = TRUE;
 				indirect[indirect_blocks].dirents++;
 			}
+			if (de.de_rec_len <= sizeof(struct gfs2_dirent))
+				break;
 		}
 	}
 	last_entry_onscreen[dmode] = 0;
-	if (dmode == EXTENDED_MODE && !has_indirect_blocks())
+	if (dmode == EXTENDED_MODE && !block_has_extended_info())
 		dmode = HEX_MODE;
 	if (termlines) {
 		move(termlines, 63);
-		printw("Mode: %s", (dmode==HEX_MODE?"Hex edit ":(dmode==GFS2_MODE?"Structure":"Pointers ")));
+		if (dmode==HEX_MODE)
+			printw("Mode: Hex %s", (editing?"edit ":"view "));
+		else
+			printw("Mode: %s", (dmode==GFS2_MODE?"Structure":
+					    "Pointers "));
 		move(line, 0);
 	}
 	if (dmode == HEX_MODE)          /* if hex display mode           */
-		hexdump(dev_offset, buf, (gfs2_struct_type == GFS2_METATYPE_DI)?
-				struct_len + di.di_size:bufsize); /* show block in hex */
+		hexdump(dev_offset, buf,
+			(gfs2_struct_type == GFS2_METATYPE_DI)?
+			struct_len + di.di_size:bufsize);
 	else if (dmode == GFS2_MODE)    /* if structure display          */
-		display_gfs2();                    /* display the gfs2 structure    */
+		display_gfs2();            /* display the gfs2 structure    */
 	else
-		display_extended();                /* display extended blocks       */
-	/* No else here, because display_extended can switch back to hex mode */
+		display_extended();        /* display extended blocks       */
+	/* No else here because display_extended can switch back to hex mode */
 	if (termlines)
 		refresh();
 	return(0);
@@ -1121,12 +1280,12 @@ uint64_t pop_block(void)
 /* ------------------------------------------------------------------------ */
 uint64_t goto_block(void)
 {
-	uint64_t temp_blk;
 	char string[256];
+	int ch;
 
 	memset(string, 0, sizeof(string));
 	sprintf(string,"%"PRId64, block);
-	if (bobgets(string, 1, 7, 16)) {
+	if (bobgets(string, 1, 7, 16, &ch)) {
 		if (!strcmp(string,"root"))
 			temp_blk = sbd.sd_sb.sb_root_dir.no_addr;
 		else if (!strcmp(string,"master")) {
@@ -1168,22 +1327,159 @@ void init_colors()
 {
 
 	if (color_scheme) {
-		init_pair(COLOR_TITLE, COLOR_BLACK,  COLOR_CYAN);  /* title lines */
-		init_pair(COLOR_NORMAL, COLOR_WHITE,  COLOR_BLACK); /* normal text */
-		init_pair(COLOR_INVERSE, COLOR_BLACK,  COLOR_WHITE); /* inverse text */
-		init_pair(COLOR_SPECIAL, COLOR_RED,    COLOR_BLACK); /* special text */
-		init_pair(COLOR_HIGHLIGHT, COLOR_GREEN, COLOR_BLACK); /* highlighted */
-		init_pair(COLOR_OFFSETS, COLOR_CYAN,   COLOR_BLACK); /* offsets */
-		init_pair(COLOR_CONTENTS, COLOR_YELLOW, COLOR_BLACK); /* file data */
+		init_pair(COLOR_TITLE, COLOR_BLACK,  COLOR_CYAN);
+		init_pair(COLOR_NORMAL, COLOR_WHITE,  COLOR_BLACK);
+		init_pair(COLOR_INVERSE, COLOR_BLACK,  COLOR_WHITE);
+		init_pair(COLOR_SPECIAL, COLOR_RED,    COLOR_BLACK);
+		init_pair(COLOR_HIGHLIGHT, COLOR_GREEN, COLOR_BLACK);
+		init_pair(COLOR_OFFSETS, COLOR_CYAN,   COLOR_BLACK);
+		init_pair(COLOR_CONTENTS, COLOR_YELLOW, COLOR_BLACK);
 	}
 	else {
-		init_pair(COLOR_TITLE, COLOR_BLACK,  COLOR_CYAN);  /* title lines */
-		init_pair(COLOR_NORMAL, COLOR_BLACK,  COLOR_WHITE); /* normal text */
-		init_pair(COLOR_INVERSE, COLOR_WHITE,  COLOR_BLACK); /* inverse text */
-		init_pair(COLOR_SPECIAL, COLOR_RED,    COLOR_WHITE); /* special text */
-		init_pair(COLOR_HIGHLIGHT, COLOR_MAGENTA, COLOR_WHITE); /* highlighted */
-		init_pair(COLOR_OFFSETS, COLOR_CYAN,   COLOR_WHITE); /* offsets */
-		init_pair(COLOR_CONTENTS, COLOR_BLUE, COLOR_WHITE); /* file data */
+		init_pair(COLOR_TITLE, COLOR_BLACK,  COLOR_CYAN);
+		init_pair(COLOR_NORMAL, COLOR_BLACK,  COLOR_WHITE);
+		init_pair(COLOR_INVERSE, COLOR_WHITE,  COLOR_BLACK);
+		init_pair(COLOR_SPECIAL, COLOR_RED,    COLOR_WHITE);
+		init_pair(COLOR_HIGHLIGHT, COLOR_MAGENTA, COLOR_WHITE);
+		init_pair(COLOR_OFFSETS, COLOR_CYAN,   COLOR_WHITE);
+		init_pair(COLOR_CONTENTS, COLOR_BLUE, COLOR_WHITE);
+	}
+}
+
+/* ------------------------------------------------------------------------ */
+/* hex_edit - Allow the user to edit the page by entering hex digits        */
+/* ------------------------------------------------------------------------ */
+void hex_edit(int *exitch)
+{
+	int left_off;
+	int ch;
+
+	left_off = ((block * bufsize) < 0xffffffff) ? 9 : 17;
+	/* 8 and 16 char addresses on screen */
+	
+	if (bobgets(estring, edit_row[dmode] + 3,
+		    (edit_col[dmode] * 2) + (edit_col[dmode] / 4) + left_off,
+		    2, exitch)) {
+		if (strstr(edit_fmt,"X") || strstr(edit_fmt,"x")) {
+			int hexoffset;
+			int i, sl = strlen(estring);
+			
+			for (i = 0; i < sl; i+=2) {
+				hexoffset = (edit_row[dmode] * 16) +
+					edit_col[dmode] + (i / 2);
+				ch = 0x00;
+				if (isdigit(estring[i]))
+					ch = (estring[i] - '0') * 0x10;
+				else if (estring[i] >= 'a' &&
+					 estring[i] <= 'f')
+					ch = (estring[i]-'a' + 0x0a)*0x10;
+				else if (estring[i] >= 'A' &&
+					 estring[i] <= 'F')
+					ch = (estring[i] - 'A' + 0x0a) * 0x10;
+				if (isdigit(estring[i+1]))
+					ch += (estring[i+1] - '0');
+				else if (estring[i+1] >= 'a' &&
+					 estring[i+1] <= 'f')
+					ch += (estring[i+1] - 'a' + 0x0a);
+				else if (estring[i+1] >= 'A' &&
+					 estring[i+1] <= 'F')
+					ch += (estring[i+1] - 'A' + 0x0a);
+				buf[offset + hexoffset] = ch;
+			}
+			do_lseek(fd, dev_offset);
+			do_write(fd, buf, bufsize);
+			fsync(fd);
+		}
+	}
+}
+
+/* ------------------------------------------------------------------------ */
+/* page up                                                                  */
+/* ------------------------------------------------------------------------ */
+void pageup(void)
+{
+	if (dmode == EXTENDED_MODE) {
+		int dsplines = termlines - 6;
+		
+		if (edit_row[dmode] - (dsplines / lines_per_row[dmode]) > 0) {
+			start_row[dmode] -= (dsplines / lines_per_row[dmode]);
+			edit_row[dmode] -= (dsplines / lines_per_row[dmode]);
+		}
+		else {
+			start_row[dmode] = 0;
+			edit_row[dmode] = 0;
+		}
+	}
+	else {
+		start_row[dmode] = edit_row[dmode] = 0;
+		if (dmode == GFS2_MODE || offset==0) {
+			block--;
+			if (dmode == HEX_MODE)
+				offset = (bufsize % screen_chunk_size) > 0 ? 
+					screen_chunk_size *
+					(bufsize / screen_chunk_size) :
+					bufsize - screen_chunk_size;
+			else
+				offset = 0;
+		}
+		else
+			offset -= screen_chunk_size;
+	}
+}
+
+/* ------------------------------------------------------------------------ */
+/* page down                                                                */
+/* ------------------------------------------------------------------------ */
+void pagedn(void)
+{
+	if (dmode == EXTENDED_MODE) {
+		int dsplines = termlines - 6;
+
+		if ((edit_row[dmode] + dsplines) / lines_per_row[dmode] + 1 <
+		    end_row[dmode]) {
+			start_row[dmode] += dsplines / lines_per_row[dmode];
+			edit_row[dmode] += dsplines / lines_per_row[dmode];
+		}
+		else
+			edit_row[dmode] = end_row[dmode] - 1;
+	}
+	else {
+		start_row[dmode] = edit_row[dmode] = 0;
+		if (dmode == GFS2_MODE ||
+		    offset + screen_chunk_size >= bufsize) {
+			block++;
+			offset = 0;
+		}
+		else
+			offset += screen_chunk_size;
+	}
+}
+
+/* ------------------------------------------------------------------------ */
+/* jump - jump to the address the cursor is on                              */
+/* ------------------------------------------------------------------------ */
+void jump(void)
+{
+	if (dmode == HEX_MODE) {
+		unsigned int col2;
+		uint64_t *b;
+		
+		col2 = edit_col[dmode] & 0x08;/* thus 0-7->0, 8-15->8 */
+		b = (uint64_t *)&buf[edit_row[dmode]*16 + offset + col2];
+		temp_blk=be64_to_cpu(*b);
+	}
+	else
+		sscanf(estring, "%"SCNx64, &temp_blk);/* retrieve in hex */
+	if (temp_blk < max_block) { /* if the block number is valid */
+		int i;
+		
+		offset = 0;
+		block = temp_blk;
+		push_block(block);
+		for (i = 0; i < DMODES; i++) {
+			start_row[i] = end_row[i] = edit_row[i] = 0;
+			edit_col[i] = 0;
+		}
 	}
 }
 
@@ -1193,8 +1489,6 @@ void init_colors()
 void interactive_mode(void)
 {
 	int ch, Quit;
-	int64_t temp_blk;
-	int left_off;
 
 	if ((wind = initscr()) == NULL) {
 		fprintf(stderr, "Error: unable to initialize screen.");
@@ -1214,22 +1508,42 @@ void interactive_mode(void)
 	init_colors();
 	/* Accept keystrokes and act on them accordingly */
 	Quit = FALSE;
+	editing = FALSE;
 	while (!Quit) {
 		display(FALSE);
-		while ((ch=getch()) == 0); // wait for input
+		if (editing) {
+			if (edit_row[dmode] == -1)
+				block = goto_block();
+			else {
+				if (dmode == HEX_MODE)
+					hex_edit(&ch);
+				else if (dmode == GFS2_MODE)
+					bobgets(estring, edit_row[dmode]+4, 24,
+						edit_size[dmode], &ch);
+				else
+					bobgets(estring, edit_row[dmode]+6, 14,
+						edit_size[dmode], &ch);
+			}
+		}
+		else
+			while ((ch=getch()) == 0); // wait for input
+
 		switch (ch)
 		{
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		/* escape or 'q' */
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		case 0x1b:
 		case 0x03:
 		case 'q':
-			Quit=TRUE;
+			if (editing)
+				editing = FALSE;
+			else
+				Quit=TRUE;
 			break;
-		/* -------------------------------------------------------------- */
-		/* home - return to the superblock                                */
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
+		/* home - return to the superblock                           */
+		/* --------------------------------------------------------- */
 		case KEY_HOME:
 			if (dmode == EXTENDED_MODE) {
 				start_row[dmode] = end_row[dmode] = 0;
@@ -1241,25 +1555,25 @@ void interactive_mode(void)
 				offset = 0;
 			}
 			break;
-		/* -------------------------------------------------------------- */
-		/* backspace - return to the previous block on the stack          */
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
+		/* backspace - return to the previous block on the stack     */
+		/* --------------------------------------------------------- */
 		case KEY_BACKSPACE:
 		case 0x7f:
 			block = pop_block();
 			offset = 0;
 			break;
-		/* -------------------------------------------------------------- */
-		/* space - go down the block stack (opposite of backspace)        */
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
+		/* space - go down the block stack (opposite of backspace)   */
+		/* --------------------------------------------------------- */
 		case ' ':
 			blockhist++;
 			block = blockstack[blockhist % BLOCK_STACK_SIZE].block;
 			offset = 0;
 			break;
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		/* arrow up */
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		case KEY_UP:
 			if (dmode == EXTENDED_MODE) {
 				if (edit_row[dmode] > 0)
@@ -1272,9 +1586,9 @@ void interactive_mode(void)
 					edit_row[dmode]--;
 			}
 			break;
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		/* arrow down */
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		case KEY_DOWN:
 			if (dmode == EXTENDED_MODE) {
 				if (edit_row[dmode] + 1 < end_row[dmode]) {
@@ -1288,9 +1602,9 @@ void interactive_mode(void)
 					edit_row[dmode]++;
 			}
 			break;
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		/* arrow left */
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		case KEY_LEFT:
 			if (dmode == HEX_MODE) {
 				if (edit_col[dmode] > 0)
@@ -1299,9 +1613,9 @@ void interactive_mode(void)
 					edit_col[dmode] = 15;
 			}
 			break;
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		/* arrow right */
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		case KEY_RIGHT:
 			if (dmode == HEX_MODE) {
 				if (edit_col[dmode] < 15)
@@ -1310,217 +1624,103 @@ void interactive_mode(void)
 					edit_col[dmode] = 0;
 			}
 			break;
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		/* m - change display mode key */
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		case 'm':
 			dmode = ((dmode + 1) % DMODES);
 			break;
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		/* J - Jump to highlighted block number */
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		case 'j':
-			if (dmode == HEX_MODE) {
-				unsigned int col2;
-				uint64_t *b;
-
-				col2 = edit_col[dmode] & 0x08;/* thus 0-7->0, 8-15->8 */
-				b = (uint64_t *)&buf[edit_row[dmode]*16 + offset + col2];
-				temp_blk=be64_to_cpu(*b);
-			}
-			else
-				sscanf(edit_string, "%"SCNx64, &temp_blk);/* retrieve in hex */
-			if (temp_blk < max_block) { /* if the block number is valid */
-				int i;
-
-				offset = 0;
-				block = temp_blk;
-				push_block(block);
-				for (i = 0; i < DMODES; i++) {
-					start_row[i] = end_row[i] = edit_row[i] = 0;
-					edit_col[i] = 0;
-				}
-			}
+			jump();
 			break;
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		/* g - goto block */
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		case 'g':
 			block = goto_block();
 			break;
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		/* h - help key */
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		case 'h':
 			print_usage();
 			break;
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		/* e - change to extended mode */
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		case 'e':
 			dmode = EXTENDED_MODE;
 			break;
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		/* b - Back one 4K block */
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		case 'b':
 			start_row[dmode] = end_row[dmode] = edit_row[dmode] = 0;
 			if (block > 0)
 				block--;
 			offset = 0;
 			break;
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		/* c - Change color scheme */
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		case 'c':
 			color_scheme = !color_scheme;
 			init_colors();
 			break;
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		/* page up key */
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		case 0x19:                    // ctrl-y for vt100
 		case KEY_PPAGE:		      // PgUp
 		case 0x15:                    // ctrl-u for vi compat.
 		case 0x02:                   // ctrl-b for less compat.
-			if (dmode == EXTENDED_MODE) {
-				int lines_of_display = termlines - 6;
-
-				if (edit_row[dmode] - (lines_of_display / lines_per_row[dmode]) > 0) {
-					start_row[dmode] -= (lines_of_display / lines_per_row[dmode]);
-					edit_row[dmode] -= (lines_of_display / lines_per_row[dmode]);
-				}
-				else {
-					start_row[dmode] = 0;
-					edit_row[dmode] = 0;
-				}
-			}
-			else {
-				start_row[dmode] = edit_row[dmode] = 0;
-				if (dmode == GFS2_MODE || offset==0) {
-					block--;
-					if (dmode == HEX_MODE)
-						offset = (bufsize % screen_chunk_size) > 0 ? 
-							screen_chunk_size * (bufsize / screen_chunk_size) :
-							bufsize - screen_chunk_size;
-					else
-						offset = 0;
-				}
-				else
-					offset -= screen_chunk_size;
-			}
+			pageup();
 			break;
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		/* end - Jump to the end of the list */
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		case 0x168:
 			if (dmode == EXTENDED_MODE) {
-				int lines_of_display = termlines - 6;
-				int entries_per_screen = lines_of_display /
+				int dsplines = termlines - 6;
+				int ents_per_screen = dsplines /
 					lines_per_row[dmode];
 
 				edit_row[dmode] = end_row[dmode] - 1;
-				if ((edit_row[dmode] - entries_per_screen) + 1 > 0)
-					start_row[dmode] = edit_row[dmode] - entries_per_screen + 1;
-				/*
-				  if (edit_row[dmode] * lines_per_row[dmode] > (termlines - 7))
-				  start_row[dmode] = (edit_row[dmode] - (termlines - 7)) /
-				  lines_per_row[dmode];
-				*/
+				if ((edit_row[dmode] - ents_per_screen)+1 > 0)
+					start_row[dmode] = edit_row[dmode] - 
+						ents_per_screen + 1;
 				else
 					start_row[dmode] = 0;
 			}
-			/* TODO: Make "end" key work for other display modes. */
+			/* TODO: Make end key work for other display modes. */
 			break;
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		/* f - Forward one 4K block */
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		case 'f':
-			start_row[dmode] = end_row[dmode] = edit_row[dmode] = 0;
+			start_row[dmode]=end_row[dmode]=edit_row[dmode] = 0;
 			lines_per_row[dmode] = 1;
 			block++;
 			offset = 0;
 			break;
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		/* page down key */
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		case 0x16:                    // ctrl-v for vt100
 		case KEY_NPAGE:		      // PgDown
 		case 0x04:                    // ctrl-d for vi compat.
-			if (dmode == EXTENDED_MODE) {
-				int lines_of_display = termlines - 6;
-
-				if ((edit_row[dmode] + lines_of_display) / lines_per_row[dmode] + 1 < end_row[dmode]) {
-					start_row[dmode] += lines_of_display / lines_per_row[dmode];
-					edit_row[dmode] += lines_of_display / lines_per_row[dmode];
-				}
-				else
-					edit_row[dmode] = end_row[dmode] - 1;
-			}
-			else {
-				start_row[dmode] = edit_row[dmode] = 0;
-				if (dmode == GFS2_MODE ||
-					offset + screen_chunk_size >= bufsize) {
-					block++;
-					offset = 0;
-				}
-				else
-					offset += screen_chunk_size;
-			}
+			pagedn();
 			break;
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		/* enter key - change a value */
-		/* -------------------------------------------------------------- */
+		/* --------------------------------------------------------- */
 		case(KEY_ENTER):
 		case('\n'):
 		case('\r'):
-			if (edit_row[dmode] == -1)
-				block = goto_block();
-			else {
-				if (dmode == HEX_MODE) {
-					left_off = ((block * bufsize) < 0xffffffff) ? 9 : 17;
-					/* 8 and 16 char addresses on screen */
-					       
-					if (bobgets(edit_string, edit_row[dmode] + 3,
-								(edit_col[dmode] * 2) + 
-								(edit_col[dmode] / 4) + left_off, 2)) {
-						if (strstr(edit_fmt,"X") || strstr(edit_fmt,"x")) {
-							int hexoffset;
-							unsigned char ch;
-							
-							hexoffset = (edit_row[dmode] * 16) +
-								edit_col[dmode];
-							ch = 0x00;
-							if (isdigit(edit_string[0]))
-								ch = (edit_string[0] - '0') * 0x10;
-							else if (edit_string[0] >= 'a' &&
-									 edit_string[0] <= 'f')
-								ch = (edit_string[0] - 'a' + 0x0a) * 0x10;
-							else if (edit_string[0] >= 'A' &&
-									 edit_string[0] <= 'F')
-								ch = (edit_string[0] - 'A' + 0x0a) * 0x10;
-							if (isdigit(edit_string[1]))
-								ch += (edit_string[1] - '0');
-							else if (edit_string[1] >= 'a' &&
-									 edit_string[1] <= 'f')
-								ch += (edit_string[1] - 'a' + 0x0a);
-							else if (edit_string[1] >= 'A' &&
-									 edit_string[1] <= 'F')
-								ch += (edit_string[1] - 'A' + 0x0a);
-							buf[offset + hexoffset] = ch;
-							do_lseek(fd, dev_offset);
-							do_write(fd, buf, bufsize);
-							fsync(fd);
-						}
-					}
-				}
-				else if (dmode == GFS2_MODE)
-					bobgets(edit_string, edit_row[dmode] + 4, 24,
-							edit_size[dmode]);
-				else
-					bobgets(edit_string, edit_row[dmode] + 6, 14,
-							edit_size[dmode]);
-			}
+			editing = !editing;
 			break;
 		default:
 			move(termlines - 1, 0);
@@ -1612,8 +1812,6 @@ void process_parameters(int argc, char *argv[], int pass)
 		}
 		else { /* second pass */
 			if (!termlines && !strchr(argv[i],'/')) { /* if print, no slash */
-				uint64_t temp_blk;
-
 				if (!strcasecmp(argv[i], "-x"))
 					dmode = HEX_MODE;
 				else if (argv[i][0] == '-') /* if it starts with a dash */
