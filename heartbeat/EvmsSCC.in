@@ -9,7 +9,31 @@
 #  Original Author: Jo De Baer (jdebaer@novell.com)
 # Original Release: 06 Nov 2006
 #
-# usage: ./EvmsSCC {start|stop|status|monitor|validate-all|meta-data}
+# usage: ./EvmsSCC {start|stop|status|monitor|meta-data}
+#
+# The goal of this resource agent is to provoke the creation of device file
+# in /dev/emvs which correspond to EVMS2 volumes that reside in a EVMS2 shared
+# cluster container. As such it should be run as a clone resource in the 
+# cluster. Logic inside the resource agent will make sure that "evms_activate"
+# is run on only one node in the cluster, both at cluster startup time as well
+# as when a node joins the cluster.
+#
+# Typically, resources that need to mount EVMS2 volumes should run after this
+# resource agent has finished it's run. As such those resources should be made
+# "dependent" on this resource agent by the cluster administrator. An example
+# of resources that should depend on this resource agent are Filesystem resource
+# agent that mount OCFS2 volumes that reside on EVMS2 volumes in a shared 
+# EVMS2 cluster container.
+#
+# For this resource agent to do it's job correctly, evmsd must be running on
+# the node where the agent is started. Usually evmsd is started by the cluster
+# software via a respawn statement in /etc/ha.d/ha.cf. If you encounter timing
+# issues where evmsd is not yet started but where the cluster already starts
+# the EvmsSCC clone, then you should comment out the evmsd respawn statement
+# in /etc/ha.d/ha.cf and start evmsd on each node in the cluster via a separate
+# clone resource agent. The EvmsSCC resource agent cloneset should then be made
+# dependent to this evmsd cloneset. This will guarantee that emvsd is running
+# before EvmsSCC is started, on each node in the cluster.
 #
 
 #######################################################################
@@ -18,6 +42,7 @@
 . @hb_libdir@/ocf-shellfuncs
 
 #######################################################################
+
 
 # Utilities used by this script
 CUT=/usr/bin/cut
@@ -32,7 +57,7 @@ check_util () {
 
 usage() {
 	cat <<-EOT
-	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
+	usage: $0 {start|stop|status|monitor|meta-data}
 	EOT
 }
 
@@ -54,7 +79,6 @@ Resource script for EVMS shared cluster container. It runs evms_activate on one 
 <action name="notify" timeout="60" />
 <action name="status" depth="0" timeout="10" interval="10" start-delay="10" />
 <action name="monitor" depth="0" timeout="10" interval="10" start-delay="10" />
-<action name="validate-all" timeout="5" />
 <action name="meta-data" timeout="5" />
 </actions>
 </resource-agent>
@@ -64,8 +88,7 @@ END
 EvmsSCC_status()
 {
 	# At the moment we don't support monitoring EVMS activations. We just return "not running" to cope with the pre-start monitor call.
-	rc=$OCF_NOT_RUNNING
-	return $rc
+	return $OCF_NOT_RUNNING
 }
 
 EvmsSCC_notify()
@@ -79,11 +102,7 @@ EvmsSCC_notify()
 	case "$n_type" in
         pre)
                 case "$n_op" in
-                start)
-			#in comment: we prefer evms_activate to run on a starting node whenever possible
-                        #n_active="$n_active $n_start"
-		
-        		ocf_log debug "EvmsSCC: Notify: Starting node(s): $n_start."
+                start)  ocf_log debug "EvmsSCC: Notify: Starting node(s): $n_start."
 			EvmsSCC_start_notify_common
                         ;;
                 esac
@@ -91,35 +110,27 @@ EvmsSCC_notify()
 	esac
 	
 
-	return 0
+	return $OCF_SUCCESS
 }
 
 EvmsSCC_start()
 {   
-
-	local evmsd_started=no
-	while [ "$evmsd_started" = "no" ] ; do
-		if pgrep evmsd ; then
-			evmsd_started=yes
-		else
-			sleep 1
-		fi
-	done
-
 	local n_type="$OCF_RESKEY_CRM_meta_notify_type"
 	local n_op="$OCF_RESKEY_CRM_meta_notify_operation"
 	local n_active="$OCF_RESKEY_CRM_meta_notify_active_uname"
 	local n_stop="$OCF_RESKEY_CRM_meta_notify_stop_uname"
 	local n_start="$OCF_RESKEY_CRM_meta_notify_start_uname"
 
-	#in comment : see above
-        #n_active="$n_active $n_start"
-
         ocf_log debug "EvmsSCC: Start: starting node(s): $n_start."
 	
 	EvmsSCC_start_notify_common
 
-	return 0
+	return $OCF_SUCCESS
+}
+
+EvmsSCC_stop()
+{
+	return $OCF_SUCCESS
 }
 
 EvmsSCC_start_notify_common()
@@ -127,7 +138,6 @@ EvmsSCC_start_notify_common()
 	local n_myself=${HA_CURHOST:-$(uname -n | tr A-Z a-z)}
         ocf_log debug "EvmsSCC: Start_Notify: I am node $n_myself."
 
-	#sanity test
         n_active="$n_active $n_start"
         case " $n_active " in
         *" $n_myself "*) ;;
@@ -136,9 +146,9 @@ EvmsSCC_start_notify_common()
                 ;;
         esac
 
-	#pick a node from the starting list
+	#pick the first node from the starting list
 	#when the cluster boots this will be one of the many booting nodes 
-	#when a node later joins the cluster, this will be the joinging node 
+	#when a node later joins the cluster, this will be the joining node 
         local n_first=$(echo $n_start | cut -d ' ' -f 1)
         ocf_log debug "EvmsSCC: Start_Notify: First node in starting list is $n_first."
 
@@ -147,7 +157,7 @@ EvmsSCC_start_notify_common()
                 evms_activate
         fi
 
-        return 0
+        return $OCF_SUCCESS
 }
 
 # Check the arguments passed to this script
@@ -173,15 +183,13 @@ check_util $CUT
 check_util $EVMSACTIVATE
 
 case $OP in
-  start)		EvmsSCC_start
+  start)	        EvmsSCC_start
 			;;
   notify)		EvmsSCC_notify	
 			;;
-  stop)			
+  stop)			EvmsSCC_stop	
 			;;
   status|monitor)	EvmsSCC_status
-			;;
-  validate-all)		
 			;;
   *)			usage
 			exit $OCF_ERR_UNIMPLEMENTED
