@@ -244,9 +244,12 @@ ocfs2_cleanup() {
 ocfs2_init()
 {
 	# Check & initialize the OCFS2 specific variables.
-	if [ -z "$OCF_RESKEY_CRM_meta_clone" ]; then
-		ocf_log err "ocfs2 must be run as a clone."
-		exit $OCF_ERR_GENERIC
+
+	if [ $OP -ne "stop" ]; then
+		if [ -z "$OCF_RESKEY_CRM_meta_clone" ]; then
+			ocf_log err "ocfs2 must be run as a clone."
+			exit $OCF_ERR_GENERIC
+		fi
 	fi
 
 	if [ $blockdevice = "no" ]; then
@@ -588,6 +591,7 @@ Filesystem_stop()
   flushbufs $DEVICE
   
   if [ "$FSTYPE" = "ocfs2" ]; then
+    ocfs2_init
     ocfs2_cleanup
   fi
   
@@ -736,6 +740,8 @@ case $OP in
   validate-all)		Filesystem_validate_all
 			exit $?
 			;;
+  stop)			Filesystem_stop
+			;;
 esac
 
 case $FSTYPE in
@@ -759,8 +765,6 @@ case $OP in
   start)		Filesystem_start
 			;;
   notify)		Filesystem_notify
-			;;
-  stop)			Filesystem_stop
 			;;
   *)			usage
 			exit $OCF_ERR_UNIMPLEMENTED
