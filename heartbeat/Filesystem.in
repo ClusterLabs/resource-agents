@@ -245,7 +245,7 @@ ocfs2_init()
 {
 	# Check & initialize the OCFS2 specific variables.
 
-	if [ $OP -ne "stop" ]; then
+	if [ $OP != "stop" ]; then
 		if [ -z "$OCF_RESKEY_CRM_meta_clone" ]; then
 			ocf_log err "ocfs2 must be run as a clone."
 			exit $OCF_ERR_GENERIC
