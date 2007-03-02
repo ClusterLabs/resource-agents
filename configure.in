@@ -1065,6 +1065,7 @@ elif test "x${ac_cv_header_net_snmp_net_snmp_config_h}" = "xyes"; then
 		SNMPLIB=`net-snmp-config --libs`
 		SNMPAGENTLIB=`net-snmp-config --agent-libs`
 		# KLUDGE!!
+		# Apparently some versions of SUSE Linux don't include -lwrap in $SNMPAGENTLIB
                 case $SNMPAGENTLIB in
                   *wrap*)	;;
                   *)		SNMPAGENTLIB="$SNMPAGENTLIB -lwrap";;
