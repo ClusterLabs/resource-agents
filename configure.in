@@ -2302,7 +2302,9 @@ else
      if test -z "${enable_crm}"; then
 	enable_crm="no"
      fi
+     dnl None of the following items build without the CRM available
      enable_mgmt=no
+     enable_dopd=no
      enable_cim_provider=no
 fi
 AC_SUBST(CRM_DIR)
