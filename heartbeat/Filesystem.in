@@ -741,6 +741,7 @@ case $OP in
 			exit $?
 			;;
   stop)			Filesystem_stop
+			exit $?
 			;;
 esac
 
