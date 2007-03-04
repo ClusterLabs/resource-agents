@@ -78,14 +78,12 @@ END
 }
 
 Xen_Status() {
-  xm list $DOMAIN_NAME
-  rc=$?
-  if
-    [ $rc -ne 0 ]
-  then
-    return $OCF_NOT_RUNNING
-  else 
+  STATUS=`xm list --long $DOMAIN_NAME | grep status 2>/dev/null`
+  STATUS_NOSPACES=`echo "$STATUS" | awk '{ print $1,$2}'`
+  if [ "$STATUS_NOSPACES" = "(status 2)" ] ; then
     return $OCF_SUCCESS
+  else 
+    return $OCF_NOT_RUNNING
   fi
 }
 
