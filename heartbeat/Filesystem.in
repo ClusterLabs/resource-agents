@@ -182,47 +182,44 @@ END
 #	It's really a bug that you have to do this at all...
 #
 flushbufs() {
-  if
-    [ "$BLOCKDEV" != "" -a -x "$BLOCKDEV" -a "$blockdevice" = "yes" ]
-  then
-    $BLOCKDEV --flushbufs $1
-    return $?
-  fi
-  
-  return 0
+	if [ "$BLOCKDEV" != "" -a -x "$BLOCKDEV" -a "$blockdevice" = "yes" ]; then
+		$BLOCKDEV --flushbufs $1
+		return $?
+	fi
+	return 0
 }
 
 # Take advantage of /proc/mounts if present, use portabel mount command
 # otherwise. Normalize format to "dev mountpoint fstype".
 list_mounts() {
-  if [ -f "/proc/mounts" -a -r "/proc/mounts" ]; then
-    cut -d' ' -f1,2,3 </proc/mounts
-  else
-    $MOUNT | cut -d' ' -f1,3,5
-  fi
+	if [ -f "/proc/mounts" -a -r "/proc/mounts" ]; then
+		cut -d' ' -f1,2,3 </proc/mounts
+	else
+		$MOUNT | cut -d' ' -f1,3,5
+	fi
 }
 
 determine_blockdevice() {
-  if [ $blockdevice == "yes" ]; then
-    return
-  fi
-  
-  # Get the current real device name, if possible.
-  # (specified devname could be -L or -U...)
-  case "$FSTYPE" in
-    nfs|smbfs|cifs) ;;
-    *)	DEVICE=`list_mounts | grep " $MOUNTPOINT " | cut -d' ' -f1`
-    	if [ -b "$DEVICE" ]; then
-      	  blockdevice=yes
+	if [ $blockdevice == "yes" ]; then
+		return
 	fi
-	;;
-  esac
+
+	# Get the current real device name, if possible.
+	# (specified devname could be -L or -U...)
+	case "$FSTYPE" in
+	nfs|smbfs|cifs) ;;
+	*)	DEVICE=`list_mounts | grep " $MOUNTPOINT " | cut -d' ' -f1`
+		if [ -b "$DEVICE" ]; then
+		  blockdevice=yes
+		fi
+		;;
+	esac
 }
 
 # Lists all filesystems potentially mounted under a given path,
 # excluding the path itself.
 list_submounts() {
-  list_mounts | grep " $1/" | cut -d' ' -f2 | sort -r
+	list_mounts | grep " $1/" | cut -d' ' -f2 | sort -r
 }
 
 ocfs2_cleanup() {
@@ -317,8 +314,8 @@ Filesystem_start()
 
 	# See if the device is already mounted.
 	if Filesystem_status >/dev/null 2>&1 ; then
-	    ocf_log info "Filesystem $MOUNTPOINT is already mounted."
-	    return $OCF_SUCCESS
+		ocf_log info "Filesystem $MOUNTPOINT is already mounted."
+		return $OCF_SUCCESS
 	fi
 
 	# Insert SCSI module
@@ -326,51 +323,49 @@ Filesystem_start()
 	# RA magically load a kernel module?
 	$MODPROBE scsi_hostadapter >/dev/null 2>&1
 
-	if [ -z $FSTYPE ]; then
-	    : No $FSTYPE specified, rely on the system has the right file-system support already 
+	if [ -z "$FSTYPE" ]; then
+		: No FSTYPE specified, rely on the system has the right file-system support already 
 	else
-	    # Insert Filesystem module
-	    $MODPROBE $FSTYPE >/dev/null 2>&1
-	    grep -e "$FSTYPE"'$' /proc/filesystems >/dev/null
-	    if [ $? != 0  ] ; then
-		ocf_log err "Couldn't find filesystem $FSTYPE in /proc/filesystems"
-		return $OCF_ERR_ARGS
-	    fi
+		# Insert Filesystem module
+		$MODPROBE $FSTYPE >/dev/null 2>&1
+		grep -e "$FSTYPE"'$' /proc/filesystems >/dev/null
+		if [ $? -ne 0 ] ; then
+			ocf_log err "Couldn't find filesystem $FSTYPE in /proc/filesystems"
+			return $OCF_ERR_ARGS
+		fi
 	fi
 
 	# Check the filesystem & auto repair.  
 	# NOTE: Some filesystem types don't need this step...  Please modify
 	#       accordingly
 
-    if [ $blockdevice = "yes" ]; then
-	if [ ! -b "$DEVICE" ] ; then
-		ocf_log err "Couldn't find device [$DEVICE]. Expected /dev/??? to exist"
-		exit $OCF_ERR_ARGS
-	fi
+	if [ $blockdevice = "yes" ]; then
+		if [ ! -b "$DEVICE" ] ; then
+			ocf_log err "Couldn't find device [$DEVICE]. Expected /dev/??? to exist"
+			exit $OCF_ERR_ARGS
+		fi
 
-	if
-	  case $FSTYPE in
-	    ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs|cifs|smbfs|ocfs2)	false;;
-	    *)				true;;
-	  esac
-        then
-	  ocf_log info  "Starting filesystem check on $DEVICE"
-	  if [ -z $FSTYPE ]; then
-		$FSCK -a $DEVICE
-	  else
-		$FSCK -t $FSTYPE -a $DEVICE
-	  fi
-	
-	  # NOTE: if any errors at all are detected, it returns non-zero
-	  # if the error is >= 4 then there is a big problem
-	  if
-	    [ $? -ge 4 ]
-	  then
-	    ocf_log err "Couldn't sucessfully fsck filesystem for $DEVICE"
-	    return $OCF_ERR_GENERIC	
-	  fi	
+		if
+		  case $FSTYPE in
+		    ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs|cifs|smbfs|ocfs2)	false;;
+		    *)									true;;
+		  esac
+		then
+			ocf_log info  "Starting filesystem check on $DEVICE"
+			if [ -z "$FSTYPE" ]; then
+				$FSCK -a $DEVICE
+			else
+				$FSCK -t $FSTYPE -a $DEVICE
+			fi
+
+			# NOTE: if any errors at all are detected, it returns non-zero
+			# if the error is >= 4 then there is a big problem
+			if [ $? -ge 4 ]; then
+				ocf_log err "Couldn't sucessfully fsck filesystem for $DEVICE"
+				return $OCF_ERR_GENERIC	
+			fi	
+		fi
 	fi
-    fi
 
 	if [ ! -d "$MOUNTPOINT" ] ; then
 		ocf_log err "Couldn't find directory  [$MOUNTPOINT] to use as a mount point"
@@ -379,18 +374,18 @@ Filesystem_start()
 
 	flushbufs $DEVICE
 	# Mount the filesystem.
-	if [ -z $FSTYPE ]; then
-	  $MOUNT $options $DEVICE $MOUNTPOINT
+	if [ -z "$FSTYPE" ]; then
+		$MOUNT $options $DEVICE $MOUNTPOINT
 	else
-	  $MOUNT -t $FSTYPE $options $DEVICE $MOUNTPOINT
+		$MOUNT -t $FSTYPE $options $DEVICE $MOUNTPOINT
         fi
 
         if [ $? -ne 0 ]; then
-	  ocf_log err "Couldn't mount filesystem $DEVICE on $MOUNTPOINT"
-	  if [ "$FSTYPE" = "ocfs2" ]; then
-	  	ocfs2_cleanup
-	  fi
-	  return $OCF_ERR_GENERIC
+		ocf_log err "Couldn't mount filesystem $DEVICE on $MOUNTPOINT"
+		if [ "$FSTYPE" = "ocfs2" ]; then
+			ocfs2_cleanup
+		fi
+		return $OCF_ERR_GENERIC
 	fi
 
 	return 0
@@ -498,7 +493,7 @@ Filesystem_notify() {
 	entry_prefix=$OCFS2_FS_ROOT/
 	for entry in $OCFS2_FS_ROOT/* ; do
 		n_fs="${entry##$entry_prefix}"
-#		ocf_log info "$OCFS2_UUID: Found current node $n_fs"
+		# ocf_log info "$OCFS2_UUID: Found current node $n_fs"
 		case " $n_active " in
 		*" $n_fs "*)
 			# Construct a list of nodes which are present
@@ -528,7 +523,7 @@ Filesystem_notify() {
 	
 	# (2)
 	for entry in $n_active ; do
-#		ocf_log info "$OCFS2_UUID: Expected active node: $entry"
+		# ocf_log info "$OCFS2_UUID: Expected active node: $entry"
 		case " $n_exists " in
 		*" $entry "*)
 			ocf_log info "$OCFS2_UUID: Already active: $entry"
@@ -551,58 +546,58 @@ Filesystem_notify() {
 #
 Filesystem_stop()
 {
-  # See if the device is currently mounted
-  Filesystem_status >/dev/null 2>&1
-  if [ $? -ne $OCF_NOT_RUNNING ]; then
-    # Determine the real blockdevice this is mounted on (if
-    # possible) prior to unmounting.
-    determine_blockdevice
-    
-    # For networked filesystems, there's merit in trying -f:
-    case "$FSTYPE" in
-      nfs|cifs|smbfs) umount_force="-f" ;;
-    esac
-    
-    # Umount all sub-filesystems mounted under $MOUNTPOINT/ too.
-    for SUB in `list_submounts $MOUNTPOINT` $MOUNTPOINT; do
-      ocf_log info "Trying to unmount $MOUNTPOINT"
-      for sig in SIGTERM SIGTERM SIGTERM SIGKILL SIGKILL SIGKILL; do
-      	if $UMOUNT $umount_force $SUB ; then
-          rc=$OCF_SUCCESS
-      	  ocf_log info "unmounted $SUB successfully"
-	  break
-      	else
-          rc=$OCF_ERR_GENERIC
-          ocf_log err "Couldn't unmount $SUB; trying cleanup with $sig"
-          # fuser returns a non-zero return code if none of the
-          # specified files is accessed or in case of a fatal 
-          # error.
-          if $FUSER -$sig -m -k $SUB ; then
-	    ocf_log info "Some processes on $SUB were signalled"
-	  else
-	    ocf_log info "No processes on $SUB were signalled"
-          fi
-          sleep 1
-      	fi
-      done
-      
-      if [ $rc -ne $OCF_SUCCESS ]; then
-      	ocf_log err "Couldn't unmount $SUB, giving up!"
-      fi
-    done
-  else
-    # Already unmounted, wonderful.
-    rc=$OCF_SUCCESS
-  fi
-  
-  flushbufs $DEVICE
-  
-  if [ "$FSTYPE" = "ocfs2" ]; then
-    ocfs2_init
-    ocfs2_cleanup
-  fi
-  
-  return $rc
+	# See if the device is currently mounted
+	Filesystem_status >/dev/null 2>&1
+	if [ $? -eq $OCF_NOT_RUNNING ]; then
+		# Already unmounted, wonderful.
+		rc=$OCF_SUCCESS
+	else
+		# Determine the real blockdevice this is mounted on (if
+		# possible) prior to unmounting.
+		determine_blockdevice
+
+		# For networked filesystems, there's merit in trying -f:
+		case "$FSTYPE" in
+		nfs|cifs|smbfs) umount_force="-f" ;;
+		esac
+
+		# Umount all sub-filesystems mounted under $MOUNTPOINT/ too.
+		for SUB in `list_submounts $MOUNTPOINT` $MOUNTPOINT; do
+			ocf_log info "Trying to unmount $MOUNTPOINT"
+			for sig in SIGTERM SIGTERM SIGTERM SIGKILL SIGKILL SIGKILL; do
+				if $UMOUNT $umount_force $SUB ; then
+					rc=$OCF_SUCCESS
+					ocf_log info "unmounted $SUB successfully"
+					break
+				else
+					rc=$OCF_ERR_GENERIC
+					ocf_log err "Couldn't unmount $SUB; trying cleanup with $sig"
+					# fuser returns a non-zero return code if none of the
+					# specified files is accessed or in case of a fatal 
+					# error.
+					if $FUSER -$sig -m -k $SUB ; then
+						ocf_log info "Some processes on $SUB were signalled"
+					else
+						ocf_log info "No processes on $SUB were signalled"
+					fi
+					sleep 1
+				fi
+			done
+
+			if [ $rc -ne $OCF_SUCCESS ]; then
+				ocf_log err "Couldn't unmount $SUB, giving up!"
+			fi
+		done
+	fi
+
+	flushbufs $DEVICE
+
+	if [ "$FSTYPE" = "ocfs2" ]; then
+		ocfs2_init
+		ocfs2_cleanup
+	fi
+
+	return $rc
 }
 # end of Filesystem_stop
 
@@ -611,14 +606,12 @@ Filesystem_stop()
 #
 Filesystem_status()
 {
-	if
-	  list_mounts | grep -q " $MOUNTPOINT " >/dev/null 2>&1
-        then
-          rc=$OCF_SUCCESS
-          msg="$MOUNTPOINT is mounted (running)"
+	if list_mounts | grep -q " $MOUNTPOINT " >/dev/null 2>&1; then
+		rc=$OCF_SUCCESS
+		msg="$MOUNTPOINT is mounted (running)"
         else
-          rc=$OCF_NOT_RUNNING
-          msg="$MOUNTPOINT is unmounted (stopped)"
+		rc=$OCF_NOT_RUNNING
+		msg="$MOUNTPOINT is unmounted (stopped)"
         fi
 
 	# TODO: For ocfs2, or other cluster filesystems, should we be
@@ -626,8 +619,9 @@ Filesystem_status()
 	# the storage?
 	
         case "$OP" in
-	  status)	ocf_log info "$msg";;
+	status)	ocf_log info "$msg";;
 	esac
+
         return $rc
 }
 # end of Filesystem_status
@@ -640,36 +634,33 @@ Filesystem_status()
 Filesystem_validate_all()
 {
 	if [ -n $MOUNTPOINT -a ! -d $MOUNTPOINT ]; then
-	    ocf_log warn "Mountpoint $MOUNTPOINT does not exist"
+		ocf_log warn "Mountpoint $MOUNTPOINT does not exist"
 	fi
 
-# Check if the $FSTYPE is workable
-# NOTE: Without inserting the $FSTYPE module, this step may be imprecise
-# TODO: This is Linux specific crap.
-	if [ ! -z $FSTYPE ]; then
-	    cut -f2 /proc/filesystems |grep -q ^$FSTYPE$
-	    if [ $? -ne 0 ]; then
-		modpath=/lib/modules/`uname -r` 
-		moddep=$modpath/modules.dep
-		# Do we have $FSTYPE in modules.dep?
-		cut -d' ' -f1 $moddep |grep -q "^$modpath.*$FSTYPE\.k\?o:$"
+	# Check if the $FSTYPE is workable
+	# NOTE: Without inserting the $FSTYPE module, this step may be imprecise
+	# TODO: This is Linux specific crap.
+	if [ ! -z "$FSTYPE" ]; then
+		cut -f2 /proc/filesystems |grep -q ^$FSTYPE$
 		if [ $? -ne 0 ]; then
-		    ocf_log info "It seems we do not have $FSTYPE support"
+			modpath=/lib/modules/`uname -r` 
+			moddep=$modpath/modules.dep
+			# Do we have $FSTYPE in modules.dep?
+			cut -d' ' -f1 $moddep |grep -q "^$modpath.*$FSTYPE\.k\?o:$"
+			if [ $? -ne 0 ]; then
+				ocf_log info "It seems we do not have $FSTYPE support"
+			fi
 		fi
-	    fi
 	fi
 
-#TODO: How to check the $options ?
-
+	#TODO: How to check the $options ?
 	return $OCF_SUCCESS
 }
 
 # Check the arguments passed to this script
-if
-  [ $# -ne 1 ]
-then
-  usage
-  exit $OCF_ERR_ARGS
+if [ $# -ne 1 ]; then
+	usage
+	exit $OCF_ERR_ARGS
 fi
 
 # Check the OCF_RESKEY_ environment variables...
@@ -683,27 +674,27 @@ OP=$1
 
 # These operations do not require instance parameters
 case $OP in
-  meta-data)		meta_data
-			exit $OCF_SUCCESS
-			;;
-  usage)		usage
-			exit $OCF_SUCCESS
-			;;
+meta-data)	meta_data
+		exit $OCF_SUCCESS
+		;;
+usage)		usage
+		exit $OCF_SUCCESS
+		;;
 esac
 
 blockdevice=no
 case $DEVICE in
-  "")	ocf_log err "Please set OCF_RESKEY_device to the device to be managed"
+"")	ocf_log err "Please set OCF_RESKEY_device to the device to be managed"
 	exit $OCF_ERR_ARGS
 	;;
-  -*) # Oh... An option to mount instead...  Typically -U or -L
+-*) # Oh... An option to mount instead...  Typically -U or -L
 	;;
-  [^/]*:/*)	# An NFS filesystem specification...
+[^/]*:/*)	# An NFS filesystem specification...
 	;;
-  //[^/]*/*)	# An SMB filesystem specification...
+//[^/]*/*)	# An SMB filesystem specification...
 	;;
-  *)	if [ ! -b "$DEVICE"  -a "X$OP" != Xstart ] ; then
-	  ocf_log warn "Couldn't find device [$DEVICE]. Expected /dev/??? to exist"
+*)	if [ ! -b "$DEVICE"  -a "X$OP" != Xstart ] ; then
+		ocf_log warn "Couldn't find device [$DEVICE]. Expected /dev/??? to exist"
 	fi
 	blockdevice=yes
 	;;
@@ -714,17 +705,17 @@ esac
 
 # It is possible that OCF_RESKEY_directory has one or even multiple trailing "/".
 # But the output of `mount` and /proc/mounts do not.
-if [ -z $OCF_RESKEY_directory ]; then
-    if [ X$OP = "Xstart" -o $blockdevice = "no" ]; then
-	ocf_log err "Please specify the directory"
-	exit $OCF_ERR_ARGS 
-    fi
+if [ -z "$OCF_RESKEY_directory" ]; then
+	if [ X$OP = "Xstart" -o $blockdevice = "no" ]; then
+		ocf_log err "Please specify the directory"
+		exit $OCF_ERR_ARGS 
+	fi
 else
-    MOUNTPOINT=$(echo $OCF_RESKEY_directory | sed 's/\/*$//')
-    : ${MOUNTPOINT:=/}
-    # At this stage, $MOUNTPOINT does not contain trailing "/" unless it is "/"
-    # TODO: / mounted via Filesystem sounds dangerous. On stop, we'll
-    # kill the whole system. Is that a good idea?
+	MOUNTPOINT=$(echo $OCF_RESKEY_directory | sed 's/\/*$//')
+	: ${MOUNTPOINT:=/}
+	# At this stage, $MOUNTPOINT does not contain trailing "/" unless it is "/"
+	# TODO: / mounted via Filesystem sounds dangerous. On stop, we'll
+	# kill the whole system. Is that a good idea?
 fi
 	
 # Check to make sure the utilites are found
@@ -741,41 +732,40 @@ fi
 # These operations do not require the clone checking + OCFS2
 # initialization.
 case $OP in
-  status|monitor)	Filesystem_status
-			exit $?
-			;;
-  validate-all)		Filesystem_validate_all
-			exit $?
-			;;
-  stop)			Filesystem_stop
-			exit $?
-			;;
+status|monitor)	Filesystem_status
+		exit $?
+		;;
+validate-all)	Filesystem_validate_all
+		exit $?
+		;;
+stop)		Filesystem_stop
+		exit $?
+		;;
 esac
 
 case $FSTYPE in
-  ocfs2)
-	ocfs2_init
-  ;;
-  nfs)
-	: # this is kind of safe too
-  ;;
-  *) 
-	if [ -n "$OCF_RESKEY_CRM_meta_clone" ]; then
+ocfs2)	ocfs2_init
+	;;
+nfs)	: # this is kind of safe too
+	;;
+*)	if [ -n "$OCF_RESKEY_CRM_meta_clone" ]; then
 		ocf_log err "DANGER! $FSTYPE on $DEVICE is NOT cluster-aware!"
 		ocf_log err "DO NOT RUN IT AS A CLONE!"
 		ocf_log err "Politely refusing to proceed to avoid data corruption."
 		exit $OCF_ERR_GENERIC	
 	fi
-  ;;
+	;;
 esac
 
 case $OP in
-  start)		Filesystem_start
-			;;
-  notify)		Filesystem_notify
-			;;
-  *)			usage
-			exit $OCF_ERR_UNIMPLEMENTED
-			;;
+start)	Filesystem_start
+	;;
+notify)	Filesystem_notify
+	;;
+*)	usage
+	exit $OCF_ERR_UNIMPLEMENTED
+	;;
 esac
 exit $?
+
+
