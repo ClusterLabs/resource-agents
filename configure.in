@@ -81,6 +81,8 @@ case "$host_os" in
 dnl anything?
 darwin*)	
 		AC_DEFINE_UNQUOTED(ON_DARWIN, 1, Compiling for Darwin platform)
+  		LIBS="$LIBS -L${prefix}/lib"
+  		CFLAGS="$CFLAGS -I${prefix}/include"
 		REBOOT_OPTIONS="-f"
 		;;
 esac
