@@ -452,6 +452,13 @@ Filesystem_notify() {
 		start)
 			# These are about to become active; prepare to
 			# communicate with them.
+			# Duplicate removal - start can contain nodes
+			# already on the active list, confusing the
+			# script later on:
+			for UNAME in "$n_active"; do
+				n_start="${n_start//$UNAME/}"
+			done
+			# Merge pruned lists again:
 			n_active="$n_active $n_start"
 			;;
 		esac
@@ -474,7 +481,7 @@ Filesystem_notify() {
 		esac
 		;;
 	esac
-	
+
 	ocf_log info "$OCFS2_UUID: post-processed active: $n_active"
 
 	local n_myself=${HA_CURHOST:-$(uname -n | tr '[A-Z]' '[a-z]')}
