@@ -223,8 +223,10 @@ fence_xen_domain(fence_xvm_args_t *args)
 	if (args->auth != AUTH_NONE || args->hash != HASH_NONE) {
 		key_len = read_key_file(args->key_file, key, sizeof(key));
 		if (key_len < 0) {
-			printf("Could not read key file\n");
-			return 1;
+			printf("Could not read %s; trying without "
+			       "authentication\n", args->key_file);
+			args->auth = AUTH_NONE;
+			args->hash = HASH_NONE;
 		}
 	}
 
