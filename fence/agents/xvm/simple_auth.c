@@ -374,7 +374,7 @@ read_key_file(char *file, char *key, size_t max_len)
 	int nread, remain = max_len;
 	char *p;
 
-	dprintf(3, "Reading in key file %s into %p (%d len)",
+	dprintf(3, "Reading in key file %s into %p (%d len)\n",
 		file, key, (int)max_len);
 	fd = open(file, O_RDONLY);
 	if (fd < 0) {
