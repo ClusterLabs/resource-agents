@@ -1570,6 +1570,10 @@ AC_ARG_ENABLE([snmp],
 [  --enable-snmp Enable building of SNMP related functionality.
                           [default=yes]])
 
+AC_ARG_ENABLE([snmp-subagent],
+[  --enable-snmp Enable building of our SNMP subagent (lots of dependencies).
+                          [default=try]])
+
 
 CC_WARNINGS=""
 
