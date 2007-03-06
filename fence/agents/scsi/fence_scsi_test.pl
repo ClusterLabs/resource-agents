@@ -177,7 +177,7 @@ sub print_results
 
 sub print_usage
 {
-    print "\nUsage: scsi_test [-c|-s] [-d] [-h]\n\n";
+    print "\nUsage: fence_scsi_test [-c|-s] [-d] [-h]\n\n";
 
     print "Options:\n\n";
 
