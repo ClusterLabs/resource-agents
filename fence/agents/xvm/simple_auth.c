@@ -80,7 +80,7 @@ sha_sign(fence_req_t *req, void *key, size_t key_len)
 
 	HASH_Begin(h);
 	HASH_Update(h, key, key_len);
-	HASH_Update(h, (void *)req, sizeof(req));
+	HASH_Update(h, (void *)req, sizeof(*req));
 	HASH_End(h, hash, &rlen, sizeof(hash));
 	HASH_Destroy(h);
 
@@ -123,7 +123,7 @@ sha_verify(fence_req_t *req, void *key, size_t key_len)
 
 	HASH_Begin(h);
 	HASH_Update(h, key, key_len);
-	HASH_Update(h, (void *)req, sizeof(req));
+	HASH_Update(h, (void *)req, sizeof(*req));
 	HASH_End(h, hash, &rlen, sizeof(hash));
 	HASH_Destroy(h);
 
@@ -404,8 +404,8 @@ read_key_file(char *file, char *key, size_t max_len)
 		remain -= nread;
 	}
 
-	dprintf(3, "Actual key length = %d bytes", (int)max_len-remain);
 	close(fd);	
+	dprintf(3, "Actual key length = %d bytes", (int)max_len-remain);
 	
-	return 0;
+	return (int)(max_len - remain);
 }
