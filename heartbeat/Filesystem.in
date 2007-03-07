@@ -182,7 +182,7 @@ END
 #	It's really a bug that you have to do this at all...
 #
 flushbufs() {
-	if [ "$BLOCKDEV" != "" -a -x "$BLOCKDEV" -a "$blockdevice" = "yes" ]; then
+	if [ -z "$BLOCKDEV" -a "$BLOCKDEV" != "/dev/null" -a -x "$BLOCKDEV" -a "$blockdevice" = "yes" ]; then
 		$BLOCKDEV --flushbufs $1
 		return $?
 	fi
@@ -340,7 +340,7 @@ Filesystem_start()
 	#       accordingly
 
 	if [ $blockdevice = "yes" ]; then
-		if [ ! -b "$DEVICE" ] ; then
+		if [ "$DEVICE" != "/dev/null" -a ! -b "$DEVICE" ] ; then
 			ocf_log err "Couldn't find device [$DEVICE]. Expected /dev/??? to exist"
 			exit $OCF_ERR_ARGS
 		fi
@@ -422,8 +422,8 @@ Filesystem_notify() {
 	if [ "$FSTYPE" != "ocfs2" ]; then
 		# One of the cases which shouldn't occur; it should have
 		# been caught much earlier. Still, you know ...
-		ocf_log err "$DEVICE: Notification received for non-ocfs2 mount."
-		return $OCF_ERR_GENERIC
+		ocf_log warn "$DEVICE: Notification received for non-ocfs2 mount."
+		return $OCF_ERR_UNIMPLEMENTED
 	fi
 
 	local n_type="$OCF_RESKEY_CRM_meta_notify_type"
@@ -692,6 +692,9 @@ case $DEVICE in
 [^/]*:/*)	# An NFS filesystem specification...
 	;;
 //[^/]*/*)	# An SMB filesystem specification...
+	;;
+/dev/null)	# Special case for BSC
+	blockdevice=yes
 	;;
 *)	if [ ! -b "$DEVICE"  -a "X$OP" != Xstart ] ; then
 		ocf_log warn "Couldn't find device [$DEVICE]. Expected /dev/??? to exist"
