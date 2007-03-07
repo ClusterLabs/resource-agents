@@ -107,10 +107,10 @@ rather, specify the base interface only.
 <content type="string" default="eth0"/>
 </parameter>
 
-<parameter name="netmask">
+<parameter name="cidr_netmask">
 <longdesc lang="en">
-The netmask for the interface dot-quad notation or CIDR format. (ie,
-either 255.255.255.0 or 24)
+The netmask for the interface in CIDR format. (ie, 24), or in
+dotted quad notation  255.255.255.0).
 
 If unspecified, the script will also try to determine this from the
 routing table.
@@ -249,12 +249,14 @@ lvs_restore_loopback() {
     ifname=`cat "$VLDIR/$ipaddr"`
     ocf_log info "Restoring loopback IP Address $ipaddr on $ifname."
     
-    NICINFO=`$FINDIF $ipaddr/32/$ifname`
-    if [ $? -eq 0 ]; then
+    CMD="OCF_RESKEY_cidr_netmask=32 OCF_RESKEY_ip=$1 OCF_RESKEY_nic=$ifname $FINDIF"
+    if
+      NICINFO=`eval $CMD`
+    then
 	netmask_text=`echo "$NICINFO" | cut -f2`
 	broadcast=`echo "$NICINFO" | cut -f3`
     else
-	echo "ERROR: $IFCMD failed (rc=$rc)"
+	echo "ERROR: $CMD failed (rc=$rc)"
 	exit $OCF_ERR_GENERIC
     fi
     
@@ -591,7 +593,7 @@ ip_start() {
     fi
 
     add_interface "$OCF_RESKEY_ip" "$OCF_RESKEY_nic" "$NIC_unique" \
-		 "$OCF_RESKEY_netmask" "$OCF_RESKEY_broadcast"
+		 "$OCF_RESKEY_cidr_netmask" "$OCF_RESKEY_broadcast"
     rc=$?
     if [ $rc != 0 ]; then
 	ocf_log err "Could not add $OCF_RESKEY_ip to $OCF_RESKEY_nic: $rc"
@@ -757,43 +759,11 @@ ip_validate_all() {
             ;;
     esac
 
-    #
-    # $FINDIF can NOT deal with the condition of empty intermediate parameters. 
-    #
-    IFCMD="$FINDIF $OCF_RESKEY_ip"
-    # Note: We had a version out there for a while which renamed the
-    # parameter to cidr_netmask. So, don't remove this aliasing code!
-    if [ -n "$OCF_RESKEY_cidr_netmask" -o -n "$OCF_RESKEY_netmask" ]; then
-	if [ -n "$OCF_RESKEY_netmask" ]; then
-	    IFCMD="$IFCMD/$OCF_RESKEY_netmask"
-	else
-	    IFCMD="$IFCMD/$OCF_RESKEY_cidr_netmask"
-	fi
-	if [ -n "$OCF_RESKEY_nic" ]; then
-	    IFCMD="$IFCMD/$OCF_RESKEY_nic"
-	    if [ -n "$OCF_RESKEY_broadcast" ]; then
-		IFCMD="$IFCMD/$OCF_RESKEY_broadcast"
-	    fi
-	elif [ x$OCF_RESKEY_broadcast != x ]; then
-	    ocf_log err "Configured broadcast value is ignored when no value for nic is specified"
-	    OCF_RESKEY_broadcast=""
-	fi
-    else
-	if [ x$OCF_RESKEY_broadcast != x ]; then
-	    ocf_log err "Configured broadcast value is ignored when no value for netmask is specified"
-	    OCF_RESKEY_broadcast=""
-	fi
-	if [ x$OCF_RESKEY_nic != x ]; then
-	    ocf_log err "Configured nic value is ignored when no value for netmask is specified"
-	    OCF_RESKEY_nic=""
-	fi
-    fi
-
-    NICINFO=`$IFCMD`
+    NICINFO=`$FINDIF`
     rc=$?
 
     if [ $rc != 0 ]; then
-	ocf_log err "$IFCMD failed [rc=$rc]."
+	ocf_log err "$FINDIF failed [rc=$rc]."
 	return $OCF_ERR_GENERIC
     fi
     
@@ -808,12 +778,15 @@ ip_validate_all() {
     fi
 
     tmp=`echo "$NICINFO" | cut -f2 | cut -d ' ' -f2`
-    if [ "x$OCF_RESKEY_netmask" = "x" -a "x$OCF_RESKEY_cidr_netmask" = "x" ]; then
-	ocf_log debug "Using calculated netmask for ${OCF_RESKEY_ip}: $tmp"
-
+    if
+      [ -z "$OCF_RESKEY_cidr_netmask" ]
+    then
+      ocf_log debug "Using calculated netmask for ${OCF_RESKEY_ip}: $tmp"
+      OCF_RESKEY_cidr_netmask=$tmp; export OCF_RESKEY_cidr_netmask
     elif [ "x$OCF_RESKEY_netmask" != "x$tmp" ]; then
 	ocf_log info "Using calculated netmask for ${OCF_RESKEY_ip}: $tmp"
     fi
+
     # Always use the calculated version becuase it might have been specified 
     #  using CIDR notation which not every system accepts
     OCF_RESKEY_netmask=$tmp
@@ -847,6 +820,15 @@ if [ "${OCF_RESKEY_lvs_support}" = "true" \
     OCF_RESKEY_lvs_support=1
 else
     OCF_RESKEY_lvs_support=0
+fi
+
+# Note: We had a version out there for a while which used
+# netmask instead of cidr_netmask. So, don't remove this aliasing code!
+if
+  [ ! -z "$OCF_RESKEY_netmask" -a -z "$OCF_RESKEY_cidr_netmask" ]
+then
+  OCF_RESKEY_cidr_netmask=$OCF_RESKEY_netmask
+  export OCF_RESKEY_cidr_netmask
 fi
 
 case $1 in
