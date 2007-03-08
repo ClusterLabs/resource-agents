@@ -2609,6 +2609,19 @@ if test "xyes" = "x$enable_libc_malloc" -o "x1" = "x$enable_libc_malloc"; then
 fi
 
 dnl **********************************************************************
+dnl 'AWK' had been determined via 'aclocal.m4' as the simple name, using
+dnl the current PATH (i.e. in the context of 'configure').
+dnl
+dnl Things within heartbeat will use 'AWK', but from a different context,
+dnl so we should determine, and substitute, the full path.
+dnl
+dnl Note: Even that may have a flaw, e.g. if 'configure' finds (say) 'gawk',
+dnl which we here convert to '/path/to/gawk', but the run-time machine lacks it.
+dnl We won't worry about that for now.
+dnl (David Lee; March 2007)
+AC_PATH_PROGS([AWK], $AWK)
+
+dnl **********************************************************************
 dnl	Enable optional, experimental directories here...
 dnl
 XPERIMENTALDIRS=""
