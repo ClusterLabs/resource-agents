@@ -240,7 +240,7 @@ main(int argc, char **argv)
 		return 1;
 	}
 
-	while ((opt = getopt(argc, argv, "lSue:d:r:n:m:vR:s:qh?")) != EOF) {
+	while ((opt = getopt(argc, argv, "lSue:M:d:r:n:m:vR:s:qh?")) != EOF) {
 		switch (opt) {
 		case 'l':
 			return do_lock();
