@@ -161,7 +161,7 @@ printf("       %s -r <group> -m <member> Relocate <group> [to <member>]\n",
 	       name);
 printf("       %s -M <group> -m <member> Migrate <group> [to <member>]\n",
 	       name);
-printf("                                 (e.g. for live migration of Xen VMs)\n");
+printf("                                 (e.g. for live migration of VMs)\n");
 printf("       %s -q                     Quiet operation\n", name);
 printf("       %s -R <group>             Restart a group in place.\n",
        name);
