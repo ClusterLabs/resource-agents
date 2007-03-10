@@ -60,23 +60,6 @@ void * act_dup(resource_act_t *acts);
 time_t get_time(char *action, int depth, resource_node_t *node);
 
 
-const char *res_ops[] = {
-	"start",
-	"stop",
-	"status",
-	"resinfo",
-	"restart",
-	"reload",
-	"condrestart",		/* Unused */
-	"recover",		
-	"condstart",
-	"condstop",
-	"monitor",
-	"meta-data",		/* printenv */
-	"validate-all",
-	"migrate"
-};
-
 
 const char *ocf_errors[] = {
 	"success",				// 0
@@ -97,12 +80,11 @@ const char *ocf_errors[] = {
 const char *
 ocf_strerror(int ret)
 {
-	if (ret < OCF_RA_MAX)
+	if (ret >= 0 && ret < OCF_RA_MAX)
 		return ocf_errors[ret];
 
 	return "unspecified";
 }
-
 
 
 /**
@@ -360,7 +342,7 @@ res_exec(resource_node_t *node, const char *op, const char *arg, int depth)
 #endif
 #if 0
 		printf("Exec of script %s, action %s type %s\n",
-			res->r_rule->rr_agent, res_ops[op],
+			res->r_rule->rr_agent, agent_op_str(op),
 			res->r_rule->rr_type);
 #endif
 
@@ -705,7 +687,7 @@ _do_child_levels(resource_node_t **tree, resource_t *first, void *ret,
 
 #if 0
 			printf("%s children of %s type %s (level %d)\n",
-			       res_ops[op],
+			       agent_op_str(op),
 			       node->rn_resource->r_rule->rr_type,
 			       rule->rr_childtypes[x].rc_name, l);
 #endif
@@ -748,7 +730,7 @@ _do_child_default_level(resource_node_t **tree, resource_t *first,
 
 		/*
 		printf("%s children of %s type %s (default level)\n",
-		       res_ops[op],
+		       agent_op_str(op),
 		       node->rn_resource->r_rule->rr_type,
 		       rule->rr_childtypes[x].rc_name);
 		 */
@@ -856,7 +838,7 @@ do_status(resource_node_t *node)
 		return 0;
 
        node->rn_actions[idx].ra_last = now;
-	if ((x = res_exec(node, res_ops[RS_STATUS], NULL,
+	if ((x = res_exec(node, agent_op_str(RS_STATUS), NULL,
                          node->rn_actions[idx].ra_depth)) == 0)
 		return 0;
 
@@ -864,7 +846,7 @@ do_status(resource_node_t *node)
 		return x;
 
 	/* Strange/failed status. Try to recover inline. */
-	if ((x = res_exec(node, res_ops[RS_RECOVER], NULL, 0)) == 0)
+	if ((x = res_exec(node, agent_op_str(RS_RECOVER), NULL, 0)) == 0)
 		return 0;
 
 	return x;
@@ -969,7 +951,7 @@ _res_op(resource_node_t **tree, resource_t *first,
 		me = !first || (node->rn_resource == first);
 
 		/*
-		printf("begin %s: %s %s [0x%x]\n", res_ops[op],
+		printf("begin %s: %s %s [0x%x]\n", agent_op_str(op),
 		       node->rn_resource->r_rule->rr_type,
 		       primary_attr_value(node->rn_resource),
 		       node->rn_flags);
@@ -1014,7 +996,7 @@ _res_op(resource_node_t **tree, resource_t *first,
 		if (me && (op == RS_START)) {
 			node->rn_flags &= ~RF_NEEDSTART;
 
-			rv = res_exec(node, res_ops[op], NULL, 0);
+			rv = res_exec(node, agent_op_str(op), NULL, 0);
 			if (rv != 0) {
 				node->rn_state = RES_FAILED;
 				return rv;
@@ -1044,7 +1026,7 @@ _res_op(resource_node_t **tree, resource_t *first,
 		/* Stop should occur after children have stopped */
 		if (me && (op == RS_STOP)) {
 			node->rn_flags &= ~RF_NEEDSTOP;
-			rv = res_exec(node, res_ops[op], NULL, 0);
+			rv = res_exec(node, agent_op_str(op), NULL, 0);
 
 			if (rv != 0) {
 				node->rn_state = RES_FAILED;
@@ -1058,7 +1040,7 @@ _res_op(resource_node_t **tree, resource_t *first,
 		}
 
 		/*
-		printf("end %s: %s %s\n", res_ops[op],
+		printf("end %s: %s %s\n", agent_op_str(op),
 		       node->rn_resource->r_rule->rr_type,
 		       primary_attr_value(node->rn_resource));
 		 */

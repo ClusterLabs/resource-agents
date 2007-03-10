@@ -36,7 +36,6 @@
 #define cn_svccount cn_address.cna_address[0] /* Theses are uint8_t size */
 #define cn_svcexcl  cn_address.cna_address[1]
 
-extern char *res_ops[];
 static int config_version = 0;
 static resource_t *_resources = NULL;
 static resource_rule_t *_rules = NULL;
@@ -734,9 +733,10 @@ group_op(char *groupname, int op)
 int
 group_migrate(char *groupname, int target)
 {
+	resource_node_t *rn = NULL, *tmp;
 	resource_t *res;
 	char *tgt_name;
-	int ret = RG_ENOSERVICE;
+	int ret = RG_ENOSERVICE, x = 0;
 	cluster_member_list_t *membership;
 
 	membership = member_list();
@@ -746,15 +746,26 @@ group_migrate(char *groupname, int target)
 	pthread_rwlock_rdlock(&resource_lock);
 	
 	tgt_name = memb_id_to_name(membership, target);
-	res = find_root_by_ref(&_resources, groupname);
-	if (!res)
-		goto out;
-
 	if (!tgt_name) {
 		ret = RG_EINVAL;
 		goto out;
 	}
-	ret = res_exec(res, res_ops[RG_MIGRATE], tgt_name);
+
+	res = find_root_by_ref(&_resources, groupname);
+	if (!res)
+		goto out;
+
+	list_do(&_tree, tmp) {
+		if (tmp->rn_resource == res) {
+			rn = tmp;
+			break;
+		}
+	} while (!list_done(&_tree, tmp));
+
+	if (!rn)
+		goto out;
+
+	ret = res_exec(rn, agent_op_str(RS_MIGRATE), tgt_name);
 
 out:
 	pthread_rwlock_unlock(&resource_lock);
@@ -1009,7 +1020,8 @@ q_status_checks(void *arg)
 		}
 
 		if (svcblk.rs_owner != my_id() ||
-		    svcblk.rs_state != RG_STATE_STARTED)
+		    (svcblk.rs_state != RG_STATE_STARTED &&
+		     svcblk.rs_state != RG_STATE_MIGRATE))
 			continue;
 
 		rt_enqueue_request(rg, RG_STATUS,

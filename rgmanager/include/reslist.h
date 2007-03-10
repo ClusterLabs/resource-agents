@@ -40,25 +40,6 @@
 #define RES_STARTED	(1)
 #define RES_FAILED	(2)
 
-/*
-   Resource operations
- */
-#define RS_START	(0)
-#define RS_STOP		(1)
-#define RS_STATUS	(2)
-#define RS_RESINFO	(3)
-#define RS_RESTART	(4)
-#define RS_RELOAD	(5)
-#define RS_CONDRESTART  (6)
-#define	RS_RECOVER	(7)
-#define RS_CONDSTART	(8)	/** Start if flagged with RF_NEEDSTART */
-#define RS_CONDSTOP	(9)	/** STOP if flagged with RF_NEEDSTOP */
-#define RS_MONITOR	(10)
-#define RS_META_DATA	(11)
-#define RS_VALIDATE	(12)
-#define RS_MIGRATE	(13)
-
-
 #ifndef SHAREDIR
 #define SHAREDIR		"/usr/share/rgmanager"
 #endif

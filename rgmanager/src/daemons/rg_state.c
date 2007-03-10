@@ -866,6 +866,10 @@ svc_migrate(char *svcName, int target)
 	rg_unlock(&lockp);
        
 	ret = group_migrate(svcName, target);
+
+	if (ret)
+		svc_fail(svcName);
+
 	return ret;
 }
 

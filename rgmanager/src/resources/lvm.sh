@@ -163,7 +163,7 @@ lv_status()
 	#
 	# Check if device is active
 	#
-	if [[ ! $(lvs -o attr --noheadings vg/mirror) =~ ....a. ]]; then
+	if [[ ! $(lvs -o attr --noheadings $lv_path) =~ ....a. ]]; then
 	    return $OCF_ERR_GENERIC
 	fi
 

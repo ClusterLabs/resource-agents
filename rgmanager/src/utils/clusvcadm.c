@@ -265,13 +265,13 @@ main(int argc, char **argv)
 			break;
 		case 'r':
 			/* RELOCATE */
-			actionstr = "trying to relocate";
+			actionstr = "relocate";
 			action = RG_RELOCATE;
 			svcname = optarg;
 			break;
 		case 'M':
 			/* MIGRATE */
-			actionstr = "trying to migrate";
+			actionstr = "migrate";
 			action = RG_MIGRATE;
 			svcname = optarg;
 			break;
@@ -359,9 +359,9 @@ main(int argc, char **argv)
 		msg_open(MSG_SOCKET, 0, RG_PORT, &ctx, 5);
 	} else {
 		if (!svctarget)
-			printf("Trying to relocate %s", svcname);
+			printf("Trying to %s %s", actionstr, svcname);
 		else 
-			printf("Trying to relocate %s to %s", svcname,
+			printf("Trying to %s %s to %s", actionstr, svcname,
 			       nodename);
 		printf("...");
 		fflush(stdout);
@@ -392,12 +392,13 @@ main(int argc, char **argv)
 
 	swab_SmMessageSt(&msg);
 	printf("%s\n", rg_strerror(msg.sm_data.d_ret));
-
 	if (msg.sm_data.d_ret == RG_ERUN)
 		return 0;
+	if (msg.sm_data.d_ret)
+		return msg.sm_data.d_ret;
 	
 	switch (action) {
-	case RG_MIGRATE:
+	/*case RG_MIGRATE:*/
 	case RG_RELOCATE:
 	case RG_START:
 	case RG_ENABLE:

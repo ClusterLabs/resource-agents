@@ -163,7 +163,7 @@ resgroup_thread_main(void *arg)
 	char myname[256];
 	resthread_t *myself;
 	request_t *req;
-	uint32_t ret = RG_FAIL, error = 0;
+	int ret = RG_EFAIL, error = 0;
 
 	rg_inc_threads();
 
@@ -274,7 +274,7 @@ resgroup_thread_main(void *arg)
 				/*
 				 * Bad news. 
 				 */
-				ret = RG_FAIL;
+				ret = RG_EFAIL;
 			}
 			break;
 
@@ -289,7 +289,7 @@ resgroup_thread_main(void *arg)
 			if (error == 0)
 				ret = RG_SUCCESS;
 			else
-				ret = RG_FAIL;
+				ret = RG_EFAIL;
 			break;
 
 		case RG_CONDSTOP:
@@ -321,7 +321,7 @@ resgroup_thread_main(void *arg)
 				/*
 				 * Bad news. 
 				 */
-				ret = RG_FAIL;
+				ret = RG_EFAIL;
 			}
 
 			break;
@@ -340,7 +340,7 @@ resgroup_thread_main(void *arg)
 				/*
 				 * Bad news. 
 				 */
-				ret = RG_FAIL;
+				ret = RG_EFAIL;
 			}
 
 			pthread_mutex_lock(&my_queue_mutex);
@@ -368,7 +368,7 @@ resgroup_thread_main(void *arg)
 				/*
 				 * Bad news. 
 				 */
-				ret = RG_FAIL;
+				ret = RG_EFAIL;
 			}
 
 			break;
@@ -393,7 +393,7 @@ resgroup_thread_main(void *arg)
 				/*
 				 * Bad news. 
 				 */
-				ret = RG_FAIL;
+				ret = RG_EFAIL;
 			}
 
 			break;

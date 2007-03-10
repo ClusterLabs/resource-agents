@@ -111,7 +111,7 @@ test_func(int argc, char **argv)
 	dep_t *depends = NULL;
 	resource_rule_t *rulelist = NULL, *currule;
 	resource_t *reslist = NULL, *curres;
-	resource_node_t *tree = NULL;
+	resource_node_t *tree = NULL, *tmp, *rn = NULL;
 	int ccsfd, ret = 0, rules = 0;
 
 	fprintf(stderr,"Running in test mode.\n");
@@ -179,6 +179,13 @@ test_func(int argc, char **argv)
 		goto out;
 	}
 
+	list_do(&tree, tmp) {
+		if (tmp->rn_resource == curres) {
+			rn = tmp;
+			break;
+		}
+	} while (!list_done(&tree, tmp));
+
 	if (!strcmp(argv[1], "start")) {
 		printf("Starting %s...\n", argv[3]);
 
@@ -197,6 +204,23 @@ test_func(int argc, char **argv)
 			goto out;
 		}
 		printf("Stop of %s complete\n", argv[3]);
+		goto out;
+	} else if (!strcmp(argv[1], "migrate")) {
+		printf("Migrating %s to %s...\n", argv[3], argv[4]);
+
+	#if 0
+		if (!group_migratory(curres)) {
+			printf("No can do\n");
+			ret = -1;
+			goto out;
+		}
+	#endif
+
+		if (res_exec(rn, "migrate", argv[4], 0)) {
+			ret = -1;
+			goto out;
+		}
+		printf("Migration of %s complete\n", argv[3]);
 		goto out;
 	} else if (!strcmp(argv[1], "status")) {
 		printf("Checking status of %s...\n", argv[3]);

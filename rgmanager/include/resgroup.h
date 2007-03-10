@@ -81,9 +81,7 @@ typedef struct {
 #define RG_MIGRATE	  22
 #define RG_NONE		  999
 
-extern const char *rg_req_strings[];
-
-#define rg_req_str(req) (rg_req_strings[req])
+const char *rg_req_str(int req);
 
 int handle_relocate_req(char *svcName, int request, int preferred_target,
 			int *new_owner);
@@ -107,9 +105,8 @@ int handle_start_remote_req(char *svcName, int req);
 
 #define DEFAULT_CHECK_INTERVAL		10
 
-extern const char *rg_state_strings[];
-
-#define rg_state_str(state) (rg_state_strings[state - RG_STATE_BASE])
+const char *rg_state_str(int val);
+const char *agent_op_str(int val);
 
 int rg_status(const char *resgroupname);
 int group_op(char *rgname, int op);
@@ -175,7 +172,7 @@ int my_id(void);
 #define RG_YES		1
 #define RG_NO		2
 
-char *rg_strerror(int val);
+const char *rg_strerror(int val);
 
 
 /*

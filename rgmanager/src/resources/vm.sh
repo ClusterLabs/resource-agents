@@ -367,14 +367,15 @@ migrate()
 {
 	declare target=$1
 
-	# XXX TODO
-	return 1
+	xm migrate $OCF_RESKEY_name $target
+	return $?
 }
 
 #
 # A Resource group is abstract, but the OCF RA API doesn't allow for abstract
 # resources, so here it is.
 #
+
 case $1 in
 	start)
 		start
