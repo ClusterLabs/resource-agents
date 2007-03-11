@@ -51,6 +51,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			Delay		\
 			drbd		\
 			EvmsSCC		\
+			Evmsd		\
 			Filesystem	\
 			ICP		\
 			IPsrcaddr	\
