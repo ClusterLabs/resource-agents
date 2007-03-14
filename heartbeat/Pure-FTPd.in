@@ -24,8 +24,7 @@
 
 . @hb_libdir@/ocf-shellfuncs
 
-HA_VARRUNDIR=@localstatedir@/run/@HB_PKG@
-PIDFILE=$HA_VARRUNDIR/rsctmp/pure-ftpd-${OCF_RESOURCE_INSTANCE}.pid
+PIDFILE=@HA_VARRUNHBRSCDIR@/pure-ftpd-${OCF_RESOURCE_INSTANCE}.pid
 USAGE="Usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
 
 ##########################################################################

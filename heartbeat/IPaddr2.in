@@ -63,14 +63,14 @@
 
 . @hb_libdir@/ocf-shellfuncs
 
-HA_VARRUNDIR=@localstatedir@/run/@HB_PKG@
+HA_VARRUNHBRSCDIR=@HA_VARRUNHBRSCDIR@
 IP2UTIL="@IP2UTIL@"
 IPTABLES="@IPTABLES@"
 MODPROBE="@MODPROBE@"
 SENDARP=$HA_BIN/send_arp
 FINDIF=$HA_BIN/findif
-VLDIR=$HA_VARRUNDIR/rsctmp/IPaddr
-SENDARPPIDDIR=$HA_VARRUNDIR/rsctmp/send_arp
+VLDIR=$HA_VARRUNHBRSCDIR/IPaddr
+SENDARPPIDDIR=$HA_VARRUNHBRSCDIR/send_arp
 
 #######################################################################
 

@@ -61,7 +61,7 @@ How long to delay before each action.
 Location to store the resource state in
 </longdesc>
 <shortdesc lang="en">State file</shortdesc>
-<content type="string" default="@localstatedir@/run/@HB_PKG@/rsctmp/Dummy-{OCF_RESOURCE_INSTANCE}.state" />
+<content type="string" default="@HA_VARRUNHBRSCDIR@/Dummy-{OCF_RESOURCE_INSTANCE}.state" />
 </parameter>
 
 </parameters>
@@ -127,7 +127,7 @@ dummy_validate() {
 }
 
 : ${OCF_RESKEY_delay=1}
-: ${OCF_RESKEY_state=@localstatedir@/run/@HB_PKG@/rsctmp/Dummy-${OCF_RESOURCE_INSTANCE}.state}
+: ${OCF_RESKEY_state=@HA_VARRUNHBRSCDIR@/Dummy-${OCF_RESOURCE_INSTANCE}.state}
 
 case $__OCF_ACTION in
 meta-data)	meta_data

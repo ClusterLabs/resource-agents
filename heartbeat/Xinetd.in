@@ -16,9 +16,8 @@
 #	  OCF parameters are as below:
 #		OCF_RESKEY_service
 
-VARRUN=@localstatedir@/run
-ETC=@sysconfdir@
-XPIDFILE=$VARRUN/xinetd.pid
+HA_VARRUNDIR=@HA_VARRUNDIR@
+XPIDFILE=$HA_VARRUNDIR/xinetd.pid
 
 #######################################################################
 # Initialization:
@@ -426,8 +425,8 @@ then
 fi
 
 service=$OCF_RESKEY_service
-RCFILE=$ETC/xinetd.d/$service
-PIDFILE=$VARRUN/xup$service
+RCFILE=@sysconfdir@/xinetd.d/$service
+PIDFILE=$HA_VARRUNDIR/xup$service
 
 # Make sure the OCF_RESKEY_service is a valid xinetd service name
 if [ ! -f $RCFILE ]; then

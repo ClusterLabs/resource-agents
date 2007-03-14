@@ -300,6 +300,10 @@ HA_VARRUNHBDIR="$HA_VARRUNDIR/${HB_PKG}"
 AC_SUBST(HA_VARRUNHBDIR)
 AC_DEFINE_UNQUOTED(HA_VARRUNHBDIR,"$HA_VARRUNHBDIR", var run heartbeat directory)
 
+HA_VARRUNHBRSCDIR="$HA_VARRUNHBDIR/rsctmp"
+AC_SUBST(HA_VARRUNHBRSCDIR)
+AC_DEFINE_UNQUOTED(HA_VARRUNHBRSCDIR,"$HA_VARRUNHBRSCDIR", var run heartbeat rsctmp directory)
+
 dnl Test the default first (priority) and last (to make sure some value is set)
 AC_MSG_CHECKING(for the location of the lock directory)
 for HA_VARLOCKDIR in ${localstatedir}/lock ${localstatedir}/spool/lock ${localstatedir}/spool/locks ${localstatedir}/lock
