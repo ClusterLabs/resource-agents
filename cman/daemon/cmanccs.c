@@ -313,14 +313,17 @@ static int verify_nodename(int cd, char *nodename)
 		free(str);
 	}
 
-
 	/* The cluster.conf names may not be related to uname at all,
-	   they may match a hostname on some network interface */
+	   they may match a hostname on some network interface.
+	   NOTE: This is IPv4 only */
 	error = getifaddrs(&ifa_list);
 	if (error)
 		return -1;
 
 	for (ifa = ifa_list; ifa; ifa = ifa->ifa_next) {
+
+		/* Restore this */
+		strcpy(nodename2, nodename);
 		sa = ifa->ifa_addr;
 		if (!sa || sa->sa_family != AF_INET)
 			continue;
@@ -341,11 +344,12 @@ static int verify_nodename(int cd, char *nodename)
 			goto out;
 		}
 
-		/* See if it's the IP address that's in cluster.conf */
-		error = getnameinfo(sa, sizeof(*sa), nodename2,
-				    sizeof(nodename2), NULL, 0, NI_NUMERICHOST);
-		if (error)
-			goto out;
+		/* truncate this name and try again */
+
+		dot = strstr(nodename2, ".");
+		if (!dot)
+			continue;
+		*dot = '\0';
 
 		str = NULL;
 		memset(path, 0, 256);
@@ -358,12 +362,11 @@ static int verify_nodename(int cd, char *nodename)
 			goto out;
 		}
 
-		/* truncate this name and try again */
-
-		dot = strstr(nodename2, ".");
-		if (!dot)
-			continue;
-		*dot = '\0';
+		/* See if it's the IP address that's in cluster.conf */
+		error = getnameinfo(sa, sizeof(*sa), nodename2,
+				    sizeof(nodename2), NULL, 0, NI_NUMERICHOST);
+		if (error)
+			goto out;
 
 		str = NULL;
 		memset(path, 0, 256);
