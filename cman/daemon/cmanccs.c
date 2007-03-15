@@ -244,7 +244,6 @@ static int join(void)
 	return 0;
 }
 
-
 static int verify_nodename(int cd, char *nodename)
 {
 	char path[MAX_PATH_LEN];
@@ -328,6 +327,23 @@ static int verify_nodename(int cd, char *nodename)
 
 		error = getnameinfo(sa, sizeof(*sa), nodename2,
 				    sizeof(nodename2), NULL, 0, 0);
+		if (error)
+			goto out;
+
+		str = NULL;
+		memset(path, 0, 256);
+		sprintf(path, NODE_NAME_PATH_BYNAME, nodename2);
+
+		error = ccs_get(cd, path, &str);
+		if (!error) {
+			free(str);
+			strcpy(nodename, nodename2);
+			goto out;
+		}
+
+		/* See if it's the IP address that's in cluster.conf */
+		error = getnameinfo(sa, sizeof(*sa), nodename2,
+				    sizeof(nodename2), NULL, 0, NI_NUMERICHOST);
 		if (error)
 			goto out;
 
