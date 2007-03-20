@@ -162,7 +162,7 @@ clu_ls_unlock(dlm_lshandle_t ls, struct dlm_lksb *lksb)
 int
 clu_close_lockspace(dlm_lshandle_t ls, const char *name)
 {
-        return dlm_release_lockspace(name, ls, 0);
+        return dlm_release_lockspace(name, ls, 1);
 }
 
 
