@@ -16,10 +16,9 @@
 # Initialization:
 
 . @hb_libdir@/ocf-shellfuncs
-. @sysconfdir@/ha.d/shellfuncs
+. @HA_HBCONF_DIR@/shellfuncs
 
 #######################################################################
-HA_VARRUNDIR=@localstatedir@/run/@HB_PKG@
 CMD=`basename $0`
 
 iptables=@IPTABLES@

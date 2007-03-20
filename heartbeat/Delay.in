@@ -29,8 +29,8 @@
 
 #######################################################################
 
-HA_VARRUNDIR=@localstatedir@/run/@HB_PKG@
-VLFILE="$HA_VARRUNDIR/rsctmp/Delay-${OCF_RESOURCE_INSTANCE}"
+HA_VARRUNHBRSCDIR=@HA_VARRUNHBRSCDIR@
+VLFILE="$HA_VARRUNHBRSCDIR/Delay-${OCF_RESOURCE_INSTANCE}"
 
 usage() {
   cat <<-!

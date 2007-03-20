@@ -33,7 +33,7 @@
 #  OCF_RESKEY_statusurl
 #  OCF_RESKEY_options
 
-VARRUN=@localstatedir@/run
+HA_VARRUNDIR=@HA_VARRUNDIR@
 
 . @hb_libdir@/ocf-shellfuncs
 
@@ -201,7 +201,7 @@ GetParams() {
   case $PidFile in
     /*)	;;
     [[:alnum:]]*)	PidFile=$ServerRoot/$PidFile;;
-    *)	PidFile=$VARRUN/${httpd_basename}.pid;;
+    *)	PidFile=$HA_VARRUNDIR/${httpd_basename}.pid;;
   esac
 #  case "$PORT" in
 #    [0-9]*)	;;

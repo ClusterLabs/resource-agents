@@ -40,9 +40,8 @@
 unset LC_ALL; export LC_ALL
 unset LANGUAGE; export LANGUAGE
 
-HA_D=@sysconfdir@/ha.d
 __SCRIPT_NAME=`basename $0`
-. ${HA_D}/shellfuncs
+. @HA_HBCONF_DIR@/shellfuncs
 
 . @hb_libdir@/ocf-returncodes
 

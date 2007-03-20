@@ -50,9 +50,8 @@
 . @hb_libdir@/ocf-shellfuncs
 
 SENDARP=$HA_BIN/send_arp
-HA_VARRUNDIR=@localstatedir@/run/@HB_PKG@
-VLDIR=$HA_VARRUNDIR/rsctmp/IPaddr
-SENDARPPIDDIR=$HA_VARRUNDIR/rsctmp/send_arp
+VLDIR=@HA_VARRUNHBRSC@/IPaddr
+SENDARPPIDDIR=@HA_VARRUNHBRSCDIR@/send_arp
 
 BASEIP="$OCF_RESKEY_ip"
 INTERFACE="$OCF_RESKEY_nic"

@@ -16,8 +16,7 @@
 #
 # License:  GNU General Public License (GPL)
 
-VARRUN=@localstatedir@/run
-WINPOPUPFILE=$VARRUN/WinPopup
+WINPOPUPFILE=@HA_VARRUNDIR@/WinPopup
 #######################################################################
 # Initialization:
 

@@ -32,13 +32,14 @@
 . @hb_libdir@/ocf-shellfuncs
 
 AWK=@AWK@
-HA_VARRUNDIR=@localstatedir@/run/@HB_PKG@
+HA_VARRUNHBRSCDIR=@HA_VARRUNHBRSCDIR@
+HA_HBCONF_DIR=@HA_HBCONF_DIR@
 IFCONFIG=@IFCONFIG@
 IFCONFIG_A_OPT=@IFCONFIG_A_OPT@
 SENDARP=$HA_BIN/send_arp
 FINDIF=$HA_BIN/findif
-VLDIR=$HA_VARRUNDIR/rsctmp/IPaddr
-SENDARPPIDDIR=$HA_VARRUNDIR/rsctmp/send_arp
+VLDIR=$HA_VARRUNHBRSCDIR/IPaddr
+SENDARPPIDDIR=$HA_VARRUNHBRSCDIR/send_arp
 SENDARPPIDFILE="$SENDARPPIDDIR/send_arp-$OCF_RESKEY_ip"
 ROUTE=@ROUTE@
 USAGE="usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
@@ -51,8 +52,7 @@ unset LANGUAGE; export LANGUAGE
 LC_ALL=C; export LC_ALL
 LC_MESSAGES=C; export LC_MESSAGES
 
-HA_D=@sysconfdir@/ha.d
-. ${HA_D}/shellfuncs
+. $HA_HBCONF_DIR/shellfuncs
 
 SYSTYPE="`uname -s`"
 case "$SYSTYPE" in

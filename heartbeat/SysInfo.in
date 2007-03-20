@@ -33,7 +33,7 @@
 
 #######################################################################
 
-HA_VARRUNHBDIR=@HA_VARRUNHBDIR@
+HA_VARRUNHBRSCDIR=@HA_VARRUNHBRSCDIR@
 
 meta_data() {
 	cat <<END
@@ -335,7 +335,7 @@ if [ $# -ne 1 ]; then
     exit $OCF_ERR_ARGS
 fi
 
-: ${OCF_RESKEY_pidfile:="$HA_VARRUNHBDIR/rsctmp/SysInfo-${OCF_RESOURCE_INSTANCE}"}
+: ${OCF_RESKEY_pidfile:="$HA_VARRUNHBRSCDIR/SysInfo-${OCF_RESOURCE_INSTANCE}"}
 : ${OCF_RESKEY_clone:="0"}
 if [ x != x${OCF_RESKEY_delay} ]; then
     OCF_RESKEY_delay="-d ${OCF_RESKEY_delay}"

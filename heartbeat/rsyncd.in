@@ -27,7 +27,6 @@
 
 . @hb_libdir@/ocf-shellfuncs
 
-HA_VARRUNDIR=@localstatedir@/run/@HB_PKG@
 USAGE="Usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
 
 ##########################################################################

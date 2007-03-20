@@ -19,7 +19,7 @@
 . @hb_libdir@/ocf-shellfuncs
 
 #######################################################################
-PIDFILE=@localstatedir@/run/heartbeat-bell
+PIDFILE=@HA_VARRUNDIR@/heartbeat-bell
 #For testing
 #PIDFILE=/tmp/heartbeat-bell
 

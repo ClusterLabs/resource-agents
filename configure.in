@@ -300,6 +300,10 @@ HA_VARRUNHBDIR="$HA_VARRUNDIR/${HB_PKG}"
 AC_SUBST(HA_VARRUNHBDIR)
 AC_DEFINE_UNQUOTED(HA_VARRUNHBDIR,"$HA_VARRUNHBDIR", var run heartbeat directory)
 
+HA_VARRUNHBRSCDIR="$HA_VARRUNHBDIR/rsctmp"
+AC_SUBST(HA_VARRUNHBRSCDIR)
+AC_DEFINE_UNQUOTED(HA_VARRUNHBRSCDIR,"$HA_VARRUNHBRSCDIR", var run heartbeat rsctmp directory)
+
 dnl Test the default first (priority) and last (to make sure some value is set)
 AC_MSG_CHECKING(for the location of the lock directory)
 for HA_VARLOCKDIR in ${localstatedir}/lock ${localstatedir}/spool/lock ${localstatedir}/spool/locks ${localstatedir}/lock
@@ -1001,6 +1005,7 @@ dnl	some optional STONITH plugins...
 dnl
 AC_CHECK_HEADERS(vacmclient_api.h)
 AC_CHECK_HEADERS(curl/curl.h)
+AC_CHECK_HEADERS(openhpi/SaHpi.h)
 
 AC_MSG_CHECKING(For libOpenIPMI version 2 or greater)
 AC_TRY_COMPILE([#include <OpenIPMI/ipmiif.h>], 
@@ -1035,6 +1040,7 @@ dnl	you're a dolt for not having installed the libs ;-)
 dnl
 AM_CONDITIONAL(USE_VACM, test "$ac_cv_header_vacmclient_api_h" = yes)
 AM_CONDITIONAL(USE_DRAC3, test "$ac_cv_header_curl_curl_h" = yes -a "$ac_cv_header_libxml_xpath_h" = yes)
+AM_CONDITIONAL(USE_OPENHPI, test "$ac_cv_header_openhpi_SaHpi_h" = yes)
 
 dnl
 dnl    SNMP checks
@@ -2859,6 +2865,7 @@ resources/Makefile						\
 	resources/OCF/db2					\
 	resources/OCF/drbd					\
 	resources/OCF/EvmsSCC					\
+	resources/OCF/Evmsd					\
 	resources/OCF/Filesystem				\
 	resources/OCF/ICP					\
 	resources/OCF/IPaddr					\
