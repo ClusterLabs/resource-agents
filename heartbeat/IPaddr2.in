@@ -384,8 +384,9 @@ find_interface() {
 delete_interface () {
 	ipaddr="$1"
 	iface="$2"
+	netmask="$3"
 
-	CMD="$IP2UTIL -f inet addr delete $ipaddr dev $iface"
+	CMD="$IP2UTIL -f inet addr delete $ipaddr/$netmask dev $iface"
 
 	ocf_log info "$CMD"
 	$CMD
@@ -487,7 +488,7 @@ remove_conflicting_loopback() {
 		ocf_log err "Could not save conflicting loopback $ifname." \
 		       "it will not be restored."
 	fi
-	delete_interface "$ipaddr" "$ifname"
+	delete_interface "$ipaddr" "$ifname" "$netmask"
 	# Forcibly remove the route (if it exists) to the loopback.
 	delete_route "$ipaddr" "$ifname"
 }       
@@ -683,7 +684,7 @@ ip_stop() {
 	fi
 	
 	if [ "$ip_del_if" = "yes" ]; then
-		delete_interface $BASEIP $NIC
+		delete_interface $BASEIP $NIC $NETMASK
 		if [ $? -ne 0 ]; then
 			exit $OCF_ERR_GENERIC
 		fi
