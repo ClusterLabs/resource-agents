@@ -15,14 +15,13 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 include ${top_srcdir}/make/defines.mk
 INCLUDE += -I $(top_srcdir)/include -I $(top_srcdir)/../cman/lib -I $(top_srcdir)/../ccs/lib -I $(top_srcdir)/../dlm/lib
-
-CFLAGS+= -g -I${incdir}
+INCLUDE += -I${incdir}
 
 CFLAGS+= -g -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
-
 CFLAGS+= -DPACKAGE_VERSION=\"${RELEASE}\"
 
 LDFLAGS+= -L${libdir} -L../../../cman/lib -L../../../ccs/lib -lcman -lpthread -ldl -lncurses -L../clulib -lclulib -lccs
+
 TARGETS=clubufflush clufindhostname clustat clusvcadm clulog clunfslock
 
 all: ${TARGETS}
@@ -35,22 +34,22 @@ uninstall:
 	${UNINSTALL} $(TARGETS) ${sbindir}
 
 cluarp: cluarp.o
-	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS) $(LDFLAGS)
+	$(CC) -o $@ $^ $(LDFLAGS)
 
 clulog: clulog.o
-	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS) $(LDFLAGS)
+	$(CC) -o $@ $^ $(LDFLAGS)
 
 clubufflush: clubufflush.o
-	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS) $(LDFLAGS)
+	$(CC) -o $@ $^ $(LDFLAGS)
 
 clufindhostname: clufindhostname.o
-	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS)
+	$(CC) -o $@ $^ $(LDFLAGS)
 
 clustat: clustat.o
-	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS) $(LDFLAGS)
+	$(CC) -o $@ $^ $(LDFLAGS)
 
 clusvcadm: clusvcadm.o
-	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS) $(LDFLAGS)
+	$(CC) -o $@ $^ $(LDFLAGS)
 
 clunfslock: clunfslock.sh
 	cp clunfslock.sh clunfslock

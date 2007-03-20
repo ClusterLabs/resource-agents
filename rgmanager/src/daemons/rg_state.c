@@ -47,7 +47,7 @@ int set_rg_state(char *servicename, rg_state_t *svcblk);
 int get_rg_state(char *servicename, rg_state_t *svcblk);
 void get_recovery_policy(char *rg_name, char *buf, size_t buflen);
 int check_depend_safe(char *servicename);
-int group_migratory(char *servicename);
+int group_migratory(char *servicename, int lock);
 
 
 int 
@@ -815,7 +815,7 @@ svc_migrate(char *svcName, int target)
 	rg_state_t svcStatus;
 	int ret;
 
-	if (!group_migratory(svcName))
+	if (!group_migratory(svcName, 1))
 		return RG_EINVAL;
 
 	if (rg_lock(svcName, &lockp) < 0) {
@@ -867,8 +867,15 @@ svc_migrate(char *svcName, int target)
        
 	ret = group_migrate(svcName, target);
 
-	if (ret)
+	if (ret == -1 || ret > 0) {
+		/* XXX run svc_status again here to see if it's still
+		   healthy; if it is, don't FAIL it; it could be that
+		   the target node simply died; in this case, set status
+		   back to started */
+		/* if ret > 0 { svc_status... */
 		svc_fail(svcName);
+		ret = RG_EFAIL;
+	}
 
 	return ret;
 }
@@ -942,6 +949,13 @@ svc_status(char *svcName)
 	clulog(LOG_NOTICE, "%s is now running locally\n", svcName);
 
 	return 0;
+}
+
+
+int
+svc_status_inquiry(char *svcName)
+{
+	return group_op(svcName, RG_STATUS);
 }
 
 

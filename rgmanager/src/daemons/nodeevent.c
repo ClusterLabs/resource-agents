@@ -137,7 +137,7 @@ node_fenced(int nodeid)
 {
 	cman_handle_t ch;
 	int fenced = 0;
-	int fence_time;
+	uint64_t fence_time;
 
 	ch = cman_init(NULL);
 	if (cman_get_fenceinfo(ch, nodeid, &fence_time, &fenced, NULL) < 0)

@@ -108,6 +108,9 @@ int handle_start_remote_req(char *svcName, int req);
 const char *rg_state_str(int val);
 const char *agent_op_str(int val);
 
+int eval_groups(int local, uint32_t nodeid, int nodeStatus);
+int group_migrate(char *groupname, int target);
+
 int rg_status(const char *resgroupname);
 int group_op(char *rgname, int op);
 void rg_init(void);
@@ -118,6 +121,7 @@ int svc_stop(char *svcName, int error);
 int svc_status(char *svcName);
 int svc_disable(char *svcName);
 int svc_fail(char *svcName);
+int svc_migrate(char *svcName, int target);
 int rt_enqueue_request(const char *resgroupname, int request,
 		       msgctx_t *resp_ctx,
        		       int max, uint32_t target, int arg0, int arg1);

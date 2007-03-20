@@ -129,7 +129,7 @@ fod_t *
 fod_get_domain(int ccsfd, char *base, int idx, fod_t **domains)
 {
 	fod_t *fod;
-	fod_node_t *fodn, *curr;
+	fod_node_t *fodn;
 	char xpath[256];
 	char *ret;
 	int x = 1;

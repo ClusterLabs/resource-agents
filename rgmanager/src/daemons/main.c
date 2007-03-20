@@ -48,7 +48,6 @@ int daemon_init(char *);
 int init_resource_groups(int);
 void kill_resource_groups(void);
 void set_my_id(int);
-int eval_groups(int, int, int);
 void flag_shutdown(int sig);
 void hard_exit(void);
 int send_rg_states(msgctx_t *, int);

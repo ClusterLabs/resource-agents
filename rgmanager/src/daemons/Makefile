@@ -15,14 +15,11 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 include ${top_srcdir}/make/defines.mk
 INCLUDE += -I $(top_srcdir)/include -I $(top_srcdir)/../cman/lib -I $(top_srcdir)/../ccs/lib -I $(top_srcdir)/../dlm/lib
-
-CFLAGS+= -g -I${incdir} -I/usr/include/libxml2 -L${libdir}
+INCLUDE += -I${incdir} -I/usr/include/libxml2
 
 CFLAGS+= -g -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
 
-CFLAGS+= -L ../clulib 
-
-LDFLAGS+= -lclulib -lxml2 -lpthread -ldl -L../../../cman/lib -L../../../ccs/lib -L../../../dlm/lib
+LDFLAGS+= -L ../clulib -L../../../cman/lib -L../../../ccs/lib -L../../../dlm/lib -L${libdir} -lclulib -lxml2 -lpthread -ldl 
 TARGETS=clurgmgrd clurmtabd rg_test
 
 all: ${TARGETS}
@@ -43,7 +40,7 @@ clurgmgrd: rg_thread.o rg_locks.o main.o groups.o  \
 		resrules.o restree.o fo_domain.o nodeevent.o \
 		rg_event.o watchdog.o rg_state.o \
 	        depends.o ../clulib/libclulib.a
-	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS) $(LDFLAGS) -lccs -lcman -lpthread -ldlm
+	$(CC) -o $@ $^ $(LDFLAGS) -lccs -lcman -lpthread -ldlm
 
 #
 # Our test program links against the local allocator so that
@@ -61,15 +58,15 @@ clurgmgrd: rg_thread.o rg_locks.o main.o groups.o  \
 #
 rg_test: rg_locks-noccs.o test-noccs.o reslist-noccs.o \
 		resrules-noccs.o restree-noccs.o fo_domain-noccs.o depends-noccs.o
-	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS) -llalloc $(LDFLAGS) -lccs -lcman
-	
+	$(CC) -o $@ $^ -llalloc $(LDFLAGS) -lccs -lcman
+
 dtest: rg_locks-noccs.o dtest-noccs.o reslist-noccs.o \
 		resrules.o restree-noccs.o fo_domain-noccs.o depends-noccs.o
-	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS) -llalloc $(LDFLAGS) -lccs -lcman \
+	$(CC) -o $@ $^ -llalloc $(LDFLAGS) -lccs -lcman \
 		-lreadline -ltermcap
 
 clurmtabd: clurmtabd.o clurmtabd_lib.o
-	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS) $(LDFLAGS)
+	$(CC) -o $@ $^ $(LDFLAGS)
 
 clean:
 	rm -f *.o $(TARGETS) rg_test

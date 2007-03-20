@@ -159,7 +159,7 @@ printf("       %s -e <group> -m <member> Enable <group>"
        " on <member>\n", name);
 printf("       %s -r <group> -m <member> Relocate <group> [to <member>]\n",
 	       name);
-printf("       %s -M <group> -m <member> Migrate <group> [to <member>]\n",
+printf("       %s -M <group> -m <member> Migrate <group> to <member>\n",
 	       name);
 printf("                                 (e.g. for live migration of VMs)\n");
 printf("       %s -q                     Quiet operation\n", name);
@@ -307,6 +307,11 @@ main(int argc, char **argv)
 
 	if (!svcname) {
 		usage(basename(argv[0]));
+		return 1;
+	}
+
+	if (action == RG_MIGRATE && !node_specified) {
+		printf("Migration requires a target cluster member\n");
 		return 1;
 	}
 

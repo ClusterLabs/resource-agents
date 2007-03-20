@@ -617,17 +617,17 @@ group_event(char *rg_name, uint32_t state, int owner)
   Tells us if a resource group can be migrated.
  */
 int
-group_migratory(char *groupname)
+group_migratory(char *groupname, int lock)
 {
 	resource_node_t *rn;
 	resource_t *res;
-	int migrate = 0, x;
+	int migrate = 0, x, ret = 0;
 
-	pthread_rwlock_rdlock(&resource_lock);
+	if (lock)
+		pthread_rwlock_rdlock(&resource_lock);
 
 	res = find_root_by_ref(&_resources, groupname);
 	if (!res) {
-		pthread_rwlock_unlock(&resource_lock);
 		/* Nonexistent or non-TL RG cannot be migrated */
 		return 0;
 	}
@@ -640,26 +640,26 @@ group_migratory(char *groupname)
 		}
 	}
 
-	if (!migrate) {
-		pthread_rwlock_unlock(&resource_lock);
-		/* resource rule missing 'migrate' command */
-		return 0;
-	}
+	if (!migrate)
+		goto out_unlock;
 
 	list_do(&_tree, rn) {
 		if (rn->rn_resource == res && rn->rn_child) {
-			pthread_rwlock_unlock(&resource_lock);
 			/* TL service w/ children cannot be migrated */
-			return 0;
+			goto out_unlock;
 		}
 	} while (!list_done(&_tree, rn));
 
-	pthread_rwlock_unlock(&resource_lock);
 
 	/* Ok, we have a migrate option to the resource group,
 	   the resource group has no children, and the resource
 	   group exists.  We're all good */
-	return 1;
+	ret = 1;
+
+out_unlock:
+	if (lock)
+		pthread_rwlock_unlock(&resource_lock);
+	return ret;
 }
 
 
@@ -736,24 +736,40 @@ group_migrate(char *groupname, int target)
 	resource_node_t *rn = NULL, *tmp;
 	resource_t *res;
 	char *tgt_name;
-	int ret = RG_ENOSERVICE, x = 0;
+	int ret = RG_ENOSERVICE;
 	cluster_member_list_t *membership;
 
+	if (target <= 0) {
+		clulog(LOG_WARNING,
+		       "Illegal node ID %d during migrate operation\n",
+		       target);
+		return RG_EINVAL;
+	}
+
 	membership = member_list();
-	if (!membership)
+	if (!membership) {
+		clulog(LOG_ERR, "Unable to determine membership during "
+		       "migrate operation\n");
 		return RG_EFAIL;
+	}
 
 	pthread_rwlock_rdlock(&resource_lock);
 	
 	tgt_name = memb_id_to_name(membership, target);
 	if (!tgt_name) {
+		clulog(LOG_WARNING, "Node ID %d not in membership during "
+		       "migrate operation\n", target);
 		ret = RG_EINVAL;
 		goto out;
 	}
 
 	res = find_root_by_ref(&_resources, groupname);
-	if (!res)
+	if (!res) {
+		clulog(LOG_WARNING,
+		       "Unable to find '%s' in resource list during"
+		       "migrate operation\n", groupname);
 		goto out;
+	}
 
 	list_do(&_tree, tmp) {
 		if (tmp->rn_resource == res) {
@@ -762,10 +778,24 @@ group_migrate(char *groupname, int target)
 		}
 	} while (!list_done(&_tree, tmp));
 
-	if (!rn)
+	if (!rn) {
+		clulog(LOG_WARNING,
+		       "Unable to find '%s' it top level of resource "
+		       "tree during migrate operation\n", groupname);
 		goto out;
-
-	ret = res_exec(rn, agent_op_str(RS_MIGRATE), tgt_name);
+	}
+	
+	clulog(LOG_NOTICE, "Migrating %s to %s\n", groupname, tgt_name);
+	ret = res_exec(rn, agent_op_str(RS_MIGRATE), tgt_name, 0);
+	if (ret == 0) {
+		clulog(LOG_NOTICE,
+		       "Migration of %s to %s completed\n",
+		       groupname, tgt_name);
+	} else {
+		clulog(LOG_ERR, 
+		       "Migration of %s to %s failed; return code %d\n",
+		       groupname, tgt_name, ret);
+	}
 
 out:
 	pthread_rwlock_unlock(&resource_lock);

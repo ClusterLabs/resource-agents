@@ -377,7 +377,6 @@ _find_state(char *name, dep_rs_t *sl, int slen)
 static int
 rs_running(char *name, dep_rs_t *sl, int slen)
 {
-	int x;
 	dep_rs_t *rs = NULL;
 	
 	if (name) {
@@ -985,8 +984,7 @@ int
 dep_check_requires(dep_t **deps, dep_rs_t *state, dep_rs_t *states, int slen)
 {
 	dep_t *dep;
-	dep_node_t *dn;
-	int errors = 0, x, a;
+	int errors = 0, a;
 	
 	/* Check to see if anything depends on this (not-running) resource */
 	list_for(deps, dep, a) {
@@ -2381,7 +2379,7 @@ int
 dep_apply_trans(dep_t **deps, dep_rs_t *states, int slen, dep_op_t **op_list)
 {
 	dep_op_t *op;
-	int ops = 0, a, x;
+	int ops = 0, x;
 
 	list_for(op_list, op, ops) {
 		for (x = 0; x < slen; x++) {
@@ -2414,8 +2412,7 @@ reverse_list(dep_op_t **oplist)
 {
 	dep_op_t *new_ol = NULL;
 	dep_op_t *op;
-	int x, found;
-	
+
 	if (!*oplist)
 		return;
 	
@@ -2433,8 +2430,7 @@ insert_after_stops(dep_op_t **oplist, dep_op_t *newop)
 {
 	dep_op_t *new_ol = NULL;
 	dep_op_t *op;
-	int x, found;
-	
+
 	if (!*oplist)
 		return;
 	
@@ -2463,7 +2459,7 @@ dep_check_operation(char *res, int operation, int target,
 		    dep_t **deps, dep_rs_t *_states,
 		    int slen, int *nodes, int nlen, dep_op_t **oplist)
 {
-	int x, ret = -1;
+	int ret = -1;
 	dep_rs_t *state = NULL, *states = NULL;
 	dep_op_t *newop = NULL;
 	int start_score, score;
