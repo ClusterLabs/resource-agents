@@ -216,7 +216,7 @@ This is the number of cycles a node must miss in order to be declared dead.
 \fItko_up\fP\fB="\fPX\fB"\fP
 .in 12
 This is the number of cycles a node must be seen in order to be declared
-online.  Default is \fBfloor(tko/2)\fP.
+online.  Default is \fBfloor(tko/3)\fP.
 
 .in 9
 \fIupgrade_wait\fP\fB="\fP2\fB"\fP
@@ -229,8 +229,9 @@ default is 2.  This can not be set to 0, and should not exceed \fBtko\fP.
 \fImaster_wait\fP\fB="\fPX\fB"\fP
 .in 12
 This is the number of cycles a node must wait for votes before declaring
-itself master after making a bid.  Default is \fBfloor(tko/3)\fP. 
-This can not be less than 2 and should not exceed \fBtko\fP.
+itself master after making a bid.  Default is \fBfloor(tko/2)\fP. 
+This can not be less than 2, must be greater than tko_up, and should not
+exceed \fBtko\fP.
 
 .in 9
 \fIvotes\fP\fB="\fP3\fB"\fP

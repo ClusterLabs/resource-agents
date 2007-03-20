@@ -381,22 +381,26 @@ check_transitions(qd_ctx *ctx, node_info_t *ni, int max, memb_mask_t mask)
   Returns
  */
 int
-master_exists(qd_ctx *ctx, node_info_t *ni, int max, int *low_id)
+master_exists(qd_ctx *ctx, node_info_t *ni, int max, int *low_id, int *count)
 {
 	int x;
 	int masters = 0;
 	int ret = 0;
 
+	if (count)
+		*count = 0;
 	*low_id = ctx->qc_my_id;
 
 	for (x = 0; x < max; x++) {
 
 		/* See if this one's a master */
 		if (ni[x].ni_state >= S_RUN &&
-		    ni[x].ni_status.ps_state == S_MASTER) {
+		    ni[x].ni_status.ps_state == S_MASTER &&
+		    ni[x].ni_status.ps_nodeid != ctx->qc_my_id) {
 			if (!ret)
 				ret = ni[x].ni_status.ps_nodeid;
 			++masters;
+			continue;
 		}
 
 		/* See if it's us... */
@@ -424,11 +428,8 @@ master_exists(qd_ctx *ctx, node_info_t *ni, int max, int *low_id)
 			*low_id = ni[x].ni_status.ps_nodeid;
 	}
 
-	if (masters > 1) {
-		clulog(LOG_CRIT,
-		       "Critical Error: More than one master found!\n");
-		/* XXX Handle this how? */
-	}
+	if (count)
+		*count = masters;
 	/*
  	else if (masters == 1) {
 		printf("Node %d is the master\n", ret);
@@ -849,7 +850,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 {
 	disk_msg_t msg = {0, 0, 0};
 	int low_id, bid_pending = 0, score, score_max, score_req,
-	    upgrade = 0;
+	    upgrade = 0, count;
 	memb_mask_t mask, master_mask;
 	struct timeval maxtime, oldtime, newtime, diff, sleeptime, interval;
 
@@ -921,11 +922,26 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 				       score, score_max, score_req);
 				ctx->qc_status = S_RUN;
 				upgrade = ctx->qc_upgrade_wait;
+				bid_pending = 0;
+				msg.m_msg = M_NONE;
+				++msg.m_seq;
 			}
 		}
 
 		/* Find master */
-		ctx->qc_master = master_exists(ctx, ni, max, &low_id);
+		ctx->qc_master = master_exists(ctx, ni, max, &low_id, &count);
+
+		/* Resolve master conflict, if one exists */
+		if (count > 1 && ctx->qc_status == S_MASTER) {
+			clulog(LOG_WARNING, "Master conflict: abdicating\n");
+
+			/* Handle just like a recent upgrade */
+			ctx->qc_status = S_RUN;
+			upgrade = ctx->qc_upgrade_wait;
+			bid_pending = 0;
+			msg.m_msg = M_NONE;
+			++msg.m_seq;
+		}
 
 		/* Figure out what to do based on what we know */
 		if (!ctx->qc_master &&
@@ -1163,7 +1179,7 @@ get_config_data(char *cluster_name, qd_ctx *ctx, struct h_data *h, int maxh,
 	}
 
 	/* Get up-tko (transition off->online) */
-	ctx->qc_tko_up = (ctx->qc_tko / 2);
+	ctx->qc_tko_up = (ctx->qc_tko / 3);
 	snprintf(query, sizeof(query), "/cluster/quorumd/@tko_up");
 	if (ccs_get(ccsfd, query, &val) == 0) {
 		ctx->qc_tko_up = atoi(val);
@@ -1185,14 +1201,14 @@ get_config_data(char *cluster_name, qd_ctx *ctx, struct h_data *h, int maxh,
 
 	/* wait this many intervals after bidding for master before
 	   becoming Caesar  */
-	ctx->qc_master_wait = (ctx->qc_tko / 3);
+	ctx->qc_master_wait = (ctx->qc_tko / 2);
 	snprintf(query, sizeof(query), "/cluster/quorumd/@master_wait");
 	if (ccs_get(ccsfd, query, &val) == 0) {
 		ctx->qc_master_wait = atoi(val);
 		free(val);
 	}
-	if (ctx->qc_master_wait < 2)
-		ctx->qc_master_wait = 2;
+	if (ctx->qc_master_wait <= ctx->qc_tko_up)
+		ctx->qc_master_wait = ctx->qc_tko_up + 1;
 		
 	/* Get votes */
 	snprintf(query, sizeof(query), "/cluster/quorumd/@votes");
