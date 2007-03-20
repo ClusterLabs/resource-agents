@@ -52,4 +52,4 @@ install: all
 	install -m755 ${SCRIPT} ${initdir}
 
 clean:
-	rm -f $(TARGET) $($TEST_TARGET)
+	rm -f $(TARGET) $(TEST_TARGET)
