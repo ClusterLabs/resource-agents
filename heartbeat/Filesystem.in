@@ -442,7 +442,7 @@ Filesystem_notify() {
 		case "$n_op" in
 		stop)
 			ocf_log info "$OCFS2_UUID: ignoring pre-notify for stop."
-			return $infoUCCESS
+			return $OCF_SUCCESS
 			;;
 		start)
 			# These are about to become active; prepare to
