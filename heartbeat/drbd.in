@@ -454,7 +454,7 @@ drbd_demote() {
 	fi
 	if [ "$DRBD_STATE_LOCAL" = "Not configured" ]; then
 		ocf_log debug "$RESOURCE demote: already stopped"
-		return $OCF_SUCCESS
+		return $OCF_NOT_RUNNING
 	fi
 	
 	# TODO: this is a _force_ operation. we may need to kill higher
