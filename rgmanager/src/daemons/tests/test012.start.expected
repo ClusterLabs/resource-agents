@@ -1,0 +1,10 @@
+Starting test1...
+[start] service:test1
+[start] fs:mount1
+[start] nfsexport:Dummy Export
+[start] nfsclient:Admin group
+[start] nfsclient:User group
+[start] nfsclient:red
+[start] ip:192.168.1.3
+[start] script:initscript
+Start of test1 complete

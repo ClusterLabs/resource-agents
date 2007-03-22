@@ -1,0 +1,6 @@
+Stopping test1...
+[stop] script:initscript
+[stop] ip:192.168.1.3
+[stop] fs:mount1
+[stop] service:test1
+Stop of test1 complete

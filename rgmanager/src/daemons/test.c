@@ -49,8 +49,8 @@
 	"\trules\n\n"
 
 
+void _no_op_mode(int);
 void malloc_dump_table(void);
-
 char *agentpath = RESOURCE_ROOTDIR;
 
 
@@ -102,6 +102,7 @@ out:
 	ccs_unlock(ccsfd);
 	return 0;
 }
+
 
 
 int
@@ -355,6 +356,11 @@ main(int argc, char **argv)
 		} else if (!strcmp(argv[1], "depends")) {
 			shift();
 			ret = deps_func(argc, argv);
+			goto out;
+		} else if (!strcmp(argv[1], "noop")) {
+			shift();
+			_no_op_mode(1);
+			ret = test_func(argc, argv);
 			goto out;
 		} else if (!strcmp(argv[1], "rules")) {
 			shift();

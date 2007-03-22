@@ -461,11 +461,12 @@ store_attribute(resource_attr_t **attrsp, char *name, char *value, int flags)
    @param start		Start level
    @param stop		Stop level
    @param forbid	Do NOT allow this child type to exist
+   @param flags		set to 1 to note that it was defined inline
    @return		0 on success, nonzero on failure
  */
 int
 store_childtype(resource_child_t **childp, char *name, int start, int stop,
-		int forbid)
+		int forbid, int flags)
 {
 	int x = 0;
 	resource_child_t *child = *childp;
@@ -481,6 +482,7 @@ store_childtype(resource_child_t **childp, char *name, int start, int stop,
 		child[0].rc_startlevel = start;
 		child[0].rc_stoplevel = stop;
 		child[0].rc_forbid = forbid;
+		child[0].rc_flags = flags;
 		child[1].rc_name = NULL;
 
 		*childp = child;
@@ -497,6 +499,7 @@ store_childtype(resource_child_t **childp, char *name, int start, int stop,
 	child[x].rc_startlevel = start;
 	child[x].rc_stoplevel = stop;
 	child[x].rc_forbid = forbid;
+	child[x].rc_flags = flags;
 	child[x+1].rc_name = NULL;
 
 	*childp = child;
@@ -789,7 +792,7 @@ _get_childtypes(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
 		 */
 		if (childname)
 			store_childtype(&rr->rr_childtypes, childname,
-					startlevel, stoplevel, forbid);
+					startlevel, stoplevel, forbid, 0);
 	}
 
 	return 0;

@@ -413,17 +413,52 @@ xpath_get_one(xmlDocPtr doc, xmlXPathContextPtr ctx, char *query)
 {
 	char *val = NULL, *ret = NULL;
 	xmlXPathObjectPtr obj;
+	xmlNodePtr node;
+	size_t size = 0;
+	int nnv = 0;
 
 	obj = xmlXPathEvalExpression((unsigned char *)query, ctx);
 	if (!obj)
 		return NULL;
+	if (!obj->nodesetval)
+		goto out;
+	if (obj->nodesetval->nodeNr <= 0)
+		goto out;
 
-	if (obj->nodesetval && obj->nodesetval->nodeNr >= 1) {
-		val = (char *)obj->nodesetval->nodeTab[0]->children->content;
-		if (strlen(val) >= 1)
-			ret = strdup(val);
+	node = obj->nodesetval->nodeTab[0];
+	if(!node)
+		goto out;
+
+	if (((node->type == XML_ATTRIBUTE_NODE) && strstr(query, "@*")) ||
+	    ((node->type == XML_ELEMENT_NODE) && strstr(query, "child::*"))){
+		if (node->children && node->children->content)
+	  		size = strlen((char *)node->children->content)+
+				      strlen((char *)node->name)+2;
+		else 
+			size = strlen((char *)node->name)+2;
+		nnv = 1;
+	} else {
+		if (node->children && node->children->content) {
+			size = strlen((char *)node->children->content)+1;
+		} else {
+			goto out;
+		}
 	}
 
+	val = (char *)malloc(size);
+	if(!val)
+		goto out;
+	memset(val, 0, size);
+	if (nnv) {
+		sprintf(val, "%s=%s", node->name, node->children ?
+			(char *)node->children->content:"");
+	} else {
+		sprintf(val, "%s", node->children ? node->children->content :
+			node->name);
+	}
+
+	ret = val;
+out:
 	xmlXPathFreeObject(obj);
 
 	return ret;

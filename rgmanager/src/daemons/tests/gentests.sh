@@ -34,6 +34,25 @@ for t in $TESTS; do
 	echo OK
 done
 
+
+#
+# Start/stop tests (noop)
+#
+for t in $TESTS; do
+	declare SERVICES=$(echo "xpath /cluster/rm/service" | xmllint $t.conf --shell | grep content | cut -f2 -d'=')
+	declare phase svc
+	echo -n "Generating $t exec..."
+	for phase in start stop; do
+		echo -n "$phase..."
+		rm -f $t.$phase.expected
+		for svc in $SERVICES; do
+			../rg_test ../../resources noop $t.conf $phase service $svc >> $t.$phase.expected 2> /dev/null
+		done
+	done
+	echo "OK"
+done
+
+
 #
 # Delta tests
 #

@@ -42,10 +42,17 @@ void malloc_zap_mutex(void);
 
 /* XXX from resrules.c */
 int store_childtype(resource_child_t **childp, char *name, int start,
-		    int stop, int forbid);
+		    int stop, int forbid, int flags);
 int _res_op(resource_node_t **tree, resource_t *first, char *type,
 	    void * __attribute__((unused))ret, int op);
+static inline int
+_res_op_internal(resource_node_t **tree, resource_t *first,
+		 char *type, void *__attribute__((unused))ret, int realop,
+		 resource_node_t *node);
 void print_env(char **env);
+static inline int _res_op_internal(resource_node_t **tree, resource_t *first,
+		 char *type, void *__attribute__((unused))ret, int realop,
+		 resource_node_t *node);
 
 /* XXX from reslist.c */
 void * act_dup(resource_act_t *acts);
@@ -72,6 +79,17 @@ const char *ocf_errors[] = {
 	"not running",
 	NULL
 };
+
+
+/* XXX MEGA HACK */
+#ifdef NO_CCS
+static int _no_op_mode_ = 0;
+void
+_no_op_mode(int arg)
+{
+	_no_op_mode_ = arg;
+}
+#endif
 
 
 /**
@@ -331,6 +349,14 @@ res_exec(resource_node_t *node, const char *op, const char *arg, int depth)
 		return -errno;
 #endif
 
+#ifdef NO_CCS
+	if (_no_op_mode_) {
+		printf("[%s] %s:%s\n", op, res->r_rule->rr_type,
+		       res->r_attrs->ra_value);
+		return 0;
+	}
+#endif
+
 	childpid = fork();
 	if (childpid < 0)
 		return -errno;
@@ -400,6 +426,97 @@ res_exec(resource_node_t *node, const char *op, const char *arg, int depth)
 }
 
 
+static inline int
+do_load_resource(int ccsfd, char *base,
+	         resource_rule_t *rule,
+	         resource_node_t **tree,
+		 resource_t **reslist,
+		 resource_node_t *parent,
+		 resource_node_t **newnode)
+{
+	char tok[512];
+	char *ref;
+	resource_node_t *node;
+	resource_t *curres;
+
+	snprintf(tok, sizeof(tok), "%s/@ref", base);
+
+#ifndef NO_CCS
+	if (ccs_get(ccsfd, tok, &ref) != 0) {
+#else
+	if (conf_get(tok, &ref) != 0) {
+#endif
+		/* There wasn't an existing resource. See if there
+		   is one defined inline */
+		curres = load_resource(ccsfd, rule, base);
+		if (!curres) {
+			/* No ref and no new one inline == 
+			   no more of the selected type */
+			return 1;
+		}
+
+	       	if (store_resource(reslist, curres) != 0) {
+	 		printf("Error storing %s resource\n",
+	 		       curres->r_rule->rr_type);
+	 		destroy_resource(curres);
+			return -1;
+	 	}
+
+		curres->r_flags = RF_INLINE;
+
+	} else {
+
+		curres = find_resource_by_ref(reslist, rule->rr_type,
+						      ref);
+		if (!curres) {
+			printf("Error: Reference to nonexistent "
+			       "resource %s (type %s)\n", ref,
+			       rule->rr_type);
+			free(ref);
+			return -1;
+		}
+
+		if (curres->r_flags & RF_INLINE) {
+			printf("Error: Reference to inlined "
+			       "resource %s (type %s) is illegal\n",
+			       ref, rule->rr_type);
+			free(ref);
+			return -1;
+		}
+		free(ref);
+	}
+
+	/* Load it if its max refs hasn't been exceeded */
+	if (rule->rr_maxrefs && (curres->r_refs >= rule->rr_maxrefs)){
+		printf("Warning: Max references exceeded for resource"
+		       " %s (type %s)\n", curres->r_attrs[0].ra_name,
+		       rule->rr_type);
+		return -1;
+	}
+
+	node = malloc(sizeof(*node));
+	if (!node)
+		return -1;
+
+	memset(node, 0, sizeof(*node));
+
+	//printf("New resource tree node: %s:%s \n", curres->r_rule->rr_type,curres->r_attrs->ra_value);
+
+	node->rn_child = NULL;
+	node->rn_parent = parent;
+	node->rn_resource = curres;
+	node->rn_state = RES_STOPPED;
+	node->rn_actions = (resource_act_t *)act_dup(curres->r_actions);
+	curres->r_refs++;
+
+	*newnode = node;
+
+	list_insert(tree, node);
+
+	return 0;
+}
+
+
 /**
    Build the resource tree.  If a new resource is defined inline, add it to
    the resource list.  All rules, however, must have already been read in.
@@ -425,127 +542,173 @@ build_tree(int ccsfd, resource_node_t **tree,
 	char tok[512];
 	resource_rule_t *childrule;
 	resource_node_t *node;
-	resource_t *curres;
 	char *ref;
 	char *newchild;
-	int x, y, flags;
+	char *tmp;
+	int ccount = 0, x = 0, y = 0, flags = 0;
 
-	for (x = 1; ; x++) {
+	//printf("DESCEND: %s / %s\n", rule?rule->rr_type:"(none)", base);
 
-		/* Search for base/type[x]/@ref - reference an existing
-		   resource */
-		snprintf(tok, sizeof(tok), "%s/%s[%d]/@ref", base,
-			 rule->rr_type, x);
+	/* Pass 1: typed / defined children */
+	for (y = 0; rule && rule->rr_childtypes &&
+     	     rule->rr_childtypes[y].rc_name; y++) {
+		
+	
+		flags = 0;
+		list_for(rulelist, childrule, x) {
+			if (strcmp(rule->rr_childtypes[y].rc_name,
+				   childrule->rr_type))
+				continue;
+
+			flags |= RFL_FOUND;
+
+			if (rule->rr_childtypes[y].rc_forbid)
+				flags |= RFL_FORBID;
+
+			break;
+		}
+
+		if (flags & RFL_FORBID)
+			/* Allow all *but* forbidden */
+			continue;
+
+		if (!(flags & RFL_FOUND))
+			/* Not found?  Wait for pass 2 */
+			continue;
+
+		//printf("looking for %s %s @ %s\n",
+			//rule->rr_childtypes[y].rc_name,
+			//childrule->rr_type, base);
+		for (x = 1; ; x++) {
+
+			/* Search for base/type[x]/@ref - reference an existing
+			   	resource */
+			snprintf(tok, sizeof(tok), "%s/%s[%d]", base,
+				 childrule->rr_type, x);
+
+			flags = 1;
+			switch(do_load_resource(ccsfd, tok, childrule, tree,
+						reslist, parent, &node)) {
+			case -1:
+				continue;
+			case 1:
+				/* 1 == no more */
+				//printf("No resource found @ %s\n", tok);
+				flags = 0;
+				break;
+			case 0:
+				break;
+			}
+			if (!flags)
+				break;
+
+			/* Got a child :: bump count */
+			snprintf(tok, sizeof(tok), "%s/%s[%d]", base,
+				 childrule->rr_type, x);
+
+			/* Kaboom */
+			build_tree(ccsfd, &node->rn_child, node, childrule,
+				   rulelist, reslist, tok);
+
+		}
+	}
+
+
+	/* Pass 2: untyped children */
+	for (ccount=1; ; ccount++) {
+		snprintf(tok, sizeof(tok), "%s/child::*[%d]", base, ccount);
 
 #ifndef NO_CCS
 		if (ccs_get(ccsfd, tok, &ref) != 0) {
 #else
 		if (conf_get(tok, &ref) != 0) {
 #endif
-			/* There wasn't an existing resource. See if there
-			   is one defined inline */
-			snprintf(tok, sizeof(tok), "%s/%s[%d]", base, 
-				 rule->rr_type, x);
+			/* End of the line. */
+			//printf("End of the line: %s\n", tok);
+			break;
+		}
 
-			curres = load_resource(ccsfd, rule, tok);
-			if (!curres)
-				/* No ref and no new one inline == 
-				   no more of the selected type */
-				break;
-
-		       	if (store_resource(reslist, curres) != 0) {
-		 		printf("Error storing %s resource\n",
-		 		       curres->r_rule->rr_type);
-		 		destroy_resource(curres);
-				continue;
-		 	}
-
-			curres->r_flags = RF_INLINE;
-
-
+		tmp = strchr(ref, '=');
+		if (tmp) {
+			*tmp = 0;
 		} else {
-
-			curres = find_resource_by_ref(reslist, rule->rr_type,
-						      ref);
-			if (!curres) {
-				printf("Error: Reference to nonexistent "
-				       "resource %s (type %s)\n", ref,
-				       rule->rr_type);
-				free(ref);
-				continue;
-			}
-
-			if (curres->r_flags & RF_INLINE) {
-				printf("Error: Reference to inlined "
-				       "resource %s (type %s) is illegal\n",
-				       ref, rule->rr_type);
-				free(ref);
-				continue;
-			}
+			/* no = sign... bad */
 			free(ref);
-		}
-
-		/* Load it if its max refs hasn't been exceeded */
-		if (rule->rr_maxrefs && (curres->r_refs >= rule->rr_maxrefs)){
-			printf("Warning: Max references exceeded for resource"
-			       " %s (type %s)\n", curres->r_attrs[0].ra_name,
-			       rule->rr_type);
 			continue;
 		}
 
-		node = malloc(sizeof(*node));
-		if (!node)
-			continue;
-
-		memset(node, 0, sizeof(*node));
-
-		node->rn_child = NULL;
-		node->rn_parent = parent;
-		node->rn_resource = curres;
-		node->rn_state = RES_STOPPED;
-		node->rn_actions = (resource_act_t *)act_dup(curres->r_actions);
-		curres->r_refs++;
-
-		list_insert(tree, node);
-
-		list_do(rulelist, childrule) {
-
-			flags = 0;
-			for (y = 0; rule->rr_childtypes &&
-		     	     rule->rr_childtypes[y].rc_name; y++) {
-
-				if (strcmp(rule->rr_childtypes[y].rc_name,
-					   childrule->rr_type))
-					continue;
-
-				flags |= RFL_FOUND;
-
-				if (rule->rr_childtypes[y].rc_forbid)
-					flags |= RFL_FORBID;
+		/* Find the resource rule */
+		flags = 0;
+		list_for(rulelist, childrule, x) {
+			if (!strcasecmp(childrule->rr_type, ref)) {
+				/* Ok, matching rule found */
+				flags = 1;
+				break;
 			}
+		}
+		/* No resource rule matching the child?  Press on... */
+		if (!flags)
+			continue;
 
-			if (flags & RFL_FORBID)
-				/* Allow all *but* forbidden */
+		flags = 0;
+		/* Don't descend on anything we should have already picked
+		   up on in the above loop */
+		for (y = 0; rule && rule->rr_childtypes &&
+		     rule->rr_childtypes[y].rc_name; y++) {
+			/* SKIP defined child types of any type */
+			if (strcmp(rule->rr_childtypes[y].rc_name, ref))
 				continue;
-
-			/* XXX Store new child type with start/stop level 0*/
-			/*     This is really ugly to do it here */
-			if (!(flags & RFL_FOUND)) {
-				newchild = strdup(childrule->rr_type);
-				store_childtype(&rule->rr_childtypes,
-						newchild, 0, 0, 0);
+			if (rule->rr_childtypes[y].rc_flags == 0) {
+				/* 2 = defined as a real child */
+				flags = 2;
+				break;
 			}
 
-			snprintf(tok, sizeof(tok), "%s/%s[%d]", base,
-				 rule->rr_type, x);
+			flags = 1;
+			break;
+		}
 
-			/* Kaboom */
-			build_tree(ccsfd, &node->rn_child, node, childrule,
-				   rulelist, reslist, tok);
+		if (flags == 2) {
+			free(ref);
+			continue;
+		}
 
-		} while (!list_done(rulelist, childrule));
+		/* store it once */
+		if (!flags && rule) {
+			//printf("Storing new child %s of %s\n",
+			       //ref, rule->rr_type);
+			newchild = strdup(ref);
+			store_childtype(&rule->rr_childtypes,
+					newchild, 0, 0, 0, 1);
+		}
+		free(ref);
+
+		x = 1;
+		switch(do_load_resource(ccsfd, tok, childrule, tree,
+				        reslist, parent, &node)) {
+		case -1:
+			continue;
+		case 1:
+			/* no more found */
+			x = 0;
+			printf("No resource found @ %s\n", tok);
+			break;
+		case 0:
+			/* another is found */
+			break;
+		}
+		if (!x) /* no more found */
+			break;
+
+		/* childrule = rule set of this child at this point */
+		/* tok = set above; if we got this far, we're all set */
+		/* Kaboom */
+
+		build_tree(ccsfd, &node->rn_child, node, childrule,
+			   rulelist, reslist, tok);
 	}
 
+	//printf("ASCEND: %s / %s\n", rule?rule->rr_type:"(none)", base);
 	return 0;
 }
 
@@ -574,7 +737,7 @@ build_resource_tree(int ccsfd, resource_node_t **tree,
 	/* Find and build the list of root nodes */
 	list_do(rulelist, curr) {
 
-		build_tree(ccsfd, &root, NULL, curr, rulelist, reslist, tok);
+		build_tree(ccsfd, &root, NULL, NULL/*curr*/, rulelist, reslist, tok);
 
 	} while (!list_done(rulelist, curr));
 
@@ -601,9 +764,9 @@ destroy_resource_tree(resource_node_t **tree)
 			destroy_resource_tree(&(*tree)->rn_child);
 
 		list_remove(tree, node);
-               if(node->rn_actions){
-                       free(node->rn_actions);
-               }
+		if(node->rn_actions){
+			free(node->rn_actions);
+		}
 		free(node);
 	}
 }
@@ -708,6 +871,7 @@ _do_child_levels(resource_node_t **tree, resource_t *first, void *ret,
 }
 
 
+#if 0
 static inline int
 _do_child_default_level(resource_node_t **tree, resource_t *first,
 			void *ret, int op)
@@ -744,6 +908,55 @@ _do_child_default_level(resource_node_t **tree, resource_t *first,
 
 	return 0;
 }
+#endif
+
+
+static inline int
+_xx_child_internal(resource_node_t *node, resource_t *first,
+		   resource_node_t *child, void *ret, int op)
+{
+	int x;
+	resource_rule_t *rule = node->rn_resource->r_rule;
+
+	for (x = 0; rule->rr_childtypes &&
+     	     rule->rr_childtypes[x].rc_name; x++) {
+		if (!strcmp(child->rn_resource->r_rule->rr_type,
+			    rule->rr_childtypes[x].rc_name)) {
+			if (rule->rr_childtypes[x].rc_startlevel ||
+			    rule->rr_childtypes[x].rc_stoplevel) {
+				return 0;
+			}
+		}
+	}
+
+	return _res_op_internal(&child, first,
+	 		       child->rn_resource->r_rule->rr_type,
+			       ret, op, child);
+}
+
+
+static inline int
+_do_child_default_level(resource_node_t **tree, resource_t *first,
+			void *ret, int op)
+{
+	resource_node_t *node = *tree, *child;
+	int y, rv = 0;
+
+	if (op == RS_START || op == RS_STATUS) {
+		list_for(&node->rn_child, child, y) {
+			rv = _xx_child_internal(node, first, child, ret, op);
+			if (rv)
+				return rv;
+		}
+	} else {
+		list_for_rev(&node->rn_child, child, y) {
+			rv += _xx_child_internal(node, first, child, ret, op);
+		}
+	}
+
+	return rv;
+}
+
 
 
 
@@ -928,6 +1141,7 @@ clear_checks(resource_node_t *node)
 			in the subtree).
    @see			_res_op_by_level res_exec
  */
+#if 0
 int
 _res_op(resource_node_t **tree, resource_t *first,
 	char *type, void * __attribute__((unused))ret, int realop)
@@ -1048,7 +1262,159 @@ _res_op(resource_node_t **tree, resource_t *first,
 
 	return 0;
 }
+#endif
 
+
+static inline int
+_res_op_internal(resource_node_t **tree, resource_t *first,
+		 char *type, void *__attribute__((unused))ret, int realop,
+		 resource_node_t *node)
+{
+	int rv, me, op;
+
+	/* Restore default operation. */
+	op = realop;
+
+	/* If we're starting by type, do that funky thing. */
+	if (type && strlen(type) &&
+	    strcmp(node->rn_resource->r_rule->rr_type, type))
+		return 0;
+
+	/* If the resource is found, all nodes in the subtree must
+	   have the operation performed as well. */
+	me = !first || (node->rn_resource == first);
+
+	//printf("begin %s: %s %s [0x%x]\n", res_ops[op],
+	       //node->rn_resource->r_rule->rr_type,
+	       //primary_attr_value(node->rn_resource),
+	       //node->rn_flags);
+
+	if (me) {
+		/*
+		   If we've been marked as a node which
+		   needs to be started or stopped, clear
+		   that flag and start/stop this resource
+		   and all resource babies.
+
+		   Otherwise, don't do anything; look for
+		   children with RF_NEEDSTART and
+		   RF_NEEDSTOP flags.
+
+		   CONDSTART and CONDSTOP are no-ops if
+		   the appropriate flag is not set.
+		 */
+	       	if ((op == RS_CONDSTART) &&
+		    (node->rn_flags & RF_NEEDSTART)) {
+			printf("Node %s:%s - CONDSTART\n",
+			       node->rn_resource->r_rule->rr_type,
+			       primary_attr_value(node->rn_resource));
+			op = RS_START;
+		}
+
+		if ((op == RS_CONDSTOP) &&
+		    (node->rn_flags & RF_NEEDSTOP)) {
+			printf("Node %s:%s - CONDSTOP\n",
+			       node->rn_resource->r_rule->rr_type,
+			       primary_attr_value(node->rn_resource));
+			op = RS_STOP;
+		}
+	}
+
+	/* Start starts before children */
+	if (me && (op == RS_START)) {
+		node->rn_flags &= ~RF_NEEDSTART;
+
+		rv = res_exec(node, agent_op_str(op), NULL, 0);
+		if (rv != 0) {
+			node->rn_state = RES_FAILED;
+			return rv;
+		}
+
+		set_time("start", 0, node);
+		clear_checks(node);
+
+		if (node->rn_state != RES_STARTED) {
+			++node->rn_resource->r_incarnations;
+			node->rn_state = RES_STARTED;
+		}
+	} else if (me && (op == RS_STATUS)) {
+		/* Check status before children*/
+		rv = do_status(node);
+		if (rv != 0)
+			return rv;
+	}
+
+	if (node->rn_child) {
+		rv = _res_op_by_level(&node, me?NULL:first, ret, op);
+		if (rv != 0)
+			return rv;
+	}
+
+	/* Stop should occur after children have stopped */
+	if (me && (op == RS_STOP)) {
+		node->rn_flags &= ~RF_NEEDSTOP;
+		rv = res_exec(node, agent_op_str(op), NULL, 0);
+
+		if (rv != 0) {
+			node->rn_state = RES_FAILED;
+			return rv;
+		}
+
+		if (node->rn_state != RES_STOPPED) {
+			--node->rn_resource->r_incarnations;
+			node->rn_state = RES_STOPPED;
+		}
+	}
+
+	//printf("end %s: %s %s\n", res_ops[op],
+	       //node->rn_resource->r_rule->rr_type,
+	       //primary_attr_value(node->rn_resource));
+	
+	return 0;
+}
+
+
+/**
+   Nasty codependent function.  Perform an operation by type for all siblings
+   at some point in the tree.  This allows indirectly-dependent resources
+   (such as IP addresses and user scripts) to have ordering without requiring
+   a direct dependency.
+
+   @param tree		Resource tree to search/perform operations on
+   @param first		Resource we're looking to perform the operation on,
+   			if one exists.
+   @param type		Type to look for.
+   @param ret		Unused, but will be used to store status information
+   			such as resources consumed, etc, in the future.
+   @param realop	Operation to perform if either first is found,
+   			or no first is declared (in which case, all nodes
+			in the subtree).
+   @see			_res_op_by_level res_exec
+ */
+int
+_res_op(resource_node_t **tree, resource_t *first,
+	char *type, void * __attribute__((unused))ret, int realop)
+{
+  	resource_node_t *node;
+ 	int count = 0, rv;
+ 	
+ 	if (realop == RS_STOP) {
+ 		list_for_rev(tree, node, count) {
+ 			rv = _res_op_internal(tree, first, type, ret, realop,
+ 					      node);
+ 			if (rv != 0) 
+ 				return rv;
+ 		}
+ 	} else {
+ 		list_for(tree, node, count) {
+ 			rv = _res_op_internal(tree, first, type, ret, realop,
+ 					      node);
+ 			if (rv != 0) 
+ 				return rv;
+ 		}
+ 	}
+	return 0;
+}
 
 /**
    Start all occurrences of a resource in a tree

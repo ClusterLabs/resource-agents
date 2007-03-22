@@ -8,7 +8,7 @@ Attributes:
   mountpoint = /mnt/cluster [ unique required ]
   device = /dev/sdb8 [ unique required ]
   fstype = ext3
-  nfslock [ inherit("service%nfslock") ]
+  nfslock [ inherit("nfslock") ]
 
 Resource type: fs
 Instances: 1/1
@@ -18,7 +18,7 @@ Attributes:
   mountpoint = /mnt/cluster2 [ unique required ]
   device = /dev/sdb9 [ unique required ]
   fstype = ext3
-  nfslock [ inherit("service%nfslock") ]
+  nfslock [ inherit("nfslock") ]
 
 Resource type: ip
 Instances: 1/1

@@ -68,7 +68,7 @@ typedef struct _resource_child {
 	int	rc_startlevel;
 	int	rc_stoplevel;
 	int	rc_forbid;
-	int	_pad_;
+	int	rc_flags;
 } resource_child_t;
 
 

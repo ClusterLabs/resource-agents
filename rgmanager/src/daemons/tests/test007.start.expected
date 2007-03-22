@@ -1,0 +1,5 @@
+Starting test1...
+[start] service:test1
+[start] ip:192.168.1.3
+[start] script:initscript
+Start of test1 complete
