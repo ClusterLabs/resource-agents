@@ -58,10 +58,19 @@ How long to delay before each action.
 
 <parameter name="state" unique="1">
 <longdesc lang="en">
-Location to store the resource state in
+Location to store the resource state in.
 </longdesc>
 <shortdesc lang="en">State file</shortdesc>
-<content type="string" default="@HA_VARRUNHBRSCDIR@/Dummy-{OCF_RESOURCE_INSTANCE}.state" />
+<content type="string" default="" />
+</parameter>
+
+<parameters>
+<parameter name="check_parallel" unique="0">
+<longdesc lang="en">
+Complain loudly if they try to run us in parallel on the same resource.
+</longdesc>
+<shortdesc lang="en">Report error if run twice at the same time</shortdesc>
+<content type="boolean" default="true" />
 </parameter>
 
 </parameters>
@@ -82,14 +91,23 @@ END
 
 #######################################################################
 
+# don't exit on TERM, to test that lrmd makes sure that we do exit
+trap sigterm_handler TERM
+sigterm_handler() {
+	ocf_log info "They use TERM to bring us down. No such luck."
+	return
+}
+
 dummy_usage() {
 	cat <<END
-usage: $0 {start|stop|monitor|validate-all|meta-data}
+usage: $0 {start|stop|monitor|migrate_to|migrate_from|validate-all|meta-data}
 
 Expects to have a fully populated OCF RA-compliant environment set.
 END
 }
 
+# dejan said: what is this for?
+#
 dummy_exit() {
 	if [ -e /tmp/Dummy.$__OCF_ACTION ]; then
 		exit $OCF_ERR_GENERIC
@@ -98,28 +116,31 @@ dummy_exit() {
 	fi
 }
 
+# signals interrupt slow calls (sleep)
+# this is an approximation (after all it's just a dummy)
+sleepsleep() {
+	delay=$1
+	now=`perl -e 'print time()'`
+	by=$((now+delay))
+	while [ $now -lt $by ]; do
+		ocf_log debug "Gonna sleep for $((by-now)) seconds..."
+		sleep $((by-now))
+		now=`perl -e 'print time()'`
+	done
+}
 dummy_start() {
-	sleep $OCF_RESKEY_delay
-	if [ -f ${OCF_RESKEY_state} ]; then
-	    return 0
-	fi
-	touch ${OCF_RESKEY_state}
+	sleepsleep $OCF_RESKEY_delay
+	ha_pseudo_resource Dummy_${OCF_RESKEY_instance} start ${OCF_RESKEY_state}
 }
 
 dummy_stop() {
-	sleep $OCF_RESKEY_delay
-	if [ -f ${OCF_RESKEY_state} ]; then
-	    rm ${OCF_RESKEY_state}
-	fi
-	return 0
+	sleepsleep $OCF_RESKEY_delay
+	ha_pseudo_resource Dummy_${OCF_RESKEY_instance} stop ${OCF_RESKEY_state}
 }
 
 dummy_monitor() {
-	sleep $OCF_RESKEY_delay
-	if [ -f ${OCF_RESKEY_state} ]; then
-	    return 0
-	fi
-	return 7
+	sleepsleep $OCF_RESKEY_delay
+	ha_pseudo_resource Dummy_${OCF_RESKEY_instance} monitor ${OCF_RESKEY_state}
 }
 
 dummy_validate() {
@@ -127,7 +148,26 @@ dummy_validate() {
 }
 
 : ${OCF_RESKEY_delay=1}
-: ${OCF_RESKEY_state=@HA_VARRUNHBRSCDIR@/Dummy-${OCF_RESOURCE_INSTANCE}.state}
+: ${OCF_RESKEY_check_parallel=1}
+
+lockf=`
+	ha_pseudo_resource Dummy_${OCF_RESOURCE_INSTANCE} print ${OCF_RESKEY_state} |
+		sed 's/$/.lock/'
+`
+
+check4parallel() {
+	if [ -f "$lockf" ] && kill -0 `cat $lockf` 2>/dev/null
+	then
+		ocf_log err "There is another instance of ${OCF_RESOURCE_INSTANCE} running: pid `cat $lockf`."
+		exit $OCF_ERR_GENERIC
+	fi
+}
+
+[ "$OCF_RESKEY_check_parallel" = 1 ] &&
+	check4parallel
+
+echo $$ > $lockf
+trap "rm -f $lockf" EXIT
 
 case $__OCF_ACTION in
 meta-data)	meta_data

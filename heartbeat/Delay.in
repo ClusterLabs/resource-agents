@@ -29,9 +29,6 @@
 
 #######################################################################
 
-HA_VARRUNHBRSCDIR=@HA_VARRUNHBRSCDIR@
-VLFILE="$HA_VARRUNHBRSCDIR/Delay-${OCF_RESOURCE_INSTANCE}"
-
 usage() {
   cat <<-!
 	usage: $0 {start|stop|status|monitor|meta-data|validate-all}
@@ -92,7 +89,7 @@ END
 }
 
 Delay_stat() {
-    test -f "$VLFILE"
+	ha_pseudo_resource Delay_${OCF_RESOURCE_INSTANCE} monitor
 }
 
 Delay_Status() {
@@ -121,7 +118,7 @@ Delay_Start() {
     return $OCF_SUCCESS
   else
     Delay_Validate_All -q
-    touch "$VLFILE"
+	ha_pseudo_resource Delay_${OCF_RESKEY_instance} start
     rc=$?
     sleep $OCF_RESKEY_startdelay
     if
@@ -138,7 +135,7 @@ Delay_Stop() {
     Delay_stat
   then
     Delay_Validate_All -q
-    unlink "$VLFILE"
+	ha_pseudo_resource Delay_${OCF_RESKEY_instance} stop
     rc=$?
     sleep $OCF_RESKEY_stopdelay
     if
