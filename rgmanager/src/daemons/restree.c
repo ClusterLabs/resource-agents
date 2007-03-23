@@ -728,18 +728,13 @@ build_resource_tree(int ccsfd, resource_node_t **tree,
 		    resource_rule_t **rulelist,
 		    resource_t **reslist)
 {
-	resource_rule_t *curr;
 	resource_node_t *root = NULL;
 	char tok[512];
 
 	snprintf(tok, sizeof(tok), "%s", RESOURCE_TREE_ROOT);
 
 	/* Find and build the list of root nodes */
-	list_do(rulelist, curr) {
-
-		build_tree(ccsfd, &root, NULL, NULL/*curr*/, rulelist, reslist, tok);
-
-	} while (!list_done(rulelist, curr));
+	build_tree(ccsfd, &root, NULL, NULL/*curr*/, rulelist, reslist, tok);
 
 	if (root)
 		*tree = root;
@@ -1139,132 +1134,9 @@ clear_checks(resource_node_t *node)
    @param realop	Operation to perform if either first is found,
    			or no first is declared (in which case, all nodes
 			in the subtree).
+   @param node		Node we're operating on
    @see			_res_op_by_level res_exec
  */
-#if 0
-int
-_res_op(resource_node_t **tree, resource_t *first,
-	char *type, void * __attribute__((unused))ret, int realop)
-{
-	int rv, me;
-	resource_node_t *node;
-	int op;
-
-	list_do(tree, node) {
-
-		/* Restore default operation. */
-		op = realop;
-
-		/* If we're starting by type, do that funky thing. */
-		if (type && strlen(type) &&
-		    strcmp(node->rn_resource->r_rule->rr_type, type))
-			continue;
-
-		/* If the resource is found, all nodes in the subtree must
-		   have the operation performed as well. */
-		me = !first || (node->rn_resource == first);
-
-		/*
-		printf("begin %s: %s %s [0x%x]\n", agent_op_str(op),
-		       node->rn_resource->r_rule->rr_type,
-		       primary_attr_value(node->rn_resource),
-		       node->rn_flags);
-		 */
-
-		if (me) {
-			/*
-			   If we've been marked as a node which
-			   needs to be started or stopped, clear
-			   that flag and start/stop this resource
-			   and all resource babies.
-
-			   Otherwise, don't do anything; look for
-			   children with RF_NEEDSTART and
-			   RF_NEEDSTOP flags.
-
-			   CONDSTART and CONDSTOP are no-ops if
-			   the appropriate flag is not set.
-			 */
-		       	if ((op == RS_CONDSTART) &&
-			    (node->rn_flags & RF_NEEDSTART)) {
-				/*
-				printf("Node %s:%s - CONDSTART\n",
-				       node->rn_resource->r_rule->rr_type,
-				       primary_attr_value(node->rn_resource));
-				 */
-				op = RS_START;
-			}
-
-			if ((op == RS_CONDSTOP) &&
-			    (node->rn_flags & RF_NEEDSTOP)) {
-				/*
-				printf("Node %s:%s - CONDSTOP\n",
-				       node->rn_resource->r_rule->rr_type,
-				       primary_attr_value(node->rn_resource));
-				 */
-				op = RS_STOP;
-			}
-		}
-
-		/* Start starts before children */
-		if (me && (op == RS_START)) {
-			node->rn_flags &= ~RF_NEEDSTART;
-
-			rv = res_exec(node, agent_op_str(op), NULL, 0);
-			if (rv != 0) {
-				node->rn_state = RES_FAILED;
-				return rv;
-			}
-
-			set_time("start", 0, node);
-			clear_checks(node);
-
-			if (node->rn_state != RES_STARTED) {
-				++node->rn_resource->r_incarnations;
-				node->rn_state = RES_STARTED;
-			}
-		} else if (me && (op == RS_STATUS)) {
-			/* Check status before children*/
-			rv = do_status(node);
-			if (rv != 0)
-				return rv;
-		}
-
-
-		if (node->rn_child) {
-			rv = _res_op_by_level(&node, me?NULL:first, ret, op);
-			if (rv != 0)
-				return rv;
-		}
-
-		/* Stop should occur after children have stopped */
-		if (me && (op == RS_STOP)) {
-			node->rn_flags &= ~RF_NEEDSTOP;
-			rv = res_exec(node, agent_op_str(op), NULL, 0);
-
-			if (rv != 0) {
-				node->rn_state = RES_FAILED;
-				return rv;
-			}
-
-			if (node->rn_state != RES_STOPPED) {
-				--node->rn_resource->r_incarnations;
-				node->rn_state = RES_STOPPED;
-			}
-		}
-
-		/*
-		printf("end %s: %s %s\n", agent_op_str(op),
-		       node->rn_resource->r_rule->rr_type,
-		       primary_attr_value(node->rn_resource));
-		 */
-	} while (!list_done(tree, node));
-
-	return 0;
-}
-#endif
-
-
 static inline int
 _res_op_internal(resource_node_t **tree, resource_t *first,
 		 char *type, void *__attribute__((unused))ret, int realop,
