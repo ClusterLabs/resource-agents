@@ -2996,3 +2996,8 @@ AC_MSG_RESULT([  CC_WARNINGS          = "${CC_WARNINGS}"])
 AC_MSG_RESULT([  Mangled CFLAGS       = "${CFLAGS}"])
 AC_MSG_RESULT([  Libraries            = "${LIBS}"])
 
+AC_MSG_RESULT([  ])
+AC_MSG_RESULT([Note: If you use the 'make install' method for installation you])
+AC_MSG_RESULT([also need to adjust '/etc/passwd' and '/etc/group' manually.])
+AC_MSG_RESULT([  ])
+
