@@ -287,8 +287,8 @@ static int check_extended_leaf_eattr(struct gfs2_inode *ip, uint64_t *data_ptr,
 }
 
 static int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
-							uint64_t parent, struct gfs2_buffer_head **bh,
-							void *private)
+			    uint64_t parent, struct gfs2_buffer_head **bh,
+			    void *private)
 {
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_buffer_head *leaf_bh;
@@ -324,10 +324,13 @@ static int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
 	else {
 		leaf_bh = bread(sdp, block);
 		if(gfs2_check_meta(leaf_bh, GFS2_METATYPE_EA)) {
-			log_warn("EA leaf block has incorrect type.\n");
+			log_warn("EA leaf block %"PRIu64" (0x%" 
+				 PRIx64") for inode %"PRIu64" (0x%"
+				 PRIx64") has incorrect type.\n",
+				 block, block, ip->i_di.di_num.no_addr,
+				 ip->i_di.di_num.no_addr);
 			gfs2_block_set(bl, block, gfs2_meta_inval);
-			brelse(leaf_bh, not_updated);
-			ret = 1;
+			ret = -1;
 		}
 		else {
 			log_debug("Setting block %" PRIu64 " (0x%" PRIx64
