@@ -1177,19 +1177,24 @@ struct gfs2_inode *createi(struct gfs2_inode *dip, char *filename,
 	uint64_t bn;
 	struct gfs2_inum inum;
 	struct gfs2_buffer_head *bh;
+	struct gfs2_inode *ip;
 
-	bn = dinode_alloc(sdp);
+	gfs2_lookupi(dip, filename, strlen(filename), &ip);
+	if (!ip) {
+		bn = dinode_alloc(sdp);
 
-	inum.no_formal_ino = sdp->md.next_inum++;
-	inum.no_addr = bn;
+		inum.no_formal_ino = sdp->md.next_inum++;
+		inum.no_addr = bn;
 
-	dir_add(dip, filename, strlen(filename), &inum, IF2DT(mode));
+		dir_add(dip, filename, strlen(filename), &inum, IF2DT(mode));
 
-	if(S_ISDIR(mode))
-		dip->i_di.di_nlink++;
+		if(S_ISDIR(mode))
+			dip->i_di.di_nlink++;
 
-	bh = init_dinode(sdp, &inum, mode, flags, &dip->i_di.di_num);
-	return inode_get(sdp, bh);
+		bh = init_dinode(sdp, &inum, mode, flags, &dip->i_di.di_num);
+		ip = inode_get(sdp, bh);
+	}
+	return ip;
 }
 
 /**
