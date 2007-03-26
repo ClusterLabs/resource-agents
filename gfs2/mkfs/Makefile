@@ -35,7 +35,7 @@ ${JADD}: ${MKFS}
 
 install: all
 	${INSTALL} -m 0755 ${MKFS} ${sbindir}
-	ln -f ${MKFS} ${sbindir}/${JADD}
+	ln -f ${sbindir}/${MKFS} ${sbindir}/${JADD}
 
 clean:
 	rm -f *.o ${MKFS} ${JADD}
