@@ -34,7 +34,7 @@ static void usage(char *prog, FILE *file)
     fprintf(file, "\n");
     fprintf(file, "   -V         Show version of %s\n", prog);
     fprintf(file, "   -h         Show this help information\n");
-    fprintf(file, "   -m <num>   Maximum number of locks to hold (default MAX_INT)\n");
+    fprintf(file, "   -m <num>   Maximum number of locks to hold (default 100000)\n");
     fprintf(file, "   -i <num>   Show progress in <n> increments (default 1000)\n");
     fprintf(file, "   -n <num>   Number of resources (default 10)\n");
     fprintf(file, "   -q         Quit\n");
@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
 {
     int  flags = 0;
     int  lockops = 0;
-    int  maxlocks = INT_MAX;
+    int  maxlocks = 100000;
     int  rescount = 10;
     int  increment = 1000;
     int  quiet = 0;
