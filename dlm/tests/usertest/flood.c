@@ -55,9 +55,7 @@ static void ast_routine(void *arg)
 
     if (lksb->sb_status == EUNLOCK) {
 	    count--;
-	    free(lksb);
     }
-
 }
 
 int main(int argc, char *argv[])
@@ -71,8 +69,10 @@ int main(int argc, char *argv[])
     int  status;
     int  i;
     int  mode = LKM_CRMODE;
+    int  lksbnum = 0;
     signed char opt;
     char **resources;
+    struct dlm_lksb *lksbs;
 
     /* Deal with command-line arguments */
     opterr = 0;
@@ -106,7 +106,7 @@ int main(int argc, char *argv[])
 	    break;
 
 	case 'V':
-	    printf("\nflood version 0.2\n\n");
+	    printf("\nflood version 0.3\n\n");
 	    exit(1);
 	    break;
 	}
@@ -119,6 +119,13 @@ int main(int argc, char *argv[])
 	    resources[i] = strdup(resname);
     }
 
+    lksbs = malloc(sizeof(struct dlm_lksb) * maxlocks);
+    if (!lksbs)
+    {
+	    perror("cannot allocate lksbs");
+	    return 1;
+    }
+
     pthread_cond_init(&cond, NULL);
     pthread_mutex_init(&mutex, NULL);
     pthread_mutex_lock(&mutex);
@@ -127,18 +134,15 @@ int main(int argc, char *argv[])
 
     while (1) {
 	    char *resource = resources[rand() % rescount];
-	    struct dlm_lksb *lksb = malloc(sizeof(struct dlm_lksb));
-	    if (!lksb)
-		    exit(1);
 
 	    status = dlm_lock(mode,
-			      lksb,
+			      &lksbs[lksbnum],
 			      flags,
 			      resource,
 			      strlen(resource),
 			      0, // Parent,
 			      ast_routine,
-			      lksb,
+			      &lksbs[lksbnum],
 			      NULL, // bast_routine,
 			      NULL); // Range
 	    if (status == -1)
@@ -155,7 +159,7 @@ int main(int argc, char *argv[])
 	    while (count > maxlocks) {
 		    sleep(1);
 	    }
-
+	    lksbnum = (lksbnum+1)%maxlocks;
     }
 
     return 0;
