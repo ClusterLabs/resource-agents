@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2006 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -32,14 +32,19 @@
 
 #define MAX_CLIENTS 4
 #define MAX_LOCKS 16
+#define MAX_RESOURCES 16
 
 static dlm_lshandle_t *dh;
 static int libdlm_fd;
 static int noqueue = 1;
+static int persistent = 0;
 static int quiet = 1;
 static int verbose = 0;
 static int bast_cb;
 static int maxn = MAX_LOCKS;
+static int maxr = MAX_RESOURCES;
+static int iterations;
+static int stress_stop = 0;
 
 #define log_print(fmt, args...) \
 do { \
@@ -158,7 +163,7 @@ void dump(void)
 
 	for (i = 0; i < maxn; i++) {
 		lk = get_lock(i);
-		printf("x %2d lkid %06x gr %2d rq %2d wait_ast %d last op %s\t%s\n",
+		printf("x %2d lkid %08x gr %2d rq %2d wait_ast %d last op %s  \t%s\n",
 			i,
 			lk->lksb.sb_lkid,
 			lk->grmode,
@@ -272,6 +277,11 @@ void astfn(void *arg)
 	lk->rqmode = -1;
 }
 
+/* EBUSY from dlm_ls_lock() is expected sometimes, e.g. lock, cancel, lock;
+   the first lock is successful and the app gets the status back,
+   and issues the second lock before the reply for the overlapping
+   cancel (which did nothing) has been received in the dlm. */
+
 void lock(int i, int mode)
 {
 	char name[DLM_RESNAME_MAXLEN];
@@ -285,12 +295,14 @@ void lock(int i, int mode)
 
 	if (noqueue)
 		flags |= LKF_NOQUEUE;
+	if (persistent)
+		flags |= LKF_PERSISTENT;
 
 	if (lk->lksb.sb_lkid)
 		flags |= LKF_CONVERT;
 
 	memset(name, 0, sizeof(name));
-	snprintf(name, sizeof(name), "test%d", i);
+	snprintf(name, sizeof(name), "test%d", (i % maxr));
 
 	log_verbose("lock: %d grmode %d rqmode %d flags %x lkid %x %s\n",
 	            i, lk->grmode, mode, flags, lk->lksb.sb_lkid, name);
@@ -304,8 +316,9 @@ void lock(int i, int mode)
 		printf("        : lock    %3d\t%x: EBUSY gr %d rq %d wait_ast %d\n",
 			i, lk->lksb.sb_lkid, lk->grmode, lk->rqmode, lk->wait_ast);
 	} else {
-		printf("        : lock    %3d\t%x: errno %d gr %d rq %d wait_ast %d\n",
-			i, lk->lksb.sb_lkid, errno, lk->grmode, lk->rqmode, lk->wait_ast);
+		printf("        : lock    %3d\t%x: errno %d rv %d gr %d rq %d wait_ast %d\n",
+			i, lk->lksb.sb_lkid, errno, rv, lk->grmode, lk->rqmode, lk->wait_ast);
+		stress_stop = 1;
 	}
 
 	log_verbose("lock: %d rv %d sb_lkid %x sb_status %x\n",
@@ -327,12 +340,14 @@ void lock_sync(int i, int mode)
 
 	if (noqueue)
 		flags |= LKF_NOQUEUE;
+	if (persistent)
+		flags |= LKF_PERSISTENT;
 
 	if (lk->lksb.sb_lkid)
 		flags |= LKF_CONVERT;
 
 	memset(name, 0, sizeof(name));
-	snprintf(name, sizeof(name), "test%d", i);
+	snprintf(name, sizeof(name), "test%d", (i % maxr));
 
 	log_verbose("lock_sync: %d rqmode %d flags %x lkid %x %s\n",
 	            i, mode, flags, lk->lksb.sb_lkid, name);
@@ -364,6 +379,19 @@ void lock_all(int mode)
 		lock(i, mode);
 }
 
+char *uflags(uint32_t flags)
+{
+	if (flags == LKF_FORCEUNLOCK)
+		return "FORCEUNLOCK";
+	if (flags == LKF_CANCEL)
+		return "CANCEL";
+	return "0";
+}
+
+/* ENOENT is expected from dlm_ls_unlock() sometimes because we'll
+   try to do an unlockf during an outstanding op that will free
+   the lock itself */
+
 void _unlock(int i, uint32_t flags)
 {
 	struct lk *lk;
@@ -384,21 +412,14 @@ void _unlock(int i, uint32_t flags)
 	if (!rv) {
 		lk->wait_ast = 1;
 	} else if (rv == -1 && errno == EBUSY) {
-		printf("unlock: EBUSY %d %x flags %x gr %d rq %d wait_ast %d\n",
-			i, lk->lksb.sb_lkid, flags, lk->grmode, lk->rqmode, lk->wait_ast);
+		printf("        : unlock  %3d\t%x: EBUSY flags %s gr %d rq %d wait_ast %d\n",
+			i, lk->lksb.sb_lkid, uflags(flags), lk->grmode, lk->rqmode, lk->wait_ast);
+	} else if (rv == -1 && errno == ENOENT) {
+		printf("        : unlock  %3d\t%x: ENOENT flags %s gr %d rq %d wait_ast %d\n",
+			i, lk->lksb.sb_lkid, uflags(flags), lk->grmode, lk->rqmode, lk->wait_ast);
 	} else {
-		printf("unlock: error %d %x flags %x rv %d errno %d gr %d rq %d wait_ast %d\n",
-		       i, lk->lksb.sb_lkid, flags, rv, errno, lk->grmode, lk->rqmode,
-		       lk->wait_ast);
-#if 0
-		char input[32];
-		printf("press X to exit, D to dispatch, other to continue\n");
-		fgets(input, 32, stdin);
-		if (input[0] == 'X')
-			exit(-1);
-		else if (input[0] == 'D')
-			dlm_dispatch(libdlm_fd);
-#endif
+		printf("        : unlock  %3d\t%x: errno %d flags %s rv %d gr %d rq %d wait_ast %d\n",
+			i, lk->lksb.sb_lkid, errno, uflags(flags), rv, lk->grmode, lk->rqmode, lk->wait_ast);
 	}
 }
 
@@ -473,7 +494,7 @@ void stress(int num)
 
 	n = skips = lock_ops = unlock_ops = unlockf_ops = cancel_ops = 0;
 
-	while (1) {
+	while (!stress_stop) {
 		process_libdlm();
 
 		if (++n == num)
@@ -515,7 +536,7 @@ void stress(int num)
 
 			lock(i, rand_int(0, 5));
 			lock_ops++;
-			printf("%8u: lock    %3d\t%x\n", n, i, lk->lksb.sb_lkid);
+			printf("%8x: lock    %3d\t%x\n", n, i, lk->lksb.sb_lkid);
 			break;
 
 		case Op_unlock:
@@ -534,7 +555,7 @@ void stress(int num)
 
 			unlock(i);
 			unlock_ops++;
-			printf("%8u: unlock  %3d\t%x\n", n, i, lk->lksb.sb_lkid);
+			printf("%8x: unlock  %3d\t%x\n", n, i, lk->lksb.sb_lkid);
 			break;
 
 		case Op_unlockf:
@@ -549,7 +570,7 @@ void stress(int num)
 
 			unlockf(i);
 			unlockf_ops++;
-			printf("%8u: unlockf %3d\t%x\n", n, i, lk->lksb.sb_lkid);
+			printf("%8x: unlockf %3d\t%x\n", n, i, lk->lksb.sb_lkid);
 			break;
 
 		case Op_cancel:
@@ -564,7 +585,7 @@ void stress(int num)
 
 			cancel(i);
 			cancel_ops++;
-			printf("%8u: cancel  %3d\t%x\n", n, i, lk->lksb.sb_lkid);
+			printf("%8x: cancel  %3d\t%x\n", n, i, lk->lksb.sb_lkid);
 			break;
 		}
 
@@ -611,6 +632,40 @@ static void client_init(void)
 		client[i].fd = -1;
 }
 
+void print_commands(void)
+{
+	printf("Usage:\n");
+	printf("max locks (maxn) is %d (x of 0 to %d)\n", maxn, maxn-1);
+	printf("max resources (maxr) is %d, lock x used on resource (x % maxr)\n", maxr);
+	printf("EXIT		 - exit program after unlocking any held locks\n");
+	printf("kill		 - exit program without unlocking any locks\n");
+	printf("lock x mode	 - request/convert lock x\n");
+	printf("unlock x 	 - unlock lock x\n");
+	printf("unlockf x 	 - force unlock lock x\n");
+	printf("cancel x 	 - cancel lock x\n");
+	printf("lock_sync x mode - synchronous version of lock\n");
+	printf("unlock_sync x 	 - synchronous version of unlock\n");
+	printf("ex x		 - equivalent to: lock x 5\n");
+	printf("pr x		 - equivalent to: lock x 3\n");
+	printf("hold		 - for x in 0 to max, lock x 3\n");
+	printf("release		 - for x in 0 to max, unlock x\n");
+	printf("stress n	 - loop doing random lock/unlock/unlockf/cancel on all locks, n times\n");
+	printf("dump		 - show info for all locks\n");
+	printf("noqueue		 - toggle NOQUEUE flag for all requests\n");
+	printf("persistent	 - toggle PERSISTENT flag for all requests\n");
+	printf("quiet		 - toggle quiet flag\n");
+	printf("verbose		 - toggle verbose flag\n");
+
+	printf("\ncombined operations\n");
+	printf("hold-kill                     - hold; kill\n");
+	printf("release-kill                  - release; kill\n");
+	printf("lock-kill x mode              - lock; kill\n");
+	printf("unlock-kill x                 - unlock; kill\n");
+	printf("lock-cancel x mode msec       - lock; sleep; cancel\n");
+	printf("lock-unlockf x mode msec      - lock; sleep; unlockf\n");
+	printf("lock-cancel-kill x mode msec  - lock; sleep; cancel; kill\n");
+	printf("lock-unlockf-kill x mode msec - lock; sleep; unlockf; kill\n");
+}
 
 void process_command(int *quit)
 {
@@ -735,6 +790,12 @@ void process_command(int *quit)
 		return;
 	}
 
+	if (!strncmp(cmd, "persistent", 10)) {
+		persistent = !persistent;
+		printf("persistent is %s\n", persistent ? "on" : "off");
+		return;
+	}
+
 	if (!strncmp(cmd, "quiet", 5)) {
 		quiet = !quiet;
 		printf("quiet is %d\n", quiet);
@@ -748,39 +809,70 @@ void process_command(int *quit)
 	}
 
 	if (!strncmp(cmd, "help", 4)) {
-		printf("Usage:\n");
-		printf("max locks is %d (x of 0 to %d)\n", maxn, maxn-1);
-		printf("EXIT		 - exit program after unlocking any held locks\n");
-		printf("kill		 - exit program without unlocking any locks\n");
-		printf("lock x mode	 - request/convert lock on resource x\n");
-		printf("unlock x 	 - unlock lock on resource x\n");
-		printf("unlockf x 	 - force unlock lock on resource x\n");
-		printf("cancel x 	 - cancel lock on resource x\n");
-		printf("lock_sync x mode - synchronous version of lock\n");
-		printf("unlock_sync x 	 - synchronous version of unlock\n");
-		printf("ex x		 - equivalent to: lock x 5\n");
-		printf("pr x		 - equivalent to: lock x 3\n");
-		printf("hold		 - for x in 0 to max, lock x 3\n");
-		printf("release		 - for x in 0 to max, unlock x\n");
-		printf("stress n	 - loop doing random lock/unlock/unlockf/cancel on all locks, n times\n");
-		printf("dump		 - show info for all resources\n");
-		printf("noqueue		 - toggle NOQUEUE flag for all requests\n");
-		printf("quiet		 - toggle quiet flag\n");
-		printf("verbose		 - toggle verbose flag\n");
-
-		printf("\ncombined operations\n");
-		printf("hold-kill                     - hold; kill\n");
-		printf("release-kill                  - release; kill\n");
-		printf("lock-kill x mode              - lock; kill\n");
-		printf("unlock-kill x                 - unlock; kill\n");
-		printf("lock-cancel x mode msec       - lock; sleep; cancel\n");
-		printf("lock-unlockf x mode msec      - lock; sleep; unlockf\n");
-		printf("lock-cancel-kill x mode msec  - lock; sleep; cancel; kill\n");
-		printf("lock-unlockf-kill x mode msec - lock; sleep; unlockf; kill\n");
+		print_commands();
 		return;
 	}
 
 	printf("unknown command %s\n", cmd);
+}
+
+void print_usage(void)
+{
+	printf("Options:\n");
+	printf("\n");
+	printf("  -n           The number of resources to work with, default %d\n", MAX_LOCKS);
+	printf("  -i           Iterations in looping stress test, default 0 is no limit\n");
+}
+
+static void decode_arguments(int argc, char **argv)
+{
+	int cont = 1;
+	int optchar;
+
+	while (cont) {
+		optchar = getopt(argc, argv, "n:r:i:hV");
+
+		switch (optchar) {
+
+		case 'n':
+			maxn = atoi(optarg);
+			break;
+
+		case 'r':
+			maxr = atoi(optarg);
+			break;
+
+		case 'i':
+			iterations = atoi(optarg);
+			break;
+
+		case 'h':
+			print_usage();
+			exit(EXIT_SUCCESS);
+			break;
+
+		case 'V':
+			printf("%s (built %s %s)\n", argv[0], __DATE__, __TIME__);
+			/* printf("%s\n", REDHAT_COPYRIGHT); */
+			exit(EXIT_SUCCESS);
+			break;
+
+		case ':':
+		case '?':
+			fprintf(stderr, "Please use '-h' for usage.\n");
+			exit(EXIT_FAILURE);
+			break;
+
+		case EOF:
+			cont = 0;
+			break;
+
+		default:
+			fprintf(stderr, "unknown option: %c\n", optchar);
+			exit(EXIT_FAILURE);
+			break;
+		};
+	}
 }
 
 int main(int argc, char *argv[])
@@ -788,9 +880,20 @@ int main(int argc, char *argv[])
 	struct lk *lk;
 	int i, rv, maxi = 0, quit = 0;
 
-	if (argc > 1)
-		maxn = atoi(argv[1]);
+	decode_arguments(argc, argv);
+
+	if (maxn < maxr) {
+		printf("number of resources must be >= number of locks\n");
+		return -1;
+	}
+	if (maxn % maxr) {
+		printf("number of locks must be multiple of number of resources\n");
+		return -1;
+	}
+
 	printf("maxn = %d\n", maxn);
+	printf("maxr = %d\n", maxr);
+	printf("locks per resource = %d\n", maxn / maxr);
 
 	client_init();
 
@@ -828,10 +931,15 @@ int main(int argc, char *argv[])
 	client_add(libdlm_fd, &maxi);
 	client_add(STDIN_FILENO, &maxi);
 
+	if (strstr(argv[0], "dlmstress"))
+		stress(iterations);
+
 	printf("Type EXIT to finish, help for usage\n");
 
 	while (1) {
 		rv = poll(pollfd, maxi + 1, -1);
+		if (rv < 0 && errno == EINTR)
+			continue;
 		if (rv < 0)
 			printf("poll error %d errno %d\n", rv, errno);
 
