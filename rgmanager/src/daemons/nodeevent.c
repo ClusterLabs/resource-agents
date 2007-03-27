@@ -35,8 +35,12 @@ typedef struct __ne_q {
 /**
  * Node event queue.
  */
-static nevent_t *event_queue = NULL;
+#ifdef WRAP_LOCKS
+static pthread_mutex_t ne_queue_mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP;
+#else
 static pthread_mutex_t ne_queue_mutex = PTHREAD_MUTEX_INITIALIZER;
+#endif
+static nevent_t *event_queue = NULL;
 static pthread_t ne_thread = 0;
 int ne_queue_request(int local, int nodeid, int state);
 

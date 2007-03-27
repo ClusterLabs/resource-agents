@@ -815,6 +815,10 @@ read_pipe(int fd, char **file, size_t *length)
 
 		n = read(fd, buf, sizeof(buf));
 		if (n < 0) {
+
+			if (errno == EINTR)
+				continue;
+
 			if (*file)
 				free(*file);
 			return -1;

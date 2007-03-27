@@ -42,8 +42,12 @@ typedef struct __resthread {
  * Resource thread queue head.
  */
 static resthread_t *resthread_list = NULL;
-static pthread_mutex_t reslist_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+#ifdef WRAP_LOCKS
+static pthread_mutex_t reslist_mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP;
+#else
+static pthread_mutex_t reslist_mutex = PTHREAD_MUTEX_INITIALIZER;
+#endif
 
 static resthread_t *find_resthread_byname(const char *resgroupname);
 static int spawn_if_needed(const char *resgroupname);
@@ -163,7 +167,7 @@ resgroup_thread_main(void *arg)
 	char myname[256];
 	resthread_t *myself;
 	request_t *req;
-	int ret = RG_EFAIL, error = 0;
+	int ret = RG_EFAIL, error = 0, mystatus;
 
 	rg_inc_threads();
 
@@ -453,7 +457,22 @@ resgroup_thread_main(void *arg)
 		raise(SIGSEGV);
 	}
 
-	pthread_mutex_destroy(&my_queue_mutex);
+	mystatus = pthread_mutex_destroy(&my_queue_mutex);
+	if (mystatus != 0)
+	{
+		if (mystatus == EBUSY) {
+			pthread_mutex_unlock(&my_queue_mutex);
+		}
+
+		mystatus = pthread_mutex_destroy(&my_queue_mutex);
+		if (mystatus != 0) {
+			fprintf (stderr, "mutex_destroy=%d err=%d %p\n", 
+			    mystatus, errno, &my_queue_mutex);
+
+			fflush (stderr);
+		}
+	}
+
 	list_remove(&resthread_list, myself);
 	free(myself);
 

@@ -1,3 +1,11 @@
+2007-03-27 Lon Hohberger <lhh at redhat.com>
+	* Merge patch from Crosswalk development team:
+		* Scott Cannata
+		* Henry Harris
+		* Leonard Maiorani
+
+=====
+	
 2006-10-25 Lon Hohberger <lhh at redhat.com>
 	* src/resources/clusterfs.sh: Fix unmounting problem (#212074)
 

@@ -36,11 +36,17 @@ static int __rg_initialized = 0;
 static int _rg_statuscnt = 0;
 static int _rg_statusmax = 5; /* XXX */
 
-static pthread_mutex_t locks_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t unlock_cond = PTHREAD_COND_INITIALIZER;
 static pthread_cond_t zero_cond = PTHREAD_COND_INITIALIZER;
 static pthread_cond_t init_cond = PTHREAD_COND_INITIALIZER;
+
+#ifdef WRAP_LOCKS
+static pthread_mutex_t locks_mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP;
+static pthread_mutex_t _ccs_mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP;
+#else
+static pthread_mutex_t locks_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t _ccs_mutex = PTHREAD_MUTEX_INITIALIZER;
+#endif
 
 #ifdef NO_CCS
 static xmlDocPtr ccs_doc = NULL;
@@ -317,4 +323,3 @@ rg_wait_threads(void)
 	pthread_mutex_unlock(&locks_mutex);
 	return 0;
 }
-

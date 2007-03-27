@@ -70,7 +70,12 @@ static int   loglevel = LOGLEVEL_DFLT;
 static int   syslog_facility = LOG_DAEMON;
 static char  *daemon_name = NULL;
 static pid_t daemon_pid = -1;
+
+#ifdef WRAP_LOCKS
+static pthread_mutex_t log_mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP;
+#else
 static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
+#endif
 
 CODE logger_prioritynames[] = 
 { {"emerg", LOG_EMERG},

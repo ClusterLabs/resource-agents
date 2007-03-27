@@ -32,3 +32,11 @@ RANLIB = ranlib
 
 # Default CFLAGS
 CFLAGS += -DSHAREDIR=\"@SHAREDIR@\" -Wall -Werror -Wstrict-prototypes -Wshadow ${INCLUDE}
+
+#
+# Wrappers around pthread_mutex / pthread_rwlock calls for deadlock
+# detection (and other things)
+#
+#CFLAGS += -DSHAREDIR=\"@SHAREDIR@\" -Wall -Werror -Wstrict-prototypes -Wshadow ${INCLUDE} -DWRAP_LOCKS
+#LDFLAGS += -Wl,-wrap,pthread_mutex_lock,-wrap,pthread_mutex_unlock,-wrap,pthread_rwlock_rdlock,-wrap,pthread_rwlock_wrlock,-wrap,pthread_rwlock_unlock
+

@@ -403,7 +403,8 @@ dispatch_msg(msgctx_t *ctx, int nodeid, int need_close)
 	/* Peek-a-boo */
 	sz = msg_receive(ctx, msg_hdr, sizeof(msgbuf), 1);
 	if (sz < sizeof (generic_msg_hdr)) {
-		clulog(LOG_ERR, "#37: Error receiving message header (%d)\n", sz);
+		clulog(LOG_ERR,
+		       "#37: Error receiving message header (%d)\n", sz);
 		goto out;
 	}
 

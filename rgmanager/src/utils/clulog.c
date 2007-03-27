@@ -122,6 +122,12 @@ main(int argc, char **argv)
     /* Add two bytes for linefeed and NULL terminator */
     len = strlen(argv[argc-1]) + 2;
     logmsg = (char*)malloc(strlen(argv[argc-1])+2);
+    if (logmsg == NULL) {
+        fprintf(stderr,
+            "clulog: malloc fail err=%d\n", errno);
+        exit(0);
+    }
+
     snprintf(logmsg, len, "%s\n", argv[argc-1]);
 
     if (!cmdline_loglevel) {

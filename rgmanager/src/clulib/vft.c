@@ -50,8 +50,13 @@ static uint16_t _port = 0;		/** Our daemon ID, set with vf_init. */
  * TODO: We could make it thread safe, but this might be unnecessary work
  * Solution: Super-coarse-grained-bad-code-locking!
  */
+#ifdef WRAP_LOCKS
+static pthread_mutex_t key_list_mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP;
+static pthread_mutex_t vf_mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP;
+#else
 static pthread_mutex_t key_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t vf_mutex = PTHREAD_MUTEX_INITIALIZER;
+#endif /* WRAP_LOCKS */
 static pthread_t vf_thread = (pthread_t)-1;
 static int vf_thread_ready = 0;
 static vf_vote_cb_t default_vote_cb = NULL;
@@ -788,6 +793,15 @@ vf_try_commit(key_node_t *key_node)
 		free(key_node->kn_data);
 	key_node->kn_datalen = vnp->vn_datalen;
 	key_node->kn_data = malloc(vnp->vn_datalen);
+
+	/*
+	 *   Need to check return of malloc always
+	 */
+	if (key_node->kn_data == NULL) {
+		fprintf (stderr, "malloc fail err=%d\n", errno);
+		return -1;
+	}
+
 	memcpy(key_node->kn_data, vnp->vn_data, vnp->vn_datalen);
 
 	free(vnp);
@@ -1013,6 +1027,13 @@ vf_key_init_nt(char *keyid, int timeout, vf_vote_cb_t vote_cb,
 	}
 
 	newnode = malloc(sizeof(*newnode));
+
+	if (newnode == NULL) {
+		fprintf(stderr, "malloc fail3 err=%d\n", errno);
+		pthread_mutex_unlock(&key_list_mutex);
+		return -1;
+	}
+
 	newnode->kn_data = NULL;
 	memset(newnode,0,sizeof(*newnode));
 	newnode->kn_keyid = strdup(keyid);
@@ -1136,7 +1157,6 @@ vf_write(cluster_member_list_t *membership, uint32_t flags, char *keyid,
 	snprintf(lock_name, sizeof(lock_name), "usrm::vf");
 	l = clu_lock(LKM_EXMODE, &lockp, 0, lock_name);
 	if (l < 0) {
-		clu_unlock(&lockp);
 		pthread_mutex_unlock(&vf_mutex);
 		return l;
 	}
@@ -1153,7 +1173,7 @@ vf_write(cluster_member_list_t *membership, uint32_t flags, char *keyid,
 	}
 
 #ifdef DEBUG
-	printf("aight, need responses from %d guys\n", remain);
+	printf("Allright, need responses from %d members\n", remain);
 #endif
 
 	pthread_mutex_lock(&key_list_mutex);
@@ -1195,6 +1215,8 @@ vf_write(cluster_member_list_t *membership, uint32_t flags, char *keyid,
 	 */
 	if (msg_open(MSG_CLUSTER, 0, _port, &everyone, 0) < 0) {
 		printf("msg_open: fail: %s\n", strerror(errno));
+		clu_unlock(&lockp);
+		pthread_mutex_unlock(&vf_mutex);
 		return -1;
 	}
 
@@ -1432,9 +1454,7 @@ vf_read(cluster_member_list_t *membership, char *keyid, uint64_t *view,
 	snprintf(lock_name, sizeof(lock_name), "usrm::vf");
 	l = clu_lock(LKM_EXMODE, &lockp, 0, lock_name);
 	if (l < 0) {
-		clu_unlock(&lockp);
 		pthread_mutex_unlock(&vf_mutex);
-		printf("Couldn't lock %s\n", keyid);
 		return l;
 	}
 

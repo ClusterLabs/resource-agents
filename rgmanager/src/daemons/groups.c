@@ -42,8 +42,13 @@ static resource_rule_t *_rules = NULL;
 static resource_node_t *_tree = NULL;
 static fod_t *_domains = NULL;
 
+#ifdef WRAP_LOCKS
+pthread_mutex_t config_mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP;
+pthread_mutex_t status_mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP;
+#else
 pthread_mutex_t config_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t status_mutex = PTHREAD_MUTEX_INITIALIZER;
+#endif
 pthread_rwlock_t resource_lock = PTHREAD_RWLOCK_INITIALIZER;
 
 void res_build_name(char *, size_t, resource_t *);

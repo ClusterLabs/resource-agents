@@ -33,7 +33,8 @@ msgtest: msgtest.o libclulib.a
 
 libclulib.a: clulog.o daemon_init.o signals.o msgsimple.o \
 		gettid.o rg_strings.o message.o members.o fdops.o \
-		lock.o cman.o vft.o msg_cluster.o msg_socket.o
+		lock.o cman.o vft.o msg_cluster.o msg_socket.o \
+		wrap_lock.o
 	${AR} cru $@ $^
 	ranlib $@
 
