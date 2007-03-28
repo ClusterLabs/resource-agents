@@ -576,6 +576,7 @@ int print_rindex(struct gfs2_inode *di)
 	int error, start_line;
 	struct gfs2_rindex ri;
 	char buf[sizeof(struct gfs2_rindex)];
+	char highlighted_addr[32];
 
 	start_line = line;
 	error = 0;
@@ -583,6 +584,7 @@ int print_rindex(struct gfs2_inode *di)
 			   di->i_di.di_size / sizeof(struct gfs2_rindex));
 	eol(0);
 	lines_per_row[dmode] = 6;
+	memset(highlighted_addr, 0, sizeof(highlighted_addr));
 	for (print_entry_ndx=0; ; print_entry_ndx++) {
 		error = gfs2_readi(di, (void *)&buf,
 						   print_entry_ndx * sizeof(struct gfs2_rindex),
@@ -596,7 +598,8 @@ int print_rindex(struct gfs2_inode *di)
 			 termlines - start_line - 2)) {
 			if (edit_row[dmode] == print_entry_ndx) {
 				COLORS_HIGHLIGHT;
-				sprintf(estring, "%" PRIx64, ri.ri_addr);
+				sprintf(highlighted_addr, "%" PRIx64,
+					ri.ri_addr);
 			}
 			print_gfs2("RG #%d", print_entry_ndx);
 			eol(0);
@@ -606,6 +609,7 @@ int print_rindex(struct gfs2_inode *di)
 			last_entry_onscreen[dmode] = print_entry_ndx;
 		}
 	}
+	strcpy(estring, highlighted_addr);
 	end_row[dmode] = print_entry_ndx;
 	return error;
 }
