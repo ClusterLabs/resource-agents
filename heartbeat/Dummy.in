@@ -64,7 +64,6 @@ Location to store the resource state in.
 <content type="string" default="" />
 </parameter>
 
-<parameters>
 <parameter name="check_parallel" unique="0">
 <longdesc lang="en">
 Complain loudly if they try to run us in parallel on the same resource.

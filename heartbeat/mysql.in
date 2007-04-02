@@ -127,7 +127,7 @@ Group running MySQL daemon (for logfile and directory permissions)
 
 <parameter name="test_table" unique="0" required="0">
 <longdesc lang="en">
-Table to be tested in monitor statement (in <database>.<table> notation)
+Table to be tested in monitor statement (in database.table notation)
 </longdesc>
 <shortdesc lang="en">MySQL test table</shortdesc>
 <content type="string" default="mysql.user" />

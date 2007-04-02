@@ -84,7 +84,7 @@ Full path to the drbd.conf file.
 <longdesc lang="en">
 Whether or not to override the hostname with the clone number. This can
 be used to create floating peer configurations; drbd will be told to
-use node_&le;cloneno&ge; as the hostname instead of the real uname,
+use node_&#60;cloneno&#62; as the hostname instead of the real uname,
 which can then be used in drbd.conf.
 </longdesc>
 <shortdesc lang="en">Override drbd hostname</shortdesc>
