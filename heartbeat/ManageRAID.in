@@ -54,12 +54,6 @@
 . @hb_libdir@/ocf-shellfuncs
 ###
 
-## required configuration
-#
-. /etc/conf.d/HB-ManageRAID
-#
-##
-
 # required utilities
 MDADM=/sbin/mdadm
 MOUNT=/bin/mount
@@ -296,6 +290,16 @@ case "$1" in
   *)
 	;;
 esac
+
+## required configuration
+#
+[ -f /etc/conf.d/HB-ManageRAID ] || {
+	ocf_log err "/etc/conf.d/HB-ManageRAID missing"
+	exit $OCF_ERR_INSTALLED
+}
+. /etc/conf.d/HB-ManageRAID
+#
+##
 
 #
 # check relevant environment variables for sanity and security
