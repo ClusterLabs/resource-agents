@@ -36,7 +36,7 @@ my $immediate = 'immediate'; # # Or 'delayed' - action string prefix on menu
 my $max_open_tries = 3;      # How many attempts to make.
 my $open_wait = 5;           # Seconds to wait between each attempt
 my $debuglog = '/tmp/apclog';# Location of debugging log when in verbose mode
-my $powerop_mode = VM_POWEROP_MODE_TRYSOFT;
+my $powerop_mode = VM_POWEROP_MODE_HARD;
 $opt_o = 'Reboot';           # Default fence action.  
 
 
