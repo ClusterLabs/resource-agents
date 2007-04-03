@@ -63,7 +63,7 @@ void version(void)
 
 int read_cmdline(int argc, char **argv, struct options *opts)
 {
-	char c;
+	int c;
 
 	while((c = getopt(argc, argv, "hnqvyV")) != -1) {
 		switch(c) {
