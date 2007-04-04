@@ -274,6 +274,7 @@ store_action(resource_act_t **actsp, char *name, int depth,
 		acts[0].ra_depth = depth;
 		acts[0].ra_timeout = timeout;
 		acts[0].ra_interval = interval;
+		acts[0].ra_last = 0;
 		acts[1].ra_name = NULL;
 
 		*actsp = acts;
@@ -297,6 +298,7 @@ store_action(resource_act_t **actsp, char *name, int depth,
 				       (int)interval);
 				acts[x].ra_interval = interval;
 			}
+			acts[x].ra_last = 0;
 			printf("\n");
 			replace = 1;
 		}
@@ -318,6 +320,7 @@ store_action(resource_act_t **actsp, char *name, int depth,
 	acts[x].ra_depth = depth;
 	acts[x].ra_timeout = timeout;
 	acts[x].ra_interval = interval;
+	acts[x].ra_last = 0;
 
 	acts[x+1].ra_name = NULL;
 

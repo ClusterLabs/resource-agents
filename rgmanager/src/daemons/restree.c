@@ -1019,25 +1019,39 @@ do_status(resource_node_t *node)
 
 	now = time(NULL);
 
-       for (; node->rn_actions[x].ra_name; x++) {
+	for (; node->rn_actions[x].ra_name; x++) {
 		if (!has_recover &&
-                   !strcmp(node->rn_actions[x].ra_name, "recover")) {
+		    !strcmp(node->rn_actions[x].ra_name, "recover")) {
 			has_recover = 1;
 			continue;
 		}
 
-               if (strcmp(node->rn_actions[x].ra_name, "status"))
+		if (strcmp(node->rn_actions[x].ra_name, "status"))
 			continue;
 
-               delta = now - node->rn_actions[x].ra_last;
+		/* If a status check has never been done, reset its status. */
+		if (!node->rn_actions[x].ra_last) {
+			node->rn_actions[x].ra_last = now;
+			continue;
+		}
 
-		/* Ok, it's a 'monitor' action. See if enough time has
-		   elapsed for a given type of monitoring action */
-               if (delta < node->rn_actions[x].ra_interval)
+		delta = now - node->rn_actions[x].ra_last;
+
+		/*
+		printf("%s:%s %s level %d interval = %d  elapsed = %d\n",
+			node->rn_resource->r_rule->rr_type,
+			node->rn_resource->r_attrs->ra_value,
+			node->rn_actions[x].ra_name, node->rn_actions[x].ra_depth,
+			(int)node->rn_actions[x].ra_interval, (int)delta);
+		 */
+
+		/* Ok, it's a 'status' action. See if enough time has
+		   elapsed for a given type of status action */
+		if (delta < node->rn_actions[x].ra_interval)
 			continue;
 
 		if (idx == -1 ||
-                   node->rn_actions[x].ra_depth > node->rn_actions[idx].ra_depth)
+		    node->rn_actions[x].ra_depth > node->rn_actions[idx].ra_depth)
 			idx = x;
 	}
 
@@ -1045,7 +1059,27 @@ do_status(resource_node_t *node)
 	if (idx == -1)
 		return 0;
 
-       node->rn_actions[idx].ra_last = now;
+ 	/* Clear all check levels lower than us */
+ 	for (x = 0; node->rn_actions[x].ra_name; x++) {
+ 		if (x == idx) {
+ 			node->rn_actions[idx].ra_last = now;
+ 			continue;
+ 		}
+ 		if (strcmp(node->rn_actions[x].ra_name, "status"))
+ 			continue;
+ 
+ 		if (node->rn_actions[x].ra_depth <
+ 		    node->rn_actions[idx].ra_depth)
+ 			node->rn_actions[x].ra_last = now;
+ 	}
+ 
+ 	/*printf("-> %s:%s %s level %d interval = %d\n",
+ 		node->rn_resource->r_rule->rr_type,
+ 		node->rn_resource->r_attrs->ra_value,
+ 		node->rn_actions[idx].ra_name,
+ 		node->rn_actions[idx].ra_depth,
+ 		(int)node->rn_actions[idx].ra_interval);*/
+ 
 	if ((x = res_exec(node, agent_op_str(RS_STATUS), NULL,
                          node->rn_actions[idx].ra_depth)) == 0)
 		return 0;

@@ -279,6 +279,9 @@ verify_fstype()
 	gfs)
 		return $OCF_SUCCESS
 		;;
+	ocfs|ocfs2)
+		return $OCF_SUCCESS
+		;;
 	*)
 		ocf_log err "File system type $OCF_RESKEY_fstype not supported"
 		return $OCF_ERR_ARGS
