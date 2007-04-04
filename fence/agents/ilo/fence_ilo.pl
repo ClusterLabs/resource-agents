@@ -279,6 +279,13 @@ sub power_status
 
 	foreach my $line (@response)
 	{
+		if ($line =~ /MANAGEMENT_PROCESSOR\s*=\s*\"(.*)\"/) {
+			if ($1 eq "iLO2") {
+				$ilo_vers = 2;
+				print "power_status: reporting iLO2\n" if ($verbose);
+			}
+		}
+
 		if ($line =~ /MESSAGE='(.*)'/)
 		{
 			my $msg = $1;
@@ -343,18 +350,26 @@ sub set_power_state
 	sendsock $socket, "<LOGIN USER_LOGIN = \"$username\" PASSWORD = \"$passwd\">\n";
 	sendsock $socket, "<SERVER_INFO MODE = \"write\">\n";
 
+	if ($ilo_vers == 2) {
+		# iLO2 with RIBCL v2.22 behaves differently from
+		# iLO with RIBCL v2.22. For the former, HOLD_PWR_BTN is
+		# used to both power the machine on and off; when the power
+		# is off, PRESS_PWR_BUTTON has no effect. For the latter,
+		# HOLD_PWR_BUTTON is used to power the machine off, and
+		# PRESS_PWR_BUTTON is used to power the machine on;
+		# when the power is off, HOLD_PWR_BUTTON has no effect.
+		sendsock $socket, "<HOLD_PWR_BTN/>\n";
+	}
 	# As of firmware version 1.71 (RIBCL 2.21) The SET_HOST_POWER command
 	# is no longer available.  HOLD_PWR_BTN and PRESS_PWR_BTN are used 
 	# instead now :(
-	if ($ribcl_vers < 2.21)
+	elsif ($ribcl_vers < 2.21)
 	{
 		sendsock $socket, "<SET_HOST_POWER HOST_POWER = \"$state\"/>\n";
 	}
 	else
 	{
-		if ($ribcl_vers > 2.21) {
-			sendsock $socket, "<HOLD_PWR_BTN/>\n";
-		} elsif ($state eq "Y" )
+		if ($state eq "Y" )
 		{ 
 			sendsock $socket, "<PRESS_PWR_BTN/>\n";
 		} 
@@ -403,6 +418,9 @@ sub get_power_state
 		sendsock $socket, "<RIBCL VERSION=\"2.0\">\n";
 	}
 	sendsock $socket, "<LOGIN USER_LOGIN = \"$username\" PASSWORD = \"$passwd\">\n";
+	if ($ribcl_vers >= 2) {
+	    sendsock $socket, "<RIB_INFO MODE=\"read\"><GET_FW_VERSION/></RIB_INFO>\n";
+	}
 	sendsock $socket, "<SERVER_INFO MODE = \"read\">\n";
 	sendsock $socket, "<GET_HOST_POWER_STATUS/>\n";
 	sendsock $socket, "</SERVER_INFO>\n";
@@ -492,6 +510,7 @@ sub get_options_stdin
 
 $action = "reboot";
 $ribcl_vers = undef; # undef = autodetect
+$ilo_vers = 1;
 
 if (@ARGV > 0) {
 	getopts("a:hl:n:o:p:S:r:qvV") || fail_usage ;
