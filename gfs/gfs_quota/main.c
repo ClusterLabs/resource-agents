@@ -345,7 +345,7 @@ compute_hidden_blocks(commandline_t *comline, int fd)
  *
  */
 
-static void
+void
 print_quota(commandline_t *comline,
 	    int user, uint32_t id,
 	    struct gfs_quota *q,
@@ -402,68 +402,7 @@ print_quota(commandline_t *comline,
 static void
 do_list(commandline_t *comline)
 {
-	int fd;
-	struct gfs_sb sb;
-	struct gfs_ioctl gi;
-	char buf[sizeof(struct gfs_quota)];
-	struct gfs_quota q;
-	uint64_t offset;
-	uint64_t hidden_blocks = 0;
-	uint32_t id;
-	int pass = 0;
-	int error;
-
-	if (!*comline->filesystem)
-		die("need a filesystem to work on\n");
-
-	fd = open(comline->filesystem, O_RDONLY);
-	if (fd < 0)
-		die("can't open file %s: %s\n", comline->filesystem,
-		    strerror(errno));
-
-	check_for_gfs(fd, comline->filesystem);
-	do_get_super(fd, &sb);
-
-	if (comline->no_hidden_file_blocks)
-		hidden_blocks = compute_hidden_blocks(comline, fd);
-
-	for (pass = 0; pass < 2; pass++) {
-		if (!pass)
-			offset = 0;
-		else
-			offset = sizeof(struct gfs_quota);
-
-		do {
-			char *argv[] = { "do_hfile_read", "quota" };
-
-			gi.gi_argc = 2;
-			gi.gi_argv = argv;
-			gi.gi_data = buf;
-			gi.gi_size = sizeof(struct gfs_quota);
-			gi.gi_offset = offset;
-
-			memset(buf, 0, sizeof(struct gfs_quota));
-
-			error = ioctl(fd, GFS_IOCTL_SUPER, &gi);
-			if (error < 0)
-				die("can't read quota file: %s\n",
-				    strerror(errno));
-
-			gfs_quota_in(&q, buf);
-
-			id = (offset / sizeof(struct gfs_quota)) >> 1;
-			if (!id && comline->no_hidden_file_blocks)
-				q.qu_value -= hidden_blocks;
-
-			if (q.qu_limit || q.qu_warn || q.qu_value)
-				print_quota(comline, (pass) ? FALSE : TRUE, id,
-					    &q, &sb);
-
-			offset += 2 * sizeof(struct gfs_quota);
-		} while (error == sizeof(struct gfs_quota));
-	}
-
-	close(fd);
+	print_quota_file(comline);
 }
 
 /**

@@ -19,7 +19,8 @@ SOURCE=	\
 	check.c \
 	main.c \
 	names.c \
-	ondisk.c
+	ondisk.c \
+	layout.c
 
 CFLAGS+= -O2 -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 \
 	-DGFS_RELEASE_NAME=\"${RELEASE}\"

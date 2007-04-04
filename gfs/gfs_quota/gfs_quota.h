@@ -101,4 +101,7 @@ void do_init(commandline_t *comline);
 uint32_t name_to_id(int user, char *name, int numbers);
 char *id_to_name(int user, uint32_t id, int numbers);
 
+/* layout.c */
+
+void print_quota_file(commandline_t *comline);
 #endif /* __GFS_QUOTA_DOT_H__ */
