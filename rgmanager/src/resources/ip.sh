@@ -129,7 +129,7 @@ meta_data()
         <action name="monitor" depth="10" interval="60" timeout="20"/>
 
         <action name="meta-data" timeout="20"/>
-        <action name="verify-all" timeout="20"/>
+        <action name="validate-all" timeout="20"/>
     </actions>
 
     <special tag="rgmanager">
@@ -884,9 +884,6 @@ start)
 		exit 0
 	fi
 	ip_op ${OCF_RESKEY_family} add ${OCF_RESKEY_address}
-	if [ $? -ne 0 ]; then
-		exit $OCF_ERR_GENERIC
-	fi
 
 	if [ $NFS_TRICKS -eq 0 ]; then
 		if [ "$OCF_RESKEY_nfslock" = "yes" ] || \
@@ -932,13 +929,13 @@ meta-data)
 	meta_data
 	exit 0
 	;;
-verify-all)
+validate-all|verify_all)
 	verify_all
 	exit $?
 	;;
 *)
-	echo "usage: $0 {start|stop|status|monitor|restart|meta-data|verify-alll}"
-	exit $OCF_ERR_GENERIC
+	echo "usage: $0 {start|stop|status|monitor|restart|meta-data|validate-all}"
+	exit $OCF_ERR_UNIMPLEMENTED
 	;;
 esac
 

@@ -117,7 +117,7 @@ meta_data()
         <action name="monitor" interval="30s" timeout="0"/>
 
         <action name="meta-data" timeout="0"/>
-        <action name="verify-all" timeout="0"/>
+        <action name="validate-all" timeout="0"/>
     </actions>
 </resource-agent>
 EOT
@@ -755,14 +755,14 @@ case $1 in
 		share_start_stop status
 		exit $?
 	;;
-	verify-all)
+	validate-all)
 		verify_all
 		echo "Yer radio's workin', driver!"
 		exit 0
 	;;
 	*)
-		echo "usage: $0 {start|stop|status|monitor|meta-data|verify-all}"
-		exit $OCF_ERR_ARGS
+		echo "usage: $0 {start|stop|status|monitor|meta-data|validate-all}"
+		exit $OCF_ERR_UNIMPLEMENTED
 	;;
 esac
 

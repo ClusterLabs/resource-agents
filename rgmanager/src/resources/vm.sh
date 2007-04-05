@@ -194,7 +194,7 @@ meta_data()
 	<action name="migrate" timeout="10m"/>
 
         <action name="meta-data" timeout="5"/>
-        <action name="verify-all" timeout="5"/>
+        <action name="validate-all" timeout="5"/>
 
     </actions>
     
@@ -412,12 +412,12 @@ case $1 in
 		meta_data
 		exit 0
 		;;
-	verify-all)
+	validate-all)
 		verify_all
 		exit $?
 		;;
 	*)
-		echo "usage: $0 {start|stop|restart|status|reload|reconfig|meta-data|verify-all}"
-		exit 1
+		echo "usage: $0 {start|stop|restart|status|reload|reconfig|meta-data|validate-all}"
+		exit $OCF_ERR_UNIMPLEMENTED
 		;;
 esac

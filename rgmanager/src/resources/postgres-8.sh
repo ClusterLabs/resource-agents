@@ -195,7 +195,7 @@ case $1 in
 		cat `echo $0 | sed 's/^\(.*\)\.sh$/\1.metadata/'`
 		exit 0
 		;;
-	verify-all)
+	validate-all)
 		verify_all
 		exit $?
 		;;
@@ -219,7 +219,7 @@ case $1 in
 		exit $?
 		;;
 	*)
-		echo "Usage: $0 {start|stop|status|monitor|restart|meta-data|verify-all}"
-		exit $OCF_ERR_GENERIC
+		echo "Usage: $0 {start|stop|status|monitor|restart|meta-data|validate-all}"
+		exit $OCF_ERR_UNIMPLEMENTED
 		;;
 esac

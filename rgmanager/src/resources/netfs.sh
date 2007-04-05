@@ -152,7 +152,7 @@ meta_data()
 	<action name="monitor" depth="20" timeout="30" interval="10m"/>
 
 	<action name="meta-data" timeout="5"/>
-	<action name="verify-all" timeout="5"/>
+	<action name="validate-all" timeout="5"/>
     </actions>
 
     <special tag="rgmanager">
@@ -581,13 +581,13 @@ meta-data)
 	meta_data
 	exit 0
 	;;
-verify-all)
+validate-all)
 	verify_all
 	exit $?
 	;;
 *)
-	echo "usage: $0 {start|stop|status|monitor|restart|meta-data|verify-all}"
-	exit $OCF_ERR_GENERIC
+	echo "usage: $0 {start|stop|status|monitor|restart|meta-data|validate-all}"
+	exit $OCF_ERR_UNIMPLEMENTED
 	;;
 esac
 

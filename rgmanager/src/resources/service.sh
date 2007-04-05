@@ -167,7 +167,7 @@ meta_data()
         <action name="recover" timeout="5"/>
         <action name="reload" timeout="5"/>
         <action name="meta-data" timeout="5"/>
-        <action name="verify-all" timeout="5"/>
+        <action name="validate-all" timeout="5"/>
     </actions>
     
     <special tag="rgmanager">
@@ -224,7 +224,7 @@ case $1 in
 		meta_data
 		exit 0
 		;;
-	verify-all)
+	validate-all)
 		exit 0
 		;;
 	*)

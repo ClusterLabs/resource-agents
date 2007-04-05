@@ -96,7 +96,7 @@
 	<action name="monitor" depth="10" timeout="30" interval="5m"/>
 
 	<action name="meta-data" timeout="0"/>
-	<action name="verify-all" timeout="0"/>
+	<action name="validate-all" timeout="0"/>
     </actions>
 
     <special tag="rgmanager">

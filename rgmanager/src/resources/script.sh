@@ -89,7 +89,7 @@ meta_data()
         <action name="monitor" interval="30s" timeout="0"/>
 
         <action name="meta-data" timeout="0"/>
-        <action name="verify-all" timeout="0"/>
+        <action name="validate-all" timeout="0"/>
     </actions>
 </resource-agent>
 EOT
@@ -99,6 +99,9 @@ case $1 in
 	meta-data)
 		meta_data
 		exit 0
+		;;
+	validate-all)
+		exit 0 # XXX XXX XXX
 		;;
 	*)
 		;;

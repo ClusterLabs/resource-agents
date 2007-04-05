@@ -176,7 +176,7 @@ meta_data()
 	<action name="monitor" depth="20" timeout="90" interval="10m"/>
 
 	<action name="meta-data" timeout="5"/>
-	<action name="verify-all" timeout="5"/>
+	<action name="validate-all" timeout="5"/>
     </actions>
 
     <special tag="rgmanager">
@@ -755,32 +755,38 @@ status_ias()
 ########################
 # Do some real work... #
 ########################
-if [ "$1" = "meta-data" ]; then
-	exit 0
-fi
-validation_checks $*
-
 case $1 in
+	meta-data)
+		meta_data
+		exit $?
+		;;
+	validate-all)
+		validation_checks $*
+		exit 0 # XXX XXX XXX
+		;;
 	start)
+		validation_checks $*
 		start_ias
 		exit $?
 		;;
 	stop)
+		validation_checks $*
 		stop_ias
 		exit $?
 		;;
 	status|monitor)
+		validation_checks $*
 		status_ias $OCF_CHECK_LEVEL
 		exit $?
 		;;
 	restart)
 		$0 stop || exit $?
 		$0 start || exit $?
-		exit 0
+		exit $OCF_SUCCESS
 		;;
 	*)
-		echo "usage: $SCRIPT {start|stop|status|restart}"
-		exit 1
+		echo "usage: $SCRIPT {start|stop|status|restart|validate-all|monitor}"
+		exit $OCF_ERR_UNIMPLEMENTED
 		;;
 esac	
 exit 0
