@@ -1,3 +1,7 @@
+2007-04-12 Lon Hohberger <lhh at redhat.com>
+	* src/daemons/main.c: Fix watchdog race condition causing
+	reboot; patch from Andrey Mirkin; bugzilla #236204
+	
 2007-03-27 Lon Hohberger <lhh at redhat.com>
 	* Merge patch from Crosswalk development team:
 		* Scott Cannata

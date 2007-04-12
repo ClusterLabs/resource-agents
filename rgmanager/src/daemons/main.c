@@ -882,6 +882,18 @@ main(int argc, char **argv)
 			clulog(LOG_NOTICE, "Failed to start watchdog\n");
 	}
 
+	setup_signal(SIGINT, flag_shutdown);
+	setup_signal(SIGTERM, flag_shutdown);
+	setup_signal(SIGUSR1, statedump);
+	unblock_signal(SIGCHLD);
+	setup_signal(SIGPIPE, SIG_IGN);
+
+	if (debug) {
+		setup_signal(SIGSEGV, segfault);
+	} else {
+		unblock_signal(SIGSEGV);
+	}
+
 	clu_initialize(&clu);
 	if (cman_init_subsys(clu) < 0) {
 		perror("cman_init_subsys");
@@ -915,18 +927,6 @@ main(int argc, char **argv)
 	if (init_resource_groups(0) != 0) {
 		clulog(LOG_CRIT, "#8: Couldn't initialize services\n");
 		return -1;
-	}
-
-	setup_signal(SIGINT, flag_shutdown);
-	setup_signal(SIGTERM, flag_shutdown);
-	setup_signal(SIGUSR1, statedump);
-	unblock_signal(SIGCHLD);
-	setup_signal(SIGPIPE, SIG_IGN);
-
-	if (debug) {
-		setup_signal(SIGSEGV, segfault);
-	} else {
-		unblock_signal(SIGSEGV);
 	}
 
 	if (msg_listen(MSG_SOCKET, RGMGR_SOCK, me.cn_nodeid, &local_ctx) < 0) {
