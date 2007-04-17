@@ -2864,6 +2864,7 @@ resources/Makefile						\
 	resources/OCF/Delay					\
 	resources/OCF/db2					\
 	resources/OCF/drbd					\
+	resources/OCF/eDirectory				\
 	resources/OCF/EvmsSCC					\
 	resources/OCF/Evmsd					\
 	resources/OCF/Filesystem				\
