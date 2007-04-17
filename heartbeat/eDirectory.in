@@ -204,7 +204,7 @@ eDir_start() {
         # Startup time can be in excess of 10 minutes.
         # Leave a very long heartbeat timeout on the start action
         # We're relying on heartbeat to bail us out...
-	CNT=$[CNT+1}
+	CNT=$[CNT+1]
         ocf_log info "eDirectory start waiting for ${CNT}th retry for $NDSCONF."
         sleep 10
     done
