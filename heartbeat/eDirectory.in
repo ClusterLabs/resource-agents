@@ -1,9 +1,9 @@
-#!/bin/sh
+#!/bin/bash
 #
 #      eDirectory Resource Agent (RA) for Heartbeat.
 #      This script is only compatible with eDirectory 8.8 and later
 #
-# Copyright (c) 2007 SUSE LINUX AG, Yan Fitterer
+# Copyright (c) 2007 Novell Inc, Yan Fitterer
 #                    All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -38,7 +38,7 @@
 #######################################################################
 # Initialization:
 
-. /usr/lib/heartbeat/ocf-shellfuncs
+. @hb_libdir@/ocf-shellfuncs
 
 #######################################################################
 
@@ -74,7 +74,7 @@ eDirectory has been added in version 8.8. This script will not work for any
 version of eDirectory prior to 8.8. This RA can be used to load multiple
 eDirectory instances on the same host.
 
-Setting a high heartbeat timeout value is _very_ _strongly_ recommended. eDir
+Setting a high action timeout value is _very_ _strongly_ recommended. eDir
 with IDM can take in excess of 10 minutes to start. If heartbeat times out
 before eDir has had a chance to start properly, mayhem _WILL ENSUE_.
 
@@ -92,42 +92,42 @@ Path to configuration file for eDirectory instance.
 <shortdesc lang="en">eDir config file</shortdesc>
 <content type="string" default="/etc/opt/novell/eDirectory/conf/nds.conf" />
 </parameter>
-<parameter name="eDir_monitor_ldap" unique="0" required="0">
+<parameter name="eDir_monitor_ldap" required="0">
 <longdesc lang="en">
 Should we monitor if LDAP is running for the eDirectory instance?
 </longdesc>
 <shortdesc lang="en">eDir monitor ldap</shortdesc>
 <content type="boolean" default="0" />
 </parameter>
-<parameter name="eDir_monitor_idm" unique="0" required="0">
+<parameter name="eDir_monitor_idm" required="0">
 <longdesc lang="en">
 Should we monitor if IDM is running for the eDirectory instance?
 </longdesc>
 <shortdesc lang="en">eDir monitor IDM</shortdesc>
 <content type="boolean" default="0" />
 </parameter>
-<parameter name="eDir_startup_timeout" unique="0" required="0">
+<parameter name="eDir_startup_timeout" required="0">
 <longdesc lang="en">
 How long (in seconds) do we wait for eDir to start this instance (give _plenty_ of time here...)?
 </longdesc>
 <shortdesc lang="en">eDir startup timeout</shortdesc>
 <content type="boolean" default="0" />
 </parameter>
-<parameter name="eDir_jvm_initial_heap" unique="0" required="0">
+<parameter name="eDir_jvm_initial_heap" required="0">
 <longdesc lang="en">
 Value for the DHOST_INITIAL_HEAP java environment variable. If unset, java defaults will be used.
 </longdesc>
 <shortdesc lang="en">DHOST_INITIAL_HEAP value</shortdesc>
 <content type="integer" default="" />
 </parameter>
-<parameter name="eDir_jvm_max_heap" unique="0" required="0">
+<parameter name="eDir_jvm_max_heap" required="0">
 <longdesc lang="en">
 Value for the DHOST_MAX_HEAP java environment variable. If unset, java defaults will be used.
 </longdesc>
 <shortdesc lang="en">DHOST_MAX_HEAP value</shortdesc>
 <content type="integer" default="" />
 </parameter>
-<parameter name="eDir_jvm_options" unique="0" required="0">
+<parameter name="eDir_jvm_options" required="0">
 <longdesc lang="en">
 Value for the DHOST_OPTIONS java environment variable. If unset, original values will be used.
 </longdesc>
@@ -177,15 +177,15 @@ eDir_start() {
     fi
 
     # Start eDirectory instance
-    if [ "$OCF_RESKEY_eDir_jvm_initial_heap" ]; then
+    if [ -n "$OCF_RESKEY_eDir_jvm_initial_heap" ]; then
         DHOST_JVM_INITIAL_HEAP=$OCF_RESKEY_eDir_jvm_initial_heap
         export DHOST_JVM_INITIAL_HEAP
     fi
-    if [ "$OCF_RESKEY_eDir_jvm_max_heap" ]; then
+    if [ -n "$OCF_RESKEY_eDir_jvm_max_heap" ]; then
         DHOST_JVM_MAX_HEAP=$OCF_RESKEY_eDir_jvm_max_heap
         export DHOST_JVM_MAX_HEAP
     fi
-    if [ "$OCF_RESKEY_eDir_jvm_options" ]; then
+    if [ -n "$OCF_RESKEY_eDir_jvm_options" ]; then
         DHOST_JVM_OPTIONS=$OCF_RESKEY_eDir_jvm_options
         export DHOST_JVM_OPTIONS
     fi
@@ -198,22 +198,19 @@ eDir_start() {
         return $OCF_ERR_GENERIC
     fi
 
-    if ! eDir_monitor ; then
+    CNT=0
+    while ! eDir_monitor ; do
         # Apparently, LDAP will only start after all other services
         # Startup time can be in excess of 10 minutes.
         # Leave a very long heartbeat timeout on the start action
         # We're relying on heartbeat to bail us out...
+	CNT=$[CNT+1}
+        ocf_log info "eDirectory start waiting for ${CNT}th retry for $NDSCONF."
         sleep 10
-        while [ "$((CNT++))" ]; do
-            if eDir_monitor ; then
-                ocf_log info "eDirectory start verified after $CNT retries for $NDSCONF."
-                break
-            fi
-            sleep 10
-        done
-    fi
-
+    done
+    
     ocf_log info "eDirectory start verified for $NDSCONF."
+    
     return $OCF_SUCCESS
 }
 
@@ -231,7 +228,7 @@ eDir_stop() {
     fi
     declare -a procs
     procs=($(pgrep '^ndsd$'))
-    while [ -z ] ; do
+    while [ -z "${procs[@]}" ] ; do
         if [ -r "$NDSCONF" -a -x $NDSMANAGE ] ; then
             $NDSMANAGE stop --config-file "$NDSCONF" >/dev/null 2>&1
 	    if eDir_status ; then
@@ -251,7 +248,7 @@ eDir_stop() {
 		ocf_log err "Too many ndsd processes found to kill safely ( ${#procs[@]} ). STOP action failed."
 		return $OCF_ERR_GENERIC
 	    fi
-	    if [ -z $(ps -p ${procs[0]} -o pid=) ] ; then
+	    if kill -0 ${procs[0]} >/dev/null 2>&1 ; then
 		ocf_log info "eDirectory stop verified for $NDSCONF."
 		return $OCF_SUCCESS
 	    fi
@@ -321,30 +318,30 @@ eDir_monitor() {
 
 eDir_validate() {
 
-    declare VALID=$OCF_SUCCESS
+    declare rc=$OCF_SUCCESS
 
     # Script must be run as root
     if ! ocf_is_root ; then
         ocf_log err "$0 must be run as root"
-        VALID=$OCF_ERR_GENERIC
+        rc=$OCF_ERR_GENERIC
     fi
 
     # ndsmanage must be available and runnable
     if [ ! -x $NDSMANAGE ] ; then
         ocf_log err "Cannot run $NDSMANAGE"
-        VALID=$OCF_ERR_INSTALLED
+        rc=$OCF_ERR_INSTALLED
     fi
 
     # ndsstat must be available and runnable
     if [ ! -x $NDSSTAT ]; then
         ocf_log err "Cannot run $NDSSTAT"
-        VALID=$OCF_ERR_INSTALLED
+        rc=$OCF_ERR_INSTALLED
     fi
 
     # Config file must be readable
     if [ ! -r "$NDSCONF" ] ; then
         ocf_log err "eDirectory configuration file [$NDSCONF] is not readable"
-        VALID=$OCF_ERR_ARGS
+        rc=$OCF_ERR_ARGS
     fi
 
     # monitor_ldap must be unambiguously resolvable to a truth value
@@ -356,7 +353,7 @@ eDir_validate() {
             MONITOR_LDAP=0;;
         *)
             ocf_log err "Configuration parameter eDir_monitor_ldap has invalid value [$MONITOR_LDAP]"
-            VALID=$OCF_ERR_ARGS;;
+            rc=$OCF_ERR_ARGS;;
     esac
 
     # monitor_idm must be unambiguously resolvable to a truth value
@@ -368,7 +365,7 @@ eDir_validate() {
             MONITOR_IDM=0;;
         *)
             ocf_log err "Configuration parameter eDir_monitor_idm has invalid value [$MONITOR_IDM]"
-            VALID=$OCF_ERR_ARGS;;
+            rc=$OCF_ERR_ARGS;;
     esac
 
     # eDir_jvm_initial_heap must be blank or numeric
@@ -376,7 +373,7 @@ eDir_validate() {
         if ! ocf_is_decimal "$OCF_RESKEY_eDir_jvm_initial_heap" ; then
             ocf_log err "Configuration parameter eDir_jvm_initial_heap has invalid" \
                         "value [$OCF_RESKEY_eDir_jvm_initial_heap]"
-            VALID=$OCF_ERR_ARGS
+            rc=$OCF_ERR_ARGS
         fi
     fi
 
@@ -385,13 +382,13 @@ eDir_validate() {
         if ! ocf_is_decimal "$OCF_RESKEY_eDir_jvm_max_heap" ; then
             ocf_log err "Configuration parameter eDir_jvm_max_heap has invalid" \
                          "value [$OCF_RESKEY_eDir_jvm_max_heap]"
-            VALID=$OCF_ERR_ARGS
+            rc=$OCF_ERR_ARGS
         fi
     fi
     if [ $VALID -ne $OCF_SUCCESS ] ; then
         ocf_log err "Invalid environment"
     fi
-    return $VALID
+    return $rc
 }
 
 #
@@ -435,7 +432,7 @@ esac
 
 eDir_validate
 RC=$?
-if [ $RC != $OCF_SUCCESS ]; then
+if [ $RC -ne $OCF_SUCCESS ]; then
     exit $RC
 fi
 
