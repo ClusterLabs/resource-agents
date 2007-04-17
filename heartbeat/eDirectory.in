@@ -1,0 +1,447 @@
+#!/bin/sh
+#
+#      eDirectory Resource Agent (RA) for Heartbeat.
+#      This script is only compatible with eDirectory 8.8 and later
+#
+# Copyright (c) 2007 SUSE LINUX AG, Yan Fitterer
+#                    All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+#
+# OCF parameters:
+#  OCF_RESKEY_eDir_config_file      - full filename to instance configuration file
+#  OCF_RESKEY_eDir_monitor_ldap     - Should we monitor LDAP (0/1 - 1 is true)
+#  OCF_RESKEY_eDir_monitor_idm      - Should we monitor IDM (0/1 - 1 is true)
+#  OCF_RESKEY_eDir_jvm_initial_heap - Value of the DHOST_INITIAL_HEAP java env var
+#  OCF_RESKEY_eDir_jvm_max_heap     - Value of the DHOST_MAX_HEAP java env var
+#  OCF_RESKEY_eDir_jvm_options      - Value of the DHOST_OPTIONS java env var
+###############################################################################
+
+#######################################################################
+# Initialization:
+
+. /usr/lib/heartbeat/ocf-shellfuncs
+
+#######################################################################
+
+usage() {
+    ME=$(basename "$0")
+    cat <<-EOFA
+
+usage: $ME start|stop|status|monitor|methods|validate-all
+
+$ME manages an eDirectory instance as an HA resource.
+
+The 'start' operation starts the instance.
+The 'stop' operation stops the instance.
+The 'status' opneration reports if the instance is running.
+The 'monitor' operation reports if the instance is running, and runs additional checks.
+The 'methods' operation reports on the methods $0 supports.
+The 'validate-all' operation checks the validity of the arguments (environment variables).
+EOFA
+    return $OCF_ERR_ARGS
+}
+
+eDir_meta_data() {
+cat <<-EOFB
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="eDirectory" version="0.9">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource script for managing an eDirectory instance. Manages a single instance
+of eDirectory as an HA resource. The "multiple instances" feature or
+eDirectory has been added in version 8.8. This script will not work for any
+version of eDirectory prior to 8.8. This RA can be used to load multiple
+eDirectory instances on the same host.
+
+Setting a high heartbeat timeout value is _very_ _strongly_ recommended. eDir
+with IDM can take in excess of 10 minutes to start. If heartbeat times out
+before eDir has had a chance to start properly, mayhem _WILL ENSUE_.
+
+The LDAP module seems to be one of the very last to start. So this script will
+take even longer to start on installations with IDM and LDAP if the monitoring
+of IDM and/or LDAP is enabled, as the start command will wait for IDM and LDAP
+to be available.
+</longdesc>
+<shortdesc lang="en">eDirectory resource agent</shortdesc>
+<parameters>
+<parameter name="eDir_config_file" unique="1" required="1">
+<longdesc lang="en">
+Path to configuration file for eDirectory instance.
+</longdesc>
+<shortdesc lang="en">eDir config file</shortdesc>
+<content type="string" default="/etc/opt/novell/eDirectory/conf/nds.conf" />
+</parameter>
+<parameter name="eDir_monitor_ldap" unique="0" required="0">
+<longdesc lang="en">
+Should we monitor if LDAP is running for the eDirectory instance?
+</longdesc>
+<shortdesc lang="en">eDir monitor ldap</shortdesc>
+<content type="boolean" default="0" />
+</parameter>
+<parameter name="eDir_monitor_idm" unique="0" required="0">
+<longdesc lang="en">
+Should we monitor if IDM is running for the eDirectory instance?
+</longdesc>
+<shortdesc lang="en">eDir monitor IDM</shortdesc>
+<content type="boolean" default="0" />
+</parameter>
+<parameter name="eDir_startup_timeout" unique="0" required="0">
+<longdesc lang="en">
+How long (in seconds) do we wait for eDir to start this instance (give _plenty_ of time here...)?
+</longdesc>
+<shortdesc lang="en">eDir startup timeout</shortdesc>
+<content type="boolean" default="0" />
+</parameter>
+<parameter name="eDir_jvm_initial_heap" unique="0" required="0">
+<longdesc lang="en">
+Value for the DHOST_INITIAL_HEAP java environment variable. If unset, java defaults will be used.
+</longdesc>
+<shortdesc lang="en">DHOST_INITIAL_HEAP value</shortdesc>
+<content type="integer" default="" />
+</parameter>
+<parameter name="eDir_jvm_max_heap" unique="0" required="0">
+<longdesc lang="en">
+Value for the DHOST_MAX_HEAP java environment variable. If unset, java defaults will be used.
+</longdesc>
+<shortdesc lang="en">DHOST_MAX_HEAP value</shortdesc>
+<content type="integer" default="" />
+</parameter>
+<parameter name="eDir_jvm_options" unique="0" required="0">
+<longdesc lang="en">
+Value for the DHOST_OPTIONS java environment variable. If unset, original values will be used.
+</longdesc>
+<shortdesc lang="en">DHOST_OPTIONS value</shortdesc>
+<content type="string" default="" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start" timeout="250" />
+<action name="stop" timeout="250" />
+<action name="monitor" timeout="60" interval="30" />
+<action name="meta-data" timeout="5" />
+<action name="methods" timeout="5" />
+<action name="validate-all" timeout="5">
+</actions>
+</resource-agent>
+EOFB
+return $OCF_SUCCESS
+}
+
+
+#
+# methods: What methods/operations do we support?
+#
+
+eDir_methods() {
+  cat <<-EOFC
+start
+stop
+status
+monitor
+methods
+meta-data
+validate-all
+EOFC
+}
+
+#
+# eDir_start: Start eDirectory instance
+#
+
+eDir_start() {
+    if eDir_status ; then
+        ocf_log info "eDirectory is already running ($NDSCONF)."
+        return $OCF_SUCCESS
+    fi
+
+    # Start eDirectory instance
+    if [ "$OCF_RESKEY_eDir_jvm_initial_heap" ]; then
+        DHOST_JVM_INITIAL_HEAP=$OCF_RESKEY_eDir_jvm_initial_heap
+        export DHOST_JVM_INITIAL_HEAP
+    fi
+    if [ "$OCF_RESKEY_eDir_jvm_max_heap" ]; then
+        DHOST_JVM_MAX_HEAP=$OCF_RESKEY_eDir_jvm_max_heap
+        export DHOST_JVM_MAX_HEAP
+    fi
+    if [ "$OCF_RESKEY_eDir_jvm_options" ]; then
+        DHOST_JVM_OPTIONS=$OCF_RESKEY_eDir_jvm_options
+        export DHOST_JVM_OPTIONS
+    fi
+
+    $NDSMANAGE start --config-file "$NDSCONF" > /dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        ocf_log info "eDir start command sent for $NDSCONF."
+    else
+        echo "ERROR: Can't start eDirectory for $NDSCONF."
+        return $OCF_ERR_GENERIC
+    fi
+
+    if ! eDir_monitor ; then
+        # Apparently, LDAP will only start after all other services
+        # Startup time can be in excess of 10 minutes.
+        # Leave a very long heartbeat timeout on the start action
+        # We're relying on heartbeat to bail us out...
+        sleep 10
+        while [ "$((CNT++))" ]; do
+            if eDir_monitor ; then
+                ocf_log info "eDirectory start verified after $CNT retries for $NDSCONF."
+                break
+            fi
+            sleep 10
+        done
+    fi
+
+    ocf_log info "eDirectory start verified for $NDSCONF."
+    return $OCF_SUCCESS
+}
+
+#
+# eDir_stop: Stop eDirectory instance
+#            This action is written in such a way that even when run
+#            on a node were things are broken (no binaries, no config
+#            etc...) it will try to stop any running ndsd processes
+#            and report success if none are running.
+#
+
+eDir_stop() {
+    if ! eDir_status ; then
+	return $OCF_SUCCESS
+    fi
+    declare -a procs
+    procs=($(pgrep '^ndsd$'))
+    while [ -z ] ; do
+        if [ -r "$NDSCONF" -a -x $NDSMANAGE ] ; then
+            $NDSMANAGE stop --config-file "$NDSCONF" >/dev/null 2>&1
+	    if eDir_status ; then
+                # eDir failed to stop.
+		ocf_log err "eDirectory instance failed to stop for $NDSCONF"
+	    else
+		ocf_log info "eDirectory stop verified for $NDSCONF."
+		return $OCF_SUCCESS
+	    fi
+	else
+	    ocf_log err "ndsmanage binary or config file missing ($NDSCONF)" 
+	    if [ ${#procs[@]} -eq 1 ] ; then
+		ocf_log err "Single ndsd process found (PID ${procs[0]}). Terminating."
+		kill -15 ${procs[0]}
+		sleep 20
+	    else
+		ocf_log err "Too many ndsd processes found to kill safely ( ${#procs[@]} ). STOP action failed."
+		return $OCF_ERR_GENERIC
+	    fi
+	    if [ -z $(ps -p ${procs[0]} -o pid=) ] ; then
+		ocf_log info "eDirectory stop verified for $NDSCONF."
+		return $OCF_SUCCESS
+	    fi
+        fi
+
+    done
+}
+
+#
+# eDir_status: is eDirectory instance up (do simple ndsstat check)?
+#
+
+eDir_status() {
+    if [ -r "$NDSCONF" -a -x $NDSSTAT ] ; then
+        $NDSSTAT --config-file "$NDSCONF" >/dev/null 2>&1
+        if [ $? -eq 0 ] ; then
+            return 0
+        else
+            return 1
+        fi
+    else
+        # eDir isn't installed, or this RA not configured correctly
+        # Try to see if ndsd is running anyway.
+        if [ -n "$(pgrep '^ndsd$')" ] ; then
+            return 0
+        else
+            return 1
+        fi
+    fi
+}
+
+
+#
+# eDir_monitor: Do several checks to ensure that eDirectory is fully functional
+#               LDAP and IDM checks are only done if reqested.
+#
+
+eDir_monitor() {
+    if ! eDir_status ; then
+        ocf_log info "eDirectory instance is down ($NDSCONF)"
+        return $OCF_NOT_RUNNING
+    fi
+
+    # Monitor IDM first, as it will start before LDAP
+    if [ $MONITOR_IDM -eq 1 ]; then
+        RET=$($NDSTRACE --config-file "$NDSCONF" -c modules | egrep -i '^vrdim.*Running' | awk '{print $1}')
+        if [ "$RET" !=  "vrdim" ]; then
+            ocf_log err "eDirectory IDM engine isn't running ($NDSCONF)."
+            return $OCF_ERR_GENERIC
+        fi
+    fi
+    if [ $MONITOR_LDAP -eq 1 ] ; then
+        $NDSNLDAP -c --config-file "$NDSCONF" >/dev/null 2>&1
+        if [ $? -ne 0 ]; then
+            ocf_log err "eDirectory LDAP server isn't running ($NDSCONF)."
+            return $OCF_ERR_GENERIC
+        fi
+    fi
+
+    ocf_log debug "eDirectory monitor success ($NDSCONF)"
+    return $OCF_SUCCESS
+}
+
+#
+# eDir_validate: Validate environment
+#
+
+eDir_validate() {
+
+    declare VALID=$OCF_SUCCESS
+
+    # Script must be run as root
+    if ! ocf_is_root ; then
+        ocf_log err "$0 must be run as root"
+        VALID=$OCF_ERR_GENERIC
+    fi
+
+    # ndsmanage must be available and runnable
+    if [ ! -x $NDSMANAGE ] ; then
+        ocf_log err "Cannot run $NDSMANAGE"
+        VALID=$OCF_ERR_INSTALLED
+    fi
+
+    # ndsstat must be available and runnable
+    if [ ! -x $NDSSTAT ]; then
+        ocf_log err "Cannot run $NDSSTAT"
+        VALID=$OCF_ERR_INSTALLED
+    fi
+
+    # Config file must be readable
+    if [ ! -r "$NDSCONF" ] ; then
+        ocf_log err "eDirectory configuration file [$NDSCONF] is not readable"
+        VALID=$OCF_ERR_ARGS
+    fi
+
+    # monitor_ldap must be unambiguously resolvable to a truth value
+    MONITOR_LDAP=$(echo "$MONITOR_LDAP" | tr [A-Z] [a-z])
+    case "$MONITOR_LDAP" in
+        yes|true|1)
+            MONITOR_LDAP=1;;
+        no|false|0)
+            MONITOR_LDAP=0;;
+        *)
+            ocf_log err "Configuration parameter eDir_monitor_ldap has invalid value [$MONITOR_LDAP]"
+            VALID=$OCF_ERR_ARGS;;
+    esac
+
+    # monitor_idm must be unambiguously resolvable to a truth value
+    MONITOR_IDM=$(echo "$MONITOR_IDM" | tr [A-Z] [a-z])
+    case "$MONITOR_IDM" in
+        yes|true|1)
+            MONITOR_IDM=1;;
+        no|false|0)
+            MONITOR_IDM=0;;
+        *)
+            ocf_log err "Configuration parameter eDir_monitor_idm has invalid value [$MONITOR_IDM]"
+            VALID=$OCF_ERR_ARGS;;
+    esac
+
+    # eDir_jvm_initial_heap must be blank or numeric
+    if [ -n "$OCF_RESKEY_eDir_jvm_initial_heap" ] ; then
+        if ! ocf_is_decimal "$OCF_RESKEY_eDir_jvm_initial_heap" ; then
+            ocf_log err "Configuration parameter eDir_jvm_initial_heap has invalid" \
+                        "value [$OCF_RESKEY_eDir_jvm_initial_heap]"
+            VALID=$OCF_ERR_ARGS
+        fi
+    fi
+
+    # eDir_jvm_max_heap must be blank or numeric
+    if [ -n "$OCF_RESKEY_eDir_jvm_max_heap" ] ; then
+        if ! ocf_is_decimal "$OCF_RESKEY_eDir_jvm_max_heap" ; then
+            ocf_log err "Configuration parameter eDir_jvm_max_heap has invalid" \
+                         "value [$OCF_RESKEY_eDir_jvm_max_heap]"
+            VALID=$OCF_ERR_ARGS
+        fi
+    fi
+    if [ $VALID -ne $OCF_SUCCESS ] ; then
+        ocf_log err "Invalid environment"
+    fi
+    return $VALID
+}
+
+#
+# Start of main logic
+#
+
+ocf_log debug "$0 started with arguments \"$@\""
+
+NDSBASE=/opt/novell/eDirectory
+NDSNLDAP=$NDSBASE/sbin/nldap
+NDSMANAGE=$NDSBASE/bin/ndsmanage
+NDSSTAT=$NDSBASE/bin/ndsstat
+NDSTRACE=$NDSBASE/bin/ndstrace
+NDSCONF=${OCF_RESKEY_eDir_config_file:-/etc/opt/novell/eDirectory/conf/nds.conf}
+MONITOR_LDAP=${OCF_RESKEY_eDir_monitor_ldap:-0}
+MONITOR_IDM=${OCF_RESKEY_eDir_monitor_idm:-0}
+
+
+# What kind of method was invoked?
+case "$1" in
+    validate-all) eDir_validate;   exit $?;;
+    methods)      eDir_methods;    exit $OCF_SUCCESS;;
+    meta-data)    eDir_meta_data;  exit $OCF_SUCCESS;;
+    stop)         eDir_stop;       exit $?;;
+    status)       if eDir_status ; then
+                      ocf_log info "eDirectory instance is up ($NDSCONF)"
+                      exit $OCF_SUCCESS
+                  else
+                      ocf_log info "eDirectory instance is down ($NDSCONF)"
+                      exit $OCF_NOT_RUNNING
+                  fi;;
+    start)        : skip;;
+    monitor)      : skip;;
+    *)            ocf_log err "Invalid argument [$1]"
+                  usage; exit $OCF_ERR_ARGS;;
+esac
+
+# From now on we must have a valid environment to continue.
+# stop goes in the list above as it should ideally be able to
+# clean up after a start that failed due to bad args
+
+eDir_validate
+RC=$?
+if [ $RC != $OCF_SUCCESS ]; then
+    exit $RC
+fi
+
+case "$1" in
+    start)      eDir_start;;
+    monitor)    eDir_monitor;;
+esac
+
+exit $?
