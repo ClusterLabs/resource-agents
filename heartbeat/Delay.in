@@ -118,7 +118,7 @@ Delay_Start() {
     return $OCF_SUCCESS
   else
     Delay_Validate_All -q
-	ha_pseudo_resource Delay_${OCF_RESKEY_instance} start
+	ha_pseudo_resource Delay_${OCF_RESOURCE_INSTANCE} start
     rc=$?
     sleep $OCF_RESKEY_startdelay
     if
@@ -135,7 +135,7 @@ Delay_Stop() {
     Delay_stat
   then
     Delay_Validate_All -q
-	ha_pseudo_resource Delay_${OCF_RESKEY_instance} stop
+	ha_pseudo_resource Delay_${OCF_RESOURCE_INSTANCE} stop
     rc=$?
     sleep $OCF_RESKEY_stopdelay
     if
