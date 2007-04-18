@@ -123,6 +123,12 @@ int dep_calc_trans(dep_t **deps, dep_rs_t *states, int slen,
 
 int dep_copy_tree(dep_t **dest, dep_t **src);
 
+int dep_apply_trans(dep_t **deps, dep_rs_t *states,
+		    int slen, dep_op_t **op_list);
 
+int dep_check_operation(char *res, int operation, int target, 
+		    dep_t **deps, dep_rs_t *_states,
+		    int slen, int *nodes, int nlen, dep_op_t **oplist);
+int dep_tree_dup(dep_t **dest, dep_t **src);
 
 #endif
