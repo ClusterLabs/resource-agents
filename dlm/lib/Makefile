@@ -58,6 +58,8 @@ install: all
 	install -d ${incdir}
 	install -m644 libdlm.h ${incdir}
 	install -d ${libdir}
+	install -d ${DESTDIR}/etc/udev/rules.d
+	install -m644 ../scripts/51-dlm.rules ${DESTDIR}/etc/udev/rules.d
 	install $(LIBNAME).a ${libdir}
 	install $(LIBNAME)_lt.a ${libdir}
 	install $(LIBNAME).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}
@@ -69,6 +71,7 @@ install: all
 
 uninstall:
 	${UNINSTALL} libdlm.h ${incdir}
+	$(UNINSTALL} ${DESTDIR}/etc/udev/rules.d/51-dlm.rules
 	${UNINSTALL} \
 		${LIBNAME}.a \
 		${LIBNAME}_lt.a \
