@@ -22,6 +22,7 @@
 #
 # OCF instance parameters:
 #	OCF_RESKEY_instance
+#	OCF_RESKEY_admin
 
 #######################################################################
 # Initialization:
@@ -70,6 +71,13 @@ The instance of database.
 <shortdesc lang="en">instance</shortdesc>
 <content type="string" default="" />
 </parameter>
+<parameter name="admin" unique="0" required="0">
+<longdesc lang="en">
+The admin user of the instance.
+</longdesc>
+<shortdesc lang="en">admin</shortdesc>
+<content type="string" default="" />
+</parameter>
 </parameters>
 
 <actions>
@@ -107,7 +115,6 @@ db2_methods() {
 
 db2info() {
 	instance=$1
-	db2admin=$instance
 	db2home=`sh -c "echo ~$db2admin"`
 	db2sql=$db2home/sqllib
 	db2profile=$db2sql/db2profile
@@ -317,13 +324,14 @@ then
 fi
 
 instance=$OCF_RESKEY_instance
+db2admin=${OCF_RESKEY_admin:-$instance}
 
 US=`id -u -n`
 US=`echo $US`
 if
-  [ $US != root -a $US != $instance ]
+  [ $US != root -a $US != $db2admin ]
 then
-  ocf_log err "$0 must be run as root or $instance"
+  ocf_log err "$0 must be run as root or $db2admin"
   exit $OCF_ERR_PERM
 fi
 
