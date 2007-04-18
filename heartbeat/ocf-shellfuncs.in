@@ -177,7 +177,11 @@ ocf_log() {
           *)	__OCF_PRIO=`echo ${__OCF_PRIO}| tr '[a-z]' '[A-Z]'`;;
 	esac
 
-	ha_log "${__OCF_PRIO}: $__OCF_MSG"
+	if [ "${__OCF_PRIO}" = "DEBUG" ]; then
+		ha_debug "${__OCF_PRIO}: $__OCF_MSG"
+	else
+		ha_log "${__OCF_PRIO}: $__OCF_MSG"
+	fi
 }
 
 #
