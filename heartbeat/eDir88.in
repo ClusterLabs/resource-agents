@@ -54,17 +54,15 @@ The 'start' operation starts the instance.
 The 'stop' operation stops the instance.
 The 'status' opneration reports if the instance is running.
 The 'monitor' operation reports if the instance is running, and runs additional checks.
-The 'methods' operation reports on the methods $0 supports.
 The 'validate-all' operation checks the validity of the arguments (environment variables).
 EOFA
-    return $OCF_ERR_ARGS
 }
 
 eDir_meta_data() {
 cat <<-EOFB
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="eDirectory" version="0.9">
+<resource-agent name="eDir88" version="0.11">
 <version>1.0</version>
 
 <longdesc lang="en">
@@ -106,13 +104,6 @@ Should we monitor if IDM is running for the eDirectory instance?
 <shortdesc lang="en">eDir monitor IDM</shortdesc>
 <content type="boolean" default="0" />
 </parameter>
-<parameter name="eDir_startup_timeout" required="0">
-<longdesc lang="en">
-How long (in seconds) do we wait for eDir to start this instance (give _plenty_ of time here...)?
-</longdesc>
-<shortdesc lang="en">eDir startup timeout</shortdesc>
-<content type="boolean" default="0" />
-</parameter>
 <parameter name="eDir_jvm_initial_heap" required="0">
 <longdesc lang="en">
 Value for the DHOST_INITIAL_HEAP java environment variable. If unset, java defaults will be used.
@@ -137,33 +128,15 @@ Value for the DHOST_OPTIONS java environment variable. If unset, original values
 </parameters>
 
 <actions>
-<action name="start" timeout="250" />
-<action name="stop" timeout="250" />
+<action name="start" timeout="600" />
+<action name="stop" timeout="600" />
 <action name="monitor" timeout="60" interval="30" />
 <action name="meta-data" timeout="5" />
-<action name="methods" timeout="5" />
 <action name="validate-all" timeout="5">
 </actions>
 </resource-agent>
 EOFB
 return $OCF_SUCCESS
-}
-
-
-#
-# methods: What methods/operations do we support?
-#
-
-eDir_methods() {
-  cat <<-EOFC
-start
-stop
-status
-monitor
-methods
-meta-data
-validate-all
-EOFC
 }
 
 #
@@ -226,35 +199,21 @@ eDir_stop() {
     if ! eDir_status ; then
 	return $OCF_SUCCESS
     fi
-    declare -a procs
-    procs=($(pgrep '^ndsd$'))
-    while [ -z "${procs[@]}" ] ; do
-        if [ -r "$NDSCONF" -a -x $NDSMANAGE ] ; then
-            $NDSMANAGE stop --config-file "$NDSCONF" >/dev/null 2>&1
-	    if eDir_status ; then
-                # eDir failed to stop.
-		ocf_log err "eDirectory instance failed to stop for $NDSCONF"
-	    else
-		ocf_log info "eDirectory stop verified for $NDSCONF."
-		return $OCF_SUCCESS
-	    fi
-	else
-	    ocf_log err "ndsmanage binary or config file missing ($NDSCONF)" 
-	    if [ ${#procs[@]} -eq 1 ] ; then
-		ocf_log err "Single ndsd process found (PID ${procs[0]}). Terminating."
-		kill -15 ${procs[0]}
-		sleep 20
-	    else
-		ocf_log err "Too many ndsd processes found to kill safely ( ${#procs[@]} ). STOP action failed."
-		return $OCF_ERR_GENERIC
-	    fi
-	    if kill -0 ${procs[0]} >/dev/null 2>&1 ; then
-		ocf_log info "eDirectory stop verified for $NDSCONF."
-		return $OCF_SUCCESS
-	    fi
-        fi
 
-    done
+    if [ -r "$NDSCONF" -a -x $NDSMANAGE ] ; then
+	$NDSMANAGE stop --config-file "$NDSCONF" >/dev/null 2>&1
+	if eDir_status ; then
+            # eDir failed to stop.
+	    ocf_log err "eDirectory instance failed to stop for $NDSCONF"
+	    return $OCF_ERR_GENERIC
+	else
+	    ocf_log info "eDirectory stop verified for $NDSCONF."
+	    return $OCF_SUCCESS
+	fi
+    else
+	ocf_log err "ndsmanage binary or config file missing ($NDSCONF). STOP action failed."
+	return $OCF_ERR_GENERIC
+    fi
 }
 
 #
@@ -270,13 +229,8 @@ eDir_status() {
             return 1
         fi
     else
-        # eDir isn't installed, or this RA not configured correctly
-        # Try to see if ndsd is running anyway.
-        if [ -n "$(pgrep '^ndsd$')" ] ; then
-            return 0
-        else
-            return 1
-        fi
+	ocf_log err "ndsstat binary or config file missing ($NDSCONF)."
+	return 1
     fi
 }
 
@@ -410,7 +364,6 @@ MONITOR_IDM=${OCF_RESKEY_eDir_monitor_idm:-0}
 # What kind of method was invoked?
 case "$1" in
     validate-all) eDir_validate;   exit $?;;
-    methods)      eDir_methods;    exit $OCF_SUCCESS;;
     meta-data)    eDir_meta_data;  exit $OCF_SUCCESS;;
     stop)         eDir_stop;       exit $?;;
     status)       if eDir_status ; then
@@ -422,6 +375,7 @@ case "$1" in
                   fi;;
     start)        : skip;;
     monitor)      : skip;;
+    usage)        usage; exit $OCF_SUCCESS;;
     *)            ocf_log err "Invalid argument [$1]"
                   usage; exit $OCF_ERR_ARGS;;
 esac
