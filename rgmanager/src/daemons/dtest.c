@@ -23,6 +23,9 @@
 #ifdef NO_CCS
 #define ccs_get(fd, query, ret) conf_get(query, ret)
 #endif
+
+void malloc_stats(void);
+void malloc_dump_table(void);
  
 
 resource_rule_t	*rules = NULL;
