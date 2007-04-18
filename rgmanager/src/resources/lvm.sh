@@ -149,6 +149,78 @@ vg_activate()
 	return $OCF_ERR_GENERIC
 }
 
+# lvm_exec_resilient
+#
+# Sometimes, devices can come back.  Their metadata will conflict
+# with the good devices that remain.  This function filters out those
+# failed devices when executing the given command
+#
+# Finishing with vgscan resets the cache/filter
+lvm_exec_resilient()
+{
+	declare command=$1
+	declare all_pvs
+
+	ocf_log notice "Making resilient : $command"
+
+	if [ -z $command ]; then
+		ocf_log err "lvm_exec_resilient: Arguments not supplied"
+		return $OCF_ERR_ARGS
+	fi
+
+	# pvs will print out only those devices that are valid
+	# If a device dies and comes back, it will not appear
+	# in pvs output (but you will get a Warning).
+	all_pvs=(`pvs --noheadings -o pv_name | grep -v Warning`)
+
+	# Now we use those valid devices in a filter which we set up.
+	# The device will then be activated because there are no
+	# metadata conflicts.
+        command=$command" --config devices{filter=[";
+	for i in ${all_pvs[*]}; do
+		command=$command'"a|'$i'|",'
+	done
+	command=$command"\"r|.*|\"]}"
+
+	ocf_log notice "Resilient command: $command"
+	if ! $command ; then
+		ocf_log err "lvm_exec_resilient failed"
+		vgscan
+		return $OCF_ERR_GENERIC
+	else
+		vgscan
+		return $OCF_SUCCESS
+	fi
+}
+
+# lv_activate_resilient
+#
+# Sometimes, devices can come back.  Their metadata will conflict
+# with the good devices that remain.  We must filter out those
+# failed devices when trying to reactivate
+lv_activate_resilient()
+{
+	declare action=$1
+	declare lv_path=$2
+	declare op="-ay"
+
+	if [ -z $action ] || [ -z $lv_path ]; then
+		ocf_log err "lv_activate_resilient: Arguments not supplied"
+		return $OCF_ERR_ARGS
+	fi
+
+	if [ $action != "start" ]; then
+	        op="-an"
+	fi
+
+	if ! lvm_exec_resilient "lvchange $op $lv_path" ; then
+		ocf_log err "lv_activate_resilient $action failed on $lv_path"
+		return $OCF_ERR_GENERIC
+	else
+		return $OCF_SUCCESS
+	fi
+}
+
 # lv_status
 #
 # Is the LV active?
@@ -203,7 +275,7 @@ lv_status()
 		ocf_log err "WARNING: $my_name does not own $lv_path"
 		ocf_log err "WARNING: Attempting shutdown of $lv_path"
 
-		lvchange -an $lv_path
+		lv_activate_resilient "stop" $lv_path
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -229,15 +301,14 @@ lv_activate_and_tag()
 			ocf_log err "Unable to add tag to $lv_path"
 			return $OCF_ERR_GENERIC
 		fi
-		lvchange -ay $lv_path
-		if [ $? -ne 0 ]; then
+
+		if ! lv_activate_resilient $action $lv_path; then
 			ocf_log err "Unable to activate $lv_path"
 			return $OCF_ERR_GENERIC
 		fi
 	else
 		ocf_log notice "Deactivating $lv_path"
-		lvchange -an $lv_path
-		if [ $? -ne 0 ]; then
+		if ! lv_activate_resilient $action $lv_path; then
 			ocf_log err "Unable to deactivate $lv_path"
 			return $OCF_ERR_GENERIC
 		fi
