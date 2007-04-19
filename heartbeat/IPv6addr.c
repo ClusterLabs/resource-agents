@@ -378,6 +378,7 @@ monitor_addr6(struct in6_addr* addr6, int prefix_len)
 int
 send_ua(struct in6_addr* src_ip, char* if_name)
 {
+	int status = -1;
 	libnet_t *l;
 	char errbuf[LIBNET_ERRBUF_SIZE];
 
@@ -388,13 +389,13 @@ send_ua(struct in6_addr* src_ip, char* if_name)
 
 	if ((l=libnet_init(LIBNET_RAW6, if_name, errbuf)) == NULL) {
 		cl_log(LOG_ERR, "libnet_init failure on %s", if_name);
-		return -1;
+		goto err;
 	}
 
 	mac_address = libnet_get_hwaddr(l);
 	if (!mac_address) {
 		cl_log(LOG_ERR, "libnet_get_hwaddr: %s", errbuf);
-		return -1;
+		goto err;
 	}
 
 	dst_ip = libnet_name2addr6(l, BCAST_ADDR, LIBNET_DONT_RESOLVE);
@@ -415,10 +416,13 @@ send_ua(struct in6_addr* src_ip, char* if_name)
         if (libnet_write(l) == -1)
         {
 		cl_log(LOG_ERR, "libnet_write: %s", libnet_geterror(l));
-		return -1;
+		goto err;
 	}
 
-	return 0;
+	status = 0;
+err:
+	libnet_destroy(l);
+	return status;
 }
 
 /* find a proper network interface to assign the address */
