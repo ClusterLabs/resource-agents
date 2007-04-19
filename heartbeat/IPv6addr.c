@@ -433,7 +433,7 @@ scan_if(struct in6_addr* addr_target, int* plen_target, int use_mask)
 {
 	FILE *f;
 	char addr6[40];
-	static char devname[20]="";
+	static char devname[21]="";
 	struct in6_addr addr;
 	struct in6_addr mask;
 	unsigned int plen, scope, dad_status, if_idx;
