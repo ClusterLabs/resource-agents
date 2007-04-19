@@ -445,15 +445,25 @@ scan_if(struct in6_addr* addr_target, int* plen_target, int use_mask)
 	}
 
 	/* Loop for each entry */
-	while ( fscanf(f,"%4s%4s%4s%4s%4s%4s%4s%4s %02x %02x %02x %02x %20s\n",
-			addr6p[0], addr6p[1], addr6p[2], addr6p[3],
-			addr6p[4], addr6p[5], addr6p[6], addr6p[7],
-			&if_idx, &plen, &scope, &dad_status, devname) != EOF){
-
+	while (1) {
 		int		i;
 		int		n;
 		int		s;
 		gboolean	same = TRUE;
+
+		i = fscanf(f,
+		       "%4s%4s%4s%4s%4s%4s%4s%4s %02x %02x %02x %02x %20s\n",
+	       	       addr6p[0], addr6p[1], addr6p[2], addr6p[3],
+       		       addr6p[4], addr6p[5], addr6p[6], addr6p[7],
+		       &if_idx, &plen, &scope, &dad_status, devname);
+		if (i == EOF) {
+			break;
+		}
+		else if (i != 13) {
+			cl_log(LOG_INFO, "Error parsing %s, "
+			       "perhaps the format has changed\n", IF_INET6);
+			break;
+		}
 
 		sprintf(addr6, "%s:%s:%s:%s:%s:%s:%s:%s",
 			addr6p[0], addr6p[1], addr6p[2], addr6p[3],
