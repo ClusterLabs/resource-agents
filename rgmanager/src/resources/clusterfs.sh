@@ -357,7 +357,7 @@ mountInUse () {
 	typeset junk
 
 	if [ $# -ne 2 ]; then
-		logAndPrint $LOG_ERR "Usage: mountInUse device mount_point".
+		ocf_log err "Usage: mountInUse device mount_point".
 		return $FAIL
 	fi
 
@@ -435,14 +435,14 @@ isAlive()
 	declare rw
 	
 	if [ $# -ne 1 ]; then
-	        logAndPrint $LOG_ERR "Usage: isAlive mount_point"
+	        ocf_log err "Usage: isAlive mount_point"
 		return $FAIL
 	fi
 	mount_point=$1
 	
 	test -d $mount_point
 	if [ $? -ne 0 ]; then
-		logAndPrint $LOG_ERR "$mount_point is not a directory"
+		ocf_log err "$mount_point is not a directory"
 		return $FAIL
 	fi
 	
@@ -729,7 +729,7 @@ Cannot mount $dev on $mp, the device or mount point is already in use!"
 	#
 	# Mount the device
 	#
-	logAndPrint $LOG_DEBUG "mount $fstype_option $mount_options $dev $mp"
+	ocf_log debug "mount $fstype_option $mount_options $dev $mp"
 	mount $fstype_option $mount_options $dev $mp
 	ret_val=$?
 	if [ $ret_val -ne 0 ]; then

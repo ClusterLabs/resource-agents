@@ -3,6 +3,8 @@
 	Mirkin to fix bug #237144; prevents exclusive services from
 	being accidentally (or intentionally) being started on the
 	same node
+	* src/resources/clusterfs.sh: Apply patch from Simone
+	Gotti to fix logging errors in clusterfs.sh
 
 2007-04-12 Lon Hohberger <lhh at redhat.com>
 	* src/daemons/main.c: Fix watchdog race condition causing
