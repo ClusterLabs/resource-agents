@@ -432,12 +432,11 @@ char*
 scan_if(struct in6_addr* addr_target, int* plen_target, int use_mask)
 {
 	FILE *f;
-	char addr6[40];
 	static char devname[21]="";
 	struct in6_addr addr;
 	struct in6_addr mask;
 	unsigned int plen, scope, dad_status, if_idx;
-	char addr6p[8][5];
+	unsigned int addr6p[4];
 
 	/* open /proc/net/if_inet6 file */
 	if ((f = fopen(IF_INET6, "r")) == NULL) {
@@ -451,24 +450,18 @@ scan_if(struct in6_addr* addr_target, int* plen_target, int use_mask)
 		int		s;
 		gboolean	same = TRUE;
 
-		i = fscanf(f,
-		       "%4s%4s%4s%4s%4s%4s%4s%4s %02x %02x %02x %02x %20s\n",
-	       	       addr6p[0], addr6p[1], addr6p[2], addr6p[3],
-       		       addr6p[4], addr6p[5], addr6p[6], addr6p[7],
-		       &if_idx, &plen, &scope, &dad_status, devname);
+		i = fscanf(f, "%08x%08x%08x%08x %02x %02x %02x %02x %20s\n",
+		       	   &addr6p[0], &addr6p[1], &addr6p[2], &addr6p[3],
+			   &if_idx, &plen, &scope, &dad_status, devname);
 		if (i == EOF) {
 			break;
 		}
-		else if (i != 13) {
+		else if (i != 9) {
 			cl_log(LOG_INFO, "Error parsing %s, "
 			       "perhaps the format has changed\n", IF_INET6);
 			break;
 		}
 
-		sprintf(addr6, "%s:%s:%s:%s:%s:%s:%s:%s",
-			addr6p[0], addr6p[1], addr6p[2], addr6p[3],
-			addr6p[4], addr6p[5], addr6p[6], addr6p[7]);
-	
 		/* Only Global address entry would be considered.
 		 * maybe change?
 		 */
@@ -483,9 +476,6 @@ scan_if(struct in6_addr* addr_target, int* plen_target, int use_mask)
 			continue;
 		}
 		*plen_target = plen;
-		
-		/* Convert string to sockaddr_in6 */
-		inet_pton(AF_INET6, addr6, &addr);
 
 		/* Make the mask based on prefix length */
 		memset(mask.s6_addr, 0xff, 16);
