@@ -692,6 +692,7 @@ int
 create_pid_directory(const char *pid_file)
 {
 	int status;
+	int return_status = -1;
 	struct stat stat_buf;
 	char* dir;
 
@@ -709,28 +710,29 @@ create_pid_directory(const char *pid_file)
 	if (status < 0 && errno != ENOENT && errno != ENOTDIR) {
 		cl_log(LOG_INFO, "Could not stat pid-file directory "
 				"[%s]: %s", dir, strerror(errno));
-		free(dir);
-		return -1;
+		goto err;
 	}
 
 	if (!status) {
 		if (S_ISDIR(stat_buf.st_mode)) {
-			return 0;
+			goto out;
 		}
 		cl_log(LOG_INFO, "Pid-File directory exists but is "
 				"not a directory [%s]", dir);
-		free(dir);
-		return -1;
+		goto err;
         }
 
 	if (mkdir(dir, S_IRUSR|S_IWUSR|S_IXUSR | S_IRGRP|S_IXGRP) < 0) {
 		cl_log(LOG_INFO, "Could not create pid-file directory "
 				"[%s]: %s", dir, strerror(errno));
-		free(dir);
-		return -1;
+		goto err;
 	}
 
-	return 0;
+out:
+	return_status = 0;
+err:
+	free(dir);
+	return return_status;
 }
 
 int
