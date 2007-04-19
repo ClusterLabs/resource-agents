@@ -20,6 +20,7 @@
 //#define DEBUG
 #include <platform.h>
 #include <resgroup.h>
+#include <reslist.h>
 #include <vf.h>
 #include <message.h>
 #include <ccs.h>
@@ -139,6 +140,105 @@ count_resource_groups(cluster_member_list_t *ml)
 	} while (!list_done(&_tree, node));
 
 	pthread_rwlock_unlock(&resource_lock);
+	return 0;
+}
+
+
+int
+count_resource_groups_local(cman_node_t *mp)
+{
+	resource_t *res;
+	resource_node_t *node;
+	char rgname[64], *val;
+	rg_state_t st;
+
+	mp->cn_svccount = 0;
+	mp->cn_svcexcl = 0;
+
+	pthread_rwlock_rdlock(&resource_lock);
+
+	list_do(&_tree, node) {
+
+		res = node->rn_resource;
+
+		res_build_name(rgname, sizeof(rgname), res);
+
+		if (get_rg_state_local(rgname, &st) < 0) {
+			continue;
+		}
+
+		if (st.rs_state != RG_STATE_STARTED &&
+		     st.rs_state != RG_STATE_STARTING)
+			continue;
+
+		if (mp->cn_nodeid != st.rs_owner)
+			continue;
+
+		++mp->cn_svccount;
+
+		val = res_attr_value(res, "exclusive");
+		if (val && ((!strcmp(val, "yes") ||
+				     (atoi(val)>0))) ) {
+			++mp->cn_svcexcl;
+		}
+
+	} while (!list_done(&_tree, node));
+
+	pthread_rwlock_unlock(&resource_lock);
+	return 0;
+}
+
+
+int
+have_exclusive_resources(void)
+{
+	resource_t *res;
+	char *val;
+
+	pthread_rwlock_rdlock(&resource_lock);
+
+	list_do(&_resources, res) {
+		val = res_attr_value(res, "exclusive");
+		if (val && ((!strcmp(val, "yes") ||
+						(atoi(val)>0))) ) {
+			pthread_rwlock_unlock(&resource_lock);
+			return 1;
+		}
+
+	} while (!list_done(&_resources, res));
+
+	pthread_rwlock_unlock(&resource_lock);
+
+	return 0;
+}
+
+
+int
+check_exclusive_resources(cluster_member_list_t *membership, char *svcName)
+{
+	cman_node_t *mp;
+	int exclusive, count; 
+	resource_t *res;
+	char *val;
+
+	mp = memb_id_to_p(membership, my_id());
+	assert(mp);
+	count_resource_groups_local(mp);
+	exclusive = mp->cn_svcexcl;
+	count = mp->cn_svccount;
+	pthread_rwlock_rdlock(&resource_lock);
+	res = find_root_by_ref(&_resources, svcName);
+	if (!res) {
+		pthread_rwlock_unlock(&resource_lock);
+		return RG_EFAIL;
+	}
+	val = res_attr_value(res, "exclusive");
+	pthread_rwlock_unlock(&resource_lock);
+	if (exclusive || (count && val && 
+			(!strcmp(val, "yes") || (atoi(val)>0)))) {
+		return RG_YES;
+	}
+
 	return 0;
 }
 

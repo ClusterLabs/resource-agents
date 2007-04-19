@@ -48,6 +48,8 @@ int get_rg_state(char *servicename, rg_state_t *svcblk);
 void get_recovery_policy(char *rg_name, char *buf, size_t buflen);
 int check_depend_safe(char *servicename);
 int group_migratory(char *servicename, int lock);
+int have_exclusive_resources(void);
+int check_exclusive_resources(cluster_member_list_t *membership, char *svcName);
 
 
 int 
@@ -684,6 +686,10 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 			clulog(LOG_NOTICE,
 			       "Starting disabled service %s\n",
 			       svcName);
+			ret = 1;
+			break;
+		}
+		if (req == RG_START_RECOVER) {
 			ret = 1;
 			break;
 		}
@@ -1463,6 +1469,7 @@ exhausted:
 }
 
 
+pthread_mutex_t exclusive_mutex = PTHREAD_MUTEX_INITIALIZER;
 /**
  * handle_start_req - Handle a generic start request from a user or during
  * service manager boot.
@@ -1478,6 +1485,7 @@ handle_start_req(char *svcName, int req, int *new_owner)
 {
 	int ret, tolerance = FOD_BEST;
 	cluster_member_list_t *membership = member_list();
+	int need_check = have_exclusive_resources();
 
 	/*
 	 * When a service request is from a user application (eg, clusvcadm),
@@ -1493,6 +1501,18 @@ handle_start_req(char *svcName, int req, int *new_owner)
 		free_member_list(membership);
 		return RG_EFAIL;
 	}
+	if (need_check) {
+		pthread_mutex_lock(&exclusive_mutex);
+		ret = check_exclusive_resources(membership, svcName);
+		if (ret != 0) {
+			free_member_list(membership);
+			pthread_mutex_unlock(&exclusive_mutex);
+			if (ret > 0)
+				goto relocate;
+			else
+				return RG_EFAIL;
+		}
+	}
 	free_member_list(membership);
 
 	/* Check for dependency.  We cannot start unless our
@@ -1505,6 +1525,8 @@ handle_start_req(char *svcName, int req, int *new_owner)
 	 * mask here - so that we can try all nodes if necessary.
 	 */
 	ret = svc_start(svcName, req);
+	if (need_check)
+		pthread_mutex_unlock(&exclusive_mutex);
 
 	/* 
 	   If services are locked, return the error 
@@ -1544,6 +1566,7 @@ handle_start_req(char *svcName, int req, int *new_owner)
 		return RG_EABORT;
 	}
 	
+relocate:
 	/*
 	 * OK, it failed to start - but succeeded to stop.  Now,
 	 * we should relocate the service.
@@ -1581,6 +1604,7 @@ handle_start_remote_req(char *svcName, int req)
 	int x;
 	uint32_t me = my_id();
 	cluster_member_list_t *membership = member_list();
+	int need_check = have_exclusive_resources();
 
 	/* XXX ok, so we need to say "should I start this if I was the
 	   only cluster member online */
@@ -1601,10 +1625,23 @@ handle_start_remote_req(char *svcName, int req)
 		free_member_list(membership);
 		return RG_EFAIL;
 	}
+	if (need_check) {
+		pthread_mutex_lock(&exclusive_mutex);
+		if (check_exclusive_resources(membership, svcName) != 0) {
+			free_member_list(membership);
+			pthread_mutex_unlock(&exclusive_mutex);
+			return RG_EFAIL;
+		}
+	}
 	free_member_list(membership);
 
-	if (svc_start(svcName, req) == 0)
+	if (svc_start(svcName, req) == 0) {
+		if (need_check)
+			pthread_mutex_unlock(&exclusive_mutex);
 		return 0;
+	}
+	if (need_check)
+		pthread_mutex_unlock(&exclusive_mutex);
 
 	if (svc_stop(svcName, RG_STOP_RECOVER) == 0)
 		return RG_EFAIL;
