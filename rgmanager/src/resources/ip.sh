@@ -915,7 +915,7 @@ stop)
 	;;
 status|monitor)
 	ip_op ${OCF_RESKEY_family} status ${OCF_RESKEY_address}
-	[ $? -ne 0 ] && exit $OCF_ERR_GENERIC
+	[ $? -ne 0 ] && exit $OCF_NOT_RUNNING
 	
 	check_interface_up ${OCF_RESKEY_family} ${OCF_RESKEY_address}
 	exit $?

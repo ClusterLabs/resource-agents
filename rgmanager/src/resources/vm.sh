@@ -22,6 +22,8 @@ PATH=/bin:/sbin:/usr/bin:/usr/sbin
 
 export PATH
 
+. $(dirname $0)/ocf-shellfuncs || exit 1
+
 #
 # Virtual Machine start/stop script (requires the xm command)
 #
@@ -346,8 +348,28 @@ reconfigure()
 #
 status()
 {
-	xm list $OCF_RESKEY_name &> /dev/null
-	return $?
+	declare line
+
+	line=$(virsh domstate $OCF_RESKEY_name)
+	if [ "$line" = "" ]; then
+		return $OCF_NOT_RUNNING
+	fi
+
+	if [ "$line" = "blocked" ]; then
+		return $OCF_SUCCESS
+	elif [ "$line" = "running" ]; then
+		return $OCF_SUCCESS
+	elif [ "$line" = "in shutdown" ]; then
+		return $OCF_SUCCESS
+	elif [ "$line" = "shut off" ]; then
+		return $OCF_NOT_RUNNING
+	fi
+
+	#
+	# Crashed or paused
+	#
+
+	return $OCF_ERR_GENERIC
 }
 
 

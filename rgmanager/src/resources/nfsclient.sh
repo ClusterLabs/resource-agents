@@ -83,6 +83,15 @@ meta_data()
             <content type="string"/>
         </parameter>
 
+        <parameter name="svcname" inherit="service%name">
+            <longdesc lang="en">
+            </longdesc>
+            <shortdesc lang="en">
+            </shortdesc>
+            <content type="string"/>
+        </parameter>
+
+
         <parameter name="fsid" inherit="fsid">
             <longdesc lang="en">
 	    	File system ID inherited from the parent nfsexport/
@@ -323,7 +332,8 @@ status|monitor)
 
 	rv=$? 
 	if [ $rv -ne 0 ]; then
-		ocf_log err "nfsclient:$OCF_RESKEY_name is missing!"
+		ocf_log info "nfsclient:$OCF_RESKEY_name is not running!"
+		exit $OCF_NOT_RUNNING
 	fi
 	;;
 

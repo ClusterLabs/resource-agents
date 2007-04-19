@@ -527,7 +527,7 @@ isMounted () {
 	if [ -z "$dev" ]; then
 		ocf_log err \
 			"fs (isMounted): Could not match $1 with a real device"
-		return $FAIL
+		return $OCF_ERR_ARGS
 	fi
 	mp=$2
 	
@@ -939,7 +939,7 @@ startFilesystem: Creating mount point $mp for device $dev"
 		;;
 	$NO)		# not mounted, continue
 		;;
-	$FAIL)
+	*)
 		return $FAIL
 		;;
 	esac
@@ -1149,9 +1149,6 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 			umount_failed=
 			done=$YES
 			;;
-		$FAIL)
-			return $FAIL
-			;;
 		$YES)
 			sync; sync; sync
 			ocf_log info "unmounting $mp"
@@ -1236,6 +1233,19 @@ stop)
 	;;
 status|monitor)
   	isMounted ${OCF_RESKEY_device} ${OCF_RESKEY_mountpoint}
+	case $? in
+	$NO)
+		ocf_log info "fs:${OCF_RESKEY_name}: ${OCF_RESKEY_device} is not mounted on ${OCF_RESKEY_mountpoint}"
+		exit $OCF_NOT_RUNNING
+		;;
+	$YES)
+		;;
+	*)
+		ocf_log err "fs:${OCF_RESKEY_name}: ${OCF_RESKEY_device} is not mounted on ${OCF_RESKEY_mountpoint}"
+		exit $OCF_ERR_GENERIC
+		;;
+	esac
+		
  	if [ $? -ne $YES ]; then
 		ocf_log err "fs:${OCF_RESKEY_name}: ${OCF_RESKEY_device} is not mounted on ${OCF_RESKEY_mountpoint}"
 		exit $OCF_ERR_GENERIC
