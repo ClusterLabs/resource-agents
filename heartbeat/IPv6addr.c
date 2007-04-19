@@ -480,17 +480,17 @@ scan_if(struct in6_addr* addr_target, int* plen_target, int use_mask)
 		/* Make the mask based on prefix length */
 		memset(mask.s6_addr, 0xff, 16);
 		if (use_mask && plen < 128) {
-			n = plen / 8;
-			memset(mask.s6_addr + n + 1, 0, 15 - n);
-			s = 8 - plen % 8;
-			mask.s6_addr[n] = 0xff << s;
+			n = plen / 32;
+			memset(mask.s6_addr32 + n + 1, 0, (3 - n) * 4);
+			s = 32 - plen % 32;
+			mask.s6_addr32[n] = 0xffffffff << s;
 		}
 
 		/* compare addr and addr_target */
 		same = TRUE;
-		for (i = 0; i < 16; i++) {
-			if ((addr.s6_addr[i]&mask.s6_addr[i]) !=
-			    (addr_target->s6_addr[i]&mask.s6_addr[i])) {
+		for (i = 0; i < 4; i++) {
+			if ((addr.s6_addr32[i]&mask.s6_addr32[i]) !=
+			    (addr_target->s6_addr32[i]&mask.s6_addr32[i])) {
 				same = FALSE;
 				break;
 			}
