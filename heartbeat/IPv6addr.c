@@ -476,15 +476,17 @@ find_if(struct in6_addr* addr_target, int* plen_target)
 		inet_pton(AF_INET6, addr6, &addr);
 
 		/* Make the mask based on prefix length */
-		for (i = 0; i < 16; i++) {
-			mask.s6_addr[i] = 0;
-		}	
-		n = plen / 8;
-		for (i = 0; i < n+1; i++) {
-			mask.s6_addr[i] = 0xFF;
-		}
-		s = 8 - plen % 8;
-		mask.s6_addr[n]<<=s;
+        	for (i = 0; i < 16; i++) {
+                	mask.s6_addr[i] = 0xff;
+        	}
+        	if (plen < 128) {
+                	n = plen / 8;
+                	for (i = 15; i>n; i--) {
+                        	mask.s6_addr[i] = 0x0;
+                	}
+                	s = 8 - plen % 8;
+                	mask.s6_addr[n] <<= s;
+        	}
 
 		/* compare addr and addr_target */
 		same = TRUE;
