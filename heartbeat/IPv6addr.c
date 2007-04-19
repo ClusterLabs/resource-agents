@@ -158,6 +158,8 @@ int write_pid_file(const char *pid_file);
 int create_pid_directory(const char *pid_file);
 static void byebye(int nsig);
 
+static char* scan_if(struct in6_addr* addr_target, int* plen_target,
+		     int use_mask);
 static char* find_if(struct in6_addr* addr_target, int* plen_target);
 static char* get_if(struct in6_addr* addr_target, int* plen_target);
 static int assign_addr6(struct in6_addr* addr6, int prefix_len, char* if_name);
@@ -425,9 +427,9 @@ err:
 	return status;
 }
 
-/* find a proper network interface to assign the address */
+/* find the network interface associated with an address */
 char*
-find_if(struct in6_addr* addr_target, int* plen_target)
+scan_if(struct in6_addr* addr_target, int* plen_target, int use_mask)
 {
 	FILE *f;
 	char addr6[40];
@@ -477,7 +479,7 @@ find_if(struct in6_addr* addr_target, int* plen_target)
 
 		/* Make the mask based on prefix length */
 		memset(mask.s6_addr, 0xff, 16);
-		if (plen < 128) {
+		if (use_mask && plen < 128) {
 			n = plen / 8;
 			memset(mask.s6_addr + n + 1, 0, 15 - n);
 			s = 8 - plen % 8;
@@ -503,57 +505,17 @@ find_if(struct in6_addr* addr_target, int* plen_target)
 	fclose(f);
 	return NULL;
 }
+/* find a proper network interface to assign the address */
+char*
+find_if(struct in6_addr* addr_target, int* plen_target)
+{
+	return scan_if(addr_target, plen_target, 1);
+}
 /* get the device name and the plen_target of a special address */
 char*
 get_if(struct in6_addr* addr_target, int* plen_target)
 {
-	FILE *f;
-	char addr6[40];
-	static char devname[20]="";
-	struct in6_addr addr;
-	unsigned int plen, scope, dad_status, if_idx;
-	char addr6p[8][5];
-
-	/* open /proc/net/if_inet6 file */
-	if ((f = fopen(IF_INET6, "r")) == NULL) {
-		return NULL;
-	}
-	/* loop for each entry */
-	while ( fscanf(f,"%4s%4s%4s%4s%4s%4s%4s%4s %02x %02x %02x %02x %20s\n",
-		addr6p[0], addr6p[1], addr6p[2], addr6p[3],
-		addr6p[4], addr6p[5], addr6p[6], addr6p[7],
-		&if_idx, &plen, &scope, &dad_status, devname) != EOF) {
-
-		sprintf(addr6, "%s:%s:%s:%s:%s:%s:%s:%s",
-			addr6p[0], addr6p[1], addr6p[2], addr6p[3],
-			addr6p[4], addr6p[5], addr6p[6], addr6p[7]);
-
-		/* Only Global address entry would be considered.
-		 * maybe change
-		 */
-		if (0 != scope) {
-			continue;
-		}
-
-		/* "if" specified prefix, only same prefix entry
-		 * would be considered.
-		 */
-		if (*plen_target!=0 && plen != *plen_target) {
-			continue;
-		}
-		*plen_target = plen;
-
-		/* Convert to sockaddr_in6 */
-		inet_pton(AF_INET6, addr6, &addr);
-
-		/* We found it! */
-		if (0 == memcmp(&addr, addr_target,sizeof(addr))) {
-			fclose(f);
-			return devname;
-		}
-	}
-	fclose(f);
-	return NULL;
+	return scan_if(addr_target, plen_target, 0);
 }
 int
 assign_addr6(struct in6_addr* addr6, int prefix_len, char* if_name)
