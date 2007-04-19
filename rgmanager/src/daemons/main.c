@@ -199,6 +199,7 @@ membership_update(void)
 
 	cman_finish(h);
 	member_list_update(new_ml);
+	member_set_state(0, 0);		/* Mark qdisk as dead */
 
 	/*
 	 * Handle nodes lost.  Do our local node event first.

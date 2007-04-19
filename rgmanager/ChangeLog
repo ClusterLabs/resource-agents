@@ -5,6 +5,8 @@
 	same node
 	* src/resources/clusterfs.sh: Apply patch from Simone
 	Gotti to fix logging errors in clusterfs.sh
+	* src/daemons/main.c: Fix qdiskd being treated as an online
+	cluster node
 
 2007-04-12 Lon Hohberger <lhh at redhat.com>
 	* src/daemons/main.c: Fix watchdog race condition causing
