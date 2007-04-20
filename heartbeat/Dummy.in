@@ -64,30 +64,6 @@ Location to store the resource state in.
 <content type="string" default="" />
 </parameter>
 
-<parameter name="check_parallel" unique="0">
-<longdesc lang="en">
-Complain loudly if they try to run us in parallel on the same resource.
-</longdesc>
-<shortdesc lang="en">Report error if run twice at the same time</shortdesc>
-<content type="boolean" default="true" />
-</parameter>
-
-<parameter name="ignore_TERM" unique="0">
-<longdesc lang="en">
-Process the TERM signal and don't exit.
-</longdesc>
-<shortdesc lang="en">No TERM ain't gonna kill us.</shortdesc>
-<content type="boolean" default="false" />
-</parameter>
-
-<parameter name="verbose" unique="0">
-<longdesc lang="en">
-Print more information.
-</longdesc>
-<shortdesc lang="en">Be verbose.</shortdesc>
-<content type="boolean" default="false" />
-</parameter>
-
 </parameters>
 
 <actions>
@@ -106,12 +82,6 @@ END
 
 #######################################################################
 
-# don't exit on TERM, to test that lrmd makes sure that we do exit
-sigterm_handler() {
-	ocf_log info "They use TERM to bring us down. No such luck."
-	return
-}
-
 dummy_usage() {
 	cat <<END
 usage: $0 {start|stop|monitor|migrate_to|migrate_from|validate-all|meta-data}
@@ -120,30 +90,18 @@ Expects to have a fully populated OCF RA-compliant environment set.
 END
 }
 
-# signals interrupt slow calls (sleep)
-# this is an approximation (after all it's just a dummy)
-sleepsleep() {
-	delay=$1
-	now=`perl -e 'print time()'`
-	by=$((now+delay))
-	while [ $now -lt $by ]; do
-		ocf_log debug "Gonna sleep for $((by-now)) seconds..."
-		sleep $((by-now))
-		now=`perl -e 'print time()'`
-	done
-}
 dummy_start() {
-	sleepsleep $OCF_RESKEY_delay
+	sleep $OCF_RESKEY_delay
 	ha_pseudo_resource Dummy_${OCF_RESOURCE_INSTANCE} start $OCF_RESKEY_state
 }
 
 dummy_stop() {
-	sleepsleep $OCF_RESKEY_delay
+	sleep $OCF_RESKEY_delay
 	ha_pseudo_resource Dummy_${OCF_RESOURCE_INSTANCE} stop $OCF_RESKEY_state
 }
 
 dummy_monitor() {
-	sleepsleep $OCF_RESKEY_delay
+	sleep $OCF_RESKEY_delay
 	ha_pseudo_resource Dummy_${OCF_RESOURCE_INSTANCE} monitor $OCF_RESKEY_state
 }
 
@@ -151,47 +109,7 @@ dummy_validate() {
 	exit $OC_ERR_UNIMPLEMENTED
 }
 
-verbose() {
-	[ "$OCF_RESKEY_verbose" != 0 ]
-}
-environment() {
-	echo "OCF environment variables:"
-	set | egrep 'OCF_RESKEY|OCF_RESOURCE_INSTANCE'
-}
-invocation() {
-	echo "invoked with args: $@"
-}
-
 : ${OCF_RESKEY_delay=1}
-: ${OCF_RESKEY_check_parallel=1}
-: ${OCF_RESKEY_verbose=0}
-: ${OCF_RESKEY_ignore_TERM=0}
-
-verbose && environment
-
-lockf=`
-	ha_pseudo_resource Dummy_${OCF_RESOURCE_INSTANCE} print $OCF_RESKEY_state |
-		sed 's/$/.lock/'
-`
-
-check4parallel() {
-	if [ -f "$lockf" ] && kill -0 `cat $lockf` 2>/dev/null
-	then
-		ocf_log err "There is another instance of ${OCF_RESOURCE_INSTANCE} running: pid `cat $lockf`."
-		exit $OCF_ERR_GENERIC
-	fi
-}
-
-[ "$OCF_RESKEY_check_parallel" = 1 ] &&
-	check4parallel
-
-[ "$OCF_RESKEY_ignore_TERM" = 1 ] &&
-	trap sigterm_handler TERM
-
-echo $$ > $lockf
-trap "rm -f $lockf" EXIT
-
-verbose && invocation $@
 
 case $__OCF_ACTION in
 meta-data)	meta_data
