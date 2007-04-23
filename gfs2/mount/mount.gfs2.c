@@ -38,7 +38,7 @@ static void read_options(int argc, char **argv, struct mount_options *mo)
 {
 	int cont = 1;
 	int optchar;
-	int l;
+	char *real;
 
 	/* FIXME: check for "quiet" option and don't print in that case */
 
@@ -77,18 +77,22 @@ static void read_options(int argc, char **argv, struct mount_options *mo)
 		}
 	}
 
-	if (optind < argc && argv[optind])
-		strncpy(mo->dev, argv[optind], PATH_MAX);
+	if (optind < argc && argv[optind]) {
+		real = realpath(argv[optind], NULL);
+		if (!real)
+			die("invalid device path \"%s\"\n", argv[optind]);
+		strncpy(mo->dev, real, PATH_MAX);
+		free(real);
+	}
 
 	++optind;
 
 	if (optind < argc && argv[optind]) {
-		strncpy(mo->dir, argv[optind], PATH_MAX);
-		l = strlen(mo->dir) - 1;
-		while (l > 0 && mo->dir[l] == '/') {
-			mo->dir[l] = '\0';
-			l--;
-		};
+		real = realpath(argv[optind], NULL);
+		if (!real)
+			die("invalid mount point path \"%s\"\n", argv[optind]);
+		strncpy(mo->dir, real, PATH_MAX);
+		free(real);
 	}
 
 	log_debug("mount %s %s", mo->dev, mo->dir);
