@@ -399,6 +399,18 @@ static void decode_arguments(int argc, char **argv)
 	}
 }
 
+void set_oom_adj(int val)
+{
+	FILE *fp;
+
+	fp = fopen("/proc/self/oom_adj", "w");
+	if (!fp)
+		return;
+
+	fprintf(fp, "%i", val);
+	fclose(fp);
+}
+
 void set_scheduler(void)
 {
 	struct sched_param sched_param;
@@ -431,6 +443,8 @@ int main(int argc, char **argv)
 	signal(SIGTERM, sigterm_handler);
 
 	set_scheduler();
+	set_oom_adj(-16);
+	set_protocol();
 
 	return loop();
 }

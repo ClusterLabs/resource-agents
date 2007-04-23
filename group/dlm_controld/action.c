@@ -692,3 +692,87 @@ int set_configfs_debug(int val)
 	return 0;
 }
 
+#define PROTOCOL_PATH "/cluster/dlm/@protocol"
+#define PROTO_TCP  1
+#define PROTO_SCTP 2
+
+static int get_ccs_protocol(int cd)
+{
+	char path[PATH_MAX], *str;
+	int error, rv;
+
+	memset(path, 0, PATH_MAX);
+	sprintf(path, PROTOCOL_PATH);
+
+	error = ccs_get(cd, path, &str);
+	if (error || !str)
+		return -1;
+
+	if (!strncasecmp(str, "tcp", 3))
+		rv = PROTO_TCP;
+	else if (!strncasecmp(str, "sctp", 4))
+		rv = PROTO_SCTP;
+	else {
+		log_error("read invalid dlm protocol from ccs");
+		rv = 0;
+	}
+
+	free(str);
+	return rv;
+}
+
+static int set_configfs_protocol(int proto)
+{
+	char path[PATH_MAX];
+	char buf[32];
+	int fd, rv;
+
+	rv = add_configfs_base();
+	if (rv < 0)
+		return rv;
+
+	memset(path, 0, PATH_MAX);
+	snprintf(path, PATH_MAX, "%s/protocol", CLUSTER_DIR);
+
+	fd = open(path, O_WRONLY);
+	if (fd < 0) {
+		log_debug("%s: open failed: %d", path, errno);
+		return fd;
+	}
+
+	memset(buf, 0, sizeof(buf));
+	snprintf(buf, 32, "%d", proto);
+
+	rv = do_write(fd, buf, strlen(buf));
+	if (rv < 0) {
+		log_error("%s: write failed: %d", path, errno);
+		return rv;
+	}
+	close(fd);
+	return 0;
+}
+
+void set_protocol(void)
+{
+	int cd, rv, proto;
+
+	cd = open_ccs();
+
+	rv = get_ccs_protocol(cd);
+
+	if (!rv || rv < 0)
+		goto out;
+
+	/* for dlm kernel, TCP=0 and SCTP=1 */
+	if (rv == PROTO_TCP)
+		proto = 0;
+	else if (rv == PROTO_SCTP)
+		proto = 1;
+	else
+		goto out;
+
+	set_configfs_protocol(proto);
+ out:
+	ccs_disconnect(cd);
+}
+
