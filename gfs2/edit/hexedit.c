@@ -42,6 +42,8 @@
 
 #include <syslog.h>
 
+#define RGLIST_DUMMY_BLOCK -2
+
 int display(int identify_only);
 extern void eol(int col);
 extern void do_indirect_extended(char *buf);
@@ -341,7 +343,10 @@ int display_block_type(const char *lpBuffer)
 		if (edit_row[dmode] == -1)
 			COLORS_HIGHLIGHT;
 	}
-	print_gfs2("%lld    (0x%"PRIx64")", block, block);
+	if (block == RGLIST_DUMMY_BLOCK)
+		print_gfs2("RG List       ");
+	else
+		print_gfs2("%lld    (0x%"PRIx64")", block, block);
 	if (termlines) {
 		if (edit_row[dmode] == -1)
 			COLORS_NORMAL;
@@ -355,9 +360,14 @@ int display_block_type(const char *lpBuffer)
 	else
 		printf(" ");
 
-	if (*(lpBuffer+0)==0x01 && *(lpBuffer+1)==0x16 && *(lpBuffer+2)==0x19 &&
-		*(lpBuffer+3)==0x70 && *(lpBuffer+4)==0x00 && *(lpBuffer+5)==0x00 &&
-		*(lpBuffer+6)==0x00) { /* If magic number appears at the start */
+	if (block == RGLIST_DUMMY_BLOCK) {
+		ret_type = GFS2_METATYPE_RG;
+		struct_len = sizeof(struct gfs2_rgrp);
+	}
+	else if (*(lpBuffer+0)==0x01 && *(lpBuffer+1)==0x16 &&
+	    *(lpBuffer+2)==0x19 && *(lpBuffer+3)==0x70 &&
+	    *(lpBuffer+4)==0x00 && *(lpBuffer+5)==0x00 &&
+	    *(lpBuffer+6)==0x00) { /* If magic number appears at the start */
 		ret_type = *(lpBuffer+7);
 		switch (*(lpBuffer+7)) {
 		case GFS2_METATYPE_SB:   /* 1 */
@@ -431,6 +441,8 @@ int display_block_type(const char *lpBuffer)
 		print_gfs2("-------------------- Root directory ------------------");
 	else if (!gfs1 && block == sbd.sd_sb.sb_master_dir.no_addr)
 		print_gfs2("------------------- Master directory -----------------");
+	else if (!gfs1 && block == RGLIST_DUMMY_BLOCK)
+		print_gfs2("----------------------- RG List ----------------------");
 	else {
 		if (gfs1) {
 			if (block == sbd1->sb_rindex_di.no_addr)
@@ -569,9 +581,9 @@ uint64_t masterblock(const char *fn)
 }
 
 /* ------------------------------------------------------------------------ */
-/* print_rindex - print the rgindex file.                                   */
+/* parse_rindex - print the rgindex file.                                   */
 /* ------------------------------------------------------------------------ */
-int print_rindex(struct gfs2_inode *di)
+int parse_rindex(struct gfs2_inode *di, int print_rindex)
 {
 	int error, start_line;
 	struct gfs2_rindex ri;
@@ -587,8 +599,8 @@ int print_rindex(struct gfs2_inode *di)
 	memset(highlighted_addr, 0, sizeof(highlighted_addr));
 	for (print_entry_ndx=0; ; print_entry_ndx++) {
 		error = gfs2_readi(di, (void *)&buf,
-						   print_entry_ndx * sizeof(struct gfs2_rindex),
-						   sizeof(struct gfs2_rindex));
+				   print_entry_ndx * sizeof(struct gfs2_rindex),
+				   sizeof(struct gfs2_rindex));
 		gfs2_rindex_in(&ri, buf);
 		if (!error) /* end of file */
 			break;
@@ -602,10 +614,23 @@ int print_rindex(struct gfs2_inode *di)
 					ri.ri_addr);
 			}
 			print_gfs2("RG #%d", print_entry_ndx);
+			if (!print_rindex)
+				print_gfs2(" located at: %llu (0x%llx)",
+					   ri.ri_addr, ri.ri_addr);
 			eol(0);
 			if (edit_row[dmode] == print_entry_ndx)
 				COLORS_NORMAL;
-			gfs2_rindex_print(&ri);
+			if(print_rindex)
+				gfs2_rindex_print(&ri);
+			else {
+				struct gfs2_rgrp rg;
+				struct gfs2_buffer_head *tmp_bh;
+
+				tmp_bh = bread(&sbd, ri.ri_addr);
+				gfs2_rgrp_in(&rg, tmp_bh->b_data);
+				gfs2_rgrp_print(&rg);
+				brelse(tmp_bh, not_updated);
+			}
 			last_entry_onscreen[dmode] = print_entry_ndx;
 		}
 	}
@@ -978,6 +1003,18 @@ int block_is_rindex(void)
 }
 
 /* ------------------------------------------------------------------------ */
+/* block_is_rglist - there's no such block as the rglist.  This is a        */
+/*                   special case meant to parse the rindex and follow the  */
+/*                   blocks to the real rgs.                                */
+/* ------------------------------------------------------------------------ */
+int block_is_rglist(void)
+{
+	if (block == RGLIST_DUMMY_BLOCK)
+		return TRUE;
+	return FALSE;
+}
+
+/* ------------------------------------------------------------------------ */
 /* block_is_jindex                                                          */
 /* ------------------------------------------------------------------------ */
 int block_is_jindex(void)
@@ -1025,6 +1062,7 @@ int block_has_extended_info(void)
 {
 	if (has_indirect_blocks() ||
 	    block_is_rindex() ||
+	    block_is_rglist() ||
 	    block_is_jindex() ||
 	    block_is_inum_file() ||
 	    block_is_statfs_file() ||
@@ -1047,7 +1085,13 @@ int display_extended(void)
 	else if (block_is_rindex()) {
 		tmp_bh = bread(&sbd, block);
 		tmp_inode = inode_get(&sbd, tmp_bh);
-		print_rindex(tmp_inode);
+		parse_rindex(tmp_inode, TRUE);
+		brelse(tmp_bh, not_updated);
+	}
+	else if (block_is_rglist()) {
+		tmp_bh = bread(&sbd, masterblock("rindex"));
+		tmp_inode = inode_get(&sbd, tmp_bh);
+		parse_rindex(tmp_inode, FALSE);
 		brelse(tmp_bh, not_updated);
 	}
 	else if (block_is_jindex()) {
@@ -1136,16 +1180,22 @@ void read_master_dir(void)
 /* ------------------------------------------------------------------------ */
 int display(int identify_only)
 {
+	uint64_t blk;
+
+	if (block == RGLIST_DUMMY_BLOCK)
+		blk = masterblock("rindex");
+	else
+		blk = block;
 	if (termlines) {
 		display_title_lines();
 		move(2,0);
 	}
-	if (block_in_mem != block) { /* If we changed blocks from the last read */
-		dev_offset = block * bufsize;
+	if (block_in_mem != blk) { /* If we changed blocks from the last read */
+		dev_offset = blk * bufsize;
 		ioctl(fd, BLKFLSBUF, 0);
 		do_lseek(fd, dev_offset);
 		do_read(fd, buf, bufsize); /* read in the desired block */
-		block_in_mem = block; /* remember which block is in memory */
+		block_in_mem = blk; /* remember which block is in memory */
 	}
 	line = 1;
 	gfs2_struct_type = display_block_type(buf);
@@ -1153,7 +1203,7 @@ int display(int identify_only)
 		return 0;
 	indirect_blocks = 0;
 	lines_per_row[dmode] = 1;
-	if (gfs2_struct_type == GFS2_METATYPE_SB || block == 0x10) {
+	if (gfs2_struct_type == GFS2_METATYPE_SB || blk == 0x10) {
 		gfs2_sb_in(&sbd.sd_sb, buf); /* parse it out into the sb structure */
 		memset(&indirect, 0, sizeof(indirect));
 		indirect[0].block = sbd.sd_sb.sb_master_dir.no_addr;
@@ -1307,15 +1357,19 @@ uint64_t goto_block(void)
 				else if (!strcmp(string, "quota"))
 					temp_blk = gfs1_quota_di.no_addr;
 			}
-			else
-				temp_blk = masterblock(string);
+			else {
+				if (!strcmp(string, "rgs"))
+					temp_blk = RGLIST_DUMMY_BLOCK;
+				else
+					temp_blk = masterblock(string);
+			}
 		}
 		else if (string[0] == '0' && string[1] == 'x')
 			sscanf(string, "%"SCNx64, &temp_blk); /* retrieve in hex */
 		else
 			sscanf(string, "%" PRIu64, &temp_blk); /* retrieve decimal */
 
-		if (temp_blk < max_block) {
+		if (temp_blk == RGLIST_DUMMY_BLOCK || temp_blk < max_block) {
 			offset = 0;
 			block = temp_blk;
 			push_block(block);
@@ -1760,6 +1814,7 @@ void usage(void)
 	fprintf(stderr,"     inum - prints the inum file.\n");
 	fprintf(stderr,"     statfs - prints the statfs file.\n");
 	fprintf(stderr,"     rindex - prints the rindex file.\n");
+	fprintf(stderr,"     rgs - prints all the resource groups (rgs).\n");
 	fprintf(stderr,"     quota - prints the quota file.\n");
 	fprintf(stderr,"-x   print in hexmode.\n");
 	fprintf(stderr,"-h   prints this help.\n\n");
@@ -1855,6 +1910,10 @@ void process_parameters(int argc, char *argv[], int pass)
 						push_block(sbd1->sb_rindex_di.no_addr);
 					else
 						push_block(masterblock("rindex"));
+				}
+				else if (!strcmp(argv[i], "rgs")) {
+					if (!gfs1)
+						push_block(RGLIST_DUMMY_BLOCK);
 				}
 				else if (!strcmp(argv[i], "quota")) {
 					if (gfs1)
