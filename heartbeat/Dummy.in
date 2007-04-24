@@ -42,50 +42,19 @@ meta_data() {
 <version>1.0</version>
 
 <longdesc lang="en">
-This is a Dummy Resource Agent. It does absolutely nothing except wait
-for various amounts of time on execution.
+This is a Dummy Resource Agent. It does absolutely nothing except 
+keep track of whether its running or not.
+Its purpose in life is for testing and to serve as a template for RA writers.
 </longdesc>
 <shortdesc lang="en">Dummy resource agent</shortdesc>
 
 <parameters>
-<parameter name="delay" unique="0">
-<longdesc lang="en">
-How long to delay before each action.
-</longdesc>
-<shortdesc lang="en">Action delay</shortdesc>
-<content type="integer" default="5" />
-</parameter>
-
 <parameter name="state" unique="1">
 <longdesc lang="en">
 Location to store the resource state in.
 </longdesc>
 <shortdesc lang="en">State file</shortdesc>
-<content type="string" default="" />
-</parameter>
-
-<parameter name="check_parallel" unique="0">
-<longdesc lang="en">
-Complain loudly if they try to run us in parallel on the same resource.
-</longdesc>
-<shortdesc lang="en">Report error if run twice at the same time</shortdesc>
-<content type="boolean" default="true" />
-</parameter>
-
-<parameter name="ignore_TERM" unique="0">
-<longdesc lang="en">
-Process the TERM signal and don't exit.
-</longdesc>
-<shortdesc lang="en">No TERM ain't gonna kill us.</shortdesc>
-<content type="boolean" default="false" />
-</parameter>
-
-<parameter name="verbose" unique="0">
-<longdesc lang="en">
-Print more information.
-</longdesc>
-<shortdesc lang="en">Be verbose.</shortdesc>
-<content type="boolean" default="false" />
+<content type="string" default="@HA_VARRUNHBRSCDIR@/Dummy-{OCF_RESOURCE_INSTANCE}.state" />
 </parameter>
 
 </parameters>
@@ -107,6 +76,7 @@ END
 #######################################################################
 
 # don't exit on TERM, to test that lrmd makes sure that we do exit
+trap sigterm_handler TERM
 sigterm_handler() {
 	ocf_log info "They use TERM to bring us down. No such luck."
 	return
@@ -120,78 +90,43 @@ Expects to have a fully populated OCF RA-compliant environment set.
 END
 }
 
-# signals interrupt slow calls (sleep)
-# this is an approximation (after all it's just a dummy)
-sleepsleep() {
-	delay=$1
-	now=`perl -e 'print time()'`
-	by=$((now+delay))
-	while [ $now -lt $by ]; do
-		ocf_log debug "Gonna sleep for $((by-now)) seconds..."
-		sleep $((by-now))
-		now=`perl -e 'print time()'`
-	done
-}
 dummy_start() {
-	sleepsleep $OCF_RESKEY_delay
-	ha_pseudo_resource Dummy_${OCF_RESOURCE_INSTANCE} start $OCF_RESKEY_state
+    dummy_monitor
+    if [ $? =  $OCF_SUCCESS ]; then
+	return $OCF_SUCCESS
+    fi
+    touch ${OCF_RESKEY_state}
 }
 
 dummy_stop() {
-	sleepsleep $OCF_RESKEY_delay
-	ha_pseudo_resource Dummy_${OCF_RESOURCE_INSTANCE} stop $OCF_RESKEY_state
+    dummy_monitor
+    if [ $? =  $OCF_SUCCESS ]; then
+	rm ${OCF_RESKEY_state}
+    fi
+    return $OCF_SUCCESS
 }
 
 dummy_monitor() {
-	sleepsleep $OCF_RESKEY_delay
-	ha_pseudo_resource Dummy_${OCF_RESOURCE_INSTANCE} monitor $OCF_RESKEY_state
+	if [ -f ${OCF_RESKEY_state} ]; then
+	    return $OCF_SUCCESS
+	fi
+	return $OCF_NOT_RUNNING
 }
 
 dummy_validate() {
-	exit $OC_ERR_UNIMPLEMENTED
+    
+    # Is the state directory writable? 
+    state_dir=`dirname "$OCF_RESKEY_state"`
+    touch "$state_dir/$$"
+    if [ $? != 0 ]; then
+	return $OCF_ERR_ARGS
+    fi
+    rm "$state_dir/$$"
+
+    return $OCF_SUCCESS
 }
 
-verbose() {
-	[ "$OCF_RESKEY_verbose" != 0 ]
-}
-environment() {
-	echo "OCF environment variables:"
-	set | egrep 'OCF_RESKEY|OCF_RESOURCE_INSTANCE'
-}
-invocation() {
-	echo "invoked with args: $@"
-}
-
-: ${OCF_RESKEY_delay=1}
-: ${OCF_RESKEY_check_parallel=1}
-: ${OCF_RESKEY_verbose=0}
-: ${OCF_RESKEY_ignore_TERM=0}
-
-verbose && environment
-
-lockf=`
-	ha_pseudo_resource Dummy_${OCF_RESOURCE_INSTANCE} print $OCF_RESKEY_state |
-		sed 's/$/.lock/'
-`
-
-check4parallel() {
-	if [ -f "$lockf" ] && kill -0 `cat $lockf` 2>/dev/null
-	then
-		ocf_log err "There is another instance of ${OCF_RESOURCE_INSTANCE} running: pid `cat $lockf`."
-		exit $OCF_ERR_GENERIC
-	fi
-}
-
-[ "$OCF_RESKEY_check_parallel" = 1 ] &&
-	check4parallel
-
-[ "$OCF_RESKEY_ignore_TERM" = 1 ] &&
-	trap sigterm_handler TERM
-
-echo $$ > $lockf
-trap "rm -f $lockf" EXIT
-
-verbose && invocation $@
+: ${OCF_RESKEY_state=@HA_VARRUNHBRSCDIR@/Dummy-${OCF_RESOURCE_INSTANCE}.state}
 
 case $__OCF_ACTION in
 meta-data)	meta_data
