@@ -1536,18 +1536,18 @@ int add_another_mountpoint(struct mountgroup *mg, char *dir, char *dev, int ci)
 	   fs with the same name (which is an error) */
 
 	if (strcmp(mg->dev, dev)) {
-		log_group(mg, "different fs dev %s with same name", mg->dev);
+		log_error("different fs dev %s with same name", mg->dev);
 		return -EINVAL;
 	}
 
 	if (find_mountpoint(mg, dir)) {
-		log_group(mg, "mount point %s already used", dir);
+		log_error("mount point %s already used", dir);
 		return -EBUSY;
 	}
 
 	/* we only really need to check one of these */
 	if (mg->mount_client || mg->mount_client_fd || !mg->kernel_mount_done) {
-		log_group(mg, "other mount in progress client %d fd %d done %d",
+		log_error("other mount in progress client %d fd %d done %d",
 			  mg->mount_client, mg->mount_client_fd,
 			  mg->kernel_mount_done);
 		return -EBUSY;
