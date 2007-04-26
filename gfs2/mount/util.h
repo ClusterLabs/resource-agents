@@ -20,6 +20,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <limits.h>
+#include <dirent.h>
 #include <errno.h>
 #include <signal.h>
 #include <sys/socket.h>

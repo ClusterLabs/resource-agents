@@ -150,6 +150,25 @@ static void umount_lockproto(char *proto, struct mount_options *mo,
 		lock_dlm_leave(mo, sb, mnterr);
 }
 
+static void check_sys_fs(char *fsname)
+{
+	DIR *d;
+	struct dirent *de;
+
+	d = opendir("/sys/fs/");
+	if (!d)
+		die("no /sys/fs/ directory found: %d\n", errno);
+
+	while ((de = readdir(d))) {
+		if (strnlen(fsname, 5) != strnlen(de->d_name, 5))
+			continue;
+		if (!strncmp(fsname, de->d_name, strnlen(fsname, 5)))
+			return;
+	}
+	die("fs type \"%s\" not found in /sys/fs/, is the module loaded?\n",
+	    fsname);
+}
+
 int main(int argc, char **argv)
 {
 	struct mount_options mo;
@@ -171,6 +190,8 @@ int main(int argc, char **argv)
 		print_usage();
 		exit(EXIT_SUCCESS);
 	}
+
+	check_sys_fs(fsname);
 
 	read_options(argc, argv, &mo);
 	check_options(&mo);
