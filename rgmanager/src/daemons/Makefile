@@ -61,7 +61,7 @@ rg_test: rg_locks-noccs.o test-noccs.o reslist-noccs.o \
 	$(CC) -o $@ $^ -llalloc $(LDFLAGS) -lccs -lcman
 
 dtest: rg_locks-noccs.o dtest-noccs.o reslist-noccs.o \
-		resrules.o restree-noccs.o fo_domain-noccs.o depends-noccs.o
+		resrules-noccs.o restree-noccs.o fo_domain-noccs.o depends-noccs.o
 	$(CC) -o $@ $^ -llalloc $(LDFLAGS) -lccs -lcman \
 		-lreadline -ltermcap
 

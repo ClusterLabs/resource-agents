@@ -1,3 +1,7 @@
+2007-04-26 Fabio M. Di Nitto <fabbione at ubuntu.com>
+	* src/daemons/Makefile: use resrules-noccs in dtest build
+	target.
+
 2007-04-19 Lon Hohberger <lhh at redhat.com>
 	* src/daemons/groups.c, rg_state.c: Apply patch from Andrey
 	Mirkin to fix bug #237144; prevents exclusive services from
