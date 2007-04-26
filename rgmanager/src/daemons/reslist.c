@@ -79,16 +79,26 @@ res_attr_value(resource_t *res, char *attrname)
 
    @param node		Resource tree node to look examine
    @param attrname	Attribute to retrieve.
+   @param ptype		Resource type to look for (if inheritance)
    @return 		value of attribute or NULL if not found
  */
-char *
-attr_value(resource_node_t *node, char *attrname)
+static char *
+_attr_value(resource_node_t *node, char *attrname, char *ptype)
 {
-	resource_t *res = node->rn_resource;
+	resource_t *res;
 	resource_attr_t *ra;
-	char *c, *p_type;
+	char *c, p_type[32];
 	ssize_t len;
 	int x;
+
+	if (!node)
+		return NULL;
+
+	res = node->rn_resource;
+
+	/* Go up the tree if it's not the right parent type */
+	if (ptype && strcmp(res->r_rule->rr_type, ptype))
+		return _attr_value(node->rn_parent, attrname, ptype);
 
 	for (x = 0; res->r_attrs && res->r_attrs[x].ra_name; x++) {
 		if (strcmp(attrname, res->r_attrs[x].ra_name))
@@ -108,25 +118,26 @@ attr_value(resource_node_t *node, char *attrname)
 		if (!c) {
 			/* Someone doesn't care or uses older
 			   semantics on inheritance */
-			return attr_value(node->rn_parent, ra->ra_value);
+			return _attr_value(node->rn_parent, ra->ra_value,
+					   NULL);
 		}
-
-		p_type = node->rn_parent->rn_resource->r_rule->rr_type;
+		
 		len = (c - ra->ra_value);
-
-		/* Different sizes? */
-		if (strlen(p_type) != len)
-			return NULL;
-
-		/* Check for parent type match */
-		if (strncmp(p_type, ra->ra_value, len) != 0)
-			return NULL;
-
+		memset(p_type, 0, sizeof(p_type));
+		memcpy(p_type, ra->ra_value, len);
+		
 		/* Skip the "%" and recurse */
-		return attr_value(node->rn_parent, ++c);
+		return _attr_value(node->rn_parent, ++c, p_type);
 	}
 
 	return NULL;
+}
+
+
+char *
+attr_value(resource_node_t *node, char *attrname)
+{
+	return _attr_value(node, attrname, NULL);
 }
 
 

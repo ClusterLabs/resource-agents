@@ -1,3 +1,7 @@
+2007-04-26 Lon Hohberger <lhh at redhat.com>
+	* src/daemons/reslist.c: Try all direct ancestors while 
+	performing run-time inheritance resolution #231521
+
 2007-04-26 Fabio M. Di Nitto <fabbione at ubuntu.com>
 	* src/daemons/Makefile: use resrules-noccs in dtest build
 	target.
