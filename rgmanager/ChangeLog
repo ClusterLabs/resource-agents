@@ -1,3 +1,6 @@
+2007-04-27 Fabio M. Di Nitto <fabbione at ubuntu.com>
+	* src/clulib/vft.c: Change ifdef to fix build on parisc.
+
 2007-04-26 Lon Hohberger <lhh at redhat.com>
 	* src/daemons/reslist.c: Try all direct ancestors while 
 	performing run-time inheritance resolution #231521
