@@ -240,7 +240,7 @@ main(int argc, char **argv)
 		return 1;
 	}
 
-	while ((opt = getopt(argc, argv, "lSue:M:d:r:n:m:vR:s:qh?")) != EOF) {
+	while ((opt = getopt(argc, argv, "lSue:M:d:r:n:m:vR:s:F:U:qh?")) != EOF) {
 		switch (opt) {
 		case 'l':
 			return do_lock();
@@ -294,6 +294,16 @@ main(int argc, char **argv)
 		case 'v':
 			printf("%s\n",PACKAGE_VERSION);
 			return 0;
+		case 'F':
+			actionstr = "freezing";
+			action = RG_FREEZE;
+			svcname = optarg;
+			break;
+		case 'U':
+			actionstr = "unfreezing";
+			action = RG_UNFREEZE;
+			svcname = optarg;
+			break;
 		case 'q':
 			close(STDOUT_FILENO);
 			break;

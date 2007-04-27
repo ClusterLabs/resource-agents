@@ -416,7 +416,7 @@ void
 _txt_rg_state(rg_state_t *rs, cluster_member_list_t *members, int flags)
 {
 	char owner[31];
-
+	char flags_string[255] = "";
 
 	if (rs->rs_state == RG_STATE_STOPPED ||
 	    rs->rs_state == RG_STATE_DISABLED ||
@@ -430,19 +430,34 @@ _txt_rg_state(rg_state_t *rs, cluster_member_list_t *members, int flags)
 		snprintf(owner, sizeof(owner), "%-.30s",
 			 my_memb_id_to_name(members, rs->rs_owner));
 	}
-	printf("  %-20.20s %-30.30s %-16.16s\n",
+	rg_flags_str(flags_string, sizeof(flags_string), rs->rs_flags, ", ");
+	printf("  %-20.20s %-30.30s %-16.16s ",
 	       rs->rs_name,
 	       owner,
 	       rg_state_str(rs->rs_state));
+	if(strlen(flags_string))
+		printf ("%-30.30s\n", flags_string);
+	else
+		printf("\n");
 }
 
 
 void
 _txt_rg_state_v(rg_state_t *rs, cluster_member_list_t *members, int flags)
 {
+	char flags_string[255] = "";
+
+	rg_flags_str(flags_string, sizeof(flags_string), rs->rs_flags, ", ");
+
 	printf("Service Name      : %s\n", rs->rs_name);
 	printf("  Current State   : %s (%d)\n",
 	       rg_state_str(rs->rs_state), rs->rs_state);
+	if (rs->rs_flags)
+		printf("  Flags           : %s (%d)\n",
+		       flags_string, rs->rs_flags);
+	else
+		printf("  Flags           : none (%d)\n",
+		       rs->rs_flags);
 	printf("  Owner           : %s\n",
 	       my_memb_id_to_name(members, rs->rs_owner));
 	printf("  Last Owner      : %s\n",
@@ -466,6 +481,7 @@ void
 xml_rg_state(rg_state_t *rs, cluster_member_list_t *members, int flags)
 {
 	char time_str[32];
+	char flags_string[255] = "";
 	int x;
 
 	/* Chop off newlines */
@@ -477,12 +493,15 @@ xml_rg_state(rg_state_t *rs, cluster_member_list_t *members, int flags)
 		}
 	}
 
-	printf("    <group name=\"%s\" state=\"%d\" state_str=\"%s\" "
+	printf("    <group name=\"%s\" state=\"%d\" state_str=\"%s\""
+	       " flags=\"%d\" flags_str=\"%s\""
 	       " owner=\"%s\" last_owner=\"%s\" restarts=\"%d\""
 	       " last_transition=\"%llu\" last_transition_str=\"%s\"/>\n",
 	       rs->rs_name,
 	       rs->rs_state,
 	       rg_state_str(rs->rs_state),
+	       rs->rs_flags,
+	       rg_flags_str(flags_string, sizeof(flags_string), rs->rs_flags, " "),
 	       my_memb_id_to_name(members, rs->rs_owner),
 	       my_memb_id_to_name(members, rs->rs_last_owner),
 	       rs->rs_restarts,
@@ -504,10 +523,10 @@ txt_rg_states(rg_state_list_t *rgl, cluster_member_list_t *members,
 		ret = -1;
 
 	if (!(flags & RG_VERBOSE)) {
-		printf("  %-20.20s %-30.30s %-14.14s\n",
-		       "Service Name", "Owner (Last)", "State");
-		printf("  %-20.20s %-30.30s %-14.14s\n",
-		       "------- ----", "----- ------", "-----");
+		printf("  %-20.20s %-30.30s %-16.16s %-30.30s\n",
+		       "Service Name", "Owner (Last)", "State", "Flags");
+		printf("  %-20.20s %-30.30s %-16.16s %-30.30s\n",
+		       "------- ----", "----- ------", "-----", "-----");
 	} else {
 		printf("Service Information\n"
 		       "------- -----------\n\n");

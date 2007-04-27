@@ -282,6 +282,7 @@ init_rg(char *name, rg_state_t *svcblk)
 	svcblk->rs_owner = 0;
 	svcblk->rs_last_owner = 0;
 	svcblk->rs_state = RG_STATE_STOPPED;
+       	svcblk->rs_flags = 0;
        	svcblk->rs_restarts = 0;
 	svcblk->rs_transition = 0;	
 	strncpy(svcblk->rs_name, name, sizeof(svcblk->rs_name));
@@ -418,6 +419,7 @@ get_rg_state_local(char *name, rg_state_t *svcblk)
 		svcblk->rs_owner = 0;
 		svcblk->rs_last_owner = 0;
 		svcblk->rs_state = RG_STATE_UNINITIALIZED;
+       		svcblk->rs_flags = 0;
        		svcblk->rs_restarts = 0;
 		svcblk->rs_transition = 0;	
 		strncpy(svcblk->rs_name, name, sizeof(svcblk->rs_name));
@@ -446,6 +448,7 @@ get_rg_state_local(char *name, rg_state_t *svcblk)
  *			2 = DO NOT stop service, return 0 (success)
  *                      3 = DO NOT stop service, return RG_EFORWARD
  *			4 = DO NOT stop service, return RG_EAGAIN
+ *			5 = DO NOT stop service, return RG_EFROZEN
  */
 int
 svc_advise_stop(rg_state_t *svcStatus, char *svcName, int req)
@@ -453,6 +456,11 @@ svc_advise_stop(rg_state_t *svcStatus, char *svcName, int req)
 	cluster_member_list_t *membership = member_list();
 	int ret = 0;
 	
+	if (svcStatus->rs_flags & RG_FLAG_FROZEN) {
+		clulog(LOG_DEBUG, "Service %s frozen.\n", svcName);
+		return 5;
+	}
+
 	switch(svcStatus->rs_state) {
 	case RG_STATE_FAILED:
 		if (req == RG_DISABLE)
@@ -568,6 +576,7 @@ svc_advise_stop(rg_state_t *svcStatus, char *svcName, int req)
  *			2 = DO NOT start service, return 0
  *			3 = DO NOT start service, return RG_EAGAIN
  *			4 = DO NOT start service, return RG_ERUN
+ *			5 = DO NOT start service, return RG_EFROZEN
  */
 int
 svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
@@ -575,6 +584,11 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 	cluster_member_list_t *membership = member_list();
 	int ret = 0;
 	
+	if (svcStatus->rs_flags & RG_FLAG_FROZEN) {
+		clulog(LOG_DEBUG, "Service %s frozen.\n", svcName);
+		return 5;
+	}
+
 	switch(svcStatus->rs_state) {
 	case RG_STATE_FAILED:
 		clulog(LOG_ERR,
@@ -752,6 +766,9 @@ svc_start(char *svcName, int req)
 	case 4:
 		rg_unlock(&lockp);
 		return RG_ERUN;
+	case 5:
+		rg_unlock(&lockp);
+		return RG_EFROZEN;
 	default:
 		break;
 	}
@@ -914,6 +931,10 @@ svc_status(char *svcName)
 	}
 	rg_unlock(&lockp);
 
+	if (svcStatus.rs_flags & RG_FLAG_FROZEN)
+		/* Don't check status if the service is frozen */
+		return 0;
+
 	if (svcStatus.rs_owner != my_id())
 		/* Don't check status for anything not owned */
 		return 0;
@@ -961,6 +982,17 @@ svc_status(char *svcName)
 int
 svc_status_inquiry(char *svcName)
 {
+	rg_state_t svcStatus;
+
+	if (get_rg_state_local(svcName, &svcStatus) != 0) {
+		clulog(LOG_ERR, "Failed getting local status for RG %s\n",
+		       svcName);
+		return RG_EFAIL;
+	}
+
+	if (svcStatus.rs_flags & RG_FLAG_FROZEN)
+		return 0;
+	
 	return group_op(svcName, RG_STATUS);
 }
 
@@ -1015,6 +1047,9 @@ _svc_stop(char *svcName, int req, int recover, uint32_t newstate)
 	case 4:
 		rg_unlock(&lockp);
 		return RG_EAGAIN;
+	case 5:
+		rg_unlock(&lockp);
+		return RG_EFROZEN;
 	default:
 		break;
 	}
@@ -1191,6 +1226,76 @@ svc_fail(char *svcName)
 	return 0;
 }
 
+/**
+ * Flag/Unflag a cluster service as frozen.
+ *
+ * @param svcName	Service ID to flag/unflag as frozen.
+ * @return		FAIL, 0
+ */
+int
+_svc_freeze(char *svcName, int enabled)
+{
+	struct dlm_lksb lockp;
+	rg_state_t svcStatus;
+
+	if (rg_lock(svcName, &lockp) == RG_EFAIL) {
+		clulog(LOG_ERR, "#55: Unable to obtain cluster lock: %s\n",
+		       strerror(errno));
+		return RG_EFAIL;
+	}
+
+	clulog(LOG_DEBUG, "Handling %s request for RG %s\n", svcName, enabled?"freeze":"unfreeze");
+
+	if (get_rg_state(svcName, &svcStatus) != 0) {
+		rg_unlock(&lockp);
+		clulog(LOG_ERR, "#56: Failed getting status for RG %s\n",
+		       svcName);
+		return RG_EFAIL;
+	}
+
+	switch(svcStatus.rs_state) {
+	case RG_STATE_STOPPED:
+	case RG_STATE_STARTED:
+	case RG_STATE_DISABLED:
+
+		if (enabled == 1) {
+			clulog(LOG_DEBUG, "Freezing RG %s\n", svcName);
+			svcStatus.rs_flags |= RG_FLAG_FROZEN;
+		} else {
+			clulog(LOG_DEBUG, "Unfreezing RG %s\n", svcName);
+			svcStatus.rs_flags &= ~RG_FLAG_FROZEN;
+		}
+
+		if (set_rg_state(svcName, &svcStatus) != 0) {
+			rg_unlock(&lockp);
+			clulog(LOG_ERR, "#57: Failed changing RG status\n");
+			return RG_EFAIL;
+		}
+		break;
+
+	default:
+		rg_unlock(&lockp);
+		return RG_EFAIL;
+		break;
+	}
+
+	rg_unlock(&lockp);
+
+	return 0;
+}
+
+int
+svc_freeze(char *svcName)
+{
+	return _svc_freeze(svcName, 1);
+}
+
+int
+svc_unfreeze(char *svcName)
+{
+	return _svc_freeze(svcName, 0);
+}
+
 
 /*
  * Send a message to the target node to start the service.
@@ -1323,6 +1428,9 @@ handle_relocate_req(char *svcName, int request, int preferred_target,
 		if (ret == RG_EFAIL) {
 			svc_fail(svcName);
 			return RG_EFAIL;
+		}
+		if (ret == RG_EFROZEN) {
+			return RG_EFROZEN;
 		}
 		if (ret == RG_EFORWARD)
 			return RG_EFORWARD;
@@ -1531,7 +1639,7 @@ handle_start_req(char *svcName, int req, int *new_owner)
 	/* 
 	   If services are locked, return the error 
 	  */
-	if (ret == RG_EAGAIN || ret == RG_ERUN)
+	if (ret == RG_EAGAIN || ret == RG_ERUN || ret == RG_EFROZEN)
 		return ret;
 
 	/*

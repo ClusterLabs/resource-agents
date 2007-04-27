@@ -422,6 +422,18 @@ resgroup_thread_main(void *arg)
 
 			break;
 
+		case RG_FREEZE:
+			error = svc_freeze(myname);
+			if (error != 0)
+				ret = RG_EFAIL;
+			break;
+
+		case RG_UNFREEZE:
+			error = svc_unfreeze(myname);
+			if (error != 0)
+				ret = RG_EFAIL;
+			break;
+
 		default:
 			printf("Unhandled request %d\n", req->rr_request);
 			ret = RG_NONE;

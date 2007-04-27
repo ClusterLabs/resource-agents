@@ -1,3 +1,10 @@
+2007-04-27 Lon Hohberger <lhh at redhat.com>
+	* include/resgroup.h, src/clulib/rg_strings.c src/daemons/groups.c,
+	rg_state.c, rg_thread.c, src/utils/clustat.c, clusvcadm.c: Apply
+	patch to implement service freeze/unfreeze from Simone Gotti
+	* src/daemons/sbuf.c: Add simple buffer handlers for future use
+	by svc_status_inquiry
+
 2007-04-27 Fabio M. Di Nitto <fabbione at ubuntu.com>
 	* src/clulib/vft.c: Change ifdef to fix build on parisc.
 

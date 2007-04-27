@@ -35,6 +35,7 @@ const struct string_val rg_error_strings[] = {
 	{ RG_ENOSERVICE,"Service does not exist" },
 	{ RG_EFORWARD,	"Service not mastered locally" },
 	{ RG_EABORT,	"Aborted; service failed" },
+	{ RG_EFROZEN,	"Failure: Service is frozen"},
 	{ RG_EFAIL,	"Failure" },
 	{ RG_ESUCCESS,	"Success" },
 	{ RG_YES,	"Yes" },
@@ -88,6 +89,12 @@ const struct string_val rg_state_strings[] = {
 };
 
 
+const struct string_val rg_flags_strings[] = {
+	{RG_FLAG_FROZEN, "frozen"},
+	{0, NULL}
+};
+
+
 const struct string_val agent_ops[] = {
 	{RS_START, "start"},
 	{RS_STOP, "stop"},
@@ -122,6 +129,20 @@ rg_search_table(const struct string_val *table, int val)
 }
 
 
+static inline const char *
+rg_flag_search_table(const struct string_val *table, int val)
+{
+	int x;
+
+	for (x = 0; table[x].str != NULL; x++) {
+		if (table[x].val == val) {
+			return table[x].str;
+		}
+	}
+
+	return "Unknown";
+}
+
 const char *
 rg_strerror(int val)
 {
@@ -134,6 +155,22 @@ rg_state_str(int val)
 	return rg_search_table(rg_state_strings, val);
 }
 
+const char *
+rg_flags_str(char *flags_string, size_t size, int val, char *separator)
+{
+	int i;
+	const char *string;
+
+	for (i = 0; i < sizeof(uint32_t); i++) {
+		if ( val & (1 << i)) {
+			if (strlen(flags_string))
+				strncat(flags_string, separator, size - (strlen(flags_string) + strlen(separator) + 1));
+			string = rg_search_table(rg_flags_strings, (1 << i));
+			strncat(flags_string, string, size - (strlen(flags_string) + strlen(string) + 1));
+		}
+	}
+	return flags_string;
+}
 
 const char *
 rg_req_str(int val)

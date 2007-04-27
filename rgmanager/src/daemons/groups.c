@@ -376,6 +376,9 @@ consider_start(resource_node_t *node, char *svcName, rg_state_t *svcStatus,
 	mp = memb_id_to_p(membership, my_id());
 	assert(mp);
 
+	/* Service cannot be started if Frozen */
+	if (svcStatus->rs_flags & RG_FLAG_FROZEN)
+		return;
 	/*
 	 * Service must be not be running elsewhere to consider for a
 	 * local start.

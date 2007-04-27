@@ -35,6 +35,7 @@ typedef struct {
 	uint32_t	rs_restarts;	/**< Number of cluster-induced 
 					     restarts */
 	uint64_t	rs_transition;	/**< Last service transition time */
+	uint32_t	rs_flags;	/**< User setted flags */
 } rg_state_t;
 
 #define swab_rg_state_t(ptr) \
@@ -46,6 +47,7 @@ typedef struct {
 	swab32((ptr)->rs_state);\
 	swab32((ptr)->rs_restarts);\
 	swab64((ptr)->rs_transition);\
+	swab32((ptr)->rs_flags);\
 }
 
 
@@ -79,6 +81,8 @@ typedef struct {
 #define RG_UNLOCK	  20
 #define RG_QUERY_LOCK	  21
 #define RG_MIGRATE	  22
+#define RG_FREEZE	  23
+#define RG_UNFREEZE	  24
 #define RG_NONE		  999
 
 const char *rg_req_str(int req);
@@ -105,7 +109,11 @@ int handle_start_remote_req(char *svcName, int req);
 
 #define DEFAULT_CHECK_INTERVAL		10
 
+/* Resource group flags (for now) */
+#define RG_FLAG_FROZEN			(1<<0)	/** Resource frozen */
+
 const char *rg_state_str(int val);
+const char *rg_flags_str(char *flags_string, size_t size, int val, char *separator);
 const char *agent_op_str(int val);
 
 int eval_groups(int local, uint32_t nodeid, int nodeStatus);
@@ -121,6 +129,8 @@ int svc_stop(char *svcName, int error);
 int svc_status(char *svcName);
 int svc_disable(char *svcName);
 int svc_fail(char *svcName);
+int svc_freeze(char *svcName);
+int svc_unfreeze(char *svcName);
 int svc_migrate(char *svcName, int target);
 int rt_enqueue_request(const char *resgroupname, int request,
 		       msgctx_t *resp_ctx,
@@ -162,6 +172,7 @@ cluster_member_list_t *member_list(void);
 int my_id(void);
 
 /* Return codes */
+#define RG_EFROZEN	-11		/* Service is frozen */
 #define RG_ERUN		-10		/* Service is already running */
 #define RG_EQUORUM	-9		/* Operation requires quorum */
 #define RG_EINVAL	-8		/* Invalid operation for resource */
