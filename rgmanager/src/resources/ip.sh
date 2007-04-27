@@ -884,6 +884,9 @@ start)
 		exit 0
 	fi
 	ip_op ${OCF_RESKEY_family} add ${OCF_RESKEY_address}
+	if [ $? -ne 0 ]; then
+		exit $OCF_ERR_GENERIC
+	fi
 
 	if [ $NFS_TRICKS -eq 0 ]; then
 		if [ "$OCF_RESKEY_nfslock" = "yes" ] || \
