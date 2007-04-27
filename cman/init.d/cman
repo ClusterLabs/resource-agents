@@ -132,6 +132,47 @@ start_fence_xvmd()
     return 0
 }
 
+xend_bridged_net_enabled() {
+    current_runlevel=$(/sbin/runlevel 2>/dev/null | awk '{ print $2 }' 2>/dev/null)
+    if [ -z "$current_runlevel" ]; then
+        errmsg='Unable to determine the current runlevel'
+        return 1
+    fi
+
+    /sbin/chkconfig --levels "$current_runlevel" xend 2>/dev/null
+    if [ $? -ne 0 ]; then
+        # xend doesn't start at this runlevel.
+        return 1
+    fi
+
+    if [ ! -f /etc/xen/xend-config.sxp ]; then
+        # xend isn't configured to use bridged networking.
+        return 1
+    fi
+
+    egrep "^[[:blank:]]*\([[:blank:]]*network-script[[:blank:]]+network-bridge([[:blank:]]*\)|[[:blank:]]+)" /etc/xen/xend-config.sxp 2>/dev/null
+    if [ $? -ne 0 ]; then
+        # xend isn't configured to use bridged networking.
+        return 1
+    fi
+    return 0
+}
+
+xend_bridged_net_start() {
+    if [ ! -x /etc/xen/scripts/network-bridge ]; then
+        if [ -f /etc/xen/scripts/network-bridge ]; then
+            errmsg='The xend bridged network script cannot be run'
+        else
+            errmsg='The xend bridged network script is missing'
+        fi
+        return 1
+    fi
+
+    /sbin/modprobe netbk >& /dev/null
+    /sbin/modprobe netloop >& /dev/null
+    errmsg=$(/etc/xen/scripts/network-bridge start 2>&1) || return 1
+    return 0
+}
 
 fence_xvmd_enabled()
 {
@@ -163,6 +204,20 @@ fence_xvmd_enabled()
 start()
 {
     echo "Starting cluster: "
+
+    xend_bridged_net_enabled
+    if [ $? -eq 0 ]
+    then
+        echo -n "   Enabling workaround for Xend bridged networking... "
+        xend_bridged_net_start
+        if [ $? -eq 0 ] 
+        then
+            echo "done"
+        else
+            echo "failed: $errmsg"
+			return 1
+        fi
+    fi
     echo -n "   Loading modules... "
     ulimit -c unlimited
     load_modules
