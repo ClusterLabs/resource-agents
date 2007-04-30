@@ -379,7 +379,7 @@ int group_dispatch(group_handle_t handle)
 {
 	char buf[GROUPD_MSGLEN], *argv[MAXARGS];
 	char *p;
-	int act, argc, rv, i, count, *nodeids;
+	int act, argc, rv, count, *nodeids;
 	struct group_handle *h = (struct group_handle *) handle;
 	VALIDATE_HANDLE(h);
 
@@ -495,7 +495,7 @@ int group_get_group(int level, const char *name, group_data_t *data)
 {
 	char buf[GROUPD_MSGLEN];
 	char data_buf[sizeof(group_data_t)];
-	int fd, rv, len;
+	int fd, rv;
 
 	fd = connect_groupd();
 	if (fd < 0)
