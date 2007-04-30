@@ -50,6 +50,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			db2		\
 			Delay		\
 			drbd		\
+			eDir88		\
 			EvmsSCC		\
 			Evmsd		\
 			Filesystem	\
