@@ -11,30 +11,30 @@
 ###############################################################################
 ###############################################################################
 
+include ../../../make/defines.mk
+
 TARGET= fence_rps10
 
-fence_rps10_SOURCE= rps10.c
-
-top_srcdir=../..
-
-
-INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config
-
-
-include ${top_srcdir}/make/defines.mk
+OBJS=	rps10.o
 
 CFLAGS+= -DFENCE_RELEASE_NAME=\"${RELEASE}\"
 
 all: ${TARGET}
 
-fence_rps10: ${fence_rps10_SOURCE:.c=.o}
-	${CC} ${CFLAGS} ${LDFLAGS} ${fence_rps10_SOURCE:.c=.o} -o $@
+${TARGET}: ${OBJS}
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
 install: all
 	if [ ! -d ${sbindir} ]; then \
 		install -d ${sbindir}; \
 	fi
 	install -m755 ${TARGET} ${sbindir}
+
+uninstall:
+	${UNINSTALL} ${TARGET} ${sbindir}
 
 clean:
 	rm -f *.o ${TARGET}

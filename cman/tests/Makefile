@@ -1,13 +1,8 @@
+include ../../make/defines.mk
 
+CFLAGS+= -g -I${cmanincdir}
 
-top_srcdir=..
-
-include ${top_srcdir}/make/defines.mk
-include ${top_srcdir}/make/flags.mk
-
-CFLAGS+= -g -I${top_srcdir}/config -I ../lib
-
-LDFLAGS+= -L../lib -lcman
+LDFLAGS+= -L${cmanlibdir} -lcman
 
 TARGET=client libtest sysman sysmand
 
@@ -20,5 +15,4 @@ install: all
 
 clean:
 	rm -f *.o ${TARGET}
-
 

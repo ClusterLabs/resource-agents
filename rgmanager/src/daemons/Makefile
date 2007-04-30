@@ -10,37 +10,70 @@
 ###############################################################################
 ###############################################################################
 
-top_srcdir=../..
-UNINSTALL=${top_srcdir}/scripts/uninstall.pl
+include ../../../make/defines.mk
 
-include ${top_srcdir}/make/defines.mk
-INCLUDE += -I $(top_srcdir)/include -I $(top_srcdir)/../cman/lib -I $(top_srcdir)/../ccs/lib -I $(top_srcdir)/../dlm/lib
-INCLUDE += -I${incdir} -I/usr/include/libxml2
+TARGET1= clurgmgrd
+TARGET2= clurmtabd
+TARGET3= rg_test
+TARGET4= dtest
 
-CFLAGS+= -g -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
+OBJS1=	depends.o \
+	fo_domain.o \
+	groups.o \
+	main.o \
+	nodeevent.o \
+	reslist.o \
+	resrules.o \
+	restree.o \
+	rg_event.o \
+	rg_forward.o \
+	rg_locks.o \
+	rg_queue.o \
+	rg_state.o \
+	rg_thread.o \
+	watchdog.o
 
-LDFLAGS+= -L ../clulib -L../../../cman/lib -L../../../ccs/lib -L../../../dlm/lib -L${libdir} -lclulib -lxml2 -lpthread -ldl 
-TARGETS=clurgmgrd clurmtabd rg_test
+OBJS2=	clurmtabd.o \
+	clurmtabd_lib.o
 
-all: ${TARGETS}
+OBJS3=	test-noccs.o
 
-install: all
-	install -d ${sbindir}
-	install clurgmgrd ${sbindir}
-	install clurmtabd ${sbindir}
-	install rg_test ${sbindir}
+OBJS4=	dtest-noccs.o
 
-uninstall:
-	${UNINSTALL} clurgmgrd ${sbindir}
-	${UNINSTALL} clurmtabd ${sbindir}
-	${UNINSTALL} rg_test ${sbindir}
+SHAREDOBJS=	depends-noccs.o \
+		fo_domain-noccs.o \
+		reslist-noccs.o \
+		resrules-noccs.o \
+		restree-noccs.o \
+		rg_locks-noccs.o
 
-clurgmgrd: rg_thread.o rg_locks.o main.o groups.o  \
-		rg_queue.o rg_forward.o reslist.o \
-		resrules.o restree.o fo_domain.o nodeevent.o \
-		rg_event.o watchdog.o rg_state.o \
-	        depends.o ../clulib/libclulib.a
-	$(CC) -o $@ $^ $(LDFLAGS) -lccs -lcman -lpthread -ldlm
+CFLAGS += -D_GNU_SOURCE -DSHAREDIR=\"${sharedir}\"
+CFLAGS += -g -Werror -Wstrict-prototypes -Wshadow -fPIC
+CFLAGS += -I${incdir} -I${ccsincdir} -I${cmanincdir} -I${dlmincdir}
+CFLAGS += `xml2-config --cflags` -I${readlineincdir}
+CFLAGS += -I../../include
+
+EXTRA_CFLAGS += -DNO_CCS
+
+LDFLAGS += -L${libdir}
+LDFLAGS += -L../clulib -lclulib
+
+CCS_LDFLAGS += -L${ccslibdir} -lccs 
+CMAN_LDFLAGS += -L${cmanlibdir} -lcman
+DLM_LDFLAGS += -L${dlmlibdir} -ldlm
+XML2_LDFLAGS += `xml2-config --libs`
+EXTRA_LDFLAGS += -lpthread -ldl
+LOCAL_LDFLAGS += -llalloc
+READLINE_LDFLAGS += -L${readlinelibdir} -lreadline
+
+all: ${TARGET1} ${TARGET2} ${TARGET3}
+
+${TARGET1}: ${OBJS1}
+	$(CC) -o $@ $^ $(LDFLAGS) $(CCS_LDFLAGS) $(CMAN_LDFLAGS) \
+			$(DLM_LDFLAGS) $(XML2_LDFLAGS) $(EXTRA_LDFLAGS)
+
+${TARGET2}: ${OBJS2}
+	$(CC) -o $@ $^ $(LDFLAGS)
 
 #
 # Our test program links against the local allocator so that
@@ -56,28 +89,31 @@ clurgmgrd: rg_thread.o rg_locks.o main.o groups.o  \
 # This is NOT meant to be an installed binary.  Rather, RPMs and/or other
 # packages should run 'make check' as part of the build process.
 #
-rg_test: rg_locks-noccs.o test-noccs.o reslist-noccs.o \
-		resrules-noccs.o restree-noccs.o fo_domain-noccs.o depends-noccs.o
-	$(CC) -o $@ $^ -llalloc $(LDFLAGS) -lccs -lcman
+${TARGET3}: ${SHAREDOBJS} ${OBJS3}
+	$(CC) -o $@ $^ $(LDFLAGS) $(CCS_LDFLAGS) $(CMAN_LDFLAGS) \
+			$(LOCAL_LDFLAGS) $(EXTRA_LDFLAGS) $(XML2_LDFLAGS)
 
-dtest: rg_locks-noccs.o dtest-noccs.o reslist-noccs.o \
-		resrules-noccs.o restree-noccs.o fo_domain-noccs.o depends-noccs.o
-	$(CC) -o $@ $^ -llalloc $(LDFLAGS) -lccs -lcman \
-		-lreadline -ltermcap
-
-clurmtabd: clurmtabd.o clurmtabd_lib.o
-	$(CC) -o $@ $^ $(LDFLAGS)
-
-clean:
-	rm -f *.o $(TARGETS) rg_test
-	rm -f tests/*.out*
+${TARGET4}: ${SHAREDOBJS} ${OBJS4}
+	$(CC) -o $@ $^ $(LDFLAGS) $(CCS_LDFLAGS) $(CMAN_LDFLAGS) \
+			$(LOCAL_LDFLAGS) $(EXTRA_LDFLAGS) $(XML2_LDFLAGS) \
+			$(READLINE_LDFLAGS)
 
 check: rg_test
 	cd tests && ./runtests.sh
 
 %.o: %.c
-	$(CC) -c -o $@ $^ $(INCLUDE) $(CFLAGS)
+	$(CC) $(CFLAGS) -c -o $@ $^
 
 %-noccs.o: %.c
-	$(CC) -c -o $@ $^ $(INCLUDE) $(CFLAGS) -DNO_CCS
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $^
 
+install: all
+	install -d ${sbindir}
+	install -m755 ${TARGET1} ${TARGET2} ${TARGET3} ${sbindir}
+
+uninstall:
+	${UNINSTALL} ${TARGET1} ${TARGET2} ${TARGET3} ${sbindir}
+
+clean:
+	rm -f *.o ${TARGET1} ${TARGET2} ${TARGET3} ${TARGET4}
+	rm -f tests/*.out*

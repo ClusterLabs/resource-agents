@@ -11,6 +11,8 @@
 ###############################################################################
 ###############################################################################
 
+include ../../make/defines.mk
+
 TARGET8= \
 	gfs.8 \
 	gfs_mount.8 \
@@ -21,12 +23,9 @@ TARGET8= \
 	gfs_quota.8 \
 	gfs_tool.8
 
+all:
 
-top_srcdir = ..
-
-UNINSTALL = ${top_srcdir}/scripts/uninstall.pl
-
-include ${top_srcdir}/make/defines.mk
+clean:
 
 install:
 	install -d ${mandir}/man8

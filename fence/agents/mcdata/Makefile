@@ -11,11 +11,10 @@
 ###############################################################################
 ###############################################################################
 
+include ../../../make/defines.mk
+
 SOURCE= fence_mcdata.pl
 TARGET= fence_mcdata
-
-top_srcdir=../..
-include ${top_srcdir}/make/defines.mk
 
 all: $(TARGET)
 
@@ -23,7 +22,7 @@ $(TARGET): $(SOURCE)
 	: > $(TARGET)
 	awk "{print}(\$$1 ~ /#BEGIN_VERSION_GENERATION/){exit 0}" $(SOURCE) >> $(TARGET)
 	echo "\$$FENCE_RELEASE_NAME=\"${RELEASE}\";" >> $(TARGET)
-	${top_srcdir}/scripts/define2var ${top_srcdir}/config/copyright.cf perl REDHAT_COPYRIGHT >> $(TARGET)
+	${DEF2VAR} ${BUILDDIR}/config/copyright.cf perl REDHAT_COPYRIGHT >> $(TARGET)
 	echo "\$$BUILD_DATE=\"(built `date`)\";" >> $(TARGET)
 	awk -v p=0 "(\$$1 ~ /#END_VERSION_GENERATION/){p = 1} {if(p==1)print}" $(SOURCE) >> $(TARGET)
 	chmod +x $(TARGET)
@@ -33,6 +32,9 @@ install: all
 		install -d ${sbindir}; \
 	fi
 	install -m755 ${TARGET} ${sbindir}
+
+uninstall:
+	${UNINSTALL} ${TARGET} ${sbindir}
 
 clean:
 	rm -f $(TARGET)

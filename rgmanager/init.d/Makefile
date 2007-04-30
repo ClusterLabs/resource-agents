@@ -10,17 +10,15 @@
 ###############################################################################
 ###############################################################################
 
+include ../../make/defines.mk
+
 TARGET= rgmanager
-
-UNINSTALL=${top_srcdir}/scripts/uninstall.pl
-
-top_srcdir=..
-
-include ${top_srcdir}/make/defines.mk
 
 all:
 
 clean:
+
+check:
 
 install:
 	install -d ${DESTDIR}/etc/init.d

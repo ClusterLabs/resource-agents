@@ -10,36 +10,50 @@
 ###############################################################################
 ###############################################################################
 
-top_srcdir=..
-UNINSTALL=${top_srcdir}/scripts/uninstall.pl
+include ../../make/defines.mk
 
-include ${top_srcdir}/make/defines.mk
+CFLAGS += -D_GNU_SOURCE
+CFLAGS += -Wall -Werror -Wstrict-prototypes -Wshadow -g
+CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${incdir}
+CFLAGS += -I.
 
-INCLUDES+=-I. -I../lib
-CFLAGS +=-I${ccsincdir} -I${incdir} -I${top_srcdir}/config \
-         -Wall -Werror -Wstrict-prototypes -Wshadow -D_GNU_SOURCE -g
+EXTRA_LDFLAGS += -L${cmanlibdir} -L${ccslibdir} -lcman -lccs
+EXTRA_LDFLAGS += -lpthread
 
-TARGET=qdiskd mkqdisk
+TARGET1= qdiskd
+TARGET2= mkqdisk
 
-all: ${TARGET}
+OBJS1=	main.o \
+	score.o \
+	bitmap.o \
+	clulog.o \
+	gettid.o \
+	daemon_init.o
+
+OBJS2=	mkqdisk.o
+
+SHAREDOBJS= disk.o \
+	    crc32.o \
+	    disk_util.o \
+	    proc.o
+
+all: ${TARGET1} ${TARGET2}
+
+${TARGET1}: ${SHAREDOBJS} ${OBJS1}
+	$(CC) -o $@ $^ $(LDFLAGS) $(EXTRA_LDFLAGS)
+
+${TARGET2}: ${SHAREDOBJS} ${OBJS2}
+	$(CC) -o $@ $^ $(LDFLAGS)
 
 install: all
 	install -d ${sbindir}
-	install ${TARGET} ${sbindir}
-
-qdiskd: disk.o crc32.o disk_util.o main.o score.o bitmap.o clulog.o \
-	gettid.o proc.o daemon_init.o  ../lib/libcman.a
-	gcc -o $@ $^ -lpthread -L../lib -L${ccslibdir} -lccs
-
-mkqdisk: disk.o crc32.o disk_util.o \
-	 proc.o mkqdisk.o
-	gcc -o $@ $^ 
+	install ${TARGET1} ${TARGET2} ${sbindir}
 
 %.o: %.c
-	$(CC) -c -o $@ $^ $(INCLUDES) $(CFLAGS)
+	$(CC) $(CFLAGS) -c -o $@ $^
 
 clean:
-	rm -f *.o ${TARGET}
+	rm -f *.o ${TARGET1} ${TARGET2}
 
 uninstall:
-	${UNINSTALL} ${TARGET} ${sbindir}
+	${UNINSTALL} ${TARGET1} ${TARGET2} ${sbindir}

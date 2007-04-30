@@ -10,43 +10,35 @@
 ##
 ###############################################################################
 ###############################################################################
-top_srcdir=..
-include ${top_srcdir}/make/defines.mk
+
+include ../../make/defines.mk
 
 TARGET= gfs2_quota
 
-SOURCE=	main.c names.c check.c
+OBJS=	main.o \
+	names.o \
+	check.o
 
-INSTALL=install
+CFLAGS += -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64
+CFLAGS += -D_GNU_SOURCE -DGFS2_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -O2
+CFLAGS += -I../include -I../libgfs2/
 
-CFLAGS+= -O2 -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 \
-	-D_GNU_SOURCE -DGFS2_RELEASE_NAME=\"${RELEASE}\"
-LDFLAGS=-L${top_srcdir}/libgfs2 -L${libdir}
+LDFLAGS += -L../libgfs2 -lgfs2 -lgfs2
 
-INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config -I${gfs2kincdir} -I${top_srcdir}/libgfs2/
-
-ifneq (${KERNEL_SRC}, )
-# Use the kernel tree if patched, otherwise, look where cluster headers
-#  should be installed
-INCLUDE += $(shell if [ -e ${KERNEL_SRC}/include/linux/gfs2_ondisk.h ]; then \
-		echo '-I${KERNEL_SRC}/include'; else \
-		echo '-I${incdir}'; fi)
-else
-INCLUDE += -I${incdir}
-endif
-
-#all:
 all: ${TARGET}
 
-gfs2_quota: ${SOURCE}
-	${CC} ${CFLAGS} ${INCLUDE} ${LDFLAGS} ${SOURCE} ${LOADLIBES} ${LDLIBS} -o $@ -lgfs2
+${TARGET}: ${OBJS}
+	$(CC) -o $@ $^ $(LDFLAGS)
 
-copytobin:
-#copytobin: ${TARGET}
-#	cp ${TARGET} ${top_srcdir}/bin
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
 install: all
-	${INSTALL} -m 0755 ${TARGET} ${sbindir}
+	install -m 0755 ${TARGET} ${sbindir}
+
+uninstall:
+	${UNINSTALL} ${TARGET} ${sbindir}
 
 clean:
 	rm -f *.o ${TARGET}

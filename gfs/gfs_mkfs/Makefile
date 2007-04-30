@@ -11,48 +11,42 @@
 ###############################################################################
 ###############################################################################
 
-top_srcdir=..
-include ${top_srcdir}/make/defines.mk
+include ../../make/defines.mk
 
 TARGET= gfs_mkfs
 
-SOURCE=	\
-	device_geometry.c \
-	fs_geometry.c \
-	locking.c \
-	main.c \
-	ondisk.c \
-	structures.c
+OBJS=	device_geometry.o \
+	fs_geometry.o \
+	locking.o \
+	main.o \
+	ondisk.o \
+	structures.o
 
-CFLAGS+= -O2 -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 \
-	-DGFS_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 -DGFS_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -O2
+CFLAGS += -I${gfskincdir} -I${incdir} -I${volidincdir}
+CFLAGS += -I../include -I../libgfs
 
-INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config \
-	-I${gfskincdir} -I${incdir} -I${top_srcdir}/libgfs
-
-ifneq (${KERNEL_SRC}, )
-# Use the kernel tree if patched, otherwise, look where cluster headers
-#  should be installed
-INCLUDE += $(shell if [ -e ${KERNEL_SRC}/include/linux/gfs_ondisk.h ]; then \
-		echo '-I${KERNEL_SRC}/include'; else \
-		echo '-I${incdir}'; fi)
-else
-INCLUDE += -I${incdir}
-endif
-
-LDFLAGS+=-L${top_srcdir}/libgfs -L${libdir}
+LDFLAGS += -L${volidlibdir} -lvolume_id
+LDFLAGS += -L../libgfs -lgfs
 
 all: ${TARGET}
 
-gfs_mkfs: ${SOURCE} ${top_srcdir}/libgfs/libgfs.a
-	${CC} ${CFLAGS} ${INCLUDE} ${LDFLAGS} ${SOURCE} ${LOADLIBES} ${LDLIBS} -o $@ -lgfs -lvolume_id
+${TARGET}: ${OBJS}
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
 install: all
 	if [ ! -d ${sbindir} ]; then \
 		install -d ${sbindir}; \
 	fi
 	install -m755 ${TARGET} ${sbindir}
-	(cd ${sbindir}; ln -f gfs_mkfs mkfs.gfs)
+	(cd ${sbindir}; ln -f ${TARGET} mkfs.gfs)
+
+uninstall:
+	${UNINSTALL} ${TARGET} mkfs.gfs ${sbindir}
 
 clean:
 	rm -f *.o ${TARGET}

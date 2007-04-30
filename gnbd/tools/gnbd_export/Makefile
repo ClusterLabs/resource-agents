@@ -11,35 +11,38 @@
 ###############################################################################
 ###############################################################################
 
+include ../../../make/defines.mk
+
 TARGET= gnbd_export
 
-top_srcdir=../..
+OBJS=	gnbd_export.o \
+	../../utils/gnbd_utils.o \
+	../../utils/trans.o
 
-SOURCE= gnbd_export.c $(top_srcdir)/utils/gnbd_utils.c \
-	$(top_srcdir)/utils/trans.c
+CFLAGS += -DGNBD_RELEASE_NAME=\"${RELEASE}\" -DDEFAULT_GETUID=\"${sbindir}/gnbd_get_uid\"
+CFLAGS += -O2
+CFLAGS += -I${gnbdkincdir} -I${incdir} -I${cmanincdir}
+CFLAGS += -I../../include -I../../server -I../../utils
 
-INCLUDE= -I$(top_srcdir)/include -I$(top_srcdir)/server \
-	-I$(top_srcdir)/utils -I${top_srcdir}/config \
-	-I${gnbdkincdir} -I${incdir} -I${cmanincdir}
-
-LDLIBS+= -L${libdir} -L${cmanincdir} -lcman -ldl -lpthread
-
-include ${top_srcdir}/make/defines.mk
-
-CFLAGS+= -O2 -DGNBD_RELEASE_NAME=\"${RELEASE}\"
+LDFLAGS += -L${libdir} -L${cmanlibdir} -lcman -ldl -lpthread
 
 all: ${TARGET}
 
-gnbd_export: ${SOURCE}
-	${CC} ${CFLAGS} ${LDFLAGS} ${SOURCE} ${LOADLIBES} ${LDLIBS} -o $@
+${TARGET}: ${OBJS}
+	$(CC) -o $@ $^ $(LDFLAGS)
 
-install: all gnbd_get_uid
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $^
+
+install: all 
 	if [ ! -d ${sbindir} ]; then \
 		install -d ${sbindir}; \
 	fi
-	strip ${TARGET}
 	install -m755 ${TARGET} ${sbindir}
-	install -m755 gnbd_get_uid  ${sbindir}
+	install -m755 gnbd_get_uid ${sbindir}
+
+uninstall:
+	${UNINSTALL} ${TARGET} gnbd_get_uid ${sbindir}
 
 clean:
 	rm -f *.o ${TARGET}

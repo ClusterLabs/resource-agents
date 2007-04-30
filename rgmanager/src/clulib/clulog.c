@@ -36,7 +36,6 @@
 #include <sys/types.h>
 #include <sys/file.h>
 #include <sys/socket.h>
-#include <ccs.h>
 #define SYSLOG_NAMES
 #include <sys/syslog.h>
 #undef SYSLOG_NAMES

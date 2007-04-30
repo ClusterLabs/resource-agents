@@ -10,49 +10,32 @@
 ##
 ###############################################################################
 ###############################################################################
+
+include ../../make/defines.mk
+
 TARGET = fenced
 
-top_srcdir=..
-include ${top_srcdir}/make/defines.mk
-UNINSTALL=${top_srcdir}/make/uninstall.pl
-
-CFLAGS+= -g -DFENCE_RELEASE_NAME=\"${RELEASE}\" \
-	-I. \
-	-I${top_srcdir}/include \
-	-I${ccsincdir} \
-	-I${incdir} \
-	-I${top_srcdir}/config \
-	-I${top_srcdir}/../cman/lib \
-	-I${top_srcdir}/../group/lib
-
-LDFLAGS += -L${top_srcdir}/../cman/lib
-
-all: ${TARGET}
-
-${TARGET}: \
-	main.o \
+OBJS=	main.o \
 	recover.o \
 	group.o \
 	member_cman.o \
-	agent.o \
-	../../ccs/lib/libccs.a \
-	../../group/lib/libgroup.a
-	$(CC) $(LDFLAGS) -o $@ $^ -lcman 
+	agent.o 
 
-main.o: main.c fd.h
-	$(CC) $(CFLAGS) -c -o $@ $<
+CFLAGS += -D_FILE_OFFSET_BITS=64 -DFENCE_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -g
+CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${incdir}
+CFLAGS += -I. -I../include -I../../group/lib
 
-recover.o: recover.c fd.h
-	$(CC) $(CFLAGS) -c -o $@ $<
+LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
+LDFLAGS += -L../../group/lib -l group
 
-group.o: group.c fd.h
-	$(CC) $(CFLAGS) -c -o $@ $<
+all: ${TARGET}
 
-member_cman.o: member_cman.c fd.h
-	$(CC) $(CFLAGS) -c -o $@ $<
+${TARGET}: ${OBJS}
+	$(CC) -o $@ $^ $(LDFLAGS)
 
-agent.o: agent.c fd.h
-	$(CC) $(CFLAGS) -c -o $@ $<
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
 install: all
 	if [ ! -d ${sbindir} ]; then \
@@ -60,6 +43,9 @@ install: all
 	fi
 	strip ${TARGET}
 	install -m755 ${TARGET} ${sbindir}
+
+uninstall:
+	${UNINSTALL} ${TARGET} ${sbindir}
 
 clean:
 	rm -rf *~ *.o ${TARGET}

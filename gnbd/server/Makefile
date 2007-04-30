@@ -11,46 +11,52 @@
 ###############################################################################
 ###############################################################################
 
-TARGET= gnbd_serv gnbd_clusterd
+include ../../make/defines.mk
 
-top_srcdir=..
-include ${top_srcdir}/make/defines.mk
+TARGET1= gnbd_serv
+TARGET2= gnbd_clusterd
 
-CLU_SOURCE= gnbd_clusterd.c $(top_srcdir)/utils/gnbd_utils.c \
-	$(top_srcdir)/utils/member_cman.c
+OBJS1=	gnbd_serv.o \
+	local_req.o \
+	extern_req.o \
+	device.o \
+	gserv.o \
+	fence.o \
+	../utils/trans.o
 
-LDLIBS+= -L${libdir} -L${cmanincdir} -lcman -ldl -lpthread
+OBJS2=	gnbd_clusterd.o \
+	../utils/member_cman.o
 
-SRV_SOURCE= gnbd_serv.c local_req.c extern_req.c device.c gserv.c fence.c \
-	$(top_srcdir)/utils/trans.c $(top_srcdir)/utils/gnbd_utils.c
+SHAREDOBJS= ../utils/gnbd_utils.o
 
-INCLUDE= -I$(top_srcdir)/include -I$(top_srcdir)/utils \
-	-I${top_srcdir}/config -I${gnbdkincdir} -I${incdir} -I${cmanincdir}
+CFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE
+CFLAGS += -DGNBD_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -O2
+CFLAGS += -I${gnbdkincdir} -I${incdir} -I${cmanincdir}
+CFLAGS += -I../include -I../utils
 
-ifneq (${KERNEL_SRC}, )
-# Use the kernel tree if patched, otherwise, look where cluster headers
-#  should be installed -- which is incdir, which is already included
-INCLUDE += $(shell if [ -e ${KERNEL_SRC}/include/linux/gnbd.h ]; then \
-		echo '-I${KERNEL_SRC}/include'; fi)
-endif
+LDFLAGS+= -L${libdir} -L${cmanlibdir} -lcman -ldl -lpthread
 
-CFLAGS+= -O2 -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE \
-	-DGNBD_RELEASE_NAME=\"${RELEASE}\"
+all: ${TARGET1} ${TARGET2}
 
-all: ${TARGET}
+${TARGET1}: ${SHAREDOBJS} ${OBJS1}
+	$(CC) -o $@ $^ $(LDFLAGS)
 
-gnbd_clusterd: ${CLU_SOURCE}
-	${CC} ${CFLAGS} ${LDFLAGS} ${CLU_SOURCE} ${LOADLIBES} ${LDLIBS} -o $@
+${TARGET2}: ${SHAREDOBJS} ${OBJS2}
+	$(CC) -o $@ $^ $(LDFLAGS)
 
-gnbd_serv: ${SRV_SOURCE}
-	${CC} ${CFLAGS} ${LDFLAGS} ${SRV_SOURCE} ${LOADLIBES} ${LDLIBS} -o $@
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
 install: all
 	if [ ! -d ${sbindir} ]; then \
 		install -d ${sbindir}; \
 	fi
-	strip ${TARGET}
-	install -m755 ${TARGET} ${sbindir}
+	install -m755 ${TARGET1} ${sbindir}
+	install -m755 ${TARGET2} ${sbindir}
+
+uninstall:
+	${UNINSTALL} ${TARGET1} ${TARGET2} ${sbindir}
 
 clean:
-	rm -f *.o ${TARGET}
+	rm -f *.o ${TARGET1} ${TARGET2}

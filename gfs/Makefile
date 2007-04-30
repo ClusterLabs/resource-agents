@@ -11,59 +11,23 @@
 ###############################################################################
 ###############################################################################
 
-top_srcdir=.
-include ${top_srcdir}/make/defines.mk
+include ../make/defines.mk
 
-all:
-	${MAKE} -C libgfs all
-	${MAKE} -C gfs_debug all
-	${MAKE} -C gfs_edit all
-	${MAKE} -C gfs_fsck all
-	${MAKE} -C gfs_grow all
-	${MAKE} -C gfs_jadd all
-	${MAKE} -C gfs_mkfs all
-	${MAKE} -C gfs_quota all
-	${MAKE} -C gfs_tool all
+SUBDIRS=libgfs gfs_debug gfs_edit gfs_fsck gfs_grow gfs_jadd gfs_mkfs gfs_quota gfs_tool man init.d
 
-clean:
-	${MAKE} -C libgfs clean
-	${MAKE} -C gfs_debug clean
-	${MAKE} -C gfs_edit clean
-	${MAKE} -C gfs_fsck clean
-	${MAKE} -C gfs_grow clean
-	${MAKE} -C gfs_jadd clean
-	${MAKE} -C gfs_mkfs clean
-	${MAKE} -C gfs_quota clean
-	${MAKE} -C gfs_tool clean
+all: ${SUBDIRS}
 
-distclean: clean
-	rm -f make/defines.mk
-
-install: all
-	${MAKE} -C libgfs install
-	${MAKE} -C gfs_debug install
-	${MAKE} -C gfs_edit install
-	${MAKE} -C gfs_fsck install
-	${MAKE} -C gfs_grow install
-	${MAKE} -C gfs_jadd install
-	${MAKE} -C gfs_mkfs install
-	${MAKE} -C gfs_quota install
-	${MAKE} -C gfs_tool install
-	${MAKE} -C man install
-	${MAKE} -C init.d install
-	(cd ${sbindir}; ln -sf mount.gfs2 mount.gfs)
-	(cd ${sbindir}; ln -sf umount.gfs2 umount.gfs)
-
-
-deinstall uninstall:
-	${MAKE} -C libgfs uninstall
-	${MAKE} -C gfs_debug uninstall
-	${MAKE} -C gfs_edit uninstall
-	${MAKE} -C gfs_fsck uninstall
-	${MAKE} -C gfs_grow uninstall
-	${MAKE} -C gfs_jadd uninstall
-	${MAKE} -C gfs_mkfs uninstall
-	${MAKE} -C gfs_quota uninstall
-	${MAKE} -C gfs_tool uninstall
-	${MAKE} -C man uninstall
-	${MAKE} -C init.d uninstall
+%:
+	set -e && \
+	for i in ${SUBDIRS}; do \
+		${MAKE} -C $$i $@; \
+	done; \
+	if [ "$@" = "install" ]; then \
+		cd ${sbindir}; \
+			ln -sf mount.gfs2 mount.gfs; \
+			ln -sf umount.gfs2 umount.gfs; \
+	fi; \
+	if [ "$@" = "uninstall" ]; then \
+		cd ${sbindir}; rm -f mount.gfs umount.gfs; \
+	fi
+		

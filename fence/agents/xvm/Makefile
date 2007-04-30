@@ -10,46 +10,56 @@
 ###############################################################################
 ###############################################################################
 
-top_srcdir=../..
-include ${top_srcdir}/make/defines.mk
+include ../../../make/defines.mk
 
-TARGETS=fence_xvm fence_xvmd
-
-fence_xvm_SOURCE = fence_xvm.c mcast.c ip_lookup.c simple_auth.c tcp.c \
-		   options.c debug.c
-fence_xvmd_SOURCE= fence_xvmd.c mcast.c simple_auth.c tcp.c virt.c \
-		   options.c options-ccs.c vm_states.c debug.c
+TARGET1= fence_xvm
+TARGET2= fence_xvmd
 
 
-INCLUDE=-I${top_srcdir}/include -I${top_srcdir}/config \
-	-I/usr/include/openais -I/usr/include/libvirt \
-	-I/usr/include/nss3 -I/usr/include/nspr4 \
-	-I../../../cman/lib -I../../../ccs/lib
+OBJS1=	fence_xvm.o \
+	ip_lookup.o
 
-CFLAGS+=-DFENCE_RELEASE_NAME=\"${RELEASE}\" \
-	-Wall -Werror -Wstrict-prototypes -Wshadow -ggdb -D_GNU_SOURCE
+OBJS2=	fence_xvmd.o \
+	virt.o \
+	options-ccs.o \
+	vm_states.o
 
-LIBS+=-L../../../cman/lib -L../../../ccs/lib -L${libdir}/openais \
-      -L../../../dlm/lib -lnss3
+SHAREDOBJS=	mcast.o \
+		simple_auth.o \
+		tcp.o \
+		options.o \
+		debug.o
 
-all: ${TARGETS}
+CFLAGS += -DFENCE_RELEASE_NAME=\"${RELEASE}\" -D_GNU_SOURCE
+CFLAGS += -Wall -Werror -Wstrict-prototypes -Wshadow -ggdb
+CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${openaisincdir}
+CFLAGS += -I${virtincdir} -I${nssincdir} -I${nsprincdir}
 
-fence_xvm: ${fence_xvm_SOURCE:.c=.o}
-	gcc -o $@ $^ $(LIBS)
+LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -L${dlmlibdir}
+LDFLAGS += -L${nsslibdir} -L${nsprlibdir} -L${libdir}
+LDFLAGS += -lccs -lcman -ldlm -lnss3 -lnspr4
 
-fence_xvmd: ${fence_xvmd_SOURCE:.c=.o}
-	gcc -o $@ $^ $(LIBS) -lvirt -lccs -lcman -lSaCkpt
+EXTRA_LDFLAGS += -L${virtlibdir} -lvirt -L${openaislibdir} -lSaCkpt
+
+all: ${TARGET1} ${TARGET2}
+
+${TARGET1}: ${SHAREDOBJS} ${OBJS1}
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+${TARGET2}: ${SHAREDOBJS} ${OBJS2}
+	$(CC) -o $@ $^ $(LDFLAGS) $(EXTRA_LDFLAGS)
 
 %.o: %.c
-	gcc $(CFLAGS) -c -o $@ $^ $(INCLUDES)
+	$(CC) $(CFLAGS) -c -o $@ $^
 
 clean:
-	rm -f $(TARGETS) *~ *.o
+	rm -f ${TARGET1} ${TARGET2} *~ *.o
 
 install: all
 	if [ ! -d ${sbindir} ]; then \
 		install -d ${sbindir}; \
 	fi
-	install -m755 ${TARGETS} ${sbindir}
+	install -m755 ${TARGET1} ${TARGET2} ${sbindir}
 
-
+uninstall:
+	${UNINSTALL} ${TARGET1} ${TARGET2} ${sbindir}

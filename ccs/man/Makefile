@@ -10,10 +10,8 @@
 ##
 ###############################################################################
 ###############################################################################
-top_srcdir=..
-UNINSTALL = ${top_srcdir}/scripts/uninstall.pl
 
-include ${top_srcdir}/make/defines.mk
+include ../../make/defines.mk
 
 install:
 	install -d ${mandir}/man5
@@ -28,3 +26,6 @@ uninstall:
 	${UNINSTALL} ccs.7 ${mandir}/man7
 	${UNINSTALL} ccsd.8 ccs_test.8 ccs_tool.8 ${mandir}/man8
 
+all:
+
+clean:

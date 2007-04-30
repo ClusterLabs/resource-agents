@@ -11,43 +11,38 @@
 ###############################################################################
 ###############################################################################
 
+include ../../../make/defines.mk
+
 TARGET= gnbd_import
 
-top_srcdir=../..
-include ${top_srcdir}/make/defines.mk
+OBJS=	gnbd_import.o \
+	../../utils/gnbd_utils.o \
+	../../client/monitor_req.o \
+	../../utils/trans.o
 
-SOURCE= gnbd_import.c $(top_srcdir)/utils/gnbd_utils.c \
-	$(top_srcdir)/client/monitor_req.c $(top_srcdir)/utils/trans.c
+CFLAGS += -DGNBD_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -O2
+CFLAGS += -I${gnbdkincdir} -I${cmanincdir}
+CFLAGS += -I../../include -I../../client -I../../server -I../../utils
 
-INCLUDE= -I$(top_srcdir)/include -I$(top_srcdir)/client \
-	-I$(top_srcdir)/server -I$(top_srcdir)/utils \
-	-I${gnbdkincdir} -I${top_srcdir}/config -I${cmanincdir}
-
-LDLIBS+= -L${libdir} -L${cmanincdir} -lcman -ldl -lpthread
-
-ifneq (${KERNEL_SRC}, )
-# Use the kernel tree if patched, otherwise, look where cluster headers
-#  should be installed
-INCLUDE += $(shell if [ -e ${KERNEL_SRC}/include/linux/gnbd.h ]; then \
-		echo '-I${KERNEL_SRC}/include'; else \
-		echo '-I${incdir}'; fi)
-else
-INCLUDE += -I${incdir}
-endif
-
-CFLAGS+= -O2 -DGNBD_RELEASE_NAME=\"${RELEASE}\"
+LDFLAGS += -L${libdir} -L${cmanlibdir} -lcman -ldl -lpthread
 
 all: ${TARGET}
 
-gnbd_import: ${SOURCE}
-	${CC} ${CFLAGS} ${LDFLAGS} ${SOURCE} ${LOADLIBES} ${LDLIBS} -o $@
+${TARGET}: ${OBJS}
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
 install: all
 	if [ ! -d ${sbindir} ]; then \
 		install -d ${sbindir}; \
 	fi
-	strip ${TARGET}
 	install -m755 ${TARGET} ${sbindir}
+
+uninstall:
+	${UNINSTALL} ${TARGET} ${sbindir}
 
 clean:
 	rm -f *.o ${TARGET}

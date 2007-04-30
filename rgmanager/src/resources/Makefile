@@ -10,12 +10,7 @@
 ###############################################################################
 ###############################################################################
 
-top_srcdir=../..
-
-UNINSTALL=${top_srcdir}/scripts/uninstall.pl
-
-include ${top_srcdir}/make/defines.mk
-INCLUDE += -I $(top_srcdir)/include
+include ../../../make/defines.mk
 
 RESOURCES=fs.sh service.sh ip.sh nfsclient.sh nfsexport.sh \
 	script.sh netfs.sh clusterfs.sh smb.sh \
@@ -44,8 +39,7 @@ install: all
 	install -m 644 $(METADATA) ${sharedir}
 
 uninstall:
-	${UNINSTALL} ${UTIL_TARGETS} ${sharedir}/utils
-	${UNINSTALL} ${TARGETS} ${sharedir}
+	${UNINSTALL} ${TARGETS} ${METADATA} ${UTIL_TARGETS} ${sharedir}
 
 clean:
 

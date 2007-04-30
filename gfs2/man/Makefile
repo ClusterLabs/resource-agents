@@ -11,6 +11,8 @@
 ###############################################################################
 ###############################################################################
 
+include ../../make/defines.mk
+
 TARGET8= \
 	gfs2.8 \
 	gfs2_convert.8 \
@@ -22,12 +24,9 @@ TARGET8= \
 	gfs2_tool.8 \
 	mkfs.gfs2.8
 
+all:
 
-top_srcdir = ..
-
-UNINSTALL = ${top_srcdir}/scripts/uninstall.pl
-
-include ${top_srcdir}/make/defines.mk
+clean:
 
 install:
 	install -d ${mandir}/man8

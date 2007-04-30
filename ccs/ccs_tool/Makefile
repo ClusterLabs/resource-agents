@@ -9,30 +9,38 @@
 ##
 ###############################################################################
 ###############################################################################
-top_srcdir=..
-UNINSTALL = ${top_srcdir}/scripts/uninstall.pl
-include ${top_srcdir}/make/defines.mk
 
-ccs_libdir=${top_srcdir}/lib
-INCLUDE= -I. -I${top_srcdir}/config -I${top_srcdir}/include -I${ccs_libdir} -I${incdir} \
-	 -I../../cman/lib
+include ../../make/defines.mk
+
+TARGET= ccs_tool
+
+OBJS=	ccs_tool.o \
+	update.o \
+	upgrade.o \
+	old_parser.o \
+	editconf.o
+
+CFLAGS += -Wall -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
+CFLAGS += -DCCS_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -I${ccsincdir} -I${cmanincdir} `xml2-config --cflags`
+CFLAGS += -I../include
 
 ifeq ($(DEBUG),y)
-CFLAGS+= -Wall -O2 -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -DDEBUG -g \
-        `xml2-config --cflags` -DCCS_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -O0 -DDEBUG -g
 else
-CFLAGS+= -Wall -O2 -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE \
-        `xml2-config --cflags` -DCCS_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -O2
 endif
 
-LDFLAGS+= -L${ccs_libdir} `xml2-config --libs` -L${libdir}
-LOADLIBES+= -lccs -ldl
+LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
+LDFLAGS += `xml2-config --libs` -L${libdir} -ldl
 
-all: ccs_tool
+all: ${TARGET}
 
-ccs_tool: ccs_tool.c update.c upgrade.c old_parser.c editconf.c
-	${CC} ${CFLAGS} ${INCLUDE} -o $@ $^ ${LDFLAGS} ${LOADLIBES} \
-	../../cman/lib/libcman.a
+${TARGET}: ${OBJS}
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
 clean:
 	rm -f *.o ccs_tool *~

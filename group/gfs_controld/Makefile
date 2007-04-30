@@ -10,53 +10,32 @@
 ###############################################################################
 ###############################################################################
 
-top_srcdir=..
-UNINSTALL=${top_srcdir}/scripts/uninstall.pl
+include ../../make/defines.mk
 
-include ${top_srcdir}/make/defines.mk
+TARGET= gfs_controld
 
-CFLAGS+= -g -I. -O2 \
-	-idirafter ${KERNEL_SRC}/include/linux \
-	-I${incdir} \
-	-I${top_srcdir}/config \
-	-I../../cman/lib \
-	-I../include/ \
-	-I../lib/
-LDFLAGS+= -L../../cman/lib -L${libdir}/openais -L${libdir}
+OBJS= 	main.o \
+	member_cman.o \
+	cpg.o \
+	group.o \
+	plock.o \
+	recover.o
 
-TARGET=gfs_controld
+CFLAGS += -g -O2
+CFLAGS += -I${cmanincdir} -I${incdir}
+CFLAGS += -idirafter ${KERNEL_SRC}/include/linux
+CFLAGS += -I../include/ -I../lib/
+
+LDFLAGS += -L${cmanlibdir} -L${openaislibdir} -L${libdir} -lcman -lcpg -lSaCkpt
+LDFLAGS += -L../lib -lgroup
 
 all: ${TARGET}
 
-gfs_controld: 	main.o \
-		member_cman.o \
-		cpg.o \
-		group.o \
-		plock.o \
-		recover.o \
-		../lib/libgroup.a
-	$(CC) $(LDFLAGS) -o $@ $^ -lcman -lcpg -lSaCkpt
+${TARGET}: ${OBJS}
+	$(CC) -o $@ $^ $(LDFLAGS)
 
 
-main.o: main.c
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-member_cman.o: member_cman.c
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-cpg.o: cpg.c
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-recover.o: recover.c
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-withdraw.o: withdraw.c
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-group.o: group.c
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-plock.o: plock.c
+%.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 install: all

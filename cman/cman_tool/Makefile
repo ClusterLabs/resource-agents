@@ -10,40 +10,40 @@
 ###############################################################################
 ###############################################################################
 
-top_srcdir=..
-UNINSTALL=${top_srcdir}/scripts/uninstall.pl
-
-include ${top_srcdir}/make/defines.mk
-
-CFLAGS+= -I${ccsincdir} -I${incdir} -I${top_srcdir}/config \
-	-DCMAN_RELEASE_NAME=\"${RELEASE}\" -I../lib
-
-ifeq ($(DEBUG),y)
-CFLAGS+= -O0 -g -DDEBUG
-else
-CFLAGS+= -O2
-endif
+include ../../make/defines.mk
 
 TARGET=cman_tool
 
+OBJS=	main.o \
+	join.o
+
+CFLAGS += -DCMAN_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -DSBINDIR=\"${sbindir}\"
+CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${incdir}
+
+ifeq ($(DEBUG),y)
+CFLAGS += -O0 -g -DDEBUG
+else
+CFLAGS += -O2
+endif
+
+LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
+
 all: ${TARGET}
 
-cman_tool: main.o join.o ../lib/libcman.a
-	$(CC) $(LDFLAGS) -L$(ccslibdir) -o $@ $^ -L../lib -lccs
+${TARGET}: ${OBJS}
+	$(CC) -o $@ $^ $(LDFLAGS)
 
-main.o: main.c cman_tool.h
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-join.o: join.c cman_tool.h
-	$(CC) $(CFLAGS) -c -o $@ $< -DSBINDIR=\"${sbindir}\"
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
 install: all
 	install -d ${sbindir}
-	install cman_tool ${sbindir}
+	install ${TARGET} ${sbindir}
 
 uninstall:
-	${UNINSTALL} cman_tool ${sbindir}
+	${UNINSTALL} ${TARGET} ${sbindir}
 
 clean:
-	rm -f *.o cman_tool
+	rm -f *.o ${TARGET}
 

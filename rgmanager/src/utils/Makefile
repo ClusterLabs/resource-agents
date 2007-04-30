@@ -10,21 +10,28 @@
 ###############################################################################
 ###############################################################################
 
-top_srcdir=../..
-UNINSTALL=${top_srcdir}/scripts/uninstall.pl
-
-include ${top_srcdir}/make/defines.mk
-INCLUDE += -I $(top_srcdir)/include -I $(top_srcdir)/../cman/lib -I $(top_srcdir)/../ccs/lib -I $(top_srcdir)/../dlm/lib
-INCLUDE += -I${incdir}
-
-CFLAGS+= -g -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
-CFLAGS+= -DPACKAGE_VERSION=\"${RELEASE}\"
-
-LDFLAGS+= -L${libdir} -L../../../cman/lib -L../../../ccs/lib -lcman -lpthread -ldl -lncurses -L../clulib -lclulib -lccs
+include ../../../make/defines.mk
 
 TARGETS=clubufflush clufindhostname clustat clusvcadm clulog clunfslock
+DISABLEDTARGETS=cluarp
+
+CFLAGS += -DPACKAGE_VERSION=\"${RELEASE}\"
+CFLAGS += -g -Werror -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
+CFLAGS += -I${incdir} -I${ccsincdir} -I${cmanincdir} -I${dlmincdir} -I${ncursesincdir}
+CFLAGS += -I../../include
+
+LDFLAGS += -L${libdir} -L${ccslibdir} -L${cmanlibdir} -L${ncurseslibdir}
+LDFLAGS += -lcman -lpthread -ldl -lncurses -lccs
+LDFLAGS += -L../clulib -lclulib
 
 all: ${TARGETS}
+
+%: %.c
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+clunfslock: clunfslock.sh
+	cp clunfslock.sh clunfslock
+	chmod 755 clunfslock
 
 install: all
 	install -d ${sbindir}
@@ -33,30 +40,5 @@ install: all
 uninstall:
 	${UNINSTALL} $(TARGETS) ${sbindir}
 
-cluarp: cluarp.o
-	$(CC) -o $@ $^ $(LDFLAGS)
-
-clulog: clulog.o
-	$(CC) -o $@ $^ $(LDFLAGS)
-
-clubufflush: clubufflush.o
-	$(CC) -o $@ $^ $(LDFLAGS)
-
-clufindhostname: clufindhostname.o
-	$(CC) -o $@ $^ $(LDFLAGS)
-
-clustat: clustat.o
-	$(CC) -o $@ $^ $(LDFLAGS)
-
-clusvcadm: clusvcadm.o
-	$(CC) -o $@ $^ $(LDFLAGS)
-
-clunfslock: clunfslock.sh
-	cp clunfslock.sh clunfslock
-	chmod 755 clunfslock
-
 clean:
 	rm -f *.o $(TARGETS)
-
-%.o: %.c
-	$(CC) -c -o $@ $^ $(INCLUDE) $(CFLAGS)

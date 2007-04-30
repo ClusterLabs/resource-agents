@@ -30,6 +30,7 @@
 #include <netinet/in.h>
 #include <string.h>
 #include <errno.h>
+#include <ctype.h>
 
 #include "groupd.h"
 #include "libgroup.h"

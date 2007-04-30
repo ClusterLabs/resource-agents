@@ -11,28 +11,14 @@
 ###############################################################################
 ###############################################################################
 
+include ../make/defines.mk
 
-all:
-	${MAKE} -C client all
-	${MAKE} -C server all
-	${MAKE} -C tools all
+SUBDIRS=utils client server tools man
 
-clean:
-	${MAKE} -C client clean
-	${MAKE} -C server clean
-	${MAKE} -C tools clean
+all: ${SUBDIRS}
 
-distclean: clean
-	rm -f make/defines.mk
-
-install: all
-	${MAKE} -C client install
-	${MAKE} -C server install
-	${MAKE} -C tools install
-	${MAKE} -C man install
-
-deinstall uninstall:
-	${MAKE} -C client uninstall
-	${MAKE} -C server uninstall
-	${MAKE} -C tools uninstall
-	${MAKE} -C man uninstall
+%:
+	set -e && \
+	for i in ${SUBDIRS}; do \
+		${MAKE} -C $$i $@; \
+	done

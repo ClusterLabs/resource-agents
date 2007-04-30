@@ -10,81 +10,23 @@
 ##
 ###############################################################################
 ###############################################################################
-top_srcdir=..
-include ${top_srcdir}/make/defines.mk
 
+include ../../make/defines.mk
 
-all:
-	${MAKE} -C apc all
-	${MAKE} -C bladecenter all
-	${MAKE} -C brocade all
-	${MAKE} -C bullpap all
-	# ${MAKE} -C cpint all
-	${MAKE} -C drac all
-	${MAKE} -C egenera all
-	# ${MAKE} -C ibmblade all
-	${MAKE} -C ilo all
-	${MAKE} -C ipmilan all
-	${MAKE} -C manual all
-	${MAKE} -C mcdata all
-	# ${MAKE} -C rackswitch all
-	${MAKE} -C rps10 all
-	${MAKE} -C rsa all
-	${MAKE} -C rsb all
-	${MAKE} -C scsi all
-	${MAKE} -C sanbox2 all
-	${MAKE} -C vixel all
-	${MAKE} -C wti all
-	# ${MAKE} -C xcat all
-	[ "${enable_xen}" != "1" ] || ${MAKE} -C xvm all
-	# ${MAKE} -C zvm all
+SUBDIRS  = apc bladecenter brocade bullpap drac egenera ilo ipmilan
+SUBDIRS += manual mcdata rps10 rsa rsb scsi sanbox2 vixel wti xvm
 
-install: all
-	${MAKE} -C apc install
-	${MAKE} -C bladecenter install
-	${MAKE} -C brocade install
-	${MAKE} -C bullpap install
-	# ${MAKE} -C cpint install
-	${MAKE} -C drac install
-	${MAKE} -C egenera install
-	# ${MAKE} -C ibmblade install
-	${MAKE} -C ilo install
-	${MAKE} -C ipmilan install
-	${MAKE} -C manual install
-	${MAKE} -C mcdata install
-	# ${MAKE} -C rackswitch install
-	${MAKE} -C rps10 install
-	${MAKE} -C rsa install
-	${MAKE} -C rsb install
-	${MAKE} -C scsi install
-	${MAKE} -C sanbox2 install
-	${MAKE} -C vixel install
-	${MAKE} -C wti install
-	# ${MAKE} -C xcat install
-	[ "${enable_xen}" != "1" ] || ${MAKE} -C xvm install
-	# ${MAKE} -C zvm install
+DISABLEDSUBDIRS  = baytech cpint ibmblade primergy rackswitch 
+DISABLEDSUBDIRS += rib vmware xcat xen zvm
 
-clean:
-	${MAKE} -C apc clean
-	${MAKE} -C bladecenter clean
-	${MAKE} -C brocade clean
-	${MAKE} -C bullpap clean
-	# ${MAKE} -C cpint clean
-	${MAKE} -C drac clean
-	${MAKE} -C egenera clean
-	# ${MAKE} -C ibmblade clean
-	${MAKE} -C ilo clean
-	${MAKE} -C ipmilan clean
-	${MAKE} -C manual clean
-	${MAKE} -C mcdata clean
-	# ${MAKE} -C rackswitch clean
-	${MAKE} -C rps10 clean
-	${MAKE} -C rsa clean
-	${MAKE} -C rsb clean
-	${MAKE} -C scsi clean
-	${MAKE} -C sanbox2 clean
-	${MAKE} -C vixel clean
-	${MAKE} -C wti clean
-	# ${MAKE} -C xcat clean
-	[ "${enable_xen}" != "1" ] || ${MAKE} -C xvm clean
-	# ${MAKE} -C zvm clean
+all: ${SUBDIRS}
+
+%:
+	set -e && \
+	for i in ${SUBDIRS}; do \
+		if [ "$$i" = "xvm" ] && [ "${enable_xen}" != "1" ] && [ "$@" != "clean" ]; then \
+			continue; \
+		else \
+			${MAKE} -C $$i $@; \
+		fi; \
+	done

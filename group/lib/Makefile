@@ -10,26 +10,22 @@
 ###############################################################################
 ###############################################################################
 
-SOURCE=libgroup.c
+include ../../make/defines.mk
 
-LIBNAME=libgroup
-STATICLIB=$(LIBNAME).a
+TARGET=libgroup
+STATICLIB=$(TARGET).a
 
-top_srcdir=..
-UNINSTALL=${top_srcdir}/scripts/uninstall.pl
-
-# include ${top_srcdir}/make/defines.mk
-
-CFLAGS += -g -O -I. -fPIC -I../daemon
+CFLAGS += -g -O -fPIC
+CFLAGS += -I. -I../daemon
 
 all: $(STATICLIB)
 
-$(LIBNAME).a: libgroup.o
-	${AR} r libgroup.a libgroup.o
-#	${RANLIB} libgroup.a 
+$(TARGET).a: $(TARGET).o
+	${AR} r $@ $^
+#	${RANLIB} $(TARGET).a 
 
-libgroup.o: libgroup.c
-	$(CC) $(CFLAGS) -c -o $@ $< -I../daemon
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
 install: all
 

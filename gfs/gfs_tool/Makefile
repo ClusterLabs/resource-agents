@@ -10,46 +10,42 @@
 ##
 ###############################################################################
 ###############################################################################
-top_srcdir= ..
-include ${top_srcdir}/make/defines.mk
+
+include ../../make/defines.mk
 
 TARGET= gfs_tool
 
-SOURCE=	counters.c \
-	df.c \
-	layout.c \
-	main.c \
-	misc.c \
-	ondisk.c \
-	sb.c \
-	tune.c \
-	util.c
+OBJS=	counters.o \
+	df.o \
+	layout.o \
+	main.o \
+	misc.o \
+	ondisk.o \
+	sb.o \
+	tune.o \
+	util.o
 
-CFLAGS+= -O2 -Wall -D_FILE_OFFSET_BITS=64 \
-	-DGFS_RELEASE_NAME=\"${RELEASE}\"
-
-INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config -I${gfskincdir}
-
-ifneq (${KERNEL_SRC}, )
-# Use the kernel tree if patched, otherwise, look where cluster headers
-#  should be installed
-INCLUDE += $(shell if [ -e ${KERNEL_SRC}/include/linux/gfs_ondisk.h ]; then \
-		echo '-I${KERNEL_SRC}/include'; else \
-		echo '-I${incdir}'; fi)
-else
-INCLUDE += -I${incdir}
-endif
+CFLAGS += -D_FILE_OFFSET_BITS=64 -DGFS_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -O2 -Wall 
+CFLAGS += -I${gfskincdir}
+CFLAGS += -I../include
 
 all: ${TARGET}
 
-gfs_tool: ${SOURCE}
-	${CC} ${CFLAGS} ${INCLUDE} ${LDFLAGS} ${SOURCE} ${LOADLIBES} ${LDLIBS} -o $@
+${TARGET}: ${OBJS}
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
 install: all
 	if [ ! -d ${sbindir} ]; then \
 		install -d ${sbindir}; \
 	fi
 	install -m755 ${TARGET} ${sbindir}
+
+uninstall:
+	${UNINSTALL} ${TARGET} ${sbindir}
 
 clean:
 	rm -f *.o ${TARGET}

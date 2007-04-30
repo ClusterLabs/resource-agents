@@ -27,8 +27,8 @@
 #include <stdlib.h>
 #include <sys/time.h>
 #include <pthread.h>
-#include <saAis.h>
-#include <saCkpt.h>
+#include <openais/saAis.h>
+#include <openais/saCkpt.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <assert.h>

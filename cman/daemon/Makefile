@@ -10,63 +10,45 @@
 ###############################################################################
 ###############################################################################
 
-top_srcdir=..
-UNINSTALL=${top_srcdir}/scripts/uninstall.pl
+include ../../make/defines.mk
 
-include ${top_srcdir}/make/defines.mk
-
-CFLAGS+= -fPIC -I${ccsincdir} -I${incdir} -I${top_srcdir}/config \
-	-DCMAN_RELEASE_NAME=\"${RELEASE}\" -I../lib -DOPENAIS_EXTERNAL_SERVICE
+CFLAGS += -DCMAN_RELEASE_NAME=\"${RELEASE}\" -DOPENAIS_EXTERNAL_SERVICE
+CFLAGS += -fPIC
+CFLAGS += -I${ccsincdir} -I${incdir} -I${openaisincdir} -I${cmanincdir}
+CFLAGS += -I${openaisincdir}/openais/service
 
 ifeq ($(DEBUG),y)
-CFLAGS+= -O0 -g -DDEBUG
+CFLAGS += -O0 -g -DDEBUG
 else
-CFLAGS+= -O2
+CFLAGS += -O2
 endif
 
-TARGET=service_cman.lcrso
-CMAN_OBJS=daemon.o config.o logging.o ais.o commands.o barrier.o cmanccs.o
+LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
+
+TARGET= service_cman.lcrso
+
+OBJS=	daemon.o \
+	config.o \
+	logging.o \
+	ais.o \
+	commands.o \
+	barrier.o \
+	cmanccs.o
 
 all:  ${TARGET}
 
-service_cman.lcrso: ${CMAN_OBJS}
-	$(CC) $(CFLAGS) -shared -Wl,-soname,service_cman.lcrso -o $@ ${CMAN_OBJS} -L../lib -L${ccslibdir} -lccs
+${TARGET}: ${OBJS}
+	$(CC) -shared -Wl,-soname,$@ -o $@ $^ $(LDFLAGS)
 
-daemon.o: daemon.c list.h cnxman-socket.h cnxman-private.h \
-  daemon.h logging.h commands.h barrier.h cmanccs.h
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-cnxman.o: cnxman.c list.h cnxman-socket.h cnxman-private.h \
-  daemon.h barrier.h commands.h logging.h
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-config.o: config.c
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-cmanccs.o: cmanccs.c cmanccs.h
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-barrier.o: barrier.c list.h cnxman-socket.h cnxman-private.h \
-  daemon.h logging.h barrier.h
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-commands.o: commands.c list.h cnxman-socket.h cnxman-private.h \
-  daemon.h barrier.h  logging.h
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-logging.o: logging.c list.h cnxman-socket.h cnxman-private.h 
-	$(CC) $(CFLAGS) -c -o $@ $<
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
 install: all
 	install -d ${libexecdir}/lcrso
-	install -s service_cman.lcrso ${libexecdir}/lcrso
+	install -s ${TARGET} ${libexecdir}/lcrso
 
 uninstall:
-	rm -f ${libexecdir}/lcrso/service_cman.lcrso
+	rm -f ${libexecdir}/lcrso/${TARGET}
 
 clean:
-	rm -f *.o service_cman.lcrso
-
-reallyclean: clean
-	rm -rf ${AISDIR}
-
+	rm -f *.o ${TARGET}

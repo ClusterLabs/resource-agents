@@ -10,38 +10,37 @@
 ###############################################################################
 ###############################################################################
 
-top_srcdir=..
-UNINSTALL = ${top_srcdir}/scripts/uninstall.pl
+include ../../make/defines.mk
 
-include ${top_srcdir}/make/defines.mk
+TARGET= ccs_test
 
-ccs_libdir=${top_srcdir}/lib
-INCLUDE+= -I. -I${top_srcdir}/include -I${ccs_libdir} -I${top_srcdir}/config
+OBJS=	ccs_test.o
+
+CFLAGS += -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -DCCS_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -I${ccsincdir}
 
 ifeq ($(DEBUG),y)
-CFLAGS+= -O2 -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -DDEBUG -g \
-	-DCCS_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -O0 -DDEBUG -g
 else
-CFLAGS+= -O2 -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -DCCS_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -O2
 endif
 
-LDFLAGS+= -L${ccs_libdir}
-LOADLIBES+= -lccs
+LDFLAGS += -L${ccslibdir} -lccs
 
-all: ccs_test
+all: ${TARGET}
 
-ccs_test: ccs_test.c ${ccs_libdir}/libccs.a
-	${CC} ${CFLAGS} ${INCLUDE} ccs_test.c ${LDFLAGS} ${LOADLIBES} ${LDLIBS}-o $@
+${TARGET}: ${OBJS}
+	$(CC) -o $@ $^ $(LDFLAGS)
 
-${ccs_libdir}/libccs.a:
-	${MAKE} -C ${ccs_libdir} libccs.a
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
 install: all
 	install -d ${sbindir}
-	install ccs_test ${sbindir}
+	install ${TARGET} ${sbindir}
 
 uninstall:
-	${UNINSTALL} ccs_test ${sbindir}
+	${UNINSTALL} ${TARGET} ${sbindir}
 
 clean:
-	rm -rf *.o ccs_test *~
+	rm -rf *.o ${TARGET} *~

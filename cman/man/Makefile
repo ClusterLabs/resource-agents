@@ -10,10 +10,14 @@
 ##
 ###############################################################################
 ###############################################################################
-top_srcdir=..
-UNINSTALL = ${top_srcdir}/scripts/uninstall.pl
 
-include ${top_srcdir}/make/defines.mk
+include ../../make/defines.mk
+
+all:
+
+clean:
+
+distclean:
 
 install:
 	install -d ${mandir}/man5

@@ -11,33 +11,14 @@
 ###############################################################################
 ###############################################################################
 
-all:
-	${MAKE} -C resources all
-	${MAKE} -C clulib all
-	${MAKE} -C daemons all
-	${MAKE} -C utils all
+include ../../make/defines.mk
 
-clean:
-	${MAKE} -C resources clean
-	${MAKE} -C clulib clean
-	${MAKE} -C daemons clean
-	${MAKE} -C utils clean
+SUBDIRS=resources clulib daemons utils
 
-check:
-	${MAKE} -C resources check
-	${MAKE} -C daemons check
+all: ${SUBDIRS}
 
-distclean: clean
-	rm -f make/defines.mk
-
-install: all
-	${MAKE} -C resources install
-	${MAKE} -C clulib install
-	${MAKE} -C daemons install
-	${MAKE} -C utils install
-
-uninstall:
-	${MAKE} -C  resources uninstall
-	${MAKE} -C clulib uninstall
-	${MAKE} -C daemons uninstall
-	${MAKE} -C utils  uninstall
+%:
+	set -e && \
+	for i in ${SUBDIRS}; do \
+		${MAKE} -C $$i $@; \
+	done

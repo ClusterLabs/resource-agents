@@ -1,0 +1,66 @@
+###############################################################################
+###############################################################################
+##
+##  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
+##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+##  
+##  This copyrighted material is made available to anyone wishing to use,
+##  modify, copy, or redistribute it subject to the terms and conditions
+##  of the GNU General Public License v.2.
+##
+###############################################################################
+###############################################################################
+
+# Install Locations
+sbindir ?= ${DESTDIR}@SBINDIR@
+libdir ?= ${DESTDIR}@LIBDIR@
+libexecdir ?= ${DESTDIR}@LIBEXECDIR@
+sharedir ?= ${DESTDIR}@SHAREDIR@
+mandir ?= ${DESTDIR}@MANDIR@
+module_dir ?= @MODULE_DIR@
+incdir ?= ${DESTDIR}@INCDIR@
+
+# Build information
+
+# C Compiler defaults
+CC = @CC@
+STRIP = strip
+AR = ar
+LD = ld
+RANLIB = ranlib
+
+CFLAGS += @CFLAGS@ -I@BUILDDIR@/config
+LDFLAGS += @LDFLAGS@
+
+BUILDDIR = @BUILDDIR@
+
+KERNEL_SRC = @KERNEL_SRC@
+gfskincdir ?= @GFSKINCDIR@
+gnbdkincdir ?= @GNBDKINCDIR@
+ccsincdir ?= @CCSINCDIR@
+ccslibdir ?= @CCSLIBDIR@
+cmanincdir ?= @CMANINCDIR@
+cmanlibdir ?= @CMANLIBDIR@
+dlmincdir ?= @DLMINCDIR@
+dlmlibdir ?= @DLMLIBDIR@
+volidincdir ?= @VOLIDINCDIR@
+volidlibdir ?= @VOLIDLIBDIR@
+readlineincdir ?= @READLINEINCDIR@
+readlinelibdir ?= @READLINELIBDIR@
+ncursesincdir ?= @NCURSESINCDIR@
+ncurseslibdir ?= @NCURSESLIBDIR@
+nssincdir ?= @NSSINCDIR@
+nsslibdir ?= @NSSLIBDIR@
+nsprincdir ?= @NSPRINCDIR@
+nsprlibdir ?= @NSPRLIBDIR@
+openaisincdir ?= @OPENAISINCDIR@
+openaislibdir ?= @OPENAISLIBDIR@
+xenincdir ?= @XENINCDIR@
+xenlibdir ?= @XENLIBDIR@
+virtincdir ?= @VIRTINCDIR@
+virtlibdir ?= @VIRTLIBDIR@
+enable_xen ?= @ENABLE_XEN@
+
+UNINSTALL = @BUILDDIR@/scripts/uninstall.pl
+DEF2VAR = @BUILDDIR@/scripts/define2var
+

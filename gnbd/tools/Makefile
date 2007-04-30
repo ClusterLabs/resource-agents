@@ -11,18 +11,14 @@
 ###############################################################################
 ###############################################################################
 
+include ../../make/defines.mk
 
-all:
-	${MAKE} -C fence_gnbd all
-	${MAKE} -C gnbd_export all
-	${MAKE} -C gnbd_import all
+SUBDIRS=fence_gnbd gnbd_export gnbd_import
 
-install: all
-	${MAKE} -C fence_gnbd install
-	${MAKE} -C gnbd_export install
-	${MAKE} -C gnbd_import install
+all: ${SUBDIRS}
 
-clean:
-	${MAKE} -C fence_gnbd clean
-	${MAKE} -C gnbd_export clean
-	${MAKE} -C gnbd_import clean
+%:
+	set -e && \
+	for i in ${SUBDIRS}; do \
+		${MAKE} -C $$i $@; \
+	done

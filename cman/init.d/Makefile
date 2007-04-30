@@ -10,13 +10,9 @@
 ###############################################################################
 ###############################################################################
 
+include ../../make/defines.mk
+
 TARGET= cman qdiskd
-
-UNINSTALL=${top_srcdir}/scripts/uninstall.pl
-
-top_srcdir=..
-
-include ${top_srcdir}/make/defines.mk
 
 all:
 

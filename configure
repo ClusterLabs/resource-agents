@@ -1,37 +1,349 @@
-#!/bin/sh
+#!/usr/bin/perl
 
-echo "configure gnbd-kernel"
-(cd gnbd-kernel; ./configure $@)
+###############################################################################
+###############################################################################
+##
+##  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
+##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+##  
+##  This copyrighted material is made available to anyone wishing to use,
+##  modify, copy, or redistribute it subject to the terms and conditions
+##  of the GNU General Public License v.2.
+##
+###############################################################################
+###############################################################################
 
-echo "configure ccs"
-(cd ccs; ./configure $@)
+use Getopt::Long;
 
-echo "configure cman"
-(cd cman; ./configure $@ --ccsincdir=`pwd`/../ccs/lib --ccslibdir=`pwd`/../ccs/lib)
+print "\nConfiguring Makefiles for your system...\n";
 
-echo "configure group"
-(cd group; ./configure $@ --cmanlibdir=`pwd`/../cman/lib)
+# Set a bunch of variables
 
-echo "configure dlm"
-(cd dlm; ./configure $@)
+$ret = 0;
 
-echo "configure fence"
-(cd fence; ./configure $@ -ccslibdir=`pwd`/../ccs/lib --ccsincdir=`pwd`/../ccs/lib --cmanincdir=`pwd`/../cman/lib)
+%options = (
+	help => \$help,
+	cc => \$cc,
+	cflags => \$cflags,
+	extracflags => \$extracflags,
+	ldflags => \$ldflags,
+	extraldflags => \$extraldflags,
+	kernel_src => \$kernel_src,
+	module_dir => \$module_dir,
+	gfskincdir => \$gfskincdir,
+	gnbdkincdir => \$gnbdkincdir,
+        incdir => \$incdir,
+	libdir => \$libdir,
+        ccsincdir => \$ccsincdir,
+	ccslibdir => \$ccslibdir,
+	cmanincdir => \$cmanincdir,
+	cmanlibdir => \$cmanlibdir,
+	dlmincdir => \$dlmincdir,
+	dlmlibdir => \$dlmlibdir,
+	volidincdir => \$volidincdir,
+	volidlibdir => \$volidlibdir,
+	ncursesincdir => \$ncursesincdir,
+	ncurseslibdir => \$ncurseslibdir,
+	readlineincdir => \$readlineincdir,
+	readlinelibdir => \$readlinelibdir,
+	openaisncdir => \$openaisincdir,
+	openaislibdir => \$openaislibdir,
+	virtincdir => \$virtincdir,
+	virtlibdir => \$virtlibdir,
+	nssincdir => \$nssincdir,
+	nsslibdir => \$nsslibdir,
+	nsprincdir => \$nsprincdir,
+	nsprlibdir => \$nsprlibdir,
+	xenincdir => \$xenincdir,
+	xenlibdir => \$xenlibdir,
+	libexecdir => \$libexecdir,
+	mandir  => \$mandir,
+	prefix => \$prefix,
+	sbindir => \$sbindir,
+	sharedir => \$sharedir,
+	enable_xen => \$enable_xen,
+	release_major => \$release_major,
+	release_minor => \$release_minor,
+);
 
-echo "configure gfs-kernel"
-(cd gfs-kernel; ./configure $@ --dlmkincdir=`pwd`/../dlm-kernel/src2)
+$err = &GetOptions (\%options,
+		    'help',
+		    'cc=s',
+		    'cflags=s',
+		    'ldflags=s',
+		    'kernel_src=s',
+		    'module_dir=s',
+		    'gfskincdir=s',
+		    'gnbdkincdir=s',
+		    'incdir=s',
+		    'libdir=s',
+		    'ccsincdir=s',
+		    'ccslibdir=s',
+		    'cmanincdir=s',
+		    'cmanlibdir=s',
+		    'dlmincdir=s',
+		    'dlmlibdir=s',
+		    'volidincdir=s',
+		    'volidlibdir=s',
+		    'ncursesincdir=s',
+		    'ncurseslibdir=s',
+		    'readlineincdir=s',
+		    'readlinelibdir=s',
+		    'openaisincdir=s',
+		    'openaislibdir=s',
+		    'virtincdir=s',
+		    'virtlibdir=s',
+		    'nssincdir=s',
+		    'nsslibdir=s',
+		    'nsprincdir=s',
+		    'nsprlibdir=s',
+		    'xenincdir=s',
+		    'xenlibdir=s',
+		    'libexecdir=s',
+		    'mandir=s',
+		    'prefix=s',
+		    'sbindir=s',
+		    'sharedir=s',
+		    'release_major=s',
+		    'release_minor=s',
+		    'enable_xen');
 
-echo "configure gfs"
-(cd gfs; ./configure $@ --gfskincdir=`pwd`/../gfs-kernel/src/gfs)
+if(!$err) {
+  $ret = 1;
+  print "*** ERROR: Invalid option detected ***\n";
+}
 
-echo "configure gfs2"
-(cd gfs2; ./configure $@)
+# Check for the --help flag
+if ($help || !$err) {
+  $_ = $0;
+  s/.*\.\/(.*)/\1/;
+  print "Usage: $_ [flags]\n";
+  print "--help\t\tPrints this usage information\n\n";
+  print "install flags:\n";
+  print "--prefix=\tthe base directory to install into.  (Default: /)\n";
+  print "--sbindir=\tthe base directory for system binaries.  (Default: {prefix}/sbin)\n";
+  print "--libdir=\tthe base directory for libraries.  (Default: {prefix}/usr/lib)\n";
+  print "--libexecdir=\tthe base directory for executable components.  (Default: {prefix}/usr/libexec)\n";
+  print "--sharedir=\tthe base directory for misc cluster files.  (Default: {prefix}/usr/share/cluster)\n";
+  print "--mandir=\tthe base directory for man pages.  (Default:  {prefix}/usr/share/man)\n";
+  print "--module_dir=\tthe base directory for kernel modules.  (Default:  /lib/modules/`uname -r`/kernel\n";
+  print "\nbuild flags:\n";
+  print "--cc=\t\tcompiler to use.  (Default: gcc)\n";
+  print "--cflags=\toverride default CFLAGS settings.  (Default: -Wall)\n";
+  print "--extracflags=\tadd extra compiler options to default CFLAGS setting.  (Default: none)\n";
+  print "--ldflags=\toverride default LDFLAGS settings.  (Default: -L/lib -L/usr/lib)\n";
+  print "--extraldflags=\tadd extra linking options to default LDFLAGS settings.  (Default: none)\n";
+  print "--kernel_src=\tthe directory containing the kernel source you wish to\n\t\tcompile against. (Default: /lib/modules/`uname -r`/build)\n";
+  print "--incdir=\tthe base directory for include files.  (Default: {prefix}/usr/include)\n";
+  print "--ccsincdir=\tthe base directory for ccs include files.  (Default: ./ccs/lib)\n";
+  print "--ccslibdir=\tthe base directory for ccs libraries.  (Default: ./ccs/lib)\n";
+  print "--cmanincdir=\tthe base directory for cman include files.  (Default: ./cman/lib)\n";
+  print "--cmanlibdir=\tthe base directory for cman libraries.  (Default: ./cman/lib)\n";
+  print "--dlmincdir=\tthe base directory for dlm include files.  (Default: ./dlm/lib)\n";
+  print "--dlmlibdir=\tthe base directory for dlm libraries.  (Default: ./dlm/lib)\n";
+  print "--volidincdir=\tthe base directory for volume_id include files.  (Default: {incdir})\n";
+  print "--volidlibdir=\tthe base directory for volume_id libraries.  (Default: {libdir})\n";
+  print "--ncursesincdir=\tthe base directory for ncurses include files.  (Default: {incdir})\n";
+  print "--ncurseslibdir=\tthe base directory for ncurses libraries.  (Default: {libdir})\n";
+  print "--readlineincdir=\tthe base directory for readline include files.  (Default: {incdir})\n";
+  print "--readlinelibdir=\tthe base directory for readline libraries.  (Default: {libdir})\n";
+  print "--openaisincdir=\tthe base directory for openais include files.  (Default: {incdir})\n";
+  print "--openaislibdir=\tthe base directory for openais libraries.  (Default: {libdir}/openais)\n";
+  print "--nssincdir=\tthe base directory for libnss include files.  (Default: {incdir}/nss3)\n";
+  print "--nsslibdir=\tthe base directory for libnss libraries.  (Default: {libdir})\n";
+  print "--nsprincdir=\tthe base directory for libnspr include files.  (Default: {incdir}/nspr4)\n";
+  print "--nsprlibdir=\tthe base directory for libnspr libraries.  (Default: {libdir})\n";
+  print "--virtincdir=\tthe base directory for libvirt include files.  (Default: {incdir}/libvirt)\n";
+  print "--virtlibdir=\tthe base directory for libvirt libraries.  (Default: {libdir})\n";
+  print "--xenincdir=\tthe base directory for xen include files.  (Default: {incdir}/xen)\n";
+  print "--xenlibdir=\tthe base directory for xen libraries.  (Default: {libdir})\n";
+  print "--enable_xen\t\tEnable building of Xen-specific pieces\n";
+  exit $ret;
+}
 
-echo "configure gnbd"
-(cd gnbd; ./configure $@ --gnbdkincdir=`pwd`/../gnbd-kernel/src --cmanincdir=`pwd`/../cman/lib)
+$pwd = `pwd`;
+chomp($pwd);
 
-echo "configure rgmanager"
-(cd rgmanager; ./configure $@) 
+if (!$cc) {
+  $cc="gcc";
+}
+if (!$cflags) {
+  $cflags="-Wall"
+}
+if ($extracflags) {
+  $cflags="${cflags} ${extracflags}"
+}
+if (!$ldflags) {
+  $ldflags="-L/lib -L/usr/lib"
+}
+if ($extraldflags) {
+  $ldflags="${ldflags} ${extraldflags}"
+}
+if (!$kernel_src) {
+  $kernel_src="/lib/modules/`uname -r`/build"
+}
+if (!$module_dir) {
+  $module_dir="/lib/modules/`uname -r`/kernel"
+}
+if (!$gfskincdir) {
+  $gfskincdir="${pwd}/gfs-kernel/src/gfs"
+}
+if (!$gnbdkincdir) {
+  $gnbdkincdir="${pwd}/gnbd-kernel/src"
+}
+if (!$incdir) {
+  $incdir="${prefix}/usr/include";
+}
+if (!$libdir) {
+  $libdir="${prefix}/usr/lib";
+}
+if (!$ccsincdir) {
+  $ccsincdir="${pwd}/ccs/lib";
+}
+if (!$ccslibdir) {
+  $ccslibdir="${pwd}/ccs/lib";
+}
+if (!$cmanincdir) {
+  $cmanincdir="${pwd}/cman/lib";
+}
+if (!$cmanlibdir) {
+  $cmanlibdir="${pwd}/cman/lib";
+}
+if (!$dlmincdir) {
+  $dlmincdir="${pwd}/dlm/lib";
+}
+if (!$dlmlibdir) {
+  $dlmlibdir="${pwd}/dlm/lib";
+}
+if (!$volidincdir) {
+  $volidincdir="${incdir}";
+}
+if (!$volidlibdir) {
+  $volidlibdir="${libdir}";
+}
+if (!$readlineincdir) {
+  $readlineincdir="${incdir}";
+}
+if (!$readlinelibdir) {
+  $readlinelibdir="${libdir}";
+}
+if (!$ncursesincdir) {
+  $ncursesincdir="${incdir}";
+}
+if (!$ncurseslibdir) {
+  $ncurseslibdir="${libdir}";
+}
+if (!$openaisincdir) {
+  $openaisincdir="${incdir}";
+}
+if (!$openaislibdir) {
+  $openaislibdir="${libdir}/openais";
+}
+if (!$nssincdir) {
+  $nssincdir="${incdir}/nss3";
+}
+if (!$nsslibdir) {
+  $nsslibdir="${libdir}";
+}
+if (!$nsprincdir) {
+  $nsprincdir="${incdir}/nspr4";
+}
+if (!$nsprlibdir) {
+  $nsprlibdir="${libdir}";
+}
+if (!$virtincdir) {
+  $virtincdir="${incdir}/libvirt";
+}
+if (!$virtlibdir) {
+  $virtlibdir="${libdir}";
+}
+if (!$xenincdir) {
+  $xenincdir="${incdir}/xen";
+}
+if (!$xenlibdir) {
+  $xenlibdir="${libdir}";
+}
+if (!$libexecdir) {
+  $libexecdir="${prefix}/usr/libexec";
+}
+if (!$mandir) {
+  $mandir="${prefix}/usr/share/man";
+}
+if (!$sbindir) {
+  $sbindir="${prefix}/sbin";
+}
+if (!$sharedir) {
+  $sharedir="${prefix}/usr/share/cluster";
+}
 
-#echo "configure cmirror"
-#(cd cmirror; ./configure $@)
+open IFILE, "<make/defines.mk.input" or die "Can't redirect stdin";
+open OFILE, ">make/defines.mk" or die "Can't redirect stdout";
+
+print OFILE "# This file was generated by configure from defines.mk.input\n";
+
+while (<IFILE>) {
+  chomp;
+  $_ =~ s/\@BUILDDIR\@/$pwd/;
+  $_ =~ s/\@CC\@/$cc/;
+  $_ =~ s/\@CFLAGS\@/$cflags/;
+  $_ =~ s/\@LDFLAGS\@/$ldflags/;
+  $_ =~ s/\@KERNEL_SRC\@/$kernel_src/;
+  $_ =~ s/\@MODULE_DIR\@/$module_dir/;
+  $_ =~ s/\@GFSKINCDIR\@/$gfskincdir/;
+  $_ =~ s/\@GNBDKINCDIR\@/$gnbdkincdir/;
+  $_ =~ s/\@INCDIR\@/$incdir/;
+  $_ =~ s/\@LIBDIR\@/$libdir/;
+  $_ =~ s/\@CCSINCDIR\@/$ccsincdir/;
+  $_ =~ s/\@CCSLIBDIR\@/$ccslibdir/;
+  $_ =~ s/\@CMANINCDIR\@/$cmanincdir/;
+  $_ =~ s/\@CMANLIBDIR\@/$cmanlibdir/;
+  $_ =~ s/\@DLMINCDIR\@/$dlmincdir/;
+  $_ =~ s/\@DLMLIBDIR\@/$dlmlibdir/;
+  $_ =~ s/\@VOLIDINCDIR\@/$volidincdir/;
+  $_ =~ s/\@VOLIDLIBDIR\@/$volidlibdir/;
+  $_ =~ s/\@READLINEINCDIR\@/$readlineincdir/;
+  $_ =~ s/\@READLINELIBDIR\@/$readlinelibdir/;
+  $_ =~ s/\@NCURSESINCDIR\@/$ncursesincdir/;
+  $_ =~ s/\@NCURSESLIBDIR\@/$ncurseslibdir/;
+  $_ =~ s/\@OPENAISINCDIR\@/$openaisincdir/;
+  $_ =~ s/\@OPENAISLIBDIR\@/$openaislibdir/;
+  $_ =~ s/\@XENINCDIR\@/$xenincdir/;
+  $_ =~ s/\@XENLIBDIR\@/$xenlibdir/;
+  $_ =~ s/\@NSSINCDIR\@/$nssincdir/;
+  $_ =~ s/\@NSSLIBDIR\@/$nsslibdir/;
+  $_ =~ s/\@NSPRINCDIR\@/$nsprincdir/;
+  $_ =~ s/\@NSPRLIBDIR\@/$nsprlibdir/;
+  $_ =~ s/\@VIRTINCDIR\@/$virtincdir/;
+  $_ =~ s/\@VIRTLIBDIR\@/$virtlibdir/;
+  $_ =~ s/\@LIBEXECDIR\@/$libexecdir/;
+  $_ =~ s/\@MANDIR\@/$mandir/;
+  $_ =~ s/\@SBINDIR\@/$sbindir/;
+  $_ =~ s/\@SHAREDIR\@/$sharedir/;
+  $_ =~ s/\@ENABLE_XEN\@/$enable_xen/;
+  print OFILE "$_\n";
+}
+
+close IFILE;
+if ((not length $release_major) || (not length $release_minor)) {
+  open IFILE, "<make/release.mk.input" or die "Can't redirect stdin";
+  while (<IFILE>) {
+    chomp;
+    if($_ =~ /RELEASE_MAJOR\s=\s(.*)/){
+        $release_major = $1;
+    } elsif($_ =~ /RELEASE_MINOR\s=\s(.*)/){
+        $release_minor = $1;
+    }
+  }
+
+  if($release_minor =~ m/DATE/i){
+      $release_minor = `date +%s`;
+      chomp $release_minor;
+  }
+}
+
+print OFILE "RELEASE_MAJOR = $release_major\n";
+print OFILE "RELEASE_MINOR = $release_minor\n";
+print OFILE "RELEASE = $release_major.$release_minor\n";
+close OFILE;
+
+print "Completed Makefile configuration\n\n";

@@ -11,34 +11,26 @@
 ###############################################################################
 ###############################################################################
 
+include ../../make/defines.mk
+
 TARGET= gfs_edit
 
-SOURCE=	\
-	gfshex.c \
-	hexedit.c
+OBJS= gfshex.o \
+      hexedit.o
 
-top_srcdir=..
-include ${top_srcdir}/make/defines.mk
+CFLAGS += -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 -DGFS_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -I${gfskincdir} -I${ncursesincdir}
+CFLAGS += -I../include
 
-CFLAGS+= -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 \
-	 -DGFS_RELEASE_NAME=\"${RELEASE}\"
-
-INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config -I${gfskincdir}
-
-ifneq (${KERNEL_SRC}, )
-# Use the kernel tree if patched, otherwise, look where cluster headers
-#  should be installed
-INCLUDE += $(shell if [ -e ${KERNEL_SRC}/include/linux/gfs_ondisk.h ]; then \
-		echo '-I${KERNEL_SRC}/include'; else \
-		echo '-I${gfskincdir}'; fi)
-else
-INCLUDE += -I${gfskincdir}
-endif
+LDFLAGS += -L${ncurseslibdir} -lncurses
 
 all: ${TARGET}
 
-gfs_edit: ${SOURCE}
-	${CC} ${CFLAGS} ${INCLUDE} ${LDFLAGS} ${SOURCE} ${LOADLIBES} ${LDLIBS} -lncurses -o $@
+${TARGET}: ${OBJS}
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
 install: all
 	if [ ! -d ${sbindir} ]; then \
@@ -46,7 +38,8 @@ install: all
 	fi
 	install -m755 ${TARGET} ${sbindir}
 
+uninstall:
+	${UNINSTALL} ${TARGET} ${sbindir}
+
 clean:
 	rm -f *.o ${TARGET}
-
-

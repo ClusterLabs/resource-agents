@@ -11,30 +11,31 @@
 ###############################################################################
 ###############################################################################
 
+include ../../../make/defines.mk
+
 TARGET= fence_gnbd
 
-SOURCE= main.c
+OBJS= main.o
 
-top_srcdir=../..
-
-INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/tools/gnbd_import \
-	-I${top_srcdir}/config
-
-include ${top_srcdir}/make/defines.mk
-
-CFLAGS+= -DGNBD_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -DGNBD_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -I../../include -I../../tools/gnbd_import
 
 all: ${TARGET}
 
-fence_gnbd: ${SOURCE:.c=.o} 
-	${CC} ${CFLAGS} ${LDFLAGS} ${SOURCE:.c=.o} ${LOADLIBES} ${LDLIBS} -o $@
+${TARGET}: ${OBJS}
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
 install: all
 	if [ ! -d ${sbindir} ]; then \
 		install -d ${sbindir}; \
 	fi
-	strip ${TARGET}
 	install -m755 ${TARGET} ${sbindir}
+
+uninstall:
+	${UNINSTALL} ${TARGET} ${sbindir}
 
 clean:
 	rm -f *.o ${TARGET}

@@ -3,7 +3,7 @@
 ##
 ##  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
 ##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
-##  
+##
 ##  This copyrighted material is made available to anyone wishing to use,
 ##  modify, copy, or redistribute it subject to the terms and conditions
 ##  of the GNU General Public License v.2.
@@ -11,33 +11,13 @@
 ###############################################################################
 ###############################################################################
 
-#Install Locations
-sbindir ?= ${DESTDIR}/@SBINDIR@
-mandir ?= ${DESTDIR}/@MANDIR@
-libdir ?= ${DESTDIR}/@LIBDIR@
-incdir ?= ${DESTDIR}/@INCDIR@
-dlmkincdir ?= ${DESTDIR}/@DLMKINCDIR@
-cmankincdir ?= ${DESTDIR}/@CMANKINCDIR@
-module_dir ?= ${DESTDIR}/@MODULE_DIR@
+include ../../make/defines.mk
 
-# Where's the kernel?
-KERNEL_SRC = @KERNEL_SRC@
-KERNEL_VERSION = @KERNEL_VERSION@
+all:
 
-# C Compiler defaults
-CC = @CC@
+install:
 
-STRIP = strip
-AR = ar
-LD = ld
-#RANLIB = echo
-RANLIB = ranlib
+uninstall:
 
-# Default CFLAGS
-CFLAGS += -Wall ${INCLUDE}
-
-YACC = bison
-YFLAGS = -y -d
-LEX = flex
-LFLAGS = -i -t
-
+clean:
+	rm -f *.o *~

@@ -10,44 +10,29 @@
 ###############################################################################
 ###############################################################################
 
-top_srcdir=..
-UNINSTALL=${top_srcdir}/scripts/uninstall.pl
+include ../../make/defines.mk
 
-include ${top_srcdir}/make/defines.mk
+TARGET= dlm_controld
 
-CFLAGS+= -g -I${incdir} -I${top_srcdir}/config
+OBJS=	main.o \
+	member_cman.o \
+	group.o \
+	action.o
 
-CFLAGS+= -idirafter ${KERNEL_SRC}/include/linux \
-	-I../../group/lib/ \
-	-I../../ccs/lib/ \
-	-I../../cman/lib/ \
-	-I../include/
+CFLAGS += -g 
+CFLAGS += -I${incdir} -I${ccsincdir} -I${cmanincdir}
+CFLAGS += -idirafter ${KERNEL_SRC}/include/linux
+CFLAGS += -I../../group/lib/ -I../include/
 
-LDFLAGS+= -L../../cman/lib
-
-
-TARGET=dlm_controld
+LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
+LDFLAGS += -L../lib -lgroup
 
 all: ${TARGET}
 
-dlm_controld:	main.o \
-		member_cman.o \
-		group.o \
-		action.o \
-		../lib/libgroup.a \
-		../../ccs/lib/libccs.a
-	$(CC) $(LDFLAGS) -o $@ $^ -lcman 
+${TARGET}: ${OBJS}
+	$(CC) -o $@ $^ $(LDFLAGS)
 
-main.o: main.c
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-member_cman.o: member_cman.c
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-group.o: group.c
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-action.o: action.c
+%.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 install: all

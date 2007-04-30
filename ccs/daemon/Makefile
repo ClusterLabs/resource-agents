@@ -10,29 +10,40 @@
 ###############################################################################
 ###############################################################################
 
-top_srcdir=..
-UNINSTALL = ${top_srcdir}/scripts/uninstall.pl
-
-include ${top_srcdir}/make/defines.mk
+include ../../make/defines.mk
 
 TARGET= ccsd
-INCLUDE= -I. -I../include -I../common -I${top_srcdir}/config -I../../cman/lib
+
+OBJS=	ccsd.o \
+	cnx_mgr.o \
+	cluster_mgr.o \
+	misc.o \
+	log.o \
+	globals.o
+
+CFLAGS += -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -DCCS_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -Wall
+CFLAGS += -I${cmanincdir} `xml2-config --cflags`
+CFLAGS += -I. -I../include -I../common
 
 ifeq ($(DEBUG),y)
-CFLAGS+= -Wall -O2 -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -DDEBUG -g \
-	`xml2-config --cflags` -DCCS_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -O0 -DDEBUG -g
 else
-CFLAGS+= -Wall -O2 -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE \
-	`xml2-config --cflags` -DCCS_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -O2
 endif
 
-LDFLAGS+= -L${libdir} `xml2-config --libs` -lpthread -ldl
+LDFLAGS += -L${cmanlibdir} -lcman -L${libdir} `xml2-config --libs` -lpthread -ldl
 
 all: ${TARGET}
 
-ccsd: ccsd.c cnx_mgr.c cluster_mgr.c misc.c ../common/log.c globals.c
-	${CC} ${CFLAGS} ${INCLUDE} -o $@ $^ ${LDFLAGS} \
-	../../cman/lib/libcman.a
+${TARGET}: ${OBJS}
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $^
+
+log.c:
+	ln -sf ../common/log.c log.c
 
 install: all
 	install -d ${sbindir}
@@ -42,4 +53,4 @@ uninstall:
 	${UNINSTALL} ${TARGET} ${sbindir}
 
 clean:
-	rm -rf *.o ${TARGET} *~
+	rm -rf *.o ${TARGET} *~ log.c

@@ -10,46 +10,37 @@
 ###############################################################################
 ###############################################################################
 
-top_srcdir=..
-include ${top_srcdir}/make/defines.mk
-UNINSTALL=${top_srcdir}/scripts/uninstall.pl
+include ../../make/defines.mk
 
-CFLAGS+= -g -I. -I../include/ -I../../cman/lib/ -I../lib/
-LDFLAGS+= -L${cmanlibdir} -L${libdir}/openais -L${libdir}
+TARGET= groupd
 
-TARGET=groupd
-
-all: ${TARGET}
-
-groupd: app.o \
+OBJS=	app.o \
 	cpg.o \
 	cman.o \
 	joinleave.o \
 	main.o
-	$(CC) $(LDFLAGS) -o $@ $^ -lcman -lcpg 
 
-app.o: app.c gd_internal.h
-	$(CC) $(CFLAGS) -c -o $@ $<
+CFLAGS += -g 
+CFLAGS += -I${cmanincdir}
+CFLAGS += -I. -I../include/ -I../lib/
 
-cman.o: cman.c gd_internal.h
-	$(CC) $(CFLAGS) -c -o $@ $<
+LDFLAGS += -L${cmanlibdir} -L${openaislibdir} -L${libdir} -lcman -lcpg
 
-cpg.o: cpg.c gd_internal.h
-	$(CC) $(CFLAGS) -c -o $@ $<
+all: ${TARGET}
 
-joinleave.o: joinleave.c gd_internal.h
-	$(CC) $(CFLAGS) -c -o $@ $<
+${TARGET}: ${OBJS}
+	$(CC) -o $@ $^ $(LDFLAGS)
 
-main.o: main.c gd_internal.h
-	$(CC) $(CFLAGS) -c -o $@ $<
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
 clean:
 	rm -f *.o groupd
 
 install: all
 	install -d ${sbindir}
-	install groupd ${sbindir}
+	install ${TARGET} ${sbindir}
 
 uninstall:
-	${UNINSTALL} groupd ${sbindir}
+	${UNINSTALL} ${TARGET} ${sbindir}
 

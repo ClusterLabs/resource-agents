@@ -11,33 +11,14 @@
 ###############################################################################
 ###############################################################################
 
-all:
-	${MAKE} -C lib all
-	${MAKE} -C cman_tool all
-	${MAKE} -C daemon all
-	${MAKE} -C qdisk all
+include ../make/defines.mk
 
-clean:
-	${MAKE} -C lib clean
-	${MAKE} -C cman_tool clean
-	${MAKE} -C daemon clean
-	${MAKE} -C qdisk clean
+SUBDIRS=lib cman_tool daemon qdisk init.d man
 
-distclean: clean
-	rm -f make/defines.mk
+all: ${SUBDIRS}
 
-install: all
-	${MAKE} -C lib install
-	${MAKE} -C cman_tool install
-	${MAKE} -C daemon install
-	${MAKE} -C qdisk install
-	${MAKE} -C init.d install
-	${MAKE} -C man install
-
-uninstall:
-	${MAKE} -C lib uninstall
-	${MAKE} -C cman_tool uninstall
-	${MAKE} -C daemon uninstall
-	${MAKE} -C qdisk uninstall
-	${MAKE} -C init.d uninstall
-	${MAKE} -C man uninstall
+%:
+	set -e && \
+	for i in ${SUBDIRS}; do \
+		${MAKE} -C $$i $@; \
+	done

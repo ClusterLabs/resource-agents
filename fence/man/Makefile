@@ -11,6 +11,8 @@
 ###############################################################################
 ###############################################################################
 
+include ../../make/defines.mk
+
 TARGET8= \
 	fence.8 \
 	fence_ack_manual.8 \
@@ -35,11 +37,9 @@ TARGET8= \
 	fence_xvmd.8 \
 	fenced.8
 
-UNINSTALL=${top_srcdir}/scripts/uninstall.pl
+all:
 
-top_srcdir=..
-
-include ${top_srcdir}/make/defines.mk
+clean:
 
 install:
 	install -d ${mandir}/man8

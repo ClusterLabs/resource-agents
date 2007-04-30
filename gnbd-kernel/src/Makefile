@@ -11,27 +11,18 @@
 ###############################################################################
 ###############################################################################
 
-top_srcdir = ..
 ifndef USING_KBUILD
-include ${top_srcdir}/make/defines.mk
-UNINSTALL=${top_srcdir}/scripts/uninstall.pl
+include ../../make/defines.mk
 endif
 
-linux_orig = ${top_srcdir}/patches/linux-orig
-linux_patched = ${top_srcdir}/patches/linux-patched
+PWD = $(shell pwd)
 
-
-PATCH_TARGET = gnbd.patch
-
-PWD := $(shell pwd)
+SYMVERFILE := ${KERNEL_SRC}/Module.symvers
 
 obj-m := gnbd.o
-lock_gnbd-objs := gnbd.c
-
-EXTRA_CFLAGS += -I$(obj)
 
 all:
-	${MAKE} -C ${KERNEL_SRC} M=${PWD} modules USING_KBUILD=yes
+	${MAKE} -C ${KERNEL_SRC} M=${PWD} symverfile=${SYMVERFILE} modules USING_KBUILD=yes
 
 install: all
 	install -d ${incdir}/linux
@@ -45,25 +36,7 @@ uninstall:
 
 clean:
 	rm -rf linux *.mod.c .gnbd.ko.cmd \
-		.tmp_versions *o .*.o.cmd *~
+		.tmp_versions *o .*.o.cmd *~ \
+		Module.symvers
 
-
-clean:
-
-
-patches: pre add post
-
-pre:
-	@if [ ! -d ${linux_orig} ] ; then \
-		echo "No linux source directory (${linux_orig})" ; \
-		exit 1; \
-	fi
-	mkdir -p ${linux_patched}
-	rsync -a --delete ${linux_orig}/ ${linux_patched}/
-
-post:
-	( cd ${top_srcdir}/patches ; diff -urN linux-orig linux-patched > ${PATCH_TARGET} ; exit 0 )
-
-add:
-	cp gnbd.c ${linux_patched}/drivers/block/
-	cp gnbd.h ${linux_patched}/include/linux/
+distclean: clean

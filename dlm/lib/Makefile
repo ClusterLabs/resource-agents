@@ -11,36 +11,38 @@
 ###############################################################################
 ###############################################################################
 
-SOURCE=libdlm.c libaislock.c
+include ../../make/defines.mk
 
-LIBNAME=libdlm
-SHAREDLIB=$(LIBNAME).so.${RELEASE_MAJOR}.${RELEASE_MINOR} $(LIBNAME)_lt.so.${RELEASE_MAJOR}.${RELEASE_MINOR}
-STATICLIB=$(LIBNAME).a $(LIBNAME)_lt.a
+TARGET= libdlm
+AISTARGET= libaislock
 
-top_srcdir=..
-UNINSTALL=${top_srcdir}/scripts/uninstall.pl
+SHAREDLIB=$(TARGET).so.${RELEASE_MAJOR}.${RELEASE_MINOR} $(TARGET)_lt.so.${RELEASE_MAJOR}.${RELEASE_MINOR}
+STATICLIB=$(TARGET).a $(TARGET)_lt.a
 
-include ${top_srcdir}/make/defines.mk
+CFLAGS += -g -O2 
+CFLAGS += -I.
 
-CFLAGS += -g -I. -O2 
 LDFLAGS += -lpthread 
 
 all: $(STATICLIB) $(SHAREDLIB)
 
+$(TARGET).a: $(TARGET).o $(AISTARGET).o
+	${AR} r $@ $^
+	${RANLIB} $@
 
-$(LIBNAME).a: libdlm.o libaislock.o
-	${AR} cr libdlm.a $^
-	${RANLIB} libdlm.a 
+$(TARGET)_lt.a: $(TARGET)_lt.o
+	${AR} r $@ $^
+	${RANLIB} $@
 
-$(LIBNAME)_lt.a: libdlm_lt.o
-	${AR} r libdlm_lt.a $^
-	${RANLIB} libdlm_lt.a 
+$(TARGET).so.${RELEASE_MAJOR}.${RELEASE_MINOR}: $(TARGET).po $(AISTARGET).po
+	$(CC) $(LDFLAGS) -shared -o $@ -Wl,-soname=$(TARGET).so.$(RELEASE_MAJOR) $^
+	ln -sf $(TARGET).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(TARGET).so
+	ln -sf $(TARGET).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(TARGET).so.$(RELEASE_MAJOR)
 
-$(LIBNAME).so.${RELEASE_MAJOR}.${RELEASE_MINOR}: libdlm.po libaislock.po
-	$(CC) $(LDFLAGS) -shared -o $@ -Wl,-soname=$(LIBNAME).so.$(RELEASE_MAJOR) $^
-
-$(LIBNAME)_lt.so.${RELEASE_MAJOR}.${RELEASE_MINOR}: libdlm_lt.po
-	$(CC) $(LDFLAGS) -shared -o $@ -Wl,-soname=$(LIBNAME)_lt.so.$(RELEASE_MAJOR) $^
+$(TARGET)_lt.so.${RELEASE_MAJOR}.${RELEASE_MINOR}: $(TARGET)_lt.po
+	$(CC) $(LDFLAGS) -shared -o $@ -Wl,-soname=$(TARGET)_lt.so.$(RELEASE_MAJOR) $^
+	ln -sf $(TARGET)_lt.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(TARGET)_lt.so
+	ln -sf $(TARGET)_lt.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(TARGET)_lt.so.$(RELEASE_MAJOR)
 
 %_lt.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -56,32 +58,31 @@ $(LIBNAME)_lt.so.${RELEASE_MAJOR}.${RELEASE_MINOR}: libdlm_lt.po
 
 install: all
 	install -d ${incdir}
-	install -m644 libdlm.h ${incdir}
+	install -m644 $(TARGET).h ${incdir}
 	install -d ${libdir}
 	install -d ${DESTDIR}/etc/udev/rules.d
 	install -m644 ../scripts/51-dlm.rules ${DESTDIR}/etc/udev/rules.d
-	install $(LIBNAME).a ${libdir}
-	install $(LIBNAME)_lt.a ${libdir}
-	install $(LIBNAME).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}
-	install $(LIBNAME)_lt.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}
-	ln -sf $(LIBNAME).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}/$(LIBNAME).so
-	ln -sf $(LIBNAME).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}/$(LIBNAME).so.$(RELEASE_MAJOR)
-	ln -sf $(LIBNAME)_lt.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}/$(LIBNAME)_lt.so
-	ln -sf $(LIBNAME)_lt.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}/$(LIBNAME)_lt.so.$(RELEASE_MAJOR)
+	install $(TARGET).a ${libdir}
+	install $(TARGET)_lt.a ${libdir}
+	install $(TARGET).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}
+	install $(TARGET)_lt.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}
+	ln -sf $(TARGET).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}/$(TARGET).so
+	ln -sf $(TARGET).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}/$(TARGET).so.$(RELEASE_MAJOR)
+	ln -sf $(TARGET)_lt.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}/$(TARGET)_lt.so
+	ln -sf $(TARGET)_lt.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}/$(TARGET)_lt.so.$(RELEASE_MAJOR)
 
 uninstall:
-	${UNINSTALL} libdlm.h ${incdir}
-	$(UNINSTALL} ${DESTDIR}/etc/udev/rules.d/51-dlm.rules
+	${UNINSTALL} $(TARGET).h ${incdir}
+	${UNINSTALL} 51-dlm.rules ${DESTDIR}/etc/udev/rules.d
 	${UNINSTALL} \
-		${LIBNAME}.a \
-		${LIBNAME}_lt.a \
-		$(LIBNAME).so \
-		$(LIBNAME)_lt.so \
-		$(LIBNAME).so.$(RELEASE_MAJOR) \
-		${LIBNAME}.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir} \
-		$(LIBNAME)_lt.so.$(RELEASE_MAJOR) \
-		${LIBNAME}_lt.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}
-	rm -f /lib/${LIBNAME}.*
+		${TARGET}.a \
+		${TARGET}_lt.a \
+		$(TARGET).so \
+		$(TARGET)_lt.so \
+		$(TARGET).so.$(RELEASE_MAJOR) \
+		${TARGET}.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) \
+		$(TARGET)_lt.so.$(RELEASE_MAJOR) \
+		${TARGET}_lt.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}
 
 clean:
 	rm -f *.o *.a *.so *.so.* *.po

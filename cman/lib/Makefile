@@ -11,49 +11,46 @@
 ###############################################################################
 ###############################################################################
 
-SOURCE=libcman.c
+include ../../make/defines.mk
 
-LIBNAME=libcman
-SHAREDLIB=$(LIBNAME).so.${RELEASE_MAJOR}.${RELEASE_MINOR}
-STATICLIB=$(LIBNAME).a
+TARGET=libcman
 
-top_srcdir=..
-UNINSTALL=${top_srcdir}/scripts/uninstall.pl
+SHAREDLIB=$(TARGET).so.${RELEASE_MAJOR}.${RELEASE_MINOR}
+STATICLIB=$(TARGET).a
 
-include ${top_srcdir}/make/defines.mk
-
-CFLAGS += -g -I. -fPIC -I../daemon
+CFLAGS += -g -I. -fPIC
+CFLAGS += -I../daemon
 
 all: $(STATICLIB) $(SHAREDLIB)
 
-$(LIBNAME).a: libcman.o
-	${AR} r libcman.a libcman.o
-	${RANLIB} libcman.a 
+$(TARGET).a: $(TARGET).o
+	${AR} r $@ $^
+	${RANLIB} $@
 
+$(TARGET).so.${RELEASE_MAJOR}.${RELEASE_MINOR}: $(TARGET).o
+	$(CC) -shared -o $@ -Wl,-soname=$(TARGET).so.$(RELEASE_MAJOR) $^
+	ln -sf $(TARGET).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(TARGET).so
+	ln -sf $(TARGET).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(TARGET).so.$(RELEASE_MAJOR)
 
-$(LIBNAME).so.${RELEASE_MAJOR}.${RELEASE_MINOR}: libcman.o
-	$(CC) -shared -o $@ -Wl,-soname=$(LIBNAME).so.$(RELEASE_MAJOR) $^
-
-libcman.o: libcman.c
-	$(CC) $(CFLAGS) -c -o $@ $< -I../daemon
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 install: all
 	install -d ${incdir}
-	install libcman.h ${incdir}
+	install $(TARGET).h ${incdir}
 	install -d ${libdir}
-	install $(LIBNAME).a ${libdir}
-	install $(LIBNAME).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}
-	ln -sf $(LIBNAME).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}/$(LIBNAME).so
-	ln -sf $(LIBNAME).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}/$(LIBNAME).so.$(RELEASE_MAJOR)
+	install $(TARGET).a ${libdir}
+	install $(TARGET).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}
+	ln -sf $(TARGET).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}/$(TARGET).so
+	ln -sf $(TARGET).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}/$(TARGET).so.$(RELEASE_MAJOR)
 
 uninstall:
-	${UNINSTALL} libcman.h ${incdir}
+	${UNINSTALL} $(TARGET).h ${incdir}
 	${UNINSTALL} \
-		${LIBNAME}.a \
-		$(LIBNAME).so \
-		$(LIBNAME).so.$(RELEASE_MAJOR) \
-		${LIBNAME}.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir} \
-	rm -f /lib/${LIBNAME}.*
+		${TARGET}.a \
+		$(TARGET).so \
+		$(TARGET).so.$(RELEASE_MAJOR) \
+		${TARGET}.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}
 
 clean:
 	rm -f *.o *.a *.so *.so.*

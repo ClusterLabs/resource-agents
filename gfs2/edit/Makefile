@@ -11,41 +11,37 @@
 ###############################################################################
 ###############################################################################
 
+include ../../make/defines.mk
+
 TARGET= gfs2_edit
 
-SOURCE=	\
-	gfs2hex.c \
-	hexedit.c
+OBJS=	gfs2hex.o \
+	hexedit.o
 
-top_srcdir=..
-include ${top_srcdir}/make/defines.mk
+CFLAGS += -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 -DGFS2_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -ggdb 
+CFLAGS += -I${ncursesincdir}
+CFLAGS += -I../include -I../libgfs2
 
-CFLAGS+= -ggdb -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 \
-	 -DGFS2_RELEASE_NAME=\"${RELEASE}\"
+LDFLAGS += -L${ncurseslibdir} -lncurses
+LDFLAGS += -L../libgfs2/ -lgfs2
 
-INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config -I../libgfs2 
-LIBS=../libgfs2/
+all: ${TARGET}
 
-ifneq (${KERNEL_SRC}, )
-# Use the kernel tree if patched, otherwise, look where cluster headers
-#  should be installed
-INCLUDE += $(shell if [ -e ${KERNEL_SRC}/include/linux/gfs2_ondisk.h ]; then \
-		echo '-I${KERNEL_SRC}/include'; else \
-		echo '-I${incdir}'; fi)
-else
-INCLUDE += -I${incdir}
-endif
+${TARGET}: ${OBJS}
+	$(CC) -o $@ $^ $(LDFLAGS)
 
-all: gfs2_edit
-
-gfs2_edit: ${SOURCE} hexedit.h gfs2hex.h ${LIBS}/libgfs2.a
-	${CC} ${CFLAGS} ${INCLUDE} -L${LIBS} ${LDFLAGS} ${SOURCE} ${LOADLIBES} ${LDLIBS} -lncurses -o $@ -lgfs2
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
 install: all
 	if [ ! -d ${sbindir} ]; then \
 		install -d ${sbindir}; \
 	fi
 	install -m755 ${TARGET} ${sbindir}
+
+uninstall:
+	${UNINSTALL} ${TARGET} ${sbindir}
 
 clean:
 	rm -f *.o ${TARGET}

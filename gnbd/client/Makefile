@@ -10,46 +10,48 @@
 ##
 ###############################################################################
 ###############################################################################
-TARGET= gnbd_recvd gnbd_monitor
 
-top_srcdir=..
-include ${top_srcdir}/make/defines.mk
+include ../../make/defines.mk
 
-RECV_SOURCE= gnbd_recvd.c $(top_srcdir)/utils/trans.c \
-	$(top_srcdir)/utils/gnbd_utils.c
+TARGET1= gnbd_recvd
+TARGET2= gnbd_monitor
 
-MONITOR_SRC= gnbd_monitor.c monitor_req.c $(top_srcdir)/utils/trans.c \
-	$(top_srcdir)/utils/gnbd_utils.c \
-	$(top_srcdir)/utils/member_cman.c
+OBJS1=	gnbd_recvd.o
 
-INCLUDE= -I$(top_srcdir)/include -I$(top_srcdir)/server -I$(top_srcdir)/utils \
-	-I${top_srcdir}/config -I${gnbdkincdir} -I${incdir} -I${cmanincdir}
+OBJS2=	gnbd_monitor.o \
+	monitor_req.o \
+	../utils/member_cman.o
 
-ifneq (${KERNEL_SRC}, )
-# Use the kernel tree if patched, otherwise, look where cluster headers
-#  should be installed -- which is incdir, which is already included
-INCLUDE += $(shell if [ -e ${KERNEL_SRC}/include/linux/gnbd.h ]; then \
-		echo '-I${KERNEL_SRC}/include'; fi)
-endif
+SHAREDOBJS= ../utils/trans.o \
+	    ../utils/gnbd_utils.o
 
-LDLIBS+= -L${libdir} -L${cmanincdir} -lcman -ldl -lpthread
+CFLAGS += -DGNBD_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -O2
+CFLAGS += -I${gnbdkincdir} -I${cmanincdir}
+CFLAGS += -I../include -I../server -I../utils
 
-CFLAGS+= -O2 -DGNBD_RELEASE_NAME=\"${RELEASE}\"
+LDFLAGS += -L${libdir} -L${cmanlibdir} -lcman -ldl -lpthread
 
-all: ${TARGET}
+all: ${TARGET1} ${TARGET2}
 
-gnbd_recvd: ${RECV_SOURCE}
-	${CC} ${CFLAGS} ${LDFLAGS} ${RECV_SOURCE} ${LOADLIBES} ${LDLIBS} -o $@
+${TARGET1}: ${SHAREDOBJS} ${OBJS1}
+	$(CC) -o $@ $^ $(LDFLAGS)
 
-gnbd_monitor: ${MONITOR_SRC}
-	${CC} ${CFLAGS} ${LDFLAGS} ${MONITOR_SRC} ${LOADLIBES} ${LDLIBS} -o $@
+${TARGET2}: ${SHAREDOBJS} ${OBJS2}
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
 install: all
 	if [ ! -d ${sbindir} ]; then \
 		install -d ${sbindir}; \
 	fi
-	strip ${TARGET}
-	install -m755 ${TARGET} ${sbindir}
+	install -m755 ${TARGET1} ${sbindir}
+	install -m755 ${TARGET2} ${sbindir}
+
+uninstall:
+	${UNINSTALL} ${TARGET1} ${TARGET2} ${sbindir}
 
 clean:
-	rm -f *.o *~ ${TARGET}
+	rm -f *.o *~ ${TARGET1} ${TARGET2}

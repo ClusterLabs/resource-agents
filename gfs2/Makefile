@@ -11,56 +11,14 @@
 ###############################################################################
 ###############################################################################
 
-all: tag_libgfs2 tag_convert tag_edit tag_fsck tag_mkfs tag_mount tag_tool
+include ../make/defines.mk
 
-tag_libgfs2:
-	${MAKE} -C libgfs2 all
-tag_convert:
-	${MAKE} -C convert all
-tag_edit:
-	${MAKE} -C edit all
-tag_fsck:
-	${MAKE} -C fsck all
-tag_mkfs:
-	${MAKE} -C mkfs all
-tag_mount:
-	${MAKE} -C mount all
-tag_quota:
-	${MAKE} -C quota all
-tag_tool:
-	${MAKE} -C tool all
+SUBDIRS=libgfs2 convert edit fsck mkfs mount quota tool man init.d
 
-clean:
-	${MAKE} -C libgfs2 clean
-	${MAKE} -C convert clean
-	${MAKE} -C edit clean
-	${MAKE} -C fsck clean
-	${MAKE} -C mkfs clean
-	${MAKE} -C mount clean
-	${MAKE} -C quota clean
-	${MAKE} -C tool clean
+all: ${SUBDIRS}
 
-distclean: clean
-	rm -f make/defines.mk
-
-install: all
-	${MAKE} -C convert install
-	${MAKE} -C edit install
-	${MAKE} -C fsck install
-	${MAKE} -C init.d install
-	${MAKE} -C man install
-	${MAKE} -C mkfs install
-	${MAKE} -C mount install
-	${MAKE} -C quota install
-	${MAKE} -C tool install
-
-deinstall uninstall:
-	${MAKE} -C convert uninstall
-	${MAKE} -C edit uninstall
-	${MAKE} -C fsck uninstall
-	${MAKE} -C init.d uninstall
-	${MAKE} -C man uninstall
-	${MAKE} -C mkfs uninstall
-	${MAKE} -C mount uninstall
-	${MAKE} -C quota uninstall
-	${MAKE} -C tool uninstall
+%:
+	set -e && \
+	for i in ${SUBDIRS}; do \
+		${MAKE} -C $$i $@; \
+	done

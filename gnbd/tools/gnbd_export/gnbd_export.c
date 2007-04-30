@@ -40,7 +40,6 @@
 #define TIMEOUT_DEFAULT 60
 
 #define MAN_MSG "Please see man page for details.\n"
-#define DEFAULT_GETUID "/sbin/gnbd_get_uid %n"
 
 int start_gnbd_clusterd(void)
 {
@@ -675,7 +674,7 @@ int usage(void){
 "  -u <uid>         manually set the Unique ID of a device (used with -e)\n"
 "  -U[command]      command to get the Unique ID of a device (used with -e)\n"
 "                   If no command is specificed, the default is\n"
-"                   \"/sbin/gnbd_get_uid %%n\"\n"
+"                   \""DEFAULT_GETUID" %%n\"\n"
 "  -v               verbose output (useful with -l)\n"
 "  -V               version information\n");
   return 0;

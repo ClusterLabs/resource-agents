@@ -11,22 +11,14 @@
 ###############################################################################
 ###############################################################################
 
-all:
-	${MAKE} -C src all
+include ../make/defines.mk
 
-clean:
-	${MAKE} -C src clean
+SUBDIRS=src man init.d
 
-distclean: clean
-	rm -f make/defines.mk
+all: ${SUBDIRS}
 
-install: all
-	${MAKE} -C src install
-	${MAKE} -C man install
-	${MAKE} -C init.d install
-
-check:
-	${MAKE} -C src check
-
-uninstall:
-	${MAKE} -C src uninstall
+%:
+	set -e && \
+	for i in ${SUBDIRS}; do \
+		${MAKE} -C $$i $@; \
+	done

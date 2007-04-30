@@ -11,41 +11,42 @@
 ###############################################################################
 ###############################################################################
 
+include ../../make/defines.mk
+
 TARGET = fence_node
 
-top_srcdir=..
-include ${top_srcdir}/make/defines.mk
-UNINSTALL=${top_srcdir}/make/uninstall.pl
+OBJS=	../fenced/agent.o \
+	fence_node.o
+
+CFLAGS += -g -D_FILE_OFFSET_BITS=64 -DFENCE_RELEASE_NAME=\"${RELEASE}\"
 
 ifeq ($(DEBUG),y)
-CFLAGS+= -O2 -D_FILE_OFFSET_BITS=64 -DDEBUG -g -DFENCE_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -O0 -DDEBUG -g
 else
-CFLAGS+= -O2 -D_FILE_OFFSET_BITS=64 -DFENCE_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -O2
 endif
 
-INCLUDE = -I${top_srcdir}/include -I${ccsincdir} -I${incdir} -I${top_srcdir}/config -I${top_srcdir}/../cman/lib
+CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${incdir}
+CFLAGS += -I../include
 
-LDFLAGS+= -L${ccslibdir} -L${libdir} -L${top_srcdir}/../cman/lib
-LOADLIBES+= -lccs -lcman
-
-FENCE_NODE_SRC = \
-	agent.c \
-	fence_node.c
+LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
 
 all: ${TARGET}
 
-fence_node: ${FENCE_NODE_SRC:.c=.o}
-	${CC} ${CFLAGS} ${INCLUDE} ${FENCE_NODE_SRC:.c=.o} ${LDFLAGS} ${LOADLIBES} ${LDLIBS} -o $@
+${TARGET}: ${OBJS}
+	$(CC) -o $@ $^ $(LDFLAGS)
 
-agent.c:
-	ln -s ${top_srcdir}/fenced/agent.c .
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
 install: all
 	if [ ! -d ${sbindir} ]; then \
 		install -d ${sbindir}; \
 	fi
-	strip ${TARGET}
 	install -m755 ${TARGET} ${sbindir}
 
+uninstall:
+	${UNINSTALL} ${TARGET} ${sbindir}
+
 clean:
-	rm -rf *~ *.o ${TARGET} agent.c
+	rm -rf *~ *.o ${TARGET}

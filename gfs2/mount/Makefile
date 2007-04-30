@@ -10,65 +10,42 @@
 ###############################################################################
 ###############################################################################
 
-top_srcdir=..
-include ${top_srcdir}/make/defines.mk
-UNINSTALL=${top_srcdir}/scripts/uninstall.pl
+include ../../make/defines.mk
 
 TARGET1= mount.gfs2
 TARGET2= umount.gfs2
 
-CFLAGS+= -O2 -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 \
-	-DGFS2_RELEASE_NAME=\"${RELEASE}\" -D_GNU_SOURCE
+OBJS1=	mount.gfs2.o
 
-INCLUDE= -I${top_srcdir}/include \
-	  -I${top_srcdir}/config \
-	  -I${gfs2kincdir} \
-	  -I${incdir} \
-	  -I../../gfs-kernel/src/gfs
+OBJS2=	umount.gfs2.o
 
-ifneq (${KERNEL_SRC}, )
-# Use the kernel tree if patched, otherwise, look where cluster headers
-#  should be installed
-INCLUDE += $(shell if [ -e ${KERNEL_SRC}/include/linux/gfs2_ondisk.h ]; then \
-	echo '-I${KERNEL_SRC}/include'; else \
-	echo '-I${incdir}'; fi)
-else
-INCLUDE += -I${incdir}
-endif
+SHAREDOBJS= ondisk1.o \
+	    util.o \
+	    mtab.o
 
+CFLAGS += -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64
+CFLAGS += -DGFS2_RELEASE_NAME=\"${RELEASE}\" -D_GNU_SOURCE
+CFLAGS += -O2
+CFLAGS += -I${incdir} -I${gfs2kincdir} -I${gfskincdir}
+CFLAGS += -I../include
 
 all: ${TARGET1} ${TARGET2}
 
-mount.gfs2.o: mount.gfs2.c
-	${CC} ${CFLAGS} ${INCLUDE} -c -o $@ $<
+${TARGET1}: ${SHAREDOBJS} ${OBJS1}
+	$(CC) -o $@ $^ $(LDFLAGS)
 
-ondisk1.o: ondisk1.c
-	${CC} ${CFLAGS} ${INCLUDE} -c -o $@ $<
+${TARGET2}: ${SHAREDOBJS} ${OBJS2}
+	$(CC) -o $@ $^ $(LDFLAGS)
 
-ondisk2.o: ondisk2.c
-	${CC} ${CFLAGS} ${INCLUDE} -c -o $@ $<
-
-util.o: util.c
-	${CC} ${CFLAGS} ${INCLUDE} -c -o $@ $<
-
-mtab.o: mtab.c
-	${CC} ${CFLAGS} ${INCLUDE} -c -o $@ $<
-
-umount.gfs2.o: umount.gfs2.c
-	${CC} ${CFLAGS} ${INCLUDE} -c -o $@ $<
-
-mount.gfs2: mount.gfs2.o ondisk1.o ondisk2.o util.o mtab.o
-	${CC} ${LDFLAGS} -o $@ $^
-
-umount.gfs2: umount.gfs2.o ondisk1.o ondisk2.o util.o mtab.o
-	${CC} ${LDFLAGS} -o $@ $^
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
 install: all
-	install mount.gfs2 ${sbindir}
-	install umount.gfs2 ${sbindir}
+	install ${TARGET1} ${sbindir}
+	install ${TARGET2} ${sbindir}
 
 uninstall:
-	${UNINSTALL} mount.gfs2 umount.gfs2 mount.gfs umount.gfs ${sbindir}
+	${UNINSTALL} ${TARGET1} ${TARGET2} ${sbindir}
 
 clean:
 	rm -f *.o ${TARGET1} ${TARGET2}

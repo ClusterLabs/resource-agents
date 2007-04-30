@@ -9,40 +9,44 @@
 ##
 ###############################################################################
 ###############################################################################
-top_srcdir=..
-UNINSTALL = ${top_srcdir}/scripts/uninstall.pl
 
-include ${top_srcdir}/make/defines.mk
+include ../../make/defines.mk
 
-INCLUDE = -I../include -I../common
+TARGET=libccs.a
+
+OBJS=	libccs.o \
+	log.o
+
+CFLAGS += -D_FILE_OFFSET_BITS=64
+CFLAGS += -fPIC
+CFLAGS += -I../include -I../common
 
 ifeq ($(DEBUG),y)
-CFLAGS+= -O2 -fPIC -D_FILE_OFFSET_BITS=64 -DDEBUG -g
+CFLAGS += -O0 -DDEBUG -g
 else
-CFLAGS+= -O2 -fPIC -D_FILE_OFFSET_BITS=64
+CFLAGS += -O2
 endif
 
-all: libccs.a
+all: ${TARGET}
 
-libccs.a: libccs.o log.o
-	${AR} cr libccs.a libccs.o log.o
+${TARGET}: ${OBJS}
+	${AR} cr ${TARGET} ${OBJS}
 
-libccs.o: libccs.c ccs.h
-	${CC} -c ${CFLAGS} ${INCLUDE} $^
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
-log.o: ../common/log.c
-	${CC} -c ${CFLAGS} ${INCLUDE} $^
+log.c:
+	ln -sf ../common/log.c log.c
 
 install: all
 	install -d ${libdir}
-	install -m644 libccs.a ${libdir}
+	install -m644 ${TARGET} ${libdir}
 	install -d ${incdir}
 	install -m644 ccs.h ${incdir}
 
 uninstall:
-	${UNINSTALL} libccs.a ${libdir} 
+	${UNINSTALL} ${TARGET} ${libdir} 
 	${UNINSTALL} ccs.h ${incdir} 
-	rm -f /lib/libccs.a
 
 clean:
-	rm -rf *~ *.o libccs.a
+	rm -rf *~ *.o ${TARGET} ccs.h.gch log.c

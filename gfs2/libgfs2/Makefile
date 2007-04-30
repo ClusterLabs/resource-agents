@@ -13,36 +13,45 @@
 
 .PHONY: all clean install
 
-top_srcdir=..
-include ${top_srcdir}/make/defines.mk
+include ../../make/defines.mk
 
-LIBGFS2=libgfs2.a
-INCLUDEPATH=-I${top_srcdir}/include -I${top_srcdir}/config -I/usr/include -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
+TARGET= libgfs2.a
 
-INSTALL=install
-CC=gcc -c
-LD=gcc
 ## Bob: add -O2 back in and take -ggdb out
-CFLAGS=-Wall -ggdb -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
-       -D_GNU_SOURCE -DGFS2_RELEASE_NAME=\"2\" ${INCLUDEPATH}
+CFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE
+CFLAGS += -D_GNU_SOURCE -DGFS2_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -Wall -ggdb
+CFLAGS += -I${incdir} -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
+CFLAGS += -I../include
 
-H=gfs2_disk_hash.h libgfs2.h linux_endian.h ondisk.h osi_list.h
-C=bitmap.c block_list.c buf.c device_geometry.c fs_bits.c fs_geometry.c fs_ops.c locking.c gfs2_log.c misc.c ondisk.c size.c structures.c super.c rgrp.c
-O=$(subst .c,.o,${C})
+OBJS=	bitmap.o \
+	block_list.o \
+	buf.o \
+	device_geometry.o \
+	fs_bits.o \
+	fs_geometry.o \
+	fs_ops.o \
+	locking.o \
+	gfs2_log.o \
+	misc.o \
+	ondisk.o \
+	size.o \
+	structures.o \
+	super.o \
+	rgrp.o
 
-all: ${LIBGFS2}
+all: ${TARGET}
 
-${LIBGFS2}: ${O}
-	ar cru libgfs2.a ${O}
+${TARGET}: ${OBJS}
+	ar cru libgfs2.a ${OBJS}
 	ranlib libgfs2.a
 
-.c.o: $<
-	${CC} ${CFLAGS} -o $@ $^
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
 install: all
 
-clean:
-	rm -f *.o ${LIBGFS2}
+uninstall:
 
-#CFLAGS+= -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 \
-#	 -DGFS2_RELEASE_NAME=\"${RELEASE}\"
+clean:
+	rm -f *.o ${TARGET}

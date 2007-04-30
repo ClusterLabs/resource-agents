@@ -10,40 +10,49 @@
 ###############################################################################
 ###############################################################################
 
-top_srcdir=../..
-UNINSTALL=${top_srcdir}/scripts/uninstall.pl
+include ../../../make/defines.mk
 
-include ${top_srcdir}/make/defines.mk
-INCLUDE += -I $(top_srcdir)/include -I $(top_srcdir)/../cman/lib -I $(top_srcdir)/../ccs/lib -I $(top_srcdir)/../dlm/lib
-INCLUDE += -I${incdir}
+TARGET1= libclulib.a
+TARGET2= liblalloc.a
+TARGET3= msgtest
 
-CFLAGS+= -g -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
-CFLAGS+= -DCMAN_RELEASE_NAME=\"${RELEASE}\"
+OBJS1=	clulog.o daemon_init.o signals.o msgsimple.o \
+	gettid.o rg_strings.o message.o members.o fdops.o \
+	lock.o cman.o vft.o msg_cluster.o msg_socket.o \
+	wrap_lock.o
 
-TARGETS=libclulib.a liblalloc.a msgtest 
+OBJS2= alloc.o
 
-all: ${TARGETS}
+OBJS3= msgtest.o
+
+CFLAGS += -DCMAN_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -g -Werror -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
+CFLAGS += -I${incdir} -I${cmanincdir} -I${dlmincdir}
+CFLAGS += -I../../include
+
+LDFLAGS += -L${cmanlibdir} -lcman 
+LDFLAGS += -L. -lclulib -llalloc
+LDFLAGS += -lpthread
+
+all: ${TARGET1} ${TARGET2} ${TARGET3}
 
 install: all
 
 uninstall:
 
-msgtest: msgtest.o libclulib.a
-	gcc -o msgtest msgtest.o -L$(top_srcdir)/../cman/lib -lcman -L. -lclulib -llalloc -lpthread
-
-libclulib.a: clulog.o daemon_init.o signals.o msgsimple.o \
-		gettid.o rg_strings.o message.o members.o fdops.o \
-		lock.o cman.o vft.o msg_cluster.o msg_socket.o \
-		wrap_lock.o
+${TARGET1}: ${OBJS1}
 	${AR} cru $@ $^
 	ranlib $@
 
-liblalloc.a: alloc.o
+${TARGET2}: ${OBJS2}
 	${AR} cru $@ $^
 	ranlib $@
+
+${TARGET3}: ${OBJS3} ${TARGET1}
+	$(CC) -o $@ $^ $(LDFLAGS)
 
 %.o: %.c
-	$(CC) -c -o $@ $^ $(INCLUDE) $(CFLAGS)
+	$(CC) $(CFLAGS) -c -o $@ $^
 
 clean:
-	rm -f *.o $(TARGETS)
+	rm -f *.o ${TARGET1} ${TARGET2} ${TARGET3}

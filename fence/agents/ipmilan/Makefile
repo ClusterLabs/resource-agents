@@ -11,30 +11,31 @@
 ###############################################################################
 ###############################################################################
 
+include ../../../make/defines.mk
+
 TARGET= fence_ipmilan
 
-fence_ipmilan_SOURCE= expect.c ipmilan.c
+OBJS=	expect.o \
+	ipmilan.o
 
-top_srcdir=../..
-
-
-INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config
-
-
-include ${top_srcdir}/make/defines.mk
-
-CFLAGS+= -DFENCE_RELEASE_NAME=\"${RELEASE}\" -DFENCE
+CFLAGS += -DFENCE_RELEASE_NAME=\"${RELEASE}\" -DFENCE
 
 all: ${TARGET}
 
-fence_ipmilan: ${fence_ipmilan_SOURCE:.c=.o}
-	${CC} ${CFLAGS} ${LDFLAGS} ${fence_ipmilan_SOURCE:.c=.o} -o $@
+${TARGET}: ${OBJS}
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
 install: all
 	if [ ! -d ${sbindir} ]; then \
 		install -d ${sbindir}; \
 	fi
 	install -m755 ${TARGET} ${sbindir}
+
+uninstall:
+	${UNINSTALL} ${TARGET} ${sbindir}
 
 clean:
 	rm -f *.o ${TARGET}

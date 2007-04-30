@@ -10,41 +10,34 @@
 ##
 ###############################################################################
 ###############################################################################
-top_srcdir= ..
 
-include ${top_srcdir}/make/defines.mk
-
-INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config -I${gfs2kincdir}
-
-ifneq (${KERNEL_SRC}, )
-# Use the kernel tree if patched, otherwise, look where cluster headers
-#  should be installed
-INCLUDE += $(shell if [ -e ${KERNEL_SRC}/include/linux/gfs2_ondisk.h ]; then \
-		echo '-I${KERNEL_SRC}/include'; else \
-		echo '-I${incdir}'; fi)
-else
-INCLUDE += -I${incdir}
-endif
-
-LIBS=${top_srcdir}/libgfs2
-
-.PHONY: all clean distclean
-
-SOURCES= counters.c df.c layout.c main.c misc.c ondisk.c sb.c tune.c util.c
-
-OBJECTS=$(subst .c,.o,${SOURCES})
+include ../../make/defines.mk
 
 TARGET= gfs2_tool
 
-CFLAGS+= -O2 -Wall -D_FILE_OFFSET_BITS=64 -DGFS2_RELEASE_NAME=\"${RELEASE}\"
+OBJS=	counters.o \
+	df.o \
+	layout.o \
+	main.o \
+	misc.o \
+	ondisk.o \
+	sb.o \
+	tune.o \
+	util.o
+
+CFLAGS += -D_FILE_OFFSET_BITS=64 -DGFS2_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -O2 -Wall
+CFLAGS += -I../include
+
+LDFLAGS += -L../libgfs2 -lgfs2
 
 all: ${TARGET}
 
-gfs2_tool: ${OBJECTS} $(LIBS)/libgfs2.a
-	$(CC) $(CFLAGS) -L$(LIBS) $^ -o $@ -lgfs2
+${TARGET}: ${OBJS}
+	$(CC) -o $@ $^ $(LDFLAGS)
 
 %.o: %.c
-	$(CC) -c $(INCLUDE) $(CFLAGS) $< -o $@
+	$(CC) $(CFLAGS) -c -o $@ $^
 
 install: all
 	if [ ! -d ${sbindir} ]; then \
@@ -52,8 +45,13 @@ install: all
 	fi
 	install -m755 ${TARGET} ${sbindir}
 
+uninstall:
+	${UNINSTALL} ${TARGET} ${sbindir}
+
 clean:
 	@rm -f ${TARGET} *.o *~
 
 distclean: clean
 	@rm -f *.d cscope.* *.orig *.rej
+
+.PHONY: all clean distclean

@@ -10,19 +10,17 @@
 ###############################################################################
 ###############################################################################
 
+include ../../make/defines.mk
+
 TARGET= gfs
 
-UNINSTALL=${top_srcdir}/scripts/uninstall.pl
-
-top_srcdir=..
-
-include ${top_srcdir}/make/defines.mk
+all:
 
 clean:
 
 install:
-	install -d ${DESTDIR}/etc/rc.d/init.d
-	install ${TARGET} ${DESTDIR}/etc/rc.d/init.d
+	install -d ${DESTDIR}/etc/init.d
+	install ${TARGET} ${DESTDIR}/etc/init.d
 
 uninstall:
 	${UNINSTALL} ${TARGET} ${DESTDIR}/etc/init.d

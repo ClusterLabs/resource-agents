@@ -10,26 +10,30 @@
 ###############################################################################
 ###############################################################################
 
-top_srcdir=..
-include ${top_srcdir}/make/defines.mk
+include ../../make/defines.mk
 
-CFLAGS+= -g -I. -I../lib/ -I../daemon/
+TARGET= group_tool
 
-TARGET=group_tool
+OBJS=	main.o
+
+CFLAGS += -g
+CFLAGS += -I. -I../lib/ -I../daemon/
+LDFLAGS += -L../lib -lgroup
 
 all: ${TARGET}
 
-group_tool: main.o \
-	../lib/libgroup.a
-	$(CC) $(LDFLAGS) -o $@ $^
+${TARGET}: ${OBJS}
+	$(CC) -o $@ $^ $(LDFLAGS)
 
-main.o: main.c
-	$(CC) $(CFLAGS) -c -o $@ $<
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
 clean:
-	rm -f *.o group_tool
+	rm -f *.o ${TARGET}
 
 install: all
 	install -d ${sbindir}
-	install group_tool ${sbindir}
+	install ${TARGET} ${sbindir}
 
+uninstall:
+	${UNINSTALL} ${TARGET} ${sbindir}

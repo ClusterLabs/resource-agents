@@ -10,12 +10,17 @@
 ##
 ###############################################################################
 ###############################################################################
-top_srcdir=..
-UNINSTALL = ${top_srcdir}/scripts/uninstall.pl
+
+include ../../make/defines.mk
+
 TARGETS = clubufflush.8 clufindhostname.8 clulog.8 \
 	  clurgmgrd.8 clurmtabd.8 clustat.8 clusvcadm.8
 
-include ${top_srcdir}/make/defines.mk
+all:
+
+clean:
+
+check:
 
 install:
 	install -d ${mandir}/man8
