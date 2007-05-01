@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -165,31 +165,35 @@ int ji_update(struct gfs2_sbd *sdp)
 }
 
 /**
- * ri_update - attach rgrps to the super block
- * @sdp:
+ * rindex_read - read in the rg index file
+ * @sdp: the incore superblock pointer
+ * fd: optional file handle for rindex file (if meta_fs file system is mounted)
+ *     (if fd is <= zero, it will read from raw device)
+ * @count1: return count of the rgs.
  *
- * Given the rgrp index inode, link in all rgrps into the super block
- * and be sure that they can be read.
- *
- * Returns: 0 on success, -1 on failure.
+ * Returns: 0 on success, -1 on failure
  */
-int ri_update(struct gfs2_sbd *sdp, int *rgcount)
+int rindex_read(struct gfs2_sbd *sdp, int fd, int *count1)
 {
-	struct rgrp_list *rgd;
-	osi_list_t *tmp;
-	struct gfs2_rindex buf;
 	unsigned int rg;
-	int error, count1 = 0, count2 = 0;
-	uint64_t errblock = 0;
+	int error;
+	struct gfs2_rindex buf;
+	struct rgrp_list *rgd, *prev_rgd;
+	uint64_t prev_length;
 
+	*count1 = 0;
+	prev_rgd = NULL;
 	for (rg = 0; ; rg++) {
-		error = gfs2_readi(sdp->md.riinode, (char *)&buf,
-						   rg * sizeof(struct gfs2_rindex),
-						   sizeof(struct gfs2_rindex));
+		if (fd > 0)
+			error = read(fd, &buf, sizeof(struct gfs2_rindex));
+		else
+			error = gfs2_readi(sdp->md.riinode, (char *)&buf,
+					   rg * sizeof(struct gfs2_rindex),
+					   sizeof(struct gfs2_rindex));
 		if (!error)
 			break;
 		if (error != sizeof(struct gfs2_rindex))
-			goto fail;
+			return -1;
 
 		rgd = (struct rgrp_list *)malloc(sizeof(struct rgrp_list));
 		memset(rgd, 0, sizeof(struct rgrp_list));
@@ -197,34 +201,53 @@ int ri_update(struct gfs2_sbd *sdp, int *rgcount)
 
 		gfs2_rindex_in(&rgd->ri, (char *)&buf);
 
+		rgd->start = rgd->ri.ri_addr;
+		if (prev_rgd) {
+			prev_length = rgd->start - prev_rgd->start;
+			prev_rgd->length = prev_length;
+		}
+
 		if(gfs2_compute_bitstructs(sdp, rgd))
-			goto fail;
+			return -1;
 
-		count1++;
+		(*count1)++;
+		prev_rgd = rgd;
 	}
+	if (prev_rgd)
+		prev_rgd->length = prev_length;
+	return 0;
+}
 
+/**
+ * ri_update - attach rgrps to the super block
+ * @sdp: incore superblock data
+ * fd: optional file handle for rindex (through the meta_fs)
+ * @rgcount: returned count of rgs
+ *
+ * Given the rgrp index inode, link in all rgrps into the super block
+ * and be sure that they can be read.
+ *
+ * Returns: 0 on success, -1 on failure.
+ */
+int ri_update(struct gfs2_sbd *sdp, int fd, int *rgcount)
+{
+	struct rgrp_list *rgd;
+	osi_list_t *tmp;
+	int count1 = 0, count2 = 0;
+	uint64_t errblock = 0;
+
+	if (rindex_read(sdp, fd, &count1))
+	    goto fail;
 	for (tmp = sdp->rglist.next; tmp != &sdp->rglist; tmp = tmp->next) {
-		int i;
-		uint64_t prev_err = 0;
 		enum update_flags f;
 
 		f = not_updated;
 		rgd = osi_list_entry(tmp, struct rgrp_list, list);
-		/* If we have errors, we may need to repair and continue.           */
-		/* We have multiple bitmaps, and all of them might potentially need */
-		/* repair.  So we have to try to read and repair as many times as   */
-		/* there are bitmaps.                                               */
-		for (i = 0; i < rgd->ri.ri_length; i++) {
-			errblock = gfs2_rgrp_read(sdp, rgd);
-			if (errblock) {
-				if (errblock == prev_err) /* if same block is still bad */
-					goto fail;
-				prev_err = errblock;
-			}
-			else
-				break;
-		} /* for all bitmap structures */
-		gfs2_rgrp_relse(rgd, f);
+		errblock = gfs2_rgrp_read(sdp, rgd);
+		if (errblock)
+			return errblock;
+		else
+			gfs2_rgrp_relse(rgd, f);
 		count2++;
 	}
 
@@ -235,7 +258,7 @@ int ri_update(struct gfs2_sbd *sdp, int *rgcount)
 	return 0;
 
  fail:
-	gfs2_rgrp_free(sdp, not_updated);
+	gfs2_rgrp_free(&sdp->rglist, not_updated);
 	return -1;
 }
 

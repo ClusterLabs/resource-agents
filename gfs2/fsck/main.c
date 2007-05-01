@@ -1,7 +1,7 @@
 /*****************************************************************************
 ******************************************************************************
 **
-**  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2005-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -192,6 +192,122 @@ void interrupt(int sig)
 	}
 }
 
+/* Check system inode and verify it's marked "in use" in the bitmap:       */
+/* Should work for all system inodes: root, master, jindex, per_node, etc. */
+int check_system_inode(struct gfs2_inode *sysinode, const char *filename,
+		       void builder(struct gfs2_sbd *sbp),
+		       enum gfs2_mark_block mark)
+{
+	uint64_t iblock = 0;
+	struct dir_status ds = {0};
+
+	log_info("Checking system inode '%s'\n", filename);
+	if (sysinode) {
+		/* Read in the system inode, look at its dentries, and start
+		 * reading through them */
+		iblock = sysinode->i_di.di_num.no_addr;
+		log_info("System inode for '%s' is located at block %"
+			 PRIu64 " (0x%" PRIx64 ")\n", filename,
+			 iblock, iblock);
+		
+		/* FIXME: check this block's validity */
+
+		if(gfs2_block_check(bl, iblock, &ds.q)) {
+			log_crit("Can't get %s inode block %" PRIu64 " (0x%"
+				 PRIx64 ") from block list\n", filename,
+				 iblock, iblock);
+			return -1;
+		}
+		/* If the inode exists but the block is marked      */
+		/* free, we might be recovering from a corrupt      */
+		/* bitmap.  In that case, don't rebuild the inode.  */
+		/* Just reuse the inode and fix the bitmap.         */
+		if (ds.q.block_type == gfs2_block_free) {
+			log_info("The inode exists but the block is not marked 'in use'; fixing it.\n");
+			gfs2_block_set(bl, sysinode->i_di.di_num.no_addr,
+				       mark);
+			ds.q.block_type = mark;
+			if (mark == gfs2_inode_dir)
+				add_to_dir_list(sysinode->i_sbd,
+						sysinode->i_di.di_num.no_addr);
+		}
+	}
+	else
+		log_info("System inode for '%s' is missing.\n", filename);
+	/* If there are errors with the inode here, we need to
+	 * create a new inode and get it all setup - of course,
+	 * everything will be in lost+found then, but we *need* our
+	 * system inodes before we can do any of that. */
+	if(!sysinode || ds.q.block_type != mark) {
+		log_err("Invalid or missing %s system inode.\n", filename);
+		if (query(&opts, "Create new %s system inode? (y/n) ",
+			  filename)) {
+			builder(sysinode->i_sbd);
+			gfs2_block_set(bl, sysinode->i_di.di_num.no_addr,
+				       mark);
+			ds.q.block_type = mark;
+			if (mark == gfs2_inode_dir)
+				add_to_dir_list(sysinode->i_sbd,
+						sysinode->i_di.di_num.no_addr);
+		}
+		else {
+			log_err("Cannot continue without valid %s inode\n",
+				filename);
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+int check_system_inodes(struct gfs2_sbd *sdp)
+{
+	/*******************************************************************
+	 *******  Check the system inode integrity             *************
+	 *******************************************************************/
+	if (check_system_inode(sdp->master_dir, "master", build_master,
+			       gfs2_inode_dir)) {
+		stack;
+		return -1;
+	}
+	if (check_system_inode(sdp->md.rooti, "root", build_root,
+			       gfs2_inode_dir)) {
+		stack;
+		return -1;
+	}
+	if (check_system_inode(sdp->md.inum, "inum", build_inum,
+			       gfs2_inode_file)) {
+		stack;
+		return -1;
+	}
+	if (check_system_inode(sdp->md.statfs, "statfs", build_statfs,
+			       gfs2_inode_file)) {
+		stack;
+		return -1;
+	}
+	if (check_system_inode(sdp->md.jiinode, "jindex", build_jindex,
+			       gfs2_inode_dir)) {
+		stack;
+		return -1;
+	}
+	if (check_system_inode(sdp->md.riinode, "rindex", build_rindex,
+			       gfs2_inode_file)) {
+		stack;
+		return -1;
+	}
+	if (check_system_inode(sdp->md.qinode, "quota", build_quota,
+			       gfs2_inode_file)) {
+		stack;
+		return -1;
+	}
+	if (check_system_inode(sdp->md.pinode, "per_node", build_per_node,
+			       gfs2_inode_dir)) {
+		stack;
+		return -1;
+	}
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	struct gfs2_sbd sb;
@@ -219,6 +335,9 @@ int main(int argc, char **argv)
 	}
 	else
 		log_notice("Pass1 complete      \n");
+
+	/* Make sure the system inodes are okay & represented in the bitmap. */
+	check_system_inodes(sbp);
 
 	if (!fsck_abort) {
 		last_reported_block = 0;

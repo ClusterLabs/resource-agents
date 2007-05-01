@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -100,6 +100,8 @@ static void empty_super_block(struct gfs2_sbd *sdp)
 		struct rgrp_list *rgd;
 
 		rgd = osi_list_entry(sdp->rglist.next, struct rgrp_list, list);
+		log_debug("Deleting rgd for 0x%p:  rgd=0x%p bits=0x%p\n",
+			  rgd->ri.ri_addr, rgd, rgd->bits);
 		osi_list_del(&rgd->list);
 		if(rgd->bits)
 			free(rgd->bits);
@@ -189,7 +191,6 @@ static int set_block_ranges(struct gfs2_sbd *sdp)
 	return -1;
 }
 
-
 /**
  * fill_super_block
  * @sdp:
@@ -204,6 +205,7 @@ static int fill_super_block(struct gfs2_sbd *sdp)
 	struct gfs2_statfs_change sc;
 	int rgcount;
 	uint64_t addl_mem_needed;
+	enum rgindex_trust_level trust_lvl;
 
 	sync();
 
@@ -243,7 +245,8 @@ static int fill_super_block(struct gfs2_sbd *sdp)
 	log_info("Initializing special inodes...\n");
 
 	/* Get master dinode */
-	sdp->master_dir = gfs2_load_inode(sdp, sdp->sd_sb.sb_master_dir.no_addr);
+	sdp->master_dir = gfs2_load_inode(sdp,
+					  sdp->sd_sb.sb_master_dir.no_addr);
 	/* Get root dinode */
 	sdp->md.rooti = gfs2_load_inode(sdp, sdp->sd_sb.sb_root_dir.no_addr);
 
@@ -255,8 +258,6 @@ static int fill_super_block(struct gfs2_sbd *sdp)
 	sdp->md.next_inum = be64_to_cpu(inumbuf);
 
 	gfs2_lookupi(sdp->master_dir, "statfs", 6, &sdp->md.statfs);
-	/* Read inum entry into buffer */
-	/* FIXME finish this */
 	buf = malloc(sdp->md.statfs->i_di.di_size);
 	gfs2_readi(sdp->md.statfs, buf, 0, sdp->md.statfs->i_di.di_size);
 	/* call gfs2_inum_range_in() to retrieve range */
@@ -284,11 +285,22 @@ static int fill_super_block(struct gfs2_sbd *sdp)
 		return -1;
 	}
 
-	if(ri_update(sdp, &rgcount)){
-		log_err("Unable to fill in resource group information.\n");
+	log_warn("Validating Resource Group index.\n");
+	for (trust_lvl = blind_faith; trust_lvl <= distrust; trust_lvl++) {
+		log_warn("Level %d RG check.\n", trust_lvl + 1);
+		if ((rg_repair(sdp, trust_lvl, &rgcount) == 0) &&
+		    (ri_update(sdp, 0, &rgcount) == 0)) {
+			log_err("(level %d passed)\n", trust_lvl + 1);
+			break;
+		}
+		else
+			log_err("(level %d failed)\n", trust_lvl + 1);
+	}
+	if (trust_lvl > distrust) {
+		log_err("RG recovery impossible; I can't fix this file system.\n");
 		goto fail;
 	}
-
+	log_info("%u resource groups found.\n", rgcount);
 	/*******************************************************************
 	 *******  Now, set boundary fields in the super block  *************
 	 *******************************************************************/

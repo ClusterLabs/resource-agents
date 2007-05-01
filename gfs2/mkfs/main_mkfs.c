@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -375,7 +375,7 @@ main_mkfs(int argc, char *argv[])
 
 	/* Build ondisk structures */
 
-	build_rgrps(sdp);
+	build_rgrps(sdp, TRUE);
 	build_root(sdp);
 	build_master(sdp);
 	build_sb(sdp);

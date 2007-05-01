@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -47,11 +47,8 @@ device_geometry(struct gfs2_sbd *sdp)
 		printf("\nPartition size = %"PRIu64"\n",
 		       bytes >> GFS2_BASIC_BLOCK_SHIFT);
 
-	device->nsubdev = 1;
-	zalloc(device->subdev, sizeof(struct subdevice));
-
-	device->subdev->start = 0;
-	device->subdev->length = bytes >> GFS2_BASIC_BLOCK_SHIFT;
+	device->start = 0;
+	device->length = bytes >> GFS2_BASIC_BLOCK_SHIFT;
 }
 
 /**
@@ -64,109 +61,43 @@ void
 fix_device_geometry(struct gfs2_sbd *sdp)
 {
 	struct device *device = &sdp->device;
-	unsigned int x;
 	unsigned int bbsize = sdp->bsize >> GFS2_BASIC_BLOCK_SHIFT;
 	uint64_t start, length;
 	unsigned int remainder;
 
 	if (sdp->debug) {
 		printf("\nDevice Geometry:  (in basic blocks)\n");
-		for (x = 0; x < device->nsubdev; x++)
-			printf("  SubDevice #%u: start = %"PRIu64", length = %"PRIu64", rgf_flags = 0x%.8X\n",
-			       x,
-			       device->subdev[x].start,
-			       device->subdev[x].length,
-			       device->subdev[x].rgf_flags);
+		printf("  start = %"PRIu64", length = %"PRIu64", rgf_flags = 0x%.8X\n",
+		       device->start,
+		       device->length,
+		       device->rgf_flags);
 	}
 
-	/* Make sure all the subdevices are aligned */
+	start = device->start;
+	length = device->length;
 
-	for (x = 0; x < device->nsubdev; x++) {
-		start = device->subdev[x].start;
-		length = device->subdev[x].length;
+	if (length < 1 << (20 - GFS2_BASIC_BLOCK_SHIFT))
+		die("device is way too small (%"PRIu64" bytes)\n",
+		    length << GFS2_BASIC_BLOCK_SHIFT);
 
-		if (length < 1 << (20 - GFS2_BASIC_BLOCK_SHIFT))
-			die("subdevice %d is way too small (%"PRIu64" bytes)\n",
-			    x, length << GFS2_BASIC_BLOCK_SHIFT);
-
-		remainder = start % bbsize;
-		if (remainder) {
-			length -= bbsize - remainder;
-			start += bbsize - remainder;
-		}
-
-		start /= bbsize;
-		length /= bbsize;
-
-		device->subdev[x].start = start;
-		device->subdev[x].length = length;
-		sdp->device_size = start + length;
+	remainder = start % bbsize;
+	if (remainder) {
+		length -= bbsize - remainder;
+		start += bbsize - remainder;
 	}
+
+	start /= bbsize;
+	length /= bbsize;
+
+	device->start = start;
+	device->length = length;
+	sdp->device_size = start + length;
 
 	if (sdp->debug) {
 		printf("\nDevice Geometry:  (in FS blocks)\n");
-		for (x = 0; x < device->nsubdev; x++)
-			printf("  SubDevice #%u: start = %"PRIu64", length = %"PRIu64", rgf_flags = 0x%.8X\n",
-			       x,
-			       device->subdev[x].start,
-			       device->subdev[x].length,
-			       device->subdev[x].rgf_flags);
-
+		printf("  start = %"PRIu64", length = %"
+		       PRIu64", rgf_flags = 0x%.8X\n",
+		       device->start, device->length, device->rgf_flags);
 		printf("\nDevice Size: %"PRIu64"\n", sdp->device_size);
 	}
 }
-
-void
-munge_device_geometry_for_grow(struct gfs2_sbd *sdp)
-{
-	struct device *device = &sdp->device;
-	struct device new_dev;
-	struct subdevice *new_sdev;
-	uint64_t start, length;
-	unsigned int x;
-
-	memset(&new_dev, 0, sizeof(struct device));
-
-	for (x = 0; x < device->nsubdev; x++) {
-		struct subdevice *sdev = device->subdev + x;
-
-		if (sdev->start + sdev->length < sdp->orig_fssize)
-			continue;
-		else if (sdev->start < sdp->orig_fssize) {
-			start = sdp->orig_fssize;
-			length = sdev->start + sdev->length - sdp->orig_fssize;
-			if (length < GFS2_MIN_GROW_SIZE << (20 - sdp->bsize_shift))
-				continue;
-		} else {
-			start = sdev->start;
-			length = sdev->length;
-		}
-
-		new_dev.subdev = realloc(new_dev.subdev, (new_dev.nsubdev + 1) * sizeof(struct subdevice));
-		if (!new_dev.subdev)
-			die("out of memory\n");
-		new_sdev = new_dev.subdev + new_dev.nsubdev;
-		new_sdev->start = start;
-		new_sdev->length = length;
-		new_sdev->rgf_flags = sdev->rgf_flags;
-		new_dev.nsubdev++;
-	}
-
-	free(device->subdev);
-	*device = new_dev;
-
-	if (!device->nsubdev)
-		die("The device didn't grow enough to warrant growing the FS.\n");
-
-	if (sdp->debug) {
-		printf("\nMunged Device Geometry:  (in FS blocks)\n");
-		for (x = 0; x < device->nsubdev; x++)
-			printf("  SubDevice #%u: start = %"PRIu64", length = %"PRIu64", rgf_flags = 0x%.8X\n",
-			       x,
-			       device->subdev[x].start,
-			       device->subdev[x].length,
-			       device->subdev[x].rgf_flags);
-	}
-}
-
-

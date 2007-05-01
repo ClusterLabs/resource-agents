@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -124,7 +124,8 @@ uint64_t gfs2_rgrp_read(struct gfs2_sbd *sdp, struct rgrp_list *rgd)
 	for (x = 0; x < length; x++){
 		rgd->bh[x] = bread(sdp, rgd->ri.ri_addr + x);
 		if(gfs2_check_meta(rgd->bh[x],
-						   (x) ? GFS2_METATYPE_RB : GFS2_METATYPE_RG)) {
+				   (x) ? GFS2_METATYPE_RB : GFS2_METATYPE_RG))
+		{
 			uint64_t error;
 
 			error = rgd->ri.ri_addr + x;
@@ -146,15 +147,15 @@ void gfs2_rgrp_relse(struct rgrp_list *rgd, enum update_flags updated)
 		brelse(rgd->bh[x], updated);
 }
 
-void gfs2_rgrp_free(struct gfs2_sbd *sdp, enum update_flags updated)
+void gfs2_rgrp_free(osi_list_t *rglist, enum update_flags updated)
 {
 	struct rgrp_list *rgd;
 
-	while(!osi_list_empty(&sdp->rglist)){
-		rgd = osi_list_entry(sdp->rglist.next, struct rgrp_list, list);
-		if (rgd->bh && rgd->bh[0] && /* if a buffer exists and           */
-			rgd->bh[0]->b_count)     /* the first buffer is allocated    */
-			gfs2_rgrp_relse(rgd, updated); /* they must all be so free them. */
+	while(!osi_list_empty(rglist->next)){
+		rgd = osi_list_entry(rglist->next, struct rgrp_list, list);
+		if (rgd->bh && rgd->bh[0] && /* if a buffer exists and       */
+			rgd->bh[0]->b_count) /* the 1st buffer is allocated */
+			gfs2_rgrp_relse(rgd, updated); /* free them all. */
 		if(rgd->bits)
 			free(rgd->bits);
 		if(rgd->bh)

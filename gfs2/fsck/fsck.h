@@ -1,7 +1,7 @@
 /*****************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2005-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -38,6 +38,24 @@ struct dir_info
 
 };
 
+struct dir_status {
+	uint8_t dotdir:1;
+	uint8_t dotdotdir:1;
+	struct gfs2_block_query q;
+	uint32_t entry_count;
+};
+
+enum rgindex_trust_level { /* how far can we trust our RG index? */
+	blind_faith = 0, /* We'd like to trust the rgindex. We always used to
+			    before bz 179069. This should cover most cases. */
+	open_minded = 1, /* At least 1 RG is corrupt. Try to calculate what it
+			    should be, in a perfect world where our RGs are all
+			    on even boundaries. Blue sky. Chirping birds. */
+	distrust = 2   /* The world isn't perfect, our RGs are not on nice neat
+			  boundaries.  The fs must have been messed with by
+			  gfs2_grow or something.  Count the RGs by hand. */
+};
+
 int initialize(struct gfs2_sbd *sbp);
 void destroy(struct gfs2_sbd *sbp);
 int block_mounters(struct gfs2_sbd *sbp, int block_em);
@@ -48,6 +66,7 @@ int pass2(struct gfs2_sbd *sbp);
 int pass3(struct gfs2_sbd *sbp);
 int pass4(struct gfs2_sbd *sbp);
 int pass5(struct gfs2_sbd *sbp);
+int rg_repair(struct gfs2_sbd *sdp, int trust_lvl, int *rg_count);
 
 /* FIXME: Hack to get this going for pass2 - this should be pulled out
  * of pass1 and put somewhere else... */

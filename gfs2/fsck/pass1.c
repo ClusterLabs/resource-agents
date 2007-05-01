@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -471,7 +471,7 @@ int add_to_dir_list(struct gfs2_sbd *sbp, uint64_t block)
 		return -1;
 	}
 
-	if(!(newdi = (struct dir_info *) malloc(sizeof(*newdi)))) {
+	if(!(newdi = (struct dir_info *) malloc(sizeof(struct dir_info)))) {
 		log_crit("Unable to allocate dir_info structure\n");
 		return -1;
 	}

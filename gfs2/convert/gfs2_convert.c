@@ -3,7 +3,7 @@
 **
 **  gfs2_convert - convert a gfs1 filesystem into a gfs2 filesystem.
 **
-**  Copyright (C) 2006 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2006-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -801,7 +801,7 @@ static int init(struct gfs2_sbd *sbp)
 	/* look like a directory, temporarily.                               */
 	sbp->md.riinode->i_di.di_mode &= ~S_IFMT;
 	sbp->md.riinode->i_di.di_mode |= S_IFDIR; 
-	if (ri_update(sbp, &rgcount)){
+	if (ri_update(sbp, 0, &rgcount)){
 		log_crit("Unable to fill in resource group information.\n");
 		return -1;
 	}
@@ -1181,7 +1181,7 @@ int main(int argc, char **argv)
 		/* Now delete the now-obsolete gfs1 files: */
 		remove_obsolete_gfs1(&sb2);
 		/* Now free all the in memory */
-		gfs2_rgrp_free(&sb2, updated);
+		gfs2_rgrp_free(&sb2.rglist, updated);
 		log_notice("Committing changes to disk.\n");
 		fflush(stdout);
 		/* Set filesystem type in superblock to gfs2.  We do this at the */

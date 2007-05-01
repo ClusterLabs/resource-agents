@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -17,6 +17,7 @@
 #include <inttypes.h>
 #include <sys/types.h>
 #include <linux/types.h>
+#include <linux/limits.h>
 
 #include "linux_endian.h"
 #include <linux/gfs2_ondisk.h>
@@ -63,15 +64,10 @@ static __inline__ uint64_t do_div_i(uint64_t *num, unsigned int den)
 #define RESRANDOM do { srandom(RANDOM(1000000000)); } while (0)
 #define RANDOM(values) ((values) * (random() / (RAND_MAX + 1.0)))
 
-struct subdevice {
+struct device {
 	uint64_t start;
 	uint64_t length;
 	uint32_t rgf_flags;
-};
-
-struct device {
-	unsigned int nsubdev;
-	struct subdevice *subdev;
 };
 
 struct gfs2_bitmap
@@ -84,9 +80,6 @@ typedef struct gfs2_bitmap gfs2_bitmap_t;
 
 struct rgrp_list {
 	osi_list_t list;
-
-	uint32_t subdevice;	/* The subdevice who holds this resource group */
-
 	uint64_t start;	   /* The offset of the beginning of this resource group */
 	uint64_t length;	/* The length of this resource group */
 	uint32_t rgf_flags;
@@ -169,7 +162,6 @@ struct gfs2_sbd {
 
 	int debug;
 	int quiet;
-	int test;
 	int expert;
 	int override;
 
@@ -374,8 +366,12 @@ int gfs2_get_bitmap(struct gfs2_sbd *sdp, uint64_t blkno,
 int gfs2_set_bitmap(struct gfs2_sbd *sdp, uint64_t blkno, int state);
 
 /* fs_geometry.c */
+void rgblocks2bitblocks(unsigned int bsize, uint32_t *rgblocks,
+			uint32_t *bitblocks);
+uint64_t how_many_rgrps(struct gfs2_sbd *sdp, struct device *dev,
+			int rgsize_specified);
 void compute_rgrp_layout(struct gfs2_sbd *sdp, int rgsize_specified);
-void build_rgrps(struct gfs2_sbd *sdp);
+void build_rgrps(struct gfs2_sbd *sdp, int write);
 
 /* fs_ops.c */
 #define IS_LEAF     (1)
@@ -507,7 +503,7 @@ int gfs2_compute_bitstructs(struct gfs2_sbd *sdp, struct rgrp_list *rgd);
 struct rgrp_list *gfs2_blk2rgrpd(struct gfs2_sbd *sdp, uint64_t blk);
 uint64_t gfs2_rgrp_read(struct gfs2_sbd *sdp, struct rgrp_list *rgd);
 void gfs2_rgrp_relse(struct rgrp_list *rgd, enum update_flags updated);
-void gfs2_rgrp_free(struct gfs2_sbd *sdp, enum update_flags updated);
+void gfs2_rgrp_free(osi_list_t *rglist, enum update_flags updated);
 
 /* structures.c */
 void build_master(struct gfs2_sbd *sdp);
@@ -530,7 +526,8 @@ int gfs2_next_rg_metatype(struct gfs2_sbd *sdp, struct rgrp_list *rgd,
 /* super.c */
 int read_sb(struct gfs2_sbd *sdp);
 int ji_update(struct gfs2_sbd *sdp);
-int ri_update(struct gfs2_sbd *sdp, int *rgcount);
+int rindex_read(struct gfs2_sbd *sdp, int fd, int *count1);
+int ri_update(struct gfs2_sbd *sdp, int fd, int *rgcount);
 int write_sb(struct gfs2_sbd *sdp);
 
 /* ondisk.c */

@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -28,19 +28,18 @@
 /**
  * how_many_rgrps - figure out how many RG to put in a subdevice
  * @w: the command line
- * @sdev: the subdevice
+ * @dev: the device
  *
  * Returns: the number of RGs
  */
 
-static uint64_t
-how_many_rgrps(struct gfs2_sbd *sdp, struct subdevice *sdev,
-			   int rgsize_specified)
+uint64_t
+how_many_rgrps(struct gfs2_sbd *sdp, struct device *dev, int rgsize_specified)
 {
 	uint64_t nrgrp;
 
 	while (TRUE) {
-		nrgrp = DIV_RU(sdev->length, (sdp->rgsize << 20) / sdp->bsize);
+		nrgrp = DIV_RU(dev->length, (sdp->rgsize << 20) / sdp->bsize);
 
 		if (rgsize_specified || /* If user specified an rg size or */
 			nrgrp <= GFS2_EXCESSIVE_RGS || /* not an excessive # of rgs or  */
@@ -67,61 +66,81 @@ how_many_rgrps(struct gfs2_sbd *sdp, struct subdevice *sdev,
 void
 compute_rgrp_layout(struct gfs2_sbd *sdp, int rgsize_specified)
 {
-	struct subdevice *sdev;
-	struct rgrp_list *rl, *rlast = NULL;
+	struct device *dev;
+	struct rgrp_list *rl, *rlast = NULL, *rlast2 = NULL;
 	osi_list_t *tmp, *head = &sdp->rglist;
-	uint64_t rgrp, nrgrp;
-	unsigned int x;
-	int new_fs;
+	unsigned int rgrp = 0, nrgrp;
+	uint64_t rglength;
 
-	new_fs = TRUE;
-	for (x = 0; x < sdp->device.nsubdev; x++) {
-		sdev = sdp->device.subdev + x;
+	sdp->new_rgrps = 0;
+	dev = &sdp->device;
 
-		/* If this is the first subdevice reserve space for the superblock */
-		if (new_fs) {
-			sdev->start += sdp->sb_addr + 1;
-			sdev->length -= sdp->sb_addr + 1;
-			new_fs = FALSE;
-		}
+	/* Reserve space for the superblock */
+	dev->start += sdp->sb_addr + 1;
 
-		if (sdp->debug)
-			printf("\nData Subdevice %u\n", x);
+	/* If this is a new file system, compute the length and number */
+	/* of rgs based on the size of the device.                     */
+	/* If we have existing RGs (i.e. gfs2_grow) find the last one. */
+	if (osi_list_empty(&sdp->rglist)) {
+		dev->length -= sdp->sb_addr + 1;
+		nrgrp = how_many_rgrps(sdp, dev, rgsize_specified);
+		rglength = dev->length / nrgrp;
+		sdp->new_rgrps = nrgrp;
+	} else {
+		uint64_t old_length, new_chunk;
 
-		nrgrp = how_many_rgrps(sdp, sdev, rgsize_specified);
-
-		for (rgrp = 0; rgrp < nrgrp; rgrp++) {
-			zalloc(rl, sizeof(struct rgrp_list));
-
-			rl->subdevice = x;
-
-			if (rgrp) {
-				rl->start = rlast->start + rlast->length;
-				rl->length = sdev->length / nrgrp;
-			} else {
-				rl->start = sdev->start;
-				rl->length = sdev->length -
-					(nrgrp - 1) * (sdev->length / nrgrp);
-			}
-			rl->rgf_flags = sdev->rgf_flags;
-
-			osi_list_add_prev(&rl->list, head);
-
+		log_info("Existing resource groups:\n");
+		rgsize_specified = TRUE; /* consistently use existing size */
+		for (rgrp = 0, tmp = head->next; tmp != head;
+		     tmp = tmp->next, rgrp++) {
+			rl = osi_list_entry(tmp, struct rgrp_list, list);
+			log_info("%d: start: %" PRIu64 " (0x%"
+				 PRIx64 "), length = %"PRIu64" (0x%"
+				 PRIx64 ")\n", rgrp + 1, rl->start, rl->start,
+				 rl->length, rl->length);
+			rlast2 = rlast;
 			rlast = rl;
 		}
-
-		sdp->rgrps += nrgrp;
-		sdp->new_rgrps += nrgrp;
+		rlast->start = rlast->ri.ri_addr;
+		rglength = rlast->ri.ri_addr - rlast2->ri.ri_addr;
+		rlast->length = rglength;
+		old_length = rlast->ri.ri_addr + rglength;
+		new_chunk = dev->length - old_length;
+		sdp->new_rgrps = new_chunk / rglength;
+		nrgrp = rgrp + sdp->new_rgrps;
 	}
 
+	log_info("\nNew resource groups:\n");
+	for (; rgrp < nrgrp; rgrp++) {
+		zalloc(rl, sizeof(struct rgrp_list));
+
+		if (rgrp) {
+			rl->start = rlast->start + rlast->length;
+			rl->length = rglength;
+		} else {
+			rl->start = dev->start;
+			rl->length = dev->length -
+				(nrgrp - 1) * (dev->length / nrgrp);
+		}
+		rl->rgf_flags = dev->rgf_flags;
+
+		log_info("%d: start: %" PRIu64 " (0x%"
+			 PRIx64 "), length = %"PRIu64" (0x%"
+			 PRIx64 ")\n", rgrp + 1, rl->start, rl->start,
+			 rl->length, rl->length);
+		osi_list_add_prev(&rl->list, head);
+		rlast = rl;
+	}
+
+	sdp->rgrps = nrgrp;
+
 	if (sdp->debug) {
-		printf("\n");
+		log_info("\n");
 
 		for (tmp = head->next; tmp != head; tmp = tmp->next) {
 			rl = osi_list_entry(tmp, struct rgrp_list, list);
-			printf("subdevice %u:  rg_o = %"PRIu64", rg_l = %"PRIu64"\n",
-			       rl->subdevice,
-			       rl->start, rl->length);
+			log_info("rg_o = %llu, rg_l = %llu\n",
+				 rl->start, rl->length);
 		}
 	}
 }
@@ -137,7 +156,7 @@ compute_rgrp_layout(struct gfs2_sbd *sdp, int rgsize_specified)
  *
  */
 
-static void
+void
 rgblocks2bitblocks(unsigned int bsize, uint32_t *rgblocks, uint32_t *bitblocks)
 {
 	unsigned int bitbytes_provided, last = 0;
@@ -163,7 +182,12 @@ rgblocks2bitblocks(unsigned int bsize, uint32_t *rgblocks, uint32_t *bitblocks)
 	*rgblocks = bitbytes_needed * GFS2_NBBY;
 }
 
-void build_rgrps(struct gfs2_sbd *sdp)
+/**
+ * build_rgrps - write a bunch of resource groups to disk.
+ * If fd > 0, write the data to the given file handle.
+ * Otherwise, use gfs2 buffering in buf.c.
+ */
+void build_rgrps(struct gfs2_sbd *sdp, int write)
 {
 	osi_list_t *tmp, *head;
 	struct rgrp_list *rl;
@@ -200,15 +224,16 @@ void build_rgrps(struct gfs2_sbd *sdp)
 		rg->rg_flags = rl->rgf_flags;
 		rg->rg_free = rgblocks;
 
-		if (!sdp->test)
+		if (write) {
 			for (x = 0; x < bitblocks; x++) {
 				bh = bget(sdp, rl->start + x);
-				if (x) {
+				if (x)
 					gfs2_meta_header_out(&mh, bh->b_data);
-				} else
+				else
 					gfs2_rgrp_out(rg, bh->b_data);
 				brelse(bh, updated);
 			}
+		}
 
 		if (sdp->debug) {
 			printf("\n");
@@ -219,5 +244,3 @@ void build_rgrps(struct gfs2_sbd *sdp)
 		sdp->fssize = ri->ri_data0 + ri->ri_data;
 	}
 }
-
-

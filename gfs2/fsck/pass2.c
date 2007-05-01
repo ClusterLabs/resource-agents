@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -26,14 +26,6 @@
 #include "link.h"
 
 #define MAX_FILENAME 256
-
-struct dir_status {
-	uint8_t dotdir:1;
-	uint8_t dotdotdir:1;
-	struct gfs2_block_query q;
-	uint32_t entry_count;
-};
-
 
 static int check_leaf(struct gfs2_inode *ip, uint64_t block,
 					  struct gfs2_buffer_head **lbh, void *private)
@@ -336,10 +328,11 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 	   q.block_type != gfs2_inode_chr && q.block_type != gfs2_inode_fifo &&
 	   q.block_type != gfs2_inode_sock) {
 		log_err("Directory entry '%s' at block %" PRIu64 " (0x%" PRIx64
-				") in dir inode %" PRIu64 " (0x%" PRIx64
-				") has an invalid block type.\n", tmp_name,
-				de->de_inum.no_addr, de->de_inum.no_addr,
-				ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr);
+			") in dir inode %" PRIu64 " (0x%" PRIx64
+			") has an invalid block type: %d.\n", tmp_name,
+			de->de_inum.no_addr, de->de_inum.no_addr,
+			ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr,
+			q.block_type);
 
 		if(query(&opts, "Clear directory entry to non-inode block? (y/n) ")) {
 			/* FIXME: make sure all blocks referenced by
@@ -576,46 +569,12 @@ struct metawalk_fxns pass2_fxns = {
 	.check_eattr_entry = NULL,
 };
 
-int build_rooti(struct gfs2_sbd *sbp)
+/* Check system directory inode                                           */
+/* Should work for all system directories: root, master, jindex, per_node */
+int check_system_dir(struct gfs2_inode *sysinode, const char *dirname,
+		     void builder(struct gfs2_sbd *sbp))
 {
-	struct gfs2_inode *ip;
-
-	build_root(sbp);
-	ip = sbp->md.rooti;
-	/* Create a new inode ondisk */
-	gfs2_block_set(bl, ip->i_di.di_num.no_addr, gfs2_inode_dir);
-
-	/* FIXME need to remove old 'root' entry from the master dir,
-	 * and write a new one with this inode as the target */
-	dir_add(sbp->master_dir, "root", 4,	&(ip->i_di.di_num), DT_DIR);
-
-	sbp->md.rooti = ip;
-
-	dir_add(ip, ".", 1, &(ip->i_di.di_num), DT_DIR);
-	dir_add(ip, "..", 2, &ip->i_di.di_num, DT_DIR);
-
-	gfs2_block_set(bl, ip->i_di.di_num.no_addr, gfs2_inode_dir);
-	add_to_dir_list(sbp, ip->i_di.di_num.no_addr);
-
-	/* Attach lost+found to it */
-	lf_dip = createi(sbp->md.rooti, "lost+found", 00700, 0);
-
-	if(lf_dip){
-		inode_put(lf_dip, updated);
-		log_debug("Lost and Found directory inode is at block #%" PRIu64
-				  " (0x%" PRIx64 ").\n",
-				  lf_dip->i_di.di_num.no_addr, lf_dip->i_di.di_num.no_addr);
-	}
-	gfs2_block_set(bl, lf_dip->i_di.di_num.no_addr, gfs2_inode_dir);
-
-	add_to_dir_list(sbp, lf_dip->i_di.di_num.no_addr);
-	return 0;
-}
-
-/* Check root inode and verify it's in the bitmap */
-int check_root_dir(struct gfs2_sbd *sbp)
-{
-	uint64_t rootblock;
+	uint64_t iblock = 0;
 	struct dir_status ds = {0};
 	struct gfs2_buffer_head b, *bh = &b;
 	char *filename;
@@ -623,67 +582,37 @@ int check_root_dir(struct gfs2_sbd *sbp)
 	char tmp_name[256];
 	int update=0, error = 0;
 
-	if(sbp->md.rooti) {
-		/* Read in the root inode, look at its dentries, and start
-		 * reading through them */
-		rootblock = sbp->md.rooti->i_di.di_num.no_addr;
-		
-		/* FIXME: check this block's validity */
+	log_info("Checking system directory inode '%s'\n", dirname);
 
-		if(gfs2_block_check(bl, rootblock, &ds.q)) {
-			log_crit("Can't get root block %" PRIu64 " (0x%" PRIx64
-					 ") from block list\n", rootblock, rootblock);
-			/* FIXME: Need to check if the root block is out of
-			 * the fs range and if it is, rebuild it.  Still can
-			 * error out if the root block number is valid, but
-			 * gfs2_block_check fails */
-			return -1;
-		}
-
-		/* if there are errors with the root inode here, we need to
-		 * create a new root inode and get it all setup - of course,
-		 * everything will be in lost+found then, but we *need* a root inode
-		 * before we can do any of that.
-		 */
-
-	}
-	if(!sbp->md.rooti || ds.q.block_type != gfs2_inode_dir) {
-		log_err("Invalid or missing root inode in superblock.\n");
-		if(query(&opts, "Create new root inode? (y/n) ")) {
-			if(build_rooti(sbp)) {
-				stack;
-				return -1;
-			}
-		} else {
-			log_err("Cannot continue without valid root inode\n");
-			return -1;
+	if (sysinode) {
+		iblock = sysinode->i_di.di_num.no_addr;
+		if(gfs2_block_check(bl, iblock, &ds.q)) {
+			iblock = sysinode->i_di.di_num.no_addr;
 		}
 	}
-
-	rootblock = sbp->md.rooti->i_di.di_num.no_addr;
 	pass2_fxns.private = (void *) &ds;
 	if(ds.q.bad_block) {
 		/* First check that the directory's metatree is valid */
-		if(check_metatree(sbp->md.rooti, &pass2_fxns)) {
+		if(check_metatree(sysinode, &pass2_fxns)) {
 			stack;
 			return -1;
 		}
 	}
-	error = check_dir(sbp, rootblock, &pass2_fxns);
+	error = check_dir(sysinode->i_sbd, iblock, &pass2_fxns);
 	if(error < 0) {
 		stack;
 		return -1;
 	}
 	if (error > 0)
-		gfs2_block_set(bl, rootblock, gfs2_meta_inval);
+		gfs2_block_set(bl, iblock, gfs2_meta_inval);
 
-	bh = bhold(sbp->md.rooti->i_bh);
-	if(check_inode_eattr(sbp->md.rooti, &pass2_fxns)) {
+	bh = bhold(sysinode->i_bh);
+	if(check_inode_eattr(sysinode, &pass2_fxns)) {
 		stack;
 		return -1;
 	}
 	if(!ds.dotdir) {
-		log_err("No '.' entry found for root directory.\n");
+		log_err("No '.' entry found for %s directory.\n", dirname);
 		sprintf(tmp_name, ".");
 		filename_len = strlen(tmp_name);  /* no trailing NULL */
 		if(!(filename = malloc(sizeof(char) * filename_len))) {
@@ -698,36 +627,50 @@ int check_root_dir(struct gfs2_sbd *sbp)
 		}
 		memcpy(filename, tmp_name, filename_len);
 		log_warn("Adding '.' entry\n");
-		dir_add(sbp->md.rooti, filename, filename_len,
-				&(sbp->md.rooti->i_di.di_num), DT_DIR);
-		increment_link(sbp->md.rooti->i_sbd,
-					   sbp->md.rooti->i_di.di_num.no_addr);
+		dir_add(sysinode, filename, filename_len,
+				&(sysinode->i_di.di_num), DT_DIR);
+		increment_link(sysinode->i_sbd,
+					   sysinode->i_di.di_num.no_addr);
 		ds.entry_count++;
 		free(filename);
 		update = 1;
 	}
-	if(sbp->md.rooti->i_di.di_entries != ds.entry_count) {
-		log_err("Root inode %" PRIu64 " (0x%" PRIx64
-				"): Entries is %d - should be %d\n",
-				sbp->md.rooti->i_di.di_num.no_addr,
-				sbp->md.rooti->i_di.di_num.no_addr,
-				sbp->md.rooti->i_di.di_entries, ds.entry_count);
-		if(query(&opts, "Fix entries for root inode %" PRIu64 " (0x%" PRIx64
-				 ")? (y/n) ", sbp->md.rooti->i_di.di_num.no_addr,
-				 sbp->md.rooti->i_di.di_num.no_addr)) {
-			sbp->md.rooti->i_di.di_entries = ds.entry_count;
+	if(sysinode->i_di.di_entries != ds.entry_count) {
+		log_err("%s inode %" PRIu64 " (0x%" PRIx64
+			"): Entries is %d - should be %d\n", dirname,
+			sysinode->i_di.di_num.no_addr,
+			sysinode->i_di.di_num.no_addr,
+			sysinode->i_di.di_entries, ds.entry_count);
+		if(query(&opts, "Fix entries for %s inode %" PRIu64 " (0x%"
+			 PRIx64 ")? (y/n) ", dirname,
+			 sysinode->i_di.di_num.no_addr,
+			 sysinode->i_di.di_num.no_addr)) {
+			sysinode->i_di.di_entries = ds.entry_count;
 			log_warn("Entries updated\n");
 			update = 1;
 		} else {
 			log_err("Entries for inode %" PRIu64 " (0x%" PRIx64
 					") left out of sync\n",
-					sbp->md.rooti->i_di.di_num.no_addr,
-					sbp->md.rooti->i_di.di_num.no_addr);
+					sysinode->i_di.di_num.no_addr,
+					sysinode->i_di.di_num.no_addr);
 		}
 	}
 
 	brelse(bh, update);
 	return 0;
+}
+
+/**
+ * is_system_dir - determine if a given block is for a system directory.
+ */
+static inline int is_system_dir(struct gfs2_sbd *sbp, uint64_t block)
+{
+	if (block == sbp->md.rooti->i_di.di_num.no_addr ||
+	    block == sbp->md.jiinode->i_di.di_num.no_addr ||
+	    block == sbp->md.pinode->i_di.di_num.no_addr ||
+	    block == sbp->master_dir->i_di.di_num.no_addr)
+		return TRUE;
+	return FALSE;
 }
 
 /* What i need to do in this pass is check that the dentries aren't
@@ -753,7 +696,20 @@ int pass2(struct gfs2_sbd *sbp)
 	char tmp_name[256];
 	int error = 0;
 
-	if(check_root_dir(sbp)) {
+	/* Check all the system directory inodes. */
+	if (check_system_dir(sbp->md.jiinode, "jindex", build_jindex)) {
+		stack;
+		return -1;
+	}
+	if (check_system_dir(sbp->md.pinode, "per_node", build_per_node)) {
+		stack;
+		return -1;
+	}
+	if (check_system_dir(sbp->master_dir, "master", build_master)) {
+		stack;
+		return -1;
+	}
+	if (check_system_dir(sbp->md.rooti, "root", build_root)) {
 		stack;
 		return -1;
 	}
@@ -764,8 +720,8 @@ int pass2(struct gfs2_sbd *sbp)
 		if (skip_this_pass || fsck_abort) /* if asked to skip the rest */
 			return 0;
 
-		/* Skip the root inode - it's checked above */
-		if(i == sbp->md.rooti->i_di.di_num.no_addr)
+		/* Skip the system inodes - they're checked above */
+		if (is_system_dir(sbp, i))
 			continue;
 
 		if(gfs2_block_check(bl, i, &q)) {

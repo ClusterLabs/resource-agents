@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -729,7 +729,7 @@ void gfs2_get_leaf_nr(struct gfs2_inode *dip, uint32_t index,
 		      index * sizeof(uint64_t),
 		      sizeof(uint64_t));
 	if (count != sizeof(uint64_t))
-		die("gfs2_get_leaf_nr\n");
+		die("gfs2_get_leaf_nr:  Bad internal read.\n");
 
 	*leaf_out = be64_to_cpu(leaf_no);
 }
@@ -953,7 +953,11 @@ dir_e_add(struct gfs2_inode *dip, char *filename, int len,
 
  restart:
 	hash = gfs2_disk_hash(filename, len);
-	index = hash >> (32 - dip->i_di.di_depth);
+	/* Have to kludge because (hash >> 32) gives hash for some reason. */
+	if (dip->i_di.di_depth)
+		index = hash >> (32 - dip->i_di.di_depth);
+	else
+		index = 0;
 
 	gfs2_get_leaf_nr(dip, index, &leaf_no);
 

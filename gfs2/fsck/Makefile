@@ -1,7 +1,7 @@
 ###############################################################################
 ###############################################################################
 ##
-##  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+##  Copyright (C) 2005-2007 Red Hat, Inc.  All rights reserved.
 ##
 ##  This copyrighted material is made available to anyone wishing to use,
 ##  modify, copy, or redistribute it subject to the terms and conditions
@@ -18,7 +18,7 @@ TARGET= gfs2_fsck
 
 sources = main.c initialize.c pass1.c pass1b.c pass1c.c pass2.c pass3.c \
 	  pass4.c pass5.c util.c fs_recovery.c lost_n_found.c link.c \
-	  eattr.c hash.c inode_hash.c metawalk.c
+	  eattr.c hash.c inode_hash.c metawalk.c rgrepair.c
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -DHELPER_PROGRAM -DGFS_RELEASE_NAME=\"${RELEASE}\"
 CFLAGS += -MMD -Wall -O2
