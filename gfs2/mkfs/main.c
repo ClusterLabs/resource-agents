@@ -58,9 +58,10 @@ main(int argc, char *argv[])
 		main_grow(argc, argv);
 	else if (!strcmp(whoami, "gfs2_shrink"))
 		main_shrink(argc, argv);
+#endif
 	else
 		die("I don't know who I am!\n");
-#endif
+
 	free(p);
 
 	return EXIT_SUCCESS;
