@@ -18,7 +18,6 @@ OBJS=	ccsd.o \
 	cnx_mgr.o \
 	cluster_mgr.o \
 	misc.o \
-	log.o \
 	globals.o
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -DCCS_RELEASE_NAME=\"${RELEASE}\"
@@ -32,7 +31,8 @@ else
 CFLAGS += -O2
 endif
 
-LDFLAGS += -L${cmanlibdir} -lcman -L${libdir} `xml2-config --libs` -lpthread -ldl
+LDFLAGS += -L${cmanlibdir} -lcman -L${ccslibdir} -lccs
+LDFLAGS += -L${libdir} `xml2-config --libs` -lpthread -ldl
 
 all: ${TARGET}
 
@@ -41,9 +41,6 @@ ${TARGET}: ${OBJS}
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $^
-
-log.c:
-	ln -sf ../common/log.c log.c
 
 install: all
 	install -d ${sbindir}

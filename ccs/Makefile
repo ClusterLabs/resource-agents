@@ -12,7 +12,7 @@
 
 include ../make/defines.mk
 
-SUBDIRS=daemon lib ccs_test ccs_tool man
+SUBDIRS=lib daemon ccs_test ccs_tool man
 
 all: ${SUBDIRS}
 
