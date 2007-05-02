@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This library is free software; you can redistribute it and/or
 **  modify it under the terms of the GNU Lesser General Public
@@ -321,7 +321,7 @@ int cman_get_extra_info(cman_handle_t handle, cman_extra_info_t *info, int maxle
 
 /* Change the config file version. This should be needed much less now, as cman will
    re-read the config file if a new node joins with a new config versoin */
-int cman_set_version(cman_handle_t handle, cman_version_t *version);
+int cman_set_version(cman_handle_t handle, const cman_version_t *version);
 
 /* Deprecated in favour of cman_shutdown(). Use cman_tool anyway please. */
 int cman_leave_cluster(cman_handle_t handle, int reason);
@@ -363,7 +363,7 @@ int cman_shutdown(cman_handle_t, int flags);
  * cman_start_recv_data() is like a bind(), and marks the port
  * as "listening". See cman_is_listening() above.
  */
-int cman_send_data(cman_handle_t handle, void *buf, int len, int flags, uint8_t port, int nodeid);
+int cman_send_data(cman_handle_t handle, const void *buf, int len, int flags, uint8_t port, int nodeid);
 int cman_start_recv_data(cman_handle_t handle, cman_datacallback_t, uint8_t port);
 int cman_end_recv_data(cman_handle_t handle);
 
@@ -372,10 +372,10 @@ int cman_end_recv_data(cman_handle_t handle);
  * Here for backwards compatibility. Most of the things you would achieve
  * with this can now be better done using openAIS services or just messaging.
  */
-int cman_barrier_register(cman_handle_t handle, char *name, int flags, int nodes);
-int cman_barrier_change(cman_handle_t handle, char *name, int flags, int arg);
-int cman_barrier_wait(cman_handle_t handle, char *name);
-int cman_barrier_delete(cman_handle_t handle, char *name);
+int cman_barrier_register(cman_handle_t handle, const char *name, int flags, int nodes);
+int cman_barrier_change(cman_handle_t handle, const char *name, int flags, int arg);
+int cman_barrier_wait(cman_handle_t handle, const char *name);
+int cman_barrier_delete(cman_handle_t handle, const char *name);
 
 /*
  * Add your own quorum device here, needs an admin socket

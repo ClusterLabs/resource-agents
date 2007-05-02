@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This library is free software; you can redistribute it and/or
 **  modify it under the terms of the GNU Lesser General Public
@@ -250,7 +250,7 @@ static int loopy_writev(int fd, struct iovec *iovptr, size_t iovlen)
 }
 
 
-static int send_message(struct cman_handle *h, int msgtype, void *inbuf, int inlen)
+static int send_message(struct cman_handle *h, int msgtype, const void *inbuf, int inlen)
 {
 	struct sock_header header;
 	size_t len;
@@ -268,7 +268,7 @@ static int send_message(struct cman_handle *h, int msgtype, void *inbuf, int inl
 	if (inbuf)
 	{
 		iov[1].iov_len = inlen;
-		iov[1].iov_base = inbuf;
+		iov[1].iov_base = (void *) inbuf;
 		iovlen++;
 	}
 
@@ -279,7 +279,7 @@ static int send_message(struct cman_handle *h, int msgtype, void *inbuf, int inl
 }
 
 /* Does something similar to the ioctl calls */
-static int info_call(struct cman_handle *h, int msgtype, void *inbuf, int inlen, void *outbuf, int outlen)
+static int info_call(struct cman_handle *h, int msgtype, const void *inbuf, int inlen, void *outbuf, int outlen)
 {
 	if (send_message(h, msgtype, inbuf, inlen))
 		return -1;
@@ -752,7 +752,7 @@ int cman_get_version(cman_handle_t handle, cman_version_t *version)
 	return info_call(h, CMAN_CMD_GET_VERSION, NULL, 0, version, sizeof(cman_version_t));
 }
 
-int cman_set_version(cman_handle_t handle, cman_version_t *version)
+int cman_set_version(cman_handle_t handle, const cman_version_t *version)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
 	VALIDATE_HANDLE(h);
@@ -841,7 +841,7 @@ int cman_get_extra_info(cman_handle_t handle, cman_extra_info_t *info, int maxle
 	return info_call(h, CMAN_CMD_GETEXTRAINFO, NULL, 0, info, maxlen);
 }
 
-int cman_send_data(cman_handle_t handle, void *buf, int len, int flags, uint8_t port, int nodeid)
+int cman_send_data(cman_handle_t handle, const void *buf, int len, int flags, uint8_t port, int nodeid)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
 	struct iovec iov[2];
@@ -859,7 +859,7 @@ int cman_send_data(cman_handle_t handle, void *buf, int len, int flags, uint8_t 
 	iov[0].iov_len = sizeof(header);
 	iov[0].iov_base = &header;
 	iov[1].iov_len = len;
-	iov[1].iov_base = buf;
+	iov[1].iov_base = (void *) buf;
 
 	return loopy_writev(h->fd, iov, 2);
 }
@@ -892,7 +892,7 @@ int cman_end_recv_data(cman_handle_t handle)
 }
 
 
-int cman_barrier_register(cman_handle_t handle, char *name, int flags, int nodes)
+int cman_barrier_register(cman_handle_t handle, const char *name, int flags, int nodes)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
 	struct cl_barrier_info binfo;
@@ -913,7 +913,7 @@ int cman_barrier_register(cman_handle_t handle, char *name, int flags, int nodes
 }
 
 
-int cman_barrier_change(cman_handle_t handle, char *name, int flags, int arg)
+int cman_barrier_change(cman_handle_t handle, const char *name, int flags, int arg)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
 	struct cl_barrier_info binfo;
@@ -934,7 +934,7 @@ int cman_barrier_change(cman_handle_t handle, char *name, int flags, int arg)
 
 }
 
-int cman_barrier_wait(cman_handle_t handle, char *name)
+int cman_barrier_wait(cman_handle_t handle, const char *name)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
 	struct cl_barrier_info binfo;
@@ -952,7 +952,7 @@ int cman_barrier_wait(cman_handle_t handle, char *name)
 	return info_call(h, CMAN_CMD_BARRIER, &binfo, sizeof(binfo), NULL, 0);
 }
 
-int cman_barrier_delete(cman_handle_t handle, char *name)
+int cman_barrier_delete(cman_handle_t handle, const char *name)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
 	struct cl_barrier_info binfo;
