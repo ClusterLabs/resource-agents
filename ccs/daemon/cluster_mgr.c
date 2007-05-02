@@ -375,35 +375,62 @@ static void cluster_communicator(void)
   fd_set rset;
   cman_handle_t handle = NULL;
 
-  struct sockaddr_in sin;
+  struct sockaddr_storage addr;
+  struct sockaddr_in *addr4 = (struct sockaddr_in *)&addr;
+  struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *)&addr;
+  int addr_size=0;
 
   ENTER("cluster_communicator");
 
-  if ((ccsd_fd = socket(PF_INET, SOCK_STREAM, 0)) < 0) {
-    log_err("Unable to create socket.\n");
+  memset(&addr, 0, sizeof(struct sockaddr_storage));
+
+  if (IPv6) {
+    if ((ccsd_fd = socket(PF_INET6, SOCK_STREAM, 0)) < 0) {
+      if(IPv6 == -1) {
+	log_dbg("Unable to create IPv6 socket:: %s\n", strerror(errno));
+	IPv6=0;
+     }
+    }
+  }
+
+  if (!IPv6) {
+    if ((ccsd_fd = socket(PF_INET, SOCK_STREAM, 0)) < 0) {
+      log_err("Unable to create IPv4 socket.\n");
+      exit(EXIT_FAILURE);
+    }
+  }
+
+  if (setsockopt(ccsd_fd, SOL_SOCKET, SO_REUSEADDR, (void *)&opt, sizeof(opt)) < 0) {
+    log_sys_err("Unable to set socket option");
     exit(EXIT_FAILURE);
   }
 
-  sin.sin_family = AF_INET;
-  sin.sin_port = htons(cluster_base_port);
-  sin.sin_addr.s_addr = htonl(INADDR_ANY);
-
-  if (setsockopt(ccsd_fd, SOL_SOCKET, SO_REUSEADDR, (void *)&opt, sizeof(opt)) < 0) {
-    /* Check the errno and exit ? */
+  if(IPv6){
+    addr_size = sizeof(struct sockaddr_in6);
+    addr6->sin6_family = AF_INET6;
+    addr6->sin6_addr = in6addr_any;
+    addr6->sin6_port = htons(cluster_base_port);
+  } else {
+    addr_size = sizeof(struct sockaddr_in);
+    addr4->sin_family = AF_INET;
+    addr4->sin_addr.s_addr = INADDR_ANY;
+    addr4->sin_port = htons(cluster_base_port);
   }
 
   flags = fcntl(ccsd_fd, F_GETFD, 0);
   flags |= FD_CLOEXEC;
   fcntl(ccsd_fd, F_SETFD, flags);
 
-  if (bind(ccsd_fd, (struct sockaddr *)&sin, sizeof(sin)) < 0) {
+  if (bind(ccsd_fd, (struct sockaddr *)&addr, addr_size) < 0) {
     log_err("Unable to bind to socket.\n");
     close(ccsd_fd);
     exit(EXIT_FAILURE);
   }
 
   if (listen(ccsd_fd, 15) < 0) {
-    /* Check the errno and exit ? */
+    log_err("Unable to listen to socket.\n");
+    close(ccsd_fd);
+    exit(EXIT_FAILURE);
   }
 
 restart:
