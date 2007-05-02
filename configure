@@ -61,6 +61,7 @@ $ret = 0;
 	prefix => \$prefix,
 	sbindir => \$sbindir,
 	sharedir => \$sharedir,
+	fence_agents => \$fence_agents,
 	enable_xen => \$enable_xen,
 	release_major => \$release_major,
 	release_minor => \$release_minor,
@@ -106,6 +107,7 @@ $err = &GetOptions (\%options,
 		    'sharedir=s',
 		    'release_major=s',
 		    'release_minor=s',
+		    'fence_agents=s',
 		    'enable_xen');
 
 if(!$err) {
@@ -157,7 +159,9 @@ if ($help || !$err) {
   print "--virtlibdir=\tthe base directory for libvirt libraries.  (Default: {libdir})\n";
   print "--xenincdir=\tthe base directory for xen include files.  (Default: {incdir}/xen)\n";
   print "--xenlibdir=\tthe base directory for xen libraries.  (Default: {libdir})\n";
-  print "--enable_xen\t\tEnable building of Xen-specific pieces\n";
+  print "--fence_agents=\tlist of fence agents to configure.  (Default: all)\n";
+  print "\t\tUse --fence_agents=help for a list\n";
+  print "--enable_xen\tEnable building of Xen-specific pieces\n";
   exit $ret;
 }
 
@@ -276,6 +280,26 @@ if (!$sharedir) {
   $sharedir="${prefix}/usr/share/cluster";
 }
 
+@args = "find fence/agents -mindepth 2 -maxdepth 2 -name Makefile -printf '%h'";
+open (IFILE, "@args |");
+while (<IFILE>) {
+  chomp;
+  s|fence\/agents\/| |g;
+  $all_fence = $_;
+}
+close IFILE;
+
+if ($fence_agents eq help) {
+  print "Available fence agents:\n$all_fence\n";
+  exit 0;
+}
+
+if ((!$fence_agents) || ($fence_agents eq all)) {
+  print "\nThe following fence agents will be build on this system:\n$all_fence\n";
+  print "\nNOTE: xvm will build only if --enable_xen has been specified\n\n";
+  $fence_agents = $all_fence
+}
+
 open IFILE, "<make/defines.mk.input" or die "Can't redirect stdin";
 open OFILE, ">make/defines.mk" or die "Can't redirect stdout";
 
@@ -319,6 +343,7 @@ while (<IFILE>) {
   $_ =~ s/\@MANDIR\@/$mandir/;
   $_ =~ s/\@SBINDIR\@/$sbindir/;
   $_ =~ s/\@SHAREDIR\@/$sharedir/;
+  $_ =~ s/\@FENCE_AGENTS\@/$fence_agents/;
   $_ =~ s/\@ENABLE_XEN\@/$enable_xen/;
   print OFILE "$_\n";
 }

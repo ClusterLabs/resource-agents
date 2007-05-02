@@ -13,11 +13,7 @@
 
 include ../../make/defines.mk
 
-SUBDIRS  = apc bladecenter brocade bullpap drac egenera ilo ipmilan
-SUBDIRS += manual mcdata rps10 rsa rsb scsi sanbox2 vixel wti xvm
-
-DISABLEDSUBDIRS  = baytech cpint ibmblade primergy rackswitch 
-DISABLEDSUBDIRS += rib vmware xcat xen zvm
+SUBDIRS = ${fence_agents}
 
 all: ${SUBDIRS}
 

@@ -12,39 +12,34 @@
 
 include ../../../make/defines.mk
 
-SOURCE= fence_scsi.pl
 TARGET= fence_scsi
 SCRIPT= scsi_reserve
 
-TEST_SOURCE= fence_scsi_test.pl
-TEST_TARGET= fence_scsi_test
+all: $(TARGET) $(TARGET)_test
 
-all: $(TARGET) $(TEST_TARGET)
-
-fence_scsi: fence_scsi.pl
+$(TARGET): $(TARGET).pl
 	: > $(TARGET)
-	awk "{print}(\$$1 ~ /#BEGIN_VERSION_GENERATION/){exit 0}" $(SOURCE) >> $(TARGET)
+	awk "{print}(\$$1 ~ /#BEGIN_VERSION_GENERATION/){exit 0}" $(TARGET).pl >> $(TARGET)
 	echo "\$$FENCE_RELEASE_NAME=\"${RELEASE}\";" >> $(TARGET)
 	${DEF2VAR} ${BUILDDIR}/config/copyright.cf perl REDHAT_COPYRIGHT >> $(TARGET)
 	echo "\$$BUILD_DATE=\"(built `date`)\";" >> $(TARGET)
-	awk -v p=0 "(\$$1 ~ /#END_VERSION_GENERATION/){p = 1} {if(p==1)print}" $(SOURCE) >> $(TARGET)
+	awk -v p=0 "(\$$1 ~ /#END_VERSION_GENERATION/){p = 1} {if(p==1)print}" $(TARGET).pl >> $(TARGET)
 	chmod +x $(TARGET)
 
-fence_scsi_test: fence_scsi_test.pl
-	: > $(TEST_TARGET)
-	awk "{print}(\$$1 ~ /#BEGIN_VERSION_GENERATION/){exit 0}" $(TEST_SOURCE) >> $(TEST_TARGET)
-	echo "\$$FENCE_RELEASE_NAME=\"${RELEASE}\";" >> $(TEST_TARGET)
-	${DEF2VAR} ${BUILDDIR}/config/copyright.cf perl REDHAT_COPYRIGHT >> $(TEST_TARGET)
-	echo "\$$BUILD_DATE=\"(built `date`)\";" >> $(TEST_TARGET)
-	awk -v p=0 "(\$$1 ~ /#END_VERSION_GENERATION/){p = 1} {if(p==1)print}" $(TEST_SOURCE) >> $(TEST_TARGET)
-	chmod +x $(TEST_TARGET)
+$(TARGET)_test: $(TARGET)_test.pl
+	: > $(TARGET)_test
+	awk "{print}(\$$1 ~ /#BEGIN_VERSION_GENERATION/){exit 0}" $(TARGET)_test.pl >> $(TARGET)_test
+	echo "\$$FENCE_RELEASE_NAME=\"${RELEASE}\";" >> $(TARGET)_test
+	${DEF2VAR} ${BUILDDIR}/config/copyright.cf perl REDHAT_COPYRIGHT >> $(TARGET)_test
+	echo "\$$BUILD_DATE=\"(built `date`)\";" >> $(TARGET)_test
+	awk -v p=0 "(\$$1 ~ /#END_VERSION_GENERATION/){p = 1} {if(p==1)print}" $(TARGET)_test.pl >> $(TARGET)_test
+	chmod +x $(TARGET)_test
 
 install: all
 	if [ ! -d ${sbindir} ]; then \
 		install -d ${sbindir}; \
 	fi
-	install -m755 ${TARGET} ${sbindir}
-	install -m755 ${TEST_TARGET} ${sbindir}
+	install -m755 ${TARGET} ${TARGET}_test ${sbindir}
 	if [ ! -d ${DESTDIR}/etc/init.d ]; then \
 		install -d ${DESTDIR}/etc/init.d; \
 	fi
@@ -55,4 +50,4 @@ uninstall:
 	${UNINSTALL} ${SCRIPT} ${DESTDIR}/etc/init.d
 
 clean:
-	rm -f $(TARGET) $(TEST_TARGET)
+	rm -f $(TARGET) $(TARGET)_test

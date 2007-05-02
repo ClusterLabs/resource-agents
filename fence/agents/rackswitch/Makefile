@@ -11,31 +11,32 @@
 ###############################################################################
 ###############################################################################
 
+include ../../../make/defines.mk
+
 TARGET= fence_rackswitch
 
-SOURCE= do_rack.c
+OBJS=	do_rack.o
 
-top_srcdir=../..
+CFLAGS += -DFENCE_RELEASE_NAME=\"${RELEASE}\"
 
-ccs_libdir=${top_srcdir}/ccs/lib
-
-INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config
-
-
-include ${top_srcdir}/make/defines.mk
-
-CFLAGS+= -DFENCE_RELEASE_NAME=\"${RELEASE}\"
+# INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config
 
 all: ${TARGET}
 
-fence_rackswitch: ${SOURCE:.c=.o}
-	${CC} ${CFLAGS} ${LDFLAGS} ${SOURCE:.c=.o} ${LOADLIBES} ${LDLIBS} -o $@
+${TARGET}: ${OBJS}
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
 install: all
 	if [ ! -d ${sbindir} ]; then \
 		install -d ${sbindir}; \
 	fi
 	install -m755 ${TARGET} ${sbindir}
+
+uninstall:
+	${UNINSTALL} ${TARGET} ${sbindir}
 
 clean:
 	rm -f *.o ${TARGET} *~

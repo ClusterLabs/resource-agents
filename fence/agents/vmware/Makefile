@@ -11,21 +11,19 @@
 ###############################################################################
 ###############################################################################
 
-SOURCE= fence_vmware.pl
-TARGET= fence_vmware
+include ../../../make/defines.mk
 
-top_srcdir=../..
-include ${top_srcdir}/make/defines.mk
+TARGET= fence_vmware
 
 all: $(TARGET)
 
-$(TARGET): $(SOURCE)
+$(TARGET): $(TARGET).pl
 	: > $(TARGET)
-	awk "{print}(\$$1 ~ /#BEGIN_VERSION_GENERATION/){exit 0}" $(SOURCE) >> $(TARGET)
+	awk "{print}(\$$1 ~ /#BEGIN_VERSION_GENERATION/){exit 0}" $(TARGET).pl >> $(TARGET)
 	echo "\$$FENCE_RELEASE_NAME=\"${RELEASE}\";" >> $(TARGET)
-	${top_srcdir}/scripts/define2var ${top_srcdir}/config/copyright.cf perl REDHAT_COPYRIGHT >> $(TARGET)
+	${DEF2VAR} ${BUILDDIR}/config/copyright.cf perl REDHAT_COPYRIGHT >> $(TARGET)
 	echo "\$$BUILD_DATE=\"(built `date`)\";" >> $(TARGET)
-	awk -v p=0 "(\$$1 ~ /#END_VERSION_GENERATION/){p = 1} {if(p==1)print}" $(SOURCE) >> $(TARGET)
+	awk -v p=0 "(\$$1 ~ /#END_VERSION_GENERATION/){p = 1} {if(p==1)print}" $(TARGET).pl >> $(TARGET)
 	chmod +x $(TARGET)
 
 install: all
@@ -34,6 +32,10 @@ install: all
 	fi
 	install -m755 ${TARGET} ${sbindir}
 
+uninstall:
+	${UNINSTALL} ${TARGET} ${sbindir}
+
 clean:
 	rm -f $(TARGET)
+
 

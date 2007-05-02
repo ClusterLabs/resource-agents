@@ -59,6 +59,7 @@ xenincdir ?= @XENINCDIR@
 xenlibdir ?= @XENLIBDIR@
 virtincdir ?= @VIRTINCDIR@
 virtlibdir ?= @VIRTLIBDIR@
+fence_agents ?= @FENCE_AGENTS@
 enable_xen ?= @ENABLE_XEN@
 
 UNINSTALL = @BUILDDIR@/scripts/uninstall.pl
