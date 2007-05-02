@@ -41,15 +41,11 @@ static member_list_t *members = NULL;
 static member_list_t *get_member_list(cman_handle_t handle);
 static void free_member_list(member_list_t *list);
 static char *member_id_to_name(member_list_t *list, int node);
-static int member_name_to_id(member_list_t *list, char *name);
 static int member_addr_to_id(member_list_t *list, struct sockaddr *addr);
-static int member_online_node(member_list_t *list, int node);
-static int member_online_name(member_list_t *list, char *name);
 
 static int select_retry(int max_fd, fd_set *rfds, fd_set *wfds, fd_set *xfds,
 			struct timeval *timeout);
 
-static ssize_t write_retry(int fd, void *buf, int count, struct timeval *timeout);
 static ssize_t read_retry(int fd, void *buf, int count, struct timeval *timeout);
 
 static int check_update_doc(xmlDocPtr tmp_doc)
@@ -607,20 +603,6 @@ static char *member_id_to_name(member_list_t *list, int node)
 }
 
 
-static int member_name_to_id(member_list_t *list, char *name)
-{
-  int i;
-
-  for (i = 0; i < list->count; i++) {
-    if (!strcasecmp(list->nodes[i].cn_name, name)) {
-      return list->nodes[i].cn_nodeid;
-    }
-  }
-
-  return 0;
-}
-
-
 static int member_addr_to_id(member_list_t *list, struct sockaddr *addr)
 {
   int i;
@@ -637,34 +619,6 @@ static int member_addr_to_id(member_list_t *list, struct sockaddr *addr)
 }
 
 
-static int member_online_node(member_list_t *list, int node)
-{
-  int i;
-
-  for (i = 0; i < list->count; i++) {
-    if (list->nodes[i].cn_nodeid == node) {
-      return list->nodes[i].cn_member;
-    }
-  }
-
-  return 0;
-}
-
-
-static int member_online_name(member_list_t *list, char *name)
-{
-  int i;
-
-  for (i = 0; i < list->count; i++) {
-    if (!strcasecmp(list->nodes[i].cn_name, name)) {
-      return list->nodes[i].cn_member;
-    }
-  }
-
-  return 0;
-}
-
-
 static int select_retry(int max_fd, fd_set *rfds, fd_set *wfds, fd_set *xfds,
 			struct timeval *timeout)
 {
@@ -678,68 +632,6 @@ static int select_retry(int max_fd, fd_set *rfds, fd_set *wfds, fd_set *xfds,
     }
     return rv;
   }
-}
-
-
-static ssize_t write_retry(int fd, void *buf, int count, struct timeval *timeout)
-{
-  int n, total = 0, remain = count, rv = 0;
-  fd_set wfds, xfds;
-
-  while (total < count)
-  {
-    /* Create the write FD set of 1... */
-    FD_ZERO(&wfds);
-    FD_SET(fd, &wfds);
-    FD_ZERO(&xfds);
-    FD_SET(fd, &xfds);
-
-    /* wait for the fd to be available for writing */
-    rv = select_retry(fd + 1, NULL, &wfds, &xfds, timeout);
-    if (rv == -1) {
-      return -1;
-    }
-    else if (rv == 0) {
-      errno = ETIMEDOUT;
-      return -1;
-    }
-
-    if (FD_ISSET(fd, &xfds)) {
-      errno = EPIPE;
-      return -1;
-    }
-
-    /* 
-     * Attempt to write to fd
-     */
-    n = write(fd, buf + (off_t) total, remain);
-
-    /*
-     * When we know our fd was select()ed and we receive 0 bytes
-     * when we write, the fd was closed.
-     */
-    if ((n == 0) && (rv == 1)) {
-      errno = EPIPE;
-      return -1;
-    }
-
-    if (n == -1) {
-      if ((errno == EAGAIN) || (errno == EINTR)) {
-	/* 
-	 * Not ready?
-	 */
-	continue;
-      }
-
-      /* Other errors: EIO, EINVAL, etc */
-      return -1;
-    }
-
-    total += n;
-    remain -= n;
-  }
-
-  return total;
 }
 
 
