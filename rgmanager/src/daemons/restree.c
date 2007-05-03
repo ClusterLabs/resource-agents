@@ -543,7 +543,6 @@ build_tree(int ccsfd, resource_node_t **tree,
 	resource_rule_t *childrule;
 	resource_node_t *node;
 	char *ref;
-	char *newchild;
 	char *tmp;
 	int ccount = 0, x = 0, y = 0, flags = 0;
 
@@ -671,15 +670,6 @@ build_tree(int ccsfd, resource_node_t **tree,
 		if (flags == 2) {
 			free(ref);
 			continue;
-		}
-
-		/* store it once */
-		if (!flags && rule) {
-			//printf("Storing new child %s of %s\n",
-			       //ref, rule->rr_type);
-			newchild = strdup(ref);
-			store_childtype(&rule->rr_childtypes,
-					newchild, 0, 0, 0, 1);
 		}
 		free(ref);
 
