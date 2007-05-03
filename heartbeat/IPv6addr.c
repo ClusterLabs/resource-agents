@@ -477,6 +477,10 @@ scan_if(struct in6_addr* addr_target, int* plen_target, int use_mask)
 		}
 		*plen_target = plen;
 
+		for (i = 0; i< 4; i++) {
+			addr.s6_addr32[i] = htonl(addr6p[i]);
+		}
+
 		/* Make the mask based on prefix length */
 		memset(mask.s6_addr, 0xff, 16);
 		if (use_mask && plen < 128) {
@@ -484,6 +488,7 @@ scan_if(struct in6_addr* addr_target, int* plen_target, int use_mask)
 			memset(mask.s6_addr32 + n + 1, 0, (3 - n) * 4);
 			s = 32 - plen % 32;
 			mask.s6_addr32[n] = 0xffffffff << s;
+			mask.s6_addr32[n] = htonl(mask.s6_addr32[n]);
 		}
 
 		/* compare addr and addr_target */

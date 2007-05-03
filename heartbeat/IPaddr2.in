@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 #	$Id: IPaddr2.in,v 1.24 2006/08/09 13:01:54 lars Exp $
 #
@@ -348,16 +348,19 @@ ip_init() {
 		fi
 		IP_CIP="yes"
 		if [ -z "$IF_MAC" ]; then
-			# Choose a hash.
-			IF_MAC=`echo $BASEIP $NETMASK $BRDCAST | md5sum | cut -c 1-12`
-			# Make it properly delimited, anything non-numeric will do, ":" and "-" are preferred.
-			IF_MAC=${IF_MAC:0:2}:${IF_MAC:2:2}:${IF_MAC:4:2}:${IF_MAC:6:2}:${IF_MAC:8:2}:${IF_MAC:10:2}
-			# For $IF_MAC to be a multicast Ethernet address, the first octet must be an odd number.
-			case ${IF_MAC:1:1} in
-				0|2|4|6|8|a|A|c|C|e|E)
-				IF_MAC=${IF_MAC:0:1}1${IF_MAC:2}
-				;;
-			esac
+			# Choose a MAC
+			# 1. Concatenate some input together
+			# 2. This doesn't need to be a cryptographically
+			#    secure hash.
+			# 3. Drop everything after the first 6 octets (12 chars)
+			# 4. Delimit the octets with ':'
+			# 5. Make sure the first octet is odd,
+			#    so the result is a multicast MAC
+			IF_MAC=`echo $BASEIP $NETMASK $BRDCAST |	\
+				md5sum |				\
+				sed -e 's#\(............\).*#\1#'	\
+				    -e 's#..#&:#g; s#:$##'		\
+				    -e 's#^\(.\)[02468aAcCeE]#\11#'`
 		fi
 		IP_CIP_FILE="/proc/net/ipt_CLUSTERIP/$BASEIP"
 	fi
@@ -786,17 +789,7 @@ ip_validate() {
 	fi
 
 	case $IF_MAC in
-	??[^0-9]??[^0-9]??[^0-9]??[^0-9]??[^0-9]??)
-		mac=${IF_MAC:0:2}${IF_MAC:3:2}${IF_MAC:6:2}${IF_MAC:9:2}${IF_MAC:12:2}${IF_MAC:15:2}
-		if ocf_is_hex "$mac"; then
-			case ${mac:1:1} in
-			0|2|4|6|8|a|A|c|C|e|E)
-				valid=0
-				;;
-			esac
-		else
-			valid=0
-		fi
+	[0-9a-zA-Z][1379bBdDfF][^0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][^0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][^0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][^0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][^0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z])
 		;;
 	*)
 		valid=0
