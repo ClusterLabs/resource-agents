@@ -488,7 +488,7 @@ add_interface () {
 	  #	CMD="$IFCONFIG $iface inet $ipaddr $text up"
 	  # So hack the following workaround:
 	  CMD="$IFCONFIG $iface inet $ipaddr"
-	  CMD="$CMD && $IFCONFIG $iface $netmask"
+	  CMD="$CMD && $IFCONFIG $iface netmask $netmask"
 	  CMD="$CMD && $IFCONFIG $iface up"
 	  ;;
       
