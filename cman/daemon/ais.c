@@ -134,7 +134,7 @@ static inline void objdb_get_int(struct objdb_iface_ver0 *objdb, unsigned int ob
  * Exports the interface for the service
  */
 static struct openais_service_handler cman_service_handler = {
-	.name		    		= (unsigned char *)"openais CMAN membership service 2.01",
+	.name		    		= (char *)"openais CMAN membership service 2.01",
 	.id			        = CMAN_SERVICE,
 	.flow_control			= OPENAIS_FLOW_CONTROL_NOT_REQUIRED,
 	.lib_exit_fn		       	= cman_exit_fn,
