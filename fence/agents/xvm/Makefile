@@ -50,7 +50,7 @@ ${TARGET2}: ${SHAREDOBJS} ${OBJS2}
 	$(CC) -o $@ $^ $(LDFLAGS) $(EXTRA_LDFLAGS)
 
 %.o: %.c
-	$(CC) $(CFLAGS) -c -o $@ $^
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
 	rm -f ${TARGET1} ${TARGET2} *~ *.o

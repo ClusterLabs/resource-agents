@@ -47,7 +47,7 @@ ${TARGET}: ${OBJS}
 	ranlib libgfs2.a
 
 %.o: %.c
-	$(CC) $(CFLAGS) -c -o $@ $^
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 install: all
 

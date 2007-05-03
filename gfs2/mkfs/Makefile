@@ -30,7 +30,7 @@ ${TARGET2}: ${TARGET1}
 	ln -s ${TARGET1} ${TARGET2}
 
 %.o: %.c
-	$(CC) $(CFLAGS) -c -o $@ $^
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 install: all
 	install -m 0755 ${TARGET1} ${sbindir}

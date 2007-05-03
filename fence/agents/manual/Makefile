@@ -21,7 +21,7 @@ all: ${TARGET}
 # (this version does not require any configuration params
 # in cluster.conf, but fencing must fail first)
 fence_ack_manual: fence_ack_manual.sh
-	cp $^ $@
+	cp $< $@
 
 install: all
 	if [ ! -d ${sbindir} ]; then \

@@ -33,7 +33,7 @@ ${TARGET}: $(sources:.c=.o)
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 %.o: %.c
-	$(CC) $(CFLAGS) -c -o $@ $^
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 test_block_list: log.o test_block_list.o
 	$(CC) -o $@ $^ $(LDFLAGS)

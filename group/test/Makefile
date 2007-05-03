@@ -15,10 +15,10 @@ CFLAGS+= -g -I.
 all: client clientd
 
 client: client.o
-	$(CC) $(LDFLAGS) -o $@ $^
+	$(CC) $(LDFLAGS) -o $@ $<
 
 clientd: clientd.o
-	$(CC) $(LDFLAGS) -o $@ $^
+	$(CC) $(LDFLAGS) -o $@ $<
 
 client.o: client.c
 	$(CC) $(CFLAGS) -c -o $@ $<

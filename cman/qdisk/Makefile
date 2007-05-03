@@ -50,7 +50,7 @@ install: all
 	install ${TARGET1} ${TARGET2} ${sbindir}
 
 %.o: %.c
-	$(CC) $(CFLAGS) -c -o $@ $^
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
 	rm -f *.o ${TARGET1} ${TARGET2}

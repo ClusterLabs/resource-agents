@@ -28,7 +28,7 @@ $(TARGET).a: $(TARGET).o
 	${RANLIB} $@
 
 $(TARGET).so.${RELEASE_MAJOR}.${RELEASE_MINOR}: $(TARGET).o
-	$(CC) -shared -o $@ -Wl,-soname=$(TARGET).so.$(RELEASE_MAJOR) $^
+	$(CC) -shared -o $@ -Wl,-soname=$(TARGET).so.$(RELEASE_MAJOR) $<
 	ln -sf $(TARGET).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(TARGET).so
 	ln -sf $(TARGET).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(TARGET).so.$(RELEASE_MAJOR)
 

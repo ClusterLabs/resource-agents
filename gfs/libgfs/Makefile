@@ -33,7 +33,7 @@ ${LIBGFS}: ${OBJS}
 	ranlib libgfs.a
 
 %.o: %.c
-	$(CC) $(CFLAGS) -c -o $@ $^
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 install: all
 

@@ -52,7 +52,7 @@ ${TARGET3}: ${OBJS3} ${TARGET1}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 %.o: %.c
-	$(CC) $(CFLAGS) -c -o $@ $^
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
 	rm -f *.o ${TARGET1} ${TARGET2} ${TARGET3}

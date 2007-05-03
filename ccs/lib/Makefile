@@ -33,7 +33,7 @@ ${TARGET}: ${OBJS}
 	${AR} cr ${TARGET} ${OBJS}
 
 %.o: %.c
-	$(CC) $(CFLAGS) -c -o $@ $^
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 log.c:
 	ln -sf ../common/log.c log.c
