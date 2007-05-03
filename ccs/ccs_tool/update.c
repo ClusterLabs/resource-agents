@@ -19,6 +19,9 @@
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
 #include <libxml/xpathInternals.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 
 #include "comm_headers.h"
 #include "ccs.h"
@@ -48,6 +51,8 @@ static int ccs_open(cman_node_t node, uint16_t baseport, int timeout);
 static int ipv4_connect(struct in_addr *addr, uint16_t port, int timeout);
 static int ipv6_connect(struct in6_addr *addr, uint16_t port, int timeout);
 static int connect_nb(int fd, struct sockaddr *addr, socklen_t len, int timeout);
+
+extern int globalverbose;
 
 int cluster_base_port = 50008;
 
@@ -659,12 +664,43 @@ static ssize_t read_retry(int fd, void *buf, int count, struct timeval *timeout)
 static int ccs_open(cman_node_t node, uint16_t port, int timeout)
 {
   struct in_addr *addr;
-  int fd;
+  struct in6_addr *addr6;
+  int fd, family;
+  char buf[INET6_ADDRSTRLEN];
 
-  addr = &(((struct sockaddr_in *)&(node.cn_address.cna_address))->sin_addr);
+  if (globalverbose) {
+    memset(buf, 0, sizeof(buf));
+    printf("Processing node: %s\n", node.cn_name);
+  }
 
-  if ((fd = ipv4_connect(addr, port, timeout)) < 0) {
-    return -1;
+  family = ((struct sockaddr *)&(node.cn_address.cna_address))->sa_family;
+
+  if (family == AF_INET6) {
+
+    addr6 = &(((struct sockaddr_in6 *)&(node.cn_address.cna_address))->sin6_addr);
+
+    if (globalverbose) {
+      inet_ntop(family, addr6, buf, sizeof(buf));
+      printf(" family: ipv6\n address: %s\n", buf);
+    }
+
+    if ((fd = ipv6_connect(addr6, port, timeout)) < 0) {
+      return -1;
+    }
+
+  } else {
+
+    addr = &(((struct sockaddr_in *)&(node.cn_address.cna_address))->sin_addr);
+
+    if (globalverbose) {
+      inet_ntop(family, addr, buf, sizeof(buf));
+      printf(" family: ipv4\n address: %s\n", buf);
+    }
+
+    if ((fd = ipv4_connect(addr, port, timeout)) < 0) {
+      return -1;
+    }
+
   }
 
   return fd;

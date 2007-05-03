@@ -10,6 +10,8 @@
 
 static void print_usage(FILE *stream);
 
+int globalverbose=0;
+
 int main(int argc, char *argv[])
 {
   optind = 1;
@@ -26,6 +28,10 @@ int main(int argc, char *argv[])
   }
 
   if(optind < argc){
+    if(!strcmp(argv[optind], "-verbose")){
+      optind++;
+      globalverbose=1;
+    }
     if(!strcmp(argv[optind], "help")){
       print_usage(stdout);
       exit(EXIT_SUCCESS);
@@ -106,6 +112,7 @@ static void print_usage(FILE *stream){
 	  "  ccs_tool [options] <command>\n"
 	  "\n"
 	  "Options:\n"
+	  "  -verbose            Make some operations print more details.\n"
 	  "  -h                  Print this usage and exit.\n"
 	  "  -V                  Print version information and exit.\n"
 	  "\n"
