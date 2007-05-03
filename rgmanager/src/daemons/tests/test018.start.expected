@@ -1,0 +1,24 @@
+Starting test1...
+[start] service:test1
+[start] fs:mount1
+[start] nfsexport:Dummy Export
+[start] nfsclient:Admin group
+[start] nfsclient:User group
+[start] nfsclient:red
+[start] script:initscript
+[start] clusterfs:argle
+Start of test1 complete
+Starting test2...
+[start] service:test2
+[start] script:initscript
+[start] clusterfs:argle
+[start] ip:192.168.1.3
+[start] fs:mount2
+[start] nfsexport:Dummy Export
+[start] nfsclient:Admin group
+[start] nfsclient:User group
+[start] nfsclient:red
+[start] script:script2
+[start] ip:192.168.1.4
+[start] script:script3
+Start of test2 complete
