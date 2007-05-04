@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -41,50 +41,14 @@ struct block_count {
 	uint64_t ea_count;
 };
 
-static int leaf(struct fsck_inode *ip, uint64_t block, osi_buf_t **bh,
+static int leaf(struct fsck_inode *ip, uint64_t block, osi_buf_t *bh,
 		void *private)
 {
 	struct fsck_sb *sdp = ip->i_sbd;
 	struct block_count *bc = (struct block_count *) private;
-	if(check_range(sdp, block)){
-		log_warn("Leaf block #%"PRIu64" is out of range for "
-			 "directory #%"PRIu64".\n",
-			 block, ip->i_di.di_num.no_addr);
-		block_set(sdp->bl, ip->i_di.di_num.no_addr, bad_block);
-		return 1;
-	}
-	if(get_and_read_buf(sdp, block, bh, 0)){
-		log_err("Unable to read leaf block #%"PRIu64" for "
-			"directory #%"PRIu64".\n",
-			block, ip->i_di.di_num.no_addr);
-		if(query(sdp, "Clear directory inode at %"PRIu64"? (y/n) ",
-			 ip->i_di.di_num.no_addr)) {
-			block_set(sdp->bl, ip->i_di.di_num.no_addr, meta_inval);
-		} else {
-			log_err("Unreadable block %"PRIu64" ignored\n");
-		}
-		return 1;
-	}
 
-	if(check_meta(*bh, GFS_METATYPE_LF)){
-		log_err("Bad meta header for leaf block #%"PRIu64
-			" in directory #%"PRIu64". - is %u, should be %u\n",
-			 BH_BLKNO(*bh), ip->i_di.di_num.no_addr,
-			((struct gfs_meta_header *)BH_DATA((*bh)))->mh_type,
-			GFS_METATYPE_LF);
-		if(query(sdp, "Clear directory inode at %"PRIu64"? (y/n) ",
-			 ip->i_di.di_num.no_addr)) {
-			block_set(sdp->bl, ip->i_di.di_num.no_addr,
-				  meta_inval);
-			log_err("Directory inode marked invalid\n");
-		} else {
-			log_err("Invalid block %"PRIu64" ignored\n");
-		}
-		return 1;
-	}
-
-	log_debug("\tLeaf block at %15"PRIu64"\n", BH_BLKNO(*bh));
-	block_set(sdp->bl, BH_BLKNO(*bh), leaf_blk);
+	log_debug("\tLeaf block at %15"PRIu64"\n", BH_BLKNO(bh));
+	block_set(sdp->bl, BH_BLKNO(bh), leaf_blk);
 	bc->indir_count++;
 
 	return 0;
@@ -473,7 +437,7 @@ int clear_data(struct fsck_inode *ip, uint64_t block, void *private)
 }
 
 int clear_leaf(struct fsck_inode *ip, uint64_t block,
-	       osi_buf_t **bh, void *private)
+	       osi_buf_t *bh, void *private)
 {
 
 	struct fsck_sb *sdp = ip->i_sbd;
@@ -527,8 +491,6 @@ int add_to_dir_list(struct fsck_sb *sbp, uint64_t block)
 
 	return 0;
 }
-
-
 
 
 int handle_di(struct fsck_sb *sdp, osi_buf_t *bh, uint64_t block, int mfree)

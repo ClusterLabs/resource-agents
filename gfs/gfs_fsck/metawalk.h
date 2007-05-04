@@ -1,7 +1,7 @@
 /*****************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2005-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -45,7 +45,7 @@ int dinode_hash_remove(osi_list_t *buckets, uint64_t key);
 struct metawalk_fxns {
 	void *private;
 	int (*check_leaf) (struct fsck_inode *ip, uint64_t block,
-			   osi_buf_t **bh, void *private);
+			   osi_buf_t *bh, void *private);
 	int (*check_metalist) (struct fsck_inode *ip, uint64_t block,
 			       osi_buf_t **bh, void *private);
 	int (*check_data) (struct fsck_inode *ip, uint64_t block,

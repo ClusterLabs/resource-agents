@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -34,63 +34,6 @@ struct dir_status {
 	struct block_query q;
 	uint32_t entry_count;
 };
-
-
-static int check_leaf(struct fsck_inode *ip, uint64_t block, osi_buf_t **lbh,
-		      void *private)
-{
-	uint64_t chain_no;
-	struct fsck_sb *sbp = ip->i_sbd;
-	struct gfs_leaf leaf;
-	osi_buf_t *chain_head = NULL;
-	osi_buf_t *bh = NULL;
-	int chain=0;
-	int error;
-
-	chain_no = block;
-
-	do {
-		/* FIXME: check the range of the leaf? */
-		/* check the leaf and stuff */
-
-		error = get_and_read_buf(sbp, chain_no, &bh, 0);
-
-		if(error){
-			stack;
-			goto fail;
-		}
-
-		gfs_leaf_in(&leaf, BH_DATA(bh));
-
-		/* Check the leaf headers */
-
-		if(!chain){
-			chain = 1;
-			chain_head = bh;
-			chain_no = leaf.lf_next;
-		}
-		else {
-			relse_buf(sbp, bh);
-			bh = NULL;
-			break;
-		}
-	} while(chain_no);
-
-	*lbh = chain_head;
-	return 0;
-
- fail:
-	/* FIXME: check this error path */
-	if(chain_head){
-		if(chain_head == bh){ bh = NULL; }
-		relse_buf(sbp, chain_head);
-	}
-	if(bh)
-		relse_buf(sbp, bh);
-
-	return -1;
-
-}
 
 
 /* Set children's parent inode in dir_info structure - ext2 does not set
@@ -328,7 +271,8 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *dent,
 	   q.block_type != inode_lnk && q.block_type != inode_blk &&
 	   q.block_type != inode_chr && q.block_type != inode_fifo &&
 	   q.block_type != inode_sock) {
-		log_err("Found directory entry '%s' in %"PRIu64" to something"
+		log_err("Found directory entry '%s' in block %"
+			PRIu64" to something"
 			" not a file or directory!\n", tmp_name,
 			ip->i_num.no_addr);
 		log_debug("block #%"PRIu64" in %"PRIu64"\n",
@@ -558,7 +502,7 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *dent,
 
 struct metawalk_fxns pass2_fxns = {
 	.private = NULL,
-	.check_leaf = check_leaf,
+	.check_leaf = NULL,
 	.check_metalist = NULL,
 	.check_data = NULL,
 	.check_eattr_indir = check_eattr_indir,

@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -18,7 +18,8 @@
 #include "fs_inode.h"
 #include "bio.h"
 #include "link.h"
-
+#include "limits.h"
+#include "metawalk.h"
 #include "fs_dir.h"
 
 #define IS_LEAF     (1)
@@ -1633,6 +1634,34 @@ int get_leaf_nr(struct fsck_inode *dip, uint32 index, uint64 *leaf_out)
 
 
 /**
+ * put_leaf_nr - Put a leaf number associated with the index
+ * @dip: The GFS inode
+ * @index:
+ * @leaf_out:
+ *
+ * Returns: 0 on success, error code otherwise
+ */
+
+int put_leaf_nr(struct fsck_inode *dip, uint32 index, uint64 leaf_out)
+{
+	uint64 leaf_no;
+	int error = -1;
+
+	leaf_no = cpu_to_gfs64(leaf_out);
+
+	error = writei(dip, (char *)&leaf_no,
+		       index * sizeof(uint64), sizeof(uint64));
+	if (error != sizeof(uint64)){
+		log_debug("put_leaf_nr:  Bad internal write.  (rtn = %d)\n",
+			  error);
+		return (error < 0) ? error : -EIO;
+	}
+
+	return 0;
+}
+
+
+/**
  * fs_filecmp - Compare two filenames
  * @file1: The first filename
  * @file2: The second filename
@@ -1684,4 +1713,53 @@ int fs_dir_search(struct fsck_inode *dip, identifier_t *id,  unsigned int *type)
 		error = dir_l_search(dip, id, type);
 
 	return error;
+}
+
+/**
+ * dirent_repair - attempt to repair a corrupt directory entry.
+ * @bh - The buffer header that contains the bad dirent
+ * @de - The directory entry in native format
+ * @dent - The directory entry in on-disk format
+ * @type - Type of directory (DIR_LINEAR or DIR_EXHASH)
+ * @first - TRUE if this is the first dirent in the buffer
+ *
+ * This function tries to repair a corrupt directory entry.  All we
+ * know at this point is that the length field is wrong.
+ */
+int dirent_repair(struct fsck_inode *ip, osi_buf_t *bh, struct gfs_dirent *de, 
+		  struct gfs_dirent *dent, int type, int first)
+{
+	char *bh_end, *p;
+	int calc_de_name_len = 0;
+	
+	/* If this is a sentinel, just fix the length and move on */
+	if (first && !de->de_inum.no_formal_ino) { /* Is it a sentinel? */
+		if (type == DIR_LINEAR)
+			de->de_rec_len = BH_SIZE(bh) -
+				sizeof(struct gfs_dinode);
+		else
+			de->de_rec_len = BH_SIZE(bh) - sizeof(struct gfs_leaf);
+	}
+	else {
+		bh_end = BH_DATA(bh) + BH_SIZE(bh);
+		/* first, figure out a probable name length */
+		p = (char *)dent + sizeof(struct gfs_dirent);
+		while (*p &&         /* while there's a non-zero char and */
+		       p < bh_end) { /* not past end of buffer */
+			calc_de_name_len++;
+			p++;
+		}
+		if (!calc_de_name_len)
+			return 1;
+		/* There can often be noise at the end, so only          */
+		/* Trust the shorter of the two in case we have too much */
+		/* Or rather, only trust ours if it's shorter.           */
+		if (!de->de_name_len || de->de_name_len > NAME_MAX ||
+		    calc_de_name_len < de->de_name_len) /* if dent is hosed */
+			de->de_name_len = calc_de_name_len; /* use ours */
+		de->de_rec_len = GFS_DIRENT_SIZE(de->de_name_len);
+	}
+	gfs_dirent_out(de, (char *)dent);
+	write_buf(ip->i_sbd, bh, 0);
+	return 0;
 }

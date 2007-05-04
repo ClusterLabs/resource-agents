@@ -1,7 +1,7 @@
 /*****************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2005-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -59,6 +59,24 @@ int check_entries(struct fsck_inode *ip, osi_buf_t *bh, int index,
 		gfs_dirent_in(&de, (char *)dent);
 		filename = (char *)dent + sizeof(struct gfs_dirent);
 
+		if (de.de_rec_len < sizeof(struct gfs_dirent) +
+		    de.de_name_len || !de.de_name_len) {
+			log_err("Directory block %"
+				PRIu64 ", entry %d of directory %"
+				PRIu64 " is corrupt.\n", BH_BLKNO(bh),
+				(*count) + 1, ip->i_di.di_num.no_addr);
+			if (query(ip->i_sbd, "Attempt to repair it? (y/n) ")) {
+				if (dirent_repair(ip, bh, &de, dent, type,
+						  first))
+					break;
+			}
+			else {
+				log_err("Corrupt directory entry %d ignored, "
+					"stopped after checking %d entries.\n",
+					*count);
+				break;
+			}
+		}
 		if (!de.de_inum.no_formal_ino){
 			if(first){
 				log_debug("First dirent is a sentinel (place holder).\n");
@@ -83,12 +101,6 @@ int check_entries(struct fsck_inode *ip, osi_buf_t *bh, int index,
 			  }*/
 		}
 
-		if (de.de_rec_len < sizeof(struct gfs_dirent)) {
-			log_err("Entry %"PRIu64" of directory %"
-				PRIu64" is corrupt, skipping.\n",
-				BH_BLKNO(bh), ip->i_di.di_num.no_addr);
-			break;
-		}
 		if ((char *)dent + de.de_rec_len >= bh_end){
 			log_debug("Last entry processed.\n");
 			break;
@@ -109,13 +121,36 @@ int check_entries(struct fsck_inode *ip, osi_buf_t *bh, int index,
 }
 
 
+/* Process a bad leaf pointer and ask to repair the first time.      */
+/* The repair process involves extending the previous leaf's entries */
+/* so that they replace the bad ones.  We have to hack up the old    */
+/* leaf a bit, but it's better than deleting the whole directory,    */
+/* which is what used to happen before.                              */
+void warn_and_patch(struct fsck_inode *ip, uint64_t *leaf_no, 
+		    uint64_t *bad_leaf, uint64_t old_leaf, int index,
+		    const char *msg)
+{
+	if (*bad_leaf != *leaf_no) {
+		log_err("Directory Inode %" PRIu64 " points to leaf %"
+			PRIu64 " %s.\n", ip->i_di.di_num.no_addr, *leaf_no,
+			msg);
+	}
+	if (*leaf_no == *bad_leaf ||
+	    query(ip->i_sbd, "Attempt to patch around it? (y/n) ")) {
+		put_leaf_nr(ip, index, old_leaf);
+	}
+	else
+		log_err("Bad leaf left in place.\n");
+	*bad_leaf = *leaf_no;
+	*leaf_no = old_leaf;
+}
 
 /* Checks exthash directory entries */
 int check_leaf(struct fsck_inode *ip, int *update, struct metawalk_fxns *pass)
 {
 	int error;
-	struct gfs_leaf leaf;
-	uint64_t leaf_no, old_leaf;
+	struct gfs_leaf leaf, oldleaf;
+	uint64_t leaf_no, old_leaf, bad_leaf = -1;
 	osi_buf_t *lbh;
 	int index;
 	struct fsck_sb *sbp = ip->i_sbd;
@@ -123,6 +158,7 @@ int check_leaf(struct fsck_inode *ip, int *update, struct metawalk_fxns *pass)
 	int ref_count = 0, exp_count = 0;
 
 	old_leaf = 0;
+	memset(&oldleaf, 0, sizeof(oldleaf));
 	for(index = 0; index < (1 << ip->i_di.di_depth); index++) {
 		if(get_leaf_nr(ip, index, &leaf_no)) {
 			log_err("Unable to get leaf block number in dir %"
@@ -138,7 +174,12 @@ int check_leaf(struct fsck_inode *ip, int *update, struct metawalk_fxns *pass)
 		/* GFS has multiple indirect pointers to the same leaf
 		 * until those extra pointers are needed, so skip the
 		 * dups */
-		if(old_leaf == leaf_no) {
+		if (leaf_no == bad_leaf) {
+			put_leaf_nr(ip, index, old_leaf); /* fill w/old leaf */
+			ref_count++;
+			continue;
+		}
+		else if(old_leaf == leaf_no) {
 			ref_count++;
 			continue;
 		} else {
@@ -150,54 +191,68 @@ int check_leaf(struct fsck_inode *ip, int *update, struct metawalk_fxns *pass)
 					 old_leaf,
 					 ref_count,
 					 exp_count);
-				return 1;
+				if (query(ip->i_sbd, "Attempt to fix it? (y/n) ")) {
+					int factor = 0, divisor = ref_count;
+
+					get_and_read_buf(sbp, old_leaf, &lbh,
+							 0);
+					while (divisor > 1) {
+						factor++;
+						divisor /= 2;
+					}
+					oldleaf.lf_depth = ip->i_di.di_depth -
+						factor;
+					gfs_leaf_out(&oldleaf, BH_DATA(lbh));
+					write_buf(sbp, lbh, 0);
+					relse_buf(sbp, lbh);
+				}
+				else
+					return 1;
 			}
 			ref_count = 1;
 		}
 
 		count = 0;
 		do {
-			/* FIXME: Do other checks (see old
-			 * pass3:dir_exhash_scan() */
-			lbh = NULL;
-			if(pass->check_leaf) {
-				error = pass->check_leaf(ip, leaf_no, &lbh,
-							 pass->private);
-				if(error < 0) {
-					stack;
-					relse_buf(sbp, lbh);
-					return -1;
-				}
-				if(error > 0) {
-					relse_buf(sbp, lbh);
-					lbh = NULL;
-					return 1;
-				}
+			/* Make sure the block number is in range. */
+			if(check_range(ip->i_sbd, leaf_no)){
+				log_err("Leaf block #%"PRIu64" is out of "
+					"range for directory #%"PRIu64".\n",
+					leaf_no, ip->i_di.di_num.no_addr);
+				warn_and_patch(ip, &leaf_no, &bad_leaf,
+					       old_leaf, index,
+					       "that is out of range");
+				memcpy(&leaf, &oldleaf, sizeof(oldleaf));
+				break;
 			}
-
-			if (!lbh){
-				if(get_and_read_buf(sbp, leaf_no,
-						    &lbh, 0)){
-					log_err("Unable to read leaf block #%"
-						PRIu64" for "
-						"directory #%"PRIu64".\n",
-						leaf_no,
-						ip->i_di.di_num.no_addr);
-					/* FIXME: should i error out
-					 * if this fails? */
-					break;
-				}
-			}
-			gfs_leaf_in(&leaf, BH_DATA(lbh));
-
-			/* Make sure it's really a leaf. */
-			if (leaf.lf_header.mh_type != GFS_METATYPE_LF) {
-				log_err("Inode %" PRIu64 " points to bad leaf "
-					PRIu64 ".\n", ip->i_di.di_num.no_addr,
-					leaf_no);
+			/* Try to read in the leaf block. */
+			if(get_and_read_buf(sbp, leaf_no, &lbh, 0)){
+				log_err("Unable to read leaf block #%"
+					PRIu64" for "
+					"directory #%"PRIu64".\n",
+					leaf_no, ip->i_di.di_num.no_addr);
+				warn_and_patch(ip, &leaf_no, &bad_leaf,
+					       old_leaf, index,
+					       "that cannot be read");
+				memcpy(&leaf, &oldleaf, sizeof(oldleaf));
 				relse_buf(sbp, lbh);
 				break;
 			}
+			/* Make sure it's really a valid leaf block. */
+			if (check_meta(lbh, GFS_METATYPE_LF)) {
+				warn_and_patch(ip, &leaf_no, &bad_leaf,
+					       old_leaf, index,
+					       "that is not really a leaf");
+				memcpy(&leaf, &oldleaf, sizeof(oldleaf));
+				relse_buf(sbp, lbh);
+				break;
+			}
+			gfs_leaf_in(&leaf, BH_DATA(lbh));
+			if(pass->check_leaf) {
+				error = pass->check_leaf(ip, leaf_no, lbh,
+							 pass->private);
+			}
+
 			exp_count = (1 << (ip->i_di.di_depth - leaf.lf_depth));
 			log_debug("expected count %u - %u %u\n", exp_count,
 				  ip->i_di.di_depth, leaf.lf_depth);
@@ -210,8 +265,7 @@ int check_leaf(struct fsck_inode *ip, int *update, struct metawalk_fxns *pass)
 
 				/* Since the buffer possibly got
 				   updated directly, release it now,
-				   and grab it again later if we need
-				   it */
+				   and grab it again later if we need it */
 				relse_buf(sbp, lbh);
 				if(error < 0) {
 					stack;
@@ -261,6 +315,7 @@ int check_leaf(struct fsck_inode *ip, int *update, struct metawalk_fxns *pass)
 			}
 		} while(1);
 		old_leaf = leaf_no;
+		memcpy(&oldleaf, &leaf, sizeof(oldleaf));
 	}
 	return 0;
 }
