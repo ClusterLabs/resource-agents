@@ -179,12 +179,29 @@ int fs_rgrp_read(struct fsck_rgrp *rgd, int repair_if_corrupted)
 			if (repair_if_corrupted) {
 				if (query(sdp, "Fix the RG? (y/n)")) {
 					log_err("Attempting to repair the RG.\n");
-					memset(&rgd->rd_rg, 0, sizeof(struct gfs_rgrp));
-					rgd->rd_rg.rg_header.mh_magic = GFS_MAGIC;
-					rgd->rd_rg.rg_header.mh_type = GFS_METATYPE_RG;
-					rgd->rd_rg.rg_header.mh_format = GFS_FORMAT_RG;
-					rgd->rd_rg.rg_free = rgd->rd_ri.ri_data;
-					gfs_rgrp_out(&rgd->rd_rg, BH_DATA(rgd->rd_bh[x]));
+					if (x) {
+						struct gfs_meta_header mh;
+
+						memset(&mh, 0, sizeof(mh));
+						mh.mh_magic = GFS_MAGIC;
+						mh.mh_type = GFS_METATYPE_RB;
+						mh.mh_format = GFS_FORMAT_RB;
+						gfs_meta_header_out(&mh,
+								    BH_DATA(rgd->rd_bh[x]));
+					} else {
+						memset(&rgd->rd_rg, 0,
+						       sizeof(struct gfs_rgrp));
+						rgd->rd_rg.rg_header.mh_magic =
+							GFS_MAGIC;
+						rgd->rd_rg.rg_header.mh_type =
+							GFS_METATYPE_RG;
+						rgd->rd_rg.rg_header.mh_format =
+							GFS_FORMAT_RG;
+						rgd->rd_rg.rg_free =
+							rgd->rd_ri.ri_data;
+						gfs_rgrp_out(&rgd->rd_rg,
+							     BH_DATA(rgd->rd_bh[x]));
+					}
 					write_buf(sdp, rgd->rd_bh[x], BW_WAIT);
 				}
 			}
