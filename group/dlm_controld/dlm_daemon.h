@@ -83,8 +83,7 @@ void del_configfs_node(int nodeid);
 void clear_configfs(void);
 int set_members(char *name, int new_count, int *new_members);
 int set_id(char *name, uint32_t id);
-int set_configfs_debug(int val);
-void set_protocol(void);
+void set_ccs_options(void);
 
 /* member_xxx.c */
 int setup_member(void);

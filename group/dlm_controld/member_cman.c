@@ -173,14 +173,6 @@ int setup_member(void)
 	}
 	local_nodeid = node.cn_nodeid;
 
-	/* if this daemon was killed and the cluster shut down, and
-	   then the cluster brought back up and this daemon restarted,
-	   there will be old configfs entries we need to clear out */
-
-	clear_configfs();
-
-	set_configfs_debug(kernel_debug_opt);
-
 	old_node_count = 0;
 	memset(&old_nodes, 0, sizeof(old_nodes));
 	cman_node_count = 0;

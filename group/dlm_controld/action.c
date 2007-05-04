@@ -661,37 +661,6 @@ void del_configfs_node(int nodeid)
 		log_error("%s: rmdir failed: %d", path, errno);
 }
 
-int set_configfs_debug(int val)
-{
-	char path[PATH_MAX];
-	char buf[32];
-	int fd, rv;
-
-	rv = add_configfs_base();
-	if (rv < 0)
-		return rv;
-
-	memset(path, 0, PATH_MAX);
-	snprintf(path, PATH_MAX, "%s/log_debug", CLUSTER_DIR);
-
-	fd = open(path, O_WRONLY);
-	if (fd < 0) {
-		log_debug("%s: open failed: %d", path, errno);
-		return fd;
-	}
-
-	memset(buf, 0, sizeof(buf));
-	snprintf(buf, 32, "%d", val);
-
-	rv = do_write(fd, buf, strlen(buf));
-	if (rv < 0) {
-		log_error("%s: write failed: %d", path, errno);
-		return rv;
-	}
-	close(fd);
-	return 0;
-}
-
 #define PROTOCOL_PATH "/cluster/dlm/@protocol"
 #define PROTO_TCP  1
 #define PROTO_SCTP 2
@@ -718,6 +687,59 @@ static int get_ccs_protocol(int cd)
 	}
 
 	free(str);
+	log_debug("got ccs protocol %d", rv);
+	return rv;
+}
+
+#define TIMEWARN_PATH "/cluster/dlm/@timewarn"
+
+static int get_ccs_timewarn(int cd)
+{
+	char path[PATH_MAX], *str;
+	int error, rv;
+
+	memset(path, 0, PATH_MAX);
+	sprintf(path, TIMEWARN_PATH);
+
+	error = ccs_get(cd, path, &str);
+	if (error || !str)
+		return -1;
+
+	rv = atoi(str);
+
+	if (rv <= 0) {
+		log_error("read invalid dlm timewarn from ccs");
+		rv = -1;
+	}
+
+	free(str);
+	log_debug("got ccs timewarn %d", rv);
+	return rv;
+}
+
+#define DEBUG_PATH "/cluster/dlm/@log_debug"
+
+static int get_ccs_debug(int cd)
+{
+	char path[PATH_MAX], *str;
+	int error, rv;
+
+	memset(path, 0, PATH_MAX);
+	sprintf(path, DEBUG_PATH);
+
+	error = ccs_get(cd, path, &str);
+	if (error || !str)
+		return -1;
+
+	rv = atoi(str);
+
+	if (rv < 0) {
+		log_error("read invalid dlm log_debug from ccs");
+		rv = -1;
+	}
+
+	free(str);
+	log_debug("got ccs log_debug %d", rv);
 	return rv;
 }
 
@@ -736,7 +758,7 @@ static int set_configfs_protocol(int proto)
 
 	fd = open(path, O_WRONLY);
 	if (fd < 0) {
-		log_debug("%s: open failed: %d", path, errno);
+		log_error("%s: open failed: %d", path, errno);
 		return fd;
 	}
 
@@ -749,19 +771,81 @@ static int set_configfs_protocol(int proto)
 		return rv;
 	}
 	close(fd);
+	log_debug("set protocol %d", proto);
 	return 0;
 }
 
-void set_protocol(void)
+static int set_configfs_timewarn(int cs)
 {
-	int cd, rv, proto;
+	char path[PATH_MAX];
+	char buf[32];
+	int fd, rv;
 
-	cd = open_ccs();
+	rv = add_configfs_base();
+	if (rv < 0)
+		return rv;
+
+	memset(path, 0, PATH_MAX);
+	snprintf(path, PATH_MAX, "%s/timewarn_cs", CLUSTER_DIR);
+
+	fd = open(path, O_WRONLY);
+	if (fd < 0) {
+		log_error("%s: open failed: %d", path, errno);
+		return fd;
+	}
+
+	memset(buf, 0, sizeof(buf));
+	snprintf(buf, 32, "%d", cs);
+
+	rv = do_write(fd, buf, strlen(buf));
+	if (rv < 0) {
+		log_error("%s: write failed: %d", path, errno);
+		return rv;
+	}
+	close(fd);
+	log_debug("set timewarn_cs %d", cs);
+	return 0;
+}
+
+static int set_configfs_debug(int val)
+{
+	char path[PATH_MAX];
+	char buf[32];
+	int fd, rv;
+
+	rv = add_configfs_base();
+	if (rv < 0)
+		return rv;
+
+	memset(path, 0, PATH_MAX);
+	snprintf(path, PATH_MAX, "%s/log_debug", CLUSTER_DIR);
+
+	fd = open(path, O_WRONLY);
+	if (fd < 0) {
+		log_error("%s: open failed: %d", path, errno);
+		return fd;
+	}
+
+	memset(buf, 0, sizeof(buf));
+	snprintf(buf, 32, "%d", val);
+
+	rv = do_write(fd, buf, strlen(buf));
+	if (rv < 0) {
+		log_error("%s: write failed: %d", path, errno);
+		return rv;
+	}
+	close(fd);
+	log_debug("set log_debug %d", val);
+	return 0;
+}
+
+static void set_protocol(int cd)
+{
+	int rv, proto;
 
 	rv = get_ccs_protocol(cd);
-
 	if (!rv || rv < 0)
-		goto out;
+		return;
 
 	/* for dlm kernel, TCP=0 and SCTP=1 */
 	if (rv == PROTO_TCP)
@@ -769,10 +853,45 @@ void set_protocol(void)
 	else if (rv == PROTO_SCTP)
 		proto = 1;
 	else
-		goto out;
+		return;
 
 	set_configfs_protocol(proto);
- out:
+}
+
+static void set_timewarn(int cd)
+{
+	int rv;
+
+	rv = get_ccs_timewarn(cd);
+	if (rv < 0)
+		return;
+
+	set_configfs_timewarn(rv);
+}
+
+static void set_debug(int cd)
+{
+	int rv;
+
+	rv = get_ccs_debug(cd);
+	if (rv < 0)
+		return;
+
+	set_configfs_debug(rv);
+}
+
+void set_ccs_options(void)
+{
+	int cd;
+
+	cd = open_ccs();
+
+	log_debug("set_ccs_options %d", cd);
+
+	set_protocol(cd);
+	set_timewarn(cd);
+	set_debug(cd);
+
 	ccs_disconnect(cd);
 }
 

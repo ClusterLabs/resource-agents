@@ -444,7 +444,13 @@ int main(int argc, char **argv)
 
 	set_scheduler();
 	set_oom_adj(-16);
-	set_protocol();
+
+	/* if this daemon was killed and the cluster shut down, and
+	   then the cluster brought back up and this daemon restarted,
+	   there will be old configfs entries we need to clear out */
+	clear_configfs();
+
+	set_ccs_options();
 
 	return loop();
 }
