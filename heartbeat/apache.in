@@ -32,6 +32,7 @@
 #  OCF_RESKEY_port
 #  OCF_RESKEY_statusurl
 #  OCF_RESKEY_options
+#  OCF_RESKEY_testregex
 
 HA_VARRUNDIR=@HA_VARRUNDIR@
 
@@ -44,7 +45,7 @@ HA_VARRUNDIR=@HA_VARRUNDIR@
 #######################################################################
 #
 IBMHTTPD=/opt/IBMHTTPServer/bin/httpd
-HTTPDLIST="/sbin/httpd2 /usr/sbin/httpd2 /sbin/httpd /usr/sbin/httpd $IBMHTTPD"
+HTTPDLIST="/sbin/httpd2 /usr/sbin/httpd2 /usr/sbin/apache2 /sbin/httpd /usr/sbin/httpd /usr/sbin/apache $IBMHTTPD"
 MPM=/usr/share/apache2/find_mpm
 if
   [ -x $MPM ]
@@ -53,7 +54,7 @@ then
 fi
 
 WGETNAME=wget
-WGETOPTS="-O- -nv"
+WGETOPTS="-O- -nv -L"
 LOCALHOST="http://localhost"
 HTTPDOPTS="-DSTATUS"
 DEFAULT_IBMCONFIG=/opt/IBMHTTPServer/conf/httpd.conf
@@ -100,76 +101,71 @@ action:
   exit $OCF_ERR_ARGS
 }
 
-
-IncludeLine() {
-  file=`echo "$1" | sed -e 's%Include  *%%' -e 's%[	 ]*$%%'`
-  ExpandMe $file
-}
-
-
-ExpandMe() {
-  out=/tmp/$$.out
-  for file in "$@"
-  do
-    if
-      [ ! -f $file ]
-    then
-      continue
-    fi
-    while read line
-    do
-      case $line in
-        "Include "*)	IncludeLine "$line";;
-        *)		echo "$line";;
-      esac
-    done < "$file"
-  done
-}
-
-#
-# Strip comments, and initial blanks. Compress other blanks. Delete lines of blanks only.
-#
 apachecat() {
-    ExpandMe "$@" | 
-    sed -e 's%#.*%%' -e '/^[ 	]*$/d' -e 's%^[ 	]*%%' -e 's%[ 	]+% %g'
+	awk '
+	function printfile(infile, a) {
+		while( (getline<infile) > 0 ) {
+			split($0,a);
+			if( a[1]=="Include" ) procinclude(a[2]);
+			else print;
+		}
+		close(infile);
+	}
+	function allfiles(dir, cmd,f) {
+		cmd="find -L "dir" -type f";
+		while( ( cmd | getline f ) > 0 ) {
+			printfile(f);
+		}
+		close(cmd);
+	}
+	function listfiles(pattern, cmd,f) {
+		cmd="ls "pattern;
+		while( ( cmd | getline f ) > 0 ) {
+			printfile(f);
+		}
+		close(cmd);
+	}
+	function procinclude(spec) {
+		if( isdir(spec) ) {
+			allfiles(spec); # read all files in a directory (and subdirs)
+		} else {
+			listfiles(spec); # there could be jokers
+		}
+	}
+	function isdir(s) {
+		return !system("test -d \""s"\"");
+	}
+	$1=="Include" { procinclude($2); next; }
+	{ print }
+	' $1 |
+	sed 's/#.*//;s/[[:blank:]]*$//;s/^[[:blank:]]*//' |
+	grep -v '^$'
 }
 
 #
-# Return the value of a parameter in our apache config file
+# set parameters (as shell vars) from our apache config file
 #
-apache_param() {
+get_apache_params() {
   configfile=$1
-  varname=$2
+  shift 1
+  vars=`echo $@ | sed 's/ /,/g'`
 
-  if
-    apachecat $1 | grep -i "^$varname " | \
-        sed -e 's%^[^ ]* %%' -e 's%^"%%' -e 's%"$%%' -e 's%^[[:blank:]]*%%' -e 's%[[:blank:]]*$%%'
-  then
-     : OK
-  else
-     false
-  fi
-}
-
-#
-# Return TRUE if the config file supports the given handler somewhere
-#
-SupportsHandler() {
-  apache_param "$1" SetHandler | grep "^ *$2 *" >/dev/null
-}
-
-#
-#	return true if the given module is loaded...
-#
-Module_loaded() {
-  apache_param "$1" AddModule | grep -i "^mod_$2\." >/dev/null
-  if
-    [ $? = 0 ]
-  then
-    true
-  else
-    apache_param "$1" LoadModule | grep -i "mod_$2\." >/dev/null
-  fi
+  eval `
+  apachecat $configfile | awk -v vars="$vars" '
+  BEGIN{
+    split(vars,v,",");
+    for( i in v )
+  	  vl[i]=tolower(v[i]);
+  }
+  {
+	  for( i in v )
+	  	if( tolower($1)==vl[i] ) {
+			print v[i]"="$2
+			delete vl[i]
+			break
+		}
+  }
+  '`
 }
 
 #
@@ -196,26 +192,19 @@ CheckPort() {
 #
 GetParams() {
   ConfigFile=$1
-  ServerRoot=`apache_param "$ConfigFile" ServerRoot`
-  PidFile=`apache_param "$ConfigFile" PidFile`
+  if [ ! -f $ConfigFile ]; then
+  	return 1
+  fi
+  get_apache_params $ConfigFile ServerRoot PidFile Port Listen
   case $PidFile in
     /*)	;;
     [[:alnum:]]*)	PidFile=$ServerRoot/$PidFile;;
     *)	PidFile=$HA_VARRUNDIR/${httpd_basename}.pid;;
   esac
-#  case "$PORT" in
-#    [0-9]*)	;;
-#    *)	PORT=`apache_param "$ConfigFile" Port`
-#        case "$PORT" in
-#          [0-9]*)	;;
-#	  *)		PORT=80;;
-#        esac;;
-#    *)
-#  esac
   if CheckPort "$PORT"; then
 	:
   else
-	PORT=`apache_param "$ConfigFile" Port`
+	PORT=$Port
 	if CheckPort "$PORT"; then
 	    :
 	else
@@ -232,12 +221,8 @@ GetParams() {
   fi
   
   #
-  # Just because they have mod_status loaded and have a server-status
-  # declared doesn't mean they support the status operation.
-  #
-  # It's actually pretty hard to tell because of run-time defines which
-  # could be turned on elsewhere...
-  #
+  # It's difficult to figure out whether the server supports
+  # the status operation.
   # (we start our server with -DSTATUS - just in case :-))
   #
   # Typically (but not necessarily) the status URL is /server-status
@@ -245,7 +230,6 @@ GetParams() {
   # For us to think status will work, we have to have the following things:
   #
   # - $WGET has to exist and be executable
-  # - The mod_status module must be loaded
   # - The server-status handler has to be mapped to some URL somewhere
   #
   # We assume that:
@@ -256,24 +240,19 @@ GetParams() {
   #
   # If this doesn't work for you, then set STATUSURL at the top of the file
   #
-  HasStatus=no
   if
-    # &&	Module_loaded $ConfigFile status
-    [ ! -z "$WGET" -a -x "$WGET" ]	\
-    &&	SupportsHandler $ConfigFile server-status
+     [ "X$STATUSURL" = "X" ]
   then
-    StatusURL=`FindLocationForHandler $1 server-status | tail -1`
-    case "$StatusURL" in
-      /*)	HasStatus=yes;;
-    esac
     if
-       [ "X$STATUSURL" = "X" ]
+      [ ! -z "$WGET" -a -x "$WGET" ]
     then
-      DoIHaveIP=`apache_param "$ConfigFile" Listen|head -1`
+      StatusURL=`FindLocationForHandler $1 server-status | tail -1`
       if
-        [ "x$DoIHaveIP" != "x" ]
+        [ "x$Listen" != "x" ]
       then
-        STATUSURL="http://${DoIHaveIP}$StatusURL"
+        echo $Listen | grep ':' >/dev/null ||  # Listen can be only port spec
+          Listen="localhost:$Listen"
+        STATUSURL="http://${Listen}$StatusURL"
         case $WGET in
           *wget*)	WGETOPTS="$WGETOPTS --bind-address=127.0.0.1";;
         esac
@@ -282,14 +261,7 @@ GetParams() {
       fi
     fi
   fi
-  if
-    [ -z "$PidFile"  -o ! -f $ConfigFile ]
-  then
-    false
-  else
-    true
-  fi
-
+  test "$PidFile"
 }
 
 #
@@ -328,6 +300,21 @@ start_apache() {
     return $OCF_SUCCESS
   fi
   ocf_run $HTTPD $HTTPDOPTS $OPTIONS -f $CONFIGFILE
+  tries=0
+  while :  # wait until the user set timeout
+  do
+    monitor_apache
+	ec=$?
+	if [ $ec -eq $OCF_NOT_RUNNING ]
+	then
+		tries=`expr $tries + 1`
+		ocf_log info "waiting for apache $CONFIGFILE to come up"
+		sleep 1
+	else
+		break
+	fi
+  done
+	return $ec
 }
 
 stop_apache() {
@@ -379,14 +366,15 @@ status_apache() {
 
 
 monitor_apache() {
-  case $HasStatus in
-    no)	ocf_log err "Monitoring not supported by $CONFIGFILE"
-	return $OCF_ERR_CONFIGURED;;
-  esac
+  if [ -z "$STATUSURL" -o ! -x "$WGET" ]; then
+    ocf_log err "Monitoring not supported by $CONFIGFILE"
+    ocf_log info "Please set the statusurl parameter and make sure that wget is available"
+	return $OCF_ERR_CONFIGURED
+  fi
   if
     silent_status
   then
-    ocf_run sh -c "$WGET $WGETOPTS $STATUSURL | grep -i '</ *body *></ *html *>' >/dev/null"
+    ocf_run sh -c "$WGET $WGETOPTS $STATUSURL | grep -Ei \"$TESTREGEX\" >/dev/null"
   else
     ocf_log info "$CMD not running"
     return $OCF_NOT_RUNNING
@@ -459,6 +447,15 @@ Extra options to apply when starting apache. See man httpd(8).
 <content type="string" />
 </parameter>
 
+<parameter name="testregex">
+<longdesc lang="en">
+Regular expression to match in the output of statusurl. It
+is case insensitive.
+</longdesc>
+<shortdesc lang="en">test regular expression</shortdesc>
+<content type="string" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -518,6 +515,7 @@ then
   STATUSURL="$OCF_RESKEY_statusurl"
   CONFIGFILE="$OCF_RESKEY_configfile"
   OPTIONS="$OCF_RESKEY_options"
+  TESTREGEX=${OCF_RESKEY_testregex:-'</ *body *>[[:space:]]*</ *html *>'}
 else
   usage
 fi
@@ -545,9 +543,9 @@ then
           [ -z "$HTTPD" ]
 	then
 	  case $COMMAND in
-	    stop)	return	$OCF_SUCCESS;;
-	    monitor)	return	$OCF_NOT_RUNNING;;
-            status)	return  $LSB_STATUS_STOPPED;;
+	    stop)	exit	$OCF_SUCCESS;;
+	    monitor)	exit	$OCF_NOT_RUNNING;;
+            status)	exit  $LSB_STATUS_STOPPED;;
   	    meta-data)	metadata_apache;;
 	  esac
 	  ocf_log err "No valid httpd found! Please revise your <HTTPDLIST> item"
