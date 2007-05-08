@@ -871,33 +871,41 @@ static int _process_get(comm_header_t *ch, char **payload){
 	      (node->type == 1)? "XML_ELEMENT_NODE":
 	      (node->type == 2)? "XML_ATTRIBUTE_NODE":"");
 
-      if(!node || !node->children ||
-         !node->children->content || !strlen((char *)node->children->content)){
+      if(!node) {
 	log_dbg("No content found.\n");
 	error = -ENODATA;
 	goto fail;
       }
 
-      log_dbg("Query results:: %s\n", node->children->content);
-
       if(((node->type == XML_ATTRIBUTE_NODE) && strstr(query, "@*")) ||
 	 ((node->type == XML_ELEMENT_NODE) && strstr(query, "child::*"))){
 	/* add on the trailing NULL and the '=' separator for a list of attrs
 	   or an element node + CDATA*/
-	size = strlen((char *)node->children->content) +
-	  strlen((char *)node->name)+2;
+ 	if (node->children && node->children->content)
+ 	  size = strlen((char *)node->children->content) +
+		 strlen((char *)node->name)+2;
+ 	else 
+ 	  size = strlen((char *)node->name)+2;
 	nnv= 1;
       } else {
-	size = strlen((char *)node->children->content) + 1;
+ 	if (node->children && node->children->content) {
+ 	  size = strlen((char *)node->children->content)+1;
+	} else {
+          error = -ENODATA;
+ 	  goto fail;
+        }
       }
 
       if(size <= ch->comm_payload_size){  /* do we already have enough space? */
 	log_dbg("No extra space needed.\n");
 	if(nnv){
-	  sprintf(*payload, "%s=%s", node->name,node->children->content);
-	}else {
-	  sprintf(*payload, "%s", node->children->content);
+ 	  sprintf(*payload, "%s=%s", node->name, node->children ?
+ 					 (char *)node->children->content:"");
+	} else {
+ 	  sprintf(*payload, "%s", node->children ? node->children->content :
+ 				  node->name);
 	}
+
       } else {
 	log_dbg("Extra space needed.\n");
 	free(*payload);
@@ -907,11 +915,14 @@ static int _process_get(comm_header_t *ch, char **payload){
 	  goto fail;
 	}
 	if(nnv){
-	  sprintf(*payload, "%s=%s", node->name, node->children->content);
-	}else {
-	  sprintf(*payload, "%s", node->children->content);
+ 	  sprintf(*payload, "%s=%s", node->name, node->children ?
+ 					 (char *)node->children->content:"");
+	} else {
+ 	  sprintf(*payload, "%s", node->children ? node->children->content :
+ 				  node->name);
 	}
       }
+      log_dbg("Query results:: %s\n", *payload);
       ch->comm_payload_size = size;
     } else {
       log_dbg("No nodes found.\n");
@@ -1081,7 +1092,7 @@ static int process_set_state(comm_header_t *ch, char *payload){
     goto fail;
   }
 
-  if(ch->comm_desc < 0 || ch->comm_desc >= MAX_OPEN_CONNECTIONS){
+  if(ch->comm_desc < 0){
     log_err("Invalid descriptor specified (%d).\n", ch->comm_desc);
     log_err("Someone may be attempting something evil.\n");
     error = -EBADR;
