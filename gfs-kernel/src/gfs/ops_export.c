@@ -62,9 +62,6 @@ gfs_decode_fh(struct super_block *sb, __u32 *fh, int fh_len, int fh_type,
 
 	atomic_inc(&get_v2sdp(sb)->sd_ops_export);
 
-	if (fh_type != fh_len)
-		return NULL;
-
 	memset(&parent, 0, sizeof(struct inode_cookie));
 
 	switch (fh_type) {
