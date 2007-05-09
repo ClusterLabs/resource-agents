@@ -236,7 +236,12 @@ lv_status()
 	# Check if device is active
 	#
 	if [[ ! $(lvs -o attr --noheadings $lv_path) =~ ....a. ]]; then
-	    return $OCF_ERR_GENERIC
+		return $OCF_ERR_GENERIC
+	fi
+
+	if [[ $(vgs -o attr --noheadings $OCF_RESKEY_vg_name) =~ .....c ]]; then
+		ocf_log notice "$OCF_RESKEY_vg_name is a cluster volume.  Ignoring..."
+		return $OCF_SUCCESS
 	fi
 
 	#
@@ -429,6 +434,11 @@ lv_activate()
 
 case $1 in
 start)
+	if [[ $(vgs -o attr --noheadings $OCF_RESKEY_vg_name) =~ .....c ]]; then
+		ocf_log notice "$OCF_RESKEY_vg_name is a cluster volume.  Ignoring..."
+		exit 0
+	fi
+
 	if [ -z $OCF_RESKEY_lv_name ]; then
 		vg_activate start || exit 1
 	else
@@ -447,6 +457,11 @@ status|monitor)
 	;;
 		    
 stop)
+	if [[ $(vgs -o attr --noheadings $OCF_RESKEY_vg_name) =~ .....c ]]; then
+		ocf_log notice "$OCF_RESKEY_vg_name is a cluster volume.  Ignoring..."
+		exit 0
+	fi
+
 	if [ -z $OCF_RESKEY_lv_name ]; then
 		vg_activate stop || exit 1
 	else
@@ -467,6 +482,11 @@ meta-data)
 	;;
 
 validate-all)
+	if [[ $(vgs -o attr --noheadings $OCF_RESKEY_vg_name) =~ .....c ]]; then
+		ocf_log notice "$OCF_RESKEY_vg_name is a cluster volume.  Ignoring..."
+		exit 0
+	fi
+
 	verify_all
 	rv=$?
 	;;
