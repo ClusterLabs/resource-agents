@@ -515,9 +515,11 @@ static int comms_init_ais(struct objdb_iface_ver0 *objdb)
 							"none", strlen("none")+1);
 		}
 
-		sprintf(tmp, "%d", 1);
-		objdb->object_key_create(object_handle, "secauth", strlen("secauth"),
-					 tmp, strlen(tmp)+1);
+		if (objdb_get_string(objdb, object_handle, "secauth", &value)) {
+			sprintf(tmp, "%d", 1);
+			objdb->object_key_create(object_handle, "secauth", strlen("secauth"),
+						 tmp, strlen(tmp)+1);
+		}
 
 		if (key_filename)
 		{
