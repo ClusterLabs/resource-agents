@@ -432,6 +432,32 @@ lv_activate()
 	return $OCF_SUCCESS
 }
 
+ha_lvm_proper_setup_check()
+{
+	# First, let's check that they have setup their lvm.conf correctly
+	if ! lvm dumpconfig activation/volume_list >& /dev/null ||
+	   ! lvm dumpconfig activation/volume_list | grep $(local_node_name); then
+		ocf_log err "lvm.conf improperly configured for HA LVM."
+		return $OCF_ERR_GENERIC
+	fi
+
+	# Next, we need to ensure that their initrd has been updated
+	if [ -e /boot/initrd-`uname -r`.img ]; then
+		if [ "$(find /boot/initrd-`uname -r`.img -newer /etc/lvm/lvm.conf)" == "" ]; then
+			ocf_log err "HA LVM requires the initrd image to be newer than lvm.conf"
+			return $OCF_ERR_GENERIC
+		fi
+	else
+		# Best guess...
+		if [ "$(find /boot/*.img -newer /etc/lvm/lvm.conf)" == "" ]; then
+			ocf_log err "HA LVM requires the initrd image to be newer than lvm.conf"
+			return $OCF_ERR_GENERIC
+		fi
+	fi
+
+	return $OCF_SUCCESS
+}
+
 case $1 in
 start)
 	if [[ $(vgs -o attr --noheadings $OCF_RESKEY_vg_name) =~ .....c ]]; then
@@ -439,6 +465,8 @@ start)
 		exit 0
 	fi
 
+	ha_lvm_proper_setup_check || exit 1
+		
 	if [ -z $OCF_RESKEY_lv_name ]; then
 		vg_activate start || exit 1
 	else
@@ -460,6 +488,10 @@ stop)
 	if [[ $(vgs -o attr --noheadings $OCF_RESKEY_vg_name) =~ .....c ]]; then
 		ocf_log notice "$OCF_RESKEY_vg_name is a cluster volume.  Ignoring..."
 		exit 0
+	fi
+
+	if ! ha_lvm_proper_setup_check; then
+		ocf_log err "WARNING: An improper setup can cause data corruption!"
 	fi
 
 	if [ -z $OCF_RESKEY_lv_name ]; then
