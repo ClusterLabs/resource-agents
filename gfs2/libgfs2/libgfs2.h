@@ -165,7 +165,7 @@ struct gfs2_sbd {
 	int expert;
 	int override;
 
-	char *device_name;
+	char device_name[PATH_MAX];
 	char *path_name;
 
 	/* Constants */
@@ -219,6 +219,9 @@ struct gfs2_sbd {
 
 	unsigned int spills;
 	unsigned int writes;
+	int metafs_fd;
+	int metafs_mounted; /* If metafs was already mounted */
+	char metafs_path[PATH_MAX]; /* where metafs is mounted */
 };
 
 extern char *prog_name;
@@ -343,7 +346,6 @@ void write_buffer(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh);
 /* device_geometry.c */
 void device_geometry(struct gfs2_sbd *sdp);
 void fix_device_geometry(struct gfs2_sbd *sdp);
-void munge_device_geometry_for_grow(struct gfs2_sbd *sdp);
 
 /* fs_bits.c */
 #define BFITNOENT (0xFFFFFFFF)
@@ -497,6 +499,12 @@ int query(struct gfs2_options *opts, const char *format, ...);
 
 /* misc.c */
 void compute_constants(struct gfs2_sbd *sdp);
+int find_gfs2_meta(struct gfs2_sbd *sdp);
+int dir_exists(const char *dir);
+void check_for_gfs2(struct gfs2_sbd *sdp);
+void mount_gfs2_meta(struct gfs2_sbd *sdp);
+void lock_for_admin(struct gfs2_sbd *sdp);
+void cleanup_metafs(struct gfs2_sbd *sdp);
 
 /* rgrp.c */
 int gfs2_compute_bitstructs(struct gfs2_sbd *sdp, struct rgrp_list *rgd);

@@ -53,9 +53,9 @@ main(int argc, char *argv[])
 		main_jadd(argc, argv);
 	else if (!strcmp(whoami, "gfs2_mkfs") || !strcmp(whoami, "mkfs.gfs2"))
 		main_mkfs(argc, argv);
-#if 0
-	if (!strcmp(whoami, "gfs2_grow"))
+	else if (!strcmp(whoami, "gfs2_grow"))
 		main_grow(argc, argv);
+#if 0
 	else if (!strcmp(whoami, "gfs2_shrink"))
 		main_shrink(argc, argv);
 #endif

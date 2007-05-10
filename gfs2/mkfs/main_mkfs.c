@@ -86,7 +86,7 @@ decode_arguments(int argc, char *argv[], struct gfs2_sbd *sdp)
 	int cont = TRUE;
 	int optchar;
 
-	sdp->device_name = NULL;
+	memset(sdp->device_name, 0, sizeof(sdp->device_name));
 	sdp->md.journals = 1;
 	strcpy(sdp->lockproto, "lock_nolock");
 
@@ -169,10 +169,10 @@ decode_arguments(int argc, char *argv[], struct gfs2_sbd *sdp)
 		case 1:
 			if (strcmp(optarg, "gfs2") == 0)
 				continue;
-			if (sdp->device_name) {
+			if (sdp->device_name[0]) {
 				die("More than one device specified (try -h for help)");
 			} 
-			sdp->device_name = optarg;
+			strcpy(sdp->device_name, optarg);
 			break;
 
 		default:
@@ -181,11 +181,10 @@ decode_arguments(int argc, char *argv[], struct gfs2_sbd *sdp)
 		};
 	}
 
-	if ((sdp->device_name == NULL) && (optind < argc)) {
-		sdp->device_name = argv[optind++];
-	}
+	if ((sdp->device_name[0] == 0) && (optind < argc))
+		strcpy(sdp->device_name, argv[optind++]);
 
-	if (sdp->device_name == NULL)
+	if (sdp->device_name[0] == '\0')
 		die("no device specified (try -h for help)\n");
 
 	if (optind < argc)
@@ -264,8 +263,7 @@ static void are_you_sure(struct gfs2_sbd *sdp)
 		die("error identifying the contents of %s: %s\n",
 		    sdp->device_name, strerror(errno));
 
-	printf("This will destroy any data on %s.\n",
-	       sdp->device_name);
+	printf("This will destroy any data on %s.\n", sdp->device_name);
 	if (volume_id_probe_all(vid, 0, sdp->device_size) == 0)
 		printf("  It appears to contain a %s %s.\n", vid->type,
 			   vid->usage_id == VOLUME_ID_OTHER? "partition" : vid->usage);

@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -91,13 +91,6 @@ print_usage()
 	printf("  -u <uid>         get/set a user ID\n");
 	printf("  -V               Print program version information, then exit\n");
 }
-
-/**
- * check_for_gfs2 - Check to see if a descriptor is a file on a GFS2 filesystem
- * @fd: the file descriptor
- * @path: the path used to open the descriptor
- *
- */
 
 /**
  * decode_arguments - parse command line arguments
@@ -287,107 +280,6 @@ print_quota(commandline_t *comline,
 }
 
 void
-lock_for_admin()
-{
-        int error;
-
-        for (;;) {
-
-                metafs_fd = open(metafs_path, O_RDONLY | O_NOFOLLOW);
-                if (metafs_fd < 0)
-                        die("can't open %s: %s\n",
-                            metafs_path, strerror(errno));
-
-                error = flock(metafs_fd, LOCK_EX);
-                if (error)
-                        die("can't flock %s: %s\n", metafs_path,
-                            strerror(errno));
-
-                break;
-        }
-}
-
-int 
-find_gfs2_meta(const char *mnt)
-{
-	FILE *fp = fopen("/proc/mounts", "r");
-	char name[] = "gfs2meta";
-	char buffer[BUF_SIZE];
-	char fstype[80], mfsoptions[BUF_SIZE];
-	char meta_device[BUF_SIZE];
-	int fsdump, fspass;
-
-	metafs_mounted = 0;
-
-	if (fp == NULL) {
-		perror("open: /proc/mounts");
-		exit(EXIT_FAILURE);
-	}
-	while ((fgets(buffer, 4095, fp)) != NULL) {
-		buffer[4095] = 0;
-		if (strstr(buffer, name) == 0)
-			continue;
-
-		if (sscanf(buffer, "%s %s %s %s %d %d", meta_device, 
-			   metafs_path, fstype,mfsoptions, &fsdump, 
-			   &fspass) != 6)
-			continue;
-		
-		if (strcmp(meta_device, device_name) != 0
-		    && strcmp(meta_device, mnt) != 0)
-			continue;
-		
-		metafs_mounted = 1;
-		
-		fclose(fp);
-		return TRUE;
-	}
-	fclose(fp);
-	return FALSE;
-}
-
-static int
-dir_exists(const char *dir)
-{
-	int fd, ret;
-	struct stat statbuf;
-	fd = open(dir, O_RDONLY);
-	if (fd<0) { 
-		if (errno == ENOENT)
-			return 0;
-		die("Couldn't open %s : %s\n", dir, strerror(errno));
-	}
-	ret = fstat(fd, &statbuf);
-	if (ret)
-		die("stat failed on %s : %s\n", dir, strerror(errno));
-	if (S_ISDIR(statbuf.st_mode)) {
-		close(fd);
-		return 1;
-	}
-	close(fd);
-	die("%s exists, but is not a directory. Cannot mount metafs here\n", dir);
-}
-
-void 
-mount_gfs2_meta()	 
-{
-	int ret;
-	/* mount the meta fs */
-	if (!dir_exists(meta_mount)) {
-		ret = mkdir(meta_mount, 0700);
-		if (ret)
-			die("Couldn't create %s : %s\n", meta_mount,
-			    strerror(errno));
-	}
-		
-	ret = mount(device_name, meta_mount, "gfs2meta", 0, NULL);
-	if (ret)
-		die("Couldn't mount %s : %s\n", meta_mount,
-		    strerror(errno));
-	strcpy(metafs_path, meta_mount);
-}
-
-void
 cleanup()
 {
 	int ret;
@@ -397,44 +289,6 @@ cleanup()
 			fprintf(stderr, "Couldn't unmount %s : %s\n", meta_mount, 
 			    strerror(errno));
 	}
-}
-
-void
-check_for_gfs2(const char *mnt)
-{
-	FILE *fp = fopen("/proc/mounts", "r");
-	char buffer[4096];
-	char fstype[80];
-	int fsdump, fspass, ret;
-
-	if (fp == NULL) {
-		perror("open: /proc/mounts");
-		exit(EXIT_FAILURE);
-	}
-	while ((fgets(buffer, 4095, fp)) != NULL) {
-		buffer[4095] = 0;
-
-		if (strstr(buffer, "0") == 0)
-			continue;
-
-		if ((ret = sscanf(buffer, "%s %s %s %s %d %d", device_name, fspath, 
-				  fstype, fsoptions, &fsdump, &fspass)) != 6) 
-			continue;
-
-		if (strcmp(fstype, "gfs2") != 0)
-			continue;
-
-		if (strcmp(fspath, mnt) != 0)
-			continue;
-
-		fclose(fp);
-		if (strncmp(device_name, "/dev/loop", 9) == 0)
-			die("Cannot add journal(s) to a loopback GFS mount\n");
-		
-		return;
-	}
-	fclose(fp);
-	die("gfs2 Filesystem %s not found\n", mnt);
 }
 
 void 
@@ -462,10 +316,9 @@ read_superblock(struct gfs2_sb *sb)
  */
 
 static void 
-do_list(commandline_t *comline)
+do_list(struct gfs2_sbd *sdp, commandline_t *comline)
 {
 	int fd;
-	struct gfs2_sb sb;
 	struct gfs2_quota q;
 	char buf[sizeof(struct gfs2_quota)];
 	uint64_t offset;
@@ -477,11 +330,11 @@ do_list(commandline_t *comline)
 	if (!*comline->filesystem)
 		die("need a filesystem to work on\n");
 
-	check_for_gfs2(comline->filesystem);
-	read_superblock(&sb);
-	if (!find_gfs2_meta(comline->filesystem))
-		mount_gfs2_meta();
-	lock_for_admin();
+	check_for_gfs2(sdp);
+	read_superblock(&sdp->sd_sb);
+	if (!find_gfs2_meta(sdp))
+		mount_gfs2_meta(sdp);
+	lock_for_admin(sdp);
 	
 	strcpy(quota_file, metafs_path);
 	strcat(quota_file, "/quota");
@@ -512,7 +365,7 @@ do_list(commandline_t *comline)
 
 			if (q.qu_limit || q.qu_warn || q.qu_value)
 				print_quota(comline, (pass) ? FALSE : TRUE, id,
-					    &q, &sb);
+					    &q, &sdp->sd_sb);
 
 			offset += 2 * sizeof(struct gfs2_quota);
 		} while (error == sizeof(struct gfs2_quota));
@@ -531,21 +384,20 @@ do_list(commandline_t *comline)
  */
 
 static void 
-do_get_one(commandline_t *comline, char *filesystem)
+do_get_one(struct gfs2_sbd *sdp, commandline_t *comline, char *filesystem)
 {
 	int fd;
 	char buf[256];
 	struct gfs2_quota q;
-	struct gfs2_sb sb;
 	uint64_t offset;
 	int error;
 	char quota_file[BUF_SIZE];
 
-	check_for_gfs2(filesystem);
-	read_superblock(&sb);
-	if (!find_gfs2_meta(filesystem))
-		mount_gfs2_meta();
-	lock_for_admin();
+	check_for_gfs2(sdp);
+	read_superblock(&sdp->sd_sb);
+	if (!find_gfs2_meta(sdp))
+		mount_gfs2_meta(sdp);
+	lock_for_admin(sdp);
 	
 	strcpy(quota_file, metafs_path);
 	strcat(quota_file, "/quota");
@@ -580,7 +432,7 @@ do_get_one(commandline_t *comline, char *filesystem)
 
 	print_quota(comline,
 		    (comline->id_type == GQ_ID_USER), comline->id,
-		    &q, &sb);
+		    &q, &sdp->sd_sb);
 
 	close(fd);
 	close(metafs_fd);
@@ -594,12 +446,12 @@ do_get_one(commandline_t *comline, char *filesystem)
  */
 
 static void
-do_get(commandline_t *comline)
+do_get(struct gfs2_sbd *sdp, commandline_t *comline)
 {
 	int first = TRUE;
 
 	if (*comline->filesystem)
-		do_get_one(comline, comline->filesystem);
+		do_get_one(sdp, comline, comline->filesystem);
 	else {
 		char buf[256], device[256], path[256], type[256];
 		FILE *file;
@@ -620,7 +472,7 @@ do_get(commandline_t *comline)
 				printf("\n");
 
 			printf("%s\n", path);
-			do_get_one(comline, path);
+			do_get_one(sdp, comline, path);
 		}
 
 		fclose(file);
@@ -633,16 +485,15 @@ do_get(commandline_t *comline)
  *
  */
 static void 
-do_sync_one(char *filesystem)
+do_sync_one(struct gfs2_sbd *sdp, char *filesystem)
 {
 	int fd;
-	struct gfs2_sb sb;
 	char sys_quota_sync[PATH_MAX];
 
-	check_for_gfs2(filesystem);
-	read_superblock(&sb);
+	check_for_gfs2(sdp);
+	read_superblock(&sdp->sd_sb);
 	sprintf(sys_quota_sync, "%s%s%s", 
-		"/sys/fs/gfs2/", sb.sb_locktable, "/quota_sync");
+		"/sys/fs/gfs2/", sdp->sd_sb.sb_locktable, "/quota_sync");
 	
 	fd = open(sys_quota_sync, O_WRONLY);
 	if (fd < 0)
@@ -662,12 +513,12 @@ do_sync_one(char *filesystem)
  */
 
 void
-do_sync(commandline_t *comline)
+do_sync(struct gfs2_sbd *sdp, commandline_t *comline)
 {
 	sync();
 
 	if (*comline->filesystem)
-		do_sync_one(comline->filesystem);
+		do_sync_one(sdp, comline->filesystem);
 	else {
 		char buf[256], device[256], path[256], type[256];
 		FILE *file;
@@ -682,7 +533,7 @@ do_sync(commandline_t *comline)
 			if (strcmp(type, "gfs2") != 0)
 				continue;
 
-			do_sync_one(path);
+			do_sync_one(sdp, path);
 		}
 
 		fclose(file);
@@ -696,11 +547,10 @@ do_sync(commandline_t *comline)
  */
 
 static void
-do_set(commandline_t *comline)
+do_set(struct gfs2_sbd *sdp, commandline_t *comline)
 {
 	int fd, fd1;
 	uint64_t offset;
-	struct gfs2_sb sb;
 	uint64_t new_value;
 	int error;
 	char quota_file[BUF_SIZE];
@@ -711,11 +561,11 @@ do_set(commandline_t *comline)
 	if (!comline->new_value_set)
 		die("need a new value\n");
 
-	check_for_gfs2(comline->filesystem);
-	read_superblock(&sb);
-	if (!find_gfs2_meta(comline->filesystem))
-		mount_gfs2_meta();
-	lock_for_admin();
+	check_for_gfs2(sdp);
+	read_superblock(&sdp->sd_sb);
+	if (!find_gfs2_meta(sdp))
+		mount_gfs2_meta(sdp);
+	lock_for_admin(sdp);
 	
 	strcpy(quota_file, metafs_path);
 	strcat(quota_file, "/quota");
@@ -758,14 +608,16 @@ do_set(commandline_t *comline)
 
 	switch (comline->units) {
 	case GQ_UNITS_MEGABYTE:
-		new_value = comline->new_value << (20 - sb.sb_bsize_shift);
+		new_value =
+			comline->new_value << (20 - sdp->sd_sb.sb_bsize_shift);
 		break;
 
 	case GQ_UNITS_KILOBYTE:
-		if (sb.sb_bsize == 512)
+		if (sdp->sd_sb.sb_bsize == 512)
 			new_value = comline->new_value * 2;
 		else
-			new_value = comline->new_value >> (sb.sb_bsize_shift - 10);
+			new_value = comline->new_value >>
+				(sdp->sd_sb.sb_bsize_shift - 10);
 		break;
 
 	case GQ_UNITS_FSBLOCK:
@@ -773,7 +625,8 @@ do_set(commandline_t *comline)
 		break;
 
 	case GQ_UNITS_BASICBLOCK:
-		new_value = comline->new_value >> (sb.sb_bsize_shift - 9);
+		new_value = comline->new_value >>
+			(sdp->sd_sb.sb_bsize_shift - 9);
 		break;
 
 	default:
@@ -792,7 +645,8 @@ do_set(commandline_t *comline)
 	}
 
 	/* Write "1" to sysfs quota refresh file to refresh gfs quotas */
-	sprintf(sys_q_refresh, "%s%s%s", "/sys/fs/gfs2/", sb.sb_locktable, 
+	sprintf(sys_q_refresh, "%s%s%s", "/sys/fs/gfs2/",
+		sdp->sd_sb.sb_locktable, 
 		comline->id_type == GQ_ID_USER ? "/quota_refresh_user" : 
 		"/quota_refresh_group");
 	
@@ -827,41 +681,44 @@ out:
 int
 main(int argc, char *argv[])
 {
+        struct gfs2_sbd sbd, *sdp = &sbd;
 	commandline_t comline;
 
 	prog_name = argv[0];
 	metafs_mounted = 0;
 
+	memset(sdp, 0, sizeof(struct gfs2_sbd));
 	memset(&comline, 0, sizeof(commandline_t));
 
 	decode_arguments(argc, argv, &comline);
+	strcpy(sdp->path_name, comline.filesystem);
 
 	switch (comline.operation) {
 	case GQ_OP_LIST:
-		do_list(&comline);
+		do_list(sdp, &comline);
 		break;
 
 	case GQ_OP_GET:
-		do_get(&comline);
+		do_get(sdp, &comline);
 		break;
 
 	case GQ_OP_LIMIT:
 	case GQ_OP_WARN:
-		do_set(&comline);
+		do_set(sdp, &comline);
 		break;
 
 	case GQ_OP_SYNC:
-		do_sync(&comline);
+		do_sync(sdp, &comline);
 		break;
 
 	case GQ_OP_CHECK:
-		do_sync(&comline);
-		do_check(&comline);
+		do_sync(sdp, &comline);
+		do_check(sdp, &comline);
 		break;
 
 	case GQ_OP_INIT:
-		do_sync(&comline);
-		do_quota_init(&comline);
+		do_sync(sdp, &comline);
+		do_quota_init(sdp, &comline);
 		break;
 
 	default:
@@ -869,7 +726,7 @@ main(int argc, char *argv[])
 			comline.id_type = GQ_ID_USER;
 			comline.id = geteuid();
 		}
-		do_get(&comline);
+		do_get(sdp, &comline);
 		break;
 	}
 

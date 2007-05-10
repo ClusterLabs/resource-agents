@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -180,10 +180,10 @@ scan_fs(dev_t device, char *dirname,
  *
  */
 static void
-read_quota_file(commandline_t *comline, osi_list_t *uid, osi_list_t *gid)
+read_quota_file(struct gfs2_sbd *sdp, commandline_t *comline,
+		osi_list_t *uid, osi_list_t *gid)
 {
 	int fd;
-	struct gfs2_sb sb;
 	char buf[sizeof(struct gfs2_quota)];
 	struct gfs2_quota q;
 	uint64_t offset = 0;
@@ -191,11 +191,11 @@ read_quota_file(commandline_t *comline, osi_list_t *uid, osi_list_t *gid)
 	int error;
 	char quota_file[BUF_SIZE];
 	
-	check_for_gfs2(comline->filesystem);
-	read_superblock(&sb);
-	if (!find_gfs2_meta(comline->filesystem))
-		mount_gfs2_meta();
-	lock_for_admin();
+	check_for_gfs2(sdp);
+	read_superblock(&sdp->sd_sb);
+	if (!find_gfs2_meta(sdp))
+		mount_gfs2_meta(sdp);
+	lock_for_admin(sdp);
 	
 	strcpy(quota_file, metafs_path);
 	strcat(quota_file, "/quota");
@@ -224,7 +224,7 @@ read_quota_file(commandline_t *comline, osi_list_t *uid, osi_list_t *gid)
 		gfs2_quota_in(&q, buf);
 
 		id = (offset / sizeof(struct gfs2_quota)) >> 1;
-		q.qu_value <<= sb.sb_bsize_shift - 9;
+		q.qu_value <<= sdp->sd_sb.sb_bsize_shift - 9;
 
 		if (q.qu_value) {
 			if (id * sizeof(struct gfs2_quota) * 2 == offset)
@@ -383,7 +383,7 @@ verify_pathname(commandline_t *comline)
  */
 
 void
-do_check(commandline_t *comline)
+do_check(struct gfs2_sbd *sdp, commandline_t *comline)
 {
 	dev_t device;
 	osi_list_t fs_uid, fs_gid, qf_uid, qf_gid;
@@ -399,7 +399,7 @@ do_check(commandline_t *comline)
 	device = verify_pathname(comline);
 
 	scan_fs(device, comline->filesystem, &fs_uid, &fs_gid, &hl);
-	read_quota_file(comline, &qf_uid, &qf_gid);
+	read_quota_file(sdp, comline, &qf_uid, &qf_gid);
 
 	print_list("fs user ", &fs_uid);
 	print_list("fs group", &fs_gid);
@@ -423,10 +423,10 @@ do_check(commandline_t *comline)
  */
 
 static void
-set_list(commandline_t *comline, int user, osi_list_t *list, int64_t multiplier)
+set_list(struct gfs2_sbd *sdp, commandline_t *comline, int user, 
+	 osi_list_t *list, int64_t multiplier)
 {
 	int fd, fd1;
-	struct gfs2_sb sb;
 	osi_list_t *tmp;
 	values_t *v;
 	uint64_t offset;
@@ -435,11 +435,11 @@ set_list(commandline_t *comline, int user, osi_list_t *list, int64_t multiplier)
 	char quota_file[BUF_SIZE];
 	char sys_q_refresh[BUF_SIZE];
 	
-	check_for_gfs2(comline->filesystem);
-	read_superblock(&sb);
-	if (!find_gfs2_meta(comline->filesystem))
-		mount_gfs2_meta();
-	lock_for_admin();
+	check_for_gfs2(sdp);
+	read_superblock(&sdp->sd_sb);
+	if (!find_gfs2_meta(sdp))
+		mount_gfs2_meta(sdp);
+	lock_for_admin(sdp);
 	
 	strcpy(quota_file, metafs_path);
 	strcat(quota_file, "/quota");
@@ -460,7 +460,7 @@ set_list(commandline_t *comline, int user, osi_list_t *list, int64_t multiplier)
 		offset += (unsigned long)(&((struct gfs2_quota *)NULL)->qu_value);
 
 		value = v->v_blocks * multiplier;
-		value >>= sb.sb_bsize_shift - 9;
+		value >>= sdp->sd_sb.sb_bsize_shift - 9;
 		value = cpu_to_be64(value);
 
 		lseek(fd, offset, SEEK_SET);
@@ -472,8 +472,10 @@ set_list(commandline_t *comline, int user, osi_list_t *list, int64_t multiplier)
 		}
 
 		/* Write "1" to sysfs quota refresh file to refresh gfs quotas */
-		sprintf(sys_q_refresh, "%s%s%s", "/sys/fs/gfs2/", sb.sb_locktable, 
-			(user) ? "/quota_refresh_user" : "/quota_refresh_group");
+		sprintf(sys_q_refresh, "%s%s%s", "/sys/fs/gfs2/",
+			sdp->sd_sb.sb_locktable, 
+			(user) ? "/quota_refresh_user" :
+			"/quota_refresh_group");
 		
 		fd1 = open(sys_q_refresh, O_WRONLY);
 		if (fd1 < 0) {
@@ -503,7 +505,7 @@ out:
  */
 
 void
-do_quota_init(commandline_t *comline)
+do_quota_init(struct gfs2_sbd *sdp, commandline_t *comline)
 {
 	dev_t device;
 	osi_list_t fs_uid, fs_gid, qf_uid, qf_gid;
@@ -519,7 +521,7 @@ do_quota_init(commandline_t *comline)
 	device = verify_pathname(comline);
 
 	scan_fs(device, comline->filesystem, &fs_uid, &fs_gid, &hl);
-	read_quota_file(comline, &qf_uid, &qf_gid);
+	read_quota_file(sdp, comline, &qf_uid, &qf_gid);
 
 	type_zalloc(v, values_t, 1);
 	v->v_id = 0;
@@ -536,12 +538,12 @@ do_quota_init(commandline_t *comline)
 	print_list("qf user ", &qf_uid);
 	print_list("qf group", &qf_gid);
 
-	set_list(comline, TRUE, &qf_uid, 0);
-	set_list(comline, FALSE, &qf_gid, 0);
-	set_list(comline, TRUE, &fs_uid, 1);
-	set_list(comline, FALSE, &fs_gid, 1);
+	set_list(sdp, comline, TRUE, &qf_uid, 0);
+	set_list(sdp, comline, FALSE, &qf_gid, 0);
+	set_list(sdp, comline, TRUE, &fs_uid, 1);
+	set_list(sdp, comline, FALSE, &fs_gid, 1);
 	
-	do_sync(comline);
+	do_sync(sdp, comline);
 
-	do_check(comline);
+	do_check(sdp, comline);
 }

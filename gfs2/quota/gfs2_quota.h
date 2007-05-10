@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -98,19 +98,17 @@ extern char *prog_name;
 
 /*  main.c  */
 
-void check_for_gfs2(const char *path);
 void do_get_super(int fd, struct gfs2_sb *sb);
-void do_sync(commandline_t *comline);
+void do_sync(struct gfs2_sbd *sdp, commandline_t *comline);
 void lock_for_admin();
-int find_gfs2_meta(const char *mnt);
 void mount_gfs2_meta();
 void cleanup();
 void read_superblock(struct gfs2_sb *sb);
 
 /*  check.c  */
 
-void do_check(commandline_t *comline);
-void do_quota_init(commandline_t *comline);
+void do_check(struct gfs2_sbd *sdp, commandline_t *comline);
+void do_quota_init(struct gfs2_sbd *sdp, commandline_t *comline);
 
 /*  names.c  */
 

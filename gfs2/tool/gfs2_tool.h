@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -95,6 +95,7 @@ void set_tune(int argc, char **argv);
 void check_for_gfs2(int fd, char *path);
 char *get_list(void);
 char **str2lines(char *str);
+const char *find_debugfs_mount(void);
 char *mp2fsname(char *mp);
 char *name2value(char *str, char *name);
 uint32_t name2u32(char *str, char *name);

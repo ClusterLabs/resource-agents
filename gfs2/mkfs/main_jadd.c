@@ -1,3 +1,14 @@
+/*****************************************************************************
+******************************************************************************
+**
+**  Copyright (C) 2006-2007 Red Hat, Inc.  All rights reserved.
+**
+**  This copyrighted material is made available to anyone wishing to use,
+**  modify, copy, or redistribute it subject to the terms and conditions
+**  of the GNU General Public License v.2.
+**
+******************************************************************************
+*****************************************************************************/
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,15 +34,6 @@
 
 #define BUF_SIZE 4096
 
-static char device_name[PATH_MAX];
-static char fspath[BUF_SIZE];
-static char fsoptions[BUF_SIZE];
-static char metafs_path[BUF_SIZE];
-static char lock_table[PATH_MAX];
-static char meta_mount[PATH_MAX] = "/tmp/.gfs2meta";
-static int metafs_fd;
-static int metafs_mounted = 0; /* If metafs was already mounted */
-
 void
 make_jdata(int fd, char *value)
 {
@@ -56,43 +58,16 @@ rename2system(struct gfs2_sbd *sdp, char *new_dir, char *new_name)
 	char oldpath[PATH_MAX], newpath[PATH_MAX];
 	int error = 0;
 	error = snprintf(oldpath, PATH_MAX, "%s/new_inode", 
-			 metafs_path);
+			 sdp->metafs_path);
 	if (error >= PATH_MAX)
 		die("rename2system (1)\n");
 
 	error = snprintf(newpath, PATH_MAX, "%s/%s/%s",
-			 metafs_path, new_dir, new_name);
+			 sdp->metafs_path, new_dir, new_name);
 	if (error >= PATH_MAX)
 		die("rename2system (2)\n");
 	
 	return rename(oldpath, newpath);
-}
-
-void
-lock_for_admin(struct gfs2_sbd *sdp)
-{
-        int error;
-
-        if (sdp->debug)
-                printf("\nTrying to get admin lock...\n");
-
-        for (;;) {
-
-                metafs_fd = open(metafs_path, O_RDONLY | O_NOFOLLOW);
-                if (metafs_fd < 0)
-                        die("can't open %s: %s\n",
-                            metafs_path, strerror(errno));
-
-                error = flock(metafs_fd, LOCK_EX);
-                if (error)
-                        die("can't flock %s: %s\n", metafs_path,
-                            strerror(errno));
-
-                break;
-        }
-
-        if (sdp->debug)
-                printf("Got it.\n");
 }
 
 /**
@@ -238,7 +213,7 @@ create_new_inode(struct gfs2_sbd *sdp)
 	int fd;
 	int error;
 
-	error = snprintf(name, PATH_MAX, "%s/new_inode", metafs_path);
+	error = snprintf(name, PATH_MAX, "%s/new_inode", sdp->metafs_path);
 	if (error >= PATH_MAX)
 		die("create_new_inode (1)\n");
 
@@ -377,7 +352,8 @@ read_superblock(struct gfs2_sbd *sdp)
 	gfs2_sb_in(&(sdp->sd_sb), buf);
 	sdp->bsize = sdp->sd_sb.sb_bsize;
 	strcpy(lock_table,sdp->sd_sb.sb_locktable);
-	sprintf(meta_mount, "%s%s%s", "/sys/fs/gfs2/", lock_table, "/meta");
+	sprintf(sdp->meta_mount, "%s%s%s", "/sys/fs/gfs2/", lock_table,
+		"/meta");
 
 	close(fd);
 }
@@ -408,7 +384,7 @@ find_current_journals(struct gfs2_sbd *sdp)
 	DIR *dirp;
 	int existing_journals = 0;
 
-	sprintf(jindex, "%s/jindex", metafs_path);
+	sprintf(jindex, "%s/jindex", sdp->metafs_path);
 	dirp = opendir(jindex);
 	if (!dirp) {
 		die("Could not find the jindex directory "
@@ -491,139 +467,6 @@ add_j(struct gfs2_sbd *sdp)
 		    new_name, error, strerror(errno));
 }
 
-static int 
-find_gfs2_meta(struct gfs2_sbd *sdp)
-{
-	FILE *fp = fopen("/proc/mounts", "r");
-	char name[] = "gfs2meta";
-	char buffer[BUF_SIZE];
-	char fstype[80], mfsoptions[BUF_SIZE];
-	char meta_device[BUF_SIZE];
-	int fsdump, fspass;
-
-	if (fp == NULL) {
-		perror("open: /proc/mounts");
-		exit(EXIT_FAILURE);
-	}
-	while ((fgets(buffer, 4095, fp)) != NULL) {
-		buffer[4095] = 0;
-		if (strstr(buffer, name) == 0)
-			continue;
-
-		if (sscanf(buffer, "%s %s %s %s %d %d", meta_device, 
-			   metafs_path, fstype,mfsoptions, &fsdump, 
-			   &fspass) != 6)
-			continue;
-		
-		if (strcmp(meta_device, sdp->device_name) != 0
-		    && strcmp(meta_device, sdp->path_name) != 0)
-			continue;
-		
-		metafs_mounted = 1;
-		
-		fclose(fp);
-		return TRUE;
-	}
-	fclose(fp);
-	return FALSE;
-}
-
-static int
-dir_exists(const char *dir)
-{
-	int fd, ret;
-	struct stat statbuf;
-	fd = open(dir, O_RDONLY);
-	if (fd<0) { 
-		if (errno == ENOENT)
-			return 0;
-		die("Couldn't open %s : %s\n", dir, strerror(errno));
-	}
-	ret = fstat(fd, &statbuf);
-	if (ret)
-		die("stat failed on %s : %s\n", dir, strerror(errno));
-	if (S_ISDIR(statbuf.st_mode)) {
-		close(fd);
-		return 1;
-	}
-	close(fd);
-	die("%s exists, but is not a directory. Cannot mount metafs here\n", dir);
-}
-
-static void 
-mount_gfs2_meta(struct gfs2_sbd *sdp) 	 
-{
-	int ret;
-	/* mount the meta fs */
-	if (!dir_exists(meta_mount)) {
-		ret = mkdir(meta_mount, 0700);
-		if (ret)
-			die("Couldn't create %s : %s\n", meta_mount,
-			    strerror(errno));
-	}
-		
-	ret = mount(sdp->device_name, meta_mount, "gfs2meta", 0, NULL);
-	if (ret)
-		die("Couldn't mount %s : %s\n", meta_mount,
-		    strerror(errno));
-	strcpy(metafs_path, meta_mount);
-}
-
-static void
-check_for_gfs2(struct gfs2_sbd *sdp)
-{
-	FILE *fp = fopen("/proc/mounts", "r");
-	char *name = sdp->path_name;
-	char buffer[BUF_SIZE];
-	char fstype[80];
-	int fsdump, fspass, ret;
-
-	if (name[strlen(name) - 1] == '/')
-		name[strlen(name) - 1] = '\0';
-
-	if (fp == NULL) {
-		perror("open: /proc/mounts");
-		exit(EXIT_FAILURE);
-	}
-	while ((fgets(buffer, 4095, fp)) != NULL) {
-		buffer[4095] = 0;
-
-		if (strstr(buffer, "0") == 0)
-			continue;
-
-		if ((ret = sscanf(buffer, "%s %s %s %s %d %d", device_name, fspath, 
-				  fstype, fsoptions, &fsdump, &fspass)) != 6) 
-			continue;
-		sdp->device_name = device_name;
-
-		if (strcmp(fstype, "gfs2") != 0)
-			continue;
-
-		if (strcmp(fspath, name) != 0)
-			continue;
-
-		fclose(fp);
-		if (strncmp(device_name, "/dev/loop", 9) == 0)
-			die("Cannot add journal(s) to a loopback GFS mount\n");
-
-		return;
-	}
-	fclose(fp);
-	die("gfs2 Filesystem %s not found\n", name);
-}
-
-static void
-cleanup(struct gfs2_sbd *sdp)
-{
-	int ret;
-	if (!metafs_mounted) { /* was mounted by us */
-		ret = umount(meta_mount);
-		if (ret)
-			fprintf(stderr, "Couldn't unmount %s : %s\n", meta_mount, 
-			    strerror(errno));
-	}
-}
-
 /**
  * main_jadd - do everything
  * @argc:
@@ -654,7 +497,8 @@ main_jadd(int argc, char *argv[])
 
 	gather_info(sdp);
 
-	if (!find_gfs2_meta(sdp))
+	find_gfs2_meta(sdp);
+	if (!sdp->metafs_mounted)
 		mount_gfs2_meta(sdp);
 	lock_for_admin(sdp);
 	
@@ -671,12 +515,8 @@ main_jadd(int argc, char *argv[])
 		add_j(sdp);
 	}
 
-	close(metafs_fd);
 	close(sdp->path_fd);
-
-	cleanup(sdp);
-
+	cleanup_metafs(sdp);
 	sync();
-
 	print_results(sdp);
 }
