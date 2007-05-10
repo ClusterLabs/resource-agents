@@ -68,15 +68,18 @@ case "$host_os" in
 		CPPFLAGS="$CPPFLAGS -I/usr/local/include"
 		INIT_EXT=".sh"
 		REBOOT_OPTIONS="-f"
+		POWEROFF_OPTIONS="-f"
 		;;
 
 *solaris*)
 		pf_argv_set="PF_ARGV_NONE"
-		REBOOT_OPTIONS="-f"
+		REBOOT_OPTIONS="-n"
+		POWEROFF_OPTIONS="-n"
 		;;
 
 *linux*)	USE_MODULES=1
 		REBOOT_OPTIONS="-nf"
+		POWEROFF_OPTIONS="-nf"
  		;;
 dnl anything?
 darwin*)	
@@ -84,12 +87,16 @@ darwin*)
   		LIBS="$LIBS -L${prefix}/lib"
   		CFLAGS="$CFLAGS -I${prefix}/include"
 		REBOOT_OPTIONS="-f"
+		POWEROFF_OPTIONS="-f"
 		;;
 esac
 
 AC_SUBST(INIT_EXT)
 AC_SUBST(USE_MODULES)
 AC_SUBST(REBOOT_OPTIONS)
+AC_SUBST(POWEROFF_OPTIONS)
+AC_DEFINE_UNQUOTED(REBOOT_OPTIONS, "$REBOOT_OPTIONS", reboot options)
+AC_DEFINE_UNQUOTED(POWEROFF_OPTIONS, "$POWEROFF_OPTIONS", poweroff options)
 
 dnl Info for building/packaging systems.
 dnl
@@ -458,8 +465,14 @@ AC_PATH_PROGS(GETENT, getent)
 AC_PATH_PROGS(IP2UTIL, ip, /sbin/ip)
 AC_PATH_PROGS(IPTABLES, iptables, /usr/sbin/iptables)
 AC_PATH_PROGS(XML2CONFIG, xml2-config)
+
 AC_PATH_PROGS(REBOOT, reboot, /sbin/reboot)
+AC_PATH_PROGS(POWEROFF_CMD, poweroff, /sbin/poweroff)
 AC_SUBST(REBOOT)
+AC_SUBST(POWEROFF_CMD)
+AC_DEFINE_UNQUOTED(REBOOT, "$REBOOT", path to the reboot command)
+AC_DEFINE_UNQUOTED(POWEROFF_CMD, "$POWEROFF_CMD", path to the poweroff command)
+
 dnl "whoami", if it exists, may be hidden away on some System-V (e.g. Solaris)
 AC_PATH_PROGS(WHOAMI, whoami, , ${PATH}:/usr/ucb)
 AC_PATH_PROGS(STRINGSCMD, strings)
