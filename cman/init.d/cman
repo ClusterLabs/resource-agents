@@ -133,6 +133,9 @@ start_fence_xvmd()
 }
 
 xend_bridged_net_enabled() {
+	# Not a xen kernel
+	test -d /proc/xen || return 1
+
     current_runlevel=$(/sbin/runlevel 2>/dev/null | awk '{ print $2 }' 2>/dev/null)
     if [ -z "$current_runlevel" ]; then
         errmsg='Unable to determine the current runlevel'
@@ -150,7 +153,7 @@ xend_bridged_net_enabled() {
         return 1
     fi
 
-    egrep "^[[:blank:]]*\([[:blank:]]*network-script[[:blank:]]+network-bridge([[:blank:]]*\)|[[:blank:]]+)" /etc/xen/xend-config.sxp 2>/dev/null
+    egrep "^[[:blank:]]*\([[:blank:]]*network-script[[:blank:]]+network-bridge([[:blank:]]*\)|[[:blank:]]+)" /etc/xen/xend-config.sxp >/dev/null 2>/dev/null
     if [ $? -ne 0 ]; then
         # xend isn't configured to use bridged networking.
         return 1
