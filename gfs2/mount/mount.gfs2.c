@@ -162,9 +162,12 @@ static void check_sys_fs(char *fsname)
 	while ((de = readdir(d))) {
 		if (strnlen(fsname, 5) != strnlen(de->d_name, 5))
 			continue;
-		if (!strncmp(fsname, de->d_name, strnlen(fsname, 5)))
+		if (!strncmp(fsname, de->d_name, strnlen(fsname, 5))) {
+			closedir(d);
 			return;
+		}
 	}
+	closedir(d);
 	die("fs type \"%s\" not found in /sys/fs/, is the module loaded?\n",
 	    fsname);
 }
