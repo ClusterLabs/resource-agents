@@ -2821,6 +2821,8 @@ ldirectord/Makefile						\
 ldirectord/ldirectord   					\
 	ldirectord/init.d/Makefile				\
 	ldirectord/init.d/ldirectord   				\
+	ldirectord/init.d/ldirectord.debian			\
+	ldirectord/init.d/ldirectord.debian.default		\
 	ldirectord/logrotate.d/Makefile				\
 membership/Makefile						\
 	membership/ccm/Makefile					\
