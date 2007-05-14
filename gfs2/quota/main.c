@@ -555,6 +555,7 @@ do_set(struct gfs2_sbd *sdp, commandline_t *comline)
 	int error;
 	char quota_file[BUF_SIZE];
 	char sys_q_refresh[BUF_SIZE];
+	char id_str[16];
 	
 	if (!*comline->filesystem)
 		die("need a filesystem to work on\n");
@@ -656,8 +657,10 @@ do_set(struct gfs2_sbd *sdp, commandline_t *comline)
 			strerror(errno));
 		goto out;
 	}
+
+	sprintf(id_str, "%d", comline->id);
 	
-	if (write(fd1,(void*)"1", 1) != 1) {
+	if (write(fd1,(void*)id_str, strlen(id_str)) != strlen(id_str)) {
 		close(fd1);
 		fprintf(stderr, "failed to write to %s: %s\n", 
 			sys_q_refresh, strerror(errno));
