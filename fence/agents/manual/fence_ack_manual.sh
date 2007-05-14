@@ -1,7 +1,20 @@
 #!/bin/bash
+#
+# Dummy fence_ack_manual which uses the fenced manual override
+# socket to communicate.
+#
+
+if [ "$1" = "-n" ]; then
+	shift
+fi
 
 if [ -z "$1" ]; then
-	echo "usage: $0 <nodename>"
+	echo "usage:"
+        echo " 	$0 <nodename>"
+        echo " 	$0 -n <nodename>"
+	echo 
+	echo "The -n flag exists to preserve compatibility with previous "
+	echo "releases of $0, and is no longer required."
 	exit 1
 fi
 
