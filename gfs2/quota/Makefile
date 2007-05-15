@@ -24,15 +24,18 @@ CFLAGS += -D_GNU_SOURCE -DGFS2_RELEASE_NAME=\"${RELEASE}\"
 CFLAGS += -O2
 CFLAGS += -I../include -I../libgfs2/
 
-LDFLAGS += -L../libgfs2 -lgfs2 -lgfs2
+LDFLAGS += -L../libgfs2 -lgfs2
 
-all: ${TARGET}
+all: depends ${TARGET}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+depends:
+	$(MAKE) -C ../libgfs2 all
 
 install: all
 	install -m 0755 ${TARGET} ${sbindir}
@@ -43,4 +46,4 @@ uninstall:
 clean:
 	rm -f *.o ${TARGET}
 
-
+.PHONY: all ${TARGET}

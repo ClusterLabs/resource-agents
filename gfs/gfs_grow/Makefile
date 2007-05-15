@@ -24,13 +24,16 @@ CFLAGS += -I../include -I../libgfs
 
 LDFLAGS += -L../libgfs -lgfs
 
-all: ${TARGET}
+all: depends ${TARGET}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+depends:
+	$(MAKE) -C ../libgfs all
 
 install: all
 	if [ ! -d ${sbindir} ]; then \
@@ -43,3 +46,5 @@ uninstall:
 
 clean:
 	rm -f *.o ${TARGET}
+
+.PHONY: all ${TARGET}

@@ -17,8 +17,6 @@ all:
 
 clean:
 
-distclean:
-
 install:
 	install -d ${mandir}/man5
 	install -d ${mandir}/man8

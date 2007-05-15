@@ -27,13 +27,16 @@ endif
 
 LDFLAGS += -L${ccslibdir} -lccs
 
-all: ${TARGET}
+all: depends ${TARGET}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+depends:
+	$(MAKE) -C ../lib all
 
 install: all
 	install -d ${sbindir}
@@ -44,3 +47,5 @@ uninstall:
 
 clean:
 	rm -rf *.o ${TARGET} *~
+
+.PHONY: all ${TARGET}

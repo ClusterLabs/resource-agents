@@ -35,13 +35,16 @@ OBJS=	daemon.o \
 	barrier.o \
 	cmanccs.o
 
-all:  ${TARGET}
+all: depends ${TARGET}
 
 ${TARGET}: ${OBJS}
 	$(CC) -shared -Wl,-soname,$@ -o $@ $^ $(LDFLAGS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+depends:
+	$(MAKE) -C ../lib all
 
 install: all
 	install -d ${libexecdir}/lcrso

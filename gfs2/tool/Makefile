@@ -31,13 +31,16 @@ CFLAGS += -I../include
 
 LDFLAGS += -L../libgfs2 -lgfs2
 
-all: ${TARGET}
+all: depends ${TARGET}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+depends:
+	$(MAKE) -C ../libgfs2 all
 
 install: all
 	if [ ! -d ${sbindir} ]; then \
@@ -49,9 +52,6 @@ uninstall:
 	${UNINSTALL} ${TARGET} ${sbindir}
 
 clean:
-	@rm -f ${TARGET} *.o *~
+	rm -f ${TARGET} *.o *~ *.d cscope.* *.orig *.rej
 
-distclean: clean
-	@rm -f *.d cscope.* *.orig *.rej
-
-.PHONY: all clean distclean
+.PHONY: all ${TARGET}

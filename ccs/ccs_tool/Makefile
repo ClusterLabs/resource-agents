@@ -34,13 +34,16 @@ endif
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
 LDFLAGS += `xml2-config --libs` -L${libdir} -ldl
 
-all: ${TARGET}
+all: depends ${TARGET}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+depends:
+	$(MAKE) -C ../lib all
 
 clean:
 	rm -f *.o ccs_tool *~
@@ -51,3 +54,5 @@ install: all
 
 uninstall:
 	${UNINSTALL} ccs_tool ${sbindir}
+
+.PHONY: all ${TARGET}

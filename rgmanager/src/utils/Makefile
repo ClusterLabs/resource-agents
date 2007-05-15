@@ -12,8 +12,14 @@
 
 include ../../../make/defines.mk
 
-TARGETS=clubufflush clufindhostname clustat clusvcadm clulog clunfslock
-DISABLEDTARGETS=cluarp
+TARGET1= clubufflush
+TARGET2= clufindhostname
+TARGET3= clustat
+TARGET4= clusvcadm
+TARGET5= clulog
+TARGET6= clunfslock
+
+DISABLEDTARGETS= cluarp
 
 CFLAGS += -DPACKAGE_VERSION=\"${RELEASE}\"
 CFLAGS += -g -Werror -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
@@ -24,21 +30,41 @@ LDFLAGS += -L${libdir} -L${ccslibdir} -L${cmanlibdir} -L${ncurseslibdir}
 LDFLAGS += -lcman -lpthread -ldl -lncurses -lccs
 LDFLAGS += -L../clulib -lclulib
 
-all: ${TARGETS}
+all: depends ${TARGET1} ${TARGET2} ${TARGET3} ${TARGET4} ${TARGET5} ${TARGET6}
 
-%: %.c
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+${TARGET1}: ${TARGET1:=.o}
+	$(CC) -o $@ $^ $(LDFLAGS)
 
-clunfslock: clunfslock.sh
-	cp clunfslock.sh clunfslock
-	chmod 755 clunfslock
+${TARGET2}: ${TARGET2:=.o}
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+${TARGET3}: ${TARGET3:=.o}
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+${TARGET4}: ${TARGET4:=.o}
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+${TARGET5}: ${TARGET5:=.o}
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+${TARGET6}: ${TARGET6}.sh
+	cp ${TARGET6}.sh ${TARGET6}
+	chmod 755 ${TARGET6}
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+depends:
+	$(MAKE) -C ../clulib all
 
 install: all
 	install -d ${sbindir}
-	install $(TARGETS) ${sbindir}
+	install ${TARGET1} ${TARGET2} ${TARGET3} ${TARGET4} ${TARGET5} ${TARGET6} ${sbindir}
 
 uninstall:
-	${UNINSTALL} $(TARGETS) ${sbindir}
+	${UNINSTALL} ${TARGET1} ${TARGET2} ${TARGET3} ${TARGET4} ${TARGET5} ${TARGET6} ${sbindir}
 
 clean:
-	rm -f *.o $(TARGETS)
+	rm -f *.o ${TARGET1} ${TARGET2} ${TARGET3} ${TARGET4} ${TARGET5} ${TARGET6}
+
+.PHONY: all ${TARGET1} ${TARGET2} ${TARGET3} ${TARGET4} ${TARGET5} ${TARGET6}

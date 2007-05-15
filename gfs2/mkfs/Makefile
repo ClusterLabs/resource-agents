@@ -6,8 +6,9 @@
 include ../../make/defines.mk
 
 TARGET1= mkfs.gfs2
-TARGET2= gfs2_jadd
-TARGET3= gfs2_grow
+TARGET2= gfs2_mkfs
+TARGET3= gfs2_jadd
+TARGET4= gfs2_grow
 
 OBJS=	main.o \
 	main_mkfs.o \
@@ -23,28 +24,36 @@ CFLAGS += -I../include/ -I../libgfs2/
 LDFLAGS += -L${volidlibdir} -lvolume_id
 LDFLAGS += -L../libgfs2 -lgfs2
 
-all: ${TARGET1} ${TARGET2} ${TARGET3}
+all: depends ${TARGET1} ${TARGET2} ${TARGET3} ${TARGET4}
 
 ${TARGET1}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 ${TARGET2}: ${TARGET1}
-	ln -s ${TARGET1} ${TARGET2}
+	ln -sf ${TARGET1} ${TARGET2}
 
 ${TARGET3}: ${TARGET1}
-	ln -s ${TARGET1} ${TARGET3}
+	ln -sf ${TARGET1} ${TARGET3}
+
+${TARGET4}: ${TARGET1}
+	ln -sf ${TARGET1} ${TARGET4}
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+depends:
+	$(MAKE) -C ../libgfs2 all
+
 install: all
 	install -m 0755 ${TARGET1} ${sbindir}
-	ln -f ${sbindir}/${TARGET1} ${sbindir}/${TARGET2}
-	ln -f ${sbindir}/${TARGET1} ${sbindir}/${TARGET3}
+	ln -sf ${sbindir}/${TARGET1} ${sbindir}/${TARGET2}
+	ln -sf ${sbindir}/${TARGET1} ${sbindir}/${TARGET3}
+	ln -sf ${sbindir}/${TARGET1} ${sbindir}/${TARGET4}
 
 uninstall:
-	${UNINSTALL} ${TARGET1} ${TARGET2} ${TARGET3} ${sbindir}
+	${UNINSTALL} ${TARGET1} ${TARGET2} ${TARGET3} ${TARGET4} ${sbindir}
 
 clean:
-	rm -f *.o ${TARGET1} ${TARGET2} ${TARGET3}
+	rm -f *.o ${TARGET1} ${TARGET2} ${TARGET3} ${TARGET4}
 
+.PHONY: all ${TARGET1}

@@ -13,7 +13,8 @@
 
 include ../../make/defines.mk
 
-TARGET= gfs_mkfs
+TARGET1= gfs_mkfs
+TARGET2= mkfs.gfs
 
 OBJS=	device_geometry.o \
 	fs_geometry.o \
@@ -30,25 +31,31 @@ CFLAGS += -I../include -I../libgfs
 LDFLAGS += -L${volidlibdir} -lvolume_id
 LDFLAGS += -L../libgfs -lgfs
 
-all: ${TARGET}
+all: depends ${TARGET1} ${TARGET2}
 
-${TARGET}: ${OBJS}
+${TARGET1}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
+
+${TARGET2}: ${TARGET1}
+	ln -sf ${TARGET1} ${TARGET2}
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+depends:
+	$(MAKE) -C ../libgfs all
 
 install: all
 	if [ ! -d ${sbindir} ]; then \
 		install -d ${sbindir}; \
 	fi
-	install -m755 ${TARGET} ${sbindir}
-	(cd ${sbindir}; ln -f ${TARGET} mkfs.gfs)
+	install -m755 ${TARGET1} ${sbindir}
+	ln -f ${sbindir}/${TARGET1} ${sbindir}/${TARGET2}
 
 uninstall:
-	${UNINSTALL} ${TARGET} mkfs.gfs ${sbindir}
+	${UNINSTALL} ${TARGET1} ${TARGET2} ${sbindir}
 
 clean:
-	rm -f *.o ${TARGET}
+	rm -f *.o ${TARGET1} ${TARGET2}
 
-
+.PHONY: all ${TARGET1}

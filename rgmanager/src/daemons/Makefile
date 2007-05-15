@@ -66,7 +66,7 @@ EXTRA_LDFLAGS += -lpthread -ldl
 LOCAL_LDFLAGS += -llalloc
 READLINE_LDFLAGS += -L${readlinelibdir} -lreadline
 
-all: ${TARGET1} ${TARGET2} ${TARGET3}
+all: depends ${TARGET1} ${TARGET2} ${TARGET3}
 
 ${TARGET1}: ${OBJS1}
 	$(CC) -o $@ $^ $(LDFLAGS) $(CCS_LDFLAGS) $(CMAN_LDFLAGS) \
@@ -107,6 +107,9 @@ check: rg_test
 %-noccs.o: %.c
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $<
 
+depends:
+	$(MAKE) -C ../clulib all
+
 install: all
 	install -d ${sbindir}
 	install -m755 ${TARGET1} ${TARGET2} ${TARGET3} ${sbindir}
@@ -117,3 +120,5 @@ uninstall:
 clean:
 	rm -f *.o ${TARGET1} ${TARGET2} ${TARGET3} ${TARGET4}
 	rm -f tests/*.out*
+
+.PHONY: all ${TARGET1} ${TARGET2} ${TARGET3} ${TARGET4}

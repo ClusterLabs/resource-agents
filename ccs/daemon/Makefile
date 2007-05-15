@@ -34,13 +34,16 @@ endif
 LDFLAGS += -L${cmanlibdir} -lcman -L${ccslibdir} -lccs
 LDFLAGS += -L${libdir} `xml2-config --libs` -lpthread -ldl
 
-all: ${TARGET}
+all: depends ${TARGET}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+depends:
+	 $(MAKE) -C ../lib all
 
 install: all
 	install -d ${sbindir}
@@ -51,3 +54,5 @@ uninstall:
 
 clean:
 	rm -rf *.o ${TARGET} *~ log.c
+
+.PHONY: all ${TARGET}

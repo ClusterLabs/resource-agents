@@ -26,13 +26,16 @@ CFLAGS += -I../include -I../libgfs2
 LDFLAGS += -L${ncurseslibdir} -lncurses
 LDFLAGS += -L../libgfs2/ -lgfs2
 
-all: ${TARGET}
+all: depends ${TARGET}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+depends:
+	$(MAKE) -C ../libgfs2 all
 
 install: all
 	if [ ! -d ${sbindir} ]; then \
@@ -46,4 +49,4 @@ uninstall:
 clean:
 	rm -f *.o ${TARGET}
 
-
+.PHONY: all ${TARGET}

@@ -12,23 +12,51 @@
 
 include ../../make/defines.mk
 
-TARGET= gfs_fsck
+TARGET1= gfs_fsck
+TARGET2= fsck.gfs
 
-sources = main.c initialize.c pass1.c pass1b.c pass1c.c \
-	  pass2.c pass3.c pass4.c pass5.c \
-	  block_list.c super.c bio.c ondisk.c file.c rgrp.c fs_bits.c util.c \
-	  fs_bmap.c fs_inode.c fs_dir.c fs_recovery.c log.c hash.c \
-	  inode_hash.c bitmap.c lost_n_found.c inode.c link.c metawalk.c \
-	  eattr.c
+OBJS=	bio.o \
+	bitmap.o \
+	block_list.o \
+	eattr.o \
+	file.o \
+	fs_bits.o \
+	fs_bmap.o \
+	fs_dir.o \
+	fs_inode.o \
+	fs_recovery.o \
+	hash.o \
+	initialize.o \
+	inode.o \
+	inode_hash.o \
+	link.o \
+	log.o \
+	lost_n_found.o \
+	main.o \
+	metawalk.o \
+	ondisk.o \
+	pass1.o \
+	pass1b.o \
+	pass1c.o \
+	pass2.o \
+	pass3.o \
+	pass4.o \
+	pass5.o \
+	rgrp.o \
+	super.o \
+	util.o
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -DHELPER_PROGRAM -DGFS_RELEASE_NAME=\"${RELEASE}\"
 CFLAGS += -MMD -O2
 CFLAGS += -I../include
 
-all: ${TARGET}
+all: ${TARGET1} ${TARGET2}
 
-${TARGET}: $(sources:.c=.o)
+${TARGET1}: $(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS)
+
+${TARGET2}: ${TARGET1}
+	ln -s ${TARGET1} ${TARGET2}
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -40,24 +68,21 @@ test_bitmap: bitmap.o test_bitmap.o log.o
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 clean:
-	@rm -f *.o *~ *.d gfs_fsck
+	rm -f *.o *~ *.d ${TARGET1} ${TARGET2} cscope.* test_inode_list *.orig *.rej test_block_list test_bitmap
 
 install: all
 	if [ ! -d ${sbindir} ]; then \
 		install -d ${sbindir}; \
 	fi
-	install -m755 ${TARGET} ${sbindir}
-	(cd ${sbindir}; ln -sf ${TARGET} fsck.gfs)
+	install -m755 ${TARGET1} ${sbindir}
+	ln -sf ${sbindir}/${TARGET1} ${sbindir}/${TARGET2}
 
 uninstall:
-	${UNINSTALL} ${TARGET} fsck.gfs ${sbindir}
+	${UNINSTALL} ${TARGET1} ${TARGET2} ${sbindir}
 
-distclean: clean
-	@rm -f cscope.* test_inode_list *.orig *.rej test_block_list test_bitmap
-
-gfs_fsck.pot: $(sources)
-	@xgettext -C -F --keyword=print_log --keyword=log_debug --keyword=log_info --keyword=_ \
+${TARGET1}.pot: $(OBJS:.o=.c)
+	xgettext -C -F --keyword=print_log --keyword=log_debug --keyword=log_info --keyword=_ \
 	 --keyword=log_notice --keyword=log_warn --keyword=log_err --keyword=log_crit \
-	 --keyword=log_debug --keyword=log_err --keyword=log_print -d - $(sources) > gfs_fsck.pot	
+	 --keyword=log_debug --keyword=log_err --keyword=log_print -d - $(OBJS:.o=.c) > ${TARGET1}.pot	
 
--include $(sources:.c=.d)
+-include $(OBJS:.o=.d)

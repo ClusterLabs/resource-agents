@@ -27,13 +27,16 @@ CFLAGS += -I../../group/lib/ -I../include/
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
 LDFLAGS += -L../lib -lgroup
 
-all: ${TARGET}
+all: depends ${TARGET}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+depends:
+	$(MAKE) -C ../lib all
 
 install: all
 	install -d ${sbindir}
@@ -45,3 +48,4 @@ uninstall:
 clean:
 	rm -f *.o ${TARGET}
 
+.PHONY: all ${TARGET}

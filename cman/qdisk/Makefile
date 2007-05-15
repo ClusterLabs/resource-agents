@@ -37,7 +37,7 @@ SHAREDOBJS= disk.o \
 	    disk_util.o \
 	    proc.o
 
-all: ${TARGET1} ${TARGET2}
+all: depends ${TARGET1} ${TARGET2}
 
 ${TARGET1}: ${SHAREDOBJS} ${OBJS1}
 	$(CC) -o $@ $^ $(LDFLAGS) $(EXTRA_LDFLAGS)
@@ -51,6 +51,9 @@ install: all
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+depends:
+	$(MAKE) -C ../lib all
 
 clean:
 	rm -f *.o ${TARGET1} ${TARGET2}

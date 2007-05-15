@@ -29,7 +29,7 @@ CFLAGS += -I../include/ -I../lib/
 LDFLAGS += -L${cmanlibdir} -L${openaislibdir} -L${libdir} -lcman -lcpg -lSaCkpt
 LDFLAGS += -L../lib -lgroup
 
-all: ${TARGET}
+all: depends ${TARGET}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
@@ -37,6 +37,9 @@ ${TARGET}: ${OBJS}
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+depends:
+	$(MAKE) -C ../lib all
 
 install: all
 	install -d ${sbindir}
@@ -47,3 +50,5 @@ uninstall:
 
 clean:
 	rm -f *.o ${TARGET}
+
+.PHONY: all ${TARGET}

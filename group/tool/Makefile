@@ -20,13 +20,16 @@ CFLAGS += -g
 CFLAGS += -I. -I../lib/ -I../daemon/
 LDFLAGS += -L../lib -lgroup
 
-all: ${TARGET}
+all: depends ${TARGET}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+depends:
+	$(MAKE) -C ../lib all
 
 clean:
 	rm -f *.o ${TARGET}
@@ -37,3 +40,5 @@ install: all
 
 uninstall:
 	${UNINSTALL} ${TARGET} ${sbindir}
+
+.PHONY: all ${TARGET}
