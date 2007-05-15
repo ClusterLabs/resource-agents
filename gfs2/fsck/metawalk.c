@@ -1,7 +1,7 @@
 /*****************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2005-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -23,6 +23,44 @@
 #include "util.h"
 #include "metawalk.h"
 #include "hash.h"
+
+int dirent_repair(struct gfs2_inode *ip, struct gfs2_buffer_head *bh,
+		  struct gfs2_dirent *de, struct gfs2_dirent *dent,
+		  int type, int first)
+{
+	char *bh_end, *p;
+	int calc_de_name_len = 0;
+	
+	/* If this is a sentinel, just fix the length and move on */
+	if (first && !de->de_inum.no_formal_ino) { /* Is it a sentinel? */
+		if (type == DIR_LINEAR)
+			de->de_rec_len = bh->b_size -
+				sizeof(struct gfs2_dinode);
+		else
+			de->de_rec_len = bh->b_size - sizeof(struct gfs2_leaf);
+	}
+	else {
+		bh_end = bh->b_data + bh->b_size;
+		/* first, figure out a probable name length */
+		p = (char *)dent + sizeof(struct gfs2_dirent);
+		while (*p &&         /* while there's a non-zero char and */
+		       p < bh_end) { /* not past end of buffer */
+			calc_de_name_len++;
+			p++;
+		}
+		if (!calc_de_name_len)
+			return 1;
+		/* There can often be noise at the end, so only          */
+		/* Trust the shorter of the two in case we have too much */
+		/* Or rather, only trust ours if it's shorter.           */
+		if (!de->de_name_len || de->de_name_len > NAME_MAX ||
+		    calc_de_name_len < de->de_name_len) /* if dent is hosed */
+			de->de_name_len = calc_de_name_len; /* use ours */
+		de->de_rec_len = GFS2_DIRENT_SIZE(de->de_name_len);
+	}
+	gfs2_dirent_out(de, (char *)dent);
+	return 0;
+}
 
 int check_entries(struct gfs2_inode *ip, struct gfs2_buffer_head *bh,
 				  int index, int type, int *update, uint16_t *count,
@@ -61,6 +99,28 @@ int check_entries(struct gfs2_inode *ip, struct gfs2_buffer_head *bh,
 		gfs2_dirent_in(&de, (char *)dent);
 		filename = (char *)dent + sizeof(struct gfs2_dirent);
 
+		if (de.de_rec_len < sizeof(struct gfs2_dirent) +
+		    de.de_name_len || !de.de_name_len) {
+			log_err("Directory block %" PRIu64 "(0x%"
+				PRIx64 "), entry %d of directory %"
+				PRIu64 "(0x%" PRIx64 ") is corrupt.\n",
+				bh->b_blocknr, bh->b_blocknr, (*count) + 1,
+				ip->i_di.di_num.no_addr,
+				ip->i_di.di_num.no_addr);
+			if (query(&opts, "Attempt to repair it? (y/n) ")) {
+				if (dirent_repair(ip, bh, &de, dent, type,
+						  first))
+					break;
+				else
+					*update = 1;
+			}
+			else {
+				log_err("Corrupt directory entry ignored, "
+					"stopped after checking %d entries.\n",
+					*count);
+				break;
+			}
+		}
 		if (!de.de_inum.no_formal_ino){
 			if(first){
 				log_debug("First dirent is a sentinel (place holder).\n");
@@ -96,15 +156,6 @@ int check_entries(struct gfs2_inode *ip, struct gfs2_buffer_head *bh,
 			}
 		}
 
-		if (de.de_rec_len < sizeof(struct gfs2_dirent)) {
-			log_err("Entry %" PRIu64 "(0x%"
-				PRIx64 ") of directory %" PRIu64 "(0x%"
-				PRIx64 ") is corrupt, skipping.\n",
-				bh->b_blocknr, bh->b_blocknr,
-				ip->i_di.di_num.no_addr,
-				ip->i_di.di_num.no_addr);
-                        break;
-                }
 		if ((char *)dent + de.de_rec_len >= bh_end){
 			log_debug("Last entry processed.\n");
 			break;
@@ -120,12 +171,37 @@ int check_entries(struct gfs2_inode *ip, struct gfs2_buffer_head *bh,
 	return 0;
 }
 
+/* Process a bad leaf pointer and ask to repair the first time.      */
+/* The repair process involves extending the previous leaf's entries */
+/* so that they replace the bad ones.  We have to hack up the old    */
+/* leaf a bit, but it's better than deleting the whole directory,    */
+/* which is what used to happen before.                              */
+void warn_and_patch(struct gfs2_inode *ip, uint64_t *leaf_no, 
+		    uint64_t *bad_leaf, uint64_t old_leaf, int index,
+		    const char *msg)
+{
+	if (*bad_leaf != *leaf_no) {
+		log_err("Directory Inode %" PRIu64 "(0x%"
+			PRIx64 ") points to leaf %" PRIu64 "(0x%"
+			PRIx64 ") %s.\n", ip->i_di.di_num.no_addr,
+			ip->i_di.di_num.no_addr, *leaf_no, *leaf_no, msg);
+	}
+	if (*leaf_no == *bad_leaf ||
+	    query(&opts, "Attempt to patch around it? (y/n) ")) {
+		gfs2_put_leaf_nr(ip, index, old_leaf);
+	}
+	else
+		log_err("Bad leaf left in place.\n");
+	*bad_leaf = *leaf_no;
+	*leaf_no = old_leaf;
+}
+
 /* Checks exhash directory entries */
 int check_leaf(struct gfs2_inode *ip, int *update, struct metawalk_fxns *pass)
 {
 	int error;
-	struct gfs2_leaf leaf;
-	uint64_t leaf_no, old_leaf;
+	struct gfs2_leaf leaf, oldleaf;
+	uint64_t leaf_no, old_leaf, bad_leaf = -1;
 	struct gfs2_buffer_head *lbh;
 	int index;
 	struct gfs2_sbd *sbp = ip->i_sbd;
@@ -133,53 +209,94 @@ int check_leaf(struct gfs2_inode *ip, int *update, struct metawalk_fxns *pass)
 	int ref_count = 0, exp_count = 0;
 
 	old_leaf = 0;
+	memset(&oldleaf, 0, sizeof(oldleaf));
 	for(index = 0; index < (1 << ip->i_di.di_depth); index++) {
 		gfs2_get_leaf_nr(ip, index, &leaf_no);
 
 		/* GFS has multiple indirect pointers to the same leaf
 		 * until those extra pointers are needed, so skip the
 		 * dups */
-		if(old_leaf == leaf_no) {
+		if (leaf_no == bad_leaf) {
+			gfs2_put_leaf_nr(ip, index, old_leaf); /* fill w/old
+								  leaf info */
+			ref_count++;
+			continue;
+		}
+		else if(old_leaf == leaf_no) {
 			ref_count++;
 			continue;
 		} else {
 			if(ref_count != exp_count){
-				log_err("Dir #%" PRIu64 " (0x%" PRIx64 ") has an incorrect "
-						"number of pointers to leaf #%" PRIu64 " (0x%" PRIx64
-						")\n\tFound: %u,  Expected: %u\n",
-						ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr,
-						old_leaf, old_leaf, ref_count, exp_count);
-				return 1;
+				log_err("Dir #%" PRIu64 " (0x%"
+					PRIx64 ") has an incorrect "
+					"number of pointers to leaf #%"
+					PRIu64 " (0x%" PRIx64
+					")\n\tFound: %u,  Expected: %u\n",
+					ip->i_di.di_num.no_addr,
+					ip->i_di.di_num.no_addr,
+					old_leaf, old_leaf, ref_count,
+					exp_count);
+				if (query(&opts, "Attempt to fix it? (y/n) "))
+				{
+					int factor = 0, divisor = ref_count;
+
+					lbh = bread(sbp, old_leaf);
+					while (divisor > 1) {
+						factor++;
+						divisor /= 2;
+					}
+					oldleaf.lf_depth = ip->i_di.di_depth -
+						factor;
+					gfs2_leaf_out(&oldleaf, lbh->b_data);
+					brelse(lbh, updated);
+				}
+				else
+					return 1;
 			}
 			ref_count = 1;
 		}
 
 		count = 0;
 		do {
-			/* FIXME: Do other checks (see old
-			 * pass3:dir_exhash_scan() */
-			lbh = NULL;
-			if(pass->check_leaf) {
-				error = pass->check_leaf(ip, leaf_no, &lbh, pass->private);
-				if(error < 0) {
-					stack;
-					return -1;
-				}
-				if(error > 0) {
-					lbh = NULL;
-					return 1;
-				}
+			/* Make sure the block number is in range. */
+			if(gfs2_check_range(ip->i_sbd, leaf_no)){
+				log_err("Leaf block #%" PRIu64 " (0x%"
+					PRIx64 ") is out of range for "
+					"directory #%" PRIu64 " (0x%"
+					PRIx64 ").\n", leaf_no, leaf_no,
+					ip->i_di.di_num.no_addr,
+					ip->i_di.di_num.no_addr);
+				warn_and_patch(ip, &leaf_no, &bad_leaf,
+					       old_leaf, index,
+					       "that is out of range");
+				memcpy(&leaf, &oldleaf, sizeof(oldleaf));
+				break;
 			}
 
 			*update = not_updated;
+			/* Try to read in the leaf block. */
 			lbh = bread(sbp, leaf_no);
+			/* Make sure it's really a valid leaf block. */
+			if (gfs2_check_meta(lbh, GFS2_METATYPE_LF)) {
+				warn_and_patch(ip, &leaf_no, &bad_leaf,
+					       old_leaf, index,
+					       "that is not really a leaf");
+				memcpy(&leaf, &oldleaf, sizeof(oldleaf));
+				brelse(lbh, updated);
+				break;
+			}
 			gfs2_leaf_in(&leaf, lbh->b_data);
+			if(pass->check_leaf) {
+				error = pass->check_leaf(ip, leaf_no, lbh,
+							 pass->private);
+			}
 
 			/*
-			 * Early versions of GFS2 had an endianess bug in the kernel
-			 * that set lf_dirent_format to cpu_to_be16(GFS2_FORMAT_DE).
-			 * This was fixed to use cpu_to_be32(), but we should check
-			 * for incorrect values and replace them with the correct value. */
+			 * Early versions of GFS2 had an endianess bug in the
+			 * kernel that set lf_dirent_format to
+			 * cpu_to_be16(GFS2_FORMAT_DE).  This was fixed to use
+			 * cpu_to_be32(), but we should check for incorrect 
+			 * values and replace them with the correct value. */
 
 			if (leaf.lf_dirent_format == (GFS2_FORMAT_DE << 16)) {
 				log_debug("incorrect lf_dirent_format at leaf #%" PRIu64 "\n", leaf_no);
@@ -253,6 +370,7 @@ int check_leaf(struct gfs2_inode *ip, int *update, struct metawalk_fxns *pass)
 			}
 		} while(1);
 		old_leaf = leaf_no;
+		memcpy(&oldleaf, &leaf, sizeof(oldleaf));
 	}
 	return 0;
 }
@@ -577,7 +695,7 @@ int check_dir(struct gfs2_sbd *sbp, uint64_t block, struct metawalk_fxns *pass)
 		}
 	}
 
-	inode_put(ip, not_updated); /* does a brelse */
+	inode_put(ip, update); /* does a brelse */
 	return error;
 }
 

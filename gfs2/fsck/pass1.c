@@ -44,51 +44,14 @@ struct block_count {
 };
 
 static int leaf(struct gfs2_inode *ip, uint64_t block,
-				struct gfs2_buffer_head **bh, void *private)
+				struct gfs2_buffer_head *bh, void *private)
 {
-	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct block_count *bc = (struct block_count *) private;
-	struct gfs2_meta_header *mh;
-	uint64_t *val;
-	enum update_flags f;
 
-	f = not_updated;
-	if(gfs2_check_range(sdp, block)){
-		log_warn("Leaf block #%" PRIu64 " (0x%" PRIx64 ") is out of range for "
-				 "directory #%" PRIu64 " (0x%" PRIx64 ").\n",
-				 block, block, ip->i_di.di_num.no_addr,
-				 ip->i_di.di_num.no_addr);
-		gfs2_block_set(bl, ip->i_di.di_num.no_addr, gfs2_bad_block);
-		return 1;
-	}
-	*bh = bread(sdp, block);
-	mh = (struct gfs2_meta_header *)(*bh)->b_data;
-	val = (uint64_t *)mh;
-
-	if(gfs2_check_meta(*bh, GFS2_METATYPE_LF)){
-		log_err("Bad meta header for leaf block #%" PRIu64 "(0x%" PRIx64 
-				") in directory #%" PRIu64 ". - is %u, should be %u\n",
-				(*bh)->b_data, (*bh)->b_data, ip->i_di.di_num.no_addr,
-				ip->i_di.di_num.no_addr,
-				(struct gfs2_meta_header *)mh->mh_type,
-				GFS2_METATYPE_LF);
-		if(query(&opts, "Clear directory inode at %" PRIu64 " (0x%"
-				 PRIx64 ")? (y/n) ", ip->i_di.di_num.no_addr,
-				 ip->i_di.di_num.no_addr)) {
-			gfs2_block_set(bl, ip->i_di.di_num.no_addr, gfs2_meta_inval);
-			log_err("Directory inode marked invalid\n");
-			f = updated;
-		} else
-			log_err("Invalid block %" PRIu64 " (0x%" PRIx64 ") ignored\n",
-				ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr);
-		brelse(*bh, f);
-		return 1;
-	}
 	log_debug("\tLeaf block at %15" PRIu64 " (0x%" PRIx64 ")\n",
 			  block, block);
 	gfs2_block_set(bl, block, gfs2_leaf_blk);
 	bc->indir_count++;
-	brelse(*bh, f);
 	return 0;
 }
 
@@ -433,7 +396,7 @@ int clear_data(struct gfs2_inode *ip, uint64_t block, void *private)
 }
 
 int clear_leaf(struct gfs2_inode *ip, uint64_t block,
-	       struct gfs2_buffer_head **bh, void *private)
+	       struct gfs2_buffer_head *bh, void *private)
 {
 	struct gfs2_block_query q = {0};
 	log_crit("Clearing leaf %" PRIu64 " (0x%" PRIx64 ")\n", block, block);

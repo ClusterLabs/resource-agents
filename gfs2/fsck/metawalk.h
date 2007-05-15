@@ -1,7 +1,7 @@
 /*****************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2005-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -46,31 +46,33 @@ int dinode_hash_remove(osi_list_t *buckets, uint64_t key);
 struct metawalk_fxns {
 	void *private;
 	int (*check_leaf) (struct gfs2_inode *ip, uint64_t block,
-					   struct gfs2_buffer_head **bh, void *private);
+			   struct gfs2_buffer_head *bh, void *private);
 	int (*check_metalist) (struct gfs2_inode *ip, uint64_t block,
-						   struct gfs2_buffer_head **bh, void *private);
+			       struct gfs2_buffer_head **bh, void *private);
 	int (*check_data) (struct gfs2_inode *ip, uint64_t block,
-					   void *private);
+			   void *private);
 	int (*check_eattr_indir) (struct gfs2_inode *ip, uint64_t block,
-							  uint64_t parent, struct gfs2_buffer_head **bh,
-							  void *private);
+				  uint64_t parent,
+				  struct gfs2_buffer_head **bh, void *private);
 	int (*check_eattr_leaf) (struct gfs2_inode *ip, uint64_t block,
-							 uint64_t parent, struct gfs2_buffer_head **bh,
-							 void *private);
+				 uint64_t parent, struct gfs2_buffer_head **bh,
+				 void *private);
 	int (*check_dentry) (struct gfs2_inode *ip, struct gfs2_dirent *de,
-						 struct gfs2_dirent *prev, struct gfs2_buffer_head *bh,
-						 char *filename, int *update, uint16_t *count,
-						 void *private);
+			     struct gfs2_dirent *prev,
+			     struct gfs2_buffer_head *bh,
+			     char *filename, int *update, uint16_t *count,
+			     void *private);
 	int (*check_eattr_entry) (struct gfs2_inode *ip,
-							  struct gfs2_buffer_head *leaf_bh,
-							  struct gfs2_ea_header *ea_hdr,
-							  struct gfs2_ea_header *ea_hdr_prev,
-							  void *private);
-	int (*check_eattr_extentry) (struct gfs2_inode *ip, uint64_t *ea_data_ptr,
-								 struct gfs2_buffer_head *leaf_bh,
-								 struct gfs2_ea_header *ea_hdr,
-								 struct gfs2_ea_header *ea_hdr_prev,
-								 void *private);
+				  struct gfs2_buffer_head *leaf_bh,
+				  struct gfs2_ea_header *ea_hdr,
+				  struct gfs2_ea_header *ea_hdr_prev,
+				  void *private);
+	int (*check_eattr_extentry) (struct gfs2_inode *ip,
+				     uint64_t *ea_data_ptr,
+				     struct gfs2_buffer_head *leaf_bh,
+				     struct gfs2_ea_header *ea_hdr,
+				     struct gfs2_ea_header *ea_hdr_prev,
+				     void *private);
 };
 
 #endif /* _METAWALK_H */

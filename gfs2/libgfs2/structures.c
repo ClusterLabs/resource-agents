@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -486,8 +486,6 @@ int gfs2_next_rg_meta(struct rgrp_list *rgd, uint64_t *block, int first)
 		log_err("next_rg_meta:  Start block is outside rgrp bounds.\n");
 		exit(1);
 	}
-	if (*block == 0x11366)
-		bits = NULL;
 	for(i=0; i < length; i++){
 		bits = &rgd->bits[i];
 		if(blk < bits->bi_len*GFS2_NBBY)
@@ -497,11 +495,11 @@ int gfs2_next_rg_meta(struct rgrp_list *rgd, uint64_t *block, int first)
 	for(; i < length; i++){
 		bits = &rgd->bits[i];
 		blk = gfs2_bitfit((unsigned char *)rgd->bh[i]->b_data +
-						  bits->bi_offset, bits->bi_len, blk,
-						  GFS2_BLKST_DINODE);
+				  bits->bi_offset, bits->bi_len, blk,
+				  GFS2_BLKST_DINODE);
 		if(blk != BFITNOENT){
-            *block = blk + (bits->bi_start * GFS2_NBBY) + rgd->ri.ri_data0;
-            break;
+			*block = blk + (bits->bi_start * GFS2_NBBY) + rgd->ri.ri_data0;
+			break;
 		}
 		blk=0;
 	}

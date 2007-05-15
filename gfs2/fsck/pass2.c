@@ -27,54 +27,6 @@
 
 #define MAX_FILENAME 256
 
-static int check_leaf(struct gfs2_inode *ip, uint64_t block,
-					  struct gfs2_buffer_head **lbh, void *private)
-{
-	uint64_t chain_no;
-	struct gfs2_sbd *sbp = ip->i_sbd;
-	struct gfs2_leaf leaf;
-	struct gfs2_buffer_head *chain_head = NULL;
-	struct gfs2_buffer_head *bh = NULL;
-	int chain=0;
-
-	chain_no = block;
-
-	do {
-		/* FIXME: check the range of the leaf? */
-		/* check the leaf and stuff */
-
-		bh = bread(sbp, chain_no);
-
-		if(!bh){
-			stack;
-			log_crit("Error reading leaf %" PRIu64 "(0x%" PRIx64 ")",
-					 chain_no, chain_no);
-			goto fail;
-		}
-		gfs2_leaf_in(&leaf, bh->b_data);
-
-		brelse(bh, not_updated);
-		/* Check the leaf headers */
-		if(!chain){
-			chain = 1;
-			chain_head = bh;
-			chain_no = leaf.lf_next;
-		}
-		else
-			break;
-	} while(chain_no);
-
-	*lbh = chain_head;
-	return 0;
-
- fail:
-	if(chain_head)
-		brelse(chain_head, not_updated);
-	return -1;
-
-}
-
-
 /* Set children's parent inode in dir_info structure - ext2 does not set
  * dotdot inode here, but instead in pass3 - should we? */
 int set_parent_dir(struct gfs2_sbd *sbp, uint64_t childblock,
@@ -560,7 +512,7 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 
 struct metawalk_fxns pass2_fxns = {
 	.private = NULL,
-	.check_leaf = check_leaf,
+	.check_leaf = NULL,
 	.check_metalist = NULL,
 	.check_data = NULL,
 	.check_eattr_indir = check_eattr_indir,
