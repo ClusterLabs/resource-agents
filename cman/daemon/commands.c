@@ -61,7 +61,7 @@ static LIST_INIT(cluster_members_list);
        unsigned int config_version;
 static struct cluster_node *us;
 static int quorum;
-static int two_node;
+extern int two_node;
        unsigned int quorumdev_poll=10000;
        unsigned int shutdown_timeout=5000;
        unsigned int ccsd_poll_interval=1000;

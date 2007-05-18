@@ -61,7 +61,7 @@ static char *nodenames[MAX_NODENAMES];
 static int  portnums[MAX_NODENAMES];
 static char *mcast[MAX_NODENAMES];
 static int num_nodenames;
-static int two_node;
+       int two_node;
        char *key_filename;
 static char *mcast_name;
 static unsigned char votes;
@@ -123,6 +123,8 @@ int read_ccs_nodes(unsigned int *config_version, int check_nodeids)
 	    two_node = atoi(str);
 	    free(str);
     }
+    else
+	two_node = 0;
 
     for (i=1;;i++) {
 	char nodekey[256];
