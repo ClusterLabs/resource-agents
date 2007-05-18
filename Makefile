@@ -57,7 +57,7 @@ group: ccs
 	${MAKE} -C group all
 
 dlm:
-	${MAKE} -C dlm/lib all
+	${MAKE} -C dlm all
 
 fence: group dlm
 	${MAKE} -C fence all
