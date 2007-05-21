@@ -29,6 +29,7 @@
 #include <netinet/in.h>
 #include <sys/errno.h>
 
+#include <openais/service/swab.h>
 #include <openais/totem/aispoll.h>
 #include <openais/totem/totemip.h>
 

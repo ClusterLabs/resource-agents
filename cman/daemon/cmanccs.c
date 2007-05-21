@@ -22,6 +22,8 @@
 #include <netdb.h>
 #include <ifaddrs.h>
 
+#include <openais/service/swab.h>
+
 #include "list.h"
 #include "cnxman-socket.h"
 #include "cnxman-private.h"
