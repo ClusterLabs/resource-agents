@@ -472,7 +472,7 @@ stopNFSFilesystem() {
 	  	;;
 	*)	 		# invalid format
 			ocf_log err \
-"startFilesystem: Invalid mount point format (must begin with a '/'): \'$mp\'"
+"stopNFSFilesystem: Invalid mount point format (must begin with a '/'): \'$mp\'"
 	    	return $FAIL
 	    	;;
 	esac
