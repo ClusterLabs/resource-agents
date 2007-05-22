@@ -1,3 +1,6 @@
+2007-05-22 Lon Hohberger <lhh at redhat.com>
+	* src/resources/SAPInstance, SAPDatabase: Add primary attrs
+
 2007-05-09 Lon Hohberger <lhh at redhat.com>
 	* src/resources/Makefile: Install SAP agents
 
