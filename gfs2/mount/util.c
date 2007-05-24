@@ -292,7 +292,6 @@ int get_sb(char *device, struct gen_sb *sb_out)
 
 		if (sb.sb_header.mh_magic != GFS_MAGIC ||
 		    sb.sb_header.mh_type != GFS_METATYPE_SB) {
-			gfs_sb_print(&sb);
 			die("there isn't a GFS filesystem on %s\n", device);
 		}
 
