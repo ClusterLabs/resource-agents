@@ -2361,6 +2361,13 @@ if test "x${enable_lrm}" = "xyes"; then
 	LRM_ENABLED=1
 fi
 
+if
+	test -e /proc/$$
+then
+	echo "/proc/{pid} is supported" 
+	AC_DEFINE_UNQUOTED(HAVE_PROC_PID, 1, Define to 1 if /proc/{pid} is supported.)
+fi
+
 AC_SUBST(LRM_ENABLED)
 AM_CONDITIONAL(LRM_BUILD, test "x${enable_lrm}" = "xyes")
 
