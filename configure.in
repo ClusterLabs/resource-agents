@@ -2362,7 +2362,7 @@ if test "x${enable_lrm}" = "xyes"; then
 fi
 
 if
-	test -d /proc/$$
+	test -L /proc/$$/exe
 then
 	AC_MSG_NOTICE("/proc/{pid} is supported") 
 	AC_DEFINE_UNQUOTED(HAVE_PROC_PID, 1, Define to 1 if /proc/{pid} is supported.)
