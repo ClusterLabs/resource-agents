@@ -71,7 +71,7 @@ meta_data()
 	    <content type="string"/>
         </parameter>
 
-        <parameter name="vg_name" required="1">
+        <parameter name="vg_name" required="1" unique="1">
             <longdesc lang="en">
                 If you can see this, your GUI is broken.
             </longdesc>
