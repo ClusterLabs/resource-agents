@@ -41,6 +41,7 @@ static int timewarn = 0;
 static uint64_t timeout = 0;
 static int noqueue = 1;
 static int persistent = 0;
+static int ignore_bast = 0;
 static int quiet = 1;
 static int verbose = 0;
 static int bast_cb;
@@ -49,7 +50,13 @@ static int maxr = MAX_RESOURCES;
 static int iterations;
 static int minhold = 0;
 static int stress_stop = 0;
+static int stress_delay = 0;
+static int stress_lock_only = 0;
+static int openclose_ls = 0;
 static uint64_t our_xid;
+
+static unsigned int sts_eunlock, sts_ecancel, sts_etimedout, sts_edeadlk, sts_eagain, sts_other, sts_zero;
+static unsigned int bast_unlock, bast_skip;
 
 #define log_print(fmt, args...) \
 do { \
@@ -121,6 +128,8 @@ char *status_str(int status)
 		return "EBUSY  ";
 	case ETIMEDOUT:
 		return "ETIMEDO";
+	case EDEADLK:
+		return "EDEADLK";
 	default:
 		snprintf(sts_str, 8, "%8x", status);
 		return sts_str;
@@ -206,9 +215,11 @@ void do_bast(struct lk *lk)
 		skip = 1;
 	}
 
-	if (skip)
+	if (skip) {
+		bast_skip++;
 		printf("    bast: skip    %3d\t%x\n", lk->id, lk->lksb.sb_lkid);
-	else {
+	} else {
+		bast_unlock++;
 		printf("    bast: unlockf %3d\t%x\n", lk->id, lk->lksb.sb_lkid);
 		unlockf(lk->id);
 	}
@@ -231,7 +242,7 @@ void do_bast_unlocks(void)
 void process_libdlm(void)
 {
 	dlm_dispatch(libdlm_fd);
-	if (bast_cb)
+	if (bast_cb && !ignore_bast)
 		do_bast_unlocks();
 }
 
@@ -253,11 +264,13 @@ void astfn(void *arg)
 	lk->last_status = lk->lksb.sb_status;
 
 	if (lk->lksb.sb_status == EUNLOCK) {
+		sts_eunlock++;
 		memset(&lk->lksb, 0, sizeof(struct dlm_lksb));
 		lk->grmode = -1;
 		lk->wait_ast = 0;
 
 	} else if (lk->lksb.sb_status == ECANCEL) {
+		sts_ecancel++;
 		if (lk->grmode == -1) {
 			memset(&lk->lksb, 0, sizeof(struct dlm_lksb));
 			lk->wait_ast = 0;
@@ -267,6 +280,17 @@ void astfn(void *arg)
 		}
 
 	} else if (lk->lksb.sb_status == ETIMEDOUT) {
+		sts_etimedout++;
+		if (lk->grmode == -1) {
+			memset(&lk->lksb, 0, sizeof(struct dlm_lksb));
+			lk->wait_ast = 0;
+		} else {
+			if (lk->lastop != Op_unlock && lk->lastop != Op_unlockf)
+				lk->wait_ast = 0;
+		}
+
+	} else if (lk->lksb.sb_status == EDEADLK) {
+		sts_edeadlk++;
 		if (lk->grmode == -1) {
 			memset(&lk->lksb, 0, sizeof(struct dlm_lksb));
 			lk->wait_ast = 0;
@@ -276,6 +300,7 @@ void astfn(void *arg)
 		}
 
 	} else if (lk->lksb.sb_status == EAGAIN) {
+		sts_eagain++;
 		if (lk->grmode == -1) {
 			memset(&lk->lksb, 0, sizeof(struct dlm_lksb));
 			lk->wait_ast = 0;
@@ -286,9 +311,16 @@ void astfn(void *arg)
 
 	} else {
 		if (lk->lksb.sb_status != 0) {
-			printf("unknown sb_status %x\n", lk->lksb.sb_status);
-			exit(-1);
+			sts_other++;
+			printf("BAD  ast: %d %3d\t%x: gr %d rq %d last op %s %s\n",
+		       		lk->lksb.sb_status, i, lk->lksb.sb_lkid,
+				lk->grmode, lk->rqmode, op_str(lk->lastop),
+				status_str(lk->last_status));
+			stress_stop = 1;
+			return;
 		}
+
+		sts_zero++;
 
 		if (lk->lastop != Op_unlockf)
 			lk->wait_ast = 0;
@@ -297,8 +329,7 @@ void astfn(void *arg)
 
 		if (minhold) {
 			gettimeofday(&lk->acquired, NULL);
-			/* lk->minhold = rand_int(1, 30); */
-			lk->minhold = 10;
+			lk->minhold = minhold;
 		}
 	}
 
@@ -340,8 +371,13 @@ void lock(int i, int mode)
 	log_verbose("lock: %d grmode %d rqmode %d flags %x lkid %x %s\n",
 	            i, lk->grmode, mode, flags, lk->lksb.sb_lkid, name);
 
+#if 0
+	rv = dlm_ls_lock(dh, mode, &lk->lksb, flags, name, strlen(name), 0,
+			  astfn, (void *) lk, bastfn, NULL);
+#else
 	rv = dlm_ls_lockx(dh, mode, &lk->lksb, flags, name, strlen(name), 0,
 			  astfn, (void *) lk, bastfn, &our_xid, timeout_arg);
+#endif
 	if (!rv) {
 		lk->wait_ast = 1;
 		lk->rqmode = mode;
@@ -513,6 +549,15 @@ void cancel(int i)
 	lk->lastop = Op_cancel;
 }
 
+void canceld(int i, uint32_t lkid)
+{
+	int rv;
+
+	rv = dlm_ls_deadlock_cancel(dh, lkid, 0);
+
+	printf("canceld %x: %d %d\n", lkid, rv, errno);
+}
+
 void unlock_sync(int i)
 {
 	uint32_t lkid;
@@ -600,15 +645,107 @@ void purgetest(int nodeid, int pid)
 	purge(nodeid, pid);
 }
 
-void stress(int num)
+void tstress_unlocks(void)
 {
-	int i, o, op, skip;
+	struct lk *lk;
+	struct timeval now;
+	int i;
+
+	for (i = 0; i < maxn; i++) {
+		lk = get_lock(i);
+		if (!lk)
+			continue;
+		if (lk->wait_ast)
+			continue;
+		if (lk->grmode < 0)
+			continue;
+
+		/* if we've held the lock for minhold seconds, then unlock */
+
+		gettimeofday(&now, NULL);
+
+		if (now.tv_sec >= lk->acquired.tv_sec + minhold) {
+			printf("        : unlock  %3d\t%x: gr %d rq %d held %u of %u s\n",
+				i, lk->lksb.sb_lkid, lk->grmode, lk->rqmode,
+				now.tv_sec - lk->acquired.tv_sec, minhold);
+
+			_unlock(i, 0);
+			lk->rqmode = -1;
+			lk->lastop = Op_unlock;
+		}
+
+	}
+}
+
+void tstress(int num)
+{
+	int i, o, op, max_op, skip;
 	unsigned int n, skips, lock_ops, unlock_ops, unlockf_ops, cancel_ops;
 	struct lk *lk;
 
 	n = skips = lock_ops = unlock_ops = unlockf_ops = cancel_ops = 0;
+	sts_eunlock = sts_ecancel = sts_etimedout = sts_edeadlk = sts_eagain = sts_other = sts_zero = 0;
+	bast_unlock = bast_skip = 0;
+
+	noqueue = 0;
+	ignore_bast = 1;
+	quiet = 0;
+
+	if (!timeout)
+		timeout = 4;
+	if (!minhold)
+		minhold = 5;
 
 	while (!stress_stop) {
+		if (stress_delay)
+			usleep(stress_delay);
+
+		process_libdlm();
+
+		tstress_unlocks();
+
+		if (++n == num) {
+			if (all_unlocks_done())
+				break;
+			else
+				continue;
+		}
+
+		i = rand_int(0, maxn-1);
+		lk = get_lock(i);
+		if (!lk)
+			continue;
+
+		if (lk->wait_ast || lk->grmode > -1)
+			continue;
+
+		lock(i, rand_int(0, 5));
+		lock_ops++;
+		printf("%8x: lock    %3d\t%x\n", n, i, lk->lksb.sb_lkid);
+	}
+
+	printf("ops: skip %d lock %d unlock %d unlockf %d cancel %d\n",
+		skips, lock_ops, unlock_ops, unlockf_ops, cancel_ops);
+	printf("bast: unlock %u skip %u\n", bast_unlock, bast_skip);
+	printf("ast status: eunlock %d ecancel %d etimedout %d edeadlk %d eagain %d\n",
+		sts_eunlock, sts_ecancel, sts_etimedout, sts_edeadlk, sts_eagain);
+	printf("ast status: zero %d other %d\n", sts_zero, sts_other);
+}
+
+void stress(int num)
+{
+	int i, o, op, max_op, skip;
+	unsigned int n, skips, lock_ops, unlock_ops, unlockf_ops, cancel_ops;
+	struct lk *lk;
+
+	n = skips = lock_ops = unlock_ops = unlockf_ops = cancel_ops = 0;
+	sts_eunlock = sts_ecancel = sts_etimedout = sts_edeadlk = sts_eagain = sts_other = sts_zero = 0;
+	bast_unlock = bast_skip = 0;
+
+	while (!stress_stop) {
+		if (stress_delay)
+			usleep(stress_delay);
+
 		process_libdlm();
 
 		if (++n == num)
@@ -619,7 +756,11 @@ void stress(int num)
 		if (!lk)
 			continue;
 
-		o = rand_int(0, 5);
+		max_op = 5;
+		if (stress_lock_only)
+			max_op = 2;
+
+		o = rand_int(0, max_op);
 		switch (o) {
 		case 0:
 		case 1:
@@ -708,8 +849,12 @@ void stress(int num)
 			skips++;
 	}
 
-	printf("skip %d lock %d unlock %d unlockf %d cancel %d\n",
+	printf("ops: skip %d lock %d unlock %d unlockf %d cancel %d\n",
 		skips, lock_ops, unlock_ops, unlockf_ops, cancel_ops);
+	printf("bast: unlock %u skip %u\n", bast_unlock, bast_skip);
+	printf("ast status: eunlock %d ecancel %d etimedout %d edeadlk %d eagain %d\n",
+		sts_eunlock, sts_ecancel, sts_etimedout, sts_edeadlk, sts_eagain);
+	printf("ast status: zero %d other %d\n", sts_zero, sts_other);
 }
 
 static int client_add(int fd, int *maxi)
@@ -758,6 +903,7 @@ void print_commands(void)
 	printf("unlock x 	 - unlock lock x\n");
 	printf("unlockf x 	 - force unlock lock x\n");
 	printf("cancel x 	 - cancel lock x\n");
+	printf("canceld x lkid	 - cancel lock x, return EDEADLK as status\n");
 	printf("lock_sync x mode - synchronous version of lock\n");
 	printf("unlock_sync x 	 - synchronous version of unlock\n");
 	printf("ex x		 - equivalent to: lock x 5\n");
@@ -766,11 +912,13 @@ void print_commands(void)
 	printf("release		 - for x in 0 to max, unlock x\n");
 	printf("purge nodeid pid - purge orphan locks of process\n");
 	printf("stress n	 - loop doing random lock/unlock/unlockf/cancel on all locks, n times\n");
+	printf("tstress n	 - stress timeouts\n");
 	printf("timeout n	 - enable lock timeouts, set timeout to n seconds\n");
 	printf("dump		 - show info for all locks\n");
+	printf("minhold		 - set minimum number of seconds locks will be held\n");
+	printf("ignore_bast	 - ignore all basts\n");
 	printf("noqueue		 - toggle NOQUEUE flag for all requests\n");
 	printf("persistent	 - toggle PERSISTENT flag for all requests\n");
-	printf("minhold		 - toggle minhold mode, lock will be held for random minimum time\n");
 	printf("quiet		 - toggle quiet flag\n");
 	printf("verbose		 - toggle verbose flag\n");
 
@@ -786,6 +934,24 @@ void print_commands(void)
 	printf("purgetest nodeid pid\n");
 }
 
+void print_settings(void)
+{
+	printf("timewarn %d\n", timewarn);
+	printf("timeout %llu\n", (unsigned long long) timeout);
+	printf("noqueue %d\n", noqueue);
+	printf("persistent %d\n", persistent);
+	printf("ignore_bast %d\n", ignore_bast);
+	printf("quiet %d\n", quiet);
+	printf("verbose %d\n", verbose);
+	printf("maxn %d\n", maxn);
+	printf("maxr %d\n", maxr);
+	printf("iterations %d\n", iterations);
+	printf("minhold %d\n", minhold);
+	printf("stress_stop %d\n", stress_stop);
+	printf("stress_delay %d\n", stress_delay);
+	printf("stress_lock_only %d\n", stress_lock_only);
+}
+
 void process_command(int *quit)
 {
 	char inbuf[132];
@@ -798,6 +964,13 @@ void process_command(int *quit)
 
 	if (!strncmp(cmd, "EXIT", 4)) {
 		*quit = 1;
+		unlock_all();
+		return;
+	}
+
+	if (!strncmp(cmd, "CLOSE", 5)) {
+		*quit = 1;
+		openclose_ls = 1;
 		unlock_all();
 		return;
 	}
@@ -824,6 +997,11 @@ void process_command(int *quit)
 
 	if (!strncmp(cmd, "cancel", 6) && strlen(cmd) == 6) {
 		cancel(x);
+		return;
+	}
+
+	if (!strncmp(cmd, "canceld", 7) && strlen(cmd) == 7) {
+		canceld(x, y);
 		return;
 	}
 
@@ -898,8 +1076,30 @@ void process_command(int *quit)
 		return;
 	}
 
-	if (!strncmp(cmd, "stress", 6)) {
+	if (!strncmp(cmd, "stress", 6) && strlen(cmd) == 6) {
 		stress(x);
+		return;
+	}
+
+	if (!strncmp(cmd, "tstress", 7) && strlen(cmd) == 7) {
+		tstress(x);
+		return;
+	}
+
+	if (!strncmp(cmd, "stress_delay", 12) && strlen(cmd) == 12) {
+		stress_delay = x;
+		return;
+	}
+
+	if (!strncmp(cmd, "stress_lock_only", 16) && strlen(cmd) == 16) {
+		stress_lock_only = !stress_lock_only;
+		printf("stress_lock_only is %s\n", stress_lock_only ? "on" : "off");
+		return;
+	}
+
+	if (!strncmp(cmd, "ignore_bast", 11) && strlen(cmd) == 11) {
+		ignore_bast = !ignore_bast;
+		printf("ignore_bast is %s\n", ignore_bast ? "on" : "off");
 		return;
 	}
 
@@ -926,8 +1126,7 @@ void process_command(int *quit)
 	}
 
 	if (!strncmp(cmd, "minhold", 7)) {
-		minhold = !minhold;
-		printf("minhold is %s\n", minhold ? "on" : "off");
+		minhold = x;
 		return;
 	}
 
@@ -954,6 +1153,11 @@ void process_command(int *quit)
 		return;
 	}
 
+	if (!strncmp(cmd, "settings", 8)) {
+		print_settings();
+		return;
+	}
+
 	printf("unknown command %s\n", cmd);
 }
 
@@ -973,7 +1177,7 @@ static void decode_arguments(int argc, char **argv)
 	int optchar;
 
 	while (cont) {
-		optchar = getopt(argc, argv, "n:r:i:thV");
+		optchar = getopt(argc, argv, "n:r:i:thVo");
 
 		switch (optchar) {
 
@@ -991,6 +1195,10 @@ static void decode_arguments(int argc, char **argv)
 
 		case 't':
 			timewarn = 1;
+			break;
+
+		case 'o':
+			openclose_ls = 1;
 			break;
 
 		case 'h':
@@ -1029,6 +1237,7 @@ static void sigterm_handler(int sig)
 
 int main(int argc, char *argv[])
 {
+	uint32_t major, minor, patch;
 	struct lk *lk;
 	int i, rv, maxi = 0, quit = 0;
 
@@ -1066,12 +1275,33 @@ int main(int argc, char *argv[])
 		lk++;
 	}
 
-	printf("Joining test lockspace...\n");
+	rv = dlm_kernel_version(&major, &minor, &patch);
+	if (rv < 0) {
+		printf("can't detect dlm in kernel %d\n", errno);
+		return -1;
+	}
+	printf("dlm kernel version: %u.%u.%u\n", major, minor, patch);
+	dlm_library_version(&major, &minor, &patch);
+	printf("dlm library version: %u.%u.%u\n", major, minor, patch);
 
-	dh = dlm_new_lockspace("test", 0600, timewarn ? DLM_LSFL_TIMEWARN : 0);
-	if (!dh) {
-		printf("dlm_new_lockspace error %d %d\n", (int) dh, errno);
-		return -ENOTCONN;
+	if (openclose_ls) {
+		printf("dlm_open_lockspace...\n");
+
+		dh = dlm_open_lockspace("test");
+		if (!dh) {
+			printf("dlm_open_lockspace error %lu %d\n",
+				(unsigned long)dh, errno);
+			return -ENOTCONN;
+		}
+	} else {
+		printf("dlm_new_lockspace...\n");
+
+		dh = dlm_new_lockspace("test", 0600, timewarn ? DLM_LSFL_TIMEWARN : 0);
+		if (!dh) {
+			printf("dlm_new_lockspace error %lu %d\n",
+				(unsigned long)dh, errno);
+			return -ENOTCONN;
+		}
 	}
 
 	rv = dlm_ls_get_fd(dh);
@@ -1116,11 +1346,19 @@ int main(int argc, char *argv[])
 			break;
 	}
 
-	printf("dlm_release_lockspace\n");
+	if (openclose_ls) {
+		printf("dlm_close_lockspace\n");
 
-	rv = dlm_release_lockspace("test", dh, 1);
-	if (rv < 0)
-		printf("dlm_release_lockspace error %d %d\n", rv, errno);
+		rv = dlm_close_lockspace(dh);
+		if (rv < 0)
+			printf("dlm_close_lockspace error %d %d\n", rv, errno);
+	} else {
+		printf("dlm_release_lockspace\n");
+
+		rv = dlm_release_lockspace("test", dh, 1);
+		if (rv < 0)
+			printf("dlm_release_lockspace error %d %d\n", rv, errno);
+	}
 
 	return 0;
 }
