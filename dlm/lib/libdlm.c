@@ -1006,8 +1006,8 @@ int dlm_lock_wait(uint32_t mode,
  * All the ways to unlock/cancel a lock
  */
 
-static int ls_unlock_v5(struct dlm_ls_info *lsinfo, uint32_t lkid, uint32_t flags,
-			struct dlm_lksb *lksb, void *astarg)
+static int ls_unlock_v5(struct dlm_ls_info *lsinfo, uint32_t lkid,
+			uint32_t flags, struct dlm_lksb *lksb, void *astarg)
 {
 	struct dlm_write_request_v5 req;
 
@@ -1027,8 +1027,8 @@ static int ls_unlock_v5(struct dlm_ls_info *lsinfo, uint32_t lkid, uint32_t flag
 		return write(lsinfo->fd, &req, sizeof(req));
 }
 
-static int ls_unlock_v6(struct dlm_ls_info *lsinfo, uint32_t lkid, uint32_t flags,
-			struct dlm_lksb *lksb, void *astarg)
+static int ls_unlock_v6(struct dlm_ls_info *lsinfo, uint32_t lkid,
+			uint32_t flags, struct dlm_lksb *lksb, void *astarg)
 {
 	struct dlm_write_request req;
 
@@ -1091,6 +1091,34 @@ int dlm_unlock(uint32_t lkid, uint32_t flags, struct dlm_lksb *lksb,
 	return dlm_ls_unlock(default_ls, lkid, flags, lksb, astarg);
 }
 
+int dlm_ls_deadlock_cancel(dlm_lshandle_t ls, uint32_t lkid, uint32_t flags)
+{
+	struct dlm_ls_info *lsinfo = (struct dlm_ls_info *)ls;
+	struct dlm_write_request req;
+
+	if (kernel_version.version[0] < 6) {
+		errno = ENOSYS;
+		return -1;
+	}
+
+	if (ls == NULL) {
+		errno = ENOTCONN;
+		return -1;
+	}
+
+	if (!lkid) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	set_version_v6(&req);
+	req.cmd = DLM_USER_DEADLOCK;
+	req.i.lock.lkid = lkid;
+	req.i.lock.flags = flags;
+
+	return write(lsinfo->fd, &req, sizeof(req));
+}
+
 
 /*
  * Purge
@@ -1130,7 +1158,7 @@ int dlm_ls_purge(dlm_lshandle_t ls, int nodeid, int pid)
  * do their own fd handling.
  * This allows a non-threaded app to use the DLM.
  */
-int dlm_get_fd()
+int dlm_get_fd(void)
 {
     if (default_ls)
     {

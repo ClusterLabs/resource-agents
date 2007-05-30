@@ -159,6 +159,7 @@ extern dlm_lshandle_t dlm_new_lockspace(const char *name, mode_t mode,
  * dlm_ls_unlock()
  * dlm_ls_lock_wait()
  * dlm_ls_unlock_wait()
+ * dlm_ls_deadlock_cancel()
  * dlm_ls_purge()
  */
 
@@ -208,6 +209,10 @@ extern int dlm_ls_unlock_wait(dlm_lshandle_t lockspace,
 		uint32_t lkid,
 		uint32_t flags,
 		struct dlm_lksb *lksb);
+
+extern int dlm_ls_deadlock_cancel(dlm_lshandle_t ls,
+		uint32_t lkid,
+		uint32_t flags);
 
 extern int dlm_ls_purge(dlm_lshandle_t lockspace,
 		int nodeid,
