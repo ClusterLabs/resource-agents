@@ -1462,6 +1462,10 @@ dlm_lshandle_t dlm_open_lockspace(const char *name)
 	struct dlm_ls_info *newls;
 	int saved_errno;
 
+	/* Need to detect kernel version */
+	if (open_control_device())
+		return NULL;
+
 	newls = malloc(sizeof(struct dlm_ls_info));
 	if (!newls)
 		return NULL;
