@@ -69,13 +69,6 @@ do { \
 
 #define BUF_SIZE 4096
 #define meta_mount "/tmp/.gfs2meta"
-char device_name[256];
-char fspath[256];
-char fsoptions[256];
-//char meta_mount[PATH_MAX]; = "/tmp/.gfs2meta";
-char metafs_path[BUF_SIZE];
-int metafs_fd;
-int metafs_mounted; /* If metafs was already mounted */
 
 struct commandline {
 	unsigned int operation;
@@ -103,7 +96,7 @@ void do_sync(struct gfs2_sbd *sdp, commandline_t *comline);
 void lock_for_admin();
 void mount_gfs2_meta();
 void cleanup();
-void read_superblock(struct gfs2_sb *sb);
+void read_superblock(struct gfs2_sb *sb, struct gfs2_sbd *sdp);
 
 /*  check.c  */
 

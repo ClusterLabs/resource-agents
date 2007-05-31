@@ -279,28 +279,16 @@ print_quota(commandline_t *comline,
 	}
 }
 
-void
-cleanup()
-{
-	int ret;
-	if (!metafs_mounted) { /* was mounted by us */
-		ret = umount(meta_mount);
-		if (ret)
-			fprintf(stderr, "Couldn't unmount %s : %s\n", meta_mount, 
-			    strerror(errno));
-	}
-}
-
 void 
-read_superblock(struct gfs2_sb *sb)
+read_superblock(struct gfs2_sb *sb, struct gfs2_sbd *sdp)
 {
 	int fd;
 	char buf[PATH_MAX];
 	
-	fd = open(device_name, O_RDONLY);
+	fd = open(sdp->device_name, O_RDONLY);
 	if (fd < 0) {
 		die("Could not open the block device %s: %s\n",
-			device_name, strerror(errno));
+			sdp->device_name, strerror(errno));
 	}
 	do_lseek(fd, 0x10 * 4096);
 	do_read(fd, buf, PATH_MAX);
@@ -330,19 +318,20 @@ do_list(struct gfs2_sbd *sdp, commandline_t *comline)
 	if (!*comline->filesystem)
 		die("need a filesystem to work on\n");
 
+	strcpy(sdp->path_name, comline->filesystem);
 	check_for_gfs2(sdp);
-	read_superblock(&sdp->sd_sb);
+	read_superblock(&sdp->sd_sb, sdp);
 	if (!find_gfs2_meta(sdp))
 		mount_gfs2_meta(sdp);
 	lock_for_admin(sdp);
 	
-	strcpy(quota_file, metafs_path);
+	strcpy(quota_file, sdp->metafs_path);
 	strcat(quota_file, "/quota");
 
 	fd = open(quota_file, O_RDONLY);
 	if (fd < 0) {
-		close(metafs_fd);
-		cleanup();
+		close(sdp->metafs_fd);
+		cleanup_metafs(sdp);
 		die("can't open file %s: %s\n", quota_file,
 		    strerror(errno));
 	}
@@ -372,8 +361,8 @@ do_list(struct gfs2_sbd *sdp, commandline_t *comline)
 	}
 
 	close(fd);
-	close(metafs_fd);
-	cleanup();
+	close(sdp->metafs_fd);
+	cleanup_metafs(sdp);
 }
 
 /**
@@ -393,19 +382,20 @@ do_get_one(struct gfs2_sbd *sdp, commandline_t *comline, char *filesystem)
 	int error;
 	char quota_file[BUF_SIZE];
 
+	strcpy(sdp->path_name, filesystem);
 	check_for_gfs2(sdp);
-	read_superblock(&sdp->sd_sb);
+	read_superblock(&sdp->sd_sb, sdp);
 	if (!find_gfs2_meta(sdp))
 		mount_gfs2_meta(sdp);
 	lock_for_admin(sdp);
 	
-	strcpy(quota_file, metafs_path);
+	strcpy(quota_file, sdp->metafs_path);
 	strcat(quota_file, "/quota");
 
 	fd = open(quota_file, O_RDONLY);
 	if (fd < 0) {
-		close(metafs_fd);
-		cleanup();
+		close(sdp->metafs_fd);
+		cleanup_metafs(sdp);
 		die("can't open file %s: %s\n", quota_file,
 		    strerror(errno));
 	}
@@ -421,8 +411,8 @@ do_get_one(struct gfs2_sbd *sdp, commandline_t *comline, char *filesystem)
 	error = read(fd, buf, sizeof(struct gfs2_quota));
 	if (error < 0) {
 		close(fd);
-		close(metafs_fd);
-		cleanup();
+		close(sdp->metafs_fd);
+		cleanup_metafs(sdp);
 		die("can't get quota info (%d): %s\n",
 		    error, strerror(errno));
 	}
@@ -435,8 +425,8 @@ do_get_one(struct gfs2_sbd *sdp, commandline_t *comline, char *filesystem)
 		    &q, &sdp->sd_sb);
 
 	close(fd);
-	close(metafs_fd);
-	cleanup();	
+	close(sdp->metafs_fd);
+	cleanup_metafs(sdp);	
 }
 
 /**
@@ -490,8 +480,9 @@ do_sync_one(struct gfs2_sbd *sdp, char *filesystem)
 	int fd;
 	char sys_quota_sync[PATH_MAX];
 
+	strcpy(sdp->path_name, filesystem);
 	check_for_gfs2(sdp);
-	read_superblock(&sdp->sd_sb);
+	read_superblock(&sdp->sd_sb, sdp);
 	sprintf(sys_quota_sync, "%s%s%s", 
 		"/sys/fs/gfs2/", sdp->sd_sb.sb_locktable, "/quota_sync");
 	
@@ -556,25 +547,27 @@ do_set(struct gfs2_sbd *sdp, commandline_t *comline)
 	char quota_file[BUF_SIZE];
 	char sys_q_refresh[BUF_SIZE];
 	char id_str[16];
+	struct stat stat_buf;
 	
 	if (!*comline->filesystem)
 		die("need a filesystem to work on\n");
 	if (!comline->new_value_set)
 		die("need a new value\n");
 
+	strcpy(sdp->path_name, comline->filesystem);
 	check_for_gfs2(sdp);
-	read_superblock(&sdp->sd_sb);
+	read_superblock(&sdp->sd_sb, sdp);
 	if (!find_gfs2_meta(sdp))
 		mount_gfs2_meta(sdp);
 	lock_for_admin(sdp);
 	
-	strcpy(quota_file, metafs_path);
+	strcpy(quota_file, sdp->metafs_path);
 	strcat(quota_file, "/quota");
 
 	fd = open(quota_file, O_WRONLY);
 	if (fd < 0) {
-		close(metafs_fd);
-		cleanup();
+		close(sdp->metafs_fd);
+		cleanup_metafs(sdp);
 		die("can't open file %s: %s\n", quota_file,
 		    strerror(errno));
 	}
@@ -592,20 +585,6 @@ do_set(struct gfs2_sbd *sdp, commandline_t *comline)
 		fprintf(stderr, "invalid user/group ID\n");
 		goto out;
 	}
-
-	switch (comline->operation) {
-	case GQ_OP_LIMIT:
-		offset += (unsigned long)(&((struct gfs2_quota *) NULL)->qu_limit);
-		break;
-
-	case GQ_OP_WARN:
-		offset += (unsigned long)(&((struct gfs2_quota *) NULL)->qu_warn);
-		break;
-
-	default:
-		fprintf(stderr, "invalid operation\n");
-		goto out;
-	};
 
 	switch (comline->units) {
 	case GQ_UNITS_MEGABYTE:
@@ -636,16 +615,76 @@ do_set(struct gfs2_sbd *sdp, commandline_t *comline)
 	}
 
 	new_value = cpu_to_be64(new_value);
-
-	lseek(fd, offset, SEEK_SET);
-	error = write(fd, (char*)&new_value, sizeof(uint64_t));
-	if (error != sizeof(uint64_t)) {
-		fprintf(stderr, "can't write quota file (%d): %s\n",
-		    error, strerror(errno));
+	/*
+	 * Hack to force writing the entire gfs2_quota structure to 
+	 * the quota file instead of just the limit or warn values.
+	 * This is because of a bug in gfs2 which doesn't extend 
+	 * the quotafile appropriately to write the usage value of a 
+	 * given id. For instance, if you write a limit value (8 bytes) 
+	 * for userid x at offset 2*x, gfs2 will not extend the file and write 
+	 * 8 bytes at offset (2*x + 16) when it has to update the usage 
+	 * value for id x. Therefore, we extend the quota file to 
+	 * a struct gfs2_quota boundary. i.e. The size of the quota file
+	 * will always be a multiple of sizeof(struct gfs2_quota)
+	 */
+	if (fstat(fd, &stat_buf)) {
+		fprintf(stderr, "stat failed: %s\n", strerror(errno));
 		goto out;
 	}
+	if (stat_buf.st_size < (offset + sizeof(struct gfs2_quota))) {
+		struct gfs2_quota tmp;
+		memset((void*)(&tmp), 0, sizeof(struct gfs2_quota));
+		switch (comline->operation) {
+		case GQ_OP_LIMIT:
+			tmp.qu_limit = new_value; break;
+		case GQ_OP_WARN:
+			tmp.qu_warn = new_value; break;
+		}
+		
+		lseek(fd, offset, SEEK_SET);
+		error = write(fd, (void*)(&tmp), sizeof(struct gfs2_quota));
+		if (error != sizeof(struct gfs2_quota)) {
+			fprintf(stderr, "can't write quota file (%d): %s\n", 
+				error, strerror(errno));
+			goto out;
+		}
+		/* Also, if the id type is USER, append another empty 
+		 * struct gfs2_quota for the GROUP with the same id
+		 */
+		if (comline->id_type == GQ_ID_USER) {
+			memset((void*)(&tmp), 0, sizeof(struct gfs2_quota));
+			error = write(fd, (void*)(&tmp), sizeof(struct gfs2_quota));
+			if (error != sizeof(struct gfs2_quota)) {
+				fprintf(stderr, "can't write quota file (%d): %s\n", 
+					error, strerror(errno));
+				goto out;
+			}
+		}
+	} else {
+		switch (comline->operation) {
+		case GQ_OP_LIMIT:
+			offset += (unsigned long)(&((struct gfs2_quota *) NULL)->qu_limit);
+			break;
+			
+		case GQ_OP_WARN:
+			offset += (unsigned long)(&((struct gfs2_quota *) NULL)->qu_warn);
+			break;
+			
+		default:
+			fprintf(stderr, "invalid operation\n");
+			goto out;
+		};
 
-	/* Write "1" to sysfs quota refresh file to refresh gfs quotas */
+		lseek(fd, offset, SEEK_SET);
+		error = write(fd, (char*)&new_value, sizeof(uint64_t));
+		if (error != sizeof(uint64_t)) {
+			fprintf(stderr, "can't write quota file (%d): %s\n",
+				error, strerror(errno));
+			goto out;
+		}
+	}
+
+	/* Write the id to sysfs quota refresh file to refresh gfs quotas */
 	sprintf(sys_q_refresh, "%s%s%s", "/sys/fs/gfs2/",
 		sdp->sd_sb.sb_locktable, 
 		comline->id_type == GQ_ID_USER ? "/quota_refresh_user" : 
@@ -669,8 +708,8 @@ do_set(struct gfs2_sbd *sdp, commandline_t *comline)
 	close(fd1);
 out:
 	close(fd);
-	close(metafs_fd);
-	cleanup();
+	close(sdp->metafs_fd);
+	cleanup_metafs(sdp);
 }
 
 /**
@@ -684,17 +723,19 @@ out:
 int
 main(int argc, char *argv[])
 {
-        struct gfs2_sbd sbd, *sdp = &sbd;
+    struct gfs2_sbd sbd, *sdp = &sbd;
 	commandline_t comline;
 
 	prog_name = argv[0];
-	metafs_mounted = 0;
+	sdp->metafs_mounted = 0;
 
 	memset(sdp, 0, sizeof(struct gfs2_sbd));
 	memset(&comline, 0, sizeof(commandline_t));
 
 	decode_arguments(argc, argv, &comline);
-	strcpy(sdp->path_name, comline.filesystem);
+	sdp->path_name = (char*) malloc(512);
+	if (!sdp->path_name)
+		die("Can't malloc! %s\n", strerror(errno));
 
 	switch (comline.operation) {
 	case GQ_OP_LIST:
@@ -732,6 +773,8 @@ main(int argc, char *argv[])
 		do_get(sdp, &comline);
 		break;
 	}
+	
+	free(sdp->path_name);
 
 	exit(EXIT_SUCCESS);
 }

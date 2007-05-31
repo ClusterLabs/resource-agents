@@ -191,19 +191,20 @@ read_quota_file(struct gfs2_sbd *sdp, commandline_t *comline,
 	int error;
 	char quota_file[BUF_SIZE];
 	
+	strcpy(sdp->path_name, comline->filesystem);
 	check_for_gfs2(sdp);
-	read_superblock(&sdp->sd_sb);
+	read_superblock(&sdp->sd_sb, sdp);
 	if (!find_gfs2_meta(sdp))
 		mount_gfs2_meta(sdp);
 	lock_for_admin(sdp);
 	
-	strcpy(quota_file, metafs_path);
+	strcpy(quota_file, sdp->metafs_path);
 	strcat(quota_file, "/quota");
 
 	fd = open(quota_file, O_RDONLY);
 	if (fd < 0) {
-		close(metafs_fd);
-		cleanup();
+		close(sdp->metafs_fd);
+		cleanup_metafs(sdp);
 		die("can't open file %s: %s\n", comline->filesystem,
 		    strerror(errno));
 	}
@@ -216,8 +217,8 @@ read_quota_file(struct gfs2_sbd *sdp, commandline_t *comline,
 		error = read(fd, buf, sizeof(struct gfs2_quota));
 		if (error < 0) {
 			close(fd);
-			close(metafs_fd);
-			cleanup();
+			close(sdp->metafs_fd);
+			cleanup_metafs(sdp);
 			die("can't read quota file (%d): %s\n",
 			    error, strerror(errno));
 		}
@@ -237,8 +238,8 @@ read_quota_file(struct gfs2_sbd *sdp, commandline_t *comline,
 	} while (error == sizeof(struct gfs2_quota));
 
 	close(fd);
-	close(metafs_fd);
-	cleanup();
+	close(sdp->metafs_fd);
+	cleanup_metafs(sdp);
 }
 
 /**
@@ -434,20 +435,22 @@ set_list(struct gfs2_sbd *sdp, commandline_t *comline, int user,
 	int error;
 	char quota_file[BUF_SIZE];
 	char sys_q_refresh[BUF_SIZE];
-	
+	char id_str[16];
+
+	strcpy(sdp->path_name, comline->filesystem);
 	check_for_gfs2(sdp);
-	read_superblock(&sdp->sd_sb);
+	read_superblock(&sdp->sd_sb, sdp);
 	if (!find_gfs2_meta(sdp))
 		mount_gfs2_meta(sdp);
 	lock_for_admin(sdp);
 	
-	strcpy(quota_file, metafs_path);
+	strcpy(quota_file, sdp->metafs_path);
 	strcat(quota_file, "/quota");
 
 	fd = open(quota_file, O_WRONLY);
 	if (fd < 0) {
-		close(metafs_fd);
-		cleanup();
+		close(sdp->metafs_fd);
+		cleanup_metafs(sdp);
 		die("can't open file %s: %s\n", comline->filesystem,
 		    strerror(errno));
 	}
@@ -471,7 +474,7 @@ set_list(struct gfs2_sbd *sdp, commandline_t *comline, int user,
 			goto out;
 		}
 
-		/* Write "1" to sysfs quota refresh file to refresh gfs quotas */
+		/* Write the id to sysfs quota refresh file to refresh gfs quotas */
 		sprintf(sys_q_refresh, "%s%s%s", "/sys/fs/gfs2/",
 			sdp->sd_sb.sb_locktable, 
 			(user) ? "/quota_refresh_user" :
@@ -483,7 +486,10 @@ set_list(struct gfs2_sbd *sdp, commandline_t *comline, int user,
 				sys_q_refresh, strerror(errno));
 			goto out;
 		}
-		if (write(fd1,(void*)"1", 1) != 1) {
+
+		sprintf(id_str, "%d", comline->id);
+		
+		if (write(fd1,(void*)id_str, strlen(id_str)) != strlen(id_str)) {
 			close(fd1);
 			fprintf(stderr, "failed to write to %s: %s\n", 
 				sys_q_refresh, strerror(errno));
@@ -494,8 +500,8 @@ set_list(struct gfs2_sbd *sdp, commandline_t *comline, int user,
 
 out:
 	close(fd);
-	close(metafs_fd);
-	cleanup();
+	close(sdp->metafs_fd);
+	cleanup_metafs(sdp);
 }
 
 /**
