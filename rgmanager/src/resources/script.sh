@@ -118,5 +118,5 @@ ${OCF_RESKEY_file} $1
 declare -i rv=$?
 if [ $rv -ne 0 ]; then
 	ocf_log err "script:$OCF_RESKEY_name: $1 of $OCF_RESKEY_file failed (returned $rv)"
-	return $OCF_ERR_GENERIC
+	exit $OCF_ERR_GENERIC
 fi

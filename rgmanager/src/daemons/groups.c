@@ -816,6 +816,7 @@ group_op(char *groupname, int op)
 	}
 	pthread_rwlock_unlock(&resource_lock);
 
+#if 0
 	/*
 	   Do NOT return error codes if we failed to stop for one of these
 	   reasons.  It didn't start, either, so it's safe to assume that
@@ -833,6 +834,7 @@ group_op(char *groupname, int op)
 			break;
 		}
 	}
+#endif
 
 	return ret;
 }

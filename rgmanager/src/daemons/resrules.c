@@ -1025,7 +1025,7 @@ load_resource_rules(const char *rpath, resource_rule_t **rules)
 {
 	DIR *dir;
 	struct dirent *de;
-	char *fn;//, *dot;
+	char *fn, *dot;
 	char path[2048];
 	struct stat st_buf;
 
@@ -1040,9 +1040,22 @@ load_resource_rules(const char *rpath, resource_rule_t **rules)
 		if (!fn)
 			continue;
 		
+		/* Ignore files with common backup extension */
 		if ((fn != NULL) && (strlen(fn) > 0) && 
 			(fn[strlen(fn)-1] == '~')) 
 			continue;
+
+ 		dot = strrchr(fn, '.');
+ 		if (dot) {
+ 			/* Ignore RPM installed save files, patches,
+ 			   diffs, etc. */
+ 			if (!strncasecmp(dot, ".rpm", 4)) {
+ 				fprintf(stderr, "Warning: "
+ 					"Ignoring %s/%s: Bad extension %s\n",
+ 					rpath, de->d_name, dot);
+ 				continue;
+ 			}
+ 		}
 
 		snprintf(path, sizeof(path), "%s/%s",
 			 rpath, de->d_name);
@@ -1053,8 +1066,10 @@ load_resource_rules(const char *rpath, resource_rule_t **rules)
 		if (S_ISDIR(st_buf.st_mode))
 			continue;
 		
-		if (st_buf.st_mode & (S_IXUSR|S_IXOTH|S_IXGRP))
-			load_resource_rulefile(path, rules);
+  		if (st_buf.st_mode & (S_IXUSR|S_IXOTH|S_IXGRP)) {
+  			printf("Loading resource rule from %s\n", path);
+   			load_resource_rulefile(path, rules);
+  		}
 	}
 	xmlCleanupParser();
 

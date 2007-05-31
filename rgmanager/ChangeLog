@@ -1,3 +1,9 @@
+2007-05-31 Lon Hohberger <lhh at redhat.com>
+	* src/daemons/resrules.c: Fix #234249 - ignore obvious backup files
+	in /usr/share/cluster when processing resource rules
+	* src/daemons/restree.c, src/daemons/groups.c, include/reslist.h: 
+	Implement independent subtrees, per bug #229650
+
 2007-05-22 Lon Hohberger <lhh at redhat.com>
 	* src/resources/SAPInstance, SAPDatabase: Add primary attrs
 

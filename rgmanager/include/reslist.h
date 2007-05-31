@@ -35,6 +35,8 @@
 #define RF_NEEDSTART	(1<<2)	/** Used when adding/changing resources */
 #define RF_NEEDSTOP	(1<<3)  /** Used when deleting/changing resources */
 #define RF_COMMON	(1<<4)	/** " */
+#define RF_INDEPENDENT	(1<<5)  /** Define this for a resource if it is
+				  otherwise an independent subtree */
 
 #define RES_STOPPED	(0)
 #define RES_STARTED	(1)
