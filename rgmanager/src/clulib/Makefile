@@ -27,8 +27,9 @@ OBJS3= msgtest.o
 
 CFLAGS += -DCMAN_RELEASE_NAME=\"${RELEASE}\"
 CFLAGS += -g -Werror -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
-CFLAGS += -I${incdir} -I${cmanincdir} -I${dlmincdir}
+CFLAGS += -I${cmanincdir} -I${dlmincdir}
 CFLAGS += -I../../include
+CFLAGS += -I${incdir}
 
 LDFLAGS += -L${cmanlibdir} -lcman 
 LDFLAGS += -L. -lclulib -llalloc

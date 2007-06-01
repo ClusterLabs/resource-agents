@@ -24,6 +24,7 @@ CFLAGS += -Wall -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
 CFLAGS += -DCCS_RELEASE_NAME=\"${RELEASE}\"
 CFLAGS += -I${ccsincdir} -I${cmanincdir} `xml2-config --cflags`
 CFLAGS += -I../include
+CFLAGS += -I${incdir}
 
 ifeq ($(DEBUG),y)
 CFLAGS += -O0 -DDEBUG -g

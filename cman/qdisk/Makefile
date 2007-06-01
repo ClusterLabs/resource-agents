@@ -14,8 +14,9 @@ include ../../make/defines.mk
 
 CFLAGS += -D_GNU_SOURCE
 CFLAGS += -Wall -Werror -Wstrict-prototypes -Wshadow -g
-CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${incdir}
+CFLAGS += -I${ccsincdir} -I${cmanincdir}
 CFLAGS += -I.
+CFLAGS += -I${incdir}
 
 EXTRA_LDFLAGS += -L${cmanlibdir} -L${ccslibdir} -lcman -lccs
 EXTRA_LDFLAGS += -lpthread

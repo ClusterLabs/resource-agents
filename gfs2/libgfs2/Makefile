@@ -19,8 +19,9 @@ TARGET= libgfs2.a
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE
 CFLAGS += -D_GNU_SOURCE -DGFS2_RELEASE_NAME=\"${RELEASE}\"
 CFLAGS += -Wall -ggdb
-CFLAGS += -I${incdir} -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
+CFLAGS += -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
 CFLAGS += -I../include
+CFLAGS += -I${incdir}
 
 OBJS=	bitmap.o \
 	block_list.o \

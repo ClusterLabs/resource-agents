@@ -34,6 +34,7 @@ CFLAGS += -DFENCE_RELEASE_NAME=\"${RELEASE}\" -D_GNU_SOURCE
 CFLAGS += -Wall -Werror -Wstrict-prototypes -Wshadow -ggdb
 CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${openaisincdir}
 CFLAGS += -I${virtincdir} -I${nssincdir} -I${nsprincdir}
+CFLAGS += -I${incdir}
 
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -L${dlmlibdir}
 LDFLAGS += -L${nsslibdir} -L${nsprlibdir} -L${libdir}

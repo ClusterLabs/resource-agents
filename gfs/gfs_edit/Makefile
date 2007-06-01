@@ -21,6 +21,7 @@ OBJS= gfshex.o \
 CFLAGS += -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 -DGFS_RELEASE_NAME=\"${RELEASE}\"
 CFLAGS += -I${gfskincdir} -I${ncursesincdir}
 CFLAGS += -I../include
+CFLAGS += -I${incdir}
 
 LDFLAGS += -L${ncurseslibdir} -lncurses
 

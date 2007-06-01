@@ -18,6 +18,8 @@ OBJS=	main.o
 
 CFLAGS += -g
 CFLAGS += -I. -I../lib/
+CFLAGS += -I${incdir}
+
 LDFLAGS += -L../lib -ldlm
 
 all: ${TARGET}

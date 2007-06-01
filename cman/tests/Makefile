@@ -1,8 +1,9 @@
 include ../../make/defines.mk
 
-CFLAGS+= -g -I${cmanincdir}
+CFLAGS += -g -I${cmanincdir}
+CFLAGS += -I${incdir}
 
-LDFLAGS+= -L${cmanlibdir} -lcman
+LDFLAGS += -L${cmanlibdir} -lcman
 
 TARGET=client libtest sysman sysmand
 

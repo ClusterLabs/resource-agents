@@ -21,6 +21,7 @@ STATICLIB=$(TARGET).a $(TARGET)_lt.a
 
 CFLAGS += -g -O2 
 CFLAGS += -I.
+CFLAGS += -I${incdir}
 
 LDFLAGS += -lpthread 
 

@@ -26,8 +26,9 @@ SHAREDOBJS= ondisk1.o \
 CFLAGS += -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64
 CFLAGS += -DGFS2_RELEASE_NAME=\"${RELEASE}\" -D_GNU_SOURCE
 CFLAGS += -O2
-CFLAGS += -I${incdir} -I${gfs2kincdir} -I${gfskincdir}
+CFLAGS += -I${gfs2kincdir} -I${gfskincdir}
 CFLAGS += -I../include
+CFLAGS += -I${incdir}
 
 all: ${TARGET1} ${TARGET2}
 

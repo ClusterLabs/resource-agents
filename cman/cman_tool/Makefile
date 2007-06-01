@@ -19,7 +19,8 @@ OBJS=	main.o \
 
 CFLAGS += -DCMAN_RELEASE_NAME=\"${RELEASE}\"
 CFLAGS += -DSBINDIR=\"${sbindir}\"
-CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${incdir}
+CFLAGS += -I${ccsincdir} -I${cmanincdir}
+CFLAGS += -I${incdir}
 
 ifeq ($(DEBUG),y)
 CFLAGS += -O0 -g -DDEBUG

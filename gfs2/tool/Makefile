@@ -28,6 +28,7 @@ OBJS=	counters.o \
 CFLAGS += -D_FILE_OFFSET_BITS=64 -DGFS2_RELEASE_NAME=\"${RELEASE}\"
 CFLAGS += -O2 -Wall
 CFLAGS += -I../include
+CFLAGS += -I${incdir}
 
 LDFLAGS += -L../libgfs2 -lgfs2
 

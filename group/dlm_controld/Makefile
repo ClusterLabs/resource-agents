@@ -20,9 +20,10 @@ OBJS=	main.o \
 	action.o
 
 CFLAGS += -g 
-CFLAGS += -I${incdir} -I${ccsincdir} -I${cmanincdir}
+CFLAGS += -I${ccsincdir} -I${cmanincdir}
 CFLAGS += -idirafter ${KERNEL_SRC}/include/linux
 CFLAGS += -I../../group/lib/ -I../include/
+CFLAGS += -I${incdir}
 
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
 LDFLAGS += -L../lib -lgroup

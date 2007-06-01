@@ -19,6 +19,7 @@ OBJS=	expect.o \
 	ipmilan.o
 
 CFLAGS += -DFENCE_RELEASE_NAME=\"${RELEASE}\" -DFENCE
+CFLAGS += -I${incdir}
 
 all: ${TARGET}
 

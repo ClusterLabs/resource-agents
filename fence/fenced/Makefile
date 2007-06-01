@@ -23,8 +23,9 @@ OBJS=	main.o \
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -DFENCE_RELEASE_NAME=\"${RELEASE}\"
 CFLAGS += -g
-CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${incdir}
+CFLAGS += -I${ccsincdir} -I${cmanincdir}
 CFLAGS += -I. -I../include -I../../group/lib
+CFLAGS += -I${incdir}
 
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
 LDFLAGS += -L../../group/lib -l group

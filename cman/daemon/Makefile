@@ -14,8 +14,8 @@ include ../../make/defines.mk
 
 CFLAGS += -DCMAN_RELEASE_NAME=\"${RELEASE}\" -DOPENAIS_EXTERNAL_SERVICE
 CFLAGS += -fPIC
-CFLAGS += -I${ccsincdir} -I${incdir} -I${openaisincdir} -I${cmanincdir}
-CFLAGS += -I${openaisincdir}/openais/service
+CFLAGS += -I${ccsincdir} -I${openaisincdir} -I${cmanincdir}
+CFLAGS += -I${incdir}
 
 ifeq ($(DEBUG),y)
 CFLAGS += -O0 -g -DDEBUG

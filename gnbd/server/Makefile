@@ -32,8 +32,9 @@ SHAREDOBJS= ../utils/gnbd_utils.o
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE
 CFLAGS += -DGNBD_RELEASE_NAME=\"${RELEASE}\"
 CFLAGS += -O2
-CFLAGS += -I${gnbdkincdir} -I${incdir} -I${cmanincdir}
+CFLAGS += -I${gnbdkincdir} -I${cmanincdir}
 CFLAGS += -I../include -I../utils
+CFLAGS += -I${incdir}
 
 LDFLAGS+= -L${libdir} -L${cmanlibdir} -lcman -ldl -lpthread
 

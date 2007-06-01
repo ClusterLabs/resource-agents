@@ -26,8 +26,9 @@ else
 CFLAGS += -O2
 endif
 
-CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${incdir}
+CFLAGS += -I${ccsincdir} -I${cmanincdir}
 CFLAGS += -I../include
+CFLAGS += -I${incdir}
 
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
 

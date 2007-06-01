@@ -19,6 +19,7 @@ OBJS= main.o
 
 CFLAGS += -DGNBD_RELEASE_NAME=\"${RELEASE}\"
 CFLAGS += -I../../include -I../../tools/gnbd_import
+CFLAGS += -I${incdir}
 
 all: ${TARGET}
 

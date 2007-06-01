@@ -22,9 +22,10 @@ OBJS= 	main.o \
 	recover.o
 
 CFLAGS += -g -O2
-CFLAGS += -I${cmanincdir} -I${incdir}
+CFLAGS += -I${cmanincdir}
 CFLAGS += -idirafter ${KERNEL_SRC}/include/linux
 CFLAGS += -I../include/ -I../lib/
+CFLAGS += -I${incdir}
 
 LDFLAGS += -L${cmanlibdir} -L${openaislibdir} -L${libdir} -lcman -lcpg -lSaCkpt
 LDFLAGS += -L../lib -lgroup

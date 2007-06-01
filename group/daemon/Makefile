@@ -23,6 +23,7 @@ OBJS=	app.o \
 CFLAGS += -g 
 CFLAGS += -I${cmanincdir}
 CFLAGS += -I. -I../include/ -I../lib/
+CFLAGS += -I${incdir}
 
 LDFLAGS += -L${cmanlibdir} -L${openaislibdir} -L${libdir} -lcman -lcpg
 

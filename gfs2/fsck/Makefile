@@ -38,6 +38,7 @@ CFLAGS += -D_FILE_OFFSET_BITS=64 -DHELPER_PROGRAM -DGFS_RELEASE_NAME=\"${RELEASE
 CFLAGS += -MMD -Wall -O2
 CFLAGS += -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
 CFLAGS += -I../include -I../libgfs2
+CFLAGS += -I${incdir}
 
 LDFLAGS += -L../libgfs2 -lgfs2
 

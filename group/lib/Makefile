@@ -17,6 +17,7 @@ STATICLIB=$(TARGET).a
 
 CFLAGS += -g -O -fPIC
 CFLAGS += -I. -I../daemon
+CFLAGS += -I${incdir}
 
 all: $(STATICLIB)
 

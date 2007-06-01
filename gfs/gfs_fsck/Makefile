@@ -49,6 +49,7 @@ OBJS=	bio.o \
 CFLAGS += -D_FILE_OFFSET_BITS=64 -DHELPER_PROGRAM -DGFS_RELEASE_NAME=\"${RELEASE}\"
 CFLAGS += -MMD -O2
 CFLAGS += -I../include
+CFLAGS += -I${incdir}
 
 all: ${TARGET1} ${TARGET2}
 

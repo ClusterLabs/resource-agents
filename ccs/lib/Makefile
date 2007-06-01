@@ -20,6 +20,7 @@ OBJS=	libccs.o \
 CFLAGS += -D_FILE_OFFSET_BITS=64
 CFLAGS += -fPIC
 CFLAGS += -I../include -I../common
+CFLAGS += -I${incdir}
 
 ifeq ($(DEBUG),y)
 CFLAGS += -O0 -DDEBUG -g

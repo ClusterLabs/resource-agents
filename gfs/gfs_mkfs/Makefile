@@ -25,8 +25,9 @@ OBJS=	device_geometry.o \
 
 CFLAGS += -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 -DGFS_RELEASE_NAME=\"${RELEASE}\"
 CFLAGS += -O2
-CFLAGS += -I${gfskincdir} -I${incdir} -I${volidincdir}
+CFLAGS += -I${gfskincdir} -I${volidincdir}
 CFLAGS += -I../include -I../libgfs
+CFLAGS += -I${incdir}
 
 LDFLAGS += -L${volidlibdir} -lvolume_id
 LDFLAGS += -L../libgfs -lgfs

@@ -21,8 +21,9 @@ OBJS=	gnbd_export.o \
 
 CFLAGS += -DGNBD_RELEASE_NAME=\"${RELEASE}\" -DDEFAULT_GETUID=\"${sbindir}/gnbd_get_uid\"
 CFLAGS += -O2
-CFLAGS += -I${gnbdkincdir} -I${incdir} -I${cmanincdir}
+CFLAGS += -I${gnbdkincdir} -I${cmanincdir}
 CFLAGS += -I../../include -I../../server -I../../utils
+CFLAGS += -I${incdir}
 
 LDFLAGS += -L${libdir} -L${cmanlibdir} -lcman -ldl -lpthread
 

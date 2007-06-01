@@ -24,6 +24,7 @@ CFLAGS += -DGNBD_RELEASE_NAME=\"${RELEASE}\"
 CFLAGS += -O2
 CFLAGS += -I${gnbdkincdir} -I${cmanincdir}
 CFLAGS += -I../../include -I../../client -I../../server -I../../utils
+CFLAGS += -I${incdir}
 
 LDFLAGS += -L${libdir} -L${cmanlibdir} -lcman -ldl -lpthread
 

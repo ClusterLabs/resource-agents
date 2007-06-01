@@ -23,8 +23,9 @@ DISABLEDTARGETS= cluarp
 
 CFLAGS += -DPACKAGE_VERSION=\"${RELEASE}\"
 CFLAGS += -g -Werror -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
-CFLAGS += -I${incdir} -I${ccsincdir} -I${cmanincdir} -I${dlmincdir} -I${ncursesincdir}
+CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmincdir} -I${ncursesincdir}
 CFLAGS += -I../../include
+CFLAGS += -I${incdir}
 
 LDFLAGS += -L${libdir} -L${ccslibdir} -L${cmanlibdir} -L${ncurseslibdir}
 LDFLAGS += -lcman -lpthread -ldl -lncurses -lccs

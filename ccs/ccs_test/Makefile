@@ -18,6 +18,7 @@ OBJS=	ccs_test.o
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -DCCS_RELEASE_NAME=\"${RELEASE}\"
 CFLAGS += -I${ccsincdir}
+CFLAGS += -I${incdir}
 
 ifeq ($(DEBUG),y)
 CFLAGS += -O0 -DDEBUG -g

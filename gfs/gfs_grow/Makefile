@@ -19,8 +19,9 @@ OBJS= main.o \
       ondisk.o
 
 CFLAGS += -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 -DGFS_RELEASE_NAME=\"${RELEASE}\"
-CFLAGS += -I${gfskincdir} -I${incdir}
+CFLAGS += -I${gfskincdir}
 CFLAGS += -I../include -I../libgfs
+CFLAGS += -I${incdir}
 
 LDFLAGS += -L../libgfs -lgfs
 
