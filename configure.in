@@ -39,7 +39,7 @@ AC_ARG_WITH(hapkgversion,
 )
 
 if test -z "$HAPKGVERSION" ; then
-   HAPKGVERSION="2.0.9"
+   HAPKGVERSION="2.1.1"
 fi
 AM_INIT_AUTOMAKE(heartbeat, $HAPKGVERSION)
 
@@ -2343,9 +2343,9 @@ if test "x${enable_lrm}" = "xyes"; then
 fi
 
 if
-	test -d /proc/$$
+	test -h /proc/$$/exe
 then
-	AC_MSG_NOTICE("/proc/{pid} is supported") 
+	AC_MSG_NOTICE("/proc/{pid}/exe link is supported") 
 	AC_DEFINE_UNQUOTED(HAVE_PROC_PID, 1, Define to 1 if /proc/{pid} is supported.)
 fi
 
