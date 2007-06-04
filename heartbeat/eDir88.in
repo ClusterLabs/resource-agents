@@ -39,6 +39,7 @@
 # Initialization:
 
 . @hb_libdir@/ocf-shellfuncs
+. /opt/novell/eDirectory/bin/ndspath 2>/dev/null >/dev/null
 
 #######################################################################
 
@@ -62,7 +63,7 @@ eDir_meta_data() {
 cat <<-EOFB
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="eDir88" version="0.14">
+<resource-agent name="eDir88" version="0.15">
 <version>1.0</version>
 
 <longdesc lang="en">
@@ -76,10 +77,10 @@ It is very strongly recommended to put eDir configuration files (as per the
 eDir_config_file parameter) on local storage on each node. This is necessary for
 this RA to be able to handle situations where the shared storage has become
 unavailable. If the eDir configuration file is not available, this RA will fail,
-and heartbeat will be unable to manage the resource. Side effects include 
+and heartbeat will be unable to manage the resource. Side effects include
 STONITH actions, unmanageable resources, etc...
 
-Setting a high action timeout value is also very strongly recommended. eDir
+Setting a high action timeout value is _very_ _strongly_ recommended. eDir
 with IDM can take in excess of 10 minutes to start. If heartbeat times out
 before eDir has had a chance to start properly, mayhem _WILL ENSUE_.
 
@@ -139,7 +140,7 @@ Value for the DHOST_OPTIONS java environment variable. If unset, original values
 <action name="stop" timeout="600" />
 <action name="monitor" timeout="60" interval="30" />
 <action name="meta-data" timeout="5" />
-<action name="validate-all" timeout="5" />
+<action name="validate-all" timeout="5">
 </actions>
 </resource-agent>
 EOFB
@@ -224,27 +225,63 @@ eDir_stop() {
 }
 
 #
-# eDir_status: is eDirectory instance up (do simple ndsstat check)?
+# eDir_status: is eDirectory instance up ?
 #
 
 eDir_status() {
-    if [ -r "$NDSCONF" -a -x $NDSSTAT ] ; then
-        $NDSSTAT --config-file "$NDSCONF" >/dev/null 2>&1
-        if [ $? -eq 0 ] ; then
-            return 0
-        else
-            return 1
-        fi
-    else
-	ocf_log err "ndsstat binary or config file missing ($NDSCONF)."
-	return 1
+    if [ ! -r "$NDSCONF" ] ; then
+        ocf_log err "Config file missing ($NDSCONF)."
+        exit $OCF_ERR_GENERIC
     fi
+
+    # Find how many ndsd processes have open listening sockets
+    # with the IP of this eDir instance
+    IFACE=$(grep -i "n4u.server.interfaces" $NDSCONF | cut -f2 -d= | tr '@' ':')
+    if [ -z "$IFACE" ] ; then
+        ocf_log err "Cannot retrieve interfaces from $NDSCONF. eDirectory may not be correctly configured."
+        exit $OCF_ERR_GENERIC
+    fi
+    NDSD_SOCKS=$(netstat -ntlp | grep -ce "$IFACE.*ndsd")
+
+    if [ "$NDSD_SOCKS" -eq 1 ] ; then
+        # Correct ndsd instance is definitely running
+        # Further checks are superfluous (I think...)
+        return 0
+    elif [ "$NDSD_SOCKS" -gt 1 ] ; then
+        ocf_log err "More than 1 ndsd listening socket matched. Likely misconfiguration of eDirectory."
+        exit $OCF_ERR_GENERIC
+    fi
+
+    # No listening socket. Make sure we don't have the process running...
+    PIDDIR=$(grep -i "n4u.server.vardir" "$NDSCONF" | cut -f2 -d=)
+    if [ -z "$PIDDIR" ] ; then
+        ocf_log err "Cannot get vardir from nds config ($NDSCONF). Probable eDir configuration error."
+        exit $OCF_ERR_GENERIC
+    fi
+    NDSD_PID=$(cat $PIDDIR/ndsd.pid 2>/dev/null)
+    if [ -z "$NDSD_PID" ] ; then
+        # PID file unavailable or empty.
+        # This will happen if the PIDDIR is not available
+        # on this node at this time.
+        return 1
+    fi
+
+    RC=$(ps -p "$NDSD_PID" | grep -c ndsd)
+    if [ "$RC" -gt 0 ] ; then
+        # process found but no listening socket. ndsd likely not operational
+        ocf_log err "ndsd process found, but no listening socket. Something's gone wrong ($NDSCONF)"
+        exit $OCF_ERR_GENERIC
+    fi
+
+    # Instance is not running, but no other error detected.
+    return 1
 }
 
 
 #
-# eDir_monitor: Do several checks to ensure that eDirectory is fully functional
+# eDir_monitor: Do more in-depth checks to ensure that eDirectory is fully functional
 #               LDAP and IDM checks are only done if reqested.
+#
 #
 
 eDir_monitor() {
@@ -253,19 +290,25 @@ eDir_monitor() {
         return $OCF_NOT_RUNNING
     fi
 
+    # We know the right ndsd is running locally, check health
+    $NDSSTAT --config-file "$NDSCONF" >/dev/null 2>&1
+    if [ $? -ne 0 ] ; then
+        return 1
+    fi
+
     # Monitor IDM first, as it will start before LDAP
     if [ $MONITOR_IDM -eq 1 ]; then
         RET=$($NDSTRACE --config-file "$NDSCONF" -c modules | egrep -i '^vrdim.*Running' | awk '{print $1}')
         if [ "$RET" !=  "vrdim" ]; then
             ocf_log err "eDirectory IDM engine isn't running ($NDSCONF)."
-            return $OCF_NOT_RUNNING
+            return $OCF_ERR_GENERIC
         fi
     fi
     if [ $MONITOR_LDAP -eq 1 ] ; then
         $NDSNLDAP -c --config-file "$NDSCONF" >/dev/null 2>&1
         if [ $? -ne 0 ]; then
             ocf_log err "eDirectory LDAP server isn't running ($NDSCONF)."
-            return $OCF_NOT_RUNNING
+            return $OCF_ERR_GENERIC
         fi
     fi
 
