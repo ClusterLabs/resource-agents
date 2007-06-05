@@ -123,7 +123,12 @@ static void decode_arguments(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
-	lsname = argv[opt_ind];
+	if (optind < argc - 1)
+		lsname = argv[opt_ind];
+	else {
+		fprintf(stderr, "lockspace name required\n");
+		exit(EXIT_FAILURE);
+	}
 }
 
 void do_join(char *name)
