@@ -368,10 +368,10 @@ gfs_get_dentry(struct super_block *sb, void *inump)
 	atomic_inc(&sdp->sd_fh2dentry_misses);
 
  out:
-	gfs_glock_dq_uninit(&i_gh);
-
 	inode = gfs_iget(ip, CREATE);
 	gfs_inode_put(ip);
+
+	gfs_glock_dq_uninit(&i_gh);
 
 	if (!inode)
 		return ERR_PTR(-ENOMEM);
