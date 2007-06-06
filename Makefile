@@ -17,7 +17,7 @@ USERLAND=cman-lib ccs cman group dlm fence gfs gfs2 gnbd rgmanager
 MODULES=${KERNEL} ${USERLAND}
 
 KSUBDIRS=gnbd-kernel/src gfs-kernel/src/gfs
-SUBDIRS=ccs cman group dlm/lib fence gfs gfs2 gnbd rgmanager
+SUBDIRS=ccs cman group dlm fence gfs gfs2 gnbd rgmanager
 
 all: build
 
