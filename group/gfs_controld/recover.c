@@ -1537,7 +1537,7 @@ int add_another_mountpoint(struct mountgroup *mg, char *dir, char *dev, int ci)
 
 	if (strcmp(mg->dev, dev)) {
 		log_error("different fs dev %s with same name", mg->dev);
-		return -EINVAL;
+		return -EADDRINUSE;
 	}
 
 	if (find_mountpoint(mg, dir)) {
@@ -1575,14 +1575,14 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 	struct mountgroup *mg = NULL;
 	char table2[MAXLINE];
 	char *cluster = NULL, *name = NULL;
-	int rv;
+	int rv, new_mg = 0;
 
 	log_debug("mount: %s %s %s %s %s %s",
 		  dir, type, proto, table, options, dev);
 
 	if (strcmp(proto, "lock_dlm")) {
 		log_error("mount: lockproto %s not supported", proto);
-		rv = -EINVAL;
+		rv = -EPROTONOSUPPORT;
 		goto out;
 	}
 
@@ -1590,7 +1590,7 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 	    strstr(options, "first=") ||
 	    strstr(options, "id=")) {
 		log_error("mount: jid, first and id are reserved options");
-		rv = -EINVAL;
+		rv = -EOPNOTSUPP;
 		goto out;
 	}
 
@@ -1601,7 +1601,7 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 
 	name = strstr(table2, ":");
 	if (!name) {
-		rv = -EINVAL;
+		rv = -EBADFD;
 		goto out;
 	}
 
@@ -1625,6 +1625,7 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 		rv = -ENOMEM;
 		goto out;
 	}
+	new_mg = 1;
 
 	mg->mount_client = ci;
 	strncpy(mg->type, type, sizeof(mg->type));
@@ -1634,7 +1635,7 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 
 	if (strlen(cluster) != strlen(clustername) ||
 	    strlen(cluster) == 0 || strcmp(cluster, clustername)) {
-		rv = -1;
+		rv = -EBADR;
 		log_error("mount: fs requires cluster=\"%s\" current=\"%s\"",
 			  cluster, clustername);
 		goto out;
@@ -1646,7 +1647,7 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 		mg->spectator = 1;
 	} else {
 		if (!we_are_in_fence_domain()) {
-			rv = -EINVAL;
+			rv = -ENOANO;
 			log_error("mount: not in default fence domain");
 			goto out;
 		}
@@ -1656,7 +1657,7 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 		mg->rw = 1;
 	else if (strstr(options, "ro")) {
 		if (mg->spectator) {
-			rv = -EINVAL;
+			rv = -EROFS;
 			log_error("mount: readonly invalid with spectator");
 			goto out;
 		}
@@ -1664,7 +1665,7 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 	}
 
 	if (strlen(options) > MAX_OPTIONS_LEN-1) {
-		rv = -EINVAL;
+		rv = -EMLINK;
 		log_error("mount: options too long %d", strlen(options));
 		goto out;
 	}
@@ -1673,8 +1674,12 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 	group_join(gh, name);
 	rv = 0;
  out:
-	*mg_ret = mg;
-	log_group(mg, "do_mount: rv %d", rv);
+	if (mg) {
+		*mg_ret = mg;
+		log_group(mg, "do_mount: rv %d", rv);
+	}
+	if (rv && new_mg)
+		free(mg);
 	return rv;
 }
 
