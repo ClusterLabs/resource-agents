@@ -205,28 +205,99 @@ static int open_ccs(void)
 
 /* when not set in cluster.conf, a node's default weight is 1 */
 
+#define MASTER_PATH "/cluster/dlm/lockspace[@name=\"%s\"]/master"
 #define WEIGHT_PATH "/cluster/clusternodes/clusternode[@name=\"%s\"]/@weight"
 
-static int get_weight(int cd, int nodeid)
-{
-	char path[PATH_MAX], *str, *name;
-	int error, w;
+#define MASTER_NAME   MASTER_PATH "/@name"
+#define MASTER_WEIGHT MASTER_PATH "[@name=\"%s\"]/@weight"
 
-	name = nodeid2name(nodeid);
-	if (!name) {
-		log_error("no name for nodeid %d", nodeid);
-		return 1;
-	}
+/* look for node's weight in the dlm/lockspace section */
+
+static int get_weight_lockspace(int cd, char *node, char *lockspace)
+{
+	char path[PATH_MAX], *str;
+	int error, weight;
+	int master_count = 0, node_is_master = 0;
 
 	memset(path, 0, PATH_MAX);
-	sprintf(path, WEIGHT_PATH, name);
+	sprintf(path, MASTER_NAME, lockspace);
+
+	while (1) {
+		error = ccs_get_list(cd, path, &str);
+		if (error || !str)
+			break;
+		master_count++;
+		if (strcmp(str, node) == 0)
+			node_is_master = 1;
+		free(str);
+	}
+
+	/* if there are no masters, next check for a clusternode weight */
+
+	if (!master_count)
+		return -1;
+
+	/* if there's a master and this node isn't it, it gets weight 0 */
+
+	if (!node_is_master)
+		return 0;
+
+	/* master gets its specified weight or 1 if none is given */
+
+	memset(path, 0, PATH_MAX);
+	sprintf(path, MASTER_WEIGHT, lockspace, node);
 
 	error = ccs_get(cd, path, &str);
 	if (error || !str)
 		return 1;
 
-	w = atoi(str);
+	weight = atoi(str);
 	free(str);
+	return weight;
+}
+
+/* look for node's weight on its clusternode line */
+
+static int get_weight_clusternode(int cd, char *node, char *lockspace)
+{
+	char path[PATH_MAX], *str;
+	int error, weight;
+
+	memset(path, 0, PATH_MAX);
+	sprintf(path, WEIGHT_PATH, node);
+
+	error = ccs_get(cd, path, &str);
+	if (error || !str)
+		return -1;
+
+	weight = atoi(str);
+	free(str);
+	return weight;
+}
+
+static int get_weight(int cd, int nodeid, char *lockspace)
+{
+	char *node;
+	int w;
+
+	node = nodeid2name(nodeid);
+	if (!node) {
+		log_error("no name for nodeid %d", nodeid);
+		w = 1;
+		goto out;
+	}
+
+	w = get_weight_lockspace(cd, node, lockspace);
+	if (w >= 0)
+		goto out;
+
+	w = get_weight_clusternode(cd, node, lockspace);
+	if (w >= 0)
+		goto out;
+
+	/* default weight is 1 */
+	w = 1;
+ out:
 	return w;
 }
 
@@ -346,7 +417,7 @@ int set_members(char *name, int new_count, int *new_members)
 		if (!cd)
 			cd = open_ccs();
 
-		w = get_weight(cd, id);
+		w = get_weight(cd, id, name);
 
 		memset(path, 0, PATH_MAX);
 		snprintf(path, PATH_MAX, "%s/%s/nodes/%d/weight",
