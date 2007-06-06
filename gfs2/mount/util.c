@@ -437,7 +437,7 @@ int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb)
 	rv = snprintf(buf, MAXLINE, "join %s %s %s %s %s %s",
 		      dir, fsname, proto, table, options, mo->dev);
 	if (rv >= MAXLINE) {
-		warn("lock_dlm_join: message too long: %d \"%s\"", rv, buf);
+		warn("gfs_controld message too long: %d \"%s\"", rv, buf);
 		rv = -1;
 		goto out;
 	}
@@ -447,7 +447,7 @@ int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb)
 
 	rv = write(fd, buf, sizeof(buf));
 	if (rv < 0) {
-		warn("lock_dlm_join: gfs_controld write error: %d", rv);
+		warn("gfs_controld write error: %d", rv);
 		goto out;
 	}
 
@@ -463,23 +463,73 @@ int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb)
 	memset(buf, 0, sizeof(buf));
 	rv = read(fd, buf, sizeof(buf));
 	if (rv < 0) {
-		warn("lock_dlm_join: gfs_controld read 1 error: %d", rv);
+		warn("error reading result from gfs_controld: %d", rv);
 		goto out;
 	}
 	rv = atoi(buf);
 
-	if (rv == -EALREADY) {
+	switch (rv) {
+	case 0:
+		break;
+
+	case -EEXIST:
+		warn("mount group already exists. "
+		     "Duplicate locktable name %s, or %s already mounted",
+		     table, mo->dev);
+		goto out;
+
+	case -EPROTONOSUPPORT:
+		warn("lockproto not supported");
+		goto out;
+
+	case -EOPNOTSUPP:
+		warn("jid, first and id are reserved options");
+		goto out;
+
+	case -EBADFD:
+		warn("no colon found in table name");
+		goto out;
+
+	case -ENAMETOOLONG:
+		warn("fs name too long");
+		goto out;
+
+	case -EADDRINUSE:
+		warn("different fs appears to exist with the same name");
+		goto out;
+
+	case -EBUSY:
+		warn("mount point already used or other mount in progress");
+		goto out;
+
+	case -EALREADY:
 		log_debug("fs already mounted, adding mountpoint");
 		adding_another_mountpoint = 1;
 		rv = 0;
 		goto out;
-	}
-	if (rv < 0) {
-		warn("lock_dlm_join: gfs_controld join error: %d", rv);
-		if (rv == -EEXIST)
-			warn("lock_dlm_join: mountgroup already exists. "
-			     "Duplicate locktable name %s, or %s already "
-			     "mounted\n", table, mo->dev);
+
+	case -ENOMEM:
+		warn("out of memory");
+		goto out;
+
+	case -EBADR:
+		warn("fs is for a different cluster");
+		goto out;
+
+	case -ENOANO:
+		warn("node not a member of the default fence domain");
+		goto out;
+
+	case -EROFS:
+		warn("read-only mount invalid with spectator option");
+		goto out;
+
+	case -EMLINK:
+		warn("option string too long");
+		goto out;
+
+	default:
+		warn("gfs_controld join error: %d", rv);
 		goto out;
 	}
 
