@@ -140,7 +140,7 @@ Value for the DHOST_OPTIONS java environment variable. If unset, original values
 <action name="stop" timeout="600" />
 <action name="monitor" timeout="60" interval="30" />
 <action name="meta-data" timeout="5" />
-<action name="validate-all" timeout="5">
+<action name="validate-all" timeout="5" />
 </actions>
 </resource-agent>
 EOFB
