@@ -1573,13 +1573,7 @@ gfs_lock(struct file *file, int cmd, struct file_lock *fl)
 
 	if (sdp->sd_args.ar_localflocks) {
 		if (IS_GETLK(cmd)) {
-			int conflict;
-			struct file_lock tmp;
-
-			conflict = posix_test_lock(file, fl, &tmp);
-			fl->fl_type = F_UNLCK;
-			if (conflict)
-				memcpy(fl, &tmp, sizeof(struct file_lock));
+			posix_test_lock(file, fl);
 			return 0;
 		} else {
 			return posix_lock_file_wait(file, fl);

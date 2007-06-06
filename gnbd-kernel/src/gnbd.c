@@ -714,7 +714,7 @@ static int gnbd_ctl_ioctl(struct inode *inode, struct file *file,
 		if (bdev) {
 			blk_run_queue(dev->disk->queue);
 			fsync_bdev(bdev);
-			invalidate_bdev(bdev, 0);
+			invalidate_bdev(bdev);
 		}
 		up(&dev->do_it_lock);
 		return 0;
