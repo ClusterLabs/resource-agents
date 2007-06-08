@@ -915,9 +915,9 @@ static void do_get(struct mountgroup *mg, struct gdlm_plock_info *in)
 		goto out;
 
 	if (is_conflict(r, in, 1))
-		in->rv = 1;
+		rv = 1;
 	else
-		in->rv = 0;
+		rv = 0;
  out:
 	write_result(mg, in, rv);
 }
