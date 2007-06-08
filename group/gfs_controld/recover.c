@@ -11,6 +11,7 @@
 ******************************************************************************/
 
 #include "lock_dlm.h"
+#include "ccs.h"
 
 #define SYSFS_DIR	"/sys/fs"
 #define JID_INIT	-9
@@ -2033,15 +2034,18 @@ int do_unmount(int ci, char *dir, int mnterr)
 	return 0;
 }
 
+#define LOCKSPACE_NODIR "/cluster/dlm/lockspace[@name=\"%s\"]/@nodir"
+
 void notify_mount_client(struct mountgroup *mg)
 {
-	char buf[MAXLINE];
-	int rv, error = 0;
+	char buf[MAXLINE], path[PATH_MAX], *str, tmp[MAXLINE];
+	int cd, rv, error = 0;
 	struct mg_member *memb;
-	
+
 	memb = find_memb_nodeid(mg, our_nodeid);
 
 	memset(buf, 0, MAXLINE);
+	memset(tmp, 0, MAXLINE);
 
 	if (mg->error_msg[0]) {
 		strncpy(buf, mg->error_msg, MAXLINE);
@@ -2058,6 +2062,28 @@ void notify_mount_client(struct mountgroup *mg)
 		else
 			snprintf(buf, MAXLINE, "hostdata=jid=%d:id=%u:first=%d",
 		 		 mg->our_jid, mg->id, mg->first_mounter);
+
+		if ((cd = ccs_connect()) < 0) {
+			log_error("notify_mount_client: ccs_connect failed");
+		}
+
+		memset(path, 0, PATH_MAX);
+		sprintf(path, LOCKSPACE_NODIR, mg->name);
+
+		rv = ccs_get(cd, path, &str);
+		if (rv || !str) {
+			log_debug("notify_mount_client: nodir not found for "
+				  "lockspace %s", mg->name);
+		} else {
+			snprintf(tmp, MAXLINE, ":nodir=%d", atoi(str));
+			strcat(buf, tmp);
+			free(str);
+		}
+
+		if (cd) {
+			log_debug("notify_mount_client: ccs_disconnect");
+			ccs_disconnect(cd);
+		}
 	}
 
 	log_debug("notify_mount_client: %s", buf);
