@@ -207,4 +207,44 @@ ocf_run() {
 	fi
 }
 
+ocf_pidfile_status() {
+    pidfile=$1
+    if [ ! -e $pidfile ]; then
+	# Not exists
+	return 2
+    fi
+    pid=`cat $pidfile`
+    kill -0 $pid 2>&1 > /dev/null
+    if [ $? = 0 ]; then
+	return 0
+    fi
+
+    # Stale
+    return 1
+}
+
+ocf_take_lock() {
+    lockfile=$1
+
+    if [ ! -n $RANDOM ]; then
+	# Something sane-ish in case a shell doesn't support $RANDOM
+	RANDOM=$$
+    fi
+
+    sleep 0.$RANDOM
+    while 
+	ocf_pidfile_status $lockfile
+    do
+	ocf_log info "Sleeping until $lockfile is released..."
+	sleep 0.$RANDOM
+    done
+    echo $$ > $lockfile
+}
+
+
+ocf_release_lock_on_exit() {
+    lockfile=$1
+    trap "rm -f $lockfile" EXIT
+}
+
 __ocf_set_defaults "$@"
