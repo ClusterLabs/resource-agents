@@ -39,6 +39,7 @@ static int plocks_ci;
 
 extern struct list_head mounts;
 extern struct list_head withdrawn_mounts;
+extern group_handle_t gh;
 int no_withdraw;
 int no_plock;
 uint32_t plock_rate_limit = DEFAULT_PLOCK_RATE_LIMIT;
@@ -171,9 +172,66 @@ static int client_add(int fd)
 	}
 }
 
+/* I don't think we really want to try to do anything if mount.gfs is killed,
+   because I suspect there are various corner cases where we might not do the
+   right thing.  Even without the corner cases things still don't work out
+   too nicely.  Best to just tell people not to kill a mount or unmount
+   because doing so can leave things (kernel, group, mtab) in inconsistent
+   states that can't be straightened out properly without a reboot. */
+
+static void mount_client_dead(struct mountgroup *mg, int ci)
+{
+	char buf[MAXLINE];
+	int rv;
+
+	if (ci != mg->mount_client) {
+		log_error("mount client mismatch %d %d", ci, mg->mount_client);
+		return;
+	}
+
+	/* is checking sysfs really a reliable way of telling whether the
+	   kernel has been mounted or not?  might the kernel mount just not
+	   have reached the sysfs registration yet? */
+
+	memset(buf, 0, sizeof(buf));
+
+	rv = get_sysfs(mg, "id", buf, sizeof(buf));
+	if (!rv) {
+		log_error("mount_client_dead ci %d sysfs id %s", ci, buf);
+#if 0
+		/* finish the mount, although there will be no mtab entry
+		   which will confuse umount causing it to do the kernel
+		   umount but not call umount.gfs */
+		got_mount_result(mg, 0, ci, client[ci].another_mount);
+#endif
+		return;
+	}
+
+	log_error("mount_client_dead ci %d no sysfs entry for fs", ci);
+
+#if 0
+	mp = find_mountpoint_client(mg, ci);
+	if (mp) {
+		list_del(&mp->list);
+		free(mp);
+	}
+	group_leave(gh, mg->name);
+#endif
+}
+
 static void client_dead(int ci)
 {
+	struct mountgroup *mg;
+
 	log_debug("client %d fd %d dead", ci, client[ci].fd);
+
+	/* if the dead mount client is mount.gfs and we've not received
+	   a mount result, then try to put things into a clean state */
+	   
+	mg = client[ci].mg;
+	if (mg && mg->mount_client && mg->mount_client_fd)
+		mount_client_dead(mg, ci);
+
 	close(client[ci].fd);
 	client[ci].fd = -1;
 	pollfd[ci].fd = -1;

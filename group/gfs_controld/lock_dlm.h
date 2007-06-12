@@ -289,6 +289,7 @@ void save_message(struct mountgroup *mg, char *buf, int len, int from, int type)
 void got_mount_result(struct mountgroup *mg, int result, int ci, int another);
 
 int client_send(int ci, char *buf, int len);
+int get_sysfs(struct mountgroup *mg, char *field, char *buf, int len);
 
 int send_group_message(struct mountgroup *mg, int len, char *buf);
 void update_flow_control_status(void);
