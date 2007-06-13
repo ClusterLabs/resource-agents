@@ -23,7 +23,7 @@ else
 CFLAGS += -O2
 endif
 
-LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
+LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs 
 
 TARGET= service_cman.lcrso
 
