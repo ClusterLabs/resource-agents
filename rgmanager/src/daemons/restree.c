@@ -1414,6 +1414,9 @@ res_status(resource_node_t **tree, resource_t *res, void *ret)
 	int rv;
 	rv = _res_op(tree, res, NULL, ret, RS_STATUS);
 
+	if (rv == 0)
+		return 0;
+
 	if (rv & FL_FAILURE)
 		return rv;
 
