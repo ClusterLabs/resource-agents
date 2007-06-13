@@ -33,6 +33,7 @@
 #include <openais/service/swab.h>
 #include <openais/totem/totemip.h>
 #include <openais/totem/aispoll.h>
+#include <openais/service/timer.h>
 #include "list.h"
 #include "cnxman-socket.h"
 #include "cnxman-private.h"
@@ -43,7 +44,6 @@
 #include "ais.h"
 
 extern int we_are_a_cluster_member;
-extern poll_handle ais_poll_handle;
 
 /* A barrier */
 struct cl_barrier {
@@ -62,7 +62,7 @@ struct cl_barrier {
 	unsigned long timeout;	/* In seconds */
 
 	struct connection *con;
-	poll_timer_handle timer;
+	openais_timer_handle timer;
 };
 
 /* A list of all current barriers */
@@ -71,7 +71,7 @@ static struct list barrier_list;
 static void send_barrier_complete_msg(struct cl_barrier *barrier)
 {
 	if (barrier->timeout) {
-		poll_timer_delete(ais_poll_handle, barrier->timer);
+		openais_timer_delete(barrier->timer);
 		barrier->timeout = 0;
 	}
 
@@ -285,8 +285,8 @@ static int barrier_setattr_enabled(struct cl_barrier *barrier,
 
 		/* Start the timer if one was wanted */
 		if (barrier->timeout) {
-			poll_timer_add(ais_poll_handle, barrier->timeout, barrier,
-				       barrier_timer_fn, &barrier->timer);
+			openais_timer_add_duration(barrier->timeout*1000000, barrier,
+						   barrier_timer_fn, &barrier->timer);
 		}
 
 		P_BARRIER("Sending WAIT for %s\n", barrier->name);

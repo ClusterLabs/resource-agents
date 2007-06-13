@@ -35,6 +35,7 @@
 #include <openais/totem/totempg.h>
 #include <openais/service/swab.h>
 #include <openais/service/print.h>
+#include <openais/service/timer.h>
 #include <openais/totem/aispoll.h>
 #include "list.h"
 #include "cnxman-socket.h"
@@ -70,19 +71,18 @@ static int cluster_is_quorate;
        char cluster_name[MAX_CLUSTER_NAME_LEN+1];
 static char nodename[MAX_CLUSTER_MEMBER_NAME_LEN+1];
 static int wanted_nodeid;
-extern poll_handle ais_poll_handle;
 static struct cluster_node *quorum_device;
 static uint16_t cluster_id;
 static int ais_running;
 static time_t join_time;
-static poll_timer_handle quorum_device_timer;
+static openais_timer_handle quorum_device_timer;
 
 /* If CCS gets out of sync, we poll it until it isn't */
-static poll_timer_handle ccsd_timer;
+static openais_timer_handle ccsd_timer;
 static unsigned int wanted_config_version;
 static int config_error;
 
-static poll_timer_handle shutdown_timer;
+static openais_timer_handle shutdown_timer;
 static struct connection *shutdown_con;
 static uint32_t shutdown_flags;
 static int shutdown_yes;
@@ -859,7 +859,7 @@ static void check_shutdown_status()
 	/* All replies safely gathered in ? */
 	if (shutdown_yes + shutdown_no >= shutdown_expected) {
 
-		poll_timer_delete(ais_poll_handle, shutdown_timer);
+		openais_timer_delete(shutdown_timer);
 
 		if (shutdown_yes >= shutdown_expected ||
 		    shutdown_flags & SHUTDOWN_ANYWAY) {
@@ -944,8 +944,8 @@ static int do_cmd_try_shutdown(struct connection *con, char *cmdbuf)
 
 		/* Start the timer. If we don't get a full set of replies before this goes
 		   off we'll cancel the shutdown */
-		poll_timer_add(ais_poll_handle, shutdown_timeout, NULL,
-			       shutdown_timer_fn, &shutdown_timer);
+		openais_timer_add_duration(shutdown_timeout*1000, NULL,
+					   shutdown_timer_fn, &shutdown_timer);
 
 		notify_listeners(NULL, EVENT_REASON_TRY_SHUTDOWN, flags);
 
@@ -1024,10 +1024,10 @@ static void ccsd_timer_fn(void *arg)
 	ccs_err = read_ccs_nodes(&config_version, 0);
 	if (ccs_err || config_version < wanted_config_version) {
 		log_msg(LOG_ERR, "Can't read CCS to get updated config version %d. Activity suspended on this node\n",
-				wanted_config_version);
+			wanted_config_version);
 
-		poll_timer_add(ais_poll_handle, ccsd_poll_interval, NULL,
-			       ccsd_timer_fn, &ccsd_timer);
+		openais_timer_add_duration(ccsd_poll_interval*1000, NULL,
+					   ccsd_timer_fn, &ccsd_timer);
 	}
 	else {
 		log_msg(LOG_ERR, "Now got CCS information version %d, continuing\n", config_version);
@@ -1050,8 +1050,8 @@ static void quorum_device_timer_fn(void *arg)
 		recalculate_quorum(0);
 	}
 	else {
-		poll_timer_add(ais_poll_handle, quorumdev_poll, quorum_device,
-			       quorum_device_timer_fn, &quorum_device_timer);
+		openais_timer_add_duration(quorumdev_poll*1000, quorum_device,
+					   quorum_device_timer_fn, &quorum_device_timer);
 	}
 }
 
@@ -1070,15 +1070,15 @@ static int do_cmd_poll_quorum_device(char *cmdbuf, int *retlen)
                         quorum_device->state = NODESTATE_MEMBER;
                         recalculate_quorum(0);
 
-			poll_timer_add(ais_poll_handle, quorumdev_poll, quorum_device,
-				       quorum_device_timer_fn, &quorum_device_timer);
+			openais_timer_add_duration(quorumdev_poll*1000, quorum_device,
+						   quorum_device_timer_fn, &quorum_device_timer);
                 }
         }
         else {
                 if (quorum_device->state == NODESTATE_MEMBER) {
                         quorum_device->state = NODESTATE_DEAD;
                         recalculate_quorum(0);
-			poll_timer_delete(ais_poll_handle, quorum_device_timer);
+			openais_timer_delete(quorum_device_timer);
                 }
         }
 
@@ -1493,8 +1493,8 @@ static int valid_transition_msg(int nodeid, struct cl_transmsg *msg)
 				msg->config_version);
 
 			wanted_config_version = msg->config_version;
-			poll_timer_add(ais_poll_handle, ccsd_poll_interval, NULL,
-				       ccsd_timer_fn, &ccsd_timer);
+			openais_timer_add_duration(ccsd_poll_interval*1000, NULL,
+						   ccsd_timer_fn, &ccsd_timer);
 		}
 		if (config_version > msg->config_version) {
 			// TODO tell everyone else to update...
@@ -1653,8 +1653,8 @@ static void do_reconfigure_msg(void *data)
 			recalculate_quorum(0);
 
 			wanted_config_version = config_version;
-			poll_timer_add(ais_poll_handle, ccsd_poll_interval, NULL,
-				       ccsd_timer_fn, &ccsd_timer);
+			openais_timer_add_duration(ccsd_poll_interval*1000, NULL,
+						   ccsd_timer_fn, &ccsd_timer);
 		}
 		break;
 	}
