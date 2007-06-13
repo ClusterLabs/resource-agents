@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+ * Copyright (C) 2005-2007 Red Hat, Inc.  All rights reserved.
  *
  * This copyrighted material is made available to anyone wishing to use,
  * modify, copy, or redistribute it subject to the terms and conditions
@@ -11,6 +11,7 @@
 char *prog_name;
 char *fsname;
 int verbose;
+static sigset_t old_sigset;
 
 static void print_version(void)
 {
@@ -24,14 +25,18 @@ static void print_usage(void)
 	printf("This program is called by mount(8), it should not be used directly.\n");
 }
 
-static void block_signals(int how)
+static void block_sigint(void)
 {
-	sigset_t sigs;
-	sigfillset(&sigs);
-	sigdelset(&sigs, SIGTRAP);
-	sigdelset(&sigs, SIGSEGV);
-	sigdelset(&sigs, SIGINT);
-	sigprocmask(how, &sigs, (sigset_t *) 0);
+	sigset_t new;
+
+	sigemptyset(&new);
+	sigaddset(&new, SIGINT);
+	sigprocmask(SIG_BLOCK, &new, &old_sigset);
+}
+
+static void unblock_sigint(void)
+{
+	sigprocmask(SIG_SETMASK, &old_sigset, NULL);
 }
 
 static void read_options(int argc, char **argv, struct mount_options *mo)
@@ -203,11 +208,14 @@ int main(int argc, char **argv)
 
 	proto = select_lockproto(&mo, &sb);
 
+	/* there are three parts to the mount and we want all three or none
+	   to happen:  joining the mountgroup, doing the kernel mount, and
+	   adding the mtab entry */
+	block_sigint();
+
 	rv = mount_lockproto(proto, &mo, &sb);
 	if (rv < 0)
 		die("error mounting lockproto %s\n", proto);
-
-	block_signals(SIG_BLOCK);
 
 	rv = mount(mo.dev, mo.dir, fsname, mo.flags, mo.extra_plus);
 	if (rv) {
@@ -217,7 +225,6 @@ int main(int argc, char **argv)
 		if (!(mo.flags & MS_REMOUNT))
 			umount_lockproto(proto, &mo, &sb, errno);
 
-		block_signals(SIG_UNBLOCK);
 		if (errno == EBUSY)
 			die("%s already mounted or %s busy\n", mo.dev, mo.dir);
 		die("error %d mounting %s on %s\n", errno, mo.dev, mo.dir);
@@ -225,10 +232,10 @@ int main(int argc, char **argv)
 	log_debug("mount(2) ok");
 	mount_result_lockproto(proto, &mo, &sb, 0);
 
-	block_signals(SIG_UNBLOCK);
-
 	if (!(mo.flags & MS_REMOUNT))
 		add_mtab_entry(&mo);
+
+	unblock_sigint();
 
 	return rv ? 1 : 0;
 }

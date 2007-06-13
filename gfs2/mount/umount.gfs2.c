@@ -12,6 +12,7 @@ char *prog_name;
 char *fsname;
 char *expert;
 int verbose;
+static sigset_t old_sigset;
 
 static void print_version(void)
 {
@@ -26,6 +27,20 @@ static void print_usage(void)
 	printf("If umount(8) fails to call umount.gfs2, you can clean up with\n");
 	printf("> umount.gfs2 -v -X lock_dlm <mountpoint>\n");
 
+}
+
+static void block_sigint(void)
+{
+	sigset_t new;
+
+	sigemptyset(&new);
+	sigaddset(&new, SIGINT);
+	sigprocmask(SIG_BLOCK, &new, &old_sigset);
+}
+
+static void unblock_sigint(void)
+{
+	sigprocmask(SIG_SETMASK, &old_sigset, NULL);
 }
 
 static void read_options(int argc, char **argv, struct mount_options *mo)
@@ -129,6 +144,8 @@ int main(int argc, char **argv)
 	get_sb(mo.dev, &sb);
 	parse_opts(&mo);
 
+	block_sigint();
+
 	rv = umount(mo.dir);
 	if (rv) {
 		if (errno == EBUSY)
@@ -140,6 +157,8 @@ int main(int argc, char **argv)
 	umount_lockproto(proto, &mo, &sb);
 
 	del_mtab_entry(&mo);
+
+	unblock_sigint();
 
 	return 0;
 }
