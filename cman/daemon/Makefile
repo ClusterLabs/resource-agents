@@ -14,7 +14,7 @@ include ../../make/defines.mk
 
 CFLAGS += -DCMAN_RELEASE_NAME=\"${RELEASE}\" -DOPENAIS_EXTERNAL_SERVICE
 CFLAGS += -fPIC
-CFLAGS += -I${ccsincdir} -I${openaisincdir} -I${cmanincdir}
+CFLAGS += -I${ccsincdir} -I${openaisincdir}
 CFLAGS += -I${incdir}
 
 ifeq ($(DEBUG),y)
@@ -23,7 +23,7 @@ else
 CFLAGS += -O2
 endif
 
-LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs 
+LDFLAGS += -L${ccslibdir} -lccs 
 
 TARGET= service_cman.lcrso
 
