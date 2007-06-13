@@ -509,6 +509,7 @@ do_load_resource(int ccsfd, char *base,
 	node->rn_parent = parent;
 	node->rn_resource = curres;
 	node->rn_state = RES_STOPPED;
+	node->rn_flags = 0;
 	node->rn_actions = (resource_act_t *)act_dup(curres->r_actions);
 
 	snprintf(tok, sizeof(tok), "%s/@__independent_subtree", base);
