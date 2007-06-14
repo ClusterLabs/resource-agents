@@ -1,3 +1,8 @@
+2007-06-14 Lon Hohberger <lhh at redhat.com>
+	* include/resgroup.h: Fix size incompatibility on 32/64 bit mixed
+	clusters.  Put in stubs for intelligent handling of state sizes
+       	during a cluster upgrade.
+
 2007-06-14 Marek Grac <mgrac at redhat.com>
         * src/daemons/main.c, rg_state.c, rg_thread.c,
           src/utils/clusvcadm.c

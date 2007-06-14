@@ -27,15 +27,22 @@
  */
 typedef struct {
 	char		rs_name[64];	/**< Service name */
+	/* 64 */
 	uint32_t	rs_id;		/**< Service ID */
 	uint32_t	rs_magic;	/**< Magic ID */
 	uint32_t	rs_owner;	/**< Member ID running service. */
 	uint32_t	rs_last_owner;	/**< Last member to run the service. */
+	/* 80 */
 	uint32_t	rs_state;	/**< State of service. */
 	uint32_t	rs_restarts;	/**< Number of cluster-induced 
 					     restarts */
 	uint64_t	rs_transition;	/**< Last service transition time */
+	/* 96 */
 	uint32_t	rs_flags;	/**< User setted flags */
+	/* 100 */
+	uint8_t		rs_version;	/**< State version */
+	uint8_t		_pad_[3];
+	/* 104 */
 } rg_state_t;
 
 #define swab_rg_state_t(ptr) \
@@ -49,6 +56,14 @@ typedef struct {
 	swab64((ptr)->rs_transition);\
 	swab32((ptr)->rs_flags);\
 }
+
+#if 0
+/* Future upgrade compatibility */
+#define RG_STATE_MINSIZE		96
+#define RG_STATE_CURRENT_VERSION	1
+
+extern size_t rg_state_t_version_sizes[];
+#endif
 
 
 #define RG_PORT    177
