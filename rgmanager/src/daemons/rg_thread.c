@@ -248,8 +248,15 @@ resgroup_thread_main(void *arg)
 				break;
 			}
 		case RG_START:
-			error = handle_start_req(myname, req->rr_request,
-						 &newowner);
+			if (req->rr_arg0) {
+				error = handle_fd_start_req(myname,
+						req->rr_request,
+						&newowner);
+			} else {
+				error = handle_start_req(myname,
+						req->rr_request,
+						&newowner);
+			}
 			break;
 
 		case RG_RELOCATE:

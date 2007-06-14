@@ -493,7 +493,9 @@ dispatch_msg(msgctx_t *ctx, int nodeid, int need_close)
 		/* Queue request */
 		rt_enqueue_request(msg_sm->sm_data.d_svcName,
 		  		   msg_sm->sm_data.d_action,
-		  		   ctx, 0, msg_sm->sm_data.d_svcOwner, 0, 0);
+		  		   ctx, 0, msg_sm->sm_data.d_svcOwner,
+		  		   msg_sm->sm_hdr.gh_arg1,
+		  		   msg_sm->sm_hdr.gh_arg2);
 		return 0;
 
 	case RG_EVENT:

@@ -1,3 +1,10 @@
+2007-06-14 Marek Grac <mgrac at redhat.com>
+        * src/daemons/main.c, rg_state.c, rg_thread.c,
+          src/utils/clusvcadm.c
+        * #211469 - RFE: Flag (-F) for clusvcadm to respect failover domain
+        * 'clusvcadm -e service00' works same as in RHEL4 (differs from RHEL5.0)
+	* -F for freeze was changed to -Z 
+
 2007-06-13 Lon Hohberger <lhh at redhat.com>
 	* src/daemons/restree.c: Fix #229650 uninitialized bug
 

@@ -1316,7 +1316,7 @@ relocate_service(char *svcName, int request, uint32_t target)
 	strncpy(msg_relo.sm_data.d_svcName, svcName,
 		sizeof(msg_relo.sm_data.d_svcName));
 	msg_relo.sm_data.d_ret = 0;
-
+	msg_relo.sm_data.d_svcOwner = target;
 	/* Open a connection to the other node */
 
 	if (msg_open(MSG_CLUSTER, target, RG_PORT, &ctx, 2)< 0) {
@@ -1592,7 +1592,7 @@ int
 handle_start_req(char *svcName, int req, int *new_owner)
 {
 	int ret, tolerance = FOD_BEST;
-	cluster_member_list_t *membership = member_list();
+//	cluster_member_list_t *membership = member_list();
 	int need_check = have_exclusive_resources();
 
 	/*
@@ -1601,7 +1601,7 @@ handle_start_req(char *svcName, int req, int *new_owner)
 	 */
 	if (req == RG_ENABLE)
 		tolerance = FOD_GOOD;
-	
+/*	
 	if (req != RG_RESTART &&
 	    req != RG_START_RECOVER &&
 	    (node_should_start_safe(my_id(), membership, svcName) <
@@ -1622,7 +1622,7 @@ handle_start_req(char *svcName, int req, int *new_owner)
 		}
 	}
 	free_member_list(membership);
-
+*/
 	/* Check for dependency.  We cannot start unless our
 	   dependency is met */
 	if (check_depend_safe(svcName) == 0)
@@ -1674,7 +1674,7 @@ handle_start_req(char *svcName, int req, int *new_owner)
 		return RG_EABORT;
 	}
 	
-relocate:
+//relocate:
 	/*
 	 * OK, it failed to start - but succeeded to stop.  Now,
 	 * we should relocate the service.
@@ -1743,10 +1743,12 @@ handle_start_remote_req(char *svcName, int req)
 	}
 	free_member_list(membership);
 
-	if (svc_start(svcName, req) == 0) {
+	x = svc_start(svcName, req);
+
+	if ((x == 0) || (x == RG_ERUN)) {
 		if (need_check)
 			pthread_mutex_unlock(&exclusive_mutex);
-		return 0;
+		return x;
 	}
 	if (need_check)
 		pthread_mutex_unlock(&exclusive_mutex);
@@ -1777,4 +1779,48 @@ handle_recover_req(char *svcName, int *new_owner)
 	}
 
 	return handle_start_req(svcName, RG_START_RECOVER, new_owner);
+}
+
+int
+handle_fd_start_req(char *svcName, int request, int *new_owner)
+{
+       cluster_member_list_t *allowed_nodes;
+       int target, me = my_id();
+       int ret;
+
+       allowed_nodes = member_list();
+
+       while (memb_count(allowed_nodes)) {
+               target = best_target_node(allowed_nodes, -1,
+                                         svcName, 1);
+               if (target == me) {
+                       ret = handle_start_remote_req(svcName, request);
+               } else if (target < 0) {
+                       free_member_list(allowed_nodes);
+                       return RG_EFAIL;
+               } else {
+                       ret = relocate_service(svcName, request, target);
+               }
+
+               switch(ret) {
+               case RG_ESUCCESS:
+                       return RG_ESUCCESS;
+               case RG_ERUN:
+                       return RG_ERUN;
+               case RG_EFAIL:
+                       memb_mark_down(allowed_nodes, target);
+                       continue;
+               case RG_EABORT:
+                       svc_report_failure(svcName);
+                       free_member_list(allowed_nodes);
+                       return RG_EFAIL;
+               default:
+                       clulog(LOG_ERR,
+                              "#6X: Invalid reply [%d] from member %d during"
+                              " relocate operation!\n", ret, target);
+               }
+       }
+
+       free_member_list(allowed_nodes);
+       return RG_EFAIL;
 }

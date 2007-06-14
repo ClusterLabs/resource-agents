@@ -90,6 +90,7 @@ const char *rg_req_str(int req);
 int handle_relocate_req(char *svcName, int request, int preferred_target,
 			int *new_owner);
 int handle_start_req(char *svcName, int req, int *new_owner);
+int handle_fd_start_req(char *svcName, int req, int *new_owner);
 int handle_recover_req(char *svcName, int *new_owner);
 int handle_start_remote_req(char *svcName, int req);
 

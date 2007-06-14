@@ -39,11 +39,14 @@
 
 
 void
-build_message(SmMessageSt *msgp, int action, char *svcName, int target)
+build_message(SmMessageSt *msgp, int action, char *svcName, int target,
+		int arg1, int arg2)
 {
 	msgp->sm_hdr.gh_magic = GENERIC_HDR_MAGIC;
 	msgp->sm_hdr.gh_command = RG_ACTION_REQUEST;
 	msgp->sm_hdr.gh_length = sizeof(*msgp);
+	msgp->sm_hdr.gh_arg1 = arg1;
+	msgp->sm_hdr.gh_arg2 = arg2;
 	msgp->sm_data.d_action = action;
 	strncpy(msgp->sm_data.d_svcName, svcName,
 		sizeof(msgp->sm_data.d_svcName));
@@ -155,6 +158,8 @@ printf("       %s -v                     Display version and exit\n",name);
 printf("       %s -d <group>             Disable <group>\n", name);
 printf("       %s -e <group>             Enable <group>\n",
        name);
+printf("       %s -e <group> -F          Enable <group> according to failover\n"
+       "                                 domain rules\n", name);
 printf("       %s -e <group> -m <member> Enable <group>"
        " on <member>\n", name);
 printf("       %s -r <group> -m <member> Relocate <group> [to <member>]\n",
@@ -230,6 +235,7 @@ main(int argc, char **argv)
 	SmMessageSt msg;
 	generic_msg_hdr *h = (generic_msg_hdr *)&msg;
 	int action = RG_STATUS;
+	int fod = 0;
 	int node_specified = 0;
        	int me, svctarget = 0;
 	char *actionstr = NULL;
@@ -240,7 +246,7 @@ main(int argc, char **argv)
 		return 1;
 	}
 
-	while ((opt = getopt(argc, argv, "lSue:M:d:r:n:m:vR:s:F:U:qh?")) != EOF) {
+	while ((opt = getopt(argc, argv, "lSue:M:d:r:n:m:FvR:s:Z:U:qh?")) != EOF) {
 		switch (opt) {
 		case 'l':
 			return do_lock();
@@ -257,6 +263,14 @@ main(int argc, char **argv)
 			action = RG_ENABLE;
 			svcname = optarg;
 			break;
+               case 'F':
+                       if (node_specified) {
+                               fprintf(stderr,
+                                       "Cannot use '-F' with '-n' or '-m'\n");
+                               return 1;
+                       }
+                       fod = 1;
+                       break;
 		case 'd':
 			/* DISABLE */
 			actionstr = "disabling";
@@ -288,13 +302,18 @@ main(int argc, char **argv)
 			break;
 		case 'm': /* member ... */
 		case 'n': /* node .. same thing */
+                       if (fod) {
+                               fprintf(stderr,
+                                       "Cannot use '-F' with '-n' or '-m'\n");
+                               return 1;
+                       }
 			strncpy(nodename,optarg,sizeof(nodename));
 			node_specified = 1;
 			break;
 		case 'v':
 			printf("%s\n",PACKAGE_VERSION);
 			return 0;
-		case 'F':
+		case 'Z':
 			actionstr = "freezing";
 			action = RG_FREEZE;
 			svcname = optarg;
@@ -361,8 +380,8 @@ main(int argc, char **argv)
 				   */
 		//strcpy(nodename,"me");
 	}
-	
-	build_message(&msg, action, svcname, svctarget);
+
+	build_message(&msg, action, svcname, svctarget, fod, 0);
 
 	if (action != RG_RELOCATE && action != RG_MIGRATE) {
 		if (!node_specified)
