@@ -2383,12 +2383,13 @@ AC_ARG_ENABLE([mgmt],
                      [], [enable_mgmt=try])
 
 if test "x${enable_mgmt}" != "xno"; then
-	MGMT_ENABLED=1
 	if test "x${enable_mgmt}" = "xtry"; then
 		MISSING_FN="WarnMissingThing"
 	else
 		MISSING_FN="FatalMissingThing"
 	fi
+	enable_mgmt="yes"
+	MGMT_ENABLED=1
 
 	AM_CHECK_PYTHON_HEADERS(,PYTHON_INCLUDES='')
 	AC_SUBST(PYTHON_INCLUDES)
@@ -2410,13 +2411,6 @@ if test "x${enable_mgmt}" != "xno"; then
 	if test "$ac_cv_header_gnutls_gnutls_h" = "no"; then
   		$MISSING_FN "gnutls/gnutls.h" \
 		  "The GUI managment module needs GNU/TLS header files"
-		enable_mgmt="no"
-		MGMT_ENABLED=0
-	fi
-
-	if test -z "$LIBGNUTLS_CONFIG"; then
-		$MISSING_FN "libgnutls-config" \
-		  "The GUI managment module needs libgnutls-config"
 		enable_mgmt="no"
 		MGMT_ENABLED=0
 	fi
@@ -2464,23 +2458,17 @@ AC_ARG_ENABLE([quorumd],
                      [], [enable_quorumd=try])
 
 if test "x${enable_quorumd}" != "xno"; then
-	QUORUMD_ENABLED=1
 	if test "x${enable_quorumd}" = "xtry"; then
 		MISSING_FN="WarnMissingThing"
 	else
 		MISSING_FN="FatalMissingThing"
 	fi
+	enable_quorumd="yes"
+	QUORUMD_ENABLED=1
 
 	if test "$ac_cv_header_gnutls_gnutls_h" = "no"; then
   		$MISSING_FN "gnutls/gnutls.h" \
 		  "The quorum server module needs GNU/TLS header files"
-		enable_quorumd="no"
-		QUORUMD_ENABLED=0
-	fi
-
-	if test -z "$LIBGNUTLS_CONFIG"; then
-		$MISSING_FN "libgnutls-config" \
-		  "The quorum server module needs libgnutls-config"
 		enable_quorumd="no"
 		QUORUMD_ENABLED=0
 	fi
