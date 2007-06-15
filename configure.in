@@ -2705,6 +2705,7 @@ cts/Makefile					        	\
 	cts/CM_LinuxHAv2.py					\
 	cts/CTSproxy.py	        				\
 	cts/extracttests.py					\
+	cts/getpeinputs.sh		\
 	cts/OCFIPraTest.py              	                \
 	cts/CIB.py						\
 	cts/LSBDummy						\
