@@ -32,17 +32,6 @@ LOG_WARNING=4
 LOG_NOTICE=5
 LOG_INFO=6
 
-#
-# Only root wants to run this...
-#
-[ `id -u` = 0 ] || exit 0
-
-#
-# If we're not configured, then don't start anything.
-#
-[ "${NETWORKING}" = "yes" ] || exit 0
-[ -f "$CFG_FILE" ] || exit 0
-
 
 #
 # log_and_print <level> <message>
@@ -90,9 +79,17 @@ stop_cluster()
 }
 
 
-
 case $1 in
 	start)
+		#
+		# If we're not configured, then don't start anything.
+		#
+		if [ "${NETWORKING}" != "yes" ]; then
+			echo "Cannot start $ID: Networking not configured"
+			exit 1
+		fi
+		[ -f "$CFG_FILE" ] || exit 0
+
 		echo -n $"Starting $ID: "
 		daemon $RGMGRD $RGMGR_OPTS
 		ret=$?
@@ -145,4 +142,10 @@ case $1 in
 		rm -f /var/lock/subsys/rgmanager
 		log_and_print $LOG_NOTICE "$ID is stopped."
 		;;
+	*)
+		echo "usage: $0 {start|restart|condrestart|reload|status|stop}"
+		exit 1
+		;;
 esac
+
+exit 0
