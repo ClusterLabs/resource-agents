@@ -458,6 +458,7 @@ gi_get_tune(struct gfs_inode *ip,
         gfs_printf("logd_secs %u\n", gt->gt_logd_secs);
         gfs_printf("quotad_secs %u\n", gt->gt_quotad_secs);
         gfs_printf("inoded_secs %u\n", gt->gt_inoded_secs);
+        gfs_printf("glock_purge %u\n", gt->gt_glock_purge);
         gfs_printf("quota_simul_sync %u\n", gt->gt_quota_simul_sync);
         gfs_printf("quota_warn_period %u\n", gt->gt_quota_warn_period);
         gfs_printf("atime_quantum %u\n", gt->gt_atime_quantum);
@@ -605,6 +606,11 @@ gi_set_tune(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 			return -EINVAL;
 		tune_set(gt_inoded_secs, x);
 		wake_up_process(sdp->sd_inoded_process);
+
+	} else if (strcmp(param, "glock_purge") == 0) {
+		if (sscanf(value, "%u", &x) != 1)
+			return -EINVAL;
+		tune_set(gt_glock_purge, x);
 
 	} else if (strcmp(param, "quota_simul_sync") == 0) {
 		if (sscanf(value, "%u", &x) != 1 || !x)

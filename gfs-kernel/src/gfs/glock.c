@@ -41,7 +41,7 @@ struct greedy {
 	struct delayed_work gr_work;
 };
 
-typedef void (*glock_examiner) (struct gfs_glock * gl);
+typedef void (*glock_examiner) (struct gfs_glock * gl, unsigned int *cnt);
 
 /**
  * relaxed_state_ok - is a requested lock compatible with the current lock mode?
@@ -2495,12 +2495,14 @@ gfs_reclaim_glock(struct gfs_sbd *sdp)
 
 static int
 examine_bucket(glock_examiner examiner,
-	       struct gfs_sbd *sdp, struct gfs_gl_hash_bucket *bucket)
+		struct gfs_sbd *sdp, struct gfs_gl_hash_bucket *bucket,
+		unsigned int purge_nr)
 {
 	struct glock_plug plug;
 	struct list_head *tmp;
 	struct gfs_glock *gl;
 	int entries;
+	unsigned int p_cnt=purge_nr;
 
 	/* Add "plug" to end of bucket list, work back up list from there */
 	memset(&plug.gl_flags, 0, sizeof(unsigned long));
@@ -2541,8 +2543,43 @@ examine_bucket(glock_examiner examiner,
 
 		write_unlock(&bucket->hb_lock);
 
-		examiner(gl);
+		examiner(gl, &p_cnt);
 	}
+}
+
+static void
+try_purge_iopen(struct gfs_glock *gl, unsigned int *p_count)
+{
+	struct gfs_glock *i_gl;
+
+	if (*p_count == 0)
+		return;
+
+	/* find the associated inode glock */
+	i_gl = get_gl2gl(gl);
+	if (!i_gl) 
+		return;
+
+	/* 
+	 * If the associated inode glock has been in unlocked 
+	 * state, try to purge it.
+	 */
+	if (trylock_on_glock(i_gl)) {
+		if (i_gl->gl_state == LM_ST_UNLOCKED) {
+			*p_count = *p_count - 1;
+			unlock_on_glock(i_gl);
+			atomic_inc(&gl->gl_count);
+			gfs_iopen_go_callback(gl, LM_ST_UNLOCKED);
+			handle_callback(gl, LM_ST_UNLOCKED);
+			spin_lock(&gl->gl_spin);
+			run_queue(gl);
+			spin_unlock(&gl->gl_spin);
+			glock_put(gl);
+		} else 
+			unlock_on_glock(i_gl);
+	}
+
+	return;
 }
 
 /**
@@ -2560,7 +2597,7 @@ examine_bucket(glock_examiner examiner,
  */
 
 static void
-scan_glock(struct gfs_glock *gl)
+scan_glock(struct gfs_glock *gl,  unsigned int *p_count)
 {
 	if (trylock_on_glock(gl)) {
 		if (queue_empty(gl, &gl->gl_holders)) {
@@ -2582,7 +2619,12 @@ scan_glock(struct gfs_glock *gl)
 				goto out;
 			}
 		}
-
+		/* iopen always has holder(s) */
+		if (gl->gl_name.ln_type == LM_TYPE_IOPEN) {
+			unlock_on_glock(gl);
+			try_purge_iopen(gl, p_count);
+			goto out;
+		}
 		unlock_on_glock(gl);
 	}
 
@@ -2607,10 +2649,17 @@ scan_glock(struct gfs_glock *gl)
 void
 gfs_scand_internal(struct gfs_sbd *sdp)
 {
-	unsigned int x;
+	unsigned int x, purge_nr;
+
+	if (!sdp->sd_tune.gt_glock_purge)
+		purge_nr = 0;
+	else
+		purge_nr = (atomic_read(&sdp->sd_glock_count) -
+			atomic_read(&sdp->sd_glock_held_count)) *
+			sdp->sd_tune.gt_glock_purge / 100 / GFS_GL_HASH_SIZE;
 
 	for (x = 0; x < GFS_GL_HASH_SIZE; x++) {
-		examine_bucket(scan_glock, sdp, &sdp->sd_gl_hash[x]);
+		examine_bucket(scan_glock, sdp, &sdp->sd_gl_hash[x], purge_nr);
 		cond_resched();
 	}
 }
@@ -2630,7 +2679,7 @@ gfs_scand_internal(struct gfs_sbd *sdp)
  */
 
 static void
-clear_glock(struct gfs_glock *gl)
+clear_glock(struct gfs_glock *gl, unsigned int *unused)
 {
 	struct gfs_sbd *sdp = gl->gl_sbd;
 	struct gfs_gl_hash_bucket *bucket = gl->gl_bucket;
@@ -2695,7 +2744,7 @@ gfs_gl_hash_clear(struct gfs_sbd *sdp, int wait)
 		cont = FALSE;
 
 		for (x = 0; x < GFS_GL_HASH_SIZE; x++)
-			if (examine_bucket(clear_glock, sdp, &sdp->sd_gl_hash[x]))
+			if (examine_bucket(clear_glock, sdp, &sdp->sd_gl_hash[x], 0))
 				cont = TRUE;
 
 		if (!wait || !cont)

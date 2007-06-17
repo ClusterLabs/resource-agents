@@ -60,6 +60,7 @@ gfs_tune_init(struct gfs_tune *gt)
 	gt->gt_logd_secs = 1;
 	gt->gt_quotad_secs = 5;
 	gt->gt_inoded_secs = 15;
+	gt->gt_glock_purge = 0;
 	gt->gt_quota_simul_sync = 64;
 	gt->gt_quota_warn_period = 10;
 	gt->gt_atime_quantum = 3600;

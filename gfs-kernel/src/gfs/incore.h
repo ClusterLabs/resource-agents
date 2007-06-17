@@ -878,6 +878,7 @@ struct gfs_tune {
 	unsigned int gt_logd_secs; /* Update log tail as AIL flushes */
 	unsigned int gt_quotad_secs; /* Sync changes to quota file, clean*/
 	unsigned int gt_inoded_secs; /* Toss unused inodes */
+	unsigned int gt_glock_purge; /* Purge glock */
 
 	unsigned int gt_quota_simul_sync; /* Max # quotavals to sync at once */
 	unsigned int gt_quota_warn_period; /* Secs between quota warn msgs */
