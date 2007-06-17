@@ -24,6 +24,7 @@
 #include <linux/blkdev.h>
 #include <linux/mm.h>
 #include <linux/aio.h>
+#include <linux/writeback.h>
 #include <asm/uaccess.h>
 
 #include "gfs_ioctl.h"
@@ -1528,6 +1529,7 @@ gfs_fsync(struct file *file, struct dentry *dentry, int datasync)
 {
 	struct gfs_inode *ip = get_v2ip(dentry->d_inode);
 	struct gfs_holder i_gh;
+	struct inode *inode = dentry->d_inode;
 	int error;
 
 	atomic_inc(&ip->i_sbd->sd_ops_file);
@@ -1538,8 +1540,15 @@ gfs_fsync(struct file *file, struct dentry *dentry, int datasync)
 
 	if (gfs_is_jdata(ip))
 		gfs_log_flush_glock(ip->i_gl);
-	else
-		i_gh.gh_flags |= GL_SYNC;
+	else {
+		if ((!datasync) || (inode->i_state & I_DIRTY_DATASYNC)) {
+			struct writeback_control wbc = {
+				.sync_mode = WB_SYNC_ALL,
+				.nr_to_write = 0,
+			};
+			error = sync_inode(inode, &wbc);
+		}
+	}
 
 	gfs_glock_dq_uninit(&i_gh);
 
