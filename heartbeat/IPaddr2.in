@@ -7,6 +7,9 @@
 # 	Based on work by Tuomo Soini, ported to the OCF RA API by Lars
 # 	Marowsky-Brée. Implements Cluster Alias IP functionality too.
 #
+#	Cluster Alias IP cleanup, fixes and testing by Michael Schwartzkopff
+#
+#
 # Copyright (c) 2003 Tuomo Soini
 # Copyright (c) 2004-2006 SUSE LINUX AG, Lars Marowsky-Brée
 #                    All Rights Reserved.
@@ -34,12 +37,12 @@
 
 
 # TODO: 
-# - Fix up Cluster IP functionality
 # - There ought to be an ocf_run_cmd function which does all logging,
 #   timeout handling etc for us
 # - Make this the standard IP address agent on Linux; the other
 #   platforms simply should ignore the additional parameters OR can use
 #   the legacy heartbeat resource script...
+# - Check LVS <-> clusterip incompatibilities.
 #
 #	OCF parameters are as below
 #	OCF_RESKEY_ip
@@ -48,14 +51,14 @@
 #	OCF_RESKEY_cidr_netmask
 #	OCF_RESKEY_iflabel
 #	OCF_RESKEY_mac
-#	OCF_RESKEY_incarnations_max_global
-#	OCF_RESKEY_incarnation_no (not user-configurable)
 #	OCF_RESKEY_clusterip_hash
-#	OCF_RESKEY_clusterip_mark
 #	OCF_RESKEY_arp_interval
 #	OCF_RESKEY_arp_count
 #	OCF_RESKEY_arp_bg
 #	OCF_RESKEY_arp_mac
+#
+#	OCF_RESKEY_CRM_meta_clone
+#	OCF_RESKEY_CRM_meta_clone_max
 
 
 #######################################################################
@@ -71,6 +74,7 @@ SENDARP=$HA_BIN/send_arp
 FINDIF=$HA_BIN/findif
 VLDIR=$HA_VARRUNHBRSCDIR/IPaddr
 SENDARPPIDDIR=$HA_VARRUNHBRSCDIR/send_arp
+CIP_lockfile=$HA_VARRUNHBRSCDIR/IPaddr2-CIP-${OCF_RESKEY_ip}
 
 #######################################################################
 
@@ -157,16 +161,6 @@ on the network.
 <content type="boolean" default="false"/>
 </parameter>
 
-<parameter name="incarnations_max_global">
-<longdesc lang="en">
-If you wish the IP address to be active on more than one node, set this
-to the number of hash buckets you wish to use.
-
-</longdesc>
-<shortdesc lang="en">Global number of hash buckets</shortdesc>
-<content type="integer" default="1"/>
-</parameter>
-
 <parameter name="mac">
 <longdesc lang="en">
 Set the interface MAC address explicitly. Currently only used in case of
@@ -184,15 +178,6 @@ Specify the hashing algorithm used for the Cluster IP functionality.
 </longdesc>
 <shortdesc lang="en">Cluster IP hashing function</shortdesc>
 <content type="string" default="sourceip-sourceport-destport"/>
-</parameter>
-
-<parameter name="clusterip_mark">
-<longdesc lang="en">
-Specify the mark value used to mark the connection by CONNMARK target.
-
-</longdesc>
-<shortdesc lang="en">Mark value</shortdesc>
-<content type="string" default="1"/>
 </parameter>
 
 <parameter name="arp_interval">
@@ -290,11 +275,15 @@ ip_init() {
 	    -o x"${OCF_RESKEY_lvs_support}" = x"1" ]; then
 	    LVS_SUPPORT=1
 	fi
-	
-	IP_INC_GLOBAL=${OCF_RESKEY_incarnations_max_global:-1}
-	IP_INC_NO=${OCF_RESKEY_incarnation_no:-0}
-	IP_CIP_HASH="$OCF_RESKEY_clusterip_hash"
-	IP_CIP_MARK=${OCF_RESKEY_clusterip_mark:-1}
+
+	IP_INC_GLOBAL=${OCF_RESKEY_CRM_meta_clone_max:-1}
+	IP_INC_NO=$((OCF_RESKEY_CRM_meta_clone+1))
+	IP_CIP_HASH="${OCF_RESKEY_clusterip_hash}"
+
+	if [ $LVS_SUPPORT -gt 0 ] && [ $IP_INC_GLOBAL -gt 1 ]; then
+		ocf_log err "LVS and load sharing do not go together well"
+		exit OCF_ERR_ARGS
+	fi
 
 	ARP_INTERVAL_MS=${OCF_RESKEY_arp_interval:-200}
 	ARP_REPEAT=${OCF_RESKEY_arp_count:-5}
@@ -518,6 +507,10 @@ restore_loopback() {
 #
 run_send_arp() {
 	ARGS="-i $ARP_INTERVAL_MS -r $ARP_REPEAT -p $SENDARPPIDFILE $NIC $BASEIP auto $BASEIP $ARP_NETMASK"
+	if [ $IP_CIP="yes" ] ; then
+		MY_MAC=${IF_MAC//:/}
+		ARGS="-i $ARP_INTERVAL_MS -r $ARP_REPEAT -p $SENDARPPIDFILE $NIC $BASEIP $MY_MAC $BASEIP $ARP_NETMASK"
+	fi
 	ocf_log info "$SENDARP $ARGS"
 	case $ARP_BACKGROUND in
 	yes) 
@@ -558,11 +551,12 @@ ip_served() {
 	fi
 
 	# Special handling for the CIP:
-	if grep -q "\<${IP_INC_NO}\>" $IP_CIP_FILE ; then
+	if grep -q "^${IP_INC_NO},\|,${IP_INC_NO},\|,${IP_INC_NO}$\|^${IP_INC_NO}$" $IP_CIP_FILE ; then
 		echo "ok"
 		return 0
 	else
-		return "partial"
+		echo "partial"
+		return 0
 	fi
 
 	exit $OCF_ERR_GENERIC
@@ -579,6 +573,14 @@ END
 }
 
 ip_start() {
+	if [ -n "$IP_CIP" ]; then
+	    # Cluster IPs need special processing when the first bucket
+	    #  is added to the node... take a lock to make sure only one
+	    #  process executes that code
+	    ocf_take_lock $CIP_lockfile
+	    ocf_release_lock_on_exit $CIP_lockfile
+	fi
+
 	ip_init
 
 	#
@@ -591,16 +593,7 @@ ip_start() {
 	fi
 	
 	if [ -n "$IP_CIP" ] && [ $ip_status = "no" ]; then
-		$MODPROBE ip_tables
 		$MODPROBE ip_conntrack
-		$MODPROBE ipt_CLUSTERIP
-		$IPTABLES -A OUTPUT -s $BASEIP -o $NIC \
-				-m state --state NEW \
-				-j CONNMARK --set-mark $IP_CIP_MARK
-		if [ $? -ne 0 ]; then
-			ocf_log err "iptables failed"
-			exit $OCF_ERR_GENERIC
-		fi
 		$IPTABLES -I INPUT -d $BASEIP -i $NIC -j CLUSTERIP \
 				--new \
 				--clustermac $IF_MAC \
@@ -648,6 +641,13 @@ ip_start() {
 ip_stop() {
 	ip_init
 	local ip_del_if="yes"
+	if [ -n "$IP_CIP" ]; then
+	    # Cluster IPs need special processing when the last bucket
+	    #  is removed from the node... take a lock to make sure only one
+	    #  process executes that code
+	    ocf_take_lock $CIP_lockfile
+	    ocf_release_lock_on_exit $CIP_lockfile
+	fi
 	
 	if [ -f "$SENDARPPIDFILE" ] ; then
 		kill `cat "$SENDARPPIDFILE"`
@@ -671,16 +671,16 @@ ip_stop() {
 		fi
 		echo "-$IP_INC_NO" >$IP_CIP_FILE
 		if [ "x$(cat $IP_CIP_FILE)" = "x" ]; then
-			# This was the last incarnation
-			$IPTABLES -D OUTPUT -s $CLUSTERIP -o $NIC \
-					-m state --state NEW \
-					-j CONNMARK --set-mark $IP_CIP_MARK
-			$IPTABLES -D INPUT -d $BASEIP -i $NIC -j CLUSTERIP \
+			ocf_log info $BASEIP, $IP_CIP_HASH
+			for ((i=1; i<=$IP_INC_GLOBAL; i++)) ; do
+				ocf_log info $i
+				$IPTABLES -D INPUT -d $BASEIP -i $NIC -j CLUSTERIP \
 					--new \
 					--clustermac $IF_MAC \
 					--total-nodes $IP_INC_GLOBAL \
-					--local-node $IP_INC_NO \
+					--local-node $i \
 					--hashmode $IP_CIP_HASH
+			done
 		else
 			ip_del_if="no"		
 		fi
@@ -704,7 +704,9 @@ ip_monitor() {
 	ip_init
 	# TODO: Implement more elaborate monitoring like checking for
 	# interface health maybe via a daemon like FailSafe etc...
-	case `ip_served $BASEIP` in
+
+	local ip_status=`ip_served`
+	case $ip_status in
 	ok)
 		return $OCF_SUCCESS
 		;;
@@ -751,41 +753,9 @@ ip_validate() {
 		;;
 	esac
 
-	mark=$IP_CIP_MARK
-	case $mark in
-	+*|-*)
-		mark=$(echo $mark | cut -c 2-)
-		;;
-	esac
-	case $mark in
-	0x*)	# hexidecimal
-	  mark=$(echo $mark | cut -c 3-)
-	  if [ -n "$mark" ] && ocf_is_hex "$mark"; then
-		:
-	  else
-		valid=0
-	  fi
-	  ;;
-	0*)	# octal
-	  mark=$(echo $mark | cut -c 2-)
-	  if [ -n "$mark" ] && ocf_is_octal "$mark"; then
-		:
-	  else
-		valid=0
-	  fi
-	  ;;
-	*)	# decimal
-	  if [ -n "$mark" ] && ocf_is_decimal "$mark"; then
-		:
-	  else
-		valid=0
-	  fi
-	  ;;
-	esac
-
-	if [ $valid -eq 0 ]; then
-	  ocf_log err "Invalid OCF_RESKEY_clusterip_mark [$IP_CIP_MARK]"
-	  exit $OCF_ERR_ARGS
+	if [ "$LVS_SUPPORT" = 1 ]; then
+		ecf_log err "LVS and load sharing not advised to try"
+		exit $OCF_ERR_ARGS
 	fi
 
 	case $IF_MAC in
