@@ -167,8 +167,8 @@ void gfs2_sb_print(struct gfs2_sb *sb)
 	gfs2_inum_print(&sb->sb_master_dir);
 	gfs2_inum_print(&sb->sb_root_dir);
 
-	pv(sb, sb_lockproto, "%s", "0x%x");
-	pv(sb, sb_locktable, "%s", "0x%x");
+	pv(sb, sb_lockproto, "%s", NULL);
+	pv(sb, sb_locktable, "%s", NULL);
 }
 
 void gfs2_rindex_in(struct gfs2_rindex *ri, char *buf)

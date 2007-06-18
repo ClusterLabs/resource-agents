@@ -546,7 +546,7 @@ uint32_t gfs2_disk_hash(const char *data, int len);
 extern void print_it(const char *label, const char *fmt,
 					 const char *fmt2, ...);
 #define pv(struct, member, fmt, fmt2) do {				   \
-		print_it("  "#member":", fmt, fmt2, struct->member); \
+		print_it("  "#member, fmt, fmt2, struct->member); \
         } while (FALSE);
 #define pv2(struct, member, fmt, fmt2) do {		 \
 		print_it("  ", fmt, fmt2, struct->member);	\

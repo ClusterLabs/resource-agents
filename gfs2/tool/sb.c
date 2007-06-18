@@ -36,11 +36,12 @@ extern void gfs2_sb_print(struct gfs2_sb *sb);
 extern int gfs2_sb_out(struct gfs2_sb *sb, char *buf);
 
 
-void print_it(const char *label, const char *fmt, ...)
+void print_it(const char *label, const char *fmt, const char *fmt2, ...)
 {
 	va_list args;
-	va_start(args, fmt);
-	printf("%s", label);
+
+	va_start(args, fmt2);
+	printf("%s = ", label);
 	vprintf(fmt, args);
 	printf("\n");
 	va_end(args);
