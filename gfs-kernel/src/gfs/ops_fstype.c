@@ -178,6 +178,9 @@ int init_names(struct gfs_sbd *sdp, int silent)
 	snprintf(sdp->sd_proto_name, 256, "%s", proto);
 	snprintf(sdp->sd_table_name, 256, "%s", table);
 
+	while ((table = strchr(sdp->sd_table_name, '/')))
+		*table = '_';
+
  out:
 	kfree(sb);
 
