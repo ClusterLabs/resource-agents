@@ -144,6 +144,7 @@ gfs_put_super(struct super_block *sb)
 	gfs_inode_put(sdp->sd_jiinode);
 	gfs_inode_put(sdp->sd_rooti);
 	gfs_inode_put(sdp->sd_qinode);
+	gfs_inode_put(sdp->sd_linode);
 	gfs_glock_put(sdp->sd_trans_gl);
 	gfs_glock_put(sdp->sd_rename_gl);
 
@@ -266,6 +267,9 @@ static int gfs_statfs(struct dentry *dentry, struct kstatfs *buf)
 	int error;
 
 	atomic_inc(&sdp->sd_ops_super);
+
+	if (gfs_tune_get(sdp, gt_statfs_fast))
+		return(gfs_statfs_fast(sdp, (void *)buf));
 
 	error = gfs_stat_gfs(sdp, &sg, TRUE);
 	if (error)

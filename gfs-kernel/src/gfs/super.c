@@ -19,6 +19,7 @@
 #include <linux/completion.h>
 #include <linux/buffer_head.h>
 #include <linux/vmalloc.h>
+#include <linux/statfs.h>
 
 #include "gfs.h"
 #include "dio.h"
@@ -33,6 +34,7 @@
 #include "rgrp.h"
 #include "super.h"
 #include "unlinked.h"
+#include "trans.h"
 
 /**
  * gfs_tune_init - Fill a gfs_tune structure with default values
@@ -85,6 +87,7 @@ gfs_tune_init(struct gfs_tune *gt)
 	gt->gt_greedy_quantum = HZ / 40;
 	gt->gt_greedy_max = HZ / 4;
 	gt->gt_rgrp_try_threshold = 100;
+	gt->gt_statfs_fast = 0;
 }
 
 /**
@@ -652,6 +655,46 @@ gfs_get_qinode(struct gfs_sbd *sdp)
 }
 
 /**
+ * gfs_get_linode - Read in the special (hidden) license inode
+ * @sdp: The GFS superblock
+ *
+ * If one is not on-disk already, create a new one.
+ * Does not read in file contents, just the dinode.
+ *
+ * Returns: errno
+ */
+
+int
+gfs_get_linode(struct gfs_sbd *sdp)
+{
+	struct gfs_holder i_gh;
+	int error;
+
+	/* Create, if not on-disk already */
+	if (!sdp->sd_sb.sb_license_di.no_formal_ino) {
+		error = gfs_alloc_linode(sdp);
+		if (error)
+			return error;
+	}
+
+	error = gfs_glock_nq_num(sdp,
+				 sdp->sd_sb.sb_license_di.no_formal_ino,
+				 &gfs_inode_glops,
+				 LM_ST_SHARED, GL_LOCAL_EXCL,
+				 &i_gh);
+	if (error)
+		return error;
+
+	/* iopen obtained in via  gfs_glock_get(..gfs_iopen_glops) */
+	error = gfs_inode_get(i_gh.gh_gl, &sdp->sd_sb.sb_license_di,
+			      CREATE, &sdp->sd_linode);
+
+	gfs_glock_dq_uninit(&i_gh);
+
+	return error;
+}
+
+/**
  * gfs_make_fs_rw - Turn a Read-Only FS into a Read-Write one
  * @sdp: the filesystem
  *
@@ -730,6 +773,8 @@ gfs_make_fs_ro(struct gfs_sbd *sdp)
 	if (error &&
 	    !test_bit(SDF_SHUTDOWN, &sdp->sd_flags))
 		return error;
+
+	gfs_statfs_sync(sdp);
 
 	gfs_log_flush(sdp);
 	gfs_quota_sync(sdp);
@@ -1043,4 +1088,200 @@ gfs_unfreeze_fs(struct gfs_sbd *sdp)
 		gfs_glock_dq_uninit(&sdp->sd_freeze_gh);
 
 	up(&sdp->sd_freeze_lock);
+}
+
+/*
+ * Fast statfs implementation - mostly based on GFS2 implementation.
+ */
+
+void gfs_statfs_change_in(struct gfs_statfs_change_host *sc, const void *buf)
+{
+	const struct gfs_statfs_change *str = buf;
+
+	sc->sc_total = be64_to_cpu(str->sc_total);
+	sc->sc_free = be64_to_cpu(str->sc_free);
+	sc->sc_dinodes = be64_to_cpu(str->sc_dinodes);
+}
+
+void gfs_statfs_change_out(const struct gfs_statfs_change_host *sc, void *buf)
+{
+	struct gfs_statfs_change *str = buf;
+
+	str->sc_total = cpu_to_be64(sc->sc_total);
+	str->sc_free = cpu_to_be64(sc->sc_free);
+	str->sc_dinodes = cpu_to_be64(sc->sc_dinodes);
+}
+
+int gfs_statfs_start(struct gfs_sbd *sdp)
+{
+	struct gfs_stat_gfs sg;
+	struct gfs_inode *m_ip;
+	struct gfs_statfs_change_host *m_sc = &sdp->sd_statfs_master;
+	struct gfs_statfs_change_host *l_sc = &sdp->sd_statfs_local;
+	struct buffer_head *m_bh;
+	struct gfs_holder gh;
+	int error;
+
+	printk("GFS: fsid=%s: fast statfs start time = %lu\n",
+                       sdp->sd_fsname, get_seconds());
+
+	/* created via gfs_get_linode() in fill_super(). */
+	/* gfs_inode_glops */
+	m_ip = sdp->sd_linode;
+
+	/* get real statistics */ 
+	error = gfs_stat_gfs(sdp, &sg, TRUE);
+        if (error)
+                return error;
+
+	/* make sure the page is refreshed via glock flushing */
+	error = gfs_glock_nq_init(m_ip->i_gl, LM_ST_EXCLUSIVE, GL_NOCACHE, 
+					&gh);
+	if (error)
+		goto gfs_statfs_start_out;
+
+	error = gfs_get_inode_buffer(m_ip, &m_bh);
+	if (error)
+		goto gfs_statfs_start_unlock;
+
+	error = gfs_trans_begin(sdp, 1, 0);
+	if (error)
+		goto gfs_statfs_start_bh;
+
+	spin_lock(&sdp->sd_statfs_spin);
+	m_sc->sc_total = sg.sg_total_blocks;
+	m_sc->sc_free = sg.sg_free + sg.sg_free_dinode + sg.sg_free_meta;
+	m_sc->sc_dinodes = sg.sg_used_dinode;
+	memset(l_sc, 0, sizeof(struct gfs_statfs_change_host));
+	spin_unlock(&sdp->sd_statfs_spin);
+
+	gfs_trans_add_bh(m_ip->i_gl, m_bh);
+	gfs_statfs_change_out(m_sc, m_bh->b_data + sizeof(struct gfs_dinode));
+
+	gfs_trans_end(sdp);
+
+gfs_statfs_start_bh:
+	brelse(m_bh);
+
+gfs_statfs_start_unlock:
+	gfs_glock_dq_uninit(&gh);
+
+gfs_statfs_start_out:
+	return 0;
+}
+
+int gfs_statfs_init(struct gfs_sbd *sdp, int flag)
+{
+	int error;
+
+	/* if flag == 0, do we want to turn this off ?  */
+	if (!flag)
+		return 0;
+
+	error = gfs_statfs_start(sdp);
+	if (error) 
+		printk("GFS: fsid=%s: can't initialize statfs subsystem: %d\n",
+			sdp->sd_fsname, error);
+
+	return error;
+}
+
+void gfs_statfs_modify(struct gfs_sbd *sdp, 
+			int64_t total, 
+			int64_t free,
+			int64_t dinodes)
+{
+	struct gfs_statfs_change_host *l_sc = &sdp->sd_statfs_local;
+
+	spin_lock(&sdp->sd_statfs_spin);
+	l_sc->sc_total += total;
+	l_sc->sc_free += free;
+	l_sc->sc_dinodes += dinodes;
+	spin_unlock(&sdp->sd_statfs_spin);
+}
+
+int gfs_statfs_sync(struct gfs_sbd *sdp)
+{
+	struct gfs_inode *m_ip = sdp->sd_linode;
+	struct gfs_statfs_change_host *m_sc = &sdp->sd_statfs_master;
+	struct gfs_statfs_change_host *l_sc = &sdp->sd_statfs_local;
+	struct gfs_holder gh;
+	struct buffer_head *m_bh;
+	int error;
+
+	error = gfs_glock_nq_init(m_ip->i_gl, LM_ST_EXCLUSIVE, GL_NOCACHE,
+				&gh);
+	if (error)
+		return error;
+
+	error = gfs_get_inode_buffer(m_ip, &m_bh);
+	if (error)
+		goto gfs_statfs_sync_out;
+
+	/* if no change, simply return */
+	spin_lock(&sdp->sd_statfs_spin);
+        gfs_statfs_change_in(m_sc, m_bh->b_data +
+                              sizeof(struct gfs_dinode));
+	if (!l_sc->sc_total && !l_sc->sc_free && !l_sc->sc_dinodes) {
+		spin_unlock(&sdp->sd_statfs_spin);
+		goto out_bh;
+	}
+	spin_unlock(&sdp->sd_statfs_spin);
+
+	error = gfs_trans_begin(sdp, 1, 0);
+	if (error)
+		goto out_bh;
+
+	spin_lock(&sdp->sd_statfs_spin);
+	m_sc->sc_total += l_sc->sc_total;
+	m_sc->sc_free += l_sc->sc_free;
+	m_sc->sc_dinodes += l_sc->sc_dinodes;
+	memset(l_sc, 0, sizeof(struct gfs_statfs_change_host));
+	spin_unlock(&sdp->sd_statfs_spin);
+
+	gfs_trans_add_bh(m_ip->i_gl, m_bh);
+	gfs_statfs_change_out(m_sc, m_bh->b_data + sizeof(struct gfs_dinode));
+
+	gfs_trans_end(sdp);
+
+out_bh:
+	brelse(m_bh);
+
+gfs_statfs_sync_out:
+	gfs_glock_dq_uninit(&gh);
+	return error;
+}
+
+int gfs_statfs_fast(struct gfs_sbd *sdp, void *b)
+{
+	struct kstatfs *buf = (struct kstatfs *)b;
+	struct gfs_statfs_change_host sc, *m_sc = &sdp->sd_statfs_master;
+	struct gfs_statfs_change_host *l_sc = &sdp->sd_statfs_local;
+
+	spin_lock(&sdp->sd_statfs_spin);
+
+	sc.sc_total   = m_sc->sc_total + l_sc->sc_total;
+	sc.sc_free    = m_sc->sc_free + l_sc->sc_free;
+	sc.sc_dinodes = m_sc->sc_dinodes + l_sc->sc_dinodes;
+	spin_unlock(&sdp->sd_statfs_spin);
+
+	if (sc.sc_free < 0)
+		sc.sc_free = 0;
+	if (sc.sc_free > sc.sc_total)
+		sc.sc_free = sc.sc_total;
+	if (sc.sc_dinodes < 0)
+		sc.sc_dinodes = 0;
+
+	/* fill in the statistics */
+	memset(buf, 0, sizeof(struct kstatfs));
+
+	buf->f_type = GFS_MAGIC; buf->f_bsize = sdp->sd_sb.sb_bsize;
+	buf->f_blocks = sc.sc_total;
+	buf->f_bfree = sc.sc_free;
+	buf->f_bavail = sc.sc_free;
+	buf->f_files = sc.sc_dinodes + sc.sc_free;
+	buf->f_ffree = sc.sc_free;
+	buf->f_namelen = GFS_FNAMESIZE;
+
+	return 0;
 }

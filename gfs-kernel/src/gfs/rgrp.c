@@ -1501,7 +1501,7 @@ blkfree_internal(struct gfs_sbd *sdp, uint64_t bstart, uint32_t blen,
 	rgd = gfs_blk2rgrpd(sdp, bstart);
 	if (!rgd) {
 		if (gfs_consist(sdp))
-			printk("GFS: fsid=%s: block = %"PRIu64"\n",
+			printk("GFS: fsid=%s: block = %llu\n",
 			       sdp->sd_fsname, bstart);
 		return NULL;
 	}
@@ -1658,6 +1658,9 @@ gfs_blkalloc(struct gfs_inode *ip, uint64_t *block)
 	al->al_alloced_data++;
 
 	gfs_trans_add_quota(sdp, +1, ip->i_di.di_uid, ip->i_di.di_gid);
+
+	/* total=0, free=-1, dinodes=0 */
+	gfs_statfs_modify(sdp, 0, -1, 0);
 }
 
 /**
@@ -1712,6 +1715,9 @@ gfs_metaalloc(struct gfs_inode *ip, uint64_t *block)
 
 	gfs_trans_add_quota(sdp, +1, ip->i_di.di_uid, ip->i_di.di_gid);
 
+	/* total=0, free=-1, dinode=0 */
+	gfs_statfs_modify(sdp, 0, -1, 0);
+
 	return 0;
 }
 
@@ -1727,6 +1733,7 @@ gfs_metaalloc(struct gfs_inode *ip, uint64_t *block)
 int
 gfs_dialloc(struct gfs_inode *dip, uint64_t *block)
 {
+	struct gfs_sbd *sdp = dip->i_sbd;
 	struct gfs_alloc *al = dip->i_alloc;
 	struct gfs_rgrpd *rgd = al->al_rgd;
 	uint32_t goal, blk;
@@ -1766,6 +1773,9 @@ gfs_dialloc(struct gfs_inode *dip, uint64_t *block)
 	al->al_alloced_di++;
 	al->al_alloced_meta++;
 
+	/* total=0, free=-1, dinodes=1 */
+	gfs_statfs_modify(sdp, 0, -1, +1);
+
 	return error;
 }
 
@@ -1798,6 +1808,9 @@ gfs_blkfree(struct gfs_inode *ip, uint64_t bstart, uint32_t blen)
 	gfs_trans_add_quota(sdp, -(int64_t)blen,
 			    ip->i_di.di_uid,
 			    ip->i_di.di_gid);
+
+	/* total=0, free=+blen, dinodes=0 */
+	gfs_statfs_modify(sdp, 0, blen, 0);
 }
 
 /**
@@ -1831,6 +1844,9 @@ gfs_metafree(struct gfs_inode *ip, uint64_t bstart, uint32_t blen)
 
 	gfs_trans_add_bh(rgd->rd_gl, rgd->rd_bh[0]);
 	gfs_rgrp_out(&rgd->rd_rg, rgd->rd_bh[0]->b_data);
+
+	/* total=0, free=blen, dinode=0 */
+	gfs_statfs_modify(sdp, 0, blen, 0);
 
 	gfs_trans_add_quota(sdp, -(int64_t)blen,
 			    ip->i_di.di_uid,
@@ -1866,6 +1882,9 @@ gfs_difree_uninit(struct gfs_rgrpd *rgd, uint64_t addr)
 
 	gfs_trans_add_bh(rgd->rd_gl, rgd->rd_bh[0]);
 	gfs_rgrp_out(&rgd->rd_rg, rgd->rd_bh[0]->b_data);
+
+	/* total=0, free=1, dinodes=-1 */
+	gfs_statfs_modify(rgd->rd_sbd, 0, +1, -1);
 }
 
 /**
@@ -1914,7 +1933,7 @@ gfs_rlist_add(struct gfs_sbd *sdp, struct gfs_rgrp_list *rlist, uint64_t block)
 	rgd = gfs_blk2rgrpd(sdp, block);
 	if (!rgd) {
 		if (gfs_consist(sdp))
-			printk("GFS: fsid=%s: block = %"PRIu64"\n",
+			printk("GFS: fsid=%s: block = %llu\n",
 			       sdp->sd_fsname, block);
 		return;
 	}

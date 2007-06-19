@@ -66,6 +66,8 @@ static struct gfs_sbd *init_sbd(struct super_block *sb)
 	spin_lock_init(&sdp->sd_rg_recent_lock);
 	spin_lock_init(&sdp->sd_rg_forward_lock);
 
+	spin_lock_init(&sdp->sd_statfs_spin);
+
 	for (x = 0; x < GFS_GL_HASH_SIZE; x++) {
 		sdp->sd_gl_hash[x].hb_lock = RW_LOCK_UNLOCKED;
 		INIT_LIST_HEAD(&sdp->sd_gl_hash[x].hb_list);
@@ -367,6 +369,19 @@ static int init_sb(struct gfs_sbd *sdp, int silent, int undo)
 		goto fail_root_free;
 	}
 
+	/* Implement fast statfs on the unused license inode location.
+	 * sb->sb_quota_di.no_formal_ino = jindex_dinode + 2;
+	 * sb->sb_quota_di.no_addr = jindex_dinode + 2;
+	 * sb->sb_license_di.no_formal_ino = jindex_dinode + 3;
+	 * sb->sb_license_di.no_addr = jindex_dinode + 3;
+	 */
+	error = gfs_get_linode(sdp);
+	if (error) {
+		printk("GFS: fsid=%s: can't get statfs file inode: %d\n",
+				sdp->sd_fsname, error);
+		goto fail_qi_free;
+	}
+
 	/*  We're through with the superblock lock  */
 out:
 	gfs_glock_dq_uninit(&sb_gh);
@@ -377,6 +392,7 @@ fail_dput:
 		dput(sb->s_root);
 		sb->s_root = NULL;
 	}
+fail_qi_free:
 	gfs_inode_put(sdp->sd_qinode);
 fail_root_free:
 	gfs_inode_put(sdp->sd_rooti);

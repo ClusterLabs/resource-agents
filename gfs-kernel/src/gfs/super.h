@@ -37,9 +37,14 @@ int gfs_get_jiinode(struct gfs_sbd *sdp);
 int gfs_get_riinode(struct gfs_sbd *sdp);
 int gfs_get_rootinode(struct gfs_sbd *sdp);
 int gfs_get_qinode(struct gfs_sbd *sdp);
+int gfs_get_linode(struct gfs_sbd *sdp);
 
 int gfs_make_fs_rw(struct gfs_sbd *sdp);
 int gfs_make_fs_ro(struct gfs_sbd *sdp);
+
+int gfs_statfs_init(struct gfs_sbd *sdp, int flag);
+int gfs_statfs_sync(struct gfs_sbd *sdp);
+int gfs_statfs_fast(struct gfs_sbd *sdp, void *buf);
 
 struct gfs_stat_gfs {
 	uint64_t sg_total_blocks;

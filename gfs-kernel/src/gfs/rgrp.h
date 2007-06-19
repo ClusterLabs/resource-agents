@@ -57,6 +57,11 @@ void gfs_metafree(struct gfs_inode *ip, uint64_t bstart, uint32_t blen);
 void gfs_difree_uninit(struct gfs_rgrpd *rgd, uint64_t addr);
 void gfs_difree(struct gfs_rgrpd *rgd, struct gfs_inode *ip);
 
+extern void gfs_statfs_modify(struct gfs_sbd *sdp,
+                                int64_t total,
+                                int64_t free,
+                                int64_t dinodes);
+
 /*
  * gfs_rgrp_list
  *

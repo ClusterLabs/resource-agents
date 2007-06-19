@@ -904,6 +904,7 @@ struct gfs_tune {
 	unsigned int gt_greedy_quantum;
 	unsigned int gt_greedy_max;
 	unsigned int gt_rgrp_try_threshold;
+	unsigned int gt_statfs_fast;
 };
 
 /*
@@ -965,6 +966,13 @@ struct gfs_sbd {
 	unsigned long sd_flags;         /* SDF_... see above */
 
 	struct gfs_tune sd_tune;	/* Filesystem tuning structure */
+
+	/* statfs */
+	struct inode *sd_statfs_inode;
+	spinlock_t sd_statfs_spin;
+	struct gfs_statfs_change_host sd_statfs_master;
+	struct gfs_statfs_change_host sd_statfs_local;
+	unsigned long sd_statfs_sync_time;
 
 	/* Resource group stuff */
 

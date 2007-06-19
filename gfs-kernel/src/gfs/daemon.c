@@ -141,6 +141,18 @@ gfs_quotad(void *data)
 	int error;
 
 	while (!kthread_should_stop()) {
+		/* Update statfs file */
+		if (gfs_tune_get(sdp, gt_statfs_fast) &&
+			time_after_eq(jiffies,
+			sdp->sd_statfs_sync_time +
+			gfs_tune_get(sdp, gt_statfs_fast) * HZ)) {
+			error = gfs_statfs_sync(sdp);
+			if (error && error != -EROFS &&
+				!test_bit(SDF_SHUTDOWN, &sdp->sd_flags))
+				printk("GFS: fsid=%s: statfs: error = %d\n",
+				sdp->sd_fsname, error);
+				sdp->sd_statfs_sync_time = jiffies;
+		}
 		/* Update quota file */
 		if (time_after_eq(jiffies,
 				  sdp->sd_quota_sync_time +

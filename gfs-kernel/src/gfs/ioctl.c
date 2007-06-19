@@ -483,6 +483,7 @@ gi_get_tune(struct gfs_inode *ip,
         gfs_printf("greedy_quantum %u\n", gt->gt_greedy_quantum);
         gfs_printf("greedy_max %u\n", gt->gt_greedy_max);
         gfs_printf("rgrp_try_threshold %u\n", gt->gt_rgrp_try_threshold);
+        gfs_printf("statfs_fast %u\n", gt->gt_statfs_fast);
 
         error = 0;
 
@@ -513,6 +514,7 @@ gi_set_tune(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 	struct gfs_tune *gt = &sdp->sd_tune;
  	char param[ARG_SIZE], value[ARG_SIZE];
 	unsigned int x;
+	int error;
 
 	if (!capable(CAP_SYS_ADMIN))
                 return -EACCES;
@@ -751,6 +753,16 @@ gi_set_tune(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 		if (sscanf(value, "%u", &x) != 1)
 			return -EINVAL;
 		tune_set(gt_rgrp_try_threshold, x);
+
+	} else if (strcmp(param, "statfs_fast") == 0) {
+		if (sscanf(value, "%u", &x) != 1)
+			return -EINVAL;
+		error = gfs_statfs_init(sdp, x);
+		if (error)
+			return error;
+		else
+			tune_set(gt_statfs_fast, x);
+
 
 	} else
 		return -EINVAL;

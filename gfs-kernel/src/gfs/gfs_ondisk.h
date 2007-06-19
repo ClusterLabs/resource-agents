@@ -618,6 +618,24 @@ struct gfs_ea_header {
 	uint32_t ea_pad;
 };
 
+/*
+ * Statfs change
+ * Describes an change to the pool of free and allocated
+ * blocks.
+ */
+
+struct gfs_statfs_change {
+	uint64_t sc_total;
+	uint64_t sc_free;
+	uint64_t sc_dinodes;
+};
+
+struct gfs_statfs_change_host {
+	int64_t sc_total;
+	int64_t sc_free;
+	int64_t sc_dinodes;
+};
+
 /*  Endian functions  */
 
 #define GFS_ENDIAN_BIG
