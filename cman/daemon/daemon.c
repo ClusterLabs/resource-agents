@@ -158,6 +158,8 @@ static int process_client(poll_handle handle, int fd, int revent, void *data)
 		int len;
 		int totallen = 0;
 
+		memset(buf, 0, (MAX_CLUSTER_MESSAGE + sizeof(struct sock_header)));
+
 		len = read(fd, buf, sizeof(struct sock_header));
 
 		P_DAEMON("read %d bytes from fd %d\n", len, fd);
@@ -183,6 +185,11 @@ static int process_client(poll_handle handle, int fd, int revent, void *data)
 		}
 		if (msg->version != CMAN_VERSION) {
 			P_DAEMON("bad version in client command. msg = 0x%x, us = 0x%x\n", msg->version, CMAN_VERSION);
+			send_status_return(con, msg->command, -EINVAL);
+			return 0;
+		}
+		if ((msg->length-len) > MAX_CLUSTER_MESSAGE) {
+			P_DAEMON("message on socket is too big\n");
 			send_status_return(con, msg->command, -EINVAL);
 			return 0;
 		}
