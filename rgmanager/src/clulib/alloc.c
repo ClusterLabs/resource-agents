@@ -116,9 +116,11 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
+#ifndef __ia64__
 #ifndef DEBUG
 #define DEBUG			/* Record program counter of malloc/calloc */
 #endif				/* or realloc call; print misc stuff out */
+#endif
 
 /* Tunable stuff XXX This should be external */
 #define PARANOID		/* Trade off a bit of space and speed for
@@ -667,7 +669,7 @@ search_freestore(size_t size)
 
 #define stack_pointer(n) \
 	(__builtin_frame_address(n)?__builtin_return_address(n):NULL)
-			
+
 #define assign_address(_ptr, _cnt) \
 { \
 	switch(_cnt) { \
@@ -806,9 +808,11 @@ void
 free(void *p)
 {
 	memblock_t *b;
+#ifdef DEBUG
 #ifdef STACKSIZE
 	void *pc = __builtin_return_address(0);
 	int x;
+#endif
 #endif
 
 	if (!p) {
@@ -862,10 +866,12 @@ free(void *p)
 	}
 #endif
 
+#ifdef DEBUG
 #ifdef STACKSIZE
 	for (x = 0; x < STACKSIZE; x++)
 		b->mb_pc[x] = NULL;
 	b->mb_pc[0] = pc;
+#endif
 #endif
 
 	b->mb_state = ST_FREE;
@@ -981,9 +987,11 @@ malloc_dump_table(size_t minsize, size_t maxsize)
 #ifdef PARANOID
 	int any = 0;
 	int x;
+#ifdef DEBUG
 #ifdef STACKSIZE
 #ifndef GDB_HOOK
 	int sp;
+#endif
 #endif
 #endif
 	memblock_t *b;

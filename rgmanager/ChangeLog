@@ -1,3 +1,9 @@
+2007-06-21 Fabio M. Di Nitto <fabbione at ubuntu.com>
+	* rgmanager/src/clulib/alloc.c: Undefine DEBUG when building on IA64.
+	The __builtin_address functionality should be taken from libunwind
+	but porting requires some work. For now use this workaround and
+	also make sure to wrap STACKSIZE withing DEBUG.
+
 2007-06-14 Lon Hohberger <lhh at redhat.com>
 	* include/resgroup.h: Fix size incompatibility on 32/64 bit mixed
 	clusters.  Put in stubs for intelligent handling of state sizes
