@@ -1130,7 +1130,7 @@ void read_superblock(void)
 
 	sbd1 = (struct gfs_sb *)&sbd.sd_sb;
 	ioctl(fd, BLKFLSBUF, 0);
-	do_lseek(fd, 0x10 * bufsize);
+	do_lseek(fd, 0x10 * 4096);
 	do_read(fd, buf, bufsize); /* read in the desired block */
 	memset(&sbd, 0, sizeof(struct gfs2_sbd));
 	sbd.device_fd = fd;
@@ -1160,6 +1160,8 @@ void read_superblock(void)
 	}
 	else
 		gfs1 = FALSE;
+	bufsize = sbd.sd_sb.sb_bsize;
+	block = 0x10 * (4096 / bufsize);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -1203,7 +1205,7 @@ int display(int identify_only)
 		return 0;
 	indirect_blocks = 0;
 	lines_per_row[dmode] = 1;
-	if (gfs2_struct_type == GFS2_METATYPE_SB || blk == 0x10) {
+	if (gfs2_struct_type == GFS2_METATYPE_SB || blk == 0x10 * (4096 / bufsize)) {
 		gfs2_sb_in(&sbd.sd_sb, buf); /* parse it out into the sb structure */
 		memset(&indirect, 0, sizeof(indirect));
 		indirect[0].block = sbd.sd_sb.sb_master_dir.no_addr;
@@ -1608,7 +1610,7 @@ void interactive_mode(void)
 				edit_row[dmode] = 0;
 			}
 			else {
-				block = 0x10;
+				block = 0x10 * (4096 / bufsize);
 				push_block(block);
 				offset = 0;
 			}
@@ -1882,7 +1884,7 @@ void process_parameters(int argc, char *argv[], int pass)
 						   max_block, max_block);
 				else if (!strcmp(argv[i], "sb") ||
 						 !strcmp(argv[i], "superblock"))
-					push_block(0x10); /* superblock */
+					push_block(0x10 * (4096 / bufsize)); /* superblock */
 				else if (!strcmp(argv[i], "root") ||
 						 !strcmp(argv[i], "rootdir"))
 					push_block(sbd.sd_sb.sb_root_dir.no_addr);
