@@ -195,7 +195,7 @@ static void unstuff_dinode(struct gfs2_inode *ip)
 			buffer_copy_tail(bh, 0,
 					 ip->i_bh, sizeof(struct gfs2_dinode));
 
-			brelse(bh, not_updated);
+			brelse(bh, updated);
 		}
 	}
 
@@ -345,9 +345,7 @@ void block_map(struct gfs2_inode *ip, uint64_t lblock, int *new,
 	unsigned int height;
 	unsigned int end_of_metadata;
 	unsigned int x;
-	enum update_flags f;
 
-	f = not_updated;
 	*new = 0;
 	*dblock = 0;
 	if (extlen)
@@ -379,7 +377,7 @@ void block_map(struct gfs2_inode *ip, uint64_t lblock, int *new,
 
 	for (x = 0; x < end_of_metadata; x++) {
 		lookup_block(ip, bh, x, mp, create, new, dblock);
-		brelse(bh, not_updated);
+		brelse(bh, updated);
 		if (!*dblock)
 			goto out;
 
@@ -390,7 +388,6 @@ void block_map(struct gfs2_inode *ip, uint64_t lblock, int *new,
 			mh.mh_type = GFS2_METATYPE_IN;
 			mh.mh_format = GFS2_FORMAT_IN;
 			gfs2_meta_header_out(&mh, bh->b_data);
-			f = updated;
 		} else
 			bh = bread(sdp, *dblock);
 	}
@@ -420,7 +417,7 @@ void block_map(struct gfs2_inode *ip, uint64_t lblock, int *new,
 		}
 	}
 
-	brelse(bh, f);
+	brelse(bh, updated);
 
  out:
 	free(mp);
