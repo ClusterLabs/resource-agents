@@ -1592,7 +1592,7 @@ int
 handle_start_req(char *svcName, int req, int *new_owner)
 {
 	int ret, tolerance = FOD_BEST;
-//	cluster_member_list_t *membership = member_list();
+	cluster_member_list_t *membership = member_list();
 	int need_check = have_exclusive_resources();
 
 	/*
@@ -1601,7 +1601,6 @@ handle_start_req(char *svcName, int req, int *new_owner)
 	 */
 	if (req == RG_ENABLE)
 		tolerance = FOD_GOOD;
-/*	
 	if (req != RG_RESTART &&
 	    req != RG_START_RECOVER &&
 	    (node_should_start_safe(my_id(), membership, svcName) <
@@ -1622,7 +1621,7 @@ handle_start_req(char *svcName, int req, int *new_owner)
 		}
 	}
 	free_member_list(membership);
-*/
+
 	/* Check for dependency.  We cannot start unless our
 	   dependency is met */
 	if (check_depend_safe(svcName) == 0)
