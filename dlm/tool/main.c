@@ -140,8 +140,8 @@ void do_join(char *name)
 
 	dh = dlm_new_lockspace(name, 0600, DLM_LSFL_NODIR);
 	if (!dh) {
-		fprintf(stderr, "dlm_create_lockspace %s error %lu %d\n",
-			name, (unsigned long) dh, errno);
+		fprintf(stderr, "dlm_create_lockspace %s error %llu %d\n",
+			name, (unsigned long long) dh, errno);
 		exit(-1);
 	}
 
@@ -159,8 +159,8 @@ void do_leave(char *name)
 
 	dh = dlm_open_lockspace(name);
 	if (!dh) {
-		fprintf(stderr, "dlm_open_lockspace %s error %lu %d\n",
-			name, (unsigned long) dh, errno);
+		fprintf(stderr, "dlm_open_lockspace %s error %llu %d\n",
+			name, (unsigned long long) dh, errno);
 		exit(-1);
 	}
 
