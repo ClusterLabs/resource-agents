@@ -610,8 +610,7 @@ int parse_rindex(struct gfs2_inode *di, int print_rindex)
 			 termlines - start_line - 2)) {
 			if (edit_row[dmode] == print_entry_ndx) {
 				COLORS_HIGHLIGHT;
-				sprintf(highlighted_addr, "%" PRIx64,
-					ri.ri_addr);
+				sprintf(highlighted_addr, "%llx", (unsigned long long)ri.ri_addr);
 			}
 			print_gfs2("RG #%d", print_entry_ndx);
 			if (!print_rindex)
@@ -825,7 +824,7 @@ int display_indirect(void)
 {
 	int start_line, total_dirents, indir_blocks;
 	int i, cur_height = -1;
-	uint64_t factor[5];
+	uint64_t factor[5]={0,0,0,0,0};
 	int offsets[5];
 
 	last_entry_onscreen[dmode] = 0;
@@ -872,12 +871,22 @@ int display_indirect(void)
 			}
 		}
 		if (cur_height >= 0) {
+			int diptrs, inptrs;
+
+			if (gfs1) {
+				diptrs = 483;
+				inptrs = 501;
+			} else {
+				diptrs = (bufsize - sizeof(sizeof(struct gfs2_dinode))) / sizeof(uint64_t);
+				inptrs = (bufsize - sizeof(sizeof(struct gfs2_meta_header))) /
+					sizeof(uint64_t);
+			}
 			/* Multiply out the max factor based on inode height.*/
 			/* This is how much data is represented by each      */
 			/* indirect pointer at each height.                  */
 			factor[0] = 1ull;
 			for (i = 0; i < di.di_height; i++)
-				factor[i + 1] = factor[i] * (gfs1 ? 501 : 509);
+				factor[i + 1] = factor[i] * inptrs;
 		}
 		print_gfs2("  (at height=%d)", cur_height);
 	}
