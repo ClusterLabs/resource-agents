@@ -279,10 +279,13 @@ sub power_status
 
 	foreach my $line (@response)
 	{
+		if ($line =~ /FIRMWARE_VERSION\s*=\s*\"(.*)\"/) {
+			$firmware_rev = $1;
+		}
 		if ($line =~ /MANAGEMENT_PROCESSOR\s*=\s*\"(.*)\"/) {
 			if ($1 eq "iLO2") {
 				$ilo_vers = 2;
-				print "power_status: reporting iLO2\n" if ($verbose);
+				print "power_status: reporting iLO2 $firmware_rev\n" if ($verbose);
 			}
 		}
 
@@ -358,7 +361,11 @@ sub set_power_state
 		# HOLD_PWR_BUTTON is used to power the machine off, and
 		# PRESS_PWR_BUTTON is used to power the machine on;
 		# when the power is off, HOLD_PWR_BUTTON has no effect.
-		sendsock $socket, "<HOLD_PWR_BTN/>\n";
+		if ($firmware_rev > 1.29) {
+			sendsock $socket, "<HOLD_PWR_BTN TOGGLE=\"Yes\" />\n";
+		} else {
+			sendsock $socket, "<HOLD_PWR_BTN/>\n";
+		}
 	}
 	# As of firmware version 1.71 (RIBCL 2.21) The SET_HOST_POWER command
 	# is no longer available.  HOLD_PWR_BTN and PRESS_PWR_BTN are used 
@@ -511,6 +518,7 @@ sub get_options_stdin
 $action = "reboot";
 $ribcl_vers = undef; # undef = autodetect
 $ilo_vers = 1;
+$firmware_rev = 0;
 
 if (@ARGV > 0) {
 	getopts("a:hl:n:o:p:S:r:qvV") || fail_usage ;
