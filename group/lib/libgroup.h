@@ -23,6 +23,10 @@
 #ifndef _LIBGROUP_H_
 #define _LIBGROUP_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define MAX_GROUP_MEMBERS	256
 #define MAX_GROUP_NAME_LEN	32
 
@@ -33,16 +37,16 @@
 
 typedef void *group_handle_t;
 
-typedef void (*group_stop_t)(group_handle_t h, void *private, char *name);
-typedef void (*group_start_t)(group_handle_t h, void *private, char *name,
+typedef void (*group_stop_t)(group_handle_t h, void *priv, char *name);
+typedef void (*group_start_t)(group_handle_t h, void *priv, char *name,
 			      int event_nr, int type, int member_count,
 			      int *members);
-typedef void (*group_finish_t)(group_handle_t h, void *private, char *name,
+typedef void (*group_finish_t)(group_handle_t h, void *priv, char *name,
 			       int event_nr);
-typedef void (*group_terminate_t)(group_handle_t h, void *private, char *name);
-typedef void (*group_set_id_t)(group_handle_t h, void *private, char *name,
+typedef void (*group_terminate_t)(group_handle_t h, void *priv, char *name);
+typedef void (*group_set_id_t)(group_handle_t h, void *priv, char *name,
 			       unsigned int id);
-typedef void (*group_deliver_t)(group_handle_t h, void *private, char *name,
+typedef void (*group_deliver_t)(group_handle_t h, void *priv, char *name,
 			        int nodeid, int len, char *buf);
 
 typedef struct {
@@ -54,7 +58,7 @@ typedef struct {
 	group_deliver_t deliver;
 } group_callbacks_t;
 
-group_handle_t group_init(void *private, char *prog_name, int level, group_callbacks_t *cbs, int timeout);
+group_handle_t group_init(void *priv, char *prog_name, int level, group_callbacks_t *cbs, int timeout);
 int group_exit(group_handle_t handle);
 
 int group_join(group_handle_t handle, char *name);
@@ -90,5 +94,8 @@ typedef struct group_data {
 int group_get_groups(int max, int *count, group_data_t *data);
 int group_get_group(int level, const char *name, group_data_t *data);
 
+#ifdef __cplusplus
+}
 #endif
 
+#endif
