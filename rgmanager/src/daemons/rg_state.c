@@ -1673,7 +1673,7 @@ handle_start_req(char *svcName, int req, int *new_owner)
 		return RG_EABORT;
 	}
 	
-//relocate:
+relocate:
 	/*
 	 * OK, it failed to start - but succeeded to stop.  Now,
 	 * we should relocate the service.
