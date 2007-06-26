@@ -222,6 +222,12 @@ list_submounts() {
 	list_mounts | grep " $1/" | cut -d' ' -f2 | sort -r
 }
 
+ocfs2_del_cache() {
+	if [ -e "$_OCFS2_uuid_cache" ]; then
+		rm -f $_OCFS2_uuid_cache 2>/dev/null
+	fi
+}
+
 ocfs2_cleanup() {
 	# We'll never see the post-stop notification. We're gone now,
 	# have unmounted, and thus should remove the membership.
@@ -236,6 +242,41 @@ ocfs2_cleanup() {
 		ocf_log info "$OCFS2_FS_ROOT: Removing membership directory."
 		rm -rf $OCFS2_FS_ROOT/
 	fi
+
+	ocfs2_del_cache
+}
+
+ocfs2_fetch_uuid() {
+	mounted.ocfs2 -d $DEVICE|tail -1|awk '{print $3}'|tr -d -- -|tr '[a-z]' '[A-Z]'
+}
+
+ocfs2_set_uuid() {
+	_OCFS2_uuid_cache="@HA_VARRUNHBRSCDIR@/Filesystem.ocfs2_uuid.$(echo $DEVICE|tr / .)"
+	
+	if [ "$OP" != "start" -a -e "$_OCFS2_uuid_cache" ]; then
+		# Trust the cache.
+		OCFS2_UUID=$(cat $_OCFS2_uuid_cache 2>/dev/null)
+		return 0
+	fi
+
+	OCFS2_UUID=$(ocfs2_fetch_uuid)
+	if [ -n "$OCFS2_UUID" -a "$OCFS2_UUID" != "UUID" ]; then
+		# UUID valid:
+		echo $OCFS2_UUID > $_OCFS2_uuid_cache 
+		return 0
+	fi
+
+	# Ok, no UUID still, but that's alright for stop, because it
+	# very likely means we never got started -
+	if [ "$OP" = "stop" ]; then
+		ocf_log warn "$DEVICE: No UUID; assuming never started!"
+		OCFS2_UUID="UUID_NOT_SET"
+		return 0
+	fi
+
+	# Everything else - wrong:
+	ocf_log err "$DEVICE: Could not determine ocfs2 UUID for device."
+	exit $OCF_ERR_GENERIC
 }
 
 ocfs2_init()
@@ -265,11 +306,7 @@ ocfs2_init()
 		exit $OCF_ERR_GENERIC
 	fi
 
-	OCFS2_UUID=$(mounted.ocfs2 -d $DEVICE|tail -1|awk '{print $3}'|tr -d -- -|tr '[a-z]' '[A-Z]')
-	if [ -z "$OCFS2_UUID" -o "$OCFS2_UUID" = "UUID" ]; then
-		ocf_log err "$DEVICE: Could not determine ocfs2 UUID."
-		exit $OCF_ERR_GENERIC
-	fi
+	ocfs2_set_uuid
 	
 	if [ -n "$OCF_RESKEY_ocfs2_cluster" ]; then
 		OCFS2_CLUSTER=$(echo $OCF_RESKEY_ocfs2_cluster | tr '[a-z]' '[A-Z]')
@@ -617,6 +654,9 @@ Filesystem_status()
 	# TODO: For ocfs2, or other cluster filesystems, should we be
 	# checking connectivity to other nodes here, or the IO path to
 	# the storage?
+	
+	# Special case "monitor" to check whether the UUID cached and
+	# on-disk still match?
 	
         case "$OP" in
 	status)	ocf_log info "$msg";;
