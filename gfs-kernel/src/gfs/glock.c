@@ -2496,13 +2496,12 @@ gfs_reclaim_glock(struct gfs_sbd *sdp)
 static int
 examine_bucket(glock_examiner examiner,
 		struct gfs_sbd *sdp, struct gfs_gl_hash_bucket *bucket,
-		unsigned int purge_nr)
+		unsigned int *purge_nr)
 {
 	struct glock_plug plug;
 	struct list_head *tmp;
 	struct gfs_glock *gl;
 	int entries;
-	unsigned int p_cnt=purge_nr;
 
 	/* Add "plug" to end of bucket list, work back up list from there */
 	memset(&plug.gl_flags, 0, sizeof(unsigned long));
@@ -2543,7 +2542,7 @@ examine_bucket(glock_examiner examiner,
 
 		write_unlock(&bucket->hb_lock);
 
-		examiner(gl, &p_cnt);
+		examiner(gl, &purge_nr);
 	}
 }
 
@@ -2655,11 +2654,11 @@ gfs_scand_internal(struct gfs_sbd *sdp)
 		purge_nr = 0;
 	else
 		purge_nr = (atomic_read(&sdp->sd_glock_count) -
-			atomic_read(&sdp->sd_glock_held_count)) *
-			sdp->sd_tune.gt_glock_purge / 100 / GFS_GL_HASH_SIZE;
+			atomic_read(&sdp->sd_glock_count)) *
+			sdp->sd_tune.gt_glock_purge / 100;
 
 	for (x = 0; x < GFS_GL_HASH_SIZE; x++) {
-		examine_bucket(scan_glock, sdp, &sdp->sd_gl_hash[x], purge_nr);
+		examine_bucket(scan_glock, sdp, &sdp->sd_gl_hash[x], &purge_nr);
 		cond_resched();
 	}
 }
