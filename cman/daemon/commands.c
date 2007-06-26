@@ -944,7 +944,7 @@ static int do_cmd_try_shutdown(struct connection *con, char *cmdbuf)
 
 		/* Start the timer. If we don't get a full set of replies before this goes
 		   off we'll cancel the shutdown */
-		openais_timer_add_duration(shutdown_timeout*1000, NULL,
+		openais_timer_add_duration((unsigned long long)shutdown_timeout*1000000, NULL,
 					   shutdown_timer_fn, &shutdown_timer);
 
 		notify_listeners(NULL, EVENT_REASON_TRY_SHUTDOWN, flags);
@@ -1026,7 +1026,7 @@ static void ccsd_timer_fn(void *arg)
 		log_msg(LOG_ERR, "Can't read CCS to get updated config version %d. Activity suspended on this node\n",
 			wanted_config_version);
 
-		openais_timer_add_duration(ccsd_poll_interval*1000, NULL,
+		openais_timer_add_duration((unsigned long long)ccsd_poll_interval*1000000, NULL,
 					   ccsd_timer_fn, &ccsd_timer);
 	}
 	else {
@@ -1050,7 +1050,7 @@ static void quorum_device_timer_fn(void *arg)
 		recalculate_quorum(0);
 	}
 	else {
-		openais_timer_add_duration(quorumdev_poll*1000, quorum_device,
+		openais_timer_add_duration((unsigned long long)quorumdev_poll*1000000, quorum_device,
 					   quorum_device_timer_fn, &quorum_device_timer);
 	}
 }
@@ -1070,7 +1070,7 @@ static int do_cmd_poll_quorum_device(char *cmdbuf, int *retlen)
                         quorum_device->state = NODESTATE_MEMBER;
                         recalculate_quorum(0);
 
-			openais_timer_add_duration(quorumdev_poll*1000, quorum_device,
+			openais_timer_add_duration((unsigned long long)quorumdev_poll*1000000, quorum_device,
 						   quorum_device_timer_fn, &quorum_device_timer);
                 }
         }
@@ -1493,7 +1493,7 @@ static int valid_transition_msg(int nodeid, struct cl_transmsg *msg)
 				msg->config_version);
 
 			wanted_config_version = msg->config_version;
-			openais_timer_add_duration(ccsd_poll_interval*1000, NULL,
+			openais_timer_add_duration((unsigned long long)ccsd_poll_interval*1000000, NULL,
 						   ccsd_timer_fn, &ccsd_timer);
 		}
 		if (config_version > msg->config_version) {
@@ -1653,7 +1653,7 @@ static void do_reconfigure_msg(void *data)
 			recalculate_quorum(0);
 
 			wanted_config_version = config_version;
-			openais_timer_add_duration(ccsd_poll_interval*1000, NULL,
+			openais_timer_add_duration((unsigned long long)ccsd_poll_interval*1000000, NULL,
 						   ccsd_timer_fn, &ccsd_timer);
 		}
 		break;

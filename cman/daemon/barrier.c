@@ -285,7 +285,7 @@ static int barrier_setattr_enabled(struct cl_barrier *barrier,
 
 		/* Start the timer if one was wanted */
 		if (barrier->timeout) {
-			openais_timer_add_duration(barrier->timeout*1000000, barrier,
+			openais_timer_add_duration((unsigned long long)barrier->timeout*1000000000ULL, barrier,
 						   barrier_timer_fn, &barrier->timer);
 		}
 
