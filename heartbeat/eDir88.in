@@ -63,7 +63,7 @@ eDir_meta_data() {
 cat <<-EOFB
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="eDir88" version="0.16">
+<resource-agent name="eDir88" version="0.17">
 <version>1.0</version>
 
 <longdesc lang="en">
@@ -185,13 +185,13 @@ eDir_start() {
         # Startup time can be in excess of 10 minutes.
         # Leave a very long heartbeat timeout on the start action
         # We're relying on heartbeat to bail us out...
-	let CNT=$CNT+1
+        let CNT=$CNT+1
         ocf_log info "eDirectory start waiting for ${CNT}th retry for $NDSCONF."
         sleep 10
     done
-    
+
     ocf_log info "eDirectory start verified for $NDSCONF."
-    
+
     return $OCF_SUCCESS
 }
 
@@ -205,21 +205,22 @@ eDir_start() {
 
 eDir_stop() {
     if ! eDir_status ; then
-	return $OCF_SUCCESS
+        return $OCF_SUCCESS
     fi
 
     if [ -r "$NDSCONF" -a -x $NDSMANAGE ] ; then
-	$NDSMANAGE stop --config-file "$NDSCONF" >/dev/null 2>&1
-	if eDir_status ; then
-                # eDir failed to stop.
-	    ocf_log err "eDirectory instance failed to stop for $NDSCONF"
-	else
-	    ocf_log info "eDirectory stop verified for $NDSCONF."
-	    return $OCF_SUCCESS
-	fi
+        $NDSMANAGE stop --config-file "$NDSCONF" >/dev/null 2>&1
+        if eDir_status ; then
+            # eDir failed to stop.
+            ocf_log err "eDirectory instance failed to stop for $NDSCONF"
+            return $OCF_ERR_GENERIC
+        else
+            ocf_log info "eDirectory stop verified for $NDSCONF."
+            return $OCF_SUCCESS
+        fi
     else
-	ocf_log err "ndsmanage binary or config file missing ($NDSCONF). STOP action failed."
-	return $OCF_ERR_GENERIC
+        ocf_log err "ndsmanage binary or config file missing ($NDSCONF). STOP action failed."
+        return $OCF_ERR_GENERIC
     fi
 }
 
@@ -231,7 +232,7 @@ eDir_status() {
     if [ ! -r "$NDSCONF" ] ; then
         ocf_log err "Config file missing ($NDSCONF)."
         exit $OCF_ERR_GENERIC
-    fi 
+    fi
 
     # Find how many ndsd processes have open listening sockets
     # with the IP of this eDir instance
@@ -256,7 +257,7 @@ eDir_status() {
     if [ -z "$PIDDIR" ] ; then
         ocf_log err "Cannot get vardir from nds config ($NDSCONF). Probable eDir configuration error."
         exit $OCF_ERR_GENERIC
-    fi 
+    fi
     NDSD_PID=$(cat $PIDDIR/ndsd.pid 2>/dev/null)
     if [ -z "$NDSD_PID" ] ; then
         # PID file unavailable or empty.
@@ -280,7 +281,7 @@ eDir_status() {
 #
 # eDir_monitor: Do more in-depth checks to ensure that eDirectory is fully functional
 #               LDAP and IDM checks are only done if reqested.
-#               
+#
 #
 
 eDir_monitor() {
