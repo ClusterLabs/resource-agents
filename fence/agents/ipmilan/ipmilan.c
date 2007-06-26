@@ -665,6 +665,7 @@ _ipmilan_setconfinfo(Stonith *s, const char *info)
 	char *end = NULL;
 	struct ipmi *i;
 	size_t len;
+	int lanplus = 0;
 
 	if (!ISIPMI(s))
 		return S_OOPS;
@@ -679,6 +680,10 @@ _ipmilan_setconfinfo(Stonith *s, const char *info)
 	if (user) {
 		*user = 0;
 		user++;
+		if (*user && *user == '+') {
+			lanplus = 1;
+			user++;
+		}
 	}
 
 	/* No separator or end of string reached */
@@ -710,7 +715,7 @@ _ipmilan_setconfinfo(Stonith *s, const char *info)
 		user = NULL;
 
 	/* IPMI auth type not supported on RHEL3 */
-	i = ipmi_init(i, host, NULL, user, passwd, 0, 0);
+	i = ipmi_init(i, host, NULL, user, passwd, lanplus, 0);
 	if (!i)
 		return S_OOPS;
 	i->i_config = 1;
