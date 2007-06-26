@@ -33,7 +33,7 @@
  *
  * Returns: 0 on success, -1 on failure
  */
-static int check_sb(struct gfs2_sbd *sdp, struct gfs2_sb *sb)
+int check_sb(struct gfs2_sb *sb)
 {
 	if (sb->sb_header.mh_magic != GFS2_MAGIC ||
 	    sb->sb_header.mh_type != GFS2_METATYPE_SB) {
@@ -75,7 +75,7 @@ int read_sb(struct gfs2_sbd *sdp)
 	gfs2_sb_in(&sdp->sd_sb, bh->b_data);
 	brelse(bh, not_updated);
 
-	error = check_sb(sdp, &sdp->sd_sb);
+	error = check_sb(&sdp->sd_sb);
 	if (error)
 		goto out;
 

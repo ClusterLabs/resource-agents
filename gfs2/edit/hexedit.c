@@ -47,6 +47,8 @@
 int display(int identify_only);
 extern void eol(int col);
 extern void do_indirect_extended(char *buf);
+extern void savemeta(const char *in_fn, const char *out_fn, int slow);
+extern void restoremeta(const char *in_fn, const char *out_device);
 
 /* ------------------------------------------------------------------------ */
 /* UpdateSize - screen size changed, so update it                           */
@@ -1813,6 +1815,9 @@ void usage(void)
 	fprintf(stderr,"\nFormat is: gfs2_edit [-c 1] [-V] [-x] [-h] [identify] [-p structures|blocks] /dev/device\n\n");
 	fprintf(stderr,"If only the device is specified, it enters into hexedit mode.\n");
 	fprintf(stderr,"identify - prints out only the block type, not the details.\n");
+	fprintf(stderr,"savemeta - save off your metadata for analysis and debugging.  The intelligent way (assume bitmap is correct).\n");
+	fprintf(stderr,"savemetaslow - save off your metadata for analysis and debugging.  The SLOW way (block by block).\n");
+	fprintf(stderr,"restoremeta - restore metadata for debugging (DANGEROUS).\n");
 	fprintf(stderr,"-V   prints version number.\n");
 	fprintf(stderr,"-c 1 selects alternate color scheme 1\n");
 	fprintf(stderr,"-p   prints GFS2 structures or blocks to stdout.\n");
@@ -1877,6 +1882,12 @@ void process_parameters(int argc, char *argv[], int pass)
 				termlines = 0; /* initial value--we'll figure it out later */
 				dmode = GFS2_MODE;
 			}
+			else if (!strcasecmp(argv[i], "savemeta"))
+				savemeta(argv[i+1], argv[i+2], FALSE);
+			else if (!strcasecmp(argv[i], "savemetaslow"))
+				savemeta(argv[i+1], argv[i+2], TRUE);
+			else if (!strcasecmp(argv[i], "restoremeta"))
+				restoremeta(argv[i+1], argv[i+2]);
 			else if (strchr(argv[i],'/'))
 				strcpy(device, argv[i]);
 		}

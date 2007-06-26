@@ -16,6 +16,7 @@ include ../../make/defines.mk
 TARGET= gfs2_edit
 
 OBJS=	gfs2hex.o \
+	savemeta.o \
 	hexedit.o
 
 CFLAGS += -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 -DGFS2_RELEASE_NAME=\"${RELEASE}\"
