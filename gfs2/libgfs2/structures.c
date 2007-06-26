@@ -67,7 +67,7 @@ build_sb(struct gfs2_sbd *sdp)
 	sb.sb_fs_format = GFS2_FORMAT_FS;
 	sb.sb_multihost_format = GFS2_FORMAT_MULTI;
 	sb.sb_bsize = sdp->bsize;
-	sb.sb_bsize_shift = sdp->bsize_shift;
+	sb.sb_bsize_shift = ffs(sdp->bsize) - 1;
 	sb.sb_master_dir = sdp->master_dir->i_di.di_num;
 	sb.sb_root_dir = sdp->md.rooti->i_di.di_num;
 	strcpy(sb.sb_lockproto, sdp->lockproto);
@@ -147,7 +147,8 @@ build_jindex(struct gfs2_sbd *sdp)
 
 		sprintf(name, "journal%u", j);
 		ip = createi(jindex, name, S_IFREG | 0600, GFS2_DIF_SYSTEM);
-		write_journal(sdp, ip, j, sdp->jsize << 20 >> sdp->bsize_shift);
+		write_journal(sdp, ip, j,
+			      sdp->jsize << 20 >> sdp->sd_sb.sb_bsize_shift);
 		inode_put(ip, updated);
 	}
 
@@ -206,7 +207,7 @@ build_quota_change(struct gfs2_inode *per_node, unsigned int j)
 	struct gfs2_meta_header mh;
 	char name[256];
 	struct gfs2_inode *ip;
-	unsigned int blocks = sdp->qcsize << (20 - sdp->bsize_shift);
+	unsigned int blocks = sdp->qcsize << (20 - sdp->sd_sb.sb_bsize_shift);
 	unsigned int x;
 
 	memset(&mh, 0, sizeof(struct gfs2_meta_header));
@@ -219,7 +220,7 @@ build_quota_change(struct gfs2_inode *per_node, unsigned int j)
 		     GFS2_DIF_SYSTEM);
 
 	for (x = 0; x < blocks; x++) {
-		struct gfs2_buffer_head *bh = get_file_buf(ip, ip->i_di.di_size >> sdp->bsize_shift, FALSE);
+		struct gfs2_buffer_head *bh = get_file_buf(ip, ip->i_di.di_size >> sdp->sd_sb.sb_bsize_shift, FALSE);
 		if (!bh)
 			die("build_quota_change\n");
 

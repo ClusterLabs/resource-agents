@@ -463,7 +463,7 @@ int gfs2_readi(struct gfs2_inode *ip, void *buf,
 		lblock = offset;
 		o = do_div(lblock, sdp->sd_jbsize);
 	} else {
-		lblock = offset >> sdp->bsize_shift;
+		lblock = offset >> sdp->sd_sb.sb_bsize_shift;
 		o = offset & (sdp->bsize - 1);
 	}
 
@@ -534,7 +534,7 @@ int gfs2_writei(struct gfs2_inode *ip, void *buf,
 		lblock = offset;
 		o = do_div(lblock, sdp->sd_jbsize);
 	} else {
-		lblock = offset >> sdp->bsize_shift;
+		lblock = offset >> sdp->sd_sb.sb_bsize_shift;
 		o = offset & (sdp->bsize - 1);
 	}
 
@@ -596,8 +596,8 @@ struct gfs2_buffer_head *get_file_buf(struct gfs2_inode *ip, uint64_t lbn,
 		die("get_file_buf\n");
 
 	if (!prealloc && new &&
-	    ip->i_di.di_size < (lbn + 1) << sdp->bsize_shift)
-		ip->i_di.di_size = (lbn + 1) << sdp->bsize_shift;
+	    ip->i_di.di_size < (lbn + 1) << sdp->sd_sb.sb_bsize_shift)
+		ip->i_di.di_size = (lbn + 1) << sdp->sd_sb.sb_bsize_shift;
 
 	if (new)
 		return bget(sdp, dbn);

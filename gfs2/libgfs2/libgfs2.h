@@ -170,7 +170,6 @@ struct gfs2_sbd {
 
 	/* Constants */
 
-	unsigned int bsize_shift;
 	uint32_t sd_fsb2bb;
 	uint32_t sd_fsb2bb_shift;
 	uint32_t sd_diptrs;
@@ -534,6 +533,7 @@ int gfs2_next_rg_meta_free(struct rgrp_list *rgd, uint64_t *block, int first,
 int gfs2_next_rg_metatype(struct gfs2_sbd *sdp, struct rgrp_list *rgd,
 						  uint64_t *block, uint32_t type, int first);
 /* super.c */
+int check_sb(struct gfs2_sb *sb);
 int read_sb(struct gfs2_sbd *sdp);
 int ji_update(struct gfs2_sbd *sdp);
 int rindex_read(struct gfs2_sbd *sdp, int fd, int *count1);

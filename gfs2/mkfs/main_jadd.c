@@ -295,7 +295,8 @@ add_qc(struct gfs2_sbd *sdp)
 
 	{
 		char buf[sdp->bsize];
-		unsigned int blocks = sdp->qcsize << (20 - sdp->bsize_shift);
+		unsigned int blocks =
+			sdp->qcsize << (20 - sdp->sd_sb.sb_bsize_shift);
 		unsigned int x;
 		struct gfs2_meta_header mh;
 
@@ -418,7 +419,8 @@ add_j(struct gfs2_sbd *sdp)
 
 	{
 		char buf[sdp->bsize];
-		unsigned int blocks = sdp->jsize << (20 - sdp->bsize_shift);
+		unsigned int blocks =
+			sdp->jsize << (20 - sdp->sd_sb.sb_bsize_shift);
 		unsigned int x;
 		struct gfs2_log_header lh;
 		uint64_t seq = RANDOM(blocks);

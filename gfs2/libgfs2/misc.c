@@ -37,10 +37,10 @@ compute_constants(struct gfs2_sbd *sdp)
 
 	sdp->md.next_inum = 1;
 
-	sdp->bsize_shift = ffs(sdp->bsize) - 1;
+	sdp->sd_sb.sb_bsize_shift = ffs(sdp->bsize) - 1;
 	sdp->sb_addr = GFS2_SB_ADDR * GFS2_BASIC_BLOCK / sdp->bsize;
 
-	sdp->sd_fsb2bb_shift = sdp->bsize_shift -
+	sdp->sd_fsb2bb_shift = sdp->sd_sb.sb_bsize_shift -
 		GFS2_BASIC_BLOCK_SHIFT;
 	sdp->sd_fsb2bb = 1 << sdp->sd_fsb2bb_shift;
 	sdp->sd_diptrs = (sdp->bsize - sizeof(struct gfs2_dinode)) /
@@ -49,7 +49,7 @@ compute_constants(struct gfs2_sbd *sdp)
 		sizeof(uint64_t);
 	sdp->sd_jbsize = sdp->bsize - sizeof(struct gfs2_meta_header);
 	sdp->sd_hash_bsize = sdp->bsize / 2;
-	sdp->sd_hash_bsize_shift = sdp->bsize_shift - 1;
+	sdp->sd_hash_bsize_shift = sdp->sd_sb.sb_bsize_shift - 1;
 	sdp->sd_hash_ptrs = sdp->sd_hash_bsize / sizeof(uint64_t);
 
 	/*  Compute maximum reservation required to add a entry to a directory  */
