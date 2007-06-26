@@ -55,6 +55,9 @@
 
 static int running = 1;
 
+
+int cleanup_xml(char *xmldesc, char **ret, size_t *retsz);
+
 int
 connect_tcp(fence_req_t *req, fence_auth_type_t auth,
 	    void *key, size_t key_len)
@@ -165,48 +168,6 @@ get_domain(fence_req_t *req, virConnectPtr vp)
 }
 
 
-/*
-   Nuke the OS block if this domain was booted using a bootloader.
-   XXX We probably should use libxml2 to do this, but this is very fast
- */
-void
-cleanup_xmldesc(char *xmldesc)
-{
-	char *start = NULL;
-	char *end = NULL;
-
-#define STARTBOOTTAG "<bootloader>"
-#define ENDBOOTTAG   "</bootloader>"
-#define STARTOSTAG   "<os>"
-#define ENDOSTAG     "</os>"
-
-	/* Part 1: Check for a boot loader */
-	start = strcasestr(xmldesc, STARTBOOTTAG);
-	if (start) {
-		start += strlen(STARTBOOTTAG);
-		end = strcasestr(start, ENDBOOTTAG);
-		if (end == start) {
-			/* Empty bootloader tag -> return */
-			return;
-		}
-	}
-
-	/* Part 2: Nuke the <os> tag */
-	start = strcasestr(xmldesc, STARTOSTAG);
-	if (!start)
-		return;
-	end = strcasestr(start, ENDOSTAG);
-	if (!end)
-		return;
-	end += strlen(ENDOSTAG);
-
-	dprintf(3, "Clearing %d bytes starting @ %p\n", (int)(end-start),
-		start);
-
-	memset(start, ' ', end-start);
-}
-
-
 static inline int
 wait_domain(fence_req_t *req, virConnectPtr vp, int timeout)
 {
@@ -262,7 +223,8 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 	int fd, ret = -1;
 	virDomainPtr vdp;
 	char response = 1;
-	char *domain_desc;
+	char *domain_desc, *domain_desc_sanitized;
+	size_t sz;
 
 	if (!(vdp = get_domain(req, vp))) {
 		dprintf(2, "Could not find domain: %s\n", req->domain);
@@ -305,7 +267,14 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 		if (domain_desc) {
 			dprintf(3, "[[ XML Domain Info ]]\n");
 			dprintf(3, "%s\n[[ XML END ]]\n", domain_desc);
-			cleanup_xmldesc(domain_desc);
+
+			sz = 0;
+			if (cleanup_xml(domain_desc,
+					&domain_desc_sanitized, &sz) == 0) {
+				free(domain_desc);
+				domain_desc = domain_desc_sanitized;
+			}
+
 			dprintf(3, "[[ XML Domain Info (modified) ]]\n");
 			dprintf(3, "%s\n[[ XML END ]]\n", domain_desc);
 		} else {
@@ -431,7 +400,7 @@ get_domain_state_ckpt(void *hp, unsigned char *domain, vm_state_t *state)
 
 	if (!hp || !domain || !state || !strlen((char *)domain))
 		return -1;
-	if (!strcmp("Domain-0", (char *)domain))
+	if (!strcmp(DOMAIN0NAME, (char *)domain))
 		return -1;
 
 	return ckpt_read(hp, (char *)domain, state, sizeof(*state));
@@ -564,10 +533,10 @@ xvmd_loop(cman_handle_t ch, void *h, int fd, fence_xvm_args_t *args,
 	struct sockaddr_in sin;
 	int len;
 	int n;
-	int my_id;
+	int my_id = 1;
 	socklen_t slen;
 	fence_req_t data;
-	virConnectPtr vp;
+	virConnectPtr vp = NULL;
 	virt_list_t *vl = NULL;
 	virt_state_t *dom = NULL;
 
@@ -575,7 +544,9 @@ xvmd_loop(cman_handle_t ch, void *h, int fd, fence_xvm_args_t *args,
 	if (!vp)
 		perror("virConnectOpen");
 
-	get_cman_ids(ch, &my_id, NULL);
+	if (!(args->flags & F_NOCLUSTER))
+		get_cman_ids(ch, &my_id, NULL);
+
 	printf("My Node ID = %d\n", my_id);
 	
 	if (vp) {
@@ -615,11 +586,14 @@ xvmd_loop(cman_handle_t ch, void *h, int fd, fence_xvm_args_t *args,
 		/* Update list of VMs from libvirt. */
 		virt_list_update(vp, &vl, my_id);
 		vl_print(vl);
+
 		/* Store information here */
-		if (args->flags & F_USE_UUID) 
-			store_domains_by_uuid(h, vl);
-		else
-			store_domains_by_name(h, vl);
+		if (!(args->flags & F_NOCLUSTER)) {
+			if (args->flags & F_USE_UUID) 
+				store_domains_by_uuid(h, vl);
+			else
+				store_domains_by_name(h, vl);
+		}
 		
 		/* 
 		 * If no requests, we're done 
@@ -661,7 +635,7 @@ xvmd_loop(cman_handle_t ch, void *h, int fd, fence_xvm_args_t *args,
 			dom = vl_find_uuid(vl, (char *)data.domain);
 		else
 			dom = vl_find_name(vl, (char *)data.domain);
-		if (!dom) {
+		if (!dom && !(args->flags & F_NOCLUSTER)) {
 			handle_remote_domain(ch, h, &data, args->auth,
 					     key, key_len, my_id);
 			continue;
@@ -702,8 +676,8 @@ main(int argc, char **argv)
 	int mc_sock;
 	char key[4096];
 	int key_len = 0, x;
-	char *my_options = "dfi:a:p:C:c:k:u?hV";
-	cman_handle_t ch;
+	char *my_options = "dfi:a:p:C:c:k:u?hLXV";
+	cman_handle_t ch = NULL;
 	void *h;
 
 	args_init(&args);
@@ -735,8 +709,10 @@ main(int argc, char **argv)
 	if (args.auth != AUTH_NONE || args.hash != HASH_NONE) {
 		key_len = read_key_file(args.key_file, key, sizeof(key));
 		if (key_len < 0) {
-			printf("Could not read key file\n");
-			return 1;
+			printf("Could not read %s; operating without "
+			       "authentication\n", args.key_file);
+			args.auth = AUTH_NONE;
+			args.hash = HASH_NONE;
 		}
 	}
 
@@ -758,32 +734,34 @@ main(int argc, char **argv)
 		return 1;
 	}
 	
-	/* Wait for cman to start. */
-	x = 0;
-	while ((ch = cman_init(NULL)) == NULL) {
-		if (!x) {
-			printf("Could not connect to CMAN; retrying...\n");
-			x = 1;
+	if (!(args.flags & F_NOCLUSTER)) {
+		/* Wait for cman to start. */
+		x = 0;
+		while ((ch = cman_init(NULL)) == NULL) {
+			if (!x) {
+				printf("Could not connect to CMAN; retrying...\n");
+				x = 1;
+			}
+			sleep(3);
 		}
-		sleep(3);
-	}
-	if (x)
-		printf("Connected to CMAN\n");
-	/* Wait for quorum */
-	while (!cman_is_quorate(ch))
-		sleep(3);
+		if (x)
+			printf("Connected to CMAN\n");
+		/* Wait for quorum */
+		while (!cman_is_quorate(ch))
+			sleep(3);
 
-	/* Wait for openais checkpointing to become available */
-	x = 0;
-	while ((h = ckpt_init("vm_states", 262144, 4096, 64, 10)) == NULL) {
-		if (!x) {
-			printf("Could not initialize saCkPt; retrying...\n");
-			x = 1;
+		/* Wait for openais checkpointing to become available */
+		x = 0;
+		while ((h = ckpt_init("vm_states", 262144, 4096, 64, 10)) == NULL) {
+			if (!x) {
+				printf("Could not initialize saCkPt; retrying...\n");
+				x = 1;
+			}
+			sleep(3);
 		}
-		sleep(3);
+		if (x)
+			printf("Checkpoint initialized\n");
 	}
-	if (x)
-		printf("Checkpoint initialized\n");
 
 	if (args.family == PF_INET)
 		mc_sock = ipv4_recv_sk(args.addr, args.port);

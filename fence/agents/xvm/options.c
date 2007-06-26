@@ -253,6 +253,13 @@ assign_noccs(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 }
 
 
+static inline void
+assign_nocluster(fence_xvm_args_t *args, struct arg_info *arg, char *value)
+{
+	args->flags |= F_NOCLUSTER;
+}
+
+
 /** ALL valid command line and stdin arguments for this fencing agent */
 static struct arg_info _arg_info[] = {
 	{ '\xff', NULL, "agent",
@@ -326,6 +333,10 @@ static struct arg_info _arg_info[] = {
 	{ 'X', "-X", NULL,
  	  "Do not connect to CCS for configuration", 
 	  assign_noccs }, 
+
+	{ 'L', "-L", NULL,
+ 	  "Local mode only (no cluster)",
+	  assign_nocluster }, 
 	  
 	{ 'V', "-V", NULL,
  	  "Display version and exit", 

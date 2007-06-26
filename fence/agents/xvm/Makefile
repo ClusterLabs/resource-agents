@@ -22,7 +22,8 @@ OBJS1=	fence_xvm.o \
 OBJS2=	fence_xvmd.o \
 	virt.o \
 	options-ccs.o \
-	vm_states.o
+	vm_states.o \
+	xml.o
 
 SHAREDOBJS=	mcast.o \
 		simple_auth.o \
@@ -35,12 +36,14 @@ CFLAGS += -Wall -Werror -Wstrict-prototypes -Wshadow -ggdb
 CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${openaisincdir}
 CFLAGS += -I${virtincdir} -I${nssincdir} -I${nsprincdir}
 CFLAGS += -I${incdir}
+CFLAGS += `xml2-config --cflags`
 
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -L${dlmlibdir}
 LDFLAGS += -L${nsslibdir} -L${nsprlibdir} -L${libdir}
-LDFLAGS += -lccs -lcman -ldlm -lnss3 -lnspr4
+LDFLAGS += -lccs -lcman -ldlm -lnss3 -lnspr4 
 
 EXTRA_LDFLAGS += -L${virtlibdir} -lvirt -L${openaislibdir} -lSaCkpt
+EXTRA_LDFLAGS += `xml2-config --libs`
 
 all: ${TARGET1} ${TARGET2}
 
@@ -55,6 +58,10 @@ ${TARGET2}: ${SHAREDOBJS} ${OBJS2}
 
 clean:
 	rm -f ${TARGET1} ${TARGET2} *~ *.o
+
+testprog:
+	 gcc -o testprog xml.c -I/usr/include/libxml2 -lxml2 \
+		 -DSTANDALONE -ggdb
 
 install: all
 	if [ ! -d ${sbindir} ]; then \

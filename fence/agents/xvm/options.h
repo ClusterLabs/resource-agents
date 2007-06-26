@@ -27,7 +27,8 @@ typedef enum {
 	F_USE_UUID	= 0x10,
 	F_VERSION	= 0x20,
 	F_CCSERR	= 0x40,
-	F_CCSFAIL	= 0x80
+	F_CCSFAIL	= 0x80,
+	F_NOCLUSTER	= 0x100
 } arg_flags_t;
 
 
