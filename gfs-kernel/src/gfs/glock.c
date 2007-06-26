@@ -2542,7 +2542,7 @@ examine_bucket(glock_examiner examiner,
 
 		write_unlock(&bucket->hb_lock);
 
-		examiner(gl, &purge_nr);
+		examiner(gl, purge_nr);
 	}
 }
 
