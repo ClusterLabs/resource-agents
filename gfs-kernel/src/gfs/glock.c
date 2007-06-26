@@ -2653,8 +2653,7 @@ gfs_scand_internal(struct gfs_sbd *sdp)
 	if (!sdp->sd_tune.gt_glock_purge)
 		purge_nr = 0;
 	else
-		purge_nr = (atomic_read(&sdp->sd_glock_count) -
-			atomic_read(&sdp->sd_glock_count)) *
+		purge_nr = atomic_read(&sdp->sd_glock_count) *
 			sdp->sd_tune.gt_glock_purge / 100;
 
 	for (x = 0; x < GFS_GL_HASH_SIZE; x++) {
