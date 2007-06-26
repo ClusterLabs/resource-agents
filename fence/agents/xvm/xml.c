@@ -9,6 +9,12 @@
 #include <ctype.h>
 
 
+#ifdef STANDALONE
+#define dprintf(x, fmt, args...) printf("<%d> " fmt, x, ##args)
+#else
+#include "xvm.h"
+#endif
+
 xmlNodePtr
 get_os_node(xmlDocPtr doc)
 {
@@ -52,7 +58,7 @@ flip_graphics_port(xmlDocPtr doc)
 	}
 
 	if (xmlGetProp(curr, (xmlChar *)"port")) {
-		printf("Zapping the port spec\n");
+		dprintf(5,"Zapping the graphics port\n");
 		xmlSetProp(curr, (xmlChar *)"port", (xmlChar *)"-1");
 	}
 
@@ -69,7 +75,7 @@ cleanup_xml_doc(xmlDocPtr doc)
 
 	curr = xmlDocGetRootElement(doc);
 	if (xmlStrcmp(curr->name, (xmlChar *)"domain")) {
-		printf("Invalid XML\n");
+		dprintf(1, "Invalid XML\n");
 		return -1;
 	}
 
@@ -84,7 +90,7 @@ cleanup_xml_doc(xmlDocPtr doc)
 		curr = curr->next;
 	}
 	if (!curr) {
-		printf("Unable to determine the domain type\n");
+		dprintf(1, "Unable to determine the domain type\n");
 		return -1;
 	}
 
@@ -93,15 +99,15 @@ cleanup_xml_doc(xmlDocPtr doc)
 
 	if (!strcasecmp(val, "hvm")) {
 		type = 1;
-		printf("Virtual machine is HVM\n");
+		dprintf(2, "Virtual machine is HVM\n");
 	} else if (!strcasecmp(val, "linux")) {
 		type = 2;
-		printf("Virtual machine is Linux\n");
+		dprintf(2, "Virtual machine is Linux\n");
 	}
 
 	/* Node is still pointing to the <os> block */
 	if (type == 2) {
-		printf("Unlinkiking %s block\n", (char *)os_node->name);
+		dprintf(3, "Unlinkiking %s block\n", (char *)os_node->name);
 		xmlUnlinkNode(os_node);
 		xmlFreeNode(os_node);
 	}
@@ -144,12 +150,12 @@ xtree_readbuffer(const char *buffer, size_t size, xmlDocPtr *xtreep)
 	*xtreep = xmlParseMemory(buffer, size);
 
 	if (!*xtreep) {
-		printf("parse failure %p %d\n", buffer, (int)size);
+		dprintf(1, "parse failure %p %d\n", buffer, (int)size);
 		return -1;
 	}
 
 	if (!((cur = xmlDocGetRootElement(*xtreep)))) {
-		printf("root element failure\n");
+		dprintf(1, "root element failure\n");
 		xmlFreeDoc(*xtreep);
 		*xtreep = NULL;
 		return -1;
