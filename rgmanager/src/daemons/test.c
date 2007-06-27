@@ -217,7 +217,7 @@ test_func(int argc, char **argv)
 		}
 	#endif
 
-		if (res_exec(rn, "migrate", argv[4], 0)) {
+		if (res_exec(rn, RS_MIGRATE, argv[4], 0)) {
 			ret = -1;
 			goto out;
 		}
@@ -226,9 +226,9 @@ test_func(int argc, char **argv)
 	} else if (!strcmp(argv[1], "status")) {
 		printf("Checking status of %s...\n", argv[3]);
 
-		if (res_status(&tree, curres, NULL)) {
+		ret = res_status(&tree, curres, NULL);
+		if (ret) {
 			printf("Status check of %s failed\n", argv[3]);
-			ret = -1;
 			goto out;
 		}
 		printf("Status of %s is good\n", argv[3]);
@@ -391,5 +391,5 @@ main(int argc, char **argv)
 out:
 	xmlCleanupParser();
 	malloc_dump_table();
-	return 0;
+	return ret;
 }

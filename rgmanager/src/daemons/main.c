@@ -617,10 +617,12 @@ handle_cluster_event(msgctx_t *ctx)
 		clulog(LOG_WARNING, "#67: Shutting down uncleanly\n");
 		rg_set_inquorate();
 		rg_doall(RG_INIT, 1, "Emergency stop of %s");
+		rg_set_uninitialized();
 #if defined(LIBCMAN_VERSION) && LIBCMAN_VERSION >= 2
 		/* cman_replyto_shutdown() */
 #endif
-		exit(0);
+		running = 0;
+		break;
 	}
 
 	return ret;
@@ -699,6 +701,9 @@ event_loop(msgctx_t *localctx, msgctx_t *clusterctx)
 			msg_free_ctx(newctx);
 		}
 	}
+
+	if (!running)
+		return 0;
 
 	if (need_reconfigure || check_config_update()) {
 		need_reconfigure = 0;
@@ -985,7 +990,8 @@ main(int argc, char **argv)
 		}
 	}
 
-	cleanup(cluster_ctx);
+	if (rg_initialized())
+		cleanup(cluster_ctx);
 	clulog(LOG_NOTICE, "Shutdown complete, exiting\n");
 	clu_lock_finished(rgmanager_lsname);
 	cman_finish(clu);

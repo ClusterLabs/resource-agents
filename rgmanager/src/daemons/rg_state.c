@@ -36,6 +36,10 @@
 #include <rg_queue.h>
 #include <msgsimple.h>
 
+/* XXX - copied :( */
+#define cn_svccount cn_address.cna_address[0] /* Theses are uint8_t size */
+#define cn_svcexcl  cn_address.cna_address[1]
+
 int node_should_start_safe(uint32_t, cluster_member_list_t *, char *);
 
 int next_node_id(cluster_member_list_t *membership, int me);
@@ -50,6 +54,10 @@ int check_depend_safe(char *servicename);
 int group_migratory(char *servicename, int lock);
 int have_exclusive_resources(void);
 int check_exclusive_resources(cluster_member_list_t *membership, char *svcName);
+static int msvc_check_cluster(char *svcName);
+static inline int handle_started_status(char *svcName, int ret, rg_state_t *svcStatus);
+static inline int handle_migrate_status(char *svcName, int ret, rg_state_t *svcStatus);
+int count_resource_groups_local(cman_node_t *mp);
 
 
 int 
@@ -837,9 +845,26 @@ svc_migrate(char *svcName, int target)
 	struct dlm_lksb lockp;
 	rg_state_t svcStatus;
 	int ret;
+	cluster_member_list_t *membership;
+	cman_node_t *m;
 
 	if (!group_migratory(svcName, 1))
 		return RG_EINVAL;
+
+	membership = member_list();
+	m = memb_id_to_p(membership, target);
+	if (!m) {
+		free_member_list(membership);
+		return RG_EINVAL;
+	}
+
+	count_resource_groups_local(m);
+	if (m->cn_svcexcl) {
+		free_member_list(membership);
+		return RG_EDEPEND;
+	}
+	free_member_list(membership);
+
 
 	if (rg_lock(svcName, &lockp) < 0) {
 		clulog(LOG_ERR, "#45: Unable to obtain cluster lock: %s\n",
@@ -905,6 +930,129 @@ svc_migrate(char *svcName, int target)
 
 
 /**
+ * Ask the other nodes if they've seen this service.  This can be used
+ * to allow users the ability to use non-rgmanager tools to migrate
+ * a virtual machine to another node in the cluster.
+ * 
+ * Returns the node ID of the new owner, if any.  -1 if no one in the
+ * cluster has seen the service.
+ */
+int
+get_new_owner(char *svcName)
+{
+	SmMessageSt msgp, response;
+	msgctx_t ctx;
+	cluster_member_list_t *membership;
+	int x, ret = -1, me = my_id();
+
+	/* Build message */
+	msgp.sm_hdr.gh_magic = GENERIC_HDR_MAGIC;
+	msgp.sm_hdr.gh_command = RG_ACTION_REQUEST;
+	msgp.sm_hdr.gh_arg1 = RG_STATUS_INQUIRY;
+	msgp.sm_hdr.gh_length = sizeof(msgp);
+	msgp.sm_data.d_action = RG_STATUS_INQUIRY;
+	strncpy(msgp.sm_data.d_svcName, svcName,
+		sizeof(msgp.sm_data.d_svcName));
+	msgp.sm_data.d_svcOwner = 0;
+	msgp.sm_data.d_ret = 0;
+
+	swab_SmMessageSt(&msgp);
+
+	membership = member_list();
+	for (x = 0; x < membership->cml_count && ret < 0; x++) {
+
+		/* don't query down members */
+		if (!membership->cml_members[x].cn_member)
+			continue;
+		/* don't query self */
+		if (membership->cml_members[x].cn_nodeid == me)
+			continue;
+
+		if (msg_open(MSG_CLUSTER, membership->cml_members[x].cn_nodeid,
+			     RG_PORT, &ctx, 2) < 0) {
+			/* failed to open: better to claim false successful
+			   status rather than claim a failure and possibly
+			   end up with a service on >1 node */
+			goto out;
+		}
+
+		msg_send(&ctx, &msgp, sizeof(msgp));
+		msg_receive(&ctx, &response, sizeof (response), 5);
+
+		swab_SmMessageSt(&response);
+		if (response.sm_data.d_ret == RG_SUCCESS)
+			ret = response.sm_data.d_svcOwner;
+		else
+			ret = -1;
+
+		msg_close(&ctx);
+	}
+
+out:
+	free_member_list(membership);
+	
+	return ret;
+}
+
+
+/**
+   If a service is 'migratory' - that is, it has the 'migratory' attribute
+   and has no children, this will query other nodes in the cluster, checking
+   to see if the service has migrated to that node using a status inquiry
+   message.  Note that this is a very inefficient thing to do; it would be
+   much, much better to simply use the cluster tools to migrate rather than
+   using the standard management tools for the service/virtual machine.
+ */
+static int
+msvc_check_cluster(char *svcName)
+{
+	struct dlm_lksb lockp;
+	int newowner;
+	rg_state_t svcStatus;
+
+	if (!group_migratory(svcName, 1))
+		return -1;
+
+	newowner = get_new_owner(svcName);
+	if (newowner < 0) {
+		clulog(LOG_DEBUG, "No other nodes have seen %s\n", svcName);
+		return -1;
+	}
+
+	/* New owner found */
+	clulog(LOG_NOTICE, "Migration: %s is running on %d\n", svcName, newowner);
+
+	/* If the check succeeds (returns 0), then flip the state back to
+	   'started' - with a new owner */
+	if (rg_lock(svcName, &lockp) < 0) {
+		clulog(LOG_ERR, "#451: Unable to obtain cluster lock: %s\n",
+			strerror(errno));
+		return -1;
+	}
+
+	if (get_rg_state(svcName, &svcStatus) != 0) {
+		rg_unlock(&lockp);
+		clulog(LOG_ERR, "#452: Failed getting status for RG %s\n",
+		       svcName);
+		return -1;
+	}
+
+	svcStatus.rs_state = RG_STATE_STARTED;
+	svcStatus.rs_owner = newowner;
+
+	if (set_rg_state(svcName, &svcStatus) != 0) {
+		rg_unlock(&lockp);
+		clulog(LOG_ERR, "#453: Failed setting status for RG %s\n",
+		       svcName);
+		return -1;
+	}
+	rg_unlock(&lockp);
+
+	return newowner;
+}
+
+
+/**
  * Check status of a cluster service 
  *
  * @param svcName	Service name to check.
@@ -946,14 +1094,58 @@ svc_status(char *svcName)
 
 	ret = group_op(svcName, RG_STATUS);
 
-	/* For running services, just check the return code */
+	/* For running services, if the return code is 0, we're done*/
 	if (svcStatus.rs_state == RG_STATE_STARTED)
-		return ret;
+		return handle_started_status(svcName, ret, &svcStatus);
+	
+	return handle_migrate_status(svcName, ret, &svcStatus);
+}
 
+
+static inline int
+handle_started_status(char *svcName, int ret, rg_state_t *svcStatus)
+{
+	if (ret & SFL_FAILURE) {
+		ret = msvc_check_cluster(svcName);
+		if (ret >= 0)
+			return 1;
+	}
+
+	/* Ok, we have a recoverable service.  Try to perform
+	   inline recovery */
+	if (ret & SFL_RECOVERABLE) {
+
+		clulog(LOG_WARNING, "Some independent resources in %s failed; "
+		       "Attempting inline recovery\n", svcName);
+
+		ret = group_op(svcName, RG_CONDSTOP);
+		if (!(ret & SFL_FAILURE)) {
+			ret = group_op(svcName, RG_CONDSTART);
+		}
+
+		if (ret) {
+			clulog(LOG_WARNING, "Inline recovery of %s failed\n",
+			       svcName);
+		} else {
+			clulog(LOG_NOTICE,
+			       "Inline recovery of %s succeeded\n",
+			       svcName);
+			return 0;
+		}
+	}
+
+	return ret;
+}
+
+
+static inline int
+handle_migrate_status(char *svcName, int ret, rg_state_t *svcStatus)
+{
+	struct dlm_lksb lockp;
 	/* For service(s) migrating to the local node, ignore invalid
 	   return codes.
 	   XXX Should put a timeout on migrating services */
-	if (ret < 0)
+	if (ret != 0)
 		return 0;
 
 	/* If the check succeeds (returns 0), then flip the state back to
@@ -964,8 +1156,8 @@ svc_status(char *svcName)
 		return RG_EFAIL;
 	}
 
-	svcStatus.rs_state = RG_STATE_STARTED;
-	if (set_rg_state(svcName, &svcStatus) != 0) {
+	svcStatus->rs_state = RG_STATE_STARTED;
+	if (set_rg_state(svcName, svcStatus) != 0) {
 		rg_unlock(&lockp);
 		clulog(LOG_ERR, "#46: Failed getting status for RG %s\n",
 		       svcName);
@@ -1417,8 +1609,10 @@ handle_relocate_req(char *svcName, int request, int preferred_target,
 		    int *new_owner)
 {
 	cluster_member_list_t *allowed_nodes, *backup = NULL;
+	cman_node_t *m;
 	int target = preferred_target, me = my_id();
 	int ret, x;
+	rg_state_t svcStatus;
 	
 	/*
 	 * Stop the service - if we haven't already done so.
@@ -1436,9 +1630,22 @@ handle_relocate_req(char *svcName, int request, int preferred_target,
 			return RG_EFORWARD;
 	}
 
-	if (preferred_target >= 0) {
+	if (preferred_target > 0) {
 
 		allowed_nodes = member_list();
+		m = memb_id_to_p(allowed_nodes, preferred_target);
+		if (!m) {
+			free_member_list(allowed_nodes);
+			return RG_EINVAL;
+		}
+
+		/* Avoid even bothering the other node if we can */
+		count_resource_groups_local(m);
+		if (m->cn_svcexcl) {
+			free_member_list(allowed_nodes);
+			return RG_EDEPEND;
+		}
+
 		/*
 	   	   Mark everyone except me and the preferred target DOWN for now
 		   If we can't start it on the preferred target, then we'll try
@@ -1471,7 +1678,6 @@ handle_relocate_req(char *svcName, int request, int preferred_target,
 		 */
 		if (target == me && me != preferred_target)
 			goto exhausted;
-
 
 		if (target == me) {
 			/*
@@ -1508,7 +1714,7 @@ handle_relocate_req(char *svcName, int request, int preferred_target,
 		//count_resource_groups(allowed_nodes);
 	}
 
-	if (preferred_target >= 0)
+	if (preferred_target > 0)
 		memb_mark_down(allowed_nodes, preferred_target);
 	memb_mark_down(allowed_nodes, me);
 
@@ -1517,7 +1723,16 @@ handle_relocate_req(char *svcName, int request, int preferred_target,
 		if (target == me)
 			goto exhausted;
 
-		switch (relocate_service(svcName, request, target)) {
+		ret = relocate_service(svcName, request, target);
+		switch (ret) {
+		case RG_ERUN:
+			/* Someone stole the service while we were 
+			   trying to relo it */
+			get_rg_state_local(svcName, &svcStatus);
+			*new_owner = svcStatus.rs_owner;
+			free_member_list(allowed_nodes);
+			return 0;
+		case RG_EDEPEND:
 		case RG_EFAIL:
 			memb_mark_down(allowed_nodes, target);
 			continue;
@@ -1525,12 +1740,17 @@ handle_relocate_req(char *svcName, int request, int preferred_target,
 			svc_report_failure(svcName);
 			free_member_list(allowed_nodes);
 			return RG_EFAIL;
+		default:
+			/* deliberate fallthrough */
+			clulog(LOG_ERR,
+			       "#61: Invalid reply from member %d during"
+			       " relocate operation!\n", target);
 		case RG_NO:
 			/* state uncertain */
 			free_member_list(allowed_nodes);
-			clulog(LOG_DEBUG, "State Uncertain: svc:%s "
-			       "nid:%08x req:%d\n", svcName,
-			       target, request);
+			clulog(LOG_CRIT, "State Uncertain: svc:%s "
+			       "nid:%d req:%s ret:%d\n", svcName,
+			       target, rg_req_str(request), ret);
 			return 0;
 		case 0:
 			*new_owner = target;
@@ -1538,10 +1758,6 @@ handle_relocate_req(char *svcName, int request, int preferred_target,
 			       "on member %d\n", svcName, (int)target);
 			free_member_list(allowed_nodes);
 			return 0;
-		default:
-			clulog(LOG_ERR,
-			       "#61: Invalid reply from member %d during"
-			       " relocate operation!\n", target);
 		}
 	}
 	free_member_list(allowed_nodes);
@@ -1592,8 +1808,20 @@ int
 handle_start_req(char *svcName, int req, int *new_owner)
 {
 	int ret, tolerance = FOD_BEST;
-	cluster_member_list_t *membership = member_list();
-	int need_check = have_exclusive_resources();
+	cluster_member_list_t *membership;
+	int need_check, actual_failure = 0;
+  
+ 	/* When we get an enable req. for a migratory service, 
+ 	   check other nodes to see if they are already running
+ 	   said service - and ignore failover domain constraints 
+ 	 */
+	if ((ret = msvc_check_cluster(svcName)) >= 0) {
+		*new_owner = ret;
+		return RG_SUCCESS;
+	}
+ 
+	need_check = have_exclusive_resources();
+	membership = member_list();
 
 	/*
 	 * When a service request is from a user application (eg, clusvcadm),
@@ -1672,14 +1900,16 @@ handle_start_req(char *svcName, int req, int *new_owner)
 		 */
 		return RG_EABORT;
 	}
+	actual_failure = 1;
 	
 relocate:
 	/*
 	 * OK, it failed to start - but succeeded to stop.  Now,
 	 * we should relocate the service.
 	 */
-	clulog(LOG_WARNING, "#71: Relocating failed service %s\n",
-	       svcName);
+	if (actual_failure)
+		clulog(LOG_WARNING, "#71: Relocating failed service %s\n",
+	       	       svcName);
 	ret = handle_relocate_req(svcName, RG_START_RECOVER, -1, new_owner);
 
 	/* If we leave the service stopped, instead of disabled, someone
@@ -1780,46 +2010,56 @@ handle_recover_req(char *svcName, int *new_owner)
 	return handle_start_req(svcName, RG_START_RECOVER, new_owner);
 }
 
+
 int
 handle_fd_start_req(char *svcName, int request, int *new_owner)
 {
-       cluster_member_list_t *allowed_nodes;
-       int target, me = my_id();
-       int ret;
+	cluster_member_list_t *allowed_nodes;
+	int target, me = my_id();
+	int ret = RG_EFAIL;
 
-       allowed_nodes = member_list();
+	/* When we get an enable req. for a migratory service, 
+	   check other nodes to see if they are already running
+	   said service - and ignore failover domain constraints 
+	 */
+	if ((ret = msvc_check_cluster(svcName)) >= 0) {
+		*new_owner = ret;
+		return RG_SUCCESS;
+	}
 
-       while (memb_count(allowed_nodes)) {
-               target = best_target_node(allowed_nodes, -1,
-                                         svcName, 1);
-               if (target == me) {
-                       ret = handle_start_remote_req(svcName, request);
-               } else if (target < 0) {
-                       free_member_list(allowed_nodes);
-                       return RG_EFAIL;
-               } else {
-                       ret = relocate_service(svcName, request, target);
-               }
+	allowed_nodes = member_list();
 
-               switch(ret) {
-               case RG_ESUCCESS:
-                       return RG_ESUCCESS;
-               case RG_ERUN:
-                       return RG_ERUN;
-               case RG_EFAIL:
-                       memb_mark_down(allowed_nodes, target);
-                       continue;
-               case RG_EABORT:
-                       svc_report_failure(svcName);
-                       free_member_list(allowed_nodes);
-                       return RG_EFAIL;
-               default:
-                       clulog(LOG_ERR,
-                              "#6X: Invalid reply [%d] from member %d during"
-                              " relocate operation!\n", ret, target);
-               }
-       }
+	while (memb_count(allowed_nodes)) {
+		target = best_target_node(allowed_nodes, -1,
+	 				  svcName, 1);
+	  	if (target == me) {
+	   		ret = handle_start_remote_req(svcName, request);
+	    	} else if (target < 0) {
+	     		free_member_list(allowed_nodes);
+	      		return RG_EFAIL;
+	       	} else {
+			ret = relocate_service(svcName, request, target);
+		}
 
-       free_member_list(allowed_nodes);
-       return RG_EFAIL;
+		switch(ret) {
+		case RG_ESUCCESS:
+		    	return RG_ESUCCESS;
+		case RG_ERUN:
+		      	return RG_ERUN;
+		case RG_EFAIL:
+			memb_mark_down(allowed_nodes, target);
+			continue;
+		case RG_EABORT:
+			svc_report_failure(svcName);
+			free_member_list(allowed_nodes);
+       			return RG_EFAIL;
+      		default:
+			clulog(LOG_ERR,
+	 		       "#6X: Invalid reply [%d] from member %d during"
+	  		       " relocate operation!\n", ret, target);
+	   	}
+	}
+
+	free_member_list(allowed_nodes);
+	return RG_EFAIL;
 }

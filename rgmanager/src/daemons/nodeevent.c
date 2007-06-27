@@ -72,8 +72,10 @@ node_event(int local, int nodeID, int nodeStatus, int clean)
 	if (local) {
 
 		/* Local Node Event */
-		if (nodeStatus == 0)
+		if (nodeStatus == 0) {
+			clulog(LOG_ERR, "Exiting uncleanly\n");
 			hard_exit();
+		}
 
 		if (!rg_initialized()) {
 			if (init_resource_groups(0) != 0) {

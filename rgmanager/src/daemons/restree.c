@@ -39,10 +39,6 @@
 void malloc_zap_mutex(void);
 #endif
 
-#define FL_FAILURE	0x1
-#define FL_RECOVERABLE	0x2
-
-
 /* XXX from resrules.c */
 int store_childtype(resource_child_t **childp, char *name, int start,
 		    int stop, int forbid, int flags);
@@ -335,12 +331,13 @@ restore_signals(void)
    @see			build_env
  */
 int
-res_exec(resource_node_t *node, const char *op, const char *arg, int depth)
+res_exec(resource_node_t *node, int op, const char *arg, int depth)
 {
 	int childpid, pid;
 	int ret = 0;
 	char **env = NULL;
 	resource_t *res = node->rn_resource;
+	const char *op_str = agent_op_str(op);
 	char fullpath[2048];
 
 	if (!res->r_rule->rr_agent)
@@ -354,7 +351,7 @@ res_exec(resource_node_t *node, const char *op, const char *arg, int depth)
 
 #ifdef NO_CCS
 	if (_no_op_mode_) {
-		printf("[%s] %s:%s\n", op, res->r_rule->rr_type,
+		printf("[%s] %s:%s\n", op_str, res->r_rule->rr_type,
 		       res->r_attrs->ra_value);
 		return 0;
 	}
@@ -392,9 +389,9 @@ res_exec(resource_node_t *node, const char *op, const char *arg, int depth)
 		restore_signals();
 
 		if (arg)
-			execle(fullpath, fullpath, op, arg, NULL, env);
+			execle(fullpath, fullpath, op_str, arg, NULL, env);
 		else
-			execle(fullpath, fullpath, op, NULL, env);
+			execle(fullpath, fullpath, op_str, NULL, env);
 	}
 
 #ifdef DEBUG
@@ -411,10 +408,16 @@ res_exec(resource_node_t *node, const char *op, const char *arg, int depth)
 
 		ret = WEXITSTATUS(ret);
 
+#ifndef NO_CCS
+		if ((op == RS_STATUS &&
+		     node->rn_state == RES_STARTED && ret) ||
+		    (op != RS_STATUS && ret)) {
+#else
 		if (ret) {
+#endif
 			clulog(LOG_NOTICE,
 			       "%s on %s \"%s\" returned %d (%s)\n",
-			       op, res->r_rule->rr_type,
+			       op_str, res->r_rule->rr_type,
 			       res->r_attrs->ra_value, ret,
 			       ocf_strerror(ret));
 		}
@@ -864,7 +867,7 @@ _do_child_levels(resource_node_t **tree, resource_t *first, void *ret,
 			     	     rule->rr_childtypes[x].rc_name, 
 		     		     ret, op);
 
-			if (rv & FL_FAILURE && op != RS_STOP)
+			if (rv & SFL_FAILURE && op != RS_STOP)
 				return rv;
 		}
 
@@ -911,7 +914,7 @@ _do_child_default_level(resource_node_t **tree, resource_t *first,
 		list_for(&node->rn_child, child, y) {
 			rv |= _xx_child_internal(node, first, child, ret, op);
 
-			if (rv & FL_FAILURE)
+			if (rv & SFL_FAILURE)
 				return rv;
 		}
 	} else {
@@ -957,7 +960,7 @@ _res_op_by_level(resource_node_t **tree, resource_t *first, void *ret,
 
 	if (op == RS_START || op == RS_STATUS) {
 		rv =  _do_child_levels(tree, first, ret, op);
-	       	if (rv & FL_FAILURE)
+	       	if (rv & SFL_FAILURE)
 			return rv;
 
 		/* Start default level after specified ones */
@@ -1016,12 +1019,6 @@ do_status(resource_node_t *node)
 		if (strcmp(node->rn_actions[x].ra_name, "status"))
 			continue;
 
-		/* If a status check has never been done, reset its status. */
-		if (!node->rn_actions[x].ra_last) {
-			node->rn_actions[x].ra_last = now;
-			continue;
-		}
-
 		delta = now - node->rn_actions[x].ra_last;
 
 		/*
@@ -1067,7 +1064,8 @@ do_status(resource_node_t *node)
  		node->rn_actions[idx].ra_depth,
  		(int)node->rn_actions[idx].ra_interval);*/
  
-	if ((x = res_exec(node, agent_op_str(RS_STATUS), NULL,
+	node->rn_actions[idx].ra_last = now;
+	if ((x = res_exec(node, RS_STATUS, NULL,
                          node->rn_actions[idx].ra_depth)) == 0)
 		return 0;
 
@@ -1075,7 +1073,7 @@ do_status(resource_node_t *node)
 		return x;
 
 	/* Strange/failed status. Try to recover inline. */
-	if ((x = res_exec(node, agent_op_str(RS_RECOVER), NULL, 0)) == 0)
+	if ((x = res_exec(node, RS_RECOVER, NULL, 0)) == 0)
 		return 0;
 
 	return x;
@@ -1163,7 +1161,7 @@ _res_op_internal(resource_node_t **tree, resource_t *first,
 		 char *type, void *__attribute__((unused))ret, int realop,
 		 resource_node_t *node)
 {
-	int rv, me, op;
+	int rv = 0, me, op;
 
 	/* Restore default operation. */
 	op = realop;
@@ -1217,10 +1215,10 @@ _res_op_internal(resource_node_t **tree, resource_t *first,
 	if (me && (op == RS_START)) {
 		node->rn_flags &= ~RF_NEEDSTART;
 
-		rv = res_exec(node, agent_op_str(op), NULL, 0);
+		rv = res_exec(node, op, NULL, 0);
 		if (rv != 0) {
 			node->rn_state = RES_FAILED;
-			return FL_FAILURE;
+			return SFL_FAILURE;
 		}
 
 		set_time("start", 0, node);
@@ -1248,9 +1246,9 @@ _res_op_internal(resource_node_t **tree, resource_t *first,
 			   resources of this node must be restarted,
 			   but siblings of this node are not affected. */
 			if (node->rn_flags & RF_INDEPENDENT)
-				return FL_RECOVERABLE;
+				return SFL_RECOVERABLE;
 
-			return FL_FAILURE;
+			return SFL_FAILURE;
 		}
 
 	}
@@ -1266,20 +1264,20 @@ _res_op_internal(resource_node_t **tree, resource_t *first,
 			   does not matter: its dependent children must
 			   also be independent of this node's siblings. */
 			if (node->rn_flags & RF_INDEPENDENT)
-				return FL_RECOVERABLE;
+				return SFL_RECOVERABLE;
 
-			return FL_FAILURE;
+			return SFL_FAILURE;
 		}
 	}
 
 	/* Stop should occur after children have stopped */
 	if (me && (op == RS_STOP)) {
 		node->rn_flags &= ~RF_NEEDSTOP;
-		rv = res_exec(node, agent_op_str(op), NULL, 0);
+		rv = res_exec(node, op, NULL, 0);
 
 		if (rv != 0) {
 			node->rn_state = RES_FAILED;
-			return FL_FAILURE;
+			return SFL_FAILURE;
 		}
 
 		if (node->rn_state != RES_STOPPED) {
@@ -1292,7 +1290,7 @@ _res_op_internal(resource_node_t **tree, resource_t *first,
 	       //node->rn_resource->r_rule->rr_type,
 	       //primary_attr_value(node->rn_resource));
 	
-	return 0;
+	return rv;
 }
 
 
@@ -1332,12 +1330,12 @@ _res_op(resource_node_t **tree, resource_t *first,
 
 			/* If we hit a problem during a 'status' op in an
 			   independent subtree, rv will have the
-			   FL_RECOVERABLE bit set, but not FL_FAILURE.
-			   If we ever hit FL_FAILURE during a status
+			   SFL_RECOVERABLE bit set, but not SFL_FAILURE.
+			   If we ever hit SFL_FAILURE during a status
 			   operation, we're *DONE* - even if the subtree
 			   is flagged w/ indy-subtree */
 			  
- 			if (rv & FL_FAILURE) 
+ 			if (rv & SFL_FAILURE) 
  				return rv;
  		}
  	}
@@ -1411,33 +1409,7 @@ res_stop(resource_node_t **tree, resource_t *res, void *ret)
 int
 res_status(resource_node_t **tree, resource_t *res, void *ret)
 {
-	int rv;
-	rv = _res_op(tree, res, NULL, ret, RS_STATUS);
-
-	if (rv == 0)
-		return 0;
-
-	if (rv & FL_FAILURE)
-		return rv;
-
-	clulog(LOG_WARNING, "Some independent resources in %s:%s failed; "
-	       "Attempting inline recovery\n",
-	       res->r_rule->rr_type, res->r_attrs->ra_value);
-
-	rv = res_condstop(tree, res, ret);
-	if (rv & FL_FAILURE)
-		goto out_fail;
-	rv = res_condstart(tree, res, ret);
-	if (rv & FL_FAILURE)
-		goto out_fail;
-
-	clulog(LOG_NOTICE, "Inline recovery of %s:%s successful\n",
-	       res->r_rule->rr_type, res->r_attrs->ra_value);
-	return 0;
-out_fail:
-	clulog(LOG_WARNING, "Inline recovery of %s:%s failed\n",
-	       res->r_rule->rr_type, res->r_attrs->ra_value);
-	return 1;
+	return _res_op(tree, res, NULL, ret, RS_STATUS);
 }
 
 

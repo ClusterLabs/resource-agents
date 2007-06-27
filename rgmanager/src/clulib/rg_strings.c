@@ -26,6 +26,8 @@ struct string_val {
 
 
 const struct string_val rg_error_strings[] = {
+	{ RG_EFENCE,    "Fencing operation pending; try again later" },
+	{ RG_ENODE,     "Target node dead / nonexistent" },
 	{ RG_ERUN,      "Service is already running" },
 	{ RG_EQUORUM,	"Operation requires quorum" },
 	{ RG_EINVAL,	"Invalid operation for resource" },
@@ -68,6 +70,7 @@ const struct string_val rg_req_strings[] = {
 	{RG_UNLOCK, "unlocking"},
 	{RG_QUERY_LOCK, "lock status inquiry"},
 	{RG_MIGRATE, "migrate"},
+	{RG_STATUS_INQUIRY, "out of band service status inquiry"},
 	{RG_NONE, "none"},
 	{0, NULL}
 };
@@ -182,5 +185,6 @@ rg_req_str(int val)
 const char *
 agent_op_str(int val)
 {
+		printf("searching agent_ops for %d\n", val);
 	return rg_search_table(agent_ops, val);
 }

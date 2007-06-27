@@ -98,6 +98,7 @@ extern size_t rg_state_t_version_sizes[];
 #define RG_MIGRATE	  22
 #define RG_FREEZE	  23
 #define RG_UNFREEZE	  24
+#define RG_STATUS_INQUIRY 25
 #define RG_NONE		  999
 
 const char *rg_req_str(int req);
@@ -143,6 +144,7 @@ void rg_init(void);
 int svc_start(char *svcName, int req);
 int svc_stop(char *svcName, int error);
 int svc_status(char *svcName);
+int svc_status_inquiry(char *svcName);
 int svc_disable(char *svcName);
 int svc_fail(char *svcName);
 int svc_freeze(char *svcName);
@@ -188,6 +190,8 @@ cluster_member_list_t *member_list(void);
 int my_id(void);
 
 /* Return codes */
+#define RG_EFENCE	-13		/* Fencing operation pending */
+#define RG_ENODE	-12		/* Node is dead/nonexistent */
 #define RG_EFROZEN	-11		/* Service is frozen */
 #define RG_ERUN		-10		/* Service is already running */
 #define RG_EQUORUM	-9		/* Operation requires quorum */
@@ -220,6 +224,12 @@ const char *rg_strerror(int val);
 #define FOD_ORDERED		(1<<0)
 #define FOD_RESTRICTED		(1<<1)
 #define FOD_NOFAILBACK		(1<<2)
+
+/*
+   Status tree flags
+ */
+#define SFL_FAILURE		(1<<0)
+#define SFL_RECOVERABLE		(1<<1)
 
 //#define DEBUG
 #ifdef DEBUG

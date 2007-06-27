@@ -896,7 +896,7 @@ group_migrate(char *groupname, int target)
 	}
 	
 	clulog(LOG_NOTICE, "Migrating %s to %s\n", groupname, tgt_name);
-	ret = res_exec(rn, agent_op_str(RS_MIGRATE), tgt_name, 0);
+	ret = res_exec(rn, RS_MIGRATE, tgt_name, 0);
 	if (ret == 0) {
 		clulog(LOG_NOTICE,
 		       "Migration of %s to %s completed\n",

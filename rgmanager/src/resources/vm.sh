@@ -182,9 +182,8 @@ meta_data()
         <action name="start" timeout="20"/>
         <action name="stop" timeout="120"/>
 	
-	<!-- No-ops.  Groups are abstract resource types.  -->
-        <action name="status" timeout="10" interval="30m"/>
-        <action name="monitor" timeout="10" interval="30m"/>
+        <action name="status" timeout="10" interval="30"/>
+        <action name="monitor" timeout="10" interval="30"/>
 
 	<!-- reconfigure - reconfigure with new OCF parameters.
 	     NOT OCF COMPATIBLE AT ALL -->
@@ -273,12 +272,14 @@ build_xm_cmdline()
 # Start a virtual machine given the parameters from
 # the environment.
 #
-start()
+do_start()
 {
 	# Use /dev/null for the configuration file, if xmdefconfig
 	# doesn't exist...
 	#
 	declare cmdline
+
+	do_status && return 0
 
 	cmdline="`build_xm_cmdline`"
 
@@ -293,7 +294,7 @@ start()
 # Stop a VM.  Try to shut it down.  Wait a bit, and if it
 # doesn't shut down, destroy it.
 #
-stop()
+do_stop()
 {
 	declare -i timeout=60
 	declare -i ret=1
@@ -307,7 +308,7 @@ stop()
 		while [ $timeout -gt 0 ]; do
 			sleep 5
 			((timeout -= 5))
-			status || return 0
+			do_status || return 0
 			while read dom state; do
 				#
 				# State is "stopped".  Kill it.
@@ -346,9 +347,26 @@ reconfigure()
 # Simple status check: Find the VM in the list of running
 # VMs
 #
-status()
+do_status()
 {
 	declare line
+
+  	xm list $OCF_RESKEY_name &> /dev/null
+ 	if [ $? -eq 0 ]; then
+ 		return $OCF_SUCCESS
+ 	fi
+ 	xm list migrating-$OCF_RESKEY_name &> /dev/null
+	if [ $? -eq 1 ]; then
+		return $OCF_NOT_RUNNING
+	fi
+
+	return $OCF_ERR_GENERIC
+
+### NOT REACHED ###
+
+	# virsh doesn't handle migrating domains right now
+	# When this gets fixed, we need to revisit this status
+	# function.
 
 	line=$(virsh domstate $OCF_RESKEY_name)
 	if [ "$line" = "" ]; then
@@ -400,26 +418,26 @@ migrate()
 
 case $1 in
 	start)
-		start
+		do_start
 		exit $?
 		;;
 	stop)
-		stop shutdown destroy
+		do_stop shutdown destroy
 		exit $?
 		;;
 	kill)
-		stop destroy
+		do_stop destroy
 		exit $?
 		;;
 	recover|restart)
 		exit 0
 		;;
 	status|monitor)
-		status
+		do_status
 		exit $?
 		;;
 	migrate)
-		migrate $2 # Send VM to this node
+		do_migrate $2 # Send VM to this node
 		exit $?
 		;;
 	reload)

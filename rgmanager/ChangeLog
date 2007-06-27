@@ -1,3 +1,30 @@
+2007-06-27 Lon Hohberger <lhh at redhat.com>
+	* Merge from RHEL5 branch.
+	* src/daemons/vm.sh: Un-break migrate (#231692).  Make status
+	checks happen every 30 seconds instead of 30 minutes.
+	* include/resgroup.h: Move inline recovery flags to a header file,
+	add RG_STATUS_INQUIRY for locating virtual machines which may have
+	migrated.
+	* include/reslist.h: Change res_exec() back to using agent_op_str()
+	inline so we can squelch errors while performing RG_STATUS_INQUIRY
+	* src/clulib/rg_strings.c: Add new strings for new error code / 
+	request types
+	* src/daemons/groups.c: Change group_migrate() to use the correct
+	calling semantics
+	* src/daemons/main.c, nodeevent.c: Clean up cases which could cause
+	#244143
+	* src/daemons/resrules.c: Clear up noise
+	* src/daemons/restree.c: Squelch errors during RG_STATUS_INQUIRY
+	Patch up inline service recovery (#229650)
+	* src/daemons/rg_state.c: Don't let migrations or relocations to a
+	node running exclusive services occur in the first place and return
+	a useful error. (goes with #237144).  Locate virtual machines (or
+	generally, services with the 'migrate' ability) elsewhere in the
+	cluster prior to trying to start one.  Detect if someone migrates
+	such a service without using the cluster tools (#232300)
+	* src/daemons/test.c: Make rg_test do the right thing for migrate
+	operations
+
 2007-06-21 Fabio M. Di Nitto <fabbione at ubuntu.com>
 	* rgmanager/src/clulib/alloc.c: Undefine DEBUG when building on IA64.
 	The __builtin_address functionality should be taken from libunwind

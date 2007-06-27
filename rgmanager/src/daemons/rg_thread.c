@@ -441,6 +441,19 @@ resgroup_thread_main(void *arg)
 				ret = RG_EFAIL;
 			break;
 
+		case RG_STATUS_INQUIRY:
+			error = svc_status_inquiry(myname);
+
+			if (error == 0) {
+				ret = RG_SUCCESS;
+				newowner = my_id();
+			} else {
+				ret = RG_EFAIL;
+				newowner = -1;
+			}
+
+			break;
+
 		default:
 			printf("Unhandled request %d\n", req->rr_request);
 			ret = RG_NONE;
