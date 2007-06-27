@@ -57,11 +57,7 @@ ${TARGET2}: ${SHAREDOBJS} ${OBJS2}
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
-	rm -f ${TARGET1} ${TARGET2} *~ *.o testprog
-
-testprog:
-	 gcc -o testprog xml.c -I/usr/include/libxml2 -lxml2 \
-		 -DSTANDALONE -ggdb
+	rm -f ${TARGET1} ${TARGET2} *~ *.o
 
 install: all
 	if [ ! -d ${sbindir} ]; then \
