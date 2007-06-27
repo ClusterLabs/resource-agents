@@ -84,7 +84,7 @@ UMOUNT=@UMOUNT@
 BLOCKDEV=@BLOCKDEV@
 
 check_util () {
-    if [ ! -x "$1" ] ; then
+    if [ ! -x `which $1` ] ; then
 	ocf_log err "Setup problem: Couldn't find utility $1"
 	exit $OCF_ERR_GENERIC
     fi
