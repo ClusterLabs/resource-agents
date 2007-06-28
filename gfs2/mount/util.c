@@ -327,8 +327,11 @@ static int gfs_controld_connect(void)
 	int rv, fd;
 
 	fd = socket(PF_UNIX, SOCK_STREAM, 0);
-	if (fd < 0)
+	if (fd < 0) {
+		warn("can't create socket for gfs_controld connection: %s",
+		     strerror(errno));
 		goto out;
+	}
 
 	memset(&sun, 0, sizeof(sun));
 	sun.sun_family = AF_UNIX;
@@ -337,6 +340,7 @@ static int gfs_controld_connect(void)
 
 	rv = connect(fd, (struct sockaddr *) &sun, addrlen);
 	if (rv < 0) {
+		warn("can't connect to gfs_controld: %s", strerror(errno));
 		close(fd);
 		fd = rv;
 	}
@@ -406,10 +410,8 @@ int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb)
 	i = 0;
 	do {
 		fd = gfs_controld_connect();
-		if (fd <= 0) {
-			warn("waiting for gfs_controld to start");
+		if (fd <= 0)
 			sleep(1);
-		}
 	} while (fd <= 0 && ++i < 10);
 
 	/* FIXME: should we start the daemon here? */
@@ -447,7 +449,7 @@ int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb)
 
 	rv = write(fd, buf, sizeof(buf));
 	if (rv < 0) {
-		warn("gfs_controld write error: %d", rv);
+		warn("gfs_controld write error: %s", strerror(errno));
 		goto out;
 	}
 
@@ -463,7 +465,8 @@ int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb)
 	memset(buf, 0, sizeof(buf));
 	rv = read(fd, buf, sizeof(buf));
 	if (rv < 0) {
-		warn("error reading result from gfs_controld: %d", rv);
+		warn("error reading result from gfs_controld: %s",
+		     strerror(errno));
 		goto out;
 	}
 	rv = atoi(buf);
@@ -637,10 +640,8 @@ int lock_dlm_leave(struct mount_options *mo, struct gen_sb *sb, int mnterr)
 	i = 0;
 	do {
 		fd = gfs_controld_connect();
-		if (fd <= 0) {
-			warn("waiting for gfs_controld to start");
+		if (fd <= 0)
 			sleep(1);
-		}
 	} while (fd <= 0 && ++i < 10);
 
 	if (fd <= 0) {
@@ -717,10 +718,8 @@ int lock_dlm_remount(struct mount_options *mo, struct gen_sb *sb)
 	i = 0;
 	do {
 		fd = gfs_controld_connect();
-		if (fd <= 0) {
-			warn("waiting for gfs_controld to start");
+		if (fd <= 0)
 			sleep(1);
-		}
 	} while (fd <= 0 && ++i < 10);
 
 	if (fd <= 0) {
