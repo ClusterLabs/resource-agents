@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
@@ -33,6 +33,7 @@
 # Initialization:
 
 . @hb_libdir@/ocf-shellfuncs
+# . /usr/lib64/heartbeat/ocf-shellfuncs
 
 #######################################################################
 
@@ -153,13 +154,6 @@ o2cb_start()
 	# possible magic value.
 	crm_attribute -! -t status -U ${O2CB_MYSELF} -n o2cb-${O2CB_CLUSTER}-lock -v unset >/dev/null 2>&1
 	
-	local MYSLOT=$(o2cb_ctl -I -n $O2CB_MYSELF -o -t node 2>/dev/null| tail -n 1 | cut -d ':' -f 3)
-	
-	if [ "$MYSLOT" != "number" ]; then
-		ocf_log info "$O2CB_CLUSTER: Propagating slot number $MYSLOT"
-		crm_attribute -! -t status -U ${O2CB_MYSELF} -n o2cb-${O2CB_CLUSTER}-slot -v $MYSLOT >/dev/null 2>&1
-	fi
-	
 	return 0
 }
 
@@ -170,14 +164,16 @@ o2cb_notify() {
 	local n_active="$OCF_RESKEY_CRM_meta_notify_active_uname"
 	local n_start="$OCF_RESKEY_CRM_meta_notify_start_uname"
 
+	if [ "$n_type" = "pre" -a "$n_op" = "start" ]; then
+		crm_attribute -! -t status -U ${O2CB_MYSELF} -n o2cb-${O2CB_CLUSTER}-lock -v unset >/dev/null 2>&1
+	fi
+
 	# We only have to do something for post-start - "someone" just
 	# came online and needs to be integrated into the cluster.
 	if [ "$n_type" != "post" -o "$n_op" != "start" ]; then
 		return $OCF_SUCCESS
 	fi
 
-	ocf_log info "$O2CB_CLUSTER: notify: Integrating cluster membership."
-	
 	# Duplicate removal - start can contain nodes
 	# already on the active list, confusing the
 	# script later on:
@@ -191,20 +187,10 @@ o2cb_notify() {
 
 	local lock_key=$(echo "$n_active" | md5sum | cut -d ' ' -f 1)
 
-	# The highest slot number in use so far, on-disk:
-	max_slot=$(o2cb_ctl -I -o -t node | cut -d ':' -f 3 | sort -n | tail -n 1)
-	if [ "$max_slot" = "slot" ]; then
-		max_slot=0
-	fi
-
 	local n_first=$(echo $n_active | cut -d ' ' -f 1)
 	local lock_done=0
-	local n_leader=0
 	
-	if [ "$n_first" = "$O2CB_MYSELF" ]; then
-		ocf_log info "$O2CB_CLUSTER: I am the leader."
-		n_leader=1
-	else
+	if [ "$n_first" != "$O2CB_MYSELF" ]; then
 		# I'm not the first one. I have to wait until
 		# the first one has completed the pass.
 		ocf_log info "$O2CB_CLUSTER: Waiting for leader ($n_first)"
@@ -216,70 +202,64 @@ o2cb_notify() {
 			fi
 		done
 		ocf_log info "$O2CB_CLUSTER: Leader has completed."
-	fi
+	else
+		ocf_log info "$O2CB_CLUSTER: I am the leader."
 
-	for n in $n_active ; do
-		
-		if o2cb_ctl -I -t node -n $n -o >/dev/null 2>&1 ; then
-			ocf_log info "$O2CB_CLUSTER: $n already configured locally."
-			# If it's already configured locally, it's
-			# already accounted for in max_slot.
-			continue
+		# The highest slot number in use so far, on-disk:
+		max_slot=$(o2cb_ctl -I -o -t node | cut -d ':' -f 3 | sort -n | tail -n 1)
+		if [ "$max_slot" = "slot" ]; then
+			max_slot=0
 		fi
-	
-		n_ip=$(crm_attribute -t status -n o2cb-${O2CB_CLUSTER}-ip -U $n -G -Q 2>/dev/null)
 
-		if [ -z "$n_ip" ]; then
-			# This should actually be impossible. It means
-			# that start on that node has failed, and it'll
-			# be stopped any second now anyway -
-			ocf_log err "$O2CB_CLUSTER: No IP was found for $n, skipping!"
-			continue
-		fi
-		ocf_log info "$O2CB_CLUSTER: Using IP $n_ip for $n"
+		for n in $n_active ; do
+			if o2cb_ctl -I -t node -n $n -o >/dev/null 2>&1 ; then
+				ocf_log info "$O2CB_CLUSTER: $n already configured locally."
+				# If it's already configured locally, it's
+				# already accounted for in max_slot.
+				continue
+			fi
 		
-		n_slot=$(crm_attribute -t status -n o2cb-${O2CB_CLUSTER}-slot -U $n -G -Q 2>/dev/null)
-		
-		if [ -n "$n_slot" ]; then
-			# Not in the configuration but does have a slot
-			# number; this means
-			# a) It has been assigned a slot number by the
-			# leader,
-			# b) it had been added while we were down.
-			# a is more likely, so all should likely be well
-			# ;-)
-			# TODO: Handle case b
-			ocf_log info "$O2CB_CLUSTER: Node $n uses slot $n_slot according to CIB"
-		else
-			if [ "$n_leader" -ne 1 ]; then
-				ocf_log err "$O2CB_CLUSTER: $n_first did not assign a slot to $n!"
-				# Uhm. This is basically not
-				# recoverable, but shouldn't ever occur.
-				exit $OCF_ERR_GENERIC
-			fi 
+			n_ip=$(crm_attribute -t status -n o2cb-${O2CB_CLUSTER}-ip -U $n -G -Q 2>/dev/null)
+
+			if [ -z "$n_ip" ]; then
+				# This should actually be impossible. It means
+				# that start on that node has failed, and it'll
+				# be stopped any second now anyway -
+				ocf_log err "$O2CB_CLUSTER: No IP was found for $n, skipping!"
+				continue
+			fi
+			ocf_log info "$O2CB_CLUSTER: Using IP $n_ip for $n"
 			
-			# OK. No slot number, but we're the master of
-			# ceremony. Give it one!
 			n_slot=$[max_slot+1]
 			max_slot=$n_slot
-	
+		
 			ocf_log info "$O2CB_CLUSTER: Assigned slot $n_slot to $n (max_slot: $max_slot)"
-			crm_attribute -! -t status -U $n \
-				-n o2cb-${O2CB_CLUSTER}-slot \
-				-v $n_slot >/dev/null 2>&1
-		fi
+			
+			# TODO: Handle the case where o2cb is already
+			# active and the node needs to be added
+			# "online".
+			# This also will need to be handled on the
+			# slaves.
+			o2cb_ctl -C -n $n -t node \
+				-a number=$n_slot -a ip_address=$n_ip \
+				-a ip_port=$OCF_RESKEY_port -a cluster=$O2CB_CLUSTER
+			ocf_log info "$O2CB_CLUSTER: $n added to o2cb configuration."
+		done
 
-		o2cb_ctl -C -n $n -t node \
-			-a number=$n_slot -a ip_address=$n_ip \
-			-a ip_port=$OCF_RESKEY_port -a cluster=$O2CB_CLUSTER
-		ocf_log info "$O2CB_CLUSTER: $n added to o2cb configuration."
-	done
-
-	# Mark our run as completed - this will allow all other nodes to
-	# continue running as well.
-	if [ $n_leader -eq 1 ]; then
+		# Push the file out to all other nodes!
+		for n in $n_active ; do
+			if [ "$n" = "$O2CB_MYSELF" ]; then
+				continue
+			fi
+			ocf_log info "$O2CB_CLUSTER: Distributing cluster.conf to $n"
+			scp $O2CB_CONF $n:$O2CB_CONF
+		done
+		
+		# Mark our run as completed - this will allow all other nodes to
+		# continue running as well.
 		crm_attribute -! -t status -U ${O2CB_MYSELF} -n o2cb-${O2CB_CLUSTER}-lock -v $lock_key >/dev/null 2>&1
 	fi
+
 
 	ocf_log info "Bringing o2cb online:"
 	$RCO2CB online
@@ -289,8 +269,6 @@ o2cb_notify() {
 
 o2cb_stop()
 {
-#	o2cb_init
-#	crm_attribute -! -t status -U ${O2CB_MYSELF} -n o2cb-${O2CB_CLUSTER}-lock -v unset >/dev/null 2>&1
 	ocf_log info "Invoking o2cb stop"
 	$RCO2CB stop
 	exit 0
@@ -330,11 +308,18 @@ esac
 
 RCO2CB=@INITDIR@/o2cb
 # RCO2CB=/etc/init.d/o2cb
+
 if [ ! -x $RCO2CB ]; then
 	ocf_log err "o2cb init script not found."
-	exit $OCF_ERR_GENERIC
+	exit $OCF_NOT_RUNNING
 fi
 O2CB_MYSELF=${HA_CURHOST:-$(uname -n | tr '[A-Z]' '[a-z]')}
+
+O2CB_CONF=/etc/ocfs2/cluster.conf
+if [ ! -e "$O2CB_CONF" ]; then
+	ocf_log err "$O2CB_CONF not found."
+	exit $OCF_NOT_RUNNING
+fi
 
 if [ "$OP" != "monitor" ]; then
 	ocf_log info "Running $OP"
