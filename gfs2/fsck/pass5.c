@@ -21,9 +21,13 @@
 #include "fs_bits.h"
 #include "util.h"
 
-int convert_mark(enum gfs2_mark_block mark, uint32_t *count)
+int convert_mark(struct gfs2_block_query *q, uint32_t *count)
 {
-	switch(mark) {
+	if (q->eattr_block) {
+		count[2]++;
+		return GFS2_BLKST_USED;
+	}
+	switch(q->block_type) {
 
 	case gfs2_meta_inval:
 		/* Convert invalid metadata to free blocks */
@@ -54,7 +58,7 @@ int convert_mark(enum gfs2_mark_block mark, uint32_t *count)
 		return GFS2_BLKST_USED;
 
 	default:
-		log_err("Invalid state %d found\n", mark);
+		log_err("Invalid state %d found\n", q->block_type);
 		return -1;
 	}
 	return -1;
@@ -83,7 +87,7 @@ int check_block_status(struct gfs2_sbd *sbp, char *buffer, unsigned int buflen,
 			return 0;
 		gfs2_block_check(bl, block, &q);
 
-		block_status = convert_mark(q.block_type, count);
+		block_status = convert_mark(&q, count);
 
 		if (rg_status != block_status) {
 			const char *blockstatus[] = {"Free", "Data", "Invalid", "inode"};

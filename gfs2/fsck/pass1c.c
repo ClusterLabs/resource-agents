@@ -47,7 +47,7 @@ int check_eattr_indir(struct gfs2_inode *ip, uint64_t block,
 	int *update = (int *) private;
 	struct gfs2_sbd *sbp = ip->i_sbd;
 	struct gfs2_block_query q;
-	struct gfs2_buffer_head *indir_bh;
+	struct gfs2_buffer_head *indir_bh = NULL;
 
 	if(gfs2_check_range(sbp, block)) {
 		log_err("Extended attributes indirect block out of range...removing\n");

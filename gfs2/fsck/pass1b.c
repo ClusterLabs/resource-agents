@@ -214,6 +214,7 @@ static int clear_dup_eattr_indir(struct gfs2_inode *ip, uint64_t block,
 	struct dup_handler *dh = (struct dup_handler *) private;
 	/* Can't use fxns from eattr.c since we need to check the ref
 	 * count */
+	*bh = NULL;
 	if(dh->ref_count == 1)
 		return 1;
 	if(block == dh->b->block_no) {

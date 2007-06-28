@@ -501,9 +501,9 @@ static int check_indirect_eattr(struct gfs2_inode *ip, uint64_t indirect,
 			error = check_leaf_eattr(ip, block, indirect, pass);
 			ea_leaf_ptr++;
 		}
+		brelse(indirect_buf, not_updated);
 	}
 
-	brelse(indirect_buf, not_updated);
 	return error;
 }
 

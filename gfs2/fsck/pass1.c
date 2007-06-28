@@ -147,10 +147,6 @@ static int check_eattr_indir(struct gfs2_inode *ip, uint64_t indirect,
 
 	/* This inode contains an eattr - it may be invalid, but the
 	 * eattr attributes points to a non-zero block */
-	log_debug("Setting %" PRIu64 " (0x%" PRIx64 ") to eattr block\n",
-			  indirect, indirect);
-	gfs2_block_set(bl, indirect, gfs2_eattr_block);
-
 	if(gfs2_check_range(sdp, indirect)) {
 		/*log_warn("EA indirect block #%"PRIu64" is out of range.\n",
 			indirect);
@@ -171,6 +167,10 @@ static int check_eattr_indir(struct gfs2_inode *ip, uint64_t indirect,
 		ret = 1;
 	}
 	else {
+		log_debug("Setting %" PRIu64 " (0x%"
+			  PRIx64 ") to eattr block\n", indirect, indirect);
+		gfs2_block_set(bl, indirect, gfs2_eattr_block);
+
 		*bh = bread(sdp, indirect);
 		block = be64_to_cpu(*(*bh)->b_data);
 		if(gfs2_check_meta(*bh, GFS2_METATYPE_IN)) {
@@ -186,7 +186,6 @@ static int check_eattr_indir(struct gfs2_inode *ip, uint64_t indirect,
 			gfs2_block_set(bl, block, gfs2_indir_blk);
 			bc->ea_count++;
 		}
-		brelse(*bh, not_updated);
 	}
 	return ret;
 }
