@@ -2870,6 +2870,7 @@ resources/Makefile						\
 	resources/OCF/ManageRAID				\
 	resources/OCF/ManageVE					\
         resources/OCF/mysql					\
+	resources/OCF/o2cb					\
 	resources/OCF/oracle					\
 	resources/OCF/oralsnr					\
 	resources/OCF/portblock					\

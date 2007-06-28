@@ -1,0 +1,361 @@
+#!/bin/sh
+#
+# Support:      linux-ha@lists.linux-ha.org
+# License:      GNU General Public License (GPL)
+# 
+#      Description: Manage the O2CB membership layer.
+#
+# Copyright (c) 2007 SUSE LINUX Products GmbH, Lars Marowsky-Bree
+#                    All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+#
+
+#######################################################################
+# Initialization:
+
+. @hb_libdir@/ocf-shellfuncs
+
+#######################################################################
+
+usage() {
+	cat <<-EOT
+	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
+	EOT
+}
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="o2cb">
+<version>1.0</version>
+
+<longdesc lang="en">
+
+This script manages the Oracle Cluster membership layer. It obsoletes
+manual configuration of the nodes in /etc/ocfs2/cluster.conf, and
+automates the discovery of the IP addresses uses by o2cb. It should be
+used below one or more ocfs2 mounts managed by Filesystem.
+
+</longdesc>
+<shortdesc lang="en">OCFS2 membership layer manager.</shortdesc>
+
+<parameters>
+<parameter name="netdev" unique="1">
+<longdesc lang="en">
+The network interface label which you want o3cb to run over.
+</longdesc>
+<shortdesc lang="en">Network device for o2cb</shortdesc>
+<content type="string" default="eth0" />
+</parameter>
+
+<parameter name="port" unique="1">
+<longdesc lang="en">
+The port number you want o2cb to use for communications.
+</longdesc>
+<shortdesc lang="en">Port number</shortdesc>
+<content type="string" default="7777" />
+</parameter>
+
+<parameter name="ocfs2_cluster">
+<longdesc lang="en">
+The name of the cluster for which this resource is managing the
+membership. The default is likely fine.
+</longdesc>
+<shortdesc lang="en">o2cb cluster name</shortdesc>
+<content type="string" default="ocfs2" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start" timeout="60" />
+<action name="stop" timeout="60" />
+<action name="notify" timeout="60" />
+<action name="monitor" depth="0" timeout="40" interval="20" start-delay="10" />
+<action name="validate-all" timeout="5" />
+<action name="meta-data" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+o2cb_init()
+{
+	# Check & initialize the OCFS2 specific variables.
+
+	if [ $OP != "stop" ]; then
+		if [ -z "$OCF_RESKEY_CRM_meta_clone" ]; then
+			ocf_log err "o2cb must be run as a clone."
+			exit $OCF_ERR_GENERIC
+		fi
+	fi
+
+	if [ -n "$OCF_RESKEY_ocfs2_cluster" ]; then
+		O2CB_CLUSTER=$(echo $OCF_RESKEY_ocfs2_cluster | tr '[a-z]' '[A-Z]')
+	else
+		O2CB_CLUSTER=$(o2cb_ctl -I -t cluster -o | sed -ne '/^[^#]/{ s/\([^:]*\):.*$/\1/; p }')
+		set -- $O2CB_CLUSTER
+		local n="$#"
+		if [ $n -gt 1 ]; then
+			ocf_log err "$O2CB_CLUSTER: several clusters found."
+			exit $OCF_ERR_GENERIC
+		fi
+		if [ $n -eq 0 ]; then
+			ocf_log info "$O2CB_CLUSTER: no clusters found."
+			exit $OCF_ERR_GENERIC
+		fi
+	fi
+
+}
+
+o2cb_start()
+{
+	ocf_log info "Loading o2cb:"
+	$RCO2CB stop
+	$RCO2CB load
+	
+	o2cb_init
+
+	local MYIP=$(ip addr show label $OCF_RESKEY_netdev | sed -ne '/inet /{ s/.*inet \(.*\)\/.*/\1/; p }')
+
+	if [ -z "$MYIP" ]; then
+		ocf_log err "$O2CB_CLUSTER: No IP found with label $OCF_RESKEY_netdev"
+		exit $OCF_ERR_GENERIC
+	fi
+	
+	ocf_log info "$O2CB_CLUSTER: Using IP $MYIP as found on $OCF_RESKEY_netdev"
+	crm_attribute -! -t status -U ${O2CB_MYSELF} -n o2cb-${O2CB_CLUSTER}-ip -v $MYIP >/dev/null 2>&1
+	if [ $? -ne 0 ]; then
+		ocf_log err "$O2CB_CLUSTER: Failed to write local IP address into CIB."
+		exit $OCF_ERR_GENERIC
+	fi
+
+	# This is a semaphore; just make sure it's never set to a
+	# possible magic value.
+	crm_attribute -! -t status -U ${O2CB_MYSELF} -n o2cb-${O2CB_CLUSTER}-lock -v unset >/dev/null 2>&1
+	
+	local MYSLOT=$(o2cb_ctl -I -n $O2CB_MYSELF -o -t node 2>/dev/null| tail -n 1 | cut -d ':' -f 3)
+	
+	if [ "$MYSLOT" != "number" ]; then
+		ocf_log info "$O2CB_CLUSTER: Propagating slot number $MYSLOT"
+		crm_attribute -! -t status -U ${O2CB_MYSELF} -n o2cb-${O2CB_CLUSTER}-slot -v $MYSLOT >/dev/null 2>&1
+	fi
+	
+	return 0
+}
+
+o2cb_notify() {
+	o2cb_init
+	local n_type="$OCF_RESKEY_CRM_meta_notify_type"
+	local n_op="$OCF_RESKEY_CRM_meta_notify_operation"
+	local n_active="$OCF_RESKEY_CRM_meta_notify_active_uname"
+	local n_start="$OCF_RESKEY_CRM_meta_notify_start_uname"
+
+	# We only have to do something for post-start - "someone" just
+	# came online and needs to be integrated into the cluster.
+	if [ "$n_type" != "post" -o "$n_op" != "start" ]; then
+		return $OCF_SUCCESS
+	fi
+
+	ocf_log info "$O2CB_CLUSTER: notify: Integrating cluster membership."
+	
+	# Duplicate removal - start can contain nodes
+	# already on the active list, confusing the
+	# script later on:
+	for UNAME in "$n_active"; do
+		n_start="${n_start//$UNAME/}"
+	done
+	# Merge pruned lists again:
+	n_active="$n_active $n_start"
+	# Ugliness behold - we need n_active to be sorted:
+	n_active=$( (for W in $n_active; do echo $W ; done) | sort )
+
+	local lock_key=$(echo "$n_active" | md5sum | cut -d ' ' -f 1)
+
+	# The highest slot number in use so far, on-disk:
+	max_slot=$(o2cb_ctl -I -o -t node | cut -d ':' -f 3 | sort -n | tail -n 1)
+	if [ "$max_slot" = "slot" ]; then
+		max_slot=0
+	fi
+
+	local n_first=$(echo $n_active | cut -d ' ' -f 1)
+	local lock_done=0
+	local n_leader=0
+	
+	if [ "$n_first" = "$O2CB_MYSELF" ]; then
+		ocf_log info "$O2CB_CLUSTER: I am the leader."
+		n_leader=1
+	else
+		# I'm not the first one. I have to wait until
+		# the first one has completed the pass.
+		ocf_log info "$O2CB_CLUSTER: Waiting for leader ($n_first)"
+		while [ $lock_done -eq 0 ]; do
+			if [ "$(crm_attribute -t status -n o2cb-${O2CB_CLUSTER}-lock -U $n_first -G -Q 2>/dev/null)" = "$lock_key" ] ; then
+				lock_done=1
+			else 
+				sleep 3
+			fi
+		done
+		ocf_log info "$O2CB_CLUSTER: Leader has completed."
+	fi
+
+	for n in $n_active ; do
+		
+		if o2cb_ctl -I -t node -n $n -o >/dev/null 2>&1 ; then
+			ocf_log info "$O2CB_CLUSTER: $n already configured locally."
+			# If it's already configured locally, it's
+			# already accounted for in max_slot.
+			continue
+		fi
+	
+		n_ip=$(crm_attribute -t status -n o2cb-${O2CB_CLUSTER}-ip -U $n -G -Q 2>/dev/null)
+
+		if [ -z "$n_ip" ]; then
+			# This should actually be impossible. It means
+			# that start on that node has failed, and it'll
+			# be stopped any second now anyway -
+			ocf_log err "$O2CB_CLUSTER: No IP was found for $n, skipping!"
+			continue
+		fi
+		ocf_log info "$O2CB_CLUSTER: Using IP $n_ip for $n"
+		
+		n_slot=$(crm_attribute -t status -n o2cb-${O2CB_CLUSTER}-slot -U $n -G -Q 2>/dev/null)
+		
+		if [ -n "$n_slot" ]; then
+			# Not in the configuration but does have a slot
+			# number; this means
+			# a) It has been assigned a slot number by the
+			# leader,
+			# b) it had been added while we were down.
+			# a is more likely, so all should likely be well
+			# ;-)
+			# TODO: Handle case b
+			ocf_log info "$O2CB_CLUSTER: Node $n uses slot $n_slot according to CIB"
+		else
+			if [ "$n_leader" -ne 1 ]; then
+				ocf_log err "$O2CB_CLUSTER: $n_first did not assign a slot to $n!"
+				# Uhm. This is basically not
+				# recoverable, but shouldn't ever occur.
+				exit $OCF_ERR_GENERIC
+			fi 
+			
+			# OK. No slot number, but we're the master of
+			# ceremony. Give it one!
+			n_slot=$[max_slot+1]
+			max_slot=$n_slot
+	
+			ocf_log info "$O2CB_CLUSTER: Assigned slot $n_slot to $n (max_slot: $max_slot)"
+			crm_attribute -! -t status -U $n \
+				-n o2cb-${O2CB_CLUSTER}-slot \
+				-v $n_slot >/dev/null 2>&1
+		fi
+
+		o2cb_ctl -C -n $n -t node \
+			-a number=$n_slot -a ip_address=$n_ip \
+			-a ip_port=$OCF_RESKEY_port -a cluster=$O2CB_CLUSTER
+		ocf_log info "$O2CB_CLUSTER: $n added to o2cb configuration."
+	done
+
+	# Mark our run as completed - this will allow all other nodes to
+	# continue running as well.
+	if [ $n_leader -eq 1 ]; then
+		crm_attribute -! -t status -U ${O2CB_MYSELF} -n o2cb-${O2CB_CLUSTER}-lock -v $lock_key >/dev/null 2>&1
+	fi
+
+	ocf_log info "Bringing o2cb online:"
+	$RCO2CB online
+
+	return $OCF_SUCCESS
+}
+
+o2cb_stop()
+{
+#	o2cb_init
+#	crm_attribute -! -t status -U ${O2CB_MYSELF} -n o2cb-${O2CB_CLUSTER}-lock -v unset >/dev/null 2>&1
+	ocf_log info "Invoking o2cb stop"
+	$RCO2CB stop
+	exit 0
+}
+
+o2cb_monitor()
+{
+#	o2cb_init
+        exit $OCF_NOT_RUNNING
+}
+
+o2cb_validate_all()
+{
+	return $OCF_SUCCESS
+}
+
+# Check the arguments passed to this script
+if [ $# -ne 1 ]; then
+	usage
+	exit $OCF_ERR_ARGS
+fi
+
+OP=$1
+
+# Make sure all sorts etc are as expected
+export LC_ALL=C
+
+# These operations do not require instance parameters
+case $OP in
+meta-data)	meta_data
+		exit $OCF_SUCCESS
+		;;
+usage)		usage
+		exit $OCF_SUCCESS
+		;;
+esac
+
+RCO2CB=@INITDIR@/o2cb
+# RCO2CB=/etc/init.d/o2cb
+if [ ! -x $RCO2CB ]; then
+	ocf_log err "o2cb init script not found."
+	exit $OCF_ERR_GENERIC
+fi
+O2CB_MYSELF=${HA_CURHOST:-$(uname -n | tr '[A-Z]' '[a-z]')}
+
+if [ "$OP" != "monitor" ]; then
+	ocf_log info "Running $OP"
+fi
+
+case $OP in
+status|monitor)	o2cb_monitor
+		;;
+validate-all)	o2cb_validate_all
+		;;
+stop)		o2cb_stop
+		;;
+start)		o2cb_start
+		;;
+notify)		o2cb_notify
+		;;
+*)		usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+
+exit $?
+
+
