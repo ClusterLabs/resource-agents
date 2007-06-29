@@ -42,6 +42,9 @@ Install gfs/dlm/fencing/etc components
   ./configure --kernel_src=/path/to/kernel
   make install
 
+  NOTE: On 64-bit systems, you will usually need to add '--libdir=/usr/lib64'
+        to the configure line.
+
 Install LVM2/CLVM (optional)
   cvs -d :pserver:cvs@sources.redhat.com:/cvs/lvm2 login cvs
   cvs -d :pserver:cvs@sources.redhat.com:/cvs/lvm2 checkout LVM2
@@ -51,6 +54,8 @@ Install LVM2/CLVM (optional)
   ./configure --with-clvmd=cman --with-cluster=shared
   make; make install
 
+  NOTE: On 64-bit systems, you will usually need to add '--libdir=/usr/lib64'
+        to the configure line.
 
 Load kernel modules
 -------------------
