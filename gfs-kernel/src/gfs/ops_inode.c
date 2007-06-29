@@ -1393,8 +1393,11 @@ gfs_setattr(struct dentry *dentry, struct iattr *attr)
 		}
 
 		error = gfs_truncatei(ip, attr->ia_size, gfs_truncator_page);
-		if (error)
+		if (error) {
+			if (inode->i_size != ip->i_di.di_size)
+				i_size_write(inode, ip->i_di.di_size);
 			goto fail;
+		}
 
 		if ((sdp->sd_vfs->s_flags & MS_SYNCHRONOUS) &&
 		    !gfs_is_jdata(ip))
