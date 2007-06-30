@@ -180,10 +180,13 @@ o2cb_notify() {
 	for UNAME in "$n_active"; do
 		n_start="${n_start//$UNAME/}"
 	done
-	# Merge pruned lists again:
+
+	# Merge pruned lists again; this will be the same order on all
+	# nodes thanks to the PE. The first node thus will be one which
+	# is already active (if any), so the newly starting node(s) will
+	# get the configuration from an existing member, to prevent
+	# fluctuations.
 	n_active="$n_active $n_start"
-	# Ugliness behold - we need n_active to be sorted:
-	n_active=$( (for W in $n_active; do echo $W ; done) | sort )
 
 	local lock_mykey=$(md5sum $O2CB_CONF | cut -f 1 -d ' ')
 
@@ -192,8 +195,6 @@ o2cb_notify() {
 	local lock_cib="unset"
 
 	if [ "$n_first" != "$O2CB_MYSELF" ]; then
-		# I'm not the first one. I have to wait until
-		# the first one has completed the pass.
 		ocf_log info "$O2CB_CLUSTER: Waiting for leader ($n_first) to complete."
 		
 		while [ "$lock_cib" = "unset" ]; do
