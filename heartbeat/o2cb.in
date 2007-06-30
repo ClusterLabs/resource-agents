@@ -185,25 +185,32 @@ o2cb_notify() {
 	# Ugliness behold - we need n_active to be sorted:
 	n_active=$( (for W in $n_active; do echo $W ; done) | sort )
 
-	local lock_key=$(echo "$n_active" | md5sum | cut -d ' ' -f 1)
+	local lock_mykey=$(md5sum $O2CB_CONF | cut -f 1 -d ' ')
 
 	local n_first=$(echo $n_active | cut -d ' ' -f 1)
 	local lock_done=0
-	
+	local lock_cib="unset"
+
 	if [ "$n_first" != "$O2CB_MYSELF" ]; then
 		# I'm not the first one. I have to wait until
 		# the first one has completed the pass.
-		ocf_log info "$O2CB_CLUSTER: Waiting for leader ($n_first)"
-		while [ $lock_done -eq 0 ]; do
-			if [ "$(crm_attribute -t status -n o2cb-${O2CB_CLUSTER}-lock -U $n_first -G -Q 2>/dev/null)" = "$lock_key" ] ; then
-				lock_done=1
-			else 
-				sleep 3
-			fi
+		ocf_log info "$O2CB_CLUSTER: Waiting for leader ($n_first) to complete."
+		
+		while [ "$lock_cib" = "unset" ]; do
+			lock_cib="$(crm_attribute -t status -n o2cb-${O2CB_CLUSTER}-lock -U $n_first -G -Q 2>/dev/null)"
+			sleep 3
 		done
+
 		ocf_log info "$O2CB_CLUSTER: Leader has completed."
+
+		if [ "$lock_cib" != "$lock_mykey" ]; then
+			ocf_log info "$O2CB_CLUSTER: Retrieving updated config from leader ($lock_cib != $lock_mykey)."
+			scp $n_first:$O2CB_CONF $O2CB_CONF
+		else
+			ocf_log info "$O2CB_CLUSTER: cluster config unchanged."
+		fi
 	else
-		ocf_log info "$O2CB_CLUSTER: I am the leader."
+		ocf_log info "$O2CB_CLUSTER: Leading cluster re-configuration."
 
 		# The highest slot number in use so far, on-disk:
 		max_slot=$(o2cb_ctl -I -o -t node | cut -d ':' -f 3 | sort -n | tail -n 1)
@@ -216,6 +223,9 @@ o2cb_notify() {
 				ocf_log info "$O2CB_CLUSTER: $n already configured locally."
 				# If it's already configured locally, it's
 				# already accounted for in max_slot.
+				# TODO: If o2cb_ctl -H eventually works we
+				# might need to reconfigure the IP
+				# address still.
 				continue
 			fi
 		
@@ -228,40 +238,35 @@ o2cb_notify() {
 				ocf_log err "$O2CB_CLUSTER: No IP was found for $n, skipping!"
 				continue
 			fi
-			ocf_log info "$O2CB_CLUSTER: Using IP $n_ip for $n"
+			ocf_log info "$O2CB_CLUSTER: Using IP $n_ip for new node $n"
 			
 			n_slot=$[max_slot+1]
 			max_slot=$n_slot
 		
-			ocf_log info "$O2CB_CLUSTER: Assigned slot $n_slot to $n (max_slot: $max_slot)"
+			ocf_log info "$O2CB_CLUSTER: Assigned slot $n_slot to $n"
 			
 			# TODO: Handle the case where o2cb is already
 			# active and the node needs to be added
-			# "online".
+			# "online" using -i.
 			# This also will need to be handled on the
-			# slaves.
+			# slaves, which don't know which nodes were
+			# added.
 			o2cb_ctl -C -n $n -t node \
 				-a number=$n_slot -a ip_address=$n_ip \
 				-a ip_port=$OCF_RESKEY_port -a cluster=$O2CB_CLUSTER
 			ocf_log info "$O2CB_CLUSTER: $n added to o2cb configuration."
 		done
 
-		# Push the file out to all other nodes!
-		for n in $n_active ; do
-			if [ "$n" = "$O2CB_MYSELF" ]; then
-				continue
-			fi
-			ocf_log info "$O2CB_CLUSTER: Distributing cluster.conf to $n"
-			scp $O2CB_CONF $n:$O2CB_CONF
-		done
-		
-		# Mark our run as completed - this will allow all other nodes to
-		# continue running as well.
-		crm_attribute -! -t status -U ${O2CB_MYSELF} -n o2cb-${O2CB_CLUSTER}-lock -v $lock_key >/dev/null 2>&1
+		lock_cib=$(md5sum $O2CB_CONF | cut -d ' ' -f 1)	
+		# Mark our run as completed - this will unlock the other
+		# nodes as well.
+		ocf_log info "$O2CB_CLUSTER: Completed - config hash now: $lock_cib"
+		crm_attribute -! -t status -U ${O2CB_MYSELF} \
+			-n o2cb-${O2CB_CLUSTER}-lock -v $lock_cib >/dev/null 2>&1
 	fi
 
-
 	ocf_log info "Bringing o2cb online:"
+	# it'd be very nice if there was an o2cb reload.
 	$RCO2CB online
 
 	return $OCF_SUCCESS
