@@ -58,6 +58,7 @@ static int msvc_check_cluster(char *svcName);
 static inline int handle_started_status(char *svcName, int ret, rg_state_t *svcStatus);
 static inline int handle_migrate_status(char *svcName, int ret, rg_state_t *svcStatus);
 int count_resource_groups_local(cman_node_t *mp);
+int is_exclusive(char *svcName);
 
 
 int 
@@ -859,12 +860,12 @@ svc_migrate(char *svcName, int target)
 	}
 
 	count_resource_groups_local(m);
-	if (m->cn_svcexcl) {
+	if (m->cn_svcexcl ||
+	    (m->cn_svccount && is_exclusive(svcName))) {
 		free_member_list(membership);
 		return RG_EDEPEND;
 	}
 	free_member_list(membership);
-
 
 	if (rg_lock(svcName, &lockp) < 0) {
 		clulog(LOG_ERR, "#45: Unable to obtain cluster lock: %s\n",
@@ -1608,12 +1609,32 @@ int
 handle_relocate_req(char *svcName, int request, int preferred_target,
 		    int *new_owner)
 {
-	cluster_member_list_t *allowed_nodes, *backup = NULL;
+	cluster_member_list_t *allowed_nodes = NULL, *backup = NULL;
 	cman_node_t *m;
 	int target = preferred_target, me = my_id();
 	int ret, x;
 	rg_state_t svcStatus;
 	
+	if (preferred_target > 0) {
+		/* TODO: simplify this and don't keep alloc/freeing 
+		   member lists */
+		allowed_nodes = member_list();
+		/* Avoid even bothering the other node if we can */
+		m = memb_id_to_p(allowed_nodes, preferred_target);
+		if (!m) {
+			free_member_list(allowed_nodes);
+			return RG_EINVAL;
+		}
+
+		count_resource_groups_local(m);
+		if (m->cn_svcexcl ||
+	    	    (m->cn_svccount && is_exclusive(svcName))) {
+			free_member_list(allowed_nodes);
+			return RG_EDEPEND;
+		}
+		free_member_list(allowed_nodes);
+	}
+
 	/*
 	 * Stop the service - if we haven't already done so.
 	 */
@@ -1633,19 +1654,6 @@ handle_relocate_req(char *svcName, int request, int preferred_target,
 	if (preferred_target > 0) {
 
 		allowed_nodes = member_list();
-		m = memb_id_to_p(allowed_nodes, preferred_target);
-		if (!m) {
-			free_member_list(allowed_nodes);
-			return RG_EINVAL;
-		}
-
-		/* Avoid even bothering the other node if we can */
-		count_resource_groups_local(m);
-		if (m->cn_svcexcl) {
-			free_member_list(allowed_nodes);
-			return RG_EDEPEND;
-		}
-
 		/*
 	   	   Mark everyone except me and the preferred target DOWN for now
 		   If we can't start it on the preferred target, then we'll try

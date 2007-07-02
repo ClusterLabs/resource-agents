@@ -1,3 +1,7 @@
+2007-06-29 Lon Hohberger <lhh at redhat.com>
+	* src/daemons/groups.c, rg_state.c: Make all test cases for #237144
+	work correctly
+
 2007-06-27 Lon Hohberger <lhh at redhat.com>
 	* Merge from RHEL5 branch.
 	* src/daemons/vm.sh: Un-break migrate (#231692).  Make status
