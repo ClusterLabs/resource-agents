@@ -1371,6 +1371,8 @@ static dlm_lshandle_t create_lockspace(const char *name, mode_t mode,
 		errno = saved_errno;
 		return NULL;
 	}
+	if (mode)
+		fchmod(newls->fd, mode);
 	newls->tid = 0;
 	fcntl(newls->fd, F_SETFD, 1);
 	return (dlm_lshandle_t)newls;
