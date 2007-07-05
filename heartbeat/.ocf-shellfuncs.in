@@ -131,25 +131,6 @@ __ocf_set_defaults() {
 		return 0
         fi
 
-	# TODO: Anything else we should be setting and thus checking?
-        # There is nothing in this script which depends on the version
-	# of the API.  TESTING THIS HERE IS A BUG.  THIS SHOULD BE
-	# tested by the script that's invoked us.  FIXME!!
-	if [ "x$OCF_RA_VERSION_MAJOR" != "x1" ]; then
-		ha_log "ERROR: This script is OCF RA API 1.x compliant only!"
-		exit $OCF_ERR_UNIMPLEMENTED
-	fi
-	# TODO: Should the minor level really be a number and not rather
-	# a list of flags...?
-        # AlanR says -- absolutely not -- a list of flags is good for a list
-	# of implemented features, not a version compiliance
-	# perhaps some future version might have such a list of
-	# flags, but that would be _in addition to_ the minor version number
-	if [ -z "$OCF_RA_VERSION_MINOR" ]; then
-		ha_log "ERROR: No OCF RA minor version set."
-		exit $OCF_ERR_UNIMPLEMENTED
-	fi
-
 	if [ "x$__OCF_ACTION" = "xmeta-data" ]; then
 		OCF_RESOURCE_INSTANCE="undef"
 	fi	
