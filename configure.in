@@ -2850,48 +2850,6 @@ resources/Makefile						\
 	resources/OCF/.ocf-binaries				\
 	resources/OCF/.ocf-directories				\
 	resources/OCF/ocf-shellfuncs				\
-	resources/OCF/ClusterMon				\
-	resources/OCF/Dummy					\
-	resources/OCF/pingd					\
-	resources/OCF/apache					\
-	resources/OCF/AudibleAlarm				\
-	resources/OCF/Delay					\
-	resources/OCF/db2					\
-	resources/OCF/drbd					\
-	resources/OCF/eDir88					\
-	resources/OCF/EvmsSCC					\
-	resources/OCF/Evmsd					\
-	resources/OCF/Filesystem				\
-	resources/OCF/ICP					\
-	resources/OCF/IPaddr					\
-	resources/OCF/IPaddr2					\
-	resources/OCF/IPsrcaddr					\
-	resources/OCF/LinuxSCSI					\
-	resources/OCF/LVM					\
-	resources/OCF/MailTo					\
-	resources/OCF/ManageRAID				\
-	resources/OCF/ManageVE					\
-        resources/OCF/mysql					\
-	resources/OCF/o2cb					\
-	resources/OCF/oracle					\
-	resources/OCF/oralsnr					\
-	resources/OCF/portblock					\
-	resources/OCF/Raid1					\
-	resources/OCF/rsyncd					\
-	resources/OCF/pgsql					\
-	resources/OCF/Pure-FTPd					\
-	resources/OCF/SAPDatabase				\
-	resources/OCF/SAPInstance				\
-	resources/OCF/SendArp					\
-	resources/OCF/ServeRAID					\
-	resources/OCF/Stateful					\
-	resources/OCF/SysInfo					\
-	resources/OCF/VIPArip					\
-	resources/OCF/WAS					\
-	resources/OCF/WAS6					\
-	resources/OCF/WinPopup					\
-	resources/OCF/Xen					\
-	resources/OCF/Xinetd					\
 	resources/heartbeat/Makefile				\
 	resources/heartbeat/apache				\
 	resources/heartbeat/AudibleAlarm			\
