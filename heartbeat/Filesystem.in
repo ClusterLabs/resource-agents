@@ -75,21 +75,6 @@
 
 #######################################################################
 
-# Utilities used by this script
-MODPROBE=@MODPROBE@
-FSCK=@FSCK@
-FUSER=@FUSER@
-MOUNT=@MOUNT@
-UMOUNT=@UMOUNT@
-BLOCKDEV=@BLOCKDEV@
-
-check_util () {
-    if [ ! -x `which $1` ] ; then
-	ocf_log err "Setup problem: Couldn't find utility $1"
-	exit $OCF_ERR_GENERIC
-    fi
-}
-
 usage() {
 	cat <<-EOT
 	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
@@ -182,11 +167,14 @@ END
 #	It's really a bug that you have to do this at all...
 #
 flushbufs() {
-	if [ -z "$BLOCKDEV" -a "$BLOCKDEV" != "/dev/null" -a -x "$BLOCKDEV" -a "$blockdevice" = "yes" ]; then
+    if
+	have_binary $BLOCKDEV
+	if [ "$blockdevice" = "yes" ]; then
 		$BLOCKDEV --flushbufs $1
 		return $?
 	fi
-	return 0
+    fi
+    return 0
 }
 
 # Take advantage of /proc/mounts if present, use portabel mount command
@@ -762,11 +750,11 @@ else
 fi
 	
 # Check to make sure the utilites are found
-check_util $MODPROBE
-check_util $FSCK
-check_util $FUSER
-check_util $MOUNT
-check_util $UMOUNT
+check_binary $MODPROBE
+check_binary $FSCK
+check_binary $FUSER
+check_binary $MOUNT
+check_binary $UMOUNT
 
 if [ "$OP" != "monitor" ]; then
 	ocf_log info "Running $OP for $DEVICE on $MOUNTPOINT"

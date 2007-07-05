@@ -83,7 +83,9 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			WinPopup	\
 			Xen		\
 			Xinetd		\
-			.ocf-shellfuncs
+			.ocf-shellfuncs	\
+			.ocf-binaries	\
+			.ocf-directories
 
 commondir	     = @hb_libdir@
 common_SCRIPTS	     = ocf-shellfuncs ocf-returncodes

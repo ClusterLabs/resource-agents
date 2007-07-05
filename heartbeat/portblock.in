@@ -21,8 +21,6 @@
 #######################################################################
 CMD=`basename $0`
 
-iptables=@IPTABLES@
-
 usage()
 {
 	cat <<-!USAGE >&2
@@ -148,7 +146,7 @@ active_grep_pat()
 chain_isactive()
 {
   PAT=`active_grep_pat "$1" "$2"`
-  $iptables -n -L INPUT | grep "$PAT" >/dev/null
+  $IPTABLES -n -L INPUT | grep "$PAT" >/dev/null
 }
 
 SayActive()
@@ -206,7 +204,7 @@ IptablesBLOCK()
   then
     : OK -- chain already active
   else
-    $iptables -I INPUT -p "$1" -m multiport --dports "$2" -j DROP
+    $IPTABLES -I INPUT -p "$1" -m multiport --dports "$2" -j DROP
   fi
 
   return $?
@@ -218,7 +216,7 @@ IptablesUNBLOCK()
   if
     chain_isactive "$1" "$2"
   then
-    $iptables -D INPUT -p "$1" -m multiport --dports "$2" -j DROP
+    $IPTABLES -D INPUT -p "$1" -m multiport --dports "$2" -j DROP
   else
     : Chain Not active
   fi
@@ -270,6 +268,7 @@ CheckPort() {
 
 IptablesValidateAll()
 {
+  check_binary $IPTABLES
   case $protocol in
     tcp|udp)
 	;;

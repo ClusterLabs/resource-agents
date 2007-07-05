@@ -55,14 +55,10 @@
 
 #######################################################################
 
-AWK=@AWK@
-IPROUTE=@IP2UTIL@
-IFCONFIG=@IFCONFIG@
-IFCONFIG_A_OPT=@IFCONFIG_A_OPT@
 USAGE="usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
 
-  CMDSHOW="$IPROUTE route show   to exact 0/0"
-CMDCHANGE="$IPROUTE route change to "
+  CMDSHOW="$IP2UTIL route show   to exact 0/0"
+CMDCHANGE="$IP2UTIL route change to "
 
 SYSTYPE="`uname -s`"
 
@@ -387,6 +383,10 @@ ip_status() {
 
 
 srca_validate_all() {
+
+    check_binary $AWK
+    check_binary $IPROUTE
+    check_binary $IFCONFIG
 
 #	The IP address should be in good shape
 	if CheckIP "$ipaddress"; then

@@ -102,16 +102,6 @@
 
 #######################################################################
 
-# Utilities used by this script
-MODPROBE=@MODPROBE@
-FSCK=@FSCK@
-FUSER=@FUSER@
-RAIDSTART=@RAIDSTART@
-MOUNT=@MOUNT@
-UMOUNT=@UMOUNT@
-RAIDSTOP=@RAIDSTOP@
-MDADM=@MDADM@
-
 check_util () {
     if [ ! -x "$1" ] ; then
 	ocf_log err "setup problem: Couldn't find utility $1"
@@ -282,6 +272,13 @@ raid1_status() {
 }    
 
 raid1_validate_all() {
+    # Utilities used by this script
+    check_binary $MODPROBE
+    check_binary $FSCK
+    check_binary $FUSER
+    check_binary $MOUNT
+    check_binary $UMOUNT
+
 	if [ $HAVE_RAIDTOOLS = "true" ]; then
 
 	    # $MDDEV should be an md device
@@ -364,20 +361,15 @@ fi
 # strip off the /dev/ prefix to get the name of the MD device
 MD=`echo $MDDEV | sed -e 's/\/dev\///'`
 
-# Check to make sure the utilites are found
-check_util $MODPROBE
-check_util $FUSER
-check_util $MOUNT
-check_util $UMOUNT
 
 HAVE_RAIDTOOLS=false
-
-if [ -z "$RAIDSTART" -o ! -x "$RAIDSTART" ]; then
-  ocf_log info "$RAIDSTART not found, trying mdadm..."
-  check_util $MDADM
-else
-  check_util $RAIDSTOP
+if 
+    have_binary $RAIDSTART
+then
+  check_binary $RAIDSTOP
   HAVE_RAIDTOOLS=true
+else
+  check_binary $MDADM
 fi
 
 # At this stage,

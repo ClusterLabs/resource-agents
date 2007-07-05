@@ -2847,6 +2847,8 @@ tools/Makefile							\
 	tools/haresources2cib.py				\
 resources/Makefile						\
 	resources/OCF/Makefile					\
+	resources/OCF/.ocf-binaries				\
+	resources/OCF/.ocf-directories				\
 	resources/OCF/ocf-shellfuncs				\
 	resources/OCF/ClusterMon				\
 	resources/OCF/Dummy					\

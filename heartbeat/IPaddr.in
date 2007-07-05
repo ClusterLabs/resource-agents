@@ -31,17 +31,12 @@
 
 . ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 
-AWK=@AWK@
-HA_VARRUNHBRSCDIR=${HA_RSCTMP}
 HA_HBCONF_DIR=${HA_DIR}
-IFCONFIG=@IFCONFIG@
-IFCONFIG_A_OPT=@IFCONFIG_A_OPT@
 SENDARP=$HA_BIN/send_arp
 FINDIF=$HA_BIN/findif
-VLDIR=$HA_VARRUNHBRSCDIR/IPaddr
-SENDARPPIDDIR=$HA_VARRUNHBRSCDIR/send_arp
+VLDIR=$HA_RSCTMP/IPaddr
+SENDARPPIDDIR=$HA_RSCTMP/send_arp
 SENDARPPIDFILE="$SENDARPPIDDIR/send_arp-$OCF_RESKEY_ip"
-ROUTE=@ROUTE@
 USAGE="usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
 
 #######################################################################
@@ -679,7 +674,7 @@ ip_monitor() {
 
     PINGARGS="`pingargs $OCF_RESKEY_ip`"
     for j in 1 2 3 4 5 6 7 8 9 10; do
-	if @PING@ $PINGARGS >/dev/null 2>&1 ; then
+	if $PING $PINGARGS >/dev/null 2>&1 ; then
 	    return $OCF_SUCCESS
 	fi
     done
@@ -700,6 +695,12 @@ ip_validate_all() {
     : ${OCF_RESKEY_ARP_NETMASK=ffffffffffff}
     : ${OCF_RESKEY_ARP_INTERVAL_MS=500}
     : ${OCF_RESKEY_ARP_REPEAT=10}
+
+
+    check_binary $AWK
+    check_binary $IFCONFIG
+    check_binary $ROUTE
+    check_binary $PING
 
     if
 	[ -d "$VLDIR/" ] || mkdir -p "$VLDIR/"

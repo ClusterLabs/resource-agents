@@ -34,8 +34,6 @@
 #
 ICPCLUCON=/usr/sbin/icpclucon
 #
-BLOCKDEV=@BLOCKDEV@
-#
 
 usage() {
   methods=`ICP_methods | grep -v methods`
@@ -212,6 +210,8 @@ ICP_stop() {
 }
 
 ICP_validate_all() {
+  check_binary $BLOCKDEV
+  check_binary $ICPCLUCON
   $ICPCLUCON -v -status $driveid >/dev/null 2>&1
   if [ $? -ne 0 ]; then
 	ocf_log err "Invalid driveid $driveid"
@@ -272,7 +272,8 @@ device=$OCF_RESKEY_device
 # What kind of method was invoked?
 case "$1" in
 
-  start)	ICP_start $driveid
+  start)	ICP_validate_all
+		ICP_start $driveid
 		Clear_bufs $device
 		exit $?;;
 

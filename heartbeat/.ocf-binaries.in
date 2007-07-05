@@ -1,0 +1,56 @@
+# Make sure PATH contains all the usual suspects
+export PATH="$PATH:/sbin:/usr/sbin:/usr/bin"
+
+# Include /usr/ucb for finding whoami on Solaris
+export PATH="$PATH:/usr/ucb"
+
+# Binaries and binary options for use in Resource Agents
+: ${AWK:=@AWK@}
+: ${GREP:="@EGREP@"}
+: ${IFCONFIG_A_OPT:="@IFCONFIG_A_OPT@"}
+: ${MAILCMD:=@MAILCMD@}
+: ${PING:=@PING@}
+: ${SH:=@SHELL@}
+: ${RPM:=@RPM@}
+
+# Entries that should probably be removed
+: ${BASENAME:=basename}
+: ${BLOCKDEV:=blockdev}
+: ${FSCK:=fsck}
+: ${FUSER:=fuser}
+: ${GETENT:=getent}
+: ${IFCONFIG:=ifconfig}
+: ${IPTABLES:=iptables}
+: ${IP2UTIL:=ip}
+: ${MDADM:=mdadm}
+: ${MODPROBE:=modprobe}
+: ${MOUNT:=mount}
+: ${MSGFMT:=msgfmt}
+: ${NETSTAT:=netstat}
+: ${PERL:=perl}
+: ${PYTHON:=python}
+: ${RAIDSTART:=raidstart}
+: ${RAIDSTOP:=raidstop}
+: ${ROUTE:=route}
+: ${UMOUNT:=umount}
+: ${REBOOT:=reboot}
+: ${POWEROFF_CMD:=poweroff}
+: ${WHOAMI:=whoami}
+: ${STRINGSCMD:=strings)}
+: ${SCP:=scp}
+: ${SSH:=ssh}
+: ${SWIG:=swig}
+
+check_binary () {
+    if [ ! -x "`which $1`" ] ; then
+	ocf_log err "Setup problem: Couldn't find utility $1"
+	exit $OCF_ERR_INSTALLED
+    fi
+}
+
+have_binary () {
+    if [ ! -x "`which $1`" ] ; then
+	return 0
+    fi
+    return 1
+}

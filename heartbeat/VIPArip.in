@@ -25,13 +25,10 @@
 
 . ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 
-HA_VARRUNHBRSCDIR=${HA_RSCTMP}
 HA_HBCONF_DIR=${HA_DIR}
 
-GREP=@EGREP@
-VLDIR=$HA_VARRUNHBRSCDIR/VIPArip
+VLDIR=$HA_RSCTMP/VIPArip
 RIPDCONF=$VLDIR/ripd.conf
-IP=@IP2UTIL@
 USAGE="usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
 
 #######################################################################
@@ -204,13 +201,13 @@ start_rip_ip() {
 		OCF_RESKEY_nic="eth0"
 	fi
 	
-	if $IP addr | $GREP $OCF_RESKEY_ip >/dev/null 
+	if $IP2UTIL addr | $GREP $OCF_RESKEY_ip >/dev/null 
 	then
 		ocf_log err "Invalid OCF_RESKEY_ip [$OCF_RESKEY_ip]"
 		exit $OCF_ERR_ARGS
 	fi
 
-	$IP addr add $OCF_RESKEY_ip/32 dev lo          
+	$IP2UTIL addr add $OCF_RESKEY_ip/32 dev lo          
 	if [ -f "$RIPDCONF" ]
 	then
 		# there is a config file, add new data(IP,nic,metric) 
@@ -243,7 +240,7 @@ stop_rip_ip() {
 		ocf_log err "Invalid OCF_RESKEY_ip [$OCF_RESKEY_ip]"
 		exit $OCF_ERR_ARGS
 	fi
-	$IP addr del $OCF_RESKEY_ip dev lo
+	$IP2UTIL addr del $OCF_RESKEY_ip dev lo
 	echo sleep 2
 	sleep 2
 	del_ip	$OCF_RESKEY_ip
@@ -252,7 +249,7 @@ stop_rip_ip() {
 
 status_rip_ip() {
 	check_params
-	if $IP addr | $GREP $OCF_RESKEY_ip >/dev/null 
+	if $IP2UTIL addr | $GREP $OCF_RESKEY_ip >/dev/null 
 	then
 		if $GREP $OCF_RESKEY_ip $RIPDCONF >/dev/null 
 		then
@@ -278,7 +275,8 @@ case $1 in
   stop)		stop_rip_ip;;
   status)	status_rip_ip;;
   monitor)	status_rip_ip;;
-  validate-all)	exit $OCF_SUCCESS;;
+  validate-all)	check_binary $IP2UTIL
+		exit $OCF_SUCCESS;;
   meta-data)	meta_data;;
   usage)	usage; exit $OCF_SUCCESS;;
   *)		usage

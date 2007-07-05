@@ -28,8 +28,6 @@
 unset LC_ALL; export LC_ALL
 unset LANGUAGE; export LANGUAGE
 
-SH=@SHELL@
-
 usage() {
     cat <<-! >&1
 	usage: $0 start|stop|status|monitor|meta-data|validate-all|methods
@@ -316,6 +314,7 @@ pgsql_monitor() {
 
 # Validate most critical parameters
 pgsql_validate_all() {
+    check_binary $SH
     if [ ! -x $OCF_RESKEY_pgctl ]
     then
         ocf_log err "Can't run $OCF_RESKEY_pgctl"

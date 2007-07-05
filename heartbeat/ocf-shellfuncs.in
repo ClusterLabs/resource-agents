@@ -43,7 +43,13 @@ unset LANGUAGE; export LANGUAGE
 __SCRIPT_NAME=`basename $0`
 . @HA_HBCONF_DIR@/shellfuncs
 
-. @hb_libdir@/ocf-returncodes
+if [ -z "$OCF_ROOT" ]; then
+    : ${OCF_ROOT=@OCF_ROOT_DIR@}
+fi
+
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-binaries
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-returncodes
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-directories
 
 ocf_is_root() {
 	case `id` in
@@ -109,9 +115,6 @@ __ocf_set_defaults() {
 		: ${OCF_CHECK_LEVEL:=$OCF_RESKEY_OCF_CHECK_LEVEL}
 	fi
 
-	if [ -z "$OCF_ROOT" ]; then
-		: ${OCF_ROOT=@OCF_ROOT_DIR@}
-	fi
 	if [ ! -d "$OCF_ROOT" ]; then
 		ha_log "ERROR: OCF_ROOT points to non-directory $OCF_ROOT."
 		exit $OCF_ERR_GENERIC

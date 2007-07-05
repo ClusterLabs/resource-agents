@@ -66,15 +66,11 @@
 
 . ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 
-HA_VARRUNHBRSCDIR=${HA_RSCTMP}
-IP2UTIL="@IP2UTIL@"
-IPTABLES="@IPTABLES@"
-MODPROBE="@MODPROBE@"
 SENDARP=$HA_BIN/send_arp
 FINDIF=$HA_BIN/findif
-VLDIR=$HA_VARRUNHBRSCDIR/IPaddr
-SENDARPPIDDIR=$HA_VARRUNHBRSCDIR/send_arp
-CIP_lockfile=$HA_VARRUNHBRSCDIR/IPaddr2-CIP-${OCF_RESKEY_ip}
+VLDIR=$HA_RSCTMP/IPaddr
+SENDARPPIDDIR=$HA_RSCTMP/send_arp
+CIP_lockfile=$HA_RSCTMP/IPaddr2-CIP-${OCF_RESKEY_ip}
 
 #######################################################################
 
@@ -506,10 +502,10 @@ restore_loopback() {
 # Run send_arp to note peers about new mac address
 #
 run_send_arp() {
-	ARGS="-i $ARP_INTERVAL_MS -r $ARP_REPEAT -p $SENDARPPIDFILE $NIC $BASEIP auto $BASEIP $ARP_NETMASK"
+	ARGS="-i $ARP_INTERVAL_MS -r $ARP_REPEAT -p $SENDARPPIDFILE $NIC $BASEIP auto not_used not_used"
 	if [ $IP_CIP="yes" ] ; then
-		MY_MAC=${IF_MAC//:/}
-		ARGS="-i $ARP_INTERVAL_MS -r $ARP_REPEAT -p $SENDARPPIDFILE $NIC $BASEIP $MY_MAC $BASEIP $ARP_NETMASK"
+		MY_MAC=`echo ${IF_MAC} | sed -e 's/://'`
+		ARGS="-i $ARP_INTERVAL_MS -r $ARP_REPEAT -p $SENDARPPIDFILE $NIC $BASEIP $MY_MAC not_used not_used"
 	fi
 	ocf_log info "$SENDARP $ARGS"
 	case $ARP_BACKGROUND in
@@ -721,6 +717,10 @@ ip_monitor() {
 }
 
 ip_validate() {
+    check_binary $IP2UTIL
+    check_binary $IPTABLES
+    check_binary $MODPROBE
+
     ip_init
 
 # $BASEIP, $NETMASK, $NIC , $IP_INC_GLOBAL, and $BRDCAST have been checked within ip_init,

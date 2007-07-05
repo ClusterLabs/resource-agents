@@ -30,7 +30,6 @@
 
 #######################################################################
 
-AWK=@AWK@
 
 usage() {
   methods=`LVM_methods`
@@ -232,6 +231,8 @@ LVM_stop() {
 #	Check whether the OCF instance parameters are valid
 #
 LVM_validate_all() {
+  check_binary $AWK
+
 #	Off-the-shelf tests...  
   vgck "$VOLUME" >/dev/nulll 2>&1
   

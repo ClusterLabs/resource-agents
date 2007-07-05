@@ -26,7 +26,6 @@ XPIDFILE=$HA_VARRUNDIR/xinetd.pid
 
 #######################################################################
 
-AWK=@AWK@
 
 meta_data() {
 	cat <<END
@@ -329,6 +328,8 @@ check_attributes () {
 }
 
 xup_validate_all () {
+  check_binary $AWK
+
 # Parse the $RCFILE for necessary attributes, assume $RCFILE does not
 # contain "include" or "includedir" directives.
   space="[ \t]*"
