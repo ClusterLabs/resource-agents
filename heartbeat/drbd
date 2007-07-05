@@ -186,22 +186,13 @@ do_drbdadm() {
 }
 
 drbd_init() {
-	DRBDADM=$(which drbdadm 2>/dev/null)
+	check_binary $DRBDADM
 	CRM_MASTER=${HA_SBIN_DIR}/crm_master
 	
 	RESOURCE="$OCF_RESKEY_drbd_resource"
 	CLONE_NO="$OCF_RESKEY_CRM_meta_clone"
 	DRBDCONF="${OCF_RESKEY_drbdconf:=/etc/drbd.conf}"
 
-	if [ -z "$DRBDADM" -o ! -x "$DRBDADM" ]; then
-		ocf_log err "drbdadm not installed."
-		if [ '$ACTION' = 'monitor' ]; then
-			exit $OCF_NOT_RUNNING
-		else
-			exit $OCF_ERR_INSTALLED
-		fi
-	fi
-	
 	if [ ! -f "$DRBDCONF" ]; then
 		ocf_log err "drbd.conf not installed."
 		if [ '$ACTION' = 'monitor' ]; then
