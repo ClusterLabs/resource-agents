@@ -14,7 +14,7 @@ include ../../../make/defines.mk
 
 TARGET1= fence_xvm
 TARGET2= fence_xvmd
-
+TARGET3= testprog
 
 OBJS1=	fence_xvm.o \
 	ip_lookup.o
@@ -24,6 +24,8 @@ OBJS2=	fence_xvmd.o \
 	options-ccs.o \
 	vm_states.o \
 	xml.o
+
+OBJS3=	xml-standalone.o
 
 SHAREDOBJS=	mcast.o \
 		simple_auth.o \
@@ -35,15 +37,17 @@ CFLAGS += -DFENCE_RELEASE_NAME=\"${RELEASE}\" -D_GNU_SOURCE
 CFLAGS += -Wall -Werror -Wstrict-prototypes -Wshadow -ggdb
 CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${openaisincdir}
 CFLAGS += -I${virtincdir} -I${nssincdir} -I${nsprincdir}
-CFLAGS += -I${incdir}
 CFLAGS += `xml2-config --cflags`
+CFLAGS += -I${incdir}
+
+EXTRA_CFLAGS += -DSTANDALONE
 
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -L${dlmlibdir}
 LDFLAGS += -L${nsslibdir} -L${nsprlibdir} -L${libdir}
-LDFLAGS += -lccs -lcman -ldlm -lnss3 -lnspr4 
+LDFLAGS += -lccs -lcman -ldlm -lnss3 -lnspr4
 
 EXTRA_LDFLAGS += -L${virtlibdir} -lvirt -L${openaislibdir} -lSaCkpt
-EXTRA_LDFLAGS += `xml2-config --libs`
+XML_LDFLAGS += `xml2-config --libs`
 
 all: ${TARGET1} ${TARGET2}
 
@@ -51,13 +55,19 @@ ${TARGET1}: ${SHAREDOBJS} ${OBJS1}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 ${TARGET2}: ${SHAREDOBJS} ${OBJS2}
-	$(CC) -o $@ $^ $(LDFLAGS) $(EXTRA_LDFLAGS)
+	$(CC) -o $@ $^ $(LDFLAGS) $(EXTRA_LDFLAGS) $(XML_LDFLAGS)
+
+${TARGET3}: ${OBJS3}
+	$(CC) -o $@ $^ $(XML_LDFLAGS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+%-standalone.o: %.c
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $<
+
 clean:
-	rm -f ${TARGET1} ${TARGET2} *~ *.o
+	rm -f ${TARGET1} ${TARGET2} ${TARGET3} *~ *.o 
 
 install: all
 	if [ ! -d ${sbindir} ]; then \
