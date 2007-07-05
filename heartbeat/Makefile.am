@@ -83,12 +83,17 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			WinPopup	\
 			Xen		\
 			Xinetd		\
-			.ocf-shellfuncs	\
-			.ocf-binaries	\
-			.ocf-directories
+			.ocf-shellfuncs	 \
+			.ocf-binaries	 \
+			.ocf-directories \
+			.ocf-returncodes
 
+# Legacy locations
 commondir	     = @hb_libdir@
 common_SCRIPTS	     = ocf-shellfuncs ocf-returncodes
 
-.ocf-shellfuncs: ocf-shellfuncs
-	cp $(top_srcdir)/resources/OCF/ocf-shellfuncs $(top_builddir)/resources/OCF/.ocf-shellfuncs
+ocf-shellfuncs: .ocf-shellfuncs
+	cp $(top_srcdir)/resources/OCF/.ocf-shellfuncs $(top_builddir)/resources/OCF/ocf-shellfuncs
+
+ocf-returncodes: .ocf-returncodes
+	cp $(top_srcdir)/resources/OCF/.ocf-shellfuncs $(top_builddir)/resources/OCF/ocf-shellfuncs
