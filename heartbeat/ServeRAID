@@ -70,8 +70,6 @@
 #######################################################################
 
 srsuccess=0
-
-PERL="perl"
 SCSI="scsi "
 
 usage() {
@@ -201,37 +199,6 @@ parseinst() {
   CheckRaidLevel
   return $?
 }
-
-#
-#	Run:  Run a script, and log its output.
-#	Note that we know the stupid ipssend command has its return
-#	codes reversed - it returns 1 for success, and 0 for failure...
-#	We account for that too...
-#
-#run() {
-#  output=`"$@" 2>&1`
-#  rc=$?
-#  output=`echo $output`
-#  if
-#    [ $rc -eq $srsuccess ]
-#  then 
-#    if
-#      [ ! -z "$output" ]
-#    then
-#      ocf_log "info" "$output"
-#    fi
-#    return 0
-#  else
-#    if
-#      [ ! -z "$output" ]
-#    then
-#      ocf_log "err" "$output"
-#    else
-#      ocf_log "err"  "command failed: $*"
-#    fi
-#    return 1
-#  fi
-#}
 
 SRLogicalDriveConfig() {
   $IPS getconfig $sr_adapter ld
@@ -377,6 +344,8 @@ ServeRAID_status() {
 # validate_all: are the OCF instance parameters valid?
 #
 ServeRAID_validate_all() {
+  check_binary $PERL
+
 # parseinst() will do all the work...
   parseinst "$@"
   return $?
