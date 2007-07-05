@@ -16,13 +16,13 @@
 #	  OCF parameters are as below:
 #		OCF_RESKEY_service
 
-HA_VARRUNDIR=@HA_VARRUNDIR@
+HA_VARRUNDIR=${HA_VARRUN}
 XPIDFILE=$HA_VARRUNDIR/xinetd.pid
 
 #######################################################################
 # Initialization:
 
-. @hb_libdir@/ocf-shellfuncs
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 
 #######################################################################
 
@@ -425,7 +425,7 @@ then
 fi
 
 service=$OCF_RESKEY_service
-RCFILE=@sysconfdir@/xinetd.d/$service
+RCFILE=${HA_SYSCONF_DIR}/xinetd.d/$service
 PIDFILE=$HA_VARRUNDIR/xup$service
 
 # Make sure the OCF_RESKEY_service is a valid xinetd service name

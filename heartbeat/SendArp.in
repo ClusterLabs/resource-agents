@@ -47,11 +47,11 @@
 #######################################################################
 # Initialization:
 
-. @hb_libdir@/ocf-shellfuncs
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 
 SENDARP=$HA_BIN/send_arp
-VLDIR=@HA_VARRUNHBRSC@/IPaddr
-SENDARPPIDDIR=@HA_VARRUNHBRSCDIR@/send_arp
+VLDIR=${HA_RSCTMP}/IPaddr
+SENDARPPIDDIR=${HA_RSCTMP}/send_arp
 
 BASEIP="$OCF_RESKEY_ip"
 INTERFACE="$OCF_RESKEY_nic"

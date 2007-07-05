@@ -15,8 +15,8 @@
 #######################################################################
 # Initialization:
 
-. @hb_libdir@/ocf-shellfuncs
-. @HA_HBCONF_DIR@/shellfuncs
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
+. ${HA_DIR}/shellfuncs
 
 #######################################################################
 CMD=`basename $0`

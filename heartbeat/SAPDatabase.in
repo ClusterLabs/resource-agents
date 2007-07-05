@@ -29,8 +29,8 @@
 #######################################################################
 # Initialization:
 
-if [ -f @hb_libdir@/ocf-shellfuncs ]; then
-	. @hb_libdir@/ocf-shellfuncs
+if [ -f ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs ]; then
+	. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 elif [ -f /usr/share/cluster/ocf-shellfuncs ]; then
 	. /usr/share/cluster/ocf-shellfuncs
 else

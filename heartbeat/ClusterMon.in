@@ -36,7 +36,7 @@
 #######################################################################
 # Initialization:
 
-. @hb_libdir@/ocf-shellfuncs
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 
 #######################################################################
 
@@ -129,9 +129,9 @@ ClusterMon_start() {
     cmd_prefix=""
     cmd_suffix=""
     if [ ! -z $OCF_RESKEY_user ]; then
-	su - $OCF_RESKEY_user -c "@sbindir@/crm_mon -p $OCF_RESKEY_pidfile -d -i $OCF_RESKEY_update $OCF_RESKEY_extra_options -h $OCF_RESKEY_htmlfile"
+	su - $OCF_RESKEY_user -c "${HA_SBIN_DIR}/crm_mon -p $OCF_RESKEY_pidfile -d -i $OCF_RESKEY_update $OCF_RESKEY_extra_options -h $OCF_RESKEY_htmlfile"
     else
-	@sbindir@/crm_mon -p $OCF_RESKEY_pidfile -d -i $OCF_RESKEY_update $OCF_RESKEY_extra_options -h $OCF_RESKEY_htmlfile
+	${HA_SBIN_DIR}/crm_mon -p $OCF_RESKEY_pidfile -d -i $OCF_RESKEY_update $OCF_RESKEY_extra_options -h $OCF_RESKEY_htmlfile
     fi
     ClusterMon_exit $?
 }

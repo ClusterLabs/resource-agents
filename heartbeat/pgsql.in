@@ -23,7 +23,7 @@
 ###############################################################################
 # Initialization:
 
-. @hb_libdir@/ocf-shellfuncs
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 
 unset LC_ALL; export LC_ALL
 unset LANGUAGE; export LANGUAGE

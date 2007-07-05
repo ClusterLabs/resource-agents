@@ -29,11 +29,11 @@
 #######################################################################
 # Initialization:
 
-. @hb_libdir@/ocf-shellfuncs
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 
 AWK=@AWK@
-HA_VARRUNHBRSCDIR=@HA_VARRUNHBRSCDIR@
-HA_HBCONF_DIR=@HA_HBCONF_DIR@
+HA_VARRUNHBRSCDIR=${HA_RSCTMP}
+HA_HBCONF_DIR=${HA_DIR}
 IFCONFIG=@IFCONFIG@
 IFCONFIG_A_OPT=@IFCONFIG_A_OPT@
 SENDARP=$HA_BIN/send_arp

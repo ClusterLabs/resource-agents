@@ -40,7 +40,7 @@
 # 
 
 ###
-. @hb_libdir@/ocf-shellfuncs
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 ###
 
 # required utilities

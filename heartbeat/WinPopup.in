@@ -16,12 +16,12 @@
 #
 # License:  GNU General Public License (GPL)
 
-WINPOPUPFILE=@HA_VARRUNDIR@/WinPopup
+WINPOPUPFILE=${HA_VARRUN}/WinPopup
 #######################################################################
 # Initialization:
 
 # Source function library.
-. @hb_libdir@/ocf-shellfuncs
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 
 #######################################################################
 

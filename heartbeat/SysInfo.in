@@ -29,11 +29,11 @@
 #######################################################################
 # Initialization:
 
-. @hb_libdir@/ocf-shellfuncs
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 
 #######################################################################
 
-HA_VARRUNHBRSCDIR=@HA_VARRUNHBRSCDIR@
+HA_VARRUNHBRSCDIR=${HA_RSCTMP}
 
 meta_data() {
 	cat <<END
@@ -110,7 +110,7 @@ UpdateStat() {
     name=$1; shift
     value="$*"
     echo -e "$name:\t$value"
-    @sbindir@/attrd_updater ${OCF_RESKEY_delay} -S status -n $name -v "$value"
+    ${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n $name -v "$value"
 }
 
 SysInfoStats() {

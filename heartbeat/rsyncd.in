@@ -25,7 +25,7 @@
 ##########################################################################
 # Initialization:
 
-. @hb_libdir@/ocf-shellfuncs
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 
 USAGE="Usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
 

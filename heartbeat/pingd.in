@@ -30,11 +30,11 @@
 #######################################################################
 # Initialization:
 
-. @hb_libdir@/ocf-shellfuncs
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 
 #######################################################################
 
-HA_VARRUNHBRSCDIR=@HA_VARRUNHBRSCDIR@
+HA_VARRUNHBRSCDIR=${HA_RSCTMP}
 
 meta_data() {
 	cat <<END
@@ -151,7 +151,7 @@ pingd_start() {
     for a_host in $OCF_RESKEY_host_list; do
 	extras="$extras -h $a_host"
     done
-    pingd_cmd="@hb_libdir@/pingd -D -p $OCF_RESKEY_pidfile -a $OCF_RESKEY_name -d $OCF_RESKEY_dampen $extras"
+    pingd_cmd="${HA_LIB_DIR}/pingd -D -p $OCF_RESKEY_pidfile -a $OCF_RESKEY_name -d $OCF_RESKEY_dampen $extras"
 
     if [ ! -z $OCF_RESKEY_user ]; then
 	echo "$pingd_cmd" | su - $OCF_RESKEY_user

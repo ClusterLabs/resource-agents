@@ -34,9 +34,9 @@
 #  OCF_RESKEY_options
 #  OCF_RESKEY_testregex
 
-HA_VARRUNDIR=@HA_VARRUNDIR@
+HA_VARRUNDIR=${HA_VARRUN}
 
-. @hb_libdir@/ocf-shellfuncs
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 
 #######################################################################
 #

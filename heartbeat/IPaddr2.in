@@ -64,9 +64,9 @@
 #######################################################################
 # Initialization:
 
-. @hb_libdir@/ocf-shellfuncs
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 
-HA_VARRUNHBRSCDIR=@HA_VARRUNHBRSCDIR@
+HA_VARRUNHBRSCDIR=${HA_RSCTMP}
 IP2UTIL="@IP2UTIL@"
 IPTABLES="@IPTABLES@"
 MODPROBE="@MODPROBE@"

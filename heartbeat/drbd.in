@@ -42,7 +42,7 @@
 if [ -n "$OCF_DEBUG_LIBRARY" ]; then
 	. $OCF_DEBUG_LIBRARY
 else
-	. @hb_libdir@/ocf-shellfuncs
+	. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 fi
 
 #######################################################################
@@ -187,7 +187,7 @@ do_drbdadm() {
 
 drbd_init() {
 	DRBDADM=$(which drbdadm 2>/dev/null)
-	CRM_MASTER=@sbindir@/crm_master
+	CRM_MASTER=${HA_SBIN_DIR}/crm_master
 	
 	RESOURCE="$OCF_RESKEY_drbd_resource"
 	CLONE_NO="$OCF_RESKEY_CRM_meta_clone"

@@ -22,9 +22,9 @@
 ##########################################################################
 # Initialization:
 
-. @hb_libdir@/ocf-shellfuncs
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 
-PIDFILE=@HA_VARRUNHBRSCDIR@/pure-ftpd-${OCF_RESOURCE_INSTANCE}.pid
+PIDFILE=${HA_RSCTMP}/pure-ftpd-${OCF_RESOURCE_INSTANCE}.pid
 USAGE="Usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
 
 ##########################################################################
