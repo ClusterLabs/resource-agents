@@ -314,18 +314,10 @@ pgsql_monitor() {
 
 # Validate most critical parameters
 pgsql_validate_all() {
-    check_binary $SH
-    if [ ! -x $OCF_RESKEY_pgctl ]
-    then
-        ocf_log err "Can't run $OCF_RESKEY_pgctl"
-        return $OCF_ERR_CONFIGURED
-    fi
 
-    if [ ! -x $OCF_RESKEY_psql ]
-    then
-        ocf_log err "Can't run $OCF_RESKEY_psql"
-        return $OCF_ERR_CONFIGURED
-    fi
+    check_binary $SH
+    check_binary $OCF_RESKEY_pgctl
+    check_binary $OCF_RESKEY_psql
 
     return $OCF_SUCCESS
 }

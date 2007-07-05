@@ -53,7 +53,6 @@ then
   HTTPDLIST="$HTTPDLIST `$MPM 2>/dev/null`"
 fi
 
-WGETNAME=wget
 WGETOPTS="-O- -nv -L"
 LOCALHOST="http://localhost"
 HTTPDOPTS="-DSTATUS"
@@ -92,7 +91,7 @@ action:
 	monitor  return TRUE if the web server appears to be working.
                 For this to be supported you must configure mod_status
 		 and give it a server-status URL.  You have to have 
-		installed $WGETNAME for this to work.
+		installed $WGET for this to work.
 
 	meta-data	show meta data message
 
@@ -212,13 +211,6 @@ GetParams() {
 	    PORT=80
 	fi
   fi
-  if
-    WGET=`which $WGETNAME 2>/dev/null`
-  then
-    : OK
-  else
-    WGET=""
-  fi
   
   #
   # It's difficult to figure out whether the server supports
@@ -244,7 +236,7 @@ GetParams() {
      [ "X$STATUSURL" = "X" ]
   then
     if
-      [ ! -z "$WGET" -a -x "$WGET" ]
+	have_binary $WGET
     then
       StatusURL=`FindLocationForHandler $1 server-status | tail -1`
       if
@@ -364,13 +356,20 @@ status_apache() {
   fi
 }
 
-
 monitor_apache() {
-  if [ -z "$STATUSURL" -o ! -x "$WGET" ]; then
-    ocf_log err "Monitoring not supported by $CONFIGFILE"
-    ocf_log info "Please set the statusurl parameter and make sure that wget is available"
+  if 
+	! have_binary $WGET
+  then
+	ocf_log err "Monitoring not supported by $OCF_RESOURCE_INSTANCE"
+	ocf_log info "Please make sure that wget is available"
+	return $OCF_ERR_CONFIGURED
+
+  elif [ -z "$STATUSURL" ]; then
+	ocf_log err "Monitoring not supported by $CONFIGFILE"
+	ocf_log info "Please set the statusurl parameter"
 	return $OCF_ERR_CONFIGURED
   fi
+
   if
     silent_status
   then

@@ -208,19 +208,14 @@ eDir_stop() {
         return $OCF_SUCCESS
     fi
 
-    if [ -r "$NDSCONF" -a -x $NDSMANAGE ] ; then
-        $NDSMANAGE stop --config-file "$NDSCONF" >/dev/null 2>&1
-        if eDir_status ; then
+    $NDSMANAGE stop --config-file "$NDSCONF" >/dev/null 2>&1
+    if eDir_status ; then
             # eDir failed to stop.
-            ocf_log err "eDirectory instance failed to stop for $NDSCONF"
-            return $OCF_ERR_GENERIC
-        else
-            ocf_log info "eDirectory stop verified for $NDSCONF."
-            return $OCF_SUCCESS
-        fi
-    else
-        ocf_log err "ndsmanage binary or config file missing ($NDSCONF). STOP action failed."
+        ocf_log err "eDirectory instance failed to stop for $NDSCONF"
         return $OCF_ERR_GENERIC
+    else
+        ocf_log info "eDirectory stop verified for $NDSCONF."
+        return $OCF_SUCCESS
     fi
 }
 
@@ -331,16 +326,10 @@ eDir_validate() {
     fi
 
     # ndsmanage must be available and runnable
-    if [ ! -x $NDSMANAGE ] ; then
-        ocf_log err "Cannot run $NDSMANAGE"
-        rc=$OCF_ERR_INSTALLED
-    fi
+    check_binary $NDSMANAGE
 
     # ndsstat must be available and runnable
-    if [ ! -x $NDSSTAT ]; then
-        ocf_log err "Cannot run $NDSSTAT"
-        rc=$OCF_ERR_INSTALLED
-    fi
+    check_binary $NDSSTAT
 
     # Config file must be readable
     if [ ! -r "$NDSCONF" ] ; then
@@ -415,7 +404,6 @@ MONITOR_IDM=${OCF_RESKEY_eDir_monitor_idm:-0}
 case "$1" in
     validate-all) eDir_validate;   exit $?;;
     meta-data)    eDir_meta_data;  exit $OCF_SUCCESS;;
-    stop)         eDir_stop;       exit $?;;
     status)       if eDir_status ; then
                       ocf_log info "eDirectory instance is up ($NDSCONF)"
                       exit $OCF_SUCCESS
@@ -442,6 +430,7 @@ fi
 
 case "$1" in
     start)      eDir_start;;
+    stop)       eDir_stop;;
     monitor)    eDir_monitor;;
 esac
 

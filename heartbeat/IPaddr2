@@ -245,11 +245,6 @@ ip_init() {
 		exit $OCF_ERR_PERM
 	fi
 	
-	if [ ! -x "$IP2UTIL" ]; then
-		ocf_log err "$IP2UTIL not found."
-		exit $OCF_ERR_INSTALLED
-	fi
-	
 	BASEIP="$OCF_RESKEY_ip"
 	BRDCAST="$OCF_RESKEY_broadcast"
 	NIC="$OCF_RESKEY_nic"
@@ -327,10 +322,7 @@ ip_init() {
 	IP_CIP=
 	
 	if [ "$IP_INC_GLOBAL" -gt 1 ]; then
-		if [ ! -x "$IPTABLES" ]; then
-			ocf_log err "Cluster Alias IP mode selected, but iptables not configured"
-			exit $OCF_ERR_INSTALLED
-		fi
+	        check_binary $IPTABLES
 		IP_CIP="yes"
 		if [ -z "$IF_MAC" ]; then
 			# Choose a MAC

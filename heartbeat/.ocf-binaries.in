@@ -6,7 +6,7 @@ export PATH="$PATH:/usr/ucb"
 
 # Binaries and binary options for use in Resource Agents
 : ${AWK:=@AWK@}
-: ${GREP:="@EGREP@"}
+: ${EGREP:="@EGREP@"}
 : ${IFCONFIG_A_OPT:="@IFCONFIG_A_OPT@"}
 : ${MAILCMD:=@MAILCMD@}
 : ${MKTEMP:=@MKTEMP@}
@@ -19,9 +19,11 @@ export PATH="$PATH:/usr/ucb"
 # Entries that should probably be removed
 : ${BASENAME:=basename}
 : ${BLOCKDEV:=blockdev}
+: ${CAT:=cat}
 : ${FSCK:=fsck}
 : ${FUSER:=fuser}
 : ${GETENT:=getent}
+: ${GREP:=grep}
 : ${IFCONFIG:=ifconfig}
 : ${IPTABLES:=iptables}
 : ${IP2UTIL:=ip}
@@ -38,6 +40,7 @@ export PATH="$PATH:/usr/ucb"
 : ${UMOUNT:=umount}
 : ${REBOOT:=reboot}
 : ${POWEROFF_CMD:=poweroff}
+: ${WGET:=wget}
 : ${WHOAMI:=whoami}
 : ${STRINGSCMD:=strings)}
 : ${SCP:=scp}

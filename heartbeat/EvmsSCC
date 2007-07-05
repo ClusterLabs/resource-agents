@@ -45,15 +45,8 @@
 
 
 # Utilities used by this script
-CUT=/usr/bin/cut
-EVMSACTIVATE=/sbin/evms_activate
-
-check_util () {
-    if [ ! -x "$1" ] ; then
-	ocf_log err "Setup problem: Couldn't find utility $1"
-	exit $OCF_ERR_GENERIC
-    fi
-}
+CUT=cut
+EVMSACTIVATE=evms_activate
 
 usage() {
 	cat <<-EOT
@@ -179,8 +172,8 @@ case $OP in
 			;;
 esac
 
-check_util $CUT
-check_util $EVMSACTIVATE
+check_binary $CUT
+check_binary $EVMSACTIVATE
 
 case $OP in
   start)	        EvmsSCC_start

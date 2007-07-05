@@ -37,7 +37,6 @@ then
   WASDIR=/usr/WebSphere/AppServer
 fi
 STARTTIME=300	#	5 minutes
-WGET=/usr/bin/wget
 DEFAULT_WASPORTS="9080"
 #
 #
@@ -277,7 +276,7 @@ WAS_methods() {
 	usage
 	!
   if
-    [ -f $WGET -a -x $WGET ]
+    have_binary $WGET
   then
     echo monitor
   fi

@@ -45,19 +45,6 @@
 
 # required utilities
 VZCTL=/usr/sbin/vzctl
-AWK=/usr/bin/awk
-
-#
-# check_util()
-#
-# taken from Raid1 Heartbeat2 OCF resource agent
-check_util ()
-{
-    if [[ ! -x "$1" ]]; then
-	ocf_log err "setup problem: Couldn't find utility $1"
-	exit $OCF_ERR_GENERIC
-    fi
-}
 
 #
 # usage()
@@ -272,8 +259,8 @@ declare -i VEID=$OCF_RESKEY_veid
 #
 # check that all relevant utilities are available
 # 
-check_util $VZCTL
-check_util $AWK
+check_binary $VZCTL
+check_binary $AWK
 
 #
 # finally... let's see what we are ordered to do :-)

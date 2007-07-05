@@ -102,13 +102,6 @@
 
 #######################################################################
 
-check_util () {
-    if [ ! -x "$1" ] ; then
-	ocf_log err "setup problem: Couldn't find utility $1"
-	exit $OCF_ERR_GENERIC
-    fi
-}
-
 usage() {
 	cat <<-EOT
 	usage: $0 {start|stop|status|monitor|validate-all|usage|meta-data}

@@ -29,6 +29,7 @@
 # Initialization:
 
 . ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
+PATH="$PATH:$ORACLE_HOME/bin"
 
 #######################################################################
 
@@ -192,10 +193,6 @@ ora_info() {
 	# there a better way to find out ORACLE_OWNER?
 	[ x = "x$ORACLE_OWNER" ] &&
 		ORACLE_OWNER=`ls -ld $ORACLE_HOME/. 2>/dev/null | awk 'NR==1{print $3}'`
-
-	sqlplus=$ORACLE_HOME/bin/sqlplus
-	lsnrctl=$ORACLE_HOME/bin/lsnrctl
-	tnsping=$ORACLE_HOME/bin/tnsping
 }
 
 testoraenv() {
@@ -203,8 +200,12 @@ testoraenv() {
 	[ x != "x$ORACLE_HOME" -a x != "x$ORACLE_OWNER" ] ||
 		return 1
 	#	and some important things are there
-	[ -x "$sqlplus" -a -x "$lsnrctl" -a -x "$tnsping" ] ||
-		return 1
+	check_binary sqlplus
+
+	# These don't seem to be used anywhere...
+	check_binary lsnrctl
+	check_binary tnsping
+
 	return 0
 }
 
@@ -241,9 +242,9 @@ dbasql() {
 	for func; do $func; done
 	) |
 	if [ "$US" = "$ORACLE_OWNER" ]; then
-		$sqlplus -S /nolog
+		sqlplus -S /nolog
 	else
-		su $ORACLE_OWNER -c "$sqlplus -S /nolog"
+		su $ORACLE_OWNER -c "`which sqlplus` -S /nolog"
 	fi | grep -v '^Connected'
 }
 
