@@ -1,5 +1,5 @@
 # Make sure PATH contains all the usual suspects
-export PATH="$PATH:/sbin:/usr/sbin:/usr/bin"
+export PATH="$PATH:/sbin:/bin:/usr/sbin:/usr/bin"
 
 # Include /usr/ucb for finding whoami on Solaris
 export PATH="$PATH:/usr/ucb"
@@ -9,10 +9,12 @@ export PATH="$PATH:/usr/ucb"
 : ${GREP:="@EGREP@"}
 : ${IFCONFIG_A_OPT:="@IFCONFIG_A_OPT@"}
 : ${MAILCMD:=@MAILCMD@}
+: ${MKTEMP:=@MKTEMP@}
 : ${PING:=@PING@}
-: ${SH:=@SHELL@}
 : ${RPM:=@RPM@}
-MKTEMP=@MKTEMP@
+: ${SH:=@SHELL@}
+: ${TEST:=@TEST@}
+: ${TESTPROG:=@TEST@}
 
 # Entries that should probably be removed
 : ${BASENAME:=basename}
@@ -48,8 +50,6 @@ MKTEMP=@MKTEMP@
 : ${LS:=ls}
 : ${LN:=ln}
 : ${MD5:=md5}
-: ${TEST:=test}
-: ${TESTPROG:=test}
 : ${DRBDADM:=drbdadm}
 : ${DRBDSETUP:=drbdsetup}
 
