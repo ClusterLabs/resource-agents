@@ -12,6 +12,7 @@ export PATH="$PATH:/usr/ucb"
 : ${PING:=@PING@}
 : ${SH:=@SHELL@}
 : ${RPM:=@RPM@}
+MKTEMP=@MKTEMP@
 
 # Entries that should probably be removed
 : ${BASENAME:=basename}
@@ -40,6 +41,17 @@ export PATH="$PATH:/usr/ucb"
 : ${SCP:=scp}
 : ${SSH:=ssh}
 : ${SWIG:=swig}
+: ${MKTEMP:=mktemp}
+: ${GZIP_PROG:=gzip}
+: ${TAR:=tar}
+: ${CP:=cp}
+: ${LS:=ls}
+: ${LN:=ln}
+: ${MD5:=md5}
+: ${TEST:=test}
+: ${TESTPROG:=test}
+: ${DRBDADM:=drbdadm}
+: ${DRBDSETUP:=drbdsetup}
 
 check_binary () {
     if [ ! -x "`which $1`" ] ; then
