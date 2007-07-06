@@ -268,7 +268,7 @@ ip_init() {
 	fi
 
 	IP_INC_GLOBAL=${OCF_RESKEY_CRM_meta_clone_max:-1}
-	IP_INC_NO=$((OCF_RESKEY_CRM_meta_clone+1))
+	IP_INC_NO=`expr $OCF_RESKEY_CRM_meta_clone + 1`
 	IP_CIP_HASH="${OCF_RESKEY_clusterip_hash}"
 
 	if [ $LVS_SUPPORT -gt 0 ] && [ $IP_INC_GLOBAL -gt 1 ]; then
@@ -664,7 +664,8 @@ ip_stop() {
 		echo "-$IP_INC_NO" >$IP_CIP_FILE
 		if [ "x$(cat $IP_CIP_FILE)" = "x" ]; then
 			ocf_log info $BASEIP, $IP_CIP_HASH
-			for ((i=1; i<=$IP_INC_GLOBAL; i++)) ; do
+			i=1
+			while [ $i -le $IP_INC_GLOBAL ]; do
 				ocf_log info $i
 				$IPTABLES -D INPUT -d $BASEIP -i $NIC -j CLUSTERIP \
 					--new \
@@ -672,6 +673,7 @@ ip_stop() {
 					--total-nodes $IP_INC_GLOBAL \
 					--local-node $i \
 					--hashmode $IP_CIP_HASH
+				i=`expr $i + 1`
 			done
 		else
 			ip_del_if="no"		
