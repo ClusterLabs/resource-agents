@@ -93,7 +93,10 @@ commondir	     = @hb_libdir@
 common_SCRIPTS	     = ocf-shellfuncs ocf-returncodes
 
 ocf-shellfuncs: .ocf-shellfuncs
-	cp $(top_srcdir)/resources/OCF/.ocf-shellfuncs $(top_builddir)/resources/OCF/ocf-shellfuncs
+	cp .ocf-shellfuncs ocf-shellfuncs
 
 ocf-returncodes: .ocf-returncodes
-	cp $(top_srcdir)/resources/OCF/.ocf-returncodes $(top_builddir)/resources/OCF/ocf-returncodes
+	cp $(top_srcdir)/resources/OCF/.ocf-returncodes ocf-returncodes
+
+clean-local:
+	rm -f ocf-shellfuncs ocf-returncodes
