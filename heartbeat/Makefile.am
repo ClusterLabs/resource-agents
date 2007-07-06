@@ -18,7 +18,7 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #
 MAINTAINERCLEANFILES = Makefile.in
-EXTRA_DIST		= ocf-returncodes $(ocf_SCRIPTS)
+EXTRA_DIST		= $(ocf_SCRIPTS)
 
 INCLUDES		= -I$(top_srcdir)/include -I$(top_srcdir)/linux-ha
 
