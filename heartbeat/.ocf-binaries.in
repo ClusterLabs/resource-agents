@@ -1,8 +1,10 @@
 # Make sure PATH contains all the usual suspects
-export PATH="$PATH:/sbin:/bin:/usr/sbin:/usr/bin"
+PATH="$PATH:/sbin:/bin:/usr/sbin:/usr/bin"
 
 # Include /usr/ucb for finding whoami on Solaris
-export PATH="$PATH:/usr/ucb"
+PATH="$PATH:/usr/ucb"
+
+export PATH
 
 # Binaries and binary options for use in Resource Agents
 : ${AWK:=@AWK@}
