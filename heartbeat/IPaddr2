@@ -495,9 +495,13 @@ restore_loopback() {
 #
 run_send_arp() {
 	ARGS="-i $ARP_INTERVAL_MS -r $ARP_REPEAT -p $SENDARPPIDFILE $NIC $BASEIP auto not_used not_used"
-	if [ $IP_CIP="yes" ] ; then
+	if [ $IP_CIP = "yes" ] ; then
+	    if [ x = "x$IF_MAC" ] ; then
+		MY_MAC=auto
+	    else
 		MY_MAC=`echo ${IF_MAC} | sed -e 's/://'`
-		ARGS="-i $ARP_INTERVAL_MS -r $ARP_REPEAT -p $SENDARPPIDFILE $NIC $BASEIP $MY_MAC not_used not_used"
+	    fi
+	    ARGS="-i $ARP_INTERVAL_MS -r $ARP_REPEAT -p $SENDARPPIDFILE $NIC $BASEIP $MY_MAC not_used not_used"
 	fi
 	ocf_log info "$SENDARP $ARGS"
 	case $ARP_BACKGROUND in
