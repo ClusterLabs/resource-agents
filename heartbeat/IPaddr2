@@ -495,7 +495,7 @@ restore_loopback() {
 #
 run_send_arp() {
 	ARGS="-i $ARP_INTERVAL_MS -r $ARP_REPEAT -p $SENDARPPIDFILE $NIC $BASEIP auto not_used not_used"
-	if [ $IP_CIP = "yes" ] ; then
+	if [ "x$IP_CIP" = "xyes" ] ; then
 	    if [ x = "x$IF_MAC" ] ; then
 		MY_MAC=auto
 	    else
