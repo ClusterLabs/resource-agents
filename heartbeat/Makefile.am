@@ -96,4 +96,4 @@ ocf-shellfuncs: .ocf-shellfuncs
 	cp $(top_srcdir)/resources/OCF/.ocf-shellfuncs $(top_builddir)/resources/OCF/ocf-shellfuncs
 
 ocf-returncodes: .ocf-returncodes
-	cp $(top_srcdir)/resources/OCF/.ocf-shellfuncs $(top_builddir)/resources/OCF/ocf-shellfuncs
+	cp $(top_srcdir)/resources/OCF/.ocf-returncodes $(top_builddir)/resources/OCF/ocf-returncodes
