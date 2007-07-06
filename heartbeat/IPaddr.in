@@ -253,8 +253,8 @@ lvs_restore_loopback() {
     if
       NICINFO=`eval $CMD`
     then
-	netmask_text=`echo "$NICINFO" | cut -f2`
-	broadcast=`echo "$NICINFO" | cut -f3`
+	netmask_text=`echo "$NICINFO" | cut -f2 -d " "`
+	broadcast=`echo "$NICINFO" | cut -f3 -d " "`
     else
 	echo "ERROR: $CMD failed (rc=$rc)"
 	exit $OCF_ERR_GENERIC
@@ -804,7 +804,9 @@ fi
 : ${OCF_RESKEY_lvs_support=0}
 # Normalize the value of lvs_support
 if [ "${OCF_RESKEY_lvs_support}" = "true" \
-    -o "${OCF_RESKEY_lvs_support}" = "on" ]; then
+    -o "${OCF_RESKEY_lvs_support}" = "on" \
+    -o "${OCF_RESKEY_lvs_support}" = "yes" \
+    -o "${OCF_RESKEY_lvs_support}" = "1" ]; then
     OCF_RESKEY_lvs_support=1
 else
     OCF_RESKEY_lvs_support=0
