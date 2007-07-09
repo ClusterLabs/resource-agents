@@ -44,7 +44,7 @@ export PATH
 : ${POWEROFF_CMD:=poweroff}
 : ${WGET:=wget}
 : ${WHOAMI:=whoami}
-: ${STRINGSCMD:=strings)}
+: ${STRINGSCMD:=strings}
 : ${SCP:=scp}
 : ${SSH:=ssh}
 : ${SWIG:=swig}
