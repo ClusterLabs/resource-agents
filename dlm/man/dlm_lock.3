@@ -6,61 +6,61 @@ dlm_lock \- acquire or convert a DLM lock
  #include <libdlm.h>
 
 int dlm_lock(uint32_t mode,
-	     struct dlm_lksb *lksb,	
-	     uint32_t flags,	
-	     const void *name,	
-	     unsigned int namelen,
-	     uint32_t parent,
-	     void (*astaddr) (void *astarg),
-	     void *astarg,
-	     void (*bastaddr) (void *astarg),
-	     struct dlm_range *range);
+		struct dlm_lksb *lksb,	
+		uint32_t flags,	
+		const void *name,	
+		unsigned int namelen,
+		uint32_t parent,		/* unused */
+		void (*astaddr) (void *astarg),
+		void *astarg,
+		void (*bastaddr) (void *astarg),
+		void *range);			/* unused */
 
 int dlm_lock_wait(uint32_t mode,
-                  struct dlm_lksb *lksb,
-                  uint32_t flags,
-                  const void *name,
-                  unsigned int namelen,
-                  uint32_t parent,
-                  void *bastarg,
-                  void (*bastaddr) (void *bastarg),
-                  void *range);
+		struct dlm_lksb *lksb,
+		uint32_t flags,
+		const void *name,
+		unsigned int namelen,
+		uint32_t parent,		/* unused */
+		void *bastarg,
+		void (*bastaddr) (void *bastarg),
+		void *range);			/* unused */
 
 int dlm_ls_lock(dlm_lshandle_t lockspace,
-                uint32_t mode,
-                struct dlm_lksb *lksb,
-                uint32_t flags,
-                const void *name,
-                unsigned int namelen,
-                uint32_t parent,
-                void (*astaddr) (void *astarg),
-                void *astarg,
-                void (*bastaddr) (void *astarg),
-                void *range);
+		uint32_t mode,
+		struct dlm_lksb *lksb,
+		uint32_t flags,
+		const void *name,
+		unsigned int namelen,
+		uint32_t parent,		/* unused */
+		void (*astaddr) (void *astarg),
+		void *astarg,
+		void (*bastaddr) (void *astarg),
+		void *range);			/* unused */
 
 int dlm_ls_lock_wait(dlm_lshandle_t lockspace,
-                     uint32_t mode,
-                     struct dlm_lksb *lksb,
-                     uint32_t flags,
-                     const void *name,
-                     unsigned int namelen,
-                     uint32_t parent,
-                     void *bastarg,
-                     void (*bastaddr) (void *bastarg),
-                     void *range);
+		uint32_t mode,
+		struct dlm_lksb *lksb,
+		uint32_t flags,
+		const void *name,
+		unsigned int namelen,
+		uint32_t parent,		/* unusued */
+		void *bastarg,
+		void (*bastaddr) (void *bastarg),
+		void *range);			/* unused */
 
 int dlm_ls_lockx(dlm_lshandle_t lockspace,
-                 uint32_t mode,
-                 struct dlm_lksb *lksb,
-                 uint32_t flags,
-                 const void *name,
-                 unsigned int namelen,
-                 uint32_t parent,
-                 void (*astaddr) (void *astarg),
-                 void *astarg,
-                 void (*bastaddr) (void *astarg),
-                 uint64_t *xid,
-                 uint64_t *timeout);
+		uint32_t mode,
+		struct dlm_lksb *lksb,
+		uint32_t flags,
+		const void *name,
+		unsigned int namelen,
+		uint32_t parent,		/* unused */
+		(*astaddr) (void *astarg),
+		void *astarg,
+		void (*bastaddr) (void *astarg),
+		uint64_t *xid,
+		uint64_t *timeout);
 
 
 
@@ -98,18 +98,29 @@ Lock mode to acquire or convert to.
 .B flags
 Affect the operation of the lock call:
 .nf
-  LKF_NOQUEUE     Don't queue the lock. If it cannot be granted return -EAGAIN
+  LKF_NOQUEUE     Don't queue the lock. If it cannot be granted return
+                  -EAGAIN
   LKF_CONVERT     Convert an existing lock
   LKF_VALBLK      Lock has a value block
   LKF_QUECVT      Put conversion to the back of the queue
-  LKF_EXPEDITE    Grant a NL lock immediately regardless of other locks on the conversion queue
-  LKF_PERSISTENT  Specifies a lock that will not be unlocked when the process exits.
-  LKF_CONVDEADLK  Enable conversion deadlock
-  LKF_NODLCKWT    Do not consider this lock when trying to detect deadlock conditions
-  LKF_NODLCKBLK   Do not consider this lock as blocking other locks when trying to detect deadlock conditions.
+  LKF_EXPEDITE    Grant a NL lock immediately regardless of other locks
+                  on the conversion queue
+  LKF_PERSISTENT  Specifies a lock that will not be unlocked when the
+                  process exits; it will become an orphan lock.
+  LKF_CONVDEADLK  Enable internal conversion deadlock resolution where
+                  the lock's granted mode may be set to NL and
+                  DLM_SBF_DEMOTED is returned in lksb.sb_flags.
+  LKF_NODLCKWT    Do not consider this lock when trying to detect
+                  deadlock conditions.
+  LKF_NODLCKBLK   Not implemented
   LKF_NOQUEUEBAST Send blocking ASTs even for NOQUEUE operations
   LKF_HEADQUE     Add locks to the head of the convert or waiting queue
-  LKF_NOORDER     Avoid the VMS rules on grant order when using range locks
+  LKF_NOORDER     Avoid the VMS rules on grant order
+  LKF_ALTPR       If the requested mode can't be granted (generally CW),
+                  try to grant in PR and return DLM_SBF_ALTMODE.
+  LKF_ALTCW       If the requested mode can't be granted (generally PR),
+                  try to grant in CW and return DLM_SBF_ALTMODE.
+  LKF_TIMEOUT     The lock will time out per the timeout arg.
 
 .fi
 .PP
@@ -123,7 +134,7 @@ and the value block if LKF_VALBLK is set.
 .B name
 .br
 Name of the lock. Can be binary, max 64 bytes. Ignored for lock
-conversions.
+conversions.  (Should be a string to work with debugging tools.)
 .PP
 .B namelen	
 .br
@@ -152,18 +163,11 @@ astargs.
 .PP
 .B range
 .br
-an optional structure of two uint64_t that indicate the range
-of the lock. Locks with overlapping ranges will be granted only
-if the lock modes are compatible. locks with non-overlapping
-ranges (on the same resource) do not conflict. A lock with no
-range is assumed to have a range encompassing the largest
-possible range. ie. 0-0xFFFFFFFFFFFFFFFF.  Note that is is more
-efficient to specify no range than to specify the full range
-above.
+This is unused.
 .PP
 .B xid
 .br
-Don't know what this does...Dave!???
+Optional transaction ID for deadlock detection.
 .PP
 .B timeout
 .br
@@ -171,18 +175,26 @@ Timeout in centiseconds. If it takes longer than this to acquire the lock
 (usually because it is already blocked by another lock), then the AST 
 will trigger with ETIMEDOUT as the status. If the lock operation is a conversion
 then the lock will remain at its current status. If this is a new lock then
-the lock will not exist and any LKB in the lksb will be invalid.
+the lock will not exist and any LKB in the lksb will be invalid.  This is
+ignored without the LKF_TIMEOUT flag.
 .PP
 .SS Return values
 0 is returned if the call completed successfully. If not, -1 is returned and errno is set to one of the following:
 .PP
 .nf
-EINVAL		An invalid parameter was passed to the call (eg bad lock mode or flag)
-ENOMEM		A (kernel) memory allocation failed
-EAGAIN		LKF_NOQUEUE was requested and the lock could not be granted
-EBUSY		The lock is currently being locked or converted
-EFAULT		The userland buffer could not be read/written by the kernel (this indicates a library problem)
-EDEADLOCK	The lock operation is causing a deadlock and has been cancelled. If this was a conversion then the lock is reverted to its previously granted state. If it was a new lock then it has not been granted. (NB Only conversion deadlocks are currently detected)
+EINVAL          An invalid parameter was passed to the call (eg bad lock
+                mode or flag)
+ENOMEM          A (kernel) memory allocation failed
+EAGAIN          LKF_NOQUEUE was requested and the lock could not be
+                granted
+EBUSY           The lock is currently being locked or converted
+EFAULT          The userland buffer could not be read/written by the
+                kernel (this indicates a library problem)
+EDEADLOCK       The lock operation is causing a deadlock and has been
+                cancelled. If this was a conversion then the lock is
+                reverted to its previously granted state. If it was a
+                new lock then it has not been granted. (NB Only
+                conversion deadlocks are currently detected)
 .PP
 If an error is returned in the AST, then lksb.sb_status is set to the one of the above values instead of zero.
 .SS Structures
@@ -196,10 +208,6 @@ struct dlm_lksb {
   char     sb_lvbptr; /* Optional pointer to lock value block */
 };
 
-struct dlm_range {
-  uint64_t ra_start;
-  uint64_t ra_end;
-};
 .fi
 .SH EXAMPLE
 .nf
