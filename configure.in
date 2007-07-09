@@ -2827,6 +2827,8 @@ resources/Makefile						\
 	resources/OCF/.ocf-binaries				\
 	resources/OCF/.ocf-directories				\
 	resources/OCF/.ocf-shellfuncs				\
+	resources/OCF/ocf-returncodes				\
+	resources/OCF/ocf-shellfuncs				\
 	resources/heartbeat/Makefile				\
 	resources/heartbeat/apache				\
 	resources/heartbeat/AudibleAlarm			\
