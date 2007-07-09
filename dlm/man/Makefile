@@ -9,8 +9,9 @@
 ##
 ###############################################################################
 ###############################################################################
-top_srcdir=..
-UNINSTALL = ${top_srcdir}/scripts/uninstall.pl
+
+include ../../make/defines.mk
+
 TARGETS = dlm_cleanup.3           dlm_lock_wait.3        dlm_open_lockspace.3    \
 	  dlm_close_lockspace.3   dlm_ls_lock.3          dlm_pthread_init.3      \
 	  dlm_create_lockspace.3  dlm_ls_lock_wait.3     dlm_release_lockspace.3 \
@@ -19,10 +20,7 @@ TARGETS = dlm_cleanup.3           dlm_lock_wait.3        dlm_open_lockspace.3   
 	  dlm_lock.3              dlm_ls_unlock_wait.3   libdlm.3
 
 
-include ../../make/defines.mk
-
 all:
-
 
 install:
 	install -d ${mandir}/man3
