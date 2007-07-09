@@ -88,7 +88,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			.ocf-directories \
 			.ocf-returncodes
 
-# Legacy locations (deprecated)
-commondir	     = @hb_libdir@
+commondir	     = @HA_NOARCHLIBHBDIR@
+# Legacy locations
 common_SCRIPTS	     = ocf-shellfuncs ocf-returncodes
 
