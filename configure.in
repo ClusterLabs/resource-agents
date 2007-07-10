@@ -2772,6 +2772,7 @@ mgmt/Makefile							\
 		mgmt/client/haclient.py				\
 		mgmt/client/mgmtcmd.py				\
 heartbeat/Makefile						\
+	heartbeat/shellfuncs					\
 	heartbeat/rc.d/Makefile					\
 		heartbeat/rc.d/ask_resources			\
 		heartbeat/rc.d/hb_takeover			\
