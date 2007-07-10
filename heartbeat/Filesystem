@@ -167,12 +167,8 @@ END
 #	It's really a bug that you have to do this at all...
 #
 flushbufs() {
-    if
-      have_binary $BLOCKDEV
-    then
-      if
-       [ "$blockdevice" = "yes" ]
-      then
+    if have_binary $BLOCKDEV ; then
+      if [ "$blockdevice" = "yes" ] ; then
         $BLOCKDEV --flushbufs $1
         return $?
       fi
