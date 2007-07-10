@@ -1191,7 +1191,7 @@ q_status_checks(void *arg)
 			continue;
 
 		rt_enqueue_request(rg, RG_STATUS,
-				   NULL, 0, 0, 0, 0);
+				   NULL, 1, 0, 0, 0);
 
 	} while (!list_done(&_tree, curr));
 

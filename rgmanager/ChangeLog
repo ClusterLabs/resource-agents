@@ -1,3 +1,7 @@
+2007-07-10 Lon Hohberger <lhh at redhat.com>
+	* src/daemons/rg_thread.c, groups.c: Make status queue max 1 instead
+	of unbounded (resolves: 247488)
+
 2007-06-29 Lon Hohberger <lhh at redhat.com>
 	* src/daemons/groups.c, rg_state.c: Make all test cases for #237144
 	work correctly

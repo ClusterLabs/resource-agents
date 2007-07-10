@@ -670,7 +670,6 @@ rt_enqueue_request(const char *resgroupname, int request,
 			} while (!list_done(resgroup->rt_queue, curr));
 	
 			if (count >= max) {
-				pthread_cond_broadcast(resgroup->rt_queue_cond);
 				pthread_mutex_unlock(resgroup->rt_queue_mutex);
 				pthread_mutex_unlock(&reslist_mutex);
 				/*
