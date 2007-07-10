@@ -23,6 +23,7 @@
 #include <time.h>
 #include <errno.h>
 #include <stdarg.h>
+#include <mntent.h>
 
 #include <linux/types.h>
 #include "libgfs2.h"
@@ -283,6 +284,38 @@ static void are_you_sure(struct gfs2_sbd *sdp)
 }
 
 /**
+ * check_mount - check to see if device is mounted
+ * @device: the device to create the filesystem on
+ *
+ */
+
+void check_mount(char *device)
+{
+	struct mntent *mnt;
+	FILE *fp;
+
+	if ((fp = setmntent("/proc/mounts", "r")) == NULL) {
+		die("error opening /proc/mounts");
+	}
+
+	while ((mnt = getmntent(fp)) != NULL) {
+		if (strcmp(device, mnt->mnt_fsname) == 0) {
+			printf("cannot create filesystem: ");
+			printf("%s appears to be mounted\n", device);
+			break;
+		}
+	}
+
+	endmntent(fp);
+
+	if (fp != NULL) {
+		exit(EXIT_FAILURE);
+	}
+
+	return;
+}
+
+/**
  * print_results - print out summary information
  * @sdp: the command line
  *
@@ -356,6 +389,8 @@ main_mkfs(int argc, char *argv[])
 		rgsize_specified = TRUE;
 
 	verify_arguments(sdp);
+
+	check_mount(sdp->device_name);
 
 	sdp->device_fd = open(sdp->device_name, O_RDWR);
 	if (sdp->device_fd < 0)

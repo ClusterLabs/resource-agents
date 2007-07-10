@@ -22,6 +22,7 @@
 #include <sys/ioctl.h>
 #include <assert.h>
 #include <time.h>
+#include <mntent.h>
 
 #include "global.h"
 #include "gfs_ondisk.h"
@@ -243,6 +244,39 @@ void are_you_sure(commandline_t *comline)
 
 
 /**
+ * check_mount -
+ * @
+ *
+ */
+
+void check_mount(char *device)
+{
+	struct mntent *mnt;
+	FILE *fp;
+
+	if ((fp = setmntent("/proc/mounts", "r")) == NULL) {
+		die("error opening /proc/mounts");
+	}
+
+	while ((mnt = getmntent(fp)) != NULL) {
+		if (strcmp(device, mnt->mnt_fsname) == 0) {
+			printf("cannot create filesystem: ");
+			printf("%s appears to be mounted\n", device);
+			break;
+		}
+	}
+
+	endmntent(fp);
+
+	if (fp != NULL) {
+		exit(EXIT_FAILURE);
+	}
+
+	return;
+}
+
+
+/**
  * print_results - print out summary information
  * @comline: the command line
  *
@@ -306,6 +340,8 @@ int main(int argc, char *argv[])
 	comline.rgsize_specified = FALSE;
 
 	decode_arguments(argc, argv, &comline);
+
+	check_mount(comline.device);
 
 	if (!comline.expert) {
 		char buf[256];
