@@ -32,8 +32,7 @@
 #######################################################################
 # Initialization:
 
-. @hb_libdir@/ocf-shellfuncs
-# . /usr/lib64/heartbeat/ocf-shellfuncs
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 
 #######################################################################
 

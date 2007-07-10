@@ -25,14 +25,7 @@
 #######################################################################
 # Initialization:
 
-if [ -f ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs ]; then
-	. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
-elif [ -f /usr/share/cluster/ocf-shellfuncs ]; then
-	. /usr/share/cluster/ocf-shellfuncs
-else
-	echo Could not find ocf-shellfuncs!
-	exit 1
-fi
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 
 #######################################################################
 

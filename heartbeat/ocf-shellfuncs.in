@@ -8,5 +8,9 @@
 
 . @OCF_RA_DIR@/heartbeat/.ocf-shellfuncs
 
-ha_log "WARN: Use of @hb_libdir@/ocf-shellfuncs is deprecated."
+
+ha_log "WARN: Use of @HA_NOARCHLIBHBDIR@/ocf-shellfuncs is deprecated."
 ha_log "WARN: Please use @OCF_RA_DIR@/heartbeat/.ocf-shellfuncs instead."
+ha_log 'WARN: Note that the $OCF_ROOT environment variable points to '"$OCF_ROOT"
+ha_log 'WARN: We recommend using the $OCF_ROOT environment variable'
+ha_log "WARN: Please fix $0 at your earliest convenience"

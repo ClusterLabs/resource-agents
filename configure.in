@@ -2528,7 +2528,11 @@ AC_SUBST(HB_RA_DIR)
 AC_DEFINE_UNQUOTED(HB_RA_DIR,"$HB_RA_DIR", Location for v1 Heartbeat v1 RAs)
 
 dnl ************ OCF (Open Cluster Framework) **********************
-dnl Must be consistent with remainder of platform (analogy with "initdir").
+dnl Should be consistent with the OCF standard fixed pathname /usr/lib/ocf
+dnl Changing it from this value violates the OCF standard. 
+dnl This is why it is not affected by the PREFIX setting.
+dnl We do not recommend changing it.
+dnl
 OCF_ROOT_DIR="/usr/lib/ocf"
 AC_ARG_WITH(ocf-root,
     [  --with-ocf-root=DIR      directory for OCF scripts [${OCF_ROOT_DIR}]],
