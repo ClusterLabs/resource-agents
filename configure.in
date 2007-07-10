@@ -2792,7 +2792,6 @@ heartbeat/Makefile						\
 		heartbeat/lib/hb_delnode			\
 		heartbeat/lib/hb_setweight			\
 		heartbeat/lib/hb_setsite			\
-	heartbeat/shellfuncs					\
 	heartbeat/libnet_util/Makefile				\
 	heartbeat/logrotate.d/Makefile				\
 ldirectord/Makefile						\
