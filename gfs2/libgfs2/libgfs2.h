@@ -226,7 +226,7 @@ struct gfs2_sbd {
 extern char *prog_name;
 
 #define GFS2_DEFAULT_BSIZE          (4096)
-#define GFS2_DEFAULT_JSIZE          (32)
+#define GFS2_DEFAULT_JSIZE          (128)
 #define GFS2_DEFAULT_RGSIZE         (256)
 #define GFS2_DEFAULT_UTSIZE         (1)
 #define GFS2_DEFAULT_QCSIZE         (1)
