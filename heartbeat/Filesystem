@@ -168,11 +168,14 @@ END
 #
 flushbufs() {
     if
-	have_binary $BLOCKDEV
-	if [ "$blockdevice" = "yes" ]; then
-		$BLOCKDEV --flushbufs $1
-		return $?
-	fi
+      have_binary $BLOCKDEV
+    then
+      if
+       [ "$blockdevice" = "yes" ]
+      then
+        $BLOCKDEV --flushbufs $1
+        return $?
+      fi
     fi
     return 0
 }
