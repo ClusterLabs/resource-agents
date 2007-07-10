@@ -297,7 +297,7 @@ HA_LIBDIR="${libdir}"
 AC_SUBST(HA_LIBDIR)
 AC_DEFINE_UNQUOTED(HA_LIBDIR,"$HA_LIBDIR", lib directory)
 
-HA_LIBDIR="${noarchlibdir}"
+HA_NOARCHLIBDIR="${noarchlibdir}"
 AC_SUBST(HA_NOARCHLIBDIR)
 AC_DEFINE_UNQUOTED(HA_NOARCHLIBDIR,"$HA_NOARCHLIBDIR", noarch lib directory)
 
@@ -2792,6 +2792,7 @@ heartbeat/Makefile						\
 		heartbeat/lib/hb_delnode			\
 		heartbeat/lib/hb_setweight			\
 		heartbeat/lib/hb_setsite			\
+	heartbeat/shellfuncs					\
 	heartbeat/libnet_util/Makefile				\
 	heartbeat/logrotate.d/Makefile				\
 ldirectord/Makefile						\
