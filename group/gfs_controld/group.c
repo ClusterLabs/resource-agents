@@ -170,7 +170,7 @@ int setup_groupd(void)
 	gh = group_init(NULL, LOCK_DLM_GROUP_NAME, LOCK_DLM_GROUP_LEVEL,
 			&callbacks, 10);
 	if (!gh) {
-		log_error("group_init error %d %d", (int) gh, errno);
+		log_error("group_init error %p %d", gh, errno);
 		return -ENOTCONN;
 	}
 

@@ -1667,7 +1667,7 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 
 	if (strlen(options) > MAX_OPTIONS_LEN-1) {
 		rv = -EMLINK;
-		log_error("mount: options too long %d", strlen(options));
+		log_error("mount: options too long %zu", strlen(options));
 		goto out;
 	}
 
