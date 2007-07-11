@@ -189,6 +189,8 @@ dnl	Alanr says: "It works.   s/ ugly//"
 dnl
 dnl	Patches are being accepted...
 dnl
+dnl Keep copy of original (default) prefix
+prefix_orig="$prefix"
 prefix=`eval echo "$prefix"`
 case $prefix in
   NONE)	prefix=/usr/local;;
@@ -277,7 +279,8 @@ dnl		then <OK> else <WARN> fi
 dnl	]
 
 # If original localstatedir had defaulted then sanity-check the result.
-if test "x$localstatedir_orig" = 'x${prefix}/var'	# Note quote types
+if test "x$localstatedir_orig" = 'x${prefix}/var' &&	# Note quote types
+   test "x$prefix_orig" = xNONE
 then
 	SNOOZING=10
 	AC_MSG_WARN(value/default "--localstatedir=$localstatedir" is poor.)
