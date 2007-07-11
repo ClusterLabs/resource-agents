@@ -2049,7 +2049,7 @@ dnl
 dnl	getopt: If this is valid, define HAVE_DECL_GETOPT to make the getopt.h header compile cleanly.
 dnl
 
-AC_REPLACE_FUNCS(alphasort inet_pton NoSuchFunctionName scandir setenv strerror unsetenv strnlen strndup daemon uuid_parse)
+AC_REPLACE_FUNCS(alphasort inet_pton NoSuchFunctionName scandir setenv strerror unsetenv strnlen strndup daemon uuid_parse strlcpy)
 dnl AC_CHECK_FUNCS(alphasort inet_pton NoSuchFunctionName scandir setenv strerror unsetenv strnlen strndup daemon uuid_parse)
 
 AC_CHECK_FUNCS(getopt, 
@@ -2066,6 +2066,7 @@ AC_SUBST(HA_HAVE_STRNLEN)
 AC_SUBST(HA_HAVE_STRNDUP)
 AC_SUBST(HA_HAVE_DAEMON)
 AC_SUBST(HA_HAVE_UUID_PARSE)
+AC_SUBST(HAVE_STRLCPY)
 AC_SUBST(HAVE_DECL_GETOPT)
 
 AC_CHECK_FUNCS(fcntl)
