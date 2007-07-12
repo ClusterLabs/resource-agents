@@ -59,6 +59,7 @@ logfile = None
 CONTROL_CONSOLE = "Control Console -----"
 DEVICE_MANAGER = "Device Manager -----"
 OUTLET_CONTROL = "- Outlet Control/Configuration -----"
+OUTLET_MANAGE = "- Outlet Management -----"
 CONTROL_OUTLET = "- Control Outlet -----"
 CONTROL_OUTLET_2 = "- Outlet Control "
 COMMAND_SUCCESS = "Command successfully issued."
@@ -70,8 +71,11 @@ SCREEN_END_2 = "<ESC>- Back, <ENTER>- Refresh, <CTRL-L>- Event Log"
 USERNAME = "User Name :"
 PASSWORD = "Password  :"
 MASTER = "------- MasterSwitch"
+FIRMWARE_STR = "Rack PDU APP"
 
 CONTINUE_INDEX = 0
+
+FIRMWARE_REV = 2
 
 regex_list = list()
 regex_list.append(CONTINUE)
@@ -468,6 +472,7 @@ def do_login(sock):
         sys.exit(1)
 
 def log_in(buffer):
+  global FIRMWARE_REV
   lines = buffer.splitlines()
 
   for i in lines:
@@ -480,6 +485,17 @@ def log_in(buffer):
         logit("Sending password: %s\n" % passwd)
       return (NOT_COMPLETE, passwd + "\r")
     elif i.find(CONTROL_CONSOLE) != (-1):
+      #while we are here, grab the firmware revision
+      rev_search_lines = buffer.splitlines()
+      for rev_search_line in rev_search_lines: #search screen again
+        rev_dex = rev_search_line.find(FIRMWARE_STR)
+        if rev_dex != (-1): #found revision line
+          scratch_rev = rev_search_line[rev_dex:]
+          v_dex = scratch_rev.find("v")
+          if v_dex != (-1):
+            if scratch_rev[v_dex + 1] == "3": #format is v3.3.4
+              FIRMWARE_REV = 3
+              break
       return (COMPLETE, "1\r") 
 
 def do_status_check(sock):
@@ -537,7 +553,12 @@ def return_status(buffer):
       if switchnum != "":
         res = switchnum + "\r"
       else:
-        res = "3\r"
+        if FIRMWARE_REV == 2:
+          res = "3\r"
+        elif FIRMWARE_REV == 3:
+          res = "2\r1\r"
+        else: #placeholder for future revisions 
+          res = "3\r"
       return (NOT_COMPLETE, res, "Status Unknown")
     elif i.find(OUTLET_CONTROL) != (-1):
       ls = buffer.splitlines()
@@ -639,7 +660,12 @@ def power_switch(buffer, escape, control_outlet, control_outlet2):
       if switchnum != "":
         res = switchnum + "\r"
       else:
-        res = "3\r"
+        if FIRMWARE_REV == 2:
+          res = "3\r"
+        elif FIRMWARE_REV == 3:
+          res = "2\r1\r"
+        else: #placeholder for future revisions - sheesh
+          res = "3\r"
       return (NOT_COMPLETE, res)
       
     elif (i.find(master_search_str1) != (-1)):
@@ -660,6 +686,11 @@ def power_switch(buffer, escape, control_outlet, control_outlet2):
     elif i == outlet_search_str5:
       return (NOT_COMPLETE, "1\r")
     
+    elif i.find(OUTLET_MANAGE) != (-1):
+      #return (NOT_COMPLETE, "1\r")
+      return (NOT_COMPLETE, "\r")
+
+    #elif i.find(OUTLET_CONTROL) != (-1) or i.find(OUTLET_MANAGE) != (-1):
     elif i.find(OUTLET_CONTROL) != (-1):
       ls = buffer.splitlines()
       portval = port.strip()
