@@ -262,15 +262,12 @@ void check_mount(char *device)
 		if (strcmp(device, mnt->mnt_fsname) == 0) {
 			printf("cannot create filesystem: ");
 			printf("%s appears to be mounted\n", device);
-			break;
+			endmntent(fp);
+			exit(EXIT_FAILURE);
 		}
 	}
 
 	endmntent(fp);
-
-	if (fp != NULL) {
-		exit(EXIT_FAILURE);
-	}
 
 	return;
 }
