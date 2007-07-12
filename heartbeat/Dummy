@@ -107,8 +107,15 @@ dummy_stop() {
 }
 
 dummy_monitor() {
+	# Monitor _MUST!_ differentiate correctly between running
+	# (SUCCESS), failed (ERROR) or _cleanly_ stopped (NOT RUNNING).
+	# That is THREE states, not just yes/no.
+	
 	if [ -f ${OCF_RESKEY_state} ]; then
 	    return $OCF_SUCCESS
+	fi
+	if false ; then
+		return $OCF_ERR_GENERIC
 	fi
 	return $OCF_NOT_RUNNING
 }
