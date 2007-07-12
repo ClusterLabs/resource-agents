@@ -223,7 +223,7 @@ lvs_remove_conflicting_loopback() {
 	  ocf_log err "Could not save conflicting loopback $ifname." \
 	  "it will not be restored."
 	fi
-	delete_interface "$ifname $ipaddr"
+	delete_interface "$ifname" "$ipaddr"
 
 	# Forcibly remove the route (if it exists) to the loopback.
 	delete_route "$ipaddr"
@@ -509,6 +509,7 @@ add_interface () {
 #	Remove the IP alias for the requested IP address...
 #
 ip_stop() {
+  echo "In IP Stop"
 
   SENDARPPIDFILE="$SENDARPPIDDIR/send_arp-$OCF_RESKEY_ip"
   NIC=`find_interface $OCF_RESKEY_ip`
@@ -532,7 +533,7 @@ ip_stop() {
   fi
 
   delete_route "$OCF_RESKEY_ip"
-  delete_interface "$NIC $OCF_RESKEY_ip"
+  delete_interface "$NIC" "$OCF_RESKEY_ip"
   rc=$?
 
   if [ ${OCF_RESKEY_lvs_support} = 1 ]; then
