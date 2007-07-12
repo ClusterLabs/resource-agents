@@ -1,3 +1,6 @@
+2007-07-12 Marek Grac <mgrac at redhat.com>
+	* src/resources/Makefile: Fix #245178 - install RA for named
+
 2007-07-10 Lon Hohberger <lhh at redhat.com>
 	* src/daemons/rg_thread.c, groups.c: Make status queue max 1 instead
 	of unbounded (resolves: 247488)
