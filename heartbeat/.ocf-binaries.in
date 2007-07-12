@@ -57,8 +57,10 @@ export PATH
 
 check_binary () {
     if 
-	! have_binary "$1"
+	have_binary "$1"
     then
+        :
+    else
 	if [ $OCF_NOT_RUNNING = 7 ]; then
 	    # Chances are we have a fully setup OCF environment
 	    ocf_log err "Setup problem: Couldn't find utility $1"
