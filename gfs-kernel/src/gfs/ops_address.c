@@ -447,7 +447,7 @@ gfs_bmap(struct address_space *mapping, sector_t lblock)
  * Returns: errno
  */
 
-static int
+static ssize_t
 gfs_direct_IO(int rw, struct kiocb *iocb, const struct iovec *iov,
 	      loff_t offset, unsigned long nr_segs)
 {

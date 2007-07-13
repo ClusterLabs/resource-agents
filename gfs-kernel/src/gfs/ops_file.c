@@ -1597,6 +1597,7 @@ gfs_lock(struct file *file, int cmd, struct file_lock *fl)
 		return gfs_lm_plock(sdp, &name, file, cmd, fl);
 }
 
+#if 0
 /**
  * gfs_sendfile - Send bytes to a file or socket
  * @in_file: The file to read from
@@ -1636,6 +1637,7 @@ gfs_sendfile(struct file *in_file, loff_t *offset, size_t count, read_actor_t ac
 
 	return retval;
 }
+#endif
 
 /**
  * do_flock - Acquire a flock on a file
@@ -1761,7 +1763,7 @@ struct file_operations gfs_file_fops = {
 	.release = gfs_close,
 	.fsync = gfs_fsync,
 	.lock = gfs_lock,
-	.sendfile = gfs_sendfile,
+	/* .sendfile = gfs_sendfile, */
 	.flock = gfs_flock,
 };
 
