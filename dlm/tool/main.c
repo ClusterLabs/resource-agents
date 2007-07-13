@@ -24,12 +24,17 @@
 #include <netinet/in.h>
 
 #include "libdlm.h"
+/* #include "dlm_controld.h" */
 
-#define OPTION_STRING			"hVvd:"
+#define OPTION_STRING			"MhVvd:m:"
 
 #define OP_JOIN				1
 #define OP_LEAVE			2
 #define OP_JOINLEAVE			3
+#define OP_SPACES			4
+#define OP_LOCKDUMP			5
+#define OP_LOCKDEBUG			6
+#define OP_DEADLOCK_CHECK		7
 
 static char *prog_name;
 static char *lsname;
@@ -37,18 +42,22 @@ static int operation;
 static int opt_ind;
 static int verbose;
 static int opt_dir = 0;
+static int dump_mstcpy = 0;
+static mode_t create_mode = 0600;
 
 static void print_usage(void)
 {
 	printf("Usage:\n");
 	printf("\n");
-	printf("%s [options] [join|leave]\n", prog_name);
+	printf("%s [options] [join|leave|lockdump|lockdebug]\n", prog_name);
 	printf("\n");
 	printf("Options:\n");
-	printf("  -v               Verbose output, extra event information\n");
+	printf("  -v               Verbose output\n");
+	printf("  -d <n>           Resource directory off/on (0/1), default 0\n");
+	printf("  -m               Permission mode for lockspace device (octal)\n");
+	printf("  -M               Print MSTCPY locks in lockdump (remote locks, locally mastered)\n");
 	printf("  -h               Print this help, then exit\n");
 	printf("  -V               Print program version information, then exit\n");
-	printf("  -d <n>           Resource directory off/on (0/1), default 0\n");
 	printf("\n");
 }
 
@@ -56,11 +65,23 @@ static void decode_arguments(int argc, char **argv)
 {
 	int cont = 1;
 	int optchar;
+	int need_lsname = 1;
+	char modebuf[8];
 
 	while (cont) {
 		optchar = getopt(argc, argv, OPTION_STRING);
 
 		switch (optchar) {
+		case 'm':
+			memset(modebuf, 0, sizeof(modebuf));
+			snprintf(modebuf, 8, optarg);
+			sscanf(modebuf, "%o", &create_mode);
+			break;
+
+		case 'M':
+			dump_mstcpy = 1;
+			break;
+
 		case 'v':
 			verbose = 1;
 			break;
@@ -114,7 +135,31 @@ static void decode_arguments(int argc, char **argv)
 			operation = OP_JOINLEAVE;
 			opt_ind = optind + 1;
 			break;
+		} else if (!strncmp(argv[optind], "lockdump", 8) &&
+			   (strlen(argv[optind]) == 8)) {
+			operation = OP_LOCKDUMP;
+			opt_ind = optind + 1;
+			break;
+		} else if (!strncmp(argv[optind], "lockdebug", 9) &&
+			   (strlen(argv[optind]) == 9)) {
+			operation = OP_LOCKDEBUG;
+			opt_ind = optind + 1;
+			break;
 		}
+#if 0
+		} else if (!strncmp(argv[optind], "spaces", 9) &&
+			   (strlen(argv[optind]) == 6)) {
+			operation = OP_SPACES;
+			opt_ind = optind + 1;
+			need_lsname = 0;
+			break;
+		} else if (!strncmp(argv[optind], "deadlock_check", 14) &&
+			   (strlen(argv[optind]) == 14)) {
+			operation = OP_DEADLOCK_CHECK;
+			opt_ind = optind + 1;
+			break;
+		}
+#endif
 		optind++;
 	}
 
@@ -125,23 +170,44 @@ static void decode_arguments(int argc, char **argv)
 
 	if (optind < argc - 1)
 		lsname = argv[opt_ind];
-	else {
+	else if (need_lsname) {
 		fprintf(stderr, "lockspace name required\n");
 		exit(EXIT_FAILURE);
 	}
 }
 
+#if 0
+static int do_write(int fd, void *buf, size_t count)
+{
+	int rv, off = 0;
+
+ retry:
+	rv = write(fd, buf + off, count);
+	if (rv == -1 && errno == EINTR)
+		goto retry;
+	if (rv < 0)
+		return rv;
+
+	if (rv != count) {
+		count -= rv;
+		off += rv;
+		goto retry;
+	}
+	return 0;
+}
+#endif
+
 void do_join(char *name)
 {
 	dlm_lshandle_t *dh;
 
-	printf("Joining lockspace \"%s\"\n", name);
+	printf("Joining lockspace \"%s\", permission %o\n", name, create_mode);
 	fflush(stdout);
 
 	dh = dlm_new_lockspace(name, 0600, DLM_LSFL_NODIR);
 	if (!dh) {
-		fprintf(stderr, "dlm_create_lockspace %s error %llu %d\n",
-			name, (unsigned long long) dh, errno);
+		fprintf(stderr, "dlm_new_lockspace %s error %p %d\n",
+			name, dh, errno);
 		exit(-1);
 	}
 
@@ -159,14 +225,210 @@ void do_leave(char *name)
 
 	dh = dlm_open_lockspace(name);
 	if (!dh) {
-		fprintf(stderr, "dlm_open_lockspace %s error %llu %d\n",
-			name, (unsigned long long) dh, errno);
+		fprintf(stderr, "dlm_open_lockspace %s error %p %d\n",
+			name, dh, errno);
 		exit(-1);
 	}
 
 	dlm_release_lockspace(name, dh, 1);
 	printf("done\n");
 }
+
+#define LOCK_LINE_MAX 1024
+
+void do_lockdebug(char *name)
+{
+	FILE *file;
+	char path[PATH_MAX];
+	char line[LOCK_LINE_MAX];
+
+	snprintf(path, PATH_MAX, "/sys/kernel/debug/dlm/%s", name);
+
+	file = fopen(path, "r");
+	if (!file) {
+		fprintf(stderr, "can't open %s: %s\n", path, strerror(errno));
+		return;
+	}
+
+	while (fgets(line, LOCK_LINE_MAX, file)) {
+		printf("%s", line);
+	}
+
+	fclose(file);
+}
+
+char *mode_str(int mode)
+{
+	switch (mode) {
+	case -1:
+		return "IV";
+	case LKM_NLMODE:
+		return "NL";
+	case LKM_CRMODE:
+		return "CR";
+	case LKM_CWMODE:
+		return "CW";
+	case LKM_PRMODE:
+		return "PR";
+	case LKM_PWMODE:
+		return "PW";
+	case LKM_EXMODE:
+		return "EX";
+	}
+	return "??";
+}
+
+/* from linux/fs/dlm/dlm_internal.h */
+#define DLM_LKSTS_WAITING       1
+#define DLM_LKSTS_GRANTED       2
+#define DLM_LKSTS_CONVERT       3
+
+void parse_r_name(char *line, char *name)
+{
+	char *p;
+	int i = 0;
+	int begin = 0;
+
+	for (p = line; ; p++) {
+		if (*p == '"') {
+			if (begin)
+				break;
+			begin = 1;
+			continue;
+		}
+		if (begin)
+			name[i++] = *p;
+	}
+}
+
+void do_lockdump(char *name)
+{
+	FILE *file;
+	char path[PATH_MAX];
+	char line[LOCK_LINE_MAX];
+	char r_name[65];
+	int r_nodeid;
+	int r_len;
+	int rv;
+	unsigned int time;
+	uint64_t	xid;
+	uint32_t	id;
+	int		nodeid;
+	uint32_t	remid;
+	int		ownpid;
+	uint32_t	exflags;
+	uint32_t	flags;
+	int8_t		status;
+	int8_t		grmode;
+	int8_t		rqmode;
+
+	snprintf(path, PATH_MAX, "/sys/kernel/debug/dlm/%s_locks", name);
+
+	file = fopen(path, "r");
+	if (!file) {
+		fprintf(stderr, "can't open %s: %s\n", path, strerror(errno));
+		return;
+	}
+
+	/* skip the header on the first line */
+	fgets(line, LOCK_LINE_MAX, file);
+
+	while (fgets(line, LOCK_LINE_MAX, file)) {
+		rv = sscanf(line, "%x %d %x %u %llu %x %x %hhd %hhd %hhd %u %d %d",
+		       &id,
+		       &nodeid,
+		       &remid,
+		       &ownpid,
+		       &xid,
+		       &exflags,
+		       &flags,
+		       &status,
+		       &grmode,
+		       &rqmode,
+		       &time,
+		       &r_nodeid,
+		       &r_len);
+
+		if (rv != 13) {
+			fprintf(stderr, "invalid debugfs line %d: %s\n",
+				rv, line);
+			return;
+		}
+
+		memset(r_name, 0, sizeof(r_name));
+		parse_r_name(line, r_name);
+
+		/* don't print MSTCPY locks without -M */
+		if (!r_nodeid && nodeid) {
+			if (!dump_mstcpy)
+				continue;
+			printf("id %08x gr %s rq %s pid %u MSTCPY %d \"%s\"\n",
+				id, mode_str(grmode), mode_str(rqmode),
+				ownpid, nodeid, r_name);
+			continue;
+		}
+
+		printf("id %08x gr %s rq %s pid %u master %d \"%s\"\n",
+			id, mode_str(grmode), mode_str(rqmode),
+			ownpid, nodeid, r_name);
+	}
+
+	fclose(file);
+}
+
+#if 0
+void do_spaces(void)
+{
+	/* TODO: get info from /sys/kernel/config/ */
+}
+
+static int connect_daemon(char *path)
+{
+	struct sockaddr_un sun;
+	socklen_t addrlen;
+	int rv, fd;
+
+	fd = socket(PF_UNIX, SOCK_STREAM, 0);
+	if (fd < 0)
+		goto out;
+
+	memset(&sun, 0, sizeof(sun));
+	sun.sun_family = AF_UNIX;
+	strcpy(&sun.sun_path[1], path);
+	addrlen = sizeof(sa_family_t) + strlen(sun.sun_path+1) + 1;
+
+	rv = connect(fd, (struct sockaddr *) &sun, addrlen);
+	if (rv < 0) {
+		close(fd);
+		fd = rv;
+	}
+ out:
+	return fd;
+}
+
+static void do_deadlock_check(char *name)
+{
+	char buf[DLM_CONTROLD_MSGLEN];
+	int fd;
+	int rv;
+
+	fd = connect_daemon(DLM_CONTROLD_SOCK_PATH);
+	if (fd < 0) {
+		fprintf(stderr, "can't connect to dlm_controld: %s\n",
+			strerror(errno));
+		return;
+	}
+
+	memset(buf, 0, sizeof(buf));
+	snprintf(buf, sizeof(buf), "deadlock_check %s", name);
+
+	rv = do_write(fd, buf, DLM_CONTROLD_MSGLEN);
+	if (rv < 0)
+		fprintf(stderr, "bad write to dlm_controld: %s\n",
+			strerror(errno));
+	close(fd);
+}
+#endif
 
 int main(int argc, char **argv)
 {
@@ -187,8 +449,24 @@ int main(int argc, char **argv)
 		do_join(lsname);
 		do_leave(lsname);
 		break;
-	}
 
+	case OP_LOCKDUMP:
+		do_lockdump(lsname);
+		break;
+
+	case OP_LOCKDEBUG:
+		do_lockdebug(lsname);
+		break;
+#if 0
+	case OP_SPACES:
+		do_spaces();
+		break;
+
+	case OP_DEADLOCK_CHECK:
+		do_deadlock_check(lsname);
+		break;
+#endif
+	}
 	return 0;
 }
 
