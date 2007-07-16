@@ -109,6 +109,10 @@ struct indirect_info {
 	struct gfs2_dirents dirent[64];
 };
 
+struct iinfo {
+	struct indirect_info ii[512];
+};
+
 struct gfs_indirect {
 	struct gfs2_meta_header in_header;
 
@@ -168,9 +172,8 @@ struct gfs_jindex {
 };
 
 EXTERN struct blkstack_info blockstack[BLOCK_STACK_SIZE];
-EXTERN struct indirect_info indirect[512]; /* more than the most indirect
-											  pointers possible for any given
-											  4K block */
+EXTERN struct iinfo *indirect; /* more than the most indirect
+			       pointers possible for any given 4K block */
 EXTERN struct indirect_info masterdir; /* Master directory info */
 EXTERN int indirect_blocks INIT(0);  /* count of indirect blocks */
 EXTERN enum dsp_mode dmode INIT(HEX_MODE);

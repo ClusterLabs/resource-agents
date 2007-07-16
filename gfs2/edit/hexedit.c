@@ -46,7 +46,7 @@
 
 int display(int identify_only);
 extern void eol(int col);
-extern void do_indirect_extended(char *buf);
+extern int do_indirect_extended(char *buf, struct iinfo *ii);
 extern void savemeta(const char *in_fn, const char *out_fn, int slow);
 extern void restoremeta(const char *in_fn, const char *out_device);
 
@@ -822,49 +822,51 @@ void print_inode_type(__be16 de_type)
 /* ------------------------------------------------------------------------ */
 /* display_indirect                                                         */
 /* ------------------------------------------------------------------------ */
-int display_indirect(void)
+int display_indirect(struct iinfo *ind, int indblocks, int level, uint64_t startoff)
 {
 	int start_line, total_dirents, indir_blocks;
-	int i, cur_height = -1;
+	int i, cur_height = -1, pndx;
 	uint64_t factor[5]={0,0,0,0,0};
 	int offsets[5];
 
 	last_entry_onscreen[dmode] = 0;
-	eol(0);
+	if (!level)
+		eol(0);
 	start_line = line;
 	if (!has_indirect_blocks())
 		return -1;
 
-	indir_blocks = indirect_blocks;
-	if (!indirect_blocks) {
-		if (gfs2_struct_type == GFS2_METATYPE_SB)
-			print_gfs2("The superblock has 2 directories");
-		else
-			print_gfs2("This directory contains %d directory entries.",
-					   indirect[0].dirents);
-		indir_blocks = 1; /* not really an indirect block, but treat it as one */
-	}
-	else {
-		if (gfs2_struct_type == GFS2_METATYPE_DI) {
-			if (S_ISDIR(di.di_mode))
-				print_gfs2("This directory contains %d indirect blocks",
-						   indirect_blocks);
+	indir_blocks = indblocks;
+	if (!level) {
+		if (!indblocks) {
+			if (gfs2_struct_type == GFS2_METATYPE_SB)
+				print_gfs2("The superblock has 2 directories");
 			else
-				print_gfs2("This inode contains %d indirect blocks",
-						   indirect_blocks);
+				print_gfs2("This directory contains %d directory entries.",
+					   ind->ii[0].dirents);
+			indir_blocks = 1; /* not really an indirect block, but treat it as one */
 		}
-		else
-			print_gfs2("This indirect block contains %d indirect blocks",
-					   indirect_blocks);
+		else {
+			if (gfs2_struct_type == GFS2_METATYPE_DI) {
+				if (S_ISDIR(di.di_mode))
+					print_gfs2("This directory contains %d indirect blocks",
+						   indblocks);
+				else
+					print_gfs2("This inode contains %d indirect blocks",
+						   indblocks);
+			}
+			else
+				print_gfs2("This indirect block contains %d indirect blocks",
+					   indblocks);
+		}
 	}
 	total_dirents = 0;
 	/* Figure out multiplication factors for indirect pointers. */
-	if ((indir_blocks == indirect_blocks) && !S_ISDIR(di.di_mode)) {
+	if ((indir_blocks == indblocks) && !S_ISDIR(di.di_mode)) {
 		memset(&offsets, 0, sizeof(offsets));
 		/* See if we are on an inode or have one in history. */
-		cur_height = 0;
-		if (gfs2_struct_type != GFS2_METATYPE_DI) {
-			cur_height = 0;
+		cur_height = level;
+		if (!level && gfs2_struct_type != GFS2_METATYPE_DI) {
 			for (i = 0; i <= blockhist && i < 5; i++) {
 				offsets[i] = blockstack[(blockhist - i) % BLOCK_STACK_SIZE].edit_row[dmode];
 				if (blockstack[(blockhist - i) % BLOCK_STACK_SIZE].gfs2_struct_type == GFS2_METATYPE_DI)
@@ -890,17 +892,19 @@ int display_indirect(void)
 			for (i = 0; i < di.di_height; i++)
 				factor[i + 1] = factor[i] * inptrs;
 		}
-		print_gfs2("  (at height=%d)", cur_height);
-	}
-	if (indirect_blocks) {
+		if (!level)
+			print_gfs2("  (at height=%d)", cur_height);
 		eol(0);
-		print_gfs2("Indirect blocks:");
 	}
-	eol(0);
-	for (print_entry_ndx = start_row[dmode];
-		 (!termlines || print_entry_ndx < termlines - start_line - 2
-		  + start_row[dmode]) && print_entry_ndx < indir_blocks;
-		 print_entry_ndx++) {
+	if (!level && indblocks) {
+		print_gfs2("Indirect blocks:");
+		eol(0);
+	}
+	for (pndx = start_row[dmode];
+		 (!termlines || pndx < termlines - start_line - 2
+		  + start_row[dmode]) && pndx < indir_blocks;
+		 pndx++) {
+		print_entry_ndx = pndx;
 		if (termlines) {
 			if (edit_row[dmode] >= 0 &&
 				line - start_line - 2 == edit_row[dmode] -
@@ -908,18 +912,24 @@ int display_indirect(void)
 				COLORS_HIGHLIGHT;
 			move(line, 1);
 		}
-		if (indir_blocks == indirect_blocks) {
-			print_gfs2("%d => ", print_entry_ndx);
+		if (indir_blocks == indblocks) {
+			if (!termlines) {
+				int h;
+
+				for (h = 0; h < level; h++)
+					print_gfs2("   ");
+			}
+			print_gfs2("%d => ", pndx);
 			if (termlines)
 				move(line,9);
-			print_gfs2("0x%llx / %lld", indirect[print_entry_ndx].block,
-					   indirect[print_entry_ndx].block);
+			print_gfs2("0x%llx / %lld", ind->ii[pndx].block,
+					   ind->ii[pndx].block);
 			if (termlines) {
 				if (edit_row[dmode] >= 0 &&
 					line - start_line - 2 == edit_row[dmode] -
 					start_row[dmode]) { 
 					sprintf(estring, "%"PRIx64,
-							indirect[print_entry_ndx].block);
+							ind->ii[print_entry_ndx].block);
 					strcpy(edit_fmt, "%"PRIx64);
 					edit_size[dmode] = strlen(estring);
 					COLORS_NORMAL;
@@ -927,14 +937,14 @@ int display_indirect(void)
 			}
 			if (!S_ISDIR(di.di_mode)) {
 				int hgt;
-				uint64_t file_offset = 0ull;
+				uint64_t file_offset = startoff;
 				float human_off;
 				char h;
 				
 				/* Now divide by how deep we are at the moment.      */
 				/* This is how much data is represented by each      */
 				/* indirect pointer for each height we've traversed. */
-				offsets[0] = print_entry_ndx;
+				offsets[0] = pndx;
 				for (hgt = cur_height; hgt >= 0; hgt--)
 					file_offset += offsets[cur_height - hgt] *
 						factor[di.di_height - hgt - 1] * bufsize;
@@ -949,18 +959,40 @@ int display_indirect(void)
 				print_gfs2("(data offset 0x%llx / %lld / %6.2f%c)",
 						   file_offset, file_offset, human_off, h);
 				print_gfs2("   ");
+				if (!termlines && level + 1 < di.di_height) {
+					struct iinfo *more_indir;
+					int more_ind;
+					char *tmpbuf;
+
+					more_indir = malloc(sizeof(struct iinfo));
+					tmpbuf = malloc(bufsize);
+					if (tmpbuf) {
+						do_lseek(fd,
+							 ind->ii[pndx].block * bufsize);
+						do_read(fd, tmpbuf,
+							bufsize); /* read in the desired block */
+						memset(more_indir, 0, sizeof(struct iinfo));
+						more_ind = do_indirect_extended(tmpbuf,
+										more_indir);
+						display_indirect(more_indir,
+								 more_ind, level + 1, file_offset);
+						free(tmpbuf);
+					}
+					free(more_indir);
+				}
+				print_entry_ndx = pndx; /* restore after recursion */
 			}
 		}
-		if (indirect[print_entry_ndx].is_dir) {
+		if (ind->ii[pndx].is_dir) {
 			int d;
 			
-			if (indirect[print_entry_ndx].dirents > 1 &&
-				indir_blocks == indirect_blocks)
+			if (ind->ii[pndx].dirents > 1 &&
+				indir_blocks == indblocks)
 				print_gfs2("(directory leaf with %d entries)",
-						   indirect[print_entry_ndx].dirents);
-			for (d = 0; d < indirect[print_entry_ndx].dirents; d++) {
+						   ind->ii[pndx].dirents);
+			for (d = 0; d < ind->ii[pndx].dirents; d++) {
 				total_dirents++;
-				if (indirect[print_entry_ndx].dirents > 1) {
+				if (ind->ii[pndx].dirents > 1) {
 					eol(5);
 					if (termlines) {
 						if (edit_row[dmode] >=0 &&
@@ -969,19 +1001,19 @@ int display_indirect(void)
 							start_row[dmode]) {
 							COLORS_HIGHLIGHT;
 							sprintf(estring, "%"PRIx64,
-									indirect[print_entry_ndx].dirent[d].block);
+									ind->ii[pndx].dirent[d].block);
 							strcpy(edit_fmt, "%"PRIx64);
 						}
 					}
 					print_gfs2("%d. (%d). %lld (0x%llx) / %lld (0x%llx): ",
 							   total_dirents, d + 1,
-							   indirect[print_entry_ndx].dirent[d].dirent.de_inum.no_formal_ino,
-							   indirect[print_entry_ndx].dirent[d].dirent.de_inum.no_formal_ino,
-							   indirect[print_entry_ndx].dirent[d].block,
-							   indirect[print_entry_ndx].dirent[d].block);
+							   ind->ii[pndx].dirent[d].dirent.de_inum.no_formal_ino,
+							   ind->ii[pndx].dirent[d].dirent.de_inum.no_formal_ino,
+							   ind->ii[pndx].dirent[d].block,
+							   ind->ii[pndx].dirent[d].block);
 				}
-				print_inode_type(indirect[print_entry_ndx].dirent[d].dirent.de_type);
-				print_gfs2(" %s", indirect[print_entry_ndx].dirent[d].filename);
+				print_inode_type(ind->ii[pndx].dirent[d].dirent.de_type);
+				print_gfs2(" %s", ind->ii[pndx].dirent[d].filename);
 				if (termlines) {
 					if (edit_row[dmode] >= 0 &&
 						line - start_line - 2 == edit_row[dmode] -
@@ -995,7 +1027,7 @@ int display_indirect(void)
 	if (line >= 7) /* 7 because it was bumped at the end */
 		last_entry_onscreen[dmode] = line - 7;
 	eol(0);
-	end_row[dmode] = (indirect_blocks ? indirect_blocks:indirect[0].dirents);
+	end_row[dmode] = (indblocks ? indblocks:ind->ii[0].dirents);
 	if (end_row[dmode] < last_entry_onscreen[dmode])
 		end_row[dmode] = last_entry_onscreen[dmode];
 	lines_per_row[dmode] = 1;
@@ -1091,14 +1123,14 @@ int display_extended(void)
 	struct gfs2_buffer_head *tmp_bh;
 
 	/* Display any indirect pointers that we have. */
-	if (display_indirect() == 0)
-		return -1;
-	else if (block_is_rindex()) {
+	if (block_is_rindex()) {
 		tmp_bh = bread(&sbd, block);
 		tmp_inode = inode_get(&sbd, tmp_bh);
 		parse_rindex(tmp_inode, TRUE);
 		brelse(tmp_bh, not_updated);
 	}
+	else if (display_indirect(indirect, indirect_blocks, 0, 0) == 0)
+		return -1;
 	else if (block_is_rglist()) {
 		tmp_bh = bread(&sbd, masterblock("rindex"));
 		tmp_inode = inode_get(&sbd, tmp_bh);
@@ -1218,53 +1250,54 @@ int display(int identify_only)
 	lines_per_row[dmode] = 1;
 	if (gfs2_struct_type == GFS2_METATYPE_SB || blk == 0x10 * (4096 / bufsize)) {
 		gfs2_sb_in(&sbd.sd_sb, buf); /* parse it out into the sb structure */
-		memset(&indirect, 0, sizeof(indirect));
-		indirect[0].block = sbd.sd_sb.sb_master_dir.no_addr;
-		indirect[0].is_dir = TRUE;
-		indirect[0].dirents = 2;
+		memset(indirect, 0, sizeof(indirect));
+		indirect->ii[0].block = sbd.sd_sb.sb_master_dir.no_addr;
+		indirect->ii[0].is_dir = TRUE;
+		indirect->ii[0].dirents = 2;
 
-		memcpy(&indirect[0].dirent[0].filename, "root", 4);
-		indirect[0].dirent[0].dirent.de_inum.no_formal_ino =
+		memcpy(&indirect->ii[0].dirent[0].filename, "root", 4);
+		indirect->ii[0].dirent[0].dirent.de_inum.no_formal_ino =
 			sbd.sd_sb.sb_root_dir.no_formal_ino;
-		indirect[0].dirent[0].dirent.de_inum.no_addr =
+		indirect->ii[0].dirent[0].dirent.de_inum.no_addr =
 			sbd.sd_sb.sb_root_dir.no_addr;
-		indirect[0].dirent[0].block = sbd.sd_sb.sb_root_dir.no_addr;
-		indirect[0].dirent[0].dirent.de_type = DT_DIR;
+		indirect->ii[0].dirent[0].block = sbd.sd_sb.sb_root_dir.no_addr;
+		indirect->ii[0].dirent[0].dirent.de_type = DT_DIR;
 
-		memcpy(&indirect[0].dirent[1].filename, "master", 7);
-		indirect[0].dirent[1].dirent.de_inum.no_formal_ino = 
+		memcpy(&indirect->ii[0].dirent[1].filename, "master", 7);
+		indirect->ii[0].dirent[1].dirent.de_inum.no_formal_ino = 
 			sbd.sd_sb.sb_master_dir.no_formal_ino;
-		indirect[0].dirent[1].dirent.de_inum.no_addr =
+		indirect->ii[0].dirent[1].dirent.de_inum.no_addr =
 			sbd.sd_sb.sb_master_dir.no_addr;
-		indirect[0].dirent[1].block = sbd.sd_sb.sb_master_dir.no_addr;
-		indirect[0].dirent[1].dirent.de_type = DT_DIR;
+		indirect->ii[0].dirent[1].block = sbd.sd_sb.sb_master_dir.no_addr;
+		indirect->ii[0].dirent[1].dirent.de_type = DT_DIR;
 	}
 	else if (gfs2_struct_type == GFS2_METATYPE_DI) {
 		gfs2_dinode_in(&di, buf); /* parse disk inode into structure */
 		do_dinode_extended(&di, buf); /* get extended data, if any */
 	}
 	else if (gfs2_struct_type == GFS2_METATYPE_IN) { /* indirect block list */
-		do_indirect_extended(buf);
+		do_indirect_extended(buf, indirect);
 	}
 	else if (gfs2_struct_type == GFS2_METATYPE_LF) { /* directory leaf */
 		int x;
 		struct gfs2_dirent de;
 
 		indirect_blocks = 1;
-		memset(&indirect, 0, sizeof(indirect));
+		memset(indirect, 0, sizeof(indirect));
 		/* Directory Entries: */
 		for (x = sizeof(struct gfs2_leaf); x < bufsize;
 		     x += de.de_rec_len) {
 			gfs2_dirent_in(&de, buf + x);
 			if (de.de_inum.no_addr) {
-				indirect[indirect_blocks].block = de.de_inum.no_addr;
-				indirect[indirect_blocks].dirent[x].block = de.de_inum.no_addr;
-				memcpy(&indirect[indirect_blocks].dirent[x].dirent, &de,
+				indirect->ii[indirect_blocks].block = de.de_inum.no_addr;
+				indirect->ii[indirect_blocks].dirent[x].block = de.de_inum.no_addr;
+				memcpy(&indirect->ii[indirect_blocks].dirent[x].dirent, &de,
 					   sizeof(struct gfs2_dirent));
-				memcpy(&indirect[indirect_blocks].dirent[x].filename,
+				memcpy(&indirect->ii[indirect_blocks].dirent[x].filename,
 					   buf + x + sizeof(struct gfs2_dirent), de.de_name_len);
-				indirect[indirect_blocks].is_dir = TRUE;
-				indirect[indirect_blocks].dirents++;
+				indirect->ii[indirect_blocks].dirent[x].filename[de.de_name_len] = '\0';
+				indirect->ii[indirect_blocks].is_dir = TRUE;
+				indirect->ii[indirect_blocks].dirents++;
 			}
 			if (de.de_rec_len <= sizeof(struct gfs2_dirent))
 				break;
@@ -1535,9 +1568,11 @@ void jump(void)
 		unsigned int col2;
 		uint64_t *b;
 		
-		col2 = edit_col[dmode] & 0x08;/* thus 0-7->0, 8-15->8 */
-		b = (uint64_t *)&buf[edit_row[dmode]*16 + offset + col2];
-		temp_blk=be64_to_cpu(*b);
+		if (edit_row[dmode] >= 0) {
+			col2 = edit_col[dmode] & 0x08;/* thus 0-7->0, 8-15->8 */
+			b = (uint64_t *)&buf[edit_row[dmode]*16 + offset + col2];
+			temp_blk=be64_to_cpu(*b);
+		}
 	}
 	else
 		sscanf(estring, "%"SCNx64, &temp_blk);/* retrieve in hex */
@@ -1977,6 +2012,10 @@ int main(int argc, char *argv[])
 
 	prog_name = argv[0];
 
+	indirect = malloc(sizeof(struct iinfo));
+	if (!indirect)
+		die("Out of memory.");
+	memset(indirect, 0, sizeof(struct iinfo));
 	memset(start_row, 0, sizeof(start_row));
 	memset(lines_per_row, 0, sizeof(lines_per_row));
 	memset(end_row, 0, sizeof(end_row));
@@ -2005,7 +2044,7 @@ int main(int argc, char *argv[])
 
 	fd = open(device, O_RDWR);
 	if (fd < 0)
-		die("can't open %s: %s\n", argv[1], strerror(errno));
+		die("can't open %s: %s\n", device, strerror(errno));
 	max_block = lseek(fd, 0, SEEK_END) / bufsize;
 
 	read_superblock();
@@ -2033,5 +2072,7 @@ int main(int argc, char *argv[])
 	close(fd);
 	if (buf)
 		free(buf);
+	if (indirect)
+		free(indirect);
  	exit(EXIT_SUCCESS);
 }

@@ -192,6 +192,7 @@ int indirect_dirent(struct indirect_info *indir, char *ptr, int d)
 		memcpy(&indir->dirent[d].dirent, &de, sizeof(struct gfs2_dirent));
 		memcpy(&indir->dirent[d].filename,
 			   ptr + sizeof(struct gfs2_dirent), de.de_name_len);
+		indir->dirent[d].filename[de.de_name_len] = '\0';
 		indir->dirent[d].block = de.de_inum.no_addr;
 		indir->is_dir = TRUE;
 		indir->dirents++;
@@ -222,7 +223,7 @@ void do_dinode_extended(struct gfs2_dinode *di, char *buf)
 		(gfs1 && di->__pad1 == GFS_FILE_DIR);
 
 	indirect_blocks = 0;
-	memset(&indirect, 0, sizeof(indirect));
+	memset(indirect, 0, sizeof(indirect));
 	if (di->di_height > 0) {
 		/* Indirect pointers */
 		for (x = sizeof(struct gfs2_dinode), y = 0;
@@ -230,21 +231,23 @@ void do_dinode_extended(struct gfs2_dinode *di, char *buf)
 			 x += sizeof(uint64_t), y++) {
 			p = be64_to_cpu(*(uint64_t *)(buf + x));
 			if (p) {
-				indirect[indirect_blocks].block = p;
-				indirect[indirect_blocks].is_dir = FALSE;
+				indirect->ii[indirect_blocks].block = p;
+				indirect->ii[indirect_blocks].is_dir = FALSE;
 				indirect_blocks++;
 			}
 		}
 	}
-	else if (isdir &&
-			 !(di->di_flags & GFS2_DIF_EXHASH)) {
+	else if (isdir && !(di->di_flags & GFS2_DIF_EXHASH)) {
 		int skip = 0;
+
 		/* Directory Entries: */
-		indirect[0].dirents = 0;
-		indirect[0].block = block;
-		indirect[0].is_dir = TRUE;
+		indirect->ii[0].dirents = 0;
+		indirect->ii[0].block = block;
+		indirect->ii[0].is_dir = TRUE;
 		for (x = sizeof(struct gfs2_dinode); x < bufsize; x += skip) {
-			skip = indirect_dirent(&indirect[0], buf + x, indirect[0].dirents);
+			skip = indirect_dirent(indirect->ii,
+					       buf + x,
+					       indirect->ii[0].dirents);
 			if (skip <= 0)
 				break;
 		}
@@ -267,20 +270,22 @@ void do_dinode_extended(struct gfs2_dinode *di, char *buf)
 				struct gfs2_leaf leaf;
 				unsigned int bufoffset;
 
+				if (last >= max_block)
+					break;
 				tmp_bh = bread(&sbd, last);
 				gfs2_leaf_in(&leaf, tmp_bh->b_data);
-				indirect[indirect_blocks].dirents = 0;
+				indirect->ii[indirect_blocks].dirents = 0;
 				for (direntcount = 0, bufoffset = sizeof(struct gfs2_leaf);
 					 bufoffset < bufsize;
 					 direntcount++, bufoffset += skip) {
-					skip = indirect_dirent(&indirect[indirect_blocks],
+					skip = indirect_dirent(&indirect->ii[indirect_blocks],
 										   tmp_bh->b_data + bufoffset,
 										   direntcount);
 					if (skip <= 0)
 						break;
 				}
 				brelse(tmp_bh, not_updated);
-				indirect[indirect_blocks].block = last;
+				indirect->ii[indirect_blocks].block = last;
 				indirect_blocks++;
 				last = p;
 			} /* if not duplicate pointer */
@@ -303,24 +308,26 @@ void do_dinode_extended(struct gfs2_dinode *di, char *buf)
 **
 *******************************************************************************
 ******************************************************************************/
-void do_indirect_extended(char *buf)
+int do_indirect_extended(char *buf, struct iinfo *iinf)
 {
 	unsigned int x, y;
 	uint64_t p;
+	int i_blocks;
 
-	indirect_blocks = 0;
-	memset(&indirect, 0, sizeof(indirect));
+	i_blocks = 0;
+	memset(iinf, 0, sizeof(struct iinfo));
 	for (x = (gfs1 ? sizeof(struct gfs_indirect):
 			  sizeof(struct gfs2_meta_header)), y = 0;
 		 x < bufsize;
 		 x += sizeof(uint64_t), y++) {
 		p = be64_to_cpu(*(uint64_t *)(buf + x));
 		if (p) {
-			indirect[indirect_blocks].block = p;
-			indirect[indirect_blocks].is_dir = FALSE;
-			indirect_blocks++;
+			iinf->ii[i_blocks].block = p;
+			iinf->ii[i_blocks].is_dir = FALSE;
+			i_blocks++;
 		}
 	}
+	return i_blocks;
 }
 
 /******************************************************************************

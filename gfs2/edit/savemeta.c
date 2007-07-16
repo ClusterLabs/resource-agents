@@ -434,7 +434,7 @@ int get_gfs_struct_info(char *buf, int *block_type, int *struct_len)
 /* checking every block kills performance.  We only report    */
 /* every second because we don't need 100 extra messages in   */
 /* logs made from verbose mode.                               */
-void warm_fuzzy_stuff(uint64_t block, int force)
+void warm_fuzzy_stuff(uint64_t block, int force, int save)
 {
         static struct timeval tv;
         static uint32_t seconds = 0;
@@ -451,8 +451,9 @@ void warm_fuzzy_stuff(uint64_t block, int force)
 			percent = (block * 100) / last_fs_block;
 			printf("\r%" PRIu64 " blocks (%"
 			       PRIu64 "%%) processed, ", block, percent);
-			printf("%" PRIu64 " blocks (%" PRIu64 "MB) saved    ",
-			       blks_saved, total_out / (1024*1024));
+			printf("%" PRIu64 " blocks (%" PRIu64 "MB) %s    ",
+			       blks_saved, total_out / (1024*1024),
+			       save?"saved":"restored");
 			fflush(stdout);
 		}
 	}
@@ -464,7 +465,7 @@ void save_block(int fd, int out_fd, uint64_t blk)
 	uint16_t trailing0;
 	char *p;
 
-	warm_fuzzy_stuff(blk, FALSE);
+	warm_fuzzy_stuff(blk, FALSE, TRUE);
 	memset(savedata, 0, sizeof(struct saved_metablock));
 	do_lseek(fd, blk * bufsize);
 	do_read(fd, savedata->buf, bufsize); /* read in the block */
@@ -605,7 +606,7 @@ void savemeta(const char *in_fn, const char *out_fn, int slow)
 	/* There may be a gap between end of file system and end of device */
 	/* so we tell the user that we've processed everything. */
 	blk = last_fs_block;
-	warm_fuzzy_stuff(blk, TRUE);
+	warm_fuzzy_stuff(blk, TRUE, TRUE);
 	printf("\nMetadata saved to file %s.\n", out_fn);
 	free(savedata);
 	close(out_fd);
@@ -622,6 +623,8 @@ int restore_data(int fd, int in_fd)
 	uint64_t max_fs_size;
 
 	do_lseek(fd, 0);
+	blks_saved = 0;
+	total_out = 0;
 	while (TRUE) {
 		memset(savedata, 0, sizeof(struct saved_metablock));
 		rs = read(in_fd, &buf64, sizeof(uint64_t));
@@ -643,12 +646,22 @@ int restore_data(int fd, int in_fd)
 		}
 		rs = read(in_fd, &buf16, sizeof(uint16_t));
 		savedata->siglen = be16_to_cpu(buf16);
+		total_out += rs + savedata->siglen;
 		if (savedata->siglen > 0 &&
 		    savedata->siglen <= sizeof(savedata->buf)) {
 			do_read(in_fd, savedata->buf, savedata->siglen);
 			if (first) {
 				gfs2_sb_in(&sbd.sd_sb, savedata->buf);
-				if (check_sb(&sbd.sd_sb)) {
+				sbd1 = (struct gfs_sb *)&sbd.sd_sb;
+				if (sbd1->sb_fs_format == GFS_FORMAT_FS &&
+				    sbd1->sb_header.mh_type ==
+				    GFS_METATYPE_SB &&
+				    sbd1->sb_header.mh_format ==
+				    GFS_FORMAT_SB &&
+				    sbd1->sb_multihost_format ==
+				    GFS_FORMAT_MULTI)
+					;
+				else if (check_sb(&sbd.sd_sb)) {
 					fprintf(stderr,"Error: Invalid superblock data.\n");
 					return -1;
 				}
@@ -656,19 +669,28 @@ int restore_data(int fd, int in_fd)
 				last_fs_block =
 					lseek(fd, 0, SEEK_END) / bufsize;
 				printf("There are %" PRIu64 " blocks of %" \
-				       PRIu64 "bytes in the destination file" \
-				       " system.\n\n", last_fs_block, bufsize);
+				       PRIu64 " bytes in the destination" \
+				       " file system.\n\n",
+				       last_fs_block, bufsize);
 				first = 0;
+			}
+			warm_fuzzy_stuff(savedata->blk, FALSE, FALSE);
+			if (savedata->blk >= last_fs_block) {
+				printf("Out of space on the destination "
+				       "device; quitting.\n");
+				break;
 			}
 			do_lseek(fd, savedata->blk * bufsize);
 			do_write(fd, savedata->buf, bufsize);
 			writes++;
+			blks_saved++;
 		} else {
 			fprintf(stderr, "Bad record length: %d for #%"
 				PRIu64".\n", savedata->siglen, savedata->blk);
 			return -1;
 		}
 	}
+	warm_fuzzy_stuff(savedata->blk, TRUE, FALSE);
 	printf("%" PRIu64 " blocks restored.\n", writes);
 	return 0;
 }
