@@ -10,6 +10,7 @@ exec_prefix=@exec_prefix@
 : ${HA_RSCTMP:=@HA_VARRUNDIR@/heartbeat/rsctmp}
 : ${HA_FIFO:=@localstatedir@/lib/heartbeat/fifo}
 : ${HA_BIN:=@libdir@/heartbeat}
+: ${HA_SBIN_DIR:=@sbindir@}
 : ${HA_DATEFMT:="%Y/%m/%d_%T "}
 : ${HA_DEBUGLOG:=/dev/null}
 : ${HA_RESOURCEDIR:=$HA_DIR/resource.d}
