@@ -222,7 +222,7 @@ static int _send_message(cpg_handle_t h, void *buf, int len, int type)
 	}
 	if (error != CPG_OK) {
 		log_error("cpg_mcast_joined error %d handle %llx %s",
-			  error, (long long)h, msg_name(type));
+			  error, (unsigned long long)h, msg_name(type));
 		return -1;
 	}
 

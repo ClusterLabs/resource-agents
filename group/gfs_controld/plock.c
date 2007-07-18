@@ -386,11 +386,11 @@ int process_plocks(void)
 	}
 
 	log_plock(mg, "read plock %llx %s %s %llx-%llx %d/%u/%llx w %d",
-		  (long long)info.number,
+		  (unsigned long long)info.number,
 		  op_str(info.optype),
 		  ex_str(info.optype, info.ex),
-		  (long long)info.start, (long long)info.end,
-		  info.nodeid, info.pid, (long long)info.owner,
+		  (unsigned long long)info.start, (unsigned long long)info.end,
+		  info.nodeid, info.pid, (unsigned long long)info.owner,
 		  info.wait);
 
 	/* report plock rate and any delays since the last report */
@@ -960,11 +960,11 @@ void _receive_plock(struct mountgroup *mg, char *buf, int len, int from)
 	info_bswap_in(&info);
 
 	log_plock(mg, "receive plock %llx %s %s %llx-%llx %d/%u/%llx w %d",
-		  (long long)info.number,
+		  (unsigned long long)info.number,
 		  op_str(info.optype),
 		  ex_str(info.optype, info.ex),
-		  (long long)info.start, (long long)info.end,
-		  info.nodeid, info.pid, (long long)info.owner,
+		  (unsigned long long)info.start, (unsigned long long)info.end,
+		  info.nodeid, info.pid, (unsigned long long)info.owner,
 		  info.wait);
 
 	plock_recv_count++;
@@ -1141,7 +1141,7 @@ int _unlink_checkpoint(struct mountgroup *mg, SaNameT *name)
 	int ret = 0;
 
 	h = (SaCkptCheckpointHandleT) mg->cp_handle;
-	log_group(mg, "unlink ckpt %llx", (long long)h);
+	log_group(mg, "unlink ckpt %llx", (unsigned long long)h);
 
  unlink_retry:
 	rv = saCkptCheckpointUnlink(ckpt_handle, name);
@@ -1170,9 +1170,9 @@ int _unlink_checkpoint(struct mountgroup *mg, SaNameT *name)
 
 	log_group(mg, "unlink ckpt status: size %llu, max sections %u, "
 		      "max section size %llu, section count %u, mem %u",
-		 (long long)s.checkpointCreationAttributes.checkpointSize,
+		 (unsigned long long)s.checkpointCreationAttributes.checkpointSize,
 		 s.checkpointCreationAttributes.maxSections,
-		 (long long)s.checkpointCreationAttributes.maxSectionSize,
+		 (unsigned long long)s.checkpointCreationAttributes.maxSectionSize,
 		 s.numberOfSections, s.memoryUsed);
 
  out_close:
@@ -1187,7 +1187,7 @@ int _unlink_checkpoint(struct mountgroup *mg, SaNameT *name)
 	}
 	if (rv != SA_AIS_OK) {
 		log_error("unlink ckpt %llx close err %d %s",
-			  (long long)h, rv, mg->name);
+			  (unsigned long long)h, rv, mg->name);
 		/* should we return an error here and possibly cause
 		   store_plocks() to fail on this? */
 		/* ret = -1; */
@@ -1314,12 +1314,13 @@ void store_plocks(struct mountgroup *mg, int nodeid)
 		return;
 	}
 
-	log_group(mg, "store_plocks: open ckpt handle %llx", (long long)h);
+	log_group(mg, "store_plocks: open ckpt handle %llx",
+		  (unsigned long long)h);
 	mg->cp_handle = (uint64_t) h;
 
 	list_for_each_entry(r, &mg->resources, list) {
 		memset(&buf, 0, 32);
-		len = snprintf(buf, 32, "r%llu", (long long)r->number);
+		len = snprintf(buf, 32, "r%llu", (unsigned long long)r->number);
 
 		section_id.id = (void *)buf;
 		section_id.idLen = len + 1;
@@ -1442,7 +1443,8 @@ void retrieve_plocks(struct mountgroup *mg)
 		memset(&buf, 0, 32);
 		snprintf(buf, 32, "%s", desc.sectionId.id);
 		log_group(mg, "retrieve_plocks: section size %llu id %u \"%s\"",
-			  (long long)iov.dataSize, iov.sectionId.idLen, buf);
+			  (unsigned long long)iov.dataSize, iov.sectionId.idLen,
+			  buf);
 
 	 read_retry:
 		rv = saCkptCheckpointRead(h, &iov, 1, NULL);
@@ -1458,7 +1460,7 @@ void retrieve_plocks(struct mountgroup *mg)
 		}
 
 		log_group(mg, "retrieve_plocks: ckpt read %llu bytes",
-			  (long long)iov.readSize);
+			  (unsigned long long)iov.readSize);
 		section_len = iov.readSize;
 
 		if (!section_len)
@@ -1551,10 +1553,12 @@ int dump_plocks(char *name, int fd)
 		list_for_each_entry(po, &r->locks, list) {
 			snprintf(line, MAXLINE,
 			      "%llu %s %llu-%llu nodeid %d pid %u owner %llx\n",
-			      (long long)r->number,
+			      (unsigned long long)r->number,
 			      po->ex ? "WR" : "RD",
-			      (long long)po->start, (long long)po->end,
-			      po->nodeid, po->pid, (long long)po->owner);
+			      (unsigned long long)po->start,
+			      (unsigned long long)po->end,
+			      po->nodeid, po->pid,
+			      (unsigned long long)po->owner);
 
 			rv = do_write(fd, line, strlen(line));
 		}
@@ -1562,11 +1566,12 @@ int dump_plocks(char *name, int fd)
 		list_for_each_entry(w, &r->waiters, list) {
 			snprintf(line, MAXLINE,
 			      "%llu WAITING %s %llu-%llu nodeid %d pid %u owner %llx\n",
-			      (long long)r->number,
+			      (unsigned long long)r->number,
 			      w->info.ex ? "WR" : "RD",
-			      (long long)w->info.start, (long long)w->info.end,
+			      (unsigned long long)w->info.start,
+			      (unsigned long long)w->info.end,
 			      w->info.nodeid, w->info.pid,
-			      (long long)w->info.owner);
+			      (unsigned long long)w->info.owner);
 
 			rv = do_write(fd, line, strlen(line));
 		}
