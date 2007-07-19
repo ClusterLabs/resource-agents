@@ -232,7 +232,10 @@ int main(int argc, char **argv)
 	log_debug("mount(2) ok");
 	mount_result_lockproto(proto, &mo, &sb, 0);
 
-	if (!(mo.flags & MS_REMOUNT))
+	if (mo.flags & MS_REMOUNT) {
+                del_mtab_entry(&mo);
+                add_mtab_entry(&mo);
+        } else
 		add_mtab_entry(&mo);
 
 	unblock_sigint();
