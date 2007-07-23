@@ -60,19 +60,39 @@ int rt_enqueue_request(const char *resgroupname, int request,
   SIGUSR1 output
  */
 void
-dump_threads(void)
+dump_threads(FILE *fp)
 {
 	resthread_t *rt;
+	request_t *req;
+	int x = 0, y = 0;
 
-	printf("+++ BEGIN Thread dump\n");
+	fprintf(fp, "Resource Group Threads \n");
 	pthread_mutex_lock(&reslist_mutex);
-	list_do(&resthread_list, rt) {
-		printf("TID %d group %s (@ %p) request %d\n",
-		       (int)rt->rt_thread,
-		       rt->rt_name, rt, rt->rt_request);
-	} while (!list_done(&resthread_list, rt));
+	list_for(&resthread_list, rt, x) {
+		fprintf(fp, "  %s id:%d (@ %p) processing %s request (%d)\n",
+		        rt->rt_name,
+		        (unsigned)rt->rt_thread,
+			rt,
+			rg_req_str(rt->rt_request),
+			rt->rt_request);
+		if (!*rt->rt_queue) {
+			fprintf(fp, "    Pending requests: \n");
+			list_for(rt->rt_queue, req, y) {
+				fprintf(fp, "      %s tgt:%d  ctx:%p  a0:%d  a1:%d\n",
+				        rg_req_str(req->rr_request),
+					req->rr_target,
+					req->rr_resp_ctx,
+					req->rr_arg0,
+					req->rr_arg1);
+			}
+		}
+	}
+
+	x = !!resthread_list;
 	pthread_mutex_unlock(&reslist_mutex);
-	printf("--- END Thread dump\n");
+	if (!x)
+		fprintf(fp, "  (none)\n");
+	fprintf(fp, "\n");
 }
 
 
@@ -151,6 +171,8 @@ purge_all(request_t **list)
 		dprintf("Removed request %d\n", curr->rr_request);
 		if (curr->rr_resp_ctx) {
 			send_response(RG_EABORT, 0, curr);
+			msg_close(curr->rr_resp_ctx);
+			msg_free_ctx(curr->rr_resp_ctx);
 		}
 		rq_free(curr);
 	}
@@ -241,12 +263,14 @@ resgroup_thread_main(void *arg)
 			break;
 
 		case RG_ENABLE:
+			#if 0
 			if (req->rr_target != 0 &&
 			    req->rr_target != my_id()) {
 				error = RG_EFORWARD;
 				ret = RG_NONE;
 				break;
 			}
+			#endif
 		case RG_START:
 			if (req->rr_arg0) {
 				error = handle_fd_start_req(myname,
@@ -476,6 +500,8 @@ resgroup_thread_main(void *arg)
 		if (ret != RG_NONE && rg_initialized() &&
 		    (req->rr_resp_ctx)) {
 			send_response(error, newowner, req);
+			msg_close(req->rr_resp_ctx);
+			msg_free_ctx(req->rr_resp_ctx);
 		}
 		
 		rq_free(req);
@@ -565,7 +591,6 @@ spawn_if_needed(const char *resgroupname)
 	int ret;
 	resthread_t *resgroup = NULL;
 
-retry:
 	pthread_mutex_lock(&reslist_mutex);
 	while (resgroup == NULL) {
 		resgroup = find_resthread_byname(resgroupname);
@@ -584,7 +609,7 @@ retry:
 
 	pthread_mutex_unlock(&reslist_mutex);
 	if (wait_initialize(resgroupname) < 0) {
-		goto retry;
+		return -1;
 	}
 
 	return ret;
@@ -689,6 +714,8 @@ rt_enqueue_request(const char *resgroupname, int request,
 		case RG_ENABLE:
 			send_ret(response_ctx, resgroup->rt_name, RG_EDEADLCK,
 				 request);
+			msg_close(response_ctx);
+			msg_free_ctx(response_ctx);
 			break;
 		}
 		fprintf(stderr, "Failed to queue request: Would block\n");

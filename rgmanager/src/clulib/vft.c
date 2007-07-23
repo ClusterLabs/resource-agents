@@ -121,9 +121,9 @@ static int vf_send_current(msgctx_t *, char *);
 
 
 struct vf_args {
-	uint16_t port;
-	int local_node_id;
 	msgctx_t *ctx;
+	int local_node_id;
+	uint16_t port;
 };
 
 
@@ -276,6 +276,9 @@ vf_resolve_views(key_node_t *key_node)
 	void *data;
 	uint32_t datalen;
 	uint32_t trans;
+
+	if (!key_node)
+		return 0;
 
 	while ((trans = vf_try_commit(key_node)) != 0) {
 		commits++;
@@ -895,7 +898,7 @@ vf_server(void *arg)
 
 	msg_close(ctx);
 	msg_free_ctx(ctx);
-	return NULL;
+	pthread_exit(NULL);
 }
 
 
@@ -1776,3 +1779,40 @@ vf_request_current(cluster_member_list_t *membership, char *keyid,
 	return VFR_OK;
 }
 
+
+void
+dump_vf_states(FILE *fp)
+{
+	key_node_t *cur;
+
+	fprintf(fp, "View-Formation States:\n");
+	fprintf(fp, "  Thread: %d\n", (unsigned)vf_thread);
+	fprintf(fp, "  Default callbacks:\n    Vote: %p\n    Commit: %p\n",
+		default_vote_cb, default_commit_cb);
+	fprintf(fp, "  Distributed key metadata:\n");
+
+	pthread_mutex_lock(&key_list_mutex);
+
+	for (cur = key_list; cur; cur = cur->kn_next) {
+		fprintf(fp, "    %s, View: %d, Size: %d, Address: %p\n",
+			cur->kn_keyid,
+			(int)cur->kn_viewno,
+			cur->kn_datalen,
+			cur->kn_data);
+		if (cur->kn_vote_cb != default_vote_cb) 
+			fprintf(fp, "      Vote callback: %p\n", cur->kn_vote_cb);
+		if (cur->kn_commit_cb != default_commit_cb) 
+			fprintf(fp, "      Commit callback: %p\n", cur->kn_commit_cb);
+
+		if (cur->kn_jvlist)
+			fprintf(fp, "        This key has unresolved "
+			        "new views pending\n");
+ 		if (cur->kn_clist)
+			fprintf(fp, "        This key has unresolved "
+			        "commits pending\n");
+
+	}
+
+	pthread_mutex_unlock(&key_list_mutex);
+	fprintf(fp, "\n");
+}

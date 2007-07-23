@@ -390,7 +390,10 @@ main(int argc, char **argv)
 			printf("Member %s %s %s", nodename, actionstr, svcname);
 		printf("...");
 		fflush(stdout);
-		msg_open(MSG_SOCKET, 0, RG_PORT, &ctx, 5);
+		if (msg_open(MSG_SOCKET, 0, RG_PORT, &ctx, 5) < 0) {
+			printf("Could not connect to resource group manager\n");
+			return 1;
+		}
 	} else {
 		if (!svctarget)
 			printf("Trying to %s %s", actionstr, svcname);
@@ -399,7 +402,10 @@ main(int argc, char **argv)
 			       nodename);
 		printf("...");
 		fflush(stdout);
-		msg_open(MSG_SOCKET, 0, RG_PORT, &ctx, 5);
+		if (msg_open(MSG_SOCKET, 0, RG_PORT, &ctx, 5) < 0) {
+			printf("Could not connect to resource group manager\n");
+			return 1;
+		}
 	}
 
 	if (ctx.type < 0) {

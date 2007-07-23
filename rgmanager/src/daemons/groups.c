@@ -1033,7 +1033,7 @@ status_check_thread(void *arg)
 		msg_send_simple(ctx, RG_FAIL, RG_EAGAIN, 0);
 		msg_close(ctx);
 		msg_free_ctx(ctx);
-		return NULL;
+		pthread_exit(NULL);
 	}
 	
 	pthread_rwlock_rdlock(&resource_lock);
@@ -1056,7 +1056,7 @@ status_check_thread(void *arg)
 	
 	rg_dec_status();
 
-	return NULL;
+	pthread_exit(NULL);
 }
 
 
@@ -1172,7 +1172,7 @@ q_status_checks(void *arg)
 	
 	/* Only one status thread at a time, please! */
 	if (pthread_mutex_trylock(&status_mutex) != 0)
-		return NULL;
+		pthread_exit(NULL);
 
 	pthread_rwlock_rdlock(&resource_lock);
 	list_do(&_tree, curr) {
@@ -1198,7 +1198,7 @@ q_status_checks(void *arg)
 	pthread_rwlock_unlock(&resource_lock);
 	pthread_mutex_unlock(&status_mutex);
 
-	return NULL;
+	pthread_exit(NULL);
 }
 
 
@@ -1397,6 +1397,13 @@ check_config_update(void)
 	ccs_unlock(fd);
 
 	return ret;
+}
+
+
+void
+dump_config_version(FILE *fp)
+{
+	fprintf(fp, "Cluster configuration version %d\n\n", config_version);
 }
 
 

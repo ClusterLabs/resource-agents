@@ -217,9 +217,6 @@ send_ret(msgctx_t *ctx, char *name, int ret, int orig_request)
 
 	swab_SmMessageSt(msgp);
 	msg_send(ctx, msgp, sizeof(*msgp));
-
-	/* :) */
-	msg_close(ctx);
 }
 
 	
@@ -245,11 +242,6 @@ send_response(int ret, int nodeid, request_t *req)
 
 	swab_SmMessageSt(msgp);
 	msg_send(req->rr_resp_ctx, msgp, sizeof(*msgp));
-
-	/* :( */
-	msg_close(req->rr_resp_ctx);
-	msg_free_ctx(req->rr_resp_ctx);
-	req->rr_resp_ctx = NULL;
 }
 
 
@@ -556,6 +548,7 @@ svc_advise_stop(rg_state_t *svcStatus, char *svcName, int req)
 			break;
 		}
 
+		ret = 2;
 		clulog(LOG_DEBUG, "Not stopping disabled service %s\n",
 		       svcName);
 		break;
@@ -1615,6 +1608,11 @@ handle_relocate_req(char *svcName, int request, int preferred_target,
 	int ret, x;
 	rg_state_t svcStatus;
 	
+	get_rg_state_local(svcName, &svcStatus);
+	if (svcStatus.rs_state == RG_STATE_DISABLED ||
+	    svcStatus.rs_state == RG_STATE_UNINITIALIZED)
+		return RG_EINVAL;
+
 	if (preferred_target > 0) {
 		/* TODO: simplify this and don't keep alloc/freeing 
 		   member lists */
@@ -1684,8 +1682,10 @@ handle_relocate_req(char *svcName, int request, int preferred_target,
 		 * I am the ONLY one capable of running this service,
 		 * PERIOD...
 		 */
-		if (target == me && me != preferred_target)
+		if (target == me && me != preferred_target) {
+			free_member_list(backup);
 			goto exhausted;
+		}
 
 		if (target == me) {
 			/*
@@ -1948,8 +1948,16 @@ handle_start_remote_req(char *svcName, int req)
 	int tolerance = FOD_BEST;
 	int x;
 	uint32_t me = my_id();
-	cluster_member_list_t *membership = member_list();
-	int need_check = have_exclusive_resources();
+	cluster_member_list_t *membership;
+	int need_check;
+
+	if (rg_locked()) {
+		/* don't even calc if rg's locked */
+		return RG_EFAIL;
+	}
+
+	need_check = have_exclusive_resources();
+	membership = member_list();
 
 	/* XXX ok, so we need to say "should I start this if I was the
 	   only cluster member online */
@@ -2042,25 +2050,28 @@ handle_fd_start_req(char *svcName, int request, int *new_owner)
 	 				  svcName, 1);
 	  	if (target == me) {
 	   		ret = handle_start_remote_req(svcName, request);
+			if (ret == RG_EAGAIN)
+				goto out;
 	    	} else if (target < 0) {
-	     		free_member_list(allowed_nodes);
-	      		return RG_EFAIL;
+			goto out;
 	       	} else {
 			ret = relocate_service(svcName, request, target);
 		}
 
 		switch(ret) {
 		case RG_ESUCCESS:
-		    	return RG_ESUCCESS;
+		    	ret = RG_ESUCCESS;
+			goto out;
 		case RG_ERUN:
-		      	return RG_ERUN;
+		      	ret = RG_ERUN;
+			goto out;
 		case RG_EFAIL:
 			memb_mark_down(allowed_nodes, target);
 			continue;
 		case RG_EABORT:
 			svc_report_failure(svcName);
-			free_member_list(allowed_nodes);
-       			return RG_EFAIL;
+			ret = RG_EFAIL;
+			goto out;
       		default:
 			clulog(LOG_ERR,
 	 		       "#6X: Invalid reply [%d] from member %d during"
@@ -2068,6 +2079,7 @@ handle_fd_start_req(char *svcName, int request, int *new_owner)
 	   	}
 	}
 
+out:
 	free_member_list(allowed_nodes);
-	return RG_EFAIL;
+	return ret;
 }

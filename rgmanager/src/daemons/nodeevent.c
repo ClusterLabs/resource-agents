@@ -196,7 +196,7 @@ node_event_thread(void *arg)
 	/* Mutex held */
 	ne_thread = 0;
 	pthread_mutex_unlock(&ne_queue_mutex);
-	return NULL;
+	pthread_exit(NULL);
 }
 
 

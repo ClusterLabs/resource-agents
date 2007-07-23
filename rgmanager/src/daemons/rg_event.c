@@ -64,7 +64,7 @@ rg_event_thread(void *arg)
 	/* Mutex held */
 	rg_ev_thread = 0;
 	pthread_mutex_unlock(&rg_queue_mutex);
-	return NULL;
+	pthread_exit(NULL);
 }
 
 

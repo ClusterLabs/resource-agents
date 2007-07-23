@@ -67,7 +67,7 @@ meta_data()
             <content type="string"/>
         </parameter>
 
-        <parameter name="autostart">
+        <parameter name="autostart" reconfig="1">
             <longdesc lang="en">
 	    	If set to yes, this resource group will automatically be started
 		after the cluster forms a quorum.  If set to no, this resource
@@ -80,7 +80,7 @@ meta_data()
             <content type="boolean"/>
         </parameter>
 
-        <parameter name="hardrecovery">
+        <parameter name="hardrecovery" reconfig="1">
             <longdesc lang="en">
 	    	If set to yes, the last owner will reboot if this resource
 		group fails to stop cleanly, thus allowing the resource
@@ -128,7 +128,7 @@ meta_data()
 	    <content type="boolean"/>
 	</parameter>
                 
-        <parameter name="recovery">
+        <parameter name="recovery" reconfig="1">
             <longdesc lang="en">
 	        This currently has three possible options: "restart" tries
 		to restart failed parts of this resource group locally before

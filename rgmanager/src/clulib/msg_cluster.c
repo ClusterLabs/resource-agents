@@ -46,7 +46,7 @@ static pthread_mutex_t context_lock = PTHREAD_MUTEX_INITIALIZER;
 static msgctx_t *contexts[MAX_CONTEXTS];
 static int _me = 0;
 pthread_t comms_thread;
-int thread_running;
+int thread_running = 0;
 
 #define is_established(ctx) \
 	(((ctx->type == MSG_CLUSTER) && \
@@ -856,7 +856,6 @@ cluster_msg_accept(msgctx_t *listenctx, msgctx_t *acceptctx)
 	errno = EINVAL;
 	cluster_msg_hdr_t *m;
 	msg_q_t *n;
-	char done = 0;
 	char foo;
 
 	if (!listenctx || !acceptctx)
@@ -884,24 +883,38 @@ cluster_msg_accept(msgctx_t *listenctx, msgctx_t *acceptctx)
 		m = n->message;
 		switch(m->msg_control) {
 		case M_OPEN:
+			/* XXX make this case statement its own function or at 
+			   least make it not a big case block . */
 			list_remove(&listenctx->u.cluster_info.queue, n);
 			/*printf("Accepting connection from %d %d\n",
 			  	 m->src_nodeid, m->src_ctx);*/
 
-			/* New connection */
+			/* Release lock on listen context queue; we're done
+			   with it at this point */
+			pthread_mutex_unlock(&listenctx->u.cluster_info.mutex);
+
+			/* New connection: first, create + lock the mutex */
 			pthread_mutex_init(&acceptctx->u.cluster_info.mutex,
 					   NULL);
+			/* Lock this while we finish initializing */
+			pthread_mutex_lock(&acceptctx->u.cluster_info.mutex);
+
 			pthread_cond_init(&acceptctx->u.cluster_info.cond,
 					  NULL);
+
 			acceptctx->u.cluster_info.queue = NULL;
 			acceptctx->u.cluster_info.remote_ctx = m->src_ctx;
 			acceptctx->u.cluster_info.nodeid = m->src_nodeid;
 			acceptctx->u.cluster_info.port = m->msg_port;
 			acceptctx->flags = (SKF_READ | SKF_WRITE);
 
-			if (assign_ctx(acceptctx) < 0) {
+			/* assign_ctx requires the context lock.  We need to 
+			ensure we don't try to take the context lock w/ a local
+			queue lock held on a context that's in progress (i.e.
+			the global cluster context...) */
+			if (assign_ctx(acceptctx) < 0)
 				printf("FAILED TO ASSIGN CONTEXT\n");
-			}
+
 			cluster_send_control_msg(acceptctx, M_OPEN_ACK);
 
 			if (listenctx->u.cluster_info.select_pipe[0] >= 0) {
@@ -910,11 +923,14 @@ cluster_msg_accept(msgctx_t *listenctx, msgctx_t *acceptctx)
 				     &foo, 1);
 			}
 
-			done = 1;
 			free(m);
 			free(n);
 
-			break;
+			/* Let the new context go. */
+			pthread_mutex_unlock(&acceptctx->u.cluster_info.mutex);
+			return 0;
+			/* notreached */
+
 		case M_DATA:
 			/* Data messages (i.e. from broadcast msgs) are
 			   okay too!...  but we don't handle them here */
@@ -924,9 +940,6 @@ cluster_msg_accept(msgctx_t *listenctx, msgctx_t *acceptctx)
 			printf("Odd... %d\n", m->msg_control);
 			break;
 		}
-
-		if (done)
-			break;
 
 	} while (!list_done(&listenctx->u.cluster_info.queue, n));
 
@@ -950,7 +963,7 @@ cluster_comms_thread(void *arg)
 		poll_cluster_messages(2);
 	}
 
-	return NULL;
+	pthread_exit(NULL);
 }
 
 
@@ -1105,7 +1118,7 @@ cluster_msg_listen(int me, void *portp, msgctx_t **cluster_ctx)
 
        	pthread_attr_init(&attrs);
        	pthread_attr_setinheritsched(&attrs, PTHREAD_INHERIT_SCHED);
-       	pthread_attr_setdetachstate(&attrs, PTHREAD_CREATE_DETACHED);
+       	/*pthread_attr_setdetachstate(&attrs, PTHREAD_CREATE_DETACHED);*/
 
 	thread_running = 1;	
 	pthread_create(&comms_thread, &attrs, cluster_comms_thread, NULL);
@@ -1130,15 +1143,80 @@ cluster_msg_print(msgctx_t *ctx)
 }
 
 
+void
+dump_cluster_ctx(FILE *fp)
+{
+	int x;
+	msgctx_t *ctx;
+
+	fprintf(fp, "CMAN/mux subsystem status\n");
+	if (thread_running) {
+		fprintf(fp, "  Thread: %d\n", (unsigned)comms_thread);
+	} else {
+		fprintf(fp, "  Thread Offline\n");
+	}
+
+	pthread_mutex_lock(&context_lock);
+	for (x = 0; x < MAX_CONTEXTS; x++) {
+		if (!contexts[x]) 
+			continue;
+		ctx = contexts[x];
+
+		fprintf(fp, "    Cluster Message Context %p\n", ctx);
+		fprintf(fp, "      Flags %08x  ", ctx->flags);
+		if (ctx->flags & SKF_READ)
+			fprintf(fp, "SKF_READ ");
+		if (ctx->flags & SKF_WRITE)
+			fprintf(fp, "SKF_WRITE ");
+		if (ctx->flags & SKF_LISTEN)
+			fprintf(fp, "SKF_LISTEN ");
+		if (ctx->flags & SKF_MCAST)
+			fprintf(fp, "SKF_MCAST ");
+		fprintf(fp, "\n");
+		fprintf(fp, "      Target node ID %d\n", ctx->u.cluster_info.nodeid);
+		fprintf(fp, "      Local Index %d\n", ctx->u.cluster_info.local_ctx);
+		fprintf(fp, "      Remote Index %d\n", ctx->u.cluster_info.remote_ctx);
+	}
+	pthread_mutex_unlock(&context_lock);
+	fprintf(fp, "\n");
+}
+
+
 int
 cluster_msg_shutdown(void)
 {
 	cman_handle_t ch;
+	cluster_msg_hdr_t m;
+	msgctx_t *ctx;
+	int x;
+
+	thread_running = 0;
+	pthread_join(comms_thread, NULL);
 
 	ch = cman_lock(1, SIGUSR2);
 	cman_end_recv_data(ch);
-	pthread_kill(comms_thread, SIGTERM);
 	cman_unlock(ch);
+
+	/* Send close message to all open contexts */
+	memset(&m, 0, sizeof(m));
+	m.msg_control = M_CLOSE;
+
+	pthread_mutex_lock(&context_lock);
+	for (x = 0; x < MAX_CONTEXTS; x++) {
+		if (!contexts[x])
+			continue;
+
+		ctx = contexts[x];
+
+		/* Kill remote side if it exists */
+		if (is_established(ctx))
+			cluster_send_control_msg(ctx, M_CLOSE);
+
+		/* Queue close for local side */
+		queue_for_context(ctx, (void *)&m, sizeof(m));
+	}
+	pthread_mutex_unlock(&context_lock);
+
 
 	return 0;
 }

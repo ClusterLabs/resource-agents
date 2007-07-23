@@ -49,7 +49,7 @@ piggyback(void *arg)
 
 	if (msg_open(MSG_CLUSTER, 0, MYPORT, &ctx, 0) != 0) {
 		printf("Could not set up mcast socket!\n");
-		return NULL;
+		pthread_exit(NULL);
 	}
 
 	printf("PIGGYBACK CONTEXT\n");
@@ -66,7 +66,7 @@ piggyback(void *arg)
 
 	printf("PIGGY flies...\n");
 
-	return NULL;
+	pthread_exit(NULL);
 }
 
 
@@ -102,7 +102,7 @@ private(void *arg)
 
 		if (msg_open(MSG_CLUSTER, 0, MYPORT, &ctx, 1) != 0) {
 			printf("Could not set up mcast socket!\n");
-			return NULL;
+			pthread_exit(NULL);
 		}
 
 		snprintf(buf, sizeof(buf), "Babble, babble\n");
@@ -116,7 +116,7 @@ private(void *arg)
 
 	printf("Private thread is outta here...\n");
 
-	return NULL;
+	pthread_exit(NULL);
 }
 
 

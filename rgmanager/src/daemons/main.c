@@ -40,6 +40,9 @@
 #define L_SYS (1<<1)
 #define L_USER (1<<0)
 
+#ifdef WRAP_THREADS
+void dump_thread_states(FILE *);
+#endif
 int configure_logging(int ccsfd, int debug);
 
 void node_event(int, int, int, int);
@@ -63,7 +66,7 @@ static char *rgmanager_lsname = "rgmanager"; /* XXX default */
 
 int next_node_id(cluster_member_list_t *membership, int me);
 int rg_event_q(char *svcName, uint32_t state, int owner);
-
+void malloc_dump_table(FILE *, size_t, size_t);
 
 void
 segfault(int sig)
@@ -259,6 +262,7 @@ membership_update(void)
 
 	free_member_list(node_delta);
 	free_member_list(new_ml);
+	free_member_list(old_membership);
 
 	rg_unlockall(L_SYS);
 
@@ -405,7 +409,8 @@ dispatch_msg(msgctx_t *ctx, int nodeid, int need_close)
 	sz = msg_receive(ctx, msg_hdr, sizeof(msgbuf), 1);
 	if (sz < sizeof (generic_msg_hdr)) {
 		clulog(LOG_ERR,
-		       "#37: Error receiving message header (%d)\n", sz);
+		       "#37: Error receiving header from %d sz=%d CTX %p\n",
+		       nodeid, sz, ctx);
 		goto out;
 	}
 
@@ -593,6 +598,7 @@ handle_cluster_event(msgctx_t *ctx)
 		break;
 
 	case M_DATA:
+		nodeid = msg_get_nodeid(ctx);
 		dispatch_msg(ctx, nodeid, 0);
 		break;
 		
@@ -629,7 +635,26 @@ handle_cluster_event(msgctx_t *ctx)
 }
 
 
-void dump_threads(void);
+void dump_threads(FILE *fp);
+void dump_config_version(FILE *fp);
+void dump_vf_states(FILE *fp);
+void dump_cluster_ctx(FILE *fp);
+
+void
+dump_internal_state(char *loc)
+{
+	FILE *fp;
+	fp=fopen(loc, "w+");
+ 	dump_config_version(fp);
+ 	dump_threads(fp);
+ 	dump_vf_states(fp);
+#ifdef WRAP_THREADS
+	dump_thread_states(fp);
+#endif
+	dump_cluster_ctx(fp);
+	//malloc_dump_table(fp, 1, 16384); /* Only works if alloc.c us used */
+ 	fclose(fp);
+}
 
 int
 event_loop(msgctx_t *localctx, msgctx_t *clusterctx)
@@ -645,10 +670,8 @@ event_loop(msgctx_t *localctx, msgctx_t *clusterctx)
 
 	if (signalled) {
 		signalled = 0;
-		/*
-		malloc_stats();
-		dump_threads();
-		 */
+ 
+		dump_internal_state("/tmp/rgmanager-dump");
 	}
 
 	while (running && (tv.tv_sec || tv.tv_usec)) {
@@ -747,7 +770,6 @@ void
 cleanup(msgctx_t *clusterctx)
 {
 	kill_resource_groups();
-	member_list_update(NULL);
 	send_exit_msg(clusterctx);
 }
 
@@ -760,7 +782,7 @@ statedump(int sig)
 }
 
 
-void malloc_dump_table(size_t, size_t);
+void malloc_dump_table(FILE *, size_t, size_t);
 
 
 /*
@@ -846,10 +868,13 @@ shutdown_thread(void *arg)
 	rg_doall(RG_STOP_EXITING, 1, NULL);
 	running = 0;
 
-	return 0;
+	pthread_exit(NULL);
 }
 
 
+#ifdef WRAP_THREADS
+void dump_thread_states(FILE *);
+#endif
 int
 main(int argc, char **argv)
 {
@@ -871,7 +896,9 @@ main(int argc, char **argv)
 			break;
 		case 'f':
 			foreground = 1;
+			break;
 		default:
+			return 1;
 			break;
 		}
 	}
@@ -984,6 +1011,9 @@ main(int argc, char **argv)
 		event_loop(local_ctx, cluster_ctx);
 
 		if (shutdown_pending == 1) {
+			/* Kill local socket; local requests need to
+			   be ignored here */
+			msg_close(local_ctx);
 			++shutdown_pending;
 			clulog(LOG_NOTICE, "Shutting down\n");
 			pthread_create(&th, NULL, shutdown_thread, NULL);
