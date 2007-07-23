@@ -50,7 +50,7 @@ int __init init_gfs_fs(void)
 
 	gfs_glock_cachep = kmem_cache_create("gfs_glock", sizeof(struct gfs_glock),
 					     0, 0,
-					     NULL, NULL);
+					     NULL);
 	gfs_inode_cachep = NULL;
 	gfs_bufdata_cachep = NULL;
 	gfs_mhc_cachep = NULL;
@@ -60,19 +60,19 @@ int __init init_gfs_fs(void)
 
 	gfs_inode_cachep = kmem_cache_create("gfs_inode", sizeof(struct gfs_inode),
 					     0, 0,
-					     NULL, NULL);
+					     NULL);
 	if (!gfs_inode_cachep)
 		goto fail1;
 
 	gfs_bufdata_cachep = kmem_cache_create("gfs_bufdata", sizeof(struct gfs_bufdata),
 					       0, 0,
-					       NULL, NULL);
+					       NULL);
 	if (!gfs_bufdata_cachep)
 		goto fail1;
 
 	gfs_mhc_cachep = kmem_cache_create("gfs_meta_header_cache", sizeof(struct gfs_meta_header_cache),
 					   0, 0,
-					   NULL, NULL);
+					   NULL);
 	if (!gfs_mhc_cachep)
 		goto fail;
 

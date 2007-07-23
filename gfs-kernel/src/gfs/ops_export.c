@@ -18,6 +18,7 @@
 #include <asm/semaphore.h>
 #include <linux/completion.h>
 #include <linux/buffer_head.h>
+#include <linux/exportfs.h>
 
 #include "gfs.h"
 #include "dio.h"
