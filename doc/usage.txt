@@ -23,7 +23,7 @@ Install openais
   or
   svn checkout http://svn.osdl.org/openais
   cd openais/branches/whitetank
-  make; make install DESTDIR=/usr
+  make; make install DESTDIR=/
 
 Install gfs/dlm/fencing/etc components
   get the latest cluster-2.xx.yy tarball from
