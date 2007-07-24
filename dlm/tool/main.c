@@ -24,7 +24,7 @@
 #include <netinet/in.h>
 
 #include "libdlm.h"
-/* #include "dlm_controld.h" */
+#include "dlm_controld.h"
 
 #define OPTION_STRING			"MhVvd:m:"
 
@@ -49,7 +49,7 @@ static void print_usage(void)
 {
 	printf("Usage:\n");
 	printf("\n");
-	printf("%s [options] [join|leave|lockdump|lockdebug]\n", prog_name);
+	printf("%s [options] [join|leave|lockdump|lockdebug|deadlock_check]\n", prog_name);
 	printf("\n");
 	printf("Options:\n");
 	printf("  -v               Verbose output\n");
@@ -145,8 +145,6 @@ static void decode_arguments(int argc, char **argv)
 			operation = OP_LOCKDEBUG;
 			opt_ind = optind + 1;
 			break;
-		}
-#if 0
 		} else if (!strncmp(argv[optind], "spaces", 9) &&
 			   (strlen(argv[optind]) == 6)) {
 			operation = OP_SPACES;
@@ -159,7 +157,6 @@ static void decode_arguments(int argc, char **argv)
 			opt_ind = optind + 1;
 			break;
 		}
-#endif
 		optind++;
 	}
 
@@ -176,7 +173,6 @@ static void decode_arguments(int argc, char **argv)
 	}
 }
 
-#if 0
 static int do_write(int fd, void *buf, size_t count)
 {
 	int rv, off = 0;
@@ -195,7 +191,6 @@ static int do_write(int fd, void *buf, size_t count)
 	}
 	return 0;
 }
-#endif
 
 void do_join(char *name)
 {
@@ -376,7 +371,6 @@ void do_lockdump(char *name)
 	fclose(file);
 }
 
-#if 0
 void do_spaces(void)
 {
 	/* TODO: get info from /sys/kernel/config/ */
@@ -428,7 +422,6 @@ static void do_deadlock_check(char *name)
 			strerror(errno));
 	close(fd);
 }
-#endif
 
 int main(int argc, char **argv)
 {
@@ -457,7 +450,7 @@ int main(int argc, char **argv)
 	case OP_LOCKDEBUG:
 		do_lockdebug(lsname);
 		break;
-#if 0
+
 	case OP_SPACES:
 		do_spaces();
 		break;
@@ -465,7 +458,6 @@ int main(int argc, char **argv)
 	case OP_DEADLOCK_CHECK:
 		do_deadlock_check(lsname);
 		break;
-#endif
 	}
 	return 0;
 }
