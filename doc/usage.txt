@@ -8,7 +8,7 @@ Install
 -------
 
 Install a Linux kernel with GFS2, DLM, configfs, IPV6 and SCTP,
-  2.6.19-rc1 or later
+  2.6.23-rc1 or later
 
   If you want to use gfs1 (from cluster/gfs-kernel), then you need to
   export three additional symbols from gfs2 by adding the following lines
@@ -19,17 +19,11 @@ Install a Linux kernel with GFS2, DLM, configfs, IPV6 and SCTP,
 
 Install openais
   get the latest "whitetank" (stable) release from
-  http://developer.osdl.org/dev/openais/
+  http://openais.org/
   or
   svn checkout http://svn.osdl.org/openais
   cd openais/branches/whitetank
-  make; make install DESTDIR=/
-
-Install libvolume_id
-  (this is already installed in recent distributions)
-  from udev-094 or later, e.g.
-  http://www.us.kernel.org/pub/linux/utils/kernel/hotplug/udev-094.tar.bz2
-  make EXTRAS="extras/volume_id" install
+  make; make install DESTDIR=/usr
 
 Install gfs/dlm/fencing/etc components
   get the latest cluster-2.xx.yy tarball from
