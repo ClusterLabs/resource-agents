@@ -17,15 +17,16 @@ TARGET= dlm_controld
 OBJS=	main.o \
 	member_cman.o \
 	group.o \
-	action.o
+	action.o \
+	deadlock.o
 
 CFLAGS += -g 
 CFLAGS += -I${ccsincdir} -I${cmanincdir}
 CFLAGS += -idirafter ${KERNEL_SRC}/include/linux
-CFLAGS += -I../../group/lib/ -I../include/
+CFLAGS += -I../../group/lib/ -I../include/ -I../../dlm/lib/
 CFLAGS += -I${incdir}
 
-LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
+LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -L${openaislibdir} -lccs -lcman -lcpg -lSaCkpt
 LDFLAGS += -L../lib -lgroup
 
 all: depends ${TARGET}

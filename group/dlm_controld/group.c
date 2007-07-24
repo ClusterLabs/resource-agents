@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2005-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -107,7 +107,7 @@ char *str_members(void)
 	return str_members_buf;
 }
 
-int process_groupd(void)
+void process_groupd(int ci)
 {
 	struct lockspace *ls;
 	int error = 0, val;
@@ -155,13 +155,15 @@ int process_groupd(void)
 
 		/* this causes the dlm_new_lockspace() call (typically from
 		   mount) to complete */
-
 		set_event_done(cb_name, 0);
+
+		join_deadlock_cpg(ls);
 		break;
 
 	case DO_SETID:
 		log_debug("groupd callback: set_id %s %x", cb_name, cb_id);
 		set_id(cb_name, cb_id);
+		ls->global_id = cb_id;
 		break;
 
 	case DO_TERMINATE:
@@ -180,6 +182,7 @@ int process_groupd(void)
 		}
 
 		set_event_done(cb_name, val);
+		leave_deadlock_cpg(ls);
 		list_del(&ls->list);
 		free(ls);
 		break;
@@ -194,7 +197,7 @@ int process_groupd(void)
 
 	cb_action = 0;
  out:
-	return error;
+	return;
 }
 
 int setup_groupd(void)
@@ -203,7 +206,7 @@ int setup_groupd(void)
 
 	gh = group_init(NULL, "dlm", 1, &callbacks, GROUPD_TIMEOUT);
 	if (!gh) {
-		log_error("group_init error %d %d", (int) gh, errno);
+		log_error("group_init error %p %d", gh, errno);
 		return -ENOTCONN;
 	}
 

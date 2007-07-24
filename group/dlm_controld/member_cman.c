@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2005-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -13,14 +13,13 @@
 #include <libcman.h>
 #include "dlm_daemon.h"
 
+int			our_nodeid;
 static cman_handle_t	ch;
 static cman_node_t      old_nodes[MAX_NODES];
 static int              old_node_count;
 static cman_node_t      cman_nodes[MAX_NODES];
 static int              cman_node_count;
-static int		local_nodeid;
 extern struct list_head lockspaces;
-
 
 static int is_member(cman_node_t *node_list, int count, int nodeid)
 {
@@ -104,7 +103,7 @@ static void statechange(void)
 					  cman_nodes[i].cn_address.cna_address,
 					  cman_nodes[i].cn_address.cna_addrlen,
 					  (cman_nodes[i].cn_nodeid ==
-					   local_nodeid));
+					   our_nodeid));
 		}
 	}
 }
@@ -126,7 +125,7 @@ static void member_callback(cman_handle_t h, void *private, int reason, int arg)
 	}
 }
 
-int process_member(void)
+void process_member(int ci)
 {
 	int rv;
 
@@ -138,7 +137,6 @@ int process_member(void)
 		clear_configfs();
 		exit(1);
 	}
-	return 0;
 }
 
 int setup_member(void)
@@ -148,7 +146,7 @@ int setup_member(void)
 
 	ch = cman_init(NULL);
 	if (!ch) {
-		log_error("cman_init error %d %d", (int) ch, errno);
+		log_error("cman_init error %p %d", ch, errno);
 		return -ENOTCONN;
 	}
 
@@ -171,7 +169,7 @@ int setup_member(void)
 		fd = rv;
 		goto out;
 	}
-	local_nodeid = node.cn_nodeid;
+	our_nodeid = node.cn_nodeid;
 
 	old_node_count = 0;
 	memset(&old_nodes, 0, sizeof(old_nodes));
