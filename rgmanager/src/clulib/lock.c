@@ -92,7 +92,11 @@ clu_ls_lock(dlm_lshandle_t ls,
                 return -1;
         }
 
-        return 0;
+	if (lksb->sb_status == 0)
+		return 0;
+
+	errno = lksb->sb_status;
+	return -1;
 }
 
 
