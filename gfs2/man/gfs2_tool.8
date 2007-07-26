@@ -1,5 +1,5 @@
 .\"  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+.\"  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 
 .TH gfs2_tool 8
 
@@ -100,38 +100,30 @@ client when you do this.  No one should have to use this.
 Print out the superblock.
 .TP
 \fBsetflag\fP \fIFlag\fR \fIFile1\fR \fIFile2\fR \fI...\fR 
-Set an attribute flag on a file.  There are eight currently
-supported flags.  They are jdata, directio, immutable, appendonly,
-noatime, sync, inherit_jdata, and inherit_directio.
-  
-The \fIjdata\fR flag causes all the data written to a regular file
-to be journaled. The jdata flag can only be set (or cleared) if the file
-is zero length.
+Set an attribute flag on a file.  There are five currently
+supported flags.  They are directio, immutable, appendonly,
+noatime, and sync.  In most cases, the chattr command may be used
+rather than gfs2_tool to set attributes.
 
 The \fIdirectio\fR flag causes all I/O to a regular file to be Direct
 I/O, even if the O_DIRECT flag isn't used on the open() command.
 
 The \fIimmutable\fR flag marks the file immutable. The behavior is 
-similar to the immutable flag in the ext2/3 filesystems. All write 
-access is denied.
+similar to the immutable flag in the ext2/3 filesystems.  All write 
+access is denied.  Same as chattr +i.
 
 The \fIappendonly\fR flag causes all data to be written at the end of 
-the file.
+the file.  Same as chattr +a.
 
 The \fInoatime\fR flag disables updates to the file's access time.
+Same as chattr +A.
 
 The \fIsync\fR flag causes data written to the file to be sync'ed to 
-stable storage immediately.
+stable storage immediately.  Same as chattr +S.
 
-The \fIinherit_jdata\fR flag is set on a directory.  It causes all new
-regular files created in that directory automatically inherit the
-\fIjdata\fR flag.  The \fIinherit_jdata\fR is also inherited by any new
-subdirectories created in that directory.
-
-The \fIinherit_directio\fR flag is set on a directory.  It causes all new
-regular files created in that directory automatically inherit the
-\fIdirectio\fR flag.  The \fIinherit_directio\fR is also inherited by
-any new subdirectories created in that directory.
+Note: Unlike the original gfs_tool, the journaled data (\fIjdata\fR) flag 
+is set with chattr +j and reset with chattr -j.  Likewise, the
+\fIinherit_jdata\fR flag is set on a directory with chattr +j.
 .TP
 \fBsettune\fP \fIMountPoint\fR \fIparameter\fR \fInewvalue\fR
 Set the value of tuning parameter.  Use \fBgettune\fP for a listing of 
