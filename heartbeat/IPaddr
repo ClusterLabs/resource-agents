@@ -758,37 +758,40 @@ ip_validate_all() {
     fi
     
     tmp=`echo "$NICINFO" | cut -f1`
-    if [ "x$OCF_RESKEY_nic" = "x" ]; then
-	ocf_log info "Using calculated nic for ${OCF_RESKEY_ip}: $tmp"
-	OCF_RESKEY_nic=$tmp
-
-    elif [ x$tmp != x${OCF_RESKEY_nic} ]; then
-	ocf_log err "Invalid parameter value: nic [$OCF_RESKEY_nic [Calculated nic: $tmp]"
-	return $OCF_ERR_ARGS
+    if
+      [ "x$OCF_RESKEY_nic" = "x" ]
+    then
+      ocf_log info "Using calculated nic for ${OCF_RESKEY_ip}: $tmp"
+      OCF_RESKEY_nic=$tmp
+    elif
+      [ x$tmp != x${OCF_RESKEY_nic} ]
+    then
+      ocf_log err "Invalid parameter value: nic [$OCF_RESKEY_nic] Calculated nic: [$tmp]"
+      return $OCF_ERR_ARGS
     fi
 
     tmp=`echo "$NICINFO" | cut -f2 | cut -d ' ' -f2`
     if
-      [ -z "$OCF_RESKEY_cidr_netmask" ]
+      [ "x$OCF_RESKEY_cidr_netmask" != "x$tmp" ]
     then
-      ocf_log debug "Using calculated netmask for ${OCF_RESKEY_ip}: $tmp"
-      OCF_RESKEY_cidr_netmask=$tmp; export OCF_RESKEY_cidr_netmask
-    elif [ "x$OCF_RESKEY_netmask" != "x$tmp" ]; then
-	ocf_log info "Using calculated netmask for ${OCF_RESKEY_ip}: $tmp"
+      ocf_log info "Using calculated netmask for ${OCF_RESKEY_ip}: $tmp"
     fi
 
     # Always use the calculated version becuase it might have been specified 
     #  using CIDR notation which not every system accepts
     OCF_RESKEY_netmask=$tmp
+    OCF_RESKEY_cidr_netmask=$tmp; export OCF_RESKEY_cidr_netmask
     
     tmp=`echo "$NICINFO" | cut -f3 | cut -d ' ' -f2`
-    if [ "x$OCF_RESKEY_broadcast" = "x" ]; then
-	ocf_log debug "Using calculated broadcast for ${OCF_RESKEY_ip}: $tmp"
-	OCF_RESKEY_broadcast=$tmp
+    if
+      [ "x$OCF_RESKEY_broadcast" = "x" ]
+    then
+      ocf_log debug "Using calculated broadcast for ${OCF_RESKEY_ip}: $tmp"
+      OCF_RESKEY_broadcast=$tmp
 
     elif [ x$tmp != x${OCF_RESKEY_broadcast} ]; then
-	ocf_log err "Invalid parameter value: broadcast [$OCF_RESKEY_broadcast [Calculated broadcast: $tmp]"
-	return $OCF_ERR_ARGS
+      ocf_log err "Invalid parameter value: broadcast [$OCF_RESKEY_broadcast] Calculated broadcast: [$tmp]"
+      return $OCF_ERR_ARGS
     fi
     
     return $OCF_SUCCESS
