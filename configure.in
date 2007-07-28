@@ -213,6 +213,7 @@ localstatedir_orig="$localstatedir"
 exec_prefix=`var "$exec_prefix" "$prefix"`
 bindir=`var "$bindir" "$exec_prefix/bin"`
 sbindir=`var "$sbindir" "$exec_prefix/sbin"`
+datarootdir=`var "$datarootdir" "$prefix/share"`
 datadir=`var "$datadir" "$prefix/share"`
 sysconfdir=`var "$sysconfdir" "$prefix/etc"`
 sharedstatedir=`var "$sharedstatedir" "$prefix/com"`
