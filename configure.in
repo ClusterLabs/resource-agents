@@ -1032,7 +1032,7 @@ CPPFLAGS="$CPPFLAGS $XML2HEAD"
 
 dnl ************************************************************************
 dnl * Check for linux/icmpv6.h to make enable the IPv6addr resource agent
-AC_CHECK_HEADERS(linux/icmpv6.h,[],[],[#include <sys/types.h>])
+AC_CHECK_HEADERS(linux/icmpv6.h,[],[],[#include <asm/types.h>])
 AM_CONDITIONAL(USE_IPV6ADDR, test "$ac_cv_header_linux_icmpv6_h" = yes -a $new_libnet = yes )
 AC_CHECK_HEADERS(libxml/xpath.h)
 
