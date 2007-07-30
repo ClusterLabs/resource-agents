@@ -104,10 +104,13 @@ virt_list_t *vl_get(virConnectPtr vp, int my_id)
 		strncpy(vl->vm_states[x].v_uuid, d_uuid, MAX_DOMAINNAME_LENGTH);
 		vl->vm_states[x].v_state.s_state = d_info.state;
 		vl->vm_states[x].v_state.s_owner = my_id;
+
+		virDomainFree(dom);
 	}
 
 	/* We have all the locally running domains & states now */
 	/* Sort */
+	free(d_ids);
 	qsort(&vl->vm_states[0], vl->vm_count, sizeof(vl->vm_states[0]),
 	      _compare_virt);
 	return vl;	
