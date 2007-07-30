@@ -464,6 +464,7 @@ int display_gfs2(void)
 	struct gfs2_rgrp rg;
 	struct gfs2_leaf lf;
 	struct gfs2_log_header lh;
+	struct gfs2_log_descriptor ld;
 
 	uint32_t magic;
 
@@ -528,6 +529,13 @@ int display_gfs2(void)
 			gfs2_log_header_print(&lh);
 			break;
 			
+		case GFS2_METATYPE_LD:
+			print_gfs2("Log descriptor");
+			eol(0);
+			gfs2_log_descriptor_in(&ld, buf);
+			gfs2_log_descriptor_print(&ld);
+			break;
+
 		case GFS2_METATYPE_EA:
 			print_gfs2("Eattr Block:");
 			eol(0);

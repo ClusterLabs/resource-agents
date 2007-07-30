@@ -35,6 +35,8 @@ extern void gfs2_ea_header_in(struct gfs2_ea_header *ea, char *buf);
 extern void gfs2_ea_header_out(struct gfs2_ea_header *ea, char *buf);
 extern void gfs2_log_header_in(struct gfs2_log_header *lh, char *buf);
 extern void gfs2_log_header_out(struct gfs2_log_header *lh, char *buf);
+extern void gfs2_log_descriptor_in(struct gfs2_log_descriptor *ld, char *buf);
+extern void gfs2_log_descriptor_out(struct gfs2_log_descriptor *ld, char *buf);
 extern void gfs2_inum_range_in(struct gfs2_inum_range *ir, char *buf);
 extern void gfs2_inum_range_out(struct gfs2_inum_range *ir, char *buf);
 extern void gfs2_statfs_change_in(struct gfs2_statfs_change *sc, char *buf);

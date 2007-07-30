@@ -326,6 +326,25 @@ void print_usage(void)
 	Erase();
 }
 
+
+
+/* ------------------------------------------------------------------------ */
+/* get_block_type                                                           */
+/* returns: metatype if block is a GFS2 structure block type                */
+/*          0 if block is not a GFS2 structure                              */
+/* ------------------------------------------------------------------------ */
+int get_block_type(const char *lpBuffer)
+{
+	int ret_type = 0;
+
+	if (*(lpBuffer+0)==0x01 && *(lpBuffer+1)==0x16 &&
+	    *(lpBuffer+2)==0x19 && *(lpBuffer+3)==0x70 &&
+	    *(lpBuffer+4)==0x00 && *(lpBuffer+5)==0x00 &&
+	    *(lpBuffer+6)==0x00) /* If magic number appears at the start */
+		ret_type = *(lpBuffer+7);
+	return ret_type;
+}
+
 /* ------------------------------------------------------------------------ */
 /* display_block_type                                                       */
 /* returns: metatype if block is a GFS2 structure block type                */
@@ -366,11 +385,7 @@ int display_block_type(const char *lpBuffer)
 		ret_type = GFS2_METATYPE_RG;
 		struct_len = sizeof(struct gfs2_rgrp);
 	}
-	else if (*(lpBuffer+0)==0x01 && *(lpBuffer+1)==0x16 &&
-	    *(lpBuffer+2)==0x19 && *(lpBuffer+3)==0x70 &&
-	    *(lpBuffer+4)==0x00 && *(lpBuffer+5)==0x00 &&
-	    *(lpBuffer+6)==0x00) { /* If magic number appears at the start */
-		ret_type = *(lpBuffer+7);
+	else if ((ret_type = get_block_type(lpBuffer))) {
 		switch (*(lpBuffer+7)) {
 		case GFS2_METATYPE_SB:   /* 1 */
 			print_gfs2("(superblock)");
@@ -1410,6 +1425,20 @@ uint64_t goto_block(void)
 					temp_blk = masterblock(string);
 			}
 		}
+		else if (string[0] == '+') {
+			if (string[1] == '0' && string[2] == 'x')
+				sscanf(string, "%"SCNx64, &temp_blk);
+			else
+				sscanf(string, "%" PRIu64, &temp_blk);
+			temp_blk += block;
+		}
+		else if (string[0] == '-') {
+			if (string[1] == '0' && string[2] == 'x')
+				sscanf(string, "%"SCNx64, &temp_blk);
+			else
+				sscanf(string, "%" PRIu64, &temp_blk);
+			temp_blk -= block;
+		}
 		else if (string[0] == '0' && string[1] == 'x')
 			sscanf(string, "%"SCNx64, &temp_blk); /* retrieve in hex */
 		else
@@ -1843,6 +1872,79 @@ void interactive_mode(void)
 }/* interactive_mode */
 
 /* ------------------------------------------------------------------------ */
+/* dump_journal - dump a journal file's contents.                           */
+/* ------------------------------------------------------------------------ */
+void dump_journal(const char *journal)
+{
+	struct gfs2_buffer_head *jindex_bh, *j_bh;
+	uint64_t jindex_block, jblock, j_size, jb;
+	int error, start_line, journal_num;
+	struct gfs2_dinode jdi;
+	char jbuf[bufsize];
+	struct gfs2_inode *j_inode;
+
+	start_line = line;
+	lines_per_row[dmode] = 1;
+	error = 0;
+	journal_num = atoi(journal + 7);
+	print_gfs2("Dumping journal #%d.", journal_num);
+	eol(0);
+	/* Figure out the block of the jindex file */
+	jindex_block = masterblock("jindex");
+	/* read in the block */
+	jindex_bh = bread(&sbd, jindex_block);
+	/* get the dinode data from it. */
+	gfs2_dinode_in(&di, jindex_bh->b_data); /* parse disk inode into structure */
+
+	do_dinode_extended(&di, jindex_bh->b_data); /* which parses the directory. */
+	brelse(jindex_bh, not_updated);
+
+	jblock = indirect->ii[0].dirent[journal_num + 2].block;
+	j_bh = bread(&sbd, jblock);
+	j_inode = inode_get(&sbd, j_bh);
+	gfs2_dinode_in(&jdi, j_bh->b_data); /* parse disk inode into structure */
+	j_size = jdi.di_size;
+
+	for (jb = 0; jb < j_size; jb += bufsize) {
+		error = gfs2_readi(j_inode, (void *)&jbuf, jb, bufsize);
+		if (!error) /* end of file */
+			break;
+		if (get_block_type(jbuf) == GFS2_METATYPE_LD) {
+			uint64_t *b;
+			int i = 0;
+
+			print_gfs2("Block #%4llx: ", jb / bufsize);
+			b = (uint64_t *)(jbuf + sizeof(struct gfs2_log_descriptor));
+			while (*b && (char *)b < (jbuf + bufsize)) {
+				if (!termlines ||
+				    (print_entry_ndx >= start_row[dmode] &&
+				     ((print_entry_ndx - start_row[dmode])+1) *
+				     lines_per_row[dmode] <= termlines - start_line - 2)) {
+					if (i && i % 4 == 0) {
+						eol(0);
+						print_gfs2("             ");
+					}
+					i++;
+					print_gfs2("0x%08llx   ", be64_to_cpu(*b));
+				}
+				b++;
+			}
+			eol(0);
+		} else if (get_block_type(jbuf) == GFS2_METATYPE_LH) {
+			struct gfs2_log_header lh;
+
+			gfs2_log_header_in(&lh, jbuf);
+			print_gfs2("Block #%4llx: Log header: Seq = 0x%x, tail = 0x%x, blk = 0x%x",
+				   jb / bufsize, lh.lh_sequence, lh.lh_tail,
+				   lh.lh_blkno);
+			eol(0);
+		}
+	}
+	brelse(j_bh, not_updated);
+	blockhist = -1; /* So we don't print anything else */
+}
+
+/* ------------------------------------------------------------------------ */
 /* usage - print command line usage                                         */
 /* ------------------------------------------------------------------------ */
 void usage(void)
@@ -1986,6 +2088,9 @@ void process_parameters(int argc, char *argv[], int pass)
 					sscanf(argv[i], "%"SCNd64, &temp_blk);
 					push_block(temp_blk);
 				}
+				else if (!strncmp(argv[i], "journal", 7) && isdigit(argv[i][7])) {
+					dump_journal(argv[i]);
+				}
 				else {
 					fprintf(stderr,"I don't know what '%s' means.\n", argv[i]);
 					usage();
@@ -2059,11 +2164,13 @@ int main(int argc, char *argv[])
 	else { /* print all the structures requested */
 		for (i = 0; i <= blockhist; i++) {
 			block = blockstack[i + 1].block;
+			if (!block)
+				break;
 			display(identify);
 			if (!identify) {
 				display_extended();
 				printf("-------------------------------------" \
-					   "-----------------");
+				       "-----------------");
 				eol(0);
 			}
 			block = pop_block();
