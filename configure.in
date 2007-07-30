@@ -39,7 +39,7 @@ AC_ARG_WITH(hapkgversion,
 )
 
 if test -z "$HAPKGVERSION" ; then
-   HAPKGVERSION="2.1.1"
+   HAPKGVERSION="2.1.2"
 fi
 AM_INIT_AUTOMAKE(heartbeat, $HAPKGVERSION)
 
@@ -213,6 +213,7 @@ localstatedir_orig="$localstatedir"
 exec_prefix=`var "$exec_prefix" "$prefix"`
 bindir=`var "$bindir" "$exec_prefix/bin"`
 sbindir=`var "$sbindir" "$exec_prefix/sbin"`
+datarootdir=`var "$datarootdir" "$prefix/share"`
 datadir=`var "$datadir" "$prefix/share"`
 sysconfdir=`var "$sysconfdir" "$prefix/etc"`
 sharedstatedir=`var "$sharedstatedir" "$prefix/com"`
@@ -300,17 +301,18 @@ HA_LIBDIR="${libdir}"
 AC_SUBST(HA_LIBDIR)
 AC_DEFINE_UNQUOTED(HA_LIBDIR,"$HA_LIBDIR", lib directory)
 
-HA_NOARCHLIBDIR="${noarchlibdir}"
-AC_SUBST(HA_NOARCHLIBDIR)
-AC_DEFINE_UNQUOTED(HA_NOARCHLIBDIR,"$HA_NOARCHLIBDIR", noarch lib directory)
+HA_DATADIR="${datadir}"
+AC_SUBST(HA_DATADIR)
+AC_DEFINE_UNQUOTED(HA_DATADIR,"$HA_DATADIR", data (arch-independent) directory)
+
+HA_NOARCHDATAHBDIR="$HA_DATADIR/${HB_PKG}"
+AC_SUBST(HA_NOARCHDATAHBDIR)
+AC_DEFINE_UNQUOTED(HA_NOARCHDATAHBDIR,"$HA_NOARCHDATAHBDIR", $HB_PKG noarch data directory)
 
 HA_LIBHBDIR="$HA_LIBDIR/${HB_PKG}"
 AC_SUBST(HA_LIBHBDIR)
 AC_DEFINE_UNQUOTED(HA_LIBHBDIR,"$HA_LIBHBDIR", $HB_PKG lib directory)
 
-HA_NOARCHLIBHBDIR="$HA_NOARCHLIBDIR/${HB_PKG}"
-AC_SUBST(HA_NOARCHLIBHBDIR)
-AC_DEFINE_UNQUOTED(HA_NOARCHLIBHBDIR,"$HA_NOARCHLIBHBDIR", $HB_PKG noarch lib directory)
 
 HA_VARRUNDIR="${localstatedir}/run"
 AC_SUBST(HA_VARRUNDIR)
@@ -1031,7 +1033,7 @@ CPPFLAGS="$CPPFLAGS $XML2HEAD"
 
 dnl ************************************************************************
 dnl * Check for linux/icmpv6.h to make enable the IPv6addr resource agent
-AC_CHECK_HEADERS(linux/icmpv6.h,[],[],[#include <sys/types.h>])
+AC_CHECK_HEADERS(linux/icmpv6.h,[],[],[#include <asm/types.h>])
 AM_CONDITIONAL(USE_IPV6ADDR, test "$ac_cv_header_linux_icmpv6_h" = yes -a $new_libnet = yes )
 AC_CHECK_HEADERS(libxml/xpath.h)
 
@@ -2052,7 +2054,7 @@ dnl
 dnl	getopt: If this is valid, define HAVE_DECL_GETOPT to make the getopt.h header compile cleanly.
 dnl
 
-AC_REPLACE_FUNCS(alphasort inet_pton NoSuchFunctionName scandir setenv strerror unsetenv strnlen strndup daemon uuid_parse strlcpy)
+AC_REPLACE_FUNCS(alphasort inet_pton NoSuchFunctionName scandir setenv strerror unsetenv strnlen strndup daemon uuid_parse strlcpy strlcat)
 dnl AC_CHECK_FUNCS(alphasort inet_pton NoSuchFunctionName scandir setenv strerror unsetenv strnlen strndup daemon uuid_parse)
 
 AC_CHECK_FUNCS(getopt, 
@@ -2900,55 +2902,55 @@ AC_MSG_RESULT([])
 AC_MSG_RESULT([$PACKAGE configuration:])
 AC_MSG_RESULT([  Version              = "$VERSION"])
 
-AC_MSG_RESULT([  Executables          = "$my_sbindir"])
-AC_MSG_RESULT([  Man pages            = "$my_mandir"])
-AC_MSG_RESULT([  Libraries            = "$my_libdir"])
-AC_MSG_RESULT([  Header files         = "$my_includedir"])
-AC_MSG_RESULT([  Data files           = "$my_datadir"])
-AC_MSG_RESULT([  State information    = "$my_localstatedir"])
-AC_MSG_RESULT([  System configuration = "$my_sysconfdir"])
-AC_MSG_RESULT([  Init (rc) scripts    = "$my_initdir"])
+AC_MSG_RESULT([  Executables              = "$my_sbindir"])
+AC_MSG_RESULT([  Man pages                = "$my_mandir"])
+AC_MSG_RESULT([  Libraries                = "$my_libdir"])
+AC_MSG_RESULT([  Header files             = "$my_includedir"])
+AC_MSG_RESULT([  Arch-independent files   = "$my_datadir"])
+AC_MSG_RESULT([  State information        = "$my_localstatedir"])
+AC_MSG_RESULT([  System configuration     = "$my_sysconfdir"])
+AC_MSG_RESULT([  Init (rc) scripts        = "$my_initdir"])
 
-AC_MSG_RESULT([  Use system LTDL      = "${ac_cv_lib_ltdl_lt_dlopen}"])
+AC_MSG_RESULT([  Use system LTDL          = "${ac_cv_lib_ltdl_lt_dlopen}"])
 
-AC_MSG_RESULT([  HA group name        = "${HA_APIGROUP}"])
-AC_MSG_RESULT([  HA group id          = "${HA_APIGID}"])
-AC_MSG_RESULT([  HA user name         = "${HA_CCMUSER}"])
-AC_MSG_RESULT([  HA user user id      = "${HA_CCMUID}"])
+AC_MSG_RESULT([  HA group name            = "${HA_APIGROUP}"])
+AC_MSG_RESULT([  HA group id              = "${HA_APIGID}"])
+AC_MSG_RESULT([  HA user name             = "${HA_CCMUSER}"])
+AC_MSG_RESULT([  HA user user id          = "${HA_CCMUID}"])
 
 AC_MSG_RESULT([  Build snmp subagent  = "${enable_snmp_subagent}"])
 if test "x${enable_snmp_subagent}" = "xyes"; then
-    AC_MSG_RESULT([  SNMP MIB directory   = "${MIBS_DIR}"])
-    AC_MSG_RESULT([  SNMP agent libraries = "${SNMPAGENTLIB}"])
+    AC_MSG_RESULT([  SNMP MIB directory       = "${MIBS_DIR}"])
+    AC_MSG_RESULT([  SNMP agent libraries     = "${SNMPAGENTLIB}"])
 fi
-AC_MSG_RESULT([  SNMP libraries       = "${SNMPLIB}"])
-AC_MSG_RESULT([  ucd_snmp_devel name  = "${UCDSNMPDEVEL}"])
+AC_MSG_RESULT([  SNMP libraries           = "${SNMPLIB}"])
+AC_MSG_RESULT([  ucd_snmp_devel name      = "${UCDSNMPDEVEL}"])
 
-AC_MSG_RESULT([  Build New CRM        = "${enable_crm}"])
-AC_MSG_RESULT([  Build New LRM        = "${enable_lrm}"])
-AC_MSG_RESULT([  Build Ldirectord     = "${enable_ldirectord}"])
+AC_MSG_RESULT([  Build New CRM            = "${enable_crm}"])
+AC_MSG_RESULT([  Build New LRM            = "${enable_lrm}"])
+AC_MSG_RESULT([  Build Ldirectord         = "${enable_ldirectord}"])
 
-AC_MSG_RESULT([  Build CIM providers  = "${enable_cim_provider}"])
+AC_MSG_RESULT([  Build CIM providers      = "${enable_cim_provider}"])
 if test "x${enable_cim_provider}" = "xyes"; then
-    AC_MSG_RESULT([  CIM server           = "${CIMOM}"])
-    AC_MSG_RESULT([  CIM providers dir    = "${CMPI_PROVIDER_DIR}"])
-    AC_MSG_RESULT([  CMPI header files    = "${CMPI_HEADER_PATH}"])    
+    AC_MSG_RESULT([  CIM server               = "${CIMOM}"])
+    AC_MSG_RESULT([  CIM providers dir        = "${CMPI_PROVIDER_DIR}"])
+    AC_MSG_RESULT([  CMPI header files        = "${CMPI_HEADER_PATH}"])    
 fi
 
-AC_MSG_RESULT([  Build TSA plugin     = "${enable_tsa_plugin}"])
+AC_MSG_RESULT([  Build TSA plugin         = "${enable_tsa_plugin}"])
 if test "x${enable_tsa_plugin}" != "xno"; then
-AC_MSG_RESULT([      JAVA_HOME        = "${JAVA_HOME}"])
-AC_MSG_RESULT([      TSA_DIR          = "${TSA_DIR}"])
+AC_MSG_RESULT([      JAVA_HOME            = "${JAVA_HOME}"])
+AC_MSG_RESULT([      TSA_DIR              = "${TSA_DIR}"])
 fi
-AC_MSG_RESULT([  Build dopd plugin    = "${enable_dopd}"])
+AC_MSG_RESULT([  Build dopd plugin        = "${enable_dopd}"])
 
-AC_MSG_RESULT([  Enable times kludge  = "${enable_times_kludge}"])    
+AC_MSG_RESULT([  Enable times kludge      = "${enable_times_kludge}"])    
 AC_SUBST(DISABLE_TIMES_KLUDGE)
 
-AC_MSG_RESULT([  CC_WARNINGS          = "${CC_WARNINGS}"])
-AC_MSG_RESULT([  Mangled CFLAGS       = "${CFLAGS}"])
-AC_MSG_RESULT([  Libraries            = "${LIBS}"])
-AC_MSG_RESULT([  RPATH enabled        = "${enable_rpath}"])
+AC_MSG_RESULT([  CC_WARNINGS              = "${CC_WARNINGS}"])
+AC_MSG_RESULT([  Mangled CFLAGS           = "${CFLAGS}"])
+AC_MSG_RESULT([  Libraries                = "${LIBS}"])
+AC_MSG_RESULT([  RPATH enabled            = "${enable_rpath}"])
 
 AC_MSG_RESULT([  ])
 AC_MSG_RESULT([Note: If you use the 'make install' method for installation you])

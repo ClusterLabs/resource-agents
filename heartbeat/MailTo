@@ -116,7 +116,7 @@ MailToStop () {
 }
 
 MailToStatus () {
-	ocf_log warn "Don't stat/monitor me! MailTo is a pseudo resource agent, so the status reported may be incorrect"
+#	ocf_log warn "Don't stat/monitor me! MailTo is a pseudo resource agent, so the status reported may be incorrect"
 
 	if ha_pseudo_resource MailTo_${OCF_RESOURCE_INSTANCE} monitor
 	then

@@ -102,11 +102,21 @@ action:
 
 apachecat() {
 	awk '
+	function procline() {
+		split($0,a);
+		if( a[1]=="Include" ) {
+			procinclude(a[2]);
+		} else {
+			if( a[1]=="ServerRoot" ) {
+				rootdir=a[2];
+				gsub("\"","",rootdir);
+			}
+			print;
+		}
+	}
 	function printfile(infile, a) {
 		while( (getline<infile) > 0 ) {
-			split($0,a);
-			if( a[1]=="Include" ) procinclude(a[2]);
-			else print;
+			procline();
 		}
 		close(infile);
 	}
@@ -125,6 +135,9 @@ apachecat() {
 		close(cmd);
 	}
 	function procinclude(spec) {
+		if( rootdir!="" && spec!~/^\// ) {
+			spec=rootdir"/"spec;
+		}
 		if( isdir(spec) ) {
 			allfiles(spec); # read all files in a directory (and subdirs)
 		} else {
@@ -134,8 +147,7 @@ apachecat() {
 	function isdir(s) {
 		return !system("test -d \""s"\"");
 	}
-	$1=="Include" { procinclude($2); next; }
-	{ print }
+	{ procline(); }
 	' $1 |
 	sed 's/#.*//;s/[[:blank:]]*$//;s/^[[:blank:]]*//' |
 	grep -v '^$'
