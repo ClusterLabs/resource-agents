@@ -227,23 +227,39 @@ libdir=`var "$libdir" "$exec_prefix/lib"`
 libexecdir=`var "$libexecdir" "$exec_prefix/libexec"`
 noarchlibdir=`var "$noarchlibdir" "$prefix/lib"`
 
-for var in libdir libexecdir
-do
-  dir=`eval echo '${'${var}'}'`
-  case $dir in
-    *64)  if 
-	    test ! -d "$dir" 
-	  then
-            newdir=`echo "$dir" | sed 's%64$%%'`
-            if
-	      test -d "$newdir"
-            then
-              eval $var="$newdir"
-	      AC_MSG_WARN([$var value now set to $newdir since $dir doesn't exist])
-            fi
-	  fi;;
-  esac
-done
+
+
+LDD=ldd
+
+AC_MSG_CHECKING(for proper library directory suffix)
+tmpdir=/tmp
+tmpCfile=${tmpdir}/$$test.c
+tmpOutfile=${tmpdir}/$$test
+echo 'int main(int argc, char** argv) { return(1);}' >$tmpCfile
+if
+  cc ${tmpCfile} -o ${tmpOutfile}
+then
+  LIBC=`${LDD} ${tmpOutfile} | grep libc | sed -e 's%.*=> *%%' -e 's% .*$%%'`
+  LibCdir=`dirname $LIBC`
+  LibDirSuffix=`basename $LibCdir`
+  AC_MSG_RESULT($LibDirSuffix)
+  rm -f $tmpCfile $tmpOutfile
+else
+  AC_MSG_ERROR([Cannot Compile trivial C program])
+fi
+
+case $libdir in
+  */$LibDirSuffix)	: Cool ;;
+  *)			: Uh Oh... 
+	libdir=`dirname $libdir`/$LibDirSuffix
+	AC_MSG_WARN([Overriding libdir to: $libdir]);;
+esac
+case $libexecdir in
+  */$LibDirSuffix)	: Cool ;;
+  *)			: Uh Oh... 
+	libexecdir=`dirname $libexecdir`/$LibDirSuffix
+	AC_MSG_WARN([Overriding libexecdir to: $libexecdir]);;
+esac
 
 for j in exec_prefix bindir sbindir datadir sysconfdir localstatedir \
 	includedir oldincludedir mandir docdir libdir noarchlibdir
@@ -255,6 +271,10 @@ do
     AC_MSG_WARN([$j directory ($dirname) does not exist!])
   fi
 done
+
+dnl ************************************************************************
+dnl Test to see whether library directories should be lib or lib64...
+dnl ************************************************************************
 
 dnl	The GNU conventions for installation directories don't always
 dnl	sit well with this software.  In particular, GNU's stated:
@@ -398,6 +418,15 @@ AC_SUBST(docdir)
 
 dnl	We use this in the RPM specfile...
 AC_SUBST(ac_configure_args)
+cleaned_configure_args=""
+for j in ${ac_configure_args}
+do
+  case $j in
+    *--libdir=*|*--libexecdir=*)	;;
+    *)		cleaned_configure_args="$cleaned_configure_args $j";;
+  esac
+done
+AC_SUBST(cleaned_configure_args)
 
 dnl *************************************************************************
 PATH="$PATH:/sbin:/usr/sbin:/usr/local/sbin:/usr/local/bin"
@@ -532,7 +561,6 @@ else
 fi
 rm -f $F
 AM_CONDITIONAL(NONROOT_CHOWN, test "$nonroot_chown" = yes )
-
 
 dnl ************************************************************************
 dnl checks for libraries
@@ -1169,6 +1197,18 @@ dnl     Check to see if it exists, and if so use it.
 dnl
 AC_CHECK_LIB(crypto, CRYPTO_free, CRYPTOLIB="-lcrypto",)
 AC_SUBST(CRYPTOLIB)
+
+dnl ***************************************************************************
+dnl Enable distro-style RPMs
+dnl ***************************************************************************
+AC_ARG_ENABLE([distro-rpm],
+ [  --enable-distro-rpm 	Enable distro-style RPMs
+		[default=no]], [], [enable_distro_rpm=no])
+case $enable_distro_rpm in
+   [Yy][Ee][Ss]*)	DISTRO_STYLE_RPMS=1;;
+   *)			DISTRO_STYLE_RPMS=0;;
+esac
+AC_SUBST(DISTRO_STYLE_RPMS)
 
 dnl ***************************************************************************
 dnl TIPC communication module
@@ -2859,6 +2899,7 @@ resources/Makefile						\
 	resources/heartbeat/Filesystem				\
 	resources/heartbeat/hto-mapfuncs			\
 	resources/heartbeat/ICP					\
+	resources/heartbeat/ids					\
 	resources/heartbeat/IPaddr				\
 	resources/heartbeat/IPaddr2				\
 	resources/heartbeat/IPsrcaddr				\
@@ -2951,6 +2992,7 @@ AC_MSG_RESULT([  CC_WARNINGS              = "${CC_WARNINGS}"])
 AC_MSG_RESULT([  Mangled CFLAGS           = "${CFLAGS}"])
 AC_MSG_RESULT([  Libraries                = "${LIBS}"])
 AC_MSG_RESULT([  RPATH enabled            = "${enable_rpath}"])
+AC_MSG_RESULT([  Distro-style RPMs        = "${enable_distro_rpm}"])
 
 AC_MSG_RESULT([  ])
 AC_MSG_RESULT([Note: If you use the 'make install' method for installation you])
