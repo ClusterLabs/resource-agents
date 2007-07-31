@@ -54,6 +54,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			EvmsSCC		\
 			Evmsd		\
 			Filesystem	\
+			ids		\
 			ICP		\
 			IPsrcaddr	\
 			LinuxSCSI	\
