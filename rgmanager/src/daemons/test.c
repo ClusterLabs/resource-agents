@@ -33,6 +33,9 @@
 #error "Can not be built with CCS support."
 #endif
 
+void res_build_name(char *, size_t, resource_t *);
+
+
 /**
   Tells us if a resource group can be migrated.
  */
