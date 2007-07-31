@@ -322,7 +322,6 @@ ip_init() {
 	IP_CIP=
 	
 	if [ "$IP_INC_GLOBAL" -gt 1 ]; then
-	        check_binary $IPTABLES
 		IP_CIP="yes"
 		if [ -z "$IF_MAC" ]; then
 			# Choose a MAC
@@ -716,8 +715,10 @@ ip_monitor() {
 
 ip_validate() {
     check_binary $IP2UTIL
-    check_binary $IPTABLES
-    check_binary $MODPROBE
+    if [ -n "$IP_CIP" ]; then
+	check_binary $IPTABLES
+	check_binary $MODPROBE
+    fi
 
     ip_init
 

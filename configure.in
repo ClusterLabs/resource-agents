@@ -2898,6 +2898,7 @@ resources/Makefile						\
 	resources/heartbeat/db2					\
 	resources/heartbeat/Filesystem				\
 	resources/heartbeat/hto-mapfuncs			\
+	resources/heartbeat/ids					\
 	resources/heartbeat/ICP					\
 	resources/heartbeat/ids					\
 	resources/heartbeat/IPaddr				\
