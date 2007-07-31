@@ -62,5 +62,6 @@
 #define RS_META_DATA	(11)
 #define RS_VALIDATE	(12)
 #define RS_MIGRATE	(13)
+#define RS_RECONFIG	(14)
 
 #endif

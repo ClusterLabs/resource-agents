@@ -113,6 +113,7 @@ const struct string_val agent_ops[] = {
 	{RS_META_DATA, "meta-data"},		/* printenv */
 	{RS_VALIDATE, "validate-all"},
 	{RS_MIGRATE, "migrate"},
+	{RS_RECONFIG, "reconfig"},
 	{0 , NULL}
 };
 

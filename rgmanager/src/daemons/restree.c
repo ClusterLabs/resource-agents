@@ -1213,9 +1213,15 @@ _res_op_internal(resource_node_t **tree, resource_t *first,
 
 	/* Start starts before children */
 	if (me && (op == RS_START)) {
-		node->rn_flags &= ~RF_NEEDSTART;
 
-		rv = res_exec(node, op, NULL, 0);
+		if (node->rn_flags & RF_RECONFIG &&
+		    realop == RS_CONDSTART) {
+			rv = res_exec(node, RS_RECONFIG, NULL, 0);
+			op = realop; /* reset to CONDSTART */
+		} else {
+			rv = res_exec(node, op, NULL, 0);
+		}
+		node->rn_flags &= ~(RF_NEEDSTART | RF_RECONFIG);
 		if (rv != 0) {
 			node->rn_state = RES_FAILED;
 			return SFL_FAILURE;
@@ -1435,6 +1441,7 @@ int
 resource_delta(resource_t **leftres, resource_t **rightres)
 {
 	resource_t *lc, *rc;
+	int ret;
 
 	list_do(leftres, lc) {
 		rc = find_resource_by_ref(rightres, lc->r_rule->rr_type,
@@ -1447,10 +1454,25 @@ resource_delta(resource_t **leftres, resource_t **rightres)
 		}
 
 		/* Ok, see if the resource is the same */
-		if (rescmp(lc, rc) == 0) {
+		ret = rescmp(lc, rc);
+		if (ret	== 0) {
 			rc->r_flags |= RF_COMMON;
 			continue;
 		}
+
+		if (ret == 2) {
+			/* return of 2 from rescmp means
+			   the two resources differ only 
+			   by reconfigurable bits */
+			/* Do nothing on condstop phase;
+			   do a "reconfig" instead of 
+			   "start" on conststart phase */
+			rc->r_flags |= RF_COMMON;
+			rc->r_flags |= RF_NEEDSTART;
+			rc->r_flags |= RF_RECONFIG;
+			continue;
+		}
+
 		rc->r_flags |= RF_COMMON;
 
 		/* Resource has changed.  Flag it. */
@@ -1512,12 +1534,17 @@ resource_tree_delta(resource_node_t **ltree, resource_node_t **rtree)
 			   or is new), then we don't really care about its
 			   children.
 			 */
+
 			if (rn->rn_resource->r_flags & RF_NEEDSTART) {
 				rn->rn_flags |= RF_NEEDSTART;
-				continue;
+				if ((rn->rn_resource->r_flags & RF_RECONFIG) == 0)
+					continue;
 			}
 
-			if (rc == 0) {
+			if (rc == 0 || rc == 2) {
+				if (rc == 2)
+					rn->rn_flags |= RF_NEEDSTART | RF_RECONFIG;
+
 				/* Ok, same resource.  Recurse. */
 				ln->rn_flags |= RF_COMMON;
 				rn->rn_flags |= RF_COMMON;

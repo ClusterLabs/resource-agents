@@ -1225,6 +1225,7 @@ void
 do_condstops(void)
 {
 	resource_node_t *curr;
+	struct dlm_lksb lockp;
 	rg_state_t svcblk;
 	int need_kill;
 	char rg[64];
@@ -1250,6 +1251,24 @@ do_condstops(void)
 		if (curr->rn_resource->r_flags & RF_NEEDSTOP) {
 			need_kill = 1;
 			clulog(LOG_DEBUG, "Removing %s\n", rg);
+		}
+
+		if (!curr->rn_child && ((curr->rn_resource->r_rule->rr_flags &
+		    RF_DESTROY) == 0) && group_migratory(rg, 0) &&
+		    need_kill == 1) {
+			/* Do something smart here: flip state? */
+			clulog(LOG_NOTICE,
+			       "%s removed from the config, but I am not stopping it.\n",
+			       rg);
+			if (rg_lock(rg, &lockp) != 0)
+				continue;
+			if (get_rg_state(rg, &svcblk) < 0)
+		       		goto cont;
+			svcblk.rs_state = RG_STATE_DISABLED;
+			set_rg_state(rg, &svcblk);
+cont:
+			rg_unlock(&lockp);
+			continue;
 		}
 
 		rt_enqueue_request(rg, need_kill ? RG_DISABLE : RG_CONDSTOP,
@@ -1285,7 +1304,8 @@ do_condstarts(void)
 
 		/* New RG.  We'll need to initialize it. */
 		need_init = 0;
-		if (curr->rn_resource->r_flags & RF_NEEDSTART)
+		if (!(curr->rn_resource->r_flags & RF_RECONFIG) &&
+		    (curr->rn_resource->r_flags & RF_NEEDSTART))
 			need_init = 1;
 
 		if (!need_init) {
@@ -1308,7 +1328,17 @@ do_condstarts(void)
 
 		if (need_init) {
 			++new_groups;
-			clulog(LOG_DEBUG, "Initializing %s\n", rg);
+			clulog(LOG_NOTICE, "Initializing %s\n", rg);
+		}
+
+		if (!curr->rn_child && ((curr->rn_resource->r_rule->rr_flags &
+		    RF_INIT) == 0) && group_migratory(rg, 0) &&
+		    need_init == 1) {
+			/* Do something smart here? */
+			clulog(LOG_NOTICE,
+			       "%s was added to the config, but I am not initializing it.\n",
+			       rg);
+			continue;
 		}
 
 		rt_enqueue_request(rg, need_init ? RG_INIT : RG_CONDSTART,

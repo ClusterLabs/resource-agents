@@ -25,10 +25,11 @@
 #include <libxml/xpath.h>
 
 
-#define RA_PRIMARY	(1<<0)
-#define RA_UNIQUE	(1<<1)
-#define RA_REQUIRED	(1<<2)
-#define RA_INHERIT	(1<<3)
+#define RA_PRIMARY	(1<<0)	/** Primary key */
+#define RA_UNIQUE	(1<<1)	/** Unique for given type */
+#define RA_REQUIRED	(1<<2)	/** Required (or an error if not present */
+#define RA_INHERIT	(1<<3)	/** Inherit a parent resource's attr */
+#define RA_RECONFIG	(1<<4)	/** Allow inline reconfiguration */
 
 #define RF_INLINE	(1<<0)
 #define RF_DEFINED	(1<<1)
@@ -37,6 +38,15 @@
 #define RF_COMMON	(1<<4)	/** " */
 #define RF_INDEPENDENT	(1<<5)  /** Define this for a resource if it is
 				  otherwise an independent subtree */
+#define RF_RECONFIG	(1<<6)
+
+#define RF_INIT		(1<<7)	/** Resource rule: Initialize this resource
+				  class on startup */
+#define RF_DESTROY	(1<<8)	/** Resource rule flag: Destroy this
+				  resource class if you delete it from
+				  the configuration */
+
+
 
 #define RES_STOPPED	(0)
 #define RES_STARTED	(1)

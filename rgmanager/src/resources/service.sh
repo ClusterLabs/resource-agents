@@ -56,7 +56,7 @@ meta_data()
             <content type="string"/>
         </parameter>
     
-        <parameter name="domain">
+        <parameter name="domain" reconfig="1">
             <longdesc lang="en">
                 Fail over domains define lists of cluster members
                 to try in the event that a resource group fails.
@@ -164,6 +164,7 @@ meta_data()
         <action name="status" timeout="5" interval="1h"/>
         <action name="monitor" timeout="5" interval="1h"/>
 
+        <action name="reconfig" timeout="5"/>
         <action name="recover" timeout="5"/>
         <action name="reload" timeout="5"/>
         <action name="meta-data" timeout="5"/>
@@ -227,6 +228,9 @@ case $1 in
 	validate-all)
 		exit 0
 		;;
+	reconfig)
+  		exit 0
+  		;;
 	*)
 		exit 0
 		;;

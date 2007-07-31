@@ -175,6 +175,36 @@ _get_maxparents(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
 
 
 /**
+   Get and store a bit field.
+
+   @param doc		Pre-parsed XML document pointer.
+   @param ctx		Pre-allocated XML XPath context pointer.
+   @param base		XPath prefix to search
+   @param rr		Resource rule to store new information in.
+ */
+void
+_get_rule_flag(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
+	       resource_rule_t *rr, char *flag, int bit)
+{
+	char xpath[256];
+	char *ret = NULL;
+
+	snprintf(xpath, sizeof(xpath),
+		 "%s/attributes/@%s",
+		 base, flag);
+	ret = xpath_get_one(doc, ctx, xpath);
+	if (ret) {
+		if (atoi(ret)) {
+			rr->rr_flags |= bit;
+		} else {
+			rr->rr_flags &= ~bit;
+		}
+		free(ret);
+	}
+}
+
+
+/**
    Get and store the version
 
    @param doc		Pre-parsed XML document pointer.
@@ -367,8 +397,8 @@ _get_actions(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
 		ret = xpath_get_one(doc, ctx, xpath);
 		if (ret) {
 			interval = expand_time(ret);
-			if (interval < 0)
-				interval = 0;
+			if (interval < 1)
+				interval = 1;
 			free(ret);
 		}
 
@@ -529,6 +559,17 @@ print_resource_rule(resource_rule_t *rr)
 		printf("Max instances: %d\n", rr->rr_maxrefs);
 	if (rr->rr_agent)
 		printf("Agent: %s\n", basename(rr->rr_agent));
+
+	printf("Flags: ");
+	if (rr->rr_flags) {
+		if (rr->rr_flags & RF_INIT)
+			printf("init_on_add ");
+		if (rr->rr_flags & RF_DESTROY)
+			printf("destroy_on_delete ");
+	} else {
+		printf("(none)");
+	}
+	printf("\n");
 	
 	printf("Attributes:\n");
 	if (!rr->rr_attrs) {
@@ -544,18 +585,25 @@ print_resource_rule(resource_rule_t *rr)
 			continue;
 		}
 
-		printf(" [");
-		if (rr->rr_attrs[x].ra_flags & RA_PRIMARY)
-			printf(" primary");
-		if (rr->rr_attrs[x].ra_flags & RA_UNIQUE)
-			printf(" unique");
-		if (rr->rr_attrs[x].ra_flags & RA_REQUIRED)
-			printf(" required");
-		if (rr->rr_attrs[x].ra_flags & RA_INHERIT)
-			printf(" inherit");
-		else if (rr->rr_attrs[x].ra_value)
-			printf(" default=\"%s\"", rr->rr_attrs[x].ra_value);
-		printf(" ]\n");
+		if (rr->rr_attrs[x].ra_flags) {
+			printf(" [");
+			if (rr->rr_attrs[x].ra_flags & RA_PRIMARY)
+				printf(" primary");
+			if (rr->rr_attrs[x].ra_flags & RA_UNIQUE)
+				printf(" unique");
+			if (rr->rr_attrs[x].ra_flags & RA_REQUIRED)
+				printf(" required");
+			if (rr->rr_attrs[x].ra_flags & RA_INHERIT)
+				printf(" inherit");
+			if (rr->rr_attrs[x].ra_flags & RA_RECONFIG)
+				printf(" reconfig");
+			printf(" ]");
+		}
+
+		if (rr->rr_attrs[x].ra_value)
+			printf(" default=\"%s\"\n", rr->rr_attrs[x].ra_value);
+		else
+			printf("\n");
 	}
 
 actions:
@@ -687,6 +735,18 @@ _get_rule_attrs(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
 				flags |= RA_PRIMARY;
 				primary_found = 1;
 			}
+			free(ret);
+		}
+
+		/*
+		   See if this can be reconfigured on the fly without a 
+		   stop/start
+		 */
+		snprintf(xpath, sizeof(xpath), "%s/parameter[%d]/@reconfig",
+			 base, x);
+		if ((ret = xpath_get_one(doc,ctx,xpath))) {
+			if ((atoi(ret) != 0) || (ret[0] == 'y'))
+				flags |= RA_RECONFIG;
 			free(ret);
 		}
 
@@ -955,6 +1015,7 @@ load_resource_rulefile(char *filename, resource_rule_t **rules)
 			break;
 		memset(rr,0,sizeof(*rr));
 
+		rr->rr_flags = RF_INIT | RF_DESTROY;
 		rr->rr_type = type;
 		snprintf(base, sizeof(base), "/resource-agent[%d]", ruleid);
 
@@ -967,6 +1028,8 @@ load_resource_rulefile(char *filename, resource_rule_t **rules)
 			 "/resource-agent[%d]/special[@tag=\"rgmanager\"]",
 			 ruleid);
 		_get_maxparents(doc, ctx, base, rr);
+		_get_rule_flag(doc, ctx, base, rr, "init_on_add", RF_INIT);
+		_get_rule_flag(doc, ctx, base, rr, "destroy_on_delete", RF_DESTROY);
 		rr->rr_agent = strdup(filename);
 
 		/*

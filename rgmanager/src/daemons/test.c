@@ -33,6 +33,50 @@
 #error "Can not be built with CCS support."
 #endif
 
+/**
+  Tells us if a resource group can be migrated.
+ */
+int
+group_migratory(resource_t **resources, resource_node_t **tree, char *groupname)
+{
+	resource_node_t *rn;
+	resource_t *res;
+	int migrate = 0, x, ret = 0;
+
+	res = find_root_by_ref(resources, groupname);
+	if (!res) {
+		/* Nonexistent or non-TL RG cannot be migrated */
+		return 0;
+	}
+
+	for (x = 0; res->r_rule->rr_actions[x].ra_name; x++) {
+		if (!strcmp(res->r_rule->rr_actions[x].ra_name,
+		    "migrate")) {
+			migrate = 1;
+			break;
+		}
+	}
+
+	if (!migrate)
+		goto out_unlock;
+
+	list_do(tree, rn) {
+		if (rn->rn_resource == res && rn->rn_child) {
+			/* TL service w/ children cannot be migrated */
+			goto out_unlock;
+		}
+	} while (!list_done(tree, rn));
+
+
+	/* Ok, we have a migrate option to the resource group,
+	   the resource group has no children, and the resource
+	   group exists.  We're all good */
+	ret = 1;
+
+out_unlock:
+	return ret;
+}
+
 #define shift() {++argv; --argc;}
 
 #define USAGE_TEST \
@@ -252,7 +296,9 @@ tree_delta_test(int argc, char **argv)
 	resource_rule_t *rulelist = NULL, *currule, *rulelist2 = NULL;
 	resource_t *reslist = NULL, *curres, *reslist2 = NULL;
 	resource_node_t *tree = NULL, *tree2 = NULL;
-	int ccsfd, ret = 0;
+	resource_node_t *tn;
+	int ccsfd, ret = 0, need_init, need_kill;
+	char rg[64];
 
 	if (argc < 2) {
 		printf("Operation requires two arguments\n");
@@ -309,6 +355,57 @@ tree_delta_test(int argc, char **argv)
 	print_resource_tree(&tree);
 	printf("=== New Resource Tree ===\n");
 	print_resource_tree(&tree2);
+	printf("=== Operations (down-phase) ===\n");
+	list_do(&tree, tn) {
+		res_build_name(rg, sizeof(rg), tn->rn_resource);
+		/* Set state to uninitialized if we're killing a RG */
+		need_init = 0;
+
+		/* Set state to uninitialized if we're killing a RG */
+		need_kill = 0;
+		if (tn->rn_resource->r_flags & RF_NEEDSTOP) {
+			need_kill = 1;
+			printf("[kill] ");
+		}
+
+		if (!tn->rn_child && ((tn->rn_resource->r_rule->rr_flags &
+		    RF_DESTROY) == 0) && group_migratory(&reslist, &tree, rg) &&
+		    need_kill == 1) {
+			/* Do something smart here: flip state? */
+			printf("[no-op] %s was removed from the config, but I am not stopping it.\n",
+			       rg);
+			continue;
+		}
+
+		res_condstop(&tn, tn->rn_resource, NULL);
+	} while (!list_done(&tree, tn));
+	printf("=== Operations (up-phase) ===\n");
+	list_do(&tree2, tn) {
+		res_build_name(rg, sizeof(rg), tn->rn_resource);
+		/* New RG.  We'll need to initialize it. */
+		need_init = 0;
+		if (!(tn->rn_resource->r_flags & RF_RECONFIG) &&
+		    (tn->rn_resource->r_flags & RF_NEEDSTART))
+			need_init = 1;
+
+		if (need_init) {
+			printf("[init] ");
+		}
+
+		if (!tn->rn_child && ((tn->rn_resource->r_rule->rr_flags &
+		    RF_INIT) == 0) && group_migratory(&reslist2, &tree2, rg) &&
+		    need_init == 1) {
+			/* Do something smart here? */
+			printf("[noop] %s was added, but I am not initializing it\n", rg);
+			continue;
+		}
+
+		if (need_init) {
+			res_stop(&tn, tn->rn_resource, NULL);
+		} else {
+			res_condstart(&tn, tn->rn_resource, NULL);
+		}
+	} while (!list_done(&tree2, tn));
 
 out:
 	destroy_resource_tree(&tree2);
@@ -368,6 +465,7 @@ main(int argc, char **argv)
 			goto out;
 		} else if (!strcmp(argv[1], "delta")) {
 			shift();
+			_no_op_mode(1);
 			ret = tree_delta_test(argc, argv);
 			goto out;
 		} else {

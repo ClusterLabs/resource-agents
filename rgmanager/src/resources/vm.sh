@@ -53,7 +53,7 @@ meta_data()
             <content type="string"/>
         </parameter>
     
-        <parameter name="domain">
+        <parameter name="domain" reconfig="1">
             <longdesc lang="en">
                 Fail over domains define lists of cluster members
                 to try in the event that the host of the virtual machine
@@ -65,7 +65,7 @@ meta_data()
             <content type="string"/>
         </parameter>
 
-        <parameter name="autostart">
+        <parameter name="autostart" reconfig="1">
             <longdesc lang="en">
 	    	If set to yes, this resource group will automatically be started
 		after the cluster forms a quorum.  If set to no, this virtual
@@ -200,7 +200,11 @@ meta_data()
     </actions>
     
     <special tag="rgmanager">
-        <attributes maxinstances="1"/>
+     	<!-- Destroy_on_delete / init_on_add are currently only
+ 	     supported for migratory resources (no children
+ 	     and the 'migrate' action; see above.  Do not try this
+ 	     with normal services -->
+	<attributes maxinstances="1" destroy_on_delete="0" init_on_add="0"/>
     </special>
 </resource-agent>
 EOT

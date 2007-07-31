@@ -176,17 +176,28 @@ primary_attr_value(resource_t *res)
 /**
    Compare two resources.
 
+  @param left	Left resource
+  @param right	Right resource	
+  @return	-1 on different resource, 0 if the same, 1 if different,
+		2 if different, but only safe resources are different
+
  */
 int
 rescmp(resource_t *left, resource_t *right)
 {
-	int x, y = 0, found;
+	int x, y = 0, found = 0, ret = 0;
+
 
 	/* Completely different resource class... */
 	if (strcmp(left->r_rule->rr_type, right->r_rule->rr_type)) {
-		//printf("Er, wildly different resource type! ");
 		return -1;
 	}
+
+	/*
+	printf("Comparing %s:%s to %s:%s\n",
+	       left->r_rule->rr_type, left->r_attrs[0].ra_value,
+	       right->r_rule->rr_type, right->r_attrs[0].ra_value)
+	 */
 
 	for (x = 0; left->r_attrs && left->r_attrs[x].ra_name; x++) {
 
@@ -203,35 +214,52 @@ rescmp(resource_t *left, resource_t *right)
 			    left->r_attrs[x].ra_flags) {
 				/* Flags are different.  Change in
 				   resource agents? */
-				//printf("flags differ ");
+				/*
+				printf("* flags differ %08x vs %08x\n",
+				       left->r_attrs[x].ra_flags,
+				       right->r_attrs[y].ra_flags);
+				 */
 				return 1;
 			}
 
 			if (strcmp(right->r_attrs[y].ra_value,
 				   left->r_attrs[x].ra_value)) {
 				/* Different attribute value. */
-				//printf("different value for attr '%s'  ",
-				       //right->r_attrs[y].ra_name);
-				return 1;
+				/*
+				printf("* different value for attr '%s':"
+				       " '%s' vs '%s'",
+				       right->r_attrs[y].ra_name,
+				       left->r_attrs[x].ra_value,
+				       right->r_attrs[y].ra_value);
+				 */
+				if (left->r_attrs[x].ra_flags & RA_RECONFIG) {
+					/* printf(" [SAFE]\n"); */
+					ret = 2;
+			 	} else {
+					/* printf("\n"); */
+					return 1;
+				}
 			}
 		}
 
 		/* Attribute missing -> different attribute value. */
 		if (!found) {
-			//printf("Attribute %s deleted  ",
-			       //left->r_attrs[x].ra_name);
+			/*
+			printf("* Attribute '%s' deleted\n",
+			       left->r_attrs[x].ra_name);
+			 */
 			return 1;
 		}
 	}
 
 	/* Different attribute count */
 	if (x != y) {
-		//printf("Attribute count differ (attributes added!) ");
+		/* printf("* Attribute count differ (attributes added!) "); */
 		return 1;
 	}
 
 	/* All the same */
-	return 0;
+	return ret;
 }
 
 
@@ -288,7 +316,7 @@ find_root_by_ref(resource_t **reslist, char *ref)
 	resource_t *curr;
 	char ref_buf[128];
 	char *type;
-	char *name;
+	char *name = ref;
 	int x;
 
 	snprintf(ref_buf, sizeof(ref_buf), "%s", ref);
@@ -544,6 +572,8 @@ print_resource(resource_t *res)
 		printf(" [NEEDSTOP]");
 	if (res->r_flags & RF_COMMON)
 		printf(" [COMMON]");
+	if (res->r_flags & RF_RECONFIG)
+		printf(" [RECONFIG]");
 	printf("\n");
 
 	if (res->r_rule->rr_maxrefs)
@@ -579,6 +609,8 @@ print_resource(resource_t *res)
 			printf(" unique");
 		if (res->r_attrs[x].ra_flags & RA_REQUIRED)
 			printf(" required");
+		if (res->r_attrs[x].ra_flags & RA_RECONFIG)
+			printf(" reconfig");
 		if (res->r_attrs[x].ra_flags & RA_INHERIT)
 			printf(" inherit(\"%s\")", res->r_attrs[x].ra_value);
 		printf(" ]\n");

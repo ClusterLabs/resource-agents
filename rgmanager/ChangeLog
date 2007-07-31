@@ -1,3 +1,23 @@
+2007-07-31 Lon Hohberger <lhh at redhat.com>
+	* general: Make VMs not change state when added/removed from the
+	cluster config or bounce services/VMs when minor config changes
+	are made. (#248727)
+	* include/res-ocf.h: Add reconfigure operation
+	* include/reslist.h: Add flags allowing reconfigurable options in
+	resource agent metadata, and per-agent flags which allow resources
+	to be added w/o initialization / removed w/o kill.
+	* src/clulib/rg_strings.c: Add string definition for reconfigure op
+	* src/daemons/groups.c: Allow no-init-on-add and no-kill-on-delete
+	flags to work
+	* src/daemons/reslist.c: Allow resource comparison to take into 
+	account reconfig flags and return a new value if the resource is
+	reconfigurable
+	* src/daemons/resrules.c: Code to support new flags
+	* src/daemons/restree.c: Code to support reconfiguration operation
+	* src/daemons/test.c: Code to support testing new reconfig ops and
+	behaviors
+	* src/resources/*: Add new flags to service and VM resource agents.
+
 2007-07-23 Lon Hohberger <lhh at redhat.com>
 	* general: make threads exit with pthread_exit() so we can wrap/track them.
 	Add internal statedump (SIGUSR1) support.
