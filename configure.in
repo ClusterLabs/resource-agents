@@ -1152,12 +1152,84 @@ check_snmp_libs ()
 	LIBS="$OLDLIBS"
 }
 
+SNMPLIBSET=""
 if test "$ENABLE_SNMP" = "yes"; then
 	check_snmp_libs $SNMPLIB
+	SNMPLIBSET="$SNMPLIB"
 fi
 if test "$enable_snmp_subagent" = "yes"; then
 	check_snmp_libs $SNMPAGENTLIB
+	SNMPLIBSET="$SNMPLIBSET $SNMPAGENTLIB"
 fi
+
+dnl
+dnl	There are more sophisticated and general ways of doing this, that
+dnl	are more general - but this is better than nothing.
+dnl
+dnl	The right procedure would be to locate the libraries that we've been told
+dnl	are needed, dnl	then do an RPM query on each of these libraries
+dnl	to find out what package owns the library (file)
+dnl	That'll be a good project for some long, cold winter evening.
+dnl
+dnl	Some food for thought from the 'ld' manual page:
+dnl
+dnl        The linker uses the following search paths to locate required shared libraries.
+dnl
+dnl        Ignore steps 1-2, because they involve rpath options (which we don't care about)
+dnl
+dnl        3.  On  an  ELF system, if the -rpath and "rpath-link" options were not used, search the contents of the environment variable
+dnl            "LD_RUN_PATH". It is for the native linker only.
+dnl
+dnl        4.  On SunOS, if the -rpath option was not used, search any directories specified using -L options.
+dnl
+dnl        5.  For a native linker, the contents of the environment variable "LD_LIBRARY_PATH".
+dnl
+dnl        6.  For a native ELF linker, the directories in "DT_RUNPATH" or "DT_RPATH" of  a  shared  library  are  searched  for  shared
+dnl            libraries needed by it. The "DT_RPATH" entries are ignored if "DT_RUNPATH" entries exist.
+dnl
+dnl        7.  The default directories, normally /lib and /usr/lib.
+dnl
+dnl        8.  For a native linker on an ELF system, if the file /etc/ld.so.conf exists, the list of directories found in that file.
+dnl
+dnl        If the required shared library is not found, the linker will issue a warning and continue with the link.
+dnl
+dnl
+libs2packages() {
+  for arg
+  do 
+    case $arg in
+        -ldl|-lm|-L*)		;;
+        -lcrypto)		echo openssl;;
+        -lnetsnmp)		echo net-snmp;;
+        -lsnmp)			echo net-snmp;;
+        -lnetsnmpagent)		echo net-snmp;;
+        -lnetsnmphelpers)	echo net-snmp;;
+        -lnetsnmpmibs)		echo net-snmp;;
+        -lrpm)			echo rpm;;
+        -lrpmio)		echo rpm;;
+        -lpopt)			echo popt;;
+        -lsensors)		echo sensors;;
+        -lwrap)			echo tcpd;;
+        -lz)			echo zlib;;
+         *)			AC_MSG_WARN([SNMP library $arg not included in RPM build dependencies])
+    esac
+  done
+}
+
+AC_MSG_CHECKING(What packages are needed for SNMP at compile time for RPMs);
+AC_MSG_RESULT(SNMPLIBSET is $SNMPLIBSET)
+PKGSET=`libs2packages $SNMPLIBSET | tr ' ' '\012' | sort -u`
+PKGSET=`echo $PKGSET`
+AC_MSG_RESULT(PKGSET is $PKGSET)
+
+if test  -z "$PKGSET"; then
+	SNMP_RPM_BUILD_REQUIRES="BuildRequires: ${CC}"
+else
+	SNMP_RPM_BUILD_REQUIRES="BuildRequires: $PKGSET"
+fi
+AC_MSG_RESULT($SNMP_RPM_BUILD_REQUIRES)
+
+AC_SUBST(SNMP_RPM_BUILD_REQUIRES)
 
 AC_ARG_WITH(mibsdir, 
 	[  --with-miBsdir=DIR      directory for mib files. ],
@@ -1175,7 +1247,7 @@ if test "x${enable_snmp_subagent}"  = "xyes" -a "X${MIBS_DIR}" = "X"; then
 		AC_MSG_ERROR(Could not find mibs directory, 
 			please specify with --with-mibsdir);
 	fi
-	AC_MSG_RESULT($MIBS_DIR);
+	AC_MSG_RESULT($MIBS_DIR)
 fi
 AC_SUBST(MIBS_DIR)
 
@@ -1187,9 +1259,10 @@ AM_CONDITIONAL(USE_APC_SNMP, test "$ENABLE_SNMP" = "yes")
 AM_CONDITIONAL(SNMP_SUBAGENT_BUILD, test "x${enable_snmp_subagent}" = "xyes")
 
 
-if test x"$VERSION" \> x"1.9"; then
-	AC_DEFINE(HAVE_NEW_HB_API, 1, [have new heartbeat api])
-fi
+#
+#	We've had this new API for a very long time
+#
+AC_DEFINE(HAVE_NEW_HB_API, 1, [have new heartbeat api])
 
 dnl
 dnl     On many systems libcrypto is needed when linking against libsnmp.
@@ -1205,8 +1278,8 @@ AC_ARG_ENABLE([distro-rpm],
  [  --enable-distro-rpm 	Enable distro-style RPMs
 		[default=no]], [], [enable_distro_rpm=no])
 case $enable_distro_rpm in
-   [Yy][Ee][Ss]*)	DISTRO_STYLE_RPMS=1;;
-   *)			DISTRO_STYLE_RPMS=0;;
+   yes)	DISTRO_STYLE_RPMS=1;;
+   *)	DISTRO_STYLE_RPMS=0;;
 esac
 AC_SUBST(DISTRO_STYLE_RPMS)
 
@@ -2469,7 +2542,7 @@ if test "x${enable_mgmt}" != "xno"; then
      AC_DEFINE_UNQUOTED(MGMT_ENABLED, 1, Define to 1 if the mgmt-daemon and friends are enabled.)
     dnl If this system might be RPM-based, then adjust some RPM-build details
     if test x"${RPM}" != x""; then
-dnl FIXME: a flawy solution but no better one now
+dnl FIXME: a flawed solution but no better one now
          if rpm -q python-gtk > /dev/null; then
               RPM_MGMT_RUNTIME_REQUIRES="libglade2, python-gtk";
          else
