@@ -35,6 +35,7 @@
 #include <ccs.h>
 #include <rg_queue.h>
 #include <msgsimple.h>
+#include <res-ocf.h>
 
 /* XXX - copied :( */
 #define cn_svccount cn_address.cna_address[0] /* Theses are uint8_t size */
@@ -475,6 +476,7 @@ svc_advise_stop(rg_state_t *svcStatus, char *svcName, int req)
 	case RG_STATE_CHECK:
 	case RG_STATE_STARTING:
 	case RG_STATE_RECOVER:
+	case RG_STATE_MIGRATE:
 		if ((svcStatus->rs_owner != my_id()) &&
 		    memb_online(membership, svcStatus->rs_owner)) {
 			/*
@@ -596,6 +598,10 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 		clulog(LOG_ERR,
 		       "#43: Service %s has failed; can not start.\n",
 		       svcName);
+		break;
+
+	case RG_STATE_MIGRATE:
+		ret = 4;
 		break;
 		
 	case RG_STATE_STOPPING:
@@ -909,15 +915,59 @@ svc_migrate(char *svcName, int target)
        
 	ret = group_migrate(svcName, target);
 
-	if (ret == -1 || ret > 0) {
+	switch(ret) {
+	default:
+	case -1:
+	case OCF_RA_ERROR:
+		svc_fail(svcName);
 		/* XXX run svc_status again here to see if it's still
 		   healthy; if it is, don't FAIL it; it could be that
 		   the target node simply died; in this case, set status
 		   back to started */
-		/* if ret > 0 { svc_status... */
-		svc_fail(svcName);
+		return RG_EFAIL;
+		break;
+	case OCF_RA_NOT_RUNNING:
+		/* For these two, the VM was either not running or 
+		   migration is simply impossible. */
+		/* Don't mark the service as failed; since it's either
+		   recoverable or still running. */
 		ret = RG_EFAIL;
+		break;
+	case OCF_RA_NOT_CONFIGURED:
+		ret = RG_EINVAL;
+		break;
+	case 0:
+		return 0;
 	}
+
+	/* Ok, we've hit a recoverable condition.  Since VMs and migratory
+	   services are ... well, migratable, we can just flip the state
+	   back to 'started' and error checking will fix it later. */
+	if (rg_lock(svcName, &lockp) < 0) {
+		clulog(LOG_ERR, "#45: Unable to obtain cluster lock: %s\n",
+		       strerror(errno));
+		return ret;
+	}
+
+	if (get_rg_state(svcName, &svcStatus) != 0) {
+		rg_unlock(&lockp);
+		clulog(LOG_ERR, "#46: Failed getting status for RG %s\n",
+		       svcName);
+		return ret;
+	}
+
+	if (svcStatus.rs_last_owner != my_id() ||
+	    svcStatus.rs_owner != target ||
+	    svcStatus.rs_state != RG_STATE_MIGRATE) {
+		rg_unlock(&lockp);
+		return ret;
+	}
+
+	svcStatus.rs_owner = my_id();
+	svcStatus.rs_state = RG_STATE_STARTED;
+
+	set_rg_state(svcName, &svcStatus);
+	rg_unlock(&lockp);
 
 	return ret;
 }
@@ -971,7 +1021,8 @@ get_new_owner(char *svcName)
 		}
 
 		msg_send(&ctx, &msgp, sizeof(msgp));
-		msg_receive(&ctx, &response, sizeof (response), 5);
+		if (msg_receive(&ctx, &response, sizeof (response), 5) != sizeof(response))
+			goto cont;;
 
 		swab_SmMessageSt(&response);
 		if (response.sm_data.d_ret == RG_SUCCESS)
@@ -979,6 +1030,7 @@ get_new_owner(char *svcName)
 		else
 			ret = -1;
 
+cont:
 		msg_close(&ctx);
 	}
 
@@ -2046,7 +2098,7 @@ handle_fd_start_req(char *svcName, int request, int *new_owner)
 	allowed_nodes = member_list();
 
 	while (memb_count(allowed_nodes)) {
-		target = best_target_node(allowed_nodes, -1,
+		target = best_target_node(allowed_nodes, 0,
 	 				  svcName, 1);
 	  	if (target == me) {
 	   		ret = handle_start_remote_req(svcName, request);
@@ -2055,7 +2107,8 @@ handle_fd_start_req(char *svcName, int request, int *new_owner)
 	    	} else if (target < 0) {
 			goto out;
 	       	} else {
-			ret = relocate_service(svcName, request, target);
+			ret = relocate_service(svcName, RG_START_REMOTE,
+					       target);
 		}
 
 		switch(ret) {

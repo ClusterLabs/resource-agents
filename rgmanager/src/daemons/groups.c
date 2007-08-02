@@ -54,6 +54,7 @@ pthread_rwlock_t resource_lock = PTHREAD_RWLOCK_INITIALIZER;
 
 void res_build_name(char *, size_t, resource_t *);
 int get_rg_state_local(char *, rg_state_t *);
+int group_migratory(char *, int);
 
 
 struct status_arg {
@@ -503,13 +504,14 @@ void
 consider_relocate(char *svcName, rg_state_t *svcStatus, uint32_t nodeid,
 		  cluster_member_list_t *membership)
 {
-	int a, b;
+	int a, b, req = RG_RELOCATE;
 
 	/*
 	   Service must be running locally in order to consider for
 	   a relocate
 	 */
-	if (svcStatus->rs_state != RG_STATE_STARTED ||
+	if ((svcStatus->rs_state != RG_STATE_STARTING &&
+	    svcStatus->rs_state != RG_STATE_STARTED) ||
 	    svcStatus->rs_owner != my_id())
 		return;
 
@@ -529,11 +531,16 @@ consider_relocate(char *svcName, rg_state_t *svcStatus, uint32_t nodeid,
 	if (a <= b)
 		return;
 
-	clulog(LOG_DEBUG, "Relocating group %s to better node %s\n",
+	if (group_migratory(svcName, 1)) {
+		req = RG_MIGRATE;
+	}
+
+	clulog(LOG_NOTICE, "%s %s to better node %s\n",
+	       req==RG_MIGRATE ? "Migrating":"Relocating",
 	       svcName,
 	       memb_id_to_name(membership, nodeid));
 
-	rt_enqueue_request(svcName, RG_RELOCATE, NULL, 0, nodeid, 0, 0);
+	rt_enqueue_request(svcName, req, NULL, 0, nodeid, 0, 0);
 }
 
 

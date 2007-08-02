@@ -666,8 +666,10 @@ build_tree(int ccsfd, resource_node_t **tree,
 			}
 		}
 		/* No resource rule matching the child?  Press on... */
-		if (!flags)
+		if (!flags) {
+			free(ref);
 			continue;
+		}
 
 		flags = 0;
 		/* Don't descend on anything we should have already picked
@@ -687,11 +689,9 @@ build_tree(int ccsfd, resource_node_t **tree,
 			break;
 		}
 
-		if (flags == 2) {
-			free(ref);
-			continue;
-		}
 		free(ref);
+		if (flags == 2)
+			continue;
 
 		x = 1;
 		switch(do_load_resource(ccsfd, tok, childrule, tree,
@@ -1040,8 +1040,11 @@ do_status(resource_node_t *node)
 	}
 
 	/* No check levels ready at the moment. */
-	if (idx == -1)
-		return 0;
+	if (idx == -1) {
+		if (node->rn_checked)
+			return node->rn_last_status;
+  		return 0;
+	}
 
  	/* Clear all check levels lower than us */
  	for (x = 0; node->rn_actions[x].ra_name; x++) {
@@ -1064,11 +1067,14 @@ do_status(resource_node_t *node)
  		node->rn_actions[idx].ra_depth,
  		(int)node->rn_actions[idx].ra_interval);*/
  
-	node->rn_actions[idx].ra_last = now;
-	if ((x = res_exec(node, RS_STATUS, NULL,
-                         node->rn_actions[idx].ra_depth)) == 0)
-		return 0;
-
+ 	node->rn_actions[idx].ra_last = now;
+ 	x = res_exec(node, RS_STATUS, NULL, node->rn_actions[idx].ra_depth);
+ 
+ 	node->rn_last_status = x;
+ 	node->rn_last_depth = node->rn_actions[idx].ra_depth;
+ 	node->rn_checked = 1;
+ 	if (x == 0)
+  		return 0;
 	if (!has_recover)
 		return x;
 
@@ -1127,14 +1133,18 @@ clear_checks(resource_node_t *node)
 
 	now = res->r_started;
 
-       for (; node->rn_actions[x].ra_name; x++) {
+	for (; node->rn_actions[x].ra_name; x++) {
 
-               if (strcmp(node->rn_actions[x].ra_name, "monitor") &&
-                   strcmp(node->rn_actions[x].ra_name, "status"))
+		if (strcmp(node->rn_actions[x].ra_name, "monitor") &&
+		    strcmp(node->rn_actions[x].ra_name, "status"))
 			continue;
 
-               node->rn_actions[x].ra_last = now;
+		node->rn_actions[x].ra_last = now;
 	}
+
+	node->rn_checked = 0;
+	node->rn_last_status = 0;
+	node->rn_last_depth = 0;
 }
 
 

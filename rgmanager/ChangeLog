@@ -1,3 +1,16 @@
+2007-08-02 Lon Hohberger <lhh at redhat.com>
+	* general: More fixes around #248727
+	* include/reslist.h, src/daemons/restree.c: Make last-value be
+	returned or resources which have been checked recently
+	* src/daemons/groups.c: Make VMs use migrate semantics instead of
+	relocate semantics when employing failover domain rules
+	* src/daemons/nodeevent.c: Fix VMs ending up on wrong nodes when
+	simultaneous boot occurs
+	* src/daemons/rg_forward.c: Fix erroneous timeout
+	* src/daemons/rg_state.c: Handle RG_STATE_MIGRATE in svc_advise_*
+	Handle certain migration failures.
+	* src/resources/vm.sh: Handle certain migration failures
+
 2007-07-31 Lon Hohberger <lhh at redhat.com>
 	* general: Make VMs not change state when added/removed from the
 	cluster config or bounce services/VMs when minor config changes

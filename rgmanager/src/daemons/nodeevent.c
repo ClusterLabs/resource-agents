@@ -42,6 +42,7 @@ static pthread_mutex_t ne_queue_mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
 static nevent_t *event_queue = NULL;
 static pthread_t ne_thread = 0;
+static int transition_throttling = 5;
 int ne_queue_request(int local, int nodeid, int state);
 
 void hard_exit(void);
@@ -51,6 +52,15 @@ void flag_reconfigure(int sig);
 
 extern int running;
 extern int shutdown_pending;
+
+
+void
+set_transition_throttling(int nsecs)
+{
+	if (nsecs < 0)
+		nsecs = 0;
+	transition_throttling = nsecs;
+}
 
 
 /**
@@ -88,10 +98,15 @@ node_event(int local, int nodeID, int nodeStatus, int clean)
 		if (shutdown_pending) {
 			clulog(LOG_NOTICE, "Processing delayed exit signal\n");
 			running = 0;
+			return;
 		}
 		setup_signal(SIGINT, flag_shutdown);
 		setup_signal(SIGTERM, flag_shutdown);
 		setup_signal(SIGHUP, flag_reconfigure);
+
+		/* Let things settle if we're booting multiple */
+		if (transition_throttling)
+			sleep(transition_throttling);
 
 		eval_groups(1, nodeID, 1);
 		return;

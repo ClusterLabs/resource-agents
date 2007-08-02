@@ -24,6 +24,8 @@ export PATH
 
 . $(dirname $0)/ocf-shellfuncs || exit 1
 
+. $(dirname $0)/ocf-shellfuncs
+
 #
 # Virtual Machine start/stop script (requires the xm command)
 #
@@ -410,8 +412,22 @@ verify_all()
 migrate()
 {
 	declare target=$1
+	declare errstr rv
+	
+	err=$(xm migrate $OCF_RESKEY_name $target 2>&1 | head -1)
+	rv=$?
 
-	xm migrate $OCF_RESKEY_name $target
+	if [ $rv -ne 0 ]; then
+		if [ "$err" != "${err/does not exist/}" ]; then
+			ocf_log warn "Trying to migrate '$OCF_RESKEY_name' - domain does not exist"
+			return $OCF_NOT_RUNNING
+		fi
+		if [ "$err" != "${err/Connection refused/}" ]; then
+			ocf_log warn "Trying to migrate '$OCF_RESKEY_name' - connect refused"
+			return $OCF_ERR_CONFIGURED
+		fi
+	fi
+
 	return $?
 }
 

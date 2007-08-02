@@ -122,10 +122,12 @@ forwarding_thread(void *arg)
 				m = NULL;
 				continue;
 			}
-			goto out_fail;
+
+			if (ret == 0)
+				continue;
 		}
 		break;
-	} while(++retries < 60); /* old 60 second rule */
+	} while(++retries < 60); /* old 600 second rule */
 
 	swab_SmMessageSt(&msg);
 

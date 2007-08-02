@@ -128,6 +128,10 @@ typedef struct _rg_node {
 	resource_act_t	*rn_actions;
 	int	rn_state; /* State of this instance of rn_resource */
 	int	rn_flags;
+	int	rn_last_status;
+	int 	rn_last_depth;
+	int	rn_checked;
+	int	rn_pad;
 } resource_node_t;
 
 typedef struct _fod_node {

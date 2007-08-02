@@ -43,7 +43,8 @@
 #ifdef WRAP_THREADS
 void dump_thread_states(FILE *);
 #endif
-int configure_logging(int ccsfd, int debug);
+int configure_rgmanager(int ccsfd, int debug);
+void set_transition_throttling(int);
 
 void node_event(int, int, int, int);
 void node_event_q(int, int, int, int);
@@ -730,7 +731,7 @@ event_loop(msgctx_t *localctx, msgctx_t *clusterctx)
 
 	if (need_reconfigure || check_config_update()) {
 		need_reconfigure = 0;
-		configure_logging(-1, 0);
+		configure_rgmanager(-1, 0);
 		init_resource_groups(1);
 		return 0;
 	}
@@ -789,7 +790,7 @@ void malloc_dump_table(FILE *, size_t, size_t);
  * Configure logging based on data in cluster.conf
  */
 int
-configure_logging(int ccsfd, int dbg)
+configure_rgmanager(int ccsfd, int dbg)
 {
 	char *v;
 	char internal = 0;
@@ -809,6 +810,12 @@ configure_logging(int ccsfd, int dbg)
 	if (ccs_get(ccsfd, "/cluster/rm/@log_level", &v) == 0) {
 		if (!dbg)
 			clu_set_loglevel(atoi(v));
+		free(v);
+	}
+
+	if (ccs_get(ccsfd, "/cluster/rm/@transition_throttling", &v) == 0) {
+		if (!dbg)
+			set_transition_throttling(atoi(v));
 		free(v);
 	}
 
@@ -956,7 +963,7 @@ main(int argc, char **argv)
 	   We know we're quorate.  At this point, we need to
 	   read the resource group trees from ccsd.
 	 */
-	configure_logging(-1, debug);
+	configure_rgmanager(-1, debug);
 	clulog(LOG_NOTICE, "Resource Group Manager Starting\n");
 
 	if (init_resource_groups(0) != 0) {
