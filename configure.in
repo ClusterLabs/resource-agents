@@ -43,7 +43,7 @@ if test -z "$HAPKGVERSION" ; then
 fi
 AM_INIT_AUTOMAKE(heartbeat, $HAPKGVERSION)
 
-RPMREL=1
+RPMREL=2
 AC_SUBST(RPMREL)
 HB_PKG=heartbeat
 AC_SUBST(HB_PKG)
