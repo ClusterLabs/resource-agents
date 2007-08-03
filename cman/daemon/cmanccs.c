@@ -426,9 +426,9 @@ static int get_ccs_join_info(void)
 			write_cman_pipe("Cluster name in CCS does not match that passed to cman_tool");
 			return -ENOENT;
 		}
-	} else {
-		strcpy(cluster_name, str);
 	}
+
+	strcpy(cluster_name, str);
 	free(str);
 
 	error = ccs_get(cd, CLUSTER_ID_PATH, &str);
