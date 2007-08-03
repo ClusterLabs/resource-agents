@@ -412,6 +412,7 @@ case "$1" in
                       exit $OCF_NOT_RUNNING
                   fi;;
     start)        : skip;;
+    stop)         : skip;;
     monitor)      : skip;;
     usage)        usage; exit $OCF_SUCCESS;;
     *)            ocf_log err "Invalid argument [$1]"
