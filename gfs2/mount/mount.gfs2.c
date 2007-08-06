@@ -155,6 +155,7 @@ static void umount_lockproto(char *proto, struct mount_options *mo,
 		lock_dlm_leave(mo, sb, mnterr);
 }
 
+#if 0
 static void check_sys_fs(char *fsname)
 {
 	DIR *d;
@@ -176,6 +177,7 @@ static void check_sys_fs(char *fsname)
 	die("fs type \"%s\" not found in /sys/fs/, is the module loaded?\n",
 	    fsname);
 }
+#endif
 
 int main(int argc, char **argv)
 {
@@ -199,7 +201,11 @@ int main(int argc, char **argv)
 		exit(EXIT_SUCCESS);
 	}
 
-	check_sys_fs(fsname);
+	/* This breaks on-demand fs module loading from the kernel; could we
+	   try to load the module first here and then check again and fail if
+	   nothing?  I'd really like to avoid joining the group and then
+	   backing out if the mount fails to load the module. */
+	/* check_sys_fs(fsname); */
 
 	read_options(argc, argv, &mo);
 	check_options(&mo);
@@ -227,7 +233,8 @@ int main(int argc, char **argv)
 
 		if (errno == EBUSY)
 			die("%s already mounted or %s busy\n", mo.dev, mo.dir);
-		die("error %d mounting %s on %s\n", errno, mo.dev, mo.dir);
+		die("error mounting %s on %s: %s\n", mo.dev, mo.dir,
+		    strerror(errno));
 	}
 	log_debug("mount(2) ok");
 	mount_result_lockproto(proto, &mo, &sb, 0);
