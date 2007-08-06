@@ -41,10 +41,6 @@
 #include <sched.h>
 #include <signal.h>
 #include <sys/time.h>
-#include <linux/netlink.h>
-#include <linux/genetlink.h>
-#include <linux/dlm.h>
-#include <linux/dlm_netlink.h>
 
 #include <openais/saAis.h>
 #include <openais/saCkpt.h>
@@ -129,6 +125,7 @@ void set_client_lockspace(int ci, struct lockspace *ls);
 struct lockspace *get_client_lockspace(int ci);
 struct lockspace *create_ls(char *name);
 struct lockspace *find_ls(char *name);
+char *dlm_mode_str(int mode);
 
 /* member_cman.c */
 int is_cman_member(int nodeid);

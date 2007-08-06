@@ -11,8 +11,9 @@
 ******************************************************************************/
 
 #include "dlm_daemon.h"
+#include "libdlm.h"
 
-int deadlock_enabled;
+int deadlock_enabled = 0;
 
 extern struct list_head lockspaces;
 extern int our_nodeid;
@@ -60,41 +61,46 @@ struct dlm_lkb {
 	struct list_head        list;       /* r->locks */
 	struct pack_lock	lock;       /* data from debugfs/checkpoint */
 	unsigned int		time;       /* waiting time read from debugfs */
-	int			from;       /* node that checkpointed the lock */
+	int			from;       /* node that checkpointed the lock*/
 	struct dlm_rsb		*rsb;       /* lock against this resource */
 	struct trans		*trans;     /* lock owned by this transaction */
 	struct list_head	trans_list; /* tr->locks */
 };
 
-#define TR_NALLOC 4               /* waitfor pointers alloc'ed 4 at at time */
+/* waitfor pointers alloc'ed 4 at at time */
+#define TR_NALLOC		4
 
 struct trans {
-	struct list_head list;
-	struct list_head locks;
-	uint64_t xid;
-	int others_waiting_on_us; /* count of trans's pointing to us in waitfor */
-	int waitfor_alloc;
-	int waitfor_count;        /* count of in-use waitfor slots */
-	struct trans **waitfor;   /* waitfor_alloc trans pointers */
+	struct list_head	list;
+	struct list_head	locks;
+	uint64_t		xid;
+	int			others_waiting_on_us; /* count of trans's
+							 pointing to us in
+							 waitfor */
+	int			waitfor_alloc;
+	int			waitfor_count;        /* count of in-use
+							 waitfor slots */
+	struct trans		**waitfor;	      /* waitfor_alloc trans
+							 pointers */
 };
 
-#define DLM_HEADER_MAJOR 1
-#define DLM_HEADER_MINOR 0
-#define DLM_HEADER_PATCH 0
+#define DLM_HEADER_MAJOR	1
+#define DLM_HEADER_MINOR	0
+#define DLM_HEADER_PATCH	0
 
-#define DLM_MSG_CYCLE_START 1
+#define DLM_MSG_CYCLE_START	 1
 #define DLM_MSG_CHECKPOINT_READY 2
-#define DLM_MSG_CANCEL_LOCK 3
+#define DLM_MSG_CANCEL_LOCK	 3
 
 struct dlm_header {
-	uint16_t	version[3];
-	uint16_t	type; /* MSG_ */
-	uint32_t	nodeid; /* sender */
-	uint32_t	to_nodeid; /* 0 if to all */
-	uint32_t	global_id;
-	uint32_t	lock_id;
-	uint32_t	pad;
-	char		name[MAXNAME];
+	uint16_t		version[3];
+	uint16_t		type; /* MSG_ */
+	uint32_t		nodeid; /* sender */
+	uint32_t		to_nodeid; /* 0 if to all */
+	uint32_t		global_id;
+	uint32_t		lkid;
+	uint32_t		pad;
+	char			name[MAXNAME];
 };
 
 static const int __dlm_compat_matrix[8][8] = {
@@ -836,19 +842,14 @@ void send_cycle_start(struct lockspace *ls)
 	send_message(ls, DLM_MSG_CYCLE_START);
 }
 
-/* FIXME: where to send this?  we want to do the cancel on the node
-   where the transaction lives, which isn't always the master node that
-   sent us the info.  look at lkb->from and lkb->lock.nodeid, use
-   remid if sending to a process copy node */
-
 static void send_cancel_lock(struct lockspace *ls, struct trans *tr,
 			     struct dlm_lkb *lkb)
 {
 	struct dlm_header *hd;
 	int len;
 	char *buf;
-
-	log_group(ls, "send_cancel_lock");
+	int to_nodeid;
+	uint32_t lkid;
 
 	len = sizeof(struct dlm_header);
 	buf = malloc(len);
@@ -859,13 +860,28 @@ static void send_cancel_lock(struct lockspace *ls, struct trans *tr,
 	}
 	memset(buf, 0, len);
 
+	if (lkb->lock.nodeid) {
+		/* this was MSTCPY lkb from master node */
+		to_nodeid = lkb->lock.nodeid;
+		lkid = lkb->lock.remid;
+	} else {
+		/* process-copy lkb from node where lock is held */
+		to_nodeid = lkb->from;
+		lkid = lkb->lock.id;
+	}
+
+	log_group(ls, "send_cancel_lock to %x lkid %d, id %x remid %x "
+		  "nodeid %d from %d", to_nodeid, lkid,
+		  lkb->lock.id, lkb->lock.remid, lkb->lock.nodeid, lkb->from);
+
 	hd = (struct dlm_header *)buf;
 	hd->version[0]  = cpu_to_le16(DLM_HEADER_MAJOR);
 	hd->version[1]  = cpu_to_le16(DLM_HEADER_MINOR);
 	hd->version[2]  = cpu_to_le16(DLM_HEADER_PATCH);
 	hd->type	= cpu_to_le16(DLM_MSG_CANCEL_LOCK);
 	hd->nodeid      = cpu_to_le32(our_nodeid);
-	hd->to_nodeid   = 0;
+	hd->to_nodeid   = cpu_to_le32(to_nodeid);
+	hd->lkid        = cpu_to_le32(lkid);
 	hd->global_id   = cpu_to_le32(ls->global_id);
 	memcpy(hd->name, ls->name, strlen(ls->name));
 
@@ -926,6 +942,32 @@ static void receive_cycle_start(struct lockspace *ls, int nodeid)
 	send_checkpoint_ready(ls);
 }
 
+static void receive_cancel_lock(struct lockspace *ls, int nodeid, uint32_t lkid)
+{
+	dlm_lshandle_t h;
+	int rv;
+
+	if (nodeid != our_nodeid)
+		return;
+
+	h = dlm_open_lockspace(ls->name);
+	if (!h) {
+		log_error("deadlock cancel %x from %d can't open lockspace %s",
+			  lkid, nodeid, ls->name);
+		return;
+	}
+
+	log_group(ls, "receive_cancel_lock %x from %d", lkid, nodeid);
+
+	rv = dlm_ls_deadlock_cancel(h, lkid, 0);
+	if (rv < 0) {
+		log_error("deadlock cancel %x from %x lib cancel error %d",
+			  lkid, nodeid, rv);
+	}
+
+	dlm_close_lockspace(h);
+}
+
 static void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 		uint32_t nodeid, uint32_t pid, void *data, int data_len)
 {
@@ -958,6 +1000,9 @@ static void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 		break;
 	case DLM_MSG_CHECKPOINT_READY:
 		receive_checkpoint_ready(ls, hd->nodeid);
+		break;
+	case DLM_MSG_CANCEL_LOCK:
+		receive_cancel_lock(ls, hd->nodeid, hd->lkid);
 		break;
 	default:
 		log_error("unknown message type %d from %d",
@@ -1391,27 +1436,6 @@ static char *status_str(int lksts)
 	return "?";
 }
 
-static char *mode_str(int mode)
-{
-	switch (mode) {
-	case DLM_LOCK_IV:
-		return "IV";
-	case DLM_LOCK_NL:
-		return "NL";
-	case DLM_LOCK_CR:
-		return "CR";
-	case DLM_LOCK_CW:
-		return "CW";
-	case DLM_LOCK_PR:
-		return "PR";
-	case DLM_LOCK_PW:
-		return "PW";
-	case DLM_LOCK_EX:
-		return "EX";
-	}
-	return "??";
-}
-
 static void dump_trans(struct lockspace *ls, struct trans *tr)
 {
 	struct dlm_lkb *lkb;
@@ -1428,8 +1452,8 @@ static void dump_trans(struct lockspace *ls, struct trans *tr)
 		log_group(ls, "  %s: id %08x gr %s rq %s pid %u \"%s\"",
 			  status_str(lkb->lock.status),
 			  lkb->lock.id,
-			  mode_str(lkb->lock.grmode),
-			  mode_str(lkb->lock.rqmode),
+			  dlm_mode_str(lkb->lock.grmode),
+			  dlm_mode_str(lkb->lock.rqmode),
 			  lkb->lock.ownpid,
 			  lkb->rsb->name);
 	}

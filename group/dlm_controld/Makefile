@@ -26,7 +26,7 @@ CFLAGS += -idirafter ${KERNEL_SRC}/include/linux
 CFLAGS += -I../../group/lib/ -I../include/ -I../../dlm/lib/
 CFLAGS += -I${incdir}
 
-LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -L${openaislibdir} -lccs -lcman -lcpg -lSaCkpt
+LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -L${openaislibdir} -lccs -lcman -lcpg -lSaCkpt -ldlm
 LDFLAGS += -L../lib -lgroup
 
 all: depends ${TARGET}

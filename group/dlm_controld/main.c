@@ -12,6 +12,11 @@
 
 #include "dlm_daemon.h"
 
+#include <linux/netlink.h>
+#include <linux/genetlink.h>
+#include <linux/dlm.h>
+#include <linux/dlm_netlink.h>
+
 #define OPTION_STRING			"KDhVd:"
 #define LOCKFILE_NAME			"/var/run/dlm_controld.pid"
 
@@ -22,7 +27,7 @@
 struct list_head lockspaces;
 
 extern group_handle_t gh;
-extern deadlock_enabled = 0;
+extern int deadlock_enabled;
 
 static int daemon_quit;
 static int client_maxi;
@@ -184,6 +189,26 @@ static char *get_args(char *buf, int *argc, char **argv, char sep, int want)
 	return rp;
 }
 
+char *dlm_mode_str(int mode)
+{
+	switch (mode) {
+	case DLM_LOCK_IV:
+		return "IV";
+	case DLM_LOCK_NL:
+		return "NL";
+	case DLM_LOCK_CR:
+		return "CR";
+	case DLM_LOCK_CW:
+		return "CW";
+	case DLM_LOCK_PR:
+		return "PR";
+	case DLM_LOCK_PW:
+		return "PW";
+	case DLM_LOCK_EX:
+		return "EX";
+	}
+	return "??";
+}
 
 /* recv "online" (join) and "offline" (leave) 
    messages from dlm via uevents and pass them on to groupd */
