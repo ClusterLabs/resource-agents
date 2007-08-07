@@ -732,7 +732,8 @@ static void write_checkpoint(struct lockspace *ls)
 		return;
 	}
 
-	log_group(ls, "write_checkpoint: open ckpt handle %llx", (long long)h);
+	log_group(ls, "write_checkpoint: open ckpt handle %llx",
+		  (unsigned long long)h);
 	ls->lock_ckpt_handle = (uint64_t) h;
 
 	list_for_each_entry(r, &ls->resources, list) {
@@ -791,7 +792,7 @@ static int _send_message(cpg_handle_t h, void *buf, int len, int type)
 	}
 	if (error != CPG_OK) {
 		log_error("cpg_mcast_joined error %d handle %llx",
-			  (int)error, (long long)h);
+			  (int)error, (unsigned long long)h);
 		disable_deadlock();
 		return -1;
 	}
@@ -1232,7 +1233,7 @@ static int locks_compat(struct dlm_lkb *waiting_lkb,
 
 	if (waiting_lkb->trans->xid == granted_lkb->trans->xid) {
 		log_debug("waiting and granted same trans %llx",
-			  (long long)waiting_lkb->trans->xid);
+			  (unsigned long long)waiting_lkb->trans->xid);
 		return 0;
 	}
 
@@ -1240,19 +1241,35 @@ static int locks_compat(struct dlm_lkb *waiting_lkb,
 				waiting_lkb->lock.rqmode);
 }
 
-/* TODO: don't add new waitfor trans if we're already waiting for the same
-   trans for another lock */
+static int in_waitfor(struct trans *tr, struct trans *add_tr)
+{
+	int i;
 
-static void add_waitfor(struct dlm_lkb *waiting_lkb,
+	for (i = 0; i < tr->waitfor_alloc; i++) {
+		if (!tr->waitfor[i])
+			continue;
+		if (tr->waitfor[i] == add_tr)
+			return 1;
+	}
+	return 0;
+}
+
+static void add_waitfor(struct lockspace *ls, struct dlm_lkb *waiting_lkb,
 			struct dlm_lkb *granted_lkb)
 {
-	struct trans *tr;
+	struct trans *tr = waiting_lkb->trans;
 	int old_alloc, i;
 
 	if (locks_compat(waiting_lkb, granted_lkb))
 		return;
 
-	tr = waiting_lkb->trans;
+	/* don't add the same trans to the waitfor list multiple times */
+	if (tr->waitfor_count && in_waitfor(tr, granted_lkb->trans)) {
+		log_group(ls, "trans %llx already waiting for trans %llx",
+			  (unsigned long long)tr->xid,
+			  (unsigned long long)granted_lkb->trans->xid);
+		return;
+	}
 
 	if (tr->waitfor_count == tr->waitfor_alloc) {
 		old_alloc = tr->waitfor_alloc;
@@ -1289,7 +1306,7 @@ static void create_waitfor_graph(struct lockspace *ls)
 				if (granted_lkb->lock.status==DLM_LKSTS_WAITING)
 					continue;
 				/* granted_lkb status is GRANTED or CONVERT */
-				add_waitfor(waiting_lkb, granted_lkb);
+				add_waitfor(ls, waiting_lkb, granted_lkb);
 			}
 		}
 	}
