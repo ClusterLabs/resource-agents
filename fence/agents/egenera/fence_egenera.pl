@@ -14,6 +14,7 @@ $BUILD_DATE="";
 
 # Get the program name from $0 and strip directory names
 $_=$0;
+$|=1;
 s/.*\///;
 my $pname = $_;
 
@@ -150,6 +151,10 @@ sub get_options_stdin
 
 		# FIXME should we do more error checking?  
 		# Excess name/vals will be eaten for now
+		else 
+		{
+			fail "parse error: unknown option \"$opt\"";
+		}
 	}
 }
 
@@ -256,7 +261,7 @@ sub pserver_boot
 		}
 
 		# Is there any harm in sending this command multiple times?
-		my $cmd = "ssh $cserv $esh blade -b $_";
+		my $cmd = "ssh $cserv $esh pserver -b $lpan/$pserv";
 		my $pid = open3 (\*WTR, \*RDR,\*RDR, $cmd)
 			or die "error open3(): $!";
 
@@ -278,11 +283,15 @@ sub pserver_boot
 sub pserver_shutdown
 {
 	my $rtrn=1;
+        local *egen_log;
+        open(egen_log,">/tmp/eglog");
 	for (my $trys=0; $trys<20; $trys++)
 	{
 		last if (pserver_status != 0);
 
+
 		my $status = $_;
+                print egen_log "shutdown: $trys    $status\n";
 		if (/^Shutdown/)
 		{
 			$rtrn=0;
@@ -294,6 +303,12 @@ sub pserver_shutdown
 			# do I need to do anything here?  
 			# We'll just wait for now
 		}
+		elsif (/^Booted\(KDB\)/ || /^Debugging/ )
+		{
+			print egen_log "shutdown: crash dump being performed. Waiting\n";
+			$rtrn=0;
+			last;
+		}
 		else
 		{
 			if (pserver_pblade)
@@ -304,8 +319,12 @@ sub pserver_shutdown
 			# is there any harm in sending this command multiple 
 			# times?
 			my $cmd = "ssh $cserv $esh blade -s $_";
+                        print egen_log "shutdown: $cmd  being called, before open3\n";
 			my $pid = open3 (\*WTR, \*RDR,\*RDR, $cmd)
 				or die "error open3(): $!";
+                        print egen_log "shutdown: after calling open3\n";
+                        @outlines = <RDR>;
+                        print egen_log "shutdown: Open3 result: ", @outlines, "\n";
 
 			close WTR;
 			close RDR;
@@ -316,6 +335,7 @@ sub pserver_shutdown
 
 		sleep 1;
 	}
+        print egen_log "shutdown: Returning from pserver_shutdown with return code $rtrn\n";
 	return $rtrn;
 }
 
