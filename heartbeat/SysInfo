@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 #
 #	SysInfo OCF Resource Agent
@@ -166,8 +166,7 @@ SysInfoStats() {
     fi
 
     loads=`uptime`
-    load15=`echo ${loads/*average/} | awk '{print $4}'`
-    load15=${load15/.*/}
+    load15=`echo ${loads} | awk '{print $10}'`
     UpdateStat cpu_load $load15
 
     if [ ! -z "$mem" ]; then
