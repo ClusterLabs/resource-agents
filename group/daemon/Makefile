@@ -21,7 +21,7 @@ OBJS=	app.o \
 	main.o
 
 CFLAGS += -g 
-CFLAGS += -I${cmanincdir}
+CFLAGS += -I${cmanincdir} -I${openaisincdir}
 CFLAGS += -I. -I../include/ -I../lib/
 CFLAGS += -I${incdir}
 

@@ -21,12 +21,13 @@ OBJS=	main.o \
 	deadlock.o
 
 CFLAGS += -g 
-CFLAGS += -I${ccsincdir} -I${cmanincdir}
+CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmincdir} -I${openaisincdir}
 CFLAGS += -idirafter ${KERNEL_SRC}/include/linux
-CFLAGS += -I../../group/lib/ -I../include/ -I../../dlm/lib/
+CFLAGS += -I../../group/lib/ -I../include/
 CFLAGS += -I${incdir}
 
-LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -L${openaislibdir} -lccs -lcman -lcpg -lSaCkpt -ldlm
+LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -L${dlmlibdir} -lccs -lcman -ldlm
+LDFLAGS += -L${openaislibdir} -lcpg -lSaCkpt
 LDFLAGS += -L../lib -lgroup
 
 all: depends ${TARGET}
