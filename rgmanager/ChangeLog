@@ -1,3 +1,7 @@
+2007-08-09  Fabio M. Di Nitto <fabbione at ubuntu.com>
+	* rgmanager/src/clulib/alloc.c: Undefine DEBUG when building on
+	PARISC. __builtin_address needs the same love as IA64.
+
 2007-08-02 Lon Hohberger <lhh at redhat.com>
 	* general: More fixes around #248727
 	* include/reslist.h, src/daemons/restree.c: Make last-value be

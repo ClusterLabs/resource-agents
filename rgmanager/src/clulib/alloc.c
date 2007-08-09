@@ -116,7 +116,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
-#ifndef __ia64__
+#if !defined(__ia64__) && !defined(__hppa__)
 #ifndef DEBUG
 #define DEBUG			/* Record program counter of malloc/calloc */
 #endif				/* or realloc call; print misc stuff out */
