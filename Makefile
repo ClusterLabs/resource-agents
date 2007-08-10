@@ -12,12 +12,12 @@
 include make/defines.mk
 
 KERNEL=gnbd-kernel gfs-kernel
-USERLAND=cman-lib ccs cman group dlm fence gfs gfs2 gnbd rgmanager
+USERLAND=cman-lib ccs cman dlm group fence gfs gfs2 gnbd rgmanager
 
 MODULES=${KERNEL} ${USERLAND}
 
 KSUBDIRS=gnbd-kernel/src gfs-kernel/src/gfs
-SUBDIRS=ccs cman group dlm fence gfs gfs2 gnbd rgmanager
+SUBDIRS=ccs cman dlm group fence gfs gfs2 gnbd rgmanager
 
 all: build
 
@@ -53,11 +53,11 @@ ccs: cman-lib
 cman: ccs
 	${MAKE} -C cman all
 
-group: ccs
-	${MAKE} -C group all
-
 dlm:
 	${MAKE} -C dlm all
+
+group: ccs dlm
+	${MAKE} -C group all
 
 fence: group dlm
 	${MAKE} -C fence all
