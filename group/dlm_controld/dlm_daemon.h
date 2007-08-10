@@ -86,6 +86,7 @@ struct lockspace {
 	struct list_head	list;
 	char			name[MAXNAME+1];
 	uint32_t		global_id;
+	int			low_nodeid;
 	int			joining;
 	int			cpg_ci;
 	cpg_handle_t		cpg_h;
@@ -95,6 +96,7 @@ struct lockspace {
 	struct list_head	nodes;
 	struct timeval		last_deadlock_check;
 	unsigned int		timewarn_count;
+	int			got_first_confchg;
 };
 
 /* action.c */
