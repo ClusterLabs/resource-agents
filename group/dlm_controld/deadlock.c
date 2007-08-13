@@ -294,14 +294,14 @@ static struct dlm_lkb *get_lkb(struct dlm_rsb *r, struct pack_lock *lock)
 	return create_lkb();
 }
 
-static void add_lock(struct lockspace *ls, struct dlm_rsb *r, int from_nodeid,
-		     struct pack_lock *lock)
+static struct dlm_lkb *add_lock(struct lockspace *ls, struct dlm_rsb *r,
+				int from_nodeid, struct pack_lock *lock)
 {
 	struct dlm_lkb *lkb;
 
 	lkb = get_lkb(r, lock);
 	if (!lkb)
-		return;
+		return NULL;
 
 	switch (lock->copy) {
 	case LOCAL_COPY:
@@ -354,6 +354,7 @@ static void add_lock(struct lockspace *ls, struct dlm_rsb *r, int from_nodeid,
 
 	if (list_empty(&lkb->list))
 		add_lkb(r, lkb);
+	return lkb;
 }
 
 static void parse_r_name(char *line, char *name)
@@ -375,6 +376,77 @@ static void parse_r_name(char *line, char *name)
 }
 
 #define LOCK_LINE_MAX 1024
+
+/* old/original way of dumping (only master state) in 5.1 kernel;
+   does deadlock detection based on pid instead of xid */
+
+static int read_debugfs_master(struct lockspace *ls)
+{
+	FILE *file;
+	char path[PATH_MAX];
+	char line[LOCK_LINE_MAX];
+	struct dlm_rsb *r;
+	struct dlm_lkb *lkb;
+	struct pack_lock lock;
+	char r_name[65];
+	unsigned long long xid;
+	unsigned int waiting;
+	int r_len;
+	int rv;
+
+	snprintf(path, PATH_MAX, "/sys/kernel/debug/dlm/%s_master", ls->name);
+
+	file = fopen(path, "r");
+	if (!file)
+		return -1;
+
+	/* skip the header on the first line */
+	fgets(line, LOCK_LINE_MAX, file);
+
+	while (fgets(line, LOCK_LINE_MAX, file)) {
+		memset(&lock, 0, sizeof(struct pack_lock));
+
+		rv = sscanf(line, "%x %d %x %u %llu %x %hhd %hhd %hhd %u %d",
+			    &lock.id,
+			    &lock.nodeid,
+			    &lock.remid,
+			    &lock.ownpid,
+			    &xid,
+			    &lock.exflags,
+			    &lock.status,
+			    &lock.grmode,
+			    &lock.rqmode,
+			    &waiting,
+			    &r_len);
+
+		if (rv != 11) {
+			log_error("invalid debugfs line %d: %s", rv, line);
+			goto out;
+		}
+
+		memset(r_name, 0, sizeof(r_name));
+		parse_r_name(line, r_name);
+
+		r = get_resource(ls, r_name, r_len);
+		if (!r)
+			break;
+
+		/* we want lock.xid to be zero before calling add_lock
+		   so it will treat this like the full master copy (not
+		   partial).  then set the xid manually at the end to
+		   ownpid (there will be no process copy to merge and
+		   get the xid from in 5.1) */
+
+		set_copy(&lock);
+		lkb = add_lock(ls, r, our_nodeid, &lock);
+		if (!lkb)
+			break;
+		lkb->lock.xid = lock.ownpid;
+	}
+ out:
+	fclose(file);
+	return 0;
+}
 
 static int read_debugfs_locks(struct lockspace *ls)
 {
@@ -1026,10 +1098,8 @@ static void receive_cycle_start(struct lockspace *ls, int nodeid)
 
 	rv = read_debugfs_locks(ls);
 	if (rv < 0) {
-#if 0
 		/* compat for RHEL5.1 kernels */
 		rv = read_debugfs_master(ls);
-#endif
 		if (rv < 0) {
 			log_error("can't read dlm debugfs file: %s",
 				  strerror(errno));
