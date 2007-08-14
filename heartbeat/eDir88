@@ -39,7 +39,8 @@
 # Initialization:
 
 . ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
-. /opt/novell/eDirectory/bin/ndspath 2>/dev/null >/dev/null
+test -f /opt/novell/eDirectory/bin/ndspath &&
+	. /opt/novell/eDirectory/bin/ndspath 2>/dev/null >/dev/null
 
 #######################################################################
 
