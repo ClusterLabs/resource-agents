@@ -37,14 +37,18 @@
 #define FALSE 0
 #endif
 
-#define OPTION_STRING			("Vhcj:f:t:wQ")
+#define OPTION_STRING			("Vht:wQ")
 #define FENCED_SOCK_PATH                "fenced_socket"
 #define MAXLINE				256
 
 #define OP_JOIN  			1
 #define OP_LEAVE 			2
-#define OP_MONITOR			3
-#define OP_WAIT				4
+#define OP_WAIT				3
+#define OP_DUMP				4
+
+/* needs to match the same in cluster/group/daemon/gd_internal.h and
+   cluster/group/gfs_controld/lock_dlm.h and cluster/fence/fenced/fd.h */
+#define DUMP_SIZE                       (1024 * 1024)
 
 #define die(fmt, args...) \
 do \
@@ -63,10 +67,47 @@ int fenced_start_timeout = 300; /* five minutes */
 int signalled = 0;
 cman_handle_t ch;
 
+static int do_write(int fd, void *buf, size_t count)
+{
+	int rv, off = 0;
+
+ retry:
+	rv = write(fd, buf + off, count);
+	if (rv == -1 && errno == EINTR)
+		goto retry;
+	if (rv < 0)
+		return rv;
+
+	if (rv != count) {
+		count -= rv;
+		off += rv;
+		goto retry;
+	}
+	return 0;
+}
+
+static int do_read(int fd, void *buf, size_t count)
+{
+	int rv, off = 0;
+
+	while (off < count) {
+		rv = read(fd, buf + off, count - off);
+		if (rv == 0)
+			return -1;
+		if (rv == -1 && errno == EINTR)
+			continue;
+		if (rv == -1)
+			return -1;
+		off += rv;
+	}
+	return 0;
+}
+
 static int get_int_arg(char argopt, char *arg)
 {
 	char *tmp;
-	int val;                                                                                 
+	int val;
+
 	val = strtol(arg, &tmp, 10);
 	if (tmp == arg || tmp != arg + strlen(arg))
 		die("argument to %c (%s) is not an integer", argopt, arg);
@@ -195,7 +236,7 @@ static int do_wait(int joining)
 	for (i=0; !fenced_start_timeout || i < fenced_start_timeout; i++) {
 		if (we_are_in_fence_domain() == joining)
 			return 0;
-		if (!(i % 5))
+		if (i && !(i % 5))
 			printf("Waiting for fenced to %s the fence group.\n",
 				   (joining?"join":"leave"));
 		sleep(1);
@@ -281,41 +322,43 @@ static int do_leave(void)
 	return EXIT_SUCCESS;
 }
 
-static int do_monitor(void)
+static int do_dump(void)
 {
+	char inbuf[DUMP_SIZE];
+	char outbuf[MAXLINE];
 	int fd, rv;
-	char *out, buf[256];
 
 	fd = fenced_connect();
-	if (!fd)
-		die("fenced not running");
 
-	out = "monitor";
+	memset(inbuf, 0, sizeof(inbuf));
+	memset(outbuf, 0, sizeof(outbuf));
 
-	rv = write(fd, out, sizeof(out));
+	sprintf(outbuf, "dump");
+
+	rv = do_write(fd, outbuf, sizeof(outbuf));
 	if (rv < 0)
 		die("can't communicate with fenced");
 
-	while (1) {
-		memset(buf, 0, sizeof(buf));
-		rv = read(fd, buf, sizeof(buf));
-		printf("%s", buf);
-	}
+	rv = do_read(fd, inbuf, sizeof(inbuf));
+	if (rv < 0)
+		printf("dump read: %s\n", strerror(errno));
+
+	do_write(STDOUT_FILENO, inbuf, sizeof(inbuf));
 
 	close(fd);
-	return EXIT_SUCCESS;
+	return 0;
 }
 
 static void print_usage(void)
 {
 	printf("Usage:\n");
 	printf("\n");
-	printf("%s <join|leave|wait> [options]\n", prog_name);
+	printf("%s <join|leave|dump> [options]\n", prog_name);
 	printf("\n");
 	printf("Actions:\n");
 	printf("  join             Join the default fence domain\n");
 	printf("  leave            Leave default fence domain\n");
-	printf("  wait             Wait for node to be member of default fence domain\n");
+	printf("  dump		   Dump debug buffer from fenced\n");
 	printf("\n");
 	printf("Options:\n");
 	printf("  -w               Wait for join to complete\n");
@@ -323,12 +366,6 @@ static void print_usage(void)
 	printf("  -h               Print this help, then exit\n");
 	printf("  -t               Maximum time in seconds to wait\n");
 	printf("  -Q               Fail if cluster is not quorate, don't wait\n");
-	printf("\n");
-	printf("Fenced options:\n");
-	printf("  these are passed on to fenced when it's started\n");
-	printf("  -c               All nodes are in a clean state to start\n");
-	printf("  -j <secs>        Post-join fencing delay\n");
-	printf("  -f <secs>        Post-fail fencing delay\n");
 	printf("\n");
 }
 
@@ -376,12 +413,6 @@ static void decode_arguments(int argc, char *argv[])
 			fenced_start_timeout = get_int_arg(optchar, optarg);
 			break;
 
-		case 'c':
-		case 'j':
-		case 'f':
-			/* Do nothing, just pass these options on to fenced */
-			break;
-
 		default:
 			die("unknown option: %c\n", optchar);
 			break;
@@ -393,8 +424,8 @@ static void decode_arguments(int argc, char *argv[])
 			operation = OP_JOIN;
 		} else if (strcmp(argv[optind], "leave") == 0) {
 			operation = OP_LEAVE;
-		} else if (strcmp(argv[optind], "monitor") == 0) {
-			operation = OP_MONITOR;
+		} else if (strcmp(argv[optind], "dump") == 0) {
+			operation = OP_DUMP;
 		} else
 			die("unknown option %s\n", argv[optind]);
 		optind++;
@@ -415,8 +446,8 @@ int main(int argc, char *argv[])
 		return do_join(argc, argv);
 	case OP_LEAVE:
 		return do_leave();
-	case OP_MONITOR:
-		return do_monitor();
+	case OP_DUMP:
+		return do_dump();
 	case OP_WAIT:
 		return -1;
 	}
