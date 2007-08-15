@@ -854,7 +854,7 @@ usage(char *arg0)
 int
 main(int argc, char **argv)
 {
-	int fd, qs, ret = 0;
+	int qs, ret = 0;
 	cluster_member_list_t *membership;
 	rg_state_list_t *rgs = NULL;
 	int local_node_id;
@@ -945,25 +945,25 @@ main(int argc, char **argv)
 
 	switch(runtype) {
 	case QSTAT_ONLY:
-		if (fd < 0)
+		if (!ch)
 		       break;
 		ret = !(cman_is_quorate(ch));
 		goto cleanup;
 	case VERSION_ONLY:
 		printf("%s version %s\n", basename(argv[0]),
 		       PACKAGE_VERSION);
-		if (fd < 0)
+		if (!ch)
 		       break;
 		goto cleanup;
 	case NODEID_ONLY:
-		if (fd < 0)
+		if (!ch)
 		       break;
 		local_node_id = get_my_nodeid(ch);
 		printf("0x%08x\n",(uint32_t)(local_node_id)); 
 		goto cleanup;
 	}
 
-	if (fd < 0) {
+	if (!ch) {
 		printf("Could not connect to cluster service\n");
 		return 1;
 	}
