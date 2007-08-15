@@ -12,8 +12,8 @@
 
 include ../../make/defines.mk
 
-TARGET1= gfs2_fsck
-TARGET2= fsck.gfs2
+TARGET1= fsck.gfs2
+TARGET2= gfs2_fsck
 
 OBJS=	eattr.o \
 	fs_recovery.o \

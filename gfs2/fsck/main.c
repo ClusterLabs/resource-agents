@@ -139,56 +139,26 @@ int read_cmdline(int argc, char **argv, struct gfs2_options *opts)
 
 void interrupt(int sig)
 {
-	fd_set rfds;
-	struct timeval tv;
 	char response;
-	int err;
+	char progress[PATH_MAX];
 
-	if (opts.query) /* if we're asking them a question */
-		return;     /* ignore the interrupt signal */
-	FD_ZERO(&rfds);
-	FD_SET(STDIN_FILENO, &rfds);
-
-	tv.tv_sec = 0;
-	tv.tv_usec = 0;
-	/* Make sure there isn't extraneous input before asking the
-	 * user the question */
-	while((err = select(STDIN_FILENO + 1, &rfds, NULL, NULL, &tv))) {
-		if(err < 0) {
-			log_debug("Error in select() on stdin\n");
-			break;
-		}
-		read(STDIN_FILENO, &response, sizeof(char));
+	if (!last_reported_block || last_reported_block == last_fs_block)
+		sprintf(progress, "progress unknown.\n");
+	else
+		sprintf(progress, "processing block %" PRIu64 " out of %"
+			PRIu64 "\n", last_reported_block, last_fs_block);
+	
+	response = generic_interrupt("gfs2_fsck", pass, progress,
+				     "Do you want to abort gfs_fsck, skip " \
+				     "the rest of this pass or continue " \
+				     "(a/s/c)?", "asc");
+	if(tolower(response) == 's') {
+		skip_this_pass = TRUE;
+		return;
 	}
-	while (TRUE) {
-		printf("\ngfs_fsck interrupted in %s:  ", pass);
-		if (!last_reported_block || last_reported_block == last_fs_block)
-			printf("progress unknown.\n");
-		else
-			printf("processing block %" PRIu64 " out of %" PRIu64 "\n",
-				   last_reported_block, last_fs_block);
-		printf("Do you want to abort gfs_fsck, skip the rest of %s or continue (a/s/c)?", pass);
-
-		/* Make sure query is printed out */
-		fflush(stdout);
-		read(STDIN_FILENO, &response, sizeof(char));
-
-		if(tolower(response) == 's') {
-			skip_this_pass = TRUE;
-			return;
-		}
-		else if (tolower(response) == 'a') {
-			fsck_abort = TRUE;
-			return;
-		}
-		else if (tolower(response) == 'c')
-			return;
-        else {
-			while(response != '\n')
-				read(STDIN_FILENO, &response, sizeof(char));
-			printf("Bad response, please type 'c', 'a' or 's'.\n");
-			continue;
-        }
+	else if (tolower(response) == 'a') {
+		fsck_abort = TRUE;
+		return;
 	}
 }
 

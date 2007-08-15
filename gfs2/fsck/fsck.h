@@ -19,6 +19,8 @@
 #define FSCK_HASH_SIZE          (1 << FSCK_HASH_SHIFT)
 #define FSCK_HASH_MASK          (FSCK_HASH_SIZE - 1)
 
+#define query(opts, fmt, args...) gfs2_query(&fsck_abort, opts, fmt, ##args)
+
 struct inode_info
 {
         osi_list_t list;

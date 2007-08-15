@@ -496,7 +496,13 @@ void increase_verbosity(void);
 void decrease_verbosity(void);
 void print_fsck_log(int iif, int priority, char *file, int line,
 					const char *format, ...);
-int query(struct gfs2_options *opts, const char *format, ...);
+char gfs2_getch(void);
+
+char generic_interrupt(const char *caller, const char *where,
+		       const char *progress, const char *question,
+		       const char *answers);
+int gfs2_query(int *setonabort, struct gfs2_options *opts,
+	       const char *format, ...);
 
 /* misc.c */
 void compute_constants(struct gfs2_sbd *sdp);

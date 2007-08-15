@@ -1088,8 +1088,12 @@ int main(int argc, char **argv)
 	/* Make them seal their fate.                     */
 	/* ---------------------------------------------- */
 	if (!error) {
+		int abort;
+
 		give_warning();
-		if (!query(&opts, "Convert %s from GFS1 to GFS2? (y/n)", device)) {
+		if (!gfs2_query(&abort, &opts,
+				"Convert %s from GFS1 to GFS2? (y/n)",
+				device)) {
 			log_crit("%s not converted.\n", device);
 			close(sb2.device_fd);
 			exit(0);
