@@ -15,7 +15,7 @@
 #include "ccs.h"
 #include "copyright.cf"
 
-#define OPTION_STRING			("cj:f:Dn:O:hVSw")
+#define OPTION_STRING			("cj:f:Dn:O:hVS")
 #define LOCKFILE_NAME			"/var/run/fenced.pid"
 
 struct client {
@@ -611,11 +611,6 @@ static void decode_arguments(int argc, char **argv, commandline_t *comline)
 				 __DATE__, __TIME__);
 			printf("%s\n", REDHAT_COPYRIGHT);
 			exit(EXIT_SUCCESS);
-			break;
-
-		case 'w':
-			/* do nothing, this is a fence_tool option that
-			   we ignore when fence_tool starts us */
 			break;
 
 		case ':':
