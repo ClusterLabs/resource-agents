@@ -287,7 +287,7 @@ static void show_status(void)
 			printf("\n");
 		}
 	}
-
+	cman_finish(h);
 }
 
 static int node_compare(const void *va, const void *vb)
@@ -413,6 +413,8 @@ static void show_nodes(commandline_t *comline)
 		}
 	}
 	free(nodes);
+	free(dis_nodes);
+	cman_finish(h);
 }
 
 static void show_services(void)
