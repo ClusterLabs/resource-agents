@@ -13,34 +13,22 @@ fence_tool - A program to join and leave the fence domain
 .SH SYNOPSIS
 .B
 fence_tool
-<\fBjoin | leave | wait\fP> 
+<\fBjoin | leave | dump\fP> 
 [\fIOPTION\fR]...
 
 .SH DESCRIPTION
 \fBfence_tool\fP is a program used to join or leave the default fence
-domain.  Specifically, it starts the fence daemon (fenced) to join the
-domain and kills fenced to leave the domain.  Fenced can be started
-and stopped directly without using this program, but fence_tool takes
-some added steps that are often helpful.
+domain.  It communicates with the fenced daemon.  Before telling fenced
+to join the domain, fence_tool waits for the cluster to have quorum,
+making it easier to cancel the command if the cluster is inquorate.
 
-Before joining or leaving the fence domain, fence_tool waits for the
-cluster be in a quorate state.  The user can cancel fence_tool while it's
-waiting for quorum.  It's generally nicer to block waiting for quorum here
-than to have the fence daemon itself waiting to join or leave the domain
-while the cluster is inquorate.
-
-Since \fBfence_tool join\fP is the usual way of starting fenced, the
-fenced options -j, -f, and -c can also be passed to fence_tool which
-passes them on to fenced.
-
-A node must not leave the fence domain (fenced must not be terminated)
-while CLVM or GFS are in use.
+The dump option will read fenced's ring buffer of debug messages and print
+it to stdout.
 
 .SH OPTIONS
 .TP
 \fB-w\fP
-Wait until the join is completed.  "fence_tool join -w" is
-equivalent to "fence_tool join; fence_tool wait"
+Wait until the join or leave is completed.
 .TP
 \fB-h\fP
 Help.  Print out the usage syntax.
@@ -48,17 +36,11 @@ Help.  Print out the usage syntax.
 \fB-V\fP
 Print version information.
 .TP
-\fB-j\fP \fIsecs\fP
-Post-join fencing delay (passed to fenced)
-.TP
-\fB-f\fP \fIsecs\fP
-Post-fail fencing delay (passed to fenced)
-.TP
-\fB-c\fP
-All nodes are in a clean state to start (passed to fenced)
-.TP
 \fB-t\fP
 Maximum time in seconds to wait (default: 300 seconds)
+.TP
+\fB-Q\fP
+Fail command immediately if the cluster is not quorate, don't wait.
 
 .SH SEE ALSO
 fenced(8), fence(8), fence_node(8)

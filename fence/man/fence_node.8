@@ -16,11 +16,9 @@ fence_node
 [\fIOPTION\fR]...
 
 .SH DESCRIPTION
-\fBfence_node\fP is a program which accumulates all the necessary information
-for I/O fencing a particular node and then performs the fencing action by
-issuing a call to the proper fencing agent.  \fBfence_node\fP gets the
-necessary information from the Cluster Configuration System (CCS).  CCS must
-be running and properly configured for \fBfence_node\fP to work properly.
+\fBfence_node\fP is a program that reads the fencing settings from
+cluster.conf (through libccs/ccsd) for the given node and then runs the
+configured fencing agent against the node.
 
 .SH OPTIONS
 .TP

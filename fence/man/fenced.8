@@ -16,65 +16,87 @@ fenced
 [\fIOPTION\fR]...
 
 .SH DESCRIPTION
-The fencing daemon, \fBfenced\fP, should be run on every node that will
-use CLVM or GFS.  It should be started after the node has joined the CMAN
-cluster (fenced is only used with CMAN; it is not used with GULM/SLM/RLM.)
-A node that is not running \fBfenced\fP is not permitted to mount GFS file
-systems.
 
-All fencing daemons running in the cluster form a group called the "fence
-domain".  Any member of the fence domain that fails is fenced by a
-remaining domain member.  The actual fencing does not occur unless the
-cluster has quorum so if a node failure causes the loss of quorum, the
-failed node will not be fenced until quorum has been regained.  If a
-failed domain member (due to be fenced) rejoins the cluster prior to the
-actual fencing operation is carried out, the fencing operation is
-bypassed.
+The fencing daemon, fenced, fences cluster nodes that have failed.
+Fencing a node generally means rebooting it or otherwise preventing it
+from writing to storage, e.g. disabling its port on a SAN switch.  Fencing
+involves interacting with a hardware device, e.g. network power switch,
+SAN switch, storage array.  Different "fencing agents" are run by fenced
+to interact with various hardware devices.
 
-The fencing daemon depends on CMAN for cluster membership information and
-it depends on CCS to provide cluster.conf information.  The fencing daemon
-calls fencing agents according to cluster.conf information.
+Software related to sharing storage among nodes in a cluster, e.g. GFS,
+usually requires fencing to be configured to prevent corruption of the
+storage in the presence of node failure and recovery.  GFS will not allow
+a node to mount a GFS file system unless the node is running fenced.
+Fencing happens in the context of a cman/openais cluster.  A node must be
+a cluster member before it can run fenced.
+
+Once started, fenced waits for the 'fence_tool join' command to be run,
+telling it to join the fence domain: a group of nodes managed by the
+openais/cpg/groupd cluster infrastructure.  In most cases, all nodes will
+join the fence domain after joining the cluster.
+
+Fence domain members are aware of the membership of the group, and are
+notified when nodes join or leave.  If a fence domain member fails, one of
+the remaining members will fence it.  If the cluster has lost quorum,
+fencing won't occur until quorum has been regained.  If a failed node is
+reset and rejoins the cluster before the remaining domain members have
+fenced it, the fencing will be bypassed.
 
 .SS Node failure
 
-When a domain member fails, the actual fencing must be completed before
-GFS recovery can begin.  This means any delay in carrying out the fencing
-operation will also delay the completion of GFS file system operations;
-most file system operations will hang during this period.
+When a domain member fails, fenced runs an agent to fence it.  The
+specific agent to run and the parameters the agent requires are all read
+from the cluster.conf file (using libccs) at the time of fencing.  The
+fencing operation against a failed node is not considered complete until
+the exec'ed agent exits.  The exit value of the agent indicates the
+success or failure of the operation.  If the operation failed, fenced will
+retry (possibly with a different agent, depending on the configuration)
+until fencing succeeds.  Other systems such as DLM and GFS will not begin
+their own recovery for a failed node until fenced has successfully
+completed fencing it.  So, a delay or problem in fencing will result in
+other systems like DLM/GFS being blocked.  Information about fencing
+operations will appear in syslog.
 
 When a domain member fails, the actual fencing operation can be delayed by
-a configurable number of seconds (post_fail_delay or -f).  Within this
-time the failed node can rejoin the cluster to avoid being fenced.  This
-delay is 0 by default to minimize the time that applications using GFS are
-stalled by recovery.  A delay of -1 causes the fence daemon to wait
-indefinitely for the failed node to rejoin the cluster.  In this case the
-node is not fenced and all recovery must wait until the failed node
-rejoins the cluster.
+a configurable number of seconds (cluster.conf:post_fail_delay or -f).
+Within this time, the failed node could be reset and rejoin the cluster to
+avoid being fenced.  This delay is 0 by default to minimize the time that
+other systems are blocked (see above).
 
 .SS Domain startup
 
 When the domain is first created in the cluster (by the first node to join
 it) and subsequently enabled (by the cluster gaining quorum) any nodes
-listed in cluster.conf that are not presently members of the CMAN cluster
-are fenced.  The status of these nodes is unknown and to be on the side of
-safety they are assumed to be in need of fencing.  This startup fencing
-can be disabled; but it's only truely safe to do so if an operator is
+listed in cluster.conf that are not presently members of the cman cluster
+are fenced.  The status of these nodes is unknown, and to be on the side
+of safety they are assumed to be in need of fencing.  This startup fencing
+can be disabled, but it's only truely safe to do so if an operator is
 present to verify that no cluster nodes are in need of fencing.
-(Dangerous nodes that need to be fenced are those that had gfs mounted,
-did not cleanly unmount, and are now either hung or unable to communicate
-with other nodes over the network.)
+
+This example illustrates why startup fencing is important.  Take a three
+node cluster with nodes A, B and C; all three have a GFS fs mounted.  All
+three nodes experience a low-level kernel hang at about the same time.  A
+watchdog triggers a reboot on nodes A and B, but not C.  A and B boot back
+up, form the cluster again, gain quorum, join the fence domain, *don't*
+fence node C which is still hung and unresponsive, and mount the GFS fs
+again.  If C were to come back to life, it could corrupt the fs.  So, A
+and B need to fence C when they reform the fence domain since they don't
+know the state of C.  If C *had* been reset by a watchdog like A and B,
+but was just slow in rebooting, then A and B might be fencing C
+unnecessarily when they do startup fencing.
 
 The first way to avoid fencing nodes unnecessarily on startup is to ensure
 that all nodes have joined the cluster before any of the nodes start the
 fence daemon.  This method is difficult to automate.
 
 A second way to avoid fencing nodes unnecessarily on startup is using the
-post_join_delay parameter (or -j option).  This is the number of seconds
-the fence daemon will delay before actually fencing any victims after
-nodes join the domain.  This delay will give any nodes that have been
-tagged for fencing the chance to join the cluster and avoid being fenced.
-A delay of -1 here will cause the daemon to wait indefinitely for all
-nodes to join the cluster and no nodes will actually be fenced on startup.
+cluster.conf:post_join_delay setting (or -j option).  This is the number
+of seconds fenced will delay before actually fencing any victims after
+nodes join the domain.  This delay gives nodes that have been tagged for
+fencing a chance to join the cluster and avoid being fenced.  A delay of
+-1 here will cause the daemon to wait indefinitely for all nodes to join
+the cluster and no nodes will actually be fenced on startup.
 
 To disable fencing at domain-creation time entirely, the -c option can be
 used to declare that all nodes are in a clean or safe state to start.  The
@@ -96,7 +118,7 @@ defaults.
 Post-join delay is the number of seconds the daemon will wait before
 fencing any victims after a node joins the domain.
 
-  <fence_daemon post_join_delay="3">
+  <fence_daemon post_join_delay="6">
   </fence_daemon>
 
 Post-fail delay is the number of seconds the daemon will wait before
@@ -112,6 +134,12 @@ to start.
   <fence_daemon clean_start="0">
   </fence_daemon>
 
+Override-path is the location of a FIFO used for communication between
+fenced and fence_ack_manual.
+
+  <fence_daemon override_path="/var/run/cluster/fenced_override">
+  </fence_daemon>
+
 .SH OPTIONS
 Command line options override corresonding values in cluster.conf.
 .TP
@@ -124,11 +152,11 @@ Post-fail fencing delay
 \fB-c\fP 
 All nodes are in a clean state to start.
 .TP
+\fB-O\fP
+Path of the override fifo.
+.TP
 \fB-D\fP
 Enable debugging code and don't fork into the background.
-.TP
-\fB-n\fP \fIname\fP
-Name of the fence domain, "default" if none.
 .TP
 \fB-V\fP
 Print the version information and exit.
@@ -136,6 +164,10 @@ Print the version information and exit.
 \fB-h\fP 
 Print out a help message describing available options, then exit.
 
+.SH DEBUGGING
+The fenced daemon keeps a circular buffer of debug messages that can be
+dumped with the 'fence_tool dump' command.
+
 .SH SEE ALSO
-gfs(8), fence(8)
+fence_tool(8), cman(8), groupd(8), group_tool(8)
 

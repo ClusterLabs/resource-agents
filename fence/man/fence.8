@@ -28,46 +28,10 @@ fence_tool
 Manages fenced
 .TP
 fence_node
-Calls the fence agent specified in the configuration file
-
-.SS I/O Fencing agents
-
-.TP 20
-fence_apc
-for APC MasterSwitch and APC 79xx models
+Runs the fence agent configured (per cluster.conf) for the given node.
 .TP
-fence_bladecenter
-for IBM Bladecenters w/ telnet interface
-.TP
-fence_brocade
-for Brocade fibre channel switches (PortDisable)
-.TP
-fence_egenera
-for Egenera blades
-.TP
-fence_gnbd
-for GNBD-based GFS clusters
-.TP
-fence_ilo
-for HP ILO interfaces (formerly fence_rib)
-.TP
-fence_manual
-for manual intervention
-.TP
-fence_mcdata
-for McData fibre channel switches
-.TP
-fence_ack_manual
-for manual intervention
-.TP
-fence_sanbox2
-for Qlogic SAN Box fibre channel switches
-.TP
-fence_vixel
-for Vixel switches (PortDisable)
-.TP
-fence_wti
-for WTI Network Power Switch
+fence_*
+Fence agents run by fenced.
 
 .SH SEE ALSO
 gnbd(8), gfs(8)
