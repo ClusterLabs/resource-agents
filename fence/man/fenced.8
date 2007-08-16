@@ -108,6 +108,13 @@ Avoiding unnecessary fencing at startup is primarily a concern when nodes
 are fenced by power cycling.  If nodes are fenced by disabling their SAN
 access, then unnecessarily fencing a node is usually less disruptive.
 
+.SS Fencing override
+
+If a fencing device fails, the agent may repeatedly return errors as
+fenced tries to fence a failed node.  In this case, the admin can manually
+reset the failed node, and then use fence_ack_manual to tell fenced to
+continue without fencing the node.
+
 .SH CONFIGURATION FILE
 Fencing daemon behavior can be controlled by setting options in the
 cluster.conf file under the section <fence_daemon> </fence_daemon>.  See
@@ -118,27 +125,93 @@ defaults.
 Post-join delay is the number of seconds the daemon will wait before
 fencing any victims after a node joins the domain.
 
-  <fence_daemon post_join_delay="6">
-  </fence_daemon>
+  <fence_daemon post_join_delay="6"/>
 
 Post-fail delay is the number of seconds the daemon will wait before
 fencing any victims after a domain member fails.
 
-  <fence_daemon post_fail_delay="0">
-  </fence_daemon>
+  <fence_daemon post_fail_delay="0"/>
 
 Clean-start is used to prevent any startup fencing the daemon might do.
 It indicates that the daemon should assume all nodes are in a clean state
 to start.
 
-  <fence_daemon clean_start="0">
-  </fence_daemon>
+  <fence_daemon clean_start="0"/>
 
 Override-path is the location of a FIFO used for communication between
 fenced and fence_ack_manual.
 
-  <fence_daemon override_path="/var/run/cluster/fenced_override">
-  </fence_daemon>
+  <fence_daemon override_path="/var/run/cluster/fenced_override"/>
+
+.SS Per-node fencing settings
+
+The per-node fencing configuration can become complex and is largely
+specific to the hardware being used.  The general framework begins like
+this:
+
+  <clusternodes>
+
+  <clusternode name="node1" nodeid="1">
+          <fence>
+          </fence>
+  </clusternode>
+
+  <clusternode name="node2" nodeid="2">
+          <fence>
+          </fence>
+  </clusternode>
+
+  ...
+  </clusternodes>
+
+The simple fragment above is a valid configuration: there is no way to
+fence these nodes.  If one of these nodes is in the fence domain and
+fails, fenced will repeatedly fail in its attempts to fence it.  The admin
+will need to manually reset the failed node and then use fence_ack_manual
+to tell fenced to continue on without fencing it (see override above).
+
+There is typically a single method used to fence each node, where the
+method refers to a specific device listed in the separate <fencedevices>
+section and then lists any node-specific parameters related to using the
+device.
+
+  <clusternodes>
+
+  <clusternode name="node1" nodeid="1">
+          <fence>
+             <method name="single">
+                <device name="myswitch" hw-specific-param="x"/>
+             </method>
+          </fence>
+  </clusternode>
+
+  <clusternode name="node2" nodeid="2">
+          <fence>
+             <method name="single">
+                <device name="myswitch" hw-specific-param="y"/>
+             </method>
+          </fence>
+  </clusternode>
+
+  ...
+  </clusternodes>
+
+.SS Fence device settings
+
+This section defines properties of the devices used to fence nodes.  There
+may be one or more devices listed.  The per-node fencing sections above
+reference one of these fence devices by name.
+
+  <fencedevices>
+          <fencedevice name="myswitch" ipaddr="1.2.3.4" .../>
+  </fencedevices>
+
+.SS Hardware-specific settings
+
+Find documentation for configuring specific devices, multiple methods per
+node, and redundant-power/dual-path hardware at
+.BR
+http://sources.redhat.com/cluster/
 
 .SH OPTIONS
 Command line options override corresonding values in cluster.conf.
