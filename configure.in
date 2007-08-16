@@ -1010,16 +1010,6 @@ AC_CHECK_HEADERS(vacmclient_api.h)
 AC_CHECK_HEADERS(curl/curl.h)
 AC_CHECK_HEADERS(openhpi/SaHpi.h)
 
-AC_MSG_CHECKING(For libOpenIPMI version 2 or greater)
-AC_TRY_COMPILE([#include <OpenIPMI/ipmiif.h>], 
-[ #if (OPENIPMI_VERSION_MAJOR < 2 )
-  #error "Too Old"
-  #endif ], 
-  AC_MSG_RESULT("yes")
-    AM_CONDITIONAL(USE_OPENIPMI, true),
-  AC_MSG_RESULT("no")
-    AM_CONDITIONAL(USE_OPENIPMI, false))
-
 AC_MSG_CHECKING(for special libxml2 includes)
 if test "x$XML2CONFIG" = "x"; then
    AC_MSG_RESULT(libxml2 config not found)
@@ -1158,6 +1148,23 @@ AC_SUBST(RPM_ENABLE_SNMP_SUBAGENT)
 AM_CONDITIONAL(USE_APC_SNMP, test "$ENABLE_SNMP" = "yes")
 AM_CONDITIONAL(SNMP_SUBAGENT_BUILD, test "x${enable_snmp_subagent}" = "xyes")
 
+
+dnl
+dnl OpenIMPI checks
+dnl
+
+if test "x${enable_ipmilan}" = "xyes" -o "x${enable_ipmilan}" = "xtry"; then
+	AC_MSG_CHECKING(For libOpenIPMI version 2 or greater)
+	AC_TRY_COMPILE([#include <OpenIPMI/ipmiif.h>],
+		       [ #if (OPENIPMI_VERSION_MAJOR < 2 )
+			 #error "Too Old"
+			 #endif ],
+		       AC_MSG_RESULT("yes"); enable_ipmilan="yes",
+		       AC_MSG_RESULT("no");  enable_ipmilan="no")
+else
+	enable_ipmilan="no"
+fi
+AM_CONDITIONAL(IPMILAN_BUILD, test "X$enable_ipmilan" = "Xyes")
 
 if test x"$VERSION" \> x"1.9"; then
 	AC_DEFINE(HAVE_NEW_HB_API, 1, [have new heartbeat api])
@@ -1569,7 +1576,7 @@ AC_ARG_ENABLE([quiet],
                           [default=no]])
 
 AC_ARG_ENABLE([ldirectord],
-[  --enable-ldirectord    enable Linix Director Daemon for use with LVS
+[  --enable-ldirectord    Enable Linix Director Daemon for use with LVS
                           [default=yes]],
                           [], [enable_ldirectord=yes])
 AM_CONDITIONAL(LDIRECTORD_BUILD, test "X$enable_ldirectord" = "Xyes")
@@ -1586,6 +1593,10 @@ AC_ARG_ENABLE([snmp-subagent],
 [  --enable-snmp-subagent Enable building of our SNMP subagent (lots of dependencies).
                           [default=try]])
 
+AC_ARG_ENABLE([ipmilan],
+[  --enable-ipmilan       enable IPMILan Stonith Plugin
+                          [default=no]])
+
 
 CC_WARNINGS=""
 
@@ -1600,7 +1611,7 @@ dnl - If requested, enable ALL subsystems.
 	  enable_mgmt=try;
 	  enable_quorumd=try;
 	  enable_cim_provider=try;
-	  
+	  enable_ipmilan=try
 	fi
 
 AC_ARG_ENABLE([bundled-ltdl],
@@ -2931,6 +2942,7 @@ AC_MSG_RESULT([  ucd_snmp_devel name      = "${UCDSNMPDEVEL}"])
 AC_MSG_RESULT([  Build New CRM            = "${enable_crm}"])
 AC_MSG_RESULT([  Build New LRM            = "${enable_lrm}"])
 AC_MSG_RESULT([  Build Ldirectord         = "${enable_ldirectord}"])
+AC_MSG_RESULT([  Build IPMILan Plugin     = "${enable_ipmilan}"])
 
 AC_MSG_RESULT([  Build CIM providers      = "${enable_cim_provider}"])
 if test "x${enable_cim_provider}" = "xyes"; then
