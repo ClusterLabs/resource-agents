@@ -1,0 +1,70 @@
+.\"  Copyright (C) 2007 Red Hat, Inc.  All rights reserved.
+.\"  
+.\"  This copyrighted material is made available to anyone wishing to use,
+.\"  modify, copy, or redistribute it subject to the terms and conditions
+.\"  of the GNU General Public License v.2.
+
+.TH gfs_controld 8
+
+.SH NAME
+gfs_controld - daemon that manages mounting, unmounting, recovery and
+posix locks
+
+.SH SYNOPSIS
+.B
+gfs_controld
+[\fIOPTION\fR]...
+
+.SH DESCRIPTION
+GFS lives in the kernel, and the cluster infrastructure (cluster
+membership and group management) lives in user space.  GFS in the kernel
+needs to adjust/recover for certain cluster events.  It's the job of
+gfs_controld to receive these events and reconfigure gfs as needed.
+gfs_controld controls and configures gfs through sysfs files that are
+considered gfs-internal interfaces; not a general API/ABI.
+
+Mounting, unmounting and node failure are the main cluster events that
+gfs_controld controls.  It also manages the assignment of journals to
+different nodes.  The mount.gfs and umount.gfs programs communicate with
+gfs_controld to join/leave the mount group and receive the necessary
+options for the kernel mount.
+
+GFS also sends all posix lock operations to gfs_controld for processing.
+gfs_controld manages cluster-wide posix locks for gfs and passes results
+back to gfs in the kernel.
+
+.SH OPTIONS
+.TP
+\fB-l\fP <num>
+Limit the rate at which posix lock messages are sent to <num> messages per
+second.  0 disables the limit and results in the maximum performance of
+posix locks.  Default is 100.
+.TP
+\fB-w\fP
+Disable the "withdraw" feature.
+.TP
+\fB-p\fP
+Disable posix lock handling.
+.TP
+\fB-D\fP
+Run the daemon in the foreground and print debug statements to stdout.
+.TP
+\fB-P\fP
+Enable posix lock debugging messages.
+.TP
+\fB-V\fP
+Print the version information and exit.
+.TP
+\fB-h\fP 
+Print out a help message describing available options, then exit.
+
+.SH DEBUGGING 
+The gfs_controld daemon keeps a circular buffer of debug messages that can
+be dumped with the 'group_tool dump gfs' command.
+
+The state of all gfs posix locks can also be dumped from gfs_controld with
+the 'group_tool dump plocks <fsname>' command.
+
+.SH SEE ALSO
+groupd(8), group_tool(8)
+
