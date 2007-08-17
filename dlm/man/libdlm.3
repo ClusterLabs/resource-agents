@@ -21,7 +21,8 @@ libdlm can be used in pthread or non-pthread applications. For pthread applicati
 pthreads is the normal way of using the DLM. This way you simply initialise the DLM's thread and all the AST routines will be delivered in that thread. You just call the dlm_lock() etc routines in the main line of your program.
 .br
 If you don't want to use pthreads or you want to handle the dlm callback ASTs yourself then you can get an FD handle to the DLM device and call 
-.B dlm_dispatch() on it whenever it becomes active. That was ASTs will be delivered in the context of the thread/process that called 
+.B dlm_dispatch()
+on it whenever it becomes active. That was ASTs will be delivered in the context of the thread/process that called 
 .B dlm_dispatch().
 
 

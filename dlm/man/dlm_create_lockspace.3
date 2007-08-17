@@ -6,10 +6,12 @@ dlm_create_lockspace, dlm_open_lockspace, dlm_close_lockspace, dlm_release_locks
  #include <libdlm.h>
 
 dlm_lshandle_t dlm_create_lockspace(const char *name, mode_t mode);
-dlm_lshandle_t dlm_new_lockspace(const char *name, mode_t mode, uint32_t flags);
+dlm_lshandle_t dlm_new_lockspace(const char *name, mode_t mode,
+                                 uint32_t flags);
 dlm_lshandle_t dlm_open_lockspace(const char *name);
-int dlm_close_lockspace(dlm_lshandle_t lockspace);
-int dlm_release_lockspace(const char *name, dlm_lshandle_t lockspace, int force);
+int dlm_close_lockspace(dlm_lshandle_t ls);
+int dlm_release_lockspace(const char *name, dlm_lshandle_t ls,
+                          int force);
 
 .fi
 .SH DESCRIPTION
@@ -37,17 +39,19 @@ ENOSYS          A fatal error occurred initialising the DLM
 Any error returned by the open() system call
 .fi
 .SS
-int dlm_new_lockspace(const char *name, mode_t mode, uint32_t flags);
+int dlm_new_lockspace(const char *name, mode_t mode, uint32_t flags)
 .PP
 Performs the same function as 
 .B dlm_create_lockspace()
 above, but passes some creation flags to the call that affect the lockspace being created. Currently supported flags are:
 .nf
-DLM_LSFL_NODIR         
-DLM_LSFL_TIMEWARN
+DLM_LSFL_NODIR    the lockspace should not use a resource directory
+DLM_LSFL_TIMEWARN the dlm should emit warnings over netlink when locks
+                  have been waiting too long; required for deadlock
+                  detection
 .fi
 .SS
-int dlm_release_lockspace(const char *name, dlm_lshandle_t lockspace, int force)
+int dlm_release_lockspace(const char *name, dlm_lshandle_t ls, int force)
 .PP
 Deletes a lockspace. If the lockspace still has active locks then -1 will be returned and errno set to EBUSY. Both the lockspace handle /and/ the name must be specified. This call also closes the lockspace and stops the thread associated with the lockspace, if any.
 .br
@@ -60,25 +64,23 @@ Return codes:
 .nf
 EINVAL          An invalid parameter was passed to the call
 EPERM           Process does not have capability to release lockspaces
-EBUSY           The lockspace could not be freed because it still contains locks
-                and force was not set.
+EBUSY           The lockspace could not be freed because it still
+                contains locks and force was not set.
 .fi
 
 .SS
 dlm_lshandle_t dlm_open_lockspace(const char *name)
 .PP
 Opens an already existing lockspace and returns a handle to it.
-.br
+.PP
 Return codes:
-.br
 0 is returned if the call completed successfully. If not, -1 is returned and errno is set to an error returned by the open() system call
 .SS
-int dlm_close_lockspace(dlm_lshandle_t lockspace)
+int dlm_close_lockspace(dlm_lshandle_t ls)
 .br
 Close the lockspace. Any locks held by this process will be freed. If a thread is associated with this lockspace then it will be stopped.
 .PP
 Return codes:
-.br
 0 is returned if the call completed successfully. If not, -1 is returned and errno is set to one of the following:
 .nf
 EINVAL		lockspace was not a valid lockspace handle
