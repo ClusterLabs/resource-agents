@@ -53,7 +53,7 @@ then
   HTTPDLIST="$HTTPDLIST `$MPM 2>/dev/null`"
 fi
 
-WGETOPTS="-O- -nv -L"
+WGETOPTS="-O- -q -L"
 LOCALHOST="http://localhost"
 HTTPDOPTS="-DSTATUS"
 DEFAULT_IBMCONFIG=/opt/IBMHTTPServer/conf/httpd.conf
