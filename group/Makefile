@@ -10,7 +10,7 @@
 ###############################################################################
 ###############################################################################
 
-SUBDIRS=lib daemon tool dlm_controld gfs_controld
+SUBDIRS=lib daemon tool dlm_controld gfs_controld man
 
 %:
 	set -e && \
