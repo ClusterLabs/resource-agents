@@ -94,9 +94,12 @@ struct lockspace {
 	struct list_head	transactions;
 	struct list_head	resources;
 	struct list_head	nodes;
-	struct timeval		last_deadlock_check;
-	unsigned int		timewarn_count;
+	struct timeval		cycle_start_time;
+	struct timeval		cycle_end_time;
+	struct timeval		last_send_cycle_start;
 	int			got_first_confchg;
+	int			cycle_running;
+	int			all_checkpoints_ready;
 };
 
 /* action.c */

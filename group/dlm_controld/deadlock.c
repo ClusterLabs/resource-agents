@@ -28,7 +28,8 @@ static uint32_t section_max;
 struct node {
 	struct list_head	list;
 	int			nodeid;
-	int			checkpoint_ready;
+	int			checkpoint_ready; /* we've read its ckpt */
+	int			in_cycle;         /* participating in cycle */
 };
 
 enum {
@@ -96,8 +97,9 @@ struct trans {
 #define DLM_HEADER_PATCH	0
 
 #define DLM_MSG_CYCLE_START	 1
-#define DLM_MSG_CHECKPOINT_READY 2
-#define DLM_MSG_CANCEL_LOCK	 3
+#define DLM_MSG_CYCLE_END	 2
+#define DLM_MSG_CHECKPOINT_READY 3
+#define DLM_MSG_CANCEL_LOCK	 4
 
 struct dlm_header {
 	uint16_t		version[3];
@@ -816,6 +818,7 @@ static void write_checkpoint(struct lockspace *ls)
 
 	/* unlink an old checkpoint before we create a new one */
 	if (ls->lock_ckpt_handle) {
+		log_error("write_checkpoint: old ckpt");
 		if (_unlink_checkpoint(ls, &name))
 			return;
 	}
@@ -984,6 +987,14 @@ void send_cycle_start(struct lockspace *ls)
 	send_message(ls, DLM_MSG_CYCLE_START);
 }
 
+void send_cycle_end(struct lockspace *ls)
+{
+	if (!deadlock_enabled)
+		return;
+	log_group(ls, "send_cycle_end");
+	send_message(ls, DLM_MSG_CYCLE_END);
+}
+
 static void send_cancel_lock(struct lockspace *ls, struct trans *tr,
 			     struct dlm_lkb *lkb)
 {
@@ -1053,22 +1064,18 @@ static void dump_resources(struct lockspace *ls)
 
 static void find_deadlock(struct lockspace *ls);
 
-static void receive_checkpoint_ready(struct lockspace *ls, int nodeid)
+static void run_deadlock(struct lockspace *ls)
 {
 	struct node *node;
 	int not_ready = 0;
 	int low = -1;
 
-	log_group(ls, "receive_checkpoint_ready from %d", nodeid);
-
-	read_checkpoint(ls, nodeid);
-
-	/* when locks are read from all nodes, then search_deadlock()
-	   to do detection */
+	if (ls->all_checkpoints_ready)
+		log_group(ls, "WARNING: run_deadlock all_checkpoints_ready");
 
 	list_for_each_entry(node, &ls->nodes, list) {
-		if (node->nodeid == nodeid)
-			node->checkpoint_ready = 1;
+		if (!node->in_cycle)
+			continue;
 		if (!node->checkpoint_ready)
 			not_ready++;
 
@@ -1078,23 +1085,56 @@ static void receive_checkpoint_ready(struct lockspace *ls, int nodeid)
 	if (not_ready)
 		return;
 
+	ls->all_checkpoints_ready = 1;
+
 	list_for_each_entry(node, &ls->nodes, list) {
+		if (!node->in_cycle)
+			continue;
 		if (node->nodeid < low || low == -1)
 			low = node->nodeid;
 	}
 	ls->low_nodeid = low;
-	log_group(ls, "low nodeid in charge of resolution is %d", low);
 
-	find_deadlock(ls);
+	if (low == our_nodeid)
+		find_deadlock(ls);
+	else
+		log_group(ls, "defer resolution to low nodeid %d", low);
+}
+
+static void receive_checkpoint_ready(struct lockspace *ls, int nodeid)
+{
+	struct node *node;
+
+	log_group(ls, "receive_checkpoint_ready from %d", nodeid);
+
+	read_checkpoint(ls, nodeid);
+
+	list_for_each_entry(node, &ls->nodes, list) {
+		if (node->nodeid == nodeid) {
+			node->checkpoint_ready = 1;
+			break;
+		}
+	}
+
+	run_deadlock(ls);
 }
 
 static void receive_cycle_start(struct lockspace *ls, int nodeid)
 {
+	struct node *node;
 	int rv;
 
-	log_group(ls, "receive_cycle_start %d", nodeid);
+	log_group(ls, "receive_cycle_start from %d", nodeid);
 
-	gettimeofday(&ls->last_deadlock_check, NULL);
+	if (ls->cycle_running) {
+		log_group(ls, "cycle already running");
+		return;
+	}
+	ls->cycle_running = 1;
+	gettimeofday(&ls->cycle_start_time, NULL);
+
+	list_for_each_entry(node, &ls->nodes, list)
+		node->in_cycle = 1;
 
 	rv = read_debugfs_locks(ls);
 	if (rv < 0) {
@@ -1109,6 +1149,46 @@ static void receive_cycle_start(struct lockspace *ls, int nodeid)
 
 	write_checkpoint(ls);
 	send_checkpoint_ready(ls);
+}
+
+static uint64_t dt_usec(struct timeval *start, struct timeval *stop)
+{
+	uint64_t dt;
+
+	dt = stop->tv_sec - start->tv_sec;
+	dt *= 1000000;
+	dt += stop->tv_usec - start->tv_usec;
+	return dt;
+}
+
+/* TODO: nodes added during a cycle - what will they do with messages
+   they recv from other nodes running the cycle? */
+
+static void receive_cycle_end(struct lockspace *ls, int nodeid)
+{
+	struct node *node;
+	uint64_t usec;
+
+	if (!ls->cycle_running) {
+		log_error("receive_cycle_end %s from %d: no cycle running",
+			  ls->name, nodeid);
+		return;
+	}
+
+	gettimeofday(&ls->cycle_end_time, NULL);
+	usec = dt_usec(&ls->cycle_start_time, &ls->cycle_end_time);
+	log_group(ls, "receive_cycle_end: from %d cycle time %.2f s",
+		  nodeid, usec * 1.e-6);
+
+	ls->cycle_running = 0;
+	ls->all_checkpoints_ready = 0;
+
+	list_for_each_entry(node, &ls->nodes, list)
+		node->checkpoint_ready = 0;
+
+	free_resources(ls);
+	free_transactions(ls);
+	unlink_checkpoint(ls);
 }
 
 static void receive_cancel_lock(struct lockspace *ls, int nodeid, uint32_t lkid)
@@ -1167,6 +1247,9 @@ static void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 	case DLM_MSG_CYCLE_START:
 		receive_cycle_start(ls, hd->nodeid);
 		break;
+	case DLM_MSG_CYCLE_END:
+		receive_cycle_end(ls, hd->nodeid);
+		break;
 	case DLM_MSG_CHECKPOINT_READY:
 		receive_checkpoint_ready(ls, hd->nodeid);
 		break;
@@ -1203,13 +1286,13 @@ static void node_left(struct lockspace *ls, int nodeid, int reason)
 		if (node->nodeid != nodeid)
 			continue;
 
-		/* TODO: purge locks from this node if we're in a cycle */
-
 		list_del(&node->list);
 		free(node);
 		log_group(ls, "node %d left deadlock cpg", nodeid);
 	}
 }
+
+static void purge_locks(struct lockspace *ls, int nodeid);
 
 static void confchg_cb(cpg_handle_t handle, struct cpg_name *group_name,
 		struct cpg_address *member_list, int member_list_entries,
@@ -1230,11 +1313,36 @@ static void confchg_cb(cpg_handle_t handle, struct cpg_name *group_name,
 		return;
 	}
 
+	/* nodes added during a cycle won't have node->in_cycle set so they
+	   won't be included in any of the cycle processing */
+
 	for (i = 0; i < joined_list_entries; i++)
 		node_joined(ls, joined_list[i].nodeid);
 
 	for (i = 0; i < left_list_entries; i++)
 		node_left(ls, left_list[i].nodeid, left_list[i].reason);
+
+	if (!ls->cycle_running)
+		return;
+
+	if (!left_list_entries)
+		return;
+
+	if (!ls->all_checkpoints_ready) {
+		run_deadlock(ls);
+		return;
+	}
+
+	for (i = 0; i < left_list_entries; i++)
+		purge_locks(ls, left_list[i].nodeid);
+
+	for (i = 0; i < left_list_entries; i++) {
+		if (left_list[i].nodeid != ls->low_nodeid)
+			continue;
+		/* this will set a new low node which will call find_deadlock */
+		run_deadlock(ls);
+		break;
+	}
 }
 
 static void process_deadlock_cpg(int ci)
@@ -1341,6 +1449,29 @@ void leave_deadlock_cpg(struct lockspace *ls)
 
 	cpg_finalize(ls->cpg_h);
 	client_dead(ls->cpg_ci);
+}
+
+/* would we ever call this after we've created the transaction lists?
+   I don't think so; I think it can only be called between reading
+   checkpoints */
+
+static void purge_locks(struct lockspace *ls, int nodeid)
+{
+	struct dlm_rsb *r;
+	struct dlm_lkb *lkb, *safe;
+
+	list_for_each_entry(r, &ls->resources, list) {
+		list_for_each_entry_safe(lkb, safe, &r->locks, list) {
+			if (lkb->home == nodeid) {
+				list_del(&lkb->list);
+				if (list_empty(&lkb->trans_list))
+					free(lkb);
+				else
+					log_group(ls, "purge %d %x on trans",
+						  nodeid, lkb->lock.id);
+			}
+		}
+	}
 }
 
 static void add_lkb_trans(struct trans *tr, struct dlm_lkb *lkb)
@@ -1543,7 +1674,7 @@ static void remove_trans(struct lockspace *ls, struct trans *remove_tr)
 	}
 
 	if (remove_tr->others_waiting_on_us)
-		log_debug("trans %llx removed others waiting %d",
+		log_group(ls, "trans %llx removed others waiting %d",
 			  (unsigned long long)remove_tr->xid,
 			  remove_tr->others_waiting_on_us);
 }
@@ -1675,16 +1806,14 @@ static void dump_all_trans(struct lockspace *ls)
 
 static void find_deadlock(struct lockspace *ls)
 {
-	struct node *node;
-
 	if (list_empty(&ls->resources)) {
 		log_group(ls, "no deadlock: no resources");
-		return;
+		goto out;
 	}
 
 	if (!list_empty(&ls->transactions)) {
 		log_group(ls, "transactions list should be empty");
-		return;
+		goto out;
 	}
 
 	dump_resources(ls);
@@ -1701,13 +1830,6 @@ static void find_deadlock(struct lockspace *ls)
 	log_group(ls, "found deadlock");
 	dump_all_trans(ls);
 
-	/* TODO: should probably do this above instead */
-	if (ls->low_nodeid != our_nodeid) {
-		log_group(ls, "defer resolution to low nodeid %d",
-			  ls->low_nodeid);
-		goto out;
-	}
-
 	cancel_trans(ls);
 	reduce_waitfor_graph_loop(ls);
 
@@ -1718,12 +1840,7 @@ static void find_deadlock(struct lockspace *ls)
 
 	log_error("deadlock resolution failed");
 	dump_all_trans(ls);
-
  out:
-	free_resources(ls);
-	free_transactions(ls);
-
-	list_for_each_entry(node, &ls->nodes, list)
-		node->checkpoint_ready = 0;
+	send_cycle_end(ls);
 }
 

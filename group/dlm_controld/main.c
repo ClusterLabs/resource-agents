@@ -446,28 +446,55 @@ static void process_timewarn(struct dlm_lock_data *data)
 {
 	struct lockspace *ls;
 	struct timeval now;
+	unsigned int sec;
 
 	ls = find_ls_id(data->lockspace_id);
 	if (!ls)
 		return;
 
-	log_group(ls, "timewarn: lkid %x pid %d count %d",
-		  data->id, data->ownpid, ls->timewarn_count);
+	data->resource_name[data->resource_namelen] = '\0';
+
+	log_group(ls, "timewarn: lkid %x pid %d name %s",
+		  data->id, data->ownpid, data->resource_name);
+
+	/* Problem: we don't want to get a timewarn, assume it's resolved
+	   by the current cycle, but in fact it's from a deadlock that
+	   formed after the checkpoints for the current cycle.  Then we'd
+	   have to hope for another warning (that may not come) to trigger
+	   a new cycle to catch the deadlock.  If our last cycle ckpt
+	   was say N (~5?) sec before we receive the timewarn, then we
+	   can be confident that the cycle included the lock in question.
+	   Otherwise, we're not sure if the warning is for a new deadlock
+	   that's formed since our last cycle ckpt (unless it's a long
+	   enough time since the last cycle that we're confident it *is*
+	   a new deadlock).  When there is a deadlock, I suspect it will
+	   be common to receive warnings before, during, and possibly
+	   after the cycle that resolves it.  Wonder if we should record
+	   timewarns and match them with deadlock cycles so we can tell
+	   which timewarns are addressed by a given cycle and which aren't.  */
+
 
 	gettimeofday(&now, NULL);
 
-	if (now.tv_sec - ls->last_deadlock_check.tv_sec > DEADLOCK_CHECK_SECS) {
-		ls->timewarn_count = 0;
-		send_cycle_start(ls);
-	} else {
-		/* TODO: set a poll timeout and start another cycle after
-		   DEADLOCK_CHECK_SECS.  Want to save a record of all the
-		   warned locks to see if they're still blocked later before
-		   starting a cycle?  This would only be helpful if we
-		   experienced regular false-warnings, indicating that the
-		   timewarn setting should be larger. */
-		ls->timewarn_count++;
+	/* don't send a new start until at least SECS after the last
+	   we sent, and at least SECS after the last completed cycle */
+
+	sec = now.tv_sec - ls->last_send_cycle_start.tv_sec;
+
+	if (sec < DEADLOCK_CHECK_SECS) {
+		log_group(ls, "skip send: recent send cycle %d sec", sec);
+		return;
 	}
+
+	sec = now.tv_sec - ls->cycle_end_time.tv_sec;
+
+	if (sec < DEADLOCK_CHECK_SECS) {
+		log_group(ls, "skip send: recent cycle end %d sec", sec);
+		return;
+	}
+
+	gettimeofday(&ls->last_send_cycle_start, NULL);
+	send_cycle_start(ls);
 }
 
 static void process_netlink(int ci)
