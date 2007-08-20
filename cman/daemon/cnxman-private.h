@@ -18,8 +18,8 @@
 
 /* Protocol Version triplet */
 #define CNXMAN_MAJOR_VERSION 6
-#define CNXMAN_MINOR_VERSION 0
-#define CNXMAN_PATCH_VERSION 1
+#define CNXMAN_MINOR_VERSION 1
+#define CNXMAN_PATCH_VERSION 0
 
 /* How we announce ourself in console events */
 #define CMAN_NAME "CMAN"
@@ -147,11 +147,14 @@ struct connection
    NODE_FLAGS_FENCED         - This node has been fenced since it last went down.
    NODE_FLAGS_FENCEDWHILEUP  - This node was fenced manually (probably).
    NODE_FLAGS_SEESDISALLOWED - Only set in a transition message
+   NODE_FLAGS_DIRTY          - This node has internal state and must not join
+                               a cluster that also has state.
 */
 #define NODE_FLAGS_BEENDOWN           1
 #define NODE_FLAGS_FENCED             2
 #define NODE_FLAGS_FENCEDWHILEUP      4
 #define NODE_FLAGS_SEESDISALLOWED     8
+#define NODE_FLAGS_DIRTY             16
 
 /* There's one of these for each node in the cluster */
 struct cluster_node {

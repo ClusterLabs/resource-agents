@@ -52,6 +52,7 @@
 #define CMAN_CMD_GET_NODEADDRS      0x000000bf
 #define CMAN_CMD_START_CONFCHG      0x000000c0
 #define CMAN_CMD_STOP_CONFCHG       0x000000c1
+#define CMAN_CMD_SET_DIRTY          0x800000c2
 
 #define CMAN_CMD_DATA               0x00000100
 #define CMAN_CMD_BIND               0x00000101
@@ -167,6 +168,7 @@ struct sock_confchg_message {
 #define CMAN_EXTRA_FLAG_ERROR     2
 #define CMAN_EXTRA_FLAG_SHUTDOWN  4
 #define CMAN_EXTRA_FLAG_UNCOUNTED 8
+#define CMAN_EXTRA_FLAG_DIRTY    16
 
 struct cl_extra_info {
 	int           node_state;

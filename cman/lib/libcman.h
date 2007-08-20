@@ -154,6 +154,7 @@ typedef struct cman_cluster
 #define CMAN_EXTRA_FLAG_ERROR      2
 #define CMAN_EXTRA_FLAG_SHUTDOWN   4
 #define CMAN_EXTRA_FLAG_DISALLOWED 8
+#define CMAN_EXTRA_FLAG_DIRTY     16
 
 typedef struct cman_extra_info {
 	int           ei_node_state;
@@ -387,5 +388,13 @@ int cman_barrier_delete(cman_handle_t handle, const char *name);
 int cman_register_quorum_device(cman_handle_t handle, char *name, int votes);
 int cman_unregister_quorum_device(cman_handle_t handle);
 int cman_poll_quorum_device(cman_handle_t handle, int isavailable);
+
+/*
+ * Sets the dirty bit inside cman. This indicates that the node has
+ * some internal 'state' (eg in a daemon, filesystem or lock manager)
+ * and cannot merge with another cluster that already has state.
+ * This cannot be reset.
+ */
+int cman_set_dirty(cman_handle_t handle);
 
 #endif

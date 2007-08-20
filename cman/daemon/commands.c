@@ -502,6 +502,8 @@ static int do_cmd_get_extrainfo(char *cmdbuf, char **retbuf, int retsize, int *r
 		einfo->flags |= CMAN_EXTRA_FLAG_SHUTDOWN;
 	if (uncounted)
 		einfo->flags |= CMAN_EXTRA_FLAG_UNCOUNTED;
+	if (us->flags & NODE_FLAGS_DIRTY)
+		einfo->flags |= CMAN_EXTRA_FLAG_DIRTY;
 
 	ptr = einfo->addresses;
 	for (i=0; i<num_interfaces; i++) {
@@ -1207,6 +1209,10 @@ int process_command(struct connection *con, int cmd, char *cmdbuf,
 		err = 0;
 		break;
 
+	case CMAN_CMD_SET_DIRTY:
+		us->flags |= NODE_FLAGS_DIRTY;
+		break;
+
 	case CMAN_CMD_START_CONFCHG:
 		con->confchg = 1;
 		err = 0;
@@ -1706,7 +1712,27 @@ static void do_process_transition(int nodeid, char *data, int len)
 	node = find_node_by_nodeid(nodeid);
 	assert(node);
 
-        /* This is the killer. If the join_time of the node matches that already stored AND
+	/* Newer nodes 6.1.0 onwards, set the DIRTY flag if they have state. If the new node has been down
+	   and has state then we mark it disallowed because we cannot merge stateful nodes */
+	if (msg->flags & NODE_FLAGS_DIRTY && node->flags & NODE_FLAGS_BEENDOWN) {
+		/* Don't duplicate messages */
+		if (node->state != NODESTATE_AISONLY) {
+			if (cluster_is_quorate) {
+				P_MEMB("Killing node %s because it has rejoined the cluster with existing state", node->name);
+				log_printf(LOG_CRIT, "Killing node %s because it has rejoined the cluster with existing state", node->name);
+				node->state = NODESTATE_AISONLY;
+				send_kill(nodeid, CLUSTER_KILL_REJOIN);
+			}
+			else {
+				P_MEMB("Node %s not joined to cman because it has existing state", node->name);
+				log_printf(LOG_CRIT, "Node %s not joined to cman because it has existing state", node->name);
+				node->state = NODESTATE_AISONLY;
+			}
+		}
+		return;
+	}
+
+        /* This is for older nodes. If the join_time of the node matches that already stored AND
 	   the node has been down, then we kill it as this must be a rejoin */
 	if (msg->join_time == node->cman_join_time && node->flags & NODE_FLAGS_BEENDOWN) {
 		/* Don't duplicate messages */

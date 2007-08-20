@@ -978,6 +978,14 @@ int cman_shutdown(cman_handle_t handle, int flags)
 	return info_call(h, CMAN_CMD_TRY_SHUTDOWN, &flags, sizeof(int), NULL, 0);
 }
 
+int cman_set_dirty(cman_handle_t handle)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
+
+	return info_call(h, CMAN_CMD_SET_DIRTY, NULL, 0, NULL, 0);
+}
+
 int cman_replyto_shutdown(cman_handle_t handle, int yesno)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
