@@ -277,6 +277,7 @@ void client_dead(int ci);
 /* cman.c */
 int setup_cman(void);
 int kill_cman(int nodeid);
+int set_cman_dirty(void);
 
 /* cpg.c */
 int setup_cpg(void);

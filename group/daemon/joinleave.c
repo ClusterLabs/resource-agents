@@ -85,6 +85,10 @@ int do_join(char *name, int level, int ci)
 		goto out;
 	}
 
+	rv = set_cman_dirty();
+	if (rv)
+		goto out;
+
 	rv = create_group(name, level, &g);
 	if (rv)
 		goto out;

@@ -904,6 +904,18 @@ static void decode_arguments(int argc, char **argv)
 	}
 }
 
+void set_oom_adj(int val)
+{
+	FILE *fp;
+
+	fp = fopen("/proc/self/oom_adj", "w");
+	if (!fp)
+		return;
+
+	fprintf(fp, "%i", val);
+	fclose(fp);
+}
+
 void set_scheduler(void)
 {
 	struct sched_param sched_param;
@@ -939,8 +951,7 @@ void bail_with_log(int sig)
 		write(fd, now_ascii, strlen(now_ascii));
 		write(fd, " groupd segfault log follows:\n", 30);
 		close(fd);
-	}
-	else
+	} else
 		perror(LOG_FILE);
 	if (sig == SIGSEGV)
 		exit(0);
@@ -960,10 +971,12 @@ int main(int argc, char *argv[])
 
 	signal(SIGSEGV, bail_with_log);
 	signal(SIGUSR1, bail_with_log);
+
 	if (!groupd_debug_opt)
 		daemonize();
 
 	set_scheduler();
+	set_oom_adj(-16);
 
 	pollfd = malloc(NALLOC * sizeof(struct pollfd));
 	if (!pollfd)
