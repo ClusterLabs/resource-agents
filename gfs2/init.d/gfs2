@@ -55,10 +55,6 @@ case "$1" in
 		done
 	fi
 
-	modprobe -r lock_nolock
-	modprobe -r lock_dlm
-	modprobe -r gfs2
-
 	rm -f /var/lock/subsys/gfs2
 	;;
 
