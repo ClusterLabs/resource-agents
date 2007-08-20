@@ -195,11 +195,15 @@ static int do_write(int fd, void *buf, size_t count)
 void do_join(char *name)
 {
 	dlm_lshandle_t *dh;
+	uint32_t flags = 0;
 
 	printf("Joining lockspace \"%s\", permission %o\n", name, create_mode);
 	fflush(stdout);
 
-	dh = dlm_new_lockspace(name, 0600, DLM_LSFL_NODIR);
+	if (!opt_dir)
+		flags = DLM_LSFL_NODIR;
+
+	dh = dlm_new_lockspace(name, 0600, flags);
 	if (!dh) {
 		fprintf(stderr, "dlm_new_lockspace %s error %p %d\n",
 			name, dh, errno);
