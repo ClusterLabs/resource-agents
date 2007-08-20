@@ -19,14 +19,18 @@ TARGET3 = dlm_cleanup.3           dlm_lock_wait.3        dlm_open_lockspace.3   
 	  dlm_get_fd.3            dlm_ls_unlock.3        dlm_unlock_wait.3	 \
 	  dlm_lock.3              dlm_ls_unlock_wait.3   libdlm.3
 
+TARGET8 = dlm_tool.8
+
 all:
+
+clean:
 
 install:
 	install -d ${mandir}/man3
 	install ${TARGET3} ${mandir}/man3
 	install -d ${mandir}/man8
-	install dlm_tool.8 ${mandir}/man8
+	install ${TARGET8} ${mandir}/man8
 
 uninstall:
 	${UNINSTALL} ${TARGET3} ${mandir}/man3
-	${UNINSTALL} dlm_tool.8 ${mandir}/man8
+	${UNINSTALL} ${TARGET8} ${mandir}/man8
