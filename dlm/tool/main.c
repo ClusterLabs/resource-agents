@@ -54,7 +54,7 @@ static void print_usage(void)
 	printf("Options:\n");
 	printf("  -v               Verbose output\n");
 	printf("  -d <n>           Resource directory off/on (0/1), default 0\n");
-	printf("  -m               Permission mode for lockspace device (octal)\n");
+	printf("  -m <mode>        Permission mode for lockspace device (octal), default 0600\n");
 	printf("  -M               Print MSTCPY locks in lockdump (remote locks, locally mastered)\n");
 	printf("  -h               Print this help, then exit\n");
 	printf("  -V               Print program version information, then exit\n");
