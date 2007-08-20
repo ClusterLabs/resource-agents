@@ -203,7 +203,7 @@ void do_join(char *name)
 	if (!opt_dir)
 		flags = DLM_LSFL_NODIR;
 
-	dh = dlm_new_lockspace(name, 0600, flags);
+	dh = dlm_new_lockspace(name, create_mode, flags);
 	if (!dh) {
 		fprintf(stderr, "dlm_new_lockspace %s error %p %d\n",
 			name, dh, errno);
