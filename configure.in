@@ -240,8 +240,7 @@ if
   cc ${tmpCfile} -o ${tmpOutfile}
 then
   LIBC=`${LDD} ${tmpOutfile} | grep libc | sed -e 's%.*=> *%%' -e 's% .*$%%'`
-  LibCdir=`dirname $LIBC`
-  LibDirSuffix=`basename $LibCdir`
+  LibDirSuffix=`echo $LIBC | awk -F/ '{print $2}'`
   AC_MSG_RESULT($LibDirSuffix)
   rm -f $tmpCfile $tmpOutfile
 else
