@@ -1,4 +1,4 @@
-.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+.\"  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 .\"  
 .\"  This copyrighted material is made available to anyone wishing to use,
 .\"  modify, copy, or redistribute it subject to the terms and conditions
@@ -7,7 +7,7 @@
 .TH ccs_test 8
 
 .SH NAME
-ccs_test - The diagnostic tool for a running Cluster Configuration System.
+ccs_test - CCS daemon (ccsd) diagnostic tool
 
 .SH SYNOPSIS
 .B ccs_test
@@ -15,10 +15,8 @@ ccs_test - The diagnostic tool for a running Cluster Configuration System.
 <\fBcommand\fP>
 
 .SH DESCRIPTION
-\fBccs_test\fP is part of the Cluster Configuration System (CCS).  It
-is a diagnostic tool designed to validate the correct operation of a
-running CCS system.  It will communicate with the CCS daemon - \fBccsd\fP -
-to obtain any information stored in the system.
+\fBccs_test\fP is part of the Cluster Configuration System (CCS).  It is a
+diagnostic tool that reads cluster.conf information to test ccsd.
 
 .SH OPTIONS
 .TP

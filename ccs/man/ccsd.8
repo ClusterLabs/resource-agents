@@ -1,5 +1,5 @@
 .\"  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+.\"  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 .\"  
 .\"  This copyrighted material is made available to anyone wishing to use,
 .\"  modify, copy, or redistribute it subject to the terms and conditions
@@ -8,18 +8,26 @@
 .TH ccsd 8
 
 .SH NAME
-ccsd - The daemon used to access CCS cluster configuration files.
+ccsd - manages the /etc/cluster/cluster.conf file
 
 .SH SYNOPSIS
 .B ccsd
 [\fIOPTION\fR]..
 
 .SH DESCRIPTION
-\fBccsd\fP is part of the Cluster Configuration System (CCS).  It is the
-daemon which accesses cluster the configuration file for other cluster
-applications.  It must be run on each node that wishes to join a cluster.
+
+\fBccsd\fP is part of the Cluster Configuration System (CCS) and manages
+the cluster.conf file in a cman cluster.  It handles requests for
+cluster.conf information made through libccs.  It also keeps the
+cluster.conf file in sync among cluster nodes based on the value of
+cluster.conf:cluster/config_version.  ccsd may replace the local
+cluster.conf file if it discovers a newer version on another node.
 
 .SH OPTIONS
+.TP
+\fB-X\fP
+Disable all cluster manager (cman) and inter-node interactions. Simply
+respond to local libccs requests based on the current cluster.conf file.
 .TP
 \fB-4\fP
 Use IPv4 for inter-node communication.  By default, IPv6 is tried, then IPv4.
@@ -66,4 +74,5 @@ Set the multicast threshold (aka time to live).
 Print the version information.
 
 .SH SEE ALSO
-ccs(7), ccs_tool(8), ccs_test(8), cluster.conf(5)
+ccs(7), cman(5), ccs_tool(8), ccs_test(8), cluster.conf(5)
+

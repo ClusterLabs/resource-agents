@@ -1,4 +1,4 @@
-.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+.\"  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 .\"  
 .\"  This copyrighted material is made available to anyone wishing to use,
 .\"  modify, copy, or redistribute it subject to the terms and conditions
@@ -10,41 +10,19 @@
 ccs - Cluster Configuration System
 
 .SH DESCRIPTION
-A cluster environment that shares resources has information that is
-essential to correct operation which must be available to
-every node in the cluster.  This information may include:
-names of the nodes composing the cluster, I/O fencing methods, and
-more.  \fICCS\fP is the system that makes it possible for the nodes in a
-cluster to retrieve the information they need.
 
-.SH OVERVIEW
-The following is a generic description of the steps one should take to produce
-a working CCS environment.
+CCS is the system that manages the /etc/cluster/cluster.conf file on
+cluster nodes.  The primary users of cluster.conf are the cman cluster
+manager, the fenced fencing daemon and rgmanager which manages H/A
+services.
 
-.SS Step 1
-Choose a cluster name.  It is important to determine
-a name for the cluster before starting.  The cluster name is what
-binds a machine to specific resources that can only be shared by
-machines that are members of the same cluster name.
+libccs is the API used by the programs and daemons above to read
+cluster.conf information.  libccs requests go through the ccsd daemon.
+ccsd needs to be started before the cman cluster manager is started.
 
-.SS Step 2
-Create the directory \fI/etc/cluster\fP.
-
-.SS Step 3
-Create the \fI/etc/cluster/cluster.conf\fP file, according to the
-\fBcluster.conf(5)\fP man page, on one node in your cluster.
-
-.SS Step 4
-Start \fBccsd\fP and test the cluster.conf file by using \fBccs_test\fP.
-If you haven't started a cluster manager yet, you should use the 'force'
-option to \fBccs_test\fP - see the \fBccs_test(8)\fP man page for more info.
-
-If a failure occurs while parsing the config file, \fBccs_test\fP should
-report "ccs_connect failed: No data available" and /var/log/messages
-should report "Unable to parse /etc/cluster/cluster.conf".
-
-.SH FORMAT OF THE CCS FILE
-See \fBcluster.conf(5)\fP
+The ccs_test program can be used to test the ccs system and read
+cluster.conf values.
 
 .SH SEE ALSO
-ccsd(8), ccs_tool(8), ccs_test(8), cluster.conf(5)
+ccsd(8), ccs_tool(8), ccs_test(8), cluster.conf(5), cman(5)
+

@@ -14,10 +14,11 @@ ccs_tool \- The tool used to make online updates of CCS config files.
 [\fIOPTION\fR].. <\fBcommand\fP>
 
 .SH "DESCRIPTION"
-\fBccs_tool\fP is part of the Cluster Configuration System (CCS).  It
-is used to make online updates of CCS config files.  Additionally, it
-can be used to upgrade old style (GFS <= 6.0) CCS archives to the new
-xml format.
+
+\fBccs_tool\fP is part of the Cluster Configuration System (CCS).  It is
+used to make online updates to cluster.conf.  It can also be used to
+upgrade old style (GFS <= 6.0) CCS archives to the new xml cluster.conf
+format.
 
 .SH "OPTIONS"
 .TP 
@@ -32,14 +33,9 @@ sub\-commands have their own options, see below for more detail
 .TP 
 \fBupdate\fP \fI<xml file>\fP
 This command is used to update the config file that ccsd is working with
-while the cluster is operational (i.e. online).  Run this on a single
-machine to update all instances of ccsd across the cluster.
-
-If you are using 'cman' as your cluster manager, you will also need to
-run \fBcman_tool version \-r <new version number>\fP once the update is
-complete.  Failure to do so will result in new nodes (or nodes rejoining
-after a failure) not being allowed
-to join the working set due to version number mismatches.
+while the cman cluster is operational (i.e. online).  Run this on a single
+machine to update cluster.conf on all current cluster members.  This also
+notfies cman of the new config version.
 
 .TP 
 \fBupgrade\fP \fI<location>\fP
