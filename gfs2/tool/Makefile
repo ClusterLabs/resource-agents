@@ -27,6 +27,7 @@ OBJS=	counters.o \
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -DGFS2_RELEASE_NAME=\"${RELEASE}\"
 CFLAGS += -O2 -Wall
+CFLAGS += -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
 CFLAGS += -I../include
 CFLAGS += -I${incdir}
 

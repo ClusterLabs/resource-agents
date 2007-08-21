@@ -22,6 +22,7 @@ OBJS=	main.o \
 CFLAGS += -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64
 CFLAGS += -D_GNU_SOURCE -DGFS2_RELEASE_NAME=\"${RELEASE}\"
 CFLAGS += -O2
+CFLAGS += -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
 CFLAGS += -I../include -I../libgfs2/
 CFLAGS += -I${incdir}
 

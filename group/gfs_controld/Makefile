@@ -23,7 +23,7 @@ OBJS= 	main.o \
 
 CFLAGS += -g -O2
 CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${openaisincdir}
-CFLAGS += -idirafter ${KERNEL_SRC}/include/linux
+CFLAGS += -I${KERNEL_SRC}/include/
 CFLAGS += -I../include/ -I../lib/
 CFLAGS += -I${incdir}
 

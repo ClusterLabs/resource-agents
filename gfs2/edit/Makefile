@@ -22,6 +22,7 @@ OBJS=	gfs2hex.o \
 CFLAGS += -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 -DGFS2_RELEASE_NAME=\"${RELEASE}\"
 CFLAGS += -ggdb 
 CFLAGS += -I${ncursesincdir}
+CFLAGS += -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
 CFLAGS += -I../include -I../libgfs2
 CFLAGS += -I${incdir}
 

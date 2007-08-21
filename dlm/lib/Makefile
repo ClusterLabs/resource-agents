@@ -22,6 +22,7 @@ STATICLIB=$(TARGET).a $(TARGET)_lt.a
 CFLAGS += -g -O2 
 CFLAGS += -I.
 CFLAGS += -I${incdir}
+CFLAGS += -I$(KERNEL_SRC)/include
 
 LDFLAGS += -lpthread 
 
