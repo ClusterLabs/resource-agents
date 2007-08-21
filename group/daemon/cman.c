@@ -32,10 +32,13 @@ int set_cman_dirty(void)
 {
 	int rv;
 
+#if 0
 	rv = cman_set_dirty(ch);
 	if (rv)
 		log_print("cman_set_dirty error %d", rv);
 	return rv;
+#endif
+	return 0;
 }
 
 static int is_member(cman_node_t *node_list, int count, int nodeid)
