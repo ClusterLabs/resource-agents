@@ -104,8 +104,7 @@ send_node_states(msgctx_t *ctx)
 					ml->cml_members[x].cn_nodeid, 0);
 		}
 	}
-	msg_send_simple(ctx, RG_SUCCESS,
-			ml->cml_members[x].cn_nodeid, 0);
+	msg_send_simple(ctx, RG_SUCCESS, 0, 0);
 	msg_receive(ctx, &hdr, sizeof(hdr), 10);
 	free_member_list(ml);
 }
