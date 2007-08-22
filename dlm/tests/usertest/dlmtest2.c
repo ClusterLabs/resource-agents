@@ -732,6 +732,53 @@ void tstress(int num)
 	printf("ast status: zero %d other %d\n", sts_zero, sts_other);
 }
 
+void dstress(int num)
+{
+	int i, o, op, max_op, skip;
+	unsigned int n, skips, lock_ops, unlock_ops, unlockf_ops, cancel_ops;
+	struct lk *lk;
+
+	n = skips = lock_ops = unlock_ops = unlockf_ops = cancel_ops = 0;
+	sts_eunlock = sts_ecancel = sts_etimedout = sts_edeadlk = sts_eagain = sts_other = sts_zero = 0;
+	bast_unlock = bast_skip = 0;
+
+	noqueue = 0;
+	ignore_bast = 1;
+	quiet = 0;
+
+	while (!stress_stop && n < num) {
+
+		sleep(1);
+
+		process_libdlm();
+
+		if (n && !(n % 60))
+			unlock_all();
+
+		i = rand_int(0, maxn-1);
+		lk = get_lock(i);
+		if (!lk)
+			continue;
+
+		if (lk->wait_ast || lk->grmode > -1) {
+			printf("%8x: lock    %3d\t%x: skip gr %d wait_ast %d\n",
+				n, i, lk->lksb.sb_lkid, lk->grmode, lk->wait_ast);
+			continue;
+		}
+
+		lock(i, rand_int(0, 5));
+		lock_ops++;
+		printf("%8x: lock    %3d\t%x\n", n, i, lk->lksb.sb_lkid);
+	}
+
+	printf("ops: skip %d lock %d unlock %d unlockf %d cancel %d\n",
+		skips, lock_ops, unlock_ops, unlockf_ops, cancel_ops);
+	printf("bast: unlock %u skip %u\n", bast_unlock, bast_skip);
+	printf("ast status: eunlock %d ecancel %d etimedout %d edeadlk %d eagain %d\n",
+		sts_eunlock, sts_ecancel, sts_etimedout, sts_edeadlk, sts_eagain);
+	printf("ast status: zero %d other %d\n", sts_zero, sts_other);
+}
+
 void stress(int num)
 {
 	int i, o, op, max_op, skip;
@@ -913,6 +960,7 @@ void print_commands(void)
 	printf("purge nodeid pid - purge orphan locks of process\n");
 	printf("stress n	 - loop doing random lock/unlock/unlockf/cancel on all locks, n times\n");
 	printf("tstress n	 - stress timeouts\n");
+	printf("dstress n	 - stress deadlock\n");
 	printf("timeout n	 - enable lock timeouts, set timeout to n seconds\n");
 	printf("dump		 - show info for all locks\n");
 	printf("minhold		 - set minimum number of seconds locks will be held\n");
@@ -921,6 +969,7 @@ void print_commands(void)
 	printf("persistent	 - toggle PERSISTENT flag for all requests\n");
 	printf("quiet		 - toggle quiet flag\n");
 	printf("verbose		 - toggle verbose flag\n");
+	printf("settings	 - show settings\n");
 
 	printf("\ncombined operations\n");
 	printf("hold-kill                     - hold; kill\n");
@@ -950,6 +999,7 @@ void print_settings(void)
 	printf("stress_stop %d\n", stress_stop);
 	printf("stress_delay %d\n", stress_delay);
 	printf("stress_lock_only %d\n", stress_lock_only);
+	printf("our_xid %x\n", (unsigned long long)our_xid);
 }
 
 void process_command(int *quit)
@@ -1086,6 +1136,11 @@ void process_command(int *quit)
 		return;
 	}
 
+	if (!strncmp(cmd, "dstress", 7) && strlen(cmd) == 7) {
+		dstress(x);
+		return;
+	}
+
 	if (!strncmp(cmd, "stress_delay", 12) && strlen(cmd) == 12) {
 		stress_delay = x;
 		return;
@@ -1097,11 +1152,24 @@ void process_command(int *quit)
 		return;
 	}
 
+	if (!strncmp(cmd, "stress_stop", 11) && strlen(cmd) == 11) {
+		stress_stop = !stress_stop;
+		printf("stress_stop is %d\n", stress_stop);
+		return;
+	}
+
 	if (!strncmp(cmd, "ignore_bast", 11) && strlen(cmd) == 11) {
 		ignore_bast = !ignore_bast;
 		printf("ignore_bast is %s\n", ignore_bast ? "on" : "off");
 		return;
 	}
+
+	if (!strncmp(cmd, "our_xid", 7) && strlen(cmd) == 7) {
+		our_xid = x;
+		printf("our_xid is %llx\n", (unsigned long long)our_xid);
+		return;
+	}
+
 
 	if (!strncmp(cmd, "purge", 5) && strlen(cmd) == 5) {
 		purge(x, y);
