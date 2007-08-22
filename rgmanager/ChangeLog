@@ -1,3 +1,6 @@
+2007-08-22 Fabio M. Di Nitto <fabbione at ubuntu.com>
+	* include/list.h: Fix build with gcc-4.2.
+
 2007-08-15 Lon Hohberger <lhh at redhat.com>
 	* src/utils/clustat.c: Remove uninitialized var & fix logic /
 	spotted by Ryan McCabe
