@@ -820,7 +820,7 @@ void give_warning(void)
 /* ------------------------------------------------------------------------- */
 void version(void)
 {
-	log_notice("gfs2_convert version %s (built %s %s)\n", GFS2_RELEASE_NAME,
+	log_notice("gfs2_convert version %s (built %s %s)\n", RELEASE_VERSION,
 			   __DATE__, __TIME__);
 	log_notice("%s\n\n", REDHAT_COPYRIGHT);
 }

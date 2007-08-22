@@ -25,7 +25,6 @@ OBJS2=	gnbd_monitor.o \
 SHAREDOBJS= ../utils/trans.o \
 	    ../utils/gnbd_utils.o
 
-CFLAGS += -DGNBD_RELEASE_NAME=\"${RELEASE}\"
 CFLAGS += -O2
 CFLAGS += -I${gnbdkincdir} -I${cmanincdir}
 CFLAGS += -I../include -I../server -I../utils

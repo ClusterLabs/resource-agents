@@ -19,7 +19,7 @@ OBJS=	gnbd_export.o \
 	../../utils/gnbd_utils.o \
 	../../utils/trans.o
 
-CFLAGS += -DGNBD_RELEASE_NAME=\"${RELEASE}\" -DDEFAULT_GETUID=\"${sbindir}/gnbd_get_uid\"
+CFLAGS += -DDEFAULT_GETUID=\"${sbindir}/gnbd_get_uid\"
 CFLAGS += -O2
 CFLAGS += -I${gnbdkincdir} -I${cmanincdir}
 CFLAGS += -I../../include -I../../server -I../../utils

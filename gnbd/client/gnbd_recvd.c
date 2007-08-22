@@ -141,7 +141,7 @@ void parse_cmdline(int argc, char **argv)
       verbosity = VERBOSE;
       continue;
     case 'V':
-      printf("%s %s (built %s %s)\n", program_name, GNBD_RELEASE_NAME,
+      printf("%s %s (built %s %s)\n", program_name, RELEASE_VERSION,
              __DATE__, __TIME__);
       printf("%s\n", REDHAT_COPYRIGHT);
       exit(0);

@@ -128,7 +128,7 @@ void get_options(int argc, char **argv)
       switch(c)
       {
       case 'V':
-        printf("%s %s (built %s %s)\n", pname, GNBD_RELEASE_NAME,
+        printf("%s %s (built %s %s)\n", pname, RELEASE_VERSION,
                 __DATE__, __TIME__);
         printf("%s\n", REDHAT_COPYRIGHT);
         exit(0);

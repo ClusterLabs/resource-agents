@@ -81,7 +81,7 @@ int __init init_gfs_fs(void)
 		goto fail;
 
 	printk("GFS %s (built %s %s) installed\n",
-	       GFS_RELEASE_NAME, __DATE__, __TIME__);
+	       RELEASE_VERSION, __DATE__, __TIME__);
 
 	return 0;
 
@@ -125,7 +125,7 @@ exit_gfs_fs(void)
 	gfs_sys_uninit();
 }
 
-MODULE_DESCRIPTION("Global File System " GFS_RELEASE_NAME);
+MODULE_DESCRIPTION("Global File System " RELEASE_VERSION);
 MODULE_AUTHOR("Red Hat, Inc.");
 MODULE_LICENSE("GPL");
 

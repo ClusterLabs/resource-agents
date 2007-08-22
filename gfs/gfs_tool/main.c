@@ -135,7 +135,7 @@ static void
 print_version(void)
 {
 	printf("gfs_tool %s (built %s %s)\n",
-	       GFS_RELEASE_NAME,
+	       RELEASE_VERSION,
 	       __DATE__, __TIME__);
 	printf("%s\n",
 	       REDHAT_COPYRIGHT);

@@ -28,7 +28,7 @@ import signal
 from glob import glob
 
 #BEGIN_VERSION_GENERATION
-FENCE_RELEASE_NAME=""
+RELEASE_VERSION=""
 REDHAT_COPYRIGHT=""
 BUILD_DATE=""
 #END_VERSION_GENERATION
@@ -83,7 +83,7 @@ def main():
       if o == "-v":
         verbose = True
       if o == "-V":
-        print "%s\n" % FENCE_RELEASE_NAME
+        print "%s\n" % RELEASE_VERSION
         print "%s\n" % REDHAT_COPYRIGHT
         print "%s\n" % BUILD_DATE
         sys.exit(0)

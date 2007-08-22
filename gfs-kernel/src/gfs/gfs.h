@@ -14,7 +14,7 @@
 #ifndef __GFS_DOT_H__
 #define __GFS_DOT_H__
 
-#define GFS_RELEASE_NAME "<CVS>"
+#define RELEASE_VERSION "<CVS>"
 
 #include <linux/lm_interface.h>
 

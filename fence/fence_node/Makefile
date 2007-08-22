@@ -18,7 +18,7 @@ TARGET = fence_node
 OBJS=	../fenced/agent.o \
 	fence_node.o
 
-CFLAGS += -g -D_FILE_OFFSET_BITS=64 -DFENCE_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -g -D_FILE_OFFSET_BITS=64
 
 ifeq ($(DEBUG),y)
 CFLAGS += -O0 -DDEBUG -g

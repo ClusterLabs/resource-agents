@@ -131,7 +131,7 @@ decode_arguments(int argc, char *argv[], struct gfs2_sbd *sdp)
 			sdp->quiet = TRUE;
 			break;
 		case 'V':
-			printf("gfs2_jadd %s (built %s %s)\n", GFS2_RELEASE_NAME,
+			printf("gfs2_jadd %s (built %s %s)\n", RELEASE_VERSION,
 			       __DATE__, __TIME__);
 			printf("%s\n", REDHAT_COPYRIGHT);
 			exit(EXIT_SUCCESS);

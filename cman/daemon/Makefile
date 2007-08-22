@@ -12,7 +12,7 @@
 
 include ../../make/defines.mk
 
-CFLAGS += -DCMAN_RELEASE_NAME=\"${RELEASE}\" -DOPENAIS_EXTERNAL_SERVICE
+CFLAGS += -DOPENAIS_EXTERNAL_SERVICE
 CFLAGS += -fPIC
 CFLAGS += -I${ccsincdir} -I${openaisincdir}
 CFLAGS += -I${incdir}

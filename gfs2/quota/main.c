@@ -157,7 +157,7 @@ decode_arguments(int argc, char *argv[], commandline_t *comline)
 			break;
 
 		case 'V':
-			printf("gfs2_quota %s (built %s %s)\n", GFS2_RELEASE_NAME,
+			printf("gfs2_quota %s (built %s %s)\n", RELEASE_VERSION,
 			       __DATE__, __TIME__);
 			printf("%s\n", REDHAT_COPYRIGHT);
 			exit(EXIT_SUCCESS);

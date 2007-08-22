@@ -381,7 +381,7 @@ static void decode_arguments(int argc, char *argv[])
 
 		case 'V':
 			printf("fence_tool %s (built %s %s)\n",
-			       FENCE_RELEASE_NAME, __DATE__, __TIME__);
+			       RELEASE_VERSION, __DATE__, __TIME__);
 			printf("%s\n", REDHAT_COPYRIGHT);
 			exit(EXIT_SUCCESS);
 			break;

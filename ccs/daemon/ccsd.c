@@ -478,7 +478,7 @@ static char *parse_cli_args(int argc, char *argv[]){
       ttl = atoi(optarg);
       break;
     case 'V':
-      printf("%s %s (built %s %s)\n", argv[0], CCS_RELEASE_NAME, __DATE__, __TIME__);
+      printf("%s %s (built %s %s)\n", argv[0], RELEASE_VERSION, __DATE__, __TIME__);
       printf("%s\n", REDHAT_COPYRIGHT);
       exit(EXIT_SUCCESS);
     case 'X':
@@ -784,7 +784,7 @@ static void daemonize(void){
  */
 static void print_start_msg(char *msg){
   /* We want the start message to print every time */
-  log_msg("Starting ccsd %s:\n", CCS_RELEASE_NAME);
+  log_msg("Starting ccsd %s:\n", RELEASE_VERSION);
   log_msg(" Built: "__DATE__" "__TIME__"\n");
   log_msg(" %s\n", REDHAT_COPYRIGHT);
   if(msg){

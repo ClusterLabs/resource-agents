@@ -690,7 +690,7 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 
 		case 'V':
 			printf("cman_tool %s (built %s %s)\n",
-				CMAN_RELEASE_NAME, __DATE__, __TIME__);
+				RELEASE_VERSION, __DATE__, __TIME__);
 			printf("%s\n", REDHAT_COPYRIGHT);
 			exit(EXIT_SUCCESS);
 			break;

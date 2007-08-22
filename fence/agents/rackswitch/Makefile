@@ -17,7 +17,6 @@ TARGET= fence_rackswitch
 
 OBJS=	do_rack.o
 
-CFLAGS += -DFENCE_RELEASE_NAME=\"${RELEASE}\"
 CFLAGS += -I${incdir}
 
 all: ${TARGET}

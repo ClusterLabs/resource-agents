@@ -19,7 +19,7 @@ OBJS=	gfs2hex.o \
 	savemeta.o \
 	hexedit.o
 
-CFLAGS += -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 -DGFS2_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64
 CFLAGS += -ggdb 
 CFLAGS += -I${ncursesincdir}
 CFLAGS += -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/

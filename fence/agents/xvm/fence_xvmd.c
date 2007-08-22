@@ -700,8 +700,8 @@ main(int argc, char **argv)
 
 	if (args.flags & F_VERSION) {
 		printf("%s %s\n", basename(argv[0]), XVM_VERSION);
-#ifdef FENCE_RELEASE_NAME
-		printf("fence release %s\n", FENCE_RELEASE_NAME);
+#ifdef RELEASE_VERSION
+		printf("fence release %s\n", RELEASE_VERSION);
 #endif
 		exit(0);
 	}

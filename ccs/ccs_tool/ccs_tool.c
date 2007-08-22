@@ -21,7 +21,7 @@ int main(int argc, char *argv[])
       exit(EXIT_SUCCESS);
   }
   if (!strcmp(argv[optind], "-V")) {
-      printf("%s %s (built %s %s)\n", argv[0], CCS_RELEASE_NAME,
+      printf("%s %s (built %s %s)\n", argv[0], RELEASE_VERSION,
 	     __DATE__, __TIME__);
       printf("%s\n", REDHAT_COPYRIGHT);
       exit(EXIT_SUCCESS);

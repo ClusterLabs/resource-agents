@@ -546,7 +546,7 @@ int main(int argc, char *argv[])
 		if (!strcasecmp(argv[i], "-verbose"))
 			verbose = TRUE;
 		else if (!strcasecmp(argv[i], "-V")) {
-			printf("%s %s (built %s %s)\n", prog_name, GFS_RELEASE_NAME,
+			printf("%s %s (built %s %s)\n", prog_name, RELEASE_VERSION,
 				__DATE__, __TIME__);
 			printf("%s\n", REDHAT_COPYRIGHT);
 			exit(0);

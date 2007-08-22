@@ -20,7 +20,7 @@ OBJS=	ccsd.o \
 	misc.o \
 	globals.o
 
-CFLAGS += -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -DCCS_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
 CFLAGS += -Wall
 CFLAGS += -I${cmanincdir} `xml2-config --cflags`
 CFLAGS += -I. -I../include -I../common

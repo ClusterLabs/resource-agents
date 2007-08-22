@@ -21,7 +21,7 @@ OBJS=	main.o \
 	member_cman.o \
 	agent.o 
 
-CFLAGS += -D_FILE_OFFSET_BITS=64 -DFENCE_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -D_FILE_OFFSET_BITS=64
 CFLAGS += -g
 CFLAGS += -I${ccsincdir} -I${cmanincdir}
 CFLAGS += -I. -I../include -I../../group/lib

@@ -17,7 +17,6 @@ TARGET= fence_rps10
 
 OBJS=	rps10.o
 
-CFLAGS+= -DFENCE_RELEASE_NAME=\"${RELEASE}\"
 CFLAGS += -I${incdir}
 
 all: ${TARGET}

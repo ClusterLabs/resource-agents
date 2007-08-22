@@ -18,7 +18,7 @@ TARGET = fence_tool
 OBJS= ../fenced/agent.o \
 	fence_tool.o
 
-CFLAGS += -D_FILE_OFFSET_BITS=64 -DFENCE_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -D_FILE_OFFSET_BITS=64
 CFLAGS += -I${ccsincdir} -I${cmanincdir}
 CFLAGS += -I../include -I../../group/lib
 CFLAGS += -I${incdir}

@@ -99,7 +99,7 @@ sub fail_usage
 
 sub version
 {
-	print "$pname $FENCE_RELEASE_NAME $BUILD_DATE\n";
+	print "$pname $RELEASE_VERSION $BUILD_DATE\n";
 	print "$REDHAT_COPYRIGHT\n" if ( $REDHAT_COPYRIGHT );
 	exit 0;
 }

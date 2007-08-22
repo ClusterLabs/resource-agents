@@ -87,10 +87,10 @@ void log_close(void);
 #define die(ext, fmt, args...) { \
     if(log_is_open){ \
       syslog(LOG_ERR, "In %s, at %d (%s) death by:\n" fmt , __FILE__ , \
-            __LINE__ , CCS_RELEASE_NAME , ## args ); exit(ext); \
+            __LINE__ , RELEASE_VERSION , ## args ); exit(ext); \
     }else { \
       fprintf(stderr, "In %s, at %d (%s) death by:\n" fmt , __FILE__ , \
-            __LINE__ , CCS_RELEASE_NAME , ## args ); exit(ext); \
+            __LINE__ , RELEASE_VERSION , ## args ); exit(ext); \
     } \
 }
 

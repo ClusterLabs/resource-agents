@@ -21,7 +21,7 @@ OBJS=	check.o \
 	ondisk.o \
 	layout.o
 
-CFLAGS += -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 -DGFS_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64
 CFLAGS += -O2
 CFLAGS += -I${gfskincdir}
 CFLAGS += -I../include

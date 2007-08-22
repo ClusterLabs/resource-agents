@@ -151,7 +151,7 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 
 
     case 'V':
-      printf("gfs_mkfs %s (built %s %s)\n", GFS_RELEASE_NAME, __DATE__, __TIME__);
+      printf("gfs_mkfs %s (built %s %s)\n", RELEASE_VERSION, __DATE__, __TIME__);
       printf("%s\n", REDHAT_COPYRIGHT);
       exit(EXIT_SUCCESS);
       break;

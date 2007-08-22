@@ -59,7 +59,7 @@ do { \
 #include <copyright.cf>
 #else
 #define REDHAT_COPYRIGHT "Copyright (C) 2005 Red Hat, Inc.\n"
-#define FENCE_RELEASE_NAME "TEST ONLY; Not for distribution\n"
+#define RELEASE_VERSION "TEST ONLY; Not for distribution\n"
 
 #endif
 #endif
@@ -1001,7 +1001,7 @@ main(int argc, char **argv)
 				break;
 			case 'V':
         			printf("%s %s (built %s %s)\n", pname,
-				       FENCE_RELEASE_NAME,
+				       RELEASE_VERSION,
                				__DATE__, __TIME__);
         			printf("%s\n",
 				       REDHAT_COPYRIGHT);

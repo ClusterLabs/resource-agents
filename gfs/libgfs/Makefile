@@ -16,7 +16,7 @@ include ../../make/defines.mk
 TARGET=libgfs.a
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE
-CFLAGS += -D_GNU_SOURCE -DHELPER_PROGRAM -DGFS_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -D_GNU_SOURCE -DHELPER_PROGRAM
 CFLAGS += -c -Wall -ggdb 
 CFLAGS += -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
 CFLAGS += -I${gfskincdir} -I../include

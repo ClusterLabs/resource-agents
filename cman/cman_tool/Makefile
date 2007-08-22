@@ -17,7 +17,6 @@ TARGET=cman_tool
 OBJS=	main.o \
 	join.o
 
-CFLAGS += -DCMAN_RELEASE_NAME=\"${RELEASE}\"
 CFLAGS += -DSBINDIR=\"${sbindir}\"
 CFLAGS += -I${ccsincdir} -I${cmanincdir}
 CFLAGS += -I${incdir}

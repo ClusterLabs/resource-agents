@@ -34,7 +34,7 @@ OBJS=	eattr.o \
 	rgrepair.o \
 	util.o
 
-CFLAGS += -D_FILE_OFFSET_BITS=64 -DHELPER_PROGRAM -DGFS_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -D_FILE_OFFSET_BITS=64 -DHELPER_PROGRAM
 CFLAGS += -MMD -Wall -O2
 CFLAGS += -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
 CFLAGS += -I../include -I../libgfs2

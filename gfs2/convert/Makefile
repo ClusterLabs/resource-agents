@@ -16,7 +16,7 @@ TARGET= gfs2_convert
 
 OBJS= gfs2_convert.o
 
-CFLAGS += -D_FILE_OFFSET_BITS=64 -DHELPER_PROGRAM -DGFS2_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -D_FILE_OFFSET_BITS=64 -DHELPER_PROGRAM
 CFLAGS += -Wall -g
 CFLAGS += -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
 CFLAGS += -I../include -I../libgfs2

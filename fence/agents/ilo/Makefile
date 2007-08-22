@@ -20,7 +20,7 @@ all: $(TARGET)
 $(TARGET): $(TARGET).pl
 	: > $(TARGET)
 	awk "{print}(\$$1 ~ /#BEGIN_VERSION_GENERATION/){exit 0}" $(TARGET).pl >> $(TARGET)
-	echo "\$$FENCE_RELEASE_NAME=\"${RELEASE}\";" >> $(TARGET)
+	echo "\$$RELEASE_VERSION=\"${RELEASE_VERSION}\";" >> $(TARGET)
 	${DEF2VAR} ${BUILDDIR}/config/copyright.cf perl REDHAT_COPYRIGHT >> $(TARGET)
 	echo "\$$BUILD_DATE=\"(built `date`)\";" >> $(TARGET)
 	awk -v p=0 "(\$$1 ~ /#END_VERSION_GENERATION/){p = 1} {if(p==1)print}" $(TARGET).pl >> $(TARGET)

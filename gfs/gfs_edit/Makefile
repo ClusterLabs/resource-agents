@@ -18,7 +18,7 @@ TARGET= gfs_edit
 OBJS= gfshex.o \
       hexedit.o
 
-CFLAGS += -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 -DGFS_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS += -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64
 CFLAGS += -I${gfskincdir} -I${ncursesincdir}
 CFLAGS += -I../include
 CFLAGS += -I${incdir}

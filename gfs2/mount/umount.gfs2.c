@@ -16,7 +16,7 @@ static sigset_t old_sigset;
 
 static void print_version(void)
 {
-	printf("umount.gfs2 %s (built %s %s)\n", GFS2_RELEASE_NAME,
+	printf("umount.gfs2 %s (built %s %s)\n", RELEASE_VERSION,
 	       __DATE__, __TIME__);
 }
 

@@ -951,7 +951,7 @@ main(int argc, char **argv)
 		goto cleanup;
 	case VERSION_ONLY:
 		printf("%s version %s\n", basename(argv[0]),
-		       PACKAGE_VERSION);
+		       RELEASE_VERSION);
 		if (!ch)
 		       break;
 		goto cleanup;

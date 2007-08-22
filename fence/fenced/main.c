@@ -607,7 +607,7 @@ static void decode_arguments(int argc, char **argv, commandline_t *comline)
 			break;
 
 		case 'V':
-			printf("fenced %s (built %s %s)\n", FENCE_RELEASE_NAME,
+			printf("fenced %s (built %s %s)\n", RELEASE_VERSION,
 				 __DATE__, __TIME__);
 			printf("%s\n", REDHAT_COPYRIGHT);
 			exit(EXIT_SUCCESS);

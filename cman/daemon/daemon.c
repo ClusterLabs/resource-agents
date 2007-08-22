@@ -482,7 +482,7 @@ int cman_init()
 	barrier_init();
 
 	log_msg(LOG_INFO, "CMAN %s (built %s %s) started\n",
-		CMAN_RELEASE_NAME, __DATE__, __TIME__);
+		RELEASE_VERSION, __DATE__, __TIME__);
 
 	fd = open_local_sock(CLIENT_SOCKNAME, sizeof(CLIENT_SOCKNAME), 0660, ais_poll_handle, CON_CLIENT);
 	if (fd < 0)

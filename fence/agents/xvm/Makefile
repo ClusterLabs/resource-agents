@@ -33,7 +33,7 @@ SHAREDOBJS=	mcast.o \
 		options.o \
 		debug.o
 
-CFLAGS += -DFENCE_RELEASE_NAME=\"${RELEASE}\" -D_GNU_SOURCE
+CFLAGS += -D_GNU_SOURCE
 CFLAGS += -Wall -Werror -Wstrict-prototypes -Wshadow -ggdb
 CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${openaisincdir}
 CFLAGS += -I${virtincdir} -I${nssincdir} -I${nsprincdir}

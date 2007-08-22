@@ -2000,7 +2000,7 @@ void process_parameters(int argc, char *argv[], int pass)
 		if (!pass) {
 			if (!strcasecmp(argv[i], "-V")) {
 				printf("%s version %s (built %s %s)\n", prog_name,
-					   GFS2_RELEASE_NAME, __DATE__, __TIME__);
+					   RELEASE_VERSION, __DATE__, __TIME__);
 				printf("%s\n", REDHAT_COPYRIGHT);
 				exit(0);
 			}
