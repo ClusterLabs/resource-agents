@@ -120,8 +120,9 @@ name as it appears in 'cman_tool nodes'.
 .SH "VERSION" OPTIONS
 .TP
 .I -r <config_version>
-The new config version.
-
+The new config version. You don't need to use this when adding a new node,
+the new cman node will tell the rest of the cluster to get their latest
+version of the config file from CCS automatically.
 .SH "WAIT" OPTIONS
 .TP
 .I -q
@@ -133,13 +134,6 @@ If the operation times out then a status of 2 is returned.
 .br
 .SH "JOIN" OPTIONS
 .TP
-.I -X
-Tells cman_tool to ignore CCS altogether. All of the information necessary
-to join the cluster must be provided on the command-line. Note that if
-you get this wrong, it is possible that the node will form a cluster on
-it's own and ignore a cluster it is supposed to be joining, so this method
-of invocation is not recommended.
-.TP
 .I -c <clustername>
 Provides a text name for the cluster. You can have several clusters on one
 LAN and they are distinguished by this name. Note that the name is hashed to 
@@ -149,7 +143,7 @@ will not be allowed into the existing cluster and you will have to pick
 another name or use different port number for cluster communication.
 .TP
 .I -p <port>
-UDP port number used for cluster communication. This defaults to 6809.
+UDP port number used for cluster communication. This defaults to 5405.
 .TP
 .I -v <votes>
 Number of votes this node has in the cluster. Defaults to 1.
@@ -180,9 +174,8 @@ are using IPv6 then you will have to use multicast rather than broadcast.
 .TP
 .I -N <nodeid>
 Overrides the node ID for this node. Normally, nodes are assigned a 
-node id by the cluster join mechanism. If you want to ensure that
-your nodes always have the same number regardless of the order in 
-which they join the cluster then you can hard-code these IDs. 
+node id in CCS. If you specify an incorrect node ID here, the
+node might not be allowed to join the cluster.
 .TP
 .I -o <nodename>
 Override the name this node will have in the cluster. This will
@@ -204,10 +197,6 @@ Specifies a multicast address to use for cluster communication. This
 is required for IPv6 operation. You should also specify an ethernet 
 interface to bind to this multicast address using the -i option.
 .TP
-.I -i <interface>
-Used in conjunction with -m above to specify the interface for
-multicast to use.
-.TP
 .I -w
 Join and wait until the node is a cluster member.
 .TP
@@ -222,8 +211,26 @@ do want to wait, use the
 command without -w followed by
 .B cman_tool wait.
 .TP
+.I -k <keyfile>
+All traffic sent out by cman/openais is encrypted. By default the security key 
+used is simply the cluster name. If you need more security you can specify a
+key file that contains the key used to encrypt cluster communications.
+Of course, the contents of the key file must be the same on all nodes in the
+cluster. It is up to you to securely copy the file to the nodes.
+.TP
 .I -t <seconds>
 If -w or -q is also specified then -t dictates the maximum amount of time cman_tool
 is prepared to wait. If the operation times out then a status of 2 is returned.
 Note that just because cman_tool has given up, does not mean that cman itself
 has stopped trying to join a cluster.
+.br
+.SH "NODES" OPTIONS
+.TP
+.I -f
+Shows the date/time the node was last fenced (if it has bee fenced), and also
+the fence system that was used.
+.br
+.TP
+.I -a
+Shows the IP address(es) the nodes are communicating on.
+

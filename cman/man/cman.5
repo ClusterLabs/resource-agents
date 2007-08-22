@@ -1,5 +1,5 @@
 .\"
-.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+.\"  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 
 .\" groff -t -e -mandoc -Tlatin1 cman.5 | less
 
@@ -23,11 +23,14 @@ configuration settings are optional; usually none are used.
 
 \fIUDP port\fR
 .in +7
-By default, cman will use UDP port 6809 for internode communication.  This can
+By default, cman will use UDP port 5405/5404 for internode communication.  This can
 be changed by setting a port number as follows:
 
   <cman port="6809">
   </cman>
+
+This will cause cman to use ports 6809 and 6808 for cluster communications.
+
 .in -7
 
 
@@ -35,7 +38,7 @@ be changed by setting a port number as follows:
 .in +7
 The expected votes value is used by cman to determine quorum.  The cluster is
 quorate if the sum of votes of existing members is over half of the expected
-votes value.  By default, cman_tool sets the expected votes value to be the sum
+votes value.  By default, cman sets the expected votes value to be the sum
 of votes of all nodes listed in cluster.conf.  This can be overriden by setting
 an explicit expected_votes value as follows:
 
@@ -76,9 +79,8 @@ follows:
 \fINode ID\fR
 .in +7
 
-By default, a node is assigned a nodeid by the cluster manager (cman) when
-it joins the cluster.  This can be overriden by specifying a nodeid here.
-Using this option will ensure that a given node always has the same ID.
+All nodes must have a unique node ID. This is a single integer that identifies
+it to the cluster.
 A node's application to join the cluster may be rejected if you try to set
 the nodeid to one that is already used.
 
@@ -89,21 +91,52 @@ the nodeid to one that is already used.
 
 \fIMulticast network configuration\fR
 .in +7
-Cman can be configured to use multicast instead of broadcast (broadcast is used
-by default if no multicast parameters are given.)  To configure multicast add
-one line under the <cman> section and another under the <clusternode> section:
+cman uses multicast UDP packets to communicate with other nodes in the cluster.
+By default it will generate a multicast address using 239.192.x.x where x.x is
+the 16bit cluster ID number split into bytes. This, in turn is generated from a 
+hash of the cluster name though it can be specified explicitly. The purpose 
+of this is to allow multiple clusters to share the same subnet - they will each 
+use a different multicast address. You might also/instead want to isolate 
+clusters using the port number as shown above.
+
+It is possible to override the multicast address by specifying it in cluster.conf
+as shown:
 
   <cman>
-      <multicast addr="224.0.0.1"/>
+      <multicast addr="229.192.0.1"/>
   </cman>
 
-  <clusternode name="nd1">
-      <multicast addr="224.0.0.1" interface="eth0"/>
-  </clusternode>
-
-The multicast addresses must match and the address must be usable on the
-interface name given for the node.
 .in -7
+
+\fICluster ID\fR
+.in +7
+The cluster ID number is used to isolate clusters in the same subnet. Usually it
+is generated from a hash of the cluster name, but it can be overridden here if
+you feel the need. Sometimes cluster names can hash to the same ID.
+
+  <cman>
+      <cluster_id="669"/>
+  </cman>
+
+.in -7
+
+\fIOpenAIS Security key\fR
+.in +7
+All traffic sent out by cman/openais is encrypted. By default the security key 
+used is simply the cluster name. If you need more security you can specify a
+key file that contains the key used to encrypt cluster communications.
+Of course, the contents of the key file must be the same on all nodes in the
+cluster. It is up to you to securely copy the file to the nodes.
+
+  <cman>
+      <keyfile="/etc/openais.key"/>
+  </cman>
+
+Note that this only applies to cluster communication. The DLM does not encrypt 
+traffic.
+
+.in -7
+
 
 
 .sp
