@@ -393,7 +393,7 @@ int cman_poll_quorum_device(cman_handle_t handle, int isavailable);
  * Sets the dirty bit inside cman. This indicates that the node has
  * some internal 'state' (eg in a daemon, filesystem or lock manager)
  * and cannot merge with another cluster that already has state.
- * This cannot be reset.
+ * This needs an admin socket. It cannot be reset. 
  */
 int cman_set_dirty(cman_handle_t handle);
 
