@@ -153,14 +153,51 @@ cluster. It is up to you to securely copy the file to the nodes.
 
 Note that this only applies to cluster communication. The DLM does not encrypt 
 traffic.
-
 .in -7
 
+
+\fIOther OpenAIS parameters\fR
+.in +7
+In addition to the cman-specific sections, cman also loads in configuration for openAIS from CCS from the following keys:
+
+<totem>
+<logging>
+<event>
+<aisexec>
+<group>
+
+See the 
+.B openais.conf(5)
+man page for more information on keys that are valid for these sections. 
+Note that the <clusternodes> section will overwrite things in these sections 
+and options on the cman_tool command line will override both. 
+In particular setting things like bindnetaddr, mcastaddr, mcastport & 
+nodeid in this section will always be replaced by the values in <clusternodes>.
+
+cman does not use the openais.conf file at all. What it does do is 
+load the values from CCS into internal OpenAIS data structures that 
+map onto the entries to openais.conf. So that's why you can add an 
+entry in a <totem> section in CCS and it will be used by totem.
+
+Here's how to increase the token timeout to five seconds:
+
+  <totem token="5000"/>
+
+And this is how to add extra AIS logging options to cman & CPG:
+
+  <logging to_stderr="yes">
+    <logger ident="CPG" debug="on" to_stderr="yes">
+    </logger>
+    <logger ident="CMAN" debug="on" to_stderr="yes">
+    </logger>
+  </logging>
+
+.in -7
 
 
 .sp
 .in -7
 \fBSEE ALSO\fP
 .in +7
-cluster.conf(5), ccs(7), cman_tool(8)
+cluster.conf(5), openais.conf(5), ccs(7), cman_tool(8)
 
