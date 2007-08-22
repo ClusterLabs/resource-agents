@@ -1211,6 +1211,7 @@ int process_command(struct connection *con, int cmd, char *cmdbuf,
 
 	case CMAN_CMD_SET_DIRTY:
 		us->flags |= NODE_FLAGS_DIRTY;
+		err = 0;
 		break;
 
 	case CMAN_CMD_START_CONFCHG:
