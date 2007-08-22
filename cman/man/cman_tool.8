@@ -35,8 +35,8 @@ Tells CMAN to leave the cluster. You cannot do this if there are subsystems
 shutdown CLVM, fenced and anything else using the cluster manager before
 using 
 .B cman_tool leave.
-Look at 'cman_tool status|services' to see how many (and which) services are
-running.
+Look at 'cman_tool status' and group_tool to see how many (and which)
+subsystems are active.
 .br
 When a node leaves the cluster, the remaining nodes recalculate quorum and this
 may block cluster activity if the required number of votes is not present.
@@ -81,7 +81,8 @@ Displays the local view of the cluster nodes.
 
 .TP
 .I services
-Displays the local view of the cluster services.
+Displays the local view of subsystems using cman (deprecated, group_tool
+should be used instead).
 
 .SH "LEAVE" OPTIONS
 .TP
