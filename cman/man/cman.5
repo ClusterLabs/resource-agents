@@ -86,6 +86,27 @@ the nodeid to one that is already used.
 
   <clusternode name="nd1" nodeid="1">
   </clusternode>
+
+.in -7
+\fIMulti-home configuration\fR
+.in +7
+It is quite common to use multiple ethernet adaptors for cluster nodes, so
+they will tolerate the failure of one link. A common way to do this is to use
+ethernet bonding. Alternatively you can get openais to run in redundant ring
+mode by specifying an 'altname' for the node. This is an alternative name by
+which the node is known, that resolves to another IP address used on the 
+other ethernet adaptor(s). You can optionally specify a different port and/or 
+multicast address for each altname in use. Up to 9 altnames (10 interfaces 
+in total) can be used.
+
+Note that if you are using the DLM with cman/openais then you MUST tell it 
+to use SCTP as it's communications protocol as TCP does not support multihoming.
+
+  <clusternode name="nd1" nodeid="1"> 
+     <altname name="nd1a" port="6809" mcast="229.192.0.2"/>
+  </clusternode>
+
+  <dlm protocol="sctp"/>
 .in -7
 
 
