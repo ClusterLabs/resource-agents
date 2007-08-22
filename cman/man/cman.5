@@ -114,8 +114,7 @@ The cluster ID number is used to isolate clusters in the same subnet. Usually it
 is generated from a hash of the cluster name, but it can be overridden here if
 you feel the need. Sometimes cluster names can hash to the same ID.
 
-  <cman>
-      <cluster_id="669"/>
+  <cman cluster_id="669">
   </cman>
 
 .in -7
@@ -128,8 +127,7 @@ key file that contains the key used to encrypt cluster communications.
 Of course, the contents of the key file must be the same on all nodes in the
 cluster. It is up to you to securely copy the file to the nodes.
 
-  <cman>
-      <keyfile="/etc/openais.key"/>
+  <cman keyfile="/etc/openais.key">
   </cman>
 
 Note that this only applies to cluster communication. The DLM does not encrypt 
