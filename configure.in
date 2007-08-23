@@ -230,6 +230,16 @@ noarchlibdir=`var "$noarchlibdir" "$prefix/lib"`
 
 
 LDD=ldd
+dnl Which C compiler?
+dnl Defaults to GNU C compiler if available.
+dnl Always tries to set the compiler to ANSI C via options (AM)
+dnl Can force other with environment variable "CC".
+AC_PROG_CC
+AC_PROG_CC_STDC
+
+dnl ************************************************************************
+dnl Test to see whether library directories should be lib or lib64...
+dnl ************************************************************************
 
 AC_MSG_CHECKING(for proper library directory suffix)
 tmpdir=/tmp
@@ -237,19 +247,37 @@ tmpCfile=${tmpdir}/$$test.c
 tmpOutfile=${tmpdir}/$$test
 echo 'int main(int argc, char** argv) { return(1);}' >$tmpCfile
 if
-  cc ${tmpCfile} -o ${tmpOutfile}
+  ${CC} ${tmpCfile} -o ${tmpOutfile}
 then
   LIBC=`${LDD} ${tmpOutfile} | grep libc | sed -e 's%.*=> *%%' -e 's% .*$%%'`
   LibCdir=`dirname $LIBC`
   LibDirSuffix=`basename $LibCdir`
-  AC_MSG_RESULT($LibDirSuffix)
   rm -f $tmpCfile $tmpOutfile
 else
   AC_MSG_ERROR([Cannot Compile trivial C program])
 fi
+#
+#	The code above doesn't work right everywhere (like Fedora)
+#
+case ${LibDirSuffix} in
+	lib*)	: Cool;;
+	*)	: Sigh...
+		case `file -L /bin/sh` in
+		  *64-bit*)	LibDirSuffix=lib64;;
+		  *32-bit*)	LibDirSuffix=lib;;
+		  *)		LibDirSuffix=lib;;
+		esac;;
+esac
+#
+#	This may not yet be quite right for PPC where the default
+#	is to produce 32-bit binaries, even though the OS is 64-bit
+#	or for that matter for system Z, But, it's a lot better than
+#	it used to be.
+#
+AC_MSG_RESULT($LibDirSuffix)
 
 case $libdir in
-  */$LibDirSuffix)	: Cool ;;
+  */*${LibDirSuffix})	: Cool ;;
   *)			: Uh Oh... 
 	libdir=`dirname $libdir`/$LibDirSuffix
 	AC_MSG_WARN([Overriding libdir to: $libdir]);;
@@ -272,9 +300,6 @@ do
   fi
 done
 
-dnl ************************************************************************
-dnl Test to see whether library directories should be lib or lib64...
-dnl ************************************************************************
 
 dnl	The GNU conventions for installation directories don't always
 dnl	sit well with this software.  In particular, GNU's stated:
@@ -379,7 +404,7 @@ AC_DEFINE_UNQUOTED(HA_LOGDAEMON_IPC, "$HA_LOGDAEMON_IPC", Logging Daemon IPC soc
 
 dnl This IS a default but we should make sure we can override it for any 
 dnl odd OS requirements.
-HA_VARLOGDIR="/var/log"
+HA_VARLOGDIR="${localstatedir}/log"
 AC_SUBST(HA_VARLOGDIR)
 AC_DEFINE_UNQUOTED(HA_VARLOGDIR,"$HA_VARLOGDIR", var log directory)
 
@@ -433,12 +458,6 @@ PATH="$PATH:/sbin:/usr/sbin:/usr/local/sbin:/usr/local/bin"
 export PATH
 dnl checks for programs
 dnl
-dnl Which C compiler?
-dnl Defaults to GNU C compiler if available.
-dnl Always tries to set the compiler to ANSI C via options (AM)
-dnl Can force other with environment variable "CC".
-AC_PROG_CC
-AC_PROG_CC_STDC
 AC_PROG_YACC
 AC_DECL_YYTEXT
 AM_PROG_LEX
@@ -1188,29 +1207,39 @@ libs2packages() {
   for arg
   do 
     case $arg in
-        -ldl|-lm|-L*)		;;
-        -lcrypto)		echo openssl;;
-        -lnetsnmp)		echo net-snmp;;
-        -lsnmp)			echo net-snmp;;
-        -lnetsnmpagent)		echo net-snmp;;
-        -lnetsnmphelpers)	echo net-snmp;;
-        -lnetsnmpmibs)		echo net-snmp;;
-        -lrpm)			echo rpm;;
-        -lrpmio)		echo rpm;;
-        -lpopt)			echo popt;;
-        -lsensors)		echo sensors;;
-        -lwrap)			echo tcpd;;
-        -lz)			echo zlib;;
+        -ldl|-lm|-L*|-lc|-lpthread|-lnsl)			;;
+        -lresolv|-lcrypt|-lutil|-Wl,-E|-wL,-rpath)		;;
+        -lcrypto)		echo openssl			;;
+        -lnetsnmp)		echo net-snmp			;;
+        -lsnmp)			echo net-snmp			;;
+        -lnetsnmpagent)		echo net-snmp			;;
+        -lnetsnmphelpers)	echo net-snmp			;;
+        -lnetsnmpmibs)		echo net-snmp			;;
+        -lrpm)			echo rpm			;;
+        -lrpmio)		echo rpm			;;
+        -lpopt)			echo popt			;;
+        -lsensors)		case $host_vendor in
+				  suse|SUSE|SuSE)
+        				echo sensors;;
+				  *) 	echo lm_sensors
+				esac				;;
+        -lwrap)			case $host_vendor in
+				  suse|SUSE|SuSE)
+        				echo tcpd;;
+				  *) 	echo tcp_wrappers;;
+				esac				;;
+        -lz)			echo zlib			;;
+        -lperl|-l/*perl*/auto/DynaLoader/DynaLoader*)
+				echo perl			;;
          *)			AC_MSG_WARN([SNMP library $arg not included in RPM build dependencies])
     esac
   done
 }
 
 AC_MSG_CHECKING(What packages are needed for SNMP at compile time for RPMs);
-AC_MSG_RESULT(SNMPLIBSET is $SNMPLIBSET)
 PKGSET=`libs2packages $SNMPLIBSET | tr ' ' '\012' | sort -u`
 PKGSET=`echo $PKGSET`
-AC_MSG_RESULT(PKGSET is $PKGSET)
+AC_MSG_RESULT($PKGSET)
 
 if test  -z "$PKGSET"; then
 	SNMP_RPM_BUILD_REQUIRES="BuildRequires: ${CC}"
