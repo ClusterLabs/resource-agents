@@ -73,6 +73,8 @@ struct dlm_lkb {
 	struct dlm_rsb		*rsb;       /* lock is on resource */
 	struct trans		*trans;     /* lock owned by this transaction */
 	struct list_head	trans_list; /* tr->locks */
+	struct trans		*waitfor_trans; /* the trans that's holding the
+						   lock that's blocking us */
 };
 
 /* waitfor pointers alloc'ed 4 at at time */
@@ -87,7 +89,9 @@ struct trans {
 							 waitfor */
 	int			waitfor_alloc;
 	int			waitfor_count;        /* count of in-use
-							 waitfor slots */
+							 waitfor slots and
+						         num of trans's we're
+						         waiting on */
 	struct trans		**waitfor;	      /* waitfor_alloc trans
 							 pointers */
 };
@@ -765,8 +769,6 @@ static void read_checkpoint(struct lockspace *ls, int nodeid)
 			goto out_it;
 		}
 
-		log_group(ls, "read_checkpoint: ckpt read %llu bytes",
-			  (unsigned long long)iov.readSize);
 		section_len = iov.readSize;
 
 		if (!section_len)
@@ -1598,6 +1600,7 @@ static void add_waitfor(struct lockspace *ls, struct dlm_lkb *waiting_lkb,
 
 	tr->waitfor[tr->waitfor_count++] = granted_lkb->trans;
 	granted_lkb->trans->others_waiting_on_us++;
+	waiting_lkb->waitfor_trans = granted_lkb->trans;
 }
 
 /* for each trans, for each waiting lock, go to rsb of the lock,
@@ -1742,14 +1745,32 @@ static void cancel_trans(struct lockspace *ls)
 		if (lkb->lock.status == DLM_LKSTS_GRANTED)
 			continue;
 		send_cancel_lock(ls, tr, lkb);
-		tr->waitfor_count--;
+
+		/* When this canceled trans has multiple locks all blocked by
+		   locks held by one other trans, that other trans is only
+		   added to tr->waitfor once, and only one of these waiting
+		   locks will have waitfor_trans set.  So, the lkb with
+		   non-null waitfor_trans was the first one responsible
+		   for adding waitfor_trans to tr->waitfor.
+
+		   We could potentially forget about keeping track of lkb->
+		   waitfor_trans, forget about calling remove_waitfor()
+		   here and just set tr->waitfor_count = 0 after this loop.
+		   The loss would be that waitfor_trans->others_waiting_on_us
+		   would not get decremented. */
+
+		if (lkb->waitfor_trans)
+			remove_waitfor(tr, lkb->waitfor_trans);
 	}
 
-	if (tr->waitfor_count)
-		log_group(ls, "canceled trans has non-zero waitfor_count %d",
-			  tr->waitfor_count);
+	/* this shouldn't happen, if it does something's not working right */
+	if (tr->waitfor_count) {
+		log_group(ls, "cancel_trans: %llx non-zero waitfor_count %d",
+			  (unsigned long long)tr->xid, tr->waitfor_count);
+	}
 
-	/* this should now remove the canceled trans */
+	/* this should now remove the canceled trans since it now has a zero
+	   waitfor_count */
 	removed = reduce_waitfor_graph(ls);
 
 	if (!removed)
@@ -1772,11 +1793,12 @@ static void dump_trans(struct lockspace *ls, struct trans *tr)
 	log_group(ls, "locks:");
 	
 	list_for_each_entry(lkb, &tr->locks, trans_list) {
-		log_group(ls, "  %s: id %08x gr %s rq %s pid %u \"%s\"",
+		log_group(ls, "  %s: id %08x gr %s rq %s pid %u:%u \"%s\"",
 			  status_str(lkb->lock.status),
 			  lkb->lock.id,
 			  dlm_mode_str(lkb->lock.grmode),
 			  dlm_mode_str(lkb->lock.rqmode),
+			  lkb->home,
 			  lkb->lock.ownpid,
 			  lkb->rsb->name);
 	}
