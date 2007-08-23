@@ -17,7 +17,14 @@ cman - cluster.conf cman configuration section
 Cman configuration values are placed in the <cman> </cman> section of
 \fBcluster.conf\fP.  Per-node configuration related to cman is placed
 in the standard <clusternode> </clusternode> sections.  All cman
-configuration settings are optional; usually none are used.
+configuration settings are optional; usually none are used.  The <cman>
+section is placed under the <cluster> section in cluster.conf.
+
+  <cluster>
+    <cman>
+    </cman>
+    ...
+  </cluster>
 .in -7
 
 
@@ -140,7 +147,7 @@ you feel the need. Sometimes cluster names can hash to the same ID.
 
 .in -7
 
-\fIOpenAIS Security key\fR
+\fIopenais security key\fR
 .in +7
 All traffic sent out by cman/openais is encrypted. By default the security key 
 used is simply the cluster name. If you need more security you can specify a
@@ -156,50 +163,52 @@ traffic.
 .in -7
 
 
-\fIOther OpenAIS parameters\fR
+\fIOther openais parameters\fR
 .in +7
-In addition to the cman-specific sections, cman also loads in configuration for openAIS from CCS from the following keys:
+When openais is started by cman (cman_tool runs aisexec), the openais.conf
+file is not used.  Many of the configuration parameters listed in
+openais.conf can be set in cluster.conf (CCS) instead.  Cman will read
+openais parameters from the following sections in cluster.conf and load
+them into openais:
 
-<totem>
-<logging>
-<event>
-<aisexec>
-<group>
+  <cluster>
+    <totem />
+    <logging />
+    <event />
+    <aisexec />
+    <group />
+  </cluster>
 
 See the 
 .B openais.conf(5)
-man page for more information on keys that are valid for these sections. 
-Note that the <clusternodes> section will overwrite things in these sections 
-and options on the cman_tool command line will override both. 
-In particular setting things like bindnetaddr, mcastaddr, mcastport & 
-nodeid in this section will always be replaced by the values in <clusternodes>.
+man page for more information on keys that are valid for these sections.
+Note that settings in the <clusternodes> section will override settings in
+the sections above, and options on the cman_tool command line will
+override both.  In particular, settings like bindnetaddr, mcastaddr,
+mcastport and nodeid will always be replaced by values in <clusternodes>.
 
-Several openais.conf items are overridden by cman by default. You can still change
-these in cluster.conf but the defaults are different from those documented in
-the openais.conf(5) man page. They are:
+Cman uses different defaults for some of the openais parameters listed in
+openais.conf(5).  If you wish to use a non-default setting, they can be
+configured in cluster.conf as shown above.  Cman uses the following
+default values:
 
   <totem
-   vsftype="none"
-   token="10000"
-   token_retransmits_before_loss_const="20"
-   join="60"
-   consensus="4800"
-   rrp_mode="none"
-   <!-- or rrp_mode="active" if altnames are present >
-   />
-   <logging syslog_facility="local4" />
-   <aisexec user="root" group="root" />
+    vsftype="none"
+    token="10000"
+    token_retransmits_before_loss_const="20"
+    join="60"
+    consensus="4800"
+    rrp_mode="none"
+    <!-- or rrp_mode="active" if altnames are present >
+  />
+  <logging syslog_facility="local4" />
+  <aisexec user="root" group="root" />
 
-cman does not use the openais.conf file at all. What it does do is 
-load the values from CCS into internal OpenAIS data structures that 
-map onto the entries to openais.conf. So that's why you can add an 
-entry in a <totem> section in CCS and it will be used by totem.
-
-Here's how to increase the token timeout to five seconds:
+Here's how to set the token timeout to five seconds:
 
   <totem token="5000"/>
 
-And this is how to add extra AIS logging options to cman & CPG:
+And this is how to add extra openais logging options to CMAN and CPG:
 
   <logging to_stderr="yes">
     <logger ident="CPG" debug="on" to_stderr="yes">
