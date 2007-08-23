@@ -251,7 +251,18 @@ if
 then
   LIBC=`${LDD} ${tmpOutfile} | grep libc | sed -e 's%.*=> *%%' -e 's% .*$%%'`
   LibCdir=`dirname $LIBC`
-  LibDirSuffix=`basename $LibCdir`
+  dirlist=`echo $LibCdir | tr '/' ' '`
+  LibDirSuffix=unknown
+  for dir in dirlist
+  do
+    case $dir in
+      *lib*)	LibDirSuffix=$dir; break;;
+      *);;
+    esac
+  done
+  case $LibDirSuffix in
+    unknown)	LibDirSuffix=`basename $LibCdir`;;
+  esac
   rm -f $tmpCfile $tmpOutfile
 else
   AC_MSG_ERROR([Cannot Compile trivial C program])
