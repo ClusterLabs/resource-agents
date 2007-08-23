@@ -174,6 +174,22 @@ and options on the cman_tool command line will override both.
 In particular setting things like bindnetaddr, mcastaddr, mcastport & 
 nodeid in this section will always be replaced by the values in <clusternodes>.
 
+Several openais.conf items are overridden by cman by default. You can still change
+these in cluster.conf but the defaults are different from those documented in
+the openais.conf(5) man page. They are:
+
+  <totem
+   vsftype="none"
+   token="10000"
+   token_retransmits_before_loss_const="20"
+   join="60"
+   consensus="4800"
+   rrp_mode="none"
+   <!-- or rrp_mode="active" if altnames are present >
+   />
+   <logging syslog_facility="local4" />
+   <aisexec user="root" group="root" />
+
 cman does not use the openais.conf file at all. What it does do is 
 load the values from CCS into internal OpenAIS data structures that 
 map onto the entries to openais.conf. So that's why you can add an 
