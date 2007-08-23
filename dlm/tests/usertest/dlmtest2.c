@@ -754,6 +754,7 @@ void dstress(int num)
 
 		if (n && !(n % 60))
 			unlock_all();
+		n++;
 
 		i = rand_int(0, maxn-1);
 		lk = get_lock(i);
@@ -1308,6 +1309,8 @@ int main(int argc, char *argv[])
 	uint32_t major, minor, patch;
 	struct lk *lk;
 	int i, rv, maxi = 0, quit = 0;
+
+	srandom(time(NULL));
 
 	decode_arguments(argc, argv);
 
