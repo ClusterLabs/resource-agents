@@ -128,7 +128,7 @@ apachecat() {
 		close(cmd);
 	}
 	function listfiles(pattern, cmd,f) {
-		cmd="ls "pattern;
+		cmd="ls "pattern" 2>/dev/null";
 		while( ( cmd | getline f ) > 0 ) {
 			printfile(f);
 		}
