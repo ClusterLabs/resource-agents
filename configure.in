@@ -263,6 +263,7 @@ then
   case $LibDirSuffix in
     unknown)	LibDirSuffix=`basename $LibCdir`;;
   esac
+  OutFileType=`file $tmpOutfile`
   rm -f $tmpCfile $tmpOutfile
 else
   AC_MSG_ERROR([Cannot Compile trivial C program])
@@ -271,9 +272,9 @@ fi
 #	The code above doesn't work right everywhere (like Fedora)
 #
 case ${LibDirSuffix} in
-	lib*)	: Cool;;
+	*lib*)	: Cool;;
 	*)	: Sigh...
-		case `file -L /bin/sh` in
+		case $OutFileType in
 		  *64-bit*)	LibDirSuffix=lib64;;
 		  *32-bit*)	LibDirSuffix=lib;;
 		  *)		LibDirSuffix=lib;;
