@@ -58,6 +58,7 @@ do { \
 #define GQ_OP_WARN           (16)
 #define GQ_OP_CHECK          (17)
 #define GQ_OP_INIT           (18)
+#define GQ_OP_RESET           (19)
 
 #define GQ_ID_USER           (23)
 #define GQ_ID_GROUP          (24)
@@ -97,6 +98,13 @@ void lock_for_admin();
 void mount_gfs2_meta();
 void cleanup();
 void read_superblock(struct gfs2_sb *sb, struct gfs2_sbd *sdp);
+void get_last_quota_id(int fd, uint32_t *max_id);
+int is_valid_quota_list(int fd);
+inline void read_quota_internal(int fd, unsigned int id, int id_type, 
+				struct gfs2_quota *q);
+inline void write_quota_internal(int fd, unsigned int id, int id_type, 
+				 struct gfs2_quota *q);
+void print_quota_list_warning();
 
 /*  check.c  */
 

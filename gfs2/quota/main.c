@@ -77,6 +77,7 @@ print_usage()
 	printf("  warn             set a quota warning value for an ID\n");
 	printf("  check            check the quota file\n");
 	printf("  init             initialize the quota file\n");
+	printf("  reset            reset the quota file\n");
 	printf("\n");
 	printf("Options:\n");
 	printf("  -b               sizes are in FS blocks\n");
@@ -214,6 +215,10 @@ decode_arguments(int argc, char *argv[], commandline_t *comline)
 			if (comline->operation)
 				die("can't specify two operations\n");
 			comline->operation = GQ_OP_INIT;
+		} else if (strcmp(argv[optind], "reset") == 0) {
+			if (comline->operation)
+				die("can't specify two operations\n");
+			comline->operation = GQ_OP_RESET;
 		} else
 			die("unknown option %s\n", argv[optind]);
 
@@ -297,6 +302,239 @@ read_superblock(struct gfs2_sb *sb, struct gfs2_sbd *sdp)
 	close(fd);
 }
 
+inline void 
+read_quota_internal(int fd, uint32_t id, int id_type, struct gfs2_quota *q)
+{
+	/* seek to the appropriate offset in the quota file and read the 
+	   quota info */
+	uint64_t offset;
+	char buf[256];
+	int error;
+	if (id_type == GQ_ID_USER)
+		offset = (2 * (uint64_t)id) * sizeof(struct gfs2_quota);
+	else
+		offset = (2 * (uint64_t)id + 1) * sizeof(struct gfs2_quota);
+	lseek(fd, offset, SEEK_SET);
+	error = read(fd, buf, sizeof(struct gfs2_quota));
+	if (error < 0)
+		die("failed to read from quota file: %s\n", strerror(errno));
+	if (error != sizeof(struct gfs2_quota))
+		die("Couldn't read %d bytes from quota file at offset %llu\n",
+		    sizeof(struct gfs2_quota), offset);
+	gfs2_quota_in(q, buf);
+}
+
+inline void 
+write_quota_internal(int fd, uint32_t id, int id_type, struct gfs2_quota *q)
+{
+	/* seek to the appropriate offset in the quota file and read the
+	   quota info */
+	uint64_t offset;
+	char buf[256];
+	int error;
+	if (id_type == GQ_ID_USER)
+		offset = (2 * (uint64_t)id) * sizeof(struct gfs2_quota);
+	else
+		offset = (2 * (uint64_t)id + 1) * sizeof(struct gfs2_quota);
+	lseek(fd, offset, SEEK_SET);
+	gfs2_quota_out(q, buf);
+	error = write(fd, buf, sizeof(struct gfs2_quota));
+	if (error != sizeof(struct gfs2_quota))
+		die("failed to write to quota file: %s\n", strerror(errno));
+}
+
+/**
+ * get_last_quota_id - Get the last quota in the quota file
+ * @fd: an open file descriptor of the quota file
+ * @id_type: GQ_ID_USER or GQ_ID_GROUP
+ * @max_id: return the maximum id obtained
+ */
+void 
+get_last_quota_id(int fd, uint32_t *max_id)
+{
+	/* stat(2) the quota file to find how big it is. This will give us a
+	 * a rough idea of what the last valid quota uid/gid is. It is possible 
+	 * that the last quota in the file belongs to a group with gid:x and 
+	 * the corresponding user quota with uid:x doesn't exist. In such cases
+	 * we still return x as max_id. This max_id is ONLY A HINT. If used 
+	 * as a terminating condition of a loop, another condition should also
+	 * be specified.
+	 */
+	struct stat st;
+	uint32_t qsize = sizeof(struct gfs2_quota);
+	uint64_t size;
+	if (fstat(fd, &st))
+		die("failed to stat the quota file: %s\n", strerror(errno));
+	size = st.st_size;
+	if (!size)
+		die("error: quota file is truncated to zero!\n");
+	if (size % qsize) {
+		printf("warning: quota file size not a multiple of "
+		       "struct gfs2_quota\n");
+		size = qsize * (size / qsize);
+	}
+	*max_id = (size - 1) / (2 * qsize);
+}
+
+/**
+ * is_valid_quota_list - Check if we have a valid quota list
+ * @fd: an open file descriptor of the quota file
+ * Returns 0 or 1.
+ */
+int 
+is_valid_quota_list(int fd)
+{
+	/* This is a slow test to determine if the quotas are in a 
+	 * linked list. We should come up with something better
+	 * Quota linked list format is identified by the following.
+	 * step1: Get the maximum groupid and userid having valid
+	 *        quotas in the quota file.
+	 * step2: Obtain the size of the quota file. The size of the 
+	 *        quota file (position of the last valid quota) 
+	 *        determines the last user/group id.
+	 * step3: If we can obtain the last valid quota through the 
+	 *        lists, then our lists are good. Else, the lists are 
+	 *        either corrupt or an older quota file format is in use
+	 */
+	int id_type = GQ_ID_GROUP;
+	uint32_t id = 0, prev, ulast = 0, glast = 0, max;
+	struct gfs2_quota q;
+
+	get_last_quota_id(fd, &max);
+again:
+	do {
+		read_quota_internal(fd, id, id_type, &q);
+		prev = id;
+		id = q.qu_ll_next;
+		if (id > max)
+			return 0;
+	} while (id && id > prev);
+
+	if (id && id <= prev)
+		return 0;
+
+	if (id_type == GQ_ID_GROUP)
+		glast = prev;
+	else
+		ulast = prev;
+
+	if (id_type == GQ_ID_GROUP) {
+		id_type = GQ_ID_USER;
+		id = 0;
+		goto again;
+	}
+
+	if (glast != max && ulast != max)
+		return 0;
+	
+	return 1;
+}
+
+void 
+print_quota_list_warning()
+{
+	printf("\nWarning: This filesystem doesn't seem to have the new quota "
+	       "list format or the quota list is corrupt. list, check and init "
+	       "operation performance will suffer due to this. It is recommended "
+	       "that you run the 'gfs2_quota reset' operation to reset the quota "
+	       "file. All current quota information will be lost and you will "
+	       "have to reassign all quota limits and warnings\n\n"); 
+}
+
+/**
+ * adjust_quota_list - Adjust the quota linked list
+ * @fd: The quota file descriptor
+ * @comline: the struct containing the parsed command line arguments
+ */
+static void
+adjust_quota_list(int fd, commandline_t *comline)
+{
+	uint32_t prev = 0, next = 0, id = comline->id;
+	struct gfs2_quota tmpq, q;
+	int id_type = comline->id_type;
+	
+	if (id == 0) /* root quota, don't do anything */
+		goto out;
+	/* We just wrote the quota for id in do_set(). Get it */
+	next = 0;
+	do {
+		read_quota_internal(fd, next, id_type, &q);
+		prev = next;
+		next = q.qu_ll_next;
+		if (prev == id) /* no duplicates, bail */
+			goto out;
+		if (prev < id && id < next) /* gotcha! */
+			break;
+	} while(next && next > prev);
+	read_quota_internal(fd, id, id_type, &tmpq);
+	tmpq.qu_ll_next = next;
+	q.qu_ll_next = id;
+	write_quota_internal(fd, id, id_type, &tmpq);
+	write_quota_internal(fd, prev, id_type, &q);
+
+out:
+	return;
+}
+
+/**
+ * do_reset - Reset all the quota data for a filesystem
+ * @comline: the struct containing the parsed command line arguments
+ */
+
+static void
+do_reset(struct gfs2_sbd *sdp, commandline_t *comline)
+{
+	int fd;
+	char quota_file[BUF_SIZE], c;
+	struct gfs2_quota q;
+
+	if (!*comline->filesystem)
+		die("need a filesystem to work on\n");
+
+	printf("This operation will permanently erase all quota information. "
+	       "You will have to re-assign all quota limit/warn values. "
+	       "Proceed [y/N]? ");
+	c = getchar();
+	if (c != 'y' && c != 'Y')
+		return;
+
+	strcpy(sdp->path_name, comline->filesystem);
+	check_for_gfs2(sdp);
+	read_superblock(&sdp->sd_sb, sdp);
+	if (!find_gfs2_meta(sdp))
+		mount_gfs2_meta(sdp);
+	lock_for_admin(sdp);
+	
+	strcpy(quota_file, sdp->metafs_path);
+	strcat(quota_file, "/quota");
+
+	fd = open(quota_file, O_RDWR);
+	if (fd < 0) {
+		close(sdp->metafs_fd);
+		cleanup_metafs(sdp);
+		die("can't open file %s: %s\n", quota_file,
+		    strerror(errno));
+	}
+
+	read_quota_internal(fd, 0, GQ_ID_USER, &q);
+	q.qu_ll_next = 0;
+	write_quota_internal(fd, 0, GQ_ID_USER, &q);
+
+	read_quota_internal(fd, 0, GQ_ID_GROUP, &q);
+	q.qu_ll_next = 0;
+	write_quota_internal(fd, 0, GQ_ID_GROUP, &q);
+
+	/* truncate the quota file such that only the first
+	 * two quotas(uid=0 and gid=0) remain.
+	 */
+	if (ftruncate(fd, (sizeof(struct gfs2_quota)) * 2))
+		die("couldn't truncate quota file %s\n", strerror(errno));
+	
+	close(fd);
+	close(sdp->metafs_fd);
+	cleanup_metafs(sdp);
+}
+
 /**
  * do_list - List all the quota data for a filesystem
  * @comline: the struct containing the parsed command line arguments
@@ -310,10 +548,11 @@ do_list(struct gfs2_sbd *sdp, commandline_t *comline)
 	struct gfs2_quota q;
 	char buf[sizeof(struct gfs2_quota)];
 	uint64_t offset;
-	uint32_t id;
+	uint32_t id, prev, maxid;
 	int pass = 0;
 	int error = 0;
 	char quota_file[BUF_SIZE];
+	int id_type = comline->id_type;
 	
 	if (!*comline->filesystem)
 		die("need a filesystem to work on\n");
@@ -335,6 +574,30 @@ do_list(struct gfs2_sbd *sdp, commandline_t *comline)
 		die("can't open file %s: %s\n", quota_file,
 		    strerror(errno));
 	}
+	
+	if (!is_valid_quota_list(fd)) {
+		print_quota_list_warning();
+		goto do_old_school;
+	}
+	get_last_quota_id(fd, &maxid);
+	
+	for (pass=0; pass<2; pass++) {
+		id = 0;
+		id_type = pass ? GQ_ID_GROUP : GQ_ID_USER;
+		
+		do {
+			read_quota_internal(fd, id, id_type, &q);
+			prev = id;
+			if (q.qu_limit || q.qu_warn || q.qu_value)
+				print_quota(comline, 
+					    id_type == GQ_ID_USER ? TRUE : FALSE, 
+					    id, &q, &sdp->sd_sb);
+			id = q.qu_ll_next;
+		} while(id && id > prev && id <= maxid);
+	}
+	goto out;
+
+do_old_school:
 	for (pass=0; pass<2; pass++) {
 		if (!pass)
 			offset = 0;
@@ -359,7 +622,7 @@ do_list(struct gfs2_sbd *sdp, commandline_t *comline)
 			offset += 2 * sizeof(struct gfs2_quota);
 		} while (error == sizeof(struct gfs2_quota));
 	}
-
+out:
 	close(fd);
 	close(sdp->metafs_fd);
 	cleanup_metafs(sdp);
@@ -380,6 +643,7 @@ do_get_one(struct gfs2_sbd *sdp, commandline_t *comline, char *filesystem)
 	struct gfs2_quota q;
 	uint64_t offset;
 	int error;
+	uint32_t maxid;
 	char quota_file[BUF_SIZE];
 
 	strcpy(sdp->path_name, filesystem);
@@ -407,6 +671,10 @@ do_get_one(struct gfs2_sbd *sdp, commandline_t *comline, char *filesystem)
 
 	memset(&q, 0, sizeof(struct gfs2_quota));
 	
+	get_last_quota_id(fd, &maxid);
+	if (comline->id > maxid)
+		goto print_empty_quota;
+
 	lseek(fd, offset, SEEK_SET);
 	error = read(fd, buf, sizeof(struct gfs2_quota));
 	if (error < 0) {
@@ -420,6 +688,7 @@ do_get_one(struct gfs2_sbd *sdp, commandline_t *comline, char *filesystem)
 	gfs2_quota_in(&q, buf);
 
 
+print_empty_quota:
 	print_quota(comline,
 		    (comline->id_type == GQ_ID_USER), comline->id,
 		    &q, &sdp->sd_sb);
@@ -543,7 +812,7 @@ do_set(struct gfs2_sbd *sdp, commandline_t *comline)
 	int fd, fd1;
 	uint64_t offset;
 	uint64_t new_value;
-	int error;
+	int error, adj_flag = 0;;
 	char quota_file[BUF_SIZE];
 	char sys_q_refresh[BUF_SIZE];
 	char id_str[16];
@@ -564,7 +833,7 @@ do_set(struct gfs2_sbd *sdp, commandline_t *comline)
 	strcpy(quota_file, sdp->metafs_path);
 	strcat(quota_file, "/quota");
 
-	fd = open(quota_file, O_WRONLY);
+	fd = open(quota_file, O_RDWR);
 	if (fd < 0) {
 		close(sdp->metafs_fd);
 		cleanup_metafs(sdp);
@@ -572,6 +841,11 @@ do_set(struct gfs2_sbd *sdp, commandline_t *comline)
 		    strerror(errno));
 	}
 	
+	if (is_valid_quota_list(fd))
+		adj_flag = 1;
+	else
+		print_quota_list_warning();
+
 	switch (comline->id_type) {
 	case GQ_ID_USER:
 		offset = (2 * (uint64_t)comline->id) * sizeof(struct gfs2_quota);
@@ -706,6 +980,8 @@ do_set(struct gfs2_sbd *sdp, commandline_t *comline)
 		goto out;
 	}
 	close(fd1);
+	if (adj_flag)
+		adjust_quota_list(fd, comline);
 out:
 	close(fd);
 	close(sdp->metafs_fd);
@@ -765,6 +1041,9 @@ main(int argc, char *argv[])
 		do_quota_init(sdp, &comline);
 		break;
 
+	case GQ_OP_RESET:
+		do_reset(sdp, &comline);
+		break;
 	default:
 		if (!comline.id_type) {
 			comline.id_type = GQ_ID_USER;

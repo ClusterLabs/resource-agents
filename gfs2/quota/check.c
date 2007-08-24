@@ -187,8 +187,8 @@ read_quota_file(struct gfs2_sbd *sdp, commandline_t *comline,
 	char buf[sizeof(struct gfs2_quota)];
 	struct gfs2_quota q;
 	uint64_t offset = 0;
-	uint32_t id;
-	int error;
+	uint32_t id, prev, maxid;
+	int error, pass, id_type;
 	char quota_file[BUF_SIZE];
 	
 	strcpy(sdp->path_name, comline->filesystem);
@@ -209,6 +209,33 @@ read_quota_file(struct gfs2_sbd *sdp, commandline_t *comline,
 		    strerror(errno));
 	}
 
+	if (!is_valid_quota_list(fd)) {
+		print_quota_list_warning();
+		goto do_old_school;
+	}
+	get_last_quota_id(fd, &maxid);
+	
+	for (pass=0; pass<2; pass++) {
+		id = 0;
+		id_type = pass ? GQ_ID_GROUP : GQ_ID_USER;
+		
+		do {
+			read_quota_internal(fd, id, id_type, &q);
+			prev = id;
+			q.qu_value <<= sdp->sd_sb.sb_bsize_shift - 9;
+			
+			if (q.qu_value) {
+				if (pass)
+					add_value(gid, id, q.qu_value);
+				else
+					add_value(uid, id, q.qu_value);
+			}
+			id = q.qu_ll_next;
+		} while(id && id > prev && id <= maxid);
+	}
+	goto out;
+	
+do_old_school:
 	do {
 		
 		memset(buf, 0, sizeof(struct gfs2_quota));
@@ -237,6 +264,7 @@ read_quota_file(struct gfs2_sbd *sdp, commandline_t *comline,
 		offset += sizeof(struct gfs2_quota);
 	} while (error == sizeof(struct gfs2_quota));
 
+out:
 	close(fd);
 	close(sdp->metafs_fd);
 	cleanup_metafs(sdp);

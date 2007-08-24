@@ -252,6 +252,8 @@ void gfs2_quota_in(struct gfs2_quota *qu, char *buf)
 	CPIN_64(qu, str, qu_limit);
 	CPIN_64(qu, str, qu_warn);
 	CPIN_64(qu, str, qu_value);
+	CPIN_32(qu, str, qu_ll_next);
+	CPIN_08(qu, str, qu_reserved, 60);
 }
 
 void gfs2_quota_out(struct gfs2_quota *qu, char *buf)
@@ -261,7 +263,8 @@ void gfs2_quota_out(struct gfs2_quota *qu, char *buf)
 	CPOUT_64(qu, str, qu_limit);
 	CPOUT_64(qu, str, qu_warn);
 	CPOUT_64(qu, str, qu_value);
-	memset(qu->qu_reserved, 0, sizeof(qu->qu_reserved));
+	CPOUT_32(qu, str, qu_ll_next);
+	CPOUT_08(qu, str, qu_reserved, 60);
 }
 
 void gfs2_quota_print(struct gfs2_quota *qu)
