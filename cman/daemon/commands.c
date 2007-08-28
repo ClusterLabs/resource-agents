@@ -1840,7 +1840,8 @@ static void process_internal_message(char *data, int len, int nodeid, int need_b
 	case CLUSTER_MSG_PORTSTATUS:
 		if (nodeid != us->node_id) {
 			P_MEMB("got PORTRESULT from %d, low bytes = %x %x\n", data[1], data[2]);
-			memcpy(node->port_bits, data+1, PORT_BITS_SIZE);
+			if (node)
+				memcpy(node->port_bits, data+1, PORT_BITS_SIZE);
 		}
 		break;
 

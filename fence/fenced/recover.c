@@ -218,9 +218,11 @@ static int reduce_victims(fd_t *fd)
 static inline void close_override(int *fd, char *path)
 {
 	unlink(path);
-	if (fd && *fd >= 0)
-		close(*fd);
-	*fd = -1;
+	if (fd) {
+		if (*fd >= 0)
+			close(*fd);
+		*fd = -1;
+	}
 }
 
 static int open_override(char *path)

@@ -199,7 +199,7 @@ int is_fenced(char *name)
 	}
 
 	/* If this call fails (though it shouldn't) then regard the node as unfenced */
-	if (cman_get_fenceinfo(ch, cn->cn_nodeid, &fence_time, &fenced, agent)) {
+	if (cn && cman_get_fenceinfo(ch, cn->cn_nodeid, &fence_time, &fenced, agent)) {
 		log_debug("cman_get_fenceinfo failed: %s", strerror(errno));
 		fenced = 0;
 	}

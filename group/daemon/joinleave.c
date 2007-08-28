@@ -61,6 +61,8 @@ app_t *create_app(group_t *g)
 	app_t *a;
 
 	a = malloc(sizeof(app_t));
+	if (!a)
+		return NULL;
 	memset(a, 0, sizeof(app_t));
 
 	a->need_first_event = 1;
@@ -94,6 +96,10 @@ int do_join(char *name, int level, int ci)
 		goto out;
 
 	a = create_app(g);
+	if (!a) {
+		rv = -ENOMEM;
+		goto out;
+	}
 
 	a->client = ci;
 
