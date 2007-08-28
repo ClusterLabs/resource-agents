@@ -397,4 +397,17 @@ int cman_poll_quorum_device(cman_handle_t handle, int isavailable);
  */
 int cman_set_dirty(cman_handle_t handle);
 
+
+/*
+ * Changes the debug logging level inside cman.
+ * subsystems is a bitmask of:
+ */
+#define CMAN_DEBUGLOG_NONE       0
+#define CMAN_DEBUGLOG_BARRIER    2
+#define CMAN_DEBUGLOG_MEMBERSHIP 4
+#define CMAN_DEBUGLOG_DEAMON     8
+#define CMAN_DEBUGLOG_AIS       16
+
+int cman_set_debuglog(cman_handle_t handle, int subsystems);
+
 #endif

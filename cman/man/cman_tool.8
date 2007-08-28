@@ -3,7 +3,7 @@
 .SH NAME
 cman_tool \- Cluster Management Tool
 .SH SYNOPSIS
-.B cman_tool join | leave | kill | expected | votes | version | wait | status | nodes | services [options]
+.B cman_tool join | leave | kill | expected | votes | version | wait | status | nodes | services | debug [options]
 .br
 .SH DESCRIPTION
 .PP
@@ -84,6 +84,14 @@ Displays the local view of the cluster nodes.
 Displays the local view of subsystems using cman (deprecated, group_tool
 should be used instead).
 
+.TP
+.I debug
+Sets the debug level of the running cman daemon. Debug output will be
+sent to syslog level LOG_DEBUG. the
+.B -d
+switch specifies the new logging level. This is the same bitmask used
+for cman_tool join -d
+.br
 .SH "LEAVE" OPTIONS
 .TP
 .I -w
@@ -235,3 +243,16 @@ the fence system that was used.
 .I -a
 Shows the IP address(es) the nodes are communicating on.
 
+.SH "DEBUG" OPTIONS
+.TP
+.I -d <value>
+The value is a bitmask of
+.br 
+2 Barriers
+.br
+4 Membership messages
+.br
+8 Daemon operation, including command-line interaction
+.br
+16 Interaction with OpenAIS
+.br

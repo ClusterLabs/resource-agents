@@ -31,13 +31,14 @@
 #define OP_STATUS		8
 #define OP_NODES		9
 #define OP_SERVICES		10
+#define OP_DEBUG		11
 
 
 static void print_usage(int subcmd)
 {
 	printf("Usage:\n");
 	printf("\n");
-	printf("%s <join|leave|kill|expected|votes|version|wait|status|nodes|services> [options]\n",
+	printf("%s <join|leave|kill|expected|votes|version|wait|status|nodes|services|debug> [options]\n",
 	       prog_name);
 	printf("\n");
 	printf("Options:\n");
@@ -591,6 +592,18 @@ static void kill_node(commandline_t *comline)
 	cman_finish(h);
 }
 
+static void set_debuglog(commandline_t *comline)
+{
+	cman_handle_t h;
+
+	h = open_cman_handle(1);
+
+	if (cman_set_debuglog(h, comline->verbose))
+		perror("setting debuglog failed");
+
+	cman_finish(h);
+}
+
 
 static int get_int_arg(char argopt, char *arg)
 {
@@ -774,7 +787,10 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 		} else if (strcmp(argv[optind], "services") == 0) {
 			if (comline->operation)
 				die("can't specify two operations");
-			comline->operation = OP_SERVICES;
+		} else if (strcmp(argv[optind], "debug") == 0) {
+			if (comline->operation)
+				die("can't specify two operations");
+			comline->operation = OP_DEBUG;
 		} else if (strcmp(argv[optind], "remove") == 0) {
 			comline->remove = TRUE;
 		} else if (strcmp(argv[optind], "force") == 0) {
@@ -888,6 +904,10 @@ int main(int argc, char *argv[])
 
 	case OP_SERVICES:
 		show_services();
+		break;
+
+	case OP_DEBUG:
+		set_debuglog(&comline);
 		break;
 	}
 

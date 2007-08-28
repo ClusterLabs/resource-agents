@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2005-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -12,6 +12,7 @@
 
 extern void log_msg(int priority, char *fmt, ...);
 extern void init_debug(int subsystems);
+extern void set_debuglog(int subsystems);
 
 /* Debug macros */
 #define CMAN_DEBUG_NONE    1

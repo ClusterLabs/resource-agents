@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2005-2006 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2005-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -47,6 +47,11 @@ void init_debug(int subsystems)
 	log_init("CMAN");
 
 	use_stderr = (subsystems != 0);
+	subsys_mask = subsystems;
+}
+
+void set_debuglog(int subsystems)
+{
 	subsys_mask = subsystems;
 }
 

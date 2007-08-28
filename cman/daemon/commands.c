@@ -1189,6 +1189,7 @@ int process_command(struct connection *con, int cmd, char *cmdbuf,
 	int err = -EINVAL;
 	struct cl_version cnxman_version;
 	char *outbuf = *retbuf;
+	int value;
 
 	P_MEMB("command to process is %x\n", cmd);
 
@@ -1211,6 +1212,12 @@ int process_command(struct connection *con, int cmd, char *cmdbuf,
 
 	case CMAN_CMD_SET_DIRTY:
 		us->flags |= NODE_FLAGS_DIRTY;
+		err = 0;
+		break;
+
+	case CMAN_CMD_SET_DEBUGLOG:
+		memcpy(&value, cmdbuf, sizeof(int));
+		set_debuglog(value);
 		err = 0;
 		break;
 
