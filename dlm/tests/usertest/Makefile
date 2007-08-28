@@ -18,7 +18,7 @@ TARGETS= dlmtest asttest lstest pingtest lvb dlmtest2 flood alternate-lvb joinle
 all: depends ${TARGETS}
 
 CFLAGS += -D_REENTRANT
-CFLAGS += -Wall -g
+CFLAGS += -g
 CFLAGS += -I${dlmincdir}
 
 LDFLAGS += -L${dlmlibdir} -ldlm -lpthread

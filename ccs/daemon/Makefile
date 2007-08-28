@@ -21,7 +21,6 @@ OBJS=	ccsd.o \
 	globals.o
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
-CFLAGS += -Wall
 CFLAGS += -I${cmanincdir} `xml2-config --cflags`
 CFLAGS += -I. -I../include -I../common
 CFLAGS += -I${incdir}

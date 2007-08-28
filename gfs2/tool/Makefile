@@ -26,7 +26,7 @@ OBJS=	counters.o \
 	util.o
 
 CFLAGS += -D_FILE_OFFSET_BITS=64
-CFLAGS += -O2 -Wall
+CFLAGS += -O2
 CFLAGS += -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
 CFLAGS += -I../include
 CFLAGS += -I${incdir}

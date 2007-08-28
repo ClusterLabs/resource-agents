@@ -20,7 +20,7 @@ OBJS=	ccs_tool.o \
 	old_parser.o \
 	editconf.o
 
-CFLAGS += -Wall -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
+CFLAGS += -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
 CFLAGS += -I${ccsincdir} -I${cmanincdir} `xml2-config --cflags`
 CFLAGS += -I../include
 CFLAGS += -I${incdir}

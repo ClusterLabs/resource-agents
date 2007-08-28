@@ -16,7 +16,7 @@ OBJS=	main.o \
 	main_jadd.o
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE -D_GNU_SOURCE
-CFLAGS += -Wall -O2 -ggdb
+CFLAGS += -O2 -ggdb
 CFLAGS += -I${KERNEL_SRC}/include/
 CFLAGS += -I../include/ -I../libgfs2/
 CFLAGS += -I${incdir}
