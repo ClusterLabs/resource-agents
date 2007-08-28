@@ -39,7 +39,7 @@ AC_ARG_WITH(hapkgversion,
 )
 
 if test -z "$HAPKGVERSION" ; then
-   HAPKGVERSION="2.1.2"
+   HAPKGVERSION="2.1.3"
 fi
 AM_INIT_AUTOMAKE(heartbeat, $HAPKGVERSION)
 
@@ -227,23 +227,79 @@ libdir=`var "$libdir" "$exec_prefix/lib"`
 libexecdir=`var "$libexecdir" "$exec_prefix/libexec"`
 noarchlibdir=`var "$noarchlibdir" "$prefix/lib"`
 
-for var in libdir libexecdir
-do
-  dir=`eval echo '${'${var}'}'`
-  case $dir in
-    *64)  if 
-	    test ! -d "$dir" 
-	  then
-            newdir=`echo "$dir" | sed 's%64$%%'`
-            if
-	      test -d "$newdir"
-            then
-              eval $var="$newdir"
-	      AC_MSG_WARN([$var value now set to $newdir since $dir doesn't exist])
-            fi
-	  fi;;
+
+
+LDD=ldd
+dnl Which C compiler?
+dnl Defaults to GNU C compiler if available.
+dnl Always tries to set the compiler to ANSI C via options (AM)
+dnl Can force other with environment variable "CC".
+AC_PROG_CC
+AC_PROG_CC_STDC
+
+dnl ************************************************************************
+dnl Test to see whether library directories should be lib or lib64...
+dnl ************************************************************************
+
+AC_MSG_CHECKING(for proper library directory suffix)
+tmpdir=/tmp
+tmpCfile=${tmpdir}/$$test.c
+tmpOutfile=${tmpdir}/$$test
+echo 'int main(int argc, char** argv) { return(1);}' >$tmpCfile
+if
+  ${CC} ${tmpCfile} -o ${tmpOutfile}
+then
+  LIBC=`${LDD} ${tmpOutfile} | grep libc | sed -e 's%.*=> *%%' -e 's% .*$%%'`
+  LibCdir=`dirname $LIBC`
+  dirlist=`echo $LibCdir | tr '/' ' '`
+  LibDirSuffix=unknown
+  for dir in dirlist
+  do
+    case $dir in
+      *lib*)	LibDirSuffix=$dir; break;;
+      *);;
+    esac
+  done
+  case $LibDirSuffix in
+    unknown)	LibDirSuffix=`basename $LibCdir`;;
   esac
-done
+  OutFileType=`file $tmpOutfile`
+  rm -f $tmpCfile $tmpOutfile
+else
+  AC_MSG_ERROR([Cannot Compile trivial C program])
+fi
+#
+#	The code above doesn't work right everywhere (like Fedora)
+#
+case ${LibDirSuffix} in
+	*lib*)	: Cool;;
+	*)	: Sigh...
+		case $OutFileType in
+		  *64-bit*)	LibDirSuffix=lib64;;
+		  *32-bit*)	LibDirSuffix=lib;;
+		  *)		LibDirSuffix=lib;;
+		esac;;
+esac
+#
+#	This may not yet be quite right for PPC where the default
+#	is to produce 32-bit binaries, even though the OS is 64-bit
+#	or for that matter for system Z, But, it's a lot better than
+#	it used to be.
+#
+AC_MSG_RESULT($LibDirSuffix)
+
+case $libdir in
+  */*${LibDirSuffix})	: Cool ;;
+  *)			: Uh Oh... 
+	libdir=`dirname $libdir`/$LibDirSuffix
+	AC_MSG_WARN([Overriding libdir to: $libdir]);;
+esac
+case $libexecdir in
+  */$LibDirSuffix)	: Cool ;;
+  *)			: Uh Oh... 
+	libexecdir=`dirname $libexecdir`/$LibDirSuffix
+	AC_MSG_WARN([Overriding libexecdir to: $libexecdir]);;
+esac
 
 for j in exec_prefix bindir sbindir datadir sysconfdir localstatedir \
 	includedir oldincludedir mandir docdir libdir noarchlibdir
@@ -255,6 +311,7 @@ do
     AC_MSG_WARN([$j directory ($dirname) does not exist!])
   fi
 done
+
 
 dnl	The GNU conventions for installation directories don't always
 dnl	sit well with this software.  In particular, GNU's stated:
@@ -359,7 +416,7 @@ AC_DEFINE_UNQUOTED(HA_LOGDAEMON_IPC, "$HA_LOGDAEMON_IPC", Logging Daemon IPC soc
 
 dnl This IS a default but we should make sure we can override it for any 
 dnl odd OS requirements.
-HA_VARLOGDIR="/var/log"
+HA_VARLOGDIR="${localstatedir}/log"
 AC_SUBST(HA_VARLOGDIR)
 AC_DEFINE_UNQUOTED(HA_VARLOGDIR,"$HA_VARLOGDIR", var log directory)
 
@@ -398,18 +455,21 @@ AC_SUBST(docdir)
 
 dnl	We use this in the RPM specfile...
 AC_SUBST(ac_configure_args)
+cleaned_configure_args=""
+for j in ${ac_configure_args}
+do
+  case $j in
+    *--libdir=*|*--libexecdir=*)	;;
+    *)		cleaned_configure_args="$cleaned_configure_args $j";;
+  esac
+done
+AC_SUBST(cleaned_configure_args)
 
 dnl *************************************************************************
 PATH="$PATH:/sbin:/usr/sbin:/usr/local/sbin:/usr/local/bin"
 export PATH
 dnl checks for programs
 dnl
-dnl Which C compiler?
-dnl Defaults to GNU C compiler if available.
-dnl Always tries to set the compiler to ANSI C via options (AM)
-dnl Can force other with environment variable "CC".
-AC_PROG_CC
-AC_PROG_CC_STDC
 AC_PROG_YACC
 AC_DECL_YYTEXT
 AM_PROG_LEX
@@ -532,7 +592,6 @@ else
 fi
 rm -f $F
 AM_CONDITIONAL(NONROOT_CHOWN, test "$nonroot_chown" = yes )
-
 
 dnl ************************************************************************
 dnl checks for libraries
@@ -1114,12 +1173,94 @@ check_snmp_libs ()
 	LIBS="$OLDLIBS"
 }
 
+SNMPLIBSET=""
 if test "$ENABLE_SNMP" = "yes"; then
 	check_snmp_libs $SNMPLIB
+	SNMPLIBSET="$SNMPLIB"
 fi
 if test "$enable_snmp_subagent" = "yes"; then
 	check_snmp_libs $SNMPAGENTLIB
+	SNMPLIBSET="$SNMPLIBSET $SNMPAGENTLIB"
 fi
+
+dnl
+dnl	There are more sophisticated and general ways of doing this, that
+dnl	are more general - but this is better than nothing.
+dnl
+dnl	The right procedure would be to locate the libraries that we've been told
+dnl	are needed, dnl	then do an RPM query on each of these libraries
+dnl	to find out what package owns the library (file)
+dnl	That'll be a good project for some long, cold winter evening.
+dnl
+dnl	Some food for thought from the 'ld' manual page:
+dnl
+dnl        The linker uses the following search paths to locate required shared libraries.
+dnl
+dnl        Ignore steps 1-2, because they involve rpath options (which we don't care about)
+dnl
+dnl        3.  On  an  ELF system, if the -rpath and "rpath-link" options were not used, search the contents of the environment variable
+dnl            "LD_RUN_PATH". It is for the native linker only.
+dnl
+dnl        4.  On SunOS, if the -rpath option was not used, search any directories specified using -L options.
+dnl
+dnl        5.  For a native linker, the contents of the environment variable "LD_LIBRARY_PATH".
+dnl
+dnl        6.  For a native ELF linker, the directories in "DT_RUNPATH" or "DT_RPATH" of  a  shared  library  are  searched  for  shared
+dnl            libraries needed by it. The "DT_RPATH" entries are ignored if "DT_RUNPATH" entries exist.
+dnl
+dnl        7.  The default directories, normally /lib and /usr/lib.
+dnl
+dnl        8.  For a native linker on an ELF system, if the file /etc/ld.so.conf exists, the list of directories found in that file.
+dnl
+dnl        If the required shared library is not found, the linker will issue a warning and continue with the link.
+dnl
+dnl
+libs2packages() {
+  for arg
+  do 
+    case $arg in
+        -ldl|-lm|-L*|-lc|-lpthread|-lnsl)			;;
+        -lresolv|-lcrypt|-lutil|-Wl,-E|-wL,-rpath)		;;
+        -lcrypto)		echo openssl			;;
+        -lnetsnmp)		echo net-snmp			;;
+        -lsnmp)			echo net-snmp			;;
+        -lnetsnmpagent)		echo net-snmp			;;
+        -lnetsnmphelpers)	echo net-snmp			;;
+        -lnetsnmpmibs)		echo net-snmp			;;
+        -lrpm)			echo rpm			;;
+        -lrpmio)		echo rpm			;;
+        -lpopt)			echo popt			;;
+        -lsensors)		case $host_vendor in
+				  suse|SUSE|SuSE)
+        				echo sensors;;
+				  *) 	echo lm_sensors
+				esac				;;
+        -lwrap)			case $host_vendor in
+				  suse|SUSE|SuSE)
+        				echo tcpd;;
+				  *) 	echo tcp_wrappers;;
+				esac				;;
+        -lz)			echo zlib			;;
+        -lperl|-l/*perl*/auto/DynaLoader/DynaLoader*)
+				echo perl			;;
+         *)			AC_MSG_WARN([SNMP library $arg not included in RPM build dependencies])
+    esac
+  done
+}
+
+AC_MSG_CHECKING(What packages are needed for SNMP at compile time for RPMs);
+PKGSET=`libs2packages $SNMPLIBSET | tr ' ' '\012' | sort -u`
+PKGSET=`echo $PKGSET`
+AC_MSG_RESULT($PKGSET)
+
+if test  -z "$PKGSET"; then
+	SNMP_RPM_BUILD_REQUIRES="BuildRequires: ${CC}"
+else
+	SNMP_RPM_BUILD_REQUIRES="BuildRequires: $PKGSET"
+fi
+AC_MSG_RESULT($SNMP_RPM_BUILD_REQUIRES)
+
+AC_SUBST(SNMP_RPM_BUILD_REQUIRES)
 
 AC_ARG_WITH(mibsdir, 
 	[  --with-miBsdir=DIR      directory for mib files. ],
@@ -1137,7 +1278,7 @@ if test "x${enable_snmp_subagent}"  = "xyes" -a "X${MIBS_DIR}" = "X"; then
 		AC_MSG_ERROR(Could not find mibs directory, 
 			please specify with --with-mibsdir);
 	fi
-	AC_MSG_RESULT($MIBS_DIR);
+	AC_MSG_RESULT($MIBS_DIR)
 fi
 AC_SUBST(MIBS_DIR)
 
@@ -1148,7 +1289,10 @@ AC_SUBST(RPM_ENABLE_SNMP_SUBAGENT)
 AM_CONDITIONAL(USE_APC_SNMP, test "$ENABLE_SNMP" = "yes")
 AM_CONDITIONAL(SNMP_SUBAGENT_BUILD, test "x${enable_snmp_subagent}" = "xyes")
 
-
+#
+#	We've had this new API for a very long time
+#
+AC_DEFINE(HAVE_NEW_HB_API, 1, [have new heartbeat api])
 dnl
 dnl OpenIMPI checks
 dnl
@@ -1166,16 +1310,24 @@ else
 fi
 AM_CONDITIONAL(IPMILAN_BUILD, test "X$enable_ipmilan" = "Xyes")
 
-if test x"$VERSION" \> x"1.9"; then
-	AC_DEFINE(HAVE_NEW_HB_API, 1, [have new heartbeat api])
-fi
-
 dnl
 dnl     On many systems libcrypto is needed when linking against libsnmp.
 dnl     Check to see if it exists, and if so use it.
 dnl
 AC_CHECK_LIB(crypto, CRYPTO_free, CRYPTOLIB="-lcrypto",)
 AC_SUBST(CRYPTOLIB)
+
+dnl ***************************************************************************
+dnl Enable distro-style RPMs
+dnl ***************************************************************************
+AC_ARG_ENABLE([distro-rpm],
+ [  --enable-distro-rpm 	Enable distro-style RPMs
+		[default=no]], [], [enable_distro_rpm=no])
+case $enable_distro_rpm in
+   yes)	DISTRO_STYLE_RPMS=1;;
+   *)	DISTRO_STYLE_RPMS=0;;
+esac
+AC_SUBST(DISTRO_STYLE_RPMS)
 
 dnl ***************************************************************************
 dnl TIPC communication module
@@ -2440,7 +2592,7 @@ if test "x${enable_mgmt}" != "xno"; then
      AC_DEFINE_UNQUOTED(MGMT_ENABLED, 1, Define to 1 if the mgmt-daemon and friends are enabled.)
     dnl If this system might be RPM-based, then adjust some RPM-build details
     if test x"${RPM}" != x""; then
-dnl FIXME: a flawy solution but no better one now
+dnl FIXME: a flawed solution but no better one now
          if rpm -q python-gtk > /dev/null; then
               RPM_MGMT_RUNTIME_REQUIRES="libglade2, python-gtk";
          else
@@ -2870,8 +3022,8 @@ resources/Makefile						\
 	resources/heartbeat/db2					\
 	resources/heartbeat/Filesystem				\
 	resources/heartbeat/hto-mapfuncs			\
-	resources/heartbeat/ids					\
 	resources/heartbeat/ICP					\
+	resources/heartbeat/ids					\
 	resources/heartbeat/IPaddr				\
 	resources/heartbeat/IPaddr2				\
 	resources/heartbeat/IPsrcaddr				\
@@ -2965,6 +3117,7 @@ AC_MSG_RESULT([  CC_WARNINGS              = "${CC_WARNINGS}"])
 AC_MSG_RESULT([  Mangled CFLAGS           = "${CFLAGS}"])
 AC_MSG_RESULT([  Libraries                = "${LIBS}"])
 AC_MSG_RESULT([  RPATH enabled            = "${enable_rpath}"])
+AC_MSG_RESULT([  Distro-style RPMs        = "${enable_distro_rpm}"])
 
 AC_MSG_RESULT([  ])
 AC_MSG_RESULT([Note: If you use the 'make install' method for installation you])
