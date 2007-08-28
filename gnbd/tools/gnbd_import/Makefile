@@ -20,7 +20,6 @@ OBJS=	gnbd_import.o \
 	../../client/monitor_req.o \
 	../../utils/trans.o
 
-CFLAGS += -O2
 CFLAGS += -I${gnbdkincdir} -I${cmanincdir}
 CFLAGS += -I../../include -I../../client -I../../server -I../../utils
 CFLAGS += -I${incdir}

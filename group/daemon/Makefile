@@ -20,7 +20,6 @@ OBJS=	app.o \
 	joinleave.o \
 	main.o
 
-CFLAGS += -g 
 CFLAGS += -I${cmanincdir} -I${openaisincdir}
 CFLAGS += -I. -I../include/ -I../lib/
 CFLAGS += -I${incdir}

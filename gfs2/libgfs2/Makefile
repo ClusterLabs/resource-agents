@@ -15,9 +15,7 @@ include ../../make/defines.mk
 
 TARGET= libgfs2.a
 
-## Bob: add -O2 back in and take -ggdb out
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE -D_GNU_SOURCE
-CFLAGS += -ggdb
 CFLAGS += -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
 CFLAGS += -I../include
 CFLAGS += -I${incdir}

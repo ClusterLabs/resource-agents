@@ -18,13 +18,7 @@ TARGET = fence_node
 OBJS=	../fenced/agent.o \
 	fence_node.o
 
-CFLAGS += -g -D_FILE_OFFSET_BITS=64
-
-ifeq ($(DEBUG),y)
-CFLAGS += -O0 -DDEBUG -g
-else
-CFLAGS += -O2
-endif
+CFLAGS += -D_FILE_OFFSET_BITS=64
 
 CFLAGS += -I${ccsincdir} -I${cmanincdir}
 CFLAGS += -I../include

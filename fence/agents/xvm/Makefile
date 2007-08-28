@@ -34,7 +34,7 @@ SHAREDOBJS=	mcast.o \
 		debug.o
 
 CFLAGS += -D_GNU_SOURCE
-CFLAGS += -Werror -Wstrict-prototypes -Wshadow -ggdb
+CFLAGS += -Werror -Wstrict-prototypes -Wshadow
 CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${openaisincdir}
 CFLAGS += -I${virtincdir} -I${nssincdir} -I${nsprincdir}
 CFLAGS += `xml2-config --cflags`

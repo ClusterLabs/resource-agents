@@ -17,12 +17,6 @@ CFLAGS += -fPIC
 CFLAGS += -I${ccsincdir} -I${openaisincdir}
 CFLAGS += -I${incdir}
 
-ifeq ($(DEBUG),y)
-CFLAGS += -O0 -g -DDEBUG
-else
-CFLAGS += -O2
-endif
-
 LDFLAGS += -L${ccslibdir} -lccs 
 
 TARGET= service_cman.lcrso

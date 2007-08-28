@@ -20,12 +20,6 @@ CFLAGS += -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
 CFLAGS += -I${ccsincdir}
 CFLAGS += -I${incdir}
 
-ifeq ($(DEBUG),y)
-CFLAGS += -O0 -DDEBUG -g
-else
-CFLAGS += -O2
-endif
-
 LDFLAGS += -L${ccslibdir} -lccs
 
 all: depends ${TARGET}

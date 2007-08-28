@@ -18,8 +18,8 @@ TARGET=libcman
 SHAREDLIB=$(TARGET).so.${RELEASE_MAJOR}.${RELEASE_MINOR}
 STATICLIB=$(TARGET).a
 
-CFLAGS += -g -I. -fPIC
-CFLAGS += -I../daemon
+CFLAGS += -fPIC
+CFLAGS += -I. -I../daemon
 CFLAGS += -I${incdir}
 
 all: $(STATICLIB) $(SHAREDLIB)

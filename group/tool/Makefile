@@ -16,7 +16,6 @@ TARGET= group_tool
 
 OBJS=	main.o
 
-CFLAGS += -g
 CFLAGS += -I. -I../lib/ -I../daemon/
 CFLAGS += -I${incdir}
 

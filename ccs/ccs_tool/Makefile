@@ -25,12 +25,6 @@ CFLAGS += -I${ccsincdir} -I${cmanincdir} `xml2-config --cflags`
 CFLAGS += -I../include
 CFLAGS += -I${incdir}
 
-ifeq ($(DEBUG),y)
-CFLAGS += -O0 -DDEBUG -g
-else
-CFLAGS += -O2
-endif
-
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
 LDFLAGS += `xml2-config --libs` -L${libdir} -ldl
 

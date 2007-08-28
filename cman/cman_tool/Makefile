@@ -21,12 +21,6 @@ CFLAGS += -DSBINDIR=\"${sbindir}\"
 CFLAGS += -I${ccsincdir} -I${cmanincdir}
 CFLAGS += -I${incdir}
 
-ifeq ($(DEBUG),y)
-CFLAGS += -O0 -g -DDEBUG
-else
-CFLAGS += -O2
-endif
-
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
 
 all: depends ${TARGET}

@@ -20,7 +20,6 @@ OBJS=	gnbd_export.o \
 	../../utils/trans.o
 
 CFLAGS += -DDEFAULT_GETUID=\"${sbindir}/gnbd_get_uid\"
-CFLAGS += -O2
 CFLAGS += -I${gnbdkincdir} -I${cmanincdir}
 CFLAGS += -I../../include -I../../server -I../../utils
 CFLAGS += -I${incdir}

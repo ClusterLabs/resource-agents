@@ -24,7 +24,7 @@ SOURCE=	\
 	readfile.c \
 	util.c
 
-CFLAGS+= -O2 -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64
+CFLAGS+= -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64
 
 INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config \
 	-I${gfs2kincdir} -I${incdir}

@@ -30,7 +30,6 @@ OBJS2=	gnbd_clusterd.o \
 SHAREDOBJS= ../utils/gnbd_utils.o
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE
-CFLAGS += -O2
 CFLAGS += -I${gnbdkincdir} -I${cmanincdir}
 CFLAGS += -I../include -I../utils
 CFLAGS += -I${incdir}

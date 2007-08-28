@@ -15,7 +15,7 @@ include ../../make/defines.mk
 TARGET=libgroup
 STATICLIB=$(TARGET).a
 
-CFLAGS += -g -O -fPIC
+CFLAGS += -fPIC
 CFLAGS += -I. -I../daemon
 CFLAGS += -I${incdir}
 

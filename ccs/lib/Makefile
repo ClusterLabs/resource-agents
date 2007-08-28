@@ -22,12 +22,6 @@ CFLAGS += -fPIC
 CFLAGS += -I../include -I../common
 CFLAGS += -I${incdir}
 
-ifeq ($(DEBUG),y)
-CFLAGS += -O0 -DDEBUG -g
-else
-CFLAGS += -O2
-endif
-
 all: ${TARGET}
 
 ${TARGET}: ${OBJS}

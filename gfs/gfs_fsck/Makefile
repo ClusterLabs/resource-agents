@@ -47,7 +47,7 @@ OBJS=	bio.o \
 	util.o
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -DHELPER_PROGRAM
-CFLAGS += -MMD -O2
+CFLAGS += -MMD
 CFLAGS += -I../include
 CFLAGS += -I${incdir}
 

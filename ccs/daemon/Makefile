@@ -25,12 +25,6 @@ CFLAGS += -I${cmanincdir} `xml2-config --cflags`
 CFLAGS += -I. -I../include -I../common
 CFLAGS += -I${incdir}
 
-ifeq ($(DEBUG),y)
-CFLAGS += -O0 -DDEBUG -g
-else
-CFLAGS += -O2
-endif
-
 LDFLAGS += -L${cmanlibdir} -lcman -L${ccslibdir} -lccs
 LDFLAGS += -L${libdir} `xml2-config --libs` -lpthread -ldl
 

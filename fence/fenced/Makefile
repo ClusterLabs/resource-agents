@@ -22,7 +22,6 @@ OBJS=	main.o \
 	agent.o 
 
 CFLAGS += -D_FILE_OFFSET_BITS=64
-CFLAGS += -g
 CFLAGS += -I${ccsincdir} -I${cmanincdir}
 CFLAGS += -I. -I../include -I../../group/lib
 CFLAGS += -I${incdir}

@@ -1,6 +1,6 @@
 include ../../make/defines.mk
 
-CFLAGS += -g -I${cmanincdir}
+CFLAGS += -I${cmanincdir}
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${cmanlibdir} -lcman

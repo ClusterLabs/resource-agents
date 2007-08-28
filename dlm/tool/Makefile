@@ -16,7 +16,6 @@ TARGET= dlm_tool
 
 OBJS=	main.o
 
-CFLAGS += -g
 CFLAGS += -I. -I../lib/ -I../../group/dlm_controld/
 CFLAGS += -I${incdir}
 

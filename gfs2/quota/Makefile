@@ -20,7 +20,6 @@ OBJS=	main.o \
 	check.o
 
 CFLAGS += -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
-CFLAGS += -O2
 CFLAGS += -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
 CFLAGS += -I../include -I../libgfs2/
 CFLAGS += -I${incdir}

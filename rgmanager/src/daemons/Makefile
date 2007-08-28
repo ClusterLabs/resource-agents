@@ -48,7 +48,7 @@ SHAREDOBJS=	depends-noccs.o \
 		rg_locks-noccs.o
 
 CFLAGS += -D_GNU_SOURCE -DSHAREDIR=\"${sharedir}\"
-CFLAGS += -g -Werror -Wstrict-prototypes -Wshadow -fPIC
+CFLAGS += -Werror -Wstrict-prototypes -Wshadow -fPIC
 CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmincdir}
 CFLAGS += `xml2-config --cflags` -I${readlineincdir}
 CFLAGS += -I../../include

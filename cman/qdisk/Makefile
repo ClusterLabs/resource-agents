@@ -13,7 +13,7 @@
 include ../../make/defines.mk
 
 CFLAGS += -D_GNU_SOURCE
-CFLAGS += -Werror -Wstrict-prototypes -Wshadow -g
+CFLAGS += -Werror -Wstrict-prototypes -Wshadow
 CFLAGS += -I${ccsincdir} -I${cmanincdir}
 CFLAGS += -I.
 CFLAGS += -I${incdir}

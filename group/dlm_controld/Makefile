@@ -20,7 +20,6 @@ OBJS=	main.o \
 	action.o \
 	deadlock.o
 
-CFLAGS += -g 
 CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmincdir} -I${openaisincdir}
 CFLAGS += -I${KERNEL_SRC}/include/
 CFLAGS += -I../../group/lib/ -I../include/

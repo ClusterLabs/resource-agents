@@ -26,7 +26,6 @@ OBJS=	counters.o \
 	util.o
 
 CFLAGS += -D_FILE_OFFSET_BITS=64
-CFLAGS += -O2
 CFLAGS += -I${gfskincdir}
 CFLAGS += -I../include
 CFLAGS += -I${incdir}

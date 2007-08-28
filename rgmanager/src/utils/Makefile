@@ -21,7 +21,7 @@ TARGET6= clunfslock
 
 DISABLEDTARGETS= cluarp
 
-CFLAGS += -g -Werror -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
+CFLAGS += -Werror -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
 CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmincdir} -I${ncursesincdir}
 CFLAGS += -I../../include
 CFLAGS += -I${incdir}

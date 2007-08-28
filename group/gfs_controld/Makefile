@@ -21,7 +21,6 @@ OBJS= 	main.o \
 	plock.o \
 	recover.o
 
-CFLAGS += -g -O2
 CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${openaisincdir}
 CFLAGS += -I${KERNEL_SRC}/include/
 CFLAGS += -I../include/ -I../lib/

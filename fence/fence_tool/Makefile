@@ -23,12 +23,6 @@ CFLAGS += -I${ccsincdir} -I${cmanincdir}
 CFLAGS += -I../include -I../../group/lib
 CFLAGS += -I${incdir}
 
-ifeq ($(DEBUG),y)
-CFLAGS += -O0 -g
-else
-CFLAGS += -O2
-endif
-
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
 LDFLAGS += -L../../group/lib -lgroup
 
