@@ -10,10 +10,7 @@
 ###############################################################################
 ###############################################################################
 
-SUBDIRS=lib daemon tool dlm_controld gfs_controld man
+include ../make/defines.mk
+include ../make/passthrough.mk
 
-%:
-	set -e && \
-	for i in ${SUBDIRS}; do \
-		${MAKE} -C $$i $@; \
-	done
+SUBDIRS=lib daemon tool dlm_controld gfs_controld man

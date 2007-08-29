@@ -10,10 +10,7 @@
 ###############################################################################
 ###############################################################################
 
-SUBDIRS=filecon2 mmdd
+include ../make/defines.mk
+include ../make/passthrough.mk
 
-%:
-	set -e && \
-	for i in ${SUBDIRS}; do \
-		${MAKE} -C $$i $@; \
-	done
+SUBDIRS=filecon2 mmdd

@@ -12,13 +12,6 @@
 ###############################################################################
 
 include ../../make/defines.mk
+include ../../make/passthrough.mk
 
 SUBDIRS=fence_gnbd gnbd_export gnbd_import
-
-all: ${SUBDIRS}
-
-%:
-	set -e && \
-	for i in ${SUBDIRS}; do \
-		${MAKE} -C $$i $@; \
-	done

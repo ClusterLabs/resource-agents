@@ -11,13 +11,6 @@
 ###############################################################################
 
 include ../make/defines.mk
+include ../make/passthrough.mk
 
 SUBDIRS=lib daemon ccs_test ccs_tool man
-
-all: ${SUBDIRS}
-
-%:
-	set -e && \
-	for i in ${SUBDIRS}; do \
-		${MAKE} -C $$i $@; \
-	done

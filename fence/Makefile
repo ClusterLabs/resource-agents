@@ -12,13 +12,6 @@
 ###############################################################################
 
 include ../make/defines.mk
+include ../make/passthrough.mk
 
 SUBDIRS=agents fence_node fence_tool fenced man
-
-all: ${SUBDIRS}
-
-%:
-	set -e && \
-	for i in ${SUBDIRS}; do \
-		${MAKE} -C $$i $@; \
-	done

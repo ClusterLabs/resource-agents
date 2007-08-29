@@ -12,13 +12,6 @@
 ###############################################################################
 
 include ../make/defines.mk
+include ../make/passthrough.mk
 
 SUBDIRS=utils client server tools man
-
-all: ${SUBDIRS}
-
-%:
-	set -e && \
-	for i in ${SUBDIRS}; do \
-		${MAKE} -C $$i $@; \
-	done
