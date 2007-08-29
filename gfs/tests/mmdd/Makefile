@@ -11,19 +11,22 @@
 ###############################################################################
 ###############################################################################
 
-CC=gcc
-LD=gcc
+include ../../../make/defines.mk
 
-TARGETS=mmdd sfdd
+TARGETS= mmdd sfdd
 
-all:			$(TARGETS)
+CFLAGS += -D_GNU_SOURCE
 
+all: $(TARGETS)
 
-mmdd:			mmdd.c
-			$(CC) -Wall -O2 -o mmdd mmdd.c  -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64
+mmdd.o: mmdd.c
+	$(CC) $(CFLAGS) -D_FILE_OFFSET_BITS=64 -c -o $@ $<
 
-sfdd:	    	    	mmdd.c
-			$(CC) -Wall -O2 -o sfdd mmdd.c  -D_GNU_SOURCE -DUSE_SENDFILE
+sfdd.o: mmdd.c
+	$(CC) $(CFLAGS) -DUSE_SENDFILE -c -o $@ $<
+
+%: %.o
+	$(CC) -o $@ $^ $(LDFLAGS)
 
 clean:
-			rm -f *.o *.s *.a *~ core .depend $(TARGETS)
+	rm -f *.o *.s *.a *~ core .depend $(TARGETS)
