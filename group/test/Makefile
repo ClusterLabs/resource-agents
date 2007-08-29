@@ -10,22 +10,18 @@
 ###############################################################################
 ###############################################################################
 
-CFLAGS+= -g -I. 
+include ../../make/defines.mk
 
-all: client clientd
+TARGETS= client clientd
 
-client: client.o
-	$(CC) $(LDFLAGS) -o $@ $<
+all: $(TARGETS)
 
-clientd: clientd.o
-	$(CC) $(LDFLAGS) -o $@ $<
-
-client.o: client.c
+%.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-clientd.o: clientd.c
-	$(CC) $(CFLAGS) -c -o $@ $<
+%: %.o
+	$(CC) -o $@ $^ $(LDFLAGS)
 
 clean:
-	rm -f *.o client clientd
+	rm -f *.o $(TARGETS)
 
