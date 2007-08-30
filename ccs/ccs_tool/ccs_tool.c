@@ -62,35 +62,35 @@ int main(int argc, char *argv[])
 
     else if(!strcmp(argv[optind], "addnode")){
 	    add_node(argc-1, argv+1);
-	    exit(EXIT_FAILURE);
+	    exit(EXIT_SUCCESS);
     }
     else if(!strcmp(argv[optind], "delnode")){
 	    del_node(argc-1, argv+1);
-	    exit(EXIT_FAILURE);
+	    exit(EXIT_SUCCESS);
     }
     else if(!strcmp(argv[optind], "addfence")){
 	    add_fence(argc-1, argv+1);
-	    exit(EXIT_FAILURE);
+	    exit(EXIT_SUCCESS);
     }
     else if(!strcmp(argv[optind], "delfence")){
 	    del_fence(argc-1, argv+1);
-	    exit(EXIT_FAILURE);
+	    exit(EXIT_SUCCESS);
     }
     else if(!strcmp(argv[optind], "lsnode")){
 	    list_nodes(argc-1, argv+1);
-	    exit(EXIT_FAILURE);
+	    exit(EXIT_SUCCESS);
     }
     else if(!strcmp(argv[optind], "lsfence")){
 	    list_fences(argc-1, argv+1);
-	    exit(EXIT_FAILURE);
+	    exit(EXIT_SUCCESS);
     }
     else if(!strcmp(argv[optind], "create")){
 	    create_skeleton(argc-1, argv+1);
-	    exit(EXIT_FAILURE);
+	    exit(EXIT_SUCCESS);
     }
     else if(!strcmp(argv[optind], "addnodeids")){
 	    add_nodeids(argc-1, argv+1);
-	    exit(EXIT_FAILURE);
+	    exit(EXIT_SUCCESS);
     }
 
     else {
