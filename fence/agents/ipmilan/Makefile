@@ -18,7 +18,6 @@ TARGET= fence_ipmilan
 OBJS=	expect.o \
 	ipmilan.o
 
-CFLAGS += -DFENCE
 CFLAGS += -I${incdir}
 
 all: ${TARGET}

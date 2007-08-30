@@ -1,5 +1,5 @@
 /** @file
- * clumanager 1.2.x STONITH and/or linux-cluster fence and/or GFS fence
+ * clumanager 1.2.x linux-cluster fence and/or GFS fence
  * module for Intel/Bull/Dell Tiger4 machines via IPMI over lan.
  * (Probably works with anything ipmitool can control, though.)
  *
@@ -37,15 +37,6 @@
 #include <sys/stat.h>
 #include <libintl.h>
 
-#ifndef FENCE
-#include <syslog.h>
-#include "stonith.h"
-#define log(lvl, fmt, args...) \
-do { \
-	syslog(lvl, fmt, ##args); \
-	fprintf(stderr, "%s: " fmt, #lvl, ##args); \
-} while(0)
-#else
 /* fenced doesn't use the remote calls */
 #define ST_STATUS 0
 #define ST_POWERON 1
@@ -54,15 +45,7 @@ do { \
 
 #define log(lvl, fmt, args...) fprintf(stderr, fmt, ##args)
 #include <libgen.h>
-
-#ifndef TESTING
 #include <copyright.cf>
-#else
-#define REDHAT_COPYRIGHT "Copyright (C) 2005 Red Hat, Inc.\n"
-#define RELEASE_VERSION "TEST ONLY; Not for distribution\n"
-
-#endif
-#endif
 
 #include "expect.h"
 
@@ -542,228 +525,6 @@ ipmi_init(struct ipmi *i, char *host, char *authtype,
 }
 
 
-#ifndef FENCE
-/**
-  STONITH operations
- */
-#define ISIPMI(s) (s && s->pinfo && ((struct ipmi *)s->pinfo)->i_id == IPMIID)
-
-const char *
-st_getinfo(Stonith * __attribute__ ((unused)) s, int __attribute__((unused))i)
-{
-	return "Not really useful info";
-}
-
-void
-st_destroy(Stonith *s)
-{
-	struct ipmi *i;
-
-	if (!ISIPMI(s)) {
-		log(LOG_ERR, "st_destroy(IPMI): Invalid Argument");
-		return;
-	}
-
-	i = (struct ipmi *)s->pinfo;
-	ipmi_destroy(i);
-}
-
-
-void *
-st_new(void)
-{
-	struct ipmi *i;
-
-	i = malloc(sizeof(*i));
-	if (!i) {
-		log(LOG_ERR, "st_new(IPMI) %s", strerror(errno));
-		return NULL;
-	}
-
-	memset((void *)i, 0, sizeof(*i));
-	ipmi_init(i, NULL, NULL, NULL, NULL, 0, 0);
-	return i;
-}
-
-
-int
-st_status(Stonith *s)
-{
-	int ret;
-	
-	if (!ISIPMI(s))
-		return S_OOPS;
-
-	ret = ipmi_op((struct ipmi *)s->pinfo, ST_STATUS, power_status);
-	if (ret == STATE_ON || ret == STATE_OFF)
-		return S_OK;
-
-	/* Permission denied? */
-	if (ret == EPERM)
-		return S_BADCONFIG;
-
-	return S_OOPS;
-}
-
-
-int
-st_reset(Stonith *s, int req, char * port)
-{
-	int ret;
-
-	switch(req) {
-	case ST_POWERON:
-		ret = ipmi_on((struct ipmi *)s->pinfo);
-		break;
-	case ST_POWEROFF:
-		ret = ipmi_off((struct ipmi *)s->pinfo);
-		break;
-	case ST_GENERIC_RESET:
-		/* Could use chassis power cycle, but this works too*/
-		ret = ipmi_off((struct ipmi *)s->pinfo);
-		if (ret == 0)
-			ipmi_on((struct ipmi *)s->pinfo);
-		break;
-	default:
-		return S_OOPS;
-	}
-
-	switch(ret) {
-	case 0:
-		/* Success */
-		return S_OK;
-	case EFAULT:
-		log(LOG_CRIT, "ipmilan: unable to complete request\n");
-		return S_OOPS;
-	case EPERM:
-		return S_BADCONFIG;
-	case ETIMEDOUT:
-		return S_BADCONFIG;
-	case STATE_ON:
-		log(LOG_ERR, "Power to host %s still ON\n", port);
-		break;
-	case STATE_OFF:
-		log(LOG_WARNING, "Power to host %s still OFF\n", port);
-		break;
-	}
-	
-	return S_RESETFAIL;
-}
-
-
-/**
-  Complicated parser.  Has to deal with whitespace as well as the
-  possibility of having 1, 2, or 3 arguments.
-  */
-static int
-_ipmilan_setconfinfo(Stonith *s, const char *info)
-{
-	char info_priv[1024];
-	char *host = info_priv;
-	char *user = NULL;
-	char *passwd = NULL;
-	char *end = NULL;
-	struct ipmi *i;
-	size_t len;
-	int lanplus = 0;
-
-	if (!ISIPMI(s))
-		return S_OOPS;
-	i = (struct ipmi *)s->pinfo;
-
-	snprintf(info_priv, sizeof(info_priv), "%s", info);
-	len = strcspn(host, "\n\r\t ");
-	if (len >= strlen(host))
-		user = NULL;
-	else
-		user = host + len;
-	if (user) {
-		*user = 0;
-		user++;
-		if (*user && *user == '+') {
-			lanplus = 1;
-			user++;
-		}
-	}
-
-	/* No separator or end of string reached */
-	if (user && *user) {
-
-		len = strcspn(user, "\n\r\t ");
-		if (len >= strlen(user))
-			passwd = NULL;
-		else
-			passwd = user + len;
-		if (passwd) {
-			*passwd = 0;
-			passwd++;
-		}
-
-		/* We don't need a username for this one */
-		if (!passwd || !*passwd) {
-			passwd = user;
-			user = NULL;
-		}
-
-		len = strcspn(passwd, "\n\r\t ");
-		end = passwd + len;
-		if (*end)
-			*end = 0;
-	}
-
-	if (!*user || !strcmp(user, "(null)")) 
-		user = NULL;
-
-	/* IPMI auth type not supported on RHEL3 */
-	i = ipmi_init(i, host, NULL, user, passwd, lanplus, 0);
-	if (!i)
-		return S_OOPS;
-	i->i_config = 1;
-
-	return S_OK;
-}
-
-
-int
-st_setconfinfo(Stonith *s, const char *info)
-{
-	/* XXX dlmap collisions? */
-	return _ipmilan_setconfinfo(s, info);
-}
-
-
-/* -- Ripped from old STONITH drivers.
- *      Parse the information in the given configuration file,
- *      and stash it away...
- */
-int
-st_setconffile(Stonith* s, const char * configname)
-{
-        FILE *  cfgfile;
-        char    sid[256];
-
-	if (!ISIPMI(s))
-		return S_OOPS;
-
-        if ((cfgfile = fopen(configname, "r")) == NULL)  {
-		printf("Can't open %s\n", configname);
-                log(LOG_ERR, "Cannot open %s", configname);
-                return(S_BADCONFIG);
-        }
-        while (fgets(sid, sizeof(sid), cfgfile) != NULL){
-                if (*sid == '#' || *sid == '\n' || *sid == EOS) {
-                        continue;
-                }
-                fclose(cfgfile);
-                return _ipmilan_setconfinfo(s, sid);
-        }
-        fclose(cfgfile);
-        return(S_BADCONFIG);
-}
-
-#else
-
-/* Fence module instead of STONITH module */
 /**
    Remove leading and trailing whitespace from a line of text.
  */
@@ -1123,4 +884,3 @@ out:
 		printf("Failed\n");
 	return ret;
 }
-#endif /* fence */
