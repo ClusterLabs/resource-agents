@@ -12,8 +12,10 @@
 
 #include <unistd.h>
 #include <stdio.h>
+#ifndef __USE_XOPEN2K
 #define __USE_XOPEN2K  /* needed to get posix_memalign */
-#include <stdlib.h>  
+#endif
+#include <stdlib.h> 
 #include <string.h>
 #include <errno.h>
 #include <syslog.h>
