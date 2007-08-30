@@ -170,8 +170,6 @@ int main(int argc, char *argv[]){
     }
   }
  
-  listen(sfds[1], 5);
-
   /* Set up the unix (local) socket for CCS lib comms */
   sfds[2] = setup_local_socket(SOMAXCONN);
 
