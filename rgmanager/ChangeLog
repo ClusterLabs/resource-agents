@@ -1,3 +1,7 @@
+2007-08-30 Lon Hohberger <lhh at redhat.com>
+	* src/daemons/restree.c, rg_state.c: Fix tree-restart bug
+	This is another part of #229650
+
 2007-08-22 Fabio M. Di Nitto <fabbione at ubuntu.com>
 	* include/list.h: Fix build with gcc-4.2.
 

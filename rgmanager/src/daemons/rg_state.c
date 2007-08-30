@@ -1151,10 +1151,13 @@ svc_status(char *svcName)
 static inline int
 handle_started_status(char *svcName, int ret, rg_state_t *svcStatus)
 {
+	int newowner;
+
 	if (ret & SFL_FAILURE) {
-		ret = msvc_check_cluster(svcName);
-		if (ret >= 0)
-			return 1;
+		newowner = msvc_check_cluster(svcName);
+		if (newowner >= 0)
+			return 0; /* running but not here */
+		return ret;	  /* not running anymore */
 	}
 
 	/* Ok, we have a recoverable service.  Try to perform

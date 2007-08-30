@@ -959,20 +959,17 @@ _res_op_by_level(resource_node_t **tree, resource_t *first, void *ret,
 		return _res_op(&node->rn_child, first, NULL, ret, op);
 
 	if (op == RS_START || op == RS_STATUS) {
-		rv =  _do_child_levels(tree, first, ret, op);
+		rv |= _do_child_levels(tree, first, ret, op);
 	       	if (rv & SFL_FAILURE)
 			return rv;
 
 		/* Start default level after specified ones */
-		rv =  _do_child_default_level(tree, first, ret, op);
+		rv |= _do_child_default_level(tree, first, ret, op);
 
 	} /* stop */ else {
 
-		rv =  _do_child_default_level(tree, first, ret, op);
-	       	if (rv != 0)
-			return rv;
-
-		rv =  _do_child_levels(tree, first, ret, op);
+		rv |= _do_child_default_level(tree, first, ret, op);
+		rv |= _do_child_levels(tree, first, ret, op);
 	}
 
 	return rv;
@@ -1269,22 +1266,8 @@ _res_op_internal(resource_node_t **tree, resource_t *first,
 
 	}
 
-	if (node->rn_child) {
-		rv = _res_op_by_level(&node, me?NULL:first, ret, op);
-		if (rv != 0) {
-			mark_nodes(node, RES_FAILED,
-				   RF_NEEDSTART | RF_NEEDSTOP);
-
-			/* If this node is independent of its siblings,
-			   that one of its dependent children failed
-			   does not matter: its dependent children must
-			   also be independent of this node's siblings. */
-			if (node->rn_flags & RF_INDEPENDENT)
-				return SFL_RECOVERABLE;
-
-			return SFL_FAILURE;
-		}
-	}
+	if (node->rn_child)
+		rv |= _res_op_by_level(&node, me?NULL:first, ret, op);
 
 	/* Stop should occur after children have stopped */
 	if (me && (op == RS_STOP)) {
