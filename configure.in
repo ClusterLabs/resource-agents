@@ -2936,9 +2936,13 @@ lib/Makefile							\
 lrm/Makefile							\
 	lrm/lrmd/Makefile					\
 	lrm/admin/Makefile					\
+	lrm/test/regression.sh				\
 	lrm/test/LRMBasicSanityCheck				\
 	lrm/test/Makefile					\
-	lrm/test/simple_ops					\
+	lrm/test/lrmregtest					\
+	lrm/test/lrmregtest-lsb					\
+	lrm/test/lrmregtest-heartbeat					\
+	lrm/test/testcases/Makefile					\
 mgmt/Makefile							\
 	mgmt/daemon/Makefile					\
 	mgmt/client/Makefile					\
