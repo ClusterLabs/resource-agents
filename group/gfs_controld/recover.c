@@ -1617,7 +1617,13 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
 
 	mg = find_mg(name);
 	if (mg) {
-		rv = add_another_mountpoint(mg, dir, dev, ci);
+		if (mg->reject_mounts) {
+			/* fs is being unmounted */
+			rv = -ESTALE;
+			log_error("mount: reject mount due to unmount");
+		} else {
+			rv = add_another_mountpoint(mg, dir, dev, ci);
+		}
 		goto out;
 	}
 
@@ -2030,6 +2036,7 @@ int do_unmount(int ci, char *dir, int mnterr)
 	}
 
  out:
+	mg->reject_mounts = 1;
 	group_leave(gh, mg->name);
 	return 0;
 }

@@ -164,6 +164,7 @@ struct mountgroup {
 	int			low_nodeid;
 	int			master_nodeid;
 	int			save_plocks;
+	int			reject_mounts;
 
 	uint64_t		cp_handle;
 	time_t			last_checkpoint_time;
