@@ -17,7 +17,6 @@ export PATH
 : ${SH:=@SHELL@}
 : ${TEST:=@TEST@}
 : ${TESTPROG:=@TEST@}
-: ${INITDIR:=@INITDIR@}
 
 # Entries that should probably be removed
 : ${BASENAME:=basename}

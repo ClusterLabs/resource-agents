@@ -2,6 +2,7 @@
 
 prefix=@prefix@
 exec_prefix=@exec_prefix@
+: ${INITDIR:=@INITDIR@}
 : ${HA_DIR:=@sysconfdir@/ha.d}
 : ${HA_RCDIR:=$HA_DIR/rc.d}
 : ${HA_CONFDIR=$HA_DIR/conf}
