@@ -238,7 +238,7 @@ ocfs2_fetch_uuid() {
 }
 
 ocfs2_set_uuid() {
-	_OCFS2_uuid_cache="$HA_VARLIB/Filesystem.ocfs2_uuid.$(echo $DEVICE|tr / .)"
+	_OCFS2_uuid_cache="$HA_RSCTMP/Filesystem.ocfs2_uuid.$(echo $DEVICE|tr / .)"
 	
 	if [ "$OP" != "start" -a -e "$_OCFS2_uuid_cache" ]; then
 		# Trust the cache.
