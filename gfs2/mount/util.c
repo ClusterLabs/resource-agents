@@ -497,6 +497,10 @@ int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb)
 		warn("fs name too long");
 		goto out;
 
+	case -ESTALE:
+		warn("fs is being unmounted");
+		goto out;
+
 	case -EADDRINUSE:
 		warn("different fs appears to exist with the same name");
 		goto out;
