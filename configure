@@ -134,7 +134,7 @@ if ($help || !$err) {
   print "\nbuild flags:\n";
   print "--cc=\t\tcompiler to use.  (Default: gcc)\n";
   print "--debug\t\tEnable debugging build. Changes default CFLAGS to -Wall -O0 -DDEBUG -g.\n";
-  print "--cflags=\toverride default CFLAGS settings.  (Default: -Wall -O -g)\n";
+  print "--cflags=\toverride default CFLAGS settings.  (Default: -Wall -O0 -g)\n";
   print "--extracflags=\tadd extra compiler options to default CFLAGS setting.  (Default: none)\n";
   print "--ldflags=\toverride default LDFLAGS settings.  (Default: none)\n";
   print "--extraldflags=\tadd extra linking options to default LDFLAGS settings.  (Default: none)\n";
@@ -177,7 +177,7 @@ if (!$cc) {
 if (!$cflags) {
   $cflags="-Wall";
   if (!$debug) {
-    $cflags="${cflags} -O";
+    $cflags="${cflags} -O0";
   } else {
     $cflags="${cflags} -O0 -DDEBUG";
   }
