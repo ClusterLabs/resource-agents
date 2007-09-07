@@ -135,10 +135,11 @@ int do_leave(char *name, int level)
 		return -EBUSY;
 	}
 
-	if (g->app->current_event &&
-	    g->app->current_event->nodeid == our_nodeid) {
+	ev = g->app->current_event;
+
+	if (ev && ev->nodeid == our_nodeid) {
 		log_error(g, "leave: busy event %llx state %s",
-			  ev->id, ev_state_str(g->app->current_event));
+			  ev->id, ev_state_str(ev));
 		return -EAGAIN;
 	}
 

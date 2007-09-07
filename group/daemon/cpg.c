@@ -40,13 +40,11 @@ static void process_node_down(group_t *g, int nodeid)
 	event_t *ev, *ev_safe;
 	int no_rev = 0;
 
-	log_group(g, "process_node_down %d", nodeid);
-
 	node = find_group_node(g, nodeid);
-	if (!node) {
-		log_error(g, "process_node_down: no member %d", nodeid);
+	if (!node)
 		return;
-	}
+
+	log_group(g, "process_node_down %d", nodeid);
 
 	list_del(&node->list);
 	g->memb_count--;
@@ -187,6 +185,7 @@ static int send_gid(uint32_t gid)
 
 void process_groupd_confchg(void)
 {
+	group_t *g;
 	struct recovery_set *rs;
 	int i, found = 0;
 	uint32_t gid;
@@ -247,6 +246,18 @@ void process_groupd_confchg(void)
 			}
 		}
 		groupd_down(saved_left[i].nodeid);
+	}
+
+	/* we call process_node_down from here, instead of from the other cpg
+	   confchg's because we want everyone to see the same order of
+	   confchg's with respect to messages.  see bz 258121 */
+
+	for (i = 0; i < saved_left_count; i++) {
+		if (saved_left[i].reason == CPG_REASON_NODEDOWN ||
+		    saved_left[i].reason == CPG_REASON_PROCDOWN) {
+			list_for_each_entry(g, &gd_groups, list)
+				process_node_down(g, saved_left[i].nodeid);
+		}
 	}
 }
 
@@ -389,7 +400,7 @@ void process_confchg(void)
 			break;
 		case CPG_REASON_NODEDOWN:
 		case CPG_REASON_PROCDOWN:
-			process_node_down(g, saved_left[i].nodeid);
+			/* process_node_down(g, saved_left[i].nodeid); */
 			break;
 		default:
 			log_error(g, "unknown leave reason %d node %d",

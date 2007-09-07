@@ -238,6 +238,7 @@ void app_start(app_t *a)
 		type = NODE_FAILED;
 	else {
 		/* report error */
+		type = -1;
 	}
 
 	/* start <name> <event_nr> <type> <count> <memb0> <memb1>... */
