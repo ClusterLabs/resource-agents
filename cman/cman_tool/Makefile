@@ -17,7 +17,7 @@ TARGET=cman_tool
 OBJS=	main.o \
 	join.o
 
-CFLAGS += -DSBINDIR=\"${sbindir}\"
+CFLAGS += -DAISEXECBIN=\"${aisexecbin}\"
 CFLAGS += -I${ccsincdir} -I${cmanincdir}
 CFLAGS += -I${incdir}
 

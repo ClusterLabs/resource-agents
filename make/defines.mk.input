@@ -55,6 +55,7 @@ nsprincdir ?= @NSPRINCDIR@
 nsprlibdir ?= @NSPRLIBDIR@
 openaisincdir ?= @OPENAISINCDIR@
 openaislibdir ?= @OPENAISLIBDIR@
+aisexecbin ?= @AISEXECBIN@
 xenincdir ?= @XENINCDIR@
 xenlibdir ?= @XENLIBDIR@
 virtincdir ?= @VIRTINCDIR@

@@ -49,6 +49,7 @@ $ret = 0;
 	readlinelibdir => \$readlinelibdir,
 	openaisincdir => \$openaisincdir,
 	openaislibdir => \$openaislibdir,
+	aisexecbin => \$aisexecbin,
 	virtincdir => \$virtincdir,
 	virtlibdir => \$virtlibdir,
 	nssincdir => \$nssincdir,
@@ -94,6 +95,7 @@ $err = &GetOptions (\%options,
 		    'readlinelibdir=s',
 		    'openaisincdir=s',
 		    'openaislibdir=s',
+		    'aisexecbin=s',
 		    'virtincdir=s',
 		    'virtlibdir=s',
 		    'nssincdir=s',
@@ -124,12 +126,12 @@ if ($help || !$err) {
   print "Usage: $_ [flags]\n";
   print "--help\t\tPrints this usage information\n\n";
   print "install flags:\n";
-  print "--prefix=\tthe base directory to install into.  (Default: /)\n";
+  print "--prefix=\tthe base directory to install into.  (Default: /usr)\n";
   print "--sbindir=\tthe base directory for system binaries.  (Default: {prefix}/sbin)\n";
-  print "--libdir=\tthe base directory for libraries.  (Default: {prefix}/usr/lib)\n";
-  print "--libexecdir=\tthe base directory for executable components.  (Default: {prefix}/usr/libexec)\n";
-  print "--sharedir=\tthe base directory for misc cluster files.  (Default: {prefix}/usr/share/cluster)\n";
-  print "--mandir=\tthe base directory for man pages.  (Default:  {prefix}/usr/share/man)\n";
+  print "--libdir=\tthe base directory for libraries.  (Default: {prefix}/lib)\n";
+  print "--libexecdir=\tthe base directory for executable components.  (Default: {prefix}/libexec)\n";
+  print "--sharedir=\tthe base directory for misc cluster files.  (Default: {prefix}/share/cluster)\n";
+  print "--mandir=\tthe base directory for man pages.  (Default: {prefix}/share/man)\n";
   print "--module_dir=\tthe base directory for kernel modules.  (Default:  /lib/modules/`uname -r`/kernel\n";
   print "\nbuild flags:\n";
   print "--cc=\t\tcompiler to use.  (Default: gcc)\n";
@@ -139,7 +141,7 @@ if ($help || !$err) {
   print "--ldflags=\toverride default LDFLAGS settings.  (Default: none)\n";
   print "--extraldflags=\tadd extra linking options to default LDFLAGS settings.  (Default: none)\n";
   print "--kernel_src=\tthe directory containing the kernel source you wish to\n\t\tcompile against. (Default: /lib/modules/`uname -r`/build)\n";
-  print "--incdir=\tthe base directory for include files.  (Default: {prefix}/usr/include)\n";
+  print "--incdir=\tthe base directory for include files.  (Default: {prefix}/include)\n";
   print "--ccsincdir=\tthe base directory for ccs include files.  (Default: ./ccs/lib)\n";
   print "--ccslibdir=\tthe base directory for ccs libraries.  (Default: ./ccs/lib)\n";
   print "--cmanincdir=\tthe base directory for cman include files.  (Default: ./cman/lib)\n";
@@ -154,6 +156,7 @@ if ($help || !$err) {
   print "--readlinelibdir=\tthe base directory for readline libraries.  (Default: {libdir})\n";
   print "--openaisincdir=\tthe base directory for openais include files.  (Default: {incdir})\n";
   print "--openaislibdir=\tthe base directory for openais libraries.  (Default: {libdir}/openais)\n";
+  print "--aisexecbin=\tlocation of aisexec executable file.  (Default: /usr/sbin/aisexec)\n";
   print "--nssincdir=\tthe base directory for libnss include files.  (Default: {incdir}/nss3)\n";
   print "--nsslibdir=\tthe base directory for libnss libraries.  (Default: {libdir})\n";
   print "--nsprincdir=\tthe base directory for libnspr include files.  (Default: {incdir}/nspr4)\n";
@@ -189,6 +192,9 @@ if ($extracflags) {
 if ($extraldflags) {
   $ldflags="${ldflags} ${extraldflags}";
 }
+if (!$prefix) {
+  $prefix="/usr";
+}
 if (!$kernel_src) {
   $kernel_src="/lib/modules/`uname -r`/build";
 }
@@ -202,10 +208,10 @@ if (!$gnbdkincdir) {
   $gnbdkincdir="${pwd}/gnbd-kernel/src";
 }
 if (!$incdir) {
-  $incdir="${prefix}/usr/include";
+  $incdir="${prefix}/include";
 }
 if (!$libdir) {
-  $libdir="${prefix}/usr/lib";
+  $libdir="${prefix}/lib";
 }
 if (!$ccsincdir) {
   $ccsincdir="${pwd}/ccs/lib";
@@ -249,6 +255,9 @@ if (!$openaisincdir) {
 if (!$openaislibdir) {
   $openaislibdir="${libdir}/openais";
 }
+if (!$aisexecbin) {
+  $aisexecbin="/usr/sbin/aisexec";
+}
 if (!$nssincdir) {
   $nssincdir="${incdir}/nss3";
 }
@@ -274,16 +283,16 @@ if (!$xenlibdir) {
   $xenlibdir="${libdir}";
 }
 if (!$libexecdir) {
-  $libexecdir="${prefix}/usr/libexec";
+  $libexecdir="${prefix}/libexec";
 }
 if (!$mandir) {
-  $mandir="${prefix}/usr/share/man";
+  $mandir="${prefix}/share/man";
 }
 if (!$sbindir) {
   $sbindir="${prefix}/sbin";
 }
 if (!$sharedir) {
-  $sharedir="${prefix}/usr/share/cluster";
+  $sharedir="${prefix}/share/cluster";
 }
 
 @args = "find fence/agents -mindepth 2 -maxdepth 2 -name Makefile -printf '%h'";
@@ -337,6 +346,7 @@ while (<IFILE>) {
   $_ =~ s/\@NCURSESLIBDIR\@/$ncurseslibdir/;
   $_ =~ s/\@OPENAISINCDIR\@/$openaisincdir/;
   $_ =~ s/\@OPENAISLIBDIR\@/$openaislibdir/;
+  $_ =~ s/\@AISEXECBIN\@/$aisexecbin/;
   $_ =~ s/\@XENINCDIR\@/$xenincdir/;
   $_ =~ s/\@XENLIBDIR\@/$xenlibdir/;
   $_ =~ s/\@NSSINCDIR\@/$nssincdir/;
