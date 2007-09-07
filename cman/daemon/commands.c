@@ -96,7 +96,7 @@ static int get_highest_nodeid(void);
 static int send_port_open_msg(unsigned char port);
 static int send_port_enquire(int nodeid);
 static void process_internal_message(char *data, int len, int nodeid, int byteswap);
-static void recalculate_quorum(int allow_decrease);
+static void recalculate_quorum(int allow_decrease, int by_current_nodes);
 static void send_kill(int nodeid, uint16_t reason);
 static char *killmsg_reason(int reason);
 
@@ -327,11 +327,11 @@ static int calculate_quorum(int allow_decrease, int max_expected, unsigned int *
 }
 
 /* Recalculate cluster quorum, set quorate and notify changes */
-static void recalculate_quorum(int allow_decrease)
+static void recalculate_quorum(int allow_decrease, int by_current_nodes)
 {
 	unsigned int total_votes;
 
-	quorum = calculate_quorum(allow_decrease, 0, &total_votes);
+	quorum = calculate_quorum(allow_decrease, by_current_nodes?cluster_members:0, &total_votes);
 	set_quorate(total_votes);
 	notify_listeners(NULL, EVENT_REASON_STATECHANGE, 0);
 }
@@ -791,7 +791,7 @@ static int do_cmd_set_votes(char *cmdbuf, int *retlen)
 		return -EINVAL;
 	}
 
-	recalculate_quorum(1);
+	recalculate_quorum(1, 0);
 
 	send_reconfigure(arg.nodeid, RECONFIG_PARAM_NODE_VOTES, arg.newvotes);
 
@@ -1034,7 +1034,7 @@ static void ccsd_timer_fn(void *arg)
 	else {
 		log_msg(LOG_ERR, "Now got CCS information version %d, continuing\n", config_version);
 		config_error = 0;
-		recalculate_quorum(0);
+		recalculate_quorum(0, 0);
 	}
 }
 
@@ -1049,7 +1049,7 @@ static void quorum_device_timer_fn(void *arg)
 	if (quorum_device->last_hello.tv_sec + quorumdev_poll/1000 < now.tv_sec) {
 		quorum_device->state = NODESTATE_DEAD;
 		log_msg(LOG_INFO, "lost contact with quorum device\n");
-		recalculate_quorum(0);
+		recalculate_quorum(0, 0);
 	}
 	else {
 		openais_timer_add_duration((unsigned long long)quorumdev_poll*1000000, quorum_device,
@@ -1070,7 +1070,7 @@ static int do_cmd_poll_quorum_device(char *cmdbuf, int *retlen)
 		gettimeofday(&quorum_device->last_hello, NULL);
                 if (quorum_device->state == NODESTATE_DEAD) {
                         quorum_device->state = NODESTATE_MEMBER;
-                        recalculate_quorum(0);
+                        recalculate_quorum(0, 0);
 
 			openais_timer_add_duration((unsigned long long)quorumdev_poll*1000000, quorum_device,
 						   quorum_device_timer_fn, &quorum_device_timer);
@@ -1079,7 +1079,7 @@ static int do_cmd_poll_quorum_device(char *cmdbuf, int *retlen)
         else {
                 if (quorum_device->state == NODESTATE_MEMBER) {
                         quorum_device->state = NODESTATE_DEAD;
-                        recalculate_quorum(0);
+                        recalculate_quorum(0, 0);
 			openais_timer_delete(quorum_device_timer);
                 }
         }
@@ -1513,7 +1513,7 @@ static int valid_transition_msg(int nodeid, struct cl_transmsg *msg)
 		if (config_version > msg->config_version) {
 			// TODO tell everyone else to update...
 		}
-		recalculate_quorum(0);
+		recalculate_quorum(0, 0);
 	}
 
 
@@ -1650,12 +1650,12 @@ static void do_reconfigure_msg(void *data)
 				node->expected_votes = msg->value;
 			}
 		}
-		recalculate_quorum(1);  /* Allow decrease */
+		recalculate_quorum(1, 0);  /* Allow decrease */
 		break;
 
 	case RECONFIG_PARAM_NODE_VOTES:
 		node->votes = msg->value;
-		recalculate_quorum(1);  /* Allow decrease */
+		recalculate_quorum(1, 0);  /* Allow decrease */
 		break;
 
 	case RECONFIG_PARAM_CONFIG_VERSION:
@@ -1664,7 +1664,7 @@ static void do_reconfigure_msg(void *data)
 				msg->value);
 
 			config_error = 1;
-			recalculate_quorum(0);
+			recalculate_quorum(0, 0);
 
 			wanted_config_version = config_version;
 			openais_timer_add_duration((unsigned long long)ccsd_poll_interval*1000000, NULL,
@@ -1977,7 +1977,7 @@ void add_ais_node(int nodeid, uint64_t incarnation, int total_members)
 		node->incarnation = incarnation;
 		node->state = NODESTATE_MEMBER;
 		cluster_members++;
-		recalculate_quorum(0);
+		recalculate_quorum(0, 0);
 	}
 }
 
@@ -2007,7 +2007,7 @@ void del_ais_node(int nodeid)
 	case NODESTATE_MEMBER:
 		node->state = NODESTATE_DEAD;
 		cluster_members--;
-		recalculate_quorum(0);
+		recalculate_quorum(0, 0);
 		break;
 
 	case NODESTATE_AISONLY:
@@ -2018,10 +2018,10 @@ void del_ais_node(int nodeid)
 		node->state = NODESTATE_DEAD;
 		cluster_members--;
 
-		if ((node->leave_reason & 0xF) == CLUSTER_LEAVEFLAG_REMOVED)
-			recalculate_quorum(1);
-		else
-			recalculate_quorum(0);
+		if ((node->leave_reason & 0xF) & CLUSTER_LEAVEFLAG_REMOVED) 
+			recalculate_quorum(1, 1);
+		else 
+			recalculate_quorum(0, 0);
 		break;
 
 	case NODESTATE_JOINING:
