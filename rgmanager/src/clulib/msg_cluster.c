@@ -249,6 +249,7 @@ static int
 cluster_msg_wait(msgctx_t *ctx, int timeout)
 {
 	struct timespec ts = {0, 0};
+	struct timeval tv = {0, 0};
 	int req = M_NONE;
 	int e;
 
@@ -261,9 +262,9 @@ cluster_msg_wait(msgctx_t *ctx, int timeout)
 		return -1;
 
 	if (timeout > 0) {
-		gettimeofday((struct timeval *)&ts, NULL);
-		ts.tv_sec += timeout;
-		ts.tv_nsec *= 1000;
+		gettimeofday(&tv, NULL);
+		ts.tv_sec = tv.tv_sec + timeout;
+		ts.tv_nsec = tv.tv_usec * 1000;
 	}
 
 	pthread_mutex_lock(&ctx->u.cluster_info.mutex);
