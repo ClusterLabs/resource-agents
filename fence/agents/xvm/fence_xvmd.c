@@ -220,7 +220,7 @@ int
 do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 		     void *key, size_t key_len, virConnectPtr vp)
 {
-	int fd, ret = -1;
+	int fd = -1, ret = -1;
 	virDomainPtr vdp;
 	char response = 1;
 	char *domain_desc, *domain_desc_sanitized;
@@ -678,7 +678,7 @@ main(int argc, char **argv)
 	int key_len = 0, x;
 	char *my_options = "dfi:a:p:C:c:k:u?hLXV";
 	cman_handle_t ch = NULL;
-	void *h;
+	void *h = NULL;
 
 	args_init(&args);
 	args_get_getopt(argc, argv, my_options, &args);
