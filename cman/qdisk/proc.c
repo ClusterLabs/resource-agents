@@ -100,11 +100,12 @@ find_partitions(const char *partfile, const char *label,
 				continue;
 
 			if (print) {
+				time_t timestamp = qh.qh_timestamp;
 				printf("%s:\n", realdev);
 				printf("\tMagic:   %08x\n", qh.qh_magic);
 				printf("\tLabel:   %s\n", qh.qh_cluster);
 				printf("\tCreated: %s",
-				       ctime((time_t *)&qh.qh_timestamp));
+				       ctime((time_t *)&timestamp));
 				printf("\tHost:    %s\n\n", qh.qh_updatehost);
 			}
 

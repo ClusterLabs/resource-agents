@@ -377,7 +377,7 @@ diskRawReadShadow(int fd, off_t readOffset, char *buf, int len)
 static int
 diskRawRead(int fd, char *buf, int len)
 {
-	char *alignedBuf;
+	void *alignedBuf;
 	int readret;
 	int extraLength;
 	int readlen;
@@ -447,7 +447,7 @@ diskRawRead(int fd, char *buf, int len)
 static int
 diskRawWrite(int fd, char *buf, int len)
 {
-	char *alignedBuf;
+	void *alignedBuf;
 	int ret;
 	int extraLength;
 	int writelen;
@@ -546,6 +546,7 @@ diskRawWriteShadow(int fd, __off64_t writeOffset, char *buf, int len)
 int
 qdisk_read(int fd, __off64_t offset, void *buf, int count)
 {
+	void *hdrbuf;
 	shared_header_t *hdrp;
 	char *data;
 	size_t total;
@@ -563,14 +564,15 @@ qdisk_read(int fd, __off64_t offset, void *buf, int count)
 	if (total % 512) 
 		total = total + (512 * !!(total % 512)) - (total % 512);
 
-	hdrp = NULL;
-	rv = posix_memalign((void **)&hdrp, sysconf(_SC_PAGESIZE), total);
+	hdrbuf = NULL;
+	rv = posix_memalign((void **)&hdrbuf, sysconf(_SC_PAGESIZE), total);
 	if (rv < 0)
 		return -1;
 
-	if (hdrp == NULL) 
+	if (hdrbuf == NULL) 
 		return -1;
 
+	hdrp = (shared_header_t *)hdrbuf;
 	data = (char *)hdrp + sizeof(shared_header_t);
 
 	rv = diskRawReadShadow(fd, offset, (char *)hdrp, total);
@@ -588,7 +590,7 @@ qdisk_read(int fd, __off64_t offset, void *buf, int count)
 		       count - hdrp->h_length);
 	}
 
-	free(hdrp);
+	free(hdrbuf);
 	return count;
 }
 
@@ -597,6 +599,7 @@ int
 qdisk_write(int fd, __off64_t offset, const void *buf, int count)
 {
 	size_t maxsize;
+	void *hdrbuf;
 	shared_header_t *hdrp;
 	char *data;
 	size_t total = 0, rv = -1, psz = 512; //sysconf(_SC_PAGESIZE);
@@ -621,12 +624,13 @@ qdisk_write(int fd, __off64_t offset, const void *buf, int count)
 	if (total % psz) 
 		total = total + (psz * !!(total % psz)) - (total % psz);
 
-	hdrp = NULL;
-	rv = posix_memalign((void **)&hdrp, sysconf(_SC_PAGESIZE), total);
+	hdrbuf = NULL;
+	rv = posix_memalign((void **)&hdrbuf, sysconf(_SC_PAGESIZE), total);
 	if (rv < 0) {
 		perror("posix_memalign");
 		return -1;
 	}
+	hdrp = (shared_header_t *)hdrbuf;
 
 	/* 
 	 * Copy the data into our new buffer
@@ -650,7 +654,7 @@ qdisk_write(int fd, __off64_t offset, const void *buf, int count)
 	if (rv == -1)
 		perror("diskRawWriteShadow");
 	
-	free((char *)hdrp);
+	free(hdrbuf);
 	if (rv == -1)
 		return -1;
 	return count;
