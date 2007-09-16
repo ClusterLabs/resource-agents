@@ -543,79 +543,81 @@ int check_inode_eattr(struct gfs2_inode *ip, struct metawalk_fxns *pass)
  * @mlp:
  */
 static int build_and_check_metalist(struct gfs2_inode *ip,
-									struct metawalk_fxns *pass)
+				    osi_list_t *mlp,
+				    struct metawalk_fxns *pass)
 {
 	uint32_t height = ip->i_di.di_height;
-	struct gfs2_buffer_head *nbh, *metabh;
-	int head_size;
+	struct gfs2_buffer_head *bh, *nbh, *metabh;
+	osi_list_t *prev_list, *cur_list, *tmp;
+	int i, head_size;
 	uint64_t *ptr, block;
 	int err;
 
 	metabh = bread(ip->i_sbd, ip->i_di.di_num.no_addr);
 
+	osi_list_add(&metabh->b_altlist, &mlp[0]);
+
 	/* if(<there are no indirect blocks to check>) */
-	if (height < 1) {
+	if (height < 2) {
 		brelse(metabh, not_updated);
 		return 0;
 	}
-	head_size = sizeof(struct gfs2_dinode);
-	for (ptr = (uint64_t *)(metabh->b_data + head_size);
-		 (char *)ptr < (metabh->b_data + metabh->b_size); ptr++) {
-		nbh = NULL;
-		
-		if (!*ptr)
-			continue;
+	for (i = 1; i < height; i++){
+		prev_list = &mlp[i - 1];
+		cur_list = &mlp[i];
 
-		block = be64_to_cpu(*ptr);
-		if (height > 1) {
-			uint64_t *subptr, subblock, prevsubblock;
-			int head_size2;
-			struct gfs2_buffer_head *nbh2;
-			
-			nbh2 = NULL;
-			prevsubblock = 0;
-			head_size2 = sizeof(struct gfs2_meta_header);
-			err = pass->check_metalist(ip, block, &nbh, pass->private);
-			if (!nbh)
-				nbh = nbh2 = bread(ip->i_sbd, block);
-			for (subptr = (uint64_t *)(nbh->b_data + head_size2);
-				 (char *)subptr < (nbh->b_data + nbh->b_size);
-				 subptr++) {
+		for (tmp = prev_list->next; tmp != prev_list; tmp = tmp->next){
+			bh = osi_list_entry(tmp, struct gfs2_buffer_head,
+					    b_altlist);
+
+			head_size = (i > 1 ?
+				     sizeof(struct gfs2_meta_header) :
+				     sizeof(struct gfs2_dinode));
+
+			for (ptr = (uint64_t *)(bh->b_data + head_size);
+			     (char *)ptr < (bh->b_data + bh->b_size);
+			     ptr++) {
+				nbh = NULL;
+		
+				if (!*ptr)
+					continue;
+
+				block = be64_to_cpu(*ptr);
+				err = pass->check_metalist(ip, block, &nbh,
+							   pass->private);
 				if(err < 0) {
 					stack;
 					goto fail;
 				}
 				if(err > 0) {
-					log_debug("Skipping block %" PRIu64 " (0x%" PRIx64 ")\n",
-							  block, block);
+					log_debug("Skipping block %" PRIu64
+						  " (0x%" PRIx64 ")\n",
+						  block, block);
 					continue;
 				}
-				subblock = be64_to_cpu(*subptr);
-				if (subblock) {
-					if (subblock != prevsubblock) {
-						prevsubblock = subblock;
-						if(pass->check_data &&
-						   (pass->check_data(ip, subblock,
-											 pass->private) < 0)) {
-							stack;
-							return -1;
-						}
-					} /* if different than the previous block */
-				} /* if non-zero indirect block pointer */
+				if(!nbh) {
+					nbh = bread(ip->i_sbd, block);
+					osi_list_add(&nbh->b_altlist, cur_list);
+				}
+				else
+					osi_list_add(&nbh->b_altlist, cur_list);
 			} /* for all data on the indirect block */
-			if (nbh2)
-				brelse(nbh2, not_updated);
-		} /* if height */
-		else if(pass->check_data &&
-				(pass->check_data(ip, block, pass->private) < 0)) {
-			stack;
-			brelse(metabh, not_updated);
-			return -1;
-		}
-	} /* for all level 1 pointers */
-fail:
+		} /* for blocks at that height */
+	} /* for height */
 	brelse(metabh, not_updated);
 	return 0;
+fail:
+	for (i = 0; i < GFS2_MAX_META_HEIGHT; i++) {
+		osi_list_t *list;
+		list = &mlp[i];
+		while (!osi_list_empty(list)) {
+			nbh = osi_list_entry(list->next,
+					     struct gfs2_buffer_head, b_altlist);
+			osi_list_del(&nbh->b_altlist);
+		}
+	}
+	brelse(metabh, not_updated);
+	return -1;
 }
 
 /**
@@ -626,18 +628,71 @@ fail:
  */
 int check_metatree(struct gfs2_inode *ip, struct metawalk_fxns *pass)
 {
+	osi_list_t metalist[GFS2_MAX_META_HEIGHT];
+	osi_list_t *list, *tmp;
+	struct gfs2_buffer_head *bh;
+	uint64_t block, *ptr;
 	uint32_t height = ip->i_di.di_height;
+	int  i, head_size;
 	int update = 0;
 	int error = 0;
 
-	if (height) {
-		/* create metalist for each level */
-		if(build_and_check_metalist(ip, pass)){
-			stack;
-			return -1;
+	if (!height)
+		goto end;
+
+	for (i = 0; i < GFS2_MAX_META_HEIGHT; i++)
+		osi_list_init(&metalist[i]);
+
+	/* create metalist for each level */
+	if (build_and_check_metalist(ip, &metalist[0], pass)){
+		stack;
+		return -1;
+	}
+
+	/* We don't need to record directory blocks - they will be
+	 * recorded later...i think... */
+        if (S_ISDIR(ip->i_di.di_mode))
+		log_debug("Directory with height > 0 at %"PRIu64"\n",
+			  ip->i_di.di_num.no_addr);
+
+	/* check data blocks */
+	list = &metalist[height - 1];
+
+	for (tmp = list->next; tmp != list; tmp = tmp->next) {
+		bh = osi_list_entry(tmp, struct gfs2_buffer_head, b_altlist);
+
+		head_size = (height != 1 ? sizeof(struct gfs2_meta_header) :
+			     sizeof(struct gfs2_dinode));
+		ptr = (uint64_t *)(bh->b_data + head_size);
+
+		for ( ; (char *)ptr < (bh->b_data + bh->b_size); ptr++)	{
+			if (!*ptr)
+				continue;
+
+			block =  be64_to_cpu(*ptr);
+
+			if(pass->check_data &&
+			   (pass->check_data(ip, block, pass->private) < 0)) {
+				stack;
+				return -1;
+			}
 		}
 	}
-	if (S_ISDIR(ip->i_di.di_mode)) {
+
+	/* free metalists */
+	for (i = 0; i < GFS2_MAX_META_HEIGHT; i++)
+	{
+		list = &metalist[i];
+		while (!osi_list_empty(list))
+		{
+			bh = osi_list_entry(list->next,
+					    struct gfs2_buffer_head, b_altlist);
+			osi_list_del(&bh->b_altlist);
+		}
+	}
+
+end:
+        if (S_ISDIR(ip->i_di.di_mode)) {
 		/* check validity of leaf blocks and leaf chains */
 		if (ip->i_di.di_flags & GFS2_DIF_EXHASH) {
 			error = check_leaf(ip, &update, pass);

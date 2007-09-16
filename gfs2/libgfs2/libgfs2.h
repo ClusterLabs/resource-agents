@@ -93,13 +93,13 @@ struct rgrp_list {
 struct gfs2_buffer_head {
 	osi_list_t b_list;
 	osi_list_t b_hash;
+	osi_list_t b_altlist; /* alternate list */
 
 	unsigned int b_count;
 	uint64_t b_blocknr;
 	char *b_data;
 	unsigned int b_size;
 
-	int b_uninit;
 	int b_changed;
 };
 

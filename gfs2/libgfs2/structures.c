@@ -56,7 +56,6 @@ build_sb(struct gfs2_sbd *sdp)
 	for (x = 0; x < sdp->sb_addr; x++) {
 		bh = bget(sdp, x);
 		memset(bh->b_data, 0, sdp->bsize);
-		bh->b_uninit = TRUE;
 		brelse(bh, updated);
 	}
 
