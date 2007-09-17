@@ -608,7 +608,7 @@ int check_system_dir(struct gfs2_inode *sysinode, const char *dirname,
 		}
 	}
 
-	brelse(bh, update);
+	brelse(bh, opts.no ? not_updated : update);
 	return 0;
 }
 

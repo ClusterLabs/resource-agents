@@ -750,7 +750,7 @@ int check_dir(struct gfs2_sbd *sbp, uint64_t block, struct metawalk_fxns *pass)
 		}
 	}
 
-	inode_put(ip, update); /* does a brelse */
+	inode_put(ip, opts.no ? not_updated : update); /* does a brelse */
 	return error;
 }
 

@@ -406,7 +406,8 @@ void dir_add(struct gfs2_inode *dip, char *filename, int len,
 int gfs2_dirent_del(struct gfs2_inode *dip, struct gfs2_buffer_head *bh,
 		    const char *filename, int filename_len);
 void block_map(struct gfs2_inode *ip, uint64_t lblock, int *new,
-			   uint64_t *dblock, uint32_t *extlen, int prealloc);
+	       uint64_t *dblock, uint32_t *extlen, int prealloc,
+	       enum update_flags if_changed);
 void gfs2_get_leaf_nr(struct gfs2_inode *dip, uint32_t index,
 					  uint64_t *leaf_out);
 void gfs2_put_leaf_nr(struct gfs2_inode *dip, uint32_t inx, uint64_t leaf_out);

@@ -335,7 +335,8 @@ static void lookup_block(struct gfs2_inode *ip,
 }
 
 void block_map(struct gfs2_inode *ip, uint64_t lblock, int *new,
-			   uint64_t *dblock, uint32_t *extlen, int prealloc)
+	       uint64_t *dblock, uint32_t *extlen, int prealloc,
+	       enum update_flags if_changed)
 {
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_buffer_head *bh;
@@ -377,7 +378,7 @@ void block_map(struct gfs2_inode *ip, uint64_t lblock, int *new,
 
 	for (x = 0; x < end_of_metadata; x++) {
 		lookup_block(ip, bh, x, mp, create, new, dblock);
-		brelse(bh, updated);
+		brelse(bh, if_changed);
 		if (!*dblock)
 			goto out;
 
@@ -417,7 +418,7 @@ void block_map(struct gfs2_inode *ip, uint64_t lblock, int *new,
 		}
 	}
 
-	brelse(bh, updated);
+	brelse(bh, if_changed);
 
  out:
 	free(mp);
@@ -478,7 +479,8 @@ int gfs2_readi(struct gfs2_inode *ip, void *buf,
 			amount = sdp->bsize - o;
 
 		if (!extlen)
-			block_map(ip, lblock, &not_new, &dblock, &extlen, FALSE);
+			block_map(ip, lblock, &not_new, &dblock, &extlen,
+				  FALSE, not_updated);
 
 		if (dblock) {
 			bh = bread(sdp, dblock);
@@ -550,7 +552,8 @@ int gfs2_writei(struct gfs2_inode *ip, void *buf,
 
 		if (!extlen) {
 			new = TRUE;
-			block_map(ip, lblock, &new, &dblock, &extlen, FALSE);
+			block_map(ip, lblock, &new, &dblock, &extlen, FALSE,
+				  updated);
 		}
 
 		if (new) {
@@ -591,7 +594,7 @@ struct gfs2_buffer_head *get_file_buf(struct gfs2_inode *ip, uint64_t lbn,
 	if (inode_is_stuffed(ip))
 		unstuff_dinode(ip);
 
-	block_map(ip, lbn, &new, &dbn, NULL, prealloc);
+	block_map(ip, lbn, &new, &dbn, NULL, prealloc, not_updated);
 	if (!dbn)
 		die("get_file_buf\n");
 

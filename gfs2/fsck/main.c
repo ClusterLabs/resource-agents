@@ -283,6 +283,7 @@ int main(int argc, char **argv)
 	struct gfs2_sbd sb;
 	struct gfs2_sbd *sbp = &sb;
 	int j;
+	enum update_flags update_sys_files;
 
 	memset(sbp, 0, sizeof(*sbp));
 
@@ -387,22 +388,24 @@ int main(int argc, char **argv)
 		else
 			log_notice("Pass5 complete      \n");
 	}
+	update_sys_files = (opts.no ? not_updated : updated);
 	/* Free up our system inodes */
-	inode_put(sbp->md.inum, updated);
-	inode_put(sbp->md.statfs, updated);
+	inode_put(sbp->md.inum, update_sys_files);
+	inode_put(sbp->md.statfs, update_sys_files);
 	for (j = 0; j < sbp->md.journals; j++)
-		inode_put(sbp->md.journal[j], updated);
-	inode_put(sbp->md.jiinode, updated);
-	inode_put(sbp->md.riinode, updated);
-	inode_put(sbp->md.qinode, updated);
-	inode_put(sbp->md.pinode, updated);
-	inode_put(sbp->md.rooti, updated);
-	inode_put(sbp->master_dir, updated);
+		inode_put(sbp->md.journal[j], update_sys_files);
+	inode_put(sbp->md.jiinode, update_sys_files);
+	inode_put(sbp->md.riinode, update_sys_files);
+	inode_put(sbp->md.qinode, update_sys_files);
+	inode_put(sbp->md.pinode, update_sys_files);
+	inode_put(sbp->md.rooti, update_sys_files);
+	inode_put(sbp->master_dir, update_sys_files);
 	if (lf_dip)
-		inode_put(lf_dip, updated);
+		inode_put(lf_dip, update_sys_files);
 /*	print_map(sbp->bl, sbp->last_fs_block); */
 
-	log_notice("Writing changes to disk\n");
+	if (!opts.no)
+		log_notice("Writing changes to disk\n");
 	bsync(sbp);
 	destroy(sbp);
 	log_notice("gfs2_fsck complete    \n");
