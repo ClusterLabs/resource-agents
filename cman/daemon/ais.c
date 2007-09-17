@@ -36,7 +36,7 @@
 #include <openais/service/config.h>
 #include <openais/lcr/lcr_comp.h>
 #include <openais/service/swab.h>
-#include <openais/service/print.h>
+#include <openais/service/logsys.h>
 
 #include "cnxman-socket.h"
 #include "commands.h"
@@ -204,9 +204,7 @@ static int cman_readconfig(struct objdb_iface_ver0 *objdb, char **error_string)
 
 	/* Initialise early logging */
 	if (getenv("CMAN_DEBUGLOG"))
-	{
 		debug_mask = atoi(getenv("CMAN_DEBUGLOG"));
-	}
 
 	if (getenv("CMAN_PIPE"))
 		startup_pipe = atoi(getenv("CMAN_PIPE"));
@@ -242,7 +240,7 @@ static int cman_exec_init_fn(struct objdb_iface_ver0 *objdb)
 {
 	unsigned int object_handle;
 
-	/* We can only work if our config inerface was run first */
+	/* We can only work if our config interface was run first */
 	if (!config_run)
 		return 0;
 
@@ -268,6 +266,8 @@ static int cman_exec_init_fn(struct objdb_iface_ver0 *objdb)
 	/* Let cman_tool know we are running */
 	close(startup_pipe);
 	startup_pipe = 0;
+
+	cman_flush_debuglog();
 
 	/* Start totem */
 	totempg_groups_initialize(&group_handle, cman_deliver_fn, cman_confchg_fn);

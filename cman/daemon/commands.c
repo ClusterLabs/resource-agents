@@ -34,7 +34,7 @@
 #include <openais/totem/totemip.h>
 #include <openais/totem/totempg.h>
 #include <openais/service/swab.h>
-#include <openais/service/print.h>
+#include <openais/service/logsys.h>
 #include <openais/service/timer.h>
 #include <openais/totem/aispoll.h>
 #include "list.h"
@@ -159,9 +159,9 @@ static void set_quorate(int total_votes)
 	}
 
 	if (cluster_is_quorate && !quorate)
-		log_msg(LOG_INFO, "quorum lost, blocking activity\n");
+		log_printf(LOG_INFO, "quorum lost, blocking activity\n");
 	if (!cluster_is_quorate && quorate)
-		log_msg(LOG_INFO, "quorum regained, resuming activity\n");
+		log_printf(LOG_INFO, "quorum regained, resuming activity\n");
 
 	/* If we are newly quorate, then kill any AISONLY nodes */
 	if (!cluster_is_quorate && quorate) {
@@ -404,7 +404,7 @@ int cman_join_cluster(char *name, unsigned short cl_id, int two_node_flag, int e
 	ais_running = 1;
 
 	if (read_ccs_nodes(&config_version, 1)) {
-		log_msg(LOG_ERR, "Can't initialise list of nodes from CCS\n");
+		log_printf(LOG_ERR, "Can't initialise list of nodes from CCS\n");
 		return -EINVAL;
 	}
 
@@ -997,7 +997,7 @@ static int do_cmd_register_quorum_device(char *cmdbuf, int *retlen)
         /* Keep this list valid so it doesn't confuse other code */
         list_init(&quorum_device->addr_list);
 
-	log_msg(LOG_INFO, "quorum device registered\n");
+	log_printf(LOG_INFO, "quorum device registered\n");
         return 0;
 }
 
@@ -1014,7 +1014,7 @@ static int do_cmd_unregister_quorum_device(char *cmdbuf, int *retlen)
 
         quorum_device = NULL;
 
-	log_msg(LOG_INFO, "quorum device unregistered\n");
+	log_printf(LOG_INFO, "quorum device unregistered\n");
         return 0;
 }
 
@@ -1022,17 +1022,17 @@ static void ccsd_timer_fn(void *arg)
 {
 	int ccs_err;
 
-	log_msg(LOG_DEBUG, "Polling ccsd for updated information\n");
+	log_printf(LOG_DEBUG, "Polling ccsd for updated information\n");
 	ccs_err = read_ccs_nodes(&config_version, 0);
 	if (ccs_err || config_version < wanted_config_version) {
-		log_msg(LOG_ERR, "Can't read CCS to get updated config version %d. Activity suspended on this node\n",
-			wanted_config_version);
+		log_printf(LOG_ERR, "Can't read CCS to get updated config version %d. Activity suspended on this node\n",
+				wanted_config_version);
 
 		openais_timer_add_duration((unsigned long long)ccsd_poll_interval*1000000, NULL,
 					   ccsd_timer_fn, &ccsd_timer);
 	}
 	else {
-		log_msg(LOG_ERR, "Now got CCS information version %d, continuing\n", config_version);
+		log_printf(LOG_ERR, "Now got CCS information version %d, continuing\n", config_version);
 		config_error = 0;
 		recalculate_quorum(0, 0);
 	}
@@ -1048,7 +1048,7 @@ static void quorum_device_timer_fn(void *arg)
 	gettimeofday(&now, NULL);
 	if (quorum_device->last_hello.tv_sec + quorumdev_poll/1000 < now.tv_sec) {
 		quorum_device->state = NODESTATE_DEAD;
-		log_msg(LOG_INFO, "lost contact with quorum device\n");
+		log_printf(LOG_INFO, "lost contact with quorum device\n");
 		recalculate_quorum(0, 0);
 	}
 	else {
@@ -1478,20 +1478,20 @@ int our_nodeid()
 static int valid_transition_msg(int nodeid, struct cl_transmsg *msg)
 {
 	if (strcmp(msg->clustername, cluster_name) != 0) {
-		log_msg(LOG_ERR, "Node %d conflict, remote cluster name='%s', local='%s'\n",
+		log_printf(LOG_ERR, "Node %d conflict, remote cluster name='%s', local='%s'\n",
 			nodeid, msg->clustername, cluster_name);
 		return -1;
 	}
 
 	if (msg->cluster_id != cluster_id) {
-		log_msg(LOG_ERR, "Node %d conflict, remote cluster id=%d, local=%d\n",
+		log_printf(LOG_ERR, "Node %d conflict, remote cluster id=%d, local=%d\n",
 			nodeid, msg->cluster_id, cluster_id);
 		return -1;
 	}
 
 	if (msg->major_version != CNXMAN_MAJOR_VERSION) {
 
-		log_msg(LOG_ERR, "Node %d conflict, remote version id=%d, local=%d\n",
+		log_printf(LOG_ERR, "Node %d conflict, remote version id=%d, local=%d\n",
 			nodeid, msg->major_version, CNXMAN_MAJOR_VERSION);
 		return -1;
 	}
@@ -1503,7 +1503,7 @@ static int valid_transition_msg(int nodeid, struct cl_transmsg *msg)
 		ccs_err = read_ccs_nodes(&config_version, 0);
 		if (ccs_err || config_version < msg->config_version) {
 			config_error = 1;
-			log_msg(LOG_ERR, "Can't read CCS to get updated config version %d. Activity suspended on this node\n",
+			log_printf(LOG_ERR, "Can't read CCS to get updated config version %d. Activity suspended on this node\n",
 				msg->config_version);
 
 			wanted_config_version = msg->config_version;
@@ -1518,7 +1518,7 @@ static int valid_transition_msg(int nodeid, struct cl_transmsg *msg)
 
 
 	if (msg->config_version != config_version) {
-		log_msg(LOG_ERR, "Node %d conflict, remote config version id=%d, local=%d\n",
+		log_printf(LOG_ERR, "Node %d conflict, remote config version id=%d, local=%d\n",
 			nodeid, msg->config_version, config_version);
 		return -1;
 	}
@@ -1660,7 +1660,7 @@ static void do_reconfigure_msg(void *data)
 
 	case RECONFIG_PARAM_CONFIG_VERSION:
 		if (read_ccs_nodes(&config_version, 0)) {
-			log_msg(LOG_ERR, "Can't read CCS to get updated config version %d. Activity suspended on this node\n",
+			log_printf(LOG_ERR, "Can't read CCS to get updated config version %d. Activity suspended on this node\n",
 				msg->value);
 
 			config_error = 1;
@@ -1839,7 +1839,7 @@ static void process_internal_message(char *data, int len, int nodeid, int need_b
 
 	case CLUSTER_MSG_PORTSTATUS:
 		if (nodeid != us->node_id) {
-			P_MEMB("got PORTRESULT from %d, low bytes = %x %x\n", data[1], data[2]);
+			P_MEMB("got PORTRESULT from %d, low bytes = %x %x\n", nodeid, data[1], data[2]);
 			if (node)
 				memcpy(node->port_bits, data+1, PORT_BITS_SIZE);
 		}
@@ -1854,7 +1854,7 @@ static void process_internal_message(char *data, int len, int nodeid, int need_b
 		killmsg = (struct cl_killmsg *)data;
 		P_MEMB("got KILL for node %d\n", killmsg->nodeid);
 		if (killmsg->nodeid == wanted_nodeid) {
-			log_msg(LOG_INFO, "cman killed by node %d because %s\n", nodeid,
+			log_printf(LOG_INFO, "cman killed by node %d because %s\n", nodeid,
 				killmsg_reason(killmsg->reason));
 			exit(1);
 		}
@@ -1896,7 +1896,7 @@ static void process_internal_message(char *data, int len, int nodeid, int need_b
 		break;
 
 	default:
-		log_msg(LOG_WARNING, "Unknown protocol message %d received\n", msg->cmd);
+		log_printf(LOG_WARNING, "Unknown protocol message %d received\n", msg->cmd);
 		break;
 
 	}
@@ -1926,11 +1926,11 @@ void add_ccs_node(char *nodename, int nodeid, int votes, int expected_votes)
 	if (totemip_parse(&ipaddr, nodename, 0))
 	{
 		if (!nodeid) {
-			log_msg(LOG_ERR, "Error, can't find IP address and no nodeid for node %s - ignoring it\n", nodename);
+			log_printf(LOG_ERR, "Error, can't find IP address and no nodeid for node %s - ignoring it\n", nodename);
 			return;
 		}
 		else {
-			log_msg(LOG_WARNING, "Warning, can't resolve IP address for node %s\n", nodename);
+			log_printf(LOG_WARNING, "Warning, can't resolve IP address for node %s\n", nodename);
 			memset(&ipaddr, 0, sizeof(ipaddr));
 		}
 	}
@@ -1943,7 +1943,7 @@ void add_ais_node(int nodeid, uint64_t incarnation, int total_members)
 {
 	struct cluster_node *node;
 
-	P_MEMB("add_ais_node ID=%d, incarnation = %d\n",nodeid, incarnation);
+	P_MEMB("add_ais_node ID=%d, incarnation = %lld\n",nodeid, incarnation);
 
 	node = find_node_by_nodeid(nodeid);
 	if (!node && total_members == 1) {
@@ -1956,11 +1956,11 @@ void add_ais_node(int nodeid, uint64_t incarnation, int total_members)
 		char tempname[256];
 		node = malloc(sizeof(struct cluster_node));
 		if (!node) {
-			log_msg(LOG_ERR, "error allocating node struct for id %d, but CCS doesn't know about it anyway\n",
+			log_printf(LOG_ERR, "error allocating node struct for id %d, but CCS doesn't know about it anyway\n",
 				nodeid);
 			return;
 		}
-		log_msg(LOG_ERR, "Got node from AIS id %d with no CCS entry\n", nodeid);
+		log_printf(LOG_ERR, "Got node from AIS id %d with no CCS entry\n", nodeid);
 
 		memset(node, 0, sizeof(struct cluster_node));
 		node_add_ordered(node);

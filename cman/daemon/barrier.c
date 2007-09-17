@@ -240,7 +240,7 @@ static int barrier_register(struct connection *con, char *name, unsigned int fla
 	/* See if it already exists */
 	if ((barrier = find_barrier(name))) {
 		if (nodes != barrier->expected_nodes) {
-			log_msg(LOG_ERR, "Barrier registration failed for '%s', expected nodes=%d, requested=%d\n",
+			log_printf(LOG_ERR, "Barrier registration failed for '%s', expected nodes=%d, requested=%d\n",
 			       name, barrier->expected_nodes, nodes);
 			return -EINVAL;
 		}

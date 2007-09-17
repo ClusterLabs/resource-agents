@@ -337,7 +337,7 @@ static int open_local_sock(const char *name, int name_len, mode_t mode, poll_han
 		unlink(name);
 	local_socket = socket(PF_UNIX, SOCK_STREAM, 0);
 	if (local_socket < 0) {
-		log_msg(LOG_ERR, "Can't create local socket %s: %s\n", name, strerror(errno));
+		log_printf(LOG_ERR, "Can't create local socket %s: %s\n", name, strerror(errno));
 		write_cman_pipe("Can't create local cman socket");
 		return -1;
 	}
@@ -349,13 +349,13 @@ static int open_local_sock(const char *name, int name_len, mode_t mode, poll_han
 	memcpy(sockaddr.sun_path, name, name_len);
 	sockaddr.sun_family = AF_UNIX;
 	if (bind(local_socket, (struct sockaddr *) &sockaddr, sizeof(sockaddr))) {
-		log_msg(LOG_ERR, "can't bind local socket to %s: %s\n", name, strerror(errno));
+		log_printf(LOG_ERR, "can't bind local socket to %s: %s\n", name, strerror(errno));
 		write_cman_pipe("Can't bind to local cman socket");
 		close(local_socket);
 		return -1;
 	}
 	if (listen(local_socket, 1) != 0) {
-		log_msg(LOG_ERR, "listen on %s failed: %s\n", name, strerror(errno));
+		log_printf(LOG_ERR, "listen on %s failed: %s\n", name, strerror(errno));
 		write_cman_pipe("listen failed on local cman socket");
 		close(local_socket);
 		return -1;
@@ -366,7 +366,7 @@ static int open_local_sock(const char *name, int name_len, mode_t mode, poll_han
 
 	con = malloc(sizeof(struct connection));
 	if (!con) {
-		log_msg(LOG_ERR, "Can't allocate space for local connection: %s\n", strerror(errno));
+		log_printf(LOG_ERR, "Can't allocate space for local connection: %s\n", strerror(errno));
 		write_cman_pipe("malloc failed for connection info");
 		close(local_socket);
 		return -1;
@@ -481,8 +481,8 @@ int cman_init()
 	ais_poll_handle = aisexec_poll_handle;
 	barrier_init();
 
-	log_msg(LOG_INFO, "CMAN %s (built %s %s) started\n",
-		RELEASE_VERSION, __DATE__, __TIME__);
+	log_printf(LOG_INFO, "CMAN %s (built %s %s) started\n",
+		   RELEASE_VERSION, __DATE__, __TIME__);
 
 	fd = open_local_sock(CLIENT_SOCKNAME, sizeof(CLIENT_SOCKNAME), 0660, ais_poll_handle, CON_CLIENT);
 	if (fd < 0)

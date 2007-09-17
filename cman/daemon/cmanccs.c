@@ -102,7 +102,7 @@ int read_ccs_nodes(unsigned int *config_version, int check_nodeids)
     /* Open the config file */
     ctree = ccs_force_connect(NULL, 1);
     if (ctree < 0) {
-	    log_msg(LOG_ERR, "Error connecting to CCS");
+	    log_printf(LOG_ERR, "Error connecting to CCS");
 	    write_cman_pipe("Cannot connect to CCS");
 	    return -1;
     }
@@ -156,7 +156,7 @@ int read_ccs_nodes(unsigned int *config_version, int check_nodeids)
 		char message[132];
 
 		sprintf(message, "No node ID for %s, run 'ccs_tool addnodeids' to fix", nodename);
-		log_msg(LOG_ERR, message);
+		log_printf(LOG_ERR, message);
 		write_cman_pipe(message);
 		return -1;
 	}
@@ -190,7 +190,7 @@ static char *default_mcast(uint16_t cluster_id)
 	   default a multicast address */
         ret = getaddrinfo(nodenames[0], NULL, &ahints, &ainfo);
 	if (ret) {
-		log_msg(LOG_ERR, "Can't determine address family of nodename %s\n", nodenames[0]);
+		log_printf(LOG_ERR, "Can't determine address family of nodename %s\n", nodenames[0]);
 		write_cman_pipe("Can't determine address family of nodename");
 		return NULL;
 	}
@@ -402,12 +402,12 @@ static int get_ccs_join_info(void)
 	/* Connect to ccsd */
 	if (getenv("CMAN_CLUSTER_NAME")) {
 		cname = getenv("CMAN_CLUSTER_NAME");
-		log_msg(LOG_INFO, "Using override cluster name %s\n", cname);
+		log_printf(LOG_INFO, "Using override cluster name %s\n", cname);
 	}
 
 	cd = ccs_force_connect(cname, 1);
 	if (cd < 0) {
-		log_msg(LOG_ERR, "Error connecting to CCS");
+		log_printf(LOG_ERR, "Error connecting to CCS");
 		write_cman_pipe("Can't connect to CCSD");
 		return -ENOTCONN;
 	}
@@ -415,14 +415,14 @@ static int get_ccs_join_info(void)
 	/* Cluster name */
 	error = ccs_get(cd, CLUSTER_NAME_PATH, &str);
 	if (error) {
-		log_msg(LOG_ERR, "cannot find cluster name in config file");
+		log_printf(LOG_ERR, "cannot find cluster name in config file");
 		write_cman_pipe("Can't find cluster name in CCS");
 		return -ENOENT;
 	}
 
 	if (cname) {
 		if (strcmp(cname, str)) {
-			log_msg(LOG_ERR, "cluster names not equal %s %s", cname, str);
+			log_printf(LOG_ERR, "cluster names not equal %s %s", cname, str);
 			write_cman_pipe("Cluster name in CCS does not match that passed to cman_tool");
 			return -ENOENT;
 		}
@@ -445,7 +445,7 @@ static int get_ccs_join_info(void)
 
 	if (getenv("CMAN_NODENAME")) {
 		strcpy(nodename, getenv("CMAN_NODENAME"));
-		log_msg(LOG_INFO, "Using override node name %s\n", nodename);
+		log_printf(LOG_INFO, "Using override node name %s\n", nodename);
 
 		sprintf(path, NODE_NAME_PATH_BYNAME, nodename);
 
@@ -454,7 +454,7 @@ static int get_ccs_join_info(void)
 			free(str);
 		}
 		else {
-			log_msg(LOG_ERR, "Overridden node name %s is not in CCS", nodename);
+			log_printf(LOG_ERR, "Overridden node name %s is not in CCS", nodename);
 			write_cman_pipe("Overridden node name is not in CCS");
 			return -ENOENT;
 		}
@@ -463,7 +463,7 @@ static int get_ccs_join_info(void)
 		struct utsname utsname;
 		error = uname(&utsname);
 		if (error) {
-			log_msg(LOG_ERR, "cannot get node name, uname failed");
+			log_printf(LOG_ERR, "cannot get node name, uname failed");
 			write_cman_pipe("Can't determine local node name");
 			return -ENOENT;
 		}
@@ -474,7 +474,7 @@ static int get_ccs_join_info(void)
 	/* Find our nodename in cluster.conf */
 	error = verify_nodename(cd, nodename);
 	if (error) {
-		log_msg(LOG_ERR, "local node name \"%s\" not found in cluster.conf",
+		log_printf(LOG_ERR, "local node name \"%s\" not found in cluster.conf",
 			nodename);
 		write_cman_pipe("Can't find local node name in cluster.conf");
 		return -ENOENT;
@@ -485,11 +485,11 @@ static int get_ccs_join_info(void)
 	if (getenv("CMAN_EXPECTEDVOTES")) {
 		expected_votes = atoi(getenv("CMAN_EXPECTEDVOTES"));
 		if (expected_votes < 1) {
-			log_msg(LOG_ERR, "CMAN_EXPECTEDVOTES environment variable is invalid, ignoring");
+			log_printf(LOG_ERR, "CMAN_EXPECTEDVOTES environment variable is invalid, ignoring");
 			expected_votes = 0;
 		}
 		else {
-			log_msg(LOG_INFO, "Using override expected votes %d\n", expected_votes);
+			log_printf(LOG_INFO, "Using override expected votes %d\n", expected_votes);
 		}
 	}
 
@@ -515,7 +515,7 @@ static int get_ccs_join_info(void)
 				vote_sum++;
 			else {
 				if (atoi(str) < 0) {
-					log_msg(LOG_ERR, "negative votes not allowed");
+					log_printf(LOG_ERR, "negative votes not allowed");
 					write_cman_pipe("Found negative votes for this node in CCS");
 					return -EINVAL;
 				}
@@ -537,7 +537,7 @@ static int get_ccs_join_info(void)
 	/* optional port */
 	if (getenv("CMAN_IP_PORT")) {
 		port = atoi(getenv("CMAN_IP_PORT"));
-		log_msg(LOG_INFO, "Using override IP port %d\n", port);
+		log_printf(LOG_INFO, "Using override IP port %d\n", port);
 	}
 
 	if (!port) {
@@ -565,7 +565,7 @@ static int get_ccs_join_info(void)
 	/* find our own number of votes */
 	if (getenv("CMAN_VOTES")) {
 		votes = atoi(getenv("CMAN_VOTES"));
-		log_msg(LOG_INFO, "Using override votes %d\n", votes);
+		log_printf(LOG_INFO, "Using override votes %d\n", votes);
 	}
 
 	if (!votes) {
@@ -576,7 +576,7 @@ static int get_ccs_join_info(void)
 		if (!error) {
 			int votestmp = atoi(str);
 			if (votestmp < 0 || votestmp > 255) {
-				log_msg(LOG_ERR, "invalid votes value %d", votes);
+				log_printf(LOG_ERR, "invalid votes value %d", votes);
 				write_cman_pipe("Found invalid votes for node in CCS");
 				return -EINVAL;
 			}
@@ -592,7 +592,7 @@ static int get_ccs_join_info(void)
 	/* nodeid */
 	if (getenv("CMAN_NODEID")) {
 		nodeid = atoi(getenv("CMAN_NODEID"));
-		log_msg(LOG_INFO, "Using override nodeid %d\n", nodeid);
+		log_printf(LOG_INFO, "Using override nodeid %d\n", nodeid);
 	}
 
 	if (!nodeid) {
@@ -607,14 +607,14 @@ static int get_ccs_join_info(void)
 	}
 
 	if (!nodeid) {
-		log_msg(LOG_ERR, "No nodeid specified in cluster.conf");
+		log_printf(LOG_ERR, "No nodeid specified in cluster.conf");
 		write_cman_pipe("CCS does not have a nodeid for this node, run 'ccs_tool addnodeids' to fix");
 		return -EINVAL;
 	}
 
 	if (getenv("CMAN_MCAST_ADDR")) {
 		mcast_name = getenv("CMAN_MCAST_ADDR");
-		log_msg(LOG_INFO, "Using override multicast address %s\n", mcast_name);
+		log_printf(LOG_INFO, "Using override multicast address %s\n", mcast_name);
 	}
 
 	/* Optional multicast name */
@@ -627,7 +627,7 @@ static int get_ccs_join_info(void)
 
 	if (!mcast_name) {
 		mcast_name = default_mcast(cluster_id);
-		log_msg(LOG_INFO, "Using default multicast address of %s\n", mcast_name);
+		log_printf(LOG_INFO, "Using default multicast address of %s\n", mcast_name);
 	}
 
 	mcast[0] = mcast_name;
@@ -678,7 +678,7 @@ static int get_ccs_join_info(void)
 		free(str);
 		if (two_node) {
 			if (node_count != 2 || vote_sum != 2) {
-				log_msg(LOG_ERR, "the two-node option requires exactly two "
+				log_printf(LOG_ERR, "the two-node option requires exactly two "
 					"nodes with one vote each and expected "
 					"votes of 1 (node_count=%d vote_sum=%d)",
 					node_count, vote_sum);
@@ -687,7 +687,7 @@ static int get_ccs_join_info(void)
 			}
 
 			if (votes != 1) {
-				log_msg(LOG_ERR, "the two-node option requires exactly two "
+				log_printf(LOG_ERR, "the two-node option requires exactly two "
 					"nodes with one vote each and expected "
 					"votes of 1 (votes=%d)", votes);
 				write_cman_pipe("two_node set but votes not set to 1");
@@ -710,7 +710,7 @@ int read_ccs_config()
 
 	error = get_ccs_join_info();
 	if (error) {
-		log_msg(LOG_ERR, "Error reading CCS info, cannot start");
+		log_printf(LOG_ERR, "Error reading CCS info, cannot start");
 		return error;
 	}
 

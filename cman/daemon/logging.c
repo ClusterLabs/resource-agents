@@ -21,32 +21,17 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-/* openais header */
-#include <openais/service/print.h>
-
+#include <openais/service/logsys.h>
 #include "logging.h"
 
-/* All logging comes through here so it can be stamped [CMAN] */
-
-static int use_stderr = 0;
+/* Make this global so that all of cman can use the same subsys name */
+unsigned int logsys_subsys_id;
 int subsys_mask = 0;
-
-void log_msg(int priority, char *fmt, ...)
-{
-	va_list va;
-	char log_buf[1024];
-
-	va_start(va, fmt);
-	vsprintf(log_buf, fmt, va);
-	va_end(va);
-	log_printf(priority, log_buf);
-}
 
 void init_debug(int subsystems)
 {
-	log_init("CMAN");
-
-	use_stderr = (subsystems != 0);
+	logsys_subsys_id = _logsys_subsys_create("CMAN", (subsystems?LOG_LEVEL_DEBUG:LOG_LEVEL_WARNING) );
+	logsys_config_mode_set(LOG_MODE_BUFFER_BEFORE_CONFIG | ((subsystems)?LOG_MODE_OUTPUT_STDERR:0));
 	subsys_mask = subsystems;
 }
 
@@ -55,43 +40,8 @@ void set_debuglog(int subsystems)
 	subsys_mask = subsystems;
 }
 
-void log_debug(int subsys, int stamp, const char *fmt, ...)
+
+void cman_flush_debuglog()
 {
-	va_list va;
-	char newfmt[strlen(fmt)+10];
-	char log_buf[1024];
-
-	if (!(subsys_mask & subsys))
-		return;
-
-	if (stamp)
-	{
-		switch(subsys)
-		{
-		case CMAN_DEBUG_MEMB:
-			strcpy(newfmt, "memb: ");
-			break;
-		case CMAN_DEBUG_DAEMON:
-			strcpy(newfmt, "daemon: ");
-			break;
-		case CMAN_DEBUG_BARRIER:
-			strcpy(newfmt, "barrier: ");
-			break;
-		case CMAN_DEBUG_AIS:
-			strcpy(newfmt, "ais: ");
-			break;
-		default:
-			break;
-		}
-	}
-	else
-	{
-		newfmt[0] = '\0';
-	}
-	strcat(newfmt, fmt);
-
-	va_start(va, fmt);
-	vsprintf(log_buf, newfmt, va);
-	log_printf(LOG_LEVEL_DEBUG, log_buf);
-	va_end(va);
+	logsys_config_mode_set(LOG_MODE_FLUSH_AFTER_CONFIG | ((subsys_mask)?LOG_MODE_OUTPUT_STDERR:0));
 }
