@@ -78,6 +78,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			ServeRAID	\
 			Stateful	\
 			SysInfo		\
+			tomcat		\
 			VIPArip		\
 			WAS		\
 			WAS6		\
