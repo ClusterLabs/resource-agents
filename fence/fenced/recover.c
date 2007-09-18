@@ -396,6 +396,7 @@ static void fence_victims(fd_t *fd, int start_type)
 		if (!error) {
 			list_del(&node->list);
 			free(node);
+			continue;
 		}
 
 		if (!comline.override_path) {
