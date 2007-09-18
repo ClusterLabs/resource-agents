@@ -1010,7 +1010,7 @@ int cman_register_quorum_device(cman_handle_t handle, char *name, int votes)
 	char buf[strlen(name)+1 + sizeof(int)];
 	VALIDATE_HANDLE(h);
 
-	if (strlen(name) > MAX_CLUSTER_NAME_LEN)
+	if (strlen(name) > MAX_CLUSTER_MEMBER_NAME_LEN)
 	{
 		errno = EINVAL;
 		return -1;
