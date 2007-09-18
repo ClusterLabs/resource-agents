@@ -8,11 +8,16 @@ gfs2_quota - Manipulate GFS2 disk quotas
 
 .SH SYNOPSIS
 .B gfs2_quota
-<list|sync|get|limit|warn|check|init> [\fIOPTION\fR]...
+<list|sync|get|limit|warn|check|init|reset> [\fIOPTION\fR]...
 
 .SH DESCRIPTION
 gfs2_quota is used to examine and change quota values in a GFS2 filesystem.
 This command has a number of different actions.
+
+GFS2(5.1) introduced a new linked list format for the quotas in the quota file.
+This list format allows for faster \fBlist\fP, \fBcheck\fP and \fBinit\fP 
+operations. Older GFS2 quota files may be migrated to this newer format using 
+the \fBgfs2_quota reset\fP command.
 
 .SH ACTIONS
 .TP
@@ -50,6 +55,11 @@ needed every time there is a system crash.
 Scan a filesystem and initialize the quota file with the values obtained
 from the scan.  The filesystem should be idle when this is run.  You should
 only need to do this if you upgrade a pre-quota GFS2 filesystem (pre-GFS2 5.1).
+.TP
+\fBreset\fP
+The \fBreset\fP operation will truncate the quota file and all quota 
+information (values, limits, warnings) will be lost.  All quota limits and 
+warnings will have to be reassigned after this operation.
 
 .SH OPTIONS
 \fB-b\fP
