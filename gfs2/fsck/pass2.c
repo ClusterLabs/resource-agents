@@ -157,9 +157,9 @@ static int check_file_type(uint8_t de_type, uint8_t block_type)
 /* FIXME: should maybe refactor this a bit - but need to deal with
  * FIXMEs internally first */
 int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
-				 struct gfs2_dirent *prev_de,
-				 struct gfs2_buffer_head *bh, char *filename, int *update,
-				 uint16_t *count, void *priv)
+		 struct gfs2_dirent *prev_de,
+		 struct gfs2_buffer_head *bh, char *filename,
+		 int *update, uint16_t *count, void *priv)
 {
 	struct gfs2_sbd *sbp = ip->i_sbd;
 	struct gfs2_block_query q = {0};
@@ -231,10 +231,10 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 				 "Clear directory entry tp out of range block? (y/n) ")) {
 			log_err("Clearing %s\n", tmp_name);
 			dirent2_del(ip, bh, prev_de, dent);
+			*update = 1;
 			return 1;
 		} else {
 			log_err("Directory entry to out of range block remains\n");
-			*update = 1;
 			(*count)++;
 			ds->entry_count++;
 			return 0;
@@ -265,10 +265,10 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 			dirent2_del(ip, bh, prev_de, dent);
 
 			gfs2_block_set(bl, de->de_inum.no_addr, gfs2_meta_inval);
+			*update = 1;
 			return 1;
 		} else {
 			log_warn("Entry to inode containing bad blocks remains\n");
-			*update = 1;
 			(*count)++;
 			ds->entry_count++;
 			return 0;
@@ -291,11 +291,11 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 			 * this inode are cleared in the bitmap */
 
 			dirent2_del(ip, bh, prev_de, dent);
+			*update = 1;
 			log_warn("Directory entry '%s' cleared\n", tmp_name);
 			return 1;
 		} else {
 			log_err("Directory entry to non-inode block remains\n");
-			*update = 1;
 			(*count)++;
 			ds->entry_count++;
 			return 0;
@@ -319,10 +319,10 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 			inode_put(entry_ip, not_updated);
 
 			dirent2_del(ip, bh, prev_de, dent);
+			*update  = 1;
 			return 1;
 		} else {
 			log_err("Stale directory entry remains\n");
-			*update  = 1;
 			(*count)++;
 			ds->entry_count++;
 			return 0;
@@ -343,6 +343,7 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 				inode_put(entry_ip, not_updated);
 
 				dirent2_del(ip, bh, prev_de, dent);
+				*update  = 1;
 				return 1;
 			} else {
 				log_err("Duplicate '.' entry remains\n");
@@ -350,7 +351,6 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 				 * and check the rest of the '.'
 				 * entry? */
 				increment_link(sbp, de->de_inum.no_addr);
-				*update  = 1;
 				(*count)++;
 				ds->entry_count++;
 				return 0;
@@ -374,6 +374,7 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 				inode_put(entry_ip, not_updated);
 
 				dirent2_del(ip, bh, prev_de, dent);
+				*update = 1;
 				return 1;
 
 			} else {
@@ -381,7 +382,6 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 				/* Not setting ds->dotdir here since
 				 * this '.' entry is invalid */
 				increment_link(sbp, de->de_inum.no_addr);
-				*update = 1;
 				(*count)++;
 				ds->entry_count++;
 				return 0;
@@ -390,7 +390,7 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 
 		ds->dotdir = 1;
 		increment_link(sbp, de->de_inum.no_addr);
-		*update = 1;
+		*update = (opts.no ? not_updated : updated);
 		(*count)++;
 		ds->entry_count++;
 
@@ -417,7 +417,6 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 				 * and check the rest of the '..'
 				 * entry? */
 				increment_link(sbp, de->de_inum.no_addr);
-				*update  = 1;
 				(*count)++;
 				ds->entry_count++;
 				return 0;
@@ -440,7 +439,6 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 			} else {
 				log_err("Bad '..' directory entry remains\n");
 				increment_link(sbp, de->de_inum.no_addr);
-				*update  = 1;
 				(*count)++;
 				ds->entry_count++;
 				return 0;
@@ -459,7 +457,7 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 
 		ds->dotdotdir = 1;
 		increment_link(sbp, de->de_inum.no_addr);
-		*update = 1;
+		*update = (opts.no ? not_updated : updated);
 		(*count)++;
 		ds->entry_count++;
 		return 0;
@@ -470,7 +468,7 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 	if(q.block_type != gfs2_inode_dir) {
 		log_debug("Found non-dir inode dentry\n");
 		increment_link(sbp, de->de_inum.no_addr);
-		*update = 1;
+		*update = (opts.no ? not_updated : updated);
 		(*count)++;
 		ds->entry_count++;
 		return 0;
@@ -491,7 +489,6 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 			return 1;
 		} else {
 			log_err("Hard link to directory remains\n");
-			*update = 1;
 			(*count)++;
 			ds->entry_count++;
 			return 0;
@@ -502,7 +499,7 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 		return -1;
 	}
 	increment_link(sbp, de->de_inum.no_addr);
-	*update = 1;
+	*update = (opts.no ? not_updated : updated);
 	(*count)++;
 	ds->entry_count++;
 	/* End of checks */

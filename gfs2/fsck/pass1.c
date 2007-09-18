@@ -253,7 +253,7 @@ static int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
 			    void *private)
 {
 	struct gfs2_sbd *sdp = ip->i_sbd;
-	struct gfs2_buffer_head *leaf_bh;
+	struct gfs2_buffer_head *leaf_bh = NULL;
 	int ret = 0;
 	struct gfs2_block_query q = {0};
 	struct block_count *bc = (struct block_count *) private;

@@ -140,7 +140,8 @@ int check_entries(struct gfs2_inode *ip, struct gfs2_buffer_head *bh,
 				de.de_inum.no_addr = de.de_inum.no_formal_ino;
 				de.de_inum.no_formal_ino = 0;
 				gfs2_dirent_out(&de, (char *)dent);
-				*update = 1; /* Mark dirent buffer as modified */
+				*update = (opts.no ? not_updated : updated);
+				/* Mark dirent buffer as modified */
 				first = 0;
 			}
 			else {
@@ -282,7 +283,7 @@ int check_leaf(struct gfs2_inode *ip, int *update, struct metawalk_fxns *pass)
 					       old_leaf, index,
 					       "that is not really a leaf");
 				memcpy(&leaf, &oldleaf, sizeof(oldleaf));
-				brelse(lbh, updated);
+				brelse(lbh, (opts.no ? not_updated : updated));
 				break;
 			}
 			gfs2_leaf_in(&leaf, lbh->b_data);
@@ -303,7 +304,7 @@ int check_leaf(struct gfs2_inode *ip, int *update, struct metawalk_fxns *pass)
 				leaf.lf_dirent_format = GFS2_FORMAT_DE;
 				gfs2_leaf_out(&leaf, lbh->b_data);
 				log_debug("Fixing lf_dirent_format.\n");
-				*update = updated;
+				*update = (opts.no ? not_updated : updated);
 			}
 
 			/* Make sure it's really a leaf. */
@@ -768,15 +769,12 @@ static int remove_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 	memset(&dentry, 0, sizeof(struct gfs2_dirent));
 	gfs2_dirent_in(&dentry, (char *)dent);
 	de = &dentry;
+	*update = (opts.no ? not_updated : updated);
 
-	if(de->de_inum.no_addr == *dentryblock) {
-		*update = 1;
+	if(de->de_inum.no_addr == *dentryblock)
 		dirent2_del(ip, bh, prev_de, dent);
-	}
-	else {
+	else
 		(*count)++;
-		*update = 1;
-	}
 
 	return 0;
 

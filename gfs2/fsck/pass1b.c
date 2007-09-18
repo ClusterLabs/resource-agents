@@ -367,7 +367,7 @@ int find_block_ref(struct gfs2_sbd *sbp, uint64_t inode, struct blocks *b)
 		id->ea_only = myfi.ea_only;
 		osi_list_add_prev(&id->list, &b->ref_inode_list);
 	}
-	inode_put(ip, updated); /* out, brelse, free */
+	inode_put(ip, (opts.no ? not_updated : updated)); /* out, brelse, free */
 	return 0;
 }
 
@@ -464,7 +464,7 @@ int pass1b(struct gfs2_sbd *sbp)
 	struct blocks *b;
 	uint64_t i;
 	struct gfs2_block_query q;
-	osi_list_t *tmp;
+	osi_list_t *tmp = NULL;
 	struct metawalk_fxns find_dirents = {0};
 	find_dirents.check_dentry = &find_dentry;
 	int rc = 0;

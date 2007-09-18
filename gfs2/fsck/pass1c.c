@@ -52,7 +52,7 @@ int check_eattr_indir(struct gfs2_inode *ip, uint64_t block,
 	if(gfs2_check_range(sbp, block)) {
 		log_err("Extended attributes indirect block out of range...removing\n");
 		ip->i_di.di_eattr = 0;
-		*update = 1;
+		*update = (opts.no ? not_updated : updated);
 		return 1;
 	}
 	else if (gfs2_block_check(bl, block, &q)) {
@@ -62,7 +62,7 @@ int check_eattr_indir(struct gfs2_inode *ip, uint64_t block,
 	else if(q.block_type != gfs2_indir_blk) {
 		log_err("Extended attributes indirect block invalid...removing\n");
 		ip->i_di.di_eattr = 0;
-		*update = 1;
+		*update = (opts.no ? not_updated : updated);
 		return 1;
 	}
 	else
@@ -82,7 +82,7 @@ int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
 	if(gfs2_check_range(sbp, block)) {
 		log_err("Extended attributes block out of range...removing\n");
 		ip->i_di.di_eattr = 0;
-		*update = 1;
+		*update = (opts.no ? not_updated : updated);
 		return 1;
 	}
 	else if (gfs2_block_check(bl, block, &q)) {
@@ -92,7 +92,7 @@ int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
 	else if(q.block_type != gfs2_meta_eattr) {
 		log_err("Extended attributes block invalid...removing\n");
 		ip->i_di.di_eattr = 0;
-		*update = 1;
+		*update = (opts.no ? not_updated : updated);
 		return 1;
 	}
 	else 
