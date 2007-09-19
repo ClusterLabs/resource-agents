@@ -446,6 +446,7 @@ void
 _txt_rg_state_v(rg_state_t *rs, cluster_member_list_t *members, int flags)
 {
 	char flags_string[255] = "";
+	time_t transtime = rs->rs_transition;
 
 	rg_flags_str(flags_string, sizeof(flags_string), rs->rs_flags, ", ");
 
@@ -463,7 +464,7 @@ _txt_rg_state_v(rg_state_t *rs, cluster_member_list_t *members, int flags)
 	printf("  Last Owner      : %s\n",
 	       my_memb_id_to_name(members, rs->rs_last_owner));
 	printf("  Last Transition : %s\n",
-	       ctime((time_t *)(&rs->rs_transition)));
+	       ctime(&transtime));
 }
 
 
@@ -482,10 +483,11 @@ xml_rg_state(rg_state_t *rs, cluster_member_list_t *members, int flags)
 {
 	char time_str[32];
 	char flags_string[255] = "";
+	time_t transtime = rs->rs_transition;
 	int x;
 
 	/* Chop off newlines */
-	ctime_r((time_t *)&rs->rs_transition, time_str);
+	ctime_r((time_t *)&transtime, time_str);
 	for (x = 0; time_str[x]; x++) {
 		if (time_str[x] < 32) {
 			time_str[x] = 0;
