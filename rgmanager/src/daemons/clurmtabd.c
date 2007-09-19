@@ -73,7 +73,7 @@ static inline void register_sighandlers(void);
 #if 0
 static inline int __get_int_param(char *str, int *val, int dflt);
 #endif
-static int get_rmtabd_loglevel(int *level);
+static int get_rmtabd_loglevel(void);
 static int get_rmtabd_pollinterval(int *interval);
 static void rmtabd_reconfigure(void);
 
@@ -378,7 +378,7 @@ __get_int_param(char *str, int *val, int dflt)
  * Gets the loglevel of rmtabd
  */
 static int
-get_rmtabd_loglevel(int *level)
+get_rmtabd_loglevel(void)
 {
 #if 0
 	return __get_int_param(LOGLEVEL_STR, level, LOG_DEFAULT);
@@ -412,7 +412,7 @@ rmtabd_reconfigure(void)
 
 	/* loglevel */
 	old_level = clu_get_loglevel();
-	get_rmtabd_loglevel(&level);
+	level = get_rmtabd_loglevel();
 
 	if (old_level != level) {
 		if (clu_set_loglevel(level) == -1)

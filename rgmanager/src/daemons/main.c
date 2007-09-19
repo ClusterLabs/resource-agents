@@ -659,7 +659,7 @@ dump_internal_state(char *loc)
 int
 event_loop(msgctx_t *localctx, msgctx_t *clusterctx)
 {
-	int n, max, ret;
+	int n = 0, max, ret;
 	fd_set rfds;
 	msgctx_t *newctx;
 	struct timeval tv;
