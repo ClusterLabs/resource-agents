@@ -30,7 +30,7 @@ int subsys_mask = 0;
 
 void init_debug(int subsystems)
 {
-	logsys_subsys_id = _logsys_subsys_create("CMAN", (subsystems?LOG_LEVEL_DEBUG:LOG_LEVEL_WARNING) );
+	logsys_subsys_id = logsys_config_subsys_set ("CMAN", LOGSYS_TAG_LOG, (subsystems?LOG_LEVEL_DEBUG:LOG_LEVEL_WARNING) );
 	logsys_config_mode_set(LOG_MODE_BUFFER_BEFORE_CONFIG | ((subsystems)?LOG_MODE_OUTPUT_STDERR:0));
 	subsys_mask = subsystems;
 }
