@@ -29,6 +29,7 @@ $ret = 0;
 	extracflags => \$extracflags,
 	ldflags => \$ldflags,
 	extraldflags => \$extraldflags,
+	kernel_build => \$kernel_build,
 	kernel_src => \$kernel_src,
 	module_dir => \$module_dir,
 	gfskincdir => \$gfskincdir,
@@ -75,6 +76,7 @@ $err = &GetOptions (\%options,
 		    'debug',
 		    'cflags=s',
 		    'ldflags=s',
+		    'kernel_build=s',
 		    'kernel_src=s',
 		    'module_dir=s',
 		    'gfskincdir=s',
@@ -140,7 +142,8 @@ if ($help || !$err) {
   print "--extracflags=\tadd extra compiler options to default CFLAGS setting.  (Default: none)\n";
   print "--ldflags=\toverride default LDFLAGS settings.  (Default: none)\n";
   print "--extraldflags=\tadd extra linking options to default LDFLAGS settings.  (Default: none)\n";
-  print "--kernel_src=\tthe directory containing the kernel source you wish to\n\t\tcompile against. (Default: /lib/modules/`uname -r`/build)\n";
+  print "--kernel_build=\tthe directory containing the kernel object tree you wish to\n\t\tcompile against. (Default: /lib/modules/`uname -r`/build\n\t\tif available or /usr/src/linux as fallback)\n";
+  print "--kernel_src=\tthe directory containing the kernel source you wish to\n\t\tcompile against.  (Default: /lib/modules/`uname -r`/source\n\t\tif available or \$kernel_build as fallback)\n";
   print "--incdir=\tthe base directory for include files.  (Default: {prefix}/include)\n";
   print "--ccsincdir=\tthe base directory for ccs include files.  (Default: ./ccs/lib)\n";
   print "--ccslibdir=\tthe base directory for ccs libraries.  (Default: ./ccs/lib)\n";
@@ -195,8 +198,19 @@ if ($extraldflags) {
 if (!$prefix) {
   $prefix="/usr";
 }
+if (!$kernel_build) {
+  if (-d "/lib/modules/`uname -r`/build") {
+    $kernel_build="/lib/modules/`uname -r`/build";
+  } else {
+    $kernel_build="/usr/src/linux";
+  }
+}
 if (!$kernel_src) {
-  $kernel_src="/lib/modules/`uname -r`/build";
+  if (-d "/lib/modules/`uname -r`/source") {
+    $kernel_src="/lib/modules/`uname -r`/source";
+  } else {
+    $kernel_src=$kernel_build;
+  }
 }
 if (!$module_dir) {
   $module_dir="/lib/modules/`uname -r`/kernel";
@@ -326,6 +340,7 @@ while (<IFILE>) {
   $_ =~ s/\@CC\@/$cc/;
   $_ =~ s/\@CFLAGS\@/$cflags/;
   $_ =~ s/\@LDFLAGS\@/$ldflags/;
+  $_ =~ s/\@KERNEL_BUILD\@/$kernel_build/;
   $_ =~ s/\@KERNEL_SRC\@/$kernel_src/;
   $_ =~ s/\@MODULE_DIR\@/$module_dir/;
   $_ =~ s/\@GFSKINCDIR\@/$gfskincdir/;

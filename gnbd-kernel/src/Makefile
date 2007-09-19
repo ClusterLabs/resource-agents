@@ -17,12 +17,12 @@ endif
 
 PWD = $(shell pwd)
 
-SYMVERFILE := ${KERNEL_SRC}/Module.symvers
+SYMVERFILE := ${KERNEL_BUILD}/Module.symvers
 
 obj-m := gnbd.o
 
 all:
-	${MAKE} -C ${KERNEL_SRC} M=${PWD} symverfile=${SYMVERFILE} modules USING_KBUILD=yes
+	${MAKE} -C ${KERNEL_BUILD} M=${PWD} symverfile=${SYMVERFILE} modules USING_KBUILD=yes
 
 install: all
 	install -d ${incdir}/linux

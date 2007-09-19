@@ -31,7 +31,7 @@ csnap-objs := dm-csnap.c
 EXTRA_CFLAGS += -I$(obj) -Idrivers/md
 
 all:
-	${MAKE} -C ${KERNEL_SRC} M=${PWD} modules USING_KBUILD=yes
+	${MAKE} -C ${KERNEL_BUILD} M=${PWD} modules USING_KBUILD=yes
 
 install: all
 	install -d ${incdir}/linux
