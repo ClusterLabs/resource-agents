@@ -36,7 +36,7 @@ gnbd-kernel:
 	${MAKE} -C gnbd-kernel/src all
 
 gfs-kernel:
-	 ${MAKE} -C gfs-kernel/src/gfs
+	${MAKE} -C gfs-kernel/src/gfs
 
 # userland stuff
 # make all target can't be folded in a for loop otherwise make -j breaks
