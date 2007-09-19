@@ -35,7 +35,6 @@
 #include <limits.h>
 #include <unistd.h>
 
-
 extern char *prog_name;
 
 #ifndef TRUE
@@ -50,13 +49,21 @@ do { \
 	exit(EXIT_FAILURE); \
 } while (0)
 
-
 #define DEFAULT_VOTES 1
 #define MAX_INTERFACES 10
+#define MAX_FORMAT_OPTS 10
 #define MAX_NODE_NAME_LEN 65
 #define MAX_MCAST_NAME_LEN 256
 #define MAX_PATH_LEN 256
 
+enum format_opt
+{
+	FMT_NONE,
+	FMT_ID,
+	FMT_NAME,
+	FMT_TYPE,
+	FMT_ADDR,
+};
 
 struct commandline
 {
@@ -67,6 +74,7 @@ struct commandline
         char *interfaces[MAX_INTERFACES];
 	char *override_nodename;
 	char *key_filename;
+	char *format_opts;
 	int votes;
 	int expected_votes;
 	int two_node;

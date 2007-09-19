@@ -20,7 +20,7 @@
 #include "libcman.h"
 #include "cman_tool.h"
 
-#define OPTION_STRING		("m:n:v:e:2p:c:r:i:N:t:o:k:Vwfqah?d::")
+#define OPTION_STRING		("m:n:v:e:2p:c:r:i:N:t:o:k:F:Vwfqah?d::")
 #define OP_JOIN			1
 #define OP_LEAVE		2
 #define OP_EXPECTED		3
@@ -110,6 +110,8 @@ static void print_usage(int subcmd)
 		printf("nodes              Show local record of cluster nodes\n");
 		printf("  -f                 Also show when node was last fenced\n");
 		printf("  -a                 Also show node address(es)\n");
+		printf("  -n <nodename>      Only show information for specific node\n");
+		printf("  -F <format>        Specify output format (see man page)\n");
 		printf("\n");
 	}
 
@@ -199,7 +201,8 @@ static void show_status(void)
 	char tmpbuf[1024];
 	cman_extra_info_t *einfo = (cman_extra_info_t *)info_buf;
 	int quorate;
-	int i,j;
+	int i;
+	int j;
 	int portnum;
 	char *addrptr;
 
@@ -300,13 +303,46 @@ static int node_compare(const void *va, const void *vb)
 	return a->cn_nodeid - b->cn_nodeid;
 }
 
+static int node_filter(commandline_t *comline, const char *node)
+{
+	int i;
+
+	for (i = 0; i < comline->num_nodenames; i++) {
+		if (strcmp(comline->nodenames[i], node) == 0) {
+			return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
+static int get_format_opt(const char *opt)
+{
+	if (!opt)
+		return FMT_NONE;
+
+	if (!strcmp(opt, "id"))
+		return FMT_ID;
+	if (!strcmp(opt, "name"))
+		return FMT_NAME;
+	if (!strcmp(opt, "type"))
+		return FMT_TYPE;
+	if (!strcmp(opt, "addr"))
+		return FMT_ADDR;
+
+	return FMT_NONE;
+}
+
 static void show_nodes(commandline_t *comline)
 {
 	cman_handle_t h;
 	int count;
 	int i;
+	int j;
+	int k;
 	int numnodes;
 	int dis_count;
+	int format[MAX_FORMAT_OPTS];
 	cman_node_t *dis_nodes;
 	cman_node_t *nodes;
 	struct tm *jtime;
@@ -325,6 +361,16 @@ static void show_nodes(commandline_t *comline)
 	if (!nodes)
 		die("cannot allocate memory for nodes list\n");
 
+	if (comline->format_opts != NULL) {
+		char *format_str = comline->format_opts;
+		char *format_tmp;
+		for (i = 0; i < MAX_FORMAT_OPTS; i++) {
+			format_tmp = strtok(format_str, ",");
+			format_str = NULL;
+			format[i] = get_format_opt(format_tmp);
+		}
+	}
+
 	if (cman_get_nodes(h, count, &numnodes, nodes) < 0)
 		die("cman_get_nodes failed: %s", cman_error(errno));
 
@@ -333,9 +379,8 @@ static void show_nodes(commandline_t *comline)
 	dis_nodes = malloc(sizeof(cman_node_t) * count);
 
 	if (cman_get_disallowed_nodes(h, count, &dis_count, dis_nodes) == 0) {
-		int i,j;
-		for (i=0; i<numnodes; i++) {
-			for (j=0; j<dis_count; j++) {
+		for (i = 0; i < numnodes; i++) {
+			for (j = 0; j < dis_count; j++) {
 				if (dis_nodes[j].cn_nodeid == nodes[i].cn_nodeid)
 					nodes[i].cn_member = 2;
 			}
@@ -350,9 +395,18 @@ static void show_nodes(commandline_t *comline)
 		printf("      members list may seem inconsistent across the cluster\n");
 	}
 
-	printf("Node  Sts   Inc   Joined               Name\n");
-	for (i=0; i<numnodes; i++) {
+	if (!comline->format_opts) {
+		printf("Node  Sts   Inc   Joined               Name\n");
+	}
+
+	for (i = 0; i < numnodes; i++) {
 		char member_type;
+
+		if (comline->num_nodenames > 0) {
+			if (node_filter(comline, nodes[i].cn_name) == 0) {
+				continue;
+			}
+		}
 
 		switch (nodes[i].cn_member) {
 		case 0:
@@ -375,11 +429,13 @@ static void show_nodes(commandline_t *comline)
 		else
 			strcpy(jstring, "                   ");
 
-		printf("%4d   %c  %5d   %s  %s\n",
-		       nodes[i].cn_nodeid, member_type,
-		       nodes[i].cn_incarnation, jstring, nodes[i].cn_name);
+		if (!comline->format_opts) {
+			printf("%4d   %c  %5d   %s  %s\n",
+			       nodes[i].cn_nodeid, member_type,
+			       nodes[i].cn_incarnation, jstring, nodes[i].cn_name);
+		}
 
-		if (comline->fence_opt) {
+		if (comline->fence_opt && !comline->format_opts) {
 			char agent[255];
 			uint64_t fence_time;
 			int fenced;
@@ -396,25 +452,57 @@ static void show_nodes(commandline_t *comline)
 				}
 			}
 		}
+		
+		int numaddrs;
+		struct cman_node_address addrs[MAX_INTERFACES];
 
-		if (comline->addresses_opt)
-		{
-			int numaddrs;
-			struct cman_node_address addrs[MAX_INTERFACES];
+		if (comline->addresses_opt || comline->format_opts) {
 			if (!cman_get_node_addrs(h, nodes[i].cn_nodeid, MAX_INTERFACES, &numaddrs, addrs) &&
 				numaddrs)
 			{
-				int i;
-				printf("       Addresses: ");
-				for (i=0; i<numaddrs; i++)
-				{
-					print_address(addrs[i].cna_address);
-					printf(" ");
+				if (!comline->format_opts) {
+					printf("       Addresses: ");
+					for (i = 0; i < numaddrs; i++)
+					{
+						print_address(addrs[i].cna_address);
+						printf(" ");
+					}
+					printf("\n");
 				}
-				printf("\n");
 			}
 		}
+
+		if (comline->format_opts) {
+			for (j = 0; j < MAX_FORMAT_OPTS; j++) {
+				switch (format[j]) {
+				case FMT_NONE:
+					break;
+				case FMT_ID:
+					printf("%d ", nodes[i].cn_nodeid);
+					break;
+				case FMT_NAME:
+					printf("%s ", nodes[i].cn_name);
+					break;
+				case FMT_TYPE:
+					printf("%c ", member_type);
+					break;
+				case FMT_ADDR:
+					for (k = 0; k < numaddrs; k++) {
+						print_address(addrs[k].cna_address);
+						if (k != (numaddrs - 1)) {
+							printf(",");
+						}
+					}
+					printf(" ");
+					break;
+				default:
+					break;
+				}
+			}
+			printf("\n");
+		}
 	}
+
 	free(nodes);
 	free(dis_nodes);
 	cman_finish(h);
@@ -699,6 +787,10 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 				    MAX_CLUSTER_NAME_LEN-1);
 			strcpy(comline->clustername, optarg);
 			comline->clustername_opt = TRUE;
+			break;
+
+		case 'F':
+			comline->format_opts = strdup(optarg);
 			break;
 
 		case 'V':
