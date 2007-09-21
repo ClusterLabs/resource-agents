@@ -46,7 +46,7 @@ install: all
 	install -m755 ${SCRIPT} ${DESTDIR}/etc/init.d
 
 uninstall:
-	${UNINSTALL} ${TARGET} ${TEST_TARGET} ${sbindir}
+	${UNINSTALL} ${TARGET} ${TARGET}_test ${sbindir}
 	${UNINSTALL} ${SCRIPT} ${DESTDIR}/etc/init.d
 
 clean:
