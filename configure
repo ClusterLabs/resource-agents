@@ -68,6 +68,15 @@ $ret = 0;
 	enable_xen => \$enable_xen,
 	release_major => \$release_major,
 	release_minor => \$release_minor,
+	without_ccs => \$without_ccs,
+	without_cman => \$without_cman,
+	without_dlm => \$without_dlm,
+	without_group => \$without_group,
+	without_fence => \$without_fence,
+	without_gfs => \$without_gfs,
+	without_gfs2 => \$without_gfs2,
+	without_gnbd => \$without_gnbd,
+	without_rgmanager => \$without_rgmanager,
 );
 
 $err = &GetOptions (\%options,
@@ -114,7 +123,16 @@ $err = &GetOptions (\%options,
 		    'release_major=s',
 		    'release_minor=s',
 		    'fence_agents=s',
-		    'enable_xen');
+		    'enable_xen',
+		    'without_ccs',
+		    'without_cman',
+		    'without_dlm',
+		    'without_group',
+		    'without_fence',
+		    'without_gfs',
+		    'without_gfs2',
+		    'without_gnbd',
+		    'without_rgmanager');
 
 if(!$err) {
   $ret = 1;
@@ -171,6 +189,15 @@ if ($help || !$err) {
   print "--fence_agents=\tlist of fence agents to configure.  (Default: all)\n";
   print "\t\tUse --fence_agents=help for a list\n";
   print "--enable_xen\tEnable building of Xen-specific pieces\n";
+  print "--without_ccs\tDisable ccs building  (Default: enabled)\n";
+  print "--without_cman\tDisable cman building  (Default: enabled)\n";
+  print "--without_dlm\tDisable dlm building  (Default: enabled)\n";
+  print "--without_group\tDisable group building  (Default: enabled)\n";
+  print "--without_fence\tDisable fence building  (Default: enabled)\n";
+  print "--without_gfs\tDisable gfs building  (Default: enabled)\n";
+  print "--without_gfs2\tDisable gfs2 building  (Default: enabled)\n";
+  print "--without_gnbd\tDisable gnbd building  (Default: enabled)\n";
+  print "--without_rgmanager\tDisable rgmanager building  (Default: enabled)\n";
   exit $ret;
 }
 
@@ -376,6 +403,16 @@ while (<IFILE>) {
   $_ =~ s/\@SHAREDIR\@/$sharedir/;
   $_ =~ s/\@FENCE_AGENTS\@/$fence_agents/;
   $_ =~ s/\@ENABLE_XEN\@/$enable_xen/;
+  $_ =~ s/\@DISABLE_CCS\@/$without_ccs/;
+  $_ =~ s/\@DISABLE_CMAN\@/$without_cman/;
+  $_ =~ s/\@DISABLE_DLM\@/$without_dlm/;
+  $_ =~ s/\@DISABLE_GROUP\@/$without_group/;
+  $_ =~ s/\@DISABLE_FENCE\@/$without_fence/;
+  $_ =~ s/\@DISABLE_GFS\@/$without_gfs/;
+  $_ =~ s/\@DISABLE_GFS2\@/$without_gfs2/;
+  $_ =~ s/\@DISABLE_GNBD\@/$without_gnbd/;
+  $_ =~ s/\@DISABLE_RGMANAGER\@/$without_rgmanager/;
+
   print OFILE "$_\n";
 }
 
