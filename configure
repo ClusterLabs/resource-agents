@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/perl -w
 
 ###############################################################################
 ###############################################################################
@@ -142,7 +142,7 @@ if(!$err) {
 # Check for the --help flag
 if ($help || !$err) {
   $_ = $0;
-  s/.*\.\/(.*)/\1/;
+  s/.*\.\/(.*)/$1/;
   print "Usage: $_ [flags]\n";
   print "--help\t\tPrints this usage information\n\n";
   print "install flags:\n";
@@ -218,6 +218,9 @@ if (!$cflags) {
 }
 if ($extracflags) {
   $cflags="${cflags} ${extracflags}";
+}
+if (!$ldflags) {
+  $ldflags="";
 }
 if ($extraldflags) {
   $ldflags="${ldflags} ${extraldflags}";
@@ -335,6 +338,45 @@ if (!$sbindir) {
 if (!$sharedir) {
   $sharedir="${prefix}/share/cluster";
 }
+if (!$fence_agents) {
+  $fence_agents="all";
+}
+if (!$enable_xen) {
+  $enable_xen="";
+}
+if (!$without_ccs) {
+  $without_ccs="";
+}
+if (!$without_cman) {
+  $without_cman="";
+}
+if (!$without_dlm) {
+  $without_dlm="";
+}
+if (!$without_group) {
+  $without_group="";
+}
+if (!$without_fence) {
+  $without_fence="";
+}
+if (!$without_gfs) {
+  $without_gfs="";
+}
+if (!$without_gfs2) {
+  $without_gfs2="";
+}
+if (!$without_gnbd) {
+  $without_gnbd="";
+}       
+if (!$without_rgmanager) {
+  $without_rgmanager="";
+}
+if (!$release_major) {
+  $release_major="";
+}
+if (!$release_minor) {
+  $release_minor="";
+}
 
 @args = "find fence/agents -mindepth 2 -maxdepth 2 -name Makefile -printf '%h'";
 open (IFILE, "@args |");
@@ -345,12 +387,12 @@ while (<IFILE>) {
 }
 close IFILE;
 
-if ($fence_agents eq help) {
+if ($fence_agents eq "help") {
   print "Available fence agents:\n$all_fence\n";
   exit 0;
 }
 
-if ((!$fence_agents) || ($fence_agents eq all)) {
+if ((!$fence_agents) || ($fence_agents eq "all")) {
   print "\nThe following fence agents will be build on this system:\n$all_fence\n";
   print "\nNOTE: xvm will build only if --enable_xen has been specified\n\n";
   $fence_agents = $all_fence
