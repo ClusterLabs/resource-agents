@@ -585,7 +585,7 @@ int gfs2_writei(struct gfs2_inode *ip, void *buf,
 }
 
 struct gfs2_buffer_head *get_file_buf(struct gfs2_inode *ip, uint64_t lbn,
-									  int prealloc)
+				      int prealloc)
 {
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	uint64_t dbn;
@@ -594,7 +594,7 @@ struct gfs2_buffer_head *get_file_buf(struct gfs2_inode *ip, uint64_t lbn,
 	if (inode_is_stuffed(ip))
 		unstuff_dinode(ip);
 
-	block_map(ip, lbn, &new, &dbn, NULL, prealloc, not_updated);
+	block_map(ip, lbn, &new, &dbn, NULL, prealloc, updated);
 	if (!dbn)
 		die("get_file_buf\n");
 
