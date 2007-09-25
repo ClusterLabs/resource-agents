@@ -99,6 +99,8 @@ AC_SUBST(POWEROFF_OPTIONS)
 AC_DEFINE_UNQUOTED(REBOOT_OPTIONS, "$REBOOT_OPTIONS", reboot options)
 AC_DEFINE_UNQUOTED(POWEROFF_OPTIONS, "$POWEROFF_OPTIONS", poweroff options)
 
+AC_DEFINE_UNQUOTED(HA_LOG_FACILITY, LOG_DAEMON, Default logging facility)
+
 dnl Info for building/packaging systems.
 dnl
 dnl "pkg" (typically Solaris) generally suggests package names of the form:
