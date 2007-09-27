@@ -1771,6 +1771,11 @@ static void do_process_transition(int nodeid, char *data, int len)
 		node->state = NODESTATE_AISONLY;
 
 	node->flags = msg->flags; /* This will clear the BEENDOWN flag of course */
+
+	/* Take into account any new expected_votes value that the new node has */
+	node->expected_votes = msg->expected_votes;
+	recalculate_quorum(0, 0);
+
 	if (node->fence_agent && msg->fence_agent[0] && strcmp(node->fence_agent, msg->fence_agent))
 	{
 		free(node->fence_agent);
