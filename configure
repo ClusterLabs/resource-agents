@@ -14,6 +14,7 @@
 ###############################################################################
 
 use Getopt::Long;
+use POSIX qw(uname);
 
 print "\nConfiguring Makefiles for your system...\n";
 
@@ -228,22 +229,24 @@ if ($extraldflags) {
 if (!$prefix) {
   $prefix="/usr";
 }
+
+my @un = POSIX::uname();
 if (!$kernel_build) {
-  if (-d "/lib/modules/`uname -r`/build") {
-    $kernel_build="/lib/modules/`uname -r`/build";
+  if (-d "/lib/modules/$un[2]/build") {
+    $kernel_build="/lib/modules/$un[2]/build";
   } else {
     $kernel_build="/usr/src/linux";
   }
 }
 if (!$kernel_src) {
-  if (-d "/lib/modules/`uname -r`/source") {
-    $kernel_src="/lib/modules/`uname -r`/source";
+  if (-d "/lib/modules/$un[2]/source") {
+    $kernel_src="/lib/modules/$un[2]/source";
   } else {
     $kernel_src=$kernel_build;
   }
 }
 if (!$module_dir) {
-  $module_dir="/lib/modules/`uname -r`/kernel";
+  $module_dir="/lib/modules/$un[2]/kernel";
 }
 if (!$gfskincdir) {
   $gfskincdir="${pwd}/gfs-kernel/src/gfs";
