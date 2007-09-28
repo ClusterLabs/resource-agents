@@ -879,6 +879,7 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 		} else if (strcmp(argv[optind], "services") == 0) {
 			if (comline->operation)
 				die("can't specify two operations");
+			comline->operation = OP_SERVICES;
 		} else if (strcmp(argv[optind], "debug") == 0) {
 			if (comline->operation)
 				die("can't specify two operations");
