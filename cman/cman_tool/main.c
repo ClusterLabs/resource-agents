@@ -510,7 +510,7 @@ static void show_nodes(commandline_t *comline)
 
 static void show_services(void)
 {
-	system("group_tool");
+	system("group_tool ls");
 }
 
 
