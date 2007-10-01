@@ -3024,6 +3024,7 @@ fencing/Makefile						\
 tools/Makefile							\
 	tools/haresources2cib.py				\
 	tools/ocf-tester				\
+	tools/hb_report				\
 resources/Makefile						\
 	resources/OCF/Makefile					\
 	resources/OCF/.ocf-binaries				\
