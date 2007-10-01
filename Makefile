@@ -15,8 +15,8 @@ REALSUBDIRS = gnbd-kernel/src gfs-kernel/src/gfs \
 	      cman/lib ccs cman dlm group fence gfs gfs2 gnbd rgmanager
 
 SUBDIRS = $(filter-out \
-	  $(if ${without_gnbd},gnbd-kernel/src) \
-	  $(if ${without_gfs},gfs-kernel/src/gfs) \
+	  $(if ${without_gnbd-kernel/src},gnbd-kernel/src) \
+	  $(if ${without_gfs-kernel/src/gfs},gfs-kernel/src/gfs) \
 	  $(if ${without_cman},cman/lib) \
 	  $(if ${without_ccs},ccs) \
 	  $(if ${without_cman},cman) \
