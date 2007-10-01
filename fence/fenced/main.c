@@ -459,8 +459,11 @@ static int loop(void)
 
 	for (;;) {
 		rv = poll(pollfd, maxi + 1, -1);
-		if (rv < 0)
+		if (rv < 0) {
+			if (errno == EINTR)
+				continue;
 			break;
+		}
 
 		/* client[0] is listening for new connections */
 
