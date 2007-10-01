@@ -561,22 +561,13 @@ static int comms_init_ais(struct objdb_iface_ver0 *objdb)
 		}
 
 		objdb->object_create(object_handle, &logger_object_handle,
-				      "logger", strlen("logger"));
-		objdb->object_key_create(logger_object_handle, "ident", strlen("ident"),
+				      "logger_subsys", strlen("logger_subsys"));
+		objdb->object_key_create(logger_object_handle, "subsys", strlen("subsys"),
 					 "CMAN", strlen("CMAN")+1);
 
 		if (debug_mask)
-		{
-			objdb->object_key_create(object_handle, "to_stderr", strlen("to_stderr"),
-						 "yes", strlen("yes")+1);
 			objdb->object_key_create(logger_object_handle, "debug", strlen("debug"),
 						 "on", strlen("on")+1);
-		}
-		else
-		{
-			objdb->object_key_create(object_handle, "to_syslog", strlen("to_syslog"),
-						 "yes", strlen("yes")+1);
-		}
 	}
 
 	/* Don't run under user "ais" */
