@@ -374,10 +374,10 @@ if (!$without_gnbd) {
 if (!$without_rgmanager) {
   $without_rgmanager="";
 }
-if (!$release_major) {
+if (not length $release_major) {
   $release_major="";
 }
-if (!$release_minor) {
+if (not length $release_minor) {
   $release_minor="";
 }
 
