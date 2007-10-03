@@ -18,6 +18,8 @@
 #include "ccs.h"
 #include "logging.h"
 
+LOGSYS_DECLARE_SUBSYS ("CMAN", LOG_INFO);
+
 static int read_config_for(int ccs_fd, struct objdb_iface_ver0 *objdb, unsigned int parent,
 			   char *object, char *key, int always_create)
 {

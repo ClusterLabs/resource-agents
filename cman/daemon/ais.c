@@ -71,6 +71,8 @@ static struct totempg_group cman_group[1] = {
         { .group          = "CMAN", .group_len      = 4},
 };
 
+LOGSYS_DECLARE_SUBSYS ("CMAN", LOG_INFO);
+
 /* This structure is tacked onto the start of a cluster message packet for our
  * own nefarious purposes. */
 struct cl_protheader {
@@ -209,12 +211,16 @@ static int cman_readconfig(struct objdb_iface_ver0 *objdb, char **error_string)
 	if (getenv("CMAN_PIPE"))
 		startup_pipe = atoi(getenv("CMAN_PIPE"));
 
-	init_debug(debug_mask);
+	set_debuglog(debug_mask);
 
 	/* We need to set this up to internal defaults too early */
 	openlog("openais", LOG_CONS|LOG_PID, LOG_LOCAL4);
 
 	global_objdb = objdb;
+
+	/* Enable stderr logging if requested by cman_tool */
+	if (debug_mask)
+		logsys_config_subsys_set("CMAN", LOGSYS_TAG_LOG, LOG_DEBUG);
 
 	/* Read low-level totem/aisexec etc config from CCS */
 	init_config(objdb);
@@ -256,7 +262,7 @@ static int cman_exec_init_fn(struct objdb_iface_ver0 *objdb)
 		if (!getenv("CMAN_DEBUGLOG"))
 		{
 			objdb_get_int(objdb, object_handle, "debug_mask", &debug_mask);
-			init_debug(debug_mask);
+			set_debuglog(debug_mask);
 		}
 	}
 
@@ -266,8 +272,6 @@ static int cman_exec_init_fn(struct objdb_iface_ver0 *objdb)
 	/* Let cman_tool know we are running */
 	close(startup_pipe);
 	startup_pipe = 0;
-
-	cman_flush_debuglog();
 
 	/* Start totem */
 	totempg_groups_initialize(&group_handle, cman_deliver_fn, cman_confchg_fn);

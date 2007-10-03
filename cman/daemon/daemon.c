@@ -42,6 +42,8 @@
 #include "barrier.h"
 #include "ais.h"
 
+LOGSYS_DECLARE_SUBSYS ("CMAN", LOG_INFO);
+
 struct queued_reply
 {
 	struct list list;

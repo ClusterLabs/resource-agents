@@ -71,6 +71,8 @@ static unsigned int expected_votes;
 static unsigned short cluster_id;
 static char cluster_name[MAX_CLUSTER_NAME_LEN + 1];
 
+LOGSYS_DECLARE_SUBSYS ("CMAN", LOG_INFO);
+
 static uint16_t generate_cluster_id(char *name)
 {
 	int i;

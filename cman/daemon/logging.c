@@ -24,24 +24,11 @@
 #include <openais/service/logsys.h>
 #include "logging.h"
 
-/* Make this global so that all of cman can use the same subsys name */
-unsigned int logsys_subsys_id;
-int subsys_mask = 0;
+LOGSYS_DECLARE_SUBSYS ("CMAN", LOG_INFO);
 
-void init_debug(int subsystems)
-{
-	logsys_subsys_id = logsys_config_subsys_set ("CMAN", LOGSYS_TAG_LOG, (subsystems?LOG_LEVEL_DEBUG:LOG_LEVEL_WARNING) );
-	logsys_config_mode_set(LOG_MODE_BUFFER_BEFORE_CONFIG | ((subsystems)?LOG_MODE_OUTPUT_STDERR:0));
-	subsys_mask = subsystems;
-}
+int subsys_mask = 0;
 
 void set_debuglog(int subsystems)
 {
 	subsys_mask = subsystems;
-}
-
-
-void cman_flush_debuglog()
-{
-	logsys_config_mode_set(LOG_MODE_FLUSH_AFTER_CONFIG | ((subsys_mask)?LOG_MODE_OUTPUT_STDERR:0));
 }

@@ -10,8 +10,7 @@
 *******************************************************************************
 ******************************************************************************/
 #include <openais/service/logsys.h>
-extern void init_debug(int subsystems);
-extern void cman_flush_debuglog(void);
+
 extern void set_debuglog(int subsystems);
 
 /* Debug macros */
@@ -21,7 +20,6 @@ extern void set_debuglog(int subsystems);
 #define CMAN_DEBUG_DAEMON  8
 #define CMAN_DEBUG_AIS    16
 
-extern unsigned int logsys_subsys_id;
 extern int subsys_mask;
 
 #define P_BARRIER(fmt, args...) if (subsys_mask & CMAN_DEBUG_BARRIER) log_printf(logsys_mkpri(LOG_LEVEL_DEBUG, logsys_subsys_id), "barrier: " fmt, ## args)

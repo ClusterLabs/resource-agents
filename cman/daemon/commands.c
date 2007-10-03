@@ -48,6 +48,7 @@
 #include "ais.h"
 
 #define max(a,b) (((a) > (b)) ? (a) : (b))
+LOGSYS_DECLARE_SUBSYS ("CMAN", LOG_INFO);
 
 /* Reference counting for cluster applications */
 static int use_count;
