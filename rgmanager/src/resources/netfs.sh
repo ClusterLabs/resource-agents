@@ -21,7 +21,7 @@
 #
 
 #
-# NFS file system mount/umount/etc. agent
+# NFS/CIFS file system mount/umount/etc. agent
 #
 
 LC_ALL=C
@@ -50,10 +50,10 @@ meta_data()
     <version>1.0</version>
 
     <longdesc lang="en">
-        This defines an NFS mount for use by cluster services.
+        This defines an NFS/CIFS mount for use by cluster services.
     </longdesc>
     <shortdesc lang="en">
-        Defines an NFS file system mount.
+        Defines an NFS/CIFS file system mount.
     </shortdesc>
 
     <parameters>
@@ -79,7 +79,7 @@ meta_data()
 
         <parameter name="host" required="1">
 	    <longdesc lang="en">
-	    	NFS Server IP address or hostname
+	    	Server IP address or hostname
 	    </longdesc>
             <shortdesc lang="en">
 	    	IP or Host
@@ -89,7 +89,7 @@ meta_data()
 
         <parameter name="export" required="1">
 	    <longdesc lang="en">
-	    	NFS Export directory name
+	    	NFS Export directory name or CIFS share
 	    </longdesc>
             <shortdesc lang="en">
 	    	Export
@@ -99,10 +99,10 @@ meta_data()
 
         <parameter name="fstype" required="0">
 	    <longdesc lang="en">
-	    	NFS File System type (nfs or nfs4)
+	    	File System type (nfs, nfs4 or cifs)
 	    </longdesc>
             <shortdesc lang="en">
-	    	NFS File System Type
+	    	File System Type
             </shortdesc>
 	    <content type="string"/>
         </parameter>
@@ -215,7 +215,7 @@ verify_fstype()
 	[ -z "$OCF_RESKEY_fstype" ] && return 0
 
 	case $OCF_RESKEY_fstype in
-	nfs|nfs4)
+	nfs|nfs4|cifs)
 		return 0
 		;;
 	*)
@@ -247,6 +247,9 @@ verify_options()
 		esac
 
 		case $OCF_RESKEY_fstype in
+		cifs)
+			continue
+			;;
 		nfs|nfs4)
 			case $o in
 			#
@@ -374,7 +377,6 @@ startNFSFilesystem() {
 	    	return $FAIL
 	    	;;
 	esac
-	
 	#
 	# Get the device
 	#
@@ -432,7 +434,16 @@ startFilesystem: Creating mount point $mp for $fullpath"
 	# Mount the NFS export
 	#
 	ocf_log debug "mount $fstype_option $mount_options $fullpath $mp"
-	mount $fstype_option $mount_options $fullpath $mp
+
+        case $OCF_RESKEY_fstype in
+		nfs|nfs4)
+			mount -t $OCF_RESKEY_fstype $mount_options $host:$exp $mp
+			;;
+		cifs)
+			mount -t $OCF_RESKEY_fstype $mount_options //$host/$exp $mp
+			;;
+	esac
+
 	ret_val=$?
 	if [ $ret_val -ne 0 ]; then
 		ocf_log err "\
