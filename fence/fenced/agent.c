@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -305,7 +305,11 @@ static void update_cman(char *victim, char *method)
 int dispatch_fence_agent(int cd, char *victim)
 {
 	char *method = NULL, *device = NULL;
+	char *victim_nodename = NULL;
 	int num_methods, num_devices, m, d, error = -1;
+
+	if (ccs_lookup_nodename(cd, victim, &victim_nodename) == 0)
+		victim = victim_nodename;
 
 	num_methods = count_methods(cd, victim);
 
@@ -336,6 +340,8 @@ int dispatch_fence_agent(int cd, char *victim)
 
 		if (device)
 			free(device);
+		if (victim_nodename)
+			free(victim_nodename);
 		free(method);
 
 		if (!error)
