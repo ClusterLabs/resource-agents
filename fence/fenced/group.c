@@ -161,7 +161,7 @@ int setup_groupd(void)
 
 	gh = group_init(NULL, "fence", 0, &callbacks, GROUPD_TIMEOUT);
 	if (!gh) {
-		log_error("group_init error %d %d", (int) gh, errno);
+		log_error("group_init error %p %d", gh, errno);
 		return -ENOTCONN;
 	}
 	rv = group_get_fd(gh);
