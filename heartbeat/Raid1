@@ -137,6 +137,18 @@ The block device to use.
 <shortdesc lang="en">block device</shortdesc>
 <content type="string" default="" />
 </parameter>
+
+<parameter name="homehost" unique="0" required="0">
+<longdesc lang="en">
+The value for the homehost directive; this is an mdadm feature to
+protect RAIDs against being activated by accident. It is recommended to
+create RAIDs managed by the cluster with "homehost" set to a special
+value, so they are not accidentially auto-assembled by nodes not
+supposed to own them.
+</longdesc>
+<shortdesc lang="en">Homehost for mdadm</shortdesc>
+<content type="string" default="" />
+</parameter>
 </parameters>
 
 <actions>
@@ -190,7 +202,7 @@ raid1_start() {
 	    $RAIDSTART --configfile $RAIDCONF $MDDEV
 	else
 	    # Run mdadm
-	    $MDADM --assemble $MDDEV --config=$RAIDCONF
+	    $MDADM --assemble $MDDEV --config=$RAIDCONF $MDADM_HOMEHOST
 	fi
 
 	if [ "running" = `raid1_status` ]; then
@@ -236,7 +248,7 @@ raid1_stop() {
 	if [ $HAVE_RAIDTOOLS = "true" ]; then
 		$RAIDSTOP --configfile $RAIDCONF $MDDEV
 	else
-		$MDADM --stop $MDDEV --config=$RAIDCONF
+		$MDADM --stop $MDDEV --config=$RAIDCONF $MDADM_HOMEHOST
 	fi
 
 	if [ $? -ne 0 ] ; then
@@ -288,7 +300,7 @@ raid1_validate_all() {
 		exit $OCF_ERR_GENERIC
 	    fi
 	else
-	    error=`$MDADM --query $MDDEV 2>&1`
+	    error=`$MDADM --query $MDDEV $MDADM_HOMEHOST 2>&1`
 	    if [ $? -ne 0 ]; then
 		ocf_log err "$error"
 		exit $OCF_ERR_GENERIC
@@ -363,6 +375,11 @@ then
   HAVE_RAIDTOOLS=true
 else
   check_binary $MDADM
+  if [ -n "$OCF_RESKEY_homehost" ]; then
+  	MDADM_HOMEHOST="--homehost=${OCF_RESKEY_homehost}"
+  else
+  	MDADM_HOMEHOST=""
+  fi
 fi
 
 # At this stage,
