@@ -1363,7 +1363,7 @@ static int linked_leaf_search(struct gfs2_inode *dip,
 static int dir_e_search(struct gfs2_inode *dip, const char *filename,
 						int len, unsigned int *type, struct gfs2_inum *inum)
 {
-	struct gfs2_buffer_head *bh;
+	struct gfs2_buffer_head *bh = NULL;
 	struct gfs2_dirent *dent;
 	int error;
 
@@ -1445,7 +1445,7 @@ static int dir_e_del(struct gfs2_inode *dip, const char *filename, int len)
 	int error;
 	int found = 0;
 	uint64_t leaf_no;
-	struct gfs2_buffer_head *bh;
+	struct gfs2_buffer_head *bh = NULL;
 	struct gfs2_dirent *cur, *prev;
 
 	index = (1 << (dip->i_di.di_depth))-1;
@@ -1471,8 +1471,10 @@ static int dir_e_del(struct gfs2_inode *dip, const char *filename, int len)
 	if(!found)
 		return 1;
 
-	dirent2_del(dip, bh, prev, cur);
-	brelse(bh, updated);
+	if (bh) {
+		dirent2_del(dip, bh, prev, cur);
+		brelse(bh, updated);
+	}
 	return 0;
 }
 

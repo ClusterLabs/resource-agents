@@ -32,28 +32,6 @@
 #define CPIN_64(s1, s2, member) {(s1->member) = be64_to_cpu((s2->member));}
 #define CPOUT_64(s1, s2, member) {(s2->member) = cpu_to_be64((s1->member));}
 
-/**
- * print_array - Print out an array of bytes
- * @title: what to print before the array
- * @buf: the array
- * @count: the number of bytes
- *
- */
-
-static void print_array(char *title, unsigned char *buf, int count)
-{
-	int x;
-
-	printf("  %s =\n", title);
-	for (x = 0; x < count; x++) {
-		printf("%.2X ", (unsigned char)buf[x]);
-		if (x % 16 == 15)
-			printf("\n");
-	}
-	if (x % 16)
-		printf("\n");
-}
-
 /*
  * gfs2_xxx_in - read in an xxx struct
  * first arg: the cpu-order structure

@@ -15,7 +15,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <dirent.h>
@@ -94,35 +93,35 @@ int add_inode_to_lf(struct gfs2_inode *ip){
 
 		dir_add(ip, filename, filename_len, &(lf_dip->i_di.di_num), DT_DIR);
 		free(filename);
-		sprintf(tmp_name, "lost_dir_%"PRIu64, ip->i_di.di_num.no_addr);
+		sprintf(tmp_name, "lost_dir_%llu", ip->i_di.di_num.no_addr);
 		inode_type = DT_DIR;
 		break;
 	case S_IFREG:
-		sprintf(tmp_name, "lost_file_%"PRIu64, ip->i_di.di_num.no_addr);
+		sprintf(tmp_name, "lost_file_%llu", ip->i_di.di_num.no_addr);
 		inode_type = DT_REG;
 		break;
 	case S_IFLNK:
-		sprintf(tmp_name, "lost_link_%"PRIu64, ip->i_di.di_num.no_addr);
+		sprintf(tmp_name, "lost_link_%llu", ip->i_di.di_num.no_addr);
 		inode_type = DT_LNK;
 		break;
 	case S_IFBLK:
-		sprintf(tmp_name, "lost_blkdev_%"PRIu64, ip->i_di.di_num.no_addr);
+		sprintf(tmp_name, "lost_blkdev_%llu", ip->i_di.di_num.no_addr);
 		inode_type = DT_BLK;
 		break;
 	case S_IFCHR:
-		sprintf(tmp_name, "lost_chrdev_%"PRIu64, ip->i_di.di_num.no_addr);
+		sprintf(tmp_name, "lost_chrdev_%llu", ip->i_di.di_num.no_addr);
 		inode_type = DT_CHR;
 		break;
 	case S_IFIFO:
-		sprintf(tmp_name, "lost_fifo_%"PRIu64, ip->i_di.di_num.no_addr);
+		sprintf(tmp_name, "lost_fifo_%llu", ip->i_di.di_num.no_addr);
 		inode_type = DT_FIFO;
 		break;
 	case S_IFSOCK:
-		sprintf(tmp_name, "lost_socket_%"PRIu64, ip->i_di.di_num.no_addr);
+		sprintf(tmp_name, "lost_socket_%llu", ip->i_di.di_num.no_addr);
 		inode_type = DT_SOCK;
 		break;
 	default:
-		sprintf(tmp_name, "lost_%"PRIu64, ip->i_di.di_num.no_addr);
+		sprintf(tmp_name, "lost_%llu", ip->i_di.di_num.no_addr);
 		inode_type = DT_REG;
 		break;
 	}

@@ -255,24 +255,24 @@ print_quota(commandline_t *comline,
 
 	case GQ_UNITS_KILOBYTE:
 		if (sb->sb_bsize == 512)
-			printf("limit: %-10"PRIu64" warn: %-10"PRIu64"value: %-10"PRId64"\n",
+			printf("limit: %-10llu warn: %-10lluvalue: %-10llu\n",
 			       q->qu_limit / 2,
 			       q->qu_warn / 2,
 			       q->qu_value / 2);
 		else
-			printf("limit: %-10"PRIu64" warn: %-10"PRIu64"value: %-10"PRId64"\n",
+			printf("limit: %-10llu warn: %-10lluvalue: %-10llu\n",
 			       q->qu_limit << (sb->sb_bsize_shift - 10),
 			       q->qu_warn << (sb->sb_bsize_shift - 10),
 			       q->qu_value << (sb->sb_bsize_shift - 10));
 		break;
 
 	case GQ_UNITS_FSBLOCK:
-		printf("limit: %-10"PRIu64" warn: %-10"PRIu64" value: %-10"PRId64"\n",
+		printf("limit: %-10llu warn: %-10llu value: %-10llu\n",
 		       q->qu_limit, q->qu_warn, q->qu_value);
 		break;
 
 	case GQ_UNITS_BASICBLOCK:
-		printf("limit: %-10"PRIu64" warn: %-10"PRIu64" value: %-10"PRId64"\n",
+		printf("limit: %-10llu warn: %-10llu value: %-10llu\n",
 		       q->qu_limit << (sb->sb_bsize_shift - 9),
 		       q->qu_warn << (sb->sb_bsize_shift - 9),
 		       q->qu_value << (sb->sb_bsize_shift - 9));
@@ -319,8 +319,8 @@ read_quota_internal(int fd, uint32_t id, int id_type, struct gfs2_quota *q)
 	if (error < 0)
 		die("failed to read from quota file: %s\n", strerror(errno));
 	if (error != sizeof(struct gfs2_quota))
-		die("Couldn't read %d bytes from quota file at offset %llu\n",
-		    sizeof(struct gfs2_quota), offset);
+		die("Couldn't read %lu bytes from quota file at offset %llu\n",
+		    sizeof(struct gfs2_quota), (unsigned long long)offset);
 	gfs2_quota_in(q, buf);
 }
 

@@ -179,7 +179,7 @@ int rindex_read(struct gfs2_sbd *sdp, int fd, int *count1)
 	int error;
 	struct gfs2_rindex buf;
 	struct rgrp_list *rgd, *prev_rgd;
-	uint64_t prev_length;
+	uint64_t prev_length = 0;
 
 	*count1 = 0;
 	prev_rgd = NULL;

@@ -282,7 +282,7 @@ int gfs1_rindex_read(struct gfs2_sbd *sdp, int fd, int *count1)
 	int error;
 	struct gfs2_rindex buf;
 	struct rgrp_list *rgd, *prev_rgd;
-	uint64_t prev_length;
+	uint64_t prev_length = 0;
 
 	*count1 = 0;
 	prev_rgd = NULL;
@@ -620,11 +620,11 @@ int restore_data(int fd, int in_fd)
 	uint64_t buf64, writes = 0;
 	uint16_t buf16;
 	int first = 1;
-	uint64_t max_fs_size;
 
 	do_lseek(fd, 0);
 	blks_saved = 0;
 	total_out = 0;
+	last_fs_block = 0;
 	while (TRUE) {
 		memset(savedata, 0, sizeof(struct saved_metablock));
 		rs = read(in_fd, &buf64, sizeof(uint64_t));
@@ -635,11 +635,11 @@ int restore_data(int fd, int in_fd)
 			return -1;
 		}
 		savedata->blk = be64_to_cpu(buf64);
-		if (savedata->blk >= max_fs_size) {
+		if (last_fs_block && savedata->blk >= last_fs_block) {
 			fprintf(stderr, "Error: File system is too small to "
 				"restore this metadata.\n");
 			fprintf(stderr, "File system is %" PRIu64 " blocks, ",
-				max_fs_size);
+				last_fs_block);
 			fprintf(stderr, "Restore block = %" PRIu64 "\n",
 				savedata->blk);
 			return -1;

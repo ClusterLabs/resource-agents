@@ -225,9 +225,7 @@ main(int argc, char *argv[])
 
 	decode_arguments(argc, argv);
 
-	if (FALSE) {
-		/* Do Nothing */
-	} else if (strcmp(action, "clearflag") == 0)
+	if (strcmp(action, "clearflag") == 0)
 		set_flag(argc, argv);
 	else if (strcmp(action, "counters") == 0)
 		print_counters(argc, argv);
