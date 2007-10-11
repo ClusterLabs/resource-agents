@@ -658,7 +658,7 @@ int ccs_lookup_nodename(int cd, const char *nodename, char **retval) {
 	ret = snprintf(path, sizeof(path),
 			"/cluster/clusternodes/clusternode[@name=\"%s\"]/@name", nodename);
 	if (ret < 0 || (size_t) ret >= sizeof(path))
-		return (-ENOSPC);
+		return (-E2BIG);
 
 	str = NULL;
 	error = ccs_get(cd, path, &str);
@@ -668,7 +668,7 @@ int ccs_lookup_nodename(int cd, const char *nodename, char **retval) {
 	}
 
 	if (nodename_len >= sizeof(host_only))
-		return (-ENOSPC);
+		return (-E2BIG);
 
 	/* Try just the hostname */
 	strcpy(host_only, nodename);
@@ -680,7 +680,7 @@ int ccs_lookup_nodename(int cd, const char *nodename, char **retval) {
 				"/cluster/clusternodes/clusternode[@name=\"%s\"]/@name",
 				host_only);
 		if (ret < 0 || (size_t) ret >= sizeof(path))
-			return (-ENOSPC);
+			return (-E2BIG);
 
 		str = NULL;
 		error = ccs_get(cd, path, &str);
@@ -733,14 +733,14 @@ int ccs_lookup_nodename(int cd, const char *nodename, char **retval) {
 			if (altcnt == 0) {
 				if (strlen(str) >= sizeof(canonical_name)) {
 					free(str);
-					return (-ENOSPC);
+					return (-E2BIG);
 				}
 				strcpy(canonical_name, str);
 			}
 
 			if (strlen(str) >= sizeof(cur_node)) {
 				free(str);
-				return (-ENOSPC);
+				return (-E2BIG);
 			}
 
 			strcpy(cur_node, str);
