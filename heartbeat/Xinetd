@@ -422,7 +422,11 @@ if
   [ -z "$OCF_RESKEY_service" ]
 then
   ocf_log err "Please set OCF_RESKEY_service to the service managed by Xinetd"
-  exit $OCF_ERR_ARGS
+  if [ "$1" = "start" ]; then 
+      exit $OCF_ERR_ARGS
+  else
+      exit $OCF_NOT_RUNNING
+  fi
 fi
 
 service=$OCF_RESKEY_service
@@ -432,7 +436,11 @@ PIDFILE=$HA_VARRUNDIR/xup$service
 # Make sure the OCF_RESKEY_service is a valid xinetd service name
 if [ ! -f $RCFILE ]; then
     ocf_log err "Service descriptor $RCFILE not found!"
-    exit $OCF_ERR_ARGS
+    if [ "$1" = "start" ]; then 
+	exit $OCF_ERR_ARGS
+    else
+	exit $OCF_NOT_RUNNING
+    fi
 fi
 
 # See how we were called.
