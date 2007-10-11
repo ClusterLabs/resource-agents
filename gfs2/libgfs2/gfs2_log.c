@@ -165,10 +165,6 @@ int gfs2_query(int *setonabort, struct gfs2_options *opts,
 	int ret = 0;
 
 	*setonabort = 0;
-	va_start(args, format);
-
-	transform = _(format);
-
 	if(opts->yes)
 		return 1;
 	if(opts->no)
@@ -176,7 +172,10 @@ int gfs2_query(int *setonabort, struct gfs2_options *opts,
 
 	opts->query = TRUE;
 	while (1) {
+		va_start(args, format);
+		transform = _(format);
 		vprintf(transform, args);
+		va_end(args);
 
 		/* Make sure query is printed out */
 		fflush(NULL);
