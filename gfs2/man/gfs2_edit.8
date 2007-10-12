@@ -44,6 +44,8 @@ You can specify the following data structure names with the -p option.
 
 \fIrindex\fR, \fIrgindex\fR - Print the resource group index system file.
 
+\fIrg X\fR - Print the resource group information for RG X.
+
 \fIrgs\fR - Print the resource group information.
 
 \fIquota\fR - Print the contents of the system quota file.
@@ -84,6 +86,23 @@ Print program version information only.
 \fB-x\fP
 Print in hex mode.
 
+.TP
+\fBrg\fP \fI<rg>\fR \fI<device>\fR
+Print the contents of Resource Group \fI<rg>\fR on \fI<device>\fR.
+
+\fI<rg>\fR is a number from 0 to X - 1, where X is the number of RGs.
+.TP
+\fBrgcount\fP \fI<device>\fR
+Print the number of Resource Groups in the file system on \fI<device>\fR.
+.TP
+\fBrgflags\fP \fI<rg>\fR [\fInew_value\fR] \fI<device>\fR
+Print and/or modify the rg_flags value of Resource Group \fI<rg>\fR on
+\fI<device>\fR.
+
+\fI<rg>\fR is a number from 0 to X - 1, where X is the number of RGs.
+If \fInew_value\fR is not specified, the current rg_flags value will be
+printed but not modified.  If \fInew_value\fR is specified, the rg_flags
+field will be overwritten with the new value.
 .TP
 \fBsavemeta\fP \fI<device>\fR \fI<filename>\fR
 Save off the GFS2 metadata (not user data) for the file system on the
@@ -267,8 +286,23 @@ Print the contents of block 16250 of /dev/sda1 in hex.
 gfs2_edit -p 12345 /dev/sdc2
 Print the gfs2 data structure at block 12345.
 
+.TP
+gfs2_edit rgcount /dev/sdb1
+Print how many Resource Groups exist for /dev/sdb1.
+
+.TP
+gfs2_edit -p rg 17 /dev/sdb1
+Print the contents of the eighteenth Resource Group on /dev/sdb1.
+
+.TP
+gfs2_edit rgflags 3 /dev/sdb1
+Print the rg_flags value for the fourth Resource Group on /dev/sdb1.
+
+.TP
+gfs2_edit rgflags 3 8 /dev/sdb1
+Set the GFS2_RGF_NOALLOC flag on for the fourth Resource Group on /dev/sdb1.
+
 .SH KNOWN BUGS
 .TP
 The directory code does not work well.  It might be confused
 by directory "sentinel" entries.
-

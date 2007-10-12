@@ -602,6 +602,98 @@ uint64_t masterblock(const char *fn)
 }
 
 /* ------------------------------------------------------------------------ */
+/* rgcount - return how many rgrps there are.                               */
+/* ------------------------------------------------------------------------ */
+void rgcount(void)
+{
+	uint64_t block;
+	struct gfs2_buffer_head *ribh;
+	struct gfs2_inode *riinode;
+
+	if (gfs1)
+		block = sbd1->sb_rindex_di.no_addr;
+	else
+		block = masterblock("rindex");
+	ribh = bread(&sbd, block);
+	riinode = inode_get(&sbd, ribh);
+	printf("%d RGs in this file system.\n",
+	       riinode->i_di.di_size / sizeof(struct gfs2_rindex));
+	inode_put(riinode, not_updated);
+	exit(EXIT_SUCCESS);
+}
+
+/* ------------------------------------------------------------------------ */
+/* find_rgrp_block - locate the block for a given rgrp number               */
+/* ------------------------------------------------------------------------ */
+uint64_t find_rgrp_block(struct gfs2_inode *di, int rg)
+{
+	char buf[sizeof(struct gfs2_rindex)];
+	int amt;
+	struct gfs2_rindex ri;
+
+	amt = gfs2_readi(di, (void *)&buf,
+			 rg * sizeof(struct gfs2_rindex),
+			 sizeof(struct gfs2_rindex));
+	if (!amt) /* end of file */
+		return 0;
+	gfs2_rindex_in(&ri, buf);
+	return ri.ri_addr;
+}
+
+/* ------------------------------------------------------------------------ */
+/* set_rgrp_flags - Set an rgrp's flags to a given value                    */
+/* rgnum: which rg to print or modify flags for (0 - X)                     */
+/* new_flags: value to set new rg_flags to (if modify == TRUE)              */
+/* modify: TRUE if the value is to be modified, FALSE if it's to be printed */
+/* full: TRUE if the full RG should be printed.                             */
+/* ------------------------------------------------------------------------ */
+void set_rgrp_flags(int rgnum, uint32_t new_flags, int modify, int full)
+{
+	struct gfs2_rgrp rg;
+	struct gfs2_buffer_head *bh, *ribh;
+	uint64_t rgblk, block;
+	struct gfs2_inode *riinode;
+
+	if (gfs1)
+		block = sbd1->sb_rindex_di.no_addr;
+	else
+		block = masterblock("rindex");
+	ribh = bread(&sbd, block);
+	riinode = inode_get(&sbd, ribh);
+	if (rgnum >= riinode->i_di.di_size / sizeof(struct gfs2_rindex)) {
+		fprintf(stderr, "Error: File system only has %d RGs.\n",
+		       riinode->i_di.di_size / sizeof(struct gfs2_rindex));
+		inode_put(riinode, not_updated);
+		brelse(ribh, not_updated);
+		return;
+	}
+	rgblk = find_rgrp_block(riinode, rgnum);
+	bh = bread(&sbd, rgblk);
+	gfs2_rgrp_in(&rg, bh->b_data);
+	if (modify) {
+		printf("RG #%d (block %lld / 0x%llx) rg_flags changed from 0x%08x to 0x%08x\n",
+		       rgnum, rgblk, rgblk, rg.rg_flags, new_flags);
+		rg.rg_flags = new_flags;
+		gfs2_rgrp_out(&rg, bh->b_data);
+		brelse(bh, updated);
+	} else {
+		if (full) {
+			print_gfs2("RG #%d", rgnum);
+			print_gfs2(" located at: %llu (0x%llx)", rgblk, rgblk);
+                        eol(0);
+			gfs2_rgrp_print(&rg);
+		}
+		else
+			printf("RG #%d (block %lld / 0x%llx) rg_flags = 0x%08x\n",
+			       rgnum, rgblk, rgblk, rg.rg_flags);
+		brelse(bh, not_updated);
+	}
+	inode_put(riinode, not_updated);
+	if (modify)
+		bsync(&sbd);
+}
+
+/* ------------------------------------------------------------------------ */
 /* parse_rindex - print the rgindex file.                                   */
 /* ------------------------------------------------------------------------ */
 int parse_rindex(struct gfs2_inode *di, int print_rindex)
@@ -622,9 +714,9 @@ int parse_rindex(struct gfs2_inode *di, int print_rindex)
 		error = gfs2_readi(di, (void *)&buf,
 				   print_entry_ndx * sizeof(struct gfs2_rindex),
 				   sizeof(struct gfs2_rindex));
-		gfs2_rindex_in(&ri, buf);
 		if (!error) /* end of file */
 			break;
+		gfs2_rindex_in(&ri, buf);
 		if (!termlines ||
 			(print_entry_ndx >= start_row[dmode] &&
 			 ((print_entry_ndx - start_row[dmode])+1) * lines_per_row[dmode] <=
@@ -1994,6 +2086,8 @@ void usage(void)
 	fprintf(stderr,"savemeta - save off your metadata for analysis and debugging.  The intelligent way (assume bitmap is correct).\n");
 	fprintf(stderr,"savemetaslow - save off your metadata for analysis and debugging.  The SLOW way (block by block).\n");
 	fprintf(stderr,"restoremeta - restore metadata for debugging (DANGEROUS).\n");
+	fprintf(stderr,"rgcount - print how many RGs in the file system.\n");
+	fprintf(stderr,"rgflags rgnum [new flags] - print or modify flags for rg #rgnum (0 - X)\n");
 	fprintf(stderr,"-V   prints version number.\n");
 	fprintf(stderr,"-c 1 selects alternate color scheme 1\n");
 	fprintf(stderr,"-p   prints GFS2 structures or blocks to stdout.\n");
@@ -2006,6 +2100,7 @@ void usage(void)
 	fprintf(stderr,"     inum - prints the inum file.\n");
 	fprintf(stderr,"     statfs - prints the statfs file.\n");
 	fprintf(stderr,"     rindex - prints the rindex file.\n");
+	fprintf(stderr,"     rg X - print resource group X.\n");
 	fprintf(stderr,"     rgs - prints all the resource groups (rgs).\n");
 	fprintf(stderr,"     quota - prints the quota file.\n");
 	fprintf(stderr,"-x   print in hexmode.\n");
@@ -2019,6 +2114,10 @@ void usage(void)
 	fprintf(stderr,"     gfs2_edit -x -p master /dev/bobs_vg/lvol0\n");
 	fprintf(stderr,"   To print out the block-type for block 0x27381:\n");
 	fprintf(stderr,"     gfs2_edit identify -p 0x27381 /dev/bobs_vg/lvol0\n");
+	fprintf(stderr,"   To print out the fourth Resource Group. (the first R is #0)\n");
+	fprintf(stderr,"     gfs2_edit -p rg 3 /dev/sdb1\n");
+	fprintf(stderr,"   To set the Resource Group flags for rg #7 to 3.\n");
+	fprintf(stderr,"     gfs2_edit rgflags 7 3 /dev/sdc2\n");
 }/* usage */
 
 /* ------------------------------------------------------------------------ */
@@ -2064,6 +2163,12 @@ void process_parameters(int argc, char *argv[], int pass)
 				savemeta(argv[i+1], argv[i+2], TRUE);
 			else if (!strcasecmp(argv[i], "restoremeta"))
 				restoremeta(argv[i+1], argv[i+2]);
+			else if (!strcmp(argv[i], "rgcount"))
+				termlines = 0;
+			else if (!strcmp(argv[i], "rgflags"))
+				termlines = 0;
+			else if (!strcmp(argv[i], "rg"))
+				termlines = 0;
 			else if (strchr(argv[i],'/'))
 				strcpy(device, argv[i]);
 		}
@@ -2118,6 +2223,58 @@ void process_parameters(int argc, char *argv[], int pass)
 						push_block(gfs1_quota_di.no_addr);
 					else
 						push_block(masterblock("quota"));
+				}
+				else if (!strcmp(argv[i], "rgcount"))
+					rgcount();
+				else if (!strcmp(argv[i], "rgflags")) {
+					int rg, set = FALSE;
+					uint32_t new_flags = 0;
+					
+					i++;
+					if (i >= argc - 1) {
+						printf("Error: rg # not specified.\n");
+						printf("Format is: %s rgflags rgnum"
+						       "[newvalue]\n",
+						       argv[0]);
+						exit(EXIT_FAILURE);
+					}
+					if (argv[i][0]=='0' && argv[i][1]=='x')
+						sscanf(argv[i], "%"SCNx32,
+						       &rg);
+					else
+						rg = atoi(argv[i]);
+					i++;
+					if (i < argc - 1 &&
+					    isdigit(argv[i][0])) {
+						set = TRUE;
+						if (argv[i][0]=='0' &&
+						    argv[i][1]=='x')
+							sscanf(argv[i],
+							       "%"SCNx32,
+							       &new_flags);
+						else
+							new_flags =
+								atoi(argv[i]);
+					}
+					set_rgrp_flags(rg, new_flags, set,
+						       FALSE);
+					exit(EXIT_SUCCESS);
+				}
+				else if (!strcmp(argv[i], "rg")) {
+					int rg;
+					uint32_t new_flags = 0;
+					
+					i++;
+					if (i >= argc - 1) {
+						printf("Error: rg # not specified.\n");
+						printf("Format is: %s rg rgnum"
+						       "\n", argv[0]);
+						exit(EXIT_FAILURE);
+					}
+					rg = atoi(argv[i]);
+					i++;
+					set_rgrp_flags(rg, 0, FALSE, TRUE);
+					exit(EXIT_SUCCESS);
 				}
 				else if (argv[i][0]=='0' && argv[i][1]=='x') { /* hex addr */
 					sscanf(argv[i], "%"SCNx64, &temp_blk);/* retrieve in hex */
