@@ -423,8 +423,12 @@ int display_block_type(const char *lpBuffer)
 			struct_len = sizeof(struct gfs2_log_header);
 			break;
 		case GFS2_METATYPE_LD:
-			print_gfs2("(log descriptor)");
-			struct_len = sizeof(struct gfs2_log_descriptor);
+		 	print_gfs2("(log descriptor)");
+			if (gfs1)
+				struct_len = sizeof(struct gfs_log_descriptor);
+			else
+				struct_len =
+					sizeof(struct gfs2_log_descriptor);
 			break;
 		case GFS2_METATYPE_EA:
 			print_gfs2("(extended attr hdr)");
@@ -692,7 +696,7 @@ int print_jindex(struct gfs2_inode *di)
 	print_gfs2("Journal index entries found: %d.",
 		   di->i_di.di_size / sizeof(struct gfs_jindex));
 	eol(0);
-	lines_per_row[dmode] = 6;
+	lines_per_row[dmode] = 4;
 	for (print_entry_ndx=0; ; print_entry_ndx++) {
 		error = gfs2_readi(di, (void *)&buf,
 				   print_entry_ndx*sizeof(struct gfs_jindex),
@@ -1876,12 +1880,12 @@ void interactive_mode(void)
 /* ------------------------------------------------------------------------ */
 void dump_journal(const char *journal)
 {
-	struct gfs2_buffer_head *jindex_bh, *j_bh;
+	struct gfs2_buffer_head *jindex_bh, *j_bh = NULL;
 	uint64_t jindex_block, jblock, j_size, jb;
 	int error, start_line, journal_num;
 	struct gfs2_dinode jdi;
 	char jbuf[bufsize];
-	struct gfs2_inode *j_inode;
+	struct gfs2_inode *j_inode = NULL;
 
 	start_line = line;
 	lines_per_row[dmode] = 1;
@@ -1890,31 +1894,66 @@ void dump_journal(const char *journal)
 	print_gfs2("Dumping journal #%d.", journal_num);
 	eol(0);
 	/* Figure out the block of the jindex file */
-	jindex_block = masterblock("jindex");
+	if (gfs1)
+		jindex_block = sbd1->sb_jindex_di.no_addr;
+	else
+		jindex_block = masterblock("jindex");
 	/* read in the block */
 	jindex_bh = bread(&sbd, jindex_block);
 	/* get the dinode data from it. */
 	gfs2_dinode_in(&di, jindex_bh->b_data); /* parse disk inode into structure */
 
-	do_dinode_extended(&di, jindex_bh->b_data); /* which parses the directory. */
+	if (!gfs1)
+		do_dinode_extended(&di, jindex_bh->b_data); /* parse dir. */
 	brelse(jindex_bh, not_updated);
 
-	jblock = indirect->ii[0].dirent[journal_num + 2].block;
-	j_bh = bread(&sbd, jblock);
-	j_inode = inode_get(&sbd, j_bh);
-	gfs2_dinode_in(&jdi, j_bh->b_data); /* parse disk inode into structure */
-	j_size = jdi.di_size;
+	if (gfs1) {
+		struct gfs2_inode *jiinode;
+		struct gfs_jindex ji;
 
-	for (jb = 0; jb < j_size; jb += bufsize) {
-		error = gfs2_readi(j_inode, (void *)&jbuf, jb, bufsize);
+		jiinode = inode_get(&sbd, jindex_bh);
+		error = gfs2_readi(jiinode, (void *)&jbuf,
+				   journal_num * sizeof(struct gfs_jindex),
+				   sizeof(struct gfs_jindex));
+		if (!error)
+			return;
+		gfs_jindex_in(&ji, jbuf);
+		jblock = ji.ji_addr;
+		j_size = ji.ji_nsegment * 0x10;
+	} else {
+		jblock = indirect->ii[0].dirent[journal_num + 2].block;
+		j_bh = bread(&sbd, jblock);
+		j_inode = inode_get(&sbd, j_bh);
+		gfs2_dinode_in(&jdi, j_bh->b_data);/* parse dinode to struct */
+		j_size = jdi.di_size;
+	}
+
+	for (jb = 0; jb < j_size; jb += (gfs1 ? 1:bufsize)) {
+		if (gfs1) {
+			if (j_bh)
+				brelse(j_bh, not_updated);
+			j_bh = bread(&sbd, jblock + jb);
+			memcpy(jbuf, j_bh->b_data, bufsize);
+		}
+		else
+			error = gfs2_readi(j_inode, (void *)&jbuf, jb,
+					   bufsize);
 		if (!error) /* end of file */
 			break;
 		if (get_block_type(jbuf) == GFS2_METATYPE_LD) {
 			uint64_t *b;
 			int i = 0;
 
-			print_gfs2("Block #%4llx: ", jb / bufsize);
-			b = (uint64_t *)(jbuf + sizeof(struct gfs2_log_descriptor));
+			print_gfs2("Block #%4llx: Log descriptor",
+				   jb / (gfs1 ? 1 : bufsize));
+			eol(0);
+			print_gfs2("             ");
+			if (gfs1)
+				b = (uint64_t *)(jbuf +
+					sizeof(struct gfs_log_descriptor));
+			else
+				b = (uint64_t *)(jbuf +
+					sizeof(struct gfs2_log_descriptor));
 			while (*b && (char *)b < (jbuf + bufsize)) {
 				if (!termlines ||
 				    (print_entry_ndx >= start_row[dmode] &&
@@ -1935,8 +1974,8 @@ void dump_journal(const char *journal)
 
 			gfs2_log_header_in(&lh, jbuf);
 			print_gfs2("Block #%4llx: Log header: Seq = 0x%x, tail = 0x%x, blk = 0x%x",
-				   jb / bufsize, lh.lh_sequence, lh.lh_tail,
-				   lh.lh_blkno);
+				   jb / (gfs1 ? 1 : bufsize),
+				   lh.lh_sequence, lh.lh_tail, lh.lh_blkno);
 			eol(0);
 		}
 	}

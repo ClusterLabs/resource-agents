@@ -171,6 +171,16 @@ struct gfs_jindex {
         char ji_reserved[64];
 };
 
+struct gfs_log_descriptor {
+	struct gfs2_meta_header ld_header;
+
+	uint32_t ld_type;       /* GFS_LOG_DESC_... Type of this log chunk */
+	uint32_t ld_length;     /* Number of buffers in this chunk */
+	uint32_t ld_data1;      /* descriptor-specific field */
+	uint32_t ld_data2;      /* descriptor-specific field */
+	char ld_reserved[64];
+};
+
 EXTERN struct blkstack_info blockstack[BLOCK_STACK_SIZE];
 EXTERN struct iinfo *indirect; /* more than the most indirect
 			       pointers possible for any given 4K block */
@@ -226,7 +236,6 @@ EXTERN enum dsp_mode dmode INIT(HEX_MODE);
 	__LINE__, __FILE__); \
 }
 
-#define pa(struct, member, count) print_array(#member, struct->member, count);
 #define printk printw
 
 /*  Divide x by y.  Round up if there is a remainder.  */
