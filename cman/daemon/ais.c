@@ -28,6 +28,7 @@
 #include <netdb.h>
 
 /* openais headers */
+#include <openais/service/objdb.h>
 #include <openais/service/swab.h>
 #include <openais/totem/totemip.h>
 #include <openais/totem/totempg.h>
