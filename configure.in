@@ -1189,32 +1189,42 @@ dnl
 dnl	There are more sophisticated and general ways of doing this, that
 dnl	are more general - but this is better than nothing.
 dnl
-dnl	The right procedure would be to locate the libraries that we've been told
-dnl	are needed, dnl	then do an RPM query on each of these libraries
+dnl	The right procedure would be to locate the libraries that we've been
+dnl	told are needed, then do an RPM query on each of these libraries
 dnl	to find out what package owns the library (file)
 dnl	That'll be a good project for some long, cold winter evening.
 dnl
 dnl	Some food for thought from the 'ld' manual page:
 dnl
-dnl        The linker uses the following search paths to locate required shared libraries.
+dnl        The linker uses the following search paths to locate required
+dnl	   shared libraries.
 dnl
-dnl        Ignore steps 1-2, because they involve rpath options (which we don't care about)
+dnl        Ignore steps 1-2, because they involve rpath options
+dnl	   (which we don't care about)
 dnl
-dnl        3.  On  an  ELF system, if the -rpath and "rpath-link" options were not used, search the contents of the environment variable
+dnl        3.  On  an  ELF system, if the -rpath and "rpath-link" options
+dnl	       were not used, search the contents of the environment variable
 dnl            "LD_RUN_PATH". It is for the native linker only.
 dnl
-dnl        4.  On SunOS, if the -rpath option was not used, search any directories specified using -L options.
+dnl        4.  On SunOS, if the -rpath option was not used, search any
+dnl	       directories specified using -L options.
 dnl
-dnl        5.  For a native linker, the contents of the environment variable "LD_LIBRARY_PATH".
+dnl        5.  For a native linker, the contents of the environment variable
+dnl	       "LD_LIBRARY_PATH".
 dnl
-dnl        6.  For a native ELF linker, the directories in "DT_RUNPATH" or "DT_RPATH" of  a  shared  library  are  searched  for  shared
-dnl            libraries needed by it. The "DT_RPATH" entries are ignored if "DT_RUNPATH" entries exist.
+dnl        6.  For a native ELF linker, the directories in "DT_RUNPATH" or
+dnl	       "DT_RPATH" of  a  shared  library  are  searched  for  shared
+dnl            libraries needed by it. The "DT_RPATH" entries are ignored if
+dnl	       "DT_RUNPATH" entries exist.
 dnl
 dnl        7.  The default directories, normally /lib and /usr/lib.
 dnl
-dnl        8.  For a native linker on an ELF system, if the file /etc/ld.so.conf exists, the list of directories found in that file.
+dnl        8.  For a native linker on an ELF system, if the file
+dnl            /etc/ld.so.conf exists, the list of directories found in
+dnl	       that file.
 dnl
-dnl        If the required shared library is not found, the linker will issue a warning and continue with the link.
+dnl        If the required shared library is not found, the linker will
+dnl	   issue a warning and continue with the link.
 dnl
 dnl
 libs2packages() {
@@ -3014,6 +3024,7 @@ fencing/Makefile						\
 tools/Makefile							\
 	tools/haresources2cib.py				\
 	tools/ocf-tester				\
+	tools/hb_report				\
 resources/Makefile						\
 	resources/OCF/Makefile					\
 	resources/OCF/.ocf-binaries				\
