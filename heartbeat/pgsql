@@ -331,7 +331,7 @@ check_log_file() {
     if [ ! -f "$1" ]
     then
         touch $1 > /dev/null 2>&1
-        chown $OCF_RESKEY_pgdba:$(cat /etc/passwd | grep $OCF_RESKEY_pgdba | cut -d ":" -f 4) $1
+        chown $OCF_RESKEY_pgdba:$(getent passwd $OCF_RESKEY_pgdba | cut -d ":" -f 4) $1
     fi
 
     #Check if $OCF_RESKEY_pgdba can write to the log file
