@@ -271,13 +271,18 @@ else
   AC_MSG_ERROR([Cannot Compile trivial C program])
 fi
 #
-#	The code above doesn't work right everywhere (like Fedora)
+#	The code above doesn't work right everywhere
+#		(like Fedora and OpenBSD) 
 #
 case ${LibDirSuffix} in
 	*lib*)	: Cool;;
 	*)	: Sigh...
 		case $OutFileType in
-		  *64-bit*)	LibDirSuffix=lib64;;
+		  *64-bit*)	
+		  	case $host_os in
+			  openbsd)	LibDirSuffix=lib;;
+		  	  *)		LibDirSuffix=lib64;;
+			esac;;
 		  *32-bit*)	LibDirSuffix=lib;;
 		  *)		LibDirSuffix=lib;;
 		esac;;
