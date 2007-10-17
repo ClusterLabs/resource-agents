@@ -374,7 +374,7 @@ void do_lockdump(char *name)
 		   e.g. G,C,W?) */
 
 		if (status == DLM_LKSTS_GRANTED)
-			rqmode = DLM_LOCK_NL;
+			rqmode = LKM_NLMODE;
 
 		printf("id %08x gr %s rq %s pid %u master %d \"%s\"\n",
 			id, mode_str(grmode), mode_str(rqmode),
