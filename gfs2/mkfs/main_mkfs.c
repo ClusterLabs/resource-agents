@@ -90,7 +90,6 @@ decode_arguments(int argc, char *argv[], struct gfs2_sbd *sdp)
 
 	memset(sdp->device_name, 0, sizeof(sdp->device_name));
 	sdp->md.journals = 1;
-	strcpy(sdp->lockproto, "lock_nolock");
 
 	while (cont) {
 		optchar = getopt(argc, argv, "-b:c:DhJ:j:Op:qr:t:u:VX");
@@ -374,6 +373,7 @@ main_mkfs(int argc, char *argv[])
 	sdp->rgsize = -1;
 	sdp->utsize = GFS2_DEFAULT_UTSIZE;
 	sdp->qcsize = GFS2_DEFAULT_QCSIZE;
+	strcpy(sdp->lockproto, GFS2_DEFAULT_LOCKPROTO);
 	sdp->time = time(NULL);
 	osi_list_init(&sdp->rglist);
 	osi_list_init(&sdp->buf_list);

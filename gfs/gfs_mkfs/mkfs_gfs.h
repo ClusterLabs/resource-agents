@@ -157,6 +157,7 @@ EXTERN char *prog_name;
 #define MKFS_DEFAULT_SEG_SIZE       (16)
 #define MKFS_DEFAULT_JSIZE          (128)
 #define MKFS_DEFAULT_RGSIZE         (256)
+#define MKFS_DEFAULT_LOCKPROTO      "lock_dlm"
 #define MKFS_EXCESSIVE_RGS          (10000)
 
 /*  device_geometry.c  */

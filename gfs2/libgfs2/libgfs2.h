@@ -230,6 +230,7 @@ extern char *prog_name;
 #define GFS2_DEFAULT_RGSIZE         (256)
 #define GFS2_DEFAULT_UTSIZE         (1)
 #define GFS2_DEFAULT_QCSIZE         (1)
+#define GFS2_DEFAULT_LOCKPROTO      "lock_dlm"
 #define GFS2_MIN_GROW_SIZE          (10)
 #define GFS2_EXCESSIVE_RGS          (10000)
 

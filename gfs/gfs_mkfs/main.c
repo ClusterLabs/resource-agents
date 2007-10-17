@@ -335,6 +335,7 @@ int main(int argc, char *argv[])
 	comline.jsize = MKFS_DEFAULT_JSIZE;
 	comline.rgsize = MKFS_DEFAULT_RGSIZE;
 	comline.rgsize_specified = FALSE;
+	strcpy(comline.lockproto, MKFS_DEFAULT_LOCKPROTO);
 
 	decode_arguments(argc, argv, &comline);
 
