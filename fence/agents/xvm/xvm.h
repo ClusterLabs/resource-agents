@@ -73,14 +73,4 @@ typedef struct __attribute__ ((packed)) _fence_req {
 } fence_req_t;
 
 
-inline void dset(int);
-inline int dget(void);
-
-#define dprintf(level, fmt, args...) \
-do { \
-	if (dget()>=level) \
-		printf(fmt, ##args); \
-} while(0)
-	
-
 #endif

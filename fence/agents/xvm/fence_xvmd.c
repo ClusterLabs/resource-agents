@@ -52,6 +52,7 @@
 #include "tcp.h"
 #include "virt.h"
 #include "libcman.h"
+#include "debug.h"
 
 static int running = 1;
 
@@ -188,7 +189,7 @@ wait_domain(fence_req_t *req, virConnectPtr vp, int timeout)
 		sleep(1);
 		vdp = get_domain(req, vp);
 		if (!vdp) {
-			dprintf(2, "Domain no longer exists\n");
+			dbg_printf(2, "Domain no longer exists\n");
 			response = 0;
 			break;
 		}
@@ -198,12 +199,12 @@ wait_domain(fence_req_t *req, virConnectPtr vp, int timeout)
 		virDomainFree(vdp);
 
 		if (di.state == VIR_DOMAIN_SHUTOFF) {
-			dprintf(2, "Domain has been shut off\n");
+			dbg_printf(2, "Domain has been shut off\n");
 			response = 0;
 			break;
 		}
 		
-		dprintf(4, "Domain still exists (state %d) after %d seconds\n",
+		dbg_printf(4, "Domain still exists (state %d) after %d seconds\n",
 			di.state, tries);
 
 		if (++tries >= timeout)
@@ -227,13 +228,13 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 	size_t sz;
 
 	if (!(vdp = get_domain(req, vp))) {
-		dprintf(2, "Could not find domain: %s\n", req->domain);
+		dbg_printf(2, "Could not find domain: %s\n", req->domain);
 		goto out;
 	}
 
 	fd = connect_tcp(req, auth, key, key_len);
 	if (fd < 0) {
-		dprintf(2, "Could call back for fence request: %s\n", 
+		dbg_printf(2, "Could call back for fence request: %s\n", 
 			strerror(errno));
 		goto out;
 	}
@@ -246,7 +247,7 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 	case FENCE_OFF:
 		printf("Destroying domain %s...\n", (char *)req->domain);
 
-		dprintf(2, "[OFF] Calling virDomainDestroy\n");
+		dbg_printf(2, "[OFF] Calling virDomainDestroy\n");
 		ret = virDomainDestroy(vdp);
 		if (ret < 0) {
 			printf("virDomainDestroy() failed: %d\n", ret);
@@ -265,8 +266,8 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 		domain_desc = virDomainGetXMLDesc(vdp, 0);
 
 		if (domain_desc) {
-			dprintf(3, "[[ XML Domain Info ]]\n");
-			dprintf(3, "%s\n[[ XML END ]]\n", domain_desc);
+			dbg_printf(3, "[[ XML Domain Info ]]\n");
+			dbg_printf(3, "%s\n[[ XML END ]]\n", domain_desc);
 
 			sz = 0;
 			if (cleanup_xml(domain_desc,
@@ -275,14 +276,14 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 				domain_desc = domain_desc_sanitized;
 			}
 
-			dprintf(3, "[[ XML Domain Info (modified) ]]\n");
-			dprintf(3, "%s\n[[ XML END ]]\n", domain_desc);
+			dbg_printf(3, "[[ XML Domain Info (modified) ]]\n");
+			dbg_printf(3, "%s\n[[ XML END ]]\n", domain_desc);
 		} else {
 			printf("Failed getting domain description from "
 			       "libvirt\n");
 		}
 
-		dprintf(2, "[REBOOT] Calling virDomainDestroy\n");
+		dbg_printf(2, "[REBOOT] Calling virDomainDestroy\n");
 		ret = virDomainDestroy(vdp);
 		if (ret < 0) {
 			printf("virDomainDestroy() failed: %d\n", ret);
@@ -298,14 +299,14 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 		} else if (domain_desc) {
 			/* Recreate the domain if possible */
 			/* Success */
-			dprintf(2, "Calling virDomainCreateLinux()...\n");
+			dbg_printf(2, "Calling virDomainCreateLinux()...\n");
 			virDomainCreateLinux(vp, domain_desc, 0);
 			free(domain_desc);
 		}
 		break;
 	}
 	
-	dprintf(3, "Sending response to caller...\n");
+	dbg_printf(3, "Sending response to caller...\n");
 	if (write(fd, &response, 1) < 0) {
 		perror("write");
 	}
@@ -669,6 +670,16 @@ xvmd_loop(cman_handle_t ch, void *h, int fd, fence_xvm_args_t *args,
 }
 
 
+void
+sigint_handler(int sig)
+{
+	running = 0;
+}
+
+
+void malloc_dump_table(void);
+
+
 int
 main(int argc, char **argv)
 {
@@ -772,7 +783,13 @@ main(int argc, char **argv)
 		return 1;
 	}
 
+
+	signal(SIGINT, sigint_handler);
+	signal(SIGTERM, sigint_handler);
+	signal(SIGQUIT, sigint_handler);
 	xvmd_loop(ch, h, mc_sock, &args, key, key_len);
+
+	//malloc_dump_table();
 
 	return 0;
 }

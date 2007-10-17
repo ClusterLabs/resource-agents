@@ -16,7 +16,8 @@
   Free Software Foundation, Inc.,  675 Mass Ave, Cambridge, 
   MA 02139, USA.
 */
-#include "xvm.h"
+#include <stdio.h>
+#include "debug.h"
 
 static int _debug = 0;
 
@@ -24,7 +25,7 @@ inline void
 dset(int threshold)
 {
 	_debug = threshold;
-	dprintf(3, "Debugging threshold is now %d\n", threshold);
+	dbg_printf(3, "Debugging threshold is now %d\n", threshold);
 }
 
 inline int

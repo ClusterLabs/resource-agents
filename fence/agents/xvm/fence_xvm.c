@@ -53,6 +53,7 @@
 #include "options.h"
 #include "tcp.h"
 #include "mcast.h"
+#include "debug.h"
 
 
 int
@@ -63,7 +64,7 @@ tcp_wait_connect(int lfd, int retry_tenths)
 	int n;
 	struct timeval tv;
 
-	dprintf(3, "Waiting for connection from XVM host daemon.\n");
+	dbg_printf(3, "Waiting for connection from XVM host daemon.\n");
 	FD_ZERO(&rfds);
 	FD_SET(lfd, &rfds);
 	tv.tv_sec = retry_tenths / 10;
@@ -94,7 +95,7 @@ tcp_exchange(int fd, fence_auth_type_t auth, void *key,
 	struct timeval tv;
 
 	/* Ok, we're connected */
-	dprintf(3, "Issuing TCP challenge\n");
+	dbg_printf(3, "Issuing TCP challenge\n");
 	if (tcp_challenge(fd, auth, key, key_len, timeout) <= 0) {
 		/* Challenge failed */
 		printf("Invalid response to challenge\n");
@@ -102,13 +103,13 @@ tcp_exchange(int fd, fence_auth_type_t auth, void *key,
 	}
 
 	/* Now they'll send us one, so we need to respond here */
-	dprintf(3, "Responding to TCP challenge\n");
+	dbg_printf(3, "Responding to TCP challenge\n");
 	if (tcp_response(fd, auth, key, key_len, timeout) <= 0) {
 		printf("Invalid response to challenge\n");
 		return 0;
 	}
 
-	dprintf(2, "TCP Exchange + Authentication done... \n");
+	dbg_printf(2, "TCP Exchange + Authentication done... \n");
 
 	FD_ZERO(&rfds);
 	FD_SET(fd, &rfds);
@@ -116,7 +117,7 @@ tcp_exchange(int fd, fence_auth_type_t auth, void *key,
 	tv.tv_usec = 0;
 
 	ret = 1;
-	dprintf(3, "Waiting for return value from XVM host\n");
+	dbg_printf(3, "Waiting for return value from XVM host\n");
 	if (select(fd + 1, &rfds, NULL, NULL, &tv) <= 0)
 		return -1;
 
@@ -146,7 +147,7 @@ send_multicast_packets(ip_list_t *ipl, fence_xvm_args_t *args, void *key,
 	for (ipa = ipl->tqh_first; ipa; ipa = ipa->ipa_entries.tqe_next) {
 
 		if (ipa->ipa_family != args->family) {
-			dprintf(2, "Ignoring %s: wrong family\n", ipa->ipa_address);
+			dbg_printf(2, "Ignoring %s: wrong family\n", ipa->ipa_address);
 			continue;
 		}
 
@@ -166,7 +167,7 @@ send_multicast_packets(ip_list_t *ipl, fence_xvm_args_t *args, void *key,
 			tgt = (struct sockaddr *)&tgt6;
 			tgt_len = sizeof(tgt6);
 		} else {
-			dprintf(2, "Unsupported family %d\n", args->family);
+			dbg_printf(2, "Unsupported family %d\n", args->family);
 			return -1;
 		}
 
@@ -198,7 +199,7 @@ send_multicast_packets(ip_list_t *ipl, fence_xvm_args_t *args, void *key,
 
 		sign_request(&freq, key, key_len);
 
-		dprintf(3, "Sending to %s via %s\n", args->addr,
+		dbg_printf(3, "Sending to %s via %s\n", args->addr,
 		        ipa->ipa_address);
 
 		sendto(mc_sock, &freq, sizeof(freq), 0,

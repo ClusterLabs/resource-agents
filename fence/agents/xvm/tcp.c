@@ -33,6 +33,8 @@
 #include <sys/types.h>
 #include <arpa/inet.h>
 
+#include "debug.h"
+
 static int connect_nb(int fd, struct sockaddr *dest, socklen_t len, int timeout);
 
 /**
@@ -65,7 +67,7 @@ ipv6_listen(uint16_t port, int backlog)
 	struct sockaddr_in6 _sin6;
 	int fd, ret;
 
-	dprintf(4, "%s: Setting up ipv6 listen socket\n", __FUNCTION__);
+	dbg_printf(4, "%s: Setting up ipv6 listen socket\n", __FUNCTION__);
 	fd = socket(PF_INET6, SOCK_STREAM, 0);
 	if (fd < 0)
 		return -1;
@@ -96,7 +98,7 @@ ipv6_listen(uint16_t port, int backlog)
 		return -1;
 	}
 
-	dprintf(4, "%s: Success; fd = %d\n", __FUNCTION__, fd);
+	dbg_printf(4, "%s: Success; fd = %d\n", __FUNCTION__, fd);
 	return fd;
 }
 
@@ -115,7 +117,7 @@ ipv4_listen(uint16_t port, int backlog)
 	struct sockaddr_in _sin;
 	int fd, ret;
 
-	dprintf(4, "%s: Setting up ipv4 listen socket\n", __FUNCTION__);
+	dbg_printf(4, "%s: Setting up ipv4 listen socket\n", __FUNCTION__);
 	fd = socket(PF_INET, SOCK_STREAM, 0);
 	if (fd < 0)
 		return -1;
@@ -144,7 +146,7 @@ ipv4_listen(uint16_t port, int backlog)
 		return -1;
 	}
 
-	dprintf(4, "%s: Success; fd = %d\n", __FUNCTION__, fd);
+	dbg_printf(4, "%s: Success; fd = %d\n", __FUNCTION__, fd);
 	return fd;
 }
 
@@ -166,7 +168,7 @@ ipv6_connect(struct in6_addr *in6_addr, uint16_t port, int timeout)
 	struct sockaddr_in6 _sin6;
 	int fd, ret;
 
-	dprintf(4, "%s: Connecting to client\n", __FUNCTION__);
+	dbg_printf(4, "%s: Connecting to client\n", __FUNCTION__);
 	fd = socket(PF_INET6, SOCK_STREAM, 0);
 	if (fd < 0)
 		return -1;
@@ -182,7 +184,7 @@ ipv6_connect(struct in6_addr *in6_addr, uint16_t port, int timeout)
 		close(fd);
 		return -1;
 	}
-	dprintf(4, "%s: Success; fd = %d\n", __FUNCTION__, fd);
+	dbg_printf(4, "%s: Success; fd = %d\n", __FUNCTION__, fd);
 	return fd;
 }
 
@@ -203,7 +205,7 @@ ipv4_connect(struct in_addr *in_addr, uint16_t port, int timeout)
 	struct sockaddr_in _sin;
 	int fd, ret;
 
-	dprintf(4, "%s: Connecting to client\n", __FUNCTION__);
+	dbg_printf(4, "%s: Connecting to client\n", __FUNCTION__);
 	fd = socket(PF_INET, SOCK_STREAM, 0);
 	if (fd < 0)
 		return -1;
@@ -218,7 +220,7 @@ ipv4_connect(struct in_addr *in_addr, uint16_t port, int timeout)
 		return -1;
 	}
 
-	dprintf(4, "%s: Success; fd = %d\n", __FUNCTION__, fd);
+	dbg_printf(4, "%s: Success; fd = %d\n", __FUNCTION__, fd);
 	return fd;
 }
 

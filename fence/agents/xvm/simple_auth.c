@@ -29,6 +29,7 @@
 /* Local includes */
 #include "xvm.h"
 #include "simple_auth.h"
+#include "debug.h"
 
 
 void
@@ -64,7 +65,7 @@ sha_sign(fence_req_t *req, void *key, size_t key_len)
 			return;
 	}
 
-	dprintf(4, "Opening /dev/urandom\n");
+	dbg_printf(4, "Opening /dev/urandom\n");
 	devrand = open("/dev/urandom", O_RDONLY);
 	if (devrand >= 0) {
 		if (read(devrand, req->random, sizeof(req->random)) < 0) {
@@ -109,7 +110,7 @@ sha_verify(fence_req_t *req, void *key, size_t key_len)
 			ht = HASH_AlgSHA512;
 			break;
 		default:
-			dprintf(3, "%s: no-op (HASH_NONE)\n", __FUNCTION__);
+			dbg_printf(3, "%s: no-op (HASH_NONE)\n", __FUNCTION__);
 			return 0;
 	}
 
@@ -148,7 +149,7 @@ sign_request(fence_req_t *req, void *key, size_t key_len)
 	memset(req->hash, 0, sizeof(req->hash));
 	switch(req->hashtype) {
 	case HASH_NONE:
-		dprintf(3, "%s: no-op (HASH_NONE)\n", __FUNCTION__);
+		dbg_printf(3, "%s: no-op (HASH_NONE)\n", __FUNCTION__);
 		return 0;
 	case HASH_SHA1:
 	case HASH_SHA256:
@@ -305,7 +306,7 @@ sha_response(int fd, fence_auth_type_t auth, void *key,
 			ht = HASH_AlgSHA512;
 			break;
 		default:
-			dprintf(3, "%s: no-op (AUTH_NONE)\n", __FUNCTION__);
+			dbg_printf(3, "%s: no-op (AUTH_NONE)\n", __FUNCTION__);
 			return 0;
 	}
 
@@ -335,7 +336,7 @@ tcp_challenge(int fd, fence_auth_type_t auth, void *key, size_t key_len,
 {
 	switch(auth) {
 	case AUTH_NONE:
-		dprintf(3, "%s: no-op (AUTH_NONE)\n", __FUNCTION__);
+		dbg_printf(3, "%s: no-op (AUTH_NONE)\n", __FUNCTION__);
 		return 1;
 	case AUTH_SHA1:
 	case AUTH_SHA256:
@@ -354,7 +355,7 @@ tcp_response(int fd, fence_auth_type_t auth, void *key, size_t key_len,
 {
 	switch(auth) {
 	case AUTH_NONE:
-		dprintf(3, "%s: no-op (AUTH_NONE)\n", __FUNCTION__);
+		dbg_printf(3, "%s: no-op (AUTH_NONE)\n", __FUNCTION__);
 		return 1;
 	case AUTH_SHA1:
 	case AUTH_SHA256:
@@ -374,11 +375,11 @@ read_key_file(char *file, char *key, size_t max_len)
 	int nread, remain = max_len;
 	char *p;
 
-	dprintf(3, "Reading in key file %s into %p (%d max size)\n",
+	dbg_printf(3, "Reading in key file %s into %p (%d max size)\n",
 		file, key, (int)max_len);
 	fd = open(file, O_RDONLY);
 	if (fd < 0) {
-		dprintf(2, "Error opening key file: %s\n", strerror(errno));
+		dbg_printf(2, "Error opening key file: %s\n", strerror(errno));
 		return -1;
 	}
 
@@ -389,13 +390,13 @@ read_key_file(char *file, char *key, size_t max_len)
 	while (remain) {
 		nread = read(fd, p, remain);
 		if (nread < 0) {
-			dprintf(2, "Error from read: %s\n", strerror(errno));
+			dbg_printf(2, "Error from read: %s\n", strerror(errno));
 			close(fd);
 			return -1;
 		}
 
 		if (nread == 0) {
-			dprintf(3, "Stopped reading @ %d bytes",
+			dbg_printf(3, "Stopped reading @ %d bytes",
 				(int)max_len-remain);
 			break;
 		}
@@ -405,7 +406,7 @@ read_key_file(char *file, char *key, size_t max_len)
 	}
 
 	close(fd);	
-	dprintf(3, "Actual key length = %d bytes", (int)max_len-remain);
+	dbg_printf(3, "Actual key length = %d bytes", (int)max_len-remain);
 	
 	return (int)(max_len - remain);
 }
