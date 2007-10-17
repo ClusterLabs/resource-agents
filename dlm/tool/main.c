@@ -367,6 +367,15 @@ void do_lockdump(char *name)
 			continue;
 		}
 
+		/* A hack because dlm-kernel doesn't set rqmode back to NL when
+		   a NOQUEUE convert fails, which means in a lockdump it looks
+		   like a granted lock is still converting since rqmode is not
+		   NL.  (does it make sense to include status in the output,
+		   e.g. G,C,W?) */
+
+		if (status == DLM_LKSTS_GRANTED)
+			rqmode = DLM_LOCK_NL;
+
 		printf("id %08x gr %s rq %s pid %u master %d \"%s\"\n",
 			id, mode_str(grmode), mode_str(rqmode),
 			ownpid, nodeid, r_name);
