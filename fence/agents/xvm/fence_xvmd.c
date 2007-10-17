@@ -693,6 +693,11 @@ main(int argc, char **argv)
 
 	args_init(&args);
 	args_get_getopt(argc, argv, my_options, &args);
+
+	if (!(args.flags & F_NOCCS)) {
+		args_get_ccs(my_options, &args);
+	}
+
 	args_finalize(&args);
 	if (args.debug > 0) {
 		dset(args.debug);
