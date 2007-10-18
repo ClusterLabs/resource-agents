@@ -58,7 +58,6 @@ enum dsp_mode { HEX_MODE = 0, GFS2_MODE = 1, EXTENDED_MODE = 2 };
 #define GFS_FILE_SOCK           (102)  /* socket */
 
 EXTERN char *prog_name;
-EXTERN int fd;
 EXTERN uint64_t block INIT(0);
 EXTERN int blockhist INIT(0);
 EXTERN int edit_mode INIT(0);
@@ -95,6 +94,21 @@ EXTERN WINDOW *wind;
 EXTERN int gfs1 INIT(0);
 EXTERN int editing INIT(0);
 EXTERN uint64_t temp_blk;
+
+struct gfs_jindex {
+        uint64_t ji_addr;       /* starting block of the journal */
+        uint32_t ji_nsegment;   /* number (quantity) of segments in journal */
+        uint32_t ji_pad;
+
+        char ji_reserved[64];
+};
+
+EXTERN int block_is_jindex(void);
+EXTERN int block_is_inum_file(void);
+EXTERN int block_is_statfs_file(void);
+EXTERN int block_is_quota_file(void);
+EXTERN int display_block_type(const char *lpBuffer, int from_restore);
+EXTERN void gfs_jindex_in(struct gfs_jindex *jindex, char *buf);
 
 struct gfs2_dirents {
 	uint64_t block;
@@ -161,14 +175,6 @@ struct gfs_sb {
 	struct gfs2_inum sb_license_di; /* license inode */
 
 	char sb_reserved[96];
-};
-
-struct gfs_jindex {
-        uint64_t ji_addr;       /* starting block of the journal */
-        uint32_t ji_nsegment;   /* number (quantity) of segments in journal */
-        uint32_t ji_pad;
-
-        char ji_reserved[64];
 };
 
 struct gfs_log_descriptor {

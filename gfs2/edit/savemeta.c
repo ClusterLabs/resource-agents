@@ -31,11 +31,13 @@
 #include <linux/gfs2_ondisk.h>
 
 #include "osi_list.h"
+#include "gfs2hex.h"
 #include "hexedit.h"
 #include "libgfs2.h"
 
 #define BUFSIZE (4096)
 #define DFT_SAVE_FILE "/tmp/gfsmeta"
+#define MAX_JOURNALS_SAVED 256
 
 struct saved_metablock {
 	uint64_t blk;
@@ -46,6 +48,8 @@ struct saved_metablock {
 struct saved_metablock *savedata;
 uint64_t last_fs_block, last_reported_block, blks_saved, total_out, pct;
 struct gfs2_block_list *blocklist = NULL;
+uint64_t journal_blocks[MAX_JOURNALS_SAVED];
+int journals_found = 0;
 
 extern void read_superblock(void);
 uint64_t masterblock(const char *fn);
@@ -413,7 +417,7 @@ int get_gfs_struct_info(char *buf, int *block_type, int *struct_len)
 		*struct_len = sizeof(struct gfs2_log_header);
 		break;
 	case GFS2_METATYPE_LD:   /* 9 (log descriptor) */
-		*struct_len = sizeof(struct gfs2_log_descriptor);
+		*struct_len = bufsize;
 		break;
 	case GFS2_METATYPE_EA:   /* 10 (extended attr hdr) */
 		*struct_len = sizeof(struct gfs2_ea_header);
@@ -448,30 +452,67 @@ void warm_fuzzy_stuff(uint64_t block, int force, int save)
 
 		seconds = tv.tv_sec;
 		if (last_fs_block) {
-			percent = (block * 100) / last_fs_block;
-			printf("\r%" PRIu64 " blocks (%"
-			       PRIu64 "%%) processed, ", block, percent);
-			printf("%" PRIu64 " blocks (%" PRIu64 "MB) %s    ",
-			       blks_saved, total_out / (1024*1024),
-			       save?"saved":"restored");
+			printf("\r");
+			if (save) {
+				percent = (block * 100) / last_fs_block;
+				printf("%" PRIu64 " metadata blocks (%"
+				       PRIu64 "%%) processed, ", block,
+				       percent);
+			}
+			if (total_out < 1024 * 1024)
+				printf("%" PRIu64 " metadata blocks (%"
+				       PRIu64 "KB) %s.    ",
+				       blks_saved, total_out / 1024,
+				       save?"saved":"restored");
+			else
+				printf("%" PRIu64 " metadata blocks (%"
+				       PRIu64 "MB) %s.    ",
+				       blks_saved, total_out / (1024*1024),
+				       save?"saved":"restored");
+			if (force)
+				printf("\n");
 			fflush(stdout);
 		}
 	}
 }
 
-void save_block(int fd, int out_fd, uint64_t blk)
+int block_is_a_journal(void)
+{
+	int j;
+
+	for (j = 0; j < journals_found; j++)
+		if (block == journal_blocks[j])
+			return TRUE;
+	return FALSE;
+}
+
+int block_is_systemfile(void)
+{
+	return block_is_jindex() ||
+		block_is_inum_file() ||
+		block_is_statfs_file() ||
+		block_is_quota_file() ||
+		block_is_a_journal();
+}
+
+int save_block(int fd, int out_fd, uint64_t blk)
 {
 	int blktype, blklen, outsz;
 	uint16_t trailing0;
 	char *p;
 
-	warm_fuzzy_stuff(blk, FALSE, TRUE);
 	memset(savedata, 0, sizeof(struct saved_metablock));
 	do_lseek(fd, blk * bufsize);
 	do_read(fd, savedata->buf, bufsize); /* read in the block */
 
-	if (get_gfs_struct_info(savedata->buf, &blktype, &blklen))
-		return; /* Not metadata, so skip it */
+	/* If this isn't metadata and isn't a system file, we don't want it.
+	   Note that we're checking "block" here rather than blk.  That's
+	   because we want to know if the source inode's "block" is a system
+	   inode, not the block within the inode "blk". They may or may not
+	   be the same thing. */
+	if (get_gfs_struct_info(savedata->buf, &blktype, &blklen) &&
+	    !block_is_systemfile())
+		return 0; /* Not metadata, and not system file, so skip it */
 	trailing0 = 0;
 	p = &savedata->buf[blklen - 1];
 	while (*p=='\0' && trailing0 < bufsize) {
@@ -486,26 +527,169 @@ void save_block(int fd, int out_fd, uint64_t blk)
 	do_write(out_fd, savedata->buf, outsz);
 	total_out += sizeof(savedata->blk) + sizeof(savedata->siglen) + outsz;
 	blks_saved++;
+	return blktype;
 }
 
-void savemeta(const char *in_fn, const char *out_fn, int slow)
+/*
+ * save_indirect_blocks - save all indirect blocks for the given buffer
+ */
+void save_indirect_blocks(int out_fd, osi_list_t *cur_list,
+			  struct gfs2_buffer_head *mybh, int height, int hgt)
+{
+	uint64_t old_block = 0;
+	uint64_t *ptr;
+	int head_size;
+	struct gfs2_buffer_head *nbh;
+
+	head_size = (hgt > 1 ?
+		     sizeof(struct gfs2_meta_header) :
+		     sizeof(struct gfs2_dinode));
+
+	for (ptr = (uint64_t *)(mybh->b_data + head_size);
+	     (char *)ptr < (mybh->b_data + mybh->b_size); ptr++) {
+		if (!*ptr)
+			continue;
+		block = be64_to_cpu(*ptr);
+		if (block == old_block)
+			continue;
+		old_block = block;
+		save_block(sbd.device_fd, out_fd, block);
+		if (height != hgt) { /* If not at max height */
+			nbh = bread(&sbd, block);
+			osi_list_add_prev(&nbh->b_altlist,
+					  cur_list);
+			brelse(nbh, not_updated);
+		}
+	} /* for all data on the indirect block */
+}
+
+/*
+ * save_inode_data - save off important data associated with an inode
+ *
+ * out_fd - destination file descriptor
+ * block - block number of the inode to save the data for
+ * 
+ * For user files, we don't want anything except all the indirect block
+ * pointers that reside on blocks on all but the highest height.
+ *
+ * For system files like statfs and inum, we want everything because they
+ * may contain important clues and no user data.
+ *
+ * For file system journals, the "data" is a mixture of metadata and
+ * journaled data.  We want all the metadata and none of the user data.
+ */
+void save_inode_data(int out_fd)
+{
+	uint32_t height;
+	struct gfs2_inode *inode;
+	osi_list_t metalist[GFS2_MAX_META_HEIGHT];
+	osi_list_t *prev_list, *cur_list, *tmp;
+	struct gfs2_buffer_head *metabh, *mybh;
+	int i;
+	char *buf;
+
+	for (i = 0; i < GFS2_MAX_META_HEIGHT; i++)
+		osi_list_init(&metalist[i]);
+	buf = malloc(bufsize);
+	metabh = bread(&sbd, block);
+	inode = inode_get(&sbd, metabh);
+	height = inode->i_di.di_height;
+	/* If this is a user inode, we don't follow to the file height.
+	   We stop one level less.  That way we save off the indirect
+	   pointer blocks but not the actual file contents. */
+	if (height && !block_is_systemfile())
+		height--;
+	osi_list_add(&metabh->b_altlist, &metalist[0]);
+        for (i = 1; i <= height; i++){
+		prev_list = &metalist[i - 1];
+		cur_list = &metalist[i];
+
+		for (tmp = prev_list->next; tmp != prev_list; tmp = tmp->next){
+			mybh = osi_list_entry(tmp, struct gfs2_buffer_head,
+					      b_altlist);
+			save_indirect_blocks(out_fd, cur_list, mybh,
+					     height, i);
+		} /* for blocks at that height */
+	} /* for height */
+	/* free metalists */
+	for (i = 0; i < GFS2_MAX_META_HEIGHT; i++) {
+		cur_list = &metalist[i];
+		while (!osi_list_empty(cur_list)) {
+			mybh = osi_list_entry(cur_list->next,
+					    struct gfs2_buffer_head,
+					    b_altlist);
+			osi_list_del(&mybh->b_altlist);
+		}
+	}
+	/* Process directory exhash inodes */
+	if (S_ISDIR(inode->i_di.di_mode)) {
+		if (inode->i_di.di_flags & GFS2_DIF_EXHASH) {
+			save_indirect_blocks(out_fd, cur_list, mybh,
+					     height, 0);
+		}
+	}
+	inode_put(inode, not_updated);
+	free(buf);
+}
+
+void get_journal_inode_blocks(void)
+{
+	int journal;
+	struct gfs2_buffer_head *bh;
+
+	journals_found = 0;
+	memset(journal_blocks, 0, sizeof(journal_blocks));
+	/* Save off all the journals--but only the metadata.
+	 * This is confusing so I'll explain.  The journals contain important 
+	 * metadata.  However, in gfs2 the journals are regular files within
+	 * the system directory.  Since they're regular files, the blocks
+	 * within the journals are considered data, not metadata.  Therefore,
+	 * they won't have been saved by the code above.  We want to dump
+	 * these blocks, but we have to be careful.  We only care about the
+	 * journal blocks that look like metadata, and we need to not save
+	 * journaled user data that may exist there as well. */
+	for (journal = 0; ; journal++) { /* while journals exist */
+		uint64_t jblock;
+		int amt;
+		struct gfs2_dinode jdi;
+		struct gfs2_inode *j_inode = NULL;
+
+		if (gfs1) {
+			struct gfs_jindex ji;
+			char jbuf[sizeof(struct gfs_jindex)];
+
+			j_inode = inode_get(&sbd, bh);
+			amt = gfs2_readi(j_inode, (void *)&jbuf,
+					 journal * sizeof(struct gfs_jindex),
+					 sizeof(struct gfs_jindex));
+			if (!amt)
+				break;
+			gfs_jindex_in(&ji, jbuf);
+			jblock = ji.ji_addr;
+			inode_put(j_inode, not_updated);
+		} else {
+			if (journal > indirect->ii[0].dirents - 3)
+				break;
+			jblock = indirect->ii[0].dirent[journal + 2].block;
+			bh = bread(&sbd, jblock);
+			j_inode = inode_get(&sbd, bh);
+			gfs2_dinode_in(&jdi, bh->b_data);
+			inode_put(j_inode, not_updated);
+		}
+		journal_blocks[journals_found++] = jblock;
+	}
+}
+
+void savemeta(const char *out_fn, int slow)
 {
 	int out_fd;
 	osi_list_t *tmp;
-	uint64_t blk;
 	uint64_t memreq;
 	int rgcount;
+	uint64_t jindex_block;
+	struct gfs2_buffer_head *bh;
 
-	memset(&sbd, 0, sizeof(struct gfs2_sbd));
-	strcpy(sbd.device_name, in_fn);
-	sbd.bsize = GFS2_DEFAULT_BSIZE;
-	sbd.rgsize = -1;
-	sbd.jsize = GFS2_DEFAULT_JSIZE;
-	sbd.qcsize = GFS2_DEFAULT_QCSIZE;
 	sbd.md.journals = 1;
-	sbd.device_fd = open(in_fn, O_RDONLY);
-	if (sbd.device_fd < 0)
-		die("Can't open %s: %s\n", in_fn, strerror(errno));
 
 	if (!out_fn)
 		out_fn = DFT_SAVE_FILE;
@@ -513,6 +697,8 @@ void savemeta(const char *in_fn, const char *out_fn, int slow)
 	if (out_fd < 0)
 		die("Can't open %s: %s\n", out_fn, strerror(errno));
 
+	if (ftruncate(out_fd, 0))
+		die("Can't truncate %s: %s\n", out_fn, strerror(errno));
 	savedata = malloc(sizeof(struct saved_metablock));
 	if (!savedata)
 		die("Can't allocate memory for the operation.\n");
@@ -540,18 +726,25 @@ void savemeta(const char *in_fn, const char *out_fn, int slow)
 	printf("There are %" PRIu64 " blocks of %" PRIu64 " bytes.\n\n",
 	       last_fs_block, bufsize);
 	if (!slow) {
-		if (gfs1)
+		if (gfs1) {
 			sbd.md.riinode =
 				gfs2_load_inode(&sbd,
 						sbd1->sb_rindex_di.no_addr);
-		else {
+			jindex_block = sbd1->sb_jindex_di.no_addr;
+		} else {
 			sbd.master_dir =
 				gfs2_load_inode(&sbd,
 						sbd.sd_sb.sb_master_dir.no_addr);
 
 			slow = gfs2_lookupi(sbd.master_dir, "rindex", 6, 
 					    &sbd.md.riinode);
+			jindex_block = masterblock("jindex");
 		}
+		bh = bread(&sbd, jindex_block);
+		gfs2_dinode_in(&di, bh->b_data);
+		if (!gfs1)
+			do_dinode_extended(&di, bh->b_data);
+		brelse(bh, not_updated);
 	}
 	if (!slow) {
 		if (gfs1)
@@ -564,8 +757,11 @@ void savemeta(const char *in_fn, const char *out_fn, int slow)
 		if (!blocklist)
 			slow = TRUE;
 	}
+	get_journal_inode_blocks();
 	if (!slow) {
+		/* Save off the superblock */
 		save_block(sbd.device_fd, out_fd, 0x10 * (4096 / bufsize));
+		/* Walk through the resource groups saving everything within */
 		for (tmp = sbd.rglist.next; tmp != &sbd.rglist;
 		     tmp = tmp->next){
 			struct rgrp_list *rgd;
@@ -585,28 +781,37 @@ void savemeta(const char *in_fn, const char *out_fn, int slow)
 			}
 			first = 1;
 			/* Save off the rg and bitmaps */
-			for (blk = rgd->ri.ri_addr;
-			     blk < rgd->ri.ri_data0; blk++)
-				save_block(sbd.device_fd, out_fd, blk);
+			for (block = rgd->ri.ri_addr;
+			     block < rgd->ri.ri_data0; block++) {
+				warm_fuzzy_stuff(block, FALSE, TRUE);
+				save_block(sbd.device_fd, out_fd, block);
+			}
 			/* Save off the other metadata: inodes, etc. */
-			while (!gfs2_next_rg_meta(rgd, &blk, first)) {
-				save_block(sbd.device_fd, out_fd, blk);
+			while (!gfs2_next_rg_meta(rgd, &block, first)) {
+				int blktype;
+
+				warm_fuzzy_stuff(block, FALSE, TRUE);
+				blktype = save_block(sbd.device_fd, out_fd,
+						     block);
+				if (blktype == GFS2_METATYPE_DI)
+					save_inode_data(out_fd);
 				first = 0;
 			}
 			gfs2_rgrp_relse(rgd, not_updated);
 		}
 	}
 	if (slow) {
-		for (blk = 0; blk < last_fs_block; blk++) {
-			save_block(sbd.device_fd, out_fd, blk);
+		for (block = 0; block < last_fs_block; block++) {
+			save_block(sbd.device_fd, out_fd, block);
 		}
 	}
+	/* Clean up */
 	if (blocklist)
 		gfs2_block_list_destroy(blocklist);
 	/* There may be a gap between end of file system and end of device */
 	/* so we tell the user that we've processed everything. */
-	blk = last_fs_block;
-	warm_fuzzy_stuff(blk, TRUE, TRUE);
+	block = last_fs_block;
+	warm_fuzzy_stuff(block, TRUE, TRUE);
 	printf("\nMetadata saved to file %s.\n", out_fn);
 	free(savedata);
 	close(out_fd);
@@ -614,16 +819,16 @@ void savemeta(const char *in_fn, const char *out_fn, int slow)
 	exit(0);
 }
 
-int restore_data(int fd, int in_fd)
+int restore_data(int fd, int in_fd, int printblocksonly)
 {
 	size_t rs;
 	uint64_t buf64, writes = 0;
 	uint16_t buf16;
 	int first = 1;
 
-	do_lseek(fd, 0);
-	blks_saved = 0;
-	total_out = 0;
+	if (!printblocksonly)
+		do_lseek(fd, 0);
+	blks_saved = total_out = 0;
 	last_fs_block = 0;
 	while (TRUE) {
 		memset(savedata, 0, sizeof(struct saved_metablock));
@@ -634,8 +839,10 @@ int restore_data(int fd, int in_fd)
 			fprintf(stderr, "Error reading from file.\n");
 			return -1;
 		}
+		total_out += bufsize;
 		savedata->blk = be64_to_cpu(buf64);
-		if (last_fs_block && savedata->blk >= last_fs_block) {
+		if (!printblocksonly &&
+		    last_fs_block && savedata->blk >= last_fs_block) {
 			fprintf(stderr, "Error: File system is too small to "
 				"restore this metadata.\n");
 			fprintf(stderr, "File system is %" PRIu64 " blocks, ",
@@ -646,7 +853,6 @@ int restore_data(int fd, int in_fd)
 		}
 		rs = read(in_fd, &buf16, sizeof(uint16_t));
 		savedata->siglen = be16_to_cpu(buf16);
-		total_out += rs + savedata->siglen;
 		if (savedata->siglen > 0 &&
 		    savedata->siglen <= sizeof(savedata->buf)) {
 			do_read(in_fd, savedata->buf, savedata->siglen);
@@ -666,23 +872,33 @@ int restore_data(int fd, int in_fd)
 					return -1;
 				}
 				bufsize = sbd.sd_sb.sb_bsize;
-				last_fs_block =
-					lseek(fd, 0, SEEK_END) / bufsize;
-				printf("There are %" PRIu64 " blocks of %" \
-				       PRIu64 " bytes in the destination" \
-				       " file system.\n\n",
-				       last_fs_block, bufsize);
+				if (!printblocksonly) {
+					last_fs_block =
+						lseek(fd, 0, SEEK_END) /
+						bufsize;
+					printf("There are %" PRIu64 " blocks of %" \
+					       PRIu64 " bytes in the destination" \
+					       " file system.\n\n",
+					       last_fs_block, bufsize);
+				}
 				first = 0;
 			}
-			warm_fuzzy_stuff(savedata->blk, FALSE, FALSE);
-			if (savedata->blk >= last_fs_block) {
-				printf("Out of space on the destination "
-				       "device; quitting.\n");
-				break;
+			if (printblocksonly) {
+				print_gfs2("%d (l=0x%x): ", blks_saved,
+					   savedata->siglen);
+				block = savedata->blk;
+				display_block_type(savedata->buf, TRUE);
+			} else {
+				warm_fuzzy_stuff(savedata->blk, FALSE, FALSE);
+				if (savedata->blk >= last_fs_block) {
+					printf("Out of space on the destination "
+					       "device; quitting.\n");
+					break;
+				}
+				do_lseek(fd, savedata->blk * bufsize);
+				do_write(fd, savedata->buf, bufsize);
+				writes++;
 			}
-			do_lseek(fd, savedata->blk * bufsize);
-			do_write(fd, savedata->buf, bufsize);
-			writes++;
 			blks_saved++;
 		} else {
 			fprintf(stderr, "Bad record length: %d for #%"
@@ -690,44 +906,52 @@ int restore_data(int fd, int in_fd)
 			return -1;
 		}
 	}
-	warm_fuzzy_stuff(savedata->blk, TRUE, FALSE);
-	printf("%" PRIu64 " blocks restored.\n", writes);
+	if (!printblocksonly)
+		warm_fuzzy_stuff(savedata->blk, TRUE, FALSE);
 	return 0;
 }
 
-void restoremeta(const char *in_fn, const char *out_device)
+void complain(const char *complaint)
 {
-	int in_fd;
+	fprintf(stderr, "%s\n", complaint);
+	die("Format is: \ngfs2_edit restoremeta <file to restore> "
+	    "<dest file system>\n");
+}
 
+void restoremeta(const char *in_fn, const char *out_device,
+		 int printblocksonly)
+{
+	int in_fd, error;
+
+	termlines = 0;
 	if (!in_fn)
-		die("No source file specified.  Format is: \ngfs2_edit "
-		    "restoremeta <file to restore> <dest file system>\n");
-	if (!out_device)
-		die("No destination file system specified.  Format is: \n"
-		    "gfs2_edit restoremeta <file to restore> <dest file "
-		    "system>\n");
+		complain("No source file specified.");
+	if (!printblocksonly && !out_device)
+		complain("No destination file system specified.");
 	in_fd = open(in_fn, O_RDONLY);
 	if (in_fd < 0)
 		die("Can't open source file %s: %s\n",
 		    in_fn, strerror(errno));
 
-	fd = open(out_device, O_RDWR);
-	if (fd < 0)
-		die("Can't open destination file system %s: %s\n",
-		    out_device, strerror(errno));
-
+	if (!printblocksonly) {
+		sbd.device_fd = open(out_device, O_RDWR);
+		if (sbd.device_fd < 0)
+			die("Can't open destination file system %s: %s\n",
+			    out_device, strerror(errno));
+	}
 	savedata = malloc(sizeof(struct saved_metablock));
 	if (!savedata)
 		die("Can't allocate memory for the restore operation.\n");
 
-	blks_saved = total_out = 0;
-	if (restore_data(fd, in_fd) == 0)
-		printf("File %s restore successful.\n", in_fn);
-	else
-		printf("File %s restore error.\n", in_fn);
+	blks_saved = 0;
+	error = restore_data(sbd.device_fd, in_fd, printblocksonly);
+	printf("File %s %s %s.\n", in_fn,
+	       (printblocksonly ? "print" : "restore"),
+	       (error ? "error" : "successful"));
 	free(savedata);
 	close(in_fd);
-	close(fd);
+	if (!printblocksonly)
+		close(sbd.device_fd);
 
 	exit(0);
 }

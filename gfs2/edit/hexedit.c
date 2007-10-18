@@ -47,8 +47,9 @@
 int display(int identify_only);
 extern void eol(int col);
 extern int do_indirect_extended(char *buf, struct iinfo *ii);
-extern void savemeta(const char *in_fn, const char *out_fn, int slow);
-extern void restoremeta(const char *in_fn, const char *out_device);
+extern void savemeta(const char *out_fn, int slow);
+extern void restoremeta(const char *in_fn, const char *out_device,
+			int printblocksonly);
 
 /* ------------------------------------------------------------------------ */
 /* UpdateSize - screen size changed, so update it                           */
@@ -350,7 +351,7 @@ int get_block_type(const char *lpBuffer)
 /* returns: metatype if block is a GFS2 structure block type                */
 /*          0 if block is not a GFS2 structure                              */
 /* ------------------------------------------------------------------------ */
-int display_block_type(const char *lpBuffer)
+int display_block_type(const char *lpBuffer, int from_restore)
 {
 	int ret_type = 0; /* return type */
 
@@ -375,12 +376,14 @@ int display_block_type(const char *lpBuffer)
 	}
 	else
 		print_gfs2(" ");
-	print_gfs2("of %" PRIu64 " (0x%" PRIX64 ")", max_block, max_block);
-	if (termlines)
-		move(line, 55);
-	else
-		printf(" ");
-
+	if (!from_restore) {
+		print_gfs2("of %" PRIu64 " (0x%" PRIX64 ")", max_block,
+			   max_block);
+		if (termlines)
+			move(line, 55);
+		else
+			printf(" ");
+	}
 	if (block == RGLIST_DUMMY_BLOCK) {
 		ret_type = GFS2_METATYPE_RG;
 		struct_len = sizeof(struct gfs2_rgrp);
@@ -447,6 +450,8 @@ int display_block_type(const char *lpBuffer)
 	else
 		struct_len = 512;
 	eol(0);
+	if (from_restore)
+		return ret_type;
 	if (termlines && dmode == HEX_MODE) {
 		/* calculate how much of the buffer we can fit on screen */
 		screen_chunk_size = ((termlines - 4) * 16) >> 8 << 8;
@@ -616,7 +621,7 @@ void rgcount(void)
 		block = masterblock("rindex");
 	ribh = bread(&sbd, block);
 	riinode = inode_get(&sbd, ribh);
-	printf("%d RGs in this file system.\n",
+	printf("%lld RGs in this file system.\n",
 	       riinode->i_di.di_size / sizeof(struct gfs2_rindex));
 	inode_put(riinode, not_updated);
 	exit(EXIT_SUCCESS);
@@ -661,7 +666,7 @@ void set_rgrp_flags(int rgnum, uint32_t new_flags, int modify, int full)
 	ribh = bread(&sbd, block);
 	riinode = inode_get(&sbd, ribh);
 	if (rgnum >= riinode->i_di.di_size / sizeof(struct gfs2_rindex)) {
-		fprintf(stderr, "Error: File system only has %d RGs.\n",
+		fprintf(stderr, "Error: File system only has %lld RGs.\n",
 		       riinode->i_di.di_size / sizeof(struct gfs2_rindex));
 		inode_put(riinode, not_updated);
 		brelse(ribh, not_updated);
@@ -671,8 +676,9 @@ void set_rgrp_flags(int rgnum, uint32_t new_flags, int modify, int full)
 	bh = bread(&sbd, rgblk);
 	gfs2_rgrp_in(&rg, bh->b_data);
 	if (modify) {
-		printf("RG #%d (block %lld / 0x%llx) rg_flags changed from 0x%08x to 0x%08x\n",
-		       rgnum, rgblk, rgblk, rg.rg_flags, new_flags);
+		printf("RG #%d (block %llu / 0x%llx) rg_flags changed from 0x%08x to 0x%08x\n",
+		       rgnum, (unsigned long long)rgblk,
+		       (unsigned long long)rgblk, rg.rg_flags, new_flags);
 		rg.rg_flags = new_flags;
 		gfs2_rgrp_out(&rg, bh->b_data);
 		brelse(bh, updated);
@@ -684,8 +690,9 @@ void set_rgrp_flags(int rgnum, uint32_t new_flags, int modify, int full)
 			gfs2_rgrp_print(&rg);
 		}
 		else
-			printf("RG #%d (block %lld / 0x%llx) rg_flags = 0x%08x\n",
-			       rgnum, rgblk, rgblk, rg.rg_flags);
+			printf("RG #%d (block %llu / 0x%llx) rg_flags = 0x%08x\n",
+			       rgnum, (unsigned long long)rgblk,
+			       (unsigned long long)rgblk, rg.rg_flags);
 		brelse(bh, not_updated);
 	}
 	inode_put(riinode, not_updated);
@@ -1078,9 +1085,9 @@ int display_indirect(struct iinfo *ind, int indblocks, int level, uint64_t start
 					more_indir = malloc(sizeof(struct iinfo));
 					tmpbuf = malloc(bufsize);
 					if (tmpbuf) {
-						do_lseek(fd,
+						do_lseek(sbd.device_fd,
 							 ind->ii[pndx].block * bufsize);
-						do_read(fd, tmpbuf,
+						do_read(sbd.device_fd, tmpbuf,
 							bufsize); /* read in the desired block */
 						memset(more_indir, 0, sizeof(struct iinfo));
 						more_ind = do_indirect_extended(tmpbuf,
@@ -1278,7 +1285,7 @@ int display_extended(void)
 /* ------------------------------------------------------------------------ */
 /* read_superblock - read the superblock                                    */
 /* ------------------------------------------------------------------------ */
-void read_superblock(void)
+void read_superblock(int fd)
 {
 	int x;
 
@@ -1323,9 +1330,9 @@ void read_superblock(void)
 /* ------------------------------------------------------------------------ */
 void read_master_dir(void)
 {
-	ioctl(fd, BLKFLSBUF, 0);
-	do_lseek(fd, sbd.sd_sb.sb_master_dir.no_addr * bufsize);
-	do_read(fd, buf, bufsize); /* read in the desired block */
+	ioctl(sbd.device_fd, BLKFLSBUF, 0);
+	do_lseek(sbd.device_fd, sbd.sd_sb.sb_master_dir.no_addr * bufsize);
+	do_read(sbd.device_fd, buf, bufsize); /* read in the desired block */
 	gfs2_dinode_in(&di, buf); /* parse disk inode into structure */
 	do_dinode_extended(&di, buf); /* get extended data, if any */
 	memcpy(&masterdir, &indirect[0], sizeof(struct indirect_info));
@@ -1348,13 +1355,13 @@ int display(int identify_only)
 	}
 	if (block_in_mem != blk) { /* If we changed blocks from the last read */
 		dev_offset = blk * bufsize;
-		ioctl(fd, BLKFLSBUF, 0);
-		do_lseek(fd, dev_offset);
-		do_read(fd, buf, bufsize); /* read in the desired block */
+		ioctl(sbd.device_fd, BLKFLSBUF, 0);
+		do_lseek(sbd.device_fd, dev_offset);
+		do_read(sbd.device_fd, buf, bufsize); /* read desired block */
 		block_in_mem = blk; /* remember which block is in memory */
 	}
 	line = 1;
-	gfs2_struct_type = display_block_type(buf);
+	gfs2_struct_type = display_block_type(buf, FALSE);
 	if (identify_only)
 		return 0;
 	indirect_blocks = 0;
@@ -1615,9 +1622,9 @@ void hex_edit(int *exitch)
 					ch += (estring[i+1] - 'A' + 0x0a);
 				buf[offset + hexoffset] = ch;
 			}
-			do_lseek(fd, dev_offset);
-			do_write(fd, buf, bufsize);
-			fsync(fd);
+			do_lseek(sbd.device_fd, dev_offset);
+			do_write(sbd.device_fd, buf, bufsize);
+			fsync(sbd.device_fd);
 		}
 	}
 }
@@ -2034,10 +2041,23 @@ void dump_journal(const char *journal)
 			break;
 		if (get_block_type(jbuf) == GFS2_METATYPE_LD) {
 			uint64_t *b;
-			int i = 0;
+			struct gfs2_log_descriptor ld;
+			int i = 0, ltndx;
+			const char *logtypestr[4] = {
+				"Metadata", "Revoke", "Jdata", "Unknown"};
 
-			print_gfs2("Block #%4llx: Log descriptor",
+			print_gfs2("Block #%4llx: Log descriptor, ",
 				   jb / (gfs1 ? 1 : bufsize));
+			gfs2_log_descriptor_in(&ld, jbuf);
+			print_gfs2("type %d ", ld.ld_type);
+			if (ld.ld_type >= GFS2_LOG_DESC_METADATA &&
+			    ld.ld_type <= GFS2_LOG_DESC_JDATA)
+				ltndx = ld.ld_type - GFS2_LOG_DESC_METADATA;
+			else
+				ltndx = 3;
+			print_gfs2("(%s) ", logtypestr[ltndx]);
+			print_gfs2("len:%u, data1: %u",
+				   ld.ld_length, ld.ld_data1);
 			eol(0);
 			print_gfs2("             ");
 			if (gfs1)
@@ -2083,7 +2103,9 @@ void usage(void)
 	fprintf(stderr,"\nFormat is: gfs2_edit [-c 1] [-V] [-x] [-h] [identify] [-p structures|blocks] /dev/device\n\n");
 	fprintf(stderr,"If only the device is specified, it enters into hexedit mode.\n");
 	fprintf(stderr,"identify - prints out only the block type, not the details.\n");
-	fprintf(stderr,"savemeta - save off your metadata for analysis and debugging.  The intelligent way (assume bitmap is correct).\n");
+	fprintf(stderr,"printsavedmeta - prints out the saved metadata blocks from a savemeta file.\n");
+	fprintf(stderr,"savemeta <file_system> <file> - save off your metadata for analysis and debugging.\n");
+	fprintf(stderr,"   (The intelligent way: assume bitmap is correct).\n");
 	fprintf(stderr,"savemetaslow - save off your metadata for analysis and debugging.  The SLOW way (block by block).\n");
 	fprintf(stderr,"restoremeta - restore metadata for debugging (DANGEROUS).\n");
 	fprintf(stderr,"rgcount - print how many RGs in the file system.\n");
@@ -2158,18 +2180,21 @@ void process_parameters(int argc, char *argv[], int pass)
 				dmode = GFS2_MODE;
 			}
 			else if (!strcasecmp(argv[i], "savemeta"))
-				savemeta(argv[i+1], argv[i+2], FALSE);
+				termlines = 0;
 			else if (!strcasecmp(argv[i], "savemetaslow"))
-				savemeta(argv[i+1], argv[i+2], TRUE);
+				termlines = 0;
+			else if (!strcasecmp(argv[i], "printsavedmeta"))
+				restoremeta(argv[i+1], argv[i+2],
+					    TRUE);
 			else if (!strcasecmp(argv[i], "restoremeta"))
-				restoremeta(argv[i+1], argv[i+2]);
+				restoremeta(argv[i+1], argv[i+2], FALSE);
 			else if (!strcmp(argv[i], "rgcount"))
 				termlines = 0;
 			else if (!strcmp(argv[i], "rgflags"))
 				termlines = 0;
 			else if (!strcmp(argv[i], "rg"))
 				termlines = 0;
-			else if (strchr(argv[i],'/'))
+			else if (!device[0] && strchr(argv[i],'/'))
 				strcpy(device, argv[i]);
 		}
 		else { /* second pass */
@@ -2262,7 +2287,6 @@ void process_parameters(int argc, char *argv[], int pass)
 				}
 				else if (!strcmp(argv[i], "rg")) {
 					int rg;
-					uint32_t new_flags = 0;
 					
 					i++;
 					if (i >= argc - 1) {
@@ -2276,6 +2300,10 @@ void process_parameters(int argc, char *argv[], int pass)
 					set_rgrp_flags(rg, 0, FALSE, TRUE);
 					exit(EXIT_SUCCESS);
 				}
+				else if (!strcasecmp(argv[i], "savemeta"))
+					savemeta(argv[i+2], FALSE);
+				else if (!strcasecmp(argv[i], "savemetaslow"))
+					savemeta(argv[i+2], TRUE);
 				else if (argv[i][0]=='0' && argv[i][1]=='x') { /* hex addr */
 					sscanf(argv[i], "%"SCNx64, &temp_blk);/* retrieve in hex */
 					push_block(temp_blk);
@@ -2309,7 +2337,7 @@ void process_parameters(int argc, char *argv[], int pass)
 ******************************************************************************/
 int main(int argc, char *argv[])
 {
-	int i, j;
+	int i, j, fd;
 
 	prog_name = argv[0];
 
@@ -2348,7 +2376,8 @@ int main(int argc, char *argv[])
 		die("can't open %s: %s\n", device, strerror(errno));
 	max_block = lseek(fd, 0, SEEK_END) / bufsize;
 
-	read_superblock();
+	read_superblock(fd);
+	strcpy(sbd.device_name, device);
 	if (!gfs1)
 		read_master_dir();
 	block_in_mem = -1;
