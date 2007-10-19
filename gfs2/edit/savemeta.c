@@ -536,11 +536,12 @@ int save_block(int fd, int out_fd, uint64_t blk)
 void save_indirect_blocks(int out_fd, osi_list_t *cur_list,
 			  struct gfs2_buffer_head *mybh, int height, int hgt)
 {
-	uint64_t old_block = 0;
+	uint64_t old_block = 0, starting_block;
 	uint64_t *ptr;
 	int head_size;
 	struct gfs2_buffer_head *nbh;
 
+	starting_block = block; /* remember where we started */
 	head_size = (hgt > 1 ?
 		     sizeof(struct gfs2_meta_header) :
 		     sizeof(struct gfs2_dinode));
@@ -561,6 +562,7 @@ void save_indirect_blocks(int out_fd, osi_list_t *cur_list,
 			brelse(nbh, not_updated);
 		}
 	} /* for all data on the indirect block */
+	block = starting_block; /* go back to where we started */
 }
 
 /*
