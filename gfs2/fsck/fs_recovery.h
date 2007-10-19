@@ -16,7 +16,7 @@
 
 #include "libgfs2.h"
 
-int reconstruct_journals(struct gfs2_sbd *sdp);
+int replay_journals(struct gfs2_sbd *sdp);
 
 #endif /* __FS_RECOVERY_H__ */
 

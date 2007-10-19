@@ -42,8 +42,7 @@
 int init_journals(struct gfs2_sbd *sbp)
 {
 	if(!opts.no) {
-		/* ATTENTION -- Journal replay is not supported */
-		if(reconstruct_journals(sbp))
+		if(replay_journals(sbp))
 			return 1;
 	}
 	return 0;
@@ -192,51 +191,18 @@ static int set_block_ranges(struct gfs2_sbd *sdp)
 }
 
 /**
- * fill_super_block
- * @sdp:
+ * init_system_inodes
  *
  * Returns: 0 on success, -1 on failure
  */
-static int fill_super_block(struct gfs2_sbd *sdp)
+static int init_system_inodes(struct gfs2_sbd *sdp)
 {
-	uint32_t i;
-	char *buf;
 	uint64_t inumbuf;
+	char *buf;
 	struct gfs2_statfs_change sc;
 	int rgcount;
-	uint64_t addl_mem_needed;
 	enum rgindex_trust_level trust_lvl;
-
-	sync();
-
-	/********************************************************************
-	 ***************** First, initialize all lists **********************
-	 ********************************************************************/
-	log_info("Initializing lists...\n");
-	osi_list_init(&sdp->rglist);
-	osi_list_init(&sdp->buf_list);
-	for(i = 0; i < BUF_HASH_SIZE; i++) {
-		osi_list_init(&dir_hash[i]);
-		osi_list_init(&inode_hash[i]);
-		osi_list_init(&sdp->buf_hash[i]);
-	}
-
-	/********************************************************************
-	 ************  next, read in on-disk SB and set constants  **********
-	 ********************************************************************/
-	sdp->sd_sb.sb_bsize = GFS2_DEFAULT_BSIZE;
-	sdp->bsize = sdp->sd_sb.sb_bsize;
-
-	if(sizeof(struct gfs2_sb) > sdp->sd_sb.sb_bsize){
-		log_crit("GFS superblock is larger than the blocksize!\n");
-		log_debug("sizeof(struct gfs2_sb) > sdp->sd_sb.sb_bsize\n");
-		return -1;
-	}
-
-	compute_constants(sdp);
-	if(read_sb(sdp) < 0){
-		return -1;
-	}
+	uint64_t addl_mem_needed;
 
 	/*******************************************************************
 	 ******************  Initialize important inodes  ******************
@@ -298,9 +264,10 @@ static int fill_super_block(struct gfs2_sbd *sdp)
 	}
 	if (trust_lvl > distrust) {
 		log_err("RG recovery impossible; I can't fix this file system.\n");
-		goto fail;
+		return -1;
 	}
 	log_info("%u resource groups found.\n", rgcount);
+
 	/*******************************************************************
 	 *******  Now, set boundary fields in the super block  *************
 	 *******************************************************************/
@@ -318,11 +285,54 @@ static int fill_super_block(struct gfs2_sbd *sdp)
 		goto fail;
 	}
 	return 0;
-
  fail:
 	empty_super_block(sdp);
 
 	return -1;
+}
+
+/**
+ * fill_super_block
+ * @sdp:
+ *
+ * Returns: 0 on success, -1 on failure
+ */
+static int fill_super_block(struct gfs2_sbd *sdp)
+{
+	uint32_t i;
+
+	sync();
+
+	/********************************************************************
+	 ***************** First, initialize all lists **********************
+	 ********************************************************************/
+	log_info("Initializing lists...\n");
+	osi_list_init(&sdp->rglist);
+	osi_list_init(&sdp->buf_list);
+	for(i = 0; i < BUF_HASH_SIZE; i++) {
+		osi_list_init(&dir_hash[i]);
+		osi_list_init(&inode_hash[i]);
+		osi_list_init(&sdp->buf_hash[i]);
+	}
+
+	/********************************************************************
+	 ************  next, read in on-disk SB and set constants  **********
+	 ********************************************************************/
+	sdp->sd_sb.sb_bsize = GFS2_DEFAULT_BSIZE;
+	sdp->bsize = sdp->sd_sb.sb_bsize;
+
+	if(sizeof(struct gfs2_sb) > sdp->sd_sb.sb_bsize){
+		log_crit("GFS superblock is larger than the blocksize!\n");
+		log_debug("sizeof(struct gfs2_sb) > sdp->sd_sb.sb_bsize\n");
+		return -1;
+	}
+
+	compute_constants(sdp);
+	if(read_sb(sdp) < 0){
+		return -1;
+	}
+
+	return 0;
 }
 
 /**
@@ -364,6 +374,9 @@ static int init_sbp(struct gfs2_sbd *sbp)
 		stack;
 		return -1;
 	}
+
+	if (init_system_inodes(sbp))
+		return -1;
 
 	return 0;
 }

@@ -515,6 +515,22 @@ void mount_gfs2_meta(struct gfs2_sbd *sdp);
 void lock_for_admin(struct gfs2_sbd *sdp);
 void cleanup_metafs(struct gfs2_sbd *sdp);
 
+/* recovery.c */
+void gfs2_replay_incr_blk(struct gfs2_inode *ip, unsigned int *blk);
+int gfs2_replay_read_block(struct gfs2_inode *ip, unsigned int blk,
+			   struct gfs2_buffer_head **bh);
+int gfs2_revoke_add(struct gfs2_sbd *sdp, uint64_t blkno, unsigned int where);
+int gfs2_revoke_check(struct gfs2_sbd *sdp, uint64_t blkno,
+		      unsigned int where);
+void gfs2_revoke_clean(struct gfs2_sbd *sdp);
+int get_log_header(struct gfs2_inode *ip, unsigned int blk,
+		   struct gfs2_log_header *head);
+int find_good_lh(struct gfs2_inode *ip, unsigned int *blk,
+		 struct gfs2_log_header *head);
+int jhead_scan(struct gfs2_inode *ip, struct gfs2_log_header *head);
+int gfs2_find_jhead(struct gfs2_inode *ip, struct gfs2_log_header *head);
+int clean_journal(struct gfs2_inode *ip, struct gfs2_log_header *head);
+
 /* rgrp.c */
 int gfs2_compute_bitstructs(struct gfs2_sbd *sdp, struct rgrp_list *rgd);
 struct rgrp_list *gfs2_blk2rgrpd(struct gfs2_sbd *sdp, uint64_t blk);

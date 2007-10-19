@@ -31,6 +31,7 @@ OBJS=	bitmap.o \
 	gfs2_log.o \
 	misc.o \
 	ondisk.o \
+	recovery.o \
 	size.o \
 	structures.o \
 	super.o \
