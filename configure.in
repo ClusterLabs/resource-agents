@@ -2604,6 +2604,13 @@ else
 fi
 AC_SUBST(RPM_ENABLE_MGMT_CONFIG)
 
+if test "x${enable_openhpi}" != "xno"; then
+  RPM_ENABLE_OPENHPI=1
+else
+  RPM_ENABLE_OPENHPI=0
+fi
+AC_SUBST(RPM_ENABLE_OPENHPI)
+
 AM_CONDITIONAL(MGMT_BUILD, test "x${enable_mgmt}" != "xno")
 if test "x${enable_mgmt}" != "xno"; then
      AC_DEFINE_UNQUOTED(MGMT_ENABLED, 1, Define to 1 if the mgmt-daemon and friends are enabled.)
