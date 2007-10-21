@@ -5,7 +5,8 @@
 # Description:  Manages Pure-FTPd as an OCF resource in 
 #		an Active-Passive High Availability setup.
 #
-# Author:	Rajat Upadhyaya <urajat@novell.com>
+# Author:	Rajat Upadhyaya <urajat@novell.com> : Pure-FTPd script
+# Author:	Raoul Bhatia <r.bhatia@ipax.at>     : Minor Cleanup. Added Debian GNU/Linux Support
 # License:      GNU General Public License (GPL) 
 #
 #
@@ -18,13 +19,19 @@
 # OCF parameters:
 #  OCF_RESKEY_script
 #  OCF_RESKEY_conffile
+#  OCF_RESKEY_daemon_type
+#  OCF_RESKEY_pidfile
 #
 ##########################################################################
 # Initialization:
 
 . ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 
-PIDFILE=${HA_RSCTMP}/pure-ftpd-${OCF_RESOURCE_INSTANCE}.pid
+: ${OCF_RESKEY_script="/sbin/pure-config.pl"}
+script_basename=`basename $OCF_RESKEY_script`
+: ${OCF_RESKEY_conffile="/etc/pure-ftpd/pure-ftpd.conf"}
+: ${OCF_RESKEY_daemon_type=""}
+: ${OCF_RESKEY_pidfile="${HA_RSCTMP}/pure-ftpd-${OCF_RESOURCE_INSTANCE}.pid"}
 USAGE="Usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
 
 ##########################################################################
@@ -45,6 +52,7 @@ This script manages Pure-FTPd in an Active-Passive setup
 <shortdesc lang="en">OCF Resource Agent compliant FTP script.</shortdesc>
 
 <parameters>
+
 <parameter name="script" unique="1" required="1">
 <longdesc lang="en">
 The full path to the Pure-FTPd startup script. 
@@ -53,7 +61,8 @@ For example, "/sbin/pure-config.pl"
 <shortdesc lang="en">Script name with full path</shortdesc>
 <content type="string" default="/sbin/pure-config.pl" />
 </parameter>
-<parameter name="conffile" unique="1" required="1">
+
+<parameter name="conffile" unique="1" required="0">
 <longdesc lang="en">
 The Pure-FTPd configuration file name with full path. 
 For example, "/etc/pure-ftpd/pure-ftpd.conf"
@@ -61,6 +70,23 @@ For example, "/etc/pure-ftpd/pure-ftpd.conf"
 <shortdesc lang="en">Configuration file name with full path</shortdesc>
 <content type="string" default="/etc/pure-ftpd/pure-ftpd.conf" />
 </parameter>
+
+<parameter name="daemon_type" unique="1" required="0">
+<longdesc lang="en">
+The Pure-FTPd daemon to be called by pure-ftpd-wrapper.
+Valid options are "" for pure-ftpd, "mysql" for pure-ftpd-mysql, 
+"postgresql" for pure-ftpd-postgresql and "ldap" for pure-ftpd-ldap
+</longdesc>
+<shortdesc lang="en">Configuration file name with full path</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="pidfile" unique="0">
+<longdesc lang="en">PID file</longdesc>
+<shortdesc lang="en">PID file</shortdesc>
+<content type="string" default="${HA_RSCTMP}/pure-ftpd-${OCF_RESOURCE_INSTANCE}.pid" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -82,10 +108,10 @@ isRunning()
 
 PureFTPd_status()
 {
-	if [ -f $PIDFILE ]
+	if [ -f $OCF_RESKEY_pidfile ]
 	then
 	# Pure-FTPd is probably running
-		PID=`head -n 1 $PIDFILE`
+		PID=`head -n 1 $OCF_RESKEY_pidfile`
 		if [ ! -z $PID ] ; then
 			isRunning "$PID" && [ `ps -p $PID | grep pure-ftpd | wc -l` -eq 1 ]
 			return $?
@@ -112,12 +138,24 @@ PureFTPd_start()
 		exit $OCF_SUCCESS
 	fi
 
-	if [ -n "$OCF_RESKEY_script" -a -n "$OCF_RESKEY_conffile" ]
-	then
-		$OCF_RESKEY_script $OCF_RESKEY_conffile -g $PIDFILE
-	else
-		ocf_log err "One or more empty arguments"
+	# check that the Pure-FTPd script exists and can be executed
+	if [ ! -x "$OCF_RESKEY_script" ]; then
+		ocf_log err "Pure-FTPd script '$OCF_RESKEY_script' does not exist or cannot be executed"
 		exit $OCF_ERR_GENERIC
+	fi
+
+	# test for pure-ftpd-wrapper (e.g. Debian GNU/Linux Systems)
+	if [ "$script_basename" = "pure-ftpd-wrapper" ]; then
+		# pure-ftpd-wrapper expects STANDALONE_OR_INETD to be set to standalone
+		STANDALONE_OR_INETD=standalone $OCF_RESKEY_script $OCF_RESKEY_daemon_type
+	else
+		# check that the Pure-FTPd config file exist
+		if [ ! -f "$OCF_RESKEY_conffile" ]; then
+			ocf_log err "Pure_FTPd config file '$OCF_RESKEY_conffile' does not exist"
+			exit $OCF_ERR_GENERIC
+		fi
+
+		$OCF_RESKEY_script $OCF_RESKEY_conffile -g $OCF_RESKEY_pidfile
 	fi
   
 	if [ $? -ne 0 ]; then
@@ -132,7 +170,7 @@ PureFTPd_start()
 PureFTPd_stop()
 {
 	if PureFTPd_status ; then
-		PID=`head -n 1 $PIDFILE`
+		PID=`head -n 1 $OCF_RESKEY_pidfile`
 		if [ ! -z $PID ] ; then
 			kill $PID
 		fi
