@@ -10,5 +10,5 @@
 *******************************************************************************
 ******************************************************************************/
 
-int read_ccs_nodes(unsigned int *config_version, int check_nodeid);
+int read_ccs_nodes(unsigned int *config_version, int check_nodeids);
 int read_ccs_config(void);
