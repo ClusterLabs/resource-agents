@@ -637,6 +637,8 @@ static int get_ccs_join_info(void)
 	/* optional security key filename */
 	if (getenv("CMAN_KEYFILE")) {
 		key_filename = strdup(getenv("CMAN_KEYFILE"));
+		if (key_filename == NULL)
+			return -ENOMEM;
 	}
 	else {
 		error = ccs_get(cd, KEY_PATH, &str);
@@ -662,13 +664,13 @@ static int get_ccs_join_info(void)
 		error = ccs_get(cd, path, &str);
 		if (!error) {
 			int votestmp = atoi(str);
+			free(str);
 			if (votestmp < 0 || votestmp > 255) {
 				log_printf(LOG_ERR, "invalid votes value %d", votestmp);
 				write_cman_pipe("Found invalid votes for node in CCS");
 				return -EINVAL;
 			}
 			votes = votestmp;
-			free(str);
 		}
 		else {
 			votes = 1;
