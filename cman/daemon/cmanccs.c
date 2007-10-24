@@ -45,7 +45,6 @@
 #define PORT_PATH		"/cluster/cman/@port"
 #define KEY_PATH		"/cluster/cman/@keyfile"
 
-#define NODEI_NAME_PATH		"/cluster/clusternodes/clusternode[%d]/@name"
 #define NODE_NAME_PATH_BYNAME	"/cluster/clusternodes/clusternode[@name=\"%s\"]/@name"
 #define NODE_NAME_PATH_BYNUM	"/cluster/clusternodes/clusternode[%d]/@name"
 #define NODE_VOTES_PATH		"/cluster/clusternodes/clusternode[@name=\"%s\"]/@votes"
@@ -500,7 +499,7 @@ static int get_ccs_join_info(void)
 		for (i = 1; ; i++) {
 			name = NULL;
 			memset(path, 0, MAX_PATH_LEN);
-			sprintf(path, NODEI_NAME_PATH, i);
+			sprintf(path, NODE_NAME_PATH_BYNUM, i);
 
 			error = ccs_get(cd, path, &name);
 			if (error || !name)
