@@ -130,24 +130,26 @@ int read_ccs_nodes(unsigned int *config_version, int check_nodeids)
 	two_node = 0;
 
     for (i=1;;i++) {
-	char nodekey[256];
-	char key[256];
+	char path[MAX_PATH_LEN];
 	int  votes=0, nodeid=0;
 
-	sprintf(nodekey, NODE_NAME_PATH_BYNUM, i);
-	error = ccs_get(ctree, nodekey, &nodename);
+	memset(path, 0, MAX_PATH_LEN);
+	sprintf(path, NODE_NAME_PATH_BYNUM, i);
+	error = ccs_get(ctree, path, &nodename);
 	if (error)
 	    break;
 
-	sprintf(key, NODE_VOTES_PATH, nodename);
-	if (!ccs_get(ctree, key, &str)) {
+	memset(path, 0, MAX_PATH_LEN);
+	sprintf(path, NODE_VOTES_PATH, nodename);
+	if (!ccs_get(ctree, path, &str)) {
 	    votes = atoi(str);
 	    free(str);
 	} else
 	    votes = 1;
 
-	sprintf(key, NODE_NODEID_PATH, nodename);
-	if (!ccs_get(ctree, key, &str))	{
+	memset(path, 0, MAX_PATH_LEN);
+	sprintf(path, NODE_NODEID_PATH, nodename);
+	if (!ccs_get(ctree, path, &str)) {
 	    nodeid = atoi(str);
 	    free(str);
 
