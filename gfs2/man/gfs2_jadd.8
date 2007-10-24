@@ -30,9 +30,6 @@ only the last step of updating the journal index affects the currently
 mounted filesystem and so failure part way through the expansion
 process should leave your filesystem in its original state.
 
-You can run \fIgfs2_jadd\fR with the \fI-T\fR flag to get a display
-of the current state of a mounted GFS2 filesystem.
-
 .SH OPTIONS
 .TP
 \fB-c MegaBytes\fP
@@ -55,11 +52,6 @@ The number of new journals to add.
 .TP
 \fB-q\fP
 Be quiet.  Don't print anything.
-.TP
-\fB-T\fP
-Test. Do all calculations, but do not write any data to the disk and do
-not add journals. This is used to discover what the tool would
-have done were it run without this flag.
 .TP
 \fB-u MegaBytes\fP
 Initial size of each journal's unlinked tag file
