@@ -577,7 +577,7 @@ static int get_ccs_join_info(void)
 		if (!error) {
 			int votestmp = atoi(str);
 			if (votestmp < 0 || votestmp > 255) {
-				log_printf(LOG_ERR, "invalid votes value %d", votes);
+				log_printf(LOG_ERR, "invalid votes value %d", votestmp);
 				write_cman_pipe("Found invalid votes for node in CCS");
 				return -EINVAL;
 			}
