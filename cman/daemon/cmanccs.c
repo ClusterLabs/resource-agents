@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2005-2006 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2005-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -125,49 +125,60 @@ int read_ccs_nodes(unsigned int *config_version, int check_nodeids)
     if (!ccs_get(ctree, TWO_NODE_PATH, &str)) {
 	    two_node = atoi(str);
 	    free(str);
-    }
-    else
-	two_node = 0;
+    } else
+		two_node = 0;
 
     for (i=1;;i++) {
-	char path[MAX_PATH_LEN];
-	int  votes=0, nodeid=0;
+		char path[MAX_PATH_LEN];
+		int votes=0, nodeid=0;
+		int ret;
 
-	memset(path, 0, MAX_PATH_LEN);
-	sprintf(path, NODE_NAME_PATH_BYNUM, i);
-	error = ccs_get(ctree, path, &nodename);
-	if (error)
-	    break;
+		ret = snprintf(path, sizeof(path), NODE_NAME_PATH_BYNUM, i);
+		if (ret < 0 || (size_t) ret >= sizeof(path))
+			return -E2BIG;
 
-	memset(path, 0, MAX_PATH_LEN);
-	sprintf(path, NODE_VOTES_PATH, nodename);
-	if (!ccs_get(ctree, path, &str)) {
-	    votes = atoi(str);
-	    free(str);
-	} else
-	    votes = 1;
+		error = ccs_get(ctree, path, &nodename);
+		if (error)
+			break;
 
-	memset(path, 0, MAX_PATH_LEN);
-	sprintf(path, NODE_NODEID_PATH, nodename);
-	if (!ccs_get(ctree, path, &str)) {
-	    nodeid = atoi(str);
-	    free(str);
+		ret = snprintf(path, sizeof(path), NODE_VOTES_PATH, nodename);
+		if (ret < 0 || ret >= sizeof(path)) {
+			error = -E2BIG;
+			goto out_err;
+		}
 
-	}
+		if (!ccs_get(ctree, path, &str)) {
+			votes = atoi(str);
+			free(str);
+		} else
+			votes = 1;
 
-	if (check_nodeids && nodeid == 0) {
-		char message[132];
+		ret = snprintf(path, sizeof(path), NODE_NODEID_PATH, nodename);
+		if (ret < 0 || (size_t) ret >= sizeof(path)) {
+			error = -E2BIG;
+			goto out_err;
+		}
 
-		sprintf(message, "No node ID for %s, run 'ccs_tool addnodeids' to fix", nodename);
-		log_printf(LOG_ERR, message);
-		write_cman_pipe(message);
-		return -1;
-	}
+		if (!ccs_get(ctree, path, &str)) {
+			nodeid = atoi(str);
+			free(str);
+		}
 
-	P_MEMB("Got node %s from ccs (id=%d, votes=%d)\n", nodename, nodeid, votes);
-	add_ccs_node(nodename, nodeid, votes, expected);
+		if (check_nodeids && nodeid == 0) {
+			char message[132];
 
-	free(nodename);
+			snprintf(message, sizeof(message),
+				"No node ID for %s, run 'ccs_tool addnodeids' to fix",
+				nodename);
+			log_printf(LOG_ERR, message);
+			write_cman_pipe(message);
+			error = -EINVAL;
+			goto out_err;
+		}
+
+		P_MEMB("Got node %s from ccs (id=%d, votes=%d)\n", nodename, nodeid, votes);
+		add_ccs_node(nodename, nodeid, votes, expected);
+		free(nodename);
     }
 
     if (expected)
@@ -177,6 +188,11 @@ int read_ccs_nodes(unsigned int *config_version, int check_nodeids)
     ccs_disconnect(ctree);
 
     return 0;
+
+out_err:
+	free(nodename);
+	ccs_disconnect(ctree);
+	return error;
 }
 
 static char *default_mcast(uint16_t cluster_id)
@@ -260,11 +276,14 @@ static int verify_nodename(int cd, char *nodename)
 	struct ifaddrs *ifa, *ifa_list;
 	struct sockaddr *sa;
 	int error, i;
+	int ret;
 
 	/* nodename is either from commandline or from uname */
 	str = NULL;
-	memset(path, 0, MAX_PATH_LEN);
-	sprintf(path, NODE_NAME_PATH_BYNAME, nodename);
+
+	ret = snprintf(path, sizeof(path), NODE_NAME_PATH_BYNAME, nodename);
+	if (ret < 0 || (size_t) ret >= sizeof(path))
+		return -E2BIG;
 
 	error = ccs_get(cd, path, &str);
 	if (!error) {
@@ -274,13 +293,14 @@ static int verify_nodename(int cd, char *nodename)
 
 	/* If nodename was from uname, try a domain-less version of it */
 	strcpy(nodename2, nodename);
-	dot = strstr(nodename2, ".");
+	dot = strchr(nodename2, '.');
 	if (dot) {
 		*dot = '\0';
 
 		str = NULL;
-		memset(path, 0, MAX_PATH_LEN);
-		sprintf(path, NODE_NAME_PATH_BYNAME, nodename2);
+		ret = snprintf(path, sizeof(path), NODE_NAME_PATH_BYNAME, nodename2);
+		if (ret < 0 || (size_t) ret >= sizeof(path))
+			return -E2BIG;
 
 		error = ccs_get(cd, path, &str);
 		if (!error) {
@@ -290,21 +310,25 @@ static int verify_nodename(int cd, char *nodename)
 		}
 	}
 
-
 	/* If nodename (from uname) is domain-less, try to match against
 	   cluster.conf names which may have domainname specified */
 	for (i = 1; ; i++) {
 		int len;
+
 		str = NULL;
-		memset(path, 0, 256);
-		sprintf(path, "/cluster/clusternodes/clusternode[%d]/@name", i);
+		ret = snprintf(path, sizeof(path),
+				"/cluster/clusternodes/clusternode[%d]/@name", i);
+		if (ret < 0 || (size_t) ret >= sizeof(path)) {
+			error = -E2BIG;
+			break;
+		}
 
 		error = ccs_get(cd, path, &str);
 		if (error || !str)
 			break;
 
 		strcpy(nodename3, str);
-		dot = strstr(nodename3, ".");
+		dot = strchr(nodename3, '.');
 		if (dot)
 			len = dot-nodename3;
 		else
@@ -328,7 +352,6 @@ static int verify_nodename(int cd, char *nodename)
 		return -1;
 
 	for (ifa = ifa_list; ifa; ifa = ifa->ifa_next) {
-
 		/* Restore this */
 		strcpy(nodename2, nodename);
 		sa = ifa->ifa_addr;
@@ -341,8 +364,11 @@ static int verify_nodename(int cd, char *nodename)
 			goto out;
 
 		str = NULL;
-		memset(path, 0, 256);
-		sprintf(path, NODE_NAME_PATH_BYNAME, nodename2);
+		ret = snprintf(path, sizeof(path), NODE_NAME_PATH_BYNAME, nodename2);
+		if (ret < 0 || (size_t) ret >= sizeof(path)) {
+			error = -E2BIG;
+			goto out;
+		}
 
 		error = ccs_get(cd, path, &str);
 		if (!error) {
@@ -353,14 +379,17 @@ static int verify_nodename(int cd, char *nodename)
 
 		/* truncate this name and try again */
 
-		dot = strstr(nodename2, ".");
+		dot = strchr(nodename2, '.');
 		if (!dot)
 			continue;
 		*dot = '\0';
 
 		str = NULL;
-		memset(path, 0, 256);
-		sprintf(path, NODE_NAME_PATH_BYNAME, nodename2);
+		ret = snprintf(path, sizeof(path), NODE_NAME_PATH_BYNAME, nodename2);
+		if (ret < 0 || (size_t) ret >= sizeof(path)) {
+			error = -E2BIG;
+			goto out;
+		}
 
 		error = ccs_get(cd, path, &str);
 		if (!error) {
@@ -376,8 +405,11 @@ static int verify_nodename(int cd, char *nodename)
 			goto out;
 
 		str = NULL;
-		memset(path, 0, 256);
-		sprintf(path, NODE_NAME_PATH_BYNAME, nodename2);
+		ret = snprintf(path, sizeof(path), NODE_NAME_PATH_BYNAME, nodename2);
+		if (ret < 0 || (size_t) ret >= sizeof(path)) {
+			error = -E2BIG;
+			goto out;
+		}
 
 		error = ccs_get(cd, path, &str);
 		if (!error) {
@@ -398,7 +430,7 @@ static int get_ccs_join_info(void)
 {
 	char path[MAX_PATH_LEN];
 	char nodename[MAX_CLUSTER_MEMBER_NAME_LEN+1];
-	char *str, *name, *cname = NULL;
+	char *str, *name, *cname = NULL, *nodename_env;
 	int cd, error, i, vote_sum = 0, node_count = 0;
 	unsigned short port = 0;
 
@@ -420,15 +452,24 @@ static int get_ccs_join_info(void)
 	if (error) {
 		log_printf(LOG_ERR, "cannot find cluster name in config file");
 		write_cman_pipe("Can't find cluster name in CCS");
-		return -ENOENT;
+		error = -ENOENT;
+		goto out;
 	}
 
 	if (cname) {
 		if (strcmp(cname, str)) {
 			log_printf(LOG_ERR, "cluster names not equal %s %s", cname, str);
 			write_cman_pipe("Cluster name in CCS does not match that passed to cman_tool");
-			return -ENOENT;
+			error = -ENOENT;
+			goto out;
 		}
+	}
+
+	if (strlen(str) >= sizeof(cluster_name)) {
+		free(str);
+		write_cman_pipe("Cluster name in CCS is too long");
+		error = -E2BIG;
+		goto out;
 	}
 
 	strcpy(cluster_name, str);
@@ -444,32 +485,55 @@ static int get_ccs_join_info(void)
 	}
 
 	/* our nodename */
-	memset(nodename, 0, sizeof(nodename));
+	nodename_env = getenv("CMAN_NODENAME");
+	if (nodename_env != NULL) {
+		int ret;
 
-	if (getenv("CMAN_NODENAME")) {
-		strcpy(nodename, getenv("CMAN_NODENAME"));
+		if (strlen(nodename_env) >= sizeof(nodename)) {
+			log_printf(LOG_ERR, "Overridden node name %s is too long", nodename);
+			write_cman_pipe("Overridden node name is too long");
+			error = -E2BIG;
+			goto out;
+		}
+
+		strcpy(nodename, nodename_env);
 		log_printf(LOG_INFO, "Using override node name %s\n", nodename);
 
-		sprintf(path, NODE_NAME_PATH_BYNAME, nodename);
+		ret = snprintf(path, sizeof(path), NODE_NAME_PATH_BYNAME, nodename);
+		if (ret < 0 || (size_t) ret >= sizeof(path)) {
+			log_printf(LOG_ERR, "Overridden node name %s is too long", nodename);
+			write_cman_pipe("Overridden node name is too long");
+			error = -E2BIG;
+			goto out;
+		}
 
 		error = ccs_get(cd, path, &str);
 		if (!error) {
 			free(str);
-		}
-		else {
+		} else {
 			log_printf(LOG_ERR, "Overridden node name %s is not in CCS", nodename);
 			write_cman_pipe("Overridden node name is not in CCS");
-			return -ENOENT;
+			error = -ENOENT;
+			goto out;
 		}
-	}
-	else {
+	} else {
 		struct utsname utsname;
+
 		error = uname(&utsname);
 		if (error) {
 			log_printf(LOG_ERR, "cannot get node name, uname failed");
 			write_cman_pipe("Can't determine local node name");
-			return -ENOENT;
+			error = -ENOENT;
+			goto out;
 		}
+
+		if (strlen(utsname.nodename) >= sizeof(nodename)) {
+			log_printf(LOG_ERR, "node name from uname is too long");
+			write_cman_pipe("Can't determine local node name");
+			error = -E2BIG;
+			goto out;
+		}
+
 		strcpy(nodename, utsname.nodename);
 	}
 
@@ -480,9 +544,15 @@ static int get_ccs_join_info(void)
 		log_printf(LOG_ERR, "local node name \"%s\" not found in cluster.conf",
 			nodename);
 		write_cman_pipe("Can't find local node name in cluster.conf");
-		return -ENOENT;
+		error = -ENOENT;
+		goto out;
 	}
+
 	nodenames[0] = strdup(nodename);
+	if (nodenames[0] == NULL) {
+		error = -ENOMEM;
+		goto out;
+	}
 
 	expected_votes = 0;
 	if (getenv("CMAN_EXPECTEDVOTES")) {
@@ -499,9 +569,14 @@ static int get_ccs_join_info(void)
 	/* Sum node votes for expected */
 	if (expected_votes == 0) {
 		for (i = 1; ; i++) {
+			int ret;
+
 			name = NULL;
-			memset(path, 0, MAX_PATH_LEN);
-			sprintf(path, NODE_NAME_PATH_BYNUM, i);
+			ret = snprintf(path, sizeof(path), NODE_NAME_PATH_BYNUM, i);
+			if (ret < 0 || (size_t) ret >= sizeof(path)) {
+				error = -E2BIG;
+				break;
+			}
 
 			error = ccs_get(cd, path, &name);
 			if (error || !name)
@@ -509,9 +584,13 @@ static int get_ccs_join_info(void)
 
 			node_count++;
 
-			memset(path, 0, MAX_PATH_LEN);
-			sprintf(path, NODE_VOTES_PATH, name);
+			ret = snprintf(path, sizeof(path), NODE_VOTES_PATH, name);
 			free(name);
+
+			if (ret < 0 || (size_t) ret >= sizeof(path)) {
+				error = -E2BIG;
+				break;
+			}
 
 			error = ccs_get(cd, path, &str);
 			if (error)
@@ -520,7 +599,8 @@ static int get_ccs_join_info(void)
 				if (atoi(str) < 0) {
 					log_printf(LOG_ERR, "negative votes not allowed");
 					write_cman_pipe("Found negative votes for this node in CCS");
-					return -EINVAL;
+					error = -EINVAL;
+					goto out;
 				}
 				vote_sum += atoi(str);
 				free(str);
@@ -572,8 +652,12 @@ static int get_ccs_join_info(void)
 	}
 
 	if (!votes) {
-		memset(path, 0, MAX_PATH_LEN);
-		sprintf(path, NODE_VOTES_PATH, nodename);
+		int ret = snprintf(path, sizeof(path), NODE_VOTES_PATH, nodename);
+		if (ret < 0 || (size_t) ret >= sizeof(path)) {
+			log_printf(LOG_ERR, "unable to find votes for %s", nodename);
+			write_cman_pipe("Unable to find votes for node in CCS");
+			return -E2BIG;
+		}
 
 		error = ccs_get(cd, path, &str);
 		if (!error) {
@@ -599,13 +683,14 @@ static int get_ccs_join_info(void)
 	}
 
 	if (!nodeid) {
-		memset(path, 0, MAX_PATH_LEN);
-		sprintf(path, NODE_NODEID_PATH, nodename);
+		int ret = snprintf(path, sizeof(path), NODE_NODEID_PATH, nodename);
 
-		error = ccs_get(cd, path, &str);
-		if (!error) {
-			nodeid = atoi(str);
-			free(str);
+		if (ret >= 0 && (size_t) ret < sizeof(path)) {
+			error = ccs_get(cd, path, &str);
+			if (!error) {
+				nodeid = atoi(str);
+				free(str);
+			}
 		}
 	}
 
@@ -638,35 +723,44 @@ static int get_ccs_join_info(void)
 	/* Get all alternative node names */
 	num_nodenames = 1;
 
-	memset(path, 0, MAX_PATH_LEN);
-
-
 	for (i = 1; ; i++) {
-		str = NULL;
-		sprintf(path, NODE_ALTNAMES_PATH, nodename, i);
+		int ret = snprintf(path, sizeof(path), NODE_ALTNAMES_PATH, nodename, i);
+		if (ret < 0 || (size_t) ret >= sizeof(path)) {
+			error = -E2BIG;
+			break;
+		}
 
+		str = NULL;
 		error = ccs_get(cd, path, &str);
 		if (error || !str)
 			break;
 
 		nodenames[i] = str;
 
-		sprintf(path, NODE_ALTNAMES_PORT, nodename, i);
+		ret = snprintf(path, sizeof(path), NODE_ALTNAMES_PORT, nodename, i);
+		if (ret < 0 || (size_t) ret >= sizeof(path)) {
+			error = -E2BIG;
+			break;
+		}
+
 		error = ccs_get(cd, path, &str);
 		if (error || !str) {
 			portnums[i] = portnums[0];
-		}
-		else {
+		} else {
 			portnums[i] = atoi(str);
 			free(str);
 		}
 
-		sprintf(path, NODE_ALTNAMES_MCAST, nodename, i);
+		ret = snprintf(path, sizeof(path), NODE_ALTNAMES_MCAST, nodename, i);
+		if (ret < 0 || (size_t) ret >= sizeof(path)) {
+			error = -E2BIG;
+			break;
+		}
+
 		error = ccs_get(cd, path, &str);
 		if (error || !str) {
 			mcast[i] = mcast_name;
-		}
-		else {
+		} else {
 			mcast[i] = str;
 		}
 
@@ -686,7 +780,8 @@ static int get_ccs_join_info(void)
 					"votes of 1 (node_count=%d vote_sum=%d)",
 					node_count, vote_sum);
 				write_cman_pipe("two_node set but there are more than 2 nodes");
-				return -EINVAL;
+				error = -EINVAL;
+				goto out;
 			}
 
 			if (votes != 1) {
@@ -694,13 +789,17 @@ static int get_ccs_join_info(void)
 					"nodes with one vote each and expected "
 					"votes of 1 (votes=%d)", votes);
 				write_cman_pipe("two_node set but votes not set to 1");
-				return -EINVAL;
+				error = -EINVAL;
+				goto out;
 			}
 		}
 	}
 
+	error = 0;
+
+out:
 	ccs_disconnect(cd);
-	return 0;
+	return error;
 }
 
 
