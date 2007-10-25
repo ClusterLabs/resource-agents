@@ -28,6 +28,7 @@
 #include "osi_list.h"
 
 #include "gfs2_tool.h"
+#include "libgfs2.h"
 
 #define SIZE (65536)
 
@@ -132,24 +133,19 @@ void
 print_counters(int argc, char **argv)
 {
 	unsigned int i = interval;
-	char *path, *fs;
-	int fd;
+	char *fs;
+	struct gfs2_sbd sbd;
 
 	interval = 1;
 
 	if (optind < argc)
-		path = argv[optind++];
+		sbd.path_name = argv[optind++];
 	else
 		die("Usage: gfs2_tool counters <mountpoint>\n");
 
-	fd = open(path, O_RDONLY);
-	if (fd < 0)
-		die("can't open file %s: %s\n", path, strerror(errno));
+	check_for_gfs2(&sbd);
 
-	check_for_gfs2(fd, path);
-	close(fd);
-
-	fs = mp2fsname(path);
+	fs = mp2fsname(sbd.path_name);
 
 	for (;;) {
 		print_line(fs, "glock_count", "locks", 0);
@@ -204,6 +200,4 @@ print_counters(int argc, char **argv)
 			first = FALSE;
 		}
 	}
-
-	close(fd);
 }

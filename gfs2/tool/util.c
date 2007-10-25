@@ -168,34 +168,6 @@ get_list(void)
 }
 
 /**
- * check_for_gfs2 - Check to see if a descriptor is a file on a GFS2 filesystem
- * @fd: the file descriptor
- * @path: the path used to open the descriptor
- *
- */
-
-/* 
- * FIXME check_for_gfs2() uses an ioctl that's not supported by gfs2.
- * This function is used as a sanity check before performing certain
- * operations.
- */
-#if 0
-void
-check_for_gfs2(int fd, char *path)
-{
-	unsigned int magic = 0;
-	int error = 0;
-	error = ioctl(fd, GFS2_IOCTL_IDENTIFY, &magic);
-	if (error || magic != GFS2_MAGIC)
-		die("%s is not a GFS2 file/filesystem\n",
-		    path);
-}
-#else
-void check_for_gfs2(int fd, char *path) {}
-#endif /* #if 0 */
-
-
-/**
  * str2lines - parse a string into lines
  * @list: the list
  *
@@ -280,7 +252,11 @@ mp2devname(char *mp)
 	char line[PATH_MAX];
 	static char device[PATH_MAX];
 	char *name = NULL;
+	char *realname;
 
+	realname = realpath(mp, NULL);
+	if (!realname)
+		die("Unable to allocate memory for name resolution.\n");
 	file = fopen("/proc/mounts", "r");
 	if (!file)
 		die("can't open /proc/mounts: %s\n", strerror(errno));
@@ -290,7 +266,7 @@ mp2devname(char *mp)
 
 		if (sscanf(line, "%s %s %s", device, path, type) != 3)
 			continue;
-		if (strcmp(path, mp))
+		if (strcmp(path, realname))
 			continue;
 		if (strcmp(type, "gfs2"))
 			die("%s is not a GFS2 filesystem\n", mp);
@@ -300,6 +276,7 @@ mp2devname(char *mp)
 		break;
 	}
 
+	free(realname);
 	fclose(file);
 
 	return name;

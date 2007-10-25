@@ -29,6 +29,7 @@
 #define __user
 
 #include "gfs2_tool.h"
+#include "libgfs2.h"
 
 #define SIZE (65536)
 
@@ -42,24 +43,19 @@
 void
 get_tune(int argc, char **argv)
 {
-	int fd;
 	char path[PATH_MAX];
 	char *fs;
 	DIR *d;
 	struct dirent *de;
 	double ratio;
 	unsigned int num, den;
+	struct gfs2_sbd sbd;
 
 	if (optind == argc)
 		die("Usage: gfs2_tool gettune <mountpoint>\n");
 
-	fd = open(argv[optind], O_RDONLY);
-	if (fd < 0)
-		die("can't open file %s: %s\n",
-		    argv[optind], strerror(errno));
-
-	check_for_gfs2(fd, argv[optind]);
-	close(fd);
+	sbd.path_name = argv[optind];
+	check_for_gfs2(&sbd);
 	fs = mp2fsname(argv[optind]);
 	memset(path, 0, PATH_MAX);
 	snprintf(path, PATH_MAX - 1, "%s/%s/tune", SYS_BASE, fs);
@@ -94,15 +90,15 @@ get_tune(int argc, char **argv)
 void
 set_tune(int argc, char **argv)
 {
-	char *mp, *param, *value;
-	int fd;
+	char *param, *value;
 	char tune_base[SIZE] = "tune/";
 	char buf[256];
 	char *fs;
+	struct gfs2_sbd sbd;
 
 	if (optind == argc)
 		die("Usage: gfs2_tool settune <mountpoint> <parameter> <value>\n");
-	mp = argv[optind++];
+	sbd.path_name = argv[optind++];
 	if (optind == argc)
 		die("Usage: gfs2_tool settune <mountpoint> <parameter> <value>\n");
 	param = argv[optind++];
@@ -110,14 +106,8 @@ set_tune(int argc, char **argv)
 		die("Usage: gfs2_tool settune <mountpoint> <parameter> <value>\n");
 	value = argv[optind++];
 
-	fd = open(mp, O_RDONLY);
-	if (fd < 0)
-		die("can't open file %s: %s\n",
-		    mp, strerror(errno));
-
-	check_for_gfs2(fd, mp);
-	close(fd);
-	fs = mp2fsname(mp);
+	check_for_gfs2(&sbd);
+	fs = mp2fsname(sbd.path_name);
 
 	if (strcmp(param, "quota_scale") == 0) {
 		float s;

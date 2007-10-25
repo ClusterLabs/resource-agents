@@ -30,6 +30,7 @@
 #include <linux/gfs2_ondisk.h>
 #include <linux/fs.h>
 
+#include "libgfs2.h"
 #include "gfs2_tool.h"
 
 #if GFS2_TOOL_FEATURE_IMPLEMENTED
@@ -47,6 +48,7 @@ do_file_flush(int argc, char **argv)
 	struct gfs2_ioctl gi;
 	int fd;
 	int error;
+	struct gfs2_sbd sbd;
 
 	if (optind == argc)
 		die("Usage: gfs2_tool flush <filenames>\n");
@@ -59,7 +61,8 @@ do_file_flush(int argc, char **argv)
 		if (fd < 0)
 			die("can't open %s: %s\n", argv[optind], strerror(errno));
 
-		check_for_gfs2(fd, argv[optind]);
+		sbd.path_name = argv[optind];
+		check_for_gfs2(&sbd);
 
 		error = ioctl(fd, GFS2_IOCTL_SUPER, &gi);
 		if (error)
@@ -107,7 +110,7 @@ do_freeze(int argc, char **argv)
 void
 print_lockdump(int argc, char **argv)
 {
-	die("lockdump not implemented\n");
+	die("lockdump not implemented: use debugfs instead.  \ne.g. cat /sys/kernel/debug/gfs2/clustname\:fsname/glocks\n");
 }
 
 /**
@@ -237,32 +240,33 @@ set_flag(int argc, char **argv)
 void
 print_stat(int argc, char **argv)
 {
-	int fd;
 	char *gi_argv[] = { "get_file_stat" };
 	struct gfs2_ioctl gi;
 	struct gfs2_dinode di;
 	int error;
+	struct gfs2_sbd sbd;
 
 	if (optind == argc)
 		die("Usage: gfs2_tool stat <filename>\n");
 
-	fd = open(argv[optind], O_RDONLY);
-	if (fd < 0)
+	sbd.device_fd = open(argv[optind], O_RDONLY);
+	if (sbd.device_fd < 0)
 		die("can't open %s: %s\n", argv[optind], strerror(errno));
 
-	check_for_gfs2(fd, argv[optind]);
+	sbd.path_name = argv[optind];
+	check_for_gfs2(&sbd);
 
 	gi.gi_argc = 1;
 	gi.gi_argv = gi_argv;
 	gi.gi_data = (char *)&di;
 	gi.gi_size = sizeof(struct gfs2_dinode);
 
-	error = ioctl(fd, GFS2_IOCTL_SUPER, &gi);
+	error = ioctl(sbd.device_fd, GFS2_IOCTL_SUPER, &gi);
 	if (error != gi.gi_size)
 		die("error doing get_file_stat (%d): %s\n",
 		    error, strerror(errno));
 
-	close(fd);
+	close(sbd.device_fd);
 
 	gfs2_dinode_print(&di);
 	printf("\n");
@@ -279,32 +283,33 @@ print_stat(int argc, char **argv)
 void
 print_sb(int argc, char **argv)
 {
-	int fd;
 	char *gi_argv[] = { "get_super" };
 	struct gfs2_ioctl gi;
 	struct gfs2_sb sb;
 	int error;
+	struct gfs2_sbd sbd;
 
 	if (optind == argc)
 		die("Usage: gfs2_tool getsb <mountpoint>\n");
 
-	fd = open(argv[optind], O_RDONLY);
-	if (fd < 0)
+	sbd.device_fd = open(argv[optind], O_RDONLY);
+	if (sbd.device_fd < 0)
 		die("can't open %s: %s\n", argv[optind], strerror(errno));
 	
-	check_for_gfs2(fd, argv[optind]);
+	sbd.path_name = argv[optind];
+	check_for_gfs2(&sbd);
 
 	gi.gi_argc = 1;
 	gi.gi_argv = gi_argv;
 	gi.gi_data = (char *)&sb;
 	gi.gi_size = sizeof(struct gfs2_sb);
 
-	error = ioctl(fd, GFS2_IOCTL_SUPER, &gi);
+	error = ioctl(sbd.device_fd, GFS2_IOCTL_SUPER, &gi);
 	if (error != gi.gi_size)
 		die("error doing get_super (%d): %s\n",
 		    error, strerror(errno));
 
-	close(fd);
+	close(sbd.device_fd);
 
 	gfs2_sb_print(&sb);
 }
@@ -321,22 +326,17 @@ print_sb(int argc, char **argv)
 void
 print_args(int argc, char **argv)
 {
-	int fd;
 	char *fs;
 	DIR *d;
 	struct dirent *de;
 	char path[PATH_MAX];
+	struct gfs2_sbd sbd;
 
 	if (optind == argc)
 		die("Usage: gfs2_tool getargs <mountpoint>\n");
 
-	fd = open(argv[optind], O_RDONLY);
-	if (fd < 0)
-		die("can't open %s: %s\n", argv[optind], strerror(errno));
-	
-	check_for_gfs2(fd, argv[optind]);
-
-	close(fd);
+	sbd.path_name = argv[optind];
+	check_for_gfs2(&sbd);
 	fs = mp2fsname(argv[optind]);
 
 	memset(path, 0, PATH_MAX);
@@ -369,19 +369,19 @@ print_args(int argc, char **argv)
 void
 print_jindex(int argc, char **argv)
 {
-	int fd;
 	struct gfs2_ioctl gi;
 	int error;
-
+	struct gfs2_sbd sbd;
 
 	if (optind == argc)
 		die("Usage: gfs2_tool jindex <mountpoint>\n");
 
-	fd = open(argv[optind], O_RDONLY);
-	if (fd < 0)
+	sbd.device_fd = open(argv[optind], O_RDONLY);
+	if (sbd.device_fd < 0)
 		die("can't open %s: %s\n", argv[optind], strerror(errno));
 
-	check_for_gfs2(fd, argv[optind]);
+	sbd.path_name = argv[optind];
+	check_for_gfs2(&sdp);
 
 
 	{
@@ -394,7 +394,7 @@ print_jindex(int argc, char **argv)
 		gi.gi_data = (char *)&di;
 		gi.gi_size = sizeof(struct gfs2_dinode);
 
-		error = ioctl(fd, GFS2_IOCTL_SUPER, &gi);
+		error = ioctl(sbd.device_fd, GFS2_IOCTL_SUPER, &gi);
 		if (error != gi.gi_size)
 			die("error doing get_hfile_stat (%d): %s\n",
 			    error, strerror(errno));
@@ -404,7 +404,7 @@ print_jindex(int argc, char **argv)
 	}
 
 
-	close(fd);
+	close(sbd.device_fd);
 }
 
 /**
@@ -417,21 +417,21 @@ print_jindex(int argc, char **argv)
 void
 print_rindex(int argc, char **argv)
 {
-	int fd;
 	struct gfs2_ioctl gi;
 	uint64_t offset;
 	unsigned int x;
 	int error;
-
+	struct gfs2_sbd sbd;
 
 	if (optind == argc)
 		die("Usage: gfs2_tool rindex <mountpoint>\n");
 
-	fd = open(argv[optind], O_RDONLY);
-	if (fd < 0)
+	sbd.device_fd = open(argv[optind], O_RDONLY);
+	if (sbd.device_fd < 0)
 		die("can't open %s: %s\n", argv[optind], strerror(errno));
 
-	check_for_gfs2(fd, argv[optind]);
+	sbd.path_name = argv[optind];
+	check_for_gfs2(&sdp);
 
 
 	{
@@ -444,7 +444,7 @@ print_rindex(int argc, char **argv)
 		gi.gi_data = (char *)&di;
 		gi.gi_size = sizeof(struct gfs2_dinode);
 
-		error = ioctl(fd, GFS2_IOCTL_SUPER, &gi);
+		error = ioctl(sbd.device_fd, GFS2_IOCTL_SUPER, &gi);
 		if (error != gi.gi_size)
 			die("error doing get_hfile_stat (%d): %s\n",
 			    error, strerror(errno));
@@ -465,7 +465,7 @@ print_rindex(int argc, char **argv)
 		gi.gi_size = sizeof(struct gfs2_rindex);
 		gi.gi_offset = offset;
 
-		error = ioctl(fd, GFS2_IOCTL_SUPER, &gi);
+		error = ioctl(sbd.device_fd, GFS2_IOCTL_SUPER, &gi);
 		if (!error)
 			break;
 		if (error != sizeof(struct gfs2_rindex))
@@ -479,7 +479,7 @@ print_rindex(int argc, char **argv)
 	}
 
 
-	close(fd);
+	close(sbd.device_fd);
 }
 
 /**
@@ -492,21 +492,21 @@ print_rindex(int argc, char **argv)
 void
 print_quota(int argc, char **argv)
 {
-	int fd;
 	struct gfs2_ioctl gi;
 	uint64_t offset;
 	unsigned int x;
 	int error;
-
+	struct gfs2_sbd sbd;
 
 	if (optind == argc)
 		die("Usage: gfs2_tool quota <mountpoint>\n");
 
-	fd = open(argv[optind], O_RDONLY);
-	if (fd < 0)
+	sbd.device_fd = open(argv[optind], O_RDONLY);
+	if (sbd.device_fd < 0)
 		die("can't open %s: %s\n", argv[optind], strerror(errno));
 
-	check_for_gfs2(fd, argv[optind]);
+	sbd.path_name = argv[optind];
+	check_for_gfs2(&sdp);
 
 
 	{
@@ -519,7 +519,7 @@ print_quota(int argc, char **argv)
 		gi.gi_data = (char *)&di;
 		gi.gi_size = sizeof(struct gfs2_dinode);
 
-		error = ioctl(fd, GFS2_IOCTL_SUPER, &gi);
+		error = ioctl(sbd.device_fd, GFS2_IOCTL_SUPER, &gi);
 		if (error != gi.gi_size)
 			die("error doing get_hfile_stat (%d): %s\n",
 			    error, strerror(errno));
@@ -540,7 +540,7 @@ print_quota(int argc, char **argv)
 		gi.gi_size = sizeof(struct gfs2_quota);
 		gi.gi_offset = offset;
 
-		error = ioctl(fd, GFS2_IOCTL_SUPER, &gi);
+		error = ioctl(sbd.device_fd, GFS2_IOCTL_SUPER, &gi);
 		if (!error)
 			break;
 		if (error != sizeof(struct gfs2_quota))
@@ -556,7 +556,7 @@ print_quota(int argc, char **argv)
 	}
 
 
-	close(fd);
+	close(sbd.device_fd);
 }
 #endif /* #if GFS2_TOOL_FEATURE_IMPLEMENTED */
 
@@ -582,19 +582,14 @@ print_list(void)
 void
 do_shrink(int argc, char **argv)
 {
-	int fd;
 	char *fs;
+	struct gfs2_sbd sbd;
 
 	if (optind == argc)
 		die("Usage: gfs2_tool shrink <mountpoint>\n");
 
-	fd = open(argv[optind], O_RDONLY);
-	if (fd < 0)
-		die("can't open %s: %s\n",
-		    argv[optind], strerror(errno));
-
-	check_for_gfs2(fd, argv[optind]);
-	close(fd);
+	sbd.path_name = argv[optind];
+	check_for_gfs2(&sbd);
 	fs = mp2fsname(argv[optind]);
 	
 	set_sysfs(fs, "shrink", "1");
@@ -611,10 +606,13 @@ void
 do_withdraw(int argc, char **argv)
 {
 	char *name;
+	struct gfs2_sbd sbd;
 
 	if (optind == argc)
 		die("Usage: gfs2_tool withdraw <mountpoint>\n");
 
+	sbd.path_name = argv[optind];
+	check_for_gfs2(&sbd);
 	name = mp2fsname(argv[optind]);
 
 	set_sysfs(name, "withdraw", "1");

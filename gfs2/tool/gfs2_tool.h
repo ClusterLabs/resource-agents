@@ -92,7 +92,6 @@ void set_tune(int argc, char **argv);
 
 /* From util.c */
 
-void check_for_gfs2(int fd, char *path);
 char *get_list(void);
 char **str2lines(char *str);
 const char *find_debugfs_mount(void);

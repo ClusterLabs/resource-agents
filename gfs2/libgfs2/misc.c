@@ -170,16 +170,18 @@ void
 check_for_gfs2(struct gfs2_sbd *sdp)
 {
 	FILE *fp = fopen("/proc/mounts", "r");
-	char *name = sdp->path_name;
 	char buffer[PATH_MAX];
 	char fstype[80];
 	int fsdump, fspass, ret;
 	char fspath[PATH_MAX];
 	char fsoptions[PATH_MAX];
+	char *realname;
 
-	if (name[strlen(name) - 1] == '/')
-		name[strlen(name) - 1] = '\0';
-
+	realname = realpath(sdp->path_name, NULL);
+	if (!realname) {
+		perror(sdp->path_name);
+		return;
+	}
 	if (fp == NULL) {
 		perror("open: /proc/mounts");
 		exit(EXIT_FAILURE);
@@ -199,19 +201,21 @@ check_for_gfs2(struct gfs2_sbd *sdp)
 			continue;
 
 		/* Check if they specified the device instead of mnt point */
-		if (strcmp(sdp->device_name, name) == 0)
+		if (strcmp(sdp->device_name, realname) == 0)
 			strcpy(sdp->path_name, fspath); /* fix it */
-		else if (strcmp(fspath, name) != 0)
+		else if (strcmp(fspath, realname) != 0)
 			continue;
 
 		fclose(fp);
 		if (strncmp(sdp->device_name, "/dev/loop", 9) == 0)
 			die("Cannot perform this operation on a loopback GFS2 mount.\n");
 
+		free(realname);
 		return;
 	}
+	free(realname);
 	fclose(fp);
-	die("gfs2 Filesystem %s is not mounted.\n", name);
+	die("gfs2 Filesystem %s is not mounted.\n", sdp->path_name);
 }
 
 void 

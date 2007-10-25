@@ -32,6 +32,7 @@
 #include "linux_endian.h"
 
 #include "gfs2_tool.h"
+#include "libgfs2.h"
 
 #define LAYOUT_DATA_QUANTUM (4194304)
 
@@ -765,11 +766,10 @@ void
 print_layout(int argc, char **argv)
 {
 	world_t w;
-	char *path;
-	int fd;
 	int retry = TRUE;
 	struct gfs2_ioctl gi;
 	int error;
+	struct gfs2_sbd sbd;
 
 	memset(&w, 0, sizeof(world_t));
 	w.buf_size = LAYOUT_DATA_QUANTUM;
@@ -779,17 +779,17 @@ print_layout(int argc, char **argv)
 	if (optind == argc)
 		die("Usage: gfs2_tool layout <filename> [buffersize]\n");
 
-	path = argv[optind++];
+	sbd.path_name = argv[optind++];
 	if (optind < argc ) {
 		w.buf_size = atoi(argv[3]);
 		retry = FALSE;
 	}
 
-	fd = open(path, O_RDONLY);
-	if (fd < 0)
-		die("can't open %s: %s\n", path, strerror(errno));
+	sbd.device_fd = open(sbd.path_name, O_RDONLY);
+	if (sbd.device_fd < 0)
+		die("can't open %s: %s\n", sbd.path_name, strerror(errno));
 
-	check_for_gfs2(fd, path);
+	check_for_gfs2(&sbd);
 
 	{
 		char *argv[] = { "get_super" };
@@ -799,7 +799,7 @@ print_layout(int argc, char **argv)
 		gi.gi_data = (char *)&w.sb;
 		gi.gi_size = sizeof(struct gfs2_sb);
 
-		error = ioctl(fd, GFS2_IOCTL_SUPER, &gi);
+		error = ioctl(sbd.device_fd, GFS2_IOCTL_SUPER, &gi);
 		if (error != gi.gi_size)
 			die("error doing get_super (%d): %s\n",
 			    error, strerror(errno));
@@ -825,7 +825,7 @@ print_layout(int argc, char **argv)
 		gi.gi_data = w.buf_data;
 		gi.gi_size = w.buf_size;
 
-		w.buf_count = ioctl(fd, GFS2_IOCTL_SUPER, &gi);
+		w.buf_count = ioctl(sbd.device_fd, GFS2_IOCTL_SUPER, &gi);
 		if (w.buf_count >= 0)
 			break;
 
@@ -855,7 +855,7 @@ print_layout(int argc, char **argv)
 
 	check_for_untouched_buffers(&w);
 
-	close(fd);
+	close(sbd.device_fd);
 }
 #endif /* #if GFS2_TOOL_FEATURE_IMPLEMENTED */
 

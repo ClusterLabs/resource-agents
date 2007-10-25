@@ -29,6 +29,7 @@
 #include <linux/gfs2_ondisk.h>
 
 #include "gfs2_tool.h"
+#include "libgfs2.h"
 
 #define SIZE (65536)
 
@@ -42,7 +43,6 @@
 static void
 do_df_one(char *path)
 {
-	int fd;
 	struct gfs2_ioctl gi;
 	/* char stat_gfs2[SIZE]; */
 	/* unsigned int percentage; */
@@ -53,13 +53,14 @@ do_df_one(char *path)
 	unsigned int flags;
 	char *fs, *value;
  	int error;
+	struct gfs2_sbd sbd;
 
+	sbd.path_name = path;
+	check_for_gfs2(&sbd);
 
-	fd = open(path, O_RDONLY);
-	if (fd < 0)
+	sbd.device_fd = open(path, O_RDONLY);
+	if (sbd.device_fd < 0)
 		die("can't open %s: %s\n", path, strerror(errno));
-
-	check_for_gfs2(fd, path);
 
 	fs = mp2fsname(path);
 
@@ -76,7 +77,7 @@ do_df_one(char *path)
 		gi.gi_data = (char *)&sb;
 		gi.gi_size = sizeof(struct gfs2_sb);
 
-		error = ioctl(fd, GFS2_IOCTL_SUPER, &gi);
+		error = ioctl(sbd.device_fd, GFS2_IOCTL_SUPER, &gi);
 		if (error != gi.gi_size)
 			die("error doing get_super (%d): %s\n",
 			    error, strerror(errno));
@@ -90,7 +91,7 @@ do_df_one(char *path)
 		gi.gi_data = (char *)&ji;
 		gi.gi_size = sizeof(struct gfs2_dinode);
 
-		error = ioctl(fd, GFS2_IOCTL_SUPER, &gi);
+		error = ioctl(sbd.device_fd, GFS2_IOCTL_SUPER, &gi);
 		if (error != gi.gi_size)
 			die("error doing get_hfile_stat for jindex (%d): %s\n",
 			    error, strerror(errno));
@@ -104,13 +105,13 @@ do_df_one(char *path)
 		gi.gi_data = (char *)&ri;
 		gi.gi_size = sizeof(struct gfs2_dinode);
 
-		error = ioctl(fd, GFS2_IOCTL_SUPER, &gi);
+		error = ioctl(sbd.device_fd, GFS2_IOCTL_SUPER, &gi);
 		if (error != gi.gi_size)
 			die("error doing get_hfile_stat for rindex (%d): %s\n",
 			    error, strerror(errno));
 	}
 
-	close(fd);
+	close(sbd.device_fd);
 
 	journals = ji.di_entries - 2;
 
