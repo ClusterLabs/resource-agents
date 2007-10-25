@@ -729,33 +729,42 @@ update_fs(void)
  */
 
 static int
-find_fs(char *name)
+find_fs(const char *name)
 {
 	FILE *fp = fopen("/proc/mounts", "r");
 	char buffer[4096];
 	char fstype[80];
 	int fsdump, fspass;
+	char *realname;
 
+	realname = realpath(name, NULL);
+	if (!realname) {
+		perror(name);
+		return -1;
+	}
 	if (fp == NULL) {
 		perror("open: /proc/mounts");
 		exit(EXIT_FAILURE);
 	}
 	while ((fgets(buffer, 4095, fp)) != NULL) {
 		buffer[4095] = 0;
-		if (strstr(buffer, name) == 0)
+		if (strstr(buffer, realname) == 0)
 			continue;
 		if (sscanf(buffer, "%s %s %s %s %d %d", device, fspath, fstype,
 			   fsoptions, &fsdump, &fspass) != 6)
 			continue;
 		if (strcmp(fstype, "gfs") != 0)
 			continue;
-		if ((strcmp(device, name) != 0) && (strcmp(fspath, name) != 0))
+		if ((strcmp(device, realname) != 0) &&
+		    (strcmp(fspath, realname) != 0))
 			continue;
 		fclose(fp);
+		free(realname);
 		return 0;
 	}
 	fprintf(stderr, "GFS Filesystem %s not found\n", name);
 	fclose(fp);
+	free(realname);
 	return 1;
 }
 
