@@ -110,7 +110,7 @@ do_freeze(int argc, char **argv)
 void
 print_lockdump(int argc, char **argv)
 {
-	die("lockdump not implemented: use debugfs instead.  \ne.g. cat /sys/kernel/debug/gfs2/clustname\:fsname/glocks\n");
+	die("lockdump not implemented: use debugfs instead.  \ne.g. cat /sys/kernel/debug/gfs2/clustname\\:fsname/glocks\n");
 }
 
 /**
