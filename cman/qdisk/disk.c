@@ -683,7 +683,7 @@ header_init(int fd, char *label)
 	}
 
 	/* Copy in the cluster/label name */
-	snprintf(qh.qh_cluster, sizeof(qh.qh_cluster)-1, label);
+	snprintf(qh.qh_cluster, sizeof(qh.qh_cluster)-1, "%s", label);
 
 	if ((qh.qh_timestamp = (uint64_t)time(NULL)) <= 0) {
 		perror("time");
