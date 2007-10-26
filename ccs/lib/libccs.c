@@ -702,7 +702,6 @@ int ccs_lookup_nodename(int cd, const char *nodename, char **retval) {
 	** Try to match against each clusternode in cluster.conf.
 	*/
 	for (i = 1 ; ; i++) {
-		const char *pathstr = NULL;
 		char canonical_name[128];
 		unsigned int altcnt;
 
@@ -717,7 +716,9 @@ int ccs_lookup_nodename(int cd, const char *nodename, char **retval) {
 			char cur_node[128];
 
 			if (altcnt != 0) {
-				ret = snprintf(path, sizeof(path), pathstr, i, altcnt);
+				ret = snprintf(path, sizeof(path), 
+					"/cluster/clusternodes/clusternode[%u]/altname[%u]/@name",
+					i, altcnt);
 				if (ret < 0 || (size_t) ret >= sizeof(path))
 					continue;
 			}
@@ -788,8 +789,7 @@ int ccs_lookup_nodename(int cd, const char *nodename, char **retval) {
 
 			free(str);
 
-			/* Try any altnames */
-			pathstr = "/cluster/clusternodes/clusternode[%u]/altname[%u]/@name";
+			/* Now try any altnames */
 		}
 	}
 
