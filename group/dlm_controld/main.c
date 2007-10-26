@@ -634,6 +634,10 @@ static int loop(void)
 		goto out;
 	client_add(rv, process_member, cluster_dead);
 
+	/* netlink stuff is only used for deadlock detection */
+	if (!deadlock_enabled)
+		goto for_loop;
+
 	rv = setup_netlink();
 	if (rv < 0)
 		goto for_loop;
