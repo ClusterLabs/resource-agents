@@ -282,7 +282,7 @@ do_clulog(int        severity,
 		fprintf(stdout, "%s", printmsg);
 	}
 
-	syslog(severity, logmsg);
+	syslog(severity, "%s", logmsg);
 
 	pthread_mutex_unlock(&log_mutex);
 

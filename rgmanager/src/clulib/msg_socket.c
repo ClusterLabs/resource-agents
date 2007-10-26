@@ -362,7 +362,7 @@ sock_msg_listen(int me, void *portp, msgctx_t **listen_ctx)
 	unlink(RGMGR_SOCK);
 	om = umask(077);
 	su.sun_family = PF_LOCAL;
-	snprintf(su.sun_path, sizeof(su.sun_path), path);
+	snprintf(su.sun_path, sizeof(su.sun_path), "%s", path);
 
 	if (bind(sock, &su, sizeof(su)) < 0) {
 		umask(om);
