@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 **  
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -176,7 +176,7 @@ void do_recovery(fd_t *fd, int start_type, int member_count, int *nodeids);
 void do_recovery_done(fd_t *fd);
 
 /* agent.c */
-int dispatch_fence_agent(int cd, char *victim);
+int dispatch_fence_agent(char *victim, int force);
 
 /* group.c */
 int setup_groupd(void);

@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -12,7 +12,6 @@
 ******************************************************************************/
 
 #include "fd.h"
-#include "ccs.h"
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/select.h>
@@ -359,7 +358,7 @@ static void fence_victims(fd_t *fd, int start_type)
 {
 	fd_node_t *node;
 	char *master_name;
-	int master, error, cd;
+	int master, error;
 	int override = -1;
 
 	master = find_master_nodeid(fd, &master_name);
@@ -371,9 +370,6 @@ static void fence_victims(fd_t *fd, int start_type)
 	}
 
 	delay_fencing(fd, start_type);
-
-	while ((cd = ccs_connect()) < 0)
-		sleep(1);
 
 	while (!list_empty(&fd->victims)) {
 		node = list_entry(fd->victims.next, fd_node_t, list);
@@ -388,7 +384,7 @@ static void fence_victims(fd_t *fd, int start_type)
 		log_debug("fencing node %s", node->name);
 		syslog(LOG_INFO, "fencing node \"%s\"", node->name);
 
-		error = dispatch_fence_agent(cd, node->name);
+		error = dispatch_fence_agent(node->name, 0);
 
 		syslog(LOG_INFO, "fence \"%s\" %s", node->name,
 		       error ? "failed" : "success");
@@ -415,8 +411,6 @@ static void fence_victims(fd_t *fd, int start_type)
 		}
 		close_override(&override, comline.override_path);
 	}
-
-	ccs_disconnect(cd);
 }
 
 static void add_victims(fd_t *fd, int start_type, int member_count,

@@ -302,11 +302,23 @@ static void update_cman(char *victim, char *method)
 	cman_finish(ch);
 }
 
-int dispatch_fence_agent(int cd, char *victim)
+int dispatch_fence_agent(char *victim, int force)
 {
 	char *method = NULL, *device = NULL;
 	char *victim_nodename = NULL;
-	int num_methods, num_devices, m, d, error = -1;
+	int num_methods, num_devices, m, d, error = -1, cd;
+
+	if (force)
+		cd = ccs_force_connect(NULL, 0);
+	else {
+		while ((cd = ccs_connect()) < 0)
+			sleep(1);
+	}
+
+	if (cd < 0) {
+		syslog(LOG_ERR, "cannot connect to ccs %d\n", cd);
+		return -1;
+	}
 
 	if (ccs_lookup_nodename(cd, victim, &victim_nodename) == 0)
 		victim = victim_nodename;
@@ -316,7 +328,22 @@ int dispatch_fence_agent(int cd, char *victim)
 	for (m = 0; m < num_methods; m++) {
 
 		error = get_method(cd, victim, m, &method);
+
+		/* if the connection timed out while we were trying 
+		 * to fence, try to open the connection again
+		 */
+		if (error == -EBADR) {
+			syslog(LOG_INFO, "ccs connection timed out, "
+				"retrying\n");
+
+			while ((cd = ccs_connect()) < 0)
+				sleep(1);
+			
+			error = get_method(cd, victim, m, &method);
+
 		if (error)
+			continue;
+		} else if (error)
 			continue;
 
 		/* if num_devices is zero we should return an error */
@@ -347,6 +374,8 @@ int dispatch_fence_agent(int cd, char *victim)
 		if (!error)
 			break;
 	}
+
+	ccs_disconnect(cd);
 
 	return error;
 }
