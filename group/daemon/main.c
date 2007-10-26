@@ -553,19 +553,20 @@ static int do_get_group(int ci, int argc, char **argv)
 
 static int do_dump(int fd)
 {
-	int rv, len = DUMP_SIZE;
+	int len;
 
 	if (dump_wrap) {
 		len = DUMP_SIZE - dump_point;
-		rv = do_write(fd, dump_buf + dump_point, len);
-		if (rv < 0)
-			log_print("dump write error %d errno %d", rv, errno);
+		do_write(fd, dump_buf + dump_point, len);
 		len = dump_point;
-	}
+	} else
+		len = dump_point;
 
-	rv = do_write(fd, dump_buf, len);
-	if (rv < 0)
-		log_print("dump write error %d errno %d", rv, errno);
+	/* NUL terminate the debug string */
+	dump_buf[dump_point] = '\0';
+
+	do_write(fd, dump_buf, len);
+
 	return 0;
 }
 
@@ -667,6 +668,7 @@ static void process_connection(int ci)
 
 	case DO_DUMP:
 		do_dump(client[ci].fd);
+		close(client[ci].fd);
 		break;
 
 	case DO_LOG:

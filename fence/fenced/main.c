@@ -338,21 +338,22 @@ static void client_init(void)
 		client[i].fd = -1;
 }
 
-static int do_dump(int ci)
+static int do_dump(int fd)
 {
-	int rv, len = DUMP_SIZE;
+	int len;
 
 	if (dump_wrap) {
 		len = DUMP_SIZE - dump_point;
-		rv = do_write(client[ci].fd, dump_buf + dump_point, len);
-		if (rv < 0)
-			log_debug("write error %d errno %d", rv, errno);
+		do_write(fd, dump_buf + dump_point, len);
 		len = dump_point;
-	}
+	} else
+		len = dump_point;
 
-	rv = do_write(client[ci].fd, dump_buf, len);
-	if (rv < 0)
-		log_debug("write error %d errno %d", rv, errno);
+	/* NUL terminate the debug string */
+	dump_buf[dump_point] = '\0';
+
+	do_write(fd, dump_buf, len);
+
 	return 0;
 }
 
@@ -386,7 +387,8 @@ static int client_process(int ci)
 	else if (!strcmp(cmd, "leave"))
 		rv = do_leave(name);
 	else if (!strcmp(cmd, "dump")) {
-		do_dump(ci);
+		do_dump(client[ci].fd);
+		close(client[ci].fd);
 		return 0;
 	} else
 		rv = -EINVAL;

@@ -255,17 +255,22 @@ int client_send(int ci, char *buf, int len)
 	return do_write(client[ci].fd, buf, len);
 }
 
-static int dump_debug(int ci)
+static int do_dump(int fd)
 {
-	int len = DUMP_SIZE;
+	int len;
 
 	if (dump_wrap) {
 		len = DUMP_SIZE - dump_point;
-		do_write(client[ci].fd, dump_buf + dump_point, len);
+		do_write(fd, dump_buf + dump_point, len);
 		len = dump_point;
-	}
+	} else
+		len = dump_point;
 
-	do_write(client[ci].fd, dump_buf, len);
+	/* NUL terminate the debug string */
+	dump_buf[dump_point] = '\0';
+
+	do_write(fd, dump_buf, len);
+
 	return 0;
 }
 
@@ -375,7 +380,8 @@ static int process_client(int ci)
 		goto reply;
 
 	} else if (!strcmp(cmd, "dump")) {
-		dump_debug(ci);
+		do_dump(client[ci].fd);
+		close(client[ci].fd);
 
 	} else if (!strcmp(cmd, "plocks")) {
 		dump_plocks(argv[1], client[ci].fd);

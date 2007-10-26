@@ -379,10 +379,8 @@ int do_dump(int argc, char **argv, int fd)
 		return -1;
 	}
 
-	rv = do_read(fd, inbuf, sizeof(inbuf));
-	if (rv < 0)
-		printf("dump read error %d errno %d\n", rv, errno);
-	do_write(STDOUT_FILENO, inbuf, sizeof(inbuf));
+	do_read(fd, inbuf, sizeof(inbuf));
+	do_write(STDOUT_FILENO, inbuf, strlen(inbuf));
 
 	close(fd);
 	return 0;
@@ -405,9 +403,7 @@ int do_maxline_dump(int argc, char **argv, int fd)
 		return -1;
 	}
 
-	rv = do_read(fd, inbuf, sizeof(inbuf));
-	if (rv < 0)
-		printf("dump read error %d errno %d\n", rv, errno);
+	do_read(fd, inbuf, sizeof(inbuf));
 	do_write(STDOUT_FILENO, inbuf, sizeof(inbuf));
 
 	close(fd);
