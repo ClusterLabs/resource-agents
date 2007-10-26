@@ -310,7 +310,7 @@ void do_lockdump(char *name)
 	int r_len;
 	int rv;
 	unsigned int time;
-	uint64_t	xid;
+	unsigned long long xid;
 	uint32_t	id;
 	int		nodeid;
 	uint32_t	remid;
