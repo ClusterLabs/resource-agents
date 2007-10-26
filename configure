@@ -209,7 +209,7 @@ if (!$cc) {
   $cc="gcc";
 }
 if (!$cflags) {
-  $cflags="-Wall";
+  $cflags="-Wall -Wformat=2";
   if (!$debug) {
     $cflags="${cflags} -O2";
   } else {
