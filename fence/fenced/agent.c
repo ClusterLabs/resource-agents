@@ -50,7 +50,7 @@ static void display_agent_output(char *agent, int fd)
 		strcat(msg, buf);
 
 		printf("%s\n", msg);
-		syslog(LOG_ERR, msg);
+		syslog(LOG_ERR, "%s", msg);
 
 		memset(buf, 0, sizeof(buf));
 		memset(msg, 0, sizeof(msg));

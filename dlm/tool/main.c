@@ -74,7 +74,7 @@ static void decode_arguments(int argc, char **argv)
 		switch (optchar) {
 		case 'm':
 			memset(modebuf, 0, sizeof(modebuf));
-			snprintf(modebuf, 8, optarg);
+			snprintf(modebuf, 8, "%s", optarg);
 			sscanf(modebuf, "%o", &create_mode);
 			break;
 
