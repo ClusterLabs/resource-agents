@@ -18,7 +18,6 @@
 #include <syslog.h>
 
 #include "copyright.cf"
-#include "ccs.h"
 
 #define OPTION_STRING           ("hOuV")
 
@@ -32,9 +31,9 @@ do \
 while (0)
 
 static char *prog_name;
-static int force;
+static int force = 0;
 
-int dispatch_fence_agent(int cd, char *victim);
+int dispatch_fence_agent(char *victim, int force);
 
 static void print_usage(void)
 {
@@ -52,7 +51,7 @@ static void print_usage(void)
 
 int main(int argc, char *argv[])
 {
-	int cont = 1, optchar, error, cd;
+	int cont = 1, optchar, error;
 	char *victim = NULL;
 
 	prog_name = argv[0];
@@ -104,30 +103,16 @@ int main(int argc, char *argv[])
 	if (!victim)
 		die("no node name specified");
 
-	if (force)
-		cd = ccs_force_connect(NULL, 0);
-	else
-		cd = ccs_connect();
-
 	openlog("fence_node", LOG_PID, LOG_USER);
 
-	if (cd < 0) {
-		syslog(LOG_ERR, "cannot connect to ccs %d\n", cd);
-		goto fail;
+	error = dispatch_fence_agent(victim, force);
+
+	if (error) {
+		syslog(LOG_ERR, "Fence of \"%s\" was unsuccessful\n", victim);
+		exit(EXIT_FAILURE);
+	} else {
+		syslog(LOG_NOTICE, "Fence of \"%s\" was successful\n", victim);
+		exit(EXIT_SUCCESS);
 	}
-
-	error = dispatch_fence_agent(cd, victim);
-	if (error)
-		goto fail_ccs;
-
-	syslog(LOG_NOTICE, "Fence of \"%s\" was successful\n", victim);
-	ccs_disconnect(cd);
-	exit(EXIT_SUCCESS);
-
- fail_ccs:
-	ccs_disconnect(cd);
- fail:
-	syslog(LOG_ERR, "Fence of \"%s\" was unsuccessful\n", victim);
-	exit(EXIT_FAILURE);
 }
 
