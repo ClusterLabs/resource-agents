@@ -72,6 +72,7 @@ void print_stat(int argc, char **argv);
 void print_sb(int argc, char **argv);
 void print_args(int argc, char **argv);
 void print_jindex(int argc, char **argv);
+void print_journals(int argc, char **argv);
 void print_rindex(int argc, char **argv);
 void print_quota(int argc, char **argv);
 void print_list(void);

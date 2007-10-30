@@ -358,6 +358,71 @@ print_args(int argc, char **argv)
 	
 }
 
+/**
+ * print_journals - print out the file system journal information
+ * @argc:
+ * @argv:
+ *
+ */
+
+void
+print_journals(int argc, char **argv)
+{
+	struct gfs2_sbd sbd;
+	DIR *jindex;
+	struct dirent *journal;
+	char jindex_name[PATH_MAX], jname[PATH_MAX];
+	int jcount;
+	struct stat statbuf;
+
+	memset(&sbd, 0, sizeof(struct gfs2_sbd));
+	sbd.bsize = GFS2_DEFAULT_BSIZE;
+	sbd.rgsize = -1;
+	sbd.jsize = GFS2_DEFAULT_JSIZE;
+	sbd.qcsize = GFS2_DEFAULT_QCSIZE;
+	sbd.md.journals = 1;
+
+	sbd.path_name = argv[optind];
+	sbd.path_fd = open(sbd.path_name, O_RDONLY);
+	if (sbd.path_fd < 0)
+		die("can't open root directory %s: %s\n",
+		    sbd.path_name, strerror(errno));
+	check_for_gfs2(&sbd);
+	sbd.device_fd = open(sbd.device_name, O_RDONLY);
+	if (sbd.device_fd < 0)
+		die("can't open device %s: %s\n",
+		    sbd.device_name, strerror(errno));
+	if (!find_gfs2_meta(&sbd))
+		mount_gfs2_meta(&sbd);
+	lock_for_admin(&sbd);
+
+	sprintf(jindex_name, "%s/jindex", sbd.metafs_path);
+	jindex = opendir(jindex_name);
+	if (!jindex) {
+		die("Can't open %s\n", jindex_name);
+	} else {
+		jcount = 0;
+		while ((journal = readdir(jindex))) {
+			if (journal->d_name[0] == '.')
+				continue;
+			sprintf(jname, "%s/%s", jindex_name, journal->d_name);
+			if (stat(jname, &statbuf)) {
+				statbuf.st_size = 0;
+				perror(jname);
+			}
+			jcount++;
+			printf("%s - %lluMB\n", journal->d_name,
+			       (unsigned long long)statbuf.st_size / 1048576);
+		}
+
+		printf("%d journal(s) found.\n", jcount);
+		closedir(jindex);
+	}
+	cleanup_metafs(&sbd);
+	close(sbd.device_fd);
+	close(sbd.path_fd);
+}
+
 #if GFS2_TOOL_FEATURE_IMPLEMENTED 
 /**
  * print_jindex - print out the journal index

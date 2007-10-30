@@ -53,6 +53,9 @@ static const char *usage[] = {
 	"Get tuneable parameters for a filesystem\n",
 	"  gfs2_tool gettune <mountpoint>\n",
 	"\n",
+	"List the file system's journals:\n",
+	"  gfs2_tool journals <mountpoint>\n",
+	"\n",
 	"List filesystems:\n",
 	"  gfs2_tool list\n",
 	"\n",
@@ -235,6 +238,8 @@ main(int argc, char *argv[])
 		print_args(argc, argv);
 	else if (strcmp(action, "gettune") == 0)
 		get_tune(argc, argv);
+	else if (strcmp(action, "journals") == 0)
+		print_journals(argc, argv);
 	else if (strcmp(action, "list") == 0)
 		print_list();
 	else if (strcmp(action, "lockdump") == 0)
