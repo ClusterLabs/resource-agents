@@ -1209,14 +1209,30 @@ get_config_data(char *cluster_name, qd_ctx *ctx, struct h_data *h, int maxh,
 	}
 	if (ctx->qc_master_wait <= ctx->qc_tko_up)
 		ctx->qc_master_wait = ctx->qc_tko_up + 1;
-		
+
 	/* Get votes */
+
+	/* check if votes is set in cluster.conf */
 	snprintf(query, sizeof(query), "/cluster/quorumd/@votes");
 	if (ccs_get(ccsfd, query, &val) == 0) {
 		ctx->qc_votes = atoi(val);
 		free(val);
 		if (ctx->qc_votes < 0)
 			ctx->qc_votes = 0;
+	} else { /* if votes is not set, default to node_num - 1 */
+		int nodes = 0, error;
+		for (;;) {
+			error = ccs_get_list(ccsfd, "/cluster/clusternodes/child::*", &val);
+			if (error || !val)
+				break;
+
+			nodes++;
+		}
+		nodes--;
+		if (nodes < 0)
+			nodes = 0;
+
+		ctx->qc_votes = nodes;
 	}
 
 	/* Get device */
