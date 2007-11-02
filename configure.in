@@ -239,6 +239,16 @@ dnl Can force other with environment variable "CC".
 AC_PROG_CC
 AC_PROG_CC_STDC
 
+case "$host_cpu" in
+  ppc64)
+    case $CFLAGS in
+     *powerpc64*)			;;
+     *)	if test "$GCC" = yes; then
+	  CFLAGS="$CFLAGS -mpowerpc64"
+	fi				;;
+    esac
+esac
+
 dnl ************************************************************************
 dnl Test to see whether library directories should be lib or lib64...
 dnl ************************************************************************
@@ -249,7 +259,7 @@ tmpCfile=${tmpdir}/$$test.c
 tmpOutfile=${tmpdir}/$$test
 echo 'int main(int argc, char** argv) { return(1);}' >$tmpCfile
 if
-  ${CC} ${tmpCfile} -o ${tmpOutfile}
+  ${CC} ${CFLAGS} ${tmpCfile} -o ${tmpOutfile}
 then
   LIBC=`${LDD} ${tmpOutfile} | grep libc | sed -e 's%.*=> *%%' -e 's% .*$%%'`
   LibCdir=`dirname $LIBC`
