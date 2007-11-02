@@ -2624,21 +2624,7 @@ AC_SUBST(RPM_ENABLE_OPENHPI)
 AM_CONDITIONAL(MGMT_BUILD, test "x${enable_mgmt}" != "xno")
 if test "x${enable_mgmt}" != "xno"; then
      AC_DEFINE_UNQUOTED(MGMT_ENABLED, 1, Define to 1 if the mgmt-daemon and friends are enabled.)
-    dnl If this system might be RPM-based, then adjust some RPM-build details
-    if test x"${RPM}" != x""; then
-dnl FIXME: a flawed solution but no better one now
-         if rpm -q python-gtk > /dev/null; then
-              RPM_MGMT_RUNTIME_REQUIRES="libglade2, python-gtk";
-         else
-              RPM_MGMT_RUNTIME_REQUIRES="libglade2, pygtk2";
-         fi
-    else
-         RPM_MGMT_RUNTIME_REQUIRES=
-    fi
-else
-     RPM_MGMT_RUNTIME_REQUIRES=
 fi
-AC_SUBST(RPM_MGMT_RUNTIME_REQUIRES)
    
 AC_MSG_NOTICE([whether to enable the management tool... ${enable_mgmt}])
 
