@@ -244,7 +244,7 @@ case "$host_cpu" in
     case $CFLAGS in
      *powerpc64*)			;;
      *)	if test "$GCC" = yes; then
-	  CFLAGS="$CFLAGS -mpowerpc64"
+	  CFLAGS="$CFLAGS -m64"
 	fi				;;
     esac
 esac
