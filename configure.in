@@ -240,7 +240,7 @@ AC_PROG_CC
 AC_PROG_CC_STDC
 
 case "$host_cpu" in
-  ppc64)
+  ppc64|powerpc64)
     case $CFLAGS in
      *powerpc64*)			;;
      *)	if test "$GCC" = yes; then
