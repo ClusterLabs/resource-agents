@@ -354,6 +354,61 @@ cman_handle_t cman_init(void *privdata)
 	return open_socket(CLIENT_SOCKNAME, sizeof(CLIENT_SOCKNAME), privdata);
 }
 
+/* cman_wait_init
+ *
+ * @admin: set to 0 for standard socket, != 0 for admin socket
+ * @ctimeout: connection timeout in second to attempt to connect to cman.
+ *            0 = wait forever, -1 = do not wait.
+ * @qtimeout: cluster quorum timeout in second.
+ *            0 = wait forever, -1 = do not wait.
+ * @privdata: see cman_admin_init and cman_init.
+ */
+
+cman_handle_t cman_wait_init(int admin, int ctimeout, int qtimeout, void *privdata)
+{
+	cman_handle_t ch;
+	int i = 0;
+
+	if (!ctimeout)
+		i = 1;
+
+	while (ctimeout != i) {
+
+		if (admin) {
+			ch = cman_admin_init(privdata);
+		} else {
+			ch = cman_init(privdata);
+		}
+
+		if ((ch) || (ctimeout = -1)) {
+			i = ctimeout;
+		} else {
+			sleep(1);
+			i++;
+		}
+	}
+
+	if (!ch)
+		return ch;
+
+	if (!qtimeout) {
+		i = 1;
+	} else {
+		i = 0;
+	}
+
+	while (qtimeout != i) {
+		if ((cman_is_quorate(ch)) || (qtimeout = -1)) {
+			i = qtimeout;
+		} else {
+			sleep(1);
+			i++;
+		}
+	}
+
+	return ch;
+}
+
 int cman_finish(cman_handle_t handle)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;

@@ -203,6 +203,7 @@ typedef void (*cman_confchgcallback_t)(cman_handle_t handle, void *privdata,
  */
 cman_handle_t cman_init(void *privdata);
 cman_handle_t cman_admin_init(void *privdata);
+cman_handle_t cman_wait_init(int admin, int ctimeout, int qtimeout, void *privdata);
 int cman_finish(cman_handle_t handle);
 
 /* Update/retrieve the private data */
