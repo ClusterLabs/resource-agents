@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -82,6 +82,9 @@
 /* Port numbers above this will be blocked when the cluster is inquorate or in
  * transition */
 #define HIGH_PROTECTED_PORT      9
+
+/* Nodeid passed to CMD_GETNODE to return the quorum device info */
+#define CLUSTER_GETNODE_QUORUMDEV -1
 
 /* Reasons for leaving the cluster */
 #define CLUSTER_LEAVEFLAG_DOWN     0	/* Normal shutdown */

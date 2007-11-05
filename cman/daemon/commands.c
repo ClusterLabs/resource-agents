@@ -599,17 +599,25 @@ static int do_cmd_get_node(char *cmdbuf, char *retbuf, int *retlen)
 	if (!we_are_a_cluster_member)
 		return -ENOENT;
 
-	if (!u_node->name[0]) {
-		if (u_node->node_id == 0)
-			u_node->node_id = us->node_id;
-		node = find_node_by_nodeid(u_node->node_id);
+	if (u_node->node_id == CLUSTER_GETNODE_QUORUMDEV) {
+		if (quorum_device)
+			node = quorum_device;
+		else
+			return -ENOENT;
 	}
-	else
-		node = find_node_by_name(u_node->name);
+	else {
+		if (!u_node->name[0]) {
+			if (u_node->node_id == 0)
+				u_node->node_id = us->node_id;
+			node = find_node_by_nodeid(u_node->node_id);
+		}
+		else
+			node = find_node_by_name(u_node->name);
 
-	if (!node) {
-		P_MEMB("cmd_get_node failed: id=%d, name='%s'\n", u_node->node_id, u_node->name);
-		return -ENOENT;
+		if (!node) {
+			P_MEMB("cmd_get_node failed: id=%d, name='%s'\n", u_node->node_id, u_node->name);
+			return -ENOENT;
+		}
 	}
 
 	copy_to_usernode(node, r_node);
@@ -1046,6 +1054,7 @@ static void quorum_device_timer_fn(void *arg)
 	if (!quorum_device || quorum_device->state == NODESTATE_DEAD)
 		return;
 
+	P_MEMB("quorum_device_timer_fn\n");
 	gettimeofday(&now, NULL);
 	if (quorum_device->last_hello.tv_sec + quorumdev_poll/1000 < now.tv_sec) {
 		quorum_device->state = NODESTATE_DEAD;
@@ -2024,9 +2033,9 @@ void del_ais_node(int nodeid)
 		node->state = NODESTATE_DEAD;
 		cluster_members--;
 
-		if ((node->leave_reason & 0xF) & CLUSTER_LEAVEFLAG_REMOVED) 
+		if ((node->leave_reason & 0xF) & CLUSTER_LEAVEFLAG_REMOVED)
 			recalculate_quorum(1, 1);
-		else 
+		else
 			recalculate_quorum(0, 0);
 		break;
 

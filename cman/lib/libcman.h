@@ -38,7 +38,13 @@
 /*
  * Pass this into cman_get_node() as the nodeid to get local node information
  */
-#define CMAN_NODEID_US 0
+#define CMAN_NODEID_US     0
+
+/*
+ * Pass this into cman_get_node() as the nodeid to get quorum device information
+ */
+#define CMAN_NODEID_QDISK -1
+
 
 /* Pass this into cman_send_data to send a message to all nodes */
 #define CMAN_NODEID_ALL 0
