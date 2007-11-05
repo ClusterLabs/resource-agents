@@ -81,6 +81,11 @@ start_tomcat()
 {
 	cd "$CATALINA_HOME/bin"
 
+	monitor_tomcat
+	if [ $? = $OCF_SUCCESS ]; then
+		return $OCF_SUCCESS
+	fi
+
 	echo "`date "+%Y/%m/%d %T"`: start ===========================" >> "$TOMCAT_CONSOLE"
 
 	if [ "$RESOURCE_TOMCAT_USER" = RUNASIS ]; then
