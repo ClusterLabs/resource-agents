@@ -170,7 +170,7 @@ int read_ccs_nodes(unsigned int *config_version, int check_nodeids)
 			snprintf(message, sizeof(message),
 				"No node ID for %s, run 'ccs_tool addnodeids' to fix",
 				nodename);
-			log_printf(LOG_ERR, message);
+			log_printf(LOG_ERR, "%s", message);
 			write_cman_pipe(message);
 			error = -EINVAL;
 			goto out_err;
