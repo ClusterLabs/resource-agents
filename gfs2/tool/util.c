@@ -27,6 +27,7 @@
 #include <libgen.h>
 #include <dirent.h>
 #include <string.h>
+#include <linux/kdev_t.h>
 
 #define __user
 #include <linux/gfs2_ondisk.h>
@@ -282,42 +283,6 @@ mp2devname(char *mp)
 	return name;
 }
 
-/* Iterate through gfs2 dirs looking for one where the "id"
-   attribute matches devname and return the associated fsname:
-   /sys/kernel/gfs2/<fsname>/fsname
-   /sys/kernel/gfs2/<fsname>/id
-
-   The "id" attribute is the superblock id (s_id) from the kernel.
-   It often matches the device node the fs was mounted from (as
-   displayed in /proc/mounts), but not always.  
-*/
-
-char *
-devname2fsname(char *devname)
-{
-	char *fsname = NULL;
-	DIR *d;
-	struct dirent *de;
-
-	d = opendir(SYS_BASE);
-	if (!d)
-		die("can't open %s: %s\n", SYS_BASE, strerror(errno));
-
-	while ((de = readdir(d))) {
-		if (de->d_name[0] == '.')
-			continue;
-
-		if (strcmp(get_sysfs(de->d_name, "id"), devname) == 0) {
-			fsname = strdup(de->d_name);
-			break;
-		}
-	}
-
-	closedir(d);
-
-	return fsname;
-}
-
 /* The fsname can be substituted for the mountpoint on the command line.
    This is necessary when we can't resolve a devname from /proc/mounts
    to a fsname. */
@@ -349,7 +314,20 @@ int is_fsname(char *name)
 
 /**
  * mp2fsname - Find the name for a filesystem given its mountpoint
- * @mp:
+ *
+ * We do this by iterating through gfs2 dirs in /sys/fs/gfs2/ looking for
+ * one where the "id" attribute matches the device id returned by stat for
+ * the mount point.  The reason we go through all this is simple: the
+ * kernel's sysfs is named after the VFS s_id, not the device name.
+ * So it's perfectly legal to do something like this to simulate user
+ * conditions without the proper hardware:
+ *    # rm /dev/sdb1
+ *    # mkdir /dev/cciss
+ *    # mknod /dev/cciss/c0d0p1 b 8 17
+ *    # mount -tgfs2 /dev/cciss/c0d0p1 /mnt/gfs2
+ *    # gfs2_tool gettune /mnt/gfs2
+ * In this example the tuning variables are in a directory named after the
+ * VFS s_id, which in this case would be /sys/fs/gfs2/sdb1/
  *
  * Returns: the fsname
  */
@@ -357,22 +335,35 @@ int is_fsname(char *name)
 char *
 mp2fsname(char *mp)
 {
-	char *devname = NULL, *fsname = NULL;
+	char device_id[PATH_MAX], *fsname = NULL;
+	struct stat statbuf;
+	DIR *d;
+	struct dirent *de;
 
-	devname = mp2devname(mp);
+	if (stat(mp, &statbuf))
+		return NULL;
 
-	if (devname) {
-		fsname = devname2fsname(devname);
-		if (fsname)
-			return fsname;
-		die("unknown mountpoint %s, no fsname for %s\n", mp, devname);
-	} else {
-		if (is_fsname(mp))
-			return mp;
-		die("unknown mountpoint %s, no device found\n", mp);
+	memset(device_id, 0, sizeof(device_id));
+	sprintf(device_id, "%u:%u", (uint32_t)MAJOR(statbuf.st_dev),
+		(uint32_t)MINOR(statbuf.st_dev));
+
+	d = opendir(SYS_BASE);
+	if (!d)
+		die("can't open %s: %s\n", SYS_BASE, strerror(errno));
+
+	while ((de = readdir(d))) {
+		if (de->d_name[0] == '.')
+			continue;
+
+		if (strcmp(get_sysfs(de->d_name, "id"), device_id) == 0) {
+			fsname = strdup(de->d_name);
+			break;
+		}
 	}
 
-	return NULL;
+	closedir(d);
+
+	return fsname;
 }
 
 /**
