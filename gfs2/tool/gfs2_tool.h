@@ -95,7 +95,7 @@ void set_tune(int argc, char **argv);
 
 char *get_list(void);
 char **str2lines(char *str);
-const char *find_debugfs_mount(void);
+char *find_debugfs_mount(void);
 char *mp2fsname(char *mp);
 char *name2value(char *str, char *name);
 uint32_t name2u32(char *str, char *name);

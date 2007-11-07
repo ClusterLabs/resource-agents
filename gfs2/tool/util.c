@@ -283,6 +283,36 @@ mp2devname(char *mp)
 	return name;
 }
 
+char *
+find_debugfs_mount(void)
+{
+	FILE *file;
+	char line[PATH_MAX];
+	char device[PATH_MAX], type[PATH_MAX];
+	char *path;
+
+	file = fopen("/proc/mounts", "rt");
+	if (!file)
+		die("can't open /proc/mounts: %s\n", strerror(errno));
+
+	path = malloc(PATH_MAX);
+	if (!path)
+		die("Can't allocate memory for debugfs.\n");
+	while (fgets(line, PATH_MAX, file)) {
+
+		if (sscanf(line, "%s %s %s", device, path, type) != 3)
+			continue;
+		if (!strcmp(type, "debugfs")) {
+			fclose(file);
+			return path;
+		}
+	}
+
+	free(path);
+	fclose(file);
+	return NULL;
+}
+
 /* The fsname can be substituted for the mountpoint on the command line.
    This is necessary when we can't resolve a devname from /proc/mounts
    to a fsname. */

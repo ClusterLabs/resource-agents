@@ -28,6 +28,7 @@
 
 #define __user
 #include <linux/gfs2_ondisk.h>
+#include <sys/mount.h>
 #include <linux/fs.h>
 
 #include "libgfs2.h"
@@ -110,7 +111,67 @@ do_freeze(int argc, char **argv)
 void
 print_lockdump(int argc, char **argv)
 {
-	die("lockdump not implemented: use debugfs instead.  \ne.g. cat /sys/kernel/debug/gfs2/clustname\\:fsname/glocks\n");
+	char path[PATH_MAX];
+	char *name, line[PATH_MAX];
+	char *debugfs;
+	FILE *file;
+	int rc = -1, debug_dir_existed = 1;
+
+	/* See if debugfs is mounted, and if not, mount it. */
+	debugfs = find_debugfs_mount();
+	if (!debugfs) {
+		debugfs = malloc(20);
+		if (!debugfs)
+			die("Can't allocate memory for debugfs.\n");
+		memset(debugfs, 0, 20);
+		strcpy(debugfs, "/tmp/debugfs");
+
+		if (access(debugfs, F_OK)) {
+			debug_dir_existed = mkdir(debugfs, 644);
+			if (debug_dir_existed) {
+				fprintf(stderr,
+					"Can't create %s mount point.\n",
+					debugfs);
+				free(debugfs);
+				exit(-1);
+			}
+		}
+		rc = mount("none", debugfs, "debugfs", 0, NULL);
+		if (rc) {
+			fprintf(stderr,
+				"Can't mount debugfs.  "
+				"Maybe your kernel doesn't support it.\n");
+				free(debugfs);
+				exit(-1);
+		}
+	}
+	name = mp2fsname(argv[optind]);
+	if (name) {
+		sprintf(path, "%s/gfs2/%s/glocks", debugfs, name);
+		free(name);
+		file = fopen(path, "rt");
+		if (file) {
+			while (fgets(line, PATH_MAX, file)) {
+				printf(line);
+			}
+			fclose(file);
+		} else {
+			fprintf(stderr, "Can't open %s: %s\n", path,
+				strerror(errno));
+		}
+	} else {
+		fprintf(stderr, "Unable to locate sysfs for mount point %s.\n",
+			argv[optind]);
+	}
+	/* Check if we mounted the debugfs and if so, unmount it. */
+	if (!rc) {
+		umount(debugfs);
+		/* Check if we created the debugfs mount point and if so,
+		   delete it. */
+		if (!debug_dir_existed)
+			rmdir(debugfs);
+	}
+	free(debugfs);
 }
 
 /**
