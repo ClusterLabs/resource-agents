@@ -1322,7 +1322,9 @@ void read_superblock(int fd)
 	else
 		gfs1 = FALSE;
 	bufsize = sbd.sd_sb.sb_bsize;
-	block = 0x10 * (4096 / bufsize);
+	if (!bufsize)
+		bufsize = GFS2_DEFAULT_BSIZE;
+	block = 0x10 * (GFS2_DEFAULT_BSIZE / bufsize);
 }
 
 /* ------------------------------------------------------------------------ */
