@@ -1247,8 +1247,6 @@ int display_extended(void)
 		parse_rindex(tmp_inode, TRUE);
 		brelse(tmp_bh, not_updated);
 	}
-	else if (display_indirect(indirect, indirect_blocks, 0, 0) == 0)
-		return -1;
 	else if (block_is_rglist()) {
 		tmp_bh = bread(&sbd, masterblock("rindex"));
 		tmp_inode = inode_get(&sbd, tmp_bh);
@@ -1279,6 +1277,8 @@ int display_extended(void)
 		print_quota(tmp_inode);
 		brelse(tmp_bh, not_updated);
 	}
+	else if (display_indirect(indirect, indirect_blocks, 0, 0) == 0)
+		return -1;
 	return 0;
 }
 
