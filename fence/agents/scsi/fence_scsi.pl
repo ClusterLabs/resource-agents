@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 
 use Getopt::Std;
+use XML::LibXML;
 use IPC::Open3;
 use POSIX;
 
@@ -61,18 +62,91 @@ sub fail_usage
     exit 1;
 }
 
-sub get_key
+sub get_cluster_id
+{
+    my $cluster_id;
+
+    my ($in, $out, $err);
+    my $cmd = "cman_tool status";
+
+    my $pid = open3($in, $out, $err, $cmd) or die "$!\n";
+
+    waitpid($pid, 0);
+
+    die "Unable to execute cman_tool.\n" if ($?>>8);
+
+    while (<$out>)
+    {
+	chomp;
+	print "OUT: $_\n" if $opt_v;
+
+	my ($name, $value) = split(/\s*:\s*/, $_);
+
+	if ($name eq "Cluster Id")
+	{
+	    $cluster_id = $value;
+	    last;
+	}
+    }
+
+    close($in);
+    close($out);
+    close($err);
+
+    return $cluster_id;
+}
+
+sub get_node_id
 {
     ($node)=@_;
 
-    my $addr = gethostbyname($node) or die "$!\n";
+    my $xml = XML::LibXML->new();
+    my $tree = $xml->parse_file("/etc/cluster/cluster.conf");
 
-    return unpack("H*", $addr);
+    my $xpath = "//cluster/clusternodes/clusternode[\@name='$node']/\@nodeid";
+
+    my $node_id = $tree->findvalue($xpath);
+
+    return $node_id;
 }
 
 sub get_node_name
 {
     return $opt_n;
+}
+
+sub get_host_id
+{
+    my $host_id;
+
+    my ($in, $out, $err);
+    my $cmd = "cman_tool status";
+
+    my $pid = open3($in, $out, $err, $cmd) or die "$!\n";
+
+    waitpid($pid, 0);
+
+    die "Unable to execute cman_tool.\n" if ($?>>8);
+
+    while (<$out>)
+    {
+	chomp;
+	print "OUT: $_\n" if $opt_v;
+
+	my ($name, $value) = split(/\s*:\s*/, $_);
+
+	if ($name eq "Node ID")
+	{
+	    $host_id = $value;
+	    last;
+	}
+    }
+
+    close($in);
+    close($out);
+    close($err);
+
+    return $host_id;
 }
 
 sub get_host_name
@@ -108,6 +182,19 @@ sub get_host_name
 
     return $host_name;
 }
+
+sub get_key
+{
+    ($node)=@_;
+
+    my $cluster_id = get_cluster_id;
+    my $node_id = get_node_id($node);
+
+    my $key = sprintf "%x%.4x", $cluster_id, $node_id;
+
+    return $key;
+}
+
 
 sub get_options_stdin
 {
@@ -180,8 +267,7 @@ sub get_key_list
 	    s/^\s+0x//;
 	    s/\s+$//;
 
-	    my $key = sprintf("%8.8x", hex($_));
-	    $key_list{$key} = 1;
+	    $key_list{$_} = 1;
 	}
     }
 
@@ -265,7 +351,7 @@ sub do_register
 
     waitpid($pid, 0);
 
-    die "Unable to execute sg_persist.\n" if ($?>>8);
+    die "Unable to execute sg_persist ($dev).\n" if ($?>>8);
 
     while (<$out>)
     {
@@ -310,7 +396,7 @@ sub fence_node
 
 	waitpid($pid, 0);
 
-	die "Unable to execute sg_persist.\n" if ($?>>8);
+	die "Unable to execute sg_persist ($dev).\n" if ($?>>8);
 
 	while (<$out>)
 	{
@@ -350,4 +436,3 @@ check_sg_persist;
 get_scsi_devices;
 
 fence_node;
-
