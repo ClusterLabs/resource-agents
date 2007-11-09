@@ -1003,6 +1003,7 @@ AC_CHECK_HEADERS(sys/param.h)
 AC_CHECK_HEADERS(netinet/in.h)
 AC_CHECK_HEADERS([stdint.h unistd.h])
 AC_CHECK_HEADERS(sys/termios.h)
+AC_CHECK_HEADERS(sys/reboot.h)
 AC_CHECK_HEADERS(termios.h)
 
 
