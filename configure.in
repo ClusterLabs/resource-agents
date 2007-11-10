@@ -2128,7 +2128,7 @@ then
   HA_APIGID=`getent group "$HA_APIGROUP" | cut -d: -f3`
 fi
 AC_SUBST(HA_APIGID)
-AC_DEFINE_UNQUOTED(HA_APIGID, "$HA_APIGID", id for api group)
+AC_DEFINE_UNQUOTED(HA_APIGID, $HA_APIGID, id for api group)
 
 AC_ARG_WITH(
   ccmuser-name,
@@ -2153,7 +2153,7 @@ then
   HA_CCMUID=`getent passwd "$HA_CCMUSER" | cut -d: -f3`
 fi
 AC_SUBST(HA_CCMUID)
-AC_DEFINE_UNQUOTED(HA_CCMUID, "$HA_CCMUID", id for ccm user)
+AC_DEFINE_UNQUOTED(HA_CCMUID, $HA_CCMUID, id for ccm user)
 
 #
 #	Priority for starting via init startup scripts
