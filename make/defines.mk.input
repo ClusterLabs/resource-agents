@@ -25,7 +25,6 @@ incdir ?= ${DESTDIR}@INCDIR@
 # C Compiler defaults
 CC = @CC@
 AR = ar
-LD = ld
 RANLIB = ranlib
 
 CFLAGS += @CFLAGS@ -I@BUILDDIR@/config
