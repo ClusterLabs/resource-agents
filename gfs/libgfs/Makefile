@@ -41,8 +41,8 @@ OBJS=	bio.o \
 all: ${TARGET}
 
 ${TARGET}: ${OBJS}
-	ar cru libgfs.a ${OBJS}
-	ranlib libgfs.a
+	${AR} cru $@ $^
+	${RANLIB} $@
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<

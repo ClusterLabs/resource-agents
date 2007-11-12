@@ -40,8 +40,8 @@ OBJS=	bitmap.o \
 all: ${TARGET}
 
 ${TARGET}: ${OBJS}
-	ar cru libgfs2.a ${OBJS}
-	ranlib libgfs2.a
+	${AR} cru $@ $^
+	${RANLIB} $@
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<

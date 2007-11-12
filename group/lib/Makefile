@@ -23,7 +23,7 @@ all: $(STATICLIB)
 
 $(TARGET).a: $(TARGET).o
 	${AR} r $@ $^
-#	${RANLIB} $(TARGET).a 
+	${RANLIB} $@
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<

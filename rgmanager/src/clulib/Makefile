@@ -42,11 +42,11 @@ uninstall:
 
 ${TARGET1}: ${OBJS1}
 	${AR} cru $@ $^
-	ranlib $@
+	${RANLIB} $@
 
 ${TARGET2}: ${OBJS2}
 	${AR} cru $@ $^
-	ranlib $@
+	${RANLIB} $@
 
 ${TARGET3}: ${OBJS3} ${TARGET1}
 	$(CC) -o $@ $^ $(LDFLAGS)

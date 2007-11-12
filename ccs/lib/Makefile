@@ -25,7 +25,8 @@ CFLAGS += -I${incdir}
 all: ${TARGET}
 
 ${TARGET}: ${OBJS}
-	${AR} cr ${TARGET} ${OBJS}
+	${AR} cr $@ $^
+	${RANLIB} $@
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
