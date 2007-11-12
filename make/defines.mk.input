@@ -24,7 +24,6 @@ incdir ?= ${DESTDIR}@INCDIR@
 
 # C Compiler defaults
 CC = @CC@
-STRIP = strip
 AR = ar
 LD = ld
 RANLIB = ranlib

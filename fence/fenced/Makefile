@@ -41,7 +41,6 @@ install: all
 	if [ ! -d ${sbindir} ]; then \
 		install -d ${sbindir}; \
 	fi
-	strip ${TARGET}
 	install -m755 ${TARGET} ${sbindir}
 
 uninstall:
