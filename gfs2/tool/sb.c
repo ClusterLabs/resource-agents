@@ -29,12 +29,7 @@
 #include <linux/gfs2_ondisk.h>
 
 #include "gfs2_tool.h"
-
-/* From libgfs2 */
-extern int gfs2_sb_in(struct gfs2_sb *sb, char *buf);
-extern void gfs2_sb_print(struct gfs2_sb *sb);
-extern int gfs2_sb_out(struct gfs2_sb *sb, char *buf);
-
+#include "libgfs2.h"
 
 void print_it(const char *label, const char *fmt, const char *fmt2, ...)
 {
@@ -46,27 +41,6 @@ void print_it(const char *label, const char *fmt, const char *fmt2, ...)
 	printf("\n");
 	va_end(args);
 }
-
-#define do_lseek(fd, off) \
-do { \
-	if (lseek((fd), (off), SEEK_SET) != (off)) \
-		die("bad seek: %s on line %d of file %s\n", \
-		    strerror(errno),__LINE__, __FILE__); \
-} while (0)
-
-#define do_read(fd, buff, len) \
-do { \
-	if (read((fd), (buff), (len)) != (len)) \
-		die("bad read: %s on line %d of file %s\n", \
-		    strerror(errno), __LINE__, __FILE__); \
-} while (0)
-
-#define do_write(fd, buff, len) \
-do { \
-	if (write((fd), (buff), (len)) != (len)) \
-		die("bad write: %s on line %d of file %s\n", \
-		    strerror(errno), __LINE__, __FILE__); \
-} while (0)
 
 /**
  * do_sb - examine/modify a unmounted FS' superblock

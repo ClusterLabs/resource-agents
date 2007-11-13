@@ -18,21 +18,6 @@
 #include "linux_endian.h"
 #include <linux/gfs2_ondisk.h>
 
-#ifndef TRUE
-#define TRUE (1)
-#endif
-
-#ifndef FALSE
-#define FALSE (0)
-#endif
-
-#define die(fmt, args...) \
-do { \
-	fprintf(stderr, "%s: ", prog_name); \
-	fprintf(stderr, fmt, ##args); \
-	exit(EXIT_FAILURE); \
-} while (0)
-
 #define type_zalloc(ptr, type, count) \
 do { \
 	(ptr) = (type *)malloc(sizeof(type) * (count)); \
@@ -115,46 +100,5 @@ void do_quota_init(struct gfs2_sbd *sdp, commandline_t *comline);
 
 uint32_t name_to_id(int user, char *name, int numbers);
 char *id_to_name(int user, uint32_t id, int numbers);
-
-
-static inline int __do_read(int fd, char *buff, size_t len, 
-			    const char *file, int line)
-{
-	int ret = read(fd, buff, len);
-	if (ret < 0) {
-		die("bad read: %s on line %d of file %s\n", 
-		    strerror(errno), line, file);
-	}
-	return ret;
-}
-
-#define do_read(fd, buf, len) \
-	__do_read((fd), (buf), (len), __FILE__, __LINE__)
-
-static inline int __do_write(int fd, char *buff, size_t len,
-			     const char *file, int line)
-{
-	int ret = write(fd, buff, len);
-	if (ret != len) {
-		die("bad write: %s on line %d of file %s\n",
-		    strerror(errno), line, file);
-	}
-	return ret;
-}
-
-#define do_write(fd, buf, len) \
-	__do_write((fd), (buf), (len), __FILE__, __LINE__)
-
-static inline int __do_lseek(int fd, off_t off, const char *file, int line)
-{
-	if (lseek(fd, off, SEEK_SET) != off) {
-		die("bad seek: %s on line %d of file %s\n",
-		    strerror(errno), line, file);
-	}
-	return 0;
-}
-
-#define do_lseek(fd, off) \
-	__do_lseek((fd), (off), __FILE__, __LINE__)
 
 #endif /* __GFS2_QUOTA_DOT_H__ */

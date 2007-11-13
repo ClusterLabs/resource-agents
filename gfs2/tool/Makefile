@@ -22,8 +22,7 @@ OBJS=	counters.o \
 	misc.o \
 	ondisk.o \
 	sb.o \
-	tune.o \
-	util.o
+	tune.o
 
 CFLAGS += -D_FILE_OFFSET_BITS=64
 CFLAGS += -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/

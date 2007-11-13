@@ -35,46 +35,6 @@ void main_mkfs(int argc, char *argv[]);
 /* main_shrink */
 void main_shrink(int argc, char *argv[]);
 
-static inline int __do_read(int fd, char *buff, size_t len, 
-			    const char *file, int line)
-{
-	int ret = read(fd, buff, len);
-	if (ret < 0) {
-		die("bad read: %s on line %d of file %s\n", 
-		    strerror(errno), line, file);
-	}
-	return ret;
-}
-
-#define do_read(fd, buf, len) \
-	__do_read((fd), (buf), (len), __FILE__, __LINE__)
-
-static inline int __do_write(int fd, char *buff, size_t len,
-			     const char *file, int line)
-{
-	int ret = write(fd, buff, len);
-	if (ret != len) {
-		die("bad write: %s on line %d of file %s\n",
-		    strerror(errno), line, file);
-	}
-	return ret;
-}
-
-#define do_write(fd, buf, len) \
-	__do_write((fd), (buf), (len), __FILE__, __LINE__)
-
-static inline int __do_lseek(int fd, off_t off, const char *file, int line)
-{
-	if (lseek(fd, off, SEEK_SET) != off) {
-		die("bad seek: %s on line %d of file %s\n",
-		    strerror(errno), line, file);
-	}
-	return 0;
-}
-
-#define do_lseek(fd, off) \
-	__do_lseek((fd), (off), __FILE__, __LINE__)
-
 /*
  * The following inode IOCTL macros and inode flags 
  * are copied from linux/fs.h, because we have duplicate 

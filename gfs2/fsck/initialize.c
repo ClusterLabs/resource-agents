@@ -169,7 +169,7 @@ static int set_block_ranges(struct gfs2_sbd *sdp)
 	last_data_block = rmax;
 	first_data_block = rmin;
 
-	if(do_lseek(sdp->device_fd, (last_fs_block * sdp->sd_sb.sb_bsize))){
+	if(fsck_lseek(sdp->device_fd, (last_fs_block * sdp->sd_sb.sb_bsize))){
 		log_crit("Can't seek to last block in file system: %"
 				 PRIu64" (0x%" PRIx64 ")\n", last_fs_block, last_fs_block);
 		goto fail;

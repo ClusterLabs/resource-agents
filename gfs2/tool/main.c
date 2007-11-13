@@ -28,6 +28,7 @@
 #include "copyright.cf"
 
 #include "gfs2_tool.h"
+#include "libgfs2.h"
 
 char *prog_name;
 char *action = NULL;

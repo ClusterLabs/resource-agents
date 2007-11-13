@@ -40,6 +40,27 @@ do { \
 	exit(EXIT_FAILURE); \
 } while (0)
 
+#define do_lseek(fd, off) \
+{ \
+  if (lseek((fd), (off), SEEK_SET) != (off)) \
+    die("bad seek: %s on line %d of file %s\n", \
+	strerror(errno),__LINE__, __FILE__); \
+}
+
+#define do_read(fd, buff, len) \
+{ \
+  if (read((fd), (buff), (len)) < 0) \
+    die("bad read: %s on line %d of file %s\n", \
+	strerror(errno), __LINE__, __FILE__); \
+}
+
+#define do_write(fd, buff, len) \
+{ \
+  if (write((fd), (buff), (len)) != (len)) \
+    die("bad write: %s on line %d of file %s\n", \
+	strerror(errno), __LINE__, __FILE__); \
+}
+
 #define zalloc(ptr, size) \
 do { \
 	(ptr) = malloc((size)); \
@@ -507,6 +528,8 @@ int gfs2_query(int *setonabort, struct gfs2_options *opts,
 	       const char *format, ...);
 
 /* misc.c */
+#define SYS_BASE "/sys/fs/gfs2"
+
 void compute_constants(struct gfs2_sbd *sdp);
 int find_gfs2_meta(struct gfs2_sbd *sdp);
 int dir_exists(const char *dir);
@@ -514,6 +537,20 @@ void check_for_gfs2(struct gfs2_sbd *sdp);
 void mount_gfs2_meta(struct gfs2_sbd *sdp);
 void lock_for_admin(struct gfs2_sbd *sdp);
 void cleanup_metafs(struct gfs2_sbd *sdp);
+char *get_list(void);
+char **str2lines(char *str);
+char *find_debugfs_mount(void);
+char *mp2fsname(char *mp);
+char *name2value(char *str, char *name);
+uint32_t name2u32(char *str, char *name);
+uint64_t name2u64(char *str, char *name);
+char *__get_sysfs(char *fsname, char *filename);
+char *get_sysfs(char *fsname, char *filename);
+unsigned int get_sysfs_uint(char *fsname, char *filename);
+void set_sysfs(char *fsname, char *filename, char *val);
+char *do_basename(char *device);
+char *mp2devname(char *mp);
+int is_fsname(char *name);
 
 /* recovery.c */
 void gfs2_replay_incr_blk(struct gfs2_inode *ip, unsigned int *blk);

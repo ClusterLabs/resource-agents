@@ -746,24 +746,10 @@ do_get(struct gfs2_sbd *sdp, commandline_t *comline)
 static void 
 do_sync_one(struct gfs2_sbd *sdp, char *filesystem)
 {
-	int fd;
-	char sys_quota_sync[PATH_MAX];
+	char *fsname;
 
-	strcpy(sdp->path_name, filesystem);
-	check_for_gfs2(sdp);
-	read_superblock(&sdp->sd_sb, sdp);
-	sprintf(sys_quota_sync, "%s%s%s", 
-		"/sys/fs/gfs2/", sdp->sd_sb.sb_locktable, "/quota_sync");
-	
-	fd = open(sys_quota_sync, O_WRONLY);
-	if (fd < 0)
-		die("can't open file %s: %s\n", sys_quota_sync, strerror(errno));
-	
-	if (write(fd,(void*)"1", 1) != 1)
-		die("failed to write to %s: %s\n", 
-		    sys_quota_sync, strerror(errno));
-	
-	close(fd);
+	fsname = mp2fsname(filesystem);
+	set_sysfs(fsname, "quota_sync", "1");
 }
 
 /**
@@ -809,14 +795,14 @@ do_sync(struct gfs2_sbd *sdp, commandline_t *comline)
 static void
 do_set(struct gfs2_sbd *sdp, commandline_t *comline)
 {
-	int fd, fd1;
+	int fd;
 	uint64_t offset;
 	uint64_t new_value;
 	int error, adj_flag = 0;;
 	char quota_file[BUF_SIZE];
-	char sys_q_refresh[BUF_SIZE];
 	char id_str[16];
 	struct stat stat_buf;
+	char *fs;
 	
 	if (!*comline->filesystem)
 		die("need a filesystem to work on\n");
@@ -958,28 +944,11 @@ do_set(struct gfs2_sbd *sdp, commandline_t *comline)
 		}
 	}
 
-	/* Write the id to sysfs quota refresh file to refresh gfs quotas */
-	sprintf(sys_q_refresh, "%s%s%s", "/sys/fs/gfs2/",
-		sdp->sd_sb.sb_locktable, 
-		comline->id_type == GQ_ID_USER ? "/quota_refresh_user" : 
-		"/quota_refresh_group");
-	
-	fd1 = open(sys_q_refresh, O_WRONLY);
-	if (fd1 < 0) {
-		fprintf(stderr, "can't open file %s: %s\n", sys_q_refresh, 
-			strerror(errno));
-		goto out;
-	}
-
+	fs = mp2fsname(comline->filesystem);
 	sprintf(id_str, "%d", comline->id);
+	set_sysfs(fs, comline->id_type == GQ_ID_USER ?
+		  "quota_refresh_user" : "quota_refresh_group", id_str);
 	
-	if (write(fd1,(void*)id_str, strlen(id_str)) != strlen(id_str)) {
-		close(fd1);
-		fprintf(stderr, "failed to write to %s: %s\n", 
-			sys_q_refresh, strerror(errno));
-		goto out;
-	}
-	close(fd1);
 	if (adj_flag)
 		adjust_quota_list(fd, comline);
 out:

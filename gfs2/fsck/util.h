@@ -16,15 +16,8 @@
 
 #include "libgfs2.h"
 
-#define do_lseek(fd, off) \
+#define fsck_lseek(fd, off) \
   ((lseek((fd), (off), SEEK_SET) == (off)) ? 0 : -1)
-
-#define do_read(fd, buff, len) \
-  ((read((fd), (buff), (len)) == (len)) ? 0 : -1)
-
-#define do_write(fd, buff, len) \
-  ((write((fd), (buff), (len)) == (len)) ? 0 : -1)
-
 
 int compute_height(struct gfs2_sbd *sdp, uint64_t sz);
 struct di_info *search_list(osi_list_t *list, uint64_t addr);

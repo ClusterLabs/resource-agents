@@ -455,15 +455,15 @@ static void
 set_list(struct gfs2_sbd *sdp, commandline_t *comline, int user, 
 	 osi_list_t *list, int64_t multiplier)
 {
-	int fd, fd1;
+	int fd;
 	osi_list_t *tmp;
 	values_t *v;
 	uint64_t offset;
 	int64_t value;
 	int error;
 	char quota_file[BUF_SIZE];
-	char sys_q_refresh[BUF_SIZE];
 	char id_str[16];
+	char *fs;
 
 	strcpy(sdp->path_name, comline->filesystem);
 	check_for_gfs2(sdp);
@@ -503,27 +503,10 @@ set_list(struct gfs2_sbd *sdp, commandline_t *comline, int user,
 		}
 
 		/* Write the id to sysfs quota refresh file to refresh gfs quotas */
-		sprintf(sys_q_refresh, "%s%s%s", "/sys/fs/gfs2/",
-			sdp->sd_sb.sb_locktable, 
-			(user) ? "/quota_refresh_user" :
-			"/quota_refresh_group");
-		
-		fd1 = open(sys_q_refresh, O_WRONLY);
-		if (fd1 < 0) {
-			fprintf(stderr, "can't open file %s: %s\n", 
-				sys_q_refresh, strerror(errno));
-			goto out;
-		}
-
+		fs = mp2fsname(comline->filesystem);
 		sprintf(id_str, "%d", comline->id);
-		
-		if (write(fd1,(void*)id_str, strlen(id_str)) != strlen(id_str)) {
-			close(fd1);
-			fprintf(stderr, "failed to write to %s: %s\n", 
-				sys_q_refresh, strerror(errno));
-			goto out;
-		}
-		close(fd1);
+		set_sysfs(fs, (user) ? "quota_refresh_user" :
+			  "quota_refresh_group", id_str);
 	}
 
 out:

@@ -15,23 +15,6 @@
 #define __GFS2_TOOL_DOT_H__
 
 
-#ifndef TRUE
-#define TRUE (1)
-#endif
-
-#ifndef FALSE
-#define FALSE (0)
-#endif
-
-#define die(fmt, args...) \
-do { \
-	fprintf(stderr, "%s: ", prog_name); \
-	fprintf(stderr, fmt, ##args); \
-	exit(EXIT_FAILURE); \
-} while (0)
-
-#define SYS_BASE "/sys/fs/gfs2"
-
 extern char *prog_name;
 extern char *action;
 extern int override;
@@ -89,21 +72,5 @@ void do_sb(int argc, char **argv);
 
 void get_tune(int argc, char **argv);
 void set_tune(int argc, char **argv);
-
-
-/* From util.c */
-
-char *get_list(void);
-char **str2lines(char *str);
-char *find_debugfs_mount(void);
-char *mp2fsname(char *mp);
-char *name2value(char *str, char *name);
-uint32_t name2u32(char *str, char *name);
-uint64_t name2u64(char *str, char *name);
-char *__get_sysfs(char *fsname, char *filename);
-char *get_sysfs(char *fsname, char *filename);
-unsigned int get_sysfs_uint(char *fsname, char *filename);
-void set_sysfs(char *fsname, char *filename, char *val);
-
 
 #endif /* __GFS2_TOOL_DOT_H__ */

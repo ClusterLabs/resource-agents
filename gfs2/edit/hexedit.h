@@ -197,31 +197,6 @@ EXTERN enum dsp_mode dmode INIT(HEX_MODE);
 #define SCREEN_HEIGHT   (16)
 #define SCREEN_WIDTH    (16)
 
-/*  I/O macros  */
-
-#define do_lseek(fd, off) \
-{ \
-  if (lseek((fd), (off), SEEK_SET) != (off)) \
-    die("bad seek: %s on line %d of file %s\n", \
-	strerror(errno),__LINE__, __FILE__); \
-}
-
-#define do_read(fd, buff, len) \
-{ \
-  if (read((fd), (buff), (len)) != (len)) \
-    die("bad read: %s on line %d of file %s\n", \
-	strerror(errno), __LINE__, __FILE__); \
-}
-
-#define do_write(fd, buff, len) \
-{ \
-  if (write((fd), (buff), (len)) != (len)) \
-    die("bad write: %s on line %d of file %s\n", \
-	strerror(errno), __LINE__, __FILE__); \
-}
-
-
-
 /*  Memory macros  */
 
 #define type_zalloc(ptr, type, count) \

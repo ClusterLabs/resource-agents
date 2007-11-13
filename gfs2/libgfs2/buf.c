@@ -25,27 +25,6 @@
 
 #include "libgfs2.h"
 
-#define do_lseek(sdp, off) \
-do { \
-	if (lseek((sdp)->device_fd, (off), SEEK_SET) != (off)) \
-		die("bad seek: %s on line %d of file %s\n", \
-		    strerror(errno), __LINE__, __FILE__); \
-} while (0)
-
-#define do_read(sdp, buf, len) \
-do { \
-	if (read((sdp)->device_fd, (buf), (len)) != (len)) \
-		die("bad read: %s on line %d of file %s\n", \
-		    strerror(errno), __LINE__, __FILE__); \
-} while (0)
-
-#define do_write(sdp, buf, len) \
-do { \
-	if (write((sdp)->device_fd, (buf), (len)) != (len)) \
-		die("bad write: %s on line %d of file %s\n", \
-		    strerror(errno), __LINE__, __FILE__); \
-} while (0)
-
 static __inline__ osi_list_t *
 blkno2head(struct gfs2_sbd *sdp, uint64_t blkno)
 {
@@ -59,8 +38,8 @@ void write_buffer(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh)
 	osi_list_del(&bh->b_hash);
 	sdp->num_bufs--;
 	if (bh->b_changed) {
-		do_lseek(sdp, bh->b_blocknr * sdp->bsize);
-		do_write(sdp, bh->b_data, sdp->bsize);
+		do_lseek(sdp->device_fd, bh->b_blocknr * sdp->bsize);
+		do_write(sdp->device_fd, bh->b_data, sdp->bsize);
 		sdp->writes++;
 	}
 	free(bh);
@@ -126,8 +105,8 @@ struct gfs2_buffer_head *bget_generic(struct gfs2_sbd *sdp, uint64_t num,
 	bh->b_data = (char *)bh + sizeof(struct gfs2_buffer_head);
 	bh->b_size = sdp->bsize;
 	if (read_disk) {
-		do_lseek(sdp, num * sdp->bsize);
-		do_read(sdp, bh->b_data, sdp->bsize);
+		do_lseek(sdp->device_fd, num * sdp->bsize);
+		do_read(sdp->device_fd, bh->b_data, sdp->bsize);
 	}
 	add_buffer(sdp, bh);
 	bh->b_changed = FALSE;
@@ -196,8 +175,8 @@ void bcommit(struct gfs2_sbd *sdp)
 		if (!bh->b_count)             /* if not reserved for later */
 			write_buffer(sdp, bh);    /* write the data, free the memory */
 		else if (bh->b_changed) {     /* if buffer has changed */
-			do_lseek(sdp, bh->b_blocknr * sdp->bsize);
-			do_write(sdp, bh->b_data, sdp->bsize); /* write it out */
+			do_lseek(sdp->device_fd, bh->b_blocknr * sdp->bsize);
+			do_write(sdp->device_fd, bh->b_data, sdp->bsize); /* write it out */
 			bh->b_changed = FALSE;    /* no longer changed */
 		}
 	}
