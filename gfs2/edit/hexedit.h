@@ -57,6 +57,13 @@ enum dsp_mode { HEX_MODE = 0, GFS2_MODE = 1, EXTENDED_MODE = 2 };
 #define GFS_FILE_FIFO           (101)  /* fifo/pipe */
 #define GFS_FILE_SOCK           (102)  /* socket */
 
+/* GFS 1 journal block types: */
+#define GFS_LOG_DESC_METADATA   (300)    /* metadata */
+#define GFS_LOG_DESC_IUL        (400)    /* unlinked inode */
+#define GFS_LOG_DESC_IDA        (401)    /* de-allocated inode */
+#define GFS_LOG_DESC_Q          (402)    /* quota */
+#define GFS_LOG_DESC_LAST       (500)    /* final in a logged transaction */
+
 EXTERN char *prog_name;
 EXTERN uint64_t block INIT(0);
 EXTERN int blockhist INIT(0);
@@ -103,12 +110,39 @@ struct gfs_jindex {
         char ji_reserved[64];
 };
 
+struct gfs_log_descriptor {
+	struct gfs2_meta_header ld_header;
+
+	uint32_t ld_type;       /* GFS_LOG_DESC_... Type of this log chunk */
+	uint32_t ld_length;     /* Number of buffers in this chunk */
+	uint32_t ld_data1;      /* descriptor-specific field */
+	uint32_t ld_data2;      /* descriptor-specific field */
+	char ld_reserved[64];
+};
+
+struct gfs_log_header {
+	struct gfs2_meta_header lh_header;
+
+	uint32_t lh_flags;      /* GFS_LOG_HEAD_... */
+	uint32_t lh_pad;
+
+	uint64_t lh_first;     /* Block number of first header in this trans */
+	uint64_t lh_sequence;   /* Sequence number of this transaction */
+
+	uint64_t lh_tail;       /* Block number of log tail */
+	uint64_t lh_last_dump;  /* Block number of last dump */
+
+	char lh_reserved[64];
+};
+
 EXTERN int block_is_jindex(void);
 EXTERN int block_is_inum_file(void);
 EXTERN int block_is_statfs_file(void);
 EXTERN int block_is_quota_file(void);
 EXTERN int display_block_type(const char *lpBuffer, int from_restore);
 EXTERN void gfs_jindex_in(struct gfs_jindex *jindex, char *buf);
+EXTERN void gfs_log_header_in(struct gfs_log_header *head, char *buf);
+EXTERN void gfs_log_header_print(struct gfs_log_header *lh);
 
 struct gfs2_dirents {
 	uint64_t block;
@@ -175,16 +209,6 @@ struct gfs_sb {
 	struct gfs2_inum sb_license_di; /* license inode */
 
 	char sb_reserved[96];
-};
-
-struct gfs_log_descriptor {
-	struct gfs2_meta_header ld_header;
-
-	uint32_t ld_type;       /* GFS_LOG_DESC_... Type of this log chunk */
-	uint32_t ld_length;     /* Number of buffers in this chunk */
-	uint32_t ld_data1;      /* descriptor-specific field */
-	uint32_t ld_data2;      /* descriptor-specific field */
-	char ld_reserved[64];
 };
 
 EXTERN struct blkstack_info blockstack[BLOCK_STACK_SIZE];

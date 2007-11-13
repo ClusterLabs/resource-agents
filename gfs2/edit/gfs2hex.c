@@ -463,6 +463,7 @@ int display_gfs2(void)
 	struct gfs2_meta_header mh;
 	struct gfs2_rgrp rg;
 	struct gfs2_leaf lf;
+	struct gfs_log_header lh1;
 	struct gfs2_log_header lh;
 	struct gfs2_log_descriptor ld;
 
@@ -525,8 +526,13 @@ int display_gfs2(void)
 		case GFS2_METATYPE_LH:
 			print_gfs2("Log Header:");
 			eol(0);
-			gfs2_log_header_in(&lh, buf);
-			gfs2_log_header_print(&lh);
+			if (gfs1) {
+				gfs_log_header_in(&lh1, buf);
+				gfs_log_header_print(&lh1);
+			} else {
+				gfs2_log_header_in(&lh, buf);
+				gfs2_log_header_print(&lh);
+			}
 			break;
 			
 		case GFS2_METATYPE_LD:

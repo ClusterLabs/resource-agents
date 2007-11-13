@@ -1247,6 +1247,8 @@ int display_extended(void)
 		parse_rindex(tmp_inode, TRUE);
 		brelse(tmp_bh, not_updated);
 	}
+	else if (display_indirect(indirect, indirect_blocks, 0, 0) == 0)
+		return -1;
 	else if (block_is_rglist()) {
 		tmp_bh = bread(&sbd, masterblock("rindex"));
 		tmp_inode = inode_get(&sbd, tmp_bh);
@@ -1277,8 +1279,6 @@ int display_extended(void)
 		print_quota(tmp_inode);
 		brelse(tmp_bh, not_updated);
 	}
-	else if (display_indirect(indirect, indirect_blocks, 0, 0) == 0)
-		return -1;
 	return 0;
 }
 
@@ -1977,6 +1977,42 @@ void interactive_mode(void)
 }/* interactive_mode */
 
 /* ------------------------------------------------------------------------ */
+/* gfs_log_header_in - read in a gfs1-style log header                      */
+/* ------------------------------------------------------------------------ */
+void gfs_log_header_in(struct gfs_log_header *head, char *buf)
+{
+	struct gfs_log_header *str = (struct gfs_log_header *) buf;
+
+	gfs2_meta_header_in(&head->lh_header, buf);
+
+	head->lh_flags = be32_to_cpu(str->lh_flags);
+	head->lh_pad = be32_to_cpu(str->lh_pad);
+
+	head->lh_first = be64_to_cpu(str->lh_first);
+	head->lh_sequence = be64_to_cpu(str->lh_sequence);
+
+	head->lh_tail = be64_to_cpu(str->lh_tail);
+	head->lh_last_dump = be64_to_cpu(str->lh_last_dump);
+
+	memcpy(head->lh_reserved, str->lh_reserved, 64);
+}
+
+
+/* ------------------------------------------------------------------------ */
+/* gfs_log_header_print - print a gfs1-style log header                     */
+/* ------------------------------------------------------------------------ */
+void gfs_log_header_print(struct gfs_log_header *lh)
+{
+	gfs2_meta_header_print(&lh->lh_header);
+	pv(lh, lh_flags, "%u", "0x%.8X");
+	pv(lh, lh_pad, "%u", "%x");
+	pv(lh, lh_first, "%llu", "%llx");
+	pv(lh, lh_sequence, "%llu", "%llx");
+	pv(lh, lh_tail, "%llu", "%llx");
+	pv(lh, lh_last_dump, "%llu", "%llx");
+}
+
+/* ------------------------------------------------------------------------ */
 /* dump_journal - dump a journal file's contents.                           */
 /* ------------------------------------------------------------------------ */
 void dump_journal(const char *journal)
@@ -2045,19 +2081,34 @@ void dump_journal(const char *journal)
 			uint64_t *b;
 			struct gfs2_log_descriptor ld;
 			int i = 0, ltndx;
-			const char *logtypestr[4] = {
-				"Metadata", "Revoke", "Jdata", "Unknown"};
+			uint32_t logtypes[2][6] = {
+				{GFS2_LOG_DESC_METADATA,
+				 GFS2_LOG_DESC_REVOKE,
+				 GFS2_LOG_DESC_JDATA,
+				 0, 0, 0},
+				{GFS_LOG_DESC_METADATA,
+				 GFS_LOG_DESC_IUL,
+				 GFS_LOG_DESC_IDA,
+				 GFS_LOG_DESC_Q,
+				 GFS_LOG_DESC_LAST,
+				 0}};
+			const char *logtypestr[2][6] = {
+				{"Metadata", "Revoke", "Jdata",
+				 "Unknown", "Unknown", "Unknown"},
+				{"Metadata", "Unlinked inode", "Dealloc inode",
+				 "Quota", "Final Entry", "Unknown"}};
 
 			print_gfs2("Block #%4llx: Log descriptor, ",
 				   jb / (gfs1 ? 1 : bufsize));
 			gfs2_log_descriptor_in(&ld, jbuf);
 			print_gfs2("type %d ", ld.ld_type);
-			if (ld.ld_type >= GFS2_LOG_DESC_METADATA &&
-			    ld.ld_type <= GFS2_LOG_DESC_JDATA)
-				ltndx = ld.ld_type - GFS2_LOG_DESC_METADATA;
-			else
-				ltndx = 3;
-			print_gfs2("(%s) ", logtypestr[ltndx]);
+
+			for (ltndx = 0;; ltndx++) {
+				if (ld.ld_type == logtypes[gfs1][ltndx] ||
+				    logtypes[gfs1][ltndx] == 0)
+					break;
+			}
+			print_gfs2("(%s) ", logtypestr[gfs1][ltndx]);
 			print_gfs2("len:%u, data1: %u",
 				   ld.ld_length, ld.ld_data1);
 			eol(0);
@@ -2085,11 +2136,22 @@ void dump_journal(const char *journal)
 			eol(0);
 		} else if (get_block_type(jbuf) == GFS2_METATYPE_LH) {
 			struct gfs2_log_header lh;
+			struct gfs_log_header lh1;
 
-			gfs2_log_header_in(&lh, jbuf);
-			print_gfs2("Block #%4llx: Log header: Seq = 0x%x, tail = 0x%x, blk = 0x%x",
-				   jb / (gfs1 ? 1 : bufsize),
-				   lh.lh_sequence, lh.lh_tail, lh.lh_blkno);
+			if (gfs1) {
+				gfs_log_header_in(&lh1, jbuf);
+				print_gfs2("Block #%4llx: Log header: Seq"
+					   "= 0x%x, first = 0x%x tail = "
+					   "0x%x, last = 0x%x",
+					   jb, lh1.lh_sequence, lh1.lh_first,
+					   lh1.lh_tail, lh1.lh_last_dump);
+			} else {
+				gfs2_log_header_in(&lh, jbuf);
+				print_gfs2("Block #%4llx: Log header: Seq"
+					   "= 0x%x, tail = 0x%x, blk = 0x%x",
+					   jb / bufsize, lh.lh_sequence,
+					   lh.lh_tail, lh.lh_blkno);
+			}
 			eol(0);
 		}
 	}
