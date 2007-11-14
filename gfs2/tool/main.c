@@ -45,6 +45,9 @@ static const char *usage[] = {
 	"Print the counters for a filesystem\n",
 	"  gfs2_tool counters <mountpoint>\n",
 	"\n",
+	"Do a GFS2 specific \"df\":\n",
+	"  gfs2_tool df <mountpoint>\n",
+	"\n",
 	"Freeze a GFS2 cluster:\n",
 	"  gfs2_tool freeze <mountpoint>\n",
 	"\n",
@@ -91,9 +94,6 @@ static const char *usage[] = {
 	"Withdraw this machine from participating in a filesystem:\n",
 	"  gfs2_tool withdraw <mountpoint>\n",
 #if GFS2_TOOL_FEATURE_IMPLEMENTED
-	"\n",
-	"Do a GFS2 specific \"df\"\n",
-	"  gfs2_tool df <mountpoint>\n",
 	"\n",
 	"Force files from a machine's cache\n",
 	"  gfs2_tool flush <filenames>\n",
@@ -233,6 +233,8 @@ main(int argc, char *argv[])
 		set_flag(argc, argv);
 	else if (strcmp(action, "counters") == 0)
 		print_counters(argc, argv);
+	else if (strcmp(action, "df") == 0)
+		print_df(argc, argv);
 	else if (strcmp(action, "freeze") == 0)
 		do_freeze(argc, argv);
 	else if (strcmp(action, "getargs") == 0)
@@ -266,8 +268,6 @@ main(int argc, char *argv[])
 		do_file_flush(argc, argv);
 	else if (strcmp(action, "getsb") == 0)
 		print_sb(argc, argv);
-	else if (strcmp(action, "df") == 0)
-		print_df(argc, argv);
 	else if (strcmp(action, "jindex") == 0)
 		print_jindex(argc, argv);
 	else if (strcmp(action, "layout") == 0)

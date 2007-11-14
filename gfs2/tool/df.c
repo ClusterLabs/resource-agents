@@ -31,9 +31,6 @@
 #include "gfs2_tool.h"
 #include "libgfs2.h"
 
-#define SIZE (65536)
-
-#if GFS2_TOOL_FEATURE_IMPLEMENTED
 /**
  * do_df_one - print out information about one filesystem
  * @path: the path to the filesystem
@@ -43,98 +40,68 @@
 static void
 do_df_one(char *path)
 {
-	struct gfs2_ioctl gi;
-	/* char stat_gfs2[SIZE]; */
-	/* unsigned int percentage; */
-	struct gfs2_sb sb;
-	struct gfs2_dinode ji, ri;
-	unsigned int journals = 0;
+	unsigned int percentage;
+	unsigned int journals;
 	uint64_t rgrps;
 	unsigned int flags;
-	char *fs, *value;
- 	int error;
+	char *value, *fs;
+ 	int x, statfs_fd;
 	struct gfs2_sbd sbd;
+	char buf[GFS2_DEFAULT_BSIZE], statfs_fn[PATH_MAX];
+	struct gfs2_statfs_change sc;
 
+	memset(&sbd, 0, sizeof(struct gfs2_sbd));
 	sbd.path_name = path;
 	check_for_gfs2(&sbd);
+	fs = mp2fsname(sbd.path_name);
 
-	sbd.device_fd = open(path, O_RDONLY);
+	sbd.device_fd = open(sbd.device_name, O_RDONLY);
 	if (sbd.device_fd < 0)
 		die("can't open %s: %s\n", path, strerror(errno));
 
-	fs = mp2fsname(path);
+	sbd.bsize = GFS2_DEFAULT_BSIZE;
+	sbd.jsize = GFS2_DEFAULT_JSIZE;
+	sbd.rgsize = GFS2_DEFAULT_RGSIZE;
+	sbd.utsize = GFS2_DEFAULT_UTSIZE;
+	sbd.qcsize = GFS2_DEFAULT_QCSIZE;
+	osi_list_init(&sbd.rglist);
+	osi_list_init(&sbd.buf_list);
+	for (x = 0; x < BUF_HASH_SIZE; x++)
+		osi_list_init(&sbd.buf_hash[x]);
+	do_lseek(sbd.device_fd, 0x10 * sbd.bsize);
+	do_read(sbd.device_fd, buf, sbd.bsize); /* read in the superblock */
 
-	/*
-	strncpy(stat_gfs2, __get_sysfs(fs, "statfs"), SIZE);
-	stat_gfs2[SIZE - 1] = '\0';
-	*/
+	compute_constants(&sbd);
+	gfs2_sb_in(&sbd.sd_sb, buf); /* parse it out into the sb structure */
 
-	{
-		char *argv[] = { "get_super" };
+	sbd.master_dir = gfs2_load_inode(&sbd,
+					 sbd.sd_sb.sb_master_dir.no_addr);
 
-		gi.gi_argc = 1;
-		gi.gi_argv = argv;
-		gi.gi_data = (char *)&sb;
-		gi.gi_size = sizeof(struct gfs2_sb);
-
-		error = ioctl(sbd.device_fd, GFS2_IOCTL_SUPER, &gi);
-		if (error != gi.gi_size)
-			die("error doing get_super (%d): %s\n",
-			    error, strerror(errno));
-	}
-	{
-		char *argv[] = { "get_hfile_stat",
-				 "jindex" };
-
-		gi.gi_argc = 2;
-		gi.gi_argv = argv;
-		gi.gi_data = (char *)&ji;
-		gi.gi_size = sizeof(struct gfs2_dinode);
-
-		error = ioctl(sbd.device_fd, GFS2_IOCTL_SUPER, &gi);
-		if (error != gi.gi_size)
-			die("error doing get_hfile_stat for jindex (%d): %s\n",
-			    error, strerror(errno));
-	}
-	{
-		char *argv[] = { "get_hfile_stat",
-				 "rindex" };
-
-		gi.gi_argc = 2;
-		gi.gi_argv = argv;
-		gi.gi_data = (char *)&ri;
-		gi.gi_size = sizeof(struct gfs2_dinode);
-
-		error = ioctl(sbd.device_fd, GFS2_IOCTL_SUPER, &gi);
-		if (error != gi.gi_size)
-			die("error doing get_hfile_stat for rindex (%d): %s\n",
-			    error, strerror(errno));
-	}
-
+	gfs2_lookupi(sbd.master_dir, "rindex", 6, &sbd.md.riinode);
+	gfs2_lookupi(sbd.master_dir, "jindex", 6, &sbd.md.jiinode);
 	close(sbd.device_fd);
 
-	journals = ji.di_entries - 2;
+	journals = sbd.md.jiinode->i_di.di_entries - 2;
 
-	rgrps = ri.di_size;
+	rgrps = sbd.md.riinode->i_di.di_size;
 	if (rgrps % sizeof(struct gfs2_rindex))
 		die("bad rindex size\n");
 	rgrps /= sizeof(struct gfs2_rindex);
 
-
 	printf("%s:\n", path);
-	printf("  SB lock proto = \"%s\"\n", sb.sb_lockproto);
-	printf("  SB lock table = \"%s\"\n", sb.sb_locktable);
-	printf("  SB ondisk format = %u\n", sb.sb_fs_format);
-	printf("  SB multihost format = %u\n", sb.sb_multihost_format);
-	printf("  Block size = %u\n", sb.sb_bsize);
+	printf("  SB lock proto = \"%s\"\n", sbd.sd_sb.sb_lockproto);
+	printf("  SB lock table = \"%s\"\n", sbd.sd_sb.sb_locktable);
+	printf("  SB ondisk format = %u\n", sbd.sd_sb.sb_fs_format);
+	printf("  SB multihost format = %u\n", sbd.sd_sb.sb_multihost_format);
+	printf("  Block size = %u\n", sbd.sd_sb.sb_bsize);
 	printf("  Journals = %u\n", journals);
 	printf("  Resource Groups = %"PRIu64"\n", rgrps);
 	printf("  Mounted lock proto = \"%s\"\n",
-	       ((value = get_sysfs(fs, "args/lockproto"))[0]) ? value :
-	       sb.sb_lockproto);
+	       ((value = get_sysfs(fs, "args/lockproto"))[0])
+	       ? value : sbd.sd_sb.sb_lockproto);
 	printf("  Mounted lock table = \"%s\"\n",
-	       ((value = get_sysfs(fs, "args/locktable"))[0]) ? value :
-	       sb.sb_locktable);
+	       ((value = get_sysfs(fs, "args/locktable"))[0])
+	       ? value : sbd.sd_sb.sb_locktable);
 	printf("  Mounted host data = \"%s\"\n",
 	       get_sysfs(fs, "args/hostdata"));
 	printf("  Journal number = %s\n", get_sysfs(fs, "lockstruct/jid"));
@@ -145,31 +112,36 @@ do_df_one(char *path)
 	       (get_sysfs_uint(fs, "args/localflocks")) ? "TRUE" : "FALSE");
 	printf("  Local caching = %s\n",
 		(get_sysfs_uint(fs, "args/localcaching")) ? "TRUE" : "FALSE");
-#if 0
+
+	/* Read the master statfs file */
+	if (!find_gfs2_meta(&sbd))
+		mount_gfs2_meta(&sbd);
+	lock_for_admin(&sbd);
+
+	sprintf(statfs_fn, "%s/statfs", sbd.metafs_path);
+	statfs_fd = open(statfs_fn, O_RDONLY);
+	do_read(statfs_fd, buf, sizeof(struct gfs2_statfs_change));
+	gfs2_statfs_change_in(&sc, (char *)&buf);
+
+	close(statfs_fd);
+
+	cleanup_metafs(&sbd);
+
 	printf("\n");
 	printf("  %-15s%-15s%-15s%-15s%-15s\n", "Type", "Total", "Used", "Free", "use%");
 	printf("  ------------------------------------------------------------------------\n");
 
-	percentage = (name2u64(stat_gfs2, "total")) ?
-		(100.0 * (name2u64(stat_gfs2, "total") - name2u64(stat_gfs2, "free")) /
-		 name2u64(stat_gfs2, "total") + 0.5) : 0;
-	printf("  %-15s%-15"PRIu64"%-15"PRIu64"%-15"PRIu64"%u%%\n",
-	       "data",
-	       name2u64(stat_gfs2, "total"),
-	       name2u64(stat_gfs2, "total") - name2u64(stat_gfs2, "free"),
-	       name2u64(stat_gfs2, "free"),
-	       percentage);
+	percentage = sc.sc_total ?
+		(100.0 * (sc.sc_total - sc.sc_free)) / sc.sc_total + 0.5 : 0;
+	printf("  %-15s%-15llu%-15llu%-15llu%u%%\n", "data",
+	       sc.sc_total, sc.sc_total - sc.sc_free, sc.sc_free, percentage);
 
-	percentage = (name2u64(stat_gfs2, "dinodes") + name2u64(stat_gfs2, "free")) ?
-		(100.0 * name2u64(stat_gfs2, "dinodes") /
-		 (name2u64(stat_gfs2, "dinodes") + name2u64(stat_gfs2, "free")) + 0.5) : 0;
-	printf("  %-15s%-15"PRIu64"%-15"PRIu64"%-15"PRIu64"%u%%\n",
-	       "inodes",
-	       name2u64(stat_gfs2, "dinodes") + name2u64(stat_gfs2, "free"),
-	       name2u64(stat_gfs2, "dinodes"),
-	       name2u64(stat_gfs2, "free"),
-	       percentage);
-#endif
+	percentage = (sc.sc_dinodes + sc.sc_free) ?
+		(100.0 * sc.sc_dinodes / (sc.sc_dinodes + sc.sc_free)) + 0.5 :
+		0;
+	printf("  %-15s%-15llu%-15llu%-15llu%u%%\n", "inodes",
+	       sc.sc_dinodes + sc.sc_free, sc.sc_dinodes,
+	       sc.sc_free, percentage);
 }
 
 
@@ -220,4 +192,3 @@ print_df(int argc, char **argv)
 		fclose(file);
 	}
 }
-#endif /* #if GFS2_TOOL_FEATURE_IMPLEMENTED */
