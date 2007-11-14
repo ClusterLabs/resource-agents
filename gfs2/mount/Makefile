@@ -41,11 +41,11 @@ ${TARGET2}: ${SHAREDOBJS} ${OBJS2}
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 install: all
-	install ${TARGET1} ${sbindir}
-	install ${TARGET2} ${sbindir}
+	mkdir -p ${DESTDIR}/sbin
+	install ${TARGET1} ${TARGET2} ${DESTDIR}/sbin
 
 uninstall:
-	${UNINSTALL} ${TARGET1} ${TARGET2} ${sbindir}
+	${UNINSTALL} ${TARGET1} ${TARGET2} ${DESTDIR}/sbin
 
 clean:
 	rm -f *.o ${TARGET1} ${TARGET2}

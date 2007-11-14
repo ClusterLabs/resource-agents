@@ -24,10 +24,11 @@ all: ${SUBDIRS}
 		${MAKE} -C $$i $@; \
 	done; \
 	if [ "$@" = "install" ]; then \
-		cd ${sbindir}; \
+		mkdir -p ${DESTDIR}/sbin; \
+		cd ${DESTDIR}/sbin; \
 			ln -sf mount.gfs2 mount.gfs; \
 			ln -sf umount.gfs2 umount.gfs; \
 	fi; \
 	if [ "$@" = "uninstall" ]; then \
-		cd ${sbindir}; rm -f mount.gfs umount.gfs; \
+		cd ${DESTDIR}/sbin; rm -f mount.gfs umount.gfs; \
 	fi
