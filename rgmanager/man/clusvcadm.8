@@ -49,12 +49,8 @@ service
 Lock the local resource group manager.  This should only be used if the 
 administrator intends to perform a global, cluster-wide shutdown.  This
 prevents starting resource groups on the local node, allowing 
-services will not fail over during the shutdown of the cluster.  Generally,
-administrators should use the
-.B
-clushutdown(8)
-command to accomplish this.  Once the cluster quorum is dissolved, this
-state is reset.
+services will not fail over during the shutdown of the cluster.
+Once the cluster quorum is dissolved, this state is reset.
 .IP "\-m <member>"
 When used in conjunction with either the
 .B
@@ -88,11 +84,10 @@ service
 until a member transition or until it is enabled again.
 .IP \-u
 Unlock the cluster's service managers.  This allows services to transition
-again.  It will be necessary to re-enable all services in the stopped state
-if this is run after \fB clushutdown(8)\fR.
+again. 
 
 .IP \-v
 Display version information and exit.
 
 .SH "SEE ALSO"
-clustat(8), clushutdown(8)
+clustat(8)
