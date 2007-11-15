@@ -420,10 +420,10 @@ int get_gfs_struct_info(char *buf, int *block_type, int *struct_len)
 		*struct_len = bufsize;
 		break;
 	case GFS2_METATYPE_EA:   /* 10 (extended attr hdr) */
-		*struct_len = sizeof(struct gfs2_ea_header);
+		*struct_len = bufsize;
 		break;
 	case GFS2_METATYPE_ED:   /* 11 (extended attr data) */
-		*struct_len = 512;
+		*struct_len = bufsize;
 		break;
 	default:
 		*struct_len = bufsize;
@@ -630,6 +630,33 @@ void save_inode_data(int out_fd)
 					     height, 0);
 		}
 	}
+	if (inode->i_di.di_eattr) { /* if this inode has extended attributes */
+		struct gfs2_ea_header ea;
+		int e;
+
+		metabh = bread(&sbd, inode->i_di.di_eattr);
+		save_block(sbd.device_fd, out_fd, inode->i_di.di_eattr);
+		for (e = sizeof(struct gfs2_meta_header);
+		     e < bufsize; e += ea.ea_rec_len) {
+			uint64_t blk, *b;
+			int charoff;
+
+			gfs2_ea_header_in(&ea, metabh->b_data + e);
+			for (i = 0; i < ea.ea_num_ptrs; i++) {
+				charoff = e + ea.ea_name_len +
+					sizeof(struct gfs2_ea_header) +
+					sizeof(uint64_t) - 1;
+				charoff /= sizeof(uint64_t);
+				b = (uint64_t *)(metabh->b_data);
+				b += charoff + i;
+				blk = be64_to_cpu(*b);
+				save_block(sbd.device_fd, out_fd, blk);
+			}
+			if (!ea.ea_rec_len)
+				break;
+		}
+		brelse(metabh, not_updated);
+	}
 	inode_put(inode, not_updated);
 	free(buf);
 }
@@ -725,7 +752,7 @@ void savemeta(const char *out_fn, int slow)
 			bufsize = sbd.bsize = sbd.sd_sb.sb_bsize;
 	}
 	last_fs_block = lseek(sbd.device_fd, 0, SEEK_END) / bufsize;
-	printf("There are %" PRIu64 " blocks of %" PRIu64 " bytes.\n\n",
+	printf("There are %" PRIu64 " blocks of %" PRIu64 " bytes.\n",
 	       last_fs_block, bufsize);
 	if (!slow) {
 		if (gfs1) {
@@ -749,10 +776,14 @@ void savemeta(const char *out_fn, int slow)
 		brelse(bh, not_updated);
 	}
 	if (!slow) {
+		printf("Reading resource groups...");
+		fflush(stdout);
 		if (gfs1)
 			slow = gfs1_ri_update(&sbd, 0, &rgcount);
 		else
 			slow = ri_update(&sbd, 0, &rgcount);
+		printf("Done.\n\n");
+		fflush(stdout);
 	}
 	if (!slow) {
 		blocklist = gfs2_block_list_create(last_fs_block + 1, &memreq);

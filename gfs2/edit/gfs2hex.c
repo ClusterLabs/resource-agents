@@ -345,20 +345,32 @@ int do_indirect_extended(char *buf, struct iinfo *iinf)
 **
 *******************************************************************************
 ******************************************************************************/
-void do_leaf_extended(char *buf)
+void do_leaf_extended(char *buf, struct iinfo *indir)
 {
+	int x, i;
 	struct gfs2_dirent de;
-	unsigned int x;
 
-	eol(0);
-	print_gfs2("Directory Entries:");
-	eol(0);
-
-	for (x = sizeof(struct gfs2_leaf); x < bufsize; x += de.de_rec_len) {
-		eol(0);
-		gfs2_dirent_in(&de, buf + x);
-		if (de.de_inum.no_addr)
-			gfs2_dirent_print(&de, buf + x + sizeof(struct gfs2_dirent));
+	x = 0;
+	memset(indir, 0, sizeof(indir));
+	/* Directory Entries: */
+	for (i = sizeof(struct gfs2_leaf); i < bufsize;
+	     i += de.de_rec_len) {
+		gfs2_dirent_in(&de, buf + i);
+		if (de.de_inum.no_addr) {
+			indir->ii[0].block = de.de_inum.no_addr;
+			indir->ii[0].dirent[x].block = de.de_inum.no_addr;
+			memcpy(&indir->ii[0].dirent[x].dirent,
+			       &de, sizeof(struct gfs2_dirent));
+			memcpy(&indir->ii[0].dirent[x].filename,
+			       buf + i + sizeof(struct gfs2_dirent),
+			       de.de_name_len);
+			indir->ii[0].dirent[x].filename[de.de_name_len] = '\0';
+			indir->ii[0].is_dir = TRUE;
+			indir->ii[0].dirents++;
+			x++;
+		}
+		if (de.de_rec_len <= sizeof(struct gfs2_dirent))
+			break;
 	}
 }
 
@@ -466,6 +478,7 @@ int display_gfs2(void)
 	struct gfs_log_header lh1;
 	struct gfs2_log_header lh;
 	struct gfs2_log_descriptor ld;
+	struct gfs2_quota_change qc;
 
 	uint32_t magic;
 
@@ -545,7 +558,7 @@ int display_gfs2(void)
 		case GFS2_METATYPE_EA:
 			print_gfs2("Eattr Block:");
 			eol(0);
-			gfs2_meta_header_print(&mh);
+			do_eattr_extended(buf);
 			break;
 			
 		case GFS2_METATYPE_ED:
@@ -554,6 +567,19 @@ int display_gfs2(void)
 			gfs2_meta_header_print(&mh);
 			break;
 			
+		case GFS2_METATYPE_LB:
+			print_gfs2("Log Buffer");
+			eol(0);
+			gfs2_meta_header_print(&mh);
+			break;
+
+		case GFS2_METATYPE_QC:
+			print_gfs2("Quota Change");
+			eol(0);
+			gfs2_quota_change_in(&qc, buf);
+			gfs2_quota_change_print(&qc);
+			break;
+
 		default:
 			print_gfs2("Unknown metadata type");
 			eol(0);

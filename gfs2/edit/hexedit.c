@@ -46,6 +46,7 @@
 
 int display(int identify_only);
 extern void eol(int col);
+extern void do_leaf_extended(char *buf, struct iinfo *indir);
 extern int do_indirect_extended(char *buf, struct iinfo *ii);
 extern void savemeta(const char *out_fn, int slow);
 extern void restoremeta(const char *in_fn, const char *out_device,
@@ -414,7 +415,7 @@ int display_block_type(const char *lpBuffer, int from_restore)
 			struct_len = sizeof(struct gfs2_meta_header);
 			break;
 		case GFS2_METATYPE_LF:   /* 6 */
-			print_gfs2("(leaf dinode blklst)");
+			print_gfs2("(directory leaf)");
 			struct_len = sizeof(struct gfs2_leaf);
 			break;
 		case GFS2_METATYPE_JD:
@@ -435,11 +436,21 @@ int display_block_type(const char *lpBuffer, int from_restore)
 			break;
 		case GFS2_METATYPE_EA:
 			print_gfs2("(extended attr hdr)");
-			struct_len = sizeof(struct gfs2_ea_header);
+			struct_len = sizeof(struct gfs2_meta_header) +
+				sizeof(struct gfs2_ea_header);
 			break;
 		case GFS2_METATYPE_ED:
 			print_gfs2("(extended attr data)");
-			struct_len = 512;
+			struct_len = sizeof(struct gfs2_meta_header) +
+				sizeof(struct gfs2_ea_header);
+			break;
+		case GFS2_METATYPE_LB:
+			print_gfs2("(log buffer)");
+			struct_len = sizeof(struct gfs2_meta_header);
+			break;
+		case GFS2_METATYPE_QC:
+			print_gfs2("(quota change)");
+			struct_len = sizeof(struct gfs2_quota_change);
 			break;
 		default:
 			print_gfs2("(wtf?)");
@@ -895,8 +906,9 @@ int print_quota(struct gfs2_inode *di)
 int has_indirect_blocks(void)
 {
 	if (indirect_blocks || gfs2_struct_type == GFS2_METATYPE_SB ||
-		(gfs2_struct_type == GFS2_METATYPE_DI &&
-		 (S_ISDIR(di.di_mode) || (gfs1 && di.__pad1 == GFS_FILE_DIR))))
+	    gfs2_struct_type == GFS2_METATYPE_LF ||
+	    (gfs2_struct_type == GFS2_METATYPE_DI &&
+	     (S_ISDIR(di.di_mode) || (gfs1 && di.__pad1 == GFS_FILE_DIR))))
 		return TRUE;
 	return FALSE;
 }
@@ -938,11 +950,70 @@ void print_inode_type(__be16 de_type)
 }
 
 /* ------------------------------------------------------------------------ */
+/* display_leaf - display directory leaf                                    */
+/* ------------------------------------------------------------------------ */
+int display_leaf(struct iinfo *ind)
+{
+	int start_line, total_dirents = 0;
+	int d;
+
+	eol(0);
+	if (gfs2_struct_type == GFS2_METATYPE_SB)
+		print_gfs2("The superblock has 2 directories");
+	else
+		print_gfs2("This directory contains %d directory entries.",
+			   ind->ii[0].dirents);
+
+	start_line = line;
+	for (d = 0; d < ind->ii[0].dirents; d++) {
+		if (termlines && d >= termlines - start_line - 1
+		    + start_row[dmode])
+			break;
+		total_dirents++;
+		if (ind->ii[0].dirents > 1) {
+			eol(5);
+			if (termlines) {
+				if (edit_row[dmode] >=0 &&
+				    line - start_line - 1 == 
+				    edit_row[dmode] -
+				    start_row[dmode]) {
+					COLORS_HIGHLIGHT;
+					sprintf(estring, "%"PRIx64,
+						ind->ii[0].dirent[d].block);
+					strcpy(edit_fmt, "%"PRIx64);
+				}
+			}
+			print_gfs2("%d. (%d). %lld (0x%llx) / %lld (0x%llx): ",
+				   total_dirents, d + 1,
+				   ind->ii[0].dirent[d].dirent.de_inum.no_formal_ino,
+				   ind->ii[0].dirent[d].dirent.de_inum.no_formal_ino,
+				   ind->ii[0].dirent[d].block,
+				   ind->ii[0].dirent[d].block);
+		}
+		print_inode_type(ind->ii[0].dirent[d].dirent.de_type);
+		print_gfs2(" %s", ind->ii[0].dirent[d].filename);
+		if (termlines) {
+			if (edit_row[dmode] >= 0 &&
+			    line - start_line - 1 == edit_row[dmode] -
+			    start_row[dmode])
+				COLORS_NORMAL;
+		}
+	}
+	if (line >= 4)
+		last_entry_onscreen[dmode] = line - 4;
+	eol(0);
+	end_row[dmode] = ind->ii[0].dirents;
+	if (end_row[dmode] < last_entry_onscreen[dmode])
+		end_row[dmode] = last_entry_onscreen[dmode];
+	return 0;
+}
+
+/* ------------------------------------------------------------------------ */
 /* display_indirect                                                         */
 /* ------------------------------------------------------------------------ */
 int display_indirect(struct iinfo *ind, int indblocks, int level, uint64_t startoff)
 {
-	int start_line, total_dirents, indir_blocks;
+	int start_line, total_dirents;
 	int i, cur_height = -1, pndx;
 	uint64_t factor[5]={0,0,0,0,0};
 	int offsets[5];
@@ -950,37 +1021,25 @@ int display_indirect(struct iinfo *ind, int indblocks, int level, uint64_t start
 	last_entry_onscreen[dmode] = 0;
 	if (!level)
 		eol(0);
-	start_line = line;
 	if (!has_indirect_blocks())
 		return -1;
-
-	indir_blocks = indblocks;
 	if (!level) {
-		if (!indblocks) {
-			if (gfs2_struct_type == GFS2_METATYPE_SB)
-				print_gfs2("The superblock has 2 directories");
+		if (gfs2_struct_type == GFS2_METATYPE_DI) {
+			if (S_ISDIR(di.di_mode))
+				print_gfs2("This directory contains %d indirect blocks",
+					   indblocks);
 			else
-				print_gfs2("This directory contains %d directory entries.",
-					   ind->ii[0].dirents);
-			indir_blocks = 1; /* not really an indirect block, but treat it as one */
-		}
-		else {
-			if (gfs2_struct_type == GFS2_METATYPE_DI) {
-				if (S_ISDIR(di.di_mode))
-					print_gfs2("This directory contains %d indirect blocks",
-						   indblocks);
-				else
-					print_gfs2("This inode contains %d indirect blocks",
-						   indblocks);
-			}
-			else
-				print_gfs2("This indirect block contains %d indirect blocks",
+				print_gfs2("This inode contains %d indirect blocks",
 					   indblocks);
 		}
+		else
+			print_gfs2("This indirect block contains %d indirect blocks",
+				   indblocks);
 	}
+	eol(0);
 	total_dirents = 0;
 	/* Figure out multiplication factors for indirect pointers. */
-	if ((indir_blocks == indblocks) && !S_ISDIR(di.di_mode)) {
+	if (!S_ISDIR(di.di_mode)) {
 		memset(&offsets, 0, sizeof(offsets));
 		/* See if we are on an inode or have one in history. */
 		cur_height = level;
@@ -1018,134 +1077,105 @@ int display_indirect(struct iinfo *ind, int indblocks, int level, uint64_t start
 		print_gfs2("Indirect blocks:");
 		eol(0);
 	}
+	start_line = line;
 	for (pndx = start_row[dmode];
-		 (!termlines || pndx < termlines - start_line - 2
-		  + start_row[dmode]) && pndx < indir_blocks;
+		 (!termlines || pndx < termlines - start_line - 1
+		  + start_row[dmode]) && pndx < indblocks;
 		 pndx++) {
+		uint64_t file_offset;
+
 		print_entry_ndx = pndx;
 		if (termlines) {
 			if (edit_row[dmode] >= 0 &&
-				line - start_line - 2 == edit_row[dmode] -
-				start_row[dmode])
+			    line - start_line ==
+			    edit_row[dmode] - start_row[dmode])
 				COLORS_HIGHLIGHT;
 			move(line, 1);
 		}
-		if (indir_blocks == indblocks) {
-			if (!termlines) {
-				int h;
+		if (!termlines) {
+			int h;
 
-				for (h = 0; h < level; h++)
-					print_gfs2("   ");
-			}
-			print_gfs2("%d => ", pndx);
-			if (termlines)
-				move(line,9);
-			print_gfs2("0x%llx / %lld", ind->ii[pndx].block,
-					   ind->ii[pndx].block);
-			if (termlines) {
-				if (edit_row[dmode] >= 0 &&
-					line - start_line - 2 == edit_row[dmode] -
-					start_row[dmode]) { 
-					sprintf(estring, "%"PRIx64,
-							ind->ii[print_entry_ndx].block);
-					strcpy(edit_fmt, "%"PRIx64);
-					edit_size[dmode] = strlen(estring);
-					COLORS_NORMAL;
-				}
-			}
-			if (!S_ISDIR(di.di_mode)) {
-				int hgt;
-				uint64_t file_offset = startoff;
-				float human_off;
-				char h;
-				
-				/* Now divide by how deep we are at the moment.      */
-				/* This is how much data is represented by each      */
-				/* indirect pointer for each height we've traversed. */
-				offsets[0] = pndx;
-				for (hgt = cur_height; hgt >= 0; hgt--)
-					file_offset += offsets[cur_height - hgt] *
-						factor[di.di_height - hgt - 1] * bufsize;
-				print_gfs2("     ");
-				h = 'K';
-				human_off = (file_offset / 1024.0);
-				if (human_off > 1024.0) { h = 'M'; human_off /= 1024.0; }
-				if (human_off > 1024.0) { h = 'G'; human_off /= 1024.0; }
-				if (human_off > 1024.0) { h = 'T'; human_off /= 1024.0; }
-				if (human_off > 1024.0) { h = 'P'; human_off /= 1024.0; }
-				if (human_off > 1024.0) { h = 'E'; human_off /= 1024.0; }
-				print_gfs2("(data offset 0x%llx / %lld / %6.2f%c)",
-						   file_offset, file_offset, human_off, h);
+			for (h = 0; h < level; h++)
 				print_gfs2("   ");
-				if (!termlines && level + 1 < di.di_height) {
-					struct iinfo *more_indir;
-					int more_ind;
-					char *tmpbuf;
-
-					more_indir = malloc(sizeof(struct iinfo));
-					tmpbuf = malloc(bufsize);
-					if (tmpbuf) {
-						do_lseek(sbd.device_fd,
-							 ind->ii[pndx].block * bufsize);
-						do_read(sbd.device_fd, tmpbuf,
-							bufsize); /* read in the desired block */
-						memset(more_indir, 0, sizeof(struct iinfo));
-						more_ind = do_indirect_extended(tmpbuf,
-										more_indir);
-						display_indirect(more_indir,
-								 more_ind, level + 1, file_offset);
-						free(tmpbuf);
-					}
-					free(more_indir);
-				}
-				print_entry_ndx = pndx; /* restore after recursion */
+		}
+		print_gfs2("%d => ", pndx);
+		if (termlines)
+			move(line,9);
+		print_gfs2("0x%llx / %lld", ind->ii[pndx].block,
+			   ind->ii[pndx].block);
+		if (termlines) {
+			if (edit_row[dmode] >= 0 &&
+			    line - start_line ==
+			    edit_row[dmode] - start_row[dmode]) { 
+				sprintf(estring, "%"PRIx64,
+					ind->ii[print_entry_ndx].block);
+				strcpy(edit_fmt, "%"PRIx64);
+				edit_size[dmode] = strlen(estring);
+				COLORS_NORMAL;
 			}
 		}
-		if (ind->ii[pndx].is_dir) {
-			int d;
+		if (!S_ISDIR(di.di_mode)) {
+			int hgt;
+			file_offset = startoff;
+			float human_off;
+			char h;
+
+			/* Now divide by how deep we are at the moment.      */
+			/* This is how much data is represented by each      */
+			/* indirect pointer for each height we've traversed. */
+			offsets[0] = pndx;
+			for (hgt = cur_height; hgt >= 0; hgt--)
+				file_offset += offsets[cur_height - hgt] *
+					factor[di.di_height - hgt - 1] * bufsize;
+			print_gfs2("     ");
+			h = 'K';
+			human_off = (file_offset / 1024.0);
+			if (human_off > 1024.0) { h = 'M'; human_off /= 1024.0; }
+			if (human_off > 1024.0) { h = 'G'; human_off /= 1024.0; }
+			if (human_off > 1024.0) { h = 'T'; human_off /= 1024.0; }
+			if (human_off > 1024.0) { h = 'P'; human_off /= 1024.0; }
+			if (human_off > 1024.0) { h = 'E'; human_off /= 1024.0; }
+			print_gfs2("(data offset 0x%llx / %lld / %6.2f%c)",
+				   file_offset, file_offset, human_off, h);
+			print_gfs2("   ");
+		}
+		else
+			file_offset = 0;
+		if (!termlines && ((level + 1 < di.di_height) ||
+				   (S_ISDIR(di.di_mode) && !level))) {
+			struct iinfo *more_indir;
+			int more_ind;
+			char *tmpbuf;
 			
-			if (ind->ii[pndx].dirents > 1 &&
-				indir_blocks == indblocks)
-				print_gfs2("(directory leaf with %d entries)",
-						   ind->ii[pndx].dirents);
-			for (d = 0; d < ind->ii[pndx].dirents; d++) {
-				total_dirents++;
-				if (ind->ii[pndx].dirents > 1) {
-					eol(5);
-					if (termlines) {
-						if (edit_row[dmode] >=0 &&
-							line - start_line - 2 == 
-							edit_row[dmode] -
-							start_row[dmode]) {
-							COLORS_HIGHLIGHT;
-							sprintf(estring, "%"PRIx64,
-									ind->ii[pndx].dirent[d].block);
-							strcpy(edit_fmt, "%"PRIx64);
-						}
-					}
-					print_gfs2("%d. (%d). %lld (0x%llx) / %lld (0x%llx): ",
-							   total_dirents, d + 1,
-							   ind->ii[pndx].dirent[d].dirent.de_inum.no_formal_ino,
-							   ind->ii[pndx].dirent[d].dirent.de_inum.no_formal_ino,
-							   ind->ii[pndx].dirent[d].block,
-							   ind->ii[pndx].dirent[d].block);
+			more_indir = malloc(sizeof(struct iinfo));
+			tmpbuf = malloc(bufsize);
+			if (tmpbuf) {
+				do_lseek(sbd.device_fd,
+					 ind->ii[pndx].block * bufsize);
+				do_read(sbd.device_fd, tmpbuf,
+					bufsize); /* read in the desired block */
+				memset(more_indir, 0, sizeof(struct iinfo));
+				if (S_ISDIR(di.di_mode)) {
+					do_leaf_extended(tmpbuf, more_indir);
+					display_leaf(more_indir);
+				} else {
+					more_ind = do_indirect_extended(tmpbuf,
+									more_indir);
+					display_indirect(more_indir,
+							 more_ind, level + 1,
+							 file_offset);
 				}
-				print_inode_type(ind->ii[pndx].dirent[d].dirent.de_type);
-				print_gfs2(" %s", ind->ii[pndx].dirent[d].filename);
-				if (termlines) {
-					if (edit_row[dmode] >= 0 &&
-						line - start_line - 2 == edit_row[dmode] -
-						start_row[dmode])
-						COLORS_NORMAL;
-				}
+				free(tmpbuf);
 			}
-		} /* if isdir */
+			free(more_indir);
+		}
+		print_entry_ndx = pndx; /* restore after recursion */
 		eol(0);
 	} /* for each display row */
 	if (line >= 7) /* 7 because it was bumped at the end */
 		last_entry_onscreen[dmode] = line - 7;
 	eol(0);
-	end_row[dmode] = (indblocks ? indblocks:ind->ii[0].dirents);
+	end_row[dmode] = indblocks;
 	if (end_row[dmode] < last_entry_onscreen[dmode])
 		end_row[dmode] = last_entry_onscreen[dmode];
 	lines_per_row[dmode] = 1;
@@ -1247,6 +1277,9 @@ int display_extended(void)
 		parse_rindex(tmp_inode, TRUE);
 		brelse(tmp_bh, not_updated);
 	}
+	else if (has_indirect_blocks() && !indirect_blocks &&
+		 !display_leaf(indirect))
+		return -1;
 	else if (display_indirect(indirect, indirect_blocks, 0, 0) == 0)
 		return -1;
 	else if (block_is_rglist()) {
@@ -1397,31 +1430,10 @@ int display(int identify_only)
 	}
 	else if (gfs2_struct_type == GFS2_METATYPE_IN) { /* indirect block list */
 		do_indirect_extended(buf, indirect);
+		indirect_blocks = 1;
 	}
 	else if (gfs2_struct_type == GFS2_METATYPE_LF) { /* directory leaf */
-		int x;
-		struct gfs2_dirent de;
-
-		indirect_blocks = 1;
-		memset(indirect, 0, sizeof(indirect));
-		/* Directory Entries: */
-		for (x = sizeof(struct gfs2_leaf); x < bufsize;
-		     x += de.de_rec_len) {
-			gfs2_dirent_in(&de, buf + x);
-			if (de.de_inum.no_addr) {
-				indirect->ii[indirect_blocks].block = de.de_inum.no_addr;
-				indirect->ii[indirect_blocks].dirent[x].block = de.de_inum.no_addr;
-				memcpy(&indirect->ii[indirect_blocks].dirent[x].dirent, &de,
-					   sizeof(struct gfs2_dirent));
-				memcpy(&indirect->ii[indirect_blocks].dirent[x].filename,
-					   buf + x + sizeof(struct gfs2_dirent), de.de_name_len);
-				indirect->ii[indirect_blocks].dirent[x].filename[de.de_name_len] = '\0';
-				indirect->ii[indirect_blocks].is_dir = TRUE;
-				indirect->ii[indirect_blocks].dirents++;
-			}
-			if (de.de_rec_len <= sizeof(struct gfs2_dirent))
-				break;
-		}
+		do_leaf_extended(buf, indirect);
 	}
 	last_entry_onscreen[dmode] = 0;
 	if (dmode == EXTENDED_MODE && !block_has_extended_info())
@@ -2204,6 +2216,8 @@ void usage(void)
 	fprintf(stderr,"     gfs2_edit -p rg 3 /dev/sdb1\n");
 	fprintf(stderr,"   To set the Resource Group flags for rg #7 to 3.\n");
 	fprintf(stderr,"     gfs2_edit rgflags 7 3 /dev/sdc2\n");
+	fprintf(stderr,"   To save off all metadata for /dev/vg/lv:\n");
+	fprintf(stderr,"     gfs2_edit savemeta /dev/vg/lv /tmp/metasave\n");
 }/* usage */
 
 /* ------------------------------------------------------------------------ */
@@ -2431,6 +2445,8 @@ int main(int argc, char *argv[])
 		}
 	}
 
+	edit_row[GFS2_MODE] = 10; /* Start off at root inode
+				     pointer in superblock */
 	memset(device, 0, sizeof(device));
 	termlines = 30;  /* assume interactive mode until we find -p */
 	process_parameters(argc, argv, 0);
