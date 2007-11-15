@@ -104,6 +104,10 @@ If \fInew_value\fR is not specified, the current rg_flags value will be
 printed but not modified.  If \fInew_value\fR is specified, the rg_flags
 field will be overwritten with the new value.
 .TP
+\fBprintsavedmeta\fP \fI<filename>\fR
+Print off a list of blocks from <filename> that were saved with the savemeta
+option.
+.TP
 \fBsavemeta\fP \fI<device>\fR \fI<filename>\fR
 Save off the GFS2 metadata (not user data) for the file system on the
 specified device to a file given by <filename>.  You can use this option
