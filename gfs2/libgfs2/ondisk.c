@@ -386,7 +386,7 @@ void gfs2_dirent_print(struct gfs2_dirent *de, char *name)
 
 	memset(buf, 0, GFS2_FNAMESIZE + 1);
 	memcpy(buf, name, de->de_name_len);
-	printf("  name = %s\n", buf);
+	print_it("  name", "%s", NULL, buf);
 }
 
 void gfs2_leaf_in(struct gfs2_leaf *lf, char *buf)
@@ -462,7 +462,7 @@ void gfs2_ea_header_print(struct gfs2_ea_header *ea, char *name)
 
 	memset(buf, 0, GFS2_EA_MAX_NAME_LEN + 1);
 	memcpy(buf, name, ea->ea_name_len);
-	printf("  name = %s\n", buf);
+	print_it("  name", "%s", NULL, buf);
 }
 
 void gfs2_log_header_in(struct gfs2_log_header *lh, char *buf)
