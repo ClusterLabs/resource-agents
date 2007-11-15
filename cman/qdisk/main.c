@@ -1491,7 +1491,8 @@ main(int argc, char **argv)
 	}
 	
 	if (ctx.qc_label) {
-		if (find_partitions("/proc/partitions",
+		memset(device, 0, sizeof(device));
+		if (find_partitions("/dev",
 				    ctx.qc_label, device,
 				    sizeof(device), 0) != 0) {
 			clulog_and_print(LOG_CRIT, "Unable to match label"

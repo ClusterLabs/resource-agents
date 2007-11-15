@@ -277,7 +277,7 @@ int qd_init(qd_ctx *ctx, cman_handle_t ch, int me);
 void qd_destroy(qd_ctx *ctx);
 
 /* proc.c */
-int find_partitions(const char *partfile, const char *label,
+int find_partitions(const char *devdir, const char *label,
 		    char *devname, size_t devlen, int print);
 int check_device(char *device, char *label, quorum_header_t *qh);
 

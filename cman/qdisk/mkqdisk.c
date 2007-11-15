@@ -39,19 +39,19 @@ main(int argc, char **argv)
 	char *newdev = NULL, *newlabel = NULL;
 	int rv;
 
-	printf("mkqdisk v0.5.1\n");
+	printf("mkqdisk v" RELEASE_VERSION "\n\n");
 
 	while ((rv = getopt(argc, argv, "Lf:c:l:h")) != EOF) {
 		switch (rv) {
 		case 'L':
 			/* List */
 			close(2);
-			return find_partitions("/proc/partitions",
+			return find_partitions("/dev",
 					       NULL, NULL, 0, 1);
 			break;
 		case 'f':
 			close(2);
-			return find_partitions("/proc/partitions",
+			return find_partitions("/dev",
 					       optarg, device,
 					       sizeof(device), 1);
 		case 'c':

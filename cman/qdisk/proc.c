@@ -26,10 +26,12 @@
 #include <disk.h>
 #include <errno.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <platform.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include <unistd.h>
+#include <dirent.h>
 
 int
 check_device(char *device, char *label, quorum_header_t *qh)
@@ -68,61 +70,60 @@ check_device(char *device, char *label, quorum_header_t *qh)
 
 
 int
-find_partitions(const char *partfile, const char *label,
+find_partitions(const char *devdir, const char *label,
 	        char *devname, size_t devlen, int print)
 {
-	char line[4096];
-	FILE *fp;
-	int minor, major;
-	unsigned long long blkcnt;
-	char device[128];
-	char realdev[256];
+	struct dirent **namelist;
+	struct stat sb;
+	char newpath[256];
+	int n;
 	quorum_header_t qh;
 
-	fp = fopen(partfile, "r");
-	if (!fp)
+	n = scandir(devdir, &namelist, 0, alphasort);
+	if (n <= 0)
 		return -1;
 
-	while (fgets(line, sizeof(line), fp) != NULL) {
-		if (strlen(line) > 128 + (22) /* 5 + 5 + 11 + 1 */) {
-			/*printf("Line too long!\n");*/
-			continue;
-		}
+	while (n--) {
+		/* filter out:
+		 * . and ..
+		 * .static and .udev that are typical udev dirs that we don't want to scan
+		 */
+		if (strcmp(namelist[n]->d_name, ".") &&
+		    strcmp(namelist[n]->d_name, "..") &&
+		    strcmp(namelist[n]->d_name, ".static") &&
+		    strcmp(namelist[n]->d_name, ".udev")) {
+			snprintf(newpath, sizeof(newpath), "%s/%s", devdir, namelist[n]->d_name);
+			if (!lstat(newpath, &sb)) {
+				/* dive into directories */
+				if (S_ISDIR(sb.st_mode)) {
+					if (!find_partitions(newpath, label, devname, devlen, print)) {
+						if (devname && (strlen(devname) > 0))
+							return 0;
+					}
+				}
+				/* check if it's a block device */
+				if (S_ISBLK(sb.st_mode)) {
+					if (!check_device(newpath, (char *)label, &qh)) {
+						if (print) {
+							time_t timestamp = qh.qh_timestamp;
+							printf("%s:\n", newpath);
+							printf("\tMagic:   %08x\n", qh.qh_magic);
+							printf("\tLabel:   %s\n", qh.qh_cluster);
+							printf("\tCreated: %s",
+								ctime((time_t *)&timestamp));
+							printf("\tHost:    %s\n\n", qh.qh_updatehost);
+						}
 
-		/* This line is taken from 2.6.15.4's proc line */
-		sscanf(line, "%4d %4d %10llu %s", &major, &minor,
-		       &blkcnt, device);
-
-		if (strlen(device)) {
-			snprintf(realdev, sizeof(realdev),
-				 "/dev/%s", device);
-			if (check_device(realdev, (char *)label, &qh) != 0)
-				continue;
-
-			if (print) {
-				time_t timestamp = qh.qh_timestamp;
-				printf("%s:\n", realdev);
-				printf("\tMagic:   %08x\n", qh.qh_magic);
-				printf("\tLabel:   %s\n", qh.qh_cluster);
-				printf("\tCreated: %s",
-				       ctime((time_t *)&timestamp));
-				printf("\tHost:    %s\n\n", qh.qh_updatehost);
+						if (devname && devlen) {
+							strncpy(devname, newpath, devlen);
+							return 0;
+						}
+					}
+				}
 			}
-
-			if (devname && devlen) {
-				/* Got it */
-				strncpy(devname, realdev, devlen);
-				fclose(fp);
-				return 0;
-			}
 		}
+		free(namelist[n]);
 	}
-
-	fclose(fp);
-
-	if (print)
-		/* No errors if we're just printing stuff */
-		return 0;
 
 	errno = ENOENT;
 	return -1;
