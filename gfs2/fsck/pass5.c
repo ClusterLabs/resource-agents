@@ -81,7 +81,6 @@ int check_block_status(struct gfs2_sbd *sbp, char *buffer, unsigned int buflen,
 	while(byte < end) {
 		rg_status = ((*byte >> bit) & GFS2_BIT_MASK);
 		block = rg_data + *rg_block;
-		log_debug("Checking block %" PRIu64 "\n", block);
 		warm_fuzzy_stuff(block);
 		if (skip_this_pass || fsck_abort) /* if asked to skip the rest */
 			return 0;

@@ -89,18 +89,13 @@ int set_dotdot_dir(struct gfs2_sbd *sbp, uint64_t childblock,
 static int check_eattr_indir(struct gfs2_inode *ip, uint64_t block,
 			    uint64_t parent, struct gfs2_buffer_head **bh, void *private)
 {
-
+	*bh = bread(ip->i_sbd, block);
 	return 0;
 }
 static int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
 			    uint64_t parent, struct gfs2_buffer_head **bh, void *private)
 {
-#if 0
-	struct gfs2_buffer_head *leaf_bh;
-
-	leaf_bh = bread(ip->i_sbd, block);
-	brelse(leaf_bh);
-#endif
+	*bh = bread(ip->i_sbd, block);
 	return 0;
 }
 

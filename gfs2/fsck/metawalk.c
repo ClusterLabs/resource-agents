@@ -463,9 +463,11 @@ static int check_leaf_eattr(struct gfs2_inode *ip, uint64_t block,
 		if(error > 0) {
 			return 1;
 		}
+		check_eattr_entries(ip, bh, pass);
+		if (bh)
+			brelse(bh, not_updated);
 	}
 
-	check_eattr_entries(ip, bh, pass);
 	return 0;
 }
 
@@ -487,9 +489,9 @@ static int check_indirect_eattr(struct gfs2_inode *ip, uint64_t indirect,
 	log_debug("Checking EA indirect block #%"PRIu64" (0x%" PRIx64 ").\n",
 			  indirect, indirect);
 
-	if (!pass->check_eattr_indir ||
+	if (pass->check_eattr_indir &&
 	    !pass->check_eattr_indir(ip, indirect, ip->i_di.di_num.no_addr,
-								 &indirect_buf, pass->private)) {
+				     &indirect_buf, pass->private)) {
 		ea_leaf_ptr = (uint64_t *)(indirect_buf->b_data
 								   + sizeof(struct gfs2_meta_header));
 		end = ea_leaf_ptr + ((sdp->sd_sb.sb_bsize

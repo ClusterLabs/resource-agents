@@ -143,7 +143,6 @@ static int check_eattr_indir(struct gfs2_inode *ip, uint64_t indirect,
 	int ret = 0;
 	struct gfs2_block_query q = {0};
 	struct block_count *bc = (struct block_count *) private;
-	uint64_t block;
 
 	/* This inode contains an eattr - it may be invalid, but the
 	 * eattr attributes points to a non-zero block */
@@ -167,23 +166,27 @@ static int check_eattr_indir(struct gfs2_inode *ip, uint64_t indirect,
 		ret = 1;
 	}
 	else {
-		log_debug("Setting %" PRIu64 " (0x%"
-			  PRIx64 ") to eattr block\n", indirect, indirect);
-		gfs2_block_set(bl, indirect, gfs2_eattr_block);
+		log_debug("Marking inode %" PRIu64 " (0x%"
+			  PRIx64 ") with eattr block\n",
+			  ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr);
+		/* Mark the inode as having an eattr in the block map
+		   so pass1c can check it. */
+		gfs2_block_mark(bl, ip->i_di.di_num.no_addr, gfs2_eattr_block);
 
 		*bh = bread(sdp, indirect);
-		block = be64_to_cpu(*(*bh)->b_data);
 		if(gfs2_check_meta(*bh, GFS2_METATYPE_IN)) {
 			log_warn("EA indirect block %" PRIu64 " (0x%" PRIx64
-					 ") has incorrect type.\n", block, block);
-			gfs2_block_set(bl, block, gfs2_meta_inval);
+				 ") has incorrect type.\n",
+				 indirect, indirect);
+			gfs2_block_set(bl, indirect, gfs2_meta_inval);
 			ret = 1;
+			brelse(*bh, not_updated);
 		}
 		else {
 			/* FIXME: do i need to differentiate this as an ea_indir? */
 			log_debug("Setting %" PRIu64 " (0x%" PRIx64
-					  ") to indirect block\n", block, block);
-			gfs2_block_set(bl, block, gfs2_indir_blk);
+				  ") to indirect block\n", indirect, indirect);
+			gfs2_block_set(bl, indirect, gfs2_indir_blk);
 			bc->ea_count++;
 		}
 	}
@@ -293,6 +296,7 @@ static int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
 				 ip->i_di.di_num.no_addr);
 			gfs2_block_set(bl, block, gfs2_meta_inval);
 			ret = -1;
+			brelse(leaf_bh, not_updated);
 		}
 		else {
 			log_debug("Setting block %" PRIu64 " (0x%" PRIx64
@@ -300,7 +304,6 @@ static int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
 			gfs2_block_set(bl, block, gfs2_meta_eattr);
 			bc->ea_count++;
 		}
-		brelse(leaf_bh, not_updated);
 	}
 	*bh = leaf_bh;
 

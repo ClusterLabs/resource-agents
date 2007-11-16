@@ -77,7 +77,6 @@ int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
 	int *update = (int *) private;
 	struct gfs2_sbd *sbp = ip->i_sbd;
 	struct gfs2_block_query q;
-	struct gfs2_buffer_head *leaf_bh;
 
 	if(gfs2_check_range(sbp, block)) {
 		log_err("Extended attributes block out of range...removing\n");
@@ -96,9 +95,8 @@ int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
 		return 1;
 	}
 	else 
-		leaf_bh = bread(sbp, block);
+		*bh = bread(sbp, block);
 
-	*bh = leaf_bh;
 	return 0;
 }
 
@@ -237,24 +235,28 @@ int pass1c(struct gfs2_sbd *sbp)
 
 		if (skip_this_pass || fsck_abort) /* if asked to skip the rest */
 			return 0;
-		log_info("EA in inode %"PRIu64" (0x%" PRIx64 ")\n", block_no,
-				 block_no);
 		bh = bread(sbp, block_no);
-		ip = inode_get(sbp, bh);
+		if (gfs2_check_meta(bh, GFS2_METATYPE_IN)) { /* if a dinode */
+			log_info("EA in inode %"PRIu64" (0x%" PRIx64 ")\n",
+				 block_no, block_no);
+			gfs2_block_clear(bl, block_no, gfs2_eattr_block);
+			ip = inode_get(sbp, bh);
 
-		log_debug("Found eattr at %"PRIu64" (0x%" PRIx64 ")\n",
+			log_debug("Found eattr at %"PRIu64" (0x%" PRIx64 ")\n",
 				  ip->i_di.di_eattr, ip->i_di.di_eattr);
-		/* FIXME: Handle walking the eattr here */
-		error = check_inode_eattr(ip, &pass1c_fxns);
-		if(error < 0) {
-			stack;
-			return -1;
+			/* FIXME: Handle walking the eattr here */
+			error = check_inode_eattr(ip, &pass1c_fxns);
+			if(error < 0) {
+				stack;
+				brelse(bh, not_updated);
+				return -1;
+			}
+
+			if(update)
+				gfs2_dinode_out(&ip->i_di, bh->b_data);
+
+			free(ip);
 		}
-
-		if(update)
-			gfs2_dinode_out(&ip->i_di, bh->b_data);
-
-		free(ip);
 		brelse(bh, update);
 
 		block_no++;
