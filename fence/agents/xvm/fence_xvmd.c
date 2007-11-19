@@ -204,7 +204,8 @@ wait_domain(fence_req_t *req, virConnectPtr vp, int timeout)
 
 int
 do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
-		     void *key, size_t key_len, virConnectPtr vp)
+		     void *key, size_t key_len, virConnectPtr vp,
+		     int flags)
 {
 	int fd = -1, ret = -1;
 	virDomainPtr vdp;
@@ -212,7 +213,7 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 	char *domain_desc, *domain_desc_sanitized;
 	size_t sz;
 
-	if (!(vdp = get_domain(req, vp))) {
+	if (!(vdp = get_domain(req, vp)) && (!(flags & F_NOCLUSTER))) {
 		dbg_printf(2, "Could not find domain: %s\n", req->domain);
 		goto out;
 	}
@@ -231,6 +232,12 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 		break;
 	case FENCE_OFF:
 		printf("Destroying domain %s...\n", (char *)req->domain);
+		if (!vdp && (flags & F_NOCLUSTER)) {
+			dbg_printf(2, "[OFF + NOCLUSTER] Nothing to do - "
+				   "domain does not exist\n");
+			response = 0;
+			break;
+		}
 
 		dbg_printf(2, "[OFF] Calling virDomainDestroy\n");
 		ret = virDomainDestroy(vdp);
@@ -248,6 +255,14 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 	case FENCE_REBOOT:
 		printf("Rebooting domain %s...\n",
 		       (char *)req->domain);
+
+		if (!vdp && (flags & F_NOCLUSTER)) {
+			dbg_printf(2, "[REBOOT + NOCLUSTER] Nothing to do - "
+				   "domain does not exist\n");
+			response = 0;
+			break;
+		}
+
 		domain_desc = virDomainGetXMLDesc(vdp, 0);
 
 		if (domain_desc) {
@@ -268,10 +283,10 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 			       "libvirt\n");
 		}
 
-		dbg_printf(2, "[REBOOT] Calling virDomainDestroy\n");
+		dbg_printf(2, "[REBOOT] Calling virDomainDestroy(%p)\n", vdp);
 		ret = virDomainDestroy(vdp);
 		if (ret < 0) {
-			printf("virDomainDestroy() failed: %d\n", ret);
+			printf("virDomainDestroy() failed: %d/%d\n", ret, errno);
 			if (domain_desc)
 				free(domain_desc);
 			break;
@@ -658,7 +673,7 @@ xvmd_loop(cman_handle_t ch, void *h, int fd, fence_xvm_args_t *args,
 		case AUTH_SHA512:
 			printf("Plain TCP request\n");
 			do_fence_request_tcp(&data, args->auth, key,
-					     key_len, vp);
+					     key_len, vp, args->flags);
 			break;
 		default:
 			printf("XXX Unhandled authentication\n");
