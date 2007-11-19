@@ -209,6 +209,7 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 {
 	int fd = -1, ret = -1;
 	virDomainPtr vdp;
+	virDomainInfo vdi;
 	char response = 1;
 	char *domain_desc, *domain_desc_sanitized;
 	size_t sz;
@@ -232,12 +233,17 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 		break;
 	case FENCE_OFF:
 		printf("Destroying domain %s...\n", (char *)req->domain);
-		if (!vdp && (flags & F_NOCLUSTER)) {
-			dbg_printf(2, "[OFF + NOCLUSTER] Nothing to do - "
-				   "domain does not exist\n");
-			response = 0;
-			break;
+		if (flags & F_NOCLUSTER) {
+			if (!vdp ||
+			    ((virDomainGetInfo(vdp, &vdi) == 0) &&
+			     (vdi.state == VIR_DOMAIN_SHUTOFF))) {
+				dbg_printf(2, "[NOCLUSTER] Nothing to "
+					   "do - domain does not exist\n");
+				response = 0;
+				break;
+			}
 		}
+
 
 		dbg_printf(2, "[OFF] Calling virDomainDestroy\n");
 		ret = virDomainDestroy(vdp);
@@ -256,11 +262,15 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 		printf("Rebooting domain %s...\n",
 		       (char *)req->domain);
 
-		if (!vdp && (flags & F_NOCLUSTER)) {
-			dbg_printf(2, "[REBOOT + NOCLUSTER] Nothing to do - "
-				   "domain does not exist\n");
-			response = 0;
-			break;
+		if (flags & F_NOCLUSTER) {
+			if (!vdp ||
+			    ((virDomainGetInfo(vdp, &vdi) == 0) &&
+			     (vdi.state == VIR_DOMAIN_SHUTOFF))) {
+				dbg_printf(2, "[NOCLUSTER] Nothing to "
+					   "do - domain does not exist\n");
+				response = 0;
+				break;
+			}
 		}
 
 		domain_desc = virDomainGetXMLDesc(vdp, 0);
@@ -305,7 +315,7 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 		}
 		break;
 	}
-	
+
 	dbg_printf(3, "Sending response to caller...\n");
 	if (write(fd, &response, 1) < 0) {
 		perror("write");

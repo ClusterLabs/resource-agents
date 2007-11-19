@@ -82,6 +82,8 @@ cleanup_xml_doc(xmlDocPtr doc)
 	flip_graphics_port(doc);
 
 	os_node = get_os_node(doc);
+	if (!os_node)
+		return -1;
 
 	curr = os_node->children;
 	while (curr) {
