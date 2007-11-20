@@ -2021,6 +2021,7 @@ void del_ais_node(int nodeid)
 	switch (node->state) {
 	case NODESTATE_MEMBER:
 		node->state = NODESTATE_DEAD;
+		memset(&node->port_bits, 0, sizeof(node->port_bits));
 		cluster_members--;
 		recalculate_quorum(0, 0);
 		break;
