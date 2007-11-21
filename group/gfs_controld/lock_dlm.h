@@ -105,13 +105,12 @@ do { \
 } while (0)
 
 #define ASSERT(x) \
-{ \
+do { \
 	if (!(x)) { \
-		fprintf(stderr, "\nAssertion failed on line %d of file %s\n\n" \
-			"Assertion:  \"%s\"\n", \
-			__LINE__, __FILE__, #x); \
-        } \
-}
+		log_error("Assertion failed on line %d of file %s\n" \
+			  "Assertion:  \"%s\"\n", __LINE__, __FILE__, #x); \
+	} \
+} while (0)
 
 struct mountpoint {
 	struct list_head	list;
