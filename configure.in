@@ -3031,9 +3031,10 @@ fencing/Makefile						\
 	fencing/test/Makefile					\
 	fencing/test/STONITHDBasicSanityCheck			\
 tools/Makefile							\
+	tools/ciblint						\
 	tools/haresources2cib.py				\
-	tools/ocf-tester				\
-	tools/hb_report				\
+	tools/hb_report						\
+	tools/ocf-tester					\
 resources/Makefile						\
 	resources/OCF/Makefile					\
 	resources/OCF/.ocf-binaries				\
