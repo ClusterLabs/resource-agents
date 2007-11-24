@@ -13,16 +13,22 @@
 ###############################################################################
 ###############################################################################
 
+use warnings;
 use Getopt::Long;
 use POSIX qw(uname);
+
 
 print "\nConfiguring Makefiles for your system...\n";
 
 # Set a bunch of variables
 
-$ret = 0;
+my $ret = 0;
 
-%options = (
+# this should be only the major version without the extra version 
+# eg. only the first 3 digits
+my $required_kernelversion = '2.6.23';
+
+my %options = (
 	help => \$help,
 	cc => \$cc,
 	debug => \$debug,
@@ -80,7 +86,7 @@ $ret = 0;
 	without_rgmanager => \$without_rgmanager,
 );
 
-$err = &GetOptions (\%options,
+my $err = &GetOptions (\%options,
 		    'help',
 		    'cc=s',
 		    'debug',
@@ -202,6 +208,67 @@ if ($help || !$err) {
   exit $ret;
 }
 
+sub kernel_version {
+  my $autoconf_path = shift;
+  my $required_version = shift;
+  my $build_version = 0;
+  my $build_patchlevel = 0;
+  my $build_sublevel = 0;
+
+  print "\nChecking kernel:\n";
+
+  # add autoconf to the path
+  $autoconf_path .= '/include/linux/autoconf.h';
+  my @version = split /\./, $required_version;
+  my $current_version = 0;
+  if ( -f $autoconf_path ) {
+    # open the autoconf.h to feth VERSION, PATCHLEVEL and SUBLEVEL, if needed I can add EXTRAVERSION too
+    open AUTOCONF, '<', $autoconf_path;
+    while (<AUTOCONF>) {
+      if ($_ =~ /CONFIG_KERNELVERSION/) {
+        $current_version = $_;
+        # we don't need to check any thing else in this file so we are stopping the read
+        last;
+      }
+    }
+    close AUTOCONF;
+    # leaving only the numbers from the lines
+    # this is faster then split and doesn't alocate useless arrays
+    $current_version =~ s/.*"(.*)"\n/$1/;
+    # parse the kernel version into the variables
+    if ($current_version =~ /\-/) {
+        my @line = split /\-/, $current_version;
+        my @ver  = split /\./, $line[0];
+        $build_version = $ver[0];
+        $build_patchlevel = $ver[1];
+        $build_sublevel = $ver[2];
+    } else {
+        my @kernel = split /\./, $current_version;
+        $build_version = $kernel[0];
+        $build_patchlevel = $kernel[1];
+        $build_sublevel = $kernel[2];
+    }
+    # checking VERSION, PATCHLEVEL and SUBLEVEL for the supplied kernel
+    # if needed I can add also EXTRAVERSION to the check
+    if ($build_version >= $version[0] &&
+        $build_patchlevel >= $version[1] &&
+        $build_sublevel >= $version[2]) {
+      print " Current kernel version appears to be OK\n";
+      return 1;
+    } else {
+      print " Current kernel version: ",$current_version,"\n Minimum kernel version: ",$required_version,"\n";
+      print " FAILED!\n";
+      return 0;
+    }
+  } else {
+    print " Unable to find ($autoconf_path)!\n";
+    print " Make sure that:\n - the above path is correct\n";
+    print " - your kernel is properly configured and prepared.\n";
+    print " - kernel_build and kernel_src options to configure are set properly.\n";
+    return 0;
+  }
+}
+
 $pwd = `pwd`;
 chomp($pwd);
 
@@ -244,6 +311,9 @@ if (!$kernel_src) {
   } else {
     $kernel_src=$kernel_build;
   }
+}
+if (!kernel_version($kernel_build,$required_kernelversion)) {
+  exit 1;
 }
 if (!$module_dir) {
   $module_dir="/lib/modules/$un[2]/kernel";
@@ -374,10 +444,10 @@ if (!$without_gnbd) {
 if (!$without_rgmanager) {
   $without_rgmanager="";
 }
-if (not length $release_major) {
+if (defined($release_major) && not length $release_major) {
   $release_major="";
 }
-if (not length $release_minor) {
+if (defined($release_minor) && not length $release_minor) {
   $release_minor="";
 }
 
@@ -462,7 +532,7 @@ while (<IFILE>) {
 }
 
 close IFILE;
-if ((not length $release_major) || (not length $release_minor)) {
+if ((not defined($release_major)) || (not defined($release_minor))) {
   open IFILE, "<make/release.mk.input" or die "Can't redirect stdin";
   while (<IFILE>) {
     chomp;
