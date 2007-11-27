@@ -1,0 +1,222 @@
+#!/bin/sh
+#
+#
+#	Searchd OCF RA. 
+#	Manages the Sphinx search daemon
+#
+# Copyright (c) 2007 Christian Rishoj (christian@rishoj.net)
+#                    All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+#######################################################################
+# Initialization:
+
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
+
+#######################################################################
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="SphinxSearchDaemon" version="0.9">
+<version>1.0</version>
+
+<longdesc lang="en">
+This is a searchd Resource Agent. It manages the Sphinx Search Daemon.
+</longdesc>
+<shortdesc lang="en">searchd resource agent</shortdesc>
+
+<parameters>
+
+<parameter name="config" required="0" unique="1">
+<longdesc lang="en">
+searchd configuration file
+</longdesc>
+<shortdesc lang="en">Configuration file</shortdesc>
+<content type="string" default="/etc/sphinx/sphinx.conf" />
+</parameter>
+
+<parameter name="searchd" required="0" unique="0">
+<longdesc lang="en">
+searchd binary
+</longdesc>
+<shortdesc lang="en">searchd binary</shortdesc>
+<content type="string" default="/usr/local/bin/searchd" />
+</parameter>
+
+<parameter name="search" required="0" unique="0">
+<longdesc lang="en">
+Search binary for functional testing in the monitor action.
+</longdesc>
+<shortdesc lang="en">search binary</shortdesc>
+<content type="string" default="/usr/local/bin/search" />
+</parameter>
+
+<parameter name="testQuery" required="0" unique="0">
+<longdesc lang="en">
+Test query for functional testing in the monitor action.
+The query does not need to match any documents in the index.
+The purpose is merely to test whether the search daemon is
+is able to query its indices and respond properly. 
+</longdesc>
+<shortdesc lang="en">test query</shortdesc>
+<content type="string" default="Heartbeat_Monitor_Query_Match_string" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"        timeout="90" />
+<action name="stop"         timeout="100" />
+<action name="monitor"      timeout="20" interval="10" depth="0" start-delay="0" />
+<action name="meta-data"    timeout="5" />
+<action name="verify-all"   timeout="30" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+searchd_usage() {
+	cat <<END
+usage: $0 {start|stop|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+searchd_start() {
+    if ! searchd_validate ; then
+	return $OCF_ERR_GENERIC
+    fi 
+    if ! searchd_status ; then
+	$OCF_RESKEY_searchd --config $OCF_RESKEY_config
+	if [ $? != 0 ]; then 
+	    return $OCF_ERR_GENERIC
+	fi	    
+    fi
+    if searchd_check ; then
+	return $OCF_SUCCESS
+    else	
+	return $OCF_ERR_GENERIC
+    fi
+}
+
+searchd_stop() {
+    if ! searchd_validate ; then
+	return $OCF_ERR_GENERIC
+    fi 
+    if searchd_status ; then 
+	$OCF_RESKEY_searchd --config $OCF_RESKEY_config --stop
+	if [ $? = 0 ]; then
+	    return $OCF_SUCCESS
+	else	    
+	    return $OCF_ERR_GENERIC
+	fi
+    else
+	return $OCF_SUCCESS
+    fi
+}
+
+isRunning()
+{
+    kill -0 "$1" > /dev/null && [ `ps -p "$1" | grep searchd | wc -l` -eq 1 ]
+}
+
+searchd_status() {
+    pidfile=`grep -v "^#" "$OCF_RESKEY_config" | grep -w pid_file | awk -F "[ \t]*=[ \t]*" '{ print $2 }'`
+    if [ -f "$pidfile" ] ; then 
+	PID=`head -n 1 $pidfile`
+	if [ ! -z "$PID" ] ; then 
+	    isRunning "$PID" 
+	    if [ $? = 0 ] ; then
+		return 0
+	    fi
+	fi
+    fi
+    false
+}
+
+searchd_check() {
+    $OCF_RESKEY_search --config $OCF_RESKEY_config --noinfo "$OCF_RESKEY_testQuery" > /dev/null
+}
+
+searchd_monitor() {
+    if ! searchd_validate ; then
+	return $OCF_NOT_RUNNING
+    fi 
+    if searchd_status ; then 
+	if searchd_check ; then
+	    return $OCF_RUNNING
+	else	    
+	    return $OCF_ERR_GENERIC
+	fi
+    else
+	return $OCF_NOT_RUNNING
+    fi
+}
+
+searchd_validate() {
+    if [ ! -x "$OCF_RESKEY_search" ]; then
+	ocf_log err "search binary '$OCF_RESKEY_search' does not exist or cannot be executed"
+	return $OCF_ERR_ARGS
+    fi
+
+    if [ ! -x "$OCF_RESKEY_searchd" ]; then
+	ocf_log err "searchd binary '$OCF_RESKEY_searchd' does not exist or cannot be executed"
+	return $OCF_ERR_ARGS
+    fi
+
+    if [ ! -f "$OCF_RESKEY_config" ]; then
+	ocf_log err "config file '$OCF_RESKEY_config' does not exist"
+	return $OCF_ERR_ARGS
+    fi
+
+    return $OCF_SUCCESS
+}
+
+: ${OCF_RESKEY_config=/etc/sphinx/sphinx.conf} 
+: ${OCF_RESKEY_search=/usr/local/bin/search}
+: ${OCF_RESKEY_searchd=/usr/local/bin/searchd}
+: ${OCF_RESKEY_testQuery=Heartbeat_Monitor_Query_Match_string} 
+
+case $__OCF_ACTION in
+meta-data)	meta_data
+		exit $OCF_SUCCESS
+		;;
+start)		searchd_start;;
+stop)		searchd_stop;;
+monitor)	searchd_monitor;;
+validate-all)	searchd_validate;;
+usage|help)	searchd_usage
+		exit $OCF_SUCCESS
+		;;
+*)		searchd_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc
+
