@@ -42,7 +42,7 @@ depends:
 
 install: all
 	install -d ${libexecdir}/lcrso
-	install -s ${TARGET} ${libexecdir}/lcrso
+	install ${TARGET} ${libexecdir}/lcrso
 
 uninstall:
 	rm -f ${libexecdir}/lcrso/${TARGET}
