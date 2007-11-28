@@ -331,7 +331,7 @@ insert_dev() {
 	attr=`devattrname $devattr` || return 1
 	case "$devattr" in
 	status_instancename|status_targetname)
-		echo crm_attribute -t status -U `uname -n` -n "$attr" -v "$dev"
+		crm_attribute -t status -U `uname -n` -n "$attr" -v "$dev"
 	;;
 	*)
 		crm_resource -r "$devattr" -p "$attr" -v "$dev"
@@ -341,7 +341,7 @@ remove_dev() {
 	attr=`devattrname $devattr` || return 1
 	case "$devattr" in
 	status_instancename|status_targetname)
-		echo crm_attribute -t status -U `uname -n` -n "$attr" -D
+		crm_attribute -t status -U `uname -n` -n "$attr" -D
 	;;
 	*)
 		crm_resource -r "$devattr" -p "$attr" -v "/dev/null"
