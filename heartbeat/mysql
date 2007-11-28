@@ -261,12 +261,6 @@ mysql_validate() {
 	exit $OCF_ERR_ARGS;
     fi
     
-    getent passwd $OCF_RESKEY_test_user >/dev/null 2>&1
-    if [ ! $? -eq 0 ]; then
-	ocf_log err "Test user $OCF_RESKEY_test_user doesn't exit";
-	exit $OCF_ERR_ARGS;
-    fi
-    
     getent group $OCF_RESKEY_group >/dev/null 2>&1
     if [ ! $? -eq 0 ]; then
 	ocf_log err "Group $OCF_RESKEY_group doesn't exist";
