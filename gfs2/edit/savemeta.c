@@ -383,7 +383,7 @@ int get_gfs_struct_info(char *buf, int *block_type, int *struct_len)
 	struct gfs2_meta_header mh;
 
 	*block_type = 0;
-	*struct_len = 0;
+	*struct_len = bufsize;
 
 	gfs2_meta_header_in(&mh, buf);
 	if (mh.mh_magic != GFS2_MAGIC)
@@ -492,6 +492,7 @@ int block_is_systemfile(void)
 		block_is_inum_file() ||
 		block_is_statfs_file() ||
 		block_is_quota_file() ||
+		block_is_rindex() ||
 		block_is_a_journal();
 }
 
@@ -501,6 +502,12 @@ int save_block(int fd, int out_fd, uint64_t blk)
 	uint16_t trailing0;
 	char *p;
 
+	if (blk > last_fs_block) {
+		fprintf(stderr, "\nWarning: bad block pointer ignored in "
+			"block (block %llu (%llx))",
+			(unsigned long long)block, (unsigned long long)block);
+		return 0;
+	}
 	memset(savedata, 0, sizeof(struct saved_metablock));
 	do_lseek(fd, blk * bufsize);
 	do_read(fd, savedata->buf, bufsize); /* read in the block */
@@ -536,12 +543,11 @@ int save_block(int fd, int out_fd, uint64_t blk)
 void save_indirect_blocks(int out_fd, osi_list_t *cur_list,
 			  struct gfs2_buffer_head *mybh, int height, int hgt)
 {
-	uint64_t old_block = 0, starting_block;
+	uint64_t old_block = 0, indir_block;
 	uint64_t *ptr;
 	int head_size;
 	struct gfs2_buffer_head *nbh;
 
-	starting_block = block; /* remember where we started */
 	head_size = (hgt > 1 ?
 		     sizeof(struct gfs2_meta_header) :
 		     sizeof(struct gfs2_dinode));
@@ -550,19 +556,18 @@ void save_indirect_blocks(int out_fd, osi_list_t *cur_list,
 	     (char *)ptr < (mybh->b_data + mybh->b_size); ptr++) {
 		if (!*ptr)
 			continue;
-		block = be64_to_cpu(*ptr);
-		if (block == old_block)
+		indir_block = be64_to_cpu(*ptr);
+		if (indir_block == old_block)
 			continue;
-		old_block = block;
-		save_block(sbd.device_fd, out_fd, block);
+		old_block = indir_block;
+		save_block(sbd.device_fd, out_fd, indir_block);
 		if (height != hgt) { /* If not at max height */
-			nbh = bread(&sbd, block);
+			nbh = bread(&sbd, indir_block);
 			osi_list_add_prev(&nbh->b_altlist,
 					  cur_list);
 			brelse(nbh, not_updated);
 		}
 	} /* for all data on the indirect block */
-	block = starting_block; /* go back to where we started */
 }
 
 /*
@@ -632,28 +637,37 @@ void save_inode_data(int out_fd)
 	}
 	if (inode->i_di.di_eattr) { /* if this inode has extended attributes */
 		struct gfs2_ea_header ea;
+		struct gfs2_meta_header mh;
 		int e;
 
 		metabh = bread(&sbd, inode->i_di.di_eattr);
 		save_block(sbd.device_fd, out_fd, inode->i_di.di_eattr);
-		for (e = sizeof(struct gfs2_meta_header);
-		     e < bufsize; e += ea.ea_rec_len) {
-			uint64_t blk, *b;
-			int charoff;
+		gfs2_meta_header_in(&mh, metabh->b_data);
+		if (mh.mh_magic == GFS2_MAGIC) {
+			for (e = sizeof(struct gfs2_meta_header);
+			     e < bufsize; e += ea.ea_rec_len) {
+				uint64_t blk, *b;
+				int charoff;
 
-			gfs2_ea_header_in(&ea, metabh->b_data + e);
-			for (i = 0; i < ea.ea_num_ptrs; i++) {
-				charoff = e + ea.ea_name_len +
-					sizeof(struct gfs2_ea_header) +
-					sizeof(uint64_t) - 1;
-				charoff /= sizeof(uint64_t);
-				b = (uint64_t *)(metabh->b_data);
-				b += charoff + i;
-				blk = be64_to_cpu(*b);
-				save_block(sbd.device_fd, out_fd, blk);
+				gfs2_ea_header_in(&ea, metabh->b_data + e);
+				for (i = 0; i < ea.ea_num_ptrs; i++) {
+					charoff = e + ea.ea_name_len +
+						sizeof(struct gfs2_ea_header) +
+						sizeof(uint64_t) - 1;
+					charoff /= sizeof(uint64_t);
+					b = (uint64_t *)(metabh->b_data);
+					b += charoff + i;
+					blk = be64_to_cpu(*b);
+					save_block(sbd.device_fd, out_fd, blk);
+				}
+				if (!ea.ea_rec_len)
+					break;
 			}
-			if (!ea.ea_rec_len)
-				break;
+		} else {
+			fprintf(stderr, "\nWarning: corrupt extended attribute"
+				" at block %llu (0x%llx) detected.\n",
+				(unsigned long long)block,
+				(unsigned long long)block);
 		}
 		brelse(metabh, not_updated);
 	}

@@ -136,6 +136,7 @@ struct gfs_log_header {
 };
 
 EXTERN int block_is_jindex(void);
+EXTERN int block_is_rindex(void);
 EXTERN int block_is_inum_file(void);
 EXTERN int block_is_statfs_file(void);
 EXTERN int block_is_quota_file(void);
