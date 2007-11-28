@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2005-2007 Red Hat, Inc.  All rights reserved.
 **  
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -168,6 +168,7 @@ struct mountgroup {
 	uint64_t		cp_handle;
 	time_t			last_checkpoint_time;
 	time_t			last_plock_time;
+	struct timeval		drop_resources_last;
 
 	int			needs_recovery;
 	int			our_jid;
@@ -241,11 +242,11 @@ enum {
 	MSG_MOUNT_STATUS,
 	MSG_RECOVERY_STATUS,
 	MSG_RECOVERY_DONE,
+	MSG_PLOCK_OWN,
+	MSG_PLOCK_DROP,
+	MSG_PLOCK_SYNC_LOCK,
+	MSG_PLOCK_SYNC_WAITER,
 };
-
-#define GDLM_VER_MAJOR 1
-#define GDLM_VER_MINOR 0
-#define GDLM_VER_PATCH 0
 
 struct gdlm_header {
 	uint16_t		version[3];
@@ -267,6 +268,9 @@ int do_read(int fd, void *buf, size_t count);
 int do_write(int fd, void *buf, size_t count);
 struct mountgroup *find_mg(char *name);
 struct mountgroup *find_mg_id(uint32_t id);
+struct mg_member *find_memb_nodeid(struct mountgroup *mg, int nodeid);
+int is_member(struct mountgroup *mg, int nodeid);
+int is_removed(struct mountgroup *mg, int nodeid);
 
 int setup_cman(void);
 int process_cman(void);

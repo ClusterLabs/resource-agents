@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2006 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2006-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -13,6 +13,8 @@
 #include <openais/cpg.h>
 #include "lock_dlm.h"
 
+extern struct list_head mounts;
+extern unsigned int     protocol_active[3];
 static cpg_handle_t	daemon_handle;
 static struct cpg_name	daemon_name;
 int			message_flow_control_on;
@@ -21,6 +23,9 @@ void receive_journals(struct mountgroup *mg, char *buf, int len, int from);
 void receive_options(struct mountgroup *mg, char *buf, int len, int from);
 void receive_remount(struct mountgroup *mg, char *buf, int len, int from);
 void receive_plock(struct mountgroup *mg, char *buf, int len, int from);
+void receive_own(struct mountgroup *mg, char *buf, int len, int from);
+void receive_drop(struct mountgroup *mg, char *buf, int len, int from);
+void receive_sync(struct mountgroup *mg, char *buf, int len, int from);
 void receive_withdraw(struct mountgroup *mg, char *buf, int len, int from);
 void receive_mount_status(struct mountgroup *mg, char *buf, int len, int from);
 void receive_recovery_status(struct mountgroup *mg, char *buf, int len,
@@ -51,9 +56,14 @@ static void do_deliver(int nodeid, char *data, int len)
 	hd->nodeid	= le32_to_cpu(hd->nodeid);
 	hd->to_nodeid	= le32_to_cpu(hd->to_nodeid);
 
-	if (hd->version[0] != GDLM_VER_MAJOR) {
-		log_error("reject message version %u.%u.%u",
-			  hd->version[0], hd->version[1], hd->version[2]);
+	/* FIXME: we need to look at how to gracefully fail when we end up
+	   with mixed incompat versions */
+
+	if (hd->version[0] != protocol_active[0]) {
+		log_error("reject message from %d version %u.%u.%u vs %u.%u.%u",
+			  nodeid, hd->version[0], hd->version[1],
+			  hd->version[2], protocol_active[0],
+			  protocol_active[1], protocol_active[2]);
 		return;
 	}
 
@@ -100,6 +110,19 @@ static void do_deliver(int nodeid, char *data, int len)
 		receive_withdraw(mg, data, len, nodeid);
 		break;
 
+	case MSG_PLOCK_OWN:
+		receive_own(mg, data, len, nodeid);
+		break;
+
+	case MSG_PLOCK_DROP:
+		receive_drop(mg, data, len, nodeid);
+		break;
+
+	case MSG_PLOCK_SYNC_LOCK:
+	case MSG_PLOCK_SYNC_WAITER:
+		receive_sync(mg, data, len, nodeid);
+		break;
+
 	default:
 		log_error("unknown message type %d from %d",
 			  hd->type, hd->nodeid);
@@ -112,11 +135,26 @@ void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 	do_deliver(nodeid, data, data_len);
 }
 
+/* Not sure if purging plocks (driven by confchg) needs to be synchronized with
+   the other recovery steps (driven by libgroup) for a node, don't think so.
+   Is it possible for a node to have been cleared from the members_gone list
+   before this confchg is processed? */
+
 void confchg_cb(cpg_handle_t handle, struct cpg_name *group_name,
 		struct cpg_address *member_list, int member_list_entries,
 		struct cpg_address *left_list, int left_list_entries,
 		struct cpg_address *joined_list, int joined_list_entries)
 {
+	struct mountgroup *mg;
+	int i, nodeid;
+
+	for (i = 0; i < left_list_entries; i++) {
+		nodeid = left_list[i].nodeid;
+		list_for_each_entry(mg, &mounts, list) {
+			if (is_member(mg, nodeid) || is_removed(mg, nodeid))
+				purge_plocks(mg, left_list[i].nodeid, 0);
+		}
+	}
 }
 
 static cpg_callbacks_t callbacks = {
@@ -238,9 +276,9 @@ int send_group_message(struct mountgroup *mg, int len, char *buf)
 	struct gdlm_header *hd = (struct gdlm_header *) buf;
 	int type = hd->type;
 
-	hd->version[0]	= cpu_to_le16(GDLM_VER_MAJOR);
-	hd->version[1]	= cpu_to_le16(GDLM_VER_MINOR);
-	hd->version[2]	= cpu_to_le16(GDLM_VER_PATCH);
+	hd->version[0]	= cpu_to_le16(protocol_active[0]);
+	hd->version[1]	= cpu_to_le16(protocol_active[1]);
+	hd->version[2]	= cpu_to_le16(protocol_active[2]);
 	hd->type	= cpu_to_le16(hd->type);
 	hd->nodeid	= cpu_to_le32(hd->nodeid);
 	hd->to_nodeid	= cpu_to_le32(hd->to_nodeid);

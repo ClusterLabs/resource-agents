@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2005-2007 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -44,20 +44,26 @@
 #define CONTROL_DIR             "/dev/misc"
 #define CONTROL_NAME            "lock_dlm_plock"
 
-static int control_fd = -1;
 extern int our_nodeid;
-static int plocks_online = 0;
 extern int message_flow_control_on;
-extern int no_plock;
 
-extern uint32_t plock_rate_limit;
-uint32_t plock_read_count;
-uint32_t plock_recv_count;
-uint32_t plock_rate_delays;
-struct timeval plock_read_time;
-struct timeval plock_recv_time;
-struct timeval plock_rate_last;
+/* user configurable */
+extern int config_no_plock;
+extern uint32_t config_plock_rate_limit;
+extern uint32_t config_plock_ownership;
+extern uint32_t config_drop_resources_time;
+extern uint32_t config_drop_resources_count;
+extern uint32_t config_drop_resources_age;
 
+static int plocks_online = 0;
+static uint32_t plock_read_count;
+static uint32_t plock_recv_count;
+static uint32_t plock_rate_delays;
+static struct timeval plock_read_time;
+static struct timeval plock_recv_time;
+static struct timeval plock_rate_last;
+
+static int control_fd = -1;
 static SaCkptHandleT ckpt_handle;
 static SaCkptCallbacksT callbacks = { 0, 0 };
 static SaVersionT version = { 'B', 1, 1 };
@@ -76,12 +82,21 @@ struct pack_plock {
 	uint32_t pad;
 };
 
+#define R_GOT_UNOWN 0x00000001 /* have received owner=0 message */
+
 struct resource {
 	struct list_head	list;	   /* list of resources */
 	uint64_t		number;
-	struct list_head	locks;	  /* one lock for each range */
+	int                     owner;     /* nodeid or 0 for unowned */
+	uint32_t		flags;
+	struct timeval          last_access;
+	struct list_head	locks;	   /* one lock for each range */
 	struct list_head	waiters;
+	struct list_head        pending;   /* discovering r owner */
 };
+
+#define P_SYNCING 0x00000001 /* plock has been sent as part of sync but not
+				yet received */
 
 struct posix_lock {
 	struct list_head	list;	   /* resource locks or waiters list */
@@ -91,12 +106,25 @@ struct posix_lock {
 	uint64_t		end;
 	int			ex;
 	int			nodeid;
+	uint32_t		flags;
 };
 
 struct lock_waiter {
 	struct list_head	list;
+	uint32_t		flags;
 	struct gdlm_plock_info	info;
 };
+
+
+static void send_own(struct mountgroup *mg, struct resource *r, int owner);
+static void save_pending_plock(struct mountgroup *mg, struct resource *r,
+			       struct gdlm_plock_info *in);
+
+
+static int got_unown(struct resource *r)
+{
+	return !!(r->flags & R_GOT_UNOWN);
+}
 
 static void info_bswap_out(struct gdlm_plock_info *i)
 {
@@ -292,7 +320,7 @@ int setup_plocks(void)
 	gettimeofday(&plock_recv_time, NULL);
 	gettimeofday(&plock_rate_last, NULL);
 
-	if (no_plock)
+	if (config_no_plock)
 		goto control;
 
 	err = saCkptInitialize(&ckpt_handle, &callbacks, &version);
@@ -333,113 +361,6 @@ static uint64_t dt_usec(struct timeval *start, struct timeval *stop)
 	return dt;
 }
 
-int process_plocks(void)
-{
-	struct mountgroup *mg;
-	struct gdlm_plock_info info;
-	struct gdlm_header *hd;
-	struct timeval now;
-	char *buf;
-	uint64_t usec;
-	int len, rv;
-
-	/* Don't send more messages while the cpg message queue is backed up */
-
-	if (message_flow_control_on) {
-		update_flow_control_status();
-		if (message_flow_control_on)
-			return -EBUSY;
-	}
-
-	/* Every N ops we check how long it's taken to do those N ops.
-	   If it's less than 1000 ms, we don't take any more. */
-
-	if (plock_rate_limit && plock_read_count &&
-	    !(plock_read_count % plock_rate_limit)) {
-		gettimeofday(&now, NULL);
-		if (time_diff_ms(&plock_rate_last, &now) < 1000) {
-			plock_rate_delays++;
-			return -EBUSY;
-		}
-		plock_rate_last = now;
-	}
-
-	memset(&info, 0, sizeof(info));
-
-	rv = do_read(control_fd, &info, sizeof(info));
-	if (rv < 0) {
-		log_debug("process_plocks: read error %d fd %d\n",
-			  errno, control_fd);
-		return 0;
-	}
-
-	if (!plocks_online) {
-		rv = -ENOSYS;
-		goto fail;
-	}
-
-	mg = find_mg_id(info.fsid);
-	if (!mg) {
-		log_debug("process_plocks: no mg id %x", info.fsid);
-		rv = -EEXIST;
-		goto fail;
-	}
-
-	log_plock(mg, "read plock %llx %s %s %llx-%llx %d/%u/%llx w %d",
-		  (unsigned long long)info.number,
-		  op_str(info.optype),
-		  ex_str(info.optype, info.ex),
-		  (unsigned long long)info.start, (unsigned long long)info.end,
-		  info.nodeid, info.pid, (unsigned long long)info.owner,
-		  info.wait);
-
-	/* report plock rate and any delays since the last report */
-	plock_read_count++;
-	if (!(plock_read_count % 1000)) {
-		gettimeofday(&now, NULL);
-		usec = dt_usec(&plock_read_time, &now) ;
-		log_group(mg, "plock_read_count %u time %.3f s delays %u",
-			  plock_read_count, usec * 1.e-6, plock_rate_delays);
-		plock_read_time = now;
-		plock_rate_delays = 0;
-	}
-
-	len = sizeof(struct gdlm_header) + sizeof(struct gdlm_plock_info);
-	buf = malloc(len);
-	if (!buf) {
-		rv = -ENOMEM;
-		goto fail;
-	}
-	memset(buf, 0, len);
-
-	info.nodeid = our_nodeid;
-
-	hd = (struct gdlm_header *)buf;
-	hd->type = MSG_PLOCK;
-	hd->nodeid = our_nodeid;
-	hd->to_nodeid = 0;
-	memcpy(buf + sizeof(struct gdlm_header), &info, sizeof(info));
-
-	info_bswap_out((struct gdlm_plock_info *) buf +
-						  sizeof(struct gdlm_header));
-
-	rv = send_group_message(mg, len, buf);
-
-	free(buf);
-
-	if (rv) {
-		log_error("send plock error %d", rv);
-		goto fail;
-	}
-	return 0;
-
- fail:
-	info.rv = rv;
-	rv = write(control_fd, &info, sizeof(info));
-
-	return 0;
-}
-
 static struct resource *search_resource(struct mountgroup *mg, uint64_t number)
 {
 	struct resource *r;
@@ -468,6 +389,7 @@ static int find_resource(struct mountgroup *mg, uint64_t number, int create,
 
 	r = malloc(sizeof(struct resource));
 	if (!r) {
+		log_error("find_resource no memory %d", errno);
 		rv = -ENOMEM;
 		goto out;
 	}
@@ -476,15 +398,27 @@ static int find_resource(struct mountgroup *mg, uint64_t number, int create,
 	r->number = number;
 	INIT_LIST_HEAD(&r->locks);
 	INIT_LIST_HEAD(&r->waiters);
+	INIT_LIST_HEAD(&r->pending);
+
+	if (config_plock_ownership)
+		r->owner = -1;
+	else
+		r->owner = 0;
 
 	list_add_tail(&r->list, &mg->resources);
  out:
+	if (r)
+		gettimeofday(&r->last_access, NULL);
 	*r_out = r;
 	return rv;
 }
 
 static void put_resource(struct resource *r)
 {
+	/* with ownership, resources are only freed via drop messages */
+	if (config_plock_ownership)
+		return;
+
 	if (list_empty(&r->locks) && list_empty(&r->waiters)) {
 		list_del(&r->list);
 		free(r);
@@ -825,6 +759,7 @@ static int add_waiter(struct mountgroup *mg, struct resource *r,
 
 {
 	struct lock_waiter *w;
+
 	w = malloc(sizeof(struct lock_waiter));
 	if (!w)
 		return -ENOMEM;
@@ -873,14 +808,10 @@ static void do_waiters(struct mountgroup *mg, struct resource *r)
 	}
 }
 
-static void do_lock(struct mountgroup *mg, struct gdlm_plock_info *in)
+static void do_lock(struct mountgroup *mg, struct gdlm_plock_info *in,
+		    struct resource *r)
 {
-	struct resource *r = NULL;
 	int rv;
-
-	rv = find_resource(mg, in->number, 1, &r);
-	if (rv)
-		goto out;
 
 	if (is_conflict(r, in, 0)) {
 		if (!in->wait)
@@ -902,39 +833,55 @@ static void do_lock(struct mountgroup *mg, struct gdlm_plock_info *in)
 	put_resource(r);
 }
 
-static void do_unlock(struct mountgroup *mg, struct gdlm_plock_info *in)
+static void do_unlock(struct mountgroup *mg, struct gdlm_plock_info *in,
+		      struct resource *r)
 {
-	struct resource *r = NULL;
 	int rv;
 
-	rv = find_resource(mg, in->number, 0, &r);
-	if (!rv)
-		rv = unlock_internal(mg, r, in);
+	rv = unlock_internal(mg, r, in);
 
 	if (in->nodeid == our_nodeid)
 		write_result(mg, in, rv);
 
-	if (r) {
-		do_waiters(mg, r);
-		put_resource(r);
-	}
+	do_waiters(mg, r);
+	put_resource(r);
 }
 
-static void do_get(struct mountgroup *mg, struct gdlm_plock_info *in)
-{
-	struct resource *r = NULL;
-	int rv;
+/* we don't even get to this function if the getlk isn't from us */
 
-	rv = find_resource(mg, in->number, 0, &r);
-	if (rv)
-		goto out;
+static void do_get(struct mountgroup *mg, struct gdlm_plock_info *in,
+		   struct resource *r)
+{
+	int rv;
 
 	if (is_conflict(r, in, 1))
 		rv = 1;
 	else
 		rv = 0;
- out:
+
 	write_result(mg, in, rv);
+}
+
+static void __receive_plock(struct mountgroup *mg, struct gdlm_plock_info *in,
+			    int from, struct resource *r)
+{
+	switch (in->optype) {
+	case GDLM_PLOCK_OP_LOCK:
+		mg->last_plock_time = time(NULL);
+		do_lock(mg, in, r);
+		break;
+	case GDLM_PLOCK_OP_UNLOCK:
+		mg->last_plock_time = time(NULL);
+		do_unlock(mg, in, r);
+		break;
+	case GDLM_PLOCK_OP_GET:
+		do_get(mg, in, r);
+		break;
+	default:
+		log_error("receive_plock from %d optype %d", from, in->optype);
+		if (from == our_nodeid)
+			write_result(mg, in, -EINVAL);
+	}
 }
 
 /* When mg members receive our options message (for our mount), one of them
@@ -947,16 +894,16 @@ static void do_get(struct mountgroup *mg, struct gdlm_plock_info *in)
    set save_plocks (when we see our options message) can be ignored because it
    should be reflected in the checkpointed state. */
 
-void _receive_plock(struct mountgroup *mg, char *buf, int len, int from)
+static void _receive_plock(struct mountgroup *mg, char *buf, int len, int from)
 {
 	struct gdlm_plock_info info;
 	struct gdlm_header *hd = (struct gdlm_header *) buf;
+	struct resource *r = NULL;
 	struct timeval now;
 	uint64_t usec;
-	int rv = 0;
+	int rv, create;
 
 	memcpy(&info, buf + sizeof(struct gdlm_header), sizeof(info));
-
 	info_bswap_in(&info);
 
 	log_plock(mg, "receive plock %llx %s %s %llx-%llx %d/%u/%llx w %d",
@@ -982,30 +929,80 @@ void _receive_plock(struct mountgroup *mg, char *buf, int len, int from)
 	if (from != hd->nodeid || from != info.nodeid) {
 		log_error("receive_plock from %d header %d info %d",
 			  from, hd->nodeid, info.nodeid);
-		rv = -EINVAL;
-		goto out;
+		return;
 	}
 
-	switch (info.optype) {
-	case GDLM_PLOCK_OP_LOCK:
-		mg->last_plock_time = time(NULL);
-		do_lock(mg, &info);
-		break;
-	case GDLM_PLOCK_OP_UNLOCK:
-		mg->last_plock_time = time(NULL);
-		do_unlock(mg, &info);
-		break;
-	case GDLM_PLOCK_OP_GET:
-		do_get(mg, &info);
-		break;
-	default:
-		log_error("receive_plock from %d optype %d", from, info.optype);
-		rv = -EINVAL;
+	create = !config_plock_ownership;
+
+	rv = find_resource(mg, info.number, create, &r);
+
+	if (rv && config_plock_ownership) {
+		/* There must have been a race with a drop, so we need to
+		   ignore this plock op which will be resent.  If we're the one
+		   who sent the plock, we need to send_own() and put it on the
+		   pending list to resend once the owner is established. */
+
+		log_debug("receive_plock from %d no r %llx", from,
+			  (unsigned long long)info.number);
+
+		if (from != our_nodeid)
+			return;
+
+		rv = find_resource(mg, info.number, 1, &r);
+		if (rv)
+			return;
+		send_own(mg, r, our_nodeid);
+		save_pending_plock(mg, r, &info);
+		return;
+	}
+	if (rv) {
+		/* r not found, rv is -ENOENT, this shouldn't happen because
+		   process_plocks() creates a resource for every op */
+
+		log_error("receive_plock from %d no r %llx %d", from,
+			  (unsigned long long)info.number, rv);
+		return;
 	}
 
- out:
-	if (from == our_nodeid && rv)
-		write_result(mg, &info, rv);
+	/* The owner should almost always be 0 here, but other owners may
+	   be possible given odd combinations of races with drop.  Odd races to
+	   worry about (some seem pretty improbable):
+
+	   - A sends drop, B sends plock, receive drop, receive plock.
+	   This is addressed above.
+
+	   - A sends drop, B sends two plocks, receive drop, receive plocks.
+	   Receiving the first plock is the previous case, receiving the
+	   second plock will find r with owner of -1.
+
+	   - A sends drop, B sends two plocks, receive drop, C sends own,
+	   receive plock, B sends own, receive own (C), receive plock,
+	   receive own (B).
+
+	   Haven't tried to cook up a scenario that would lead to the
+	   last case below; receiving a plock from ourself and finding
+	   we're the owner of r. */
+
+	/* may want to supress this if some of them are common enough */
+	if (r->owner)
+		log_error("receive_plock from %d r %llx owner %d", from,
+			  (unsigned long long)info.number, r->owner);
+
+	if (!r->owner) {
+		__receive_plock(mg, &info, from, r);
+
+	} else if (r->owner == -1) {
+		if (from == our_nodeid)
+			save_pending_plock(mg, r, &info);
+
+	} else if (r->owner != our_nodeid) {
+		if (from == our_nodeid)
+			save_pending_plock(mg, r, &info);
+
+	} else if (r->owner == our_nodeid) {
+		if (from == our_nodeid)
+			__receive_plock(mg, &info, from, r);
+	}
 }
 
 void receive_plock(struct mountgroup *mg, char *buf, int len, int from)
@@ -1023,6 +1020,575 @@ void receive_plock(struct mountgroup *mg, char *buf, int len, int from)
 	_receive_plock(mg, buf, len, from);
 }
 
+static int send_struct_info(struct mountgroup *mg, struct gdlm_plock_info *in,
+			    int msg_type)
+{
+	char *buf;
+	int rv, len;
+	struct gdlm_header *hd;
+
+	len = sizeof(struct gdlm_header) + sizeof(struct gdlm_plock_info);
+	buf = malloc(len);
+	if (!buf) {
+		rv = -ENOMEM;
+		goto out;
+	}
+	memset(buf, 0, len);
+
+	hd = (struct gdlm_header *)buf;
+	hd->type = msg_type;
+	hd->nodeid = our_nodeid;
+	hd->to_nodeid = 0;
+
+	memcpy(buf + sizeof(struct gdlm_header), in, sizeof(*in));
+	info_bswap_out((struct gdlm_plock_info *) buf + sizeof(*hd));
+
+	rv = send_group_message(mg, len, buf);
+
+	free(buf);
+ out:
+	if (rv)
+		log_error("send plock message error %d", rv);
+	return rv;
+}
+
+static void send_plock(struct mountgroup *mg, struct resource *r,
+		       struct gdlm_plock_info *in)
+{
+	send_struct_info(mg, in, MSG_PLOCK);
+}
+
+static void send_own(struct mountgroup *mg, struct resource *r, int owner)
+{
+	struct gdlm_plock_info info;
+
+	/* if we've already sent an own message for this resource,
+	   (pending list is not empty), then we shouldn't send another */
+
+	if (!list_empty(&r->pending)) {
+		log_debug("send_own %llx already pending",
+			  (unsigned long long)r->number);
+		return;
+	}
+
+	memset(&info, 0, sizeof(info));
+	info.number = r->number;
+	info.nodeid = owner;
+
+	send_struct_info(mg, &info, MSG_PLOCK_OWN);
+}
+
+static void send_syncs(struct mountgroup *mg, struct resource *r)
+{
+	struct gdlm_plock_info info;
+	struct posix_lock *po;
+	struct lock_waiter *w;
+	int rv;
+
+	list_for_each_entry(po, &r->locks, list) {
+		memset(&info, 0, sizeof(info));
+		info.number    = r->number;
+		info.start     = po->start;
+		info.end       = po->end;
+		info.nodeid    = po->nodeid;
+		info.owner     = po->owner;
+		info.pid       = po->pid;
+		info.ex        = po->ex;
+
+		rv = send_struct_info(mg, &info, MSG_PLOCK_SYNC_LOCK);
+		if (rv)
+			goto out;
+
+		po->flags |= P_SYNCING;
+	}
+
+	list_for_each_entry(w, &r->waiters, list) {
+		memcpy(&info, &w->info, sizeof(info));
+
+		rv = send_struct_info(mg, &info, MSG_PLOCK_SYNC_WAITER);
+		if (rv)
+			goto out;
+
+		w->flags |= P_SYNCING;
+	}
+ out:
+	return;
+}
+
+static void send_drop(struct mountgroup *mg, struct resource *r)
+{
+	struct gdlm_plock_info info;
+
+	memset(&info, 0, sizeof(info));
+	info.number = r->number;
+
+	send_struct_info(mg, &info, MSG_PLOCK_DROP);
+}
+
+/* plock op can't be handled until we know the owner value of the resource,
+   so the op is saved on the pending list until the r owner is established */
+
+static void save_pending_plock(struct mountgroup *mg, struct resource *r,
+			       struct gdlm_plock_info *in)
+{
+	struct lock_waiter *w;
+
+	w = malloc(sizeof(struct lock_waiter));
+	if (!w) {
+		log_error("save_pending_plock no mem");
+		return;
+	}
+	memcpy(&w->info, in, sizeof(struct gdlm_plock_info));
+	list_add_tail(&w->list, &r->pending);
+}
+
+/* plock ops are on pending list waiting for ownership to be established.
+   owner has now become us, so add these plocks to r */
+
+static void add_pending_plocks(struct mountgroup *mg, struct resource *r)
+{
+	struct lock_waiter *w, *safe;
+
+	list_for_each_entry_safe(w, safe, &r->pending, list) {
+		__receive_plock(mg, &w->info, our_nodeid, r);
+		list_del(&w->list);
+		free(w);
+	}
+}
+
+/* plock ops are on pending list waiting for ownership to be established.
+   owner has now become 0, so send these plocks to everyone */
+
+static void send_pending_plocks(struct mountgroup *mg, struct resource *r)
+{
+	struct lock_waiter *w, *safe;
+
+	list_for_each_entry_safe(w, safe, &r->pending, list) {
+		send_plock(mg, r, &w->info);
+		list_del(&w->list);
+		free(w);
+	}
+}
+
+static void _receive_own(struct mountgroup *mg, char *buf, int len, int from)
+{
+	struct gdlm_header *hd = (struct gdlm_header *) buf;
+	struct gdlm_plock_info info;
+	struct resource *r;
+	int should_not_happen = 0;
+	int rv;
+
+	memcpy(&info, buf + sizeof(struct gdlm_header), sizeof(info));
+	info_bswap_in(&info);
+
+	log_plock(mg, "receive own %llx from %u owner %u",
+		  (unsigned long long)info.number, hd->nodeid, info.nodeid);
+
+	rv = find_resource(mg, info.number, 1, &r);
+	if (rv)
+		return;
+
+	if (from == our_nodeid) {
+		/*
+		 * received our own own message
+		 */
+
+		if (info.nodeid == 0) {
+			/* we are setting owner to 0 */
+
+			if (r->owner == our_nodeid) {
+				/* we set owner to 0 when we relinquish
+				   ownership */
+				should_not_happen = 1;
+			} else if (r->owner == 0) {
+				/* this happens when we relinquish ownership */
+				r->flags |= R_GOT_UNOWN;
+			} else {
+				should_not_happen = 1;
+			}
+
+		} else if (info.nodeid == our_nodeid) {
+			/* we are setting owner to ourself */
+
+			if (r->owner == -1) {
+				/* we have gained ownership */
+				r->owner = our_nodeid;
+				add_pending_plocks(mg, r);
+			} else if (r->owner == our_nodeid) {
+				should_not_happen = 1;
+			} else if (r->owner == 0) {
+				send_pending_plocks(mg, r);
+			} else {
+				/* resource is owned by other node;
+				   they should set owner to 0 shortly */
+			}
+
+		} else {
+			/* we should only ever set owner to 0 or ourself */
+			should_not_happen = 1;
+		}
+	} else {
+		/*
+		 * received own message from another node
+		 */
+
+		if (info.nodeid == 0) {
+			/* other node is setting owner to 0 */
+
+			if (r->owner == -1) {
+				/* we should have a record of the owner before
+				   it relinquishes */
+				should_not_happen = 1;
+			} else if (r->owner == our_nodeid) {
+				/* only the owner should relinquish */
+				should_not_happen = 1;
+			} else if (r->owner == 0) {
+				should_not_happen = 1;
+			} else {
+				r->owner = 0;
+				r->flags |= R_GOT_UNOWN;
+				send_pending_plocks(mg, r);
+			}
+
+		} else if (info.nodeid == from) {
+			/* other node is setting owner to itself */
+
+			if (r->owner == -1) {
+				/* normal path for a node becoming owner */
+				r->owner = from;
+			} else if (r->owner == our_nodeid) {
+				/* we relinquish our ownership: sync our local
+				   plocks to everyone, then set owner to 0 */
+				send_syncs(mg, r);
+				send_own(mg, r, 0);
+				/* we need to set owner to 0 here because
+				   local ops may arrive before we receive
+				   our send_own message and can't be added
+				   locally */
+				r->owner = 0;
+			} else if (r->owner == 0) {
+				/* can happen because we set owner to 0 before
+				   we receive our send_own sent just above */
+			} else {
+				/* do nothing, current owner should be
+				   relinquishing its ownership */
+			}
+
+		} else if (info.nodeid == our_nodeid) {
+			/* no one else should try to set the owner to us */
+			should_not_happen = 1;
+		} else {
+			/* a node should only ever set owner to 0 or itself */
+			should_not_happen = 1;
+		}
+	}
+
+	if (should_not_happen) {
+		log_error("receive_own from %u %llx info nodeid %d r owner %d",
+			  from, (unsigned long long)r->number, info.nodeid,
+			  r->owner);
+	}
+}
+
+void receive_own(struct mountgroup *mg, char *buf, int len, int from)
+{
+	if (mg->save_plocks) {
+		save_message(mg, buf, len, from, MSG_PLOCK_OWN);
+		return;
+	}
+
+	_receive_own(mg, buf, len, from);
+}
+
+static void clear_syncing_flag(struct resource *r, struct gdlm_plock_info *in)
+{
+	struct posix_lock *po;
+	struct lock_waiter *w;
+
+	list_for_each_entry(po, &r->locks, list) {
+		if ((po->flags & P_SYNCING) &&
+		    in->start  == po->start &&
+		    in->end    == po->end &&
+		    in->nodeid == po->nodeid &&
+		    in->owner  == po->owner &&
+		    in->pid    == po->pid &&
+		    in->ex     == po->ex) {
+			po->flags &= ~P_SYNCING;
+			return;
+		}
+	}
+
+	list_for_each_entry(w, &r->waiters, list) {
+		if ((w->flags & P_SYNCING) &&
+		    in->start  == w->info.start &&
+		    in->end    == w->info.end &&
+		    in->nodeid == w->info.nodeid &&
+		    in->owner  == w->info.owner &&
+		    in->pid    == w->info.pid &&
+		    in->ex     == w->info.ex) {
+			w->flags &= ~P_SYNCING;
+			return;
+		}
+	}
+
+	log_error("clear_syncing %llx no match %s %llx-%llx %d/%u/%llx",
+		  (unsigned long long)r->number, in->ex ? "WR" : "RD", 
+		  (unsigned long long)in->start, (unsigned long long)in->end,
+		  in->nodeid, in->pid, (unsigned long long)in->owner);
+}
+
+static void _receive_sync(struct mountgroup *mg, char *buf, int len, int from)
+{
+	struct gdlm_plock_info info;
+	struct gdlm_header *hd = (struct gdlm_header *) buf;
+	struct resource *r;
+	int rv;
+
+	memcpy(&info, buf + sizeof(struct gdlm_header), sizeof(info));
+	info_bswap_in(&info);
+
+	log_plock(mg, "receive sync %llx from %u %s %llx-%llx %d/%u/%llx",
+		  (unsigned long long)info.number, from, info.ex ? "WR" : "RD",
+		  (unsigned long long)info.start, (unsigned long long)info.end,
+		  info.nodeid, info.pid, (unsigned long long)info.owner);
+
+	rv = find_resource(mg, info.number, 0, &r);
+	if (rv) {
+		log_error("receive_sync no r %llx from %d", info.number, from);
+		return;
+	}
+
+	if (from == our_nodeid) {
+		/* this plock now in sync on all nodes */
+		clear_syncing_flag(r, &info);
+		return;
+	}
+
+	if (hd->type == MSG_PLOCK_SYNC_LOCK)
+		add_lock(r, info.nodeid, info.owner, info.pid, !info.ex, 
+			 info.start, info.end);
+	else if (hd->type == MSG_PLOCK_SYNC_WAITER)
+		add_waiter(mg, r, &info);
+}
+
+void receive_sync(struct mountgroup *mg, char *buf, int len, int from)
+{
+	struct gdlm_header *hd = (struct gdlm_header *) buf;
+
+	if (mg->save_plocks) {
+		save_message(mg, buf, len, from, hd->type);
+		return;
+	}
+
+	_receive_sync(mg, buf, len, from);
+}
+
+static void _receive_drop(struct mountgroup *mg, char *buf, int len, int from)
+{
+	struct gdlm_plock_info info;
+	struct resource *r;
+	int rv;
+
+	memcpy(&info, buf + sizeof(struct gdlm_header), sizeof(info));
+	info_bswap_in(&info);
+
+	log_plock(mg, "receive drop %llx from %u",
+		  (unsigned long long)info.number, from);
+
+	rv = find_resource(mg, info.number, 0, &r);
+	if (rv) {
+		/* we'll find no r if two nodes sent drop at once */
+		log_debug("receive_drop from %d no r %llx", from,
+			  (unsigned long long)info.number);
+		return;
+	}
+
+	if (r->owner != 0) {
+		/* shouldn't happen */
+		log_error("receive_drop from %d r %llx owner %d", from,
+			  (unsigned long long)r->number, r->owner);
+		return;
+	}
+
+	if (!list_empty(&r->pending)) {
+		/* shouldn't happen */
+		log_error("receive_drop from %d r %llx pending op", from,
+			  (unsigned long long)r->number);
+		return;
+	}
+
+	/* the decision to drop or not must be based on things that are
+	   guaranteed to be the same on all nodes */
+
+	if (list_empty(&r->locks) && list_empty(&r->waiters)) {
+		list_del(&r->list);
+		free(r);
+	} else {
+		/* A sent drop, B sent a plock, receive plock, receive drop */
+		log_debug("receive_drop from %d r %llx in use", from,
+			  (unsigned long long)r->number);
+	}
+}
+
+void receive_drop(struct mountgroup *mg, char *buf, int len, int from)
+{
+	if (mg->save_plocks) {
+		save_message(mg, buf, len, from, MSG_PLOCK_DROP);
+		return;
+	}
+
+	_receive_drop(mg, buf, len, from);
+}
+
+/* We only drop resources from the unowned state to simplify things.
+   If we want to drop a resource we own, we unown/relinquish it first. */
+
+/* FIXME: in the transition from owner = us, to owner = 0, to drop;
+   we want the second period to be shorter than the first */
+
+static int drop_resources(struct mountgroup *mg)
+{
+	struct resource *r;
+	struct timeval now;
+	int count = 0;
+
+	gettimeofday(&now, NULL);
+
+	/* try to drop the oldest, unused resources */
+
+	list_for_each_entry_reverse(r, &mg->resources, list) {
+		if (count >= config_drop_resources_count)
+			break;
+		if (r->owner && r->owner != our_nodeid)
+			continue;
+		if (time_diff_ms(&r->last_access, &now) <
+		    config_drop_resources_age)
+			continue;
+
+		if (list_empty(&r->locks) && list_empty(&r->waiters)) {
+			if (r->owner == our_nodeid) {
+				send_own(mg, r, 0);
+				r->owner = 0;
+			} else if (r->owner == 0 && got_unown(r)) {
+				send_drop(mg, r);
+			}
+
+			count++;
+		}
+	}
+
+	return 0;
+}
+
+int process_plocks(void)
+{
+	struct mountgroup *mg;
+	struct resource *r;
+	struct gdlm_plock_info info;
+	struct timeval now;
+	uint64_t usec;
+	int rv;
+
+	/* Don't send more messages while the cpg message queue is backed up */
+
+	if (message_flow_control_on) {
+		update_flow_control_status();
+		if (message_flow_control_on)
+			return -EBUSY;
+	}
+
+	gettimeofday(&now, NULL);
+
+	/* Every N ops we check how long it's taken to do those N ops.
+	   If it's less than 1000 ms, we don't take any more. */
+
+	if (config_plock_rate_limit && plock_read_count &&
+	    !(plock_read_count % config_plock_rate_limit)) {
+		if (time_diff_ms(&plock_rate_last, &now) < 1000) {
+			plock_rate_delays++;
+			return -EBUSY;
+		}
+		plock_rate_last = now;
+	}
+
+	memset(&info, 0, sizeof(info));
+
+	rv = do_read(control_fd, &info, sizeof(info));
+	if (rv < 0) {
+		log_debug("process_plocks: read error %d fd %d\n",
+			  errno, control_fd);
+		return 0;
+	}
+
+	/* kernel doesn't set the nodeid field */
+	info.nodeid = our_nodeid;
+
+	if (!plocks_online) {
+		rv = -ENOSYS;
+		goto fail;
+	}
+
+	mg = find_mg_id(info.fsid);
+	if (!mg) {
+		log_debug("process_plocks: no mg id %x", info.fsid);
+		rv = -EEXIST;
+		goto fail;
+	}
+
+	log_plock(mg, "read plock %llx %s %s %llx-%llx %d/%u/%llx w %d",
+		  (unsigned long long)info.number,
+		  op_str(info.optype),
+		  ex_str(info.optype, info.ex),
+		  (unsigned long long)info.start, (unsigned long long)info.end,
+		  info.nodeid, info.pid, (unsigned long long)info.owner,
+		  info.wait);
+
+	/* report plock rate and any delays since the last report */
+	plock_read_count++;
+	if (!(plock_read_count % 1000)) {
+		usec = dt_usec(&plock_read_time, &now) ;
+		log_group(mg, "plock_read_count %u time %.3f s delays %u",
+			  plock_read_count, usec * 1.e-6, plock_rate_delays);
+		plock_read_time = now;
+		plock_rate_delays = 0;
+	}
+
+	rv = find_resource(mg, info.number, 1, &r);
+	if (rv)
+		goto fail;
+
+	if (r->owner == 0) {
+		/* plock state replicated on all nodes */
+		send_plock(mg, r, &info);
+
+	} else if (r->owner == our_nodeid) {
+		/* we are the owner of r, so our plocks are local */
+		__receive_plock(mg, &info, our_nodeid, r);
+
+	} else {
+		/* r owner is -1: r is new, try to become the owner;
+		   r owner > 0: tell other owner to give up ownership;
+		   both done with a message trying to set owner to ourself */
+		send_own(mg, r, our_nodeid);
+		save_pending_plock(mg, r, &info);
+	}
+
+	if (config_plock_ownership &&
+	    time_diff_ms(&mg->drop_resources_last, &now) >=
+	    		 config_drop_resources_time) {
+		mg->drop_resources_last = now;
+		drop_resources(mg);
+	}
+
+	return 0;
+
+ fail:
+	info.rv = rv;
+	rv = write(control_fd, &info, sizeof(info));
+
+	return 0;
+}
+
 void process_saved_plocks(struct mountgroup *mg)
 {
 	struct save_msg *sm, *sm2;
@@ -1033,9 +1599,24 @@ void process_saved_plocks(struct mountgroup *mg)
 	log_group(mg, "process_saved_plocks");
 
 	list_for_each_entry_safe(sm, sm2, &mg->saved_messages, list) {
-		if (sm->type != MSG_PLOCK)
+		switch (sm->type) {
+		case MSG_PLOCK:
+			_receive_plock(mg, sm->buf, sm->len, sm->nodeid);
+			break;
+		case MSG_PLOCK_OWN:
+			_receive_own(mg, sm->buf, sm->len, sm->nodeid);
+			break;
+		case MSG_PLOCK_DROP:
+			_receive_drop(mg, sm->buf, sm->len, sm->nodeid);
+			break;
+		case MSG_PLOCK_SYNC_LOCK:
+		case MSG_PLOCK_SYNC_WAITER:
+			_receive_sync(mg, sm->buf, sm->len, sm->nodeid);
+			break;
+		default:
 			continue;
-		_receive_plock(mg, sm->buf, sm->len, sm->nodeid);
+		}
+
 		list_del(&sm->list);
 		free(sm);
 	}
@@ -1047,18 +1628,25 @@ void plock_exit(void)
 		saCkptFinalize(ckpt_handle);
 }
 
-void pack_section_buf(struct mountgroup *mg, struct resource *r)
+/* locks still marked SYNCING should not go into the ckpt; the new node
+   will get those locks by receiving PLOCK_SYNC messages */
+
+static void pack_section_buf(struct mountgroup *mg, struct resource *r)
 {
 	struct pack_plock *pp;
 	struct posix_lock *po;
 	struct lock_waiter *w;
 	int count = 0;
 
-	memset(&section_buf, 0, sizeof(section_buf));
+	/* plocks on owned resources are not replicated on other nodes */
+	if (r->owner == our_nodeid)
+		return;
 
 	pp = (struct pack_plock *) &section_buf;
 
 	list_for_each_entry(po, &r->locks, list) {
+		if (po->flags & P_SYNCING)
+			continue;
 		pp->start	= cpu_to_le64(po->start);
 		pp->end		= cpu_to_le64(po->end);
 		pp->owner	= cpu_to_le64(po->owner);
@@ -1071,6 +1659,8 @@ void pack_section_buf(struct mountgroup *mg, struct resource *r)
 	}
 
 	list_for_each_entry(w, &r->waiters, list) {
+		if (w->flags & P_SYNCING)
+			continue;
 		pp->start	= cpu_to_le64(w->info.start);
 		pp->end		= cpu_to_le64(w->info.end);
 		pp->owner	= cpu_to_le64(w->info.owner);
@@ -1085,15 +1675,18 @@ void pack_section_buf(struct mountgroup *mg, struct resource *r)
 	section_len = count * sizeof(struct pack_plock);
 }
 
-int unpack_section_buf(struct mountgroup *mg, char *numbuf, int buflen)
+static int unpack_section_buf(struct mountgroup *mg, char *numbuf, int buflen)
 {
 	struct pack_plock *pp;
 	struct posix_lock *po;
 	struct lock_waiter *w;
 	struct resource *r;
 	int count = section_len / sizeof(struct pack_plock);
-	int i;
+	int i, owner = 0;
 	unsigned long long num;
+	struct timeval now;
+
+	gettimeofday(&now, NULL);
 
 	r = malloc(sizeof(struct resource));
 	if (!r)
@@ -1101,8 +1694,16 @@ int unpack_section_buf(struct mountgroup *mg, char *numbuf, int buflen)
 	memset(r, 0, sizeof(struct resource));
 	INIT_LIST_HEAD(&r->locks);
 	INIT_LIST_HEAD(&r->waiters);
-	sscanf(numbuf, "r%llu", &num);
+	INIT_LIST_HEAD(&r->pending);
+
+	if (config_plock_ownership)
+		sscanf(numbuf, "r%llu.%d", &num, &owner);
+	else
+		sscanf(numbuf, "r%llu", &num);
+
 	r->number = num;
+	r->owner = owner;
+	r->last_access = now;
 
 	pp = (struct pack_plock *) &section_buf;
 
@@ -1208,6 +1809,19 @@ int unlink_checkpoint(struct mountgroup *mg)
 	return _unlink_checkpoint(mg, &name);
 }
 
+/*
+ * section id is r<inodenum>.<owner>, the maximum string length is:
+ * "r" prefix       =  1    strlen("r")
+ * max uint64       = 20    strlen("18446744073709551615")
+ * "." before owner =  1    strlen(".")
+ * max int          = 11    strlen("-2147483647")
+ * \0 at end        =  1
+ * ---------------------
+ *                    34    SECTION_NAME_LEN
+ */
+
+#define SECTION_NAME_LEN 34
+
 /* Copy all plock state into a checkpoint so new node can retrieve it.  The
    node creating the ckpt for the mounter needs to be the same node that's
    sending the mounter its journals message (i.e. the low nodeid).  The new
@@ -1228,12 +1842,12 @@ void store_plocks(struct mountgroup *mg, int nodeid)
 	SaCkptCheckpointOpenFlagsT flags;
 	SaNameT name;
 	SaAisErrorT rv;
-	char buf[32];
+	char buf[SECTION_NAME_LEN];
 	struct resource *r;
 	struct posix_lock *po;
 	struct lock_waiter *w;
 	int r_count, lock_count, total_size, section_size, max_section_size;
-	int len;
+	int len, owner;
 
 	if (!plocks_online)
 		return;
@@ -1264,6 +1878,9 @@ void store_plocks(struct mountgroup *mg, int nodeid)
 	max_section_size = 0;
 
 	list_for_each_entry(r, &mg->resources, list) {
+		if (r->owner == -1)
+			continue;
+
 		r_count++;
 		section_size = 0;
 		list_for_each_entry(po, &r->locks, list) {
@@ -1290,9 +1907,7 @@ void store_plocks(struct mountgroup *mg, int nodeid)
 	attr.retentionDuration = SA_TIME_MAX;
 	attr.maxSections = r_count + 1;      /* don't know why we need +1 */
 	attr.maxSectionSize = max_section_size;
-	attr.maxSectionIdSize = 22;
-	
-	/* 22 = 20 digits in max uint64 + "r" prefix + \0 suffix */
+	attr.maxSectionIdSize = SECTION_NAME_LEN;
 
 	flags = SA_CKPT_CHECKPOINT_READ |
 		SA_CKPT_CHECKPOINT_WRITE |
@@ -1318,14 +1933,48 @@ void store_plocks(struct mountgroup *mg, int nodeid)
 		  (unsigned long long)h);
 	mg->cp_handle = (uint64_t) h;
 
+	/* - If r owner is -1, ckpt nothing.
+	   - If r owner is us, ckpt owner of us and no plocks.
+	   - If r owner is other, ckpt that owner and any plocks we have on r
+	     (they've just been synced but owner=0 msg not recved yet).
+	   - If r owner is 0 and !got_unown, then we've just unowned r;
+	     ckpt owner of us and any plocks that don't have SYNCING set
+	     (plocks with SYNCING will be handled by our sync messages).
+	   - If r owner is 0 and got_unown, then ckpt owner 0 and all plocks;
+	     (there should be no SYNCING plocks) */
+
 	list_for_each_entry(r, &mg->resources, list) {
-		memset(&buf, 0, 32);
-		len = snprintf(buf, 32, "r%llu", (unsigned long long)r->number);
+		if (r->owner == -1)
+			continue;
+		else if (r->owner == our_nodeid)
+			owner = our_nodeid;
+		else if (r->owner)
+			owner = r->owner;
+		else if (!r->owner && !got_unown(r))
+			owner = our_nodeid;
+		else if (!r->owner)
+			owner = 0;
+		else {
+			log_error("store_plocks owner %d r %llx", r->owner,
+				  (unsigned long long)r->number);
+			continue;
+		}
+
+		memset(&buf, 0, sizeof(buf));
+		if (config_plock_ownership)
+			len = snprintf(buf, SECTION_NAME_LEN, "r%llu.%d",
+			       	       (unsigned long long)r->number, owner);
+		else
+			len = snprintf(buf, SECTION_NAME_LEN, "r%llu",
+			       	       (unsigned long long)r->number);
 
 		section_id.id = (void *)buf;
 		section_id.idLen = len + 1;
 		section_attr.sectionId = &section_id;
 		section_attr.expirationTime = SA_TIME_END;
+
+		memset(&section_buf, 0, sizeof(section_buf));
+		section_len = 0;
 
 		pack_section_buf(mg, r);
 
@@ -1377,7 +2026,7 @@ void retrieve_plocks(struct mountgroup *mg)
 	SaCkptIOVectorElementT iov;
 	SaNameT name;
 	SaAisErrorT rv;
-	char buf[32];
+	char buf[SECTION_NAME_LEN];
 	int len;
 
 	if (!plocks_online)
@@ -1440,8 +2089,8 @@ void retrieve_plocks(struct mountgroup *mg)
 		iov.dataSize = desc.sectionSize;
 		iov.dataOffset = 0;
 
-		memset(&buf, 0, 32);
-		snprintf(buf, 32, "%s", desc.sectionId.id);
+		memset(&buf, 0, sizeof(buf));
+		snprintf(buf, SECTION_NAME_LEN, "%s", desc.sectionId.id);
 		log_group(mg, "retrieve_plocks: section size %llu id %u \"%s\"",
 			  (unsigned long long)iov.dataSize, iov.sectionId.idLen,
 			  buf);
@@ -1488,6 +2137,10 @@ void retrieve_plocks(struct mountgroup *mg)
 		saCkptCheckpointClose(h);
 }
 
+/* Called when a node has failed, or we're unmounting.  For a node failure, we
+   need to call this when the cpg confchg arrives so that we're guaranteed all
+   nodes do this in the same sequence wrt other messages. */
+
 void purge_plocks(struct mountgroup *mg, int nodeid, int unmount)
 {
 	struct posix_lock *po, *po2;
@@ -1512,11 +2165,23 @@ void purge_plocks(struct mountgroup *mg, int nodeid, int unmount)
 			}
 		}
 
-		if (list_empty(&r->locks) && list_empty(&r->waiters)) {
+		/* TODO: haven't thought carefully about how this transition
+		   to owner 0 might interact with other owner messages in
+		   progress. */
+
+		if (r->owner == nodeid) {
+			r->owner = 0;
+			send_pending_plocks(mg, r);
+		}
+		
+		if (!list_empty(&r->waiters))
+			do_waiters(mg, r);
+
+		if (!config_plock_ownership &&
+		    list_empty(&r->locks) && list_empty(&r->waiters)) {
 			list_del(&r->list);
 			free(r);
-		} else
-			do_waiters(mg, r);
+		}
 	}
 	
 	if (purged)
@@ -1549,7 +2214,6 @@ int dump_plocks(char *name, int fd)
 		return -1;
 
 	list_for_each_entry(r, &mg->resources, list) {
-
 		list_for_each_entry(po, &r->locks, list) {
 			snprintf(line, MAXLINE,
 			      "%llu %s %llu-%llu nodeid %d pid %u owner %llx\n",

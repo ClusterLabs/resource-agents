@@ -19,7 +19,7 @@
 extern char *clustername;
 extern int our_nodeid;
 extern group_handle_t gh;
-extern int no_withdraw;
+extern int config_no_withdraw;
 extern int dmsetup_wait;
 
 struct list_head mounts;
@@ -1327,8 +1327,6 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 				  memb->jid,
 				  memb->spectator,
 				  memb->wait_gfs_recover_done);
-
-			purge_plocks(mg, memb->nodeid, 0);
 
 			if (mg->master_nodeid == memb->nodeid &&
 			    memb->gone_type == GROUP_NODE_FAILED)
@@ -2712,7 +2710,7 @@ int do_withdraw(char *table)
 	char *name = strstr(table, ":") + 1;
 	int rv;
 
-	if (no_withdraw) {
+	if (config_no_withdraw) {
 		log_error("withdraw feature not enabled");
 		return 0;
 	}

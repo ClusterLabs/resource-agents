@@ -11,11 +11,28 @@
 ******************************************************************************/
 
 #include "lock_dlm.h"
+#include "ccs.h"
 
-#define OPTION_STRING			"DPhVwpl:"
+#define OPTION_STRING			"DPhVwpl:o:t:c:a:"
 #define LOCKFILE_NAME			"/var/run/gfs_controld.pid"
 
+#define DEFAULT_NO_WITHDRAW 0 /* enable withdraw by default */
+#define DEFAULT_NO_PLOCK 0 /* enable plocks by default */
+
+/* max number of plock ops we will cpg-multicast per second */
 #define DEFAULT_PLOCK_RATE_LIMIT 100
+
+/* disable ownership by default because it's a different protocol */
+#define DEFAULT_PLOCK_OWNERSHIP 0
+
+/* max frequency of drop attempts in ms */
+#define DEFAULT_DROP_RESOURCES_TIME 10000 /* 10 sec */
+
+/* max number of resources to drop per time period */
+#define DEFAULT_DROP_RESOURCES_COUNT 10
+
+/* resource not accessed for this many ms before subject to dropping */
+#define DEFAULT_DROP_RESOURCES_AGE 10000 /* 10 sec */
 
 struct client {
 	int fd;
@@ -24,11 +41,41 @@ struct client {
 	int another_mount;
 };
 
+extern struct list_head mounts;
+extern struct list_head withdrawn_mounts;
+extern group_handle_t gh;
+
+int dmsetup_wait;
+
+/* cpg message protocol
+   1.0.0 is initial version
+   2.0.0 is incompatible with 1.0.0 and allows plock ownership */
+unsigned int protocol_v100[3] = {1, 0, 0};
+unsigned int protocol_v200[3] = {2, 0, 0};
+unsigned int protocol_active[3];
+
+/* user configurable */
+int config_no_withdraw;
+int config_no_plock;
+uint32_t config_plock_rate_limit;
+uint32_t config_plock_ownership;
+uint32_t config_drop_resources_time;
+uint32_t config_drop_resources_count;
+uint32_t config_drop_resources_age;
+
+/* command line settings override corresponding cluster.conf settings */
+static int opt_no_withdraw;
+static int opt_no_plock;
+static int opt_plock_rate_limit;
+static int opt_plock_ownership;
+static int opt_drop_resources_time;
+static int opt_drop_resources_count;
+static int opt_drop_resources_age;
+
 static int client_maxi;
 static int client_size = 0;
 static struct client *client = NULL;
 static struct pollfd *pollfd = NULL;
-
 static int cman_fd;
 static int cpg_fd;
 static int listen_fd;
@@ -37,13 +84,6 @@ static int uevent_fd;
 static int plocks_fd;
 static int plocks_ci;
 
-extern struct list_head mounts;
-extern struct list_head withdrawn_mounts;
-extern group_handle_t gh;
-int no_withdraw;
-int no_plock;
-uint32_t plock_rate_limit = DEFAULT_PLOCK_RATE_LIMIT;
-int dmsetup_wait;
 
 int do_read(int fd, void *buf, size_t count)
 {
@@ -620,6 +660,85 @@ int loop(void)
 	return rv;
 }
 
+#define PLOCK_RATE_LIMIT_PATH "/cluster/gfs_controld/@plock_rate_limit"
+#define PLOCK_OWNERSHIP_PATH "/cluster/gfs_controld/@plock_ownership"
+#define DROP_RESOURCES_TIME_PATH "/cluster/gfs_controld/@drop_resources_time"
+#define DROP_RESOURCES_COUNT_PATH "/cluster/gfs_controld/@drop_resources_count"
+#define DROP_RESOURCES_AGE_PATH "/cluster/gfs_controld/@drop_resources_age"
+
+static void set_ccs_config(void)
+{
+	char path[PATH_MAX], *str;
+	int i = 0, cd, error;
+
+	while ((cd = ccs_connect()) < 0) {
+		sleep(1);
+		if (++i > 9 && !(i % 10))
+			log_error("connect to ccs error %d, "
+				  "check ccsd or cluster status", cd);
+	}
+
+	memset(path, 0, PATH_MAX);
+	snprintf(path, PATH_MAX, "%s", PLOCK_RATE_LIMIT_PATH);
+	str = NULL;
+
+	error = ccs_get(cd, path, &str);
+	if (!error) {
+		if (!opt_plock_rate_limit)
+			config_plock_rate_limit = atoi(str);
+	}
+	if (str)
+		free(str);
+
+	memset(path, 0, PATH_MAX);
+	snprintf(path, PATH_MAX, "%s", PLOCK_OWNERSHIP_PATH);
+	str = NULL;
+
+	error = ccs_get(cd, path, &str);
+	if (!error) {
+		if (!opt_plock_ownership)
+			config_plock_ownership = atoi(str);
+	}
+	if (str)
+		free(str);
+
+	memset(path, 0, PATH_MAX);
+	snprintf(path, PATH_MAX, "%s", DROP_RESOURCES_TIME_PATH);
+	str = NULL;
+
+	error = ccs_get(cd, path, &str);
+	if (!error) {
+		if (!opt_drop_resources_time)
+			config_drop_resources_time = atoi(str);
+	}
+	if (str)
+		free(str);
+
+	memset(path, 0, PATH_MAX);
+	snprintf(path, PATH_MAX, "%s", DROP_RESOURCES_COUNT_PATH);
+	str = NULL;
+
+	error = ccs_get(cd, path, &str);
+	if (!error) {
+		if (!opt_drop_resources_count)
+			config_drop_resources_count = atoi(str);
+	}
+	if (str)
+		free(str);
+
+	memset(path, 0, PATH_MAX);
+	snprintf(path, PATH_MAX, "%s", DROP_RESOURCES_AGE_PATH);
+	str = NULL;
+
+	error = ccs_get(cd, path, &str);
+	if (!error) {
+		if (!opt_drop_resources_age)
+			config_drop_resources_age = atoi(str);
+	}
+	if (str)
+		free(str);
+}
+
 static void lockfile(void)
 {
 	int fd, error;
@@ -692,10 +811,18 @@ static void print_usage(void)
 	printf("\n");
 	printf("  -D	       Enable debugging code and don't fork\n");
 	printf("  -P	       Enable plock debugging\n");
+	printf("  -w	       Disable withdraw\n");
 	printf("  -p	       Disable plocks\n");
 	printf("  -l <limit>   Limit the rate of plock operations\n");
 	printf("	       Default is %d, set to 0 for no limit\n", DEFAULT_PLOCK_RATE_LIMIT);
-	printf("  -w	       Disable withdraw\n");
+	printf("  -o <n>       plock ownership, 1 enable, 0 disable\n");
+	printf("               Default is %d\n", DEFAULT_PLOCK_OWNERSHIP);
+	printf("  -t <ms>      drop resources time (milliseconds)\n");
+	printf("               Default is %u\n", DEFAULT_DROP_RESOURCES_TIME);
+	printf("  -c <num>     drop resources count\n");
+	printf("               Default is %u\n", DEFAULT_DROP_RESOURCES_COUNT);
+	printf("  -a <ms>      drop resources age (milliseconds)\n");
+	printf("               Default is %u\n", DEFAULT_DROP_RESOURCES_AGE);
 	printf("  -h	       Print this help, then exit\n");
 	printf("  -V	       Print program version information, then exit\n");
 }
@@ -710,10 +837,6 @@ static void decode_arguments(int argc, char **argv)
 
 		switch (optchar) {
 
-		case 'w':
-			no_withdraw = 1;
-			break;
-
 		case 'D':
 			daemon_debug_opt = 1;
 			break;
@@ -722,12 +845,39 @@ static void decode_arguments(int argc, char **argv)
 			plock_debug_opt = 1;
 			break;
 
-		case 'l':
-			plock_rate_limit = atoi(optarg);
+		case 'w':
+			config_no_withdraw = 1;
+			opt_no_withdraw = 1;
 			break;
 
 		case 'p':
-			no_plock = 1;
+			config_no_plock = 1;
+			opt_no_plock = 1;
+			break;
+
+		case 'l':
+			config_plock_rate_limit = atoi(optarg);
+			opt_plock_rate_limit = 1;
+			break;
+
+		case 'o':
+			config_plock_ownership = atoi(optarg);
+			opt_plock_ownership = 1;
+			break;
+
+		case 't':
+			config_drop_resources_time = atoi(optarg);
+			opt_drop_resources_time = 1;
+			break;
+
+		case 'c':
+			config_drop_resources_count = atoi(optarg);
+			opt_drop_resources_count = 1;
+			break;
+
+		case 'a':
+			config_drop_resources_age = atoi(optarg);
+			opt_drop_resources_age = 1;
 			break;
 
 		case 'h':
@@ -792,13 +942,40 @@ void set_scheduler(void)
 int main(int argc, char **argv)
 {
 	prog_name = argv[0];
+
 	INIT_LIST_HEAD(&mounts);
 	INIT_LIST_HEAD(&withdrawn_mounts);
+
+	config_no_withdraw = DEFAULT_NO_WITHDRAW;
+	config_no_plock = DEFAULT_NO_PLOCK;
+	config_plock_rate_limit = DEFAULT_PLOCK_RATE_LIMIT;
+	config_plock_ownership = DEFAULT_PLOCK_OWNERSHIP;
+	config_drop_resources_time = DEFAULT_DROP_RESOURCES_TIME;
+	config_drop_resources_count = DEFAULT_DROP_RESOURCES_COUNT;
+	config_drop_resources_age = DEFAULT_DROP_RESOURCES_AGE;
 
 	decode_arguments(argc, argv);
 
 	if (!daemon_debug_opt)
 		daemonize();
+
+	/* ccs settings override the defaults, but not the command line */
+	set_ccs_config();
+
+	if (config_plock_ownership)
+		memcpy(protocol_active, protocol_v200, sizeof(protocol_v200));
+	else
+		memcpy(protocol_active, protocol_v100, sizeof(protocol_v100));
+
+	log_debug("config_no_withdraw %d", config_no_withdraw);
+	log_debug("config_no_plock %d", config_no_plock);
+	log_debug("config_plock_rate_limit %u", config_plock_rate_limit);
+	log_debug("config_plock_ownership %u", config_plock_ownership);
+	log_debug("config_drop_resources_time %u", config_drop_resources_time);
+	log_debug("config_drop_resources_count %u", config_drop_resources_count);
+	log_debug("config_drop_resources_age %u", config_drop_resources_age);
+	log_debug("protocol %u.%u.%u", protocol_active[0], protocol_active[1],
+		  protocol_active[2]);
 
 	set_scheduler();
 	set_oom_adj(-16);
