@@ -325,6 +325,7 @@ InstanceNr=`echo "$InstanceName" | sed 's/.*\([0-9][0-9]\)$/\1/'`
 SAPVIRHOST=`echo "$OCF_RESKEY_InstanceName" | cut -d_ -f3`
 
 # optional OCF parameters, we try to guess which directories are correct
+LSB_STATUS_STOPPED=3
 if  [ -z "$OCF_RESKEY_DIR_EXECUTABLE" ]
 then
   if [ -x /usr/sap/$SID/$InstanceName/exe/sapstartsrv -a -x /usr/sap/$SID/$InstanceName/exe/sapcontrol ]
@@ -338,6 +339,9 @@ then
     SAPSTARTSRV="/usr/sap/$SID/SYS/exe/run/sapstartsrv"
     SAPCONTROL="/usr/sap/$SID/SYS/exe/run/sapcontrol"
   else
+    [ "$1" = stop ] && exit $OCF_SUCCESS
+    [ "$1" = monitor ] && exit $OCF_NOT_RUNNING
+    [ "$1" = status ] && exit $LSB_STATUS_STOPPED
     ocf_log err "Cannot find sapstartsrv and sapcontrol executable, please set DIR_EXECUTABLE parameter!"
     exit $OCF_ERR_GENERIC
   fi

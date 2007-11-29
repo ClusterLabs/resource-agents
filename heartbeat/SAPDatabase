@@ -637,8 +637,12 @@ do
     fi
   fi
 done
+LSB_STATUS_STOPPED=3
 if [ -z "$DIR_EXECUTABLE" ]
 then
+  [ "$1" = stop ] && exit $OCF_SUCCESS
+  [ "$1" = monitor ] && exit $OCF_NOT_RUNNING
+  [ "$1" = status ] && exit $LSB_STATUS_STOPPED
   ocf_log err "Cannot find $EXESTARTDB,$EXESTOPDB and $EXEDBCONNECT executable, please set DIR_EXECUTABLE parameter!"
   exit $OCF_ERR_GENERIC
 fi
