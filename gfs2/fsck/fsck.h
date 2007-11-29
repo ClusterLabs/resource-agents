@@ -58,6 +58,12 @@ enum rgindex_trust_level { /* how far can we trust our RG index? */
 			  gfs2_grow or something.  Count the RGs by hand. */
 };
 
+struct gfs2_inode *get_system_inode(struct gfs2_sbd *sbp, uint64_t block);
+struct gfs2_inode *fsck_load_inode(struct gfs2_sbd *sbp, uint64_t block);
+struct gfs2_inode *fsck_inode_get(struct gfs2_sbd *sdp,
+				  struct gfs2_buffer_head *bh);
+void fsck_inode_put(struct gfs2_inode *ip, enum update_flags update);
+
 int initialize(struct gfs2_sbd *sbp);
 void destroy(struct gfs2_sbd *sbp);
 int block_mounters(struct gfs2_sbd *sbp, int block_em);

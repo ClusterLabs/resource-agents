@@ -240,7 +240,7 @@ int pass1c(struct gfs2_sbd *sbp)
 			log_info("EA in inode %"PRIu64" (0x%" PRIx64 ")\n",
 				 block_no, block_no);
 			gfs2_block_clear(bl, block_no, gfs2_eattr_block);
-			ip = inode_get(sbp, bh);
+			ip = fsck_inode_get(sbp, bh);
 
 			log_debug("Found eattr at %"PRIu64" (0x%" PRIx64 ")\n",
 				  ip->i_di.di_eattr, ip->i_di.di_eattr);
@@ -252,13 +252,10 @@ int pass1c(struct gfs2_sbd *sbp)
 				return -1;
 			}
 
-			if(update)
-				gfs2_dinode_out(&ip->i_di, bh->b_data);
-
-			free(ip);
+			fsck_inode_put(ip, update); /* dinode_out, brelse, free */
+		} else {
+			brelse(bh, update);
 		}
-		brelse(bh, update);
-
 		block_no++;
 	}
 	return 0;

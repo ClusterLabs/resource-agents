@@ -12,6 +12,7 @@
 
 #include <inttypes.h>
 #include <linux_endian.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
@@ -23,6 +24,84 @@
 #include "util.h"
 #include "metawalk.h"
 #include "hash.h"
+
+struct gfs2_inode *get_system_inode(struct gfs2_sbd *sbp, uint64_t block)
+{
+	int j;
+
+	if (block == sbp->md.inum->i_di.di_num.no_addr)
+		return sbp->md.inum;
+	if (block == sbp->md.statfs->i_di.di_num.no_addr)
+		return sbp->md.statfs;
+	if (block == sbp->md.jiinode->i_di.di_num.no_addr)
+		return sbp->md.jiinode;
+	if (block == sbp->md.riinode->i_di.di_num.no_addr)
+		return sbp->md.riinode;
+	if (block == sbp->md.qinode->i_di.di_num.no_addr)
+		return sbp->md.qinode;
+	if (block == sbp->md.pinode->i_di.di_num.no_addr)
+		return sbp->md.pinode;
+	if (block == sbp->md.rooti->i_di.di_num.no_addr)
+		return sbp->md.rooti;
+	if (block == sbp->master_dir->i_di.di_num.no_addr)
+		return sbp->master_dir;
+	if (lf_dip && block == lf_dip->i_di.di_num.no_addr)
+		return lf_dip;
+	for (j = 0; j < sbp->md.journals; j++)
+		if (block == sbp->md.journal[j]->i_di.di_num.no_addr)
+			return sbp->md.journal[j];
+	return NULL;
+}
+
+/* fsck_load_inode - same as gfs2_load_inode() in libgfs2 but system inodes
+   get special treatment. */
+struct gfs2_inode *fsck_load_inode(struct gfs2_sbd *sbp, uint64_t block)
+{
+	struct gfs2_inode *ip = NULL;
+
+	ip = get_system_inode(sbp, block);
+	if (ip) {
+		bhold(ip->i_bh);
+		return ip;
+	}
+	return gfs2_load_inode(sbp, block);
+}
+
+/* fsck_inode_get - same as inode_get() in libgfs2 but system inodes
+   get special treatment. */
+struct gfs2_inode *fsck_inode_get(struct gfs2_sbd *sdp,
+				  struct gfs2_buffer_head *bh)
+{
+	struct gfs2_inode *ip, *sysip;
+
+	zalloc(ip, sizeof(struct gfs2_inode));
+	gfs2_dinode_in(&ip->i_di, bh->b_data);
+	ip->i_bh = bh;
+	ip->i_sbd = sdp;
+
+	sysip = get_system_inode(sdp, ip->i_di.di_num.no_addr);
+	if (sysip) {
+		free(ip);
+		return sysip;
+	}
+	return ip;
+}
+
+/* fsck_inode_put - same as inode_put() in libgfs2 but system inodes
+   get special treatment. */
+void fsck_inode_put(struct gfs2_inode *ip, enum update_flags update)
+{
+	struct gfs2_inode *sysip;
+
+	sysip = get_system_inode(ip->i_sbd, ip->i_di.di_num.no_addr);
+	if (sysip) {
+		if (update)
+			gfs2_dinode_out(&ip->i_di, ip->i_bh->b_data);
+		brelse(ip->i_bh, update);
+	} else {
+		inode_put(ip, update);
+	}
+}
 
 int dirent_repair(struct gfs2_inode *ip, struct gfs2_buffer_head *bh,
 		  struct gfs2_dirent *de, struct gfs2_dirent *dent,
@@ -542,6 +621,7 @@ int check_inode_eattr(struct gfs2_inode *ip, struct metawalk_fxns *pass)
 
 /**
  * build_and_check_metalist - check a bunch of indirect blocks
+ * Note: Every buffer put on the metalist should be "held".
  * @ip:
  * @mlp:
  */
@@ -561,10 +641,8 @@ static int build_and_check_metalist(struct gfs2_inode *ip,
 	osi_list_add(&metabh->b_altlist, &mlp[0]);
 
 	/* if(<there are no indirect blocks to check>) */
-	if (height < 2) {
-		brelse(metabh, not_updated);
+	if (height < 2)
 		return 0;
-	}
 	for (i = 1; i < height; i++){
 		prev_list = &mlp[i - 1];
 		cur_list = &mlp[i];
@@ -588,6 +666,8 @@ static int build_and_check_metalist(struct gfs2_inode *ip,
 				block = be64_to_cpu(*ptr);
 				err = pass->check_metalist(ip, block, &nbh,
 							   pass->private);
+				/* check_metalist should hold any buffers
+				   it gets with "bread". */
 				if(err < 0) {
 					stack;
 					goto fail;
@@ -598,16 +678,13 @@ static int build_and_check_metalist(struct gfs2_inode *ip,
 						  block, block);
 					continue;
 				}
-				if(!nbh) {
+				if(!nbh)
 					nbh = bread(ip->i_sbd, block);
-					osi_list_add(&nbh->b_altlist, cur_list);
-				}
-				else
-					osi_list_add(&nbh->b_altlist, cur_list);
+
+				osi_list_add(&nbh->b_altlist, cur_list);
 			} /* for all data on the indirect block */
 		} /* for blocks at that height */
 	} /* for height */
-	brelse(metabh, not_updated);
 	return 0;
 fail:
 	for (i = 0; i < GFS2_MAX_META_HEIGHT; i++) {
@@ -619,6 +696,7 @@ fail:
 			osi_list_del(&nbh->b_altlist);
 		}
 	}
+	/* This is an error path, so we need to release the buffer here: */
 	brelse(metabh, not_updated);
 	return -1;
 }
@@ -690,6 +768,7 @@ int check_metatree(struct gfs2_inode *ip, struct metawalk_fxns *pass)
 		{
 			bh = osi_list_entry(list->next,
 					    struct gfs2_buffer_head, b_altlist);
+			brelse(bh, not_updated);
 			osi_list_del(&bh->b_altlist);
 		}
 	}
@@ -734,13 +813,13 @@ int check_dir(struct gfs2_sbd *sbp, uint64_t block, struct metawalk_fxns *pass)
 	int error = 0;
 
 	bh = bread(sbp, block);
-	ip = inode_get(sbp, bh);
+	ip = fsck_inode_get(sbp, bh);
 
 	if(ip->i_di.di_flags & GFS2_DIF_EXHASH) {
 		error = check_leaf(ip, &update, pass);
 		if(error < 0) {
 			stack;
-			inode_put(ip, not_updated); /* does brelse(bh); */
+			fsck_inode_put(ip, not_updated); /* does brelse(bh); */
 			return -1;
 		}
 	}
@@ -748,12 +827,12 @@ int check_dir(struct gfs2_sbd *sbp, uint64_t block, struct metawalk_fxns *pass)
 		error = check_linear_dir(ip, bh, &update, pass);
 		if(error < 0) {
 			stack;
-			inode_put(ip, not_updated); /* does brelse(bh); */
+			fsck_inode_put(ip, not_updated); /* does brelse(bh); */
 			return -1;
 		}
 	}
 
-	inode_put(ip, opts.no ? not_updated : update); /* does a brelse */
+	fsck_inode_put(ip, opts.no ? not_updated : update); /* does a brelse */
 	return error;
 }
 

@@ -83,7 +83,6 @@ static int check_metalist(struct gfs2_inode *ip, uint64_t block,
 	}
 	nbh = bread(ip->i_sbd, block);
 
-	/** Attention -- experimental code **/
 	if (gfs2_check_meta(nbh, GFS2_METATYPE_IN)){
 		log_debug("Bad indirect block pointer "
 				  "(points to something that is not an indirect block).\n");
@@ -94,8 +93,6 @@ static int check_metalist(struct gfs2_inode *ip, uint64_t block,
 		}
 	}else  /* blk check ok */
 		*bh = nbh;
-	brelse(nbh, not_updated);
-	/** Attention -- experimental code end **/
 
 	log_debug("Setting %" PRIu64 " (0x%" PRIx64 ") to indirect block.\n",
 			  block, block);
@@ -285,6 +282,7 @@ static int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
 				  block, block);
 		gfs2_block_set(bl, block, gfs2_dup_block);
 		bc->ea_count++;
+		ret = 1;
 	}
 	else {
 		leaf_bh = bread(sdp, block);
@@ -465,7 +463,7 @@ int handle_di(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh,
 	invalidate_metatree.check_data = clear_data;
 	invalidate_metatree.check_leaf = clear_leaf;
 
-	ip = inode_get(sdp, bh);
+	ip = fsck_inode_get(sdp, bh);
 	if (ip->i_di.di_num.no_addr != block) {
 		log_err("Inode #%" PRIu64 " (0x%" PRIx64
 				"): Bad inode address found: %"	PRIu64 " (0x%" PRIx64 ")\n",
@@ -483,7 +481,7 @@ int handle_di(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh,
 
 	if(gfs2_block_check(bl, block, &q)) {
 		stack;
-		inode_put(ip, f);
+		fsck_inode_put(ip, f);
 		return -1;
 	}
 	if(q.block_type != gfs2_block_free) {
@@ -491,10 +489,10 @@ int handle_di(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh,
 				  block, block);
 		if(gfs2_block_mark(bl, block, gfs2_dup_block)) {
 			stack;
-			inode_put(ip, f);
+			fsck_inode_put(ip, f);
 			return -1;
 		}
-		inode_put(ip, f);
+		fsck_inode_put(ip, f);
 		return 0;
 	}
 
@@ -505,12 +503,12 @@ int handle_di(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh,
 				  block, block);
 		if(gfs2_block_set(bl, block, gfs2_inode_dir)) {
 			stack;
-			inode_put(ip, f);
+			fsck_inode_put(ip, f);
 			return -1;
 		}
 		if(add_to_dir_list(sdp, block)) {
 			stack;
-			inode_put(ip, f);
+			fsck_inode_put(ip, f);
 			return -1;
 		}
 		break;
@@ -519,7 +517,7 @@ int handle_di(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh,
 				  block, block);
 		if(gfs2_block_set(bl, block, gfs2_inode_file)) {
 			stack;
-			inode_put(ip, f);
+			fsck_inode_put(ip, f);
 			return -1;
 		}
 		break;
@@ -528,7 +526,7 @@ int handle_di(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh,
 				  block, block);
 		if(gfs2_block_set(bl, block, gfs2_inode_lnk)) {
 			stack;
-			inode_put(ip, f);
+			fsck_inode_put(ip, f);
 			return -1;
 		}
 		break;
@@ -537,7 +535,7 @@ int handle_di(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh,
 				  block, block);
 		if(gfs2_block_set(bl, block, gfs2_inode_blk)) {
 			stack;
-			inode_put(ip, f);
+			fsck_inode_put(ip, f);
 			return -1;
 		}
 		break;
@@ -546,7 +544,7 @@ int handle_di(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh,
 				  block, block);
 		if(gfs2_block_set(bl, block, gfs2_inode_chr)) {
 			stack;
-			inode_put(ip, f);
+			fsck_inode_put(ip, f);
 			return -1;
 		}
 		break;
@@ -555,7 +553,7 @@ int handle_di(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh,
 				  block, block);
 		if(gfs2_block_set(bl, block, gfs2_inode_fifo)) {
 			stack;
-			inode_put(ip, f);
+			fsck_inode_put(ip, f);
 			return -1;
 		}
 		break;
@@ -564,7 +562,7 @@ int handle_di(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh,
 				  block, block);
 		if(gfs2_block_set(bl, block, gfs2_inode_sock)) {
 			stack;
-			inode_put(ip, f);
+			fsck_inode_put(ip, f);
 			return -1;
 		}
 		break;
@@ -573,15 +571,15 @@ int handle_di(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh,
 				  block, block);
 		if(gfs2_block_set(bl, block, gfs2_meta_inval)) {
 			stack;
-			inode_put(ip, f);
+			fsck_inode_put(ip, f);
 			return -1;
 		}
-		inode_put(ip, f);
+		fsck_inode_put(ip, f);
 		return 0;
 	}
 	if(set_link_count(ip->i_sbd, ip->i_di.di_num.no_addr, ip->i_di.di_nlink)) {
 		stack;
-		inode_put(ip, f);
+		fsck_inode_put(ip, f);
 		return -1;
 	}
 
@@ -596,10 +594,10 @@ int handle_di(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh,
 		log_warn("Marking inode invalid\n");
 		if(gfs2_block_set(bl, block, gfs2_meta_inval)) {
 			stack;
-			inode_put(ip, f);
+			fsck_inode_put(ip, f);
 			return -1;
 		}
-		inode_put(ip, f);
+		fsck_inode_put(ip, f);
 		return 0;
 	}
 
@@ -615,10 +613,10 @@ int handle_di(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh,
 			log_warn("Marking inode invalid\n");
 			if(gfs2_block_set(bl, block, gfs2_meta_inval)) {
 				stack;
-				inode_put(ip, f);
+				fsck_inode_put(ip, f);
 				return -1;
 			}
-			inode_put(ip, f);
+			fsck_inode_put(ip, f);
 			return 0;
 		}
 	}
@@ -627,7 +625,7 @@ int handle_di(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh,
 
 	error = check_metatree(ip, &pass1_fxns);
 	if(error < 0) {
-		inode_put(ip, f);
+		fsck_inode_put(ip, f);
 		return 0;
 	}
 	if(error > 0) {
@@ -635,7 +633,7 @@ int handle_di(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh,
 		/* FIXME: Must set all leaves invalid as well */
 		check_metatree(ip, &invalidate_metatree);
 		gfs2_block_set(bl, ip->i_di.di_num.no_addr, gfs2_meta_inval);
-		inode_put(ip, f);
+		fsck_inode_put(ip, f);
 		return 0;
 	}
 
@@ -663,7 +661,7 @@ int handle_di(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh,
 					ip->i_di.di_num.no_addr);
 	}
 
-	inode_put(ip, f);
+	fsck_inode_put(ip, f);
 	return 0;
 }
 

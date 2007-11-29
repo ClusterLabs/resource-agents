@@ -250,9 +250,9 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 
 		if(query(&opts, "Clear entry to inode containing bad blocks? (y/n)")) {
 
-			entry_ip = gfs2_load_inode(sbp, de->de_inum.no_addr);
+			entry_ip = fsck_load_inode(sbp, de->de_inum.no_addr);
 			check_inode_eattr(entry_ip, &clear_eattrs);
-			inode_put(entry_ip, not_updated);
+			fsck_inode_put(entry_ip, not_updated);
 
 			/* FIXME: make sure all blocks referenced by
 			 * this inode are cleared in the bitmap */
@@ -309,9 +309,9 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 				 de->de_inum.no_addr, de->de_inum.no_addr,
 				 block_type_string(&q));
 		if(query(&opts, "Clear stale directory entry? (y/n) ")) {
-			entry_ip = gfs2_load_inode(sbp, de->de_inum.no_addr);
+			entry_ip = fsck_load_inode(sbp, de->de_inum.no_addr);
 			check_inode_eattr(entry_ip, &clear_eattrs);
-			inode_put(entry_ip, not_updated);
+			fsck_inode_put(entry_ip, not_updated);
 
 			dirent2_del(ip, bh, prev_de, dent);
 			*update  = 1;
@@ -333,9 +333,9 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 					ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr);
 			if(query(&opts, "Clear duplicate '.' entry? (y/n) ")) {
 
-				entry_ip = gfs2_load_inode(sbp, de->de_inum.no_addr);
+				entry_ip = fsck_load_inode(sbp, de->de_inum.no_addr);
 				check_inode_eattr(entry_ip, &clear_eattrs);
-				inode_put(entry_ip, not_updated);
+				fsck_inode_put(entry_ip, not_updated);
 
 				dirent2_del(ip, bh, prev_de, dent);
 				*update  = 1;
@@ -364,9 +364,9 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 					de->de_inum.no_addr, de->de_inum.no_addr,
 					ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr);
 			if(query(&opts, "Remove '.' reference? (y/n) ")) {
-				entry_ip = gfs2_load_inode(sbp, de->de_inum.no_addr);
+				entry_ip = fsck_load_inode(sbp, de->de_inum.no_addr);
 				check_inode_eattr(entry_ip, &clear_eattrs);
-				inode_put(entry_ip, not_updated);
+				fsck_inode_put(entry_ip, not_updated);
 
 				dirent2_del(ip, bh, prev_de, dent);
 				*update = 1;
@@ -399,9 +399,9 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 					ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr);
 			if(query(&opts, "Clear duplicate '..' entry? (y/n) ")) {
 
-				entry_ip = gfs2_load_inode(sbp, de->de_inum.no_addr);
+				entry_ip = fsck_load_inode(sbp, de->de_inum.no_addr);
 				check_inode_eattr(entry_ip, &clear_eattrs);
-				inode_put(entry_ip, not_updated);
+				fsck_inode_put(entry_ip, not_updated);
 
 				dirent2_del(ip, bh, prev_de, dent);
 				*update = 1;
@@ -424,9 +424,9 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 					" something that's not a directory",
 					ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr);
 			if(query(&opts, "Clear bad '..' directory entry? (y/n) ")) {
-				entry_ip = gfs2_load_inode(sbp, de->de_inum.no_addr);
+				entry_ip = fsck_load_inode(sbp, de->de_inum.no_addr);
 				check_inode_eattr(entry_ip, &clear_eattrs);
-				inode_put(entry_ip, not_updated);
+				fsck_inode_put(entry_ip, not_updated);
 
 				dirent2_del(ip, bh, prev_de, dent);
 				*update = 1;
@@ -685,13 +685,13 @@ int pass2(struct gfs2_sbd *sbp)
 		if(ds.q.bad_block) {
 			/* First check that the directory's metatree
 			 * is valid */
-			ip = gfs2_load_inode(sbp, i);
+			ip = fsck_load_inode(sbp, i);
 			if(check_metatree(ip, &pass2_fxns)) {
 				stack;
 				free(ip);
 				return -1;
 			}
-			inode_put(ip, not_updated);
+			fsck_inode_put(ip, not_updated);
 		}
 		error = check_dir(sbp, i, &pass2_fxns);
 		if(error < 0) {
@@ -730,7 +730,7 @@ int pass2(struct gfs2_sbd *sbp)
 			gfs2_block_set(bl, i, gfs2_meta_inval);
 		}
 		bh = bread(sbp, i);
-		ip = inode_get(sbp, bh);
+		ip = fsck_inode_get(sbp, bh);
 		if(!ds.dotdir) {
 			log_err("No '.' entry found\n");
 			sprintf(tmp_name, ".");
@@ -753,21 +753,20 @@ int pass2(struct gfs2_sbd *sbp)
 			free(filename);
 
 		}
-		inode_put(ip, not_updated); /* does a brelse */
+		fsck_inode_put(ip, not_updated); /* does a brelse */
 
 		bh = bread(sbp, i);
-		ip = inode_get(sbp, bh);
+		ip = fsck_inode_get(sbp, bh);
 		if(ip->i_di.di_entries != ds.entry_count) {
 			log_err("Entries is %d - should be %d for inode block %" PRIu64
 					" (0x%" PRIx64 ")\n",
 					ip->i_di.di_entries, ds.entry_count,
 					ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr);
 			ip->i_di.di_entries = ds.entry_count;
-			gfs2_dinode_out(&ip->i_di, bh->b_data);
-			inode_put(ip, updated); /* does a brelse */
+			fsck_inode_put(ip, updated); /* does a gfs2_dinode_out, brelse */
 		}
 		else
-			inode_put(ip, not_updated); /* does a brelse */
+			fsck_inode_put(ip, not_updated); /* does a brelse */
 	}
 	return 0;
 }

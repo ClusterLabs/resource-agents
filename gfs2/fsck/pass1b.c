@@ -132,6 +132,8 @@ static int find_dentry(struct gfs2_inode *ip, struct gfs2_dirent *de,
 	osi_list_t *tmp1, *tmp2;
 	struct blocks *b;
 	struct inode_with_dups *id;
+	struct gfs2_leaf leaf;
+
 	osi_list_foreach(tmp1, &dup_list) {
 		b = osi_list_entry(tmp1, struct blocks, list);
 		osi_list_foreach(tmp2, &b->ref_inode_list) {
@@ -157,6 +159,10 @@ static int find_dentry(struct gfs2_inode *ip, struct gfs2_dirent *de,
 			}
 		}
 	}
+	/* Return the number of leaf entries so metawalk doesn't flag this
+	   leaf as having none. */
+	gfs2_leaf_in(&leaf, bh->b_data);
+	*count = leaf.lf_entries;
 	return 0;
 }
 
@@ -339,17 +345,22 @@ int find_block_ref(struct gfs2_sbd *sbp, uint64_t inode, struct blocks *b)
 		.check_eattr_extentry = check_eattr_extentry,
 	};
 
-	ip = gfs2_load_inode(sbp, inode); /* bread, inode_get */
+	ip = fsck_load_inode(sbp, inode); /* bread, inode_get */
 	log_info("Checking inode %" PRIu64 " (0x%" PRIx64
 			 ")'s metatree for references to block %" PRIu64 " (0x%" PRIx64
 			 ")\n", inode, inode, b->block_no, b->block_no);
 	if(check_metatree(ip, &find_refs)) {
 		stack;
-		inode_put(ip, not_updated); /* out, brelse, free */
+		fsck_inode_put(ip, not_updated); /* out, brelse, free */
 		return -1;
 	}
 	log_info("Done checking metatree\n");
-
+	/* Check for ea references in the inode */
+	if(check_inode_eattr(ip, &find_refs) < 0){
+		stack;
+		fsck_inode_put(ip, not_updated); /* out, brelse, free */
+		return -1;
+	}
 	if (myfi.found) {
 		if(!(id = malloc(sizeof(*id)))) {
 			log_crit("Unable to allocate inode_with_dups structure\n");
@@ -367,7 +378,7 @@ int find_block_ref(struct gfs2_sbd *sbp, uint64_t inode, struct blocks *b)
 		id->ea_only = myfi.ea_only;
 		osi_list_add_prev(&id->list, &b->ref_inode_list);
 	}
-	inode_put(ip, (opts.no ? not_updated : updated)); /* out, brelse, free */
+	fsck_inode_put(ip, (opts.no ? not_updated : updated)); /* out, brelse, free */
 	return 0;
 }
 
@@ -433,7 +444,7 @@ int handle_dup_blk(struct gfs2_sbd *sbp, struct blocks *b)
 				 b->block_no);
 		/* FIXME: User input */
 		log_warn("Clearing...\n");
-		ip = gfs2_load_inode(sbp, id->block_no);
+		ip = fsck_load_inode(sbp, id->block_no);
 		dh.b = b;
 		dh.id = id;
 		clear_dup_fxns.private = (void *) &dh;
@@ -443,7 +454,7 @@ int handle_dup_blk(struct gfs2_sbd *sbp, struct blocks *b)
 		if(!id->ea_only)
 			check_metatree(ip, &clear_dup_fxns);
 
-		inode_put(ip, not_updated); /* out, brelse, free */
+		fsck_inode_put(ip, not_updated); /* out, brelse, free */
 		dh.ref_inode_count--;
 		if(dh.ref_inode_count == 1)
 			break;
@@ -522,7 +533,7 @@ int pass1b(struct gfs2_sbd *sbp)
 	log_info("Handling duplicate blocks\n");
 out:
 	while (!osi_list_empty(&dup_list)) {
-		b = osi_list_entry(tmp, struct blocks, list);
+		b = osi_list_entry(dup_list.next, struct blocks, list);
 		if (!skip_this_pass && !rc) /* no error & not asked to skip the rest */
 			handle_dup_blk(sbp, b);
 		osi_list_del(&b->list);

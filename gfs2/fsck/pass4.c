@@ -85,7 +85,7 @@ int scan_inode_list(struct gfs2_sbd *sbp, osi_list_t *list) {
 				log_err("Cleared\n");
 				continue;
 			}
-			ip = gfs2_load_inode(sbp, ii->inode);
+			ip = fsck_load_inode(sbp, ii->inode);
 
 			/* We don't want to clear zero-size files with
 			 * eattrs - there might be relevent info in
@@ -94,7 +94,7 @@ int scan_inode_list(struct gfs2_sbd *sbp, osi_list_t *list) {
 				log_err("Unlinked inode has zero size\n");
 				if(query(&opts, "Clear zero-size unlinked inode? (y/n) ")) {
 					gfs2_block_set(bl, ii->inode, gfs2_block_free);
-					inode_put(ip, not_updated);
+					fsck_inode_put(ip, not_updated);
 					continue;
 				}
 
@@ -103,7 +103,7 @@ int scan_inode_list(struct gfs2_sbd *sbp, osi_list_t *list) {
 				f = updated;
 				if(add_inode_to_lf(ip)) {
 					stack;
-					inode_put(ip, not_updated);
+					fsck_inode_put(ip, not_updated);
 					return -1;
 				}
 				else {
@@ -112,7 +112,7 @@ int scan_inode_list(struct gfs2_sbd *sbp, osi_list_t *list) {
 				}
 			} else
 				log_err("Unlinked inode left unlinked\n");
-			inode_put(ip, f);
+			fsck_inode_put(ip, f);
 		} /* if(ii->counted_links == 0) */
 		else if(ii->link_count != ii->counted_links) {
 			log_err("Link count inconsistent for inode %" PRIu64
@@ -122,9 +122,9 @@ int scan_inode_list(struct gfs2_sbd *sbp, osi_list_t *list) {
 			 * and write it back out */
 			if(query(&opts, "Update link count for inode %"
 				 PRIu64 " (0x%" PRIx64 ") ? (y/n) ", ii->inode, ii->inode)) {
-				ip = gfs2_load_inode(sbp, ii->inode); /* bread, inode_get */
+				ip = fsck_load_inode(sbp, ii->inode); /* bread, inode_get */
 				fix_inode_count(sbp, ii, ip);
-				inode_put(ip, updated); /* out, brelse, free */
+				fsck_inode_put(ip, updated); /* out, brelse, free */
 				log_warn("Link count updated for inode %"
 						 PRIu64 " (0x%" PRIx64 ") \n", ii->inode, ii->inode);
 			} else {

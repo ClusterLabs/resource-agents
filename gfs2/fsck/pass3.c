@@ -31,8 +31,8 @@ static int attach_dotdot_to(struct gfs2_sbd *sbp, uint64_t newdotdot,
 	int filename_len;
 	struct gfs2_inode *ip, *pip;
 
-	ip = gfs2_load_inode(sbp, block);
-	pip = gfs2_load_inode(sbp, newdotdot);
+	ip = fsck_load_inode(sbp, block);
+	pip = fsck_load_inode(sbp, newdotdot);
 	/* FIXME: Need to add some interactive
 	 * options here and come up with a
 	 * good default for non-interactive */
@@ -43,15 +43,15 @@ static int attach_dotdot_to(struct gfs2_sbd *sbp, uint64_t newdotdot,
 	filename_len = strlen("..");
 	if(!(filename = malloc((sizeof(char) * filename_len) + 1))) {
 		log_err("Unable to allocate name\n");
-		inode_put(ip, not_updated);
-		inode_put(pip, not_updated);
+		fsck_inode_put(ip, not_updated);
+		fsck_inode_put(pip, not_updated);
 		stack;
 		return -1;
 	}
 	if(!memset(filename, 0, (sizeof(char) * filename_len) + 1)) {
 		log_err("Unable to zero name\n");
-		inode_put(ip, not_updated);
-		inode_put(pip, not_updated);
+		fsck_inode_put(ip, not_updated);
+		fsck_inode_put(pip, not_updated);
 		stack;
 		return -1;
 	}
@@ -62,8 +62,8 @@ static int attach_dotdot_to(struct gfs2_sbd *sbp, uint64_t newdotdot,
 		decrement_link(sbp, olddotdot);
 	dir_add(ip, filename, filename_len, &pip->i_di.di_num, DT_DIR);
 	increment_link(sbp, newdotdot);
-	inode_put(ip, updated);
-	inode_put(pip, updated);
+	fsck_inode_put(ip, updated);
+	fsck_inode_put(pip, updated);
 	return 0;
 }
 
@@ -248,14 +248,14 @@ int pass3(struct gfs2_sbd *sbp)
 
 				log_err("Found unlinked directory at block %" PRIu64
 						" (0x%" PRIx64 ")\n", di->dinode, di->dinode);
-				ip = gfs2_load_inode(sbp, di->dinode);
+				ip = fsck_load_inode(sbp, di->dinode);
 				/* Don't skip zero size directories
 				 * with eattrs */
 				if(!ip->i_di.di_size && !ip->i_di.di_eattr){
 					log_err("Unlinked directory has zero size.\n");
 					if(query(&opts, "Remove zero-size unlinked directory? (y/n) ")) {
 						gfs2_block_set(bl, di->dinode, gfs2_block_free);
-						inode_put(ip, not_updated);
+						fsck_inode_put(ip, not_updated);
 						break;
 					} else {
 						log_err("Zero-size unlinked directory remains\n");
@@ -263,7 +263,7 @@ int pass3(struct gfs2_sbd *sbp)
 				}
 				if(query(&opts, "Add unlinked directory to lost+found? (y/n) ")) {
 					if(add_inode_to_lf(ip)) {
-						inode_put(ip, not_updated);
+						fsck_inode_put(ip, not_updated);
 						stack;
 						return -1;
 					}
@@ -271,7 +271,7 @@ int pass3(struct gfs2_sbd *sbp)
 				} else {
 					log_err("Unlinked directory remains unlinked\n");
 				}
-				inode_put(ip, not_updated);
+				fsck_inode_put(ip, not_updated);
 				break;
 			}
 			else {
