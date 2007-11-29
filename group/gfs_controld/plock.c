@@ -1404,8 +1404,12 @@ static void _receive_drop(struct mountgroup *mg, char *buf, int len, int from)
 	}
 
 	if (r->owner != 0) {
-		/* shouldn't happen */
-		log_error("receive_drop from %d r %llx owner %d", from,
+		/* - A sent drop, B sent drop, receive drop A, C sent own,
+		     receive drop B (this warning on C, owner -1)
+	   	   - A sent drop, B sent drop, receive drop A, A sent own,
+		     receive own A, receive drop B (this warning on all,
+		     owner A) */
+		log_debug("receive_drop from %d r %llx owner %d", from,
 			  (unsigned long long)r->number, r->owner);
 		return;
 	}
