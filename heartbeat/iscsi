@@ -95,31 +95,6 @@ type is supported.
 <content type="string" default="sendtargets" />
 </parameter>
 
-<parameter name="devattr" unique="0" required="0">
-<longdesc lang="en">
-It is not possible to know in advance which device name will the
-kernel assign to the new iscsi disk. Therefore, the device name
-has to be in some way communicated to the resource which will use
-it. This is done by modifying the CIB.
-
-There are two possible methods: 1) insert an attribute in the
-node's status section and 2) dynamically reconfigure the user
-resource.
-
-1) if devattr is set to 'status_instancename' (default) or
-'status_targetname', a transient attribute
-'iscsidev:$OCF_RESOURCE_INSTANCE' or correspondingly
-'iscsidev:$OCF_RESKEY_target' will be set in the status section.
-In this case, the attribute should be referenced in resources
-where it is needed in this way: 'CIB:iscsidev:...' (to be
-implemented).
-
-2) set devattr attribute to the name of a Filesystem or LVM
-resource and we will fix the appropriate attribute in that
-resource. In this case, set the attribute (device for Filesystem
-or volgrpname for LVM) to '/dev/null', so that the resource agent
-correctly reports the resource as stopped.
-
 </longdesc>
 <shortdesc lang="en">iscsiadm</shortdesc>
 <content type="string" default="status_instancename" />
@@ -165,6 +140,14 @@ iscsi_methods() {
 # open-iscsi interface
 #
 
+open_iscsi_daemon() {
+	if ps -e -o cmd | grep -qs '[i]scsid'; then
+		return 0
+	else
+		ocf_log err "iscsid not running; please start open-iscsi utilities"
+		return 1
+	fi
+}
 open_iscsi_setup() {
 	discovery=open_iscsi_discovery
 	add_disk=open_iscsi_add
@@ -176,7 +159,8 @@ open_iscsi_setup() {
 		ocf_log err "iscsiadm not available; please set OCF_RESKEY_iscsiadm"
 		return $OCF_ERR_INSTALLED
 	}
-	ps -e -o cmd | grep -qs '[i]scsid'
+	open_iscsi_daemon ||
+		return $OCF_ERR_INSTALLED
 }
 
 #
@@ -213,7 +197,7 @@ open_iscsi_discovery() {
 			fi
 		done
 		echo "$output"
-		ocf_log err "sorry, can't handle multihomed hosts unless you specify exact portal"
+		ocf_log err "sorry, can't handle multihomed hosts unless you specify the portal exactly"
 		return 2
 	;;
 	esac
@@ -242,7 +226,7 @@ iscsi_start() {
 	else
 		$add_disk $portal $OCF_RESKEY_target ||
 			return $OCF_ERR_GENERIC
-		if iscsi_status && insert_dev; then
+		if iscsi_status; then
 			return $OCF_SUCCESS
 		else
 			return $OCF_ERR_GENERIC
@@ -256,7 +240,6 @@ iscsi_stop() {
 		if iscsi_status; then
 			return $OCF_ERR_GENERIC
 		else
-			remove_dev
 			return $OCF_SUCCESS
 		fi
 	else
@@ -271,81 +254,6 @@ iscsi_monitor() {
     else
 		return $OCF_NOT_RUNNING
     fi
-}
-
-#
-# communicate the new device name to other resources through CIB
-#
-getrsctype() {
-	crm_resource -x -r "$1" |
-		awk '/class=/ && /type=/ {
-			for( i=1; i<=NF; i++ )
-				if( $i ~ /type=/ ) {
-					sub("type=","",$i);
-					gsub("[\"<>]","",$i);
-					print $i;
-				}
-		}'
-}
-devattrname() {
-	case "$1" in
-	status_instancename)
-		echo "iscsidev:$OCF_RESOURCE_INSTANCE" ;;
-	status_targetname)
-		echo "iscsidev:$OCF_RESKEY_target" ;;
-	*)
-		type=`getrsctype "$1"`
-		case "$type" in
-		Filesystem) echo device;;
-		LVM) echo volgrpname;;
-		*)
-			ocf_log err "unsupported resource type $type"
-			return 1
-		;;
-		esac
-	esac
-	return 0
-}
-iscsi_getdev() {
-	case `uname` in
-	Linux)
-		for session in /sys/class/iscsi_session/session*; do
-			if [ -f $session/targetname ] &&
-				[ `cat $session/targetname` = $2 ]
-			then
-				echo /dev/$(basename `readlink $session/device/target*/*:0:*/block*`)
-				return
-			fi
-		done
-	;;
-	*)
-	;;
-	esac
-}
-insert_dev() {
-	dev=`iscsi_getdev $portal $OCF_RESKEY_target`
-	if [ -z "$dev" ]; then
-		ocf_log err "could not find device name for target $OCF_RESKEY_target"
-		return 1
-	fi
-	attr=`devattrname $devattr` || return 1
-	case "$devattr" in
-	status_instancename|status_targetname)
-		crm_attribute -t status -U `uname -n` -n "$attr" -v "$dev"
-	;;
-	*)
-		crm_resource -r "$devattr" -p "$attr" -v "$dev"
-	esac
-}
-remove_dev() {
-	attr=`devattrname $devattr` || return 1
-	case "$devattr" in
-	status_instancename|status_targetname)
-		crm_attribute -t status -U `uname -n` -n "$attr" -D
-	;;
-	*)
-		crm_resource -r "$devattr" -p "$attr" -v "/dev/null"
-	esac
 }
 
 #
@@ -381,13 +289,15 @@ Linux) setup=open_iscsi_setup
 esac
 
 LSB_STATUS_STOPPED=3
-if ! $setup; then
+$setup
+rc=$?
+if [ $rc -ne 0 ]; then
 	ocf_log info "iscsi initiator utilities not installed or not setup"
 	case "$1" in
 		stop) exit $OCF_SUCCESS;;
 		monitor) exit $OCF_NOT_RUNNING;;
 		status) exit $LSB_STATUS_STOPPED;;
-		*) exit $OCF_ERR_ARGS;;
+		*) exit $rc;;
 	esac
 fi
 
@@ -396,7 +306,6 @@ if [ `id -u` != 0 ]; then
 	exit $OCF_ERR_PERM
 fi
 
-devattr=${OCF_RESKEY_devattr:-"status_instancename"}
 discovery_type=${OCF_RESKEY_discovery_type:-"sendtargets"}
 $discovery  # discover and setup the real portal string (address)
 case $? in
@@ -412,9 +321,9 @@ esac
 # What kind of method was invoked?
 case "$1" in
 	start)	iscsi_start
-		exit $?;;
-	stop)		iscsi_stop
-		exit $?;;
+	;;
+	stop)	iscsi_stop
+	;;
 	status)	if iscsi_status
 		then
 		  echo iscsi target $OCF_RESKEY_target running
@@ -425,12 +334,10 @@ case "$1" in
 		fi
 		;;
 	monitor)	iscsi_status
-		exit $?;;
-
-	validate-all)	# OCF_RESKEY_sid was already checked by testoraenv(),
+	;;
+	validate-all)	# everything already validated
 		# just exit successfully here.
 		exit $OCF_SUCCESS;;
-
 	*)		iscsi_methods
 		exit $OCF_ERR_UNIMPLEMENTED;;
 esac
