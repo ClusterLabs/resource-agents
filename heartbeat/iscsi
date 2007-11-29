@@ -72,7 +72,7 @@ targets.
 
 <parameter name="portal" unique="0" required="1">
 <longdesc lang="en">
-The iSCSI portal address in the form: <ip_address|hostname>[":"<port>]
+The iSCSI portal address in the form: {ip_address|hostname}[":"port]
 </longdesc>
 <shortdesc lang="en">portal</shortdesc>
 <content type="string" default="" />
@@ -93,11 +93,6 @@ type is supported.
 </longdesc>
 <shortdesc lang="en">discovery_type</shortdesc>
 <content type="string" default="sendtargets" />
-</parameter>
-
-</longdesc>
-<shortdesc lang="en">iscsiadm</shortdesc>
-<content type="string" default="status_instancename" />
 </parameter>
 
 <parameter name="iscsiadm" unique="0" required="0">
