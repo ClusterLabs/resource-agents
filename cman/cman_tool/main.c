@@ -20,7 +20,7 @@
 #include "libcman.h"
 #include "cman_tool.h"
 
-#define OPTION_STRING		("m:n:v:e:2p:c:r:i:N:t:o:k:F:Vwfqah?d::")
+#define OPTION_STRING		("m:n:v:e:2p:c:r:i:N:t:o:k:F:Vwfqah?Xd::")
 #define OP_JOIN			1
 #define OP_LEAVE		2
 #define OP_EXPECTED		3
@@ -63,6 +63,7 @@ static void print_usage(int subcmd)
 		printf("  -q               Wait until the cluster is quorate\n");
 		printf("  -t               Maximum time (in seconds) to wait\n");
 		printf("  -k <file>        Private key file for AIS communications\n");
+		printf("  -X               Don't use CCS for configuration\n");
 		printf("\n");
 	}
 
@@ -228,6 +229,7 @@ static void show_status(void)
 	printf("Nodes: %d\n", einfo->ei_members);
 	printf("Expected votes: %d\n", einfo->ei_expected_votes);
 	printf("Total votes: %d\n", einfo->ei_total_votes);
+
 	printf("Quorum: %d %s\n", einfo->ei_quorum, quorate?" ":"Activity blocked");
 	printf("Active subsystems: %d\n", cman_get_subsys_count(h));
 	printf("Flags:");
@@ -333,21 +335,128 @@ static int get_format_opt(const char *opt)
 	return FMT_NONE;
 }
 
+
+static void print_node(commandline_t *comline, cman_handle_t h, int *format, struct cman_node *node)
+{
+	char member_type;
+	struct tm *ftime;
+	struct tm *jtime;
+	char jstring[1024];
+	int i,j,k;
+
+	if (comline->num_nodenames > 0) {
+		if (node_filter(comline, node->cn_name) == 0) {
+			return;
+		}
+	}
+
+	switch (node->cn_member) {
+	case 0:
+		member_type = 'X';
+		break;
+	case 1:
+		member_type = 'M';
+		break;
+	case 2:
+		member_type = 'd';
+		break;
+	default:
+		member_type = '?';
+		break;
+	}
+
+	jtime = localtime(&node->cn_jointime.tv_sec);
+	if (node->cn_jointime.tv_sec && node->cn_member)
+		strftime(jstring, sizeof(jstring), "%F %H:%M:%S", jtime);
+	else
+		strcpy(jstring, "                   ");
+
+	if (!comline->format_opts) {
+		printf("%4d   %c  %5d   %s  %s\n",
+		       node->cn_nodeid, member_type,
+		       node->cn_incarnation, jstring, node->cn_name);
+	}
+
+	if (comline->fence_opt && !comline->format_opts) {
+		char agent[255];
+		uint64_t fence_time;
+		int fenced;
+
+		if (!cman_get_fenceinfo(h, node->cn_nodeid, &fence_time, &fenced, agent)) {
+			if (fence_time) {
+				time_t fence_time_t = (time_t)fence_time;
+				ftime = localtime(&fence_time_t);
+				strftime(jstring, sizeof(jstring), "%F %H:%M:%S", ftime);
+				printf("       Last fenced:   %-15s by %s\n", jstring, agent);
+			}
+			if (!node->cn_member && node->cn_incarnation && !fenced) {
+				printf("       Node has not been fenced since it went down\n");
+			}
+		}
+	}
+
+	int numaddrs;
+	struct cman_node_address addrs[MAX_INTERFACES];
+
+	if (comline->addresses_opt || comline->format_opts) {
+		if (!cman_get_node_addrs(h, node->cn_nodeid, MAX_INTERFACES, &numaddrs, addrs) &&
+		    numaddrs)
+		{
+			if (!comline->format_opts) {
+				printf("       Addresses: ");
+				for (i = 0; i < numaddrs; i++)
+				{
+					print_address(addrs[i].cna_address);
+					printf(" ");
+				}
+				printf("\n");
+			}
+		}
+	}
+
+	if (comline->format_opts) {
+		for (j = 0; j < MAX_FORMAT_OPTS; j++) {
+			switch (format[j]) {
+			case FMT_NONE:
+				break;
+			case FMT_ID:
+				printf("%d ", node->cn_nodeid);
+				break;
+			case FMT_NAME:
+				printf("%s ", node->cn_name);
+				break;
+			case FMT_TYPE:
+				printf("%c ", member_type);
+				break;
+			case FMT_ADDR:
+				for (k = 0; k < numaddrs; k++) {
+					print_address(addrs[k].cna_address);
+					if (k != (numaddrs - 1)) {
+						printf(",");
+					}
+				}
+				printf(" ");
+				break;
+			default:
+				break;
+			}
+		}
+		printf("\n");
+	}
+}
+
 static void show_nodes(commandline_t *comline)
 {
 	cman_handle_t h;
 	int count;
 	int i;
 	int j;
-	int k;
 	int numnodes;
 	int dis_count;
 	int format[MAX_FORMAT_OPTS];
 	cman_node_t *dis_nodes;
 	cman_node_t *nodes;
-	struct tm *jtime;
-	struct tm *ftime;
-	char jstring[1024];
+	cman_node_t qdev_node;
 
 	h = open_cman_handle(0);
 
@@ -399,108 +508,14 @@ static void show_nodes(commandline_t *comline)
 		printf("Node  Sts   Inc   Joined               Name\n");
 	}
 
+	/* Get quorum device & print it. */
+	memset(&qdev_node, 0, sizeof(qdev_node));
+	if (!cman_get_node(h, CMAN_NODEID_QDISK, &qdev_node))
+		print_node(comline, h, format, &qdev_node);
+
+	/* Print 'real' nodes */
 	for (i = 0; i < numnodes; i++) {
-		char member_type;
-
-		if (comline->num_nodenames > 0) {
-			if (node_filter(comline, nodes[i].cn_name) == 0) {
-				continue;
-			}
-		}
-
-		switch (nodes[i].cn_member) {
-		case 0:
-			member_type = 'X';
-			break;
-		case 1:
-			member_type = 'M';
-			break;
-		case 2:
-			member_type = 'd';
-			break;
-		default:
-			member_type = '?';
-			break;
-		}
-
-		jtime = localtime(&nodes[i].cn_jointime.tv_sec);
-		if (nodes[i].cn_jointime.tv_sec && nodes[i].cn_member)
-			strftime(jstring, sizeof(jstring), "%F %H:%M:%S", jtime);
-		else
-			strcpy(jstring, "                   ");
-
-		if (!comline->format_opts) {
-			printf("%4d   %c  %5d   %s  %s\n",
-			       nodes[i].cn_nodeid, member_type,
-			       nodes[i].cn_incarnation, jstring, nodes[i].cn_name);
-		}
-
-		if (comline->fence_opt && !comline->format_opts) {
-			char agent[255];
-			uint64_t fence_time;
-			int fenced;
-
-			if (!cman_get_fenceinfo(h, nodes[i].cn_nodeid, &fence_time, &fenced, agent)) {
-				if (fence_time) {
-					time_t fence_time_t = (time_t)fence_time;
-					ftime = localtime(&fence_time_t);
-					strftime(jstring, sizeof(jstring), "%F %H:%M:%S", ftime);
-					printf("       Last fenced:   %-15s by %s\n", jstring, agent);
-				}
-				if (!nodes[i].cn_member && nodes[i].cn_incarnation && !fenced) {
-					printf("       Node has not been fenced since it went down\n");
-				}
-			}
-		}
-		
-		int numaddrs;
-		struct cman_node_address addrs[MAX_INTERFACES];
-
-		if (comline->addresses_opt || comline->format_opts) {
-			if (!cman_get_node_addrs(h, nodes[i].cn_nodeid, MAX_INTERFACES, &numaddrs, addrs) &&
-				numaddrs)
-			{
-				if (!comline->format_opts) {
-					printf("       Addresses: ");
-					for (i = 0; i < numaddrs; i++)
-					{
-						print_address(addrs[i].cna_address);
-						printf(" ");
-					}
-					printf("\n");
-				}
-			}
-		}
-
-		if (comline->format_opts) {
-			for (j = 0; j < MAX_FORMAT_OPTS; j++) {
-				switch (format[j]) {
-				case FMT_NONE:
-					break;
-				case FMT_ID:
-					printf("%d ", nodes[i].cn_nodeid);
-					break;
-				case FMT_NAME:
-					printf("%s ", nodes[i].cn_name);
-					break;
-				case FMT_TYPE:
-					printf("%c ", member_type);
-					break;
-				case FMT_ADDR:
-					for (k = 0; k < numaddrs; k++) {
-						print_address(addrs[k].cna_address);
-						if (k != (numaddrs - 1)) {
-							printf(",");
-						}
-					}
-					printf(" ");
-					break;
-				default:
-					break;
-				}
-			}
-			printf("\n");
-		}
+		print_node(comline, h, format, &nodes[i]);
 	}
 
 	free(nodes);
@@ -833,6 +848,9 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 			cont = FALSE;
 			break;
 
+		case 'X':
+			comline->noccs_opt = TRUE;
+			break;
 		default:
 			die("unknown option: %c", optchar);
 			break;

@@ -232,6 +232,29 @@ If -w or -q is also specified then -t dictates the maximum amount of time cman_t
 is prepared to wait. If the operation times out then a status of 2 is returned.
 Note that just because cman_tool has given up, does not mean that cman itself
 has stopped trying to join a cluster.
+.TP
+.I -X
+Tells cman not to use CCS to get cluster information. If you use this option then cman will
+apply several defaults to the cluster to get it going. The cluster name will be 
+"RHCluster", node IDs will default to the IP address of the node and remote node 
+names will show up as Node<nodeid>. All of these, apart from the node names can
+be overridded on the cman_tool command-line if required.
+.br
+If you have to set up fence devices, services or anything else in cluster.conf then
+this option is probably not worthwhile to you - the extra readability of sensible node
+names and numbers will make it worth using CCS for the cluster too. But for a simple
+failover cluster this might save you some effort.
+.br
+On each node using this configuration you will need to have the same authorisation key
+installed. To create this key run
+.br
+mkdir /etc/ais
+.br
+ais-keygen
+.br
+mv /etc/ais/authkey /etc/cluster/cman_authkey
+.br
+then copy that file to all nodes you want to join the cluster.
 .br
 .SH "NODES" OPTIONS
 .TP

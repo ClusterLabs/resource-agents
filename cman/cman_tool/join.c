@@ -62,12 +62,15 @@ int join(commandline_t *comline)
 	int ctree;
 	int p[2];
 
-	ctree = ccs_force_connect(NULL, 1);
-	if (ctree < 0)
+	if (!comline->noccs_opt)
 	{
-		die("ccsd is not running\n");
+		ctree = ccs_force_connect(NULL, 1);
+		if (ctree < 0)
+		{
+			die("ccsd is not running\n");
+		}
+		ccs_disconnect(ctree);
 	}
-	ccs_disconnect(ctree);
 
         /*
 	 * If we can talk to cman then we're already joined (or joining);
@@ -112,6 +115,10 @@ int join(commandline_t *comline)
 	}
 	if (comline->verbose) {
 		snprintf(scratch, sizeof(scratch), "CMAN_DEBUGLOG=%d", comline->verbose);
+		envp[envptr++] = strdup(scratch);
+	}
+	if (comline->noccs_opt) {
+		snprintf(scratch, sizeof(scratch), "CMAN_NOCCS=TRUE");
 		envp[envptr++] = strdup(scratch);
 	}
 

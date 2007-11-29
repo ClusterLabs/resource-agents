@@ -300,11 +300,17 @@ int ais_add_ifaddr(char *mcast, char *ifaddr, int portnum)
 
 	P_AIS("Adding local address %s\n", ifaddr);
 
-	/* This will already exist as early config creates it */
 	global_objdb->object_find_reset(OBJECT_PARENT_HANDLE);
 	if (global_objdb->object_find(OBJECT_PARENT_HANDLE,
-				      "totem", strlen("totem"),&totem_object_handle) == 0) {
+				       "totem", strlen("totem"), &totem_object_handle)) {
 
+		global_objdb->object_create(OBJECT_PARENT_HANDLE, &totem_object_handle,
+					    "totem", strlen("totem"));
+	}
+
+	global_objdb->object_find_reset(OBJECT_PARENT_HANDLE);
+	if (global_objdb->object_find(OBJECT_PARENT_HANDLE,
+				      "totem", strlen("totem"), &totem_object_handle) == 0) {
 		if (global_objdb->object_create(totem_object_handle, &interface_object_handle,
 						"interface", strlen("interface")) == 0) {
 
@@ -551,6 +557,13 @@ static int comms_init_ais(struct objdb_iface_ver0 *objdb)
 	}
 
 	/* Make sure mainconfig doesn't stomp on our logging options */
+	if (global_objdb->object_find(OBJECT_PARENT_HANDLE,
+				      "logging", strlen("logging"), &object_handle)) {
+
+		global_objdb->object_create(OBJECT_PARENT_HANDLE, &object_handle,
+					    "logging", strlen("logging"));
+	}
+
 	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
 	if (objdb->object_find(OBJECT_PARENT_HANDLE,
 			       "logging", strlen("logging"),

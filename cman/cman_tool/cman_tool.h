@@ -98,6 +98,7 @@ struct commandline
 	int wait_quorate_opt;
 	int fence_opt;
 	int addresses_opt;
+	int noccs_opt;
 };
 typedef struct commandline commandline_t;
 

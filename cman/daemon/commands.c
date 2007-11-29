@@ -382,9 +382,6 @@ int cman_set_nodeid(int nodeid)
 	if (ais_running)
 		return -EALREADY;
 
-	if (nodeid < 0 || nodeid > 4096)
-		return -EINVAL;
-
 	wanted_nodeid = nodeid;
 	return 0;
 }
@@ -417,8 +414,8 @@ int cman_join_cluster(char *name, unsigned short cl_id, int two_node_flag, int e
 	}
 
 	time(&join_time);
-	us = add_new_node(nodename, wanted_nodeid, -1, expected_votes,
-			  NODESTATE_MEMBER);
+	us = add_new_node(nodename, wanted_nodeid, 1, expected_votes,
+			  NODESTATE_DEAD);
 	set_port_bit(us, 0);
 	us->us = 1;
 
@@ -1728,6 +1725,10 @@ static void do_process_transition(int nodeid, char *data, int len)
 	msg->flags &= ~NODE_FLAGS_SEESDISALLOWED;
 
 	node = find_node_by_nodeid(nodeid);
+	if (!node) {
+		add_ais_node(nodeid, incarnation, num_ais_nodes);
+		node = find_node_by_nodeid(nodeid);
+	}
 	assert(node);
 
 	/* Newer nodes 6.1.0 onwards, set the DIRTY flag if they have state. If the new node has been down
@@ -1969,22 +1970,11 @@ void add_ais_node(int nodeid, uint64_t incarnation, int total_members)
  	/* This really should exist!! */
 	if (!node) {
 		char tempname[256];
-		node = malloc(sizeof(struct cluster_node));
-		if (!node) {
-			log_printf(LOG_ERR, "error allocating node struct for id %d, but CCS doesn't know about it anyway\n",
-				nodeid);
-			return;
-		}
 		log_printf(LOG_ERR, "Got node from AIS id %d with no CCS entry\n", nodeid);
 
-		memset(node, 0, sizeof(struct cluster_node));
-		node_add_ordered(node);
-		node->state = NODESTATE_DEAD;
-		node->votes = 1;
-
 		/* Emergency nodename */
-		sprintf(tempname, "Node%d\n", nodeid);
-		node->name = strdup(tempname);
+		sprintf(tempname, "Node%d", nodeid);
+		node = add_new_node(tempname, nodeid, 1, total_members, NODESTATE_DEAD);
 	}
 
 	if (node->state == NODESTATE_DEAD) {
@@ -2003,7 +1993,8 @@ void del_ais_node(int nodeid)
 	P_MEMB("del_ais_node %d\n", nodeid);
 
 	node = find_node_by_nodeid(nodeid);
-	assert(node);
+	if (!node)
+		return;
 
 	/* If the node was fenced while up (ie independantly of fenced) then
 	 * don't clear the fenced flag. There is a timeout associated with
