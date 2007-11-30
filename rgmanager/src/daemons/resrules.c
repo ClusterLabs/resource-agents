@@ -27,6 +27,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <list.h>
+#include <ctype.h>
+#include <restart_counter.h>
 #include <reslist.h>
 #include <pthread.h>
 #include <dirent.h>
@@ -230,41 +232,68 @@ _get_version(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
 
 
 int
-expand_time(char *val)
+expand_time (char *val)
 {
-	int l = strlen(val);
-	char c = val[l - 1];
-	int ret = atoi(val);
+	int curval, len;
+	int ret = 0;
+	char *start = val, ival[16];
 
-	if (ret <= 0)
-		return 0;
+	if (!val)
+		return (time_t)0;
 
-	if ((c >= '0') && (c <= '9'))
-		return ret;
+	while (start[0]) {
 
-	switch(c) {
-	case 'S':
-	case 's':
-		return (ret);
-	case 'M':
-	case 'm':
-		return (ret * 60);
-	case 'h':
-	case 'H':
-		return (ret * 3600);
-	case 'd':
-	case 'D':
-		return (ret * 86400);
-	case 'w':
-	case 'W':
-		return (ret * 604800);
-	case 'y':
-	case 'Y':
-		return (ret * 31536000);
+		len = 0;
+		curval = 0;
+		memset(ival, 0, sizeof(ival));
+
+		while (isdigit(start[len])) {
+			ival[len] = start[len];
+			len++;
+		}
+
+		if (len) {
+			curval = atoi(ival);
+		} else {
+			len = 1;
+		}
+
+		switch(start[len]) {
+		case 0:
+		case 'S':
+		case 's':
+			break;
+		case 'M':
+        	case 'm':
+			curval *= 60;
+			break;
+		case 'h':
+		case 'H':
+			curval *= 3600;
+			break;
+		case 'd':
+		case 'D':
+			curval *= 86400;
+			break;
+		case 'w':
+		case 'W':
+			curval *= 604800;
+			break;
+		case 'y':
+		case 'Y':
+			curval *= 31536000;
+			break;
+		default:
+			curval = 0;
+		}
+
+		ret += (time_t)curval;
+		start += len;
 	}
 
 	return ret;
 }
+
 
 
 /**

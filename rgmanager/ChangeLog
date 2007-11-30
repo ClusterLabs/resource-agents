@@ -1,6 +1,8 @@
 2007-11-30 Lon Hohberger <lhh at redhat.com>
-	* src/resources/*: Merge from RHEL5 branch.
-	* src/utils/*: Merge from RHEL5 branch.
+	* src/resources/*: Merge misc. updates from RHEL5 branch.
+	* src/utils/*: Merge misc. updates from RHEL5 branch.
+	* include/*.h, src/daemons/*: Merge status-counter patch
+	from RHEL5 branch.
 
 2007-08-30 Lon Hohberger <lhh at redhat.com>
 	* src/daemons/restree.c, rg_state.c: Fix tree-restart bug

@@ -27,6 +27,7 @@
 #include <list.h>
 #include <clulog.h>
 #include <resgroup.h>
+#include <restart_counter.h>
 #include <reslist.h>
 #include <ccs.h>
 #include <pthread.h>

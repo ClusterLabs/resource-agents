@@ -166,6 +166,7 @@ membership_update(void)
 
 	old_membership = member_list();
 	new_ml = get_member_list(h);
+	memb_mark_down(new_ml, 0);
 
 	for (x = 0; x < new_ml->cml_count; x++) {
 
@@ -182,19 +183,25 @@ membership_update(void)
 			quorate = cman_is_listening(h,
 					new_ml->cml_members[x].cn_nodeid,
 					port);
+
 			if (quorate == 0) {
 				clulog(LOG_DEBUG, "Node %d is not listening\n",
 					new_ml->cml_members[x].cn_nodeid);
 				new_ml->cml_members[x].cn_member = 0;
 			} else if (quorate < 0) {
+				if (errno == ENOTCONN) {
+					new_ml->cml_members[x].cn_member = 0;
+					break;
+				}
 				perror("cman_is_listening");
 				usleep(50000);
 				continue;
 			}
-
 #ifdef DEBUG
-			printf("Node %d IS listening\n",
-			       new_ml->cml_members[x].cn_nodeid);
+		       	else {
+				printf("Node %d IS listening\n",
+				       new_ml->cml_members[x].cn_nodeid);
+			}
 #endif
 			break;
 		} while(1);
@@ -202,7 +209,6 @@ membership_update(void)
 
 	cman_finish(h);
 	member_list_update(new_ml);
-	member_set_state(0, 0);		/* Mark qdisk as dead */
 
 	/*
 	 * Handle nodes lost.  Do our local node event first.

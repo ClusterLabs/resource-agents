@@ -150,6 +150,8 @@ int svc_fail(char *svcName);
 int svc_freeze(char *svcName);
 int svc_unfreeze(char *svcName);
 int svc_migrate(char *svcName, int target);
+int check_restart(char *svcName);
+
 int rt_enqueue_request(const char *resgroupname, int request,
 		       msgctx_t *resp_ctx,
        		       int max, uint32_t target, int arg0, int arg1);

@@ -31,12 +31,14 @@ OBJS1=	depends.o \
 	rg_queue.o \
 	rg_state.o \
 	rg_thread.o \
+	restart_counter.o \
 	watchdog.o
 
 OBJS2=	clurmtabd.o \
 	clurmtabd_lib.o
 
-OBJS3=	test-noccs.o
+OBJS3=	test-noccs.o \
+	restart_counter.o
 
 OBJS4=	dtest-noccs.o
 

@@ -26,6 +26,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <list.h>
+#include <restart_counter.h>
 #include <reslist.h>
 #include <pthread.h>
 #ifndef NO_CCS

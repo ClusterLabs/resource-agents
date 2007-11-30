@@ -30,6 +30,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <list.h>
+#include <restart_counter.h>
 #include <reslist.h>
 #include <pthread.h>
 #include <clulog.h>
@@ -432,6 +433,39 @@ res_exec(resource_node_t *node, int op, const char *arg, int depth)
 }
 
 
+static inline void
+assign_restart_policy(resource_t *curres, resource_node_t *parent,
+		      resource_node_t *node)
+{
+	char *val;
+	int max_restarts = 0;
+	time_t restart_expire_time = 0;
+
+	node->rn_restart_counter = NULL;
+
+	if (!curres || !node)
+		return;
+	if (parent) /* Non-parents don't get one for now */
+		return;
+
+	val = res_attr_value(curres, "max_restarts");
+	if (!val)
+		return;
+	max_restarts = atoi(val);
+	if (max_restarts <= 0)
+		return;
+	val = res_attr_value(curres, "restart_expire_time");
+	if (val) {
+		restart_expire_time = (time_t)expand_time(val);
+		if (!restart_expire_time)
+			return;
+	}
+
+	node->rn_restart_counter = restart_init(restart_expire_time,
+						max_restarts);
+}
+
+
 static inline int
 do_load_resource(int ccsfd, char *base,
 	         resource_rule_t *rule,
@@ -514,6 +548,7 @@ do_load_resource(int ccsfd, char *base,
 	node->rn_state = RES_STOPPED;
 	node->rn_flags = 0;
 	node->rn_actions = (resource_act_t *)act_dup(curres->r_actions);
+	assign_restart_policy(curres, parent, node);
 
 	snprintf(tok, sizeof(tok), "%s/@__independent_subtree", base);
 #ifndef NO_CCS
@@ -769,6 +804,11 @@ destroy_resource_tree(resource_node_t **tree)
 			destroy_resource_tree(&(*tree)->rn_child);
 
 		list_remove(tree, node);
+
+		if (node->rn_restart_counter) {
+			restart_cleanup(node->rn_restart_counter);
+		}
+
 		if(node->rn_actions){
 			free(node->rn_actions);
 		}

@@ -20,6 +20,7 @@
 //#define DEBUG
 #include <platform.h>
 #include <resgroup.h>
+#include <restart_counter.h>
 #include <reslist.h>
 #include <vf.h>
 #include <message.h>
@@ -175,6 +176,29 @@ is_exclusive(char *svcName)
 		ret = is_exclusive_res(res);
 
 	pthread_rwlock_unlock(&resource_lock);
+	return ret;
+}
+
+
+resource_node_t *
+node_by_ref(resource_node_t **tree, char *name)
+{
+	resource_t *res;
+	resource_node_t *node, *ret = NULL;
+	char rgname[64];
+	int x;
+
+	list_for(&_tree, node, x) {
+
+		res = node->rn_resource;
+		res_build_name(rgname, sizeof(rgname), res);
+
+		if (!strcasecmp(name, rgname)) {
+			ret = node;
+			break;
+		}
+	}
+
 	return ret;
 }
 
@@ -1584,6 +1608,28 @@ get_recovery_policy(char *rg_name, char *buf, size_t buflen)
 	}
 
 	pthread_rwlock_unlock(&resource_lock);
+}
+
+
+int
+check_restart(char *rg_name)
+{
+	resource_node_t *node;
+	int ret = 1;
+
+	pthread_rwlock_rdlock(&resource_lock);
+	node = node_by_ref(&_tree, rg_name);
+	if (node) {
+		ret = restart_add(node->rn_restart_counter);
+		if (ret) {
+			/* Clear it out - caller is about 
+			   to relocate the service anyway */
+			restart_clear(node->rn_restart_counter);
+		}
+	}
+	pthread_rwlock_unlock(&resource_lock);
+
+	return ret;
 }
 
 

@@ -1350,7 +1350,8 @@ _svc_stop_finish(char *svcName, int failed, uint32_t newstate)
 	}
 
 	if ((svcStatus.rs_state != RG_STATE_STOPPING) &&
-	     (svcStatus.rs_state != RG_STATE_ERROR)) {
+	    (svcStatus.rs_state != RG_STATE_ERROR) &&
+	    (svcStatus.rs_state != RG_STATE_RECOVER)) {
 		rg_unlock(&lockp);
 		return 0;
 	}
@@ -1829,8 +1830,10 @@ handle_relocate_req(char *svcName, int request, int preferred_target,
 	 * We got sent here from handle_start_req.
 	 * We're DONE.
 	 */
-	if (request == RG_START_RECOVER)
+	if (request == RG_START_RECOVER) {
+		_svc_stop_finish(svcName, 0, RG_STATE_STOPPED);
 		return RG_EFAIL;
+	}
 
 	/*
 	 * All potential places for the service to start have been exhausted.
@@ -1839,7 +1842,7 @@ handle_relocate_req(char *svcName, int request, int preferred_target,
 exhausted:
 	if (!rg_locked()) {
 		clulog(LOG_WARNING,
-		       "#70: Attempting to restart service %s locally.\n",
+		       "#70: Failed to relocate %s; restarting locally\n",
 		       svcName);
 		if (svc_start(svcName, RG_START_RECOVER) == 0) {
 			*new_owner = me;
@@ -2074,6 +2077,14 @@ handle_recover_req(char *svcName, int *new_owner)
 	if (!strcasecmp(policy, "disable")) {
 		return svc_disable(svcName);
 	} else if (!strcasecmp(policy, "relocate")) {
+		return handle_relocate_req(svcName, RG_START_RECOVER, -1,
+					   new_owner);
+	}
+
+	/* Check restart counter/timer for this resource */
+	if (check_restart(svcName) > 0) {
+		clulog(LOG_NOTICE, "Restart threshold for %s exceeded; "
+		       "attempting to relocate\n", svcName);
 		return handle_relocate_req(svcName, RG_START_RECOVER, -1,
 					   new_owner);
 	}
