@@ -133,6 +133,18 @@ meta_data()
 	    <content type="string"/>
         </parameter>
 
+	<parameter name="self_fence">
+	    <longdesc lang="en">
+	        If set and unmounting the file system fails, the node will
+		immediately reboot.  Generally, this is used in conjunction
+		with force-unmount support, but it is not required.
+	    </longdesc>
+	    <shortdesc lang="en">
+	        Seppuku Unmount
+	    </shortdesc>
+	    <content type="boolean"/>
+	</parameter>
+
 	<parameter name="fsid">
 	    <longdesc lang="en">
 	    	File system ID for NFS exports.  This can be overridden
@@ -277,9 +289,6 @@ verify_fstype()
 
 	case $OCF_RESKEY_fstype in
 	gfs)
-		return $OCF_SUCCESS
-		;;
-	ocfs|ocfs2)
 		return $OCF_SUCCESS
 		;;
 	*)
@@ -798,6 +807,15 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 		esac
 	fi
 
+	if [ -n "$mp" ]; then
+		case ${OCF_RESKEY_self_fence} in
+	        $YES_STR)	self_fence=$YES ;;
+		1)		self_fence=$YES ;;
+	        *)		self_fence="" ;;
+		esac
+	fi
+
+
 	#
 	# Always do this hackery on clustered file systems.
 	#
@@ -873,8 +891,13 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 	done # while 
 
 	if [ -n "$umount_failed" ]; then
-		ocf_log err "'umount $dev' failed ($mp), error=$ret_val"
+		ocf_log err "'umount $mp' failed, error=$ret_val"
 
+		if [ "$self_fence" ]; then
+			ocf_log alert "umount failed - REBOOTING"
+			sync
+			reboot -fn
+		fi
 		return $FAIL
 	fi
 
@@ -884,8 +907,20 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 
 case $1 in
 start)
-	startFilesystem
-	exit $?
+	declare tries=0
+	declare rv
+
+	while [ $tries -lt 3 ]; do
+		startFilesystem
+		rv=$?
+		if [ rv -eq 0 ]; then
+			exit 0
+		fi
+
+		((tries++))
+		sleep 3
+	done
+	exit $rv
 	;;
 stop)
 	stopFilesystem

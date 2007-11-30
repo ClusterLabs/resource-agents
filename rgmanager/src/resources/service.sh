@@ -77,7 +77,7 @@ meta_data()
             <shortdesc lang="en">
 	    	Automatic start after quorum formation
             </shortdesc>
-            <content type="boolean"/>
+            <content type="boolean" default="1"/>
         </parameter>
 
         <parameter name="hardrecovery" reconfig="1">
@@ -92,10 +92,10 @@ meta_data()
             <shortdesc lang="en">
 	    	Reboot if stop phase fails
             </shortdesc>
-            <content type="boolean"/>
+            <content type="boolean" default="0"/>
         </parameter>
 
-        <parameter name="exclusive">
+        <parameter name="exclusive" reconfig="1">
             <longdesc lang="en">
 	    	If set, this resource group will only relocate to
 		nodes which have no other resource groups running in the
@@ -109,7 +109,7 @@ meta_data()
             <shortdesc lang="en">
 	        Exclusive resource group
             </shortdesc>
-            <content type="boolean"/>
+            <content type="boolean" default="0"/>
         </parameter>
 
 	<parameter name="nfslock">
@@ -125,7 +125,7 @@ meta_data()
 	    <shortdesc lang="en">
 	        Enable NFS lock workarounds
 	    </shortdesc>
-	    <content type="boolean"/>
+	    <content type="boolean" default="0"/>
 	</parameter>
                 
         <parameter name="recovery" reconfig="1">
@@ -141,7 +141,7 @@ meta_data()
             <shortdesc lang="en">
 	    	Failure recovery policy
             </shortdesc>
-            <content type="string"/>
+            <content type="string" default="restart"/>
         </parameter>
 
         <parameter name="depend">
@@ -154,6 +154,32 @@ meta_data()
             </shortdesc>
             <content type="string"/>
         </parameter>
+
+        <parameter name="max_restarts">
+            <longdesc lang="en">
+	    	Maximum restarts for this service.
+            </longdesc>
+            <shortdesc lang="en">
+	    	Maximum restarts for this service.
+            </shortdesc>
+            <content type="string" default="0"/>
+        </parameter>
+
+        <parameter name="restart_expire_time">
+            <longdesc lang="en">
+	    	Restart expiration time
+            </longdesc>
+            <shortdesc lang="en">
+	    	Restart expiration time.  A restart is forgotten
+		after this time.  When combined with the max_restarts
+		option, this lets administrators specify a threshold
+		for when to fail over services.  If max_restarts
+		is exceeded in this given expiration time, the service
+		is relocated instead of restarted again.
+            </shortdesc>
+            <content type="string" default="0"/>
+        </parameter>
+
     </parameters>
 
     <actions>
@@ -229,8 +255,8 @@ case $1 in
 		exit 0
 		;;
 	reconfig)
-  		exit 0
-  		;;
+		exit 0
+		;;
 	*)
 		exit 0
 		;;

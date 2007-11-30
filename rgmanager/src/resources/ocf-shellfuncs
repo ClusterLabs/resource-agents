@@ -174,6 +174,10 @@ ocf_log() {
 	esac
 
 	pretty_echo $__OCF_PRIO "$__OCF_MSG"
+
+	if [ -z "`which clulog 2> /dev/null`" ]; then
+		return 0
+	fi
 	clulog -p $__LOG_PID -n $__LOG_NAME \
 		-s $__OCF_PRIO_N "$__OCF_MSG"
 }

@@ -77,7 +77,39 @@ meta_data()
             <shortdesc lang="en">
 	    	Automatic start after quorum formation
             </shortdesc>
-            <content type="boolean"/>
+            <content type="boolean" default="1"/>
+        </parameter>
+
+        <parameter name="hardrecovery" reconfig="1">
+            <longdesc lang="en">
+	    	If set to yes, the last owner will reboot if this resource
+		group fails to stop cleanly, thus allowing the resource
+		group to fail over to another node.  Use with caution; a
+		badly-behaved resource could cause the entire cluster to
+		reboot.  This should never be enabled if the automatic
+		start feature is used.
+            </longdesc>
+            <shortdesc lang="en">
+	    	Reboot if stop phase fails
+            </shortdesc>
+            <content type="boolean" default="0"/>
+        </parameter>
+
+        <parameter name="exclusive" reconfig="1">
+            <longdesc lang="en">
+	    	If set, this resource group will only relocate to
+		nodes which have no other resource groups running in the
+		event of a failure.  If no empty nodes are available,
+		this resource group will not be restarted after a failure.
+		Additionally, resource groups will not automatically
+		relocate to the node running this resource group.  This
+		option can be overridden by manual start and/or relocate
+		operations.
+            </longdesc>
+            <shortdesc lang="en">
+	        Exclusive resource group
+            </shortdesc>
+            <content type="boolean" default="0"/>
         </parameter>
 
         <parameter name="recovery" reconfig="1">
@@ -177,6 +209,51 @@ meta_data()
             <content type="string"/>
         </parameter>
 
+	<parameter name="migrate">
+	    <longdesc lang="en">
+	    	Migration type live or pause, default = live.
+	    </longdesc>
+	    <shortdesc lang="en">
+	    	Migration type live or pause, default = live.
+	    </shortdesc>
+            <content type="string" default="live"/>
+        </parameter>
+
+        <parameter name="depend">
+            <longdesc lang="en">
+		Top-level service this depends on, in "service:name" format.
+            </longdesc>
+            <shortdesc lang="en">
+		Service dependency; will not start without the specified
+		service running.
+            </shortdesc>
+            <content type="string"/>
+        </parameter>
+
+        <parameter name="max_restarts" reconfig="1">
+            <longdesc lang="en">
+	    	Maximum restarts for this service.
+            </longdesc>
+            <shortdesc lang="en">
+	    	Maximum restarts for this service.
+            </shortdesc>
+            <content type="string" default="0"/>
+        </parameter>
+
+        <parameter name="restart_expire_time" reconfig="1">
+            <longdesc lang="en">
+	    	Restart expiration time
+            </longdesc>
+            <shortdesc lang="en">
+	    	Restart expiration time.  A restart is forgotten
+		after this time.  When combined with the max_restarts
+		option, this lets administrators specify a threshold
+		for when to fail over services.  If max_restarts
+		is exceeded in this given expiration time, the service
+		is relocated instead of restarted again.
+            </shortdesc>
+            <content type="string" default="0"/>
+        </parameter>
 
     </parameters>
 
@@ -202,11 +279,11 @@ meta_data()
     </actions>
     
     <special tag="rgmanager">
-     	<!-- Destroy_on_delete / init_on_add are currently only
- 	     supported for migratory resources (no children
- 	     and the 'migrate' action; see above.  Do not try this
- 	     with normal services -->
-	<attributes maxinstances="1" destroy_on_delete="0" init_on_add="0"/>
+    	<!-- Destroy_on_delete / init_on_add are currently only
+	     supported for migratory resources (no children
+	     and the 'migrate' action; see above.  Do not try this
+	     with normal services -->
+        <attributes maxinstances="1" destroy_on_delete="0" init_on_add="0"/>
     </special>
 </resource-agent>
 EOT
@@ -220,7 +297,7 @@ build_xm_cmdline()
 	# controlled externally; the external monitoring app
 	# should.
 	#
-	declare cmdline="restart=\"never\""
+	declare cmdline="on_shutdown=\"destroy\" on_reboot=\"destroy\" on_crash=\"destroy\""
 	declare varp val temp
 
 	#
@@ -260,6 +337,8 @@ build_xm_cmdline()
 		path)
 			cmdline="$cmdline --path=\"$val\""
 			;;
+		migrate)
+			;;
 		*)
 			cmdline="$cmdline $varp=\"$val\""
 			;;
@@ -285,7 +364,7 @@ do_start()
 	#
 	declare cmdline
 
-	do_status && return 0
+	status && return 0
 
 	cmdline="`build_xm_cmdline`"
 
@@ -314,7 +393,7 @@ do_stop()
 		while [ $timeout -gt 0 ]; do
 			sleep 5
 			((timeout -= 5))
-			do_status || return 0
+			status || return 0
 			while read dom state; do
 				#
 				# State is "stopped".  Kill it.
@@ -355,45 +434,12 @@ reconfigure()
 #
 do_status()
 {
-	declare line
-
-  	xm list $OCF_RESKEY_name &> /dev/null
- 	if [ $? -eq 0 ]; then
- 		return $OCF_SUCCESS
- 	fi
- 	xm list migrating-$OCF_RESKEY_name &> /dev/null
-	if [ $? -eq 1 ]; then
-		return $OCF_NOT_RUNNING
+	xm list $OCF_RESKEY_name &> /dev/null
+	if [ $? -eq 0 ]; then
+		return 0
 	fi
-
-	return $OCF_ERR_GENERIC
-
-### NOT REACHED ###
-
-	# virsh doesn't handle migrating domains right now
-	# When this gets fixed, we need to revisit this status
-	# function.
-
-	line=$(virsh domstate $OCF_RESKEY_name)
-	if [ "$line" = "" ]; then
-		return $OCF_NOT_RUNNING
-	fi
-
-	if [ "$line" = "blocked" ]; then
-		return $OCF_SUCCESS
-	elif [ "$line" = "running" ]; then
-		return $OCF_SUCCESS
-	elif [ "$line" = "in shutdown" ]; then
-		return $OCF_SUCCESS
-	elif [ "$line" = "shut off" ]; then
-		return $OCF_NOT_RUNNING
-	fi
-
-	#
-	# Crashed or paused
-	#
-
-	return $OCF_ERR_GENERIC
+	xm list migrating-$OCF_RESKEY_name &> /dev/null
+	return $?
 }
 
 
@@ -412,9 +458,13 @@ verify_all()
 migrate()
 {
 	declare target=$1
-	declare errstr rv
+	declare errstr rv migrate_opt
+
+	if [ "$OCF_RESKEY_migrate" = "live" ]; then
+		migrate_opt="-l"
+	fi
 	
-	err=$(xm migrate $OCF_RESKEY_name $target 2>&1 | head -1)
+	err=$(xm migrate $migrate_opt $OCF_RESKEY_name $target 2>&1 | head -1)
 	rv=$?
 
 	if [ $rv -ne 0 ]; then
@@ -446,7 +496,7 @@ case $1 in
 		exit $?
 		;;
 	kill)
-		do_stop destroy
+		stop destroy
 		exit $?
 		;;
 	recover|restart)
@@ -457,7 +507,7 @@ case $1 in
 		exit $?
 		;;
 	migrate)
-		do_migrate $2 # Send VM to this node
+		migrate $2 # Send VM to this node
 		exit $?
 		;;
 	reload)
@@ -478,6 +528,6 @@ case $1 in
 		;;
 	*)
 		echo "usage: $0 {start|stop|restart|status|reload|reconfig|meta-data|validate-all}"
-		exit $OCF_ERR_UNIMPLEMENTED
+		exit 1
 		;;
 esac

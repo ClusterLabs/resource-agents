@@ -92,9 +92,6 @@ main(int argc, char **argv)
     if (argc < 4)
 	usage(argv[0]);
 
-    /* ../daemons/log.c */
-    configure_logging(-1);
-
     while ((opt = getopt(argc, argv, "f:l:s:hp:n:")) != -1) {
 	switch (opt) {
 	case 'l':
@@ -133,9 +130,10 @@ main(int argc, char **argv)
     if (!cmdline_loglevel) {
 	/*
 	 * Let's see what loglevel the SM is running at.
-	 * TODO Get rgmgr log level
+	 * If ccsd's not available, use default.
 	 */
-	clu_set_loglevel(LOGLEVEL_DFLT);
+    	if (configure_logging(-1) < 0)
+		clu_set_loglevel(LOGLEVEL_DFLT);
     }
     result = clulog_pid(severity, pid, progname, logmsg);
     free(progname);

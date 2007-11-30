@@ -535,8 +535,8 @@ isMounted () {
 	do
 		#echo "spec=$1 dev=$dev  tmp_dev=$tmp_dev"
 		tmp_dev=$(real_device $tmp_dev)
-		tmp_mp=$(trim_trailing_slash $tmp_mp)
-		mp=$(trim_trailing_slash $mp)
+		tmp_mp=${tmp_mp/%\//}  #$(trim_trailing_slash $tmp_mp)
+		mp=${mp/%\//}		       #$(trim_trailing_slash $mp)
 
 		if [ -n "$tmp_dev" -a "$tmp_dev" = "$dev" ]; then
 			#
@@ -1148,6 +1148,9 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 			ocf_log info "$dev is not mounted"
 			umount_failed=
 			done=$YES
+			;;
+		$FAIL)
+			return $FAIL
 			;;
 		$YES)
 			sync; sync; sync

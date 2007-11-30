@@ -311,7 +311,11 @@ main(int argc, char **argv)
 			node_specified = 1;
 			break;
 		case 'v':
-			printf("%s\n",RELEASE_VERSION);
+#ifdef RELEASE_VERSION
+			printf("%s\n", RELEASE_VERSION);
+#else
+			printf("DEVEL\n");
+#endif
 			return 0;
 		case 'Z':
 			actionstr = "freezing";
