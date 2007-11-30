@@ -44,7 +44,7 @@ sock_connect(void)
 
 	memset(&sun, 0, sizeof(sun));
 	sun.sun_family = PF_LOCAL;
-	snprintf(sun.sun_path, sizeof(sun.sun_path), RGMGR_SOCK);
+	snprintf(sun.sun_path, sizeof(sun.sun_path), "%s", RGMGR_SOCK);
 
 	sock = socket(PF_LOCAL, SOCK_STREAM, 0);
 	if (sock < 0) {

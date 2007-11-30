@@ -561,7 +561,6 @@ do_load_resource(int ccsfd, char *base,
 		free(ref);
 	}
 
-
 	curres->r_refs++;
 
 	*newnode = node;
@@ -822,7 +821,6 @@ _print_resource_tree(resource_node_t **tree, int level)
 {
 	resource_node_t *node;
 	int x, y;
-	char *val;
 
 	list_do(tree, node) {
 		for (x = 0; x < level; x++)
@@ -847,14 +845,11 @@ _print_resource_tree(resource_node_t **tree, int level)
 		     node->rn_resource->r_attrs[x].ra_value; x++) {
 			for (y = 0; y < level+1; y++)
 				printf("  ");
-
-			val = attr_value(node,
-					 node->rn_resource->r_attrs[x].ra_name);
-			if (!val &&
-			    node->rn_resource->r_attrs[x].ra_flags&RA_INHERIT)
-				continue;
 			printf("%s = \"%s\";\n",
-			       node->rn_resource->r_attrs[x].ra_name, val);
+			       node->rn_resource->r_attrs[x].ra_name,
+			       attr_value(node,
+					  node->rn_resource->r_attrs[x].ra_name)
+			      );
 		}
 
 		_print_resource_tree(&node->rn_child, level + 1);
@@ -1080,38 +1075,20 @@ do_status(resource_node_t *node)
 	if (idx == -1) {
 		if (node->rn_checked)
 			return node->rn_last_status;
-  		return 0;
+		return 0;
 	}
 
- 	/* Clear all check levels lower than us */
- 	for (x = 0; node->rn_actions[x].ra_name; x++) {
- 		if (x == idx) {
- 			node->rn_actions[idx].ra_last = now;
- 			continue;
- 		}
- 		if (strcmp(node->rn_actions[x].ra_name, "status"))
- 			continue;
- 
- 		if (node->rn_actions[x].ra_depth <
- 		    node->rn_actions[idx].ra_depth)
- 			node->rn_actions[x].ra_last = now;
- 	}
- 
- 	/*printf("-> %s:%s %s level %d interval = %d\n",
- 		node->rn_resource->r_rule->rr_type,
- 		node->rn_resource->r_attrs->ra_value,
- 		node->rn_actions[idx].ra_name,
- 		node->rn_actions[idx].ra_depth,
- 		(int)node->rn_actions[idx].ra_interval);*/
- 
- 	node->rn_actions[idx].ra_last = now;
- 	x = res_exec(node, RS_STATUS, NULL, node->rn_actions[idx].ra_depth);
- 
- 	node->rn_last_status = x;
- 	node->rn_last_depth = node->rn_actions[idx].ra_depth;
- 	node->rn_checked = 1;
- 	if (x == 0)
-  		return 0;
+
+	node->rn_actions[idx].ra_last = now;
+	x = res_exec(node, RS_STATUS, NULL, node->rn_actions[idx].ra_depth);
+
+	node->rn_last_status = x;
+	node->rn_last_depth = node->rn_actions[idx].ra_depth;
+	node->rn_checked = 1;
+
+	if (x == 0)
+		return 0;
+
 	if (!has_recover)
 		return x;
 
@@ -1200,7 +1177,6 @@ clear_checks(resource_node_t *node)
    @param realop	Operation to perform if either first is found,
    			or no first is declared (in which case, all nodes
 			in the subtree).
-   @param node		Node we're operating on
    @see			_res_op_by_level res_exec
  */
 static inline int
@@ -1306,9 +1282,23 @@ _res_op_internal(resource_node_t **tree, resource_t *first,
 
 	}
 
-	if (node->rn_child)
-		rv |= _res_op_by_level(&node, me?NULL:first, ret, op);
+       if (node->rn_child) {
+                rv |= _res_op_by_level(&node, me?NULL:first, ret, op);
 
+               /* If one or more child resources are failed and at least one
+		  of them is not an independent subtree then let's check if
+		  if we are an independent subtree.  If so, mark ourself
+		  and all our children as failed and return a flag stating
+		  that this section is recoverable apart from siblings in
+		  the resource tree. */
+		if (op == RS_STATUS && (rv & SFL_FAILURE) &&
+		    (node->rn_flags & RF_INDEPENDENT)) {
+			mark_nodes(node, RES_FAILED,
+				   RF_NEEDSTART | RF_NEEDSTOP);
+			rv = SFL_RECOVERABLE;
+		}
+	}
+ 			
 	/* Stop should occur after children have stopped */
 	if (me && (op == RS_STOP)) {
 		node->rn_flags &= ~RF_NEEDSTOP;

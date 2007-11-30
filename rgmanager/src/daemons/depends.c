@@ -36,6 +36,8 @@
  */
 #include <string.h>
 #include <list.h>
+#include <time.h>
+#include <restart_counter.h>
 #include <clulog.h>
 #include <resgroup.h>
 #include <reslist.h>

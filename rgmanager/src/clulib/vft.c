@@ -734,7 +734,7 @@ getuptime(struct timeval *tv)
 	if (!fp)
 		return -1;
 
-#if defined(__sparc__) || defined(__sparc64__)
+#if defined(__sparc__) || defined(__hppa__) || defined(__sparc64__) || defined (__hppa64__)
 	rv = fscanf(fp,"%ld.%d %ld.%d\n", &tv->tv_sec, &tv->tv_usec,
 		    &junk.tv_sec, &junk.tv_usec);
 #else
@@ -1368,6 +1368,7 @@ vf_process_msg(msgctx_t *ctx, int nodeid, generic_msg_hdr *msgp, int nbytes)
 {
 	vf_msg_t *hdrp;
 	int ret;
+	key_node_t *kn;
 
 	if ((nbytes <= 0) || (nbytes < sizeof(generic_msg_hdr)) ||
 	    (msgp->gh_command != VF_MESSAGE))
@@ -1422,8 +1423,13 @@ vf_process_msg(msgctx_t *ctx, int nodeid, generic_msg_hdr *msgp, int nbytes)
 #endif
 		pthread_mutex_lock(&key_list_mutex);
 		vf_buffer_commit(msgp->gh_arg2);
-		ret = (vf_resolve_views(kn_find_trans(msgp->gh_arg2)) ?
-			VFR_COMMIT : VFR_OK);
+		kn = kn_find_trans(msgp->gh_arg2);
+		if (!kn) {
+			pthread_mutex_unlock(&key_list_mutex);
+			return VFR_OK;
+		}
+
+		ret = (vf_resolve_views(kn) ? VFR_COMMIT : VFR_OK);
 		pthread_mutex_unlock(&key_list_mutex);
 		return ret;
 

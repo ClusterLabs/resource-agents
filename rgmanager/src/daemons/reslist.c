@@ -824,7 +824,6 @@ load_resource(int ccsfd, resource_rule_t *rule, char *base)
 	}
 
 	if (!found) {
-		//printf("No attributes found for %s\n", base);
 		destroy_resource(res);
 		return NULL;
 	}
