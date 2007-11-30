@@ -36,6 +36,7 @@
 #include <rg_queue.h>
 #include <msgsimple.h>
 #include <res-ocf.h>
+#include <event.h>
 
 /* XXX - copied :( */
 #define cn_svccount cn_address.cna_address[0] /* Theses are uint8_t size */
@@ -86,8 +87,24 @@ next_node_id(cluster_member_list_t *membership, int me)
 }
 
 
+char *
+c_name(char *svcName)
+{
+	char *ptr, *ret = svcName;
+
+	ptr = strchr(svcName,':');
+	if (!ptr)
+		return ret;
+	if ((int)(ptr - svcName) == 7 &&
+	    !memcmp(svcName, "service", 7)) /* strlen("service") */
+		ret = ptr + 1;
+
+	return ret;
+}
+
+
 void
-broadcast_event(char *svcName, uint32_t state)
+broadcast_event(char *svcName, uint32_t state, int owner, int last)
 {
 	SmMessageSt msgp;
 	msgctx_t everyone;
@@ -95,10 +112,12 @@ broadcast_event(char *svcName, uint32_t state)
 	msgp.sm_hdr.gh_magic = GENERIC_HDR_MAGIC;
 	msgp.sm_hdr.gh_command = RG_EVENT;
 	msgp.sm_hdr.gh_length = sizeof(msgp);
+	msgp.sm_hdr.gh_arg1 = owner; 
+	msgp.sm_hdr.gh_arg2 = last; 
 	msgp.sm_data.d_action = state;
 	strncpy(msgp.sm_data.d_svcName, svcName,
 		sizeof(msgp.sm_data.d_svcName));
-	msgp.sm_data.d_svcOwner = 0;
+	msgp.sm_data.d_svcOwner = owner;
 	msgp.sm_data.d_ret = 0;
 
 	swab_SmMessageSt(&msgp);
@@ -201,7 +220,7 @@ _rg_unlock_dbg(void *p, char *file, int line)
 
 
 void
-send_ret(msgctx_t *ctx, char *name, int ret, int orig_request)
+send_ret(msgctx_t *ctx, char *name, int ret, int orig_request, int new_owner)
 {
 	SmMessageSt msg, *msgp = &msg;
 	if (!ctx)
@@ -213,7 +232,9 @@ send_ret(msgctx_t *ctx, char *name, int ret, int orig_request)
 	msgp->sm_data.d_action = orig_request;
 	strncpy(msgp->sm_data.d_svcName, name,
 		sizeof(msgp->sm_data.d_svcName));
-	msgp->sm_data.d_svcOwner = my_id(); /* XXX Broken */
+	if (!new_owner)
+		new_owner = my_id();
+	msgp->sm_data.d_svcOwner = new_owner; /* XXX Broken */
 	msgp->sm_data.d_ret = ret;
 
 	swab_SmMessageSt(msgp);
@@ -344,6 +365,7 @@ get_rg_state(char *name, rg_state_t *svcblk)
 	return 0;
 #else
 	membership = member_list();
+
 	ret = vf_read(membership, res, &viewno, &data, &datalen);
 
 	if (ret != VFR_OK || datalen == 0) {
@@ -666,7 +688,7 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 		/*
 		 * Starting failed service...
 		 */
-		if (req == RG_START_RECOVER) {
+		if (req == RG_START_RECOVER || central_events_enabled()) {
 			clulog(LOG_NOTICE,
 			       "Recovering failed service %s\n",
 			       svcName);
@@ -698,7 +720,7 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 	
 	case RG_STATE_DISABLED:
 	case RG_STATE_UNINITIALIZED:
-		if (req == RG_ENABLE) {
+		if (req == RG_ENABLE || req == RG_START_REMOTE) {
 			/* Don't actually enable if the RG is locked! */
 			if (rg_locked()) {
 				ret = 3;
@@ -825,7 +847,8 @@ svc_start(char *svcName, int req)
 		       "Service %s started\n",
 		       svcName);
 
-		broadcast_event(svcName, RG_STATE_STARTED);
+		broadcast_event(svcName, RG_STATE_STARTED, svcStatus.rs_owner,
+				svcStatus.rs_last_owner);
 	} else {
 		clulog(LOG_WARNING,
 		       "#68: Failed to start %s; return value: %d\n",
@@ -1299,8 +1322,8 @@ _svc_stop(char *svcName, int req, int recover, uint32_t newstate)
 
 	clulog(LOG_NOTICE, "Stopping service %s\n", svcName);
 
-	if (recover)
-		svcStatus.rs_state = RG_STATE_ERROR;
+	if (recover) 
+	       	svcStatus.rs_state = RG_STATE_ERROR;
 	else
 		svcStatus.rs_state = RG_STATE_STOPPING;
 	svcStatus.rs_transition = (uint64_t)time(NULL);
@@ -1382,7 +1405,7 @@ _svc_stop_finish(char *svcName, int failed, uint32_t newstate)
 	}
 	rg_unlock(&lockp);
 
-	broadcast_event(svcName, newstate);
+	broadcast_event(svcName, newstate, -1, svcStatus.rs_last_owner);
 
 	return 0;
 }
@@ -1463,7 +1486,8 @@ svc_fail(char *svcName)
 	}
 	rg_unlock(&lockp);
 
-	broadcast_event(svcName, RG_STATE_FAILED);
+	broadcast_event(svcName, RG_STATE_FAILED, -1,
+			svcStatus.rs_last_owner);
 
 	return 0;
 }
@@ -1542,8 +1566,8 @@ svc_unfreeze(char *svcName)
 /*
  * Send a message to the target node to start the service.
  */
-static int
-relocate_service(char *svcName, int request, uint32_t target)
+int
+svc_start_remote(char *svcName, int request, uint32_t target)
 {
 	SmMessageSt msg_relo;
 	int msg_ret;
@@ -1553,6 +1577,8 @@ relocate_service(char *svcName, int request, uint32_t target)
 	/* Build the message header */
 	msg_relo.sm_hdr.gh_magic = GENERIC_HDR_MAGIC;
 	msg_relo.sm_hdr.gh_command = RG_ACTION_REQUEST;
+	/* XXX XXX */
+	msg_relo.sm_hdr.gh_arg1 = RG_ACTION_MASTER;
 	msg_relo.sm_hdr.gh_length = sizeof (SmMessageSt);
 	msg_relo.sm_data.d_action = request;
 	strncpy(msg_relo.sm_data.d_svcName, svcName,
@@ -1575,13 +1601,13 @@ relocate_service(char *svcName, int request, uint32_t target)
 	if (msg_send(&ctx, &msg_relo, sizeof (SmMessageSt)) < 
 	    sizeof (SmMessageSt)) {
 		clulog(LOG_ERR,
-		       "#59: Error sending relocate request to member #%d\n",
+		       "#59: Error sending remote-start request to member #%d\n",
 		       target);
 		msg_close(&ctx);
 		return -1;
 	}
 
-	clulog(LOG_DEBUG, "Sent relocate request to %d\n", (int)target);
+	clulog(LOG_DEBUG, "Sent remote-start request to %d\n", (int)target);
 
 	/* Check the response */
 	do {
@@ -1757,7 +1783,7 @@ handle_relocate_req(char *svcName, int request, int preferred_target,
 		 	 * It's legal to start the service on the given
 		 	 * node.  Try to do so.
 		 	 */
-			if (relocate_service(svcName, request, target) == 0) {
+			if (svc_start_remote(svcName, request, target) == 0) {
 				*new_owner = target;
 				/*
 				 * Great! We're done...
@@ -1787,7 +1813,7 @@ handle_relocate_req(char *svcName, int request, int preferred_target,
 		if (target == me)
 			goto exhausted;
 
-		ret = relocate_service(svcName, request, target);
+		ret = svc_start_remote(svcName, request, target);
 		switch (ret) {
 		case RG_ERUN:
 			/* Someone stole the service while we were 
@@ -2121,7 +2147,7 @@ handle_fd_start_req(char *svcName, int request, int *new_owner)
 	    	} else if (target < 0) {
 			goto out;
 	       	} else {
-			ret = relocate_service(svcName, RG_START_REMOTE,
+			ret = svc_start_remote(svcName, RG_START_REMOTE,
 					       target);
 		}
 

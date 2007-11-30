@@ -233,6 +233,50 @@ member_set_state(int nodeid, int state)
 
 
 int
+member_low_id(void)
+{
+	int x = 0, low = -1;
+
+	pthread_rwlock_wrlock(&memblock);
+	if (!membership) {
+		pthread_rwlock_unlock(&memblock);
+		return low;
+	}
+
+	for (x = 0; x < membership->cml_count; x++) {
+		if ((membership->cml_members[x].cn_member) &&
+		    ((membership->cml_members[x].cn_nodeid < low) || (low == -1)))
+			low = membership->cml_members[x].cn_nodeid;
+	}
+	pthread_rwlock_unlock(&memblock);
+
+	return low;
+}
+
+
+int
+member_high_id(void)
+{
+	int x = 0, high = -1;
+
+	pthread_rwlock_wrlock(&memblock);
+	if (!membership) {
+		pthread_rwlock_unlock(&memblock);
+		return high;
+	}
+
+	for (x = 0; x < membership->cml_count; x++) {
+		if (membership->cml_members[x].cn_member &&
+		    (membership->cml_members[x].cn_nodeid > high))
+			high = membership->cml_members[x].cn_nodeid;
+	}
+	pthread_rwlock_unlock(&memblock);
+
+	return high;
+}
+
+
+int
 member_online(int nodeid)
 {
 	int x = 0, ret = 0;

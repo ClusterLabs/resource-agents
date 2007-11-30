@@ -21,7 +21,6 @@ OBJS1=	depends.o \
 	fo_domain.o \
 	groups.o \
 	main.o \
-	nodeevent.o \
 	reslist.o \
 	resrules.o \
 	restree.o \
@@ -32,6 +31,9 @@ OBJS1=	depends.o \
 	rg_state.o \
 	rg_thread.o \
 	restart_counter.o \
+	service_op.o \
+	slang_event.o \
+	event_config.o \
 	watchdog.o
 
 OBJS2=	clurmtabd.o \
@@ -47,7 +49,8 @@ SHAREDOBJS=	depends-noccs.o \
 		reslist-noccs.o \
 		resrules-noccs.o \
 		restree-noccs.o \
-		rg_locks-noccs.o
+		rg_locks-noccs.o \
+		event_config-noccs.o
 
 CFLAGS += -D_GNU_SOURCE -DSHAREDIR=\"${sharedir}\"
 CFLAGS += -Werror -Wstrict-prototypes -Wshadow -fPIC
@@ -65,7 +68,7 @@ CCS_LDFLAGS += -L${ccslibdir} -lccs
 CMAN_LDFLAGS += -L${cmanlibdir} -lcman
 DLM_LDFLAGS += -L${dlmlibdir} -ldlm
 XML2_LDFLAGS += `xml2-config --libs`
-EXTRA_LDFLAGS += -lpthread -ldl
+EXTRA_LDFLAGS += -lpthread -ldl -lslang
 LOCAL_LDFLAGS += -llalloc
 READLINE_LDFLAGS += -L${readlinelibdir} -lreadline
 

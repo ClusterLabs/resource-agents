@@ -1,5 +1,0 @@
-* Make live-migration of resources work; preferrably so that admins
-can manually migrate Xen VMs to other nodes without telling the cluster
-about it.  That is, the cluster should be able to acquire running VMs
-and update its state accordingly.
-* Test against a working Xen build and shake out bugs

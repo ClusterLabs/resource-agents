@@ -1,8 +1,58 @@
 2007-11-30 Lon Hohberger <lhh at redhat.com>
-	* src/resources/*: Merge misc. updates from RHEL5 branch.
-	* src/utils/*: Merge misc. updates from RHEL5 branch.
-	* include/*.h, src/daemons/*: Merge status-counter patch
-	from RHEL5 branch.
+	* Commit RIND / S-Lang script engine [untested]
+
+[RHEL5 merged ChangeLog Entries]
+2007-11-30 Lon Hohberger <lhh at redhat.com>
+	* src/resources/clusterfs.sh: Retry mount up to 3 times to avoid
+	race condition during another process mounting a GFS volume
+	* src/resources/vm.sh, service.sh: Add defaults for values.
+	Make vm.sh work with more service attrs (max restarts)
+	* src/utils/clustat.c: Make output of clustat terminal-width 
+	dependent
+
+2007-11-26 Lon Hohberger <lhh at redhat.com>
+	* include/reslist.h: Add restart counters to resource node structure
+	(intended for top-level resources, i.e. services, vms...)
+	* include/restart_counter.h: Add header file for restart counter
+	* src/daemons/Makefile: Fix build to include restart counters
+	* src/daemons/restart_counter.c: Implement restart counters #247139
+	* src/daemons/fo_domain.c, groups.c, restart_counter.c, resrules.c,
+	restree.c, test.c: Glue for restart counters.
+	* src/daemons/reslist.c: Glue for restart counters.  Make expand_time
+	parser more robust to allow things like '1h30m' as a time value.
+	* src/daemons/main.c: Mark quorum disk offline in the correct
+	place to avoid extraneous log messages
+	* src/daemons/rg_state.c: Allow marking service as stopped if
+	stuck in recover state.  Make service which failed to start
+	go to stopped state.  Glue for restart counters.
+	* src/resources/service.sh, vm.sh: Add parameters for restart
+	counters #247139
+
+2007-11-14 Lon Hohberger <lhh at redhat.com>
+	* src/utils/clulog.c: Make clulog honor rgmanager log levels
+	(#289501)
+	* src/clulib/vft.c: Fix #303981 - crash on rgmanager restart in some
+	cases
+	* man/clusvcadm.8: Remove references to clushutdown from man page;
+	resolves #324151
+	* src/resources/netfs.sh: Apply patch from Marco Ceci to fix #358161
+	* src/resources/vm.sh: Make default migration policy live instead
+	of pause for Xen virtual machines.  Also make it configurable instead
+	of static.  Resolves #345871
+
+2007-11-13 Lon Hohberger <lhh at redhat.com>
+	* src/resources/clusterfs.sh: Add support for self_fence operation
+	to clusterfs resource agent
+	* src/resources/service.sh: Add default values to service.sh
+
+2007-10-26 Lon Hohberger <lhh at redhat.com>
+	* src/daemons/main.c, src/utils/clustat.c, clusvcadm.c:
+	Fix #354391
+
+2007-09-25 Lon Hohberger <lhh at redhat.com>
+	* src/daemons/restree.c: Apply patch to fix side case re: 229650
+	Patch from Simone Gotti. Resolves: #229650
+[End RHEL5 merged changes]
 
 2007-08-30 Lon Hohberger <lhh at redhat.com>
 	* src/daemons/restree.c, rg_state.c: Fix tree-restart bug

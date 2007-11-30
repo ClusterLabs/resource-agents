@@ -1734,55 +1734,52 @@ vf_request_current(cluster_member_list_t *membership, char *keyid,
 		}
 		msg_close(&ctx);
 		msg = (vf_msg_t *)gh;
-		break;
-	}
 
-	if (x >= membership->cml_count)
-		return VFR_ERROR;
+		/* Uh oh */
+		if (!msg || (msg == &rmsg)) {
+			printf("VF: No valid message\n");
+			return VFR_ERROR;
+		}
+		swab_generic_msg_hdr(&(msg->vm_hdr));
+		if (msg->vm_hdr.gh_command == VF_NACK) {
+			free(msg);
+			continue;
+		}
+		if (msg->vm_hdr.gh_length < sizeof(vf_msg_t)) {
+			fprintf(stderr, "VF: Short reply from %d\n", x);
+			free(msg);
+			continue;
+		}
+		if (msg->vm_hdr.gh_length > n) {
+			fprintf(stderr,
+				"VF: Size mismatch during decode (%d > %d)\n",
+				msg->vm_hdr.gh_length, n);
+			free(msg);
+			continue;
+		}
 
-	/* Uh oh */
-	if (!msg || (msg == &rmsg)) {
-		printf("VF: No valid message\n");
-		return VFR_ERROR;
-	}
-		
-	swab_generic_msg_hdr(&(msg->vm_hdr));
-	if (msg->vm_hdr.gh_command == VF_NACK) {
-		free(msg);
-		return VFR_NODATA;
-	}
+		swab_vf_msg_info_t(&(msg->vm_msg));
 
-	if (msg->vm_hdr.gh_length < sizeof(vf_msg_t)) {
-		fprintf(stderr, "VF: Short reply from %d\n", x);
-		free(msg);
-		return VFR_ERROR;
-	}
+		if (msg->vm_msg.vf_datalen != (n - sizeof(*msg))) {
+			fprintf(stderr,"VF: Size mismatch during decode (\n");
+			free(msg);
+			continue;
+		}
 
-	if (msg->vm_hdr.gh_length > n) {
-		fprintf(stderr,"VF: Size mismatch during decode (%d > %d)\n",
-			msg->vm_hdr.gh_length, n);
-		free(msg);
-		return VFR_ERROR;
-	}
-
-	swab_vf_msg_info_t(&(msg->vm_msg));
-
-	if (msg->vm_msg.vf_datalen != (n - sizeof(*msg))) {
-		fprintf(stderr,"VF: Size mismatch during decode (\n");
-		free(msg);
-		return VFR_ERROR;
-	}
-
-	if (vf_set_current(keyid, msg->vm_msg.vf_view,
+		/* Ok... we've got data! */
+		if (vf_set_current(keyid, msg->vm_msg.vf_view,
 			   msg->vm_msg.vf_data,
 			   msg->vm_msg.vf_datalen) == VFR_ERROR) {
+			free(msg);
+			return VFR_ERROR;
+		}
+
 		free(msg);
-		return VFR_ERROR;
+
+		return VFR_OK;
 	}
 
-	free(msg);
-
-	return VFR_OK;
+	return VFR_NODATA;
 }
 
 

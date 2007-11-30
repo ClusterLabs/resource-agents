@@ -1,10 +1,9 @@
 /*
-  Copyright Red Hat, Inc. 2006
+  Copyright Red Hat, Inc. 2006-2007
 
   This program is free software; you can redistribute it and/or modify it
-  under the terms of the GNU General Public License as published by the
-  Free Software Foundation; either version 2, or (at your option) any
-  later version.
+  under the terms of the GNU General Public License version 2 as published
+  by the Free Software Foundation.
 
   This program is distributed in the hope that it will be useful, but
   WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -23,81 +22,543 @@
 #include <libcman.h>
 #include <ccs.h>
 #include <clulog.h>
-
-typedef struct __rge_q {
-	list_head();
-	char rg_name[128];
-	uint32_t rg_state;
-	int rg_owner;
-} rgevent_t;
+#include <lock.h>
+#include <event.h>
+#include <stdint.h>
+#include <vf.h>
+#include <members.h>
 
 
 /**
  * resource group event queue.
  */
-static rgevent_t *rg_ev_queue = NULL;
-static pthread_mutex_t rg_queue_mutex = PTHREAD_MUTEX_INITIALIZER;
-static pthread_t rg_ev_thread = 0;
+static event_t *event_queue = NULL;
+#ifdef WRAP_LOCKS
+static pthread_mutex_t event_queue_mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP;
+static pthread_mutex_t mi_mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP;
+#else
+static pthread_mutex_t event_queue_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t mi_mutex = PTHREAD_MUTEX_INITIALIZER;
+#endif
+static pthread_t event_thread = 0;
+static int transition_throttling = 5;
+static int central_events = 0;
 
-void group_event(char *name, uint32_t state, int owner);
+extern int running;
+extern int shutdown_pending;
+static int _master = 0;
+static struct dlm_lksb _master_lock;
+static int _xid = 0;
+static event_master_t *mi = NULL;
+
+void hard_exit(void);
+int init_resource_groups(int);
+void flag_shutdown(int sig);
+void flag_reconfigure(int sig);
+
+event_table_t *master_event_table = NULL;
 
 
-void *
-rg_event_thread(void *arg)
+void
+set_transition_throttling(int nsecs)
 {
-	rgevent_t *ev;
-
-	while (1) {
-		pthread_mutex_lock(&rg_queue_mutex);
-		ev = rg_ev_queue;
-		if (ev)
-			list_remove(&rg_ev_queue, ev);
-		else
-			break; /* We're outta here */
-		pthread_mutex_unlock(&rg_queue_mutex);
-
-		group_event(ev->rg_name, ev->rg_state, ev->rg_owner);
-
-		free(ev);
-	}
-
-	/* Mutex held */
-	rg_ev_thread = 0;
-	pthread_mutex_unlock(&rg_queue_mutex);
-	pthread_exit(NULL);
+	if (nsecs < 0)
+		nsecs = 0;
+	transition_throttling = nsecs;
 }
 
 
 void
-rg_event_q(char *name, uint32_t state, int owner)
+set_central_events(int flag)
 {
-	rgevent_t *ev;
-	pthread_attr_t attrs;
+	central_events = flag;
+}
 
-	while (1) {
-		ev = malloc(sizeof(rgevent_t));
-		if (ev) {
-			break;
+
+int
+central_events_enabled(void)
+{
+	return central_events;
+}
+
+
+/**
+  Called to handle the transition of a cluster member from up->down or
+  down->up.  This handles initializing services (in the local node-up case),
+  exiting due to loss of quorum (local node-down), and service fail-over
+  (remote node down).  This is the distributed node event processor;
+  for the local-only node event processor, see slang_event.c
+ 
+  @param nodeID		ID of the member which has come up/gone down.
+  @param nodeStatus		New state of the member in question.
+  @see eval_groups
+ */
+void
+node_event(int local, int nodeID, int nodeStatus, int clean)
+{
+	if (!running)
+		return;
+
+	if (local) {
+
+		/* Local Node Event */
+		if (nodeStatus == 0) {
+			clulog(LOG_ERR, "Exiting uncleanly\n");
+			hard_exit();
 		}
-		sleep(1);
+
+		if (!rg_initialized()) {
+			if (init_resource_groups(0) != 0) {
+				clulog(LOG_ERR,
+				       "#36: Cannot initialize services\n");
+				hard_exit();
+			}
+		}
+
+		if (shutdown_pending) {
+			clulog(LOG_NOTICE, "Processing delayed exit signal\n");
+			running = 0;
+			return;
+		}
+		setup_signal(SIGINT, flag_shutdown);
+		setup_signal(SIGTERM, flag_shutdown);
+		setup_signal(SIGHUP, flag_reconfigure);
+
+		eval_groups(1, nodeID, 1);
+		return;
 	}
 
-	memset(ev,0,sizeof(*ev));
+	/*
+	 * Nothing to do for events from other nodes if we are not ready.
+	 */
+	if (!rg_initialized()) {
+		clulog(LOG_DEBUG, "Services not initialized.\n");
+		return;
+	}
 
-	strncpy(ev->rg_name, name, 128);
-	ev->rg_state = state;
-	ev->rg_owner = owner;
+	eval_groups(0, nodeID, nodeStatus);
+}
 
-	pthread_mutex_lock (&rg_queue_mutex);
-	list_insert(&rg_ev_queue, ev);
-	if (rg_ev_thread == 0) {
+
+/**
+   Query CCS to see whether a node has fencing enabled or not in
+   the configuration.  This does not check to see if it's in the
+   fence domain.
+ */
+int
+node_has_fencing(int nodeid)
+{
+	int ccs_desc;
+	char *val = NULL;
+	char buf[1024];
+	int ret = 1;
+	
+	ccs_desc = ccs_connect();
+	if (ccs_desc < 0) {
+		clulog(LOG_ERR, "Unable to connect to ccsd; cannot handle"
+		       " node event!\n");
+		/* Assume node has fencing */
+		return 1;
+	}
+
+	snprintf(buf, sizeof(buf), 
+		 "/cluster/clusternodes/clusternode[@nodeid=\"%d\"]"
+		 "/fence/method/device/@name", nodeid);
+
+	if (ccs_get(ccs_desc, buf, &val) != 0)
+		ret = 0;
+	if (val) 
+		free(val);
+	ccs_disconnect(ccs_desc);
+	return ret;
+}
+
+
+/**
+   Quick query to cman to see if a node has been fenced.
+ */
+int
+node_fenced(int nodeid)
+{
+	cman_handle_t ch;
+	int fenced = 0;
+	uint64_t fence_time;
+
+	ch = cman_init(NULL);
+	if (cman_get_fenceinfo(ch, nodeid, &fence_time, &fenced, NULL) < 0)
+		fenced = 0;
+
+	cman_finish(ch);
+
+	return fenced;
+}
+
+
+/**
+   Callback from view-formation when a commit occurs for the Transition-
+   Master key.
+ */
+int32_t
+master_event_callback(char *key, uint64_t viewno,
+		      void *data, uint32_t datalen)
+{
+	event_master_t *m;
+
+	m = data;
+	if (datalen != (uint32_t)sizeof(*m)) {
+		clulog(LOG_ERR, "%s: wrong size\n", __FUNCTION__);
+		return 1;
+	}
+
+	swab_event_master_t(m);
+	if (m->m_magic != EVENT_MASTER_MAGIC) {
+		clulog(LOG_ERR, "%s: wrong size\n", __FUNCTION__);
+		return 1;
+	}
+
+	if (m->m_nodeid == my_id())
+		clulog(LOG_DEBUG, "Master Commit: I am master\n");
+	else 
+		clulog(LOG_DEBUG, "Master Commit: %d is master\n", m->m_nodeid);
+
+	pthread_mutex_lock(&mi_mutex);
+	if (mi)
+		free(mi);
+	mi = m;
+	pthread_mutex_unlock(&mi_mutex);
+
+	return 0;
+}
+
+
+/**
+  Read the Transition-Master key from vf if it exists.  If it doesn't,
+  attempt to become the transition-master.
+ */
+static int
+find_master(void)
+{
+	event_master_t *masterinfo = NULL;
+	void *data;
+	uint32_t sz;
+	cluster_member_list_t *m;
+	uint64_t vn;
+	int master_id = -1;
+
+	m = member_list();
+	if (vf_read(m, "Transition-Master", &vn,
+		    (void **)(&data), &sz) < 0) {
+		clulog(LOG_ERR, "Unable to discover master"
+		       " status\n");
+		masterinfo = NULL;
+	} else {
+		masterinfo = (event_master_t *)data;
+	}
+	free_member_list(m);
+
+	if (masterinfo && (sz >= sizeof(*masterinfo))) {
+		swab_event_master_t(masterinfo);
+		if (masterinfo->m_magic == EVENT_MASTER_MAGIC) {
+			clulog(LOG_DEBUG, "Master Locate: %d is master\n",
+			       masterinfo->m_nodeid);
+			pthread_mutex_lock(&mi_mutex);
+			if (mi)
+				free(mi);
+			mi = masterinfo;
+			pthread_mutex_unlock(&mi_mutex);
+			master_id = masterinfo->m_nodeid;
+		}
+	}
+
+	return master_id;
+}
+
+
+/**
+  Return a copy of the cached event_master_t structure to the
+  caller.
+ */
+int
+event_master_info_cached(event_master_t *mi_out)
+{
+	if (!central_events || !mi_out) {
+		errno = -EINVAL;
+		return -1;
+	}
+
+	pthread_mutex_lock(&mi_mutex);
+	if (!mi) {
+		pthread_mutex_unlock(&mi_mutex);
+		errno = -ENOENT;
+		return -1;
+	}
+
+	memcpy(mi_out, mi, sizeof(*mi));
+	pthread_mutex_unlock(&mi_mutex);
+	return 0;
+}
+
+
+/**
+  Return the node ID of the master.  If none exists, become
+  the master and return our own node ID.
+ */
+int
+event_master(void)
+{
+	cluster_member_list_t *m = NULL;
+	event_master_t masterinfo;
+	int master_id = -1;
+
+	/* We hold this forever. */
+	if (_master)
+		return my_id();
+
+	pthread_mutex_lock(&mi_mutex);
+	if (mi) {
+		master_id = mi->m_nodeid;
+		pthread_mutex_unlock(&mi_mutex);
+		//clulog(LOG_DEBUG, "%d is master\n", mi->m_nodeid);
+		return master_id;
+	}
+	pthread_mutex_unlock(&mi_mutex);
+
+	memset(&_master_lock, 0, sizeof(_master_lock));
+	if (clu_lock(LKM_EXMODE, &_master_lock, LKF_NOQUEUE,
+		     "Transition-Master") < 0) {
+		/* not us, find out who is master */
+		return find_master();
+	}
+
+	if (_master_lock.sb_status != 0)
+		return -1;
+
+	_master = 1;
+
+	m = member_list();
+	memset(&masterinfo, 0, sizeof(masterinfo));
+	masterinfo.m_magic = EVENT_MASTER_MAGIC;
+	masterinfo.m_nodeid = my_id();
+	masterinfo.m_master_time = (uint64_t)time(NULL);
+	swab_event_master_t(&masterinfo);
+
+	if (vf_write(m, VFF_IGN_CONN_ERRORS | VFF_RETRY,
+		     "Transition-Master", &masterinfo,
+		     sizeof(masterinfo)) < 0) {
+		clulog(LOG_ERR, "Unable to advertise master"
+		       " status to all nodes\n");
+	}
+	free_member_list(m);
+
+	return my_id();
+}
+
+
+
+void group_event(char *name, uint32_t state, int owner);
+
+/**
+  Event handling function.  This only stays around as long as
+  events are on the queue.
+ */
+void *
+_event_thread_f(void *arg)
+{
+	event_t *ev;
+	int notice = 0, count = 0;
+
+	while (1) {
+		pthread_mutex_lock(&event_queue_mutex);
+		ev = event_queue;
+		if (ev)
+			list_remove(&event_queue, ev);
+		else
+			break; /* We're outta here */
+
+		++count;
+		/* Event thread usually doesn't hang around.  When it's
+	   	   spawned, sleep for this many seconds in order to let
+	   	   some events queue up */
+		if ((count==1) && transition_throttling && !central_events)
+			sleep(transition_throttling);
+
+		pthread_mutex_unlock(&event_queue_mutex);
+
+		if (ev->ev_type == EVENT_CONFIG) {
+			/*
+			clulog(LOG_NOTICE, "Config Event: %d -> %d\n",
+			       ev->ev.config.cfg_oldversion,
+			       ev->ev.config.cfg_version);
+			 */
+			init_resource_groups(1);
+			free(ev);
+			continue;
+		}
+
+		if (central_events) {
+			/* If the master node died or there isn't
+			   one yet, take the master lock. */
+			if (event_master() == my_id()) {
+				slang_process_event(master_event_table,
+						    ev);
+			} 
+			free(ev);
+			continue;
+			/* ALL OF THE CODE BELOW IS DISABLED
+			   when using central_events */
+		}
+
+		if (ev->ev_type == EVENT_RG) {
+			/*
+			clulog(LOG_NOTICE, "RG Event: %s %s %d\n",
+			       ev->ev.group.rg_name,
+			       rg_state_str(ev->ev.group.rg_state),
+			       ev->ev.group.rg_owner);
+			 */
+			group_event(ev->ev.group.rg_name,
+				    ev->ev.group.rg_state,
+				    ev->ev.group.rg_owner);
+		} else if (ev->ev_type == EVENT_NODE) {
+			/*
+			clulog(LOG_NOTICE, "Node Event: %s %d %s %s\n",
+			       ev->ev.node.ne_local?"Local":"Remote",
+			       ev->ev.node.ne_nodeid,
+			       ev->ev.node.ne_state?"UP":"DOWN",
+			       ev->ev.node.ne_clean?"Clean":"Dirty")
+			 */
+
+			if (ev->ev.node.ne_state == 0 &&
+			    !ev->ev.node.ne_clean &&
+			    node_has_fencing(ev->ev.node.ne_nodeid)) {
+				notice = 0;
+				while (!node_fenced(ev->ev.node.ne_nodeid)) {
+					if (!notice) {
+						notice = 1;
+						clulog(LOG_INFO, "Waiting for "
+						       "node #%d to be fenced\n",
+						       ev->ev.node.ne_nodeid);
+					}
+					sleep(2);
+				}
+
+				if (notice)
+					clulog(LOG_INFO, "Node #%d fenced; "
+					       "continuing\n",
+					       ev->ev.node.ne_nodeid);
+			}
+
+			node_event(ev->ev.node.ne_local,
+				   ev->ev.node.ne_nodeid,
+				   ev->ev.node.ne_state,
+				   ev->ev.node.ne_clean);
+		}
+
+		free(ev);
+	}
+
+	if (!central_events || _master) {
+		clulog(LOG_DEBUG, "%d events processed\n", count);
+	}
+	/* Mutex held */
+	event_thread = 0;
+	pthread_mutex_unlock(&event_queue_mutex);
+	pthread_exit(NULL);
+}
+
+
+static void
+insert_event(event_t *ev)
+{
+	pthread_attr_t attrs;
+	pthread_mutex_lock (&event_queue_mutex);
+	ev->ev_transaction = ++_xid;
+	list_insert(&event_queue, ev);
+	if (event_thread == 0) {
         	pthread_attr_init(&attrs);
         	pthread_attr_setinheritsched(&attrs, PTHREAD_INHERIT_SCHED);
         	pthread_attr_setdetachstate(&attrs, PTHREAD_CREATE_DETACHED);
 		pthread_attr_setstacksize(&attrs, 262144);
 
-		pthread_create(&rg_ev_thread, &attrs, rg_event_thread, NULL);
+		pthread_create(&event_thread, &attrs, _event_thread_f, NULL);
         	pthread_attr_destroy(&attrs);
 	}
-	pthread_mutex_unlock (&rg_queue_mutex);
+	pthread_mutex_unlock (&event_queue_mutex);
 }
+
+
+static event_t *
+new_event(void)
+{
+	event_t *ev;
+
+	while (1) {
+		ev = malloc(sizeof(*ev));
+		if (ev) {
+			break;
+		}
+		sleep(1);
+	}
+	memset(ev,0,sizeof(*ev));
+	ev->ev_type = EVENT_NONE;
+
+	return ev;
+}
+
+
+void
+rg_event_q(char *name, uint32_t state, int owner, int last)
+{
+	event_t *ev = new_event();
+
+	ev->ev_type = EVENT_RG;
+
+	strncpy(ev->ev.group.rg_name, name, 128);
+	ev->ev.group.rg_state = state;
+	ev->ev.group.rg_owner = owner;
+	ev->ev.group.rg_last_owner = last;
+
+	insert_event(ev);
+}
+
+
+void
+node_event_q(int local, int nodeID, int state, int clean)
+{
+	event_t *ev = new_event();
+
+	ev->ev_type = EVENT_NODE;
+	ev->ev.node.ne_state = state;
+	ev->ev.node.ne_local = local;
+	ev->ev.node.ne_nodeid = nodeID;
+	ev->ev.node.ne_clean = clean;
+	insert_event(ev);
+}
+
+
+void
+config_event_q(int old_version, int new_version)
+{
+	event_t *ev = new_event();
+
+	ev->ev_type = EVENT_CONFIG;
+	ev->ev.config.cfg_version = new_version;
+	ev->ev.config.cfg_oldversion = old_version;
+	insert_event(ev);
+}
+
+void
+user_event_q(char *svc, int request,
+	     int arg1, int arg2, int target, msgctx_t *ctx)
+{
+	event_t *ev = new_event();
+
+	ev->ev_type = EVENT_USER;
+	strncpy(ev->ev.user.u_name, svc, sizeof(ev->ev.user.u_name));
+	ev->ev.user.u_request = request;
+	ev->ev.user.u_arg1 = arg1;
+	ev->ev.user.u_arg2 = arg2;
+	ev->ev.user.u_target = target;
+	ev->ev.user.u_ctx = ctx;
+	insert_event(ev);
+}
+

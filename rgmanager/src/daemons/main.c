@@ -35,6 +35,7 @@
 #include <rg_queue.h>
 #include <malloc.h>
 #include <cman-private.h>
+#include <event.h>
 
 #define L_SHUTDOWN (1<<2)
 #define L_SYS (1<<1)
@@ -55,9 +56,10 @@ void set_my_id(int);
 void flag_shutdown(int sig);
 void hard_exit(void);
 int send_rg_states(msgctx_t *, int);
-int check_config_update(void);
+int check_config_update(int *, int *);
 int svc_exists(char *);
 int watchdog_init(void);
+int32_t master_event_callback(char *key, uint64_t viewno, void *data, uint32_t datalen);
 
 int shutdown_pending = 0, running = 1, need_reconfigure = 0;
 char debug = 0; /* XXX* */
@@ -66,11 +68,10 @@ static int port = RG_PORT;
 static char *rgmanager_lsname = "rgmanager"; /* XXX default */
 
 int next_node_id(cluster_member_list_t *membership, int me);
-int rg_event_q(char *svcName, uint32_t state, int owner);
 void malloc_dump_table(FILE *, size_t, size_t);
 
 void
-segfault(int sig)
+segfault(int __attribute__ ((unused)) sig)
 {
 	char ow[64];
 
@@ -95,13 +96,20 @@ void
 send_node_states(msgctx_t *ctx)
 {
 	int x;
+	event_master_t master;
 	generic_msg_hdr hdr;
 	cluster_member_list_t *ml = member_list();
+
+	master.m_nodeid = 0;
+	event_master_info_cached(&master);
 
 	for (x = 0; x < ml->cml_count; x++) {
 		if (ml->cml_members[x].cn_member == 1) {
 			msg_send_simple(ctx, RG_STATUS_NODE,
-					ml->cml_members[x].cn_nodeid, 0);
+					ml->cml_members[x].cn_nodeid, 
+					(ml->cml_members[x].cn_nodeid &&
+					 (ml->cml_members[x].cn_nodeid == 
+					  (int)master.m_nodeid)));
 		}
 	}
 	msg_send_simple(ctx, RG_SUCCESS, 0, 0);
@@ -111,7 +119,7 @@ send_node_states(msgctx_t *ctx)
 
 
 void
-flag_reconfigure(int sig)
+flag_reconfigure(int __attribute__ ((unused)) sig)
 {
 	need_reconfigure++;
 }
@@ -168,15 +176,25 @@ membership_update(void)
 	new_ml = get_member_list(h);
 	memb_mark_down(new_ml, 0);
 
-	for (x = 0; x < new_ml->cml_count; x++) {
+	for(x=0; new_ml && x<new_ml->cml_count;x++) {
+		if (new_ml->cml_members[x].cn_nodeid == 0) {
+		    new_ml->cml_members[x].cn_member = 0;
+		}
+	}
 
-		if (new_ml->cml_members[x].cn_member == 0)
+	for (x = 0; new_ml && x < new_ml->cml_count; x++) {
+
+		if (new_ml->cml_members[x].cn_member == 0) {
+			printf("skipping %d - node not member\n",
+			       new_ml->cml_members[x].cn_nodeid);
 			continue;
+		}
 		if (new_ml->cml_members[x].cn_nodeid == my_id())
 			continue;
 
 #ifdef DEBUG
-		printf("Checking for listening status of %d\n", new_ml->cml_members[x].cn_nodeid);
+		printf("Checking for listening status of %d\n",
+		       new_ml->cml_members[x].cn_nodeid);
 #endif
 
 		do {
@@ -188,6 +206,7 @@ membership_update(void)
 				clulog(LOG_DEBUG, "Node %d is not listening\n",
 					new_ml->cml_members[x].cn_nodeid);
 				new_ml->cml_members[x].cn_member = 0;
+				break;
 			} else if (quorate < 0) {
 				if (errno == ENOTCONN) {
 					new_ml->cml_members[x].cn_member = 0;
@@ -277,7 +296,9 @@ membership_update(void)
 
 
 int
-lock_commit_cb(char *key, uint64_t viewno, void *data, uint32_t datalen)
+lock_commit_cb(char __attribute__ ((unused)) *key,
+	       uint64_t __attribute__ ((unused)) viewno,
+	       void *data, uint32_t datalen)
 {
 	char lockstate;
 
@@ -404,7 +425,7 @@ do_lockreq(msgctx_t *ctx, int req)
 int
 dispatch_msg(msgctx_t *ctx, int nodeid, int need_close)
 {
-	int ret = 0, sz = -1;
+	int ret = 0, sz = -1, nid;
 	char msgbuf[4096];
 	generic_msg_hdr	*msg_hdr = (generic_msg_hdr *)msgbuf;
 	SmMessageSt	*msg_sm = (SmMessageSt *)msgbuf;
@@ -413,7 +434,7 @@ dispatch_msg(msgctx_t *ctx, int nodeid, int need_close)
 
 	/* Peek-a-boo */
 	sz = msg_receive(ctx, msg_hdr, sizeof(msgbuf), 1);
-	if (sz < sizeof (generic_msg_hdr)) {
+	if (sz < (int)sizeof (generic_msg_hdr)) {
 		clulog(LOG_ERR,
 		       "#37: Error receiving header from %d sz=%d CTX %p\n",
 		       nodeid, sz, ctx);
@@ -423,7 +444,7 @@ dispatch_msg(msgctx_t *ctx, int nodeid, int need_close)
 	if (sz < 0)
 		return -1;
 
-	if (sz > sizeof(msgbuf)) {
+	if (sz > (int)sizeof(msgbuf)) {
 		raise(SIGSTOP);
 	}
 
@@ -442,7 +463,7 @@ dispatch_msg(msgctx_t *ctx, int nodeid, int need_close)
 		goto out;
 	}
 
-	if (msg_hdr->gh_length != sz) {
+	if ((int)msg_hdr->gh_length != sz) {
 		clulog(LOG_ERR, "#XX: Read size mismatch: %d %d\n",
 		       ret, msg_hdr->gh_length);
 		goto out;
@@ -450,13 +471,13 @@ dispatch_msg(msgctx_t *ctx, int nodeid, int need_close)
 
 	switch (msg_hdr->gh_command) {
 	case RG_STATUS:
-		clulog(LOG_DEBUG, "Sending service states to CTX%p\n",ctx);
+		//clulog(LOG_DEBUG, "Sending service states to CTX%p\n",ctx);
 		if (send_rg_states(ctx, msg_hdr->gh_arg1) == 0)
 			need_close = 0;
 		break;
 
 	case RG_STATUS_NODE:
-		clulog(LOG_DEBUG, "Sending node states to CTX%p\n",ctx);
+		//clulog(LOG_DEBUG, "Sending node states to CTX%p\n",ctx);
 		send_node_states(ctx);
 		break;
 
@@ -475,7 +496,7 @@ dispatch_msg(msgctx_t *ctx, int nodeid, int need_close)
 
 	case RG_ACTION_REQUEST:
 
-		if (sz < sizeof(msg_sm)) {
+		if (sz < (int)sizeof(msg_sm)) {
 			clulog(LOG_ERR,
 			       "#39: Error receiving entire request (%d/%d)\n",
 			       ret, (int)sizeof(msg_sm));
@@ -494,14 +515,37 @@ dispatch_msg(msgctx_t *ctx, int nodeid, int need_close)
 			swab_SmMessageSt(msg_sm);
 
 			if (msg_send(ctx, msg_sm, sizeof (SmMessageSt)) <
-		    	    sizeof (SmMessageSt))
+		    	    (int)sizeof (SmMessageSt))
 				clulog(LOG_ERR, "#40: Error replying to "
 				       "action request.\n");
 			ret = -1;
 			goto out;
 		}
 
-		/* Queue request */
+		if (central_events_enabled() &&
+		    msg_sm->sm_hdr.gh_arg1 != RG_ACTION_MASTER) {
+			
+			/* Centralized processing or request is from
+			   clusvcadm */
+			nid = event_master();
+			if (nid != my_id()) {
+				/* Forward the message to the event master */
+				forward_message(ctx, msg_sm, nid);
+			} else {
+				/* for us: queue it */
+				user_event_q(msg_sm->sm_data.d_svcName,
+					     msg_sm->sm_data.d_action,
+					     msg_sm->sm_hdr.gh_arg1,
+					     msg_sm->sm_hdr.gh_arg2,
+					     msg_sm->sm_data.d_svcOwner,
+					     ctx);
+			}
+
+			return 0;
+		}
+
+		/* Distributed processing and/or request is from master node
+		   -- Queue request */
 		rt_enqueue_request(msg_sm->sm_data.d_svcName,
 		  		   msg_sm->sm_data.d_action,
 		  		   ctx, 0, msg_sm->sm_data.d_svcOwner,
@@ -511,7 +555,7 @@ dispatch_msg(msgctx_t *ctx, int nodeid, int need_close)
 
 	case RG_EVENT:
 		/* Service event.  Run a dependency check */
-		if (sz < sizeof(msg_sm)) {
+		if (sz < (int)sizeof(msg_sm)) {
 			clulog(LOG_ERR,
 			       "#39: Error receiving entire request (%d/%d)\n",
 			       ret, (int)sizeof(msg_sm));
@@ -527,7 +571,8 @@ dispatch_msg(msgctx_t *ctx, int nodeid, int need_close)
 		/* Send to our rg event handler */
 		rg_event_q(msg_sm->sm_data.d_svcName,
 			   msg_sm->sm_data.d_action,
-			   msg_sm->sm_data.d_svcOwner);
+			   msg_sm->sm_hdr.gh_arg1,
+			   msg_sm->sm_hdr.gh_arg2);
 		break;
 
 	case RG_EXITING:
@@ -665,7 +710,7 @@ dump_internal_state(char *loc)
 int
 event_loop(msgctx_t *localctx, msgctx_t *clusterctx)
 {
-	int n = 0, max, ret;
+ 	int n = 0, max, ret, oldver, newver;
 	fd_set rfds;
 	msgctx_t *newctx;
 	struct timeval tv;
@@ -734,10 +779,10 @@ event_loop(msgctx_t *localctx, msgctx_t *clusterctx)
 	if (!running)
 		return 0;
 
-	if (need_reconfigure || check_config_update()) {
+	if (need_reconfigure || check_config_update(&oldver, &newver)) {
 		need_reconfigure = 0;
 		configure_rgmanager(-1, 0);
-		init_resource_groups(1);
+		config_event_q(oldver, newver);
 		return 0;
 	}
 
@@ -756,7 +801,7 @@ event_loop(msgctx_t *localctx, msgctx_t *clusterctx)
 
 
 void
-flag_shutdown(int sig)
+flag_shutdown(int __attribute__ ((unused)) sig)
 {
 	shutdown_pending = 1;
 }
@@ -782,7 +827,7 @@ cleanup(msgctx_t *clusterctx)
 
 
 void
-statedump(int sig)
+statedump(int __attribute__ ((unused)) sig)
 {
 	signalled++;
 }
@@ -819,8 +864,15 @@ configure_rgmanager(int ccsfd, int dbg)
 	}
 
 	if (ccs_get(ccsfd, "/cluster/rm/@transition_throttling", &v) == 0) {
-		if (!dbg)
-			set_transition_throttling(atoi(v));
+		set_transition_throttling(atoi(v));
+		free(v);
+	}
+
+	if (ccs_get(ccsfd, "/cluster/rm/@central_processing", &v) == 0) {
+		set_central_events(atoi(v));
+		if (atoi(v))
+			clulog(LOG_NOTICE,
+			       "Centralized Event Processing enabled\n");
 		free(v);
 	}
 
@@ -874,7 +926,7 @@ set_nonblock(int fd)
 
 
 void *
-shutdown_thread(void *arg)
+shutdown_thread(void __attribute__ ((unused)) *arg)
 {
 	rg_lockall(L_SYS|L_SHUTDOWN);
 	rg_doall(RG_STOP_EXITING, 1, NULL);
@@ -1014,6 +1066,7 @@ main(int argc, char **argv)
 	}
 
 	vf_key_init("rg_lockdown", 10, NULL, lock_commit_cb);
+	vf_key_init("Transition-Master", 10, NULL, master_event_callback);
 #endif
 
 	/*

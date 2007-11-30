@@ -30,6 +30,7 @@
 #include <list.h>
 #include <reslist.h>
 #include <assert.h>
+#include <event.h>
 
 /* Use address field in this because we never use it internally,
    and there is no extra space in the cman_node_t type.
@@ -37,6 +38,8 @@
 
 #define cn_svccount cn_address.cna_address[0] /* Theses are uint8_t size */
 #define cn_svcexcl  cn_address.cna_address[1]
+
+extern event_table_t *master_event_table;
 
 static int config_version = 0;
 static resource_t *_resources = NULL;
@@ -80,6 +83,32 @@ node_should_start_safe(uint32_t nodeid, cluster_member_list_t *membership,
 	pthread_rwlock_unlock(&resource_lock);
 
 	return ret;
+}
+
+
+int
+node_domain_set_safe(char *domainname, int **ret, int *retlen, int *flags)
+{
+	fod_t *fod;
+	int rv = -1, found = 0, x = 0;
+
+	pthread_rwlock_rdlock(&resource_lock);
+
+	list_for(&_domains, fod, x) {
+		if (!strcasecmp(fod->fd_name, domainname)) {
+			found = 1;
+			break;
+		}
+	} // while (!list_done(&_domains, fod));
+
+	if (found) {
+		rv = node_domain_set(fod, ret, retlen);
+		*flags = fod->fd_flags;
+	}
+
+	pthread_rwlock_unlock(&resource_lock);
+
+	return rv;
 }
 
 
@@ -188,7 +217,7 @@ node_by_ref(resource_node_t **tree, char *name)
 	char rgname[64];
 	int x;
 
-	list_for(&_tree, node, x) {
+	list_for(tree, node, x) {
 
 		res = node->rn_resource;
 		res_build_name(rgname, sizeof(rgname), res);
@@ -566,6 +595,60 @@ consider_relocate(char *svcName, rg_state_t *svcStatus, uint32_t nodeid,
 
 	rt_enqueue_request(svcName, req, NULL, 0, nodeid, 0, 0);
 }
+
+
+char **
+get_service_names(int *len)
+{
+	resource_node_t *node = NULL;
+	int nservices, ncopied = 0, x;
+	char **ret = NULL;
+	char rg_name[64];
+
+	pthread_rwlock_rdlock(&resource_lock);
+
+	nservices = 0;
+	list_do(&_tree, node) {
+		++nservices;
+	} while (!list_done(&_tree, node));
+	
+	ret = malloc(sizeof(char *) * (nservices + 1));
+	if (!ret)
+		goto out_fail;
+
+	memset(ret, 0, sizeof(char *) * (nservices + 1));
+	nservices = 0;
+	list_for(&_tree, node, nservices) {
+		res_build_name(rg_name, sizeof(rg_name),
+			       node->rn_resource);
+
+		if (!strlen(rg_name))
+			continue;
+
+		ret[ncopied] = strdup(rg_name);
+		if (ret[ncopied]) {
+			ncopied++;
+		} else {
+			goto out_fail;
+		}
+	}
+
+	if (len)
+		*len = ncopied;
+	pthread_rwlock_unlock(&resource_lock);
+	return ret;
+
+out_fail:
+	pthread_rwlock_unlock(&resource_lock);
+	for (x = 0; x < ncopied; x++)
+		free(ret[x]);
+	if (ret)
+		free(ret);
+	return NULL;
+}
+
+
+
 
 
 /**
@@ -1043,6 +1126,48 @@ send_rg_state(msgctx_t *ctx, char *rgname, int fast)
 }
 
 
+#if 0
+/**
+  Send the state of the transition master to a given file descriptor.
+
+  @param fd		File descriptor to send state to
+  @param rgname		Resource group name whose state we want to send.
+  @see send_rg_states
+ */
+void
+send_master_state(msgctx_t *ctx)
+{
+	rg_state_msg_t msg, *msgp = &msg;
+	event_master_t master;
+	rg_state_t *rs = &msg.rsm_state;
+
+	strncpy(rs->rs_name, "internal:CentralProcessor",
+		sizeof(rs->rs_name));
+	rs->rs_last_owner = 0;
+	rs->rs_restarts = 0;
+
+	if (event_master_info_cached(&master) < 0) {
+		rs->rs_owner = 0;
+		rs->rs_transition = master.m_master_time;
+		rs->rs_state = RG_STATE_UNINITIALIZED;
+	} else {
+		rs->rs_owner = master.m_nodeid;
+		rs->rs_transition = master.m_master_time;
+		rs->rs_state = RG_STATE_STARTED;
+	}
+
+	msgp->rsm_hdr.gh_magic = GENERIC_HDR_MAGIC;
+	msgp->rsm_hdr.gh_length = sizeof(msg);
+	msgp->rsm_hdr.gh_command = RG_STATUS;
+
+	swab_rg_state_msg_t(msgp);
+
+	if (msg_send(ctx, msgp, sizeof(msg)) < 0)
+		perror("msg_send");
+}
+#endif
+
+
 /**
   Send status from a thread because we don't want rgmanager's
   main thread to block in the case of DLM issues
@@ -1067,6 +1192,8 @@ status_check_thread(void *arg)
 		pthread_exit(NULL);
 	}
 	
+	/*send_master_state(ctx);*/
+
 	pthread_rwlock_rdlock(&resource_lock);
 
 	list_do(&_tree, node) {
@@ -1195,7 +1322,7 @@ rg_doall(int request, int block, char *debugfmt)
   Stop changed resources.
  */
 void *
-q_status_checks(void *arg)
+q_status_checks(void __attribute__ ((unused)) *arg)
 {
 	resource_node_t *curr;
 	rg_state_t svcblk;
@@ -1434,7 +1561,7 @@ do_condstarts(void)
 
 
 int
-check_config_update(void)
+check_config_update(int *new, int *old)
 {
 	int newver = 0, fd, ret = 0;
 	char *val = NULL;
@@ -1454,6 +1581,8 @@ check_config_update(void)
 	pthread_mutex_lock(&config_mutex);
 	if (newver && newver != config_version)
 		ret = 1;
+	if (new) *new = newver;
+	if (old) *old = config_version;
 	pthread_mutex_unlock(&config_mutex);
 	ccs_unlock(fd);
 
@@ -1477,12 +1606,14 @@ dump_config_version(FILE *fp)
 int
 init_resource_groups(int reconfigure)
 {
-	int fd, x;
+	int fd, x, y, cnt;
 
+	event_table_t *evt = NULL;
 	resource_t *reslist = NULL, *res;
 	resource_rule_t *rulelist = NULL, *rule;
 	resource_node_t *tree = NULL;
 	fod_t *domains = NULL, *fod;
+	event_t *evp;
 	char *val;
 
 	if (reconfigure)
@@ -1543,6 +1674,24 @@ init_resource_groups(int reconfigure)
 	x = 0;
 	list_do(&domains, fod) { ++x; } while (!list_done(&domains, fod));
 	clulog(LOG_DEBUG, "%d domains defined\n", x);
+	construct_events(fd, &evt);
+	cnt = 0;
+	if (evt) {
+		for (x=0; x <= evt->max_prio; x++) {
+			if (!evt->entries[x])
+				continue;
+			
+			y = 0;
+
+			list_do(&evt->entries[x], evp) {
+				++y;
+			} while (!list_done(&evt->entries[x], evp));
+
+			cnt += y;
+		}
+	}
+	clulog(LOG_DEBUG, "%d events defined\n", x);
+	
 
 	/* Reconfiguration done */
 	ccs_unlock(fd);
@@ -1571,6 +1720,9 @@ init_resource_groups(int reconfigure)
 	if (_domains)
 		deconstruct_domains(&_domains);
 	_domains = domains;
+	if (master_event_table)
+		deconstruct_events(&master_event_table);
+	master_event_table = evt;
 	pthread_rwlock_unlock(&resource_lock);
 
 	if (reconfigure) {
@@ -1608,6 +1760,60 @@ get_recovery_policy(char *rg_name, char *buf, size_t buflen)
 	}
 
 	pthread_rwlock_unlock(&resource_lock);
+}
+
+
+int
+get_service_property(char *rg_name, char *prop, char *buf, size_t buflen)
+{
+	int ret = 0;
+	resource_t *res;
+	char *val;
+
+	memset(buf, 0, buflen);
+
+#if 0
+	if (!strcmp(prop, "domain")) {
+		/* not needed */
+		strncpy(buf, "", buflen);
+	} else if (!strcmp(prop, "autostart")) {
+		strncpy(buf, "1", buflen);
+	} else if (!strcmp(prop, "hardrecovery")) {
+		strncpy(buf, "0", buflen);
+	} else if (!strcmp(prop, "exclusive")) {
+		strncpy(buf, "0", buflen);
+	} else if (!strcmp(prop, "nfslock")) {
+		strncpy(buf, "0", buflen);
+	} else if (!strcmp(prop, "recovery")) {
+		strncpy(buf, "restart", buflen);
+	} else if (!strcmp(prop, "depend")) {
+		/* not needed */
+		strncpy(buf, "", buflen);
+	} else {
+		/* not found / no defaults */
+		ret = -1;
+	}
+#endif
+
+	pthread_rwlock_rdlock(&resource_lock);
+	res = find_root_by_ref(&_resources, rg_name);
+	if (res) {
+		val = res_attr_value(res, prop);
+		if (val) {
+			ret = 0;
+			strncpy(buf, val, buflen);
+		}
+	}
+	pthread_rwlock_unlock(&resource_lock);
+
+#if 0
+	if (ret == 0)
+		printf("%s(%s, %s) = %s\n", __FUNCTION__, rg_name, prop, buf);
+	else 
+		printf("%s(%s, %s) = NOT FOUND\n", __FUNCTION__, rg_name, prop);
+#endif
+
+	return ret;
 }
 
 

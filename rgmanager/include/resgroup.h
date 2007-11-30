@@ -67,9 +67,16 @@ extern size_t rg_state_t_version_sizes[];
 
 
 #define RG_PORT    177
+
+/* Constants moved to src/clulib/constants.c */
+/* DO NOT EDIT */
 #define RG_MAGIC   0x11398fed
 
 #define RG_ACTION_REQUEST	/* Message header */ 0x138582
+/* Argument to RG_ACTION_REQUEST */
+#define RG_ACTION_MASTER	0xfe0db143
+#define RG_ACTION_USER		0x3f173bfd
+/* */
 #define RG_EVENT		0x138583
 
 /* Requests */
@@ -130,6 +137,7 @@ int handle_start_remote_req(char *svcName, int req);
 #define RG_FLAG_FROZEN			(1<<0)	/** Resource frozen */
 
 const char *rg_state_str(int val);
+int rg_state_str_to_id(const char *val);
 const char *rg_flags_str(char *flags_string, size_t size, int val, char *separator);
 const char *agent_op_str(int val);
 
@@ -140,7 +148,7 @@ int rg_status(const char *resgroupname);
 int group_op(char *rgname, int op);
 void rg_init(void);
 
-/* FOOM */
+/* Basic service operations */
 int svc_start(char *svcName, int req);
 int svc_stop(char *svcName, int error);
 int svc_status(char *svcName);
@@ -157,7 +165,8 @@ int rt_enqueue_request(const char *resgroupname, int request,
        		       int max, uint32_t target, int arg0, int arg1);
 
 void send_response(int ret, int node, request_t *req);
-void send_ret(msgctx_t *ctx, char *name, int ret, int req);
+void send_ret(msgctx_t *ctx, char *name, int ret, int orig_request,
+	      int new_owner);
 
 /* do this op on all resource groups.  The handler for the request 
    will sort out whether or not it's a valid request given the state */
@@ -168,6 +177,7 @@ void do_status_checks(void); /* Queue status checks for locally running
 /* from rg_state.c */
 int set_rg_state(char *name, rg_state_t *svcblk);
 int get_rg_state(char *servicename, rg_state_t *svcblk);
+int get_rg_state_local(char *servicename, rg_state_t *svcblk);
 uint32_t best_target_node(cluster_member_list_t *allowed, uint32_t owner,
 			  char *rg_name, int lock);
 
@@ -192,6 +202,10 @@ cluster_member_list_t *member_list(void);
 int my_id(void);
 
 /* Return codes */
+#define RG_EDOMAIN	-15		/* Service not runnable given the
+					   set of nodes and its failover
+					   domain */
+#define RG_ESCRIPT	-14		/* S/Lang script failed */
 #define RG_EFENCE	-13		/* Fencing operation pending */
 #define RG_ENODE	-12		/* Node is dead/nonexistent */
 #define RG_EFROZEN	-11		/* Service is frozen */
@@ -208,6 +222,7 @@ int my_id(void);
 #define RG_ESUCCESS	0
 #define RG_YES		1
 #define RG_NO		2
+
 
 const char *rg_strerror(int val);
 

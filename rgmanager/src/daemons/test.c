@@ -29,6 +29,7 @@
 #include <reslist.h>
 #include <pthread.h>
 #include <depends.h>
+#include <event.h>
 
 #ifndef NO_CCS
 #error "Can not be built with CCS support."
@@ -162,6 +163,7 @@ test_func(int argc, char **argv)
 	resource_t *reslist = NULL, *curres;
 	resource_node_t *tree = NULL, *tmp, *rn = NULL;
 	int ccsfd, ret = 0, rules = 0;
+	event_table_t *events = NULL;
 
 	fprintf(stderr,"Running in test mode.\n");
 
@@ -174,6 +176,7 @@ test_func(int argc, char **argv)
 
 	load_resource_rules(agentpath, &rulelist);
 	construct_domains(ccsfd, &domains);
+	construct_events(ccsfd, &events);
 	construct_depends(ccsfd, &depends);
 	load_resources(ccsfd, &reslist, &rulelist);
 	build_resource_tree(ccsfd, &tree, &rulelist, &reslist);
@@ -213,6 +216,11 @@ test_func(int argc, char **argv)
 		if (depends) {
 			printf("=== Dependencies ===\n");
 			print_depends(stdout, &depends);
+		}
+
+		if (events) {
+			printf("=== Event Triggers ===\n");
+			print_events(events);
 		}
 	}
 
@@ -285,6 +293,7 @@ test_func(int argc, char **argv)
 
 out:
 	deconstruct_depends(&depends);
+	deconstruct_events(&events);
 	deconstruct_domains(&domains);
 	destroy_resource_tree(&tree);
 	destroy_resources(&reslist);

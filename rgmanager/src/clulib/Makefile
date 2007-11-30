@@ -19,7 +19,7 @@ TARGET3= msgtest
 OBJS1=	clulog.o daemon_init.o signals.o msgsimple.o \
 	gettid.o rg_strings.o message.o members.o fdops.o \
 	lock.o cman.o vft.o msg_cluster.o msg_socket.o \
-	wrap_lock.o
+	wrap_lock.o sets.o
 
 OBJS2= alloc.o
 

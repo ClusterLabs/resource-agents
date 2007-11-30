@@ -1063,7 +1063,8 @@ do_status(resource_node_t *node)
 
 		/* Ok, it's a 'status' action. See if enough time has
 		   elapsed for a given type of status action */
-		if (delta < node->rn_actions[x].ra_interval)
+		if (delta < node->rn_actions[x].ra_interval ||
+		    !node->rn_actions[x].ra_interval)
 			continue;
 
 		if (idx == -1 ||

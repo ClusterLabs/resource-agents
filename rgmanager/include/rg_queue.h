@@ -1,3 +1,20 @@
+/*
+  Copyright Red Hat, Inc. 2004-2007
+
+  This program is free software; you can redistribute it and/or modify it
+  under the terms of the GNU General Public License version 2 as published
+  by the Free Software Foundation.
+
+  This program is distributed in the hope that it will be useful, but
+  WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; see the file COPYING.  If not, write to the
+  Free Software Foundation, Inc.,  675 Mass Ave, Cambridge, 
+  MA 02139, USA.
+*/
 #ifndef _RG_QUEUE_H
 #define _RG_QUEUE_H
 #include <list.h>
@@ -19,7 +36,7 @@ typedef struct _request {
 	uint32_t	rr_target;		/** Target node */
 	uint32_t	rr_arg0;		/** Integer argument */
 	uint32_t	rr_arg1;		/** Integer argument */
-	uint32_t	rr_arg3;		/** Integer argument */
+	uint32_t	rr_arg2;		/** Integer argument */
 	uint32_t	rr_line;		/** Line no */
 	msgctx_t *	rr_resp_ctx;		/** FD to send response */
 	char 		*rr_file;		/** Who made req */
@@ -42,5 +59,7 @@ int rq_queue_empty(request_t **q);
 void rq_free(request_t *foo);
 
 void forward_request(request_t *req);
+void forward_message(msgctx_t *ctx, void *msg, int nodeid);
+
 
 #endif

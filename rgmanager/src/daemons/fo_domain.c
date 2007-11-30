@@ -34,6 +34,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <members.h>
+#include <sets.h>
 
 
 //#define DEBUG
@@ -70,8 +71,7 @@ fod_get_node(int ccsfd, char *base, int idx, fod_t *domain)
 {
 	fod_node_t *fodn;
 	char xpath[256];
-	char *ret, *nid;
-	int nodeid;
+	char *ret;
 
 	snprintf(xpath, sizeof(xpath), "%s/failoverdomainnode[%d]/@name",
 		 base, idx);
@@ -88,20 +88,6 @@ fod_get_node(int ccsfd, char *base, int idx, fod_t *domain)
 		return NULL;
 	} while (!list_done(&domain->fd_nodes, fodn));
 
-	snprintf(xpath, sizeof(xpath),
-		 "/cluster/clusternodes/clusternode[@name=\"%s\"]/@nodeid",
-		 ret);
-	if ((ccs_get(ccsfd, xpath, &nid) == 0) && nid) {
-		nodeid = atoi(nid);
-		free(nid);
-	} else {
-		clulog(LOG_ERR, "#XX: Node %s in domain %s is not in "
-				"the configuration\n", ret, domain->fd_name);
-		/* No nodeid == bad failover domain */
-		free(ret);
-		return NULL;
-	}
-
 	fodn = malloc(sizeof(*fodn));
 	if (!fodn)
 		return NULL;
@@ -110,8 +96,24 @@ fod_get_node(int ccsfd, char *base, int idx, fod_t *domain)
 	/* Already malloc'd; simply store */
 	fodn->fdn_name = ret;
 	fodn->fdn_prio = 0;
-	fodn->fdn_nodeid = nodeid;
 	
+ 	snprintf(xpath, sizeof(xpath),
+ 		 "/cluster/clusternodes/clusternode[@name=\"%s\"]/@nodeid",
+ 		 ret);
+ 	if (ccs_get(ccsfd, xpath, &ret) != 0) {
+ 		clulog(LOG_WARNING, "Node %s has no nodeid attribute\n",
+ 		       fodn->fdn_name);
+ 		fodn->fdn_nodeid = -1;
+ 	} else {
+ 		/* 64-bit-ism on rhel4? */
+ 		fodn->fdn_nodeid = atoi(ret);
+ 	}
+ 
+ 	/* Don't even bother getting priority if we're not ordered (it's set
+ 	   to 0 above */
+ 	if (!(domain->fd_flags & FOD_ORDERED))
+ 		return fodn;
+ 
 	snprintf(xpath, sizeof(xpath), "%s/failoverdomainnode[%d]/@priority",
 		 base, idx);
 	if (ccs_get(ccsfd, xpath, &ret) != 0)
@@ -270,6 +272,11 @@ print_domains(fod_t **domains)
 {
 	fod_t *fod;
 	fod_node_t *fodn = NULL;
+	/*
+	int x;
+	int *node_set = NULL;
+	int node_set_len = 0;
+	 */
 
 	list_do(domains, fod) {
 		printf("Failover domain: %s\n", fod->fd_name);
@@ -286,14 +293,12 @@ print_domains(fod_t **domains)
 			printf("\n");
 		}
 
-		list_do(&fod->fd_nodes, fodn) {
-			printf("  Node %s priority %d",
-			       fodn->fdn_name, fodn->fdn_prio);
-			if (fodn->fdn_nodeid) {
-				printf(" nodeid %d", fodn->fdn_nodeid);
-			}
-			printf("\n");
-		} while (!list_done(&fod->fd_nodes, fodn));
+  		list_do(&fod->fd_nodes, fodn) {
+			printf("  Node %s (id %d, priority %d)\n",
+			       fodn->fdn_name, fodn->fdn_nodeid,
+			       fodn->fdn_prio);
+ 		} while (!list_done(&fod->fd_nodes, fodn));
+ 		
 	} while (!list_done(domains, fod));
 }
 
@@ -356,6 +361,70 @@ node_in_domain(char *nodename, fod_t *domain,
 		return 2;
 
 	return 3;
+}
+
+
+int
+node_domain_set(fod_t *domain, int **ret, int *retlen)
+{
+	int x, i, j;
+	int *tmpset;
+	int ts_count;
+
+	fod_node_t *fodn;
+
+	/* Count domain length */
+	list_for(&domain->fd_nodes, fodn, x) { }
+	
+	*retlen = 0;
+	*ret = malloc(sizeof(int) * x);
+	if (!(*ret))
+		return -1;
+	tmpset = malloc(sizeof(int) * x);
+	if (!(*tmpset))
+		return -1;
+
+	if (domain->fd_flags & FOD_ORDERED) {
+		for (i = 1; i <= 100; i++) {
+			
+			ts_count = 0;
+			list_for(&domain->fd_nodes, fodn, x) {
+				if (fodn->fdn_prio == i) {
+					s_add(tmpset, &ts_count,
+					      fodn->fdn_nodeid);
+				}
+			}
+
+			if (!ts_count)
+				continue;
+
+			/* Shuffle stuff at this prio level */
+			if (ts_count > 1)
+				s_shuffle(tmpset, ts_count);
+			for (j = 0; j < ts_count; j++)
+				s_add(*ret, retlen, tmpset[j]);
+		}
+	}
+
+	/* Add unprioritized nodes */
+	ts_count = 0;
+	list_for(&domain->fd_nodes, fodn, x) {
+		if (!fodn->fdn_prio) {
+			s_add(tmpset, &ts_count,
+			      fodn->fdn_nodeid);
+		}
+	}
+
+	if (!ts_count)
+		return 0;
+
+	/* Shuffle stuff at this prio level */
+	if (ts_count > 1)
+		s_shuffle(tmpset, ts_count);
+	for (j = 0; j < ts_count; j++)
+		s_add(*ret, retlen, tmpset[j]);
+
+	return 0;
 }
 
 

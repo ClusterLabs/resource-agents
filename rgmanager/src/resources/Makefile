@@ -22,7 +22,7 @@ METADATA=apache.metadata openldap.metadata samba.metadata \
 	mysql.metadata postgres-8.metadata tomcat-5.metadata \
 	named.metadata
 
-TARGETS=${RESOURCES} ocf-shellfuncs svclib_nfslock
+TARGETS=ocf-shellfuncs svclib_nfslock default_event_script.sl
 
 UTIL_TARGETS= \
 	utils/config-utils.sh utils/ra-skelet.sh utils/messages.sh \
@@ -36,7 +36,8 @@ install: all
 	echo ${sbindir}
 	install -d ${sharedir}
 	install -d ${sharedir}/utils
-	install $(TARGETS) ${sharedir}
+	install $(RESOURCES) ${sharedir}
+	install -m 644 $(TARGETS) ${sharedir}
 	install $(UTIL_TARGETS) ${sharedir}/utils
 	install -m 644 $(METADATA) ${sharedir}
 

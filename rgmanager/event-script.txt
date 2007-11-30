@@ -1,0 +1,305 @@
+TODO:
+* Return correct error codes to clusvcadm (currently it always returns
+  "Unknown")
+* Write glue for 'migrate' operations and migrate-enabled services
+
+Basic configuration specification:
+
+  <rm>
+    <events>
+      <event class="node"/>        <!-- all node events -->
+      <event class="node"
+             node="bar"/>     <!-- events concerning 'bar' -->
+      <event class="node"
+             node="foo"
+             node_state="up"/>     <!-- 'up' events for 'foo' -->
+      <event class="node"
+             node_id="3"
+             node_state="down"/>   <!-- 'down' events for node ID 3 -->
+
+          (note, all service ops and such deal with node ID, not
+           with node names)
+
+      <event class="service"/>     <!-- all service events-->
+      <event class="service"
+             service_name="A"/>    <!-- events concerning 'A' -->
+      <event class="service"
+             service_name="B"
+	     service_state="started"/> <!-- when 'B' is started... -->
+      <event class="service"
+             service_name="B"
+	     service_state="started"/>
+	     service_owner="3"/> <!-- when 'B' is started on node 3... -->
+
+      <event class="service"
+             priority="1"
+	     service_state="started"/>
+	     service_owner="3"/> <!-- when 'B' is started on node 3, do this
+				      before the other event handlers ... -->
+
+
+    </events>
+    ...
+  </rm>
+
+General globals available from all scripts:
+
+   node_self - local node ID
+   event_type - event class, either:
+       EVENT_NONE - unspecified / unknown
+       EVENT_NODE - node transition
+       EVENT_SERVICE - service transition
+       EVENT_USER - a user-generated request
+       EVENT_CONFIG - [NOT CONFIGURABLE]
+
+Node event globals (i.e. when event_type == EVENT_NODE):
+  
+   node_id - node ID which is transitioning
+   node_name - name of node which is transitioning
+   node_state - new node state (NODE_ONLINE or NODE_OFFLINE, or if you prefer,
+                1 or 0, respectively)
+   node_clean - 0 if the node has not been fenced, 1 if the node has been
+                fenced
+
+Service event globals (i.e. when event_type == EVENT_SERVICE):
+
+   service_name - Name of service which transitioned
+   service_state - new state of service
+   service_owner - new owner of service (or <0 if service is no longer
+		   running)
+   service_last_owner - Last owner of service if known.  Used for when
+                   service_state = "recovering" generally, in order to
+                   apply restart/relocate/disable policy.
+
+User event globals (i.e. when event_type == EVENT_USER):
+
+   service_name - service to perform request upon
+   user_request - request to perform (USER_ENABLE, USER_DISABLE,
+                   USER_STOP, USER_RELOCATE, [TODO] USER_MIGRATE)
+   user_target - target node ID if applicable
+
+
+Scripting functions - Informational:
+
+  node_list = nodes_online();
+
+	Returns a list of all online nodes.
+
+  service_list = service_list();
+
+	Returns a list of all configured services.
+
+  (restarts, last_owner, owner, state) = service_status(service_name);
+
+	Returns the state, owner, last_owner, and restarts.  Note that
+	all return values are optional, but are right-justified per S-Lang
+	specification.  This means if you only want the 'state', you can use:
+	
+	(state) = service_status(service_name);
+
+	However, if you need the restart count, you must provide all four 
+	return values as above.
+
+  (nofailback, restricted, ordered, node_list) =
+		service_domain_info(service_name);
+
+	Returns the failover domain specification, if it exists, for the
+	specified service name.  The node list returned is an ordered list
+	according to priority levels.  In the case of unordered domains, 
+	the ordering of the returned list is pseudo-random.
+
+Scripting functions - Operational:
+
+  err = service_start(service_name, node_list, [avoid_list]);
+
+	Start a non-running, (but runnable, i.e. not failed)
+	service on the first node in node_list.  Failing that, start it on
+	the second node in node_list and so forth.  One may also specify
+	an avoid list, but it's better to just use the subtract() function
+	below.
+
+  err = service_stop(service_name, [0 = stop, 1 = disable]);
+
+	Stop a running service.  The second parameter is optional, and if
+	non-zero is specified, the service will enter the disabled state.
+
+  ... stuff that's not done but needs to be:
+
+  err = service_relocate(service_name, node_list);
+
+	Move a running service to the specified node_list in order of
+	preference.  In the case of VMs, this is actually a migrate-or-
+	relocate operation.
+
+Utility functions - Node list manipulation
+
+  node_list = union(left_node_list, right_node_list);
+
+	Calculates the union between the two node list, removing duplicates
+	and preserving ordering according to left_node_list.  Any added
+	values from right_node_list will appear in their order, but
+	after left_node_list in the returned list.
+
+  node_list = intersection(left_node_list, right_node_list);
+
+	Calculates the intersection (items in both lists) between the two
+	node lists, removing duplicates and preserving ordering according
+	to left_node_list.  Any added values from right_node_list will
+	appear in their order, but after left_node_list in the returned list.
+
+  node_list = delta(left_node_list, right_node_list);
+
+	Calculates the delta (items not in both lists) between the two
+	node lists, removing duplicates and preserving ordering according
+	to left_node_list.  Any added values from right_node_list will
+	appear in their order, but after left_node_list in the returned list.
+
+  node_list = subtract(left_node_list, right_node_list);
+
+	Removes any duplicates as well as items specified in right_node_list
+	from left_node_list.  Example:
+
+	all_nodes = nodes_online();
+	allowed_nodes = subtract(nodes_online, node_to_avoid);
+
+Utility functions - Logging:
+
+  debug(item1, item2, ...);	LOG_DEBUG level
+  info(...);			LOG_INFO level
+  notice(...);			LOG_NOTICE level
+  warning(...);			LOG_WARNING level
+  err(...);			LOG_ERR level
+  crit(...);			LOG_CRIT level
+  alert(...);			LOG_ALERT level
+  emerg(...);			LOG_EMERG level
+
+	items - These can be strings, integer lists, or integers.  Logging
+		string lists is not supported.
+
+	level - the level is consistent with syslog(8)
+
+  stop_processing();
+
+	Calling this function will prevent further event scripts from being
+	executed on a particular event.  Call this script if, for example,
+	you do not wish for the default event handler to process the event.
+
+	Note: This does NOT terminate the caller script; that is, the
+	script being executed will run to completion.
+
+Event scripts are written in a language called S-Lang; documentation specifics
+about the language are available at http://www.s-lang.org
+
+Example script (creating a follows-but-avoid-after-start behavior):
+%
+% If the main queue server and replication queue server are on the same
+% node, relocate the replication server somewhere else if possible.
+%
+define my_sap_event_trigger()
+{
+	variable state, owner_rep, owner_main;
+	variable nodes, allowed;
+
+	%
+	% If this was a service event, don't execute the default event
+	% script trigger after this script completes.
+	%
+	if (event_type == EVENT_SERVICE) {
+		stop_processing();
+	}
+
+	(owner_main, state) = service_status("service:main_queue");
+	(owner_rep, state) = service_status("service:replication_server");
+
+	if ((event_type == EVENT_NODE) and (owner_main == node_id) and
+	    (node_state == NODE_OFFLINE) and (owner_rep >= 0)) {
+		%
+		% uh oh, the owner of the main server died.  Restart it
+		% on the node running the replication server
+		%
+		notice("Starting Main Queue Server on node ", owner_rep);
+		()=service_start("service:main_queue", owner_rep);
+		return;
+	}
+
+	%
+	% S-Lang doesn't short-circuit prior to 2.1.0
+	%
+	if ((owner_main >= 0) and
+	    ((owner_main == owner_rep) or (owner_rep < 0))) {
+
+		%
+		% Get all online nodes
+		%
+		nodes = nodes_online();
+
+		%
+		% Drop out the owner of the main server
+		%
+		allowed = subtract(nodes, owner_main);
+		if ((owner_rep >= 0) and (length(allowed) == 0)) {
+			%
+			% Only one node is online and the rep server is
+			% already running.  Don't do anything else.
+			%
+			return;
+		}
+
+		if ((length(allowed) == 0) and (owner_rep < 0)) {
+			%
+			% Only node online is the owner ... go ahead
+			% and start it, even though it doesn't increase
+			% availability to do so.
+			%
+			allowed = owner_main;
+		}
+
+		%
+		% Move the replication server off the node that is
+		% running the main server if a node's available.
+		%
+		if (owner_rep >= 0) {
+			()=service_stop("service:replication_server");
+		}
+		()=service_start("service:replication_server", allowed);
+	}
+
+	return;
+}
+
+my_sap_event_trigger();
+
+
+Relevant <rm> section from cluster.conf:
+
+        <rm central_processing="1">
+                <events>
+                        <event name="main-start" class="service"
+				service="service:main_queue"
+				service_state="started"
+				file="/tmp/sap.sl"/>
+                        <event name="rep-start" class="service"
+				service="service:replication_server"
+				service_state="started"
+				file="/tmp/sap.sl"/>
+                        <event name="node-up" node_state="up"
+				class="node"
+				file="/tmp/sap.sl"/>
+
+                </events>
+                <failoverdomains>
+                        <failoverdomain name="all" ordered="1" restricted="1">
+                                <failoverdomainnode name="molly"
+priority="2"/>
+                                <failoverdomainnode name="frederick"
+priority="1"/>
+                        </failoverdomain>
+                </failoverdomains>
+                <resources/>
+                <service name="main_queue"/>
+                <service name="replication_server" autostart="0"/>
+		<!-- replication server is started when main-server start
+		     event completes -->
+        </rm>
+
+

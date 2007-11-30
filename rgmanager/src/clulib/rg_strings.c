@@ -26,6 +26,8 @@ struct string_val {
 
 
 const struct string_val rg_error_strings[] = {
+	{ RG_EDOMAIN,   "Service not runnable" },
+	{ RG_ESCRIPT,   "S/Lang Script Error" },
 	{ RG_EFENCE,    "Fencing operation pending; try again later" },
 	{ RG_ENODE,     "Target node dead / nonexistent" },
 	{ RG_ERUN,      "Service is already running" },
@@ -147,6 +149,21 @@ rg_flag_search_table(const struct string_val *table, int val)
 	return "Unknown";
 }
 
+static inline int
+rg_search_table_by_str(const struct string_val *table, const char *val)
+{
+	int x;
+
+	for (x = 0; table[x].str != NULL; x++) {
+		if (!strcasecmp(table[x].str, val))
+			return table[x].val;
+	}
+
+	return -1;
+}
+
+
+
 const char *
 rg_strerror(int val)
 {
@@ -158,6 +175,14 @@ rg_state_str(int val)
 {
 	return rg_search_table(rg_state_strings, val);
 }
+
+int
+rg_state_str_to_id(const char *val)
+{
+	return rg_search_table_by_str(rg_state_strings, val);
+}
+
+
 
 const char *
 rg_flags_str(char *flags_string, size_t size, int val, char *separator)

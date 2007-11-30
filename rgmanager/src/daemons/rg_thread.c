@@ -16,12 +16,12 @@
   Free Software Foundation, Inc.,  675 Mass Ave, Cambridge, 
   MA 02139, USA.
 */
+#include <message.h>
 #include <resgroup.h>
 #include <rg_locks.h>
 #include <gettid.h>
 #include <rg_queue.h>
 #include <assert.h>
-#include <message.h>
 
 /**
  * Resource thread list entry.
@@ -54,6 +54,7 @@ static int spawn_if_needed(const char *resgroupname);
 int rt_enqueue_request(const char *resgroupname, int request,
 		       msgctx_t *response_ctx, int max, uint32_t target,
 		       int arg0, int arg1);
+int central_events_enabled(void);
 
 
 /**
@@ -446,6 +447,11 @@ resgroup_thread_main(void *arg)
 
 			error = svc_stop(myname, RG_STOP_RECOVER);
 			if (error == 0) {
+				/* Stop generates an event - whatever the
+				   result.  If central events are enabled
+				   don't bother trying to recover */
+				if (central_events_enabled())
+					break;
 				error = handle_recover_req(myname, &newowner);
 				if (error == 0)
 					ret = RG_SUCCESS;
@@ -690,7 +696,7 @@ rt_enqueue_request(const char *resgroupname, int request,
 	} else {
 		if (max) {
 			list_do(resgroup->rt_queue, curr) {
-				if (curr->rr_request == request)
+				if ((int)curr->rr_request == request)
 					count++;
 			} while (!list_done(resgroup->rt_queue, curr));
 	
@@ -713,7 +719,7 @@ rt_enqueue_request(const char *resgroupname, int request,
 		case RG_START:
 		case RG_ENABLE:
 			send_ret(response_ctx, resgroup->rt_name, RG_EDEADLCK,
-				 request);
+				 request, 0);
 			msg_close(response_ctx);
 			msg_free_ctx(response_ctx);
 			break;

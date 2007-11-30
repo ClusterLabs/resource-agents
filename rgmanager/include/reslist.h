@@ -202,6 +202,8 @@ void deconstruct_domains(fod_t **domains);
 void print_domains(fod_t **domains);
 int node_should_start(int nodeid, cluster_member_list_t *membership,
 		      char *rg_name, fod_t **domains);
+int node_domain_set(fod_t *domain, int **ret, int *retlen);
+int node_domain_set_safe(char *domainname, int **ret, int *retlen, int *flags);
 
 
 /*
@@ -210,6 +212,7 @@ int node_should_start(int nodeid, cluster_member_list_t *membership,
 resource_t *find_resource_by_ref(resource_t **reslist, char *type, char *ref);
 resource_t *find_root_by_ref(resource_t **reslist, char *ref);
 resource_rule_t *find_rule_by_type(resource_rule_t **rulelist, char *type);
+void res_build_name(char *, size_t, resource_t *);
 
 /*
    Internal functions; shouldn't be needed.
