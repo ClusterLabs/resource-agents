@@ -971,6 +971,9 @@ static void _receive_plock(struct mountgroup *mg, char *buf, int len, int from)
 	   - A sends drop, B sends plock, receive drop, receive plock.
 	   This is addressed above.
 
+	   - A sends drop, B sends plock, receive drop, B reads plock
+	   and sends own, receive plock, on B we find owner of -1.
+
 	   - A sends drop, B sends two plocks, receive drop, receive plocks.
 	   Receiving the first plock is the previous case, receiving the
 	   second plock will find r with owner of -1.
@@ -983,23 +986,29 @@ static void _receive_plock(struct mountgroup *mg, char *buf, int len, int from)
 	   last case below; receiving a plock from ourself and finding
 	   we're the owner of r. */
 
-	/* may want to supress this if some of them are common enough */
-	if (r->owner)
-		log_error("receive_plock from %d r %llx owner %d", from,
-			  (unsigned long long)info.number, r->owner);
-
 	if (!r->owner) {
 		__receive_plock(mg, &info, from, r);
 
 	} else if (r->owner == -1) {
+		log_debug("receive_plock from %d r %llx owner %d", from,
+			  (unsigned long long)info.number, r->owner);
+
 		if (from == our_nodeid)
 			save_pending_plock(mg, r, &info);
 
 	} else if (r->owner != our_nodeid) {
+		/* might happen, if frequent change to log_debug */
+		log_error("receive_plock from %d r %llx owner %d", from,
+			  (unsigned long long)info.number, r->owner);
+
 		if (from == our_nodeid)
 			save_pending_plock(mg, r, &info);
 
 	} else if (r->owner == our_nodeid) {
+		/* might happen, if frequent change to log_debug */
+		log_error("receive_plock from %d r %llx owner %d", from,
+			  (unsigned long long)info.number, r->owner);
+
 		if (from == our_nodeid)
 			__receive_plock(mg, &info, from, r);
 	}
