@@ -173,7 +173,12 @@ open_iscsi_discovery() {
 	fi
 	portal=`echo "$output" |
 		awk -v target="$OCF_RESKEY_target" '
-		$NF==target{sub(",.*","",$1);print $1}'`
+		$NF==target{
+			if( NF==3 ) portal=$2; # sles compat mode
+			else portal=$1;
+			sub(",.*","",portal);
+			print portal;
+		}'`
 
 	case `echo "$portal" | wc -w` in
 	0) #target not found
