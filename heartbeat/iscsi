@@ -1,0 +1,346 @@
+#!/bin/sh
+#
+# iSCSI OCF resource agent
+# Description: manage iSCSI disks (add/remove) using open-iscsi
+#
+# Copyright Dejan Muhamedagic <dejan@suse.de>
+# (C) 2007 Novell Inc. All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+# See usage() and meta_data() below for more details...
+#
+# OCF instance parameters:
+#	OCF_RESKEY_portal: the iSCSI portal address or host name (required)
+#	OCF_RESKEY_target: the iSCSI target (required)
+#	OCF_RESKEY_iscsiadm: iscsiadm program path (optional)
+#	OCF_RESKEY_discovery_type: discovery type (optional; default: sendtargets)
+#
+# Initialization:
+
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
+
+usage() {
+  methods=`iscsi_methods`
+  methods=`echo $methods | tr ' ' '|'`
+  cat <<-!
+	usage: $0 {$methods}
+
+	$0 manages an iSCSI target
+
+	The 'start' operation starts (adds) the iSCSI target.
+	The 'stop' operation stops (removes) the iSCSI target.
+	The 'status' operation reports whether the iSCSI target is connected
+	The 'monitor' operation reports whether the iSCSI target is connected
+	The 'validate-all' operation reports whether the parameters are valid
+	The 'methods' operation reports on the methods $0 supports
+
+	!
+}
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="iscsi">
+<version>1.0</version>
+
+<longdesc lang="en">
+OCF Resource Agent for iSCSI. Add (start) or remove (stop) iSCSI
+targets.
+</longdesc>
+<shortdesc lang="en">iscsi resource agent</shortdesc>
+
+<parameters>
+
+<parameter name="portal" unique="0" required="1">
+<longdesc lang="en">
+The iSCSI portal address in the form: {ip_address|hostname}[":"port]
+</longdesc>
+<shortdesc lang="en">portal</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="target" unique="1" required="1">
+<longdesc lang="en">
+The iSCSI target.
+</longdesc>
+<shortdesc lang="en">target</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="discovery_type" unique="0" required="0">
+<longdesc lang="en">
+Discovery type. Currently, with open-iscsi, only the sendtargets
+type is supported.
+</longdesc>
+<shortdesc lang="en">discovery_type</shortdesc>
+<content type="string" default="sendtargets" />
+</parameter>
+
+<parameter name="iscsiadm" unique="0" required="0">
+<longdesc lang="en">
+iscsiadm program path.
+</longdesc>
+<shortdesc lang="en">iscsiadm</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start" timeout="120" />
+<action name="stop" timeout="120" />
+<action name="status" timeout="30" />
+<action name="monitor" depth="0" timeout="30" interval="120" start-delay="10" />
+<action name="validate-all" timeout="5" />
+<action name="methods" timeout="5" />
+<action name="meta-data" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+iscsi_methods() {
+  cat <<-!
+	start
+	stop
+	status
+	monitor
+	validate-all
+	methods
+	meta-data
+	usage
+	!
+}
+
+#
+# open-iscsi interface
+#
+
+open_iscsi_daemon() {
+	if ps -e -o cmd | grep -qs '[i]scsid'; then
+		return 0
+	else
+		ocf_log err "iscsid not running; please start open-iscsi utilities"
+		return 1
+	fi
+}
+open_iscsi_setup() {
+	discovery=open_iscsi_discovery
+	add_disk=open_iscsi_add
+	remove_disk=open_iscsi_remove
+	disk_status=open_iscsi_status
+	iscsiadm=${OCF_RESKEY_iscsiadm:-"iscsiadm"}
+
+	which $iscsiadm >/dev/null || {
+		ocf_log err "iscsiadm not available; please set OCF_RESKEY_iscsiadm"
+		return $OCF_ERR_INSTALLED
+	}
+	open_iscsi_daemon ||
+		return $OCF_ERR_INSTALLED
+}
+
+#
+# discovery return codes:
+#   0: ok (variable portal set)
+#   1: target not found
+#   2: target found but can't connect it unambigously
+#   3: iscsiadm returned error
+
+open_iscsi_discovery() {
+	output=`$iscsiadm -m discovery -p $OCF_RESKEY_portal -t $discovery_type`
+	if [ $? -ne 0 -o x = "x$output" ]; then
+		[ x != "x$output" ] && echo "$output"
+		return 3
+	fi
+	portal=`echo "$output" |
+		awk -v target="$OCF_RESKEY_target" '
+		$NF==target{
+			if( NF==3 ) portal=$2; # sles compat mode
+			else portal=$1;
+			sub(",.*","",portal);
+			print portal;
+		}'`
+
+	case `echo "$portal" | wc -w` in
+	0) #target not found
+		echo "$output"
+		ocf_log err "target $OCF_RESKEY_target not found at portal $OCF_RESKEY_portal"
+		return 1
+	;;
+	1) #we're ok
+		return 0
+	;;
+	*) # handle multihome hosts reporting multiple portals
+		for p in $portal; do
+			if [ "$OCF_RESKEY_portal" = "$p" ]; then
+				portal="$OCF_RESKEY_portal"
+				return 0
+			fi
+		done
+		echo "$output"
+		ocf_log err "sorry, can't handle multihomed hosts unless you specify the portal exactly"
+		return 2
+	;;
+	esac
+}
+open_iscsi_add() {
+	$iscsiadm -m node -p $1 -T $2 -l
+}
+open_iscsi_remove() {
+	$iscsiadm -m node -p $1 -T $2 -u
+}
+open_iscsi_status() {
+	$iscsiadm -m session | grep -qs "$2$"
+}
+
+iscsi_status() {
+	if $disk_status $portal $OCF_RESKEY_target; then
+		return $OCF_SUCCESS
+	else
+		return $OCF_NOT_RUNNING
+	fi
+}
+iscsi_start() {
+	if iscsi_status; then
+		ocf_log info "iscsi $portal $OCF_RESKEY_target already running"
+		return $OCF_SUCCESS
+	else
+		$add_disk $portal $OCF_RESKEY_target ||
+			return $OCF_ERR_GENERIC
+		if iscsi_status; then
+			return $OCF_SUCCESS
+		else
+			return $OCF_ERR_GENERIC
+		fi
+	fi
+}
+iscsi_stop() {
+	if iscsi_status; then
+		$remove_disk $portal $OCF_RESKEY_target ||
+			return $OCF_ERR_GENERIC
+		if iscsi_status; then
+			return $OCF_ERR_GENERIC
+		else
+			return $OCF_SUCCESS
+		fi
+	else
+		ocf_log info "iscsi $portal $OCF_RESKEY_target already stopped"
+		return $OCF_SUCCESS
+	fi
+}
+
+iscsi_monitor() {
+	if $disk_status $portal $OCF_RESKEY_target; then
+		return $OCF_SUCCESS
+    else
+		return $OCF_NOT_RUNNING
+    fi
+}
+
+#
+#	'main' starts here...
+#
+
+if [ $# -ne 1 ]; then
+	usage
+	exit $OCF_ERR_ARGS
+fi
+
+# These operations don't require OCF instance parameters to be set
+case "$1" in
+	meta-data)	meta_data
+		exit $OCF_SUCCESS;;
+	usage) usage
+		exit $OCF_SUCCESS;;
+	methods) iscsi_methods
+		exit $OCF_SUCCESS;;
+esac
+
+if [ x = "x$OCF_RESKEY_target" ]; then
+	ocf_log err "Please set the target attribute"
+	exit $OCF_ERR_ARGS
+fi
+
+case `uname` in
+Linux) setup=open_iscsi_setup
+;;
+*) ocf_log info "platform `uname` may not be supported"
+	setup=open_iscsi_setup
+;;
+esac
+
+LSB_STATUS_STOPPED=3
+$setup
+rc=$?
+if [ $rc -ne 0 ]; then
+	ocf_log info "iscsi initiator utilities not installed or not setup"
+	case "$1" in
+		stop) exit $OCF_SUCCESS;;
+		monitor) exit $OCF_NOT_RUNNING;;
+		status) exit $LSB_STATUS_STOPPED;;
+		*) exit $rc;;
+	esac
+fi
+
+if [ `id -u` != 0 ]; then
+	ocf_log err "$0 must be run as root"
+	exit $OCF_ERR_PERM
+fi
+
+discovery_type=${OCF_RESKEY_discovery_type:-"sendtargets"}
+$discovery  # discover and setup the real portal string (address)
+case $? in
+0) ;;
+1) [ "$1" = stop ] && exit $OCF_SUCCESS
+   [ "$1" = monitor ] && exit $OCF_NOT_RUNNING
+   [ "$1" = status ] && exit $LSB_STATUS_STOPPED
+   exit $OCF_ERR_GENERIC
+;;
+[23]) exit $OCF_ERR_GENERIC;;
+esac
+
+# What kind of method was invoked?
+case "$1" in
+	start)	iscsi_start
+	;;
+	stop)	iscsi_stop
+	;;
+	status)	if iscsi_status
+		then
+		  echo iscsi target $OCF_RESKEY_target running
+		  exit $OCF_SUCCESS
+		else
+		  echo iscsi target $OCF_RESKEY_target stopped
+		  exit $OCF_NOT_RUNNING
+		fi
+		;;
+	monitor)	iscsi_status
+	;;
+	validate-all)	# everything already validated
+		# just exit successfully here.
+		exit $OCF_SUCCESS;;
+	*)		iscsi_methods
+		exit $OCF_ERR_UNIMPLEMENTED;;
+esac
+
+#
+# vim:tabstop=4:shiftwidth=4:textwidth=0:wrapmargin=0

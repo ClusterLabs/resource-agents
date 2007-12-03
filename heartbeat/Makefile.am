@@ -35,8 +35,7 @@ endif
 IPv6addr_SOURCES        = IPv6addr.c
 
 IPv6addr_LDADD          = $(top_builddir)/lib/clplumbing/libplumb.la    \
-                        $(gliblib) @LIBNETLIBS@ 			\
-			$(top_builddir)/lib/pils/libpils.la
+                        $(gliblib) @LIBNETLIBS@
 
 
 
@@ -54,6 +53,8 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			EvmsSCC		\
 			Evmsd		\
 			Filesystem	\
+			ids		\
+			iscsi		\
 			ICP		\
 			IPsrcaddr	\
 			LinuxSCSI	\
@@ -77,6 +78,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			ServeRAID	\
 			Stateful	\
 			SysInfo		\
+			tomcat		\
 			VIPArip		\
 			WAS		\
 			WAS6		\

@@ -111,6 +111,12 @@ start_ve()
 {
   declare -i retcode
 
+  veexists=`$VZCTL status $VEID 2>/dev/null | $AWK '{print $3}'`
+  if [[ $veexists != "exist" ]]; then
+    ocf_log err "vzctl status $VEID returned: $VEID does not exist."
+    return $OCF_ERR_INSTALLED
+  fi
+
   status_ve
   retcode=$?
 
@@ -178,7 +184,7 @@ status_ve()
 
   if [[ $veexists != "exist" ]]; then
     ocf_log err "vzctl status $VEID returned: $VEID does not exist."
-    return $OCF_ERR_INSTALLED
+    return $OCF_NOT_RUNNING
   fi
 
   case "$vestatus" in

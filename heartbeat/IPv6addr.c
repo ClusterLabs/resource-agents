@@ -189,7 +189,7 @@ main(int argc, char* argv[])
 
 	/* open system log */
 	cl_log_set_entity(APP_NAME);
-	cl_log_set_facility(LOG_DAEMON);
+	cl_log_set_facility(HA_LOG_FACILITY);
 
 	/* the meta-data dont need any parameter */
 	if (0 == strncmp(META_DATA_CMD, argv[1], strlen(META_DATA_CMD))) {

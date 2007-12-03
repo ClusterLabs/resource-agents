@@ -1,0 +1,736 @@
+#!/bin/sh
+#
+#
+# ids
+#
+# Description:
+#
+# OCF resource agent that manages an 
+# IBM Informix Dynamic Server (IDS) instance 
+# as an High-Availability resource.
+####
+#
+# Author:			Lars D. Forseth, <lars.forseth@de.ibm.com> or <lars@forseth.de>
+# Created:			May 25th 2007
+# Last Modified:	July 30th 2007
+# Support:			linux-ha@lists.linux-ha.org
+# License:			GNU General Public License (GPL), Version 2 or later
+# Copyright:		(c) 2002 - 2007 International Business Machines, Inc.
+#
+# This code is inspired by the db2 OCF resource agent 
+# written by Alan Robertson, <alanr@unix.sh>
+####
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+####
+#
+# Example usage as it would appear in /etc/ha.d/haresources:
+#		node1 192.168.0.1 ids::/informix::ids1::onconfig.ids1
+#
+#
+# --> Note that passing dbname and sqltestquery in heartbeat version 1 style is not supported!
+#
+# See usage() function below for more details...
+####
+#
+# OCF instance parameters:
+#   OCF_RESKEY_informixdir
+#	OCF_RESKEY_informixserver 
+#	OCF_RESKEY_onconfig
+#	OCF_RESKEY_dbname
+#	OCF_RESKEY_sqltestquery
+####
+
+
+#
+# Include general OCF functions and variables (such as OCF return codes).
+#
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
+
+
+#
+# Function that displays the usage of this script.
+#
+ids_usage() {
+	methods=`ids_methods`
+	methods=`echo $methods | tr ' ' '|'`
+
+	echo "
+	usage: $0 ($methods)
+
+	$0 manages an IBM Informix Dynamic Server (IDS) instance as an High-Availability resource.
+
+	The 'start' operation starts the database.
+	The 'stop' operation stops the database.
+	The 'status' operation reports whether the database is running
+	The 'monitor' operation reports whether the database seems to be working
+	The 'validate-all' operation reports whether the parameters are valid
+	The 'methods' operation lists the methods $0 supports
+	The 'usage' operation displays this text
+	The 'meta-data' operation returns the meta-data (in XML) of this resource script
+    "
+}
+
+
+#
+# Function that displays the possible methods this script supports.
+#
+ids_methods() {
+	echo " 
+	start
+	stop
+	status
+	monitor
+	validate-all
+	methods
+	usage
+	meta-data
+	"
+}
+
+
+#
+# Function that displays the meta-data of this OCF resource agent.
+#
+ids_meta_data() {
+    cat <<-!
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="ids">
+<version>1.0</version>
+
+
+<longdesc lang="en">
+OCF resource agent to manage an IBM Informix Dynamic Server (IDS) instance as an High-Availability resource.
+</longdesc>
+<shortdesc lang="en">OCF resource agent for the IBM's database server called Informix Dynamic Server (IDS)</shortdesc>
+
+
+<parameters>
+
+<parameter name="informixdir" required="0">
+<longdesc lang="en">
+The value the environment variable INFORMIXDIR has after a typical installation of IDS.
+Or in other words: the path (without trailing '/') where IDS was installed to.
+If this parameter is unspecified the script will try to get the value from the shell environment.
+</longdesc>
+<shortdesc lang="en">
+INFORMIXDIR environment variable
+</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="informixserver" required="0">
+<longdesc lang="en">
+The value the environment variable INFORMIXSERVER has after a typical installation of IDS.
+Or in other words: the name of the IDS server instance to manage.
+If this parameter is unspecified the script will try to get the value from the shell environment.
+</longdesc>
+<shortdesc lang="en">
+INFORMIXSERVER environment variable
+</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="onconfig" required="0">
+<longdesc lang="en">
+The value the environment variable ONCONFIG has after a typical installation of IDS.
+Or in other words: the name of the configuration file for the IDS instance specified in INFORMIXSERVER. 
+The specified configuration file will be searched at '$INFORMIXDIR/etc/$ONCONFIG'.
+If this parameter is unspecified the script will try to get the value from the shell environment.
+</longdesc>
+<shortdesc lang="en">
+ONCONFIG environment variable
+</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="dbname" required="0">
+<longdesc lang="en">
+This parameter defines which database to use in order to monitor the IDS instance.
+If this parameter is unspecified the script will use the 'sysmaster' database as a default.
+</longdesc>
+<shortdesc lang="en">
+database to use for monitoring, defaults to 'sysmaster'
+</shortdesc>
+<content type="string" default="sysmaster" />
+</parameter>
+
+<parameter name="sqltestquery" required="0">
+<longdesc lang="en">
+SQL test query to run on the database specified by the parameter 'dbname' 
+in order to monitor the IDS instance and determine if it's functional or not.
+If this parameter is unspecified the script will use 'SELECT COUNT(*) FROM systables;' as a default.
+</longdesc>
+<shortdesc lang="en">
+SQL test query to use for monitoring, defaults to 'SELECT COUNT(*) FROM systables;'
+</shortdesc>
+<content type="string" default="SELECT COUNT(*) FROM systables;" />
+</parameter>
+
+</parameters>
+
+
+<actions>
+<action name="start" timeout="120" />
+<action name="stop" timeout="120" />
+<action name="status" timeout="60" />
+<action name="monitor" depth="0" timeout="30" interval="10" start-delay="10" />
+<action name="validate-all" timeout="5" />
+<action name="meta-data" timeout="5" />
+<action name="methods" timeout="5" />
+<action name="usage" timeout="5" />
+</actions>
+
+
+</resource-agent>
+!
+}
+
+
+#
+# Function that either forwards log messages to the ocf_log function
+# provided by heartbeat or simply prints them to standard out via echo.
+# This is determined by setting the variable "idslogger" to "echo" or "ocf".
+# The default for "idslogger" is "ocf".
+#
+ids_log() {
+
+	# Where should the passed log messages be passed to,
+	# to the standard output via the echo command ("echo")
+	# or to the ocf_log function provided by heartbeat ("ocf") ?
+	# Default is "ocf".
+	idslogger="ocf"
+
+	# When the variable "idsdebug" is not set to "true"
+	# this function (ids_log) will not print any info message
+	# that has been forwarded to it!
+	# This is done in order to spare if-statements within the 
+	# other functions in this script and to centralize the decision
+	# whether to have a chatty resource script or not... ;)
+	# Nevertheless, error messages will always be printed!
+	idsdebug=false
+
+	# Only continue if the two expected parameters 
+	# are not empty and "idsdebug" is set to "true"
+	# or the message is of type "error".
+	if [ $# -eq 2 -a -n "$1" -a -n "$2" ]; then
+		if [ "$idsdebug" = "true" -o "$1" = "error" ]; then
+			case $idslogger in
+				# Print messages to stdout via echo command.
+				echo)
+					echo "`date +'%b %d %H:%M:%S'`: [$1] $2";;
+				# Pass messages to ocf_log function.
+				ocf|*)
+					ocf_log "$1" "$2";;
+			esac
+		fi
+	fi		
+}
+
+
+#
+# Function that prints the current values of important environment variables
+# needed by the script and the IDS instance itself. The just mentioned variables are:
+# - INFORMIXDIR
+# - INFORMIXSERVER
+# - ONCONFIG
+# - PATH
+# - LD_LIBRARY_PATH
+#
+ids_debug() {
+	ids_log info "called ids_debug"	
+
+	ids_log info "INFORMIXDIR=$INFORMIXDIR"
+	ids_log info "OCF_RESKEY_informixdir=$OCF_RESKEY_informixdir"
+	
+	ids_log info "INFORMIXSERVER=$INFORMIXSERVER"
+	ids_log info "OCF_RESKEY_informixserver=$OCF_RESKEY_informixserver"
+	
+	ids_log info "ONCONFIG=$ONCONFIG"
+	ids_log info "OCF_RESKEY_onconfig=$OCF_RESKEY_onconfig"
+	
+	ids_log info "PATH=$PATH"
+	ids_log info "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+	
+	ids_log info "dbname=$OCF_RESKEY_dbname"
+	ids_log info "sqltestquery=$OCF_RESKEY_sqltestquery"
+
+	ids_log info "this script is run as user: `id`"
+	ids_log info "...in the current working directory: `pwd`"
+}
+
+
+#
+# Function that validates if the passed parameters are valid and sets them if valid. 
+# If the first three parameters have not been passed, 
+# this function checks whether they have been already set in the parent's shell environment.
+# The variables that are checked and set (only the capitalized ones are set) are:
+# - INFORMIXDIR
+# - INFORMIXSERVER
+# - ONCONFIG
+# - PATH
+# - LD_LIBRARY_PATH
+# - dbname
+# - sqltestquery
+#
+ids_validate() {
+	
+	ids_log info "called ids_validate"
+	rc=$OCF_SUCCESS
+
+	# Check if INFORMIX, INFORMIXSERVER and ONCONFIG 
+	# have been passed or set and validate them.
+	
+	# OCF vars not passed, vars empty - set and export them to the shell environment.
+	if [ -n "$OCF_RESKEY_informixdir" -a -n "$OCF_RESKEY_informixserver" -a -n "$OCF_RESKEY_onconfig" ]; then
+		ids_log info "ids_validate: passed vars not empty"
+		
+		INFORMIXDIR=$OCF_RESKEY_informixdir
+		export INFORMIXDIR
+
+		INFORMIXSERVER=$OCF_RESKEY_informixserver
+		export INFORMIXSERVER
+
+		ONCONFIG=$OCF_RESKEY_onconfig
+		export ONCONFIG
+	fi
+
+	# Check if INFORMIXDIR is non-empty and a directory (and if there was an error so far).
+	if [ $rc -eq $OCF_SUCCESS -a -n "$INFORMIXDIR" -a -d "$INFORMIXDIR" ]; then
+		ids_log info "ids_validate: INFORMIXDIR is valid: $INFORMIXDIR"
+		rc=$OCF_SUCCESS
+	else
+		ids_log error "ids_validate: INFORMIXDIR is invalid: $INFORMIXDIR"
+		rc=$OCF_ERR_ARGS
+	fi
+
+	# Check if INFORMIXSERVER is non-empty (and if there was an error so far).
+	if [ $rc -eq $OCF_SUCCESS -a -n "$INFORMIXSERVER" ]; then
+		ids_log info "ids_validate: INFORMIXSERVER is valid: $INFORMIXSERVER"
+		rc=$OCF_SUCCESS
+	else
+		ids_log error "ids_validate: INFORMIXSERVER is invalid: $INFORMIXSERVER"
+		rc=$OCF_ERR_ARGS
+	fi
+
+	# Check if ONCONFIG is non-empty and a non-empty file (and if there was an error so far).
+	if [ $rc -eq $OCF_SUCCESS -a -n "$ONCONFIG" -a -s "$INFORMIXDIR/etc/$ONCONFIG" ]; then
+		ids_log info "ids_validate: ONCONFIG is a non-empty file in: \$INFORMIXDIR/etc/\$ONCONFIG where ONCONFIG=$ONCONFIG"
+		rc=$OCF_SUCCESS
+	else 
+		if [ -z "$ONCONFIG" -a -s "$INFORMIXDIR/etc/onconfig" ]; then
+			ONCONFIG="onconfig" 
+			export ONCONFIG
+			ids_log info "ids_validate: ONCONFIG is a non-empty file in: \$INFORMIXDIR/etc/\$ONCONFIG where ONCONFIG=$ONCONFIG"
+			rc=$OCF_SUCCESS
+		else
+			if [ -z "$ONCONFIG" -a -s "$INFORMIXDIR/etc/onconfig.std" ]; then
+				ONCONFIG="onconfig.std"
+            	export ONCONFIG
+				ids_log info "ids_validate: ONCONFIG is a non-empty file in: \$INFORMIXDIR/etc/\$ONCONFIG where ONCONFIG=$ONCONFIG"
+            	rc=$OCF_SUCCESS				
+			else
+				ids_log error "ids_validate: ONCONFIG is invalid, searched for it in: \$INFORMIXDIR/etc/\$ONCONFIG where ONCONFIG=$ONCONFIG"
+				rc=$OCF_ERR_ARGS
+			fi
+		fi
+	fi
+
+	# Check if the commands oninit, onstat, onmode and dbaccess	exist in INFORMIXDIR/bin/
+	# and whether they are executable (do this only if there wasn't an error so far).
+	if [ $rc -eq $OCF_SUCCESS -a -x "$INFORMIXDIR/bin/oninit" -a -x "$INFORMIXDIR/bin/onstat" -a -x "$INFORMIXDIR/bin/onmode" -a -x "$INFORMIXDIR/bin/dbaccess" ]; then
+		ids_log info "ids_validate: oninit, onstat and dbaccess exist and are executable in: \$INFORMIXDIR/bin/"
+		rc=$OCF_SUCCESS
+	else
+		ids_log error "ids_validate: oninit, onstat or dbacces don't exist or they are not executable in: \$INFORMIXDIR/bin/"
+		rc=$OCF_ERR_PERM
+	fi
+
+	# Extend PATH and LD_LIBRARY_PATH as needed for the IDS instance to run properly
+	# BUT: only do this if it hasn't been done before! Otherwise PATH and LD_LIBRARY_PATH will
+	# keep on growing every time heartbeat calls the IDS resource agent script! ;)
+	echo $PATH | grep $INFORMIXDIR > /dev/null 2>&1
+	inpath=$?
+	
+	if [ $rc -eq $OCF_SUCCESS -a $inpath -ne 0 ]; then 
+		PATH="${INFORMIXDIR}/bin":${PATH}
+		export PATH
+		ids_log info "ids_validate: PATH did not contain INFORMIXDIR, added \$INFORMIXDIR/bin"
+	else
+		ids_log info "ids_validate: INFORMIXDIR already in PATH, where PATH=$PATH"
+	fi
+
+	echo $LD_LIBRARY_PATH | grep $INFORMIXDIR > /dev/null 2>&1
+	inldlibpath=$?
+
+	if [ $rc -eq $OCF_SUCCESS -a $inldlibpath -ne 0 ]; then
+		LD_LIBRARY_PATH="${INFORMIXDIR}/lib:${INFORMIXDIR}/lib/esql"
+		export LD_LIBRARY_PATH
+		ids_log info "ids_validate: LD_LIBRARY_PATH did not contain INFORMIXDIR, added \$INFORMIXDIR/lib and \$INFORMIXDIR/lib/esql, added them"
+	else
+		ids_log info "ids_validate: INFORMIXDIR already in LD_LIBRARY_PATH, where LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+	fi
+	
+	# Check if dbname is empty (and if there was an error so far)
+	# if it is empty, assign default.
+	if [ $rc -eq $OCF_SUCCESS -a -n "$OCF_RESKEY_dbname" ]; then
+		ids_log info "ids_validate: dbname is valid: $OCF_RESKEY_dbname"
+		rc=$OCF_SUCCESS
+	else
+		ids_log info "ids_validate: dbname is invalid: $OCF_RESKEY_dbname"
+		ids_log info "ids_validate: using 'sysmaster' as default..."
+		OCF_RESKEY_dbname="sysmaster"
+		export OCF_RESKEY_dbname
+		rc=$OCF_SUCCESS
+	fi
+
+	# Check if sqltestquery is empty (and if there was an error so far)
+	# if it is empty, assign default.
+	if [ $rc -eq $OCF_SUCCESS -a -n "$OCF_RESKEY_sqltestquery" ]; then
+		ids_log info "ids_validate: sqltestquery is valid: $OCF_RESKEY_sqltestquery"
+		rc=$OCF_SUCCESS
+	else
+		ids_log info "ids_validate: sqltestquery is invalid: $OCF_RESKEY_sqltestquery"
+		ids_log info "ids_validate: using 'SELECT COUNT(*) FROM systables;' as default..."
+        OCF_RESKEY_sqltestquery="SELECT COUNT(*) FROM systables;"
+        export OCF_RESKEY_sqltestquery
+        rc=$OCF_SUCCESS
+	fi
+
+	# Return exit status code.
+	return $rc
+}
+
+
+#
+# Function that start the IDS instance and reports any error that
+# may occur while starting.
+#
+ids_start() {
+
+	ids_log info "called ids_start"
+	
+	# Get current status of IDS instance.
+	ids_status
+	stat=$?
+
+	case $stat in
+		
+		# IDS instance already running - exit with success.
+		$OCF_SUCCESS)
+			ids_log info "ids_start: IDS instance already running: $stat"
+			rc=$OCF_SUCCESS;;
+	
+		# IDS instance in undefined state - exit with error.
+		$OCF_ERR_GENERIC)
+			ids_log error "ids_start: IDS instance in undefined state: $stat"
+			ids_debug
+			rc=$OCF_ERR_GENERIC;;	
+
+		# IDS instance not running - try to start it.
+		$OCF_NOT_RUNNING)
+			ids_log info "ids_start: executing 'oninit' now..."	
+			oninit
+			stat=$?
+			ids_log info "ids_start: done executing 'oninit': $stat"
+			
+			# The oninit command terminated successfully - check new state of IDS instance.
+			if [ $stat -eq 0 ]; then
+				# Initialize stat with failure exit status code.
+				stat=$OCF_ERR_GENERIC
+				# Endless loop that waits until IDS is completely online.
+				# If IDS takes too long to achieve this or even hangs, 
+				# the timeout settings of heartbeat will cancel the starting 
+				# of the IDS resource and therefore terminate the loop.
+				while [ $stat -ne $OCF_SUCCESS ]; do
+					ids_status
+					stat=$?
+				done
+				# IDS is running now - success.
+				ids_log info "ids_start: IDS instance successfully started: $stat"
+				rc=$OCF_SUCCESS
+			# The oninit command terminated with an error - starting the IDS resource failed!
+			else
+				ids_log error "ids_start: starting IDS instance failed: $stat"
+				ids_debug
+				rc=$OCF_ERR_GENERIC			
+			fi
+			;;
+
+		# Unexpected state - return OCF_ERR_UNIMPLEMENTED error.
+		*) 
+			ids_log error "ids_start: unexpected state returned from ids_status: $stat"
+			ids_debug
+			rc=$OCF_ERR_UNIMPLEMENTED;;				
+
+	esac
+
+	# Return exit status code.
+	return $rc
+}
+
+
+#
+# Function that stops the IDS instance and reports any error that
+# may occur while stopping.
+#
+ids_stop() {
+	
+	ids_log info "caled ids_stop"
+
+	ids_status
+	stat=$?
+
+	case $stat in
+
+        # IDS instance is not running - success stopping it.
+        $OCF_NOT_RUNNING)
+			ids_log info "ids_stop: IDS instance is not running: $stat"
+            rc=$OCF_SUCCESS;;
+
+        # IDS instance is in an undefined state - exit with error.
+        $OCF_ERR_GENERIC)
+			ids_log error "ids_stop: IDS instance in undefined state: $stat"
+			ids_debug
+            rc=$OCF_ERR_GENERIC;;
+
+        # IDS instance is running - try to stop it.
+        $OCF_SUCCESS)
+			ids_log info "ids_stop: running 'onmode -kuy' now..."
+			onmode -kuy
+			stat=$?
+			ids_log info "ids_stop: done running 'onmode -kuy' now: $stat"
+
+			# The onmode command terminated successfully - check new state of the IDS instance.
+			if [ $stat -eq 0 ]; then
+				ids_status
+                stat=$?
+                # New state is: not running - success.
+                if [ $stat -eq $OCF_NOT_RUNNING ]; then
+					ids_log info "ids_stop: IDS instance successfully stopped: $stat"
+                    rc=$OCF_SUCCESS
+                # New state is: running or even undefined - failure!
+                else
+					ids_log error "ids_stop: stopping IDS instance failed: $stat"
+                    ids_debug
+                    rc=$OCF_ERR_GENERIC
+                fi
+				
+ 			# The onmode command terminated with an error - stopping the IDS resource failed!
+            else
+				ids_log error "ids_stop: stopping IDS instance (by executing 'onmode -kuy') failed: $stat"
+                ids_debug
+                rc=$OCF_ERR_GENERIC
+            fi
+            ;;
+
+		# Unexpected state - return OCF_ERR_UNIMPLEMENTED error.
+        *)
+			ids_log error "ids_stop: unexpected state returned from ids_status: $stat"
+			ids_debug
+            rc=$OCF_ERR_UNIMPLEMENTED;;
+		
+	esac
+
+	# Return exit status code indicating whether IDS was successfully stopped or not.
+	return $rc
+}
+
+
+#
+# Function that determines the current status/state of the IDS instance,
+# meaning whether it is running (the case when output of "onstat -" contains "On-Line"),
+# not running (the case when output of "onstat -" contains "shared memory not initialized")
+# or in an undefined state (the case output of "onstat -" contains "Quiescent", "Single-User", or other).
+# If the IDS instance is declared running the exit status code will indicate succes, otherwise failure of course.
+#
+ids_status() {
+	
+	ids_log info "called ids_status"
+
+	# Get current status from the onstat tool and store it.
+	stat=`onstat -`
+	
+	case $stat in
+		
+		# IDS instance is running.
+		*"On-Line"*)
+			ids_log info "ids_status: IDS instance running: $stat"
+			rc=$OCF_SUCCESS;;
+
+		# IDS instance is not running.
+		*"shared memory not initialized"*)
+			ids_log info "ids_status: IDS instance not running: $stat"
+			rc=$OCF_NOT_RUNNING;;
+
+		# IDS instance is in an undefined state!
+		*)
+			ids_log error "ids_status: IDS instance status undefined: $stat"
+			rc=$OCF_ERR_GENERIC;;
+	esac
+	
+	# Return exit status code (ergo current status of the IDS instance) to caller
+	return $rc
+}
+
+
+#
+# Function that monitors the current status _and_ funtionality of the IDS instance.
+# First the state of the instance is determined. If it is running, a sql test query is
+# executed on the database. If the sql test query executes sucessfully, the instance's
+# status is rechecked and if it is still running, the script terminates with an exit
+# status code indicating success. If any of the above described steps fails, 
+# the script terminates with an error.
+#
+ids_monitor() {
+	
+	ids_log info "called ids_monitor" 
+
+	ids_status
+	stat=$?
+
+	case $stat in
+
+        # IDS instance is not running - monitoring failed.
+        $OCF_NOT_RUNNING)
+			ids_log info "ids_monitor: IDS instance is not running: $stat"
+            rc=$OCF_NOT_RUNNING;;
+
+        # IDS instance in an undefined state - exit with error.
+        $OCF_ERR_GENERIC)
+			ids_log error "ids_monitor: IDS instance in undefined state: $stat"
+			ids_debug
+            rc=$OCF_ERR_GENERIC;;
+
+        # IDS instance is running - try to execute the sql test query and recheck state.
+        $OCF_SUCCESS)
+			ids_log info "ids_monitor: IDS instance is running (before executing sql test query)"
+			ids_log info "ids_monitor: running sql test query now..."
+			echo $OCF_RESKEY_sqltestquery | dbaccess $OCF_RESKEY_dbname - > /dev/null 2>&1
+			stat=$?
+			ids_log info "ids_monitor: done running sql test query now: $stat"
+
+			# The sql test query terminated successfully - check the new state of the IDS instance.
+			if [ $stat -eq 0 ]; then
+				ids_status
+                stat=$?
+                # New state is: running - success.
+                if [ $stat -eq $OCF_SUCCESS ]; then
+					ids_log info "ids_monitor: successfully ran sql test query on IDS instance: $stat"
+                    rc=$OCF_SUCCESS
+                # New state is: not running or even undefined - failure!
+                else
+					ids_log error "ids_monitor: running sql test query on IDS instance failed: $stat"
+                    ids_debug
+                    rc=$OCF_ERR_GENERIC
+                fi
+				
+ 			# The sql test query terminated with an error - exit with error!
+            else
+				ids_log error "ids_monitor: running sql test query on IDS instance failed: $stat"
+                ids_debug
+                rc=$OCF_ERR_GENERIC
+            fi
+            ;;
+
+		# Unexpected state - return OCF_ERR_UNIMPLEMENTED error!
+        *)
+			ids_log error "ids_monitor: unexpected state returned from ids_status: $stat"
+			ids_debug
+            rc=$OCF_ERR_UNIMPLEMENTED;;
+		
+	esac
+
+	# Return exit status code indicating whether IDS is running and functional or not.
+	return $rc
+}
+
+
+
+
+###
+#
+# M A I N   S E C T I O N
+#
+###
+
+# Validate configuration (parameters and such) 
+# passed to this script and only process the method parameter
+# if the configuration is valid! Otherwise exit with OCF_ERR_ARGS error code.
+
+# Only check configuration when given method is not "validate-all",
+# as in case of "validate-all" the configuration will be checked anyway! ;)
+if [ "$1" != "validate-all" ]; then
+	ids_validate
+	valid=$?
+	ids_log info "main section: validated ids RA configuration, result: $valid"
+	
+	# Configuration invalid - terminate with error message.
+	if [ $valid -ne $OCF_SUCCESS ]; then
+		ids_log error "main section: terminating script due to invalid configuration"
+		ids_debug
+		exit $OCF_ERR_ARGS
+	fi
+fi
+
+# Configuration valid or method equals to "validate-all" - react depending on called method.
+case "$1" in
+
+	start)	
+		ids_start
+		exit $?;;
+
+	stop)	
+		ids_stop
+		exit $?;;
+
+	status)	
+		ids_status
+		exit $?;;
+
+	monitor)	
+		ids_monitor
+		exit $?;;
+
+	validate-all)
+		ids_validate
+		exit $?;;
+
+	methods)
+		ids_methods
+		exit $?;;
+
+	usage)
+		ids_usage
+		exit $?;;
+
+	meta-data)
+		ids_meta_data
+		exit $?;;
+
+	*)
+		ids_log error "mainsection: no or invalid command supplied: $1"
+		exit $OCF_ERR_UNIMPLEMENTED;;
+
+esac
+###############################################################################

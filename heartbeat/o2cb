@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
@@ -311,7 +311,7 @@ usage)		usage
 		;;
 esac
 
-RCO2CB=@INITDIR@/o2cb
+RCO2CB=INITDIR/o2cb
 # RCO2CB=/etc/init.d/o2cb
 
 if [ ! -x $RCO2CB ]; then

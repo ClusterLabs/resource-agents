@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 #      eDirectory Resource Agent (RA) for Heartbeat.
 #      This script is only compatible with eDirectory 8.8 and later
@@ -39,7 +39,8 @@
 # Initialization:
 
 . ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
-. /opt/novell/eDirectory/bin/ndspath 2>/dev/null >/dev/null
+test -f /opt/novell/eDirectory/bin/ndspath &&
+	. /opt/novell/eDirectory/bin/ndspath 2>/dev/null >/dev/null
 
 #######################################################################
 
@@ -412,6 +413,7 @@ case "$1" in
                       exit $OCF_NOT_RUNNING
                   fi;;
     start)        : skip;;
+    stop)         : skip;;
     monitor)      : skip;;
     usage)        usage; exit $OCF_SUCCESS;;
     *)            ocf_log err "Invalid argument [$1]"

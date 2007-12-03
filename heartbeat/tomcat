@@ -1,0 +1,351 @@
+#!/bin/sh
+#
+# Description:  Manages a Tomcat Server as an OCF High-Availability
+#               resource under Heartbeat/LinuxHA control
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  
+# 02110-1301, USA.
+#
+# Copyright (c) 2007 NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+#
+#######################################################################
+# OCF parameters:
+#   OCF_RESKEY_tomcat_name - The name of the resource. Default is tomcat
+#   OCF_RESKEY_script_log  - A destination of the log of this script. Default /var/log/OCF_RESKEY_tomcat_name.log
+#   OCF_RESKEY_tomcat_stop_timeout  - Time-out at the time of the stop. Default is 5
+#   OCF_RESKEY_tomcat_suspend_trialcount  - The re-try number of times awaiting a stop. Default is 10
+#   OCF_RESKEY_tomcat_user  - A user name to start a resource. Default is root
+#   OCF_RESKEY_statusurl - URL for state confirmation. Default is http://127.0.0.1:8080
+#   OCF_RESKEY_java_home - Home directory of the Java. Default is None
+#   OCF_RESKEY_catalina_home - Home directory of Tomcat. Default is None
+#   OCF_RESKEY_catalina_pid  - A PID file name of Tomcat. Default is OCF_RESKEY_catalina_home/logs/catalina.pid
+###############################################################################
+
+
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
+
+usage() 
+{
+	cat <<-!
+usage: $0 action
+
+action:
+        start   start tomcat
+
+        stop    stop the tomcat
+
+        status  return the status of tomcat, run or down
+
+        monitor  return TRUE if the tomcat appears to be working.
+                 You have to have installed $WGETNAME for this to work.
+
+        meta-data       show meta data message
+
+        validate-all    validate the instance parameters
+!
+	return $OCF_ERR_ARGS
+}
+
+isrunning_tomcat()
+{
+	if wget -O /dev/null $RESOURCE_STATUSURL 2>/dev/null; then
+		return $OCF_SUCCESS
+	fi
+	return $OCF_ERR_GENERIC
+}
+
+monitor_tomcat()
+{
+	if ! pgrep -f "java -Dname=$TOMCAT_NAME" > /dev/null; then
+		return $OCF_NOT_RUNNING
+	fi
+	isrunning_tomcat
+	if [ $? != $OCF_SUCCESS ]; then
+		return $OCF_NOT_RUNNING
+	fi
+}
+
+start_tomcat()
+{
+	cd "$CATALINA_HOME/bin"
+
+	monitor_tomcat
+	if [ $? = $OCF_SUCCESS ]; then
+		return $OCF_SUCCESS
+	fi
+
+	echo "`date "+%Y/%m/%d %T"`: start ===========================" >> "$TOMCAT_CONSOLE"
+
+	if [ "$RESOURCE_TOMCAT_USER" = RUNASIS ]; then
+		"$CATALINA_HOME/bin/catalina.sh" start \
+			>> "$TOMCAT_CONSOLE" 2>&1 &
+	else
+		su - "$RESOURCE_TOMCAT_USER" \
+			-c "export JAVA_HOME=${OCF_RESKEY_java_home};\n
+                            export JAVA_OPTS=-Dname=${TOMCAT_NAME};\n
+                            export CATALINA_HOME=${OCF_RESKEY_catalina_home};\n
+                            export CATALINA_PID=${OCF_RESKEY_catalina_pid};\n
+                            $CATALINA_HOME/bin/catalina.sh start" \
+			>> "$TOMCAT_CONSOLE" 2>&1 &
+	fi
+
+	while true; do
+		monitor_tomcat
+		if [ $? = $OCF_SUCCESS ]; then
+			break
+		fi
+		ocf_log debug "start_tomcat[$TOMCAT_NAME]: retry monitor_tomcat"
+		sleep 3
+	done
+
+	return $OCF_SUCCESS
+}
+
+stop_tomcat()
+{
+	cd "$CATALINA_HOME/bin"
+
+	echo "`date "+%Y/%m/%d %T"`: stop  ###########################" >> "$TOMCAT_CONSOLE"
+
+	if [ "$RESOURCE_TOMCAT_USER" = RUNASIS ]; then
+		"$CATALINA_HOME/bin/catalina.sh" stop \
+			>> "$TOMCAT_CONSOLE" 2>&1 &
+		eval $tomcat_stop_cmd >> "$TOMCAT_CONSOLE" 2>&1
+	else
+		su - "$RESOURCE_TOMCAT_USER" \
+			-c "export JAVA_HOME=${OCF_RESKEY_java_home};\n
+                            export JAVA_OPTS=-Dname=${TOMCAT_NAME};\n
+                            export CATALINA_HOME=${OCF_RESKEY_catalina_home};\n
+                            export CATALINA_PID=${OCF_RESKEY_catalina_pid};\n
+                            $CATALINA_HOME/bin/catalina.sh stop" \
+			>> "$TOMCAT_CONSOLE" 2>&1
+	fi
+
+	lapse_sec=0
+	while pgrep -f "java -Dname=$TOMCAT_NAME" > /dev/null; do
+		sleep 1
+		lapse_sec=`expr $lapse_sec + 1`
+		ocf_log debug "stop_tomcat[$TOMCAT_NAME]: stop NORM $lapse_sec/$TOMCAT_STOP_TIMEOUT"
+		if [ $lapse_sec -ge $TOMCAT_STOP_TIMEOUT ]; then
+			break
+		fi
+	done
+
+	if pgrep -f "java -Dname=$TOMCAT_NAME" > /dev/null; then
+		lapse_sec=0
+		while true; do
+			sleep 1
+			lapse_sec=`expr $lapse_sec + 1`
+			ocf_log debug "stop_tomcat[$TOMCAT_NAME]: suspend tomcat by SIGTERM ($lapse_sec/$TOMCAT_SUSPEND_TRIALCOUNT)"
+			pkill -TERM -f "java -Dname=$TOMCAT_NAME"
+			if pgrep -f "java -Dname=$TOMCAT_NAME" > /dev/null; then
+				ocf_log debug "stop_tomcat[$TOMCAT_NAME]: suspend tomcat by SIGQUIT ($lapse_sec/$TOMCAT_SUSPEND_TRIALCOUNT)"
+				pkill -QUIT -f "java -Dname=$TOMCAT_NAME"
+				if pgrep -f "java -Dname=$TOMCAT_NAME" > /dev/null; then
+					if [ $lapse_sec -ge $TOMCAT_SUSPEND_TRIALCOUNT ]; then
+						break
+					fi
+				else
+					break
+				fi
+			else
+				break
+			fi
+		done
+	fi
+
+	lapse_sec=0
+	while pgrep -f "java -Dname=$TOMCAT_NAME" > /dev/null; do
+		sleep 1
+		lapse_sec=`expr $lapse_sec + 1`
+		ocf_log debug "stop_tomcat[$TOMCAT_NAME]: suspend tomcat by SIGKILL ($lapse_sec/@@@)"
+		pkill -KILL -f "java -Dname=$TOMCAT_NAME"
+	done
+
+	rm -f "$CATALINA_PID" 
+	return $OCF_SUCCESS
+}
+
+status_tomcat()
+{
+	return $OCF_SUCCESS
+}
+
+
+metadata_tomcat()
+{
+    cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="tomcat">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource script for tomcat. It manages a Tomcat instance as an HA resource.
+</longdesc>
+<shortdesc lang="en">tomcat resource agent</shortdesc>
+
+<parameters>
+
+<parameter name="tomcat_name" unique="1" >
+<longdesc lang="en">
+The name of the resource
+</longdesc>
+<shortdesc>The name of the resource</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="script_log" unique="1">
+<longdesc lang="en">
+A destination of the log of this script
+</longdesc>
+<shortdesc>A destination of the log of this script</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="tomcat_stop_timeout" unique="0">
+<longdesc lang="en">
+Time-out at the time of the stop
+</longdesc>
+<shortdesc>Time-out at the time of the stop</shortdesc>
+<content type="integer" default="" />
+</parameter>
+
+<parameter name="tomcat_suspend_trialcount" unique="0">
+<longdesc lang="en">
+The re-try number of times awaiting a stop
+</longdesc>
+<shortdesc>The re-try number of times awaiting a stop</shortdesc>
+<content type="integer" default="" />
+</parameter>
+
+<parameter name="tomcat_user" unique="0">
+<longdesc lang="en">
+A user name to start a resource
+</longdesc>
+<shortdesc>A user name to start a resource</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="statusurl" unique="0">
+<longdesc lang="en">
+URL for state confirmation
+</longdesc>
+<shortdesc>URL for state confirmation</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="java_home" unique="1" required="1">
+<longdesc lang="en">
+Home directory of the Java
+</longdesc>
+<shortdesc>Home directory of the Java</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="catalina_home" unique="1" required="1">
+<longdesc lang="en">
+Home directory of Tomcat
+</longdesc>
+<shortdesc>Home directory of Tomcat</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="catalina_pid" unique="1">
+<longdesc lang="en">
+A PID file name of Tomcat
+</longdesc>
+<shortdesc>A PID file name of Tomcat</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start" timeout="60s" />
+<action name="stop" timeout="120s" />
+<action name="status" timeout="60" />
+<action name="monitor" depth="0" timeout="30s" interval="10s" start-delay="10s" />
+<action name="meta-data" timeout="5s" />
+<action name="validate-all"  timeout="5"/>
+</actions>
+</resource-agent>
+END
+	return $OCF_SUCCESS
+}
+
+validate_all_tomcat()
+{
+	ocf_log info "validate_all_tomcat[$TOMCAT_NAME]"
+	return $OCF_SUCCESS
+}
+
+TOMCAT_NAME="${OCF_RESKEY_tomcat_name-tomcat}"
+TOMCAT_CONSOLE="${OCF_RESKEY_script_log-/var/log/$TOMCAT_NAME.log}"
+TOMCAT_STOP_TIMEOUT="${OCF_RESKEY_tomcat_stop_timeout-5}"
+TOMCAT_SUSPEND_TRIALCOUNT="${OCF_RESKEY_tomcat_suspend_trialcount-10}"
+RESOURCE_TOMCAT_USER="${OCF_RESKEY_tomcat_user-RUNASIS}"
+RESOURCE_STATUSURL="${OCF_RESKEY_statusurl-http://127.0.0.1:8080}"
+
+JAVA_HOME="${OCF_RESKEY_java_home}"
+JAVA_OPTS="-Dname=$TOMCAT_NAME"
+CATALINA_HOME="${OCF_RESKEY_catalina_home}"
+CATALINA_PID="${OCF_RESKEY_catalina_pid-$CATALINA_HOME/logs/catalina.pid}"
+
+export JAVA_HOME JAVA_OPTS CATALINA_HOME CATALINA_PID
+
+JAVA=${JAVA_HOME}/bin/java
+
+COMMAND=$1
+
+case "$COMMAND" in
+	start)
+		ocf_log debug  "[$TOMCAT_NAME] Enter tomcat start"
+		start_tomcat
+		func_status=$?
+		ocf_log debug  "[$TOMCAT_NAME] Leave tomcat start $func_status"
+		exit $func_status
+		;;
+	stop)
+		ocf_log debug  "[$TOMCAT_NAME] Enter tomcat stop"
+		stop_tomcat
+		func_status=$?
+		ocf_log debug  "[$TOMCAT_NAME] Leave tomcat stop $func_status"
+		exit $func_status
+		;;
+	status)
+		status_tomcat
+		exit $?
+		;;
+	monitor)
+		#ocf_log debug  "[$TOMCAT_NAME] Enter tomcat monitor"
+		monitor_tomcat
+		func_status=$?
+		#ocf_log debug  "[$TOMCAT_NAME] Leave tomcat monitor $func_status"
+		exit $func_status
+		;;
+	meta-data)
+		metadata_tomcat
+		exit $?
+		;;
+	validate-all)
+		validate_all_tomcat
+		exit $?
+		;;
+	*)
+		usage
+		;;
+esac
+

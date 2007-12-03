@@ -39,7 +39,7 @@ AC_ARG_WITH(hapkgversion,
 )
 
 if test -z "$HAPKGVERSION" ; then
-   HAPKGVERSION="2.1.2"
+   HAPKGVERSION="2.1.3"
 fi
 AM_INIT_AUTOMAKE(heartbeat, $HAPKGVERSION)
 
@@ -98,6 +98,8 @@ AC_SUBST(REBOOT_OPTIONS)
 AC_SUBST(POWEROFF_OPTIONS)
 AC_DEFINE_UNQUOTED(REBOOT_OPTIONS, "$REBOOT_OPTIONS", reboot options)
 AC_DEFINE_UNQUOTED(POWEROFF_OPTIONS, "$POWEROFF_OPTIONS", poweroff options)
+
+AC_DEFINE_UNQUOTED(HA_LOG_FACILITY, LOG_DAEMON, Default logging facility)
 
 dnl Info for building/packaging systems.
 dnl
@@ -227,23 +229,94 @@ libdir=`var "$libdir" "$exec_prefix/lib"`
 libexecdir=`var "$libexecdir" "$exec_prefix/libexec"`
 noarchlibdir=`var "$noarchlibdir" "$prefix/lib"`
 
-for var in libdir libexecdir
-do
-  dir=`eval echo '${'${var}'}'`
-  case $dir in
-    *64)  if 
-	    test ! -d "$dir" 
-	  then
-            newdir=`echo "$dir" | sed 's%64$%%'`
-            if
-	      test -d "$newdir"
-            then
-              eval $var="$newdir"
-	      AC_MSG_WARN([$var value now set to $newdir since $dir doesn't exist])
-            fi
-	  fi;;
+
+
+LDD=ldd
+dnl Which C compiler?
+dnl Defaults to GNU C compiler if available.
+dnl Always tries to set the compiler to ANSI C via options (AM)
+dnl Can force other with environment variable "CC".
+AC_PROG_CC
+AC_PROG_CC_STDC
+
+case "$host_cpu" in
+  ppc64|powerpc64)
+    case $CFLAGS in
+     *powerpc64*)			;;
+     *)	if test "$GCC" = yes; then
+	  CFLAGS="$CFLAGS -m64"
+	fi				;;
+    esac
+esac
+
+dnl ************************************************************************
+dnl Test to see whether library directories should be lib or lib64...
+dnl ************************************************************************
+
+AC_MSG_CHECKING(for proper library directory suffix)
+tmpdir=/tmp
+tmpCfile=${tmpdir}/$$test.c
+tmpOutfile=${tmpdir}/$$test
+echo 'int main(int argc, char** argv) { return(1);}' >$tmpCfile
+if
+  ${CC} ${CFLAGS} ${tmpCfile} -o ${tmpOutfile}
+then
+  LIBC=`${LDD} ${tmpOutfile} | grep libc | sed -e 's%.*=> *%%' -e 's% .*$%%'`
+  LibCdir=`dirname $LIBC`
+  dirlist=`echo $LibCdir | tr '/' ' '`
+  LibDirSuffix=unknown
+  for dir in dirlist
+  do
+    case $dir in
+      *lib*)	LibDirSuffix=$dir; break;;
+      *);;
+    esac
+  done
+  case $LibDirSuffix in
+    unknown)	LibDirSuffix=`basename $LibCdir`;;
   esac
-done
+  OutFileType=`file $tmpOutfile`
+  rm -f $tmpCfile $tmpOutfile
+else
+  AC_MSG_ERROR([Cannot Compile trivial C program])
+fi
+#
+#	The code above doesn't work right everywhere
+#		(like Fedora and OpenBSD) 
+#
+case ${LibDirSuffix} in
+	*lib*)	: Cool;;
+	*)	: Sigh...
+		case $OutFileType in
+		  *64-bit*)	
+		  	case $host_os in
+			  openbsd)	LibDirSuffix=lib;;
+		  	  *)		LibDirSuffix=lib64;;
+			esac;;
+		  *32-bit*)	LibDirSuffix=lib;;
+		  *)		LibDirSuffix=lib;;
+		esac;;
+esac
+#
+#	This may not yet be quite right for PPC where the default
+#	is to produce 32-bit binaries, even though the OS is 64-bit
+#	or for that matter for system Z, But, it's a lot better than
+#	it used to be.
+#
+AC_MSG_RESULT($LibDirSuffix)
+
+case $libdir in
+  */*${LibDirSuffix})	: Cool ;;
+  *)			: Uh Oh... 
+	libdir=`dirname $libdir`/$LibDirSuffix
+	AC_MSG_WARN([Overriding libdir to: $libdir]);;
+esac
+case $libexecdir in
+  */$LibDirSuffix)	: Cool ;;
+  *)			: Uh Oh... 
+	libexecdir=`dirname $libexecdir`/$LibDirSuffix
+	AC_MSG_WARN([Overriding libexecdir to: $libexecdir]);;
+esac
 
 for j in exec_prefix bindir sbindir datadir sysconfdir localstatedir \
 	includedir oldincludedir mandir docdir libdir noarchlibdir
@@ -255,6 +328,7 @@ do
     AC_MSG_WARN([$j directory ($dirname) does not exist!])
   fi
 done
+
 
 dnl	The GNU conventions for installation directories don't always
 dnl	sit well with this software.  In particular, GNU's stated:
@@ -359,7 +433,7 @@ AC_DEFINE_UNQUOTED(HA_LOGDAEMON_IPC, "$HA_LOGDAEMON_IPC", Logging Daemon IPC soc
 
 dnl This IS a default but we should make sure we can override it for any 
 dnl odd OS requirements.
-HA_VARLOGDIR="/var/log"
+HA_VARLOGDIR="${localstatedir}/log"
 AC_SUBST(HA_VARLOGDIR)
 AC_DEFINE_UNQUOTED(HA_VARLOGDIR,"$HA_VARLOGDIR", var log directory)
 
@@ -398,18 +472,21 @@ AC_SUBST(docdir)
 
 dnl	We use this in the RPM specfile...
 AC_SUBST(ac_configure_args)
+cleaned_configure_args=""
+for j in ${ac_configure_args}
+do
+  case $j in
+    *--libdir=*|*--libexecdir=*)	;;
+    *)		cleaned_configure_args="$cleaned_configure_args $j";;
+  esac
+done
+AC_SUBST(cleaned_configure_args)
 
 dnl *************************************************************************
 PATH="$PATH:/sbin:/usr/sbin:/usr/local/sbin:/usr/local/bin"
 export PATH
 dnl checks for programs
 dnl
-dnl Which C compiler?
-dnl Defaults to GNU C compiler if available.
-dnl Always tries to set the compiler to ANSI C via options (AM)
-dnl Can force other with environment variable "CC".
-AC_PROG_CC
-AC_PROG_CC_STDC
 AC_PROG_YACC
 AC_DECL_YYTEXT
 AM_PROG_LEX
@@ -532,7 +609,6 @@ else
 fi
 rm -f $F
 AM_CONDITIONAL(NONROOT_CHOWN, test "$nonroot_chown" = yes )
-
 
 dnl ************************************************************************
 dnl checks for libraries
@@ -927,6 +1003,7 @@ AC_CHECK_HEADERS(sys/param.h)
 AC_CHECK_HEADERS(netinet/in.h)
 AC_CHECK_HEADERS([stdint.h unistd.h])
 AC_CHECK_HEADERS(sys/termios.h)
+AC_CHECK_HEADERS(sys/reboot.h)
 AC_CHECK_HEADERS(termios.h)
 
 
@@ -1009,16 +1086,6 @@ dnl
 AC_CHECK_HEADERS(vacmclient_api.h)
 AC_CHECK_HEADERS(curl/curl.h)
 AC_CHECK_HEADERS(openhpi/SaHpi.h)
-
-AC_MSG_CHECKING(For libOpenIPMI version 2 or greater)
-AC_TRY_COMPILE([#include <OpenIPMI/ipmiif.h>], 
-[ #if (OPENIPMI_VERSION_MAJOR < 2 )
-  #error "Too Old"
-  #endif ], 
-  AC_MSG_RESULT("yes")
-    AM_CONDITIONAL(USE_OPENIPMI, true),
-  AC_MSG_RESULT("no")
-    AM_CONDITIONAL(USE_OPENIPMI, false))
 
 AC_MSG_CHECKING(for special libxml2 includes)
 if test "x$XML2CONFIG" = "x"; then
@@ -1124,12 +1191,104 @@ check_snmp_libs ()
 	LIBS="$OLDLIBS"
 }
 
+SNMPLIBSET=""
 if test "$ENABLE_SNMP" = "yes"; then
 	check_snmp_libs $SNMPLIB
+	SNMPLIBSET="$SNMPLIB"
 fi
 if test "$enable_snmp_subagent" = "yes"; then
 	check_snmp_libs $SNMPAGENTLIB
+	SNMPLIBSET="$SNMPLIBSET $SNMPAGENTLIB"
 fi
+
+dnl
+dnl	There are more sophisticated and general ways of doing this, that
+dnl	are more general - but this is better than nothing.
+dnl
+dnl	The right procedure would be to locate the libraries that we've been
+dnl	told are needed, then do an RPM query on each of these libraries
+dnl	to find out what package owns the library (file)
+dnl	That'll be a good project for some long, cold winter evening.
+dnl
+dnl	Some food for thought from the 'ld' manual page:
+dnl
+dnl        The linker uses the following search paths to locate required
+dnl	   shared libraries.
+dnl
+dnl        Ignore steps 1-2, because they involve rpath options
+dnl	   (which we don't care about)
+dnl
+dnl        3.  On  an  ELF system, if the -rpath and "rpath-link" options
+dnl	       were not used, search the contents of the environment variable
+dnl            "LD_RUN_PATH". It is for the native linker only.
+dnl
+dnl        4.  On SunOS, if the -rpath option was not used, search any
+dnl	       directories specified using -L options.
+dnl
+dnl        5.  For a native linker, the contents of the environment variable
+dnl	       "LD_LIBRARY_PATH".
+dnl
+dnl        6.  For a native ELF linker, the directories in "DT_RUNPATH" or
+dnl	       "DT_RPATH" of  a  shared  library  are  searched  for  shared
+dnl            libraries needed by it. The "DT_RPATH" entries are ignored if
+dnl	       "DT_RUNPATH" entries exist.
+dnl
+dnl        7.  The default directories, normally /lib and /usr/lib.
+dnl
+dnl        8.  For a native linker on an ELF system, if the file
+dnl            /etc/ld.so.conf exists, the list of directories found in
+dnl	       that file.
+dnl
+dnl        If the required shared library is not found, the linker will
+dnl	   issue a warning and continue with the link.
+dnl
+dnl
+libs2packages() {
+  for arg
+  do 
+    case $arg in
+        -ldl|-lm|-L*|-lc|-lpthread|-lnsl)			;;
+        -lresolv|-lcrypt|-lutil|-Wl,-E|-wL,-rpath)		;;
+        -lcrypto)		echo openssl			;;
+        -lnetsnmp)		echo net-snmp			;;
+        -lsnmp)			echo net-snmp			;;
+        -lnetsnmpagent)		echo net-snmp			;;
+        -lnetsnmphelpers)	echo net-snmp			;;
+        -lnetsnmpmibs)		echo net-snmp			;;
+        -lrpm)			echo rpm			;;
+        -lrpmio)		echo rpm			;;
+        -lpopt)			echo popt			;;
+        -lsensors)		case $host_vendor in
+				  suse|SUSE|SuSE)
+        				echo sensors;;
+				  *) 	echo lm_sensors
+				esac				;;
+        -lwrap)			case $host_vendor in
+				  suse|SUSE|SuSE)
+        				echo tcpd;;
+				  *) 	echo tcp_wrappers;;
+				esac				;;
+        -lz)			echo zlib			;;
+        -lperl|-l/*perl*/auto/DynaLoader/DynaLoader*)
+				echo perl			;;
+         *)			AC_MSG_WARN([SNMP library $arg not included in RPM build dependencies])
+    esac
+  done
+}
+
+AC_MSG_CHECKING(What packages are needed for SNMP at compile time for RPMs);
+PKGSET=`libs2packages $SNMPLIBSET | tr ' ' '\012' | sort -u`
+PKGSET=`echo $PKGSET`
+AC_MSG_RESULT($PKGSET)
+
+if test  -z "$PKGSET"; then
+	SNMP_RPM_BUILD_REQUIRES="BuildRequires: ${CC}"
+else
+	SNMP_RPM_BUILD_REQUIRES="BuildRequires: $PKGSET"
+fi
+AC_MSG_RESULT($SNMP_RPM_BUILD_REQUIRES)
+
+AC_SUBST(SNMP_RPM_BUILD_REQUIRES)
 
 AC_ARG_WITH(mibsdir, 
 	[  --with-miBsdir=DIR      directory for mib files. ],
@@ -1147,7 +1306,7 @@ if test "x${enable_snmp_subagent}"  = "xyes" -a "X${MIBS_DIR}" = "X"; then
 		AC_MSG_ERROR(Could not find mibs directory, 
 			please specify with --with-mibsdir);
 	fi
-	AC_MSG_RESULT($MIBS_DIR);
+	AC_MSG_RESULT($MIBS_DIR)
 fi
 AC_SUBST(MIBS_DIR)
 
@@ -1158,10 +1317,26 @@ AC_SUBST(RPM_ENABLE_SNMP_SUBAGENT)
 AM_CONDITIONAL(USE_APC_SNMP, test "$ENABLE_SNMP" = "yes")
 AM_CONDITIONAL(SNMP_SUBAGENT_BUILD, test "x${enable_snmp_subagent}" = "xyes")
 
+#
+#	We've had this new API for a very long time
+#
+AC_DEFINE(HAVE_NEW_HB_API, 1, [have new heartbeat api])
+dnl
+dnl OpenIMPI checks
+dnl
 
-if test x"$VERSION" \> x"1.9"; then
-	AC_DEFINE(HAVE_NEW_HB_API, 1, [have new heartbeat api])
+if test "x${enable_ipmilan}" = "xyes" -o "x${enable_ipmilan}" = "xtry"; then
+	AC_MSG_CHECKING(For libOpenIPMI version 2 or greater)
+	AC_TRY_COMPILE([#include <OpenIPMI/ipmiif.h>],
+		       [ #if (OPENIPMI_VERSION_MAJOR < 2 )
+			 #error "Too Old"
+			 #endif ],
+		       AC_MSG_RESULT("yes"); enable_ipmilan="yes",
+		       AC_MSG_RESULT("no");  enable_ipmilan="no")
+else
+	enable_ipmilan="no"
 fi
+AM_CONDITIONAL(IPMILAN_BUILD, test "X$enable_ipmilan" = "Xyes")
 
 dnl
 dnl     On many systems libcrypto is needed when linking against libsnmp.
@@ -1169,6 +1344,18 @@ dnl     Check to see if it exists, and if so use it.
 dnl
 AC_CHECK_LIB(crypto, CRYPTO_free, CRYPTOLIB="-lcrypto",)
 AC_SUBST(CRYPTOLIB)
+
+dnl ***************************************************************************
+dnl Enable distro-style RPMs
+dnl ***************************************************************************
+AC_ARG_ENABLE([distro-rpm],
+ [  --enable-distro-rpm 	Enable distro-style RPMs
+		[default=no]], [], [enable_distro_rpm=no])
+case $enable_distro_rpm in
+   yes)	DISTRO_STYLE_RPMS=1;;
+   *)	DISTRO_STYLE_RPMS=0;;
+esac
+AC_SUBST(DISTRO_STYLE_RPMS)
 
 dnl ***************************************************************************
 dnl TIPC communication module
@@ -1569,7 +1756,7 @@ AC_ARG_ENABLE([quiet],
                           [default=no]])
 
 AC_ARG_ENABLE([ldirectord],
-[  --enable-ldirectord    enable Linix Director Daemon for use with LVS
+[  --enable-ldirectord    Enable Linix Director Daemon for use with LVS
                           [default=yes]],
                           [], [enable_ldirectord=yes])
 AM_CONDITIONAL(LDIRECTORD_BUILD, test "X$enable_ldirectord" = "Xyes")
@@ -1586,6 +1773,10 @@ AC_ARG_ENABLE([snmp-subagent],
 [  --enable-snmp-subagent Enable building of our SNMP subagent (lots of dependencies).
                           [default=try]])
 
+AC_ARG_ENABLE([ipmilan],
+[  --enable-ipmilan       enable IPMILan Stonith Plugin
+                          [default=no]])
+
 
 CC_WARNINGS=""
 
@@ -1600,7 +1791,7 @@ dnl - If requested, enable ALL subsystems.
 	  enable_mgmt=try;
 	  enable_quorumd=try;
 	  enable_cim_provider=try;
-	  
+	  enable_ipmilan=try
 	fi
 
 AC_ARG_ENABLE([bundled-ltdl],
@@ -1937,7 +2128,7 @@ then
   HA_APIGID=`getent group "$HA_APIGROUP" | cut -d: -f3`
 fi
 AC_SUBST(HA_APIGID)
-AC_DEFINE_UNQUOTED(HA_APIGID, "$HA_APIGID", id for api group)
+AC_DEFINE_UNQUOTED(HA_APIGID, $HA_APIGID, id for api group)
 
 AC_ARG_WITH(
   ccmuser-name,
@@ -1962,7 +2153,7 @@ then
   HA_CCMUID=`getent passwd "$HA_CCMUSER" | cut -d: -f3`
 fi
 AC_SUBST(HA_CCMUID)
-AC_DEFINE_UNQUOTED(HA_CCMUID, "$HA_CCMUID", id for ccm user)
+AC_DEFINE_UNQUOTED(HA_CCMUID, $HA_CCMUID, id for ccm user)
 
 #
 #	Priority for starting via init startup scripts
@@ -2424,24 +2615,17 @@ else
 fi
 AC_SUBST(RPM_ENABLE_MGMT_CONFIG)
 
+if test "x${enable_openhpi}" != "xno"; then
+  RPM_ENABLE_OPENHPI=1
+else
+  RPM_ENABLE_OPENHPI=0
+fi
+AC_SUBST(RPM_ENABLE_OPENHPI)
+
 AM_CONDITIONAL(MGMT_BUILD, test "x${enable_mgmt}" != "xno")
 if test "x${enable_mgmt}" != "xno"; then
      AC_DEFINE_UNQUOTED(MGMT_ENABLED, 1, Define to 1 if the mgmt-daemon and friends are enabled.)
-    dnl If this system might be RPM-based, then adjust some RPM-build details
-    if test x"${RPM}" != x""; then
-dnl FIXME: a flawy solution but no better one now
-         if rpm -q python-gtk > /dev/null; then
-              RPM_MGMT_RUNTIME_REQUIRES="libglade2, python-gtk";
-         else
-              RPM_MGMT_RUNTIME_REQUIRES="libglade2, pygtk2";
-         fi
-    else
-         RPM_MGMT_RUNTIME_REQUIRES=
-    fi
-else
-     RPM_MGMT_RUNTIME_REQUIRES=
 fi
-AC_SUBST(RPM_MGMT_RUNTIME_REQUIRES)
    
 AC_MSG_NOTICE([whether to enable the management tool... ${enable_mgmt}])
 
@@ -2773,9 +2957,13 @@ lib/Makefile							\
 lrm/Makefile							\
 	lrm/lrmd/Makefile					\
 	lrm/admin/Makefile					\
+	lrm/test/regression.sh				\
 	lrm/test/LRMBasicSanityCheck				\
 	lrm/test/Makefile					\
-	lrm/test/simple_ops					\
+	lrm/test/lrmregtest					\
+	lrm/test/lrmregtest-lsb					\
+	lrm/test/lrmregtest-heartbeat					\
+	lrm/test/testcases/Makefile					\
 mgmt/Makefile							\
 	mgmt/daemon/Makefile					\
 	mgmt/client/Makefile					\
@@ -2843,7 +3031,10 @@ fencing/Makefile						\
 	fencing/test/Makefile					\
 	fencing/test/STONITHDBasicSanityCheck			\
 tools/Makefile							\
+	tools/ciblint						\
 	tools/haresources2cib.py				\
+	tools/hb_report						\
+	tools/ocf-tester					\
 resources/Makefile						\
 	resources/OCF/Makefile					\
 	resources/OCF/.ocf-binaries				\
@@ -2859,6 +3050,7 @@ resources/Makefile						\
 	resources/heartbeat/Filesystem				\
 	resources/heartbeat/hto-mapfuncs			\
 	resources/heartbeat/ICP					\
+	resources/heartbeat/ids					\
 	resources/heartbeat/IPaddr				\
 	resources/heartbeat/IPaddr2				\
 	resources/heartbeat/IPsrcaddr				\
@@ -2929,6 +3121,7 @@ AC_MSG_RESULT([  ucd_snmp_devel name      = "${UCDSNMPDEVEL}"])
 AC_MSG_RESULT([  Build New CRM            = "${enable_crm}"])
 AC_MSG_RESULT([  Build New LRM            = "${enable_lrm}"])
 AC_MSG_RESULT([  Build Ldirectord         = "${enable_ldirectord}"])
+AC_MSG_RESULT([  Build IPMILan Plugin     = "${enable_ipmilan}"])
 
 AC_MSG_RESULT([  Build CIM providers      = "${enable_cim_provider}"])
 if test "x${enable_cim_provider}" = "xyes"; then
@@ -2951,6 +3144,7 @@ AC_MSG_RESULT([  CC_WARNINGS              = "${CC_WARNINGS}"])
 AC_MSG_RESULT([  Mangled CFLAGS           = "${CFLAGS}"])
 AC_MSG_RESULT([  Libraries                = "${LIBS}"])
 AC_MSG_RESULT([  RPATH enabled            = "${enable_rpath}"])
+AC_MSG_RESULT([  Distro-style RPMs        = "${enable_distro_rpm}"])
 
 AC_MSG_RESULT([  ])
 AC_MSG_RESULT([Note: If you use the 'make install' method for installation you])

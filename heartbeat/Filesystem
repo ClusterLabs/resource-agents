@@ -238,7 +238,7 @@ ocfs2_fetch_uuid() {
 }
 
 ocfs2_set_uuid() {
-	_OCFS2_uuid_cache="@HA_VARRUNHBRSCDIR@/Filesystem.ocfs2_uuid.$(echo $DEVICE|tr / .)"
+	_OCFS2_uuid_cache="$HA_RSCTMP/Filesystem.ocfs2_uuid.$(echo $DEVICE|tr / .)"
 	
 	if [ "$OP" != "start" -a -e "$_OCFS2_uuid_cache" ]; then
 		# Trust the cache.
@@ -475,7 +475,7 @@ Filesystem_notify() {
 			# already on the active list, confusing the
 			# script later on:
 			for UNAME in "$n_active"; do
-				n_start="${n_start//$UNAME/}"
+				n_start=`echo ${n_start} | sed s/$UNAME//`
 			done
 			# Merge pruned lists again:
 			n_active="$n_active $n_start"
@@ -488,7 +488,7 @@ Filesystem_notify() {
 			# remove unames from notify_stop_uname; these have been
 			# stopped and can no longer be considered active.
 			for UNAME in "$n_stop"; do
-				n_active="${n_active//$UNAME/}"
+				n_active=`echo ${n_active} | sed s/$UNAME//`
 			done
 			;;
 		start)

@@ -16,16 +16,12 @@
 #	  OCF parameters are as below:
 #		OCF_RESKEY_service
 
-HA_VARRUNDIR=${HA_VARRUN}
-XPIDFILE=$HA_VARRUNDIR/xinetd.pid
-
 #######################################################################
 # Initialization:
 
 . ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 
 #######################################################################
-
 
 meta_data() {
 	cat <<END
@@ -35,8 +31,16 @@ meta_data() {
 <version>1.0</version>
 
 <longdesc lang="en">
-Resource script for Xinetd. It startup/shutdown the services mananged
+Resource script for Xinetd. It starts/stops services managed
 by xinetd.
+
+Note that the xinetd daemon itself must be running: we are not
+going to start it or stop it ourselves.
+
+Important: in case the services managed by the cluster are the
+only ones enabled, you should specify the -stayalive option for
+xinetd or it will exit on Heartbeat stop. Alternatively, you may
+enable some internal service such as echo.
 </longdesc>
 <shortdesc lang="en">Xinetd resource agent</shortdesc>
 
@@ -63,15 +67,13 @@ The service name managed by xinetd.
 END
 }
 
-# It's important to note that the absence of a xinetd PID file causes
-# this script to assume that xinetd is not yet running, and therefore
-# that we are in the initial boot process.  If you port this script to
-# a distro that keeps the pid files in some other place, be sure to 
-# make an appropriate revision.
+# don't rely on the pid file, but lookup xinetd in the list of
+# processes
 
 hup_inetd () {
-    if [ -s $XPIDFILE ]; then
-      if kill -HUP `cat $XPIDFILE`; then
+    pid=`ps -e -o pid,command | grep '/[x]inetd' | awk '{print $1}'`
+    if [ "$pid" ]; then
+      if kill -HUP $pid; then
           :
       else
           ocf_log err "Could not SigHUP xinetd superdaemon!"
@@ -79,8 +81,9 @@ hup_inetd () {
           exit $OCF_ERR_GENERIC
       fi
     else
-       ocf_log info "xinetd superdaemon PID file $XPIDFILE not found!"
-       ocf_log info "perhaps we are currently booting the system."
+       ocf_log err "xinetd superdaemon process not found!"
+       ocf_log err "perhaps we are currently booting the system."
+       exit $OCF_ERR_GENERIC
     fi
 }
 
@@ -185,7 +188,29 @@ check_attributes () {
   # Empty these attributes before validating them 
   unset socket_type wait server user protocol port group instances \
 	type flags disable nice umask 
-  export $*
+  VAR=""
+  for SECTION in $*; do
+    case $SECTION in
+      *=*) # Check to see if we need to export the previous name=value
+           # pair.
+           if [ -n "$VAR" ]; then
+             export "$VAR"
+           fi
+           # Save the "new" name=value pair in VAR
+           VAR=$SECTION
+           ;;
+      *)   # This section does not have an equal sign, therefore it is part of
+           # the *previous* name=value pair, thus we will append it to the
+           # previous name=value assignment.
+           VAR="$VAR $SECTION"
+           ;;
+    esac
+    # A final cleanup step.
+    # Do we need to export VAR ?
+    if [ -n "$VAR" ]; then
+      export "$VAR"
+    fi  
+  done
   if [ $? -ne 0 ]; then
 	return $OCF_ERR_GENERIC
   fi
@@ -227,7 +252,7 @@ check_attributes () {
 		;;
   esac
 
-  if [ ! -z $type -a "INTERNAL" != "$type" ]; then
+  if [ ! -z "$type" -a "INTERNAL" != "$type" ]; then
   # Type is explicitly set to EXTERNAL, hence server and user are necessary.
 	case $server in
 	    "")	ocf_log err "Please specify server in $RCFILE"
@@ -422,17 +447,25 @@ if
   [ -z "$OCF_RESKEY_service" ]
 then
   ocf_log err "Please set OCF_RESKEY_service to the service managed by Xinetd"
-  exit $OCF_ERR_ARGS
+  if [ "$1" = "start" ]; then 
+      exit $OCF_ERR_ARGS
+  else
+      exit $OCF_NOT_RUNNING
+  fi
 fi
 
 service=$OCF_RESKEY_service
-RCFILE=${HA_SYSCONF_DIR}/xinetd.d/$service
-PIDFILE=$HA_VARRUNDIR/xup$service
+RCFILE=/etc/xinetd.d/$service
+PIDFILE=$HA_VARRUN/xup$service
 
 # Make sure the OCF_RESKEY_service is a valid xinetd service name
 if [ ! -f $RCFILE ]; then
     ocf_log err "Service descriptor $RCFILE not found!"
-    exit $OCF_ERR_ARGS
+    if [ "$1" = "start" ]; then 
+	exit $OCF_ERR_ARGS
+    else
+	exit $OCF_NOT_RUNNING
+    fi
 fi
 
 # See how we were called.
@@ -447,8 +480,11 @@ case "$1" in
 	$0 stop
 	$0 start
 	;;
-  status|monitor)
+  status)
 	xup_status
+	;;
+  monitor)
+	xup_status > /dev/null
 	;;
   validate-all)
 	xup_validate_all

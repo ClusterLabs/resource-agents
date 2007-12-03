@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 # Description:	Manages a PostrgreSQL Server as an OCF High-Availability
 #		resource under Heartbeat/LinuxHA control
@@ -154,7 +154,7 @@ END
 #	Run the given command in the Resource owner environment...
 #
 runasowner() {
-    su $OCF_RESKEY_pgdba -c ". ~${OCF_RESKEY_pgdba}/.bash_profile; $*"
+    su $OCF_RESKEY_pgdba -c "$*"
 }
 
 #
@@ -331,7 +331,7 @@ check_log_file() {
     if [ ! -f "$1" ]
     then
         touch $1 > /dev/null 2>&1
-        chown $OCF_RESKEY_pgdba:$(cat /etc/passwd | grep $OCF_RESKEY_pgdba | cut -d ":" -f 4) $1
+        chown $OCF_RESKEY_pgdba:$(getent passwd $OCF_RESKEY_pgdba | cut -d ":" -f 4) $1
     fi
 
     #Check if $OCF_RESKEY_pgdba can write to the log file

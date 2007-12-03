@@ -34,9 +34,9 @@
 #  OCF_RESKEY_options
 #  OCF_RESKEY_testregex
 
-HA_VARRUNDIR=${HA_VARRUN}
 
 . ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
+HA_VARRUNDIR=${HA_VARRUN}
 
 #######################################################################
 #
@@ -53,7 +53,7 @@ then
   HTTPDLIST="$HTTPDLIST `$MPM 2>/dev/null`"
 fi
 
-WGETOPTS="-O- -nv -L"
+WGETOPTS="-O- -q -L"
 LOCALHOST="http://localhost"
 HTTPDOPTS="-DSTATUS"
 DEFAULT_IBMCONFIG=/opt/IBMHTTPServer/conf/httpd.conf
@@ -128,7 +128,7 @@ apachecat() {
 		close(cmd);
 	}
 	function listfiles(pattern, cmd,f) {
-		cmd="ls "pattern;
+		cmd="ls "pattern" 2>/dev/null";
 		while( ( cmd | getline f ) > 0 ) {
 			printfile(f);
 		}
@@ -385,7 +385,7 @@ monitor_apache() {
   if
     silent_status
   then
-    ocf_run sh -c "$WGET $WGETOPTS $STATUSURL | grep -Ei \"$TESTREGEX\" >/dev/null"
+    ocf_run sh -c "$WGET $WGETOPTS $STATUSURL | tr '\012' ' ' | grep -Ei \"$TESTREGEX\" >/dev/null"
   else
     ocf_log info "$CMD not running"
     return $OCF_NOT_RUNNING
