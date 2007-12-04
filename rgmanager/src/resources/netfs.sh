@@ -348,6 +348,112 @@ isMounted () {
 	return $NO
 }
 
+#
+# killMountProcesses mount_point
+#
+# Using lsof or fuser try to unmount the mount by killing of the processes
+# that might be keeping it busy.
+#
+killMountProcesses()
+{
+        typeset -i ret=$SUCCESS
+        typeset have_lsof=""
+        typeset have_fuser=""
+        typeset try
+
+        if [ $# -ne 1 ]; then
+                ocf_log err \
+                        "Usage: killMountProcesses mount_point"
+                return $FAIL
+        fi
+
+        typeset mp=$1
+
+        ocf_log notice "Forcefully unmounting $mp"
+
+        #
+        # Not all distributions have lsof.  If not use fuser.  If it
+        # does, try both.
+        #
+        file=$(which lsof 2>/dev/null)
+        if [ -f "$file" ]; then
+                have_lsof=$YES
+        fi
+
+        file=$(which fuser 2>/dev/null)
+        if [ -f "$file" ]; then
+                have_fuser=$YES
+        fi
+
+        if [ -z "$have_lsof" -a -z "$have_fuser" ]; then
+                ocf_log warn \
+        "Cannot forcefully unmount $mp; cannot find lsof or fuser commands"
+                return $FAIL
+        fi
+
+        for try in 1 2 3; do
+                if [ -n "$have_lsof" ]; then
+                        #
+                        # Use lsof to free up mount point
+                        #
+                        while read command pid user
+                        do
+                                if [ -z "$pid" ]; then
+                                        continue
+                                fi
+
+                                if [ $try -eq 1 ]; then
+                                        ocf_log warn \
+                                  "killing process $pid ($user $command $mp)"
+                                elif [ $try -eq 3 ]; then
+                                        ocf_log crit \
+                                  "Could not clean up mountpoint $mp"
+                                ret=$FAIL
+                                fi
+
+                                if [ $try -gt 1 ]; then
+                                        kill -9 $pid
+                                else
+                                        kill -TERM $pid
+                                fi
+                        done < <(lsof -w -bn 2>/dev/null | \
+                            grep -w -E "$mp(/.*|)\$" | \
+                            awk '{print $1,$2,$3}' | \
+                            sort -u -k 1,3)
+                elif [ -n "$have_fuser" ]; then
+                        #
+                        # Use fuser to free up mount point
+                        #
+                        while read command pid user
+                        do
+                                if [ -z "$pid" ]; then
+                                        continue
+                                fi
+
+                                if [ $try -eq 1 ]; then
+                                        ocf_log warn \
+                                  "killing process $pid ($user $command $mp)"
+                                elif [ $try -eq 3 ]; then
+                                        ocf_log crit \
+                                    "Could not clean up mount point $mp"
+                                        ret=$FAIL
+                                fi
+
+                                if [ $try -gt 1 ]; then
+                                        kill -9 $pid
+                                else
+                                        kill -TERM $pid
+                                fi
+                        done < <(fuser -vm $mp | \
+                            grep -v PID | \
+                            sed 's;^'$mp';;' | \
+                            awk '{print $4,$2,$1}' | \
+                            sort -u -k 1,3)
+                fi
+        done
+
+        return $ret
+}
 
 #
 # startNFSFilesystem
@@ -498,8 +604,8 @@ stopNFSFilesystem() {
 	#
 	if [ -n "$mp" ]; then
 		case ${OCF_RESKEY_force_unmount} in
-	        $YES_STR)	force_umount="-f" ;;
-		0)		force_umount="-f" ;;
+	        $YES_STR)	force_umount="$YES" ;;
+		1)		force_umount="$YES" ;;
 	        *)		force_umount="" ;;
 		esac
 	fi
@@ -507,6 +613,7 @@ stopNFSFilesystem() {
 	#
 	# Unmount
 	#
+        while [ ! "$done" ]; do
 	isMounted $fullpath $mp
 	case $? in
 	$NO)
@@ -519,26 +626,46 @@ stopNFSFilesystem() {
 		;;
 	$YES)
 		sync; sync; sync
-		ocf_log info "unmounting $fullpath ($mp)"
+                        ocf_log info "unmounting $mp"
 
-		umount $force_umount $mp
+                        umount $mp
 		if  [ $? -eq 0 ]; then
-			return $SUCCESS
+                                umount_failed=
+                                done=$YES
+                                continue
 		fi
 
 		umount_failed=yes
 
+                        if [ "$force_umount" ]; then
+                                killMountProcesses $mp
+                        fi
+
+                        if [ $try -ge $max_tries ]; then
+                                done=$YES
+                        else
+                                sleep $sleep_time
+                                let try=try+1
+                        fi
 		;;
 	*)
 		return $FAIL
 		;;
 	esac
 
+                if [ $try -ge $max_tries ]; then
+                        done=$YES
+                else
+                        sleep $sleep_time
+                        let try=try+1
+                fi
+        done # while
 	if [ -n "$umount_failed" ]; then
 		ocf_log err "'umount $fullpath' failed ($mp), error=$ret_val"
 
 		return $FAIL
 	fi
+
 	return $SUCCESS
 }
 
