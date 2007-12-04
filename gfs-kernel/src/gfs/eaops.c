@@ -71,13 +71,6 @@ gfs_ea_name2type(const char *name, char **truncated_name)
 static int
 user_eo_get(struct gfs_inode *ip, struct gfs_ea_request *er)
 {
-	{
-		struct inode *inode = ip->i_vnode;
-		int error = permission(inode, MAY_READ, NULL);
-		if (error)
-			return error;
-	}
-
 	return gfs_ea_get_i(ip, er);
 }
 
@@ -92,17 +85,6 @@ user_eo_get(struct gfs_inode *ip, struct gfs_ea_request *er)
 static int
 user_eo_set(struct gfs_inode *ip, struct gfs_ea_request *er)
 {
-	{
-		struct inode *inode = ip->i_vnode;
-		if (S_ISREG(inode->i_mode) ||
-		    (S_ISDIR(inode->i_mode) && !(inode->i_mode & S_ISVTX))) {
-			int error = permission(inode, MAY_WRITE, NULL);
-			if (error)
-				return error;
-		} else
-			return -EPERM;
-	}
-
 	return gfs_ea_set_i(ip, er);
 }
 
@@ -117,17 +99,6 @@ user_eo_set(struct gfs_inode *ip, struct gfs_ea_request *er)
 static int
 user_eo_remove(struct gfs_inode *ip, struct gfs_ea_request *er)
 {
-	{
-		struct inode *inode = ip->i_vnode;
-		if (S_ISREG(inode->i_mode) ||
-		    (S_ISDIR(inode->i_mode) && !(inode->i_mode & S_ISVTX))) {
-			int error = permission(inode, MAY_WRITE, NULL);
-			if (error)
-				return error;
-		} else
-			return -EPERM;
-	}
-
 	return gfs_ea_remove_i(ip, er);
 }
 
@@ -238,11 +209,6 @@ system_eo_remove(struct gfs_inode *ip, struct gfs_ea_request *er)
 static int
 security_eo_get(struct gfs_inode *ip, struct gfs_ea_request *er)
 {
-	struct inode *inode = ip->i_vnode;
-	int error = permission(inode, MAY_READ, NULL);
-	if (error)
-		return error;
-
 	return gfs_ea_get_i(ip, er);
 }
 
@@ -257,11 +223,6 @@ security_eo_get(struct gfs_inode *ip, struct gfs_ea_request *er)
 static int
 security_eo_set(struct gfs_inode *ip, struct gfs_ea_request *er)
 {
-	struct inode *inode = ip->i_vnode;
-	int error = permission(inode, MAY_WRITE, NULL);
-	if (error)
-		return error;
-
 	return gfs_ea_set_i(ip, er);
 }
 
@@ -276,11 +237,6 @@ security_eo_set(struct gfs_inode *ip, struct gfs_ea_request *er)
 static int
 security_eo_remove(struct gfs_inode *ip, struct gfs_ea_request *er)
 {
-	struct inode *inode = ip->i_vnode;
-	int error = permission(inode, MAY_WRITE, NULL);
-	if (error)
-		return error;
-
 	return gfs_ea_remove_i(ip, er);
 }
 
