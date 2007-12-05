@@ -288,7 +288,7 @@ verify_fstype()
 	[ -z "$OCF_RESKEY_fstype" ] && return $OCF_SUCCESS
 
 	case $OCF_RESKEY_fstype in
-	gfs)
+	gfs|gfs2)
 		return $OCF_SUCCESS
 		;;
 	*)
@@ -333,7 +333,12 @@ verify_options()
 					;;
 			esac
 			;;
+		gfs2)
+			# XXX
+			continue
+			;;
 		esac
+
 
 		ocf_log err "Option $o not supported for $OCF_RESKEY_fstype"
 		ret=$OCF_ERR_ARGS
