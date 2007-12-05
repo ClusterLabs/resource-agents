@@ -371,7 +371,7 @@ Filesystem_start()
 
 		if
 		  case $FSTYPE in
-		    ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs|cifs|smbfs|ocfs2)	false;;
+		    ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs|cifs|smbfs|ocfs2|lustre)	false;;
 		    *)									true;;
 		  esac
 		then
