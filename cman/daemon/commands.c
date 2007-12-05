@@ -1024,6 +1024,21 @@ static int do_cmd_unregister_quorum_device(char *cmdbuf, int *retlen)
         return 0;
 }
 
+static int do_cmd_get_quorum_device(char *cmdbuf, char *retbuf, int *retlen)
+{
+	struct cl_qdev_info *qdi = (struct cl_qdev_info *)retbuf;
+
+        if (!quorum_device)
+                return -EINVAL;
+
+	strcpy(qdi->name, quorum_device->name);
+	qdi->state = (quorum_device->state == NODESTATE_MEMBER);
+	qdi->votes = quorum_device->votes;
+	*retlen = sizeof(struct cl_qdev_info);
+
+	return 0;
+}
+
 static void ccsd_timer_fn(void *arg)
 {
 	int ccs_err;
@@ -1274,6 +1289,10 @@ int process_command(struct connection *con, int cmd, char *cmdbuf,
 
 	case CMAN_CMD_GETCLUSTER:
 		err = do_cmd_get_cluster(cmdbuf, outbuf+offset, retlen);
+		break;
+
+	case CMAN_CMD_GET_QUORUMDEV:
+		err = do_cmd_get_quorum_device(cmdbuf, outbuf+offset, retlen);
 		break;
 
 	case CMAN_CMD_GETEXTRAINFO:

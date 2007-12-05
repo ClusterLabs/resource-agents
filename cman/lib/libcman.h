@@ -176,6 +176,13 @@ typedef struct cman_extra_info {
 					  First batch is the multicast address list */
 } cman_extra_info_t;
 
+/* Quorum device info, returned from cman_get_quorum_device() */
+typedef struct cman_qdev_info {
+	char qi_name[CMAN_MAX_NODENAME_LEN+1];
+	int  qi_state;
+	int  qi_votes;
+} cman_qdev_info;
+
 /*
  * NOTE: Apart from cman_replyto_shutdown(), you must not
  * call other cman_* functions while in these two callbacks:
@@ -394,6 +401,7 @@ int cman_barrier_delete(cman_handle_t handle, const char *name);
 int cman_register_quorum_device(cman_handle_t handle, char *name, int votes);
 int cman_unregister_quorum_device(cman_handle_t handle);
 int cman_poll_quorum_device(cman_handle_t handle, int isavailable);
+int cman_get_quorum_device(cman_handle_t handle, struct cman_qdev_info *info);
 
 /*
  * Sets the dirty bit inside cman. This indicates that the node has

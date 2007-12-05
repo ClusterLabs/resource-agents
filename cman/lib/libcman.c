@@ -1037,6 +1037,22 @@ int cman_poll_quorum_device(cman_handle_t handle, int isavailable)
 	return info_call(h, CMAN_CMD_POLL_QUORUMDEV, &isavailable, sizeof(int), NULL, 0);
 }
 
+int cman_get_quorum_device(cman_handle_t handle, struct cman_qdev_info *info)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	int ret;
+	struct cl_qdev_info q;
+	VALIDATE_HANDLE(h);
+
+	ret = info_call(h, CMAN_CMD_GET_QUORUMDEV, NULL, 0, &q, sizeof(q));
+	if (!ret) {
+		strcpy(info->qi_name, q.name);
+		info->qi_state = q.state;
+		info->qi_votes = q.votes;
+	}
+	return ret;
+}
+
 int cman_get_fenceinfo(cman_handle_t handle, int nodeid, uint64_t *time, int *fenced, char *agent)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;

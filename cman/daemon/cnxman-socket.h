@@ -54,6 +54,7 @@
 #define CMAN_CMD_STOP_CONFCHG       0x000000c1
 #define CMAN_CMD_SET_DIRTY          0x800000c2
 #define CMAN_CMD_SET_DEBUGLOG       0x800000c3
+#define CMAN_CMD_GET_QUORUMDEV      0x000000c4
 
 #define CMAN_CMD_DATA               0x00000100
 #define CMAN_CMD_BIND               0x00000101
@@ -254,6 +255,12 @@ struct cl_fence_info {
 	int flags;
 	uint64_t fence_time;
 	char fence_agent[MAX_FENCE_AGENT_NAME_LEN];
+};
+
+struct cl_qdev_info {
+	char name[MAX_CLUSTER_MEMBER_NAME_LEN];
+	int state;
+	int votes;
 };
 
 /* Commands to the barrier cmd */

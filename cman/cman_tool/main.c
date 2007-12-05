@@ -201,6 +201,7 @@ static void show_status(void)
 	char info_buf[PIPE_BUF];
 	char tmpbuf[1024];
 	cman_extra_info_t *einfo = (cman_extra_info_t *)info_buf;
+	cman_qdev_info qinfo;
 	int quorate;
 	int i;
 	int j;
@@ -228,6 +229,8 @@ static void show_status(void)
 							  einfo->ei_node_state));
 	printf("Nodes: %d\n", einfo->ei_members);
 	printf("Expected votes: %d\n", einfo->ei_expected_votes);
+	if (cman_get_quorum_device(h, &qinfo) == 0 && qinfo.qi_state == 1)
+		printf("Quorum device votes: %d\n", qinfo.qi_votes);
 	printf("Total votes: %d\n", einfo->ei_total_votes);
 
 	printf("Quorum: %d %s\n", einfo->ei_quorum, quorate?" ":"Activity blocked");
@@ -456,7 +459,6 @@ static void show_nodes(commandline_t *comline)
 	int format[MAX_FORMAT_OPTS];
 	cman_node_t *dis_nodes;
 	cman_node_t *nodes;
-	cman_node_t qdev_node;
 
 	h = open_cman_handle(0);
 
@@ -508,12 +510,7 @@ static void show_nodes(commandline_t *comline)
 		printf("Node  Sts   Inc   Joined               Name\n");
 	}
 
-	/* Get quorum device & print it. */
-	memset(&qdev_node, 0, sizeof(qdev_node));
-	if (!cman_get_node(h, CMAN_NODEID_QDISK, &qdev_node))
-		print_node(comline, h, format, &qdev_node);
-
-	/* Print 'real' nodes */
+	/* Print nodes */
 	for (i = 0; i < numnodes; i++) {
 		print_node(comline, h, format, &nodes[i]);
 	}
