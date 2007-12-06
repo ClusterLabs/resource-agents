@@ -451,10 +451,9 @@ my_memb_id_to_name(cluster_member_list_t *members, int memb_id)
 
 void
 _txt_rg_state(rg_state_t *rs, cluster_member_list_t *members, int flags,
-	      char *fmt_buf, int ns)
+	      int svcsize, int nodesize, int statsize)
 {
 	char owner[MAXHOSTNAMELEN+1];
-	char owner_fmt[16];
 	char *name = rs->rs_name, *ptr;
 	int l;
 
@@ -469,27 +468,24 @@ _txt_rg_state(rg_state_t *rs, cluster_member_list_t *members, int flags,
 	}
 
 	memset(owner, 0, sizeof(owner));
-	memset(owner_fmt, 0, sizeof(owner_fmt));
 
 	if (rs->rs_state == RG_STATE_STOPPED ||
 	    rs->rs_state == RG_STATE_DISABLED ||
 	    rs->rs_state == RG_STATE_ERROR ||
 	    rs->rs_state == RG_STATE_FAILED) {
 
-		snprintf(owner_fmt, sizeof(owner_fmt)-1, "(%%-.%ds)", ns-2);
-		snprintf(owner, sizeof(owner)-1, owner_fmt,
+		snprintf(owner, sizeof(owner)-1, "(%-.*s)", nodesize-2,
 			 my_memb_id_to_name(members, rs->rs_last_owner));
 	} else {
 
-		snprintf(owner_fmt, sizeof(owner_fmt)-1, "%%-.%ds", ns);
-		snprintf(owner, sizeof(owner)-1, owner_fmt,
+		snprintf(owner, sizeof(owner)-1, "%-.*s", nodesize,
 			 my_memb_id_to_name(members, rs->rs_owner));
 	}
 	
-	printf(fmt_buf,
-	       name,
-	       owner,
-	       rg_state_str(rs->rs_state));
+	printf(" %-*.*s %-*.*s %-*.*s\n",
+	       svcsize, svcsize, rs->rs_name,
+	       nodesize, nodesize, owner,
+	       statsize, statsize, rg_state_str(rs->rs_state));
 }
 
 
@@ -509,12 +505,13 @@ _txt_rg_state_v(rg_state_t *rs, cluster_member_list_t *members, int flags)
 
 
 void
-txt_rg_state(rg_state_t *rs, cluster_member_list_t *members, int flags, char *fmt_buf, int ns)
+txt_rg_state(rg_state_t *rs, cluster_member_list_t *members, int flags, int svcsize, 
+	     int nodesize, int statsize)
 {
 	if (flags & RG_VERBOSE) 
 		_txt_rg_state_v(rs, members, flags);
 	else
-		_txt_rg_state(rs, members, flags, fmt_buf, ns);
+		_txt_rg_state(rs, members, flags, svcsize, nodesize, statsize);
 }
 
 
@@ -548,27 +545,20 @@ xml_rg_state(rg_state_t *rs, cluster_member_list_t *members, int flags)
 
 
 void
-build_service_format(char *buf, int buflen, int cols, int *ns)
+build_service_field_sizes(int cols, int *svcsize, int *nodesize, int *statsize)
 {
 	/* Based on 80 columns */
-	int svcsize = 30;
-	int nodesize = 30;
-	int statsize = 14;	/* uninitialized */
+	*svcsize = 30;
+	*nodesize = 30;
+	*statsize = 14;	/* uninitialized */
 	int pad = 6;		/* Spaces and such; newline */
 
-	svcsize = (cols - (statsize + pad)) / 2;
-	nodesize = (cols - (statsize + pad)) / 2;
-	if (svcsize > MAXHOSTNAMELEN)
-		svcsize = MAXHOSTNAMELEN;
-	if (nodesize > MAXHOSTNAMELEN)
-		nodesize = MAXHOSTNAMELEN;
-
-	memset(buf, 0, buflen);
-	snprintf(buf, buflen-1, "  %%-%d.%ds %%-%d.%ds %%-%d.%ds\n",
-		 svcsize, svcsize, nodesize, nodesize, statsize,
-		 statsize);
-
-	*ns = nodesize;
+	*svcsize = (cols - (*statsize + pad)) / 2;
+	*nodesize = (cols - (*statsize + pad)) / 2;
+	if (*svcsize > MAXHOSTNAMELEN)
+		*svcsize = MAXHOSTNAMELEN;
+	if (*nodesize > MAXHOSTNAMELEN)
+		*nodesize = MAXHOSTNAMELEN;
 }
 
 
@@ -576,8 +566,7 @@ int
 txt_rg_states(rg_state_list_t *rgl, cluster_member_list_t *members, 
 	      char *svcname, int flags)
 {
-	int x, ret = 0, ns;
-	char fmt_buf[80];
+	int x, ret = 0, svcsize, nodesize, statsize;
 
 	if (!rgl || !members)
 		return -1;
@@ -585,14 +574,18 @@ txt_rg_states(rg_state_list_t *rgl, cluster_member_list_t *members,
 	if (svcname)
 		ret = -1;
 
-	build_service_format(fmt_buf, sizeof(fmt_buf), dimx, &ns);
+	build_service_field_sizes(dimx, &svcsize, &nodesize, &statsize);
 
 	if (!(flags & RG_VERBOSE)) {
 
-		printf(fmt_buf,
-		       "Service Name", "Owner (Last)", "State");
-		printf(fmt_buf,
-		       "------- ----", "----- ------", "-----");
+		printf(" %-*.*s %-*.*s %-*.*s\n",
+		       svcsize, svcsize, "Service Name",
+		       nodesize, nodesize, "Owner (Last)",
+	       	       statsize, statsize, "State");
+		printf(" %-*.*s %-*.*s %-*.*s\n",
+		       svcsize, svcsize, "------- ----",
+		       nodesize, nodesize, "----- ------",
+		       statsize, statsize, "-----");
 	} else {
 		printf("Service Information\n"
 		       "------- -----------\n\n");
@@ -602,7 +595,8 @@ txt_rg_states(rg_state_list_t *rgl, cluster_member_list_t *members,
 		if (svcname &&
 		    strcmp(rgl->rgl_states[x].rs_name, svcname))
 			continue;
-		txt_rg_state(&rgl->rgl_states[x], members, flags, fmt_buf, ns);
+		txt_rg_state(&rgl->rgl_states[x], members, flags,
+			     svcsize, nodesize, statsize);
 		if (svcname) {
 			switch (rgl->rgl_states[x].rs_state) {
 			case RG_STATE_STARTING:
@@ -706,25 +700,21 @@ xml_quorum_state(int qs)
 }
 
 void
-build_member_format(char *buf, int buflen, int cols)
+build_member_field_size(int cols, int *nodesize)
 {
 	/* Based on 80 columns */
-	int nodesize = 40;
+	*nodesize = 40;
 
-	nodesize = (cols / 2);
-	if (nodesize > MAXHOSTNAMELEN)
-		nodesize = MAXHOSTNAMELEN;
-
-	memset(buf, 0, buflen);
-	snprintf(buf, buflen-1, "  %%-%d.%ds ",
-		 nodesize, nodesize);
+	*nodesize = (cols / 2);
+	if (*nodesize > MAXHOSTNAMELEN)
+		*nodesize = MAXHOSTNAMELEN;
 }
 
 
 void
-txt_member_state(cman_node_t *node, char *fmt_buf)
+txt_member_state(cman_node_t *node, int nodesize)
 {
-	printf(fmt_buf, node->cn_name);
+	printf(" %-*.*s ", nodesize, nodesize, node->cn_name);
 	printf("%4d ", node->cn_nodeid);
 
 	if (node->cn_member & FLAG_UP)
@@ -776,25 +766,24 @@ xml_member_state(cman_node_t *node)
 int
 txt_member_states(cluster_member_list_t *membership, char *name)
 {
-	char buf[80];
-	int x, ret = 0;
+	int x, ret = 0, nodesize;
 
   	if (!membership) {
   		printf("Membership information not available\n");
  		return -1;
   	}
 
-	build_member_format(buf, sizeof(buf), dimx);
+	build_member_field_size(dimx, &nodesize);
 
-	printf(buf, "Member Name");
+	printf(" %-*.*s", nodesize, nodesize, "Member Name");
 	printf("%-4.4s %s\n", "ID", "Status");
-	printf(buf, "------ ----");
+	printf(" %-*.*s", nodesize, nodesize, "------ ----");
 	printf("%-4.4s %s\n", "----", "------");
 
 	for (x = 0; x < membership->cml_count; x++) {
 		if (name && strcmp(membership->cml_members[x].cn_name, name))
 			continue;
-		txt_member_state(&membership->cml_members[x], buf);
+		txt_member_state(&membership->cml_members[x], nodesize);
  		ret = !(membership->cml_members[x].cn_member & FLAG_UP);
 	}
 
