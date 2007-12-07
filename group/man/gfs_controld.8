@@ -33,18 +33,52 @@ GFS also sends all posix lock operations to gfs_controld for processing.
 gfs_controld manages cluster-wide posix locks for gfs and passes results
 back to gfs in the kernel.
 
+.SH CONFIGURATION FILE
+
+Optional cluster.conf settings are placed in the <gfs_controld> section.
+
+.SS Posix locks
+
+Heavy use of plocks can result in high network load.  The rate at which
+plocks are processed are limited by the
+.I plock_rate_limit
+setting, which limits the maximum plock performance, and limits potentially
+excessive network load.  This value is the maximum number of plock operations
+a single node will process every second.  To achieve maximum posix locking
+performance, the rate limiting should be disabled by setting it to 0.  The
+default value is 100.
+
+  <gfs_controld plock_rate_limit="100"/>
+
+To optimize performance for repeated locking of the same locks by
+processes on a single node,
+.I plock_ownership
+can be set to 1.  The default is 0.  If this is enabled, gfs_controld
+cannot interoperate with older versions that did not support this option.
+
+  <gfs_controld plock_ownership="1"/>
+
+Three options can be used to tune the behavior of the plock_ownership
+optimization.  All three relate to the caching of lock ownership state.
+Specifically, they define how agressively cached ownership state is dropped.
+More caching of ownership state can result in better performance, at the
+expense of more memory usage.
+
+.I drop_resources_time
+is the frequency of drop attempts in milliseconds.  Default 10000 (10 sec).
+
+.I drop_resources_count
+is the maximum number of items to drop from the cache each time.  Default 10.
+
+.I drop_resources_age
+is the time in milliseconds a cached item should be unused before being
+considered for dropping.  Default 10000 (10 sec).
+
+  <gfs_controld drop_resources_time="10000" drop_resources_count="10"
+   drop_resources_age="10000"/>
+
+
 .SH OPTIONS
-.TP
-\fB-l\fP <num>
-Limit the rate at which posix lock messages are sent to <num> messages per
-second.  0 disables the limit and results in the maximum performance of
-posix locks.  Default is 100.
-.TP
-\fB-w\fP
-Disable the "withdraw" feature.
-.TP
-\fB-p\fP
-Disable posix lock handling.
 .TP
 \fB-D\fP
 Run the daemon in the foreground and print debug statements to stdout.
@@ -52,11 +86,35 @@ Run the daemon in the foreground and print debug statements to stdout.
 \fB-P\fP
 Enable posix lock debugging messages.
 .TP
-\fB-V\fP
-Print the version information and exit.
+\fB-w\fP
+Disable the "withdraw" feature.
+.TP
+\fB-p\fP
+Disable posix lock handling.
+.TP
+\fB-l\fP <num>
+Limit the rate at which posix lock messages are sent to <num> messages per
+second.  0 disables the limit and results in the maximum performance of
+posix locks. Default 100.
+.TP
+\fB-o\fP <num>
+Enable (1) or disable (0) plock ownership optimization. Default 0.  All
+nodes must run with the same value.
+.TP
+\fB-t\fP <ms>
+Ownership cache tuning, drop resources time (milliseconds). Default 10000.
+.TP
+\fB-c\fP <ms>
+Ownership cache tuning, drop resources count. Default 10.
+.TP
+\fB-a\fP <ms>
+Ownership cache tuning, drop resources age (milliseconds). Default 10000.
 .TP
 \fB-h\fP 
 Print out a help message describing available options, then exit.
+.TP
+\fB-V\fP
+Print the version information and exit.
 
 .SH DEBUGGING 
 The gfs_controld daemon keeps a circular buffer of debug messages that can
