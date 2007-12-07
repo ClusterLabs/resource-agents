@@ -53,6 +53,8 @@ my %options = (
 	volidlibdir => \$volidlibdir,
 	ncursesincdir => \$ncursesincdir,
 	ncurseslibdir => \$ncurseslibdir,
+	slangincdir => \$slangincdir,
+	slanglibdir => \$slanglibdir,
 	readlineincdir => \$readlineincdir,
 	readlinelibdir => \$readlinelibdir,
 	openaisincdir => \$openaisincdir,
@@ -110,6 +112,8 @@ my $err = &GetOptions (\%options,
 		    'volidlibdir=s',
 		    'ncursesincdir=s',
 		    'ncurseslibdir=s',
+		    'slangincdir=s',
+		    'slanglibdir=s',
 		    'readlineincdir=s',
 		    'readlinelibdir=s',
 		    'openaisincdir=s',
@@ -182,6 +186,8 @@ if ($help || !$err) {
   print "--volidlibdir=\tthe base directory for volume_id libraries.  (Default: {libdir})\n";
   print "--ncursesincdir=\tthe base directory for ncurses include files.  (Default: {incdir})\n";
   print "--ncurseslibdir=\tthe base directory for ncurses libraries.  (Default: {libdir})\n";
+  print "--slangincdir=\tthe base directory for S-Lang include files.  (Default: {incdir})\n";
+  print "--slanglibdir=\tthe base directory for S-Lang libraries.  (Default: {libdir})\n";
   print "--readlineincdir=\tthe base directory for readline include files.  (Default: {incdir})\n";
   print "--readlinelibdir=\tthe base directory for readline libraries.  (Default: {libdir})\n";
   print "--openaisincdir=\tthe base directory for openais include files.  (Default: {incdir})\n";
@@ -369,6 +375,12 @@ if (!$ncursesincdir) {
 if (!$ncurseslibdir) {
   $ncurseslibdir="${libdir}";
 }
+if (!$slangincdir) {
+  $slangincdir="${incdir}";
+}
+if (!$slanglibdir) {
+  $slanglibdir="${libdir}";
+}
 if (!$openaisincdir) {
   $openaisincdir="${incdir}";
 }
@@ -507,6 +519,8 @@ while (<IFILE>) {
   $_ =~ s/\@READLINELIBDIR\@/$readlinelibdir/;
   $_ =~ s/\@NCURSESINCDIR\@/$ncursesincdir/;
   $_ =~ s/\@NCURSESLIBDIR\@/$ncurseslibdir/;
+  $_ =~ s/\@SLANGINCDIR\@/$slangincdir/;
+  $_ =~ s/\@SLANGLIBDIR\@/$slanglibdir/;
   $_ =~ s/\@OPENAISINCDIR\@/$openaisincdir/;
   $_ =~ s/\@OPENAISLIBDIR\@/$openaislibdir/;
   $_ =~ s/\@AISEXECBIN\@/$aisexecbin/;

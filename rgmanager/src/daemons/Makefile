@@ -55,7 +55,7 @@ SHAREDOBJS=	depends-noccs.o \
 CFLAGS += -D_GNU_SOURCE -DSHAREDIR=\"${sharedir}\"
 CFLAGS += -Werror -Wstrict-prototypes -Wshadow -fPIC
 CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmincdir}
-CFLAGS += `xml2-config --cflags` -I${readlineincdir}
+CFLAGS += `xml2-config --cflags` -I${readlineincdir} -I${slangincdir}
 CFLAGS += -I../../include
 CFLAGS += -I${incdir}
 
@@ -68,7 +68,8 @@ CCS_LDFLAGS += -L${ccslibdir} -lccs
 CMAN_LDFLAGS += -L${cmanlibdir} -lcman
 DLM_LDFLAGS += -L${dlmlibdir} -ldlm
 XML2_LDFLAGS += `xml2-config --libs`
-EXTRA_LDFLAGS += -lpthread -ldl -lslang
+SLANG_LDFLAGS += -L${slanglibdir} -lslang
+EXTRA_LDFLAGS += -lpthread -ldl
 LOCAL_LDFLAGS += -llalloc
 READLINE_LDFLAGS += -L${readlinelibdir} -lreadline
 
@@ -76,7 +77,8 @@ all: depends ${TARGET1} ${TARGET2} ${TARGET3}
 
 ${TARGET1}: ${OBJS1}
 	$(CC) -o $@ $^ $(LDFLAGS) $(CCS_LDFLAGS) $(CMAN_LDFLAGS) \
-			$(DLM_LDFLAGS) $(XML2_LDFLAGS) $(EXTRA_LDFLAGS)
+			$(DLM_LDFLAGS) $(XML2_LDFLAGS) \
+			$(SLANG_LDFLAGS) $(EXTRA_LDFLAGS)
 
 ${TARGET2}: ${OBJS2}
 	$(CC) -o $@ $^ $(LDFLAGS)
@@ -97,7 +99,8 @@ ${TARGET2}: ${OBJS2}
 #
 ${TARGET3}: ${SHAREDOBJS} ${OBJS3}
 	$(CC) -o $@ $^ $(LDFLAGS) $(CCS_LDFLAGS) $(CMAN_LDFLAGS) \
-			$(LOCAL_LDFLAGS) $(EXTRA_LDFLAGS) $(XML2_LDFLAGS)
+			$(LOCAL_LDFLAGS) $(EXTRA_LDFLAGS) $(XML2_LDFLAGS) \
+			$(SLANG_LDFLAGS)
 
 ${TARGET4}: ${SHAREDOBJS} ${OBJS4}
 	$(CC) -o $@ $^ $(LDFLAGS) $(CCS_LDFLAGS) $(CMAN_LDFLAGS) \
