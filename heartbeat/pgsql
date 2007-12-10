@@ -354,14 +354,6 @@ then
     exit 1
 fi
 
-US=`id -u -n`
-
-if [ $US != root ]
-then
-    ocf_log err "$0 must be run as root"
-    exit 1
-fi
-
 : ${OCF_RESKEY_pgctl=/usr/bin/pg_ctl}
 : ${OCF_RESKEY_psql=/usr/bin/psql}
 : ${OCF_RESKEY_pgdata=/var/lib/pgsql/data}
@@ -383,6 +375,14 @@ case "$1" in
     validate-all) pgsql_validate_all
                 exit $?;;
 esac
+
+US=`id -u -n`
+
+if [ $US != root ]
+then
+    ocf_log err "$0 must be run as root"
+    exit 1
+fi
 
 if ! pgsql_validate_all
 then
