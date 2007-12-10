@@ -492,6 +492,8 @@ _txt_rg_state(rg_state_t *rs, cluster_member_list_t *members, int flags,
 void
 _txt_rg_state_v(rg_state_t *rs, cluster_member_list_t *members, int flags)
 {
+	time_t t;
+
 	printf("Service Name      : %s\n", rs->rs_name);
 	printf("  Current State   : %s (%d)\n",
 	       rg_state_str(rs->rs_state), rs->rs_state);
@@ -499,8 +501,9 @@ _txt_rg_state_v(rg_state_t *rs, cluster_member_list_t *members, int flags)
 	       my_memb_id_to_name(members, rs->rs_owner));
 	printf("  Last Owner      : %s\n",
 	       my_memb_id_to_name(members, rs->rs_last_owner));
-	printf("  Last Transition : %s\n",
-	       ctime((time_t *)(&rs->rs_transition)));
+
+	t = (time_t)(rs->rs_transition);
+	printf("  Last Transition : %s\n", ctime(&t));
 }
 
 
@@ -520,9 +523,11 @@ xml_rg_state(rg_state_t *rs, cluster_member_list_t *members, int flags)
 {
 	char time_str[32];
 	int x;
+	time_t t;
 
 	/* Chop off newlines */
-	ctime_r((time_t *)&rs->rs_transition, time_str);
+       	t = (time_t)(rs->rs_transition);
+	ctime_r(&t, time_str);
 	for (x = 0; time_str[x]; x++) {
 		if (time_str[x] < 32) {
 			time_str[x] = 0;
