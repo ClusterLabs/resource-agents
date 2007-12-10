@@ -290,7 +290,7 @@ case ${LibDirSuffix} in
 		case $OutFileType in
 		  *64-bit*)	
 		  	case $host_os in
-			  openbsd)	LibDirSuffix=lib;;
+			  openbsd*)	LibDirSuffix=lib;;
 		  	  *)		LibDirSuffix=lib64;;
 			esac;;
 		  *32-bit*)	LibDirSuffix=lib;;
@@ -827,7 +827,7 @@ AC_DEFINE(PROCROUTE, "/proc/net/route", path were to find route information in p
 
 
 AC_MSG_CHECKING(ifconfig option to list interfaces)
-for IFCONFIG_A_OPT in "" "-A" "-a"
+for IFCONFIG_A_OPT in  "-A" "-a" ""
 do
   $IFCONFIG $IFCONFIG_A_OPT > /dev/null 2>&1
   if
