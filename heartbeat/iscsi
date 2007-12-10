@@ -209,7 +209,7 @@ open_iscsi_remove() {
 	$iscsiadm -m node -p $1 -T $2 -u
 }
 open_iscsi_status() {
-	$iscsiadm -m session | grep -qs "$2$"
+	$iscsiadm -m session 2>/dev/null | grep -qs "$2$"
 }
 
 iscsi_status() {
