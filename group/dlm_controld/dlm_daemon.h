@@ -56,6 +56,7 @@
 #define MAXCON		4
 #define MAXNAME		255
 #define MAX_NODES	256 /* should be same as MAX_GROUP_MEMBERS */
+#define MAX_NODE_ADDRESSES 4
 
 extern char *prog_name;
 extern int daemon_debug_opt;

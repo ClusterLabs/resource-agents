@@ -68,7 +68,10 @@ char *nodeid2name(int nodeid)
 
 static void statechange(void)
 {
-	int i, rv;
+	int i, j, rv;
+	struct cman_node_address addrs[MAX_NODE_ADDRESSES];
+	int num_addrs;
+	struct cman_node_address *addrptr = addrs;
 
 	old_node_count = cman_node_count;
 	memcpy(&old_nodes, &cman_nodes, sizeof(old_nodes));
@@ -96,14 +99,25 @@ static void statechange(void)
 		if (cman_nodes[i].cn_member &&
 		    !is_old_member(cman_nodes[i].cn_nodeid)) {
 
+			rv = cman_get_node_addrs(ch, cman_nodes[i].cn_nodeid,
+						 MAX_NODE_ADDRESSES,
+						 &num_addrs, addrs);
+			if (rv < 0) {
+				log_debug("cman_get_node_addrs failed, falling back to single-homed. ");
+				num_addrs = 1;
+				addrptr = &cman_nodes[i].cn_address;
+			}
+
 			log_debug("cman: node %d added",
 				  cman_nodes[i].cn_nodeid);
 
-			add_configfs_node(cman_nodes[i].cn_nodeid,
-					  cman_nodes[i].cn_address.cna_address,
-					  cman_nodes[i].cn_address.cna_addrlen,
-					  (cman_nodes[i].cn_nodeid ==
-					   our_nodeid));
+			for (j = 0; j < num_addrs; j++) {
+				add_configfs_node(cman_nodes[i].cn_nodeid,
+						  addrptr[j].cna_address,
+						  addrptr[j].cna_addrlen,
+						  (cman_nodes[i].cn_nodeid ==
+						   our_nodeid));
+			}
 		}
 	}
 }
