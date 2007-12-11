@@ -276,7 +276,7 @@ case "$1" in
 esac
 
 if [ x = "x$OCF_RESKEY_target" ]; then
-	ocf_log err "Please set the target attribute"
+	ocf_log err "no target attribute"
 	exit $OCF_ERR_ARGS
 fi
 
