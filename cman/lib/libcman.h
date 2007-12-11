@@ -50,7 +50,8 @@
 #define CMAN_NODEID_ALL 0
 
 /*
- * Hang onto this, it's your key into the library. get one from cman_init() or cman_admin_init()
+ * Hang onto this, it's your key into the library. get one from cman_init() or
+ * cman_admin_init()
  */
 typedef void *cman_handle_t;
 
@@ -58,11 +59,12 @@ typedef void *cman_handle_t;
  * Reasons we get an event callback.
  * PORTOPENED & TRY_SHUTDOWN only exist when LIBCMAN_VERSION >= 2
  *
- * The 'arg' parameter varies dependng on the callback type.
+ * The 'arg' parameter varies depending on the callback type.
  * for PORTCLOSED/PORTOPENED  arg == the port opened/closed
  * for STATECHANGE            arg should be ignored
- * for TRY_SHUTDOWN           arg == 1 for ANYWAY, otherwise 0 (ie if arg == 1 then cman WILL shutdown regardless
- *                            of your reponse, think of this as advance warning)
+ * for TRY_SHUTDOWN           arg == 1 for ANYWAY, otherwise 0 (ie if arg == 1 
+ * 			      then cman WILL shutdown regardless
+ *                            of your response, think of this as advance warning)
  */
 typedef enum {CMAN_REASON_PORTCLOSED,
 	      CMAN_REASON_STATECHANGE,
@@ -78,7 +80,8 @@ typedef enum {CMAN_REASON_PORTCLOSED,
 
 /*
  * Flags for cman_shutdown
- *    ANYWAY   -  cman will shutdown regardless of clients' responses (but they will still get told)
+ *    ANYWAY   -  cman will shutdown regardless of clients' responses (but they
+ *    		   will still get told)
  *    REMOVED  -  the rest of the cluster will adjust quorum to stay quorate
  */
 #define CMAN_SHUTDOWN_ANYWAY   1
@@ -87,8 +90,10 @@ typedef enum {CMAN_REASON_PORTCLOSED,
 /*
  * Flags passed to cman_dispatch():
  * CMAN_DISPATCH_ONE dispatches a single message then returns,
- * CMAN_DISPATCH_ALL dispatches all outstanding messages (ie till EAGAIN) then returns,
- * CMAN_DISPATCH_BLOCKING forces it to wait for a message (cleans MSG_DONTWAIT in recvmsg)
+ * CMAN_DISPATCH_ALL dispatches all outstanding messages (ie till EAGAIN) then 
+ *                   returns,
+ * CMAN_DISPATCH_BLOCKING forces it to wait for a message (clears MSG_DONTWAIT 
+ * 			  in recvmsg)
  * CMAN_DISPATCH_IGNORE_* allows the caller to select which messages to process.
  */
 #define CMAN_DISPATCH_ONE           0
@@ -240,42 +245,47 @@ int cman_replyto_shutdown(cman_handle_t, int yesno);
 
 /*
  * Get the internal CMAN fd so you can pass it into poll() or select().
- * When it's active then call cman_dispatch() on the handle to process the event.
+ * When it's active then call cman_dispatch() on the handle to process the event
  * NOTE: This fd can change between calls to cman_dispatch() so always call this
  * routine to get the latest one. (This is mainly due to message caching).
- * One upshot of this is that you must never read or write this FD (it may on occasion
- * point to /dev/zero if you have messages cached!)
+ * One upshot of this is that you must never read or write this FD (it may on 
+ * occasion point to /dev/zero if you have messages cached!)
  */
 int cman_get_fd(cman_handle_t handle);
 
 /*
  * cman_dispatch() will return -1 with errno == EHOSTDOWN if the cluster is
- * shut down, 0 if nothing was read, or a positive number if something was dispatched.
+ * shut down, 0 if nothing was read, or a positive number if something was 
+ * dispatched.
  */
 
 int cman_dispatch(cman_handle_t handle, int flags);
 
 
 /*
- * ----------------------------------------------------------------------------------------
+ * -----------------------------------------------------------------------------
  * Get info calls.
  */
 
 /* Return the number of nodes we know about. This will normally
-   be the number of nodes in CCS */
+ *  be the number of nodes in CCS 
+ */
 int cman_get_node_count(cman_handle_t handle);
 
-/* Returns the number of connected clients. This isn't as useful as a it used to be
-   as a count >1 does not automatically mean cman won't shut down. Subsystems
-   can decide for themselves whether a clean shutdown is possible. */
+/* Returns the number of connected clients. This isn't as useful as a it used to
+ * be as a count >1 does not automatically mean cman won't shut down. Subsystems
+ * can decide for themselves whether a clean shutdown is possible. 
+ */
 int cman_get_subsys_count(cman_handle_t handle);
 
 /* Returns an array of node info structures. Call cman_get_node_count() first
-   to determine how big your array needs to be */
+ * to determine how big your array needs to be 
+ */
 int cman_get_nodes(cman_handle_t handle, int maxnodes, int *retnodes, cman_node_t *nodes);
 
-/* Returns a list of nodes that are known to AIS but blocked from joining the CMAN
-   cluster because they rejoined with cluster without a cman_tool join */
+/* Returns a list of nodes that are known to AIS but blocked from joining the
+ * CMAN cluster because they rejoined with cluster without a cman_tool join 
+ */
 int cman_get_disallowed_nodes(cman_handle_t handle, int maxnodes, int *retnodes, cman_node_t *nodes);
 
 /*
@@ -289,14 +299,14 @@ int cman_get_node(cman_handle_t handle, int nodeid, cman_node_t *node);
 
 /* cman_get_node() only returns the first address of a node (whatever /that/
  * may mean). If you want to know all of them you need to call this.
- * max_addrs is the size of the 'addrs' array. num_addrs will be filled in by the
- * number of addresses the node has, regardless of the size of max_addrs. So if you
- * don't allocate enough space for the first call, you should know how much is needed
- * for a second!
+ * max_addrs is the size of the 'addrs' array. num_addrs will be filled in by 
+ * the number of addresses the node has, regardless of the size of max_addrs. 
+ * So if you don't allocate enough space for the first call, you should know how
+ * much is needed for a second!
  */
 int cman_get_node_addrs(cman_handle_t handle, int nodeid, int max_addrs, int *num_addrs, struct cman_node_address *addrs);
 
-/* Returns 1 if cman has completed initaialisation and aisexec is running */
+/* Returns 1 if cman has completed initialisation and aisexec is running */
 int cman_is_active(cman_handle_t handle);
 
 /*
@@ -328,13 +338,14 @@ int cman_get_fenceinfo(cman_handle_t handle, int nodeid, uint64_t *fence_time, i
 int cman_get_extra_info(cman_handle_t handle, cman_extra_info_t *info, int maxlen);
 
 /*
- * ----------------------------------------------------------------------------------------
- * Admin functions. You will need privileges and have a handle created by cman_admin_init()
- * to use them.
+ * -----------------------------------------------------------------------------
+ * Admin functions. You will need privileges and have a handle created by 
+ * cman_admin_init() to use them.
  */
 
-/* Change the config file version. This should be needed much less now, as cman will
-   re-read the config file if a new node joins with a new config versoin */
+/* Change the config file version. This should be needed much less now, as 
+ * cman will re-read the config file if a new node joins with a new config 
+ * version */
 int cman_set_version(cman_handle_t handle, const cman_version_t *version);
 
 /* Deprecated in favour of cman_shutdown(). Use cman_tool anyway please. */
@@ -358,7 +369,7 @@ int cman_node_fenced(cman_handle_t handle, int nodeid, uint64_t fence_time, char
  * cman_shutdown() will send a REASON_TRY_SHUTDOWN event to all
  * clients registered for notifications. They should respond by calling
  * cman_replyto_shutdown() to indicate whether they will allow
- * cman to close down or not. If cman gets >=1 "no" (0) or the
+ * cman to close down or not. If cman gets >=1 "no" (0) replies or the
  * request times out (default 5 seconds) then shutdown will be
  * cancelled and cman_shutdown() will return -1 with errno == EBUSY.
  *
@@ -370,7 +381,7 @@ int cman_node_fenced(cman_handle_t handle, int nodeid, uint64_t fence_time, char
  */
 int cman_shutdown(cman_handle_t, int flags);
 
-/* ----------------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
  * Data transmission API. Uses the same FD as the rest of the calls.
  * If the nodeid passed to cman_send_data() is zero then it will be
  * broadcast to all nodes in the cluster.
