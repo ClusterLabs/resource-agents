@@ -95,7 +95,7 @@ Resource script for Filesystem. It manages a Filesystem on a shared storage medi
 <shortdesc lang="en">Filesystem resource agent</shortdesc>
 
 <parameters>
-<parameter name="device" unique="1">
+<parameter name="device" required="1">
 <longdesc lang="en">
 The name of block device for the filesystem, or -U, -L options for mount, or NFS mount specification.
 </longdesc>
@@ -103,7 +103,7 @@ The name of block device for the filesystem, or -U, -L options for mount, or NFS
 <content type="string" default="" />
 </parameter>
 
-<parameter name="directory" unique="1">
+<parameter name="directory" required="1">
 <longdesc lang="en">
 The mount point for the filesystem.
 </longdesc>
