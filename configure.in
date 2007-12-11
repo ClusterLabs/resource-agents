@@ -2047,6 +2047,21 @@ dnl Add any system specific options here.
 	CC_WARNINGS="$EXTRA_WARNINGS $FATAL_WARNINGS $ANSI" 
 	NON_FATAL_CC_WARNINGS="$EXTRA_WARNINGS"
 
+dnl Inline semantics are to be changed as of gcc v4.3. Since
+dnl 4.1.3 gcc issues a warning in case there are inlines. That's the
+dnl case with glib2.
+
+	ver2num() {
+		awk -v v=$1 '{split(v,a,"."); print a3+(a2+(a1*16))*16 }'
+	}
+	GCCVER=`gcc --version | head -1 | awk '{print $3}' | ver2num`
+	firstver=`echo 4.1.3 | ver2num`
+	lastver=`echo 4.3.0 | ver2num`
+
+	if test $GCCVER -ge $firstver -a $GCCVER -lt $lastver; then
+		CFLAGS="$CFLAGS -fgnu89-inline"
+	fi
+
 fi
 if test "${enable_times_kludge}" = no; then
   echo "Disabling times(2) kludge"
