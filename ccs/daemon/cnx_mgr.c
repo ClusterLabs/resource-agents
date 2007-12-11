@@ -1365,18 +1365,19 @@ int process_broadcast(int sfd){
     ch->comm_flags |= COMM_BROADCAST_FROM_QUORATE;
   }
 
+  swab_header(ch);
   memcpy(buffer, ch, sizeof(comm_header_t));
+  swab_header(ch); /* Swab back to dip into ch for payload_size */
   memcpy(buffer+sizeof(comm_header_t), payload, ch->comm_payload_size);
 
   log_dbg("Sending cluster.conf (version %d)...\n", get_doc_version(master_doc->od_doc));
   sendlen = ch->comm_payload_size + sizeof(comm_header_t);
-  swab_header(ch);
   if(sendto(sfd, buffer, sendlen, 0,
 	    (struct sockaddr *)&addr, (socklen_t)len) < 0){
     log_sys_err("Sendto failed");
     error = -errno;
   }
-  
+
  fail:
   if(buffer) free(buffer);
   if(payload) free(payload);
