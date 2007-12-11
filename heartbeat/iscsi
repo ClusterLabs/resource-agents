@@ -318,7 +318,7 @@ case $? in
 [23]) exit $OCF_ERR_GENERIC;;
 esac
 
-# What kind of method was invoked?
+# which method was invoked?
 case "$1" in
 	start)	iscsi_start
 	;;
