@@ -39,6 +39,16 @@
 #     wait indefinately for fenced to start.
 [ -z "$FENCED_START_TIMEOUT" ] && FENCED_START_TIMEOUT=300
 
+# NET_RMEM_DEFAULT -- minimum value for rmem_default. If this is set
+# higher elsewhere it will not be reduced here.
+# These two values are only really needed for the DLM when using sctp
+# but do no harm.
+[ -z "$NET_RMEM_DEFAULT" ] && NET_RMEM_DEFAULT=4194304
+
+# NET_RMEM_MAX -- minimum value for rmem_max. If this is set
+# higher elsewhere it will not be reduced here.
+[ -z "$NET_RMEM_MAX" ] && NET_RMEM_MAX=4194304
+
 [ -z "$LOCK_FILE" ] && LOCK_FILE="/var/lock/subsys/cman"
 
 [ -n "$CLUSTERNAME" ] && cman_join_opts="-c $CLUSTERNAME"
@@ -204,6 +214,21 @@ fence_xvmd_enabled()
     return 0
 }
 
+set_networking_params()
+{
+	value=`cat /proc/sys/net/core/rmem_default`
+	if [ $value -le $NET_RMEM_DEFAULT ]
+	then
+		echo $NET_RMEM_DEFAULT > /proc/sys/net/core/rmem_default
+	fi
+
+        value=`cat /proc/sys/net/core/rmem_max`
+        if [ $value -le $NET_RMEM_MAX ]
+        then
+                echo $NET_RMEM_MAX > /proc/sys/net/core/rmem_max
+        fi
+}
+
 start()
 {
     echo "Starting cluster: "
@@ -240,6 +265,15 @@ start()
 	echo "failed"
 	return 1
     fi	
+    echo -n "   Setting network parameters... "
+    set_networking_params
+    if [ $? -eq 0 ] 
+    then
+	echo "done"
+    else
+	echo "failed"
+	return 1
+    fi
     echo -n "   Starting ccsd... "
     start_ccsd
     if [ $? -eq 0 ] 
