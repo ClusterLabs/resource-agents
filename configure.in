@@ -239,15 +239,15 @@ dnl Can force other with environment variable "CC".
 AC_PROG_CC
 AC_PROG_CC_STDC
 
+dnl ************************************************************************
+dnl Override the RPM target architecture on those platforms that need it...
+dnl ************************************************************************
+
 case "$host_cpu" in
-  ppc64|powerpc64)
-    case $CFLAGS in
-     *powerpc64*)			;;
-     *)	if test "$GCC" = yes; then
-	  CFLAGS="$CFLAGS -m64"
-	fi				;;
-    esac
+  ppc64|powerpc64) RPMTARGET="--target ppc";;
+  *) RPMTARGET="";;
 esac
+AC_SUBST(RPMTARGET)
 
 dnl ************************************************************************
 dnl Test to see whether library directories should be lib or lib64...
