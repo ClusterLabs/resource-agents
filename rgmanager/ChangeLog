@@ -1,3 +1,6 @@
+2007-12-12 Lon Hohberger <lhh at redhat.com>
+	* Misc changes; add missing ds.h
+
 2007-11-30 Lon Hohberger <lhh at redhat.com>
 	* Commit RIND / S-Lang script engine [untested]
 
