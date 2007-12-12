@@ -487,7 +487,7 @@ sl_start_service(void)
 	char *svcname = NULL;
 	int *pref_list = NULL, pref_list_len = 0;
 	int *illegal_list = NULL, illegal_list_len = 0;
-	int nargs, t, x, ret = -1;
+	int nargs, t, newowner = 0, ret = -1;
 
 	nargs = SLang_Num_Function_Args;
 
@@ -528,8 +528,10 @@ sl_start_service(void)
 
 	/* TODO: Meat of function goes here */
 	ret = service_op_start(svcname, pref_list,
-			       pref_list_len, &x); ;
+			       pref_list_len, &newowner);
 
+	if (ret == 0 && newowner > 0)
+		ret = newowner;
 out:
 	if (svcname)
 		free(svcname);
@@ -1123,7 +1125,17 @@ S_user_event(const char *file, const char *script, char *name,
 	/* XXX Send response code to caller - that 0 should be the
 	   new service owner, if there is one  */
 	if (ctx) {
-		send_ret(ctx, name, _user_return, request, 0);
+		if (_user_return > 0) {
+			/* sl_start_service() squashes return code and
+			   node ID into one value.  <0 = error, >0 =
+			   success, return-value == node id running
+			   service */
+			send_ret(ctx, name, 0, request, _user_return);
+		} else {
+			/* return value < 0 ... pass directly back;
+			   don't transpose */
+			send_ret(ctx, name, _user_return, request, 0);
+		}
 		msg_close(ctx);
 		msg_free_ctx(ctx);
 	}

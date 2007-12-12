@@ -1126,48 +1126,6 @@ send_rg_state(msgctx_t *ctx, char *rgname, int fast)
 }
 
 
-#if 0
-/**
-  Send the state of the transition master to a given file descriptor.
-
-  @param fd		File descriptor to send state to
-  @param rgname		Resource group name whose state we want to send.
-  @see send_rg_states
- */
-void
-send_master_state(msgctx_t *ctx)
-{
-	rg_state_msg_t msg, *msgp = &msg;
-	event_master_t master;
-	rg_state_t *rs = &msg.rsm_state;
-
-	strncpy(rs->rs_name, "internal:CentralProcessor",
-		sizeof(rs->rs_name));
-	rs->rs_last_owner = 0;
-	rs->rs_restarts = 0;
-
-	if (event_master_info_cached(&master) < 0) {
-		rs->rs_owner = 0;
-		rs->rs_transition = master.m_master_time;
-		rs->rs_state = RG_STATE_UNINITIALIZED;
-	} else {
-		rs->rs_owner = master.m_nodeid;
-		rs->rs_transition = master.m_master_time;
-		rs->rs_state = RG_STATE_STARTED;
-	}
-
-	msgp->rsm_hdr.gh_magic = GENERIC_HDR_MAGIC;
-	msgp->rsm_hdr.gh_length = sizeof(msg);
-	msgp->rsm_hdr.gh_command = RG_STATUS;
-
-	swab_rg_state_msg_t(msgp);
-
-	if (msg_send(ctx, msgp, sizeof(msg)) < 0)
-		perror("msg_send");
-}
-#endif
-
-
 /**
   Send status from a thread because we don't want rgmanager's
   main thread to block in the case of DLM issues
@@ -1182,6 +1140,14 @@ status_check_thread(void *arg)
 	char rg[64];
 
 	free(arg);
+
+	if (central_events_enabled()) {
+		/* Never call get_rg_state() (distributed) if 
+		   central events are enabled, otherwise we
+		   might overwrite the rg state with 'stopped' 
+		   when it should be 'disabled' (e.g. autostart="0") */
+		fast = 1;
+	}
 
 	/* See if we have a slot... */
 	if (rg_inc_status() < 0) {
@@ -1327,6 +1293,7 @@ q_status_checks(void __attribute__ ((unused)) *arg)
 	resource_node_t *curr;
 	rg_state_t svcblk;
 	char rg[64];
+	struct dlm_lksb lockp;
 	
 	/* Only one status thread at a time, please! */
 	if (pthread_mutex_trylock(&status_mutex) != 0)
@@ -1340,7 +1307,13 @@ q_status_checks(void __attribute__ ((unused)) *arg)
 
 		/* Local check - no one will make us take a service */
 		if (get_rg_state_local(rg, &svcblk) < 0) {
-			continue;
+			if (rg_lock(rg, &lockp) != 0)
+				continue;
+			if (get_rg_state(rg, &svcblk) < 0) {
+				rg_unlock(&lockp);
+				continue;
+			}
+			rg_unlock(&lockp);
 		}
 
 		if (svcblk.rs_owner != my_id() ||

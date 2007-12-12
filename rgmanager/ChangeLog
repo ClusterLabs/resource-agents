@@ -1,5 +1,12 @@
 2007-12-12 Lon Hohberger <lhh at redhat.com>
 	* Misc changes; add missing ds.h
+	* src/resources/default*.sl: Make clusvcadm -r go to a different
+	node.  Don't notice() that we're starting a service if it's
+	disabled.
+	* src/daemons/groups.c: Make clustat not interfere with startup
+	when central processing is enabled
+	* src/daemons/slang_event.c: Make clusvcadm correctly report
+	service owner after relocate/restart/enable requests.
 
 2007-11-30 Lon Hohberger <lhh at redhat.com>
 	* Commit RIND / S-Lang script engine [untested]

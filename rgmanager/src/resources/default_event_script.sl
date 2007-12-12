@@ -192,7 +192,8 @@ define default_service_event_handler()
 		}
 
 		(owner, state) = service_status(services[x]);
-		if ((service_state == "started") and (owner < 0)) {
+		if ((service_state == "started") and (owner < 0) and
+		    (state == "stopped")) {
 			info("Dependency met; starting ", services[x]);
 			nodes = allowed_nodes(services[x]);
 			()=move_or_start(services[x], nodes);
@@ -245,6 +246,10 @@ define default_user_event_handler()
 
 		if (user_target > 0) {
 			for (x = 0; x < length(nodes); x++) {
+				%
+				% Put the preferred node at the front of the 
+				% list for a user-relocate operation
+				%
 				if (nodes[x] == user_target) {
 					reordered = union(user_target, nodes);
 					nodes = reordered;
@@ -262,6 +267,13 @@ define default_user_event_handler()
 			if (service_stop(service_name) < 0) {
 				return ERR_ABORT;
 			}
+
+			%
+			% The current owner shouldn't be the default
+			% for a relocate operation
+			%
+			reordered = subtract(nodes, owner);
+			nodes = union(reordered, owner);
 		}
 
 		ret = move_or_start(service_name, nodes);
@@ -275,7 +287,10 @@ define default_user_event_handler()
 		ret = service_stop(service_name);
 
 	} 
+
+	%
 	% todo - migrate
+	%
 
 	return ret;
 }
