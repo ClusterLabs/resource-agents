@@ -1440,6 +1440,7 @@ if test "x${enable_cim_provider}" = "xyes"; then
 specify CMPI header files with --with-cmpi-headers please.])] )
         done
 
+	AC_MSG_CHECKING(CMPI provider directory)
         if test "x${CMPI_PROVIDER_DIR}" = "x"; then
                 case ${CIMOM} in
                         sfcbd)  SFCBD_PREFIX=`which sfcbd`
@@ -1462,7 +1463,7 @@ specify CMPI header files with --with-cmpi-headers please.])] )
 					echo openwbem config not found, cmpi provider dir set to \
 							$(CMPI_PROVIDER_DIR) by default. 
 				fi;;
-                        pegasus) CMPI_PROVIDER_DIR=/opt/tog-pegasus/providers/lib;;
+                        pegasus|tog-pegasus) CMPI_PROVIDER_DIR=/opt/tog-pegasus/providers/lib;;
                         *);;
                 esac
 
@@ -1470,6 +1471,7 @@ specify CMPI header files with --with-cmpi-headers please.])] )
                         CMPI_PROVIDER_DIR="$libdir"/cmpi
                         AC_MSG_RESULT(default directory: $CMPI_PROVIDER_DIR)
                 fi
+                AC_MSG_RESULT($CMPI_PROVIDER_DIR)
         fi
 fi
 
