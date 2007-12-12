@@ -103,6 +103,18 @@ iscsiadm program path.
 <content type="string" default="" />
 </parameter>
 
+<parameter name="udev" unique="0" required="0">
+<longdesc lang="en">
+If the next resource depends on the udev creating a device then
+we wait until it is finished. On a normally loaded host this
+should be done quickly, but you may be unlucky. If you are not
+using udev set this to "no", otherwise we will spin in a loop
+until a timeout occurs.
+</longdesc>
+<shortdesc lang="en">udev</shortdesc>
+<content type="string" default="yes" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -212,6 +224,17 @@ open_iscsi_status() {
 	$iscsiadm -m session 2>/dev/null | grep -qs "$2$"
 }
 
+#
+# NB: this is udev specific!
+#
+wait_for_udev() {
+	dev=/dev/disk/by-path/ip-$portal-iscsi-$OCF_RESKEY_target
+	while :; do
+		ls $dev* >/dev/null 2>&1 && break
+		ocf_log warning "waiting for udev to create $dev" 
+		sleep 1
+	done
+}
 iscsi_status() {
 	if $disk_status $portal $OCF_RESKEY_target; then
 		return $OCF_SUCCESS
@@ -226,6 +249,12 @@ iscsi_start() {
 	else
 		$add_disk $portal $OCF_RESKEY_target ||
 			return $OCF_ERR_GENERIC
+		case "$OCF_RESKEY_udev" in
+		[Yy]es) wait_for_udev ||
+			return $OCF_ERR_GENERIC
+		;;
+		*) ;;
+		esac
 		if iscsi_status; then
 			return $OCF_SUCCESS
 		else
@@ -307,6 +336,7 @@ if [ `id -u` != 0 ]; then
 fi
 
 discovery_type=${OCF_RESKEY_discovery_type:-"sendtargets"}
+udev=${OCF_RESKEY_udev:-"yes"}
 $discovery  # discover and setup the real portal string (address)
 case $? in
 0) ;;
