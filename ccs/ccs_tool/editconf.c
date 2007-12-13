@@ -417,7 +417,7 @@ static xmlNode *find_node(xmlNode *clusternodes, char *nodename)
 /* Print name=value pairs for a (n XML) node.
  * "ignore" is a string to ignore if present as a property (probably already printed on the main line)
  */
-static void print_properties(xmlNode *node, char *prefix, char *ignore, char *ignore2)
+static int print_properties(xmlNode *node, char *prefix, char *ignore, char *ignore2)
 {
 	xmlAttr *attr;
 	int done_prefix = 0;
@@ -440,6 +440,7 @@ static void print_properties(xmlNode *node, char *prefix, char *ignore, char *ig
 	}
 	if (done_prefix)
 		printf("\n");
+	return done_prefix;
 }
 
 /* Add name=value pairs from the commandline as properties to a node */
@@ -477,6 +478,7 @@ static void add_clusternode(xmlNode *root_element, struct option_info *ninfo,
 {
 	xmlNode *clusternodes;
 	xmlNode *newnode;
+
 	xmlNode *newfence;
 	xmlNode *newfencemethod;
 	xmlNode *newfencedevice;
@@ -506,6 +508,15 @@ static void add_clusternode(xmlNode *root_element, struct option_info *ninfo,
 	xmlSetProp(newnode, BAD_CAST "votes", BAD_CAST ninfo->votes);
 	xmlSetProp(newnode, BAD_CAST "nodeid", BAD_CAST ninfo->nodeid);
 	xmlAddChild(clusternodes, newnode);
+
+	if (ninfo->altname)
+	{
+		xmlNode *altnode;
+
+		altnode = xmlNewNode(NULL, BAD_CAST "altname");
+		xmlSetProp(altnode, BAD_CAST "name", BAD_CAST ninfo->altname);
+		xmlAddChild(newnode, altnode);
+	}
 
 	/* Add the fence attributes */
 	newfence = xmlNewNode(NULL, BAD_CAST "fence");
@@ -975,6 +986,13 @@ void list_nodes(int argc, char **argv)
 			       ftype?ftype:(xmlChar *)"");
 			if (verbose)
 			{
+				xmlNode *a = findnode(cur_node, "altname");
+				if (a)
+				{
+					printf(" altname %s=%s", "name", xmlGetProp(a, BAD_CAST "name"));
+					if (!print_properties(a, "","",""))
+						printf("\n");
+				}
 				print_properties(cur_node, "  Node properties: ", "votes", "nodeid");
 				print_properties(fencenode, "  Fence properties: ", "agent", "");
 			}
