@@ -267,22 +267,7 @@ pgsql_stop() {
 #
 
 pgsql_status() {
-    if [ -f $PIDFILE  ]
-    then
-        PID=`head -n 1 $PIDFILE`
-        process_running $PID
-    else
-        : No pid file
-        false
-    fi
-}
-
-
-#
-# return TRUE if a process with given PID is running
-#
-process_running() {
-    kill -0 "$1" >/dev/null 2>&1
+     pgrep -u postgres postmaster >/dev/null 2>&1
 }
 
 #
@@ -314,10 +299,21 @@ pgsql_monitor() {
 
 # Validate most critical parameters
 pgsql_validate_all() {
+    if ! have_binary $SH
+    then
+        return $OCF_ERR_INSTALLED
+    fi
 
-    check_binary $SH
-    check_binary $OCF_RESKEY_pgctl
-    check_binary $OCF_RESKEY_psql
+    if ! have_binary $OCF_RESKEY_pgctl
+    then
+        return $OCF_ERR_INSTALLED
+    fi
+
+
+    if ! have_binary $OCF_RESKEY_psql
+    then
+        return $OCF_ERR_INSTALLED
+    fi
 
     return $OCF_SUCCESS
 }
@@ -372,6 +368,30 @@ case "$1" in
     meta-data)  meta_data
                 exit $OCF_SUCCESS;;
 
+    stop)       if ! pgsql_status || ! pgsql_validate_all
+                then
+                   exit $OCF_SUCCESS
+                fi;;
+
+    monitor)    if ! pgsql_validate_all
+                then
+                   echo "Not running!"
+                   exit $OCF_NOT_RUNNING
+                else
+                   pgsql_monitor
+                   exit $?
+                fi;;
+
+    status)     if pgsql_status
+                then
+                    ocf_log info "PostgreSQL is up"
+                    exit $OCF_SUCCESS
+                else
+                    ocf_log info "PostgreSQL is down"
+                    exit $OCF_NOT_RUNNING
+                fi
+                exit $?;;
+
     validate-all) pgsql_validate_all
                 exit $?;;
 esac
@@ -386,7 +406,7 @@ fi
 
 if ! pgsql_validate_all
 then
-    exit $OCF_ERR_CONFIGURED
+    exit $OCF_ERR_INSTALLED
 fi
 
 # What kind of method was invoked?
@@ -395,19 +415,6 @@ case "$1" in
                 exit $?;;
 
     stop)       pgsql_stop
-                exit $?;;
-
-    status)     if pgsql_status
-                then
-                    ocf_log info "PostgreSQL is up"
-                    exit $OCF_SUCCESS
-                else
-                    ocf_log info "PostgreSQL is down"
-                    exit $OCF_NOT_RUNNING
-                fi
-                exit $?;;
-
-    monitor)    pgsql_monitor
                 exit $?;;
 esac
 
