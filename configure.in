@@ -1428,7 +1428,12 @@ if test "x${CIMOM}" = "x"; then
 
 fi
 
-if test "x${enable_cim_provider}" = "xyes"; then
+if test "x${enable_cim_provider}" != "xyes"; then
+  if test "x${CIMOM}" != "x"; then
+	echo "NOTE: CIM provider [--enable-cim-provider] not enabled."
+	CIMOM=""
+  fi
+else
         if test "x${CMPI_HEADER_PATH}" != "x"; then
 		CPPFLAGS="$CPPFLAGS -I${CMPI_HEADER_PATH}"
         fi
@@ -3135,8 +3140,8 @@ fi
 AC_MSG_RESULT([  SNMP libraries           = "${SNMPLIB}"])
 AC_MSG_RESULT([  ucd_snmp_devel name      = "${UCDSNMPDEVEL}"])
 
-AC_MSG_RESULT([  Build New CRM            = "${enable_crm}"])
-AC_MSG_RESULT([  Build New LRM            = "${enable_lrm}"])
+AC_MSG_RESULT([  Build CRM            = "${enable_crm}"])
+AC_MSG_RESULT([  Build LRM            = "${enable_lrm}"])
 AC_MSG_RESULT([  Build Ldirectord         = "${enable_ldirectord}"])
 AC_MSG_RESULT([  Build IPMILan Plugin     = "${enable_ipmilan}"])
 
