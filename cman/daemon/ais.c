@@ -518,13 +518,15 @@ static int comms_init_ais(struct objdb_iface_ver0 *objdb)
 
 
 		/* Set RRP mode appropriately */
-		if (num_interfaces > 1) {
-			global_objdb->object_key_create(object_handle, "rrp_mode", strlen("rrp_mode"),
-							"active", strlen("active")+1);
-		}
-		else {
-			global_objdb->object_key_create(object_handle, "rrp_mode", strlen("rrp_mode"),
-							"none", strlen("none")+1);
+		if (objdb_get_string(objdb, object_handle, "rrp_mode", &value)) {
+			if (num_interfaces > 1) {
+				global_objdb->object_key_create(object_handle, "rrp_mode", strlen("rrp_mode"),
+								"active", strlen("active")+1);
+			}
+			else {
+				global_objdb->object_key_create(object_handle, "rrp_mode", strlen("rrp_mode"),
+								"none", strlen("none")+1);
+			}
 		}
 
 		if (objdb_get_string(objdb, object_handle, "secauth", &value)) {
