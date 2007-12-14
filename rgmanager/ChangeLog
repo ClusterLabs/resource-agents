@@ -1,3 +1,7 @@
+2007-12-14 Lon Hohberger <lhh at redhat.com>
+	* Add return code for inability to run because of exclusive 
+	tag
+
 2007-12-12 Lon Hohberger <lhh at redhat.com>
 	* Misc changes; add missing ds.h
 	* src/resources/default*.sl: Make clusvcadm -r go to a different

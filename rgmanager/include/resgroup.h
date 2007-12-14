@@ -202,6 +202,8 @@ cluster_member_list_t *member_list(void);
 int my_id(void);
 
 /* Return codes */
+#define RG_EEXCL	-16		/* Service not runnable due to
+					   inability to start exclusively */
 #define RG_EDOMAIN	-15		/* Service not runnable given the
 					   set of nodes and its failover
 					   domain */

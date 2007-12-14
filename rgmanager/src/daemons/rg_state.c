@@ -2067,7 +2067,7 @@ handle_start_remote_req(char *svcName, int req)
 		if (check_exclusive_resources(membership, svcName) != 0) {
 			free_member_list(membership);
 			pthread_mutex_unlock(&exclusive_mutex);
-			return RG_EFAIL;
+			return RG_EEXCL;
 		}
 	}
 	free_member_list(membership);

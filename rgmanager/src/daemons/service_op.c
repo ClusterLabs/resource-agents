@@ -51,6 +51,7 @@ service_op_start(char *svcName,
 {
 	int target;
 	int ret, x;
+	int excl = 0, dep = 0, fail = 0;
 	rg_state_t svcStatus;
 	
 	if (get_service_state_internal(svcName, &svcStatus) < 0) {
@@ -74,8 +75,14 @@ service_op_start(char *svcName,
 			if (new_owner)
 				*new_owner = svcStatus.rs_owner;
 			return 0;
+		case RG_EEXCL:
+			++excl;
+			continue;
 		case RG_EDEPEND:
+			++dep;
+			continue;
 		case RG_EFAIL:
+			++fail;
 			continue;
 		case RG_EABORT:
 			svc_report_failure(svcName);
@@ -100,7 +107,15 @@ service_op_start(char *svcName,
 		}
 	}
 
-	return RG_EFAIL;
+	ret = RG_EFAIL;
+	if (excl == target_list_len) 
+		ret = RG_EEXCL;
+	else if (dep == target_list_len)
+		ret = RG_EDEPEND;
+
+	clulog(LOG_INFO, "Start failed; node reports: %d failures, "
+	       "%d exclusive, %d dependency errors\n", fail, excl, dep);
+	return ret;
 }
 
 
