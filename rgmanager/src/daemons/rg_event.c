@@ -314,28 +314,35 @@ event_master(void)
 	if (_master)
 		return my_id();
 
+	m = member_list();
 	pthread_mutex_lock(&mi_mutex);
+
 	if (mi) {
 		master_id = mi->m_nodeid;
 		pthread_mutex_unlock(&mi_mutex);
-		//clulog(LOG_DEBUG, "%d is master\n", mi->m_nodeid);
-		return master_id;
+		if (memb_online(m, master_id)) {
+			//clulog(LOG_DEBUG, "%d is master\n", mi->m_nodeid);
+			goto out;
+		}
 	}
+
 	pthread_mutex_unlock(&mi_mutex);
 
 	memset(&_master_lock, 0, sizeof(_master_lock));
 	if (clu_lock(LKM_EXMODE, &_master_lock, LKF_NOQUEUE,
 		     "Transition-Master") < 0) {
 		/* not us, find out who is master */
-		return find_master();
+		master_id = find_master();
+		goto out;
 	}
 
-	if (_master_lock.sb_status != 0)
-		return -1;
+	if (_master_lock.sb_status != 0) {
+		master_id = -1;
+		goto out;
+	}
 
 	_master = 1;
 
-	m = member_list();
 	memset(&masterinfo, 0, sizeof(masterinfo));
 	masterinfo.m_magic = EVENT_MASTER_MAGIC;
 	masterinfo.m_nodeid = my_id();
@@ -348,9 +355,11 @@ event_master(void)
 		clulog(LOG_ERR, "Unable to advertise master"
 		       " status to all nodes\n");
 	}
-	free_member_list(m);
 
-	return my_id();
+	master_id = my_id();
+out:
+	free_member_list(m);
+	return master_id;
 }
 
 

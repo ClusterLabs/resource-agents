@@ -185,7 +185,7 @@ forwarding_thread_v2(void *arg)
 	msgctx_t *ctx = NULL, *resp_ctx = NULL;
 	cluster_member_list_t *m = NULL;
 	SmMessageSt *msgp = NULL, msg;
-	int response_code = RG_EAGAIN, ret, target = -1, new_owner = 0;
+	int response_code = RG_EAGAIN, ret, target = -1;
 	int retries = 0;
 	struct fw_message *fwmsg = (struct fw_message *)arg;
 
@@ -246,13 +246,14 @@ forwarding_thread_v2(void *arg)
 	swab_SmMessageSt(&msg);
 
 	response_code = msg.sm_data.d_ret;
+	target = msg.sm_data.d_svcOwner;
 
 out_fail:
 	free(fwmsg); 
 
 	if (resp_ctx) {
 		send_ret(resp_ctx, msgp->sm_data.d_svcName, response_code,
-			 msgp->sm_data.d_action, new_owner);
+			 msgp->sm_data.d_action, target);
 		msg_close(resp_ctx);
 		msg_free_ctx(resp_ctx);
 	}

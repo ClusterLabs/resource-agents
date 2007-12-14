@@ -1,6 +1,10 @@
 2007-12-14 Lon Hohberger <lhh at redhat.com>
+	(Misc central_events fixes)
 	* Add return code for inability to run because of exclusive 
 	tag
+	* Only initialize state once
+	* Fix master-node failover.
+	* Correctly return node after enable if request was forwarded
 
 2007-12-12 Lon Hohberger <lhh at redhat.com>
 	* Misc changes; add missing ds.h
