@@ -54,6 +54,8 @@
 #include "libcman.h"
 #include "debug.h"
 
+#define LIBVIRT_XEN_URI "xen:///"
+
 static int running = 1;
 
 
@@ -541,7 +543,7 @@ xvmd_loop(cman_handle_t ch, void *h, int fd, fence_xvm_args_t *args,
 	virt_list_t *vl = NULL;
 	virt_state_t *dom = NULL;
 
-	vp = virConnectOpen(NULL);
+	vp = virConnectOpen(LIBVIRT_XEN_URI);
 	if (!vp)
 		perror("virConnectOpen");
 
@@ -577,7 +579,7 @@ xvmd_loop(cman_handle_t ch, void *h, int fd, fence_xvm_args_t *args,
 			continue;
 	
 		/* Request and/or timeout: open connection */
-		vp = virConnectOpen(NULL);
+		vp = virConnectOpen(LIBVIRT_XEN_URI);
 		if (!vp) {
 			printf("NOTICE: virConnectOpen(): %s; cannot fence!\n",
 			       strerror(errno));
