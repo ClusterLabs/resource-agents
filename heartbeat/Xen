@@ -13,8 +13,16 @@
 #
 #	  OCF parameters are as below:
 #		OCF_RESKEY_xmfile
-#		Absolute path to the Xen control file,
-#		for this virtual machine.
+#			Absolute path to the Xen control file,
+#			for this virtual machine.
+#		OCF_RESKEY_allow_mem_management
+#			Change memory usage on start/stop/migration
+#			of virtual machine
+#		OCF_RESKEY_reserved_Dom0_memory
+#			minimum memory reserved for domain 0
+#		OCF_RESKEY_monitor_scripts
+#			scripts to monitor services within the
+#			virtual domain
 
 #######################################################################
 # Initialization:
@@ -23,13 +31,20 @@
 
 #######################################################################
 
-DOMAIN_NAME="$OCF_RESOURCE_INSTANCE"
 
 usage() {
   cat <<-!
 	usage: $0 {start|stop|status|monitor|meta-data|validate-all}
 	!
 }
+
+
+: ${OCF_RESKEY_xmfile=/etc/xen/vm/MyDomU}
+: ${OCF_RESKEY_allow_migrate=0}
+: ${OCF_RESKEY_allow_mem_management=0}
+: ${OCF_RESKEY_reserved_Dom0_memory=512}
+DOMAIN_NAME=`awk '$1~/^name(=|$)/{print}' ${OCF_RESKEY_xmfile} | sed 's/.*=[[:space:]]*//' | tr -d "[\"']"`
+: ${DOMAIN_NAME=${OCF_RESOURCE_INSTANCE}}
 
 meta_data() {
 	cat <<END
@@ -60,16 +75,54 @@ for this virtual machine.
 <shortdesc lang="en">Xen control file</shortdesc>
 <content type="string" default="" />
 </parameter>
+<parameter name="allow_migrate" unique="0" required="1">
+<longdesc lang="en">
+This bool parameters allows to use live migration
+for paravirtual machines.
+</longdesc>
+<shortdesc lang="en">Use live migration</shortdesc>
+<content type="boolean" default="0" />
+</parameter>
+<parameter name="allow_mem_management" unique="0" required="1">
+<longdesc lang="en">
+This parameter enables dynamic adjustment of memory for start 
+and stop actions used for Dom0 and the DomUs. The default is
+to not adjust memory dynamically.
+</longdesc>
+<shortdesc lang="en">Use dynamic memory management</shortdesc>
+<content type="boolean" default="0" />
+</parameter>
+<parameter name="reserved_Dom0_memory" unique="0" required="1">
+<longdesc lang="en">
+In case memory management is used, this parameter
+defines the minimum amount of memory to be reserved
+for the dom0. The default minimum memory is 512MB.
+</longdesc>
+<shortdesc lang="en">Minimum Dom0 memory</shortdesc>
+<content type="string" default="512" />
+</parameter>
+<parameter name="monitor_scripts" unique="0" required="0">
+<longdesc lang="en">
+To additionally monitor services within the unprivileged domain,
+add this parameter with a list of scripts to monitor.
+
+NB: In this case make sure to set the start-delay of the monitor
+operation to at least the time it takes for the DomU to start all
+services.
+</longdesc>
+<shortdesc lang="en">list of space separated monitor scripts</shortdesc>
+<content type="string" default="" />
+</parameter>
 
 </parameters>
 
 <actions>
-<action name="start" timeout="30" />
-<action name="stop" timeout="30" />
+<action name="start" timeout="60" />
+<action name="stop" timeout="40" />
 <action name="migrate_from" timeout="120" />
 <action name="migrate_to" timeout="120" />
-<action name="status" depth="0" timeout="30" interval="10" start-delay="30" />
-<action name="monitor" depth="0" timeout="30" interval="10" start-delay="30" />
+<action name="status" depth="0" timeout="30" interval="10" start-delay="120" />
+<action name="monitor" depth="0" timeout="30" interval="10" start-delay="120" />
 <action name="meta-data" timeout="5" />
 <action name="validate-all" timeout="5" />
 </actions>
@@ -78,33 +131,106 @@ END
 }
 
 Xen_Status() {
-  STATUS=`xm list --long $DOMAIN_NAME | grep status 2>/dev/null`
-  STATUS_NOSPACES=`echo "$STATUS" | awk '{ print $1,$2}'`
-  if [ "$STATUS_NOSPACES" = "(status 2)" -o "$STATUS_NOSPACES" = "(status 1)" ] ; then
-    return $OCF_SUCCESS
-  else 
-    return $OCF_NOT_RUNNING
+  STATUS=`xm list --long $1 | grep status 2>/dev/null`
+  if [ "X${STATUS}" != "X" ];then
+    # we have Xen 3.0.4 or higher
+    STATUS_NOSPACES=`echo "$STATUS" | awk '{ print $1,$2}'`
+    if [ "$STATUS_NOSPACES" = "(status 2)" -o "$STATUS_NOSPACES" = "(status 1)" ] ; then
+      return $OCF_SUCCESS
+    else 
+      return $OCF_NOT_RUNNING
+    fi
+  else
+    # we have Xen 3.0.3 or lower
+    STATUS=`xm list --long $1 | grep state 2>/dev/null`
+    echo "${STATUS}" | grep -qs "[-r][-b][-p]---"
+    if [ $? -ne 0 ];then
+      return $OCF_NOT_RUNNING
+    else
+      return $OCF_SUCCESS
+    fi
+    
   fi
 }
 
+Xen_Adjust_Memory() {
+    if [ "${OCF_RESKEY_allow_mem_management}" != 0 ];then
+      CNTNEW=$1
+      RUNNING=`Xen_List_running`
+      RUNCNT=`Xen_Count_running`
+      MAXMEM=`Xen_Total_Memory`
+      if [ ${RUNCNT} -eq 0 -a ${CNTNEW} -eq 0 ];then
+	RUNCNT=1
+      fi
+      #NEWMEM=`echo "(${MAXMEM}-${OCF_RESKEY_reserved_Dom0_memory})/(${RUNCNT}+${CNTNEW})"|bc`
+      NEWMEM=$(( (${MAXMEM} - ${OCF_RESKEY_reserved_Dom0_memory}) / (${RUNCNT} + ${CNTNEW} ) ))
+      # do not rely on ballooning add dom0_mem=512 instead to force memory for dom0
+      #xm mem-set Domain-0 ${OCF_RESKEY_reserved_Dom0_memory}
+      for DOM in ${RUNNING};do
+        xm mem-set ${DOM} ${NEWMEM} 
+      done
+      ocf_log info "Adjusted memory to: $NEWMEM, for the following $RUNCNT domains: $RUNNING"
+    fi
+}
+
+Xen_List_all() {
+	xm list | grep -v -e "Name" -e "Domain-0" | awk '{print $1}'
+}
+Xen_List_running() {
+	ALL_DOMS=`Xen_List_all`
+	for DOM in ${ALL_DOMS};do
+		if Xen_Status $DOM;then
+			echo "${DOM} "
+		fi
+	done
+}
+Xen_Count_running() {
+	Xen_List_running | wc -w
+}
+
 Xen_Monitor() {
-  Xen_Status
+  Xen_Status ${DOMAIN_NAME}
+  if [ $? -eq ${OCF_NOT_RUNNING} ];then
+	return ${OCF_NOT_RUNNING}
+  fi
+  if [ "X${OCF_RESKEY_monitor_scripts}" == "X" ];then
+	return ${OCF_SUCCESS}
+  fi
+  for SCRIPT in ${OCF_RESKEY_monitor_scripts};do
+	$SCRIPT
+	if [ $? -ne 0 ];then
+		return ${OCF_NOT_RUNNING}
+	fi
+  done
+}
+
+Xen_Total_Memory() {
+	xm info | grep "^total_memory" | awk '{print $3}'
 }
 
 Xen_Start() {
   if
-    Xen_Status
+    Xen_Status ${DOMAIN_NAME}
   then
     ocf_log info "Xen domain $DOMAIN_NAME already running."
     return $OCF_SUCCESS
   else
-    xm create $OCF_RESKEY_xmfile name=$DOMAIN_NAME
+    Xen_Adjust_Memory 1
+    if [ "${OCF_RESKEY_allow_mem_management}" != 0 ];then
+      ocf_log info "New memory for virtual domains: ${NEWMEM}"
+      sed -i -e "/^memory=/ s/^memory=.*/memory=${NEWMEM}/" ${OCF_RESKEY_xmfile}
+      xm mem-set ${DOMAIN_NAME} ${NEWMEM} 
+    fi
+    xm create ${OCF_RESKEY_xmfile} name=$DOMAIN_NAME
     rc=$?
     if
       [ $rc -ne 0 ]
     then
-      return $OCF_ERR_PERM
+      return $OCF_ERR_GENERIC
     else 
+      if [ "${OCF_RESKEY_allow_mem_management}" != 0 ];then
+        xm mem-set ${DOMAIN_NAME} ${NEWMEM}
+      fi
       return $OCF_SUCCESS
     fi
   fi  
@@ -112,20 +238,29 @@ Xen_Start() {
 
 Xen_Stop() {
   if
-    Xen_Status
+    Xen_Status ${DOMAIN_NAME} 
   then
-    # TODO: If after 50% of our timeout this one doesn't return, we
-    # should instead switch to xm destroy
-    # TODO: Should we just always use xm destroy here in the meantime
-    # to make sure we indeed always stop?
-    xm shutdown -w $DOMAIN_NAME
+    # xm commands are asynchroneus, therefore wait a bit
+    # to just give it time to shutdown correctly
+    xm shutdown -w ${DOMAIN_NAME}
+
     rc=$?
+    sleep 3
     if
       [ $rc -ne 0 ]
     then
-      return $OCF_ERR_PERM
+      xm destroy -w ${DOMAIN_NAME}
+      rc2=$?
+      sleep 3
+      if [ $rc2 -ne 0 ];then 
+        return ${OCF_ERR_GENERIC}
+      else
+	Xen_Adjust_Memory 0
+	return ${OCF_SUCCESS}
+      fi
     else 
-      return $OCF_SUCCESS
+      Xen_Adjust_Memory 0
+      return ${OCF_SUCCESS}
     fi
   else
     ocf_log info "Xen domain $DOMAIN_NAME already stopped."
@@ -136,7 +271,7 @@ Xen_Stop() {
 Xen_Migrate_To() {
   target_node="$OCF_RESKEY_CRM_meta_migrate_target"
   if 
-    Xen_Status
+    Xen_Status ${DOMAIN_NAME}
   then
     ocf_log info "$DOMAIN_NAME: Starting xm migrate to $target_node"
     xm migrate --live $DOMAIN_NAME $target_node
@@ -145,26 +280,28 @@ Xen_Migrate_To() {
       [ $rc -ne 0 ]
     then
       ocf_log err "$DOMAIN_NAME: xm migrate to $target_node failed: $rc"
-      return $OCF_ERR_PERM
+      return $OCF_ERR_GENERIC
     else 
+      Xen_Adjust_Memory 0
       ocf_log err "$DOMAIN_NAME: xm migrate to $target_node succeeded."
       return $OCF_SUCCESS
     fi
   else
     ocf_log err "$DOMAIN_NAME: migrate_to: Not active locally!"
-    return $OCF_ERR_PERM
+    return $OCF_ERR_GENERIC
   fi
 }
 
 Xen_Migrate_From() {
   if 
-    Xen_Status
+    Xen_Status ${DOMAIN_NAME}
   then
+    Xen_Adjust_Memory 0
     ocf_log info "$DOMAIN_NAME: Active locally, migration successful"
     return $OCF_SUCCESS
   else
     ocf_log err "$DOMAIN_NAME: Not active locally, migration failed!"
-    return $OCF_ERR_PERM
+    return $OCF_ERR_GENERIC
   fi
 }
 
@@ -191,7 +328,7 @@ case $1 in
 			;;
   monitor)		Xen_Monitor
 			;;
-  status)		Xen_Status
+  status)		Xen_Status ${DOMAIN_NAME}
 			;;
   validate-all)		Xen_Validate_All
 			;;
@@ -199,7 +336,7 @@ case $1 in
 			exit $OCF_SUCCESS
 			;;
   *)			usage
-			exit $OCF_ERR_ARGS
+			exit $OCF_ERR_UNIMPLEMENTED
 			;;
 esac
 exit $?
