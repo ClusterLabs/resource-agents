@@ -352,6 +352,16 @@ stop_apache() {
   else
     ocf_log info "$CMD is not running."
   fi
+
+  for sig in SIGTERM SIGHUP SIGKILL ; do
+    if pgrep -f $HTTPD.*$CONFIGFILE >/dev/null 2>&1 ; then
+      pkill -$sig  -f $HTTPD.*$CONFIGFILE >/dev/null 2>&1
+      ocf_log info "apache children were signalled ($sig)"
+      sleep 1
+    else
+      break
+    fi
+  done
 }
 
 status_apache() {
