@@ -267,7 +267,7 @@ pgsql_stop() {
 #
 
 pgsql_status() {
-     pgrep -u postgres postmaster >/dev/null 2>&1
+     pgrep -u  $OCF_RESKEY_pgdba "postmaster|postgres" >/dev/null 2>&1
 }
 
 #
@@ -283,9 +283,9 @@ pgsql_monitor() {
 
     if [ "x" = "x$OCF_RESKEY_pghost" ]
     then
-       $OCF_RESKEY_psql -p $OCF_RESKEY_pgport -U $OCF_RESKEY_pgdba $OCF_RESKEY_pgdb -c 'select now();' >/dev/null 2>&1
+       runasowner "$OCF_RESKEY_psql -p $OCF_RESKEY_pgport -U $OCF_RESKEY_pgdba $OCF_RESKEY_pgdb -c 'select now();' >/dev/null 2>&1"
     else
-       $OCF_RESKEY_psql -h $OCF_RESKEY_pghost -p $OCF_RESKEY_pgport -U $OCF_RESKEY_pgdba $OCF_RESKEY_pgdb -c 'select now();' >/dev/null 2>&1
+       runasowner "$OCF_RESKEY_psql -h $OCF_RESKEY_pghost -p $OCF_RESKEY_pgport -U $OCF_RESKEY_pgdba $OCF_RESKEY_pgdb -c 'select now();' >/dev/null 2>&1"
     fi
     
     if [ $? -ne  0 ]
