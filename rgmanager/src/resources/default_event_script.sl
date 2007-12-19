@@ -139,6 +139,7 @@ define default_service_event_handler()
 	variable services = service_list();
 	variable x;
 	variable depends;
+	variable depend_mode;
 	variable policy;
 	variable nodes;
 	variable tmp;
@@ -185,6 +186,7 @@ define default_service_event_handler()
 		% Simplistic dependency handling
 		%
 		depends = service_property(services[x], "depend");
+		depend_mode = service_property(services[x], "depend_mode");
 
 		% No dependency; do nothing
 		if (depends != service_name) {
@@ -200,7 +202,8 @@ define default_service_event_handler()
 		}
 
 		% service died - stop service(s) that depend on the dead
-		if ((service_owner < 0) and (owner >= 0)) {
+		if ((service_owner < 0) and (owner >= 0) and
+		    (depend_mode != "soft")) {
 			info("Dependency lost; stopping ", services[x]);
 			()=service_stop(services[x]);
 		}

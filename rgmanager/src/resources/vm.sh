@@ -230,6 +230,21 @@ meta_data()
             <content type="string"/>
         </parameter>
 
+        <parameter name="depend_mode">
+            <longdesc lang="en">
+	    	Dependency mode
+            </longdesc>
+            <shortdesc lang="en">
+		Service dependency mode.
+		hard - This service is stopped/started if its dependency
+		       is stopped/started
+		soft - This service only depends on the other service for
+		       initial startip.  If the other service stops, this
+		       service is not stopped.
+            </shortdesc>
+            <content type="string" default="hard"/>
+        </parameter>
+
         <parameter name="max_restarts" reconfig="1">
             <longdesc lang="en">
 	    	Maximum restarts for this service.

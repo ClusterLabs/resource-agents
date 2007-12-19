@@ -4,6 +4,8 @@
 	* src/resources/clusterfs.sh: Use reference counts to ensure we
 	don't unmount a GFS file system if it's in use by multiple services
 	on the same node.  #254111
+	* src/resources/service.sh, default_event_script.sl: Add support for
+	"soft" dependencies if central_processing is enabled
 
 2007-12-14 Lon Hohberger <lhh at redhat.com>
 	(Misc central_events fixes)
