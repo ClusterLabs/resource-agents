@@ -918,7 +918,7 @@ start)
 	while [ $tries -lt 3 ]; do
 		startFilesystem
 		rv=$?
-		if [ rv -eq 0 ]; then
+		if [ $rv -eq 0 ]; then
 			exit 0
 		fi
 
