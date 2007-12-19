@@ -130,7 +130,7 @@ kill_env(char **env)
    @see			build_env
  */
 static void
-add_ocf_stuff(resource_t *res, char **env, int depth)
+add_ocf_stuff(resource_t *res, char **env, int depth, int refcnt)
 {
 	char ver[10];
 	char *minor, *val;
@@ -214,6 +214,17 @@ add_ocf_stuff(resource_t *res, char **env, int depth)
 		return;
 	snprintf(val, n, "%s=%s", OCF_CHECK_LEVEL_STR, ver);
 	*env = val; env++;
+
+	/*
+	   Store the resource local refcnt (0 for now)
+	 */
+	snprintf(ver, sizeof(ver), "%d", refcnt);
+	n = strlen(OCF_REFCNT_STR) + strlen(ver) + 2;
+	val = malloc(n);
+	if (!val)
+		return;
+	snprintf(val, n, "%s=%s", OCF_REFCNT_STR, ver);
+	*env = val; env++;
 }
 
 
@@ -227,7 +238,7 @@ add_ocf_stuff(resource_t *res, char **env, int depth)
    @see			kill_env res_exec add_ocf_stuff
  */
 static char **
-build_env(resource_node_t *node, int depth)
+build_env(resource_node_t *node, int depth, int refcnt)
 {
 	resource_t *res = node->rn_resource;
 	char **env;
@@ -235,7 +246,7 @@ build_env(resource_node_t *node, int depth)
 	int x, attrs, n;
 
 	for (attrs = 0; res->r_attrs && res->r_attrs[attrs].ra_name; attrs++);
-	attrs += 7; /*
+	attrs += 8; /*
 		   Leave space for:
 		   OCF_RA_VERSION_MAJOR
 		   OCF_RA_VERSION_MINOR
@@ -243,6 +254,7 @@ build_env(resource_node_t *node, int depth)
 		   OCF_RESOURCE_INSTANCE
 		   OCF_RESOURCE_TYPE
 		   OCF_CHECK_LEVEL
+		   OCF_RESKEY_RGMANAGER_meta_refcnt
 		   (null terminator)
 		 */
 
@@ -282,7 +294,7 @@ build_env(resource_node_t *node, int depth)
 		++attrs;
 	}
 
-	add_ocf_stuff(res, &env[attrs], depth);
+	add_ocf_stuff(res, &env[attrs], depth, refcnt);
 
 	return env;
 }
@@ -345,7 +357,7 @@ res_exec(resource_node_t *node, int op, const char *arg, int depth)
 		return 0;
 
 #ifdef DEBUG
-	env = build_env(node, depth);
+	env = build_env(node, depth, node->rn_resource->r_incarnations);
 	if (!env)
 		return -errno;
 #endif
@@ -374,7 +386,7 @@ res_exec(resource_node_t *node, int op, const char *arg, int depth)
 #endif
 
 #ifndef DEBUG
-		env = build_env(node, depth);
+		env = build_env(node, depth, node->rn_resource->r_incarnations);
 #endif
 
 		if (!env)

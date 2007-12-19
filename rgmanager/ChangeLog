@@ -1,3 +1,10 @@
+2007-12-19 Lon Hohberger <lhh at redhat.com>
+	* include/res-ocf.h: Fix typo
+	* src/daemons/restree.c: Export reference counts to resource agents.
+	* src/resources/clusterfs.sh: Use reference counts to ensure we
+	don't unmount a GFS file system if it's in use by multiple services
+	on the same node.  #254111
+
 2007-12-14 Lon Hohberger <lhh at redhat.com>
 	(Misc central_events fixes)
 	* Add return code for inability to run because of exclusive 

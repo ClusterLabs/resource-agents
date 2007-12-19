@@ -766,6 +766,7 @@ stopFilesystem() {
 	typeset -i try=1
 	typeset -i max_tries=3		# how many times to try umount
 	typeset -i sleep_time=2		# time between each umount failure
+	typeset -i refs=0
 	typeset done=""
 	typeset umount_failed=""
 	typeset force_umount=""
@@ -820,6 +821,18 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 		esac
 	fi
 
+	#
+	# Check the rgmanager-supplied reference count if one exists.
+	# If the reference count is <= 1, we can safely proceed
+	#
+	if [ -n "$OCF_RESKEY_RGMANAGER_meta_refcnt" ]; then
+		refs=$OCF_RESKEY_RGMANAGER_meta_refcnt
+		if [ $refs -gt 1 ]; then
+			((refs--))
+			ocf_log debug "Not unmounting $OCF_RESOURCE_INSTANCE - still in use by $refs other service(s)"
+			return $OCF_SUCCESS
+		fi
+	fi
 
 	#
 	# Always do this hackery on clustered file systems.
