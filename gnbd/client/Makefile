@@ -26,7 +26,7 @@ SHAREDOBJS= ../utils/trans.o \
 	    ../utils/gnbd_utils.o
 
 CFLAGS += -I${gnbdkincdir} -I${cmanincdir}
-CFLAGS += -I../include -I../server -I../utils
+CFLAGS += -I$(S)/../include -I$(S)/../server -I$(S)/../utils
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${libdir} -L${cmanlibdir} -lcman -ldl -lpthread
@@ -39,7 +39,7 @@ ${TARGET1}: ${SHAREDOBJS} ${OBJS1}
 ${TARGET2}: ${SHAREDOBJS} ${OBJS2}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 install: all

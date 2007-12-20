@@ -19,7 +19,7 @@ OBJS=	libccs.o \
 
 CFLAGS += -D_FILE_OFFSET_BITS=64
 CFLAGS += -fPIC
-CFLAGS += -I../include -I../common
+CFLAGS += -I$(S)/../include -I$(S)/../common
 CFLAGS += -I${incdir}
 
 all: ${TARGET}
@@ -28,17 +28,17 @@ ${TARGET}: ${OBJS}
 	${AR} cr $@ $^
 	${RANLIB} $@
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 log.c:
-	ln -sf ../common/log.c log.c
+	ln -sf $(S)/../common/log.c log.c
 
 install: all
 	install -d ${libdir}
 	install -m644 ${TARGET} ${libdir}
 	install -d ${incdir}
-	install -m644 ccs.h ${incdir}
+	install -m644 $(S)/ccs.h ${incdir}
 
 uninstall:
 	${UNINSTALL} ${TARGET} ${libdir} 

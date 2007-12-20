@@ -27,10 +27,11 @@ CC = @CC@
 AR = ar
 RANLIB = ranlib
 
-CFLAGS += @CFLAGS@ -I@BUILDDIR@/config
+CFLAGS += @CFLAGS@ -I@SRCDIR@/config
 LDFLAGS += @LDFLAGS@
 
-BUILDDIR = @BUILDDIR@
+SRCDIR = @SRCDIR@
+OBJDIR = @OBJDIR@
 
 KERNEL_BUILD = @KERNEL_BUILD@
 KERNEL_SRC = @KERNEL_SRC@
@@ -76,6 +77,9 @@ without_gfs2 ?= @DISABLE_GFS2@
 without_gnbd ?= @DISABLE_GNBD@
 without_rgmanager ?= @DISABLE_RGMANAGER@
 
-UNINSTALL = @BUILDDIR@/scripts/uninstall.pl
-DEF2VAR = @BUILDDIR@/scripts/define2var
+THISDIR = $(shell echo $(CURDIR) | sed -e 's|$(OBJDIR)/||g')
+S=$(SRCDIR)/$(THISDIR)
+
+UNINSTALL = @SRCDIR@/scripts/uninstall.pl
+DEF2VAR = @SRCDIR@/scripts/define2var
 

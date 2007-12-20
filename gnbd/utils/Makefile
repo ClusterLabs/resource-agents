@@ -13,7 +13,17 @@
 
 include ../../make/defines.mk
 
-all:
+SHAREDOBJS= member_cman.o \
+	    trans.o \
+	    gnbd_utils.o
+
+CFLAGS += -I${cmanincdir}
+CFLAGS += -I$(S)/../include
+
+all: ${SHAREDOBJS}
+
+%.o: $(S)/%.c
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 install:
 

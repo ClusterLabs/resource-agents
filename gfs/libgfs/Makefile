@@ -19,7 +19,7 @@ CFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE
 CFLAGS += -D_GNU_SOURCE -DHELPER_PROGRAM
 CFLAGS += -c
 CFLAGS += -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
-CFLAGS += -I${gfskincdir} -I../include
+CFLAGS += -I${gfskincdir} -I$(S)/../include
 CFLAGS += -I${incdir}
 
 OBJS=	bio.o \
@@ -44,7 +44,7 @@ ${TARGET}: ${OBJS}
 	${AR} cru $@ $^
 	${RANLIB} $@
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 install: all

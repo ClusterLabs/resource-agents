@@ -20,7 +20,7 @@ OBJS= main.o \
 
 CFLAGS += -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64
 CFLAGS += -I${gfskincdir}
-CFLAGS += -I../include -I../libgfs
+CFLAGS += -I$(S)/../include -I$(S)/../libgfs
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L../libgfs -lgfs
@@ -30,7 +30,7 @@ all: depends ${TARGET}
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 depends:

@@ -20,8 +20,8 @@ clean:
 install:
 	install -d ${mandir}/man5
 	install -d ${mandir}/man8
-	install cman.5 qdisk.5 ${mandir}/man5
-	install cman_tool.8 qdiskd.8 mkqdisk.8 ${mandir}/man8
+	install $(S)/cman.5 $(S)/qdisk.5 ${mandir}/man5
+	install $(S)/cman_tool.8 $(S)/qdiskd.8 $(S)/mkqdisk.8 ${mandir}/man8
 
 uninstall:
 	${UNINSTALL} cman.5 qdisk.5 ${mandir}/man5

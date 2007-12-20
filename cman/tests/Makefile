@@ -24,7 +24,7 @@ all: depends ${TARGETS}
 depends:
 	$(MAKE) -C ../lib all
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 %: %.o

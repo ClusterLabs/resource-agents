@@ -22,7 +22,7 @@ check:
 
 install:
 	install -d ${DESTDIR}/etc/init.d
-	install ${TARGET} ${DESTDIR}/etc/init.d
+	install $(S)/${TARGET} ${DESTDIR}/etc/init.d
 
 uninstall:
 	${UNINSTALL} ${TARGET} ${DESTDIR}/etc/init.d

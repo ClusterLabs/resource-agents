@@ -26,7 +26,7 @@ SHAREDOBJS= ondisk1.o \
 CFLAGS += -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
 CFLAGS += -I${gfskincdir}
 CFLAGS += -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
-CFLAGS += -I../include
+CFLAGS += -I$(S)/../include
 CFLAGS += -I${incdir}
 
 all: ${TARGET1} ${TARGET2}
@@ -37,7 +37,7 @@ ${TARGET1}: ${SHAREDOBJS} ${OBJS1}
 ${TARGET2}: ${SHAREDOBJS} ${OBJS2}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 install: all

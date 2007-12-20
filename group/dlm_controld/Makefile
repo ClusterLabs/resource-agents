@@ -22,7 +22,7 @@ OBJS=	main.o \
 
 CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmincdir} -I${openaisincdir}
 CFLAGS += -I${KERNEL_SRC}/include/
-CFLAGS += -I../../group/lib/ -I../include/
+CFLAGS += -I$(S)/../lib/ -I$(S)/../include/
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -L${dlmlibdir} -lccs -lcman -ldlm
@@ -34,7 +34,7 @@ all: depends ${TARGET}
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 depends:

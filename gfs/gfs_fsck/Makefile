@@ -48,7 +48,7 @@ OBJS=	bio.o \
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -DHELPER_PROGRAM
 CFLAGS += -MMD
-CFLAGS += -I../include
+CFLAGS += -I$(S)/../include
 CFLAGS += -I${incdir}
 
 all: ${TARGET1} ${TARGET2}
@@ -59,7 +59,7 @@ ${TARGET1}: $(OBJS)
 ${TARGET2}: ${TARGET1}
 	ln -s ${TARGET1} ${TARGET2}
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 test_block_list: block_list.o bitmap.o log.o test_block_list.o
@@ -76,7 +76,7 @@ install: all
 		install -d ${sbindir}; \
 	fi
 	install -m755 ${TARGET1} ${sbindir}
-	ln -sf ${sbindir}/${TARGET1} ${sbindir}/${TARGET2}
+	cd ${sbindir}; ln -sf ${TARGET1} ${TARGET2}
 
 uninstall:
 	${UNINSTALL} ${TARGET1} ${TARGET2} ${sbindir}

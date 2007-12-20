@@ -15,7 +15,7 @@ include ../../make/defines.mk
 CFLAGS += -D_GNU_SOURCE
 CFLAGS += -Werror -Wstrict-prototypes -Wshadow
 CFLAGS += -I${ccsincdir} -I${cmanincdir}
-CFLAGS += -I.
+CFLAGS += -I$(S)
 CFLAGS += -I${incdir}
 
 EXTRA_LDFLAGS += -L${cmanlibdir} -L${ccslibdir} -lcman -lccs
@@ -50,7 +50,7 @@ install: all
 	install -d ${sbindir}
 	install ${TARGET1} ${TARGET2} ${sbindir}
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 depends:

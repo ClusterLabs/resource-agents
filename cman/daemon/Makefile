@@ -34,7 +34,7 @@ all: depends ${TARGET}
 ${TARGET}: ${OBJS}
 	$(CC) -shared -Wl,-soname,$@ -o $@ $^ $(LDFLAGS)
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 depends:

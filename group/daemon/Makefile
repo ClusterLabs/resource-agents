@@ -21,7 +21,7 @@ OBJS=	app.o \
 	main.o
 
 CFLAGS += -I${cmanincdir} -I${openaisincdir}
-CFLAGS += -I. -I../include/ -I../lib/
+CFLAGS += -I$(S) -I$(S)/../include/ -I$(S)/../lib/
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${cmanlibdir} -L${openaislibdir} -L${libdir} -lcman -lcpg
@@ -31,7 +31,7 @@ all: ${TARGET}
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:

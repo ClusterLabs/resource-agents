@@ -22,7 +22,7 @@ OBJS=	ccsd.o \
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
 CFLAGS += -I${cmanincdir} `xml2-config --cflags`
-CFLAGS += -I. -I../include -I../common
+CFLAGS += -I$(S) -I$(S)/../include -I$(S)/../common
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${cmanlibdir} -lcman -L${ccslibdir} -lccs
@@ -33,7 +33,7 @@ all: depends ${TARGET}
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 depends:
@@ -47,6 +47,6 @@ uninstall:
 	${UNINSTALL} ${TARGET} ${sbindir}
 
 clean:
-	rm -rf *.o ${TARGET} *~ log.c
+	rm -rf *.o ${TARGET} *~
 
 .PHONY: all ${TARGET}

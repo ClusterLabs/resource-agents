@@ -24,7 +24,9 @@ check:
 
 install:
 	install -d ${mandir}/man8
-	install ${TARGETS} ${mandir}/man8
+	for i in ${TARGET8}; do \
+	 install $(S)/$$i ${mandir}/man8; \
+	done
 
 uninstall:
 	${UNINSTALL} ${TARGETS} ${mandir}/man8

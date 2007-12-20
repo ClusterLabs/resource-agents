@@ -25,7 +25,7 @@ OBJS=	device_geometry.o \
 
 CFLAGS += -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64
 CFLAGS += -I${gfskincdir} -I${volidincdir}
-CFLAGS += -I../include -I../libgfs
+CFLAGS += -I$(S)/../include -I$(S)/../libgfs
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${volidlibdir} -lvolume_id
@@ -39,7 +39,7 @@ ${TARGET1}: ${OBJS}
 ${TARGET2}: ${TARGET1}
 	ln -sf ${TARGET1} ${TARGET2}
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 depends:

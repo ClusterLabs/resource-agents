@@ -27,9 +27,11 @@ clean:
 
 install:
 	install -d ${mandir}/man3
-	install ${TARGET3} ${mandir}/man3
+	for i in ${TARGET3}; do \
+	 install $(S)/$$i ${mandir}/man3; \
+	done
 	install -d ${mandir}/man8
-	install ${TARGET8} ${mandir}/man8
+	install $(S)/${TARGET8} ${mandir}/man8
 
 uninstall:
 	${UNINSTALL} ${TARGET3} ${mandir}/man3

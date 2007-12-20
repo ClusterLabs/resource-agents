@@ -14,4 +14,4 @@
 include ../make/defines.mk
 include ../make/passthrough.mk
 
-SUBDIRS=agents fence_node fence_tool fenced man
+SUBDIRS=agents fenced fence_node fence_tool man

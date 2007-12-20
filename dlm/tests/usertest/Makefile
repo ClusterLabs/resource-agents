@@ -25,7 +25,7 @@ LDFLAGS += -L${dlmlibdir} -ldlm -lpthread
 depends:
 	$(MAKE) -C ../../lib all
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 %: %.o

@@ -23,7 +23,7 @@ OBJS=	check.o \
 
 CFLAGS += -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64
 CFLAGS += -I${gfskincdir}
-CFLAGS += -I../include
+CFLAGS += -I$(S)/../include
 CFLAGS += -I${incdir}
 
 all: ${TARGET}
@@ -31,7 +31,7 @@ all: ${TARGET}
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 install: all

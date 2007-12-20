@@ -20,7 +20,7 @@ all: ${TARGET}
 # Using manual override instead of the binary version.
 # (this version does not require any configuration params
 # in cluster.conf, but fencing must fail first)
-fence_ack_manual: fence_ack_manual.sh
+fence_ack_manual: $(S)/fence_ack_manual.sh
 	cp $< $@
 
 install: all

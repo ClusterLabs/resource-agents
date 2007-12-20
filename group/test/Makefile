@@ -16,7 +16,7 @@ TARGETS= client clientd
 
 all: $(TARGETS)
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 %: %.o

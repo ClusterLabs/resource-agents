@@ -36,10 +36,15 @@ install: all
 	echo ${sbindir}
 	install -d ${sharedir}
 	install -d ${sharedir}/utils
-	install $(RESOURCES) ${sharedir}
-	install -m 644 $(TARGETS) ${sharedir}
-	install $(UTIL_TARGETS) ${sharedir}/utils
-	install -m 644 $(METADATA) ${sharedir}
+	for i in $(RESOURCES); do \
+	 install $(S)/$$i ${sharedir}; \
+	done
+	for i in $(TARGETS) $(METADATA); do \
+	 install -m 644 $(S)/$$i ${sharedir}; \
+	done
+	for i in $(UTIL_TARGETS); do \
+	 install $(S)/$$i ${sharedir}/utils; \
+	done
 
 uninstall:
 	${UNINSTALL} ${TARGETS} ${METADATA} ${UTIL_TARGETS} ${sharedir}

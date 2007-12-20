@@ -37,7 +37,7 @@ OBJS=	eattr.o \
 CFLAGS += -D_FILE_OFFSET_BITS=64 -DHELPER_PROGRAM
 CFLAGS += -MMD
 CFLAGS += -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
-CFLAGS += -I../include -I../libgfs2
+CFLAGS += -I$(S)/../include -I$(S)/../libgfs2
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L../libgfs2 -lgfs2
@@ -50,7 +50,7 @@ ${TARGET1}: $(OBJS)
 ${TARGET2}: ${TARGET1}
 	ln -fs ${TARGET1} ${TARGET2}	
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 depends:
@@ -70,7 +70,7 @@ install: all
 		install -d ${sbindir}; \
 	fi
 	install -m755 ${TARGET1} ${sbindir}
-	ln -sf ${sbindir}/${TARGET1} ${sbindir}/${TARGET2}
+	cd ${sbindir}; ln -sf ${TARGET1} ${TARGET2}
 
 uninstall:
 	${UNINSTALL} ${TARGET1} ${TARGET2} ${sbindir}

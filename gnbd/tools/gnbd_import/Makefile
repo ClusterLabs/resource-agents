@@ -21,7 +21,8 @@ OBJS=	gnbd_import.o \
 	../../utils/trans.o
 
 CFLAGS += -I${gnbdkincdir} -I${cmanincdir}
-CFLAGS += -I../../include -I../../client -I../../server -I../../utils
+CFLAGS += -I$(S)/../../include -I$(S)/../../server
+CFLAGS += -I$(S)/../../utils -I$(S)/../../client
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${libdir} -L${cmanlibdir} -lcman -ldl -lpthread
@@ -31,7 +32,7 @@ all: ${TARGET}
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 install: all

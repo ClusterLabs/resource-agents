@@ -20,7 +20,7 @@ OBJS= ../fenced/agent.o \
 
 CFLAGS += -D_FILE_OFFSET_BITS=64
 CFLAGS += -I${ccsincdir} -I${cmanincdir}
-CFLAGS += -I../include -I../../group/lib
+CFLAGS += -I$(S)/../include -I$(SRCDIR)/group/lib
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
@@ -31,7 +31,7 @@ all: ${TARGET}
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 install: all

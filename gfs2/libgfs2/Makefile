@@ -17,7 +17,7 @@ TARGET= libgfs2.a
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE -D_GNU_SOURCE
 CFLAGS += -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
-CFLAGS += -I../include
+CFLAGS += -I$(S)/../include
 CFLAGS += -I${incdir}
 
 OBJS=	bitmap.o \
@@ -43,7 +43,7 @@ ${TARGET}: ${OBJS}
 	${AR} cru $@ $^
 	${RANLIB} $@
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 install: all

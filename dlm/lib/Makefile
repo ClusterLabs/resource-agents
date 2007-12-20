@@ -19,7 +19,7 @@ AISTARGET= libaislock
 SHAREDLIB=$(TARGET).so.${RELEASE_MAJOR}.${RELEASE_MINOR} $(TARGET)_lt.so.${RELEASE_MAJOR}.${RELEASE_MINOR}
 STATICLIB=$(TARGET).a $(TARGET)_lt.a
 
-CFLAGS += -I.
+CFLAGS += -I$(S)
 CFLAGS += -I${incdir}
 CFLAGS += -I$(KERNEL_SRC)/include
 
@@ -45,24 +45,24 @@ $(TARGET)_lt.so.${RELEASE_MAJOR}.${RELEASE_MINOR}: $(TARGET)_lt.po
 	ln -sf $(TARGET)_lt.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(TARGET)_lt.so
 	ln -sf $(TARGET)_lt.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(TARGET)_lt.so.$(RELEASE_MAJOR)
 
-%_lt.o: %.c
+%_lt.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-%_lt.po: %.c
+%_lt.po: $(S)/%.c
 	$(CC) $(CFLAGS) -fPIC -c -o $@ $<
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -D_REENTRANT -c -o $@ $<
 
-%.po: %.c
+%.po: $(S)/%.c
 	$(CC) $(CFLAGS) -fPIC -D_REENTRANT -c -o $@ $<
 
 install: all
 	install -d ${incdir}
-	install -m644 $(TARGET).h ${incdir}
+	install -m644 $(S)/$(TARGET).h ${incdir}
 	install -d ${libdir}
 	install -d ${DESTDIR}/etc/udev/rules.d
-	install -m644 ../scripts/51-dlm.rules ${DESTDIR}/etc/udev/rules.d
+	install -m644 $(S)/../scripts/51-dlm.rules ${DESTDIR}/etc/udev/rules.d
 	install $(TARGET).a ${libdir}
 	install $(TARGET)_lt.a ${libdir}
 	install $(TARGET).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}

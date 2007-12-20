@@ -60,10 +60,10 @@ ${TARGET2}: ${SHAREDOBJS} ${OBJS2}
 ${TARGET3}: ${OBJS3}
 	$(CC) -o $@ $^ $(XML_LDFLAGS)
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-%-standalone.o: %.c
+%-standalone.o: $(S)/%.c
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $<
 
 clean:

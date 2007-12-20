@@ -17,7 +17,7 @@ OBJS=	main.o \
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE -D_GNU_SOURCE
 CFLAGS += -I${KERNEL_SRC}/include/
-CFLAGS += -I../include/ -I../libgfs2/
+CFLAGS += -I$(S)/../include -I$(S)/../libgfs2
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${volidlibdir} -lvolume_id
@@ -37,7 +37,7 @@ ${TARGET3}: ${TARGET1}
 ${TARGET4}: ${TARGET1}
 	ln -sf ${TARGET1} ${TARGET4}
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 depends:
@@ -45,9 +45,10 @@ depends:
 
 install: all
 	install -m 0755 ${TARGET1} ${sbindir}
-	ln -sf ${sbindir}/${TARGET1} ${sbindir}/${TARGET2}
-	ln -sf ${sbindir}/${TARGET1} ${sbindir}/${TARGET3}
-	ln -sf ${sbindir}/${TARGET1} ${sbindir}/${TARGET4}
+	cd ${sbindir}; \
+	 ln -sf ${TARGET1} ${TARGET2}; \
+	 ln -sf ${TARGET1} ${TARGET3}; \
+	 ln -sf ${TARGET1} ${TARGET4}
 
 uninstall:
 	${UNINSTALL} ${TARGET1} ${TARGET2} ${TARGET3} ${TARGET4} ${sbindir}

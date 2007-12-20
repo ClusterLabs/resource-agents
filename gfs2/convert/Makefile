@@ -18,7 +18,7 @@ OBJS= gfs2_convert.o
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -DHELPER_PROGRAM
 CFLAGS += -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
-CFLAGS += -I../include -I../libgfs2
+CFLAGS += -I$(S)/../include -I$(S)/../libgfs2
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L../libgfs2 -lgfs2
@@ -28,7 +28,7 @@ all: depends ${TARGET}
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 depends:

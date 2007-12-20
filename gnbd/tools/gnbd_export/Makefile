@@ -21,7 +21,7 @@ OBJS=	gnbd_export.o \
 
 CFLAGS += -DDEFAULT_GETUID=\"${sbindir}/gnbd_get_uid\"
 CFLAGS += -I${gnbdkincdir} -I${cmanincdir}
-CFLAGS += -I../../include -I../../server -I../../utils
+CFLAGS += -I$(S)/../../include -I$(S)/../../server -I$(S)/../../utils
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${libdir} -L${cmanlibdir} -lcman -ldl -lpthread
@@ -31,7 +31,7 @@ all: ${TARGET}
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 install: all 
@@ -39,7 +39,7 @@ install: all
 		install -d ${sbindir}; \
 	fi
 	install -m755 ${TARGET} ${sbindir}
-	install -m755 gnbd_get_uid ${sbindir}
+	install -m755 $(S)/gnbd_get_uid ${sbindir}
 
 uninstall:
 	${UNINSTALL} ${TARGET} gnbd_get_uid ${sbindir}

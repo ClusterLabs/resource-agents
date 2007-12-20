@@ -23,7 +23,7 @@ DISABLEDTARGETS= cluarp
 
 CFLAGS += -Werror -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
 CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmincdir} -I${ncursesincdir}
-CFLAGS += -I../../include
+CFLAGS += -I$(S)/../../include
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${libdir} -L${ccslibdir} -L${cmanlibdir} -L${ncurseslibdir}
@@ -47,11 +47,11 @@ ${TARGET4}: ${TARGET4:=.o}
 ${TARGET5}: ${TARGET5:=.o}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-${TARGET6}: ${TARGET6}.sh
-	cp ${TARGET6}.sh ${TARGET6}
+${TARGET6}:
+	cp $(S)/${TARGET6}.sh ${TARGET6}
 	chmod 755 ${TARGET6}
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 depends:

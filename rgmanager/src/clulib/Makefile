@@ -27,7 +27,7 @@ OBJS3= msgtest.o
 
 CFLAGS += -Werror -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
 CFLAGS += -I${cmanincdir} -I${dlmincdir}
-CFLAGS += -I../../include
+CFLAGS += -I$(S)/../../include
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${cmanlibdir} -lcman 
@@ -51,7 +51,7 @@ ${TARGET2}: ${OBJS2}
 ${TARGET3}: ${OBJS3} ${TARGET1}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:

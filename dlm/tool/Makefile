@@ -16,17 +16,18 @@ TARGET= dlm_tool
 
 OBJS=	main.o
 
-CFLAGS += -I. -I../lib/ -I../../group/dlm_controld/
+CFLAGS += -I${dlmincdir}
+CFLAGS += -I$(SRCDIR)/group/dlm_controld/
 CFLAGS += -I${incdir}
 
-LDFLAGS += -L../lib -ldlm
+LDFLAGS += -L${dlmlibdir} -ldlm
 
 all: ${TARGET}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:

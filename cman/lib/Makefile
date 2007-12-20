@@ -19,7 +19,7 @@ SHAREDLIB=$(TARGET).so.${RELEASE_MAJOR}.${RELEASE_MINOR}
 STATICLIB=$(TARGET).a
 
 CFLAGS += -fPIC
-CFLAGS += -I. -I../daemon
+CFLAGS += -I${cmanincdir} -I$(S)/../daemon
 CFLAGS += -I${incdir}
 
 all: $(STATICLIB) $(SHAREDLIB)
@@ -33,12 +33,12 @@ $(TARGET).so.${RELEASE_MAJOR}.${RELEASE_MINOR}: $(TARGET).o
 	ln -sf $(TARGET).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(TARGET).so
 	ln -sf $(TARGET).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(TARGET).so.$(RELEASE_MAJOR)
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 install: all
 	install -d ${incdir}
-	install $(TARGET).h ${incdir}
+	install $(S)/$(TARGET).h ${incdir}
 	install -d ${libdir}
 	install $(TARGET).a ${libdir}
 	install $(TARGET).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}

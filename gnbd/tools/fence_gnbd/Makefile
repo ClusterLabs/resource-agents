@@ -17,7 +17,7 @@ TARGET= fence_gnbd
 
 OBJS= main.o
 
-CFLAGS += -I../../include -I../../tools/gnbd_import
+CFLAGS += -I$(S)/../../include -I$(S)/../gnbd_import
 CFLAGS += -I${incdir}
 
 all: ${TARGET}
@@ -25,7 +25,7 @@ all: ${TARGET}
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 install: all

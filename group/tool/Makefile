@@ -16,7 +16,7 @@ TARGET= group_tool
 
 OBJS=	main.o
 
-CFLAGS += -I. -I../lib/ -I../daemon/
+CFLAGS += -I$(S) -I$(S)/../daemon/ -I$(S)/../lib/
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L../lib -lgroup
@@ -26,7 +26,7 @@ all: depends ${TARGET}
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 depends:

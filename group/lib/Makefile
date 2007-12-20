@@ -16,7 +16,7 @@ TARGET=libgroup
 STATICLIB=$(TARGET).a
 
 CFLAGS += -fPIC
-CFLAGS += -I. -I../daemon
+CFLAGS += -I$(S) -I$(S)/../daemon
 CFLAGS += -I${incdir}
 
 all: $(STATICLIB)
@@ -25,7 +25,7 @@ $(TARGET).a: $(TARGET).o
 	${AR} r $@ $^
 	${RANLIB} $@
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 install: all

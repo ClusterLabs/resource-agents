@@ -56,7 +56,7 @@ CFLAGS += -D_GNU_SOURCE -DSHAREDIR=\"${sharedir}\"
 CFLAGS += -Werror -Wstrict-prototypes -Wshadow -fPIC
 CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmincdir}
 CFLAGS += `xml2-config --cflags` -I${readlineincdir} -I${slangincdir}
-CFLAGS += -I../../include
+CFLAGS += -I$(S)/../../include
 CFLAGS += -I${incdir}
 
 EXTRA_CFLAGS += -DNO_CCS
@@ -110,10 +110,10 @@ ${TARGET4}: ${SHAREDOBJS} ${OBJS4}
 check: rg_test
 	cd tests && ./runtests.sh
 
-%.o: %.c
+%.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-%-noccs.o: %.c
+%-noccs.o: $(S)/%.c
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $<
 
 depends:
