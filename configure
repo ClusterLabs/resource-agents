@@ -554,21 +554,11 @@ while (<IFILE>) {
 }
 
 close IFILE;
-if ((not defined($release_major)) || (not defined($release_minor))) {
-  open IFILE, "<make/release.mk.input" or die "Can't redirect stdin";
-  while (<IFILE>) {
-    chomp;
-    if($_ =~ /RELEASE_MAJOR\s=\s(.*)/){
-        $release_major = $1;
-    } elsif($_ =~ /RELEASE_MINOR\s=\s(.*)/){
-        $release_minor = $1;
-    }
-  }
 
-  if($release_minor =~ m/DATE/i){
-      $release_minor = `date +%s`;
-      chomp $release_minor;
-  }
+if ((not defined($release_major)) || (not defined($release_minor))) {
+  $release_major = DEVEL;
+  $release_minor = `date +%s`;
+  chomp $release_minor;
 }
 
 print OFILE "RELEASE_MAJOR = $release_major\n";
