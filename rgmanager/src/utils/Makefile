@@ -10,15 +10,16 @@
 ###############################################################################
 ###############################################################################
 
-include ../../../make/defines.mk
-include $(OBJDIR)/make/cobj.mk
-
 TARGET1= clubufflush
 TARGET2= clufindhostname
 TARGET3= clustat
 TARGET4= clusvcadm
 TARGET5= clulog
 TARGET6= clunfslock
+
+include ../../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
+include $(OBJDIR)/make/clean.mk
 
 DISABLEDTARGETS= cluarp
 
@@ -62,7 +63,6 @@ install: all
 uninstall:
 	${UNINSTALL} ${TARGET1} ${TARGET2} ${TARGET3} ${TARGET4} ${TARGET5} ${TARGET6} ${sbindir}
 
-clean:
-	rm -f *.o ${TARGET1} ${TARGET2} ${TARGET3} ${TARGET4} ${TARGET5} ${TARGET6}
+clean: generalclean
 
 .PHONY: all ${TARGET1} ${TARGET2} ${TARGET3} ${TARGET4} ${TARGET5} ${TARGET6}

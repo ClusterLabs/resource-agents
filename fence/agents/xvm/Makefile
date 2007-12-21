@@ -10,12 +10,13 @@
 ###############################################################################
 ###############################################################################
 
-include ../../../make/defines.mk
-include $(OBJDIR)/make/cobj.mk
-
 TARGET1= fence_xvm
 TARGET2= fence_xvmd
 TARGET3= testprog
+
+include ../../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
+include $(OBJDIR)/make/clean.mk
 
 OBJS1=	fence_xvm.o \
 	ip_lookup.o
@@ -61,8 +62,7 @@ ${TARGET2}: ${SHAREDOBJS} ${OBJS2}
 ${TARGET3}: ${OBJS3}
 	$(CC) -o $@ $^ $(XML_LDFLAGS)
 
-clean:
-	rm -f ${TARGET1} ${TARGET2} ${TARGET3} *~ *.o 
+clean: generalclean
 
 install: all
 	if [ ! -d ${sbindir} ]; then \

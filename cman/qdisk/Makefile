@@ -10,8 +10,12 @@
 ###############################################################################
 ###############################################################################
 
+TARGET1= qdiskd
+TARGET2= mkqdisk
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
+include $(OBJDIR)/make/clean.mk
 
 CFLAGS += -D_GNU_SOURCE
 CFLAGS += -Werror -Wstrict-prototypes -Wshadow
@@ -21,9 +25,6 @@ CFLAGS += -I${incdir}
 
 EXTRA_LDFLAGS += -L${cmanlibdir} -L${ccslibdir} -lcman -lccs
 EXTRA_LDFLAGS += -lpthread
-
-TARGET1= qdiskd
-TARGET2= mkqdisk
 
 OBJS1=	main.o \
 	score.o \
@@ -54,8 +55,7 @@ install: all
 depends:
 	$(MAKE) -C ../lib all
 
-clean:
-	rm -f *.o ${TARGET1} ${TARGET2}
+clean: generalclean
 
 uninstall:
 	${UNINSTALL} ${TARGET1} ${TARGET2} ${sbindir}

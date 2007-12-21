@@ -10,10 +10,11 @@
 ###############################################################################
 ###############################################################################
 
+TARGETS= client libtest sysman sysmand
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
-
-TARGETS= client libtest sysman sysmand
+include $(OBJDIR)/make/clean.mk
 
 CFLAGS += -I${cmanincdir}
 CFLAGS += -I${incdir}
@@ -30,5 +31,4 @@ depends:
 
 install: all
 
-clean:
-	rm -f *.o ${TARGETS}
+clean: generalclean

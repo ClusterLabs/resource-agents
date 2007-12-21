@@ -11,10 +11,11 @@
 ###############################################################################
 ###############################################################################
 
+TARGET = fence_node
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
-
-TARGET = fence_node
+include $(OBJDIR)/make/clean.mk
 
 OBJS=	../fenced/agent.o \
 	fence_node.o
@@ -41,5 +42,4 @@ install: all
 uninstall:
 	${UNINSTALL} ${TARGET} ${sbindir}
 
-clean:
-	rm -rf *~ *.o ${TARGET}
+clean: generalclean

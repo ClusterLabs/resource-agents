@@ -11,11 +11,12 @@
 ###############################################################################
 ###############################################################################
 
-include ../../make/defines.mk
-include $(OBJDIR)/make/cobj.mk
-
 TARGET= libdlm
 AISTARGET= libaislock
+
+include ../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
+include $(OBJDIR)/make/clean.mk
 
 SHAREDLIB=$(TARGET).so.${RELEASE_MAJOR}.${RELEASE_MINOR} $(TARGET)_lt.so.${RELEASE_MAJOR}.${RELEASE_MINOR}
 STATICLIB=$(TARGET).a $(TARGET)_lt.a
@@ -86,6 +87,4 @@ uninstall:
 		$(TARGET)_lt.so.$(RELEASE_MAJOR) \
 		${TARGET}_lt.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}
 
-clean:
-	rm -f *.o *.a *.so *.so.* *.po
-	rm -f *~
+clean: generalclean

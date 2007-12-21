@@ -10,9 +10,9 @@
 ###############################################################################
 ###############################################################################
 
-include ../../make/defines.mk
+TARGETS= cman qdiskd
 
-TARGET= cman qdiskd
+include ../../make/defines.mk
 
 all:
 
@@ -23,4 +23,4 @@ install:
 	install $(S)/cman $(S)/qdiskd ${DESTDIR}/etc/init.d
 
 uninstall:
-	${UNINSTALL} ${TARGET} ${DESTDIR}/etc/init.d
+	${UNINSTALL} ${TARGETS} ${DESTDIR}/etc/init.d

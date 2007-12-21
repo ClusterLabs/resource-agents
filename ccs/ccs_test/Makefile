@@ -10,10 +10,11 @@
 ###############################################################################
 ###############################################################################
 
+TARGET= ccs_test
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
-
-TARGET= ccs_test
+include $(OBJDIR)/make/clean.mk
 
 OBJS=	ccs_test.o
 
@@ -38,7 +39,6 @@ install: all
 uninstall:
 	${UNINSTALL} ${TARGET} ${sbindir}
 
-clean:
-	rm -rf *.o ${TARGET} *~
+clean: generalclean
 
 .PHONY: all ${TARGET}

@@ -10,10 +10,11 @@
 ###############################################################################
 ###############################################################################
 
+TARGET= ccsd
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
-
-TARGET= ccsd
+include $(OBJDIR)/make/clean.mk
 
 OBJS=	ccsd.o \
 	cnx_mgr.o \
@@ -44,7 +45,6 @@ install: all
 uninstall:
 	${UNINSTALL} ${TARGET} ${sbindir}
 
-clean:
-	rm -rf *.o ${TARGET} *~
+clean: generalclean
 
 .PHONY: all ${TARGET}

@@ -10,11 +10,12 @@
 ###############################################################################
 ###############################################################################
 
-include ../../make/defines.mk
-include $(OBJDIR)/make/cobj.mk
-
 TARGET1= mount.gfs2
 TARGET2= umount.gfs2
+
+include ../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
+include $(OBJDIR)/make/clean.mk
 
 OBJS1=	mount.gfs2.o
 
@@ -45,6 +46,4 @@ install: all
 uninstall:
 	${UNINSTALL} ${TARGET1} ${TARGET2} ${DESTDIR}/sbin
 
-clean:
-	rm -f *.o ${TARGET1} ${TARGET2}
-
+clean: generalclean

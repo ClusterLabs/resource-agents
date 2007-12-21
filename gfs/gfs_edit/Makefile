@@ -11,10 +11,11 @@
 ###############################################################################
 ###############################################################################
 
+TARGET= gfs_edit
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
-
-TARGET= gfs_edit
+include $(OBJDIR)/make/clean.mk
 
 OBJS= gfshex.o \
       hexedit.o
@@ -40,5 +41,4 @@ install: all
 uninstall:
 	${UNINSTALL} ${TARGET} ${sbindir}
 
-clean:
-	rm -f *.o ${TARGET}
+clean: generalclean

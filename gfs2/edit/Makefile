@@ -11,10 +11,11 @@
 ###############################################################################
 ###############################################################################
 
+TARGET= gfs2_edit
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
-
-TARGET= gfs2_edit
+include $(OBJDIR)/make/clean.mk
 
 OBJS=	gfs2hex.o \
 	savemeta.o \
@@ -46,7 +47,6 @@ install: all
 uninstall:
 	${UNINSTALL} ${TARGET} ${sbindir}
 
-clean:
-	rm -f *.o ${TARGET}
+clean: generalclean
 
 .PHONY: all ${TARGET}

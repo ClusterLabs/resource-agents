@@ -10,10 +10,11 @@
 ###############################################################################
 ###############################################################################
 
+TARGET= cman_tool
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
-
-TARGET=cman_tool
+include $(OBJDIR)/make/clean.mk
 
 OBJS=	main.o \
 	join.o
@@ -39,5 +40,4 @@ install: all
 uninstall:
 	${UNINSTALL} ${TARGET} ${sbindir}
 
-clean:
-	rm -f *.o ${TARGET}
+clean: generalclean

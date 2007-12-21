@@ -11,9 +11,6 @@
 ###############################################################################
 ###############################################################################
 
-include ../../make/defines.mk
-include $(OBJDIR)/make/man.mk
-
 TARGET= fence.8 \
 	fence_ack_manual.8 \
 	fence_apc.8 \
@@ -36,3 +33,6 @@ TARGET= fence.8 \
 	fence_xvm.8 \
 	fence_xvmd.8 \
 	fenced.8
+
+include ../../make/defines.mk
+include $(OBJDIR)/make/man.mk

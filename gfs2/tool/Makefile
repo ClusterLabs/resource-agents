@@ -11,10 +11,11 @@
 ###############################################################################
 ###############################################################################
 
+TARGET= gfs2_tool
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
-
-TARGET= gfs2_tool
+include $(OBJDIR)/make/clean.mk
 
 OBJS=	counters.o \
 	df.o \
@@ -49,7 +50,6 @@ install: all
 uninstall:
 	${UNINSTALL} ${TARGET} ${sbindir}
 
-clean:
-	rm -f ${TARGET} *.o *~ *.d cscope.* *.orig *.rej
+clean: generalclean
 
 .PHONY: all ${TARGET}

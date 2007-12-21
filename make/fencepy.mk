@@ -1,3 +1,5 @@
+include $(OBJDIR)/make/clean.mk
+
 all: $(TARGET)
 
 $(TARGET):
@@ -18,5 +20,4 @@ install: all
 uninstall:
 	${UNINSTALL} ${TARGET} ${sbindir}
 
-clean:
-	rm -f $(TARGET)
+clean: generalclean

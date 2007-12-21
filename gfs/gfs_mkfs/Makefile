@@ -11,11 +11,12 @@
 ###############################################################################
 ###############################################################################
 
-include ../../make/defines.mk
-include $(OBJDIR)/make/cobj.mk
-
 TARGET1= gfs_mkfs
 TARGET2= mkfs.gfs
+
+include ../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
+include $(OBJDIR)/make/clean.mk
 
 OBJS=	device_geometry.o \
 	fs_geometry.o \
@@ -53,7 +54,6 @@ install: all
 uninstall:
 	${UNINSTALL} ${TARGET1} ${TARGET2} ${sbindir}
 
-clean:
-	rm -f *.o ${TARGET1} ${TARGET2}
+clean: generalclean
 
 .PHONY: all ${TARGET1}

@@ -11,10 +11,11 @@
 ###############################################################################
 ###############################################################################
 
+TARGET= fence_ipmilan
+
 include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
-
-TARGET= fence_ipmilan
+include $(OBJDIR)/make/clean.mk
 
 OBJS=	expect.o \
 	ipmilan.o
@@ -35,5 +36,4 @@ install: all
 uninstall:
 	${UNINSTALL} ${TARGET} ${sbindir}
 
-clean:
-	rm -f *.o ${TARGET}
+clean: generalclean

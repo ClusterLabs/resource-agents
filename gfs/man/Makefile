@@ -11,9 +11,6 @@
 ###############################################################################
 ###############################################################################
 
-include ../../make/defines.mk
-include $(OBJDIR)/make/man.mk
-
 TARGET= gfs.8 \
 	gfs_mount.8 \
 	gfs_fsck.8 \
@@ -22,3 +19,6 @@ TARGET= gfs.8 \
 	gfs_mkfs.8 \
 	gfs_quota.8 \
 	gfs_tool.8
+
+include ../../make/defines.mk
+include $(OBJDIR)/make/man.mk

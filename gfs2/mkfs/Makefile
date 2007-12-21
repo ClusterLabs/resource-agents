@@ -3,13 +3,14 @@
 #
 .PHONY: all clean install
 
-include ../../make/defines.mk
-include $(OBJDIR)/make/cobj.mk
-
 TARGET1= mkfs.gfs2
 TARGET2= gfs2_mkfs
 TARGET3= gfs2_jadd
 TARGET4= gfs2_grow
+
+include ../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
+include $(OBJDIR)/make/clean.mk
 
 OBJS=	main.o \
 	main_mkfs.o \
@@ -51,7 +52,6 @@ install: all
 uninstall:
 	${UNINSTALL} ${TARGET1} ${TARGET2} ${TARGET3} ${TARGET4} ${sbindir}
 
-clean:
-	rm -f *.o ${TARGET1} ${TARGET2} ${TARGET3} ${TARGET4}
+clean: generalclean
 
 .PHONY: all ${TARGET1}

@@ -11,10 +11,11 @@
 ###############################################################################
 ###############################################################################
 
+TARGET= gnbd_export
+
 include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
-
-TARGET= gnbd_export
+include $(OBJDIR)/make/clean.mk
 
 OBJS=	gnbd_export.o \
 	../../utils/gnbd_utils.o \
@@ -42,5 +43,4 @@ install: all
 uninstall:
 	${UNINSTALL} ${TARGET} gnbd_get_uid ${sbindir}
 
-clean:
-	rm -f *.o ${TARGET}
+clean: generalclean

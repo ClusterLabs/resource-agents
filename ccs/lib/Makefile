@@ -10,10 +10,11 @@
 ###############################################################################
 ###############################################################################
 
+TARGET=libccs.a
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
-
-TARGET=libccs.a
+include $(OBJDIR)/make/clean.mk
 
 OBJS=	libccs.o \
 	log.o
@@ -42,5 +43,5 @@ uninstall:
 	${UNINSTALL} ${TARGET} ${libdir} 
 	${UNINSTALL} ccs.h ${incdir} 
 
-clean:
-	rm -rf *~ *.o ${TARGET} ccs.h.gch log.c
+clean: generalclean
+	rm -rf ccs.h.gch log.c

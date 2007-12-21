@@ -11,11 +11,12 @@
 ###############################################################################
 ###############################################################################
 
-include ../../make/defines.mk
-include $(OBJDIR)/make/cobj.mk
-
 TARGET1= gnbd_recvd
 TARGET2= gnbd_monitor
+
+include ../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
+include $(OBJDIR)/make/clean.mk
 
 OBJS1=	gnbd_recvd.o
 
@@ -50,5 +51,4 @@ install: all
 uninstall:
 	${UNINSTALL} ${TARGET1} ${TARGET2} ${sbindir}
 
-clean:
-	rm -f *.o *~ ${TARGET1} ${TARGET2}
+clean: generalclean

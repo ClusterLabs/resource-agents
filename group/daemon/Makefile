@@ -10,10 +10,11 @@
 ###############################################################################
 ###############################################################################
 
+TARGET= groupd
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
-
-TARGET= groupd
+include $(OBJDIR)/make/clean.mk
 
 OBJS=	app.o \
 	cpg.o \

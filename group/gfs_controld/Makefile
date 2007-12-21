@@ -10,10 +10,11 @@
 ###############################################################################
 ###############################################################################
 
+TARGET= gfs_controld
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
-
-TARGET= gfs_controld
+include $(OBJDIR)/make/clean.mk
 
 OBJS= 	main.o \
 	member_cman.o \
@@ -47,7 +48,6 @@ install: all
 uninstall:
 	${UNINSTALL} ${TARGET} ${sbindir}
 
-clean:
-	rm -f *.o ${TARGET}
+clean: generalclean
 
 .PHONY: all ${TARGET}

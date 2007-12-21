@@ -11,10 +11,11 @@
 ###############################################################################
 ###############################################################################
 
+TARGET = fenced
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
-
-TARGET = fenced
+include $(OBJDIR)/make/clean.mk
 
 OBJS=	main.o \
 	recover.o \
@@ -44,5 +45,4 @@ install: all
 uninstall:
 	${UNINSTALL} ${TARGET} ${sbindir}
 
-clean:
-	rm -rf *~ *.o ${TARGET}
+clean: generalclean

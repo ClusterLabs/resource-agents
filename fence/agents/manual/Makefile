@@ -11,9 +11,10 @@
 ###############################################################################
 ###############################################################################
 
-include ../../../make/defines.mk
-
 TARGET= fence_ack_manual
+
+include ../../../make/defines.mk
+include $(OBJDIR)/make/clean.mk
 
 all: ${TARGET}
 
@@ -32,5 +33,4 @@ install: all
 uninstall:
 	${UNINSTALL} ${TARGET} ${sbindir}
 
-clean:
-	rm -f *.o ${TARGET}
+clean: generalclean

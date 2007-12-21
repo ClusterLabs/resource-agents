@@ -10,16 +10,15 @@
 ###############################################################################
 ###############################################################################
 
+TARGETS= client clientd
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
-
-TARGETS= client clientd
+include $(OBJDIR)/make/clean.mk
 
 all: $(TARGETS)
 
 %: %.o
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-clean:
-	rm -f *.o $(TARGETS)
-
+clean: generalclean

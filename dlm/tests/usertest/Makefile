@@ -10,11 +10,12 @@
 ###############################################################################
 ###############################################################################
 
+TARGETS= dlmtest asttest lstest pingtest lvb \
+	 dlmtest2 flood alternate-lvb joinleave threads
+
 include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
-
-
-TARGETS= dlmtest asttest lstest pingtest lvb dlmtest2 flood alternate-lvb joinleave threads
+include $(OBJDIR)/make/clean.mk
 
 all: depends ${TARGETS}
 
@@ -29,5 +30,4 @@ depends:
 %: %.o
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-clean:
-	rm -f *.o ${TARGETS} *~ core
+clean: generalclean

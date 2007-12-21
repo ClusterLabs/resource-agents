@@ -11,10 +11,11 @@
 ###############################################################################
 ###############################################################################
 
+TARGET=libcman
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
-
-TARGET=libcman
+include $(OBJDIR)/make/clean.mk
 
 SHAREDLIB=$(TARGET).so.${RELEASE_MAJOR}.${RELEASE_MINOR}
 STATICLIB=$(TARGET).a
@@ -51,6 +52,4 @@ uninstall:
 		$(TARGET).so.$(RELEASE_MAJOR) \
 		${TARGET}.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}
 
-clean:
-	rm -f *.o *.a *.so *.so.*
-	rm -f *~
+clean: generalclean

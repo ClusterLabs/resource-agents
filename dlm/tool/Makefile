@@ -10,10 +10,11 @@
 ###############################################################################
 ###############################################################################
 
+TARGET= dlm_tool
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
-
-TARGET= dlm_tool
+include $(OBJDIR)/make/clean.mk
 
 OBJS=	main.o
 
@@ -28,8 +29,7 @@ all: ${TARGET}
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-clean:
-	rm -f *.o ${TARGET}
+clean: generalclean
 
 install: all
 	install -d ${sbindir}

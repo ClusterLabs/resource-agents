@@ -10,10 +10,12 @@
 ###############################################################################
 ###############################################################################
 
+TARGET=libgroup
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
+include $(OBJDIR)/make/clean.mk
 
-TARGET=libgroup
 STATICLIB=$(TARGET).a
 
 CFLAGS += -fPIC
@@ -30,6 +32,4 @@ install: all
 
 uninstall:
 
-clean:
-	rm -f *.o *.a *.so *.so.*
-	rm -f *~
+clean: generalclean

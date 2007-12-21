@@ -13,6 +13,7 @@
 
 ifndef USING_KBUILD
 include ../../make/defines.mk
+include $(OBJDIR)/make/clean.mk
 endif
 
 PWD = $(shell pwd)
@@ -34,9 +35,6 @@ uninstall:
 	${UNINSTALL} gnbd.ko ${module_dir}/drivers/block/gnbd
 	${UNINSTALL} gnbd.h ${incdir}/linux
 
-clean:
-	rm -rf linux *.mod.c .gnbd.ko.cmd \
-		.tmp_versions *o .*.o.cmd *~ \
-		Module.symvers .*.o.d
+clean: generalclean
 
 distclean: clean

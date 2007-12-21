@@ -11,10 +11,11 @@
 ###############################################################################
 ###############################################################################
 
+TARGET= gfs_grow
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
-
-TARGET= gfs_grow
+include $(OBJDIR)/make/clean.mk
 
 OBJS= main.o \
       ondisk.o
@@ -43,7 +44,6 @@ install: all
 uninstall:
 	${UNINSTALL} ${TARGET} ${sbindir}
 
-clean:
-	rm -f *.o ${TARGET}
+clean: generalclean
 
 .PHONY: all ${TARGET}

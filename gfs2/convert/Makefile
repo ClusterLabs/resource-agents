@@ -10,10 +10,11 @@
 ###############################################################################
 ###############################################################################
 
+TARGET= gfs2_convert
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
-
-TARGET= gfs2_convert
+include $(OBJDIR)/make/clean.mk
 
 OBJS= gfs2_convert.o
 
@@ -41,7 +42,6 @@ install: all
 uninstall:
 	${UNINSTALL} ${TARGET} ${sbindir}
 
-clean:
-	rm -f *.o ${TARGET}
+clean: generalclean
 
 .PHONY: all ${TARGET}

@@ -11,8 +11,11 @@
 ###############################################################################
 ###############################################################################
 
+TARGET= fence_rps10
+
 include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
+include $(OBJDIR)/make/clean.mk
 
 TARGET= fence_rps10
 
@@ -34,5 +37,4 @@ install: all
 uninstall:
 	${UNINSTALL} ${TARGET} ${sbindir}
 
-clean:
-	rm -f *.o ${TARGET}
+clean: generalclean

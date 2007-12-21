@@ -11,10 +11,11 @@
 ###############################################################################
 ###############################################################################
 
+TARGET= gfs_tool
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
-
-TARGET= gfs_tool
+include $(OBJDIR)/make/clean.mk
 
 OBJS=	counters.o \
 	df.o \
@@ -45,7 +46,4 @@ install: all
 uninstall:
 	${UNINSTALL} ${TARGET} ${sbindir}
 
-clean:
-	rm -f *.o ${TARGET}
-
-
+clean: generalclean

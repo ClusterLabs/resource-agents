@@ -10,12 +10,13 @@
 ###############################################################################
 ###############################################################################
 
-include ../../../make/defines.mk
-include $(OBJDIR)/make/cobj.mk
-
 TARGET1= libclulib.a
 TARGET2= liblalloc.a
 TARGET3= msgtest
+
+include ../../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
+include $(OBJDIR)/make/clean.mk
 
 OBJS1=	clulog.o daemon_init.o signals.o msgsimple.o \
 	gettid.o rg_strings.o message.o members.o fdops.o \
@@ -52,5 +53,4 @@ ${TARGET2}: ${OBJS2}
 ${TARGET3}: ${OBJS3} ${TARGET1}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-clean:
-	rm -f *.o ${TARGET1} ${TARGET2} ${TARGET3}
+clean: generalclean

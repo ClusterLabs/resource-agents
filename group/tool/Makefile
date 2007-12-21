@@ -10,10 +10,11 @@
 ###############################################################################
 ###############################################################################
 
+TARGET= group_tool
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
-
-TARGET= group_tool
+include $(OBJDIR)/make/clean.mk
 
 OBJS=	main.o
 
@@ -30,8 +31,7 @@ ${TARGET}: ${OBJS}
 depends:
 	$(MAKE) -C ../lib all
 
-clean:
-	rm -f *.o ${TARGET}
+clean: generalclean
 
 install: all
 	install -d ${sbindir}

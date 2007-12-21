@@ -10,10 +10,11 @@
 ###############################################################################
 ###############################################################################
 
-include ../../../make/defines.mk
-
 TARGET= fence_scsi
 SCRIPT= scsi_reserve
+
+include ../../../make/defines.mk
+include $(OBJDIR)/make/clean.mk
 
 all: $(TARGET) $(TARGET)_test
 
@@ -49,5 +50,4 @@ uninstall:
 	${UNINSTALL} ${TARGET} ${TARGET}_test ${sbindir}
 	${UNINSTALL} ${SCRIPT} ${DESTDIR}/etc/init.d
 
-clean:
-	rm -f $(TARGET) $(TARGET)_test
+clean: generalclean

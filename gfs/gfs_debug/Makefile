@@ -11,10 +11,11 @@
 ###############################################################################
 ###############################################################################
 
+TARGET= gfs_debug
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
-
-TARGET= gfs_debug
+include $(OBJDIR)/make/clean.mk
 
 OBJS=	block_device.o \
 	basic.o \
@@ -42,7 +43,4 @@ install: all
 uninstall:
 	${UNINSTALL} ${TARGET} ${sbindir}
 
-clean:
-	rm -f *.o ${TARGET}
-
-
+clean: generalclean

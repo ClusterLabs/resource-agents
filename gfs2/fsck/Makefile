@@ -10,11 +10,12 @@
 ###############################################################################
 ###############################################################################
 
-include ../../make/defines.mk
-include $(OBJDIR)/make/cobj.mk
-
 TARGET1= fsck.gfs2
 TARGET2= gfs2_fsck
+
+include ../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
+include $(OBJDIR)/make/clean.mk
 
 OBJS=	eattr.o \
 	fs_recovery.o \
@@ -60,8 +61,8 @@ test_block_list: log.o test_block_list.o
 test_bitmap: test_bitmap.o log.o
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-clean:
-	rm -f ${TARGET1} ${TARGET2} *.o *~ *.d cscope.* test_inode_list *.orig *.rej test_block_list test_bitmap
+clean: generalclean
+	rm -f test_block_list test_bitmap
 
 install: all
 	if [ ! -d ${sbindir} ]; then \

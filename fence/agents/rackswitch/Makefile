@@ -11,10 +11,11 @@
 ###############################################################################
 ###############################################################################
 
+TARGET= fence_rackswitch
+
 include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
-
-TARGET= fence_rackswitch
+include $(OBJDIR)/make/clean.mk
 
 OBJS=	do_rack.o
 
@@ -34,6 +35,4 @@ install: all
 uninstall:
 	${UNINSTALL} ${TARGET} ${sbindir}
 
-clean:
-	rm -f *.o ${TARGET} *~
-
+clean: generalclean

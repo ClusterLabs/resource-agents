@@ -10,13 +10,14 @@
 ###############################################################################
 ###############################################################################
 
-include ../../../make/defines.mk
-include $(OBJDIR)/make/cobj.mk
-
 TARGET1= clurgmgrd
 TARGET2= clurmtabd
 TARGET3= rg_test
 TARGET4= dtest
+
+include ../../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
+include $(OBJDIR)/make/clean.mk
 
 OBJS1=	depends.o \
 	fo_domain.o \
@@ -121,8 +122,7 @@ install: all
 uninstall:
 	${UNINSTALL} ${TARGET1} ${TARGET2} ${TARGET3} ${sbindir}
 
-clean:
-	rm -f *.o ${TARGET1} ${TARGET2} ${TARGET3} ${TARGET4}
+clean: generalclean
 	rm -f tests/*.out*
 
 .PHONY: all ${TARGET1} ${TARGET2} ${TARGET3} ${TARGET4}

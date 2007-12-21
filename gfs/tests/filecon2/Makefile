@@ -13,6 +13,7 @@
 
 include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
+include $(OBJDIR)/make/clean.mk
 
 TARGETS= filecon2_server filecon2_client
 
@@ -25,6 +26,4 @@ all: $(TARGETS)
 %: %.o
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-clean:
-	rm -f *.o *.s *.a *~ core .depend $(TARGETS)
-
+clean: generalclean

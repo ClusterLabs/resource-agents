@@ -13,6 +13,7 @@
 
 ifndef USING_KBUILD
 include ../../../make/defines.mk
+include $(OBJDIR)/make/clean.mk
 endif
 
 PWD := $(shell pwd)
@@ -72,9 +73,6 @@ uninstall:
 	${UNINSTALL} gfs.ko ${module_dir}/fs/gfs
 	${UNINSTALL} gfs_ondisk.h gfs_ioctl.h ${incdir}/linux
 
-clean:
-	rm -rf linux *.o .*.o.cmd .gfs.ko.cmd \
-		gfs.ko gfs.mod.c .tmp_versions *~ *~* \
-		Module.symvers .*.o.d
+clean: generalclean
 
 distclean: clean

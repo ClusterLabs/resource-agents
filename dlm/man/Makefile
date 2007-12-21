@@ -10,9 +10,6 @@
 ###############################################################################
 ###############################################################################
 
-include ../../make/defines.mk
-include $(OBJDIR)/make/man.mk
-
 TARGET= dlm_cleanup.3 \
 	dlm_close_lockspace.3 \
 	dlm_create_lockspace.3 \
@@ -34,3 +31,6 @@ TARGET= dlm_cleanup.3 \
 	dlm_unlock_wait.3 \
 	libdlm.3 \
 	dlm_tool.8
+
+include ../../make/defines.mk
+include $(OBJDIR)/make/man.mk

@@ -11,9 +11,6 @@
 ###############################################################################
 ###############################################################################
 
-include ../../make/defines.mk
-include $(OBJDIR)/make/man.mk
-
 TARGET= gfs2.8 \
 	gfs2_convert.8 \
 	gfs2_edit.8 \
@@ -24,3 +21,6 @@ TARGET= gfs2.8 \
 	gfs2_quota.8 \
 	gfs2_tool.8 \
 	mkfs.gfs2.8
+
+include ../../make/defines.mk
+include $(OBJDIR)/make/man.mk

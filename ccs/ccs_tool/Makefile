@@ -10,10 +10,11 @@
 ###############################################################################
 ###############################################################################
 
+TARGET= ccs_tool
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
-
-TARGET= ccs_tool
+include $(OBJDIR)/make/clean.mk
 
 OBJS=	ccs_tool.o \
 	update.o \
@@ -37,14 +38,13 @@ ${TARGET}: ${OBJS}
 depends:
 	$(MAKE) -C ../lib all
 
-clean:
-	rm -f *.o ccs_tool *~
-
 install: all
 	install -d ${sbindir}
 	install ccs_tool ${sbindir}
 
 uninstall:
 	${UNINSTALL} ccs_tool ${sbindir}
+
+clean: generalclean
 
 .PHONY: all ${TARGET}

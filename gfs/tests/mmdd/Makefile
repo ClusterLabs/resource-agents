@@ -12,6 +12,7 @@
 ###############################################################################
 
 include ../../../make/defines.mk
+include $(OBJDIR)/make/clean.mk
 
 TARGETS= mmdd sfdd
 
@@ -28,5 +29,4 @@ sfdd.o: mmdd.c
 %: %.o
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-clean:
-	rm -f *.o *.s *.a *~ core .depend $(TARGETS)
+clean: generalclean

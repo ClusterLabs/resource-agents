@@ -10,11 +10,12 @@
 ###############################################################################
 ###############################################################################
 
-include ../../make/defines.mk
-include $(OBJDIR)/make/cobj.mk
-
 TARGET1= gfs_fsck
 TARGET2= fsck.gfs
+
+include ../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
+include $(OBJDIR)/make/clean.mk
 
 OBJS=	bio.o \
 	bitmap.o \
@@ -66,8 +67,8 @@ test_block_list: block_list.o bitmap.o log.o test_block_list.o
 test_bitmap: bitmap.o test_bitmap.o log.o
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-clean:
-	rm -f *.o *~ *.d ${TARGET1} ${TARGET2} cscope.* test_inode_list *.orig *.rej test_block_list test_bitmap
+clean: generalclean
+	rm -f test_block_list test_bitmap
 
 install: all
 	if [ ! -d ${sbindir} ]; then \

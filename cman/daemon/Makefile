@@ -10,8 +10,11 @@
 ###############################################################################
 ###############################################################################
 
+TARGET= service_cman.lcrso
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
+include $(OBJDIR)/make/clean.mk
 
 CFLAGS += -DOPENAIS_EXTERNAL_SERVICE
 CFLAGS += -fPIC
@@ -19,8 +22,6 @@ CFLAGS += -I${ccsincdir} -I${openaisincdir}
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${ccslibdir} -lccs 
-
-TARGET= service_cman.lcrso
 
 OBJS=	daemon.o \
 	config.o \
@@ -45,5 +46,4 @@ install: all
 uninstall:
 	rm -f ${libexecdir}/lcrso/${TARGET}
 
-clean:
-	rm -f *.o ${TARGET}
+clean: generalclean
