@@ -15,4 +15,4 @@ include ../../../make/defines.mk
 
 TARGET= fence_rsb
 
-include ../../../make/fencepy.mk
+include $(OBJDIR)/make/fencepy.mk

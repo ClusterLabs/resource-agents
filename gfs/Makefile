@@ -12,7 +12,7 @@
 ###############################################################################
 
 include ../make/defines.mk
-include ../make/passthrough.mk
+include $(OBJDIR)/make/passthrough.mk
 
 SUBDIRS=libgfs gfs_debug gfs_edit gfs_fsck gfs_grow gfs_jadd gfs_mkfs gfs_quota gfs_tool man init.d
 

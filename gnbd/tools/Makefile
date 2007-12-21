@@ -12,6 +12,6 @@
 ###############################################################################
 
 include ../../make/defines.mk
-include ../../make/passthrough.mk
+include $(OBJDIR)/make/passthrough.mk
 
 SUBDIRS=fence_gnbd gnbd_export gnbd_import

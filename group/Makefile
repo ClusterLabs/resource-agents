@@ -11,6 +11,6 @@
 ###############################################################################
 
 include ../make/defines.mk
-include ../make/passthrough.mk
+include $(OBJDIR)/make/passthrough.mk
 
 SUBDIRS=lib daemon tool dlm_controld gfs_controld man

@@ -11,6 +11,6 @@
 ###############################################################################
 
 include ../make/defines.mk
-include ../make/passthrough.mk
+include $(OBJDIR)/make/passthrough.mk
 
 SUBDIRS=lib daemon ccs_test ccs_tool man

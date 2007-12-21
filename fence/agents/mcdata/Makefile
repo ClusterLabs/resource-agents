@@ -15,4 +15,4 @@ include ../../../make/defines.mk
 
 TARGET= fence_mcdata
 
-include ../../../make/fenceperl.mk
+include $(OBJDIR)/make/fenceperl.mk
