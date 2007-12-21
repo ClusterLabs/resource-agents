@@ -30,5 +30,7 @@ TARGET= dlm_cleanup.3 \
 	dlm_unlock_wait.3 \
 	dlm_lock.3 \
 	dlm_ls_unlock_wait.3 \
+	dlm_ls_lockx.3 \
+	dlm_new_lockspace.3 \
 	libdlm.3 \
 	dlm_tool.8
