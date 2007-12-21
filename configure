@@ -287,11 +287,12 @@ sub kernel_version {
 sub symlinks {
   my $dir = shift;
   my $pattern = shift;
-  @args = "find $dir -name $pattern";
+  @args = "find $dir -type f -name $pattern";
   open (IFILE, "@args |");
   while (<IFILE>) {
     chomp;
     s|\./||g;
+    s|.*make\/defines.mk||g;
     $dirname = dirname($_);
     $filename = basename($_);
     system("mkdir -p $objdir/$dirname");
