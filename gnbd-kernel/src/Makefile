@@ -37,6 +37,6 @@ uninstall:
 clean:
 	rm -rf linux *.mod.c .gnbd.ko.cmd \
 		.tmp_versions *o .*.o.cmd *~ \
-		Module.symvers
+		Module.symvers .*.o.d
 
 distclean: clean

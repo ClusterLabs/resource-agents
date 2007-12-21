@@ -74,6 +74,7 @@ uninstall:
 
 clean:
 	rm -rf linux *.o .*.o.cmd .gfs.ko.cmd \
-		gfs.ko gfs.mod.c .tmp_versions *~ *~* Module.symvers
+		gfs.ko gfs.mod.c .tmp_versions *~ *~* \
+		Module.symvers .*.o.d
 
 distclean: clean
