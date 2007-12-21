@@ -12,20 +12,10 @@
 ###############################################################################
 
 include ../../make/defines.mk
+include $(OBJDIR)/make/man.mk
 
-install:
-	install -d ${mandir}/man5
-	install -d ${mandir}/man7
-	install -d ${mandir}/man8
-	install $(S)/cluster.conf.5 ${mandir}/man5
-	install $(S)/ccs.7 ${mandir}/man7
-	install $(S)/ccsd.8 $(S)/ccs_test.8 $(S)/ccs_tool.8 ${mandir}/man8
-
-uninstall:
-	${UNINSTALL} cluster.conf.5 ${mandir}/man5
-	${UNINSTALL} ccs.7 ${mandir}/man7
-	${UNINSTALL} ccsd.8 ccs_test.8 ccs_tool.8 ${mandir}/man8
-
-all:
-
-clean:
+TARGET= cluster.conf.5 \
+	ccs.7 \
+	ccsd.8 \
+	ccs_test.8 \
+	ccs_tool.8

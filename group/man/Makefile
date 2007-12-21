@@ -11,23 +11,9 @@
 ###############################################################################
 
 include ../../make/defines.mk
+include $(OBJDIR)/make/man.mk
 
-TARGET8 = \
-	dlm_controld.8 \
+TARGET= dlm_controld.8 \
 	gfs_controld.8 \
 	group_tool.8 \
 	groupd.8
-
-all:
-
-clean:
-
-install:
-	install -d ${mandir}/man8
-	for i in ${TARGET8}; do \
-	 install $(S)/$$i ${mandir}/man8; \
-	done
-
-uninstall:
-	${UNINSTALL} ${TARGET8} ${mandir}/man8
-

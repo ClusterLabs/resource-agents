@@ -12,23 +12,10 @@
 ###############################################################################
 
 include ../../make/defines.mk
+include $(OBJDIR)/make/man.mk
 
-TARGET8= \
-	gnbd.8 \
+TARGET= gnbd.8 \
 	gnbd_export.8 \
 	gnbd_import.8 \
 	gnbd_serv.8 \
 	fence_gnbd.8
-
-all:
-
-clean:
-
-install:
-	install -d ${mandir}/man8
-	for i in ${TARGET8}; do \
-	 install $(S)/$$i ${mandir}/man8; \
-	done
-
-uninstall:
-	${UNINSTALL} ${TARGET8} ${mandir}/man8

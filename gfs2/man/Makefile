@@ -12,9 +12,9 @@
 ###############################################################################
 
 include ../../make/defines.mk
+include $(OBJDIR)/make/man.mk
 
-TARGET8= \
-	gfs2.8 \
+TARGET= gfs2.8 \
 	gfs2_convert.8 \
 	gfs2_edit.8 \
 	gfs2_fsck.8 \
@@ -24,16 +24,3 @@ TARGET8= \
 	gfs2_quota.8 \
 	gfs2_tool.8 \
 	mkfs.gfs2.8
-
-all:
-
-clean:
-
-install:
-	install -d ${mandir}/man8
-	for i in ${TARGET8}; do \
-	 install $(S)/$$i ${mandir}/man8; \
-	done
-
-uninstall:
-	${UNINSTALL} ${TARGET8} ${mandir}/man8

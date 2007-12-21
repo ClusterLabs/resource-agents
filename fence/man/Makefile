@@ -12,9 +12,9 @@
 ###############################################################################
 
 include ../../make/defines.mk
+include $(OBJDIR)/make/man.mk
 
-TARGET8= \
-	fence.8 \
+TARGET= fence.8 \
 	fence_ack_manual.8 \
 	fence_apc.8 \
 	fence_rsa.8 \
@@ -36,16 +36,3 @@ TARGET8= \
 	fence_xvm.8 \
 	fence_xvmd.8 \
 	fenced.8
-
-all:
-
-clean:
-
-install:
-	install -d ${mandir}/man8
-	for i in ${TARGET8}; do \
-	 install $(S)/$$i ${mandir}/man8; \
-	done
-
-uninstall:
-	${UNINSTALL} ${TARGET8} ${mandir}/man8

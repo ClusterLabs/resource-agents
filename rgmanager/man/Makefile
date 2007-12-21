@@ -12,21 +12,14 @@
 ###############################################################################
 
 include ../../make/defines.mk
+include $(OBJDIR)/make/man.mk
 
-TARGETS = clubufflush.8 clufindhostname.8 clulog.8 \
-	  clurgmgrd.8 clurmtabd.8 clustat.8 clusvcadm.8
-
-all:
-
-clean:
+TARGET= clubufflush.8 \
+	clufindhostname.8 \
+	clulog.8 \
+	clurgmgrd.8 \
+	clurmtabd.8 \
+	clustat.8 \
+	clusvcadm.8
 
 check:
-
-install:
-	install -d ${mandir}/man8
-	for i in ${TARGET8}; do \
-	 install $(S)/$$i ${mandir}/man8; \
-	done
-
-uninstall:
-	${UNINSTALL} ${TARGETS} ${mandir}/man8
