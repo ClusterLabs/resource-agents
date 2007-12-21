@@ -12,6 +12,7 @@
 ###############################################################################
 
 include ../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
 
 TARGET1= gfs_mkfs
 TARGET2= mkfs.gfs
@@ -38,9 +39,6 @@ ${TARGET1}: ${OBJS}
 
 ${TARGET2}: ${TARGET1}
 	ln -sf ${TARGET1} ${TARGET2}
-
-%.o: $(S)/%.c
-	$(CC) $(CFLAGS) -c -o $@ $<
 
 depends:
 	$(MAKE) -C ../libgfs all

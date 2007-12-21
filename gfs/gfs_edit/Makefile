@@ -12,6 +12,7 @@
 ###############################################################################
 
 include ../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
 
 TARGET= gfs_edit
 
@@ -29,9 +30,6 @@ all: ${TARGET}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
-
-%.o: $(S)/%.c
-	$(CC) $(CFLAGS) -c -o $@ $<
 
 install: all
 	if [ ! -d ${sbindir} ]; then \

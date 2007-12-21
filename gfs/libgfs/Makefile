@@ -12,6 +12,7 @@
 ###############################################################################
 
 include ../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
 
 TARGET=libgfs.a
 
@@ -43,9 +44,6 @@ all: ${TARGET}
 ${TARGET}: ${OBJS}
 	${AR} cru $@ $^
 	${RANLIB} $@
-
-%.o: $(S)/%.c
-	$(CC) $(CFLAGS) -c -o $@ $<
 
 install: all
 

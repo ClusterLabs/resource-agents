@@ -12,6 +12,7 @@
 ###############################################################################
 
 include ../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
 
 TARGET=libcman
 
@@ -32,9 +33,6 @@ $(TARGET).so.${RELEASE_MAJOR}.${RELEASE_MINOR}: $(TARGET).o
 	$(CC) -shared -o $@ -Wl,-soname=$(TARGET).so.$(RELEASE_MAJOR) $<
 	ln -sf $(TARGET).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(TARGET).so
 	ln -sf $(TARGET).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(TARGET).so.$(RELEASE_MAJOR)
-
-%.o: $(S)/%.c
-	$(CC) $(CFLAGS) -c -o $@ $<
 
 install: all
 	install -d ${incdir}

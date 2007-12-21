@@ -11,13 +11,11 @@
 ###############################################################################
 
 include ../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
 
 TARGETS= client clientd
 
 all: $(TARGETS)
-
-%.o: $(S)/%.c
-	$(CC) $(CFLAGS) -c -o $@ $<
 
 %: %.o
 	$(CC) -o $@ $^ $(LDFLAGS)

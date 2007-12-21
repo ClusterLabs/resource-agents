@@ -11,6 +11,7 @@
 ###############################################################################
 
 include ../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
 
 TARGET=libgroup
 STATICLIB=$(TARGET).a
@@ -24,9 +25,6 @@ all: $(STATICLIB)
 $(TARGET).a: $(TARGET).o
 	${AR} r $@ $^
 	${RANLIB} $@
-
-%.o: $(S)/%.c
-	$(CC) $(CFLAGS) -c -o $@ $<
 
 install: all
 

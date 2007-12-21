@@ -11,6 +11,7 @@
 ###############################################################################
 
 include ../../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
 
 
 TARGETS= dlmtest asttest lstest pingtest lvb dlmtest2 flood alternate-lvb joinleave threads
@@ -24,9 +25,6 @@ LDFLAGS += -L${dlmlibdir} -ldlm -lpthread
 
 depends:
 	$(MAKE) -C ../../lib all
-
-%.o: $(S)/%.c
-	$(CC) $(CFLAGS) -c -o $@ $<
 
 %: %.o
 	$(CC) -o $@ $^ $(LDFLAGS)

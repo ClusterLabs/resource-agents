@@ -11,6 +11,7 @@
 ###############################################################################
 
 include ../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
 
 TARGETS= client libtest sysman sysmand
 
@@ -23,9 +24,6 @@ all: depends ${TARGETS}
 
 depends:
 	$(MAKE) -C ../lib all
-
-%.o: $(S)/%.c
-	$(CC) $(CFLAGS) -c -o $@ $<
 
 %: %.o
 	$(CC) -o $@ $^ $(LDFLAGS)

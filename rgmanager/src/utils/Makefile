@@ -11,6 +11,7 @@
 ###############################################################################
 
 include ../../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
 
 TARGET1= clubufflush
 TARGET2= clufindhostname
@@ -50,9 +51,6 @@ ${TARGET5}: ${TARGET5:=.o}
 ${TARGET6}:
 	cp $(S)/${TARGET6}.sh ${TARGET6}
 	chmod 755 ${TARGET6}
-
-%.o: $(S)/%.c
-	$(CC) $(CFLAGS) -c -o $@ $<
 
 depends:
 	$(MAKE) -C ../clulib all

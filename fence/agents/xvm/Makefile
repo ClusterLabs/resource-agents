@@ -11,6 +11,7 @@
 ###############################################################################
 
 include ../../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
 
 TARGET1= fence_xvm
 TARGET2= fence_xvmd
@@ -59,12 +60,6 @@ ${TARGET2}: ${SHAREDOBJS} ${OBJS2}
 
 ${TARGET3}: ${OBJS3}
 	$(CC) -o $@ $^ $(XML_LDFLAGS)
-
-%.o: $(S)/%.c
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-%-standalone.o: $(S)/%.c
-	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $<
 
 clean:
 	rm -f ${TARGET1} ${TARGET2} ${TARGET3} *~ *.o 

@@ -12,6 +12,7 @@
 ###############################################################################
 
 include ../../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
 
 TARGETS= filecon2_server filecon2_client
 
@@ -20,9 +21,6 @@ CFLAGS += -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64
 CFLAGS += -I../../include
 
 all: $(TARGETS)
-
-%.o: $(S)/%.c
-	$(CC) $(CFLAGS) -c -o $@ $<
 
 %: %.o
 	$(CC) -o $@ $^ $(LDFLAGS)

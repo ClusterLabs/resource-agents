@@ -11,6 +11,7 @@
 ###############################################################################
 
 include ../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
 
 TARGET1= gfs_fsck
 TARGET2= fsck.gfs
@@ -58,9 +59,6 @@ ${TARGET1}: $(OBJS)
 
 ${TARGET2}: ${TARGET1}
 	ln -s ${TARGET1} ${TARGET2}
-
-%.o: $(S)/%.c
-	$(CC) $(CFLAGS) -c -o $@ $<
 
 test_block_list: block_list.o bitmap.o log.o test_block_list.o
 	$(CC) -o $@ $^ $(LDFLAGS)

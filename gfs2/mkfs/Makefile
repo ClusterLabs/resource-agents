@@ -4,6 +4,7 @@
 .PHONY: all clean install
 
 include ../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
 
 TARGET1= mkfs.gfs2
 TARGET2= gfs2_mkfs
@@ -36,9 +37,6 @@ ${TARGET3}: ${TARGET1}
 
 ${TARGET4}: ${TARGET1}
 	ln -sf ${TARGET1} ${TARGET4}
-
-%.o: $(S)/%.c
-	$(CC) $(CFLAGS) -c -o $@ $<
 
 depends:
 	$(MAKE) -C ../libgfs2 all

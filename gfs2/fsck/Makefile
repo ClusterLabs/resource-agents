@@ -11,6 +11,7 @@
 ###############################################################################
 
 include ../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
 
 TARGET1= fsck.gfs2
 TARGET2= gfs2_fsck
@@ -49,9 +50,6 @@ ${TARGET1}: $(OBJS)
 
 ${TARGET2}: ${TARGET1}
 	ln -fs ${TARGET1} ${TARGET2}	
-
-%.o: $(S)/%.c
-	$(CC) $(CFLAGS) -c -o $@ $<
 
 depends:
 	$(MAKE) -C ../libgfs2 all

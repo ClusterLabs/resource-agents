@@ -11,6 +11,7 @@
 ###############################################################################
 
 include ../../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
 
 TARGET1= libclulib.a
 TARGET2= liblalloc.a
@@ -50,9 +51,6 @@ ${TARGET2}: ${OBJS2}
 
 ${TARGET3}: ${OBJS3} ${TARGET1}
 	$(CC) -o $@ $^ $(LDFLAGS)
-
-%.o: $(S)/%.c
-	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
 	rm -f *.o ${TARGET1} ${TARGET2} ${TARGET3}

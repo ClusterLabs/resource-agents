@@ -11,6 +11,7 @@
 ###############################################################################
 
 include ../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
 
 TARGET1= mount.gfs2
 TARGET2= umount.gfs2
@@ -36,9 +37,6 @@ ${TARGET1}: ${SHAREDOBJS} ${OBJS1}
 
 ${TARGET2}: ${SHAREDOBJS} ${OBJS2}
 	$(CC) -o $@ $^ $(LDFLAGS)
-
-%.o: $(S)/%.c
-	$(CC) $(CFLAGS) -c -o $@ $<
 
 install: all
 	mkdir -p ${DESTDIR}/sbin

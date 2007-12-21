@@ -12,6 +12,7 @@
 ###############################################################################
 
 include ../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
 
 TARGET1= gnbd_serv
 TARGET2= gnbd_clusterd
@@ -43,9 +44,6 @@ ${TARGET1}: ${SHAREDOBJS} ${OBJS1}
 
 ${TARGET2}: ${SHAREDOBJS} ${OBJS2}
 	$(CC) -o $@ $^ $(LDFLAGS)
-
-%.o: $(S)/%.c
-	$(CC) $(CFLAGS) -c -o $@ $<
 
 install: all
 	if [ ! -d ${sbindir} ]; then \

@@ -11,6 +11,7 @@
 ###############################################################################
 
 include ../../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
 
 TARGET1= clurgmgrd
 TARGET2= clurmtabd
@@ -109,12 +110,6 @@ ${TARGET4}: ${SHAREDOBJS} ${OBJS4}
 
 check: rg_test
 	cd tests && ./runtests.sh
-
-%.o: $(S)/%.c
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-%-noccs.o: $(S)/%.c
-	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $<
 
 depends:
 	$(MAKE) -C ../clulib all

@@ -11,6 +11,7 @@
 ###############################################################################
 
 include ../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
 
 TARGET=libccs.a
 
@@ -27,9 +28,6 @@ all: ${TARGET}
 ${TARGET}: ${OBJS}
 	${AR} cr $@ $^
 	${RANLIB} $@
-
-%.o: $(S)/%.c
-	$(CC) $(CFLAGS) -c -o $@ $<
 
 log.c:
 	ln -sf $(S)/../common/log.c log.c

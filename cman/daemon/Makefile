@@ -11,6 +11,7 @@
 ###############################################################################
 
 include ../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
 
 CFLAGS += -DOPENAIS_EXTERNAL_SERVICE
 CFLAGS += -fPIC
@@ -33,9 +34,6 @@ all: depends ${TARGET}
 
 ${TARGET}: ${OBJS}
 	$(CC) -shared -Wl,-soname,$@ -o $@ $^ $(LDFLAGS)
-
-%.o: $(S)/%.c
-	$(CC) $(CFLAGS) -c -o $@ $<
 
 depends:
 	$(MAKE) -C ../lib all

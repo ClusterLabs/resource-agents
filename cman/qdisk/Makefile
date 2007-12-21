@@ -11,6 +11,7 @@
 ###############################################################################
 
 include ../../make/defines.mk
+include $(OBJDIR)/make/cobj.mk
 
 CFLAGS += -D_GNU_SOURCE
 CFLAGS += -Werror -Wstrict-prototypes -Wshadow
@@ -49,9 +50,6 @@ ${TARGET2}: ${SHAREDOBJS} ${OBJS2}
 install: all
 	install -d ${sbindir}
 	install ${TARGET1} ${TARGET2} ${sbindir}
-
-%.o: $(S)/%.c
-	$(CC) $(CFLAGS) -c -o $@ $<
 
 depends:
 	$(MAKE) -C ../lib all
