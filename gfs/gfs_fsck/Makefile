@@ -16,6 +16,8 @@ TARGET2= fsck.gfs
 SBINDIRT=$(TARGET1)
 SBINSYMT=$(TARGET2)
 
+all: ${TARGET1} ${TARGET2}
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
@@ -58,7 +60,6 @@ CFLAGS += -MMD
 CFLAGS += -I$(S)/../include
 CFLAGS += -I${incdir}
 
-all: ${TARGET1} ${TARGET2}
 
 ${TARGET1}: $(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS)

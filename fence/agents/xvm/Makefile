@@ -16,6 +16,8 @@ TARGET3= testprog
 
 SBINDIRT=$(TARGET1) $(TARGET2)
 
+all: ${TARGET1} ${TARGET2}
+
 include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
@@ -55,7 +57,6 @@ LDFLAGS += -lccs -lcman -ldlm -lnss3 -lnspr4
 EXTRA_LDFLAGS += -L${virtlibdir} -lvirt -L${openaislibdir} -lSaCkpt
 XML_LDFLAGS += `xml2-config --libs`
 
-all: ${TARGET1} ${TARGET2}
 
 ${TARGET1}: ${SHAREDOBJS} ${OBJS1}
 	$(CC) -o $@ $^ $(LDFLAGS)

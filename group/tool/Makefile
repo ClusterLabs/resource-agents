@@ -14,6 +14,8 @@ TARGET= group_tool
 
 SBINDIRT=$(TARGET)
 
+all: depends ${TARGET}
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
@@ -27,7 +29,6 @@ CFLAGS += -I${incdir}
 
 LDFLAGS += -L../lib -lgroup
 
-all: depends ${TARGET}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)

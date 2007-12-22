@@ -1,3 +1,5 @@
+all:
+
 install:
 	for i in ${TARGET}; do \
 	  p=`echo $$i | sed -e 's#.*\.##g'`; \
@@ -10,7 +12,5 @@ uninstall:
 	  p=`echo $$i | sed -e 's#.*\.##g'`; \
 	  ${UNINSTALL} $$i ${mandir}/man$$p; \
 	done
-
-all:
 
 clean:

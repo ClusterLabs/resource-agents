@@ -14,6 +14,8 @@ TARGET= service_cman.lcrso
 
 LCRSOT=$(TARGET)
 
+all: depends ${TARGET}
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
@@ -35,7 +37,6 @@ OBJS=	daemon.o \
 	barrier.o \
 	cmanccs.o
 
-all: depends ${TARGET}
 
 ${TARGET}: ${OBJS}
 	$(CC) -shared -Wl,-soname,$@ -o $@ $^ $(LDFLAGS)

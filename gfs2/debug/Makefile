@@ -12,6 +12,8 @@
 ###############################################################################
 
 top_srcdir=..
+all: ${TARGET}
+
 include ${top_srcdir}/make/defines.mk
 
 TARGET= gfs2_debug
@@ -41,7 +43,6 @@ endif
 
 LDFLAGS+= -L${libdir}
 
-all: ${TARGET}
 
 gfs2_debug: ${SOURCE}
 	${CC} ${CFLAGS} ${INCLUDE} ${LDFLAGS} ${SOURCE} ${LDLIBS} -o $@

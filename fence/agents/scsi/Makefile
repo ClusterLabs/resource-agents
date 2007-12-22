@@ -15,12 +15,13 @@ TARGET= fence_scsi
 SBINDIRT=$(TARGET) $(TARGET)_test
 INITDT= scsi_reserve
 
+all: $(TARGET) $(TARGET)_test
+
 include ../../../make/defines.mk
 include $(OBJDIR)/make/clean.mk
 include $(OBJDIR)/make/install.mk
 include $(OBJDIR)/make/uninstall.mk
 
-all: $(TARGET) $(TARGET)_test
 
 $(TARGET):
 	: > $(TARGET)

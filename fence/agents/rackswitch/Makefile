@@ -15,6 +15,8 @@ TARGET= fence_rackswitch
 
 SBINDIRT=$(TARGET)
 
+all: ${TARGET}
+
 include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
@@ -25,7 +27,6 @@ OBJS=	do_rack.o
 
 CFLAGS += -I${incdir}
 
-all: ${TARGET}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)

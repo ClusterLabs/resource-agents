@@ -14,6 +14,8 @@ TARGET= ccs_tool
 
 SBINDIRT=$(TARGET)
 
+all: depends ${TARGET}
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
@@ -34,7 +36,6 @@ CFLAGS += -I${incdir}
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
 LDFLAGS += `xml2-config --libs` -L${libdir} -ldl
 
-all: depends ${TARGET}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)

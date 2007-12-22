@@ -12,11 +12,12 @@
 
 TARGETS= client clientd
 
+all: $(TARGETS)
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
 
-all: $(TARGETS)
 
 %: %.o
 	$(CC) -o $@ $^ $(LDFLAGS)

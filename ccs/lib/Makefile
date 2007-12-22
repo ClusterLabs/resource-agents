@@ -15,6 +15,8 @@ TARGET= libccs.a
 LIBDIRT=$(TARGET)
 INCDIRT=ccs.h
 
+all: ${TARGET}
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
@@ -29,7 +31,6 @@ CFLAGS += -fPIC
 CFLAGS += -I$(S)/../include -I$(S)/../common
 CFLAGS += -I${incdir}
 
-all: ${TARGET}
 
 ${TARGET}: ${OBJS}
 	${AR} cr $@ $^

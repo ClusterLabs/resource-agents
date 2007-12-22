@@ -15,6 +15,8 @@ TARGET= gnbd_export
 
 SBINDIRT=$(TARGET) gnbd_get_uid
 
+all: ${TARGET} gnbd_get_uid
+
 include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
@@ -32,7 +34,6 @@ CFLAGS += -I${incdir}
 
 LDFLAGS += -L${libdir} -L${cmanlibdir} -lcman -ldl -lpthread
 
-all: ${TARGET} gnbd_get_uid
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)

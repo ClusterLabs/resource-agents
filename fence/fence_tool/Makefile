@@ -15,6 +15,8 @@ TARGET = fence_tool
 
 SBINDIRT=$(TARGET)
 
+all: ${TARGET}
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
@@ -32,7 +34,6 @@ CFLAGS += -I${incdir}
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
 LDFLAGS += -L../../group/lib -lgroup
 
-all: ${TARGET}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)

@@ -14,6 +14,8 @@ TARGET= groupd
 
 SBINDIRT=$(TARGET)
 
+all: ${TARGET}
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
@@ -32,7 +34,6 @@ CFLAGS += -I${incdir}
 
 LDFLAGS += -L${cmanlibdir} -L${openaislibdir} -L${libdir} -lcman -lcpg
 
-all: ${TARGET}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)

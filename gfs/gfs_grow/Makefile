@@ -15,6 +15,8 @@ TARGET= gfs_grow
 
 SBINDIRT=$(TARGET)
 
+all: depends ${TARGET}
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
@@ -31,7 +33,6 @@ CFLAGS += -I${incdir}
 
 LDFLAGS += -L../libgfs -lgfs
 
-all: depends ${TARGET}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)

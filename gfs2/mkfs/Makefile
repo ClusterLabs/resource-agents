@@ -11,6 +11,8 @@ TARGET4= gfs2_grow
 SBINDIRT=$(TARGET1)
 SBINSYMT=$(TARGET2) $(TARGET3) $(TARGET4)
 
+all: depends ${TARGET1} ${TARGET2} ${TARGET3} ${TARGET4}
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
@@ -30,7 +32,6 @@ CFLAGS += -I${incdir}
 LDFLAGS += -L${volidlibdir} -lvolume_id
 LDFLAGS += -L../libgfs2 -lgfs2
 
-all: depends ${TARGET1} ${TARGET2} ${TARGET3} ${TARGET4}
 
 ${TARGET1}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)

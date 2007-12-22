@@ -15,6 +15,8 @@ TARGET= fence_gnbd
 
 SBINDIRT=$(TARGET)
 
+all: ${TARGET}
+
 include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
@@ -26,7 +28,6 @@ OBJS= main.o
 CFLAGS += -I$(S)/../../include -I$(S)/../gnbd_import
 CFLAGS += -I${incdir}
 
-all: ${TARGET}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)

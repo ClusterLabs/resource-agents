@@ -10,6 +10,8 @@
 ###############################################################################
 ###############################################################################
 
+all:
+
 include ../../../make/defines.mk
 
 RESOURCES=fs.sh service.sh ip.sh nfsclient.sh nfsexport.sh \
@@ -29,7 +31,6 @@ UTIL_TARGETS= \
 	utils/httpd-parse-config.pl utils/tomcat-parse-config.pl \
 	utils/member_util.sh
 
-all:
 
 install: all
 	install -d ${sharedir}/utils
@@ -44,7 +45,7 @@ install: all
 	done
 
 uninstall:
-	${UNINSTALL} ${TARGETS} ${METADATA} ${UTIL_TARGETS} ${sharedir}
+	${UNINSTALL} ${RESOURCES} ${TARGETS} ${METADATA} ${UTIL_TARGETS} ${sharedir}
 
 clean:
 

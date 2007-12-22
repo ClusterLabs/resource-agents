@@ -12,6 +12,8 @@
 
 TARGETS= client libtest sysman sysmand
 
+all: depends ${TARGETS}
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
@@ -21,7 +23,6 @@ CFLAGS += -I${incdir}
 
 LDFLAGS += -L${cmanlibdir} -lcman
 
-all: depends ${TARGETS}
 
 depends:
 	$(MAKE) -C ../lib all

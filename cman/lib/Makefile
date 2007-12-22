@@ -22,19 +22,20 @@ LIBSYMT=$(TARGET).so \
 INCDIRT=$(TARGET).h
 
 include ../../make/defines.mk
+
+SHAREDLIB=$(TARGET).so.${RELEASE_MAJOR}.${RELEASE_MINOR}
+STATICLIB=$(TARGET).a
+
+all: $(STATICLIB) $(SHAREDLIB)
+
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
 include $(OBJDIR)/make/install.mk
 include $(OBJDIR)/make/uninstall.mk
 
-SHAREDLIB=$(TARGET).so.${RELEASE_MAJOR}.${RELEASE_MINOR}
-STATICLIB=$(TARGET).a
-
 CFLAGS += -fPIC
 CFLAGS += -I${cmanincdir} -I$(S)/../daemon
 CFLAGS += -I${incdir}
-
-all: $(STATICLIB) $(SHAREDLIB)
 
 $(TARGET).a: $(TARGET).o
 	${AR} r $@ $^

@@ -13,6 +13,8 @@
 
 TARGET=libgfs.a
 
+all: ${TARGET}
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
@@ -42,7 +44,6 @@ OBJS=	bio.o \
 	super.o \
 	util.o
 
-all: ${TARGET}
 
 ${TARGET}: ${OBJS}
 	${AR} cru $@ $^

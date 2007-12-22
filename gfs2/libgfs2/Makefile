@@ -13,6 +13,8 @@
 
 TARGET= libgfs2.a
 
+all: ${TARGET}
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
@@ -41,7 +43,6 @@ OBJS=	bitmap.o \
 	super.o \
 	rgrp.o
 
-all: ${TARGET}
 
 ${TARGET}: ${OBJS}
 	${AR} cru $@ $^

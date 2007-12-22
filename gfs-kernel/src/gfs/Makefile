@@ -17,6 +17,8 @@ KMODT=$(TARGET)
 KDIRT=fs/gfs
 KHEADT=gfs_ondisk.h gfs_ioctl.h
 
+all: ${TARGET}
+
 ifndef USING_KBUILD
 include ../../../make/defines.mk
 include $(OBJDIR)/make/clean.mk
@@ -68,7 +70,7 @@ gfs-objs := acl.o \
 	unlinked.o \
 	util.o
 
-all:
+${TARGET}:
 	${MAKE} -C ${KERNEL_BUILD} M=${PWD} symverfile=${SYMVERFILE} modules USING_KBUILD=yes
 
 clean: generalclean

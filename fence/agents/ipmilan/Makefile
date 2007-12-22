@@ -15,6 +15,8 @@ TARGET= fence_ipmilan
 
 SBINDIRT=$(TARGET)
 
+all: ${TARGET}
+
 include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
@@ -26,7 +28,6 @@ OBJS=	expect.o \
 
 CFLAGS += -I${incdir}
 
-all: ${TARGET}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)

@@ -14,6 +14,8 @@ TARGET= ccs_test
 
 SBINDIRT=$(TARGET)
 
+all: depends ${TARGET}
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
@@ -28,7 +30,6 @@ CFLAGS += -I${incdir}
 
 LDFLAGS += -L${ccslibdir} -lccs
 
-all: depends ${TARGET}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)

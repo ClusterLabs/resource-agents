@@ -14,6 +14,8 @@ TARGET= gfs_controld
 
 SBINDIRT=$(TARGET)
 
+all: depends ${TARGET}
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
@@ -37,7 +39,6 @@ LDFLAGS += -L${openaislibdir} -lcpg -lSaCkpt
 LDFLAGS += -L${libdir}
 LDFLAGS += -L../lib -lgroup
 
-all: depends ${TARGET}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)

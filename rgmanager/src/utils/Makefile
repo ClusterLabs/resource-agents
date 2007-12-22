@@ -19,6 +19,8 @@ TARGET6= clunfslock
 
 SBINDIRT=$(TARGET1) $(TARGET2) $(TARGET3) $(TARGET4) $(TARGET5) $(TARGET6)
 
+all: depends ${TARGET1} ${TARGET2} ${TARGET3} ${TARGET4} ${TARGET5} ${TARGET6}
+
 include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
@@ -36,7 +38,6 @@ LDFLAGS += -L${libdir} -L${ccslibdir} -L${cmanlibdir} -L${ncurseslibdir}
 LDFLAGS += -lcman -lpthread -ldl -lncurses -lccs
 LDFLAGS += -L../clulib -lclulib
 
-all: depends ${TARGET1} ${TARGET2} ${TARGET3} ${TARGET4} ${TARGET5} ${TARGET6}
 
 ${TARGET1}: ${TARGET1:=.o}
 	$(CC) -o $@ $^ $(LDFLAGS)

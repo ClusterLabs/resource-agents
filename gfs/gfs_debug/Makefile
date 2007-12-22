@@ -15,6 +15,8 @@ TARGET= gfs_debug
 
 SBINDIRT=$(TARGET)
 
+all: ${TARGET}
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
@@ -33,7 +35,6 @@ CFLAGS += -I${gfskincdir}
 CFLAGS += -I$(S)/../include
 CFLAGS += -I${incdir}
 
-all: ${TARGET}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)

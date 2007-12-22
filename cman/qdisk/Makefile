@@ -15,6 +15,8 @@ TARGET2= mkqdisk
 
 SBINDIRT=${TARGET1} ${TARGET2}
 
+all: depends ${TARGET1} ${TARGET2}
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
@@ -44,7 +46,6 @@ SHAREDOBJS= disk.o \
 	    disk_util.o \
 	    proc.o
 
-all: depends ${TARGET1} ${TARGET2}
 
 ${TARGET1}: ${SHAREDOBJS} ${OBJS1}
 	$(CC) -o $@ $^ $(LDFLAGS) $(EXTRA_LDFLAGS)

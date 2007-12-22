@@ -17,6 +17,8 @@ TARGET4= dtest
 
 SBINDIRT=$(TARGET1) $(TARGET2) $(TARGET3)
 
+all: depends ${TARGET1} ${TARGET2} ${TARGET3}
+
 include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
@@ -79,7 +81,6 @@ EXTRA_LDFLAGS += -lpthread -ldl
 LOCAL_LDFLAGS += -llalloc
 READLINE_LDFLAGS += -L${readlinelibdir} -lreadline
 
-all: depends ${TARGET1} ${TARGET2} ${TARGET3}
 
 ${TARGET1}: ${OBJS1}
 	$(CC) -o $@ $^ $(LDFLAGS) $(CCS_LDFLAGS) $(CMAN_LDFLAGS) \

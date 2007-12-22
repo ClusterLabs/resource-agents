@@ -17,6 +17,8 @@ KMODT=$(TARGET)
 KDIRT=drivers/block/gnbd
 KHEADT=gnbd.h
 
+all: ${TARGET}
+
 ifndef USING_KBUILD
 include ../../make/defines.mk
 include $(OBJDIR)/make/clean.mk
@@ -30,7 +32,7 @@ SYMVERFILE := ${KERNEL_BUILD}/Module.symvers
 
 obj-m := gnbd.o
 
-all:
+${TARGET}:
 	${MAKE} -C ${KERNEL_BUILD} M=${PWD} symverfile=${SYMVERFILE} modules USING_KBUILD=yes
 
 clean: generalclean

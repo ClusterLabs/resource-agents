@@ -15,6 +15,8 @@ TARGET= fence_rps10
 
 SBINDIRT=$(TARGET)
 
+all: ${TARGET}
+
 include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
@@ -27,7 +29,6 @@ OBJS=	rps10.o
 
 CFLAGS += -I${incdir}
 
-all: ${TARGET}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)

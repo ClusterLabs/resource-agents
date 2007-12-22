@@ -11,6 +11,8 @@
 ###############################################################################
 ###############################################################################
 
+all: $(TARGETS)
+
 include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
@@ -21,7 +23,6 @@ CFLAGS += -O3
 CFLAGS += -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64
 CFLAGS += -I../../include
 
-all: $(TARGETS)
 
 %: %.o
 	$(CC) -o $@ $^ $(LDFLAGS)

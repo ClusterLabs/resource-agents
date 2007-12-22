@@ -14,6 +14,8 @@ TARGET1= libclulib.a
 TARGET2= liblalloc.a
 TARGET3= msgtest
 
+all: ${TARGET1} ${TARGET2} ${TARGET3}
+
 include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
@@ -38,7 +40,6 @@ LDFLAGS += -L${cmanlibdir} -lcman
 LDFLAGS += -L. -lclulib -llalloc
 LDFLAGS += -lpthread
 
-all: ${TARGET1} ${TARGET2} ${TARGET3}
 
 ${TARGET1}: ${OBJS1}
 	${AR} cru $@ $^

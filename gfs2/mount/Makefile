@@ -13,6 +13,8 @@
 TARGET1= mount.gfs2
 TARGET2= umount.gfs2
 
+all: ${TARGET1} ${TARGET2}
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
@@ -31,7 +33,6 @@ CFLAGS += -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
 CFLAGS += -I$(S)/../include
 CFLAGS += -I${incdir}
 
-all: ${TARGET1} ${TARGET2}
 
 ${TARGET1}: ${SHAREDOBJS} ${OBJS1}
 	$(CC) -o $@ $^ $(LDFLAGS)

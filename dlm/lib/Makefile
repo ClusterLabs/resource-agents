@@ -25,9 +25,15 @@ LIBSYMT=$(TARGET).so \
 
 INCDIRT=$(TARGET).h
 
-UDEVT=../scripts/51-dlm.rules
+UDEVT=51-dlm.rules
 
 include ../../make/defines.mk
+
+SHAREDLIB=$(TARGET).so.${RELEASE_MAJOR}.${RELEASE_MINOR} $(TARGET)_lt.so.${RELEASE_MAJOR}.${RELEASE_MINOR}
+STATICLIB=$(TARGET).a $(TARGET)_lt.a
+
+all: $(STATICLIB) $(SHAREDLIB)
+
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
 include $(OBJDIR)/make/install.mk
@@ -35,16 +41,12 @@ include $(OBJDIR)/make/uninstall.mk
 
 AISTARGET= libaislock
 
-SHAREDLIB=$(TARGET).so.${RELEASE_MAJOR}.${RELEASE_MINOR} $(TARGET)_lt.so.${RELEASE_MAJOR}.${RELEASE_MINOR}
-STATICLIB=$(TARGET).a $(TARGET)_lt.a
-
 CFLAGS += -I$(S)
 CFLAGS += -I${incdir}
 CFLAGS += -I$(KERNEL_SRC)/include
 
 LDFLAGS += -lpthread 
 
-all: $(STATICLIB) $(SHAREDLIB)
 
 $(TARGET).a: $(TARGET).o $(AISTARGET).o
 	${AR} r $@ $^

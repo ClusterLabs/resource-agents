@@ -1,10 +1,10 @@
 SBINDIRT=$(TARGET)
 
+all: $(TARGET)
+
 include $(OBJDIR)/make/clean.mk
 include $(OBJDIR)/make/install.mk
 include $(OBJDIR)/make/uninstall.mk
-
-all: $(TARGET)
 
 $(TARGET): 
 	: > $(TARGET)

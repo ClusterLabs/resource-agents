@@ -11,6 +11,8 @@
 ###############################################################################
 ###############################################################################
 
+all: $(TARGETS)
+
 include ../../../make/defines.mk
 include $(OBJDIR)/make/clean.mk
 
@@ -18,7 +20,6 @@ TARGETS= mmdd sfdd
 
 CFLAGS += -D_GNU_SOURCE
 
-all: $(TARGETS)
 
 mmdd.o: mmdd.c
 	$(CC) $(CFLAGS) -D_FILE_OFFSET_BITS=64 -c -o $@ $<
