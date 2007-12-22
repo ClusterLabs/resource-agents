@@ -14,9 +14,13 @@
 TARGET1= gnbd_recvd
 TARGET2= gnbd_monitor
 
+SBINDIRT=$(TARGET1) $(TARGET2)
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 
 OBJS1=	gnbd_recvd.o
 
@@ -40,15 +44,5 @@ ${TARGET1}: ${SHAREDOBJS} ${OBJS1}
 
 ${TARGET2}: ${SHAREDOBJS} ${OBJS2}
 	$(CC) -o $@ $^ $(LDFLAGS)
-
-install: all
-	if [ ! -d ${sbindir} ]; then \
-		install -d ${sbindir}; \
-	fi
-	install -m755 ${TARGET1} ${sbindir}
-	install -m755 ${TARGET2} ${sbindir}
-
-uninstall:
-	${UNINSTALL} ${TARGET1} ${TARGET2} ${sbindir}
 
 clean: generalclean

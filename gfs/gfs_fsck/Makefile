@@ -13,9 +13,14 @@
 TARGET1= gfs_fsck
 TARGET2= fsck.gfs
 
+SBINDIRT=$(TARGET1)
+SBINSYMT=$(TARGET2)
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 
 OBJS=	bio.o \
 	bitmap.o \
@@ -69,16 +74,6 @@ test_bitmap: bitmap.o test_bitmap.o log.o
 
 clean: generalclean
 	rm -f test_block_list test_bitmap
-
-install: all
-	if [ ! -d ${sbindir} ]; then \
-		install -d ${sbindir}; \
-	fi
-	install -m755 ${TARGET1} ${sbindir}
-	cd ${sbindir}; ln -sf ${TARGET1} ${TARGET2}
-
-uninstall:
-	${UNINSTALL} ${TARGET1} ${TARGET2} ${sbindir}
 
 ${TARGET1}.pot: $(OBJS:.o=.c)
 	xgettext -C -F --keyword=print_log --keyword=log_debug --keyword=log_info --keyword=_ \

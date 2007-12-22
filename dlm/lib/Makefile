@@ -12,11 +12,28 @@
 ###############################################################################
 
 TARGET= libdlm
-AISTARGET= libaislock
+
+LIBDIRT=$(TARGET).a \
+	$(TARGET)_lt.a \
+	$(TARGET).so.${RELEASE_MAJOR}.${RELEASE_MINOR} \
+	$(TARGET)_lt.so.${RELEASE_MAJOR}.${RELEASE_MINOR}
+
+LIBSYMT=$(TARGET).so \
+	$(TARGET)_lt.so \
+	$(TARGET).so.$(RELEASE_MAJOR) \
+	$(TARGET)_lt.so.$(RELEASE_MAJOR)
+
+INCDIRT=$(TARGET).h
+
+UDEVT=../scripts/51-dlm.rules
 
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
+
+AISTARGET= libaislock
 
 SHAREDLIB=$(TARGET).so.${RELEASE_MAJOR}.${RELEASE_MINOR} $(TARGET)_lt.so.${RELEASE_MAJOR}.${RELEASE_MINOR}
 STATICLIB=$(TARGET).a $(TARGET)_lt.a
@@ -58,33 +75,5 @@ $(TARGET)_lt.so.${RELEASE_MAJOR}.${RELEASE_MINOR}: $(TARGET)_lt.po
 
 %.po: $(S)/%.c
 	$(CC) $(CFLAGS) -fPIC -D_REENTRANT -c -o $@ $<
-
-install: all
-	install -d ${incdir}
-	install -m644 $(S)/$(TARGET).h ${incdir}
-	install -d ${libdir}
-	install -d ${DESTDIR}/etc/udev/rules.d
-	install -m644 $(S)/../scripts/51-dlm.rules ${DESTDIR}/etc/udev/rules.d
-	install $(TARGET).a ${libdir}
-	install $(TARGET)_lt.a ${libdir}
-	install $(TARGET).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}
-	install $(TARGET)_lt.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}
-	ln -sf $(TARGET).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}/$(TARGET).so
-	ln -sf $(TARGET).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}/$(TARGET).so.$(RELEASE_MAJOR)
-	ln -sf $(TARGET)_lt.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}/$(TARGET)_lt.so
-	ln -sf $(TARGET)_lt.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}/$(TARGET)_lt.so.$(RELEASE_MAJOR)
-
-uninstall:
-	${UNINSTALL} $(TARGET).h ${incdir}
-	${UNINSTALL} 51-dlm.rules ${DESTDIR}/etc/udev/rules.d
-	${UNINSTALL} \
-		${TARGET}.a \
-		${TARGET}_lt.a \
-		$(TARGET).so \
-		$(TARGET)_lt.so \
-		$(TARGET).so.$(RELEASE_MAJOR) \
-		${TARGET}.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) \
-		$(TARGET)_lt.so.$(RELEASE_MAJOR) \
-		${TARGET}_lt.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}
 
 clean: generalclean

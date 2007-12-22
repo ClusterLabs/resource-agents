@@ -11,9 +11,17 @@
 ###############################################################################
 ###############################################################################
 
+TARGET= gnbd.ko
+
+KMODT=$(TARGET)
+KDIRT=drivers/block/gnbd
+KHEADT=gnbd.h
+
 ifndef USING_KBUILD
 include ../../make/defines.mk
 include $(OBJDIR)/make/clean.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 endif
 
 PWD = $(shell pwd)
@@ -24,15 +32,5 @@ obj-m := gnbd.o
 
 all:
 	${MAKE} -C ${KERNEL_BUILD} M=${PWD} symverfile=${SYMVERFILE} modules USING_KBUILD=yes
-
-install: all
-	install -d ${incdir}/linux
-	install gnbd.h ${incdir}/linux
-	install -d ${module_dir}/drivers/block/gnbd
-	install gnbd.ko ${module_dir}/drivers/block/gnbd
-
-uninstall:
-	${UNINSTALL} gnbd.ko ${module_dir}/drivers/block/gnbd
-	${UNINSTALL} gnbd.h ${incdir}/linux
 
 clean: generalclean

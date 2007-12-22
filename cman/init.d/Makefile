@@ -12,15 +12,12 @@
 
 TARGETS= cman qdiskd
 
+INITDT=$(TARGETS)
+
 include ../../make/defines.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 
 all:
 
 clean:
-
-install:
-	install -d ${DESTDIR}/etc/init.d
-	install $(S)/cman $(S)/qdiskd ${DESTDIR}/etc/init.d
-
-uninstall:
-	${UNINSTALL} ${TARGETS} ${DESTDIR}/etc/init.d

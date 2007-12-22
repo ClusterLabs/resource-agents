@@ -17,6 +17,8 @@ TARGET3= msgtest
 include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 
 OBJS1=	clulog.o daemon_init.o signals.o msgsimple.o \
 	gettid.o rg_strings.o message.o members.o fdops.o \
@@ -37,10 +39,6 @@ LDFLAGS += -L. -lclulib -llalloc
 LDFLAGS += -lpthread
 
 all: ${TARGET1} ${TARGET2} ${TARGET3}
-
-install: all
-
-uninstall:
 
 ${TARGET1}: ${OBJS1}
 	${AR} cru $@ $^

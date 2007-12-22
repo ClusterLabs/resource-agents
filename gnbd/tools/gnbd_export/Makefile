@@ -13,9 +13,13 @@
 
 TARGET= gnbd_export
 
+SBINDIRT=$(TARGET) gnbd_get_uid
+
 include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 
 OBJS=	gnbd_export.o \
 	../../utils/gnbd_utils.o \
@@ -28,19 +32,12 @@ CFLAGS += -I${incdir}
 
 LDFLAGS += -L${libdir} -L${cmanlibdir} -lcman -ldl -lpthread
 
-all: ${TARGET}
+all: ${TARGET} gnbd_get_uid
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-install: all 
-	if [ ! -d ${sbindir} ]; then \
-		install -d ${sbindir}; \
-	fi
-	install -m755 ${TARGET} ${sbindir}
-	install -m755 $(S)/gnbd_get_uid ${sbindir}
-
-uninstall:
-	${UNINSTALL} ${TARGET} gnbd_get_uid ${sbindir}
+gnbd_get_uid:
+	cp $(S)/$@ $@
 
 clean: generalclean

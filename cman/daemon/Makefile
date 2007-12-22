@@ -12,9 +12,13 @@
 
 TARGET= service_cman.lcrso
 
+LCRSOT=$(TARGET)
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 
 CFLAGS += -DOPENAIS_EXTERNAL_SERVICE
 CFLAGS += -fPIC
@@ -38,12 +42,5 @@ ${TARGET}: ${OBJS}
 
 depends:
 	$(MAKE) -C ../lib all
-
-install: all
-	install -d ${libexecdir}/lcrso
-	install ${TARGET} ${libexecdir}/lcrso
-
-uninstall:
-	rm -f ${libexecdir}/lcrso/${TARGET}
 
 clean: generalclean

@@ -15,9 +15,13 @@ TARGET2= clurmtabd
 TARGET3= rg_test
 TARGET4= dtest
 
+SBINDIRT=$(TARGET1) $(TARGET2) $(TARGET3)
+
 include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 
 OBJS1=	depends.o \
 	fo_domain.o \
@@ -114,13 +118,6 @@ check: rg_test
 
 depends:
 	$(MAKE) -C ../clulib all
-
-install: all
-	install -d ${sbindir}
-	install -m755 ${TARGET1} ${TARGET2} ${TARGET3} ${sbindir}
-
-uninstall:
-	${UNINSTALL} ${TARGET1} ${TARGET2} ${TARGET3} ${sbindir}
 
 clean: generalclean
 	rm -f tests/*.out*

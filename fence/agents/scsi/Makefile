@@ -11,10 +11,14 @@
 ###############################################################################
 
 TARGET= fence_scsi
-SCRIPT= scsi_reserve
+
+SBINDIRT=$(TARGET) $(TARGET)_test
+INITDT= scsi_reserve
 
 include ../../../make/defines.mk
 include $(OBJDIR)/make/clean.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 
 all: $(TARGET) $(TARGET)_test
 
@@ -35,19 +39,5 @@ $(TARGET)_test:
 	echo "\$$BUILD_DATE=\"(built `date`)\";" >> $(TARGET)_test
 	awk -v p=0 "(\$$1 ~ /#END_VERSION_GENERATION/){p = 1} {if(p==1)print}" $(S)/$(TARGET)_test.pl >> $(TARGET)_test
 	chmod +x $(TARGET)_test
-
-install: all
-	if [ ! -d ${sbindir} ]; then \
-		install -d ${sbindir}; \
-	fi
-	install -m755 ${TARGET} ${TARGET}_test ${sbindir}
-	if [ ! -d ${DESTDIR}/etc/init.d ]; then \
-		install -d ${DESTDIR}/etc/init.d; \
-	fi
-	install -m755 $(S)/${SCRIPT} ${DESTDIR}/etc/init.d
-
-uninstall:
-	${UNINSTALL} ${TARGET} ${TARGET}_test ${sbindir}
-	${UNINSTALL} ${SCRIPT} ${DESTDIR}/etc/init.d
 
 clean: generalclean

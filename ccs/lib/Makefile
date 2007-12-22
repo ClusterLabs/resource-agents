@@ -10,11 +10,16 @@
 ###############################################################################
 ###############################################################################
 
-TARGET=libccs.a
+TARGET= libccs.a
+
+LIBDIRT=$(TARGET)
+INCDIRT=ccs.h
 
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 
 OBJS=	libccs.o \
 	log.o
@@ -32,16 +37,6 @@ ${TARGET}: ${OBJS}
 
 log.c:
 	ln -sf $(S)/../common/log.c log.c
-
-install: all
-	install -d ${libdir}
-	install -m644 ${TARGET} ${libdir}
-	install -d ${incdir}
-	install -m644 $(S)/ccs.h ${incdir}
-
-uninstall:
-	${UNINSTALL} ${TARGET} ${libdir} 
-	${UNINSTALL} ccs.h ${incdir} 
 
 clean: generalclean
 	rm -rf ccs.h.gch log.c

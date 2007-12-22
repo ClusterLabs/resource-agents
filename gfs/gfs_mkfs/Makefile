@@ -14,9 +14,14 @@
 TARGET1= gfs_mkfs
 TARGET2= mkfs.gfs
 
+SBINDIRT=$(TARGET1)
+SBINSYMT=$(TARGET2)
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 
 OBJS=	device_geometry.o \
 	fs_geometry.o \
@@ -43,16 +48,6 @@ ${TARGET2}: ${TARGET1}
 
 depends:
 	$(MAKE) -C ../libgfs all
-
-install: all
-	if [ ! -d ${sbindir} ]; then \
-		install -d ${sbindir}; \
-	fi
-	install -m755 ${TARGET1} ${sbindir}
-	ln -f ${sbindir}/${TARGET1} ${sbindir}/${TARGET2}
-
-uninstall:
-	${UNINSTALL} ${TARGET1} ${TARGET2} ${sbindir}
 
 clean: generalclean
 

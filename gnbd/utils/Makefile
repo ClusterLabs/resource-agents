@@ -14,6 +14,8 @@
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 
 SHAREDOBJS= member_cman.o \
 	    trans.o \
@@ -23,9 +25,5 @@ CFLAGS += -I${cmanincdir}
 CFLAGS += -I$(S)/../include
 
 all: ${SHAREDOBJS}
-
-install:
-
-uninstall:
 
 clean: generalclean

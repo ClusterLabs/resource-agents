@@ -17,9 +17,13 @@ TARGET4= clusvcadm
 TARGET5= clulog
 TARGET6= clunfslock
 
+SBINDIRT=$(TARGET1) $(TARGET2) $(TARGET3) $(TARGET4) $(TARGET5) $(TARGET6)
+
 include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 
 DISABLEDTARGETS= cluarp
 
@@ -55,13 +59,6 @@ ${TARGET6}:
 
 depends:
 	$(MAKE) -C ../clulib all
-
-install: all
-	install -d ${sbindir}
-	install ${TARGET1} ${TARGET2} ${TARGET3} ${TARGET4} ${TARGET5} ${TARGET6} ${sbindir}
-
-uninstall:
-	${UNINSTALL} ${TARGET1} ${TARGET2} ${TARGET3} ${TARGET4} ${TARGET5} ${TARGET6} ${sbindir}
 
 clean: generalclean
 

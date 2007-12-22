@@ -15,6 +15,8 @@ TARGET=libgroup
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 
 STATICLIB=$(TARGET).a
 
@@ -27,9 +29,5 @@ all: $(STATICLIB)
 $(TARGET).a: $(TARGET).o
 	${AR} r $@ $^
 	${RANLIB} $@
-
-install: all
-
-uninstall:
 
 clean: generalclean

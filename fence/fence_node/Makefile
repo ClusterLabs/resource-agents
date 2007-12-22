@@ -13,9 +13,13 @@
 
 TARGET = fence_node
 
+SBINDIRT=$(TARGET)
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 
 OBJS=	../fenced/agent.o \
 	fence_node.o
@@ -32,14 +36,5 @@ all: ${TARGET}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
-
-install: all
-	if [ ! -d ${sbindir} ]; then \
-		install -d ${sbindir}; \
-	fi
-	install -m755 ${TARGET} ${sbindir}
-
-uninstall:
-	${UNINSTALL} ${TARGET} ${sbindir}
 
 clean: generalclean

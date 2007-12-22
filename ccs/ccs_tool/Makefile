@@ -12,9 +12,13 @@
 
 TARGET= ccs_tool
 
+SBINDIRT=$(TARGET)
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 
 OBJS=	ccs_tool.o \
 	update.o \
@@ -37,13 +41,6 @@ ${TARGET}: ${OBJS}
 
 depends:
 	$(MAKE) -C ../lib all
-
-install: all
-	install -d ${sbindir}
-	install ccs_tool ${sbindir}
-
-uninstall:
-	${UNINSTALL} ccs_tool ${sbindir}
 
 clean: generalclean
 

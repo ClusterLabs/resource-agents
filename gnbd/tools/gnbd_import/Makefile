@@ -13,9 +13,13 @@
 
 TARGET= gnbd_import
 
+SBINDIRT=$(TARGET)
+
 include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 
 OBJS=	gnbd_import.o \
 	../../utils/gnbd_utils.o \
@@ -33,14 +37,5 @@ all: ${TARGET}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
-
-install: all
-	if [ ! -d ${sbindir} ]; then \
-		install -d ${sbindir}; \
-	fi
-	install -m755 ${TARGET} ${sbindir}
-
-uninstall:
-	${UNINSTALL} ${TARGET} ${sbindir}
 
 clean: generalclean

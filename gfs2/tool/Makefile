@@ -13,9 +13,13 @@
 
 TARGET= gfs2_tool
 
+SBINDIRT=$(TARGET)
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 
 OBJS=	counters.o \
 	df.o \
@@ -40,15 +44,6 @@ ${TARGET}: ${OBJS}
 
 depends:
 	$(MAKE) -C ../libgfs2 all
-
-install: all
-	if [ ! -d ${sbindir} ]; then \
-		install -d ${sbindir}; \
-	fi
-	install -m755 ${TARGET} ${sbindir}
-
-uninstall:
-	${UNINSTALL} ${TARGET} ${sbindir}
 
 clean: generalclean
 

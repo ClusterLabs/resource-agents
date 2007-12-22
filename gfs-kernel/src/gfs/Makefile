@@ -11,9 +11,17 @@
 ###############################################################################
 ###############################################################################
 
+TARGET= gfs.ko
+
+KMODT=$(TARGET)
+KDIRT=fs/gfs
+KHEADT=gfs_ondisk.h gfs_ioctl.h
+
 ifndef USING_KBUILD
 include ../../../make/defines.mk
 include $(OBJDIR)/make/clean.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 endif
 
 PWD := $(shell pwd)
@@ -62,15 +70,5 @@ gfs-objs := acl.o \
 
 all:
 	${MAKE} -C ${KERNEL_BUILD} M=${PWD} symverfile=${SYMVERFILE} modules USING_KBUILD=yes
-
-install: all
-	install -d ${module_dir}/fs/gfs
-	install gfs.ko ${module_dir}/fs/gfs
-	install -d ${incdir}/linux
-	install gfs_ondisk.h gfs_ioctl.h ${incdir}/linux
-
-uninstall:
-	${UNINSTALL} gfs.ko ${module_dir}/fs/gfs
-	${UNINSTALL} gfs_ondisk.h gfs_ioctl.h ${incdir}/linux
 
 clean: generalclean

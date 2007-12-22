@@ -12,17 +12,14 @@
 
 TARGET= rgmanager
 
+INITDT=$(TARGET)
+
 include ../../make/defines.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 
 all:
 
 clean:
 
 check:
-
-install:
-	install -d ${DESTDIR}/etc/init.d
-	install $(S)/${TARGET} ${DESTDIR}/etc/init.d
-
-uninstall:
-	${UNINSTALL} ${TARGET} ${DESTDIR}/etc/init.d

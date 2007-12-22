@@ -8,9 +8,14 @@ TARGET2= gfs2_mkfs
 TARGET3= gfs2_jadd
 TARGET4= gfs2_grow
 
+SBINDIRT=$(TARGET1)
+SBINSYMT=$(TARGET2) $(TARGET3) $(TARGET4)
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 
 OBJS=	main.o \
 	main_mkfs.o \
@@ -41,16 +46,6 @@ ${TARGET4}: ${TARGET1}
 
 depends:
 	$(MAKE) -C ../libgfs2 all
-
-install: all
-	install -m 0755 ${TARGET1} ${sbindir}
-	cd ${sbindir}; \
-	 ln -sf ${TARGET1} ${TARGET2}; \
-	 ln -sf ${TARGET1} ${TARGET3}; \
-	 ln -sf ${TARGET1} ${TARGET4}
-
-uninstall:
-	${UNINSTALL} ${TARGET1} ${TARGET2} ${TARGET3} ${TARGET4} ${sbindir}
 
 clean: generalclean
 

@@ -14,9 +14,13 @@ TARGET1= fence_xvm
 TARGET2= fence_xvmd
 TARGET3= testprog
 
+SBINDIRT=$(TARGET1) $(TARGET2)
+
 include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 
 OBJS1=	fence_xvm.o \
 	ip_lookup.o
@@ -63,12 +67,3 @@ ${TARGET3}: ${OBJS3}
 	$(CC) -o $@ $^ $(XML_LDFLAGS)
 
 clean: generalclean
-
-install: all
-	if [ ! -d ${sbindir} ]; then \
-		install -d ${sbindir}; \
-	fi
-	install -m755 ${TARGET1} ${TARGET2} ${sbindir}
-
-uninstall:
-	${UNINSTALL} ${TARGET1} ${TARGET2} ${sbindir}

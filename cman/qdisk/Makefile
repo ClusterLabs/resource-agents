@@ -13,9 +13,13 @@
 TARGET1= qdiskd
 TARGET2= mkqdisk
 
+SBINDIRT=${TARGET1} ${TARGET2}
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 
 CFLAGS += -D_GNU_SOURCE
 CFLAGS += -Werror -Wstrict-prototypes -Wshadow
@@ -48,14 +52,7 @@ ${TARGET1}: ${SHAREDOBJS} ${OBJS1}
 ${TARGET2}: ${SHAREDOBJS} ${OBJS2}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-install: all
-	install -d ${sbindir}
-	install ${TARGET1} ${TARGET2} ${sbindir}
-
 depends:
 	$(MAKE) -C ../lib all
 
 clean: generalclean
-
-uninstall:
-	${UNINSTALL} ${TARGET1} ${TARGET2} ${sbindir}

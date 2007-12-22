@@ -12,9 +12,13 @@
 
 TARGET= ccsd
 
+SBINDIRT=$(TARGET)
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 
 OBJS=	ccsd.o \
 	cnx_mgr.o \
@@ -37,13 +41,6 @@ ${TARGET}: ${OBJS}
 
 depends:
 	 $(MAKE) -C ../lib all
-
-install: all
-	install -d ${sbindir}
-	install ${TARGET} ${sbindir}
-
-uninstall:
-	${UNINSTALL} ${TARGET} ${sbindir}
 
 clean: generalclean
 

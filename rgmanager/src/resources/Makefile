@@ -32,9 +32,6 @@ UTIL_TARGETS= \
 all:
 
 install: all
-	echo ${sharedir}
-	echo ${sbindir}
-	install -d ${sharedir}
 	install -d ${sharedir}/utils
 	for i in $(RESOURCES); do \
 	 install $(S)/$$i ${sharedir}; \

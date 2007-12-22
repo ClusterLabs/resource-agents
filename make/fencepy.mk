@@ -1,4 +1,8 @@
+SBINDIRT=$(TARGET)
+
 include $(OBJDIR)/make/clean.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 
 all: $(TARGET)
 
@@ -10,14 +14,5 @@ $(TARGET):
 	echo "BUILD_DATE=\"(built `date`)\";" >> $(TARGET)
 	awk -v p=0 "(\$$1 ~ /#END_VERSION_GENERATION/){p = 1} {if(p==1)print}" $(S)/$(TARGET).py >> $(TARGET)
 	chmod +x $(TARGET)
-
-install: all
-	if [ ! -d ${sbindir} ]; then \
-		install -d ${sbindir}; \
-	fi
-	install -m755 ${TARGET} ${sbindir}
-
-uninstall:
-	${UNINSTALL} ${TARGET} ${sbindir}
 
 clean: generalclean

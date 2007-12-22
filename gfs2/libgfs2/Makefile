@@ -16,6 +16,8 @@ TARGET= libgfs2.a
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE -D_GNU_SOURCE
 CFLAGS += -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
@@ -44,10 +46,6 @@ all: ${TARGET}
 ${TARGET}: ${OBJS}
 	${AR} cru $@ $^
 	${RANLIB} $@
-
-install: all
-
-uninstall:
 
 clean: generalclean
 

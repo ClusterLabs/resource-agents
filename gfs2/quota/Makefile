@@ -13,9 +13,13 @@
 
 TARGET= gfs2_quota
 
+SBINDIRT=$(TARGET)
+
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 
 OBJS=	main.o \
 	names.o \
@@ -35,12 +39,6 @@ ${TARGET}: ${OBJS}
 
 depends:
 	$(MAKE) -C ../libgfs2 all
-
-install: all
-	install -m 0755 ${TARGET} ${sbindir}
-
-uninstall:
-	${UNINSTALL} ${TARGET} ${sbindir}
 
 clean: generalclean
 
