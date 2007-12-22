@@ -33,8 +33,7 @@ all: ${TARGET}
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-clean:
-	rm -f *.o groupd
+clean: generalclean
 
 install: all
 	install -d ${sbindir}
