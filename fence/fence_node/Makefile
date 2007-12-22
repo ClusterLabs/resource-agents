@@ -15,7 +15,7 @@ TARGET = fence_node
 
 SBINDIRT=$(TARGET)
 
-all: ${TARGET}
+all: depends ${TARGET}
 
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
@@ -34,8 +34,10 @@ CFLAGS += -I${incdir}
 
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
 
-
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
+
+depends:
+	$(MAKE) -C ../fenced agent.o
 
 clean: generalclean
