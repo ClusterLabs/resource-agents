@@ -36,5 +36,3 @@ uninstall:
 	${UNINSTALL} gnbd.h ${incdir}/linux
 
 clean: generalclean
-
-distclean: clean

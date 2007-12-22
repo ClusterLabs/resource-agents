@@ -74,5 +74,3 @@ uninstall:
 	${UNINSTALL} gfs_ondisk.h gfs_ioctl.h ${incdir}/linux
 
 clean: generalclean
-
-distclean: clean
