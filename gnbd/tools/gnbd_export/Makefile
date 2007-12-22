@@ -15,7 +15,7 @@ TARGET= gnbd_export
 
 SBINDIRT=$(TARGET) gnbd_get_uid
 
-all: ${TARGET} gnbd_get_uid
+all: depends ${TARGET} gnbd_get_uid
 
 include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
@@ -34,11 +34,13 @@ CFLAGS += -I${incdir}
 
 LDFLAGS += -L${libdir} -L${cmanlibdir} -lcman -ldl -lpthread
 
-
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 gnbd_get_uid:
 	cp $(S)/$@ $@
+
+depends:
+	$(MAKE) -C ../../utils all
 
 clean: generalclean

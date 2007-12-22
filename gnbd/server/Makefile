@@ -16,7 +16,7 @@ TARGET2= gnbd_clusterd
 
 SBINDIRT=$(TARGET1) $(TARGET2)
 
-all: ${TARGET1} ${TARGET2}
+all: depends ${TARGET1} ${TARGET2}
 
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
@@ -44,11 +44,13 @@ CFLAGS += -I${incdir}
 
 LDFLAGS+= -L${libdir} -L${cmanlibdir} -lcman -ldl -lpthread
 
-
 ${TARGET1}: ${SHAREDOBJS} ${OBJS1}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 ${TARGET2}: ${SHAREDOBJS} ${OBJS2}
 	$(CC) -o $@ $^ $(LDFLAGS)
+
+depends:
+	$(MAKE) -C ../utils all
 
 clean: generalclean

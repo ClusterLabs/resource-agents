@@ -26,5 +26,4 @@ SHAREDOBJS= member_cman.o \
 CFLAGS += -I${cmanincdir}
 CFLAGS += -I$(S)/../include
 
-
 clean: generalclean

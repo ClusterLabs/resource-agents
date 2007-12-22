@@ -15,7 +15,7 @@ TARGET= gnbd_import
 
 SBINDIRT=$(TARGET)
 
-all: ${TARGET}
+all: depends ${TARGET}
 
 include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
@@ -35,8 +35,11 @@ CFLAGS += -I${incdir}
 
 LDFLAGS += -L${libdir} -L${cmanlibdir} -lcman -ldl -lpthread
 
-
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
+
+depends:
+	$(MAKE) -C ../../utils all
+	$(MAKE) -C ../../client monitor_req.o
 
 clean: generalclean
