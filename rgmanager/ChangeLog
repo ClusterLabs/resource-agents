@@ -1,3 +1,6 @@
+2007-12-24 Fabio M. Di Nitto <fabbione at ubuntu.com>
+	* src/clulib/vft.c: Change ifdef to fix build on parisc.
+
 2007-12-19 Lon Hohberger <lhh at redhat.com>
 	* include/res-ocf.h: Fix typo
 	* src/daemons/restree.c: Export reference counts to resource agents.
