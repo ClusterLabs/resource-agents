@@ -2566,6 +2566,13 @@ dnl management and quorum daemons.
 AC_CHECK_HEADERS(gnutls/gnutls.h)
 AC_CHECK_HEADERS(security/pam_appl.h pam/pam_appl.h)
 
+dnl ************************************************************************
+dnl * Check for (debian style?) $sysconfdir/pam.d/common-{account,auth}
+AC_CHECK_FILE($sysconfdir/pam.d/common-account)
+AC_CHECK_FILE($sysconfdir/pam.d/common-auth)
+AM_CONDITIONAL(USE_PAM_COMMON, test -f $sysconfdir/pam.d/common-account -a \
+				    -f /etc/pam.d/common-auth)
+
 dnl GNUTLS library: Attempt to determine by 'libgnutls-config' program.
 dnl If no 'libgnutls-config', try traditional autoconf means.
 AC_PATH_PROGS(LIBGNUTLS_CONFIG, libgnutls-config)
