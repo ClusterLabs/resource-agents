@@ -62,7 +62,6 @@ uint64_t incarnation;
 int num_ais_nodes;
 
 static int config_run;
-static char errorstring[512];
 static int startup_pipe;
 static unsigned int debug_mask;
 static int first_trans = 1;
@@ -231,7 +230,7 @@ static int cman_readconfig(struct objdb_iface_ver0 *objdb, char **error_string)
 	if (error)
 	{
 		write_cman_pipe("Error reading config from CCS");
-		sprintf(errorstring, "Error reading config from CCS");
+		*error_string = "Error reading config from CCS";
 		return -1;
 	}
 
