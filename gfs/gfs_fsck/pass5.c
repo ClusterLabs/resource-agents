@@ -91,7 +91,7 @@ int fsck_countbits(struct fsck_sb *sbp, uint64_t start_blk, uint64_t count,
 			break;
 		default:
 			log_err("Invalid state %d found at block%"PRIu64"\n",
-				mark, i);
+				q.block_type, i);
 			return -1;
 			break;
 		}
