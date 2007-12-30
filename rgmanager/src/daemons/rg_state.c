@@ -195,7 +195,6 @@ _rg_lock_dbg(char *name, struct dlm_lksb *p, char *file, int line)
 	return _rg_lock(name, p);
 }
 #endif
-	
 
 
 int
@@ -211,7 +210,7 @@ rg_unlock(struct dlm_lksb *p)
 
 #ifdef DEBUG
 int
-_rg_unlock_dbg(void *p, char *file, int line)
+_rg_unlock_dbg(struct dlm_lksb *p, char *file, int line)
 {
 	dprintf("rg_unlock() @ %s:%d\n", file, line);
 	return _rg_unlock(p);

@@ -116,10 +116,12 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
-#if !defined(__ia64__) && !defined(__hppa__)
 #ifndef DEBUG
 #define DEBUG			/* Record program counter of malloc/calloc */
 #endif				/* or realloc call; print misc stuff out */
+
+#if defined(__ia64__) || defined(__hppa__)
+#undef DEBUG
 #endif
 
 /* Tunable stuff XXX This should be external */

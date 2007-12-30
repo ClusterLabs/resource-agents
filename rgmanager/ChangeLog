@@ -1,3 +1,7 @@
+2007-12-30 Fabio M. Di Nitto <fabbione at ubuntu.com>
+	* src/daemons/rg_state.c, include/resgroup.h, src/clulib/alloc.c:
+	  Fix building when -DDEBUG is defined.
+
 2007-12-24 Fabio M. Di Nitto <fabbione at ubuntu.com>
 	* src/clulib/vft.c: Change ifdef to fix build on parisc.
 

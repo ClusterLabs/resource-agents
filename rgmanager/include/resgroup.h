@@ -186,7 +186,7 @@ int _rg_lock_dbg(char *, struct dlm_lksb *, char *, int);
 #define rg_lock(name, p) _rg_lock_dbg(name, p, __FILE__, __LINE__)
 
 int _rg_unlock_dbg(struct dlm_lksb *, char *, int);
-#define rg_unlock(name, p) _rg_unlock_dbg(name, p, __FILE__, __LINE__)
+#define rg_unlock(p) _rg_unlock_dbg(p, __FILE__, __LINE__)
 
 #else
 int rg_lock(char *name, struct dlm_lksb *p);
