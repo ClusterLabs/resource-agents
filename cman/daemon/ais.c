@@ -239,6 +239,8 @@ static int cman_readconfig(struct objdb_iface_ver0 *objdb, char **error_string)
 
 	config_run = 1;
 
+	*error_string = "Successfully read configuration from CCS";
+
 	return 0;
 }
 
