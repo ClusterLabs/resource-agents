@@ -270,6 +270,7 @@ int
 set_rg_state(char *name, rg_state_t *svcblk)
 {
 	char res[256];
+	rg_state_t svcblk_store;
 #ifndef OPENAIS
 	cluster_member_list_t *membership;
 	int ret, tries = 0;
@@ -279,8 +280,12 @@ set_rg_state(char *name, rg_state_t *svcblk)
 		strncpy(svcblk->rs_name, name, sizeof(svcblk->rs_name));
 
 	snprintf(res, sizeof(res), "rg=\"%s\"", name);
+
+	memcpy(&svcblk_store, svcblk, sizeof(svcblk_store));
+	swab_rg_state_t(&svcblk_store);
+
 #ifdef OPENAIS
-	if (ds_write(res, svcblk, sizeof(*svcblk)) < 0)
+	if (ds_write(res, &svcblk_store, sizeof(svcblk_store)) < 0)
 		return -1;
 	return 0;
 #else
@@ -288,8 +293,9 @@ set_rg_state(char *name, rg_state_t *svcblk)
 		/* Retry up to 3 times just in case members transition
 		   while we're trying to commit something */
 		membership = member_list();
-		ret = vf_write(membership, VFF_IGN_CONN_ERRORS, res, svcblk,
-       		       	       sizeof(*svcblk));
+		ret = vf_write(membership, VFF_IGN_CONN_ERRORS, res,
+			       &svcblk_store,
+       		       	       sizeof(svcblk_store));
 		free_member_list(membership);
 	} while (ret == VFR_TIMEOUT && ++tries < 3);
 
@@ -360,6 +366,7 @@ get_rg_state(char *name, rg_state_t *svcblk)
 	}
 
 	memcpy(svcblk, data, sizeof(*svcblk));
+	swab_rg_state_t(svcblk);
 
 	return 0;
 #else
@@ -399,6 +406,7 @@ get_rg_state(char *name, rg_state_t *svcblk)
 
 	/* Copy out the data. */
 	memcpy(svcblk, data, sizeof(*svcblk));
+	swab_rg_state_t(svcblk);
 	free(data);
 	free_member_list(membership);
 
@@ -452,6 +460,7 @@ get_rg_state_local(char *name, rg_state_t *svcblk)
 
 	/* Copy out the data. */
 	memcpy(svcblk, data, sizeof(*svcblk));
+	swab_rg_state_t(svcblk);
 #ifndef OPENAIS
 	free(data);
 #endif
