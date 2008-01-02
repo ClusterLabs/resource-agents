@@ -1627,7 +1627,7 @@ static void byteswap_internal_message(char *data, int len)
 	case CLUSTER_MSG_KILLNODE:
 		killmsg = (struct cl_killmsg *)data;
 		killmsg->reason = swab16(killmsg->reason);
-		killmsg->nodeid = swab16(killmsg->nodeid);
+		killmsg->nodeid = swab32(killmsg->nodeid);
 		break;
 
 	case CLUSTER_MSG_LEAVE:
