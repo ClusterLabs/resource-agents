@@ -45,7 +45,7 @@
 
 extern int we_are_a_cluster_member;
 
-LOGSYS_DECLARE_SUBSYS ("CMAN", LOG_INFO);
+LOGSYS_DECLARE_SUBSYS (CMAN_NAME, LOG_INFO);
 
 /* A barrier */
 struct cl_barrier {

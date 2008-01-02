@@ -42,7 +42,7 @@
 #include "barrier.h"
 #include "ais.h"
 
-LOGSYS_DECLARE_SUBSYS ("CMAN", LOG_INFO);
+LOGSYS_DECLARE_SUBSYS (CMAN_NAME, LOG_INFO);
 
 struct queued_reply
 {

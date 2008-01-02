@@ -39,7 +39,9 @@
 #include <openais/service/swab.h>
 #include <openais/service/logsys.h>
 
+#include "list.h"
 #include "cnxman-socket.h"
+#include "cnxman-private.h"
 #include "commands.h"
 #include "logging.h"
 
@@ -71,7 +73,7 @@ static struct totempg_group cman_group[1] = {
         { .group          = "CMAN", .group_len      = 4},
 };
 
-LOGSYS_DECLARE_SUBSYS ("CMAN", LOG_INFO);
+LOGSYS_DECLARE_SUBSYS (CMAN_NAME, LOG_INFO);
 
 /* This structure is tacked onto the start of a cluster message packet for our
  * own nefarious purposes. */
@@ -220,7 +222,7 @@ static int cman_readconfig(struct objdb_iface_ver0 *objdb, char **error_string)
 
 	/* Enable stderr logging if requested by cman_tool */
 	if (debug_mask)
-		logsys_config_subsys_set("CMAN", LOGSYS_TAG_LOG, LOG_DEBUG);
+		logsys_config_subsys_set(CMAN_NAME, LOGSYS_TAG_LOG, LOG_DEBUG);
 
 	/* Read low-level totem/aisexec etc config from CCS */
 	init_config(objdb);
@@ -584,7 +586,7 @@ static int comms_init_ais(struct objdb_iface_ver0 *objdb)
 		objdb->object_create(object_handle, &logger_object_handle,
 				      "logger_subsys", strlen("logger_subsys"));
 		objdb->object_key_create(logger_object_handle, "subsys", strlen("subsys"),
-					 "CMAN", strlen("CMAN")+1);
+					 CMAN_NAME, strlen(CMAN_NAME)+1);
 
 		if (debug_mask) {
 			objdb->object_key_create(logger_object_handle, "debug", strlen("debug"),

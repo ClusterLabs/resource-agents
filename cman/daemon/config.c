@@ -12,13 +12,18 @@
 ******************************************************************************/
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
+#include <netinet/in.h>
 
 #include <openais/service/objdb.h>
+#include "list.h"
+#include "cnxman-socket.h"
+#include "cnxman-private.h"
 #include "ccs.h"
 #include "logging.h"
 
-LOGSYS_DECLARE_SUBSYS ("CMAN", LOG_INFO);
+LOGSYS_DECLARE_SUBSYS (CMAN_NAME, LOG_INFO);
 
 static int read_config_for(int ccs_fd, struct objdb_iface_ver0 *objdb, unsigned int parent,
 			   char *object, char *key, int always_create)
