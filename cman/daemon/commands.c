@@ -345,7 +345,8 @@ static void copy_to_usernode(struct cluster_node *node,
 	int addrlen=0;
 	unsigned int numaddrs=1;
 	char **status;
-	struct totem_ip_address node_ifs[num_interfaces];
+	struct totem_ip_address node_ifs[INTERFACE_MAX];
+	/* totempg_ifaces_get always copies INTERFACE_MAX addresses */
 
 	strcpy(unode->name, node->name);
 	unode->jointime = node->join_time;
@@ -360,7 +361,6 @@ static void copy_to_usernode(struct cluster_node *node,
 	/* Just send the first address. If the user wants the full set they
 	   must ask for them */
 	totempg_ifaces_get(node->node_id, node_ifs, &status, &numaddrs);
-
 
 	totemip_totemip_to_sockaddr_convert(&node_ifs[0], 0, &ss, &addrlen);
 	memcpy(unode->addr, &ss, addrlen);
@@ -1173,7 +1173,7 @@ static int do_cmd_get_node_addrs(char *cmdbuf, char **retbuf, int retsize, int *
 	int i;
 	char *outbuf = *retbuf + offset;
 	struct cl_get_node_addrs *addrs = (struct cl_get_node_addrs *)outbuf;
-	struct totem_ip_address node_ifs[num_interfaces];
+	struct totem_ip_address node_ifs[INTERFACE_MAX]; /* totempg_ifaces_get always copies INTERFACE_MAX addresses */
 	struct cluster_node *node;
 	char **status;
 
