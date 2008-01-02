@@ -1,3 +1,6 @@
+2008-01-02 Fabio M. Di Nitto <fabbione at ubuntu.com>
+	* src/resources/ocf-shellfuncs: Add interpreter.
+
 2007-12-30 Fabio M. Di Nitto <fabbione at ubuntu.com>
 	* src/daemons/rg_state.c, include/resgroup.h, src/clulib/alloc.c:
 	  Fix building when -DDEBUG is defined.
