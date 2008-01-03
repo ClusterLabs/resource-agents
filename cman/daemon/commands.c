@@ -1555,7 +1555,7 @@ static int valid_transition_msg(int nodeid, struct cl_transmsg *msg)
 
 void send_transition_msg(int last_memb_count, int first_trans)
 {
-	char buf[sizeof(struct cl_transmsg)+1024];
+	char buf[sizeof(struct cl_transmsg)+1024] __attribute__((aligned(8)));
 	struct cl_transmsg *msg = (struct cl_transmsg *)buf;
 	int len = sizeof(struct cl_transmsg);
 
