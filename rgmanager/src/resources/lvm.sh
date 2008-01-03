@@ -146,7 +146,7 @@ meta-data)
 	rv=0
 	;;
 
-verify-all)
+validate-all|verify-all)
 	##
 	# We can safely ignore clustered volume groups (VGs handled by CLVM)
 	##

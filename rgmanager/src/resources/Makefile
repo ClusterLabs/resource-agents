@@ -17,12 +17,12 @@ include ../../../make/defines.mk
 RESOURCES=fs.sh service.sh ip.sh nfsclient.sh nfsexport.sh \
 	script.sh netfs.sh clusterfs.sh smb.sh \
 	apache.sh openldap.sh samba.sh mysql.sh \
-	postgres-8.sh tomcat-5.sh lvm.sh vm.sh \
-	SAPInstance SAPDatabase named.sh
+	postgres-8.sh tomcat-5.sh lvm.sh lvm_by_lv.sh lvm_by_vg.sh \
+	vm.sh SAPInstance SAPDatabase named.sh
 
 METADATA=apache.metadata openldap.metadata samba.metadata \
 	mysql.metadata postgres-8.metadata tomcat-5.metadata \
-	named.metadata
+	named.metadata lvm.metadata
 
 TARGETS=ocf-shellfuncs svclib_nfslock default_event_script.sl
 

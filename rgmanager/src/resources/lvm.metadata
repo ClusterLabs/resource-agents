@@ -1,0 +1,73 @@
+<?xml version="1.0" ?>
+<resource-agent name="lvm" version="rgmanager 2.0">
+    <version>1.0</version>
+
+    <longdesc lang="en">
+	This defines a LVM volume group that is ...
+    </longdesc>
+
+    <shortdesc lang="en">
+	LVM Failover script
+    </shortdesc>
+
+    <parameters>
+        <parameter name="name" primary="1">
+            <longdesc lang="en">
+                Descriptive name LVM Volume group
+            </longdesc>
+            <shortdesc lang="en">
+                Name
+            </shortdesc>
+	    <content type="string"/>
+        </parameter>
+
+        <parameter name="vg_name" required="1">
+            <longdesc lang="en">
+                If you can see this, your GUI is broken.
+            </longdesc>
+            <shortdesc lang="en">
+                If you can see this, your GUI is broken.
+            </shortdesc>
+	    <content type="string"/>
+        </parameter>
+
+        <parameter name="lv_name">
+            <longdesc lang="en">
+                If you can see this, your GUI is broken.
+            </longdesc>
+            <shortdesc lang="en">
+                If you can see this, your GUI is broken.
+            </shortdesc>
+	    <content type="string"/>
+        </parameter>
+
+	<parameter name="nfslock" inherit="service%nfslock">
+	    <longdesc lang="en">
+	        If set and unmounting the file system fails, the node will
+		try to kill lockd and issue reclaims across all remaining
+		network interface cards.
+	    </longdesc>
+	    <shortdesc lang="en">
+	        Enable NFS lock workarounds
+	    </shortdesc>
+	    <content type="boolean"/>
+	</parameter>
+
+    </parameters>
+
+    <actions>
+        <action name="start" timeout="5"/>
+	<action name="stop" timeout="5"/>
+
+	<action name="status" timeout="5" interval="1h"/>
+	<action name="monitor" timeout="5" interval="1h"/>
+
+	<action name="meta-data" timeout="5"/>
+	<action name="verify-all" timeout="30"/>
+    </actions>
+
+    <special tag="rgmanager">
+    	<attributes maxinstances="1"/>
+    </special>
+
+</resource-agent>
