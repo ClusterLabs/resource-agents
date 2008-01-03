@@ -1955,23 +1955,8 @@ void override_expected(int newexp)
 /* Add a node from CCS, note that it may already exist if user has simply updated the config file */
 void add_ccs_node(char *nodename, int nodeid, int votes, int expected_votes)
 {
-	struct totem_ip_address ipaddr;
-	struct cluster_node *node;
-
-	if (totemip_parse(&ipaddr, nodename, 0))
-	{
-		if (!nodeid) {
-			log_printf(LOG_ERR, "Error, can't find IP address and no nodeid for node %s - ignoring it\n", nodename);
-			return;
-		}
-		else {
-			log_printf(LOG_WARNING, "Warning, can't resolve IP address for node %s\n", nodename);
-			memset(&ipaddr, 0, sizeof(ipaddr));
-		}
-	}
-
 	/* Update node entry */
-	node = add_new_node(nodename, nodeid, votes, expected_votes, NODESTATE_DEAD);
+	add_new_node(nodename, nodeid, votes, expected_votes, NODESTATE_DEAD);
 }
 
 void add_ais_node(int nodeid, uint64_t incarnation, int total_members)
