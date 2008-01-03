@@ -146,7 +146,7 @@ meta-data)
 	rv=0
 	;;
 
-validate-all)
+verify-all)
 	##
 	# We can safely ignore clustered volume groups (VGs handled by CLVM)
 	##
@@ -163,7 +163,7 @@ validate-all)
 	rv=0
 	;;
 *)
-	echo "usage: $0 {start|status|monitor|stop|restart|meta-data|validate-all}"
+	echo "usage: $0 {start|status|monitor|stop|restart|meta-data|verify-all}"
 	exit $OCF_ERR_UNIMPLEMENTED
 	;;
 esac
