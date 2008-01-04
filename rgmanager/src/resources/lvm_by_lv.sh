@@ -314,6 +314,18 @@ lv_activate()
 
 function lv_start
 {
+	if ! lvs $OCF_RESKEY_vg_name >& /dev/null; then
+		lv_count=0
+	else
+		lv_count=`lvs --noheadings -o name $OCF_RESKEY_vg_name | grep -v _mlog | grep -v _mimage | grep -v nconsistent | wc -l`
+	fi
+	if [ $lv_count -gt 1 ]; then
+		ocf_log err "HA LVM requires Only one logical volume per volume group."
+		ocf_log err "There are currently $lv_count logical volumes in $OCF_RESKEY_vg_name"
+		ocf_log err "Failing HA LVM start of $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name"
+		exit $OCF_ERR_GENERIC
+	fi
+
 	if ! lv_activate start; then
 		return 1
 	fi
