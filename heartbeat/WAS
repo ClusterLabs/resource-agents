@@ -471,7 +471,7 @@ WAS_validate_all() {
 
 	local port
 	local have_valid_port=false
-	for port in "$WASPorts"; do
+	for port in $WASPorts; do
 	    if CheckPort $port; then
 		have_valid_port=true
 		break

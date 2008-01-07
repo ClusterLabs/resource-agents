@@ -477,7 +477,7 @@ Filesystem_notify() {
 			# Duplicate removal - start can contain nodes
 			# already on the active list, confusing the
 			# script later on:
-			for UNAME in "$n_active"; do
+			for UNAME in $n_active; do
 				n_start=`echo ${n_start} | sed s/$UNAME//`
 			done
 			# Merge pruned lists again:
@@ -490,7 +490,7 @@ Filesystem_notify() {
 		stop)
 			# remove unames from notify_stop_uname; these have been
 			# stopped and can no longer be considered active.
-			for UNAME in "$n_stop"; do
+			for UNAME in $n_stop; do
 				n_active=`echo ${n_active} | sed s/$UNAME//`
 			done
 			;;

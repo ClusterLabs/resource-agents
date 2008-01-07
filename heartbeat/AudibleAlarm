@@ -150,7 +150,7 @@ case "$1" in
 	exit $OCF_SUCCESS
 	;;
    start)
-	for arg in "$OCF_RESKEY_nodelist"
+	for arg in $OCF_RESKEY_nodelist
  	  do
 	    if [ "$us" = "$arg" ]; then
 	      # We should not start because we are on a host

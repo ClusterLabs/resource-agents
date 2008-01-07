@@ -135,7 +135,7 @@ MailToValidateAll () {
 	local local_email=`echo $email | tr ",\t" " " | tr -s " "`
 
 #	ocf_log info "[$local_email]"
-	for item in "$local_email"
+	for item in $local_email
 	do
 	    case $item in
 		*?@?*)

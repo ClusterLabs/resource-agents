@@ -176,7 +176,7 @@ o2cb_notify() {
 	# Duplicate removal - start can contain nodes
 	# already on the active list, confusing the
 	# script later on:
-	for UNAME in "$n_active"; do
+	for UNAME in $n_active; do
 		n_start="${n_start//$UNAME/}"
 	done
 
