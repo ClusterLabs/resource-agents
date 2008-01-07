@@ -430,6 +430,9 @@ if (!$ncurseslibdir) {
 }
 if (!$slangincdir) {
   $slangincdir="${incdir}";
+  if (! -f "$slangincdir/slang.h") {
+    $slangincdir="${incdir}/slang";
+  }
 }
 if (!$slanglibdir) {
   $slanglibdir="${libdir}";
