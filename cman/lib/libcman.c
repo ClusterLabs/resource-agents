@@ -240,7 +240,7 @@ static int loopy_writev(int fd, struct iovec *iovptr, size_t iovlen)
 			iovlen--;
 		}
 
-		if (iovlen <=0 )
+		if ((ssize_t)iovlen <=0 )
 			break;
 
 		iovptr->iov_base += len;
