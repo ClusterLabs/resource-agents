@@ -20,7 +20,7 @@
 #
 
 declare RA_COMMON_pid_dir=/var/run/cluster
-declare RA_COMMON_conf_dir=/etc/cluster
+declare RA_COMMON_conf_dir=@CONFDIR@
 
 declare -i FAIL=-1
 declare -a ip_keys

@@ -97,7 +97,7 @@ static int setup_ccs(fd_t *fd)
 
 	error = ccs_get(cd, path, &str);
 	if (error)
-		die1("local cman node name \"%s\" not found in cluster.conf",
+		die1("local cman node name \"%s\" not found in the configuration",
 		     our_name);
 
 
@@ -528,7 +528,7 @@ static void print_usage(void)
 	printf("  -h	       Print this help, then exit\n");
 	printf("  -V	       Print program version information, then exit\n");
 	printf("\n");
-	printf("Command line values override those in cluster.conf.\n");
+	printf("Command line values override those in " DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE ".\n");
 	printf("For an unbounded delay use <secs> value of -1.\n");
 	printf("\n");
 }

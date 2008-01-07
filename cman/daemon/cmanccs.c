@@ -35,7 +35,7 @@
 
 #define DEFAULT_PORT            5405
 #define DEFAULT_CLUSTER_NAME    "RHCluster"
-#define NOCCS_KEY_FILENAME      "/etc/cluster/cman_authkey"
+#define NOCCS_KEY_FILENAME      DEFAULT_CONFIG_DIR "/cman_authkey"
 
 #define CONFIG_VERSION_PATH	"/cluster/@config_version"
 #define CLUSTER_NAME_PATH	"/cluster/@name"
@@ -588,9 +588,9 @@ static int get_ccs_join_info(void)
 	/* Find our nodename in cluster.conf */
 	error = verify_nodename(cd, nodename);
 	if (error) {
-		log_printf(LOG_ERR, "local node name \"%s\" not found in cluster.conf",
+		log_printf(LOG_ERR, "local node name \"%s\" not found in the configuration",
 			nodename);
-		write_cman_pipe("Can't find local node name in cluster.conf");
+		write_cman_pipe("Can't find local node name in the configuration");
 		error = -ENOENT;
 		goto out;
 	}
@@ -707,7 +707,7 @@ static int get_ccs_join_info(void)
 	}
 
 	if (!nodeid) {
-		log_printf(LOG_ERR, "No nodeid specified in cluster.conf");
+		log_printf(LOG_ERR, "No nodeid specified in configuration file");
 		write_cman_pipe("CCS does not have a nodeid for this node, run 'ccs_tool addnodeids' to fix");
 		return -EINVAL;
 	}

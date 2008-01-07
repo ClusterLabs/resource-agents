@@ -26,7 +26,7 @@
 #include "update.h"
 
 #define MAX_NODES 256
-#define DEFAULT_CONFIG_FILE "/etc/cluster/cluster.conf"
+
 char *prog_name = "ccs_tool";
 
 #define die(fmt, args...) \
@@ -54,7 +54,7 @@ struct option_info
 
 static void config_usage(int rw)
 {
-	fprintf(stderr, " -c --configfile    Name of configuration file (/etc/cluster/cluster.conf)\n");
+	fprintf(stderr, " -c --configfile    Name of configuration file (" DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE ")\n");
 	if (rw)
 	{
 		fprintf(stderr, " -o --outputfile    Name of output file (defaults to same as --configfile)\n");
@@ -543,14 +543,14 @@ static xmlDoc *open_configfile(struct option_info *ninfo)
 	LIBXML_TEST_VERSION;
 
 	if (!ninfo->configfile)
-		ninfo->configfile = DEFAULT_CONFIG_FILE;
+		ninfo->configfile = DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE;
 	if (!ninfo->outputfile)
 		ninfo->outputfile = ninfo->configfile;
 
 	/* Load XML document */
 	doc = xmlParseFile(ninfo->configfile);
 	if (doc == NULL)
-		die("Error: unable to parse cluster.conf file\n");
+		die("Error: unable to parse requested configuration file\n");
 
 	return doc;
 
@@ -1036,7 +1036,7 @@ void create_skeleton(int argc, char **argv)
 		}
 	}
 	if (!ninfo.outputfile)
-		ninfo.outputfile = DEFAULT_CONFIG_FILE;
+		ninfo.outputfile = DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE;
 	ninfo.configfile = "-";
 
 	if (argc - optind < 1)

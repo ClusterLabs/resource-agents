@@ -10,9 +10,12 @@
 ###############################################################################
 ###############################################################################
 
-all:
+TARGET=	utils/config-utils.sh
+
+all: $(TARGET)
 
 include ../../../make/defines.mk
+include $(OBJDIR)/make/clean.mk
 
 RESOURCES=fs.sh service.sh ip.sh nfsclient.sh nfsexport.sh \
 	script.sh netfs.sh clusterfs.sh smb.sh \
@@ -24,20 +27,25 @@ METADATA=apache.metadata openldap.metadata samba.metadata \
 	mysql.metadata postgres-8.metadata tomcat-5.metadata \
 	named.metadata lvm.metadata
 
-TARGETS=ocf-shellfuncs svclib_nfslock default_event_script.sl
+GENERAL_TARGETS=ocf-shellfuncs svclib_nfslock default_event_script.sl
 
 UTIL_TARGETS= \
 	utils/config-utils.sh utils/ra-skelet.sh utils/messages.sh \
 	utils/httpd-parse-config.pl utils/tomcat-parse-config.pl \
 	utils/member_util.sh
 
+$(TARGET):
+	cat $(TARGET).in | sed \
+		-e 's#@CONFDIR@#${CONFDIR}#g' \
+		-e 's#@CONFFILE@#${CONFFILE}#g' \
+	> $(TARGET)
 
 install: all
 	install -d ${sharedir}/utils
 	for i in $(RESOURCES); do \
 	 install $(S)/$$i ${sharedir}; \
 	done
-	for i in $(TARGETS) $(METADATA); do \
+	for i in $(GENERAL_TARGETS) $(METADATA); do \
 	 install -m 644 $(S)/$$i ${sharedir}; \
 	done
 	for i in $(UTIL_TARGETS); do \
@@ -45,9 +53,9 @@ install: all
 	done
 
 uninstall:
-	${UNINSTALL} ${RESOURCES} ${TARGETS} ${METADATA} ${UTIL_TARGETS} ${sharedir}
+	${UNINSTALL} ${RESOURCES} ${GENERAL_TARGETS} ${METADATA} ${UTIL_TARGETS} ${sharedir}
 
-clean:
+clean: generalclean
 
 check: $(RESOURCES) ra-api-1-modified.dtd
 	@echo Validating resource agent meta-data

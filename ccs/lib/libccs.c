@@ -376,10 +376,11 @@ int ccs_connect(void){
  *
  * This function will only allow a connection even if the node is not
  * part of a quorate cluster.  It will use the configuration file
- * located in /etc/cluster/cluster.conf.  If that file does not exist,
- * a copy of the file will be broadcasted for.  If blocking is specified,
- * the broadcasts will be retried until a config file is located.  Otherwise,
- * the fuction will return an error if the initial broadcast is not successful.
+ * as specified at build time (default: /etc/cluster/cluster.conf).  If that
+ * file does not exist, a copy of the file will be broadcasted for.  If
+ * blocking is specified, the broadcasts will be retried until a config file
+ * is located.  Otherwise, the fuction will return an error if the initial
+ * broadcast is not successful.
  *
  * Returns: ccs_desc on success, < 0 on failure
  */

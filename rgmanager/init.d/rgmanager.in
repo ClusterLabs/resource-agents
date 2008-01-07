@@ -25,7 +25,7 @@ export PATH
 
 ID="Cluster Service Manager"
 RGMGRD="clurgmgrd"
-CFG_FILE="/etc/cluster/cluster.conf"
+CFG_FILE="@CONFDIR@/@CONFFILE@"
 
 LOG_ERR=3
 LOG_WARNING=4

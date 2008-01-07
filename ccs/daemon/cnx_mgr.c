@@ -83,13 +83,13 @@ static int _update_config(char *location){
     error = -EINVAL;
     goto fail;
   } else if((v2 = get_doc_version(tmp_doc)) < 0){
-    log_err("Unable to get config_version from cluster.conf.\n");
+    log_err("Unable to get config_version from %s.\n", location);
     error = v2;
     goto fail;
   } else if(master_doc && master_doc->od_doc){
     v1 = get_doc_version(master_doc->od_doc);
     if(v1 >= v2){
-      log_err("cluster.conf on-disk version is <= to in-memory version.\n");
+      log_err("%s on-disk version is <= to in-memory version.\n", location);
       log_err(" On-disk version   : %d\n", v2);
       log_err(" In-memory version : %d\n", v1);
       error = -EPERM;
@@ -118,7 +118,7 @@ static int _update_config(char *location){
     master_doc = tmp_odoc;
   }
 
-  log_msg("Update of cluster.conf complete (version %d -> %d).\n", v1, v2);
+  log_msg("Update of "DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE " complete (version %d -> %d).\n", v1, v2);
  fail:
   if(tmp_odoc != master_doc){
     free(tmp_odoc);
@@ -140,7 +140,7 @@ static int update_config(void){
   /* If update_required is set, it means that there is still a pending **
   ** update.  We need to pull this one in before doing anything else.  */
   if(update_required){
-    error = _update_config("/etc/cluster/.cluster.conf");
+    error = _update_config(DEFAULT_CONFIG_DIR "/." DEFAULT_CONFIG_FILE);
     update_required = 0;
     if(error){
       log_err("Previous update could not be completed.\n");
@@ -348,7 +348,7 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
 	tmp_doc = xmlParseMemory(bdoc+sizeof(comm_header_t),
 				 ch->comm_payload_size);
 	if(!tmp_doc){
-	  log_err("Unable to parse remote cluster.conf.\n");
+	  log_err("Unable to parse remote configuration.\n");
 	  free(bdoc); bdoc = NULL;
 	  goto reset_timer;
 	}
@@ -357,12 +357,12 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
 	log_dbg("  Given cluster name = %s\n", cluster_name);
 	log_dbg("  Remote cluster name= %s\n", tmp_name);
 	if(!tmp_name){
-	  log_err("Unable to find cluster name in remote cluster.conf.\n");
+	  log_err("Unable to find cluster name in remote configuration.\n");
 	  free(bdoc); bdoc = NULL;
 	  xmlFreeDoc(tmp_doc); tmp_doc = NULL;
 	  goto reset_timer;
 	} else if(cluster_name && strcmp(cluster_name, tmp_name)){
-	  log_dbg("Remote and local cluster.conf have different cluster names.\n");
+	  log_dbg("Remote and local configuration have different cluster names.\n");
 	  log_dbg("Skipping...\n");
 	  free(tmp_name); tmp_name = NULL;
 	  free(bdoc); bdoc = NULL;
@@ -372,7 +372,7 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
 	free(tmp_name); tmp_name = NULL;
 	if(!master_doc->od_doc){
 	  if((v2 = get_doc_version(tmp_doc)) >= 0){
-	    log_msg("Remote copy of cluster.conf (version = %d) found.\n", v2);
+	    log_msg("Remote configuration copy (version = %d) found.\n", v2);
 	    master_doc->od_doc = tmp_doc;
 	    tmp_doc = NULL;
 	    write_to_disk = 1;
@@ -381,7 +381,7 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
 	  if(((v1 = get_doc_version(master_doc->od_doc)) >= 0) &&
 	     ((v2 = get_doc_version(tmp_doc)) >= 0)){
 	    if(ch->comm_flags & COMM_BROADCAST_FROM_QUORATE){
-	      log_msg("Remote copy of cluster.conf is from quorate node.\n");
+	      log_msg("Remote configuration copy is from quorate node.\n");
 	      log_msg(" Local version # : %d\n", v1);
 	      log_msg(" Remote version #: %d\n", v2);
 	      if(v1 != v2){
@@ -404,7 +404,7 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
 	      write_to_disk = 1;
 	      goto out;
 	    } else if(v2 > v1){
-	      log_msg("Remote copy of cluster.conf is newer than local copy.\n");
+	      log_msg("Remote configuration copy is newer than local copy.\n");
 	      log_msg(" Local version # : %d\n", v1);
 	      log_msg(" Remote version #: %d\n", v2);
 	      if(master_doc->od_refs){
@@ -451,23 +451,23 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
 
     /* ATTENTION -- its bad if we fail here, because we have an in-memory version **
     ** but it has not been written to disk....................................... */
-    if(stat("/etc/cluster", &stat_buf)){
-      if(mkdir("/etc/cluster", S_IRWXU | S_IRWXG)){
-	log_sys_err("Unable to create directory /etc/cluster");
+    if(stat(DEFAULT_CONFIG_DIR, &stat_buf)){
+      if(mkdir(DEFAULT_CONFIG_DIR, S_IRWXU | S_IRWXG)){
+	log_sys_err("Unable to create directory " DEFAULT_CONFIG_DIR);
 	error = -errno;
 	goto fail;
       }
     } else if(!S_ISDIR(stat_buf.st_mode)){
-      log_err("/etc/cluster is not a directory.\n");
+      log_err(DEFAULT_CONFIG_DIR " is not a directory.\n");
       error = -ENOTDIR;
       goto fail;
     }
 
     old_mode = umask(026);
-    f = fopen("/etc/cluster/cluster.conf", "w");
+    f = fopen(DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE, "w");
     umask(old_mode);
     if(!f){
-      log_sys_err("Unable to open /etc/cluster/cluster.conf");
+      log_sys_err("Unable to open " DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE);
       error = -errno;
       goto fail;
     }
@@ -535,28 +535,28 @@ static int process_connect(comm_header_t *ch, char *cluster_name){
   }
 
   if(!master_doc->od_doc){
-    master_doc->od_doc = xmlParseFile("/etc/cluster/cluster.conf");
+    master_doc->od_doc = xmlParseFile(DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE);
     if(!master_doc->od_doc){
-      log_msg("Unable to parse %s\n", "/etc/cluster/cluster.conf");
+      log_msg("Unable to parse " DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE "\n");
       log_msg("Searching cluster for valid copy.\n");
     } else if((error = get_doc_version(master_doc->od_doc)) < 0){
-      log_err("Unable to get config_version from cluster.conf.\n");
+      log_err("Unable to get config_version from " DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE ".\n");
       log_err("Discarding data and searching for valid copy.\n");
       xmlFreeDoc(master_doc->od_doc);
       master_doc->od_doc = NULL;
     } else if(!(tmp_name = get_cluster_name(master_doc->od_doc))){
-      log_err("Unable to get cluster name from cluster.conf.\n");
+      log_err("Unable to get cluster name from " DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE ".\n");
       log_err("Discarding data and searching for valid copy.\n");
       xmlFreeDoc(master_doc->od_doc);
       master_doc->od_doc = NULL;
     } else if(cluster_name && strcmp(cluster_name, tmp_name)){
-      log_err("Given cluster name does not match local cluster.conf.\n");
+      log_err("Given cluster name does not match local " DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE ".\n");
       log_err("Discarding data and searching for matching copy.\n");
       xmlFreeDoc(master_doc->od_doc);
       master_doc->od_doc = NULL;
       free(tmp_name); tmp_name = NULL;
     } else {  /* Either the names match, or a name wasn't specified. */
-      log_msg("cluster.conf (cluster name = %s, version = %d) found.\n",
+      log_msg(DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE " (cluster name = %s, version = %d) found.\n",
 	      tmp_name, error);
       /* We must check with the others to make sure this is valid. */
     }
@@ -570,8 +570,8 @@ static int process_connect(comm_header_t *ch, char *cluster_name){
     ** for the config of the name specified............................... */
 
     if(cluster_name && strcmp(cluster_name, tmp_name)){
-      log_err("Request for cluster.conf with cluster name, %s\n", cluster_name);
-      log_err(" However, a cluster.conf with cluster name, %s, is already loaded.\n",
+      log_err("Request for configuration with cluster name, %s\n", cluster_name);
+      log_err(" However, a configuration with cluster name, %s, is already loaded.\n",
 	      tmp_name);
       error = -EINVAL;
       goto fail;
@@ -1326,11 +1326,11 @@ int process_broadcast(int sfd){
       goto fail;
     }
     memset(master_doc, 0, sizeof(open_doc_t));
-    master_doc->od_doc = xmlParseFile("/etc/cluster/cluster.conf");
+    master_doc->od_doc = xmlParseFile(DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE);
     if(!master_doc->od_doc){
       free(master_doc);
       master_doc = NULL;
-      log_err("Unable to parse %s.\n", "/etc/cluster/cluster.conf");
+      log_err("Unable to parse " DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE ".\n");
       error = -ENODATA;
       goto fail;
     }
@@ -1370,7 +1370,7 @@ int process_broadcast(int sfd){
   swab_header(ch); /* Swab back to dip into ch for payload_size */
   memcpy(buffer+sizeof(comm_header_t), payload, ch->comm_payload_size);
 
-  log_dbg("Sending cluster.conf (version %d)...\n", get_doc_version(master_doc->od_doc));
+  log_dbg("Sending configuration (version %d)...\n", get_doc_version(master_doc->od_doc));
   sendlen = ch->comm_payload_size + sizeof(comm_header_t);
   if(sendto(sfd, buffer, sendlen, 0,
 	    (struct sockaddr *)&addr, (socklen_t)len) < 0){

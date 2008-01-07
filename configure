@@ -75,6 +75,8 @@ my %options = (
 	prefix => \$prefix,
 	sbindir => \$sbindir,
 	sharedir => \$sharedir,
+	confdir => \$confdir,
+	conffile => \$conffile,
 	fence_agents => \$fence_agents,
 	enable_xen => \$enable_xen,
 	release_major => \$release_major,
@@ -137,6 +139,8 @@ my $err = &GetOptions (\%options,
 		    'prefix=s',
 		    'sbindir=s',
 		    'sharedir=s',
+		    'confdir=s',
+		    'conffile=s',
 		    'release_major=s',
 		    'release_minor=s',
 		    'fence_agents=s',
@@ -169,6 +173,8 @@ if ($help || !$err) {
   print "--libdir=\tthe base directory for libraries.  (Default: {prefix}/lib)\n";
   print "--libexecdir=\tthe base directory for executable components.  (Default: {prefix}/libexec)\n";
   print "--sharedir=\tthe base directory for misc cluster files.  (Default: {prefix}/share/cluster)\n";
+  print "--confdir=\tthe cluster config directory.  (Default: /etc/cluster)\n";
+  print "--conffile=\tthe cluster config file.  (Default: cluster.conf)\n";
   print "--mandir=\tthe base directory for man pages.  (Default: {prefix}/share/man)\n";
   print "--module_dir=\tthe base directory for kernel modules.  (Default:  /lib/modules/`uname -r`/kernel\n";
   print "\nbuild flags:\n";
@@ -473,6 +479,12 @@ if (!$sbindir) {
 if (!$sharedir) {
   $sharedir="${prefix}/share/cluster";
 }
+if (!$confdir) {
+  $confdir="/etc/cluster";
+}
+if (!$conffile) {
+  $conffile="cluster.conf";
+}
 if (!$fence_agents) {
   $fence_agents="all";
 }
@@ -584,6 +596,8 @@ while (<IFILE>) {
   $_ =~ s/\@MANDIR\@/$mandir/;
   $_ =~ s/\@SBINDIR\@/$sbindir/;
   $_ =~ s/\@SHAREDIR\@/$sharedir/;
+  $_ =~ s/\@CONFDIR\@/$confdir/;
+  $_ =~ s/\@CONFFILE\@/$conffile/;
   $_ =~ s/\@FENCE_AGENTS\@/$fence_agents/;
   $_ =~ s/\@ENABLE_XEN\@/$enable_xen/;
   $_ =~ s/\@DISABLE_CCS\@/$without_ccs/;

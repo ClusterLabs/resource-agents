@@ -379,7 +379,7 @@ int update(char *location)
 	    "  Old config version :: %d\n"
 	    "  Proposed config version :: %d\n"
 	    "  Winning config version  :: %d\n\n"
-	    "Check /etc/cluster/cluster.conf to ensure it contains the desired contents.\n", v1, v2, v3);
+	    "Check " DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE " to ensure it contains the desired contents.\n", v1, v2, v3);
     return -EAGAIN;
   }
 

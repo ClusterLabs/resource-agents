@@ -271,7 +271,7 @@ static void print_usage(FILE *stream){
 	  " -t <ttl>      Multicast threshold (aka Time to Live) value.\n"
 	  " -P [bcf]:#    Specify various port numbers.\n"
 	  " -V            Print version information.\n"
-	  " -X            No cluster manager, just read local cluster.conf.\n"
+	  " -X            No cluster manager, just read local " DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE ".\n"
 	  );
   EXIT("print_usage");
 }
@@ -319,7 +319,7 @@ static char *parse_cli_args(int argc, char *argv[]){
 
   ENTER("parse_cli_args");
 
-  config_file_location = strdup(DEFAULT_CONFIG_LOCATION);
+  config_file_location = strdup(DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE);
   lockfile_location = strdup(DEFAULT_CCSD_LOCKFILE);
 
   if(!config_file_location || !lockfile_location){
@@ -530,7 +530,7 @@ static int check_cluster_conf(void){
   } else {
     /* no cluster.conf file.  This is fine, just need to get it from the network */
     if(no_manager_opt){
-      log_err("\nNo local cluster.conf found: %s\n", config_file_location);
+      log_err("\nNo local config file found: %s\n", config_file_location);
       return -1;
     }
   }

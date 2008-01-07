@@ -27,7 +27,8 @@ CC = @CC@
 AR = ar
 RANLIB = ranlib
 
-CFLAGS += @CFLAGS@ -I@SRCDIR@/config
+CFLAGS += @CFLAGS@ -I@SRCDIR@/config 
+CFLAGS += -DDEFAULT_CONFIG_DIR=\"@CONFDIR@\" -DDEFAULT_CONFIG_FILE=\"@CONFFILE@\"
 LDFLAGS += @LDFLAGS@
 
 SRCDIR = @SRCDIR@
@@ -79,6 +80,9 @@ without_rgmanager ?= @DISABLE_RGMANAGER@
 
 THISDIR = $(shell echo $(CURDIR) | sed -e 's|$(OBJDIR)/||g')
 S=$(SRCDIR)/$(THISDIR)
+
+CONFDIR=@CONFDIR@
+CONFFILE=@CONFFILE@
 
 UNINSTALL = @SRCDIR@/scripts/uninstall.pl
 DEF2VAR = @SRCDIR@/scripts/define2var

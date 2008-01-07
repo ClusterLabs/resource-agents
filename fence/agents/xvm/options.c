@@ -303,7 +303,7 @@ static struct arg_info _arg_info[] = {
 	  assign_auth },
 
 	{ 'k', "-k <file>", "key_file",
-	  "Shared key file (default=/etc/cluster/fence_xvm.key)",
+	  "Shared key file (default=" DEFAULT_CONFIG_DIR "/fence_xvm.key)",
 	  assign_key },
 
 	{ 'o', "-o <operation>", "option",

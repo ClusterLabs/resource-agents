@@ -207,7 +207,7 @@ fence_xvmd_enabled()
     #  we'll start it anyway since ccsd is not required)
     #
     if [ "$FENCE_XVMD_OPTS" = "${FENCE_XVMD_OPTS/-X/}" ]; then
-        xmllint --shell /etc/cluster/cluster.conf 2> /dev/null \
+        xmllint --shell @CONFDIR@/@CONFFILE@ 2> /dev/null \
             < <(echo ls cluster) | grep -q fence_xvmd || return 1
     fi   
     

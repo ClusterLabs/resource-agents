@@ -194,18 +194,18 @@ static int handle_cluster_message(int fd)
 
     old_mode = umask(026);
 
-    fp = fopen("/etc/cluster/cluster.conf-update", "w");
+    fp = fopen(DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE "-update", "w");
 
     umask(old_mode);
 
     if (!fp) {
-      log_sys_err("Unable to open /etc/cluster/cluster.conf-update");
+      log_sys_err("Unable to open " DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE "-update");
       error = -errno;
       goto fail;
     }
 
     if (xmlDocDump(fp, tmp_doc) < 0) {
-      log_sys_err("Unable to write /etc/cluster/cluster.conf-update");
+      log_sys_err("Unable to write " DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE "-update");
       goto fail;
     }
 
@@ -248,7 +248,7 @@ static int handle_cluster_message(int fd)
 
     log_dbg("Got lock 1\n");
 
-    tmp_doc = xmlParseFile("/etc/cluster/cluster.conf-update");
+    tmp_doc = xmlParseFile(DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE "-update");
 
     if (!tmp_doc) {
       log_err("Unable to parse updated config file.\n");
@@ -263,22 +263,22 @@ static int handle_cluster_message(int fd)
 
     old_mode = umask(026);
 
-    fp = fopen("/etc/cluster/.cluster.conf", "w");
+    fp = fopen(DEFAULT_CONFIG_DIR "/." DEFAULT_CONFIG_FILE, "w");
 
     umask(old_mode);
 
     if (!fp) {
-      log_sys_err("Unable to open /etc/cluster/.cluster.conf");
+      log_sys_err("Unable to open " DEFAULT_CONFIG_DIR "/." DEFAULT_CONFIG_FILE);
       error = -errno;
       goto fail;
     }
 
     if (xmlDocDump(fp, tmp_doc) < 0) {
-      log_sys_err("Unable to write /etc/cluster/.cluster.conf");
+      log_sys_err("Unable to write " DEFAULT_CONFIG_DIR "/." DEFAULT_CONFIG_FILE);
       goto fail;
     }
 
-    rename("/etc/cluster/cluster.conf-update", "/etc/cluster/cluster.conf");
+    rename(DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE "-update", DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE);
 
     update_required = 1;
     ch.comm_flags = COMM_UPDATE_COMMIT_ACK;

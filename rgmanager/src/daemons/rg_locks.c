@@ -50,7 +50,7 @@ static pthread_mutex_t _ccs_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 #ifdef NO_CCS
 static xmlDocPtr ccs_doc = NULL;
-static char *conffile = "/etc/cluster/cluster.conf";
+static char *conffile = DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE;
 #endif
 
 int
