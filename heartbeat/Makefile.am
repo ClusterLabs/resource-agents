@@ -76,6 +76,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			SAPInstance	\
 			SendArp		\
 			ServeRAID	\
+			SphinxSearchDaemon	\
 			Stateful	\
 			SysInfo		\
 			tomcat		\
