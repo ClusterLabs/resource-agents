@@ -3121,7 +3121,7 @@ eval my_sysconfdir="`eval echo ${sysconfdir}`"
 
 AC_MSG_RESULT([])
 AC_MSG_RESULT([$PACKAGE configuration:])
-AC_MSG_RESULT([  Version              = "$VERSION"])
+AC_MSG_RESULT([  Version                  = "$VERSION"])
 
 AC_MSG_RESULT([  Executables              = "$my_sbindir"])
 AC_MSG_RESULT([  Man pages                = "$my_mandir"])
@@ -3139,7 +3139,7 @@ AC_MSG_RESULT([  HA group id              = "${HA_APIGID}"])
 AC_MSG_RESULT([  HA user name             = "${HA_CCMUSER}"])
 AC_MSG_RESULT([  HA user user id          = "${HA_CCMUID}"])
 
-AC_MSG_RESULT([  Build snmp subagent  = "${enable_snmp_subagent}"])
+AC_MSG_RESULT([  Build snmp subagent      = "${enable_snmp_subagent}"])
 if test "x${enable_snmp_subagent}" = "xyes"; then
     AC_MSG_RESULT([  SNMP MIB directory       = "${MIBS_DIR}"])
     AC_MSG_RESULT([  SNMP agent libraries     = "${SNMPAGENTLIB}"])
@@ -3147,8 +3147,8 @@ fi
 AC_MSG_RESULT([  SNMP libraries           = "${SNMPLIB}"])
 AC_MSG_RESULT([  ucd_snmp_devel name      = "${UCDSNMPDEVEL}"])
 
-AC_MSG_RESULT([  Build CRM            = "${enable_crm}"])
-AC_MSG_RESULT([  Build LRM            = "${enable_lrm}"])
+AC_MSG_RESULT([  Build CRM                = "${enable_crm}"])
+AC_MSG_RESULT([  Build LRM                = "${enable_lrm}"])
 AC_MSG_RESULT([  Build Ldirectord         = "${enable_ldirectord}"])
 AC_MSG_RESULT([  Build IPMILan Plugin     = "${enable_ipmilan}"])
 
