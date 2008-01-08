@@ -12,7 +12,7 @@
 
 TARGET=cman
 
-INITDT=$(TARGET1) qdiskd
+INITDT=$(TARGET) qdiskd
 
 all: $(TARGET)
 
@@ -22,7 +22,7 @@ include $(OBJDIR)/make/install.mk
 include $(OBJDIR)/make/uninstall.mk
 
 $(TARGET):
-	cat $(TARGET).in | sed \
+	cat $(S)/$(TARGET).in | sed \
 		-e 's#@CONFDIR@#${CONFDIR}#g' \
 		-e 's#@CONFFILE@#${CONFFILE}#g' \
 	> $(TARGET)

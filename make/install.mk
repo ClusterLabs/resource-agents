@@ -26,7 +26,11 @@ endif
 ifdef INITDT
 	install -d ${DESTDIR}/etc/init.d
 	for i in ${INITDT}; do \
-	  install -m755 $(S)/$$i ${DESTDIR}/etc/init.d; \
+	  if [ -f $(S)/$$i ]; then \
+	    install -m755 $(S)/$$i ${DESTDIR}/etc/init.d; \
+	  else \
+	    install -m755 $$i ${DESTDIR}/etc/init.d; \
+	  fi; \
 	done
 endif
 ifdef UDEVT

@@ -30,12 +30,13 @@ METADATA=apache.metadata openldap.metadata samba.metadata \
 GENERAL_TARGETS=ocf-shellfuncs svclib_nfslock default_event_script.sl
 
 UTIL_TARGETS= \
-	utils/config-utils.sh utils/ra-skelet.sh utils/messages.sh \
+	utils/ra-skelet.sh utils/messages.sh \
 	utils/httpd-parse-config.pl utils/tomcat-parse-config.pl \
 	utils/member_util.sh
 
 $(TARGET):
-	cat $(TARGET).in | sed \
+	mkdir utils
+	cat $(S)/$(TARGET).in | sed \
 		-e 's#@CONFDIR@#${CONFDIR}#g' \
 		-e 's#@CONFFILE@#${CONFFILE}#g' \
 	> $(TARGET)
@@ -51,6 +52,7 @@ install: all
 	for i in $(UTIL_TARGETS); do \
 	 install $(S)/$$i ${sharedir}/utils; \
 	done
+	install -m644 $(TARGET) ${sharedir}/utils
 
 uninstall:
 	${UNINSTALL} ${RESOURCES} ${GENERAL_TARGETS} ${METADATA} ${UTIL_TARGETS} ${sharedir}
