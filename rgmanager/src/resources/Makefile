@@ -35,7 +35,7 @@ UTIL_TARGETS= \
 	utils/member_util.sh
 
 $(TARGET):
-	mkdir utils
+	mkdir -p utils
 	cat $(S)/$(TARGET).in | sed \
 		-e 's#@CONFDIR@#${CONFDIR}#g' \
 		-e 's#@CONFFILE@#${CONFFILE}#g' \
