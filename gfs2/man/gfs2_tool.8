@@ -61,12 +61,10 @@ a filesystem.  The columns represent (in order): 1) An identifier that
 represents the mounted filesystem. 2) The name of the
 device that holds the filesystem (well, the name as the Linux
 kernel knows it).
-.\".TP
-.\"\fBlockdump\fP \fIMountPoint\fR \fI[buffersize]\fR
-.\"Print out information about the locks this machine holds for a given
-.\"filesystem. Buffersize is the size of the buffer (in bytes) that gfs2_tool
-.\"allocates to store the lock data during processing.  It defaults to 4194304
-.\"bytes.
+.TP
+\fBlockdump\fP \fIMountPoint\fR
+Print out information about the locks this machine holds for a given
+filesystem.
 .\".TP
 .\"\fBmargs\fP \fIarguments\fR
 .\"This loads arguments into the module what will override the mount
