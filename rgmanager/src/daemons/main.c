@@ -64,7 +64,7 @@ int32_t master_event_callback(char *key, uint64_t viewno, void *data, uint32_t d
 int shutdown_pending = 0, running = 1, need_reconfigure = 0;
 char debug = 0; /* XXX* */
 static int signalled = 0;
-static int port = RG_PORT;
+static uint8_t ALIGNED port = RG_PORT;
 static char *rgmanager_lsname = "rgmanager"; /* XXX default */
 
 int next_node_id(cluster_member_list_t *membership, int me);

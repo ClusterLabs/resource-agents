@@ -198,7 +198,7 @@ main(int argc, char **argv)
 	pthread_t piggy, priv;
 	fd_set rfds;
 	int max = 0;
-	uint8_t port = MYPORT;
+	uint8_t ALIGNED port = MYPORT;
 	cman_handle_t clu = NULL;
 
 

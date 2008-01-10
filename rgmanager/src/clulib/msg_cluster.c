@@ -79,10 +79,10 @@ do { \
 static int
 cluster_msg_send(msgctx_t *ctx, void *msg, size_t len)
 {
-	char buf[4096];
+	char ALIGNED buf[4096];
 	cluster_msg_hdr_t *h = (void *)buf;
-	int ret;
 	char *msgptr = (buf + sizeof(*h));
+	int ret;
 
 	errno = EINVAL;
 	if (ctx->type != MSG_CLUSTER)
@@ -235,9 +235,9 @@ cluster_send_control_msg(msgctx_t *ctx, int type)
 
 	swab_cluster_msg_hdr_t(&cm);
 
-	ret = (cman_send_data_unlocked((void *)&cm, sizeof(cm),
-			       ctx->u.cluster_info.nodeid,
-			       ctx->u.cluster_info.port, 0));
+	ret = (cman_send_data_unlocked((void *)&cm, sizeof(cm), 0,
+			       ctx->u.cluster_info.port,
+			       ctx->u.cluster_info.nodeid) );
 	return ret;
 }
 
@@ -590,6 +590,9 @@ cluster_msg_open(int type, int nodeid, int port, msgctx_t *ctx, int timeout)
 	ctx->u.cluster_info.remote_ctx = 0;
 	ctx->u.cluster_info.queue = NULL;
 
+	pthread_mutex_init(&ctx->u.cluster_info.mutex, NULL);
+	pthread_cond_init(&ctx->u.cluster_info.cond, NULL);
+
 	/* Assign context index */
 	if (assign_ctx(ctx) < 0) {
 		errno = EAGAIN;
@@ -608,7 +611,8 @@ cluster_msg_open(int type, int nodeid, int port, msgctx_t *ctx, int timeout)
 	/* Send open */
 	//printf("  Sending control message M_OPEN\n");
 	if (cluster_send_control_msg(ctx, M_OPEN) < 0) {
-		printf("Error sending control message\n");
+		printf("Error sending control message: %s\n", strerror(errno));
+		cluster_msg_close(ctx);
 		return -1;
 	}
 
@@ -1058,7 +1062,7 @@ cluster_msg_listen(int me, void *portp, msgctx_t **cluster_ctx)
 	errno = EINVAL;
 	if (!portp)
 		return -1;
-	port = *(int *)portp;
+	port = *(uint8_t *)portp;
 	if (port < 10 || port > 254)
 		return -1;
 

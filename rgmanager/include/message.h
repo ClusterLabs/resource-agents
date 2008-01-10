@@ -29,7 +29,7 @@ typedef enum {
 } msgctx_type_t;
 
 /* Header is never presented to applications */
-typedef struct {
+typedef struct ALIGNED {
 	uint32_t	src_ctx;
 	uint32_t	src_nodeid;
 	/* 8 */
@@ -44,7 +44,7 @@ typedef struct {
 } cluster_msg_hdr_t;
 
 /* Header is never presented to applications */
-typedef struct {
+typedef struct ALIGNED {
 	uint32_t	msg_len;	/* Size of tailing message */
 	uint8_t		msg_control;
 	uint8_t		pad[3];
@@ -53,7 +53,7 @@ typedef struct {
 
 
 /* Cluster private queue */
-typedef struct {
+typedef struct ALIGNED {
 	list_head();
 	cluster_msg_hdr_t *message;
 	int len;
@@ -69,7 +69,7 @@ typedef struct {
 }
 
 
-typedef struct _msgctx {
+typedef struct ALIGNED _msgctx {
 	struct _msg_ops *ops;
 	msgctx_type_t type;
 	int flags;

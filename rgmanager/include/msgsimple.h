@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <resgroup.h>
 
-typedef struct __attribute__ ((packed)) {
+typedef struct PACKED {
     uint32_t gh_magic; 
     uint32_t gh_length;
     uint32_t gh_command;
@@ -23,7 +23,7 @@ typedef struct __attribute__ ((packed)) {
 	swab32((ptr)->gh_arg2);\
 }
 
-typedef struct __attribute__ ((packed)) {
+typedef struct PACKED {
     generic_msg_hdr	sm_hdr;
     struct {
 	char 		d_svcName[64];
@@ -43,7 +43,7 @@ typedef struct __attribute__ ((packed)) {
 	swab32((ptr)->sm_data.d_ret);\
 }
 
-typedef struct __attribute__ ((packed)) {
+typedef struct ALIGNED {
     generic_msg_hdr	rsm_hdr;
     rg_state_t		rsm_state;
 } rg_state_msg_t;
