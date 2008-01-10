@@ -113,6 +113,10 @@ int join(commandline_t *comline)
 		snprintf(scratch, sizeof(scratch), "CMAN_KEYFILE=%s", comline->key_filename);
 		envp[envptr++] = strdup(scratch);
 	}
+	if (comline->two_node) {
+		snprintf(scratch, sizeof(scratch), "CMAN_2NODE=true");
+		envp[envptr++] = strdup(scratch);
+	}
 	if (comline->verbose) {
 		snprintf(scratch, sizeof(scratch), "CMAN_DEBUGLOG=%d", comline->verbose);
 		envp[envptr++] = strdup(scratch);

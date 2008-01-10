@@ -487,6 +487,14 @@ static int get_overrides()
 		mcast_name = getenv("CMAN_MCAST_ADDR");
 		log_printf(LOG_INFO, "Using override multicast address %s\n", mcast_name);
 	}
+
+	if (getenv("CMAN_2NODE")) {
+		two_node = 1;
+		expected_votes = 1;
+		votes = 1;
+		log_printf(LOG_INFO, "Setting two_node mode from cman_tool\n");
+	}
+
 	return 0;
 }
 
