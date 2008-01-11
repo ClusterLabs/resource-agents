@@ -74,7 +74,8 @@ function strip_and_add_tag
 		return $OCF_ERR_GENERIC
 	fi
 
-	if ! vgchange --addtag $(local_node_name) $OCF_RESKEY_vg_name; then
+	vgchange --addtag $(local_node_name) $OCF_RESKEY_vg_name
+	if [ $? -ne 0 ]; then
 		ocf_log err "Failed to add ownership tag to $OCF_RESKEY_vg_name"
 		return $OCF_ERR_GENERIC
         fi
