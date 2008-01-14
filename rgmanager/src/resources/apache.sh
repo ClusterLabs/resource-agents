@@ -32,7 +32,11 @@ export PATH=/bin:/sbin:/usr/bin:/usr/sbin
 . $(dirname $0)/utils/messages.sh
 . $(dirname $0)/utils/ra-skelet.sh
 
-declare APACHE_HTTPD=/usr/sbin/httpd
+if [ -x /usr/sbin/httpd ]; then
+	declare APACHE_HTTPD=/usr/sbin/httpd
+elif [ -x /usr/sbin/apache2 ]; then
+	declare APACHE_HTTPD=/usr/sbin/apache2
+fi
 declare APACHE_serverConfigFile
 declare APACHE_pid_file="`generate_name_for_pid_file`"
 declare APACHE_conf_dir="`generate_name_for_conf_dir`"
@@ -42,7 +46,7 @@ declare APACHE_parseConfig=$(dirname $0)/utils/httpd-parse-config.pl
 
 apache_serverConfigFile()
 {
-	if [[ "$OCF_RESKEY_config_file" =~ '^/' ]]; then
+	if $(echo $OCF_RESKEY_config_file | grep -q "^/"); then
 		APACHE_serverConfigFile="$OCF_RESKEY_config_file"
 	else 
 		APACHE_serverConfigFile="$OCF_RESKEY_server_root/$OCF_RESKEY_config_file"
@@ -135,7 +139,7 @@ EOT
 
 	IFS_old="$IFS"
 	IFS=$'\n'
-	for i in `"$APACHE_parseConfig" -D"$OCF_RESKEY_name" < "$originalConfigFile" | grep -P '(^Listen)|(^Port)' | grep -v ':'`; do 
+	for i in `"$APACHE_parseConfig" -D"$OCF_RESKEY_name" < "$originalConfigFile" | grep -E '(^Listen)|(^Port)' | grep -v ':'`; do 
 		port=`echo $i | sed 's/^Listen \(.*\)/\1/;s/^Port \(.*\)/\1/'`;
 		IFS=$' ';
 		for z in $ip_addresses; do 
