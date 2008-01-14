@@ -342,7 +342,7 @@ void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 			memcpy(&name, &group_name->value, len);
 
 			log_print("deliver_cb no group handle %llx name %s",
-				  handle, name);
+				  (unsigned long long)handle, name);
 			return;
 		}
 	}
@@ -380,7 +380,8 @@ void process_confchg(void)
 	g = find_group_by_handle(saved_handle);
 	if (!g) {
 		log_debug("confchg: no group for handle %llx name %s",
-			  saved_handle, saved_name.value);
+			  (unsigned long long)saved_handle,
+			  saved_name.value);
 		return;
 	}
 
@@ -558,7 +559,8 @@ int setup_cpg(void)
 		return error;
 	}
 
-	log_debug("setup_cpg groupd_handle %llx", groupd_handle);
+	log_debug("setup_cpg groupd_handle %llx",
+		  (unsigned long long)groupd_handle);
 	return 0;
 }
 
@@ -587,7 +589,8 @@ int do_cpg_join(group_t *g)
 	sprintf(name.value, "%d_%s", g->level, g->name);
 	name.length = strlen(name.value) + 1;
 
-	log_group(g, "is cpg client %d name %s handle %llx", ci, name.value, h);
+	log_group(g, "is cpg client %d name %s handle %llx", ci, name.value,
+		  (unsigned long long)h);
 
  retry:
 	error = cpg_join(h, &name);
@@ -654,7 +657,8 @@ static int _send_message(cpg_handle_t h, group_t *g, void *buf, int len)
 			log_error(g, "cpg_mcast_joined retry %d", retries);
 		goto retry;
 	} else if (error != CPG_OK)
-		log_error(g, "cpg_mcast_joined error %d handle %llx", error, h);
+		log_error(g, "cpg_mcast_joined error %d handle %llx", error,
+			  (unsigned long long)h);
 
 	if (retries)
 		log_group(g, "cpg_mcast_joined retried %d", retries);

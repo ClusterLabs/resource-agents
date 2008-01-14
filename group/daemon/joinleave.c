@@ -139,13 +139,15 @@ int do_leave(char *name, int level)
 
 	if (ev && ev->nodeid == our_nodeid) {
 		log_error(g, "leave: busy event %llx state %s",
-			  ev->id, ev_state_str(ev));
+			  (unsigned long long)ev->id,
+			  ev_state_str(ev));
 		return -EAGAIN;
 	}
 
 	list_for_each_entry(ev, &g->app->events, list) {
 		ASSERT(ev->nodeid != our_nodeid);
-		log_group(g, "do_leave: found queued event id %llx", ev->id);
+		log_group(g, "do_leave: found queued event id %llx",
+			  (unsigned long long)ev->id);
 	}
 
 	log_debug("%d:%s got leave", level, name);

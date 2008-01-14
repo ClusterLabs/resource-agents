@@ -74,7 +74,7 @@ uint64_t make_event_id(group_t *g, int state, int nodeid)
 	id = id | type;
 
 	log_group(g, "make_event_id %llx nodeid %d memb_count %d type %u",
-		  id, nodeid, g->memb_count, type);
+		  (unsigned long long)id, nodeid, g->memb_count, type);
 
 	return id;
 }
@@ -144,7 +144,8 @@ static void purge_messages(group_t *g)
 				state_str = "error";
 
 			log_group(g, "purge msg %llx from %d %s",
-				  save->msg.ms_event_id, nodeid, state_str);
+				  (unsigned long long)save->msg.ms_event_id,
+				  nodeid, state_str);
 
 			list_del(&save->list);
 			if (save->msg_long)
@@ -354,12 +355,12 @@ void del_recovery_set(group_t *g, event_t *ev, int purge)
 	struct nodeid *id;
 
 	log_group(g, "rev %llx done, remove group from rs %d",
-		  ev->id, ev->nodeid);
+		  (unsigned long long)ev->id, ev->nodeid);
 	_del_recovery_set(g, ev->nodeid, purge);
 
 	list_for_each_entry(id, &ev->extended, list) {
 		log_group(g, "rev %llx done, remove group from rs %d",
-			  ev->id, id->nodeid);
+			  (unsigned long long)ev->id, id->nodeid);
 		_del_recovery_set(g, id->nodeid, purge);
 	}
 }
@@ -614,7 +615,8 @@ void dump_queued_events(group_t *g)
 
 	list_for_each_entry(ev, &g->app->events, list) {
 		log_group(g, "    queued ev %d %llx %s",
-			  ev->nodeid, ev->id, ev_state_str(ev));
+			  ev->nodeid, (unsigned long long)ev->id,
+			  ev_state_str(ev));
 	}
 }
 
@@ -626,14 +628,14 @@ int queue_app_join(group_t *g, int nodeid)
 	ev = g->app->current_event;
 	if (ev && ev->nodeid == nodeid) {
 		log_group(g, "queue_app_join: current event %d %llx %s",
-			  nodeid, ev->id, ev_state_str(ev));
+			  nodeid, (unsigned long long)ev->id, ev_state_str(ev));
 	}
 
 	/* sanity check */
 	ev = search_event(g, nodeid);
 	if (ev) {
 		log_group(g, "queue_app_join: queued event %d %llx %s",
-			  nodeid, ev->id, ev_state_str(ev));
+			  nodeid, (unsigned long long)ev->id, ev_state_str(ev));
 	}
 
 	ev = create_event(g);
@@ -659,14 +661,14 @@ int queue_app_leave(group_t *g, int nodeid)
 	ev = g->app->current_event;
 	if (ev && ev->nodeid == nodeid) {
 		log_group(g, "queue_app_leave: current event %d %llx %s",
-			  nodeid, ev->id, ev_state_str(ev));
+			  nodeid, (unsigned long long)ev->id, ev_state_str(ev));
 	}
 
 	/* sanity check */
 	ev = search_event(g, nodeid);
 	if (ev) {
 		log_group(g, "queue_app_leave: queued event %d %llx %s",
-			  nodeid, ev->id, ev_state_str(ev));
+			  nodeid, (unsigned long long)ev->id, ev_state_str(ev));
 	}
 
 	ev = create_event(g);
@@ -953,7 +955,8 @@ static int process_current_event(group_t *g)
 
 	if (!(event_state_stopping(a) || event_state_starting(a)))
 		log_group(g, "process_current_event %llx %d %s",
-			  ev->id, ev->nodeid, ev_state_str(ev));
+			  (unsigned long long)ev->id, ev->nodeid,
+			  ev_state_str(ev));
 
 	switch (ev->state) {
 
@@ -1182,7 +1185,8 @@ static int process_current_event(group_t *g)
 	default:
 		/*
 		log_group(g, "nothing to do: %llx %d %s",
-			  ev->id, ev->nodeid, ev_state_str(ev));
+			  (unsigned long long)ev->id, ev->nodeid,
+			  ev_state_str(ev));
 		*/
 		break;
 	}
@@ -1300,10 +1304,9 @@ static int process_app_messages(group_t *g)
 				   recover_current_event() to see, it will
 				   be purged later */
 				if (!save->print_ignore) {
-					log_group(g, "rev %llx taken on "
-						  "node %d",
-						  save->msg.ms_event_id,
-						  save->nodeid);
+					log_group(g, "rev %llx taken on node %d",
+						   (unsigned long long)save->msg.ms_event_id,
+						   save->nodeid);
 					save->print_ignore = 1;
 				}
 				continue;
@@ -1316,7 +1319,8 @@ static int process_app_messages(group_t *g)
 		if (!ev || ev->id != save->msg.ms_event_id) {
 			if (!save->print_ignore) {
 				log_group(g, "ignore msg from %d id %llx %s",
-				  	  save->nodeid, save->msg.ms_event_id,
+				  	  save->nodeid,
+					  (unsigned long long)save->msg.ms_event_id,
 				  	  msg_type(save->msg.ms_type));
 				save->print_ignore = 1;
 			}
@@ -1425,7 +1429,7 @@ void dump_group(group_t *g)
 	printf("name: %s\n", g->name);
 	printf("level: %d\n", g->level);
 	printf("global_id: %u\n", g->global_id);
-	printf("cpg handle: %llx\n", g->cpg_handle);
+	printf("cpg handle: %llx\n", (unsigned long long)g->cpg_handle);
 	printf("cpg client: %d\n", g->cpg_client);
 	printf("app client: %d\n", g->app->client);
 
@@ -1587,7 +1591,8 @@ int recover_current_event(group_t *g)
 				log_group(g, "our join is current on %d",
 					  node->nodeid);
 				log_group(g, "rev %d behind our join ev %llx",
-					  rev->nodeid, ev->id);
+					  rev->nodeid,
+					  (unsigned long long)ev->id);
 				goto next;
 			}
 		}
@@ -1606,7 +1611,9 @@ int recover_current_event(group_t *g)
 				continue;
 
 			log_group(g, "rev %d %llx ahead of our join ev %llx",
-				  rev->nodeid, rev->id, ev->id);
+				  rev->nodeid,
+				  (unsigned long long)rev->id,
+				  (unsigned long long)ev->id);
 
 			node = find_app_node(a, rev->nodeid);
 			if (node) {
