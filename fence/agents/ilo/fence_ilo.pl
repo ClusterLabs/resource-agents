@@ -476,7 +476,7 @@ sub get_options_stdin
 			exit 2;
 		}
 
-		elsif ($name eq "action" )
+		elsif ($name eq "action" || $name eq "option")
 		{
 				$action = $val;
 		}
