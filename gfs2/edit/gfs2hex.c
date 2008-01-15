@@ -226,9 +226,8 @@ void do_dinode_extended(struct gfs2_dinode *di, char *buf)
 	memset(indirect, 0, sizeof(indirect));
 	if (di->di_height > 0) {
 		/* Indirect pointers */
-		for (x = sizeof(struct gfs2_dinode), y = 0;
-			 x < bufsize;
-			 x += sizeof(uint64_t), y++) {
+		for (x = sizeof(struct gfs2_dinode); x < bufsize;
+			 x += sizeof(uint64_t)) {
 			p = be64_to_cpu(*(uint64_t *)(buf + x));
 			if (p) {
 				indirect->ii[indirect_blocks].block = p;
