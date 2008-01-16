@@ -176,7 +176,7 @@ service_op_stop(char *svcName, int do_disable, int event_type)
 		msg_ret = msg_receive(&ctx, &msg,
 				      sizeof (SmMessageSt), 10);
 		if ((msg_ret == -1 && errno != ETIMEDOUT) ||
-		    (msg_ret >= 0)) {
+		    (msg_ret > 0)) {
 			break;
 		}
 	} while(1);

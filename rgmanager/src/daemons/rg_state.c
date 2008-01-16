@@ -1621,8 +1621,9 @@ svc_start_remote(char *svcName, int request, uint32_t target)
 	do {
 		msg_ret = msg_receive(&ctx, &msg_relo,
 					      sizeof (SmMessageSt), 10);
+
 		if ((msg_ret == -1 && errno != ETIMEDOUT) ||
-		    (msg_ret >= 0)) {
+		    (msg_ret > 0)) {
 			break;
 		}
 
