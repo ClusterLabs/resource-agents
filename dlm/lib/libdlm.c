@@ -1037,6 +1037,7 @@ static int ls_unlock_v6(struct dlm_ls_info *lsinfo, uint32_t lkid,
 	req.i.lock.lkid = lkid;
 	req.i.lock.flags = flags;
 	req.i.lock.lksb  = lksb;
+	req.i.lock.namelen = 0;
 	req.i.lock.castparam = astarg;
 	/* DLM_USER_UNLOCK will default to existing completion AST */
 	req.i.lock.castaddr = 0;
