@@ -6,9 +6,9 @@
 #               as a High-Availability OCF compliant resource.
 #
 # Author:       Alexander Krauth, October 2006
-# Support:      liunx@sap.com
+# Support:      linux@sap.com
 # License:      GNU General Public License (GPL)
-# Copyright:    (c) 2006 Alexander Krauth
+# Copyright:    (c) 2006, 2007 Alexander Krauth
 #
 # An example usage: 
 #      See usage() function below for more details...
@@ -21,6 +21,10 @@
 #       OCF_RESKEY_DBJ2EE_ONLY      (optional, default is false)
 #       OCF_RESKEY_DIR_BOOTSTRAP    (optional, if non standard J2EE server directory)
 #       OCF_RESKEY_DIR_SECSTORE     (optional, if non standard J2EE secure store directory)
+#	OCF_RESKEY_PRE_START_USEREXIT	(optional, lists a script which can be executed before the resource is started)
+#	OCF_RESKEY_POST_START_USEREXIT	(optional, lists a script which can be executed after the resource is started)
+#	OCF_RESKEY_PRE_STOP_USEREXIT	(optional, lists a script which can be executed before the resource is stopped)
+#	OCF_RESKEY_POST_STOP_USEREXIT	(optional, lists a script which can be executed after the resource is stopped)
 #
 # ToDo:
 # Remove all the database dependend stuff from the agent and use
@@ -60,7 +64,7 @@ meta_data() {
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="SAPDatabase">
-<version>1.2</version>
+<version>1.3</version>
 
 <longdesc lang="en">
 Resource script for SAP databases. It manages a SAP database of any type as an HA resource.
@@ -101,6 +105,26 @@ Resource script for SAP databases. It manages a SAP database of any type as an H
  <parameter name="DIR_SECSTORE" unique="1" required="0">
   <longdesc lang="en">The full qualified path where to find the J2EE security store directory. e.g. /usr/sap/P01/SYS/global/security/lib/tools</longdesc>
   <shortdesc lang="en">path to j2ee secure store directory</shortdesc>
+  <content type="string" default="" />
+ </parameter>
+ <parameter name="PRE_START_USEREXIT" unique="1" required="0">
+  <longdesc lang="en">The full qualified path where to find a script or program which should be executed before this resource gets started.</longdesc>
+  <shortdesc lang="en">path to a pre-start script</shortdesc>
+  <content type="string" default="" />
+ </parameter>
+ <parameter name="POST_START_USEREXIT" unique="1" required="0">
+  <longdesc lang="en">The full qualified path where to find a script or program which should be executed after this resource got started.</longdesc>
+  <shortdesc lang="en">path to a post-start script</shortdesc>
+  <content type="string" default="" />
+ </parameter>
+ <parameter name="PRE_STOP_USEREXIT" unique="1" required="0">
+  <longdesc lang="en">The full qualified path where to find a script or program which should be executed before this resource gets stopped.</longdesc>
+  <shortdesc lang="en">path to a pre-start script</shortdesc>
+  <content type="string" default="" />
+ </parameter>
+ <parameter name="POST_STOP_USEREXIT" unique="1" required="0">
+  <longdesc lang="en">The full qualified path where to find a script or program which should be executed after this resource got stopped.</longdesc>
+  <shortdesc lang="en">path to a post-start script</shortdesc>
   <content type="string" default="" />
  </parameter>
 </parameters>
@@ -358,9 +382,38 @@ sapdatabase_methods() {
 
 
 #
+# sapuserexit : Many SAP customers need some additional processes/tools to run their SAP systems.
+#               This specialties do not allow a totally generic SAP cluster resource agent.
+#               Someone should write a resource agent for each additional process you need, if it
+#               is required to monitor that process within the cluster manager. To enable
+#               you to extent this resource agent without developing a new one, this user exit
+#               was introduced.
+#
+sapuserexit() {
+  NAME="$1"
+  VALUE="$2"
+
+  if [ -n "$VALUE" ]
+  then
+    if [ -x "$VALUE" ]
+    then
+      ocf_log info "Calling userexit ${NAME} with customer script file ${VALUE}"
+      eval "$VALUE" >& /dev/null
+      ocf_log info "Exiting userexit ${NAME} with customer script file ${VALUE}, returncode: $?"
+    else
+      ocf_log warn "Attribute ${NAME} is set to ${VALUE}, but this file is not executable"
+    fi
+  fi
+  return 0
+}
+
+
+#
 # sapdatabase_start : Start the SAP database
 #
 sapdatabase_start() {
+  sapuserexit PRE_START_USEREXIT "$OCF_RESKEY_PRE_START_USEREXIT"
+
   case $DBTYPE in
     ADA) x_server_start
          ;;
@@ -377,6 +430,9 @@ sapdatabase_start() {
     ocf_log err "SAP database $SID start failed: $output"
     rc=$OCF_ERR_GENERIC
   fi
+
+  sapuserexit POST_START_USEREXIT "$OCF_RESKEY_POST_START_USEREXIT"
+  
   return $rc
 }
 
@@ -384,6 +440,8 @@ sapdatabase_start() {
 # sapdatabase_stop: Stop the SAP database
 #
 sapdatabase_stop() {
+
+  sapuserexit PRE_STOP_USEREXIT "$OCF_RESKEY_PRE_STOP_USEREXIT"
 
   # use of the stopdb kernel script is not possible, because there are to may checks in that
   # script. We want to stop the database regardless of anything.
@@ -413,6 +471,9 @@ sapdatabase_stop() {
     ADA) x_server_stop
          ;;
   esac
+
+  sapuserexit POST_STOP_USEREXIT "$OCF_RESKEY_POST_STOP_USEREXIT"
+
   return $rc
 }
 
@@ -501,7 +562,7 @@ sapdatabase_status() {
 
   # Note: ps cuts off it's output at column $COLUMNS, so "ps -ef" can not be used here
   # as the output might be to long.
-  cnt=`ps efo args --user $SUSER | grep -c "$SEARCH"`
+  cnt=`ps efo args --user $SUSER 2> /dev/null | grep -c "$SEARCH"`
   if [ $cnt -ge $SNUM ]
   then
     rc=$OCF_SUCCESS
@@ -514,9 +575,9 @@ sapdatabase_status() {
 
 
 #
-# sapdatabase_vaildate: Check the symantic of the input parameters 
+# sapdatabase_validate: Check the symantic of the input parameters 
 #
-sapdatabase_vaildate() {
+sapdatabase_validate() {
   rc=$OCF_SUCCESS
   if [ `echo "$SID" | grep -c '^[A-Z][A-Z0-9][A-Z0-9]$'` -ne 1 ]
   then
@@ -583,7 +644,7 @@ if [ -z "$OCF_RESKEY_DBTYPE" ]; then
   ocf_log err "Please set OCF_RESKEY_DBTYPE to the database vendor specific tag (ORA,ADA,DB6)!"
   exit $OCF_ERR_ARGS
 fi
-DBTYPE="$OCF_RESKEY_DBTYPE"
+DBTYPE=`echo "$OCF_RESKEY_DBTYPE" | tr "[a-z]" "[A-Z]"`
 
 # optional OCF parameters, we try to guess which directories are correct
 EXESTARTDB="startdb"
@@ -687,7 +748,7 @@ case "$1" in
                 sapdatabase_status
                 exit $?;;
 
-  validate-all)	sapdatabase_vaildate
+  validate-all)	sapdatabase_validate
 		exit $?;;
 
   *)		sapdatabase_methods

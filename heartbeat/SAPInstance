@@ -9,9 +9,9 @@
 #               about essential services.
 #
 # Author:       Alexander Krauth, June 2006
-# Support:      liunx@sap.com
+# Support:      linux@sap.com
 # License:      GNU General Public License (GPL)
-# Copyright:    (c) 2006 Alexander Krauth
+# Copyright:    (c) 2006, 2007 Alexander Krauth
 #
 # An example usage: 
 #      See usage() function below for more details...
@@ -21,6 +21,11 @@
 #       OCF_RESKEY_DIR_EXECUTABLE   (optional, well known directories will be searched by default)
 #       OCF_RESKEY_DIR_PROFILE      (optional, well known directories will be searched by default)
 #       OCF_RESKEY_START_PROFILE    (optional, well known directories will be searched by default)
+#       OCF_RESKEY_START_WAITTIME   (optional, to solve timing problems during J2EE-Addin start)
+#	OCF_RESKEY_PRE_START_USEREXIT	(optional, lists a script which can be executed before the resource is started)
+#	OCF_RESKEY_POST_START_USEREXIT	(optional, lists a script which can be executed after the resource is started)
+#	OCF_RESKEY_PRE_STOP_USEREXIT	(optional, lists a script which can be executed before the resource is stopped)
+#	OCF_RESKEY_POST_STOP_USEREXIT	(optional, lists a script which can be executed after the resource is stopped)
 #
 #######################################################################
 # Initialization:
@@ -54,7 +59,7 @@ meta_data() {
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="SAPInstance">
-<version>1.6</version>
+<version>1.7</version>
 
 <longdesc lang="en">
 Resource script for SAP. It manages a SAP Instance as an HA resource.
@@ -80,6 +85,31 @@ Resource script for SAP. It manages a SAP Instance as an HA resource.
  <parameter name="START_PROFILE" unique="1" required="0">
   <longdesc lang="en">The name of the SAP START profile.</longdesc>
   <shortdesc lang="en">start profile name</shortdesc>
+  <content type="string" default="" />
+ </parameter>
+ <parameter name="START_WAITTIME" unique="1" required="0">
+  <longdesc lang="en">After that time in seconds a monitor operation is executed by the resource agent. Does the monitor return SUCCESS, the start is handled as SUCCESS. This is useful to resolve timing problems with e.g. the J2EE-Addin instance.</longdesc>
+  <shortdesc lang="en">Check the successful start after that time (do not wait for J2EE-Addin)</shortdesc>
+  <content type="string" default="3600" />
+ </parameter>
+ <parameter name="PRE_START_USEREXIT" unique="1" required="0">
+  <longdesc lang="en">The full qualified path where to find a script or program which should be executed before this resource gets started.</longdesc>
+  <shortdesc lang="en">path to a pre-start script</shortdesc>
+  <content type="string" default="" />
+ </parameter>
+ <parameter name="POST_START_USEREXIT" unique="1" required="0">
+  <longdesc lang="en">The full qualified path where to find a script or program which should be executed after this resource got started.</longdesc>
+  <shortdesc lang="en">path to a post-start script</shortdesc>
+  <content type="string" default="" />
+ </parameter>
+ <parameter name="PRE_STOP_USEREXIT" unique="1" required="0">
+  <longdesc lang="en">The full qualified path where to find a script or program which should be executed before this resource gets stopped.</longdesc>
+  <shortdesc lang="en">path to a pre-start script</shortdesc>
+  <content type="string" default="" />
+ </parameter>
+ <parameter name="POST_STOP_USEREXIT" unique="1" required="0">
+  <longdesc lang="en">The full qualified path where to find a script or program which should be executed after this resource got stopped.</longdesc>
+  <shortdesc lang="en">path to a post-start script</shortdesc>
   <content type="string" default="" />
  </parameter>
 </parameters>
@@ -143,6 +173,15 @@ check_sapstartsrv() {
     pkill -9 -f "sapstartsrv.*$runninginst"
     $SAPSTARTSRV pf=$SAPSTARTPROFILE -D -u $sidadm
 
+    # now make sure the daemon has been started and is able to respond
+    srvrc=1
+    while [ $srvrc -eq 1 ]
+    do
+      sleep 1
+      $SAPCONTROL -nr $InstanceNr -function GetProcessList > /dev/null 2>&1
+      srvrc=$?
+    done
+
     ocf_log info "sapstartsrv for instance $SID-$InstanceName was restarted !"
   fi
 
@@ -151,16 +190,59 @@ check_sapstartsrv() {
 
 
 #
+# sapuserexit : Many SAP customers need some additional processes/tools to run their SAP systems.
+#               This specialties do not allow a totally generic SAP cluster resource agent.
+#               Someone should write a resource agent for each additional process you need, if it
+#               is required to monitor that process within the cluster manager. To enable 
+#               you to extent this resource agent without developing a new one, this user exit
+#               was introduced.
+#
+sapuserexit() {
+  NAME="$1"
+  VALUE="$2"
+
+  if [ -n "$VALUE" ]
+  then
+    if [ -x "$VALUE" ]
+    then
+      ocf_log info "Calling userexit ${NAME} with customer script file ${VALUE}"
+      eval "$VALUE" >& /dev/null
+      ocf_log info "Exiting userexit ${NAME} with customer script file ${VALUE}, returncode: $?"
+    else
+      ocf_log warn "Attribute ${NAME} is set to ${VALUE}, but this file is not executable"
+    fi
+  fi
+  return 0
+}
+
+#
 # sapinstance_start : Start the SAP instance
 #
 sapinstance_start() {
+  sapuserexit PRE_START_USEREXIT "$OCF_RESKEY_PRE_START_USEREXIT"
+
   check_sapstartsrv
 
   output=`$SAPCONTROL -nr $InstanceNr -function Start`
   if [ $? -eq 0 ]
   then
-    output=`$SAPCONTROL -nr $InstanceNr -function WaitforStarted 3600 1`
-    if [ $? -eq 0 ]
+    startrc=2
+    while [ $startrc -eq 2 ]
+    do
+      output=`$SAPCONTROL -nr $InstanceNr -function WaitforStarted $OCF_RESKEY_START_WAITTIME 1`
+      startrc=$?
+      if [ $startrc -eq 2 ]
+      then
+        sapinstance_monitor NOLOG
+        if [ $? -eq $OCF_SUCCESS ]
+        then
+          output="START_WAITTIME ($OCF_RESKEY_START_WAITTIME) has elapsed, but instance monitor returned SUCCESS. Instance considered running."
+          startrc=0
+        fi
+      fi
+    done
+
+    if [ $startrc -eq 0 ]
     then
       ocf_log info "SAP Instance $SID-$InstanceName started: $output"
       rc=$OCF_SUCCESS
@@ -172,6 +254,9 @@ sapinstance_start() {
     ocf_log err "SAP Instance $SID-$InstanceName start failed: $output"
     rc=$OCF_ERR_GENERIC
   fi
+
+  sapuserexit POST_START_USEREXIT "$OCF_RESKEY_POST_START_USEREXIT"
+
   return $rc
 }
 
@@ -179,6 +264,8 @@ sapinstance_start() {
 # sapinstance_stop: Stop the SAP instance
 #
 sapinstance_stop() {
+  sapuserexit PRE_STOP_USEREXIT "$OCF_RESKEY_PRE_STOP_USEREXIT"
+
   check_sapstartsrv
 
   output=`$SAPCONTROL -nr $InstanceNr -function Stop`
@@ -197,6 +284,9 @@ sapinstance_stop() {
     ocf_log err "SAP Instance $SID-$InstanceName stop failed: $output"
     rc=$OCF_ERR_GENERIC
   fi
+
+  sapuserexit POST_STOP_USEREXIT "$OCF_RESKEY_POST_STOP_USEREXIT"
+
   return $rc
 }
 
@@ -205,6 +295,7 @@ sapinstance_stop() {
 # sapinstance_monitor: Can the given SAP instance do anything useful?
 #
 sapinstance_monitor() {
+  MONLOG=$1
   check_sapstartsrv
 
   rc=$OCF_SUCCESS
@@ -228,7 +319,10 @@ sapinstance_monitor() {
       disp+work|msg_server|enserver|enrepserver)
                     if [ $STATE -eq $OCF_NOT_RUNNING ]
                     then
-                      ocf_log err "SAP instance service $SERVICE is not running with status $COLOR !"
+                      if [ "$MONLOG" != "NOLOG" ]
+                      then
+                        ocf_log err "SAP instance service $SERVICE is not running with status $COLOR !"
+                      fi
                       rc=$STATE
                     fi
                     count=1;;
@@ -238,7 +332,10 @@ sapinstance_monitor() {
 
   if [ $count -eq 0 -a $rc -eq $OCF_SUCCESS ]
   then
-    ocf_log err "The SAP instance does not run any services which this RA could monitor!"
+    if [ "$MONLOG" != "NOLOG" ]
+    then
+      ocf_log err "The SAP instance does not run any services which this RA could monitor!"
+    fi
     rc=$OCF_ERR_ARGS
   fi
 
@@ -246,9 +343,9 @@ sapinstance_monitor() {
 }
 
 #
-# sapinstance_vaildate: Check the symantic of the input parameters 
+# sapinstance_validate: Check the symantic of the input parameters 
 #
-sapinstance_vaildate() {
+sapinstance_validate() {
   rc=$OCF_SUCCESS
   if [ `echo "$SID" | grep -c '^[A-Z][A-Z0-9][A-Z0-9]$'` -ne 1 ]
   then
@@ -357,8 +454,8 @@ then
   then
     DIR_PROFILE="/usr/sap/$SID/SYS/profile"
   else
-    ocf_log err "Expected /usr/sap/$SID/SYS/profile/ to be a directory, please set DIR_PROFILE parameter!"
-    exit $OCF_ERR_GENERIC
+    ocf_log warn "Expected /usr/sap/$SID/SYS/profile/ to be a directory, please set DIR_PROFILE parameter!"
+    exit $OCF_NOT_RUNNING
   fi
 else
   DIR_PROFILE="$OCF_RESKEY_DIR_PROFILE"
@@ -369,11 +466,16 @@ then
   SAPSTARTPROFILE="$DIR_PROFILE/START_${InstanceName}_${SAPVIRHOST}"
   if [ ! -r $SAPSTARTPROFILE ]
   then
-    ocf_log err "Expected $SAPSTARTPROFILE to be the instance START profile, please set START_PROFILE parameter!"
-    exit $OCF_ERR_GENERIC
+    ocf_log warn "Expected $SAPSTARTPROFILE to be the instance START profile, please set START_PROFILE parameter!"
+    exit $OCF_NOT_RUNNING
   fi
 else
   SAPSTARTPROFILE="$OCF_RESKEY_START_PROFILE"
+fi
+
+if [ -z "$OCF_RESKEY_START_WAITTIME" ]
+then
+  OCF_RESKEY_START_WAITTIME=3600
 fi
 
 # as root user we need the library path to the SAP kernel to be able to call sapcontrol
@@ -395,7 +497,7 @@ case "$1" in
           	sapinstance_monitor
 		exit $?;;
 
-  validate-all)	sapinstance_vaildate
+  validate-all)	sapinstance_validate
 		exit $?;;
 
   *)		sapinstance_methods
