@@ -268,7 +268,7 @@ ip_init() {
 	fi
 
 	IP_INC_GLOBAL=${OCF_RESKEY_CRM_meta_clone_max:-1}
-	IP_INC_NO=`expr $OCF_RESKEY_CRM_meta_clone + 1`
+	IP_INC_NO=`expr ${OCF_RESKEY_CRM_meta_clone:-0} + 1`
 	IP_CIP_HASH="${OCF_RESKEY_clusterip_hash}"
 
 	if [ $LVS_SUPPORT -gt 0 ] && [ $IP_INC_GLOBAL -gt 1 ]; then
@@ -542,7 +542,7 @@ ip_served() {
 	fi
 
 	# Special handling for the CIP:
-	if grep -q "^${IP_INC_NO},\|,${IP_INC_NO},\|,${IP_INC_NO}$\|^${IP_INC_NO}$" $IP_CIP_FILE ; then
+	if egrep -q "(^|,)${IP_INC_NO}(,|$)" $IP_CIP_FILE ; then
 		echo "ok"
 		return 0
 	else
