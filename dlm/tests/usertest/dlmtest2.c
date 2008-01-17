@@ -21,6 +21,7 @@
 #include <time.h>
 #include <signal.h>
 #include <syslog.h>
+#include <sys/time.h>
 #include <asm/types.h>
 #include <sys/socket.h>
 #include <sys/poll.h>
@@ -54,6 +55,8 @@ static int stress_delay = 0;
 static int stress_lock_only = 0;
 static int openclose_ls = 0;
 static uint64_t our_xid;
+static char cmd[32];
+static int opt_cmd = 0;
 
 static unsigned int sts_eunlock, sts_ecancel, sts_etimedout, sts_edeadlk, sts_eagain, sts_other, sts_zero;
 static unsigned int bast_unlock, bast_skip;
@@ -102,16 +105,16 @@ struct lk {
 
 struct lk *locks;
 
-void unlock(int i);
-void unlockf(int i);
+static void unlock(int i);
+static void unlockf(int i);
 
 
-int rand_int(int a, int b)
+static int rand_int(int a, int b)
 {
 	return a + (int) (((float)(b - a + 1)) * random() / (RAND_MAX+1.0)); 
 }
 
-char *status_str(int status)
+static char *status_str(int status)
 {
 	static char sts_str[8];
 
@@ -136,7 +139,7 @@ char *status_str(int status)
 	}
 }
 
-char *op_str(int op)
+static char *op_str(int op)
 {
 	switch (op) {
 	case Op_lock:
@@ -152,7 +155,7 @@ char *op_str(int op)
 	}
 }
 
-struct lk *get_lock(int i)
+static struct lk *get_lock(int i)
 {
 	if (i < 0)
 		return NULL;
@@ -161,7 +164,7 @@ struct lk *get_lock(int i)
 	return &locks[i];
 }
 
-int all_unlocks_done(void)
+static int all_unlocks_done(void)
 {
 	struct lk *lk;
 	int i;
@@ -175,7 +178,7 @@ int all_unlocks_done(void)
 	return 1;
 }
 
-void dump(void)
+static void dump(void)
 {
 	struct timeval now;
 	struct lk *lk;
@@ -193,18 +196,18 @@ void dump(void)
 			lk->wait_ast,
 			op_str(lk->lastop),
 			status_str(lk->last_status),
-			lk->wait_ast ? now.tv_sec - lk->begin.tv_sec : 0);
+			lk->wait_ast ? (unsigned int)(now.tv_sec - lk->begin.tv_sec) : 0);
 	}
 }
 
-void bastfn(void *arg)
+static void bastfn(void *arg)
 {
 	struct lk *lk = arg;
 	lk->bast = 1;
 	bast_cb = 1;
 }
 
-void do_bast(struct lk *lk)
+static void do_bast(struct lk *lk)
 {
 	int skip = 0;
 
@@ -226,7 +229,7 @@ void do_bast(struct lk *lk)
 	lk->bast = 0;
 }
 
-void do_bast_unlocks(void)
+static void do_bast_unlocks(void)
 {
 	struct lk *lk;
 	int i;
@@ -239,14 +242,14 @@ void do_bast_unlocks(void)
 	bast_cb = 0;
 }
 
-void process_libdlm(void)
+static void process_libdlm(void)
 {
 	dlm_dispatch(libdlm_fd);
 	if (bast_cb && !ignore_bast)
 		do_bast_unlocks();
 }
 
-void astfn(void *arg)
+static void astfn(void *arg)
 {
 	struct lk *lk = arg;
 	int i = lk->id;
@@ -341,7 +344,7 @@ void astfn(void *arg)
    and issues the second lock before the reply for the overlapping
    cancel (which did nothing) has been received in the dlm. */
 
-void lock(int i, int mode)
+static void lock(int i, int mode)
 {
 	char name[DLM_RESNAME_MAXLEN];
 	struct lk *lk;
@@ -397,7 +400,7 @@ void lock(int i, int mode)
 	lk->lastop = Op_lock;
 }
 
-void lock_sync(int i, int mode)
+static void lock_sync(int i, int mode)
 {
 	char name[DLM_RESNAME_MAXLEN];
 	int flags = 0;
@@ -441,7 +444,7 @@ void lock_sync(int i, int mode)
 	}
 }
 
-void lock_all(int mode)
+static void lock_all(int mode)
 {
 	int i;
 
@@ -449,7 +452,7 @@ void lock_all(int mode)
 		lock(i, mode);
 }
 
-char *uflags(uint32_t flags)
+static char *uflags(uint32_t flags)
 {
 	if (flags == LKF_FORCEUNLOCK)
 		return "FORCEUNLOCK";
@@ -462,7 +465,7 @@ char *uflags(uint32_t flags)
    try to do an unlockf during an outstanding op that will free
    the lock itself */
 
-void _unlock(int i, uint32_t flags)
+static void _unlock(int i, uint32_t flags)
 {
 	struct lk *lk;
 	uint32_t lkid;
@@ -494,7 +497,7 @@ void _unlock(int i, uint32_t flags)
 	}
 }
 
-void unlock(int i)
+static void unlock(int i)
 {
 	struct lk *lk = get_lock(i);
 
@@ -508,7 +511,7 @@ void unlock(int i)
 		if (lk->acquired.tv_sec + lk->minhold > now.tv_sec) {
 			printf("        : unlock  %3d\t%x: gr %d rq %d held %u of %u s\n",
 				i, lk->lksb.sb_lkid, lk->grmode, lk->rqmode,
-				now.tv_sec - lk->acquired.tv_sec, lk->minhold);
+				(unsigned int)(now.tv_sec - lk->acquired.tv_sec), lk->minhold);
 			return;
 		}
 	}
@@ -518,7 +521,7 @@ void unlock(int i)
 	lk->lastop = Op_unlock;
 }
 
-void unlockf(int i)
+static void unlockf(int i)
 {
 	struct lk *lk = get_lock(i);
 
@@ -532,7 +535,7 @@ void unlockf(int i)
 		if (lk->acquired.tv_sec + lk->minhold > now.tv_sec) {
 			printf("        : unlockf %3d\t%x: gr %d rq %d held %u of %u s\n",
 				i, lk->lksb.sb_lkid, lk->grmode, lk->rqmode,
-				now.tv_sec - lk->acquired.tv_sec, lk->minhold);
+				(unsigned int)(now.tv_sec - lk->acquired.tv_sec), lk->minhold);
 			return;
 		}
 	}
@@ -542,14 +545,14 @@ void unlockf(int i)
 	lk->lastop = Op_unlockf;
 }
 
-void cancel(int i)
+static void cancel(int i)
 {
 	struct lk *lk = get_lock(i);
 	_unlock(i, LKF_CANCEL);
 	lk->lastop = Op_cancel;
 }
 
-void canceld(int i, uint32_t lkid)
+static void canceld(int i, uint32_t lkid)
 {
 	int rv;
 
@@ -558,7 +561,7 @@ void canceld(int i, uint32_t lkid)
 	printf("canceld %x: %d %d\n", lkid, rv, errno);
 }
 
-void unlock_sync(int i)
+static void unlock_sync(int i)
 {
 	uint32_t lkid;
 	int rv;
@@ -586,7 +589,7 @@ void unlock_sync(int i)
 	lk->rqmode = -1;
 }
 
-void unlock_all(void)
+static void unlock_all(void)
 {
 	struct lk *lk;
 	int i;
@@ -597,7 +600,7 @@ void unlock_all(void)
 	}
 }
 
-void purge(int nodeid, int pid)
+static void purge(int nodeid, int pid)
 {
 	struct lk *lk;
 	int i, rv;
@@ -616,7 +619,7 @@ void purge(int nodeid, int pid)
 	}
 }
 
-void purgetest(int nodeid, int pid)
+static void purgetest(int nodeid, int pid)
 {
 	struct lk *lk;
 	int i, mid = maxn / 2;
@@ -645,7 +648,7 @@ void purgetest(int nodeid, int pid)
 	purge(nodeid, pid);
 }
 
-void tstress_unlocks(void)
+static void tstress_unlocks(void)
 {
 	struct lk *lk;
 	struct timeval now;
@@ -667,7 +670,7 @@ void tstress_unlocks(void)
 		if (now.tv_sec >= lk->acquired.tv_sec + minhold) {
 			printf("        : unlock  %3d\t%x: gr %d rq %d held %u of %u s\n",
 				i, lk->lksb.sb_lkid, lk->grmode, lk->rqmode,
-				now.tv_sec - lk->acquired.tv_sec, minhold);
+				(unsigned int)(now.tv_sec - lk->acquired.tv_sec), minhold);
 
 			_unlock(i, 0);
 			lk->rqmode = -1;
@@ -677,10 +680,10 @@ void tstress_unlocks(void)
 	}
 }
 
-void tstress(int num)
+static void tstress(int num)
 {
-	int i, o, op, max_op, skip;
 	unsigned int n, skips, lock_ops, unlock_ops, unlockf_ops, cancel_ops;
+	int i;
 	struct lk *lk;
 
 	n = skips = lock_ops = unlock_ops = unlockf_ops = cancel_ops = 0;
@@ -732,10 +735,10 @@ void tstress(int num)
 	printf("ast status: zero %d other %d\n", sts_zero, sts_other);
 }
 
-void dstress(int num)
+static void dstress(int num)
 {
-	int i, o, op, max_op, skip;
 	unsigned int n, skips, lock_ops, unlock_ops, unlockf_ops, cancel_ops;
+	int i;
 	struct lk *lk;
 
 	n = skips = lock_ops = unlock_ops = unlockf_ops = cancel_ops = 0;
@@ -780,7 +783,7 @@ void dstress(int num)
 	printf("ast status: zero %d other %d\n", sts_zero, sts_other);
 }
 
-void stress(int num)
+static void stress(int num)
 {
 	int i, o, op, max_op, skip;
 	unsigned int n, skips, lock_ops, unlock_ops, unlockf_ops, cancel_ops;
@@ -824,6 +827,8 @@ void stress(int num)
 		case 5:
 			op = Op_cancel;
 			break;
+		default:
+			op = 0;
 		}
 
 		skip = 0;
@@ -940,11 +945,11 @@ static void client_init(void)
 		client[i].fd = -1;
 }
 
-void print_commands(void)
+static void print_commands(void)
 {
 	printf("Usage:\n");
 	printf("max locks (maxn) is %d (x of 0 to %d)\n", maxn, maxn-1);
-	printf("max resources (maxr) is %d, lock x used on resource (x % maxr)\n", maxr);
+	printf("max resources (maxr) is %d, lock x used on resource (x %% maxr)\n", maxr);
 	printf("EXIT		 - exit program after unlocking any held locks\n");
 	printf("kill		 - exit program without unlocking any locks\n");
 	printf("lock x mode	 - request/convert lock x\n");
@@ -984,7 +989,7 @@ void print_commands(void)
 	printf("purgetest nodeid pid\n");
 }
 
-void print_settings(void)
+static void print_settings(void)
 {
 	printf("timewarn %d\n", timewarn);
 	printf("timeout %llu\n", (unsigned long long) timeout);
@@ -1000,18 +1005,18 @@ void print_settings(void)
 	printf("stress_stop %d\n", stress_stop);
 	printf("stress_delay %d\n", stress_delay);
 	printf("stress_lock_only %d\n", stress_lock_only);
-	printf("our_xid %x\n", (unsigned long long)our_xid);
+	printf("our_xid %llx\n", (unsigned long long)our_xid);
 }
 
-void process_command(int *quit)
+static void process_command(int *quit)
 {
 	char inbuf[132];
-	char cmd[32];
-	int x = 0, y = 0, z = 0;
+	int x = 0, y = 0;
 
-	fgets(inbuf, sizeof(inbuf), stdin);
-
-	sscanf(inbuf, "%s %d %d", cmd, &x, &y, &z);
+	if (!opt_cmd) {
+		fgets(inbuf, sizeof(inbuf), stdin);
+		sscanf(inbuf, "%s %d %d", cmd, &x, &y);
+	}
 
 	if (!strncmp(cmd, "EXIT", 4)) {
 		*quit = 1;
@@ -1128,6 +1133,8 @@ void process_command(int *quit)
 	}
 
 	if (!strncmp(cmd, "stress", 6) && strlen(cmd) == 6) {
+		if (iterations && !x)
+			x = iterations;
 		stress(x);
 		return;
 	}
@@ -1230,7 +1237,7 @@ void process_command(int *quit)
 	printf("unknown command %s\n", cmd);
 }
 
-void print_usage(void)
+static void print_usage(void)
 {
 	printf("Options:\n");
 	printf("\n");
@@ -1246,7 +1253,7 @@ static void decode_arguments(int argc, char **argv)
 	int optchar;
 
 	while (cont) {
-		optchar = getopt(argc, argv, "n:r:i:thVo");
+		optchar = getopt(argc, argv, "n:r:c:i:thVo");
 
 		switch (optchar) {
 
@@ -1256,6 +1263,11 @@ static void decode_arguments(int argc, char **argv)
 
 		case 'r':
 			maxr = atoi(optarg);
+			break;
+
+		case 'c':
+			strcpy(cmd, optarg);
+			opt_cmd = 1;
 			break;
 
 		case 'i':
@@ -1334,7 +1346,7 @@ int main(int argc, char *argv[])
 	locks = malloc(maxn * sizeof(struct lk));
 	if (!locks) {
 		printf("no mem for %d locks\n", maxn);
-		return;
+		return 0;
 	}
 	memset(locks, 0, sizeof(*locks));
 
@@ -1367,7 +1379,8 @@ int main(int argc, char *argv[])
 	} else {
 		printf("dlm_new_lockspace...\n");
 
-		dh = dlm_new_lockspace("test", 0600, timewarn ? DLM_LSFL_TIMEWARN : 0);
+		dh = dlm_new_lockspace("test", 0600,
+				       timewarn ? DLM_LSFL_TIMEWARN : 0);
 		if (!dh) {
 			printf("dlm_new_lockspace error %lu %d\n",
 				(unsigned long)dh, errno);
@@ -1384,10 +1397,13 @@ int main(int argc, char *argv[])
 	libdlm_fd = rv;
 
 	client_add(libdlm_fd, &maxi);
-	client_add(STDIN_FILENO, &maxi);
 
-	if (strstr(argv[0], "dlmstress"))
-		stress(iterations);
+	if (opt_cmd) {
+		process_command(&quit);
+		goto out;
+	}
+
+	client_add(STDIN_FILENO, &maxi);
 
 	printf("Type EXIT to finish, help for usage\n");
 
@@ -1417,6 +1433,7 @@ int main(int argc, char *argv[])
 			break;
 	}
 
+ out:
 	if (openclose_ls) {
 		printf("dlm_close_lockspace\n");
 
