@@ -70,8 +70,8 @@ Resource script for EVMS shared cluster container. It runs evms_activate on one 
 <action name="start" timeout="60" />
 <action name="stop" timeout="60" />
 <action name="notify" timeout="60" />
-<action name="status" depth="0" timeout="10" interval="10" start-delay="10" />
-<action name="monitor" depth="0" timeout="10" interval="10" start-delay="10" />
+<action name="status" depth="0" timeout="10" interval="10" />
+<action name="monitor" depth="0" timeout="10" interval="10" />
 <action name="meta-data" timeout="5" />
 </actions>
 </resource-agent>
