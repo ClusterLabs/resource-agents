@@ -1,166 +1,248 @@
 #!/bin/bash
 #
+# scsi_reserve:
+#
 # chkconfig: 345 25 75
-# description: start/stop persistent reservation service for lvm
+# description:
+# config: /etc/sysconfig/scsi_reserve
 
 . /etc/init.d/functions
+
+# read in config file if it exists
+#
+if [ -f /etc/sysconfig/scsi_reserve ] ; then
+    . /etc/sysconfig/scsi_reserve
+fi
+
+# check if cluster is configured for fence_scsi
+#
+if ! fence_scsi_test -t fence ; then
+    logger -t scsi_reserve \
+	"[error] cluster not configured for scsi reservations"
+    exit 1
+fi
+
+# check for nodeids in config file
+#
+if ! fence_scsi_test -t nodes ; then
+    logger -t scsi_reserve \
+	"[error] cluster must define nodeid for all nodes"
+    exit 1
+fi
 
 # check for sg_persist command provided by sg3_utils package
 #
 if ! sg_persist -V &> /dev/null ; then
-   echo "error: sg_persist not found"
-   exit 2
+    logger -t scsi_reserve \
+	"[error] unable to exec sg_persist"
+    exit 1
 fi
 
-# get scsi devices that are part of clustered volumes
+# check that cman is running
 #
-scsi_devices=$( lvs -o vg_attr,devices --noheadings \
-		| awk --posix ' $1 ~ /[-a-z]{5}c/ { print $2 } ' \
-		| sed -e 's/([0-9]*)//' | sort | uniq )
+if ! cman_tool status &> /dev/null ; then
+    logger -t scsi_reserve \
+	"[error] cman does not appear to be running"
+    exit 1
+fi
 
-# if no scsi devices were found we can exit now
+# get physical volumes (devices) that are part of cluster volumes
 #
-[ -z "$scsi_devices" ] && exit 0
+scsi_devices=$( vgs --config 'global { locking_type = 0 }' \
+                    --noheadings -o vg_attr,pv_name 2> /dev/null \
+              | awk ' $1 ~ /.*c$/ { print $2 } ' )
 
-# get the node name and node addr from cman
+if [ -z "$scsi_devices" ] ; then
+    logger -t scsi_reserve \
+	"[error] did not find devices in cluster volumes"
+    exit 1
+fi
+
+# get the cluster id from cman
 #
-node_name=$( cman_tool status | grep "Node name" | awk -F": " '{ print $2 }' )
-node_addr=$( cman_tool status | grep "Node addr" | awk -F": " '{ print $2 }' )
+cluster_id=$( cman_tool status | grep -i "Cluster ID" \
+            | awk -F": " '{ print $2 }' )
 
-# get cluster id and node id from cman
+if [ -z "$cluster_id" ] ; then
+    logger -s -t scsi_reserve \
+	"[error] unable to determine cluster id"
+    exit 1
+fi
+
+# get the node id from cman
 #
-c_id=$( cman_tool status | grep -i "Cluster ID" | awk -F": " '{ print $2 }' )
-n_id=$( cman_tool status | grep -i "Node ID"    | awk -F": " '{ print $2 }' )
+node_id=$( cman_tool status | grep -i "Node ID" \
+         | awk -F": " '{ print $2 }' )
 
-[ -z "$c_id" ] && exit 1
-[ -z "$n_id" ] && exit 1
+if [ -z "$node_id" ] ; then
+    logger -t scsi_reserve \
+	"[error] unable to determine node id"
+    exit 1
+fi
 
-# create unique key for this host
+# generate unique key using cluster_id and node_id
 #
-key=$( printf "%x%.4x" $c_id $n_id )
+key=$( printf "%x%.4x" $cluster_id $node_id )
 
-###############################################################################
+if [ -z "$key" ] ; then
+    logger -t scsi_reserve \
+	"[error] unable to generate key"
+    exit 1
+fi
+
+################################################################################
 
 case $1 in
 
-start)
+    start)
 
-rval=0
-
-echo "$key" > /var/lock/subsys/scsi_reserve
-
-cat /dev/null > /var/run/scsi_reserve
-
-# register each device using our key
-#
-for dev in $scsi_devices
-do
-
-  echo -n "Registering device: $dev"
-
-  for error in 1
-  do
-    sg_persist -d $dev -o -G -S $key &>/dev/null || break
-    error=0
-  done
-
-  if [ $error -eq 0 ]; then
-      echo $dev >> /var/run/scsi_reserve
-      success
-  else
-      # perhaps we are already resgistered
-      #
-      if sg_persist -d $dev -i -k 2>/dev/null | grep -qiE "$key" ; then
-	  echo $dev >> /var/run/scsi_reserve
-          success
-      else
-          failure
-          rval=1
-      fi
-  fi
-
-  echo
-
-  # create a reservation
-  #
-  sg_persist -d $dev -o -R -K $key -T 5 &>/dev/null
-
-done
-;;
-
-stop)
-
-rval=0
-
-# unregister each device for this node
-#
-for dev in $scsi_devices
-do
-  echo -n "Unregistering device: $dev"
-
-  # get list of keys registered for this device
-  #
-  reg_keys=$( sg_persist -d $dev -i -k | grep '^[[:space:]]*0x' )
-
-  # check if this node/key is the node/key holding the reservation
-  #
-  if sg_persist -d $dev -i -r 2>/dev/null | grep -qiE "$key" ; then
-      if echo "$reg_keys" | grep -qivE "${key#0}" ; then
-	  error=1
-      else
-	  for error in 1
-	  do
-	    sg_persist -d $dev -o -G -K $key -S 0 &>/dev/null || break
-	    error=0
-	  done
-      fi
-  else
-      for error in 1
-      do
-	sg_persist -d $dev -o -G -K $key -S 0 &>/dev/null || break
 	error=0
-      done
-  fi
+	count=0
 
-  if [ $error -eq 0 ]; then
-      success "unregister device $dev"
-  else
-      failure
-      rval=1
-  fi
+	echo -n "Starting scsi_reserve:"
 
-  echo
-done
+	for dev in $scsi_devices
+	do
+	  # check if our key is already resgistered with this device
+	  #
+	  if sg_persist -n -d $dev -i -k | grep -qiE "^[[:space:]]*0x$key" ; then
+	      logger -t scsi_reserve \
+		"[info] already registered with $dev (key=0x$key)"
+	      continue
+	  fi
 
-rm -f /var/lock/subsys/scsi_reserve
+	  # create the scsi registration
+	  #
+	  if ! sg_persist -n -d $dev -o -I -S $key &> /dev/null ; then
+	      logger -t scsi_reserve \
+		"[error] unable to register device $dev (key=0x$key)"
+	      : $[ count = $count + 1 ]
+	      error=1
+	  else
+	      logger -t scsi_reserve \
+		"[info] registered with device $dev (key=0x$key)"
+	  fi
 
-;;
+	  # check to see if reservation already exists
+	  #
+	  if sg_persist -n -d $dev -i -r | grep -qiE "^[[:space:]]*Key=0x" ; then
+	      logger -t scsi_reserve \
+		"[info] reservation already exists on $dev"
+	      continue
+	  fi
 
-status)
+	  # create the scsi reservation
+	  #
+	  if ! sg_persist -n -d $dev -o -R -K $key -T 5 &> /dev/null ; then
+	      logger -t scsi_reserver \
+		"[error] unable to create reservation on $dev (key=0x$key)"
+	      : $[ count = $count + 1 ]
+	      error=1
+	  fi
+	done
 
-rval=0
+	# leave fence domain if any errors occured during registration
+	#
+	if [ $error -eq 0 ] ; then
+	    success
+	else
+	    logger -t scsi_reserve \
+		"[info] $count errors during registration"
+	    logger -t scsi_reserve \
+		"[info] leaving the fence domain"
+	    fence_tool leave
+	    failure
+	fi
 
-# find devices that are registered with our key
-#
-for dev in $scsi_devices
-do
-  if sg_persist -d $dev -i -k 2>/dev/null | grep -qiE "$key" ; then
-      devices[${#devices[@]}]=$dev
-  fi
-done
+	echo
 
-if [ -z "$devices" ]; then
-    echo "No devices resgistered."
-else
-    echo "Found ${#devices[@]} registered device(s):"
+	;; # end of start
 
-    for i in "${devices[@]}" ; do
-	echo $i
-    done
-fi
-;;
+    stop)
+
+	error=0
+	count=0
+
+	echo -n "Stopping scsi_reserve:"
+
+	for dev in $scsi_devices
+	do
+	  # get list of keys registered with this device
+	  #
+	  key_list=$( sg_persist -n -d $dev -i -k | grep -iE "^[[:space:]]*0x" )
+
+	  # check that our key is registered with this device
+	  #
+	  if ! sg_persist -d $dev -i -k | grep -qiE "^[[:space:]]*0x$key" ; then
+	      logger -t scsi_reserve \
+		"[info] not registered with $dev (key=0x$key)"
+	      continue
+	  fi
+
+	  # check if our key is the reservation holder
+	  #
+	  if sg_persist -n -d $dev -i -r 2>/dev/null | grep -qiE "$key" ; then
+	      if echo "$key_list" | grep -qivE "$key" ; then
+		  logger -t scsi_reserve \
+		      "[error] unable to remove registration on $dev (key=0x$key)"
+		  : $[ count = $count + 1 ]
+		  error=1
+		  continue
+	      fi
+	  fi
+
+	  # remove registration for this device
+	  #
+	  if ! sg_persist -n -d $dev -o -G -K $key -S 0 &> /dev/null ; then
+	      logger -t scsi_reserve \
+		"[error] failed to remove registration on $dev (key=0x$key)"
+	      : $[ count = $count + 1 ]
+	      error=1
+	  else
+	      logger -t scsi_reserve \
+		"[info] removed registration on $dev (key=0x$key)"
+	  fi
+
+	done
+
+	# report success or failure
+	#
+	if [ $error -eq 0 ] ; then
+	    success
+	else
+	    logger -t scsi_reserve \
+		"[info] $count errors occured during unregistration"
+	    failure
+	fi
+
+	echo
+
+	;; # end of stop
+
+    status)
+
+	error=0
+
+	for dev in $scsi_devices
+	do
+	  if sg_persist -n -d $dev -i -k | grep -qiE "$key" ; then
+	      devices[${#devices[@]}]=$dev
+	  fi
+	done
+
+	if [ -z "$devices" ] ; then
+	    echo "No registered devices found."
+	else
+	    echo "Found ${#devices[@]} registered device(s):"
+
+	    for i in "${devices[@]}"
+	    do
+	      echo $i
+	    done
+	fi
+
+	;; # end of status
 
 esac
 
-exit $rval
-
+exit $error
