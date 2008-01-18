@@ -10,7 +10,7 @@
 
 char *prog_name;
 char *fsname;
-int verbose;
+int verbose, fake_mount = 0, no_mtab = 0;
 static sigset_t old_sigset;
 
 static void print_version(void)
@@ -48,7 +48,7 @@ static void read_options(int argc, char **argv, struct mount_options *mo)
 	/* FIXME: check for "quiet" option and don't print in that case */
 
 	while (cont) {
-		optchar = getopt(argc, argv, "hVo:t:v");
+		optchar = getopt(argc, argv, "hVo:t:vfn");
 
 		switch (optchar) {
 		case EOF:
@@ -75,6 +75,14 @@ static void read_options(int argc, char **argv, struct mount_options *mo)
 		case 't':
 			if (optarg)
 				strncpy(mo->type, optarg, 4);
+			break;
+
+		case 'f':
+			fake_mount = 1;
+			break;
+			
+		case 'n':
+			no_mtab = 1;
 			break;
 
 		default:
@@ -184,7 +192,7 @@ int main(int argc, char **argv)
 	struct mount_options mo;
 	struct gen_sb sb;
 	char *proto;
-	int rv;
+	int rv = 0;
 
 	memset(&mo, 0, sizeof(mo));
 	memset(&sb, 0, sizeof(sb));
@@ -219,6 +227,7 @@ int main(int argc, char **argv)
 	   adding the mtab entry */
 	block_sigint();
 
+	if (!fake_mount) {
 	rv = mount_lockproto(proto, &mo, &sb);
 	if (rv < 0)
 		die("error mounting lockproto %s\n", proto);
@@ -238,12 +247,15 @@ int main(int argc, char **argv)
 	}
 	log_debug("mount(2) ok");
 	mount_result_lockproto(proto, &mo, &sb, 0);
+	}
 
+	if (!no_mtab) {
 	if (mo.flags & MS_REMOUNT) {
                 del_mtab_entry(&mo);
                 add_mtab_entry(&mo);
         } else
 		add_mtab_entry(&mo);
+	}
 
 	unblock_sigint();
 
