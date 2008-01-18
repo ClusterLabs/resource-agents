@@ -153,34 +153,38 @@ do_query_lock(void)
 void
 usage(char *name)
 {
+printf("usage: %s [command]\n\n", name);
+
 printf("Resource Group Control Commands:\n");
-printf("       %s -v                     Display version and exit\n",name);
-printf("       %s -d <group>             Disable <group>\n", name);
-printf("       %s -e <group>             Enable <group>\n",
-       name);
-printf("       %s -e <group> -F          Enable <group> according to failover\n"
-       "                                 domain rules\n", name);
-printf("       %s -e <group> -m <member> Enable <group>"
-       " on <member>\n", name);
-printf("       %s -r <group> -m <member> Relocate <group> [to <member>]\n",
-	       name);
-printf("       %s -M <group> -m <member> Migrate <group> to <member>\n",
-	       name);
-printf("                                 (e.g. for live migration of VMs)\n");
-printf("       %s -q                     Quiet operation\n", name);
-printf("       %s -R <group>             Restart a group in place.\n",
-       name);
-printf("       %s -s <group>             Stop <group>\n", name);
-printf("\n");
+printf("  -v                     Display version and exit\n");
+printf("  -d <group>             Disable <group>.  This stops a group\n"
+       "                         until an administrator enables it again,\n"
+       "                         the cluster loses and regains quorum, or\n"
+       "                         an administrator-defined event script\n"
+       "                         explicitly enables it again.\n");
+printf("  -e <group>             Enable <group>\n");
+printf("  -e <group> -F          Enable <group> according to failover\n"
+       "                         domain rules (deprecated; always the\n"
+       "                         case when using central processing)\n");
+printf("  -e <group> -m <member> Enable <group> on <member>\n");
+printf("  -r <group> -m <member> Relocate <group> [to <member>]\n"
+       "                         Stops a group and starts it on another"
+       "                         cluster member.\n");
+printf("  -M <group> -m <member> Migrate <group> to <member>\n");
+printf("                         (e.g. for live migration of VMs)\n");
+printf("  -q                     Quiet operation\n");
+printf("  -R <group>             Restart a group in place.\n");
+printf("  -s <group>             Stop <group>.  This temporarily stops\n"
+       "                         a group.  After the next group or\n"
+       "                         or cluster member transition, the group\n"
+       "                         will be restarted (if possible).\n");
 printf("Resource Group Locking (for cluster Shutdown / Debugging):\n");
-printf("       %s -l                     Lock local resource group manager.\n"
-       "                                 This prevents resource groups from\n"
-       "                                 starting on the local node.\n",
-       name);
-printf("       %s -S                     Show lock state\n", name);
-printf("       %s -u                     Unlock local resource group manager.\n"
-       "                                 This allows resource groups to start\n"
-       "                                 on the local node.\n", name);
+printf("  -l                     Lock local resource group managers.\n"
+       "                         This prevents resource groups from\n"
+       "                         starting.\n");
+printf("  -S                     Show lock state\n");
+printf("  -u                     Unlock resource group managers.\n"
+       "                         This allows resource groups to start.\n");
 }
 
 
