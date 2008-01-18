@@ -53,6 +53,8 @@
 
 [ -n "$CLUSTERNAME" ] && cman_join_opts="-c $CLUSTERNAME"
 
+[ -n "$NODENAME" ] && cman_join_opts+=" -n $NODENAME"
+
 load_modules()
 {
     errmsg=$( /sbin/modprobe configfs 2>&1 ) || return 1
@@ -194,12 +196,6 @@ fence_xvmd_enabled()
     # running on a machine capable of running xvmd.
     #
     which xm &> /dev/null || return 1
-	
-    #
-    # Check for presence of Domain-0; if it's not there, we can't
-    # run xvmd.
-    #
-    xm list --long 2> /dev/null | grep -q "Domain-0" || return 1
 	
     #
     # Check for presence of /cluster/fence_xvmd in cluster.conf
