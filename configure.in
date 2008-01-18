@@ -2918,16 +2918,6 @@ cts/Makefile					        	\
 	cts/OCFIPraTest.py              	                \
 	cts/CIB.py						\
 	cts/LSBDummy						\
-crm/Makefile							\
-	crm/cib/Makefile					\
-	crm/crmd/Makefile					\
-	crm/pengine/Makefile					\
-	crm/tengine/Makefile					\
-	crm/admin/Makefile					\
-	        crm/admin/crm_primitive.py			\
-	        crm/admin/crm_sh				\
-		crm/admin/crm_utils.py                          \
-		crm/admin/crm_commands.py			\
 debian/Makefile							\
 doc/Makefile							\
 	doc/startstop						\
@@ -2939,11 +2929,7 @@ contrib/Makefile						\
 	contrib/drbd-outdate-peer/Makefile			\
 include/Makefile						\
         include/clplumbing/Makefile				\
-	include/crm/Makefile					\
-		include/crm/common/Makefile			\
-		include/crm/pengine/Makefile			\
 	include/lrm/Makefile					\
-	include/mgmt/Makefile					\
         include/ocf/Makefile					\
         include/pils/Makefile					\
         include/pils/plugin.h					\
@@ -2955,13 +2941,7 @@ lib/Makefile							\
 	lib/apphb/Makefile					\
 	lib/clplumbing/Makefile					\
 	lib/hbclient/Makefile					\
-	lib/crm/Makefile					\
-	lib/crm/common/Makefile					\
-	lib/crm/cib/Makefile					\
-	lib/crm/pengine/Makefile				\
-	lib/crm/transition/Makefile				\
 	lib/lrm/Makefile					\
-	lib/mgmt/Makefile					\
 	lib/pils/Makefile					\
 	lib/plugins/Makefile					\
 		lib/plugins/InterfaceMgr/Makefile		\
@@ -2992,11 +2972,6 @@ lrm/Makefile							\
 	lrm/test/lrmregtest-lsb					\
 	lrm/test/lrmregtest-heartbeat					\
 	lrm/test/testcases/Makefile					\
-mgmt/Makefile							\
-	mgmt/daemon/Makefile					\
-	mgmt/client/Makefile					\
-		mgmt/client/haclient.py				\
-		mgmt/client/mgmtcmd.py				\
 heartbeat/Makefile						\
 	heartbeat/shellfuncs					\
 	heartbeat/rc.d/Makefile					\
@@ -3042,15 +3017,6 @@ port/Makefile							\
 		port/heartbeat/pkg-descr			\
 		port/heartbeat/pkg-install			\
 		port/heartbeat/pkg-plist			\
-snmp_subagent/Makefile						\
-	snmp_subagent/SNMPAgentSanityCheck			\
-cim/Makefile		        				\
-        cim/mof/Makefile                                        \
-        cim/mof/register_providers.sh                           \
-        cim/mof/unregister_providers.sh                         \
-tsa_plugin/Makefile						\
-tsa_plugin/testrun.sh						\
-tsa_plugin/linuxha-adapter					\
 telecom/Makefile						\
 	telecom/apphbd/Makefile					\
 	telecom/recoverymgrd/Makefile				\
@@ -3096,6 +3062,66 @@ resources/Makefile						\
 	resources/heartbeat/WinPopup				\
 	resources/heartbeat/Xinetd				\
 		)
+
+
+if test "x${enable_crm}" = "xyes"; then
+AC_CONFIG_FILES(					\
+crm/Makefile						\
+	crm/cib/Makefile				\
+	crm/crmd/Makefile				\
+	crm/pengine/Makefile				\
+	crm/tengine/Makefile				\
+	crm/admin/Makefile				\
+	        crm/admin/crm_primitive.py		\
+	        crm/admin/crm_sh			\
+		crm/admin/crm_utils.py                  \
+		crm/admin/crm_commands.py		\
+include/crm/Makefile					\
+	include/crm/common/Makefile			\
+	include/crm/pengine/Makefile			\
+lib/crm/Makefile					\
+	lib/crm/common/Makefile				\
+	lib/crm/cib/Makefile				\
+	lib/crm/pengine/Makefile			\
+	lib/crm/transition/Makefile			\
+	)
+fi
+
+if test "x${enable_mgmt}" = "xyes"; then
+AC_CONFIG_FILES(		  				\
+include/mgmt/Makefile						\
+lib/mgmt/Makefile						\
+mgmt/Makefile							\
+	mgmt/daemon/Makefile					\
+	mgmt/client/Makefile					\
+		mgmt/client/haclient.py				\
+		mgmt/client/mgmtcmd.py				\
+	)
+fi
+
+if test "x${enable_snmp_subagent}" = "xyes"; then
+AC_CONFIG_FILES(		  				\
+snmp_subagent/Makefile						\
+	snmp_subagent/SNMPAgentSanityCheck			\
+	)
+fi
+
+if test "x${enable_cim_provider}" = "xyes"; then
+AC_CONFIG_FILES(		  				\
+cim/Makefile		        				\
+        cim/mof/Makefile                                        \
+        cim/mof/register_providers.sh                           \
+        cim/mof/unregister_providers.sh                         \
+	)
+fi
+
+if test "x${enable_tsa_plugin}" = "xyes"; then
+AC_CONFIG_FILES(		  				\
+	tsa_plugin/Makefile					\
+	tsa_plugin/testrun.sh					\
+	tsa_plugin/linuxha-adapter				\
+	)
+fi
 
 dnl Now process the entire list of files added by previous 
 dnl  calls to AC_CONFIG_FILES()
