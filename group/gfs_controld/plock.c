@@ -1044,13 +1044,14 @@ static int send_struct_info(struct mountgroup *mg, struct gdlm_plock_info *in,
 	}
 	memset(buf, 0, len);
 
+	info_bswap_out(in);
+
 	hd = (struct gdlm_header *)buf;
 	hd->type = msg_type;
 	hd->nodeid = our_nodeid;
 	hd->to_nodeid = 0;
 
 	memcpy(buf + sizeof(struct gdlm_header), in, sizeof(*in));
-	info_bswap_out((struct gdlm_plock_info *) buf + sizeof(*hd));
 
 	rv = send_group_message(mg, len, buf);
 
