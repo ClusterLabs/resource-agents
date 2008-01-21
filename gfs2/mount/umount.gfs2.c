@@ -52,7 +52,7 @@ static void read_options(int argc, char **argv, struct mount_options *mo)
 	/* FIXME: check for "quiet" option and don't print in that case */
 
 	while (cont) {
-		optchar = getopt(argc, argv, "fhVvX:");
+		optchar = getopt(argc, argv, "fhVvX:r");
 
 		switch (optchar) {
 		case EOF:
@@ -78,6 +78,9 @@ static void read_options(int argc, char **argv, struct mount_options *mo)
 		case 'V':
 			print_version();
 			exit(EXIT_SUCCESS);
+
+		case 'r':
+			break; /* used by umount to remount ro if umount fails */
 
 		default:
 			break;
