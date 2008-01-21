@@ -53,10 +53,10 @@ configure_logging(int ccsfd)
 	char *v;
 	char internal = 0;
 
-	if (ccsfd == -1) {
+	if (ccsfd < 0) {
 		internal = 1;
 		ccsfd = ccs_connect();
-		if (ccsfd == -1)
+		if (ccsfd < 0)
 			return -1;
 	}
 
