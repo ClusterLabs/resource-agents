@@ -409,6 +409,9 @@ int ccs_disconnect(int desc){
 
   ENTER("ccs_disconnect");
 
+  if (desc < 0)
+	  return -EINVAL;
+
   if(!(buffer = malloc(512))){
     error = -ENOMEM;
     goto fail;
@@ -451,6 +454,9 @@ int _ccs_get(int desc, const char *query, char **rtn, int list){
   char *payload = NULL;
 
   ENTER("_ccs_get");
+
+  if (desc < 0)
+	  return -EINVAL;
 
   if(!(buffer = malloc(512))){
     error = -ENOMEM;
@@ -535,6 +541,9 @@ int ccs_get_state(int desc, char **cw_path, char **prev_query){
 
   ENTER("ccs_get_state");
 
+  if (desc < 0)
+	  return -EINVAL;
+
   if(!(buffer = malloc(512))){
     error = -ENOMEM;
     goto fail;
@@ -593,6 +602,9 @@ int ccs_set_state(int desc, const char *cw_path, int reset_query){
   char *payload = NULL;
 
   ENTER("ccs_set_state");
+
+  if (desc < 0)
+	  return -EINVAL;
 
   if(!(buffer = malloc(512))){
     error = -ENOMEM;
