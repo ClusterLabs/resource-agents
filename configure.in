@@ -1325,10 +1325,13 @@ dnl
 dnl OpenIMPI checks
 dnl
 
+if test "x${enable_ipmilan}" = "x"; then
+	enable_ipmilan="yes"
+fi
 if test "x${enable_ipmilan}" = "xyes" -o "x${enable_ipmilan}" = "xtry"; then
-	AC_MSG_CHECKING(For libOpenIPMI version 2 or greater)
+	AC_MSG_CHECKING(For libOpenIPMI version 1.4 or greater)
 	AC_TRY_COMPILE([#include <OpenIPMI/ipmiif.h>],
-		       [ #if (OPENIPMI_VERSION_MAJOR < 2 )
+		       [ #if (OPENIPMI_VERSION_MAJOR == 1) && (OPENIPMI_VERSION_MINOR < 4) 
 			 #error "Too Old"
 			 #endif ],
 		       AC_MSG_RESULT("yes"); enable_ipmilan="yes",
@@ -1782,7 +1785,7 @@ AC_ARG_ENABLE([snmp-subagent],
 
 AC_ARG_ENABLE([ipmilan],
 [  --enable-ipmilan       enable IPMILan Stonith Plugin
-                          [default=no]])
+                          [default=yes]])
 
 
 CC_WARNINGS=""
