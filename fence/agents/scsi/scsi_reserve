@@ -3,7 +3,7 @@
 # scsi_reserve:
 #
 # chkconfig: 345 25 75
-# description:
+# description: start/stop persistent reservation service for lvm
 # config: /etc/sysconfig/scsi_reserve
 
 . /etc/init.d/functions
