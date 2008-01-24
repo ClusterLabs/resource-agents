@@ -1618,8 +1618,6 @@ gfs_glock_dq(struct gfs_holder *gh)
 	struct gfs_sbd *sdp = gl->gl_sbd;
 	struct gfs_glock_operations *glops = gl->gl_ops;
 	struct list_head *pos;
-	struct gfs_holder *tmp_gh = NULL;
-	int count = 0;
 
 	atomic_inc(&gl->gl_sbd->sd_glock_dq_calls);
 
@@ -1630,14 +1628,13 @@ gfs_glock_dq(struct gfs_holder *gh)
 		set_bit(GLF_SYNC, &gl->gl_flags);
 
 	/* Don't cache glock; request demote to unlock at inter-node scope */
-	if (gh->gh_flags & GL_NOCACHE) {
-		list_for_each(pos, &gl->gl_holders) {
-			tmp_gh = list_entry(pos, struct gfs_holder, gh_list);
-			++count;
-		}
-		if (tmp_gh == gh && count == 1)
-			handle_callback(gl, LM_ST_UNLOCKED);
-	}
+	if (gh->gh_flags & GL_NOCACHE && gl->gl_holders.next == &gh->gh_list &&
+	    gl->gl_holders.prev == &gh->gh_list)
+		/* There's a race here.  If there are two holders, and both
+ 		 * are dq'ed at almost the same time, you can't guarantee that
+ 		 * you will call handle_callback. Fixing this will require
+ 		 * some refactoring */
+		handle_callback(gl, LM_ST_UNLOCKED);
 
 	lock_on_glock(gl);
 
