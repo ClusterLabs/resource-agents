@@ -75,6 +75,24 @@ nullify(void)
 
 
 /**
+  Set all signal handlers to default for exec of a script.
+  ONLY do this after a fork().
+ */
+void
+restore_signals(void)
+{
+	sigset_t set;
+	int x;
+
+	for (x = 1; x < _NSIG; x++)
+		signal(x, SIG_DFL);
+
+	sigfillset(&set);
+	sigprocmask(SIG_UNBLOCK, &set, NULL);
+}
+
+
+/**
   Spin off a user-defined heuristic
  */
 static int
@@ -117,6 +135,7 @@ fork_heuristic(struct h_data *h)
 	 */
 	set_priority(SCHED_OTHER, -1);
 	munlockall();
+	restore_signals();
 
 	argv[0] = "/bin/sh";
 	argv[1] = "-c";
