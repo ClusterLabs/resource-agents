@@ -26,6 +26,7 @@
 #include <linux/aio.h>
 #include <linux/writeback.h>
 #include <asm/uaccess.h>
+#include <linux/compat.h>
 
 #include "gfs_ioctl.h"
 #include "gfs.h"
@@ -333,17 +334,17 @@ do_read_direct(struct file *file, char *buf, size_t size, loff_t *offset,
 			goto out_gunlock;
 
 		count = do_read_readi(file, buf, size & ~mask, offset, iocb);
-	}
-	else {
-		if (!iocb)
-			count = do_sync_read(file, buf, size, offset);
-		else {
-			struct iovec local_iov = { .iov_base = buf, .iov_len = size};
+        }
+        else {
+                if (!iocb) 
+                        count = do_sync_read(file, buf, size, offset);
+                else {
+                        struct iovec local_iov = { .iov_base = buf, .iov_len = size};
 
-			count = generic_file_aio_read(iocb, &local_iov, 1, *offset);
-			iocb->ki_pos = *offset;
-		}
-	}
+                        count = generic_file_aio_read(iocb, &local_iov, 1, *offset);
+                        iocb->ki_pos = *offset;
+                }
+        }
 
 	error = 0;
 
@@ -387,17 +388,17 @@ do_read_buf(struct file *file, char *buf, size_t size, loff_t *offset,
 
 	if (gfs_is_jdata(ip) ||
 	    (gfs_is_stuffed(ip) && !test_bit(GIF_PAGED, &ip->i_flags)))
-		count = do_read_readi(file, buf, size, offset, iocb);
-	else {
-		if (!iocb) {
-			count = do_sync_read(file, buf, size, offset);
-		} else {
-			struct iovec local_iov = { .iov_base = buf, .iov_len = size};
+                count = do_read_readi(file, buf, size, offset, iocb);
+        else {
+                if (!iocb) {
+                        count = do_sync_read(file, buf, size, offset);
+                } else {
+                        struct iovec local_iov = { .iov_base = buf, .iov_len = size};
 
-			count = generic_file_aio_read(iocb, &local_iov, 1, *offset);
-			iocb->ki_pos = *offset;
-		}
-	}
+                        count = generic_file_aio_read(iocb, &local_iov, 1, *offset);
+                        iocb->ki_pos = *offset;
+                }
+        }
 
 	gfs_glock_dq_m(num_gh + 1, ghs);
 
@@ -438,16 +439,16 @@ gfs_read(struct file *file, char *buf, size_t size, loff_t *offset)
 
 /*
  * gfs_aio_read: match with vfs generic_file_aio_read as:
- * 	(struct kiocb *iocb, char __user *buf, size_t count, loff_t pos)
+ *      (struct kiocb *iocb, char __user *buf, size_t count, loff_t pos)
  */
 static ssize_t
 gfs_aio_read(struct kiocb *iocb, const struct iovec *iov, unsigned long count,
-			 loff_t pos)
+                         loff_t pos)
 {
-	struct file *filp = iocb->ki_filp;
+        struct file *filp = iocb->ki_filp;
 
-	BUG_ON(iocb->ki_pos != pos);
-	return(__gfs_read(filp, iov->iov_base, iov->iov_len, &iocb->ki_pos, iocb));
+        BUG_ON(iocb->ki_pos != pos);
+        return(__gfs_read(filp, iov->iov_base, iov->iov_len, &iocb->ki_pos, iocb));
 }
 
 /**
@@ -493,27 +494,27 @@ grope_mapping(char *buf, size_t size)
  */
 static ssize_t
 gfs_file_aio_write_nolock(struct file *file, char *buf, size_t size,
-						  loff_t *offset, struct kiocb *iocb)
+                                                  loff_t *offset, struct kiocb *iocb)
 {
-	struct iovec local_iov = { .iov_base = buf, .iov_len = size };
-	struct kiocb local_iocb, *kiocb = NULL;
-	ssize_t count;
+        struct iovec local_iov = { .iov_base = buf, .iov_len = size };
+        struct kiocb local_iocb, *kiocb = NULL;
+        ssize_t count;
 
-	if (!iocb) {
-		init_sync_kiocb(&local_iocb, file);
-		local_iocb.ki_nr_segs = 1;
-		kiocb = &local_iocb;
-	}
-	else
-		kiocb = iocb;
-	
-	kiocb->ki_pos = *offset;
-	count = generic_file_aio_write_nolock(kiocb, &local_iov, kiocb->ki_nr_segs,
-										  kiocb->ki_pos);
-	*offset = kiocb->ki_pos;
-	if (kiocb == &local_iocb && count == -EIOCBQUEUED)
-		count = wait_on_sync_kiocb(kiocb);
-	return count;
+        if (!iocb) {
+                init_sync_kiocb(&local_iocb, file);
+                local_iocb.ki_nr_segs = 1;
+                kiocb = &local_iocb;
+        }
+        else
+                kiocb = iocb;
+        
+        kiocb->ki_pos = *offset;
+        count = generic_file_aio_write_nolock(kiocb, &local_iov, kiocb->ki_nr_segs,
+                                                                                  kiocb->ki_pos);
+        *offset = kiocb->ki_pos;
+        if (kiocb == &local_iocb && count == -EIOCBQUEUED)
+                count = wait_on_sync_kiocb(kiocb);
+        return count;
 }
 
 /**
@@ -533,12 +534,12 @@ do_write_direct_alloc(struct file *file, char *buf, size_t size, loff_t *offset,
 			struct kiocb *iocb)
 {
 	struct inode *inode = file->f_mapping->host;
-	struct gfs_inode *ip = get_v2ip(inode);
-	struct gfs_sbd *sdp = ip->i_sbd;
-	struct gfs_alloc *al = NULL;
-	struct buffer_head *dibh;
-	unsigned int data_blocks, ind_blocks;
-	ssize_t count;
+        struct gfs_inode *ip = get_v2ip(inode);
+        struct gfs_sbd *sdp = ip->i_sbd;
+        struct gfs_alloc *al = NULL;
+        struct buffer_head *dibh;
+        unsigned int data_blocks, ind_blocks;
+        ssize_t count;
 	int error;
 
 	gfs_write_calc_reserv(ip, size, &data_blocks, &ind_blocks);
@@ -583,13 +584,13 @@ do_write_direct_alloc(struct file *file, char *buf, size_t size, loff_t *offset,
 	}
 
 	if (gfs_is_stuffed(ip)) { error = gfs_unstuff_dinode(ip, gfs_unstuffer_sync, NULL); if (error)
-			goto fail_end_trans;
-	}
+                        goto fail_end_trans;
+        }
 
-	count = gfs_file_aio_write_nolock(file, buf, size, offset, iocb);
-	if (count < 0) {
-		error = count;
-		goto fail_end_trans;
+        count = gfs_file_aio_write_nolock(file, buf, size, offset, iocb);
+        if (count < 0) {
+                error = count;
+                goto fail_end_trans;
 	}
 
 	error = gfs_get_inode_buffer(ip, &dibh);
@@ -747,23 +748,23 @@ do_write_direct(struct file *file, char *buf, size_t size, loff_t *offset,
 
 			buf += error;
 			size -= error;
-			count += error;
-		}
-	} else {
-		struct gfs_holder t_gh;
+                        count += error;
+                }
+        } else {
+                struct gfs_holder t_gh;
 
-		clear_bit(GFF_DID_DIRECT_ALLOC, &fp->f_flags);
+                clear_bit(GFF_DID_DIRECT_ALLOC, &fp->f_flags);
 
 		error = gfs_glock_nq_init(sdp->sd_trans_gl, LM_ST_SHARED, 0, &t_gh);
 		if (error)
 			goto out_gunlock;
 
-		/* Todo: It would be nice if init_sync_kiocb is exported.
-		 *  .. wcheng
-		 */
-		count = gfs_file_aio_write_nolock(file, buf, size, offset, iocb);
-		gfs_glock_dq_uninit(&t_gh);
-	}
+                /* Todo: It would be nice if init_sync_kiocb is exported.
+                 *  .. wcheng
+                 */
+                count = gfs_file_aio_write_nolock(file, buf, size, offset, iocb);
+                gfs_glock_dq_uninit(&t_gh);
+        }
 
 out_iocb_write:
 	error = 0;
@@ -881,13 +882,13 @@ do_do_write_buf(struct file *file, char *buf, size_t size, loff_t *offset,
 				ClearPageUptodate(page);
 				page_cache_release(page);
 			}
-		}
-		*offset += count;
-	} else {
-		count = gfs_file_aio_write_nolock(file, buf, size, offset, iocb);
-		if (count < 0) {
-			error = count;
-			goto fail_end_trans;
+                }
+                *offset += count;
+        } else {
+                count = gfs_file_aio_write_nolock(file, buf, size, offset, iocb);
+                if (count < 0) {
+                        error = count;
+                        goto fail_end_trans;
 		}
 
 		error = gfs_get_inode_buffer(ip, &dibh);
@@ -1061,14 +1062,14 @@ gfs_write(struct file *file, const char *buf, size_t size, loff_t *offset)
 
 static ssize_t
 gfs_aio_write(struct kiocb *iocb, const struct iovec *iov, unsigned long segs,
-			  loff_t pos)
+                          loff_t pos)
 {
-	struct file *file = iocb->ki_filp;
+        struct file *file = iocb->ki_filp;
 
-	BUG_ON(iocb->ki_pos != pos);
+        BUG_ON(iocb->ki_pos != pos);
 
-	return(__gfs_write(file, iov->iov_base, iov->iov_len, &iocb->ki_pos, 
-					   iocb));
+        return(__gfs_write(file, iov->iov_base, iov->iov_len, &iocb->ki_pos, 
+                                           iocb));
 }
 
 /**
@@ -1373,6 +1374,41 @@ gfs_ioctl(struct inode *inode, struct file *file,
 	}
 }
 
+#ifdef CONFIG_COMPAT
+/**
+ * gfs_compat_ioctl - do an ioctl on a file - compatible between 32-64 bit
+ * @inode: the inode
+ * @file: the file pointer
+ * @cmd: the ioctl command
+ * @arg: the argument
+ *
+ * Returns: errno
+ */
+
+static long
+gfs_compat_ioctl(struct file *file, unsigned cmd, unsigned long arg)
+{
+        struct gfs_inode *ip = get_v2ip(file->f_mapping->host);
+
+	atomic_inc(&ip->i_sbd->sd_ops_file);
+
+	switch (cmd) {
+	case GFS_IOCTL_IDENTIFY: {
+                unsigned int x = GFS_MAGIC;
+                if (copy_to_user((unsigned int *)arg, &x, sizeof(unsigned int)))
+                        return -EFAULT;
+		return 0;
+        }
+
+        case GFS_IOCTL_SUPER:
+                return gfs_ioctl_i_compat(ip, arg);
+
+        default:
+                return -ENOTTY;
+	}
+}
+#endif
+
 /**
  * gfs_mmap - We don't support shared writable mappings right now
  * @file: The file to map
@@ -1577,24 +1613,24 @@ gfs_lock(struct file *file, int cmd, struct file_lock *fl)
 
 	if (!(fl->fl_flags & FL_POSIX))
 		return -ENOLCK;
-	if ((ip->i_di.di_mode & (S_ISGID | S_IXGRP)) == S_ISGID)
-		return -ENOLCK;
+        if ((ip->i_di.di_mode & (S_ISGID | S_IXGRP)) == S_ISGID)
+                return -ENOLCK;
 
-	if (sdp->sd_args.ar_localflocks) {
-		if (IS_GETLK(cmd)) {
-			posix_test_lock(file, fl);
-			return 0;
-		} else {
-			return posix_lock_file_wait(file, fl);
-		}
-	}
+        if (sdp->sd_args.ar_localflocks) {
+                if (IS_GETLK(cmd)) {
+                        posix_test_lock(file, fl);
+                        return 0;
+                } else {
+                        return posix_lock_file_wait(file, fl);
+                }
+        }
 
-	if (IS_GETLK(cmd))
-		return gfs_lm_plock_get(sdp, &name, file, fl);
-	else if (fl->fl_type == F_UNLCK)
+        if (IS_GETLK(cmd))
+                return gfs_lm_plock_get(sdp, &name, file, fl);
+        else if (fl->fl_type == F_UNLCK)
 		return gfs_lm_punlock(sdp, &name, file, fl);
 	else
-		return gfs_lm_plock(sdp, &name, file, cmd, fl);
+                return gfs_lm_plock(sdp, &name, file, cmd, fl);
 }
 
 #if 0
@@ -1635,7 +1671,7 @@ gfs_sendfile(struct file *in_file, loff_t *offset, size_t count, read_actor_t ac
  out:
 	gfs_holder_uninit(&gh);
 
-	return retval;
+        return retval;
 }
 #endif
 
@@ -1731,22 +1767,22 @@ do_unflock(struct file *file, struct file_lock *fl)
 static int
 gfs_flock(struct file *file, int cmd, struct file_lock *fl)
 {
-	struct gfs_inode *ip = get_v2ip(file->f_mapping->host);
-	struct gfs_sbd *sdp = ip->i_sbd;
+        struct gfs_inode *ip = get_v2ip(file->f_mapping->host);
+        struct gfs_sbd *sdp = ip->i_sbd;
 
-	atomic_inc(&ip->i_sbd->sd_ops_file);
+        atomic_inc(&ip->i_sbd->sd_ops_file);
 
 	if (!(fl->fl_flags & FL_FLOCK))
 		return -ENOLCK;
-	if ((ip->i_di.di_mode & (S_ISGID | S_IXGRP)) == S_ISGID)
-		return -ENOLCK;
+        if ((ip->i_di.di_mode & (S_ISGID | S_IXGRP)) == S_ISGID)
+                return -ENOLCK;
 
-	if (sdp->sd_args.ar_localflocks)
-		return flock_lock_file_wait(file, fl);
+        if (sdp->sd_args.ar_localflocks)
+                return flock_lock_file_wait(file, fl);
 
-	if (fl->fl_type == F_UNLCK) {
-		do_unflock(file, fl);
-		return 0;
+        if (fl->fl_type == F_UNLCK) {
+                do_unflock(file, fl);
+                return 0;
 	} else
 		return do_flock(file, cmd, fl);
 }
@@ -1758,21 +1794,27 @@ struct file_operations gfs_file_fops = {
         .aio_read = gfs_aio_read,
         .aio_write = gfs_aio_write,
 	.ioctl = gfs_ioctl,
+#ifdef CONFIG_COMPAT
+        .compat_ioctl   = gfs_compat_ioctl,
+#endif
 	.mmap = gfs_mmap,
 	.open = gfs_open,
-	.release = gfs_close,
-	.fsync = gfs_fsync,
-	.lock = gfs_lock,
-	/* .sendfile = gfs_sendfile, */
-	.flock = gfs_flock,
+        .release = gfs_close,
+        .fsync = gfs_fsync,
+        .lock = gfs_lock,
+        /* .sendfile = gfs_sendfile, */
+        .flock = gfs_flock,
 };
 
 struct file_operations gfs_dir_fops = {
 	.readdir = gfs_readdir,
 	.ioctl = gfs_ioctl,
+#ifdef CONFIG_COMPAT
+        .compat_ioctl   = gfs_compat_ioctl,
+#endif
 	.open = gfs_open,
 	.release = gfs_close,
 	.fsync = gfs_fsync,
-	.lock = gfs_lock,
-	.flock = gfs_flock,
+        .lock = gfs_lock,
+        .flock = gfs_flock,
 };

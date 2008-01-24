@@ -19,6 +19,7 @@
 #include <linux/completion.h>
 #include <linux/buffer_head.h>
 #include <asm/uaccess.h>
+#include <linux/compat.h>
 
 #include "gfs_ioctl.h"
 #include "gfs.h"
@@ -509,7 +510,7 @@ do { \
  */
 
 static int
-gi_set_tune(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
+gi_set_tune(struct gfs_sbd *sdp, struct gfs_ioctl *gi, int from_user)
 {
 	struct gfs_tune *gt = &sdp->sd_tune;
  	char param[ARG_SIZE], value[ARG_SIZE];
@@ -521,12 +522,21 @@ gi_set_tune(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 	if (gi->gi_argc != 3)
 		return -EINVAL;
 
-	if (strncpy_from_user(param, gi->gi_argv[1], ARG_SIZE) < 0)
-		return -EFAULT;
+	if (from_user) {
+		if (strncpy_from_user(param, gi->gi_argv[1], ARG_SIZE) < 0)
+			return -EFAULT;
+	} else {
+		strncpy(param, gi->gi_argv[1], ARG_SIZE);
+	}
 	param[ARG_SIZE - 1] = 0;
 
-	if (strncpy_from_user(value, gi->gi_argv[2], ARG_SIZE) < 0)
-		return -EFAULT;
+	if (from_user) {
+		if (strncpy_from_user(value, gi->gi_argv[2], ARG_SIZE) < 0)
+			return -EFAULT;
+	} else {
+		strncpy(value, gi->gi_argv[2], ARG_SIZE);
+	}
+
 	value[ARG_SIZE - 1] = 0;
 
 	if (strcmp(param, "ilimit1") == 0) {
@@ -884,7 +894,7 @@ gi_get_file_stat(struct gfs_inode *ip, struct gfs_ioctl *gi)
  */
 
 static int
-gi_set_file_flag(struct gfs_inode *ip, struct gfs_ioctl *gi)
+gi_set_file_flag(struct gfs_inode *ip, struct gfs_ioctl *gi, int from_user)
 {
 	char buf[ARG_SIZE];
 	int set;
@@ -896,8 +906,12 @@ gi_set_file_flag(struct gfs_inode *ip, struct gfs_ioctl *gi)
 	if (gi->gi_argc != 3)
 		return -EINVAL;
 
-	if (strncpy_from_user(buf, gi->gi_argv[1], ARG_SIZE) < 0)
-		return -EFAULT;
+	if (from_user) {
+		if (strncpy_from_user(buf, gi->gi_argv[1], ARG_SIZE) < 0)
+			return -EFAULT;
+	} else {
+		strncpy(buf, gi->gi_argv[1], ARG_SIZE);
+	}
 	buf[ARG_SIZE - 1] = 0;
 
 	if (strcmp(buf, "set") == 0)
@@ -907,8 +921,12 @@ gi_set_file_flag(struct gfs_inode *ip, struct gfs_ioctl *gi)
 	else
 		return -EINVAL;
 
-        if (strncpy_from_user(buf, gi->gi_argv[2], ARG_SIZE) < 0)
-                return -EFAULT;
+	if (from_user) {
+		if (strncpy_from_user(buf, gi->gi_argv[2], ARG_SIZE) < 0)
+			return -EFAULT;
+	} else {
+		strncpy(buf, gi->gi_argv[2], ARG_SIZE);
+	}
         buf[ARG_SIZE - 1] = 0;
 
 	error = gfs_glock_nq_init(ip->i_gl, LM_ST_EXCLUSIVE, 0, &i_gh);
@@ -1065,15 +1083,19 @@ gi_do_file_flush(struct gfs_inode *ip, struct gfs_ioctl *gi)
  */
 
 static struct gfs_inode *
-gi2hip(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
+gi2hip(struct gfs_sbd *sdp, struct gfs_ioctl *gi, int from_user)
 {
 	char buf[ARG_SIZE];
 
 	if (gi->gi_argc != 2)
 		return ERR_PTR(-EINVAL);
 
-        if (strncpy_from_user(buf, gi->gi_argv[1], ARG_SIZE) < 0)
-                return ERR_PTR(-EFAULT);
+	if (from_user) {
+		if (strncpy_from_user(buf, gi->gi_argv[1], ARG_SIZE) < 0)
+			return ERR_PTR(-EFAULT);
+	} else {
+		strncpy(buf, gi->gi_argv[1], ARG_SIZE);
+	}
         buf[ARG_SIZE - 1] = 0;
 
 	if (strcmp(buf, "jindex") == 0)
@@ -1097,14 +1119,14 @@ gi2hip(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
  */
 
 static int
-gi_get_hfile_stat(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
+gi_get_hfile_stat(struct gfs_sbd *sdp, struct gfs_ioctl *gi, int from_user)
 {
 	struct gfs_inode *ip;
 	struct gfs_dinode *di;
 	struct gfs_holder i_gh;
 	int error;
 
-	ip = gi2hip(sdp, gi);
+	ip = gi2hip(sdp, gi, from_user);
 	if (IS_ERR(ip))
 		return PTR_ERR(ip);
 
@@ -1142,7 +1164,7 @@ gi_get_hfile_stat(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
  */
 
 static int
-gi_do_hfile_read(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
+gi_do_hfile_read(struct gfs_sbd *sdp, struct gfs_ioctl *gi, int from_user)
 {
 	struct gfs_inode *ip;
 	struct gfs_holder i_gh;
@@ -1151,7 +1173,7 @@ gi_do_hfile_read(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
         if (!capable(CAP_SYS_ADMIN))
                 return -EACCES;
 
-	ip = gi2hip(sdp, gi);
+	ip = gi2hip(sdp, gi, from_user);
 	if (IS_ERR(ip))
 		return PTR_ERR(ip);
 
@@ -1179,7 +1201,7 @@ gi_do_hfile_read(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
  */
 
 static int
-gi_do_hfile_write(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
+gi_do_hfile_write(struct gfs_sbd *sdp, struct gfs_ioctl *gi, int from_user)
 {
 	struct gfs_inode *ip;
 	struct gfs_alloc *al = NULL;
@@ -1191,7 +1213,7 @@ gi_do_hfile_write(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
         if (!capable(CAP_SYS_ADMIN))
                 return -EACCES;
 
-	ip = gi2hip(sdp, gi);
+	ip = gi2hip(sdp, gi, from_user);
 	if (IS_ERR(ip))
 		return PTR_ERR(ip);
 
@@ -1248,8 +1270,12 @@ gi_do_hfile_write(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 			goto out_relse;
 	}
 
-	error = gfs_writei(ip, gi->gi_data, gi->gi_offset, gi->gi_size,
-			   gfs_copy_from_user, NULL);
+	if (from_user)
+		error = gfs_writei(ip, gi->gi_data, gi->gi_offset, gi->gi_size,
+				   gfs_copy_from_user, NULL);
+	else
+		error = gfs_writei(ip, gi->gi_data, gi->gi_offset, gi->gi_size,
+				   gfs_copy_from_mem, NULL);
 
 	gfs_trans_end(sdp);
 
@@ -1283,7 +1309,7 @@ gi_do_hfile_write(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
  */
 
 static int
-gi_do_hfile_trunc(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
+gi_do_hfile_trunc(struct gfs_sbd *sdp, struct gfs_ioctl *gi, int from_user)
 {
 	struct gfs_inode *ip;
 	struct gfs_holder i_gh;
@@ -1292,7 +1318,7 @@ gi_do_hfile_trunc(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 	if (!capable(CAP_SYS_ADMIN))
 		return -EACCES;
 
-	ip = gi2hip(sdp, gi);
+	ip = gi2hip(sdp, gi, from_user);
 	if (IS_ERR(ip))
 		return PTR_ERR(ip);
 
@@ -1335,7 +1361,7 @@ gi_do_quota_sync(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
  */
 
 static int
-gi_do_quota_refresh(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
+gi_do_quota_refresh(struct gfs_sbd *sdp, struct gfs_ioctl *gi, int from_user)
 {
 	char buf[ARG_SIZE];
 	int user;
@@ -1346,8 +1372,12 @@ gi_do_quota_refresh(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 	if (gi->gi_argc != 2)
 		return -EINVAL;
 
-        if (strncpy_from_user(buf, gi->gi_argv[1], ARG_SIZE) < 0)
-                return -EFAULT;
+	if (from_user) {
+		if (strncpy_from_user(buf, gi->gi_argv[1], ARG_SIZE) < 0)
+			return -EFAULT;
+	} else {
+		strncpy(buf, gi->gi_argv[1], ARG_SIZE);
+	}
         buf[ARG_SIZE - 1] = 0;
 
 	switch (buf[0]) {
@@ -1379,7 +1409,7 @@ gi_do_quota_refresh(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
  */
 
 static int
-gi_do_quota_read(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
+gi_do_quota_read(struct gfs_sbd *sdp, struct gfs_ioctl *gi, int from_user)
 {
 	char buf[ARG_SIZE];
 	int user;
@@ -1392,8 +1422,12 @@ gi_do_quota_read(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 	if (gi->gi_size != sizeof(struct gfs_quota))
 		return -EINVAL;
 
-        if (strncpy_from_user(buf, gi->gi_argv[1], ARG_SIZE) < 0)
-                return -EFAULT;
+	if (from_user) {
+		if (strncpy_from_user(buf, gi->gi_argv[1], ARG_SIZE) < 0)
+			return -EFAULT;
+	} else {
+		strncpy(buf, gi->gi_argv[1], ARG_SIZE);
+	}
         buf[ARG_SIZE - 1] = 0;
 
 	switch (buf[0]) {
@@ -1423,8 +1457,64 @@ gi_do_quota_read(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 	return 0;
 }
 
+int
+gfs_ioctl_i_local(struct gfs_inode *ip, struct gfs_ioctl *gi, const char *arg0,
+	int from_user)
+{
+	int error = -EFAULT;
+
+	if (strcmp(arg0, "get_cookie") == 0)
+		error = gi_skeleton(ip, gi, gi_get_cookie);
+	else if (strcmp(arg0, "get_super") == 0)
+		error = gi_get_super(ip->i_sbd, gi);
+	else if (strcmp(arg0, "get_args") == 0)
+		error = gi_skeleton(ip, gi, gi_get_args);
+	else if (strcmp(arg0, "get_lockstruct") == 0)
+		error = gi_skeleton(ip, gi, gi_get_lockstruct);
+	else if (strcmp(arg0, "get_stat_gfs") == 0)
+		error = gi_skeleton(ip, gi, gi_get_stat_gfs);
+	else if (strcmp(arg0, "get_counters") == 0)
+		error = gi_skeleton(ip, gi, gi_get_counters);
+	else if (strcmp(arg0, "get_tune") == 0)
+		error = gi_skeleton(ip, gi, gi_get_tune);
+	else if (strcmp(arg0, "set_tune") == 0)
+		error = gi_set_tune(ip->i_sbd, gi, from_user);
+	else if (strcmp(arg0, "do_reclaim") == 0)
+		error = gi_skeleton(ip, gi, gi_do_reclaim);
+	else if (strcmp(arg0, "do_shrink") == 0)
+		error = gi_do_shrink(ip->i_sbd, gi);
+	else if (strcmp(arg0, "get_file_stat") == 0)
+		error = gi_get_file_stat(ip, gi);
+	else if (strcmp(arg0, "set_file_flag") == 0)
+		error = gi_set_file_flag(ip, gi, from_user);
+	else if (strcmp(arg0, "get_file_meta") == 0)
+		error = gi_get_file_meta(ip, gi);
+	else if (strcmp(arg0, "get_file_meta_quota") == 0)
+		error = gi_get_file_meta(ip->i_sbd->sd_qinode, &gi);
+	else if (strcmp(arg0, "do_file_flush") == 0)
+		error = gi_do_file_flush(ip, gi);
+	else if (strcmp(arg0, "get_hfile_stat") == 0)
+		error = gi_get_hfile_stat(ip->i_sbd, gi, from_user);
+	else if (strcmp(arg0, "do_hfile_read") == 0)
+		error = gi_do_hfile_read(ip->i_sbd, gi, from_user);
+	else if (strcmp(arg0, "do_hfile_write") == 0)
+		error = gi_do_hfile_write(ip->i_sbd, gi, from_user);
+	else if (strcmp(arg0, "do_hfile_trunc") == 0)
+		error = gi_do_hfile_trunc(ip->i_sbd, gi, from_user);
+	else if (strcmp(arg0, "do_quota_sync") == 0)
+		error = gi_do_quota_sync(ip->i_sbd, gi);
+	else if (strcmp(arg0, "do_quota_refresh") == 0)
+		error = gi_do_quota_refresh(ip->i_sbd, gi, from_user);
+	else if (strcmp(arg0, "do_quota_read") == 0)
+		error = gi_do_quota_read(ip->i_sbd, gi, from_user);
+	else
+		error = -ENOTTY;
+
+	return error;
+}
+
 /**
- * gfs_ioctl_i -
+ * gfs_ioctl_i - Normal ioctls
  * @ip:
  * @arg:
  *
@@ -1455,58 +1545,73 @@ gfs_ioctl_i(struct gfs_inode *ip, void *arg)
 	if (strncpy_from_user(arg0, argv[0], ARG_SIZE) < 0)
 		goto out;
 	arg0[ARG_SIZE - 1] = 0;
-
-	if (strcmp(arg0, "get_cookie") == 0)
-                error = gi_skeleton(ip, &gi, gi_get_cookie);
-	else if (strcmp(arg0, "get_super") == 0)
-		error = gi_get_super(ip->i_sbd, &gi);
-	else if (strcmp(arg0, "get_args") == 0)
-		error = gi_skeleton(ip, &gi, gi_get_args);
-	else if (strcmp(arg0, "get_lockstruct") == 0)
-		error = gi_skeleton(ip, &gi, gi_get_lockstruct);
-        else if (strcmp(arg0, "get_stat_gfs") == 0)
-                error = gi_skeleton(ip, &gi, gi_get_stat_gfs);
-        else if (strcmp(arg0, "get_counters") == 0)
-                error = gi_skeleton(ip, &gi, gi_get_counters);
-        else if (strcmp(arg0, "get_tune") == 0)
-                error = gi_skeleton(ip, &gi, gi_get_tune);
-	else if (strcmp(arg0, "set_tune") == 0)
-		error = gi_set_tune(ip->i_sbd, &gi);
-	else if (strcmp(arg0, "do_reclaim") == 0)
-		error = gi_skeleton(ip, &gi, gi_do_reclaim);
-	else if (strcmp(arg0, "do_shrink") == 0)
-		error = gi_do_shrink(ip->i_sbd, &gi);
-	else if (strcmp(arg0, "get_file_stat") == 0)
-		error = gi_get_file_stat(ip, &gi);
-	else if (strcmp(arg0, "set_file_flag") == 0)
-		error = gi_set_file_flag(ip, &gi);
-	else if (strcmp(arg0, "get_file_meta") == 0)
-		error = gi_get_file_meta(ip, &gi);
-	else if (strcmp(arg0, "get_file_meta_quota") == 0)
-		error = gi_get_file_meta(ip->i_sbd->sd_qinode, &gi);
-	else if (strcmp(arg0, "do_file_flush") == 0)
-		error = gi_do_file_flush(ip, &gi);
-	else if (strcmp(arg0, "get_hfile_stat") == 0)
-		error = gi_get_hfile_stat(ip->i_sbd, &gi);
-	else if (strcmp(arg0, "do_hfile_read") == 0)
-		error = gi_do_hfile_read(ip->i_sbd, &gi);
-	else if (strcmp(arg0, "do_hfile_write") == 0)
-		error = gi_do_hfile_write(ip->i_sbd, &gi);
-	else if (strcmp(arg0, "do_hfile_trunc") == 0)
-		error = gi_do_hfile_trunc(ip->i_sbd, &gi);
-	else if (strcmp(arg0, "do_quota_sync") == 0)
-		error = gi_do_quota_sync(ip->i_sbd, &gi);
-	else if (strcmp(arg0, "do_quota_refresh") == 0)
-		error = gi_do_quota_refresh(ip->i_sbd, &gi);
-	else if (strcmp(arg0, "do_quota_read") == 0)
-		error = gi_do_quota_read(ip->i_sbd, &gi);
-	else
-		error = -ENOTTY;
-
+	error = gfs_ioctl_i_local(ip, &gi, arg0, 1);
  out:
 	kfree(argv);
 
 	return error;
 }
 
+#ifdef CONFIG_COMPAT
+/**
+ * gfs_ioctl_i_compat - compatibility ioctls
+ *                      These ioctls are used to provide ioctls for situations
+ *                      where userland and kernel arch is different.
+ *                      For example, userland may be 32-bit ppc whereas the
+ *                      kernel may be ppc64.  In this case, we need to do
+ *                      extra translation between the addresses.
+ * @ip:
+ * @arg:
+ *
+ * Returns: -errno or positive byte count
+ */
 
+int
+gfs_ioctl_i_compat(struct gfs_inode *ip, unsigned long arg)
+{
+	struct gfs_ioctl_compat *src;
+	struct gfs_ioctl dst;
+	char **argv, *argptr;
+	uint32_t *ptr;
+	char arg0[ARG_SIZE];
+	char *tmparg;
+	int i;
+	int error = -EFAULT;
+
+	src = (struct gfs_ioctl_compat *)compat_ptr(arg);
+
+	memset(&dst, 0, sizeof(dst));
+	dst.gi_argc = src->gi_argc;
+	dst.gi_size = src->gi_size;
+	dst.gi_offset = src->gi_offset;
+
+	argv = kmalloc(dst.gi_argc * sizeof(char *), GFP_KERNEL);
+	if (!argv)
+		return -ENOMEM;
+
+	memset(argv, 0, dst.gi_argc * sizeof(char *));
+	ptr = (uint32_t *)compat_ptr(src->gi_argv);
+
+	for (i = 0; i < dst.gi_argc; i++) { /* for each parm */
+		tmparg = kmalloc(ARG_SIZE * sizeof(char *), GFP_KERNEL);
+		if (!tmparg)
+			goto out;
+		argptr = (char *)compat_ptr(*ptr);
+		if (strncpy_from_user(tmparg, argptr, ARG_SIZE) < 0)
+			goto out;
+		argv[i] = tmparg;
+		ptr++;
+	}
+
+	strncpy(arg0, argv[0], ARG_SIZE);
+	arg0[ARG_SIZE - 1] = 0;
+	dst.gi_argv = argv;
+	dst.gi_data = compat_ptr(src->gi_data);
+	error = gfs_ioctl_i_local(ip, &dst, arg0, 0);
+ out:
+	for (i = 0; i < dst.gi_argc; i++)
+		kfree(argv[i]);
+	kfree(argv);
+	return error;
+}
+#endif
