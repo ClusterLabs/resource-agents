@@ -932,7 +932,8 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 		ctx->qc_master = master_exists(ctx, ni, max, &low_id, &count);
 
 		/* Resolve master conflict, if one exists */
-		if (count > 1 && ctx->qc_status == S_MASTER) {
+		if (count >= 1 && ctx->qc_status == S_MASTER &&
+		    ctx->qc_master != ctx->qc_my_id) {
 			clulog(LOG_WARNING, "Master conflict: abdicating\n");
 
 			/* Handle just like a recent upgrade */
