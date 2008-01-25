@@ -1,3 +1,8 @@
+2008-01-25 Lon Hohberger <lhh at redhat.com>
+	* src/daemons/rg_thread.c: Fix case that broke 'clusvcadm -e <service>
+	-n <node>' case #430220
+	* src/daemons/rg_state.c: Don't enable migrate-to-self (#430272)
+
 2008-01-02 Fabio M. Di Nitto <fabbione at ubuntu.com>
 	* src/resources/ocf-shellfuncs: Add interpreter.
 

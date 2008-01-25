@@ -910,6 +910,12 @@ svc_migrate(char *svcName, int target)
 		return RG_EFAIL;
 	}
 
+	if (svcStatus.rs_owner == target) {
+		rg_unlock(&lockp);
+		/* Do not allow migration to its current owner! */
+		return 0;
+	}
+
 	if (svcStatus.rs_owner != my_id()) {
 		rg_unlock(&lockp);
 		return RG_EFORWARD;

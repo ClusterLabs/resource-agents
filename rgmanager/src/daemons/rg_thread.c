@@ -264,14 +264,12 @@ resgroup_thread_main(void *arg)
 			break;
 
 		case RG_ENABLE:
-			#if 0
 			if (req->rr_target != 0 &&
 			    req->rr_target != my_id()) {
 				error = RG_EFORWARD;
 				ret = RG_NONE;
 				break;
 			}
-			#endif
 		case RG_START:
 			if (req->rr_arg0) {
 				error = handle_fd_start_req(myname,
