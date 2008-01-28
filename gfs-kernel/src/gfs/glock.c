@@ -1617,7 +1617,6 @@ gfs_glock_dq(struct gfs_holder *gh)
 	struct gfs_glock *gl = gh->gh_gl;
 	struct gfs_sbd *sdp = gl->gl_sbd;
 	struct gfs_glock_operations *glops = gl->gl_ops;
-	struct list_head *pos;
 
 	atomic_inc(&gl->gl_sbd->sd_glock_dq_calls);
 
