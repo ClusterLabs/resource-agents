@@ -94,9 +94,10 @@ static int gfs_private_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
  */
 
 static int
-alloc_page_backing(struct gfs_inode *ip, unsigned long index)
+alloc_page_backing(struct gfs_inode *ip, struct page *page)
 {
 	struct gfs_sbd *sdp = ip->i_sbd;
+	unsigned long index = page->index;
 	uint64_t lblock = index << (PAGE_CACHE_SHIFT - sdp->sd_sb.sb_bsize_shift);
 	unsigned int blocks = PAGE_CACHE_SIZE >> sdp->sd_sb.sb_bsize_shift;
 	struct gfs_alloc *al;
@@ -179,8 +180,7 @@ static int gfs_sharewrite_fault(struct vm_area_struct *vma,
 				struct vm_fault *vmf)
 {
 	struct file *file = vma->vm_file;
-	struct gfs_file *gf = file->private_data;
-	struct gfs_inode *ip = get_v2ip(vma->vm_file->f_mapping->host);
+	struct gfs_inode *ip = get_v2ip(file->f_mapping->host);
 	struct gfs_holder i_gh;
 	int alloc_required;
 	int error;

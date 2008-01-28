@@ -44,49 +44,6 @@ struct get_name_filldir
 };
 
 /**
- * gfs_decode_fh -
- * @param1: description
- * @param2: description
- * @param3: description
- *
- * Function description
- *
- * Returns: what is returned
- */
-
-struct dentry *
-gfs_decode_fh(struct super_block *sb, __u32 *fh, int fh_len, int fh_type,
-	      int (*acceptable)(void *context, struct dentry *dentry),
-	      void *context)
-{
-	struct inode_cookie this, parent;
-
-	atomic_inc(&get_v2sdp(sb)->sd_ops_export);
-
-	memset(&parent, 0, sizeof(struct inode_cookie));
-
-	switch (fh_type) {
-	case 6:
-		parent.gen_valid = TRUE;
-		parent.gen = gfs32_to_cpu(fh[5]);
-	case 5:
-		parent.formal_ino = ((uint64_t)gfs32_to_cpu(fh[3])) << 32;
-		parent.formal_ino |= (uint64_t)gfs32_to_cpu(fh[4]);
-	case 3:
-		this.gen_valid = TRUE;
-		this.gen = gfs32_to_cpu(fh[2]);
-		this.formal_ino = ((uint64_t)gfs32_to_cpu(fh[0])) << 32;
-		this.formal_ino |= (uint64_t)gfs32_to_cpu(fh[1]);
-		break;
-	default:
-		return NULL;
-	}
-
-	return gfs_export_ops.find_exported_dentry(sb, &this, &parent,
-						   acceptable, context);
-}
-
-/**
  * gfs_encode_fh -
  * @param1: description
  * @param2: description
@@ -290,10 +247,9 @@ gfs_get_parent(struct dentry *child)
  */
 
 struct dentry *
-gfs_get_dentry(struct super_block *sb, void *inump)
+gfs_get_dentry(struct super_block *sb, struct inode_cookie *cookie)
 {
 	struct gfs_sbd *sdp = get_v2sdp(sb);
-	struct inode_cookie *cookie = (struct inode_cookie *)inump;
 	struct gfs_inum inum;
 	struct gfs_holder i_gh, ri_gh, rgd_gh;
 	struct gfs_rgrpd *rgd;
@@ -406,11 +362,55 @@ gfs_get_dentry(struct super_block *sb, void *inump)
 	return ERR_PTR(error);
 }
 
-struct export_operations gfs_export_ops = {
-	.decode_fh = gfs_decode_fh,
+static struct dentry *gfs_fh_to_dentry(struct super_block *sb, struct fid *fid,
+		int fh_len, int fh_type)
+{
+	struct inode_cookie this;
+	__u32 *fh = fid->raw;
+
+	atomic_inc(&get_v2sdp(sb)->sd_ops_export);
+
+	switch (fh_type) {
+	case 6:
+	case 5:
+	case 3:
+		this.gen_valid = TRUE;
+		this.gen = gfs32_to_cpu(fh[2]);
+		this.formal_ino = ((uint64_t)gfs32_to_cpu(fh[0])) << 32;
+		this.formal_ino |= (uint64_t)gfs32_to_cpu(fh[1]);
+		return gfs_get_dentry(sb, &this);
+	default:
+		return NULL;
+	}
+}
+
+static struct dentry *gfs_fh_to_parent(struct super_block *sb, struct fid *fid,
+		int fh_len, int fh_type)
+{
+	struct inode_cookie parent;
+	__u32 *fh = fid->raw;
+
+	atomic_inc(&get_v2sdp(sb)->sd_ops_export);
+
+	switch (fh_type) {
+	case 6:
+		parent.gen_valid = TRUE;
+		parent.gen = gfs32_to_cpu(fh[5]);
+	case 5:
+		parent.formal_ino = ((uint64_t)gfs32_to_cpu(fh[3])) << 32;
+		parent.formal_ino |= (uint64_t)gfs32_to_cpu(fh[4]);
+	default:
+		return NULL;
+	}
+
+	return gfs_get_dentry(sb, &parent);
+}
+
+const struct export_operations gfs_export_ops = {
 	.encode_fh = gfs_encode_fh,
+	.fh_to_dentry = gfs_fh_to_dentry,
+	.fh_to_parent = gfs_fh_to_parent,
 	.get_name = gfs_get_name,
 	.get_parent = gfs_get_parent,
-	.get_dentry = gfs_get_dentry,
 };
 
