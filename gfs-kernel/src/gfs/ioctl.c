@@ -1490,7 +1490,7 @@ gfs_ioctl_i_local(struct gfs_inode *ip, struct gfs_ioctl *gi, const char *arg0,
 	else if (strcmp(arg0, "get_file_meta") == 0)
 		error = gi_get_file_meta(ip, gi);
 	else if (strcmp(arg0, "get_file_meta_quota") == 0)
-		error = gi_get_file_meta(ip->i_sbd->sd_qinode, &gi);
+		error = gi_get_file_meta(ip->i_sbd->sd_qinode, gi);
 	else if (strcmp(arg0, "do_file_flush") == 0)
 		error = gi_do_file_flush(ip, gi);
 	else if (strcmp(arg0, "get_hfile_stat") == 0)
