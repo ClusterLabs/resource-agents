@@ -21,6 +21,7 @@
 #include <linux/proc_fs.h>
 #include <linux/module.h>
 #include <linux/init.h>
+#include <linux/time.h>
 
 #include "gfs.h"
 #include "ops_fstype.h"
@@ -36,6 +37,7 @@
 int __init init_gfs_fs(void)
 {
 	int error;
+	struct timespec tv;
 
 /*	gfs2_init_lmh(); gfs2 should do this for us*/
 
@@ -46,7 +48,8 @@ int __init init_gfs_fs(void)
 	if (error)
 		goto fail;
 
-	gfs_random_number = xtime.tv_nsec;
+	getnstimeofday(&tv);
+	gfs_random_number = tv.tv_nsec;
 
 	gfs_glock_cachep = kmem_cache_create("gfs_glock", sizeof(struct gfs_glock),
 					     0, 0,
