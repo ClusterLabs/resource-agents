@@ -2641,10 +2641,13 @@ fi
 
 if test "x${enable_mgmt}" != "xno"; then
   RPM_ENABLE_MGMT_CONFIG=1
+  MGMT_DIR=mgmt
 else
   RPM_ENABLE_MGMT_CONFIG=0
+  MGMT_DIR=""
 fi
 AC_SUBST(RPM_ENABLE_MGMT_CONFIG)
+AC_SUBST(MGMT_DIR)
 
 if test "x${enable_openhpi}" != "xno"; then
   RPM_ENABLE_OPENHPI=1
