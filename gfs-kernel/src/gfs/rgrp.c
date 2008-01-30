@@ -1456,8 +1456,13 @@ blkalloc_internal(struct gfs_rgrpd *rgd,
 		goal = 0;
 	}
 
-	if (gfs_assert_withdraw(rgd->rd_sbd, x <= length))
-		blk = 0;
+	if (unlikely(x > length)) {
+		printk("GFS error: possible RG corruption\n");
+		printk("    please run gfs_fsck after withdraw\n");
+		dump_stack();
+		if (gfs_assert_withdraw(rgd->rd_sbd, x <= length))
+			blk = 0;
+	}
 
 	/* Attach bitmap buffer to trans, modify bits to do block alloc */
 	gfs_trans_add_bh(rgd->rd_gl, rgd->rd_bh[buf]);
