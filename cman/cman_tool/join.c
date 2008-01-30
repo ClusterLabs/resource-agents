@@ -121,11 +121,10 @@ int join(commandline_t *comline)
 	}
 	if (comline->noccs_opt) {
 		envp[envptr++] = strdup("CMAN_NOCCS=true");
-		envp[envptr++] = strdup("OPENAIS_DEFAULT_CONFIG_IFACE=cmanpreconfig");
 	}
-	else {
-		envp[envptr++] = strdup("OPENAIS_DEFAULT_CONFIG_IFACE=cmanconfig");
-	}
+
+	/* Use cman to configure services */
+	envp[envptr++] = strdup("OPENAIS_DEFAULT_CONFIG_IFACE=cmanconfig");
 
 	/* Create a pipe to monitor cman startup progress */
 	pipe(p);
