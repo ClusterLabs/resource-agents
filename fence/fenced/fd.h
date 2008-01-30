@@ -132,12 +132,15 @@ struct commandline
 {
 	int post_join_delay;
 	int post_fail_delay;
+	int override_time;
+	int pad;
 	char *override_path;
 	int8_t clean_start;
 	int8_t post_join_delay_opt;
 	int8_t post_fail_delay_opt;
 	int8_t clean_start_opt;
 	int8_t override_path_opt;
+	int8_t override_time_opt;
 };
 
 #define FDFL_RUN        (0)

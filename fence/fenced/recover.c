@@ -402,7 +402,8 @@ static void fence_victims(fd_t *fd, int start_type)
 
 		/* Check for manual intervention */
 		override = open_override(comline.override_path);
-		if (check_override(override, node->name, 5) > 0) {
+		if (check_override(override, node->name,
+				   comline.override_time) > 0) {
 			syslog(LOG_WARNING, "fence \"%s\" overridden by "
 			       "administrator intervention", node->name);
 

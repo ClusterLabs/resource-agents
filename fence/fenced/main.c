@@ -15,7 +15,7 @@
 #include "ccs.h"
 #include "copyright.cf"
 
-#define OPTION_STRING			("cj:f:Dn:O:hVS")
+#define OPTION_STRING			("cj:f:Dn:O:T:hVS")
 #define LOCKFILE_NAME			"/var/run/fenced.pid"
 
 struct client {
@@ -160,6 +160,20 @@ static int setup_ccs(fd_t *fd)
 			comline.override_path = strdup(DEFAULT_OVERRIDE_PATH);
 		if (str)
 			free(str);
+	}
+
+	if (comline.override_time_opt == FALSE) {
+		str = NULL;
+		memset(path, 0, 256);
+		sprintf(path, "/cluster/fence_daemon/@override_time");
+
+		error = ccs_get(cd, path, &str);
+		if (!error && str)
+			comline.override_time = atoi(str);
+		if (str)
+			free(str);
+		if (comline.override_time < 3)
+			comline.override_time = 3;
 	}
 
 	log_debug("delay post_join %ds post_fail %ds",
@@ -576,6 +590,8 @@ static void decode_arguments(int argc, char **argv, commandline_t *comline)
 	comline->post_join_delay_opt = FALSE;
 	comline->post_fail_delay_opt = FALSE;
 	comline->clean_start_opt = FALSE;
+	comline->override_time_opt = FALSE;
+	comline->override_time = 5;	/* default */
 
 	while (cont) {
 		optchar = getopt(argc, argv, OPTION_STRING);
@@ -600,6 +616,13 @@ static void decode_arguments(int argc, char **argv, commandline_t *comline)
 		case 'O':
 			comline->override_path = strdup(optarg);
 			comline->override_path_opt = TRUE;
+			break;
+
+		case 'R':
+			comline->override_time = atoi(optarg);
+			if (comline->override_time < 3)
+				comline->override_time = 3;
+			comline->override_time_opt = TRUE;
 			break;
 
 		case 'D':

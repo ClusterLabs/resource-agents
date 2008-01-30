@@ -143,6 +143,12 @@ fenced and fence_ack_manual.
 
   <fence_daemon override_path="/var/run/cluster/fenced_override"/>
 
+Override-time is the amount of time to wait for administrator intervention
+after fencing has failed.  The default is 5 seconds.
+
+  <fence_daemon override_time="10"/>
+
+
 .SS Per-node fencing settings
 
 The per-node fencing configuration can become complex and is largely
@@ -273,7 +279,11 @@ Post-fail fencing delay
 All nodes are in a clean state to start.
 .TP
 \fB-O\fP
-Path of the override fifo.
+Path of the override FIFO.
+.TP
+\fB-T\fP
+Amount of time to wait for administrator intervention after 
+fencing has failed, in seconds.
 .TP
 \fB-D\fP
 Enable debugging code and don't fork into the background.
