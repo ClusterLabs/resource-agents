@@ -45,6 +45,7 @@ typedef struct {
 	int retr_time;
 	arg_flags_t flags;
 	int debug;
+	int ttl;
 } fence_xvm_args_t;
 
 /* Private structure for commandline / stdin fencing args */

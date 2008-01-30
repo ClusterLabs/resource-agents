@@ -111,7 +111,7 @@ ipv4_recv_sk(char *addr, int port)
  */
 int
 ipv4_send_sk(char *send_addr, char *addr, int port, struct sockaddr *tgt,
-	     socklen_t tgt_len)
+	     socklen_t tgt_len, int ttl)
 {
 	int val;
 	struct ip_mreq mreq;
@@ -182,8 +182,8 @@ ipv4_send_sk(char *send_addr, char *addr, int port, struct sockaddr *tgt,
 	/*
 	 * set time to live to 2 hops.
 	 */
-	dbg_printf(4, "Setting TTL to 2 for fd%d\n", sock);
-	val = 2;
+	dbg_printf(4, "Setting TTL to %d for fd%d\n", ttl, sock);
+	val = ttl;
 	if (setsockopt(sock, SOL_IP, IP_MULTICAST_TTL, &val,
 		       sizeof(val)))
 		printf("warning: setting TTL failed %s\n", strerror(errno));
@@ -278,7 +278,7 @@ ipv6_recv_sk(char *addr, int port)
  */
 int
 ipv6_send_sk(char *send_addr, char *addr, int port, struct sockaddr *tgt,
-	     socklen_t tgt_len)
+	     socklen_t tgt_len, int ttl)
 {
 	int val;
 	struct ipv6_mreq mreq;
@@ -361,7 +361,7 @@ ipv6_send_sk(char *send_addr, char *addr, int port, struct sockaddr *tgt,
 	/*
 	 * set time to live to 2 hops.
 	 */
-	val = 2;
+	val = ttl;
 	if (setsockopt(sock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &val,
 		       sizeof(val)))
 		printf("warning: setting TTL failed %s\n", strerror(errno));

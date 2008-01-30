@@ -96,6 +96,17 @@ assign_address(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 
 
 static inline void
+assign_ttl(fence_xvm_args_t *args, struct arg_info *arg, char *value)
+{
+	int ttl;
+	ttl = atoi(value);
+	if (ttl < 1 || ttl > 255)
+		ttl = DEFAULT_TTL;
+	args->ttl = ttl;
+}
+
+
+static inline void
 assign_port(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 {
 	args->port = atoi(value);
@@ -260,6 +271,7 @@ assign_nocluster(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 }
 
 
+
 /** ALL valid command line and stdin arguments for this fencing agent */
 static struct arg_info _arg_info[] = {
 	{ '\xff', NULL, "agent",
@@ -285,6 +297,10 @@ static struct arg_info _arg_info[] = {
 	{ 'a', "-a <address>", "multicast_address",
 	  "Multicast address (default=225.0.0.12 / ff02::3:1)",
 	  assign_address },
+
+	{ 'T', "-T <ttl>", "multicast_ttl",
+	  "Multicast time-to-live (in hops; default=2)",
+	  assign_ttl },
 
 	{ 'p', "-p <port>", "port",
 	  "IP port (default=1229)",
@@ -399,6 +415,7 @@ args_init(fence_xvm_args_t *args)
 	args->retr_time = 20;
 	args->flags = 0;
 	args->debug = 0;
+	args->ttl = DEFAULT_TTL;
 }
 
 

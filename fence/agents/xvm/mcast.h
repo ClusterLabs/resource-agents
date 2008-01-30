@@ -24,9 +24,11 @@
 
 int ipv4_recv_sk(char *addr, int port);
 int ipv4_send_sk(char *src_addr, char *addr, int port,
-		 struct sockaddr *src, socklen_t slen);
+		 struct sockaddr *src, socklen_t slen,
+		 int ttl);
 int ipv6_recv_sk(char *addr, int port);
 int ipv6_send_sk(char *src_addr, char *addr, int port,
-		 struct sockaddr *src, socklen_t slen);
+		 struct sockaddr *src, socklen_t slen,
+		 int ttl);
 
 #endif

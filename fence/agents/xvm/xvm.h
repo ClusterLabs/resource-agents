@@ -56,6 +56,8 @@ typedef enum {
      /* FENCE_ON = 0x3            Turn the VM on */
 } fence_cmd_t;
 
+#define DEFAULT_TTL 4
+
 #define MAX_HASH_LENGTH SHA512_LENGTH
 
 typedef struct __attribute__ ((packed)) _fence_req {

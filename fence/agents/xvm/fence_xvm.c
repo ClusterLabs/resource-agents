@@ -155,7 +155,8 @@ send_multicast_packets(ip_list_t *ipl, fence_xvm_args_t *args, void *key,
 			mc_sock = ipv4_send_sk(ipa->ipa_address, args->addr,
 					       args->port,
 					       (struct sockaddr *)&tgt4,
-					       sizeof(struct sockaddr_in));
+					       sizeof(struct sockaddr_in),
+					       args->ttl);
 			tgt = (struct sockaddr *)&tgt4;
 			tgt_len = sizeof(tgt4);
 			
@@ -163,7 +164,8 @@ send_multicast_packets(ip_list_t *ipl, fence_xvm_args_t *args, void *key,
 			mc_sock = ipv6_send_sk(ipa->ipa_address, args->addr,
 					       args->port,
 					       (struct sockaddr *)&tgt6,
-					       sizeof(struct sockaddr_in6));
+					       sizeof(struct sockaddr_in6),
+					       args->ttl);
 			tgt = (struct sockaddr *)&tgt6;
 			tgt_len = sizeof(tgt6);
 		} else {
@@ -317,7 +319,7 @@ int
 main(int argc, char **argv)
 {
 	fence_xvm_args_t args;
-	char *my_options = "di:a:p:r:C:c:k:H:uo:t:?hV";
+	char *my_options = "di:a:p:T:r:C:c:k:H:uo:t:?hV";
 
 	args_init(&args);
 	if (argc == 1) {
