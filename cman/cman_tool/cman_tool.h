@@ -56,6 +56,8 @@ do { \
 #define MAX_MCAST_NAME_LEN 256
 #define MAX_PATH_LEN 256
 
+#define DEBUG_STARTUP_ONLY 32
+
 enum format_opt
 {
 	FMT_NONE,

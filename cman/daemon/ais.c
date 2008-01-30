@@ -249,6 +249,7 @@ static int cman_readconfig(struct objdb_iface_ver0 *objdb, char **error_string)
 static int cman_exec_init_fn(struct objdb_iface_ver0 *objdb)
 {
 	unsigned int object_handle;
+	char pipe_msg[256];
 
 	/* We can only work if our config interface was run first */
 	if (!config_run)
@@ -273,7 +274,9 @@ static int cman_exec_init_fn(struct objdb_iface_ver0 *objdb)
 	/* Open local sockets and initialise I/O queues */
 	cman_init();
 
-	/* Let cman_tool know we are running */
+	/* Let cman_tool know we are running and our PID */
+	sprintf(pipe_msg,"SUCCESS: %d", getpid());
+	write_cman_pipe(pipe_msg);
 	close(startup_pipe);
 	startup_pipe = 0;
 
