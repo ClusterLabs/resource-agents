@@ -61,48 +61,6 @@ gfs_ea_name2type(const char *name, char **truncated_name)
 }
 
 /**
- * user_eo_get -
- * @ip:
- * @er:
- *
- * Returns: errno
- */
-
-static int
-user_eo_get(struct gfs_inode *ip, struct gfs_ea_request *er)
-{
-	return gfs_ea_get_i(ip, er);
-}
-
-/**
- * user_eo_set -
- * @ip:
- * @er:
- *
- * Returns: errno
- */
-
-static int
-user_eo_set(struct gfs_inode *ip, struct gfs_ea_request *er)
-{
-	return gfs_ea_set_i(ip, er);
-}
-
-/**
- * user_eo_remove -
- * @ip:
- * @er:
- *
- * Returns: errno
- */
-
-static int
-user_eo_remove(struct gfs_inode *ip, struct gfs_ea_request *er)
-{
-	return gfs_ea_remove_i(ip, er);
-}
-
-/**
  * system_eo_get -
  * @ip:
  * @er:
@@ -198,52 +156,10 @@ system_eo_remove(struct gfs_inode *ip, struct gfs_ea_request *er)
 	return gfs_ea_remove_i(ip, er);	
 }
 
-/**
- * security_eo_get -
- * @ip:
- * @er:
- *
- * Returns: errno
- */
-
-static int
-security_eo_get(struct gfs_inode *ip, struct gfs_ea_request *er)
-{
-	return gfs_ea_get_i(ip, er);
-}
-
-/**
- * security_eo_set -
- * @ip:
- * @er:
- *
- * Returns: errno
- */
-
-static int
-security_eo_set(struct gfs_inode *ip, struct gfs_ea_request *er)
-{
-	return gfs_ea_set_i(ip, er);
-}
-
-/**
- * security_eo_remove -
- * @ip:
- * @er:
- *
- * Returns: errno
- */
-
-static int
-security_eo_remove(struct gfs_inode *ip, struct gfs_ea_request *er)
-{
-	return gfs_ea_remove_i(ip, er);
-}
-
 struct gfs_eattr_operations gfs_user_eaops = {
-	.eo_get = user_eo_get,
-	.eo_set = user_eo_set,
-	.eo_remove = user_eo_remove,
+	.eo_get = gfs_ea_get_i,
+	.eo_set = gfs_ea_set_i,
+	.eo_remove = gfs_ea_remove_i,
 	.eo_name = "user",
 };
 
@@ -255,9 +171,9 @@ struct gfs_eattr_operations gfs_system_eaops = {
 };
 
 struct gfs_eattr_operations gfs_security_eaops = {
-	.eo_get = security_eo_get,
-	.eo_set = security_eo_set,
-	.eo_remove = security_eo_remove,
+	.eo_get = gfs_ea_get_i,
+	.eo_set = gfs_ea_set_i,
+	.eo_remove = gfs_ea_remove_i,
 	.eo_name = "security",
 };
 
