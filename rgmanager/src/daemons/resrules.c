@@ -919,7 +919,7 @@ read_pipe(int fd, char **file, size_t *length)
 		if (n == 0 && (!*length))
 			return 0;
 
-		if (n != sizeof(buf)) {
+		if (n == 0) {
 			done = 1;
 		}
 
