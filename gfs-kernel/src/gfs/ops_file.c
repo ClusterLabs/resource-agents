@@ -1616,15 +1616,6 @@ gfs_lock(struct file *file, int cmd, struct file_lock *fl)
         if ((ip->i_di.di_mode & (S_ISGID | S_IXGRP)) == S_ISGID)
                 return -ENOLCK;
 
-        if (sdp->sd_args.ar_localflocks) {
-                if (IS_GETLK(cmd)) {
-                        posix_test_lock(file, fl);
-                        return 0;
-                } else {
-                        return posix_lock_file_wait(file, fl);
-                }
-        }
-
         if (IS_GETLK(cmd))
                 return gfs_lm_plock_get(sdp, &name, file, fl);
         else if (fl->fl_type == F_UNLCK)
@@ -1766,7 +1757,6 @@ static int
 gfs_flock(struct file *file, int cmd, struct file_lock *fl)
 {
         struct gfs_inode *ip = get_v2ip(file->f_mapping->host);
-        struct gfs_sbd *sdp = ip->i_sbd;
 
         atomic_inc(&ip->i_sbd->sd_ops_file);
 
@@ -1774,9 +1764,6 @@ gfs_flock(struct file *file, int cmd, struct file_lock *fl)
 		return -ENOLCK;
         if ((ip->i_di.di_mode & (S_ISGID | S_IXGRP)) == S_ISGID)
                 return -ENOLCK;
-
-        if (sdp->sd_args.ar_localflocks)
-                return flock_lock_file_wait(file, fl);
 
         if (fl->fl_type == F_UNLCK) {
                 do_unflock(file, fl);
@@ -1815,4 +1802,32 @@ struct file_operations gfs_dir_fops = {
 	.fsync = gfs_fsync,
         .lock = gfs_lock,
         .flock = gfs_flock,
+};
+
+struct file_operations gfs_file_fops_nolock = {
+	.llseek = gfs_llseek,
+	.read = gfs_read,
+	.write = gfs_write,
+	.aio_read = gfs_aio_read,
+	.aio_write = gfs_aio_write,
+	.ioctl = gfs_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = gfs_compat_ioctl,
+#endif
+	.mmap = gfs_mmap,
+	.open = gfs_open,
+	.release = gfs_close,
+	.fsync = gfs_fsync,
+	.splice_read = gfs_splice_read,
+};
+
+struct file_operations gfs_dir_fops_nolock = {
+	.readdir = gfs_readdir,
+	.ioctl = gfs_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = gfs_compat_ioctl,
+#endif
+	.open = gfs_open,
+	.release = gfs_close,
+	.fsync = gfs_fsync,
 };

@@ -170,6 +170,7 @@ gfs_inode_attr_out(struct gfs_inode *ip)
 struct inode *
 gfs_iget(struct gfs_inode *ip, int create)
 {
+	struct gfs_sbd *sdp = ip->i_sbd;
 	struct inode *inode = NULL, *tmp;
 
 	spin_lock(&ip->i_spin);
@@ -189,13 +190,19 @@ gfs_iget(struct gfs_inode *ip, int create)
 	/* Attach GFS-specific ops vectors */
 	if (ip->i_di.di_type == GFS_FILE_REG) {
 		tmp->i_op = &gfs_file_iops;
-		tmp->i_fop = &gfs_file_fops;
 		memcpy(&ip->gfs_file_aops, &gfs_file_aops,
 			   sizeof(struct address_space_operations));
 		tmp->i_mapping->a_ops = &ip->gfs_file_aops;
+		if (sdp->sd_args.ar_localflocks)
+			tmp->i_fop = &gfs_file_fops_nolock;
+		else
+			tmp->i_fop = &gfs_file_fops;
 	} else if (ip->i_di.di_type == GFS_FILE_DIR) {
 		tmp->i_op = &gfs_dir_iops;
-		tmp->i_fop = &gfs_dir_fops;
+		if (sdp->sd_args.ar_localflocks)
+			tmp->i_fop = &gfs_dir_fops_nolock;
+		else
+			tmp->i_fop = &gfs_dir_fops;
 	} else if (ip->i_di.di_type == GFS_FILE_LNK) {
 		tmp->i_op = &gfs_symlink_iops;
 	} else {
