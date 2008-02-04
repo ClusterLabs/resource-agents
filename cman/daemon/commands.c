@@ -1889,7 +1889,8 @@ static void process_internal_message(char *data, int len, int nodeid, int need_b
 		killmsg = (struct cl_killmsg *)data;
 		P_MEMB("got KILL for node %d\n", killmsg->nodeid);
 		if (killmsg->nodeid == wanted_nodeid) {
-			log_printf(LOG_INFO, "cman killed by node %d because %s\n", nodeid,
+			/* Must use syslog directly here or the message will never arrive */
+			syslog(LOG_CRIT, "cman killed by node %d because %s\n", nodeid,
 				killmsg_reason(killmsg->reason));
 			exit(1);
 		}
