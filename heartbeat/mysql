@@ -334,6 +334,20 @@ mysql_start() {
         chown -R $OCF_RESKEY_user:$OCF_RESKEY_group $OCF_RESKEY_datadir
     fi
 
+    pid_dir=`dirname $OCF_RESKEY_pid`
+    if [ ! -d $pid_dir ] ; then
+	ocf_log info "Creating PID dir: $pid_dir"
+	mkdir -p $pid_dir
+	chown $OCF_RESKEY_user:$OCF_RESKEY_group $pid_dir
+    fi
+
+    socket_dir=`dirname $OCF_RESKEY_socket`
+    if [ ! -d $socket_dir ] ; then
+	ocf_log info "Creating socket dir: $socket_dir"
+	mkdir -p $socket_dir
+	chown $OCF_RESKEY_user:$OCF_RESKEY_group $socket_dir
+    fi
+
     # Uncomment to perform permission clensing
     # - not convinced this should be enabled by default
     #
