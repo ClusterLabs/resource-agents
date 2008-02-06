@@ -56,11 +56,24 @@ function ha_lvm_proper_setup_check
 {
 	##
 	# Machine's cluster node name must be present as
-	# a tag in lvm.conf:activation/volume_list
+	# a tag in lvm.conf:activation/volume_list and the volume group
+	# to be failed over must NOT be there.
 	##
-	if ! lvm dumpconfig activation/volume_list >& /dev/null ||
-	   ! lvm dumpconfig activation/volume_list | grep $(local_node_name); then
-		ocf_log err "lvm.conf improperly configured for HA LVM."
+	if ! lvm dumpconfig activation/volume_list >& /dev/null; then
+		ocf_log err "HA LVM:  Improper setup detected"
+		ocf_log err "- \"volume_list\" not specified in lvm.conf."
+		return $OCF_ERR_GENERIC
+	fi
+
+	if ! lvm dumpconfig activation/volume_list | grep $(local_node_name); then
+		ocf_log err "HA LVM:  Improper setup detected"
+		ocf_log err "- @$(local_node_name) missing from \"volume_list\" in lvm.conf"
+		return $OCF_ERR_GENERIC
+	fi
+
+	if lvm dumpconfig activation/volume_list | grep $OCF_RESKEY_vg_name; then
+		ocf_log err "HA LVM:  Improper setup detected"
+		ocf_log err "- $OCF_RESKEY_vg_name found in \"volume_list\" in lvm.conf"
 		return $OCF_ERR_GENERIC
 	fi
 
