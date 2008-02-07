@@ -18,10 +18,11 @@
 #
 # OCF instance parameters:
 #	OCF_RESKEY_InstanceName
-#       OCF_RESKEY_DIR_EXECUTABLE   (optional, well known directories will be searched by default)
-#       OCF_RESKEY_DIR_PROFILE      (optional, well known directories will be searched by default)
-#       OCF_RESKEY_START_PROFILE    (optional, well known directories will be searched by default)
-#       OCF_RESKEY_START_WAITTIME   (optional, to solve timing problems during J2EE-Addin start)
+#	OCF_RESKEY_DIR_EXECUTABLE   (optional, well known directories will be searched by default)
+#	OCF_RESKEY_DIR_PROFILE      (optional, well known directories will be searched by default)
+#	OCF_RESKEY_START_PROFILE    (optional, well known directories will be searched by default)
+#	OCF_RESKEY_START_WAITTIME   (optional, to solve timing problems during J2EE-Addin start)
+#	OCF_RESKEY_AUTOMATIC_RECOVER    (optional, automatic startup recovery using cleanipc, default is false)
 #	OCF_RESKEY_PRE_START_USEREXIT	(optional, lists a script which can be executed before the resource is started)
 #	OCF_RESKEY_POST_START_USEREXIT	(optional, lists a script which can be executed after the resource is started)
 #	OCF_RESKEY_PRE_STOP_USEREXIT	(optional, lists a script which can be executed before the resource is stopped)
@@ -59,7 +60,7 @@ meta_data() {
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="SAPInstance">
-<version>1.7</version>
+<version>1.9</version>
 
 <longdesc lang="en">
 Resource script for SAP. It manages a SAP Instance as an HA resource.
@@ -92,6 +93,11 @@ Resource script for SAP. It manages a SAP Instance as an HA resource.
   <shortdesc lang="en">Check the successful start after that time (do not wait for J2EE-Addin)</shortdesc>
   <content type="string" default="3600" />
  </parameter>
+ <parameter name="AUTOMATIC_RECOVER" unique="1" required="0">
+  <longdesc lang="en">The SAPInstance resource agent tries to recover a failed start attempt automaticaly one time. This is done by killing runing instance processes and executing cleanipc.</longdesc>
+  <shortdesc lang="en">Enable or disable automatic startup recovery</shortdesc>
+  <content type="boolean" default="false"/>
+ </parameter>
  <parameter name="PRE_START_USEREXIT" unique="1" required="0">
   <longdesc lang="en">The full qualified path where to find a script or program which should be executed before this resource gets started.</longdesc>
   <shortdesc lang="en">path to a pre-start script</shortdesc>
@@ -116,6 +122,7 @@ Resource script for SAP. It manages a SAP Instance as an HA resource.
 
 <actions>
 <action name="start" timeout="180" />
+<action name="recover" timeout="240" />
 <action name="stop" timeout="240" />
 <action name="status" timeout="60" />
 <action name="monitor" depth="0" timeout="60" interval="120" start-delay="240" />
@@ -134,6 +141,7 @@ END
 sapinstance_methods() {
   cat <<-!
 	start
+	recover
 	stop
 	status
 	monitor
@@ -152,6 +160,9 @@ sapinstance_methods() {
 #
 check_sapstartsrv() {
   restart=0
+  runninginst=""
+  chkrc=$OCF_SUCCESS
+
   output=`$SAPCONTROL -nr $InstanceNr -function ParameterValue INSTANCE_NAME -format script`
   if [ $? -eq 0 ]
   then
@@ -175,17 +186,24 @@ check_sapstartsrv() {
 
     # now make sure the daemon has been started and is able to respond
     srvrc=1
-    while [ $srvrc -eq 1 ]
+    while [ $srvrc -eq 1 -a `pgrep -f "sapstartsrv.*$runninginst" | wc -l` -gt 0 ]
     do
       sleep 1
       $SAPCONTROL -nr $InstanceNr -function GetProcessList > /dev/null 2>&1
       srvrc=$?
     done
 
-    ocf_log info "sapstartsrv for instance $SID-$InstanceName was restarted !"
+    if [ $srvrc -ne 1 ]
+    then
+      ocf_log info "sapstartsrv for instance $SID-$InstanceName was restarted !"
+      chkrc=$OCF_SUCCESS
+    else
+      ocf_log error "sapstartsrv for instance $SID-$InstanceName could not be started!"
+      chkrc=$OCF_NOT_RUNNING
+    fi
   fi
 
-  return 0
+  return $chkrc
 }
 
 
@@ -215,50 +233,98 @@ sapuserexit() {
   return 0
 }
 
+
+#
+# cleanup_instance : remove resources (processes and shared memory) from a crashed instance)
+#
+cleanup_instance() {
+  pkill -9 -f -U $sidadm $InstanceName
+  $DIR_EXECUTABLE/cleanipc $InstanceNr remove
+  return 0
+}
+
 #
 # sapinstance_start : Start the SAP instance
 #
 sapinstance_start() {
+
   sapuserexit PRE_START_USEREXIT "$OCF_RESKEY_PRE_START_USEREXIT"
 
-  check_sapstartsrv
+  rc=$OCF_NOT_RUNNING
+  loopcount=0
+  while [ $loopcount -lt 2 ]
+  do
+    loopcount=$(($loopcount + 1))
 
-  output=`$SAPCONTROL -nr $InstanceNr -function Start`
-  if [ $? -eq 0 ]
-  then
-    startrc=2
-    while [ $startrc -eq 2 ]
+    check_sapstartsrv
+    output=`$SAPCONTROL -nr $InstanceNr -function Start`
+    rc=$?
+    ocf_log info "Starting SAP Instance $SID-$InstanceName: $output"
+
+    if [ $rc -ne 0 ]
+    then
+      ocf_log err "SAP Instance $SID-$InstanceName start failed."
+      return $OCF_ERR_GENERIC
+    fi
+
+    startrc=1
+    while [ $startrc -gt 0 ]
     do
-      output=`$SAPCONTROL -nr $InstanceNr -function WaitforStarted $OCF_RESKEY_START_WAITTIME 1`
+      waittime_start=`date +%s`
+      output=`$SAPCONTROL -nr $InstanceNr -function WaitforStarted $OCF_RESKEY_START_WAITTIME 10`
       startrc=$?
-      if [ $startrc -eq 2 ]
+      waittime_stop=`date +%s`
+
+      if [ $startrc -ne 0 ]
       then
-        sapinstance_monitor NOLOG
-        if [ $? -eq $OCF_SUCCESS ]
+        if [ $(($waittime_stop - $waittime_start)) -ge $OCF_RESKEY_START_WAITTIME ]
         then
-          output="START_WAITTIME ($OCF_RESKEY_START_WAITTIME) has elapsed, but instance monitor returned SUCCESS. Instance considered running."
-          startrc=0
+          sapinstance_monitor NOLOG
+          if [ $? -eq $OCF_SUCCESS ]
+          then
+            output="START_WAITTIME ($OCF_RESKEY_START_WAITTIME) has elapsed, but instance monitor returned SUCCESS. Instance considered running."
+            startrc=0; loopcount=2
+          fi
+        else
+          if [ $loopcount -eq 1 -a $OCF_RESKEY_AUTOMATIC_RECOVER -eq 1 ]
+          then
+            ocf_log warn "SAP Instance $SID-$InstanceName start failed: $output"
+            ocf_log warn "Try to recover $SID-$InstanceName"
+            cleanup_instance
+          else
+            loopcount=2
+          fi
+          startrc=-1
         fi
+      else
+        loopcount=2
       fi
     done
+  done
 
-    if [ $startrc -eq 0 ]
-    then
-      ocf_log info "SAP Instance $SID-$InstanceName started: $output"
-      rc=$OCF_SUCCESS
-    else
-      ocf_log err "SAP Instance $SID-$InstanceName start failed: $output"
-      rc=$OCF_ERR_GENERIC
-    fi
+  if [ $startrc -eq 0 ]
+  then
+    ocf_log info "SAP Instance $SID-$InstanceName started: $output"
+    rc=$OCF_SUCCESS
+    sapuserexit POST_START_USEREXIT "$OCF_RESKEY_POST_START_USEREXIT"
   else
     ocf_log err "SAP Instance $SID-$InstanceName start failed: $output"
-    rc=$OCF_ERR_GENERIC
+    rc=$OCF_NOT_RUNNING
   fi
-
-  sapuserexit POST_START_USEREXIT "$OCF_RESKEY_POST_START_USEREXIT"
 
   return $rc
 }
+
+
+#
+# sapinstance_recover: Try startup of failed instance by cleaning up resources
+#
+sapinstance_recover() {
+  cleanup_instance
+  sapinstance_start
+  return $?
+}
+
 
 #
 # sapinstance_stop: Stop the SAP instance
@@ -297,48 +363,51 @@ sapinstance_stop() {
 sapinstance_monitor() {
   MONLOG=$1
   check_sapstartsrv
+  rc=$?
 
-  rc=$OCF_SUCCESS
-  count=0
-  LOCALHOST=`hostname`
-  output=`$SAPCONTROL -nr $InstanceNr -host $LOCALHOST -function GetProcessList -format script`
-
-  # we have to parse the output, because the returncode doesn't tell anything about the instance status
-  for SERVNO in `echo "$output" | grep '^[0-9] ' | cut -d' ' -f1 | sort -u`
-  do
-    COLOR=`echo "$output" | grep "^$SERVNO dispstatus: " | cut -d' ' -f3`
-    SERVICE=`echo "$output" | grep "^$SERVNO name: " | cut -d' ' -f3`
-    STATE=0
-
-    case $COLOR in
-      GREEN|YELLOW)       STATE=$OCF_SUCCESS;;
-      *)                  STATE=$OCF_NOT_RUNNING;;
-    esac 
-
-    case $SERVICE in
-      disp+work|msg_server|enserver|enrepserver)
-                    if [ $STATE -eq $OCF_NOT_RUNNING ]
-                    then
-                      if [ "$MONLOG" != "NOLOG" ]
-                      then
-                        ocf_log err "SAP instance service $SERVICE is not running with status $COLOR !"
-                      fi
-                      rc=$STATE
-                    fi
-                    count=1;;
-      *);;
-    esac
-  done
-
-  if [ $count -eq 0 -a $rc -eq $OCF_SUCCESS ]
+  if [ $rc -eq $OCF_SUCCESS ]
   then
-    if [ "$MONLOG" != "NOLOG" ]
-    then
-      ocf_log err "The SAP instance does not run any services which this RA could monitor!"
-    fi
-    rc=$OCF_ERR_ARGS
-  fi
+    count=0
+    LOCALHOST=`hostname`
+    output=`$SAPCONTROL -nr $InstanceNr -host $LOCALHOST -function GetProcessList -format script`
 
+    # we have to parse the output, because the returncode doesn't tell anything about the instance status
+    for SERVNO in `echo "$output" | grep '^[0-9] ' | cut -d' ' -f1 | sort -u`
+    do
+      COLOR=`echo "$output" | grep "^$SERVNO dispstatus: " | cut -d' ' -f3`
+      SERVICE=`echo "$output" | grep "^$SERVNO name: " | cut -d' ' -f3`
+      STATE=0
+
+      case $COLOR in
+        GREEN|YELLOW)       STATE=$OCF_SUCCESS;;
+        *)                  STATE=$OCF_NOT_RUNNING;;
+      esac 
+
+      case $SERVICE in
+        disp+work|msg_server|enserver|enrepserver|jcontrol)
+                      if [ $STATE -eq $OCF_NOT_RUNNING ]
+                      then
+                        if [ "$MONLOG" != "NOLOG" ]
+                        then
+                          ocf_log err "SAP instance service $SERVICE is not running with status $COLOR !"
+                        fi
+                        rc=$STATE
+                      fi
+                      count=1;;
+        *);;
+      esac
+    done
+
+    if [ $count -eq 0 -a $rc -eq $OCF_SUCCESS ]
+    then
+      if [ "$MONLOG" != "NOLOG" ]
+      then
+        ocf_log err "The SAP instance does not run any services which this RA could monitor!"
+      fi
+      rc=$OCF_ERR_ARGS
+    fi
+  fi
+  
   return $rc
 }
 
@@ -422,7 +491,6 @@ InstanceNr=`echo "$InstanceName" | sed 's/.*\([0-9][0-9]\)$/\1/'`
 SAPVIRHOST=`echo "$OCF_RESKEY_InstanceName" | cut -d_ -f3`
 
 # optional OCF parameters, we try to guess which directories are correct
-LSB_STATUS_STOPPED=3
 if  [ -z "$OCF_RESKEY_DIR_EXECUTABLE" ]
 then
   if [ -x /usr/sap/$SID/$InstanceName/exe/sapstartsrv -a -x /usr/sap/$SID/$InstanceName/exe/sapcontrol ]
@@ -436,11 +504,8 @@ then
     SAPSTARTSRV="/usr/sap/$SID/SYS/exe/run/sapstartsrv"
     SAPCONTROL="/usr/sap/$SID/SYS/exe/run/sapcontrol"
   else
-    [ "$1" = stop ] && exit $OCF_SUCCESS
-    [ "$1" = monitor ] && exit $OCF_NOT_RUNNING
-    [ "$1" = status ] && exit $LSB_STATUS_STOPPED
-    ocf_log err "Cannot find sapstartsrv and sapcontrol executable, please set DIR_EXECUTABLE parameter!"
-    exit $OCF_ERR_GENERIC
+    ocf_log warn "Cannot find sapstartsrv and sapcontrol executable, please set DIR_EXECUTABLE parameter!"
+    exit $OCF_NOT_RUNNING
   fi
 else
   DIR_EXECUTABLE="$OCF_RESKEY_DIR_EXECUTABLE"
@@ -478,6 +543,17 @@ then
   OCF_RESKEY_START_WAITTIME=3600
 fi
 
+
+if [ -z "$OCF_RESKEY_AUTOMATIC_RECOVER" ]
+then
+  OCF_RESKEY_AUTOMATIC_RECOVER=0
+else
+  case "$OCF_RESKEY_AUTOMATIC_RECOVER" in
+   1|true|TRUE|yes|YES) OCF_RESKEY_AUTOMATIC_RECOVER=1;;
+   0|false|FALSE|no|NO) OCF_RESKEY_AUTOMATIC_RECOVER=0;;
+  esac
+fi
+
 # as root user we need the library path to the SAP kernel to be able to call sapcontrol
 if [ `echo $LD_LIBRARY_PATH | grep -c "^$DIR_EXECUTABLE\>"` -eq 0 ]; then
   LD_LIBRARY_PATH=$DIR_EXECUTABLE:$LD_LIBRARY_PATH; export LD_LIBRARY_PATH
@@ -489,6 +565,9 @@ case "$1" in
 
   start)	sapinstance_start
 		exit $?;;
+
+  recover)      sapinstance_recover
+                exit $?;;
 
   stop)		sapinstance_stop
 		exit $?;;
