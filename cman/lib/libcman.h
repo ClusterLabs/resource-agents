@@ -186,7 +186,7 @@ typedef struct cman_qdev_info {
 	char qi_name[CMAN_MAX_NODENAME_LEN+1];
 	int  qi_state;
 	int  qi_votes;
-} cman_qdev_info;
+} cman_qdev_info_t;
 
 /*
  * NOTE: Apart from cman_replyto_shutdown(), you must not

@@ -1041,14 +1041,15 @@ int cman_get_quorum_device(cman_handle_t handle, struct cman_qdev_info *info)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
 	int ret;
-	struct cl_qdev_info q;
+	struct cl_cluster_node cman_node;
 	VALIDATE_HANDLE(h);
 
-	ret = info_call(h, CMAN_CMD_GET_QUORUMDEV, NULL, 0, &q, sizeof(q));
+	cman_node.node_id = CLUSTER_GETNODE_QUORUMDEV;
+	ret = info_call(h, CMAN_CMD_GETNODE, &cman_node, sizeof(cman_node), &cman_node, sizeof(cman_node));
 	if (!ret) {
-		strcpy(info->qi_name, q.name);
-		info->qi_state = q.state;
-		info->qi_votes = q.votes;
+		strcpy(info->qi_name, cman_node.name);
+		info->qi_state = cman_node.state;
+		info->qi_votes = cman_node.votes;
 	}
 	return ret;
 }

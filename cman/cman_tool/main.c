@@ -201,7 +201,7 @@ static void show_status(void)
 	char info_buf[PIPE_BUF];
 	char tmpbuf[1024];
 	cman_extra_info_t *einfo = (cman_extra_info_t *)info_buf;
-	cman_qdev_info qinfo;
+	cman_qdev_info_t qinfo;
 	int quorate;
 	int i;
 	int j;
@@ -229,7 +229,7 @@ static void show_status(void)
 							  einfo->ei_node_state));
 	printf("Nodes: %d\n", einfo->ei_members);
 	printf("Expected votes: %d\n", einfo->ei_expected_votes);
-	if (cman_get_quorum_device(h, &qinfo) == 0 && qinfo.qi_state == 1)
+	if (cman_get_quorum_device(h, &qinfo) == 0 && qinfo.qi_state == 2)
 		printf("Quorum device votes: %d\n", qinfo.qi_votes);
 	printf("Total votes: %d\n", einfo->ei_total_votes);
 
