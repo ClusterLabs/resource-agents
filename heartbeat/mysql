@@ -9,7 +9,8 @@
 # Author:	Alan Robertson 		: DB2 Script
 # Author:	Jakub Janczak  		: Rewrite as MySQL
 # Author:	Andrew Beekhof 		: Cleanup and import
-# Author:	Sebastian Reitenbach 	: add OpenBSD defaults, more cleanup
+# Author:	Sebastian Reitenbach    : add OpenBSD defaults, more cleanup
+# Author:  Narayan Newton      : Add Gentoo/Debian defaults
 #
 # Support:	linux-ha@lists.linux-ha.org
 # License:	GNU General Public License (GPL)
