@@ -34,9 +34,13 @@ CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmincdir} -I${ncursesincdir}
 CFLAGS += -I$(S)/../../include
 CFLAGS += -I${incdir}
 
-LDFLAGS += -L${libdir} -L${ccslibdir} -L${cmanlibdir} -L${ncurseslibdir}
-LDFLAGS += -lcman -lpthread -ldl -lncurses -lccs
+LDFLAGS += -L${libdir}
 LDFLAGS += -L../clulib -lclulib
+
+CCS_LDFLAGS += -L${ccslibdir} -lccs
+CMAN_LDFLAGS += -L${cmanlibdir} -lcman
+NCURSES_LDFLAGS += -L${ncurseslibdir} -lncurses
+PTHREAD_LDFLAGS += -lpthread 
 
 
 ${TARGET1}: ${TARGET1:=.o}
@@ -46,13 +50,14 @@ ${TARGET2}: ${TARGET2:=.o}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 ${TARGET3}: ${TARGET3:=.o}
-	$(CC) -o $@ $^ $(LDFLAGS)
+	$(CC) -o $@ $^ $(LDFLAGS) $(CCS_LDFLAGS) $(CMAN_LDFLAGS) \
+			$(NCURSES_LDFLAGS) $(PTHREAD_LDFLAGS)
 
 ${TARGET4}: ${TARGET4:=.o}
-	$(CC) -o $@ $^ $(LDFLAGS)
+	$(CC) -o $@ $^ $(LDFLAGS) $(CMAN_LDFLAGS) $(PTHREAD_LDFLAGS)
 
 ${TARGET5}: ${TARGET5:=.o}
-	$(CC) -o $@ $^ $(LDFLAGS)
+	$(CC) -o $@ $^ $(LDFLAGS) $(CCS_LDFLAGS)
 
 ${TARGET6}:
 	cp $(S)/${TARGET6}.sh ${TARGET6}

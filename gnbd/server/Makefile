@@ -42,7 +42,7 @@ CFLAGS += -I${gnbdkincdir} -I${cmanincdir}
 CFLAGS += -I$(S)/../include -I$(S)/../utils
 CFLAGS += -I${incdir}
 
-LDFLAGS+= -L${libdir} -L${cmanlibdir} -lcman -ldl -lpthread
+LDFLAGS+= -L${libdir} -L${cmanlibdir} -lcman
 
 ${TARGET1}: ${SHAREDOBJS} ${OBJS1}
 	$(CC) -o $@ $^ $(LDFLAGS)

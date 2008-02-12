@@ -34,7 +34,7 @@ CFLAGS += -I$(S)/../include
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
-LDFLAGS += `xml2-config --libs` -L${libdir} -ldl
+LDFLAGS += `xml2-config --libs` -L${libdir}
 
 
 ${TARGET}: ${OBJS}

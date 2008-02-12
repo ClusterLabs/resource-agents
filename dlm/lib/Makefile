@@ -45,8 +45,7 @@ CFLAGS += -I$(S)
 CFLAGS += -I${incdir}
 CFLAGS += -I$(KERNEL_SRC)/include
 
-LDFLAGS += -lpthread 
-
+PTHREAD_LDFLAGS += -lpthread 
 
 $(TARGET).a: $(TARGET).o $(AISTARGET).o
 	${AR} r $@ $^
@@ -57,7 +56,7 @@ $(TARGET)_lt.a: $(TARGET)_lt.o
 	${RANLIB} $@
 
 $(TARGET).so.${RELEASE_MAJOR}.${RELEASE_MINOR}: $(TARGET).po $(AISTARGET).po
-	$(CC) $(LDFLAGS) -shared -o $@ -Wl,-soname=$(TARGET).so.$(RELEASE_MAJOR) $<
+	$(CC) $(PTHREAD_LDFLAGS) $(LDFLAGS) -shared -o $@ -Wl,-soname=$(TARGET).so.$(RELEASE_MAJOR) $<
 	ln -sf $(TARGET).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(TARGET).so
 	ln -sf $(TARGET).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(TARGET).so.$(RELEASE_MAJOR)
 

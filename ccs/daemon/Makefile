@@ -34,7 +34,7 @@ CFLAGS += -I$(S) -I$(S)/../include -I$(S)/../common
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${cmanlibdir} -lcman -L${ccslibdir} -lccs
-LDFLAGS += -L${libdir} `xml2-config --libs` -lpthread -ldl
+LDFLAGS += -L${libdir} `xml2-config --libs` -lpthread
 
 
 ${TARGET}: ${OBJS}

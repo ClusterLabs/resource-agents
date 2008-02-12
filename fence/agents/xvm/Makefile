@@ -50,10 +50,10 @@ CFLAGS += -I${incdir}
 
 EXTRA_CFLAGS += -DSTANDALONE
 
-LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -L${dlmlibdir}
-LDFLAGS += -L${nsslibdir} -L${nsprlibdir} -L${libdir}
-LDFLAGS += -lccs -lcman -ldlm -lnss3 -lnspr4
+LDFLAGS += -L${nsslibdir} -L${libdir}
+LDFLAGS += -lnss3
 
+EXTRA_LDFLAGS += -L${ccslibdir} -lccs -L${cmanlibdir} -lcman
 EXTRA_LDFLAGS += -L${virtlibdir} -lvirt -L${openaislibdir} -lSaCkpt
 XML_LDFLAGS += `xml2-config --libs`
 

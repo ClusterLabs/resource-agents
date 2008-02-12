@@ -77,7 +77,7 @@ CMAN_LDFLAGS += -L${cmanlibdir} -lcman
 DLM_LDFLAGS += -L${dlmlibdir} -ldlm
 XML2_LDFLAGS += `xml2-config --libs`
 SLANG_LDFLAGS += -L${slanglibdir} -lslang
-EXTRA_LDFLAGS += -lpthread -ldl
+EXTRA_LDFLAGS += -lpthread
 LOCAL_LDFLAGS += -llalloc
 READLINE_LDFLAGS += -L${readlinelibdir} -lreadline
 
@@ -106,8 +106,7 @@ ${TARGET2}: ${OBJS2}
 #
 ${TARGET3}: ${SHAREDOBJS} ${OBJS3}
 	$(CC) -o $@ $^ $(LDFLAGS) $(CCS_LDFLAGS) $(CMAN_LDFLAGS) \
-			$(LOCAL_LDFLAGS) $(EXTRA_LDFLAGS) $(XML2_LDFLAGS) \
-			$(SLANG_LDFLAGS)
+			$(LOCAL_LDFLAGS) $(EXTRA_LDFLAGS) $(XML2_LDFLAGS)
 
 ${TARGET4}: ${SHAREDOBJS} ${OBJS4}
 	$(CC) -o $@ $^ $(LDFLAGS) $(CCS_LDFLAGS) $(CMAN_LDFLAGS) \

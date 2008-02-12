@@ -32,7 +32,7 @@ CFLAGS += -I${gnbdkincdir} -I${cmanincdir}
 CFLAGS += -I$(S)/../../include -I$(S)/../../server -I$(S)/../../utils
 CFLAGS += -I${incdir}
 
-LDFLAGS += -L${libdir} -L${cmanlibdir} -lcman -ldl -lpthread
+LDFLAGS += -L${libdir} -L${cmanlibdir} -lcman
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
