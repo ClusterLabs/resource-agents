@@ -331,7 +331,7 @@ This is the device the quorum daemon will use.  This device must be the
 same on all nodes.
 
 .in 9
-\fIlabel\fP\fB="\fPmylabel\fB"/>\fP
+\fIlabel\fP\fB="\fPmylabel\fB"\fP
 .in 12
 This overrides the device field if present.  If specified, the quorum
 daemon will read /proc/partitions and check for qdisk signatures
@@ -339,7 +339,7 @@ on every block device found, comparing the label against the specified
 label.  This is useful in configurations where the block device name
 differs on a per-node basis.
 .in 8
-\fB...>\fP
+\fB/>\fP
 .in 0
 
 .SH "3.2.  The <heuristic> tag"
@@ -362,14 +362,14 @@ This is the weight of this heuristic.  Be careful when determining scores
 for heuristics.  The default score for each heuristic is 1.
 
 .in 9
-\fIinterval\fP\fB="\fP2\fB"/>\fP
+\fIinterval\fP\fB="\fP2\fB"\fP
 .in 12
 This is the frequency (in seconds) at which we poll the heuristic.  The
 default interval for every heuristic is 2 seconds.
 .in 0
 
 .in 9
-\fItko\fP\fB="\fP1\fB"/>\fP
+\fItko\fP\fB="\fP1\fB"\fP
 .in 12
 After this many failed attempts to run the heuristic, it is considered DOWN,
 and its score is removed.  The default tko for each heuristic is 1, which 
