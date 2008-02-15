@@ -27,6 +27,7 @@
 #include <sys/file.h>
 #include <dirent.h>
 #include <linux/kdev_t.h>
+#include <sys/sysmacros.h>
 
 #include "libgfs2.h"
 
@@ -617,8 +618,8 @@ mp2fsname(char *mp)
 		return NULL;
 
 	memset(device_id, 0, sizeof(device_id));
-	sprintf(device_id, "%u:%u", (uint32_t)MAJOR(statbuf.st_dev),
-		(uint32_t)MINOR(statbuf.st_dev));
+	sprintf(device_id, "%i:%i", major(statbuf.st_dev),
+		minor(statbuf.st_dev));
 
 	d = opendir(SYS_BASE);
 	if (!d)
