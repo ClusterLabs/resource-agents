@@ -115,6 +115,10 @@ static int read_config_for(int ccs_fd, struct objdb_iface_ver0 *objdb, unsigned 
 		{
 			char subpath[1024];
 
+			/* Allow for empty parents */
+			if (!object_handle)
+				object_handle = parent;
+
 			/* Found a subkey, iterate through it's sub sections */
 			sprintf(subpath, "%s/%s[%d]", key, str, ++count);
 			if (!read_config_for(ccs_fd, objdb, object_handle, str, subpath, 0))
