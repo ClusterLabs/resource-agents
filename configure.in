@@ -1663,6 +1663,29 @@ if test x"$ac_cv_HAVE_SYSLOG_FACILITYNAMES" = x"yes"; then
     AC_DEFINE(HAVE_SYSLOG_FACILITYNAMES,1,[ ])
 fi
 
+dnl 'reboot()' system call: one argument (e.g. Linux) or two (e.g. Solaris)?
+dnl
+AC_CACHE_CHECK([number of arguments in reboot system call],
+  ac_cv_REBOOT_ARGS,[
+    AC_TRY_COMPILE(
+      [#include <sys/reboot.h>],
+      [(void)reboot(0);],
+      ac_cv_REBOOT_ARGS=1,
+      [AC_TRY_COMPILE(
+        [#include <sys/reboot.h>],
+        [(void)reboot(0,NULL);],
+        ac_cv_REBOOT_ARGS=2,
+        ac_cv_REBOOT_ARGS=0
+      )],
+      ac_cv_REBOOT_ARGS=0
+    )
+  ]
+)
+dnl Argument count of 0 suggests no known 'reboot()' call.
+if test "$ac_cv_REBOOT_ARGS" -ge "1"; then
+  AC_DEFINE_UNQUOTED(REBOOT_ARGS,$ac_cv_REBOOT_ARGS,[number of arguments for reboot system call])
+fi
+
 dnl
 dnl Check for ALIGN in /sys/param.h
 dnl
