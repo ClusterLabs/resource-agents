@@ -538,9 +538,18 @@ AC_PATH_PROGS(IFCONFIG, ifconfig, /sbin/ifconfig)
 AC_PATH_PROGS(SSH, ssh, /usr/bin/ssh)
 AC_PATH_PROGS(SCP, scp, /usr/bin/scp)
 AC_PATH_PROGS(PYTHON, python)
-dnl - Determine which mail program exists. Mailx is Solaris
-AC_PATH_PROGS(MAILCMD, mail, mailx)
+
+dnl Need a "mail" program which can handle "-s subject" flag.
+dnl Ideally would write a suitable autoconf test here.
+dnl Pragmatically observe:
+dnl   Solaris: "mail" doesn't offer "-s", but "mailx" does.  Want "mailx".
+dnl   Linux: "mail" offers "-s".  Some releases have "mailx" symlink to "mail".
+dnl   *BSD: Online man pages suggest similar to Linux.
+dnl   HP-UX: Online man pages suggest similar to Solaris.
+dnl Thus "mailx", if it exists, should always be good; look for it first.
+AC_PATH_PROGS(MAILCMD, mailx mail)
 AC_SUBST(MAILCMD)
+
 AC_DEFINE_UNQUOTED(IFCONFIG, "$IFCONFIG", path to the ifconfig command)
 AC_PATH_PROGS(LIBNETCONFIG, libnet-config)
 AC_PATH_PROGS(GETENT, getent)
