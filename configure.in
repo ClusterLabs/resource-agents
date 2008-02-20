@@ -538,9 +538,18 @@ AC_PATH_PROGS(IFCONFIG, ifconfig, /sbin/ifconfig)
 AC_PATH_PROGS(SSH, ssh, /usr/bin/ssh)
 AC_PATH_PROGS(SCP, scp, /usr/bin/scp)
 AC_PATH_PROGS(PYTHON, python)
-dnl - Determine which mail program exists. Mailx is Solaris
-AC_PATH_PROGS(MAILCMD, mail, mailx)
+
+dnl Need a "mail" program which can handle "-s subject" flag.
+dnl Ideally would write a suitable autoconf test here.
+dnl Pragmatically observe:
+dnl   Solaris: "mail" doesn't offer "-s", but "mailx" does.  Want "mailx".
+dnl   Linux: "mail" offers "-s".  Some releases have "mailx" symlink to "mail".
+dnl   *BSD: Online man pages suggest similar to Linux.
+dnl   HP-UX: Online man pages suggest similar to Solaris.
+dnl Thus "mailx", if it exists, should always be good; look for it first.
+AC_PATH_PROGS(MAILCMD, mailx mail)
 AC_SUBST(MAILCMD)
+
 AC_DEFINE_UNQUOTED(IFCONFIG, "$IFCONFIG", path to the ifconfig command)
 AC_PATH_PROGS(LIBNETCONFIG, libnet-config)
 AC_PATH_PROGS(GETENT, getent)
@@ -1661,6 +1670,29 @@ AC_TRY_COMPILE([
 ac_cv_HAVE_SYSLOG_FACILITYNAMES=yes,ac_cv_HAVE_SYSLOG_FACILITYNAMES=no,ac_cv_HAVE_SYSLOG_FACILITYNAMES=cross)])
 if test x"$ac_cv_HAVE_SYSLOG_FACILITYNAMES" = x"yes"; then
     AC_DEFINE(HAVE_SYSLOG_FACILITYNAMES,1,[ ])
+fi
+
+dnl 'reboot()' system call: one argument (e.g. Linux) or two (e.g. Solaris)?
+dnl
+AC_CACHE_CHECK([number of arguments in reboot system call],
+  ac_cv_REBOOT_ARGS,[
+    AC_TRY_COMPILE(
+      [#include <sys/reboot.h>],
+      [(void)reboot(0);],
+      ac_cv_REBOOT_ARGS=1,
+      [AC_TRY_COMPILE(
+        [#include <sys/reboot.h>],
+        [(void)reboot(0,NULL);],
+        ac_cv_REBOOT_ARGS=2,
+        ac_cv_REBOOT_ARGS=0
+      )],
+      ac_cv_REBOOT_ARGS=0
+    )
+  ]
+)
+dnl Argument count of 0 suggests no known 'reboot()' call.
+if test "$ac_cv_REBOOT_ARGS" -ge "1"; then
+  AC_DEFINE_UNQUOTED(REBOOT_ARGS,$ac_cv_REBOOT_ARGS,[number of arguments for reboot system call])
 fi
 
 dnl

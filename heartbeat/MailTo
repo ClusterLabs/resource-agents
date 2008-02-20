@@ -83,7 +83,7 @@ END
 }
 
 MailProgram() {
-	mail -s "$1" "$email"  <<EOF
+	$MAILCMD -s "$1" "$email"  <<EOF
         $Subject
  
         Command line was:
