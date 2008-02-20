@@ -73,7 +73,7 @@ check_binary () {
 
 have_binary () {
     bin=`echo $1 | sed -e 's/ -.*//'`
-    if [ -x "`which $bin`" ] ; then
+    if [ -x "`which $bin`" ] >/dev/null 2>&1 ; then
 	return 0
     fi
     return 1
