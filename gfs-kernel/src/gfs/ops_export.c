@@ -212,11 +212,11 @@ gfs_get_parent(struct dentry *child)
 
 	ip = get_gl2ip(i_gh.gh_gl);
 
-	gfs_glock_dq_uninit(&d_gh);
-	gfs_glock_dq_uninit(&i_gh);
-
 	inode = gfs_iget(ip, CREATE);
 	gfs_inode_put(ip);
+
+	gfs_glock_dq_uninit(&d_gh);
+	gfs_glock_dq_uninit(&i_gh);
 
 	if (!inode)
 		return ERR_PTR(-ENOMEM);
