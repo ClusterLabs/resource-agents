@@ -2135,6 +2135,32 @@ then
 fi
 AC_SUBST(INITDIR)
 
+dnl Checking for init defaults directory
+dnl Linux: /etc/sysconfig
+dnl Solaris: /etc/default
+AC_MSG_CHECKING(which init defaults directory to use)
+INITDEFDIR=""
+for iddir in /etc/sysconfig /etc/default
+do
+  if
+    test -d $iddir
+  then
+    INITDEFDIR=$iddir
+    AC_MSG_RESULT($INITDEFDIR);
+    break
+  fi
+done
+AC_ARG_WITH(iddir,
+    [  --with-initdefdir=DIR   directory for init defaults [${INITDEFDIR}]],
+    [ if test x"$withval" = xprefix; then INITDEFDIR=${prefix}; else
+	 INITDEFDIR="$withval"; fi ])
+if
+  test "X$INITDEFDIR" = X
+then
+  WarnMissingThing "init defaults directory" "Could not locate init defaults directory"
+fi
+AC_SUBST(INITDEFDIR)
+
 
 dnl **********************************************************************
 dnl checks for group to install fifos as
@@ -3145,6 +3171,7 @@ eval my_localstatedir="`eval echo ${localstatedir}`"
 eval my_mandir="`eval echo ${mandir}`"
 eval my_sbindir="`eval echo ${sbindir}`"
 eval my_sysconfdir="`eval echo ${sysconfdir}`"
+eval my_initdefdir="`eval echo ${INITDEFDIR}`"
 
 AC_MSG_RESULT([])
 AC_MSG_RESULT([$PACKAGE configuration:])
@@ -3158,6 +3185,7 @@ AC_MSG_RESULT([  Arch-independent files   = "$my_datadir"])
 AC_MSG_RESULT([  State information        = "$my_localstatedir"])
 AC_MSG_RESULT([  System configuration     = "$my_sysconfdir"])
 AC_MSG_RESULT([  Init (rc) scripts        = "$my_initdir"])
+AC_MSG_RESULT([  Init (rc) defaults       = "$my_initdefdir"])
 
 AC_MSG_RESULT([  Use system LTDL          = "${ac_cv_lib_ltdl_lt_dlopen}"])
 
