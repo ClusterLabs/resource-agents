@@ -45,7 +45,7 @@
 
 # Fill in some defaults if no values are specified
 HOSTOS=`uname`
-if [ "X${HOSTOS}" == "XOpenBSD" ];then
+if [ "X${HOSTOS}" = "XOpenBSD" ];then
 OCF_RESKEY_binary_default="/usr/local/bin/mysqld_safe"
 OCF_RESKEY_config_default="/etc/my.cnf"
 OCF_RESKEY_datadir_default="/var/mysql"
@@ -314,7 +314,7 @@ mysql_monitor() {
 
 mysql_start() {
     mysql_status
-    if [ $? == $OCF_SUCCESS ]; then
+    if [ $? = $OCF_SUCCESS ]; then
 	ocf_log info "MySQL already running"
 	return $OCF_SUCCESS
     fi
@@ -401,7 +401,7 @@ mysql_stop() {
     while [ $stop_wait = 1 ]; do
 	mysql_status
 	rc=$?
-	if [ $rc == $OCF_NOT_RUNNING ]; then
+	if [ $rc = $OCF_NOT_RUNNING ]; then
 	    stop_wait=0
 	fi
         sleep 1
