@@ -61,15 +61,34 @@ static int opt_cmd = 0;
 static unsigned int sts_eunlock, sts_ecancel, sts_etimedout, sts_edeadlk, sts_eagain, sts_other, sts_zero;
 static unsigned int bast_unlock, bast_skip;
 
+
 #define log_print(fmt, args...) \
 do { \
 	if (!quiet) \
 		printf(fmt , ##args); \
 } while (0)
 
-#define log_verbose(fmt, args...) \
+#define log_op(fmt, args...) \
+do { \
+	if (!quiet) \
+		printf(fmt , ##args); \
+} while (0)
+
+#define log_ast(fmt, args...) \
 do { \
 	if (verbose) \
+		printf(fmt , ##args); \
+} while (0)
+
+#define log_bast(fmt, args...) \
+do { \
+	if (verbose > 1) \
+		printf(fmt , ##args); \
+} while (0)
+
+#define log_verbose(fmt, args...) \
+do { \
+	if (verbose > 2) \
 		printf(fmt , ##args); \
 } while (0)
 
@@ -220,10 +239,10 @@ static void do_bast(struct lk *lk)
 
 	if (skip) {
 		bast_skip++;
-		printf("    bast: skip    %3d\t%x\n", lk->id, lk->lksb.sb_lkid);
+		log_bast("    bast: skip    %3d\t%x\n", lk->id, lk->lksb.sb_lkid);
 	} else {
 		bast_unlock++;
-		printf("    bast: unlockf %3d\t%x\n", lk->id, lk->lksb.sb_lkid);
+		log_bast("    bast: unlockf %3d\t%x\n", lk->id, lk->lksb.sb_lkid);
 		unlockf(lk->id);
 	}
 	lk->bast = 0;
@@ -261,8 +280,8 @@ static void astfn(void *arg)
 		       op_str(lk->lastop), status_str(lk->last_status));
 	}
 
-	log_print("     ast: %s %3d\t%x\n",
-		  status_str(lk->lksb.sb_status), i, lk->lksb.sb_lkid);
+	log_ast("     ast: %s %3d\t%x\n",
+		status_str(lk->lksb.sb_status), i, lk->lksb.sb_lkid);
 
 	lk->last_status = lk->lksb.sb_status;
 
@@ -845,7 +864,7 @@ static void stress(int num)
 
 			lock(i, rand_int(0, 5));
 			lock_ops++;
-			printf("%8x: lock    %3d\t%x\n", n, i, lk->lksb.sb_lkid);
+			log_op("%8x: lock    %3d\t%x\n", n, i, lk->lksb.sb_lkid);
 			break;
 
 		case Op_unlock:
@@ -864,7 +883,7 @@ static void stress(int num)
 
 			unlock(i);
 			unlock_ops++;
-			printf("%8x: unlock  %3d\t%x\n", n, i, lk->lksb.sb_lkid);
+			log_op("%8x: unlock  %3d\t%x\n", n, i, lk->lksb.sb_lkid);
 			break;
 
 		case Op_unlockf:
@@ -879,7 +898,7 @@ static void stress(int num)
 
 			unlockf(i);
 			unlockf_ops++;
-			printf("%8x: unlockf %3d\t%x\n", n, i, lk->lksb.sb_lkid);
+			log_op("%8x: unlockf %3d\t%x\n", n, i, lk->lksb.sb_lkid);
 			break;
 
 		case Op_cancel:
@@ -894,7 +913,7 @@ static void stress(int num)
 
 			cancel(i);
 			cancel_ops++;
-			printf("%8x: cancel  %3d\t%x\n", n, i, lk->lksb.sb_lkid);
+			log_op("%8x: cancel  %3d\t%x\n", n, i, lk->lksb.sb_lkid);
 			break;
 		}
 
@@ -1253,7 +1272,7 @@ static void decode_arguments(int argc, char **argv)
 	int optchar;
 
 	while (cont) {
-		optchar = getopt(argc, argv, "n:r:c:i:thVo");
+		optchar = getopt(argc, argv, "n:r:c:i:thVoq:v:");
 
 		switch (optchar) {
 
@@ -1280,6 +1299,14 @@ static void decode_arguments(int argc, char **argv)
 
 		case 'o':
 			openclose_ls = 1;
+			break;
+
+		case 'q':
+			quiet = atoi(optarg);
+			break;
+
+		case 'v':
+			verbose = atoi(optarg);
 			break;
 
 		case 'h':
@@ -1398,7 +1425,7 @@ int main(int argc, char *argv[])
 
 	client_add(libdlm_fd, &maxi);
 
-	if (opt_cmd) {
+	if (cmd) {
 		process_command(&quit);
 		goto out;
 	}
