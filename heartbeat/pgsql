@@ -168,8 +168,8 @@ pgsql_methods() {
 	status
 	monitor
 	methods	
-        meta-data
-        validate-all
+	meta-data
+	validate-all
 	!
 }
 
@@ -267,7 +267,15 @@ pgsql_stop() {
 #
 
 pgsql_status() {
-     pgrep -u  $OCF_RESKEY_pgdba "postmaster|postgres" >/dev/null 2>&1
+     if [ -f $PIDFILE ]
+     then
+         PID=`head -n 1 $PIDFILE`
+         kill -0 $PID >/dev/null 2>&1 && fuser $OCF_RESKEY_pgdata 2>&1 | grep $PID >/dev/null 2>&1
+         return $?
+     fi
+
+     # No PID file
+     false
 }
 
 #
@@ -347,7 +355,7 @@ check_log_file() {
 if [ $# -ne 1 ]
 then
     usage
-    exit 1
+    exit $OCF_ERR_GENERIC
 fi
 
 : ${OCF_RESKEY_pgctl=/usr/bin/pg_ctl}
@@ -355,6 +363,7 @@ fi
 : ${OCF_RESKEY_pgdata=/var/lib/pgsql/data}
 : ${OCF_RESKEY_pgdba=postgres}
 : ${OCF_RESKEY_pgport=5432}
+: ${OCF_RESKEY_start_opt="-p $OCF_RESKEY_pgport"}
 : ${OCF_RESKEY_pgdb=template1}
 : ${OCF_RESKEY_logfile=/dev/null}
 : ${OCF_RESKEY_stop_escalate=30}
@@ -368,20 +377,30 @@ case "$1" in
     meta-data)  meta_data
                 exit $OCF_SUCCESS;;
 
-    stop)       if ! pgsql_status || ! pgsql_validate_all
-                then
-                   exit $OCF_SUCCESS
-                fi;;
+    validate-all) pgsql_validate_all
+                exit $?;;
+esac
 
-    monitor)    if ! pgsql_validate_all
-                then
-                   echo "Not running!"
-                   exit $OCF_NOT_RUNNING
-                else
-                   pgsql_monitor
-                   exit $?
-                fi;;
+if ! pgsql_validate_all
+then
+    case "$1" in
+        stop)    exit $OCF_SUCCESS;;
+        monitor) exit $OCF_NOT_RUNNING;;
+        status)  exit $OCF_NOT_RUNNING;;
+        *)       exit $OCF_ERR_INSTALLED;;
+    esac
+fi
 
+US=`id -u -n`
+
+if [ $US != root -a $US != $OCF_RESKEY_pgdba ]
+then
+    ocf_log err "$0 must be run as root or $OCF_RESKEY_pgdba"
+    exit $OCF_ERR_GENERIC
+fi
+
+# What kind of method was invoked?
+case "$1" in
     status)     if pgsql_status
                 then
                     ocf_log info "PostgreSQL is up"
@@ -389,28 +408,11 @@ case "$1" in
                 else
                     ocf_log info "PostgreSQL is down"
                     exit $OCF_NOT_RUNNING
-                fi
+                fi;;
+
+    monitor)    pgsql_monitor
                 exit $?;;
 
-    validate-all) pgsql_validate_all
-                exit $?;;
-esac
-
-US=`id -u -n`
-
-if [ $US != root ]
-then
-    ocf_log err "$0 must be run as root"
-    exit 1
-fi
-
-if ! pgsql_validate_all
-then
-    exit $OCF_ERR_INSTALLED
-fi
-
-# What kind of method was invoked?
-case "$1" in
     start)      pgsql_start               
                 exit $?;;
 
