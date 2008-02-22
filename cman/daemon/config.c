@@ -1,8 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2007-2008 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -16,14 +15,67 @@
 #include <string.h>
 #include <netinet/in.h>
 
+/* openais headers */
 #include <openais/service/objdb.h>
 #include "list.h"
 #include "cnxman-socket.h"
 #include "cnxman-private.h"
+#include <openais/service/swab.h>
+#include <openais/totem/totemip.h>
+#include <openais/totem/totempg.h>
+#include <openais/totem/aispoll.h>
+#include <openais/service/service.h>
+#include <openais/service/config.h>
+#include <openais/lcr/lcr_comp.h>
+#include <openais/service/swab.h>
+#include <openais/service/logsys.h>
+
 #include "ccs.h"
 #include "logging.h"
 
-LOGSYS_DECLARE_SUBSYS (CMAN_NAME, LOG_INFO);
+#define CONFIG_VERSION_PATH	"/cluster/@config_version"
+#define CONFIG_NAME_PATH	"/cluster/@name"
+
+LOGSYS_DECLARE_SUBSYS ("CCS", LOG_INFO);
+
+static unsigned int debug_mask;
+static int ccs_readconfig(struct objdb_iface_ver0 *objdb, char **error_string);
+static int init_config(struct objdb_iface_ver0 *objdb, char *error_string);
+static char error_reason[1024];
+
+/*
+ * Exports the interface for the service
+ */
+
+static struct config_iface_ver0 ccsconfig_iface_ver0 = {
+	.config_readconfig        = ccs_readconfig
+};
+
+static struct lcr_iface ifaces_ver0[2] = {
+	{
+		.name		       	= "ccsconfig",
+		.version	       	= 0,
+		.versions_replace      	= 0,
+		.versions_replace_count	= 0,
+		.dependencies	       	= 0,
+		.dependency_count      	= 0,
+		.constructor	       	= NULL,
+		.destructor	       	= NULL,
+		.interfaces	       	= NULL,
+	}
+};
+
+static struct lcr_comp ccs_comp_ver0 = {
+	.iface_count				= 1,
+	.ifaces					= ifaces_ver0,
+};
+
+
+
+__attribute__ ((constructor)) static void ccs_comp_register(void) {
+	lcr_interfaces_set(&ifaces_ver0[0], &ccsconfig_iface_ver0);
+	lcr_component_register(&ccs_comp_ver0);
+}
 
 static int read_config_for(int ccs_fd, struct objdb_iface_ver0 *objdb, unsigned int parent,
 			   char *object, char *key, int always_create)
@@ -59,7 +111,7 @@ static int read_config_for(int ccs_fd, struct objdb_iface_ver0 *objdb, unsigned 
 		if (equal)
 		{
 			*equal = 0;
-			P_DAEMON("CCS: got config item %s: '%s' = '%s'\n", object, str, equal+1);
+			fprintf(stderr, "CCS: got config item %s: '%s' = '%s'\n", object, str, equal+1);
 			objdb->object_key_create(object_handle, str, strlen(str),
 						 equal+1, strlen(equal+1)+1);
 			gotcount++;
@@ -129,13 +181,51 @@ static int read_config_for(int ccs_fd, struct objdb_iface_ver0 *objdb, unsigned 
 	return gotcount;
 }
 
-void init_config(struct objdb_iface_ver0 *objdb)
+static int ccs_readconfig(struct objdb_iface_ver0 *objdb, char **error_string)
+{
+	int ret;
+
+	/* Initialise early logging */
+	if (getenv("CCS_DEBUGLOG"))
+		debug_mask = atoi(getenv("CCS_DEBUGLOG"));
+
+	set_debuglog(debug_mask);
+
+	/* We need to set this up to internal defaults too early */
+	openlog("openais", LOG_CONS|LOG_PID, LOG_LOCAL4);
+
+	/* Enable stderr logging if requested by cman_tool */
+	if (debug_mask) {
+		logsys_config_subsys_set("CCS", LOGSYS_TAG_LOG, LOG_DEBUG);
+	}
+
+	/* Read low-level totem/aisexec etc config from CCS */
+	if ( !(ret = init_config(objdb, error_reason)) )
+	    sprintf (error_reason, "%s", "Successfully read config from CCS\n");
+
+        *error_string = error_reason;
+
+	return ret;
+}
+
+
+static int init_config(struct objdb_iface_ver0 *objdb, char *error_string)
 {
 	int cd;
+	char *cname = NULL;
+	char *str;
 
-	cd = ccs_force_connect(NULL, 0);
-	if (cd < 0)
-		return;
+	/* Connect to ccsd */
+	if (getenv("CCS_CLUSTER_NAME")) {
+		cname = getenv("CCS_CLUSTER_NAME");
+		log_printf(LOG_INFO, "Using override cluster name %s\n", cname);
+	}
+
+	cd = ccs_force_connect(cname, 0);
+	if (cd < 0) {
+		strcpy(error_string, "Error connecting to CCS to get configuration. Check ccsd is running");
+		return -1;
+	}
 
 	/* These first few are just versions of openais.conf */
 	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "totem", "totem", 1);
@@ -147,5 +237,23 @@ void init_config(struct objdb_iface_ver0 *objdb)
 	/* This is stuff specific to us, eg quorum device timeout */
 	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "cman", "cman", 1);
 
+	/* Nodes information */
+	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "clusternodes", "clusternodes", 1);
+
+        /* Also get cluster name and config version number */
+	if (!ccs_get(cd, CONFIG_VERSION_PATH, &str)) {
+		objdb->object_key_create(OBJECT_PARENT_HANDLE,
+					 "config_version", strlen("config_version"),
+					 str, strlen(str)+1);
+		free(str);
+	}
+
+	if (!ccs_get(cd, CONFIG_NAME_PATH, &str)) {
+		objdb->object_key_create(OBJECT_PARENT_HANDLE,
+					 "name", strlen("name"),
+					 str, strlen(str)+1);
+		free(str);
+	}
 	ccs_disconnect(cd);
+	return 0;
 }

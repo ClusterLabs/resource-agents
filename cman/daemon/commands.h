@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2005-2008 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -10,6 +10,7 @@
 *******************************************************************************
 ******************************************************************************/
 
+#include <openais/service/objdb.h>
 struct cluster_node;
 struct connection;
 extern void process_cnxman_message(char *data, int len, char *addr, int addrlen,
@@ -39,7 +40,8 @@ extern void cman_send_confchg(unsigned int *member_list, int member_list_entries
 /* Startup stuff called from cmanccs: */
 extern int cman_set_nodename(char *name);
 extern int cman_set_nodeid(int nodeid);
-extern int cman_join_cluster(char *name, unsigned short cluster_id, int two_node,
-			     int expected_votes);
+extern int cman_join_cluster(struct objdb_iface_ver0 *objdb,
+			     char *name, unsigned short cluster_id, int two_node,
+			     int votes, int expected_votes);
 
 extern int cluster_members;

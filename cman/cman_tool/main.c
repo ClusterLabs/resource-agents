@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2008 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -20,7 +20,9 @@
 #include "libcman.h"
 #include "cman_tool.h"
 
-#define OPTION_STRING		("m:n:v:e:2p:c:r:i:N:t:o:k:F:Vwfqah?Xd::")
+#define DEFAULT_CONFIG_MODULE "ccsconfig"
+
+#define OPTION_STRING		("m:n:v:e:2p:c:r:i:N:t:o:k:F:C:VPwfqah?Xd::")
 #define OP_JOIN			1
 #define OP_LEAVE		2
 #define OP_EXPECTED		3
@@ -59,10 +61,12 @@ static void print_usage(int subcmd)
 		printf("  -n <nodename>    The name of this node (defaults to hostname)\n");
 		printf("  -c <clustername> The name of the cluster to join\n");
 		printf("  -N <id>          Node id\n");
+		printf("  -C <module>      Config file reader (default: ccsconfig)\n");
 		printf("  -w               Wait until node has joined a cluster\n");
 		printf("  -q               Wait until the cluster is quorate\n");
 		printf("  -t               Maximum time (in seconds) to wait\n");
 		printf("  -k <file>        Private key file for AIS communications\n");
+		printf("  -P               Don't set aisexec to realtime priority\n");
 		printf("  -X               Don't use CCS for configuration\n");
 		printf("\n");
 	}
@@ -727,6 +731,8 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 	int optchar, i;
 	int show_help = 0;
 
+	comline->config_lcrso=DEFAULT_CONFIG_MODULE;
+
 	while (cont) {
 		optchar = getopt(argc, argv, OPTION_STRING);
 
@@ -762,6 +768,10 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 
 		case 'k':
 			comline->key_filename = strdup(optarg);
+			break;
+
+		case 'C':
+			comline->config_lcrso = strdup(optarg);
 			break;
 
 		case 'r':
@@ -847,6 +857,10 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 
 		case 'X':
 			comline->noccs_opt = TRUE;
+			break;
+
+		case 'P':
+			comline->nosetpri_opt = TRUE;
 			break;
 		default:
 			die("unknown option: %c", optchar);

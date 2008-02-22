@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2007-2008 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -10,5 +10,6 @@
 *******************************************************************************
 ******************************************************************************/
 
-int read_ccs_nodes(unsigned int *config_version, int check_nodeids);
-int read_ccs_config(void);
+/* General cman bits */
+extern void write_cman_pipe(char *message);
+extern void close_cman_pipe(void);
