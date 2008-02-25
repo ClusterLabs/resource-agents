@@ -692,6 +692,10 @@ ipv4()
 			if [ $? -ne 0 ]; then
 				continue
 			fi
+
+			if [ "${addr/\/*/}" = "${addr}" ]; then
+				addr="$addr/$maskbits"
+			fi
 			ocf_log info "Adding IPv4 address $addr to $dev"
 		fi
 		if [ "$1" = "del" ]; then
