@@ -1,14 +1,25 @@
 #!/bin/bash
 #
-# Dummy fence_ack_manual which uses the fenced manual override
-# socket to communicate.
+###############################################################################
+###############################################################################
+##
+##  COPYRIGHT (C) 2007 RED HAT, INC.
+##  
+##  THIS COPYRIGHTED MATERIAL IS MADE AVAILABLE TO ANYONE WISHING TO USE,
+##  MODIFY, COPY, OR REDISTRIBUTE IT SUBJECT TO THE TERMS AND CONDITIONS
+##  OF THE GNU GENERAL PUBLIC LICENSE V.2.
+##
+###############################################################################
+###############################################################################
+#
+# Manual override after fencing has failed.
 #
 
 if [ "$1" = "-n" ]; then
 	shift
 fi
 
-if [ -z "$1" ]; then
+if [ -z "$1" ] || [ "$1" = "-h" ]; then
 	echo "usage:"
         echo " 	$0 <nodename>"
         echo " 	$0 -n <nodename>"

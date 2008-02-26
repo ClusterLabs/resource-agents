@@ -39,6 +39,10 @@
 #include <libgen.h>
 #include "copyright.cf"
 
+#ifndef RELEASE_VERSION
+#define RELEASE_VERSION "sandbox"
+#endif
+
 
 /*
  * Salt to taste.
@@ -144,7 +148,7 @@ printf("   -d <device>    Use serial device <dev>.  Default=%s\n",
 printf("   -s <speed>     Use speed <speed>. Default=9600\n"
        "                  Valid speeds: 300, 1200, 2400, 9600\n");
 printf("   -o <op>        Operation to perform.\n");
-printf("                  Valid operations: on, off, reboot\n");
+printf("                  Valid operations: on, off, [reboot]\n");
 printf("   -V             Print version and exit\n");
 printf("   -v             Verbose mode\n\n");
 printf("If no options are specified, the following options will be read\n");
@@ -314,8 +318,6 @@ get_options_stdin(char *dev, size_t devlen, int *speed, int *port,
 	int line = 0;
 	char *name, *val;
 
-	op[0] = 0;
-
 	while (fgets(in, sizeof(in), stdin)) {
 		++line;
 
@@ -396,6 +398,7 @@ main(int argc, char **argv)
 	char *pname = basename(argv[0]);
 
 	strncpy(dev, DEFAULT_DEVICE, sizeof(dev));
+	strncpy(op, "reboot", sizeof(op));
 
 	if (argc > 1) {
 		/*

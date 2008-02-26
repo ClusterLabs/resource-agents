@@ -719,6 +719,10 @@ build_member_field_size(int cols, int *nodesize)
 void
 txt_member_state(cman_node_t *node, int nodesize)
 {
+	/* If it's down and not in cluster.conf, don't show it */
+	if ((node->cn_member & (FLAG_NOCFG | FLAG_UP)) == FLAG_NOCFG)
+		return;
+
 	printf(" %-*.*s ", nodesize, nodesize, node->cn_name);
 	printf("%4d ", node->cn_nodeid);
 
@@ -754,6 +758,10 @@ txt_member_state(cman_node_t *node, int nodesize)
 void
 xml_member_state(cman_node_t *node)
 {
+	/* If it's down and not in cluster.conf, don't show it */
+	if ((node->cn_member & (FLAG_NOCFG | FLAG_UP)) == FLAG_NOCFG)
+		return;
+
 	printf("    <node name=\"%s\" state=\"%d\" local=\"%d\" "
 	       "estranged=\"%d\" rgmanager=\"%d\" rgmanager_master=\"%d\" "
 	       "qdisk=\"%d\" nodeid=\"0x%08x\"/>\n",
