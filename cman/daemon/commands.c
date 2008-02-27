@@ -439,9 +439,8 @@ static int do_cmd_set_version(char *cmdbuf, int *retlen)
 	if (config_version == version->config)
 		return 0;
 
-	config_version = version->config;
 	/* We will re-read CCS when we get our own message back */
-	send_reconfigure(us->node_id, RECONFIG_PARAM_CONFIG_VERSION, config_version);
+	send_reconfigure(us->node_id, RECONFIG_PARAM_CONFIG_VERSION, version->config);
 	return 0;
 }
 
