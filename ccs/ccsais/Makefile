@@ -10,12 +10,11 @@
 ###############################################################################
 ###############################################################################
 
-TARGET1= service_cman.lcrso
-TARGET2= config_cmanpre.lcrso
+TARGET= config_ccs.lcrso
 
-LCRSOT=$(TARGET1) $(TARGET2)
+LCRSOT=$(TARGET)
 
-all: depends ${TARGET1} ${TARGET2}
+all: depends ${TARGET}
 
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
@@ -24,27 +23,21 @@ include $(OBJDIR)/make/install.mk
 include $(OBJDIR)/make/uninstall.mk
 
 CFLAGS += -fPIC
-CFLAGS += -I${openaisincdir}
+CFLAGS += -I${ccsincdir} -I${cmanincdir}/../daemon
 CFLAGS += -I${incdir}
 
-OBJS1=	daemon.o \
-	logging.o \
-	ais.o \
-	commands.o \
-	barrier.o \
-	cmanconfig.o
+LDFLAGS += -L${ccslibdir} -lccs
 
-OBJS2=	cman-preconfig.o \
-	logging.o
+OBJS=	config.o logging.o
 
-${TARGET1}: ${OBJS1}
+${TARGET}: ${OBJS}
 	$(CC) -shared -Wl,-soname,$@ -o $@ $^ $(LDFLAGS)
 
-${TARGET2}: ${OBJS2}
-	$(CC) -shared -Wl,-soname,$@ -o $@ $^ $(LDFLAGS)
+logging.c:
+	ln -sf $(S)/../../cman/daemon/logging.c logging.c
 
 depends:
 	$(MAKE) -C ../lib all
 
 clean: generalclean 
-
+	rm -f logging.c
