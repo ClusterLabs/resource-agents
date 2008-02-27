@@ -259,6 +259,8 @@ static struct cluster_node *add_new_node(char *name, int nodeid, int votes, int 
 	if (newalloc)
 		node_add_ordered(newnode);
 
+	newnode->flags |= NODE_FLAGS_REREAD;
+
 	P_MEMB("add_new_node: %s, (id=%d, votes=%d) newalloc=%d\n",
 	       name, nodeid, votes, newalloc);
 
@@ -440,9 +442,8 @@ static int do_cmd_set_version(char *cmdbuf, int *retlen)
 	if (config_version == version->config)
 		return 0;
 
-	config_version = version->config;
 	/* We will re-read CCS when we get our own message back */
-	send_reconfigure(us->node_id, RECONFIG_PARAM_CONFIG_VERSION, config_version);
+	send_reconfigure(us->node_id, RECONFIG_PARAM_CONFIG_VERSION, version->config);
 	return 0;
 }
 
@@ -1958,6 +1959,32 @@ void override_expected(int newexp)
 	}
 }
 
+void clear_reread_flags()
+{
+	struct list *nodelist;
+	struct cluster_node *node;
+
+	list_iterate(nodelist, &cluster_members_list) {
+		node = list_item(nodelist, struct cluster_node);
+		node->flags &= ~NODE_FLAGS_REREAD;
+	}
+}
+
+void remove_unread_nodes()
+{
+	struct list *nodelist;
+	struct cluster_node *node;
+
+	list_iterate(nodelist, &cluster_members_list) {
+		node = list_item(nodelist, struct cluster_node);
+		if (!(node->flags & NODE_FLAGS_REREAD) &&
+		    node->state == NODESTATE_DEAD) {
+
+			list_del(&node->list);
+			free(node);
+		}
+	}
+}
 
 /* Add a node from CCS, note that it may already exist if user has simply updated the config file */
 void add_ccs_node(char *nodename, int nodeid, int votes, int expected_votes)

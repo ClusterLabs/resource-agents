@@ -141,12 +141,15 @@ struct connection
    NODE_FLAGS_SEESDISALLOWED - Only set in a transition message
    NODE_FLAGS_DIRTY          - This node has internal state and must not join
                                a cluster that also has state.
+   NODE_FLAGS_REREAD	     - Set when the node is re-read from config, so
+                               we can spot deleted nodes
 */
 #define NODE_FLAGS_BEENDOWN           1
 #define NODE_FLAGS_FENCED             2
 #define NODE_FLAGS_FENCEDWHILEUP      4
 #define NODE_FLAGS_SEESDISALLOWED     8
 #define NODE_FLAGS_DIRTY             16
+#define NODE_FLAGS_REREAD            32
 
 /* There's one of these for each node in the cluster */
 struct cluster_node {

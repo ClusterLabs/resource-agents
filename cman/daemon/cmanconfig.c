@@ -74,6 +74,8 @@ int read_cman_nodes(struct objdb_iface_ver0 *objdb, unsigned int *config_version
 	    objdb_get_string(objdb, object_handle, "nodename", &our_nodename);
     }
 
+    clear_reread_flags();
+
     /* Get the nodes list */
     nodes_handle = nodeslist_init(objdb, &parent_handle);
     do {
@@ -108,6 +110,7 @@ int read_cman_nodes(struct objdb_iface_ver0 *objdb, unsigned int *config_version
     if (expected)
 	    override_expected(expected);
 
+    remove_unread_nodes();
     error = 0;
 
 out_err:

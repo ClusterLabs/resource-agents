@@ -36,6 +36,8 @@ extern void cman_send_confchg(unsigned int *member_list, int member_list_entries
 			      unsigned int *joined_list, int joined_list_entries);
 
 
+extern void clear_reread_flags(void);
+extern void remove_unread_nodes(void);
 
 /* Startup stuff called from cmanccs: */
 extern int cman_set_nodename(char *name);
