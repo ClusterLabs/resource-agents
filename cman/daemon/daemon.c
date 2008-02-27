@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2005-2006 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2005-2008 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -41,6 +41,7 @@
 #include "commands.h"
 #include "barrier.h"
 #include "ais.h"
+#include "cman.h"
 
 LOGSYS_DECLARE_SUBSYS (CMAN_NAME, LOG_INFO);
 

@@ -256,6 +256,21 @@ mv /etc/ais/authkey /etc/cluster/cman_authkey
 .br
 then copy that file to all nodes you want to join the cluster.
 .br
+.TP
+.I -C
+Overrides the default configuration module. Usually cman uses CCSD to load its
+configuration. If you have your configuration database held elsewhere (eg LDAP) and 
+have a configuration plugin for it, then you should specify the name of the module
+(see the dcumentation for the module for the name of it - it's not necessarily the 
+same as the filename) here.
+.br
+It is possible to chain configuration modules by separating them with colons. So to
+add two modules (eg) 'ldapconfig' and 'ldappreproc' to the chain start cman with
+-C ldapconfig:ldappreproc
+.br
+The default value for this is 'ccsconfig'. Note that if the -X is on the command-line
+then -C will be ignored.
+
 .SH "NODES" OPTIONS
 .TP
 .I -f
@@ -358,3 +373,22 @@ Node  Sts   Inc   Joined               Name
 .fi
 In this scenario we should kill the node node-02 and node-03. Of course, the 3 node cluster of node-01, node-04 & node-05 should remain quorate and be able to fenced the two rejoined nodes anyway, but it is possible that the cluster has a qdisk setup that precludes this.
 
+.SH CONFIGURATION SYSTEMS
+This section details how the configuration systems work in cman. You might need to know this if you are using the -C option
+to cman_tool, or writing your own configuration subsystem.
+.br
+By default cman uses two configuration plugins to OpenAIS. The first, 'ccsconfig', reads the configuration information
+stored in cluster.conf and stores it in an internal database, in the same schema as it finds in CCS. 
+The second plugin, 'cmanpreconfig', takes the information in that the database, adds several cman defaults, determines 
+the OpenAIS node name and nodeID
+and formats the information in a similar manner to openais.conf(5). OpenAIS then reads those keys to start the cluster protocol.
+cmanpreconfig also reads several environment variables that might be set by cman_tool which can override information in the 
+configuration.
+.br
+In the absence of ccsconfig, ie when 'cman_tool join' is run with -X switch (this removes ccsconfig from the module list), 
+cmanpreconfig also generates several defaults so that the cluster can be got running without any configuration information - see above
+for the details.
+.br
+Note that cmanpreconfig will not overwrite OpenAIS keys that are explicitly set in the configuration file, allowing you to provide
+custom values for token timeouts etc, even though cman has its own defaults for some of those values. The exception to this is the node
+name/address and multicast values, which are always taken from the cman configuration keys.

@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2008 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -77,6 +77,7 @@ struct commandline
 	char *override_nodename;
 	char *key_filename;
 	char *format_opts;
+	char *config_lcrso;
 	int votes;
 	int expected_votes;
 	int two_node;
@@ -101,6 +102,7 @@ struct commandline
 	int fence_opt;
 	int addresses_opt;
 	int noccs_opt;
+	int nosetpri_opt;
 };
 typedef struct commandline commandline_t;
 
