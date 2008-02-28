@@ -524,11 +524,21 @@ static int do_cmd_get_extrainfo(char *cmdbuf, char **retbuf, int retsize, int *r
 						 &object_handle) == 0) {
 
 			char *mcast;
+			struct sockaddr_in *saddr4;
+			struct sockaddr_in6 *saddr6;
 
 			objdb_get_string(global_objdb, object_handle, "mcastaddr", &mcast);
-			ss = (struct sockaddr_storage *)ptr;
-			if (inet_pton(AF_INET, mcast, ss) != 0)
-				inet_pton(AF_INET6, mcast, ss);
+			memset(ptr, 0, sizeof(struct sockaddr_storage));
+
+			saddr4 = (struct sockaddr_in *)ptr;
+			saddr6 = (struct sockaddr_in6 *)ptr;
+			if ( inet_pton(AF_INET, mcast, &saddr4->sin_addr) >0) {
+				saddr4->sin_family = AF_INET;
+			}
+			else {
+				if (inet_pton(AF_INET6, mcast, &saddr6->sin6_addr) > 0)
+					saddr4->sin_family = AF_INET6;
+			}
 			ptr += sizeof(struct sockaddr_storage);
 		}
 	}
