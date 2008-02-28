@@ -144,7 +144,7 @@ static int get_cman_join_info(struct objdb_iface_ver0 *objdb)
 {
 	char *cname = NULL;
 	int  error, vote_sum = 0, node_count = 0;
-	int votes;
+	int votes=0;
 	unsigned int object_handle;
 	unsigned int node_object;
 
