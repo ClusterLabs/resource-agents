@@ -71,7 +71,7 @@ it) and subsequently enabled (by the cluster gaining quorum) any nodes
 listed in cluster.conf that are not presently members of the cman cluster
 are fenced.  The status of these nodes is unknown, and to be on the side
 of safety they are assumed to be in need of fencing.  This startup fencing
-can be disabled, but it's only truely safe to do so if an operator is
+can be disabled, but it's only truly safe to do so if an operator is
 present to verify that no cluster nodes are in need of fencing.
 
 This example illustrates why startup fencing is important.  Take a three
@@ -119,7 +119,7 @@ continue without fencing the node.
 Fencing daemon behavior can be controlled by setting options in the
 cluster.conf file under the section <fence_daemon> </fence_daemon>.  See
 above for complete descriptions of these values.  The delay values are in
-seconds; -1 secs means an unlimitted delay.  The values shown are the
+seconds; -1 secs means an unlimited delay.  The values shown are the
 defaults.
 
 Post-join delay is the number of seconds the daemon will wait before
@@ -267,7 +267,7 @@ Find documentation for configuring specific devices at
 http://sources.redhat.com/cluster/
 
 .SH OPTIONS
-Command line options override corresonding values in cluster.conf.
+Command line options override corresponding values in cluster.conf.
 .TP
 \fB-j\fP \fIsecs\fP
 Post-join fencing delay
