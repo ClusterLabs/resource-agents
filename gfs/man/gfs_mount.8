@@ -133,7 +133,7 @@ a cluster filesystem can cause the filesystem to stall on all machines
 in the cluster.  (Panics don't have this "feature".)  By turning on
 "panic_on_oops", GFS tries to make sure the cluster remains in
 operation even if one machine has a problem.  There are cases,
-however, where this behavior is not desireable -- debugging being
+however, where this behavior is not desirable -- debugging being
 the main one.  The \fBoopses_ok\fP option causes GFS to leave the
 "panic_on_oops" variable alone so oopses can happen.  Use this option
 with care.
@@ -157,7 +157,7 @@ message that you need to upgrade.  Try mounting again, using the
 filesystem.
 .TP
 \fBnum_glockd\fP
-Tunes GFS to alleviate memory pressure when rapidly aquiring many locks (e.g.
+Tunes GFS to alleviate memory pressure when rapidly acquiring many locks (e.g.
 several processes scanning through huge directory trees).  GFS' glockd kernel
 daemon cleans up memory for no-longer-needed glocks.  Multiple instances
 of the daemon clean up faster than a single instance.  The default value is

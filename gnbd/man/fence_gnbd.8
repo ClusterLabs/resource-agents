@@ -63,13 +63,13 @@ deprecated. Please use \fInodename\fP instead.
 The cluster name of the node to be fenced (required)
 .TP
 \fIservers = < hostname [ hostname ... ] >\fP
-A whitespace seperated list of the servers to fence the client from, in
+A whitespace separated list of the servers to fence the client from, in
 either IP address or hostname form.
 .TP
 \fIoption = multipath\fP
 Select multipath style fencing. \fBWARNING:\fP When multipath style fencing is
 used, if the kgnbd_portd process of a gnbd server node cannot be contacted, it
-is fenced as well, using its appropriate fencig method.  This means that when
+is fenced as well, using its appropriate fencing method.  This means that when
 a client is fenced, any node listed as its server that does not have the
 gnbd_serv module loaded (which starts kgnbd_portd) will also be fenced.
 .TP
@@ -79,8 +79,8 @@ before the server is fenced.  This parameter is only valid when used
 with multipath style fencing (see above).  The default is 3.
 .TP
 \fIwait_time = < param >\fP
-length of time, in seconds, to wait between retrys. This parameter
-is only valid when used with multipath sytle fencing (see above). The default
+length of time, in seconds, to wait between retries. This parameter
+is only valid when used with multipath style fencing (see above). The default
 is 2.
 
 .SH SEE ALSO

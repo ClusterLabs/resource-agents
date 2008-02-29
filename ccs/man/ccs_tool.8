@@ -35,7 +35,7 @@ sub\-commands have their own options, see below for more detail
 This command is used to update the config file that ccsd is working with
 while the cman cluster is operational (i.e. online).  Run this on a single
 machine to update cluster.conf on all current cluster members.  This also
-notfies cman of the new config version.
+notifies cman of the new config version.
 
 .TP 
 \fBupgrade\fP \fI<location>\fP
@@ -65,8 +65,8 @@ is using multicast as transport. Forbidden if not.
 be added to the file. Subsequent nodes will use either multicast or broadcast 
 depending on the properties of the first node.
 .br
-\-f <fencedevice>  Name of fence devcie to use for this node. The fence device 
-section must already have been addded to the file, probably using the addfence command.
+\-f <fencedevice>  Name of fence device to use for this node. The fence device 
+section must already have been added to the file, probably using the addfence command.
 .br
 \-c <file>         Config file to use. Defaults to /etc/cluster/cluster.conf
 .br

@@ -43,7 +43,7 @@ This will cause cman to use ports 6809 and 6808 for cluster communications.
 The expected votes value is used by cman to determine quorum.  The cluster is
 quorate if the sum of votes of existing members is over half of the expected
 votes value.  By default, cman sets the expected votes value to be the sum
-of votes of all nodes listed in cluster.conf.  This can be overriden by setting
+of votes of all nodes listed in cluster.conf.  This can be overridden by setting
 an explicit expected_votes value as follows:
 
   <cman expected_votes="3">
@@ -94,12 +94,12 @@ the nodeid to one that is already used.
 .in -7
 \fIMulti-home configuration\fR
 .in +7
-It is quite common to use multiple ethernet adaptors for cluster nodes, so
+It is quite common to use multiple ethernet adapters for cluster nodes, so
 they will tolerate the failure of one link. A common way to do this is to use
 ethernet bonding. Alternatively you can get openais to run in redundant ring
 mode by specifying an 'altname' for the node. This is an alternative name by
 which the node is known, that resolves to another IP address used on the 
-other ethernet adaptor(s). You can optionally specify a different port and/or 
+other ethernet adapter(s). You can optionally specify a different port and/or 
 multicast address for each altname in use. Up to 9 altnames (10 interfaces 
 in total) can be used.
 
