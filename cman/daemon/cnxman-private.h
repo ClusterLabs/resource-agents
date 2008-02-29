@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2008 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -21,16 +21,8 @@
 #define CNXMAN_MINOR_VERSION 1
 #define CNXMAN_PATCH_VERSION 0
 
-/* How we announce ourself in console events */
+/* How we announce ourself in syslog */
 #define CMAN_NAME "CMAN"
-
-/* This is now just a convenient way to pass around
-   node/port pairs */
-struct sockaddr_cl {
-	unsigned char scl_port;
-	int           scl_nodeid;
-};
-
 
 struct cman_timer
 {
@@ -149,12 +141,15 @@ struct connection
    NODE_FLAGS_SEESDISALLOWED - Only set in a transition message
    NODE_FLAGS_DIRTY          - This node has internal state and must not join
                                a cluster that also has state.
+   NODE_FLAGS_REREAD	     - Set when the node is re-read from config, so
+                               we can spot deleted nodes
 */
 #define NODE_FLAGS_BEENDOWN           1
 #define NODE_FLAGS_FENCED             2
 #define NODE_FLAGS_FENCEDWHILEUP      4
 #define NODE_FLAGS_SEESDISALLOWED     8
 #define NODE_FLAGS_DIRTY             16
+#define NODE_FLAGS_REREAD            32
 
 /* There's one of these for each node in the cluster */
 struct cluster_node {
@@ -202,7 +197,5 @@ struct cluster_node {
 #define CLUSTER_KILL_REJECTED   1
 #define CLUSTER_KILL_CMANTOOL   2
 #define CLUSTER_KILL_REJOIN     3
-
-#define MAX_ADDR_PRINTED_LEN (address_length*3 + 1)
 
 #endif

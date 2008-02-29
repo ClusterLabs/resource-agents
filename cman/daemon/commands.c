@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2008 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -29,7 +29,9 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/errno.h>
+#include <dlfcn.h>
 
+#include <openais/service/objdb.h>
 #include <openais/service/swab.h>
 #include <openais/totem/totemip.h>
 #include <openais/totem/totempg.h>
@@ -43,7 +45,7 @@
 #include "daemon.h"
 #include "barrier.h"
 #include "logging.h"
-#include "cmanccs.h"
+#include "cmanconfig.h"
 #include "commands.h"
 #include "ais.h"
 
@@ -77,6 +79,7 @@ static uint16_t cluster_id;
 static int ais_running;
 static time_t join_time;
 static openais_timer_handle quorum_device_timer;
+static struct objdb_iface_ver0 *global_objdb;
 
 /* If CCS gets out of sync, we poll it until it isn't */
 static openais_timer_handle ccsd_timer;
@@ -215,7 +218,7 @@ static struct cluster_node *add_new_node(char *name, int nodeid, int votes, int 
 	if (!newnode) {
 		newnode = malloc(sizeof(struct cluster_node));
 		if (!newnode) {
-			// TODO what ??
+			log_printf(LOG_ERR, "Unable to allocate memory for node %s\n", name);
 			return NULL;
 		}
 		memset(newnode, 0, sizeof(struct cluster_node));
@@ -255,6 +258,8 @@ static struct cluster_node *add_new_node(char *name, int nodeid, int votes, int 
 
 	if (newalloc)
 		node_add_ordered(newnode);
+
+	newnode->flags |= NODE_FLAGS_REREAD;
 
 	P_MEMB("add_new_node: %s, (id=%d, votes=%d) newalloc=%d\n",
 	       name, nodeid, votes, newalloc);
@@ -386,7 +391,9 @@ int cman_set_nodeid(int nodeid)
 	return 0;
 }
 
-int cman_join_cluster(char *name, unsigned short cl_id, int two_node_flag, int expected_votes)
+int cman_join_cluster(struct objdb_iface_ver0 *objdb,
+		      char *name, unsigned short cl_id,
+		      int two_node_flag, int votes, int expected_votes)
 {
 	if (ais_running)
 		return -EALREADY;
@@ -397,14 +404,10 @@ int cman_join_cluster(char *name, unsigned short cl_id, int two_node_flag, int e
 	cluster_id = cl_id;
 	strncpy(cluster_name, name, MAX_CLUSTER_NAME_LEN);
 	two_node = two_node_flag;
+	global_objdb = objdb;
 
 	quit_threads = 0;
 	ais_running = 1;
-
-	if (read_ccs_nodes(&config_version, 1)) {
-		log_printf(LOG_ERR, "Can't initialise list of nodes from CCS\n");
-		return -EINVAL;
-	}
 
 	/* Make sure we have a node name */
 	if (nodename[0] == '\0') {
@@ -414,7 +417,7 @@ int cman_join_cluster(char *name, unsigned short cl_id, int two_node_flag, int e
 	}
 
 	time(&join_time);
-	us = add_new_node(nodename, wanted_nodeid, 1, expected_votes,
+	us = add_new_node(nodename, wanted_nodeid, votes, expected_votes,
 			  NODESTATE_DEAD);
 	set_port_bit(us, 0);
 	us->us = 1;
@@ -439,9 +442,8 @@ static int do_cmd_set_version(char *cmdbuf, int *retlen)
 	if (config_version == version->config)
 		return 0;
 
-	config_version = version->config;
 	/* We will re-read CCS when we get our own message back */
-	send_reconfigure(us->node_id, RECONFIG_PARAM_CONFIG_VERSION, config_version);
+	send_reconfigure(us->node_id, RECONFIG_PARAM_CONFIG_VERSION, version->config);
 	return 0;
 }
 
@@ -449,10 +451,15 @@ static int do_cmd_get_extrainfo(char *cmdbuf, char **retbuf, int retsize, int *r
 {
 	char *outbuf = *retbuf + offset;
 	struct cl_extra_info *einfo = (struct cl_extra_info *)outbuf;
+	struct totem_ip_address node_ifs[MAX_INTERFACES];
 	int total_votes = 0;
 	int max_expected = 0;
 	int addrlen;
 	int uncounted = 0;
+	unsigned int num_interfaces;
+	unsigned int totem_object_handle;
+	unsigned int object_handle;
+	char **status;
 	struct cluster_node *node;
 	struct sockaddr_storage *ss;
 	char *ptr;
@@ -460,6 +467,8 @@ static int do_cmd_get_extrainfo(char *cmdbuf, char **retbuf, int retsize, int *r
 
 	if (!we_are_a_cluster_member)
 		return -ENOENT;
+
+	totempg_ifaces_get(us->node_id, node_ifs, &status, &num_interfaces);
 
 	list_iterate_items(node, &cluster_members_list) {
 		if (node->state == NODESTATE_MEMBER) {
@@ -474,9 +483,9 @@ static int do_cmd_get_extrainfo(char *cmdbuf, char **retbuf, int retsize, int *r
 
         /* Enough room for addresses ? */
 	if (retsize < (sizeof(struct cl_extra_info) +
-		       sizeof(struct sockaddr_storage) * (num_interfaces*2))) {
+		       sizeof(struct sockaddr_storage) * (MAX_INTERFACES*2))) {
 
-		*retbuf = malloc(sizeof(struct cl_extra_info) + sizeof(struct sockaddr_storage) * (num_interfaces*2));
+		*retbuf = malloc(sizeof(struct cl_extra_info) + sizeof(struct sockaddr_storage) * (MAX_INTERFACES*2));
 		outbuf = *retbuf + offset;
 		einfo = (struct cl_extra_info *)outbuf;
 
@@ -504,15 +513,39 @@ static int do_cmd_get_extrainfo(char *cmdbuf, char **retbuf, int retsize, int *r
 		einfo->flags |= CMAN_EXTRA_FLAG_DIRTY;
 
 	ptr = einfo->addresses;
-	for (i=0; i<num_interfaces; i++) {
-		ss = (struct sockaddr_storage *)ptr;
-		totemip_totemip_to_sockaddr_convert(&mcast_addr[i], 0, ss, &addrlen);
-		ptr += sizeof(struct sockaddr_storage);
+
+	global_objdb->object_find_reset(OBJECT_PARENT_HANDLE);
+	if (global_objdb->object_find(OBJECT_PARENT_HANDLE,
+				      "totem", strlen("totem"),
+				      &totem_object_handle) == 0) {
+
+		while (global_objdb->object_find(totem_object_handle,
+						 "interface", strlen("interface"),
+						 &object_handle) == 0) {
+
+			char *mcast;
+			struct sockaddr_in *saddr4;
+			struct sockaddr_in6 *saddr6;
+
+			objdb_get_string(global_objdb, object_handle, "mcastaddr", &mcast);
+			memset(ptr, 0, sizeof(struct sockaddr_storage));
+
+			saddr4 = (struct sockaddr_in *)ptr;
+			saddr6 = (struct sockaddr_in6 *)ptr;
+			if ( inet_pton(AF_INET, mcast, &saddr4->sin_addr) >0) {
+				saddr4->sin_family = AF_INET;
+			}
+			else {
+				if (inet_pton(AF_INET6, mcast, &saddr6->sin6_addr) > 0)
+					saddr4->sin_family = AF_INET6;
+			}
+			ptr += sizeof(struct sockaddr_storage);
+		}
 	}
 
 	for (i=0; i<num_interfaces; i++) {
 		ss = (struct sockaddr_storage *)ptr;
-		totemip_totemip_to_sockaddr_convert(&ifaddrs[i], 0, ss, &addrlen);
+		totemip_totemip_to_sockaddr_convert(&node_ifs[i], 0, ss, &addrlen);
 		ptr += sizeof(struct sockaddr_storage);
 	}
 
@@ -1029,7 +1062,7 @@ static void ccsd_timer_fn(void *arg)
 	int ccs_err;
 
 	log_printf(LOG_DEBUG, "Polling ccsd for updated information\n");
-	ccs_err = read_ccs_nodes(&config_version, 0);
+	ccs_err = read_cman_nodes(global_objdb, &config_version, 0);
 	if (ccs_err || config_version < wanted_config_version) {
 		log_printf(LOG_ERR, "Can't read CCS to get updated config version %d. Activity suspended on this node\n",
 				wanted_config_version);
@@ -1185,7 +1218,7 @@ static int do_cmd_get_node_addrs(char *cmdbuf, char **retbuf, int retsize, int *
 						    &addrs->addrs[i].addrlen);
 	}
 	*retlen = sizeof(struct cl_get_node_addrs) +
-		num_interfaces * sizeof(struct cl_node_addrs);
+		addrs->numaddrs * sizeof(struct cl_node_addrs);
 
 	return 0;
 }
@@ -1507,7 +1540,7 @@ static int valid_transition_msg(int nodeid, struct cl_transmsg *msg)
 	if (msg->config_version > config_version) {
 		int ccs_err;
 
-		ccs_err = read_ccs_nodes(&config_version, 0);
+		ccs_err = read_cman_nodes(global_objdb, &config_version, 0);
 		if (ccs_err || config_version < msg->config_version) {
 			config_error = 1;
 			log_printf(LOG_ERR, "Can't read CCS to get updated config version %d. Activity suspended on this node\n",
@@ -1518,7 +1551,8 @@ static int valid_transition_msg(int nodeid, struct cl_transmsg *msg)
 						   ccsd_timer_fn, &ccsd_timer);
 		}
 		if (config_version > msg->config_version) {
-			// TODO tell everyone else to update...
+			/* Tell everyone else to update */
+			send_reconfigure(us->node_id, RECONFIG_PARAM_CONFIG_VERSION, config_version);
 		}
 		recalculate_quorum(0, 0);
 	}
@@ -1666,9 +1700,10 @@ static void do_reconfigure_msg(void *data)
 		break;
 
 	case RECONFIG_PARAM_CONFIG_VERSION:
-		if (read_ccs_nodes(&config_version, 0)) {
+		if (config_version != msg->value &&
+		    read_cman_nodes(global_objdb, &config_version, 0)) {
 			log_printf(LOG_ERR, "Can't read CCS to get updated config version %d. Activity suspended on this node\n",
-				msg->value);
+				   msg->value);
 
 			config_error = 1;
 			recalculate_quorum(0, 0);
@@ -1712,7 +1747,8 @@ static void do_process_transition(int nodeid, char *data, int len)
 
 	if (valid_transition_msg(nodeid, msg) != 0) {
 		P_MEMB("Transition message from %d does not match current config - should quit ?\n", nodeid);
-		return; // PJC ???
+		// Now what ??
+		return;
 	}
 
 	/* If the remote node can see AISONLY nodes then we can't join as we don't
@@ -1872,7 +1908,7 @@ static void process_internal_message(char *data, int len, int nodeid, int need_b
 		if (killmsg->nodeid == wanted_nodeid) {
 			/* Must use syslog directly here or the message will never arrive */
 			syslog(LOG_CRIT, "cman killed by node %d because %s\n", nodeid,
-				killmsg_reason(killmsg->reason));
+			       killmsg_reason(killmsg->reason));
 			exit(1);
 		}
 		break;
@@ -1933,6 +1969,32 @@ void override_expected(int newexp)
 	}
 }
 
+void clear_reread_flags()
+{
+	struct list *nodelist;
+	struct cluster_node *node;
+
+	list_iterate(nodelist, &cluster_members_list) {
+		node = list_item(nodelist, struct cluster_node);
+		node->flags &= ~NODE_FLAGS_REREAD;
+	}
+}
+
+void remove_unread_nodes()
+{
+	struct list *nodelist;
+	struct cluster_node *node;
+
+	list_iterate(nodelist, &cluster_members_list) {
+		node = list_item(nodelist, struct cluster_node);
+		if (!(node->flags & NODE_FLAGS_REREAD) &&
+		    node->state == NODESTATE_DEAD) {
+
+			list_del(&node->list);
+			free(node);
+		}
+	}
+}
 
 /* Add a node from CCS, note that it may already exist if user has simply updated the config file */
 void add_ccs_node(char *nodename, int nodeid, int votes, int expected_votes)
@@ -2023,7 +2085,6 @@ void del_ais_node(int nodeid)
 	}
 }
 
-// TODO make these more efficient!
 static int get_highest_nodeid()
 {
 	int highest = 0;

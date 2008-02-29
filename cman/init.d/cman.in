@@ -165,7 +165,7 @@ xend_bridged_net_enabled() {
         return 1
     fi
 
-    egrep "^[[:blank:]]*\([[:blank:]]*network-script[[:blank:]]+(')*[[:blank:]]*network-bridge([[:blank:]]*\)|[[:blank:]]+)" /etc/xen/xend-config.sxp >&/dev/null
+    egrep "^[[:blank:]]*\([[:blank:]]*network-script[[:blank:]]+(')?[[:blank:]]*network-bridge([[:blank:]]*\)|[[:blank:]]+)" /etc/xen/xend-config.sxp >&/dev/null
     if [ $? -ne 0 ]; then
         # xend isn't configured to use bridged networking.
         return 1
@@ -185,7 +185,8 @@ xend_bridged_net_start() {
 
     /sbin/modprobe netbk >& /dev/null
     /sbin/modprobe netloop >& /dev/null
-    errmsg=$(/etc/xen/scripts/network-bridge start 2>&1) || return 1
+    bridge_parms=`egrep -m 1 "^[[:blank:]]*\([[:blank:]]*network-script[[:blank:]]+(')?[[:blank:]]*network-bridge([[:blank:]]*\)|[[:blank:]]+)" /etc/xen/xend-config.sxp| sed -r "s/^[[:blank:]]*\([[:blank:]]*network-script[[:blank:]]+'?[[:blank:]]*network-bridge[[:blank:]]*//; s/'?[[:blank:]]*\).*//"`
+    errmsg=$(/etc/xen/scripts/network-bridge start $bridge_parms 2>&1) || return 1
     return 0
 }
 

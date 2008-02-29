@@ -121,10 +121,12 @@ int join(commandline_t *comline)
 	}
 	if (comline->noccs_opt) {
 		envp[envptr++] = strdup("CMAN_NOCCS=true");
+		envp[envptr++] = strdup("OPENAIS_DEFAULT_CONFIG_IFACE=cmanpreconfig");
 	}
-
-	/* Use cman to configure services */
-	envp[envptr++] = strdup("OPENAIS_DEFAULT_CONFIG_IFACE=cmanconfig");
+	else {
+		snprintf(scratch, sizeof(scratch), "OPENAIS_DEFAULT_CONFIG_IFACE=%s:cmanpreconfig", comline->config_lcrso);
+		envp[envptr++] = strdup(scratch);
+	}
 
 	/* Create a pipe to monitor cman startup progress */
 	pipe(p);
@@ -136,6 +138,8 @@ int join(commandline_t *comline)
 	argv[0] = "aisexec";
 	if (comline->verbose & ~DEBUG_STARTUP_ONLY)
 		argv[++argvptr] = "-f";
+	if (comline->nosetpri_opt)
+		argv[++argvptr] = "-p";
 	argv[++argvptr] = NULL;
 
 	/* Fork/exec cman */

@@ -13,4 +13,4 @@
 include ../make/defines.mk
 include $(OBJDIR)/make/passthrough.mk
 
-SUBDIRS=lib daemon ccs_test ccs_tool man
+SUBDIRS=lib daemon ccsais ccs_test ccs_tool man
