@@ -195,5 +195,6 @@ int update_cluster_members(void);
 int is_member(char *name);
 int is_fenced(char *name);
 fd_node_t *get_new_node(fd_t *fd, int nodeid, char *in_name);
+void update_cman(char *victim, char *agent);
 
 #endif				/*  __FD_DOT_H__  */
