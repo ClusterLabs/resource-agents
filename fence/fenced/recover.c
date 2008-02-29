@@ -407,6 +407,7 @@ static void fence_victims(fd_t *fd, int start_type)
 			syslog(LOG_WARNING, "fence \"%s\" overridden by "
 			       "administrator intervention", node->name);
 
+			update_cman(node->name, "override");
 			list_del(&node->list);
 			free(node);
 		}

@@ -279,7 +279,7 @@ static int use_device(int cd, char *victim, char *method, int d,
 	return error;
 }
 
-static void update_cman(char *victim, char *method)
+void update_cman(char *victim, char *method)
 {
 	cman_handle_t ch;
 	struct cman_node node;
