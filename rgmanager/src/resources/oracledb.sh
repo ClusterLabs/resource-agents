@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright 2003-2004 Red Hat, Inc.
+# Copyright 2003-2004, 2006-2007 Red Hat, Inc.
 #
 # Author(s):
 #     Hardy Merrill <hmerrill at redhat.com>
@@ -15,10 +15,8 @@
 #
 # chkconfig: 345 99 01
 # description: Service script for starting/stopping      \
-#              Oracle(R) Application Server software on: \
-#			Red Hat Enterprise Linux 2.1 AS  \
-#			Red Hat Enterprise Linux 3 AS    \
-#			Red Hat Enterprise Linux 3 ES
+#	       Oracle(R) Database 10g on                 \
+#		        Red Hat Enterprise Linux 5
 #
 # NOTES:
 #
@@ -26,27 +24,36 @@
 # the need for this script to access anything outside of the ORACLE_HOME 
 # path.
 #
-# (2) You MUST customize ORACLE_USER, ORACLE_HOME, and ORACLE_SID to match
-# your installation!
+# (2) You MUST customize ORACLE_USER, ORACLE_HOME, ORACLE_SID, and
+# ORACLE_HOSTNAME to match your installation if not running from within
+# rgmanager.
 #
 # (3) Do NOT place this script in shared storage; place it in ORACLE_USER's
-# home directory.
+# home directory in non-clustered environments and /usr/share/cluster
+# in rgmanager/Red Hat cluster environments.
 #
 # Oracle is a registered trademark of Oracle Corporation.
 # Oracle9i is a trademark of Oracle Corporation.
+# Oracle10g is a trademark of Oracle Corporation.
 # All other trademarks are property of their respective owners.
 #
 
 . /etc/init.d/functions
 
-declare SCRIPT="`basename $0`"
+#
+# Source stuff from /etc/sysconfig, but this may be overridden if
+# this is being called as a cluster resource agent instead.
+#. /etc/sysconfig/oracledb
 
+declare SCRIPT="`basename $0`"
+declare SCRIPTDIR="`dirname $0`"
 
 [ -n "$OCF_RESKEY_user" ] && ORACLE_USER=$OCF_RESKEY_user
 [ -n "$OCF_RESKEY_home" ] && ORACLE_HOME=$OCF_RESKEY_home
 [ -n "$OCF_RESKEY_name" ] && ORACLE_SID=$OCF_RESKEY_name
 [ -n "$OCF_RESKEY_lockfile" ] && LOCKFILE=$OCF_RESKEY_lockfile
-
+[ -n "$OCF_RESKEY_type" ] && ORACLE_TYPE=$OCF_RESKEY_type
+[ -n "$OCF_RESKEY_vhost" ] && ORACLE_HOSTNAME=$OCF_RESKEY_vhost
 
 ######################################################
 # Customize these to match your Oracle installation. #
@@ -57,7 +64,7 @@ declare SCRIPT="`basename $0`"
 #    to the Oracle user and restart.  Oracle needs to run as the Oracle
 #    user, not as root.
 #
-[ -n "$ORACLE_USER" ] || ORACLE_USER=oracle
+#[ -n "$ORACLE_USER" ] || ORACLE_USER=oracle
 
 #
 # 2. Oracle home.  This is set up during the installation phase of Oracle.
@@ -65,27 +72,43 @@ declare SCRIPT="`basename $0`"
 #    you intend to use as the mount point for your Oracle Infrastructure
 #    service.
 #
-[ -n "$ORACLE_HOME" ] || ORACLE_HOME=/mnt/oracle/oracle-10g
+#[ -n "$ORACLE_HOME" ] || ORACLE_HOME=/mnt/oracle/home
 
 #
 # 3. This is your SID.  This is set up during oracle installation as well.
 #
-[ -n "$ORACLE_SID" ] || ORACLE_SID=asdb
+#[ -n "$ORACLE_SID" ] || ORACLE_SID=orcl
 
 #
 # 4. The oracle user probably doesn't have the permission to write to 
 # /var/lock/subsys, so use the user's home directory.
 #
-[ -n "$LOCKFILE" ] || LOCKFILE="/home/$ORACLE_USER/.oracle-ias.lock"
-#[ -n "$LOCKFILE" ] || LOCKFILE="$ORACLE_HOME/.oracle-ias.lock"
+#[ -n "$LOCKFILE" ] || LOCKFILE="/home/$ORACLE_USER/.oracle-ias.lock"
+[ -n "$LOCKFILE" ] || LOCKFILE="$ORACLE_HOME/.oracle-ias.lock"
 #[ -n "$LOCKFILE" ] || LOCKFILE="/var/lock/subsys/oracle-ias" # Watch privileges
 
+#
+# 5. Type of Oracle Database.  Currently supported: 10g 10g-iAS(untested!)
+#
+[ -n "$ORACLE_TYPE" ] || ORACLE_TYPE=10g
+
+#
+# 6. Oracle virtual hostname.  This is the hostname you gave Oracle during
+#    installation.
+#
+#[ -n "$ORACLE_HOSTNAME" ] || ORACLE_HOSTNAME=svc0.foo.test.com
+
+
+
 ###########################################################################
-export ORACLE_USER ORACLE_HOME ORACLE_SID LOCKFILE
+ORACLE_TYPE=`echo $ORACLE_TYPE | tr A-Z a-z`
+export ORACLE_USER ORACLE_HOME ORACLE_SID LOCKFILE ORACLE_TYPE
+export ORACLE_HOSTNAME
 
 
 ##########################
-# Set up paths we'll use.
+# Set up paths we'll use.  Not all are used by all the different types of
+# Oracle installations
 #
 export LD_LIBRARY_PATH=$ORACLE_HOME/lib:$ORACLE_HOME/opmn/lib
 export PATH=$ORACLE_HOME/bin:$ORACLE_HOME/opmn/bin:$ORACLE_HOME/dcm/bin:$PATH
@@ -98,13 +121,6 @@ declare -r	DB_PROCNAMES="pmon"
 declare -r	LSNR_PROCNAME="tnslsnr"
 #declare -r	LSNR_PROCNAME="tnslsnrXX" # testing
 
-#
-# The oracle user probably doesn't have the permission to write to 
-# /var/lock/subsys, so use the user's home directory.
-#
-declare -r	LOCKFILE="/home/$ORACLE_USER/.oracle-ias.lock"
-#declare -r	LOCKFILE="$ORACLE_HOME/.oracle-ias.lock"
-#declare -r	LOCKFILE="/var/lock/subsys/oracle-ias" # Watch privileges
 
 ##########################################################
 # (Hopefully) No user-serviceable parts below this line. #
@@ -113,14 +129,14 @@ meta_data()
 {
 	cat <<EOT
 <?xml version="1.0" ?>
-<resource-agent name="oracleas" version="rgmanager 2.0">
+<resource-agent name="oracledb" version="rgmanager 2.0">
     <version>1.0</version>
 
     <longdesc lang="en">
-	Oracle Application 10g Failover Instance
+	Oracle 10g Failover Instance
     </longdesc>
     <shortdesc lang="en">
-	Oracle Application 10g Failover Instance
+	Oracle 10g Failover Instance
     </shortdesc>
 
     <parameters>
@@ -145,13 +161,39 @@ meta_data()
 	    <content type="string"/>
         </parameter>
 
-        <parameter name="device" unique="1" required="1">
+        <parameter name="home" unique="1" required="1">
 	    <longdesc lang="en">
 		This is the Oracle (application, not user) home directory.
 		This is configured when you install Oracle.
 	    </longdesc>
             <shortdesc lang="en">
 		Oracle Home Directory
+            </shortdesc>
+	    <content type="string"/>
+        </parameter>
+
+        <parameter name="type" required="1">
+	    <longdesc lang="en">
+		This is the Oracle installation type.
+		Only "10g" and "10g-ias" are supported, and 10g-ias is
+		untested.
+	    </longdesc>
+            <shortdesc lang="en">
+		Oracle Installation Type
+            </shortdesc>
+	    <content type="string"/>
+        </parameter>
+
+        <parameter name="vhost" required="0" unique="1">
+	    <longdesc lang="en">
+	        Virtual Hostname matching the installation hostname of
+		Oracle 10g.  Note that during the start/stop of an oracledb
+		resource, your hostname will temporarily be changed to
+		this hostname.  As such, it is recommended that oracledb
+		resources be instanced as part of an exclusive service only.
+	    </longdesc>
+            <shortdesc lang="en">
+		Virtual Hostname
             </shortdesc>
 	    <content type="string"/>
         </parameter>
@@ -176,7 +218,7 @@ meta_data()
 	<action name="monitor" depth="20" timeout="90" interval="10m"/>
 
 	<action name="meta-data" timeout="5"/>
-	<action name="validate-all" timeout="5"/>
+	<action name="verify-all" timeout="5"/>
     </actions>
 
     <special tag="rgmanager">
@@ -615,15 +657,15 @@ validation_checks()
 	#
 	# If the oracle user doesn't exist, we're done.
 	#
-	[ -n "$ORACLE_USER" ] || oops ORACLE_USER
-	id -u $ORACLE_USER > /dev/null || oops ORACLE_USER
-	id -g $ORACLE_USER > /dev/null || oops ORACLE_USER
+	[ -n "$ORACLE_USER" ] || oops "ORACLE_USER"
+	id -u $ORACLE_USER > /dev/null || oops "ORACLE_USER"
+	id -g $ORACLE_USER > /dev/null || oops "ORACLE_USER"
 
 	#
 	# If the oracle home isn't a directory, we're done
 	#
 	[ -n "$ORACLE_HOME" ] || oops ORACLE_HOME
-	[ -d "$ORACLE_HOME" ] || oops ORACLE_HOME
+	#[ -d "$ORACLE_HOME" ] || oops ORACLE_HOME
 
 	#
 	# If the oracle SID is NULL, we're done
@@ -631,13 +673,27 @@ validation_checks()
 	[ -n "$ORACLE_SID" ] || oops ORACLE_SID
 
 	#
+	# If we don't know the type, we're done
+	#
+	[ "$ORACLE_TYPE" = "10g" ] || [ "$ORACLE_TYPE" = "10g-ias" ] || oops ORACLE_TYPE
+
+	#
+	# If the hostname is zero-length, fix it
+	#
+	[ -n "$ORACLE_HOSTNAME" ] || ORACLE_HOSTNAME=`hostname`
+
+	#
 	# Super user? Automatically change UID and exec as oracle user.
 	# Oracle needs to be run as the Oracle user, not root!
 	#
 	if [ "`id -u`" = "0" ]; then
-		echo "Restarting as $ORACLE_USER."
-		#exec su - $ORACLE_USER -c "$0 $*"
-		exec sudo -u $ORACLE_USER $0 $*
+		echo "Restarting $0 as $ORACLE_USER."
+		#
+		# Breaks on RHEL5 
+		# exec sudo -u $ORACLE_USER $0 $*
+		#
+		su $ORACLE_USER -c "$0 $*"
+		exit $?
 	fi
 
 	#
@@ -658,12 +714,18 @@ validation_checks()
 #
 # Start Oracle9i Application Server Infrastructure
 #
-start_ias()
+start_oracle()
 {
 	faction "Starting Oracle Database:" start_db || return 1
 	action "Starting Oracle Listener:" lsnrctl start || return 1
-	action "Starting Oracle EM:" emctl start em || return 1
-	action "Starting iAS Infrastructure:" opmnctl startall || return 1
+
+	if [ "$ORACLE_TYPE" = "10g" ]; then
+		action "Starting iSQL*Plus:" isqlplusctl start || return 1
+		action "Starting Oracle EM DB Console:" emctl start dbconsole || return 1
+	elif [ "$ORACLE_TYPE" = "10g-ias" ]; then
+		action "Starting Oracle EM:" emctl start em || return 1
+		action "Starting iAS Infrastructure:" opmnctl startall || return 1
+	fi
 
 	if [ -n "$LOCKFILE" ]; then
 		touch $LOCKFILE
@@ -675,10 +737,22 @@ start_ias()
 #
 # Stop Oracle9i Application Server Infrastructure
 #
-stop_ias()
+stop_oracle()
 {
-	action "Stopping iAS Infrastructure:" opmnctl stopall || return 1
-	action "Stopping Oracle EM:" emctl stop em || return 1
+	if ! [ -e "$ORACLE_HOME/bin/lsnrctl" ]; then
+		echo "Oracle Listener Control is not available"
+		echo "    ($ORACLE_HOME not mounted?)"
+		return 0
+	fi
+
+	if [ "$ORACLE_TYPE" = "10g" ]; then
+		action "Stopping Oracle EM DB Console:" emctl stop dbconsole || return 1
+		action "Stopping iSQL*Plus:" isqlplusctl stop || return 1
+	elif [ "$ORACLE_TYPE" = "10g-ias" ]; then
+		action "Stopping iAS Infrastructure:" opmnctl stopall || return 1
+		action "Stopping Oracle EM:" emctl stop em || return 1
+	fi
+
 	faction "Stopping Oracle Database:" stop_db || return 1
 	action "Stopping Oracle Listener:" lsnrctl stop
 	faction "Waiting for all Oracle processes to exit:" exit_idle 
@@ -712,7 +786,7 @@ stop_ias()
 # - If all are running, return 0.  In the "all-running" case, we recreate
 # $LOCKFILE if it does not exist.
 #
-status_ias()
+status_oracle()
 {
 	declare -i subsys_lock=1
 	declare -i last 
@@ -735,10 +809,17 @@ status_ias()
 	update_status $? $last
 	last=$?
 	
-	# Check & report opmn / opmn-managed process status
-	get_opmn_status $subsys_lock $depth
-	update_status $? $last
-	last=$?
+	if [ "$ORACLE_TYPE" = "10g" ]; then
+		# XXX Add isqlplus status check?!
+		emctl status dbconsole 2>&1 | grep "is running"
+		update_status $? $last
+		last=$?
+	elif [ "$ORACLE_TYPE" = "10g-ias" ]; then
+		# Check & report opmn / opmn-managed process status
+		get_opmn_status $subsys_lock $depth
+		update_status $? $last
+		last=$?
+	fi
 
 	#
 	# No lock file, but everything's running.  Put the lock
@@ -755,38 +836,34 @@ status_ias()
 ########################
 # Do some real work... #
 ########################
+if [ "$1" = "meta-data" ]; then
+	meta_data
+	exit 0
+fi
+
+validation_checks $*
+
 case $1 in
-	meta-data)
-		meta_data
-		exit $?
-		;;
-	validate-all)
-		validation_checks $*
-		exit 0 # XXX XXX XXX
-		;;
 	start)
-		validation_checks $*
-		start_ias
+		start_oracle
 		exit $?
 		;;
 	stop)
-		validation_checks $*
-		stop_ias
+		stop_oracle
 		exit $?
 		;;
 	status|monitor)
-		validation_checks $*
-		status_ias $OCF_CHECK_LEVEL
+		status_oracle $OCF_CHECK_LEVEL
 		exit $?
 		;;
 	restart)
 		$0 stop || exit $?
 		$0 start || exit $?
-		exit $OCF_SUCCESS
+		exit 0
 		;;
 	*)
-		echo "usage: $SCRIPT {start|stop|status|restart|validate-all|monitor}"
-		exit $OCF_ERR_UNIMPLEMENTED
+		echo "usage: $SCRIPT {start|stop|status|restart|meta-data}"
+		exit 1
 		;;
-esac	
+esac
 exit 0

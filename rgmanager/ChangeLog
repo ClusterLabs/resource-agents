@@ -1,5 +1,6 @@
 2008-03-04 Lon Hohberger <lhh at redhat.com>
 	* src/resources/ASEHAagent.sh, Makefile: Add Sybase failover agent
+	* src/resources/oracledb.sh, Makefile: Add Oracle 10g failover agent
 
 2008-02-26 Lon Hohberger <lhh at redhat.com>
 	* src/resources/ip.sh: Fix netmask handling in ip.sh
