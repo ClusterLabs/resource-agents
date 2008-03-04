@@ -37,7 +37,7 @@ connects to the cluster manager via the \fBmagma\fP interface.
 \fBWARNING:\fP You must NOT specify
 this option if you wish to use gnbd with dm multipathing, or run GFS on gnbd
 server machines.  To set up dm multipathing over gnbd, all
-gnbds involved must run with caching disabled.  Data corruption will occur
+GNBDs involved must run with caching disabled.  Data corruption will occur
 if the GNBD devices are run with caching. Any device that is exported without
 the \fB-c\fP option can also be used locally, but you must access the device
 directly. You MUST NOT use gnbd_import to import devices exported from the
@@ -105,7 +105,7 @@ Remove named GNBD(s).
 \fB-u\fP \fIuid\fR
 Manually set UID.
 
-Manunally set the Universal Identifier for an exported device. This option is
+Manually set the Universal Identifier for an exported device. This option is
 used with \fB-e\fP. The UID is used by device-mapper-multipath to determine
 which devices belong in a multipath map. A device must have a UID to be
 multipathed. However, for most SCSI devices the default Get UID command
@@ -126,9 +126,9 @@ Get UID Command.
 This is a command the gnbd_export will run to get a Universal Identifier for
 the exported device. The UID is necessary to use device-mapper-multipath with
 GNBD (see \fB-u\fP for more information). The command must use the full path
-of any executeable that you wish to run. A command can contain the %M, %m or
+of any executable that you wish to run. A command can contain the %M, %m or
 %n escape sequences. %M will be expanded to the major number of the exported
-device, %m will be expaned to the minor number of the exported device, and
+device, %m will be expanded to the minor number of the exported device, and
 %n will be expanded to the sysfs name for the device. If no command is given,
 gnbd will use the default command \fI"/usr/sbin/gnbd_get_uid"\fR. This
 command will work for most scsi devices.

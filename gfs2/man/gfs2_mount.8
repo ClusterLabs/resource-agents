@@ -151,7 +151,7 @@ message that you need to upgrade.  Try mounting again, using the
 filesystem.
 .TP
 \fBnum_glockd=\fP\fINumber\fR
-Tunes GFS2 to alleviate memory pressure when rapidly aquiring many locks (e.g.
+Tunes GFS2 to alleviate memory pressure when rapidly acquiring many locks (e.g.
 several processes scanning through huge directory trees).  GFS2' glockd kernel
 daemon cleans up memory for no-longer-needed glocks.  Multiple instances
 of the daemon clean up faster than a single instance.  The default value is
@@ -182,7 +182,7 @@ ignored.  The default value is "off".
 .TP
 \fBdata=\fP\fI[ordered/writeback]\fR
 When data=ordered is set, the user data modified by a transaction is
-flushed to the disk before the transaction is commited to disk.  This
+flushed to the disk before the transaction is committed to disk.  This
 should prevent the user from seeing uninitialized blocks in a file
 after a crash.  Data=writeback mode writes the user data to the disk
 at any time after it's dirtied.  This doesn't provide the same

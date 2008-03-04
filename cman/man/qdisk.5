@@ -60,7 +60,7 @@ if the timeouts are set high enough.
 
 .SH "1.3.3. Fencing is Required"
 In order to maintain data integrity under all failure scenarios, use of
-this quorum daemon requires adequate fencing, preferrably power-based
+this quorum daemon requires adequate fencing, preferably power-based
 fencing.  Watchdog timers and software-based solutions to reboot the node
 internally, while possibly sufficient, are not considered 'fencing' for 
 the purposes of using the quorum disk.
@@ -115,7 +115,7 @@ timestamp), a node is declared offline.  After a certain number of 'hits'
 
 The status block contains additional information, such as a bitmask of
 the nodes that node believes are online.  Some of this information is
-used by the master - while some is just for performace recording, and
+used by the master - while some is just for performance recording, and
 may be used at a later time.  The most important pieces of information
 a node writes to its status block are:
 
