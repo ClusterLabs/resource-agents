@@ -3006,6 +3006,7 @@ lib/Makefile							\
 		lib/plugins/stonith/external/ibmrsa		\
 		lib/plugins/stonith/external/riloe		\
 		lib/plugins/stonith/external/ssh		\
+		lib/plugins/stonith/external/hmchttp		\
 		lib/plugins/AppHBNotification/Makefile		\
 		lib/plugins/HBcompress/Makefile			\
 		lib/plugins/quorum/Makefile			\
