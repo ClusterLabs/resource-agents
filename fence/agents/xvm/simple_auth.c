@@ -390,6 +390,8 @@ read_key_file(char *file, char *key, size_t max_len)
 	while (remain) {
 		nread = read(fd, p, remain);
 		if (nread < 0) {
+			if (errno == EINTR)
+				continue;
 			dbg_printf(2, "Error from read: %s\n", strerror(errno));
 			close(fd);
 			return -1;

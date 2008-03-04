@@ -57,6 +57,7 @@
 #define LIBVIRT_XEN_URI "xen:///"
 
 static int running = 1;
+static int reload_key;
 
 
 int cleanup_xml(char *xmldesc, char **ret, size_t *retsz);
@@ -573,6 +574,27 @@ xvmd_loop(cman_handle_t ch, void *h, int fd, fence_xvm_args_t *args,
 			virConnectClose(vp);
 			vp = NULL;
 		}
+
+		if (reload_key) {
+			char temp_key[MAX_KEY_LEN];
+			int ret;
+
+			reload_key = 0;
+
+			ret = read_key_file(args->key_file, temp_key, sizeof(temp_key));
+			if (ret < 0) {
+				printf("Could not read %s; not updating key",
+					args->key_file);
+			} else {
+				memcpy(key, temp_key, MAX_KEY_LEN);
+				key_len = (size_t) ret;
+
+				if (args->auth == AUTH_NONE)
+					args->auth = AUTH_SHA256;
+				if (args->hash == HASH_NONE)
+					args->hash = HASH_SHA256;
+			}
+		}
 		
 		n = select(fd+1, &rfds, NULL, NULL, &tv);
 		if (n < 0)
@@ -678,6 +700,11 @@ sigint_handler(int sig)
 	running = 0;
 }
 
+void
+sighup_handler(int sig)
+{
+	reload_key = 1;
+}
 
 void malloc_dump_table(void);
 
@@ -687,7 +714,7 @@ main(int argc, char **argv)
 {
 	fence_xvm_args_t args;
 	int mc_sock;
-	char key[4096];
+	char key[MAX_KEY_LEN];
 	int key_len = 0, x;
 	char *my_options = "dfi:a:p:C:c:k:u?hLXV";
 	cman_handle_t ch = NULL;
@@ -780,7 +807,6 @@ main(int argc, char **argv)
 		if (x)
 			printf("Checkpoint initialized\n");
 	}
-
 	if (args.family == PF_INET)
 		mc_sock = ipv4_recv_sk(args.addr, args.port);
 	else
@@ -791,6 +817,7 @@ main(int argc, char **argv)
 	}
 
 
+	signal(SIGHUP, sighup_handler);
 	signal(SIGINT, sigint_handler);
 	signal(SIGTERM, sigint_handler);
 	signal(SIGQUIT, sigint_handler);

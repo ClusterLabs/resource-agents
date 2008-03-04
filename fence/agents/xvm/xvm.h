@@ -59,6 +59,7 @@ typedef enum {
 #define DEFAULT_TTL 4
 
 #define MAX_HASH_LENGTH SHA512_LENGTH
+#define MAX_KEY_LEN 4096
 
 typedef struct __attribute__ ((packed)) _fence_req {
 	uint8_t  request;		/* Fence request */

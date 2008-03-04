@@ -219,7 +219,7 @@ int
 fence_xen_domain(fence_xvm_args_t *args)
 {
 	ip_list_t ipl;
-	char key[4096];
+	char key[MAX_KEY_LEN];
 	int lfd, key_len = 0, fd;
 	int attempts = 0;
 	
