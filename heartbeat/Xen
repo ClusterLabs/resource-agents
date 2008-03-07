@@ -43,8 +43,6 @@ usage() {
 : ${OCF_RESKEY_allow_migrate=0}
 : ${OCF_RESKEY_allow_mem_management=0}
 : ${OCF_RESKEY_reserved_Dom0_memory=512}
-DOMAIN_NAME=`awk '$1~/^name(=|$)/{print}' ${OCF_RESKEY_xmfile} | sed 's/.*=[[:space:]]*//' | tr -d "[\"']"`
-: ${DOMAIN_NAME=${OCF_RESOURCE_INSTANCE}}
 
 meta_data() {
 	cat <<END
@@ -318,6 +316,15 @@ case $1 in
   meta-data)		meta_data
 			exit $OCF_SUCCESS
 			;;
+  usage)		usage
+			exit $OCF_SUCCESS
+			;;
+esac
+
+DOMAIN_NAME=`awk '$1~/^name(=|$)/{print}' ${OCF_RESKEY_xmfile} | sed 's/.*=[[:space:]]*//' | tr -d "[\"']"`
+: ${DOMAIN_NAME=${OCF_RESOURCE_INSTANCE}}
+
+case $1 in
   start)		Xen_Start
 			;;
   stop)			Xen_Stop
@@ -331,9 +338,6 @@ case $1 in
   status)		Xen_Status ${DOMAIN_NAME}
 			;;
   validate-all)		Xen_Validate_All
-			;;
-  usage)		usage
-			exit $OCF_SUCCESS
 			;;
   *)			usage
 			exit $OCF_ERR_UNIMPLEMENTED
