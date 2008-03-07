@@ -18,11 +18,14 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #
 MAINTAINERCLEANFILES = Makefile.in
-EXTRA_DIST		= $(ocf_SCRIPTS)
+EXTRA_DIST		= $(ocf_SCRIPTS) ra-api-1.dtd
 
 INCLUDES		= -I$(top_srcdir)/include -I$(top_srcdir)/linux-ha
 
-ocfdir		     = @OCF_RA_DIR@/heartbeat
+dtddir			= $(HA_NOARCHDATAHBDIR)
+ocfdir		    = @OCF_RA_DIR@/heartbeat
+
+dtd_SCRIPTS		= ra-api-1.dtd
 
 gliblib                 = @GLIBLIB@
 
