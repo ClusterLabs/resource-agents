@@ -107,6 +107,35 @@ start_cman()
     return 0
 }
 
+
+start_qdiskd()
+{
+    declare current_runlevel
+
+    current_runlevel=$(/sbin/runlevel 2>/dev/null | awk '{ print $2 }' 2>/dev/null)
+    #
+    # Start qdiskd before fenced to resolve bug #436381.  This only
+    # happens if qdiskd is configured to run in the runlevel we are in
+    #
+    /sbin/chkconfig --levels "$current_runlevel" qdiskd 2>/dev/null
+    if [ $? -ne 0 ]; then
+        # qdiskd doesn't start at this runlevel.
+        return 0
+    fi
+
+    echo -n "   Starting qdiskd... "
+    /sbin/service qdiskd start &> /dev/null
+    if [ $? -eq 0 ] 
+    then
+	echo "done"
+    else
+	echo "failed"
+	return 1
+    fi
+    return 0
+}
+
+
 start_daemons()
 {
     status groupd &> /dev/null
@@ -294,6 +323,9 @@ start()
 	echo "failed"
 	return 1
     fi
+
+    start_qdiskd
+
     echo -n "   Starting daemons... "
     start_daemons
     if [ $? -eq 0 ] 
