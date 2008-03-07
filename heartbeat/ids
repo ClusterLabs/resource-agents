@@ -674,6 +674,15 @@ ids_monitor() {
 #
 ###
 
+case "$1" in
+	usage)
+		ids_usage
+		exit $?;;
+	meta-data)
+		ids_meta_data
+		exit $?;;
+esac
+
 # Validate configuration (parameters and such) 
 # passed to this script and only process the method parameter
 # if the configuration is valid! Otherwise exit with OCF_ERR_ARGS error code.
@@ -718,14 +727,6 @@ case "$1" in
 
 	methods)
 		ids_methods
-		exit $?;;
-
-	usage)
-		ids_usage
-		exit $?;;
-
-	meta-data)
-		ids_meta_data
 		exit $?;;
 
 	*)
