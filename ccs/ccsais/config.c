@@ -240,6 +240,14 @@ static int init_config(struct objdb_iface_ver0 *objdb, char *error_string)
 	/* Nodes information */
 	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "clusternodes", "clusternodes", 1);
 
+	/* all the others */
+	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "quorumd", "quorumd", 1);
+	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "fence_xvmd", "fence_xvmd", 1);
+	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "fencedevices", "fencedevices", 1);
+	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "dlm", "dlm", 1);
+	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "gfs_controld", "gfs_controld", 1);
+	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "rm", "rm", 1);
+
         /* Also get cluster name and config version number */
 	if (!ccs_get(cd, CONFIG_VERSION_PATH, &str)) {
 		objdb->object_key_create(OBJECT_PARENT_HANDLE,
