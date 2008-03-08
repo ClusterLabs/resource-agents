@@ -648,11 +648,16 @@ if ((not defined($release_major)) || (not defined($release_minor)) || (not defin
   }
 }
 
+print OFILE "RELEASE_VERSION = $release_major.$release_minor.$release_micro\n";
+print OFILE "CFLAGS += -DRELEASE_VERSION=\\\"$release_major.$release_minor.$release_micro\\\"\n";
+
+$release_major = abs $release_major;
+$release_minor = abs $release_minor;
+$release_micro = abs $release_micro;
 print OFILE "RELEASE_MAJOR = $release_major\n";
 print OFILE "RELEASE_MINOR = $release_minor\n";
 print OFILE "RELEASE_MICRO = $release_micro\n";
-print OFILE "RELEASE_VERSION = $release_major.$release_minor.$release_micro\n";
-print OFILE "CFLAGS += -DRELEASE_VERSION=\\\"$release_major.$release_minor.$release_micro\\\"\n";
+
 close OFILE;
 
 print "Completed Makefile configuration\n\n";
