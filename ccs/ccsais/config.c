@@ -80,16 +80,16 @@ __attribute__ ((constructor)) static void ccs_comp_register(void) {
 static int should_alloc(int ccs_fd, char *key)
 {
 	int keyerror, childerr;
-	char keypath[256], childpath[256];
+	char path[256];
 	char *str = NULL;
 
-	sprintf(keypath, "/cluster/%s/@*", key);
-	keyerror = ccs_get_list(ccs_fd, keypath, &str);
+	sprintf(path, "/cluster/%s/@*", key);
+	keyerror = ccs_get_list(ccs_fd, path, &str);
 	if(str)
 		free(str);
 
-	sprintf(childpath, "/cluster/%s/child::*", key);
-	childerr = ccs_get_list(ccs_fd, childpath, &str);
+	sprintf(path, "/cluster/%s/child::*", key);
+	childerr = ccs_get_list(ccs_fd, path, &str);
 	if(str)
 		free(str);
 
