@@ -75,6 +75,28 @@ static struct lcr_comp ccs_comp_ver0 = {
 __attribute__ ((constructor)) static void ccs_comp_register(void) {
 	lcr_interfaces_set(&ifaces_ver0[0], &ccsconfig_iface_ver0);
 	lcr_component_register(&ccs_comp_ver0);
+};
+
+static int should_alloc(int ccs_fd, char *key)
+{
+	int keyerror, childerr;
+	char keypath[256], childpath[256];
+	char *str = NULL;
+
+	sprintf(keypath, "/cluster/%s/@*", key);
+	keyerror = ccs_get_list(ccs_fd, keypath, &str);
+	if(str)
+		free(str);
+
+	sprintf(childpath, "/cluster/%s/child::*", key);
+	childerr = ccs_get_list(ccs_fd, childpath, &str);
+	if(str)
+		free(str);
+
+	if (childerr && keyerror)
+		return 0;
+
+	return 1;
 }
 
 static int read_config_for(int ccs_fd, struct objdb_iface_ver0 *objdb, unsigned int parent,
@@ -89,9 +111,9 @@ static int read_config_for(int ccs_fd, struct objdb_iface_ver0 *objdb, unsigned 
 	int subkeycount = 0;
 	int i;
 
-	if (always_create) {
+	if (should_alloc(ccs_fd, key) || always_create)
 		objdb->object_create(parent, &object_handle, object, strlen(object));
-	}
+
 	sprintf(path, "/cluster/%s/@*", key);
 
 	/* Get the keys */
@@ -102,10 +124,6 @@ static int read_config_for(int ccs_fd, struct objdb_iface_ver0 *objdb, unsigned 
 		error = ccs_get_list(ccs_fd, path, &str);
 		if (error || !str)
                         break;
-
-		if (!object_handle) {
-			objdb->object_create(parent, &object_handle, object, strlen(object));
-		}
 
 		equal = strchr(str, '=');
 		if (equal)
@@ -166,10 +184,6 @@ static int read_config_for(int ccs_fd, struct objdb_iface_ver0 *objdb, unsigned 
 		for (;;)
 		{
 			char subpath[1024];
-
-			/* Allow for empty parents */
-			if (!object_handle)
-				object_handle = parent;
 
 			/* Found a subkey, iterate through it's sub sections */
 			sprintf(subpath, "%s/%s[%d]", key, str, ++count);
