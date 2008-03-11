@@ -691,6 +691,31 @@ int queue_app_message(group_t *g, struct save_msg *save)
 	return 0;
 }
 
+/* This is called when we get the nodedown for the per-group cpg; we know
+   that after the cpg nodedown we won't get any further messages. bz 436984
+   It's conceivable but unlikely that the nodedown processing (initiated by
+   the groupd cpg nodedown) could begin before the per-group cpg nodedown
+   is received where this purging occurs.  If it does, then we may need to
+   add code to wait for the nodedown to happen in both the groupd cpg and the
+   per-group cpg before processing the nodedown. */
+
+void purge_node_messages(group_t *g, int nodeid)
+{
+	struct save_msg *save, *tmp;
+
+	list_for_each_entry_safe(save, tmp, &g->messages, list) {
+		if (save->nodeid != nodeid)
+			continue;
+
+		log_group(g, "purge msg from dead node %d", nodeid);
+
+		list_del(&save->list);
+		if (save->msg_long)
+			free(save->msg_long);
+		free(save);
+	}
+}
+
 static void del_app_nodes(app_t *a)
 {
 	node_t *node, *tmp;

@@ -402,6 +402,7 @@ void process_confchg(void)
 		case CPG_REASON_NODEDOWN:
 		case CPG_REASON_PROCDOWN:
 			/* process_node_down(g, saved_left[i].nodeid); */
+			purge_node_messages(g, saved_left[i].nodeid);
 			break;
 		default:
 			log_error(g, "unknown leave reason %d node %d",

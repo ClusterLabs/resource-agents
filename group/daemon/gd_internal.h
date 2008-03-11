@@ -263,6 +263,7 @@ void groupd_down(int nodeid);
 char *msg_type(int type);
 int process_app(group_t *g);
 int is_our_join(event_t *ev);
+void purge_node_messages(group_t *g, int nodeid);
 
 /* main.c */
 void app_stop(app_t *a);
