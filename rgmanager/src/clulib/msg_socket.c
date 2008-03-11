@@ -36,6 +36,15 @@
 
 static msg_ops_t sock_msg_ops;
 
+static void
+set_cloexec(int sock)
+{
+	long sock_flags;
+
+	sock_flags = fcntl(sock, F_GETFD);
+	fcntl(sock, F_SETFD, sock_flags | FD_CLOEXEC);
+}
+
 static int
 sock_connect(void)
 {
@@ -336,6 +345,8 @@ sock_msg_accept(msgctx_t *listenctx, msgctx_t *acceptctx)
 	if (acceptctx->u.local_info.sockfd < 0)
 		return -1;
 
+	set_cloexec(acceptctx->u.local_info.sockfd);
+
 	acceptctx->flags = (SKF_READ | SKF_WRITE);
 	return 0;
 }
@@ -359,6 +370,7 @@ sock_msg_listen(int me, void *portp, msgctx_t **listen_ctx)
 	if (sock < 0)
 		return -1;
 
+	set_cloexec(sock);
 	unlink(RGMGR_SOCK);
 	om = umask(077);
 	su.sun_family = PF_LOCAL;
