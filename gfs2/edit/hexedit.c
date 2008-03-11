@@ -2183,6 +2183,7 @@ void usage(void)
 	fprintf(stderr,"savemeta <file_system> <file> - save off your metadata for analysis and debugging.\n");
 	fprintf(stderr,"   (The intelligent way: assume bitmap is correct).\n");
 	fprintf(stderr,"savemetaslow - save off your metadata for analysis and debugging.  The SLOW way (block by block).\n");
+	fprintf(stderr,"savergs - save off only the resource group information (rindex and rgs).\n");
 	fprintf(stderr,"restoremeta - restore metadata for debugging (DANGEROUS).\n");
 	fprintf(stderr,"rgcount - print how many RGs in the file system.\n");
 	fprintf(stderr,"rgflags rgnum [new flags] - print or modify flags for rg #rgnum (0 - X)\n");
@@ -2260,6 +2261,8 @@ void process_parameters(int argc, char *argv[], int pass)
 			else if (!strcasecmp(argv[i], "savemeta"))
 				termlines = 0;
 			else if (!strcasecmp(argv[i], "savemetaslow"))
+				termlines = 0;
+			else if (!strcasecmp(argv[i], "savergs"))
 				termlines = 0;
 			else if (!strcasecmp(argv[i], "printsavedmeta"))
 				restoremeta(argv[i+1], argv[i+2],
@@ -2379,9 +2382,11 @@ void process_parameters(int argc, char *argv[], int pass)
 					exit(EXIT_SUCCESS);
 				}
 				else if (!strcasecmp(argv[i], "savemeta"))
-					savemeta(argv[i+2], FALSE);
+					savemeta(argv[i+2], 0);
 				else if (!strcasecmp(argv[i], "savemetaslow"))
-					savemeta(argv[i+2], TRUE);
+					savemeta(argv[i+2], 1);
+				else if (!strcasecmp(argv[i], "savergs"))
+					savemeta(argv[i+2], 2);
 				else if (argv[i][0]=='0' && argv[i][1]=='x') { /* hex addr */
 					sscanf(argv[i], "%"SCNx64, &temp_blk);/* retrieve in hex */
 					push_block(temp_blk);

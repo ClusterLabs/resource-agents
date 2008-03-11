@@ -701,7 +701,9 @@ void get_journal_inode_blocks(void)
 			struct gfs_jindex ji;
 			char jbuf[sizeof(struct gfs_jindex)];
 
+			bh = bread(&sbd, sbd1->sb_jindex_di.no_addr);
 			j_inode = inode_get(&sbd, bh);
+			brelse(bh, not_updated);
 			amt = gfs2_readi(j_inode, (void *)&jbuf,
 					 journal * sizeof(struct gfs_jindex),
 					 sizeof(struct gfs_jindex));
@@ -709,7 +711,6 @@ void get_journal_inode_blocks(void)
 				break;
 			gfs_jindex_in(&ji, jbuf);
 			jblock = ji.ji_addr;
-			inode_put(j_inode, not_updated);
 		} else {
 			if (journal > indirect->ii[0].dirents - 3)
 				break;
@@ -723,15 +724,17 @@ void get_journal_inode_blocks(void)
 	}
 }
 
-void savemeta(const char *out_fn, int slow)
+void savemeta(const char *out_fn, int saveoption)
 {
 	int out_fd;
+	int slow;
 	osi_list_t *tmp;
 	uint64_t memreq;
 	int rgcount;
 	uint64_t jindex_block;
 	struct gfs2_buffer_head *bh;
 
+	slow = (saveoption == 1);
 	sbd.md.journals = 1;
 
 	if (!out_fn)
@@ -760,7 +763,7 @@ void savemeta(const char *out_fn, int slow)
 			osi_list_init(&sbd.buf_hash[i]);
 		sbd.sd_sb.sb_bsize = GFS2_DEFAULT_BSIZE;
 		compute_constants(&sbd);
-		if(read_sb(&sbd) < 0)
+		if(!gfs1 && read_sb(&sbd) < 0)
 			slow = TRUE;
 		else
 			bufsize = sbd.bsize = sbd.sd_sb.sb_bsize;
@@ -808,6 +811,13 @@ void savemeta(const char *out_fn, int slow)
 	if (!slow) {
 		/* Save off the superblock */
 		save_block(sbd.device_fd, out_fd, 0x10 * (4096 / bufsize));
+		/* If this is gfs1, save off the rindex because it's not
+		   part of the file system as it is in gfs2. */
+		if (gfs1) {
+			block = sbd1->sb_rindex_di.no_addr;
+			save_block(sbd.device_fd, out_fd, block);
+			save_inode_data(out_fd);
+		}
 		/* Walk through the resource groups saving everything within */
 		for (tmp = sbd.rglist.next; tmp != &sbd.rglist;
 		     tmp = tmp->next){
@@ -834,15 +844,17 @@ void savemeta(const char *out_fn, int slow)
 				save_block(sbd.device_fd, out_fd, block);
 			}
 			/* Save off the other metadata: inodes, etc. */
-			while (!gfs2_next_rg_meta(rgd, &block, first)) {
-				int blktype;
+			if (saveoption != 2) {
+				while (!gfs2_next_rg_meta(rgd, &block, first)) {
+					int blktype;
 
-				warm_fuzzy_stuff(block, FALSE, TRUE);
-				blktype = save_block(sbd.device_fd, out_fd,
-						     block);
-				if (blktype == GFS2_METATYPE_DI)
-					save_inode_data(out_fd);
-				first = 0;
+					warm_fuzzy_stuff(block, FALSE, TRUE);
+					blktype = save_block(sbd.device_fd,
+							     out_fd, block);
+					if (blktype == GFS2_METATYPE_DI)
+						save_inode_data(out_fd);
+					first = 0;
+				}
 			}
 			gfs2_rgrp_relse(rgd, not_updated);
 		}
