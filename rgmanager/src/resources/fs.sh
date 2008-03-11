@@ -797,21 +797,14 @@ activeMonitor() {
 
 
 #
-# Enable quotas on the mount point if the user requested them
+# Decide which quota options are enabled and return a string 
+# which we can pass to quotaon
 #
-enable_fs_quotas()
+quota_opts()
 {
-	declare -i need_check=0
-	declare -i rv
 	declare quotaopts=""
-	declare mopt
 	declare opts=$1
-	declare mp=$2
-
-	if [ -z "`which quotaon`" ]; then
-		ocf_log err "quotaon not found in $PATH"
-		return $OCF_ERR_GENERIC
-	fi
+	declare mopt
 
 	for mopt in `echo $opts | sed -e s/,/\ /g`; do
 		case $mopt in
@@ -829,6 +822,33 @@ enable_fs_quotas()
 			;;
 		esac
 	done
+
+	echo $quotaopts
+	return 0
+}
+
+
+
+#
+# Enable quotas on the mount point if the user requested them
+#
+enable_fs_quotas()
+{
+	declare -i need_check=0
+	declare -i rv
+	declare quotaopts=""
+	declare mopt
+	declare opts=$1
+	declare mp=$2
+
+	if [ -z "`which quotaon`" ]; then
+		ocf_log err "quotaon not found in $PATH"
+		return $OCF_ERR_GENERIC
+	fi
+
+	quotaopts=$(quota_opts $opts)
+
+	ocf_log info "quotaopts = $quotaopts"
 
 	[ -z "$quotaopts" ] && return 0
 
@@ -1089,6 +1109,7 @@ stopFilesystem() {
 	typeset force_umount=""
 	typeset self_fence=""
 	typeset fstype=""
+	typeset quotaopts=""
 
 
 	#
@@ -1154,11 +1175,15 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 			;;
 		$YES)
 			sync; sync; sync
-			ocf_log info "unmounting $mp"
+			quotaopts=$(quota_opts $OCF_RESKEY_options)
+			if [ -n "$quotaopts" ]; then
+				ocf_log debug "Turning off quotas for $mp"
+		       		quotaoff -$quotaopts $mp &> /dev/null
+			fi
 
 			activeMonitor stop || return $OCF_ERR_GENERIC
 
-			quotaoff -gu $mp &> /dev/null
+			ocf_log info "unmounting $mp"
 			umount $mp
 			if  [ $? -eq 0 ]; then
 				umount_failed=
