@@ -444,22 +444,14 @@ findSlaves()
 		return $OCF_ERR_GENERIC
 	fi
 
-       ## Strip possible VLAN (802.1q) suffixes 
-       ##  - Roland Gadinger <roland.gadinger@beko.at> 
-       mastif=${mastif%%.*} 
+	## Strip possible VLAN (802.1q) suffixes 
+	##  - Roland Gadinger <roland.gadinger@beko.at> 
+	mastif=${mastif%%.*} 
 
 	while read line; do
 		set - $line
-		while [ $# -gt 0 ]; do
-			case $1 in
-			eth*:)
-				interfaces="${1/:/} $interfaces"
-				continue 2
-				;;
-			esac
-			shift
-		done
-	done < <( /sbin/ip link list | grep "master $mastif" )
+		interfaces="${2/:/} $interfaces"
+	done < <( /sbin/ip -o link list | grep "master $mastif" )
 
 	echo $interfaces
 }
