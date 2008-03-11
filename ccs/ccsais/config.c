@@ -85,8 +85,10 @@ static int should_alloc(int ccs_fd, char *key)
 
 	sprintf(path, "/cluster/%s/@*", key);
 	keyerror = ccs_get_list(ccs_fd, path, &str);
-	if(str)
+	if(str) {
 		free(str);
+		str = NULL;
+	}
 
 	sprintf(path, "/cluster/%s/child::*", key);
 	childerr = ccs_get_list(ccs_fd, path, &str);
