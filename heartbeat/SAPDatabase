@@ -24,6 +24,7 @@
 #       OCF_RESKEY_AUTOMATIC_RECOVER (optional, automatic startup recovery, default is false)
 #       OCF_RESKEY_DIR_BOOTSTRAP    (optional, if non standard J2EE server directory)
 #       OCF_RESKEY_DIR_SECSTORE     (optional, if non standard J2EE secure store directory)
+#       OCF_RESKEY_DB_JARS          (optional, if maintained in bootstrap.properties, mandatory for WebAS Java 7.10)
 #	OCF_RESKEY_PRE_START_USEREXIT	(optional, lists a script which can be executed before the resource is started)
 #	OCF_RESKEY_POST_START_USEREXIT	(optional, lists a script which can be executed after the resource is started)
 #	OCF_RESKEY_PRE_STOP_USEREXIT	(optional, lists a script which can be executed before the resource is stopped)
@@ -68,7 +69,7 @@ meta_data() {
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="SAPDatabase">
-<version>1.9</version>
+<version>1.91</version>
 
 <longdesc lang="en">
 Resource script for SAP databases. It manages a SAP database of any type as an HA resource.
@@ -124,6 +125,11 @@ Resource script for SAP databases. It manages a SAP database of any type as an H
  <parameter name="DIR_SECSTORE" unique="1" required="0">
   <longdesc lang="en">The full qualified path where to find the J2EE security store directory. e.g. /usr/sap/P01/SYS/global/security/lib/tools</longdesc>
   <shortdesc lang="en">path to j2ee secure store directory</shortdesc>
+  <content type="string" default="" />
+ </parameter>
+ <parameter name="DB_JARS" unique="1" required="0">
+  <longdesc lang="en">The full qualified filename of the jdbc driver for the database connection test. It will be automaticaly read from the bootstrap.properties file in Java engine 6.40 and 7.00. For Java engine 7.10 the parameter is mandatory.</longdesc>
+  <shortdesc lang="en">file name of the jdbc driver</shortdesc>
   <content type="string" default="" />
  </parameter>
  <parameter name="PRE_START_USEREXIT" unique="1" required="0">
@@ -556,6 +562,12 @@ sapdatabase_start() {
   output=`su - $sidadm -c $SAPSTARTDB`
   rc=$?
 
+  if [ $DBJ2EE_ONLY -eq 1 ]
+  then
+    sapdatabase_monitor 1
+    rc=$?
+  fi
+
   if [ $rc -ne 0 -a $OCF_RESKEY_AUTOMATIC_RECOVER -eq 1 ]
   then
     ocf_log warn "SAP database $SID start failed: $output"
@@ -625,6 +637,7 @@ sapdatabase_stop() {
 # sapdatabase_monitor: Can the given database instance do anything useful?
 #
 sapdatabase_monitor() {
+  strict=$1
   rc=$OCF_SUCCESS
 
   case $DBTYPE in
@@ -636,7 +649,7 @@ sapdatabase_monitor() {
          ;;
   esac
 
-  if [ $OCF_RESKEY_STRICT_MONITORING -eq 0 ]
+  if [ $strict -eq 0 ]
   then
     sapdatabase_status
     rc=$?
@@ -651,10 +664,10 @@ sapdatabase_monitor() {
         rc=$OCF_NOT_RUNNING
       fi
     else
-      DB_JARS=""
-      if [ -f "$BOOTSTRAP"/bootstrap.properties ]; then
-        DB_JARS=`cat $BOOTSTRAP/bootstrap.properties | grep -i rdbms.driverLocation | sed -e 's/\\\:/:/g' | awk -F= '{print $2}'`
-      fi
+      MYCP=""
+      EXECMD=""
+
+      # WebAS Java 6.40+7.00
       IAIK_JCE="$SECSTORE"/iaik_jce.jar
       IAIK_JCE_EXPORT="$SECSTORE"/iaik_jce_export.jar
       EXCEPTION="$BOOTSTRAP"/exception.jar
@@ -668,7 +681,22 @@ sapdatabase_monitor() {
       # only start jdbcconnect when all jars available
       if [ -f "$EXCEPTION" -a -f "$LOGGING" -a -f "$OPENSQLSTA" -a -f "$TC_SEC_SECSTOREFS" -a -f "$JDDI" -a -f "$ANTLR" -a -f "$FRAME" -a -f "$SAPDBCONNECT" ]
       then
-        output=`eval java -cp ".:$FRAME:$ANTLR:$JDDI:$IAIK_JCE_EXPORT:$IAIK_JCE:$EXCEPTION:$LOGGING:$OPENSQLSTA:$TC_SEC_SECSTOREFS:$DB_JARS:$SAPDBCONNECT" com.sap.inst.jdbc.connect.JdbcCon -sec $SID:$SID`
+        MYCP=".:$FRAME:$ANTLR:$JDDI:$IAIK_JCE_EXPORT:$IAIK_JCE:$EXCEPTION:$LOGGING:$OPENSQLSTA:$TC_SEC_SECSTOREFS:$DB_JARS:$SAPDBCONNECT" 
+        EXECMD="com.sap.inst.jdbc.connect.JdbcCon -sec $SID:$SID"
+      else
+      # WebAS Java 7.10
+        LAUNCHER=${BOOTSTRAP}/sap.com~tc~bl~offline_launcher~impl.jar
+
+        if [ -f "$DB_JARS" -a -f "$SAPDBCONNECT" -a -f "$LAUNCHER" ]
+        then
+          MYCP="$LAUNCHER"
+          EXECMD="com.sap.engine.offline.OfflineToolStart com.sap.inst.jdbc.connect.JdbcCon ${SAPDBCONNECT}:${SECSTORE}:${DB_JARS}:${BOOTSTRAP} -sec $SID:$SID"
+        fi
+      fi
+
+      if [ -n "$EXECMD" ]
+      then
+        output=`eval ${JAVA_HOME}/bin/java -cp $MYCP $EXECMD`
         if [ $? -le 0 ]
         then
           rc=$OCF_SUCCESS
@@ -696,7 +724,7 @@ sapdatabase_monitor() {
 sapdatabase_status() {
   case $DBTYPE in
     ADA) SEARCH="$SID/db/pgm/kernel"
-         SUSER=`ls -ld /sapdb/$SID | awk  '{print $3}'`
+         SUSER=`grep "^SdbOwner" /etc/opt/sdb | awk -F'=' '{print $2}'`
          SNUM=2
          ;;
     ORA) SEARCH="ora_[a-z][a-z][a-z][a-z]_"
@@ -737,11 +765,8 @@ sapdatabase_recover() {
          ;;
   esac
 
-  OLDVAL=$OCF_RESKEY_STRICT_MONITORING
-  OCF_RESKEY_STRICT_MONITORING=1
-  sapdatabase_monitor
+  sapdatabase_monitor 1
   retcode=$?
-  OCF_RESKEY_STRICT_MONITORING=$OLDVAL
 
   if [ $retcode -eq $OCF_SUCCESS ]
   then
@@ -924,6 +949,15 @@ then
       exit $OCF_NOT_RUNNING
     fi
   fi
+
+  if [ -n "$OCF_RESKEY_DB_JARS" ]
+  then
+    DB_JARS=$OCF_RESKEY_DB_JARS
+  else
+    if [ -f "$BOOTSTRAP"/bootstrap.properties ]; then
+      DB_JARS=`cat $BOOTSTRAP/bootstrap.properties | grep -i rdbms.driverLocation | sed -e 's/\\\:/:/g' | awk -F= '{print $2}'`
+    fi
+  fi
 fi
 
 if [ -z "$OCF_RESKEY_AUTOMATIC_RECOVER" ]
@@ -952,7 +986,7 @@ case "$1" in
 		exit $?;;
 
   monitor)
-          	sapdatabase_monitor
+          	sapdatabase_monitor $OCF_RESKEY_STRICT_MONITORING
 		exit $?;;
 
   status)
