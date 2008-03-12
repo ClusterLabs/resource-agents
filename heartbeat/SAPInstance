@@ -60,7 +60,7 @@ meta_data() {
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="SAPInstance">
-<version>1.9</version>
+<version>1.91</version>
 
 <longdesc lang="en">
 Resource script for SAP. It manages a SAP Instance as an HA resource.
@@ -384,7 +384,7 @@ sapinstance_monitor() {
       esac 
 
       case $SERVICE in
-        disp+work|msg_server|enserver|enrepserver|jcontrol)
+        disp+work|msg_server|enserver|enrepserver|jcontrol|jstart)
                       if [ $STATE -eq $OCF_NOT_RUNNING ]
                       then
                         if [ "$MONLOG" != "NOLOG" ]
