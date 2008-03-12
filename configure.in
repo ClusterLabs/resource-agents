@@ -2887,6 +2887,7 @@ CheckMissingThings
 
 
 dnl Options for cleaning up the compiler output 
+dnl In 'buildtools' build a front-end 'ccdv' to the C compiler.
 PRETTY_CC=""
 REAL_CC="${CC}"
 QUIET_LIBTOOL_OPTS=""
@@ -2894,10 +2895,7 @@ QUIET_MAKE_OPTS=""
 if test x"${enable_pretty}" = "xyes"; then
    enable_quiet="yes"
    echo "install_sh: ${install_sh}"
-   PRETTY_CC="`pwd`/tools/ccdv"
-   dnl It would be nice if this was rebuilt when needed too...
-   mkdir `pwd`/tools/ 2>/dev/null
-   ${REAL_CC} $CFLAGS -o `pwd`/tools/ccdv ${srcdir}/tools/ccdv.c
+   PRETTY_CC="`pwd`/buildtools/ccdv"
    CC="\$(PRETTY_CC) ${CC}"
 fi
 if test "x${enable_quiet}" = "xyes"; then
@@ -2957,6 +2955,7 @@ AC_CONFIG_FILES(heartbeat.spec 					\
 Makefile						        \
 README							        \
 logd/Makefile							\
+buildtools/Makefile						\
 config/Makefile							\
 cts/Makefile					        	\
 	cts/CM_fs.py						\
