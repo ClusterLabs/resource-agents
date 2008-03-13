@@ -889,6 +889,11 @@ static int ls_lock(dlm_lshandle_t ls,
 		return -1;
 	}
 
+	if (flags & LKF_VALBLK && !lksb->sb_lvbptr) {
+		errno = EINVAL;
+		return -1;
+	}
+
 	if (kernel_version.version[0] == 5)
 		return ls_lock_v5(ls, mode, lksb, flags, name, namelen, parent,
 				  astaddr, astarg, bastaddr);
