@@ -1682,7 +1682,7 @@ AC_CACHE_CHECK([number of arguments in reboot system call],
       ac_cv_REBOOT_ARGS=1,
       [AC_TRY_COMPILE(
         [#include <sys/reboot.h>],
-        [(void)reboot(0,NULL);],
+        [(void)reboot(0,(void *)0);],
         ac_cv_REBOOT_ARGS=2,
         ac_cv_REBOOT_ARGS=0
       )],
