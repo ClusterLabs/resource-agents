@@ -122,52 +122,6 @@ str2lines(char *str)
 }
 
 /**
- * do_basename - Create dm-N style name for the device
- * @device:
- *
- * Returns: Pointer to dm name or basename
- */
-
-static char *
-do_basename(char *device)
-{
-	FILE *file;
-	int found = FALSE;
-	char line[256], major_name[256];
-	unsigned int major_number;
-	struct stat st;
-
-	file = fopen("/proc/devices", "r");
-	if (!file)
-		goto punt;
-
-	while (fgets(line, 256, file)) {
-		if (sscanf(line, "%u %s", &major_number, major_name) != 2)
-			continue;
-		if (strcmp(major_name, "device-mapper") != 0)
-			continue;
-		found = TRUE;
-		break;
-	}
-
-	fclose(file);
-
-	if (!found)
-		goto punt;
-
-	if (stat(device, &st))
-		goto punt;
-	if (major(st.st_rdev) == major_number) {
-		static char realname[16];
-		snprintf(realname, 16, "dm-%u", minor(st.st_rdev));
-		return realname;
-	}
-
- punt:
-	return basename(device);
-}
-
-/**
  * mp2cookie - Find the cookie for a filesystem given its mountpoint
  * @mp:
  * @ioctl_ok: If this is FALSE, it's not acceptable to open() the mountpoint
@@ -181,9 +135,9 @@ mp2cookie(char *mp, int ioctl_ok)
 	char *cookie;
 	char *list, **lines;
 	FILE *file;
-	char line[256], device[256];
-	char *dev = NULL;
+	char line[256], device[256], dev_id[256];
 	unsigned int x;
+	struct stat st;
 
 	cookie = malloc(256);
 	if (!cookie)
@@ -196,6 +150,7 @@ mp2cookie(char *mp, int ioctl_ok)
 		die("can't open /proc/mounts: %s\n",
 		    strerror(errno));
 
+	memset(dev_id, 0, sizeof(dev_id));
 	while (fgets(line, 256, file)) {
 		char path[256], type[256];
 
@@ -206,18 +161,19 @@ mp2cookie(char *mp, int ioctl_ok)
 		if (strcmp(type, "gfs"))
 			die("%s is not a GFS filesystem\n", mp);
 
-		dev = do_basename(device);
-
+		if (stat(device, &st))
+			continue;
+		sprintf(dev_id, "%u:%u", major(st.st_rdev),minor(st.st_rdev));
 		break;
 	}
 
 	fclose(file);
 
 	for (x = 0; *lines[x]; x++) {
-		char s_id[256];
-		sscanf(lines[x], "%s %s", cookie, s_id);
-		if (dev) {
-			if (strcmp(s_id, dev) == 0)
+		char device_id[256];
+		sscanf(lines[x], "%s %s", cookie, device_id);
+		if (dev_id[0]) {
+			if (strcmp(device_id, dev_id) == 0)
 				return cookie;
 		} else {
 			if (strcmp(cookie, mp) == 0)
