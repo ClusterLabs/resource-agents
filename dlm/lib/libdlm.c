@@ -573,7 +573,7 @@ static int do_dlm_dispatch_v6(int fd)
 	/* Copy lvb to user's buffer */
 	if (result->lvb_offset)
 		memcpy(result->user_lksb->sb_lvbptr,
-		       result + result->lvb_offset, DLM_LVB_LEN);
+		       (char *)result + result->lvb_offset, DLM_LVB_LEN);
 
 	result->user_lksb->sb_status = -result->user_lksb->sb_status;
 
