@@ -1230,6 +1230,7 @@ int process_command(struct connection *con, int cmd, char *cmdbuf,
 	struct cl_version cnxman_version;
 	char *outbuf = *retbuf;
 	int value;
+	FILE *dumpfile;
 
 	P_MEMB("command to process is %x\n", cmd);
 
@@ -1260,7 +1261,20 @@ int process_command(struct connection *con, int cmd, char *cmdbuf,
 		set_debuglog(value);
 		err = 0;
 		break;
-
+#ifdef DEBUG
+	case CMAN_CMD_DUMP_OBJDB:
+		P_MEMB("CC: Dump_objdb: filename = %s\n", cmdbuf);
+		dumpfile = fopen(cmdbuf, "w+");
+		if (dumpfile)  {
+			global_objdb->object_dump(OBJECT_PARENT_HANDLE, dumpfile);
+			fclose(dumpfile);
+			err = 0;
+		}
+		else {
+			err = -errno;
+		}
+		break;
+#endif
 	case CMAN_CMD_START_CONFCHG:
 		con->confchg = 1;
 		err = 0;

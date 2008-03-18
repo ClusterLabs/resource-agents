@@ -76,6 +76,7 @@ struct commandline
         char *interfaces[MAX_INTERFACES];
 	char *override_nodename;
 	char *key_filename;
+	char *filename;
 	char *format_opts;
 	char *config_lcrso;
 	int votes;
