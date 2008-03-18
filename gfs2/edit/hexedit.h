@@ -135,6 +135,38 @@ struct gfs_log_header {
 	char lh_reserved[64];
 };
 
+struct gfs_rindex {
+	uint64_t ri_addr;     /* block # of 1st block (header) in rgrp */
+	uint32_t ri_length;   /* # fs blocks containing rgrp header & bitmap */
+	uint32_t ri_pad;
+
+	uint64_t ri_data1;    /* block # of first data/meta block in rgrp */
+	uint32_t ri_data;     /* number (qty) of data/meta blocks in rgrp */
+
+	uint32_t ri_bitbytes; /* total # bytes used by block alloc bitmap */
+
+	char ri_reserved[64];
+};
+
+struct gfs_rgrp {
+	struct gfs2_meta_header rg_header;
+
+	uint32_t rg_flags;      /* ?? */
+
+	uint32_t rg_free;       /* Number (qty) of free data blocks */
+
+	/* Dinodes are USEDMETA, but are handled separately from other METAs */
+	uint32_t rg_useddi;     /* Number (qty) of dinodes (used or free) */
+	uint32_t rg_freedi;     /* Number (qty) of unused (free) dinodes */
+	struct gfs2_inum rg_freedi_list; /* 1st block in chain of free dinodes */
+
+	/* These META statistics do not include dinodes (used or free) */
+	uint32_t rg_usedmeta;   /* Number (qty) of used metadata blocks */
+	uint32_t rg_freemeta;   /* Number (qty) of unused metadata blocks */
+
+	char rg_reserved[64];
+};
+
 EXTERN int block_is_jindex(void);
 EXTERN int block_is_rindex(void);
 EXTERN int block_is_inum_file(void);

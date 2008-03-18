@@ -387,7 +387,7 @@ int display_block_type(const char *lpBuffer, int from_restore)
 	}
 	if (block == RGLIST_DUMMY_BLOCK) {
 		ret_type = GFS2_METATYPE_RG;
-		struct_len = sizeof(struct gfs2_rgrp);
+		struct_len = gfs1 ? sizeof(struct gfs_rgrp) : sizeof(struct gfs2_rgrp);
 	}
 	else if ((ret_type = get_block_type(lpBuffer))) {
 		switch (*(lpBuffer+7)) {
@@ -618,6 +618,17 @@ uint64_t masterblock(const char *fn)
 }
 
 /* ------------------------------------------------------------------------ */
+/* risize - size of one rindex entry, whether gfs1 or gfs2                  */
+/* ------------------------------------------------------------------------ */
+static int risize(void)
+{
+	if (gfs1)
+		return sizeof(struct gfs_rindex);
+	else
+		return sizeof(struct gfs2_rindex);
+}
+
+/* ------------------------------------------------------------------------ */
 /* rgcount - return how many rgrps there are.                               */
 /* ------------------------------------------------------------------------ */
 void rgcount(void)
@@ -633,7 +644,7 @@ void rgcount(void)
 	ribh = bread(&sbd, block);
 	riinode = inode_get(&sbd, ribh);
 	printf("%lld RGs in this file system.\n",
-	       riinode->i_di.di_size / sizeof(struct gfs2_rindex));
+	       riinode->i_di.di_size / risize());
 	inode_put(riinode, not_updated);
 	exit(EXIT_SUCCESS);
 }
@@ -646,14 +657,71 @@ uint64_t find_rgrp_block(struct gfs2_inode *di, int rg)
 	char buf[sizeof(struct gfs2_rindex)];
 	int amt;
 	struct gfs2_rindex ri;
+	uint64_t offset, gfs1_adj = 0;
 
-	amt = gfs2_readi(di, (void *)&buf,
-			 rg * sizeof(struct gfs2_rindex),
-			 sizeof(struct gfs2_rindex));
+	offset = rg * risize();
+	if (gfs1) {
+		uint64_t sd_jbsize =
+			(sbd.bsize - sizeof(struct gfs2_meta_header));
+
+		gfs1_adj = (offset / sd_jbsize) *
+			sizeof(struct gfs2_meta_header);
+		gfs1_adj += sizeof(struct gfs2_meta_header);
+	}
+	amt = gfs2_readi(di, (void *)&buf, offset + gfs1_adj, risize());
 	if (!amt) /* end of file */
 		return 0;
 	gfs2_rindex_in(&ri, buf);
 	return ri.ri_addr;
+}
+
+/* ------------------------------------------------------------------------ */
+/* gfs_rgrp_in - Read in a resource group header                            */
+/* ------------------------------------------------------------------------ */
+void gfs_rgrp_in(struct gfs_rgrp *rgrp, char *buf)
+{
+	struct gfs_rgrp *str = (struct gfs_rgrp *)buf;
+
+	gfs2_meta_header_in(&rgrp->rg_header, buf);
+	rgrp->rg_flags = be32_to_cpu(str->rg_flags);
+	rgrp->rg_free = be32_to_cpu(str->rg_free);
+	rgrp->rg_useddi = be32_to_cpu(str->rg_useddi);
+	rgrp->rg_freedi = be32_to_cpu(str->rg_freedi);
+	gfs2_inum_in(&rgrp->rg_freedi_list, (char *)&str->rg_freedi_list);
+	rgrp->rg_usedmeta = be32_to_cpu(str->rg_usedmeta);
+	rgrp->rg_freemeta = be32_to_cpu(str->rg_freemeta);
+}
+
+/* ------------------------------------------------------------------------ */
+/* gfs_rgrp_out */
+/* ------------------------------------------------------------------------ */
+void gfs_rgrp_out(struct gfs_rgrp *rgrp, char *buf)
+{
+	struct gfs_rgrp *str = (struct gfs_rgrp *)buf;
+
+	gfs2_meta_header_out(&rgrp->rg_header, buf);
+	str->rg_flags = cpu_to_be32(rgrp->rg_flags);
+	str->rg_free = cpu_to_be32(rgrp->rg_free);
+	str->rg_useddi = cpu_to_be32(rgrp->rg_useddi);
+	str->rg_freedi = cpu_to_be32(rgrp->rg_freedi);
+	gfs2_inum_out(&rgrp->rg_freedi_list, (char *)&str->rg_freedi_list);
+	str->rg_usedmeta = cpu_to_be32(rgrp->rg_usedmeta);
+	str->rg_freemeta = cpu_to_be32(rgrp->rg_freemeta);
+}
+
+/* ------------------------------------------------------------------------ */
+/* gfs_rgrp_print - print a gfs1 resource group                             */
+/* ------------------------------------------------------------------------ */
+void gfs_rgrp_print(struct gfs_rgrp *rg)
+{
+	gfs2_meta_header_print(&rg->rg_header);
+	pv(rg, rg_flags, "%u", "0x%x");
+	pv(rg, rg_free, "%u", "0x%x");
+	pv(rg, rg_useddi, "%u", "0x%x");
+	pv(rg, rg_freedi, "%u", "0x%x");
+	gfs2_inum_print(&rg->rg_freedi_list);
+	pv(rg, rg_usedmeta, "%u", "0x%x");
+	pv(rg, rg_freemeta, "%u", "0x%x");
 }
 
 /* ------------------------------------------------------------------------ */
@@ -665,7 +733,10 @@ uint64_t find_rgrp_block(struct gfs2_inode *di, int rg)
 /* ------------------------------------------------------------------------ */
 void set_rgrp_flags(int rgnum, uint32_t new_flags, int modify, int full)
 {
-	struct gfs2_rgrp rg;
+	union {
+		struct gfs2_rgrp rg2;
+		struct gfs_rgrp rg1;
+	} rg;
 	struct gfs2_buffer_head *bh, *ribh;
 	uint64_t rgblk, block;
 	struct gfs2_inode *riinode;
@@ -676,34 +747,43 @@ void set_rgrp_flags(int rgnum, uint32_t new_flags, int modify, int full)
 		block = masterblock("rindex");
 	ribh = bread(&sbd, block);
 	riinode = inode_get(&sbd, ribh);
-	if (rgnum >= riinode->i_di.di_size / sizeof(struct gfs2_rindex)) {
+	if (rgnum >= riinode->i_di.di_size / risize()) {
 		fprintf(stderr, "Error: File system only has %lld RGs.\n",
-		       riinode->i_di.di_size / sizeof(struct gfs2_rindex));
+			riinode->i_di.di_size / risize());
 		inode_put(riinode, not_updated);
 		brelse(ribh, not_updated);
 		return;
 	}
 	rgblk = find_rgrp_block(riinode, rgnum);
 	bh = bread(&sbd, rgblk);
-	gfs2_rgrp_in(&rg, bh->b_data);
+	if (gfs1)
+		gfs_rgrp_in(&rg.rg1, bh->b_data);
+	else
+		gfs2_rgrp_in(&rg.rg2, bh->b_data);
 	if (modify) {
 		printf("RG #%d (block %llu / 0x%llx) rg_flags changed from 0x%08x to 0x%08x\n",
 		       rgnum, (unsigned long long)rgblk,
-		       (unsigned long long)rgblk, rg.rg_flags, new_flags);
-		rg.rg_flags = new_flags;
-		gfs2_rgrp_out(&rg, bh->b_data);
+		       (unsigned long long)rgblk, rg.rg2.rg_flags, new_flags);
+		rg.rg2.rg_flags = new_flags;
+		if (gfs1)
+			gfs_rgrp_out(&rg.rg1, bh->b_data);
+		else
+			gfs2_rgrp_out(&rg.rg2, bh->b_data);
 		brelse(bh, updated);
 	} else {
 		if (full) {
 			print_gfs2("RG #%d", rgnum);
 			print_gfs2(" located at: %llu (0x%llx)", rgblk, rgblk);
                         eol(0);
-			gfs2_rgrp_print(&rg);
+			if (gfs1)
+				gfs_rgrp_print(&rg.rg1);
+			else
+				gfs2_rgrp_print(&rg.rg2);
 		}
 		else
 			printf("RG #%d (block %llu / 0x%llx) rg_flags = 0x%08x\n",
 			       rgnum, (unsigned long long)rgblk,
-			       (unsigned long long)rgblk, rg.rg_flags);
+			       (unsigned long long)rgblk, rg.rg2.rg_flags);
 		brelse(bh, not_updated);
 	}
 	inode_put(riinode, not_updated);
@@ -718,20 +798,36 @@ int parse_rindex(struct gfs2_inode *di, int print_rindex)
 {
 	int error, start_line;
 	struct gfs2_rindex ri;
-	char buf[sizeof(struct gfs2_rindex)];
+	char buf[sizeof(struct gfs_rindex)];
 	char highlighted_addr[32];
 
 	start_line = line;
 	error = 0;
-	print_gfs2("RG index entries found: %d.",
-			   di->i_di.di_size / sizeof(struct gfs2_rindex));
+	print_gfs2("RG index entries found: %d.", di->i_di.di_size / risize());
 	eol(0);
 	lines_per_row[dmode] = 6;
 	memset(highlighted_addr, 0, sizeof(highlighted_addr));
+	if (gfs1) {
+		/* gfs1 rindex files have the meta_header which is not
+		   accounted for in gfs2's dinode size.  Therefore, adjust. */
+		di->i_di.di_size += ((di->i_di.di_size / sbd.bsize) + 1) *
+			sizeof(struct gfs2_meta_header);
+	}
 	for (print_entry_ndx=0; ; print_entry_ndx++) {
-		error = gfs2_readi(di, (void *)&buf,
-				   print_entry_ndx * sizeof(struct gfs2_rindex),
-				   sizeof(struct gfs2_rindex));
+		uint64_t gfs1_adj = 0;
+		uint64_t offset = print_entry_ndx * risize();
+
+		if (gfs1) {
+			uint64_t sd_jbsize =
+				(sbd.bsize - sizeof(struct gfs2_meta_header));
+
+			gfs1_adj = (offset / sd_jbsize) *
+				sizeof(struct gfs2_meta_header);
+			gfs1_adj += sizeof(struct gfs2_meta_header);
+		}
+
+		error = gfs2_readi(di, (void *)&buf, offset + gfs1_adj,
+				   risize());
 		if (!error) /* end of file */
 			break;
 		gfs2_rindex_in(&ri, buf);
@@ -753,12 +849,18 @@ int parse_rindex(struct gfs2_inode *di, int print_rindex)
 			if(print_rindex)
 				gfs2_rindex_print(&ri);
 			else {
-				struct gfs2_rgrp rg;
 				struct gfs2_buffer_head *tmp_bh;
 
 				tmp_bh = bread(&sbd, ri.ri_addr);
-				gfs2_rgrp_in(&rg, tmp_bh->b_data);
-				gfs2_rgrp_print(&rg);
+				if (gfs1) {
+					struct gfs_rgrp rg1;
+					gfs_rgrp_in(&rg1, tmp_bh->b_data);
+					gfs_rgrp_print(&rg1);
+				} else {
+					struct gfs2_rgrp rg;
+					gfs2_rgrp_in(&rg, tmp_bh->b_data);
+					gfs2_rgrp_print(&rg);
+				}
 				brelse(tmp_bh, not_updated);
 			}
 			last_entry_onscreen[dmode] = print_entry_ndx;
@@ -1283,7 +1385,10 @@ int display_extended(void)
 	else if (display_indirect(indirect, indirect_blocks, 0, 0) == 0)
 		return -1;
 	else if (block_is_rglist()) {
-		tmp_bh = bread(&sbd, masterblock("rindex"));
+		if (gfs1)
+			tmp_bh = bread(&sbd, sbd1->sb_rindex_di.no_addr);
+		else
+			tmp_bh = bread(&sbd, masterblock("rindex"));
 		tmp_inode = inode_get(&sbd, tmp_bh);
 		parse_rindex(tmp_inode, FALSE);
 		brelse(tmp_bh, not_updated);
@@ -1380,9 +1485,12 @@ int display(int identify_only)
 {
 	uint64_t blk;
 
-	if (block == RGLIST_DUMMY_BLOCK)
-		blk = masterblock("rindex");
-	else
+	if (block == RGLIST_DUMMY_BLOCK) {
+		if (gfs1)
+			blk = sbd1->sb_rindex_di.no_addr;
+		else
+			blk = masterblock("rindex");
+	} else
 		blk = block;
 	if (termlines) {
 		display_title_lines();
@@ -1534,6 +1642,8 @@ uint64_t goto_block(void)
 					temp_blk = sbd1->sb_rindex_di.no_addr;
 				else if (!strcmp(string, "quota"))
 					temp_blk = gfs1_quota_di.no_addr;
+				else if (!strcmp(string, "rgs"))
+					temp_blk = RGLIST_DUMMY_BLOCK;
 			}
 			else {
 				if (!strcmp(string, "rgs"))
@@ -2321,8 +2431,7 @@ void process_parameters(int argc, char *argv[], int pass)
 						push_block(masterblock("rindex"));
 				}
 				else if (!strcmp(argv[i], "rgs")) {
-					if (!gfs1)
-						push_block(RGLIST_DUMMY_BLOCK);
+					push_block(RGLIST_DUMMY_BLOCK);
 				}
 				else if (!strcmp(argv[i], "quota")) {
 					if (gfs1)
