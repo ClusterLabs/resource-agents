@@ -102,9 +102,12 @@ static int send_reply_message(struct connection *con, struct sock_header *msg)
 	return 0;
 }
 
-
 static void remove_client(poll_handle handle, struct connection *con)
 {
+	struct list *tmp, *qmh;
+	struct queued_reply *qm;
+	int msgs=0;
+
 	poll_dispatch_delete(handle, con->fd);
 	close(con->fd);
 	if (con->type == CON_CLIENT)
@@ -113,6 +116,15 @@ static void remove_client(poll_handle handle, struct connection *con)
 	unbind_con(con);
 	remove_barriers(con);
 
+	list_iterate_safe(qmh, tmp, &con->write_msgs) {
+		qm = list_item(qmh, struct queued_reply);
+
+		list_del(&qm->list);
+		free(qm);
+		msgs++;
+	}
+
+	P_DAEMON("Freed %d queued messages\n", msgs);
 	free(con);
 	num_connections--;
 }

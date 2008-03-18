@@ -124,7 +124,6 @@ struct connection
 	uint32_t   events;      /* Registered for events */
 	uint32_t   confchg;     /* Registered for confchg */
 	struct list write_msgs; /* Queued messages to go to data clients */
-	struct cl_comms_socket *clsock;
 	struct connection *next;
 	struct list list;       /* when on the client_list */
 };
