@@ -73,6 +73,7 @@ int read_cman_nodes(struct objdb_iface_ver0 *objdb, unsigned int *config_version
 	    objdb_get_int(objdb, object_handle, "two_node", (unsigned int *)&two_node);
 	    objdb_get_int(objdb, object_handle, "cluster_id", &cluster_id);
 	    objdb_get_string(objdb, object_handle, "nodename", &our_nodename);
+	    objdb_get_int(objdb, object_handle, "max_queued", &max_outstanding_messages);
     }
 
     clear_reread_flags();

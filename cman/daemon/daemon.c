@@ -61,8 +61,10 @@ volatile sig_atomic_t quit_threads=0;
 
 int num_connections = 0;
 poll_handle ais_poll_handle;
+uint32_t max_outstanding_messages = 128;
 
 static int process_client(poll_handle handle, int fd, int revent, void *data);
+static void remove_client(poll_handle handle, struct connection *con);
 
 /* Send it, or queue it for later if the socket is busy */
 static int send_reply_message(struct connection *con, struct sock_header *msg)
@@ -83,6 +85,14 @@ static int send_reply_message(struct connection *con, struct sock_header *msg)
 
 	if ((ret > 0 && ret != msg->length) ||
 	    (ret == -1 && errno == EAGAIN)) {
+
+		/* Have we exceeded the allowed number of queued messages ? */
+		if (con->num_write_msgs > max_outstanding_messages) {
+			P_DAEMON("Disconnecting. client has more that %d replies outstanding (%d)\n", max_outstanding_messages, con->num_write_msgs);
+			remove_client(ais_poll_handle, con);
+			return -1;
+		}
+
 		/* Queue it */
 		struct queued_reply *qm = malloc(sizeof(struct queued_reply) + msg->length);
 		if (!qm)
@@ -96,7 +106,8 @@ static int send_reply_message(struct connection *con, struct sock_header *msg)
 		else
 			qm->offset = 0;
 		list_add(&con->write_msgs, &qm->list);
-		P_DAEMON("queued last message\n");
+		con->num_write_msgs++;
+		P_DAEMON("queued last message, count is %d\n", con->num_write_msgs);
 		poll_dispatch_modify(ais_poll_handle, con->fd, POLLIN | POLLOUT, process_client);
 	}
 	return 0;
@@ -145,6 +156,7 @@ static void send_queued_reply(struct connection *con)
 		{
 			list_del(&qm->list);
 			free(qm);
+			con->num_write_msgs--;
 		}
 		else
 		{
@@ -330,6 +342,7 @@ static int process_rendezvous(poll_handle handle, int fd, int revent, void *data
 		newcon->type = con->type;
 		newcon->port = 0;
 		newcon->events = 0;
+		newcon->num_write_msgs = 0;
 		list_init(&newcon->write_msgs);
 		fcntl(client_fd, F_SETFL, fcntl(client_fd, F_GETFL, 0) | O_NONBLOCK);
 
@@ -388,6 +401,7 @@ static int open_local_sock(const char *name, int name_len, mode_t mode, poll_han
 	}
 	con->type = type;
 	con->fd = local_socket;
+	con->num_write_msgs = 0;
 
 	poll_dispatch_add(handle, con->fd, POLLIN, con, process_rendezvous);
 
