@@ -754,7 +754,7 @@ static int ls_lock_v5(dlm_lshandle_t ls,
 
 	req->cmd = DLM_USER_LOCK;
 	req->i.lock.mode = mode;
-	req->i.lock.flags = flags;
+	req->i.lock.flags = (flags & ~LKF_WAIT);
 	req->i.lock.lkid = lksb->sb_lkid;
 	req->i.lock.parent = parent;
 	req->i.lock.lksb = lksb;
@@ -822,7 +822,7 @@ static int ls_lock_v6(dlm_lshandle_t ls,
 
 	req->cmd = DLM_USER_LOCK;
 	req->i.lock.mode = mode;
-	req->i.lock.flags = flags;
+	req->i.lock.flags = (flags & ~LKF_WAIT);
 	req->i.lock.lkid = lksb->sb_lkid;
 	req->i.lock.parent = parent;
 	req->i.lock.lksb = lksb;
@@ -1019,7 +1019,7 @@ static int ls_unlock_v5(struct dlm_ls_info *lsinfo, uint32_t lkid,
 	set_version_v5(&req);
 	req.cmd = DLM_USER_UNLOCK;
 	req.i.lock.lkid = lkid;
-	req.i.lock.flags = flags;
+	req.i.lock.flags = (flags & ~LKF_WAIT);
 	req.i.lock.lksb  = lksb;
 	req.i.lock.castparam = astarg;
 	/* DLM_USER_UNLOCK will default to existing completion AST */
@@ -1040,7 +1040,7 @@ static int ls_unlock_v6(struct dlm_ls_info *lsinfo, uint32_t lkid,
 	set_version_v6(&req);
 	req.cmd = DLM_USER_UNLOCK;
 	req.i.lock.lkid = lkid;
-	req.i.lock.flags = flags;
+	req.i.lock.flags = (flags & ~LKF_WAIT);
 	req.i.lock.lksb  = lksb;
 	req.i.lock.namelen = 0;
 	req.i.lock.castparam = astarg;
