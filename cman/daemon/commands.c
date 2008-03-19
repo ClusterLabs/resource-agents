@@ -844,7 +844,7 @@ static int do_cmd_bind(struct connection *con, char *cmdbuf)
 
 	memcpy(&port, cmdbuf, sizeof(int));
 
-	P_MEMB("requested bind to port %d, port_con = %p (us=%p)\n", port, port_array[port], con);
+	P_MEMB("requested bind to port %d, (us=%p)\n", port, con);
 
 	if (port == 0 || port > 255)
 		return -EINVAL;

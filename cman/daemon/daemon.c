@@ -272,10 +272,16 @@ static int process_client(poll_handle handle, int fd, int revent, void *data)
 
 			buf += sizeof(struct sock_data_header);
 
+			if (dmsg->port > 255) {
+				send_status_return(con, msg->command, -EINVAL);
+				return 0;
+			}
+
 			if (dmsg->port)
 				port = dmsg->port;
 			else
 				port = con->port;
+
 			ret = comms_send_message(buf, msg->length - sizeof(struct sock_data_header),
 						 port, con->port,
 						 dmsg->nodeid,
