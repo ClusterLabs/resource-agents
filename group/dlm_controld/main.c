@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2005-2007 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2005-2008 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -11,29 +11,22 @@
 ******************************************************************************/
 
 #include "dlm_daemon.h"
-
+#include "config.h"
+#include <linux/dlm.h>
 #include <linux/netlink.h>
 #include <linux/genetlink.h>
-#include <linux/dlm.h>
 #include <linux/dlm_netlink.h>
 
-#define OPTION_STRING			"KDhVd:"
-#define LOCKFILE_NAME			"/var/run/dlm_controld.pid"
+#define LOCKFILE_NAME	"/var/run/dlm_controld.pid"
+#define CLIENT_NALLOC	32
+#define GROUP_LIBGROUP	2
+#define GROUP_LIBCPG	3
 
-#define DEADLOCK_CHECK_SECS		10
-
-#define NALLOC 16
-
-struct list_head lockspaces;
-
-extern group_handle_t gh;
-extern int deadlock_enabled;
-
-static int daemon_quit;
 static int client_maxi;
 static int client_size = 0;
 static struct client *client = NULL;
 static struct pollfd *pollfd = NULL;
+static int group_mode;
 
 struct client {
 	int fd;
@@ -42,17 +35,72 @@ struct client {
 	struct lockspace *ls;
 };
 
+int do_read(int fd, void *buf, size_t count)
+{
+	int rv, off = 0;
+
+	while (off < count) {
+		rv = read(fd, buf + off, count - off);
+		if (rv == 0)
+			return -1;
+		if (rv == -1 && errno == EINTR)
+			continue;
+		if (rv == -1)
+			return -1;
+		off += rv;
+	}
+	return 0;
+}
+
+int do_write(int fd, void *buf, size_t count)
+{
+	int rv, off = 0;
+
+ retry:
+	rv = write(fd, buf + off, count);
+	if (rv == -1 && errno == EINTR)
+		goto retry;
+	if (rv < 0) {
+		log_error("write errno %d", errno);
+		return rv;
+	}
+
+	if (rv != count) {
+		count -= rv;
+		off += rv;
+		goto retry;
+	}
+	return 0;
+}
+
+static void do_dump(int fd)
+{
+	int len;
+
+	if (dump_wrap) {
+		len = DUMP_SIZE - dump_point;
+		do_write(fd, dump_buf + dump_point, len);
+		len = dump_point;
+	} else
+		len = dump_point;
+
+	/* NUL terminate the debug string */
+	dump_buf[dump_point] = '\0';
+
+	do_write(fd, dump_buf, len);
+}
+
 static void client_alloc(void)
 {
 	int i;
 
 	if (!client) {
-		client = malloc(NALLOC * sizeof(struct client));
-		pollfd = malloc(NALLOC * sizeof(struct pollfd));
+		client = malloc(CLIENT_NALLOC * sizeof(struct client));
+		pollfd = malloc(CLIENT_NALLOC * sizeof(struct pollfd));
 	} else {
-		client = realloc(client, (client_size + NALLOC) *
+		client = realloc(client, (client_size + CLIENT_NALLOC) *
 					 sizeof(struct client));
-		pollfd = realloc(pollfd, (client_size + NALLOC) *
+		pollfd = realloc(pollfd, (client_size + CLIENT_NALLOC) *
 					 sizeof(struct pollfd));
 		if (!pollfd)
 			log_error("can't alloc for pollfd");
@@ -60,14 +108,14 @@ static void client_alloc(void)
 	if (!client || !pollfd)
 		log_error("can't alloc for client array");
 
-	for (i = client_size; i < client_size + NALLOC; i++) {
+	for (i = client_size; i < client_size + CLIENT_NALLOC; i++) {
 		client[i].workfn = NULL;
 		client[i].deadfn = NULL;
 		client[i].fd = -1;
 		pollfd[i].fd = -1;
 		pollfd[i].revents = 0;
 	}
-	client_size += NALLOC;
+	client_size += CLIENT_NALLOC;
 }
 
 void client_dead(int ci)
@@ -105,14 +153,21 @@ int client_add(int fd, void (*workfn)(int ci), void (*deadfn)(int ci))
 	goto again;
 }
 
-void set_client_lockspace(int ci, struct lockspace *ls)
+int client_fd(int ci)
 {
-	client[ci].ls = ls;
+	return client[ci].fd;
 }
 
-struct lockspace *get_client_lockspace(int ci)
+void client_ignore(int ci, int fd)
 {
-	return client[ci].ls;
+	pollfd[ci].fd = -1;
+	pollfd[ci].events = 0;
+}
+
+void client_back(int ci, int fd)
+{
+	pollfd[ci].fd = fd;
+	pollfd[ci].events = POLLIN;
 }
 
 static void sigterm_handler(int sig)
@@ -120,7 +175,7 @@ static void sigterm_handler(int sig)
 	daemon_quit = 1;
 }
 
-struct lockspace *create_ls(char *name)
+static struct lockspace *create_ls(char *name)
 {
 	struct lockspace *ls;
 
@@ -129,9 +184,14 @@ struct lockspace *create_ls(char *name)
 		goto out;
 	memset(ls, 0, sizeof(*ls));
 	strncpy(ls->name, name, MAXNAME);
+
+	INIT_LIST_HEAD(&ls->changes);
+	INIT_LIST_HEAD(&ls->node_history);
+	INIT_LIST_HEAD(&ls->saved_messages);
+	INIT_LIST_HEAD(&ls->plock_resources);
+	INIT_LIST_HEAD(&ls->deadlk_nodes);
 	INIT_LIST_HEAD(&ls->transactions);
 	INIT_LIST_HEAD(&ls->resources);
-	INIT_LIST_HEAD(&ls->nodes);
  out:
 	return ls;
 }
@@ -231,7 +291,7 @@ static void process_uevent(int ci)
 		return;
 	if (rv < 0) {
 		log_error("uevent recv error %d errno %d", rv, errno);
-		goto out;
+		return;
 	}
 
 	if (!strstr(buf, "dlm"))
@@ -250,6 +310,8 @@ static void process_uevent(int ci)
 
 	log_debug("kernel: %s %s", act, argv[3]);
 
+	rv = 0;
+
 	if (!strcmp(act, "online@")) {
 		ls = find_ls(argv[3]);
 		if (ls) {
@@ -263,10 +325,14 @@ static void process_uevent(int ci)
 			goto out;
 		}
 
-		ls->joining = 1;
-		list_add(&ls->list, &lockspaces);
-
-		rv = group_join(gh, argv[3]);
+		if (group_mode == GROUP_LIBGROUP)
+			rv = dlm_join_lockspace_group(ls);
+		else
+			rv = dlm_join_lockspace(ls);
+		if (rv) {
+			/* ls already freed */
+			goto out;
+		}
 
 	} else if (!strcmp(act, "offline@")) {
 		ls = find_ls(argv[3]);
@@ -275,9 +341,11 @@ static void process_uevent(int ci)
 			goto out;
 		}
 
-		rv = group_leave(gh, argv[3]);
-	} else
-		rv = 0;
+		if (group_mode == GROUP_LIBGROUP)
+			dlm_leave_lockspace_group(ls);
+		else
+			dlm_leave_lockspace(ls);
+	}
  out:
 	if (rv < 0)
 		log_error("process_uevent %s error %d errno %d",
@@ -310,216 +378,7 @@ static int setup_uevent(void)
 	return s;
 }
 
-/* FIXME: look into using libnl/libnetlink */
-
-#define GENLMSG_DATA(glh)       ((void *)(NLMSG_DATA(glh) + GENL_HDRLEN))
-#define GENLMSG_PAYLOAD(glh)    (NLMSG_PAYLOAD(glh, 0) - GENL_HDRLEN)
-#define NLA_DATA(na)	    	((void *)((char*)(na) + NLA_HDRLEN))
-#define NLA_PAYLOAD(len)	(len - NLA_HDRLEN)
-
-/* Maximum size of response requested or message sent */
-#define MAX_MSG_SIZE    1024
-
-struct msgtemplate {
-	struct nlmsghdr n;
-	struct genlmsghdr g;
-	char buf[MAX_MSG_SIZE];
-};
-
-static int send_genetlink_cmd(int sd, uint16_t nlmsg_type, uint32_t nlmsg_pid,
-			      uint8_t genl_cmd, uint16_t nla_type,
-			      void *nla_data, int nla_len)
-{
-	struct nlattr *na;
-	struct sockaddr_nl nladdr;
-	int r, buflen;
-	char *buf;
-
-	struct msgtemplate msg;
-
-	msg.n.nlmsg_len = NLMSG_LENGTH(GENL_HDRLEN);
-	msg.n.nlmsg_type = nlmsg_type;
-	msg.n.nlmsg_flags = NLM_F_REQUEST;
-	msg.n.nlmsg_seq = 0;
-	msg.n.nlmsg_pid = nlmsg_pid;
-	msg.g.cmd = genl_cmd;
-	msg.g.version = 0x1;
-	na = (struct nlattr *) GENLMSG_DATA(&msg);
-	na->nla_type = nla_type;
-	na->nla_len = nla_len + 1 + NLA_HDRLEN;
-	if (nla_data)
-		memcpy(NLA_DATA(na), nla_data, nla_len);
-	msg.n.nlmsg_len += NLMSG_ALIGN(na->nla_len);
-
-	buf = (char *) &msg;
-	buflen = msg.n.nlmsg_len ;
-	memset(&nladdr, 0, sizeof(nladdr));
-	nladdr.nl_family = AF_NETLINK;
-	while ((r = sendto(sd, buf, buflen, 0, (struct sockaddr *) &nladdr,
-			   sizeof(nladdr))) < buflen) {
-		if (r > 0) {
-			buf += r;
-			buflen -= r;
-		} else if (errno != EAGAIN)
-			return -1;
-	}
-	return 0;
-}
-
-/*
- * Probe the controller in genetlink to find the family id
- * for the DLM family
- */
-static int get_family_id(int sd)
-{
-	char genl_name[100];
-	struct {
-		struct nlmsghdr n;
-		struct genlmsghdr g;
-		char buf[256];
-	} ans;
-
-	int id, rc;
-	struct nlattr *na;
-	int rep_len;
-
-	strcpy(genl_name, DLM_GENL_NAME);
-	rc = send_genetlink_cmd(sd, GENL_ID_CTRL, getpid(), CTRL_CMD_GETFAMILY,
-				CTRL_ATTR_FAMILY_NAME, (void *)genl_name,
-				strlen(DLM_GENL_NAME)+1);
-
-	rep_len = recv(sd, &ans, sizeof(ans), 0);
-	if (ans.n.nlmsg_type == NLMSG_ERROR ||
-	    (rep_len < 0) || !NLMSG_OK((&ans.n), rep_len))
-		return 0;
-
-	na = (struct nlattr *) GENLMSG_DATA(&ans);
-	na = (struct nlattr *) ((char *) na + NLA_ALIGN(na->nla_len));
-	if (na->nla_type == CTRL_ATTR_FAMILY_ID) {
-		id = *(uint16_t *) NLA_DATA(na);
-	}
-	return id;
-}
-
-/* genetlink messages are timewarnings used as part of deadlock detection */
-
-static int setup_netlink(void)
-{
-	struct sockaddr_nl snl;
-	int s, rv;
-	uint16_t id;
-
-	s = socket(AF_NETLINK, SOCK_RAW, NETLINK_GENERIC);
-	if (s < 0) {
-		log_error("generic netlink socket");
-		return s;
-	}
-
-	memset(&snl, 0, sizeof(snl));
-	snl.nl_family = AF_NETLINK;
-
-	rv = bind(s, (struct sockaddr *) &snl, sizeof(snl));
-	if (rv < 0) {
-		log_error("gen netlink bind error %d errno %d", rv, errno);
-		close(s);
-		return rv;
-	}
-
-	id = get_family_id(s);
-	if (!id) {
-		log_error("Error getting family id, errno %d", errno);
-		close(s);
-		return -1;
-	}
-
-	rv = send_genetlink_cmd(s, id, getpid(), DLM_CMD_HELLO, 0, NULL, 0);
-	if (rv < 0) {
-		log_error("error sending hello cmd, errno %d", errno);
-		close(s);
-		return -1;
-	}
-
-	return s;
-}
-
-static void process_timewarn(struct dlm_lock_data *data)
-{
-	struct lockspace *ls;
-	struct timeval now;
-	unsigned int sec;
-
-	ls = find_ls_id(data->lockspace_id);
-	if (!ls)
-		return;
-
-	data->resource_name[data->resource_namelen] = '\0';
-
-	log_group(ls, "timewarn: lkid %x pid %d name %s",
-		  data->id, data->ownpid, data->resource_name);
-
-	/* Problem: we don't want to get a timewarn, assume it's resolved
-	   by the current cycle, but in fact it's from a deadlock that
-	   formed after the checkpoints for the current cycle.  Then we'd
-	   have to hope for another warning (that may not come) to trigger
-	   a new cycle to catch the deadlock.  If our last cycle ckpt
-	   was say N (~5?) sec before we receive the timewarn, then we
-	   can be confident that the cycle included the lock in question.
-	   Otherwise, we're not sure if the warning is for a new deadlock
-	   that's formed since our last cycle ckpt (unless it's a long
-	   enough time since the last cycle that we're confident it *is*
-	   a new deadlock).  When there is a deadlock, I suspect it will
-	   be common to receive warnings before, during, and possibly
-	   after the cycle that resolves it.  Wonder if we should record
-	   timewarns and match them with deadlock cycles so we can tell
-	   which timewarns are addressed by a given cycle and which aren't.  */
-
-
-	gettimeofday(&now, NULL);
-
-	/* don't send a new start until at least SECS after the last
-	   we sent, and at least SECS after the last completed cycle */
-
-	sec = now.tv_sec - ls->last_send_cycle_start.tv_sec;
-
-	if (sec < DEADLOCK_CHECK_SECS) {
-		log_group(ls, "skip send: recent send cycle %d sec", sec);
-		return;
-	}
-
-	sec = now.tv_sec - ls->cycle_end_time.tv_sec;
-
-	if (sec < DEADLOCK_CHECK_SECS) {
-		log_group(ls, "skip send: recent cycle end %d sec", sec);
-		return;
-	}
-
-	gettimeofday(&ls->last_send_cycle_start, NULL);
-	send_cycle_start(ls);
-}
-
-static void process_netlink(int ci)
-{
-	struct msgtemplate msg;
-	struct nlattr *na;
-	int len;
-
-	len = recv(client[ci].fd, &msg, sizeof(msg), 0);
-
-	if (len < 0) {
-		log_error("nonfatal netlink error: errno %d", errno);
-		return;
-	}
-
-	if (msg.n.nlmsg_type == NLMSG_ERROR || !NLMSG_OK((&msg.n), len)) {
-		struct nlmsgerr *err = NLMSG_DATA(&msg);
-		log_error("fatal netlink error: errno %d", err->error);
-		return;
-	}
-
-	na = (struct nlattr *) GENLMSG_DATA(&msg);
-
-	process_timewarn((struct dlm_lock_data *) NLA_DATA(na));
-}
+/* FIXME: use a library?  Add ability to list lockspaces and their state. */
 
 static void process_connection(int ci)
 {
@@ -548,6 +407,12 @@ static void process_connection(int ci)
 			send_cycle_start(ls);
 		else
 			log_debug("deadlock_check ls name not found");
+	} else if (!strncmp(argv[0], "dump", 4)) {
+		do_dump(client[ci].fd);
+		client_dead(ci);
+	} else if (!strncmp(argv[0], "plocks", 6)) {
+		dump_plocks(argv[1], client[ci].fd);
+		client_dead(ci);
 	}
 }
 
@@ -601,7 +466,7 @@ static int setup_listener(void)
 	return s;
 }
 
-void cluster_dead(int ci)
+static void cluster_dead(int ci)
 {
 	log_error("cluster is down, exiting");
 	clear_configfs();
@@ -610,6 +475,7 @@ void cluster_dead(int ci)
 
 static int loop(void)
 {
+	int poll_timeout = -1;
 	int rv, i;
 	void (*workfn) (int ci);
 	void (*deadfn) (int ci);
@@ -619,34 +485,76 @@ static int loop(void)
 		goto out;
 	client_add(rv, process_listener, NULL);
 
-	rv = setup_groupd();
-	if (rv < 0)
-		goto out;
-	client_add(rv, process_groupd, cluster_dead);
-
 	rv = setup_uevent();
 	if (rv < 0)
 		goto out;
 	client_add(rv, process_uevent, NULL);
 
-	rv = setup_member();
+	rv = setup_cman();
 	if (rv < 0)
 		goto out;
-	client_add(rv, process_member, cluster_dead);
+	client_add(rv, process_cman, cluster_dead);
 
-	/* netlink stuff is only used for deadlock detection */
-	if (!deadlock_enabled)
-		goto for_loop;
+	group_mode = GROUP_LIBCPG;
 
-	rv = setup_netlink();
-	if (rv < 0)
-		goto for_loop;
-	client_add(rv, process_netlink, NULL);
+	if (cfgd_groupd_compat) {
+		rv = setup_groupd();
+		if (rv < 0)
+			goto out;
+		client_add(rv, process_groupd, cluster_dead);
 
- for_loop:
+		group_mode = GROUP_LIBGROUP;
+
+		if (cfgd_groupd_compat == 2) {
+			/* cfgd_groupd_compat of 2 uses new groupd feature that
+			   figures out whether all other groupd's in the cluster
+			   are in LIGCPG mode, and if they are group_mode is
+			   changed to LIBCPG.  If any groupd in the cluster
+			   is from cluster2/stable2/rhel5, or any groupd is
+			   in LIBGROUP mode, then group_mode remains LIBGROUP.
+
+			   set_group_mode() figures this out by joining the
+			   groupd cpg, sending a new "mode" message, and
+			   waiting to see if it gets a mode reply from
+			   all other groupd's.  If it does, and all modes
+			   are LIGCPG, then we set groupd_mode to LIBCPG.
+			   Any previous generation groupd's won't recognize
+			   the new mode message and won't reply; their lack
+			   of reply (or seeing an old-style message from them)
+			   indicates they are a cluster2 version.
+
+			   Not yet implemented.  In the future, it may set
+			   group_mode to GROUP_LIBCPG. */
+
+			/* set_group_mode(); */
+			group_mode = GROUP_LIBGROUP;
+		}
+	}
+
+	if (group_mode == GROUP_LIBCPG) {
+		rv = setup_cpg();
+		if (rv < 0)
+			goto out;
+		/* client_add(rv, process_cpg, cluster_dead); */
+
+		if (cfgd_enable_deadlk) {
+			rv = setup_netlink();
+			if (rv < 0)
+				goto out;
+			client_add(rv, process_netlink, NULL);
+
+			setup_deadlock();
+		}
+
+		rv = setup_plocks();
+		if (rv < 0)
+			goto out;
+		plock_fd = rv;
+		plock_ci = client_add(rv, process_plocks, NULL);
+	}
 
 	for (;;) {
-		rv = poll(pollfd, client_maxi + 1, -1);
+		rv = poll(pollfd, client_maxi + 1, poll_timeout);
 		if (rv == -1 && errno == EINTR) {
 			if (daemon_quit && list_empty(&lockspaces)) {
 				clear_configfs();
@@ -671,6 +579,21 @@ static int loop(void)
 				deadfn = client[i].deadfn;
 				deadfn(i);
 			}
+		}
+
+		poll_timeout = -1;
+
+		if (poll_fencing || poll_quorum || poll_fs) {
+			process_lockspace_changes();
+			poll_timeout = 1000;
+		}
+
+		if (poll_ignore_plock) {
+			if (!limit_plocks()) {
+				poll_ignore_plock = 0;
+				client_back(plock_ci, plock_fd);
+			}
+			poll_timeout = 1000;
 		}
 	}
 	rv = 0;
@@ -721,7 +644,7 @@ static void lockfile(void)
 	}
 }
 
-void daemonize(void)
+static void daemonize(void)
 {
 	pid_t pid = fork();
 	if (pid < 0) {
@@ -745,21 +668,45 @@ static void print_usage(void)
 {
 	printf("Usage:\n");
 	printf("\n");
-	printf("%s [options]\n", prog_name);
+	printf("dlm_controld [options]\n");
 	printf("\n");
 	printf("Options:\n");
 	printf("\n");
-	printf("  -d <num>     Enable (1) or disable (0, default) deadlock code\n");     
-	printf("  -D	       Enable debugging code and don't fork\n");
-	printf("  -K	       Enable kernel dlm debugging messages\n");
-	printf("  -h	       Print this help, then exit\n");
-	printf("  -V	       Print program version information, then exit\n");
+	printf("  -D		Enable daemon debugging and don't fork\n");
+	printf("  -K		Enable kernel dlm debugging messages\n");
+	printf("  -g <num>	groupd compatibility, 0 off, 1 on\n");
+	printf("		on: use libgroup, compat with cluster2/stable2/rhel5\n");
+	printf("		off: use libcpg, no backward compatability\n");
+	printf("		Default is %d\n", DEFAULT_GROUPD_COMPAT);
+	printf("  -d <num>	Enable (1) or disable (0) deadlock code\n");
+	printf("		Default is %d\n", DEFAULT_ENABLE_DEADLK);
+	printf("  -p <num>	Enable (1) or disable (0) plock code\n");
+	printf("		Default is %d\n", DEFAULT_ENABLE_PLOCK);
+	printf("  -P		Enable plock debugging\n");
+	printf("  -l <limit>	Limit the rate of plock operations\n");
+	printf("		Default is %d, set to 0 for no limit\n", DEFAULT_PLOCK_RATE_LIMIT);
+	printf("  -o <n>	plock ownership, 1 enable, 0 disable\n");
+	printf("		Default is %d\n", DEFAULT_PLOCK_OWNERSHIP);
+	printf("  -t <ms>	plock drop resources time (milliseconds)\n");
+	printf("		Default is %u\n", DEFAULT_DROP_RESOURCES_TIME);
+	printf("  -c <num>	plock drop resources count\n");
+	printf("		Default is %u\n", DEFAULT_DROP_RESOURCES_COUNT);
+	printf("  -a <ms>	plock drop resources age (milliseconds)\n");
+	printf("		Default is %u\n", DEFAULT_DROP_RESOURCES_AGE);
+	printf("  -h		Print this help, then exit\n");
+	printf("  -V		Print program version information, then exit\n");
 }
 
-static void decode_arguments(int argc, char **argv)
+#define OPTION_STRING			"DKg:d:p:Pl:o:t:c:a:hV"
+
+static void read_arguments(int argc, char **argv)
 {
 	int cont = 1;
 	int optchar;
+
+	/* we don't allow these to be set on command line, should we? */
+	optk_timewarn = 0;
+	optk_timewarn = 0;
 
 	while (cont) {
 		optchar = getopt(argc, argv, OPTION_STRING);
@@ -770,17 +717,59 @@ static void decode_arguments(int argc, char **argv)
 			daemon_debug_opt = 1;
 			break;
 
+		case 'g':
+			optd_groupd_compat = 1;
+			cfgd_groupd_compat = atoi(optarg);
+			break;
+
 		case 'K':
-			kernel_debug_opt = 1;
+			optk_debug = 1;
+			cfgk_debug = 1;
+			break;
+
+		case 'd':
+			optd_enable_deadlk = 1;
+			cfgd_enable_deadlk = atoi(optarg);
+			break;
+
+		case 'p':
+			optd_enable_plock = 1;
+			cfgd_enable_plock = atoi(optarg);
+			break;
+
+		case 'P':
+			optd_plock_debug = 1;
+			cfgd_plock_debug = 1;
+			break;
+
+		case 'l':
+			optd_plock_rate_limit = 1;
+			cfgd_plock_rate_limit = atoi(optarg);
+			break;
+
+		case 'o':
+			optd_plock_ownership = 1;
+			cfgd_plock_ownership = atoi(optarg);
+			break;
+
+		case 't':
+			optd_drop_resources_time = 1;
+			cfgd_drop_resources_time = atoi(optarg);
+			break;
+
+		case 'c':
+			optd_drop_resources_count = 1;
+			cfgd_drop_resources_count = atoi(optarg);
+			break;
+
+		case 'a':
+			optd_drop_resources_age = 1;
+			cfgd_drop_resources_age = atoi(optarg);
 			break;
 
 		case 'h':
 			print_usage();
 			exit(EXIT_SUCCESS);
-			break;
-
-		case 'd':
-			deadlock_enabled = atoi(optarg);
 			break;
 
 		case 'V':
@@ -807,7 +796,7 @@ static void decode_arguments(int argc, char **argv)
 	}
 }
 
-void set_oom_adj(int val)
+static void set_oom_adj(int val)
 {
 	FILE *fp;
 
@@ -819,7 +808,7 @@ void set_oom_adj(int val)
 	fclose(fp);
 }
 
-void set_scheduler(void)
+static void set_scheduler(void)
 {
 	struct sched_param sched_param;
 	int rv;
@@ -839,34 +828,62 @@ void set_scheduler(void)
 
 int main(int argc, char **argv)
 {
-	prog_name = argv[0];
-
 	INIT_LIST_HEAD(&lockspaces);
 
-	decode_arguments(argc, argv);
+	read_arguments(argc, argv);
 
 	if (!daemon_debug_opt)
 		daemonize();
-
-	setup_deadlock();
-
 	signal(SIGTERM, sigterm_handler);
+
+	read_ccs();
+
+	clear_configfs();
+
+	/* the kernel has its own defaults for these values which we
+	   don't want to change unless these have been set; -1 means
+	   they have not been set on command line or config file */
+	if (cfgk_debug != -1)
+		set_configfs_debug(cfgk_debug);
+	if (cfgk_timewarn != -1)
+		set_configfs_timewarn(cfgk_timewarn);
+	if (cfgk_protocol != -1)
+		set_configfs_protocol(cfgk_protocol);
 
 	set_scheduler();
 	set_oom_adj(-16);
 
-	/* if this daemon was killed and the cluster shut down, and
-	   then the cluster brought back up and this daemon restarted,
-	   there will be old configfs entries we need to clear out */
-	clear_configfs();
-
-	set_ccs_options();
-
 	return loop();
 }
 
-char *prog_name;
+void daemon_dump_save(void)
+{
+	int len, i;
+
+	len = strlen(daemon_debug_buf);
+
+	for (i = 0; i < len; i++) {
+		dump_buf[dump_point++] = daemon_debug_buf[i];
+
+		if (dump_point == DUMP_SIZE) {
+			dump_point = 0;
+			dump_wrap = 1;
+		}
+	}
+}
+
 int daemon_debug_opt;
+int daemon_quit;
+int poll_fencing;
+int poll_quorum;
+int poll_fs;
+int poll_ignore_plock;
+int plock_fd;
+int plock_ci;
+struct list_head lockspaces;
+int our_nodeid;
 char daemon_debug_buf[256];
-int kernel_debug_opt;
+char dump_buf[DUMP_SIZE];
+int dump_point;
+int dump_wrap;
 

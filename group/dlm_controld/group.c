@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2005-2007 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2005-2008 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -11,6 +11,7 @@
 ******************************************************************************/
 
 #include "dlm_daemon.h"
+#include "libgroup.h"
 
 #define DO_STOP 1
 #define DO_START 2
@@ -84,7 +85,7 @@ group_callbacks_t callbacks = {
 	setid_cbfn
 };
 
-char *str_members(void)
+static char *str_members(void)
 {
 	static char str_members_buf[MAXLINE];
 	int i, ret, pos = 0, len = MAXLINE;
@@ -127,7 +128,7 @@ void process_groupd(int ci)
 	switch (cb_action) {
 	case DO_STOP:
 		log_debug("groupd callback: stop %s", cb_name);
-		set_control(cb_name, 0);
+		set_sysfs_control(cb_name, 0);
 		group_stop_done(gh, cb_name);
 		break;
 
@@ -135,12 +136,13 @@ void process_groupd(int ci)
 		log_debug("groupd callback: start %s count %d members %s",
 			  cb_name, cb_member_count, str_members());
 
-		set_members(cb_name, cb_member_count, cb_members);
+		set_configfs_members(cb_name, cb_member_count, cb_members,
+				     0, NULL);
 
 		/* this causes the dlm to do a "start" using the
 		   members we just set */
 
-		set_control(cb_name, 1);
+		set_sysfs_control(cb_name, 1);
 
 		/* the dlm doesn't need/use a "finish" stage following
 		   start, so we can just do start_done immediately */
@@ -155,14 +157,13 @@ void process_groupd(int ci)
 
 		/* this causes the dlm_new_lockspace() call (typically from
 		   mount) to complete */
-		set_event_done(cb_name, 0);
+		set_sysfs_event_done(cb_name, 0);
 
-		join_deadlock_cpg(ls);
 		break;
 
 	case DO_SETID:
 		log_debug("groupd callback: set_id %s %x", cb_name, cb_id);
-		set_id(cb_name, cb_id);
+		set_sysfs_id(cb_name, cb_id);
 		ls->global_id = cb_id;
 		break;
 
@@ -178,11 +179,10 @@ void process_groupd(int ci)
 			log_debug("leave event done %s", cb_name);
 
 			/* remove everything under configfs */
-			set_members(cb_name, 0, NULL);
+			set_configfs_members(ls->name, 0, NULL, 0, NULL);
 		}
 
-		set_event_done(cb_name, val);
-		leave_deadlock_cpg(ls);
+		set_sysfs_event_done(cb_name, val);
 		list_del(&ls->list);
 		free(ls);
 		break;
@@ -198,6 +198,29 @@ void process_groupd(int ci)
 	cb_action = 0;
  out:
 	return;
+}
+
+int dlm_join_lockspace_group(struct lockspace *ls)
+{
+	int rv;
+
+	ls->joining = 1;
+	list_add(&ls->list, &lockspaces);
+
+	rv = group_join(gh, ls->name);
+	if (rv) {
+		list_del(&ls->list);
+		free(ls);
+	}
+
+	return rv;
+}
+
+int dlm_leave_lockspace_group(struct lockspace *ls)
+{
+	ls->leaving = 1;
+	group_leave(gh, ls->name);
+	return 0;
 }
 
 int setup_groupd(void)

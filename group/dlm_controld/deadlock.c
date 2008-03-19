@@ -11,12 +11,8 @@
 ******************************************************************************/
 
 #include "dlm_daemon.h"
+#include "config.h"
 #include "libdlm.h"
-
-int deadlock_enabled = 0;
-
-extern struct list_head lockspaces;
-extern int our_nodeid;
 
 static SaCkptHandleT global_ckpt_h;
 static SaCkptCallbacksT callbacks = { 0, 0 };
@@ -96,26 +92,6 @@ struct trans {
 							 pointers */
 };
 
-#define DLM_HEADER_MAJOR	1
-#define DLM_HEADER_MINOR	0
-#define DLM_HEADER_PATCH	0
-
-#define DLM_MSG_CYCLE_START	 1
-#define DLM_MSG_CYCLE_END	 2
-#define DLM_MSG_CHECKPOINT_READY 3
-#define DLM_MSG_CANCEL_LOCK	 4
-
-struct dlm_header {
-	uint16_t		version[3];
-	uint16_t		type; /* MSG_ */
-	uint32_t		nodeid; /* sender */
-	uint32_t		to_nodeid; /* 0 if to all */
-	uint32_t		global_id;
-	uint32_t		lkid;
-	uint32_t		pad;
-	char			name[MAXNAME];
-};
-
 static const int __dlm_compat_matrix[8][8] = {
       /* UN NL CR CW PR PW EX PD */
         {1, 1, 1, 1, 1, 1, 1, 0},       /* UN */
@@ -184,25 +160,9 @@ void setup_deadlock(void)
 {
 	SaAisErrorT rv;
 
-	if (!deadlock_enabled)
-		return;
-
 	rv = saCkptInitialize(&global_ckpt_h, &callbacks, &version);
 	if (rv != SA_AIS_OK)
 		log_error("ckpt init error %d", rv);
-}
-
-/* FIXME: use private data hooks into libcpg to save ls */
-
-static struct lockspace *find_ls_by_handle(cpg_handle_t h)
-{
-	struct lockspace *ls;
-
-	list_for_each_entry(ls, &lockspaces, list) {
-		if (ls->cpg_h == h)
-			return ls;
-	}
-	return NULL;
 }
 
 static struct dlm_rsb *get_resource(struct lockspace *ls, char *name, int len)
@@ -599,7 +559,7 @@ static int _unlink_checkpoint(struct lockspace *ls, SaNameT *name)
 	int ret = 0;
 	int retries;
 
-	h = (SaCkptCheckpointHandleT) ls->lock_ckpt_handle;
+	h = (SaCkptCheckpointHandleT) ls->deadlk_ckpt_handle;
 	log_group(ls, "unlink ckpt %llx", (unsigned long long)h);
 
 	retries = 0;
@@ -655,7 +615,7 @@ static int _unlink_checkpoint(struct lockspace *ls, SaNameT *name)
 			  (unsigned long long)h, rv, ls->name);
 	}
  out:
-	ls->lock_ckpt_handle = 0;
+	ls->deadlk_ckpt_handle = 0;
 	return ret;
 }
 
@@ -819,7 +779,7 @@ static void write_checkpoint(struct lockspace *ls)
 	name.length = len;
 
 	/* unlink an old checkpoint before we create a new one */
-	if (ls->lock_ckpt_handle) {
+	if (ls->deadlk_ckpt_handle) {
 		log_error("write_checkpoint: old ckpt");
 		if (_unlink_checkpoint(ls, &name))
 			return;
@@ -880,7 +840,7 @@ static void write_checkpoint(struct lockspace *ls)
 
 	log_group(ls, "write_checkpoint: open ckpt handle %llx",
 		  (unsigned long long)h);
-	ls->lock_ckpt_handle = (uint64_t) h;
+	ls->deadlk_ckpt_handle = (uint64_t) h;
 
 	list_for_each_entry(r, &ls->resources, list) {
 		memset(buf, 0, sizeof(buf));
@@ -918,34 +878,8 @@ static void write_checkpoint(struct lockspace *ls)
 	}
 }
 
-static int _send_message(cpg_handle_t h, void *buf, int len, int type)
-{
-	struct iovec iov;
-	cpg_error_t error;
-	int retries = 0;
-
-	iov.iov_base = buf;
-	iov.iov_len = len;
- retry:
-	error = cpg_mcast_joined(h, CPG_TYPE_AGREED, &iov, 1);
-	if (error == CPG_ERR_TRY_AGAIN) {
-		retries++;
-		usleep(1000);
-		if (!(retries % 100))
-			log_error("cpg_mcast_joined retry %d", retries);
-		if (retries < 1000)
-			goto retry;
-	}
-	if (error != CPG_OK) {
-		log_error("cpg_mcast_joined error %d handle %llx",
-			  (int)error, (unsigned long long)h);
-		disable_deadlock();
-		return -1;
-	}
-	return 0;
-}
-
-static void send_message(struct lockspace *ls, int type)
+static void send_message(struct lockspace *ls, int type,
+			 uint32_t to_nodeid, uint32_t msgdata)
 {
 	struct dlm_header *hd;
 	int len;
@@ -961,16 +895,11 @@ static void send_message(struct lockspace *ls, int type)
 	memset(buf, 0, len);
 
 	hd = (struct dlm_header *)buf;
-	hd->version[0]  = cpu_to_le16(DLM_HEADER_MAJOR);
-	hd->version[1]  = cpu_to_le16(DLM_HEADER_MINOR);
-	hd->version[2]  = cpu_to_le16(DLM_HEADER_PATCH);
-	hd->type	= cpu_to_le16(type);
-	hd->nodeid      = cpu_to_le32(our_nodeid);
-	hd->to_nodeid   = 0;
-	hd->global_id   = cpu_to_le32(ls->global_id);
-	memcpy(hd->name, ls->name, strlen(ls->name));
+	hd->type = type;
+	hd->to_nodeid = to_nodeid;
+	hd->msgdata = msgdata;
 
-	_send_message(ls->cpg_h, buf, len, type);
+	dlm_send_message(ls, buf, len);
 
 	free(buf);
 }
@@ -978,42 +907,26 @@ static void send_message(struct lockspace *ls, int type)
 static void send_checkpoint_ready(struct lockspace *ls)
 {
 	log_group(ls, "send_checkpoint_ready");
-	send_message(ls, DLM_MSG_CHECKPOINT_READY);
+	send_message(ls, DLM_MSG_DEADLK_CHECKPOINT_READY, 0, 0);
 }
 
 void send_cycle_start(struct lockspace *ls)
 {
-	if (!deadlock_enabled)
-		return;
 	log_group(ls, "send_cycle_start");
-	send_message(ls, DLM_MSG_CYCLE_START);
+	send_message(ls, DLM_MSG_DEADLK_CYCLE_START, 0, 0);
 }
 
-void send_cycle_end(struct lockspace *ls)
+static void send_cycle_end(struct lockspace *ls)
 {
-	if (!deadlock_enabled)
-		return;
 	log_group(ls, "send_cycle_end");
-	send_message(ls, DLM_MSG_CYCLE_END);
+	send_message(ls, DLM_MSG_DEADLK_CYCLE_END, 0, 0);
 }
 
 static void send_cancel_lock(struct lockspace *ls, struct trans *tr,
 			     struct dlm_lkb *lkb)
 {
-	struct dlm_header *hd;
-	int len;
-	char *buf;
 	int to_nodeid;
 	uint32_t lkid;
-
-	len = sizeof(struct dlm_header);
-	buf = malloc(len);
-	if (!buf) {
-		log_error("send_message: no memory");
-		disable_deadlock();
-		return;
-	}
-	memset(buf, 0, len);
 
 	if (!lkb->lock.nodeid)
 		lkid = lkb->lock.id;
@@ -1025,20 +938,7 @@ static void send_cancel_lock(struct lockspace *ls, struct trans *tr,
 		  to_nodeid, lkb->rsb->name, lkid,
 		  (unsigned long long)lkb->lock.xid);
 
-	hd = (struct dlm_header *)buf;
-	hd->version[0]  = cpu_to_le16(DLM_HEADER_MAJOR);
-	hd->version[1]  = cpu_to_le16(DLM_HEADER_MINOR);
-	hd->version[2]  = cpu_to_le16(DLM_HEADER_PATCH);
-	hd->type	= cpu_to_le16(DLM_MSG_CANCEL_LOCK);
-	hd->nodeid      = cpu_to_le32(our_nodeid);
-	hd->to_nodeid   = cpu_to_le32(to_nodeid);
-	hd->lkid        = cpu_to_le32(lkid);
-	hd->global_id   = cpu_to_le32(ls->global_id);
-	memcpy(hd->name, ls->name, strlen(ls->name));
-
-	_send_message(ls->cpg_h, buf, len, DLM_MSG_CANCEL_LOCK);
-
-	free(buf);
+	send_message(ls, DLM_MSG_DEADLK_CANCEL_LOCK, to_nodeid, lkid);
 }
 
 static void dump_resources(struct lockspace *ls)
@@ -1075,7 +975,7 @@ static void run_deadlock(struct lockspace *ls)
 	if (ls->all_checkpoints_ready)
 		log_group(ls, "WARNING: run_deadlock all_checkpoints_ready");
 
-	list_for_each_entry(node, &ls->nodes, list) {
+	list_for_each_entry(node, &ls->deadlk_nodes, list) {
 		if (!node->in_cycle)
 			continue;
 		if (!node->checkpoint_ready)
@@ -1089,13 +989,13 @@ static void run_deadlock(struct lockspace *ls)
 
 	ls->all_checkpoints_ready = 1;
 
-	list_for_each_entry(node, &ls->nodes, list) {
+	list_for_each_entry(node, &ls->deadlk_nodes, list) {
 		if (!node->in_cycle)
 			continue;
 		if (node->nodeid < low || low == -1)
 			low = node->nodeid;
 	}
-	ls->low_nodeid = low;
+	ls->deadlk_low_nodeid = low;
 
 	if (low == our_nodeid)
 		find_deadlock(ls);
@@ -1103,15 +1003,17 @@ static void run_deadlock(struct lockspace *ls)
 		log_group(ls, "defer resolution to low nodeid %d", low);
 }
 
-static void receive_checkpoint_ready(struct lockspace *ls, int nodeid)
+void receive_checkpoint_ready(struct lockspace *ls, struct dlm_header *hd,
+			      int len)
 {
 	struct node *node;
+	int nodeid = hd->nodeid;
 
 	log_group(ls, "receive_checkpoint_ready from %d", nodeid);
 
 	read_checkpoint(ls, nodeid);
 
-	list_for_each_entry(node, &ls->nodes, list) {
+	list_for_each_entry(node, &ls->deadlk_nodes, list) {
 		if (node->nodeid == nodeid) {
 			node->checkpoint_ready = 1;
 			break;
@@ -1121,9 +1023,10 @@ static void receive_checkpoint_ready(struct lockspace *ls, int nodeid)
 	run_deadlock(ls);
 }
 
-static void receive_cycle_start(struct lockspace *ls, int nodeid)
+void receive_cycle_start(struct lockspace *ls, struct dlm_header *hd, int len)
 {
 	struct node *node;
+	int nodeid = hd->nodeid;
 	int rv;
 
 	log_group(ls, "receive_cycle_start from %d", nodeid);
@@ -1135,7 +1038,7 @@ static void receive_cycle_start(struct lockspace *ls, int nodeid)
 	ls->cycle_running = 1;
 	gettimeofday(&ls->cycle_start_time, NULL);
 
-	list_for_each_entry(node, &ls->nodes, list)
+	list_for_each_entry(node, &ls->deadlk_nodes, list)
 		node->in_cycle = 1;
 
 	rv = read_debugfs_locks(ls);
@@ -1166,9 +1069,10 @@ static uint64_t dt_usec(struct timeval *start, struct timeval *stop)
 /* TODO: nodes added during a cycle - what will they do with messages
    they recv from other nodes running the cycle? */
 
-static void receive_cycle_end(struct lockspace *ls, int nodeid)
+void receive_cycle_end(struct lockspace *ls, struct dlm_header *hd, int len)
 {
 	struct node *node;
+	int nodeid = hd->nodeid;
 	uint64_t usec;
 
 	if (!ls->cycle_running) {
@@ -1185,7 +1089,7 @@ static void receive_cycle_end(struct lockspace *ls, int nodeid)
 	ls->cycle_running = 0;
 	ls->all_checkpoints_ready = 0;
 
-	list_for_each_entry(node, &ls->nodes, list)
+	list_for_each_entry(node, &ls->deadlk_nodes, list)
 		node->checkpoint_ready = 0;
 
 	free_resources(ls);
@@ -1193,9 +1097,11 @@ static void receive_cycle_end(struct lockspace *ls, int nodeid)
 	unlink_checkpoint(ls);
 }
 
-static void receive_cancel_lock(struct lockspace *ls, int nodeid, uint32_t lkid)
+void receive_cancel_lock(struct lockspace *ls, struct dlm_header *hd, int len)
 {
 	dlm_lshandle_t h;
+	int nodeid = hd->nodeid;
+	uint32_t lkid = hd->msgdata;
 	int rv;
 
 	if (nodeid != our_nodeid)
@@ -1219,51 +1125,6 @@ static void receive_cancel_lock(struct lockspace *ls, int nodeid, uint32_t lkid)
 	dlm_close_lockspace(h);
 }
 
-static void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
-		uint32_t nodeid, uint32_t pid, void *data, int data_len)
-{
-	struct lockspace *ls;
-	struct dlm_header *hd;
-
-	ls = find_ls_by_handle(handle);
-	if (!ls)
-		return;
-
-	hd = (struct dlm_header *) data;
-
-	hd->version[0]  = le16_to_cpu(hd->version[0]);
-	hd->version[1]  = le16_to_cpu(hd->version[1]);
-	hd->version[2]  = le16_to_cpu(hd->version[2]);
-	hd->type	= le16_to_cpu(hd->type);
-	hd->nodeid      = le32_to_cpu(hd->nodeid);
-	hd->to_nodeid   = le32_to_cpu(hd->to_nodeid);
-	hd->global_id   = le32_to_cpu(hd->global_id);
-
-	if (hd->version[0] != DLM_HEADER_MAJOR) {
-		log_error("reject message version %u.%u.%u",
-			  hd->version[0], hd->version[1], hd->version[2]);
-		return;
-	}
-
-	switch (hd->type) {
-	case DLM_MSG_CYCLE_START:
-		receive_cycle_start(ls, hd->nodeid);
-		break;
-	case DLM_MSG_CYCLE_END:
-		receive_cycle_end(ls, hd->nodeid);
-		break;
-	case DLM_MSG_CHECKPOINT_READY:
-		receive_checkpoint_ready(ls, hd->nodeid);
-		break;
-	case DLM_MSG_CANCEL_LOCK:
-		receive_cancel_lock(ls, hd->nodeid, hd->lkid);
-		break;
-	default:
-		log_error("unknown message type %d from %d",
-			  hd->type, hd->nodeid);
-	}
-}
-
 static void node_joined(struct lockspace *ls, int nodeid)
 {
 	struct node *node;
@@ -1276,7 +1137,7 @@ static void node_joined(struct lockspace *ls, int nodeid)
 	}
 	memset(node, 0, sizeof(struct node));
 	node->nodeid = nodeid;
-	list_add_tail(&node->list, &ls->nodes);
+	list_add_tail(&node->list, &ls->deadlk_nodes);
 	log_group(ls, "node %d joined deadlock cpg", nodeid);
 }
 
@@ -1284,7 +1145,7 @@ static void node_left(struct lockspace *ls, int nodeid, int reason)
 {
 	struct node *node, *safe;
 
-	list_for_each_entry_safe(node, safe, &ls->nodes, list) {
+	list_for_each_entry_safe(node, safe, &ls->deadlk_nodes, list) {
 		if (node->nodeid != nodeid)
 			continue;
 
@@ -1296,20 +1157,15 @@ static void node_left(struct lockspace *ls, int nodeid, int reason)
 
 static void purge_locks(struct lockspace *ls, int nodeid);
 
-static void confchg_cb(cpg_handle_t handle, struct cpg_name *group_name,
+static void deadlk_confchg(struct lockspace *ls,
 		struct cpg_address *member_list, int member_list_entries,
 		struct cpg_address *left_list, int left_list_entries,
 		struct cpg_address *joined_list, int joined_list_entries)
 {
-	struct lockspace *ls;
 	int i;
 
-	ls = find_ls_by_handle(handle);
-	if (!ls)
-		return;
-
-	if (!ls->got_first_confchg) {
-		ls->got_first_confchg = 1;
+	if (!ls->deadlk_confchg_init) {
+		ls->deadlk_confchg_init = 1;
 		for (i = 0; i < member_list_entries; i++)
 			node_joined(ls, member_list[i].nodeid);
 		return;
@@ -1339,118 +1195,12 @@ static void confchg_cb(cpg_handle_t handle, struct cpg_name *group_name,
 		purge_locks(ls, left_list[i].nodeid);
 
 	for (i = 0; i < left_list_entries; i++) {
-		if (left_list[i].nodeid != ls->low_nodeid)
+		if (left_list[i].nodeid != ls->deadlk_low_nodeid)
 			continue;
 		/* this will set a new low node which will call find_deadlock */
 		run_deadlock(ls);
 		break;
 	}
-}
-
-static void process_deadlock_cpg(int ci)
-{
-	struct lockspace *ls;
-	cpg_error_t error;
-
-	ls = get_client_lockspace(ci);
-	if (!ls)
-		return;
-
-	error = cpg_dispatch(ls->cpg_h, CPG_DISPATCH_ONE);
-	if (error != CPG_OK)
-		log_error("cpg_dispatch error %d", error);
-}
-
-cpg_callbacks_t ls_callbacks = {
-	.cpg_deliver_fn = deliver_cb,
-	.cpg_confchg_fn = confchg_cb,
-};
-
-static void make_cpgname(struct lockspace *ls, struct cpg_name *cn)
-{
-	char name[MAXNAME+8];
-
-	memset(name, 0, sizeof(name));
-	strncpy(name, ls->name, sizeof(name));
-	strncat(name, "_deadlk", 7);
-	memset(cn, 0, sizeof(struct cpg_name));
-	strncpy(cn->value, name, strlen(name) + 1);
-	cn->length = strlen(name) + 1;
-}
-
-void join_deadlock_cpg(struct lockspace *ls)
-{
-	cpg_handle_t h;
-	struct cpg_name cpgname;
-	cpg_error_t error;
-	int retries = 0;
-	int fd, ci;
-
-	if (!deadlock_enabled)
-		return;
-
-	unlink_checkpoint(ls); /* not sure about this */
-
-	error = cpg_initialize(&h, &ls_callbacks);
-	if (error != CPG_OK) {
-		log_error("cpg_initialize error %d", error);
-		return;
-	}
-
-	cpg_fd_get(h, &fd);
-	if (fd < 0) {
-		log_error("cpg_fd_get error %d", error);
-		return;
-	}
-
-	ci = client_add(fd, process_deadlock_cpg, NULL);
-
-	make_cpgname(ls, &cpgname);
-
- retry:
-	error = cpg_join(h, &cpgname);
-	if (error == CPG_ERR_TRY_AGAIN) {
-		sleep(1);
-		if (retries++ < 10)
-			goto retry;
-	}
-	if (error != CPG_OK) {
-		log_error("deadlk cpg join error %d", error);
-		goto fail;
-	}
-
-	ls->cpg_h = h;
-	ls->cpg_ci = ci;
-	set_client_lockspace(ci, ls);
-	log_group(ls, "deadlk cpg ci %d fd %d", ci, fd);
-	return;
- fail:
-	cpg_finalize(h);
-	client_dead(ci);
-}
-
-void leave_deadlock_cpg(struct lockspace *ls)
-{
-	struct cpg_name cpgname;
-	cpg_error_t error;
-	int retries = 0;
-
-	if (!deadlock_enabled)
-		return;
-
-	make_cpgname(ls, &cpgname);
- retry:
-	error = cpg_leave(ls->cpg_h, &cpgname);
-	if (error == CPG_ERR_TRY_AGAIN) {
-		sleep(1);
-		if (retries++ < 10)
-			goto retry;
-	}
-	if (error != CPG_OK)
-		log_error("deadlk cpg leave error %d", error);
-
-	cpg_finalize(ls->cpg_h);
-	client_dead(ls->cpg_ci);
 }
 
 /* would we ever call this after we've created the transaction lists?

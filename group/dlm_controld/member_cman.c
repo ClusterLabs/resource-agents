@@ -13,13 +13,11 @@
 #include <libcman.h>
 #include "dlm_daemon.h"
 
-int			our_nodeid;
 static cman_handle_t	ch;
 static cman_node_t      old_nodes[MAX_NODES];
 static int              old_node_count;
 static cman_node_t      cman_nodes[MAX_NODES];
 static int              cman_node_count;
-extern struct list_head lockspaces;
 
 static int is_member(cman_node_t *node_list, int count, int nodeid)
 {
@@ -147,7 +145,7 @@ static void member_callback(cman_handle_t h, void *private, int reason, int arg)
 	}
 }
 
-void process_member(int ci)
+void process_cman(int ci)
 {
 	int rv;
 
@@ -161,7 +159,7 @@ void process_member(int ci)
 	}
 }
 
-int setup_member(void)
+int setup_cman(void)
 {
 	cman_node_t node;
 	int rv, fd;
@@ -205,7 +203,8 @@ int setup_member(void)
 }
 
 /* Force re-read of cman nodes */
-void cman_statechange()
+void cman_statechange(void)
 {
 	statechange();
 }
+

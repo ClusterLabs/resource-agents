@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2005-2007 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2005-2008 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -10,79 +10,128 @@
 *******************************************************************************
 ******************************************************************************/
 
-#include <sys/types.h>
-#include <asm/types.h>
-#include <sys/uio.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <sys/ioctl.h>
-#include <sys/stat.h>
-#include <sys/utsname.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <net/if.h>
-#include <stdio.h>
-#include <errno.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <fcntl.h>
-#include <netdb.h>
-#include <limits.h>
-#include <unistd.h>
-#include <dirent.h>
-
 #include "dlm_daemon.h"
-#include "ccs.h"
+#include "config.h"
 
-static int dir_members[MAX_GROUP_MEMBERS];
+static int dir_members[MAX_NODES];
 static int dir_members_count;
 static int comms_nodes[MAX_NODES];
 static int comms_nodes_count;
+static char mg_name[MAXNAME+1];
 
 #define DLM_SYSFS_DIR "/sys/kernel/dlm"
 #define CLUSTER_DIR   "/sys/kernel/config/dlm/cluster"
 #define SPACES_DIR    "/sys/kernel/config/dlm/cluster/spaces"
 #define COMMS_DIR     "/sys/kernel/config/dlm/cluster/comms"
 
+/* look for an id that matches in e.g. /sys/fs/gfs/bull\:x/lock_module/id
+   and then extract the "x" as the name */
 
-int do_read(int fd, void *buf, size_t count)
+static int get_mountgroup_name(uint32_t mg_id)
 {
-	int rv, off = 0;
+	char path[PATH_MAX];
+	char *fsname, *fsdir;
+	DIR *d;
+	FILE *file;
+	struct dirent *de;
+	uint32_t id;
+	int retry_gfs2 = 1;
+	int rv, error;
 
-	while (off < count) {
-		rv = read(fd, buf + off, count - off);
-		if (rv == 0)
-			return -1;
-		if (rv == -1 && errno == EINTR)
-			continue;
-		if (rv == -1)
-			return -1;
-		off += rv;
+	fsdir = "/sys/fs/gfs";
+ retry:
+	rv = -1;
+
+	d = opendir(fsdir);
+	if (!d) {
+		log_debug("%s: opendir failed: %d", path, errno);
+		goto out;
 	}
-	return 0;
+
+	while ((de = readdir(d))) {
+		if (de->d_name[0] == '.')
+			continue;
+
+		id = 0;
+		memset(path, 0, PATH_MAX);
+		snprintf(path, PATH_MAX, "%s/%s/lock_module/id",
+			 fsdir, de->d_name);
+
+		file = fopen(path, "r");
+		if (!file) {
+			log_error("can't open %s %d", path, errno);
+			continue;
+		}
+
+		error = fscanf(file, "%u", &id);
+		fclose(file);
+
+		if (error != 1) {
+			log_error("bad read %s %d", path, errno);
+			continue;
+		}
+		if (id != mg_id) {
+			log_debug("get_mountgroup_name skip %x %s",
+				  id, de->d_name);
+			continue;
+		}
+
+		/* take the fsname out of clustername:fsname */
+		fsname = strstr(de->d_name, ":");
+		if (!fsname) {
+			log_debug("get_mountgroup_name skip2 %x %s",
+				  id, de->d_name);
+			continue;
+		}
+		fsname++;
+
+		log_debug("get_mountgroup_name found %x %s %s",
+			  id, de->d_name, fsname);
+		strncpy(mg_name, fsname, 256);
+		rv = 0;
+		break;
+	}
+
+	closedir(d);
+
+ out:
+	if (rv && retry_gfs2) {
+		retry_gfs2 = 0;
+		fsdir = "/sys/fs/gfs2";
+		goto retry;
+	}
+
+	return rv;
 }
 
-int do_write(int fd, void *buf, size_t count)
+/* find the mountgroup with "mg_id" in sysfs, get it's name, then look for
+   the ls with with the same name in lockspaces list, return its id */
+
+void set_associated_id(uint32_t mg_id)
 {
-	int rv, off = 0;
+	struct lockspace *ls;
+	int rv;
 
- retry:
-	rv = write(fd, buf + off, count);
-	if (rv == -1 && errno == EINTR)
-		goto retry;
-	if (rv < 0) {
-		log_error("write errno %d", errno);
-		return rv;
+	log_debug("set_associated_id mg_id %x %d", mg_id, mg_id);
+
+	memset(&mg_name, 0, sizeof(mg_name));
+
+	rv = get_mountgroup_name(mg_id);
+	if (rv) {
+		log_error("no mountgroup found with id %x", mg_id);
+		return;
 	}
 
-	if (rv != count) {
-		count -= rv;
-		off += rv;
-		goto retry;
+	ls = find_ls(mg_name);
+	if (!ls) {
+		log_error("no lockspace found with name %s for mg_id %x",
+			   mg_name, mg_id);
+		return;
 	}
-	return 0;
+
+	log_debug("set_associated_id mg %x is ls %x", mg_id, ls->global_id);
+
+	ls->associated_mg_id = mg_id;
 }
 
 static int do_sysfs(char *name, char *file, char *val)
@@ -105,7 +154,7 @@ static int do_sysfs(char *name, char *file, char *val)
 	return rv;
 }
 
-int set_control(char *name, int val)
+int set_sysfs_control(char *name, int val)
 {
 	char buf[32];
 
@@ -115,7 +164,7 @@ int set_control(char *name, int val)
 	return do_sysfs(name, "control", buf);
 }
 
-int set_event_done(char *name, int val)
+int set_sysfs_event_done(char *name, int val)
 {
 	char buf[32];
 
@@ -125,7 +174,7 @@ int set_event_done(char *name, int val)
 	return do_sysfs(name, "event_done", buf);
 }
 
-int set_id(char *name, uint32_t id)
+int set_sysfs_id(char *name, uint32_t id)
 {
 	char buf[32];
 
@@ -207,122 +256,17 @@ static int path_exists(const char *path)
 	return 1;
 }
 
-static int open_ccs(void)
-{
-	int i, cd;
+/* The "renew" nodes are those that have left and rejoined since the last
+   call to set_members().  We rmdir/mkdir for these nodes so dlm-kernel
+   can notice they've left and rejoined. */
 
-	while ((cd = ccs_connect()) < 0) {
-		sleep(1);
-		if (++i > 9 && !(i % 10))
-			log_error("connect to ccs error %d, "
-				  "check ccsd or cluster status", cd);
-	}
-	return cd;
-}
-
-/* when not set in cluster.conf, a node's default weight is 1 */
-
-#define MASTER_PATH "/cluster/dlm/lockspace[@name=\"%s\"]/master"
-#define WEIGHT_PATH "/cluster/clusternodes/clusternode[@name=\"%s\"]/@weight"
-
-#define MASTER_NAME   MASTER_PATH "/@name"
-#define MASTER_WEIGHT MASTER_PATH "[@name=\"%s\"]/@weight"
-
-/* look for node's weight in the dlm/lockspace section */
-
-static int get_weight_lockspace(int cd, char *node, char *lockspace)
-{
-	char path[PATH_MAX], *str;
-	int error, weight;
-	int master_count = 0, node_is_master = 0;
-
-	memset(path, 0, PATH_MAX);
-	sprintf(path, MASTER_NAME, lockspace);
-
-	while (1) {
-		error = ccs_get_list(cd, path, &str);
-		if (error || !str)
-			break;
-		master_count++;
-		if (strcmp(str, node) == 0)
-			node_is_master = 1;
-		free(str);
-	}
-
-	/* if there are no masters, next check for a clusternode weight */
-
-	if (!master_count)
-		return -1;
-
-	/* if there's a master and this node isn't it, it gets weight 0 */
-
-	if (!node_is_master)
-		return 0;
-
-	/* master gets its specified weight or 1 if none is given */
-
-	memset(path, 0, PATH_MAX);
-	sprintf(path, MASTER_WEIGHT, lockspace, node);
-
-	error = ccs_get(cd, path, &str);
-	if (error || !str)
-		return 1;
-
-	weight = atoi(str);
-	free(str);
-	return weight;
-}
-
-/* look for node's weight on its clusternode line */
-
-static int get_weight_clusternode(int cd, char *node, char *lockspace)
-{
-	char path[PATH_MAX], *str;
-	int error, weight;
-
-	memset(path, 0, PATH_MAX);
-	sprintf(path, WEIGHT_PATH, node);
-
-	error = ccs_get(cd, path, &str);
-	if (error || !str)
-		return -1;
-
-	weight = atoi(str);
-	free(str);
-	return weight;
-}
-
-static int get_weight(int cd, int nodeid, char *lockspace)
-{
-	char *node;
-	int w;
-
-	node = nodeid2name(nodeid);
-	if (!node) {
-		log_error("no name for nodeid %d", nodeid);
-		w = 1;
-		goto out;
-	}
-
-	w = get_weight_lockspace(cd, node, lockspace);
-	if (w >= 0)
-		goto out;
-
-	w = get_weight_clusternode(cd, node, lockspace);
-	if (w >= 0)
-		goto out;
-
-	/* default weight is 1 */
-	w = 1;
- out:
-	return w;
-}
-
-int set_members(char *name, int new_count, int *new_members)
+int set_configfs_members(char *name, int new_count, int *new_members,
+			 int renew_count, int *renew_members)
 {
 	char path[PATH_MAX];
 	char buf[32];
 	int i, w, fd, rv, id, cd = 0, old_count, *old_members;
+	int do_renew;
 
 	/*
 	 * create lockspace dir if it doesn't exist yet
@@ -383,7 +327,12 @@ int set_members(char *name, int new_count, int *new_members)
 
 	for (i = 0; i < new_count; i++) {
 		id = new_members[i];
-		if (id_exists(id, old_count, old_members))
+
+		do_renew = 0;
+
+		if (id_exists(id, renew_count, renew_members))
+			do_renew = 1;
+		else if (id_exists(id, old_count, old_members))
 			continue;
 
 		if (!is_cman_member(id))
@@ -395,6 +344,16 @@ int set_members(char *name, int new_count, int *new_members)
 		memset(path, 0, PATH_MAX);
 		snprintf(path, PATH_MAX, "%s/%s/nodes/%d",
 			 SPACES_DIR, name, id);
+
+		if (do_renew) {
+			log_debug("set_members renew rmdir \"%s\"", path);
+			rv = rmdir(path);
+			if (rv) {
+				log_error("%s: renew rmdir failed: %d",
+					  path, errno);
+				goto out;
+			}
+		}
 
 		log_debug("set_members mkdir \"%s\"", path);
 
@@ -461,7 +420,7 @@ int set_members(char *name, int new_count, int *new_members)
 	rv = 0;
  out:
 	if (cd)
-		ccs_disconnect(cd);
+		close_ccs(cd);
 	return rv;
 }
 
@@ -476,7 +435,7 @@ char *str_ip(char *addr)
 }
 #endif
 
-char *str_ip(char *addr)
+static char *str_ip(char *addr)
 {
 	static char str_ip_buf[INET6_ADDRSTRLEN];
 	struct sockaddr_storage *ss = (struct sockaddr_storage *)addr;
@@ -528,7 +487,7 @@ static int update_comms_nodes(void)
 
 /* clear out everything under config/dlm/cluster/comms/ */
 
-void clear_configfs_comms(void)
+static void clear_configfs_comms(void)
 {
 	char path[PATH_MAX];
 	int i, rv;
@@ -573,7 +532,7 @@ static void clear_configfs_space_nodes(char *name)
 
 /* clear out everything under config/dlm/cluster/spaces/ */
 
-void clear_configfs_spaces(void)
+static void clear_configfs_spaces(void)
 {
 	char path[PATH_MAX];
 	DIR *d;
@@ -749,89 +708,7 @@ void del_configfs_node(int nodeid)
 		log_error("%s: rmdir failed: %d", path, errno);
 }
 
-#define PROTOCOL_PATH "/cluster/dlm/@protocol"
-#define PROTO_TCP  1
-#define PROTO_SCTP 2
-
-static int get_ccs_protocol(int cd)
-{
-	char path[PATH_MAX], *str;
-	int error, rv;
-
-	memset(path, 0, PATH_MAX);
-	sprintf(path, PROTOCOL_PATH);
-
-	error = ccs_get(cd, path, &str);
-	if (error || !str)
-		return -1;
-
-	if (!strncasecmp(str, "tcp", 3))
-		rv = PROTO_TCP;
-	else if (!strncasecmp(str, "sctp", 4))
-		rv = PROTO_SCTP;
-	else {
-		log_error("read invalid dlm protocol from ccs");
-		rv = 0;
-	}
-
-	free(str);
-	log_debug("got ccs protocol %d", rv);
-	return rv;
-}
-
-#define TIMEWARN_PATH "/cluster/dlm/@timewarn"
-
-static int get_ccs_timewarn(int cd)
-{
-	char path[PATH_MAX], *str;
-	int error, rv;
-
-	memset(path, 0, PATH_MAX);
-	sprintf(path, TIMEWARN_PATH);
-
-	error = ccs_get(cd, path, &str);
-	if (error || !str)
-		return -1;
-
-	rv = atoi(str);
-
-	if (rv <= 0) {
-		log_error("read invalid dlm timewarn from ccs");
-		rv = -1;
-	}
-
-	free(str);
-	log_debug("got ccs timewarn %d", rv);
-	return rv;
-}
-
-#define DEBUG_PATH "/cluster/dlm/@log_debug"
-
-static int get_ccs_debug(int cd)
-{
-	char path[PATH_MAX], *str;
-	int error, rv;
-
-	memset(path, 0, PATH_MAX);
-	sprintf(path, DEBUG_PATH);
-
-	error = ccs_get(cd, path, &str);
-	if (error || !str)
-		return -1;
-
-	rv = atoi(str);
-
-	if (rv < 0) {
-		log_error("read invalid dlm log_debug from ccs");
-		rv = -1;
-	}
-
-	free(str);
-	log_debug("got ccs log_debug %d", rv);
-	return rv;
-}
-
-static int set_configfs_protocol(int proto)
+int set_configfs_protocol(int proto)
 {
 	char path[PATH_MAX];
 	char buf[32];
@@ -863,7 +740,7 @@ static int set_configfs_protocol(int proto)
 	return 0;
 }
 
-static int set_configfs_timewarn(int cs)
+int set_configfs_timewarn(int cs)
 {
 	char path[PATH_MAX];
 	char buf[32];
@@ -895,7 +772,7 @@ static int set_configfs_timewarn(int cs)
 	return 0;
 }
 
-static int set_configfs_debug(int val)
+int set_configfs_debug(int val)
 {
 	char path[PATH_MAX];
 	char buf[32];
@@ -925,61 +802,5 @@ static int set_configfs_debug(int val)
 	close(fd);
 	log_debug("set log_debug %d", val);
 	return 0;
-}
-
-static void set_protocol(int cd)
-{
-	int rv, proto;
-
-	rv = get_ccs_protocol(cd);
-	if (!rv || rv < 0)
-		return;
-
-	/* for dlm kernel, TCP=0 and SCTP=1 */
-	if (rv == PROTO_TCP)
-		proto = 0;
-	else if (rv == PROTO_SCTP)
-		proto = 1;
-	else
-		return;
-
-	set_configfs_protocol(proto);
-}
-
-static void set_timewarn(int cd)
-{
-	int rv;
-
-	rv = get_ccs_timewarn(cd);
-	if (rv < 0)
-		return;
-
-	set_configfs_timewarn(rv);
-}
-
-static void set_debug(int cd)
-{
-	int rv;
-
-	rv = get_ccs_debug(cd);
-	if (rv < 0)
-		return;
-
-	set_configfs_debug(rv);
-}
-
-void set_ccs_options(void)
-{
-	int cd;
-
-	cd = open_ccs();
-
-	log_debug("set_ccs_options %d", cd);
-
-	set_protocol(cd);
-	set_timewarn(cd);
-	set_debug(cd);
-
-	ccs_disconnect(cd);
 }
 

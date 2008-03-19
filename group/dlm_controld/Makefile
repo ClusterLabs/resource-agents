@@ -22,11 +22,16 @@ include $(OBJDIR)/make/clean.mk
 include $(OBJDIR)/make/install.mk
 include $(OBJDIR)/make/uninstall.mk
 
-OBJS=	main.o \
+OBJS=	action.o \
+	config.o \
+	cpg.o \
+	crc.o \
+	deadlock.o \
+	main.o \
 	member_cman.o \
-	group.o \
-	action.o \
-	deadlock.o
+	netlink.o \
+	plock.o \
+	group.o
 
 CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmincdir} -I${openaisincdir}
 CFLAGS += -I${KERNEL_SRC}/include/
