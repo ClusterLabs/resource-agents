@@ -1315,7 +1315,7 @@ _res_op_internal(resource_node_t **tree, resource_t *first,
 	/* Stop should occur after children have stopped */
 	if (me && (op == RS_STOP)) {
 		node->rn_flags &= ~RF_NEEDSTOP;
-		rv = res_exec(node, op, NULL, 0);
+		rv |= res_exec(node, op, NULL, 0);
 
 		if (rv != 0) {
 			node->rn_state = RES_FAILED;
