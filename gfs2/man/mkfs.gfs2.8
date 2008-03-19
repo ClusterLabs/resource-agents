@@ -48,10 +48,10 @@ the filesystem.
 .TP
 \fB-p\fP \fILockProtoName\fR 
 LockProtoName is the name of the  locking  protocol to use.  Acceptable
-locking protocols are \fIlock_dlm\fR or if you are using GFS2
-as a local filesystem (\fB1 node only\fP), you can specify the
+locking protocols are \fIlock_dlm\fR (for shared storage) or if you are
+using GFS2 as a local filesystem (\fB1 node only\fP), you can specify the
 \fIlock_nolock\fR protocol.  If this option is not specified,
-\fIlock_nolock\fR protocol will be assumed.
+\fIlock_dlm\fR protocol will be assumed.
 .TP
 \fB-q\fP
 Be quiet.  Don't print anything.

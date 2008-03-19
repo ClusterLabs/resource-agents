@@ -1112,3 +1112,13 @@ int cman_node_fenced(cman_handle_t handle, int nodeid, uint64_t time, char *agen
 	strcpy(f.fence_agent, agent);
 	return info_call(h, CMAN_CMD_UPDATE_FENCE_INFO, &f, sizeof(f), NULL, 0);
 }
+
+#ifdef DEBUG
+int cman_dump_objdb(cman_handle_t handle, char *filename)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
+
+	return info_call(h, CMAN_CMD_DUMP_OBJDB, filename, strlen(filename)+1, NULL, 0);
+}
+#endif

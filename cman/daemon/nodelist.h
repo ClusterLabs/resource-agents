@@ -12,12 +12,14 @@
 
 
 /* Helper functions for navigating the nodes list */
-static unsigned int nodeslist_init(struct objdb_iface_ver0 *objdb, unsigned int *parent_handle)
+static unsigned int nodeslist_init(struct objdb_iface_ver0 *objdb,
+				   unsigned int cluster_parent_handle,
+				   unsigned int *parent_handle)
 {
 	unsigned int object_handle;
 
-	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
-	if (objdb->object_find(OBJECT_PARENT_HANDLE,
+	objdb->object_find_reset(cluster_parent_handle);
+	if (objdb->object_find(cluster_parent_handle,
 			       "clusternodes", strlen("clusternodes"),
 			       &object_handle) == 0)
 	{
@@ -47,13 +49,15 @@ static unsigned int nodeslist_next(struct objdb_iface_ver0 *objdb, unsigned int 
 		return 0;
 }
 
-static unsigned int nodelist_byname(struct objdb_iface_ver0 *objdb, char *name)
+static unsigned int nodelist_byname(struct objdb_iface_ver0 *objdb,
+				    unsigned int cluster_parent_handle,
+				    char *name)
 {
 	char *nodename;
 	unsigned int nodes_handle;
 	unsigned int parent_handle;
 
-	nodes_handle = nodeslist_init(objdb, &parent_handle);
+	nodes_handle = nodeslist_init(objdb, cluster_parent_handle, &parent_handle);
 	while (nodes_handle) {
 		if (objdb_get_string(objdb, nodes_handle, "name", &nodename)) {
 			log_printf(LOG_ERR, "Cannot get node name");

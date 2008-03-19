@@ -337,6 +337,9 @@ int cman_get_fenceinfo(cman_handle_t handle, int nodeid, uint64_t *fence_time, i
 /* Get stuff for cman_tool. Nobody else should use this */
 int cman_get_extra_info(cman_handle_t handle, cman_extra_info_t *info, int maxlen);
 
+/* Dump the objdb contents (only works if compiled with DEBUG enabled) */
+int cman_dump_objdb(cman_handle_t handle, char *filename);
+
 /*
  * -----------------------------------------------------------------------------
  * Admin functions. You will need privileges and have a handle created by 

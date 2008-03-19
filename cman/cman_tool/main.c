@@ -34,6 +34,7 @@
 #define OP_NODES		9
 #define OP_SERVICES		10
 #define OP_DEBUG		11
+#define OP_DUMP_OBJDB		12
 
 
 static void print_usage(int subcmd)
@@ -708,6 +709,19 @@ static void set_debuglog(commandline_t *comline)
 	cman_finish(h);
 }
 
+#ifdef DEBUG
+static void dump_objdb(commandline_t *comline)
+{
+	cman_handle_t h;
+
+	h = open_cman_handle(1);
+
+	if (cman_dump_objdb(h, comline->filename))
+		perror("dump objdb failed");
+
+	cman_finish(h);
+}
+#endif
 
 static int get_int_arg(char argopt, char *arg)
 {
@@ -913,6 +927,18 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 			if (comline->operation)
 				die("can't specify two operations");
 			comline->operation = OP_DEBUG;
+#ifdef DEBUG
+		} else if (strcmp(argv[optind], "dump-db") == 0) {
+			if (comline->operation)
+				die("can't specify two operations");
+			comline->operation = OP_DUMP_OBJDB;
+			if (!argv[optind+1])
+				die("no filename given");
+			comline->filename = strdup(argv[optind+1]);
+			if (comline->filename[0] != '/')
+				die("dump filename must be an absolute path");
+			optind++;
+#endif
 		} else if (strcmp(argv[optind], "remove") == 0) {
 			comline->remove = TRUE;
 		} else if (strcmp(argv[optind], "force") == 0) {
@@ -1031,8 +1057,12 @@ int main(int argc, char *argv[])
 	case OP_DEBUG:
 		set_debuglog(&comline);
 		break;
+#ifdef DEBUG
+	case OP_DUMP_OBJDB:
+		dump_objdb(&comline);
+		break;
 	}
-
+#endif
 	exit(EXIT_SUCCESS);
 }
 

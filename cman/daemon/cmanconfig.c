@@ -41,6 +41,7 @@ static char cluster_name[MAX_CLUSTER_NAME_LEN + 1];
 static unsigned int expected_votes;
 static char *our_nodename;
 static int our_votes;
+static unsigned int cluster_parent_handle;
 
 /* Get all the cluster node names from objdb and
  * add them to our node list.
@@ -58,11 +59,11 @@ int read_cman_nodes(struct objdb_iface_ver0 *objdb, unsigned int *config_version
     char *nodename;
 
     /* New config version */
-    objdb_get_int(objdb, OBJECT_PARENT_HANDLE, "config_version", config_version);
+    objdb_get_int(objdb, cluster_parent_handle, "config_version", config_version);
 
-    objdb->object_find_reset(OBJECT_PARENT_HANDLE);
+    objdb->object_find_reset(cluster_parent_handle);
 
-    if (objdb->object_find(OBJECT_PARENT_HANDLE,
+    if (objdb->object_find(cluster_parent_handle,
 			   "cman", strlen("cman"),
 			   &object_handle) == 0)
     {
@@ -72,12 +73,13 @@ int read_cman_nodes(struct objdb_iface_ver0 *objdb, unsigned int *config_version
 	    objdb_get_int(objdb, object_handle, "two_node", (unsigned int *)&two_node);
 	    objdb_get_int(objdb, object_handle, "cluster_id", &cluster_id);
 	    objdb_get_string(objdb, object_handle, "nodename", &our_nodename);
+	    objdb_get_int(objdb, object_handle, "max_queued", &max_outstanding_messages);
     }
 
     clear_reread_flags();
 
     /* Get the nodes list */
-    nodes_handle = nodeslist_init(objdb, &parent_handle);
+    nodes_handle = nodeslist_init(objdb, cluster_parent_handle, &parent_handle);
     do {
 	    if (objdb_get_string(objdb, nodes_handle, "name", &nodename)) {
 		    log_printf(LOG_ERR, "Cannot get node name");
@@ -149,7 +151,7 @@ static int get_cman_join_info(struct objdb_iface_ver0 *objdb)
 	unsigned int node_object;
 
 	/* Cluster name */
-	if (objdb_get_string(objdb, OBJECT_PARENT_HANDLE, "name", &cname)) {
+	if (objdb_get_string(objdb, cluster_parent_handle, "name", &cname)) {
 		log_printf(LOG_ERR, "cannot find cluster name in config file");
 		write_cman_pipe("Can't find cluster name in CCS");
 		error = -ENOENT;
@@ -175,7 +177,7 @@ static int get_cman_join_info(struct objdb_iface_ver0 *objdb)
 		unsigned int nodes_handle;
 		unsigned int parent_handle;
 
-		nodes_handle = nodeslist_init(objdb, &parent_handle);
+		nodes_handle = nodeslist_init(objdb, cluster_parent_handle, &parent_handle);
 		do {
 			int votes;
 
@@ -195,8 +197,8 @@ static int get_cman_join_info(struct objdb_iface_ver0 *objdb)
 			nodes_handle = nodeslist_next(objdb, parent_handle);
 		} while (nodes_handle);
 
-		objdb->object_find_reset(OBJECT_PARENT_HANDLE);
-		if (objdb->object_find(OBJECT_PARENT_HANDLE,
+		objdb->object_find_reset(cluster_parent_handle);
+		if (objdb->object_find(cluster_parent_handle,
 				       "cman", strlen("cman"),
 				       &object_handle) == 0)
 		{
@@ -214,7 +216,7 @@ static int get_cman_join_info(struct objdb_iface_ver0 *objdb)
 		log_printf(LOG_INFO, "Using override votes %d\n", votes);
 	}
 
-	node_object = nodelist_byname(objdb, our_nodename);
+	node_object = nodelist_byname(objdb, cluster_parent_handle, our_nodename);
 	if (!node_object) {
 		log_printf(LOG_ERR, "unable to find votes for %s", our_nodename);
 		write_cman_pipe("Unable to find votes for node in CCS");
@@ -290,6 +292,10 @@ out:
 int read_cman_config(struct objdb_iface_ver0 *objdb, unsigned int *config_version)
 {
 	int error;
+
+	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
+	objdb->object_find(OBJECT_PARENT_HANDLE,
+			   "cluster", strlen("cluster"), &cluster_parent_handle);
 
 	read_cman_nodes(objdb, config_version, 1);
 	error = get_cman_join_info(objdb);

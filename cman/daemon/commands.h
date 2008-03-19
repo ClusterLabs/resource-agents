@@ -47,3 +47,4 @@ extern int cman_join_cluster(struct objdb_iface_ver0 *objdb,
 			     int votes, int expected_votes);
 
 extern int cluster_members;
+extern uint32_t max_outstanding_messages;

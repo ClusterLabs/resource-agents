@@ -83,14 +83,14 @@ static int should_alloc(int ccs_fd, char *key)
 	char path[256];
 	char *str = NULL;
 
-	sprintf(path, "/cluster/%s/@*", key);
+	sprintf(path, "%s/@*", key);
 	keyerror = ccs_get_list(ccs_fd, path, &str);
 	if(str) {
 		free(str);
 		str = NULL;
 	}
 
-	sprintf(path, "/cluster/%s/child::*", key);
+	sprintf(path, "%s/child::*", key);
 	childerr = ccs_get_list(ccs_fd, path, &str);
 	if(str)
 		free(str);
@@ -116,7 +116,7 @@ static int read_config_for(int ccs_fd, struct objdb_iface_ver0 *objdb, unsigned 
 	if (should_alloc(ccs_fd, key) || always_create)
 		objdb->object_create(parent, &object_handle, object, strlen(object));
 
-	sprintf(path, "/cluster/%s/@*", key);
+	sprintf(path, "%s/@*", key);
 
 	/* Get the keys */
 	for (;;)
@@ -143,7 +143,7 @@ static int read_config_for(int ccs_fd, struct objdb_iface_ver0 *objdb, unsigned 
 	   CCS can't cope with recursive queries so we have to store the result of
 	   the subkey search */
 	memset(subkeys, 0, sizeof(subkeys));
-	sprintf(path, "/cluster/%s/child::*", key);
+	sprintf(path, "%s/child::*", key);
 	for (;;)
 	{
 		char *equal;
@@ -229,7 +229,6 @@ static int init_config(struct objdb_iface_ver0 *objdb, char *error_string)
 {
 	int cd;
 	char *cname = NULL;
-	char *str;
 
 	/* Connect to ccsd */
 	if (getenv("CCS_CLUSTER_NAME")) {
@@ -244,40 +243,15 @@ static int init_config(struct objdb_iface_ver0 *objdb, char *error_string)
 	}
 
 	/* These first few are just versions of openais.conf */
-	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "totem", "totem", 1);
-	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "logging", "logging", 1);
-	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "event", "event", 1);
-	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "aisexec", "aisexec", 1);
-	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "amf", "amf", 1);
+	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "totem", "/cluster/totem", 1);
+	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "logging", "/cluster/logging", 1);
+	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "event", "/cluster/event", 1);
+	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "aisexec", "/cluster/aisexec", 1);
+	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "amf", "/cluster/amf", 1);
 
 	/* This is stuff specific to us, eg quorum device timeout */
-	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "cman", "cman", 1);
+	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "cluster", "/cluster", 1);
 
-	/* Nodes information */
-	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "clusternodes", "clusternodes", 1);
-
-	/* all the others */
-	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "quorumd", "quorumd", 1);
-	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "fence_xvmd", "fence_xvmd", 1);
-	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "fencedevices", "fencedevices", 1);
-	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "dlm", "dlm", 1);
-	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "gfs_controld", "gfs_controld", 1);
-	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "rm", "rm", 1);
-
-        /* Also get cluster name and config version number */
-	if (!ccs_get(cd, CONFIG_VERSION_PATH, &str)) {
-		objdb->object_key_create(OBJECT_PARENT_HANDLE,
-					 "config_version", strlen("config_version"),
-					 str, strlen(str)+1);
-		free(str);
-	}
-
-	if (!ccs_get(cd, CONFIG_NAME_PATH, &str)) {
-		objdb->object_key_create(OBJECT_PARENT_HANDLE,
-					 "name", strlen("name"),
-					 str, strlen(str)+1);
-		free(str);
-	}
 	ccs_disconnect(cd);
 	return 0;
 }
