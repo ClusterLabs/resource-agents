@@ -85,6 +85,7 @@ static int send_reply_message(struct connection *con, struct sock_header *msg)
 
 	if ((ret > 0 && ret != msg->length) ||
 	    (ret == -1 && errno == EAGAIN)) {
+		struct queued_reply *qm;
 
 		/* Have we exceeded the allowed number of queued messages ? */
 		if (con->num_write_msgs > max_outstanding_messages) {
@@ -94,7 +95,7 @@ static int send_reply_message(struct connection *con, struct sock_header *msg)
 		}
 
 		/* Queue it */
-		struct queued_reply *qm = malloc(sizeof(struct queued_reply) + msg->length);
+		qm = malloc(sizeof(struct queued_reply) + msg->length);
 		if (!qm)
 		{
 			perror("Error allocating queued message");
