@@ -29,7 +29,7 @@ CFLAGS += -I${ccsincdir} -I${cmanincdir}
 CFLAGS += -I$(S)
 CFLAGS += -I${incdir}
 
-EXTRA_LDFLAGS += -lcman -lccs
+EXTRA_LDFLAGS += -L${cmanlibdir} -L${ccslibdir} -lcman -lccs
 #
 # XXX Fabio has a way to clean up the devmapper requirement
 #
