@@ -197,9 +197,10 @@ Xen_Monitor() {
   for SCRIPT in ${OCF_RESKEY_monitor_scripts};do
 	$SCRIPT
 	if [ $? -ne 0 ];then
-		return ${OCF_NOT_RUNNING}
+		return ${OCF_ERR_GENERIC}
 	fi
   done
+  return ${OCF_SUCCESS}
 }
 
 Xen_Total_Memory() {
