@@ -72,7 +72,8 @@ typedef enum {
 	RF_DEBUG = 0x4,
 	RF_PARANOID = 0x8,
 	RF_ALLOW_KILL = 0x10,
-	RF_UPTIME = 0x20
+	RF_UPTIME = 0x20,
+	RF_CMAN_LABEL = 0x40
 } run_flag_t;
 
 
@@ -85,6 +86,9 @@ typedef enum {
 #define HEADER_MAGIC_NUMBER	0xeb7a62c2	/* Partition header */
 #define STATE_MAGIC_NUMBER	0x47bacef8	/* Status block */
 #define SHARED_HEADER_MAGIC	0x00DEBB1E	/* Per-block headeer */
+
+/* Version magic. */
+#define VERSION_MAGIC_V2	0x389fabc4
 
 
 typedef struct __attribute__ ((packed)) {
@@ -152,16 +156,21 @@ typedef struct __attribute__ ((packed)) {
  */
 typedef struct __attribute__ ((packed)) {
 	uint32_t	qh_magic;
-	uint32_t	qh_align;	   // 64-bit-ism: alignment fixer.
+	uint32_t	qh_version;	   // 
 	uint64_t	qh_timestamp;	   // time of last update
 	char 		qh_updatehost[128];// Hostname who put this here...
-	char		qh_cluster[128];   // Cluster name
+	char		qh_cluster[120];   // Cluster name; CMAN only 
+					   // supports 16 chars.
+	uint32_t	qh_blksz;          // Known block size @ creation
+	uint32_t	qh_kernsz;	   // Ingored
 } quorum_header_t;
 
 #define swab_quorum_header_t(ptr) \
 {\
 	swab32((ptr)->qh_magic); \
-	swab32((ptr)->qh_align); \
+	swab32((ptr)->qh_version); \
+	swab32((ptr)->qh_blksz); \
+	swab32((ptr)->qh_kernsz); \
 	swab64((ptr)->qh_timestamp); \
 }
 
@@ -196,31 +205,35 @@ typedef struct __attribute__ ((packed)) {
 
 /* Offsets from RHCM 1.2.x */
 #define OFFSET_HEADER	0
-#define HEADER_SIZE	4096		/* Page size for now */
+#define HEADER_SIZE(ssz)		(ssz<4096?4096:ssz)
 
-#define OFFSET_FIRST_STATUS_BLOCK	(OFFSET_HEADER + HEADER_SIZE)
-#define SPACE_PER_STATUS_BLOCK		4096 /* Page size for now */
+#define OFFSET_FIRST_STATUS_BLOCK(ssz)	(OFFSET_HEADER + HEADER_SIZE(ssz))
+#define SPACE_PER_STATUS_BLOCK(ssz)	(ssz<4096?4096:ssz)
 #define STATUS_BLOCK_COUNT		MAX_NODES_DISK
 
-#define SPACE_PER_MESSAGE_BLOCK		(4096)
-#define	MESSAGE_BLOCK_COUNT		MAX_NODES_DISK
-
-#define END_OF_DISK			(OFFSET_FIRST_STATUS_BLOCK + \
+#define END_OF_DISK(ssz)		(OFFSET_FIRST_STATUS_BLOCK(ssz) + \
 					 (MAX_NODES_DISK + 1) * \
-					 SPACE_PER_STATUS_BLOCK) \
+					 SPACE_PER_STATUS_BLOCK(ssz)) \
 
+
+typedef struct {
+	int d_fd;
+	int _pad_;
+	size_t d_blksz;
+	size_t d_pagesz;
+} target_info_t;
 
 
 /* From disk.c */
-int qdisk_open(char *name);
-int qdisk_close(int *fd);
+int qdisk_open(char *name, target_info_t *disk);
+int qdisk_close(target_info_t *disk);
 int qdisk_init(char *name, char *clustername);
 int qdisk_validate(char *name);
-int qdisk_read(int fd, __off64_t ofs, void *buf, int len);
-int qdisk_write(int fd, __off64_t ofs, const void *buf, int len);
+int qdisk_read(target_info_t *disk, __off64_t ofs, void *buf, int len);
+int qdisk_write(target_info_t *disk, __off64_t ofs, const void *buf, int len);
 
-#define qdisk_nodeid_offset(nodeid) \
-	(OFFSET_FIRST_STATUS_BLOCK + (SPACE_PER_STATUS_BLOCK * (nodeid - 1)))
+#define qdisk_nodeid_offset(nodeid, ssz) \
+	(OFFSET_FIRST_STATUS_BLOCK(ssz) + (SPACE_PER_STATUS_BLOCK(ssz) * (nodeid - 1)))
 
 /* From disk_utils.c */
 #define HISTORY_LENGTH 60
@@ -231,11 +244,12 @@ typedef struct {
 	uint16_t pad0;
 } disk_msg_t;
 
+
 typedef struct {
 	uint64_t qc_incarnation;
 	struct timeval qc_average;
 	struct timeval qc_last[HISTORY_LENGTH];
-	int qc_fd;
+	target_info_t qc_disk;
 	int qc_my_id;
 	int qc_writes;
 	int qc_interval;
@@ -250,12 +264,14 @@ typedef struct {
 	disk_node_state_t qc_disk_status;
 	disk_node_state_t qc_status;
 	int qc_master;		/* Master?! */
-	int _pad_;
+	int qc_status_sock;
 	run_flag_t qc_flags;
 	cman_handle_t qc_ch;
 	char *qc_device;
 	char *qc_label;
 	char *qc_status_file;
+	char *qc_cman_label;
+	char *qc_status_sockname;
 } qd_ctx;
 
 typedef struct {
@@ -272,14 +288,14 @@ typedef struct {
 
 int qd_write_status(qd_ctx *ctx, int nid, disk_node_state_t state,
 		    disk_msg_t *msg, memb_mask_t mask, memb_mask_t master);
-int qd_read_print_status(int fd, int nid);
+int qd_read_print_status(target_info_t *disk, int nid);
 int qd_init(qd_ctx *ctx, cman_handle_t ch, int me);
 void qd_destroy(qd_ctx *ctx);
 
 /* proc.c */
-int find_partitions(const char *devdir, const char *label,
+int find_partitions(const char *label,
 		    char *devname, size_t devlen, int print);
-int check_device(char *device, char *label, quorum_header_t *qh);
+int check_device(char *device, char *label, quorum_header_t *qh, int flags);
 
 
 #endif

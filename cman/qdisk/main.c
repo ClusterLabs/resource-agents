@@ -36,6 +36,7 @@
 #include <time.h>
 #include <sys/reboot.h>
 #include <sys/time.h>
+#include <sys/un.h>
 #include <linux/reboot.h>
 #include <sched.h>
 #include <signal.h>
@@ -147,7 +148,8 @@ read_node_blocks(qd_ctx *ctx, node_info_t *ni, int max)
 
 		sb = &ni[x].ni_status;
 
-		if (qdisk_read(ctx->qc_fd, qdisk_nodeid_offset(x+1),
+		if (qdisk_read(&ctx->qc_disk,
+			       qdisk_nodeid_offset(x+1, ctx->qc_disk.d_blksz),
 			       sb, sizeof(*sb)) < 0) {
 			clulog(LOG_WARNING,"Error reading node ID block %d\n",
 			       x+1);
@@ -252,23 +254,6 @@ check_transitions(qd_ctx *ctx, node_info_t *ni, int max, memb_mask_t mask)
 		     state_run(ni[x].ni_status.ps_state)) {
 
 			/*
-			   Mark our internal views as dead if nodes miss too
-			   many heartbeats...  This will cause a master
-			   transition if no live master exists.
-			 */
-			if (ni[x].ni_status.ps_state >= S_RUN &&
-			    ni[x].ni_seen) {
-				clulog(LOG_DEBUG, "Node %d DOWN\n",
-				       ni[x].ni_status.ps_nodeid);
-				ni[x].ni_seen = 0;	
-			}
-
-			ni[x].ni_state = S_EVICT;
-			ni[x].ni_status.ps_state = S_EVICT;
-			ni[x].ni_evil_incarnation = 
-				ni[x].ni_status.ps_incarnation;
-			
-			/*
 			   Write eviction notice if we're the master.
 			 */
 			if (ctx->qc_status == S_MASTER) {
@@ -285,6 +270,23 @@ check_transitions(qd_ctx *ctx, node_info_t *ni, int max, memb_mask_t mask)
 				}
 			}
 
+			/*
+			   Mark our internal views as dead if nodes miss too
+			   many heartbeats...  This will cause a master
+			   transition if no live master exists.
+			 */
+			if (ni[x].ni_status.ps_state >= S_RUN &&
+			    ni[x].ni_seen) {
+				clulog(LOG_DEBUG, "Node %d DOWN\n",
+				       ni[x].ni_status.ps_nodeid);
+				ni[x].ni_seen = 0;	
+			}
+
+			ni[x].ni_state = S_EVICT;
+			ni[x].ni_status.ps_state = S_EVICT;
+			ni[x].ni_evil_incarnation = 
+				ni[x].ni_status.ps_incarnation;
+			
 			/* Clear our master mask for the node after eviction */
 			if (mask)
 				clear_bit(mask, (ni[x].ni_status.ps_nodeid-1),
@@ -462,12 +464,14 @@ quorum_init(qd_ctx *ctx, node_info_t *ni, int max, struct h_data *h, int maxh)
 	if (qdisk_validate(ctx->qc_device) < 0)
 		return -1;
 
-	ctx->qc_fd = qdisk_open(ctx->qc_device);
-	if (ctx->qc_fd < 0) {
+	if (qdisk_open(ctx->qc_device, &ctx->qc_disk) < 0) {
 		clulog(LOG_CRIT, "Failed to open %s: %s\n", ctx->qc_device,
 		       strerror(errno));
 		return -1;
 	}
+
+	clulog(LOG_DEBUG, "I/O Size: %d  Page Size: %d\n",
+	       ctx->qc_disk.d_blksz, ctx->qc_disk.d_pagesz);
 	
 	if (h && maxh) {
 		start_score_thread(ctx, h, maxh);
@@ -622,23 +626,7 @@ check_votes(qd_ctx *ctx, node_info_t *ni, int max, disk_msg_t *msg)
 
 
 char *
-state_str(disk_node_state_t s)
-{
-	switch (s) {
-	case S_NONE:
-		return "None";
-	case S_EVICT:
-		return "Evicted";
-	case S_INIT:
-		return "Initializing";
-	case S_RUN:
-		return "Running";
-	case S_MASTER:
-		return "Master";
-	default:
-		return "ILLEGAL";
-	}
-}
+state_str(disk_node_state_t s);
 
 
 void
@@ -1210,30 +1198,14 @@ get_config_data(char *cluster_name, qd_ctx *ctx, struct h_data *h, int maxh,
 	}
 	if (ctx->qc_master_wait <= ctx->qc_tko_up)
 		ctx->qc_master_wait = ctx->qc_tko_up + 1;
-
+		
 	/* Get votes */
-
-	/* check if votes is set in cluster.conf */
 	snprintf(query, sizeof(query), "/cluster/quorumd/@votes");
 	if (ccs_get(ccsfd, query, &val) == 0) {
 		ctx->qc_votes = atoi(val);
 		free(val);
 		if (ctx->qc_votes < 0)
 			ctx->qc_votes = 0;
-	} else { /* if votes is not set, default to node_num - 1 */
-		int nodes = 0, error;
-		for (;;) {
-			error = ccs_get_list(ccsfd, "/cluster/clusternodes/child::*", &val);
-			if (error || !val)
-				break;
-
-			nodes++;
-		}
-		nodes--;
-		if (nodes < 0)
-			nodes = 0;
-
-		ctx->qc_votes = nodes;
 	}
 
 	/* Get device */
@@ -1252,6 +1224,12 @@ get_config_data(char *cluster_name, qd_ctx *ctx, struct h_data *h, int maxh,
 	snprintf(query, sizeof(query), "/cluster/quorumd/@status_file");
 	if (ccs_get(ccsfd, query, &val) == 0) {
 		ctx->qc_status_file = val;
+	}
+
+	/* Get status socket */
+	snprintf(query, sizeof(query), "/cluster/quorumd/@status_sock");
+	if (ccs_get(ccsfd, query, &val) == 0) {
+		ctx->qc_status_sockname = val;
 	}
 
 	/* Get min score */
@@ -1301,6 +1279,15 @@ get_config_data(char *cluster_name, qd_ctx *ctx, struct h_data *h, int maxh,
 		if (!atoi(val))
 			ctx->qc_flags &= ~RF_REBOOT;
 		free(val);
+	}
+
+	/* Get cman_label */
+	snprintf(query, sizeof(query), "/cluster/quorumd/@cman_label");
+	if (ccs_get(ccsfd, query, &val) == 0) {
+		if (strlen(val) > 0) {
+			ctx->qc_flags |= RF_CMAN_LABEL;
+			ctx->qc_cman_label = val;
+		}
 	}
 	
 	/*
@@ -1366,6 +1353,7 @@ get_config_data(char *cluster_name, qd_ctx *ctx, struct h_data *h, int maxh,
 	clulog(LOG_DEBUG,
 	       "Quorum Daemon: %d heuristics, %d interval, %d tko, %d votes\n",
 	       *cfh, ctx->qc_interval, ctx->qc_tko, ctx->qc_votes);
+	clulog(LOG_DEBUG, "Run Flags: %08x\n", ctx->qc_flags);
 
 	ccs_disconnect(ccsfd);
 
@@ -1400,21 +1388,22 @@ int
 main(int argc, char **argv)
 {
 	cman_node_t me;
-	int cfh, rv, forked = 0, nfd = -1;
+	int cfh, rv, forked = 0, nfd = -1, ret = -1;
 	qd_ctx ctx;
-	cman_handle_t ch;
+	cman_handle_t ch = NULL;
 	node_info_t ni[MAX_NODES_DISK];
 	struct h_data h[10];
 	char debug = 0, foreground = 0;
 	char device[128];
 	pid_t pid;
+	quorum_header_t qh;
 
 	if (check_process_running(argv[0], &pid) && pid !=getpid()) {
 		printf("QDisk services already running\n");
 		return 0;
 	}
 	
-	while ((rv = getopt(argc, argv, "fdQ")) != EOF) {
+	while ((rv = getopt(argc, argv, "fdQs")) != EOF) {
 		switch (rv) {
 		case 'd':
 			debug = 1;
@@ -1438,7 +1427,7 @@ main(int argc, char **argv)
 			break;
 		}
 	}
-	
+
 #if (defined(LIBCMAN_VERSION) && LIBCMAN_VERSION >= 2)
 	ch = cman_admin_init(NULL);
 #else
@@ -1447,7 +1436,7 @@ main(int argc, char **argv)
 	if (!ch) {
 		if (!foreground && !forked) {
 			if (daemon_init(argv[0]) < 0)
-				return -1;
+				goto out;
 			else
 				forked = 1;
 		}
@@ -1468,7 +1457,7 @@ main(int argc, char **argv)
 	while (cman_get_node(ch, CMAN_NODEID_US, &me) < 0) {
 		if (!foreground && !forked) {
 			if (daemon_init(argv[0]) < 0)
-				return -1;
+				goto out;
 			else
 				forked = 1;
 		}
@@ -1488,20 +1477,19 @@ main(int argc, char **argv)
 	if (get_config_data(NULL, &ctx, h, 10, &cfh, debug) < 0) {
 		clulog_and_print(LOG_CRIT, "Configuration failed\n");
 		check_stop_cman(&ctx);
-		return -1;
+		goto out;
 	}
 	
 	if (ctx.qc_label) {
-		memset(device, 0, sizeof(device));
-		if (find_partitions("/dev",
-				    ctx.qc_label, device,
-				    sizeof(device), 0) != 0) {
+		ret = find_partitions(ctx.qc_label, device, sizeof(device), 0);
+		if (ret < 0) {
 			clulog_and_print(LOG_CRIT, "Unable to match label"
 					 " '%s' to any device\n",
 					 ctx.qc_label);
 			check_stop_cman(&ctx);
-			return -1;
+			goto out;
 		}
+		/* XXX Multiple matches: do we care? */
 
 		if (ctx.qc_device)
 			free(ctx.qc_device);
@@ -1511,18 +1499,29 @@ main(int argc, char **argv)
 		clulog(LOG_INFO, "Quorum Partition: %s Label: %s\n",
 		       ctx.qc_device, ctx.qc_label);
 	} else if (ctx.qc_device) {
-		if (check_device(ctx.qc_device, NULL, NULL) != 0) {
+		if (check_device(ctx.qc_device, NULL, &qh, 0) != 0) {
 			clulog(LOG_CRIT,
 			       "Specified partition %s does not have a "
 			       "qdisk label\n", ctx.qc_device);
 			check_stop_cman(&ctx);
-			return -1;
+			goto out;
+		}
+
+		if (qh.qh_version == VERSION_MAGIC_V2 &&
+                    qh.qh_blksz != rv) {
+			clulog(LOG_CRIT,
+			       "Specified device %s does match kernel's "
+			       "reported sector size (%d != %d)\n",
+			       ctx.qc_device,
+			       ctx.qc_disk.d_blksz, rv);
+			check_stop_cman(&ctx);
+			goto out;
 		}
 	}
 
 	if (!foreground && !forked) {
                 if (daemon_init(argv[0]) < 0)
-			return -1;
+			goto out;
 	}
 	
 	set_priority(ctx.qc_sched, ctx.qc_sched_prio);
@@ -1530,13 +1529,19 @@ main(int argc, char **argv)
 	if (quorum_init(&ctx, ni, MAX_NODES_DISK, h, cfh) < 0) {
 		clulog_and_print(LOG_CRIT, "Initialization failed\n");
 		check_stop_cman(&ctx);
-		return -1;
+		goto out;
 	}
 
+	ret = 0;
+
 	if (!_running)
-		return 0;
+		goto out;
 	
-	cman_register_quorum_device(ctx.qc_ch, ctx.qc_device, ctx.qc_votes);
+	cman_register_quorum_device(ctx.qc_ch,
+				    (ctx.qc_flags&RF_CMAN_LABEL)? 
+				        ctx.qc_cman_label:
+                                        ctx.qc_device,
+				    ctx.qc_votes);
 	/*
 		XXX this always returns -1 / EBUSY even when it works?!!!
 		
@@ -1546,16 +1551,18 @@ main(int argc, char **argv)
 				 "Could not register %s with CMAN; "
 				 "return = %d; error = %s\n",
 				 ctx.qc_device, rv, strerror(errno));
-		return -1;
+		goto out;
 	}
 	*/
-
 	if (quorum_loop(&ctx, ni, MAX_NODES_DISK) == 0)
 		cman_unregister_quorum_device(ctx.qc_ch);
 
 	quorum_logout(&ctx);
+	/* free cman handle to avoid leak in cman */
+out:
+	cman_finish(ctx.qc_ch);
 	qd_destroy(&ctx);
 
-	return 0;
+	return ret;
 }
 

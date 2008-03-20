@@ -37,23 +37,24 @@ main(int argc, char **argv)
 {
 	char device[128];
 	char *newdev = NULL, *newlabel = NULL;
-	int rv;
+	int rv, verbose_level = 1;
 
 	printf("mkqdisk v" RELEASE_VERSION "\n\n");
 
-	while ((rv = getopt(argc, argv, "Lf:c:l:h")) != EOF) {
+	while ((rv = getopt(argc, argv, "Ldf:c:l:h")) != EOF) {
 		switch (rv) {
+		case 'd':
+			++verbose_level;
+			break;
 		case 'L':
 			/* List */
 			close(2);
-			return find_partitions("/dev",
-					       NULL, NULL, 0, 1);
+			return find_partitions(NULL, NULL, 0, verbose_level);
 			break;
 		case 'f':
 			close(2);
-			return find_partitions("/dev",
-					       optarg, device,
-					       sizeof(device), 1);
+			return find_partitions( optarg, device,
+					       sizeof(device), verbose_level);
 		case 'c':
 			newdev = optarg;
 			break;

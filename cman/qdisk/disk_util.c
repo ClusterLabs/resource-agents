@@ -71,7 +71,7 @@ getuptime(struct timeval *tv)
 	if (!fp)
 		return -1;
 
-#if defined(__sparc__) || defined(__sparc64__)
+#if defined(__sparc__) || defined(__hppa__) || defined(__sparc64__) || defined (__hppa64__)
 	rv = fscanf(fp,"%ld.%d %ld.%d\n", &tv->tv_sec, &tv->tv_usec,
 		    &junk.tv_sec, &junk.tv_usec);
 #else
@@ -201,8 +201,9 @@ qd_write_status(qd_ctx *ctx, int nid, disk_node_state_t state,
 	if (get_time(&start, ctx->qc_flags&RF_UPTIME) < 0)
 		utime_ok = 0;
 	swab_status_block_t(&ps);
-	if (qdisk_write(ctx->qc_fd, qdisk_nodeid_offset(nid), &ps,
-			sizeof(ps)) < 0) {
+	if (qdisk_write(&ctx->qc_disk,
+			qdisk_nodeid_offset(nid, ctx->qc_disk.d_blksz),
+			&ps, sizeof(ps)) < 0) {
 		printf("Error writing node ID block %d\n", nid);
 		return -1;
 	}
@@ -223,12 +224,12 @@ qd_write_status(qd_ctx *ctx, int nid, disk_node_state_t state,
 
 
 int
-qd_print_status(status_block_t *ps)
+qd_print_status(target_info_t *disk, status_block_t *ps)
 {
 	int x;
 
 	printf("Data @ offset %d:\n",
-	       (int)qdisk_nodeid_offset(ps->ps_nodeid));
+	       (int)qdisk_nodeid_offset(ps->ps_nodeid, disk->d_blksz));
 	printf("status_block_t {\n");
 	printf("\t.ps_magic = %08x;\n", (int)ps->ps_magic);
 	printf("\t.ps_nodeid = %d;\n", (int)ps->ps_nodeid);
@@ -261,11 +262,11 @@ qd_print_status(status_block_t *ps)
 
 
 int
-qd_read_print_status(int fd, int nid)
+qd_read_print_status(target_info_t *disk, int nid)
 {
 	status_block_t ps;
 
-	if (fd < 0) {
+	if (!disk || disk->d_fd < 0) {
 		errno = EINVAL;
 		return -1;
 	}
@@ -275,13 +276,13 @@ qd_read_print_status(int fd, int nid)
 		return -1;
 	}
 
-	if (qdisk_read(fd, qdisk_nodeid_offset(nid), &ps,
+	if (qdisk_read(disk, qdisk_nodeid_offset(nid, disk->d_blksz), &ps,
 			sizeof(ps)) < 0) {
 		printf("Error reading node ID block %d\n", nid);
 		return -1;
 	}
 	swab_status_block_t(&ps);
-	qd_print_status(&ps);
+	qd_print_status(disk, &ps);
 
 	return 0;
 }
@@ -322,6 +323,7 @@ qd_init(qd_ctx *ctx, cman_handle_t ch, int me)
 	ctx->qc_incarnation = generate_token();
 	ctx->qc_ch = ch;
 	ctx->qc_my_id = me;
+	ctx->qc_status_sock = -1;
 
 	return 0;
 }
@@ -339,6 +341,5 @@ qd_destroy(qd_ctx *ctx)
 		free(ctx->qc_device);
 		ctx->qc_device = NULL;
 	}
-	close(ctx->qc_fd);
-	ctx->qc_fd = -1;
+	qdisk_close(&ctx->qc_disk);
 }

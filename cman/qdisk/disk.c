@@ -43,8 +43,9 @@
 #include <platform.h>
 #include <unistd.h>
 #include <time.h>
+#include <linux/fs.h>
 
-static int diskRawRead(int fd, char *buf, int len);
+static int diskRawRead(target_info_t *disk, char *buf, int len);
 uint32_t clu_crc32(const char *data, size_t count);
 
 
@@ -211,49 +212,57 @@ header_verify(shared_header_t *hdr, const char *data, size_t count)
  * Returns - (the file descriptor), a value >= 0 on success.
  */
 int
-qdisk_open(char *name)
+qdisk_open(char *name, target_info_t *disk)
 {
-	int fd;
-	int retval;
+	int ret;
+	int ssz;
 
 	/*
 	 * Open for synchronous writes to insure all writes go directly
 	 * to disk.
 	 */
-	fd = open(name, O_RDWR | O_SYNC | O_DIRECT);
-	if (fd < 0) {
-		return fd;
+	disk->d_fd = open(name, O_RDWR | O_SYNC | O_DIRECT);
+	if (disk->d_fd < 0)
+		return disk->d_fd;
+
+	ret = ioctl(disk->d_fd, BLKSSZGET, &ssz);
+	if (ret < 0) {
+		perror("qdisk_open: ioctl(BLKSSZGET)");
+		return -1;
 	}
 
-	/* Check to verify that the partition is large enough.*/
-	retval = lseek(fd, END_OF_DISK, SEEK_SET);
+	disk->d_blksz = ssz;
+	disk->d_pagesz = sysconf(_SC_PAGESIZE);
 
-	if (retval < 0) {
+	/* Check to verify that the partition is large enough.*/
+	ret = lseek(disk->d_fd, END_OF_DISK(disk->d_blksz), SEEK_SET);
+	if (ret < 0) {
 		perror("open_partition: seek");
 		return -1;
 	}
 
-	if (retval < END_OF_DISK) {
+	if (ret < END_OF_DISK(disk->d_blksz)) {
 		fprintf(stderr, "Partition %s too small\n", name);
 		errno = EINVAL;
 		return -1;
 	}
 
 	/* Set close-on-exec bit */
-        retval = fcntl(fd, F_GETFD, 0);
-        if (retval < 0) {
-                close(fd);
+        ret = fcntl(disk->d_fd, F_GETFD, 0);
+        if (ret < 0) {
+		perror("open_partition: fcntl(F_GETFD)");
+                close(disk->d_fd);
                 return -1;
         }
 
-        retval |= FD_CLOEXEC;
-        if (fcntl(fd, F_SETFD, retval) < 0) {
-		perror("open_partition: fcntl");
-                close(fd);
+        ret |= FD_CLOEXEC;
+        if (fcntl(disk->d_fd, F_SETFD, ret) < 0) {
+		perror("open_partition: fcntl(F_SETFD)");
+                close(disk->d_fd);
                 return -1;
         }
 
-	return fd;
+	return 0;
 }
 
 
@@ -263,17 +272,17 @@ qdisk_open(char *name)
  * Returns - value from close syscall.
  */
 int
-qdisk_close(int *fd)
+qdisk_close(target_info_t *disk)
 {
 	int retval;
 
-	if (!fd || *fd < 0) {
+	if (!disk || disk->d_fd < 0) {
 		errno = EINVAL;
 		return -1;
 	}
 
-	retval = close(*fd);
-	*fd = -1;
+	retval = close(disk->d_fd);
+	disk->d_fd = -1;
 
 	return retval;
 }
@@ -288,7 +297,7 @@ int
 qdisk_validate(char *name)
 {
 	struct stat stat_st, *stat_ptr;
-	int fd;
+	target_info_t disk;
 	stat_ptr = &stat_st;
 
 	if (stat(name, stat_ptr) < 0) {
@@ -310,26 +319,25 @@ qdisk_validate(char *name)
 	/*
 	 * Verify read/write permission.
 	 */
-	fd = qdisk_open(name);
-	if (fd < 0) {
+	if (qdisk_open(name, &disk) < 0) {
 		fprintf(stderr, "%s: open of %s for RDWR failed: %s\n",
 			__FUNCTION__, name, strerror(errno));
 		return -1;
 	}
-	qdisk_close(&fd);
+	qdisk_close(&disk);
 	return 0;
 }
 
 
 static int
-diskRawReadShadow(int fd, off_t readOffset, char *buf, int len)
+diskRawReadShadow(target_info_t *disk, off_t readOffset, char *buf, int len)
 {
 	int ret;
 	shared_header_t *hdrp;
 	char *data;
 	int datalen;
 
-	ret = lseek(fd, readOffset, SEEK_SET);
+	ret = lseek(disk->d_fd, readOffset, SEEK_SET);
 	if (ret != readOffset) {
 #if 0
 		fprintf(stderr,
@@ -340,7 +348,7 @@ diskRawReadShadow(int fd, off_t readOffset, char *buf, int len)
 		return -1;
 	}
 
-	ret = diskRawRead(fd, buf, len);
+	ret = diskRawRead(disk, buf, len);
 	if (ret != len) {
 #if 0
 		fprintf(stderr, "diskRawReadShadow: aligned read "
@@ -375,7 +383,7 @@ diskRawReadShadow(int fd, off_t readOffset, char *buf, int len)
  * Here we check for alignment and do a bounceio if necessary.
  */
 static int
-diskRawRead(int fd, char *buf, int len)
+diskRawRead(target_info_t *disk, char *buf, int len)
 {
 	void *alignedBuf;
 	int readret;
@@ -383,21 +391,24 @@ diskRawRead(int fd, char *buf, int len)
 	int readlen;
 	int bounceNeeded = 1;
 
-	if ((((unsigned long) buf & (unsigned long) 0x3ff) == 0) &&
-	    ((len % 512) == 0)) {
+	
+	/* was 3ff, which is (512<<1-1) */
+	if ((((unsigned long) buf &
+	      (unsigned long) ((disk->d_blksz << 1) -1)) == 0) &&
+	    ((len % (disk->d_blksz)) == 0)) {
 		bounceNeeded = 0;
 	}
 
 	if (bounceNeeded == 0) {
 		/* Already aligned and even multiple of 512, no bounceio
 		 * required. */
-		return (read(fd, buf, len));
+		return (read(disk->d_fd, buf, len));
 	}
 
-	if (len > 512) {
+	if (len > disk->d_blksz) {
 		fprintf(stderr,
 			"diskRawRead: not setup for reads larger than %d.\n",
-		       512);
+		       (int)disk->d_blksz);
 		return (-1);
 	}
 	/*
@@ -406,8 +417,8 @@ diskRawRead(int fd, char *buf, int len)
 	 * XXX - if the on-disk offsets don't provide enough room we're cooked!
 	 */
 	extraLength = 0;
-	if (len % 512) {
-		extraLength = 512 - (len % 512);
+	if (len % disk->d_blksz) {
+		extraLength = disk->d_blksz - (len % disk->d_blksz);
 	}
 
 	readlen = len;
@@ -415,18 +426,18 @@ diskRawRead(int fd, char *buf, int len)
 		readlen += extraLength;
 	}
 
-	readret = posix_memalign((void **)&alignedBuf, 512, 512);
+	readret = posix_memalign((void **)&alignedBuf, disk->d_pagesz, disk->d_blksz);
 	if (readret < 0) {
 		return -1;
 	}
 
-	readret = read(fd, alignedBuf, readlen);
+	readret = read(disk->d_fd, alignedBuf, readlen);
 	if (readret > 0) {
 		if (readret > len) {
-			bcopy(alignedBuf, buf, len);
+			memcpy(alignedBuf, buf, len);
 			readret = len;
 		} else {
-			bcopy(alignedBuf, buf, readret);
+			memcpy(alignedBuf, buf, readret);
 		}
 	}
 
@@ -445,7 +456,7 @@ diskRawRead(int fd, char *buf, int len)
  * Here we check for alignment and do a bounceio if necessary.
  */
 static int
-diskRawWrite(int fd, char *buf, int len)
+diskRawWrite(target_info_t *disk, char *buf, int len)
 {
 	void *alignedBuf;
 	int ret;
@@ -453,31 +464,33 @@ diskRawWrite(int fd, char *buf, int len)
 	int writelen;
 	int bounceNeeded = 1;
 
-	if ((((unsigned long) buf & (unsigned long) 0x3ff) == 0) &&
-	    ((len % 512) == 0)) {
+	/* was 3ff, which is (512<<1-1) */
+	if ((((unsigned long) buf &
+	      (unsigned long) ((disk->d_blksz << 1) -1)) == 0) &&
+	    ((len % (disk->d_blksz)) == 0)) {
 		bounceNeeded = 0;
 	}
+
 	if (bounceNeeded == 0) {
 		/* Already aligned and even multiple of 512, no bounceio
 		 * required. */
-		return (write(fd, buf, len));
+		return (write(disk->d_fd, buf, len));
 	}
 
-	if (len > 512) {
+	if (len > disk->d_blksz) {
 		fprintf(stderr,
-		       "diskRawWrite: not setup for larger than %d.\n",
-		       512);
+			"diskRawRead: not setup for reads larger than %d.\n",
+		       (int)disk->d_blksz);
 		return (-1);
 	}
-
 	/*
 	 * All IOs must be of size which is a multiple of 512.  Here we
 	 * just add in enough extra to accommodate.
 	 * XXX - if the on-disk offsets don't provide enough room we're cooked!
 	 */
 	extraLength = 0;
-	if (len % 512) {
-		extraLength = 512 - (len % 512);
+	if (len % disk->d_blksz) {
+		extraLength = disk->d_blksz - (len % disk->d_blksz);
 	}
 
 	writelen = len;
@@ -485,13 +498,20 @@ diskRawWrite(int fd, char *buf, int len)
 		writelen += extraLength;
 	}
 
-	ret = posix_memalign((void **)&alignedBuf, 512,512);
+	ret = posix_memalign((void **)&alignedBuf, disk->d_pagesz, disk->d_blksz);
 	if (ret < 0) {
+		return -1;
+	}
+
+	if (len > disk->d_blksz) {
+		fprintf(stderr,
+		       "diskRawWrite: not setup for larger than %d.\n",
+		       (int)disk->d_blksz);
 		return (-1);
 	}
 
-	bcopy(buf, alignedBuf, len);
-	ret = write(fd, alignedBuf, writelen);
+	memcpy(buf, alignedBuf, len);
+	ret = write(disk->d_fd, alignedBuf, writelen);
 	if (ret > len) {
 		ret = len;
 	}
@@ -507,7 +527,7 @@ diskRawWrite(int fd, char *buf, int len)
 
 
 static int
-diskRawWriteShadow(int fd, __off64_t writeOffset, char *buf, int len)
+diskRawWriteShadow(target_info_t *disk, __off64_t writeOffset, char *buf, int len)
 {
 	off_t retval_seek;
 	ssize_t retval_write;
@@ -519,7 +539,7 @@ diskRawWriteShadow(int fd, __off64_t writeOffset, char *buf, int len)
 		return (-1);
 	}
 
-	retval_seek = lseek(fd, writeOffset, SEEK_SET);
+	retval_seek = lseek(disk->d_fd, writeOffset, SEEK_SET);
 	if (retval_seek != writeOffset) {
 		fprintf(stderr,
 		       "diskRawWriteShadow: can't seek to offset %d\n",
@@ -527,7 +547,7 @@ diskRawWriteShadow(int fd, __off64_t writeOffset, char *buf, int len)
 		return (-1);
 	}
 
-	retval_write = diskRawWrite(fd, buf, len);
+	retval_write = diskRawWrite(disk, buf, len);
 	if (retval_write != len) {
 		if (retval_write == -1) {
 			fprintf(stderr, "%s: %s\n", __FUNCTION__,
@@ -544,10 +564,10 @@ diskRawWriteShadow(int fd, __off64_t writeOffset, char *buf, int len)
 
 
 int
-qdisk_read(int fd, __off64_t offset, void *buf, int count)
+qdisk_read(target_info_t *disk, __off64_t offset, void *buf, int count)
 {
-	void *hdrbuf;
 	shared_header_t *hdrp;
+	void *ptr;
 	char *data;
 	size_t total;
 	int rv;
@@ -557,25 +577,25 @@ qdisk_read(int fd, __off64_t offset, void *buf, int count)
 	 * Raw blocks are 512 byte aligned.
 	 */
 	total = count + sizeof(shared_header_t);
-	if (total < 512)
-		total = 512;
+	if (total < disk->d_blksz)
+		total = disk->d_blksz;
 
 	/* Round it up */
-	if (total % 512) 
-		total = total + (512 * !!(total % 512)) - (total % 512);
+	if (total % disk->d_blksz) 
+		total = total + (disk->d_blksz * !!(total % disk->d_blksz)) - (total % disk->d_blksz);
 
-	hdrbuf = NULL;
-	rv = posix_memalign((void **)&hdrbuf, sysconf(_SC_PAGESIZE), total);
+	ptr = NULL;
+	rv = posix_memalign((void **)&ptr, disk->d_pagesz, disk->d_blksz);
 	if (rv < 0)
 		return -1;
 
-	if (hdrbuf == NULL) 
+	if (ptr == NULL) 
 		return -1;
 
-	hdrp = (shared_header_t *)hdrbuf;
+	hdrp = (shared_header_t *)ptr;
 	data = (char *)hdrp + sizeof(shared_header_t);
 
-	rv = diskRawReadShadow(fd, offset, (char *)hdrp, total);
+	rv = diskRawReadShadow(disk, offset, (char *)hdrp, disk->d_blksz);
 	
 	if (rv == -1) {
 		return -1;
@@ -590,19 +610,19 @@ qdisk_read(int fd, __off64_t offset, void *buf, int count)
 		       count - hdrp->h_length);
 	}
 
-	free(hdrbuf);
+	free(hdrp);
 	return count;
 }
 
 
 int
-qdisk_write(int fd, __off64_t offset, const void *buf, int count)
+qdisk_write(target_info_t *disk, __off64_t offset, const void *buf, int count)
 {
 	size_t maxsize;
-	void *hdrbuf;
 	shared_header_t *hdrp;
+	void *ptr;
 	char *data;
-	size_t total = 0, rv = -1, psz = 512; //sysconf(_SC_PAGESIZE);
+	size_t total = 0, rv = -1, psz = disk->d_blksz; //sysconf(_SC_PAGESIZE);
 
 	maxsize = psz - (sizeof(shared_header_t));
 	if (count >= (maxsize + sizeof(shared_header_t))) {
@@ -614,7 +634,6 @@ qdisk_write(int fd, __off64_t offset, const void *buf, int count)
 
 	/*
 	 * Calculate the total length of the buffer, including the header.
-	 * Raw blocks are 512 byte aligned.
 	 */
 	total = count + sizeof(shared_header_t);
 	if (total < psz)
@@ -624,17 +643,17 @@ qdisk_write(int fd, __off64_t offset, const void *buf, int count)
 	if (total % psz) 
 		total = total + (psz * !!(total % psz)) - (total % psz);
 
-	hdrbuf = NULL;
-	rv = posix_memalign((void **)&hdrbuf, sysconf(_SC_PAGESIZE), total);
+	ptr = NULL;
+	rv = posix_memalign((void **)&ptr, disk->d_pagesz, total);
 	if (rv < 0) {
 		perror("posix_memalign");
 		return -1;
 	}
-	hdrp = (shared_header_t *)hdrbuf;
 
 	/* 
 	 * Copy the data into our new buffer
 	 */
+	hdrp = (shared_header_t *)ptr;
 	data = (char *)hdrp + sizeof(shared_header_t);
 	memcpy(data, buf, count);
 
@@ -649,12 +668,12 @@ qdisk_write(int fd, __off64_t offset, const void *buf, int count)
 	 * about locking here.
 	 */
 	if (total == psz)
-		rv = diskRawWriteShadow(fd, offset, (char *)hdrp, psz);
+		rv = diskRawWriteShadow(disk, offset, (char *)hdrp, psz);
 
 	if (rv == -1)
 		perror("diskRawWriteShadow");
 	
-	free(hdrbuf);
+	free((char *)hdrp);
 	if (rv == -1)
 		return -1;
 	return count;
@@ -662,11 +681,11 @@ qdisk_write(int fd, __off64_t offset, const void *buf, int count)
 
 
 static int
-header_init(int fd, char *label)
+header_init(target_info_t *disk, char *label)
 {
 	quorum_header_t qh;
 
-	if (qdisk_read(fd, OFFSET_HEADER, &qh, sizeof(qh)) == sizeof(qh)) {
+	if (qdisk_read(disk, OFFSET_HEADER, &qh, sizeof(qh)) == sizeof(qh)) {
 		swab_quorum_header_t(&qh);
 		if (qh.qh_magic == HEADER_MAGIC_OLD) {
 			printf("Warning: Red Hat Cluster Manager 1.2.x "
@@ -685,14 +704,18 @@ header_init(int fd, char *label)
 	/* Copy in the cluster/label name */
 	snprintf(qh.qh_cluster, sizeof(qh.qh_cluster)-1, "%s", label);
 
+	qh.qh_version = VERSION_MAGIC_V2;
 	if ((qh.qh_timestamp = (uint64_t)time(NULL)) <= 0) {
 		perror("time");
 		return -1;
 	}
 
 	qh.qh_magic = HEADER_MAGIC_NUMBER;
+	qh.qh_blksz = disk->d_blksz;
+	qh.qh_kernsz = 0;
+
 	swab_quorum_header_t(&qh);
-	if (qdisk_write(fd, OFFSET_HEADER, &qh, sizeof(qh)) != sizeof(qh)) {
+	if (qdisk_write(disk, OFFSET_HEADER, &qh, sizeof(qh)) != sizeof(qh)) {
 		return -1;
 	}
 
@@ -703,24 +726,24 @@ header_init(int fd, char *label)
 int
 qdisk_init(char *partname, char *label)
 {
-	int fd;
+	target_info_t disk;
 	status_block_t ps, wps;
-	int nid;
+	int nid, ret;
 	time_t t;
 
-	fd = qdisk_validate(partname);
-	if (fd < 0) {
+	ret = qdisk_validate(partname);
+	if (ret < 0) {
 		perror("qdisk_verify");
 		return -1;
 	}
 
-	fd = qdisk_open(partname);
-	if (fd < 0) {
+	ret = qdisk_open(partname, &disk);
+	if (ret < 0) {
 		perror("qdisk_open");
 		return -1;
 	}
 
-	if (header_init(fd, label) < 0) {
+	if (header_init(&disk, label) < 0) {
 		return -1;
 	}
 
@@ -748,14 +771,14 @@ qdisk_init(char *partname, char *label)
 		wps = ps;
 		swab_status_block_t(&wps);
 
-		if (qdisk_write(fd, qdisk_nodeid_offset(nid), &wps, sizeof(wps)) < 0) {
+		if (qdisk_write(&disk, qdisk_nodeid_offset(nid, disk.d_blksz), &wps, sizeof(wps)) < 0) {
 			printf("Error writing node ID block %d\n", nid);
-			qdisk_close(&fd);
+			qdisk_close(&disk);
 			return -1;
 		}
 	}
 
-	qdisk_close(&fd);
+	qdisk_close(&disk);
 
 	return 0;
 }
