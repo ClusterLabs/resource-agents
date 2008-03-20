@@ -49,6 +49,9 @@ Reads from the DLM and calls any AST routines that may be needed. This routine r
 .PP
 
 
+.SH libdlm_lt
+There also exists a "light" version of the libdlm library called libdlm_lt. This is provided for those applications that do not want to use pthread functions. If you use this library it is important that your application is NOT compiled with -D_REENTRANT or linked with libpthread.
+
 .SH EXAMPLES
 
 Create a lockspace and start a thread to deliver its callbacks:
