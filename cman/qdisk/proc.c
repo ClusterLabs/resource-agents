@@ -199,8 +199,10 @@ void
 print_qdisk_info(struct devnode *dn)
 {
 	quorum_header_t *qh = (quorum_header_t *)dn->filter;
+	struct devpath *dp;
 
-	printf("%s:\n", dn->devpath->path);
+	for (dp = dn->devpath; dp; dp = dp->next)
+		printf("%s:\n", dp->path);
 	printf("\tMagic:                %08x\n", qh->qh_magic);
 	printf("\tLabel:                %s\n", qh->qh_cluster);
 	printf("\tCreated:              %s",
