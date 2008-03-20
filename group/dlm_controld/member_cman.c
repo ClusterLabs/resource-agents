@@ -84,6 +84,14 @@ static void statechange(void)
 		return;
 	}
 
+	/* Never allow node ID 0 to be considered a member #315711 */
+	for (i = 0; i < cman_node_count; i++) {
+		if (cman_nodes[i].cn_nodeid == 0) {
+			cman_nodes[i].cn_member = 0;
+			break;
+		}
+	}
+
 	for (i = 0; i < old_node_count; i++) {
 		if (old_nodes[i].cn_member &&
 		    !is_cman_member(old_nodes[i].cn_nodeid)) {
