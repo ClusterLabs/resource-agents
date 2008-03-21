@@ -1061,8 +1061,9 @@ int main(int argc, char *argv[])
 	case OP_DUMP_OBJDB:
 		dump_objdb(&comline);
 		break;
-	}
 #endif
+	}
+
 	exit(EXIT_SUCCESS);
 }
 

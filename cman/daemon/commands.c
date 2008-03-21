@@ -1230,7 +1230,9 @@ int process_command(struct connection *con, int cmd, char *cmdbuf,
 	struct cl_version cnxman_version;
 	char *outbuf = *retbuf;
 	int value;
+#ifdef DEBUG
 	FILE *dumpfile;
+#endif
 
 	P_MEMB("command to process is %x\n", cmd);
 
