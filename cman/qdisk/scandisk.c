@@ -19,7 +19,6 @@
 #include <dirent.h>
 #include <sys/sysmacros.h>
 #include <sys/stat.h>
-#include <libdevmapper.h>
 
 #include "scandisk.h"
 
@@ -393,25 +392,58 @@ static int scanmdstat(struct devlisthead *devlisthead)
 	return 1;
 }
 
-/* TODO: add more stuff from devmapper to understand if a maj/min
- * 	 is a slave or a holder. If we have sysfs this is of no use.
- */
-
-/* scanmapper uses libdevmapper to identify devices that are not real
+/* scanmapper parses /proc/devices to identify what maj are associated
+ * with device-mapper
  *
  * ret:
  * can't fail for now
  */
 static int scanmapper(struct devlisthead *devlisthead)
 {
-	struct devnode *startnode = devlisthead->devnode;
+	struct devnode *startnode;
+	FILE *fp;
+	char line[4096];
+	char major[4];
+	char device[64];
+	int maj, start = 0;
 
-	while (startnode) {
-		if (dm_is_dm_major(startnode->maj) > 0)
-			startnode->mapper = 1;
-		startnode = startnode->next;
+	fp = fopen("/proc/devices", "r");
+	if (!fp)
+		return 0;
+
+	while (fgets(line, sizeof(line), fp) != NULL) {
+		memset(major, 0, 4);
+		memset(device, 0, 64);
+
+		if (strlen(line) > 4096)
+			continue;
+
+		if (!strncmp(line, "Block devices:", 13)) {
+			start = 1;
+			continue;
+		}
+
+		if (!start)
+			continue;
+
+		sscanf(line, "%s %s", major, device);
+
+		if (!strncmp(device, "device-mapper", 13)) {
+			maj = atoi(major);
+			startnode = devlisthead->devnode;
+
+			while (startnode) {
+				if (startnode->maj == maj)
+					startnode->mapper = 1;
+
+				startnode = startnode->next;
+			}
+
+		}
+
 	}
 
+	fclose(fp);
 	return 1;
 }
 

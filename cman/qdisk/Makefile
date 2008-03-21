@@ -30,10 +30,7 @@ CFLAGS += -I$(S)
 CFLAGS += -I${incdir}
 
 EXTRA_LDFLAGS += -L${cmanlibdir} -L${ccslibdir} -lcman -lccs
-#
-# XXX Fabio has a way to clean up the devmapper requirement
-#
-EXTRA_LDFLAGS += -lpthread -ldevmapper
+EXTRA_LDFLAGS += -lpthread
 
 OBJS1=	main.o \
 	score.o \
@@ -54,9 +51,8 @@ SHAREDOBJS= disk.o \
 ${TARGET1}: ${SHAREDOBJS} ${OBJS1}
 	$(CC) -o $@ $^ $(LDFLAGS) $(EXTRA_LDFLAGS)
 
-# XXX Remove $(EXTRA_LDFLAGS) when libdevmapper is no longer required
 ${TARGET2}: ${SHAREDOBJS} ${OBJS2}
-	$(CC) -o $@ $^ $(LDFLAGS) $(EXTRA_LDFLAGS)
+	$(CC) -o $@ $^ $(LDFLAGS)
 
 depends:
 	$(MAKE) -C ../lib all
