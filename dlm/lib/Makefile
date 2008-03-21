@@ -15,13 +15,13 @@ TARGET= libdlm
 
 LIBDIRT=$(TARGET).a \
 	$(TARGET)_lt.a \
-	$(TARGET).so.${RELEASE_MAJOR}.${RELEASE_MINOR} \
-	$(TARGET)_lt.so.${RELEASE_MAJOR}.${RELEASE_MINOR}
+	$(TARGET).so.${SOMAJOR}.${SOMINOR} \
+	$(TARGET)_lt.so.${SOMAJOR}.${SOMINOR}
 
 LIBSYMT=$(TARGET).so \
 	$(TARGET)_lt.so \
-	$(TARGET).so.$(RELEASE_MAJOR) \
-	$(TARGET)_lt.so.$(RELEASE_MAJOR)
+	$(TARGET).so.$(SOMAJOR) \
+	$(TARGET)_lt.so.$(SOMAJOR)
 
 INCDIRT=$(TARGET).h
 
@@ -29,7 +29,7 @@ UDEVT=51-dlm.rules
 
 include ../../make/defines.mk
 
-SHAREDLIB=$(TARGET).so.${RELEASE_MAJOR}.${RELEASE_MINOR} $(TARGET)_lt.so.${RELEASE_MAJOR}.${RELEASE_MINOR}
+SHAREDLIB=$(TARGET).so.${SOMAJOR}.${SOMINOR} $(TARGET)_lt.so.${SOMAJOR}.${SOMINOR}
 STATICLIB=$(TARGET).a $(TARGET)_lt.a
 
 all: $(STATICLIB) $(SHAREDLIB)
@@ -55,15 +55,15 @@ $(TARGET)_lt.a: $(TARGET)_lt.o
 	${AR} r $@ $^
 	${RANLIB} $@
 
-$(TARGET).so.${RELEASE_MAJOR}.${RELEASE_MINOR}: $(TARGET).po $(AISTARGET).po
-	$(CC) $(PTHREAD_LDFLAGS) $(LDFLAGS) -shared -o $@ -Wl,-soname=$(TARGET).so.$(RELEASE_MAJOR) $<
-	ln -sf $(TARGET).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(TARGET).so
-	ln -sf $(TARGET).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(TARGET).so.$(RELEASE_MAJOR)
+$(TARGET).so.${SOMAJOR}.${SOMINOR}: $(TARGET).po $(AISTARGET).po
+	$(CC) $(PTHREAD_LDFLAGS) $(LDFLAGS) -shared -o $@ -Wl,-soname=$(TARGET).so.$(SOMAJOR) $<
+	ln -sf $(TARGET).so.$(SOMAJOR).$(SOMINOR) $(TARGET).so
+	ln -sf $(TARGET).so.$(SOMAJOR).$(SOMINOR) $(TARGET).so.$(SOMAJOR)
 
-$(TARGET)_lt.so.${RELEASE_MAJOR}.${RELEASE_MINOR}: $(TARGET)_lt.po
-	$(CC) $(LDFLAGS) -shared -o $@ -Wl,-soname=$(TARGET)_lt.so.$(RELEASE_MAJOR) $<
-	ln -sf $(TARGET)_lt.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(TARGET)_lt.so
-	ln -sf $(TARGET)_lt.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(TARGET)_lt.so.$(RELEASE_MAJOR)
+$(TARGET)_lt.so.${SOMAJOR}.${SOMINOR}: $(TARGET)_lt.po
+	$(CC) $(LDFLAGS) -shared -o $@ -Wl,-soname=$(TARGET)_lt.so.$(SOMAJOR) $<
+	ln -sf $(TARGET)_lt.so.$(SOMAJOR).$(SOMINOR) $(TARGET)_lt.so
+	ln -sf $(TARGET)_lt.so.$(SOMAJOR).$(SOMINOR) $(TARGET)_lt.so.$(SOMAJOR)
 
 %_lt.o: $(S)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<

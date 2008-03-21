@@ -80,9 +80,9 @@ my %options = (
 	conffile => \$conffile,
 	fence_agents => \$fence_agents,
 	enable_xen => \$enable_xen,
-	release_major => \$release_major,
-	release_minor => \$release_minor,
-	release_micro => \$release_micro,
+	somajor => \$somajor,
+	sominor => \$sominor,
+	release_version => \$release_version,
 	without_ccs => \$without_ccs,
 	without_cman => \$without_cman,
 	without_dlm => \$without_dlm,
@@ -143,9 +143,9 @@ my $err = &GetOptions (\%options,
 		    'sharedir=s',
 		    'confdir=s',
 		    'conffile=s',
-		    'release_major=s',
-		    'release_minor=s',
-		    'release_micro=s',
+		    'somajor=s',
+		    'sominor=s',
+		    'release_version=s',
 		    'fence_agents=s',
 		    'enable_xen',
 		    'without_ccs',
@@ -527,14 +527,14 @@ if (!$without_rgmanager) {
 if (!$disable_kernel_check) {
   $disable_kernel_check=0;
 }
-if (defined($release_major) && not length $release_major) {
-  $release_major="";
+if (defined($somajor) && not length $somajor) {
+  $somajor="";
 }
-if (defined($release_minor) && not length $release_minor) {
-  $release_minor="";
+if (defined($sominor) && not length $sominor) {
+  $sominor="";
 }
-if (defined($release_micro) && not length $release_micro) {
-  $release_micro="";
+if (defined($release_version) && not length $release_version) {
+  $release_version="";
 }
 
 @args = "find fence/agents -mindepth 2 -maxdepth 2 -name Makefile -printf '%h'";
@@ -624,39 +624,50 @@ while (<IFILE>) {
 
 close IFILE;
 
-if ((not defined($release_major)) || (not defined($release_minor)) || (not defined($release_micro))) {
+if ((not defined($somajor)) || (not defined($sominor)) || (not defined($release_version))) {
+
+  my $current_soname;
+  my $current_version;
   if ( -f 'make/official_release_version' ) {
-    my $current_version = 0;
     open OFFICIAL_VERSION, '<', "make/official_release_version";
     while (<OFFICIAL_VERSION>) {
+      if ($_ =~ /SONAME/) {
+        $current_soname = $_;
+      }
       if ($_ =~ /VERSION/) {
 	$current_version = $_;
-	last;
       }
     }
     close OFFICIAL_VERSION;
-    $current_version =~ s/.*"(.*)"\n/$1/;
-    my @release_version = split /\./, $current_version;
-    $release_major = $release_version[0];
-    $release_minor = $release_version[1];
-    $release_micro = $release_version[2];
-  } else {
-    $release_major = DEVEL;
-    $release_minor = `date +%s`;
-    chomp $release_minor;
-    $release_micro = 0;
+  }
+
+  if ((not defined($somajor)) || (not defined($sominor))) {
+    if (not defined($current_soname)) {
+      $somajor = DEVEL;
+      $sominor = `date +%s`;
+      chomp $sominor;
+    } else {
+      $current_soname =~ s/.*"(.*)"\n/$1/;
+      my @release_soname = split /\./, $current_soname;
+      $somajor = $release_soname[0];
+      $sominor = $release_soname[1];
+    }
+  }
+
+  if (not defined($release_version)) {
+    if (not defined($current_version)) {
+      $release_version = "$somajor.$sominor";
+    } else {
+      $release_version = $current_version;
+      $release_version =~ s/.*"(.*)"\n/$1/;
+    }
   }
 }
 
-print OFILE "RELEASE_VERSION = $release_major.$release_minor.$release_micro\n";
-print OFILE "CFLAGS += -DRELEASE_VERSION=\\\"$release_major.$release_minor.$release_micro\\\"\n";
-
-$release_major = abs $release_major;
-$release_minor = abs $release_minor;
-$release_micro = abs $release_micro;
-print OFILE "RELEASE_MAJOR = $release_major\n";
-print OFILE "RELEASE_MINOR = $release_minor\n";
-print OFILE "RELEASE_MICRO = $release_micro\n";
+print OFILE "SOMAJOR = $somajor\n";
+print OFILE "SOMINOR = $sominor\n";
+print OFILE "RELEASE_VERSION = $release_version\n";
+print OFILE "CFLAGS += -DRELEASE_VERSION=\\\"$release_version\\\"\n";
 
 close OFILE;
 

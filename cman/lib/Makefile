@@ -14,16 +14,16 @@
 TARGET= libcman
 
 LIBDIRT=$(TARGET).a \
-	$(TARGET).so.$(RELEASE_MAJOR).$(RELEASE_MINOR)
+	$(TARGET).so.$(SOMAJOR).$(SOMINOR)
 
 LIBSYMT=$(TARGET).so \
-	$(TARGET).so.$(RELEASE_MAJOR)
+	$(TARGET).so.$(SOMAJOR)
 
 INCDIRT=$(TARGET).h
 
 include ../../make/defines.mk
 
-SHAREDLIB=$(TARGET).so.${RELEASE_MAJOR}.${RELEASE_MINOR}
+SHAREDLIB=$(TARGET).so.${SOMAJOR}.${SOMINOR}
 STATICLIB=$(TARGET).a
 
 all: $(STATICLIB) $(SHAREDLIB)
@@ -41,9 +41,9 @@ $(TARGET).a: $(TARGET).o
 	${AR} r $@ $^
 	${RANLIB} $@
 
-$(TARGET).so.${RELEASE_MAJOR}.${RELEASE_MINOR}: $(TARGET).o
-	$(CC) -shared -o $@ -Wl,-soname=$(TARGET).so.$(RELEASE_MAJOR) $<
-	ln -sf $(TARGET).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(TARGET).so
-	ln -sf $(TARGET).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(TARGET).so.$(RELEASE_MAJOR)
+$(TARGET).so.${SOMAJOR}.${SOMINOR}: $(TARGET).o
+	$(CC) -shared -o $@ -Wl,-soname=$(TARGET).so.$(SOMAJOR) $<
+	ln -sf $(TARGET).so.$(SOMAJOR).$(SOMINOR) $(TARGET).so
+	ln -sf $(TARGET).so.$(SOMAJOR).$(SOMINOR) $(TARGET).so.$(SOMAJOR)
 
 clean: generalclean
