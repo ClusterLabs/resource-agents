@@ -129,7 +129,7 @@ END
 }
 
 Xen_Status() {
-  STATUS=`xm list --long $1 | grep status 2>/dev/null`
+  STATUS=`xm list --long $1 2>/dev/null | grep status 2>/dev/null`
   if [ "X${STATUS}" != "X" ];then
     # we have Xen 3.0.4 or higher
     STATUS_NOSPACES=`echo "$STATUS" | awk '{ print $1,$2}'`
@@ -140,7 +140,7 @@ Xen_Status() {
     fi
   else
     # we have Xen 3.0.3 or lower
-    STATUS=`xm list --long $1 | grep state 2>/dev/null`
+    STATUS=`xm list --long $1 2>/dev/null | grep state 2>/dev/null`
     echo "${STATUS}" | grep -qs "[-r][-b][-p]---"
     if [ $? -ne 0 ];then
       return $OCF_NOT_RUNNING
