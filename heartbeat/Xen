@@ -253,8 +253,11 @@ Xen_Start() {
       if [ "${OCF_RESKEY_allow_mem_management}" != 0 ];then
         xm mem-set ${DOMAIN_NAME} ${NEWMEM}
       fi
-      return $OCF_SUCCESS
     fi
+    while sleep 1; do
+      Xen_Monitor && return $OCF_SUCCESS
+    done
+	# not reachable
   fi  
 }
 
