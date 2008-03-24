@@ -27,7 +27,6 @@
 #include "lm.h"
 #include "proc.h"
 #include "super.h"
-#include "diaper.h"
 
 struct list_head gfs_fs_list;
 struct semaphore gfs_fs_lock;
@@ -81,16 +80,14 @@ do_list(char *user_buf, size_t size)
 	char device_id[32];
 	char *buf;
 	int error = 0;
-	struct block_device *bdevice;
 
 	down(&gfs_fs_lock);
 
 	x = 0;
 	for (tmp = gfs_fs_list.next; tmp != &gfs_fs_list; tmp = tmp->next) {
 		sdp = list_entry(tmp, struct gfs_sbd, sd_list);
-		bdevice = gfs_diaper_2real(sdp->sd_vfs->s_bdev);
-		sprintf(device_id, "%u:%u", MAJOR(bdevice->bd_dev),
-			MINOR(bdevice->bd_dev));
+		sprintf(device_id, "%u:%u", MAJOR(sdp->sd_vfs->s_dev),
+			MINOR(sdp->sd_vfs->s_dev));
 		x += sprintf(num, "%lu", (unsigned long)sdp) +
 			strlen(device_id) +
 			strlen(sdp->sd_fsname) + 3;
@@ -111,9 +108,8 @@ do_list(char *user_buf, size_t size)
 	x = 0;
 	for (tmp = gfs_fs_list.next; tmp != &gfs_fs_list; tmp = tmp->next) {
 		sdp = list_entry(tmp, struct gfs_sbd, sd_list);
-		bdevice = gfs_diaper_2real(sdp->sd_vfs->s_bdev);
-		sprintf(device_id, "%u:%u", MAJOR(bdevice->bd_dev),
-			MINOR(bdevice->bd_dev));
+		sprintf(device_id, "%u:%u", MAJOR(sdp->sd_vfs->s_dev),
+			MINOR(sdp->sd_vfs->s_dev));
 		x += sprintf(buf + x, "%lu %s %s\n",
 			     (unsigned long)sdp, device_id, sdp->sd_fsname);
 	}
