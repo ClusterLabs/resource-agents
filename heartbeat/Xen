@@ -53,9 +53,21 @@ meta_data() {
 
 <longdesc lang="en">
 Resource Agent for the Xen Hypervisor.
-Manages Xen virtual machine instances by
-mapping cluster resource start and stop,  
-to Xen create and shutdown, respectively.
+Manages Xen virtual machine instances by mapping cluster resource
+start and stop,  to Xen create and shutdown, respectively.
+
+A note on names
+
+We will try to extract the name from the config file (the xmfile
+attribute). If you use a simple assignment statement, then you
+should be fine. Otherwise, if there's some python acrobacy
+involved such as dynamically assigning names depending on other
+variables, and we will try to detect this, then please set the
+name attribute. You should also do that if there is any chance of
+a pathological situation where a config file might be missing,
+for example if it resides on a shared storage. If all fails, we
+finally fall back to the instance id to preserve backward
+compatibility.
 
 Para-virtualized guests can also be migrated by enabling the
 meta_attribute allow_migrate.
@@ -73,7 +85,14 @@ for this virtual machine.
 <shortdesc lang="en">Xen control file</shortdesc>
 <content type="string" default="" />
 </parameter>
-<parameter name="allow_migrate" unique="0" required="1">
+<parameter name="name" unique="0" required="0">
+<longdesc lang="en">
+Name of the virtual machine.
+</longdesc>
+<shortdesc lang="en">Xen DomU name</shortdesc>
+<content type="string" default="" />
+</parameter>
+<parameter name="allow_migrate" unique="0" required="0">
 <longdesc lang="en">
 This bool parameters allows to use live migration
 for paravirtual machines.
@@ -81,7 +100,7 @@ for paravirtual machines.
 <shortdesc lang="en">Use live migration</shortdesc>
 <content type="boolean" default="0" />
 </parameter>
-<parameter name="allow_mem_management" unique="0" required="1">
+<parameter name="allow_mem_management" unique="0" required="0">
 <longdesc lang="en">
 This parameter enables dynamic adjustment of memory for start 
 and stop actions used for Dom0 and the DomUs. The default is
@@ -90,7 +109,7 @@ to not adjust memory dynamically.
 <shortdesc lang="en">Use dynamic memory management</shortdesc>
 <content type="boolean" default="0" />
 </parameter>
-<parameter name="reserved_Dom0_memory" unique="0" required="1">
+<parameter name="reserved_Dom0_memory" unique="0" required="0">
 <longdesc lang="en">
 In case memory management is used, this parameter
 defines the minimum amount of memory to be reserved
@@ -208,6 +227,10 @@ Xen_Total_Memory() {
 }
 
 Xen_Start() {
+  [ -f ${OCF_RESKEY_xmfile} ] || {
+    ocf_log err "Config file ${OCF_RESKEY_xmfile} for $DOMAIN_NAME does not exist."
+    return $OCF_ERR_GENERIC
+  }
   if
     Xen_Status ${DOMAIN_NAME}
   then
@@ -322,8 +345,24 @@ case $1 in
 			;;
 esac
 
-DOMAIN_NAME=`awk '$1~/^name(=|$)/{print}' ${OCF_RESKEY_xmfile} | sed 's/.*=[[:space:]]*//' | tr -d "[\"']"`
-: ${DOMAIN_NAME=${OCF_RESOURCE_INSTANCE}}
+# the name business:
+#
+# 1. use the name attribute, or
+# 2. find the name in the config file (if it exists) and use that
+# unless it contains funny characters such as '%' or space, or
+# 3. use the OCF_RESOURCE_INSTANCE
+
+if [ x"${OCF_RESKEY_name}" != x ]; then
+	DOMAIN_NAME="${OCF_RESKEY_name}"
+else
+	if [ -f "${OCF_RESKEY_xmfile}" ]; then
+		DOMAIN_NAME=`awk '$1~/^name(=|$)/{print}' ${OCF_RESKEY_xmfile} | sed 's/.*=[[:space:]]*//' | tr -d "[\"']"`
+		if echo "$DOMAIN_NAME" | grep -qs '[%[:space:]]'; then
+			DOMAIN_NAME=""
+		fi
+	fi
+	: ${DOMAIN_NAME=${OCF_RESOURCE_INSTANCE}}
+fi
 
 case $1 in
   start)		Xen_Start
