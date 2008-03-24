@@ -42,21 +42,26 @@ CMAN_LDFLAGS += -L${cmanlibdir} -lcman
 NCURSES_LDFLAGS += -L${ncurseslibdir} -lncurses
 PTHREAD_LDFLAGS += -lpthread 
 
+OBJS1=	$(TARGET1).o
+OBJS2=	$(TARGET2).o
+OBJS3=	$(TARGET3).o
+OBJS4=	$(TARGET4).o
+OBJS5=	$(TARGET5).o
 
-${TARGET1}: ${TARGET1:=.o}
+${TARGET1}: ${OBJS1}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-${TARGET2}: ${TARGET2:=.o}
+${TARGET2}: ${OBJS2}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-${TARGET3}: ${TARGET3:=.o}
+${TARGET3}: ${OBJS3}
 	$(CC) -o $@ $^ $(LDFLAGS) $(CCS_LDFLAGS) $(CMAN_LDFLAGS) \
 			$(NCURSES_LDFLAGS) $(PTHREAD_LDFLAGS)
 
-${TARGET4}: ${TARGET4:=.o}
+${TARGET4}: ${OBJS4}
 	$(CC) -o $@ $^ $(LDFLAGS) $(CMAN_LDFLAGS) $(PTHREAD_LDFLAGS)
 
-${TARGET5}: ${TARGET5:=.o}
+${TARGET5}: ${OBJS5}
 	$(CC) -o $@ $^ $(LDFLAGS) $(CCS_LDFLAGS)
 
 ${TARGET6}:
@@ -69,3 +74,9 @@ depends:
 clean: generalclean
 
 .PHONY: all ${TARGET1} ${TARGET2} ${TARGET3} ${TARGET4} ${TARGET5} ${TARGET6}
+
+-include $(OBJS1:.o=.d)
+-include $(OBJS2:.o=.d)
+-include $(OBJS3:.o=.d)
+-include $(OBJS4:.o=.d)
+-include $(OBJS5:.o=.d)

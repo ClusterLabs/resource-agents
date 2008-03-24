@@ -40,3 +40,5 @@ ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 clean: generalclean
+
+-include $(OBJS:.o=.d)

@@ -41,3 +41,5 @@ log.c:
 
 clean: generalclean
 	rm -rf ccs.h.gch log.c
+
+-include $(OBJS:.o=.d)

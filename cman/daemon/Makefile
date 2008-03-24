@@ -48,3 +48,5 @@ depends:
 
 clean: generalclean 
 
+-include $(OBJS1:.o=.d)
+-include $(OBJS2:.o=.d)

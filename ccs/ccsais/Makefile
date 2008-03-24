@@ -41,3 +41,5 @@ depends:
 
 clean: generalclean 
 	rm -f logging.c
+
+-include $(OBJS:.o=.d)

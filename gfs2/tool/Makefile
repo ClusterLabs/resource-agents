@@ -49,3 +49,5 @@ depends:
 clean: generalclean
 
 .PHONY: all ${TARGET}
+
+-include $(OBJS:.o=.d)

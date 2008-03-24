@@ -24,6 +24,7 @@
 #include "log.h" /* Libraries should not print - so only use log_dbg */
 #include "debug.h"
 #include "comm_headers.h"
+#include "ccs.h"
 
 #include <stdio.h>
 

@@ -44,3 +44,5 @@ depends:
 	$(MAKE) -C ../../utils all
 
 clean: generalclean
+
+-include $(OBJS:.o=.d)

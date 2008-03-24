@@ -33,17 +33,21 @@ include $(OBJDIR)/make/clean.mk
 include $(OBJDIR)/make/install.mk
 include $(OBJDIR)/make/uninstall.mk
 
+OBJS=	$(TARGET).o
+
 CFLAGS += -fPIC
 CFLAGS += -I${cmanincdir} -I$(S)/../daemon
 CFLAGS += -I${incdir}
 
-$(TARGET).a: $(TARGET).o
+$(TARGET).a: $(OBJS)
 	${AR} r $@ $^
 	${RANLIB} $@
 
-$(TARGET).so.${SOMAJOR}.${SOMINOR}: $(TARGET).o
+$(TARGET).so.${SOMAJOR}.${SOMINOR}: $(OBJS)
 	$(CC) -shared -o $@ -Wl,-soname=$(TARGET).so.$(SOMAJOR) $<
 	ln -sf $(TARGET).so.$(SOMAJOR).$(SOMINOR) $(TARGET).so
 	ln -sf $(TARGET).so.$(SOMAJOR).$(SOMINOR) $(TARGET).so.$(SOMAJOR)
 
 clean: generalclean
+
+-include $(OBJS:.o=.d)

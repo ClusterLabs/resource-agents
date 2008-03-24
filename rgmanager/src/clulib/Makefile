@@ -53,3 +53,7 @@ ${TARGET3}: ${OBJS3} ${TARGET1}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 clean: generalclean
+
+-include $(OBJS1:.o=.d)
+-include $(OBJS2:.o=.d)
+-include $(OBJS3:.o=.d)

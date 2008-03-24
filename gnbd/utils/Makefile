@@ -11,11 +11,11 @@
 ###############################################################################
 ###############################################################################
 
-TARGETS=member_cman.o \
+OBJS=	member_cman.o \
 	trans.o \
 	gnbd_utils.o
 
-all: ${TARGETS}
+all: ${OBJS}
 
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
@@ -27,3 +27,5 @@ CFLAGS += -I${cmanincdir}
 CFLAGS += -I$(S)/../include
 
 clean: generalclean
+
+-include $(OBJS:.o=.d)

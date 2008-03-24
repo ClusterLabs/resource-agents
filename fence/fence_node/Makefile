@@ -41,3 +41,5 @@ depends:
 	$(MAKE) -C ../fenced agent.o
 
 clean: generalclean
+
+-include $(OBJS:.o=.d)

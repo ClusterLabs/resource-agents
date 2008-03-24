@@ -56,7 +56,6 @@ OBJS=	bio.o \
 	util.o
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -DHELPER_PROGRAM
-CFLAGS += -MMD
 CFLAGS += -I$(S)/../include
 CFLAGS += -I${incdir}
 
@@ -79,6 +78,6 @@ clean: generalclean
 ${TARGET1}.pot: $(OBJS:.o=.c)
 	xgettext -C -F --keyword=print_log --keyword=log_debug --keyword=log_info --keyword=_ \
 	 --keyword=log_notice --keyword=log_warn --keyword=log_err --keyword=log_crit \
-	 --keyword=log_debug --keyword=log_err --keyword=log_print -d - $(OBJS:.o=.c) > ${TARGET1}.pot	
+	 --keyword=log_debug --keyword=log_err --keyword=log_print -d - $(OBJS:.o=.c) > ${TARGET1}.pot
 
 -include $(OBJS:.o=.d)

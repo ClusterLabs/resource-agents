@@ -58,3 +58,7 @@ depends:
 	$(MAKE) -C ../lib all
 
 clean: generalclean
+
+-include $(OBJS1:.o=.d)
+-include $(OBJS2:.o=.d)
+-include $(SHAREDOBJS:.o=.d)

@@ -44,7 +44,6 @@ OBJS=	eattr.o \
 	util.o
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -DHELPER_PROGRAM
-CFLAGS += -MMD
 CFLAGS += -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
 CFLAGS += -I$(S)/../include -I$(S)/../libgfs2
 CFLAGS += -I${incdir}

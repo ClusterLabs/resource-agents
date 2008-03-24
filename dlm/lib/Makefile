@@ -78,3 +78,7 @@ $(TARGET)_lt.so.${SOMAJOR}.${SOMINOR}: $(TARGET)_lt.po
 	$(CC) $(CFLAGS) -fPIC -D_REENTRANT -c -o $@ $<
 
 clean: generalclean
+
+-include $(TARGET).d
+-include $(TARGET)_lt.d
+-include $(AISTARGET).d

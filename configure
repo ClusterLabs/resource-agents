@@ -318,7 +318,7 @@ if (!$cc) {
   $cc="gcc";
 }
 if (!$cflags) {
-  $cflags="-Wall -Wformat=2";
+  $cflags="-Wall -Wformat=2 -MMD";
   if (!$debug) {
     $cflags="${cflags} -O2";
   } else {

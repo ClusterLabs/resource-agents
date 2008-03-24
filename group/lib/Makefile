@@ -24,9 +24,12 @@ CFLAGS += -fPIC
 CFLAGS += -I$(S) -I$(S)/../daemon
 CFLAGS += -I${incdir}
 
+OBJS= $(TARGET).o
 
-$(TARGET).a: $(TARGET).o
+$(TARGET).a: $(OBJS)
 	${AR} r $@ $^
 	${RANLIB} $@
 
 clean: generalclean
+
+-include $(OBJS:.o=.d)

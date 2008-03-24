@@ -68,3 +68,8 @@ ${TARGET3}: ${OBJS3}
 	$(CC) -o $@ $^ $(XML_LDFLAGS)
 
 clean: generalclean
+
+-include $(OBJS1:.o=.d)
+-include $(OBJS2:.o=.d)
+-include $(OBJS3:.o=.d)
+-include $(SHAREDOBJS:.o=.d)

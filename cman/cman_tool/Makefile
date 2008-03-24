@@ -39,3 +39,5 @@ depends:
 	$(MAKE) -C ../lib all
 
 clean: generalclean
+
+-include $(OBJS:.o=.d)

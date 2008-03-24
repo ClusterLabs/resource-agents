@@ -11,13 +11,13 @@
 ###############################################################################
 ###############################################################################
 
+TARGETS= filecon2_server filecon2_client
+
 all: $(TARGETS)
 
 include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
-
-TARGETS= filecon2_server filecon2_client
 
 CFLAGS += -O3
 CFLAGS += -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64

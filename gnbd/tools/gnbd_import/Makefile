@@ -43,3 +43,5 @@ depends:
 	$(MAKE) -C ../../client monitor_req.o
 
 clean: generalclean
+
+-include $(OBJS:.o=.d)

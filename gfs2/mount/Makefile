@@ -48,3 +48,7 @@ uninstall:
 	${UNINSTALL} ${TARGET1} ${TARGET2} ${DESTDIR}/sbin
 
 clean: generalclean
+
+-include $(OBJS1:.o=.d)
+-include $(OBJS2:.o=.d)
+-include $(SHAREDOBJS:.o=.d)
