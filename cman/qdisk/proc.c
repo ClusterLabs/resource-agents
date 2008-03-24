@@ -146,11 +146,13 @@ state_str(disk_node_state_t s)
 void
 print_status_block(status_block_t *sb)
 {
+	time_t timestamp = (time_t)sb->ps_timestamp;
+
 	if (sb->ps_state == S_NONE)
 		return;
 	printf("Status block for node %d\n", sb->ps_nodeid);
 	printf("\tLast updated by node %d\n", sb->ps_updatenode);
-	printf("\tLast updated on %s", ctime((time_t *)&sb->ps_timestamp));
+	printf("\tLast updated on %s", ctime((time_t *)&timestamp));
 	printf("\tState: %s\n", state_str(sb->ps_state));
 	printf("\tFlags: %04x\n", sb->ps_flags);
 	printf("\tScore: %d/%d\n", sb->ps_score, sb->ps_scoremax);
@@ -200,13 +202,13 @@ print_qdisk_info(struct devnode *dn)
 {
 	quorum_header_t *qh = (quorum_header_t *)dn->filter;
 	struct devpath *dp;
+	time_t timestamp = (time_t)qh->qh_timestamp;
 
 	for (dp = dn->devpath; dp; dp = dp->next)
 		printf("%s:\n", dp->path);
 	printf("\tMagic:                %08x\n", qh->qh_magic);
 	printf("\tLabel:                %s\n", qh->qh_cluster);
-	printf("\tCreated:              %s",
-       		ctime((time_t *)&(qh->qh_timestamp)));
+	printf("\tCreated:              %s", ctime(&timestamp));
 	printf("\tHost:                 %s\n", qh->qh_updatehost);
 	printf("\tKernel Sector Size:   %d\n", qh->qh_kernsz);
 	if (qh->qh_version == VERSION_MAGIC_V2) {
