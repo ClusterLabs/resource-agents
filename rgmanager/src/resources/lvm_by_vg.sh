@@ -56,7 +56,7 @@ function strip_tags
 
 	for i in `vgs --noheadings -o tags $OCF_RESKEY_vg_name | sed s/","/" "/g`; do
 		ocf_log info "Stripping tag, $i"
-		vgchange --deltag $i
+		vgchange --deltag $i $OCF_RESKEY_vg_name
 	done
 
 	if [ ! -z `vgs -o tags --noheadings $OCF_RESKEY_vg_name` ]; then
@@ -93,6 +93,7 @@ function vg_status
 	local i
 	local dev
 	local readdev
+	local my_name=$(local_node_name)
 
 	#
 	# Check that all LVs are active
