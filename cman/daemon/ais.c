@@ -64,6 +64,7 @@ int num_interfaces;
 uint64_t incarnation;
 int num_ais_nodes;
 extern unsigned int config_version;
+static unsigned int cluster_parent_handle;
 
 static int startup_pipe;
 static unsigned int debug_mask;
@@ -177,7 +178,10 @@ static int cman_exec_init_fn(struct objdb_iface_ver0 *objdb)
 
         /* Get our config variables */
 	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
-	if (objdb->object_find(OBJECT_PARENT_HANDLE, "cman", strlen("cman"), &object_handle) == 0)
+	objdb->object_find(OBJECT_PARENT_HANDLE,
+		"cluster", strlen("cluster"), &cluster_parent_handle);
+
+	if (objdb->object_find(cluster_parent_handle, "cman", strlen("cman"), &object_handle) == 0)
 	{
 		objdb_get_int(objdb, object_handle, "quorum_dev_poll", &quorumdev_poll);
 		objdb_get_int(objdb, object_handle, "shutdown_timeout", &shutdown_timeout);

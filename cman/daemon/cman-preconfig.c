@@ -616,15 +616,15 @@ static void add_cman_overrides(struct objdb_iface_ver0 *objdb)
 	}
 
 	/* Make sure mainconfig doesn't stomp on our logging options */
-	if (objdb->object_find(cluster_parent_handle,
+	if (objdb->object_find(OBJECT_PARENT_HANDLE,
 			       "logging", strlen("logging"), &object_handle)) {
 
-                objdb->object_create(cluster_parent_handle, &object_handle,
+                objdb->object_create(OBJECT_PARENT_HANDLE, &object_handle,
 					    "logging", strlen("logging"));
         }
 
-	objdb->object_find_reset(cluster_parent_handle);
-	if (objdb->object_find(cluster_parent_handle,
+	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
+	if (objdb->object_find(OBJECT_PARENT_HANDLE,
 			       "logging", strlen("logging"),
 			       &object_handle) == 0) {
 		unsigned int logger_object_handle;
@@ -650,8 +650,8 @@ static void add_cman_overrides(struct objdb_iface_ver0 *objdb)
 	}
 
 	/* Don't run under user "ais" */
-	objdb->object_find_reset(cluster_parent_handle);
-	if (objdb->object_find(cluster_parent_handle, "aisexec", strlen("aisexec"), &object_handle) == 0)
+	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
+	if (objdb->object_find(OBJECT_PARENT_HANDLE, "aisexec", strlen("aisexec"), &object_handle) == 0)
 	{
 		objdb->object_key_create(object_handle, "user", strlen("user"),
 				 "root", strlen("root") + 1);
