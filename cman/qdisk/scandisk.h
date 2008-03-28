@@ -4,6 +4,10 @@
 **  Copyright (C) 2008 Fabio M. Di Nitto <fabbione@fabbione.net>.
 **  All rights reserved.
 **
+**  Original design by: 
+**  Joel Becker <Joel.Becker@oracle.com> 
+**  Fabio M. Di Nitto <fabbione@fabbione.net>
+**
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
 **  of the GNU General Public License v.2.
