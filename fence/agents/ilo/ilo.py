@@ -45,7 +45,7 @@ def set_power_status(conn, options):
 def main():
 	device_opt = [  "help", "version", "agent", "quiet", "verbose", "debug",
 			"action", "ipaddr", "login", "passwd", "passwd_script",
-			"secure" ]
+			"secure", "ribcl" ]
 
 	options = check_input(device_opt, process_input(device_opt))
 

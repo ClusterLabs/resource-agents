@@ -49,7 +49,7 @@ all_opt = {
 		"order" : 1 },
 	"action" : {
 		"getopt" : "o:",
-		"help" : "-o <action>    Action: reboot (default), off or on",
+		"help" : "-o <action>    Action: status, reboot (default), off or on",
 		"order" : 1 },
 	"ipaddr" : {
 		"getopt" : "a:",
@@ -71,13 +71,17 @@ all_opt = {
 		"getopt" : "S:",
 		"help" : "-S <script>    Script to run to retrieve password",
 		"order" : 1 },
-	"modulename" : {
+	"module_name" : {
 		"getopt" : "m:",
 		"help" : "-m <module>    DRAC/MC module name",
 		"order" : 1 },
 	"drac_version" : {
 		"getopt" : "d:",
 		"help" : "-D <version>   Force DRAC version to use",
+		"order" : 1 },
+	"ribcl" : {
+		"getopt" : "r:",
+		"help" : "-r <version>   Force ribcl version to use",
 		"order" : 1 },
 	"cmd_prompt" : {
 		"getopt" : "c:",
@@ -89,8 +93,13 @@ all_opt = {
 		"order" : 1 },
 	"port" : {
 		"getopt" : "n:",
-		"help" : "-n             Physical plug number on device",
-		"order" : 1 }
+		"help" : "-n <id>        Physical plug number on device",
+		"order" : 1 },
+	"test" : {
+		"getopt" : "T",
+		"help" : "",
+		"order" : 1,
+		"obsolete" : "use -o status instead" }
 }
 
 class fspawn(pexpect.spawn):
@@ -162,6 +171,16 @@ def process_input(avail_opt):
 			opt, args = getopt.gnu_getopt(sys.argv[1:], getopt_string)
 		except getopt.GetoptError, error:
 			fail_usage("Parse error: " + error.msg)
+
+		## Compatibility Layer
+		#####
+		z = dict(opt)
+		if z.has_key("-T") == 1:
+			z["-o"] = "status"
+
+		opt = z
+		##
+		#####
 	else:
 		opt = { }
 		name = ""
@@ -172,6 +191,19 @@ def process_input(avail_opt):
 			(name, value) = (line + "=").split("=", 1)
 			value = value[:-1]
 
+			## Compatibility Layer
+			######
+			if name == "blade":
+				name = "port"
+			elif name == "option":
+				name = "action"
+			elif name == "fm":
+				name = "port"
+			elif name == "hostname":
+				name = "ipaddr"
+
+			##
+			######
 			if avail_opt.count(name) == 0:
 				fail_usage("Parse error: Unknown option '"+line+"'")
 
