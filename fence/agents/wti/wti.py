@@ -7,8 +7,9 @@
 ##
 ##  Version            Firmware
 ## +-----------------+---------------------------+
-##  WTI IPS-800-CE     v1.40h
-##
+##  WTI RSM-8R4         ?? unable to find out ??
+##  WTI MPC-??? 	?? unable to find out ??
+##  WTI IPS-800-CE     v1.40h		(no username)
 #####
 
 import sys, re, pexpect
@@ -31,7 +32,7 @@ def get_power_status(conn, options):
 			if len(plug_line) < len(plug_header):
 				plug_section = -1
 				pass
-			if options["-n"] == plug_line[plug_index]:
+			if options["-n"].lower() == plug_line[plug_index]:
 				return plug_line[status_index]
 		elif (plug_section == 1):
 			plug_section = 2
@@ -60,8 +61,8 @@ def set_power_status(conn, options):
 
 def main():
 	device_opt = [  "help", "version", "agent", "quiet", "verbose", "debug",
-			"action", "ipaddr", "passwd", "passwd_script",
-			"cmd_prompt", "port" ]
+			"action", "ipaddr", "login", "passwd", "passwd_script",
+			"cmd_prompt", "secure", "port", "no_login" ]
 
 	options = check_input(device_opt, process_input(device_opt))
 
@@ -69,31 +70,33 @@ def main():
 	## Fence agent specific defaults
 	#####
 	if 0 == options.has_key("-c"):
-		options["-c"] = "IPS>"
+		options["-c"] = [ "RSM>", "MPC>", "IPS>" ]
 
 	##
-	## Login to system
-	## @note: there is no username so we can't use fence_login()
-	####
-	try:
-		conn = fspawn ('telnet ' + options["-a"])
-		conn.log_expect(options, "Password: ", SHELL_TIMEOUT)
-		conn.send(options["-p"]+"\r\n")
-		conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
-	except pexpect.EOF:
-		fail(EC_LOGIN_DENIED) 
-	except pexpect.TIMEOUT:
-		fail(EC_LOGIN_DENIED)
-
+	## Operate the fencing device
 	##
-	## Operate the fecing device
-	######
+	## @note: if there is not a login name then we assume that it is WTI-IPS
+	##        where no login name is used
+	#####	
+	if (0 == options.has_key("-l")):
+		try:
+			conn = fspawn ('telnet ' + options["-a"])
+			conn.log_expect(options, "Password: ", SHELL_TIMEOUT)
+			conn.send(options["-p"]+"\r\n")
+			conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
+		except pexpect.EOF:
+			fail(EC_LOGIN_DENIED) 
+		except pexpect.TIMEOUT:
+			fail(EC_LOGIN_DENIED)		
+	else:
+		conn = fence_login(options)
+
 	fence_action(conn, options, set_power_status, get_power_status)
 
 	##
 	## Logout from system
 	######
-	conn.send("/X,Y"+"\r\n")
+	conn.send("/X"+"\r\n")
 	conn.close()
 
 if __name__ == "__main__":

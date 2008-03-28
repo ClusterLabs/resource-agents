@@ -59,6 +59,10 @@ all_opt = {
 		"getopt" : "l:",
 		"help" : "-l <name>      Login name",
 		"order" : 1 },
+	"no_login" : {
+		"getopt" : "",
+		"help" : "",
+		"order" : 1 },
 	"passwd" : {
 		"getopt" : "p:",
 		"help" : "-p <password>  Login password",
@@ -204,7 +208,7 @@ def check_input(device_opt, opt):
 	if 0 == ["on", "off", "reboot", "status"].count(options["-o"].lower()):
 		fail_usage("Failed: Unrecognised action '" + options["-o"] + "'")
 
-	if (0 == options.has_key("-l")) and (device_opt.count("login")):
+	if (0 == options.has_key("-l")) and device_opt.count("login") and (device_opt.count("no_login") == 0):
 		fail_usage("Failed: You have to set login name")
 
 	if 0 == options.has_key("-a"):
