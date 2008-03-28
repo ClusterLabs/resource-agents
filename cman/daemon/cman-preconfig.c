@@ -127,10 +127,11 @@ static int add_ifaddr(struct objdb_iface_ver0 *objdb, char *mcast, char *ifaddr,
 		return -1;
 	}
 
-        if (objdb->object_find(OBJECT_PARENT_HANDLE,
+	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
+	if (objdb->object_find(OBJECT_PARENT_HANDLE,
 			       "totem", strlen("totem"), &totem_object_handle)) {
 
-                objdb->object_create(OBJECT_PARENT_HANDLE, &totem_object_handle,
+		objdb->object_create(OBJECT_PARENT_HANDLE, &totem_object_handle,
 				     "totem", strlen("totem"));
         }
 
@@ -616,6 +617,7 @@ static void add_cman_overrides(struct objdb_iface_ver0 *objdb)
 	}
 
 	/* Make sure mainconfig doesn't stomp on our logging options */
+	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
 	if (objdb->object_find(OBJECT_PARENT_HANDLE,
 			       "logging", strlen("logging"), &object_handle)) {
 
