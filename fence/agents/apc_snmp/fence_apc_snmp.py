@@ -169,7 +169,7 @@ def main():
   args_off = list()
   args_on = list()
 
-  args_status.append("/usr/bin/snmpget")
+  args_status.append("@SNMPBIN@/snmpget")
   args_status.append("-Oqu") #sets printing options
   args_status.append("-v")
   args_status.append("1")
@@ -180,7 +180,7 @@ def main():
   args_status.append(address)
   args_status.append(apc_command)
 
-  args_off.append("/usr/bin/snmpset")
+  args_off.append("@SNMPBIN@/snmpset")
   args_off.append("-Oqu") #sets printing options
   args_off.append("-v")
   args_off.append("1")
@@ -193,7 +193,7 @@ def main():
   args_off.append("i")
   args_off.append("outletOff")
 
-  args_on.append("/usr/bin/snmpset")
+  args_on.append("@SNMPBIN@/snmpset")
   args_on.append("-Oqu") #sets printing options
   args_on.append("-v")
   args_on.append("1")
@@ -235,7 +235,7 @@ def main():
         fd.write("Attempting the following command: %s\n" % cmdstr_off)
       strr = os.system(cmdstr_off)
       time.sleep(1)
-      strr,code = execWithCaptureStatus("/usr/bin/snmpget",args_status)
+      strr,code = execWithCaptureStatus("@SNMPBIN@/snmpget",args_status)
       if verbose:
         fd.write("Result: %s\n" % strr)
         fd.close()
@@ -254,7 +254,7 @@ def main():
         fd.write("Attempting the following command: %s\n" % cmdstr_on)
       strr = os.system(cmdstr_on)
       time.sleep(1)
-      strr,code = execWithCaptureStatus("/usr/bin/snmpget",args_status)
+      strr,code = execWithCaptureStatus("@SNMPBIN@/snmpget",args_status)
       #strr = os.system(cmdstr_status) 
       if verbose:
         fd.write("Result: %s\n" % strr)
@@ -276,7 +276,7 @@ def main():
         fd.write("Attempting the following command: %s\n" % cmdstr_off)
       strr = os.system(cmdstr_off)
       time.sleep(1)
-      strr,code = execWithCaptureStatus("/usr/bin/snmpget",args_status)
+      strr,code = execWithCaptureStatus("@SNMPBIN@/snmpget",args_status)
       #strr = os.system(cmdstr_status)
       if verbose:
         fd.write("Result: %s\n" % strr)
@@ -291,7 +291,7 @@ def main():
         fd.write("Attempting the following command: %s\n" % cmdstr_on)
       strr = os.system(cmdstr_on)
       time.sleep(1)
-      strr,code = execWithCaptureStatus("/usr/bin/snmpget",args_status)
+      strr,code = execWithCaptureStatus("@SNMPBIN@/snmpget",args_status)
       #strr = os.system(cmdstr_status)
       if verbose:
         fd.write("Result: %s\n" % strr)

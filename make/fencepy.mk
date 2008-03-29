@@ -16,7 +16,7 @@ $(TARGET):
 	chmod +x $(TARGET)
 ifdef MIBRESOURCE
 	echo ${mibdir}
-	sed -i -e 's#@MIBDIR@#${mibdir}#g' $(TARGET)
+	sed -i -e 's#@MIBDIR@#${mibdir}#g' -e 's#@SNMPBIN@#${snmpbin}#g' $(TARGET)
 endif
 
 clean: generalclean

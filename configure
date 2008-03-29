@@ -77,6 +77,7 @@ my %options = (
 	sbindir => \$sbindir,
 	sharedir => \$sharedir,
 	mibdir => \$mibdir,
+	snmpbin => \$snmpbin,
 	confdir => \$confdir,
 	conffile => \$conffile,
 	fence_agents => \$fence_agents,
@@ -143,6 +144,7 @@ my $err = &GetOptions (\%options,
 		    'sbindir=s',
 		    'sharedir=s',
 		    'mibdir=s',
+		    'snmpbin=s',
 		    'confdir=s',
 		    'conffile=s',
 		    'somajor=s',
@@ -179,6 +181,7 @@ if ($help || !$err) {
   print "--libexecdir=\tthe base directory for executable components.  (Default: {prefix}/libexec)\n";
   print "--sharedir=\tthe base directory for misc cluster files.  (Default: {prefix}/share/cluster)\n";
   print "--mibdir=\tthe base directory for snmp mibs.  (Default: {prefix}/share/snmp/mibs)\n";
+  print "--snmpbin=\tthe base directory for snmp binaries (Ex: /usr/bin/snmpwalk).  (Default: {prefix}/bin)\n";
   print "--confdir=\tthe cluster config directory.  (Default: /etc/cluster)\n";
   print "--conffile=\tthe cluster config file.  (Default: cluster.conf)\n";
   print "--mandir=\tthe base directory for man pages.  (Default: {prefix}/share/man)\n";
@@ -491,6 +494,9 @@ if (!$sharedir) {
 if (!$mibdir) {
   $mibdir="${prefix}/share/snmp/mibs";
 }
+if (!$snmpbin) {
+  $snmpbin="${prefix}/bin";
+}
 if (!$confdir) {
   $confdir="/etc/cluster";
 }
@@ -612,6 +618,7 @@ while (<IFILE>) {
   $_ =~ s/\@SBINDIR\@/$sbindir/;
   $_ =~ s/\@SHAREDIR\@/$sharedir/;
   $_ =~ s/\@MIBDIR\@/$mibdir/;
+  $_ =~ s/\@SNMPBIN\@/$snmpbin/;
   $_ =~ s/\@CONFDIR\@/$confdir/;
   $_ =~ s/\@CONFFILE\@/$conffile/;
   $_ =~ s/\@FENCE_AGENTS\@/$fence_agents/;

@@ -20,6 +20,7 @@ mandir ?= ${DESTDIR}@MANDIR@
 module_dir ?= @MODULE_DIR@
 incdir ?= ${DESTDIR}@INCDIR@
 mibdir ?= ${DESTDIR}@MIBDIR@
+snmpbin ?= @SNMPBIN@
 
 # Build information
 
