@@ -14,7 +14,7 @@
 ## This APC Fence script uses snmp to control the APC power
 ## switch. This script requires that net-snmp-utils be installed
 ## on all nodes in the cluster, and that the powernet369.mib file be
-## located in /usr/share/snmp/mibs/
+## located in @MIBDIR@
 #############################################################################
 #############################################################################
 
@@ -67,8 +67,8 @@ def main():
   status_check = False
   verbose = False
 
-  if not glob('/usr/share/snmp/mibs/powernet*.mib'):
-    sys.stderr.write('This APC Fence script uses snmp to control the APC power switch. This script requires that net-snmp-utils be installed on all nodes in the cluster, and that the powernet369.mib file be located in /usr/share/snmp/mibs/\n')
+  if not glob('@MIBDIR@/powernet*.mib'):
+    sys.stderr.write('This APC Fence script uses snmp to control the APC power switch. This script requires that net-snmp-utils be installed on all nodes in the cluster, and that the powernet369.mib file be located in @MIBDIR@\n')
     sys.exit(1)
 
   if len(sys.argv) > 1:

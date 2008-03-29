@@ -29,3 +29,6 @@ endif
 ifdef KHEADT
 	${UNINSTALL} ${KHEADT} ${incdir}/linux
 endif
+ifdef MIBRESOURCE
+	${UNINSTALL} ${MIBRESOURCE} ${mibdir}
+endif

@@ -19,6 +19,7 @@ sharedir ?= ${DESTDIR}@SHAREDIR@
 mandir ?= ${DESTDIR}@MANDIR@
 module_dir ?= @MODULE_DIR@
 incdir ?= ${DESTDIR}@INCDIR@
+mibdir ?= ${DESTDIR}@MIBDIR@
 
 # Build information
 
