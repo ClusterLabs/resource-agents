@@ -15,7 +15,6 @@ $(TARGET):
 	awk -v p=0 "(\$$1 ~ /#END_VERSION_GENERATION/){p = 1} {if(p==1)print}" $(S)/$(TARGET).py >> $(TARGET)
 	chmod +x $(TARGET)
 ifdef MIBRESOURCE
-	echo ${mibdir}
 	sed -i -e 's#@MIBDIR@#${mibdir}#g' -e 's#@SNMPBIN@#${snmpbin}#g' $(TARGET)
 endif
 
