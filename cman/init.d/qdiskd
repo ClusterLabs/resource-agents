@@ -19,26 +19,9 @@ retries=0
 # See how we were called.
 case "$1" in
   start)
-	echo -n "Starting the Quorum Disk Daemon:"
-
-	$0 status >/dev/null
-	if [ $? -eq 0 ]; then
-		echo_success
-		echo
-		exit 0
-	fi
-
-	qdiskd -Q
+	action "Starting the Quorum Disk Daemon:" qdiskd -Q
 	rtrn=$?
-	if [ $rtrn = 0 ]; then
-		touch $LOCK_FILE
-		echo_success
-		echo
-	else
-		echo_failure
-		echo
-	fi
-		
+	[ $rtrn = 0 ] && touch $LOCK_FILE
 	;;
 
   stop)
