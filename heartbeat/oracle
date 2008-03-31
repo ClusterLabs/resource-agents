@@ -25,6 +25,8 @@
 #	OCF_RESKEY_home (optional; else read it from /etc/oratab)
 #	OCF_RESKEY_user (optional; figure it out by checking file ownership)
 #	OCF_RESKEY_ipcrm (optional; defaults to "instance")
+#	OCF_RESKEY_clear_backupmode (optional; default to "false")
+#	OCF_RESKEY_shutdown_method (optional; default to "checkpoint/abort")
 #
 # Initialization:
 
@@ -141,6 +143,35 @@ Please report any problems. Suggestions/fixes welcome.
 <content type="string" default="instance" />
 </parameter>
 
+<parameter name="clear_backupmode" unique="0" required="0">
+<longdesc lang="en">
+The clear of the backup mode of ORACLE.
+</longdesc>
+<shortdesc lang="en">clear_backupmode</shortdesc>
+<content type="boolean" default="false" />
+</parameter>
+
+<parameter name="shutdown_method" unique="0" required="0">
+<longdesc lang="en">
+How to stop Oracle is a matter of taste it seems. The default
+method ("checkpoint/abort") is:
+
+	alter system checkpoint;
+	shutdown abort;
+
+This should be the fastest safe way bring the instance down. If
+you find "shutdown abort" distasteful, set this attribute to
+"immediate" in which case we will
+
+	shutdown immediate;
+
+If you still think that there's even better way to shutdown an
+Oracle instance we are willing to listen.
+</longdesc>
+<shortdesc lang="en">shutdown_method</shortdesc>
+<content type="string" default="checkpoint/abort" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -218,11 +249,11 @@ setoraenv() {
 #
 #	Run commands as the Oracle owner...
 #
-runasdba() {
+execsql() {
 	if [ "$US" = "$ORACLE_OWNER" ]; then
-		$SH
+		$sqlplus -S /nolog
 	else
-		su $ORACLE_OWNER
+		su - $ORACLE_OWNER -c "$sqlplus -S /nolog"
 	fi
 }
 
@@ -238,11 +269,7 @@ dbasql() {
 	echo "set pagesize 0"
 	for func; do $func; done
 	) |
-	if [ "$US" = "$ORACLE_OWNER" ]; then
-		$sqlplus -S /nolog
-	else
-		su $ORACLE_OWNER -c "$sqlplus -S /nolog"
-	fi | grep -v '^Connected'
+	execsql | grep -v '^Connected'
 }
 
 #
@@ -257,12 +284,47 @@ dbmount() {
 dbopen() {
 	echo 'alter database open;'
 }
-dbstop() {
+dbstop_immediate() {
+	echo 'shutdown immediate'
+}
+dbstop_checkpoint_abort() {
 	echo 'alter system checkpoint;'
 	echo 'shutdown abort'
 }
+dbstop() {
+	case "${shutdown_method}" in
+	"immediate")
+		dbstop_immediate
+	;;
+	"checkpoint/abort")
+		dbstop_checkpoint_abort
+	;;
+	esac
+}
 dbstart() {
 	echo 'startup'
+}
+dbstart_mount() {
+	echo 'startup mount'
+}
+dbendbackup() {
+	echo 'alter database end backup;'
+}
+db_backup_mode() {
+	echo "select 'COUNT'||count(*) from v\$backup where status='ACTIVE';"
+}
+is_clear_backupmode_set(){
+	[ x"${clear_backupmode}" = x"true" ]
+}
+is_instance_in_backup_mode() {
+	typeset count
+	count="`dbasql db_backup_mode | sed 's/COUNT//'`"
+	[ x"$count" != x"0" ]
+}
+clear_backup_mode() {
+	typeset output
+	output="`dbasql dbendbackup`"
+	ocf_log info "Oracle instance $ORACLE_SID alter database end backup: $output"
 }
 getdumpdest() {
 	#echo 'select value from v$parameter where name = \'user_dump_dest\';'
@@ -393,28 +455,49 @@ oracle_start() {
 		case "$status" in
 		"OPEN")
 			: nothing to be done, we can leave right now
-    		ocf_log info "Oracle instance $ORACLE_SID already running"
+			ocf_log info "Oracle instance $ORACLE_SID already running"
 			return $OCF_SUCCESS
 		;;
 		"STARTED")
-			output=`dbasql dbmount dbopen`
+			output=`dbasql dbmount`
 		;;
 		"MOUNTED")
-			output=`dbasql dbopen`
+			: we proceed if mounted
 		;;
 		*) # status unknown
-			output=`dbasql dbstop dbstart`
+			output=`dbasql dbstop dbstart_mount`
 		;;
 		esac
 	else
-		output=`dbasql dbstart`
+		output="`dbasql dbstart_mount`"
 		# try to cleanup in case of
 		# ORA-01081: cannot start already-running ORACLE - shut it down first
 		if echo "$output" | grep ORA-01081 >/dev/null 2>&1; then
 			ora_cleanup
-			output=`dbasql dbstart`
+			output=`dbasql dbstart_mount`
 		fi
 	fi
+
+	# oracle instance should be mounted.
+	status="`dbasql dbstat`"
+	case "$status" in
+	"MOUNTED")
+		;;
+	*)
+		: error!!
+		ocf_log error "Oracle $ORACLE_SID can not mount."
+		return $OCF_ERR_GENERIC
+		;;
+	esac
+
+	# It is examined whether mode is "online backup mode",
+	# and if it is true, makes clear the mode.
+	# Afterwards, DB is opened.
+	if is_clear_backupmode_set && is_instance_in_backupmode; then
+		clear_backup_mode
+	fi
+	output=`dbasql dbopen`
+
 	if is_oracle_up && instance_live; then
 		: cool, we are up and running
 		ocf_log info "Oracle instance $ORACLE_SID started: $output"
@@ -474,10 +557,10 @@ oracle_monitor() {
 	then
 		#ocf_log info "Oracle instance $ORACLE_SID is alive"
 		return $OCF_SUCCESS
-    else
+	else
 		ocf_log info "Oracle instance $ORACLE_SID is down"
 		return $OCF_NOT_RUNNING
-    fi
+	fi
 }
 
 #
@@ -502,6 +585,15 @@ case "$1" in
 		exit $?;;
 
   *);;
+esac
+
+clear_backupmode=${OCF_RESKEY_clear_backupmode:-"false"}
+shutdown_method=${OCF_RESKEY_shutdown_method:-"checkpoint/abort"}
+
+case "${shutdown_method}" in
+"immediate") ;;
+"checkpoint/abort") ;;
+*) ocf_log error "unsupported shutdown_method, please read meta-data"
 esac
 
 if [ x = "x$OCF_RESKEY_sid" ]

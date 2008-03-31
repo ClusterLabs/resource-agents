@@ -169,7 +169,7 @@ setoraenv() {
 	LD_LIBRARY_PATH=$ORACLE_HOME/lib
 	LIBPATH=$ORACLE_HOME/lib
 	TNS_ADMIN=$ORACLE_HOME/network/admin
-	pATH=$ORACLE_HOME/bin:$ORACLE_HOME/dbs:$PATH
+	PATH=$ORACLE_HOME/bin:$ORACLE_HOME/dbs:$PATH
 	export ORACLE_SID ORACLE_HOME ORACLE_OWNER TNS_ADMIN
 	export LD_LIBRARY_PATH LIBPATH
 }
@@ -181,7 +181,7 @@ runasdba() {
 	if [ "$US" = "$ORACLE_OWNER" ]; then
 		$SH
 	else
-		su $ORACLE_OWNER
+		su - $ORACLE_OWNER
 	fi
 }
 
