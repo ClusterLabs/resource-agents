@@ -1223,7 +1223,8 @@ gi_do_hfile_write(struct gfs_sbd *sdp, struct gfs_ioctl *gi, int from_user)
 	gfs_write_calc_reserv(ip, gi->gi_size, &data_blocks, &ind_blocks);
 
 	error = gfs_glock_nq_init(ip->i_gl, LM_ST_EXCLUSIVE,
-				  LM_FLAG_PRIORITY | GL_SYNC, &i_gh);
+				 LM_FLAG_PRIORITY | GL_SYNC | GL_NOCANCEL_OTHER,
+				 &i_gh);
 	if (error)
 		return error;
 

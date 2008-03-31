@@ -1336,7 +1336,8 @@ glock_wait_internal(struct gfs_holder *gh)
 		spin_unlock(&gl->gl_spin);
 	}
 
-	if (gh->gh_flags & LM_FLAG_PRIORITY)
+	if ((gh->gh_flags & LM_FLAG_PRIORITY) &&
+	    !(gh->gh_flags & GL_NOCANCEL_OTHER))
 		do_cancels(gh);
 
 	wait_for_completion(&gh->gh_wait);

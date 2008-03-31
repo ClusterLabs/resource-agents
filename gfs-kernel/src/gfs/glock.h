@@ -34,6 +34,7 @@
 #define GL_SYNC           (0x00000800) /* Sync to disk when no more holders */
 #define GL_NOCANCEL       (0x00001000) /* Don't ever cancel this request */
 #define GL_READPAGE       (0x00002000) /* gfs_readpage() issued this lock request */
+#define GL_NOCANCEL_OTHER (0x00004000) /* Don't cancel other locks for this */
 
 #define GLR_TRYFAILED     (13)
 #define GLR_CANCELED      (14)
