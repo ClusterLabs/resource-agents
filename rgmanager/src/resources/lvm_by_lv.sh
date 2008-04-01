@@ -173,6 +173,13 @@ lv_activate_and_tag()
 	declare action=$1
 	declare tag=$2
 	declare lv_path=$3
+	typeset self_fence=""
+
+	case ${OCF_RESKEY_self_fence} in
+		"yes")          self_fence=1 ;;
+		1)              self_fence=1 ;;
+		*)              self_fence="" ;;
+	esac
 
 	if [ -z $action ] || [ -z $tag ] || [ -z $lv_path ]; then
 		ocf_log err "Supplied args: 1) $action, 2) $tag, 3) $lv_path"
@@ -194,7 +201,13 @@ lv_activate_and_tag()
 	else
 		ocf_log notice "Deactivating $lv_path"
 		if ! lv_activate_resilient $action $lv_path; then
-			ocf_log err "Unable to deactivate $lv_path"
+			if [ "$self_fence" ]; then
+				ocf_log err "Unable to deactivate $lv_path: REBOOTING"
+				sync
+				reboot -fn
+			else
+				ocf_log err "Unable to deactivate $lv_path"
+			fi
 			return $OCF_ERR_GENERIC
 		fi
 

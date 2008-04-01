@@ -242,17 +242,30 @@ function vg_stop
 {
 	local a
 	local results
+	typeset self_fence=""
+
+	case ${OCF_RESKEY_self_fence} in
+		"yes")          self_fence=1 ;;
+		1)              self_fence=1 ;;
+		*)              self_fence="" ;;
+	esac
 
 	#  Shut down the volume group
 	#  Do we need to make this resilient?
 	vgchange -an $OCF_RESKEY_vg_name
 
 	#  Make sure all the logical volumes are inactive
-	results=(`lvs -o name,attr --noheadings 2> /dev/null $OCF_RESKEY_vg_name`)
+	results=(`lvs -o name,attr --noheadings $OCF_RESKEY_vg_name 2> /dev/null`)
 	a=0
 	while [ ! -z ${results[$a]} ]; do
 		if [[ ${results[$(($a + 1))]} =~ ....a. ]]; then
-			ocf_log err "Logical volume $OCF_RESKEY_vg_name/${results[$a]} failed to shutdown"
+			if [ "$self_fence" ]; then
+				ocf_log err "Unable to deactivate $lv_path REBOOT"
+				sync
+				reboot -fn
+			else
+				ocf_log err "Logical volume $OCF_RESKEY_vg_name/${results[$a]} failed to shutdown"
+			fi
 			return $OCF_ERR_GENERIC
 		fi
 		a=$(($a + 2))

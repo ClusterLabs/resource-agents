@@ -39,7 +39,18 @@
                 If you can see this, your GUI is broken.
             </shortdesc>
 	    <content type="string"/>
-        </parameter>
+	</parameter>
+
+	<parameter name="self_fence">
+	    <longdesc lang="en">
+		If set and the clean up of the tags fails, the node will
+		immediately reboot.
+	    </longdesc>
+	    <shortdesc lang="en">
+		Fence the node if it is not able to clean up LVM tags
+	    </shortdesc>
+	    <content type="boolean"/>
+	</parameter>
 
 	<parameter name="nfslock" inherit="service%nfslock">
 	    <longdesc lang="en">
