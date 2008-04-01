@@ -13,7 +13,7 @@
 #####
 
 import sys, re, pexpect
-sys.path.append("../lib/")
+sys.path.append("@FENCELIBDIR@")
 from fencing import *
 
 def get_power_status(conn, options):

@@ -66,6 +66,7 @@ xenlibdir ?= @XENLIBDIR@
 virtincdir ?= @VIRTINCDIR@
 virtlibdir ?= @VIRTLIBDIR@
 fence_agents ?= @FENCE_AGENTS@
+fencelibdir ?= @FENCELIBDIR@
 enable_xen ?= @ENABLE_XEN@
 without_gnbd-kernel/src ?= @DISABLE_GNBD@
 without_gfs-kernel/src/gfs ?= @DISABLE_GFS@

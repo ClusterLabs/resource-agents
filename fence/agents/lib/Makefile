@@ -1,8 +1,8 @@
 ##############################################################################
 ###############################################################################
 ##
-##  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-##  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
+##  Copyright (C) 2008 Fabio M. Di Nitto <fabbione@fabbione.net
+##  All rights reserved.
 ##  
 ##  This copyrighted material is made available to anyone wishing to use,
 ##  modify, copy, or redistribute it subject to the terms and conditions
@@ -11,18 +11,13 @@
 ###############################################################################
 ###############################################################################
 
-include ../../make/defines.mk
+FENCELIB= fencing
 
-SUBDIRS = ${fence_agents} lib
+all:
 
-all: ${SUBDIRS}
+include ../../../make/defines.mk
+include $(OBJDIR)/make/clean.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 
-%:
-	set -e && \
-	for i in ${SUBDIRS}; do \
-		if [ "$$i" = "xvm" ] && [ "${enable_xen}" != "1" ] && [ "$@" != "clean" ]; then \
-			continue; \
-		else \
-			${MAKE} -C $$i $@; \
-		fi; \
-	done
+clean: generalclean
