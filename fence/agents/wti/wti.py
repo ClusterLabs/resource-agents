@@ -16,6 +16,12 @@ import sys, re, pexpect
 sys.path.append("@FENCELIBDIR@")
 from fencing import *
 
+#BEGIN_VERSION_GENERATION
+RELEASE_VERSION="New WTI Agent - test release on steroids"
+REDHAT_COPYRIGHT=""
+BUILD_DATE="March, 2008"
+#END_VERSION_GENERATION
+
 def get_power_status(conn, options):
 	try:
 		conn.send("/S"+"\r\n")
