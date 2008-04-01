@@ -6,16 +6,16 @@ include $(OBJDIR)/make/clean.mk
 include $(OBJDIR)/make/install.mk
 include $(OBJDIR)/make/uninstall.mk
 
-$(TARGET):
-	: > $(TARGET)
-	awk "{print}(\$$1 ~ /#BEGIN_VERSION_GENERATION/){exit 0}" $(S)/$(TARGET).py >> $(TARGET)
-	echo "RELEASE_VERSION=\"${RELEASE_VERSION}\";" >> $(TARGET)
-	${DEF2VAR} ${SRCDIR}/config/copyright.cf sh REDHAT_COPYRIGHT >> $(TARGET)
-	echo "BUILD_DATE=\"(built `date`)\";" >> $(TARGET)
-	awk -v p=0 "(\$$1 ~ /#END_VERSION_GENERATION/){p = 1} {if(p==1)print}" $(S)/$(TARGET).py >> $(TARGET)
-	chmod +x $(TARGET)
+%: $(S)/%.py
+	awk "{print}(\$$1 ~ /#BEGIN_VERSION_GENERATION/){exit 0}" $^ >> $@
+	echo "RELEASE_VERSION=\"${RELEASE_VERSION}\";" >> $@
+	${DEF2VAR} ${SRCDIR}/config/copyright.cf sh REDHAT_COPYRIGHT >> $@
+	echo "BUILD_DATE=\"(built `date`)\";" >> $@
+	awk -v p=0 "(\$$1 ~ /#END_VERSION_GENERATION/){p = 1} {if(p==1)print}" $^ >> $@
+	sed -i -e 's#@FENCELIBDIR@#${fencelibdir}#g' $@
 ifdef MIBRESOURCE
-	sed -i -e 's#@MIBDIR@#${mibdir}#g' -e 's#@SNMPBIN@#${snmpbin}#g' $(TARGET)
+	sed -i -e 's#@MIBDIR@#${mibdir}#g' -e 's#@SNMPBIN@#${snmpbin}#g' $@
 endif
+	chmod +x $@
 
 clean: generalclean
