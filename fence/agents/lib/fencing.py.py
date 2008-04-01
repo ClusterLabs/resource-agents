@@ -8,6 +8,13 @@ import sys, getopt, time, os
 import pexpect, re
 import telnetlib
 
+## do not add code here.
+#BEGIN_VERSION_GENERATION
+RELEASE_VERSION="New fence lib agent - test release on steroids"
+REDHAT_COPYRIGHT=""
+BUILD_DATE="March, 2008"
+#END_VERSION_GENERATION
+
 POWER_TIMEOUT = 20
 SHELL_TIMEOUT = 3
 LOGIN_TIMEOUT = 5
@@ -226,7 +233,8 @@ def check_input(device_opt, opt):
 		sys.exit(0)
 
 	if options.has_key("-V"):
-		print "Version: 0.3 - 2008/03/19"
+		print RELEASE_VERSION, BUILD_DATE
+		print REDHAT_COPYRIGHT
 		sys.exit(0)
 
 	if options.has_key("-v"):

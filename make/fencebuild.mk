@@ -1,4 +1,6 @@
+ifndef FENCELIB
 SBINDIRT=$(TARGET)
+endif
 
 all: $(TARGET)
 

@@ -53,5 +53,5 @@ ifdef MIBRESOURCE
 endif
 ifdef FENCELIB
 	install -d ${DESTDIR}/${fencelibdir}
-	install -m644 $(S)/${FENCELIB}.py ${DESTDIR}/${fencelibdir}
+	install -m644 $(S)/${FENCELIB} ${DESTDIR}/${fencelibdir}
 endif

@@ -33,5 +33,5 @@ ifdef MIBRESOURCE
 	${UNINSTALL} ${MIBRESOURCE} ${mibdir}
 endif
 ifdef FENCELIB
-	${UNINSTALL} ${FENCELIB}.py ${FENCELIB}.pyc ${DESTDIR}/${fencelibdir}
+	${UNINSTALL} ${FENCELIB}* ${DESTDIR}/${fencelibdir}
 endif

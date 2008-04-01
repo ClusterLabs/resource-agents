@@ -11,13 +11,14 @@
 ###############################################################################
 ###############################################################################
 
-FENCELIB= fencing
-
-all:
-
 include ../../../make/defines.mk
-include $(OBJDIR)/make/clean.mk
-include $(OBJDIR)/make/install.mk
-include $(OBJDIR)/make/uninstall.mk
 
-clean: generalclean
+ifdef enable_experimental_fence_agents
+
+TARGET= fencing.py
+
+FENCELIB= $(TARGET)
+
+include $(OBJDIR)/make/fencebuild.mk
+
+endif
