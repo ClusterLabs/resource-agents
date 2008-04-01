@@ -11,7 +11,8 @@
 ###############################################################################
 ###############################################################################
 
+include ../../../make/defines.mk
+
 TARGET= fence_drac
 
-include ../../../make/defines.mk
-include $(OBJDIR)/make/fenceperl.mk
+include $(OBJDIR)/make/fencebuild.mk

@@ -11,7 +11,8 @@
 ###############################################################################
 ###############################################################################
 
+include ../../../make/defines.mk
+
 TARGET= fence_apc
 
-include ../../../make/defines.mk
-include $(OBJDIR)/make/fencepy.mk
+include $(OBJDIR)/make/fencebuild.mk

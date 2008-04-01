@@ -33,7 +33,7 @@ all: scripts ${SUBDIRS}
 
 # Fix scripts permissions
 scripts:
-	chmod 755 ${SRCDIR}/scripts/*.pl ${SRCDIR}/scripts/define2var
+	chmod 755 ${SRCDIR}/scripts/*.pl ${SRCDIR}/scripts/fenceparse
 
 ${SUBDIRS}:
 	[ -n "${without_$@}" ] || ${MAKE} -C $@ all

@@ -89,5 +89,4 @@ CONFDIR=@CONFDIR@
 CONFFILE=@CONFFILE@
 
 UNINSTALL = @SRCDIR@/scripts/uninstall.pl
-DEF2VAR = @SRCDIR@/scripts/define2var
-
+FENCEPARSE = @SRCDIR@/scripts/fenceparse
