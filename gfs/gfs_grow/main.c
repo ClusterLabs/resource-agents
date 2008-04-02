@@ -683,11 +683,13 @@ create_rgrps(void)
 	uint64_t space = devsize - fssize;
 	uint64_t optimal_rgrp_size = RGRP_STUFFED_BLKS(&fs_sb) +
 		14 * RGRP_BITMAP_BLKS(&fs_sb) + 15;
-	uint64_t rgrps = 1 + space / optimal_rgrp_size;
+	uint64_t rgrps = space / optimal_rgrp_size;
 	uint64_t offset = fssize;
 	uint64_t rgsize;
 	uint64_t n;
 
+	if (space % optimal_rgrp_size)
+		rgrps++;
 	rgsize = optimal_rgrp_size;
 
 	for (n = 0; n < rgrps; n++)
