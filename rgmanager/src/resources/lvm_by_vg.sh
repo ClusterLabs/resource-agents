@@ -203,7 +203,7 @@ function vg_start
 	else
 		# The activation commands succeeded, but did they do anything?
 		# Make sure all the logical volumes are active
-		results=(`lvs -o name,attr --noheadings 2> /dev/null $OCF_RESKEY_vg_name`)
+		results=(`lvs -o name,attr --noheadings $OCF_RESKEY_vg_name 2> /dev/null`)
 		a=0
 		while [ ! -z ${results[$a]} ]; do
 			if [[ ! ${results[$(($a + 1))]} =~ ....a. ]]; then
