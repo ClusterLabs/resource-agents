@@ -55,9 +55,8 @@ function clvm_check
 function ha_lvm_proper_setup_check
 {
 	##
-	# Machine's cluster node name must be present as
-	# a tag in lvm.conf:activation/volume_list and the volume group
-	# to be failed over must NOT be there.
+	# The default for lvm.conf:activation/volume_list is empty,
+	# this must be changed for HA LVM.
 	##
 	if ! lvm dumpconfig activation/volume_list >& /dev/null; then
 		ocf_log err "HA LVM:  Improper setup detected"
@@ -65,12 +64,21 @@ function ha_lvm_proper_setup_check
 		return $OCF_ERR_GENERIC
 	fi
 
+	##
+	# Machine's cluster node name must be present as
+	# a tag in lvm.conf:activation/volume_list
+	##
 	if ! lvm dumpconfig activation/volume_list | grep $(local_node_name); then
 		ocf_log err "HA LVM:  Improper setup detected"
 		ocf_log err "- @$(local_node_name) missing from \"volume_list\" in lvm.conf"
 		return $OCF_ERR_GENERIC
 	fi
 
+	##
+	# The volume group to be failed over must NOT be in
+	# lvm.conf:activation/volume_list; otherwise, machines
+	# will be able to activate the VG regardless of the tags
+	##
 	if lvm dumpconfig activation/volume_list | grep $OCF_RESKEY_vg_name; then
 		ocf_log err "HA LVM:  Improper setup detected"
 		ocf_log err "- $OCF_RESKEY_vg_name found in \"volume_list\" in lvm.conf"
