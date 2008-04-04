@@ -42,9 +42,6 @@ static const char *usage[] = {
 	"Clear a flag on a inode\n",
 	"  gfs2_tool clearflag flag <filenames>\n",
 	"\n",
-	"Print the counters for a filesystem\n",
-	"  gfs2_tool counters <mountpoint>\n",
-	"\n",
 	"Do a GFS2 specific \"df\":\n",
 	"  gfs2_tool df <mountpoint>\n",
 	"\n",
@@ -231,8 +228,6 @@ main(int argc, char *argv[])
 
 	if (strcmp(action, "clearflag") == 0)
 		set_flag(argc, argv);
-	else if (strcmp(action, "counters") == 0)
-		print_counters(argc, argv);
 	else if (strcmp(action, "df") == 0)
 		print_df(argc, argv);
 	else if (strcmp(action, "freeze") == 0)

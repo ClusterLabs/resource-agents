@@ -23,8 +23,7 @@ include $(OBJDIR)/make/clean.mk
 include $(OBJDIR)/make/install.mk
 include $(OBJDIR)/make/uninstall.mk
 
-OBJS=	counters.o \
-	df.o \
+OBJS=	df.o \
 	layout.o \
 	main.o \
 	misc.o \
