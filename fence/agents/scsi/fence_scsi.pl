@@ -280,7 +280,7 @@ sub get_scsi_devices
     my ($in, $out, $err);
 
     my $cmd = "vgs --config 'global { locking_type = 0 }'" .
-              "    --noheadings --separator : -o vg_attr,pv_name";
+              "    --noheadings --separator : -o vg_attr,pv_name 2> /dev/null";
 
     my $pid = open3($in, $out, $err, $cmd) or die "$!\n";
 
