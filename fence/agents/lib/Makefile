@@ -19,6 +19,6 @@ TARGET= fencing.py
 
 FENCELIB= $(TARGET)
 
-include $(OBJDIR)/make/fencebuild.mk
-
 endif
+
+include $(OBJDIR)/make/fencebuild.mk
