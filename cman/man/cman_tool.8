@@ -24,8 +24,8 @@ to join an existing cluster or (if no existing cluster exists) then to form
 a new one on its own.
 .br
 If no options are given to this command then it will take the cluster 
-configuration information from CCS. However, it is possible to provide 
-all the information on the command-line or to override CCS values by using
+configuration information from cluster.conf. However, it is possible to provide 
+all the information on the command-line or to override cluster.conf values by using
 the command line.
 
 .TP
@@ -131,7 +131,7 @@ name as it appears in 'cman_tool nodes'.
 .I -r <config_version>
 The new config version. You don't need to use this when adding a new node,
 the new cman node will tell the rest of the cluster to get their latest
-version of the config file from CCS automatically.
+version of the config file automatically.
 .SH "WAIT" OPTIONS
 .TP
 .I -q
@@ -161,9 +161,8 @@ Number of votes this node has in the cluster. Defaults to 1.
 Number of expected votes for the whole cluster. If different nodes 
 provide different values then the highest is used. The cluster will
 only operate when quorum is reached - that is more than half the
-available votes are available to the cluster. There is no default for
-this value. If you are using CCS then ccs_tool will use the total
-number of votes for all nodes in the configuration file.
+available votes are available to the cluster. The default for
+this value is the total number of votes for all nodes in the configuration file.
 .TP
 .I -2
 Sets the cluster up for a special "two node only" mode. Because of the
@@ -176,30 +175,28 @@ existing cluster and reconfiguring it. Expected votes should be set to
 .TP
 .I -n <nodename>
 Overrides the node name. By default the unqualified hostname is used. This
-option can also be used to specify which interface is used for cluster
-communication as cman_tool will (unless multicast is specified below)
-use the broadcast address associated with that hostname. If you
-are using IPv6 then you will have to use multicast rather than broadcast.
+option is also used to specify which interface is used for cluster
+communication. 
 .TP
 .I -N <nodeid>
 Overrides the node ID for this node. Normally, nodes are assigned a 
-node id in CCS. If you specify an incorrect node ID here, the
-node might not be allowed to join the cluster.
+node id in cluster.conf. If you specify an incorrect node ID here, the
+node might not be allowed to join the cluster. Setting node IDs in the
+configuration is a far better way to do this.
+.BR
+Note that the node's application to join the cluster may be rejected if you
+try to set the nodeid to one that has already been used, or if the node 
+was previously a member of the cluster but with a different nodeid.
 .TP
 .I -o <nodename>
 Override the name this node will have in the cluster. This will
 normally be the hostname or the first name specified by -n.
 Note how this differs from -n: -n tells cman_tool how to find
-the broadcast address and/or the entry in CCS. -o simply
+the host address and/or the entry in the configuration file. -o simply
 changes the name the node will have in the cluster and has no
 bearing on the actual name of the machine. Use this option
 will extreme caution.
 .BR
-Setting node IDs in CCS is a far better way to do this though.
-.BR
-Note that the node's application to join the cluster may be rejected if you
-try to set the nodeid to one that has already been used, or if the node 
-was previously a member of the cluster but with a different nodeid.
 .TP
 .I -m <multicast-address>
 Specifies a multicast address to use for cluster communication. This
@@ -234,7 +231,7 @@ Note that just because cman_tool has given up, does not mean that cman itself
 has stopped trying to join a cluster.
 .TP
 .I -X
-Tells cman not to use CCS to get cluster information. If you use this option then cman will
+Tells cman not to use the configuration file to get cluster information. If you use this option then cman will
 apply several defaults to the cluster to get it going. The cluster name will be 
 "RHCluster", node IDs will default to the IP address of the node and remote node 
 names will show up as Node<nodeid>. All of these, apart from the node names can
@@ -242,7 +239,7 @@ be overridden on the cman_tool command-line if required.
 .br
 If you have to set up fence devices, services or anything else in cluster.conf then
 this option is probably not worthwhile to you - the extra readability of sensible node
-names and numbers will make it worth using CCS for the cluster too. But for a simple
+names and numbers will make it worth using cluster.conf for the cluster too. But for a simple
 failover cluster this might save you some effort.
 .br
 On each node using this configuration you will need to have the same authorization key
@@ -258,7 +255,7 @@ then copy that file to all nodes you want to join the cluster.
 .br
 .TP
 .I -C
-Overrides the default configuration module. Usually cman uses CCSD to load its
+Overrides the default configuration module. Usually cman uses ccsd to load its
 configuration. If you have your configuration database held elsewhere (eg LDAP) and 
 have a configuration plugin for it, then you should specify the name of the module
 (see the documentation for the module for the name of it - it's not necessarily the 
@@ -378,7 +375,7 @@ This section details how the configuration systems work in cman. You might need 
 to cman_tool, or writing your own configuration subsystem.
 .br
 By default cman uses two configuration plugins to OpenAIS. The first, 'ccsconfig', reads the configuration information
-stored in cluster.conf and stores it in an internal database, in the same schema as it finds in CCS. 
+stored in cluster.conf and stores it in an internal database, in the same schema as it finds in cluster.conf. 
 The second plugin, 'cmanpreconfig', takes the information in that the database, adds several cman defaults, determines 
 the OpenAIS node name and nodeID
 and formats the information in a similar manner to openais.conf(5). OpenAIS then reads those keys to start the cluster protocol.
