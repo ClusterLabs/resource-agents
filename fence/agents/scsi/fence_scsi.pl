@@ -107,10 +107,6 @@ sub get_options_stdin
 	{
 	    $opt_n = $val;
 	}
-	elsif ($name eq "nodename")
-	{
-	    $opt_n = $val;
-	}
 	elsif ($name eq "self")
 	{
 	    $opt_s = $val;
