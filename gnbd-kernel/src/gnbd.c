@@ -266,21 +266,19 @@ static const char *gnbdcmd_to_ascii(int cmd)
 
 static void gnbd_end_request(struct request *req)
 {
-	int uptodate = (req->errors == 0) ? 1 : 0;
+	int error = req->errors ? -EIO : 0;
 	struct request_queue *q = req->q;
 	unsigned long flags;
 
 	dprintk(DBG_BLKDEV, "%s: request %p: %s\n", req->rq_disk->disk_name,
-			req, uptodate? "done": "failed");
+			req, error ? "failed" : "done");
 
-	if (!uptodate)
+	if (error)
 		printk("%s %d called gnbd_end_request with an error\n",
 		       current->comm, current->pid);	
 	
 	spin_lock_irqsave(q->queue_lock, flags);
-	if (!end_that_request_first(req, uptodate, req->nr_sectors)) {
-		end_that_request_last(req, uptodate);
-	}
+	__blk_end_request(req, error, req->nr_sectors << 9);
 	spin_unlock_irqrestore(q->queue_lock, flags);
 }
 
@@ -879,10 +877,8 @@ static int __init gnbd_init(void)
 	struct timeval tv;
 	int i;
 
-	if (sizeof(struct gnbd_request) != 28) {
-		printk(KERN_CRIT "gnbd: sizeof gnbd_request needs to be 28 in order to work!\n" );
-		return -EIO;
-	}
+	BUILD_BUG_ON(sizeof(struct gnbd_request) != 28);
+
 	shutdown_req.cmd_type = REQ_TYPE_SPECIAL;
 	gnbd_cmd(&shutdown_req) = GNBD_CMD_DISC;
 	shutdown_req.sector = 0;
@@ -984,7 +980,7 @@ static int __init gnbd_init(void)
 		set_capacity(disk, 0);
 		add_disk(disk);
 		if(sysfs_create_link(&gnbd_dev[i].class_dev.kobj,
-					&gnbd_dev[i].disk->kobj, "block"))
+					&gnbd_dev[i].disk->dev.kobj, "block"))
 			goto out_remove_disk;
 		
 	}

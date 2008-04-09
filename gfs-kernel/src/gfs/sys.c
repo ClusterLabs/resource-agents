@@ -85,24 +85,20 @@ static struct kobj_type gfs_ktype = {
 	.sysfs_ops     = &gfs_attr_ops,
 };
 
-static struct kset gfs_kset = {
-	.ktype  = &gfs_ktype,
-};
+static struct kset *gfs_kset;
 
 int gfs_sys_fs_add(struct gfs_sbd *sdp)
 {
 	int error;
 
-	sdp->sd_kobj.kset = &gfs_kset;
-	sdp->sd_kobj.ktype = &gfs_ktype;
+	sdp->sd_kobj.kset = gfs_kset;
 
-	error = kobject_set_name(&sdp->sd_kobj, "%s", sdp->sd_table_name);
+	error = kobject_init_and_add(&sdp->sd_kobj, &gfs_ktype, NULL,
+				     "%s", sdp->sd_table_name);
 	if (error)
 		goto fail;
 
-	error = kobject_register(&sdp->sd_kobj);
-	if (error)
-		goto fail;
+	kobject_uevent(&sdp->sd_kobj, KOBJ_ADD);
 
 	return 0;
 
@@ -112,20 +108,21 @@ int gfs_sys_fs_add(struct gfs_sbd *sdp)
 
 void gfs_sys_fs_del(struct gfs_sbd *sdp)
 {
-	kobject_unregister(&sdp->sd_kobj);
+	kobject_put(&sdp->sd_kobj);
 }
 
 int gfs_sys_init(void)
 {
 	gfs_sys_margs = NULL;
 	spin_lock_init(&gfs_sys_margs_lock);
-	kobject_set_name(&gfs_kset.kobj, "gfs");
-	kobj_set_kset_s(&gfs_kset, fs_subsys);
-	return kset_register(&gfs_kset);
+	gfs_kset = kset_create_and_add("gfs", NULL, fs_kobj);
+	if (!gfs_kset)
+		return -ENOMEM;
+	return 0;
 }
 
 void gfs_sys_uninit(void)
 {
 	kfree(gfs_sys_margs);
-	kset_unregister(&gfs_kset);
+	kset_unregister(gfs_kset);
 }
