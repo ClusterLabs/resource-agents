@@ -2571,6 +2571,8 @@ int main(int argc, char *argv[])
 	max_block = lseek(fd, 0, SEEK_END) / bufsize;
 
 	read_superblock(fd);
+	max_block = lseek(fd, 0, SEEK_END) / bufsize;
+	blockstack[0].block = 0x10 * (4096 / bufsize);
 	strcpy(sbd.device_name, device);
 	if (!gfs1)
 		read_master_dir();
