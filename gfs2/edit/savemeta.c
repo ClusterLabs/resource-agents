@@ -631,7 +631,7 @@ void save_inode_data(int out_fd)
 	/* Process directory exhash inodes */
 	if (S_ISDIR(inode->i_di.di_mode)) {
 		if (inode->i_di.di_flags & GFS2_DIF_EXHASH) {
-			save_indirect_blocks(out_fd, cur_list, mybh,
+			save_indirect_blocks(out_fd, cur_list, metabh,
 					     height, 0);
 		}
 	}

@@ -70,9 +70,9 @@ void print_gfs2(const char *fmt, ...)
 	va_start(args, fmt);
 	vsprintf(string, fmt, args);
 	if (termlines)
-		printw(string);
+		printw("%s", string);
 	else
-		printf(string);
+		printf("%s", string);
 	va_end(args);
 }
 
@@ -127,9 +127,9 @@ void print_it(const char *label, const char *fmt, const char *fmt2, ...)
 		vsprintf(tmp_string, fmt, args);
 
 		if (termlines)
-			printw(tmp_string);
+			printw("%s", tmp_string);
 		else
-			printf(tmp_string);
+			printf("%s", tmp_string);
 		check_highlight(FALSE);
 
 		if (fmt2) {
@@ -159,10 +159,10 @@ void print_it(const char *label, const char *fmt, const char *fmt2, ...)
 				fmtstring="(decimal)";
 			if (termlines) {
 				move(line, 50);
-				printw(fmtstring);
+				printw("%s", fmtstring);
 			}
 			else
-				printf(fmtstring);
+				printf("%s", fmtstring);
 		}
 		if (termlines) {
 			refresh();
