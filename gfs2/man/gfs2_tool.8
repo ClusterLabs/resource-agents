@@ -97,19 +97,15 @@ client when you do this.  No one should have to use this.
 Print out the superblock.
 .TP
 \fBsetflag\fP \fIFlag\fR \fIFile1\fR \fIFile2\fR \fI...\fR 
-Set an attribute flag on a file.  There are six currently
-supported flags.  They are jdata, directio, immutable, appendonly,
-noatime, and sync.  In most cases, the chattr command may be used
-rather than gfs2_tool to set attributes.
+Set an attribute flag on a file.  The currently supported flags are 
+jdata, immutable, appendonly, noatime, and sync.  In most cases, the 
+chattr command may be used rather than gfs2_tool to set attributes.
 
 The \fIjdata\fR flag causes all the data written to a file
 to be journaled.  If the \fIjdata\fR flag is set for a directory,
 all files and directories subsequently created within that directory
 are also journaled.  This behavior replaces the old \fIinherit_jdata\fR
 flag from gfs.  Same as chattr +j.
-
-The \fIdirectio\fR flag causes all I/O to a regular file to be Direct
-I/O, even if the O_DIRECT flag isn't used on the open() command.
 
 The \fIimmutable\fR flag marks the file immutable. The behavior is 
 similar to the immutable flag in the ext2/3 filesystems.  All write 
