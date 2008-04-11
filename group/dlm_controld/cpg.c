@@ -32,7 +32,10 @@ struct member {
 struct node {
 	struct list_head list;
 	int nodeid;
-	int needs_fencing;
+	int check_fencing;
+	int check_quorum;
+	int check_fs;
+	int fs_notify;
 	struct timeval add_time;
 };
 
@@ -266,8 +269,8 @@ static void free_ls(struct lockspace *ls)
    when we see a node not in this list, add entry for it with zero add_time
    record the time we get a good start message from the node, add_time
    clear add_time if the node leaves
-   if node fails with non-zero add_time, set needs_fencing
-   when a node is fenced, clear add_time and clear needs_fencing
+   if node fails with non-zero add_time, set check_fencing
+   when a node is fenced, clear add_time and clear check_fencing
    if a node remerges after this, no good start message, no new add_time set
    if a node fails with zero add_time, it doesn't need fencing
    if a node remerges before it's been fenced, no good start message, no new
@@ -340,63 +343,109 @@ static void node_history_fail(struct lockspace *ls, int nodeid)
 	}
 
 	if (!timerisset(&node->add_time))
-		node->needs_fencing = 1;
+		node->check_fencing = 1;
+
+	node->check_quorum = 1;
+	node->check_fs = 1;
 }
 
-static int failed_nodes_fenced(struct lockspace *ls)
+static int check_fencing_done(struct lockspace *ls)
 {
-#if 0
 	struct node *node;
 	struct timeval last_fenced;
 	int wait_count = 0;
 
 	list_for_each_entry(node, &ls->node_history, list) {
-		if (!node->needs_fencing)
+		if (!node->check_fencing)
 			continue;
 
 		/* check with fenced to see if the node has been
 		   fenced since node->add_time */
 
-		fencedomain_last_success(node->nodeid, &last_fenced);
+		/* fenced_last_success(node->nodeid, &last_fenced); */
+		gettimeofday(&last_fenced, NULL);
 
-		if (last_fenced <= node->add_time) {
+		if (timercmp(&last_fenced, &node->add_time, >)) {
+			node->check_fencing = 0;
+			timerclear(&node->add_time);
+		} else {
+			log_group(ls, "check_fencing %d needs fencing",
+				  node->nodeid);
 			wait_count++;
-			continue;
 		}
-
-		/* node has been fenced */
-		node->needs_fencing = 0;
-		timerclear(&node->add_time);
 	}
 
-	if (wait_count) {
+	if (wait_count)
 		return 0;
-	}
 
 	/* now check if there are any outstanding fencing ops (for nodes
 	   we may not have seen in any lockspace), and return 0 if there
 	   are any */
 
-	fencedomain_pending_count(&pending);
+	/*
+	fenced_pending_count(&pending);
 	if (pending)
 		return 0;
-#endif
+	*/
 	return 1;
 }
 
-static int cluster_has_quorum(struct lockspace *ls)
+static int check_quorum_done(struct lockspace *ls)
 {
-	/* verify cman_last_failure_time() for this node is more recent
-	   than when we last saw the node added; then we know that the
-	   quorum result from cman is accounting for the given failure. */
+	struct node *node;
+	int wait_count = 0;
+
+	if (!cman_quorate) {
+		log_group(ls, "check_quorum %d", cman_quorate);
+		return 0;
+	}
+
+	list_for_each_entry(node, &ls->node_history, list) {
+		if (!node->check_quorum)
+			continue;
+
+		if (!is_cman_member(node->nodeid)) {
+			node->check_quorum = 0;
+		} else {
+			log_group(ls, "check_quorum %d is_cman_member",
+				  node->nodeid);
+			wait_count++;
+		}
+	}
+
+	if (wait_count)
+		return 0;
+
+	log_group(ls, "check_quorum done");
 	return 1;
 }
 
-static int cluster_filesystem_stopped(struct lockspace *ls)
+static int check_fs_done(struct lockspace *ls)
 {
-	/* communicate with fs daemon through the fscontrol:hostname
-	   cpg to check if the fs has been notified of any node failures
-	   in this change */
+	struct node *node;
+	int wait_count = 0;
+
+	/* no corresponding fs for this lockspace */
+	if (!ls->fs_registered)
+		return 1;
+
+	list_for_each_entry(node, &ls->node_history, list) {
+		if (!node->check_fs)
+			continue;
+
+		if (node->fs_notify) {
+			node->check_fs = 0;
+		} else {
+			log_group(ls, "check_fs %d needs fs notify",
+				  node->nodeid);
+			wait_count++;
+		}
+	}
+
+	if (wait_count)
+		return 0;
+
+	log_group(ls, "check_fs done");
 	return 1;
 }
 
@@ -490,7 +539,7 @@ static int wait_conditions_done(struct lockspace *ls)
 	   that have occured since the last change applied to dlm-kernel, not
 	   just the latest change */
 
-	if (!failed_nodes_fenced(ls)) {
+	if (!check_fencing_done(ls)) {
 		poll_fencing = 1;
 		return 0;
 	}
@@ -500,13 +549,13 @@ static int wait_conditions_done(struct lockspace *ls)
 	   sufficient because we don't want to start new lockspaces in an
 	   inquorate cluster */
 
-	if (!cluster_has_quorum(ls)) {
+	if (!check_quorum_done(ls)) {
 		poll_quorum = 1;
 		return 0;
 	}
 	poll_quorum = 0;
 
-	if (!cluster_filesystem_stopped(ls)) {
+	if (!check_fs_done(ls)) {
 		poll_fs = 1;
 		return 0;
 	}

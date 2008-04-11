@@ -881,6 +881,7 @@ int poll_ignore_plock;
 int plock_fd;
 int plock_ci;
 struct list_head lockspaces;
+int cman_quorate;
 int our_nodeid;
 char daemon_debug_buf[256];
 char dump_buf[DUMP_SIZE];

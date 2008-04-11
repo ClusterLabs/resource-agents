@@ -68,6 +68,7 @@ extern int poll_ignore_plock;
 extern int plock_fd;
 extern int plock_ci;
 extern struct list_head lockspaces;
+extern int cman_quorate;
 extern int our_nodeid;
 extern char daemon_debug_buf[256];
 extern char dump_buf[DUMP_SIZE];
@@ -149,6 +150,7 @@ struct lockspace {
 	int			joining;
 	int			leaving;
 	int			kernel_stopped;
+	int			fs_registered;
 	uint32_t		change_seq;
 	struct change		*started_change;
 	struct list_head	changes;

@@ -1816,7 +1816,7 @@ static int _unlink_checkpoint(struct lockspace *ls, SaNameT *name)
 	if (rv == SA_AIS_OK)
 		goto out_close;
 
-	log_error("unlink ckpt error %d %s", rv, ls->name);
+	log_group(ls, "unlink ckpt error %d %s", rv, ls->name);
 	ret = -1;
 
  status_retry:

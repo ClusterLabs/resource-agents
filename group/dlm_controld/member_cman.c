@@ -71,6 +71,8 @@ static void statechange(void)
 	int num_addrs;
 	struct cman_node_address *addrptr = addrs;
 
+	cman_quorate = cman_is_quorate(ch);
+
 	old_node_count = cman_node_count;
 	memcpy(&old_nodes, &cman_nodes, sizeof(old_nodes));
 
