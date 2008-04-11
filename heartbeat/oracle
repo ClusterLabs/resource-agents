@@ -493,7 +493,7 @@ oracle_start() {
 	# It is examined whether mode is "online backup mode",
 	# and if it is true, makes clear the mode.
 	# Afterwards, DB is opened.
-	if is_clear_backupmode_set && is_instance_in_backupmode; then
+	if is_clear_backupmode_set && is_instance_in_backup_mode; then
 		clear_backup_mode
 	fi
 	output=`dbasql dbopen`
