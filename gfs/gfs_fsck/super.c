@@ -1070,6 +1070,7 @@ int ri_update(struct fsck_sb *sdp)
 	struct gfs_rindex buf;
 	unsigned int rg, calc_rg_count;
 	int error, count1 = 0, count2 = 0;
+	int fix_grow_problems = 0, grow_problems = 0;
 	enum rgindex_trust_level { /* how far can we trust our RG index? */
 		blind_faith = 0, /* We'd like to trust the rgindex. We always used to
 							before bz 179069. This should cover most cases. */
@@ -1170,12 +1171,41 @@ int ri_update(struct fsck_sb *sdp)
 				osi_list_del(&expected_rgd->rd_list);
 				free(expected_rgd);
 			} /* if we can't trust the rg index */
+			else { /* blind faith -- just check for the gfs_grow problem */
+				if (rgd->rd_ri.ri_data == 4294967292) {
+					if (!fix_grow_problems) {
+						log_err("A problem with the rindex file caused by gfs_grow was detected.\n");
+						if(query(sdp, "Fix the rindex problem? (y/n)"))
+							fix_grow_problems = 1;
+					}
+					/* Keep a counter in case we hit it more than once. */
+					grow_problems++;
+					osi_list_del(&rgd->rd_list); /* take it out of the equation */
+					free(rgd);
+					continue;
+				} else if (fix_grow_problems) {
+					/* Once we detect the gfs_grow rindex problem, we have to */
+					/* rewrite the entire rest of the rindex file, starting   */
+					/* with the entry AFTER the one that has the problem.     */
+					gfs_rindex_out(&rgd->rd_ri, (char *)&buf);
+					error = writei(sdp->riinode, (char *)&buf,
+						       (rg - grow_problems) *
+						       sizeof(struct gfs_rindex),
+						       sizeof(struct gfs_rindex));
+					if (error != sizeof(struct gfs_rindex)) {
+						log_err("Unable to fix rindex entry %u.\n",
+							rg + 1);
+						goto fail;
+					}
+				}
+			}
 			error = fs_compute_bitstructs(rgd);
 			if (error)
 				break;
 			rgd->rd_open_count = 0;
 			count1++;
 		} /* for all RGs in the index */
+		rg -= grow_problems;
 		if (!error) {
 			log_info("%u resource groups found.\n", rg);
 			if (trust_lvl != blind_faith && rg != calc_rg_count)
@@ -1203,6 +1233,16 @@ int ri_update(struct fsck_sb *sdp)
 				error = -1;
 			}
 			sdp->rgcount = count1;
+		}
+		if (fix_grow_problems) {
+			osi_buf_t *dibh;
+
+			get_and_read_buf(sdp, sdp->sb.sb_rindex_di.no_addr, &dibh, 0);
+			sdp->riinode->i_di.di_size = rg * sizeof(struct gfs_rindex);
+			gfs_dinode_out(&sdp->riinode->i_di, BH_DATA(dibh));
+			write_buf(sdp, dibh, 0);
+			grow_problems = fix_grow_problems = 0;
+			relse_buf(sdp, dibh);
 		}
 		if (!error) { /* if no problems encountered with the rgs */
 			log_info("(passed)\n");

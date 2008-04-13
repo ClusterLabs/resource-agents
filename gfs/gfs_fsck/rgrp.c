@@ -35,6 +35,16 @@ int fs_compute_bitstructs(struct fsck_rgrp *rgd)
 	uint32 bytes_left, bytes;
 	int x;
 
+	/* Max size of an rg is 2GB.  A 2GB RG with (minimum) 512-byte blocks
+	   has 4194304 blocks.  We can represent 4 blocks in one bitmap byte.
+	   Therefore, all 4194304 blocks can be represented in 1048576 bytes.
+	   Subtract a metadata header for each 512-byte block and we get
+	   488 bytes of bitmap per block.  Divide 1048576 by 488 and we can
+	   be assured we should never have more than 2149 of them. */
+	if (length > 2149 || length == 0) {
+		log_err("Invalid length %u found in rindex.\n", length);
+		return -1;
+	}
 	if(!(rgd->rd_bits = (fs_bitmap_t *)malloc(length * sizeof(fs_bitmap_t)))) {
 		log_err("Unable to allocate bitmap structure\n");
 		stack;
