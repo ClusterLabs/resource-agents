@@ -295,8 +295,10 @@ static int calculate_quorum(int allow_decrease, int max_expected, unsigned int *
 		node = list_item(nodelist, struct cluster_node);
 
 		if (node->state == NODESTATE_MEMBER) {
-			highest_expected =
-				max(highest_expected, node->expected_votes);
+			if (max_expected)
+				node->expected_votes = max_expected;
+			else
+				highest_expected = max(highest_expected, node->expected_votes);
 			total_votes += node->votes;
 			total_nodes++;
 		}
@@ -2089,7 +2091,8 @@ void del_ais_node(int nodeid)
 		node->state = NODESTATE_DEAD;
 		cluster_members--;
 
-		if ((node->leave_reason & 0xF) & CLUSTER_LEAVEFLAG_REMOVED)
+		P_MEMB("del_ais_node %s, leave_reason=%x\n", node->name, node->leave_reason);
+		if ((node->leave_reason & 0xF) == CLUSTER_LEAVEFLAG_REMOVED)
 			recalculate_quorum(1, 1);
 		else
 			recalculate_quorum(0, 0);
