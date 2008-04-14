@@ -183,7 +183,7 @@ static struct lockspace *create_ls(char *name)
 	if (!ls)
 		goto out;
 	memset(ls, 0, sizeof(*ls));
-	strncpy(ls->name, name, MAXNAME);
+	strncpy(ls->name, name, MAX_LS_NAME);
 
 	INIT_LIST_HEAD(&ls->changes);
 	INIT_LIST_HEAD(&ls->node_history);
@@ -218,6 +218,8 @@ struct lockspace *find_ls_id(uint32_t id)
 	}
 	return NULL;
 }
+
+#define MAXARGS 8
 
 static char *get_args(char *buf, int *argc, char **argv, char sep, int want)
 {

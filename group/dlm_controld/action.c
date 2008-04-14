@@ -17,7 +17,7 @@ static int dir_members[MAX_NODES];
 static int dir_members_count;
 static int comms_nodes[MAX_NODES];
 static int comms_nodes_count;
-static char mg_name[MAXNAME+1];
+static char mg_name[MAX_LS_NAME+1];
 
 #define DLM_SYSFS_DIR "/sys/kernel/dlm"
 #define CLUSTER_DIR   "/sys/kernel/config/dlm/cluster"
@@ -87,7 +87,7 @@ static int get_mountgroup_name(uint32_t mg_id)
 
 		log_debug("get_mountgroup_name found %x %s %s",
 			  id, de->d_name, fsname);
-		strncpy(mg_name, fsname, 256);
+		strncpy(mg_name, fsname, sizeof(mg_name));
 		rv = 0;
 		break;
 	}

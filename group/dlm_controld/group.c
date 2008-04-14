@@ -26,12 +26,12 @@
 
 group_handle_t gh;
 static int cb_action;
-static char cb_name[MAX_GROUP_NAME_LEN+1];
+static char cb_name[MAX_LS_NAME+1];
 static int cb_event_nr;
 static unsigned int cb_id;
 static int cb_type;
 static int cb_member_count;
-static int cb_members[MAX_GROUP_MEMBERS];
+static int cb_members[MAX_NODES];
 
 
 static void stop_cbfn(group_handle_t h, void *private, char *name)

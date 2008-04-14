@@ -51,12 +51,29 @@
 #include "list.h"
 #include "linux_endian.h"
 
-#define MAXARGS		8
-#define MAXLINE		256
-#define MAXCON		4
-#define MAXNAME		255
-#define MAX_NODES	256 /* should be same as MAX_GROUP_MEMBERS */
+/* Maximum lockspace name length, should match MAX_LOCKSPACE_NAME in
+   linux/dlmconstants.h (copied in libdlm.h).  The libcpg limit is
+   larger at CPG_MAX_NAME_LENGTH 128.  Our cpg name includes a "dlm:"
+   prefix before the lockspace name. */
+
+#define MAX_LS_NAME	64
+
+/* Maximum members of a lockspace, should match CPG_MEMBERS_MAX in openais/cpg.h.
+   There are no max defines in dlm-kernel for lockspace members. */
+
+#define MAX_NODES	128
+
+/* Maximum number of IP addresses per node, when using SCTP and multi-ring in
+   openais.  In dlm-kernel this is DLM_MAX_ADDR_COUNT, currently 3. */
+
 #define MAX_NODE_ADDRESSES 4
+
+/* Max string length printed on a line, for debugging/dump output. */
+
+#define MAXLINE		256
+
+/* Size of the circular debug buffer. */
+
 #define DUMP_SIZE	(1024 * 1024)
 
 extern int daemon_debug_opt;
@@ -139,7 +156,7 @@ struct dlm_header {
 
 struct lockspace {
 	struct list_head	list;
-	char			name[MAXNAME+1];
+	char			name[MAX_LS_NAME+1];
 	uint32_t		global_id;
 
 	/* lockspace membership stuff */
