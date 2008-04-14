@@ -388,6 +388,7 @@ out:
 	return error;
 
 fail_dput:
+	gfs_inode_put(sdp->sd_linode);
 	if (sb->s_root) {
 		dput(sb->s_root);
 		sb->s_root = NULL;
