@@ -47,6 +47,10 @@
 #include "libdlm.h"
 #include <linux/dlm_device.h>
 
+/* this define will come through linux/dlm.h in 2.6.25-rc */
+#ifndef EXPERIMENTAL_BUILD
+#define DLM_LOCKSPACE_LEN 64
+#endif
 
 #define PROC_MISC		"/proc/misc"
 #define MISC_PREFIX		"/dev/misc/"
@@ -1262,32 +1266,48 @@ int dlm_ls_pthread_init(dlm_lshandle_t ls)
 
 static int create_lockspace_v5(const char *name, uint32_t flags)
 {
-	char reqbuf[sizeof(struct dlm_write_request_v5) + strlen(name)];
+	char reqbuf[sizeof(struct dlm_write_request_v5) + DLM_LOCKSPACE_LEN];
 	struct dlm_write_request_v5 *req = (struct dlm_write_request_v5 *)reqbuf;
+	int namelen = strlen(name);
 	int minor;
 
-	req->cmd = DLM_USER_CREATE_LOCKSPACE;
+	memset(reqbuf, 0, sizeof(reqbuf));
 	set_version_v5(req);
-	strcpy(req->i.lspace.name, name);
+
+	req->cmd = DLM_USER_CREATE_LOCKSPACE;
 	req->i.lspace.flags = flags;
 
-	minor = write(control_fd, req, sizeof(*req) + strlen(name));
+	if (namelen > DLM_LOCKSPACE_LEN) {
+		errno = EINVAL;
+		return -1;
+	}
+	memcpy(req->i.lspace.name, name, namelen);
+
+	minor = write(control_fd, req, sizeof(*req) + namelen);
 
 	return minor;
 }
 
 static int create_lockspace_v6(const char *name, uint32_t flags)
 {
-	char reqbuf[sizeof(struct dlm_write_request) + strlen(name)];
+	char reqbuf[sizeof(struct dlm_write_request) + DLM_LOCKSPACE_LEN];
 	struct dlm_write_request *req = (struct dlm_write_request *)reqbuf;
+	int namelen = strlen(name);
 	int minor;
 
-	req->cmd = DLM_USER_CREATE_LOCKSPACE;
+	memset(reqbuf, 0, sizeof(reqbuf));
 	set_version_v6(req);
-	strcpy(req->i.lspace.name, name);
+
+	req->cmd = DLM_USER_CREATE_LOCKSPACE;
 	req->i.lspace.flags = flags;
 
-	minor = write(control_fd, req, sizeof(*req) + strlen(name));
+	if (namelen > DLM_LOCKSPACE_LEN) {
+		errno = EINVAL;
+		return -1;
+	}
+	memcpy(req->i.lspace.name, name, namelen);
+
+	minor = write(control_fd, req, sizeof(*req) + namelen);
 
 	return minor;
 }

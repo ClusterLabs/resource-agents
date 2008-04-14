@@ -34,6 +34,13 @@
 
 #ifndef BUILDING_LIBDLM
 
+/*
+ * These two lengths are copied from linux/dlmconstants.h
+ * They are the max length of a lockspace name and the max length of a
+ * resource name.
+ */
+
+#define DLM_LOCKSPACE_LEN       64
 #define DLM_RESNAME_MAXLEN      64
 
 struct dlm_lksb {
