@@ -152,7 +152,7 @@ print_lockdump(int argc, char **argv)
 		file = fopen(path, "rt");
 		if (file) {
 			while (fgets(line, PATH_MAX, file)) {
-				printf(line);
+				printf("%s", line);
 			}
 			fclose(file);
 		} else {
