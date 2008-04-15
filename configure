@@ -83,6 +83,7 @@ my %options = (
 	fence_agents => \$fence_agents,
 	fencelibdir => \$fencelibdir,
 	enable_experimental_fence_agents => \$enable_experimental_fence_agents,
+	enable_crack_of_the_day => \$enable_crack_of_the_day,
 	enable_xen => \$enable_xen,
 	somajor => \$somajor,
 	sominor => \$sominor,
@@ -155,6 +156,7 @@ my $err = &GetOptions (\%options,
 		    'fence_agents=s',
 		    'fencelibdir=s',
 		    'enable_experimental_fence_agents',
+		    'enable_crack_of_the_day',
 		    'enable_xen',
 		    'without_ccs',
 		    'without_cman',
@@ -230,6 +232,7 @@ if ($help || !$err) {
   print "\t\tUse --fence_agents=help for a list\n";
   print "--fencelibdir=\tspecify directory where to install common fence python lib.  (Default: /usr/lib/fence)\n";
   print "--enable_experimental_fence_agents\tEnable build and install of experimental fence agents.  (Default: no)\n";
+  print "--enable_crack_of_the_day\tEnable build of highly experimental features that rely on code that is not yet available for general use. (Default: no)\n";
   print "--enable_xen\tEnable building of Xen-specific pieces\n";
   print "--without_ccs\tDisable ccs building  (Default: enabled)\n";
   print "--without_cman\tDisable cman building  (Default: enabled)\n";
@@ -523,6 +526,15 @@ if (!$fencelibdir) {
 if (!$enable_experimental_fence_agents) {
   $enable_experimental_fence_agents="";
 }
+if (!$enable_crack_of_the_day) {
+  $enable_crack_of_the_day="";
+} else {
+  print "\n********************************************************************************************\n";
+  print "WARNING: *you* have explicitly enabled all possible experimental features under development!\n";
+  print "         This code will have no mercy for your data and your machines. You have been warned!\n";
+  print "\n********************************************************************************************\n";
+  $enable_experimental_fence_agents=1;
+}
 if (!$enable_xen) {
   $enable_xen="";
 }
@@ -642,6 +654,7 @@ while (<IFILE>) {
   $_ =~ s/\@FENCE_AGENTS\@/$fence_agents/;
   $_ =~ s/\@FENCELIBDIR\@/$fencelibdir/;
   $_ =~ s/\@ENABLE_EXPERIMENTAL_FENCE_AGENTS\@/$enable_experimental_fence_agents/;
+  $_ =~ s/\@ENABLE_CRACK_OF_THE_DAY\@/$enable_crack_of_the_day/;
   $_ =~ s/\@ENABLE_XEN\@/$enable_xen/;
   $_ =~ s/\@DISABLE_CCS\@/$without_ccs/;
   $_ =~ s/\@DISABLE_CMAN\@/$without_cman/;
