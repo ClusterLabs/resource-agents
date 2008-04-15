@@ -243,7 +243,7 @@ if ($help || !$err) {
   print "--without_gfs2\tDisable gfs2 building  (Default: enabled)\n";
   print "--without_gnbd\tDisable gnbd building  (Default: enabled)\n";
   print "--without_rgmanager\tDisable rgmanager building  (Default: enabled)\n";
-  print "--disable_kernel_check\tDisable kernel version check (default: enabled)\n";
+  print "--disable_kernel_check\tDisable kernel version check (Default: enabled)\n";
   exit $ret;
 }
 
