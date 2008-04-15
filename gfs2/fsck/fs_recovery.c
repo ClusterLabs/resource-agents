@@ -125,7 +125,8 @@ static int buf_lo_scan_elements(struct gfs2_inode *ip, unsigned int start,
 
 		sd_found_metablocks++;
 
-		blkno = be64_to_cpu(*ptr++);
+		blkno = be64_to_cpu(*ptr);
+		ptr++;
 		if (gfs2_revoke_check(sdp, blkno, start))
 			continue;
 
@@ -218,8 +219,10 @@ static int databuf_lo_scan_elements(struct gfs2_inode *ip, unsigned int start,
 
 	gfs2_replay_incr_blk(ip, &start);
 	for (; blks; gfs2_replay_incr_blk(ip, &start), blks--) {
-		blkno = be64_to_cpu(*ptr++);
-		esc = be64_to_cpu(*ptr++);
+		blkno = be64_to_cpu(*ptr);
+		ptr++;
+		esc = be64_to_cpu(*ptr);
+		ptr++;
 
 		sd_found_jblocks++;
 
