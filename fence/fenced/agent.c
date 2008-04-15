@@ -27,7 +27,7 @@
 #include "ccs.h"
 
 #define MAX_METHODS		8
-#define MAX_DEVICES		4
+#define MAX_DEVICES		8
 #define MAX_AGENT_ARGS_LEN	512
 
 #define METHOD_NAME_PATH        "/cluster/clusternodes/clusternode[@name=\"%s\"]/fence/method[%d]/@name"
