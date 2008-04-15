@@ -12,6 +12,8 @@
 
 #include "dlm_daemon.h"
 #include "config.h"
+
+#ifdef EXPERIMENTAL_BUILD
 #include <linux/dlm_plock.h>
 
 #define PROC_MISC               "/proc/misc"
@@ -2293,3 +2295,20 @@ int dump_plocks(char *name, int fd)
 	return 0;
 }
 
+#else /* EXPERIMENTAL_BUILD */
+
+int setup_plocks(void) { return 0; };
+void process_plocks(int ci) { };
+int limit_plocks(void) { return 0; };
+void receive_plock(struct lockspace *ls, struct dlm_header *hd, int len) { };
+void receive_own(struct lockspace *ls, struct dlm_header *hd, int len) { };
+void receive_sync(struct lockspace *ls, struct dlm_header *hd, int len) { };
+void receive_drop(struct lockspace *ls, struct dlm_header *hd, int len) { };
+void process_saved_plocks(struct lockspace *ls) { };
+void close_plock_checkpoint(struct lockspace *ls) { };
+void store_plocks(struct lockspace *ls) { };
+void retrieve_plocks(struct lockspace *ls) { };
+void purge_plocks(struct lockspace *ls, int nodeid, int unmount) { };
+int dump_plocks(char *name, int fd) { return 0; };
+
+#endif /* EXPERIMENTAL_BUILD */

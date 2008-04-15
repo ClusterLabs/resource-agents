@@ -546,11 +546,13 @@ static int loop(void)
 			setup_deadlock();
 		}
 
+#ifdef EXPERIMENTAL_BUILD
 		rv = setup_plocks();
 		if (rv < 0)
 			goto out;
 		plock_fd = rv;
 		plock_ci = client_add(rv, process_plocks, NULL);
+#endif /* EXPERIMENTAL_BUILD */
 	}
 
 	for (;;) {
