@@ -29,7 +29,7 @@
 
 #include "gfs_tool.h"
 
-#define SIZE (65536)
+#define SIZE (4096)
 
 /**
  * get_tune - print out the current tuneable parameters for a filesystem

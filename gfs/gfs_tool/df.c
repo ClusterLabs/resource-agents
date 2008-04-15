@@ -30,7 +30,7 @@
 
 #include "gfs_tool.h"
 
-#define SIZE (65536)
+#define SIZE (4096)
 
 /**
  * do_df_one - print out information about one filesystem
