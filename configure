@@ -534,6 +534,7 @@ if (!$enable_crack_of_the_day) {
   print "         This code will have no mercy for your data and your machines. You have been warned!\n";
   print "\n********************************************************************************************\n";
   $enable_experimental_fence_agents=1;
+  $cflags="${cflags} -DEXPERIMENTAL_BUILD";
 }
 if (!$enable_xen) {
   $enable_xen="";
