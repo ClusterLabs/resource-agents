@@ -1,8 +1,7 @@
 ###############################################################################
 ###############################################################################
 ##
-##  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+##  Copyright (C) 2008 Red Hat, Inc.  All rights reserved.
 ##  
 ##  This copyrighted material is made available to anyone wishing to use,
 ##  modify, copy, or redistribute it subject to the terms and conditions
@@ -11,37 +10,37 @@
 ###############################################################################
 ###############################################################################
 
-TARGET = fenced
+TARGET= libfence
 
-SBINDIRT=$(TARGET)
+LIBDIRT=$(TARGET).so.$(SOMAJOR).$(SOMINOR)
 
-all: ${TARGET}
+LIBSYMT=$(TARGET).so.$(SOMAJOR)
+
+INCDIRT=$(TARGET).h
 
 include ../../make/defines.mk
+
+SHAREDLIB=$(TARGET).so.${SOMAJOR}.${SOMINOR}
+
+all: $(SHAREDLIB)
+
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
 include $(OBJDIR)/make/install.mk
 include $(OBJDIR)/make/uninstall.mk
 
-OBJS=	config.o \
-	cpg.o \
-	group.o \
-	main.o \
-	member_cman.o \
-	recover.o
+OBJS=	agent.o
 
-CFLAGS += -D_FILE_OFFSET_BITS=64
-CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${openaisincdir}
-CFLAGS += -I$(S) -I$(S)/../include -I$(SRCDIR)/group/lib
+CFLAGS += -fPIC
+CFLAGS += -I${ccsincdir}
 CFLAGS += -I${incdir}
 
-LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -L${openaislibdir} -lccs -lcman -lcpg
-LDFLAGS += -L../lib -lfence
-LDFLAGS += -L../../group/lib -l group
+LDFLAGS += -L${ccslibdir} -lccs
 
-
-${TARGET}: ${OBJS}
-	$(CC) -o $@ $^ $(LDFLAGS)
+$(TARGET).so.${SOMAJOR}.${SOMINOR}: $(OBJS)
+	$(CC) $(LDFLAGS) -shared -o $@ -Wl,-soname=$(TARGET).so.$(SOMAJOR) $<
+	ln -sf $(TARGET).so.$(SOMAJOR).$(SOMINOR) $(TARGET).so
+	ln -sf $(TARGET).so.$(SOMAJOR).$(SOMINOR) $(TARGET).so.$(SOMAJOR)
 
 clean: generalclean
 

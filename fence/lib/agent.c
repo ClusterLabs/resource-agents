@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2008 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -21,8 +21,6 @@
 #include <errno.h>
 #include <time.h>
 #include <syslog.h>
-
-#include <libcman.h>
 
 #include "ccs.h"
 
@@ -49,7 +47,7 @@ static void display_agent_output(char *agent, int fd)
 		snprintf(msg, 256, "agent \"%s\" reports: ", agent);
 		strcat(msg, buf);
 
-		printf("%s\n", msg);
+		/* printf("%s\n", msg); */
 		syslog(LOG_ERR, "%s", msg);
 
 		memset(buf, 0, sizeof(buf));
@@ -279,42 +277,13 @@ static int use_device(int cd, char *victim, char *method, int d,
 	return error;
 }
 
-void update_cman(char *victim, char *method)
-{
-	cman_handle_t ch;
-	struct cman_node node;
-	uint64_t the_time = time(NULL);
-
-	ch = cman_admin_init(NULL);
-	if (!ch) {
-		syslog(LOG_ERR, "Unable to connect to to cman: %m");
-		return;
-	}
-	/* Convert name to a number */
-	memset(&node, 0, sizeof(node));
-	strcpy(node.cn_name, victim);
-
-	/* Mark it as fenced */
-	if (!cman_get_node(ch, 0, &node))
-		cman_node_fenced(ch, node.cn_nodeid, the_time, method);
-	else
-		syslog(LOG_ERR, "can't get node number for node %s\n", victim);
-	cman_finish(ch);
-}
-
-int dispatch_fence_agent(char *victim, int force)
+int fence_node(char *victim)
 {
 	char *method = NULL, *device = NULL;
 	char *victim_nodename = NULL;
 	int num_methods, num_devices, m, d, error = -1, cd;
 
-	if (force)
-		cd = ccs_force_connect(NULL, 0);
-	else {
-		while ((cd = ccs_connect()) < 0)
-			sleep(1);
-	}
-
+	cd = ccs_force_connect(NULL, 0);
 	if (cd < 0) {
 		syslog(LOG_ERR, "cannot connect to ccs %d\n", cd);
 		return -1;
@@ -360,7 +329,6 @@ int dispatch_fence_agent(char *victim, int force)
 			if (error)
 				break;
 
-			update_cman(victim, device);
 			free(device);
 			device = NULL;
 		}

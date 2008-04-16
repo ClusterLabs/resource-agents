@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2005-2008 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -10,66 +10,19 @@
 *******************************************************************************
 ******************************************************************************/
 
-#include <libcman.h>
 #include "fd.h"
-
-#define BUFLEN		128
+#include <libcman.h>
 
 static cman_handle_t	ch;
-static int		cman_quorate;
 static cman_node_t	cman_nodes[MAX_NODES];
 static int		cman_node_count;
-static char		name_buf[CMAN_MAX_NODENAME_LEN+1];
 
-extern struct list_head domains;
-
-char			*our_name;
-int			our_nodeid;
-
-
-static int name_equal(char *name1, char *name2)
-{
-	char name3[BUFLEN], name4[BUFLEN];
-	int i, len1, len2;
-
-	len1 = strlen(name1);
-	len2 = strlen(name2);
-
-	if (len1 == len2 && !strncmp(name1, name2, len1))
-		return TRUE;
-
-	memset(name3, 0, BUFLEN);
-	memset(name4, 0, BUFLEN);
-
-	for (i = 0; i < BUFLEN && i < len1; i++) {
-		if (name1[i] != '.')
-			name3[i] = name1[i];
-		else
-			break;
-	}
-
-	for (i = 0; i < BUFLEN && i < len2; i++) {
-		if (name2[i] != '.')
-			name4[i] = name2[i];
-		else
-			break;
-	}
-
-	len1 = strlen(name3);
-	len2 = strlen(name4);
-
-	if (len1 == len2 && !strncmp(name3, name4, len1))
-		return TRUE;
-
-	return FALSE;
-}
-
-static cman_node_t *find_cluster_node_name(char *name)
+static cman_node_t *find_cman_node(int nodeid)
 {
 	int i;
 
 	for (i = 0; i < cman_node_count; i++) {
-		if (name_equal(cman_nodes[i].cn_name, name))
+		if (cman_nodes[i].cn_nodeid == nodeid)
 			return &cman_nodes[i];
 	}
 	return NULL;
@@ -90,6 +43,8 @@ static void statechange(void)
 
 static void cman_callback(cman_handle_t h, void *private, int reason, int arg)
 {
+	int quorate = cman_quorate;
+
 	switch (reason) {
 	case CMAN_REASON_TRY_SHUTDOWN:
 		if (list_empty(&domains))
@@ -101,22 +56,26 @@ static void cman_callback(cman_handle_t h, void *private, int reason, int arg)
 		break;
 	case CMAN_REASON_STATECHANGE:
 		statechange();
+
+		/* domain may have been waiting for quorum */
+		if (!quorate && cman_quorate && (group_mode == GROUP_LIBCPG))
+			process_fd_changes();
 		break;
 	}
 }
 
-int process_member(void)
+void process_cman(int ci)
 {
 	int rv;
+
 	rv = cman_dispatch(ch, CMAN_DISPATCH_ALL);
 	if (rv == -1 && errno == EHOSTDOWN) {
 		log_error("cluster is down, exiting");
 		exit(1);
 	}
-	return 0;
 }
 
-int setup_member(void)
+int setup_cman(void)
 {
 	cman_node_t node;
 	int rv, fd;
@@ -148,24 +107,23 @@ int setup_member(void)
 		goto out;
 	}
 
-	memset(name_buf, 0, sizeof(name_buf));
-	strncpy(name_buf, node.cn_name, CMAN_MAX_NODENAME_LEN);
-	our_name = name_buf;
+	memset(our_name, 0, sizeof(our_name));
+	strncpy(our_name, node.cn_name, CMAN_MAX_NODENAME_LEN);
 	our_nodeid = node.cn_nodeid;
 
 	log_debug("our_nodeid %d our_name %s", our_nodeid, our_name);
-	rv = 0;
-
  out:
 	return fd;
 }
 
+/*
 void exit_member(void)
 {
 	cman_finish(ch);
 }
+*/
 
-int is_member(char *name)
+int is_cman_member(int nodeid)
 {
 	cman_node_t *cn;
 
@@ -173,59 +131,44 @@ int is_member(char *name)
 	   have done a statechange() in response to a cman callback */
 	statechange();
 
-	cn = find_cluster_node_name(name);
-	if (cn && cn->cn_member) {
-		if (in_groupd_cpg(cn->cn_nodeid))
-			return 1;
-		log_debug("node \"%s\" not in groupd cpg", name);
-		return 0;
-	}
+	cn = find_cman_node(nodeid);
+	if (cn && cn->cn_member)
+		return 1;
 
-	log_debug("node \"%s\" not a cman member, cn %d", name, cn ? 1 : 0);
+	log_debug("node %d not a cman member, cn %d", nodeid, cn ? 1 : 0);
 	return 0;
 }
 
-int is_fenced(char *name)
+char *nodeid_to_name(int nodeid)
 {
 	cman_node_t *cn;
-	char agent[255];
-	uint64_t fence_time;
-	int fenced = 0;
 
-	/* If the node is a cluster member then we won't even get called */
-	cn = find_cluster_node_name(name);
-	if (cn && cn->cn_member) {
-		return 1;
-	}
+	cn = find_cman_node(nodeid);
+	if (cn)
+		return cn->cn_name;
 
-	/* If this call fails (though it shouldn't) then regard the node as unfenced */
-	if (cn && cman_get_fenceinfo(ch, cn->cn_nodeid, &fence_time, &fenced, agent)) {
-		log_debug("cman_get_fenceinfo failed: %s", strerror(errno));
-		fenced = 0;
-	}
-
-	log_debug("node \"%s\" has%s been fenced", name, fenced?"":" not");
-	return fenced;
+	return "unknown";
 }
 
-fd_node_t *get_new_node(fd_t *fd, int nodeid, char *in_name)
+struct node *get_new_node(struct fd *fd, int nodeid)
 {
 	cman_node_t cn;
-	fd_node_t *node = NULL;
-	char *name = in_name;
+	struct node *node;
 	int rv;
 
-	if (!name) {
-		memset(&cn, 0, sizeof(cn));
-		rv = cman_get_node(ch, nodeid, &cn);
-		name = cn.cn_name;
-	}
-
 	node = malloc(sizeof(*node));
+	if (!node)
+		return NULL;
 	memset(node, 0, sizeof(*node));
 
 	node->nodeid = nodeid;
-	strcpy(node->name, name);
+
+	memset(&cn, 0, sizeof(cn));
+	rv = cman_get_node(ch, nodeid, &cn);
+	if (rv < 0)
+		log_debug("get_new_node %d no cman node %d", nodeid, rv);
+	else
+		strncpy(node->name, cn.cn_name, MAX_NODENAME_LEN);
 
 	return node;
 }

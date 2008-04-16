@@ -579,7 +579,7 @@ static int loop(void)
 				workfn = client[i].workfn;
 				workfn(i);
 			}
-			if (pollfd[i].revents & POLLHUP) {
+			if (pollfd[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {
 				deadfn = client[i].deadfn;
 				deadfn(i);
 			}

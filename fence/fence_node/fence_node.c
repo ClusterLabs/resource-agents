@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2008 Red Hat, Inc.  All rights reserved.
 **  
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -17,9 +17,10 @@
 #include <string.h>
 #include <syslog.h>
 
+#include "libfence.h"
 #include "copyright.cf"
 
-#define OPTION_STRING           ("hOuV")
+#define OPTION_STRING           ("huV")
 
 #define die(fmt, args...) \
 do \
@@ -31,9 +32,6 @@ do \
 while (0)
 
 static char *prog_name;
-static int force = 0;
-
-int dispatch_fence_agent(char *victim, int force);
 
 static void print_usage(void)
 {
@@ -44,7 +42,6 @@ static void print_usage(void)
 	printf("Options:\n");
 	printf("\n");
 	printf("  -h               Print this help, then exit\n");
-	printf("  -O               Force connection to CCS\n");
 	printf("  -V               Print program version information, then exit\n");
 	printf("\n");
 }
@@ -64,10 +61,6 @@ int main(int argc, char *argv[])
 		case 'h':
 			print_usage();
 			exit(EXIT_SUCCESS);
-			break;
-
-		case 'O':
-			force = 1;
 			break;
 
 		case 'V':
@@ -105,7 +98,7 @@ int main(int argc, char *argv[])
 
 	openlog("fence_node", LOG_PID, LOG_USER);
 
-	error = dispatch_fence_agent(victim, force);
+	error = fence_node(victim);
 
 	if (error) {
 		syslog(LOG_ERR, "Fence of \"%s\" was unsuccessful\n", victim);
