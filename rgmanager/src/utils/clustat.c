@@ -835,7 +835,7 @@ txt_cluster_status(cman_cluster_t *ci,
 		   rg_state_list_t *rgs, char *name, char *svcname, 
 		   int flags)
 {
-	int ret;
+	int ret = 0;
 	
 	if (!svcname && !name) {
   		txt_cluster_info(ci);
