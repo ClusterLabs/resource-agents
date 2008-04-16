@@ -1913,6 +1913,25 @@ int kernel_recovery_done(char *table)
 
 	switch (atoi(buf)) {
 	case LM_RD_GAVEUP:
+		/*
+		 * This is unfortunate; it's needed for bz 442451 where
+		 * gfs-kernel fails to acquire the journal lock on all nodes
+		 * because a withdrawing node has not yet called
+		 * dlm_release_lockspace() to free it's journal lock.  With
+		 * this, all nodes should repeatedly try to to recover the
+		 * journal of the withdrawn node until the withdrawing node
+		 * clears its dlm locks, and gfs on each of the remaining nodes
+		 * succeeds in doing the recovery.
+		 */
+
+		if (memb->withdrawing) {
+			log_group(mg, "recovery_done jid %d nodeid %d retry "
+				  "for withdraw", memb->jid, memb->nodeid);
+			memb->tell_gfs_to_recover = 1;
+			memb->wait_gfs_recover_done = 0;
+			usleep(500000);
+		}
+
 		memb->local_recovery_status = RS_GAVEUP;
 		ss = "gaveup";
 		break;
