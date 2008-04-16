@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2008 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -29,10 +29,10 @@
 #define __user
 #include <linux/gfs2_ondisk.h>
 #include <sys/mount.h>
-#include <linux/fs.h>
 
 #include "libgfs2.h"
 #include "gfs2_tool.h"
+#include "iflags.h"
 
 #if GFS2_TOOL_FEATURE_IMPLEMENTED
 /**
@@ -198,16 +198,12 @@ print_flags(struct gfs2_dinode *di)
 {
 	if (di->di_flags) {
 		printf("Flags:\n");
-		if (di->di_flags & GFS2_DIF_SYSTEM)
-			printf("  system\n");
 		if (di->di_flags & GFS2_DIF_JDATA)
 			printf("  jdata\n");
 		if (di->di_flags & GFS2_DIF_EXHASH)
 			printf("  exhash\n");
 		if (di->di_flags & GFS2_DIF_EA_INDIRECT)
 			printf("  ea_indirect\n");
-		if (di->di_flags & GFS2_DIF_DIRECTIO)
-			printf("  directio\n");
 		if (di->di_flags & GFS2_DIF_IMMUTABLE)
 			printf("  immutable\n");
 		if (di->di_flags & GFS2_DIF_APPENDONLY)
@@ -228,12 +224,10 @@ print_flags(struct gfs2_dinode *di)
 static unsigned int 
 get_flag_from_name(char *name)
 {
-	if (strncmp(name, "system", 6) == 0)
-		return GFS2_DIF_SYSTEM;
-	else if (strncmp(name, "jdata", 5) == 0)
+	if (strncmp(name, "jdata", 5) == 0)
 		return FS_JOURNAL_DATA_FL;
-	else if (strncmp(name, "directio", 8) == 0)
-		return FS_DIRECTIO_FL;
+	else if (strncmp(name, "exhash", 6) == 0)
+		return FS_INDEX_FL;
 	else if (strncmp(name, "immutable", 9) == 0)
 		return FS_IMMUTABLE_FL;
 	else if (strncmp(name, "appendonly", 10) == 0)
