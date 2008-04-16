@@ -23,6 +23,7 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <time.h>
+#include <limits.h>
 #include <libxml/parser.h>
 #include <libxml/tree.h>
 #include <libxml/xpath.h>

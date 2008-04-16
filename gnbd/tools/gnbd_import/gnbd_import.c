@@ -22,6 +22,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include <errno.h>
+#include <limits.h>
 #include <dirent.h>
 #include <netdb.h>
 #include <arpa/inet.h>

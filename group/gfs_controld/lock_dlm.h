@@ -24,6 +24,7 @@
 #include <time.h>
 #include <syslog.h>
 #include <sched.h>
+#include <limits.h>
 #include <asm/types.h>
 #include <sys/socket.h>
 #include <sys/poll.h>

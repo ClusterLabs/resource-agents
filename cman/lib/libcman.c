@@ -30,6 +30,7 @@
 #include <netinet/in.h>
 #include <string.h>
 #include <errno.h>
+#include <limits.h>
 #include "cnxman-socket.h"
 #include "libcman.h"
 

@@ -24,6 +24,7 @@
 #include <sys/wait.h>
 #include <arpa/inet.h>
 #include <dirent.h>
+#include <limits.h>
 #include <ctype.h>
 #define _GNU_SOURCE
 #include <getopt.h>

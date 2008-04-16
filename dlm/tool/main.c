@@ -21,6 +21,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include <errno.h>
+#include <limits.h>
 #include <netinet/in.h>
 
 #include "libdlm.h"

@@ -753,7 +753,7 @@ static int set_noccs_defaults(struct objdb_iface_ver0 *objdb)
 		}
 		if (ainfo->ai_family == AF_INET6) {
 			struct sockaddr_in6 *addr = (struct sockaddr_in6 *)ainfo->ai_addr;
-			memcpy(&nodeid, &addr->sin6_addr.in6_u.u6_addr32[3], sizeof(int));
+			memcpy(&nodeid, &addr->sin6_addr.s6_addr32[3], sizeof(int));
 		}
 		log_printf(LOG_INFO, "Our Node ID is %d\n", nodeid);
 		freeaddrinfo(ainfo);
