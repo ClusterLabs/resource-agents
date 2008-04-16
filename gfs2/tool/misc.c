@@ -29,7 +29,7 @@
 #define __user
 #include <linux/gfs2_ondisk.h>
 #include <sys/mount.h>
-#include <linux/ext3_fs.h>
+#include <linux/fs.h>
 
 #include "libgfs2.h"
 #include "gfs2_tool.h"
@@ -198,12 +198,16 @@ print_flags(struct gfs2_dinode *di)
 {
 	if (di->di_flags) {
 		printf("Flags:\n");
+		if (di->di_flags & GFS2_DIF_SYSTEM)
+			printf("  system\n");
 		if (di->di_flags & GFS2_DIF_JDATA)
 			printf("  jdata\n");
 		if (di->di_flags & GFS2_DIF_EXHASH)
 			printf("  exhash\n");
 		if (di->di_flags & GFS2_DIF_EA_INDIRECT)
 			printf("  ea_indirect\n");
+		if (di->di_flags & GFS2_DIF_DIRECTIO)
+			printf("  directio\n");
 		if (di->di_flags & GFS2_DIF_IMMUTABLE)
 			printf("  immutable\n");
 		if (di->di_flags & GFS2_DIF_APPENDONLY)
@@ -224,18 +228,20 @@ print_flags(struct gfs2_dinode *di)
 static unsigned int 
 get_flag_from_name(char *name)
 {
-	if (strncmp(name, "jdata", 5) == 0)
-		return EXT3_JOURNAL_DATA_FL;
-	else if (strncmp(name, "exhash", 6) == 0)
-		return EXT3_INDEX_FL;
+	if (strncmp(name, "system", 6) == 0)
+		return GFS2_DIF_SYSTEM;
+	else if (strncmp(name, "jdata", 5) == 0)
+		return FS_JOURNAL_DATA_FL;
+	else if (strncmp(name, "directio", 8) == 0)
+		return FS_DIRECTIO_FL;
 	else if (strncmp(name, "immutable", 9) == 0)
-		return EXT3_IMMUTABLE_FL;
+		return FS_IMMUTABLE_FL;
 	else if (strncmp(name, "appendonly", 10) == 0)
-		return EXT3_APPEND_FL;
+		return FS_APPEND_FL;
 	else if (strncmp(name, "noatime", 7) == 0)
-		return EXT3_NOATIME_FL;
+		return FS_NOATIME_FL;
 	else if (strncmp(name, "sync", 4) == 0)
-		return EXT3_SYNC_FL;
+		return FS_SYNC_FL;
 	else 
 		return 0;
 }
@@ -270,13 +276,13 @@ set_flag(int argc, char **argv)
 		if (fd < 0)
 			die("can't open %s: %s\n", argv[optind], strerror(errno));
 		/* first get the existing flags on the file */
-		error = ioctl(fd, EXT3_IOC_GETFLAGS, &newflags);
+		error = ioctl(fd, FS_IOC_GETFLAGS, &newflags);
 		if (error)
 			die("can't get flags on %s: %s\n", 
 			    argv[optind], strerror(errno));
 		newflags = set ? newflags | flag : newflags & ~flag;
 		/* new flags */
-		error = ioctl(fd, EXT3_IOC_SETFLAGS, &newflags);
+		error = ioctl(fd, FS_IOC_SETFLAGS, &newflags);
 		if (error)
 			die("can't set flags on %s: %s\n", 
 			    argv[optind], strerror(errno));
