@@ -30,6 +30,9 @@
 #include <linux/buffer_head.h>
 #include <linux/miscdevice.h>
 #include <linux/moduleparam.h>
+#ifdef CONFIG_COMPAT
+#include <linux/compat.h>
+#endif
 
 #include <asm/uaccess.h>
 #include <asm/types.h>
@@ -795,6 +798,33 @@ static int gnbd_ctl_ioctl(struct inode *inode, struct file *file,
 	return -EINVAL;
 }
 
+#ifdef CONFIG_COMPAT
+static long gnbd_ctl_compat_ioctl(struct file *f, unsigned cmd,
+				  unsigned long arg)
+{
+	int ret;
+	switch (cmd) {
+        case GNBD_DISCONNECT:
+        case GNBD_CLEAR_QUE:
+	case GNBD_PING:
+	case GNBD_PRINT_DEBUG:
+		lock_kernel();
+		ret = gnbd_ctl_ioctl(f->f_dentry->d_inode, f, cmd, arg);
+		unlock_kernel();
+		return ret;
+	case GNBD_DO_IT:
+	case GNBD_GET_TIME:
+		lock_kernel();
+		ret = gnbd_ctl_ioctl(f->f_dentry->d_inode, f, cmd,
+				     (unsigned long)compat_ptr(arg));
+		unlock_kernel();
+		return ret;
+	default:
+		return -ENOIOCTLCMD;
+	}
+}
+#endif
+
 static int gnbd_open(struct inode *inode, struct file *file)
 {
 	struct gnbd_device *dev = inode->i_bdev->bd_disk->private_data;
@@ -830,6 +860,9 @@ static int gnbd_release(struct inode *inode, struct file *file)
 static struct file_operations _gnbd_ctl_fops =
 {
         .ioctl = gnbd_ctl_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = gnbd_ctl_compat_ioctl,
+#endif
         .owner = THIS_MODULE,
 };
 

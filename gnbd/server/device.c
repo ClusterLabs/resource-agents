@@ -10,6 +10,7 @@
 *******************************************************************************
 ******************************************************************************/
 
+#define _GNU_SOURCE
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
@@ -25,10 +26,6 @@
 
 #ifndef BLKGETSIZE64
 #define BLKGETSIZE64 _IOR(0x12, 114, uint64_t)
-#endif
-
-#ifndef O_DIRECT
-#define O_DIRECT 040000
 #endif
 
 #include "list.h"
@@ -106,7 +103,7 @@ int open_file(char *path, unsigned int flags, int *devfd)
   if (fd < 0){
     err = -errno;
     log_err("cannot open %s in %s%s mode : %s\n", path,
-           (flags & GNBD_FLAGS_READONLY)? "O_RDONLY" : "O_RDWR | OSYNC",
+           (flags & GNBD_FLAGS_READONLY)? "O_RDONLY" : "O_RDWR | O_SYNC",
            (flags & GNBD_FLAGS_UNCACHED)? " | O_DIRECT" : "",
            strerror(errno));
     return err;
