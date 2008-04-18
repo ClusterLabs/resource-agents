@@ -764,7 +764,7 @@ static int loop(void)
 		for (i = 0; i <= client_maxi; i++) {
 			if (client[i].fd < 0)
 				continue;
-			if (pollfd[i].revents & POLLHUP) {
+			if (pollfd[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {
 				deadfn = client[i].deadfn;
 				deadfn(i);
 			} else if (pollfd[i].revents & POLLIN) {

@@ -494,7 +494,7 @@ static int loop(void)
 		for (i = 1; i <= maxi; i++) {
 			if (client[i].fd < 0)
 				continue;
-			if (pollfd[i].revents & POLLHUP) {
+			if (pollfd[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {
 				if (pollfd[i].fd == member_fd) {
 					log_error("cluster is down, exiting");
 					exit(1);
