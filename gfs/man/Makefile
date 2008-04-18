@@ -13,6 +13,7 @@
 
 TARGET= gfs.8 \
 	gfs_mount.8 \
+	gfs_edit.8 \
 	gfs_fsck.8 \
 	gfs_grow.8 \
 	gfs_jadd.8 \
