@@ -1787,7 +1787,8 @@ static void do_process_transition(int nodeid, char *data, int len)
 
 	/* Newer nodes 6.1.0 onwards, set the DIRTY flag if they have state. If the new node has been down
 	   and has state then we mark it disallowed because we cannot merge stateful nodes */
-	if (msg->flags & NODE_FLAGS_DIRTY && node->flags & NODE_FLAGS_BEENDOWN) {
+	if (msg->flags & NODE_FLAGS_DIRTY && (node->flags & NODE_FLAGS_BEENDOWN ||
+	    (us->flags & NODE_FLAGS_DIRTY && nodeid != us->node_id))) {
 		/* Don't duplicate messages */
 		if (node->state != NODESTATE_AISONLY) {
 			if (cluster_is_quorate) {
