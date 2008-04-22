@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2008 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -21,7 +21,6 @@
 #include <ctype.h>
 #include <errno.h>
 
-#include "log.h" /* Libraries should not print - so only use log_dbg */
 #include "debug.h"
 #include "comm_headers.h"
 #include "ccs.h"
@@ -37,7 +36,6 @@ static int setup_interface_ipv6(int *sp, int port){
   struct sockaddr_in6 addr;
   int trueint = 1;
 
-  ENTER("setup_interface_ipv6");
   memset(&addr, 0, sizeof(struct sockaddr_in6));
 
   sock = socket(PF_INET6, SOCK_STREAM, 0);
@@ -46,17 +44,13 @@ static int setup_interface_ipv6(int *sp, int port){
     goto fail;
   }
 
-  if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &trueint, sizeof(int))){
-    log_sys_err("Unable to set socket option SO_REUSEADDR");
-    log_err("This may slow things down a bit.\n");
-  }
+  setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &trueint, sizeof(int));
 
   addr.sin6_family = AF_INET6;
   addr.sin6_port = htons(port);
   addr.sin6_addr = in6addr_loopback;
 
   if(bind(sock, (struct sockaddr *)&addr, sizeof(struct sockaddr_in6))){
-    log_dbg("Unable to (pre)bind to port %d: %s\n", port, strerror(errno));
     error = -errno;
     goto fail;
   }
@@ -67,20 +61,17 @@ static int setup_interface_ipv6(int *sp, int port){
   error = connect(sock, (struct sockaddr *)&addr,
 		  sizeof(struct sockaddr_in6));
   if(error < 0){
-    log_dbg("Unable to connect to server: %s\n", strerror(errno));
     error = -errno;
     goto fail;
   }
 
   *sp = sock;
-  EXIT("setup_interface_ipv6");
   return 0;
 
  fail:
   if(sock >= 0){
     close(sock);
   }
-  EXIT("setup_interface_ipv6");
   return error;
 }
 
@@ -88,8 +79,6 @@ static int setup_interface_ipv4(int *sp, int port){
   int sock = -1;
   int error = 0;
   struct sockaddr_in addr;
-
-  ENTER("setup_interface_ipv4");
 
   memset(&addr, 0, sizeof(struct sockaddr_in));
   sock = socket(PF_INET, SOCK_STREAM, 0);
@@ -103,7 +92,6 @@ static int setup_interface_ipv4(int *sp, int port){
   addr.sin_port = htons(port);
 
   if(bindresvport(sock, &addr)){
-    log_dbg("Unable to bindresvport: %s\n", strerror(errno));
     error = -errno;
     goto fail;
   }
@@ -114,20 +102,17 @@ static int setup_interface_ipv4(int *sp, int port){
   error = connect(sock, (struct sockaddr *)&addr,
 		  sizeof(struct sockaddr_in));
   if(error < 0){
-    log_dbg("Unable to connect to server: %s\n", strerror(errno));
     error = -errno;
     goto fail;
   }
 
   *sp = sock;
-  EXIT("setup_interface_ipv4");
   return 0;
 
  fail:
   if(sock >= 0){
     close(sock);
   }
-  EXIT("setup_interface_ipv4");
   return error;
 }
 
@@ -138,7 +123,6 @@ setup_interface_local(int *sp)
   struct sockaddr_un sun;
   int sock = -1, error = 0;
 
-  ENTER("setup_interface_local");
   sun.sun_family = PF_LOCAL;
   snprintf(sun.sun_path, sizeof(sun.sun_path), COMM_LOCAL_SOCKET);
 
@@ -155,14 +139,12 @@ setup_interface_local(int *sp)
   }
 
   *sp = sock;
-  EXIT("setup_interface_local");
   return PF_LOCAL;
 
 fail:
   if (sock >= 0){
     close(sock);
   }
-  EXIT("setup_interface_local");
   return -error;
 }
 
@@ -184,7 +166,6 @@ static int setup_interface(int *sp){
   int ipv6 = (comm_proto < 0) ? 1 : (comm_proto == PF_INET6);
   int local = (comm_proto < 0) ? 1 : (comm_proto == PF_LOCAL);
 
-  ENTER("setup_interface");
   srandom(getpid());
 
   /* Try to do a local connect first */
@@ -213,7 +194,6 @@ static int setup_interface(int *sp){
       sleep(timo);
     }
   }
-  EXIT("setup_interface");
   return error;
 }
 
@@ -233,8 +213,6 @@ static int do_request(char *buffer){
   char *proto;
   comm_header_t *ch = (comm_header_t *)buffer;
  
-  ENTER("do_request");
-
   if((error = setup_interface(&sock)) < 0){
     goto fail;
   }
@@ -252,15 +230,12 @@ static int do_request(char *buffer){
     }
 
     comm_proto = error;
-    log_dbg("Protocol set to %s.\n", proto);
   }
 
   error = write(sock, buffer, sizeof(comm_header_t)+ch->comm_payload_size);
   if(error < 0){
-    log_dbg("Write to socket failed.\n");
     goto fail;
   } else if(error < (sizeof(comm_header_t)+ch->comm_payload_size)){
-    log_dbg("Failed to write full package to socket.\n");
     error = -EBADE;
     goto fail;
   }
@@ -268,14 +243,11 @@ static int do_request(char *buffer){
   /* ok to take in two passes ? */
   error = read(sock, buffer, sizeof(comm_header_t));
   if(error < 0){
-    log_dbg("Read from socket failed.\n");
     goto fail;
   } else if(error < sizeof(comm_header_t)){
-    log_dbg("Failed to read complete comm_header_t.\n");
     error = -EBADE;
     goto fail;
   } else if(ch->comm_error){
-    log_dbg("Server reports failure: %s\n", strerror(-ch->comm_error));
     error = ch->comm_error;
     goto fail;
   } else {
@@ -284,10 +256,8 @@ static int do_request(char *buffer){
   if(ch->comm_payload_size){
     error = read(sock, buffer+sizeof(comm_header_t), ch->comm_payload_size);
     if(error < 0){
-      log_dbg("Read from socket failed.\n");
       goto fail;
     } else if(error < ch->comm_payload_size){
-      log_dbg("Failed to read complete payload.\n");
       error = -EBADE;
       goto fail;
     } else {
@@ -296,7 +266,6 @@ static int do_request(char *buffer){
   }
  fail:
   if(sock >= 0) { close(sock); }
-  EXIT("do_request");
   return error;
 }
 
@@ -316,8 +285,6 @@ int _ccs_connect(const char *cluster_name, int flags){
   char *buffer = NULL;
   comm_header_t *ch = NULL;
   char *payload = NULL;
-
-  ENTER("ccs_connect");
 
   if(!(buffer = malloc(512))){
     error = -ENOMEM;
@@ -354,7 +321,6 @@ int _ccs_connect(const char *cluster_name, int flags){
 
  fail:
   if(buffer) { free(buffer); }
-  EXIT("ccs_connect");
   return error;
 }
 
@@ -408,8 +374,6 @@ int ccs_disconnect(int desc){
   comm_header_t *ch = NULL;
   char *payload = NULL;
 
-  ENTER("ccs_disconnect");
-
   if (desc < 0)
 	  return -EINVAL;
 
@@ -430,7 +394,6 @@ int ccs_disconnect(int desc){
  fail:
   if(buffer) { free(buffer); }
 
-  EXIT("ccs_disconnect");
   return error;
 }
 
@@ -454,8 +417,6 @@ int _ccs_get(int desc, const char *query, char **rtn, int list){
   comm_header_t *ch = NULL;
   char *payload = NULL;
 
-  ENTER("_ccs_get");
-
   if (desc < 0)
 	  return -EINVAL;
 
@@ -468,7 +429,6 @@ int _ccs_get(int desc, const char *query, char **rtn, int list){
   ch = (comm_header_t *)buffer;
   payload = (buffer + sizeof(comm_header_t));
 
-  log_dbg("ccs_get list? %s\n", (list)?"YES":"NO");
   ch->comm_type = (list)?COMM_GET_LIST:COMM_GET;
   ch->comm_desc = desc;
 
@@ -488,7 +448,6 @@ int _ccs_get(int desc, const char *query, char **rtn, int list){
  fail:
   if(buffer) { free(buffer); }
 
-  EXIT("_ccs_get");
   return error;
 }
 
@@ -516,8 +475,6 @@ int ccs_get_list(int desc, const char *query, char **rtn){
  * Returns: 0 on success, < 0 on failure
  */
 int ccs_set(int desc, const char *path, char *val){
-  ENTER("ccs_set");
-  EXIT("ccs_set");
   return -ENOSYS;
 }
 
@@ -539,8 +496,6 @@ int ccs_get_state(int desc, char **cw_path, char **prev_query){
   char *buffer = NULL;
   comm_header_t *ch = NULL;
   char *payload = NULL;
-
-  ENTER("ccs_get_state");
 
   if (desc < 0)
 	  return -EINVAL;
@@ -578,7 +533,6 @@ int ccs_get_state(int desc, char **cw_path, char **prev_query){
  fail:
   if(buffer) { free(buffer); }
 
-  EXIT("ccs_get_state");
   return error;
 }
 
@@ -601,8 +555,6 @@ int ccs_set_state(int desc, const char *cw_path, int reset_query){
   char *buffer = NULL;
   comm_header_t *ch = NULL;
   char *payload = NULL;
-
-  ENTER("ccs_set_state");
 
   if (desc < 0)
 	  return -EINVAL;
@@ -636,7 +588,6 @@ int ccs_set_state(int desc, const char *cw_path, int reset_query){
  fail:
   if(buffer) { free(buffer); }
 
-  EXIT("ccs_set_state");
   return error;
 }
 

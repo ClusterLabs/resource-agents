@@ -1,7 +1,7 @@
 ###############################################################################
 ###############################################################################
 ##
-##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+##  Copyright (C) 2004-2008 Red Hat, Inc.  All rights reserved.
 ##
 ##  This copyrighted material is made available to anyone wishing to use,
 ##  modify, copy, or redistribute it subject to the terms and conditions
@@ -23,12 +23,11 @@ include $(OBJDIR)/make/clean.mk
 include $(OBJDIR)/make/install.mk
 include $(OBJDIR)/make/uninstall.mk
 
-OBJS=	libccs.o \
-	log.o
+OBJS=	libccs.o
 
 CFLAGS += -D_FILE_OFFSET_BITS=64
 CFLAGS += -fPIC
-CFLAGS += -I$(S)/../include -I$(S)/../common
+CFLAGS += -I$(S)/../include
 CFLAGS += -I${incdir}
 
 
@@ -36,10 +35,6 @@ ${TARGET}: ${OBJS}
 	${AR} cr $@ $^
 	${RANLIB} $@
 
-log.c:
-	ln -sf $(S)/../common/log.c log.c
-
 clean: generalclean
-	rm -rf ccs.h.gch log.c
 
 -include $(OBJS:.o=.d)
