@@ -187,7 +187,7 @@ do_drbdadm() {
 
 drbd_init() {
 	check_binary $DRBDADM
-	CRM_MASTER=${HA_SBIN_DIR}/crm_master
+	CRM_MASTER="${HA_SBIN_DIR}/crm_master -l reboot "
 	
 	RESOURCE="$OCF_RESKEY_drbd_resource"
 	CLONE_NO="$OCF_RESKEY_CRM_meta_clone"
@@ -301,20 +301,20 @@ drbd_update_prefs() {
 	# TODO: This is probably way too complex. 
 	case $DRBD_CSTATE in
 	Connected) 
-		do_cmd $CRM_MASTER -v 75 -l reboot
+		do_cmd $CRM_MASTER -v 75
 		;;
 	SyncSource|PausedSyncS|WFBitMapS|SkippedSyncS)
-		do_cmd $CRM_MASTER -v 100 -l reboot
+		do_cmd $CRM_MASTER -v 100
 		;;
         # TODO:
         # (Inconsistent || Diskless && WFConnection) should be -infinity
 	# This one implies we'll try to promote even on disconnected
 	# nodes, but that might not work.
 	WFConnection) 
-		do_cmd $CRM_MASTER -v 10 -l reboot
+		do_cmd $CRM_MASTER -v 10
 		;;
 	*)
-		do_cmd $CRM_MASTER -v 5 -l reboot
+		do_cmd $CRM_MASTER -v 5
 		;;
 	esac
 
