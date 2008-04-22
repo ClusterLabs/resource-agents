@@ -28,8 +28,8 @@
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
 #include <libxml/xpathInternals.h>
+#include <openais/service/logsys.h>
 
-#include "log.h"
 #include "comm_headers.h"
 #include "debug.h"
 #include "misc.h"
@@ -65,6 +65,8 @@ typedef struct open_connection_s {
   time_t oc_expire;
 } open_connection_t;
 
+LOGSYS_DECLARE_SUBSYS ("CCS", LOG_INFO);
+
 /* ATTENTION: need to lock on this if we start forking the daemon **
 **  Also would need to create a shared memory area for open cnx's */
 static open_connection_t **ocs = NULL;
@@ -76,23 +78,23 @@ static int _update_config(char *location){
   open_doc_t *tmp_odoc = NULL;
   xmlDocPtr tmp_doc = NULL;
 
-  ENTER("_update_config");
+  CCSENTER("_update_config");
 
   tmp_doc = xmlParseFile(location);
   if(!tmp_doc){
-    log_err("Unable to parse %s\n", location);
+    log_printf(LOG_ERR, "Unable to parse %s\n", location);
     error = -EINVAL;
     goto fail;
   } else if((v2 = get_doc_version(tmp_doc)) < 0){
-    log_err("Unable to get config_version from %s.\n", location);
+    log_printf(LOG_ERR, "Unable to get config_version from %s.\n", location);
     error = v2;
     goto fail;
   } else if(master_doc && master_doc->od_doc){
     v1 = get_doc_version(master_doc->od_doc);
     if(v1 >= v2){
-      log_err("%s on-disk version is <= to in-memory version.\n", location);
-      log_err(" On-disk version   : %d\n", v2);
-      log_err(" In-memory version : %d\n", v1);
+      log_printf(LOG_ERR, "%s on-disk version is <= to in-memory version.\n", location);
+      log_printf(LOG_ERR, " On-disk version   : %d\n", v2);
+      log_printf(LOG_ERR, " In-memory version : %d\n", v1);
       error = -EPERM;
       goto fail;
     }
@@ -108,10 +110,10 @@ static int _update_config(char *location){
 
   tmp_odoc->od_doc = tmp_doc;
 
-  log_dbg("There are %d references open on version %d of the config file.\n",
+  log_printf(LOG_DEBUG, "There are %d references open on version %d of the config file.\n",
 	  (master_doc)?master_doc->od_refs:0, v1);
   if(master_doc && !master_doc->od_refs){
-    log_dbg("Freeing version %d\n", v1);
+    log_printf(LOG_DEBUG, "Freeing version %d\n", v1);
     xmlFreeDoc(master_doc->od_doc);
     free(master_doc);
     master_doc = tmp_odoc;
@@ -119,7 +121,7 @@ static int _update_config(char *location){
     master_doc = tmp_odoc;
   }
 
-  log_msg("Update of "DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE " complete (version %d -> %d).\n", v1, v2);
+  log_printf(LOG_INFO, "Update of "DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE " complete (version %d -> %d).\n", v1, v2);
  fail:
   if(tmp_odoc != master_doc){
     free(tmp_odoc);
@@ -129,14 +131,14 @@ static int _update_config(char *location){
   }
 
 
-  EXIT("_update_config");
+  CCSEXIT("_update_config");
   return error;
 }
 
 
 static int update_config(void){
   int error = 0;
-  ENTER("update_config");
+  CCSENTER("update_config");
 
   /* If update_required is set, it means that there is still a pending **
   ** update.  We need to pull this one in before doing anything else.  */
@@ -144,13 +146,13 @@ static int update_config(void){
     error = _update_config(DEFAULT_CONFIG_DIR "/." DEFAULT_CONFIG_FILE);
     update_required = 0;
     if(error){
-      log_err("Previous update could not be completed.\n");
+      log_printf(LOG_ERR, "Previous update could not be completed.\n");
       goto fail;
     }
   }
 
  fail:
-  EXIT("update_config");
+  CCSEXIT("update_config");
   return error;
 }
 
@@ -179,17 +181,17 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
   struct timeval tv;
   xmlDocPtr tmp_doc = NULL;
 
-  ENTER("broadcast_for_doc");
+  CCSENTER("broadcast_for_doc");
 
  try_again:
   if(!master_doc){
-    log_err("No master_doc!!!\n");
+    log_printf(LOG_ERR, "No master_doc!!!\n");
     exit(EXIT_FAILURE);
   }
 
   if(quorate && !cluster_name){
-    log_err("Node is part of quorate cluster, but the cluster name is unknown.\n");
-    log_err(" Unable to validate remote config files.  Refusing connection.\n");
+    log_printf(LOG_ERR, "Node is part of quorate cluster, but the cluster name is unknown.\n");
+    log_printf(LOG_ERR, " Unable to validate remote config files.  Refusing connection.\n");
     error = -ECONNREFUSED;
     goto fail;
   }
@@ -202,13 +204,13 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
   memset(ch, 0, sizeof(comm_header_t));
 
   if(IPv6 && (sfd = socket(PF_INET6, SOCK_DGRAM, IPPROTO_UDP)) <0){
-    log_sys_err("Unable to create IPv6 socket");
+    log_printf(LOG_ERR, "Unable to create IPv6 socket");
     error = -errno;
     goto fail;
   }
 
   if(!IPv6 && ((sfd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)){
-    log_sys_err("Unable to create socket for broadcast");
+    log_printf(LOG_ERR, "Unable to create socket for broadcast");
     error = -errno;
     goto fail;
   }
@@ -223,16 +225,16 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
     addr6->sin6_port = htons(backend_port);
 
     if(!multicast_address || !strcmp(multicast_address, "default")){
-      log_dbg("Trying IPv6 multicast (default).\n");
+      log_printf(LOG_DEBUG, "Trying IPv6 multicast (default).\n");
       if(inet_pton(AF_INET6, "ff02::3:1", &(addr6->sin6_addr)) <= 0){
-	log_sys_err("Unable to convert multicast address");
+	log_printf(LOG_ERR, "Unable to convert multicast address");
 	error = -errno;
 	goto fail;
       }
     } else {
-      log_dbg("Trying IPv6 multicast (%s).\n", multicast_address);
+      log_printf(LOG_DEBUG, "Trying IPv6 multicast (%s).\n", multicast_address);
       if(inet_pton(AF_INET6, multicast_address, &(addr6->sin6_addr)) <= 0){
-	log_sys_err("Unable to convert multicast address");
+	log_printf(LOG_ERR, "Unable to convert multicast address");
 	error = -errno;
 	goto fail;
       }
@@ -244,7 +246,7 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
 
     if(setsockopt(sfd, IPPROTO_IPV6, IPV6_MULTICAST_LOOP,
                   &opt, sizeof(opt)) < 0){
-      log_err("Unable to %s loopback.\n", opt?"SET":"UNSET");
+      log_printf(LOG_ERR, "Unable to %s loopback.\n", opt?"SET":"UNSET");
       error = -errno;
       goto fail;
     }
@@ -252,28 +254,28 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
     addr4->sin_family = AF_INET;
     addr4->sin_port = htons(backend_port);
     if(!multicast_address){
-      log_dbg("Trying IPv4 broadcast.\n");
+      log_printf(LOG_DEBUG, "Trying IPv4 broadcast.\n");
 
       addr4->sin_addr.s_addr = INADDR_BROADCAST;
       if((error = setsockopt(sfd, SOL_SOCKET, SO_BROADCAST, &trueint, sizeof(int)))){
-	log_sys_err("Unable to set socket options");
+	log_printf(LOG_ERR, "Unable to set socket options");
 	error = -errno;
 	goto fail;
       } else {
-	log_dbg("  Broadcast enabled.\n");
+	log_printf(LOG_DEBUG, "  Broadcast enabled.\n");
       }
     } else {
       if(!strcmp(multicast_address, "default")){
-	log_dbg("Trying IPv4 multicast (default).\n");
+	log_printf(LOG_DEBUG, "Trying IPv4 multicast (default).\n");
 	if(inet_pton(AF_INET, "224.0.2.5", &(addr4->sin_addr)) <= 0){
-	  log_sys_err("Unable to convert multicast address");
+	  log_printf(LOG_ERR, "Unable to convert multicast address");
 	  error = -errno;
 	  goto fail;
 	}
       } else {
-	log_dbg("Trying IPv4 multicast (%s).\n", multicast_address);
+	log_printf(LOG_DEBUG, "Trying IPv4 multicast (%s).\n", multicast_address);
 	if(inet_pton(AF_INET, multicast_address, &(addr4->sin_addr)) <= 0){
-	  log_sys_err("Unable to convert multicast address");
+	  log_printf(LOG_ERR, "Unable to convert multicast address");
 	  error = -errno;
 	  goto fail;
 	}
@@ -281,7 +283,7 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
       opt = 0;
       setsockopt(sfd, IPPROTO_IP, IP_MULTICAST_LOOP, &opt, sizeof(opt));
       if(setsockopt(sfd, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl)) < 0){
-	log_sys_err("Unable to set multicast threshold.\n");
+	log_printf(LOG_ERR, "Unable to set multicast threshold.\n");
       }
     }
   }
@@ -292,12 +294,12 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
   do {
     ch->comm_type = COMM_BROADCAST;
 
-    log_dbg("Sending broadcast.\n");
+    log_printf(LOG_DEBUG, "Sending broadcast.\n");
     swab_header(ch);
 
     if(sendto(sfd, (char *)ch, sizeof(comm_header_t), 0,
 	      (struct sockaddr *)&addr, addr_size) < 0){
-      log_sys_err("Unable to perform sendto");
+      log_printf(LOG_ERR, "Unable to perform sendto");
       if(retry > 0){
 	retry--;
 	close(sfd);
@@ -315,16 +317,16 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
     tv.tv_sec = 0;
     
     tv.tv_usec = 250000 + (random()%500000);
-    log_dbg("Select waiting %ld usec\n", tv.tv_usec);
+    log_printf(LOG_DEBUG, "Select waiting %ld usec\n", tv.tv_usec);
     while((error = select(sfd+1, &rset, NULL,NULL, &tv))){
-      log_dbg("Select returns %d\n", error);
+      log_printf(LOG_DEBUG, "Select returns %d\n", error);
       if(error < 0){
-	log_sys_err("Select failed");
+	log_printf(LOG_ERR, "Select failed");
 	error = -errno;
 	goto fail;
       }
       if(error){
-	log_dbg("Checking broadcast response.\n");
+	log_printf(LOG_DEBUG, "Checking broadcast response.\n");
 	error = 0;
 	recvfrom(sfd, (char *)ch, sizeof(comm_header_t), MSG_PEEK,
 		 (struct sockaddr *)&recv_addr, (socklen_t *)&len);
@@ -349,22 +351,22 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
 	tmp_doc = xmlParseMemory(bdoc+sizeof(comm_header_t),
 				 ch->comm_payload_size);
 	if(!tmp_doc){
-	  log_err("Unable to parse remote configuration.\n");
+	  log_printf(LOG_ERR, "Unable to parse remote configuration.\n");
 	  free(bdoc); bdoc = NULL;
 	  goto reset_timer;
 	}
 
 	tmp_name = get_cluster_name(tmp_doc);
-	log_dbg("  Given cluster name = %s\n", cluster_name);
-	log_dbg("  Remote cluster name= %s\n", tmp_name);
+	log_printf(LOG_DEBUG, "  Given cluster name = %s\n", cluster_name);
+	log_printf(LOG_DEBUG, "  Remote cluster name= %s\n", tmp_name);
 	if(!tmp_name){
-	  log_err("Unable to find cluster name in remote configuration.\n");
+	  log_printf(LOG_ERR, "Unable to find cluster name in remote configuration.\n");
 	  free(bdoc); bdoc = NULL;
 	  xmlFreeDoc(tmp_doc); tmp_doc = NULL;
 	  goto reset_timer;
 	} else if(cluster_name && strcmp(cluster_name, tmp_name)){
-	  log_dbg("Remote and local configuration have different cluster names.\n");
-	  log_dbg("Skipping...\n");
+	  log_printf(LOG_DEBUG, "Remote and local configuration have different cluster names.\n");
+	  log_printf(LOG_DEBUG, "Skipping...\n");
 	  free(tmp_name); tmp_name = NULL;
 	  free(bdoc); bdoc = NULL;
 	  xmlFreeDoc(tmp_doc); tmp_doc = NULL;
@@ -373,7 +375,7 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
 	free(tmp_name); tmp_name = NULL;
 	if(!master_doc->od_doc){
 	  if((v2 = get_doc_version(tmp_doc)) >= 0){
-	    log_msg("Remote configuration copy (version = %d) found.\n", v2);
+	    log_printf(LOG_INFO, "Remote configuration copy (version = %d) found.\n", v2);
 	    master_doc->od_doc = tmp_doc;
 	    tmp_doc = NULL;
 	    write_to_disk = 1;
@@ -382,11 +384,11 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
 	  if(((v1 = get_doc_version(master_doc->od_doc)) >= 0) &&
 	     ((v2 = get_doc_version(tmp_doc)) >= 0)){
 	    if(ch->comm_flags & COMM_BROADCAST_FROM_QUORATE){
-	      log_msg("Remote configuration copy is from quorate node.\n");
-	      log_msg(" Local version # : %d\n", v1);
-	      log_msg(" Remote version #: %d\n", v2);
+	      log_printf(LOG_INFO, "Remote configuration copy is from quorate node.\n");
+	      log_printf(LOG_INFO, " Local version # : %d\n", v1);
+	      log_printf(LOG_INFO, " Remote version #: %d\n", v2);
 	      if(v1 != v2){
-		log_msg("Switching to remote copy.\n");
+		log_printf(LOG_INFO, "Switching to remote copy.\n");
 	      }
 	      if(master_doc->od_refs){
 		open_doc_t *tmp_odoc;
@@ -405,9 +407,9 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
 	      write_to_disk = 1;
 	      goto out;
 	    } else if(v2 > v1){
-	      log_msg("Remote configuration copy is newer than local copy.\n");
-	      log_msg(" Local version # : %d\n", v1);
-	      log_msg(" Remote version #: %d\n", v2);
+	      log_printf(LOG_INFO, "Remote configuration copy is newer than local copy.\n");
+	      log_printf(LOG_INFO, " Local version # : %d\n", v1);
+	      log_printf(LOG_INFO, " Remote version #: %d\n", v2);
 	      if(master_doc->od_refs){
 		open_doc_t *tmp_odoc;
 		if(!(tmp_odoc = malloc(sizeof(open_doc_t)))){
@@ -436,7 +438,7 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
     reset_timer:
       tv.tv_sec = 0;
       tv.tv_usec = 250000 + (random()%500000);
-      log_dbg("Select waiting %ld usec\n", tv.tv_usec);
+      log_printf(LOG_DEBUG, "Select waiting %ld usec\n", tv.tv_usec);
     }
   } while(blocking && !master_doc);
  out:
@@ -454,12 +456,12 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
     ** but it has not been written to disk....................................... */
     if(stat(DEFAULT_CONFIG_DIR, &stat_buf)){
       if(mkdir(DEFAULT_CONFIG_DIR, S_IRWXU | S_IRWXG)){
-	log_sys_err("Unable to create directory " DEFAULT_CONFIG_DIR);
+	log_printf(LOG_ERR, "Unable to create directory " DEFAULT_CONFIG_DIR);
 	error = -errno;
 	goto fail;
       }
     } else if(!S_ISDIR(stat_buf.st_mode)){
-      log_err(DEFAULT_CONFIG_DIR " is not a directory.\n");
+      log_printf(LOG_ERR, DEFAULT_CONFIG_DIR " is not a directory.\n");
       error = -ENOTDIR;
       goto fail;
     }
@@ -468,7 +470,7 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
     f = fopen(DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE, "w");
     umask(old_mode);
     if(!f){
-      log_sys_err("Unable to open " DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE);
+      log_printf(LOG_ERR, "Unable to open " DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE);
       error = -errno;
       goto fail;
     }
@@ -485,7 +487,7 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
   if(bdoc) free(bdoc);
   if(tmp_doc) xmlFreeDoc(tmp_doc);
   if(sfd >= 0) close(sfd);
-  EXIT("broadcast_for_doc");
+  CCSEXIT("broadcast_for_doc");
   return error;
 }
 
@@ -502,11 +504,11 @@ static int process_connect(comm_header_t *ch, char *cluster_name){
   char *tmp_name = NULL;
   time_t now;
 
-  ENTER("process_connect");
+  CCSENTER("process_connect");
 
   ch->comm_payload_size = 0;
 
-  log_dbg("Given cluster name is = %s\n", cluster_name);
+  log_printf(LOG_DEBUG, "Given cluster name is = %s\n", cluster_name);
 
   if(!ocs){
     /* this will never be freed - unless exit */
@@ -519,7 +521,7 @@ static int process_connect(comm_header_t *ch, char *cluster_name){
   }
 
   if(!quorate && !(ch->comm_flags & COMM_CONNECT_FORCE)){
-    log_msg("Cluster is not quorate.  Refusing connection.\n");
+    log_printf(LOG_INFO, "Cluster is not quorate.  Refusing connection.\n");
     error = -ECONNREFUSED;
     goto fail;
   }
@@ -538,26 +540,26 @@ static int process_connect(comm_header_t *ch, char *cluster_name){
   if(!master_doc->od_doc){
     master_doc->od_doc = xmlParseFile(DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE);
     if(!master_doc->od_doc){
-      log_msg("Unable to parse " DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE "\n");
-      log_msg("Searching cluster for valid copy.\n");
+      log_printf(LOG_INFO, "Unable to parse " DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE "\n");
+      log_printf(LOG_INFO, "Searching cluster for valid copy.\n");
     } else if((error = get_doc_version(master_doc->od_doc)) < 0){
-      log_err("Unable to get config_version from " DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE ".\n");
-      log_err("Discarding data and searching for valid copy.\n");
+      log_printf(LOG_ERR, "Unable to get config_version from " DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE ".\n");
+      log_printf(LOG_ERR, "Discarding data and searching for valid copy.\n");
       xmlFreeDoc(master_doc->od_doc);
       master_doc->od_doc = NULL;
     } else if(!(tmp_name = get_cluster_name(master_doc->od_doc))){
-      log_err("Unable to get cluster name from " DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE ".\n");
-      log_err("Discarding data and searching for valid copy.\n");
+      log_printf(LOG_ERR, "Unable to get cluster name from " DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE ".\n");
+      log_printf(LOG_ERR, "Discarding data and searching for valid copy.\n");
       xmlFreeDoc(master_doc->od_doc);
       master_doc->od_doc = NULL;
     } else if(cluster_name && strcmp(cluster_name, tmp_name)){
-      log_err("Given cluster name does not match local " DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE ".\n");
-      log_err("Discarding data and searching for matching copy.\n");
+      log_printf(LOG_ERR, "Given cluster name does not match local " DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE ".\n");
+      log_printf(LOG_ERR, "Discarding data and searching for matching copy.\n");
       xmlFreeDoc(master_doc->od_doc);
       master_doc->od_doc = NULL;
       free(tmp_name); tmp_name = NULL;
     } else {  /* Either the names match, or a name wasn't specified. */
-      log_msg(DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE " (cluster name = %s, version = %d) found.\n",
+      log_printf(LOG_INFO, DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE " (cluster name = %s, version = %d) found.\n",
 	      tmp_name, error);
       /* We must check with the others to make sure this is valid. */
     }
@@ -571,8 +573,8 @@ static int process_connect(comm_header_t *ch, char *cluster_name){
     ** for the config of the name specified............................... */
 
     if(cluster_name && strcmp(cluster_name, tmp_name)){
-      log_err("Request for configuration with cluster name, %s\n", cluster_name);
-      log_err(" However, a configuration with cluster name, %s, is already loaded.\n",
+      log_printf(LOG_ERR, "Request for configuration with cluster name, %s\n", cluster_name);
+      log_printf(LOG_ERR, " However, a configuration with cluster name, %s, is already loaded.\n",
 	      tmp_name);
       error = -EINVAL;
       goto fail;
@@ -590,32 +592,32 @@ static int process_connect(comm_header_t *ch, char *cluster_name){
     }
   }
 
-  log_dbg("Blocking is %s.\n",
+  log_printf(LOG_DEBUG, "Blocking is %s.\n",
 	  (ch->comm_flags & COMM_CONNECT_BLOCKING)? "SET": "UNSET");
-  log_dbg("Flags = 0x%x\n", ch->comm_flags);
+  log_printf(LOG_DEBUG, "Flags = 0x%x\n", ch->comm_flags);
 
   /* Need to broadcast regardless (unless quorate) to check version # */
   if(bcast_needed){
-    log_dbg("Broadcast is neccessary.\n");
+    log_printf(LOG_DEBUG, "Broadcast is neccessary.\n");
   }
   if(bcast_needed &&
      (error = broadcast_for_doc(tmp_name, ch->comm_flags & COMM_CONNECT_BLOCKING)) &&
      !master_doc->od_doc){
-    log_err("Broadcast for config file failed: %s\n", strerror(-error));
+    log_printf(LOG_ERR, "Broadcast for config file failed: %s\n", strerror(-error));
     goto fail;
   }
   error = 0;
 
   if(!master_doc || !master_doc->od_doc){
-    log_err("The appropriate config file could not be loaded.\n");
+    log_printf(LOG_ERR, "The appropriate config file could not be loaded.\n");
     error = -ENODATA;
     goto fail;
   }
 
   if(update_required){
-    log_dbg("Update is required.\n");
+    log_printf(LOG_DEBUG, "Update is required.\n");
     if((error = update_config())){
-      log_err("Failed to update config file, required by cluster.\n");
+      log_printf(LOG_ERR, "Failed to update config file, required by cluster.\n");
       /* ATTENTION -- remove all open_doc_t's ? */
       goto fail;
     }
@@ -627,7 +629,7 @@ static int process_connect(comm_header_t *ch, char *cluster_name){
     if (!ocs[i])
       continue;
     if (now >= ocs[i]->oc_expire) {
-      log_dbg("Recycling connection descriptor %d: Expired\n",
+      log_printf(LOG_DEBUG, "Recycling connection descriptor %d: Expired\n",
 	      ocs[i]->oc_desc );
       _cleanup_descriptor(i);
     }
@@ -670,7 +672,7 @@ static int process_connect(comm_header_t *ch, char *cluster_name){
   if(!ocs[i]->oc_ctx){
     ocs[i]->oc_odoc->od_refs--;
     free(ocs[i]);
-    log_err("Error: unable to create new XPath context.\n");
+    log_printf(LOG_ERR, "Error: unable to create new XPath context.\n");
     error = -EIO;  /* ATTENTION -- what should this be? */
     goto fail;
   }
@@ -690,7 +692,7 @@ static int process_connect(comm_header_t *ch, char *cluster_name){
   } else {
     ch->comm_desc = ocs[i]->oc_desc;
   }
-  EXIT("process_connect");
+  CCSEXIT("process_connect");
   return error;
 }
 
@@ -711,12 +713,12 @@ _cleanup_descriptor(int desc)
   }
   tmp_odoc = ocs[desc]->oc_odoc;
   if(tmp_odoc->od_refs < 1){
-    log_err("Number of references on an open doc should never be < 1.\n");
-    log_err("This is a fatal error.  Exiting...\n");
+    log_printf(LOG_ERR, "Number of references on an open doc should never be < 1.\n");
+    log_printf(LOG_ERR, "This is a fatal error.  Exiting...\n");
     exit(EXIT_FAILURE);
   }
   if(tmp_odoc != master_doc && tmp_odoc->od_refs == 1){
-    log_dbg("No more references on version %d of config file, freeing...\n",
+    log_printf(LOG_DEBUG, "No more references on version %d of config file, freeing...\n",
 	      get_doc_version(tmp_odoc->od_doc));
     xmlFreeDoc(tmp_odoc->od_doc);
     free(tmp_odoc);
@@ -741,20 +743,20 @@ _cleanup_descriptor(int desc)
 static int process_disconnect(comm_header_t *ch){
   int desc = dindex(ch->comm_desc);
   int error=0;
-  ENTER("process_disconnect");
+  CCSENTER("process_disconnect");
 
   ch->comm_payload_size = 0;
 
   if(desc < 0){
-    log_err("Invalid descriptor specified (%d).\n", desc);
-    log_err("Someone may be attempting something evil.\n");
+    log_printf(LOG_ERR, "Invalid descriptor specified (%d).\n", desc);
+    log_printf(LOG_ERR, "Someone may be attempting something evil.\n");
     error = -EBADR;
     goto fail;
   }
 
   if(!ocs || !ocs[desc] || (ocs[desc]->oc_desc != ch->comm_desc)){
     /* send failure to requestor ? */
-    log_err("Attempt to close an unopened CCS descriptor (%d).\n",
+    log_printf(LOG_ERR, "Attempt to close an unopened CCS descriptor (%d).\n",
 	    ch->comm_desc);
 
     error = -EBADR;
@@ -769,7 +771,7 @@ static int process_disconnect(comm_header_t *ch){
   } else {
     ch->comm_desc = -1;
   }
-  EXIT("process_disconnect");
+  CCSEXIT("process_disconnect");
   return error;
 }
 
@@ -793,33 +795,33 @@ static int _process_get(comm_header_t *ch, char **payload){
   xmlXPathObjectPtr obj = NULL;
   char *query = NULL;
 
-  ENTER("_process_get");
+  CCSENTER("_process_get");
   if(!ch->comm_payload_size){
-    log_err("process_get: payload size is zero.\n");
+    log_printf(LOG_ERR, "process_get: payload size is zero.\n");
     error = -EINVAL;
     goto fail;
   }
 
   if(ch->comm_desc < 0){
-    log_err("Invalid descriptor specified (%d).\n", ch->comm_desc);
-    log_err("Someone may be attempting something evil.\n");
+    log_printf(LOG_ERR, "Invalid descriptor specified (%d).\n", ch->comm_desc);
+    log_printf(LOG_ERR, "Someone may be attempting something evil.\n");
     error = -EBADR;
     goto fail;
   }
 
   if(!ocs || !ocs[desc] || (ocs[desc]->oc_desc != ch->comm_desc)){
-    log_err("process_get: Invalid connection descriptor received.\n");
+    log_printf(LOG_ERR, "process_get: Invalid connection descriptor received.\n");
     error = -EBADR;
     goto fail;
   }
 
   if(ocs[desc]->oc_query && !strcmp(*payload,ocs[desc]->oc_query)){
     ocs[desc]->oc_index++;
-    log_dbg("Index = %d\n",ocs[desc]->oc_index);
-    log_dbg(" Query = %s\n", *payload);
+    log_printf(LOG_DEBUG, "Index = %d\n",ocs[desc]->oc_index);
+    log_printf(LOG_DEBUG, " Query = %s\n", *payload);
   } else {
-    log_dbg("Index reset (new query).\n");
-    log_dbg(" Query = %s\n", *payload);
+    log_printf(LOG_DEBUG, "Index reset (new query).\n");
+    log_printf(LOG_DEBUG, " Query = %s\n", *payload);
     ocs[desc]->oc_index = 0;
     if(ocs[desc]->oc_query){
       free(ocs[desc]->oc_query);
@@ -831,7 +833,7 @@ static int _process_get(comm_header_t *ch, char **payload){
   if(((ch->comm_payload_size > 1) &&
       ((*payload)[0] == '/')) ||
      !ocs[desc]->oc_cwp){
-    log_dbg("Query involves absolute path or cwp is not set.\n");
+    log_printf(LOG_DEBUG, "Query involves absolute path or cwp is not set.\n");
     query = (char *)strdup(*payload);
     if(!query){
       error = -ENOMEM;
@@ -839,7 +841,7 @@ static int _process_get(comm_header_t *ch, char **payload){
     }
   } else {
     /* +2 because of NULL and '/' character */
-    log_dbg("Query involves relative path.\n");
+    log_printf(LOG_DEBUG, "Query involves relative path.\n");
     query = malloc(strlen(*payload)+strlen(ocs[desc]->oc_cwp)+2);
     if(!query){
       error = -ENOMEM;
@@ -853,8 +855,8 @@ static int _process_get(comm_header_t *ch, char **payload){
 
   obj = xmlXPathEvalExpression((xmlChar *)query, ocs[desc]->oc_ctx);
   if(obj){
-    log_dbg("Obj type  = %d (%s)\n", obj->type, (obj->type == 1)?"XPATH_NODESET":"");
-    log_dbg("Number of matches: %d\n", (obj->nodesetval)?obj->nodesetval->nodeNr:0);
+    log_printf(LOG_DEBUG, "Obj type  = %d (%s)\n", obj->type, (obj->type == 1)?"XPATH_NODESET":"");
+    log_printf(LOG_DEBUG, "Number of matches: %d\n", (obj->nodesetval)?obj->nodesetval->nodeNr:0);
     if(obj->nodesetval && (obj->nodesetval->nodeNr > 0) ){
       xmlNodePtr node;
       int size=0;
@@ -863,17 +865,17 @@ static int _process_get(comm_header_t *ch, char **payload){
       if(ocs[desc]->oc_index >= obj->nodesetval->nodeNr){
 	ocs[desc]->oc_index = 0;
 	error = 1;
-	log_dbg("Index reset to zero (end of list).\n");
+	log_printf(LOG_DEBUG, "Index reset to zero (end of list).\n");
       }
 	  
       node = obj->nodesetval->nodeTab[ocs[desc]->oc_index];
 	
-      log_dbg("Node (%s) type = %d (%s)\n", node->name, node->type,
+      log_printf(LOG_DEBUG, "Node (%s) type = %d (%s)\n", node->name, node->type,
 	      (node->type == 1)? "XML_ELEMENT_NODE":
 	      (node->type == 2)? "XML_ATTRIBUTE_NODE":"");
 
       if(!node) {
-	log_dbg("No content found.\n");
+	log_printf(LOG_DEBUG, "No content found.\n");
 	error = -ENODATA;
 	goto fail;
       }
@@ -898,7 +900,7 @@ static int _process_get(comm_header_t *ch, char **payload){
       }
 
       if(size <= ch->comm_payload_size){  /* do we already have enough space? */
-	log_dbg("No extra space needed.\n");
+	log_printf(LOG_DEBUG, "No extra space needed.\n");
 	if(nnv){
  	  sprintf(*payload, "%s=%s", node->name, node->children ?
  					 (char *)node->children->content:"");
@@ -908,7 +910,7 @@ static int _process_get(comm_header_t *ch, char **payload){
 	}
 
       } else {
-	log_dbg("Extra space needed.\n");
+	log_printf(LOG_DEBUG, "Extra space needed.\n");
 	free(*payload);
 	*payload = (char *)malloc(size);
 	if(!*payload){
@@ -923,16 +925,16 @@ static int _process_get(comm_header_t *ch, char **payload){
  				  node->name);
 	}
       }
-      log_dbg("Query results:: %s\n", *payload);
+      log_printf(LOG_DEBUG, "Query results:: %s\n", *payload);
       ch->comm_payload_size = size;
     } else {
-      log_dbg("No nodes found.\n");
+      log_printf(LOG_DEBUG, "No nodes found.\n");
       ch->comm_payload_size = 0;
       error = -ENODATA;
       goto fail;
     }
   } else {
-    log_err("Error: unable to evaluate xpath query \"%s\"\n", *payload);
+    log_printf(LOG_ERR, "Error: unable to evaluate xpath query \"%s\"\n", *payload);
     error = -EINVAL;
     goto fail;
   }
@@ -946,23 +948,23 @@ static int _process_get(comm_header_t *ch, char **payload){
     ch->comm_payload_size = 0;
   }
   if(query) { free(query); }
-  EXIT("_process_get");
+  CCSEXIT("_process_get");
   return error;
 }
 
 static int process_get(comm_header_t *ch, char **payload){
   int error;
-  ENTER("process_get");
+  CCSENTER("process_get");
 
   error = _process_get(ch, payload);
 
-  EXIT("process_get");
+  CCSEXIT("process_get");
   return (error < 0)? error: 0;  
 }
 
 static int process_get_list(comm_header_t *ch, char **payload){
   int error;
-  ENTER("process_get_list");
+  CCSENTER("process_get_list");
 
   error = _process_get(ch, payload);
   if(error){
@@ -971,7 +973,7 @@ static int process_get_list(comm_header_t *ch, char **payload){
       ocs[dindex(ch->comm_desc)]->oc_index = -1;
   }
 
-  EXIT("process_get_list");
+  CCSEXIT("process_get_list");
   return (error < 0)? error: 0;
 }
 
@@ -979,22 +981,22 @@ static int process_set(comm_header_t *ch, char *payload){
   int error = 0;
   int desc = dindex(ch->comm_desc);
 
-  ENTER("process_set");
+  CCSENTER("process_set");
   if(!ch->comm_payload_size){
-    log_err("process_set: payload size is zero.\n");
+    log_printf(LOG_ERR, "process_set: payload size is zero.\n");
     error = -EINVAL;
     goto fail;
   }
 
   if(ch->comm_desc < 0){
-    log_err("Invalid descriptor specified (%d).\n", ch->comm_desc);
-    log_err("Someone may be attempting something evil.\n");
+    log_printf(LOG_ERR, "Invalid descriptor specified (%d).\n", ch->comm_desc);
+    log_printf(LOG_ERR, "Someone may be attempting something evil.\n");
     error = -EBADR;
     goto fail;
   }
 
   if(!ocs || !ocs[desc] || (ocs[desc]->oc_desc != ch->comm_desc)){
-    log_err("process_set: Invalid connection descriptor received.\n");
+    log_printf(LOG_ERR, "process_set: Invalid connection descriptor received.\n");
     error = -EBADR;
     goto fail;
   }
@@ -1007,7 +1009,7 @@ static int process_set(comm_header_t *ch, char *payload){
   if(error){
     ch->comm_error = error;
   }
-  EXIT("process_set");
+  CCSEXIT("process_set");
   return error;
 }
 
@@ -1016,22 +1018,22 @@ static int process_get_state(comm_header_t *ch, char **payload){
   int error = 0, desc = dindex(ch->comm_desc);
   char *load = NULL;
 
-  ENTER("process_get_state");
+  CCSENTER("process_get_state");
   if(ch->comm_payload_size){
-    log_err("process_get_state: payload size is nonzero.\n");
+    log_printf(LOG_ERR, "process_get_state: payload size is nonzero.\n");
     error = -EINVAL;
     goto fail;
   }
 
   if(ch->comm_desc < 0){
-    log_err("Invalid descriptor specified (%d).\n", ch->comm_desc);
-    log_err("Someone may be attempting something evil.\n");
+    log_printf(LOG_ERR, "Invalid descriptor specified (%d).\n", ch->comm_desc);
+    log_printf(LOG_ERR, "Someone may be attempting something evil.\n");
     error = -EBADR;
     goto fail;
   }
 
   if(!ocs || !ocs[desc] || (ocs[desc]->oc_desc != ch->comm_desc)){
-    log_err("process_get_state: Invalid connection descriptor received.\n");
+    log_printf(LOG_ERR, "process_get_state: Invalid connection descriptor received.\n");
     error = -EBADR;
     goto fail;
   }
@@ -1039,7 +1041,7 @@ static int process_get_state(comm_header_t *ch, char **payload){
   if(ocs[desc]->oc_cwp && ocs[desc]->oc_query){
     int size = strlen(ocs[desc]->oc_cwp) +
       strlen(ocs[desc]->oc_query) + 2;
-    log_dbg("Both cwp and query are set.\n");
+    log_printf(LOG_DEBUG, "Both cwp and query are set.\n");
     load = malloc(size);
     if(!load){
       error = -ENOMEM;
@@ -1049,7 +1051,7 @@ static int process_get_state(comm_header_t *ch, char **payload){
     strcpy(load+strlen(ocs[desc]->oc_cwp)+1, ocs[desc]->oc_query);
     ch->comm_payload_size = size;
   } else if(ocs[desc]->oc_cwp){
-    log_dbg("Only cwp is set.\n");
+    log_printf(LOG_DEBUG, "Only cwp is set.\n");
     load = (char *)strdup(ocs[desc]->oc_cwp);
     if(!load){
       error = -ENOMEM;
@@ -1058,7 +1060,7 @@ static int process_get_state(comm_header_t *ch, char **payload){
     ch->comm_payload_size = strlen(load)+1;
   } else if(ocs[desc]->oc_query){
     int size = strlen(ocs[desc]->oc_query) + 2;
-    log_dbg("Only query is set.\n");
+    log_printf(LOG_DEBUG, "Only query is set.\n");
     load = malloc(size);
     if(!load){
       error = -ENOMEM;
@@ -1078,7 +1080,7 @@ static int process_get_state(comm_header_t *ch, char **payload){
     ch->comm_error = error;
     ch->comm_payload_size = 0;
   }
-  EXIT("process_get_state");
+  CCSEXIT("process_get_state");
   return error;
 }
 
@@ -1086,22 +1088,22 @@ static int process_get_state(comm_header_t *ch, char **payload){
 static int process_set_state(comm_header_t *ch, char *payload){
   int error = 0, desc = dindex(ch->comm_desc);
 
-  ENTER("process_set_state");
+  CCSENTER("process_set_state");
   if(!ch->comm_payload_size){
-    log_err("process_set_state: payload size is zero.\n");
+    log_printf(LOG_ERR, "process_set_state: payload size is zero.\n");
     error = -EINVAL;
     goto fail;
   }
 
   if(ch->comm_desc < 0){
-    log_err("Invalid descriptor specified (%d).\n", ch->comm_desc);
-    log_err("Someone may be attempting something evil.\n");
+    log_printf(LOG_ERR, "Invalid descriptor specified (%d).\n", ch->comm_desc);
+    log_printf(LOG_ERR, "Someone may be attempting something evil.\n");
     error = -EBADR;
     goto fail;
   }
 
   if(!ocs || !ocs[desc] || (ocs[desc]->oc_desc != ch->comm_desc)){
-    log_err("process_set_state: Invalid connection descriptor received.\n");
+    log_printf(LOG_ERR, "process_set_state: Invalid connection descriptor received.\n");
     error = -EBADR;
     goto fail;
   }
@@ -1125,7 +1127,7 @@ static int process_set_state(comm_header_t *ch, char *payload){
     ch->comm_error = error;
   }
 
-  EXIT("process_set_state");
+  CCSEXIT("process_set_state");
   return error;
 }
 
@@ -1144,7 +1146,7 @@ int process_request(int afd){
   comm_header_t *ch = NULL, *tmp_ch;
   char *payload = NULL;
   
-  ENTER("process_request");
+  CCSENTER("process_request");
 
   if(!(ch = (comm_header_t *)malloc(sizeof(comm_header_t)))){
     error = -ENOMEM;
@@ -1153,10 +1155,10 @@ int process_request(int afd){
 
   error = read(afd, ch, sizeof(comm_header_t));
   if(error < 0){
-    log_sys_err("Unable to read comm_header_t");
+    log_printf(LOG_ERR, "Unable to read comm_header_t");
     goto fail;
   } else if(error < sizeof(comm_header_t)){
-    log_err("Unable to read complete comm_header_t.\n");
+    log_printf(LOG_ERR, "Unable to read complete comm_header_t.\n");
     error = -EBADE;
     goto fail;
   }
@@ -1168,10 +1170,10 @@ int process_request(int afd){
     }
     error = read(afd, payload, ch->comm_payload_size);
     if(error < 0){
-      log_sys_err("Unable to read payload");
+      log_printf(LOG_ERR, "Unable to read payload");
       goto fail;
     } else if(error < ch->comm_payload_size){
-      log_err("Unable to read complete payload.\n");
+      log_printf(LOG_ERR, "Unable to read complete payload.\n");
       error = -EBADE;
       goto fail;
     }
@@ -1180,20 +1182,20 @@ int process_request(int afd){
   switch(ch->comm_type){
   case COMM_CONNECT:
     if((error = process_connect(ch, payload)) < 0){
-      log_err("Error while processing connect: %s\n", strerror(-error));
+      log_printf(LOG_ERR, "Error while processing connect: %s\n", strerror(-error));
       goto fail;
     }
     break;
   case COMM_DISCONNECT:
     if((error = process_disconnect(ch)) < 0){
-      log_err("Error while processing disconnect: %s\n", strerror(-error));
+      log_printf(LOG_ERR, "Error while processing disconnect: %s\n", strerror(-error));
       goto fail;
     }
     break;
   case COMM_GET:
     if((error = process_get(ch, &payload)) < 0){
       if(error != -ENODATA){
-	log_err("Error while processing get: %s\n", strerror(-error));
+	log_printf(LOG_ERR, "Error while processing get: %s\n", strerror(-error));
       }
       goto fail;
     }
@@ -1201,43 +1203,43 @@ int process_request(int afd){
   case COMM_GET_LIST:
     if((error = process_get_list(ch, &payload)) < 0){
       if(error != -ENODATA){
-	log_err("Error while processing get: %s\n", strerror(-error));
+	log_printf(LOG_ERR, "Error while processing get: %s\n", strerror(-error));
       }
       goto fail;
     }
     break;
   case COMM_SET:
     if((error = process_set(ch, payload)) < 0){
-      log_err("Error while processing set: %s\n", strerror(-error));
+      log_printf(LOG_ERR, "Error while processing set: %s\n", strerror(-error));
       goto fail;
     }
     break;
   case COMM_GET_STATE:
     if((error = process_get_state(ch, &payload)) < 0){
-      log_err("Error while processing get_state: %s\n", strerror(-error));
+      log_printf(LOG_ERR, "Error while processing get_state: %s\n", strerror(-error));
       goto fail;
     }
     break;
   case COMM_SET_STATE:
     if((error = process_set_state(ch, payload)) < 0){
-      log_err("Error while processing set_state: %s\n", strerror(-error));
+      log_printf(LOG_ERR, "Error while processing set_state: %s\n", strerror(-error));
       goto fail;
     }
     break;
   default:
-    log_err("Unknown connection request received.\n");
+    log_printf(LOG_ERR, "Unknown connection request received.\n");
     error = -EINVAL;
     ch->comm_error = error;
     ch->comm_payload_size = 0;
   }
 
   if(ch->comm_payload_size){
-    log_dbg("Reallocating transfer buffer.\n");
+    log_printf(LOG_DEBUG, "Reallocating transfer buffer.\n");
     tmp_ch = (comm_header_t *)
       realloc(ch,sizeof(comm_header_t)+ch->comm_payload_size);
 
     if(tmp_ch) { ch = tmp_ch; } else {
-      log_err("Not enough memory to complete request.\n");
+      log_printf(LOG_ERR, "Not enough memory to complete request.\n");
       error = -ENOMEM;
       goto fail;
     }
@@ -1252,10 +1254,10 @@ int process_request(int afd){
     if (errno == EPIPE) {
       error = 0;
     } else {
-      log_sys_err("Unable to write package back to sender");
+      log_printf(LOG_ERR, "Unable to write package back to sender");
     }
   } else if(error < (sizeof(comm_header_t)+ch->comm_payload_size)){
-    log_err("Unable to write complete package.\n");
+    log_printf(LOG_ERR, "Unable to write complete package.\n");
     error = -EBADE;
     goto fail;
   } else {
@@ -1265,7 +1267,7 @@ int process_request(int afd){
   if(ch){ free(ch); }
   if(payload){ free(payload); }
 
-  EXIT("process_request");
+  CCSEXIT("process_request");
   return error;
 }
 
@@ -1286,7 +1288,7 @@ int process_broadcast(int sfd){
   int sendlen;
   int discard = 0;
 
-  ENTER("process_broadcast");
+  CCSENTER("process_broadcast");
 
   ch = malloc(sizeof(comm_header_t));
   if(!ch){
@@ -1296,9 +1298,9 @@ int process_broadcast(int sfd){
   memset(ch, 0, sizeof(comm_header_t));
   memset(&addr, 0, sizeof(struct sockaddr_storage)); /* just to make sure */
 
-  log_dbg("Waiting to receive broadcast request.\n");
+  log_printf(LOG_DEBUG, "Waiting to receive broadcast request.\n");
   if(recvfrom(sfd, ch, sizeof(comm_header_t), 0, (struct sockaddr *)&addr, &len) < 0){
-    log_sys_err("Unable to perform recvfrom");
+    log_printf(LOG_ERR, "Unable to perform recvfrom");
     error = -errno;
     goto fail;
   }
@@ -1308,7 +1310,7 @@ int process_broadcast(int sfd){
     /* Either someone is pinging this port, or there is an older version **
     ** of ccs trying to get bcast response.  Either way, we should not   **
     ** respond to them.................................................. */
-    log_dbg("Received invalid request on broadcast port. %x\n",ch->comm_type);
+    log_printf(LOG_DEBUG, "Received invalid request on broadcast port. %x\n",ch->comm_type);
     error = -EINVAL;
     goto fail;
   }
@@ -1321,7 +1323,7 @@ int process_broadcast(int sfd){
 
   if(!master_doc){
     discard = 1;
-    log_dbg("master_doc not loaded.  Attempting to load it.\n");
+    log_printf(LOG_DEBUG, "master_doc not loaded.  Attempting to load it.\n");
     if(!(master_doc = malloc(sizeof(open_doc_t)))){
       error = -ENOMEM;
       goto fail;
@@ -1331,15 +1333,15 @@ int process_broadcast(int sfd){
     if(!master_doc->od_doc){
       free(master_doc);
       master_doc = NULL;
-      log_err("Unable to parse " DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE ".\n");
+      log_printf(LOG_ERR, "Unable to parse " DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE ".\n");
       error = -ENODATA;
       goto fail;
     }
-    log_dbg("master_doc found and loaded.\n");
+    log_printf(LOG_DEBUG, "master_doc found and loaded.\n");
   } else if(update_required){
-    log_dbg("Update is required.\n");
+    log_printf(LOG_DEBUG, "Update is required.\n");
     if((error = update_config())){
-      log_err("Failed to update config file, required by cluster.\n");
+      log_printf(LOG_ERR, "Failed to update config file, required by cluster.\n");
       /* ATTENTION -- remove all open_doc_t's ? */
       goto fail;
     }
@@ -1352,7 +1354,7 @@ int process_broadcast(int sfd){
 			 0);
   if(!ch->comm_payload_size){
     error = -ENOMEM;
-    log_err("Document dump to memory failed.\n");
+    log_printf(LOG_ERR, "Document dump to memory failed.\n");
     goto fail;
   }
 
@@ -1371,11 +1373,11 @@ int process_broadcast(int sfd){
   swab_header(ch); /* Swab back to dip into ch for payload_size */
   memcpy(buffer+sizeof(comm_header_t), payload, ch->comm_payload_size);
 
-  log_dbg("Sending configuration (version %d)...\n", get_doc_version(master_doc->od_doc));
+  log_printf(LOG_DEBUG, "Sending configuration (version %d)...\n", get_doc_version(master_doc->od_doc));
   sendlen = ch->comm_payload_size + sizeof(comm_header_t);
   if(sendto(sfd, buffer, sendlen, 0,
 	    (struct sockaddr *)&addr, (socklen_t)len) < 0){
-    log_sys_err("Sendto failed");
+    log_printf(LOG_ERR, "Sendto failed");
     error = -errno;
   }
 
@@ -1389,6 +1391,6 @@ int process_broadcast(int sfd){
     if(master_doc) free(master_doc);
     master_doc = NULL;
   }
-  EXIT("process_broadcast");
+  CCSEXIT("process_broadcast");
   return error;
 }

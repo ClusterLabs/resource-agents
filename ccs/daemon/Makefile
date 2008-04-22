@@ -29,11 +29,12 @@ OBJS=	ccsd.o \
 	globals.o
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
-CFLAGS += -I${cmanincdir} `xml2-config --cflags`
+CFLAGS += -I${cmanincdir} `xml2-config --cflags` -I${openaisincdir}
 CFLAGS += -I$(S) -I$(S)/../include -I$(S)/../common
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${cmanlibdir} -lcman -L${ccslibdir} -lccs
+LDFLAGS += -L${openaislibdir} -llogsys
 LDFLAGS += -L${libdir} `xml2-config --libs` -lpthread
 
 

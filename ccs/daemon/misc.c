@@ -28,9 +28,9 @@
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
 #include <libxml/xpathInternals.h>
+#include <openais/service/logsys.h>
 
 #include "comm_headers.h"
-#include "log.h"
 #include "debug.h"
 #include "misc.h"
 
@@ -41,6 +41,8 @@ pthread_mutex_t update_lock;
 
 open_doc_t *master_doc = NULL;
 
+LOGSYS_DECLARE_SUBSYS ("CCS", LOG_INFO);
+
 int get_doc_version(xmlDocPtr ldoc){
   int i;
   int error = 0;
@@ -48,38 +50,38 @@ int get_doc_version(xmlDocPtr ldoc){
   xmlXPathContextPtr ctx = NULL;
   xmlNodePtr        node = NULL;
 
-  ENTER("get_doc_version");
+  CCSENTER("get_doc_version");
 
   ctx = xmlXPathNewContext(ldoc);
   if(!ctx){
-    log_err("Error: unable to create new XPath context.\n");
+    log_printf(LOG_ERR, "Error: unable to create new XPath context.\n");
     error = -EIO;  /* ATTENTION -- what should this be? */
     goto fail;
   }
 
   obj = xmlXPathEvalExpression((xmlChar *)"//cluster/@config_version", ctx);
   if(!obj || !obj->nodesetval || (obj->nodesetval->nodeNr != 1)){
-    log_err("Error while retrieving config_version.\n");
+    log_printf(LOG_ERR, "Error while retrieving config_version.\n");
     error = -ENODATA;
     goto fail;
   }
 
   node = obj->nodesetval->nodeTab[0];
   if(node->type != XML_ATTRIBUTE_NODE){
-    log_err("Object returned is not of attribute type.\n");
+    log_printf(LOG_ERR, "Object returned is not of attribute type.\n");
     error = -ENODATA;
     goto fail;
   }
 
   if(!node->children->content || !strlen((char *)node->children->content)){
-    log_dbg("No content found.\n");
+    log_printf(LOG_DEBUG, "No content found.\n");
     error = -ENODATA;
     goto fail;
   }
   
   for(i=0; i < strlen((char *)node->children->content); i++){
     if(!isdigit(node->children->content[i])){
-      log_err("config_version is not a valid integer.\n");
+      log_printf(LOG_ERR, "config_version is not a valid integer.\n");
       error = -EINVAL;
       goto fail;
     }
@@ -94,7 +96,7 @@ fail:
   if(obj){
     xmlXPathFreeObject(obj);
   }
-  EXIT("get_doc_version");
+  CCSEXIT("get_doc_version");
   return error;
 }
 
@@ -114,31 +116,31 @@ char *get_cluster_name(xmlDocPtr ldoc){
   xmlXPathContextPtr ctx = NULL;
   xmlNodePtr        node = NULL;
 
-  ENTER("get_cluster_name");
+  CCSENTER("get_cluster_name");
 
   ctx = xmlXPathNewContext(ldoc);
   if(!ctx){
-    log_err("Error: unable to create new XPath context.\n");
+    log_printf(LOG_ERR, "Error: unable to create new XPath context.\n");
     error = -EIO;  /* ATTENTION -- what should this be? */
     goto fail;
   }
 
   obj = xmlXPathEvalExpression((xmlChar *)"//cluster/@name", ctx);
   if(!obj || !obj->nodesetval || (obj->nodesetval->nodeNr != 1)){
-    log_err("Error while retrieving config_version.\n");
+    log_printf(LOG_ERR, "Error while retrieving config_version.\n");
     error = -ENODATA;
     goto fail;
   }
 
   node = obj->nodesetval->nodeTab[0];
   if(node->type != XML_ATTRIBUTE_NODE){
-    log_err("Object returned is not of attribute type.\n");
+    log_printf(LOG_ERR, "Object returned is not of attribute type.\n");
     error = -ENODATA;
     goto fail;
   }
 
   if(!node->children->content || !strlen((char *)node->children->content)){
-    log_dbg("No content found.\n");
+    log_printf(LOG_DEBUG, "No content found.\n");
     error = -ENODATA;
     goto fail;
   }
@@ -153,7 +155,7 @@ fail:
   if(obj){
     xmlXPathFreeObject(obj);
   }
-  EXIT("get_cluster_name");
+  CCSEXIT("get_cluster_name");
   return rtn;
 }
 
