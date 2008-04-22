@@ -1,12 +1,13 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2008 Fabio M. Di Nitto <fabbione@fabbione.net>.
-**  All rights reserved.
+**  Copyright (C) 2008 Red Hat, Inc.  All rights reserved.
+**
+**  Author: Fabio M. Di Nitto <fdinitto@redhat.com>
 **
 **  Original design by: 
 **  Joel Becker <Joel.Becker@oracle.com> 
-**  Fabio M. Di Nitto <fabbione@fabbione.net>
+**  Fabio M. Di Nitto <fdinitto@redhat.com>
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
