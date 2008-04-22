@@ -29,7 +29,7 @@
 # Initialization:
 
 . ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
-CRM_MASTER=${HA_SBIN_DIR}/crm_master
+CRM_MASTER="${HA_SBIN_DIR}/crm_master -l reboot"
 
 #######################################################################
 
@@ -108,6 +108,7 @@ stateful_start() {
 	return $OCF_RUNNING_MASTER
     fi
     stateful_update slave
+    $CRM_MASTER -v 5
     return 0
 }
 
@@ -118,6 +119,7 @@ stateful_demote() {
 	return $OCF_NOT_RUNNING
     fi
     stateful_update slave
+    $CRM_MASTER -v 5
     return 0
 }
 
@@ -127,10 +129,12 @@ stateful_promote() {
 	return $OCF_NOT_RUNNING
     fi
     stateful_update master
+    $CRM_MASTER -v 10
     return 0
 }
 
 stateful_stop() {
+    $CRM_MASTER -D
     stateful_check_state master
     if [ $? = 0 ]; then
        	# CRM Error - Should never happen
@@ -145,17 +149,14 @@ stateful_stop() {
 stateful_monitor() {
     stateful_check_state "master"
     if [ $? = 0 ]; then
-	$CRM_MASTER -v 2 -l reboot
 	return $OCF_RUNNING_MASTER
     fi
 
     stateful_check_state "slave"
     if [ $? = 0 ]; then
-	$CRM_MASTER -v 1 -l reboot
 	return $OCF_SUCCESS
     fi
 
-    $CRM_MASTER -D -l reboot
     if [ -f ${OCF_RESKEY_state} ]; then
 	echo "File '${OCF_RESKEY_state}' exists but contains unexpected contents"
 	cat ${OCF_RESKEY_state}
