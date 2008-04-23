@@ -41,6 +41,7 @@
 
 #include "list.h"
 #include "linux_endian.h"
+#include "libfence.h"
 
 /* Max name length for a group, pointless since we only ever create the
    "default" group.  Regardless, set arbitrary max to match dlm's

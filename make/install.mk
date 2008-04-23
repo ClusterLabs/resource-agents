@@ -51,7 +51,7 @@ ifdef MIBRESOURCE
 	install -d ${mibdir}
 	install -m644 $(S)/${MIBRESOURCE} ${mibdir}
 endif
-ifdef FENCELIB
-	install -d ${DESTDIR}/${fencelibdir}
-	install -m644 $(S)/${FENCELIB} ${DESTDIR}/${fencelibdir}
+ifdef FENCEAGENTSLIB
+	install -d ${DESTDIR}/${fenceagentslibdir}
+	install -m644 $(S)/${FENCELIB} ${DESTDIR}/${fenceagentslibdir}
 endif

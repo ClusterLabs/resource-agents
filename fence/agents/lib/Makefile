@@ -18,7 +18,7 @@ ifdef enable_experimental_fence_agents
 
 TARGET= fencing.py
 
-FENCELIB= $(TARGET)
+FENCEAGENTSLIB= $(TARGET)
 
 endif
 

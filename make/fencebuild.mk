@@ -1,4 +1,4 @@
-ifndef FENCELIB
+ifndef FENCEAGENTSLIB
 SBINDIRT=$(TARGET)
 endif
 
@@ -14,7 +14,7 @@ $(TARGET):
 		${RELEASE_VERSION} \
 		$(S) $@ | \
 	sed \
-		-e 's#@FENCELIBDIR@#${fencelibdir}#g' \
+		-e 's#@FENCEAGENTSLIBDIR@#${fenceagentslibdir}#g' \
 		-e 's#@MIBDIR@#${mibdir}#g' \
 		-e 's#@SNMPBIN@#${snmpbin}#g' \
 	> $@

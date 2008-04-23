@@ -52,6 +52,8 @@ my %options = (
 	cmanlibdir => \$cmanlibdir,
 	dlmincdir => \$dlmincdir,
 	dlmlibdir => \$dlmlibdir,
+	fenceincdir => \$fenceincdir,
+	fencelibdir => \$fencelibdir,
 	volidincdir => \$volidincdir,
 	volidlibdir => \$volidlibdir,
 	ncursesincdir => \$ncursesincdir,
@@ -81,7 +83,7 @@ my %options = (
 	confdir => \$confdir,
 	conffile => \$conffile,
 	fence_agents => \$fence_agents,
-	fencelibdir => \$fencelibdir,
+	fenceagentslibdir => \$fenceagentslibdir,
 	enable_experimental_fence_agents => \$enable_experimental_fence_agents,
 	enable_crack_of_the_day => \$enable_crack_of_the_day,
 	enable_xen => \$enable_xen,
@@ -122,6 +124,8 @@ my $err = &GetOptions (\%options,
 		    'cmanlibdir=s',
 		    'dlmincdir=s',
 		    'dlmlibdir=s',
+		    'fenceincdir=s',
+		    'fencelibdir=s',
 		    'volidincdir=s',
 		    'volidlibdir=s',
 		    'ncursesincdir=s',
@@ -154,7 +158,7 @@ my $err = &GetOptions (\%options,
 		    'sominor=s',
 		    'release_version=s',
 		    'fence_agents=s',
-		    'fencelibdir=s',
+		    'fenceagentslibdir=s',
 		    'enable_experimental_fence_agents',
 		    'enable_crack_of_the_day',
 		    'enable_xen',
@@ -209,6 +213,8 @@ if ($help || !$err) {
   print "--cmanlibdir=\tthe base directory for cman libraries.  (Default: ./cman/lib)\n";
   print "--dlmincdir=\tthe base directory for dlm include files.  (Default: ./dlm/lib)\n";
   print "--dlmlibdir=\tthe base directory for dlm libraries.  (Default: ./dlm/lib)\n";
+  print "--fenceincdir=\tthe base directory for fence include files.  (Default: ./fence/lib)\n";
+  print "--fencelibdir=\tthe base directory for fence libraries.  (Default: ./fence/lib)\n";
   print "--volidincdir=\tthe base directory for volume_id include files.  (Default: {incdir})\n";
   print "--volidlibdir=\tthe base directory for volume_id libraries.  (Default: {libdir})\n";
   print "--ncursesincdir=\tthe base directory for ncurses include files.  (Default: {incdir})\n";
@@ -230,7 +236,7 @@ if ($help || !$err) {
   print "--xenlibdir=\tthe base directory for xen libraries.  (Default: {libdir})\n";
   print "--fence_agents=\tlist of fence agents to configure.  (Default: all)\n";
   print "\t\tUse --fence_agents=help for a list\n";
-  print "--fencelibdir=\tspecify directory where to install common fence python lib.  (Default: /usr/lib/fence)\n";
+  print "--fenceagentslibdir=\tspecify directory where to install common fence python lib.  (Default: /usr/lib/fence)\n";
   print "--enable_experimental_fence_agents\tEnable build and install of experimental fence agents.  (Default: no)\n";
   print "--enable_crack_of_the_day\tEnable build of highly experimental features that rely on code that is not yet available for general use. (Default: no)\n";
   print "--enable_xen\tEnable building of Xen-specific pieces\n";
@@ -433,6 +439,12 @@ if (!$dlmincdir) {
 if (!$dlmlibdir) {
   $dlmlibdir="${objdir}/dlm/lib";
 }
+if (!$fenceincdir) {
+  $fenceincdir="${cdir}/fence/lib";
+}
+if (!$fencelibdir) {
+  $fencelibdir="${objdir}/fence/lib";
+}
 if (!$volidincdir) {
   $volidincdir="${incdir}";
 }
@@ -520,8 +532,8 @@ if (!$conffile) {
 if (!$fence_agents) {
   $fence_agents="all";
 }
-if (!$fencelibdir) {
-  $fencelibdir="/usr/lib/fence";
+if (!$fenceagentslibdir) {
+  $fenceagentslibdir="/usr/lib/fence";
 }
 if (!$enable_experimental_fence_agents) {
   $enable_experimental_fence_agents="";
@@ -625,6 +637,8 @@ while (<IFILE>) {
   $_ =~ s/\@CMANLIBDIR\@/$cmanlibdir/;
   $_ =~ s/\@DLMINCDIR\@/$dlmincdir/;
   $_ =~ s/\@DLMLIBDIR\@/$dlmlibdir/;
+  $_ =~ s/\@FENCEINCDIR\@/$fenceincdir/;
+  $_ =~ s/\@FENCELIBDIR\@/$fencelibdir/;
   $_ =~ s/\@VOLIDINCDIR\@/$volidincdir/;
   $_ =~ s/\@VOLIDLIBDIR\@/$volidlibdir/;
   $_ =~ s/\@READLINEINCDIR\@/$readlineincdir/;
@@ -653,7 +667,7 @@ while (<IFILE>) {
   $_ =~ s/\@CONFDIR\@/$confdir/;
   $_ =~ s/\@CONFFILE\@/$conffile/;
   $_ =~ s/\@FENCE_AGENTS\@/$fence_agents/;
-  $_ =~ s/\@FENCELIBDIR\@/$fencelibdir/;
+  $_ =~ s/\@FENCEAGENTSLIBDIR\@/$fenceagentslibdir/;
   $_ =~ s/\@ENABLE_EXPERIMENTAL_FENCE_AGENTS\@/$enable_experimental_fence_agents/;
   $_ =~ s/\@ENABLE_CRACK_OF_THE_DAY\@/$enable_crack_of_the_day/;
   $_ =~ s/\@ENABLE_XEN\@/$enable_xen/;

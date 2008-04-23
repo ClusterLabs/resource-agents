@@ -13,7 +13,7 @@
 #####
 
 import sys, re, pexpect
-sys.path.append("@FENCELIBDIR@")
+sys.path.append("@FENCEAGENTSLIBDIR@")
 from fencing import *
 
 #BEGIN_VERSION_GENERATION

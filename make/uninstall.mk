@@ -32,6 +32,6 @@ endif
 ifdef MIBRESOURCE
 	${UNINSTALL} ${MIBRESOURCE} ${mibdir}
 endif
-ifdef FENCELIB
-	${UNINSTALL} ${FENCELIB}* ${DESTDIR}/${fencelibdir}
+ifdef FENCEAGENTSLIB
+	${UNINSTALL} ${FENCELIB}* ${DESTDIR}/${fenceagentslibdir}
 endif

@@ -15,7 +15,7 @@ TARGET = fence_node
 
 SBINDIRT=$(TARGET)
 
-all: ${TARGET}
+all: depends ${TARGET}
 
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
@@ -27,15 +27,17 @@ OBJS=	fence_node.o
 
 CFLAGS += -D_FILE_OFFSET_BITS=64
 
-CFLAGS += -I${ccsincdir} -I../lib
+CFLAGS += -I${ccsincdir} -I${fenceincdir}
 CFLAGS += -I../include
 CFLAGS += -I${incdir}
 
-LDFLAGS += -L${ccslibdir} -lccs
-LDFLAGS += -L../lib -lfence
+LDFLAGS += -L${ccslibdir} -L${fencelibdir} -lccs -lfence
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
+
+depends:
+	$(MAKE) -C ../lib
 
 clean: generalclean
 
