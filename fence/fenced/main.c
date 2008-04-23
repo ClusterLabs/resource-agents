@@ -14,7 +14,6 @@
 #include "fd.h"
 #include "copyright.cf"
 
-#define FENCED_SOCK_PATH	"fenced_socket"
 #define LOCKFILE_NAME		"/var/run/fenced.pid"
 #define CLIENT_NALLOC		32
 
@@ -282,8 +281,6 @@ static void make_args(char *buf, int *argc, char **argv, char sep)
 	*argc = i;
 }
 
-#define FENCED_MSGLEN 256
-
 static void process_connection(int ci)
 {
 	char buf[FENCED_MSGLEN];
@@ -524,20 +521,12 @@ static void print_usage(void)
 	printf("\n");
 }
 
-#define OPTION_STRING	"gcj:f:Dn:O:T:hVS"
+#define OPTION_STRING	"g:cj:f:Dn:O:T:hVS"
 
 static void read_arguments(int argc, char **argv)
 {
 	int cont = 1;
 	int optchar;
-
-	comline.override_path_opt = 0;
-	comline.override_path = NULL;
-	comline.post_join_delay_opt = 0;
-	comline.post_fail_delay_opt = 0;
-	comline.clean_start_opt = 0;
-	comline.override_time_opt = 0;
-	comline.override_time = 5;	/* default */
 
 	while (cont) {
 		optchar = getopt(argc, argv, OPTION_STRING);
@@ -703,19 +692,24 @@ struct commandline comline;
 
    /* tell fenced that an external program has fenced a node, e.g. fence_node;
       fenced will try to suppress its own fencing of this node a second time */
-   fenced_external(char *domain, int nodeid);
+   fenced_external(int nodeid);
 
    /* fenced gives info about a single node */
-   fenced_node_info(char *domain, int nodeid, char *name,
-		    struct fenced_node *info);
+   fenced_node_info(int nodeid, char *name, struct fenced_node *info);
 
    /* fenced gives info about the domain */
-   fenced_domain_info(char *domain, struct fenced_domain *info);
+   fenced_domain_info(struct fenced_domain *info);
 
    /* fenced copies a node struct for each member */
-   fenced_domain_members(char *domain, int num, struct fenced_node **info);
+   fenced_domain_members(int num, struct fenced_node **info);
 
-   fenced_debug_dump();
-   fenced_join();
-   fenced_leave();
+   fenced_debug_dump(char **buf, int len);
+   fenced_join(void);
+   fenced_leave(void);
+
+   for all of these, libfenced connects to fenced, writes a structure that
+   defines the type, then for some, reads back data, copies data into
+   buffers provided by caller, disconnects from fenced
+
 #endif
+

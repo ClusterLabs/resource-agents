@@ -237,7 +237,7 @@ static void read_ccs_protocol(int cd, char *path, int *config_val)
 #define DEBUG_PATH "/cluster/dlm/@log_debug"
 #define TIMEWARN_PATH "/cluster/dlm/@timewarn"
 #define PROTOCOL_PATH "/cluster/dlm/@protocol"
-#define GROUPD_COMPAT_PATH "/cluster/dlm/@groupd_compat"
+#define GROUPD_COMPAT_PATH "/cluster/group/@groupd_compat"
 #define ENABLE_DEADLK_PATH "/cluster/dlm/@enable_deadlk"
 #define ENABLE_PLOCK_PATH "/cluster/dlm/@enable_plock"
 #define PLOCK_DEBUG_PATH "/cluster/dlm/@plock_debug"

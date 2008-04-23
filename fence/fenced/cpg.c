@@ -31,6 +31,8 @@ static char *msg_name(int type)
 		return "start";
 	case FD_MSG_VICTIM_DONE:
 		return "victim_done";
+	case FD_MSG_COMPLETE:
+		return "complete";
 	case FD_MSG_EXTERNAL:
 		return "external";
 	default:
@@ -366,7 +368,7 @@ void send_victim_done(struct fd *fd, int victim, int how)
 
 static void receive_victim_done(struct fd *fd, struct fd_header *hd, int len)
 {
-	struct node *node, *safe;
+	struct node *node;
 	uint32_t seq = hd->msgdata;
 	int victim, how, remaining, found;
 	int *nums;
@@ -376,26 +378,18 @@ static void receive_victim_done(struct fd *fd, struct fd_header *hd, int len)
 
 	/* check that hd->nodeids is fd->master ? */
 
-	nums = (int *)((char *)hd + sizeof(struct fd_header));
-
-	victim = le32_to_cpu(nums[0]);
-	how = le32_to_cpu(nums[1]);
-	remaining = le32_to_cpu(nums[2]);
-
 	/* I don't think there's any problem with the master removing the
 	   victim when it's done instead of waiting to remove it when it
 	   receives its own victim_done message, like the other nodes do */
 
 	if (hd->nodeid == our_nodeid)
-		goto out;
+		return;
 
-	/* if a domain membership change involves no victims, the master sends
-	   a victim_done message with victim nodeid -1 and remaining 0; new nodes
-	   are interested in seeing the remaining 0 so they can clear their
-	   init_victims */
+	nums = (int *)((char *)hd + sizeof(struct fd_header));
 
-	if (victim == -1)
-		goto out;
+	victim = le32_to_cpu(nums[0]);
+	how = le32_to_cpu(nums[1]);
+	remaining = le32_to_cpu(nums[2]);
 
 	found = 0;
 
@@ -412,21 +406,99 @@ static void receive_victim_done(struct fd *fd, struct fd_header *hd, int len)
 	}
 
 	if (!found)
-		log_error("receive_victim_done victim %d not found from %d",
+		log_debug("receive_victim_done victim %d not found from %d",
 			  victim, hd->nodeid);
+}
 
- out:
-	if (!fd->init_complete && !remaining) {
-		log_debug("receive_victim_done init_complete");
-		fd->init_complete = 1;
+/* same content as a start message, a new (incomplete) node will look for
+   a complete message that shows it as a member, when it sees one it can
+   clear any init_victims and set init_complete for future cycles */
 
-		/* we may have victims from init which we can clear now */
-		list_for_each_entry_safe(node, safe, &fd->victims, list) {
-			log_debug("receive_victim_done clear victim %d init %d",
-				  node->nodeid, node->init_victim);
-			list_del(&node->list);
-			free(node);
-		}
+static void send_complete(struct fd *fd)
+{
+	struct change *cg = list_first_entry(&fd->changes, struct change, list);
+	struct fd_header *hd;
+	struct member *memb;
+	int n_ints, len, *p, i;
+	char *buf;
+
+	n_ints = 4 + cg->member_count;
+	len = sizeof(struct fd_header) + (n_ints * sizeof(int));
+
+	buf = malloc(len);
+	if (!buf) {
+		return;
+	}
+	memset(buf, 0, len);
+
+	hd = (struct fd_header *)buf;
+	hd->type = FD_MSG_COMPLETE;
+	hd->msgdata = cg->seq;
+
+	p = (int *)(buf + sizeof(struct fd_header));
+
+	p[0] = cpu_to_le32(cg->member_count);
+	p[1] = cpu_to_le32(cg->joined_count);
+	p[2] = cpu_to_le32(cg->remove_count);
+	p[3] = cpu_to_le32(cg->failed_count);
+
+	i = 4;
+	list_for_each_entry(memb, &cg->members, list)
+		p[i++] = cpu_to_le32(memb->nodeid);
+
+	log_debug("send_complete %u counts %d %d %d %d", cg->seq,
+		  cg->member_count, cg->joined_count,
+		  cg->remove_count, cg->failed_count);
+
+	fd_send_message(fd, buf, len);
+
+	free(buf);
+}
+
+static void receive_complete(struct fd *fd, struct fd_header *hd, int len)
+{
+	int member_count, joined_count, remove_count, failed_count;
+	int i, n_ints, *nums;
+	uint32_t seq = hd->msgdata;
+	struct node *node, *safe;
+
+	log_debug("receive_complete %d:%u len %d", hd->nodeid, seq, len);
+
+	if (fd->init_complete)
+		return;
+
+	nums = (int *)((char *)hd + sizeof(struct fd_header));
+
+	member_count = le32_to_cpu(nums[0]);
+	joined_count = le32_to_cpu(nums[1]);
+	remove_count = le32_to_cpu(nums[2]);
+	failed_count = le32_to_cpu(nums[3]);
+
+	n_ints = 4 + member_count;
+	if (len < (sizeof(struct fd_header) + (n_ints * sizeof(int)))) {
+		log_debug("receive_complete %d:%u bad len %d nums %s",
+			  hd->nodeid, seq, len, str_nums(nums, n_ints));
+		return;
+	}
+
+	for (i = 0; i < member_count; i++) {
+		if (our_nodeid == le32_to_cpu(nums[4+i]))
+			break;
+	}
+	if (i == member_count) {
+		log_debug("receive_complete %d:%u we are not in members",
+			  hd->nodeid, seq);
+		return;
+	}
+
+	fd->init_complete = 1;
+
+	/* we may have victims from init which we can clear now */
+	list_for_each_entry_safe(node, safe, &fd->victims, list) {
+		log_debug("receive_complete clear victim %d init %d",
+			  node->nodeid, node->init_victim);
+		list_del(&node->list);
+		free(node);
 	}
 }
 
@@ -546,7 +618,7 @@ static int match_change(struct fd *fd, struct change *cg,
 	failed_count = le32_to_cpu(nums[3]);
 
 	n_ints = 4 + member_count;
-	if (len != (sizeof(struct fd_header) + (n_ints * sizeof(int)))) {
+	if (len < (sizeof(struct fd_header) + (n_ints * sizeof(int)))) {
 		log_debug("match_change fail %d:%u bad len %d nums %s",
 			  hd->nodeid, seq, len, str_nums(nums, n_ints));
 		return 0;
@@ -734,6 +806,8 @@ static void send_start(struct fd *fd)
 	free(buf);
 }
 
+/* FIXME: better to just look in victims list for any nodes with init_victim? */
+
 static int nodes_added(struct fd *fd)
 {
 	struct change *cg;
@@ -771,14 +845,14 @@ static void add_victims(struct fd *fd, struct change *cg)
 /* with start messages from all members, we can pick which one should be master
    and do the fencing (low nodeid with state, "COMPLETE").  as the master
    successfully fences each victim, it sends a status message such that all
-   members remove the node from their victims list.  the status message also
-   indicates the number of remaining victims.
+   members remove the node from their victims list.
 
-   when a node sees via status message that there are no more outstanding
-   victims, it sets fd->init_complete.  if a node is going from !complete to
-   complete, it may still have entries on its victims list at this point from
-   startup init; it can clear them out.  this node will volunteer to be master
-   in the next round of start messages by setting COMPLETE flag.
+   after all victims have been dealt following a change (or set of changes),
+   the master sends a complete message that indicates the members of the group
+   for the change it has completed processing.  when a joining node sees this
+   complete message and sees itself as a member, it knows it can clear all
+   init_victims from startup init, and it sets init_complete so it will
+   volunteer to be master in the next round by setting COMPLETE flag.
 
    once the master begins fencing victims, it won't process any new changes
    until it's done.  the non-master members will process changes while the
@@ -806,12 +880,9 @@ static void apply_changes(struct fd *fd)
 		if (wait_messages_done(fd)) {
 			set_master(fd);
 			if (fd->master == our_nodeid) {
-				if (!list_empty(&fd->victims)) {
-					delay_fencing(fd, nodes_added(fd));
-					fence_victims(fd);
-				} else {
-					send_victim_done(fd, -1, 0);
-				}
+				delay_fencing(fd, nodes_added(fd));
+				fence_victims(fd);
+				send_complete(fd);
 			} else {
 				defer_fencing(fd);
 			}
@@ -939,12 +1010,12 @@ static int is_victim(struct fd *fd, int nodeid)
 	return 0;
 }
 
+/* add a victim for each node in complete list (represents all nodes in
+   cluster.conf) that is not a cman member (and not already a victim) */
+
 static void add_victims_init(struct fd *fd, struct change *cg)
 {
 	struct node *node, *safe;
-
-	/* add a victim for each node in complete list that is not
-	   a cman member (and not already a victim) */
 
 	list_for_each_entry_safe(node, safe, &fd->complete, list) {
 		list_del(&node->list);
@@ -1009,10 +1080,10 @@ static void confchg_cb(cpg_handle_t handle, struct cpg_name *group_name,
 
 	add_victims(fd, cg);
 
-	/* We need to assume non-member nodes are already victims;
-	   these initial victims are cleared when we get a status
-	   with zero remaining victims from the master.  But, if
-	   we're the master, we do end up fencing these init nodes. */
+	/* As a joining domain member with no previous state, we need to
+	   assume non-member nodes are already victims; these initial victims
+	   are cleared if we get a "complete" message from the master.
+	   But, if we're the master, we do end up fencing these init nodes. */
 
 	if (cg->we_joined)
 		add_victims_init(fd, cg);
@@ -1061,6 +1132,9 @@ static void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 		break;
 	case FD_MSG_VICTIM_DONE:
 		receive_victim_done(fd, hd, len);
+		break;
+	case FD_MSG_COMPLETE:
+		receive_complete(fd, hd, len);
 		break;
 	case FD_MSG_EXTERNAL:
 		receive_external(fd, hd, len);

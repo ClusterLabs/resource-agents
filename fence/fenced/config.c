@@ -49,7 +49,7 @@ static void read_ccs_int(int cd, char *path, int *config_val)
 }
 
 #define OUR_NAME_PATH "/cluster/clusternodes/clusternode[@name=\"%s\"]/@name"
-#define GROUPD_COMPAT_PATH "/cluster/fence_daemon/@groupd_compat"
+#define GROUPD_COMPAT_PATH "/cluster/group/@groupd_compat"
 #define CLEAN_START_PATH "/cluster/fence_daemon/@clean_start"
 #define POST_JOIN_DELAY_PATH "/cluster/fence_daemon/@post_join_delay"
 #define POST_FAIL_DELAY_PATH "/cluster/fence_daemon/@post_fail_delay"

@@ -42,6 +42,7 @@
 #include "list.h"
 #include "linux_endian.h"
 #include "libfence.h"
+#include "fenced.h"
 
 /* Max name length for a group, pointless since we only ever create the
    "default" group.  Regardless, set arbitrary max to match dlm's
@@ -130,7 +131,8 @@ extern struct commandline comline;
 
 #define FD_MSG_START		1
 #define FD_MSG_VICTIM_DONE	2
-#define FD_MSG_EXTERNAL		3
+#define FD_MSG_COMPLETE		3
+#define FD_MSG_EXTERNAL		4
 
 #define FD_MFLG_JOINING		1  /* accompanies start, we are joining */
 #define FD_MFLG_COMPLETE	2  /* accompanies start, we have complete info */

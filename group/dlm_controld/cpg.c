@@ -667,7 +667,7 @@ static int match_change(struct lockspace *ls, struct change *cg,
 	failed_count = le32_to_cpu(nums[3]);
 
 	n_ints = 4 + member_count;
-	if (len != (sizeof(struct dlm_header) + (n_ints * sizeof(int)))) {
+	if (len < (sizeof(struct dlm_header) + (n_ints * sizeof(int)))) {
 		log_group(ls, "match_change fail %d:%u bad len %d nums %s",
 			  hd->nodeid, seq, len, str_nums(nums, n_ints));
 		return 0;

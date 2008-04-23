@@ -162,6 +162,9 @@ void delay_fencing(struct fd *fd, int node_join)
 	struct node *node;
 	char *delay_type;
 
+	if (list_empty(&fd->victims))
+		return;
+
 	if (node_join) {
 		delay = comline.post_join_delay;
 		delay_type = "post_join_delay";
@@ -216,7 +219,12 @@ void delay_fencing(struct fd *fd, int node_join)
 
 void defer_fencing(struct fd *fd)
 {
-	char *master_name = nodeid_to_name(fd->master);
+	char *master_name;
+
+	if (list_empty(&fd->victims))
+		return;
+
+	master_name = nodeid_to_name(fd->master);
 
 	log_debug("defer fencing to %d %s", fd->master, master_name);
 	syslog(LOG_INFO, "fencing deferred to %s", master_name);
