@@ -78,6 +78,8 @@ my %options = (
 	prefix => \$prefix,
 	sbindir => \$sbindir,
 	sharedir => \$sharedir,
+	logdir => \$logdir,
+	syslogfacility => \$syslogfacility,
 	mibdir => \$mibdir,
 	snmpbin => \$snmpbin,
 	confdir => \$confdir,
@@ -150,6 +152,8 @@ my $err = &GetOptions (\%options,
 		    'prefix=s',
 		    'sbindir=s',
 		    'sharedir=s',
+		    'logdir=s',
+		    'syslogfacility=s',
 		    'mibdir=s',
 		    'snmpbin=s',
 		    'confdir=s',
@@ -190,6 +194,8 @@ if ($help || !$err) {
   print "--libdir=\tthe base directory for libraries.  (Default: {prefix}/lib)\n";
   print "--libexecdir=\tthe base directory for executable components.  (Default: {prefix}/libexec)\n";
   print "--sharedir=\tthe base directory for misc cluster files.  (Default: {prefix}/share/cluster)\n";
+  print "--logdir=\tthe base directory for cluster logging files.  (Default: /var/log/cluster/)\n";
+  print "--syslogfacility=\tset the default syslog facility.  (Default: LOG_LOCAL4)\n";
   print "--mibdir=\tthe base directory for snmp mibs.  (Default: {prefix}/share/snmp/mibs)\n";
   print "--snmpbin=\tthe base directory for snmp binaries (Ex: /usr/bin/snmpwalk).  (Default: {prefix}/bin)\n";
   print "--confdir=\tthe cluster config directory.  (Default: /etc/cluster)\n";
@@ -517,6 +523,12 @@ if (!$sbindir) {
 if (!$sharedir) {
   $sharedir="${prefix}/share/cluster";
 }
+if (!$logdir) {
+  $logdir="/var/log/cluster";
+}
+if (!$syslogfacility) {
+  $syslogfacility="LOG_LOCAL4";
+}
 if (!$mibdir) {
   $mibdir="${prefix}/share/snmp/mibs";
 }
@@ -662,6 +674,8 @@ while (<IFILE>) {
   $_ =~ s/\@MANDIR\@/$mandir/;
   $_ =~ s/\@SBINDIR\@/$sbindir/;
   $_ =~ s/\@SHAREDIR\@/$sharedir/;
+  $_ =~ s/\@LOGDIR\@/$logdir/;
+  $_ =~ s/\@SYSLOGFACILITY\@/$syslogfacility/;
   $_ =~ s/\@MIBDIR\@/$mibdir/;
   $_ =~ s/\@SNMPBIN\@/$snmpbin/;
   $_ =~ s/\@CONFDIR\@/$confdir/;
