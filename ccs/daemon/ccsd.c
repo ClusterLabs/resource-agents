@@ -280,7 +280,7 @@ static void print_usage(FILE *stream){
 	  " -h            Help.\n"
 	  " -m <addr>     Specify multicast address (\"default\" ok).\n"
 	  " -n            No Daemon.  Run in the foreground.\n"
-	  /*	  " -p <file>     Specify the location of the pid file.\n"*/
+	  " -d            Enable debugging output.\n"
 	  " -t <ttl>      Multicast threshold (aka Time to Live) value.\n"
 	  " -P [bcf]:#    Specify various port numbers.\n"
 	  " -V            Print version information.\n"
