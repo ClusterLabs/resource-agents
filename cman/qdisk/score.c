@@ -31,7 +31,7 @@
 #include <pthread.h>
 #include <string.h>
 #include <ccs.h>
-#include <clulog.h>
+#include <openais/service/logsys.h>
 #include <sched.h>
 #include <sys/mman.h>
 #include "disk.h"
@@ -49,6 +49,7 @@ struct h_arg {
 	int count;
 };
 
+LOGSYS_DECLARE_SUBSYS ("QDISK", LOG_LEVEL_INFO);
 
 /*
   XXX Messy, but works for now... 
@@ -146,7 +147,7 @@ fork_heuristic(struct h_data *h)
 
 	execv("/bin/sh", argv);
 
-	printf("Execv failed\n");
+	log_printf(LOG_ERR, "Execv failed\n");
 	return 0;
 }
 
@@ -162,7 +163,7 @@ total_score(struct h_data *h, int max, int *score, int *maxscore)
 	*score = 0;
 	*maxscore = 0;
 	
-	//printf("max = %d\n", max);
+	log_printf(LOG_DEBUG, "max = %d\n", max);
 	/* Allow operation w/o any heuristics */
 	if (!max) {
 		*score = *maxscore = 1;
@@ -211,7 +212,7 @@ check_heuristic(struct h_data *h, int block)
 	/* Returned 0 and was not killed */
 	if (!h->available) {
 		h->available = 1;
-		clulog(LOG_INFO, "Heuristic: '%s' UP\n", h->program);
+		log_printf(LOG_INFO, "Heuristic: '%s' UP\n", h->program);
 	}
 	h->misses = 0;
 	return 0;
@@ -220,12 +221,12 @@ miss:
 	if (h->available) {
 		h->misses++;
 		if (h->misses >= h->tko) {
-			clulog(LOG_INFO,
+			log_printf(LOG_INFO,
 				"Heuristic: '%s' DOWN (%d/%d)\n",
 				h->program, h->misses, h->tko);
 			h->available = 0;
 		} else {
-			clulog(LOG_DEBUG,
+			log_printf(LOG_DEBUG,
 				"Heuristic: '%s' missed (%d/%d)\n",
 				h->program, h->misses, h->tko);
 		}
@@ -324,13 +325,13 @@ configure_heuristics(int ccsfd, struct h_data *h, int max)
 				h[x].tko = 1;
 		}
 
-		clulog(LOG_DEBUG,
+		log_printf(LOG_DEBUG,
 		       "Heuristic: '%s' score=%d interval=%d tko=%d\n",
 		       h[x].program, h[x].score, h[x].interval, h[x].tko);
 
 	} while (++x < max);
 
-	clulog(LOG_DEBUG, "%d heuristics loaded\n", x);
+	log_printf(LOG_DEBUG, "%d heuristics loaded\n", x);
 		
 	return x;
 }
@@ -392,7 +393,7 @@ score_thread_main(void *arg)
 
 	free(args->h);
 	free(args);
-	printf("Score thread going away\n");
+	log_printf(LOG_INFO, "Score thread going away\n");
 	return (NULL);
 }
 
@@ -475,14 +476,14 @@ main(int argc, char **argv)
 	max = 0;
 	while (max < 10) {
 		get_my_score(&score,&maxscore);
-		printf("current %d/%d\n", score, maxscore);
+		log_printf(LOG_INFO, "current %d/%d\n", score, maxscore);
 		sleep(1);
 		++max;
 	}
 	stop_score_thread();
 
 	get_my_score(&score,&maxscore);
-	printf("final! %d/%d\n", score, maxscore);
+	log_printf(LOG_INFO, "final! %d/%d\n", score, maxscore);
 
 	return 0;
 }

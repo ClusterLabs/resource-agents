@@ -30,7 +30,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <openais/service/logsys.h>
 
+LOGSYS_DECLARE_SYSTEM (NULL, LOG_MODE_OUTPUT_STDERR | LOG_MODE_DISPLAY_DEBUG, NULL, SYSLOGFACILITY);
+
+LOGSYS_DECLARE_SUBSYS ("QDISK", LOG_LEVEL_INFO);
 
 int
 main(int argc, char **argv)
@@ -41,18 +45,30 @@ main(int argc, char **argv)
 
 	printf("mkqdisk v" RELEASE_VERSION "\n\n");
 
+	/* XXX this is horrible but we need to prioritize options as long as
+	 * we can't queue messages properly
+	 */
 	while ((rv = getopt(argc, argv, "Ldf:c:l:h")) != EOF) {
 		switch (rv) {
 		case 'd':
 			++verbose_level;
+			logsys_config_priority_set (LOG_LEVEL_DEBUG);
+			break;
+		}
+	}
+
+	/* reset the option index to reparse */
+	optind = 0;
+
+	while ((rv = getopt(argc, argv, "Ldf:c:l:h")) != EOF) {
+		switch (rv) {
+		case 'd':
+			/* processed above, needs to be here for compat */
 			break;
 		case 'L':
 			/* List */
-			close(2);
 			return find_partitions(NULL, NULL, 0, verbose_level);
-			break;
 		case 'f':
-			close(2);
 			return find_partitions( optarg, device,
 					       sizeof(device), verbose_level);
 		case 'c':

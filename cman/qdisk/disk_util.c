@@ -35,7 +35,9 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include <time.h>
+#include <openais/service/logsys.h>
 
+LOGSYS_DECLARE_SUBSYS ("QDISK", LOG_LEVEL_INFO);
 
 inline void
 _diff_tv(struct timeval *dest, struct timeval *start, struct timeval *end)
@@ -204,7 +206,7 @@ qd_write_status(qd_ctx *ctx, int nid, disk_node_state_t state,
 	if (qdisk_write(&ctx->qc_disk,
 			qdisk_nodeid_offset(nid, ctx->qc_disk.d_blksz),
 			&ps, sizeof(ps)) < 0) {
-		printf("Error writing node ID block %d\n", nid);
+		log_printf(LOG_ERR, "Error writing node ID block %d\n", nid);
 		return -1;
 	}
 	if (utime_ok && (get_time(&end, ctx->qc_flags&RF_UPTIME) < 0))
@@ -278,7 +280,7 @@ qd_read_print_status(target_info_t *disk, int nid)
 
 	if (qdisk_read(disk, qdisk_nodeid_offset(nid, disk->d_blksz), &ps,
 			sizeof(ps)) < 0) {
-		printf("Error reading node ID block %d\n", nid);
+		log_printf(LOG_ERR, "Error reading node ID block %d\n", nid);
 		return -1;
 	}
 	swab_status_block_t(&ps);

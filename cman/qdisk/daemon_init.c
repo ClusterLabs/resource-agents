@@ -42,6 +42,7 @@
 #include <sys/errno.h>
 #include <libgen.h>
 #include <signal.h>
+#include <openais/service/logsys.h>
 
 /*
  * This should ultimately go in a header file.
@@ -56,6 +57,7 @@ int check_process_running(char *prog, pid_t * pid);
 static void update_pidfile(char *prog);
 static int setup_sigmask(void);
 
+LOGSYS_DECLARE_SUBSYS ("QDISK", LOG_LEVEL_INFO);
 
 int
 check_pid_valid(pid_t pid, char *prog)
@@ -216,19 +218,19 @@ daemon_init(char *prog)
 
 	uid = getuid();
 	if (uid) {
-		fprintf(stderr,
+		log_printf(LOG_ERR,
 			"daemon_init: Sorry, only root wants to run this.\n");
 		exit(1);
 	}
 
 	if (check_process_running(prog, &pid) && (pid != getpid())) {
-		fprintf(stderr,
+		log_printf(LOG_ERR,
 			"daemon_init: Process \"%s\" already running.\n",
 			prog);
 		exit(1);
 	}
 	if (setup_sigmask() < 0) {
-		fprintf(stderr, "daemon_init: Unable to set signal mask.\n");
+		log_printf(LOG_ERR, "daemon_init: Unable to set signal mask.\n");
 		exit(1);
 	}
 

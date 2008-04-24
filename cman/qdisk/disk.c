@@ -44,10 +44,12 @@
 #include <unistd.h>
 #include <time.h>
 #include <linux/fs.h>
+#include <openais/service/logsys.h>
 
 static int diskRawRead(target_info_t *disk, char *buf, int len);
 uint32_t clu_crc32(const char *data, size_t count);
 
+LOGSYS_DECLARE_SUBSYS ("QDISK", LOG_LEVEL_INFO);
 
 /**
  * Swap the bytes of a shared header so that it's always in big-endian form
@@ -119,7 +121,7 @@ header_generate(shared_header_t *hdr, const char *data, size_t count)
 		hdr->h_length = (uint32_t)count;
 
 		if (hdr->h_dcrc == 0) {
-			fprintf(stderr, "Invalid CRC32 generated on data!\n");
+			log_printf(LOG_ERR, "Invalid CRC32 generated on data!\n");
 			return -1;
 		}
 	}
@@ -128,7 +130,7 @@ header_generate(shared_header_t *hdr, const char *data, size_t count)
 
 	hdr->h_hcrc = clu_crc32((char *)hdr, sizeof(*hdr));
 	if (hdr->h_hcrc == 0) {
-		fprintf(stderr, "Invalid CRC32 generated on header!\n");
+		log_printf(LOG_ERR, "Invalid CRC32 generated on header!\n");
 		return -1;
 	}
 
@@ -165,10 +167,8 @@ header_verify(shared_header_t *hdr, const char *data, size_t count)
 	crc = clu_crc32((char *)hdr, sizeof(*hdr));
 	hdr->h_hcrc = bkupcrc;
 	if (bkupcrc != crc) {
-#if 0
-		fprintf(stderr, "Header CRC32 mismatch; Exp: 0x%08x "
+		log_printf(LOG_DEBUG, "Header CRC32 mismatch; Exp: 0x%08x "
 			"Got: 0x%08x\n", bkupcrc, crc);
-#endif
 		return -1;
 	}
 
@@ -176,10 +176,8 @@ header_verify(shared_header_t *hdr, const char *data, size_t count)
 	 * Verify the magic number.
 	 */
 	if (hdr->h_magic != SHARED_HEADER_MAGIC) {
-#if 0
-		fprintf(stderr, "Magic mismatch; Exp: 0x%08x "
+		log_printf(LOG_DEBUG, "Magic mismatch; Exp: 0x%08x "
 			"Got: 0x%08x\n", SHARED_HEADER_MAGIC, hdr->h_magic);
-#endif
 		return -1;
 	}
 
@@ -194,10 +192,8 @@ header_verify(shared_header_t *hdr, const char *data, size_t count)
 			hdr->h_length : count);
 
 	if (hdr->h_dcrc != crc) {
-#if 0
-		fprintf(stderr, "Data CRC32 mismatch; Exp: 0x%08x "
+		log_printf(LOG_DEBUG, "Data CRC32 mismatch; Exp: 0x%08x "
 			"Got: 0x%08x\n", hdr->h_dcrc, crc);
-#endif
 		return -1;
 	}
 
@@ -227,7 +223,7 @@ qdisk_open(char *name, target_info_t *disk)
 
 	ret = ioctl(disk->d_fd, BLKSSZGET, &ssz);
 	if (ret < 0) {
-		perror("qdisk_open: ioctl(BLKSSZGET)");
+		log_printf(LOG_ERR, "qdisk_open: ioctl(BLKSSZGET)");
 		return -1;
 	}
 
@@ -237,12 +233,12 @@ qdisk_open(char *name, target_info_t *disk)
 	/* Check to verify that the partition is large enough.*/
 	ret = lseek(disk->d_fd, END_OF_DISK(disk->d_blksz), SEEK_SET);
 	if (ret < 0) {
-		perror("open_partition: seek");
+		log_printf(LOG_DEBUG, "open_partition: seek");
 		return -1;
 	}
 
 	if (ret < END_OF_DISK(disk->d_blksz)) {
-		fprintf(stderr, "Partition %s too small\n", name);
+		log_printf(LOG_ERR, "Partition %s too small\n", name);
 		errno = EINVAL;
 		return -1;
 	}
@@ -250,14 +246,14 @@ qdisk_open(char *name, target_info_t *disk)
 	/* Set close-on-exec bit */
         ret = fcntl(disk->d_fd, F_GETFD, 0);
         if (ret < 0) {
-		perror("open_partition: fcntl(F_GETFD)");
+		log_printf(LOG_ERR, "open_partition: fcntl(F_GETFD)");
                 close(disk->d_fd);
                 return -1;
         }
 
         ret |= FD_CLOEXEC;
         if (fcntl(disk->d_fd, F_SETFD, ret) < 0) {
-		perror("open_partition: fcntl(F_SETFD)");
+		log_printf(LOG_ERR, "open_partition: fcntl(F_SETFD)");
                 close(disk->d_fd);
                 return -1;
         }
@@ -301,7 +297,7 @@ qdisk_validate(char *name)
 	stat_ptr = &stat_st;
 
 	if (stat(name, stat_ptr) < 0) {
-		perror("stat");
+		log_printf(LOG_ERR, "stat");
 		return -1;
 	}
 	/*
@@ -312,7 +308,7 @@ qdisk_validate(char *name)
 		errno = EINVAL;
 		return -1;
 */
-		fprintf(stderr, "Warning: %s is not a block device\n",
+		log_printf(LOG_WARNING, "Warning: %s is not a block device\n",
 		        name);
 	}
 
@@ -320,7 +316,7 @@ qdisk_validate(char *name)
 	 * Verify read/write permission.
 	 */
 	if (qdisk_open(name, &disk) < 0) {
-		fprintf(stderr, "%s: open of %s for RDWR failed: %s\n",
+		log_printf(LOG_DEBUG, "%s: open of %s for RDWR failed: %s\n",
 			__FUNCTION__, name, strerror(errno));
 		return -1;
 	}
@@ -339,21 +335,17 @@ diskRawReadShadow(target_info_t *disk, off_t readOffset, char *buf, int len)
 
 	ret = lseek(disk->d_fd, readOffset, SEEK_SET);
 	if (ret != readOffset) {
-#if 0
-		fprintf(stderr,
+		log_printf(LOG_DEBUG,
 		       "diskRawReadShadow: can't seek to offset %d.\n",
 		       (int) readOffset);
-#endif
 		errno = ENODATA;
 		return -1;
 	}
 
 	ret = diskRawRead(disk, buf, len);
 	if (ret != len) {
-#if 0
-		fprintf(stderr, "diskRawReadShadow: aligned read "
+		log_printf(LOG_DEBUG, "diskRawReadShadow: aligned read "
 		       "returned %d, not %d.\n", ret, len);
-#endif
 		errno = ENODATA;
 		return -1;
 	}
@@ -365,11 +357,9 @@ diskRawReadShadow(target_info_t *disk, off_t readOffset, char *buf, int len)
 	datalen = hdrp->h_length;
 
 	if (header_verify(hdrp, data, len)) {
-#if 0
-		fprintf(stderr, "diskRawReadShadow: bad CRC32, "
-		       "fd = %d offset = %d len = %d\n", fd,
+		log_printf(LOG_DEBUG, "diskRawReadShadow: bad CRC32, "
+		       "offset = %d len = %d\n",
 		       (int) readOffset, len);
-#endif
 		errno = EPROTO;
 		return -1;
 	}
@@ -406,7 +396,7 @@ diskRawRead(target_info_t *disk, char *buf, int len)
 	}
 
 	if (len > disk->d_blksz) {
-		fprintf(stderr,
+		log_printf(LOG_ERR,
 			"diskRawRead: not setup for reads larger than %d.\n",
 		       (int)disk->d_blksz);
 		return (-1);
@@ -443,7 +433,7 @@ diskRawRead(target_info_t *disk, char *buf, int len)
 
 	free(alignedBuf);
 	if (readret != len) {
-		fprintf(stderr, "diskRawRead: read err, len=%d, readret=%d\n",
+		log_printf(LOG_ERR, "diskRawRead: read err, len=%d, readret=%d\n",
 			len, readret);
 	}
 
@@ -478,7 +468,7 @@ diskRawWrite(target_info_t *disk, char *buf, int len)
 	}
 
 	if (len > disk->d_blksz) {
-		fprintf(stderr,
+		log_printf(LOG_ERR,
 			"diskRawRead: not setup for reads larger than %d.\n",
 		       (int)disk->d_blksz);
 		return (-1);
@@ -504,7 +494,7 @@ diskRawWrite(target_info_t *disk, char *buf, int len)
 	}
 
 	if (len > disk->d_blksz) {
-		fprintf(stderr,
+		log_printf(LOG_ERR,
 		       "diskRawWrite: not setup for larger than %d.\n",
 		       (int)disk->d_blksz);
 		return (-1);
@@ -518,7 +508,7 @@ diskRawWrite(target_info_t *disk, char *buf, int len)
 
 	free(alignedBuf);
 	if (ret != len) {
-		fprintf(stderr, "diskRawWrite: write err, len=%d, ret=%dn",
+		log_printf(LOG_ERR, "diskRawWrite: write err, len=%d, ret=%dn",
 		       len, ret);
 	}
 
@@ -533,7 +523,7 @@ diskRawWriteShadow(target_info_t *disk, __off64_t writeOffset, char *buf, int le
 	ssize_t retval_write;
 
 	if ((writeOffset < 0) || (len < 0)) {
-		fprintf(stderr,
+		log_printf(LOG_ERR,
 		       "diskRawWriteShadow: writeOffset=%08x, "
 		       "len=%08x.\n", (int)writeOffset, len);
 		return (-1);
@@ -541,7 +531,7 @@ diskRawWriteShadow(target_info_t *disk, __off64_t writeOffset, char *buf, int le
 
 	retval_seek = lseek(disk->d_fd, writeOffset, SEEK_SET);
 	if (retval_seek != writeOffset) {
-		fprintf(stderr,
+		log_printf(LOG_ERR,
 		       "diskRawWriteShadow: can't seek to offset %d\n",
 		       (int) writeOffset);
 		return (-1);
@@ -550,10 +540,10 @@ diskRawWriteShadow(target_info_t *disk, __off64_t writeOffset, char *buf, int le
 	retval_write = diskRawWrite(disk, buf, len);
 	if (retval_write != len) {
 		if (retval_write == -1) {
-			fprintf(stderr, "%s: %s\n", __FUNCTION__,
+			log_printf(LOG_ERR, "%s: %s\n", __FUNCTION__,
 			       strerror(errno));
 		}
-		fprintf(stderr,
+		log_printf(LOG_ERR,
 		       "diskRawWriteShadow: aligned write returned %d"
 		       ", not %d\n", (int)retval_write, (int)len);
 		return (-1);
@@ -626,7 +616,7 @@ qdisk_write(target_info_t *disk, __off64_t offset, const void *buf, int count)
 
 	maxsize = psz - (sizeof(shared_header_t));
 	if (count >= (maxsize + sizeof(shared_header_t))) {
-		printf("error: count %d >= (%d + %d)\n", (int)count,
+		log_printf(LOG_ERR, "error: count %d >= (%d + %d)\n", (int)count,
 		       (int)maxsize, (int)sizeof(shared_header_t));
 		errno = ENOSPC;
 		return -1;
@@ -646,7 +636,7 @@ qdisk_write(target_info_t *disk, __off64_t offset, const void *buf, int count)
 	ptr = NULL;
 	rv = posix_memalign((void **)&ptr, disk->d_pagesz, total);
 	if (rv < 0) {
-		perror("posix_memalign");
+		log_printf(LOG_ERR, "posix_memalign");
 		return -1;
 	}
 
@@ -671,7 +661,7 @@ qdisk_write(target_info_t *disk, __off64_t offset, const void *buf, int count)
 		rv = diskRawWriteShadow(disk, offset, (char *)hdrp, psz);
 
 	if (rv == -1)
-		perror("diskRawWriteShadow");
+		log_printf(LOG_ERR, "diskRawWriteShadow");
 	
 	free((char *)hdrp);
 	if (rv == -1)
@@ -697,7 +687,7 @@ header_init(target_info_t *disk, char *label)
 	}
 
 	if (gethostname(qh.qh_updatehost, sizeof(qh.qh_updatehost)) < 0) {
-		perror("gethostname");
+		log_printf(LOG_ERR, "gethostname");
 		return -1;
 	}
 
@@ -706,7 +696,7 @@ header_init(target_info_t *disk, char *label)
 
 	qh.qh_version = VERSION_MAGIC_V2;
 	if ((qh.qh_timestamp = (uint64_t)time(NULL)) <= 0) {
-		perror("time");
+		log_printf(LOG_ERR, "time");
 		return -1;
 	}
 
@@ -733,13 +723,13 @@ qdisk_init(char *partname, char *label)
 
 	ret = qdisk_validate(partname);
 	if (ret < 0) {
-		perror("qdisk_verify");
+		log_printf(LOG_DEBUG, "qdisk_verify");
 		return -1;
 	}
 
 	ret = qdisk_open(partname, &disk);
 	if (ret < 0) {
-		perror("qdisk_open");
+		log_printf(LOG_ERR, "qdisk_open");
 		return -1;
 	}
 

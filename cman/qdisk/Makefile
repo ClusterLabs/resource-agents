@@ -25,17 +25,17 @@ include $(OBJDIR)/make/uninstall.mk
 
 CFLAGS += -D_GNU_SOURCE
 CFLAGS += -Werror -Wstrict-prototypes -Wshadow
-CFLAGS += -I${ccsincdir} -I${cmanincdir}
+CFLAGS += -I${ccsincdir} -I${cmanincdir} -L${openaisincdir}
 CFLAGS += -I$(S)
 CFLAGS += -I${incdir}
 
+LDFLAGS += -L${openaislibdir} -llogsys -lpthread
+
 EXTRA_LDFLAGS += -L${cmanlibdir} -L${ccslibdir} -lcman -lccs
-EXTRA_LDFLAGS += -lpthread
 
 OBJS1=	main.o \
 	score.o \
 	bitmap.o \
-	clulog.o \
 	gettid.o \
 	daemon_init.o
 
