@@ -844,7 +844,7 @@ static int cmanpre_readconfig(struct objdb_iface_ver0 *objdb, char **error_strin
 	set_debuglog(debug_mask);
 
 	/* We need to set this up to internal defaults too early */
-	openlog("openais", LOG_CONS|LOG_PID, LOG_LOCAL4);
+	openlog("openais", LOG_CONS|LOG_PID, SYSLOGFACILITY);
 
 	/* Enable stderr logging if requested by cman_tool */
 	if (debug_mask) {
