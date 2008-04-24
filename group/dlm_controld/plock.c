@@ -13,7 +13,6 @@
 #include "dlm_daemon.h"
 #include "config.h"
 
-#ifdef EXPERIMENTAL_BUILD
 #include <linux/dlm_plock.h>
 
 #define PROC_MISC               "/proc/misc"
@@ -2295,7 +2294,8 @@ int dump_plocks(char *name, int fd)
 	return 0;
 }
 
-#else /* EXPERIMENTAL_BUILD */
+#if 0
+/* replace all of the above with this to build on 2.6.25 kernels */
 
 int setup_plocks(void) { return 0; };
 void process_plocks(int ci) { };
@@ -2311,4 +2311,5 @@ void retrieve_plocks(struct lockspace *ls) { };
 void purge_plocks(struct lockspace *ls, int nodeid, int unmount) { };
 int dump_plocks(char *name, int fd) { return 0; };
 
-#endif /* EXPERIMENTAL_BUILD */
+#endif
+
