@@ -30,7 +30,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
-#include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/poll.h>
 #include <sys/select.h>
@@ -42,6 +41,7 @@
 #include "list.h"
 #include "linux_endian.h"
 #include "libfence.h"
+#include "libfenced.h"
 #include "fenced.h"
 
 /* Max name length for a group, pointless since we only ever create the
@@ -239,6 +239,10 @@ void send_victim_done(struct fd *fd, int victim, int how);
 void process_fd_changes(void);
 int fd_join(struct fd *fd);
 int fd_leave(struct fd *fd);
+int set_node_info(struct fd *fd, int nodeid, struct fenced_node *node);
+int set_domain_info(struct fd *fd, struct fenced_domain *domain);
+int set_domain_members(struct fd *fd, int *member_count,
+	struct fenced_node **members);
 
 /* group.c */
 
@@ -246,6 +250,10 @@ void process_groupd(int ci);
 int setup_groupd(void);
 int fd_join_group(struct fd *fd);
 int fd_leave_group(struct fd *fd);
+int set_node_info_group(struct fd *fd, int nodeid, struct fenced_node *node);
+int set_domain_info_group(struct fd *fd, struct fenced_domain *domain);
+int set_domain_members_group(struct fd *fd, int *member_count,
+	struct fenced_node **members);
 
 /* main.c */
 

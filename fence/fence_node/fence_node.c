@@ -14,10 +14,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <stdint.h>
 #include <string.h>
 #include <syslog.h>
 
 #include "libfence.h"
+#include "libfenced.h"
 #include "copyright.cf"
 
 #define OPTION_STRING           ("huV")
@@ -105,6 +107,9 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	} else {
 		syslog(LOG_NOTICE, "Fence of \"%s\" was successful\n", victim);
+
+		fenced_external(victim);
+
 		exit(EXIT_SUCCESS);
 	}
 }

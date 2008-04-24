@@ -1,8 +1,7 @@
 ###############################################################################
 ###############################################################################
 ##
-##  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-##  Copyright (C) 2004-2008 Red Hat, Inc.  All rights reserved.
+##  Copyright (C) 2008 Red Hat, Inc.  All rights reserved.
 ##  
 ##  This copyrighted material is made available to anyone wishing to use,
 ##  modify, copy, or redistribute it subject to the terms and conditions
@@ -11,40 +10,41 @@
 ###############################################################################
 ###############################################################################
 
-TARGET = fenced
+TARGET= libfenced
 
-SBINDIRT=$(TARGET)
+LIBDIRT=$(TARGET).a \
+	$(TARGET).so.$(SOMAJOR).$(SOMINOR)
 
-all: depends ${TARGET}
+LIBSYMT=$(TARGET).so \
+	$(TARGET).so.$(SOMAJOR)
+
+INCDIRT=$(TARGET).h
 
 include ../../make/defines.mk
+
+SHAREDLIB=$(TARGET).so.${SOMAJOR}.${SOMINOR}
+STATICLIB=$(TARGET).a
+
+all: $(STATICLIB) $(SHAREDLIB)
+
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
 include $(OBJDIR)/make/install.mk
 include $(OBJDIR)/make/uninstall.mk
 
-OBJS=	config.o \
-	cpg.o \
-	group.o \
-	main.o \
-	member_cman.o \
-	recover.o
+OBJS=	main.o
 
-CFLAGS += -D_FILE_OFFSET_BITS=64
-CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${fenceincdir} -I${openaisincdir}
-CFLAGS += -I$(S) -I$(S)/../include -I$(SRCDIR)/group/lib
-CFLAGS += -I${incdir} -I../libfenced
+CFLAGS += -fPIC
+CFLAGS += -I${incdir} -I../fenced
 
-LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -L${openaislibdir} -lccs -lcman -lcpg
-LDFLAGS += -L${fencelibdir} -L${openaislibdir} -lfence -lcpg
-LDFLAGS += -L../../group/lib -l group
+$(TARGET).a: $(OBJS)
+	${AR} r $@ $^
+	${RANLIB} $@
 
-
-${TARGET}: ${OBJS}
-	$(CC) -o $@ $^ $(LDFLAGS)
-
-depends:
-	$(MAKE) -C ../lib
+$(TARGET).so.${SOMAJOR}.${SOMINOR}: $(OBJS)
+	$(CC) -shared -o $@ -Wl,-soname=$(TARGET).so.$(SOMAJOR) $< $(LDFLAGS)
+	ln -sf $(TARGET).so.$(SOMAJOR).$(SOMINOR) $(TARGET).so
+	ln -sf $(TARGET).so.$(SOMAJOR).$(SOMINOR) $(TARGET).so.$(SOMAJOR)
 
 clean: generalclean
 

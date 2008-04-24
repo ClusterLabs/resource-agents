@@ -1247,3 +1247,19 @@ int fd_leave(struct fd *fd)
 	return 0;
 }
 
+int set_node_info(struct fd *fd, int nodeid, struct fenced_node *node)
+{
+	return 0;
+}
+
+int set_domain_info(struct fd *fd, struct fenced_domain *domain)
+{
+	return 0;
+}
+
+int set_domain_members(struct fd *fd, int *member_count,
+		       struct fenced_node **members)
+{
+	return 0;
+}
+

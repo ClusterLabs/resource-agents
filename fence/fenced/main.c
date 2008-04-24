@@ -66,23 +66,6 @@ static int do_write(int fd, void *buf, size_t count)
 	return 0;
 }
 
-static void do_dump(int fd)
-{
-	int len;
-
-	if (dump_wrap) {
-		len = DUMP_SIZE - dump_point;
-		do_write(fd, dump_buf + dump_point, len);
-		len = dump_point;
-	} else
-		len = dump_point;
-
-	/* NUL terminate the debug string */
-	dump_buf[dump_point] = '\0';
-
-	do_write(fd, dump_buf, len);
-}
-
 static void client_alloc(void)
 {
 	int i;
@@ -261,65 +244,205 @@ static int do_leave(char *name)
 	return rv;
 }
 
-#define MAXARGS 8
-
-static void make_args(char *buf, int *argc, char **argv, char sep)
+static int do_external(char *name, int ci)
 {
-	char *p = buf;
-	int i;
+	struct fd *fd;
+	int nodeid = 0;
 
-	argv[0] = p;
+	fd = find_fd(name);
+	if (!fd)
+		return -EINVAL;
 
-	for (i = 1; i < MAXARGS; i++) {
-		p = strchr(buf, sep);
-		if (!p)
-			break;
-		*p = '\0';
-		argv[i] = p + 1;
-		buf = p + 1;
+	if (group_mode == GROUP_LIBGROUP)
+		return -EINVAL;
+
+	/* FIXME: do_read(client[ci].fd, buf, MAX_NODENAME_LEN);
+	   which gets the nodename, then translate the nodename to nodeid */
+
+	send_external(fd, nodeid);
+	return 0;
+}
+
+/* combines a header and the data and sends it back to the client in
+   a single do_write() call */
+
+static void do_reply(int ci, int cmd, int result, char *buf, int len)
+{
+	struct fenced_header *rh;
+	char *reply;
+	int reply_len;
+
+	reply_len = sizeof(struct fenced_header) + len;
+	reply = malloc(reply_len);
+	if (!reply)
+		return;
+	memset(reply, 0, reply_len);
+
+	rh = (struct fenced_header *)reply;
+
+	rh->magic = FENCED_MAGIC;
+	rh->version = FENCED_VERSION;
+	rh->len = reply_len;
+	rh->command = cmd;
+	rh->data = result;
+
+	if (buf)
+		memcpy(reply + sizeof(struct fenced_header), buf, len);
+
+	do_write(client[ci].fd, reply, reply_len);
+}
+
+/* dump can do 1, 2, or 3 separate writes:
+   first write is the header,
+   second write is the tail of log,
+   third is the head of the log */
+
+static void do_dump(int ci)
+{
+	int len;
+
+	do_reply(ci, FENCED_CMD_DUMP_DEBUG, 0, NULL, 0);
+
+	if (dump_wrap) {
+		len = DUMP_SIZE - dump_point;
+		do_write(client[ci].fd, dump_buf + dump_point, len);
+		len = dump_point;
+	} else
+		len = dump_point;
+
+	/* NUL terminate the debug string */
+	dump_buf[dump_point] = '\0';
+
+	do_write(client[ci].fd, dump_buf, len);
+}
+
+static void do_node_info(int ci, int nodeid)
+{
+	struct fd *fd;
+	struct fenced_node node;
+	int rv;
+
+	fd = find_fd("default");
+	if (!fd) {
+		rv = -ENOENT;
+		goto out;
 	}
-	*argc = i;
+
+	if (group_mode == GROUP_LIBGROUP)
+		rv = set_node_info_group(fd, nodeid, &node);
+	else
+		rv = set_node_info(fd, nodeid, &node);
+ out:
+	do_reply(client[ci].fd, FENCED_CMD_NODE_INFO, rv,
+		 (char *)&node, sizeof(node));
+}
+
+static void do_domain_info(int ci)
+{
+	struct fd *fd;
+	struct fenced_domain domain;
+	int rv;
+
+	fd = find_fd("default");
+	if (!fd) {
+		rv = -ENOENT;
+		goto out;
+	}
+
+	if (group_mode == GROUP_LIBGROUP)
+		rv = set_domain_info_group(fd, &domain);
+	else
+		rv = set_domain_info(fd, &domain);
+ out:
+	do_reply(client[ci].fd, FENCED_CMD_DOMAIN_INFO, rv,
+		 (char *)&domain, sizeof(domain));
+}
+
+static void do_domain_members(int ci, int max)
+{
+	struct fd *fd;
+	int member_count = 0;
+	struct fenced_node *members = NULL;
+	int rv;
+
+	fd = find_fd("default");
+	if (!fd) {
+		rv = -ENOENT;
+		goto out;
+	}
+
+	if (group_mode == GROUP_LIBGROUP)
+		rv = set_domain_members(fd, &member_count, &members);
+	else
+		rv = set_domain_members(fd, &member_count, &members);
+
+	if (rv < 0) {
+		member_count = 0;
+		goto out;
+	}
+	if (member_count > max) {
+		rv = -E2BIG;
+		member_count = max;
+	} else {
+		rv = member_count;
+	}
+ out:
+	do_reply(client[ci].fd, FENCED_CMD_DOMAIN_MEMBERS, rv,
+		 (char *)members, member_count * sizeof(struct fenced_node));
+
+	if (members)
+		free(members);
 }
 
 static void process_connection(int ci)
 {
-	char buf[FENCED_MSGLEN];
-	char out[FENCED_MSGLEN];
-	char *argv[MAXARGS];
-	char *cmd, *name;
-	int argc = 0, rv;
+	struct fenced_header h;
+	int rv;
 
-	memset(buf, 0, sizeof(buf));
-	memset(out, 0, sizeof(out));
-	memset(argv, 0, sizeof(char *) * MAXARGS);
-
-	rv = do_read(client[ci].fd, buf, FENCED_MSGLEN);
+	rv = do_read(client[ci].fd, &h, sizeof(h));
 	if (rv < 0) {
-		log_error("client %d fd %d read error %d %d", ci,
-			   client[ci].fd, rv, errno);
-		client_dead(ci);
-		return;
+		log_debug("connection %d read error %d", ci, rv);
+		goto out;
 	}
 
-	log_debug("ci %d read %s", ci, buf);
-
-	make_args(buf, &argc, argv, ' ');
-	cmd = argv[0];
-	name = argv[1];
-
-	if (!strcmp(cmd, "join"))
-		rv = do_join(name);
-	else if (!strcmp(cmd, "leave"))
-		rv = do_leave(name);
-	else if (!strcmp(cmd, "dump")) {
-		do_dump(client[ci].fd);
-		close(client[ci].fd);
+	if (h.magic != FENCED_MAGIC) {
+		log_debug("connection %d magic error %x", ci, h.magic);
+		goto out;
 	}
 
-	sprintf(out, "%d", rv);
-	write(client[ci].fd, out, FENCED_MSGLEN);
+	if ((h.version & 0xFFFF0000) != (FENCED_VERSION & 0xFFFF0000)) {
+		log_debug("connection %d version error %x", ci, h.version);
+		goto out;
+	}
 
-	/* exit: cause fenced loop to exit */
+	switch (h.command) {
+	case FENCED_CMD_JOIN:
+		do_join("default");
+		break;
+	case FENCED_CMD_LEAVE:
+		do_leave("default");
+		break;
+	case FENCED_CMD_EXTERNAL:
+		do_external("default", ci);
+		break;
+	case FENCED_CMD_DUMP_DEBUG:
+		do_dump(ci);
+		break;
+	case FENCED_CMD_NODE_INFO:
+		do_node_info(ci, h.data);
+		break;
+	case FENCED_CMD_DOMAIN_INFO:
+		do_domain_info(ci);
+		break;
+	case FENCED_CMD_DOMAIN_MEMBERS:
+		do_domain_members(ci, h.data);
+		break;
+	default:
+		log_error("process_connection %d unknown command %d",
+			  ci, h.command);
+	}
+ out:
+	client_dead(ci);
 }
 
 static void process_listener(int ci)
@@ -671,45 +794,4 @@ int dump_point;
 int dump_wrap;
 int group_mode;
 struct commandline comline;
-
-#if 0
-   libfenced
-
-   struct fenced_node:
-   nodeid, name,
-   given node is pending victim?,
-   last time given node was successfully fenced, how, and by whom,
-   last failed fence time (only master will know),
-   last domain join time, last domain leave time
-
-   struct fenced_domain
-   name,
-   current number of members,
-   master nodeid
-   current number of victims,
-   current pending victim,
-   state
-
-   /* tell fenced that an external program has fenced a node, e.g. fence_node;
-      fenced will try to suppress its own fencing of this node a second time */
-   fenced_external(int nodeid);
-
-   /* fenced gives info about a single node */
-   fenced_node_info(int nodeid, char *name, struct fenced_node *info);
-
-   /* fenced gives info about the domain */
-   fenced_domain_info(struct fenced_domain *info);
-
-   /* fenced copies a node struct for each member */
-   fenced_domain_members(int num, struct fenced_node **info);
-
-   fenced_debug_dump(char **buf, int len);
-   fenced_join(void);
-   fenced_leave(void);
-
-   for all of these, libfenced connects to fenced, writes a structure that
-   defines the type, then for some, reads back data, copies data into
-   buffers provided by caller, disconnects from fenced
-
-#endif
 

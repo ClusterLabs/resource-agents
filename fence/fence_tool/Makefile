@@ -28,10 +28,10 @@ OBJS=fence_tool.o
 CFLAGS += -D_FILE_OFFSET_BITS=64
 CFLAGS += -I${ccsincdir} -I${cmanincdir}
 CFLAGS += -I$(S)/../include -I$(SRCDIR)/group/lib
-CFLAGS += -I${incdir}
+CFLAGS += -I${incdir} -I../libfenced
 
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
-LDFLAGS += -L../../group/lib -lgroup
+LDFLAGS += -L../../group/lib -lgroup -lfenced
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)

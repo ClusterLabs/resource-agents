@@ -29,9 +29,9 @@ CFLAGS += -D_FILE_OFFSET_BITS=64
 
 CFLAGS += -I${ccsincdir} -I${fenceincdir}
 CFLAGS += -I../include
-CFLAGS += -I${incdir}
+CFLAGS += -I${incdir} -I../libfenced
 
-LDFLAGS += -L${ccslibdir} -L${fencelibdir} -lccs -lfence
+LDFLAGS += -L${ccslibdir} -L${fencelibdir} -lccs -lfence -lfenced
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)

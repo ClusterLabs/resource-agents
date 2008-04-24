@@ -411,3 +411,19 @@ int fd_leave_group(struct fd *fd)
 	return rv;
 }
 
+int set_node_info_group(struct fd *fd, int nodeid, struct fenced_node *node)
+{
+	return 0;
+}
+
+int set_domain_info_group(struct fd *fd, struct fenced_domain *domain)
+{
+	return 0;
+}
+
+int set_domain_members_group(struct fd *fd, int *member_count,
+			     struct fenced_node **members)
+{
+	return 0;
+}
+

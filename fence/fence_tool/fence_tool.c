@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2008 Red Hat, Inc.  All rights reserved.
 **  
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -32,24 +32,14 @@
 #include "copyright.cf"
 #include "libcman.h"
 #include "libgroup.h"
-
-#ifndef TRUE
-#define TRUE 1
-#define FALSE 0
-#endif
+#include "libfenced.h"
 
 #define OPTION_STRING			("Vht:wQ")
-#define FENCED_SOCK_PATH                "fenced_socket"
-#define MAXLINE				256
 
 #define OP_JOIN  			1
 #define OP_LEAVE 			2
 #define OP_WAIT				3
 #define OP_DUMP				4
-
-/* needs to match the same in cluster/group/daemon/gd_internal.h and
-   cluster/group/gfs_controld/lock_dlm.h and cluster/fence/fenced/fd.h */
-#define DUMP_SIZE                       (1024 * 1024)
 
 #define die(fmt, args...) \
 do \
@@ -62,8 +52,8 @@ while (0)
 
 char *prog_name;
 int operation;
-int child_wait = FALSE;
-int quorum_wait = TRUE;
+int child_wait = 0;
+int quorum_wait = 1;
 int fenced_start_timeout = 300; /* five minutes */
 int signalled = 0;
 cman_handle_t ch;
@@ -87,6 +77,7 @@ static int do_write(int fd, void *buf, size_t count)
 	return 0;
 }
 
+#if 0
 static int do_read(int fd, void *buf, size_t count)
 {
 	int rv, off = 0;
@@ -103,6 +94,7 @@ static int do_read(int fd, void *buf, size_t count)
 	}
 	return 0;
 }
+#endif
 
 static int get_int_arg(char argopt, char *arg)
 {
@@ -146,30 +138,6 @@ static int check_mounted(void)
 static void sigalarm_handler(int sig)
 {
 	signalled = 1;
-}
-
-int fenced_connect(void)
-{
-	struct sockaddr_un sun;
-	socklen_t addrlen;
-	int rv, fd;
-
-	fd = socket(PF_UNIX, SOCK_STREAM, 0);
-	if (fd < 0)
-		goto out;
-
-	memset(&sun, 0, sizeof(sun));
-	sun.sun_family = AF_UNIX;
-	strcpy(&sun.sun_path[1], FENCED_SOCK_PATH);
-	addrlen = sizeof(sa_family_t) + strlen(sun.sun_path+1) + 1;
-
-	rv = connect(fd, (struct sockaddr *) &sun, addrlen);
-	if (rv < 0) {
-		close(fd);
-		fd = rv;
-	}
- out:
-	return fd;
 }
 
 static int we_are_in_fence_domain(void)
@@ -216,9 +184,9 @@ static int check_quorum(void)
 	while (!signalled) {
 		rv = cman_is_quorate(ch);
 		if (rv)
-			return TRUE;
+			return 1;
 		else if (!quorum_wait)
-			return FALSE;
+			return 0;
 
 		sleep(1);
 
@@ -227,7 +195,7 @@ static int check_quorum(void)
 	}
 
 	errno = ETIMEDOUT;
-	return FALSE;
+	return 0;
 }
 
 static int do_wait(int joining)
@@ -248,8 +216,7 @@ static int do_wait(int joining)
 
 static int do_join(int argc, char *argv[])
 {
-	int i, fd, rv;
-	char buf[MAXLINE];
+	int rv;
 
 	ch = cman_init(NULL);
 
@@ -267,86 +234,41 @@ static int do_join(int argc, char *argv[])
 	}
 	cman_finish(ch);
 
-	i = 0;
-	do {
-		sleep(1);
-		fd = fenced_connect();
-		if (!fd)
-			fprintf(stderr, "waiting for fenced to start\n");
-	} while (!fd && ++i < 10);
-
-	if (!fd)
-		die("fenced not running");
-
-	memset(buf, 0, sizeof(buf));
-	sprintf(buf, "join default");
-
-	rv = write(fd, buf, sizeof(buf));
+	rv = fenced_join();
 	if (rv < 0)
-		die("can't communicate with fenced %d", rv);
-
-	memset(buf, 0, sizeof(buf));
-	rv = read(fd, buf, sizeof(buf));
-	/* printf("join result %d %s\n", rv, buf); */
+		die("can't communicate with fenced");
 
 	if (child_wait)
 		do_wait(1);
-	close(fd);
 	return EXIT_SUCCESS;
 }
 
 static int do_leave(void)
 {
-	int fd, rv;
-	char buf[MAXLINE];
-
-	fd = fenced_connect();
-	if (!fd)
-		die("fenced not running");
+	int rv;
 
 	check_mounted();
 
-	memset(buf, 0, sizeof(buf));
-	sprintf(buf, "leave default");
-
-	rv = write(fd, buf, sizeof(buf));
+	rv = fenced_leave();
 	if (rv < 0)
 		die("can't communicate with fenced");
 
-	memset(buf, 0, sizeof(buf));
-	rv = read(fd, buf, sizeof(buf));
-
-	/* printf("leave result %d %s\n", rv, buf); */
 	if (child_wait)
 		do_wait(0);
-	close(fd);
 	return EXIT_SUCCESS;
 }
 
 static int do_dump(void)
 {
-	char inbuf[DUMP_SIZE];
-	char outbuf[MAXLINE];
-	int fd, rv;
+	char buf[FENCED_DUMP_SIZE];
+	int rv;
 
-	fd = fenced_connect();
-
-	memset(inbuf, 0, sizeof(inbuf));
-	memset(outbuf, 0, sizeof(outbuf));
-
-	sprintf(outbuf, "dump");
-
-	rv = do_write(fd, outbuf, sizeof(outbuf));
+	rv = fenced_dump_debug(buf);
 	if (rv < 0)
 		die("can't communicate with fenced");
 
-	rv = do_read(fd, inbuf, sizeof(inbuf));
-	if (rv < 0)
-		printf("dump read: %s\n", strerror(errno));
+	do_write(STDOUT_FILENO, buf, sizeof(buf));
 
-	do_write(STDOUT_FILENO, inbuf, sizeof(inbuf));
-
-	close(fd);
 	return 0;
 }
 
@@ -372,7 +294,7 @@ static void print_usage(void)
 
 static void decode_arguments(int argc, char *argv[])
 {
-	int cont = TRUE;
+	int cont = 1;
 	int optchar;
 
 	while (cont) {
@@ -393,11 +315,11 @@ static void decode_arguments(int argc, char *argv[])
 			break;
 
 		case 'Q':
-			quorum_wait = FALSE;
+			quorum_wait = 0;
 			break;
 
 		case 'w':
-			child_wait = TRUE;
+			child_wait = 1;
 			break;
 
 		case ':':
@@ -407,7 +329,7 @@ static void decode_arguments(int argc, char *argv[])
 			break;
 
 		case EOF:
-			cont = FALSE;
+			cont = 0;
 			break;
 
 		case 't':
