@@ -558,6 +558,8 @@ static int process_connect(comm_header_t *ch, char *cluster_name){
       xmlFreeDoc(master_doc->od_doc);
       master_doc->od_doc = NULL;
       free(tmp_name); tmp_name = NULL;
+    } else if(set_ccs_logging(master_doc->od_doc) < 0){
+      log_printf(LOG_ERR, "Unable to set logging parameters.\n");
     } else {  /* Either the names match, or a name wasn't specified. */
       log_printf(LOG_INFO, DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE " (cluster name = %s, version = %d) found.\n",
 	      tmp_name, error);

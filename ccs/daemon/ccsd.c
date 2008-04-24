@@ -34,7 +34,7 @@
 
 #include "copyright.cf"
 
-static int debug = 0;
+int debug = 0;
 extern volatile int quorate;
 int no_manager_opt=0;
 static int exit_now=0;

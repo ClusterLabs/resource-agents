@@ -25,6 +25,6 @@ extern open_doc_t *master_doc;
 
 char *get_cluster_name(xmlDocPtr ldoc);
 int get_doc_version(xmlDocPtr ldoc);
-
+int set_ccs_logging(xmlDocPtr ldoc);
 
 #endif /* __MISC_H__ */
