@@ -411,19 +411,46 @@ int fd_leave_group(struct fd *fd)
 	return rv;
 }
 
-int set_node_info_group(struct fd *fd, int nodeid, struct fenced_node *node)
+int set_node_info_group(struct fd *fd, int nodeid, struct fenced_node *nodeinfo)
 {
+	nodeinfo->nodeid = nodeid;
+	nodeinfo->victim = is_victim(fd, nodeid);
+	nodeinfo->member = id_in_nodeids(nodeid, cb_member_count, cb_members);
+
+	/* FIXME: need to keep track of last fence info for nodes */
+
 	return 0;
 }
 
 int set_domain_info_group(struct fd *fd, struct fenced_domain *domain)
 {
+	domain->master_nodeid = fd->master;
+	domain->victim_count = list_count(&fd->victims);
+	domain->member_count = cb_member_count;
+	domain->state = cb_action;
 	return 0;
 }
 
 int set_domain_members_group(struct fd *fd, int *member_count,
 			     struct fenced_node **members)
 {
+	struct fenced_node *nodes = NULL, *nodep;
+	int i;
+
+	if (!cb_member_count)
+		goto out;
+
+	nodes = malloc(cb_member_count * sizeof(struct fenced_node));
+	if (!nodes)
+		return -ENOMEM;
+
+	nodep = nodes;
+	for (i = 0; i < cb_member_count; i++) {
+		set_node_info(fd, cb_members[i], nodep++);
+	}
+ out:
+	*member_count = cb_member_count;
+	*members = nodes;
 	return 0;
 }
 

@@ -261,6 +261,8 @@ void client_dead(int ci);
 int client_add(int fd, void (*workfn)(int ci), void (*deadfn)(int ci));
 void free_fd(struct fd *fd);
 struct fd *find_fd(char *name);
+void query_lock(void);
+void query_unlock(void);
 
 /* member_cman.c */
 
@@ -276,6 +278,7 @@ struct node *get_new_node(struct fd *fd, int nodeid);
 void free_node_list(struct list_head *head);
 void add_complete_node(struct fd *fd, int nodeid);
 int list_count(struct list_head *head);
+int is_victim(struct fd *fd, int nodeid);
 void delay_fencing(struct fd *fd, int node_join);
 void defer_fencing(struct fd *fd);
 void fence_victims(struct fd *fd);

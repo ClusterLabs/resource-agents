@@ -508,6 +508,16 @@ static int setup_listener(char *sock_path)
 	return s;
 }
 
+void query_lock(void)
+{
+	pthread_mutex_lock(&query_mutex);
+}
+
+void query_unlock(void)
+{
+	pthread_mutex_unlock(&query_mutex);
+}
+
 /* This is a thread, so we have to be careful, don't call log_ functions.
    We need a thread to process queries because the main thread will block
    for long periods when running fence agents. */

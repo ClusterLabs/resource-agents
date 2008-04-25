@@ -999,17 +999,6 @@ static int add_change(struct fd *fd,
 	return error;
 }
 
-static int is_victim(struct fd *fd, int nodeid)
-{
-	struct node *node;
-
-	list_for_each_entry(node, &fd->victims, list) {
-		if (node->nodeid == nodeid)
-			return 1;
-	}
-	return 0;
-}
-
 /* add a victim for each node in complete list (represents all nodes in
    cluster.conf) that is not a cman member (and not already a victim) */
 
@@ -1311,7 +1300,6 @@ int set_domain_members(struct fd *fd, int *member_count,
 
 	*member_count = cg->member_count;
 	*members = nodes;
-
 	return 0;
 }
 

@@ -42,6 +42,17 @@ int list_count(struct list_head *head)
 	return count;
 }
 
+int is_victim(struct fd *fd, int nodeid)
+{
+	struct node *node;
+
+	list_for_each_entry(node, &fd->victims, list) {
+		if (node->nodeid == nodeid)
+			return 1;
+	}
+	return 0;
+}
+
 static void victim_done(struct fd *fd, int victim, int how)
 {
 	if (group_mode == GROUP_LIBGROUP)
@@ -179,6 +190,7 @@ void delay_fencing(struct fd *fd, int node_join)
 	gettimeofday(&first, NULL);
 	gettimeofday(&start, NULL);
 
+	query_unlock();
 	for (;;) {
 		sleep(1);
 
@@ -205,6 +217,7 @@ void delay_fencing(struct fd *fd, int node_join)
 		if (now.tv_sec - start.tv_sec >= delay)
 			break;
 	}
+	query_lock();
 
 	gettimeofday(&last, NULL);
 
@@ -260,7 +273,9 @@ void fence_victims(struct fd *fd)
 		log_debug("fencing node %s", node->name);
 		syslog(LOG_INFO, "fencing node \"%s\"", node->name);
 
+		query_unlock();
 		error = fence_node(node->name);
+		query_lock();
 
 		syslog(LOG_INFO, "fence \"%s\" %s", node->name,
 		       error ? "failed" : "success");
@@ -273,10 +288,13 @@ void fence_victims(struct fd *fd)
 		}
 
 		if (!comline.override_path) {
+			query_unlock();
 			sleep(5);
+			query_lock();
 			continue;
 		}
 
+		query_unlock();
 		/* Check for manual intervention */
 		override = open_override(comline.override_path);
 		if (check_override(override, node->name,
@@ -288,6 +306,7 @@ void fence_victims(struct fd *fd)
 			free(node);
 		}
 		close_override(&override, comline.override_path);
+		query_lock();
 	}
 }
 
