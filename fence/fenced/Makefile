@@ -37,7 +37,7 @@ CFLAGS += -I$(S) -I$(S)/../include -I$(SRCDIR)/group/lib
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -L${openaislibdir} -lccs -lcman -lcpg
-LDFLAGS += -L${fencelibdir} -L${openaislibdir} -lfence -lcpg
+LDFLAGS += -L${fencelibdir} -L${openaislibdir} -lfence -lcpg -lpthread
 LDFLAGS += -L../../group/lib -l group
 
 

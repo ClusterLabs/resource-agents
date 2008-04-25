@@ -12,6 +12,7 @@
 ******************************************************************************/
 
 #include "fd.h"
+#include "pthread.h"
 #include "copyright.cf"
 
 #define LOCKFILE_NAME		"/var/run/fenced.pid"
@@ -21,6 +22,8 @@ static int client_maxi;
 static int client_size = 0;
 static struct client *client = NULL;
 static struct pollfd *pollfd = NULL;
+static pthread_t query_thread;
+static pthread_mutex_t query_mutex;
 
 struct client {
 	int fd;
@@ -54,7 +57,6 @@ static int do_write(int fd, void *buf, size_t count)
 	if (rv == -1 && errno == EINTR)
 		goto retry;
 	if (rv < 0) {
-		log_error("write errno %d", errno);
 		return rv;
 	}
 
@@ -264,7 +266,7 @@ static int do_external(char *name, char *extra, int extra_len)
 /* combines a header and the data and sends it back to the client in
    a single do_write() call */
 
-static void do_reply(int ci, int cmd, int result, char *buf, int len)
+static void do_reply(int f, int cmd, int result, char *buf, int len)
 {
 	struct fenced_header *rh;
 	char *reply;
@@ -287,7 +289,9 @@ static void do_reply(int ci, int cmd, int result, char *buf, int len)
 	if (buf)
 		memcpy(reply + sizeof(struct fenced_header), buf, len);
 
-	do_write(client[ci].fd, reply, reply_len);
+	do_write(f, reply, reply_len);
+
+	free(reply);
 }
 
 /* dump can do 1, 2, or 3 separate writes:
@@ -295,15 +299,15 @@ static void do_reply(int ci, int cmd, int result, char *buf, int len)
    second write is the tail of log,
    third is the head of the log */
 
-static void do_dump(int ci)
+static void query_dump_debug(int f)
 {
 	int len;
 
-	do_reply(ci, FENCED_CMD_DUMP_DEBUG, 0, NULL, 0);
+	do_reply(f, FENCED_CMD_DUMP_DEBUG, 0, NULL, 0);
 
 	if (dump_wrap) {
 		len = DUMP_SIZE - dump_point;
-		do_write(client[ci].fd, dump_buf + dump_point, len);
+		do_write(f, dump_buf + dump_point, len);
 		len = dump_point;
 	} else
 		len = dump_point;
@@ -311,10 +315,10 @@ static void do_dump(int ci)
 	/* NUL terminate the debug string */
 	dump_buf[dump_point] = '\0';
 
-	do_write(client[ci].fd, dump_buf, len);
+	do_write(f, dump_buf, len);
 }
 
-static void do_node_info(int ci, int nodeid)
+static void query_node_info(int f, int nodeid)
 {
 	struct fd *fd;
 	struct fenced_node node;
@@ -331,11 +335,10 @@ static void do_node_info(int ci, int nodeid)
 	else
 		rv = set_node_info(fd, nodeid, &node);
  out:
-	do_reply(client[ci].fd, FENCED_CMD_NODE_INFO, rv,
-		 (char *)&node, sizeof(node));
+	do_reply(f, FENCED_CMD_NODE_INFO, rv, (char *)&node, sizeof(node));
 }
 
-static void do_domain_info(int ci)
+static void query_domain_info(int f)
 {
 	struct fd *fd;
 	struct fenced_domain domain;
@@ -352,11 +355,10 @@ static void do_domain_info(int ci)
 	else
 		rv = set_domain_info(fd, &domain);
  out:
-	do_reply(client[ci].fd, FENCED_CMD_DOMAIN_INFO, rv,
-		 (char *)&domain, sizeof(domain));
+	do_reply(f, FENCED_CMD_DOMAIN_INFO, rv, (char *)&domain, sizeof(domain));
 }
 
-static void do_domain_members(int ci, int max)
+static void query_domain_members(int f, int max)
 {
 	struct fd *fd;
 	int member_count = 0;
@@ -385,8 +387,8 @@ static void do_domain_members(int ci, int max)
 		rv = member_count;
 	}
  out:
-	do_reply(client[ci].fd, FENCED_CMD_DOMAIN_MEMBERS, rv,
-		 (char *)members, member_count * sizeof(struct fenced_node));
+	do_reply(f, FENCED_CMD_DOMAIN_MEMBERS, rv,
+	         (char *)members, member_count * sizeof(struct fenced_node));
 
 	if (members)
 		free(members);
@@ -441,16 +443,10 @@ static void process_connection(int ci)
 		do_external("default", extra, extra_len);
 		break;
 	case FENCED_CMD_DUMP_DEBUG:
-		do_dump(ci);
-		break;
 	case FENCED_CMD_NODE_INFO:
-		do_node_info(ci, h.data);
-		break;
 	case FENCED_CMD_DOMAIN_INFO:
-		do_domain_info(ci);
-		break;
 	case FENCED_CMD_DOMAIN_MEMBERS:
-		do_domain_members(ci, h.data);
+		log_error("process_connection query on wrong socket");
 		break;
 	default:
 		log_error("process_connection %d unknown command %d",
@@ -477,7 +473,7 @@ static void process_listener(int ci)
 	log_debug("client connection %d fd %d", i, fd);
 }
 
-static int setup_listener(void)
+static int setup_listener(char *sock_path)
 {
 	struct sockaddr_un addr;
 	socklen_t addrlen;
@@ -493,7 +489,7 @@ static int setup_listener(void)
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_LOCAL;
-	strcpy(&addr.sun_path[1], FENCED_SOCK_PATH);
+	strcpy(&addr.sun_path[1], sock_path);
 	addrlen = sizeof(sa_family_t) + strlen(addr.sun_path+1) + 1;
 
 	rv = bind(s, (struct sockaddr *) &addr, addrlen);
@@ -512,6 +508,77 @@ static int setup_listener(void)
 	return s;
 }
 
+/* This is a thread, so we have to be careful, don't call log_ functions.
+   We need a thread to process queries because the main thread will block
+   for long periods when running fence agents. */
+
+static void *process_queries(void *arg)
+{
+	struct fenced_header h;
+	int s = *((int *)arg);
+	int f, rv;
+
+	for (;;) {
+		f = accept(s, NULL, NULL);
+
+		rv = do_read(f, &h, sizeof(h));
+		if (rv < 0) {
+			goto out;
+		}
+
+		if (h.magic != FENCED_MAGIC) {
+			goto out;
+		}
+
+		if ((h.version & 0xFFFF0000) != (FENCED_VERSION & 0xFFFF0000)) {
+			goto out;
+		}
+
+		pthread_mutex_lock(&query_mutex);
+
+		switch (h.command) {
+		case FENCED_CMD_DUMP_DEBUG:
+			query_dump_debug(f);
+			break;
+		case FENCED_CMD_NODE_INFO:
+			query_node_info(f, h.data);
+			break;
+		case FENCED_CMD_DOMAIN_INFO:
+			query_domain_info(f);
+			break;
+		case FENCED_CMD_DOMAIN_MEMBERS:
+			query_domain_members(f, h.data);
+			break;
+		default:
+			break;
+		}
+		pthread_mutex_unlock(&query_mutex);
+
+ out:
+		close(f);
+	}
+}
+
+static int setup_queries(void)
+{
+	int rv, s;
+
+	rv = setup_listener(FENCED_QUERY_SOCK_PATH);
+	if (rv < 0)
+		return rv;
+	s = rv;
+
+	pthread_mutex_init(&query_mutex, NULL);
+
+	rv = pthread_create(&query_thread, NULL, process_queries, &s);
+	if (rv < 0) {
+		log_error("can't create query thread");
+		close(s);
+		return rv;
+	}
+	return 0;
+}
+
 static void cluster_dead(int ci)
 {
 	log_error("cluster is down, exiting");
@@ -524,7 +591,11 @@ static int loop(void)
 	void (*workfn) (int ci);
 	void (*deadfn) (int ci);
 
-	rv = setup_listener();
+	rv = setup_queries();
+	if (rv < 0)
+		goto out;
+
+	rv = setup_listener(FENCED_SOCK_PATH);
 	if (rv < 0)
 		goto out;
 	client_add(rv, process_listener, NULL);
@@ -573,6 +644,8 @@ static int loop(void)
 			goto out;
 		}
 
+		pthread_mutex_lock(&query_mutex);
+
 		for (i = 0; i <= client_maxi; i++) {
 			if (client[i].fd < 0)
 				continue;
@@ -585,6 +658,7 @@ static int loop(void)
 				deadfn(i);
 			}
 		}
+		pthread_mutex_unlock(&query_mutex);
 	}
 	rv = 0;
  out:

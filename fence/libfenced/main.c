@@ -59,7 +59,7 @@ static int do_write(int fd, void *buf, size_t count)
 	return 0;
 }
 
-static int do_connect(void)
+static int do_connect(char *sock_path)
 {
 	struct sockaddr_un sun;
 	socklen_t addrlen;
@@ -71,7 +71,7 @@ static int do_connect(void)
 
 	memset(&sun, 0, sizeof(sun));
 	sun.sun_family = AF_UNIX;
-	strcpy(&sun.sun_path[1], FENCED_SOCK_PATH);
+	strcpy(&sun.sun_path[1], sock_path);
 	addrlen = sizeof(sa_family_t) + strlen(sun.sun_path+1) + 1;
 
 	rv = connect(fd, (struct sockaddr *) &sun, addrlen);
@@ -100,7 +100,7 @@ int fenced_join(void)
 
 	init_header(&h, FENCED_CMD_JOIN, sizeof(h));
 
-	fd = do_connect();
+	fd = do_connect(FENCED_SOCK_PATH);
 	if (fd < 0) {
 		rv = fd;
 		goto out;
@@ -119,7 +119,7 @@ int fenced_leave(void)
 
 	init_header(&h, FENCED_CMD_LEAVE, sizeof(h));
 
-	fd = do_connect();
+	fd = do_connect(FENCED_SOCK_PATH);
 	if (fd < 0) {
 		rv = fd;
 		goto out;
@@ -146,7 +146,7 @@ int fenced_external(char *name)
 		namelen = MAX_NODENAME_LEN;
 	memcpy(msg + sizeof(struct fenced_header), name, namelen);
 
-	fd = do_connect();
+	fd = do_connect(FENCED_SOCK_PATH);
 	if (fd < 0) {
 		rv = fd;
 		goto out;
@@ -175,7 +175,7 @@ int fenced_dump_debug(char *buf)
 	}
 	memset(reply, 0, reply_len);
 
-	fd = do_connect();
+	fd = do_connect(FENCED_QUERY_SOCK_PATH);
 	if (fd < 0) {
 		rv = fd;
 		goto out;
@@ -212,7 +212,7 @@ int fenced_node_info(int nodeid, struct fenced_node *node)
 
 	memset(reply, 0, sizeof(reply));
 
-	fd = do_connect();
+	fd = do_connect(FENCED_QUERY_SOCK_PATH);
 	if (fd < 0) {
 		rv = fd;
 		goto out;
@@ -249,7 +249,7 @@ int fenced_domain_info(struct fenced_domain *domain)
 
 	memset(reply, 0, sizeof(reply));
 
-	fd = do_connect();
+	fd = do_connect(FENCED_QUERY_SOCK_PATH);
 	if (fd < 0) {
 		rv = fd;
 		goto out;
@@ -294,7 +294,7 @@ int fenced_domain_members(int max, int *count, struct fenced_node *members)
 	}
 	memset(reply, 0, reply_len);
 
-	fd = do_connect();
+	fd = do_connect(FENCED_QUERY_SOCK_PATH);
 	if (fd < 0) {
 		rv = fd;
 		goto out;
