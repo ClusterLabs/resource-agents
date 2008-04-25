@@ -56,7 +56,10 @@ install: all
 	install -m644 $(TARGET) ${sharedir}/utils
 
 uninstall:
-	${UNINSTALL} ${RESOURCES} ${GENERAL_TARGETS} ${METADATA} ${UTIL_TARGETS} ${sharedir}
+	${UNINSTALL} ${RESOURCES} ${GENERAL_TARGETS} \
+		     ${METADATA} ${UTIL_TARGETS} \
+		     $(TARGET) \
+		     ${sharedir}
 
 clean: generalclean
 
