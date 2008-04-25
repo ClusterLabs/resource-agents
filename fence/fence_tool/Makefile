@@ -15,7 +15,7 @@ TARGET = fence_tool
 
 SBINDIRT=$(TARGET)
 
-all: ${TARGET}
+all: depends ${TARGET}
 
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
@@ -26,15 +26,18 @@ include $(OBJDIR)/make/uninstall.mk
 OBJS=fence_tool.o
 
 CFLAGS += -D_FILE_OFFSET_BITS=64
-CFLAGS += -I${ccsincdir} -I${cmanincdir}
+CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${fencedincdir}
 CFLAGS += -I$(S)/../include -I$(SRCDIR)/group/lib
-CFLAGS += -I${incdir} -I../libfenced
+CFLAGS += -I${incdir} 
 
-LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
-LDFLAGS += -L../../group/lib -lgroup -lfenced
+LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -L${fencedlibdir} -lccs -lcman -lfenced
+LDFLAGS += -L../../group/lib -lgroup 
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
+
+depends:
+	$(MAKE) -C ../libfenced
 
 clean: generalclean
 

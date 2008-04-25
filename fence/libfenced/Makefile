@@ -35,7 +35,8 @@ include $(OBJDIR)/make/uninstall.mk
 OBJS=	main.o
 
 CFLAGS += -fPIC
-CFLAGS += -I${incdir} -I../fenced
+CFLAGS += -I$(S)/../fenced
+CFLAGS += -I${incdir}
 
 $(TARGET).a: $(OBJS)
 	${AR} r $@ $^

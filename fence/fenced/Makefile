@@ -44,7 +44,7 @@ ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 depends:
-	$(MAKE) -C ../lib
+	$(MAKE) -C ../libfence
 
 clean: generalclean
 

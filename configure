@@ -54,6 +54,8 @@ my %options = (
 	dlmlibdir => \$dlmlibdir,
 	fenceincdir => \$fenceincdir,
 	fencelibdir => \$fencelibdir,
+	fencedincdir => \$fenceincdir,
+	fencedlibdir => \$fencelibdir,
 	volidincdir => \$volidincdir,
 	volidlibdir => \$volidlibdir,
 	ncursesincdir => \$ncursesincdir,
@@ -128,6 +130,8 @@ my $err = &GetOptions (\%options,
 		    'dlmlibdir=s',
 		    'fenceincdir=s',
 		    'fencelibdir=s',
+		    'fencedincdir=s',
+		    'fencedlibdir=s',
 		    'volidincdir=s',
 		    'volidlibdir=s',
 		    'ncursesincdir=s',
@@ -219,8 +223,10 @@ if ($help || !$err) {
   print "--cmanlibdir=\tthe base directory for cman libraries.  (Default: ./cman/lib)\n";
   print "--dlmincdir=\tthe base directory for dlm include files.  (Default: ./dlm/lib)\n";
   print "--dlmlibdir=\tthe base directory for dlm libraries.  (Default: ./dlm/lib)\n";
-  print "--fenceincdir=\tthe base directory for fence include files.  (Default: ./fence/lib)\n";
-  print "--fencelibdir=\tthe base directory for fence libraries.  (Default: ./fence/lib)\n";
+  print "--fenceincdir=\tthe base directory for fence include files.  (Default: ./fence/libfence)\n";
+  print "--fencelibdir=\tthe base directory for fence libraries.  (Default: ./fence/libfence)\n";
+  print "--fencedincdir=\tthe base directory for fenced include files.  (Default: ./fence/libfenced)\n";
+  print "--fencedlibdir=\tthe base directory for fenced libraries.  (Default: ./fence/libfenced)\n";
   print "--volidincdir=\tthe base directory for volume_id include files.  (Default: {incdir})\n";
   print "--volidlibdir=\tthe base directory for volume_id libraries.  (Default: {libdir})\n";
   print "--ncursesincdir=\tthe base directory for ncurses include files.  (Default: {incdir})\n";
@@ -446,10 +452,16 @@ if (!$dlmlibdir) {
   $dlmlibdir="${objdir}/dlm/lib";
 }
 if (!$fenceincdir) {
-  $fenceincdir="${cdir}/fence/lib";
+  $fenceincdir="${cdir}/fence/libfence";
 }
 if (!$fencelibdir) {
-  $fencelibdir="${objdir}/fence/lib";
+  $fencelibdir="${objdir}/fence/libfence";
+}
+if (!$fencedincdir) {
+  $fencedincdir="${cdir}/fence/libfenced";
+}
+if (!$fencedlibdir) {
+  $fencedlibdir="${objdir}/fence/libfenced";
 }
 if (!$volidincdir) {
   $volidincdir="${incdir}";
@@ -651,6 +663,8 @@ while (<IFILE>) {
   $_ =~ s/\@DLMLIBDIR\@/$dlmlibdir/;
   $_ =~ s/\@FENCEINCDIR\@/$fenceincdir/;
   $_ =~ s/\@FENCELIBDIR\@/$fencelibdir/;
+  $_ =~ s/\@FENCEDINCDIR\@/$fencedincdir/;
+  $_ =~ s/\@FENCEDLIBDIR\@/$fencedlibdir/;
   $_ =~ s/\@VOLIDINCDIR\@/$volidincdir/;
   $_ =~ s/\@VOLIDLIBDIR\@/$volidlibdir/;
   $_ =~ s/\@READLINEINCDIR\@/$readlineincdir/;
