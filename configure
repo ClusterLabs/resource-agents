@@ -266,64 +266,43 @@ if ($help || !$err) {
 }
 
 sub kernel_version {
-  my $autoconf_path = shift;
+  my $makefile_path = shift;
   my $required_version = shift;
-  my $build_version = 0;
-  my $build_patchlevel = 0;
-  my $build_sublevel = 0;
 
   print "\nChecking kernel:\n";
 
   # add autoconf to the path
-  $autoconf_path .= '/include/linux/autoconf.h';
+  $makefile_path .= '/Makefile';
   my @version = split /\./, $required_version;
-  my $current_version = 0;
-  if ( -f $autoconf_path ) {
-    # open the autoconf.h to feth VERSION, PATCHLEVEL and SUBLEVEL, if needed I can add EXTRAVERSION too
-    open AUTOCONF, '<', $autoconf_path;
-    while (<AUTOCONF>) {
-      if ($_ =~ /CONFIG_KERNELVERSION/) {
-        $current_version = $_;
-        # we don't need to check any thing else in this file so we are stopping the read
-        last;
-      }
+  if ( -f $makefile_path ) {
+    # open the toplevel Makefile to feth VERSION, PATCHLEVEL and SUBLEVEL
+    open MAKEFILE, '<', $makefile_path;
+    while (<MAKEFILE>) {
+      $build_version = $1 if /^VERSION = (\d+)/;
+      $build_patchlevel = $1 if /^PATCHLEVEL = (\d+)/;
+      $build_sublevel = $1 if /^SUBLEVEL = (\d+)/;
+      last if (defined $build_version && defined $build_patchlevel && defined $build_sublevel);
     }
-    close AUTOCONF;
-    # Warn and continue if CONFIG_KERNELVERSION was not found
-    if (!$current_version) {
+    close MAKEFILE;
+    # Warn and continue if kernel version was not found
+    if (!$build_version || !$build_patchlevel || !$build_sublevel) {
 	print " WARNING: Could not determine kernel version.\n";
+	print "          Build might fail!\n";
 	return 1;
     }
-    # leaving only the numbers from the lines
-    # this is faster then split and doesn't alocate useless arrays
-    $current_version =~ s/.*"(.*)"\n/$1/;
-    # parse the kernel version into the variables
-    if ($current_version =~ /\-/) {
-        my @line = split /\-/, $current_version;
-        my @ver  = split /\./, $line[0];
-        $build_version = $ver[0];
-        $build_patchlevel = $ver[1];
-        $build_sublevel = $ver[2];
-    } else {
-        my @kernel = split /\./, $current_version;
-        $build_version = $kernel[0];
-        $build_patchlevel = $kernel[1];
-        $build_sublevel = $kernel[2];
-    }
     # checking VERSION, PATCHLEVEL and SUBLEVEL for the supplied kernel
-    # if needed I can add also EXTRAVERSION to the check
     if ($build_version >= $version[0] &&
         $build_patchlevel >= $version[1] &&
         $build_sublevel >= $version[2]) {
       print " Current kernel version appears to be OK\n";
       return 1;
     } else {
-      print " Current kernel version: ",$current_version,"\n Minimum kernel version: ",$required_version,"\n";
+      print " Current kernel version: ",$build_version, "." , $build_patchlevel, ".", $build_sublevel, "\n Minimum kernel version: ",$required_version,"\n";
       print " FAILED!\n";
       return 0;
     }
   } else {
-    print " Unable to find ($autoconf_path)!\n";
+    print " Unable to find ($makefile_path)!\n";
     print " Make sure that:\n - the above path is correct\n";
     print " - your kernel is properly configured and prepared.\n";
     print " - kernel_build and kernel_src options to configure are set properly.\n";
@@ -415,7 +394,7 @@ if (!$kernel_src) {
     $kernel_src=$kernel_build;
   }
 }
-if (not $disable_kernel_check and !kernel_version($kernel_build,$required_kernelversion)) {
+if (not $disable_kernel_check and !kernel_version($kernel_src,$required_kernelversion)) {
   exit 1;
 }
 if (!$module_dir) {
