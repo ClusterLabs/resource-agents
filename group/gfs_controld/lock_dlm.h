@@ -122,6 +122,7 @@ struct mountpoint {
 struct mountgroup {
 	struct list_head	list;
 	uint32_t		id;
+	uint32_t		associated_ls_id;
 	struct list_head	members;
 	struct list_head	members_gone;
 	int			memb_count;

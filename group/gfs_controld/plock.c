@@ -32,9 +32,10 @@
 #include <netdb.h>
 #include <limits.h>
 #include <unistd.h>
+#include <dirent.h>
 #include <openais/saAis.h>
 #include <openais/saCkpt.h>
-#include <linux/lock_dlm_plock.h>
+#include <linux/dlm_plock.h>
 
 #include "lock_dlm.h"
 
@@ -42,8 +43,9 @@
 #define PROC_DEVICES            "/proc/devices"
 #define MISC_NAME               "misc"
 #define CONTROL_DIR             "/dev/misc"
-#define CONTROL_NAME            "lock_dlm_plock"
+#define CONTROL_NAME            "dlm_plock"
 
+extern struct list_head mounts;
 extern int our_nodeid;
 extern int message_flow_control_on;
 
@@ -69,6 +71,7 @@ static SaCkptCallbacksT callbacks = { 0, 0 };
 static SaVersionT version = { 'B', 1, 1 };
 static char section_buf[1024 * 1024];
 static uint32_t section_len;
+static int need_fsid_translation = 0;
 
 struct pack_plock {
 	uint64_t start;
@@ -112,13 +115,13 @@ struct posix_lock {
 struct lock_waiter {
 	struct list_head	list;
 	uint32_t		flags;
-	struct gdlm_plock_info	info;
+	struct dlm_plock_info	info;
 };
 
 
 static void send_own(struct mountgroup *mg, struct resource *r, int owner);
 static void save_pending_plock(struct mountgroup *mg, struct resource *r,
-			       struct gdlm_plock_info *in);
+			       struct dlm_plock_info *in);
 
 
 static int got_unown(struct resource *r)
@@ -126,7 +129,7 @@ static int got_unown(struct resource *r)
 	return !!(r->flags & R_GOT_UNOWN);
 }
 
-static void info_bswap_out(struct gdlm_plock_info *i)
+static void info_bswap_out(struct dlm_plock_info *i)
 {
 	i->version[0]	= cpu_to_le32(i->version[0]);
 	i->version[1]	= cpu_to_le32(i->version[1]);
@@ -141,7 +144,7 @@ static void info_bswap_out(struct gdlm_plock_info *i)
 	i->owner	= cpu_to_le64(i->owner);
 }
 
-static void info_bswap_in(struct gdlm_plock_info *i)
+static void info_bswap_in(struct dlm_plock_info *i)
 {
 	i->version[0]	= le32_to_cpu(i->version[0]);
 	i->version[1]	= le32_to_cpu(i->version[1]);
@@ -159,11 +162,11 @@ static void info_bswap_in(struct gdlm_plock_info *i)
 static char *op_str(int optype)
 {
 	switch (optype) {
-	case GDLM_PLOCK_OP_LOCK:
+	case DLM_PLOCK_OP_LOCK:
 		return "LK";
-	case GDLM_PLOCK_OP_UNLOCK:
+	case DLM_PLOCK_OP_UNLOCK:
 		return "UN";
-	case GDLM_PLOCK_OP_GET:
+	case DLM_PLOCK_OP_GET:
 		return "GET";
 	default:
 		return "??";
@@ -172,7 +175,7 @@ static char *op_str(int optype)
 
 static char *ex_str(int optype, int ex)
 {
-	if (optype == GDLM_PLOCK_OP_UNLOCK || optype == GDLM_PLOCK_OP_GET)
+	if (optype == DLM_PLOCK_OP_UNLOCK || optype == DLM_PLOCK_OP_GET)
 		return "-";
 	if (ex)
 		return "WR";
@@ -207,10 +210,11 @@ static int get_proc_number(const char *file, const char *name, uint32_t *number)
 	return 0;
 }
 
-static int control_device_number(uint32_t *major, uint32_t *minor)
+static int control_device_number(const char *plock_misc_name,
+				 uint32_t *major, uint32_t *minor)
 {
 	if (!get_proc_number(PROC_DEVICES, MISC_NAME, major) ||
-	    !get_proc_number(PROC_MISC, GDLM_PLOCK_MISC_NAME, minor)) {
+	    !get_proc_number(PROC_MISC, plock_misc_name, minor)) {
 		*major = 0;
 		return 0;
 	}
@@ -277,7 +281,7 @@ static int create_control(const char *control, uint32_t major, uint32_t minor)
 	return 1;
 }
 
-static int open_control(void)
+static int open_control(const char *control_name, const char *plock_misc_name)
 {
 	char control[PATH_MAX];
 	uint32_t major = 0, minor = 0;
@@ -285,28 +289,36 @@ static int open_control(void)
 	if (control_fd != -1)
 		return 0;
 
-	snprintf(control, sizeof(control), "%s/%s", CONTROL_DIR, CONTROL_NAME);
+	snprintf(control, sizeof(control), "%s/%s", CONTROL_DIR, control_name);
 
-	if (!control_device_number(&major, &minor)) {
-		log_error("Is dlm missing from kernel?");
+	if (!control_device_number(plock_misc_name, &major, &minor))
 		return -1;
-	}
 
 	if (!control_exists(control, major, minor) &&
 	    !create_control(control, major, minor)) {
-		log_error("Failure to communicate with kernel lock_dlm");
+		log_error("Failure to create device file %s", control);
 		return -1;
 	}
 
 	control_fd = open(control, O_RDWR);
 	if (control_fd < 0) {
-		log_error("Failure to communicate with kernel lock_dlm: %s",
+		log_error("Failure to open device %s: %s", control,
 			  strerror(errno));
 		return -1;
 	}
 
 	return 0;
 }
+
+/*
+ * In kernels before 2.6.26, plocks came from gfs2's lock_dlm module.
+ * Reading plocks from there as well should allow us to use cluster3
+ * on old (RHEL5) kernels.  In this case, the fsid we read in plock_info
+ * structs is the mountgroup id, which we need to translate to the ls id.
+ */
+
+#define OLD_CONTROL_NAME "lock_dlm_plock"
+#define OLD_PLOCK_MISC_NAME "lock_dlm_plock"
 
 int setup_plocks(void)
 {
@@ -330,14 +342,29 @@ int setup_plocks(void)
 		log_error("ckpt init error %d - plocks unavailable", err);
 
  control:
-	rv = open_control();
-	if (rv)
-		return rv;
+	need_fsid_translation = 1;
+
+	rv = open_control(CONTROL_NAME, DLM_PLOCK_MISC_NAME);
+	if (rv) {
+		log_debug("setup_plocks trying old lock_dlm interface");
+		rv = open_control(OLD_CONTROL_NAME, OLD_PLOCK_MISC_NAME);
+		if (rv) {
+			log_error("Is dlm missing from kernel?  No control device.");
+			return rv;
+		}
+
+		/* the fsid from the kernel is the mountgroup id in old
+		   kernels, which we can use to look up the mg directly
+		   without translation */
+
+		need_fsid_translation = 0;
+	}
 
 	log_debug("plocks %d", control_fd);
+	log_debug("plock need_fsid_translation %d", need_fsid_translation);
 	log_debug("plock cpg message size: %u bytes",
 		  (unsigned int) (sizeof(struct gdlm_header) +
-		                  sizeof(struct gdlm_plock_info)));
+		                  sizeof(struct dlm_plock_info)));
 
 	return control_fd;
 }
@@ -529,7 +556,7 @@ static int shrink_range(struct posix_lock *po, uint64_t start, uint64_t end)
 	return shrink_range2(&po->start, &po->end, start, end);
 }
 
-static int is_conflict(struct resource *r, struct gdlm_plock_info *in, int get)
+static int is_conflict(struct resource *r, struct dlm_plock_info *in, int get)
 {
 	struct posix_lock *po;
 
@@ -578,7 +605,7 @@ static int add_lock(struct resource *r, uint32_t nodeid, uint64_t owner,
    2. convert RE to RN range and mode */
 
 static int lock_case1(struct posix_lock *po, struct resource *r,
-		      struct gdlm_plock_info *in)
+		      struct dlm_plock_info *in)
 {
 	uint64_t start2, end2;
 	int rv;
@@ -605,7 +632,7 @@ static int lock_case1(struct posix_lock *po, struct resource *r,
    3. convert RE to RN range and mode */
 			 
 static int lock_case2(struct posix_lock *po, struct resource *r,
-		      struct gdlm_plock_info *in)
+		      struct dlm_plock_info *in)
 
 {
 	int rv;
@@ -628,7 +655,7 @@ static int lock_case2(struct posix_lock *po, struct resource *r,
 }
 
 static int lock_internal(struct mountgroup *mg, struct resource *r,
-			 struct gdlm_plock_info *in)
+			 struct dlm_plock_info *in)
 {
 	struct posix_lock *po, *safe;
 	int rv = 0;
@@ -691,7 +718,7 @@ static int lock_internal(struct mountgroup *mg, struct resource *r,
 }
 
 static int unlock_internal(struct mountgroup *mg, struct resource *r,
-			   struct gdlm_plock_info *in)
+			   struct dlm_plock_info *in)
 {
 	struct posix_lock *po, *safe;
 	int rv = 0;
@@ -755,7 +782,7 @@ static int unlock_internal(struct mountgroup *mg, struct resource *r,
 }
 
 static int add_waiter(struct mountgroup *mg, struct resource *r,
-		      struct gdlm_plock_info *in)
+		      struct dlm_plock_info *in)
 
 {
 	struct lock_waiter *w;
@@ -763,26 +790,29 @@ static int add_waiter(struct mountgroup *mg, struct resource *r,
 	w = malloc(sizeof(struct lock_waiter));
 	if (!w)
 		return -ENOMEM;
-	memcpy(&w->info, in, sizeof(struct gdlm_plock_info));
+	memcpy(&w->info, in, sizeof(struct dlm_plock_info));
 	list_add_tail(&w->list, &r->waiters);
 	return 0;
 }
 
-static void write_result(struct mountgroup *mg, struct gdlm_plock_info *in,
+static void write_result(struct mountgroup *mg, struct dlm_plock_info *in,
 			 int rv)
 {
 	int err;
 
+	if (need_fsid_translation)
+		in->fsid = mg->associated_ls_id;
+
 	in->rv = rv;
-	err = write(control_fd, in, sizeof(struct gdlm_plock_info));
-	if (err != sizeof(struct gdlm_plock_info))
+	err = write(control_fd, in, sizeof(struct dlm_plock_info));
+	if (err != sizeof(struct dlm_plock_info))
 		log_error("plock result write err %d errno %d", err, errno);
 }
 
 static void do_waiters(struct mountgroup *mg, struct resource *r)
 {
 	struct lock_waiter *w, *safe;
-	struct gdlm_plock_info *in;
+	struct dlm_plock_info *in;
 	int rv;
 
 	list_for_each_entry_safe(w, safe, &r->waiters, list) {
@@ -808,7 +838,7 @@ static void do_waiters(struct mountgroup *mg, struct resource *r)
 	}
 }
 
-static void do_lock(struct mountgroup *mg, struct gdlm_plock_info *in,
+static void do_lock(struct mountgroup *mg, struct dlm_plock_info *in,
 		    struct resource *r)
 {
 	int rv;
@@ -833,7 +863,7 @@ static void do_lock(struct mountgroup *mg, struct gdlm_plock_info *in,
 	put_resource(r);
 }
 
-static void do_unlock(struct mountgroup *mg, struct gdlm_plock_info *in,
+static void do_unlock(struct mountgroup *mg, struct dlm_plock_info *in,
 		      struct resource *r)
 {
 	int rv;
@@ -849,7 +879,7 @@ static void do_unlock(struct mountgroup *mg, struct gdlm_plock_info *in,
 
 /* we don't even get to this function if the getlk isn't from us */
 
-static void do_get(struct mountgroup *mg, struct gdlm_plock_info *in,
+static void do_get(struct mountgroup *mg, struct dlm_plock_info *in,
 		   struct resource *r)
 {
 	int rv;
@@ -862,19 +892,19 @@ static void do_get(struct mountgroup *mg, struct gdlm_plock_info *in,
 	write_result(mg, in, rv);
 }
 
-static void __receive_plock(struct mountgroup *mg, struct gdlm_plock_info *in,
+static void __receive_plock(struct mountgroup *mg, struct dlm_plock_info *in,
 			    int from, struct resource *r)
 {
 	switch (in->optype) {
-	case GDLM_PLOCK_OP_LOCK:
+	case DLM_PLOCK_OP_LOCK:
 		mg->last_plock_time = time(NULL);
 		do_lock(mg, in, r);
 		break;
-	case GDLM_PLOCK_OP_UNLOCK:
+	case DLM_PLOCK_OP_UNLOCK:
 		mg->last_plock_time = time(NULL);
 		do_unlock(mg, in, r);
 		break;
-	case GDLM_PLOCK_OP_GET:
+	case DLM_PLOCK_OP_GET:
 		do_get(mg, in, r);
 		break;
 	default:
@@ -896,7 +926,7 @@ static void __receive_plock(struct mountgroup *mg, struct gdlm_plock_info *in,
 
 static void _receive_plock(struct mountgroup *mg, char *buf, int len, int from)
 {
-	struct gdlm_plock_info info;
+	struct dlm_plock_info info;
 	struct gdlm_header *hd = (struct gdlm_header *) buf;
 	struct resource *r = NULL;
 	struct timeval now;
@@ -923,7 +953,7 @@ static void _receive_plock(struct mountgroup *mg, char *buf, int len, int from)
 		plock_recv_time = now;
 	}
 
-	if (info.optype == GDLM_PLOCK_OP_GET && from != our_nodeid)
+	if (info.optype == DLM_PLOCK_OP_GET && from != our_nodeid)
 		return;
 
 	if (from != hd->nodeid || from != info.nodeid) {
@@ -1029,14 +1059,14 @@ void receive_plock(struct mountgroup *mg, char *buf, int len, int from)
 	_receive_plock(mg, buf, len, from);
 }
 
-static int send_struct_info(struct mountgroup *mg, struct gdlm_plock_info *in,
+static int send_struct_info(struct mountgroup *mg, struct dlm_plock_info *in,
 			    int msg_type)
 {
 	char *buf;
 	int rv, len;
 	struct gdlm_header *hd;
 
-	len = sizeof(struct gdlm_header) + sizeof(struct gdlm_plock_info);
+	len = sizeof(struct gdlm_header) + sizeof(struct dlm_plock_info);
 	buf = malloc(len);
 	if (!buf) {
 		rv = -ENOMEM;
@@ -1063,14 +1093,14 @@ static int send_struct_info(struct mountgroup *mg, struct gdlm_plock_info *in,
 }
 
 static void send_plock(struct mountgroup *mg, struct resource *r,
-		       struct gdlm_plock_info *in)
+		       struct dlm_plock_info *in)
 {
 	send_struct_info(mg, in, MSG_PLOCK);
 }
 
 static void send_own(struct mountgroup *mg, struct resource *r, int owner)
 {
-	struct gdlm_plock_info info;
+	struct dlm_plock_info info;
 
 	/* if we've already sent an own message for this resource,
 	   (pending list is not empty), then we shouldn't send another */
@@ -1090,7 +1120,7 @@ static void send_own(struct mountgroup *mg, struct resource *r, int owner)
 
 static void send_syncs(struct mountgroup *mg, struct resource *r)
 {
-	struct gdlm_plock_info info;
+	struct dlm_plock_info info;
 	struct posix_lock *po;
 	struct lock_waiter *w;
 	int rv;
@@ -1127,7 +1157,7 @@ static void send_syncs(struct mountgroup *mg, struct resource *r)
 
 static void send_drop(struct mountgroup *mg, struct resource *r)
 {
-	struct gdlm_plock_info info;
+	struct dlm_plock_info info;
 
 	memset(&info, 0, sizeof(info));
 	info.number = r->number;
@@ -1139,7 +1169,7 @@ static void send_drop(struct mountgroup *mg, struct resource *r)
    so the op is saved on the pending list until the r owner is established */
 
 static void save_pending_plock(struct mountgroup *mg, struct resource *r,
-			       struct gdlm_plock_info *in)
+			       struct dlm_plock_info *in)
 {
 	struct lock_waiter *w;
 
@@ -1148,7 +1178,7 @@ static void save_pending_plock(struct mountgroup *mg, struct resource *r,
 		log_error("save_pending_plock no mem");
 		return;
 	}
-	memcpy(&w->info, in, sizeof(struct gdlm_plock_info));
+	memcpy(&w->info, in, sizeof(struct dlm_plock_info));
 	list_add_tail(&w->list, &r->pending);
 }
 
@@ -1183,7 +1213,7 @@ static void send_pending_plocks(struct mountgroup *mg, struct resource *r)
 static void _receive_own(struct mountgroup *mg, char *buf, int len, int from)
 {
 	struct gdlm_header *hd = (struct gdlm_header *) buf;
-	struct gdlm_plock_info info;
+	struct dlm_plock_info info;
 	struct resource *r;
 	int should_not_happen = 0;
 	int rv;
@@ -1310,7 +1340,7 @@ void receive_own(struct mountgroup *mg, char *buf, int len, int from)
 	_receive_own(mg, buf, len, from);
 }
 
-static void clear_syncing_flag(struct resource *r, struct gdlm_plock_info *in)
+static void clear_syncing_flag(struct resource *r, struct dlm_plock_info *in)
 {
 	struct posix_lock *po;
 	struct lock_waiter *w;
@@ -1349,7 +1379,7 @@ static void clear_syncing_flag(struct resource *r, struct gdlm_plock_info *in)
 
 static void _receive_sync(struct mountgroup *mg, char *buf, int len, int from)
 {
-	struct gdlm_plock_info info;
+	struct dlm_plock_info info;
 	struct gdlm_header *hd = (struct gdlm_header *) buf;
 	struct resource *r;
 	int rv;
@@ -1395,7 +1425,7 @@ void receive_sync(struct mountgroup *mg, char *buf, int len, int from)
 
 static void _receive_drop(struct mountgroup *mg, char *buf, int len, int from)
 {
-	struct gdlm_plock_info info;
+	struct dlm_plock_info info;
 	struct resource *r;
 	int rv;
 
@@ -1494,11 +1524,122 @@ static int drop_resources(struct mountgroup *mg)
 	return 0;
 }
 
+/* iterate through directory names looking for matching id:
+   /sys/kernel/dlm/<name>/id */
+
+#define DLM_SYSFS_DIR "/sys/kernel/dlm"
+
+static char ls_name[256];
+
+static int get_lockspace_name(uint32_t ls_id)
+{
+	char path[PATH_MAX];
+	DIR *d;
+	FILE *file;
+	struct dirent *de;
+	uint32_t id;
+	int rv, error;
+
+        d = opendir(DLM_SYSFS_DIR);
+        if (!d) {
+                log_debug("%s: opendir failed: %d", path, errno);
+		return -1;
+        }
+
+	rv = -1;
+
+	while ((de = readdir(d))) {
+		if (de->d_name[0] == '.')
+			continue;
+
+		id = 0;
+		memset(path, 0, PATH_MAX);
+		snprintf(path, PATH_MAX, "%s/%s/id", DLM_SYSFS_DIR, de->d_name);
+
+		file = fopen(path, "r");
+		if (!file) {
+			log_error("can't open %s %d", path, errno);
+			continue;
+		}
+
+		error = fscanf(file, "%u", &id);
+		fclose(file);
+
+		if (error != 1) {
+			log_error("bad read %s %d", path, errno);
+			continue;
+		}
+		if (id != ls_id) {
+			log_debug("get_lockspace_name skip %x %s",
+				  id, de->d_name);
+			continue;
+		}
+
+		log_debug("get_lockspace_name found %x %s", id, de->d_name);
+		strncpy(ls_name, de->d_name, 256);
+		rv = 0;
+		break;
+	}
+
+	closedir(d);
+	return rv;
+}
+
+/* find the locskapce with "ls_id" in sysfs, get it's name, then look for
+   the mg with with the same name in mounts list, return it's id */
+
+static void set_associated_id(uint32_t ls_id)
+{
+	struct mountgroup *mg;
+	int rv;
+
+	log_debug("set_associated_id ls_id %x %d", ls_id, ls_id);
+
+	memset(&ls_name, 0, sizeof(ls_name));
+
+	rv = get_lockspace_name(ls_id);
+	if (rv) {
+		log_error("no lockspace found with id %x", ls_id);
+		return;
+	}
+
+	mg = find_mg(ls_name);
+	if (!mg) {
+		log_error("no mountgroup found with name %s for ls_id %x",
+			  ls_name, ls_id);
+		return;
+	}
+
+	log_debug("set_associated_id ls %x is mg %x", ls_id, mg->id);
+
+	mg->associated_ls_id = ls_id;
+}
+
+static uint32_t ls_to_mg_id(uint32_t fsid)
+{
+	struct mountgroup *mg;
+	int do_set = 1;
+
+ retry:
+	list_for_each_entry(mg, &mounts, list) {
+		if (mg->associated_ls_id == fsid)
+			return mg->id;
+	}
+
+	if (do_set) {
+		do_set = 0;
+		set_associated_id(fsid);
+		goto retry;
+	}
+
+	return fsid;
+}
+
 int process_plocks(void)
 {
 	struct mountgroup *mg;
 	struct resource *r;
-	struct gdlm_plock_info info;
+	struct dlm_plock_info info;
 	struct timeval now;
 	uint64_t usec;
 	int rv;
@@ -1541,6 +1682,9 @@ int process_plocks(void)
 		rv = -ENOSYS;
 		goto fail;
 	}
+
+	if (need_fsid_translation)
+		info.fsid = ls_to_mg_id(info.fsid);
 
 	mg = find_mg_id(info.fsid);
 	if (!mg) {
