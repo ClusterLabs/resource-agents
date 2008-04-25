@@ -15,8 +15,4 @@ include ../../../make/defines.mk
 
 TARGET= fence_ilo
 
-ifdef enable_experimental_fence_agents
-TARGET += ilo
-endif
-
 include $(OBJDIR)/make/fencebuild.mk

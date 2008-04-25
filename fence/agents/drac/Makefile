@@ -13,10 +13,6 @@
 
 include ../../../make/defines.mk
 
-TARGET= fence_drac
-
-ifdef enable_experimental_fence_agents
-TARGET += drac5
-endif
+TARGET= fence_drac fence_drac5
 
 include $(OBJDIR)/make/fencebuild.mk

@@ -15,8 +15,4 @@ include ../../../make/defines.mk
 
 TARGET= fence_wti
 
-ifdef enable_experimental_fence_agents
-TARGET += wti
-endif
-
 include $(OBJDIR)/make/fencebuild.mk

@@ -14,12 +14,8 @@
 
 include ../../../make/defines.mk
 
-ifdef enable_experimental_fence_agents
-
 TARGET= fencing.py
 
 FENCEAGENTSLIB= $(TARGET)
-
-endif
 
 include $(OBJDIR)/make/fencebuild.mk

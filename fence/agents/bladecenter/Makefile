@@ -15,8 +15,4 @@ include ../../../make/defines.mk
 
 TARGET= fence_bladecenter
 
-ifdef enable_experimental_fence_agents
-TARGET += bladecenter
-endif
-
 include $(OBJDIR)/make/fencebuild.mk

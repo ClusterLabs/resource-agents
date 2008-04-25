@@ -15,8 +15,4 @@ include ../../../make/defines.mk
 
 TARGET= fence_apc
 
-ifdef enable_experimental_fence_agents
-TARGET += apc
-endif
-
 include $(OBJDIR)/make/fencebuild.mk
