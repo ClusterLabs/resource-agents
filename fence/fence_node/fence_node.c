@@ -108,6 +108,8 @@ int main(int argc, char *argv[])
 	} else {
 		syslog(LOG_NOTICE, "Fence of \"%s\" was successful\n", victim);
 
+		/* Tell fenced what we've done so that it can avoid fencing
+		   this node again if the fence_node() rebooted it. */
 		fenced_external(victim);
 
 		exit(EXIT_SUCCESS);

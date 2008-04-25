@@ -12,6 +12,7 @@
 
 #include "dlm_daemon.h"
 #include "config.h"
+#include "libfenced.h"
 
 uint32_t cpgname_to_crc(const char *data, int len);
 
@@ -36,7 +37,7 @@ struct node {
 	int check_quorum;
 	int check_fs;
 	int fs_notify;
-	struct timeval add_time;
+	uint64_t add_time;
 };
 
 /* One of these change structs is created for every confchg a cpg gets. */
@@ -302,7 +303,7 @@ static void node_history_init(struct lockspace *ls, int nodeid)
 	memset(node, 0, sizeof(struct node));
 
 	node->nodeid = nodeid;
-	timerclear(&node->add_time);
+	node->add_time = 0;
 	list_add_tail(&node->list, &ls->node_history);
 }
 
@@ -316,7 +317,7 @@ static void node_history_start(struct lockspace *ls, int nodeid)
 		return;
 	}
 
-	gettimeofday(&node->add_time, NULL);
+	node->add_time = time(NULL);
 }
 
 static void node_history_left(struct lockspace *ls, int nodeid)
@@ -329,7 +330,7 @@ static void node_history_left(struct lockspace *ls, int nodeid)
 		return;
 	}
 
-	timerclear(&node->add_time);
+	node->add_time = 0;
 }
 
 static void node_history_fail(struct lockspace *ls, int nodeid)
@@ -342,7 +343,7 @@ static void node_history_fail(struct lockspace *ls, int nodeid)
 		return;
 	}
 
-	if (!timerisset(&node->add_time))
+	if (!node->add_time)
 		node->check_fencing = 1;
 
 	node->check_quorum = 1;
@@ -352,8 +353,10 @@ static void node_history_fail(struct lockspace *ls, int nodeid)
 static int check_fencing_done(struct lockspace *ls)
 {
 	struct node *node;
-	struct timeval last_fenced;
+	struct fenced_node nodeinfo;
+	struct fenced_domain domain;
 	int wait_count = 0;
+	int rv;
 
 	list_for_each_entry(node, &ls->node_history, list) {
 		if (!node->check_fencing)
@@ -362,12 +365,15 @@ static int check_fencing_done(struct lockspace *ls)
 		/* check with fenced to see if the node has been
 		   fenced since node->add_time */
 
-		/* fenced_last_success(node->nodeid, &last_fenced); */
-		gettimeofday(&last_fenced, NULL);
+		memset(&nodeinfo, 0, sizeof(nodeinfo));
 
-		if (timercmp(&last_fenced, &node->add_time, >)) {
+		rv = fenced_node_info(node->nodeid, &nodeinfo);
+		if (rv < 0)
+			log_error("fenced_node_info error %d", rv);
+
+		if (nodeinfo.last_fenced_time > node->add_time) {
 			node->check_fencing = 0;
-			timerclear(&node->add_time);
+			node->add_time = 0;
 		} else {
 			log_group(ls, "check_fencing %d needs fencing",
 				  node->nodeid);
@@ -382,11 +388,14 @@ static int check_fencing_done(struct lockspace *ls)
 	   we may not have seen in any lockspace), and return 0 if there
 	   are any */
 
-	/*
-	fenced_pending_count(&pending);
-	if (pending)
+	rv = fenced_domain_info(&domain);
+	if (rv < 0) {
+		log_error("fenced_domain_info error %d", rv);
 		return 0;
-	*/
+	}
+
+	if (domain.victim_count)
+		return 0;
 	return 1;
 }
 

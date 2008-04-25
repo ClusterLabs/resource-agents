@@ -32,8 +32,6 @@ struct fenced_node {
 	int last_fenced_master;
 	int last_fenced_how;
 	uint64_t last_fenced_time;
-	uint64_t last_joined_time;
-	uint64_t last_remove_time;
 };
 
 struct fenced_domain {

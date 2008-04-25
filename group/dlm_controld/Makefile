@@ -33,12 +33,12 @@ OBJS=	action.o \
 	plock.o \
 	group.o
 
-CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmincdir} -I${openaisincdir}
+CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmincdir} -I${openaisincdir} -I${fencedincdir}
 CFLAGS += -I${KERNEL_SRC}/include/
 CFLAGS += -I$(S)/../lib/ -I$(S)/../include/
 CFLAGS += -I${incdir}
 
-LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -L${dlmlibdir} -lccs -lcman -ldlm
+LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -L${dlmlibdir} -L${fencedlibdir} -lccs -lcman -ldlm -lfenced
 LDFLAGS += -L${openaislibdir} -lcpg -lSaCkpt
 LDFLAGS += -L../lib -lgroup
 

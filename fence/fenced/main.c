@@ -244,23 +244,21 @@ static int do_leave(char *name)
 	return rv;
 }
 
-static int do_external(char *name, int ci)
+static int do_external(char *name, char *extra, int extra_len)
 {
 	struct fd *fd;
-	int nodeid = 0;
+	int rv = 0;
 
 	fd = find_fd(name);
 	if (!fd)
 		return -EINVAL;
 
 	if (group_mode == GROUP_LIBGROUP)
-		return -EINVAL;
+		rv = -ENOSYS;
+	else
+		send_external(fd, name_to_nodeid(extra));
 
-	/* FIXME: do_read(client[ci].fd, buf, MAX_NODENAME_LEN);
-	   which gets the nodename, then translate the nodename to nodeid */
-
-	send_external(fd, nodeid);
-	return 0;
+	return rv;
 }
 
 /* combines a header and the data and sends it back to the client in
@@ -397,7 +395,8 @@ static void do_domain_members(int ci, int max)
 static void process_connection(int ci)
 {
 	struct fenced_header h;
-	int rv;
+	char *extra = NULL;
+	int rv, extra_len;
 
 	rv = do_read(client[ci].fd, &h, sizeof(h));
 	if (rv < 0) {
@@ -415,6 +414,22 @@ static void process_connection(int ci)
 		goto out;
 	}
 
+	if (h.len > sizeof(h)) {
+		extra_len = h.len - sizeof(h);
+		extra = malloc(extra_len);
+		if (!extra) {
+			log_error("process_connection no mem %d", extra_len);
+			goto out;
+		}
+		memset(extra, 0, extra_len);
+
+		rv = do_read(client[ci].fd, extra, extra_len);
+		if (rv < 0) {
+			log_debug("connection %d extra read error %d", ci, rv);
+			goto out;
+		}
+	}
+
 	switch (h.command) {
 	case FENCED_CMD_JOIN:
 		do_join("default");
@@ -423,7 +438,7 @@ static void process_connection(int ci)
 		do_leave("default");
 		break;
 	case FENCED_CMD_EXTERNAL:
-		do_external("default", ci);
+		do_external("default", extra, extra_len);
 		break;
 	case FENCED_CMD_DUMP_DEBUG:
 		do_dump(ci);
@@ -442,6 +457,8 @@ static void process_connection(int ci)
 			  ci, h.command);
 	}
  out:
+	if (extra)
+		free(extra);
 	client_dead(ci);
 }
 

@@ -1247,19 +1247,71 @@ int fd_leave(struct fd *fd)
 	return 0;
 }
 
-int set_node_info(struct fd *fd, int nodeid, struct fenced_node *node)
+int set_node_info(struct fd *fd, int nodeid, struct fenced_node *nodeinfo)
 {
+	struct node_history *node;
+	struct member *memb;
+
+	nodeinfo->nodeid = nodeid;
+	nodeinfo->victim = is_victim(fd, nodeid);
+
+	if (!fd->started_change)
+		goto history;
+
+	memb = find_memb(fd->started_change, nodeid);
+	if (memb)
+		nodeinfo->member = memb->disallowed ? 0 : 1;
+
+ history:
+	node = get_node_history(fd, nodeid);
+	if (!node)
+		return 0;
+
+	nodeinfo->last_fenced_master = node->fence_master;
+	nodeinfo->last_fenced_how = node->fence_how;
+	nodeinfo->last_fenced_time = node->fence_time;
+
 	return 0;
 }
 
 int set_domain_info(struct fd *fd, struct fenced_domain *domain)
 {
+	struct change *cg = fd->started_change;
+
+	if (cg) {
+		domain->member_count = cg->member_count;
+		domain->state = cg->state;
+	}
+	domain->master_nodeid = fd->master;
+	domain->victim_count = list_count(&fd->victims);
+
 	return 0;
 }
 
 int set_domain_members(struct fd *fd, int *member_count,
 		       struct fenced_node **members)
 {
+	struct change *cg = fd->started_change;
+	struct fenced_node *nodes, *nodep;
+	struct member *memb;
+
+	if (!cg) {
+		*member_count = 0;
+		return 0;
+	}
+
+	nodes = malloc(cg->member_count * sizeof(struct fenced_node));
+	if (!nodes)
+		return -ENOMEM;
+
+	nodep = nodes;
+	list_for_each_entry(memb, &cg->members, list) {
+		set_node_info(fd, memb->nodeid, nodep++);
+	}
+
+	*member_count = cg->member_count;
+	*members = nodes;
+
 	return 0;
 }
 

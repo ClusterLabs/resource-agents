@@ -13,9 +13,60 @@
 #include "fd.h"
 #include <libcman.h>
 
+#define BUFLEN		MAX_NODENAME_LEN+1
+
 static cman_handle_t	ch;
 static cman_node_t	cman_nodes[MAX_NODES];
 static int		cman_node_count;
+
+
+static int name_equal(char *name1, char *name2)
+{
+	char name3[BUFLEN], name4[BUFLEN];
+	int i, len1, len2;
+
+	len1 = strlen(name1);
+	len2 = strlen(name2);
+
+	if (len1 == len2 && !strncmp(name1, name2, len1))
+		return 1;
+
+	memset(name3, 0, BUFLEN);
+	memset(name4, 0, BUFLEN);
+
+	for (i = 0; i < BUFLEN && i < len1; i++) {
+		if (name1[i] != '.')
+			name3[i] = name1[i];
+		else
+			break;
+	}
+
+	for (i = 0; i < BUFLEN && i < len2; i++) {
+		if (name2[i] != '.')
+			name4[i] = name2[i];
+		else
+			break;
+	}
+
+	len1 = strlen(name3);
+	len2 = strlen(name4);
+
+	if (len1 == len2 && !strncmp(name3, name4, len1))
+		return 1;
+
+	return 0;
+}
+
+static cman_node_t *find_cman_node_name(char *name)
+{
+	int i;
+
+	for (i = 0; i < cman_node_count; i++) {
+		if (name_equal(cman_nodes[i].cn_name, name))
+			return &cman_nodes[i];
+	}
+	return NULL;
+}
 
 static cman_node_t *find_cman_node(int nodeid)
 {
@@ -26,6 +77,28 @@ static cman_node_t *find_cman_node(int nodeid)
 			return &cman_nodes[i];
 	}
 	return NULL;
+}
+
+char *nodeid_to_name(int nodeid)
+{
+	cman_node_t *cn;
+
+	cn = find_cman_node(nodeid);
+	if (cn)
+		return cn->cn_name;
+
+	return "unknown";
+}
+
+int name_to_nodeid(char *name)
+{
+	cman_node_t *cn;
+
+	cn = find_cman_node_name(name);
+	if (cn)
+		return cn->cn_nodeid;
+
+	return -1;
 }
 
 static void statechange(void)
@@ -137,17 +210,6 @@ int is_cman_member(int nodeid)
 
 	log_debug("node %d not a cman member, cn %d", nodeid, cn ? 1 : 0);
 	return 0;
-}
-
-char *nodeid_to_name(int nodeid)
-{
-	cman_node_t *cn;
-
-	cn = find_cman_node(nodeid);
-	if (cn)
-		return cn->cn_name;
-
-	return "unknown";
 }
 
 struct node *get_new_node(struct fd *fd, int nodeid)

@@ -268,6 +268,7 @@ void process_cman(int ci);
 int setup_cman(void);
 int is_cman_member(int nodeid);
 char *nodeid_to_name(int nodeid);
+int name_to_nodeid(char *name);
 struct node *get_new_node(struct fd *fd, int nodeid);
 
 /* recover.c */

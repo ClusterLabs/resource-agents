@@ -31,7 +31,6 @@
 #include "ccs.h"
 #include "copyright.cf"
 #include "libcman.h"
-#include "libgroup.h"
 #include "libfenced.h"
 
 #define OPTION_STRING			("Vht:wQ")
@@ -142,6 +141,7 @@ static void sigalarm_handler(int sig)
 
 static int we_are_in_fence_domain(void)
 {
+#if 0
 	group_data_t gdata;
 	int rv;
 
@@ -152,6 +152,9 @@ static int we_are_in_fence_domain(void)
 		return 0;
 
 	return gdata.member;
+#endif
+	printf("FIXME: use libfenced:fenced_domain_members()\n");
+	return 1;
 }
 
 /*
