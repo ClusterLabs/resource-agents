@@ -1,5 +1,7 @@
 ifndef FENCEAGENTSLIB
+ifdef TARGET
 SBINDIRT=$(TARGET)
+endif
 endif
 
 all: $(TARGET)
