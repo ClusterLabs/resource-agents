@@ -12,7 +12,7 @@
 include make/defines.mk
 
 REALSUBDIRS = gnbd-kernel/src gfs-kernel/src/gfs \
-	      cman/lib ccs cman dlm group fence gfs gfs2 gnbd rgmanager
+	      cman/lib ccs cman dlm fence/libfenced group fence gfs gfs2 gnbd rgmanager
 
 SUBDIRS = $(filter-out \
 	  $(if ${without_gnbd-kernel/src},gnbd-kernel/src) \
@@ -21,6 +21,7 @@ SUBDIRS = $(filter-out \
 	  $(if ${without_ccs},ccs) \
 	  $(if ${without_cman},cman) \
 	  $(if ${without_dlm},dlm) \
+	  $(if ${without_fence},fence/libfenced) \
 	  $(if ${without_group},group) \
 	  $(if ${without_fence},fence) \
 	  $(if ${without_gfs},gfs) \
@@ -49,7 +50,8 @@ cman/lib:
 ccs: cman/lib
 cman: ccs
 dlm:
-group: ccs dlm
+fence/libfenced:
+group: ccs dlm fence/libfenced
 fence: group dlm
 gfs:
 gfs2:
