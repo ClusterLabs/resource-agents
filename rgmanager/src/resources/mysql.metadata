@@ -43,10 +43,10 @@
 
 	<parameter name="mysqld_options">
 		<longdesc lang="en">
-			Other command-line options for httpd
+			Other command-line options for mysqld
 		</longdesc>
 		<shortdesc lang="en">
-			Other command-line options for httpd
+			Other command-line options for mysqld
 		</shortdesc>
 		<content type="string" />
 	</parameter>
