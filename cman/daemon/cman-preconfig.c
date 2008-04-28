@@ -643,6 +643,16 @@ static void add_cman_overrides(struct objdb_iface_ver0 *objdb)
 		objdb->object_key_create(logger_object_handle, "subsys", strlen("subsys"),
 					 "CMAN", strlen("CMAN")+1);
 
+		if (objdb_get_string(objdb, object_handle, "to_file", &logstr)) {
+			objdb->object_key_create(object_handle, "to_file", strlen("to_file"),
+						 "yes", strlen("yes")+1);
+		} 
+
+		if (objdb_get_string(objdb, object_handle, "logfile", &logstr)) {
+			objdb->object_key_create(object_handle, "logfile", strlen("logfile"),
+						 LOGDIR "/cman.log", strlen(LOGDIR "/cman.log")+1);
+		}
+
 		if (debug_mask) {
 			objdb->object_key_create(logger_object_handle, "debug", strlen("debug"),
 						 "on", strlen("on")+1);
