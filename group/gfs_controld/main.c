@@ -617,7 +617,7 @@ int loop(void)
 					process_client(i);
 			}
 
-			if (pollfd[i].revents & POLLHUP) {
+			if (pollfd[i].revents & (POLLHUP | POLLERR | POLLNVAL)) {
 				if (pollfd[i].fd == cman_fd) {
 					log_error("cman connection died");
 					exit_cman();

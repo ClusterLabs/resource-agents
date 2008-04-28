@@ -1452,7 +1452,7 @@ int main(int argc, char *argv[])
 					process_command(&quit);
 			}
 
-			if (pollfd[i].revents & POLLHUP)
+			if (pollfd[i].revents & (POLLHUP | POLLERR | POLLNVAL))
 				client_dead(i);
 		}
 

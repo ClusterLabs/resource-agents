@@ -172,7 +172,7 @@ int loop(void)
 			log_error("poll");
 
 		for (i = 0; i <= maxi; i++) {
-			if (pollfd[i].revents & POLLHUP) {
+			if (pollfd[i].revents & (POLLHUP | POLLERR | POLLNVAL)) {
 				process_hup(pollfd[i].fd);
 			} else if (pollfd[i].revents & POLLIN) {
 				process_input(pollfd[i].fd);
