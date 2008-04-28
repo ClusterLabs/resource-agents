@@ -1277,15 +1277,15 @@ int set_domain_info(struct fd *fd, struct fenced_domain *domain)
 	return 0;
 }
 
-int set_domain_members(struct fd *fd, int *member_count,
-		       struct fenced_node **members)
+int set_domain_nodes(struct fd *fd, int option, int *node_count,
+		     struct fenced_node **nodes_out)
 {
 	struct change *cg = fd->started_change;
 	struct fenced_node *nodes, *nodep;
 	struct member *memb;
 
 	if (!cg) {
-		*member_count = 0;
+		*node_count = 0;
 		return 0;
 	}
 
@@ -1298,8 +1298,8 @@ int set_domain_members(struct fd *fd, int *member_count,
 		set_node_info(fd, memb->nodeid, nodep++);
 	}
 
-	*member_count = cg->member_count;
-	*members = nodes;
+	*node_count = cg->member_count;
+	*nodes_out = nodes;
 	return 0;
 }
 

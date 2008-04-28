@@ -431,8 +431,8 @@ int set_domain_info_group(struct fd *fd, struct fenced_domain *domain)
 	return 0;
 }
 
-int set_domain_members_group(struct fd *fd, int *member_count,
-			     struct fenced_node **members)
+int set_domain_nodes_group(struct fd *fd, int option, int *node_count,
+			   struct fenced_node **nodes_out)
 {
 	struct fenced_node *nodes = NULL, *nodep;
 	int i;
@@ -449,8 +449,8 @@ int set_domain_members_group(struct fd *fd, int *member_count,
 		set_node_info(fd, cb_members[i], nodep++);
 	}
  out:
-	*member_count = cb_member_count;
-	*members = nodes;
+	*node_count = cb_member_count;
+	*nodes_out = nodes;
 	return 0;
 }
 

@@ -241,8 +241,8 @@ int fd_join(struct fd *fd);
 int fd_leave(struct fd *fd);
 int set_node_info(struct fd *fd, int nodeid, struct fenced_node *node);
 int set_domain_info(struct fd *fd, struct fenced_domain *domain);
-int set_domain_members(struct fd *fd, int *member_count,
-	struct fenced_node **members);
+int set_domain_nodes(struct fd *fd, int option, int *node_count,
+		     struct fenced_node **nodes);
 
 /* group.c */
 
@@ -252,8 +252,8 @@ int fd_join_group(struct fd *fd);
 int fd_leave_group(struct fd *fd);
 int set_node_info_group(struct fd *fd, int nodeid, struct fenced_node *node);
 int set_domain_info_group(struct fd *fd, struct fenced_domain *domain);
-int set_domain_members_group(struct fd *fd, int *member_count,
-	struct fenced_node **members);
+int set_domain_nodes_group(struct fd *fd, int option, int *node_count,
+			   struct fenced_node **nodes);
 
 /* main.c */
 

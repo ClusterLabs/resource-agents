@@ -358,11 +358,11 @@ static void query_domain_info(int f)
 	do_reply(f, FENCED_CMD_DOMAIN_INFO, rv, (char *)&domain, sizeof(domain));
 }
 
-static void query_domain_members(int f, int max)
+static void query_domain_nodes(int f, int option, int max)
 {
 	struct fd *fd;
-	int member_count = 0;
-	struct fenced_node *members = NULL;
+	int node_count = 0;
+	struct fenced_node *nodes = NULL;
 	int rv;
 
 	fd = find_fd("default");
@@ -372,26 +372,31 @@ static void query_domain_members(int f, int max)
 	}
 
 	if (group_mode == GROUP_LIBGROUP)
-		rv = set_domain_members(fd, &member_count, &members);
+		rv = set_domain_nodes(fd, option, &node_count, &nodes);
 	else
-		rv = set_domain_members(fd, &member_count, &members);
+		rv = set_domain_nodes(fd, option, &node_count, &nodes);
 
 	if (rv < 0) {
-		member_count = 0;
+		node_count = 0;
 		goto out;
 	}
-	if (member_count > max) {
+
+	/* node_count is the number of structs copied/returned; the caller's
+	   max may be less than that, in which case we copy as many as they
+	   asked for and return -E2BIG */
+
+	if (node_count > max) {
 		rv = -E2BIG;
-		member_count = max;
+		node_count = max;
 	} else {
-		rv = member_count;
+		rv = node_count;
 	}
  out:
-	do_reply(f, FENCED_CMD_DOMAIN_MEMBERS, rv,
-	         (char *)members, member_count * sizeof(struct fenced_node));
+	do_reply(f, FENCED_CMD_DOMAIN_NODES, rv,
+	         (char *)nodes, node_count * sizeof(struct fenced_node));
 
-	if (members)
-		free(members);
+	if (nodes)
+		free(nodes);
 }
 
 static void process_connection(int ci)
@@ -445,7 +450,7 @@ static void process_connection(int ci)
 	case FENCED_CMD_DUMP_DEBUG:
 	case FENCED_CMD_NODE_INFO:
 	case FENCED_CMD_DOMAIN_INFO:
-	case FENCED_CMD_DOMAIN_MEMBERS:
+	case FENCED_CMD_DOMAIN_NODES:
 		log_error("process_connection query on wrong socket");
 		break;
 	default:
@@ -556,8 +561,8 @@ static void *process_queries(void *arg)
 		case FENCED_CMD_DOMAIN_INFO:
 			query_domain_info(f);
 			break;
-		case FENCED_CMD_DOMAIN_MEMBERS:
-			query_domain_members(f, h.data);
+		case FENCED_CMD_DOMAIN_NODES:
+			query_domain_nodes(f, h.option, h.data);
 			break;
 		default:
 			break;

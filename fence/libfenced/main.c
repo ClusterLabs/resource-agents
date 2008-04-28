@@ -276,14 +276,15 @@ int fenced_domain_info(struct fenced_domain *domain)
 	return rv;
 }
 
-int fenced_domain_members(int max, int *count, struct fenced_node *members)
+int fenced_domain_nodes(int type, int max, int *count, struct fenced_node *nodes)
 {
 	struct fenced_header h, *rh;
 	char *reply;
 	int reply_len;
 	int fd, rv;
 
-	init_header(&h, FENCED_CMD_DOMAIN_MEMBERS, sizeof(h));
+	init_header(&h, FENCED_CMD_DOMAIN_NODES, sizeof(h));
+	h.option = type;
 	h.data = max;
 
 	reply_len = sizeof(struct fenced_header) + (max * sizeof(struct fenced_node));
@@ -315,9 +316,9 @@ int fenced_domain_members(int max, int *count, struct fenced_node *members)
 	if (rv == -E2BIG)
 		*count = max;
 	else
-		*count = rh->data;
+		*count = rv;
 
-	memcpy(members, (char *)reply + sizeof(struct fenced_header),
+	memcpy(nodes, (char *)reply + sizeof(struct fenced_header),
 	       *count * sizeof(struct fenced_node));
  out_close:
 	close(fd);

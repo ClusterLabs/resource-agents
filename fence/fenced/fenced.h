@@ -31,15 +31,17 @@
 #define FENCED_CMD_EXTERNAL		4
 #define FENCED_CMD_NODE_INFO		5
 #define FENCED_CMD_DOMAIN_INFO		6
-#define FENCED_CMD_DOMAIN_MEMBERS	7
+#define FENCED_CMD_DOMAIN_NODES		7
 
 struct fenced_header {
 	unsigned int magic;
 	unsigned int version;
 	unsigned int command;
-	unsigned int pad;
+	unsigned int option;
 	unsigned int len;
 	int data;	/* embedded command-specific data, for convenience */
+	int unused1;
+	int unsued2;
 };
 
 #endif

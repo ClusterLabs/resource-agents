@@ -33,11 +33,9 @@
 #include "libcman.h"
 #include "libfenced.h"
 
-#define OPTION_STRING			("Vht:wQ")
-
 #define OP_JOIN  			1
 #define OP_LEAVE 			2
-#define OP_WAIT				3
+#define OP_LIST				3
 #define OP_DUMP				4
 
 #define die(fmt, args...) \
@@ -51,6 +49,7 @@ while (0)
 
 char *prog_name;
 int operation;
+int verbose = 0;
 int child_wait = 0;
 int quorum_wait = 1;
 int fenced_start_timeout = 300; /* five minutes */
@@ -275,6 +274,65 @@ static int do_dump(void)
 	return 0;
 }
 
+static int node_compare(const void *va, const void *vb)
+{
+	const struct fenced_node *a = va;
+	const struct fenced_node *b = vb;
+
+	return a->nodeid - b->nodeid;
+}
+
+#define MAX_NODES 128
+
+static int do_list(void)
+{
+	struct fenced_domain d;
+	struct fenced_node *nodes, *np;
+	int node_count = 0;
+	int rv, i;
+
+	rv = fenced_domain_info(&d);
+	if (rv < 0)
+		die("can't communicate with fenced");
+
+	nodes = malloc(MAX_NODES * sizeof(struct fenced_node));
+	if (!nodes)
+		return -ENOMEM;
+
+	rv = fenced_domain_nodes(FENCED_NODES_MEMBERS, MAX_NODES,
+				 &node_count, nodes);
+	if (rv < 0) {
+		fprintf(stderr, "fenced_domain_nodes error %d\n", rv);
+		return rv;
+	}
+
+	printf("default fence domain\n");
+
+	if (verbose > 0)
+		printf("member_count %d victim_count %d master_nodeid %d current_victim %d state %d\n",
+			d.member_count, d.victim_count, d.master_nodeid, d.current_victim, d.state);
+
+	/*
+	qsort(&nodes, node_count, sizeof(struct fenced_node), node_compare);
+	*/
+
+	printf("domain_nodes node_count %d\n", node_count);
+	np = nodes;
+
+	printf("[");
+	for (i = 0; i < node_count; i++) {
+		if (i != 0)
+			printf(" ");
+		printf("%d", np->nodeid);
+		np++;
+	}
+	printf("]\n");
+
+	free(nodes);
+
+	return 0;
+}
+
 static void print_usage(void)
 {
 	printf("Usage:\n");
@@ -295,6 +353,8 @@ static void print_usage(void)
 	printf("\n");
 }
 
+#define OPTION_STRING "vVht:wQ"
+
 static void decode_arguments(int argc, char *argv[])
 {
 	int cont = 1;
@@ -310,6 +370,10 @@ static void decode_arguments(int argc, char *argv[])
 			       RELEASE_VERSION, __DATE__, __TIME__);
 			printf("%s\n", REDHAT_COPYRIGHT);
 			exit(EXIT_SUCCESS);
+			break;
+
+		case 'v':
+			verbose++;
 			break;
 
 		case 'h':
@@ -352,6 +416,10 @@ static void decode_arguments(int argc, char *argv[])
 			operation = OP_LEAVE;
 		} else if (strcmp(argv[optind], "dump") == 0) {
 			operation = OP_DUMP;
+		} else if (strcmp(argv[optind], "list") == 0) {
+			operation = OP_LIST;
+		} else if (strcmp(argv[optind], "ls") == 0) {
+			operation = OP_LIST;
 		} else
 			die("unknown option %s\n", argv[optind]);
 		optind++;
@@ -374,9 +442,10 @@ int main(int argc, char *argv[])
 		return do_leave();
 	case OP_DUMP:
 		return do_dump();
-	case OP_WAIT:
-		return -1;
+	case OP_LIST:
+		return do_list();
 	}
 
 	return EXIT_FAILURE;
 }
+
