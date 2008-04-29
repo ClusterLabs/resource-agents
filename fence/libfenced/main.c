@@ -281,7 +281,7 @@ int fenced_domain_nodes(int type, int max, int *count, struct fenced_node *nodes
 	struct fenced_header h, *rh;
 	char *reply;
 	int reply_len;
-	int fd, rv;
+	int fd, rv, result, node_count;
 
 	init_header(&h, FENCED_CMD_DOMAIN_NODES, sizeof(h));
 	h.option = type;
@@ -309,17 +309,23 @@ int fenced_domain_nodes(int type, int max, int *count, struct fenced_node *nodes
 	do_read(fd, reply, reply_len);
 
 	rh = (struct fenced_header *)reply;
-	rv = rh->data;
-	if (rv < 0 && rv != -E2BIG)
+	result = rh->data;
+	if (result < 0 && result != -E2BIG) {
+		rv = result;
 		goto out_close;
+	}
 
-	if (rv == -E2BIG)
-		*count = max;
-	else
-		*count = rv;
+	if (result == -E2BIG) {
+		*count = -E2BIG;
+		node_count = max;
+	} else {
+		*count = result;
+		node_count = result;
+	}
+	rv = 0;
 
 	memcpy(nodes, (char *)reply + sizeof(struct fenced_header),
-	       *count * sizeof(struct fenced_node));
+	       node_count * sizeof(struct fenced_node));
  out_close:
 	close(fd);
  out:

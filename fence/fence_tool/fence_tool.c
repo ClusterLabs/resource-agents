@@ -288,16 +288,25 @@ static int do_list(void)
 {
 	struct fenced_domain d;
 	struct fenced_node *nodes, *np;
-	int node_count = 0;
+	int node_count;
 	int rv, i;
 
+
 	rv = fenced_domain_info(&d);
-	if (rv < 0)
-		die("can't communicate with fenced");
+	if (rv < 0) {
+		fprintf(stderr, "fenced_domain_info error %d\n", rv);
+		return rv;
+	}
+
+	printf("fence domain info\n");
+	printf("member_count %d master_nodeid %d victim_count %d current_victim %d state %d\n",
+		d.member_count, d.master_nodeid, d.victim_count, d.current_victim, d.state);
 
 	nodes = malloc(MAX_NODES * sizeof(struct fenced_node));
 	if (!nodes)
 		return -ENOMEM;
+	memset(nodes, 0, sizeof(*nodes));
+	node_count = 0;
 
 	rv = fenced_domain_nodes(FENCED_NODES_MEMBERS, MAX_NODES,
 				 &node_count, nodes);
@@ -305,20 +314,11 @@ static int do_list(void)
 		fprintf(stderr, "fenced_domain_nodes error %d\n", rv);
 		return rv;
 	}
-
-	printf("default fence domain\n");
-
-	if (verbose > 0)
-		printf("member_count %d victim_count %d master_nodeid %d current_victim %d state %d\n",
-			d.member_count, d.victim_count, d.master_nodeid, d.current_victim, d.state);
-
-	/*
 	qsort(&nodes, node_count, sizeof(struct fenced_node), node_compare);
-	*/
 
-	printf("domain_nodes node_count %d\n", node_count);
+	printf("fence domain members\n");
+
 	np = nodes;
-
 	printf("[");
 	for (i = 0; i < node_count; i++) {
 		if (i != 0)
@@ -328,8 +328,9 @@ static int do_list(void)
 	}
 	printf("]\n");
 
-	free(nodes);
+	/* if verbose, query all nodes and print all info for each */
 
+	free(nodes);
 	return 0;
 }
 

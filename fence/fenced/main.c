@@ -363,20 +363,22 @@ static void query_domain_nodes(int f, int option, int max)
 	struct fd *fd;
 	int node_count = 0;
 	struct fenced_node *nodes = NULL;
-	int rv;
+	int rv, result;
 
 	fd = find_fd("default");
 	if (!fd) {
-		rv = -ENOENT;
+		result = -ENOENT;
+		node_count = 0;
 		goto out;
 	}
 
 	if (group_mode == GROUP_LIBGROUP)
-		rv = set_domain_nodes(fd, option, &node_count, &nodes);
+		rv = set_domain_nodes_group(fd, option, &node_count, &nodes);
 	else
 		rv = set_domain_nodes(fd, option, &node_count, &nodes);
 
 	if (rv < 0) {
+		result = rv;
 		node_count = 0;
 		goto out;
 	}
@@ -386,13 +388,13 @@ static void query_domain_nodes(int f, int option, int max)
 	   asked for and return -E2BIG */
 
 	if (node_count > max) {
-		rv = -E2BIG;
+		result = -E2BIG;
 		node_count = max;
 	} else {
-		rv = node_count;
+		result = node_count;
 	}
  out:
-	do_reply(f, FENCED_CMD_DOMAIN_NODES, rv,
+	do_reply(f, FENCED_CMD_DOMAIN_NODES, result,
 	         (char *)nodes, node_count * sizeof(struct fenced_node));
 
 	if (nodes)
