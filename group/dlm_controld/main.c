@@ -12,7 +12,7 @@
 
 #include "dlm_daemon.h"
 #include "config.h"
-#include <linux/dlm.h>
+#include <linux/dlmconstants.h>
 #include <linux/netlink.h>
 #include <linux/genetlink.h>
 #include <linux/dlm_netlink.h>
@@ -78,7 +78,7 @@ static void do_dump(int fd)
 	int len;
 
 	if (dump_wrap) {
-		len = DUMP_SIZE - dump_point;
+		len = DLMC_DUMP_SIZE - dump_point;
 		do_write(fd, dump_buf + dump_point, len);
 		len = dump_point;
 	} else
@@ -183,7 +183,7 @@ static struct lockspace *create_ls(char *name)
 	if (!ls)
 		goto out;
 	memset(ls, 0, sizeof(*ls));
-	strncpy(ls->name, name, MAX_LS_NAME);
+	strncpy(ls->name, name, DLM_LOCKSPACE_LEN);
 
 	INIT_LIST_HEAD(&ls->changes);
 	INIT_LIST_HEAD(&ls->node_history);
@@ -380,42 +380,77 @@ static int setup_uevent(void)
 	return s;
 }
 
-/* FIXME: use a library?  Add ability to list lockspaces and their state. */
-
 static void process_connection(int ci)
 {
-	char buf[DLM_CONTROLD_MSGLEN], *argv[MAXARGS];
-	int argc = 0, rv;
-	struct lockspace *ls;
+	struct dlmc_header h;
+	char *extra = NULL;
+	int rv, extra_len;
 
-	memset(buf, 0, sizeof(buf));
-	memset(argv, 0, sizeof(char *) * MAXARGS);
-
-	rv = do_read(client[ci].fd, buf, DLM_CONTROLD_MSGLEN);
+	rv = do_read(client[ci].fd, &h, sizeof(h));
 	if (rv < 0) {
-		log_error("client %d fd %d read error %d %d", ci,
-			  client[ci].fd, rv, errno);
-		client_dead(ci);
-		return;
+		log_debug("connection %d read error %d", ci, rv);
+		goto out;
 	}
 
-	log_debug("ci %d read %s", ci, buf);
+	if (h.magic != DLMC_MAGIC) {
+		log_debug("connection %d magic error %x", ci, h.magic);
+		goto out;
+	}
 
-	get_args(buf, &argc, argv, ' ', 2);
+	if ((h.version & 0xFFFF0000) != (DLMC_VERSION & 0xFFFF0000)) {
+		log_debug("connection %d version error %x", ci, h.version);
+		goto out;
+	}
 
-	if (!strncmp(argv[0], "deadlock_check", 14)) {
-		ls = find_ls(argv[1]);
+	if (h.len > sizeof(h)) {
+		extra_len = h.len - sizeof(h);
+		extra = malloc(extra_len);
+		if (!extra) {
+			log_error("process_connection no mem %d", extra_len);
+			goto out;
+		}
+		memset(extra, 0, extra_len);
+
+		rv = do_read(client[ci].fd, extra, extra_len);
+		if (rv < 0) {
+			log_debug("connection %d extra read error %d", ci, rv);
+			goto out;
+		}
+	}
+
+	switch (h.command) {
+	case DLMC_CMD_FS_REGISTER:
+		break;
+
+	case DLMC_CMD_FS_UNREGISTER:
+		break;
+
+	case DLMC_CMD_FS_NOTIFIED:
+		break;
+
+	case DLMC_CMD_DEADLK_CHECK:
+#if 0
+		ls = find_ls(hd.name);
 		if (ls)
 			send_cycle_start(ls);
-		else
-			log_debug("deadlock_check ls name not found");
-	} else if (!strncmp(argv[0], "dump", 4)) {
-		do_dump(client[ci].fd);
-		client_dead(ci);
-	} else if (!strncmp(argv[0], "plocks", 6)) {
-		dump_plocks(argv[1], client[ci].fd);
-		client_dead(ci);
+#endif
+		break;
+
+	case DLMC_CMD_DUMP_DEBUG:
+	case DLMC_CMD_DUMP_PLOCKS:
+	case DLMC_CMD_NODE_INFO:
+	case DLMC_CMD_LOCKSPACE_INFO:
+	case DLMC_CMD_LOCKSPACE_NODES:
+		log_error("process_connection query on wrong socket");
+		break;
+	default:
+		log_error("process_connection %d unknown command %d",
+			  ci, h.command);
 	}
+ out:
+	if (extra)
+		free(extra);
+	client_dead(ci);
 }
 
 static void process_listener(int ci)
@@ -433,7 +468,7 @@ static void process_listener(int ci)
 	log_debug("client connection %d fd %d", i, fd);
 }
 
-static int setup_listener(void)
+static int setup_listener(char *sock_path)
 {
 	struct sockaddr_un addr;
 	socklen_t addrlen;
@@ -449,7 +484,7 @@ static int setup_listener(void)
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_LOCAL;
-	strcpy(&addr.sun_path[1], DLM_CONTROLD_SOCK_PATH);
+	strcpy(&addr.sun_path[1], sock_path);
 	addrlen = sizeof(sa_family_t) + strlen(addr.sun_path+1) + 1;
 
 	rv = bind(s, (struct sockaddr *) &addr, addrlen);
@@ -468,6 +503,91 @@ static int setup_listener(void)
 	return s;
 }
 
+void query_lock(void)
+{
+	pthread_mutex_lock(&query_mutex);
+}
+
+void query_unlock(void)
+{
+	pthread_mutex_unlock(&query_mutex);
+}
+
+/* This is a thread, so we have to be careful, don't call log_ functions.
+   We need a thread to process queries because the main thread may block
+   for long periods when writing to sysfs to stop dlm-kernel (any maybe
+   other places). */
+
+static void *process_queries(void *arg)
+{
+	struct dlmc_header h;
+	int s = *((int *)arg);
+	int f, rv;
+
+	for (;;) {
+		f = accept(s, NULL, NULL);
+
+		rv = do_read(f, &h, sizeof(h));
+		if (rv < 0) {
+			goto out;
+		}
+
+		if (h.magic != DLMC_MAGIC) {
+			goto out;
+		}
+
+		if ((h.version & 0xFFFF0000) != (DLMC_VERSION & 0xFFFF0000)) {
+			goto out;
+		}
+
+		pthread_mutex_lock(&query_mutex);
+
+		switch (h.command) {
+		case DLMC_CMD_DUMP_DEBUG:
+			query_dump_debug(f);
+			break;
+		case DLMC_CMD_DUMP_PLOCKS:
+			query_dump_plocks(f);
+			break;
+		case DLMC_CMD_NODE_INFO:
+			query_node_info(f, h.data);
+			break;
+		case DLMC_CMD_LOCKSPACE_INFO:
+			query_lockspace_info(f);
+			break;
+		case DLMC_CMD_LOCKSPACE_NODES:
+			query_lockspace_nodes(f, h.option, h.data);
+			break;
+		default:
+			break;
+		}
+		pthread_mutex_unlock(&query_mutex);
+
+ out:
+		close(f);
+	}
+}
+
+static int setup_queries(void)
+{
+	int rv, s;
+
+	rv = setup_listener(DLMC_QUERY_SOCK_PATH);
+	if (rv < 0)
+		return rv;
+	s = rv;
+
+	pthread_mutex_init(&query_mutex, NULL);
+
+	rv = pthread_create(&query_thread, NULL, process_queries, &s);
+	if (rv < 0) {
+		log_error("can't create query thread");
+		close(s);
+		return rv;
+	}
+	return 0;
+}
+
 static void cluster_dead(int ci)
 {
 	log_error("cluster is down, exiting");
@@ -482,7 +602,11 @@ static int loop(void)
 	void (*workfn) (int ci);
 	void (*deadfn) (int ci);
 
-	rv = setup_listener();
+	rv = setup_queries();
+	if (rv < 0)
+		goto out;
+
+	rv = setup_listener(DLMC_SOCK_PATH);
 	if (rv < 0)
 		goto out;
 	client_add(rv, process_listener, NULL);
@@ -570,6 +694,8 @@ static int loop(void)
 			goto out;
 		}
 
+		query_lock();
+
 		for (i = 0; i <= client_maxi; i++) {
 			if (client[i].fd < 0)
 				continue;
@@ -597,6 +723,8 @@ static int loop(void)
 			}
 			poll_timeout = 1000;
 		}
+
+		query_unlock();
 	}
 	rv = 0;
  out:
@@ -867,7 +995,7 @@ void daemon_dump_save(void)
 	for (i = 0; i < len; i++) {
 		dump_buf[dump_point++] = daemon_debug_buf[i];
 
-		if (dump_point == DUMP_SIZE) {
+		if (dump_point == DLMC_DUMP_SIZE) {
 			dump_point = 0;
 			dump_wrap = 1;
 		}
@@ -886,7 +1014,7 @@ struct list_head lockspaces;
 int cman_quorate;
 int our_nodeid;
 char daemon_debug_buf[256];
-char dump_buf[DUMP_SIZE];
+char dump_buf[DLMC_DUMP_SIZE];
 int dump_point;
 int dump_wrap;
 

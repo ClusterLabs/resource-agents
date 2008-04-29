@@ -17,7 +17,7 @@ static int dir_members[MAX_NODES];
 static int dir_members_count;
 static int comms_nodes[MAX_NODES];
 static int comms_nodes_count;
-static char mg_name[MAX_LS_NAME+1];
+static char mg_name[DLM_LOCKSPACE_LEN+1];
 
 #define DLM_SYSFS_DIR "/sys/kernel/dlm"
 #define CLUSTER_DIR   "/sys/kernel/config/dlm/cluster"

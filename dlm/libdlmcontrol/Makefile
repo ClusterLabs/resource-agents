@@ -1,8 +1,8 @@
 ###############################################################################
 ###############################################################################
 ##
-##  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
-##
+##  Copyright (C) 2008 Red Hat, Inc.  All rights reserved.
+##  
 ##  This copyrighted material is made available to anyone wishing to use,
 ##  modify, copy, or redistribute it subject to the terms and conditions
 ##  of the GNU General Public License v.2.
@@ -10,13 +10,23 @@
 ###############################################################################
 ###############################################################################
 
-TARGET= dlm_tool
+TARGET= libdlmcontrol
 
-SBINDIRT=$(TARGET)
+LIBDIRT=$(TARGET).a \
+	$(TARGET).so.$(SOMAJOR).$(SOMINOR)
 
-all: ${TARGET}
+LIBSYMT=$(TARGET).so \
+	$(TARGET).so.$(SOMAJOR)
+
+INCDIRT=$(TARGET).h
 
 include ../../make/defines.mk
+
+SHAREDLIB=$(TARGET).so.${SOMAJOR}.${SOMINOR}
+STATICLIB=$(TARGET).a
+
+all: $(STATICLIB) $(SHAREDLIB)
+
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
 include $(OBJDIR)/make/install.mk
@@ -24,16 +34,19 @@ include $(OBJDIR)/make/uninstall.mk
 
 OBJS=	main.o
 
-CFLAGS += -I${dlmincdir}
-CFLAGS += -I$(SRCDIR)/group/dlm_controld/
-CFLAGS += -I${incdir} -I../libdlmcontrol
-CFLAGS += -I${KERNEL_SRC}/include/
+CFLAGS += -fPIC
+CFLAGS += -I$(S)/../../group/dlm_controld
+CFLAGS += -I${incdir}
+CFLAGS += -I$(KERNEL_SRC)/include
 
-LDFLAGS += -L${dlmlibdir} -L../libdlmcontrol -ldlm -ldlmcontrol
+$(TARGET).a: $(OBJS)
+	${AR} r $@ $^
+	${RANLIB} $@
 
-
-${TARGET}: ${OBJS}
-	$(CC) -o $@ $^ $(LDFLAGS)
+$(TARGET).so.${SOMAJOR}.${SOMINOR}: $(OBJS)
+	$(CC) -shared -o $@ -Wl,-soname=$(TARGET).so.$(SOMAJOR) $< $(LDFLAGS)
+	ln -sf $(TARGET).so.$(SOMAJOR).$(SOMINOR) $(TARGET).so
+	ln -sf $(TARGET).so.$(SOMAJOR).$(SOMINOR) $(TARGET).so.$(SOMAJOR)
 
 clean: generalclean
 

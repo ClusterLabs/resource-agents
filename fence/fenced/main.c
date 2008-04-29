@@ -306,7 +306,7 @@ static void query_dump_debug(int f)
 	do_reply(f, FENCED_CMD_DUMP_DEBUG, 0, NULL, 0);
 
 	if (dump_wrap) {
-		len = DUMP_SIZE - dump_point;
+		len = FENCED_DUMP_SIZE - dump_point;
 		do_write(f, dump_buf + dump_point, len);
 		len = dump_point;
 	} else
@@ -883,7 +883,7 @@ void daemon_dump_save(void)
 	for (i = 0; i < len; i++) {
 		dump_buf[dump_point++] = daemon_debug_buf[i];
 
-		if (dump_point == DUMP_SIZE) {
+		if (dump_point == FENCED_DUMP_SIZE) {
 			dump_point = 0;
 			dump_wrap = 1;
 		}
@@ -897,7 +897,7 @@ int cman_quorate;
 int our_nodeid;
 char our_name[MAX_NODENAME_LEN+1];
 char daemon_debug_buf[256];
-char dump_buf[DUMP_SIZE];
+char dump_buf[FENCED_DUMP_SIZE];
 int dump_point;
 int dump_wrap;
 int group_mode;

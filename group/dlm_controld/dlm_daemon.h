@@ -42,21 +42,20 @@
 #include <signal.h>
 #include <sys/time.h>
 #include <dirent.h>
-
 #include <openais/saAis.h>
 #include <openais/saCkpt.h>
 #include <openais/cpg.h>
 
+#include <linux/dlmconstants.h>
+#include "libdlmcontrol.h"
 #include "dlm_controld.h"
 #include "list.h"
 #include "linux_endian.h"
 
-/* Maximum lockspace name length, should match MAX_LOCKSPACE_NAME in
-   linux/dlmconstants.h (copied in libdlm.h).  The libcpg limit is
-   larger at CPG_MAX_NAME_LENGTH 128.  Our cpg name includes a "dlm:"
-   prefix before the lockspace name. */
-
-#define MAX_LS_NAME	64
+/* DLM_LOCKSPACE_LEN: maximum lockspace name length, from linux/dlmconstants.h.
+   Copied in libdlm.h so apps don't need to include the kernel header.
+   The libcpg limit is larger at CPG_MAX_NAME_LENGTH 128.  Our cpg name includes
+   a "dlm:" prefix before the lockspace name. */
 
 /* Maximum members of a lockspace, should match CPG_MEMBERS_MAX in openais/cpg.h.
    There are no max defines in dlm-kernel for lockspace members. */
@@ -72,10 +71,6 @@
 
 #define MAXLINE		256
 
-/* Size of the circular debug buffer. */
-
-#define DUMP_SIZE	(1024 * 1024)
-
 extern int daemon_debug_opt;
 extern int daemon_quit;
 extern int poll_fencing;
@@ -88,7 +83,7 @@ extern struct list_head lockspaces;
 extern int cman_quorate;
 extern int our_nodeid;
 extern char daemon_debug_buf[256];
-extern char dump_buf[DUMP_SIZE];
+extern char dump_buf[DLMC_DUMP_SIZE];
 extern int dump_point;
 extern int dump_wrap;
 
@@ -156,7 +151,7 @@ struct dlm_header {
 
 struct lockspace {
 	struct list_head	list;
-	char			name[MAX_LS_NAME+1];
+	char			name[DLM_LOCKSPACE_LEN+1];
 	uint32_t		global_id;
 
 	/* lockspace membership stuff */

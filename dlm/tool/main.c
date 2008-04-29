@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2007 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2007-2008 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -24,8 +24,9 @@
 #include <limits.h>
 #include <netinet/in.h>
 
+#include <linux/dlmconstants.h>
 #include "libdlm.h"
-#include "dlm_controld.h"
+#include "libdlmcontrol.h"
 
 #define LKM_IVMODE -1
 
@@ -392,51 +393,9 @@ void do_spaces(void)
 	/* TODO: get info from /sys/kernel/config/ */
 }
 
-static int connect_daemon(char *path)
-{
-	struct sockaddr_un sun;
-	socklen_t addrlen;
-	int rv, fd;
-
-	fd = socket(PF_UNIX, SOCK_STREAM, 0);
-	if (fd < 0)
-		goto out;
-
-	memset(&sun, 0, sizeof(sun));
-	sun.sun_family = AF_UNIX;
-	strcpy(&sun.sun_path[1], path);
-	addrlen = sizeof(sa_family_t) + strlen(sun.sun_path+1) + 1;
-
-	rv = connect(fd, (struct sockaddr *) &sun, addrlen);
-	if (rv < 0) {
-		close(fd);
-		fd = rv;
-	}
- out:
-	return fd;
-}
-
 static void do_deadlock_check(char *name)
 {
-	char buf[DLM_CONTROLD_MSGLEN];
-	int fd;
-	int rv;
-
-	fd = connect_daemon(DLM_CONTROLD_SOCK_PATH);
-	if (fd < 0) {
-		fprintf(stderr, "can't connect to dlm_controld: %s\n",
-			strerror(errno));
-		return;
-	}
-
-	memset(buf, 0, sizeof(buf));
-	snprintf(buf, sizeof(buf), "deadlock_check %s", name);
-
-	rv = do_write(fd, buf, DLM_CONTROLD_MSGLEN);
-	if (rv < 0)
-		fprintf(stderr, "bad write to dlm_controld: %s\n",
-			strerror(errno));
-	close(fd);
+	dlmc_deadlk_check(name);
 }
 
 int main(int argc, char **argv)

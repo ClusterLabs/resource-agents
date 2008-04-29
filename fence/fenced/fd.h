@@ -65,10 +65,6 @@
 
 #define MAXLINE			256
 
-/* Size of the circular debug buffer. */
-
-#define DUMP_SIZE		(1024 * 1024)
-
 /* group_mode */
 
 #define GROUP_LIBGROUP          2
@@ -81,7 +77,7 @@ extern int cman_quorate;
 extern int our_nodeid;
 extern char our_name[MAX_NODENAME_LEN+1];
 extern char daemon_debug_buf[256];
-extern char dump_buf[DUMP_SIZE];
+extern char dump_buf[FENCED_DUMP_SIZE];
 extern int dump_point;
 extern int dump_wrap;
 extern int group_mode;

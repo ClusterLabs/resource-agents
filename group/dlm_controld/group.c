@@ -26,7 +26,7 @@
 
 group_handle_t gh;
 static int cb_action;
-static char cb_name[MAX_LS_NAME+1];
+static char cb_name[DLM_LOCKSPACE_LEN+1];
 static int cb_event_nr;
 static unsigned int cb_id;
 static int cb_type;

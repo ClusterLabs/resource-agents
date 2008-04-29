@@ -36,7 +36,7 @@ OBJS=	action.o \
 CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmincdir} -I${openaisincdir} -I${fencedincdir}
 CFLAGS += -I${KERNEL_SRC}/include/
 CFLAGS += -I$(S)/../lib/ -I$(S)/../include/
-CFLAGS += -I${incdir}
+CFLAGS += -I${incdir} -I../../dlm/libdlmcontrol/
 
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -L${dlmlibdir} -L${fencedlibdir} -lccs -lcman -ldlm -lfenced
 LDFLAGS += -L${openaislibdir} -lcpg -lSaCkpt
