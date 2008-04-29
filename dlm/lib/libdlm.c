@@ -47,11 +47,6 @@
 #include "libdlm.h"
 #include <linux/dlm_device.h>
 
-/* this define will come through linux/dlm.h in 2.6.25-rc */
-#ifndef EXPERIMENTAL_BUILD
-#define DLM_LOCKSPACE_LEN 64
-#endif
-
 #define PROC_MISC		"/proc/misc"
 #define MISC_PREFIX		"/dev/misc/"
 #define DLM_PREFIX		"dlm_"
