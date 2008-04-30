@@ -216,8 +216,8 @@ def process_input(avail_opt):
 
 			if all_opt[name]["getopt"].endswith(":"):
 				opt["-"+all_opt[name]["getopt"].rstrip(":")] = value
-			else:
-				opt["-"+all_opt[name]["getopt"].rstrip(":")] = 1
+			elif ((value == "1") or (value.lower() == "yes")):
+				opt["-"+all_opt[name]["getopt"]] = "1"
 	return opt
 
 ##
