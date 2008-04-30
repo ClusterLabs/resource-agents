@@ -46,24 +46,13 @@ int dlmc_lockspace_info(char *name, struct dlmc_lockspace *ls);
 int dlmc_lockspace_nodes(char *name, int type, int max, int *count,
 			 struct dlmc_node *nodes);
 
-/* returns a local unix socket connected to dlm_controld */
 int dlmc_fs_connect(void);
-
-/* closes the unix socket */
 void dlmc_fs_disconnect(int fd);
-
-/* writes to fd: REGISTER + name */
 int dlmc_fs_register(int fd, char *name);
-
-/* writes to fd: UNREGISTER + name */
 int dlmc_fs_unregister(int fd, char *name);
-
-/* writes to fd: NOTIFIED + name + nodeid */
 int dlmc_fs_notified(int fd, char *name, int nodeid);
-
-/* reads from fd: gets name, REGISTER/NOTIFIED, nodeid, result */
 int dlmc_fs_result(int fd, char *name, int *type, int *nodeid, int *result);
 
-int dlmc_deadlk_check(char *name);
+int dlmc_deadlock_check(char *name);
 
 #endif

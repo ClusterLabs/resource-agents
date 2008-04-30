@@ -388,6 +388,7 @@ static void process_connection(int ci)
 	struct dlmc_header h;
 	char *extra = NULL;
 	int rv, extra_len;
+	struct lockspace *ls;
 
 	rv = do_read(client[ci].fd, &h, sizeof(h));
 	if (rv < 0) {
@@ -423,20 +424,21 @@ static void process_connection(int ci)
 
 	switch (h.command) {
 	case DLMC_CMD_FS_REGISTER:
+		/* TODO */
 		break;
 
 	case DLMC_CMD_FS_UNREGISTER:
+		/* TODO */
 		break;
 
 	case DLMC_CMD_FS_NOTIFIED:
+		/* TODO */
 		break;
 
-	case DLMC_CMD_DEADLK_CHECK:
-#if 0
-		ls = find_ls(hd.name);
+	case DLMC_CMD_DEADLOCK_CHECK:
+		ls = find_ls(h.name);
 		if (ls)
 			send_cycle_start(ls);
-#endif
 		break;
 
 	case DLMC_CMD_DUMP_DEBUG:
@@ -543,7 +545,7 @@ static void *process_queries(void *arg)
 			goto out;
 		}
 
-		pthread_mutex_lock(&query_mutex);
+		query_lock();
 
 		switch (h.command) {
 		case DLMC_CMD_DUMP_DEBUG:
@@ -564,7 +566,7 @@ static void *process_queries(void *arg)
 		default:
 			break;
 		}
-		pthread_mutex_unlock(&query_mutex);
+		query_unlock();
 
  out:
 		close(f);
@@ -697,6 +699,7 @@ static int loop(void)
 			goto out;
 		}
 
+		/* FIXME: lock/unlock around operations that take a while */
 		query_lock();
 
 		for (i = 0; i <= client_maxi; i++) {
