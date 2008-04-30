@@ -12,6 +12,7 @@
 
 #include "dlm_daemon.h"
 #include "config.h"
+#include <pthread.h>
 #include <linux/dlmconstants.h>
 #include <linux/netlink.h>
 #include <linux/genetlink.h>
@@ -27,6 +28,8 @@ static int client_size = 0;
 static struct client *client = NULL;
 static struct pollfd *pollfd = NULL;
 static int group_mode;
+static pthread_t query_thread;
+static pthread_mutex_t query_mutex;
 
 struct client {
 	int fd;
@@ -73,7 +76,7 @@ int do_write(int fd, void *buf, size_t count)
 	return 0;
 }
 
-static void do_dump(int fd)
+static void query_dump_debug(int fd)
 {
 	int len;
 
@@ -547,16 +550,16 @@ static void *process_queries(void *arg)
 			query_dump_debug(f);
 			break;
 		case DLMC_CMD_DUMP_PLOCKS:
-			query_dump_plocks(f);
+			/* query_dump_plocks(f); */
 			break;
 		case DLMC_CMD_NODE_INFO:
-			query_node_info(f, h.data);
+			/* query_node_info(f, h.data); */
 			break;
 		case DLMC_CMD_LOCKSPACE_INFO:
-			query_lockspace_info(f);
+			/* query_lockspace_info(f); */
 			break;
 		case DLMC_CMD_LOCKSPACE_NODES:
-			query_lockspace_nodes(f, h.option, h.data);
+			/* query_lockspace_nodes(f, h.option, h.data); */
 			break;
 		default:
 			break;

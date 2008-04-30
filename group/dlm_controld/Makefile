@@ -44,7 +44,7 @@ LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
 LDFLAGS += -L${dlmlibdir} -L${dlmlibcontroldir} -ldlm -ldlmcontrol
 LDFLAGS += -L${fencedlibdir} -lfenced
 LDFLAGS += -L${openaislibdir} -lcpg -lSaCkpt
-LDFLAGS += -L../lib -lgroup
+LDFLAGS += -L../lib -lgroup -lpthread
 
 
 ${TARGET}: ${OBJS}

@@ -395,7 +395,7 @@ void do_spaces(void)
 
 static void do_deadlock_check(char *name)
 {
-	dlmc_deadlk_check(name);
+	/* dlmc_deadlk_check(name); */
 }
 
 int main(int argc, char **argv)
