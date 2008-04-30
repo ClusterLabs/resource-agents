@@ -41,7 +41,7 @@ CFLAGS += -I$(S)/../lib/ -I$(S)/../include/
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
-LDFLAGS += -L${dlmlibdir} -L${dlmlibcontroldir} -ldlm -ldlmcontrol
+LDFLAGS += -L${dlmlibdir} -L${dlmcontrollibdir} -ldlm -ldlmcontrol
 LDFLAGS += -L${fencedlibdir} -lfenced
 LDFLAGS += -L${openaislibdir} -lcpg -lSaCkpt
 LDFLAGS += -L../lib -lgroup -lpthread
