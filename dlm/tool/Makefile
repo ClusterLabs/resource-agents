@@ -14,7 +14,7 @@ TARGET= dlm_tool
 
 SBINDIRT=$(TARGET)
 
-all: ${TARGET}
+all: depends ${TARGET}
 
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
@@ -24,17 +24,21 @@ include $(OBJDIR)/make/uninstall.mk
 
 OBJS=	main.o
 
-CFLAGS += -I${dlmincdir}
+CFLAGS += -I${dlmincdir} -I${dlmcontrolincdir}
 CFLAGS += -I$(SRCDIR)/group/dlm_controld/
-CFLAGS += -I${incdir} -I../libdlmcontrol
+CFLAGS += -I${incdir}
 CFLAGS += -I${KERNEL_SRC}/include/
 
-LDFLAGS += -L${dlmlibdir} -L../libdlmcontrol -ldlm -ldlmcontrol
+LDFLAGS += -L${dlmlibdir} -L${dlmcontrollibdir} -ldlm -ldlmcontrol
 
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 clean: generalclean
+
+depends:
+	$(MAKE) -C ../libdlm all
+	$(MAKE) -C ../libdlmcontrol all
 
 -include $(OBJS:.o=.d)

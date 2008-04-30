@@ -26,7 +26,7 @@ CFLAGS += -I${dlmincdir}
 LDFLAGS += -L${dlmlibdir} -ldlm -lpthread
 
 depends:
-	$(MAKE) -C ../../lib all
+	$(MAKE) -C ../../libdlm all
 
 %: %.o
 	$(CC) -o $@ $^ $(LDFLAGS)

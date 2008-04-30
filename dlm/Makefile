@@ -13,4 +13,4 @@
 include ../make/defines.mk
 include $(OBJDIR)/make/passthrough.mk
 
-SUBDIRS=lib tool man
+SUBDIRS=libdlm libdlmcontrol tool man

@@ -52,6 +52,8 @@ my %options = (
 	cmanlibdir => \$cmanlibdir,
 	dlmincdir => \$dlmincdir,
 	dlmlibdir => \$dlmlibdir,
+	dlmcontrolincdir => \$dlmcontrolincdir,
+	dlmcontrollibdir => \$dlmcontrollibdir,
 	fenceincdir => \$fenceincdir,
 	fencelibdir => \$fencelibdir,
 	fencedincdir => \$fenceincdir,
@@ -127,6 +129,8 @@ my $err = &GetOptions (\%options,
 		    'cmanlibdir=s',
 		    'dlmincdir=s',
 		    'dlmlibdir=s',
+		    'dlmcontrolincdir=s',
+		    'dlmcontrollibdir=s',
 		    'fenceincdir=s',
 		    'fencelibdir=s',
 		    'fencedincdir=s',
@@ -219,8 +223,10 @@ if ($help || !$err) {
   print "--ccslibdir=\tthe base directory for ccs libraries.  (Default: ./ccs/lib)\n";
   print "--cmanincdir=\tthe base directory for cman include files.  (Default: ./cman/lib)\n";
   print "--cmanlibdir=\tthe base directory for cman libraries.  (Default: ./cman/lib)\n";
-  print "--dlmincdir=\tthe base directory for dlm include files.  (Default: ./dlm/lib)\n";
-  print "--dlmlibdir=\tthe base directory for dlm libraries.  (Default: ./dlm/lib)\n";
+  print "--dlmincdir=\tthe base directory for dlm include files.  (Default: ./dlm/libdlm)\n";
+  print "--dlmlibdir=\tthe base directory for dlm libraries.  (Default: ./dlm/libdlm)\n";
+  print "--dlmcontrolincdir=\tthe base directory for dlmcontrol include files.  (Default: ./dlm/libdlmcontrol)\n";
+  print "--dlmcontrollibdir=\tthe base directory for dlmcontrol libraries.  (Default: ./dlm/libdlmcontrol)\n";
   print "--fenceincdir=\tthe base directory for fence include files.  (Default: ./fence/libfence)\n";
   print "--fencelibdir=\tthe base directory for fence libraries.  (Default: ./fence/libfence)\n";
   print "--fencedincdir=\tthe base directory for fenced include files.  (Default: ./fence/libfenced)\n";
@@ -422,10 +428,16 @@ if (!$cmanlibdir) {
   $cmanlibdir="${objdir}/cman/lib";
 }
 if (!$dlmincdir) {
-  $dlmincdir="${cdir}/dlm/lib";
+  $dlmincdir="${cdir}/dlm/libdlm";
 }
 if (!$dlmlibdir) {
-  $dlmlibdir="${objdir}/dlm/lib";
+  $dlmlibdir="${objdir}/dlm/libdlm";
+}
+if (!$dlmcontrolincdir) {
+  $dlmcontrolincdir="${cdir}/dlm/libdlmcontrol";
+}
+if (!$dlmcontrollibdir) {
+  $dlmcontrollibdir="${objdir}/dlm/libdlmcontrol";
 }
 if (!$fenceincdir) {
   $fenceincdir="${cdir}/fence/libfence";
@@ -633,6 +645,8 @@ while (<IFILE>) {
   $_ =~ s/\@CMANLIBDIR\@/$cmanlibdir/;
   $_ =~ s/\@DLMINCDIR\@/$dlmincdir/;
   $_ =~ s/\@DLMLIBDIR\@/$dlmlibdir/;
+  $_ =~ s/\@DLMCONTROLINCDIR\@/$dlmcontrolincdir/;
+  $_ =~ s/\@DLMCONTROLLIBDIR\@/$dlmcontrollibdir/;
   $_ =~ s/\@FENCEINCDIR\@/$fenceincdir/;
   $_ =~ s/\@FENCELIBDIR\@/$fencelibdir/;
   $_ =~ s/\@FENCEDINCDIR\@/$fencedincdir/;
