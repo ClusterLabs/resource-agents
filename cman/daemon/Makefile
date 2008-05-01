@@ -34,8 +34,7 @@ OBJS1=	daemon.o \
 	barrier.o \
 	cmanconfig.o
 
-OBJS2=	cman-preconfig.o \
-	logging.o
+OBJS2=	cman-preconfig.o
 
 ${TARGET1}: ${OBJS1}
 	$(CC) -shared -Wl,-soname,$@ -o $@ $^ $(LDFLAGS)

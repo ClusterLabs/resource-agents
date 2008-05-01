@@ -60,7 +60,6 @@ static unsigned int nodelist_byname(struct objdb_iface_ver0 *objdb,
 	nodes_handle = nodeslist_init(objdb, cluster_parent_handle, &parent_handle);
 	while (nodes_handle) {
 		if (objdb_get_string(objdb, nodes_handle, "name", &nodename)) {
-			log_printf(LOG_ERR, "Cannot get node name");
 			break;
 		}
 		if (strcmp(nodename, name) == 0)

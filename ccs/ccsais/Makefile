@@ -28,18 +28,14 @@ CFLAGS += -I${incdir}
 
 LDFLAGS += -L${ccslibdir} -lccs
 
-OBJS=	config.o logging.o
+OBJS=	config.o
 
 ${TARGET}: ${OBJS}
 	$(CC) -shared -Wl,-soname,$@ -o $@ $^ $(LDFLAGS)
-
-logging.c:
-	ln -sf $(S)/../../cman/daemon/logging.c logging.c
 
 depends:
 	$(MAKE) -C ../lib all
 
 clean: generalclean 
-	rm -f logging.c
 
 -include $(OBJS:.o=.d)

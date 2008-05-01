@@ -28,7 +28,6 @@
 #include <openais/service/config.h>
 #include <openais/lcr/lcr_comp.h>
 #include <openais/service/swab.h>
-#include <openais/service/logsys.h>
 
 #include "ccs.h"
 #include "logging.h"
@@ -36,9 +35,6 @@
 #define CONFIG_VERSION_PATH	"/cluster/@config_version"
 #define CONFIG_NAME_PATH	"/cluster/@name"
 
-LOGSYS_DECLARE_SUBSYS ("CCS", LOG_INFO);
-
-static unsigned int debug_mask;
 static int ccs_readconfig(struct objdb_iface_ver0 *objdb, char **error_string);
 static int init_config(struct objdb_iface_ver0 *objdb, char *error_string);
 static char error_reason[1024];
@@ -131,7 +127,6 @@ static int read_config_for(int ccs_fd, struct objdb_iface_ver0 *objdb, unsigned 
 		if (equal)
 		{
 			*equal = 0;
-			fprintf(stderr, "CCS: got config item %s: '%s' = '%s'\n", object, str, equal+1);
 			objdb->object_key_create(object_handle, str, strlen(str),
 						 equal+1, strlen(equal+1)+1);
 			gotcount++;
@@ -201,19 +196,8 @@ static int ccs_readconfig(struct objdb_iface_ver0 *objdb, char **error_string)
 {
 	int ret;
 
-	/* Initialise early logging */
-	if (getenv("CCS_DEBUGLOG"))
-		debug_mask = atoi(getenv("CCS_DEBUGLOG"));
-
-	set_debuglog(debug_mask);
-
 	/* We need to set this up to internal defaults too early */
 	openlog("openais", LOG_CONS|LOG_PID, LOG_LOCAL4);
-
-	/* Enable stderr logging if requested by cman_tool */
-	if (debug_mask) {
-		logsys_config_subsys_set("CCS", LOGSYS_TAG_LOG, LOG_DEBUG);
-	}
 
 	/* Read low-level totem/aisexec etc config from CCS */
 	if ( !(ret = init_config(objdb, error_reason)) )
@@ -233,7 +217,6 @@ static int init_config(struct objdb_iface_ver0 *objdb, char *error_string)
 	/* Connect to ccsd */
 	if (getenv("CCS_CLUSTER_NAME")) {
 		cname = getenv("CCS_CLUSTER_NAME");
-		log_printf(LOG_INFO, "Using override cluster name %s\n", cname);
 	}
 
 	cd = ccs_force_connect(cname, 0);

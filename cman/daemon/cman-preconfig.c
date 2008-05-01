@@ -14,12 +14,14 @@
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
+#include <assert.h>
 #include <sys/utsname.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/errno.h>
 #include <netdb.h>
 #include <ifaddrs.h>
+#include <arpa/inet.h>
 
 #define DEFAULT_PORT            5405
 #define DEFAULT_CLUSTER_NAME    "RHCluster"
@@ -28,16 +30,10 @@
 /* openais headers */
 #include <openais/service/objdb.h>
 #include <openais/service/swab.h>
-#include <openais/totem/totemip.h>
-#include <openais/totem/totempg.h>
-#include <openais/totem/aispoll.h>
 #include <openais/service/service.h>
 #include <openais/service/config.h>
 #include <openais/lcr/lcr_comp.h>
 #include <openais/service/swab.h>
-#include <openais/service/logsys.h>
-
-LOGSYS_DECLARE_SUBSYS ("CMAN", LOG_INFO);
 
 #include "cman.h"
 #include "cmanconfig.h"
@@ -64,13 +60,12 @@ static int num_nodenames;
 static char *key_filename;
 static char *mcast_name;
 static char *cluster_name;
-static char error_reason[1024];
+static char error_reason[1024] = { '\0' };
 static unsigned int cluster_parent_handle;
 
 /*
  * Exports the interface for the service
  */
-
 static struct config_iface_ver0 cmanpreconfig_iface_ver0 = {
 	.config_readconfig        = cmanpre_readconfig
 };
@@ -101,29 +96,98 @@ __attribute__ ((constructor)) static void cmanpre_comp_register(void) {
 	lcr_component_register(&cmanpre_comp_ver0);
 }
 
+#define LOCALHOST_IPV4 "127.0.0.1"
+#define LOCALHOST_IPV6 "::1"
+
+/* Compare two addresses */
+static int ipaddr_equal(struct sockaddr_storage *addr1, struct sockaddr_storage *addr2)
+{
+	int addrlen = 0;
+	struct sockaddr *saddr1 = (struct sockaddr *)addr1;
+	struct sockaddr *saddr2 = (struct sockaddr *)addr2;
+
+	if (saddr1->sa_family != saddr2->sa_family)
+		return 0;
+
+	if (saddr1->sa_family == AF_INET) {
+		addrlen = sizeof(struct in_addr);
+	}
+	if (saddr1->sa_family == AF_INET6) {
+		addrlen = sizeof(struct in6_addr);
+	}
+	assert(addrlen);
+
+	if (memcmp(saddr1->sa_data, saddr2->sa_data, addrlen) == 0)
+		return 1;
+	else
+		return 0;
+
+}
+
+/* Build a localhost ip_address */
+static int get_localhost(int family, struct sockaddr_storage *localhost)
+{
+	char *addr_text;
+	struct sockaddr *saddr = (struct sockaddr *)localhost;
+
+	memset (localhost, 0, sizeof (struct sockaddr_storage));
+
+	if (family == AF_INET) {
+		addr_text = LOCALHOST_IPV4;
+		if (inet_pton(family, addr_text, (char *)&nodeid) <= 0) {
+			return -1;
+		}
+	} else {
+		addr_text = LOCALHOST_IPV6;
+	}
+
+	if (inet_pton(family, addr_text, (char *)saddr->sa_data) <= 0)
+		return -1;
+
+	localhost->ss_family = family;
+
+	return 0;
+}
+
+/* Return the address family of an IP[46] name */
+static int address_family(char *addr)
+{
+	struct addrinfo *ainfo;
+	struct addrinfo ahints;
+	int ret;
+
+	memset(&ahints, 0, sizeof(ahints));
+	ahints.ai_socktype = SOCK_DGRAM;
+	ahints.ai_protocol = IPPROTO_UDP;
+
+	/* Lookup the nodename address */
+	ret = getaddrinfo(addr, NULL, &ahints, &ainfo);
+	if (ret)
+		return -1;
+
+	return ainfo->ai_family;
+}
+
+
 static int add_ifaddr(struct objdb_iface_ver0 *objdb, char *mcast, char *ifaddr, int portnum)
 {
 	unsigned int totem_object_handle;
 	unsigned int interface_object_handle;
-	struct totem_ip_address if_addr, localhost, mcast_addr;
+	struct sockaddr_storage if_addr, localhost, mcast_addr;
 	char tmp[132];
 	int ret = 0;
 
-	P_AIS("Adding local address %s\n", ifaddr);
-
 	/* Check the families match */
-	ret = totemip_parse(&mcast_addr, mcast, 0);
-	if (!ret)
-		ret = totemip_parse(&if_addr, ifaddr, mcast_addr.family);
-	if (ret) {
-		errno = EPROTOTYPE;
-		return ret;
+	if (address_family(mcast) !=
+	    address_family(ifaddr)) {
+		sprintf(error_reason, "Node address family does not match multicast address family");
+		return -1;
 	}
 
 	/* Check it's not bound to localhost, sigh */
-	totemip_localhost(mcast_addr.family, &localhost);
-	if (totemip_equal(&localhost, &if_addr)) {
-		errno = EADDRINUSE;
+	get_localhost(mcast_addr.ss_family, &localhost);
+	if (ipaddr_equal(&localhost, &if_addr)) {
+		sprintf(error_reason, "Node address is localhost, please choose a real host address");
 		return -1;
 	}
 
@@ -142,8 +206,6 @@ static int add_ifaddr(struct objdb_iface_ver0 *objdb, char *mcast, char *ifaddr,
 		if (objdb->object_create(totem_object_handle, &interface_object_handle,
 					 "interface", strlen("interface")) == 0) {
 
-			P_AIS("Setting if %d, name: %s,  mcast: %s,  port=%d, \n",
-			      num_interfaces, ifaddr, mcast, portnum);
 			sprintf(tmp, "%d", num_interfaces);
 			objdb->object_key_create(interface_object_handle, "ringnumber", strlen("ringnumber"),
 							tmp, strlen(tmp)+1);
@@ -173,7 +235,7 @@ static uint16_t generate_cluster_id(char *name)
 		value <<= 1;
 		value += name[i];
 	}
-	P_MEMB("Generated cluster id for '%s' is %d\n", name, value & 0xFFFF);
+	sprintf(error_reason, "Generated cluster id for '%s' is %d\n", name, value & 0xFFFF);
 	return value & 0xFFFF;
 }
 
@@ -191,7 +253,7 @@ static char *default_mcast(char *nodename, uint16_t cluster_id)
 	   default a multicast address */
         ret = getaddrinfo(nodename, NULL, &ahints, &ainfo);
 	if (ret) {
-		log_printf(LOG_ERR, "Can't determine address family of nodename %s\n", nodename);
+		sprintf(error_reason, "Can't determine address family of nodename %s\n", nodename);
 		write_cman_pipe("Can't determine address family of nodename");
 		return NULL;
 	}
@@ -245,11 +307,9 @@ static int verify_nodename(struct objdb_iface_ver0 *objdb, char *nodename)
 		int len;
 
 		if (objdb_get_string(objdb, nodes_handle, "name", &str)) {
-			log_printf(LOG_ERR, "Cannot get node name");
+			sprintf(error_reason, "Cannot get node name");
 			break;
 		}
-
-		fprintf(stderr, "nodelist. got name %s\n", str);
 
 		strcpy(nodename3, str);
 		dot = strchr(nodename3, '.');
@@ -326,30 +386,21 @@ static int get_env_overrides()
 {
 	if (getenv("CMAN_CLUSTER_NAME")) {
 		cluster_name = strdup(getenv("CMAN_CLUSTER_NAME"));
-		log_printf(LOG_INFO, "Using override cluster name %s\n", cluster_name);
 	}
 
 	nodename_env = getenv("CMAN_NODENAME");
-	if (nodename_env) {
-		log_printf(LOG_INFO, "Using override node name %s\n", nodename_env);
-	}
 
 	expected_votes = 0;
 	if (getenv("CMAN_EXPECTEDVOTES")) {
 		expected_votes = atoi(getenv("CMAN_EXPECTEDVOTES"));
 		if (expected_votes < 1) {
-			log_printf(LOG_ERR, "CMAN_EXPECTEDVOTES environment variable is invalid, ignoring");
 			expected_votes = 0;
-		}
-		else {
-			log_printf(LOG_INFO, "Using override expected votes %d\n", expected_votes);
 		}
 	}
 
 	/* optional port */
 	if (getenv("CMAN_IP_PORT")) {
 		portnum = atoi(getenv("CMAN_IP_PORT"));
-		log_printf(LOG_INFO, "Using override IP port %d\n", portnum);
 	}
 
 	/* optional security key filename */
@@ -357,32 +408,28 @@ static int get_env_overrides()
 		key_filename = strdup(getenv("CMAN_KEYFILE"));
 		if (key_filename == NULL) {
 			write_cman_pipe("Cannot allocate memory for key filename");
-			return -ENOMEM;
+			return -1;
 		}
 	}
 
 	/* find our own number of votes */
 	if (getenv("CMAN_VOTES")) {
 		votes = atoi(getenv("CMAN_VOTES"));
-		log_printf(LOG_INFO, "Using override votes %d\n", votes);
 	}
 
 	/* nodeid */
 	if (getenv("CMAN_NODEID")) {
 		nodeid = atoi(getenv("CMAN_NODEID"));
-		log_printf(LOG_INFO, "Using override nodeid %d\n", nodeid);
 	}
 
 	if (getenv("CMAN_MCAST_ADDR")) {
 		mcast_name = getenv("CMAN_MCAST_ADDR");
-		log_printf(LOG_INFO, "Using override multicast address %s\n", mcast_name);
 	}
 
 	if (getenv("CMAN_2NODE")) {
 		two_node = 1;
 		expected_votes = 1;
 		votes = 1;
-		log_printf(LOG_INFO, "Setting two_node mode from cman_tool\n");
 	}
 	return 0;
 }
@@ -398,23 +445,21 @@ static int get_nodename(struct objdb_iface_ver0 *objdb)
 
 	/* our nodename */
 	if (nodename_env != NULL) {
-
 		if (strlen(nodename_env) >= sizeof(nodename)) {
-			log_printf(LOG_ERR, "Overridden node name %s is too long", nodename);
+			sprintf(error_reason, "Overridden node name %s is too long", nodename);
 			write_cman_pipe("Overridden node name is too long");
-			error = -E2BIG;
+			error = -1;
 			goto out;
 		}
 
 		strcpy(nodename, nodename_env);
-		log_printf(LOG_INFO, "Using override node name %s\n", nodename);
 
 		if (objdb->object_find(object_handle,
 				       nodename, strlen(nodename),
-				       &node_object_handle) == 0) {
-			log_printf(LOG_ERR, "Overridden node name %s is not in CCS", nodename);
+				       &node_object_handle) != 0) {
+			sprintf(error_reason, "Overridden node name %s is not in CCS", nodename);
 			write_cman_pipe("Overridden node name is not in CCS");
-			error = -ENOENT;
+			error = -1;
 			goto out;
 		}
 
@@ -423,31 +468,31 @@ static int get_nodename(struct objdb_iface_ver0 *objdb)
 
 		error = uname(&utsname);
 		if (error) {
-			log_printf(LOG_ERR, "cannot get node name, uname failed");
+			sprintf(error_reason, "cannot get node name, uname failed");
 			write_cman_pipe("Can't determine local node name");
-			error = -ENOENT;
+			error = -1;
 			goto out;
 		}
 
 		if (strlen(utsname.nodename) >= sizeof(nodename)) {
-			log_printf(LOG_ERR, "node name from uname is too long");
+			sprintf(error_reason, "node name from uname is too long");
 			write_cman_pipe("Can't determine local node name");
-			error = -E2BIG;
+			error = -1;
 			goto out;
 		}
 
 		strcpy(nodename, utsname.nodename);
 	}
 	if (verify_nodename(objdb, nodename))
-		return -EINVAL;
+		return -1;
 
 
-	// Add <cman nodename>
+	/* Add <cman nodename> */
 	if ( (node_object_handle = nodelist_byname(objdb, cluster_parent_handle, nodename))) {
 		if (objdb_get_string(objdb, node_object_handle, "nodeid", &nodeid_str)) {
-			log_printf(LOG_ERR, "Cannot get node ID");
+			sprintf(error_reason, "This node has no nodeid in cluster.conf");
 			write_cman_pipe("This node has no nodeid in cluster.conf");
-			return -EINVAL;
+			return -1;
 		}
 	}
 
@@ -472,7 +517,6 @@ static int get_nodename(struct objdb_iface_ver0 *objdb)
 
 		if (!mcast_name) {
 			mcast_name = default_mcast(nodename, cluster_id);
-			log_printf(LOG_INFO, "Using default multicast address of %s\n", mcast_name);
 		}
 
 		objdb->object_key_create(object_handle, "nodename", strlen("nodename"),
@@ -489,7 +533,8 @@ static int get_nodename(struct objdb_iface_ver0 *objdb)
 			portnum = DEFAULT_PORT;
 	}
 
-	add_ifaddr(objdb, mcast_name, nodename, portnum);
+	if (add_ifaddr(objdb, mcast_name, nodename, portnum))
+		return -1;
 
 	/* Get all alternative node names */
 	num_nodenames = 1;
@@ -513,7 +558,8 @@ static int get_nodename(struct objdb_iface_ver0 *objdb)
 			mcast = mcast_name;
 		}
 
-		add_ifaddr(objdb, mcast, nodename, portnum);
+		if (add_ifaddr(objdb, mcast, nodename, portnum))
+			return -1;
 
 		num_nodenames++;
 	}
@@ -527,8 +573,6 @@ static void add_cman_overrides(struct objdb_iface_ver0 *objdb)
 {
 	unsigned int object_handle;
 	char tmp[256];
-
-	P_AIS("comms_init_ais()\n");
 
 	/* "totem" key already exists, because we have added the interfaces by now */
 	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
@@ -646,7 +690,7 @@ static void add_cman_overrides(struct objdb_iface_ver0 *objdb)
 		if (objdb_get_string(objdb, object_handle, "to_file", &logstr)) {
 			objdb->object_key_create(object_handle, "to_file", strlen("to_file"),
 						 "yes", strlen("yes")+1);
-		} 
+		}
 
 		if (objdb_get_string(objdb, object_handle, "logfile", &logstr)) {
 			objdb->object_key_create(object_handle, "logfile", strlen("logfile"),
@@ -719,9 +763,9 @@ static int set_noccs_defaults(struct objdb_iface_ver0 *objdb)
 
 		error = uname(&utsname);
 		if (error) {
-			log_printf(LOG_ERR, "cannot get node name, uname failed");
+			sprintf(error_reason, "cannot get node name, uname failed");
 			write_cman_pipe("Can't determine local node name");
-			return -ENOENT;
+			return -1;
 		}
 
 		nodename_env = (char *)&utsname.nodename;
@@ -731,7 +775,6 @@ static int set_noccs_defaults(struct objdb_iface_ver0 *objdb)
 
 	if (!mcast_name) {
 		mcast_name = default_mcast(nodename, cluster_id);
-		log_printf(LOG_INFO, "Using default multicast address of %s\n", mcast_name);
 	}
 
 	/* This will increase as nodes join the cluster */
@@ -752,9 +795,9 @@ static int set_noccs_defaults(struct objdb_iface_ver0 *objdb)
 		memset(&ahints, 0, sizeof(ahints));
 		ret = getaddrinfo(nodename, NULL, &ahints, &ainfo);
 		if (ret) {
-			log_printf(LOG_ERR, "Can't determine address family of nodename %s\n", nodename);
+			sprintf(error_reason, "Can't determine address family of nodename %s\n", nodename);
 			write_cman_pipe("Can't determine address family of nodename");
-			return -EINVAL;
+			return -1;
 		}
 
 		if (ainfo->ai_family == AF_INET) {
@@ -765,7 +808,6 @@ static int set_noccs_defaults(struct objdb_iface_ver0 *objdb)
 			struct sockaddr_in6 *addr = (struct sockaddr_in6 *)ainfo->ai_addr;
 			memcpy(&nodeid, &addr->sin6_addr.s6_addr32[3], sizeof(int));
 		}
-		log_printf(LOG_INFO, "Our Node ID is %d\n", nodeid);
 		freeaddrinfo(ainfo);
 	}
 
@@ -847,19 +889,9 @@ static int cmanpre_readconfig(struct objdb_iface_ver0 *objdb, char **error_strin
 	if (getenv("CMAN_PIPE"))
                 startup_pipe = atoi(getenv("CMAN_PIPE"));
 
-	/* Initialise early logging */
-	if (getenv("CMAN_DEBUGLOG"))
-		debug_mask = atoi(getenv("CMAN_DEBUGLOG"));
-
-	set_debuglog(debug_mask);
-
 	/* We need to set this up to internal defaults too early */
 	openlog("openais", LOG_CONS|LOG_PID, SYSLOGFACILITY);
 
-	/* Enable stderr logging if requested by cman_tool */
-	if (debug_mask) {
-		logsys_config_subsys_set("CMAN", LOGSYS_TAG_LOG, LOG_DEBUG);
-	}
 
 	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
         objdb->object_find(OBJECT_PARENT_HANDLE,
@@ -876,16 +908,19 @@ static int cmanpre_readconfig(struct objdb_iface_ver0 *objdb, char **error_strin
 	if (getenv("CMAN_NOCCS"))
 		ret = set_noccs_defaults(objdb);
 	else
-		get_cman_globals(objdb);
+		ret = get_cman_globals(objdb);
 
 	if (!ret) {
 		ret = get_nodename(objdb);
 		add_cman_overrides(objdb);
 	}
-	if (!ret)
+	if (!ret) {
 		sprintf (error_reason, "%s", "Successfully parsed cman config\n");
-	else
-		sprintf (error_reason, "%s", "Error parsing cman config\n");
+	}
+	else {
+		if (error_reason[0] == '\0')
+			sprintf (error_reason, "%s", "Error parsing cman config\n");
+	}
         *error_string = error_reason;
 
 	return ret;
