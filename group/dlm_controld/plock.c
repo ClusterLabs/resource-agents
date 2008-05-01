@@ -2247,25 +2247,20 @@ void purge_plocks(struct lockspace *ls, int nodeid, int unmount)
 	log_group(ls, "purged %d plocks for %d", purged, nodeid);
 }
 
-int dump_plocks(char *name, int fd)
+int fill_plock_dump_buf(struct lockspace *ls)
 {
-	struct lockspace *ls;
 	struct posix_lock *po;
 	struct lock_waiter *w;
 	struct resource *r;
-	char line[MAXLINE];
-	int rv;
+	int rv = 0;
+	int len = DLMC_DUMP_SIZE, pos = 0, ret;
 
-	if (!name)
-		return -1;
-
-	ls = find_ls(name);
-	if (!ls)
-		return -1;
+	memset(plock_dump_buf, 0, sizeof(plock_dump_buf));
+	plock_dump_len = 0;
 
 	list_for_each_entry(r, &ls->plock_resources, list) {
 		list_for_each_entry(po, &r->locks, list) {
-			snprintf(line, MAXLINE,
+			ret = snprintf(plock_dump_buf + pos, len - pos,
 			      "%llu %s %llu-%llu nodeid %d pid %u owner %llx\n",
 			      (unsigned long long)r->number,
 			      po->ex ? "WR" : "RD",
@@ -2274,11 +2269,15 @@ int dump_plocks(char *name, int fd)
 			      po->nodeid, po->pid,
 			      (unsigned long long)po->owner);
 
-			rv = do_write(fd, line, strlen(line));
+			if (ret >= len - pos) {
+				rv = -ENOSPC;
+				goto out;
+			}
+			pos += ret;
 		}
 
 		list_for_each_entry(w, &r->waiters, list) {
-			snprintf(line, MAXLINE,
+			ret = snprintf(plock_dump_buf + pos, len - pos,
 			      "%llu WAITING %s %llu-%llu nodeid %d pid %u owner %llx\n",
 			      (unsigned long long)r->number,
 			      w->info.ex ? "WR" : "RD",
@@ -2287,11 +2286,15 @@ int dump_plocks(char *name, int fd)
 			      w->info.nodeid, w->info.pid,
 			      (unsigned long long)w->info.owner);
 
-			rv = do_write(fd, line, strlen(line));
+			if (ret >= len - pos) {
+				rv = -ENOSPC;
+				goto out;
+			}
+			pos += ret;
 		}
 	}
-
-	return 0;
+ out:
+	return rv;
 }
 
 #if 0

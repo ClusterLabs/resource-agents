@@ -83,13 +83,13 @@ static int do_connect(char *sock_path)
 	return fd;
 }
 
-static void init_header(struct fenced_header *h, int cmd, int len)
+static void init_header(struct fenced_header *h, int cmd, int extra_len)
 {
 	memset(h, 0, sizeof(struct fenced_header));
 
 	h->magic = FENCED_MAGIC;
 	h->version = FENCED_VERSION;
-	h->len = len;
+	h->len = sizeof(struct fenced_header) + extra_len;
 	h->command = cmd;
 }
 
@@ -98,7 +98,7 @@ int fenced_join(void)
 	struct fenced_header h;
 	int fd, rv;
 
-	init_header(&h, FENCED_CMD_JOIN, sizeof(h));
+	init_header(&h, FENCED_CMD_JOIN, 0);
 
 	fd = do_connect(FENCED_SOCK_PATH);
 	if (fd < 0) {
@@ -117,7 +117,7 @@ int fenced_leave(void)
 	struct fenced_header h;
 	int fd, rv;
 
-	init_header(&h, FENCED_CMD_LEAVE, sizeof(h));
+	init_header(&h, FENCED_CMD_LEAVE, 0);
 
 	fd = do_connect(FENCED_SOCK_PATH);
 	if (fd < 0) {
@@ -139,7 +139,8 @@ int fenced_external(char *name)
 	int namelen;
 
 	memset(&msg, 0, sizeof(msg));
-	init_header(hd, FENCED_CMD_EXTERNAL, sizeof(msg));
+
+	init_header(hd, FENCED_CMD_EXTERNAL, MAX_NODENAME_LEN + 1);
 
 	namelen = strlen(name);
 	if (namelen > MAX_NODENAME_LEN)
@@ -165,7 +166,7 @@ int fenced_dump_debug(char *buf)
 	int reply_len;
 	int fd, rv;
 
-	init_header(&h, FENCED_CMD_DUMP_DEBUG, sizeof(h));
+	init_header(&h, FENCED_CMD_DUMP_DEBUG, 0);
 
 	reply_len = sizeof(struct fenced_header) + FENCED_DUMP_SIZE;
 	reply = malloc(reply_len);
@@ -207,7 +208,7 @@ int fenced_node_info(int nodeid, struct fenced_node *node)
 	char reply[sizeof(struct fenced_header) + sizeof(struct fenced_node)];
 	int fd, rv;
 
-	init_header(&h, FENCED_CMD_NODE_INFO, sizeof(h));
+	init_header(&h, FENCED_CMD_NODE_INFO, 0);
 	h.data = nodeid;
 
 	memset(reply, 0, sizeof(reply));
@@ -245,7 +246,7 @@ int fenced_domain_info(struct fenced_domain *domain)
 	char reply[sizeof(struct fenced_header) + sizeof(struct fenced_domain)];
 	int fd, rv;
 
-	init_header(&h, FENCED_CMD_DOMAIN_INFO, sizeof(h));
+	init_header(&h, FENCED_CMD_DOMAIN_INFO, 0);
 
 	memset(reply, 0, sizeof(reply));
 
@@ -283,7 +284,7 @@ int fenced_domain_nodes(int type, int max, int *count, struct fenced_node *nodes
 	int reply_len;
 	int fd, rv, result, node_count;
 
-	init_header(&h, FENCED_CMD_DOMAIN_NODES, sizeof(h));
+	init_header(&h, FENCED_CMD_DOMAIN_NODES, 0);
 	h.option = type;
 	h.data = max;
 

@@ -263,47 +263,57 @@ static int do_external(char *name, char *extra, int extra_len)
 	return rv;
 }
 
+static void init_header(struct fenced_header *h, int cmd, int result,
+			int extra_len)
+{
+	memset(h, 0, sizeof(struct fenced_header));
+
+	h->magic = FENCED_MAGIC;
+	h->version = FENCED_VERSION;
+	h->len = sizeof(struct fenced_header) + extra_len;
+	h->command = cmd;
+	h->data = result;
+}
+
 /* combines a header and the data and sends it back to the client in
    a single do_write() call */
 
-static void do_reply(int f, int cmd, int result, char *buf, int len)
+static void do_reply(int f, int cmd, int result, char *buf, int buflen)
 {
-	struct fenced_header *rh;
 	char *reply;
 	int reply_len;
 
-	reply_len = sizeof(struct fenced_header) + len;
+	reply_len = sizeof(struct fenced_header) + buflen;
 	reply = malloc(reply_len);
 	if (!reply)
 		return;
 	memset(reply, 0, reply_len);
 
-	rh = (struct fenced_header *)reply;
+	init_header((struct fenced_header *)reply, cmd, result, buflen);
 
-	rh->magic = FENCED_MAGIC;
-	rh->version = FENCED_VERSION;
-	rh->len = reply_len;
-	rh->command = cmd;
-	rh->data = result;
-
-	if (buf)
-		memcpy(reply + sizeof(struct fenced_header), buf, len);
+	if (buf && buflen)
+		memcpy(reply + sizeof(struct fenced_header), buf, buflen);
 
 	do_write(f, reply, reply_len);
 
 	free(reply);
 }
 
-/* dump can do 1, 2, or 3 separate writes:
-   first write is the header,
-   second write is the tail of log,
-   third is the head of the log */
-
 static void query_dump_debug(int f)
 {
+	struct fenced_header h;
+	int extra_len;
 	int len;
 
-	do_reply(f, FENCED_CMD_DUMP_DEBUG, 0, NULL, 0);
+	/* in the case of dump_wrap, extra_len will go in two writes,
+	   first the log tail, then the log head */
+	if (dump_wrap)
+		extra_len = FENCED_DUMP_SIZE;
+	else
+		extra_len = dump_point;
+
+	init_header(&h, FENCED_CMD_DUMP_DEBUG, 0, extra_len);
+	do_write(f, &h, sizeof(h));
 
 	if (dump_wrap) {
 		len = FENCED_DUMP_SIZE - dump_point;

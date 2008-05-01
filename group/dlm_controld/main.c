@@ -76,23 +76,6 @@ int do_write(int fd, void *buf, size_t count)
 	return 0;
 }
 
-static void query_dump_debug(int fd)
-{
-	int len;
-
-	if (dump_wrap) {
-		len = DLMC_DUMP_SIZE - dump_point;
-		do_write(fd, dump_buf + dump_point, len);
-		len = dump_point;
-	} else
-		len = dump_point;
-
-	/* NUL terminate the debug string */
-	dump_buf[dump_point] = '\0';
-
-	do_write(fd, dump_buf, len);
-}
-
 static void client_alloc(void)
 {
 	int i;
@@ -383,6 +366,182 @@ static int setup_uevent(void)
 	return s;
 }
 
+static void init_header(struct dlmc_header *h, int cmd, char *name, int result,
+			int extra_len)
+{
+	memset(h, 0, sizeof(struct dlmc_header));
+
+	h->magic = DLMC_MAGIC;
+	h->version = DLMC_VERSION;
+	h->len = sizeof(struct dlmc_header) + extra_len;
+	h->command = cmd;
+	h->data = result;
+
+	if (name)
+		strncpy(h->name, name, DLM_LOCKSPACE_LEN);
+}
+
+static void query_dump_debug(int fd)
+{
+	struct dlmc_header h;
+	int extra_len;
+	int len;
+
+	/* in the case of dump_wrap, extra_len will go in two writes,
+	   first the log tail, then the log head */
+	if (dump_wrap)
+		extra_len = DLMC_DUMP_SIZE;
+	else
+		extra_len = dump_point;
+
+	init_header(&h, DLMC_CMD_DUMP_DEBUG, NULL, 0, extra_len);
+	do_write(fd, &h, sizeof(h));
+
+	if (dump_wrap) {
+		len = DLMC_DUMP_SIZE - dump_point;
+		do_write(fd, dump_buf + dump_point, len);
+		len = dump_point;
+	} else
+		len = dump_point;
+
+	/* NUL terminate the debug string */
+	dump_buf[dump_point] = '\0';
+
+	do_write(fd, dump_buf, len);
+}
+
+static void query_dump_plocks(int fd, char *name)
+{
+	struct lockspace *ls;
+	struct dlmc_header h;
+	int rv;
+
+	ls = find_ls(name);
+	if (!ls) {
+		plock_dump_len = 0;
+		rv = -ENOENT;
+	} else {
+		/* writes to plock_dump_buf and sets plock_dump_len */
+		rv = fill_plock_dump_buf(ls);
+	}
+
+	init_header(&h, DLMC_CMD_DUMP_PLOCKS, name, rv, plock_dump_len);
+
+	do_write(fd, &h, sizeof(h));
+
+	if (plock_dump_len)
+		do_write(fd, plock_dump_buf, plock_dump_len);
+}
+
+/* combines a header and the data and sends it back to the client in
+   a single do_write() call */
+
+static void do_reply(int fd, int cmd, char *name, int result, char *buf, int buflen)
+{
+	char *reply;
+	int reply_len;
+
+	reply_len = sizeof(struct dlmc_header) + buflen;
+	reply = malloc(reply_len);
+	if (!reply)
+		return;
+	memset(reply, 0, reply_len);
+
+	init_header((struct dlmc_header *)reply, cmd, name, result, buflen);
+
+	if (buf && buflen)
+		memcpy(reply + sizeof(struct dlmc_header), buf, buflen);
+
+	do_write(fd, reply, reply_len);
+
+	free(reply);
+}
+
+static void query_node_info(int fd, char *name, int nodeid)
+{
+	struct lockspace *ls;
+	struct dlmc_node node;
+	int rv;
+
+	ls = find_ls(name);
+	if (!ls) {
+		rv = -ENOENT;
+		goto out;
+	}
+
+	if (group_mode == GROUP_LIBGROUP)
+		rv = set_node_info_group(ls, nodeid, &node);
+	else
+		rv = set_node_info(ls, nodeid, &node);
+ out:
+	do_reply(fd, DLMC_CMD_NODE_INFO, name, rv,
+		 (char *)&node, sizeof(node));
+}
+
+static void query_lockspace_info(int fd, char *name)
+{
+	struct lockspace *ls;
+	struct dlmc_lockspace lockspace;
+	int rv;
+
+	ls = find_ls(name);
+	if (!ls) {
+		rv = -ENOENT;
+		goto out;
+	}
+
+	if (group_mode == GROUP_LIBGROUP)
+		rv = set_lockspace_info_group(ls, &lockspace);
+	else
+		rv = set_lockspace_info(ls, &lockspace);
+ out:
+	do_reply(fd, DLMC_CMD_LOCKSPACE_INFO, name, rv,
+		 (char *)&lockspace, sizeof(lockspace));
+}
+
+static void query_lockspace_nodes(int fd, char *name, int option, int max)
+{
+	struct lockspace *ls;
+	int node_count = 0;
+	struct dlmc_node *nodes = NULL;
+	int rv, result;
+
+	ls = find_ls(name);
+	if (!ls) {
+		result = -ENOENT;
+		node_count = 0;
+		goto out;
+	}
+
+	if (group_mode == GROUP_LIBGROUP)
+		rv = set_lockspace_nodes_group(ls, option, &node_count, &nodes);
+	else
+		rv = set_lockspace_nodes(ls, option, &node_count, &nodes);
+
+	if (rv < 0) {
+		result = rv;
+		node_count = 0;
+		goto out;
+	}
+
+	/* node_count is the number of structs copied/returned; the caller's
+	   max may be less than that, in which case we copy as many as they
+	   asked for and return -E2BIG */
+
+	if (node_count > max) {
+		result = -E2BIG;
+		node_count = max;
+	} else {
+		result = node_count;
+	}
+ out:
+	do_reply(fd, DLMC_CMD_LOCKSPACE_NODES, name, result,
+		 (char *)nodes, node_count * sizeof(struct dlmc_node));
+
+	if (nodes)
+		free(nodes);
+}
+
 static void process_connection(int ci)
 {
 	struct dlmc_header h;
@@ -424,15 +583,33 @@ static void process_connection(int ci)
 
 	switch (h.command) {
 	case DLMC_CMD_FS_REGISTER:
-		/* TODO */
+		ls = find_ls(h.name);
+		if (group_mode == GROUP_LIBGROUP) {
+			rv = -EINVAL;
+		} else if (!ls) {
+			rv = -ENOENT;
+		} else {
+			ls->fs_registered = 1;
+			rv = 0;
+		}
+		do_reply(client[ci].fd, DLMC_CMD_FS_REGISTER, h.name, rv,
+			 NULL, 0);
 		break;
 
 	case DLMC_CMD_FS_UNREGISTER:
-		/* TODO */
+		ls = find_ls(h.name);
+		if (ls)
+			ls->fs_registered = 0;
 		break;
 
 	case DLMC_CMD_FS_NOTIFIED:
-		/* TODO */
+		ls = find_ls(h.name);
+		if (ls)
+			rv = set_fs_notified(ls, h.data);
+		else
+			rv = -ENOENT;
+		do_reply(client[ci].fd, DLMC_CMD_FS_NOTIFIED, h.name, rv,
+			 NULL, 0);
 		break;
 
 	case DLMC_CMD_DEADLOCK_CHECK:
@@ -552,16 +729,16 @@ static void *process_queries(void *arg)
 			query_dump_debug(f);
 			break;
 		case DLMC_CMD_DUMP_PLOCKS:
-			/* query_dump_plocks(f); */
+			query_dump_plocks(f, h.name);
 			break;
 		case DLMC_CMD_NODE_INFO:
-			/* query_node_info(f, h.data); */
+			query_node_info(f, h.name, h.data);
 			break;
 		case DLMC_CMD_LOCKSPACE_INFO:
-			/* query_lockspace_info(f); */
+			query_lockspace_info(f, h.name);
 			break;
 		case DLMC_CMD_LOCKSPACE_NODES:
-			/* query_lockspace_nodes(f, h.option, h.data); */
+			query_lockspace_nodes(f, h.name, h.option, h.data);
 			break;
 		default:
 			break;
@@ -1023,4 +1200,6 @@ char daemon_debug_buf[256];
 char dump_buf[DLMC_DUMP_SIZE];
 int dump_point;
 int dump_wrap;
+char plock_dump_buf[DLMC_DUMP_SIZE];
+int plock_dump_len;
 

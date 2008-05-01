@@ -86,6 +86,8 @@ extern char daemon_debug_buf[256];
 extern char dump_buf[DLMC_DUMP_SIZE];
 extern int dump_point;
 extern int dump_wrap;
+extern char plock_dump_buf[DLMC_DUMP_SIZE];
+extern int plock_dump_len;
 
 void daemon_dump_save(void);
 
@@ -202,7 +204,7 @@ int set_sysfs_control(char *name, int val);
 int set_sysfs_event_done(char *name, int val);
 int set_sysfs_id(char *name, uint32_t id);
 int set_configfs_members(char *name, int new_count, int *new_members,
-			 int renew_count, int *renew_members);
+			int renew_count, int *renew_members);
 void clear_configfs(void);
 int add_configfs_node(int nodeid, char *addr, int addrlen, int local);
 void del_configfs_node(int nodeid);
@@ -218,12 +220,17 @@ int dlm_join_lockspace(struct lockspace *ls);
 int dlm_leave_lockspace(struct lockspace *ls);
 char *msg_name(int type);
 void update_flow_control_status(void);
+int set_node_info(struct lockspace *ls, int nodeid, struct dlmc_node *node);
+int set_lockspace_info(struct lockspace *ls, struct dlmc_lockspace *lockspace);
+int set_lockspace_nodes(struct lockspace *ls, int option, int *node_count,
+			struct dlmc_node **nodes);
+int set_fs_notified(struct lockspace *ls, int nodeid);
 
 /* deadlock.c */
 void setup_deadlock(void);
 void send_cycle_start(struct lockspace *ls);
 void receive_checkpoint_ready(struct lockspace *ls, struct dlm_header *hd,
-			      int len);
+			int len);
 void receive_cycle_start(struct lockspace *ls, struct dlm_header *hd, int len);
 void receive_cycle_end(struct lockspace *ls, struct dlm_header *hd, int len);
 void receive_cancel_lock(struct lockspace *ls, struct dlm_header *hd, int len);
@@ -264,13 +271,18 @@ void close_plock_checkpoint(struct lockspace *ls);
 void store_plocks(struct lockspace *ls);
 void retrieve_plocks(struct lockspace *ls);
 void purge_plocks(struct lockspace *ls, int nodeid, int unmount);
-int dump_plocks(char *name, int fd);
+int fill_plock_dump_buf(struct lockspace *ls);
 
 /* group.c */
 int setup_groupd(void);
 void process_groupd(int ci);
 int dlm_join_lockspace_group(struct lockspace *ls);
 int dlm_leave_lockspace_group(struct lockspace *ls);
+int set_node_info_group(struct lockspace *ls, int nodeid, struct dlmc_node *node);
+int set_lockspace_info_group(struct lockspace *ls,
+			struct dlmc_lockspace *lockspace);
+int set_lockspace_nodes_group(struct lockspace *ls, int option, int *node_count,
+			struct dlmc_node **nodes);
 
 #endif
 

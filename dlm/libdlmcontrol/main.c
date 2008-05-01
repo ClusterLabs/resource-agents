@@ -84,27 +84,28 @@ static int do_connect(char *sock_path)
 	return fd;
 }
 
-static void init_header(struct dlmc_header *h, char *name, int cmd, int len)
+static void init_header(struct dlmc_header *h, int cmd, char *name,
+			int extra_len)
 {
 	memset(h, 0, sizeof(struct dlmc_header));
 
 	h->magic = DLMC_MAGIC;
 	h->version = DLMC_VERSION;
-	h->len = len;
+	h->len = sizeof(struct dlmc_header) + extra_len;
 	h->command = cmd;
 
 	if (name)
-		strncpy(h->name, name, DLM_LOCKSPACE_LEN); /* no term null in header */
+		strncpy(h->name, name, DLM_LOCKSPACE_LEN);
 }
 
-int do_dump(int type, char *name, char *buf)
+int do_dump(int cmd, char *name, char *buf)
 {
 	struct dlmc_header h, *rh;
 	char *reply;
 	int reply_len;
 	int fd, rv;
 
-	init_header(&h, name, type, sizeof(h));
+	init_header(&h, cmd, name, 0);
 
 	reply_len = sizeof(struct dlmc_header) + DLMC_DUMP_SIZE;
 	reply = malloc(reply_len);
@@ -156,7 +157,7 @@ int dlmc_node_info(char *name, int nodeid, struct dlmc_node *node)
 	char reply[sizeof(struct dlmc_header) + sizeof(struct dlmc_node)];
 	int fd, rv;
 
-	init_header(&h, name, DLMC_CMD_NODE_INFO, sizeof(h));
+	init_header(&h, DLMC_CMD_NODE_INFO, name, 0);
 	h.data = nodeid;
 
 	memset(reply, 0, sizeof(reply));
@@ -194,7 +195,7 @@ int dlmc_lockspace_info(char *name, struct dlmc_lockspace *lockspace)
 	char reply[sizeof(struct dlmc_header) + sizeof(struct dlmc_lockspace)];
 	int fd, rv;
 
-	init_header(&h, name, DLMC_CMD_LOCKSPACE_INFO, sizeof(h));
+	init_header(&h, DLMC_CMD_LOCKSPACE_INFO, name, 0);
 
 	memset(reply, 0, sizeof(reply));
 
@@ -225,14 +226,15 @@ int dlmc_lockspace_info(char *name, struct dlmc_lockspace *lockspace)
 	return rv;
 }
 
-int dlmc_lockspace_nodes(char *name, int type, int max, int *count, struct dlmc_node *nodes)
+int dlmc_lockspace_nodes(char *name, int type, int max, int *count,
+			 struct dlmc_node *nodes)
 {
 	struct dlmc_header h, *rh;
 	char *reply;
 	int reply_len;
 	int fd, rv, result, node_count;
 
-	init_header(&h, name, DLMC_CMD_LOCKSPACE_NODES, sizeof(h));
+	init_header(&h, DLMC_CMD_LOCKSPACE_NODES, name, 0);
 	h.option = type;
 	h.data = max;
 
@@ -295,7 +297,7 @@ int dlmc_fs_register(int fd, char *name)
 {
 	struct dlmc_header h;
 
-	init_header(&h, name, DLMC_CMD_FS_REGISTER, sizeof(h));
+	init_header(&h, DLMC_CMD_FS_REGISTER, name, 0);
 
 	return do_write(fd, &h, sizeof(h));
 }
@@ -304,7 +306,7 @@ int dlmc_fs_unregister(int fd, char *name)
 {
 	struct dlmc_header h;
 
-	init_header(&h, name, DLMC_CMD_FS_UNREGISTER, sizeof(h));
+	init_header(&h, DLMC_CMD_FS_UNREGISTER, name, 0);
 
 	return do_write(fd, &h, sizeof(h));
 }
@@ -313,7 +315,7 @@ int dlmc_fs_notified(int fd, char *name, int nodeid)
 {
 	struct dlmc_header h;
 
-	init_header(&h, name, DLMC_CMD_FS_NOTIFIED, sizeof(h));
+	init_header(&h, DLMC_CMD_FS_NOTIFIED, name, 0);
 	h.data = nodeid;
 
 	return do_write(fd, &h, sizeof(h));
@@ -341,7 +343,7 @@ int dlmc_deadlock_check(char *name)
 	struct dlmc_header h;
 	int fd, rv;
 
-	init_header(&h, name, DLMC_CMD_DEADLOCK_CHECK, sizeof(h));
+	init_header(&h, DLMC_CMD_DEADLOCK_CHECK, name, 0);
 
 	fd = do_connect(DLMC_SOCK_PATH);
 	if (fd < 0) {

@@ -36,7 +36,7 @@ struct node {
 	int check_fencing;
 	int check_quorum;
 	int check_fs;
-	int fs_notify;
+	int fs_notified;
 	uint64_t add_time;
 };
 
@@ -442,7 +442,7 @@ static int check_fs_done(struct lockspace *ls)
 		if (!node->check_fs)
 			continue;
 
-		if (node->fs_notify) {
+		if (node->fs_notified) {
 			node->check_fs = 0;
 		} else {
 			log_group(ls, "check_fs %d needs fs notify",
@@ -1436,6 +1436,43 @@ int setup_cpg(void)
 	   the cluster before we start processing uevents?  Could this
 	   also help in handling transient partitions? */
 
+	return 0;
+}
+
+/* fs_controld has seen nodedown for nodeid; it's now ok for dlm to do
+   recovery for the failed node */
+
+int set_fs_notified(struct lockspace *ls, int nodeid)
+{
+	struct node *node;
+
+	/* this shouldn't happen */
+	node = get_node_history(ls, nodeid);
+	if (!node)
+		return -ESRCH;
+
+	/* this can happen, we haven't seen a nodedown for this node yet,
+	   but we should soon */
+	if (!node->check_fs)
+		return -EAGAIN;
+
+	node->fs_notified = 1;
+	return 0;
+}
+
+int set_node_info(struct lockspace *ls, int nodeid, struct dlmc_node *node)
+{
+	return 0;
+}
+
+int set_lockspace_info(struct lockspace *ls, struct dlmc_lockspace *lockspace)
+{
+	return 0;
+}
+
+int set_lockspace_nodes(struct lockspace *ls, int option, int *node_count,
+                        struct dlmc_node **nodes)
+{
 	return 0;
 }
 

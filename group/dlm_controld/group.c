@@ -240,3 +240,20 @@ int setup_groupd(void)
 	return rv;
 }
 
+int set_node_info_group(struct lockspace *ls, int nodeid, struct dlmc_node *node)
+{
+	return 0;
+}
+
+int set_lockspace_info_group(struct lockspace *ls,
+			     struct dlmc_lockspace *lockspace)
+{
+	return 0;
+}
+
+int set_lockspace_nodes_group(struct lockspace *ls, int option, int *node_count,
+			      struct dlmc_node **nodes)
+{
+	return 0;
+}
+
