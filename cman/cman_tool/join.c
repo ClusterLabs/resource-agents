@@ -17,7 +17,6 @@
 #include <netinet/in.h>
 #include "libcman.h"
 #include "cman_tool.h"
-#include "ccs.h"
 
 static char *argv[128];
 static char *envp[128];
@@ -60,16 +59,7 @@ int join(commandline_t *comline)
 	cman_handle_t h;
 	int status;
 	pid_t aisexec_pid;
-	int ctree;
 	int p[2];
-
-	if (!comline->noccs_opt) {
-		ctree = ccs_force_connect(NULL, 1);
-		if (ctree < 0) {
-			die("ccsd is not running\n");
-		}
-		ccs_disconnect(ctree);
-	}
 
         /*
 	 * If we can talk to cman then we're already joined (or joining);
@@ -119,8 +109,8 @@ int join(commandline_t *comline)
 		snprintf(scratch, sizeof(scratch), "CMAN_DEBUGLOG=%d", comline->verbose);
 		envp[envptr++] = strdup(scratch);
 	}
-	if (comline->noccs_opt) {
-		envp[envptr++] = strdup("CMAN_NOCCS=true");
+	if (comline->noconfig_opt) {
+		envp[envptr++] = strdup("CMAN_NOCONFIG=true");
 		envp[envptr++] = strdup("OPENAIS_DEFAULT_CONFIG_IFACE=cmanpreconfig");
 	}
 	else {

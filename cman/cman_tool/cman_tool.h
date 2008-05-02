@@ -84,7 +84,6 @@ struct commandline
 	int two_node;
 	int port;
 	char clustername[MAX_CLUSTER_NAME_LEN];
-	int no_ccs;
 	int remove;
 	int force;
         int verbose;
@@ -102,13 +101,12 @@ struct commandline
 	int wait_quorate_opt;
 	int fence_opt;
 	int addresses_opt;
-	int noccs_opt;
+	int noconfig_opt;
 	int nosetpri_opt;
 };
 typedef struct commandline commandline_t;
 
 int join(commandline_t *comline);
-int get_ccs_join_info(commandline_t *comline);
 char *cman_error(int err);
 
 #endif  /*  __CMAN_TOOL_DOT_H__  */

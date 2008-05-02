@@ -26,10 +26,10 @@ OBJS=	main.o \
 	join.o
 
 CFLAGS += -DAISEXECBIN=\"${aisexecbin}\"
-CFLAGS += -I${ccsincdir} -I${cmanincdir}
+CFLAGS += -I${cmanincdir}
 CFLAGS += -I${incdir}
 
-LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
+LDFLAGS += -L${cmanlibdir} -lcman
 
 
 ${TARGET}: ${OBJS}

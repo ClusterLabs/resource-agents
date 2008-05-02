@@ -52,8 +52,9 @@ static void print_usage(int subcmd)
 
 	if (!subcmd || subcmd == OP_JOIN) {
 		printf("join\n");
-		printf("  Cluster & node information is taken from CCS. These switches are provided to \n");
-		printf("  to allow CCS values to be overridden. Use them with extreme care.\n\n");
+		printf("  Cluster & node information is taken from configuration modules.\n");
+		printf("  These switches are provided to allow those values to be overridden.\n");
+		printf("  Use them with extreme care.\n\n");
 
 		printf("  -m <addr>        Multicast address to use\n");
 		printf("  -v <votes>       Number of votes this node has\n");
@@ -68,7 +69,7 @@ static void print_usage(int subcmd)
 		printf("  -t               Maximum time (in seconds) to wait\n");
 		printf("  -k <file>        Private key file for AIS communications\n");
 		printf("  -P               Don't set aisexec to realtime priority\n");
-		printf("  -X               Don't use CCS for configuration\n");
+		printf("  -X               Use internal cman defaults for configuration\n");
 		printf("\n");
 	}
 
@@ -870,7 +871,7 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 			break;
 
 		case 'X':
-			comline->noccs_opt = TRUE;
+			comline->noconfig_opt = TRUE;
 			break;
 
 		case 'P':

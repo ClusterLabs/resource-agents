@@ -905,7 +905,7 @@ static int cmanpre_readconfig(struct objdb_iface_ver0 *objdb, char **error_strin
         }
 
 	get_env_overrides();
-	if (getenv("CMAN_NOCCS"))
+	if (getenv("CMAN_NOCONFIG"))
 		ret = set_noccs_defaults(objdb);
 	else
 		ret = get_cman_globals(objdb);
