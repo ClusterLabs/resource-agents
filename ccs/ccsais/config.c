@@ -29,7 +29,7 @@
 #include <openais/lcr/lcr_comp.h>
 #include <openais/service/swab.h>
 
-#include "ccs.h"
+#include "libccscompat.h"
 #include "logging.h"
 
 #define CONFIG_VERSION_PATH	"/cluster/@config_version"

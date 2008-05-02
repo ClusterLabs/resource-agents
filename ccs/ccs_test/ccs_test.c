@@ -20,12 +20,19 @@
 
 static void print_usage(FILE *stream);
 
+static int disconnect() {
+	if (ccs_disconnect(1) < 0)
+		return 1;
+
+	return 0;
+}
+
 int main(int argc, char *argv[]){
   int desc=0;
   int i=0;
   int error = 0;
   int force = 0, blocking = 0;
-  char *str=NULL, *str2=NULL;
+  char *str=NULL;
   char *cluster_name = NULL;
 
   if(argc <= 1){
@@ -77,6 +84,7 @@ int main(int argc, char *argv[]){
     } else {
       printf("Connect successful.\n");
       printf(" Connection descriptor = %d\n", desc);
+      disconnect();
     }
   }
   else if(!strcmp(argv[1], "disconnect")){
@@ -84,8 +92,8 @@ int main(int argc, char *argv[]){
       fprintf(stderr, "Wrong number of arguments.\n");
       exit(EXIT_FAILURE);
     }
-    desc = atoi(argv[2]);
-    if((error = ccs_disconnect(desc))){
+    desc = ccs_connect();
+    if((error = disconnect())){
       fprintf(stderr, "ccs_disconnect failed: %s\n", strerror(-error));
       exit(EXIT_FAILURE);
     } else {
@@ -97,29 +105,15 @@ int main(int argc, char *argv[]){
       fprintf(stderr, "Wrong number of arguments.\n");
       exit(EXIT_FAILURE);
     }
-    desc = atoi(argv[2]);
-    if((error = ccs_get(desc, argv[3], &str))){
+    desc = ccs_connect();
+    if((desc < 0) || (error = ccs_get(desc, argv[3], &str))){
       fprintf(stderr, "ccs_get failed: %s\n", strerror(-error));
       exit(EXIT_FAILURE);
     } else {
       printf("Get successful.\n");
       printf(" Value = <%s>\n", str);
       if(str)free(str);
-    }
-  }
-  else if(!strcmp(argv[1], "get_list")){
-    if(argc < 4){
-      fprintf(stderr, "Wrong number of arguments.\n");
-      exit(EXIT_FAILURE);
-    }
-    desc = atoi(argv[2]);
-    if((error = ccs_get_list(desc, argv[3], &str))){
-      fprintf(stderr, "ccs_get failed: %s\n", strerror(-error));
-      exit(EXIT_FAILURE);
-    } else {
-      printf("Get successful.\n");
-      printf(" Value = <%s>\n", str);
-      if(str)free(str);
+      disconnect();
     }
   }
   else if(!strcmp(argv[1], "set")){
@@ -127,44 +121,16 @@ int main(int argc, char *argv[]){
       fprintf(stderr, "Wrong number of arguments.\n");
       exit(EXIT_FAILURE);
     }
-    desc = atoi(argv[2]);
-    if((error = ccs_set(desc, argv[3], argv[4]))){
+    desc = ccs_connect();
+    if((desc < 0) || (error = ccs_set(desc, argv[3], argv[4]))){
       fprintf(stderr, "ccs_set failed: %s\n", strerror(-error));
       exit(EXIT_FAILURE);
     } else {
       printf("Set successful.\n");
+      disconnect();
     }
   }
-  else if(!strcmp(argv[1], "get_state")){
-    if(argc < 3){
-      fprintf(stderr, "Wrong number of arguments.\n");
-      exit(EXIT_FAILURE);
-    }
-    desc = atoi(argv[2]);
-    if((error = ccs_get_state(desc, &str, &str2))){
-      fprintf(stderr, "ccs_get_state failed: %s\n", strerror(-error));
-      exit(EXIT_FAILURE);
-    } else {
-      printf("Get state successful.\n");
-      printf(" Current working path: %s\n", str);
-      printf(" Previous query      : %s\n", str2);
-      if(str) free(str);
-      if(str2) free(str2);
-    }
-  }
-  else if(!strcmp(argv[1], "set_state")){
-    if(argc < 4){
-      fprintf(stderr, "Wrong number of arguments.\n");
-      exit(EXIT_FAILURE);
-    }
-    desc = atoi(argv[2]);
-    if((error = ccs_set_state(desc, argv[3], 0))){
-      fprintf(stderr, "ccs_set_state failed: %s\n", strerror(-error));
-      exit(EXIT_FAILURE);
-    } else {
-      printf("Set state successful.\n");
-    }
-  } else {
+  else {
     fprintf(stderr, "Unknown command: %s\n", argv[1]);
     exit(EXIT_FAILURE);
   }
@@ -187,9 +153,6 @@ static void print_usage(FILE *stream){
 	  "  connect <force> <block>   Connect to CCS and return connection descriptor.\n"
 	  "  disconnect <desc>         Disconnect from CCS.\n"
 	  "  get <desc> <request>      Get a value from CCS.\n"
-	  "  get_list <desc> <request> Get a value from CCS.\n"
 	  "  set <desc> <path> <val>   Set a value in CCS.\n"
-	  "  get_state <desc>          Get the state in the connection.\n"
-	  "  set_state <desc> <ncwp>   Set the current working path.\n"
 	  );
 }

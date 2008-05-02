@@ -1,7 +1,7 @@
 ###############################################################################
 ###############################################################################
 ##
-##  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+##  Copyright (C) 2005-2008 Red Hat, Inc.  All rights reserved.
 ##  
 ##  This copyrighted material is made available to anyone wishing to use,
 ##  modify, copy, or redistribute it subject to the terms and conditions
@@ -29,11 +29,12 @@ OBJS=	ccs_tool.o \
 	editconf.o
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
-CFLAGS += -I${ccsincdir} -I${cmanincdir} `xml2-config --cflags`
-CFLAGS += -I$(S)/../include
+CFLAGS += -I${cmanincdir} `xml2-config --cflags`
+CFLAGS += -I$(S)/../libccscompat -I$(S)/../include
 CFLAGS += -I${incdir}
 
-LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
+LDFLAGS += -L../libccscompat -lccscompat
+LDFLAGS += -L${cmanlibdir} -lcman
 LDFLAGS += `xml2-config --libs` -L${libdir}
 
 
@@ -41,7 +42,7 @@ ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 depends:
-	$(MAKE) -C ../lib all
+	$(MAKE) -C ../libccscompat all
 
 clean: generalclean
 

@@ -23,7 +23,7 @@
 
 #include "debug.h"
 #include "comm_headers.h"
-#include "ccs.h"
+#include "libccscompat.h"
 
 #include <stdio.h>
 

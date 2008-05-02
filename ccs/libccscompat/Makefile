@@ -10,10 +10,7 @@
 ###############################################################################
 ###############################################################################
 
-TARGET= libccs.a
-
-LIBDIRT=$(TARGET)
-INCDIRT=ccs.h
+TARGET= libccscompat.a
 
 all: ${TARGET}
 
@@ -23,7 +20,7 @@ include $(OBJDIR)/make/clean.mk
 include $(OBJDIR)/make/install.mk
 include $(OBJDIR)/make/uninstall.mk
 
-OBJS=	libccs.o
+OBJS=	libccscompat.o
 
 CFLAGS += -D_FILE_OFFSET_BITS=64
 CFLAGS += -fPIC

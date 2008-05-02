@@ -24,7 +24,7 @@
 #include <arpa/inet.h>
 
 #include "comm_headers.h"
-#include "ccs.h"
+#include "libccscompat.h"
 #include "libcman.h"
 
 typedef struct member_list {

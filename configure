@@ -219,8 +219,8 @@ if ($help || !$err) {
   print "--kernel_build=\tthe directory containing the kernel object tree you wish to\n\t\tcompile against. (Default: /lib/modules/`uname -r`/build\n\t\tif available or /usr/src/linux as fallback)\n";
   print "--kernel_src=\tthe directory containing the kernel source you wish to\n\t\tcompile against.  (Default: /lib/modules/`uname -r`/source\n\t\tif available or \$kernel_build as fallback)\n";
   print "--incdir=\tthe base directory for include files.  (Default: {prefix}/include)\n";
-  print "--ccsincdir=\tthe base directory for ccs include files.  (Default: ./ccs/lib)\n";
-  print "--ccslibdir=\tthe base directory for ccs libraries.  (Default: ./ccs/lib)\n";
+  print "--ccsincdir=\tthe base directory for ccs include files.  (Default: ./ccs/libccsconfdb)\n";
+  print "--ccslibdir=\tthe base directory for ccs libraries.  (Default: ./ccs/libccsconfdb)\n";
   print "--cmanincdir=\tthe base directory for cman include files.  (Default: ./cman/lib)\n";
   print "--cmanlibdir=\tthe base directory for cman libraries.  (Default: ./cman/lib)\n";
   print "--dlmincdir=\tthe base directory for dlm include files.  (Default: ./dlm/libdlm)\n";
@@ -416,10 +416,10 @@ if (!$libdir) {
   $libdir="${prefix}/lib";
 }
 if (!$ccsincdir) {
-  $ccsincdir="${cdir}/ccs/lib";
+  $ccsincdir="${cdir}/ccs/libccsconfdb";
 }
 if (!$ccslibdir) {
-  $ccslibdir="${objdir}/ccs/lib";
+  $ccslibdir="${objdir}/ccs/libccsconfdb";
 }
 if (!$cmanincdir) {
   $cmanincdir="${cdir}/cman/lib";

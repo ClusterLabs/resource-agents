@@ -35,7 +35,7 @@ ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 depends:
-	$(MAKE) -C ../lib all
+	$(MAKE) -C ../libccsconfdb all
 
 clean: generalclean
 
