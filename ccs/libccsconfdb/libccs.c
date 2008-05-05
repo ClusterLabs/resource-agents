@@ -21,6 +21,7 @@
 #include <netdb.h>
 #include <ctype.h>
 #include <errno.h>
+#include <limits.h>
 #include <openais/saAis.h>
 #include <openais/confdb.h>
 
