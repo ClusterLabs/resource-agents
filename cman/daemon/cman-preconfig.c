@@ -675,11 +675,14 @@ static void add_cman_overrides(struct objdb_iface_ver0 *objdb)
 			       &object_handle) == 0) {
 		unsigned int logger_object_handle;
 		char *logstr;
+		char *logfacility;
 
-		/* Default logging facility is "local4" unless overridden by the user */
+
+		logfacility = logsys_facility_name_get(SYSLOGFACILITY);
+
 		if (objdb_get_string(objdb, object_handle, "syslog_facility", &logstr)) {
 			objdb->object_key_create(object_handle, "syslog_facility", strlen("syslog_facility"),
-						 "local4", strlen("local4")+1);
+						 logfacility, strlen(logfacility)+1);
 		}
 
 		objdb->object_create(object_handle, &logger_object_handle,
