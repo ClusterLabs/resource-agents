@@ -59,7 +59,7 @@ struct change {
 	int state;
 	int we_joined;
 	uint32_t seq; /* used as a reference for debugging, and for queries */
-	uint32_t combined_seq; /* for queries */ 
+	uint32_t combined_seq; /* for queries */
 };
 
 char *msg_name(int type)

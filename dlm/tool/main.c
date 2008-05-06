@@ -35,10 +35,12 @@
 #define OP_JOIN				1
 #define OP_LEAVE			2
 #define OP_JOINLEAVE			3
-#define OP_SPACES			4
-#define OP_LOCKDUMP			5
-#define OP_LOCKDEBUG			6
-#define OP_DEADLOCK_CHECK		7
+#define OP_LIST				4
+#define OP_DEADLOCK_CHECK		5
+#define OP_DUMP				6
+#define OP_PLOCKS			7
+#define OP_LOCKDUMP			8
+#define OP_LOCKDEBUG			9
 
 static char *prog_name;
 static char *lsname;
@@ -53,7 +55,7 @@ static void print_usage(void)
 {
 	printf("Usage:\n");
 	printf("\n");
-	printf("%s [options] [join|leave|lockdump|lockdebug|deadlock_check]\n", prog_name);
+	printf("%s [options] [join|leave|lockdump|lockdebug|list|dump|plocks|deadlock_check]\n", prog_name);
 	printf("\n");
 	printf("Options:\n");
 	printf("  -v               Verbose output\n");
@@ -69,7 +71,7 @@ static void decode_arguments(int argc, char **argv)
 {
 	int cont = 1;
 	int optchar;
-	int need_lsname = 1;
+	int need_lsname;
 	char modebuf[8];
 
 	while (cont) {
@@ -123,7 +125,14 @@ static void decode_arguments(int argc, char **argv)
 		};
 	}
 
+	need_lsname = 1;
+
 	while (optind < argc) {
+
+		/*
+		 * libdlm
+		 */
+
 		if (!strncmp(argv[optind], "join", 4) &&
 		    (strlen(argv[optind]) == 4)) {
 			operation = OP_JOIN;
@@ -139,7 +148,41 @@ static void decode_arguments(int argc, char **argv)
 			operation = OP_JOINLEAVE;
 			opt_ind = optind + 1;
 			break;
-		} else if (!strncmp(argv[optind], "lockdump", 8) &&
+		}
+
+		/*
+		 * libdlmcontrol
+		 */
+
+		else if (!strncmp(argv[optind], "ls", 2) &&
+			   (strlen(argv[optind]) == 2)) {
+			operation = OP_LIST;
+			opt_ind = optind + 1;
+			need_lsname = 0;
+			break;
+		} else if (!strncmp(argv[optind], "deadlock_check", 14) &&
+			   (strlen(argv[optind]) == 14)) {
+			operation = OP_DEADLOCK_CHECK;
+			opt_ind = optind + 1;
+			break;
+		} else if (!strncmp(argv[optind], "dump", 4) &&
+			   (strlen(argv[optind]) == 4)) {
+			operation = OP_DUMP;
+			opt_ind = optind + 1;
+			need_lsname = 0;
+			break;
+		} else if (!strncmp(argv[optind], "plocks", 6) &&
+			   (strlen(argv[optind]) == 6)) {
+			operation = OP_PLOCKS;
+			opt_ind = optind + 1;
+			break;
+		}
+
+		/*
+		 * debugfs
+		 */
+
+		else if (!strncmp(argv[optind], "lockdump", 8) &&
 			   (strlen(argv[optind]) == 8)) {
 			operation = OP_LOCKDUMP;
 			opt_ind = optind + 1;
@@ -147,17 +190,6 @@ static void decode_arguments(int argc, char **argv)
 		} else if (!strncmp(argv[optind], "lockdebug", 9) &&
 			   (strlen(argv[optind]) == 9)) {
 			operation = OP_LOCKDEBUG;
-			opt_ind = optind + 1;
-			break;
-		} else if (!strncmp(argv[optind], "spaces", 9) &&
-			   (strlen(argv[optind]) == 6)) {
-			operation = OP_SPACES;
-			opt_ind = optind + 1;
-			need_lsname = 0;
-			break;
-		} else if (!strncmp(argv[optind], "deadlock_check", 14) &&
-			   (strlen(argv[optind]) == 14)) {
-			operation = OP_DEADLOCK_CHECK;
 			opt_ind = optind + 1;
 			break;
 		}
@@ -388,9 +420,142 @@ void do_lockdump(char *name)
 	fclose(file);
 }
 
-void do_spaces(void)
+char *lockspace_flags_str(uint32_t flags)
 {
-	/* TODO: get info from /sys/kernel/config/ */
+	static char str[128];
+
+	memset(str, 0, sizeof(str));
+
+	if (flags & DLMC_LF_JOINING)
+		strcat(str, "joining ");
+	if (flags & DLMC_LF_LEAVING)
+		strcat(str, "leaving ");
+	if (flags & DLMC_LF_KERNEL_STOPPED)
+		strcat(str, "kernel_stopped ");
+	if (flags & DLMC_LF_FS_REGISTERED)
+		strcat(str, "fs_registered ");
+	if (flags & DLMC_LF_NEED_PLOCKS)
+		strcat(str, "need_plocks ");
+	if (flags & DLMC_LF_SAVE_PLOCKS)
+		strcat(str, "save_plocks ");
+
+	return str;
+}
+
+static void show_ls(struct dlmc_lockspace *ls)
+{
+	printf("dlm lockspace \"%s\"\n", ls->name);
+	printf("global_id 0x%x flags 0x%x %s\n", ls->global_id, ls->flags,
+		lockspace_flags_str(ls->flags));
+
+	printf("prev change member_count %d joined_count %d remove_count %d "
+	       "failed_count %d\n",
+		ls->cg_prev.member_count, ls->cg_prev.joined_count,
+		ls->cg_prev.remove_count, ls->cg_prev.failed_count);
+	printf("prev change seq %x - %x\n",
+	        ls->cg_prev.combined_seq, ls->cg_prev.seq);
+
+	printf("next change member_count %d joined_count %d remove_count %d "
+	       "failed_count %d\n",
+		ls->cg_next.member_count, ls->cg_next.joined_count,
+		ls->cg_next.remove_count, ls->cg_next.failed_count);
+	printf("next change seq %x - %x\n",
+	        ls->cg_next.combined_seq, ls->cg_next.seq);
+
+	printf("next change wait_messages %d wait_condition %d\n",
+		ls->cg_next.wait_messages, ls->cg_next.wait_condition);
+}
+
+static void show_all_nodes(int count, struct dlmc_node *nodes)
+{
+	struct dlmc_node *n = nodes;
+	int i;
+
+	for (i = 0; i < count; i++) {
+		printf("%d added_seq 0x%x removed_seq 0x%x failed_reason %d flags 0x%x\n",
+			n->nodeid, n->added_seq, n->removed_seq,
+			n->failed_reason, n->flags);
+		n++;
+	}
+}
+
+static void show_nodeids(int count, struct dlmc_node *nodes)
+{
+	struct dlmc_node *n = nodes;
+	int i;
+
+	for (i = 0; i < count; i++) {
+		printf("%d ", n->nodeid);
+		n++;
+	}
+	printf("\n");
+}
+
+#define MAX_LS 128
+#define MAX_NODES 128
+
+struct dlmc_lockspace lss[MAX_LS];
+struct dlmc_node nodes[MAX_NODES];
+
+static void do_list(char *name)
+{
+	struct dlmc_lockspace *ls;
+	int node_count;
+	int ls_count;
+	int rv;
+	int i;
+
+	memset(lss, 0, sizeof(lss));
+
+	if (name) {
+		rv = dlmc_lockspace_info(name, lss);
+		if (rv < 0)
+			goto out;
+
+		show_ls(lss);
+		return;
+	}
+
+	rv = dlmc_lockspaces(MAX_LS, &ls_count, lss);
+	if (rv < 0)
+		goto out;
+
+	for (i = 0; i < ls_count; i++) {
+		ls = &lss[i];
+
+		show_ls(ls);
+
+		node_count = 0;
+		memset(&nodes, 0, sizeof(nodes));
+
+		rv = dlmc_lockspace_nodes(ls->name, DLMC_NODES_MEMBERS,
+					  MAX_NODES, &node_count, nodes);
+		printf("prev members ");
+		show_nodeids(node_count, nodes);
+
+		node_count = 0;
+		memset(&nodes, 0, sizeof(nodes));
+
+		rv = dlmc_lockspace_nodes(ls->name, DLMC_NODES_NEXT,
+			 		  MAX_NODES, &node_count, nodes);
+		printf("next members ");
+		show_nodeids(node_count, nodes);
+
+		if (!verbose)
+			continue;
+
+		node_count = 0;
+		memset(&nodes, 0, sizeof(nodes));
+
+		rv = dlmc_lockspace_nodes(ls->name, DLMC_NODES_ALL,
+					  MAX_NODES, &node_count, nodes);
+		printf("all nodes\n");
+		show_all_nodes(node_count, nodes);
+	}
+	return;
+ out:
+	fprintf(stderr, "dlm_controld lockspace query error %d\n", rv);
+
 }
 
 static void do_deadlock_check(char *name)
@@ -398,13 +563,37 @@ static void do_deadlock_check(char *name)
 	dlmc_deadlock_check(name);
 }
 
+static void do_plocks(char *name)
+{
+	char buf[DLMC_DUMP_SIZE];
+
+	memset(buf, 0, sizeof(buf));
+
+	dlmc_dump_plocks(name, buf);
+
+	do_write(STDOUT_FILENO, buf, strlen(buf));
+}
+
+static void do_dump(void)
+{
+	char buf[DLMC_DUMP_SIZE];
+
+	memset(buf, 0, sizeof(buf));
+
+	dlmc_dump_debug(buf);
+
+	do_write(STDOUT_FILENO, buf, strlen(buf));
+}
+
 int main(int argc, char **argv)
 {
 	prog_name = argv[0];
 	decode_arguments(argc, argv);
-	/* check_name(lsname); */
 
 	switch (operation) {
+
+	/* calls to libdlm; pass a command to dlm-kernel */
+
 	case OP_JOIN:
 		do_join(lsname);
 		break;
@@ -418,20 +607,31 @@ int main(int argc, char **argv)
 		do_leave(lsname);
 		break;
 
+	/* calls to libdlmcontrol; pass a command/query to dlm_controld */
+	case OP_LIST:
+		do_list(lsname);
+		break;
+
+	case OP_DUMP:
+		do_dump();
+		break;
+
+	case OP_PLOCKS:
+		do_plocks(lsname);
+		break;
+
+	case OP_DEADLOCK_CHECK:
+		do_deadlock_check(lsname);
+		break;
+
+	/* calls to read debugfs; query info from dlm-kernel */
+
 	case OP_LOCKDUMP:
 		do_lockdump(lsname);
 		break;
 
 	case OP_LOCKDEBUG:
 		do_lockdebug(lsname);
-		break;
-
-	case OP_SPACES:
-		do_spaces();
-		break;
-
-	case OP_DEADLOCK_CHECK:
-		do_deadlock_check(lsname);
 		break;
 	}
 	return 0;
