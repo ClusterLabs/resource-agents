@@ -38,6 +38,9 @@ struct node {
 	int check_fs;
 	int fs_notified;
 	uint64_t add_time;
+	uint32_t added_seq;	/* for queries */
+	uint32_t removed_seq;	/* for queries */
+	int failed_reason;	/* for queries */
 };
 
 /* One of these change structs is created for every confchg a cpg gets. */
@@ -55,7 +58,8 @@ struct change {
 	int failed_count;
 	int state;
 	int we_joined;
-	uint32_t seq; /* just used as a reference when debugging */
+	uint32_t seq; /* used as a reference for debugging, and for queries */
+	uint32_t combined_seq; /* for queries */ 
 };
 
 char *msg_name(int type)
@@ -289,7 +293,8 @@ static struct node *get_node_history(struct lockspace *ls, int nodeid)
 	return NULL;
 }
 
-static void node_history_init(struct lockspace *ls, int nodeid)
+static void node_history_init(struct lockspace *ls, int nodeid,
+			      struct change *cg)
 {
 	struct node *node;
 
@@ -305,6 +310,7 @@ static void node_history_init(struct lockspace *ls, int nodeid)
 	node->nodeid = nodeid;
 	node->add_time = 0;
 	list_add_tail(&node->list, &ls->node_history);
+	node->added_seq = cg->seq;	/* for queries */
 }
 
 static void node_history_start(struct lockspace *ls, int nodeid)
@@ -320,7 +326,8 @@ static void node_history_start(struct lockspace *ls, int nodeid)
 	node->add_time = time(NULL);
 }
 
-static void node_history_left(struct lockspace *ls, int nodeid)
+static void node_history_left(struct lockspace *ls, int nodeid,
+			      struct change *cg)
 {
 	struct node *node;
 
@@ -331,9 +338,12 @@ static void node_history_left(struct lockspace *ls, int nodeid)
 	}
 
 	node->add_time = 0;
+	node->check_quorum = 1;
+	node->removed_seq = cg->seq;	/* for queries */
 }
 
-static void node_history_fail(struct lockspace *ls, int nodeid)
+static void node_history_fail(struct lockspace *ls, int nodeid,
+			      struct change *cg, int reason)
 {
 	struct node *node;
 
@@ -348,6 +358,8 @@ static void node_history_fail(struct lockspace *ls, int nodeid)
 
 	node->check_quorum = 1;
 	node->check_fs = 1;
+	node->removed_seq = cg->seq;	/* for queries */
+	node->failed_reason = reason;	/* for queries */
 }
 
 static int check_fencing_done(struct lockspace *ls)
@@ -399,6 +411,8 @@ static int check_fencing_done(struct lockspace *ls)
 	return 1;
 }
 
+/* wait for cman to see all the same nodes removed, and to say there's quorum */
+
 static int check_quorum_done(struct lockspace *ls)
 {
 	struct node *node;
@@ -428,6 +442,8 @@ static int check_quorum_done(struct lockspace *ls)
 	log_group(ls, "check_quorum done");
 	return 1;
 }
+
+/* wait for local fs_controld to ack each failed node */
 
 static int check_fs_done(struct lockspace *ls)
 {
@@ -605,6 +621,7 @@ static void cleanup_changes(struct lockspace *ls)
 	ls->started_change = cg;
 
 	list_for_each_entry_safe(cg, safe, &ls->changes, list) {
+		ls->started_change->combined_seq = cg->seq; /* for queries */
 		list_del(&cg->list);
 		free_cg(cg);
 	}
@@ -836,11 +853,27 @@ static struct change *find_change(struct lockspace *ls, struct dlm_header *hd,
 	return NULL;
 }
 
+static int is_added(struct lockspace *ls, int nodeid)
+{
+	struct change *cg;
+	struct member *memb;
+
+	list_for_each_entry(cg, &ls->changes, list) {
+		memb = find_memb(cg, nodeid);
+		if (memb && memb->added)
+			return 1;
+	}
+	return 0;
+}
+
 /* We require new members (memb->added) to be joining the lockspace
    (memb->joining).  New members that are not joining the lockspace can happen
    when the cpg partitions and is then merged back together (shouldn't happen
    in general, but is possible).  We label these new members that are not
    joining as "disallowed", and ignore their start message. */
+
+/* The added/joining checks to detect disallowed nodes need to consider
+   the whole set of changes that are being started. */
 
 /* Handle spurious joins by ignoring this start message if the node says it's
    not joining (i.e. it's already a member), but we see it being added (i.e.
@@ -850,7 +883,7 @@ static void receive_start(struct lockspace *ls, struct dlm_header *hd, int len)
 {
 	struct change *cg;
 	struct member *memb;
-	int joining = 0;
+	int joining, added;
 	uint32_t seq = hd->msgdata;
 
 	log_group(ls, "receive_start %d:%u flags %x len %d", hd->nodeid, seq,
@@ -869,17 +902,28 @@ static void receive_start(struct lockspace *ls, struct dlm_header *hd, int len)
 
 	memb->start_flags = hd->flags;
 
-	if (memb->start_flags & DLM_MFLG_JOINING)
-		joining = 1;
+	joining = (memb->start_flags & DLM_MFLG_JOINING) ? 1 : 0;
+	added = is_added(ls, hd->nodeid);
 
-	if ((memb->added && !joining) || (!memb->added && joining)) {
+	if ((added && !joining) || (!added && joining)) {
 		log_error("receive_start %d:%u disallowed added %d joining %d",
-			  hd->nodeid, seq, memb->added, joining);
+			  hd->nodeid, seq, added, joining);
 		memb->disallowed = 1;
 	} else {
 		node_history_start(ls, hd->nodeid);
 		memb->start = 1;
 	}
+}
+
+static int we_joined(struct lockspace *ls)
+{
+	struct change *cg;
+
+	list_for_each_entry(cg, &ls->changes, list) {
+		if (cg->we_joined)
+			return 1;
+	}
+	return 0;
 }
 
 static void send_start(struct lockspace *ls)
@@ -903,7 +947,7 @@ static void send_start(struct lockspace *ls)
 	hd->type = DLM_MSG_START;
 	hd->msgdata = cg->seq;
 
-	if (cg->we_joined)
+	if (we_joined(ls))
 		hd->flags |= DLM_MFLG_JOINING;
 
 	if (!ls->need_plocks)
@@ -1059,8 +1103,10 @@ static int add_change(struct lockspace *ls,
 	memset(cg, 0, sizeof(struct change));
 	INIT_LIST_HEAD(&cg->members);
 	INIT_LIST_HEAD(&cg->removed);
-	cg->seq = ++ls->change_seq;
 	cg->state = CGST_WAIT_CONDITIONS;
+	cg->seq = ++ls->change_seq;
+	if (!cg->seq)
+		cg->seq = ++ls->change_seq;
 
 	cg->member_count = member_list_entries;
 	cg->joined_count = joined_list_entries;
@@ -1089,9 +1135,10 @@ static int add_change(struct lockspace *ls,
 		list_add_tail(&memb->list, &cg->removed);
 
 		if (memb->failed)
-			node_history_fail(ls, memb->nodeid);
+			node_history_fail(ls, memb->nodeid, cg,
+					  left_list[i].reason);
 		else
-			node_history_left(ls, memb->nodeid);
+			node_history_left(ls, memb->nodeid, cg);
 
 		log_group(ls, "add_change %u nodeid %d remove reason %d",
 			  cg->seq, memb->nodeid, left_list[i].reason);
@@ -1109,15 +1156,17 @@ static int add_change(struct lockspace *ls,
 		if (memb->nodeid == our_nodeid)
 			cg->we_joined = 1;
 		else
-			node_history_init(ls, memb->nodeid);
+			node_history_init(ls, memb->nodeid, cg);
 
 		log_group(ls, "add_change %u nodeid %d joined", cg->seq,
 			  memb->nodeid);
 	}
 
-	if (cg->we_joined)
+	if (cg->we_joined) {
+		log_group(ls, "add_change %u we joined", cg->seq);
 		list_for_each_entry(memb, &cg->members, list)
-			node_history_init(ls, memb->nodeid);
+			node_history_init(ls, memb->nodeid, cg);
+	}
 
 	log_group(ls, "add_change %u member %d joined %d remove %d failed %d",
 		  cg->seq, cg->member_count, cg->joined_count, cg->remove_count,
@@ -1460,19 +1509,191 @@ int set_fs_notified(struct lockspace *ls, int nodeid)
 	return 0;
 }
 
-int set_node_info(struct lockspace *ls, int nodeid, struct dlmc_node *node)
+int set_lockspace_info(struct lockspace *ls, struct dlmc_lockspace *lockspace)
 {
+	struct change *cg, *last = NULL;
+
+	strncpy(lockspace->name, ls->name, DLM_LOCKSPACE_LEN);
+	lockspace->global_id = ls->global_id;
+
+	if (ls->joining)
+		lockspace->flags |= DLMC_LF_JOINING;
+	if (ls->leaving)
+		lockspace->flags |= DLMC_LF_LEAVING;
+	if (ls->kernel_stopped)
+		lockspace->flags |= DLMC_LF_KERNEL_STOPPED;
+	if (ls->fs_registered)
+		lockspace->flags |= DLMC_LF_FS_REGISTERED;
+	if (ls->need_plocks)
+		lockspace->flags |= DLMC_LF_NEED_PLOCKS;
+	if (ls->save_plocks)
+		lockspace->flags |= DLMC_LF_SAVE_PLOCKS;
+
+	if (!ls->started_change)
+		goto next;
+
+	cg = ls->started_change;
+
+	lockspace->cg_prev.member_count = cg->member_count;
+	lockspace->cg_prev.joined_count = cg->joined_count;
+	lockspace->cg_prev.remove_count = cg->remove_count;
+	lockspace->cg_prev.failed_count = cg->failed_count;
+	lockspace->cg_prev.combined_seq = cg->combined_seq;
+	lockspace->cg_prev.seq = cg->seq;
+
+ next:
+	if (list_empty(&ls->changes))
+		goto out;
+
+	list_for_each_entry(cg, &ls->changes, list)
+		last = cg;
+
+	cg = list_first_entry(&ls->changes, struct change, list);
+
+	lockspace->cg_next.member_count = cg->member_count;
+	lockspace->cg_next.joined_count = cg->joined_count;
+	lockspace->cg_next.remove_count = cg->remove_count;
+	lockspace->cg_next.failed_count = cg->failed_count;
+	lockspace->cg_next.combined_seq = last->seq;
+	lockspace->cg_next.seq = cg->seq;
+
+	if (cg->state == CGST_WAIT_CONDITIONS)
+		lockspace->cg_next.wait_condition = 4;
+	if (poll_fencing)
+		lockspace->cg_next.wait_condition = 1;
+	else if (poll_quorum)
+		lockspace->cg_next.wait_condition = 2;
+	else if (poll_fs)
+		lockspace->cg_next.wait_condition = 3;
+
+	if (cg->state == CGST_WAIT_MESSAGES)
+		lockspace->cg_next.wait_messages = 1;
+ out:
 	return 0;
 }
 
-int set_lockspace_info(struct lockspace *ls, struct dlmc_lockspace *lockspace)
+static int _set_node_info(struct lockspace *ls, struct change *cg, int nodeid,
+			  struct dlmc_node *node)
 {
+	struct member *m = NULL;
+	struct node *n;
+
+	if (cg)
+		m = find_memb(cg, nodeid);
+	if (!m)
+		goto history;
+
+	node->flags |= DLMC_NF_MEMBER;
+
+	if (m->start)
+		node->flags |= DLMC_NF_START;
+	if (m->disallowed)
+		node->flags |= DLMC_NF_DISALLOWED;
+
+ history:
+	n = get_node_history(ls, nodeid);
+	if (!n)
+		goto out;
+
+	if (n->check_fencing)
+		node->flags |= DLMC_NF_CHECK_FENCING;
+	if (n->check_quorum)
+		node->flags |= DLMC_NF_CHECK_QUORUM;
+	if (n->check_fs)
+		node->flags |= DLMC_NF_CHECK_FS;
+	if (n->fs_notified)
+		node->flags |= DLMC_NF_FS_NOTIFIED;
+
+	node->added_seq = n->added_seq;
+	node->removed_seq = n->removed_seq;
+	node->failed_reason = n->failed_reason;
+ out:
+	return 0;
+}
+
+int set_node_info(struct lockspace *ls, int nodeid, struct dlmc_node *node)
+{
+	struct change *cg;
+
+	if (!list_empty(&ls->changes)) {
+		cg = list_first_entry(&ls->changes, struct change, list);
+		return _set_node_info(ls, cg, nodeid, node);
+	}
+
+	return _set_node_info(ls, ls->started_change, nodeid, node);
+}
+
+int set_lockspaces(int *count, struct dlmc_lockspace **lss_out)
+{
+	struct lockspace *ls;
+	struct dlmc_lockspace *lss, *lsp;
+	int ls_count = 0;
+
+	list_for_each_entry(ls, &lockspaces, list)
+		ls_count++;
+
+	lss = malloc(ls_count * sizeof(struct dlmc_lockspace));
+	if (!lss)
+		return -ENOMEM;
+
+	lsp = lss;
+	list_for_each_entry(ls, &lockspaces, list) {
+		set_lockspace_info(ls, lsp++);
+	}
+
+	*count = ls_count;
+	*lss_out = lss;
 	return 0;
 }
 
 int set_lockspace_nodes(struct lockspace *ls, int option, int *node_count,
-                        struct dlmc_node **nodes)
+                        struct dlmc_node **nodes_out)
 {
+	struct change *cg;
+	struct node *n;
+	struct dlmc_node *nodes = NULL, *nodep;
+	struct member *memb;
+	int count = 0;
+
+	if (option == DLMC_NODES_ALL) {
+		if (!list_empty(&ls->changes))
+			cg = list_first_entry(&ls->changes, struct change,list);
+		else
+			cg = ls->started_change;
+
+		list_for_each_entry(n, &ls->node_history, list)
+			count++;
+
+	} else if (option == DLMC_NODES_MEMBERS) {
+		if (!ls->started_change)
+			goto out;
+		cg = ls->started_change;
+		count = cg->member_count;
+
+	} else if (option == DLMC_NODES_NEXT) {
+		if (list_empty(&ls->changes))
+			goto out;
+		cg = list_first_entry(&ls->changes, struct change, list);
+		count = cg->member_count;
+	} else
+		goto out;
+
+	nodes = malloc(count * sizeof(struct dlmc_node));
+	if (!nodes)
+		return -ENOMEM;
+	nodep = nodes;
+
+	if (option == DLMC_NODES_ALL) {
+		list_for_each_entry(n, &ls->node_history, list)
+			_set_node_info(ls, cg, n->nodeid, nodep++);
+	} else {
+		list_for_each_entry(memb, &cg->members, list)
+			_set_node_info(ls, cg, memb->nodeid, nodep++);
+	}
+
+ out:
+	*node_count = count;
+	*nodes_out = nodes;
 	return 0;
 }
 

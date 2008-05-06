@@ -436,7 +436,8 @@ static void query_dump_plocks(int fd, char *name)
 /* combines a header and the data and sends it back to the client in
    a single do_write() call */
 
-static void do_reply(int fd, int cmd, char *name, int result, char *buf, int buflen)
+static void do_reply(int fd, int cmd, char *name, int result, char *buf,
+		     int buflen)
 {
 	char *reply;
 	int reply_len;
@@ -455,6 +456,27 @@ static void do_reply(int fd, int cmd, char *name, int result, char *buf, int buf
 	do_write(fd, reply, reply_len);
 
 	free(reply);
+}
+
+static void query_lockspace_info(int fd, char *name)
+{
+	struct lockspace *ls;
+	struct dlmc_lockspace lockspace;
+	int rv;
+
+	ls = find_ls(name);
+	if (!ls) {
+		rv = -ENOENT;
+		goto out;
+	}
+
+	if (group_mode == GROUP_LIBGROUP)
+		rv = set_lockspace_info_group(ls, &lockspace);
+	else
+		rv = set_lockspace_info(ls, &lockspace);
+ out:
+	do_reply(fd, DLMC_CMD_LOCKSPACE_INFO, name, rv,
+		 (char *)&lockspace, sizeof(lockspace));
 }
 
 static void query_node_info(int fd, char *name, int nodeid)
@@ -478,25 +500,35 @@ static void query_node_info(int fd, char *name, int nodeid)
 		 (char *)&node, sizeof(node));
 }
 
-static void query_lockspace_info(int fd, char *name)
+static void query_lockspaces(int fd, int max)
 {
-	struct lockspace *ls;
-	struct dlmc_lockspace lockspace;
-	int rv;
+	int ls_count = 0;
+	struct dlmc_lockspace *lss = NULL;
+	int rv, result;
 
-	ls = find_ls(name);
-	if (!ls) {
-		rv = -ENOENT;
+	if (group_mode == GROUP_LIBGROUP)
+		rv = set_lockspaces_group(&ls_count, &lss);
+	else
+		rv = set_lockspaces(&ls_count, &lss);
+
+	if (rv < 0) {
+		result = rv;
+		ls_count = 0;
 		goto out;
 	}
 
-	if (group_mode == GROUP_LIBGROUP)
-		rv = set_lockspace_info_group(ls, &lockspace);
-	else
-		rv = set_lockspace_info(ls, &lockspace);
+	if (ls_count > max) {
+		result = -E2BIG;
+		ls_count = max;
+	} else {
+		result = ls_count;
+	}
  out:
-	do_reply(fd, DLMC_CMD_LOCKSPACE_INFO, name, rv,
-		 (char *)&lockspace, sizeof(lockspace));
+	do_reply(fd, DLMC_CMD_LOCKSPACES, NULL, result,
+		 (char *)lss, ls_count * sizeof(struct dlmc_lockspace));
+
+	if (lss)
+		free(lss);
 }
 
 static void query_lockspace_nodes(int fd, char *name, int option, int max)
@@ -618,13 +650,6 @@ static void process_connection(int ci)
 			send_cycle_start(ls);
 		break;
 
-	case DLMC_CMD_DUMP_DEBUG:
-	case DLMC_CMD_DUMP_PLOCKS:
-	case DLMC_CMD_NODE_INFO:
-	case DLMC_CMD_LOCKSPACE_INFO:
-	case DLMC_CMD_LOCKSPACE_NODES:
-		log_error("process_connection query on wrong socket");
-		break;
 	default:
 		log_error("process_connection %d unknown command %d",
 			  ci, h.command);
@@ -731,11 +756,14 @@ static void *process_queries(void *arg)
 		case DLMC_CMD_DUMP_PLOCKS:
 			query_dump_plocks(f, h.name);
 			break;
+		case DLMC_CMD_LOCKSPACE_INFO:
+			query_lockspace_info(f, h.name);
+			break;
 		case DLMC_CMD_NODE_INFO:
 			query_node_info(f, h.name, h.data);
 			break;
-		case DLMC_CMD_LOCKSPACE_INFO:
-			query_lockspace_info(f, h.name);
+		case DLMC_CMD_LOCKSPACES:
+			query_lockspaces(f, h.data);
 			break;
 		case DLMC_CMD_LOCKSPACE_NODES:
 			query_lockspace_nodes(f, h.name, h.option, h.data);

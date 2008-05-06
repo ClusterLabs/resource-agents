@@ -222,8 +222,9 @@ char *msg_name(int type);
 void update_flow_control_status(void);
 int set_node_info(struct lockspace *ls, int nodeid, struct dlmc_node *node);
 int set_lockspace_info(struct lockspace *ls, struct dlmc_lockspace *lockspace);
+int set_lockspaces(int *count, struct dlmc_lockspace **lss_out);
 int set_lockspace_nodes(struct lockspace *ls, int option, int *node_count,
-			struct dlmc_node **nodes);
+			struct dlmc_node **nodes_out);
 int set_fs_notified(struct lockspace *ls, int nodeid);
 
 /* deadlock.c */
@@ -278,9 +279,11 @@ int setup_groupd(void);
 void process_groupd(int ci);
 int dlm_join_lockspace_group(struct lockspace *ls);
 int dlm_leave_lockspace_group(struct lockspace *ls);
-int set_node_info_group(struct lockspace *ls, int nodeid, struct dlmc_node *node);
+int set_node_info_group(struct lockspace *ls, int nodeid,
+			struct dlmc_node *node);
 int set_lockspace_info_group(struct lockspace *ls,
 			struct dlmc_lockspace *lockspace);
+int set_lockspaces_group(int *count, struct dlmc_lockspace **lss_out);
 int set_lockspace_nodes_group(struct lockspace *ls, int option, int *node_count,
 			struct dlmc_node **nodes);
 

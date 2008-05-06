@@ -240,10 +240,8 @@ int setup_groupd(void)
 	return rv;
 }
 
-int set_node_info_group(struct lockspace *ls, int nodeid, struct dlmc_node *node)
-{
-	return 0;
-}
+/* FIXME: most of the query info doesn't apply in the LIBGROUP mode,
+   but we can emulate some basic parts of it */
 
 int set_lockspace_info_group(struct lockspace *ls,
 			     struct dlmc_lockspace *lockspace)
@@ -251,8 +249,19 @@ int set_lockspace_info_group(struct lockspace *ls,
 	return 0;
 }
 
+int set_node_info_group(struct lockspace *ls, int nodeid,
+			struct dlmc_node *node)
+{
+	return 0;
+}
+
+int set_lockspaces_group(int *count, struct dlmc_lockspace **lss_out)
+{
+	return 0;
+}
+
 int set_lockspace_nodes_group(struct lockspace *ls, int option, int *node_count,
-			      struct dlmc_node **nodes)
+			      struct dlmc_node **nodes_out)
 {
 	return 0;
 }

@@ -226,6 +226,62 @@ int dlmc_lockspace_info(char *name, struct dlmc_lockspace *lockspace)
 	return rv;
 }
 
+int dlmc_lockspaces(int max, int *count, struct dlmc_lockspace *lss)
+{
+	struct dlmc_header h, *rh;
+	char *reply;
+	int reply_len;
+	int fd, rv, result, ls_count;
+
+	init_header(&h, DLMC_CMD_LOCKSPACES, NULL, 0);
+	h.data = max;
+
+	reply_len = sizeof(struct dlmc_header) +
+		    (max * sizeof(struct dlmc_lockspace));
+	reply = malloc(reply_len);
+	if (!reply) {
+		rv = -1;
+		goto out;
+	}
+	memset(reply, 0, reply_len);
+
+	fd = do_connect(DLMC_QUERY_SOCK_PATH);
+	if (fd < 0) {
+		rv = fd;
+		goto out;
+	}
+
+	rv = do_write(fd, &h, sizeof(h));
+	if (rv < 0)
+		goto out_close;
+
+	/* won't usually get back the full reply_len */
+	do_read(fd, reply, reply_len);
+
+	rh = (struct dlmc_header *)reply;
+	result = rh->data;
+	if (result < 0 && result != -E2BIG) {
+		rv = result;
+		goto out_close;
+	}
+
+	if (result == -E2BIG) {
+		*count = -E2BIG;
+		ls_count = max;
+	} else {
+		*count = result;
+		ls_count = result;
+	}
+	rv = 0;
+
+	memcpy(lss, (char *)reply + sizeof(struct dlmc_header),
+	       ls_count * sizeof(struct dlmc_lockspace));
+ out_close:
+	close(fd);
+ out:
+	return rv;
+}
+
 int dlmc_lockspace_nodes(char *name, int type, int max, int *count,
 			 struct dlmc_node *nodes)
 {
@@ -238,7 +294,8 @@ int dlmc_lockspace_nodes(char *name, int type, int max, int *count,
 	h.option = type;
 	h.data = max;
 
-	reply_len = sizeof(struct dlmc_header) + (max * sizeof(struct dlmc_node));
+	reply_len = sizeof(struct dlmc_header) +
+		    (max * sizeof(struct dlmc_node));
 	reply = malloc(reply_len);
 	if (!reply) {
 		rv = -1;
