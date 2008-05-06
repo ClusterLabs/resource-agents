@@ -110,14 +110,14 @@ static int ipaddr_equal(struct sockaddr_storage *addr1, struct sockaddr_storage 
 		return 0;
 
 	if (saddr1->sa_family == AF_INET) {
-		addrlen = sizeof(struct in_addr);
+		addrlen = sizeof(struct sockaddr_in);
 	}
 	if (saddr1->sa_family == AF_INET6) {
-		addrlen = sizeof(struct in6_addr);
+		addrlen = sizeof(struct sockaddr_in6);
 	}
 	assert(addrlen);
 
-	if (memcmp(saddr1->sa_data, saddr2->sa_data, addrlen) == 0)
+	if (memcmp(saddr1, saddr2, addrlen) == 0)
 		return 1;
 	else
 		return 0;
@@ -128,32 +128,39 @@ static int ipaddr_equal(struct sockaddr_storage *addr1, struct sockaddr_storage 
 static int get_localhost(int family, struct sockaddr_storage *localhost)
 {
 	char *addr_text;
-	struct sockaddr *saddr = (struct sockaddr *)localhost;
-
-	memset (localhost, 0, sizeof (struct sockaddr_storage));
+	struct addrinfo *ainfo;
+	struct addrinfo ahints;
+	int ret;
 
 	if (family == AF_INET) {
 		addr_text = LOCALHOST_IPV4;
-		if (inet_pton(family, addr_text, (char *)&nodeid) <= 0) {
-			return -1;
-		}
 	} else {
 		addr_text = LOCALHOST_IPV6;
 	}
 
-	if (inet_pton(family, addr_text, (char *)saddr->sa_data) <= 0)
+	memset(&ahints, 0, sizeof(ahints));
+	ahints.ai_socktype = SOCK_DGRAM;
+	ahints.ai_protocol = IPPROTO_UDP;
+	ahints.ai_family = family;
+
+	/* Lookup the nodename address */
+	ret = getaddrinfo(addr_text, NULL, &ahints, &ainfo);
+	if (ret)
 		return -1;
 
-	localhost->ss_family = family;
+	memset(localhost, 0, sizeof(struct sockaddr_storage));
+	memcpy(localhost, ainfo->ai_addr, ainfo->ai_addrlen);
 
+	freeaddrinfo(ainfo);
 	return 0;
 }
 
 /* Return the address family of an IP[46] name */
-static int address_family(char *addr)
+static int address_family(char *addr, struct sockaddr_storage *ssaddr)
 {
 	struct addrinfo *ainfo;
 	struct addrinfo ahints;
+	int family;
 	int ret;
 
 	memset(&ahints, 0, sizeof(ahints));
@@ -165,7 +172,12 @@ static int address_family(char *addr)
 	if (ret)
 		return -1;
 
-	return ainfo->ai_family;
+	memset(ssaddr, 0, sizeof(struct sockaddr_storage));
+	memcpy(ssaddr, ainfo->ai_addr, ainfo->ai_addrlen);
+	family = ainfo->ai_family;
+
+	freeaddrinfo(ainfo);
+	return family;
 }
 
 
@@ -178,14 +190,14 @@ static int add_ifaddr(struct objdb_iface_ver0 *objdb, char *mcast, char *ifaddr,
 	int ret = 0;
 
 	/* Check the families match */
-	if (address_family(mcast) !=
-	    address_family(ifaddr)) {
+	if (address_family(mcast, &mcast_addr) !=
+	    address_family(ifaddr, &if_addr)) {
 		sprintf(error_reason, "Node address family does not match multicast address family");
 		return -1;
 	}
 
 	/* Check it's not bound to localhost, sigh */
-	get_localhost(mcast_addr.ss_family, &localhost);
+	get_localhost(if_addr.ss_family, &localhost);
 	if (ipaddr_equal(&localhost, &if_addr)) {
 		sprintf(error_reason, "Node address is localhost, please choose a real host address");
 		return -1;
