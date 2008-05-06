@@ -24,12 +24,12 @@ ifdef LCRSOT
 	install -m644 ${LCRSOT} ${libexecdir}/lcrso
 endif
 ifdef INITDT
-	install -d ${DESTDIR}/etc/init.d
+	install -d ${initddir}
 	for i in ${INITDT}; do \
 	  if [ -f $(S)/$$i ]; then \
-	    install -m755 $(S)/$$i ${DESTDIR}/etc/init.d; \
+	    install -m755 $(S)/$$i ${initddir}; \
 	  else \
-	    install -m755 $$i ${DESTDIR}/etc/init.d; \
+	    install -m755 $$i ${initddir}; \
 	  fi; \
 	done
 endif

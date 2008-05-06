@@ -13,6 +13,7 @@
 
 # Install Locations
 sbindir ?= ${DESTDIR}@SBINDIR@
+initddir ?= ${DESTDIR}@INITDDIR@
 libdir ?= ${DESTDIR}@LIBDIR@
 libexecdir ?= ${DESTDIR}@LIBEXECDIR@
 sharedir ?= ${DESTDIR}@SHAREDIR@

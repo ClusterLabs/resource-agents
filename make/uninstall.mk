@@ -18,7 +18,7 @@ ifdef LCRSOT
 	${UNINSTALL} ${LCRSOT} ${libexecdir}/lcrso
 endif
 ifdef INITDT
-	${UNINSTALL} ${INITDT} ${DESTDIR}/etc/init.d
+	${UNINSTALL} ${INITDT} ${initddir}
 endif
 ifdef UDEVT
 	${UNINSTALL} ${UDEVT} ${DESTDIR}/etc/udev/rules.d
