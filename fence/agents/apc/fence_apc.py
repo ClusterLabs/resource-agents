@@ -8,6 +8,7 @@
 ##  Model       Firmware
 ## +---------------------------------------------+
 ##  AP7951	AOS v2.7.0, PDU APP v2.7.3
+##  AP7941      AOS v3.5.7, PDU APP v3.5.6
 ##
 ## @note: ssh is very slow on AP7951 device
 #####
@@ -27,7 +28,20 @@ def get_power_status(conn, options):
 	try:
 		conn.send("1\r\n")
 		conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
-		conn.send("2\r\n")
+
+		version = 0
+		if (None == re.compile('.*Outlet Management.*', re.IGNORECASE | re.S).match(conn.before)):
+			version = 2
+		else:
+			version = 3
+
+		if version == 2:
+			conn.send("2\r\n")
+		else:
+			conn.send("2\r\n")
+			conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
+			conn.send("1\r\n")
+
 		while 1 == conn.log_expect(options, [ options["-c"],  "Press <ENTER>" ], SHELL_TIMEOUT):
 			result += conn.before
 			conn.send("\r\n")
@@ -52,11 +66,27 @@ def set_power_status(conn, options):
 	try:
 		conn.send("1\r\n")
 		conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
-		conn.send("2\r\n")
+
+		version = 0
+		if (None == re.compile('.*Outlet Management.*', re.IGNORECASE | re.S).match(conn.before)):
+			version = 2
+		else:
+			version = 3
+
+		if version == 2:
+			conn.send("2\r\n")
+		else:
+			conn.send("2\r\n")
+			conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
+			conn.send("1\r\n")
+
 		while 1 == conn.log_expect(options, [ options["-c"],  "Press <ENTER>" ], SHELL_TIMEOUT):
 			conn.send("\r\n")
 		conn.send(options["-n"]+"\r\n")
 		conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
+		if version == 3:
+			conn.send("1\r\n")
+			conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
 		conn.send(action+"\r\n")
 		conn.log_expect(options, "Enter 'YES' to continue or <ENTER> to cancel :", SHELL_TIMEOUT)
 		conn.send("YES\r\n")
