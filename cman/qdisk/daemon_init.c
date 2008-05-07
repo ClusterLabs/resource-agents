@@ -150,8 +150,13 @@ check_process_running(char *prog, pid_t * pid)
 	if (fp == NULL) {	/* error */
 		return 0;
 	}
-	fscanf(fp, "%d\n", &oldpid);
+
+	ret = fscanf(fp, "%d\n", &oldpid);
 	fclose(fp);
+
+	if ((ret == EOF) || (ret != 1))
+		return 0;
+
 	if (check_pid_valid(oldpid, cmd)) {
 		*pid = oldpid;
 		return 1;
@@ -234,7 +239,11 @@ daemon_init(char *prog)
 		exit(1);
 	}
 
-	daemon(0, 0);
+	if(daemon(0, 0)) {
+		log_printf(LOG_ERR, "daemon_init: Unable to daemonize.\n");
+		exit(1);
+	}
+
 
 	update_pidfile(prog);
 }

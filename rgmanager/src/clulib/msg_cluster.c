@@ -336,7 +336,12 @@ cluster_msg_fd_set(msgctx_t *ctx, fd_set *fds, int *max)
 		   by the caller because the caller is switching to select()
 		   semantics. (as opposed to msg_wait() ) */
 		list_do(&ctx->u.cluster_info.queue, n) {
-			write(ctx->u.cluster_info.select_pipe[1], "", 1);
+			if (write(ctx->u.cluster_info.select_pipe[1], "", 1) < 0) {
+				e = errno;
+				pthread_mutex_unlock(&ctx->u.cluster_info.mutex);
+				errno = e;
+				return -1;
+			}
 		} while (!list_done(&ctx->u.cluster_info.queue, n));
 	}
 
@@ -429,8 +434,10 @@ _cluster_msg_receive(msgctx_t *ctx, void **msg, size_t *len)
 
 	if (ctx->u.cluster_info.select_pipe[0] >= 0) {
 		//printf("%s read\n", __FUNCTION__);
-		read(ctx->u.cluster_info.select_pipe[0],
-	     	     &foo, 1);
+		if (read(ctx->u.cluster_info.select_pipe[0], &foo, 1) < 0) {
+			pthread_mutex_unlock(&ctx->u.cluster_info.mutex);
+			return -1;
+		}
 	}
 
 	pthread_mutex_unlock(&ctx->u.cluster_info.mutex);
@@ -534,8 +541,10 @@ cluster_msg_receive(msgctx_t *ctx, void *msg, size_t maxlen, int timeout)
 
 		if (ctx->u.cluster_info.select_pipe[0] >= 0) {
 			//printf("%s read\n", __FUNCTION__);
-			read(ctx->u.cluster_info.select_pipe[0],
-		     	     &foo, 1);
+			if (read(ctx->u.cluster_info.select_pipe[0], &foo, 1) < 0) {
+				pthread_mutex_unlock(&ctx->u.cluster_info.mutex);
+				return -1;
+			}
 		}
 	
 		pthread_mutex_unlock(&ctx->u.cluster_info.mutex);
@@ -862,6 +871,7 @@ cluster_msg_accept(msgctx_t *listenctx, msgctx_t *acceptctx)
 	cluster_msg_hdr_t *m;
 	msg_q_t *n;
 	char foo;
+	int err = 0;
 
 	if (!listenctx || !acceptctx)
 		return -1;
@@ -924,8 +934,8 @@ cluster_msg_accept(msgctx_t *listenctx, msgctx_t *acceptctx)
 
 			if (listenctx->u.cluster_info.select_pipe[0] >= 0) {
 				//printf("%s read\n", __FUNCTION__);
-				read(listenctx->u.cluster_info.select_pipe[0],
-				     &foo, 1);
+				if (read(listenctx->u.cluster_info.select_pipe[0], &foo, 1) < 0)
+					err = -1;
 			}
 
 			free(m);
@@ -933,7 +943,7 @@ cluster_msg_accept(msgctx_t *listenctx, msgctx_t *acceptctx)
 
 			/* Let the new context go. */
 			pthread_mutex_unlock(&acceptctx->u.cluster_info.mutex);
-			return 0;
+			return err;
 			/* notreached */
 
 		case M_DATA:

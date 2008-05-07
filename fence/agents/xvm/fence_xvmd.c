@@ -765,7 +765,11 @@ main(int argc, char **argv)
 	/* XXX need to wait for child to successfully start before
 	   exiting... */
 	if (!(args.flags & F_FOREGROUND))
-		daemon(0,0);
+		if(daemon(0,0)) {
+			printf("Could not daemonize\n");
+			return 1;
+		}
+			
 
 	if (virInitialize() != 0) {
 		printf("Could not initialize libvirt\n");

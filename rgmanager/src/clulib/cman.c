@@ -86,7 +86,8 @@ cman_lock(int block, int preempt)
 
 		/* Try to wake up the holder! */
 		if (preempt)
-			write(_wakeup_pipe[1], "!", 1);
+			if(write(_wakeup_pipe[1], "!", 1) < 0)
+				goto out_unlock;
 
 		/* Blocking call; do the cond-thing */
 		pthread_cond_wait(&_chandle_cond, &_chandle_lock);
@@ -183,7 +184,8 @@ cman_unlock(cman_handle_t ch)
 
 	/* Empty wakeup pipe if we took it with the preempt flag */
 	if (_chandle_preempt)
-		read(_wakeup_pipe[0], &c, 1);
+		if(read(_wakeup_pipe[0], &c, 1) < 0)
+			goto out_unlock;
 
 	_chandle_preempt = 0;
 	_chandle_holder = 0;

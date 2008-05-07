@@ -569,7 +569,7 @@ rmtab_read(rmtab_node **head, char *filename)
 	if (!fp) {
 		/* It's ok if it's not there. */
 		if (errno == ENOENT) {
-			close(open(filename, O_WRONLY|O_SYNC|O_CREAT));
+			close(open(filename, O_WRONLY|O_SYNC|O_CREAT, S_IRUSR | S_IWUSR));
 			return 0;
 		}
 		perror("fopen");

@@ -485,8 +485,13 @@ static int sysfs_is_dev(char *path, int *maj, int *min)
 	if (!lstat(newpath, &sb)) {
 		f = fopen(newpath, "r");
 		if (f) {
-			fscanf(f, "%d:%d", maj, min);
+			int err;
+
+			err = fscanf(f, "%d:%d", maj, min);
 			fclose(f);
+			if ((err == EOF) || (err != 2))
+				return -1;
+
 			return 1;
 		} else
 			return -1;
@@ -513,8 +518,12 @@ static int sysfs_is_removable(char *path)
 	if (!lstat(newpath, &sb)) {
 		f = fopen(newpath, "r");
 		if (f) {
-			fscanf(f, "%d\n", &i);
+			int err;
+
+			err = fscanf(f, "%d\n", &i);
 			fclose(f);
+			if ((err == EOF) || (err != 1))
+				i = -1;
 		}
 	}
 	return i;
@@ -595,8 +604,13 @@ static int sysfs_is_disk(char *path)
       found:
 	f = fopen(newpath, "r");
 	if (f) {
-		fscanf(f, "%d\n", &i);
+		int err;
+
+		err = fscanf(f, "%d\n", &i);
 		fclose(f);
+
+		if ((err == EOF) || (err != 1))
+			return 0;
 
 		switch (i) {
 		case 0x0:	/* scsi type_disk */

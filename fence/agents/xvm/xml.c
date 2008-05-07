@@ -182,7 +182,7 @@ xtree_writefile(const char *filename, xmlDocPtr xtree)
 	memset(&flock, 0, sizeof(flock));
 	flock.l_type = F_WRLCK;
 
-	fd = open(filename, O_WRONLY | O_CREAT | O_SYNC);
+	fd = open(filename, O_WRONLY | O_CREAT | O_SYNC, S_IRUSR | S_IWUSR );
 	if (fd == -1) {
 		n = errno;
 		close(tmpfd);

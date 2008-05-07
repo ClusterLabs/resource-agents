@@ -245,7 +245,8 @@ main(int argc, char **argv)
 		select(max+1, &rfds, NULL, NULL, NULL);
 
 		if (FD_ISSET(STDIN_FILENO, &rfds)) {
-			fgets(recvbuf, 128, stdin);
+			if (!fgets(recvbuf, 128, stdin))
+				break;
 			if (recvbuf[0] == 'q' || recvbuf[0] == 'Q')
 				break;
 			if (msg_send(cluster_ctx, recvbuf,
