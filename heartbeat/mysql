@@ -186,7 +186,7 @@ The pidfile to be used for mysqld.
 The socket to be used for mysqld.
 </longdesc>
 <shortdesc lang="en">MySQL socket</shortdesc>
-<content type="string" default="${OCF_RESKEY_pid_default}"/>
+<content type="string" default="${OCF_RESKEY_socket_default}"/>
 </parameter>
 
 <parameter name="test_table" unique="0" required="0">
@@ -194,7 +194,7 @@ The socket to be used for mysqld.
 Table to be tested in monitor statement (in database.table notation)
 </longdesc>
 <shortdesc lang="en">MySQL test table</shortdesc>
-<content type="string" default="OCF_RESKEY_test_table_default" />
+<content type="string" default="${OCF_RESKEY_test_table_default}" />
 </parameter>
 
 <parameter name="test_user" unique="0" required="0">
@@ -202,7 +202,7 @@ Table to be tested in monitor statement (in database.table notation)
 MySQL test user
 </longdesc>
 <shortdesc lang="en">MySQL test user</shortdesc>
-<content type="string" default="OCF_RESKEY_test_user_default" />
+<content type="string" default="${OCF_RESKEY_test_user_default}" />
 </parameter>
 
 <parameter name="test_passwd" unique="0" required="0">
