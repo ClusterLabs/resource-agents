@@ -478,7 +478,7 @@ cpg_callbacks_t callbacks = {
 
 void process_cpg(int ci)
 {
-	group_t *g;
+	group_t *g = NULL;
 	cpg_error_t error;
 	cpg_handle_t handle;
 	int found = 0;

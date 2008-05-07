@@ -138,13 +138,13 @@ int setup_cman(void)
 
 	ch = cman_init(NULL);
 	if (!ch) {
-		log_print("cman_init error %d %d", (int) ch, errno);
+		log_print("cman_init error %p %d", ch, errno);
 		return -ENOTCONN;
 	}
 
 	ch_admin = cman_admin_init(NULL);
 	if (!ch_admin) {
-		log_print("cman_admin_init error %d %d", (int) ch_admin, errno);
+		log_print("cman_admin_init error %p %d", ch_admin, errno);
 		rv = -ENOTCONN;
 		goto fail1;
 	}

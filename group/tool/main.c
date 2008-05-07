@@ -427,7 +427,7 @@ int do_plock_dump(int argc, char **argv, int fd)
 
 	rv = do_write(fd, outbuf, sizeof(outbuf));
 	if (rv < 0) {
-		printf("dump write error %d errno %d\n", rv, errno);;
+		printf("dump write error %d errno %d\n", rv, errno);
 		return -1;
 	}
 
@@ -436,7 +436,11 @@ int do_plock_dump(int argc, char **argv, int fd)
 		rv = read(fd, inbuf, sizeof(inbuf));
 		if (rv <= 0)
 			break;
-		write(STDOUT_FILENO, inbuf, rv);
+		rv = write(STDOUT_FILENO, inbuf, rv);
+		if (rv < 0) {
+			printf("dump write error %d errno %d\n", rv, errno);
+			return  -1;
+		}
 	}
 
 	close(fd);

@@ -995,7 +995,10 @@ static void daemonize(void)
 	if (pid)
 		exit(EXIT_SUCCESS);
 	setsid();
-	chdir("/");
+	if(chdir("/") < 0) {
+		perror("main: unable to chdir");
+		exit(EXIT_FAILURE);
+	}
 	umask(0);
 	close(0);
 	close(1);

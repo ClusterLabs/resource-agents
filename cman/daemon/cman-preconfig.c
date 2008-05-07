@@ -940,11 +940,3 @@ static int cmanpre_readconfig(struct objdb_iface_ver0 *objdb, char **error_strin
 
 	return ret;
 }
-
-/* Write an error message down the CMAN startup pipe so
-   that cman_tool can display it */
-void write_cman_pipe(char *message)
-{
-	if (startup_pipe)
-		write(startup_pipe, message, strlen(message)+1);
-}

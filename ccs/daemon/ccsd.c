@@ -755,7 +755,8 @@ static void daemonize(void){
     }
     ppid = getppid();
     setsid();
-    chdir("/");
+    if(chdir("/") < 0)
+	goto fail;
     umask(0);
 
     close(0); close(1); close(2);

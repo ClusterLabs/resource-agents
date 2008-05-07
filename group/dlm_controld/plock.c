@@ -1569,6 +1569,8 @@ void process_plocks(int ci)
 		return;
 	}
 
+	gettimeofday(&now, NULL);
+
 	memset(&info, 0, sizeof(info));
 
 	rv = do_read(control_fd, &info, sizeof(info));
@@ -1645,7 +1647,7 @@ void process_plocks(int ci)
 
  fail:
 	info.rv = rv;
-	write(control_fd, &info, sizeof(info));
+	rv = write(control_fd, &info, sizeof(info));
 }
 
 void process_saved_plocks(struct lockspace *ls)

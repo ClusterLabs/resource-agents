@@ -526,9 +526,9 @@ static void show_nodes(commandline_t *comline)
 	cman_finish(h);
 }
 
-static void show_services(void)
+static int show_services(void)
 {
-	system("group_tool ls");
+	return system("group_tool ls");
 }
 
 
@@ -1052,7 +1052,10 @@ int main(int argc, char *argv[])
 		break;
 
 	case OP_SERVICES:
-		show_services();
+		if (show_services() < 0) {
+			fprintf(stderr, "Unable to invoke group_tool\n");
+			exit(EXIT_FAILURE);
+		}
 		break;
 
 	case OP_DEBUG:

@@ -52,7 +52,7 @@ static void be_daemon(int close_stderr)
 
 int join(commandline_t *comline)
 {
-	int i;
+	int i, err;
 	int envptr = 0;
 	int argvptr = 0;
 	char scratch[1024];
@@ -119,7 +119,8 @@ int join(commandline_t *comline)
 	}
 
 	/* Create a pipe to monitor cman startup progress */
-	pipe(p);
+	if(pipe(p) < 0)
+		die("unable to create pipe: %s", strerror(errno));
 	fcntl(p[1], F_SETFD, 0); /* Don't close on exec */
 	snprintf(scratch, sizeof(scratch), "CMAN_PIPE=%d", p[1]);
 	envp[envptr++] = strdup(scratch);
@@ -155,7 +156,7 @@ int join(commandline_t *comline)
 
 		/* exec failed - tell the parent process */
 		sprintf(scratch, "execve of " AISEXECBIN " failed: %s", strerror(errno));
-		write(p[1], scratch, strlen(scratch));
+		err = write(p[1], scratch, strlen(scratch));
 		exit(1);
 		break;
 

@@ -336,8 +336,10 @@ static void cman_confchg_fn(enum totem_configuration_type configuration_type,
 
 /* Write an error message down the CMAN startup pipe so
    that cman_tool can display it */
-void write_cman_pipe(char *message)
+int write_cman_pipe(char *message)
 {
 	if (startup_pipe)
-		write(startup_pipe, message, strlen(message)+1);
+		return write(startup_pipe, message, strlen(message)+1);
+
+	return 0;
 }

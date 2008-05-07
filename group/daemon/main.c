@@ -837,7 +837,10 @@ void daemonize(void)
 	if (pid)
 		exit(EXIT_SUCCESS);
 	setsid();
-	chdir("/");
+	if(chdir("/") < 0) {
+		perror("main: unable to chdir");
+		exit(EXIT_FAILURE);
+	}
 	umask(0);
 	close(0);
 	close(1);
@@ -951,8 +954,14 @@ void bail_with_log(int sig)
 		memset(now_ascii, 0, sizeof(now_ascii));
 		time(&now);
 		sprintf(now_ascii, "%ld", now);
-		write(fd, now_ascii, strlen(now_ascii));
-		write(fd, " groupd segfault log follows:\n", 30);
+		if (write(fd, now_ascii, strlen(now_ascii)) < 0) {
+			perror("Unable to write");
+			exit(1);
+		}
+		if (write(fd, " groupd segfault log follows:\n", 30) < 0) {
+			perror("Unable to write");
+			exit(1);
+		}
 		close(fd);
 	} else
 		perror(LOG_FILE);
