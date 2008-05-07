@@ -452,7 +452,10 @@ int main(int argc, char **argv)
   }
   writebuf[sizeof(char)+(strlen(username))+1+(strlen(password))+1] ='\n';
      
-  write(sock,writebuf,sizeof(char)+strlen(username)+strlen(password)+2);
+  if(write(sock,writebuf,sizeof(char)+strlen(username)+strlen(password)+2) < 0) {
+    fprintf(stderr,"failed to write to socket\n");
+    exit(DID_FAILURE);
+  }
    
   /********************************************
    ***
@@ -478,7 +481,10 @@ int main(int argc, char **argv)
  
  writebuf[0] = configuration_request;
  writebuf[1] = config_general;
- write(sock,writebuf,2*(sizeof(char)));
+ if(write(sock,writebuf,2*(sizeof(char))) < 0) {
+   fprintf(stderr,"failed to write to socket\n");
+   exit(DID_FAILURE);
+ }
 
  /********************************************
    ***
@@ -630,7 +636,10 @@ int main(int argc, char **argv)
  writebuf[(pnumb*5)+3] = (char)(pnumb);
  writebuf[(pnumb*5)+4] = action_offon;
 
- write(sock,writebuf,(pnumb*5)+5);
+ if(write(sock,writebuf,(pnumb*5)+5) < 0) {
+   fprintf(stderr,"failed to write to socket\n");
+   exit(DID_FAILURE);
+ }
  if(verbose_flag){
    printf("%s: sending action frame to switch:\n",name);
    for(i=0;i<(pnumb*5)+5;i++) 
@@ -647,7 +656,10 @@ int main(int argc, char **argv)
  writebuf[0] = configuration_request;
  writebuf[1] = boardnum;
  
- write(sock,writebuf,2*(sizeof(char)));
+ if(write(sock,writebuf,2*(sizeof(char))) < 0) {
+   fprintf(stderr,"failed to write to socket\n");
+   exit(DID_FAILURE);
+ }
  if(verbose_flag){
    printf("%s: sending Request Configuration Frame from switch:\n",name);
    printf("0x%.2x 0x%.2x\n",writebuf[0],writebuf[1]);

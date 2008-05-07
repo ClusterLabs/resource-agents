@@ -370,6 +370,7 @@ static int create_control_device(void)
     int saved_errno = 0;
     mode_t oldmode;
     int done = 0;
+    int rv;
 
     /* Make sure the parent directory exists */
     oldmode = umask(0);
@@ -386,7 +387,10 @@ static int create_control_device(void)
 
     while (!feof(pmisc))
     {
-	fscanf(pmisc, "%d %s\n", &minor, name);
+	
+	rv = fscanf(pmisc, "%d %s\n", &minor, name);
+	if ((rv == EOF) || (rv != 2))
+		break;
 	if (strcmp(name, DLM_CONTROL_DEV) == 0)
 	{
 	    status = mknod(DLM_CTL_DEVICE_NAME, S_IFCHR | 0600, makedev(MISC_MAJOR, minor));

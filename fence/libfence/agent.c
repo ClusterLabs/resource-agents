@@ -99,11 +99,14 @@ static int run_agent(char *agent, char *args)
 		/* child */
 
 		close(1);
-		dup(cw_fd);
+		if (dup(cw_fd) < 0)
+			goto fail;
 		close(2);
-		dup(cw_fd);
+		if (dup(cw_fd) < 0)
+			goto fail;
 		close(0);
-		dup(cr_fd);
+		if (dup(cr_fd) < 0)
+			goto fail;
 		/* keep cw_fd open so parent can report all errors. */
 		close(pr_fd);
 		close(cr_fd);

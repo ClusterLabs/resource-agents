@@ -872,7 +872,10 @@ int main(int argc, char **argv)
 			perror("main: cannot fork");
 			exit(EXIT_FAILURE);
 		}
-		chdir("/");
+		if(chdir("/") < 0) {
+			perror("main: unable to chdir");
+			exit(EXIT_FAILURE);
+		}
 		umask(0);
 		openlog("fenced", LOG_PID, LOG_DAEMON);
 	}
