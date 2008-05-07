@@ -985,29 +985,6 @@ static void lockfile(void)
 	}
 }
 
-static void daemonize(void)
-{
-	pid_t pid = fork();
-	if (pid < 0) {
-		perror("main: cannot fork");
-		exit(EXIT_FAILURE);
-	}
-	if (pid)
-		exit(EXIT_SUCCESS);
-	setsid();
-	if(chdir("/") < 0) {
-		perror("main: unable to chdir");
-		exit(EXIT_FAILURE);
-	}
-	umask(0);
-	close(0);
-	close(1);
-	close(2);
-	openlog("dlm_controld", LOG_PID, LOG_DAEMON);
-
-	lockfile();
-}
-
 static void print_usage(void)
 {
 	printf("Usage:\n");
@@ -1176,8 +1153,15 @@ int main(int argc, char **argv)
 
 	read_arguments(argc, argv);
 
-	if (!daemon_debug_opt)
-		daemonize();
+	lockfile();
+
+	if (!daemon_debug_opt) {
+		if (daemon(0, 0) < 0) {
+			perror("daemon error");
+			exit(EXIT_FAILURE);
+		}
+	}
+	openlog("dlm_controld", LOG_PID, LOG_DAEMON);
 	signal(SIGTERM, sigterm_handler);
 
 	read_ccs();

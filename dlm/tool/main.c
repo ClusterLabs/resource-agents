@@ -55,7 +55,7 @@ static void print_usage(void)
 {
 	printf("Usage:\n");
 	printf("\n");
-	printf("%s [options] [join|leave|lockdump|lockdebug|list|dump|plocks|deadlock_check]\n", prog_name);
+	printf("%s [options] [join|leave|lockdump|lockdebug|ls|dump|plocks|deadlock_check]\n", prog_name);
 	printf("\n");
 	printf("Options:\n");
 	printf("  -v               Verbose output\n");

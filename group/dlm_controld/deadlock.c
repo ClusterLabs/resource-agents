@@ -367,7 +367,7 @@ static int read_debugfs_master(struct lockspace *ls)
 		return -1;
 
 	/* skip the header on the first line */
-	if(!fgets(line, LOCK_LINE_MAX, file)) {
+	if (!fgets(line, LOCK_LINE_MAX, file)) {
 		log_error("Unable to read %s: %d", path, errno);
 		goto out;
 	}
@@ -438,7 +438,7 @@ static int read_debugfs_locks(struct lockspace *ls)
 		return -1;
 
 	/* skip the header on the first line */
-	if(!fgets(line, LOCK_LINE_MAX, file)) {
+	if (!fgets(line, LOCK_LINE_MAX, file)) {
 		log_error("Unable to read %s: %d", path, errno);
 		goto out;
 	}

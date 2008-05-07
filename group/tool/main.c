@@ -245,7 +245,7 @@ char *state_str(group_data_t *data)
 		snprintf(buf, 127, "%s %d %llx %d",
 			 ev_state_str(data->event_state),
 			 data->event_nodeid,
-			 data->event_id,
+			 (unsigned long long)data->event_id,
 			 data->event_local_status);
 	else
 		snprintf(buf, 127, "%s", ev_state_str(data->event_state));

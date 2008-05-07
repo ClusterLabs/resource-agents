@@ -67,7 +67,6 @@ enum {
 	DO_DELIVER,
 };
 
-extern char *prog_name;
 extern int plock_debug_opt;
 extern int daemon_debug_opt;
 extern char daemon_debug_buf[256];

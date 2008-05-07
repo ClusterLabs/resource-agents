@@ -781,34 +781,11 @@ static void lockfile(void)
 	}
 }
 
-void daemonize(void)
-{
-	pid_t pid = fork();
-	if (pid < 0) {
-		perror("main: cannot fork");
-		exit(EXIT_FAILURE);
-	}
-	if (pid)
-		exit(EXIT_SUCCESS);
-	setsid();
-	if(chdir("/") < 0) {
-		perror("main: unable to chdir");
-		exit(EXIT_FAILURE);
-	}
-	umask(0);
-	close(0);
-	close(1);
-	close(2);
-	openlog("gfs_controld", LOG_PID, LOG_DAEMON);
-
-	lockfile();
-}
-
 static void print_usage(void)
 {
 	printf("Usage:\n");
 	printf("\n");
-	printf("%s [options]\n", prog_name);
+	printf("gfs_controld [options]\n");
 	printf("\n");
 	printf("Options:\n");
 	printf("\n");
@@ -944,8 +921,6 @@ void set_scheduler(void)
 
 int main(int argc, char **argv)
 {
-	prog_name = argv[0];
-
 	INIT_LIST_HEAD(&mounts);
 	INIT_LIST_HEAD(&withdrawn_mounts);
 
@@ -959,8 +934,15 @@ int main(int argc, char **argv)
 
 	decode_arguments(argc, argv);
 
-	if (!daemon_debug_opt)
-		daemonize();
+	lockfile();
+
+	if (!daemon_debug_opt) {
+		if (daemon(0, 0) < 0) {
+			perror("daemon error");
+			exit(EXIT_FAILURE);
+		}
+	}
+	openlog("gfs_controld", LOG_PID, LOG_DAEMON);
 
 	/* ccs settings override the defaults, but not the command line */
 	set_ccs_config();
@@ -1002,7 +984,6 @@ void daemon_dump_save(void)
 	}
 }
 
-char *prog_name;
 int plock_debug_opt;
 int daemon_debug_opt;
 char daemon_debug_buf[256];
