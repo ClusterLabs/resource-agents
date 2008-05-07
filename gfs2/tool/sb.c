@@ -81,7 +81,8 @@ do_sb(int argc, char **argv)
 	if (newval && !override) {
 		printf("You shouldn't change any of these values if the filesystem is mounted.\n");
 		printf("\nAre you sure? [y/n] ");
-		fgets((char*)input, 255, stdin);
+		if(!fgets((char*)input, 255, stdin))
+			die("unable to read from stdin\n");
 
 		if (input[0] != 'y')
 			die("aborted\n");

@@ -132,7 +132,10 @@ char generic_interrupt(const char *caller, const char *where,
 			log_debug("Error in select() on stdin\n");
 			break;
 		}
-		read(STDIN_FILENO, &response, sizeof(char));
+		if(read(STDIN_FILENO, &response, sizeof(char)) < 0) {
+			log_debug("Error in read() on stdin\n");
+			break;
+		}
 	}
 	while (TRUE) {
 		printf("\n%s interrupted during %s:  ", caller, where);

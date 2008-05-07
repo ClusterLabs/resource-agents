@@ -274,7 +274,8 @@ static void are_you_sure(struct gfs2_sbd *sdp)
 			   vid->usage_id == VOLUME_ID_OTHER? "partition" : vid->usage);
 	volume_id_close(vid);
 	printf("\nAre you sure you want to proceed? [y/n] ");
-	fgets(input, 32, stdin);
+	if(!fgets(input, 32, stdin))
+		die("unable to read from stdin\n");
 
 	if (input[0] != 'y')
 		die("aborted\n");

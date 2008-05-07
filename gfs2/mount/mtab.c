@@ -172,7 +172,10 @@ void del_mtab_entry(struct mount_options *mo)
 		int e = errno;
 		warn("error stating /etc/mtab: %s", strerror(e));
 	} else
-		chown("/etc/mtab.tmp", sbuf.st_uid, sbuf.st_gid);
+		if(chown("/etc/mtab.tmp", sbuf.st_uid, sbuf.st_gid) < 0) {
+			int e = errno;
+			warn("error changing owner of /etc/mtab.tmp: %s", strerror(e));
+		}
 
 	fclose(mtmp);
 	fclose(mtab);
