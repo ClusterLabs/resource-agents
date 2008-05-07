@@ -478,7 +478,7 @@ quorum_init(qd_ctx *ctx, node_info_t *ni, int max, struct h_data *h, int maxh)
 	}
 
 	log_printf(LOG_DEBUG, "I/O Size: %lu  Page Size: %lu\n",
-	       ctx->qc_disk.d_blksz, ctx->qc_disk.d_pagesz);
+	       (unsigned long)ctx->qc_disk.d_blksz, (unsigned long)ctx->qc_disk.d_pagesz);
 	
 	if (h && maxh) {
 		start_score_thread(ctx, h, maxh);
@@ -1531,7 +1531,7 @@ main(int argc, char **argv)
 			       "Specified device %s does match kernel's "
 			       "reported sector size (%lu != %d)\n",
 			       ctx.qc_device,
-			       ctx.qc_disk.d_blksz, rv);
+			       (unsigned long)ctx.qc_disk.d_blksz, rv);
 			check_stop_cman(&ctx);
 			goto out;
 		}
