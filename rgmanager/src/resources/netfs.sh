@@ -335,7 +335,7 @@ isMounted () {
 	fi
 
 	fullpath=$1
-	mp=$2
+	mp=$(readlink -f $2)
 
 	while read tmp_fullpath tmp_mp
 	do

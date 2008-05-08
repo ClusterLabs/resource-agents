@@ -529,7 +529,7 @@ isMounted () {
 			"fs (isMounted): Could not match $1 with a real device"
 		return $OCF_ERR_ARGS
 	fi
-	mp=$2
+	mp=$(readlink -f $2)
 	
 	while read tmp_dev tmp_mp
 	do

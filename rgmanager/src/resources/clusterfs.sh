@@ -413,7 +413,7 @@ isMounted () {
 		ocf_log err "isMounted: Could not match $1 with a real device"
 		return $FAIL
 	fi
-	mp=$2
+	mp=$(readlink -f $2)
 	
 	while read tmp_dev tmp_mp
 	do
