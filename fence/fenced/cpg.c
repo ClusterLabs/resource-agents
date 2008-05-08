@@ -1281,24 +1281,39 @@ int set_domain_nodes(struct fd *fd, int option, int *node_count,
 		     struct fenced_node **nodes_out)
 {
 	struct change *cg = fd->started_change;
-	struct fenced_node *nodes, *nodep;
+	struct fenced_node *nodes = NULL, *n;
+	struct node_history *nh;
 	struct member *memb;
+	int count = 0;
 
-	if (!cg) {
-		*node_count = 0;
-		return 0;
+	if (option == FENCED_NODES_MEMBERS) {
+		if (!cg)
+			goto out;
+		count = cg->member_count;
+
+		nodes = malloc(count * sizeof(struct fenced_node));
+		if (!nodes)
+			return -ENOMEM;
+
+		n = nodes;
+		list_for_each_entry(memb, &cg->members, list)
+			set_node_info(fd, memb->nodeid, n++);
 	}
 
-	nodes = malloc(cg->member_count * sizeof(struct fenced_node));
-	if (!nodes)
-		return -ENOMEM;
+	else if (option == FENCED_NODES_ALL) {
+		list_for_each_entry(nh, &fd->node_history, list)
+			count++;
 
-	nodep = nodes;
-	list_for_each_entry(memb, &cg->members, list) {
-		set_node_info(fd, memb->nodeid, nodep++);
+		nodes = malloc(count * sizeof(struct fenced_node));
+		if (!nodes)
+			return -ENOMEM;
+
+		n = nodes;
+		list_for_each_entry(nh, &fd->node_history, list)
+			set_node_info(fd, nh->nodeid, n++);
 	}
-
-	*node_count = cg->member_count;
+ out:
+	*node_count = count;
 	*nodes_out = nodes;
 	return 0;
 }

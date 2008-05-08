@@ -1690,7 +1690,6 @@ int set_lockspace_nodes(struct lockspace *ls, int option, int *node_count,
 		list_for_each_entry(memb, &cg->members, list)
 			_set_node_info(ls, cg, memb->nodeid, nodep++);
 	}
-
  out:
 	*node_count = count;
 	*nodes_out = nodes;

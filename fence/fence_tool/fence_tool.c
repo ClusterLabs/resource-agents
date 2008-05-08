@@ -284,54 +284,71 @@ static int node_compare(const void *va, const void *vb)
 
 #define MAX_NODES 128
 
+struct fenced_node nodes[MAX_NODES];
+
 static int do_list(void)
 {
 	struct fenced_domain d;
-	struct fenced_node *nodes, *np;
+	struct fenced_node *np;
 	int node_count;
 	int rv, i;
 
-
 	rv = fenced_domain_info(&d);
-	if (rv < 0) {
-		fprintf(stderr, "fenced_domain_info error %d\n", rv);
-		return rv;
-	}
+	if (rv < 0)
+		goto out;
 
-	printf("fence domain info\n");
+	printf("fence domain \"default\"\n");
 	printf("member_count %d master_nodeid %d victim_count %d current_victim %d state %d\n",
 		d.member_count, d.master_nodeid, d.victim_count, d.current_victim, d.state);
 
-	nodes = malloc(MAX_NODES * sizeof(struct fenced_node));
-	if (!nodes)
-		return -ENOMEM;
-	memset(nodes, 0, sizeof(*nodes));
 	node_count = 0;
+	memset(&nodes, 0, sizeof(nodes));
 
 	rv = fenced_domain_nodes(FENCED_NODES_MEMBERS, MAX_NODES,
 				 &node_count, nodes);
-	if (rv < 0) {
-		fprintf(stderr, "fenced_domain_nodes error %d\n", rv);
-		return rv;
-	}
+	if (rv < 0)
+		goto out;
+
 	qsort(&nodes, node_count, sizeof(struct fenced_node), node_compare);
 
-	printf("fence domain members\n");
+	printf("members ");
 
 	np = nodes;
-	printf("[");
 	for (i = 0; i < node_count; i++) {
-		if (i != 0)
-			printf(" ");
-		printf("%d", np->nodeid);
+		printf("%d ", np->nodeid);
 		np++;
 	}
-	printf("]\n");
+	printf("\n");
 
-	/* if verbose, query all nodes and print all info for each */
+	if (!verbose)
+		return 0;
 
-	free(nodes);
+	node_count = 0;
+	memset(&nodes, 0, sizeof(nodes));
+
+	rv = fenced_domain_nodes(FENCED_NODES_ALL, MAX_NODES,
+				 &node_count, nodes);
+	if (rv < 0)
+		goto out;
+
+	qsort(&nodes, node_count, sizeof(struct fenced_node), node_compare);
+
+	printf("all nodes\n");
+
+	np = nodes;
+	for (i = 0; i < node_count; i++) {
+		printf("nodeid %d member %d victim %d last fence master %d how %d\n",
+				np->nodeid,
+				np->member,
+				np->victim,
+				np->last_fenced_master,
+				np->last_fenced_how);
+		np++;
+	}
 	return 0;
+ out:
+	fprintf(stderr, "fenced query error %d\n", rv);
+	return rv;
 }
 
 static void print_usage(void)
@@ -417,8 +434,6 @@ static void decode_arguments(int argc, char *argv[])
 			operation = OP_LEAVE;
 		} else if (strcmp(argv[optind], "dump") == 0) {
 			operation = OP_DUMP;
-		} else if (strcmp(argv[optind], "list") == 0) {
-			operation = OP_LIST;
 		} else if (strcmp(argv[optind], "ls") == 0) {
 			operation = OP_LIST;
 		} else

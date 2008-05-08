@@ -423,7 +423,7 @@ void do_lockdump(char *name)
 	fclose(file);
 }
 
-char *lockspace_flags_str(uint32_t flags)
+char *dlmc_lf_str(uint32_t flags)
 {
 	static char str[128];
 
@@ -445,28 +445,70 @@ char *lockspace_flags_str(uint32_t flags)
 	return str;
 }
 
+char *dlmc_nf_str(uint32_t flags)
+{
+	static char str[128];
+
+	memset(str, 0, sizeof(str));
+
+	if (flags & DLMC_NF_MEMBER)
+		strcat(str, "member ");
+	if (flags & DLMC_NF_START)
+		strcat(str, "start ");
+	if (flags & DLMC_NF_DISALLOWED)
+		strcat(str, "disallowed ");
+	if (flags & DLMC_NF_CHECK_FENCING)
+		strcat(str, "check_fencing ");
+	if (flags & DLMC_NF_CHECK_QUORUM)
+		strcat(str, "check_quorum ");
+	if (flags & DLMC_NF_CHECK_FS)
+		strcat(str, "check_fs ");
+	if (flags & DLMC_NF_FS_NOTIFIED)
+		strcat(str, "fs_notified");
+
+	return str;
+}
+
+char *condition_str(int cond)
+{
+	switch (cond) {
+	case 0:
+		return "";
+	case 1:
+		return "fencing";
+	case 2:
+		return "quorum";
+	case 3:
+		return "fs";
+	case 4:
+		return "pending";
+	default:
+		return "unknown";
+	}
+}
+
 static void show_ls(struct dlmc_lockspace *ls)
 {
 	printf("dlm lockspace \"%s\"\n", ls->name);
 	printf("global_id 0x%x flags 0x%x %s\n", ls->global_id, ls->flags,
-		lockspace_flags_str(ls->flags));
+		dlmc_lf_str(ls->flags));
 
-	printf("prev change member_count %d joined_count %d remove_count %d "
-	       "failed_count %d\n",
+	printf("prev seq %u-%u counts member %d joined %d remove %d failed %d\n",
+	        ls->cg_prev.combined_seq, ls->cg_prev.seq,
 		ls->cg_prev.member_count, ls->cg_prev.joined_count,
 		ls->cg_prev.remove_count, ls->cg_prev.failed_count);
-	printf("prev change seq %x - %x\n",
-	        ls->cg_prev.combined_seq, ls->cg_prev.seq);
 
-	printf("next change member_count %d joined_count %d remove_count %d "
-	       "failed_count %d\n",
+	if (!ls->cg_next.seq)
+		return;
+
+	printf("next seq %u-%u counts member %d joined %d remove %d failed %d\n",
+	        ls->cg_next.combined_seq, ls->cg_next.seq,
 		ls->cg_next.member_count, ls->cg_next.joined_count,
 		ls->cg_next.remove_count, ls->cg_next.failed_count);
-	printf("next change seq %x - %x\n",
-	        ls->cg_next.combined_seq, ls->cg_next.seq);
 
-	printf("next change wait_messages %d wait_condition %d\n",
-		ls->cg_next.wait_messages, ls->cg_next.wait_condition);
+	printf("next wait_messages %d wait_condition %d %s\n",
+		ls->cg_next.wait_messages, ls->cg_next.wait_condition,
+		condition_str(ls->cg_next.wait_condition));
 }
 
 static void show_all_nodes(int count, struct dlmc_node *nodes)
@@ -475,9 +517,9 @@ static void show_all_nodes(int count, struct dlmc_node *nodes)
 	int i;
 
 	for (i = 0; i < count; i++) {
-		printf("%d added_seq 0x%x removed_seq 0x%x failed_reason %d flags 0x%x\n",
+		printf("nodeid %d add_seq %u rem_seq %u failed %d flags 0x%x %s\n",
 			n->nodeid, n->added_seq, n->removed_seq,
-			n->failed_reason, n->flags);
+			n->failed_reason, n->flags, dlmc_nf_str(n->flags));
 		n++;
 	}
 }
@@ -492,6 +534,14 @@ static void show_nodeids(int count, struct dlmc_node *nodes)
 		n++;
 	}
 	printf("\n");
+}
+
+static int node_compare(const void *va, const void *vb)
+{
+	const struct dlmc_node *a = va;
+	const struct dlmc_node *b = vb;
+
+	return a->nodeid - b->nodeid;
 }
 
 #define MAX_LS 128
@@ -514,14 +564,12 @@ static void do_list(char *name)
 		rv = dlmc_lockspace_info(name, lss);
 		if (rv < 0)
 			goto out;
-
-		show_ls(lss);
-		return;
+		ls_count = 1;
+	} else {
+		rv = dlmc_lockspaces(MAX_LS, &ls_count, lss);
+		if (rv < 0)
+			goto out;
 	}
-
-	rv = dlmc_lockspaces(MAX_LS, &ls_count, lss);
-	if (rv < 0)
-		goto out;
 
 	for (i = 0; i < ls_count; i++) {
 		ls = &lss[i];
@@ -533,31 +581,49 @@ static void do_list(char *name)
 
 		rv = dlmc_lockspace_nodes(ls->name, DLMC_NODES_MEMBERS,
 					  MAX_NODES, &node_count, nodes);
+		if (rv < 0)
+			goto out;
+
+		qsort(nodes, node_count, sizeof(struct dlmc_node),node_compare);
+
 		printf("prev members ");
 		show_nodeids(node_count, nodes);
+
+		if (!ls->cg_next.seq && verbose)
+			goto show_all;
 
 		node_count = 0;
 		memset(&nodes, 0, sizeof(nodes));
 
 		rv = dlmc_lockspace_nodes(ls->name, DLMC_NODES_NEXT,
 			 		  MAX_NODES, &node_count, nodes);
+		if (rv < 0)
+			goto out;
+
+		qsort(nodes, node_count, sizeof(struct dlmc_node),node_compare);
+
 		printf("next members ");
 		show_nodeids(node_count, nodes);
 
 		if (!verbose)
 			continue;
-
+ show_all:
 		node_count = 0;
 		memset(&nodes, 0, sizeof(nodes));
 
 		rv = dlmc_lockspace_nodes(ls->name, DLMC_NODES_ALL,
 					  MAX_NODES, &node_count, nodes);
+		if (rv < 0)
+			goto out;
+
+		qsort(nodes, node_count, sizeof(struct dlmc_node),node_compare);
+
 		printf("all nodes\n");
 		show_all_nodes(node_count, nodes);
 	}
 	return;
  out:
-	fprintf(stderr, "dlm_controld lockspace query error %d\n", rv);
+	fprintf(stderr, "dlm_controld query error %d\n", rv);
 
 }
 
@@ -611,6 +677,7 @@ int main(int argc, char **argv)
 		break;
 
 	/* calls to libdlmcontrol; pass a command/query to dlm_controld */
+
 	case OP_LIST:
 		do_list(lsname);
 		break;
