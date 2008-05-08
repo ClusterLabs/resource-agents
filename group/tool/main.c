@@ -132,8 +132,8 @@ static void decode_arguments(int argc, char **argv)
 			break;
 
 		case 'V':
-			printf("%s (built %s %s)\n",
-				prog_name, __DATE__, __TIME__);
+			printf("%s %s (built %s %s)\n",
+				prog_name, RELEASE_VERSION, __DATE__, __TIME__);
 			/* printf("%s\n", REDHAT_COPYRIGHT); */
 			exit(EXIT_SUCCESS);
 			break;

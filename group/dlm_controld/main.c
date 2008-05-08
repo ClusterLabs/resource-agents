@@ -1094,7 +1094,8 @@ static void read_arguments(int argc, char **argv)
 			break;
 
 		case 'V':
-			printf("dlm_controld (built %s %s)\n", __DATE__, __TIME__);
+			printf("dlm_controld %s (built %s %s)\n",
+				RELEASE_VERSION, __DATE__, __TIME__);
 			/* printf("%s\n", REDHAT_COPYRIGHT); */
 			exit(EXIT_SUCCESS);
 			break;
