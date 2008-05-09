@@ -338,7 +338,6 @@ static void node_history_left(struct lockspace *ls, int nodeid,
 	}
 
 	node->add_time = 0;
-	node->check_quorum = 1;
 	node->removed_seq = cg->seq;	/* for queries */
 }
 
@@ -411,7 +410,7 @@ static int check_fencing_done(struct lockspace *ls)
 	return 1;
 }
 
-/* wait for cman to see all the same nodes removed, and to say there's quorum */
+/* wait for cman to see all the same nodes failed, and to say there's quorum */
 
 static int check_quorum_done(struct lockspace *ls)
 {
