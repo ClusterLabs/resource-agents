@@ -455,49 +455,51 @@ static int get_nodename(struct objdb_iface_ver0 *objdb)
 	unsigned int alt_object;
 	int error;
 
-	/* our nodename */
-	if (nodename_env != NULL) {
-		if (strlen(nodename_env) >= sizeof(nodename)) {
-			sprintf(error_reason, "Overridden node name %s is too long", nodename);
-			write_cman_pipe("Overridden node name is too long");
-			error = -1;
-			goto out;
+	if (!getenv("CMAN_NOCONFIG")) {
+		/* our nodename */
+		if (nodename_env != NULL) {
+			if (strlen(nodename_env) >= sizeof(nodename)) {
+				sprintf(error_reason, "Overridden node name %s is too long", nodename);
+				write_cman_pipe("Overridden node name is too long");
+				error = -1;
+				goto out;
+			}
+
+			strcpy(nodename, nodename_env);
+
+			if (objdb->object_find(object_handle,
+					       nodename, strlen(nodename),
+					       &node_object_handle) != 0) {
+				sprintf(error_reason, "Overridden node name %s is not in CCS", nodename);
+				write_cman_pipe("Overridden node name is not in CCS");
+				error = -1;
+				goto out;
+			}
+
+		} else {
+			struct utsname utsname;
+
+			error = uname(&utsname);
+			if (error) {
+				sprintf(error_reason, "cannot get node name, uname failed");
+				write_cman_pipe("Can't determine local node name");
+				error = -1;
+				goto out;
+			}
+
+			if (strlen(utsname.nodename) >= sizeof(nodename)) {
+				sprintf(error_reason, "node name from uname is too long");
+				write_cman_pipe("Can't determine local node name");
+				error = -1;
+				goto out;
+			}
+
+			strcpy(nodename, utsname.nodename);
 		}
+		if (verify_nodename(objdb, nodename))
+			return -1;
 
-		strcpy(nodename, nodename_env);
-
-		if (objdb->object_find(object_handle,
-				       nodename, strlen(nodename),
-				       &node_object_handle) != 0) {
-			sprintf(error_reason, "Overridden node name %s is not in CCS", nodename);
-			write_cman_pipe("Overridden node name is not in CCS");
-			error = -1;
-			goto out;
-		}
-
-	} else {
-		struct utsname utsname;
-
-		error = uname(&utsname);
-		if (error) {
-			sprintf(error_reason, "cannot get node name, uname failed");
-			write_cman_pipe("Can't determine local node name");
-			error = -1;
-			goto out;
-		}
-
-		if (strlen(utsname.nodename) >= sizeof(nodename)) {
-			sprintf(error_reason, "node name from uname is too long");
-			write_cman_pipe("Can't determine local node name");
-			error = -1;
-			goto out;
-		}
-
-		strcpy(nodename, utsname.nodename);
 	}
-	if (verify_nodename(objdb, nodename))
-		return -1;
-
 
 	/* Add <cman nodename> */
 	if ( (node_object_handle = nodelist_byname(objdb, cluster_parent_handle, nodename))) {
@@ -722,6 +724,12 @@ static void add_cman_overrides(struct objdb_iface_ver0 *objdb)
 
 	/* Don't run under user "ais" */
 	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
+	if (objdb->object_find(OBJECT_PARENT_HANDLE, "aisexec", strlen("aisexec"), &object_handle) != 0) {
+		objdb->object_create(OBJECT_PARENT_HANDLE, &object_handle,
+				     "aisexec", strlen("aisexec"));
+
+	}
+	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
 	if (objdb->object_find(OBJECT_PARENT_HANDLE, "aisexec", strlen("aisexec"), &object_handle) == 0)
 	{
 		objdb->object_key_create(object_handle, "user", strlen("user"),
@@ -939,4 +947,14 @@ static int cmanpre_readconfig(struct objdb_iface_ver0 *objdb, char **error_strin
         *error_string = error_reason;
 
 	return ret;
+}
+
+/* Write an error message down the CMAN startup pipe so
+   that cman_tool can display it */
+int write_cman_pipe(char *message)
+{
+	if (startup_pipe)
+		return write(startup_pipe, message, strlen(message)+1);
+
+	return 0;
 }
