@@ -47,6 +47,8 @@ int optk_debug;
 int optk_timewarn;
 int optk_protocol;
 int optd_groupd_compat;
+int optd_enable_fencing;
+int optd_enable_quorum;
 int optd_enable_deadlk;
 int optd_enable_plock;
 int optd_plock_debug;
@@ -63,6 +65,8 @@ int cfgk_debug			= -1;
 int cfgk_timewarn		= -1;
 int cfgk_protocol		= -1;
 int cfgd_groupd_compat		= DEFAULT_GROUPD_COMPAT;
+int cfgd_enable_fencing		= DEFAULT_ENABLE_FENCING;
+int cfgd_enable_quorum		= DEFAULT_ENABLE_QUORUM;
 int cfgd_enable_deadlk		= DEFAULT_ENABLE_DEADLK;
 int cfgd_enable_plock		= DEFAULT_ENABLE_PLOCK;
 int cfgd_plock_debug		= DEFAULT_PLOCK_DEBUG;
@@ -238,6 +242,8 @@ static void read_ccs_protocol(int cd, char *path, int *config_val)
 #define TIMEWARN_PATH "/cluster/dlm/@timewarn"
 #define PROTOCOL_PATH "/cluster/dlm/@protocol"
 #define GROUPD_COMPAT_PATH "/cluster/group/@groupd_compat"
+#define ENABLE_FENCING_PATH "/cluster/dlm/@enable_fencing"
+#define ENABLE_QUORUM_PATH "/cluster/dlm/@enable_quorum"
 #define ENABLE_DEADLK_PATH "/cluster/dlm/@enable_deadlk"
 #define ENABLE_PLOCK_PATH "/cluster/dlm/@enable_plock"
 #define PLOCK_DEBUG_PATH "/cluster/dlm/@plock_debug"
@@ -266,6 +272,10 @@ void read_ccs(void)
 		read_ccs_protocol(cd, PROTOCOL_PATH, &cfgk_protocol);
 	if (!optd_groupd_compat)
 		read_ccs_int(cd, GROUPD_COMPAT_PATH, &cfgd_groupd_compat);
+	if (!optd_enable_fencing)
+		read_ccs_int(cd, ENABLE_FENCING_PATH, &cfgd_enable_fencing);
+	if (!optd_enable_quorum)
+		read_ccs_int(cd, ENABLE_QUORUM_PATH, &cfgd_enable_quorum);
 	if (!optd_enable_deadlk)
 		read_ccs_int(cd, ENABLE_DEADLK_PATH, &cfgd_enable_deadlk);
 	if (!optd_enable_plock)

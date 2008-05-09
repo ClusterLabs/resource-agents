@@ -999,26 +999,30 @@ static void print_usage(void)
 	printf("		on: use libgroup, compat with cluster2/stable2/rhel5\n");
 	printf("		off: use libcpg, no backward compatability\n");
 	printf("		Default is %d\n", DEFAULT_GROUPD_COMPAT);
-	printf("  -d <num>	Enable (1) or disable (0) deadlock code\n");
+	printf("  -f <num>	Enable (1) or disable (0) fencing recovery dependency\n");
+	printf("		Default is %d\n", DEFAULT_ENABLE_FENCING);
+	printf("  -q <num>	Enable (1) or disable (0) quorum recovery dependency\n");
+	printf("		Default is %d\n", DEFAULT_ENABLE_QUORUM);
+	printf("  -d <num>	Enable (1) or disable (0) deadlock detection code\n");
 	printf("		Default is %d\n", DEFAULT_ENABLE_DEADLK);
-	printf("  -p <num>	Enable (1) or disable (0) plock code\n");
+	printf("  -p <num>	Enable (1) or disable (0) plock code for cluster fs\n");
 	printf("		Default is %d\n", DEFAULT_ENABLE_PLOCK);
 	printf("  -P		Enable plock debugging\n");
 	printf("  -l <limit>	Limit the rate of plock operations\n");
 	printf("		Default is %d, set to 0 for no limit\n", DEFAULT_PLOCK_RATE_LIMIT);
-	printf("  -o <n>	plock ownership, 1 enable, 0 disable\n");
+	printf("  -o <n>	Enable (1) or disable (0) plock ownership\n");
 	printf("		Default is %d\n", DEFAULT_PLOCK_OWNERSHIP);
-	printf("  -t <ms>	plock drop resources time (milliseconds)\n");
+	printf("  -t <ms>	plock ownership drop resources time (milliseconds)\n");
 	printf("		Default is %u\n", DEFAULT_DROP_RESOURCES_TIME);
-	printf("  -c <num>	plock drop resources count\n");
+	printf("  -c <num>	plock ownership drop resources count\n");
 	printf("		Default is %u\n", DEFAULT_DROP_RESOURCES_COUNT);
-	printf("  -a <ms>	plock drop resources age (milliseconds)\n");
+	printf("  -a <ms>	plock ownership drop resources age (milliseconds)\n");
 	printf("		Default is %u\n", DEFAULT_DROP_RESOURCES_AGE);
 	printf("  -h		Print this help, then exit\n");
 	printf("  -V		Print program version information, then exit\n");
 }
 
-#define OPTION_STRING			"DKg:d:p:Pl:o:t:c:a:hV"
+#define OPTION_STRING			"DKg:f:q:d:p:Pl:o:t:c:a:hV"
 
 static void read_arguments(int argc, char **argv)
 {
@@ -1046,6 +1050,16 @@ static void read_arguments(int argc, char **argv)
 		case 'K':
 			optk_debug = 1;
 			cfgk_debug = 1;
+			break;
+
+		case 'f':
+			optd_enable_fencing = 1;
+			cfgd_enable_fencing = atoi(optarg);
+			break;
+
+		case 'q':
+			optd_enable_quorum = 1;
+			cfgd_enable_quorum = atoi(optarg);
 			break;
 
 		case 'd':

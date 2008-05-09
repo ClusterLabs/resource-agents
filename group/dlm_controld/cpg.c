@@ -352,11 +352,14 @@ static void node_history_fail(struct lockspace *ls, int nodeid,
 		return;
 	}
 
-	if (!node->add_time)
+	if (cfgd_enable_fencing && !node->add_time)
 		node->check_fencing = 1;
 
-	node->check_quorum = 1;
+	if (cfgd_enable_quorum)
+		node->check_quorum = 1;
+
 	node->check_fs = 1;
+
 	node->removed_seq = cg->seq;	/* for queries */
 	node->failed_reason = reason;	/* for queries */
 }
@@ -368,6 +371,9 @@ static int check_fencing_done(struct lockspace *ls)
 	struct fenced_domain domain;
 	int wait_count = 0;
 	int rv;
+
+	if (!cfgd_enable_fencing)
+		return 1;
 
 	list_for_each_entry(node, &ls->node_history, list) {
 		if (!node->check_fencing)
@@ -416,6 +422,9 @@ static int check_quorum_done(struct lockspace *ls)
 {
 	struct node *node;
 	int wait_count = 0;
+
+	if (!cfgd_enable_quorum)
+		return 1;
 
 	if (!cman_quorate) {
 		log_group(ls, "check_quorum %d", cman_quorate);
@@ -618,6 +627,8 @@ static void cleanup_changes(struct lockspace *ls)
 	if (ls->started_change)
 		free_cg(ls->started_change);
 	ls->started_change = cg;
+
+	cg->combined_seq = cg->seq; /* for queries */
 
 	list_for_each_entry_safe(cg, safe, &ls->changes, list) {
 		ls->started_change->combined_seq = cg->seq; /* for queries */
