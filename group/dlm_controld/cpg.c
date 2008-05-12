@@ -760,6 +760,7 @@ static int match_change(struct lockspace *ls, struct change *cg,
 	if (members_mismatch)
 		return 0;
 
+	log_group(ls, "match_change done %d:%u", hd->nodeid, seq);
 	return 1;
 }
 
@@ -913,6 +914,7 @@ static void receive_start(struct lockspace *ls, struct dlm_header *hd, int len)
 
 	memb->start_flags = hd->flags;
 
+#if 0
 	joining = (memb->start_flags & DLM_MFLG_JOINING) ? 1 : 0;
 	added = is_added(ls, hd->nodeid);
 
@@ -920,10 +922,11 @@ static void receive_start(struct lockspace *ls, struct dlm_header *hd, int len)
 		log_error("receive_start %d:%u disallowed added %d joining %d",
 			  hd->nodeid, seq, added, joining);
 		memb->disallowed = 1;
-	} else {
-		node_history_start(ls, hd->nodeid);
-		memb->start = 1;
+		return;
 	}
+#endif
+	node_history_start(ls, hd->nodeid);
+	memb->start = 1;
 }
 
 static int we_joined(struct lockspace *ls)
