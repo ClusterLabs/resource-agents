@@ -490,10 +490,10 @@ char *condition_str(int cond)
 static void show_ls(struct dlmc_lockspace *ls)
 {
 	printf("dlm lockspace \"%s\"\n", ls->name);
-	printf("global_id 0x%x flags 0x%x %s\n", ls->global_id, ls->flags,
+	printf("id 0x%x flags 0x%x %s\n", ls->global_id, ls->flags,
 		dlmc_lf_str(ls->flags));
 
-	printf("prev seq %u-%u counts member %d joined %d remove %d failed %d\n",
+	printf("seq %u-%u counts member %d joined %d remove %d failed %d\n",
 	        ls->cg_prev.combined_seq, ls->cg_prev.seq,
 		ls->cg_prev.member_count, ls->cg_prev.joined_count,
 		ls->cg_prev.remove_count, ls->cg_prev.failed_count);
@@ -501,12 +501,12 @@ static void show_ls(struct dlmc_lockspace *ls)
 	if (!ls->cg_next.seq)
 		return;
 
-	printf("next seq %u-%u counts member %d joined %d remove %d failed %d\n",
+	printf("new seq %u-%u counts member %d joined %d remove %d failed %d\n",
 	        ls->cg_next.combined_seq, ls->cg_next.seq,
 		ls->cg_next.member_count, ls->cg_next.joined_count,
 		ls->cg_next.remove_count, ls->cg_next.failed_count);
 
-	printf("next wait_messages %d wait_condition %d %s\n",
+	printf("new wait_messages %d wait_condition %d %s\n",
 		ls->cg_next.wait_messages, ls->cg_next.wait_condition,
 		condition_str(ls->cg_next.wait_condition));
 }
@@ -586,7 +586,7 @@ static void do_list(char *name)
 
 		qsort(nodes, node_count, sizeof(struct dlmc_node),node_compare);
 
-		printf("prev members ");
+		printf("members ");
 		show_nodeids(node_count, nodes);
 
 		if (!ls->cg_next.seq)
@@ -602,7 +602,7 @@ static void do_list(char *name)
 
 		qsort(nodes, node_count, sizeof(struct dlmc_node),node_compare);
 
-		printf("next members ");
+		printf("new members ");
 		show_nodeids(node_count, nodes);
 
  show_all:
