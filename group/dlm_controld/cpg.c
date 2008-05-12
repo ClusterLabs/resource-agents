@@ -300,7 +300,7 @@ static void node_history_init(struct lockspace *ls, int nodeid,
 
 	node = get_node_history(ls, nodeid);
 	if (node)
-		return;
+		goto out;
 
 	node = malloc(sizeof(struct node));
 	if (!node)
@@ -310,6 +310,7 @@ static void node_history_init(struct lockspace *ls, int nodeid,
 	node->nodeid = nodeid;
 	node->add_time = 0;
 	list_add_tail(&node->list, &ls->node_history);
+ out:
 	node->added_seq = cg->seq;	/* for queries */
 }
 
@@ -1588,6 +1589,8 @@ static int _set_node_info(struct lockspace *ls, struct change *cg, int nodeid,
 	struct member *m = NULL;
 	struct node *n;
 
+	node->nodeid = nodeid;
+
 	if (cg)
 		m = find_memb(cg, nodeid);
 	if (!m)
@@ -1645,6 +1648,7 @@ int set_lockspaces(int *count, struct dlmc_lockspace **lss_out)
 	lss = malloc(ls_count * sizeof(struct dlmc_lockspace));
 	if (!lss)
 		return -ENOMEM;
+	memset(lss, 0, ls_count * sizeof(struct dlmc_lockspace));
 
 	lsp = lss;
 	list_for_each_entry(ls, &lockspaces, list) {
@@ -1691,6 +1695,7 @@ int set_lockspace_nodes(struct lockspace *ls, int option, int *node_count,
 	nodes = malloc(count * sizeof(struct dlmc_node));
 	if (!nodes)
 		return -ENOMEM;
+	memset(nodes, 0, count * sizeof(struct dlmc_node));
 	nodep = nodes;
 
 	if (option == DLMC_NODES_ALL) {

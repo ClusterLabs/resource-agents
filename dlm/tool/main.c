@@ -589,7 +589,7 @@ static void do_list(char *name)
 		printf("prev members ");
 		show_nodeids(node_count, nodes);
 
-		if (!ls->cg_next.seq && verbose)
+		if (!ls->cg_next.seq)
 			goto show_all;
 
 		node_count = 0;
@@ -605,9 +605,10 @@ static void do_list(char *name)
 		printf("next members ");
 		show_nodeids(node_count, nodes);
 
+ show_all:
 		if (!verbose)
 			continue;
- show_all:
+
 		node_count = 0;
 		memset(&nodes, 0, sizeof(nodes));
 
