@@ -30,13 +30,23 @@ def get_power_status(conn, options):
 		conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
 
 		version = 0
+		admin = 0
+
 		if (None == re.compile('.*Outlet Management.*', re.IGNORECASE | re.S).match(conn.before)):
 			version = 2
 		else:
 			version = 3
 
+		if (None == re.compile('.*Outlet Control/Configuration.*', re.IGNORECASE | re.S).match(conn.before)):
+			admin = 0
+		else:
+			admin = 1
+
 		if version == 2:
-			conn.send("2\r\n")
+			if admin == 0:
+				conn.send("2\r\n")
+			else:
+				conn.send("3\r\n")
 		else:
 			conn.send("2\r\n")
 			conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
@@ -68,13 +78,22 @@ def set_power_status(conn, options):
 		conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
 
 		version = 0
+		admin = 0
 		if (None == re.compile('.*Outlet Management.*', re.IGNORECASE | re.S).match(conn.before)):
 			version = 2
 		else:
 			version = 3
 
+		if (None == re.compile('.*Outlet Control/Configuration.*', re.IGNORECASE | re.S).match(conn.before)):
+			admin = 0
+		else:
+			admin = 1
+
 		if version == 2:
-			conn.send("2\r\n")
+			if admin == 0:
+				conn.send("2\r\n")
+			else:
+				conn.send("3\r\n")
 		else:
 			conn.send("2\r\n")
 			conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
@@ -84,6 +103,9 @@ def set_power_status(conn, options):
 			conn.send("\r\n")
 		conn.send(options["-n"]+"\r\n")
 		conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
+		if admin == 1:
+			conn.send("1\r\n")
+			conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
 		if version == 3:
 			conn.send("1\r\n")
 			conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
