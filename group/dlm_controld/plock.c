@@ -783,15 +783,11 @@ static int add_waiter(struct lockspace *ls, struct resource *r,
 static void write_result(struct lockspace *ls, struct dlm_plock_info *in,
 			 int rv)
 {
-	int err;
-
 	if (need_fsid_translation)
 		in->fsid = ls->associated_mg_id;
 
 	in->rv = rv;
-	err = write(control_fd, in, sizeof(struct dlm_plock_info));
-	if (err != sizeof(struct dlm_plock_info))
-		log_error("plock result write err %d errno %d", err, errno);
+	write(control_fd, in, sizeof(struct dlm_plock_info));
 }
 
 static void do_waiters(struct lockspace *ls, struct resource *r)

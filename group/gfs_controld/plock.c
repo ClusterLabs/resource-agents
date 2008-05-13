@@ -798,15 +798,11 @@ static int add_waiter(struct mountgroup *mg, struct resource *r,
 static void write_result(struct mountgroup *mg, struct dlm_plock_info *in,
 			 int rv)
 {
-	int err;
-
 	if (need_fsid_translation)
 		in->fsid = mg->associated_ls_id;
 
 	in->rv = rv;
-	err = write(control_fd, in, sizeof(struct dlm_plock_info));
-	if (err != sizeof(struct dlm_plock_info))
-		log_error("plock result write err %d errno %d", err, errno);
+	write(control_fd, in, sizeof(struct dlm_plock_info));
 }
 
 static void do_waiters(struct mountgroup *mg, struct resource *r)
