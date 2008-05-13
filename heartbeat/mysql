@@ -248,24 +248,24 @@ mysql_validate() {
 # checking the parameters
     if [ ! -f $OCF_RESKEY_config ]; then
 	ocf_log err "Config $OCF_RESKEY_mysql_config doesn't exist";
-	exit $OCF_ERR_ARGS;
+	exit $OCF_ERR_INSTALLED;
     fi
     
     if [ ! -d $OCF_RESKEY_datadir ]; then
 	ocf_log err "Datadir $OCF_RESKEY_datadir dosen't exist";
-	exit $OCF_ERR_ARGS;
+	exit $OCF_ERR_INSTALLED;
     fi
     
     getent passwd $OCF_RESKEY_user >/dev/null 2>&1
     if [ ! $? -eq 0 ]; then
 	ocf_log err "User $OCF_RESKEY_user doesn't exit";
-	exit $OCF_ERR_ARGS;
+	exit $OCF_ERR_INSTALLED;
     fi
     
     getent group $OCF_RESKEY_group >/dev/null 2>&1
     if [ ! $? -eq 0 ]; then
 	ocf_log err "Group $OCF_RESKEY_group doesn't exist";
-	exit $OCF_ERR_ARGS;
+	exit $OCF_ERR_INSTALLED;
     fi
 }
 
