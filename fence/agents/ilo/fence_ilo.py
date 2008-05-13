@@ -43,9 +43,9 @@ def set_power_status(conn, options):
 	try:
 		conn.send("power " + options["-o"] + "\r\n")
 		conn.log_expect(options, options["-c"], POWER_TIMEOUT)
-	except pexcept.EOF:
+	except pexpect.EOF:
 		fail(EC_CONNECTION_LOST)
-	except pexcept.TIMEOUT:
+	except pexpect.TIMEOUT:
 		fail(EC_TIMED_OUT)
 
 def main():

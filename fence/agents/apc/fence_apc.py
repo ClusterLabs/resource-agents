@@ -118,9 +118,9 @@ def set_power_status(conn, options):
 		conn.send(chr(03))
 		conn.log_expect(options, "- Logout", SHELL_TIMEOUT)
 		conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
-	except pexcept.EOF:
+	except pexpect.EOF:
 		fail(EC_CONNECTION_LOST)
-	except pexcept.TIMEOUT:
+	except pexpect.TIMEOUT:
 		fail(EC_TIMED_OUT)
 
 def main():

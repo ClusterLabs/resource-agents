@@ -56,9 +56,9 @@ def set_power_status(conn, options):
 		conn.log_expect(options, node_cmd, SHELL_TIMEOUT)
 		conn.send("env -T system\r\n")
 		conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
-	except pexcept.EOF:
+	except pexpect.EOF:
 		fail(EC_CONNECTION_LOST)
-	except pexcept.TIMEOUT:
+	except pexpect.TIMEOUT:
 		fail(EC_TIMED_OUT)
 
 def main():
