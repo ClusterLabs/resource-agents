@@ -960,8 +960,8 @@ print_quota_message(struct gfs_sbd *sdp, struct gfs_quota_data *qd, char *type)
 
 	if (current->signal) {
 		tty = current->signal->tty;
-		if (tty && tty->driver->write)
-			tty->driver->write(tty, line, len);
+		if (tty && tty->ops->write)
+			tty->ops->write(tty, line, len);
 	}
 
 	kfree(line);

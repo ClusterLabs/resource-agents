@@ -417,7 +417,7 @@ gfs_commit_write(struct file *file, struct page *page,
 		if (inode->i_size < file_size)
 			i_size_write(inode, file_size);
 	} else {
-		error = generic_commit_write(file, page, from, to);
+		error = block_commit_write(page, from, to);
 		if (error)
 			goto fail;
 	}
