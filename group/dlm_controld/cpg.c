@@ -629,6 +629,10 @@ static void cleanup_changes(struct lockspace *ls)
 		free_cg(ls->started_change);
 	ls->started_change = cg;
 
+	ls->started_count++;
+	if (!ls->started_count)
+		ls->started_count++;
+
 	cg->combined_seq = cg->seq; /* for queries */
 
 	list_for_each_entry_safe(cg, safe, &ls->changes, list) {
@@ -686,24 +690,30 @@ static void set_plock_ckpt_node(struct lockspace *ls)
 	ls->plock_ckpt_node = low;
 }
 
+#define COUNT_NUMS 5
+
 /* do the change details in the message match the details of the given change */
 
 static int match_change(struct lockspace *ls, struct change *cg,
-			struct dlm_header *hd, int len)
+			struct dlm_header *hd, int len, uint32_t *started)
 {
 	struct member *memb;
 	int member_count, joined_count, remove_count, failed_count;
 	int i, n_ints, *nums, nodeid, members_mismatch;
 	uint32_t seq = hd->msgdata;
+	uint32_t started_count;
 
 	nums = (int *)((char *)hd + sizeof(struct dlm_header));
 
-	member_count = le32_to_cpu(nums[0]);
-	joined_count = le32_to_cpu(nums[1]);
-	remove_count = le32_to_cpu(nums[2]);
-	failed_count = le32_to_cpu(nums[3]);
+	started_count = le32_to_cpu(nums[0]);
+	member_count = le32_to_cpu(nums[1]);
+	joined_count = le32_to_cpu(nums[2]);
+	remove_count = le32_to_cpu(nums[3]);
+	failed_count = le32_to_cpu(nums[4]);
 
-	n_ints = 4 + member_count;
+	*started = started_count;
+
+	n_ints = COUNT_NUMS + member_count;
 	if (len < (sizeof(struct dlm_header) + (n_ints * sizeof(int)))) {
 		log_group(ls, "match_change fail %d:%u bad len %d nums %s",
 			  hd->nodeid, seq, len, str_nums(nums, n_ints));
@@ -715,7 +725,7 @@ static int match_change(struct lockspace *ls, struct change *cg,
 	   get messages for changes prior to the change in which we're added. */
 
 	for (i = 0; i < member_count; i++) {
-		if (our_nodeid == le32_to_cpu(nums[4+i]))
+		if (our_nodeid == le32_to_cpu(nums[COUNT_NUMS + i]))
 			break;
 	}
 	if (i == member_count) {
@@ -749,7 +759,7 @@ static int match_change(struct lockspace *ls, struct change *cg,
 
 	members_mismatch = 0;
 	for (i = 0; i < member_count; i++) {
-		nodeid = le32_to_cpu(nums[4+i]);
+		nodeid = le32_to_cpu(nums[COUNT_NUMS + i]);
 		memb = find_memb(cg, nodeid);
 		if (memb)
 			continue;
@@ -772,7 +782,7 @@ static void send_plocks_stored(struct lockspace *ls)
 	int n_ints, len, *p, i;
 	char *buf;
 
-	n_ints = 4 + cg->member_count;
+	n_ints = COUNT_NUMS + cg->member_count;
 	len = sizeof(struct dlm_header) + (n_ints * sizeof(uint32_t));
 
 	buf = malloc(len);
@@ -791,12 +801,13 @@ static void send_plocks_stored(struct lockspace *ls)
 	   us more certainty in matching stopped messages to the correct
 	   change that they are for */
 
-	p[0] = cpu_to_le32(cg->member_count);
-	p[1] = cpu_to_le32(cg->joined_count);
-	p[2] = cpu_to_le32(cg->remove_count);
-	p[3] = cpu_to_le32(cg->failed_count);
+	p[0] = cpu_to_le32(ls->started_count);
+	p[1] = cpu_to_le32(cg->member_count);
+	p[2] = cpu_to_le32(cg->joined_count);
+	p[3] = cpu_to_le32(cg->remove_count);
+	p[4] = cpu_to_le32(cg->failed_count);
 
-	i = 4;
+	i = COUNT_NUMS;
 	list_for_each_entry(memb, &cg->members, list)
 		p[i++] = cpu_to_le32(memb->nodeid);
 
@@ -808,6 +819,8 @@ static void send_plocks_stored(struct lockspace *ls)
 static void receive_plocks_stored(struct lockspace *ls, struct dlm_header *hd,
 				  int len)
 {
+	uint32_t started_count;
+
 	log_group(ls, "receive_plocks_stored %d:%u need_plocks %d",
 		  hd->nodeid, hd->msgdata, ls->need_plocks);
 
@@ -819,7 +832,7 @@ static void receive_plocks_stored(struct lockspace *ls, struct dlm_header *hd,
 	   the next plocks_stored msg following the current start */
 	   
 	if (!list_empty(&ls->changes) || !ls->started_change ||
-	    !match_change(ls, ls->started_change, hd, len)) {
+	    !match_change(ls, ls->started_change, hd, len, &started_count)) {
 		log_group(ls, "receive_plocks_stored %d:%u ignore",
 			  hd->nodeid, hd->msgdata);
 		return;
@@ -851,12 +864,12 @@ static void receive_plocks_stored(struct lockspace *ls, struct dlm_header *hd,
    for confchg1 or confchg2?  Hopefully by comparing the counts and members. */
 
 static struct change *find_change(struct lockspace *ls, struct dlm_header *hd,
-				  int len)
+				  int len, uint32_t *started_count)
 {
 	struct change *cg;
 
 	list_for_each_entry_reverse(cg, &ls->changes, list) {
-		if (!match_change(ls, cg, hd, len))
+		if (!match_change(ls, cg, hd, len, started_count))
 			continue;
 		return cg;
 	}
@@ -878,30 +891,18 @@ static int is_added(struct lockspace *ls, int nodeid)
 	return 0;
 }
 
-/* We require new members (memb->added) to be joining the lockspace
-   (memb->joining).  New members that are not joining the lockspace can happen
-   when the cpg partitions and is then merged back together (shouldn't happen
-   in general, but is possible).  We label these new members that are not
-   joining as "disallowed", and ignore their start message. */
-
-/* The added/joining checks to detect disallowed nodes need to consider
-   the whole set of changes that are being started. */
-
-/* Handle spurious joins by ignoring this start message if the node says it's
-   not joining (i.e. it's already a member), but we see it being added (i.e.
-   it's not already a member) */
-
 static void receive_start(struct lockspace *ls, struct dlm_header *hd, int len)
 {
 	struct change *cg;
 	struct member *memb;
-	int joining, added;
 	uint32_t seq = hd->msgdata;
+	uint32_t started_count;
+	int added;
 
 	log_group(ls, "receive_start %d:%u flags %x len %d", hd->nodeid, seq,
 		  hd->flags, len);
 
-	cg = find_change(ls, hd, len);
+	cg = find_change(ls, hd, len, &started_count);
 	if (!cg)
 		return;
 
@@ -914,30 +915,23 @@ static void receive_start(struct lockspace *ls, struct dlm_header *hd, int len)
 
 	memb->start_flags = hd->flags;
 
-#if 0
-	joining = (memb->start_flags & DLM_MFLG_JOINING) ? 1 : 0;
 	added = is_added(ls, hd->nodeid);
 
-	if ((added && !joining) || (!added && joining)) {
-		log_error("receive_start %d:%u disallowed added %d joining %d",
-			  hd->nodeid, seq, added, joining);
+	if (added && started_count) {
+		log_error("receive_start %d:%u add node with started_count %u",
+			  hd->nodeid, seq, started_count);
+
+		/* observe this scheme working before using it; I'm not sure
+		   that a joining node won't ever see an existing node as added
+		   under normal circumstances */
+		/*
 		memb->disallowed = 1;
 		return;
+		*/
 	}
-#endif
+
 	node_history_start(ls, hd->nodeid);
 	memb->start = 1;
-}
-
-static int we_joined(struct lockspace *ls)
-{
-	struct change *cg;
-
-	list_for_each_entry(cg, &ls->changes, list) {
-		if (cg->we_joined)
-			return 1;
-	}
-	return 0;
 }
 
 static void send_start(struct lockspace *ls)
@@ -948,7 +942,7 @@ static void send_start(struct lockspace *ls)
 	int n_ints, len, *p, i;
 	char *buf;
 
-	n_ints = 4 + cg->member_count;
+	n_ints = COUNT_NUMS + cg->member_count;
 	len = sizeof(struct dlm_header) + (n_ints * sizeof(int));
 
 	buf = malloc(len);
@@ -961,7 +955,7 @@ static void send_start(struct lockspace *ls)
 	hd->type = DLM_MSG_START;
 	hd->msgdata = cg->seq;
 
-	if (we_joined(ls))
+	if (ls->joining)
 		hd->flags |= DLM_MFLG_JOINING;
 
 	if (!ls->need_plocks)
@@ -973,18 +967,19 @@ static void send_start(struct lockspace *ls)
 	   us more certainty in matching stopped messages to the correct
 	   change that they are for */
 
-	p[0] = cpu_to_le32(cg->member_count);
-	p[1] = cpu_to_le32(cg->joined_count);
-	p[2] = cpu_to_le32(cg->remove_count);
-	p[3] = cpu_to_le32(cg->failed_count);
+	p[0] = cpu_to_le32(ls->started_count);
+	p[1] = cpu_to_le32(cg->member_count);
+	p[2] = cpu_to_le32(cg->joined_count);
+	p[3] = cpu_to_le32(cg->remove_count);
+	p[4] = cpu_to_le32(cg->failed_count);
 
-	i = 4;
+	i = COUNT_NUMS;
 	list_for_each_entry(memb, &cg->members, list)
 		p[i++] = cpu_to_le32(memb->nodeid);
 
-	log_group(ls, "send_start %u flags %x counts %d %d %d %d", cg->seq,
-		  hd->flags, cg->member_count, cg->joined_count,
-		  cg->remove_count, cg->failed_count);
+	log_group(ls, "send_start %u flags %x counts %u %d %d %d %d",
+		  cg->seq, hd->flags, ls->started_count, cg->member_count,
+		  cg->joined_count, cg->remove_count, cg->failed_count);
 
 	dlm_send_message(ls, buf, len);
 

@@ -166,6 +166,7 @@ struct lockspace {
 	int			kernel_stopped;
 	int			fs_registered;
 	uint32_t		change_seq;
+	uint32_t		started_count;
 	struct change		*started_change;
 	struct list_head	changes;
 	struct list_head	node_history;
