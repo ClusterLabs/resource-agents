@@ -69,26 +69,25 @@ static spinlock_t gnbd_lock = SPIN_LOCK_UNLOCKED;
 
 #define to_gnbd_dev(d) container_of(d, struct gnbd_device, class_dev)
 
-static void gnbd_class_release(struct class_device *class_dev)
+static void gnbd_class_release(struct device *class_dev)
 {
 	/* FIXME -- What the hell do I have to free up here */
 }
 
 static struct class gnbd_class = {
 	.name = "gnbd",
-	.release = gnbd_class_release
+	.dev_release = gnbd_class_release
 };
 
-
-static ssize_t show_pid(struct class_device *class_dev, char *buf)
+static ssize_t show_pid(struct device *class_dev, struct device_attribute *attr, char *buf)
 {
 	struct gnbd_device *dev = to_gnbd_dev(class_dev);
 	return sprintf(buf, "%d\n", dev->receiver_pid);
 }
 
-static CLASS_DEVICE_ATTR(pid, S_IRUGO, show_pid, NULL);
+DEVICE_ATTR(pid, S_IRUGO, show_pid, NULL);
 
-static ssize_t show_server(struct class_device *class_dev, char *buf)
+static ssize_t show_server(struct device *class_dev, struct device_attribute *attr, char *buf)
 {
 	struct gnbd_device *dev = to_gnbd_dev(class_dev);
 	if (dev->server_name)
@@ -99,7 +98,7 @@ static ssize_t show_server(struct class_device *class_dev, char *buf)
 }
 
 /* FIXME -- should a empty store free the memory */
-static ssize_t store_server(struct class_device *class_dev,
+static ssize_t store_server(struct device *class_dev, struct device_attribute *attr,
 		const char *buf, size_t count)
 {
 	int res;
@@ -129,15 +128,15 @@ static ssize_t store_server(struct class_device *class_dev,
 	return count;
 }
 
-CLASS_DEVICE_ATTR(server, S_IRUGO | S_IWUSR, show_server, store_server);
+DEVICE_ATTR(server, S_IRUGO | S_IWUSR, show_server, store_server);
 
-static ssize_t show_name(struct class_device *class_dev, char *buf)
+static ssize_t show_name(struct device *class_dev, struct device_attribute *attr, char *buf)
 {
 	struct gnbd_device *dev = to_gnbd_dev(class_dev);
 	return sprintf(buf, "%s\n", dev->name);
 }
 
-static ssize_t store_name(struct class_device *class_dev,
+static ssize_t store_name(struct device *class_dev, struct device_attribute *attr,
                 const char *buf, size_t count)
 {
 	int res;
@@ -151,17 +150,17 @@ static ssize_t store_name(struct class_device *class_dev,
 	return count;
 }
 
-CLASS_DEVICE_ATTR(name, S_IRUGO | S_IWUSR, show_name, store_name);
+DEVICE_ATTR(name, S_IRUGO | S_IWUSR, show_name, store_name);
 
 
-static ssize_t show_sectors(struct class_device *class_dev, char *buf)
+static ssize_t show_sectors(struct device *class_dev, struct device_attribute *attr, char *buf)
 {
 	struct gnbd_device *dev = to_gnbd_dev(class_dev);
 	return sprintf(buf, "%Lu\n",
 			(unsigned long long)get_capacity(dev->disk));
 }
 
-static ssize_t store_sectors(struct class_device *class_dev,
+static ssize_t store_sectors(struct device *class_dev, struct device_attribute *attr,
 		const char *buf, size_t count)
 {
 	int res;
@@ -190,23 +189,23 @@ static ssize_t store_sectors(struct class_device *class_dev,
 	return count;
 }
 
-CLASS_DEVICE_ATTR(sectors, S_IRUGO | S_IWUSR, show_sectors, store_sectors);
+DEVICE_ATTR(sectors, S_IRUGO | S_IWUSR, show_sectors, store_sectors);
 
-static ssize_t show_usage(struct class_device *class_dev, char *buf)
+static ssize_t show_usage(struct device *class_dev, struct device_attribute *attr, char *buf)
 {
 	struct gnbd_device *dev = to_gnbd_dev(class_dev);
 	return sprintf(buf, "%d\n", dev->open_count);
 }
 
-CLASS_DEVICE_ATTR(usage, S_IRUGO, show_usage, NULL);
+DEVICE_ATTR(usage, S_IRUGO, show_usage, NULL);
 
-static ssize_t show_flags(struct class_device *class_dev, char *buf)
+static ssize_t show_flags(struct device *class_dev, struct device_attribute *attr, char *buf)
 {
 	struct gnbd_device *dev = to_gnbd_dev(class_dev);
 	return sprintf(buf, "0x%04x\n", dev->flags);
 }
 
-static ssize_t store_flags(struct class_device *class_dev,
+static ssize_t store_flags(struct device *class_dev, struct device_attribute *attr,
                 const char *buf, size_t count)
 {
 	int res;
@@ -222,9 +221,9 @@ static ssize_t store_flags(struct class_device *class_dev,
 }
 
 
-CLASS_DEVICE_ATTR(flags, S_IRUGO | S_IWUSR, show_flags, store_flags);
+DEVICE_ATTR(flags, S_IRUGO | S_IWUSR, show_flags, store_flags);
 
-static ssize_t show_waittime(struct class_device *class_dev, char *buf)
+static ssize_t show_waittime(struct device *class_dev, struct device_attribute *attr, char *buf)
 {
 	struct gnbd_device *dev = to_gnbd_dev(class_dev);
 	if (list_empty(&dev->queue_head))
@@ -233,15 +232,15 @@ static ssize_t show_waittime(struct class_device *class_dev, char *buf)
 			((long)jiffies - (long)dev->last_received) / HZ);
 }
 
-CLASS_DEVICE_ATTR(waittime, S_IRUGO, show_waittime, NULL);
+DEVICE_ATTR(waittime, S_IRUGO, show_waittime, NULL);
 
-static ssize_t show_connected(struct class_device *class_dev, char *buf)
+static ssize_t show_connected(struct device *class_dev, struct device_attribute *attr, char *buf)
 {
 	struct gnbd_device *dev = to_gnbd_dev(class_dev);
 	return sprintf(buf, "%d\n", (dev->sock != NULL));
 }
 
-CLASS_DEVICE_ATTR(connected, S_IRUGO, show_connected, NULL);
+DEVICE_ATTR(connected, S_IRUGO, show_connected, NULL);
 
 #ifndef NDEBUG
 static const char *ioctl_cmd_to_ascii(int cmd)
@@ -921,7 +920,7 @@ static int __init gnbd_init(void)
 	gnbd_cmd(&ping_req) = GNBD_CMD_PING;
 	ping_req.sector = 0;
 	ping_req.nr_sectors = 0;
-	
+
 	for (i = 0; i < MAX_GNBD; i++) {
 		struct gendisk *disk = alloc_disk(1);
 		if (!disk)
@@ -975,35 +974,35 @@ static int __init gnbd_init(void)
 		init_MUTEX(&gnbd_dev[i].tx_lock);
 		init_MUTEX(&gnbd_dev[i].do_it_lock);
 		gnbd_dev[i].class_dev.class = &gnbd_class;
-		sprintf(gnbd_dev[i].class_dev.class_id, "gnbd%d", i);
-		err = class_device_register(&gnbd_dev[i].class_dev);
+		sprintf(gnbd_dev[i].class_dev.bus_id, "gnbd%d", i);
+		err = device_register(&gnbd_dev[i].class_dev);
 		if (err){
-			printk("class_device_register failed with %d\n", err);
+			printk("device_register failed with %d\n", err);
 			goto out_unregister_class;
 		}
-		if(class_device_create_file(&gnbd_dev[i].class_dev,
-					&class_device_attr_pid))
+		if(device_create_file(&gnbd_dev[i].class_dev,
+					&dev_attr_pid))
 			goto out_remove_file;
-		if(class_device_create_file(&gnbd_dev[i].class_dev,
-					&class_device_attr_server))
+		if(device_create_file(&gnbd_dev[i].class_dev,
+					&dev_attr_server))
 			goto out_remove_file;
-		if(class_device_create_file(&gnbd_dev[i].class_dev,
-					&class_device_attr_name))
+		if(device_create_file(&gnbd_dev[i].class_dev,
+					&dev_attr_name))
 			goto out_remove_file;
-		if(class_device_create_file(&gnbd_dev[i].class_dev,
-					&class_device_attr_sectors))
+		if(device_create_file(&gnbd_dev[i].class_dev,
+					&dev_attr_sectors))
 			goto out_remove_file;
-		if(class_device_create_file(&gnbd_dev[i].class_dev,
-					&class_device_attr_usage))
+		if(device_create_file(&gnbd_dev[i].class_dev,
+					&dev_attr_usage))
 			goto out_remove_file;
-		if(class_device_create_file(&gnbd_dev[i].class_dev,
-					&class_device_attr_flags))
+		if(device_create_file(&gnbd_dev[i].class_dev,
+					&dev_attr_flags))
 			goto out_remove_file;
-		if(class_device_create_file(&gnbd_dev[i].class_dev,
-					&class_device_attr_waittime))
+		if(device_create_file(&gnbd_dev[i].class_dev,
+					&dev_attr_waittime))
 			goto out_remove_file;
-		if(class_device_create_file(&gnbd_dev[i].class_dev,
-					&class_device_attr_connected))
+		if(device_create_file(&gnbd_dev[i].class_dev,
+					&dev_attr_connected))
 			goto out_remove_file;
 		disk->major = major_nr;
 		disk->first_minor = i;
@@ -1029,11 +1028,11 @@ static int __init gnbd_init(void)
 out_remove_disk:
 	del_gendisk(gnbd_dev[i].disk);
 out_remove_file:
-	class_device_unregister(&gnbd_dev[i].class_dev);
+	device_unregister(&gnbd_dev[i].class_dev);
 out_unregister_class:
 	while(i--){
 		del_gendisk(gnbd_dev[i].disk);
-		class_device_unregister(&gnbd_dev[i].class_dev);
+		device_unregister(&gnbd_dev[i].class_dev);
 	}
 	i = MAX_GNBD;
 	class_unregister(&gnbd_class);
@@ -1054,7 +1053,7 @@ static void __exit gnbd_cleanup(void)
 	gnbd_ctl_cleanup();
 	for (i = 0; i < MAX_GNBD; i++) {
 		struct gendisk *disk = gnbd_dev[i].disk;
-		class_device_unregister(&gnbd_dev[i].class_dev);
+		device_unregister(&gnbd_dev[i].class_dev);
 		if (disk) {
 			del_gendisk(disk);
 			blk_cleanup_queue(disk->queue);

@@ -28,7 +28,7 @@ enum {
 	GNBD_CMD_PING = 3
 };
 
-#define gnbd_cmd(req) ((req)->cmd[0])
+#define gnbd_cmd(req) ((req)->__cmd[0])
 #define MAX_GNBD 128
 
 /* values for flags field */
@@ -50,7 +50,7 @@ struct gnbd_device {
 	pid_t receiver_pid;
 	struct semaphore do_it_lock;
 	int open_count;
-	struct class_device class_dev;
+	struct device class_dev;
 	unsigned short int server_port;
 	char *server_name;
 	char name[32];
