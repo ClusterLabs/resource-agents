@@ -28,7 +28,7 @@ my $ret = 0;
 
 # this should be only the major version without the extra version 
 # eg. only the first 3 digits
-my $required_kernelversion = '2.6.25';
+my $required_kernelversion = '2.6.26';
 
 my %options = (
 	help => \$help,
