@@ -260,7 +260,7 @@ def check_input(device_opt, opt):
 	if 1 == (options.has_key("-p") and options.has_key("-S")):
 		fail_usage("Failed: You have to enter password or password script")
 
-	if (0 == options.has_key("-n")) and (device_opt.count("plug_no")):
+	if (0 == options.has_key("-n")) and (device_opt.count("port")):
 		fail_usage("Failed: You have to enter plug number")
 
 	if options.has_key("-S"):
