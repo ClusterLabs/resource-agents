@@ -1,11 +1,18 @@
 #!/bin/bash
 #
-# chkconfig: 345 22 78
-# description: Starts and stops the quroum disk daemon
+# qdiskd quorum disk daemon
 #
-#	       
+# chkconfig: 345 22 78
+# description: Starts and stops the quorum disk daemon
+
 ### BEGIN INIT INFO
-# Provides: 
+# Provides: 		qdiskd
+# Required-Start:	cman
+# Required-Stop:	cman
+# Default-Start:	3 4 5
+# Default-Stop:		0 1 2 6
+# Short-Description:	start/stop quorum disk daemon
+# Description:		start/stop quorum disk daemon
 ### END INIT INFO
 
 . /etc/init.d/functions
@@ -61,7 +68,7 @@ case "$1" in
 	fi
 	;;
 
-  restart)
+  restart|reload)
 	$0 stop || exit $?
 	$0 start 
 	rtrn=$?
@@ -73,7 +80,7 @@ case "$1" in
 	;;
 
   *)
-	echo $"Usage: $0 {start|stop|restart|status}"
+	echo $"Usage: $0 {start|stop|reload|restart|status}"
 	;;
 esac
 

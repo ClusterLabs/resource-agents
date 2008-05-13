@@ -1,12 +1,21 @@
 #!/bin/bash
 #
+# cman - Cluster Manager init script
+#
 # chkconfig: 345 21 79
 # description: Starts and stops cman
 #
 #
 ### BEGIN INIT INFO
-# Provides:
+# Provides:		cman
+# Required-Start:	$network
+# Required-Stop:	$network
+# Default-Start:	3 4 5
+# Default-Stop:		0 1 2 6
+# Short-Description:	Starts and stops cman
+# Description:		Starts and stops the Cluster Manager set of daemons
 ### END INIT INFO
+
 . /etc/init.d/functions
 
 [ -f /etc/sysconfig/cman ] && . /etc/sysconfig/cman
@@ -559,7 +568,7 @@ case "$1" in
 	fi
 	;;
 
-    restart)
+    restart|reload)
 	$0 stop restart
 	$0 start
 	rtrn=$?
@@ -576,7 +585,7 @@ case "$1" in
 	;;
 
     *)
-	    echo $"Usage: $0 {start|stop|restart|status}"
+	    echo $"Usage: $0 {start|stop|reload|restart|status}"
 	    ;;
 esac
 

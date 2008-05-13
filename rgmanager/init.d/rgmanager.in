@@ -6,9 +6,18 @@
 # the terms of the GNU General Public License version 2, or (at your option)
 # any later version.
 #
-# description:  Starts and stops Red Hat Service (resource group) Manager
-# chkconfig: 2345 99 01
-#
+# chkconfig: 345 99 01
+# description: Starts and stops Red Hat Service (resource group) Manager
+
+### BEGIN INIT INFO
+# Provides:		rgmanager
+# Required-Start:	cman
+# Required-Stop:	cman
+# Default-Start:	3 4 5
+# Default-Stop:		0 1 2 6
+# Short-Description:	Starts and stops Red Hat Service (resource group) Manager
+# Description:		Starts and stops Red Hat Service (resource group) Manager
+### END INIT INFO
 
 # Source function library
 . /etc/init.d/functions

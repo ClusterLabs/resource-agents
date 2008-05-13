@@ -1,10 +1,19 @@
 #!/bin/bash
 #
-# scsi_reserve:
+# scsi_reserve persistent reservation service for lvm
 #
 # chkconfig: 345 25 75
 # description: start/stop persistent reservation service for lvm
-# config: /etc/sysconfig/scsi_reserve
+
+### BEGIN INIT INFO
+# Provides:		scsi_reserve
+# Required-Start:	cman
+# Required-Stop:	cman
+# Default-Start:	3 4 5
+# Default-Stop:		0 1 2 6
+# Short-Description:	start/stop persistent reservation service for lvm
+# Description:		start/stop persistent reservation service for lvm
+### END INIT INFO
 
 . /etc/init.d/functions
 
@@ -154,6 +163,8 @@ case $1 in
 	    failure
 	fi
 
+	touch /var/lock/subsys/scsi_reserve
+
 	echo
 
 	;; # end of start
@@ -215,6 +226,8 @@ case $1 in
 	    failure
 	fi
 
+	rm -f /var/lock/subsys/scsi_reserve
+
 	echo
 
 	;; # end of stop
@@ -242,6 +255,15 @@ case $1 in
 	fi
 
 	;; # end of status
+
+    restart|reload)
+	$0 stop
+	$0 start
+	;;
+
+    *)
+	echo $"Usage: $0 {start|stop|restart|reload|status}"
+	exit 1
 
 esac
 
