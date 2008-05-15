@@ -91,7 +91,7 @@ function ha_lvm_proper_setup_check
 	# the control of rgmanager
 	##
 	# Fixme: we might be able to perform a better check...
-	if [ "$(find /boot/*.img -newer /etc/lvm/lvm.conf)" == "" ]; then
+	if [ "$(find /boot -name *.img -newer /etc/lvm/lvm.conf)" == "" ]; then
 		ocf_log err "HA LVM:  Improper setup detected"
 		ocf_log err "- initrd image needs to be newer than lvm.conf"
 		return $OCF_ERR_GENERIC
