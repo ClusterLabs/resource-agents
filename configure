@@ -737,9 +737,8 @@ if ((not defined($somajor)) || (not defined($sominor)) || (not defined($release_
 
   if ((not defined($somajor)) || (not defined($sominor))) {
     if (not defined($current_soname)) {
-      $somajor = DEVEL;
-      $sominor = `date +%s`;
-      chomp $sominor;
+      print "ERROR: SONAME not defined in make/official_release_version\n";
+      exit 1;
     } else {
       $current_soname =~ s/.*"(.*)"\n/$1/;
       my @release_soname = split /\./, $current_soname;
@@ -750,7 +749,8 @@ if ((not defined($somajor)) || (not defined($sominor)) || (not defined($release_
 
   if (not defined($release_version)) {
     if (not defined($current_version)) {
-      $release_version = "$somajor.$sominor";
+      $release_version = `date +%s`;
+      chomp $release_version;
     } else {
       $release_version = $current_version;
       $release_version =~ s/.*"(.*)"\n/$1/;
