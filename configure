@@ -105,6 +105,7 @@ my %options = (
 	without_gfs2 => \$without_gfs2,
 	without_gnbd => \$without_gnbd,
 	without_rgmanager => \$without_rgmanager,
+	without_kernel_modules => \$without_kernel_modules,
 	disable_kernel_check => \$disable_kernel_check,
 );
 
@@ -183,6 +184,7 @@ my $err = &GetOptions (\%options,
 		    'without_gfs2',
 		    'without_gnbd',
 		    'without_rgmanager',
+		    'without_kernel_modules',
 		    'disable_kernel_check');
 
 if(!$err) {
@@ -267,7 +269,8 @@ if ($help || !$err) {
   print "--without_gfs2\tDisable gfs2 building  (Default: enabled)\n";
   print "--without_gnbd\tDisable gnbd building  (Default: enabled)\n";
   print "--without_rgmanager\tDisable rgmanager building  (Default: enabled)\n";
-  print "--disable_kernel_check\tDisable kernel version check (Default: enabled)\n";
+  print "--without_kernel_modules\tDisable kernel modules building  (Default: enabled)\n";
+  print "--disable_kernel_check\tDisable kernel version check  (Default: enabled)\n";
   exit $ret;
 }
 
@@ -588,9 +591,16 @@ if (!$without_gfs2) {
 }
 if (!$without_gnbd) {
   $without_gnbd="";
-}       
+}
 if (!$without_rgmanager) {
   $without_rgmanager="";
+}
+if (!$without_kernel_modules) {
+  $without_gfskernel=$without_gfs;
+  $without_gnbdkernel=$without_gnbd;
+} else {
+  $without_gfskernel=1;
+  $without_gnbdkernel=1;
 }
 if (!$disable_kernel_check) {
   $disable_kernel_check=0;
@@ -697,8 +707,10 @@ while (<IFILE>) {
   $_ =~ s/\@DISABLE_GROUP\@/$without_group/;
   $_ =~ s/\@DISABLE_FENCE\@/$without_fence/;
   $_ =~ s/\@DISABLE_GFS\@/$without_gfs/;
+  $_ =~ s/\@DISABLE_GFSKERNEL\@/$without_gfskernel/;
   $_ =~ s/\@DISABLE_GFS2\@/$without_gfs2/;
   $_ =~ s/\@DISABLE_GNBD\@/$without_gnbd/;
+  $_ =~ s/\@DISABLE_GNBDKERNEL\@/$without_gnbdkernel/;
   $_ =~ s/\@DISABLE_RGMANAGER\@/$without_rgmanager/;
 
   print OFILE "$_\n";
