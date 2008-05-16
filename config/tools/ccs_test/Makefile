@@ -16,7 +16,7 @@ SBINDIRT=$(TARGET)
 
 all: depends ${TARGET}
 
-include ../../make/defines.mk
+include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
 include $(OBJDIR)/make/install.mk
@@ -35,7 +35,7 @@ ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 depends:
-	$(MAKE) -C ../libccsconfdb all
+	$(MAKE) -C ../../libs all
 
 clean: generalclean
 

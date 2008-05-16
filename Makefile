@@ -1,6 +1,6 @@
 ###############################################################################
 ###############################################################################
-##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+##  Copyright (C) 2004-2008 Red Hat, Inc.  All rights reserved.
 ##
 ##  This copyrighted material is made available to anyone wishing to use,
 ##  modify, copy, or redistribute it subject to the terms and conditions
@@ -12,14 +12,13 @@
 include make/defines.mk
 
 REALSUBDIRS = gnbd-kernel/src gfs-kernel/src/gfs \
-	      cman/lib ccs cman dlm fence/libfenced group fence gfs gfs2 gnbd rgmanager
+	      config cman ccs dlm fence/libfenced group fence gfs gfs2 gnbd rgmanager
 
 SUBDIRS = $(filter-out \
 	  $(if ${without_gnbd-kernel/src},gnbd-kernel/src) \
 	  $(if ${without_gfs-kernel/src/gfs},gfs-kernel/src/gfs) \
-	  $(if ${without_cman},cman/lib) \
-	  $(if ${without_ccs},ccs) \
 	  $(if ${without_cman},cman) \
+	  $(if ${without_ccs},ccs) \
 	  $(if ${without_dlm},dlm) \
 	  $(if ${without_fence},fence/libfenced) \
 	  $(if ${without_group},group) \
@@ -46,17 +45,17 @@ gfs-kernel: gfs-kernel/src/gfs
 
 # Dependencies
 
-cman/lib:
-ccs: cman/lib
-cman: ccs
-dlm:
+config:
+cman: config
+ccs: cman
+dlm: config
 fence/libfenced:
-group: ccs dlm fence/libfenced
-fence: group dlm
+group: config dlm fence/libfenced
+fence: group
 gfs:
 gfs2:
-gnbd: cman/lib
-rgmanager: ccs dlm
+gnbd: cman
+rgmanager: cman dlm
 
 install: all
 	set -e && for i in ${SUBDIRS}; do ${MAKE} -C $$i $@; done

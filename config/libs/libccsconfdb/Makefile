@@ -21,7 +21,7 @@ LIBSYMT=$(TARGET).so \
 
 INCDIRT=ccs.h
 
-include ../../make/defines.mk
+include ../../../make/defines.mk
 
 SHAREDLIB=$(TARGET).so.${SOMAJOR}.${SOMINOR}
 STATICLIB=$(TARGET).a
