@@ -117,7 +117,7 @@ static int setup_interface_ipv4(int *sp, int port){
 }
 
 
-int
+static int
 setup_interface_local(int *sp)
 {
   struct sockaddr_un sun;
@@ -280,7 +280,7 @@ static int do_request(char *buffer){
 *
 * Returns: >= 0 on success, < 0 on error
 */
-int _ccs_connect(const char *cluster_name, int flags){
+static int _ccs_connect(const char *cluster_name, int flags){
   int error = 0;
   char *buffer = NULL;
   comm_header_t *ch = NULL;
@@ -411,7 +411,7 @@ int ccs_disconnect(int desc){
  *
  * Returns: 0 on success, < 0 on failure
  */
-int _ccs_get(int desc, const char *query, char **rtn, int list){
+static int _ccs_get(int desc, const char *query, char **rtn, int list){
   int error = 0;
   char *buffer = NULL;
   comm_header_t *ch = NULL;
