@@ -12,7 +12,7 @@ include $(OBJDIR)/make/uninstall.mk
 
 $(TARGET):
 	${FENCEPARSE} \
-		${SRCDIR}/config/copyright.cf REDHAT_COPYRIGHT \
+		${SRCDIR}/make/copyright.cf REDHAT_COPYRIGHT \
 		${RELEASE_VERSION} \
 		$(S) $@ | \
 	sed \

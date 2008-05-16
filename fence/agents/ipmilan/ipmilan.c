@@ -45,7 +45,7 @@
 
 #define log(lvl, fmt, args...) fprintf(stderr, fmt, ##args)
 #include <libgen.h>
-#include <copyright.cf>
+#include "copyright.cf"
 
 #include "expect.h"
 
