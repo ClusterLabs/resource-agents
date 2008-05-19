@@ -72,11 +72,15 @@ all_opt = {
 		"order" : 1 },
 	"passwd" : {
 		"getopt" : "p:",
-		"help" : "-p <password>  Login password",
+		"help" : "-p <password>  Login password or passphrase",
 		"order" : 1 },
 	"passwd_script" : {
 		"getopt" : "S:",
 		"help" : "-S <script>    Script to run to retrieve password",
+		"order" : 1 },
+	"identity_file" : {
+		"getopt" : "k:",
+		"help" : "-k <filename>  Identity file (private key) for ssh ",
 		"order" : 1 },
 	"module_name" : {
 		"getopt" : "m:",
@@ -254,11 +258,19 @@ def check_input(device_opt, opt):
 	if 0 == options.has_key("-a"):
 		fail_usage("Failed: You have to enter fence address")
 
-	if 0 == (options.has_key("-p") or options.has_key("-S")):
-		fail_usage("Failed: You have to enter password or password script")
+	if 0 == device_opt.count("identity_file"):
+		if 0 == (options.has_key("-p") or options.has_key("-S")):
+			fail_usage("Failed: You have to enter password or password script")
+	else: 
+		if 0 == (options.has_key("-p") or options.has_key("-S") or options.has_key("-k")):
+			fail_usage("Failed: You have to enter password, password script or identity file")
 
-	if 1 == (options.has_key("-p") and options.has_key("-S")):
-		fail_usage("Failed: You have to enter password or password script")
+	if 0 == options.has_key("-x") and 1 == options.has_key("-k"):
+		fail_usage("Failed: You have to use identity file together with ssh connection (-x)")
+
+	if 1 == options.has_key("-k"):
+		if 0 == os.path.isfile(options["-k"]):
+			fail_usage("Failed: Identity file " + options["-k"] + " does not exist")
 
 	if (0 == options.has_key("-n")) and (device_opt.count("port")):
 		fail_usage("Failed: You have to enter plug number")
@@ -325,14 +337,26 @@ def fence_login(options):
 		re_login = re.compile("(login: )|(Login Name:  )|(username: )|(User Name :)", re.IGNORECASE)
 		re_pass  = re.compile("password", re.IGNORECASE)
 
-		if options.has_key("-x"):
+		if options.has_key("-x") and 0 == options.has_key("-k"):
 			conn = fspawn ('ssh ' + options["-l"] + "@" + options["-a"])
-			result = conn.log_expect(options, [ "ssword: ", "Are you sure you want to continue connecting (yes/no)?" ], LOGIN_TIMEOUT)
+			result = conn.log_expect(options, [ "ssword:", "Are you sure you want to continue connecting (yes/no)?" ], LOGIN_TIMEOUT)
 			if result == 1:
 				conn.sendline("yes")
-				conn.log_expect(options, "ssword: ", SHELL_TIMEOUT)
+				conn.log_expect(options, "ssword:", SHELL_TIMEOUT)
 			conn.sendline(options["-p"])
 			conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
+		elif options.has_key("-x") and 1 == options.has_key("-k"):
+			conn = fspawn ('ssh ' + options["-l"] + "@" + options["-a"] + " -i " + options["-k"])
+			result = conn.log_expect(options, [ options["-c"], "Are you sure you want to continue connecting (yes/no)?", "Enter passphrase for key '"+options["-k"]+"':" ], LOGIN_TIMEOUT)
+			if result == 1:
+				conn.sendline("yes")
+				conn.log_expect(options, [ options["-c"], "Enter passphrase for key '"+options["-k"]+"':"] , SHELL_TIMEOUT)
+			if result != 0:
+				if options.has_key("-p"):
+					conn.sendline(options["-p"])
+					conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
+				else:
+					fail_usage("Failed: You have to enter passphrase (-p) for identity file")
 		else:
 			conn = fspawn ('telnet ' + options["-a"])
 			conn.log_expect(options, re_login, LOGIN_TIMEOUT)
