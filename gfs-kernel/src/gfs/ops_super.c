@@ -62,7 +62,7 @@ gfs_write_inode(struct inode *inode, int sync)
 }
 
 /**
- * gfs_drop_inode - put an inode
+ * gfs_drop_inode - drop an inode
  * @inode: The inode
  *
  * If i_nlink is zero, any dirty data for the inode is thrown away.
