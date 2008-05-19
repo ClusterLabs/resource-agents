@@ -1,13 +1,18 @@
 #!/bin/bash
 #
-# 
+# gfs mount/unmount helper 
 #
-# chkconfig: 345 26 74
+# chkconfig: - 26 74
 # description: mount/unmount gfs filesystems configured in /etc/fstab
-#
-#	       
+
 ### BEGIN INIT INFO
-# Provides: 
+# Provides:		gfs
+# Required-Start:	$network cman
+# Required-Stop:	$network cman
+# Default-Start:
+# Default-Stop:
+# Short-Description:	mount/unmount gfs filesystems configured in /etc/fstab
+# Description:		mount/unmount gfs filesystems configured in /etc/fstab
 ### END INIT INFO
 
 . /etc/init.d/functions
