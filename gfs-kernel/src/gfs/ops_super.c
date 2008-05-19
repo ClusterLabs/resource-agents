@@ -62,7 +62,7 @@ gfs_write_inode(struct inode *inode, int sync)
 }
 
 /**
- * gfs_put_inode - put an inode
+ * gfs_drop_inode - put an inode
  * @inode: The inode
  *
  * If i_nlink is zero, any dirty data for the inode is thrown away.
@@ -70,11 +70,8 @@ gfs_write_inode(struct inode *inode, int sync)
  * data.  So, sync it out.
  */
 
-// XXX FIX ME!
-
-#if 0
 static void
-gfs_put_inode(struct inode *inode)
+gfs_drop_inode(struct inode *inode)
 {
 	struct gfs_sbd *sdp = get_v2sdp(inode->i_sb);
 	struct gfs_inode *ip = get_v2ip(inode);
@@ -86,8 +83,8 @@ gfs_put_inode(struct inode *inode)
 	    S_ISREG(inode->i_mode) &&
 	    !sdp->sd_args.ar_localcaching)
 		gfs_sync_page_i(inode, DIO_START | DIO_WAIT);
+	generic_drop_inode(inode);
 }
-#endif
 
 /**
  * gfs_put_super - Unmount the filesystem
@@ -459,7 +456,7 @@ gfs_show_options(struct seq_file *s, struct vfsmount *mnt)
 
 struct super_operations gfs_super_ops = {
 	.write_inode = gfs_write_inode,
-	// XXX FIX ME .put_inode = gfs_put_inode,
+	.drop_inode = gfs_drop_inode,
 	.put_super = gfs_put_super,
 	.write_super = gfs_write_super,
 	.write_super_lockfs = gfs_write_super_lockfs,
