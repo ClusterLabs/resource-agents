@@ -2,15 +2,15 @@
 #
 # scsi_reserve persistent reservation service for lvm
 #
-# chkconfig: 345 25 75
+# chkconfig: - 25 75
 # description: start/stop persistent reservation service for lvm
 
 ### BEGIN INIT INFO
 # Provides:		scsi_reserve
 # Required-Start:	cman
 # Required-Stop:	cman
-# Default-Start:	3 4 5
-# Default-Stop:		0 1 2 6
+# Default-Start:
+# Default-Stop:
 # Short-Description:	start/stop persistent reservation service for lvm
 # Description:		start/stop persistent reservation service for lvm
 ### END INIT INFO

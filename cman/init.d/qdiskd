@@ -2,15 +2,15 @@
 #
 # qdiskd quorum disk daemon
 #
-# chkconfig: 345 22 78
+# chkconfig: - 22 78
 # description: Starts and stops the quorum disk daemon
 
 ### BEGIN INIT INFO
 # Provides: 		qdiskd
 # Required-Start:	cman
 # Required-Stop:	cman
-# Default-Start:	3 4 5
-# Default-Stop:		0 1 2 6
+# Default-Start:
+# Default-Stop:
 # Short-Description:	start/stop quorum disk daemon
 # Description:		start/stop quorum disk daemon
 ### END INIT INFO

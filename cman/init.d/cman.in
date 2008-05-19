@@ -2,7 +2,7 @@
 #
 # cman - Cluster Manager init script
 #
-# chkconfig: 345 21 79
+# chkconfig: - 21 79
 # description: Starts and stops cman
 #
 #
@@ -10,8 +10,8 @@
 # Provides:		cman
 # Required-Start:	$network
 # Required-Stop:	$network
-# Default-Start:	3 4 5
-# Default-Stop:		0 1 2 6
+# Default-Start:
+# Default-Stop:
 # Short-Description:	Starts and stops cman
 # Description:		Starts and stops the Cluster Manager set of daemons
 ### END INIT INFO

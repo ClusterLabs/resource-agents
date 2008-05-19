@@ -2,15 +2,15 @@
 #
 # gfs2 mount/unmount helper
 #
-# chkconfig: 345 26 74
+# chkconfig: - 26 74
 # description: mount/unmount gfs2 filesystems configured in /etc/fstab
 
 ### BEGIN INIT INFO
 # Provides:		gfs2
 # Required-Start:	$network cman
 # Required-Stop:	$network cman
-# Default-Start:	3 4 5
-# Default-Stop:		0 1 2 6
+# Default-Start:
+# Default-Stop:
 # Short-Description:	mount/unmount gfs2 filesystems configured in /etc/fstab
 # Description:		mount/unmount gfs2 filesystems configured in /etc/fstab
 ### END INIT INFO
