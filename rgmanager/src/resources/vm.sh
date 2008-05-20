@@ -136,6 +136,16 @@ meta_data()
             <content type="integer"/>
         </parameter>
 
+       <parameter name="migration_mapping">
+           <longdesc lang="en">
+               Mapping of the hostname of a target cluster member to a different hostname
+           </longdesc>
+           <shortdesc lang="en">
+               memeberhost:targethost,memeberhost:targethost ..
+           </shortdesc>
+            <content type="string"/>
+        </parameter>
+
 	<parameter name="bootloader">
 	    <longdesc lang="en">
 		Boot loader that can start the VM from physical image
@@ -478,8 +488,14 @@ migrate()
 	if [ "$OCF_RESKEY_migrate" = "live" ]; then
 		migrate_opt="-l"
 	fi
-	
-	err=$(xm migrate $migrate_opt $OCF_RESKEY_name $target 2>&1 | head -1)
+
+	# Patch from Marcelo Azevedo to migrate over private
+	# LANs instead of public LANs
+        if [ -n $OCF_RESKEY_migration_mapping ] ; then
+                target=${OCF_RESKEY_migration_mapping#*$target:} target=${target%%,*}
+        fi
+
+	err=$(xm migrate $OCF_RESKEY_name $target 2>&1 | head -1; exit ${PIPESTATUS[0]})
 	rv=$?
 
 	if [ $rv -ne 0 ]; then
