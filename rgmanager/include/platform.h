@@ -67,7 +67,7 @@ Configure is gone...
 #define swab64(x) x=be_swap64(x)
 
 
-#ifdef __sparc64__
+#if defined(__sparc__)
 #define ALIGNED __attribute__((aligned))
 #define PACKED  __attribute__((aligned,packed))
 #else
