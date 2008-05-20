@@ -495,7 +495,7 @@ migrate()
                 target=${OCF_RESKEY_migration_mapping#*$target:} target=${target%%,*}
         fi
 
-	err=$(xm migrate $OCF_RESKEY_name $target 2>&1 | head -1; exit ${PIPESTATUS[0]})
+	err=$(xm migrate $migrate_opt $OCF_RESKEY_name $target 2>&1 | head -1; exit ${PIPESTATUS[0]})
 	rv=$?
 
 	if [ $rv -ne 0 ]; then
