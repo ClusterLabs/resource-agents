@@ -173,7 +173,7 @@ Specify the hashing algorithm used for the Cluster IP functionality.
 
 </longdesc>
 <shortdesc lang="en">Cluster IP hashing function</shortdesc>
-<content type="string" default="sourceip-sourceport-destport"/>
+<content type="string" default="sourceip-sourceport"/>
 </parameter>
 
 <parameter name="arp_interval">
@@ -269,7 +269,7 @@ ip_init() {
 
 	IP_INC_GLOBAL=${OCF_RESKEY_CRM_meta_clone_max:-1}
 	IP_INC_NO=`expr ${OCF_RESKEY_CRM_meta_clone:-0} + 1`
-	IP_CIP_HASH="${OCF_RESKEY_clusterip_hash}"
+	IP_CIP_HASH="${OCF_RESKEY_clusterip_hash:-'sourceip-sourceport'}"
 
 	if [ $LVS_SUPPORT -gt 0 ] && [ $IP_INC_GLOBAL -gt 1 ]; then
 		ocf_log err "LVS and load sharing do not go together well"
