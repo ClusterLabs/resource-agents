@@ -106,6 +106,10 @@ all_opt = {
 		"getopt" : "n:",
 		"help" : "-n <id>        Physical plug number on device",
 		"order" : 1 },
+	"switch" : {
+		"getopt" : "-s:",
+		"help" : "-s <id>        Physical switch number on device",
+		"order" : 1 },
 	"test" : {
 		"getopt" : "T",
 		"help" : "",

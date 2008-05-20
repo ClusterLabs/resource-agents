@@ -9,6 +9,7 @@
 ## +---------------------------------------------+
 ##  AP7951	AOS v2.7.0, PDU APP v2.7.3
 ##  AP7941      AOS v3.5.7, PDU APP v3.5.6
+##  AP9606	AOS v2.5.4, PDU APP v2.7.3
 ##
 ## @note: ssh is very slow on AP7951 device
 #####
@@ -31,6 +32,16 @@ def get_power_status(conn, options):
 
 		version = 0
 		admin = 0
+		switch = 0;
+
+		if (None != re.compile('.* MasterSwitch plus.*', re.IGNORECASE | re.S).match(conn.before)):
+			switch = 1;
+			if (None != re.compile('.* MasterSwitch plus 2', re.IGNORECASE | re.S).match(conn.before)):
+				if (0 == options.has_key("-s")):
+					fail_usage("Failed: You have to enter physical switch number")
+			else:
+				if (0 == options.has_key("-s")):
+					options["-s"] = 1
 
 		if (None == re.compile('.*Outlet Management.*', re.IGNORECASE | re.S).match(conn.before)):
 			version = 2
@@ -42,16 +53,19 @@ def get_power_status(conn, options):
 		else:
 			admin = 1
 
-		if version == 2:
-			if admin == 0:
-				conn.send("2\r\n")
+		if switch == 0:
+			if version == 2:
+				if admin == 0:
+					conn.send("2\r\n")
+				else:
+					conn.send("3\r\n")
 			else:
-				conn.send("3\r\n")
+				conn.send("2\r\n")
+				conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
+				conn.send("1\r\n")
 		else:
-			conn.send("2\r\n")
-			conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
-			conn.send("1\r\n")
-
+			conn.send(options["-s"]+"\r\n")
+			
 		while 1 == conn.log_expect(options, [ options["-c"],  "Press <ENTER>" ], SHELL_TIMEOUT):
 			result += conn.before
 			conn.send("\r\n")
@@ -79,6 +93,22 @@ def set_power_status(conn, options):
 
 		version = 0
 		admin = 0
+		switch = 0
+
+		if (None != re.compile('.* MasterSwitch plus.*', re.IGNORECASE | re.S).match(conn.before)):
+			switch = 1;
+			## MasterSwitch has different schema for on/off actions
+			action = {
+				'on' : "1",
+				'off': "3"
+			}[options["-o"]]
+			if (None != re.compile('.* MasterSwitch plus 2', re.IGNORECASE | re.S).match(conn.before)):
+				if (0 == options.has_key("-s")):
+					fail_usage("Failed: You have to enter physical switch number")
+			else:
+				if (0 == options.has_key("-s")):
+					options["-s"] = 1
+
 		if (None == re.compile('.*Outlet Management.*', re.IGNORECASE | re.S).match(conn.before)):
 			version = 2
 		else:
@@ -89,26 +119,35 @@ def set_power_status(conn, options):
 		else:
 			admin = 1
 
-		if version == 2:
-			if admin == 0:
-				conn.send("2\r\n")
+		if switch == 0:
+			if version == 2:
+				if admin == 0:
+					conn.send("2\r\n")
+				else:
+					conn.send("3\r\n")
 			else:
-				conn.send("3\r\n")
+				conn.send("2\r\n")
+				conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
+				conn.send("1\r\n")
 		else:
-			conn.send("2\r\n")
-			conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
-			conn.send("1\r\n")
+			conn.send(options["-s"] + "\r\n")
 
 		while 1 == conn.log_expect(options, [ options["-c"],  "Press <ENTER>" ], SHELL_TIMEOUT):
 			conn.send("\r\n")
 		conn.send(options["-n"]+"\r\n")
 		conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
-		if admin == 1:
+
+		if switch == 0:
+			if admin == 1:
+				conn.send("1\r\n")
+				conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
+			if version == 3:
+				conn.send("1\r\n")
+				conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
+		else:
 			conn.send("1\r\n")
 			conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
-		if version == 3:
-			conn.send("1\r\n")
-			conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
+			
 		conn.send(action+"\r\n")
 		conn.log_expect(options, "Enter 'YES' to continue or <ENTER> to cancel :", SHELL_TIMEOUT)
 		conn.send("YES\r\n")
@@ -126,7 +165,7 @@ def set_power_status(conn, options):
 def main():
 	device_opt = [  "help", "version", "agent", "quiet", "verbose", "debug",
 			"action", "ipaddr", "login", "passwd", "passwd_script",
-			"secure", "port", "test" ]
+			"secure", "port", "switch", "test" ]
 
 	options = check_input(device_opt, process_input(device_opt))
 
@@ -135,6 +174,12 @@ def main():
 	#####
 	if 0 == options.has_key("-c"):
 		options["-c"] = "\n>"
+
+	## Support for -n [switch]:[plug] notation that was used before
+	if (-1 != options["-n"].find(":")):
+		(switch, plug) = options["-n"].split(":", 1)
+		options["-s"] = switch;
+		options["-n"] = plug;
 
 	##
 	## Operate the fencing device
