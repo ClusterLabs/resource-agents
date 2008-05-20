@@ -1444,8 +1444,7 @@ blkalloc_internal(struct gfs_rgrpd *rgd,
 	   allocatable block anywhere else, we want to be able wrap around and
 	   search in the first part of our first-searched bit block.  */
 	for (x = 0; x <= length; x++) {
-		blk = gfs_bitfit(rgd,
-				 rgd->rd_bh[buf]->b_data + bits->bi_offset,
+		blk = gfs_bitfit(rgd->rd_bh[buf]->b_data + bits->bi_offset,
 				 bits->bi_len, goal, old_state);
 		if (blk != BFITNOENT)
 			break;

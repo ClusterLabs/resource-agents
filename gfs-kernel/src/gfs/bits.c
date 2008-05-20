@@ -31,6 +31,16 @@
 #include "gfs.h"
 #include "bits.h"
 
+#if BITS_PER_LONG == 32
+#define LBITMASK   (0x55555555UL)
+#define LBITSKIP55 (0x55555555UL)
+#define LBITSKIP00 (0x00000000UL)
+#else
+#define LBITMASK   (0x5555555555555555UL)
+#define LBITSKIP55 (0x5555555555555555UL)
+#define LBITSKIP00 (0x0000000000000000UL)
+#endif
+
 static const char valid_change[16] = {
 	        /* current */
 	/* n */ 0, 1, 1, 1,
@@ -115,41 +125,66 @@ gfs_testbit(struct gfs_rgrpd *rgd,
  */
 
 uint32_t
-gfs_bitfit(struct gfs_rgrpd *rgd,
-	   unsigned char *buffer, unsigned int buflen,
+gfs_bitfit(unsigned char *buffer, unsigned int buflen,
 	   uint32_t goal, unsigned char old_state)
 {
-	unsigned char *byte, *end, alloc;
-	uint32_t blk = goal;
-	unsigned int bit;
+	const u8 *byte, *start, *end;
+	int bit, startbit;
+	u32 g1, g2, misaligned;
+	unsigned long *plong;
+	unsigned long lskipval;
 
-	byte = buffer + (goal / GFS_NBBY);
-	bit = (goal % GFS_NBBY) * GFS_BIT_SIZE;
-	end = buffer + buflen;
-	alloc = (old_state & 1) ? 0 : 0x55;
-
+	lskipval = (old_state & GFS_BLKST_USED) ? LBITSKIP00 : LBITSKIP55;
+	g1 = (goal / GFS_NBBY);
+	start = buffer + g1;
+	byte = start;
+        end = buffer + buflen;
+	g2 = ALIGN(g1, sizeof(unsigned long));
+	plong = (unsigned long *)(buffer + g2);
+	startbit = bit = (goal % GFS_NBBY) * GFS_BIT_SIZE;
+	misaligned = g2 - g1;
+	if (!misaligned)
+		goto ulong_aligned;
+/* parse the bitmap a byte at a time */
+misaligned:
 	while (byte < end) {
-		if ((*byte & 0x55) == alloc) {
-			blk += (8 - bit) >> 1;
-
-			bit = 0;
-			byte++;
-
-			continue;
+		if (((*byte >> bit) & GFS_BIT_MASK) == old_state) {
+			return goal +
+				(((byte - start) * GFS_NBBY) +
+				 ((bit - startbit) >> 1));
 		}
-
-		if (((*byte >> bit) & GFS_BIT_MASK) == old_state)
-			return blk;
-
 		bit += GFS_BIT_SIZE;
-		if (bit >= 8) {
+		if (bit >= GFS_NBBY * GFS_BIT_SIZE) {
 			bit = 0;
 			byte++;
+			misaligned--;
+			if (!misaligned) {
+				plong = (unsigned long *)byte;
+				goto ulong_aligned;
+			}
 		}
-
-		blk++;
 	}
+	return BFITNOENT;
 
+/* parse the bitmap a unsigned long at a time */
+ulong_aligned:
+	/* Stop at "end - 1" or else prefetch can go past the end and segfault.
+	   We could "if" it but we'd lose some of the performance gained.
+	   This way will only slow down searching the very last 4/8 bytes
+	   depending on architecture.  I've experimented with several ways
+	   of writing this section such as using an else before the goto
+	   but this one seems to be the fastest. */
+	while ((unsigned char *)plong < end - 1) {
+		prefetch(plong + 1);
+		if (((*plong) & LBITMASK) != lskipval)
+			break;
+		plong++;
+	}
+	if ((unsigned char *)plong < end) {
+		byte = (const u8 *)plong;
+		misaligned += sizeof(unsigned long) - 1;
+		goto misaligned;
+	}
 	return BFITNOENT;
 }
 
