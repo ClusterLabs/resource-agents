@@ -82,7 +82,7 @@ int read_cman_nodes(struct objdb_iface_ver0 *objdb, unsigned int *config_version
     nodes_handle = nodeslist_init(objdb, cluster_parent_handle, &parent_handle);
     do {
 	    if (objdb_get_string(objdb, nodes_handle, "name", &nodename)) {
-		    log_printf(LOG_ERR, "Cannot get node name");
+		    nodes_handle = nodeslist_next(objdb, parent_handle);
 		    continue;
 	    }
 
