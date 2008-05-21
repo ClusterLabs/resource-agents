@@ -10,40 +10,35 @@
 ###############################################################################
 ###############################################################################
 
-TARGET1= mount.gfs2
+TARGET= gfs_control
 
-all: ${TARGET1}
+SBINDIRT=$(TARGET)
+
+all: depends ${TARGET}
 
 include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 
-OBJS1=	mount.gfs2.o
+OBJS=	main.o
 
-SHAREDOBJS= ondisk1.o \
-	    util.o \
-	    mtab.o
-
-CFLAGS += -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
-CFLAGS += -I${gfskincdir}
-CFLAGS += -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
-CFLAGS += -I$(S)/../include -I../../group/libgfscontrol/
+#CFLAGS += -I${gfscontrolincdir}
+CFLAGS += -I../libgfscontrol/
 CFLAGS += -I${incdir}
+CFLAGS += -I${KERNEL_SRC}/include/
 
-LDFLAGS += -L../../group/libgfscontrol/ -lgfscontrol
+#LDFLAGS += -L${gfscontrollibdir} -lgfscontrol
+LDFLAGS += -L../libgfscontrol/ -lgfscontrol
 
 
-${TARGET1}: ${SHAREDOBJS} ${OBJS1}
+${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
-
-install: all
-	mkdir -p ${DESTDIR}/sbin
-	install ${TARGET1} ${DESTDIR}/sbin
-
-uninstall:
-	${UNINSTALL} ${TARGET1} ${DESTDIR}/sbin
 
 clean: generalclean
 
--include $(OBJS1:.o=.d)
--include $(SHAREDOBJS:.o=.d)
+depends:
+	$(MAKE) -C ../libgfscontrol all
+
+-include $(OBJS:.o=.d)

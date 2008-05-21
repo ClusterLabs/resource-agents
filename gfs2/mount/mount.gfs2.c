@@ -149,11 +149,11 @@ static int mount_lockproto(char *proto, struct mount_options *mo,
 	return rv;
 }
 
-static void mount_result_lockproto(char *proto, struct mount_options *mo,
+static void mount_done_lockproto(char *proto, struct mount_options *mo,
 			     	    struct gen_sb *sb, int result)
 {
 	if (!strcmp(proto, "lock_dlm"))
-		lock_dlm_mount_result(mo, sb, result);
+		lock_dlm_mount_done(mo, sb, result);
 }
 
 static void umount_lockproto(char *proto, struct mount_options *mo,
@@ -227,7 +227,9 @@ int main(int argc, char **argv)
 	   adding the mtab entry */
 	block_sigint();
 
-	if (!fake_mount) {
+	if (fake_mount)
+		goto do_mtab;
+
 	rv = mount_lockproto(proto, &mo, &sb);
 	if (rv < 0)
 		die("error mounting lockproto %s\n", proto);
@@ -235,7 +237,7 @@ int main(int argc, char **argv)
 	rv = mount(mo.dev, mo.dir, fsname, mo.flags, mo.extra_plus);
 	if (rv) {
 		log_debug("mount(2) failed error %d errno %d", rv, errno);
-		mount_result_lockproto(proto, &mo, &sb, rv);
+		mount_done_lockproto(proto, &mo, &sb, rv);
 
 		if (!(mo.flags & MS_REMOUNT))
 			umount_lockproto(proto, &mo, &sb, errno);
@@ -246,17 +248,19 @@ int main(int argc, char **argv)
 		    strerror(errno));
 	}
 	log_debug("mount(2) ok");
-	mount_result_lockproto(proto, &mo, &sb, 0);
-	}
+	mount_done_lockproto(proto, &mo, &sb, 0);
 
-	if (!no_mtab) {
+ do_mtab:
+	if (no_mtab)
+		goto out;
+
 	if (mo.flags & MS_REMOUNT) {
                 del_mtab_entry(&mo);
                 add_mtab_entry(&mo);
         } else
 		add_mtab_entry(&mo);
-	}
 
+ out:
 	unblock_sigint();
 
 	return rv ? 1 : 0;

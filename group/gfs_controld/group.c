@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2005-2008 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -10,24 +10,24 @@
 *******************************************************************************
 ******************************************************************************/
 
-#include "lock_dlm.h"
+#include "gfs_daemon.h"
+#include "cpg-old.h"
+#include "libgroup.h"
+
+#define LOCK_DLM_GROUP_LEVEL    2
+#define LOCK_DLM_GROUP_NAME     "gfs"
 
 /* save all the params from callback functions here because we can't
    do the processing within the callback function itself */
 
 group_handle_t gh;
 static int cb_action;
-static char cb_name[MAX_GROUP_NAME_LEN+1];
+static char cb_name[GFS_MOUNTGROUP_LEN+1];
 static int cb_event_nr;
 static unsigned int cb_id;
 static int cb_type;
 static int cb_member_count;
-static int cb_members[MAX_GROUP_MEMBERS];
-
-int do_stop(struct mountgroup *mg);
-int do_finish(struct mountgroup *mg);
-int do_terminate(struct mountgroup *mg);
-int do_start(struct mountgroup *mg, int type, int count, int *nodeids);
+static int cb_members[MAX_NODES];
 
 
 static void stop_cbfn(group_handle_t h, void *private, char *name)
@@ -42,7 +42,7 @@ static void start_cbfn(group_handle_t h, void *private, char *name,
 	int i;
 
 	cb_action = DO_START;
-	strncpy(cb_name, name, MAX_GROUP_NAME_LEN);
+	strncpy(cb_name, name, GFS_MOUNTGROUP_LEN);
 	cb_event_nr = event_nr;
 	cb_type = type;
 	cb_member_count = member_count;
@@ -55,27 +55,22 @@ static void finish_cbfn(group_handle_t h, void *private, char *name,
 			int event_nr)
 {
 	cb_action = DO_FINISH;
-	strncpy(cb_name, name, MAX_GROUP_NAME_LEN);
+	strncpy(cb_name, name, GFS_MOUNTGROUP_LEN);
 	cb_event_nr = event_nr;
 }
 
 static void terminate_cbfn(group_handle_t h, void *private, char *name)
 {
 	cb_action = DO_TERMINATE;
-	strncpy(cb_name, name, MAX_GROUP_NAME_LEN);
+	strncpy(cb_name, name, GFS_MOUNTGROUP_LEN);
 }
 
 static void setid_cbfn(group_handle_t h, void *private, char *name,
 		       unsigned int id)
 {
 	cb_action = DO_SETID;
-	strncpy(cb_name, name, MAX_GROUP_NAME_LEN);
+	strncpy(cb_name, name, GFS_MOUNTGROUP_LEN);
 	cb_id = id;
-}
-
-static void deliver_cbfn(group_handle_t h, void *private, char *name,
-			 int nodeid, int len, char *buf)
-{
 }
 
 static group_callbacks_t callbacks = {
@@ -84,22 +79,32 @@ static group_callbacks_t callbacks = {
 	finish_cbfn,
 	terminate_cbfn,
 	setid_cbfn,
-	deliver_cbfn
 };
 
-char *str_members(void)
+static char *str_members(void)
 {
-	static char buf[MAXLINE];
-	int i, len = 0;
+	static char str_members_buf[MAXLINE];
+	int i, ret, pos = 0, len = MAXLINE;
 
-	memset(buf, 0, MAXLINE);
+	memset(str_members_buf, 0, MAXLINE);
 
-	for (i = 0; i < cb_member_count; i++)
-		len += sprintf(buf+len, "%d ", cb_members[i]);
-	return buf;
+	for (i = 0; i < cb_member_count; i++) {
+		if (i != 0) {
+			ret = snprintf(str_members_buf + pos, len - pos, " ");
+			if (ret >= len - pos)
+				break;
+			pos += ret;
+		}
+		ret = snprintf(str_members_buf + pos, len - pos, "%d",
+			       cb_members[i]);
+		if (ret >= len - pos)
+			break;
+		pos += ret;
+	}
+	return str_members_buf;
 }
 
-int process_groupd(void)
+void process_groupd(int ci)
 {
 	struct mountgroup *mg;
 	int error = 0;
@@ -160,7 +165,6 @@ int process_groupd(void)
 
  out:
 	cb_action = 0;
-	return error;
 }
 
 int setup_groupd(void)

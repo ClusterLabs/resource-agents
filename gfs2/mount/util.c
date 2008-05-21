@@ -7,15 +7,13 @@
  */
 
 #include "util.h"
+#include "libgfscontrol.h"
 
 extern char *prog_name;
 extern char *fsname;
 extern int verbose;
-static int gfs_controld_fd = -1;
-static int adding_another_mountpoint;
 
-#define LOCK_DLM_SOCK_PATH "gfs_controld_sock"	/* FIXME: use a header */
-#define MAXLINE 256			/* size of messages with gfs_controld */
+static int gfs_controld_fd;
 
 /* opt_map stuff from util-linux */
 
@@ -320,268 +318,123 @@ char *select_lockproto(struct mount_options *mo, struct gen_sb *sb)
 		return sb->lockproto;
 }
 
-static int gfs_controld_connect(void)
-{
-	struct sockaddr_un sun;
-	socklen_t addrlen;
-	int rv, fd;
-
-	fd = socket(PF_UNIX, SOCK_STREAM, 0);
-	if (fd < 0) {
-		warn("can't create socket for gfs_controld connection: %s",
-		     strerror(errno));
-		goto out;
-	}
-
-	memset(&sun, 0, sizeof(sun));
-	sun.sun_family = AF_UNIX;
-	strcpy(&sun.sun_path[1], LOCK_DLM_SOCK_PATH);
-	addrlen = sizeof(sa_family_t) + strlen(sun.sun_path+1) + 1;
-
-	rv = connect(fd, (struct sockaddr *) &sun, addrlen);
-	if (rv < 0) {
-		warn("can't connect to gfs_controld: %s", strerror(errno));
-		close(fd);
-		fd = rv;
-	}
- out:
-	return fd;
-}
-
-#if 0
-/* We create a pipe and pass the receiving end to gfs_controld.  If the
-   mount fails, we write an error message to this pipe.  gfs_controld monitors
-   this fd outside its main poll loop because it may need to detect a mount
-   failure while watching for the kernel mount (while waiting for the kernel
-   mount, gfs_controld is _not_ in its main poll loop which is why the normal
-   leave message w/ mnterr we send isn't sufficient.) */
-
-void setup_mount_error_fd(int socket)
-{
-	struct msghdr msg;
-	struct cmsghdr *cmsg;
-	struct iovec vec;
-	char tmp[CMSG_SPACE(sizeof(int))];
-	char ch = '\0';
-	ssize_t n;
-	int rv, fds[2];
-
-	rv = pipe(fds);
-	if (rv < 0) {
-		log_debug("setup_mount_error_fd pipe error %d %d", rv, errno);
-		return;
-	}
-
-	memset(&msg, 0, sizeof(msg));
-
-	msg.msg_control = (caddr_t)tmp;
-	msg.msg_controllen = CMSG_LEN(sizeof(int));
-	cmsg = CMSG_FIRSTHDR(&msg);
-	cmsg->cmsg_len = CMSG_LEN(sizeof(int));
-	cmsg->cmsg_level = SOL_SOCKET;
-	cmsg->cmsg_type = SCM_RIGHTS;
-	*(int *)CMSG_DATA(cmsg) = fds[0];
-
-	vec.iov_base = &ch;
-	vec.iov_len = 1;
-	msg.msg_iov = &vec;
-	msg.msg_iovlen = 1;
-
-	n = sendmsg(socket, &msg, 0);
-	if (n < 0) {
-		log_debug("setup_mount_error_fd sendmsg error %d %d", n, errno);
-		close(fds[0]);
-		close(fds[1]);
-		return;
-	}
-
-	mount_error_fd = fds[1];
-
-	log_debug("setup_mount_error_fd %d %d", fds[0], fds[1]);
-}
-#endif
-
 int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb)
 {
-	int i, fd, rv;
-	char buf[MAXLINE];
-	char *dir, *proto, *table, *options;
+	struct gfsc_mount_args ma;
+	int fd, rv, result;
 
-	i = 0;
-	do {
-		fd = gfs_controld_connect();
-		if (fd <= 0)
-			sleep(1);
-	} while (fd <= 0 && ++i < 10);
+	memset(&ma, 0, sizeof(ma));
 
-	/* FIXME: should we start the daemon here? */
-	if (fd < 0) {
-		warn("gfs_controld not running");
-		rv = -1;
-		goto out;
-	}
-
-	dir = mo->dir;
-	proto = "lock_dlm";
-	options = mo->opts;
-
+	strncpy(ma.dir, mo->dir, PATH_MAX);
+	strncpy(ma.type, fsname, PATH_MAX);
+	strncpy(ma.proto, "lock_dlm", PATH_MAX);
+	strncpy(ma.options, mo->opts, PATH_MAX);
+	strncpy(ma.dev, mo->dev, PATH_MAX);
 	if (mo->locktable[0])
-		table = mo->locktable;
+		strncpy(ma.table, mo->locktable, PATH_MAX);
 	else
-		table = sb->locktable;
+		strncpy(ma.table, sb->locktable, PATH_MAX);
 
-	/*
-	 * send request to gfs_controld for it to join mountgroup:
-	 * "join <mountpoint> gfs2 lock_dlm <locktable> <options> <dev>"
-	 */
-
-	memset(buf, 0, sizeof(buf));
-	rv = snprintf(buf, MAXLINE, "join %s %s %s %s %s %s",
-		      dir, fsname, proto, table, options, mo->dev);
-	if (rv >= MAXLINE) {
-		warn("gfs_controld message too long: %d \"%s\"", rv, buf);
-		rv = -1;
-		goto out;
+	fd = gfsc_fs_connect();
+	if (fd < 0) {
+		warn("gfs_controld join connect error: %s", strerror(errno));
+		return fd;
 	}
 
-	log_debug("message to gfs_controld: asking to join mountgroup:");
-	log_debug("write \"%s\"", buf);
+	/* tell gfs_controld to join the mountgroup */
 
-	rv = write(fd, buf, sizeof(buf));
+	rv = gfsc_fs_join(fd, &ma);
 	if (rv < 0) {
-		warn("gfs_controld write error: %s", strerror(errno));
-		goto out;
+		warn("gfs_controld join write error: %s", strerror(errno));
+		goto fail;
 	}
 
-#if 0
-	setup_mount_error_fd(fd);
-#endif
+	/* read the result of the join from gfs_controld */
 
-	/*
-	 * read response from gfs_controld to our join request:
-	 * it sends back an int as a string, 0 or -EXXX
-	 */
-
-	memset(buf, 0, sizeof(buf));
-	rv = read(fd, buf, sizeof(buf));
+	rv = gfsc_fs_result(fd, &result, &ma);
 	if (rv < 0) {
-		warn("error reading result from gfs_controld: %s",
-		     strerror(errno));
-		goto out;
+		warn("gfs_controld result read error: %s", strerror(errno));
+		goto fail;
 	}
-	rv = atoi(buf);
+
+	rv = result;
 
 	switch (rv) {
 	case 0:
+	case -EALREADY:
 		break;
-
-	case -EEXIST:
-		warn("mount group already exists. "
-		     "Duplicate locktable name %s, or %s already mounted",
-		     table, mo->dev);
-		goto out;
 
 	case -EPROTONOSUPPORT:
 		warn("lockproto not supported");
-		goto out;
+		goto fail;
 
 	case -EOPNOTSUPP:
 		warn("jid, first and id are reserved options");
-		goto out;
+		goto fail;
 
 	case -EBADFD:
 		warn("no colon found in table name");
-		goto out;
+		goto fail;
 
 	case -ENAMETOOLONG:
 		warn("fs name too long");
-		goto out;
+		goto fail;
 
 	case -ESTALE:
 		warn("fs is being unmounted");
-		goto out;
+		goto fail;
 
 	case -EADDRINUSE:
 		warn("different fs appears to exist with the same name");
-		goto out;
+		goto fail;
 
 	case -EBUSY:
 		warn("mount point already used or other mount in progress");
-		goto out;
-
-	case -EALREADY:
-		log_debug("fs already mounted, adding mountpoint");
-		adding_another_mountpoint = 1;
-		rv = 0;
-		goto out;
+		goto fail;
 
 	case -ENOMEM:
 		warn("out of memory");
-		goto out;
+		goto fail;
 
 	case -EBADR:
 		warn("fs is for a different cluster");
-		goto out;
+		goto fail;
 
 	case -ENOANO:
 		warn("node not a member of the default fence domain");
-		goto out;
+		goto fail;
 
 	case -EROFS:
 		warn("read-only mount invalid with spectator option");
-		goto out;
+		goto fail;
 
 	case -EMLINK:
 		warn("option string too long");
-		goto out;
+		goto fail;
 
 	default:
 		warn("gfs_controld join error: %d", rv);
-		goto out;
+		goto fail;
 	}
 
-	log_debug("message from gfs_controld: response to join request:");
-	log_debug("lock_dlm_join: read \"%s\"", buf);
-
 	/*
-	 * read mount-option string from gfs_controld that we are to
-	 * use for the mount syscall; or possibly error message
-	 */
-
-	memset(buf, 0, sizeof(buf));
-	rv = read(fd, buf, sizeof(buf));
-	if (rv < 0) {
-		warn("gfs_controld options read error: %d", rv);
-		goto out;
-	}
-
-	log_debug("message from gfs_controld: mount options:");
-	log_debug("lock_dlm_join: read \"%s\"", buf);
-
-	/*
-	 * gfs_controld returns "hostdata=jid=X:id=Y:first=Z"
-	 * this is first combined with any hostdata the user gave on
+	 * In addition to the result, gfs_controld also returns
+	 * "hostdata=jid=X:id=Y:first=Z" in ma.hostdata.
+	 * This is first combined with any hostdata the user gave on
 	 * the command line and then the full hostdata is combined
 	 * with the "extra" mount otions into the "extra_plus" string.
-	 * If we're not allowed to mount, "error: foo" is returned.
 	 */
 
-	if (!strncmp(buf, "error", 5)) {
-		warn("%s", buf);
-		rv = -1;
-		goto out;
-	}
-
-	if (strlen(mo->hostdata) + strlen(buf) + 1 > PATH_MAX) {
+	if (strlen(mo->hostdata) + strlen(ma.hostdata) + 1 > PATH_MAX) {
 		warn("hostdata too long");
 		rv = -1;
-		goto out;
+		goto fail;
 	}
 
 	if (!mo->hostdata[0])
-		snprintf(mo->hostdata, PATH_MAX, "%s", buf);
+		snprintf(mo->hostdata, PATH_MAX, "%s", ma.hostdata);
 	else {
-		char *p = strstr(buf, "=") + 1;
+		char *p = strstr(ma.hostdata, "=") + 1;
 		strcat(mo->hostdata, ":");
 		strcat(mo->hostdata, p);
 	}
@@ -594,143 +447,76 @@ int lock_dlm_join(struct mount_options *mo, struct gen_sb *sb)
 		snprintf(mo->extra_plus, PATH_MAX, "%s,%s",
 			 mo->extra, mo->hostdata);
 
-	log_debug("lock_dlm_join: extra_plus: \"%s\"", mo->extra_plus);
-	rv = 0;
- out:
-#if 0
-	close(fd);
-#endif
-	gfs_controld_fd = fd;
+	/* keep gfs_controld connection open and reuse it below to
+	   send the result of mount(2) to gfs_controld, except in
+	   the case of another mount (EALREADY) */
+	   
+	if (rv == -EALREADY)
+		gfsc_fs_disconnect(fd);
+	else
+		gfs_controld_fd = fd;
+
+	return 0;
+
+ fail:
+	gfsc_fs_disconnect(fd);
 	return rv;
 }
 
-void lock_dlm_mount_result(struct mount_options *mo, struct gen_sb *sb,
-			   int result)
+void lock_dlm_mount_done(struct mount_options *mo, struct gen_sb *sb,
+			 int result)
 {
+	struct gfsc_mount_args ma;
 	int rv;
-	char buf[MAXLINE];
 
-	/* if we didn't do the lock_dlm_join */
-	if (gfs_controld_fd <= 0)
+	if (!gfs_controld_fd)
 		return;
 
-	memset(buf, 0, sizeof(buf));
-	rv = snprintf(buf, MAXLINE, "mount_result %s %s %d", mo->dir, fsname,
-		      result);
-	if (rv >= MAXLINE) {
-		warn("lock_dlm_mount_result: message too long: %d \"%s\"\n",
-		     rv, buf);
-		goto out;
-	}
+	memset(&ma, 0, sizeof(ma));
 
-	log_debug("lock_dlm_mount_result: write \"%s\"", buf);
+	strncpy(ma.dir, mo->dir, PATH_MAX);
+	strncpy(ma.type, fsname, PATH_MAX);
+	strncpy(ma.proto, "lock_dlm", PATH_MAX);
+	strncpy(ma.options, mo->opts, PATH_MAX);
+	strncpy(ma.dev, mo->dev, PATH_MAX);
+	if (mo->locktable[0])
+		strncpy(ma.table, mo->locktable, PATH_MAX);
+	else
+		strncpy(ma.table, sb->locktable, PATH_MAX);
 
-	rv = write(gfs_controld_fd, buf, sizeof(buf));
-	if (rv < 0) {
-		warn("lock_dlm_mount_result: gfs_controld write error: %d", rv);
-	}
- out:
-	close(gfs_controld_fd);
+	/* tell gfs_controld the result of mount(2) */
+
+	rv = gfsc_fs_mount_done(gfs_controld_fd, &ma, result);
+	if (rv)
+		warn("gfs_controld mount_done write error: %s", strerror(errno));
+
+	gfsc_fs_disconnect(gfs_controld_fd);
 }
 
 int lock_dlm_leave(struct mount_options *mo, struct gen_sb *sb, int mnterr)
 {
-	int i, fd, rv;
-	char buf[MAXLINE];
+	struct gfsc_mount_args ma;
+	int rv;
 
-	if (mnterr && adding_another_mountpoint)
-		return 0;
+	memset(&ma, 0, sizeof(ma));
 
-	i = 0;
-	do {
-		fd = gfs_controld_connect();
-		if (fd <= 0)
-			sleep(1);
-	} while (fd <= 0 && ++i < 10);
+	strncpy(ma.dir, mo->dir, PATH_MAX);
+	strncpy(ma.type, fsname, PATH_MAX);
 
-	if (fd <= 0) {
-		warn("gfs_controld not running");
-		rv = -1;
-		goto out;
-	}
+	rv = gfsc_fs_leave(&ma, mnterr);
+	if (rv)
+		warn("leave: gfs_controld leave error: %s", strerror(errno));
 
-	/*
-	 * send request to gfs_controld for it to leave mountgroup:
-	 * "leave <mountpoint> <fstype> <mnterr>"
-	 *
-	 * mnterr is 0 if this leave is associated with an unmount.
-	 * mnterr is !0 if this leave is due to a failed kernel mount
-	 * in which case gfs_controld shouldn't wait for the kernel mount
-	 * to complete before doing the leave.
-	 */
-
-	memset(buf, 0, sizeof(buf));
-	rv = snprintf(buf, MAXLINE, "leave %s %s %d", mo->dir, fsname, mnterr);
-	if (rv >= MAXLINE) {
-		warn("lock_dlm_leave: message too long: %d \"%s\"\n", rv, buf);
-		rv = -1;
-		goto out;
-	}
-
-	log_debug("message to gfs_controld: asking to leave mountgroup:");
-	log_debug("lock_dlm_leave: write \"%s\"", buf);
-
-#if 0
-	if (mnterr && mount_error_fd) {
-		rv = write(mount_error_fd, buf, sizeof(buf));
-		log_debug("lock_dlm_leave: write to mount_error_fd %d", rv);
-	}
-#endif
-
-	rv = write(fd, buf, sizeof(buf));
-	if (rv < 0) {
-		warn("lock_dlm_leave: gfs_controld write error: %d", rv);
-		goto out;
-	}
-
-	/*
-	 * read response from gfs_controld to our leave request:
-	 * int as a string, 0 or -EXXX
-	 */
-
-	memset(buf, 0, sizeof(buf));
-	rv = read(fd, buf, sizeof(buf));
-	if (rv < 0) {
-		warn("lock_dlm_leave: gfs_controld read error: %d", rv);
-		goto out;
-	}
-	rv = atoi(buf);
-	if (rv < 0) {
-		warn("lock_dlm_leave: gfs_controld leave error: %d", rv);
-		goto out;
-	}
-
-	log_debug("message from gfs_controld: response to leave request:");
-	log_debug("lock_dlm_leave: read \"%s\"", buf);
-	rv = 0;
- out:
-	close(fd);
 	return rv;
 }
 
 int lock_dlm_remount(struct mount_options *mo, struct gen_sb *sb)
 {
-	int i, fd, rv;
-	char buf[MAXLINE];
+	struct gfsc_mount_args ma;
 	char *mode;
+	int fd, rv, result;
 
-	i = 0;
-	do {
-		fd = gfs_controld_connect();
-		if (fd <= 0)
-			sleep(1);
-	} while (fd <= 0 && ++i < 10);
-
-	if (fd <= 0) {
-		warn("gfs_controld not running");
-		rv = -1;
-		goto out;
-	}
+	memset(&ma, 0, sizeof(ma));
 
 	/* FIXME: how to check for spectator remounts, we want
 	   to disallow remount to/from spectator */
@@ -740,78 +526,37 @@ int lock_dlm_remount(struct mount_options *mo, struct gen_sb *sb)
 	else
 		mode = "rw";
 
-	/*
-	 * send request to gfs_controld for it to remount:
-	 * "remount <mountpoint> gfs2 <mode>"
-	 */
+	strncpy(ma.dir, mo->dir, PATH_MAX);
+	strncpy(ma.type, fsname, PATH_MAX);
+	strncpy(ma.options, mode, PATH_MAX);
 
-	memset(buf, 0, sizeof(buf));
-	rv = snprintf(buf, MAXLINE, "remount %s %s %s", mo->dir, fsname, mode);
-	if (rv >= MAXLINE) {
-		warn("remount message too large: %d \"%s\"\n", rv, buf);
-		rv = -1;
+	fd = gfsc_fs_connect();
+	if (fd < 0) {
+		warn("gfs_controld remount connect error: %s", strerror(errno));
+		return fd;
+	}
+
+	/* tell gfs_controld about the new mount options */
+
+	rv = gfsc_fs_remount(fd, &ma);
+	if (rv) {
+		warn("gfs_controld remount write error: %s", strerror(errno));
 		goto out;
 	}
 
-	log_debug("message to gfs_controld: asking to remount:");
-	log_debug("lock_dlm_remount: write \"%s\"", buf);
+	/* read the result of the remount from gfs_controld */
 
-	rv = write(fd, buf, sizeof(buf));
+	rv = gfsc_fs_result(fd, &result, &ma);
 	if (rv < 0) {
-		warn("lock_dlm_remount: gfs_controld write error: %d", rv);
+		warn("gfs_controld result read error: %s", strerror(errno));
 		goto out;
 	}
 
-	/*
-	 * read response from gfs_controld
-	 * int as a string
-	 * 1: go ahead
-	 * -EXXX: error
-	 * 0: wait for second result
-	 */
-
-	memset(buf, 0, sizeof(buf));
-	rv = read(fd, buf, sizeof(buf));
-	if (rv < 0) {
-		warn("lock_dlm_remount: gfs_controld read1 error: %d", rv);
-		goto out;
-	}
-	rv = atoi(buf);
-	if (rv < 0) {
-		warn("lock_dlm_remount: gfs_controld remount error: %d", rv);
-		goto out;
-	}
-	if (rv == 1) {
-		rv = 0;
-		goto out;
-	}
-
-	log_debug("message from gfs_controld: response to remount request:");
-	log_debug("lock_dlm_remount: read \"%s\"", buf);
-
-	/*
-	 * read second result from gfs_controld
-	 */
-
-	memset(buf, 0, sizeof(buf));
-	rv = read(fd, buf, sizeof(buf));
-	if (rv < 0) {
-		warn("lock_dlm_remount: gfs_controld read2 error: %d", rv);
-		goto out;
-	}
-
-	log_debug("message from gfs_controld: remount result:");
-	log_debug("lock_dlm_remount: read \"%s\"", buf);
-
-	if (!strncmp(buf, "error", 5)) {
-		warn("%s", buf);
-		rv = -1;
-		goto out;
-	}
-
-	rv = 0;
+	rv = result;
+	if (rv)
+		warn("remount not allowed from gfs_controld");
  out:
-	close(fd);
+	gfsc_fs_disconnect(fd);
 	return rv;
 }
 

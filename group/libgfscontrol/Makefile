@@ -1,8 +1,8 @@
 ###############################################################################
 ###############################################################################
 ##
-##  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
-##
+##  Copyright (C) 2008 Red Hat, Inc.  All rights reserved.
+##  
 ##  This copyrighted material is made available to anyone wishing to use,
 ##  modify, copy, or redistribute it subject to the terms and conditions
 ##  of the GNU General Public License v.2.
@@ -10,46 +10,44 @@
 ###############################################################################
 ###############################################################################
 
-TARGET= gfs_controld
+TARGET= libgfscontrol
 
-SBINDIRT=$(TARGET)
+LIBDIRT=$(TARGET).a \
+	$(TARGET).so.$(SOMAJOR).$(SOMINOR)
 
-all: depends ${TARGET}
+LIBSYMT=$(TARGET).so \
+	$(TARGET).so.$(SOMAJOR)
+
+INCDIRT=$(TARGET).h
 
 include ../../make/defines.mk
+
+SHAREDLIB=$(TARGET).so.${SOMAJOR}.${SOMINOR}
+STATICLIB=$(TARGET).a
+
+all: $(STATICLIB) $(SHAREDLIB)
+
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
 include $(OBJDIR)/make/install.mk
 include $(OBJDIR)/make/uninstall.mk
 
-OBJS= 	main.o \
-	member_cman.o \
-	config.o \
-	cpg-old.o \
-	group.o \
-	util.o \
-	plock.o
+OBJS=	main.o
 
-CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${openaisincdir} -I${fencedincdir}
-CFLAGS += -I${KERNEL_SRC}/include/
-CFLAGS += -I$(S)/../lib/ -I$(S)/../include/ -I../libgfscontrol/
+CFLAGS += -fPIC
+CFLAGS += -I$(S)/../../group/gfs_controld
 CFLAGS += -I${incdir}
+CFLAGS += -I$(KERNEL_SRC)/include
 
-LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lcman -lccs
-LDFLAGS += -L${fencedlibdir} -lfenced
-LDFLAGS += -L${openaislibdir} -lcpg -lSaCkpt
-LDFLAGS += -L${libdir}
-LDFLAGS += -L../lib -lgroup
+$(TARGET).a: $(OBJS)
+	${AR} r $@ $^
+	${RANLIB} $@
 
-
-${TARGET}: ${OBJS}
-	$(CC) -o $@ $^ $(LDFLAGS)
-
-depends:
-	$(MAKE) -C ../lib all
+$(TARGET).so.${SOMAJOR}.${SOMINOR}: $(OBJS)
+	$(CC) -shared -o $@ -Wl,-soname=$(TARGET).so.$(SOMAJOR) $< $(LDFLAGS)
+	ln -sf $(TARGET).so.$(SOMAJOR).$(SOMINOR) $(TARGET).so
+	ln -sf $(TARGET).so.$(SOMAJOR).$(SOMINOR) $(TARGET).so.$(SOMAJOR)
 
 clean: generalclean
-
-.PHONY: all ${TARGET}
 
 -include $(OBJS:.o=.d)

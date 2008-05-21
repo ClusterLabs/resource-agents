@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2006-2007 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2006-2008 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -10,233 +10,97 @@
 *******************************************************************************
 ******************************************************************************/
 
-#include <openais/cpg.h>
-#include "lock_dlm.h"
+#include "gfs_daemon.h"
+#include "config.h"
+#include "cpg-old.h"
+#include "libgroup.h"
 
-extern struct list_head mounts;
-extern unsigned int     protocol_active[3];
-static cpg_handle_t	daemon_handle;
-static struct cpg_name	daemon_name;
-int			message_flow_control_on;
+#define JID_INIT	-9
 
-void receive_journals(struct mountgroup *mg, char *buf, int len, int from);
-void receive_options(struct mountgroup *mg, char *buf, int len, int from);
-void receive_remount(struct mountgroup *mg, char *buf, int len, int from);
-void receive_plock(struct mountgroup *mg, char *buf, int len, int from);
-void receive_own(struct mountgroup *mg, char *buf, int len, int from);
-void receive_drop(struct mountgroup *mg, char *buf, int len, int from);
-void receive_sync(struct mountgroup *mg, char *buf, int len, int from);
-void receive_withdraw(struct mountgroup *mg, char *buf, int len, int from);
-void receive_mount_status(struct mountgroup *mg, char *buf, int len, int from);
-void receive_recovery_status(struct mountgroup *mg, char *buf, int len,
-			     int from);
-void receive_recovery_done(struct mountgroup *mg, char *buf, int len, int from);
-char *msg_name(int type);
+/* mg_member opts bit field */
 
-static void do_deliver(int nodeid, char *data, int len)
-{
-	struct mountgroup *mg;
-	struct gdlm_header *hd;
-
-	hd = (struct gdlm_header *) data;
-
-	mg = find_mg(hd->name);
-	if (!mg) {
-		/*
-		log_error("cpg message from %d len %d no group %s",
-			  nodeid, len, hd->name);
-		*/
-		return;
-	}
-
-	hd->version[0]	= le16_to_cpu(hd->version[0]);
-	hd->version[1]	= le16_to_cpu(hd->version[1]);
-	hd->version[2]	= le16_to_cpu(hd->version[2]);
-	hd->type	= le16_to_cpu(hd->type);
-	hd->nodeid	= le32_to_cpu(hd->nodeid);
-	hd->to_nodeid	= le32_to_cpu(hd->to_nodeid);
-
-	/* FIXME: we need to look at how to gracefully fail when we end up
-	   with mixed incompat versions */
-
-	if (hd->version[0] != protocol_active[0]) {
-		log_error("reject message from %d version %u.%u.%u vs %u.%u.%u",
-			  nodeid, hd->version[0], hd->version[1],
-			  hd->version[2], protocol_active[0],
-			  protocol_active[1], protocol_active[2]);
-		return;
-	}
-
-	/* If there are some group messages between a new node being added to
-	   the cpg group and being added to the app group, the new node should
-	   discard them since they're only relevant to the app group. */
-
-	if (!mg->last_callback) {
-		log_group(mg, "discard %s len %d from %d",
-			  msg_name(hd->type), len, nodeid);
-		return;
-	}
-
-	switch (hd->type) {
-	case MSG_JOURNAL: 
-		receive_journals(mg, data, len, nodeid);
-		break;
-
-	case MSG_OPTIONS:
-		receive_options(mg, data, len, nodeid);
-		break;
-
-	case MSG_REMOUNT:
-		receive_remount(mg, data, len, nodeid);
-		break;
-
-	case MSG_PLOCK:
-		receive_plock(mg, data, len, nodeid);
-		break;
-
-	case MSG_MOUNT_STATUS:
-		receive_mount_status(mg, data, len, nodeid);
-		break;
-
-	case MSG_RECOVERY_STATUS:
-		receive_recovery_status(mg, data, len, nodeid);
-		break;
-
-	case MSG_RECOVERY_DONE:
-		receive_recovery_done(mg, data, len, nodeid);
-		break;
-
-	case MSG_WITHDRAW:
-		receive_withdraw(mg, data, len, nodeid);
-		break;
-
-	case MSG_PLOCK_OWN:
-		receive_own(mg, data, len, nodeid);
-		break;
-
-	case MSG_PLOCK_DROP:
-		receive_drop(mg, data, len, nodeid);
-		break;
-
-	case MSG_PLOCK_SYNC_LOCK:
-	case MSG_PLOCK_SYNC_WAITER:
-		receive_sync(mg, data, len, nodeid);
-		break;
-
-	default:
-		log_error("unknown message type %d from %d",
-			  hd->type, hd->nodeid);
-	}
-}
-
-void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
-		uint32_t nodeid, uint32_t pid, void *data, int data_len)
-{
-	do_deliver(nodeid, data, data_len);
-}
-
-/* Not sure if purging plocks (driven by confchg) needs to be synchronized with
-   the other recovery steps (driven by libgroup) for a node, don't think so.
-   Is it possible for a node to have been cleared from the members_gone list
-   before this confchg is processed? */
-
-void confchg_cb(cpg_handle_t handle, struct cpg_name *group_name,
-		struct cpg_address *member_list, int member_list_entries,
-		struct cpg_address *left_list, int left_list_entries,
-		struct cpg_address *joined_list, int joined_list_entries)
-{
-	struct mountgroup *mg;
-	int i, nodeid;
-
-	for (i = 0; i < left_list_entries; i++) {
-		nodeid = left_list[i].nodeid;
-		list_for_each_entry(mg, &mounts, list) {
-			if (is_member(mg, nodeid) || is_removed(mg, nodeid))
-				purge_plocks(mg, left_list[i].nodeid, 0);
-		}
-	}
-}
-
-static cpg_callbacks_t callbacks = {
-	.cpg_deliver_fn = deliver_cb,
-	.cpg_confchg_fn = confchg_cb,
+enum {
+	MEMB_OPT_RW = 1,
+	MEMB_OPT_RO = 2,
+	MEMB_OPT_SPECT = 4,
+	MEMB_OPT_RECOVER = 8,
 };
 
-void update_flow_control_status(void)
+/* mg_member state: local_recovery_status, recovery_status */
+
+enum {
+	RS_NEED_RECOVERY = 1,
+	RS_SUCCESS,
+	RS_GAVEUP,
+	RS_NOFS,
+	RS_READONLY,
+};
+
+struct mg_member {
+	struct list_head	list;
+	int			nodeid;
+	int			jid;
+
+	int			spectator;
+	int			readonly;
+	int			rw;
+	uint32_t		opts;
+
+	int			tell_gfs_to_recover;
+	int			wait_gfs_recover_done;
+	int			gone_event;
+	int			gone_type;
+	int			finished;
+	int			local_recovery_status;
+	int			recovery_status;
+	int			withdrawing;
+	int			needs_journals;
+
+	int			ms_kernel_mount_done;
+	int			ms_first_mounter;
+	int			ms_kernel_mount_error;
+};
+
+extern group_handle_t gh;
+
+int message_flow_control_on;
+
+/* cpg message protocol
+   1.0.0 is initial version
+   2.0.0 is incompatible with 1.0.0 and allows plock ownership */
+static unsigned int protocol_v100[3] = {1, 0, 0};
+static unsigned int protocol_v200[3] = {2, 0, 0};
+static unsigned int protocol_active[3];
+
+static struct list_head withdrawn_mounts;
+static cpg_handle_t	daemon_handle;
+static struct cpg_name	daemon_name;
+
+
+static void send_journals(struct mountgroup *mg, int nodeid);
+
+
+static char *msg_name(int type)
 {
-	cpg_flow_control_state_t flow_control_state;
-	cpg_error_t error;
-	
-	error = cpg_flow_control_state_get(daemon_handle, &flow_control_state);
-	if (error != CPG_OK) {
-		log_error("cpg_flow_control_state_get %d", error);
-		return;
+	switch (type) {
+	case MSG_JOURNAL:
+		return "MSG_JOURNAL";
+	case MSG_OPTIONS:
+		return "MSG_OPTIONS";
+	case MSG_REMOUNT:
+		return "MSG_REMOUNT";
+	case MSG_PLOCK:
+		return "MSG_PLOCK";
+	case MSG_MOUNT_STATUS:
+		return "MSG_MOUNT_STATUS";
+	case MSG_RECOVERY_STATUS:
+		return "MSG_RECOVERY_STATUS";
+	case MSG_RECOVERY_DONE:
+		return "MSG_RECOVERY_DONE";
+	case MSG_WITHDRAW:
+		return "MSG_WITHDRAW";
 	}
-
-	if (flow_control_state == CPG_FLOW_CONTROL_ENABLED) {
-		if (message_flow_control_on == 0) {
-			log_debug("flow control on");
-		}
-		message_flow_control_on = 1;
-	} else {
-		if (message_flow_control_on) {
-			log_debug("flow control off");
-		}
-		message_flow_control_on = 0;
-	}
-}
-
-int process_cpg(void)
-{
-	cpg_error_t error;
-
-	error = cpg_dispatch(daemon_handle, CPG_DISPATCH_ALL);
-	if (error != CPG_OK) {
-		log_error("cpg_dispatch error %d", error);
-		return -1;
-	}
-
-	update_flow_control_status();
-
-	return 0;
-}
-
-int setup_cpg(void)
-{
-	cpg_error_t error;
-	int fd = 0;
-
-	error = cpg_initialize(&daemon_handle, &callbacks);
-	if (error != CPG_OK) {
-		log_error("cpg_initialize error %d", error);
-		return -1;
-	}
-
-	cpg_fd_get(daemon_handle, &fd);
-	if (fd < 0) {
-		log_error("cpg_fd_get error %d", error);
-		return -1;
-	}
-
-	memset(&daemon_name, 0, sizeof(daemon_name));
-	strcpy(daemon_name.value, "gfs_controld");
-	daemon_name.length = 12;
-
- retry:
-	error = cpg_join(daemon_handle, &daemon_name);
-	if (error == CPG_ERR_TRY_AGAIN) {
-		log_debug("setup_cpg cpg_join retry");
-		sleep(1);
-		goto retry;
-	}
-	if (error != CPG_OK) {
-		log_error("cpg_join error %d", error);
-		cpg_finalize(daemon_handle);
-		return -1;
-	}
-
-	log_debug("cpg %d", fd);
-	return fd;
+	return "unknown";
 }
 
 static int _send_message(cpg_handle_t h, void *buf, int len, int type)
@@ -271,7 +135,7 @@ static int _send_message(cpg_handle_t h, void *buf, int len, int type)
 	return 0;
 }
 
-int send_group_message(struct mountgroup *mg, int len, char *buf)
+int send_group_message_old(struct mountgroup *mg, int len, char *buf)
 {
 	struct gdlm_header *hd = (struct gdlm_header *) buf;
 	int type = hd->type;
@@ -283,108 +147,11 @@ int send_group_message(struct mountgroup *mg, int len, char *buf)
 	hd->nodeid	= cpu_to_le32(hd->nodeid);
 	hd->to_nodeid	= cpu_to_le32(hd->to_nodeid);
 	memcpy(hd->name, mg->name, strlen(mg->name));
-	
+
 	return _send_message(daemon_handle, buf, len, type);
 }
 
-
-/******************************************************************************
-*******************************************************************************
-**
-**  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
-**
-**  This copyrighted material is made available to anyone wishing to use,
-**  modify, copy, or redistribute it subject to the terms and conditions
-**  of the GNU General Public License v.2.
-**
-*******************************************************************************
-******************************************************************************/
-
-#include "lock_dlm.h"
-#include "ccs.h"
-
-#define SYSFS_DIR	"/sys/fs"
-#define JID_INIT	-9
-
-extern char *clustername;
-extern int our_nodeid;
-extern group_handle_t gh;
-extern int config_no_withdraw;
-extern int dmsetup_wait;
-
-struct list_head mounts;
-struct list_head withdrawn_mounts;
-
-void send_journals(struct mountgroup *mg, int nodeid);
-void start_spectator_init_2(struct mountgroup *mg);
-void start_spectator_2(struct mountgroup *mg);
-void notify_mount_client(struct mountgroup *mg);
-
-
-int set_sysfs(struct mountgroup *mg, char *field, int val)
-{
-	char fname[512];
-	char out[16];
-	int rv, fd;
-
-	snprintf(fname, 512, "%s/%s/%s/lock_module/%s",
-		 SYSFS_DIR, mg->type, mg->table, field);
-
-	log_group(mg, "set %s to %d", fname, val);
-
-	fd = open(fname, O_RDWR);
-	if (fd < 0) {
-		log_group(mg, "set open %s error %d %d", fname, fd, errno);
-		return -1;
-	}
-
-	mg->got_kernel_mount = 1;
-
-	memset(out, 0, 16);
-	sprintf(out, "%d", val);
-	rv = write(fd, out, strlen(out));
-
-	if (rv != strlen(out)) {
-		log_error("write %s error %d %d", fname, fd, errno);
-		close(fd);
-		return -1;
-	}
-
-	close(fd);
-	return 0;
-}
-
-int get_sysfs(struct mountgroup *mg, char *field, char *buf, int len)
-{
-	char fname[512], *p;
-	int fd, rv;
-
-	snprintf(fname, 512, "%s/%s/%s/lock_module/%s",
-		 SYSFS_DIR, mg->type, mg->table, field);
-
-	fd = open(fname, O_RDONLY);
-	if (fd < 0) {
-		log_group(mg, "get open %s error %d %d", fname, fd, errno);
-		return -1;
-	}
-
-	mg->got_kernel_mount = 1;
-
-	rv = read(fd, buf, len);
-	if (rv < 0)
-		log_error("read %s error %d %d", fname, rv, errno);
-	else {
-		rv = 0;
-		p = strchr(buf, '\n');
-		if (p)
-			*p = '\0';
-	}
-
-	close(fd);
-	return rv;
-}
-
-struct mg_member *find_memb_nodeid(struct mountgroup *mg, int nodeid)
+static struct mg_member *find_memb_nodeid(struct mountgroup *mg, int nodeid)
 {
 	struct mg_member *memb;
 
@@ -395,7 +162,7 @@ struct mg_member *find_memb_nodeid(struct mountgroup *mg, int nodeid)
 	return NULL;
 }
 
-struct mg_member *find_memb_jid(struct mountgroup *mg, int jid)
+static struct mg_member *find_memb_jid(struct mountgroup *mg, int jid)
 {
 	struct mg_member *memb;
 
@@ -406,7 +173,57 @@ struct mg_member *find_memb_jid(struct mountgroup *mg, int jid)
 	return NULL;
 }
 
-int first_mounter_recovery(struct mountgroup *mg)
+static void notify_mount_client(struct mountgroup *mg)
+{
+	struct mg_member *memb;
+
+	if (!mg->mount_client_result && mg->mount_client_delay) {
+		log_group(mg, "notify_mount_client delayed");
+		return;
+	}
+
+	client_reply_join_full(mg, mg->mount_client_result);
+
+	if (mg->mount_client_result) {
+		log_group(mg, "leaving due to mount error: %d",
+			  mg->mount_client_result);
+
+		memb = find_memb_nodeid(mg, our_nodeid);
+		if (memb->finished)
+			group_leave(gh, mg->name);
+		else {
+			log_group(mg, "delay leave until after join");
+			mg->group_leave_on_finish = 1;
+		}
+	} else {
+		mg->mount_client_notified = 1;
+	}
+}
+
+/* we can receive recovery_status messages from other nodes doing start before
+   we actually process the corresponding start callback ourselves */
+
+void save_message_old(struct mountgroup *mg, char *buf, int len, int from,
+		      int type)
+{
+	struct save_msg *sm;
+
+	sm = malloc(sizeof(struct save_msg) + len);
+	if (!sm)
+		return;
+	memset(sm, 0, sizeof(struct save_msg) + len);
+
+	memcpy(&sm->buf, buf, len);
+	sm->type = type;
+	sm->len = len;
+	sm->nodeid = from;
+
+	log_group(mg, "save %s from %d len %d", msg_name(type), from, len);
+
+	list_add_tail(&sm->list, &mg->saved_messages);
+}
+
+static int first_mounter_recovery(struct mountgroup *mg)
 {
 	struct mg_member *memb;
 
@@ -417,7 +234,7 @@ int first_mounter_recovery(struct mountgroup *mg)
 	return 0;
 }
 
-int local_first_mounter_recovery(struct mountgroup *mg)
+static int local_first_mounter_recovery(struct mountgroup *mg)
 {
 	int nodeid;
 
@@ -443,24 +260,7 @@ static void start_done(struct mountgroup *mg)
 	group_start_done(gh, mg->name, mg->start_event_nr);
 }
 
-void notify_remount_client(struct mountgroup *mg, char *msg)
-{
-	char buf[MAXLINE];
-	int rv;
-
-	memset(buf, 0, MAXLINE);
-	snprintf(buf, MAXLINE, "%s", msg);
-
-	log_debug("notify_remount_client: %s", buf);
-
-	rv = client_send(mg->remount_client, buf, MAXLINE);
-	if (rv < 0)
-		log_error("notify_remount_client: send failed %d", rv);
-
-	mg->remount_client = 0;
-}
-
-void send_withdraw(struct mountgroup *mg)
+void send_withdraw_old(struct mountgroup *mg)
 {
 	struct gdlm_header *hd;
 	int len;
@@ -480,12 +280,12 @@ void send_withdraw(struct mountgroup *mg)
 
 	log_group(mg, "send_withdraw");
 
-	send_group_message(mg, len, buf);
+	send_group_message_old(mg, len, buf);
 
 	free(buf);
 }
 
-void receive_withdraw(struct mountgroup *mg, char *buf, int len, int from)
+static void receive_withdraw(struct mountgroup *mg, char *buf, int len, int from)
 {
 	struct mg_member *memb;
 
@@ -503,7 +303,7 @@ void receive_withdraw(struct mountgroup *mg, char *buf, int len, int from)
 
 #define SEND_RS_INTS 3
 
-void send_recovery_status(struct mountgroup *mg)
+static void send_recovery_status(struct mountgroup *mg)
 {
 	struct gdlm_header *hd;
 	struct mg_member *memb;
@@ -542,7 +342,7 @@ void send_recovery_status(struct mountgroup *mg)
 
 	log_group(mg, "send_recovery_status for %d nodes len %d", n, len);
 
-	send_group_message(mg, len, buf);
+	send_group_message_old(mg, len, buf);
 
 	free(buf);
 }
@@ -551,7 +351,7 @@ void send_recovery_status(struct mountgroup *mg)
    the journal for a failed node.  The first has really recovered it,
    the rest have found the fs clean and report success. */
 
-void _receive_recovery_status(struct mountgroup *mg, char *buf, int len,
+static void _receive_recovery_status(struct mountgroup *mg, char *buf, int len,
 			      int from)
 {
 	struct mg_member *memb;
@@ -589,7 +389,7 @@ void _receive_recovery_status(struct mountgroup *mg, char *buf, int len,
 		start_done(mg);
 }
 
-void process_saved_recovery_status(struct mountgroup *mg)
+static void process_saved_recovery_status(struct mountgroup *mg)
 {
 	struct save_msg *sm, *sm2;
 
@@ -607,7 +407,7 @@ void process_saved_recovery_status(struct mountgroup *mg)
 	}
 }
 
-void assign_next_first_mounter(struct mountgroup *mg)
+static void assign_next_first_mounter(struct mountgroup *mg)
 {
 	struct mg_member *memb, *next = NULL;
 	int low = -1;
@@ -637,7 +437,7 @@ void assign_next_first_mounter(struct mountgroup *mg)
 
 #define SEND_MS_INTS 4
 
-void send_mount_status(struct mountgroup *mg)
+static void send_mount_status(struct mountgroup *mg)
 {
 	struct gdlm_header *hd;
 	int len, *p;
@@ -667,12 +467,13 @@ void send_mount_status(struct mountgroup *mg)
 		      mg->kernel_mount_error,
 		      mg->first_mounter);
 
-	send_group_message(mg, len, buf);
+	send_group_message_old(mg, len, buf);
 
 	free(buf);
 }
 
-void _receive_mount_status(struct mountgroup *mg, char *buf, int len, int from)
+static void _receive_mount_status(struct mountgroup *mg, char *buf, int len,
+				  int from)
 {
 	struct mg_member *memb, *us;
 	int *p;
@@ -737,7 +538,8 @@ void _receive_mount_status(struct mountgroup *mg, char *buf, int len, int from)
 	}
 }
 
-void receive_mount_status(struct mountgroup *mg, char *buf, int len, int from)
+static void receive_mount_status(struct mountgroup *mg, char *buf, int len,
+				 int from)
 {
 	log_group(mg, "receive_mount_status from %d len %d last_cb %d",
 		  from, len, mg->last_callback);
@@ -748,7 +550,7 @@ void receive_mount_status(struct mountgroup *mg, char *buf, int len, int from)
 	}
 
 	if (!mg->got_our_journals)
-		save_message(mg, buf, len, from, MSG_MOUNT_STATUS);
+		save_message_old(mg, buf, len, from, MSG_MOUNT_STATUS);
 	else
 		_receive_mount_status(mg, buf, len, from);
 }
@@ -761,7 +563,7 @@ void receive_mount_status(struct mountgroup *mg, char *buf, int len, int from)
    after seeing our own options message and before we receive the memb list
    from the journals message. */
 
-void process_saved_mount_status(struct mountgroup *mg)
+static void process_saved_mount_status(struct mountgroup *mg)
 {
 	struct save_msg *sm, *sm2;
 
@@ -779,57 +581,12 @@ void process_saved_mount_status(struct mountgroup *mg)
 	}
 }
 
-char *msg_name(int type)
-{
-	switch (type) {
-	case MSG_JOURNAL:
-		return "MSG_JOURNAL";
-	case MSG_OPTIONS:
-		return "MSG_OPTIONS";
-	case MSG_REMOUNT:
-		return "MSG_REMOUNT";
-	case MSG_PLOCK:
-		return "MSG_PLOCK";
-	case MSG_MOUNT_STATUS:
-		return "MSG_MOUNT_STATUS";
-	case MSG_RECOVERY_STATUS:
-		return "MSG_RECOVERY_STATUS";
-	case MSG_RECOVERY_DONE:
-		return "MSG_RECOVERY_DONE";
-	case MSG_WITHDRAW:
-		return "MSG_WITHDRAW";
-	}
-	return "unknown";
-}
-
-/* we can receive recovery_status messages from other nodes doing start before
-   we actually process the corresponding start callback ourselves */
-
-void save_message(struct mountgroup *mg, char *buf, int len, int from, int type)
-{
-	struct save_msg *sm;
-
-	sm = malloc(sizeof(struct save_msg) + len);
-	if (!sm)
-		return;
-	memset(sm, 0, sizeof(struct save_msg) + len);
-
-	memcpy(&sm->buf, buf, len);
-	sm->type = type;
-	sm->len = len;
-	sm->nodeid = from;
-
-	log_group(mg, "save %s from %d len %d", msg_name(type), from, len);
-
-	list_add_tail(&sm->list, &mg->saved_messages);
-}
-
-void receive_recovery_status(struct mountgroup *mg, char *buf, int len,
+static void receive_recovery_status(struct mountgroup *mg, char *buf, int len,
 			     int from)
 {
 	switch (mg->last_callback) {
 	case DO_STOP:
-		save_message(mg, buf, len, from, MSG_RECOVERY_STATUS);
+		save_message_old(mg, buf, len, from, MSG_RECOVERY_STATUS);
 		break;
 	case DO_START:
 		_receive_recovery_status(mg, buf, len, from);
@@ -843,7 +600,7 @@ void receive_recovery_status(struct mountgroup *mg, char *buf, int len,
 /* tell others that all journals are recovered; they should clear
    memb's from members_gone, clear needs_recovery and unblock locks */
 
-void send_recovery_done(struct mountgroup *mg)
+static void send_recovery_done(struct mountgroup *mg)
 {
 	struct gdlm_header *hd;
 	int len;
@@ -861,12 +618,13 @@ void send_recovery_done(struct mountgroup *mg)
 	hd->nodeid = our_nodeid;
 	hd->to_nodeid = 0;
 
-	send_group_message(mg, len, buf);
+	send_group_message_old(mg, len, buf);
 
 	free(buf);
 }
 
-void receive_recovery_done(struct mountgroup *mg, char *buf, int len, int from)
+static void receive_recovery_done(struct mountgroup *mg, char *buf, int len,
+				  int from)
 {
 	struct mg_member *memb, *safe;
 
@@ -884,7 +642,7 @@ void receive_recovery_done(struct mountgroup *mg, char *buf, int len, int from)
 	set_sysfs(mg, "block", 0);
 }
 
-void send_remount(struct mountgroup *mg, int ro)
+static void send_remount(struct mountgroup *mg, int ro)
 {
 	struct gdlm_header *hd;
 	int len;
@@ -907,16 +665,17 @@ void send_remount(struct mountgroup *mg, int ro)
 	log_group(mg, "send_remount len %d \"%s\"", len,
 		  buf+sizeof(struct gdlm_header));
 
-	send_group_message(mg, len, buf);
+	send_group_message_old(mg, len, buf);
 
 	free(buf);
 }
 
-void receive_remount(struct mountgroup *mg, char *buf, int len, int from)
+static void receive_remount(struct mountgroup *mg, char *buf, int len, int from)
 {
 	struct mg_member *memb;
-	char *options, *msg = "ok";
-	int rw = 0, ro = 0, error = 0;
+	char *options;
+	int rw = 0, ro = 0;
+	int result = 0;
 
 	options = (char *) (buf + sizeof(struct gdlm_header));
 
@@ -931,8 +690,7 @@ void receive_remount(struct mountgroup *mg, char *buf, int len, int from)
 	else if (strstr(options, "ro"))
 		ro = 1;
 	else {
-		msg = "error: invalid option";
-		error = -1;
+		result = -EINVAL;
 		goto out;
 	}
 
@@ -954,18 +712,18 @@ void receive_remount(struct mountgroup *mg, char *buf, int len, int from)
 	}
  out:
 	if (from == our_nodeid) {
-		if (!error) {
+		if (!result) {
 			mg->rw = memb->rw;
 			mg->readonly = memb->readonly;
 		}
-		notify_remount_client(mg, msg);
+		client_reply_remount(mg, result);
 	}
 
-	log_group(mg, "receive_remount from %d error %d rw=%d ro=%d opts=%x",
-		  from, error, memb->rw, memb->readonly, memb->opts);
+	log_group(mg, "receive_remount from %d rw=%d ro=%d opts=%x",
+		  from, memb->rw, memb->readonly, memb->opts);
 }
 
-void set_our_memb_options(struct mountgroup *mg)
+static void set_our_memb_options(struct mountgroup *mg)
 {
 	struct mg_member *memb;
 	memb = find_memb_nodeid(mg, our_nodeid);
@@ -983,7 +741,7 @@ void set_our_memb_options(struct mountgroup *mg)
 	}
 }
 
-void send_options(struct mountgroup *mg)
+static void send_options(struct mountgroup *mg)
 {
 	struct gdlm_header *hd;
 	int len;
@@ -1001,12 +759,13 @@ void send_options(struct mountgroup *mg)
 	hd->nodeid = our_nodeid;
 	hd->to_nodeid = 0;
 
-	strncpy(buf+sizeof(struct gdlm_header), mg->options, MAX_OPTIONS_LEN-1);
+	strncpy(buf+sizeof(struct gdlm_header), mg->mount_args.options,
+		MAX_OPTIONS_LEN-1);
 
 	log_group(mg, "send_options len %d \"%s\"", len,
 		  buf+sizeof(struct gdlm_header));
 
-	send_group_message(mg, len, buf);
+	send_group_message_old(mg, len, buf);
 
 	free(buf);
 }
@@ -1020,7 +779,7 @@ void send_options(struct mountgroup *mg)
    mount and it's ok, set jid = -1.  If ro or rw mount and it's ok, set
    real jid. */
 
-int assign_journal(struct mountgroup *mg, struct mg_member *new)
+static int assign_journal(struct mountgroup *mg, struct mg_member *new)
 {
 	struct mg_member *memb, *memb_recover = NULL, *memb_mounted = NULL;
 	int i, total, rw_count, ro_count, spect_count, invalid_count;
@@ -1074,7 +833,7 @@ int assign_journal(struct mountgroup *mg, struct mg_member *new)
 	   This puts us into the special "needs_recovery" state where new
 	   mounters are asked to do first-mounter recovery of the fs while
 	   the current mounters sit in a blocked state. */
-	   
+
 	if (mg->needs_recovery) {
 		if (!memb_recover) {
 			log_group(mg, "assign_journal: needs_recovery: "
@@ -1153,7 +912,8 @@ int assign_journal(struct mountgroup *mg, struct mg_member *new)
 	return 0;
 }
 
-void _receive_options(struct mountgroup *mg, char *buf, int len, int from)
+static void _receive_options(struct mountgroup *mg, char *buf, int len,
+			     int from)
 {
 	struct mg_member *memb;
 	struct gdlm_header *hd;
@@ -1185,7 +945,7 @@ void _receive_options(struct mountgroup *mg, char *buf, int len, int from)
 	assign_journal(mg, memb);
 }
 
-void receive_options(struct mountgroup *mg, char *buf, int len, int from)
+static void receive_options(struct mountgroup *mg, char *buf, int len, int from)
 {
 	struct gdlm_header *hd = (struct gdlm_header *)buf;
 	struct mg_member *memb;
@@ -1212,12 +972,12 @@ void receive_options(struct mountgroup *mg, char *buf, int len, int from)
 	memb = find_memb_nodeid(mg, from);
 
 	if (!memb || !mg->got_our_journals)
-		save_message(mg, buf, len, from, MSG_OPTIONS);
+		save_message_old(mg, buf, len, from, MSG_OPTIONS);
 	else
 		_receive_options(mg, buf, len, from);
 }
 
-void process_saved_options(struct mountgroup *mg)
+static void process_saved_options(struct mountgroup *mg)
 {
 	struct save_msg *sm, *sm2;
 
@@ -1239,7 +999,7 @@ void process_saved_options(struct mountgroup *mg)
 
 /* send nodeid/jid/opts of every member to nodeid */
 
-void send_journals(struct mountgroup *mg, int nodeid)
+static void send_journals(struct mountgroup *mg, int nodeid)
 {
 	struct mg_member *memb;
 	struct gdlm_header *hd;
@@ -1272,12 +1032,12 @@ void send_journals(struct mountgroup *mg, int nodeid)
 
 	log_group(mg, "send_journals to %d len %d count %d", nodeid, len, i);
 
-	send_group_message(mg, len, buf);
+	send_group_message_old(mg, len, buf);
 
 	free(buf);
 }
 
-void received_our_jid(struct mountgroup *mg)
+static void received_our_jid(struct mountgroup *mg)
 {
 	log_group(mg, "received_our_jid %d", mg->our_jid);
 
@@ -1286,7 +1046,7 @@ void received_our_jid(struct mountgroup *mg)
 	   but the next mounter is required to be rw */
 
 	if (mg->our_jid == -2) {
-		strcpy(mg->error_msg, "error: jid is -2, try rw");
+		mg->mount_client_result = -EUCLEAN;
 		goto out;
 	}
 
@@ -1319,7 +1079,8 @@ void received_our_jid(struct mountgroup *mg)
 	notify_mount_client(mg);
 }
 
-void _receive_journals(struct mountgroup *mg, char *buf, int len, int from)
+static void _receive_journals(struct mountgroup *mg, char *buf, int len,
+			      int from)
 {
 	struct mg_member *memb, *memb2;
 	struct gdlm_header *hd;
@@ -1386,7 +1147,8 @@ void _receive_journals(struct mountgroup *mg, char *buf, int len, int from)
 	received_our_jid(mg);
 }
 
-void receive_journals(struct mountgroup *mg, char *buf, int len, int from)
+static void receive_journals(struct mountgroup *mg, char *buf, int len,
+			     int from)
 {
 	struct gdlm_header *hd = (struct gdlm_header *)buf;
 	struct mg_member *memb;
@@ -1445,7 +1207,7 @@ static void add_ordered_member(struct mountgroup *mg, struct mg_member *new)
 	}
 }
 
-int add_member(struct mountgroup *mg, int nodeid)
+static int add_member(struct mountgroup *mg, int nodeid)
 {
 	struct mg_member *memb;
 
@@ -1466,48 +1228,26 @@ int add_member(struct mountgroup *mg, int nodeid)
 	return 0;
 }
 
-int is_member(struct mountgroup *mg, int nodeid)
+static int is_member(struct mountgroup *mg, int nodeid)
 {
 	struct mg_member *memb;
 
 	list_for_each_entry(memb, &mg->members, list) {
 		if (memb->nodeid == nodeid)
-			return TRUE;
+			return 1;
 	}
-	return FALSE;
+	return 0;
 }
 
-int is_removed(struct mountgroup *mg, int nodeid)
+static int is_removed(struct mountgroup *mg, int nodeid)
 {
 	struct mg_member *memb;
 
 	list_for_each_entry(memb, &mg->members_gone, list) {
 		if (memb->nodeid == nodeid)
-			return TRUE;
+			return 1;
 	}
-	return FALSE;
-}
-
-static void clear_memb_list(struct list_head *head)
-{
-	struct mg_member *memb;
-
-	while (!list_empty(head)) {
-		memb = list_entry(head->next, struct mg_member, list);
-		list_del(&memb->list);
-		free(memb);
-	}
-}
-
-void clear_members(struct mountgroup *mg)
-{
-	clear_memb_list(&mg->members);
-	mg->memb_count = 0;
-}
-
-void clear_members_gone(struct mountgroup *mg)
-{
-	clear_memb_list(&mg->members_gone);
+	return 0;
 }
 
 /* New mounters may be waiting for a journals message that a failed node (as
@@ -1516,7 +1256,7 @@ void clear_members_gone(struct mountgroup *mg)
    message.  We also need to checkpoint the plock state for the new nodes to
    read after they get their journals message. */
 
-void resend_journals(struct mountgroup *mg)
+static void resend_journals(struct mountgroup *mg)
 {
 	struct mg_member *memb;
 	int stored_plocks = 0;
@@ -1543,7 +1283,7 @@ void resend_journals(struct mountgroup *mg)
    node that has the lowest nodeid doesn't have any state, which is why
    we add the "finished" requirement. */
 
-void update_master_nodeid(struct mountgroup *mg)
+static void update_master_nodeid(struct mountgroup *mg)
 {
 	struct mg_member *memb;
 	int new = -1, low = -1;
@@ -1562,8 +1302,8 @@ void update_master_nodeid(struct mountgroup *mg)
 
 /* This can happen before we receive a journals message for our mount. */
 
-void recover_members(struct mountgroup *mg, int num_nodes,
- 		     int *nodeids, int *pos_out, int *neg_out)
+static void recover_members(struct mountgroup *mg, int num_nodes,
+			    int *nodeids, int *pos_out, int *neg_out)
 {
 	struct mg_member *memb, *safe, *memb_gone_recover = NULL;
 	int i, found, id, pos = 0, neg = 0, prev_master_nodeid;
@@ -1572,10 +1312,10 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 	/* move departed nodes from members list to members_gone */
 
 	list_for_each_entry_safe(memb, safe, &mg->members, list) {
-		found = FALSE;
+		found = 0;
 		for (i = 0; i < num_nodes; i++) {
 			if (memb->nodeid == nodeids[i]) {
-				found = TRUE;
+				found = 1;
 				break;
 			}
 		}
@@ -1625,7 +1365,7 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 			if (memb->opts & MEMB_OPT_RECOVER)
 				memb_gone_recover = memb;
 		}
-	}	
+	}
 
 	/* add new nodes to members list */
 
@@ -1719,262 +1459,125 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 	}
 }
 
-struct mountgroup *create_mg(char *name, char *dir)
-{
-	struct mountgroup *mg;
-	struct mountpoint *mp;
-
-	mg = malloc(sizeof(struct mountgroup));
-	if (!mg)
-		return NULL;
-	memset(mg, 0, sizeof(struct mountgroup));
-
-	INIT_LIST_HEAD(&mg->members);
-	INIT_LIST_HEAD(&mg->members_gone);
-	INIT_LIST_HEAD(&mg->resources);
-	INIT_LIST_HEAD(&mg->saved_messages);
-	INIT_LIST_HEAD(&mg->mountpoints);
-	mg->init = 1;
-	mg->master_nodeid = -1;
-	mg->low_nodeid = -1;
-
-	strncpy(mg->name, name, MAXNAME);
-
-	mp = malloc(sizeof(struct mountpoint));
-	if (!mp) {
-		free(mg);
-		return NULL;
-	}
-	memset(mp, 0, sizeof(struct mountpoint));
-	strncpy(mp->dir, dir, sizeof(mp->dir));
-	list_add(&mp->list, &mg->mountpoints);
-
-	return mg;
-}
-
-struct mountgroup *find_mg(char *name)
-{
-	struct mountgroup *mg;
-
-	list_for_each_entry(mg, &mounts, list) {
-		if ((strlen(mg->name) == strlen(name)) &&
-		    !strncmp(mg->name, name, strlen(name)))
-			return mg;
-	}
-	return NULL;
-}
-
-struct mountgroup *find_mg_id(uint32_t id)
-{
-	struct mountgroup *mg;
-
-	list_for_each_entry(mg, &mounts, list) {
-		if (mg->id == id)
-			return mg;
-	}
-	return NULL;
-}
-
-struct mountpoint *find_mountpoint(struct mountgroup *mg, char *dir)
-{
-	struct mountpoint *mp;
-
-	list_for_each_entry(mp, &mg->mountpoints, list) {
-		if (!strcmp(mp->dir, dir))
-			return mp;
-	}
-	return NULL;
-}
-
-struct mountgroup *find_mg_dir(char *dir)
-{
-	struct mountgroup *mg;
-
-	list_for_each_entry(mg, &mounts, list) {
-		if (find_mountpoint(mg, dir))
-			return mg;
-	}
-	return NULL;
-}
-
-static int we_are_in_fence_domain(void)
-{
-	group_data_t data;
-	int rv;
-
-	memset(&data, 0, sizeof(data));
-
-	rv = group_get_group(0, "default", &data);
-
-	if (rv || strcmp(data.client_name, "fence"))
-		return 0;
-
-	if (data.member == 1)
-		return 1;
-	return 0;
-}
-
-int add_another_mountpoint(struct mountgroup *mg, char *dir, char *dev, int ci)
-{
-	struct mountpoint *mp;
-
-	log_group(mg, "add_another_mountpoint dir %s dev %s ci %d",
-		  dir, dev, ci);
-
-	/* check if this is the same fs mounted on another dir or a different
-	   fs with the same name (which is an error) */
-
-	if (strcmp(mg->dev, dev)) {
-		log_error("different fs dev %s with same name", mg->dev);
-		return -EADDRINUSE;
-	}
-
-	if (find_mountpoint(mg, dir)) {
-		log_error("mount point %s already used", dir);
-		return -EBUSY;
-	}
-
-	/* we only really need to check one of these */
-	if (mg->mount_client || mg->mount_client_fd || !mg->kernel_mount_done) {
-		log_error("other mount in progress client %d fd %d done %d",
-			  mg->mount_client, mg->mount_client_fd,
-			  mg->kernel_mount_done);
-		return -EBUSY;
-	}
-
-	mp = malloc(sizeof(struct mountpoint));
-	if (!mp)
-		return -ENOMEM;
-
-	memset(mp, 0, sizeof(struct mountpoint));
-	strncpy(mp->dir, dir, sizeof(mp->dir));
-	list_add(&mp->list, &mg->mountpoints);
-	mg->mount_client = ci;
-
-	/* we return this special error to mount.gfs which mount.gfs will
-	   recognize as meaning the fs is already mounted, so it shouldn't
-	   read any hostdata from us, but just go ahead and mount(2) */
-
-	return -EALREADY;
-}
-
-int do_mount(int ci, char *dir, char *type, char *proto, char *table,
-	     char *options, char *dev, struct mountgroup **mg_ret)
+int join_mountgroup_old(int ci, struct gfsc_mount_args *ma)
 {
 	struct mountgroup *mg = NULL;
-	char table2[MAXLINE];
+	char table2[PATH_MAX];
 	char *cluster = NULL, *name = NULL;
-	int rv, new_mg = 0;
+	int rv;
 
-	log_debug("mount: %s %s %s %s %s %s",
-		  dir, type, proto, table, options, dev);
+	log_debug("join: %s %s %s %s %s %s",
+		  ma->dir, ma->type, ma->proto, ma->table,
+		  ma->options, ma->dev);
 
-	if (strcmp(proto, "lock_dlm")) {
-		log_error("mount: lockproto %s not supported", proto);
+	if (strcmp(ma->proto, "lock_dlm")) {
+		log_error("join: lockproto %s not supported", ma->proto);
 		rv = -EPROTONOSUPPORT;
-		goto out;
+		goto fail;
 	}
 
-	if (strstr(options, "jid=") ||
-	    strstr(options, "first=") ||
-	    strstr(options, "id=")) {
-		log_error("mount: jid, first and id are reserved options");
+	if (strstr(ma->options, "jid=") ||
+	    strstr(ma->options, "first=") ||
+	    strstr(ma->options, "id=")) {
+		log_error("join: jid, first and id are reserved options");
 		rv = -EOPNOTSUPP;
-		goto out;
+		goto fail;
 	}
 
 	/* table is <cluster>:<name> */
 
-	memset(&table2, 0, MAXLINE);
-	strncpy(table2, table, MAXLINE);
+	memset(table2, 0, sizeof(table2));
+	strncpy(table2, ma->table, sizeof(table2));
 
 	name = strstr(table2, ":");
 	if (!name) {
 		rv = -EBADFD;
-		goto out;
+		goto fail;
 	}
 
 	*name = '\0';
 	name++;
 	cluster = table2;
 
-	if (strlen(name) > MAXNAME) {
+	if (strlen(name) > GFS_MOUNTGROUP_LEN) {
 		rv = -ENAMETOOLONG;
-		goto out;
+		goto fail;
 	}
 
 	mg = find_mg(name);
 	if (mg) {
-		if (mg->reject_mounts) {
+		if (strcmp(mg->mount_args.dev, ma->dev)) {
+			log_error("different fs dev %s with same name",
+				  mg->mount_args.dev);
+			rv = -EADDRINUSE;
+		} else if (mg->reject_mounts) {
 			/* fs is being unmounted */
+			log_error("join: reject mount due to unmount");
 			rv = -ESTALE;
-			log_error("mount: reject mount due to unmount");
+		} else if (mg->mount_client || !mg->kernel_mount_done) {
+			log_error("join: other mount in progress %d %d",
+				  mg->mount_client, mg->kernel_mount_done);
+			rv = -EBUSY;
 		} else {
-			rv = add_another_mountpoint(mg, dir, dev, ci);
+			log_group(mg, "join: already mounted");
+			rv = -EALREADY;
 		}
-		goto out;
+		goto fail;
 	}
 
-	mg = create_mg(name, dir);
+	mg = create_mg(name);
 	if (!mg) {
 		rv = -ENOMEM;
-		goto out;
+		goto fail;
 	}
-	new_mg = 1;
-
 	mg->mount_client = ci;
-	strncpy(mg->type, type, sizeof(mg->type));
-	strncpy(mg->table, table, sizeof(mg->table));
-	strncpy(mg->options, options, sizeof(mg->options));
-	strncpy(mg->dev, dev, sizeof(mg->dev));
+	memcpy(&mg->mount_args, ma, sizeof(struct gfsc_mount_args));
 
 	if (strlen(cluster) != strlen(clustername) ||
 	    strlen(cluster) == 0 || strcmp(cluster, clustername)) {
-		rv = -EBADR;
-		log_error("mount: fs requires cluster=\"%s\" current=\"%s\"",
+		log_error("join: fs requires cluster=\"%s\" current=\"%s\"",
 			  cluster, clustername);
-		goto out;
-	} else
-		log_group(mg, "cluster name matches: %s", clustername);
+		rv = -EBADR;
+		goto fail_free;
+	}
+	log_group(mg, "join: cluster name matches: %s", clustername);
 
-	if (strstr(options, "spectator")) {
-		log_group(mg, "spectator mount");
+	if (strstr(ma->options, "spectator")) {
+		log_group(mg, "join: spectator mount");
 		mg->spectator = 1;
 	} else {
 		if (!we_are_in_fence_domain()) {
+			log_error("join: not in default fence domain");
 			rv = -ENOANO;
-			log_error("mount: not in default fence domain");
-			goto out;
+			goto fail_free;
 		}
 	}
 
-	if (!mg->spectator && strstr(options, "rw"))
+	if (!mg->spectator && strstr(ma->options, "rw"))
 		mg->rw = 1;
-	else if (strstr(options, "ro")) {
+	else if (strstr(ma->options, "ro")) {
 		if (mg->spectator) {
+			log_error("join: readonly invalid with spectator");
 			rv = -EROFS;
-			log_error("mount: readonly invalid with spectator");
-			goto out;
+			goto fail_free;
 		}
 		mg->readonly = 1;
 	}
 
-	if (strlen(options) > MAX_OPTIONS_LEN-1) {
+	if (strlen(ma->options) > MAX_OPTIONS_LEN-1) {
 		rv = -EMLINK;
-		log_error("mount: options too long %zu", strlen(options));
-		goto out;
+		log_error("mount: options too long %zu", strlen(ma->options));
+		goto fail_free;
 	}
 
-	list_add(&mg->list, &mounts);
+	list_add(&mg->list, &mountgroups);
 	group_join(gh, name);
-	rv = 0;
- out:
-	if (mg) {
-		*mg_ret = mg;
-		log_group(mg, "do_mount: rv %d", rv);
-	}
-	if (rv && new_mg)
-		free(mg);
+	return 0;
+
+ fail_free:
+	free(mg);
+ fail:
+	client_reply_join(ci, ma, rv);
 	return rv;
 }
 
@@ -1996,8 +1599,8 @@ int do_mount(int ci, char *dir, char *type, char *proto, char *table,
    the problem we're trying to avoid here is telling gfs-kernel to do
    recovery when it can't for some reason and then waiting forever for
    a recovery_done signal that will never arrive. */
- 
-void recover_journals(struct mountgroup *mg)
+
+static void recover_journals(struct mountgroup *mg)
 {
 	struct mg_member *memb;
 	int rv;
@@ -2042,8 +1645,8 @@ void recover_journals(struct mountgroup *mg)
 	list_for_each_entry(memb, &mg->members_gone, list) {
 		if (memb->wait_gfs_recover_done) {
 			log_group(mg, "delay new gfs recovery, "
-			  	  "wait_gfs_recover_done for nodeid %d jid %d",
-			  	  memb->nodeid, memb->jid);
+				  "wait_gfs_recover_done for nodeid %d jid %d",
+				  memb->nodeid, memb->jid);
 			return;
 		}
 	}
@@ -2090,7 +1693,7 @@ void recover_journals(struct mountgroup *mg)
    when it mounts.  When gfs does this, we'll get recovery_done's for
    the individual journals it recovers (ignored) and finally, if all
    journals are ok, an others_may_mount/first_done. */
- 
+
 /* When gfs does first-mount recovery, the mount(2) fails if it can't
    recover one of the journals.  If we get o_m_m, then we know it was
    able to successfully recover all the journals. */
@@ -2100,18 +1703,13 @@ void recover_journals(struct mountgroup *mg)
    these and wait for gfs to be finished with all at which point it calls
    others_may_mount() and first_done is set. */
 
-int kernel_recovery_done_first(struct mountgroup *mg)
+static int kernel_recovery_done_first(struct mountgroup *mg)
 {
-	char buf[MAXLINE];
 	int rv, first_done;
 
-	memset(buf, 0, sizeof(buf));
-
-	rv = get_sysfs(mg, "first_done", buf, sizeof(buf));
+	rv = read_sysfs_int(mg, "first_done", &first_done);
 	if (rv < 0)
 		return rv;
-
-	first_done = atoi(buf);
 
 	log_group(mg, "kernel_recovery_done_first first_done %d", first_done);
 
@@ -2127,7 +1725,7 @@ int kernel_recovery_done_first(struct mountgroup *mg)
 	return 0;
 }
 
-int need_kernel_recovery_done(struct mountgroup *mg)
+static int need_kernel_recovery_done(struct mountgroup *mg)
 {
 	struct mg_member *memb;
 
@@ -2146,13 +1744,13 @@ int need_kernel_recovery_done(struct mountgroup *mg)
    remain blocked until an rw node mounts, and the next mounter must
    be rw. */
 
-int kernel_recovery_done(char *table)
+int kernel_recovery_done_old(char *table)
 {
 	struct mountgroup *mg;
 	struct mg_member *memb;
-	char buf[MAXLINE];
-	char *ss, *name = strstr(table, ":") + 1;
-	int rv, jid_done, found = 0;
+	char *name = strstr(table, ":") + 1;
+	char *ss;
+	int rv, jid_done, status, found = 0;
 
 	mg = find_mg(name);
 	if (!mg) {
@@ -2163,12 +1761,9 @@ int kernel_recovery_done(char *table)
 	if (mg->first_mounter && !mg->first_mounter_done)
 		return kernel_recovery_done_first(mg);
 
-	memset(buf, 0, sizeof(buf));
-
-	rv = get_sysfs(mg, "recover_done", buf, sizeof(buf));
+	rv = read_sysfs_int(mg, "recover_done", &jid_done);
 	if (rv < 0)
 		return rv;
-	jid_done = atoi(buf);
 
 	list_for_each_entry(memb, &mg->members_gone, list) {
 		if (memb->jid == jid_done) {
@@ -2191,9 +1786,7 @@ int kernel_recovery_done(char *table)
 		return 0;
 	}
 
-	memset(buf, 0, sizeof(buf));
-
-	rv = get_sysfs(mg, "recover_status", buf, sizeof(buf));
+	rv = read_sysfs_int(mg, "recover_status", &status);
 	if (rv < 0) {
 		log_group(mg, "recovery_done jid %d nodeid %d sysfs error %d",
 			  memb->jid, memb->nodeid, rv);
@@ -2201,7 +1794,7 @@ int kernel_recovery_done(char *table)
 		goto out;
 	}
 
-	switch (atoi(buf)) {
+	switch (status) {
 	case LM_RD_GAVEUP:
 		/*
 		 * This is unfortunate; it's needed for bz 442451 where
@@ -2231,7 +1824,7 @@ int kernel_recovery_done(char *table)
 		break;
 	default:
 		log_error("recovery_done: jid %d nodeid %d unknown status %d",
-			  memb->jid, memb->nodeid, atoi(buf));
+			  memb->jid, memb->nodeid, status);
 		ss = "unknown";
 	}
 
@@ -2247,19 +1840,22 @@ int kernel_recovery_done(char *table)
 	return 0;
 }
 
-int do_remount(int ci, char *dir, char *mode)
+int remount_mountgroup_old(int ci, struct gfsc_mount_args *ma)
 {
 	struct mountgroup *mg;
-	int ro = 0, rw = 0;;
+	char *name = strstr(ma->table, ":") + 1;
+	int ro = 0, rw = 0;
 
-	if (!strncmp(mode, "ro", 2))
+	log_debug("remount: %s ci %d", name, ci);
+
+	if (!strncmp(ma->options, "ro", 2))
 		ro = 1;
 	else
 		rw = 1;
 
-	mg = find_mg_dir(dir);
+	mg = find_mg(name);
 	if (!mg) {
-		log_error("do_remount: remount mount dir %s", dir);
+		log_error("remount: %s not found", name);
 		return -1;
 	}
 
@@ -2272,38 +1868,34 @@ int do_remount(int ci, char *dir, char *mode)
 	return 0;
 }
 
-int do_unmount(int ci, char *dir, int mnterr)
+int leave_mountgroup_old(char *table, int mnterr)
 {
 	struct mountgroup *mg;
-	struct mountpoint *mp;
+	char *name = strstr(table, ":") + 1;
+
+	log_debug("leave: %s mnterr %d", name, mnterr);
 
 	list_for_each_entry(mg, &withdrawn_mounts, list) {
-		mp = find_mountpoint(mg, dir);
-		if (!mp)
+		if (strcmp(mg->name, name))
 			continue;
-		log_group(mg, "unmount %s for withdrawn fs", dir);
-		list_del(&mp->list);
-		free(mp);
-		if (list_empty(&mg->mountpoints)) {
-			list_del(&mg->list);
-			free(mg);
-		}
+
+		log_group(mg, "leave: for withdrawn fs");
+		list_del(&mg->list);
+		free(mg);
 		return 0;
 	}
 
-	mg = find_mg_dir(dir);
+	mg = find_mg(name);
 	if (!mg) {
-		log_error("do_unmount: unknown mount dir %s", dir);
+		log_error("leave: %s not found", name);
 		return -1;
 	}
 
 	if (mnterr) {
-		log_group(mg, "do_unmount: kernel mount error %d", mnterr);
-
 		/* sanity check: we should already have gotten the error from
 		   the mount_result message sent by mount.gfs */
 		if (!mg->kernel_mount_error) {
-			log_group(mg, "do_unmount: mount_error is new %d %d",
+			log_group(mg, "leave: mount_error is new %d %d",
 				  mg->kernel_mount_error, mnterr);
 			mg->kernel_mount_error = mnterr;
 			mg->kernel_mount_done = 1;
@@ -2312,25 +1904,13 @@ int do_unmount(int ci, char *dir, int mnterr)
 	}
 
 	if (mg->withdraw) {
-		log_error("%s do_unmount: fs on %s is withdrawing",
-			  mg->name, dir);
+		log_error("leave: %s is withdrawing", name);
 		return -1;
 	}
 
 	if (!mg->kernel_mount_done) {
-		log_error("%s do_unmount: fs on %s is still mounting",
-			  mg->name, dir);
+		log_error("leave: %s is still mounting", name);
 		return -1;
-	}
-
-	mp = find_mountpoint(mg, dir);
-	ASSERT(mp);
-	list_del(&mp->list);
-	free(mp);
-
-	if (!list_empty(&mg->mountpoints)) {
-		log_group(mg, "removed mountpoint %s, more remaining", dir);
-		return 0;
 	}
 
 	/* Check to see if we're waiting for a kernel recovery_done to do a
@@ -2338,139 +1918,46 @@ int do_unmount(int ci, char *dir, int mnterr)
 	   getting anything else from gfs-kernel which is now gone. */
 
 	if (need_kernel_recovery_done(mg)) {
-		log_group(mg, "do_unmount: fill in start_done");
+		log_group(mg, "leave: fill in start_done");
 		start_done(mg);
 	}
-
  out:
 	mg->reject_mounts = 1;
 	group_leave(gh, mg->name);
 	return 0;
 }
 
-#define LOCKSPACE_NODIR "/cluster/dlm/lockspace[@name=\"%s\"]/@nodir"
-
-void notify_mount_client(struct mountgroup *mg)
-{
-	char buf[MAXLINE], path[PATH_MAX], *str, tmp[MAXLINE];
-	int cd, rv, error = 0;
-	struct mg_member *memb;
-
-	memb = find_memb_nodeid(mg, our_nodeid);
-
-	memset(buf, 0, MAXLINE);
-	memset(tmp, 0, MAXLINE);
-
-	if (mg->error_msg[0]) {
-		strncpy(buf, mg->error_msg, MAXLINE);
-		error = 1;
-	} else {
-		if (mg->mount_client_delay) {
-			log_group(mg, "notify_mount_client delayed");
-			return;
-		}
-
-		if (mg->our_jid < 0)
-			snprintf(buf, MAXLINE, "hostdata=id=%u:first=%d",
-		 		 mg->id, mg->first_mounter);
-		else
-			snprintf(buf, MAXLINE, "hostdata=jid=%d:id=%u:first=%d",
-		 		 mg->our_jid, mg->id, mg->first_mounter);
-
-		if ((cd = ccs_connect()) < 0) {
-			log_error("notify_mount_client: ccs_connect failed");
-		}
-
-		memset(path, 0, PATH_MAX);
-		sprintf(path, LOCKSPACE_NODIR, mg->name);
-
-		rv = ccs_get(cd, path, &str);
-		if (rv || !str) {
-			log_debug("notify_mount_client: nodir not found for "
-				  "lockspace %s", mg->name);
-		} else {
-			snprintf(tmp, MAXLINE, ":nodir=%d", atoi(str));
-			strcat(buf, tmp);
-			free(str);
-		}
-
-		if (cd) {
-			log_debug("notify_mount_client: ccs_disconnect");
-			ccs_disconnect(cd);
-		}
-	}
-
-	log_debug("notify_mount_client: %s", buf);
-
-	rv = client_send(mg->mount_client, buf, MAXLINE);
-	if (rv < 0)
-		log_error("notify_mount_client: send failed %d", rv);
-
-	if (error) {
-		log_group(mg, "leaving due to mount error: %s", mg->error_msg);
-		if (memb->finished)
-			group_leave(gh, mg->name);
-		else {
-			log_group(mg, "delay leave until after join");
-			mg->group_leave_on_finish = 1;
-		}
-	} else {
-		mg->mount_client_notified = 1;
-	}
-}
-
-void ping_kernel_mount(char *table)
+void ping_kernel_mount_old(char *table)
 {
 	struct mountgroup *mg;
-	char buf[MAXLINE];
 	char *name = strstr(table, ":") + 1;
-	int rv;
+	int rv, val;
 
 	mg = find_mg(name);
 	if (!mg)
 		return;
 
-	rv = get_sysfs(mg, "id", buf, sizeof(buf));
+	rv = read_sysfs_int(mg, "id", &val);
 
 	log_group(mg, "ping_kernel_mount %d", rv);
 }
 
-/* remove the mountpoint that this client added */
-void remove_failed_mountpoint(struct mountgroup *mg, int ci)
+void mount_done_old(struct gfsc_mount_args *ma, int result)
 {
-	struct mountpoint *mp;
-	int found = 0;
+	struct mountgroup *mg;
+	char *name = strstr(ma->table, ":") + 1;
 
-	list_for_each_entry(mp, &mg->mountpoints, list) {
-		if (mp->client == ci) {
-			list_del(&mp->list);
-			free(mp);
-			found = 1;
-			break;
-		}
+	mg = find_mg(name);
+	if (!mg) {
+		log_error("mount_done: %s not found", ma->table);
+		return;
 	}
-	ASSERT(found);
-	ASSERT(!list_empty(&mg->mountpoints));
-}
 
-void got_mount_result(struct mountgroup *mg, int result, int ci, int another)
-{
-	struct mg_member *memb;
-
-	memb = find_memb_nodeid(mg, our_nodeid);
-
-	log_group(mg, "got_mount_result: ci %d result %d another %d "
-		  "first_mounter %d opts %x",
-		  ci, result, another, mg->first_mounter, memb->opts);
+	log_group(mg, "mount_done: result %d first_mounter %d",
+		  result, mg->first_mounter);
 
 	mg->mount_client = 0;
 	mg->mount_client_fd = 0;
-
-	if (another) {
-		if (result)
-			remove_failed_mountpoint(mg, ci);
-		return;
-	}
 
 	mg->kernel_mount_done = 1;
 	mg->kernel_mount_error = result;
@@ -2492,67 +1979,47 @@ void got_mount_result(struct mountgroup *mg, int result, int ci, int another)
    has failed which means there's nothing to stop and do_stop() can assume
    an implicit stop. */
 
-int wait_for_kernel_mount(struct mountgroup *mg)
+/* wait for
+   - kernel mount to get to the point of creating sysfs files we
+     can read (and that do_stop can then use), or
+   - kernel mount to fail causing mount.gfs to send us a MOUNT_DONE
+     which we read in process_connection() */
+
+static int wait_for_kernel_mount(struct mountgroup *mg)
 {
-	char buf[MAXLINE], cmd[32], dir[PATH_MAX], type[32];
-	int rv, result;
+	int rv, val;
 
 	while (1) {
-		rv = get_sysfs(mg, "id", buf, sizeof(buf));
+		/* This is the standard way we leave this loop, where the
+		   kernel mount gets to the point of creating the sysfs files
+		   which we see by successfully reading "id".  With the
+		   sysfs files in place, do_stop() will be able to block
+		   the kernel. */
+
+		rv = read_sysfs_int(mg, "id", &val);
 		if (!rv)
 			break;
 		usleep(100000);
 
-		/* If mount.gfs reports an error from mount(2), it means
-		   the mount failed and we don't need to block gfs (and
-		   we're not going to get any sysfs files).
-		   If mount.gfs reports successful mount(2), it means
-		   we need to wait for sysfs files to appear so we can
-		   block gfs for the stop */
+		/* kernel_mount_done is set by mount_done_old() which is called
+		   by process_connection() if mount.gfs sends MOUNT_DONE. */
 
-		if (mg->kernel_mount_done)
+		if (mg->kernel_mount_done && !mg->kernel_mount_error) {
+			/* mount(2) was successful and we should be able
+			   to read "id" very shortly... */
 			continue;
-
-		memset(buf, 0, sizeof(buf));
-
-		rv = read(mg->mount_client_fd, buf, sizeof(buf));
-		if (rv > 0) {
-			log_group(mg, "wait_for_kernel_mount: %s", buf);
-
-			memset(cmd, 0, sizeof(cmd));
-			memset(dir, 0, sizeof(dir));
-			memset(type, 0, sizeof(type));
-
-			rv = sscanf(buf, "%s %s %s %d",
-				    cmd, dir, type, &result);
-			if (rv < 4) {
-				log_error("bad mount_result args %d \"%s\"",
-					  rv, buf);
-				continue;
-			}
-
-			if (strncmp(cmd, "mount_result", 12)) {
-				log_error("bad mount_result \"%s\"", buf);
-				continue;
-			}
-
-			log_group(mg, "mount_result: kernel_mount_error %d",
-				  result);
-
-			mg->kernel_mount_done = 1;
-			mg->kernel_mount_error = result;
-
-			send_mount_status(mg);
-
-			if (result < 0) {
-				rv = result;
-				break;
-			}
-
-			/* if result is 0 then the mount(2) was successful
-			   and we expect to successfully get the "id"
-			   sysfs file very shortly */
 		}
+
+		if (mg->kernel_mount_done && mg->kernel_mount_error) {
+			/* mount(2) failed, stop becomes implicit */
+			break;
+		}
+
+		/* this should either do nothing and return immediatley, or
+		   read a MOUNT_DONE from mount.gfs and call mount_done_old()
+		   which will set kernel_mount_done and set kernel_mount_error */
+
+		process_connection(mg->mount_client);
 	}
 
 	return rv;
@@ -2609,7 +2076,7 @@ int do_stop(struct mountgroup *mg)
 		   We also need to handle the situation where we get here in
 		   case 2 but it turns into case 3 while we're in
 		   wait_for_kernel_mount() */
-		   
+
 		if (mg->got_kernel_mount) {
 			log_group(mg, "do_stop skipped fs unmounted");
 			break;
@@ -2737,7 +2204,7 @@ int do_finish(struct mountgroup *mg)
 /* FIXME: if journal recovery fails on any of the journals, we should
    fail the mount */
 
-void start_first_mounter(struct mountgroup *mg)
+static void start_first_mounter(struct mountgroup *mg)
 {
 	struct mg_member *memb;
 
@@ -2751,7 +2218,7 @@ void start_first_mounter(struct mountgroup *mg)
 		mg->our_jid = -2;
 		log_group(mg, "start_first_mounter not rw ro=%d spect=%d",
 			  mg->readonly, mg->spectator);
-		strcpy(mg->error_msg, "error: first mounter must be read-write");
+		mg->mount_client_result = -EUCLEAN;
 	} else {
 		memb->opts |= MEMB_OPT_RECOVER;
 		memb->jid = 0;
@@ -2768,7 +2235,7 @@ void start_first_mounter(struct mountgroup *mg)
 /* called for the initial start on a rw/ro mounter;
    the existing mounters are running start_participant() */
 
-void start_participant_init(struct mountgroup *mg)
+static void start_participant_init(struct mountgroup *mg)
 {
 	log_group(mg, "start_participant_init");
 	set_our_memb_options(mg);
@@ -2781,7 +2248,7 @@ void start_participant_init(struct mountgroup *mg)
    our (recent) mount yet in which case we don't know the jid or ro/rw
    status of any members, and don't know our own jid. */
 
-void start_participant(struct mountgroup *mg, int pos, int neg)
+static void start_participant(struct mountgroup *mg, int pos, int neg)
 {
 	log_group(mg, "start_participant pos=%d neg=%d", pos, neg);
 
@@ -2796,9 +2263,27 @@ void start_participant(struct mountgroup *mg, int pos, int neg)
 	}
 }
 
+/* called for the initial start on a spectator mounter,
+   after _receive_journals() */
+
+static void start_spectator_init_2(struct mountgroup *mg)
+{
+	log_group(mg, "start_spectator_init_2 our_jid=%d", mg->our_jid);
+
+	/* we've been given jid of -2 which means we're not permitted
+	   to mount the fs; probably because the next mounter must be rw */
+
+	if (mg->our_jid == -2) {
+		mg->mount_client_result = -EUCLEAN;
+	} else
+		ASSERT(mg->our_jid == -1);
+
+	notify_mount_client(mg);
+}
+
 /* called for the initial start on a spectator mounter */
 
-void start_spectator_init(struct mountgroup *mg)
+static void start_spectator_init(struct mountgroup *mg)
 {
 	log_group(mg, "start_spectator_init");
 	set_our_memb_options(mg);
@@ -2807,27 +2292,9 @@ void start_spectator_init(struct mountgroup *mg)
 	mg->start2_fn = start_spectator_init_2;
 }
 
-/* called for the initial start on a spectator mounter,
-   after _receive_journals() */
-
-void start_spectator_init_2(struct mountgroup *mg)
-{
-	log_group(mg, "start_spectator_init_2 our_jid=%d", mg->our_jid);
-
-	/* we've been given jid of -2 which means we're not permitted
-	   to mount the fs; probably because the next mounter must be rw */
-
-	if (mg->our_jid == -2)
-		strcpy(mg->error_msg, "error: spectator mount not allowed");
-	else
-		ASSERT(mg->our_jid == -1);
-
-	notify_mount_client(mg);
-}
-
 /* called for a non-initial start on a spectator mounter */
 
-void start_spectator(struct mountgroup *mg, int pos, int neg)
+static void start_spectator(struct mountgroup *mg, int pos, int neg)
 {
 	log_group(mg, "start_spectator pos=%d neg=%d", pos, neg);
 
@@ -2845,7 +2312,7 @@ void start_spectator(struct mountgroup *mg, int pos, int neg)
    journalB.  We do this by setting tell_gfs_to_recover back to 1 for
    any nodes that are still on the members_gone list. */
 
-void reset_unfinished_recoveries(struct mountgroup *mg)
+static void reset_unfinished_recoveries(struct mountgroup *mg)
 {
 	struct mg_member *memb;
 
@@ -2940,7 +2407,7 @@ void do_start(struct mountgroup *mg, int type, int member_count, int *nodeids)
   stop/start/finish callbacks from groupd for which we'll attempt
   and fail to: block/unblock gfs kernel activity, initiate gfs
   journal recovery, get recovery-done signals fromt eh kernel.
-  
+ 
   We don't want to hang groupd event processing by failing to send
   an ack (stop_done/start_done) back to groupd when it needs one
   to procede.  In the case where we get a start for a failed node
@@ -2968,41 +2435,6 @@ int do_terminate(struct mountgroup *mg)
 	return 0;
 }
 
-static int run_dmsetup_suspend(struct mountgroup *mg, char *dev)
-{
-	struct sched_param sched_param;
-	char buf[PATH_MAX];
-	pid_t pid;
-	int i, rv;
-
-	memset(buf, 0, sizeof(buf));
-	rv = readlink(dev, buf, PATH_MAX);
-	if (rv < 0)
-		strncpy(buf, dev, sizeof(buf));
-
-	log_group(mg, "run_dmsetup_suspend %s (orig %s)", buf, dev);
-
-	pid = fork();
-	if (pid < 0)
-		return -1;
-
-	if (pid) {
-		mg->dmsetup_wait = 1;
-		mg->dmsetup_pid = pid;
-		return 0;
-	} else {
-		sched_param.sched_priority = 0; 
-		sched_setscheduler(0, SCHED_OTHER, &sched_param);
-
-		for (i = 0; i < 50; i++)
-			close(i);
-	
-		execlp("dmsetup", "dmsetup", "suspend", buf, NULL);
-		exit(EXIT_FAILURE);
-	}
-	return -1;
-}
-
 /* The basic rule of withdraw is that we don't want to tell the kernel to drop
    all locks until we know gfs has been stopped/blocked on all nodes.  They'll
    be stopped for our leave, we just need to know when they've all arrived
@@ -3013,13 +2445,13 @@ static int run_dmsetup_suspend(struct mountgroup *mg, char *dev)
    and when it's been removed from the group (gets terminate for its leave),
    it tells the locally withdrawing gfs to clear out locks. */
 
-int do_withdraw(char *table)
+int do_withdraw_old(char *table)
 {
 	struct mountgroup *mg;
 	char *name = strstr(table, ":") + 1;
 	int rv;
 
-	if (config_no_withdraw) {
+	if (!cfgd_enable_withdraw) {
 		log_error("withdraw feature not enabled");
 		return 0;
 	}
@@ -3030,10 +2462,10 @@ int do_withdraw(char *table)
 		return -1;
 	}
 
-	rv = run_dmsetup_suspend(mg, mg->dev);
+	rv = run_dmsetup_suspend(mg, mg->mount_args.dev);
 	if (rv) {
 		log_error("do_withdraw %s: dmsetup %s error %d", mg->name,
-			  mg->dev, rv);
+			  mg->mount_args.dev, rv);
 		return -1;
 	}
 
@@ -3041,55 +2473,214 @@ int do_withdraw(char *table)
 	return 0;
 }
 
-void dmsetup_suspend_done(struct mountgroup *mg, int rv)
+static void do_deliver(int nodeid, char *data, int len)
 {
-	log_group(mg, "dmsetup_suspend_done result %d", rv);
-	mg->dmsetup_wait = 0;
-	mg->dmsetup_pid = 0;
+	struct mountgroup *mg;
+	struct gdlm_header *hd;
 
-	if (!rv) {
-		mg->withdraw = 1;
-		send_withdraw(mg);
+	hd = (struct gdlm_header *) data;
+
+	mg = find_mg(hd->name);
+	if (!mg) {
+		/*
+		log_error("cpg message from %d len %d no group %s",
+			  nodeid, len, hd->name);
+		*/
+		return;
+	}
+
+	hd->version[0]	= le16_to_cpu(hd->version[0]);
+	hd->version[1]	= le16_to_cpu(hd->version[1]);
+	hd->version[2]	= le16_to_cpu(hd->version[2]);
+	hd->type	= le16_to_cpu(hd->type);
+	hd->nodeid	= le32_to_cpu(hd->nodeid);
+	hd->to_nodeid	= le32_to_cpu(hd->to_nodeid);
+
+	/* FIXME: we need to look at how to gracefully fail when we end up
+	   with mixed incompat versions */
+
+	if (hd->version[0] != protocol_active[0]) {
+		log_error("reject message from %d version %u.%u.%u vs %u.%u.%u",
+			  nodeid, hd->version[0], hd->version[1],
+			  hd->version[2], protocol_active[0],
+			  protocol_active[1], protocol_active[2]);
+		return;
+	}
+
+	/* If there are some group messages between a new node being added to
+	   the cpg group and being added to the app group, the new node should
+	   discard them since they're only relevant to the app group. */
+
+	if (!mg->last_callback) {
+		log_group(mg, "discard %s len %d from %d",
+			  msg_name(hd->type), len, nodeid);
+		return;
+	}
+
+	switch (hd->type) {
+	case MSG_JOURNAL:
+		receive_journals(mg, data, len, nodeid);
+		break;
+
+	case MSG_OPTIONS:
+		receive_options(mg, data, len, nodeid);
+		break;
+
+	case MSG_REMOUNT:
+		receive_remount(mg, data, len, nodeid);
+		break;
+
+	case MSG_PLOCK:
+		receive_plock(mg, data, len, nodeid);
+		break;
+
+	case MSG_MOUNT_STATUS:
+		receive_mount_status(mg, data, len, nodeid);
+		break;
+
+	case MSG_RECOVERY_STATUS:
+		receive_recovery_status(mg, data, len, nodeid);
+		break;
+
+	case MSG_RECOVERY_DONE:
+		receive_recovery_done(mg, data, len, nodeid);
+		break;
+
+	case MSG_WITHDRAW:
+		receive_withdraw(mg, data, len, nodeid);
+		break;
+
+	case MSG_PLOCK_OWN:
+		receive_own(mg, data, len, nodeid);
+		break;
+
+	case MSG_PLOCK_DROP:
+		receive_drop(mg, data, len, nodeid);
+		break;
+
+	case MSG_PLOCK_SYNC_LOCK:
+	case MSG_PLOCK_SYNC_WAITER:
+		receive_sync(mg, data, len, nodeid);
+		break;
+
+	default:
+		log_error("unknown message type %d from %d",
+			  hd->type, hd->nodeid);
 	}
 }
 
-void update_dmsetup_wait(void)
+static void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
+		uint32_t nodeid, uint32_t pid, void *data, int data_len)
+{
+	do_deliver(nodeid, data, data_len);
+}
+
+/* Not sure if purging plocks (driven by confchg) needs to be synchronized with
+   the other recovery steps (driven by libgroup) for a node, don't think so.
+   Is it possible for a node to have been cleared from the members_gone list
+   before this confchg is processed? */
+
+static void confchg_cb(cpg_handle_t handle, struct cpg_name *group_name,
+		struct cpg_address *member_list, int member_list_entries,
+		struct cpg_address *left_list, int left_list_entries,
+		struct cpg_address *joined_list, int joined_list_entries)
 {
 	struct mountgroup *mg;
-	int status;
-	int waiting = 0;
-	pid_t pid;
+	int i, nodeid;
 
-	list_for_each_entry(mg, &mounts, list) {
-		if (mg->dmsetup_wait) {
-			pid = waitpid(mg->dmsetup_pid, &status, WNOHANG);
-
-			/* process not exited yet */
-			if (!pid) {
-				waiting++;
-				continue;
-			}
-
-			if (pid < 0) {
-				log_error("update_dmsetup_wait %s: waitpid %d "
-					  "error %d", mg->name,
-					  mg->dmsetup_pid, errno);
-				dmsetup_suspend_done(mg, -2);
-				continue;
-			}
-
-			/* process exited */
-
-			if (!WIFEXITED(status) || WEXITSTATUS(status))
-				dmsetup_suspend_done(mg, -1);
-			else
-				dmsetup_suspend_done(mg, 0);
+	for (i = 0; i < left_list_entries; i++) {
+		nodeid = left_list[i].nodeid;
+		list_for_each_entry(mg, &mountgroups, list) {
+			if (is_member(mg, nodeid) || is_removed(mg, nodeid))
+				purge_plocks(mg, left_list[i].nodeid, 0);
 		}
 	}
+}
 
-	if (!waiting) {
-		dmsetup_wait = 0;
-		log_debug("dmsetup_wait off");
+static cpg_callbacks_t callbacks = {
+	.cpg_deliver_fn = deliver_cb,
+	.cpg_confchg_fn = confchg_cb,
+};
+
+void update_flow_control_status(void)
+{
+	cpg_flow_control_state_t flow_control_state;
+	cpg_error_t error;
+
+	error = cpg_flow_control_state_get(daemon_handle, &flow_control_state);
+	if (error != CPG_OK) {
+		log_error("cpg_flow_control_state_get %d", error);
+		return;
 	}
+
+	if (flow_control_state == CPG_FLOW_CONTROL_ENABLED) {
+		if (message_flow_control_on == 0) {
+			log_debug("flow control on");
+		}
+		message_flow_control_on = 1;
+	} else {
+		if (message_flow_control_on) {
+			log_debug("flow control off");
+		}
+		message_flow_control_on = 0;
+	}
+}
+
+void process_cpg_old(int ci)
+{
+	cpg_error_t error;
+
+	error = cpg_dispatch(daemon_handle, CPG_DISPATCH_ALL);
+	if (error != CPG_OK) {
+		log_error("cpg_dispatch error %d", error);
+		return;
+	}
+
+	update_flow_control_status();
+}
+
+int setup_cpg_old(void)
+{
+	cpg_error_t error;
+	int fd = 0;
+
+	INIT_LIST_HEAD(&withdrawn_mounts);
+
+	if (cfgd_plock_ownership)
+		memcpy(protocol_active, protocol_v200, sizeof(protocol_v200));
+	else
+		memcpy(protocol_active, protocol_v100, sizeof(protocol_v100));
+
+	error = cpg_initialize(&daemon_handle, &callbacks);
+	if (error != CPG_OK) {
+		log_error("cpg_initialize error %d", error);
+		return -1;
+	}
+
+	cpg_fd_get(daemon_handle, &fd);
+	if (fd < 0) {
+		log_error("cpg_fd_get error %d", error);
+		return -1;
+	}
+
+	memset(&daemon_name, 0, sizeof(daemon_name));
+	strcpy(daemon_name.value, "gfs_controld");
+	daemon_name.length = 12;
+
+ retry:
+	error = cpg_join(daemon_handle, &daemon_name);
+	if (error == CPG_ERR_TRY_AGAIN) {
+		log_debug("setup_cpg cpg_join retry");
+		sleep(1);
+		goto retry;
+	}
+	if (error != CPG_OK) {
+		log_error("cpg_join error %d", error);
+		cpg_finalize(daemon_handle);
+		return -1;
+	}
+
+	log_debug("cpg %d", fd);
+	return fd;
 }
 

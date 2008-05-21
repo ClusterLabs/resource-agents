@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2005-2008 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -10,29 +10,16 @@
 *******************************************************************************
 ******************************************************************************/
 
-#include <unistd.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <errno.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
+#include "gfs_daemon.h"
 #include <libcman.h>
 
-#include "lock_dlm.h"
-
-int			our_nodeid;
-char *			clustername;
-cman_cluster_t		cluster;
-static cman_handle_t	ch;
-extern struct list_head mounts;
-
+static cman_handle_t ch;
+static cman_cluster_t cluster;
 
 static void cman_callback(cman_handle_t h, void *private, int reason, int arg)
 {
 	if (reason == CMAN_REASON_TRY_SHUTDOWN) {
-		if (list_empty(&mounts))
+		if (list_empty(&mountgroups))
 			cman_replyto_shutdown(ch, 1);
 		else {
 			log_debug("no to cman shutdown");
@@ -41,13 +28,13 @@ static void cman_callback(cman_handle_t h, void *private, int reason, int arg)
 	}
 }
 
-void exit_cman(void)
+static void exit_cman(void)
 {
 	log_error("cluster is down, exiting");
 	exit(1);
 }
 
-int process_cman(void)
+void process_cman(int ci)
 {
 	int rv;
 
@@ -55,8 +42,6 @@ int process_cman(void)
 
 	if (rv == -1 && errno == EHOSTDOWN)
 		exit_cman();
-
-	return 0;
 }
 
 int setup_cman(void)

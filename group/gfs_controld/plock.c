@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2005-2007 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2005-2008 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -10,34 +10,13 @@
 *******************************************************************************
 ******************************************************************************/
 
-#include <sys/types.h>
-#include <asm/types.h>
-#include <sys/uio.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <sys/ioctl.h>
-#include <sys/stat.h>
-#include <sys/utsname.h>
-#include <sys/time.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <net/if.h>
-#include <stdio.h>
-#include <errno.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <fcntl.h>
-#include <netdb.h>
-#include <limits.h>
-#include <unistd.h>
-#include <dirent.h>
-#include <openais/saAis.h>
-#include <openais/saCkpt.h>
-#include <linux/dlm_plock.h>
+/* gfs_controld only handles plocks in rhel5/stable2 compat mode */
 
-#include "lock_dlm.h"
+#include "gfs_daemon.h"
+#include "cpg-old.h"
+#include "config.h"
+
+#include <linux/dlm_plock.h>
 
 #define PROC_MISC               "/proc/misc"
 #define PROC_DEVICES            "/proc/devices"
@@ -45,19 +24,6 @@
 #define CONTROL_DIR             "/dev/misc"
 #define CONTROL_NAME            "dlm_plock"
 
-extern struct list_head mounts;
-extern int our_nodeid;
-extern int message_flow_control_on;
-
-/* user configurable */
-extern int config_no_plock;
-extern uint32_t config_plock_rate_limit;
-extern uint32_t config_plock_ownership;
-extern uint32_t config_drop_resources_time;
-extern uint32_t config_drop_resources_count;
-extern uint32_t config_drop_resources_age;
-
-static int plocks_online = 0;
 static uint32_t plock_read_count;
 static uint32_t plock_recv_count;
 static uint32_t plock_rate_delays;
@@ -72,6 +38,8 @@ static SaVersionT version = { 'B', 1, 1 };
 static char section_buf[1024 * 1024];
 static uint32_t section_len;
 static int need_fsid_translation = 0;
+
+extern int message_flow_control_on;
 
 struct pack_plock {
 	uint64_t start;
@@ -332,16 +300,15 @@ int setup_plocks(void)
 	gettimeofday(&plock_recv_time, NULL);
 	gettimeofday(&plock_rate_last, NULL);
 
-	if (config_no_plock)
-		goto control;
-
 	err = saCkptInitialize(&ckpt_handle, &callbacks, &version);
-	if (err == SA_AIS_OK)
-		plocks_online = 1;
-	else
-		log_error("ckpt init error %d - plocks unavailable", err);
+	if (err != SA_AIS_OK) {
+		log_error("ckpt init error %d", err);
+		cfgd_enable_plock = 0;
 
- control:
+		/* still try to open and read the control device so that we can
+		   send ENOSYS back to the kernel if it tries to do a plock */
+	}
+
 	need_fsid_translation = 1;
 
 	rv = open_control(CONTROL_NAME, DLM_PLOCK_MISC_NAME);
@@ -364,7 +331,7 @@ int setup_plocks(void)
 	log_debug("plock need_fsid_translation %d", need_fsid_translation);
 	log_debug("plock cpg message size: %u bytes",
 		  (unsigned int) (sizeof(struct gdlm_header) +
-		                  sizeof(struct dlm_plock_info)));
+				  sizeof(struct dlm_plock_info)));
 
 	return control_fd;
 }
@@ -392,7 +359,7 @@ static struct resource *search_resource(struct mountgroup *mg, uint64_t number)
 {
 	struct resource *r;
 
-	list_for_each_entry(r, &mg->resources, list) {
+	list_for_each_entry(r, &mg->plock_resources, list) {
 		if (r->number == number)
 			return r;
 	}
@@ -427,12 +394,12 @@ static int find_resource(struct mountgroup *mg, uint64_t number, int create,
 	INIT_LIST_HEAD(&r->waiters);
 	INIT_LIST_HEAD(&r->pending);
 
-	if (config_plock_ownership)
+	if (cfgd_plock_ownership)
 		r->owner = -1;
 	else
 		r->owner = 0;
 
-	list_add_tail(&r->list, &mg->resources);
+	list_add_tail(&r->list, &mg->plock_resources);
  out:
 	if (r)
 		gettimeofday(&r->last_access, NULL);
@@ -443,7 +410,7 @@ static int find_resource(struct mountgroup *mg, uint64_t number, int create,
 static void put_resource(struct resource *r)
 {
 	/* with ownership, resources are only freed via drop messages */
-	if (config_plock_ownership)
+	if (cfgd_plock_ownership)
 		return;
 
 	if (list_empty(&r->locks) && list_empty(&r->waiters)) {
@@ -456,8 +423,8 @@ static inline int ranges_overlap(uint64_t start1, uint64_t end1,
 				 uint64_t start2, uint64_t end2)
 {
 	if (end1 < start2 || start1 > end2)
-		return FALSE;
-	return TRUE;
+		return 0;
+	return 1;
 }
 
 /**
@@ -630,7 +597,7 @@ static int lock_case1(struct posix_lock *po, struct resource *r,
    1. add new lock for front fragment, orig mode
    2. add new lock for back fragment, orig mode
    3. convert RE to RN range and mode */
-			 
+
 static int lock_case2(struct posix_lock *po, struct resource *r,
 		      struct dlm_plock_info *in)
 
@@ -958,11 +925,11 @@ static void _receive_plock(struct mountgroup *mg, char *buf, int len, int from)
 		return;
 	}
 
-	create = !config_plock_ownership;
+	create = !cfgd_plock_ownership;
 
 	rv = find_resource(mg, info.number, create, &r);
 
-	if (rv && config_plock_ownership) {
+	if (rv && cfgd_plock_ownership) {
 		/* There must have been a race with a drop, so we need to
 		   ignore this plock op which will be resent.  If we're the one
 		   who sent the plock, we need to send_own() and put it on the
@@ -1043,7 +1010,7 @@ static void _receive_plock(struct mountgroup *mg, char *buf, int len, int from)
 void receive_plock(struct mountgroup *mg, char *buf, int len, int from)
 {
 	if (mg->save_plocks) {
-		save_message(mg, buf, len, from, MSG_PLOCK);
+		save_message_old(mg, buf, len, from, MSG_PLOCK);
 		return;
 	}
 
@@ -1079,7 +1046,7 @@ static int send_struct_info(struct mountgroup *mg, struct dlm_plock_info *in,
 
 	memcpy(buf + sizeof(struct gdlm_header), in, sizeof(*in));
 
-	rv = send_group_message(mg, len, buf);
+	rv = send_group_message_old(mg, len, buf);
 
 	free(buf);
  out:
@@ -1329,7 +1296,7 @@ static void _receive_own(struct mountgroup *mg, char *buf, int len, int from)
 void receive_own(struct mountgroup *mg, char *buf, int len, int from)
 {
 	if (mg->save_plocks) {
-		save_message(mg, buf, len, from, MSG_PLOCK_OWN);
+		save_message_old(mg, buf, len, from, MSG_PLOCK_OWN);
 		return;
 	}
 
@@ -1368,7 +1335,7 @@ static void clear_syncing_flag(struct resource *r, struct dlm_plock_info *in)
 	}
 
 	log_error("clear_syncing %llx no match %s %llx-%llx %d/%u/%llx",
-		  (unsigned long long)r->number, in->ex ? "WR" : "RD", 
+		  (unsigned long long)r->number, in->ex ? "WR" : "RD",
 		  (unsigned long long)in->start, (unsigned long long)in->end,
 		  in->nodeid, in->pid, (unsigned long long)in->owner);
 }
@@ -1401,7 +1368,7 @@ static void _receive_sync(struct mountgroup *mg, char *buf, int len, int from)
 	}
 
 	if (hd->type == MSG_PLOCK_SYNC_LOCK)
-		add_lock(r, info.nodeid, info.owner, info.pid, !info.ex, 
+		add_lock(r, info.nodeid, info.owner, info.pid, !info.ex,
 			 info.start, info.end);
 	else if (hd->type == MSG_PLOCK_SYNC_WAITER)
 		add_waiter(mg, r, &info);
@@ -1412,7 +1379,7 @@ void receive_sync(struct mountgroup *mg, char *buf, int len, int from)
 	struct gdlm_header *hd = (struct gdlm_header *) buf;
 
 	if (mg->save_plocks) {
-		save_message(mg, buf, len, from, hd->type);
+		save_message_old(mg, buf, len, from, hd->type);
 		return;
 	}
 
@@ -1473,7 +1440,7 @@ static void _receive_drop(struct mountgroup *mg, char *buf, int len, int from)
 void receive_drop(struct mountgroup *mg, char *buf, int len, int from)
 {
 	if (mg->save_plocks) {
-		save_message(mg, buf, len, from, MSG_PLOCK_DROP);
+		save_message_old(mg, buf, len, from, MSG_PLOCK_DROP);
 		return;
 	}
 
@@ -1496,13 +1463,13 @@ static int drop_resources(struct mountgroup *mg)
 
 	/* try to drop the oldest, unused resources */
 
-	list_for_each_entry_reverse(r, &mg->resources, list) {
-		if (count >= config_drop_resources_count)
+	list_for_each_entry_reverse(r, &mg->plock_resources, list) {
+		if (count >= cfgd_drop_resources_count)
 			break;
 		if (r->owner && r->owner != our_nodeid)
 			continue;
 		if (time_diff_ms(&r->last_access, &now) <
-		    config_drop_resources_age)
+		    cfgd_drop_resources_age)
 			continue;
 
 		if (list_empty(&r->locks) && list_empty(&r->waiters)) {
@@ -1617,7 +1584,7 @@ static uint32_t ls_to_mg_id(uint32_t fsid)
 	int do_set = 1;
 
  retry:
-	list_for_each_entry(mg, &mounts, list) {
+	list_for_each_entry(mg, &mountgroups, list) {
 		if (mg->associated_ls_id == fsid)
 			return mg->id;
 	}
@@ -1631,7 +1598,40 @@ static uint32_t ls_to_mg_id(uint32_t fsid)
 	return fsid;
 }
 
-int process_plocks(void)
+int limit_plocks(void)
+{
+	struct timeval now;
+
+	/* Don't send more messages while the cpg message queue is backed up */
+
+	if (message_flow_control_on) {
+		update_flow_control_status();
+		if (message_flow_control_on)
+			return 1;
+	}
+
+	if (!cfgd_plock_rate_limit || !plock_read_count)
+		return 0;
+
+	gettimeofday(&now, NULL);
+
+	/* Every time a plock op is read from the kernel, we increment
+	   plock_read_count.  After every cfgd_plock_rate_limit (N) reads,
+	   we check the time it's taken to do those N; if the time is less than
+	   a second, then we delay reading any more until a second is up.
+	   This way we read a max of N ops from the kernel every second. */
+
+	if (!(plock_read_count % cfgd_plock_rate_limit)) {
+		if (time_diff_ms(&plock_rate_last, &now) < 1000) {
+			plock_rate_delays++;
+			return 2;
+		}
+		plock_rate_last = now;
+	}
+	return 0;
+}
+
+void process_plocks(int ci)
 {
 	struct mountgroup *mg;
 	struct resource *r;
@@ -1640,27 +1640,13 @@ int process_plocks(void)
 	uint64_t usec;
 	int rv;
 
-	/* Don't send more messages while the cpg message queue is backed up */
-
-	if (message_flow_control_on) {
-		update_flow_control_status();
-		if (message_flow_control_on)
-			return -EBUSY;
+	if (limit_plocks()) {
+		poll_ignore_plock = 1;
+		client_ignore(plock_ci, plock_fd);
+		return;
 	}
 
 	gettimeofday(&now, NULL);
-
-	/* Every N ops we check how long it's taken to do those N ops.
-	   If it's less than 1000 ms, we don't take any more. */
-
-	if (config_plock_rate_limit && plock_read_count &&
-	    !(plock_read_count % config_plock_rate_limit)) {
-		if (time_diff_ms(&plock_rate_last, &now) < 1000) {
-			plock_rate_delays++;
-			return -EBUSY;
-		}
-		plock_rate_last = now;
-	}
 
 	memset(&info, 0, sizeof(info));
 
@@ -1668,13 +1654,13 @@ int process_plocks(void)
 	if (rv < 0) {
 		log_debug("process_plocks: read error %d fd %d\n",
 			  errno, control_fd);
-		return 0;
+		return;
 	}
 
 	/* kernel doesn't set the nodeid field */
 	info.nodeid = our_nodeid;
 
-	if (!plocks_online) {
+	if (!cfgd_enable_plock) {
 		rv = -ENOSYS;
 		goto fail;
 	}
@@ -1727,20 +1713,20 @@ int process_plocks(void)
 		save_pending_plock(mg, r, &info);
 	}
 
-	if (config_plock_ownership &&
+	if (cfgd_plock_ownership &&
 	    time_diff_ms(&mg->drop_resources_last, &now) >=
-	    		 config_drop_resources_time) {
+	    		 cfgd_drop_resources_time) {
 		mg->drop_resources_last = now;
 		drop_resources(mg);
 	}
 
-	return 0;
+	return;
 
  fail:
 	info.rv = rv;
 	rv = write(control_fd, &info, sizeof(info));
 
-	return 0;
+	return;
 }
 
 void process_saved_plocks(struct mountgroup *mg)
@@ -1778,7 +1764,7 @@ void process_saved_plocks(struct mountgroup *mg)
 
 void plock_exit(void)
 {
-	if (plocks_online)
+	if (cfgd_enable_plock)
 		saCkptFinalize(ckpt_handle);
 }
 
@@ -1850,7 +1836,7 @@ static int unpack_section_buf(struct mountgroup *mg, char *numbuf, int buflen)
 	INIT_LIST_HEAD(&r->waiters);
 	INIT_LIST_HEAD(&r->pending);
 
-	if (config_plock_ownership)
+	if (cfgd_plock_ownership)
 		sscanf(numbuf, "r%llu.%d", &num, &owner);
 	else
 		sscanf(numbuf, "r%llu", &num);
@@ -1884,11 +1870,11 @@ static int unpack_section_buf(struct mountgroup *mg, char *numbuf, int buflen)
 		pp++;
 	}
 
-	list_add_tail(&r->list, &mg->resources);
+	list_add_tail(&r->list, &mg->plock_resources);
 	return 0;
 }
 
-int _unlink_checkpoint(struct mountgroup *mg, SaNameT *name)
+static int _unlink_checkpoint(struct mountgroup *mg, SaNameT *name)
 {
 	SaCkptCheckpointHandleT h;
 	SaCkptCheckpointDescriptorT s;
@@ -2003,7 +1989,7 @@ void store_plocks(struct mountgroup *mg, int nodeid)
 	int r_count, lock_count, total_size, section_size, max_section_size;
 	int len, owner;
 
-	if (!plocks_online)
+	if (!cfgd_enable_plock)
 		return;
 
 	/* no change to plock state since we created the last checkpoint */
@@ -2031,7 +2017,7 @@ void store_plocks(struct mountgroup *mg, int nodeid)
 	total_size = 0;
 	max_section_size = 0;
 
-	list_for_each_entry(r, &mg->resources, list) {
+	list_for_each_entry(r, &mg->plock_resources, list) {
 		if (r->owner == -1)
 			continue;
 
@@ -2097,7 +2083,7 @@ void store_plocks(struct mountgroup *mg, int nodeid)
 	   - If r owner is 0 and got_unown, then ckpt owner 0 and all plocks;
 	     (there should be no SYNCING plocks) */
 
-	list_for_each_entry(r, &mg->resources, list) {
+	list_for_each_entry(r, &mg->plock_resources, list) {
 		if (r->owner == -1)
 			continue;
 		else if (r->owner == our_nodeid)
@@ -2115,7 +2101,7 @@ void store_plocks(struct mountgroup *mg, int nodeid)
 		}
 
 		memset(&buf, 0, sizeof(buf));
-		if (config_plock_ownership)
+		if (cfgd_plock_ownership)
 			len = snprintf(buf, SECTION_NAME_LEN, "r%llu.%d",
 			       	       (unsigned long long)r->number, owner);
 		else
@@ -2183,7 +2169,7 @@ void retrieve_plocks(struct mountgroup *mg)
 	char buf[SECTION_NAME_LEN];
 	int len;
 
-	if (!plocks_online)
+	if (!cfgd_enable_plock)
 		return;
 
 	log_group(mg, "retrieve_plocks");
@@ -2302,7 +2288,10 @@ void purge_plocks(struct mountgroup *mg, int nodeid, int unmount)
 	struct resource *r, *r2;
 	int purged = 0;
 
-	list_for_each_entry_safe(r, r2, &mg->resources, list) {
+	if (!cfgd_enable_plock)
+		return;
+
+	list_for_each_entry_safe(r, r2, &mg->plock_resources, list) {
 		list_for_each_entry_safe(po, po2, &r->locks, list) {
 			if (po->nodeid == nodeid || unmount) {
 				list_del(&po->list);
@@ -2327,17 +2316,17 @@ void purge_plocks(struct mountgroup *mg, int nodeid, int unmount)
 			r->owner = 0;
 			send_pending_plocks(mg, r);
 		}
-		
+
 		if (!list_empty(&r->waiters))
 			do_waiters(mg, r);
 
-		if (!config_plock_ownership &&
+		if (!cfgd_plock_ownership &&
 		    list_empty(&r->locks) && list_empty(&r->waiters)) {
 			list_del(&r->list);
 			free(r);
 		}
 	}
-	
+
 	if (purged)
 		mg->last_plock_time = time(NULL);
 
@@ -2351,25 +2340,20 @@ void purge_plocks(struct mountgroup *mg, int nodeid, int unmount)
 		unlink_checkpoint(mg);
 }
 
-int dump_plocks(char *name, int fd)
+int fill_plock_dump_buf(struct mountgroup *mg)
 {
-	struct mountgroup *mg;
 	struct posix_lock *po;
 	struct lock_waiter *w;
 	struct resource *r;
-	char line[MAXLINE];
-	int rv;
+	int rv = 0;
+	int len = GFSC_DUMP_SIZE, pos = 0, ret;
 
-	if (!name)
-		return -1;
+	memset(plock_dump_buf, 0, sizeof(plock_dump_buf));
+	plock_dump_len = 0;
 
-	mg = find_mg(name);
-	if (!mg)
-		return -1;
-
-	list_for_each_entry(r, &mg->resources, list) {
+	list_for_each_entry(r, &mg->plock_resources, list) {
 		list_for_each_entry(po, &r->locks, list) {
-			snprintf(line, MAXLINE,
+			ret = snprintf(plock_dump_buf + pos, len - pos,
 			      "%llu %s %llu-%llu nodeid %d pid %u owner %llx\n",
 			      (unsigned long long)r->number,
 			      po->ex ? "WR" : "RD",
@@ -2378,11 +2362,15 @@ int dump_plocks(char *name, int fd)
 			      po->nodeid, po->pid,
 			      (unsigned long long)po->owner);
 
-			rv = do_write(fd, line, strlen(line));
+			if (ret >= len - pos) {
+				rv = -ENOSPC;
+				goto out;
+			}
+			pos += ret;
 		}
 
 		list_for_each_entry(w, &r->waiters, list) {
-			snprintf(line, MAXLINE,
+			ret = snprintf(plock_dump_buf + pos, len - pos,
 			      "%llu WAITING %s %llu-%llu nodeid %d pid %u owner %llx\n",
 			      (unsigned long long)r->number,
 			      w->info.ex ? "WR" : "RD",
@@ -2391,10 +2379,14 @@ int dump_plocks(char *name, int fd)
 			      w->info.nodeid, w->info.pid,
 			      (unsigned long long)w->info.owner);
 
-			rv = do_write(fd, line, strlen(line));
+			if (ret >= len - pos) {
+				rv = -ENOSPC;
+				goto out;
+			}
+			pos += ret;
 		}
 	}
-
-	return 0;
+ out:
+	return rv;
 }
 
