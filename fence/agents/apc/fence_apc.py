@@ -11,7 +11,8 @@
 ##  AP7941      AOS v3.5.7, PDU APP v3.5.6
 ##  AP9606	AOS v2.5.4, PDU APP v2.7.3
 ##
-## @note: ssh is very slow on AP7951 device
+## @note: ssh is very slow on AP79XX devices protocol (1) and 
+##        cipher (des/blowfish) have to be defined
 #####
 
 import sys, re, pexpect
@@ -172,6 +173,8 @@ def main():
 	## 
 	## Fence agent specific defaults
 	#####
+	options["ssh_options"] = "-1 -c blowfish"
+
 	if 0 == options.has_key("-c"):
 		options["-c"] = "\n>"
 

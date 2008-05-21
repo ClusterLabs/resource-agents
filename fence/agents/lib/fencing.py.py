@@ -342,7 +342,10 @@ def fence_login(options):
 		re_pass  = re.compile("password", re.IGNORECASE)
 
 		if options.has_key("-x") and 0 == options.has_key("-k"):
-			conn = fspawn ('ssh ' + options["-l"] + "@" + options["-a"])
+			command = 'ssh ' + options["-l"] + "@" + options["-a"]
+			if options.has_key("ssh_options"):
+				command += ' ' + options["ssh_options"]
+			conn = fspawn (command)
 			result = conn.log_expect(options, [ "ssword:", "Are you sure you want to continue connecting (yes/no)?" ], LOGIN_TIMEOUT)
 			if result == 1:
 				conn.sendline("yes")
