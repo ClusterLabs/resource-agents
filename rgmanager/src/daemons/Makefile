@@ -105,7 +105,7 @@ ${TARGET2}: ${OBJS2}
 # packages should run 'make check' as part of the build process.
 #
 ${TARGET3}: ${SHAREDOBJS} ${OBJS3}
-	$(CC) -o $@ $^ $(LDFLAGS) $(CCS_LDFLAGS) $(CMAN_LDFLAGS) \
+	$(CC) -o $@ $^ $(LDFLAGS) $(CMAN_LDFLAGS) \
 			$(LOCAL_LDFLAGS) $(EXTRA_LDFLAGS) $(XML2_LDFLAGS)
 
 ${TARGET4}: ${SHAREDOBJS} ${OBJS4}
