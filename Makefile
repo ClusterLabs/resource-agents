@@ -50,7 +50,7 @@ cman: config
 ccs: cman
 dlm: config
 fence/libfenced:
-group: config dlm fence/libfenced
+group: cman dlm fence/libfenced
 fence: group
 gfs:
 gfs2:
