@@ -26,9 +26,9 @@ RESOURCES=fs.sh service.sh ip.sh nfsclient.sh nfsexport.sh \
 
 METADATA=apache.metadata openldap.metadata samba.metadata \
 	mysql.metadata postgres-8.metadata tomcat-5.metadata \
-	named.metadata lvm.metadata
+	named.metadata lvm.metadata default_event_script.sl
 
-GENERAL_TARGETS=ocf-shellfuncs svclib_nfslock default_event_script.sl
+GENERAL_TARGETS=ocf-shellfuncs svclib_nfslock
 
 UTIL_TARGETS= \
 	utils/ra-skelet.sh utils/messages.sh \
@@ -45,15 +45,18 @@ $(TARGET):
 install: all
 	install -d ${sharedir}/utils
 	for i in $(RESOURCES); do \
-	 install $(S)/$$i ${sharedir}; \
+	 install -m755 $(S)/$$i ${sharedir}; \
 	done
-	for i in $(GENERAL_TARGETS) $(METADATA); do \
-	 install -m 644 $(S)/$$i ${sharedir}; \
+	for i in $(METADATA); do \
+	 install -m644 $(S)/$$i ${sharedir}; \
+	done
+	for i in $(GENERAL_TARGETS); do \
+	 install -m755 $(S)/$$i ${sharedir}; \
 	done
 	for i in $(UTIL_TARGETS); do \
-	 install $(S)/$$i ${sharedir}/utils; \
+	 install -m755 $(S)/$$i ${sharedir}/utils; \
 	done
-	install -m644 $(TARGET) ${sharedir}/utils
+	install -m755 $(TARGET) ${sharedir}/utils
 
 uninstall:
 	${UNINSTALL} ${RESOURCES} ${GENERAL_TARGETS} \
