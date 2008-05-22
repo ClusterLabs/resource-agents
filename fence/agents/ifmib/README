@@ -33,7 +33,7 @@ cluster.conf:
 There is no GUI support for this fence agent at this time.  To use it, you will
 need something like this cluster.conf
 
-<fencedevice agent="fence_snmp" name="myswitch" comm="fencing" ipaddr="sw1"/>
+<fencedevice agent="fence_ifmib" name="myswitch" comm="fencing" ipaddr="sw1"/>
 
 In a node's fencing methods, you'll include a line like this:
 
