@@ -57,7 +57,7 @@
 #endif
 
 #define RESOURCE_ROOTDIR	SHAREDIR
-#define RESOURCE_TREE_ROOT	"//rm"
+#define RESOURCE_TREE_ROOT	"/cluster/rm"
 #define RESOURCE_BASE		RESOURCE_TREE_ROOT "/resources"
 #define RESOURCE_ROOT_FMT 	RESOURCE_TREE_ROOT "/%s[%d]"
 
