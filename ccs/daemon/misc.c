@@ -59,7 +59,7 @@ int get_doc_version(xmlDocPtr ldoc){
     goto fail;
   }
 
-  obj = xmlXPathEvalExpression((xmlChar *)"//cluster/@config_version", ctx);
+  obj = xmlXPathEvalExpression((xmlChar *)"/cluster/@config_version", ctx);
   if(!obj || !obj->nodesetval || (obj->nodesetval->nodeNr != 1)){
     log_printf(LOG_ERR, "Error while retrieving config_version.\n");
     error = -ENODATA;
@@ -125,7 +125,7 @@ char *get_cluster_name(xmlDocPtr ldoc){
     goto fail;
   }
 
-  obj = xmlXPathEvalExpression((xmlChar *)"//cluster/@name", ctx);
+  obj = xmlXPathEvalExpression((xmlChar *)"/cluster/@name", ctx);
   if(!obj || !obj->nodesetval || (obj->nodesetval->nodeNr != 1)){
     log_printf(LOG_ERR, "Error while retrieving config_version.\n");
     error = -ENODATA;
@@ -180,7 +180,7 @@ int set_ccs_logging(xmlDocPtr ldoc){
     return -1;
   }
 
-  obj = xmlXPathEvalExpression((xmlChar *)"//cluster/ccs/@log_facility", ctx);
+  obj = xmlXPathEvalExpression((xmlChar *)"/cluster/ccs/@log_facility", ctx);
   if(!obj || !obj->nodesetval || (obj->nodesetval->nodeNr != 1)){
     log_printf(LOG_DEBUG, "Error while retrieving log_facility.\n");
   } else {
@@ -209,7 +209,7 @@ int set_ccs_logging(xmlDocPtr ldoc){
     obj = NULL;
   }
 
-  obj = xmlXPathEvalExpression((xmlChar *)"//cluster/ccs/@log_level", ctx);
+  obj = xmlXPathEvalExpression((xmlChar *)"/cluster/ccs/@log_level", ctx);
   if(!obj || !obj->nodesetval || (obj->nodesetval->nodeNr != 1)){
     log_printf(LOG_DEBUG, "Error while retrieving log_level.\n");
   } else {

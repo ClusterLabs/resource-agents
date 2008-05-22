@@ -67,7 +67,7 @@ static int get_doc_version(xmlDocPtr ldoc)
     goto fail;
   }
 
-  obj = xmlXPathEvalExpression((xmlChar *)"//cluster/@config_version", ctx);
+  obj = xmlXPathEvalExpression((xmlChar *)"/cluster/@config_version", ctx);
 
   if (!obj || !obj->nodesetval || (obj->nodesetval->nodeNr != 1)) {
     fprintf(stderr, "Error while retrieving config_version.\n");
@@ -150,7 +150,7 @@ int update(char *location)
     return desc;
   }
 
-  if ((error = ccs_get(desc, "//@config_version", &v1_str))) {
+  if ((error = ccs_get(desc, "/cluster/@config_version", &v1_str))) {
     fprintf(stderr, "Unable to get current config_version: %s\n", strerror(-error));
     ccs_disconnect(desc);
     return error;
@@ -355,7 +355,7 @@ int update(char *location)
     return 0;
   }
 
-  if ((error = ccs_get(desc, "//@config_version", &v3_str))) {
+  if ((error = ccs_get(desc, "/cluster/@config_version", &v3_str))) {
     ccs_disconnect(desc);
     return 0;
   }
