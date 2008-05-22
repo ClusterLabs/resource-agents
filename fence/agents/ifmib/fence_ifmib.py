@@ -9,6 +9,13 @@
 #  modify, copy, or redistribute it subject to the terms and conditions
 #  of the GNU General Public License v.2.
 
+# this is a ugly hack to make the build system happy. The original
+# author and copyright are the one on the file header right above.
+#BEGIN_VERSION_GENERATION
+RELEASE_VERSION="New fence_ifmib"
+REDHAT_COPYRIGHT=""
+BUILD_DATE="March, 2008"
+#END_VERSION_GENERATION
 
 import os
 os.environ['PYSNMP_API_VERSION'] = 'v2'
