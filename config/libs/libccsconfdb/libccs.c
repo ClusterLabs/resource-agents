@@ -27,14 +27,13 @@
 
 #include "ccs.h"
 
-/* Callbacks are not supported yet */
+/* Callbacks are not supported */
 static confdb_callbacks_t callbacks = {
 	.confdb_change_notify_fn = NULL,
 };
 
 static confdb_handle_t handle = 0;
 
-static char current_pos[PATH_MAX];
 static char current_query[PATH_MAX];
 static char previous_query[PATH_MAX];
 static unsigned int query_handle;
@@ -51,7 +50,6 @@ static unsigned int list_handle;
 int ccs_connect(void){
 	int res;
 
-	memset(current_pos, 0, PATH_MAX);
 	memset(current_query, 0, PATH_MAX);
 	memset(previous_query, 0, PATH_MAX);
 	query_handle = OBJECT_PARENT_HANDLE;
@@ -113,45 +111,60 @@ int ccs_disconnect(int desc){
 	return 0;
 }
 
+static int tokenizer() {
+	int index = 0;
+	char *curpos = current_query;
+	char *next = NULL;
+	char *end;
+
+	end = current_query + strlen(current_query);
+
+	while (curpos <= end) {
+		index++;
+
+		if (strncmp(curpos, "/", 1))
+			return -1;
+
+		memset(curpos, 0, 1);
+		curpos = curpos + 1;
+
+		next = strstr(curpos, "/");
+		if (next == curpos)
+			return -1;
+
+		if(!next)
+			return index;
+
+		if ((strstr(curpos, "[") > next) || !strstr(curpos, "["))
+			curpos = next;
+		else
+			curpos = strstr(strstr(curpos, "]"), "/");
+
+	}
+	return -1;
+}
+
 /*
  * return 0 on success
  * return -1 on errors
  */
-int path_dive()
+static int path_dive(int tokens)
 {
-	char *pos=NULL;
+	char *pos = NULL, *next = NULL;
+	int i;
 	unsigned int new_obj_handle;
-
-	// for now we only handle absolute path queries
-	if (strncmp(current_query, "/", 1))
-		goto fail;
 
 	pos = current_query + 1;
 
-	while (pos)
+	for (i = 1; i <= tokens; i++)
 	{
-		char *next;
-
-		/*
-		 * if we still have "/" in the query we are still diving in the path
-		 *
-		 * XXX: what about /cluster/foo[@bar="/crap/whatever"]/@baz kind of queries?
-		 * we _need_ sanity checks here
-		 */
-
-		next = strstr(pos, "/");
-
-		if(!next) {
-			pos = 0;
-			continue;
-		}
-
-		memset(next, 0, 1);
-
 		if(confdb_object_find_start(handle, query_handle) != SA_AIS_OK)
 			goto fail;
 
-		if (!strstr(pos, "[")) { /* straight path diving */
+		next = pos + strlen(pos) + 1;
+
+		if (!strstr(pos, "[")) {
+			/* straight path diving */
 			if (confdb_object_find(handle, query_handle, pos, strlen(pos), &new_obj_handle) != SA_AIS_OK)
 				goto fail;
 			else
@@ -165,19 +178,31 @@ int path_dive()
 
 			char *start = NULL, *middle = NULL, *end = NULL;
 
-			// we need a bit of sanity check to make sure we did parse everything correctly
-			// for example end should always be > start...
+			/*
+			 * those ones should be always good because
+			 * the tokenizer takes care of them
+			 */
 
 			start=strstr(pos, "[");
+			if (!start)
+				goto fail;
+
 			end=strstr(pos, "]");
+			if (!end)
+				goto fail;
+
 			middle=start+1;
 			memset(start, 0, 1);
 			memset(end, 0, 1);
 
-			if (!strstr(middle, "@")) { /* lookup something with index num = int */
+			if (!strstr(middle, "@")) {
+				/* lookup something with index num = int */
 				int val, i;
 
 				val = atoi(middle);
+
+				if(val < 1)
+					goto fail;
 
 				for (i = 1; i <= val; i++) {
 					if (confdb_object_find(handle, query_handle, pos, strlen(pos), &new_obj_handle) != SA_AIS_OK)
@@ -185,25 +210,38 @@ int path_dive()
 				}
 				query_handle = new_obj_handle;
 
-			} else { /* lookup something with obj foo = bar */
-				char *equal = NULL, *value = NULL;
+			} else {
+				/* lookup something with obj foo = bar */
+				char *equal = NULL, *value = NULL, *tmp = NULL;
 				char data[PATH_MAX];
 				int goout = 0, datalen;
 
-				memset(data, 0, PATH_MAX);
-
-				// we need sanity checks here too!
 				equal=strstr(middle, "=");
+				if(!equal)
+					goto fail;
+
 				memset(equal, 0, 1);
 
-				value=strstr(equal + 1, "\"") + 1;
-				memset(strstr(value, "\""), 0, 1);
+				value=strstr(equal + 1, "\"");
+				if(!value)
+					goto fail;
+
+				value = value + 1;
+
+				tmp=strstr(value, "\"");
+				if(!tmp)
+					goto fail;
+
+				memset(tmp, 0, 1);
 
 				middle=strstr(middle, "@") + 1;
+				if (!middle)
+					goto fail;
 
 				// middle points to foo
 				// value to bar
 
+				memset(data, 0, PATH_MAX);
 				while(!goout) {
 					if (confdb_object_find(handle, query_handle, pos, strlen(pos), &new_obj_handle) != SA_AIS_OK)
 						goto fail;
@@ -218,10 +256,7 @@ int path_dive()
 			}
 		}
 
-		/* magic magic */
-		pos = next + 1;
-		memset(current_pos, 0, PATH_MAX);
-		strcpy(current_pos, pos);
+		pos = next;
 	}
 
 	return 0;
@@ -230,13 +265,13 @@ fail:
 	return -1;
 }
 
-int get_data(char **rtn, int list, int is_oldlist)
+static int get_data(char **rtn, char *curpos, int list, int is_oldlist)
 {
 	int datalen, cmp;
 	char data[PATH_MAX];
 	char resval[PATH_MAX];
 	char keyval[PATH_MAX];
-	int keyvallen=PATH_MAX;
+	int keyvallen = PATH_MAX;
 	unsigned int new_obj_handle;
 
 	memset(data, 0, PATH_MAX);
@@ -244,7 +279,7 @@ int get_data(char **rtn, int list, int is_oldlist)
 	memset(keyval, 0, PATH_MAX);
 
 	// we need to handle child::*[int value] in non list mode.
-	cmp = strcmp(current_pos, "child::*");
+	cmp = strcmp(curpos, "child::*");
 	if (cmp >= 0) {
 		char *start = NULL, *end=NULL;
 		int value = 1;
@@ -261,9 +296,16 @@ int get_data(char **rtn, int list, int is_oldlist)
 		}
 
 		if(cmp) {
-			// usual sanity checks here
-			start=strstr(current_pos, "[") + 1;
+			start=strstr(curpos, "[");
+			if (!start)
+				goto fail;
+
+			start = start + 1;
+
 			end=strstr(start, "]");
+			if (!end)
+				goto fail;
+
 			memset(end, 0, 1);
 			value=atoi(start);
 			if (value <= 0)
@@ -271,6 +313,7 @@ int get_data(char **rtn, int list, int is_oldlist)
 		}
 
 		while (value) {
+			memset(data, 0, PATH_MAX);
 			if(confdb_object_iter(handle, query_handle, &new_obj_handle, data, &datalen) != SA_AIS_OK)
 				goto fail;
 
@@ -280,7 +323,7 @@ int get_data(char **rtn, int list, int is_oldlist)
 		snprintf(resval, sizeof(resval), "%s=%s", data, keyval);
 		*rtn = strndup(resval, datalen + keyvallen + 2);
 
-	} else if (!strncmp(current_pos, "@*", strlen("@*"))) {
+	} else if (!strncmp(curpos, "@*", strlen("@*"))) {
 
 		// this query makes sense only if we are in list mode
 		if(!list)
@@ -308,7 +351,11 @@ int get_data(char **rtn, int list, int is_oldlist)
 		if(confdb_object_find_start(handle, query_handle) != SA_AIS_OK)
 			goto fail;
 
-		query = strstr(current_pos, "@") + 1;
+		query = strstr(curpos, "@");
+		if (!query)
+			goto fail;
+
+		query = query + 1;
 
 		if(confdb_key_get(handle, query_handle, query, strlen(query), data, &datalen) != SA_AIS_OK)
 			goto fail;
@@ -338,9 +385,11 @@ fail:
 int _ccs_get(int desc, const char *query, char **rtn, int list)
 {
 	int res = 0, confdbres = 0, is_oldlist = 0;
+	int tokens, i;
+	char *datapos = current_query + 1; 
 
 	/* we should be able to mangle the world here without destroying anything */
-	strncpy(current_query, query, PATH_MAX-1);
+	strncpy(current_query, query, PATH_MAX - 1);
 
 	/* we need to check list mode */
 	if (list && !strcmp(current_query, previous_query)) {
@@ -357,15 +406,22 @@ int _ccs_get(int desc, const char *query, char **rtn, int list)
 		goto fail;
 	}
 
-	if(!is_oldlist) {
-		res = path_dive(); /* remember path_dive cripples current_query */
-		if (res < 0)
-			goto fail;
+	res = tokens = tokenizer();
+	if (res < 1)
+		goto fail;
+
+	for (i = 1; i < tokens; i++) {
+		datapos = datapos + strlen(datapos) + 1;
 	}
 
-	strncpy(current_query, query, PATH_MAX-1); /* restore current_query */
+	if(!is_oldlist) {
+		res = path_dive(tokens - 1); /* path dive can mangle tokens */
+		if (res < 0)
+			goto fail;
 
-	res = get_data(rtn, list, is_oldlist);
+	}
+
+	res = get_data(rtn, datapos, list, is_oldlist);
 	if (res < 0)
 		goto fail;
 
