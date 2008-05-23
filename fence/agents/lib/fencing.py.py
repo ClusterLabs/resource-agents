@@ -110,6 +110,14 @@ all_opt = {
 		"getopt" : "-s:",
 		"help" : "-s <id>        Physical switch number on device",
 		"order" : 1 },
+	"partition" : {
+		"getopt" : "n:",
+		"help" : "-n <id>        Name of the partition",
+		"order" : 1 },
+	"managed" : {
+		"getopt" : "s:",
+		"help" : "-s <id>        Name of the managed system",
+		"order" : 1 },
 	"test" : {
 		"getopt" : "T",
 		"help" : "",
