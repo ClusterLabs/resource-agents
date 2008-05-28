@@ -10,9 +10,9 @@ import telnetlib
 
 ## do not add code here.
 #BEGIN_VERSION_GENERATION
-RELEASE_VERSION="New fence lib agent - test release on steroids"
-REDHAT_COPYRIGHT=""
-BUILD_DATE="March, 2008"
+RELEASE_VERSION = "New fence lib agent - test release on steroids"
+REDHAT_COPYRIGHT = ""
+BUILD_DATE = "March, 2008"
 #END_VERSION_GENERATION
 
 POWER_TIMEOUT = 20
@@ -28,6 +28,9 @@ EC_CONNECTION_LOST = 4
 EC_TIMED_OUT       = 5
 EC_WAITING_ON      = 6
 EC_WAITING_OFF     = 7
+
+TELNET_PATH = "/usr/bin/telnet"
+SSH_PATH    = "/usr/bin/ssh"
 
 all_opt = {
 	"help"    : {
@@ -132,10 +135,10 @@ class fspawn(pexpect.spawn):
 			options["debug_fh"].write(self.before + self.after)
 		return result
 
-def version(command, release, build_date, copyright):
-	print command, " ", release, " ", build_date;
-	if len(copyright) > 0:
-		print copyright
+def version(command, release, build_date, copyright_notice):
+	print command, " ", release, " ", build_date
+	if len(copyright_notice) > 0:
+		print copyright_notice
 
 def fail_usage(message = ""):
 	if len(message) > 0:
@@ -174,7 +177,8 @@ def process_input(avail_opt):
 	##
 	## Set standard environment
 	#####
-	os.unsetenv("LANG")
+	os.putenv("LANG", "C")
+	os.putenv("LC_ALL", "C")
 
 	##
 	## Prepare list of options for getopt
@@ -184,7 +188,7 @@ def process_input(avail_opt):
 		if all_opt.has_key(k):
 			getopt_string += all_opt[k]["getopt"]
 		else:
-			fail_usage("Parse error: unknown option '"+k+"'");
+			fail_usage("Parse error: unknown option '"+k+"'")
 
 	##
 	## Read options from command line or standard input
@@ -209,7 +213,8 @@ def process_input(avail_opt):
 		name = ""
 		for line in sys.stdin.readlines():
 			line = line.strip()
-			if ((line.startswith("#")) or (len(line) == 0)): pass
+			if ((line.startswith("#")) or (len(line) == 0)):
+				continue
 
 			(name, value) = (line + "=").split("=", 1)
 			value = value[:-1]
@@ -302,7 +307,7 @@ def check_input(device_opt, opt):
 	return options
 	
 def wait_power_status(tn, options, get_power_fn):
-	for x in range(POWER_TIMEOUT):
+	for dummy in xrange(POWER_TIMEOUT):
 		if get_power_fn(tn, options) != options["-o"]:
 			time.sleep(1)
 		else:
@@ -339,7 +344,7 @@ def fence_action(tn, options, set_power_fn, get_power_fn):
 		options["-o"] = "on"
 		set_power_fn(tn, options)
 		if wait_power_status(tn, options, get_power_fn) == 0:
-			fail(EC_WAITING_ON)
+			sys.stderr.write('Timed out waiting to power ON\n')
 		print "Success: Rebooted"
 	elif options["-o"] == "status":
 		print "Status: " + status.upper()
@@ -350,10 +355,10 @@ def fence_login(options):
 		re_pass  = re.compile("password", re.IGNORECASE)
 
 		if options.has_key("-x") and 0 == options.has_key("-k"):
-			command = 'ssh ' + options["-l"] + "@" + options["-a"]
+			command = '%s %s@%s' % (SSH_PATH, options["-l"], options["-a"])
 			if options.has_key("ssh_options"):
 				command += ' ' + options["ssh_options"]
-			conn = fspawn (command)
+			conn = fspawn(command)
 			result = conn.log_expect(options, [ "ssword:", "Are you sure you want to continue connecting (yes/no)?" ], LOGIN_TIMEOUT)
 			if result == 1:
 				conn.sendline("yes")
@@ -361,7 +366,7 @@ def fence_login(options):
 			conn.sendline(options["-p"])
 			conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
 		elif options.has_key("-x") and 1 == options.has_key("-k"):
-			conn = fspawn ('ssh ' + options["-l"] + "@" + options["-a"] + " -i " + options["-k"])
+			conn = fspawn('%s %s@%s -i %s' % (SSH_PATH, options["-l"], options["-a"], options["-k"]))
 			result = conn.log_expect(options, [ options["-c"], "Are you sure you want to continue connecting (yes/no)?", "Enter passphrase for key '"+options["-k"]+"':" ], LOGIN_TIMEOUT)
 			if result == 1:
 				conn.sendline("yes")
@@ -373,7 +378,7 @@ def fence_login(options):
 				else:
 					fail_usage("Failed: You have to enter passphrase (-p) for identity file")
 		else:
-			conn = fspawn ('telnet ' + options["-a"])
+			conn = fspawn('%s %s' % (TELNET_PATH, options["-a"]))
 			conn.log_expect(options, re_login, LOGIN_TIMEOUT)
 			conn.send(options["-l"]+"\r\n")
 			conn.log_expect(options, re_pass, SHELL_TIMEOUT)
