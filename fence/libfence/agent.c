@@ -36,28 +36,27 @@
 
 
 
-static void display_agent_output(char *agent, int fd)
+static void display_agent_output(const char *agent, int fd)
 {
-	char msg[512], buf[256];
+	char buf[384];
+	int ret;
 
-	memset(msg, 0, sizeof(msg));
-	memset(buf, 0, sizeof(buf));
-
-	while (read(fd, buf, sizeof(buf)-1) > 0) {
-		snprintf(msg, 256, "agent \"%s\" reports: ", agent);
-		strcat(msg, buf);
-
-		/* printf("%s\n", msg); */
-		syslog(LOG_ERR, "%s", msg);
-
-		memset(buf, 0, sizeof(buf));
-		memset(msg, 0, sizeof(msg));
-	}
+	do {
+		ret = read(fd, buf, sizeof(buf) - 1);
+		if (ret < 0) {
+			if (errno == EINTR)
+				continue;
+			break;
+		} else if (ret > 0) {
+			buf[ret] = '\0';
+			syslog(LOG_ERR, "agent \"%s\" reports: %s", agent, buf);
+		}
+	} while (ret > 0);
 }
 
 static int run_agent(char *agent, char *args)
 {
-	int pid, status, error, len = strlen(args);
+	int pid, status, len;
 	int pr_fd, pw_fd;  /* parent read/write file descriptors */
 	int cr_fd, cw_fd;  /* child read/write file descriptors */
 	int fd1[2];
@@ -65,27 +64,35 @@ static int run_agent(char *agent, char *args)
 
 	cr_fd = cw_fd = pr_fd = pw_fd = -1;
 
+	if (args == NULL || agent == NULL)
+		goto fail;
+	len = strlen(args);
+
 	if (pipe(fd1))
 		goto fail;
   	pr_fd = fd1[0];
   	cw_fd = fd1[1];
 
   	if (pipe(fd2))
-    		goto fail;
+   		goto fail;
   	cr_fd = fd2[0];
   	pw_fd = fd2[1];
 
 	pid = fork();
 	if (pid < 0)
-    		goto fail;
+   		goto fail;
 
 	if (pid) {
 		/* parent */
+		int ret;
 
 		fcntl(pr_fd, F_SETFL, fcntl(pr_fd, F_GETFL, 0) | O_NONBLOCK);
 
-		error = write(pw_fd, args, len);
-		if (error != len)
+		do {
+			ret = write(pw_fd, args, len);
+		} while (ret < 0 && errno == EINTR);
+
+		if (ret != len)
 			goto fail;
 
 		close(pw_fd);
