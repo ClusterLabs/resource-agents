@@ -18,22 +18,19 @@ include ../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
 
-OBJS1=	mount.gfs2.o
-
-SHAREDOBJS= ondisk1.o \
-	    util.o \
-	    mtab.o
+OBJS1=	mount.gfs2.o \
+	ondisk1.o \
+	util.o \
+	mtab.o
 
 CFLAGS += -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
 CFLAGS += -I${gfskincdir}
 CFLAGS += -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
-CFLAGS += -I$(S)/../include -I../../group/libgfscontrol/
+CFLAGS += -I${gfscontrolincdir}
+CFLAGS += -I$(S)/../include
 CFLAGS += -I${incdir}
 
-LDFLAGS += -L../../group/libgfscontrol/ -lgfscontrol
-
-
-${TARGET1}: ${SHAREDOBJS} ${OBJS1}
+${TARGET1}: ${OBJS1} ${gfscontrollibdir}/libgfscontrol.a
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 install: all
@@ -46,4 +43,3 @@ uninstall:
 clean: generalclean
 
 -include $(OBJS1:.o=.d)
--include $(SHAREDOBJS:.o=.d)
