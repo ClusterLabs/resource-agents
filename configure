@@ -54,6 +54,8 @@ my %options = (
 	dlmlibdir => \$dlmlibdir,
 	dlmcontrolincdir => \$dlmcontrolincdir,
 	dlmcontrollibdir => \$dlmcontrollibdir,
+	gfscontrolincdir => \$gfscontrolincdir,
+	gfscontrollibdir => \$gfscontrollibdir,
 	fenceincdir => \$fenceincdir,
 	fencelibdir => \$fencelibdir,
 	fencedincdir => \$fenceincdir,
@@ -133,6 +135,8 @@ my $err = &GetOptions (\%options,
 		    'dlmlibdir=s',
 		    'dlmcontrolincdir=s',
 		    'dlmcontrollibdir=s',
+		    'gfscontrolincdir=s',
+		    'gfscontrollibdir=s',
 		    'fenceincdir=s',
 		    'fencelibdir=s',
 		    'fencedincdir=s',
@@ -232,6 +236,8 @@ if ($help || !$err) {
   print "--dlmlibdir=\tthe base directory for dlm libraries.  (Default: ./dlm/libdlm)\n";
   print "--dlmcontrolincdir=\tthe base directory for dlmcontrol include files.  (Default: ./dlm/libdlmcontrol)\n";
   print "--dlmcontrollibdir=\tthe base directory for dlmcontrol libraries.  (Default: ./dlm/libdlmcontrol)\n";
+  print "--gfscontrolincdir=\tthe base directory for gfscontrol include files.  (Default: ./group/libgfscontrol)\n";
+  print "--gfscontrollibdir=\tthe base directory for gfscontrol libraries.  (Default: ./group/libgfscontrol)\n";
   print "--fenceincdir=\tthe base directory for fence include files.  (Default: ./fence/libfence)\n";
   print "--fencelibdir=\tthe base directory for fence libraries.  (Default: ./fence/libfence)\n";
   print "--fencedincdir=\tthe base directory for fenced include files.  (Default: ./fence/libfenced)\n";
@@ -444,6 +450,12 @@ if (!$dlmcontrolincdir) {
 }
 if (!$dlmcontrollibdir) {
   $dlmcontrollibdir="${objdir}/dlm/libdlmcontrol";
+}
+if (!$gfscontrolincdir) {
+  $gfscontrolincdir="${cdir}/group/libgfscontrol";
+}
+if (!$gfscontrollibdir) {
+  $gfscontrollibdir="${objdir}/group/libgfscontrol";
 }
 if (!$fenceincdir) {
   $fenceincdir="${cdir}/fence/libfence";
@@ -663,6 +675,8 @@ while (<IFILE>) {
   $_ =~ s/\@DLMLIBDIR\@/$dlmlibdir/;
   $_ =~ s/\@DLMCONTROLINCDIR\@/$dlmcontrolincdir/;
   $_ =~ s/\@DLMCONTROLLIBDIR\@/$dlmcontrollibdir/;
+  $_ =~ s/\@GFSCONTROLINCDIR\@/$gfscontrolincdir/;
+  $_ =~ s/\@GFSCONTROLLIBDIR\@/$gfscontrollibdir/;
   $_ =~ s/\@FENCEINCDIR\@/$fenceincdir/;
   $_ =~ s/\@FENCELIBDIR\@/$fencelibdir/;
   $_ =~ s/\@FENCEDINCDIR\@/$fencedincdir/;

@@ -30,9 +30,10 @@ OBJS= 	main.o \
 	util.o \
 	plock.o
 
-CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${openaisincdir} -I${fencedincdir}
+CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${fencedincdir}
+CFLAGS += -I${gfscontrolincdir} -I${openaisincdir}
 CFLAGS += -I${KERNEL_SRC}/include/
-CFLAGS += -I$(S)/../lib/ -I$(S)/../include/ -I../libgfscontrol/
+CFLAGS += -I$(S)/../lib/ -I$(S)/../include/
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lcman -lccs
