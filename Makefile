@@ -53,7 +53,7 @@ fence/libfenced:
 group: cman dlm fence/libfenced
 fence: group
 gfs:
-gfs2:
+gfs2: group
 gnbd: cman
 rgmanager: cman dlm
 
