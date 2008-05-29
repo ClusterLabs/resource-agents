@@ -2,7 +2,7 @@
 ###############################################################################
 ##
 ##  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+##  Copyright (C) 2004-2008 Red Hat, Inc.  All rights reserved.
 ##
 ##  This copyrighted material is made available to anyone wishing to use,
 ##  modify, copy, or redistribute it subject to the terms and conditions
@@ -26,8 +26,7 @@ all: ${SUBDIRS}
 		mkdir -p ${DESTDIR}/sbin; \
 		cd ${DESTDIR}/sbin; \
 			ln -sf mount.gfs2 mount.gfs; \
-			ln -sf umount.gfs2 umount.gfs; \
 	fi; \
 	if [ "$@" = "uninstall" ]; then \
-		cd ${DESTDIR}/sbin; rm -f mount.gfs umount.gfs; \
+		cd ${DESTDIR}/sbin; rm -f mount.gfs; \
 	fi
