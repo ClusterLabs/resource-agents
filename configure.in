@@ -2974,7 +2974,6 @@ include/Makefile						\
         include/pils/plugin.h					\
         include/saf/Makefile					\
         include/stonith/Makefile				\
-        include/fencing/Makefile				\
 replace/Makefile						\
 lib/Makefile							\
 	lib/apphb/Makefile					\
@@ -3001,7 +3000,6 @@ lib/Makefile							\
 		lib/plugins/tiebreaker/Makefile			\
 	lib/recoverymgr/Makefile				\
 	lib/stonith/Makefile					\
-	lib/fencing/Makefile					\
 lrm/Makefile							\
 	lrm/lrmd/Makefile					\
 	lrm/admin/Makefile					\
@@ -3060,10 +3058,6 @@ port/Makefile							\
 telecom/Makefile						\
 	telecom/apphbd/Makefile					\
 	telecom/recoverymgrd/Makefile				\
-fencing/Makefile						\
-	fencing/stonithd/Makefile				\
-	fencing/test/Makefile					\
-	fencing/test/STONITHDBasicSanityCheck			\
 tools/Makefile							\
 	tools/ciblint						\
 	tools/haresources2cib.py				\
