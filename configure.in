@@ -3060,7 +3060,6 @@ telecom/Makefile						\
 	telecom/recoverymgrd/Makefile				\
 tools/Makefile							\
 	tools/ciblint						\
-	tools/haresources2cib.py				\
 	tools/hb_report						\
 	tools/ocf-tester					\
 resources/Makefile						\
