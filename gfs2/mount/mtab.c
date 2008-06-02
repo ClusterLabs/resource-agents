@@ -95,6 +95,9 @@ void add_mtab_entry(struct mount_options *mo)
 
 	read_proc_mounts(mo);
 
+	if (ignore_mtab())
+		return;
+
 	lock_mtab();
 
 	file = fopen("/etc/mtab", "a");
@@ -124,6 +127,9 @@ void del_mtab_entry(struct mount_options *mo)
 	mode_t old_umask;
 	struct stat sbuf;
 	int found = 0;
+
+	if (ignore_mtab())
+		return;
 
 	lock_mtab();
 
