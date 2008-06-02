@@ -110,7 +110,7 @@ all_opt = {
 		"help" : "-n <id>        Physical plug number on device",
 		"order" : 1 },
 	"switch" : {
-		"getopt" : "-s:",
+		"getopt" : "s:",
 		"help" : "-s <id>        Physical switch number on device",
 		"order" : 1 },
 	"partition" : {
