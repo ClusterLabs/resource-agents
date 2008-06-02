@@ -3,6 +3,14 @@
 #include "cpg-old.h"
 #include "libgroup.h"
 
+#define ASSERT(x) \
+do { \
+	if (!(x)) { \
+		log_error("Assertion failed on line %d of file %s\n" \
+			  "Assertion:  \"%s\"\n", __LINE__, __FILE__, #x); \
+	} \
+} while (0)
+
 #define JID_INIT	-9
 
 /* mg_member opts bit field */
@@ -51,8 +59,6 @@ struct mg_member {
 
 extern group_handle_t gh;
 
-int message_flow_control_on;
-
 /* cpg message protocol
    1.0.0 is initial version
    2.0.0 is incompatible with 1.0.0 and allows plock ownership */
@@ -61,8 +67,7 @@ static unsigned int protocol_v200[3] = {2, 0, 0};
 static unsigned int protocol_active[3];
 
 static struct list_head withdrawn_mounts;
-static cpg_handle_t	daemon_handle;
-static struct cpg_name	daemon_name;
+static struct cpg_name daemon_name;
 
 
 static void send_journals(struct mountgroup *mg, int nodeid);
@@ -136,7 +141,7 @@ int send_group_message_old(struct mountgroup *mg, int len, char *buf)
 	hd->to_nodeid	= cpu_to_le32(hd->to_nodeid);
 	memcpy(hd->name, mg->name, strlen(mg->name));
 
-	return _send_message(daemon_handle, buf, len, type);
+	return _send_message(libcpg_handle, buf, len, type);
 }
 
 static struct mg_member *find_memb_nodeid(struct mountgroup *mg, int nodeid)
@@ -425,7 +430,7 @@ static void assign_next_first_mounter(struct mountgroup *mg)
 
 #define SEND_MS_INTS 4
 
-static void send_mount_status(struct mountgroup *mg)
+void send_mount_status_old(struct mountgroup *mg)
 {
 	struct gdlm_header *hd;
 	int len, *p;
@@ -702,7 +707,7 @@ static void receive_remount(struct mountgroup *mg, char *buf, int len, int from)
 	if (from == our_nodeid) {
 		if (!result) {
 			mg->rw = memb->rw;
-			mg->readonly = memb->readonly;
+			mg->ro = memb->readonly;
 		}
 		client_reply_remount(mg, result);
 	}
@@ -717,7 +722,7 @@ static void set_our_memb_options(struct mountgroup *mg)
 	memb = find_memb_nodeid(mg, our_nodeid);
 	ASSERT(memb);
 
-	if (mg->readonly) {
+	if (mg->ro) {
 		memb->readonly = 1;
 		memb->opts |= MEMB_OPT_RO;
 	} else if (mg->spectator) {
@@ -1447,126 +1452,19 @@ static void recover_members(struct mountgroup *mg, int num_nodes,
 	}
 }
 
-int join_mountgroup_old(int ci, struct gfsc_mount_args *ma)
+int gfs_join_mountgroup_old(struct mountgroup *mg, struct gfsc_mount_args *ma)
 {
-	struct mountgroup *mg = NULL;
-	char table2[PATH_MAX];
-	char *cluster = NULL, *name = NULL;
 	int rv;
 
-	log_debug("join: %s %s %s %s %s %s",
-		  ma->dir, ma->type, ma->proto, ma->table,
-		  ma->options, ma->dev);
-
-	if (strcmp(ma->proto, "lock_dlm")) {
-		log_error("join: lockproto %s not supported", ma->proto);
-		rv = -EPROTONOSUPPORT;
-		goto fail;
-	}
-
-	if (strstr(ma->options, "jid=") ||
-	    strstr(ma->options, "first=") ||
-	    strstr(ma->options, "id=")) {
-		log_error("join: jid, first and id are reserved options");
-		rv = -EOPNOTSUPP;
-		goto fail;
-	}
-
-	/* table is <cluster>:<name> */
-
-	memset(table2, 0, sizeof(table2));
-	strncpy(table2, ma->table, sizeof(table2));
-
-	name = strstr(table2, ":");
-	if (!name) {
-		rv = -EBADFD;
-		goto fail;
-	}
-
-	*name = '\0';
-	name++;
-	cluster = table2;
-
-	if (strlen(name) > GFS_MOUNTGROUP_LEN) {
-		rv = -ENAMETOOLONG;
-		goto fail;
-	}
-
-	mg = find_mg(name);
-	if (mg) {
-		if (strcmp(mg->mount_args.dev, ma->dev)) {
-			log_error("different fs dev %s with same name",
-				  mg->mount_args.dev);
-			rv = -EADDRINUSE;
-		} else if (mg->reject_mounts) {
-			/* fs is being unmounted */
-			log_error("join: reject mount due to unmount");
-			rv = -ESTALE;
-		} else if (mg->mount_client || !mg->kernel_mount_done) {
-			log_error("join: other mount in progress %d %d",
-				  mg->mount_client, mg->kernel_mount_done);
-			rv = -EBUSY;
-		} else {
-			log_group(mg, "join: already mounted");
-			rv = -EALREADY;
-		}
-		goto fail;
-	}
-
-	mg = create_mg(name);
-	if (!mg) {
-		rv = -ENOMEM;
-		goto fail;
-	}
-	mg->mount_client = ci;
-	memcpy(&mg->mount_args, ma, sizeof(struct gfsc_mount_args));
-
-	if (strlen(cluster) != strlen(clustername) ||
-	    strlen(cluster) == 0 || strcmp(cluster, clustername)) {
-		log_error("join: fs requires cluster=\"%s\" current=\"%s\"",
-			  cluster, clustername);
-		rv = -EBADR;
-		goto fail_free;
-	}
-	log_group(mg, "join: cluster name matches: %s", clustername);
-
-	if (strstr(ma->options, "spectator")) {
-		log_group(mg, "join: spectator mount");
-		mg->spectator = 1;
-	} else {
-		if (!we_are_in_fence_domain()) {
-			log_error("join: not in default fence domain");
-			rv = -ENOANO;
-			goto fail_free;
-		}
-	}
-
-	if (!mg->spectator && strstr(ma->options, "rw"))
-		mg->rw = 1;
-	else if (strstr(ma->options, "ro")) {
-		if (mg->spectator) {
-			log_error("join: readonly invalid with spectator");
-			rv = -EROFS;
-			goto fail_free;
-		}
-		mg->readonly = 1;
-	}
-
 	if (strlen(ma->options) > MAX_OPTIONS_LEN-1) {
-		rv = -EMLINK;
-		log_error("mount: options too long %zu", strlen(ma->options));
-		goto fail_free;
+		log_error("join: options too long %zu", strlen(ma->options));
+		return -EMLINK;
 	}
 
-	list_add(&mg->list, &mountgroups);
-	group_join(gh, name);
+	rv = group_join(gh, mg->name);
+	if (rv)
+		return -ENOTCONN;
 	return 0;
-
- fail_free:
-	free(mg);
- fail:
-	client_reply_join(ci, ma, rv);
-	return rv;
 }
 
 /* recover_members() discovers which nodes need journal recovery
@@ -1594,7 +1492,7 @@ static void recover_journals(struct mountgroup *mg)
 	int rv;
 
 	if (mg->spectator ||
-	    mg->readonly ||
+	    mg->ro ||
 	    mg->withdraw ||
 	    mg->our_jid == JID_INIT ||
 	    mg->kernel_mount_error ||
@@ -1603,7 +1501,7 @@ static void recover_journals(struct mountgroup *mg)
 	    !mg->kernel_mount_done) {
 		log_group(mg, "recover_journals: unable %d,%d,%d,%d,%d,%d,%d,%d",
 			  mg->spectator,
-			  mg->readonly,
+			  mg->ro,
 			  mg->withdraw,
 			  mg->our_jid,
 			  mg->kernel_mount_error,
@@ -1732,7 +1630,7 @@ static int need_kernel_recovery_done(struct mountgroup *mg)
    remain blocked until an rw node mounts, and the next mounter must
    be rw. */
 
-int kernel_recovery_done_old(char *table)
+int process_recovery_uevent_old(char *table)
 {
 	struct mountgroup *mg;
 	struct mg_member *memb;
@@ -1848,7 +1746,7 @@ int remount_mountgroup_old(int ci, struct gfsc_mount_args *ma)
 	}
 
 	/* no change */
-	if ((mg->readonly && ro) || (mg->rw && rw))
+	if ((mg->ro && ro) || (mg->rw && rw))
 		return 1;
 
 	mg->remount_client = ci;
@@ -1856,12 +1754,9 @@ int remount_mountgroup_old(int ci, struct gfsc_mount_args *ma)
 	return 0;
 }
 
-int leave_mountgroup_old(char *table, int mnterr)
+void gfs_leave_mountgroup_old(char *name, int mnterr)
 {
 	struct mountgroup *mg;
-	char *name = strstr(table, ":") + 1;
-
-	log_debug("leave: %s mnterr %d", name, mnterr);
 
 	list_for_each_entry(mg, &withdrawn_mounts, list) {
 		if (strcmp(mg->name, name))
@@ -1870,36 +1765,24 @@ int leave_mountgroup_old(char *table, int mnterr)
 		log_group(mg, "leave: for withdrawn fs");
 		list_del(&mg->list);
 		free(mg);
-		return 0;
+		return;
 	}
 
 	mg = find_mg(name);
 	if (!mg) {
 		log_error("leave: %s not found", name);
-		return -1;
+		return;
 	}
 
-	if (mnterr) {
-		/* sanity check: we should already have gotten the error from
-		   the mount_result message sent by mount.gfs */
-		if (!mg->kernel_mount_error) {
-			log_group(mg, "leave: mount_error is new %d %d",
-				  mg->kernel_mount_error, mnterr);
-			mg->kernel_mount_error = mnterr;
-			mg->kernel_mount_done = 1;
-		}
-		goto out;
+	/* sanity check: we should already have gotten the error from
+	   the mount.gfs mount_done; so this shouldn't happen */
+
+	if (mnterr && !mg->kernel_mount_error) {
+		log_error("leave: mount_error is new %d %d",
+			  mg->kernel_mount_error, mnterr);
 	}
 
-	if (mg->withdraw) {
-		log_error("leave: %s is withdrawing", name);
-		return -1;
-	}
-
-	if (!mg->kernel_mount_done) {
-		log_error("leave: %s is still mounting", name);
-		return -1;
-	}
+	mg->leaving = 1;
 
 	/* Check to see if we're waiting for a kernel recovery_done to do a
 	   start_done().  If so, call the start_done() here because we won't be
@@ -1909,48 +1792,8 @@ int leave_mountgroup_old(char *table, int mnterr)
 		log_group(mg, "leave: fill in start_done");
 		start_done(mg);
 	}
- out:
-	mg->reject_mounts = 1;
+
 	group_leave(gh, mg->name);
-	return 0;
-}
-
-void ping_kernel_mount_old(char *table)
-{
-	struct mountgroup *mg;
-	char *name = strstr(table, ":") + 1;
-	int rv, val;
-
-	mg = find_mg(name);
-	if (!mg)
-		return;
-
-	rv = read_sysfs_int(mg, "id", &val);
-
-	log_group(mg, "ping_kernel_mount %d", rv);
-}
-
-void mount_done_old(struct gfsc_mount_args *ma, int result)
-{
-	struct mountgroup *mg;
-	char *name = strstr(ma->table, ":") + 1;
-
-	mg = find_mg(name);
-	if (!mg) {
-		log_error("mount_done: %s not found", ma->table);
-		return;
-	}
-
-	log_group(mg, "mount_done: result %d first_mounter %d",
-		  result, mg->first_mounter);
-
-	mg->mount_client = 0;
-	mg->mount_client_fd = 0;
-
-	mg->kernel_mount_done = 1;
-	mg->kernel_mount_error = result;
-
-	send_mount_status(mg);
 }
 
 /* When mounting a fs, we first join the mountgroup, then tell mount.gfs
@@ -2201,11 +2044,11 @@ static void start_first_mounter(struct mountgroup *mg)
 	memb = find_memb_nodeid(mg, our_nodeid);
 	ASSERT(memb);
 
-	if (mg->readonly || mg->spectator) {
+	if (mg->ro || mg->spectator) {
 		memb->jid = -2;
 		mg->our_jid = -2;
 		log_group(mg, "start_first_mounter not rw ro=%d spect=%d",
-			  mg->readonly, mg->spectator);
+			  mg->ro , mg->spectator);
 		mg->mount_client_result = -EUCLEAN;
 	} else {
 		memb->opts |= MEMB_OPT_RECOVER;
@@ -2590,35 +2433,11 @@ static cpg_callbacks_t callbacks = {
 	.cpg_confchg_fn = confchg_cb,
 };
 
-void update_flow_control_status(void)
-{
-	cpg_flow_control_state_t flow_control_state;
-	cpg_error_t error;
-
-	error = cpg_flow_control_state_get(daemon_handle, &flow_control_state);
-	if (error != CPG_OK) {
-		log_error("cpg_flow_control_state_get %d", error);
-		return;
-	}
-
-	if (flow_control_state == CPG_FLOW_CONTROL_ENABLED) {
-		if (message_flow_control_on == 0) {
-			log_debug("flow control on");
-		}
-		message_flow_control_on = 1;
-	} else {
-		if (message_flow_control_on) {
-			log_debug("flow control off");
-		}
-		message_flow_control_on = 0;
-	}
-}
-
 void process_cpg_old(int ci)
 {
 	cpg_error_t error;
 
-	error = cpg_dispatch(daemon_handle, CPG_DISPATCH_ALL);
+	error = cpg_dispatch(libcpg_handle, CPG_DISPATCH_ALL);
 	if (error != CPG_OK) {
 		log_error("cpg_dispatch error %d", error);
 		return;
@@ -2639,13 +2458,13 @@ int setup_cpg_old(void)
 	else
 		memcpy(protocol_active, protocol_v100, sizeof(protocol_v100));
 
-	error = cpg_initialize(&daemon_handle, &callbacks);
+	error = cpg_initialize(&libcpg_handle, &callbacks);
 	if (error != CPG_OK) {
 		log_error("cpg_initialize error %d", error);
 		return -1;
 	}
 
-	cpg_fd_get(daemon_handle, &fd);
+	cpg_fd_get(libcpg_handle, &fd);
 	if (fd < 0) {
 		log_error("cpg_fd_get error %d", error);
 		return -1;
@@ -2656,7 +2475,7 @@ int setup_cpg_old(void)
 	daemon_name.length = 12;
 
  retry:
-	error = cpg_join(daemon_handle, &daemon_name);
+	error = cpg_join(libcpg_handle, &daemon_name);
 	if (error == CPG_ERR_TRY_AGAIN) {
 		log_debug("setup_cpg cpg_join retry");
 		sleep(1);
@@ -2664,7 +2483,7 @@ int setup_cpg_old(void)
 	}
 	if (error != CPG_OK) {
 		log_error("cpg_join error %d", error);
-		cpg_finalize(daemon_handle);
+		cpg_finalize(libcpg_handle);
 		return -1;
 	}
 

@@ -34,8 +34,8 @@
 #include <openais/saAis.h>
 #include <openais/saCkpt.h>
 #include <openais/cpg.h>
-
 #include <linux/dlmconstants.h>
+
 #include "libgfscontrol.h"
 #include "gfs_controld.h"
 #include "list.h"
@@ -58,6 +58,7 @@
 
 extern int daemon_debug_opt;
 extern int daemon_quit;
+extern int poll_dlm;
 extern int poll_ignore_plock;
 extern int plock_fd;
 extern int plock_ci;
@@ -72,6 +73,8 @@ extern int dump_wrap;
 extern char plock_dump_buf[GFSC_DUMP_SIZE];
 extern int plock_dump_len;
 extern int dmsetup_wait;
+extern cpg_handle_t libcpg_handle;
+extern int libcpg_flow_control_on;
 
 void daemon_dump_save(void);
 
@@ -103,14 +106,6 @@ do { \
 	syslog(LOG_ERR, fmt, ##args); \
 } while (0)
 
-#define ASSERT(x) \
-do { \
-	if (!(x)) { \
-		log_error("Assertion failed on line %d of file %s\n" \
-			  "Assertion:  \"%s\"\n", __LINE__, __FILE__, #x); \
-	} \
-} while (0)
-
 struct mountgroup {
 	struct list_head	list;
 	uint32_t		id;
@@ -119,7 +114,6 @@ struct mountgroup {
 	int			old_group_mode;
 
 	int			mount_client;
-	int			mount_client_fd;
 	int			mount_client_result;
 	int			mount_client_notified;
 	int			mount_client_delay;
@@ -128,6 +122,34 @@ struct mountgroup {
 	int			withdraw;
 	int			dmsetup_wait;
 	pid_t			dmsetup_pid;
+	int			our_jid;
+	int			spectator;
+	int			ro;
+	int			rw;
+	int                     joining;
+	int                     leaving;
+	int			kernel_mount_error;
+	int			kernel_mount_done;
+	int			first_mounter;
+
+	/* cpg-new stuff */
+
+	cpg_handle_t            cpg_handle;
+	int                     cpg_client;
+	int                     cpg_fd;
+	int                     kernel_stopped;
+	uint32_t                change_seq;
+	uint32_t                started_count;
+	struct change           *started_change;
+	struct list_head        changes;
+	struct list_head        node_history;
+	struct list_head	journals;
+	int			dlm_notify_nodeid;
+	int			first_recovery_needed;
+	int			first_recovery_master;
+	int			first_recovery_msg;
+	int			local_recovery_jid;
+	int			local_recovery_busy;
 
 	/* cpg-old stuff for rhel5/stable2 compat */
 
@@ -145,23 +167,15 @@ struct mountgroup {
 	int			got_our_options;
 	int			got_our_journals;
 	int			delay_send_journals;
-	int			kernel_mount_error;
-	int			kernel_mount_done;
-	int			got_kernel_mount;
 	int			first_mount_pending_stop;
-	int			first_mounter;
 	int			first_mounter_done;
 	int			global_first_recover_done;
 	int			emulate_first_mounter;
 	int			wait_first_done;
+	int			needs_recovery;
 	int			low_nodeid;
 	int			master_nodeid;
-	int			reject_mounts;
-	int			needs_recovery;
-	int			our_jid;
-	int			spectator;
-	int			readonly;
-	int			rw;
+	int			got_kernel_mount;
 	struct list_head	saved_messages;
 	void			*start2_fn;
 
@@ -185,25 +199,34 @@ struct mountgroup {
 void read_ccs(void);
 void read_ccs_nodir(struct mountgroup *mg, char *buf);
 
+/* cpg-new.c */
+int setup_cpg(void);
+int setup_dlmcontrol(void);
+void process_dlmcontrol(int ci);
+void process_recovery_uevent(char *table);
+void process_mountgroups(void);
+int gfs_join_mountgroup(struct mountgroup *mg);
+void gfs_leave_mountgroup(char *name, int mnterr);
+void gfs_mount_done(struct mountgroup *mg);
+
 /* cpg-old.c */
 int setup_cpg_old(void);
 void process_cpg_old(int ci);
+int gfs_join_mountgroup_old(struct mountgroup *mg, struct gfsc_mount_args *ma);
+void gfs_leave_mountgroup_old(char *name, int mnterr);
 int send_group_message_old(struct mountgroup *mg, int len, char *buf);
 void save_message_old(struct mountgroup *mg, char *buf, int len, int from,
 		      int type);
 void send_withdraw_old(struct mountgroup *mg);
+int process_recovery_uevent_old(char *table);
 void ping_kernel_mount_old(char *table);
-int join_mountgroup_old(int ci, struct gfsc_mount_args *ma);
-int kernel_recovery_done_old(char *table);
 int remount_mountgroup_old(int ci, struct gfsc_mount_args *ma);
-int leave_mountgroup_old(char *table, int mnterr);
-void mount_done_old(struct gfsc_mount_args *ma, int result);
+void send_mount_status_old(struct mountgroup *mg);
 int do_stop(struct mountgroup *mg);
 int do_finish(struct mountgroup *mg);
 void do_start(struct mountgroup *mg, int type, int member_count, int *nodeids);
 int do_terminate(struct mountgroup *mg);
 int do_withdraw_old(char *table);
-void update_flow_control_status(void);
 
 /* group.c */
 int setup_groupd(void);
@@ -252,5 +275,6 @@ int set_sysfs(struct mountgroup *mg, char *field, int val);
 int read_sysfs_int(struct mountgroup *mg, char *field, int *val_out);
 int run_dmsetup_suspend(struct mountgroup *mg, char *dev);
 void update_dmsetup_wait(void);
+void update_flow_control_status(void);
 
 #endif

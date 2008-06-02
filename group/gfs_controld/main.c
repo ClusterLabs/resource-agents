@@ -23,6 +23,8 @@ struct client {
 	struct mountgroup *mg;
 };
 
+static void do_leave(char *table, int mnterr);
+
 int do_read(int fd, void *buf, size_t count)
 {
 	int rv, off = 0;
@@ -162,6 +164,9 @@ struct mountgroup *create_mg(char *name)
 	INIT_LIST_HEAD(&mg->members_gone);
 	INIT_LIST_HEAD(&mg->plock_resources);
 	INIT_LIST_HEAD(&mg->saved_messages);
+	INIT_LIST_HEAD(&mg->changes);
+	INIT_LIST_HEAD(&mg->journals);
+	INIT_LIST_HEAD(&mg->node_history);
 	mg->init = 1;
 	mg->master_nodeid = -1;
 	mg->low_nodeid = -1;
@@ -226,6 +231,21 @@ static char *get_args(char *buf, int *argc, char **argv, char sep, int want)
 	return rp;
 }
 
+static void ping_kernel_mount(char *table)
+{
+	struct mountgroup *mg;
+	char *name = strstr(table, ":") + 1;
+	int rv, val;
+
+	mg = find_mg(name);
+	if (!mg)
+		return;
+
+	rv = read_sysfs_int(mg, "id", &val);
+
+	log_group(mg, "ping_kernel_mount %d", rv);
+}
+
 static void process_uevent(int ci)
 {
 	char buf[MAXLINE];
@@ -278,14 +298,16 @@ static void process_uevent(int ci)
 			return;
 
 		if (group_mode == GROUP_LIBGROUP)
-			leave_mountgroup_old(argv[3], 0);
+			do_leave(argv[3], 0);
 
 	} else if (!strcmp(act, "change@")) {
 		if (!lock_module)
 			return;
 
 		if (group_mode == GROUP_LIBGROUP)
-			kernel_recovery_done_old(argv[3]);
+			process_recovery_uevent_old(argv[3]);
+		else
+			process_recovery_uevent(argv[3]);
 
 	} else if (!strcmp(act, "offline@")) {
 		if (!lock_module)
@@ -298,8 +320,7 @@ static void process_uevent(int ci)
 		if (!lock_module)
 			return;
 
-		if (group_mode == GROUP_LIBGROUP)
-			ping_kernel_mount_old(argv[3]);
+		ping_kernel_mount(argv[3]);
 	}
 }
 
@@ -425,7 +446,7 @@ void client_reply_remount(struct mountgroup *mg, int result)
 {
 	struct gfsc_mount_args *ma = &mg->mount_args;
 
-	log_group(mg, "remount_reply ci %d result %d",
+	log_group(mg, "client_reply_remount ci %d result %d",
 		  mg->remount_client, result);
 
 	do_reply(client[mg->remount_client].fd, GFSC_CMD_FS_REMOUNT,
@@ -438,7 +459,7 @@ void client_reply_join(int ci, struct gfsc_mount_args *ma, int result)
 {
 	char *name = strstr(ma->table, ":") + 1;
 
-	log_debug("join_reply %s ci %d result %d", name, ci, result);
+	log_debug("client_reply_join %s ci %d result %d", name, ci, result);
 
 	do_reply(client[ci].fd, GFSC_CMD_FS_JOIN,
 		 name, result, ma, sizeof(struct gfsc_mount_args));
@@ -467,10 +488,169 @@ void client_reply_join_full(struct mountgroup *mg, int result)
 	if (nodir_str[0])
 		strcat(mg->mount_args.hostdata, nodir_str);
  out:
-	log_group(mg, "join_full_reply ci %d result %d hostdata %s",
+	log_group(mg, "client_reply_join_full ci %d result %d hostdata %s",
 		  mg->mount_client, result, mg->mount_args.hostdata);
 
 	client_reply_join(mg->mount_client, &mg->mount_args, result);
+}
+
+static void do_join(int ci, struct gfsc_mount_args *ma)
+{
+	struct mountgroup *mg = NULL;
+	char table2[PATH_MAX];
+	char *cluster = NULL, *name = NULL;
+	int rv;
+
+	log_debug("join: %s %s %s %s %s %s", ma->dir, ma->type, ma->proto,
+		  ma->table, ma->options, ma->dev);
+
+	if (strcmp(ma->proto, "lock_dlm")) {
+		log_error("join: lockproto %s not supported", ma->proto);
+		rv = -EPROTONOSUPPORT;
+		goto fail;
+	}
+
+	if (strstr(ma->options, "jid=") ||
+	    strstr(ma->options, "first=") ||
+	    strstr(ma->options, "id=")) {
+		log_error("join: jid, first and id are reserved options");
+		rv = -EOPNOTSUPP;
+		goto fail;
+	}
+
+	/* table is <cluster>:<name> */
+
+	memset(table2, 0, sizeof(table2));
+	strncpy(table2, ma->table, sizeof(table2));
+
+	name = strstr(table2, ":");
+	if (!name) {
+		rv = -EBADFD;
+		goto fail;
+	}
+
+	*name = '\0';
+	name++;
+	cluster = table2;
+
+	if (strlen(name) > GFS_MOUNTGROUP_LEN) {
+		rv = -ENAMETOOLONG;
+		goto fail;
+	}
+
+	mg = find_mg(name);
+	if (mg) {
+		if (strcmp(mg->mount_args.dev, ma->dev)) {
+			log_error("different fs dev %s with same name",
+				  mg->mount_args.dev);
+			rv = -EADDRINUSE;
+		} else if (mg->leaving) {
+			/* we're leaving the group */
+			log_error("join: reject mount due to unmount");
+			rv = -ESTALE;
+		} else if (mg->mount_client || !mg->kernel_mount_done) {
+			log_error("join: other mount in progress %d %d",
+				  mg->mount_client, mg->kernel_mount_done);
+			rv = -EBUSY;
+		} else {
+			log_group(mg, "join: already mounted");
+			rv = -EALREADY;
+		}
+		goto fail;
+	}
+
+	mg = create_mg(name);
+	if (!mg) {
+		rv = -ENOMEM;
+		goto fail;
+	}
+	mg->mount_client = ci;
+	memcpy(&mg->mount_args, ma, sizeof(struct gfsc_mount_args));
+
+	if (strlen(cluster) != strlen(clustername) ||
+	    strlen(cluster) == 0 || strcmp(cluster, clustername)) {
+		log_error("join: fs requires cluster=\"%s\" current=\"%s\"",
+			  cluster, clustername);
+		rv = -EBADR;
+		goto fail_free;
+	}
+	log_group(mg, "join: cluster name matches: %s", clustername);
+
+	if (strstr(ma->options, "spectator")) {
+		log_group(mg, "join: spectator mount");
+		mg->spectator = 1;
+	} else {
+		if (!we_are_in_fence_domain()) {
+			log_error("join: not in default fence domain");
+			rv = -ENOANO;
+			goto fail_free;
+		}
+	}
+
+	if (!mg->spectator && strstr(ma->options, "rw"))
+		mg->rw = 1;
+	else if (strstr(ma->options, "ro")) {
+		if (mg->spectator) {
+			log_error("join: readonly invalid with spectator");
+			rv = -EROFS;
+			goto fail_free;
+		}
+		mg->ro = 1;
+	}
+
+	list_add(&mg->list, &mountgroups);
+
+	if (group_mode == GROUP_LIBGROUP)
+		rv = gfs_join_mountgroup_old(mg, ma);
+	else
+		rv = gfs_join_mountgroup(mg);
+
+	if (rv) {
+		log_error("join: group join error %d", rv);
+		list_del(&mg->list);
+		goto fail_free;
+	}
+	return;
+
+ fail_free:
+	free(mg);
+ fail:
+	client_reply_join(ci, ma, rv);
+}
+
+static void do_leave(char *table, int mnterr)
+{
+	char *name = strstr(table, ":") + 1;
+
+	log_debug("leave: %s mnterr %d", name, mnterr);
+
+	if (group_mode == GROUP_LIBGROUP)
+		gfs_leave_mountgroup_old(name, mnterr);
+	else
+		gfs_leave_mountgroup(name, mnterr);
+}
+
+static void do_mount_done(char *table, int result)
+{
+	struct mountgroup *mg;
+	char *name = strstr(table, ":") + 1;
+
+	log_debug("mount_done: %s result %d", name, result);
+
+	mg = find_mg(name);
+	if (!mg) {
+		log_error("mount_done: %s not found", name);
+		return;
+	}
+
+	mg->mount_client = 0;
+	mg->kernel_mount_done = 1;
+	mg->kernel_mount_error = result;
+
+	if (group_mode == GROUP_LIBGROUP)
+		send_mount_status_old(mg);
+	else
+		gfs_mount_done(mg);
 }
 
 void process_connection(int ci)
@@ -530,39 +710,24 @@ void process_connection(int ci)
 	switch (h.command) {
 
 	case GFSC_CMD_FS_JOIN:
-		if (group_mode == GROUP_LIBGROUP)
-			join_mountgroup_old(ci, ma);
-		/*
-		else
-			join_mountgroup(ci, ma);
-		*/
+		do_join(ci, ma);
+		break;
+
+	case GFSC_CMD_FS_LEAVE:
+		do_leave(ma->table, h.data);
+		break;
+
+	case GFSC_CMD_FS_MOUNT_DONE:
+		do_mount_done(ma->table, h.data);
 		break;
 
 	case GFSC_CMD_FS_REMOUNT:
 		if (group_mode == GROUP_LIBGROUP)
 			remount_mountgroup_old(ci, ma);
-		/*
+#if 0
 		else
 			remount_mountgroup(ci, ma);
-		*/
-		break;
-
-	case GFSC_CMD_FS_LEAVE:
-		if (group_mode == GROUP_LIBGROUP)
-			leave_mountgroup_old(ma->table, h.data);
-		/*
-		else
-			leave_mountgroup(ma->table, h.data);
-		*/
-		break;
-
-	case GFSC_CMD_FS_MOUNT_DONE:
-		if (group_mode == GROUP_LIBGROUP)
-			mount_done_old(ma, h.data);
-		/*
-		else
-			mount_done(ma, h.data);
-		*/
+#endif
 		break;
 
 	default:
@@ -708,12 +873,20 @@ static void cluster_dead(int ci)
 	exit(1);
 }
 
+static void dead_dlmcontrol(int ci)
+{
+	log_error("dlm_controld poll error %x", pollfd[ci].revents);
+}
+
 static int loop(void)
 {
 	int poll_timeout = -1;
 	int rv, i;
 	void (*workfn) (int ci);
 	void (*deadfn) (int ci);
+
+	/* FIXME: add code that looks for uncontrolled instances of
+	   gfs filesystems in the kernel */
 
 	rv = setup_queries();
 	if (rv < 0)
@@ -754,20 +927,24 @@ static int loop(void)
 	if (group_mode == GROUP_LIBCPG) {
 
 		/*
-		 * code in: cpg_new.c
+		 * The new, good, way of doing things using libcpg directly.
+		 * code in: cpg-new.c
 		 */
 
-		/*
-		rv = setup_cpg_new();
+		rv = setup_cpg();
 		if (rv < 0)
 			goto out;
-		client_add(rv, process_cpg_new, cluster_dead);
-		*/
+
+		rv = setup_dlmcontrol();
+		if (rv < 0)
+			goto out;
+		client_add(rv, process_dlmcontrol, dead_dlmcontrol);
 
 	} else if (group_mode == GROUP_LIBGROUP) {
 
 		/*
-		 * code in: cpg_old.c group.c recover.c plock.c
+		 * The old, bad, way of doing things using libgroup.
+		 * code in: cpg-old.c group.c plock.c
 		 */
 
 		rv = setup_cpg_old();
@@ -814,13 +991,11 @@ static int loop(void)
 
 		poll_timeout = -1;
 
-#if 0
 		if (poll_dlm) {
 			/* only happens for GROUP_LIBCPG */
-			process_mountgroup_changes();
-			poll_timeout = 1000;
+			process_mountgroups();
+			poll_timeout = 500;
 		}
-#endif
 
 		if (poll_ignore_plock) {
 			/* only happens for GROUP_LIBGROUP */
@@ -1089,6 +1264,7 @@ void daemon_dump_save(void)
 int daemon_debug_opt;
 int daemon_quit;
 int poll_ignore_plock;
+int poll_dlm;
 int plock_fd;
 int plock_ci;
 struct list_head mountgroups;
@@ -1102,4 +1278,6 @@ int dump_wrap;
 char plock_dump_buf[GFSC_DUMP_SIZE];
 int plock_dump_len;
 int dmsetup_wait;
+cpg_handle_t libcpg_handle;
+int libcpg_flow_control_on;
 

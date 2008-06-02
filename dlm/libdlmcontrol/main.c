@@ -376,9 +376,19 @@ int dlmc_fs_result(int fd, char *name, int *type, int *nodeid, int *result)
 		goto out;
 
 	strncpy(name, h.name, DLM_LOCKSPACE_LEN);
-	*type = h.command;
 	*nodeid = h.option;
 	*result = h.data;
+
+	switch (h.command) {
+	case DLMC_CMD_FS_REGISTER:
+		*type = DLMC_RESULT_REGISTER;
+		break;
+	case DLMC_CMD_FS_NOTIFIED:
+		*type = DLMC_RESULT_NOTIFIED;
+		break;
+	default:
+		*type = 0;
+	}
  out:
 	return rv;
 }

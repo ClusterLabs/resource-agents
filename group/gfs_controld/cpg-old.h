@@ -23,7 +23,7 @@ enum {
 	MSG_PLOCK_SYNC_WAITER,
 };
 
-/* These lengths are part of the wire protocol. */
+/* These lengths are part of the "old" wire protocol. */
 
 #define MAX_OPTIONS_LEN		1024
 #define MSG_NAMELEN		255

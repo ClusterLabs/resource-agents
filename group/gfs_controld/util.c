@@ -1,6 +1,30 @@
 #include "gfs_daemon.h"
 #include "libfenced.h"
 
+void update_flow_control_status(void)
+{
+	cpg_flow_control_state_t flow_control_state;
+	cpg_error_t error;
+
+	error = cpg_flow_control_state_get(libcpg_handle, &flow_control_state);
+	if (error != CPG_OK) {
+		log_error("cpg_flow_control_state_get %d", error);
+		return;
+	}
+
+	if (flow_control_state == CPG_FLOW_CONTROL_ENABLED) {
+		if (libcpg_flow_control_on == 0) {
+			log_debug("flow control on");
+		}
+		libcpg_flow_control_on = 1;
+	} else {
+		if (libcpg_flow_control_on) {
+			log_debug("flow control off");
+		}
+		libcpg_flow_control_on = 0;
+	}
+}
+
 int we_are_in_fence_domain(void)
 {
 	struct fenced_node nodeinfo;
@@ -47,7 +71,10 @@ int set_sysfs(struct mountgroup *mg, char *field, int val)
 	rv = write(fd, out, strlen(out));
 
 	close(fd);
-	return 0;
+
+	if (rv)
+		rv = 0;
+	return rv;
 }
 
 static int get_sysfs(struct mountgroup *mg, char *field, char *buf, int len)

@@ -27,8 +27,6 @@ static char section_buf[1024 * 1024];
 static uint32_t section_len;
 static int need_fsid_translation = 0;
 
-extern int message_flow_control_on;
-
 struct pack_plock {
 	uint64_t start;
 	uint64_t end;
@@ -1592,9 +1590,9 @@ int limit_plocks(void)
 
 	/* Don't send more messages while the cpg message queue is backed up */
 
-	if (message_flow_control_on) {
+	if (libcpg_flow_control_on) {
 		update_flow_control_status();
-		if (message_flow_control_on)
+		if (libcpg_flow_control_on)
 			return 1;
 	}
 

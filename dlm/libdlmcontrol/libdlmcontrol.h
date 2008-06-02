@@ -73,6 +73,9 @@ int dlmc_lockspaces(int max, int *count, struct dlmc_lockspace *lss);
 int dlmc_lockspace_nodes(char *lsname, int type, int max, int *count,
 			 struct dlmc_node *nodes);
 
+#define DLMC_RESULT_REGISTER	1
+#define DLMC_RESULT_NOTIFIED	2
+
 int dlmc_fs_connect(void);
 void dlmc_fs_disconnect(int fd);
 int dlmc_fs_register(int fd, char *name);

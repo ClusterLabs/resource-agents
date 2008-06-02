@@ -13,23 +13,24 @@ include $(OBJDIR)/make/uninstall.mk
 OBJS= 	main.o \
 	member_cman.o \
 	config.o \
+	crc.o \
+	cpg-new.o \
 	cpg-old.o \
 	group.o \
 	util.o \
 	plock.o
 
-CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${openaisincdir}
+CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmcontrolincdir}
 CFLAGS += -I${openaisincdir}
 CFLAGS += -I${KERNEL_SRC}/include/
 CFLAGS += -I$(S)/../libgfscontrol -I$(S)/../../fence/libfenced/
 CFLAGS += -I$(S)/../lib/ -I$(S)/../include/
 CFLAGS += -I${incdir}
 
-LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lcman -lccs
+LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lcman -lccs -ldlmcontrol
 LDFLAGS += -L${openaislibdir} -lcpg -lSaCkpt
 LDFLAGS += -L../../fence/libfenced/ -lfenced
 LDFLAGS += -L../lib -lgroup
-
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
