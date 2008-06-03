@@ -52,14 +52,8 @@ my %options = (
 	cmanlibdir => \$cmanlibdir,
 	dlmincdir => \$dlmincdir,
 	dlmlibdir => \$dlmlibdir,
-	dlmcontrolincdir => \$dlmcontrolincdir,
-	dlmcontrollibdir => \$dlmcontrollibdir,
-	gfscontrolincdir => \$gfscontrolincdir,
-	gfscontrollibdir => \$gfscontrollibdir,
 	fenceincdir => \$fenceincdir,
 	fencelibdir => \$fencelibdir,
-	fencedincdir => \$fenceincdir,
-	fencedlibdir => \$fencelibdir,
 	volidincdir => \$volidincdir,
 	volidlibdir => \$volidlibdir,
 	ncursesincdir => \$ncursesincdir,
@@ -133,14 +127,8 @@ my $err = &GetOptions (\%options,
 		    'cmanlibdir=s',
 		    'dlmincdir=s',
 		    'dlmlibdir=s',
-		    'dlmcontrolincdir=s',
-		    'dlmcontrollibdir=s',
-		    'gfscontrolincdir=s',
-		    'gfscontrollibdir=s',
 		    'fenceincdir=s',
 		    'fencelibdir=s',
-		    'fencedincdir=s',
-		    'fencedlibdir=s',
 		    'volidincdir=s',
 		    'volidlibdir=s',
 		    'ncursesincdir=s',
@@ -234,14 +222,8 @@ if ($help || !$err) {
   print "--cmanlibdir=\tthe base directory for cman libraries.  (Default: ./cman/lib)\n";
   print "--dlmincdir=\tthe base directory for dlm include files.  (Default: ./dlm/libdlm)\n";
   print "--dlmlibdir=\tthe base directory for dlm libraries.  (Default: ./dlm/libdlm)\n";
-  print "--dlmcontrolincdir=\tthe base directory for dlmcontrol include files.  (Default: ./dlm/libdlmcontrol)\n";
-  print "--dlmcontrollibdir=\tthe base directory for dlmcontrol libraries.  (Default: ./dlm/libdlmcontrol)\n";
-  print "--gfscontrolincdir=\tthe base directory for gfscontrol include files.  (Default: ./group/libgfscontrol)\n";
-  print "--gfscontrollibdir=\tthe base directory for gfscontrol libraries.  (Default: ./group/libgfscontrol)\n";
   print "--fenceincdir=\tthe base directory for fence include files.  (Default: ./fence/libfence)\n";
   print "--fencelibdir=\tthe base directory for fence libraries.  (Default: ./fence/libfence)\n";
-  print "--fencedincdir=\tthe base directory for fenced include files.  (Default: ./fence/libfenced)\n";
-  print "--fencedlibdir=\tthe base directory for fenced libraries.  (Default: ./fence/libfenced)\n";
   print "--volidincdir=\tthe base directory for volume_id include files.  (Default: {incdir})\n";
   print "--volidlibdir=\tthe base directory for volume_id libraries.  (Default: {libdir})\n";
   print "--ncursesincdir=\tthe base directory for ncurses include files.  (Default: {incdir})\n";
@@ -445,29 +427,11 @@ if (!$dlmincdir) {
 if (!$dlmlibdir) {
   $dlmlibdir="${objdir}/dlm/libdlm";
 }
-if (!$dlmcontrolincdir) {
-  $dlmcontrolincdir="${cdir}/dlm/libdlmcontrol";
-}
-if (!$dlmcontrollibdir) {
-  $dlmcontrollibdir="${objdir}/dlm/libdlmcontrol";
-}
-if (!$gfscontrolincdir) {
-  $gfscontrolincdir="${cdir}/group/libgfscontrol";
-}
-if (!$gfscontrollibdir) {
-  $gfscontrollibdir="${objdir}/group/libgfscontrol";
-}
 if (!$fenceincdir) {
   $fenceincdir="${cdir}/fence/libfence";
 }
 if (!$fencelibdir) {
   $fencelibdir="${objdir}/fence/libfence";
-}
-if (!$fencedincdir) {
-  $fencedincdir="${cdir}/fence/libfenced";
-}
-if (!$fencedlibdir) {
-  $fencedlibdir="${objdir}/fence/libfenced";
 }
 if (!$volidincdir) {
   $volidincdir="${incdir}";
@@ -673,14 +637,8 @@ while (<IFILE>) {
   $_ =~ s/\@CMANLIBDIR\@/$cmanlibdir/;
   $_ =~ s/\@DLMINCDIR\@/$dlmincdir/;
   $_ =~ s/\@DLMLIBDIR\@/$dlmlibdir/;
-  $_ =~ s/\@DLMCONTROLINCDIR\@/$dlmcontrolincdir/;
-  $_ =~ s/\@DLMCONTROLLIBDIR\@/$dlmcontrollibdir/;
-  $_ =~ s/\@GFSCONTROLINCDIR\@/$gfscontrolincdir/;
-  $_ =~ s/\@GFSCONTROLLIBDIR\@/$gfscontrollibdir/;
   $_ =~ s/\@FENCEINCDIR\@/$fenceincdir/;
   $_ =~ s/\@FENCELIBDIR\@/$fencelibdir/;
-  $_ =~ s/\@FENCEDINCDIR\@/$fencedincdir/;
-  $_ =~ s/\@FENCEDLIBDIR\@/$fencedlibdir/;
   $_ =~ s/\@VOLIDINCDIR\@/$volidincdir/;
   $_ =~ s/\@VOLIDLIBDIR\@/$volidlibdir/;
   $_ =~ s/\@READLINEINCDIR\@/$readlineincdir/;

@@ -31,9 +31,8 @@ OBJS=	config.o \
 	recover.o
 
 CFLAGS += -D_FILE_OFFSET_BITS=64
-CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${fenceincdir} -I${fencedincdir}
-CFLAGS += -I${openaisincdir}
-CFLAGS += -I$(S) -I$(S)/../include -I$(SRCDIR)/group/lib
+CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${fenceincdir} -I${openaisincdir}
+CFLAGS += -I$(S) -I$(S)/../include -I$(S)/../libfenced -I$(SRCDIR)/group/lib
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -L${openaislibdir} -lccs -lcman -lcpg

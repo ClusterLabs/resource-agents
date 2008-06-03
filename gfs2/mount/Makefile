@@ -26,11 +26,13 @@ OBJS1=	mount.gfs2.o \
 CFLAGS += -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
 CFLAGS += -I${gfskincdir}
 CFLAGS += -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
-CFLAGS += -I${gfscontrolincdir}
+CFLAGS += -I$(SRCDIR)/group/libgfscontrol
 CFLAGS += -I$(S)/../include
 CFLAGS += -I${incdir}
 
-${TARGET1}: ${OBJS1} ${gfscontrollibdir}/libgfscontrol.a
+LDFLAGS += -L../../group/libgfscontrol -lgfscontrol
+
+${TARGET1}: ${OBJS1}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 install: all

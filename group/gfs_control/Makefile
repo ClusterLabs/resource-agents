@@ -24,11 +24,10 @@ include $(OBJDIR)/make/uninstall.mk
 
 OBJS=	main.o
 
-CFLAGS += -I${gfscontrolincdir}
+CFLAGS += -I$(S)/../libgfscontrol
 CFLAGS += -I${incdir}
-CFLAGS += -I${KERNEL_SRC}/include/
 
-LDFLAGS += -L${gfscontrollibdir} -lgfscontrol
+LDFLAGS += -L../libgfscontrol -lgfscontrol
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)

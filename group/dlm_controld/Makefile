@@ -33,17 +33,17 @@ OBJS=	action.o \
 	plock.o \
 	group.o
 
-CFLAGS += -I${ccsincdir} -I${cmanincdir} 
-CFLAGS += -I${dlmincdir} -I${dlmcontrolincdir}
-CFLAGS += -I${openaisincdir} -I${fencedincdir}
+CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmincdir}
+CFLAGS += -I${openaisincdir}
+CFLAGS += -I$(SRCDIR)/dlm/libdlmcontrol/ -I$(SRCDIR)/fence/libfenced/
 CFLAGS += -I${KERNEL_SRC}/include/
 CFLAGS += -I$(S)/../lib/ -I$(S)/../include/
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
 LDFLAGS += -L${dlmlibdir} -ldlm 
-LDFLAGS += -L${fencedlibdir} -lfenced
 LDFLAGS += -L${openaislibdir} -lcpg -lSaCkpt
+LDFLAGS += -L../../fence/libfenced/ -lfenced
 LDFLAGS += -L../lib -lgroup -lpthread
 
 

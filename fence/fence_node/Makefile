@@ -27,11 +27,12 @@ OBJS=	fence_node.o
 
 CFLAGS += -D_FILE_OFFSET_BITS=64
 
-CFLAGS += -I${ccsincdir} -I${fenceincdir} -I${fencedincdir}
-CFLAGS += -I../include
+CFLAGS += -I${ccsincdir} -I${fenceincdir}
+CFLAGS += -I$(S)/../libfenced
 CFLAGS += -I${incdir}
 
-LDFLAGS += -L${ccslibdir} -L${fencelibdir} -L${fencedlibdir} -lccs -lfence -lfenced
+LDFLAGS += -L${ccslibdir} -L${fencelibdir} -lccs -lfence
+LDFLAGS += -L../libfenced -lfenced
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
