@@ -418,6 +418,8 @@ case "$1" in
 
     stop)       pgsql_stop
                 exit $?;;
+    notify|promote|demote)
+                exit $OCF_ERR_UNIMPLEMENTED;;
 esac
 
 usage
