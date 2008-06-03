@@ -24,10 +24,12 @@
 #include <limits.h>
 #include <openais/saAis.h>
 #include <openais/confdb.h>
+#include <libxml/parser.h>
+#include <libxml/xpath.h>
 
 #include "ccs.h"
 
-/* Callbacks are not supported */
+/* Callbacks are not supported - we will use them to update fullxml doc/ctx */
 static confdb_callbacks_t callbacks = {
 	.confdb_change_notify_fn = NULL,
 };
@@ -39,39 +41,170 @@ static char previous_query[PATH_MAX];
 static unsigned int query_handle;
 static unsigned int list_handle;
 
+int fullxpath = 0;
+static int fullxpathint;
+
+static char *buffer = NULL;
+static xmlDocPtr doc = NULL;
+static xmlXPathContextPtr ctx = NULL;
+static int xmllistindex = 0;
+
+static void xpathlite_init() {
+	memset(current_query, 0, PATH_MAX);
+	memset(previous_query, 0, PATH_MAX);
+	query_handle = OBJECT_PARENT_HANDLE;
+	list_handle = OBJECT_PARENT_HANDLE;
+}
+
+static void add_to_buffer(char *data, char **buffer, int *size)
+{
+	int len;
+
+	if((len = strlen(data))) {
+		*size = *size + len;
+		if (*buffer)
+			strncpy(*buffer + strlen(*buffer), data, len);
+	}
+	return;
+}
+
+static int dump_objdb_buff(confdb_handle_t dump_handle, unsigned int parent_object_handle, char **buffer, int *size)
+{
+	unsigned int object_handle;
+	char temp[PATH_MAX];
+	char object_name[PATH_MAX];
+	int object_name_len;
+	char key_name[PATH_MAX];
+	int key_name_len;
+	char key_value[PATH_MAX];
+	int key_value_len;
+	int res;
+
+	res = confdb_key_iter_start(dump_handle, parent_object_handle);
+	if (res != SA_AIS_OK)
+		return -1;
+
+	if (!*buffer || ((*buffer) && !strlen(*buffer))) {
+		snprintf(temp, PATH_MAX - 1, "<?xml version=\"1.0\"?>\n<objdbmaindoc>\n");
+		add_to_buffer(temp, buffer, size);
+	}
+
+	while ( (res = confdb_key_iter(dump_handle, parent_object_handle, key_name, &key_name_len,
+					key_value, &key_value_len)) == SA_AIS_OK) {
+		key_name[key_name_len] = '\0';
+		key_value[key_value_len] = '\0';
+		snprintf(temp, PATH_MAX - 1, " %s=\"%s\"", key_name, key_value);
+		add_to_buffer(temp, buffer, size);
+	}
+
+	if (parent_object_handle > 0) {
+		snprintf(temp, PATH_MAX - 1, ">\n");
+		add_to_buffer(temp, buffer, size);
+	}
+
+	res = confdb_object_iter_start(dump_handle, parent_object_handle);
+	if (res != SA_AIS_OK)
+		return -1;
+
+	while ( (res = confdb_object_iter(dump_handle, parent_object_handle, &object_handle, object_name, &object_name_len)) == SA_AIS_OK)   {
+		unsigned int parent;
+
+		res = confdb_object_parent_get(dump_handle, object_handle, &parent);
+		if (res != SA_AIS_OK)
+			return -1;
+
+		object_name[object_name_len] = '\0';
+
+		/* we need to skip the top level services because they have invalid
+		 * xml chars */
+		if(!strncmp(object_name, "service", object_name_len))
+			continue;
+
+		snprintf(temp, PATH_MAX - 1, "<%s", object_name);
+		add_to_buffer(temp, buffer, size);
+
+		res = dump_objdb_buff(dump_handle, object_handle, buffer, size);
+		if(res)
+			return res;
+
+		if (object_handle != parent_object_handle) {
+			snprintf(temp, PATH_MAX - 1, "</%s>\n", object_name);
+			add_to_buffer(temp, buffer, size);
+		} else {
+			snprintf(temp, PATH_MAX - 1, ">\n");
+			add_to_buffer(temp, buffer, size);
+		}
+	}
+
+	if (parent_object_handle == OBJECT_PARENT_HANDLE) {
+		snprintf(temp, PATH_MAX - 1, "</objdbmaindoc>\n");
+		add_to_buffer(temp, buffer, size);
+	}
+
+	return 0;
+}
+
+static int xpathfull_init() {
+	int size = 0;
+
+	if (dump_objdb_buff(handle, OBJECT_PARENT_HANDLE, &buffer, &size))
+		goto fail;
+
+	buffer=malloc(2 * size);
+	if(!buffer)
+		goto fail;
+
+	memset(buffer, 0, 2 * size);
+
+	if (dump_objdb_buff(handle, OBJECT_PARENT_HANDLE, &buffer, &size))
+		goto fail;
+
+	doc = xmlParseMemory(buffer,strlen(buffer));
+	if(!doc)
+		goto fail;
+
+	ctx = xmlXPathNewContext(doc);
+	if(!ctx)
+		goto fail;
+
+	memset(previous_query, 0, PATH_MAX);
+
+	return 0;
+
+fail:
+	return -1;
+}
+
 /**
  * ccs_connect
- *
- * This function will only allow a connection if the node is part of
- * a quorate cluster.
  *
  * Returns: ccs_desc on success, < 0 on failure
  */
 int ccs_connect(void){
 	int res;
 
-	memset(current_query, 0, PATH_MAX);
-	memset(previous_query, 0, PATH_MAX);
-	query_handle = OBJECT_PARENT_HANDLE;
-	list_handle = OBJECT_PARENT_HANDLE;
+	if(handle)
+		return 1;
 
 	res = confdb_initialize (&handle, &callbacks);
 	if (res != SA_AIS_OK)
 		return -1;
+
+	if(!fullxpath)
+		xpathlite_init();
+	else
+		if (xpathfull_init() < 0) {
+			ccs_disconnect(1);
+			return -1;
+		}
+
+	fullxpathint = fullxpath;
 
 	return 1;
 }
 
 /**
  * ccs_force_connect
- *
- * This function will only allow a connection even if the node is not
- * part of a quorate cluster.  It will use the configuration file
- * as specified at build time (default: /etc/cluster/cluster.conf).  If that
- * file does not exist, a copy of the file will be broadcasted for.  If
- * blocking is specified, the broadcasts will be retried until a config file
- * is located.  Otherwise, the fuction will return an error if the initial
- * broadcast is not successful.
  *
  * Returns: ccs_desc on success, < 0 on failure
  */
@@ -103,11 +236,27 @@ int ccs_disconnect(int desc){
 	if (!handle)
 		return 0;
 
+	if (fullxpathint) {
+		if(ctx) {
+			xmlXPathFreeContext(ctx);
+			ctx = NULL;
+		}
+		if(doc) {
+			xmlFreeDoc(doc);
+			doc = NULL;
+		}
+		if(buffer) {
+			free(buffer);
+			buffer = NULL;
+		}
+	}
+
 	res = confdb_finalize (handle);
 	if (res != CONFDB_OK)
 		return -1;
 
 	handle = 0;
+
 	return 0;
 }
 
@@ -370,7 +519,7 @@ fail:
 }
 
 /**
- * _ccs_get
+ * _ccs_get_xpathlite
  * @desc:
  * @query:
  * @rtn: value returned
@@ -382,7 +531,7 @@ fail:
  *
  * Returns: 0 on success, < 0 on failure
  */
-int _ccs_get(int desc, const char *query, char **rtn, int list)
+int _ccs_get_xpathlite(int desc, const char *query, char **rtn, int list)
 {
 	int res = 0, confdbres = 0, is_oldlist = 0;
 	int tokens, i;
@@ -432,12 +581,110 @@ fail:
 	return res;
 }
 
+/**
+ * _ccs_get_fullxpath
+ * @desc:
+ * @query:
+ * @rtn: value returned
+ * @list: 1 to operate in list fashion
+ *
+ * This function will allocate space for the value that is the result
+ * of the given query.  It is the user's responsibility to ensure that
+ * the data returned is freed.
+ *
+ * Returns: 0 on success, < 0 on failure
+ */
+int _ccs_get_fullxpath(int desc, const char *query, char **rtn, int list)
+{
+	int res = 0;
+	xmlXPathObjectPtr obj = NULL;
+	char realquery[PATH_MAX + 16];
+
+	if(strncmp(query, "/", 1))
+		return -EINVAL;
+
+	if (list && !strcmp(query, previous_query))
+		xmllistindex++;
+
+	memset(realquery, 0, PATH_MAX + 16);
+	snprintf(realquery, PATH_MAX + 16 - 1, "/objdbmaindoc%s", query);
+
+	obj = xmlXPathEvalExpression((xmlChar *)realquery, ctx);
+
+	if(!obj)
+		return -EINVAL;
+
+	if (obj->nodesetval && (obj->nodesetval->nodeNr > 0) ) {
+		xmlNodePtr node;
+		int size = 0, nnv = 0;
+
+		if(xmllistindex >= obj->nodesetval->nodeNr){
+			xmllistindex = 0;
+			res = -1;
+			goto fail;
+		}
+
+		node = obj->nodesetval->nodeTab[xmllistindex];
+
+		if(!node) {
+			res = -ENODATA;
+			goto fail;
+		}
+
+		if (((node->type == XML_ATTRIBUTE_NODE) && strstr(query, "@*")) ||
+		    ((node->type == XML_ELEMENT_NODE) && strstr(query, "child::*"))) {
+			if (node->children && node->children->content)
+				size = strlen((char *)node->children->content) +
+					strlen((char *)node->name)+2;
+
+			else
+				size = strlen((char *)node->name)+2;
+
+			nnv = 1;
+		} else {
+			if (node->children && node->children->content)
+				size = strlen((char *)node->children->content)+1;
+
+			else {
+				res = -ENODATA;
+				goto fail;
+			}
+		}
+
+		*rtn = malloc(size);
+
+		if (!*rtn) {
+			res = -ENOMEM;
+			goto fail;
+		}
+
+		if (nnv)
+			sprintf(*rtn, "%s=%s", node->name, node->children ? (char *)node->children->content:"");
+		else
+			sprintf(*rtn, "%s", node->children ? node->children->content : node->name);
+
+		if(list)
+			strncpy(previous_query, query, PATH_MAX-1);
+
+	}
+
+fail:
+	if(obj)
+		xmlXPathFreeObject(obj);
+
+	return res;
+}
+
 int ccs_get(int desc, const char *query, char **rtn){
-	return _ccs_get(desc, query, rtn, 0);
+	if(!fullxpathint)
+		return _ccs_get_xpathlite(desc, query, rtn, 0);
+	return _ccs_get_fullxpath(desc, query, rtn, 0);
 }
 
 int ccs_get_list(int desc, const char *query, char **rtn){
-	return _ccs_get(desc, query, rtn, 1);
+	if(!fullxpathint)
+		return _ccs_get_xpathlite(desc, query, rtn, 1);
+	return _ccs_get_fullxpath(desc, query, rtn, 1);
 }
 
 

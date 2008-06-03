@@ -24,4 +24,6 @@ int ccs_get_list(int desc, const char *query, char **rtn);
 int ccs_set(int desc, const char *path, char *val);
 int ccs_lookup_nodename(int desc, const char *nodename, char **rtn);
 
+extern int fullxpath;
+
 #endif /*  __CCS_DOT_H__ */
