@@ -25,7 +25,7 @@
 
 #include <netinet/in.h>
 
-#define LIBCMAN_VERSION 2
+#define LIBCMAN_VERSION 3
 
 /*
  * Some maxima
