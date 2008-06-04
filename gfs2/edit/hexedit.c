@@ -942,8 +942,15 @@ int print_jindex(struct gfs2_inode *di)
 int print_inum(struct gfs2_inode *di)
 {
 	uint64_t buf, inodenum;
+	int rc;
 	
-	if (gfs2_readi(di, (void *)&buf, 0, sizeof(buf)) != sizeof(buf)) {
+	rc = gfs2_readi(di, (void *)&buf, 0, sizeof(buf));
+	if (!rc) {
+		print_gfs2("The inum file is empty.");
+		eol(0);
+		return 0;
+	}
+	if (rc != sizeof(buf)) {
 		print_gfs2("Error reading inum file.");
 		eol(0);
 		return -1;
@@ -960,8 +967,15 @@ int print_inum(struct gfs2_inode *di)
 int print_statfs(struct gfs2_inode *di)
 {
 	struct gfs2_statfs_change buf, sfc;
+	int rc;
 	
-	if (gfs2_readi(di, (void *)&buf, 0, sizeof(buf)) !=	sizeof(buf)) {
+	rc = gfs2_readi(di, (void *)&buf, 0, sizeof(buf));
+	if (!rc) {
+		print_gfs2("The statfs file is empty.");
+		eol(0);
+		return 0;
+	}
+	if (rc != sizeof(buf)) {
 		print_gfs2("Error reading statfs file.");
 		eol(0);
 		return -1;
@@ -1332,6 +1346,8 @@ int block_is_inum_file(void)
 /* ------------------------------------------------------------------------ */
 int block_is_statfs_file(void)
 {
+	if (gfs1 && block == gfs1_license_di.no_addr)
+		return TRUE;
 	if (!gfs1 && block == masterblock("statfs"))
 		return TRUE;
 	return FALSE;
@@ -1342,8 +1358,9 @@ int block_is_statfs_file(void)
 /* ------------------------------------------------------------------------ */
 int block_is_quota_file(void)
 {
-	if ((gfs1 && block == gfs1_quota_di.no_addr) ||
-	    (block == masterblock("quota")))
+	if (gfs1 && block == gfs1_quota_di.no_addr)
+		return TRUE;
+	if (!gfs1 && block == masterblock("quota"))
 		return TRUE;
 	return FALSE;
 }
@@ -2407,10 +2424,12 @@ void process_parameters(int argc, char *argv[], int pass)
 						 !strcmp(argv[i], "rootdir"))
 					push_block(sbd.sd_sb.sb_root_dir.no_addr);
 				else if (!strcmp(argv[i], "master")) {
-					if (!gfs1)
-						push_block(sbd.sd_sb.sb_master_dir.no_addr);
-					else
-						fprintf(stderr, "This is GFS1; there's no master directory.\n");
+					if (gfs1) {
+						fprintf(stderr, "Error: 'master' is invalid "
+							"for GFS (1) file systems.\n");
+						exit(-1);
+					}
+					push_block(sbd.sd_sb.sb_master_dir.no_addr);
 				}
 				else if (!strcmp(argv[i], "jindex")) {
 					if (gfs1)
@@ -2418,12 +2437,28 @@ void process_parameters(int argc, char *argv[], int pass)
 					else
 						push_block(masterblock("jindex"));/* journal index */
 				}
-				else if (!gfs1 && !strcmp(argv[i], "per_node"))
+				else if (!strcmp(argv[i], "per_node")) {
+					if (gfs1) {
+						fprintf(stderr, "Error: 'per_node' is invalid "
+							"for GFS (1) file systems.\n");
+						exit(-1);
+					}
 					push_block(masterblock("per_node"));
-				else if (!gfs1 && !strcmp(argv[i], "inum"))
+				}
+				else if (!strcmp(argv[i], "inum")) {
+					if (gfs1) {
+						fprintf(stderr, "Error: 'inum' is invalid "
+							"for GFS (1) file systems.\n");
+						exit(-1);
+					}
 					push_block(masterblock("inum"));
-				else if (!gfs1 && !strcmp(argv[i], "statfs"))
-					push_block(masterblock("statfs"));
+				}
+				else if (!strcmp(argv[i], "statfs")) {
+					if (gfs1)
+						push_block(gfs1_license_di.no_addr);
+					else
+						push_block(masterblock("statfs"));
+				}
 				else if (!strcmp(argv[i], "rindex") ||
 						 !strcmp(argv[i], "rgindex")) {
 					if (gfs1)
@@ -2511,7 +2546,7 @@ void process_parameters(int argc, char *argv[], int pass)
 				else {
 					fprintf(stderr,"I don't know what '%s' means.\n", argv[i]);
 					usage();
-					exit(0);
+					exit(-1);
 				}
 			}
 		}
