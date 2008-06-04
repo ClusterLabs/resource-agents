@@ -362,19 +362,19 @@ def fence_login(options):
 			result = conn.log_expect(options, [ "ssword:", "Are you sure you want to continue connecting (yes/no)?" ], LOGIN_TIMEOUT)
 			if result == 1:
 				conn.sendline("yes")
-				conn.log_expect(options, "ssword:", SHELL_TIMEOUT)
+				conn.log_expect(options, "ssword:", LOGIN_TIMEOUT)
 			conn.sendline(options["-p"])
-			conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
+			conn.log_expect(options, options["-c"], LOGIN_TIMEOUT)
 		elif options.has_key("-x") and 1 == options.has_key("-k"):
 			conn = fspawn('%s %s@%s -i %s' % (SSH_PATH, options["-l"], options["-a"], options["-k"]))
 			result = conn.log_expect(options, [ options["-c"], "Are you sure you want to continue connecting (yes/no)?", "Enter passphrase for key '"+options["-k"]+"':" ], LOGIN_TIMEOUT)
 			if result == 1:
 				conn.sendline("yes")
-				conn.log_expect(options, [ options["-c"], "Enter passphrase for key '"+options["-k"]+"':"] , SHELL_TIMEOUT)
+				conn.log_expect(options, [ options["-c"], "Enter passphrase for key '"+options["-k"]+"':"] , LOGIN_TIMEOUT)
 			if result != 0:
 				if options.has_key("-p"):
 					conn.sendline(options["-p"])
-					conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
+					conn.log_expect(options, options["-c"], LOGIN_TIMEOUT)
 				else:
 					fail_usage("Failed: You have to enter passphrase (-p) for identity file")
 		else:
