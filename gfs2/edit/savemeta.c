@@ -383,7 +383,7 @@ int get_gfs_struct_info(char *buf, int *block_type, int *struct_len)
 	struct gfs2_meta_header mh;
 
 	*block_type = 0;
-	*struct_len = bufsize;
+	*struct_len = sbd.bsize;
 
 	gfs2_meta_header_in(&mh, buf);
 	if (mh.mh_magic != GFS2_MAGIC)
@@ -396,19 +396,19 @@ int get_gfs_struct_info(char *buf, int *block_type, int *struct_len)
 		*struct_len = sizeof(struct gfs_sb);
 		break;
 	case GFS2_METATYPE_RG:   /* 2 (rsrc grp hdr) */
-		*struct_len = bufsize; /*sizeof(struct gfs_rgrp);*/
+		*struct_len = sbd.bsize; /*sizeof(struct gfs_rgrp);*/
 		break;
 	case GFS2_METATYPE_RB:   /* 3 (rsrc grp bitblk) */
-		*struct_len = bufsize;
+		*struct_len = sbd.bsize;
 		break;
 	case GFS2_METATYPE_DI:   /* 4 (disk inode) */
-		*struct_len = bufsize; /*sizeof(struct gfs_dinode);*/
+		*struct_len = sbd.bsize; /*sizeof(struct gfs_dinode);*/
 		break;
 	case GFS2_METATYPE_IN:   /* 5 (indir inode blklst) */
-		*struct_len = bufsize; /*sizeof(struct gfs_indirect);*/
+		*struct_len = sbd.bsize; /*sizeof(struct gfs_indirect);*/
 		break;
 	case GFS2_METATYPE_LF:   /* 6 (leaf dinode blklst) */
-		*struct_len = bufsize; /*sizeof(struct gfs_leaf);*/
+		*struct_len = sbd.bsize; /*sizeof(struct gfs_leaf);*/
 		break;
 	case GFS2_METATYPE_JD:   /* 7 (journal data) */
 		*struct_len = sizeof(struct gfs2_meta_header);
@@ -417,16 +417,16 @@ int get_gfs_struct_info(char *buf, int *block_type, int *struct_len)
 		*struct_len = sizeof(struct gfs2_log_header);
 		break;
 	case GFS2_METATYPE_LD:   /* 9 (log descriptor) */
-		*struct_len = bufsize;
+		*struct_len = sbd.bsize;
 		break;
 	case GFS2_METATYPE_EA:   /* 10 (extended attr hdr) */
-		*struct_len = bufsize;
+		*struct_len = sbd.bsize;
 		break;
 	case GFS2_METATYPE_ED:   /* 11 (extended attr data) */
-		*struct_len = bufsize;
+		*struct_len = sbd.bsize;
 		break;
 	default:
-		*struct_len = bufsize;
+		*struct_len = sbd.bsize;
 		break;
 	}
 	return 0;
@@ -509,8 +509,8 @@ int save_block(int fd, int out_fd, uint64_t blk)
 		return 0;
 	}
 	memset(savedata, 0, sizeof(struct saved_metablock));
-	do_lseek(fd, blk * bufsize);
-	do_read(fd, savedata->buf, bufsize); /* read in the block */
+	do_lseek(fd, blk * sbd.bsize);
+	do_read(fd, savedata->buf, sbd.bsize); /* read in the block */
 
 	/* If this isn't metadata and isn't a system file, we don't want it.
 	   Note that we're checking "block" here rather than blk.  That's
@@ -522,7 +522,7 @@ int save_block(int fd, int out_fd, uint64_t blk)
 		return 0; /* Not metadata, and not system file, so skip it */
 	trailing0 = 0;
 	p = &savedata->buf[blklen - 1];
-	while (*p=='\0' && trailing0 < bufsize) {
+	while (*p=='\0' && trailing0 < sbd.bsize) {
 		trailing0++;
 		p--;
 	}
@@ -597,7 +597,7 @@ void save_inode_data(int out_fd)
 
 	for (i = 0; i < GFS2_MAX_META_HEIGHT; i++)
 		osi_list_init(&metalist[i]);
-	buf = malloc(bufsize);
+	buf = malloc(sbd.bsize);
 	metabh = bread(&sbd, block);
 	inode = inode_get(&sbd, metabh);
 	height = inode->i_di.di_height;
@@ -645,7 +645,7 @@ void save_inode_data(int out_fd)
 		gfs2_meta_header_in(&mh, metabh->b_data);
 		if (mh.mh_magic == GFS2_MAGIC) {
 			for (e = sizeof(struct gfs2_meta_header);
-			     e < bufsize; e += ea.ea_rec_len) {
+			     e < sbd.bsize; e += ea.ea_rec_len) {
 				uint64_t blk, *b;
 				int charoff;
 
@@ -751,7 +751,7 @@ void savemeta(const char *out_fn, int saveoption)
 
 	do_lseek(sbd.device_fd, 0);
 	blks_saved = total_out = last_reported_block = 0;
-	bufsize = BUFSIZE;
+	sbd.bsize = BUFSIZE;
 	if (!slow) {
 		int i;
 
@@ -766,11 +766,11 @@ void savemeta(const char *out_fn, int saveoption)
 		if(!gfs1 && read_sb(&sbd) < 0)
 			slow = TRUE;
 		else
-			bufsize = sbd.bsize = sbd.sd_sb.sb_bsize;
+			sbd.bsize = sbd.bsize = sbd.sd_sb.sb_bsize;
 	}
-	last_fs_block = lseek(sbd.device_fd, 0, SEEK_END) / bufsize;
-	printf("There are %" PRIu64 " blocks of %" PRIu64 " bytes.\n",
-	       last_fs_block, bufsize);
+	last_fs_block = lseek(sbd.device_fd, 0, SEEK_END) / sbd.bsize;
+	printf("There are %" PRIu64 " blocks of %u bytes.\n",
+	       last_fs_block, sbd.bsize);
 	if (!slow) {
 		if (gfs1) {
 			sbd.md.riinode =
@@ -810,7 +810,7 @@ void savemeta(const char *out_fn, int saveoption)
 	get_journal_inode_blocks();
 	if (!slow) {
 		/* Save off the superblock */
-		save_block(sbd.device_fd, out_fd, 0x10 * (4096 / bufsize));
+		save_block(sbd.device_fd, out_fd, 0x10 * (4096 / sbd.bsize));
 		/* If this is gfs1, save off the rindex because it's not
 		   part of the file system as it is in gfs2. */
 		if (gfs1) {
@@ -898,7 +898,7 @@ int restore_data(int fd, int in_fd, int printblocksonly)
 			fprintf(stderr, "Error reading from file.\n");
 			return -1;
 		}
-		total_out += bufsize;
+		total_out += sbd.bsize;
 		savedata->blk = be64_to_cpu(buf64);
 		if (!printblocksonly &&
 		    last_fs_block && savedata->blk >= last_fs_block) {
@@ -930,15 +930,15 @@ int restore_data(int fd, int in_fd, int printblocksonly)
 					fprintf(stderr,"Error: Invalid superblock data.\n");
 					return -1;
 				}
-				bufsize = sbd.sd_sb.sb_bsize;
+				sbd.bsize = sbd.sd_sb.sb_bsize;
 				if (!printblocksonly) {
 					last_fs_block =
 						lseek(fd, 0, SEEK_END) /
-						bufsize;
-					printf("There are %" PRIu64 " blocks of %" \
-					       PRIu64 " bytes in the destination" \
+						sbd.bsize;
+					printf("There are %" PRIu64 " blocks of " \
+					       "%u bytes in the destination" \
 					       " file system.\n\n",
-					       last_fs_block, bufsize);
+					       last_fs_block, sbd.bsize);
 				}
 				first = 0;
 			}
@@ -954,8 +954,8 @@ int restore_data(int fd, int in_fd, int printblocksonly)
 					       "device; quitting.\n");
 					break;
 				}
-				do_lseek(fd, savedata->blk * bufsize);
-				do_write(fd, savedata->buf, bufsize);
+				do_lseek(fd, savedata->blk * sbd.bsize);
+				do_write(fd, savedata->buf, sbd.bsize);
 				writes++;
 			}
 			blks_saved++;

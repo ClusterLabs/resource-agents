@@ -38,7 +38,6 @@
 extern struct gfs2_sb sb;
 extern char *buf;
 extern struct gfs2_dinode di;
-extern uint64_t bufsize;
 extern int line, termlines;
 extern char edit_fmt[80];
 extern char estring[1024];
@@ -226,7 +225,7 @@ void do_dinode_extended(struct gfs2_dinode *di, char *buf)
 	memset(indirect, 0, sizeof(indirect));
 	if (di->di_height > 0) {
 		/* Indirect pointers */
-		for (x = sizeof(struct gfs2_dinode); x < bufsize;
+		for (x = sizeof(struct gfs2_dinode); x < sbd.bsize;
 			 x += sizeof(uint64_t)) {
 			p = be64_to_cpu(*(uint64_t *)(buf + x));
 			if (p) {
@@ -243,7 +242,7 @@ void do_dinode_extended(struct gfs2_dinode *di, char *buf)
 		indirect->ii[0].dirents = 0;
 		indirect->ii[0].block = block;
 		indirect->ii[0].is_dir = TRUE;
-		for (x = sizeof(struct gfs2_dinode); x < bufsize; x += skip) {
+		for (x = sizeof(struct gfs2_dinode); x < sbd.bsize; x += skip) {
 			skip = indirect_dirent(indirect->ii,
 					       buf + x,
 					       indirect->ii[0].dirents);
@@ -275,7 +274,7 @@ void do_dinode_extended(struct gfs2_dinode *di, char *buf)
 				gfs2_leaf_in(&leaf, tmp_bh->b_data);
 				indirect->ii[indirect_blocks].dirents = 0;
 				for (direntcount = 0, bufoffset = sizeof(struct gfs2_leaf);
-					 bufoffset < bufsize;
+					 bufoffset < sbd.bsize;
 					 direntcount++, bufoffset += skip) {
 					skip = indirect_dirent(&indirect->ii[indirect_blocks],
 										   tmp_bh->b_data + bufoffset,
@@ -317,7 +316,7 @@ int do_indirect_extended(char *buf, struct iinfo *iinf)
 	memset(iinf, 0, sizeof(struct iinfo));
 	for (x = (gfs1 ? sizeof(struct gfs_indirect):
 			  sizeof(struct gfs2_meta_header)), y = 0;
-		 x < bufsize;
+		 x < sbd.bsize;
 		 x += sizeof(uint64_t), y++) {
 		p = be64_to_cpu(*(uint64_t *)(buf + x));
 		if (p) {
@@ -352,7 +351,7 @@ void do_leaf_extended(char *buf, struct iinfo *indir)
 	x = 0;
 	memset(indir, 0, sizeof(indir));
 	/* Directory Entries: */
-	for (i = sizeof(struct gfs2_leaf); i < bufsize;
+	for (i = sizeof(struct gfs2_leaf); i < sbd.bsize;
 	     i += de.de_rec_len) {
 		gfs2_dirent_in(&de, buf + i);
 		if (de.de_inum.no_addr) {
@@ -399,7 +398,7 @@ void do_eattr_extended(char *buf)
 	print_gfs2("Eattr Entries:");
 	eol(0);
 
-	for (x = sizeof(struct gfs2_meta_header); x < bufsize; x += ea.ea_rec_len)
+	for (x = sizeof(struct gfs2_meta_header); x < sbd.bsize; x += ea.ea_rec_len)
 	{
 		eol(0);
 		gfs2_ea_header_in(&ea, buf + x);

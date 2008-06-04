@@ -74,7 +74,6 @@ EXTERN char estring[1024]; /* edit string */
 EXTERN uint64_t dev_offset INIT(0);
 EXTERN uint64_t max_block INIT(0);
 EXTERN char *buf INIT(NULL);
-EXTERN uint64_t bufsize INIT(4096);
 EXTERN int termlines INIT(30);
 EXTERN int termcols INIT(80);
 EXTERN int insert INIT(0);

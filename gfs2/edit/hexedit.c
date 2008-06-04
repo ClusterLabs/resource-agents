@@ -469,8 +469,8 @@ int display_block_type(const char *lpBuffer, int from_restore)
 		if (!screen_chunk_size)
 			screen_chunk_size = 256;
 		print_gfs2("(p.%d of %d)", (offset / screen_chunk_size) + 1,
-				   (bufsize % screen_chunk_size) > 0 ? 
-				   bufsize / screen_chunk_size + 1 : bufsize / 
+				   (sbd.bsize % screen_chunk_size) > 0 ?
+				   sbd.bsize / screen_chunk_size + 1 : sbd.bsize /
 				   screen_chunk_size);
 		/*eol(9);*/
 	}
@@ -534,7 +534,7 @@ int hexdump(uint64_t startaddr, const char *lpBuffer, int len)
 			line < termlines &&
 			line <= ((screen_chunk_size / 16) + 2)) ||
 			(!termlines && l < len)) &&
-		   l < bufsize) {
+		   l < sbd.bsize) {
 		if (termlines) {
 			move(line, 0);
 			COLORS_OFFSETS; /* cyan for offsets */
@@ -1160,8 +1160,8 @@ int display_indirect(struct iinfo *ind, int indblocks, int level, uint64_t start
 				diptrs = 483;
 				inptrs = 501;
 			} else {
-				diptrs = (bufsize - sizeof(sizeof(struct gfs2_dinode))) / sizeof(uint64_t);
-				inptrs = (bufsize - sizeof(sizeof(struct gfs2_meta_header))) /
+				diptrs = (sbd.bsize - sizeof(sizeof(struct gfs2_dinode))) / sizeof(uint64_t);
+				inptrs = (sbd.bsize - sizeof(sizeof(struct gfs2_meta_header))) /
 					sizeof(uint64_t);
 			}
 			/* Multiply out the max factor based on inode height.*/
@@ -1228,7 +1228,7 @@ int display_indirect(struct iinfo *ind, int indblocks, int level, uint64_t start
 			offsets[0] = pndx;
 			for (hgt = cur_height; hgt >= 0; hgt--)
 				file_offset += offsets[cur_height - hgt] *
-					factor[di.di_height - hgt - 1] * bufsize;
+					factor[di.di_height - hgt - 1] * sbd.bsize;
 			print_gfs2("     ");
 			h = 'K';
 			human_off = (file_offset / 1024.0);
@@ -1250,12 +1250,12 @@ int display_indirect(struct iinfo *ind, int indblocks, int level, uint64_t start
 			char *tmpbuf;
 			
 			more_indir = malloc(sizeof(struct iinfo));
-			tmpbuf = malloc(bufsize);
+			tmpbuf = malloc(sbd.bsize);
 			if (tmpbuf) {
 				do_lseek(sbd.device_fd,
-					 ind->ii[pndx].block * bufsize);
+					 ind->ii[pndx].block * sbd.bsize);
 				do_read(sbd.device_fd, tmpbuf,
-					bufsize); /* read in the desired block */
+					sbd.bsize); /* read in the desired block */
 				memset(more_indir, 0, sizeof(struct iinfo));
 				if (S_ISDIR(di.di_mode)) {
 					do_leaf_extended(tmpbuf, more_indir);
@@ -1430,7 +1430,7 @@ void read_superblock(int fd)
 	sbd1 = (struct gfs_sb *)&sbd.sd_sb;
 	ioctl(fd, BLKFLSBUF, 0);
 	do_lseek(fd, 0x10 * 4096);
-	do_read(fd, buf, bufsize); /* read in the desired block */
+	do_read(fd, buf, sbd.bsize); /* read in the desired block */
 	memset(&sbd, 0, sizeof(struct gfs2_sbd));
 	sbd.device_fd = fd;
 	sbd.bsize = GFS2_DEFAULT_BSIZE;
@@ -1459,10 +1459,11 @@ void read_superblock(int fd)
 	}
 	else
 		gfs1 = FALSE;
-	bufsize = sbd.sd_sb.sb_bsize;
-	if (!bufsize)
-		bufsize = GFS2_DEFAULT_BSIZE;
-	block = 0x10 * (GFS2_DEFAULT_BSIZE / bufsize);
+	sbd.bsize = sbd.sd_sb.sb_bsize;
+	if (!sbd.bsize)
+		sbd.bsize = GFS2_DEFAULT_BSIZE;
+	compute_constants(&sbd);
+	block = 0x10 * (GFS2_DEFAULT_BSIZE / sbd.bsize);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -1471,8 +1472,8 @@ void read_superblock(int fd)
 void read_master_dir(void)
 {
 	ioctl(sbd.device_fd, BLKFLSBUF, 0);
-	do_lseek(sbd.device_fd, sbd.sd_sb.sb_master_dir.no_addr * bufsize);
-	do_read(sbd.device_fd, buf, bufsize); /* read in the desired block */
+	do_lseek(sbd.device_fd, sbd.sd_sb.sb_master_dir.no_addr * sbd.bsize);
+	do_read(sbd.device_fd, buf, sbd.bsize); /* read in the desired block */
 	gfs2_dinode_in(&di, buf); /* parse disk inode into structure */
 	do_dinode_extended(&di, buf); /* get extended data, if any */
 	memcpy(&masterdir, &indirect[0], sizeof(struct indirect_info));
@@ -1497,10 +1498,10 @@ int display(int identify_only)
 		move(2,0);
 	}
 	if (block_in_mem != blk) { /* If we changed blocks from the last read */
-		dev_offset = blk * bufsize;
+		dev_offset = blk * sbd.bsize;
 		ioctl(sbd.device_fd, BLKFLSBUF, 0);
 		do_lseek(sbd.device_fd, dev_offset);
-		do_read(sbd.device_fd, buf, bufsize); /* read desired block */
+		do_read(sbd.device_fd, buf, sbd.bsize); /* read desired block */
 		block_in_mem = blk; /* remember which block is in memory */
 	}
 	line = 1;
@@ -1509,7 +1510,7 @@ int display(int identify_only)
 		return 0;
 	indirect_blocks = 0;
 	lines_per_row[dmode] = 1;
-	if (gfs2_struct_type == GFS2_METATYPE_SB || blk == 0x10 * (4096 / bufsize)) {
+	if (gfs2_struct_type == GFS2_METATYPE_SB || blk == 0x10 * (4096 / sbd.bsize)) {
 		gfs2_sb_in(&sbd.sd_sb, buf); /* parse it out into the sb structure */
 		memset(indirect, 0, sizeof(indirect));
 		indirect->ii[0].block = sbd.sd_sb.sb_master_dir.no_addr;
@@ -1558,7 +1559,7 @@ int display(int identify_only)
 	if (dmode == HEX_MODE)          /* if hex display mode           */
 		hexdump(dev_offset, buf,
 			(gfs2_struct_type == GFS2_METATYPE_DI)?
-			struct_len + di.di_size:bufsize);
+			struct_len + di.di_size:sbd.bsize);
 	else if (dmode == GFS2_MODE)    /* if structure display          */
 		display_gfs2();            /* display the gfs2 structure    */
 	else
@@ -1714,7 +1715,7 @@ void hex_edit(int *exitch)
 	int left_off;
 	int ch;
 
-	left_off = ((block * bufsize) < 0xffffffff) ? 9 : 17;
+	left_off = ((block * sbd.bsize) < 0xffffffff) ? 9 : 17;
 	/* 8 and 16 char addresses on screen */
 	
 	if (bobgets(estring, edit_row[dmode] + 3,
@@ -1747,7 +1748,7 @@ void hex_edit(int *exitch)
 				buf[offset + hexoffset] = ch;
 			}
 			do_lseek(sbd.device_fd, dev_offset);
-			do_write(sbd.device_fd, buf, bufsize);
+			do_write(sbd.device_fd, buf, sbd.bsize);
 			fsync(sbd.device_fd);
 		}
 	}
@@ -1775,10 +1776,10 @@ void pageup(void)
 		if (dmode == GFS2_MODE || offset==0) {
 			block--;
 			if (dmode == HEX_MODE)
-				offset = (bufsize % screen_chunk_size) > 0 ? 
+				offset = (sbd.bsize % screen_chunk_size) > 0 ?
 					screen_chunk_size *
-					(bufsize / screen_chunk_size) :
-					bufsize - screen_chunk_size;
+					(sbd.bsize / screen_chunk_size) :
+					sbd.bsize - screen_chunk_size;
 			else
 				offset = 0;
 		}
@@ -1806,7 +1807,7 @@ void pagedn(void)
 	else {
 		start_row[dmode] = edit_row[dmode] = 0;
 		if (dmode == GFS2_MODE ||
-		    offset + screen_chunk_size >= bufsize) {
+		    offset + screen_chunk_size >= sbd.bsize) {
 			block++;
 			offset = 0;
 		}
@@ -1912,7 +1913,7 @@ void interactive_mode(void)
 				edit_row[dmode] = 0;
 			}
 			else {
-				block = 0x10 * (4096 / bufsize);
+				block = 0x10 * (4096 / sbd.bsize);
 				push_block(block);
 				offset = 0;
 			}
@@ -2143,7 +2144,7 @@ void dump_journal(const char *journal)
 	uint64_t jindex_block, jblock, j_size, jb;
 	int error, start_line, journal_num;
 	struct gfs2_dinode jdi;
-	char jbuf[bufsize];
+	char jbuf[sbd.bsize];
 	struct gfs2_inode *j_inode = NULL;
 
 	start_line = line;
@@ -2187,16 +2188,16 @@ void dump_journal(const char *journal)
 		j_size = jdi.di_size;
 	}
 
-	for (jb = 0; jb < j_size; jb += (gfs1 ? 1:bufsize)) {
+	for (jb = 0; jb < j_size; jb += (gfs1 ? 1:sbd.bsize)) {
 		if (gfs1) {
 			if (j_bh)
 				brelse(j_bh, not_updated);
 			j_bh = bread(&sbd, jblock + jb);
-			memcpy(jbuf, j_bh->b_data, bufsize);
+			memcpy(jbuf, j_bh->b_data, sbd.bsize);
 		}
 		else
 			error = gfs2_readi(j_inode, (void *)&jbuf, jb,
-					   bufsize);
+					   sbd.bsize);
 		if (!error) /* end of file */
 			break;
 		if (get_block_type(jbuf) == GFS2_METATYPE_LD) {
@@ -2221,7 +2222,7 @@ void dump_journal(const char *journal)
 				 "Quota", "Final Entry", "Unknown"}};
 
 			print_gfs2("Block #%4llx: Log descriptor, ",
-				   jb / (gfs1 ? 1 : bufsize));
+				   jb / (gfs1 ? 1 : sbd.bsize));
 			gfs2_log_descriptor_in(&ld, jbuf);
 			print_gfs2("type %d ", ld.ld_type);
 
@@ -2241,7 +2242,7 @@ void dump_journal(const char *journal)
 			else
 				b = (uint64_t *)(jbuf +
 					sizeof(struct gfs2_log_descriptor));
-			while (*b && (char *)b < (jbuf + bufsize)) {
+			while (*b && (char *)b < (jbuf + sbd.bsize)) {
 				if (!termlines ||
 				    (print_entry_ndx >= start_row[dmode] &&
 				     ((print_entry_ndx - start_row[dmode])+1) *
@@ -2271,7 +2272,7 @@ void dump_journal(const char *journal)
 				gfs2_log_header_in(&lh, jbuf);
 				print_gfs2("Block #%4llx: Log header: Seq"
 					   "= 0x%x, tail = 0x%x, blk = 0x%x",
-					   jb / bufsize, lh.lh_sequence,
+					   jb / sbd.bsize, lh.lh_sequence,
 					   lh.lh_tail, lh.lh_blkno);
 			}
 			eol(0);
@@ -2401,7 +2402,7 @@ void process_parameters(int argc, char *argv[], int pass)
 						   max_block, max_block);
 				else if (!strcmp(argv[i], "sb") ||
 						 !strcmp(argv[i], "superblock"))
-					push_block(0x10 * (4096 / bufsize)); /* superblock */
+					push_block(0x10 * (4096 / sbd.bsize)); /* superblock */
 				else if (!strcmp(argv[i], "root") ||
 						 !strcmp(argv[i], "rootdir"))
 					push_block(sbd.sd_sb.sb_root_dir.no_addr);
@@ -2545,7 +2546,8 @@ int main(int argc, char *argv[])
 	memset(edit_size, 0, sizeof(edit_size));
 	memset(last_entry_onscreen, 0, sizeof(last_entry_onscreen));
 	dmode = HEX_MODE;
-	type_alloc(buf, char, bufsize); /* allocate/malloc a new 4K buffer */
+	sbd.bsize = 4096;
+	type_alloc(buf, char, sbd.bsize); /* allocate/malloc a new 4K buffer */
 	block = 0x10;
 	for (i = 0; i < BLOCK_STACK_SIZE; i++) {
 		blockstack[i].dmode = dmode;
@@ -2568,11 +2570,11 @@ int main(int argc, char *argv[])
 	fd = open(device, O_RDWR);
 	if (fd < 0)
 		die("can't open %s: %s\n", device, strerror(errno));
-	max_block = lseek(fd, 0, SEEK_END) / bufsize;
+	max_block = lseek(fd, 0, SEEK_END) / sbd.bsize;
 
 	read_superblock(fd);
-	max_block = lseek(fd, 0, SEEK_END) / bufsize;
-	blockstack[0].block = 0x10 * (4096 / bufsize);
+	max_block = lseek(fd, 0, SEEK_END) / sbd.bsize;
+	blockstack[0].block = 0x10 * (4096 / sbd.bsize);
 	strcpy(sbd.device_name, device);
 	if (!gfs1)
 		read_master_dir();
