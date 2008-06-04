@@ -126,6 +126,10 @@ block in the file system for metadata.  This option is less prone to failure
 due to file system corruption than the savemeta option, but it is 
 extremely slow.
 .TP
+\fBsavergs\fP \fI<device>\fR \fI<filename>\fR
+Save off only the GFS2 resource group metadata for the file system on the
+specified device to a file given by <filename>.
+.TP
 \fBrestoremeta\fP \fI<filename>\fR \fI<dest device>\fR
 Take a file created with the savemeta option and restores its
 contents on top of the specified destination device.  \fBWARNING\fP:
