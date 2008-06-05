@@ -102,10 +102,10 @@ generate_config_file()
 	done
 
 	generate_configTemplate "$generated_file" "$1"
-	echo "external_pid_file = '$PSQL_pid_file'" >> $generated_file
-	echo "listen_address = '$ip_comma'" >> $generated_file
+	echo "external_pid_file = '$PSQL_pid_file'" >> "$generated_file"
+	echo "listen_address = '$ip_comma'" >> "$generated_file"
 
-	echo >> $generated_file	
+	echo >> "$generated_file"	
 	sed 's/^[[:space:]]*external_pid_file/### external_pid_file/i;s/^[[:space:]]*listen_address/### listen_address/i' < "$original_file" >> "$generated_file"
 	
         sha1_addToFile "$generated_file"

@@ -212,7 +212,7 @@ start()
 		return $OCF_ERR_GENERIC
 	fi
 	
-	echo $! > $TOMCAT_pid_file
+	echo $! > "$TOMCAT_pid_file"
 
 	clog_service_start $CLOG_SUCCEED
 

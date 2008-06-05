@@ -87,9 +87,9 @@ generate_config_file()
 	clog_generate_config $CLOG_INIT "$original_file" "$generated_file"
 
 	generate_configTemplate "$generated_file" "$1"
-	cat $original_file | grep -v "^[[:space:]]*listen-on" | \
+	cat "$original_file" | grep -v "^[[:space:]]*listen-on" | \
 		grep -v "^[[:space:]]*pid-file" | \
-		grep -v "^[[:space:]]*directory" >> $generated_file
+		grep -v "^[[:space:]]*directory" >> "$generated_file"
 
 	declare tmp_file=`mktemp -t cluster.XXXXXXXXXX`
 	mv "$generated_file" "$tmp_file"
