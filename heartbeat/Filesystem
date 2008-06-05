@@ -627,9 +627,11 @@ Filesystem_stop()
 
 	flushbufs $DEVICE
 
-	if [ "$FSTYPE" = "ocfs2" ]; then
-		ocfs2_init
-		ocfs2_cleanup
+	if [ $rc -eq $OCF_SUCCESS ]; then
+		if [ "$FSTYPE" = "ocfs2" ]; then
+			ocfs2_init
+			ocfs2_cleanup
+		fi
 	fi
 
 	return $rc
