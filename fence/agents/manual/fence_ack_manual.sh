@@ -1,17 +1,5 @@
 #!/bin/bash
 #
-###############################################################################
-###############################################################################
-##
-##  COPYRIGHT (C) 2007 RED HAT, INC.
-##  
-##  THIS COPYRIGHTED MATERIAL IS MADE AVAILABLE TO ANYONE WISHING TO USE,
-##  MODIFY, COPY, OR REDISTRIBUTE IT SUBJECT TO THE TERMS AND CONDITIONS
-##  OF THE GNU GENERAL PUBLIC LICENSE V.2.
-##
-###############################################################################
-###############################################################################
-#
 # Manual override after fencing has failed.
 #
 

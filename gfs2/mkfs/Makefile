@@ -1,8 +1,3 @@
-#
-# Makefile for GFS2 mkfs
-#
-.PHONY: all clean install
-
 TARGET1= mkfs.gfs2
 TARGET2= gfs2_mkfs
 TARGET3= gfs2_jadd

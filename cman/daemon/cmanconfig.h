@@ -1,15 +1,3 @@
-/******************************************************************************
-*******************************************************************************
-**
-**  Copyright (C) 2007-2008 Red Hat, Inc.  All rights reserved.
-**
-**  This copyrighted material is made available to anyone wishing to use,
-**  modify, copy, or redistribute it subject to the terms and conditions
-**  of the GNU General Public License v.2.
-**
-*******************************************************************************
-******************************************************************************/
-
 int read_cman_nodes(struct objdb_iface_ver0 *objdb, unsigned int *config_version, int check_nodeids);
 int read_cman_config(struct objdb_iface_ver0 *objdb, unsigned int *config_version);
 

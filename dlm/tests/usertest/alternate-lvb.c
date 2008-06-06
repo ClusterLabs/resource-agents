@@ -1,15 +1,3 @@
-/******************************************************************************
-*******************************************************************************
-**
-**    Copyright 2001 Sistina Software, Inc.
-**
-**    This is free software released under the GNU General Public License.
-**    There is no warranty for this software.  See the file COPYING for
-**    details.
-**
-*******************************************************************************
-******************************************************************************/
-
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>

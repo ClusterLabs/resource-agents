@@ -1,11 +1,5 @@
 #!/bin/sh
 #
-# Copyright (C) 2003 Red Hat, Inc.
-#
-# This program is Free Software.  You may modify and/or redistribute it under
-# the terms of the GNU General Public License version 2, or (at your option)
-# any later version.
-#
 # chkconfig: - 99 01
 # description: Starts and stops Red Hat Service (resource group) Manager
 

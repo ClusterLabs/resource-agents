@@ -1,15 +1,3 @@
-###############################################################################
-###############################################################################
-##
-##  Copyright (C) 2006 Red Hat, Inc.
-##  
-##  This copyrighted material is made available to anyone wishing to use,
-##  modify, copy, or redistribute it subject to the terms and conditions
-##  of the GNU General Public License v.2.
-##
-###############################################################################
-###############################################################################
-
 TARGET1= fence_xvm
 TARGET2= fence_xvmd
 TARGET3= testprog

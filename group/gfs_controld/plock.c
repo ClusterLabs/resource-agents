@@ -1,15 +1,3 @@
-/******************************************************************************
-*******************************************************************************
-**
-**  Copyright (C) 2005-2008 Red Hat, Inc.  All rights reserved.
-**
-**  This copyrighted material is made available to anyone wishing to use,
-**  modify, copy, or redistribute it subject to the terms and conditions
-**  of the GNU General Public License v.2.
-**
-*******************************************************************************
-******************************************************************************/
-
 /* gfs_controld only handles plocks in rhel5/stable2 compat mode */
 
 #include "gfs_daemon.h"

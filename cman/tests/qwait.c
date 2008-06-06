@@ -1,12 +1,3 @@
-/*
-  qwait.c
-
-  (c) 2002 Sistina Software Inc.
-
-  Wait for the cluster to become quorate
-*/
-
-
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>

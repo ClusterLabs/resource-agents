@@ -1,9 +1,5 @@
 #!/bin/bash
 #
-# (C) 2006 Red Hat, Inc. 
-#
-# Licensed under the GNU General Public License, Version 2.
-#
 # rpc.statd -H $0 to enable.  This provides the HA-callout capability
 # for RHCS-managed NFS services.  Note that you must edit
 # /etc/sysconfig/nfs in order to make this work; clumanager/rgmanager

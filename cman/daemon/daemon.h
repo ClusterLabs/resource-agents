@@ -1,15 +1,3 @@
-/******************************************************************************
-*******************************************************************************
-**
-**  Copyright (C) 2005-2008 Red Hat, Inc.  All rights reserved.
-**
-**  This copyrighted material is made available to anyone wishing to use,
-**  modify, copy, or redistribute it subject to the terms and conditions
-**  of the GNU General Public License v.2.
-**
-*******************************************************************************
-******************************************************************************/
-
 extern int send_status_return(struct connection *con, uint32_t cmd, int status);
 extern int send_data_reply(struct connection *con, int nodeid, int port, char *data, int len);
 extern void set_cman_timeout(int secs);

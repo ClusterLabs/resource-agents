@@ -1,16 +1,3 @@
-/******************************************************************************
- *******************************************************************************
- ***
- ***  Copyright (C) 2005-2008 Red Hat, Inc.  All rights reserved.
- ***
- ***  This copyrighted material is made available to anyone wishing to use,
- ***  modify, copy, or redistribute it subject to the terms and conditions
- ***  of the GNU General Public License v.2.
- ***
- *******************************************************************************
- ******************************************************************************/
-
-
 /* Helper functions for navigating the nodes list */
 static unsigned int nodeslist_init(struct objdb_iface_ver0 *objdb,
 				   unsigned int cluster_parent_handle,

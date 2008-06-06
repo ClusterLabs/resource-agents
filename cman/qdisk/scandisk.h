@@ -1,21 +1,3 @@
-/******************************************************************************
-*******************************************************************************
-**
-**  Copyright (C) 2008 Red Hat, Inc.  All rights reserved.
-**
-**  Author: Fabio M. Di Nitto <fdinitto@redhat.com>
-**
-**  Original design by: 
-**  Joel Becker <Joel.Becker@oracle.com> 
-**  Fabio M. Di Nitto <fdinitto@redhat.com>
-**
-**  This copyrighted material is made available to anyone wishing to use,
-**  modify, copy, or redistribute it subject to the terms and conditions
-**  of the GNU General Public License v.2.
-**
-*******************************************************************************
-******************************************************************************/
-
 #ifndef __SCANDISK_H__
 #define __SCANDISK_H__
 

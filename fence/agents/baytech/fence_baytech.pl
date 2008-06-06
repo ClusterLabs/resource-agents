@@ -1,18 +1,5 @@
 #!/usr/bin/perl
 
-###############################################################################
-###############################################################################
-##
-##  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-##  Copyright (C) 2004-2007 Red Hat, Inc.  All rights reserved.
-##  
-##  This copyrighted material is made available to anyone wishing to use,
-##  modify, copy, or redistribute it subject to the terms and conditions
-##  of the GNU General Public License v.2.
-##
-###############################################################################
-###############################################################################
-
 # This fencing agent is written for the Baytech RPC27-20nc in conjunction with
 # a Cyclades terminal server.  The Cyclades TS exports the RPC's serial port
 # via a Telnet interface.  Other interfaces, such as SSH, are possible.  

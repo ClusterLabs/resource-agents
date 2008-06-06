@@ -1,9 +1,5 @@
 #!/usr/bin/python
 
-##
-## Copyright (C) 2008 Red Hat, Inc. All Rights Reserved.
-##
-#####
 import sys, getopt, time, os
 import pexpect, re
 import telnetlib

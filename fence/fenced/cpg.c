@@ -1,15 +1,3 @@
-/******************************************************************************
-*******************************************************************************
-**
-**  Copyright (C) 2008 Red Hat, Inc.  All rights reserved.
-**
-**  This copyrighted material is made available to anyone wishing to use,
-**  modify, copy, or redistribute it subject to the terms and conditions
-**  of the GNU General Public License v.2.
-**
-*******************************************************************************
-******************************************************************************/
-
 #include "fd.h"
 
 static unsigned int protocol_active[3] = {1, 0, 0};

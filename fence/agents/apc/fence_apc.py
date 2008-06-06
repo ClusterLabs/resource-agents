@@ -1,7 +1,6 @@
 #!/usr/bin/python
 
-##
-## Copyright (C) 2008 Red Hat, Inc. All Rights Reserved.
+#####
 ##
 ## The Following Agent Has Been Tested On:
 ##

@@ -1,17 +1,5 @@
 #!/usr/bin/perl
 
-###############################################################################
-###############################################################################
-##
-##  Copyright (C) 2006-2007 Red Hat, Inc.  All rights reserved.
-##  
-##  This copyrighted material is made available to anyone wishing to use,
-##  modify, copy, or redistribute it subject to the terms and conditions
-##  of the GNU General Public License v.2.
-##
-###############################################################################
-###############################################################################
-
 # The following agent has been tested on:
 #
 #  Model 		DRAC Version	Firmware
