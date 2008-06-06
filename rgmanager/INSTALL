@@ -1,7 +1,0 @@
-Note: This only works on Linux; it's a silly thing to try to get it to run
-elsewhere, but good luck.  Accepting patches ;)
-
-./autogen.sh
-./configure
-make all install
-
