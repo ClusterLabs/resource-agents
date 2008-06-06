@@ -1,0 +1,33 @@
+The Red Hat Cluster is a collection of free software built on top of different
+libraries and applications.
+
+For a detailed list of authors and copyright holders, please check the
+included COPYRIGHT file.
+
+Libraries:
+
+You can redistribute them and/or modify them under the terms of the GNU Lesser
+General Public License as published by the Free Software Foundation; either
+version 2.1 of the License, or (at your option) any later version.
+
+The libraries are distributed in the hope that they will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more
+details.
+
+Applications:
+
+You can redistribute them and/or modify them under the terms of the GNU General
+Public License as published by the Free Software Foundation; either version
+2 of the License, or (at your option) any later version.
+
+The applications are distributed in the hope that they will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+details.
+
+A copy of each license is included for your convenience in COPYING.applications
+and COPYING.libraries.
+
+If missing, write to the Free Software Foundation, Inc., 51 Franklin St,
+Fifth Floor, Boston, MA 02110-1301 USA.
