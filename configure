@@ -52,6 +52,8 @@ my %options = (
 	cmanlibdir => \$cmanlibdir,
 	dlmincdir => \$dlmincdir,
 	dlmlibdir => \$dlmlibdir,
+	dlmcontrolincdir => \$dlmcontrolincdir,
+	dlmcontrollibdir => \$dlmcontrollibdir,
 	fenceincdir => \$fenceincdir,
 	fencelibdir => \$fencelibdir,
 	volidincdir => \$volidincdir,
@@ -127,6 +129,8 @@ my $err = &GetOptions (\%options,
 		    'cmanlibdir=s',
 		    'dlmincdir=s',
 		    'dlmlibdir=s',
+		    'dlmcontrolincdir=s',
+		    'dlmcontrollibdir=s',
 		    'fenceincdir=s',
 		    'fencelibdir=s',
 		    'volidincdir=s',
@@ -222,6 +226,8 @@ if ($help || !$err) {
   print "--cmanlibdir=\tthe base directory for cman libraries.  (Default: ./cman/lib)\n";
   print "--dlmincdir=\tthe base directory for dlm include files.  (Default: ./dlm/libdlm)\n";
   print "--dlmlibdir=\tthe base directory for dlm libraries.  (Default: ./dlm/libdlm)\n";
+  print "--dlmcontrolincdir=\tthe base directory for dlmcontrol include files.  (Default: ./dlm/libdlmcontrol)\n";
+  print "--dlmcontrollibdir=\tthe base directory for dlmcontrol libraries.  (Default: ./dlm/libdlmcontrol)\n";
   print "--fenceincdir=\tthe base directory for fence include files.  (Default: ./fence/libfence)\n";
   print "--fencelibdir=\tthe base directory for fence libraries.  (Default: ./fence/libfence)\n";
   print "--volidincdir=\tthe base directory for volume_id include files.  (Default: {incdir})\n";
@@ -426,6 +432,12 @@ if (!$dlmincdir) {
 }
 if (!$dlmlibdir) {
   $dlmlibdir="${objdir}/dlm/libdlm";
+}
+if (!$dlmcontrolincdir) {
+  $dlmcontrolincdir="${cdir}/dlm/libdlmcontrol";
+}
+if (!$dlmcontrollibdir) {
+  $dlmcontrollibdir="${objdir}/dlm/libdlmcontrol";
 }
 if (!$fenceincdir) {
   $fenceincdir="${cdir}/fence/libfence";
@@ -637,6 +649,8 @@ while (<IFILE>) {
   $_ =~ s/\@CMANLIBDIR\@/$cmanlibdir/;
   $_ =~ s/\@DLMINCDIR\@/$dlmincdir/;
   $_ =~ s/\@DLMLIBDIR\@/$dlmlibdir/;
+  $_ =~ s/\@DLMCONTROLINCDIR\@/$dlmcontrolincdir/;
+  $_ =~ s/\@DLMCONTROLLIBDIR\@/$dlmcontrollibdir/;
   $_ =~ s/\@FENCEINCDIR\@/$fenceincdir/;
   $_ =~ s/\@FENCELIBDIR\@/$fencelibdir/;
   $_ =~ s/\@VOLIDINCDIR\@/$volidincdir/;

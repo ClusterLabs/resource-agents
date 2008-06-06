@@ -24,14 +24,13 @@ include $(OBJDIR)/make/uninstall.mk
 
 OBJS=	main.o
 
-CFLAGS += -I${dlmincdir} 
-CFLAGS += -I$(S)/../libdlmcontrol
+CFLAGS += -I${dlmincdir} -I${dlmcontrolincdir}
 CFLAGS += -I$(SRCDIR)/group/dlm_controld/
 CFLAGS += -I${incdir}
 CFLAGS += -I${KERNEL_SRC}/include/
 
-LDFLAGS += -L${dlmlibdir} -ldlm 
-LDFLAGS += -L../libdlmcontrol -ldlmcontrol
+LDFLAGS += -L${dlmlibdir} -L${dlmcontrollibdir} -ldlm -ldlmcontrol
+
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
