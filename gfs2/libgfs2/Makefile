@@ -2,7 +2,7 @@
 ###############################################################################
 ##
 ##  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-##  Copyright (C) 2004-2006 Red Hat, Inc.  All rights reserved.
+##  Copyright (C) 2004-2008 Red Hat, Inc.  All rights reserved.
 ##
 ##  This copyrighted material is made available to anyone wishing to use,
 ##  modify, copy, or redistribute it subject to the terms and conditions
@@ -11,20 +11,9 @@
 ###############################################################################
 ###############################################################################
 
-TARGET= libgfs2.a
+TARGET= libgfs2
 
-all: ${TARGET}
-
-include ../../make/defines.mk
-include $(OBJDIR)/make/cobj.mk
-include $(OBJDIR)/make/clean.mk
-include $(OBJDIR)/make/install.mk
-include $(OBJDIR)/make/uninstall.mk
-
-CFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE -D_GNU_SOURCE
-CFLAGS += -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
-CFLAGS += -I$(S)/../include
-CFLAGS += -I${incdir}
+MAKESTATICLIB = 1
 
 OBJS=	bitmap.o \
 	block_list.o \
@@ -43,14 +32,14 @@ OBJS=	bitmap.o \
 	super.o \
 	rgrp.o
 
+include ../../make/defines.mk
+include $(OBJDIR)/make/libs.mk
+include $(OBJDIR)/make/cobj.mk
+include $(OBJDIR)/make/clean.mk
+include $(OBJDIR)/make/install.mk
+include $(OBJDIR)/make/uninstall.mk
 
-${TARGET}: ${OBJS}
-	${AR} cru $@ $^
-	${RANLIB} $@
-
-clean: generalclean
-
-.PHONY: all
-
--include $(OBJS:.o=.d)
-
+CFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE -D_GNU_SOURCE
+CFLAGS += -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
+CFLAGS += -I$(S)/../include
+CFLAGS += -I${incdir}

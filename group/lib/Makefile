@@ -12,9 +12,10 @@
 
 TARGET=libgroup
 
-all: $(TARGET).a
+MAKESTATICLIB = 1
 
 include ../../make/defines.mk
+include $(OBJDIR)/make/libs.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
 include $(OBJDIR)/make/install.mk
@@ -23,13 +24,3 @@ include $(OBJDIR)/make/uninstall.mk
 CFLAGS += -fPIC
 CFLAGS += -I$(S) -I$(S)/../daemon
 CFLAGS += -I${incdir}
-
-OBJS= $(TARGET).o
-
-$(TARGET).a: $(OBJS)
-	${AR} r $@ $^
-	${RANLIB} $@
-
-clean: generalclean
-
--include $(OBJS:.o=.d)

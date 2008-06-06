@@ -48,20 +48,20 @@ CFLAGS += -I$(KERNEL_SRC)/include
 PTHREAD_LDFLAGS += -lpthread 
 
 $(TARGET).a: $(TARGET).o $(AISTARGET).o
-	${AR} r $@ $^
+	${AR} cru $@ $^
 	${RANLIB} $@
 
 $(TARGET)_lt.a: $(TARGET)_lt.o
-	${AR} r $@ $^
+	${AR} cru $@ $^
 	${RANLIB} $@
 
 $(TARGET).so.${SOMAJOR}.${SOMINOR}: $(TARGET).po $(AISTARGET).po
-	$(CC) $(PTHREAD_LDFLAGS) $(LDFLAGS) -shared -o $@ -Wl,-soname=$(TARGET).so.$(SOMAJOR) $<
+	$(CC) -shared -o $@ -Wl,-soname=$(TARGET).so.$(SOMAJOR) $< $(PTHREAD_LDFLAGS) $(LDFLAGS)
 	ln -sf $(TARGET).so.$(SOMAJOR).$(SOMINOR) $(TARGET).so
 	ln -sf $(TARGET).so.$(SOMAJOR).$(SOMINOR) $(TARGET).so.$(SOMAJOR)
 
 $(TARGET)_lt.so.${SOMAJOR}.${SOMINOR}: $(TARGET)_lt.po
-	$(CC) $(LDFLAGS) -shared -o $@ -Wl,-soname=$(TARGET)_lt.so.$(SOMAJOR) $<
+	$(CC) -shared -o $@ -Wl,-soname=$(TARGET)_lt.so.$(SOMAJOR) $< $(LDFLAGS)
 	ln -sf $(TARGET)_lt.so.$(SOMAJOR).$(SOMINOR) $(TARGET)_lt.so
 	ln -sf $(TARGET)_lt.so.$(SOMAJOR).$(SOMINOR) $(TARGET)_lt.so.$(SOMAJOR)
 

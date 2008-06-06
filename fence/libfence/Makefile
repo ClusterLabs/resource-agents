@@ -12,43 +12,17 @@
 
 TARGET= libfence
 
-LIBDIRT=$(TARGET).a \
-	$(TARGET).so.$(SOMAJOR).$(SOMINOR)
-
-LIBSYMT=$(TARGET).so \
-	$(TARGET).so.$(SOMAJOR)
-
-INCDIRT=$(TARGET).h
+OBJS=	agent.o
 
 include ../../make/defines.mk
-
-SHAREDLIB=$(TARGET).so.${SOMAJOR}.${SOMINOR}
-STATICLIB=$(TARGET).a
-
-all: $(STATICLIB) $(SHAREDLIB)
-
+include $(OBJDIR)/make/libs.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
 include $(OBJDIR)/make/install.mk
 include $(OBJDIR)/make/uninstall.mk
-
-OBJS=	agent.o
 
 CFLAGS += -fPIC
 CFLAGS += -I${ccsincdir}
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${ccslibdir} -lccs
-
-$(TARGET).a: $(OBJS)
-	${AR} r $@ $^
-	${RANLIB} $@
-
-$(TARGET).so.${SOMAJOR}.${SOMINOR}: $(OBJS)
-	$(CC) -shared -o $@ -Wl,-soname=$(TARGET).so.$(SOMAJOR) $< $(LDFLAGS)
-	ln -sf $(TARGET).so.$(SOMAJOR).$(SOMINOR) $(TARGET).so
-	ln -sf $(TARGET).so.$(SOMAJOR).$(SOMINOR) $(TARGET).so.$(SOMAJOR)
-
-clean: generalclean
-
--include $(OBJS:.o=.d)

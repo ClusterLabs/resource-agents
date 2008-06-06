@@ -10,28 +10,18 @@
 ###############################################################################
 ###############################################################################
 
-TARGET= libccscompat.a
+TARGET= libccscompat
 
-all: ${TARGET}
+MAKESTATICLIB = 1
 
 include ../../make/defines.mk
+include $(OBJDIR)/make/libs.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
 include $(OBJDIR)/make/install.mk
 include $(OBJDIR)/make/uninstall.mk
 
-OBJS=	libccscompat.o
-
 CFLAGS += -D_FILE_OFFSET_BITS=64
 CFLAGS += -fPIC
 CFLAGS += -I$(S)/../include
 CFLAGS += -I${incdir}
-
-
-${TARGET}: ${OBJS}
-	${AR} cr $@ $^
-	${RANLIB} $@
-
-clean: generalclean
-
--include $(OBJS:.o=.d)

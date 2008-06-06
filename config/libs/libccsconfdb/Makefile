@@ -13,27 +13,14 @@
 
 TARGET= libccs
 
-LIBDIRT=$(TARGET).a \
-	$(TARGET).so.$(SOMAJOR).$(SOMINOR)
-
-LIBSYMT=$(TARGET).so \
-	$(TARGET).so.$(SOMAJOR)
-
 INCDIRT=ccs.h
 
 include ../../../make/defines.mk
-
-SHAREDLIB=$(TARGET).so.${SOMAJOR}.${SOMINOR}
-STATICLIB=$(TARGET).a
-
-all: $(STATICLIB) $(SHAREDLIB)
-
+include $(OBJDIR)/make/libs.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
 include $(OBJDIR)/make/install.mk
 include $(OBJDIR)/make/uninstall.mk
-
-OBJS=	$(TARGET).o
 
 CFLAGS += -fPIC
 CFLAGS += -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64
@@ -42,16 +29,3 @@ CFLAGS += -I${incdir}
 
 LDFLAGS += -L${openaislibdir} -lconfdb
 LDFLAGS += `xml2-config --libs`
-
-$(TARGET).a: $(OBJS)
-	${AR} r $@ $^
-	${RANLIB} $@
-
-$(TARGET).so.${SOMAJOR}.${SOMINOR}: $(OBJS)
-	$(CC) -shared -o $@ -Wl,-soname=$(TARGET).so.$(SOMAJOR) $< $(LDFLAGS)
-	ln -sf $(TARGET).so.$(SOMAJOR).$(SOMINOR) $(TARGET).so
-	ln -sf $(TARGET).so.$(SOMAJOR).$(SOMINOR) $(TARGET).so.$(SOMAJOR)
-
-clean: generalclean
-
--include $(OBJS:.o=.d)
