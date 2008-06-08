@@ -89,6 +89,7 @@ my %options = (
 	without_gfs2 => \$without_gfs2,
 	without_gnbd => \$without_gnbd,
 	without_rgmanager => \$without_rgmanager,
+	without_bindings => \$without_bindings,
 	without_kernel_modules => \$without_kernel_modules,
 	disable_kernel_check => \$disable_kernel_check,
 );
@@ -166,6 +167,7 @@ my $err = &GetOptions (\%options,
 		    'without_gfs2',
 		    'without_gnbd',
 		    'without_rgmanager',
+		    'without_bindings',
 		    'without_kernel_modules',
 		    'disable_kernel_check');
 
@@ -249,6 +251,7 @@ if ($help || !$err) {
   print "--without_gfs2\tDisable gfs2 building  (Default: enabled)\n";
   print "--without_gnbd\tDisable gnbd building  (Default: enabled)\n";
   print "--without_rgmanager\tDisable rgmanager building  (Default: enabled)\n";
+  print "--without_bindings\tDisable perl/python bindings building  (Default: enabled)\n";
   print "--without_kernel_modules\tDisable kernel modules building  (Default: enabled)\n";
   print "--disable_kernel_check\tDisable kernel version check  (Default: enabled)\n";
   exit $ret;
@@ -569,6 +572,9 @@ if (!$without_gnbd) {
 if (!$without_rgmanager) {
   $without_rgmanager="";
 }
+if (!$without_bindings) {
+  $without_bindings="";
+}
 if (!$without_kernel_modules) {
   $without_gfskernel=$without_gfs;
   $without_gnbdkernel=$without_gnbd;
@@ -684,6 +690,7 @@ while (<IFILE>) {
   $_ =~ s/\@DISABLE_GNBD\@/$without_gnbd/;
   $_ =~ s/\@DISABLE_GNBDKERNEL\@/$without_gnbdkernel/;
   $_ =~ s/\@DISABLE_RGMANAGER\@/$without_rgmanager/;
+  $_ =~ s/\@DISABLE_BINDINGS\@/$without_bindings/;
 
   print OFILE "$_\n";
 }

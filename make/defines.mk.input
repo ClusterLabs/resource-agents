@@ -75,6 +75,7 @@ without_gfs ?= @DISABLE_GFS@
 without_gfs2 ?= @DISABLE_GFS2@
 without_gnbd ?= @DISABLE_GNBD@
 without_rgmanager ?= @DISABLE_RGMANAGER@
+without_bindings ?= @DISABLE_BINDINGS@
 
 THISDIR = $(shell echo $(CURDIR) | sed -e 's|$(OBJDIR)/||g')
 S=$(SRCDIR)/$(THISDIR)

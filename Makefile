@@ -1,7 +1,7 @@
 include make/defines.mk
 
 REALSUBDIRS = gnbd-kernel/src gfs-kernel/src/gfs \
-	      config cman ccs dlm fence/libfenced group fence gfs gfs2 gnbd rgmanager
+	      config cman ccs dlm fence/libfenced group fence gfs gfs2 gnbd rgmanager bindings
 
 SUBDIRS = $(filter-out \
 	  $(if ${without_gnbd-kernel/src},gnbd-kernel/src) \
@@ -16,6 +16,7 @@ SUBDIRS = $(filter-out \
 	  $(if ${without_gfs2},gfs2) \
 	  $(if ${without_gnbd},gnbd) \
 	  $(if ${without_rgmanager},rgmanager) \
+	  $(if ${without_bindings},bindings) \
 	  , $(REALSUBDIRS))
 
 all: scripts ${SUBDIRS}
@@ -45,6 +46,7 @@ gfs:
 gfs2: group
 gnbd: cman
 rgmanager: cman dlm
+bindings: cman
 
 install: all
 	set -e && for i in ${SUBDIRS}; do ${MAKE} -C $$i $@; done
