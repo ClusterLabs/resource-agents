@@ -9,7 +9,7 @@ endif
 ifdef INCDIRT
 	install -d ${incdir}
 	for i in ${INCDIRT}; do \
-	  install -m644 $(S)/$$i ${incdir}; \
+		install -m644 $(S)/$$i ${incdir}; \
 	done
 endif
 ifdef SBINDIRT
@@ -26,17 +26,17 @@ endif
 ifdef INITDT
 	install -d ${initddir}
 	for i in ${INITDT}; do \
-	  if [ -f $(S)/$$i ]; then \
-	    install -m755 $(S)/$$i ${initddir}; \
-	  else \
-	    install -m755 $$i ${initddir}; \
-	  fi; \
+		if [ -f $(S)/$$i ]; then \
+			install -m755 $(S)/$$i ${initddir}; \
+		else \
+			install -m755 $$i ${initddir}; \
+		fi; \
 	done
 endif
 ifdef UDEVT
 	install -d ${DESTDIR}/etc/udev/rules.d
 	for i in ${UDEVT}; do \
-	  install -m644 $(S)/$$i ${DESTDIR}/etc/udev/rules.d; \
+		install -m644 $(S)/$$i ${DESTDIR}/etc/udev/rules.d; \
 	done
 endif
 ifdef KMODT

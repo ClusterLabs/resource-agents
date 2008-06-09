@@ -1,7 +1,7 @@
 ifndef FENCEAGENTSLIB
-ifdef TARGET
-SBINDIRT=$(TARGET)
-endif
+	ifdef TARGET
+		SBINDIRT=$(TARGET)
+	endif
 endif
 
 all: $(TARGET)

@@ -1,29 +1,29 @@
 # handle objects
 ifndef OBJS
- OBJS = $(TARGET).o
+	OBJS = $(TARGET).o
 endif
 
 # we always build the static version
 ifndef STATICLIB
- STATICLIB = $(TARGET).a
+	STATICLIB = $(TARGET).a
 endif
 
 # handle the shared version
 ifndef MAKESTATICLIB
- ifndef LIBDIRT
-  LIBDIRT=$(TARGET).a \
-	  $(TARGET).so.$(SOMAJOR).$(SOMINOR)
- endif
- ifndef LIBSYMT
-  LIBSYMT=$(TARGET).so \
-	  $(TARGET).so.$(SOMAJOR)
- endif
- ifndef INCDIRT
-  INCDIRT=$(TARGET).h
- endif
- ifndef SHAREDLIB
-  SHAREDLIB=$(TARGET).so.${SOMAJOR}.${SOMINOR}
- endif
+	ifndef LIBDIRT
+		LIBDIRT=$(TARGET).a \
+			$(TARGET).so.$(SOMAJOR).$(SOMINOR)
+	endif
+	ifndef LIBSYMT
+		LIBSYMT=$(TARGET).so \
+			$(TARGET).so.$(SOMAJOR)
+	endif
+	ifndef INCDIRT
+		INCDIRT=$(TARGET).h
+	endif
+	ifndef SHAREDLIB
+		SHAREDLIB=$(TARGET).so.${SOMAJOR}.${SOMINOR}
+	endif
 
 all: $(STATICLIB) $(SHAREDLIB)
 
