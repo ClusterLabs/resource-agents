@@ -42,7 +42,7 @@ You can specify the following data structure names with the -p option.
 
 \fIrindex\fR, \fIrgindex\fR - Print the resource group index system file.
 
-\fIrg X\fR - Print the resource group information for RG X.
+\fIrg X\fR - Print the resource group information for RG X (zero-based).
 
 \fIrgs\fR - Print the resource group information.
 
@@ -70,6 +70,11 @@ You can specify more than one data structure with a single -p option.
 For example, "gfs2_edit -p inum statfs /dev/sda1" prints the system inum
 file and the system statfs file on /dev/sda1.
 
+.TP
+\fB-s\fP [\fIstructure\fR | \fIblock\fR]
+Specify a starting block for interactive mode.  Any of the keywords found
+in the -p option may be specified.  If you want to start on a particular
+resource group, specify it in quotes.  For example, gfs2_edit -s "rg 3"
 .TP
 \fB-h, -help, -usage\fP
 Print help information.

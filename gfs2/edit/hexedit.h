@@ -87,6 +87,7 @@ EXTERN WINDOW *wind;
 EXTERN int gfs1 INIT(0);
 EXTERN int editing INIT(0);
 EXTERN uint64_t temp_blk;
+EXTERN uint64_t starting_blk;
 
 struct gfs_jindex {
         uint64_t ji_addr;       /* starting block of the journal */

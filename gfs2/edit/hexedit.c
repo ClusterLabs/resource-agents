@@ -2357,6 +2357,7 @@ void usage(void)
 	fprintf(stderr,"     rg X - print resource group X.\n");
 	fprintf(stderr,"     rgs - prints all the resource groups (rgs).\n");
 	fprintf(stderr,"     quota - prints the quota file.\n");
+	fprintf(stderr,"-s   specifies a starting block such as root, rindex, quota, inum.\n");
 	fprintf(stderr,"-x   print in hexmode.\n");
 	fprintf(stderr,"-h   prints this help.\n\n");
 	fprintf(stderr,"Examples:\n");
@@ -2434,7 +2435,19 @@ void process_parameters(int argc, char *argv[], int pass)
 				strcpy(device, argv[i]);
 		}
 		else { /* second pass */
-			if (!termlines && !strchr(argv[i],'/')) { /* if print, no slash */
+			if (!strcasecmp(argv[i], "-s")) {
+				i++;
+				if (i >= argc - 1) {
+					printf("Error: starting block not specified with -s.\n");
+					printf("%s -s [starting block | keyword] <device>\n",
+					       argv[0]);
+					printf("For example: %s -s \"rg 3\" /dev/exxon_vg/exxon_lv\n",
+					       argv[0]);
+					exit(EXIT_FAILURE);
+				}
+				starting_blk = check_keywords(argv[i]);
+			}
+			else if (!termlines && !strchr(argv[i],'/')) { /* if print, no slash */
 				uint64_t keyword_blk;
 
 				keyword_blk = check_keywords(argv[i]);
@@ -2553,7 +2566,7 @@ int main(int argc, char *argv[])
 	dmode = HEX_MODE;
 	sbd.bsize = 4096;
 	type_alloc(buf, char, sbd.bsize); /* allocate/malloc a new 4K buffer */
-	block = 0x10;
+	block = starting_blk = 0x10;
 	for (i = 0; i < BLOCK_STACK_SIZE; i++) {
 		blockstack[i].dmode = dmode;
 		blockstack[i].block = block;
@@ -2579,13 +2592,13 @@ int main(int argc, char *argv[])
 
 	read_superblock(fd);
 	max_block = lseek(fd, 0, SEEK_END) / sbd.bsize;
-	blockstack[0].block = 0x10 * (4096 / sbd.bsize);
 	strcpy(sbd.device_name, device);
 	if (!gfs1)
 		read_master_dir();
 	block_in_mem = -1;
-	if (!termlines)    /* if printing to stdout */
-		process_parameters(argc, argv, 1); /* get what to print from cmdline */
+	process_parameters(argc, argv, 1); /* get what to print from cmdline */
+
+	block = blockstack[0].block = starting_blk * (4096 / sbd.bsize);
 
 	if (termlines)
 		interactive_mode();
