@@ -717,7 +717,7 @@ void gfs_rgrp_print(struct gfs_rgrp *rg)
 uint64_t get_rg_addr(int rgnum)
 {
 	struct gfs2_buffer_head *bh;
-	uint64_t rgblk, block;
+	uint64_t rgblk = 0, block;
 	struct gfs2_inode *riinode;
 
 	if (gfs1)
