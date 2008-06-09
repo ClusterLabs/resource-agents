@@ -712,6 +712,30 @@ void gfs_rgrp_print(struct gfs_rgrp *rg)
 }
 
 /* ------------------------------------------------------------------------ */
+/* get_rg_addr                                                              */
+/* ------------------------------------------------------------------------ */
+uint64_t get_rg_addr(int rgnum)
+{
+	struct gfs2_buffer_head *bh;
+	uint64_t rgblk, block;
+	struct gfs2_inode *riinode;
+
+	if (gfs1)
+		block = sbd1->sb_rindex_di.no_addr;
+	else
+		block = masterblock("rindex");
+	bh = bread(&sbd, block);
+	riinode = inode_get(&sbd, bh);
+	if (rgnum < riinode->i_di.di_size / risize())
+		rgblk = find_rgrp_block(riinode, rgnum);
+	else
+		fprintf(stderr, "Error: File system only has %lld RGs.\n",
+			riinode->i_di.di_size / risize());
+	inode_put(riinode, not_updated);
+	return rgblk;
+}
+
+/* ------------------------------------------------------------------------ */
 /* set_rgrp_flags - Set an rgrp's flags to a given value                    */
 /* rgnum: which rg to print or modify flags for (0 - X)                     */
 /* new_flags: value to set new rg_flags to (if modify == TRUE)              */
@@ -724,24 +748,10 @@ void set_rgrp_flags(int rgnum, uint32_t new_flags, int modify, int full)
 		struct gfs2_rgrp rg2;
 		struct gfs_rgrp rg1;
 	} rg;
-	struct gfs2_buffer_head *bh, *ribh;
-	uint64_t rgblk, block;
-	struct gfs2_inode *riinode;
+	struct gfs2_buffer_head *bh;
+	uint64_t rgblk;
 
-	if (gfs1)
-		block = sbd1->sb_rindex_di.no_addr;
-	else
-		block = masterblock("rindex");
-	ribh = bread(&sbd, block);
-	riinode = inode_get(&sbd, ribh);
-	if (rgnum >= riinode->i_di.di_size / risize()) {
-		fprintf(stderr, "Error: File system only has %lld RGs.\n",
-			riinode->i_di.di_size / risize());
-		inode_put(riinode, not_updated);
-		brelse(ribh, not_updated);
-		return;
-	}
-	rgblk = find_rgrp_block(riinode, rgnum);
+	rgblk = get_rg_addr(rgnum);
 	bh = bread(&sbd, rgblk);
 	if (gfs1)
 		gfs_rgrp_in(&rg.rg1, bh->b_data);
@@ -773,7 +783,6 @@ void set_rgrp_flags(int rgnum, uint32_t new_flags, int modify, int full)
 			       (unsigned long long)rgblk, rg.rg2.rg_flags);
 		brelse(bh, not_updated);
 	}
-	inode_put(riinode, not_updated);
 	if (modify)
 		bsync(&sbd);
 }
@@ -1621,6 +1630,65 @@ uint64_t pop_block(void)
 }
 
 /* ------------------------------------------------------------------------ */
+/* Check if the word is a keyword such as "sb" or "rindex"                  */
+/* Returns: block number if it is, else 0                                   */
+/* ------------------------------------------------------------------------ */
+uint64_t check_keywords(const char *kword)
+{
+	uint64_t blk = 0;
+
+	if (!strcmp(kword, "sb") ||!strcmp(kword, "superblock"))
+		blk = 0x10 * (4096 / sbd.bsize); /* superblock */
+	else if (!strcmp(kword, "root") || !strcmp(kword, "rootdir"))
+		blk = sbd.sd_sb.sb_root_dir.no_addr;
+	else if (!strcmp(kword, "master")) {
+		if (!gfs1)
+			blk = sbd.sd_sb.sb_master_dir.no_addr;
+		else
+			fprintf(stderr, "This is GFS1; there's no master directory.\n");
+	}
+	else if (!strcmp(kword, "jindex")) {
+		if (gfs1)
+			blk = sbd1->sb_jindex_di.no_addr;
+		else
+			blk = masterblock("jindex"); /* journal index */
+	}
+	else if (!gfs1 && !strcmp(kword, "per_node"))
+		blk = masterblock("per_node");
+	else if (!gfs1 && !strcmp(kword, "inum"))
+		blk = masterblock("inum");
+	else if (!strcmp(kword, "statfs")) {
+		if (gfs1)
+			blk = gfs1_license_di.no_addr;
+		else
+			blk = masterblock("statfs");
+	}
+	else if (!strcmp(kword, "rindex") || !strcmp(kword, "rgindex")) {
+		if (gfs1)
+			blk = sbd1->sb_rindex_di.no_addr;
+		else
+			blk = masterblock("rindex");
+	} else if (!strcmp(kword, "rgs")) {
+		blk = RGLIST_DUMMY_BLOCK;
+	} else if (!strcmp(kword, "quota")) {
+		if (gfs1)
+			blk = gfs1_quota_di.no_addr;
+		else
+			blk = masterblock("quota");
+	} else if (!strncmp(kword, "rg ", 3)) {
+		int rgnum = 0;
+
+		rgnum = atoi(kword + 3);
+		blk = get_rg_addr(rgnum);
+	} else if (kword[0]=='0' && kword[1]=='x') /* hex addr */
+		sscanf(kword, "%"SCNx64, &blk);/* retrieve in hex */
+	else
+		sscanf(kword, "%" PRIu64, &blk); /* retrieve decimal */
+
+	return blk;
+}
+
+/* ------------------------------------------------------------------------ */
 /* goto_block - go to a desired block entered by the user                   */
 /* ------------------------------------------------------------------------ */
 uint64_t goto_block(void)
@@ -1631,32 +1699,8 @@ uint64_t goto_block(void)
 	memset(string, 0, sizeof(string));
 	sprintf(string,"%"PRId64, block);
 	if (bobgets(string, 1, 7, 16, &ch)) {
-		if (!strcmp(string,"root"))
-			temp_blk = sbd.sd_sb.sb_root_dir.no_addr;
-		else if (!strcmp(string,"master")) {
-			if (!gfs1)
-				temp_blk = sbd.sd_sb.sb_master_dir.no_addr;
-			else
-				; /* maybe put out an error message at some point */
-		}
-		else if (isalpha(string[0])) {
-			if (gfs1) {
-				if (!strcmp(string, "jindex"))
-					temp_blk = sbd1->sb_jindex_di.no_addr;
-				else if (!strcmp(string, "rindex"))
-					temp_blk = sbd1->sb_rindex_di.no_addr;
-				else if (!strcmp(string, "quota"))
-					temp_blk = gfs1_quota_di.no_addr;
-				else if (!strcmp(string, "rgs"))
-					temp_blk = RGLIST_DUMMY_BLOCK;
-			}
-			else {
-				if (!strcmp(string, "rgs"))
-					temp_blk = RGLIST_DUMMY_BLOCK;
-				else
-					temp_blk = masterblock(string);
-			}
-		}
+		if (isalnum(string[0]))
+			temp_blk = check_keywords(string);
 		else if (string[0] == '+') {
 			if (string[1] == '0' && string[2] == 'x')
 				sscanf(string, "%"SCNx64, &temp_blk);
@@ -1671,10 +1715,6 @@ uint64_t goto_block(void)
 				sscanf(string, "%" PRIu64, &temp_blk);
 			temp_blk -= block;
 		}
-		else if (string[0] == '0' && string[1] == 'x')
-			sscanf(string, "%"SCNx64, &temp_blk); /* retrieve in hex */
-		else
-			sscanf(string, "%" PRIu64, &temp_blk); /* retrieve decimal */
 
 		if (temp_blk == RGLIST_DUMMY_BLOCK || temp_blk < max_block) {
 			offset = 0;
@@ -2395,7 +2435,12 @@ void process_parameters(int argc, char *argv[], int pass)
 		}
 		else { /* second pass */
 			if (!termlines && !strchr(argv[i],'/')) { /* if print, no slash */
-				if (!strcasecmp(argv[i], "-x"))
+				uint64_t keyword_blk;
+
+				keyword_blk = check_keywords(argv[i]);
+				if (keyword_blk)
+					push_block(keyword_blk);
+				else if (!strcasecmp(argv[i], "-x"))
 					dmode = HEX_MODE;
 				else if (argv[i][0] == '-') /* if it starts with a dash */
 					; /* ignore it--meant for pass == 0 */
@@ -2404,64 +2449,6 @@ void process_parameters(int argc, char *argv[], int pass)
 				else if (!strcmp(argv[i], "size"))
 					printf("Device size: %" PRIu64 " (0x%" PRIx64 ")\n",
 						   max_block, max_block);
-				else if (!strcmp(argv[i], "sb") ||
-						 !strcmp(argv[i], "superblock"))
-					push_block(0x10 * (4096 / sbd.bsize)); /* superblock */
-				else if (!strcmp(argv[i], "root") ||
-						 !strcmp(argv[i], "rootdir"))
-					push_block(sbd.sd_sb.sb_root_dir.no_addr);
-				else if (!strcmp(argv[i], "master")) {
-					if (gfs1) {
-						fprintf(stderr, "Error: 'master' is invalid "
-							"for GFS (1) file systems.\n");
-						exit(-1);
-					}
-					push_block(sbd.sd_sb.sb_master_dir.no_addr);
-				}
-				else if (!strcmp(argv[i], "jindex")) {
-					if (gfs1)
-						push_block(sbd1->sb_jindex_di.no_addr);
-					else
-						push_block(masterblock("jindex"));/* journal index */
-				}
-				else if (!strcmp(argv[i], "per_node")) {
-					if (gfs1) {
-						fprintf(stderr, "Error: 'per_node' is invalid "
-							"for GFS (1) file systems.\n");
-						exit(-1);
-					}
-					push_block(masterblock("per_node"));
-				}
-				else if (!strcmp(argv[i], "inum")) {
-					if (gfs1) {
-						fprintf(stderr, "Error: 'inum' is invalid "
-							"for GFS (1) file systems.\n");
-						exit(-1);
-					}
-					push_block(masterblock("inum"));
-				}
-				else if (!strcmp(argv[i], "statfs")) {
-					if (gfs1)
-						push_block(gfs1_license_di.no_addr);
-					else
-						push_block(masterblock("statfs"));
-				}
-				else if (!strcmp(argv[i], "rindex") ||
-						 !strcmp(argv[i], "rgindex")) {
-					if (gfs1)
-						push_block(sbd1->sb_rindex_di.no_addr);
-					else
-						push_block(masterblock("rindex"));
-				}
-				else if (!strcmp(argv[i], "rgs")) {
-					push_block(RGLIST_DUMMY_BLOCK);
-				}
-				else if (!strcmp(argv[i], "quota")) {
-					if (gfs1)
-						push_block(gfs1_quota_di.no_addr);
-					else
-						push_block(masterblock("quota"));
-				}
 				else if (!strcmp(argv[i], "rgcount"))
 					rgcount();
 				else if (!strcmp(argv[i], "rgflags")) {
@@ -2519,10 +2506,6 @@ void process_parameters(int argc, char *argv[], int pass)
 					savemeta(argv[i+2], 1);
 				else if (!strcasecmp(argv[i], "savergs"))
 					savemeta(argv[i+2], 2);
-				else if (argv[i][0]=='0' && argv[i][1]=='x') { /* hex addr */
-					sscanf(argv[i], "%"SCNx64, &temp_blk);/* retrieve in hex */
-					push_block(temp_blk);
-				}
 				else if (isdigit(argv[i][0])) { /* decimal addr */
 					sscanf(argv[i], "%"SCNd64, &temp_blk);
 					push_block(temp_blk);
