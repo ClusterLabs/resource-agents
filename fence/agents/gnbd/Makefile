@@ -12,9 +12,8 @@ include $(OBJDIR)/make/uninstall.mk
 
 OBJS= main.o
 
-CFLAGS += -I$(S)/../../include -I$(S)/../gnbd_import
+CFLAGS += -I$(SRCDIR)/gnbd/tools/gnbd_import
 CFLAGS += -I${incdir}
-
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)

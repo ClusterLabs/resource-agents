@@ -6,6 +6,7 @@ TARGET= fence.8 \
 	fence_brocade.8 \
 	fence_drac.8 \
 	fence_egenera.8 \
+	fence_gnbd.8 \
 	fence_ifmib.8 \
 	fence_ilo.8 \
 	fence_manual.8 \
