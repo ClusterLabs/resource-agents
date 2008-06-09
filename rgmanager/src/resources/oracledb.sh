@@ -1,17 +1,8 @@
 #!/bin/bash
-#
-# Copyright 2003-2004, 2006-2007 Red Hat, Inc.
-#
 # Author(s):
 #     Hardy Merrill <hmerrill at redhat.com>
 #     Lon Hohberger <lhh at redhat.com>
 #     Michael Moon <Michael dot Moon at oracle.com>
-#
-# This program is Open Source software.  You may modify and/or redistribute
-# it persuant to the terms of the Open Software License version 2.1, which
-# is available from the following URL and is included herein by reference:
-#
-# 	http://opensource.org/licenses/osl-2.1.php
 #
 # chkconfig: 345 99 01
 # description: Service script for starting/stopping      \
