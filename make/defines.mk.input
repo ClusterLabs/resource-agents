@@ -83,5 +83,5 @@ S=$(SRCDIR)/$(THISDIR)
 CONFDIR=@CONFDIR@
 CONFFILE=@CONFFILE@
 
-UNINSTALL = @SRCDIR@/scripts/uninstall.pl
-FENCEPARSE = @SRCDIR@/scripts/fenceparse
+UNINSTALL = perl @SRCDIR@/scripts/uninstall.pl
+FENCEPARSE = bash @SRCDIR@/scripts/fenceparse

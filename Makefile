@@ -19,11 +19,7 @@ SUBDIRS = $(filter-out \
 	  $(if ${without_bindings},bindings) \
 	  , $(REALSUBDIRS))
 
-all: scripts ${SUBDIRS}
-
-# Fix scripts permissions
-scripts:
-	chmod 755 ${SRCDIR}/scripts/*.pl ${SRCDIR}/scripts/fenceparse
+all: ${SUBDIRS}
 
 ${SUBDIRS}:
 	[ -n "${without_$@}" ] || ${MAKE} -C $@ all
@@ -62,4 +58,4 @@ distclean: clean
 	rm -f *tar.gz
 	rm -rf build
 
-.PHONY: scripts ${REALSUBDIRS}
+.PHONY: ${REALSUBDIRS}
