@@ -18,6 +18,7 @@ cman/qdisk/daemon_init.c:
 cman/qdisk/disk.c:
  Copyright (C) 2000 Mission Critical Linux
  Copyright (C) 2002-2008 Red Hat, Inc.  All rights reserved.
+ Author: Tim Burke <tburke at redhat.com>
 
 cman/qdisk/scandisk.{c,h}:
  Original design by: Joel Becker <Joel.Becker at oracle.com> and
