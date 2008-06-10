@@ -12,7 +12,6 @@
  *
  * Daniel Phillips, phillips@redhat.com
  *
- * (c) 2004, Redhat Software Inc.
  */
 
 #define error(string, args...) do { printf(string, ##args); exit(1); } while (0)
