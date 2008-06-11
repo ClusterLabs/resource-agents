@@ -5,7 +5,7 @@ mkfs.gfs2 - Make a GFS2 filesystem
 
 .SH SYNOPSIS
 .B mkfs.gfs2
-[\fIOPTION\fR]... \fIDEVICE\fR
+[\fIOPTION\fR]... \fIDEVICE\fR \fI[ block-count ]\fR 
 
 .SH DESCRIPTION
 mkfs.gfs2 is used to create a Global File System.
@@ -20,7 +20,7 @@ x86_64, s390, s390x), the memory page size is 4096 bytes.  On other
 architectures it may be bigger.  The default block size is 4096 bytes.
 In general, GFS2 filesystems should not deviate from the default value.
 .TP
-\fB-c MegaBytes\fP
+\fB-c\fP \fIMegaBytes\fR
 Initial size of each journal's quota change file
 .TP
 \fB-D\fP
@@ -70,11 +70,16 @@ Fsname is a unique file system name used to distinguish this GFS2 file
 system from others created (1 to 16 characters).  Lock_nolock doesn't
 use this field.
 .TP
-\fB-u MegaBytes\fP
+\fB-u\fP \fIMegaBytes\fR
 Initial size of each journal's unlinked tag file
 .TP
 \fB-V\fP
 Print program version information, then exit.
+
+.TP
+[ \fIblock-count\fR ]
+Make the file system this many blocks in size.  If not specified, the
+entire length of the specified device is used.
 
 .SH EXAMPLE
 .TP

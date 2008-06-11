@@ -42,7 +42,7 @@ print_usage(void)
 {
 	printf("Usage:\n");
 	printf("\n");
-	printf("%s [options] <device>\n", prog_name);
+	printf("%s [options] <device> [ block-count ]\n", prog_name);
 	printf("\n");
 	printf("Options:\n");
 	printf("\n");
@@ -77,6 +77,7 @@ decode_arguments(int argc, char *argv[], struct gfs2_sbd *sdp)
 
 	memset(sdp->device_name, 0, sizeof(sdp->device_name));
 	sdp->md.journals = 1;
+	sdp->orig_fssize = 0;
 
 	while (cont) {
 		optchar = getopt(argc, argv, "-b:c:DhJ:j:Op:qr:t:u:VX");
@@ -160,10 +161,13 @@ decode_arguments(int argc, char *argv[], struct gfs2_sbd *sdp)
 		case 1:
 			if (strcmp(optarg, "gfs2") == 0)
 				continue;
-			if (sdp->device_name[0]) {
-				die("More than one device specified (try -h for help)");
-			} 
-			strcpy(sdp->device_name, optarg);
+			if (!sdp->device_name[0])
+				strcpy(sdp->device_name, optarg);
+			else if (!sdp->orig_fssize &&
+				 isdigit(optarg[0]))
+				sdp->orig_fssize = atol(optarg);
+			else
+				die("More than one device specified (try -h for help)\n");
 			break;
 
 		default:
@@ -177,6 +181,9 @@ decode_arguments(int argc, char *argv[], struct gfs2_sbd *sdp)
 
 	if (sdp->device_name[0] == '\0')
 		die("no device specified (try -h for help)\n");
+
+	if (optind < argc)
+		sdp->orig_fssize = atol(argv[optind++]);
 
 	if (optind < argc)
 		die("Unrecognized argument: %s\n", argv[optind]);
@@ -197,6 +204,9 @@ decode_arguments(int argc, char *argv[], struct gfs2_sbd *sdp)
 		printf("  table = %s\n", sdp->locktable);
 		printf("  utsize = %u\n", sdp->utsize);
 		printf("  device = %s\n", sdp->device_name);
+		if (sdp->orig_fssize)
+			printf("  block-count = %llu\n",
+			       (unsigned long long)sdp->orig_fssize);
 	}
 }
 
@@ -391,6 +401,15 @@ main_mkfs(int argc, char *argv[])
 	/* Get the device geometry */
 
 	device_geometry(sdp);
+	/* Convert optional block-count to basic blocks */
+	if (sdp->orig_fssize) {
+		sdp->orig_fssize *= sdp->bsize;
+		sdp->orig_fssize >>= GFS2_BASIC_BLOCK_SHIFT;
+		if (sdp->orig_fssize > sdp->device.length)
+			die("specified block count is smaller than the"
+			    "actual device.\n");
+		sdp->device.length = sdp->orig_fssize;
+	}
 	fix_device_geometry(sdp);
 
 	/* Compute the resource group layouts */
