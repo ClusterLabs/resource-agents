@@ -11,6 +11,7 @@
 #include <errno.h>
 #include <stdarg.h>
 #include <mntent.h>
+#include <ctype.h>
 
 #include <linux/types.h>
 #include "libgfs2.h"
