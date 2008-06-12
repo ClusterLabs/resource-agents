@@ -316,7 +316,8 @@ read_quota_internal(int fd, uint32_t id, int id_type, struct gfs2_quota *q)
 		die("failed to read from quota file: %s\n", strerror(errno));
 	if (error != sizeof(struct gfs2_quota))
 		die("Couldn't read %lu bytes from quota file at offset %llu\n",
-		    sizeof(struct gfs2_quota), (unsigned long long)offset);
+		    (unsigned long)sizeof(struct gfs2_quota),
+		    (unsigned long long)offset);
 	gfs2_quota_in(q, buf);
 }
 
