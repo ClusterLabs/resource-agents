@@ -221,9 +221,7 @@ void are_you_sure(commandline_t *comline)
 			   vid->usage_id == VOLUME_ID_OTHER? "partition" : vid->usage);
 	volume_id_close(vid);
 	printf("\nAre you sure you want to proceed? [y/n] ");
-	fgets(input, 32, stdin);
-
-	if (input[0] != 'y')
+	if (fgets(input, 32, stdin) == NULL || input[0] != 'y')
 		die("aborted\n");
 	else
 		printf("\n");
