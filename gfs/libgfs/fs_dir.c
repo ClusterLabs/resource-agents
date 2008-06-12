@@ -2,7 +2,7 @@
 #include "link.h"
 #include "libgfs.h"
 
-#define dir_hash(qstr) (gfs_dir_hash((qstr)->name, (qstr)->len))
+#define dir_hash(qstr) (gfs_dir_hash((char *)(qstr)->name, (qstr)->len))
 
 /* Detect directory is a stuffed inode */
 int gfs_inode_is_stuffed(struct gfs_inode *ip)
@@ -144,7 +144,7 @@ int dirent_del(int disk_fd, struct gfs_inode *dip, osi_buf_t *bh,
 		return -1;
 	}
 
-	if((char *)cur + cur_rec_len > BH_DATA(bh) + BH_SIZE(bh)){
+	if((char *)(cur) + cur_rec_len > BH_DATA(bh) + BH_SIZE(bh)){
 		log_err("dirent_del: Directory entry has record length"
 			" longer than buffer.\n");
 		return -1;
@@ -444,7 +444,7 @@ static int linked_leaf_search(int disk_fd, struct gfs_inode *dip,
 static int dir_e_search(int disk_fd, struct gfs_inode *dip,
 						identifier_t *id, unsigned int *type)
 {
-	osi_buf_t *bh;
+	osi_buf_t *bh = NULL;
 	struct gfs_dirent *dent;
 	int error;
 

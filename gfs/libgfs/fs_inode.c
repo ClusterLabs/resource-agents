@@ -371,7 +371,7 @@ int fs_mkdir(int disk_fd, struct gfs_inode *dip, char *new_dir,
 	osi_filename_t name;
 	int new;
 
-	name.name = new_dir;
+	name.name = (unsigned char *)new_dir;
 	name.len = strlen(new_dir);
 	creds.cr_uid = getuid();
 	creds.cr_gid = getgid();

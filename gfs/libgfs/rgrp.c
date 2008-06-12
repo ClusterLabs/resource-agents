@@ -227,7 +227,9 @@ int fs_rgrp_verify(struct gfs_rgrpd *rgd)
 
 		for (buf = 0; buf < length; buf++){
 			bits = &rgd->rd_bits[buf];
-			count[x] += fs_bitcount(BH_DATA(rgd->rd_bh[buf]) + bits->bi_offset,
+			count[x] += fs_bitcount((unsigned char *)
+						BH_DATA(rgd->rd_bh[buf]) +
+						bits->bi_offset,
 						bits->bi_len, x);
 		}
 	}
@@ -285,7 +287,9 @@ int fs_rgrp_recount(int disk_fd, struct gfs_rgrpd *rgd){
 		count[i] = 0;
 		for(j = 0; j < length; j++){
 			bits = (fs_bitmap_t *)&rgd->rd_bits[j];
-			count[i] += fs_bitcount(BH_DATA(rgd->rd_bh[j]) + bits->bi_offset,
+			count[i] += fs_bitcount((unsigned char *)
+						BH_DATA(rgd->rd_bh[j]) +
+						bits->bi_offset,
 						bits->bi_len, i);
 		}
 	}

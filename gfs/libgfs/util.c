@@ -152,7 +152,7 @@ int next_rg_meta(struct gfs_rgrpd *rgd, uint64 *block, int first)
   for(; i < length; i++){
     bits = &rgd->rd_bits[i];
 
-    blk = fs_bitfit(BH_DATA(rgd->rd_bh[i]) + bits->bi_offset,
+    blk = fs_bitfit((unsigned char *)BH_DATA(rgd->rd_bh[i]) + bits->bi_offset,
                     bits->bi_len, blk, GFS_BLKST_USEDMETA);
 
     if(blk != BFITNOENT){
@@ -205,10 +205,10 @@ int next_rg_meta_free(struct gfs_rgrpd *rgd, uint64 *block, int first, int *mfre
   for(; i < length; i++){
     bits = &rgd->rd_bits[i];
 
-    ublk = fs_bitfit(BH_DATA(rgd->rd_bh[i]) + bits->bi_offset,
+    ublk = fs_bitfit((unsigned char *)BH_DATA(rgd->rd_bh[i]) + bits->bi_offset,
                     bits->bi_len, blk, GFS_BLKST_USEDMETA);
 
-    fblk = fs_bitfit(BH_DATA(rgd->rd_bh[i]) + bits->bi_offset,
+    fblk = fs_bitfit((unsigned char *)BH_DATA(rgd->rd_bh[i]) + bits->bi_offset,
 			     bits->bi_len, blk, GFS_BLKST_FREEMETA);
     if(ublk < fblk) {
 	    blk = ublk;

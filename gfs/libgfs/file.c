@@ -214,7 +214,7 @@ int writei(int disk_fd, struct gfs_inode *ip, void *buf, uint64_t offset,
 		ip->i_di.di_size = start + copied;
 	ip->i_di.di_mtime = ip->i_di.di_ctime = osi_current_time();
 
-	gfs_dinode_out(&ip->i_di, BH_DATA(dibh));
+	gfs_dinode_out(&ip->i_di, (char *)BH_DATA(dibh));
 	write_buf(disk_fd, dibh, 0);
 	relse_buf(dibh);
 
