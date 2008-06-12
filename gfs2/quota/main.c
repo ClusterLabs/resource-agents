@@ -244,25 +244,33 @@ print_quota(commandline_t *comline,
 	case GQ_UNITS_KILOBYTE:
 		if (sb->sb_bsize == 512)
 			printf("limit: %-10llu warn: %-10lluvalue: %-10llu\n",
-			       q->qu_limit / 2,
-			       q->qu_warn / 2,
-			       q->qu_value / 2);
+			       (unsigned long long)q->qu_limit / 2,
+			       (unsigned long long)q->qu_warn / 2,
+			       (unsigned long long)q->qu_value / 2);
 		else
 			printf("limit: %-10llu warn: %-10lluvalue: %-10llu\n",
+			       (unsigned long long)
 			       q->qu_limit << (sb->sb_bsize_shift - 10),
+			       (unsigned long long)
 			       q->qu_warn << (sb->sb_bsize_shift - 10),
+			       (unsigned long long)
 			       q->qu_value << (sb->sb_bsize_shift - 10));
 		break;
 
 	case GQ_UNITS_FSBLOCK:
 		printf("limit: %-10llu warn: %-10llu value: %-10llu\n",
-		       q->qu_limit, q->qu_warn, q->qu_value);
+		       (unsigned long long)q->qu_limit,
+		       (unsigned long long)q->qu_warn,
+		       (unsigned long long)q->qu_value);
 		break;
 
 	case GQ_UNITS_BASICBLOCK:
 		printf("limit: %-10llu warn: %-10llu value: %-10llu\n",
+		       (unsigned long long)
 		       q->qu_limit << (sb->sb_bsize_shift - 9),
+		       (unsigned long long)
 		       q->qu_warn << (sb->sb_bsize_shift - 9),
+		       (unsigned long long)
 		       q->qu_value << (sb->sb_bsize_shift - 9));
 		break;
 

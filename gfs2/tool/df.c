@@ -121,14 +121,17 @@ do_df_one(char *path)
 	percentage = sc.sc_total ?
 		(100.0 * (sc.sc_total - sc.sc_free)) / sc.sc_total + 0.5 : 0;
 	printf("  %-15s%-15llu%-15llu%-15llu%u%%\n", "data",
-	       sc.sc_total, sc.sc_total - sc.sc_free, sc.sc_free, percentage);
+	       (unsigned long long)sc.sc_total,
+	       (unsigned long long)sc.sc_total - sc.sc_free,
+	       (unsigned long long)sc.sc_free, percentage);
 
 	percentage = (sc.sc_dinodes + sc.sc_free) ?
 		(100.0 * sc.sc_dinodes / (sc.sc_dinodes + sc.sc_free)) + 0.5 :
 		0;
 	printf("  %-15s%-15llu%-15llu%-15llu%u%%\n", "inodes",
-	       sc.sc_dinodes + sc.sc_free, sc.sc_dinodes,
-	       sc.sc_free, percentage);
+	       (unsigned long long)sc.sc_dinodes + sc.sc_free,
+	       (unsigned long long)sc.sc_dinodes,
+	       (unsigned long long)sc.sc_free, percentage);
 }
 
 

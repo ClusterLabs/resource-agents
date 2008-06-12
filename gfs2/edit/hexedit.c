@@ -631,7 +631,7 @@ void rgcount(void)
 	ribh = bread(&sbd, block);
 	riinode = inode_get(&sbd, ribh);
 	printf("%lld RGs in this file system.\n",
-	       riinode->i_di.di_size / risize());
+	       (unsigned long long)riinode->i_di.di_size / risize());
 	inode_put(riinode, not_updated);
 	exit(EXIT_SUCCESS);
 }
@@ -730,7 +730,7 @@ uint64_t get_rg_addr(int rgnum)
 		rgblk = find_rgrp_block(riinode, rgnum);
 	else
 		fprintf(stderr, "Error: File system only has %lld RGs.\n",
-			riinode->i_di.di_size / risize());
+			(unsigned long long)riinode->i_di.di_size / risize());
 	inode_put(riinode, not_updated);
 	return rgblk;
 }

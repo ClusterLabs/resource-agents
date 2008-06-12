@@ -80,35 +80,43 @@ int add_inode_to_lf(struct gfs2_inode *ip){
 
 		dir_add(ip, filename, filename_len, &(lf_dip->i_di.di_num), DT_DIR);
 		free(filename);
-		sprintf(tmp_name, "lost_dir_%llu", ip->i_di.di_num.no_addr);
+		sprintf(tmp_name, "lost_dir_%llu",
+			(unsigned long long)ip->i_di.di_num.no_addr);
 		inode_type = DT_DIR;
 		break;
 	case S_IFREG:
-		sprintf(tmp_name, "lost_file_%llu", ip->i_di.di_num.no_addr);
+		sprintf(tmp_name, "lost_file_%llu",
+			(unsigned long long)ip->i_di.di_num.no_addr);
 		inode_type = DT_REG;
 		break;
 	case S_IFLNK:
-		sprintf(tmp_name, "lost_link_%llu", ip->i_di.di_num.no_addr);
+		sprintf(tmp_name, "lost_link_%llu",
+			(unsigned long long)ip->i_di.di_num.no_addr);
 		inode_type = DT_LNK;
 		break;
 	case S_IFBLK:
-		sprintf(tmp_name, "lost_blkdev_%llu", ip->i_di.di_num.no_addr);
+		sprintf(tmp_name, "lost_blkdev_%llu",
+			(unsigned long long)ip->i_di.di_num.no_addr);
 		inode_type = DT_BLK;
 		break;
 	case S_IFCHR:
-		sprintf(tmp_name, "lost_chrdev_%llu", ip->i_di.di_num.no_addr);
+		sprintf(tmp_name, "lost_chrdev_%llu",
+			(unsigned long long)ip->i_di.di_num.no_addr);
 		inode_type = DT_CHR;
 		break;
 	case S_IFIFO:
-		sprintf(tmp_name, "lost_fifo_%llu", ip->i_di.di_num.no_addr);
+		sprintf(tmp_name, "lost_fifo_%llu",
+			(unsigned long long)ip->i_di.di_num.no_addr);
 		inode_type = DT_FIFO;
 		break;
 	case S_IFSOCK:
-		sprintf(tmp_name, "lost_socket_%llu", ip->i_di.di_num.no_addr);
+		sprintf(tmp_name, "lost_socket_%llu",
+			(unsigned long long)ip->i_di.di_num.no_addr);
 		inode_type = DT_SOCK;
 		break;
 	default:
-		sprintf(tmp_name, "lost_%llu", ip->i_di.di_num.no_addr);
+		sprintf(tmp_name, "lost_%llu",
+			(unsigned long long)ip->i_di.di_num.no_addr);
 		inode_type = DT_REG;
 		break;
 	}
@@ -132,6 +140,6 @@ int add_inode_to_lf(struct gfs2_inode *ip){
 
 	free(filename);
 	log_notice("Added inode #%"PRIu64" to lost+found dir\n",
-			   ip->i_di.di_num.no_addr);
+		   ip->i_di.di_num.no_addr);
 	return 0;
 }
