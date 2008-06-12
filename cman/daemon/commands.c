@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <inttypes.h>
 #include <syslog.h>
 #include <string.h>
 #include <sys/time.h>
@@ -2013,7 +2014,7 @@ void add_ais_node(int nodeid, uint64_t incarnation, int total_members)
 {
 	struct cluster_node *node;
 
-	P_MEMB("add_ais_node ID=%d, incarnation = %lld\n",nodeid, incarnation);
+	P_MEMB("add_ais_node ID=%d, incarnation = %" PRIu64 "\n",nodeid, incarnation);
 
 	node = find_node_by_nodeid(nodeid);
 	if (!node && total_members == 1) {

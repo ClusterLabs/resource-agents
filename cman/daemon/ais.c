@@ -243,8 +243,8 @@ static void cman_deliver_fn(unsigned int nodeid, struct iovec *iovec, int iov_le
 	struct cl_protheader *header = iovec->iov_base;
 	char *buf = iovec->iov_base;
 
-	P_AIS("deliver_fn called, iov_len = %d, iov[0].len = %d, source nodeid = %d, conversion reqd=%d\n",
-	      iov_len, iovec->iov_len, nodeid, endian_conversion_required);
+	P_AIS("deliver_fn called, iov_len = %d, iov[0].len = %lu, source nodeid = %d, conversion reqd=%d\n",
+	      iov_len, (unsigned long)iovec->iov_len, nodeid, endian_conversion_required);
 
 	if (endian_conversion_required) {
 		header->srcid = swab32(header->srcid);

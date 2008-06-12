@@ -256,8 +256,8 @@ static int process_client(poll_handle handle, int fd, int revent, void *data)
 			uint8_t port;
 			struct sock_data_header *dmsg = (struct sock_data_header *)msg;
 
-			P_DAEMON("sending %d bytes of data to node %d, port %d\n",
-				 msg->length - sizeof(struct sock_data_header), dmsg->nodeid, dmsg->port);
+			P_DAEMON("sending %lu bytes of data to node %d, port %d\n",
+				 (unsigned long)(msg->length - sizeof(struct sock_data_header)), dmsg->nodeid, dmsg->port);
 
 			buf += sizeof(struct sock_data_header);
 
