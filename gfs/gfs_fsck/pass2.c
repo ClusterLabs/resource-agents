@@ -517,14 +517,14 @@ int build_rooti(struct fsck_sb *sbp)
 	relse_buf(sbp, bh);
 	sbp->rooti = ip;
 
-	if(fs_dir_add(ip, &(osi_filename_t){".", 1},
+	if(fs_dir_add(ip, &(osi_filename_t){(unsigned char *)".", 1},
 		      &(ip->i_num), ip->i_di.di_type)){
 		stack;
 		log_err("Unable to add \".\" entry to new root inode\n");
 		return -1;
 	}
 
-	if(fs_dir_add(ip, &(osi_filename_t){"..", 2},
+	if(fs_dir_add(ip, &(osi_filename_t){(unsigned char *)"..", 2},
 		      &ip->i_num, ip->i_di.di_type)){
 		stack;
 		log_err("Unable to add \"..\" entry to new root inode\n");

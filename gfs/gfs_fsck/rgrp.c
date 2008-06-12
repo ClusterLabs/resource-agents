@@ -321,7 +321,9 @@ int fs_rgrp_recount(struct fsck_rgrp *rgd){
 		count[i] = 0;
 		for(j = 0; j < length; j++){
 			bits = &rgd->rd_bits[j];
-			count[i] += fs_bitcount(BH_DATA(rgd->rd_bh[j]) + bits->bi_offset,
+			count[i] += fs_bitcount((unsigned char *)
+						BH_DATA(rgd->rd_bh[j]) +
+						bits->bi_offset,
 						bits->bi_len, i);
 		}
 	}

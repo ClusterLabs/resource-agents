@@ -172,9 +172,9 @@ int check_block_status(struct fsck_sb *sbp, char *buffer, unsigned int buflen,
 	struct block_query q;
 	uint64_t block;
 
-	byte = buffer;
+	byte = (unsigned char *)buffer;
 	bit = 0;
-	end = buffer + buflen;
+	end = (unsigned char *)buffer + buflen;
 
 	while(byte < end) {
 		rg_status = ((*byte >> bit) & GFS_BIT_MASK);

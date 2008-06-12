@@ -503,7 +503,7 @@ int fs_mkdir(struct fsck_inode *dip, char *new_dir, int mode, struct fsck_inode 
 	osi_filename_t name;
 	int new;
 
-	name.name = new_dir;
+	name.name = (unsigned char *)new_dir;
 	name.len = strlen(new_dir);
 	creds.cr_uid = getuid();
 	creds.cr_gid = getgid();

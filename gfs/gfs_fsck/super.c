@@ -343,7 +343,7 @@ uint32 rgrplength2bitblocks(struct fsck_sb *sdp, uint32 length)
  * Other RGs found after that will be considered "extra."
  */
 int gfs_rgindex_rebuild(struct fsck_sb *sdp, osi_list_t *ret_list,
-						int *num_rgs)
+			unsigned int *num_rgs)
 {
 	osi_buf_t *bh; /* buffer handle */
 	uint64 subdevice_size, fs_total_size;
@@ -667,7 +667,7 @@ int gfs_rgindex_rebuild(struct fsck_sb *sdp, osi_list_t *ret_list,
 	for (subd = 0; subd < 3; subd++) { /* third subdevice is for all RGs
 										  extended past the normal 2 with
 										  gfs_grow, etc. */
-		uint64 start_block, end_block;
+		uint64 start_block, end_block = 0;
 
 		if (subd == 0) {
 			start_block = (GFS_SB_ADDR >> sdp->fsb2bb_shift) + 1;
@@ -873,7 +873,7 @@ int gfs_rgindex_rebuild(struct fsck_sb *sdp, osi_list_t *ret_list,
  *          what we think the rgindex should really look like.
  */
 int gfs_rgindex_calculate(struct fsck_sb *sdp, osi_list_t *ret_list,
-						  int *num_rgs)
+			  unsigned int *num_rgs)
 {
 	osi_buf_t *bh; /* buffer handle */
 	uint64 subdevice_size, adjust_subdevice_size, fs_total_size;
@@ -883,7 +883,7 @@ int gfs_rgindex_calculate(struct fsck_sb *sdp, osi_list_t *ret_list,
 	int error;
 	int rgi, rgs_per_subd;
 	uint64 subdevice_start;
-	uint64 addr, prev_addr, length, prev_length;
+	uint64 addr = 0, prev_addr, length = 0, prev_length;
 	uint64 blocks;
 	struct fsck_rgrp *calc_rgd;
 	char rgindex_buf_ondisk[sizeof(struct gfs_rindex)];
@@ -1006,8 +1006,9 @@ int gfs_rgindex_calculate(struct fsck_sb *sdp, osi_list_t *ret_list,
 		gfs_rindex_out(&calc_rgd->rd_ri, rgindex_buf_ondisk);
 		/* Note: rgindex_buf_ondisk is ONLY used for debug to see what the
 		   entry would look like on disk. */
-		hexdump(rgi*sizeof(struct gfs_rindex), rgindex_buf_ondisk,
-				sizeof(struct gfs_rindex));
+		hexdump(rgi*sizeof(struct gfs_rindex),
+			(unsigned char *)rgindex_buf_ondisk,
+			sizeof(struct gfs_rindex));
 	} /* for */
 	relse_buf(sdp, bh); /* release the read buffer if we have one */
 	return 0;
@@ -1083,7 +1084,7 @@ int ri_update(struct fsck_sb *sdp)
 		else if (trust_lvl == open_minded) { /* If we can't trust RG index */
 			/* Calculate our own RG index for comparison */
 			error = gfs_rgindex_calculate(sdp, &expected_rglist,
-										  &calc_rg_count);
+						      &calc_rg_count);
 			if (error) { /* If calculated RGs don't reasonably match the fs */
 				log_info("(failed--trying again at level 3)\n");
 				ri_cleanup(&sdp->rglist);
@@ -1092,7 +1093,7 @@ int ri_update(struct fsck_sb *sdp)
 		}
 		else if (trust_lvl == distrust) { /* If we can't trust RG index */
 			error = gfs_rgindex_rebuild(sdp, &expected_rglist,
-										&calc_rg_count); /* count the RGs. */
+						    &calc_rg_count); /* count the RGs. */
 			if (error) { /* If calculated RGs don't reasonably match the fs */
 				log_info("(failed--giving up)\n");
 				goto fail; /* try again, this time counting them manually */

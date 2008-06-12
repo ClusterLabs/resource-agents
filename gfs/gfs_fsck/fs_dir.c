@@ -12,7 +12,7 @@
 #define IS_LEAF     (1)
 #define IS_DINODE   (2)
 
-#define dir_hash(qstr) (gfs_dir_hash((qstr)->name, (qstr)->len))
+#define dir_hash(qstr) (gfs_dir_hash((char *)(qstr)->name, (qstr)->len))
 
 /* Detect directory is a stuffed inode */
 int fsck_inode_is_stuffed(struct fsck_inode *ip)
@@ -451,7 +451,7 @@ static int linked_leaf_search(struct fsck_inode *dip, identifier_t *id,
  */
 static int dir_e_search(struct fsck_inode *dip, identifier_t *id, unsigned int *type)
 {
-	osi_buf_t *bh;
+	osi_buf_t *bh = NULL;
 	struct gfs_dirent *dent;
 	int error;
 

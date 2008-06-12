@@ -280,8 +280,8 @@ int fs_get_bitmap(struct fsck_sb *sdp, uint64 blkno, struct fsck_rgrp *rgd){
 		return -1;
 	}
 
-	byte = (BH_DATA(rgd->rd_bh[buf]) + bits->bi_offset) +
-		(rgrp_block/GFS_NBBY - bits->bi_start);
+	byte = (unsigned char *)((BH_DATA(rgd->rd_bh[buf]) + bits->bi_offset) +
+				 (rgrp_block/GFS_NBBY - bits->bi_start));
 	bit = (rgrp_block % GFS_NBBY) * GFS_BIT_SIZE;
 
 	val = ((*byte >> bit) & GFS_BIT_MASK);
@@ -335,10 +335,11 @@ int fs_set_bitmap(struct fsck_sb *sdp, uint64 blkno, int state){
 		}
 	}
 	if (buf < rgd->rd_ri.ri_length) {
-		fs_setbit(BH_DATA(rgd->rd_bh[buf]) + bits->bi_offset,
-				  bits->bi_len,
-				  (rgrp_block - (bits->bi_start*GFS_NBBY)),
-				  state);
+		fs_setbit((unsigned char *)BH_DATA(rgd->rd_bh[buf]) +
+			  bits->bi_offset,
+			  bits->bi_len,
+			  (rgrp_block - (bits->bi_start*GFS_NBBY)),
+			  state);
 		if(write_buf(sdp, rgd->rd_bh[buf], 0)){
 			fs_rgrp_relse(rgd);
 			return -1;

@@ -108,6 +108,7 @@ void interrupt(int sig)
 	struct timeval tv;
 	char response;
 	int err;
+	ssize_t amtread;
 
 	if (fsck_query) /* if we're asking them a question */
 		return;     /* ignore the interrupt signal */
@@ -123,7 +124,7 @@ void interrupt(int sig)
 			log_debug("Error in select() on stdin\n");
 			break;
 		}
-		read(STDIN_FILENO, &response, sizeof(char));
+		err = read(STDIN_FILENO, &response, sizeof(char));
 	}
 	while (TRUE) {
 		printf("\ngfs_fsck interrupted in %s:  ", pass);
@@ -136,24 +137,25 @@ void interrupt(int sig)
 
 		/* Make sure query is printed out */
 		fflush(stdout);
-		read(STDIN_FILENO, &response, sizeof(char));
+		amtread = read(STDIN_FILENO, &response, sizeof(char));
 
-		if(tolower(response) == 's') {
+		if(amtread && tolower(response) == 's') {
 			skip_this_pass = TRUE;
 			return;
 		}
-		else if (tolower(response) == 'a') {
+		else if (amtread && tolower(response) == 'a') {
 			fsck_abort = TRUE;
 			return;
 		}
-		else if (tolower(response) == 'c')
+		else if (amtread && tolower(response) == 'c')
 			return;
-        else {
+		else {
 			while(response != '\n')
-				read(STDIN_FILENO, &response, sizeof(char));
+				amtread = read(STDIN_FILENO, &response,
+					       sizeof(char));
 			printf("Bad response, please type 'c', 'a' or 's'.\n");
 			continue;
-        }
+		}
 	}
 }
 

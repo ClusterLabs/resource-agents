@@ -104,7 +104,7 @@ int query(struct fsck_sb *sbp, const char *format, ...)
 			log_debug("Error in select() on stdin\n");
 			break;
 		}
-		read(STDIN_FILENO, &response, sizeof(char));
+		err = read(STDIN_FILENO, &response, sizeof(char));
 
 	}
  query:
@@ -114,7 +114,7 @@ int query(struct fsck_sb *sbp, const char *format, ...)
 	fflush(NULL);
 
  rescan:
-	read(STDIN_FILENO, &response, sizeof(char));
+	err = read(STDIN_FILENO, &response, sizeof(char));
 
 	if(tolower(response) == 'y') {
 		ret = 1;
@@ -124,7 +124,7 @@ int query(struct fsck_sb *sbp, const char *format, ...)
 		goto rescan;
 	} else {
 		while(response != '\n')
-			read(STDIN_FILENO, &response, sizeof(char));
+			err = read(STDIN_FILENO, &response, sizeof(char));
 		printf("Bad response, please type 'y' or 'n'.\n");
 		goto query;
 	}
@@ -135,7 +135,7 @@ int query(struct fsck_sb *sbp, const char *format, ...)
 			log_debug("Error in select() on stdin\n");
 			break;
 		}
-		read(STDIN_FILENO, &response, sizeof(char));
+		err = read(STDIN_FILENO, &response, sizeof(char));
 	}
 
 	fsck_query = FALSE;
