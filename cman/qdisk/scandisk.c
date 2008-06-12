@@ -580,7 +580,17 @@ static int sysfs_is_disk(char *path)
 
 	snprintf(newpath, sizeof(newpath), "%s/../device/media", path);
 	if (lstat(newpath, &sb))
-		return -1;
+		goto found;
+
+	snprintf(newpath, sizeof(newpath), "%s/device/devtype", path);
+	if (lstat(newpath, &sb))
+		return 1;
+
+	snprintf(newpath, sizeof(newpath), "%s/../device/devtype", path);
+	if (lstat(newpath, &sb))
+		return 1;
+
+	return -1;
 
       found:
 	f = fopen(newpath, "r");
