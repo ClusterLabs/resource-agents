@@ -186,7 +186,7 @@ print_counters(int argc, char **argv)
 			die("can't get counters: %s\n", strerror(errno));
 
 		if (debug)
-			write(STDOUT_FILENO, data, error);
+			error = write(STDOUT_FILENO, data, error);
 
 		parse_lines(data, error);
 

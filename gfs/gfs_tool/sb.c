@@ -48,7 +48,8 @@ do_sb(int argc, char **argv)
 {
 	char *device, *field, *newval = NULL;
 	int fd;
-	unsigned char buf[GFS_BASIC_BLOCK], input[256];
+	unsigned char buf[GFS_BASIC_BLOCK];
+	char input[256];
 	struct gfs_sb sb;
 
 	if (optind == argc)
@@ -75,9 +76,7 @@ do_sb(int argc, char **argv)
 	if (newval && !override) {
 		printf("You shouldn't change any of these values if the filesystem is mounted.\n");
 		printf("\nAre you sure? [y/n] ");
-		fgets(input, 255, stdin);
-
-		if (input[0] != 'y')
+		if (fgets(input, 255, stdin) == NULL || input[0] != 'y')
 			die("aborted\n");
 
 		printf("\n");
@@ -86,7 +85,7 @@ do_sb(int argc, char **argv)
 	do_lseek(fd, GFS_SB_ADDR * GFS_BASIC_BLOCK);
 	do_read(fd, buf, GFS_BASIC_BLOCK);
 
-	gfs_sb_in(&sb, buf);
+	gfs_sb_in(&sb, (char *)buf);
 
 	if (sb.sb_header.mh_magic != GFS_MAGIC ||
 	    sb.sb_header.mh_type != GFS_METATYPE_SB)
@@ -139,7 +138,7 @@ do_sb(int argc, char **argv)
 		die("unknown field %s\n", field);
 
 	if (newval) {
-		gfs_sb_out(&sb, buf);
+		gfs_sb_out(&sb, (char *)buf);
 
 		do_lseek(fd, GFS_SB_ADDR * GFS_BASIC_BLOCK);
 		do_write(fd, buf, GFS_BASIC_BLOCK);

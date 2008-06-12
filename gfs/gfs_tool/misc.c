@@ -158,7 +158,7 @@ print_lockdump(int argc, char **argv)
 	close(fd);
 
 
-	write(STDOUT_FILENO, data, count);
+	x = write(STDOUT_FILENO, data, count);
 
 	free(data);
 }
@@ -640,9 +640,7 @@ reclaim_metadata(int argc, char **argv)
 	if (!override) {
 		printf("Don't do this if this file system is being exported by NFS (on any machine).\n");
 		printf("\nAre you sure you want to proceed? [y/n] ");
-		fgets(buf, 255, stdin);
-
-		if (buf[0] != 'y')
+		if (fgets(buf, 255, stdin) == NULL || buf[0] != 'y')
 			die("aborted\n");
 
 		printf("\n");

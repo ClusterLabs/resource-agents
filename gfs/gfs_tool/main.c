@@ -110,7 +110,7 @@ print_usage(void)
 	int x;
 
 	for (x = 0; usage[x][0]; x++)
-		printf(usage[x]);
+		printf("%s", usage[x]);
 }
 
 /**
