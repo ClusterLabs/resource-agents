@@ -161,7 +161,7 @@ readfile(void)
 	char *data;
 	char buf[CHUNKSIZE];
 	uint64_t o = 0;
-	int error;
+	int error, rc;
 
 	must_be_gfs();
 
@@ -182,7 +182,7 @@ readfile(void)
 		error = gfs_readi(&di, buf, o, CHUNKSIZE);
 		if (error <= 0)
 			break;
-		write(STDOUT_FILENO, buf, error);
+		rc = write(STDOUT_FILENO, buf, error);
 		o += error;
 	}
 }
