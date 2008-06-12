@@ -135,7 +135,7 @@ SysInfoStats() {
 		cpu_type=${cpu_type/*: /}
 		cpu_speed=`grep "bogomips" /proc/cpuinfo | head -n 1`
 		cpu_speed=${cpu_speed/*: /}
-		cpu_cores=`grep "processor" /proc/cpuinfo | wc -l`
+		cpu_cores=`grep "^processor" /proc/cpuinfo | wc -l`
 	    fi
 
 	    if [ -f /proc/meminfo ]; then
