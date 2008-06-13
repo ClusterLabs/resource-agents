@@ -1160,7 +1160,7 @@ int ri_update(struct fsck_sb *sdp)
 				free(expected_rgd);
 			} /* if we can't trust the rg index */
 			else { /* blind faith -- just check for the gfs_grow problem */
-				if (rgd->rd_ri.ri_data == 4294967292) {
+				if (rgd->rd_ri.ri_data == (uint32_t)-4) {
 					if (!fix_grow_problems) {
 						log_err("A problem with the rindex file caused by gfs_grow was detected.\n");
 						if(query(sdp, "Fix the rindex problem? (y/n)"))
