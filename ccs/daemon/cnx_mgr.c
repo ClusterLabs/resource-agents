@@ -306,7 +306,11 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
     tv.tv_sec = 0;
     
     tv.tv_usec = 250000 + (random()%500000);
+#if defined(__sparc__)
+    log_printf(LOG_DEBUG, "Select waiting %d usec\n", tv.tv_usec);
+#else
     log_printf(LOG_DEBUG, "Select waiting %ld usec\n", tv.tv_usec);
+#endif
     while((error = select(sfd+1, &rset, NULL,NULL, &tv))){
       log_printf(LOG_DEBUG, "Select returns %d\n", error);
       if(error < 0){
@@ -427,7 +431,11 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
     reset_timer:
       tv.tv_sec = 0;
       tv.tv_usec = 250000 + (random()%500000);
+#if defined(__sparc__)
+      log_printf(LOG_DEBUG, "Select waiting %d usec\n", tv.tv_usec);
+#else
       log_printf(LOG_DEBUG, "Select waiting %ld usec\n", tv.tv_usec);
+#endif
     }
   } while(blocking && !master_doc);
  out:
