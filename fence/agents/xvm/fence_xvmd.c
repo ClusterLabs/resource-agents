@@ -793,6 +793,7 @@ main(int argc, char **argv)
 		if (x)
 			printf("Checkpoint initialized\n");
 	}
+
 	if (args.family == PF_INET)
 		mc_sock = ipv4_recv_sk(args.addr, args.port);
 	else

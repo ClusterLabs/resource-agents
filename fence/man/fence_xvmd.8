@@ -74,6 +74,13 @@ parameters (because they are cluster-wide), so if you need to
 override a configuration option contained in CCS, you must specify
 this parameter.
 \fB-V\fP
+.TP
+\fB-L\fP
+Local-only / non-cluster mode.  When used with -X, this this option
+prevents fence_xvmd from operating as a clustered service, obviating
+the need to configure/run CMAN on the host domain.
+.TP
+\fB-V\fP
 Print out a version message, then exit.
 
 .SH CCS PARAMETERS

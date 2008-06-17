@@ -253,7 +253,6 @@ assign_nocluster(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 }
 
 
-
 /** ALL valid command line and stdin arguments for this fencing agent */
 static struct arg_info _arg_info[] = {
 	{ '\xff', NULL, "agent",
