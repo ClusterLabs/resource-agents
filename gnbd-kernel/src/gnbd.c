@@ -388,6 +388,12 @@ int __gnbd_send_req(struct gnbd_device *dev, struct socket *sock,
 
 	down(&dev->tx_lock);
 
+	if (dev->corrupt) {
+		printk(KERN_ERR "%s: Attempted to send on a faulty socket\n",
+		       dev->disk->disk_name);
+		result = -EBADFD;
+		goto error_out;
+	}
 	if (!sock) {
 		printk(KERN_ERR "%s: Attempted send on closed socket\n",
 				dev->disk->disk_name);
@@ -440,6 +446,7 @@ int __gnbd_send_req(struct gnbd_device *dev, struct socket *sock,
 	return 0;
 
 send_error_out:
+	dev->corrupt = 1;
 	dev->current_request = NULL;
 	wake_up(&dev->tx_wait);
 error_out:
@@ -502,6 +509,11 @@ int gnbd_do_it(struct gnbd_device *dev)
 	BUG_ON(dev->magic != GNBD_MAGIC);
 
 	while((result = sock_xmit(sock, 0, &reply,sizeof(reply), MSG_WAITALL, 1)) > 0){
+		if (dev->corrupt) {
+			printk(KERN_ERR "%s: faulty socket\n",dev->disk->disk_name);
+			return -EBADFD;
+		}
+
 		if (ntohl(reply.magic) == GNBD_KEEP_ALIVE_MAGIC)
 			/* FIXME -- I should reset the wait time here */
 			continue;
@@ -771,6 +783,7 @@ static int gnbd_ctl_ioctl(struct inode *inode, struct file *file,
 		}
 		dev->file = file;
 		dev->sock = SOCKET_I(inode);
+		dev->corrupt = 0;
 		dev->receiver_pid = current->pid; 
 		blk_run_queue(dev->disk->queue);
 		error = gnbd_do_it(dev);

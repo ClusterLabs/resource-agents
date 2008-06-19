@@ -45,6 +45,7 @@ struct gnbd_device {
 	struct block_device *bdev;
 	struct request *current_request;
 	wait_queue_head_t tx_wait;
+	int corrupt;
 };
 
 #endif /* __KERNEL__ */
