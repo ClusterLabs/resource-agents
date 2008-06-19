@@ -253,6 +253,26 @@ static const char *gnbdcmd_to_ascii(int cmd)
 }
 #endif /* NDEBUG */
 
+
+static int wait_for_send(struct request *req, struct gnbd_device *dev)
+{
+	DECLARE_WAITQUEUE(wait, current);
+
+	add_wait_queue(&dev->tx_wait, &wait);
+	while(dev->current_request == req) {
+		set_current_state(TASK_INTERRUPTIBLE);
+		if (signal_pending(current)) {
+			printk(KERN_WARNING "gnbd (pid %d: %s) wait interrupted by signal\n",
+				current->pid, current->comm);
+			return -EINTR;
+		}
+		schedule();
+	}
+	set_current_state(TASK_RUNNING);
+	remove_wait_queue(&dev->tx_wait, &wait);
+	return 0;
+}
+
 static void gnbd_end_request(struct request *req)
 {
 	int error = req->errors ? -EIO : 0;
@@ -380,13 +400,14 @@ int __gnbd_send_req(struct gnbd_device *dev, struct socket *sock,
 			gnbdcmd_to_ascii(gnbd_cmd(req)),
 			(unsigned long long)req->sector << 9,
 			req->nr_sectors << 9);
+	dev->current_request = req;
 	result = sock_xmit(sock, 1, &request, sizeof(request),
 			(gnbd_cmd(req) == GNBD_CMD_WRITE)? MSG_MORE: 0,
 			can_signal);
 	if (result < 0) {
 		printk(KERN_ERR "%s: Send control failed (result %d)\n",
 				dev->disk->disk_name, result);
-		goto error_out;
+		goto send_error_out;
 	}
 
 	if (gnbd_cmd(req) == GNBD_CMD_WRITE) {
@@ -409,13 +430,18 @@ int __gnbd_send_req(struct gnbd_device *dev, struct socket *sock,
 				printk(KERN_ERR "%s: Send data failed (result %d)\n",
 						dev->disk->disk_name,
 						result);
-				goto error_out;
+				goto send_error_out;
 			}
 		}
 	}
+	dev->current_request = NULL;
+	wake_up(&dev->tx_wait);
 	up(&dev->tx_lock);
 	return 0;
 
+send_error_out:
+	dev->current_request = NULL;
+	wake_up(&dev->tx_wait);
 error_out:
 	up(&dev->tx_lock);
 	return result;
@@ -510,6 +536,9 @@ int gnbd_do_it(struct gnbd_device *dev)
 				return result;
 		}
 remove_req:
+		result = wait_for_send(req, dev);
+		if (result != 0)
+			return result;
 		spin_lock(&dev->queue_lock);
 		list_del_init(&req->queuelist);
 		dev->last_received = jiffies;
@@ -522,8 +551,9 @@ remove_req:
 	return result;
 }
 
-void gnbd_clear_que(struct gnbd_device *dev)
+int gnbd_clear_que(struct gnbd_device *dev)
 {
+	int err;
 	struct request *req;
 
 	BUG_ON(dev->magic != GNBD_MAGIC);
@@ -532,6 +562,9 @@ void gnbd_clear_que(struct gnbd_device *dev)
 		req = NULL;
 		if (!list_empty(&dev->queue_head)) {
 			req = list_entry(dev->queue_head.next, struct request, queuelist);
+			err = wait_for_send(req, dev);
+			if (err)
+				return err;
 			list_del_init(&req->queuelist);
 		}
 		if (req && req != &ping_req) {
@@ -539,6 +572,8 @@ void gnbd_clear_que(struct gnbd_device *dev)
 			gnbd_end_request(req);
 		}
 	} while (req);
+
+	return 0;
 }
 
 /*
@@ -692,7 +727,9 @@ static int gnbd_ctl_ioctl(struct inode *inode, struct file *file,
 		if (down_interruptible(&dev->do_it_lock))
 			return -EBUSY;
 		dev->receiver_pid = -1;
-		gnbd_clear_que(dev);
+		error = gnbd_clear_que(dev);
+		if (error)
+			return error;
 		bdev = dev->bdev;
 		if (bdev) {
 			blk_run_queue(dev->disk->queue);
@@ -960,6 +997,8 @@ static int __init gnbd_init(void)
 		INIT_LIST_HEAD(&gnbd_dev[i].queue_head);
 		init_MUTEX(&gnbd_dev[i].tx_lock);
 		init_MUTEX(&gnbd_dev[i].do_it_lock);
+		init_waitqueue_head(&gnbd_dev[i].tx_wait);
+		gnbd_dev[i].current_request = NULL;
 		gnbd_dev[i].class_dev.class = &gnbd_class;
 		sprintf(gnbd_dev[i].class_dev.bus_id, "gnbd%d", i);
 		err = device_register(&gnbd_dev[i].class_dev);

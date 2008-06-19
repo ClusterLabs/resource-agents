@@ -43,6 +43,8 @@ struct gnbd_device {
 	char name[32];
 	unsigned long last_received;
 	struct block_device *bdev;
+	struct request *current_request;
+	wait_queue_head_t tx_wait;
 };
 
 #endif /* __KERNEL__ */
