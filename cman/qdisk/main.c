@@ -1091,7 +1091,7 @@ quorum_logout(qd_ctx *ctx)
   Grab all our configuration data from CCSD
  */
 static int
-get_config_data(char *cluster_name, qd_ctx *ctx, struct h_data *h, int maxh,
+get_config_data(qd_ctx *ctx, struct h_data *h, int maxh,
 		int *cfh, int debug)
 {
 	int ccsfd = -1, loglevel = 4;
@@ -1100,7 +1100,7 @@ get_config_data(char *cluster_name, qd_ctx *ctx, struct h_data *h, int maxh,
 
 	log_printf(LOG_DEBUG, "Loading configuration information\n");
 
-	ccsfd = ccs_force_connect(cluster_name, 1);
+	ccsfd = ccs_connect();
 	if (ccsfd < 0) {
 		log_printf(LOG_CRIT, "Connection to CCSD failed; cannot start\n");
 		return -1;
@@ -1472,7 +1472,7 @@ main(int argc, char **argv)
         if (debug)
                 ctx.qc_flags |= RF_DEBUG;
 
-	if (get_config_data(NULL, &ctx, h, 10, &cfh, debug) < 0) {
+	if (get_config_data(&ctx, h, 10, &cfh, debug) < 0) {
 		log_printf(LOG_CRIT, "Configuration failed\n");
 		check_stop_cman(&ctx);
 		goto out;
