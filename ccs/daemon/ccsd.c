@@ -65,6 +65,7 @@ int main(int argc, char *argv[]){
   if(getenv("CCS_DEBUGLOG"))
     debug = 1;
 
+  /* enable debug as early as possible */
   if(debug)
     logsys_config_priority_set (LOG_LEVEL_DEBUG);
 
