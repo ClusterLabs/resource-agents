@@ -58,6 +58,7 @@ int main(int argc, char *argv[]){
   int addr_size=0;
   fd_set rset, tmp_set;
   char *msg;
+  unsigned int logmode;
 
   msg = parse_cli_args(argc, argv);
 
@@ -72,7 +73,14 @@ int main(int argc, char *argv[]){
     exit(EXIT_FAILURE);
   }
 
-  logsys_config_mode_set (LOG_MODE_OUTPUT_STDERR | LOG_MODE_OUTPUT_SYSLOG_THREADED | LOG_MODE_OUTPUT_FILE | LOG_MODE_FLUSH_AFTER_CONFIG);
+  logmode = logsys_config_mode_get();
+
+  if(logmode & LOG_MODE_BUFFER_BEFORE_CONFIG) {
+    log_printf(LOG_INFO, "Using default CCS logsys config options\n");
+    logmode &= ~LOG_MODE_BUFFER_BEFORE_CONFIG;
+    logmode |= LOG_MODE_FLUSH_AFTER_CONFIG;
+    logsys_config_mode_set (logmode);
+  }
 
   daemonize();
 
