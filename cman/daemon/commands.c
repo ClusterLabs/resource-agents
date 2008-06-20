@@ -1989,10 +1989,10 @@ void clear_reread_flags()
 
 void remove_unread_nodes()
 {
-	struct list *nodelist;
+	struct list *nodelist, *tmp;
 	struct cluster_node *node;
 
-	list_iterate(nodelist, &cluster_members_list) {
+	list_iterate_safe(nodelist, tmp, &cluster_members_list) {
 		node = list_item(nodelist, struct cluster_node);
 		if (!(node->flags & NODE_FLAGS_REREAD) &&
 		    node->state == NODESTATE_DEAD) {
