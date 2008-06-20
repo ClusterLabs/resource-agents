@@ -53,7 +53,7 @@ void update_local_status(qd_ctx *ctx, node_info_t *ni, int max, int score,
 
 
 LOGSYS_DECLARE_SYSTEM (NULL,
-        LOG_MODE_OUTPUT_STDERR | LOG_MODE_OUTPUT_SYSLOG_THREADED | LOG_MODE_OUTPUT_FILE | LOG_MODE_DISPLAY_DEBUG | LOG_MODE_BUFFER_BEFORE_CONFIG,
+        LOG_MODE_OUTPUT_STDERR | LOG_MODE_OUTPUT_SYSLOG_THREADED | LOG_MODE_OUTPUT_FILE | LOG_MODE_BUFFER_BEFORE_CONFIG,
         LOGDIR "/qdisk.log",
         SYSLOGFACILITY);
 
@@ -1392,7 +1392,7 @@ main(int argc, char **argv)
 	pid_t pid;
 	quorum_header_t qh;
 
-	logsys_config_mode_set (LOG_MODE_OUTPUT_STDERR | LOG_MODE_OUTPUT_SYSLOG_THREADED | LOG_MODE_OUTPUT_FILE | LOG_MODE_DISPLAY_DEBUG | LOG_MODE_FLUSH_AFTER_CONFIG);
+	logsys_config_mode_set (LOG_MODE_OUTPUT_STDERR | LOG_MODE_OUTPUT_SYSLOG_THREADED | LOG_MODE_OUTPUT_FILE | LOG_MODE_FLUSH_AFTER_CONFIG);
 
 	if (check_process_running(argv[0], &pid) && pid !=getpid()) {
 		log_printf(LOG_INFO, "QDisk services already running\n");
