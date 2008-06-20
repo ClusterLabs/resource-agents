@@ -1423,10 +1423,11 @@ main(int argc, char **argv)
 		}
 	}
 
-	if(debug || getenv("QDISK_DEBUGLOG")) {
+	if(getenv("QDISK_DEBUGLOG"))
 		debug = 1;
+
+	if(debug)
 		logsys_config_priority_set (LOG_LEVEL_DEBUG);
-	}
 
 #if (defined(LIBCMAN_VERSION) && LIBCMAN_VERSION >= 2)
 	ch = cman_admin_init(NULL);
