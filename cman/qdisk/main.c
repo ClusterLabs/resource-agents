@@ -1392,10 +1392,8 @@ main(int argc, char **argv)
 	pid_t pid;
 	quorum_header_t qh;
 
-	logsys_config_mode_set (LOG_MODE_OUTPUT_STDERR | LOG_MODE_OUTPUT_SYSLOG_THREADED | LOG_MODE_OUTPUT_FILE | LOG_MODE_FLUSH_AFTER_CONFIG);
-
 	if (check_process_running(argv[0], &pid) && pid !=getpid()) {
-		log_printf(LOG_INFO, "QDisk services already running\n");
+		printf("QDisk services already running\n");
 		return 0;
 	}
 
@@ -1428,6 +1426,8 @@ main(int argc, char **argv)
 
 	if(debug)
 		logsys_config_priority_set (LOG_LEVEL_DEBUG);
+
+	logsys_config_mode_set (LOG_MODE_OUTPUT_STDERR | LOG_MODE_OUTPUT_SYSLOG_THREADED | LOG_MODE_OUTPUT_FILE | LOG_MODE_FLUSH_AFTER_CONFIG);
 
 #if (defined(LIBCMAN_VERSION) && LIBCMAN_VERSION >= 2)
 	ch = cman_admin_init(NULL);
