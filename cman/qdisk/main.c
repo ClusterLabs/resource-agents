@@ -1090,7 +1090,7 @@ quorum_logout(qd_ctx *ctx)
 /**
   Grab all our configuration data from CCSD
  */
-int
+static int
 get_config_data(char *cluster_name, qd_ctx *ctx, struct h_data *h, int maxh,
 		int *cfh, int debug)
 {
