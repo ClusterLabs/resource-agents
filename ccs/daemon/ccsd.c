@@ -60,15 +60,18 @@ int main(int argc, char *argv[]){
 
   msg = parse_cli_args(argc, argv);
 
-  logsys_config_mode_set (LOG_MODE_OUTPUT_STDERR | LOG_MODE_OUTPUT_SYSLOG_THREADED | LOG_MODE_OUTPUT_FILE | LOG_MODE_DISPLAY_DEBUG | LOG_MODE_FLUSH_AFTER_CONFIG);
+  if(getenv("CCS_DEBUGLOG"))
+    debug = 1;
 
-  if(debug || getenv("CCS_DEBUGLOG"))
+  if(debug)
     logsys_config_priority_set (LOG_LEVEL_DEBUG);
 
   if(check_cluster_conf()){
     /* check_cluster_conf will print out errors if there are any */
     exit(EXIT_FAILURE);
   }
+
+  logsys_config_mode_set (LOG_MODE_OUTPUT_STDERR | LOG_MODE_OUTPUT_SYSLOG_THREADED | LOG_MODE_OUTPUT_FILE | LOG_MODE_DISPLAY_DEBUG | LOG_MODE_FLUSH_AFTER_CONFIG);
 
   daemonize();
 
