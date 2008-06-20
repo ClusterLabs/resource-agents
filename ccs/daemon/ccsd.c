@@ -20,6 +20,7 @@
 #include "cluster_mgr.h"
 #include "globals.h"
 #include "comm_headers.h"
+#include "misc.h"
 
 #include "copyright.cf"
 
@@ -531,6 +532,7 @@ static int check_cluster_conf(void){
 	      "valid copy from the network.\n", config_file_location);
       return -1;
     }
+    set_ccs_logging(doc);
     xmlFreeDoc(doc);
   } else {
     /* no cluster.conf file.  This is fine, just need to get it from the network */
