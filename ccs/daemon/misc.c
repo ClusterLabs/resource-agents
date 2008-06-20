@@ -43,6 +43,8 @@ static char *do_simple_xml_query(xmlXPathContextPtr ctx, char *query) {
   xmlXPathObjectPtr  obj = NULL;
   xmlNodePtr        node = NULL;
 
+  CCSENTER("do_simple_xml_query");
+
   obj = xmlXPathEvalExpression((xmlChar *)query, ctx);
   if(!obj || !obj->nodesetval || (obj->nodesetval->nodeNr != 1))
     log_printf(LOG_DEBUG, "Error processing query: %s.\n", query);
@@ -53,14 +55,17 @@ static char *do_simple_xml_query(xmlXPathContextPtr ctx, char *query) {
     else {
       if(!node->children->content || !strlen((char *)node->children->content))
 	log_printf(LOG_DEBUG, "No content found.\n");
-      else
+      else {
+        CCSEXIT("do_simple_xml_query");
 	return strdup((char *)node->children->content);
+      }
     }
   }
 
   if(obj)
     xmlXPathFreeObject(obj);
 
+  CCSEXIT("do_simple_xml_query");
   return NULL;
 }
 
