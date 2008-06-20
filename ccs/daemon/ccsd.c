@@ -537,6 +537,7 @@ static int check_cluster_conf(void){
     }
   }
 
+  CCSEXIT("check_cluster_conf");
   return 0;
 }
 
