@@ -149,6 +149,38 @@ fail:
 }
 
 /**
+ * do_simple_xml_query
+ * @ctx: xml context
+ * @query: "/cluster/@name"
+ *
+ * it only handles this kind of query
+ */
+static char *do_simple_xml_query(xmlXPathContextPtr ctx, char *query) {
+  xmlXPathObjectPtr  obj = NULL;
+  xmlNodePtr        node = NULL;
+
+  obj = xmlXPathEvalExpression((xmlChar *)query, ctx);
+  if(!obj || !obj->nodesetval || (obj->nodesetval->nodeNr != 1))
+    log_printf(LOG_DEBUG, "Error processing query: %s.\n", query);
+  else {
+    node = obj->nodesetval->nodeTab[0];
+    if(node->type != XML_ATTRIBUTE_NODE)
+      log_printf(LOG_DEBUG, "Object returned is not of attribute type.\n");
+    else {
+      if(!node->children->content || !strlen((char *)node->children->content))
+	log_printf(LOG_DEBUG, "No content found.\n");
+      else
+	return strdup((char *)node->children->content);
+    }
+  }
+
+  if(obj)
+    xmlXPathFreeObject(obj);
+
+  return NULL;
+}
+
+/**
  * set_ccs_logging
  * @ldoc:
  *
@@ -157,9 +189,7 @@ fail:
 int set_ccs_logging(xmlDocPtr ldoc){
   int facility = SYSLOGFACILITY, loglevel = LOG_LEVEL_INFO;
   char *res = NULL;
-  xmlXPathObjectPtr  obj = NULL;
   xmlXPathContextPtr ctx = NULL;
-  xmlNodePtr        node = NULL;
 
   CCSENTER("set_ccs_logging");
 
@@ -169,69 +199,36 @@ int set_ccs_logging(xmlDocPtr ldoc){
     return -1;
   }
 
-  obj = xmlXPathEvalExpression((xmlChar *)"/cluster/ccs/@log_facility", ctx);
-  if(!obj || !obj->nodesetval || (obj->nodesetval->nodeNr != 1)){
-    log_printf(LOG_DEBUG, "Error while retrieving log_facility.\n");
-  } else {
-    node = obj->nodesetval->nodeTab[0];
-    if(node->type != XML_ATTRIBUTE_NODE){
-      log_printf(LOG_DEBUG, "Object returned is not of attribute type.\n");
-    } else {
-      if(!node->children->content || !strlen((char *)node->children->content)){
-	log_printf(LOG_DEBUG, "No content found.\n");
-      } else {
-	res = strdup((char *)node->children->content);
-	facility = logsys_facility_id_get (res);
-	if (facility < 0)
-		facility = SYSLOGFACILITY;
+  res = do_simple_xml_query(ctx, "/cluster/ccs/@log_facility");
+  if(res) {
+    facility = logsys_facility_id_get (res);
+    if (facility < 0)
+      facility = SYSLOGFACILITY;
 
-	logsys_config_facility_set ("CCS", facility);
-	log_printf(LOG_DEBUG, "log_facility: %s (%d).\n", res, facility);
-	free(res);
-	res=NULL;
-      }
-    }
+    logsys_config_facility_set ("CCS", facility);
+    log_printf(LOG_DEBUG, "log_facility: %s (%d).\n", res, facility);
+    free(res);
+    res=NULL;
   }
 
-  if(obj){
-    xmlXPathFreeObject(obj);
-    obj = NULL;
-  }
+  res = do_simple_xml_query(ctx, "/cluster/ccs/@log_level");
+  if(res) {
+    loglevel = logsys_priority_id_get (res);
+    if (loglevel < 0)
+      loglevel = LOG_LEVEL_INFO;
 
-  obj = xmlXPathEvalExpression((xmlChar *)"/cluster/ccs/@log_level", ctx);
-  if(!obj || !obj->nodesetval || (obj->nodesetval->nodeNr != 1)){
-    log_printf(LOG_DEBUG, "Error while retrieving log_level.\n");
-  } else {
-    node = obj->nodesetval->nodeTab[0];
-    if(node->type != XML_ATTRIBUTE_NODE){
-      log_printf(LOG_DEBUG, "Object returned is not of attribute type.\n");
-    } else {
-      if(!node->children->content || !strlen((char *)node->children->content)){
-	log_printf(LOG_DEBUG, "No content found.\n");
-      } else {
-	res = strdup((char *)node->children->content);
-	loglevel = logsys_priority_id_get (res);
-	if (loglevel < 0)
-	  loglevel = LOG_LEVEL_INFO;
+    if (!debug)
+      logsys_config_priority_set (loglevel);
 
-	if (!debug)
-	  logsys_config_priority_set (loglevel);
-
-	log_printf(LOG_DEBUG, "log_level: %s (%d).\n", res, loglevel);
-	free(res);
-	res=NULL;
-      }
-    }
+    log_printf(LOG_DEBUG, "log_level: %s (%d).\n", res, loglevel);
+    free(res);
+    res=NULL;
   }
 
   if(ctx){
     xmlXPathFreeContext(ctx);
   }
-  if(obj){
-    xmlXPathFreeObject(obj);
-  }
 
   CCSEXIT("set_ccs_logging");
   return 0;
 }
-
