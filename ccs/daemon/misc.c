@@ -197,7 +197,7 @@ int set_ccs_logging(xmlDocPtr ldoc){
   logmode = logsys_config_mode_get();
 
   if(logmode & LOG_MODE_BUFFER_BEFORE_CONFIG) {
-    log_printf(LOG_INFO, "CCS logsys config enabled from set_ccs_logging\n");
+    log_printf(LOG_DEBUG, "CCS logsys config enabled from set_ccs_logging\n");
     logmode &= ~LOG_MODE_BUFFER_BEFORE_CONFIG;
     logmode |= LOG_MODE_FLUSH_AFTER_CONFIG;
     logsys_config_mode_set (logmode);

@@ -76,7 +76,7 @@ int main(int argc, char *argv[]){
   logmode = logsys_config_mode_get();
 
   if(logmode & LOG_MODE_BUFFER_BEFORE_CONFIG) {
-    log_printf(LOG_INFO, "Using default CCS logsys config options\n");
+    log_printf(LOG_DEBUG, "Using default CCS logsys config options\n");
     logmode &= ~LOG_MODE_BUFFER_BEFORE_CONFIG;
     logmode |= LOG_MODE_FLUSH_AFTER_CONFIG;
     logsys_config_mode_set (logmode);
