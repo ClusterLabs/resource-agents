@@ -95,11 +95,3 @@ uint32_t clu_crc32(const char *data, size_t count)
 	       return 0;
        	return ~crc;
 }
-
-#if 0
-int
-main(int argc, const char **argv)
-{
-	printf("%08x\n",crc32(argv[1],strlen(argv[1])));
-}
-#endif

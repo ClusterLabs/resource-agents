@@ -268,7 +268,6 @@ typedef struct {
 
 int qd_write_status(qd_ctx *ctx, int nid, disk_node_state_t state,
 		    disk_msg_t *msg, memb_mask_t mask, memb_mask_t master);
-int qd_read_print_status(target_info_t *disk, int nid);
 int qd_init(qd_ctx *ctx, cman_handle_t ch, int me);
 void qd_destroy(qd_ctx *ctx);
 

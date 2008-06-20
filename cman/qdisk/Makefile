@@ -24,7 +24,6 @@ EXTRA_LDFLAGS += -L${cmanlibdir} -L${ccslibdir} -lcman -lccs
 OBJS1=	main.o \
 	score.o \
 	bitmap.o \
-	gettid.o \
 	daemon_init.o
 
 OBJS2=	mkqdisk.o

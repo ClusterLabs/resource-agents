@@ -28,8 +28,12 @@
 #include <cluster/cnxman-socket.h>
 #endif
 
+/* from daemon_init.c */
 int daemon_init(char *);
 int check_process_running(char *, pid_t *);
+
+/* from proc.c */
+char *state_str(disk_node_state_t s);
 
 /*
   TODO:
@@ -48,7 +52,7 @@ inline void _diff_tv(struct timeval *dest, struct timeval *start,
 		     struct timeval *end);
 
 static int _running = 1;
-void update_local_status(qd_ctx *ctx, node_info_t *ni, int max, int score,
+static void update_local_status(qd_ctx *ctx, node_info_t *ni, int max, int score,
 		    	 int score_req, int score_max);
 
 
@@ -69,7 +73,7 @@ int_handler(int sig)
 /**
   Simple thing to see if a node is running.
  */
-inline int
+static inline int
 state_run(disk_node_state_t state)
 {
 	return (state >= S_INIT ? state : 0);
@@ -79,7 +83,7 @@ state_run(disk_node_state_t state)
 /**
   Clear out / initialize node info block.
  */
-void
+static void
 node_info_init(node_info_t *ni, int max)
 {
 	int x;
@@ -100,7 +104,7 @@ node_info_init(node_info_t *ni, int max)
   Rare case; usually other nodes would put up the 'Undead' message and
   re-evict us.
  */
-void
+static void
 check_self(qd_ctx *ctx, status_block_t *sb)
 {
 	if (!sb->ps_updatenode ||
@@ -125,7 +129,7 @@ check_self(qd_ctx *ctx, status_block_t *sb)
   or has not updated their timestamp recently.  See check_transitions as
   well.
  */
-void
+static void
 read_node_blocks(qd_ctx *ctx, node_info_t *ni, int max)
 {
 	int x;
@@ -181,7 +185,7 @@ read_node_blocks(qd_ctx *ctx, node_info_t *ni, int max)
 /**
   Check for node transitions.
  */
-void
+static void
 check_transitions(qd_ctx *ctx, node_info_t *ni, int max, memb_mask_t mask)
 {
 	int x;
@@ -369,7 +373,7 @@ check_transitions(qd_ctx *ctx, node_info_t *ni, int max, memb_mask_t mask)
   Checks for presence of an online master.  If there is no
   Returns
  */
-int
+static int
 master_exists(qd_ctx *ctx, node_info_t *ni, int max, int *low_id, int *count)
 {
 	int x;
@@ -437,7 +441,7 @@ master_exists(qd_ctx *ctx, node_info_t *ni, int max, int *low_id, int *count)
   a cluster running using this QD.  Note that this will delay master
   election if multiple nodes start with a second or two of each other.
  */
-int
+static int
 quorum_init(qd_ctx *ctx, node_info_t *ni, int max, struct h_data *h, int maxh)
 {
 	int x = 0, score, maxscore, score_req;
@@ -505,7 +509,7 @@ quorum_init(qd_ctx *ctx, node_info_t *ni, int max, struct h_data *h, int maxh)
 /**
   Vote for a master if it puts a bid in.
  */
-void
+static void
 do_vote(qd_ctx *ctx, node_info_t *ni, int max, disk_msg_t *msg)
 {
 	int x;
@@ -533,7 +537,7 @@ do_vote(qd_ctx *ctx, node_info_t *ni, int max, disk_msg_t *msg)
   Check to match nodes in mask with nodes online according to CMAN.
   Only the master needs to do this.
  */
-void
+static void
 check_cman(qd_ctx *ctx, memb_mask_t mask, memb_mask_t master_mask)
 {
 	cman_node_t nodes[MAX_NODES_DISK];
@@ -569,7 +573,7 @@ check_cman(qd_ctx *ctx, memb_mask_t mask, memb_mask_t master_mask)
 	*msg - it will store the vote for the lowest bid if we should
 	clear our bid.
  */ 
-int
+static int
 check_votes(qd_ctx *ctx, node_info_t *ni, int max, disk_msg_t *msg)
 {
 	int x, running = 0, acks = 0, nacks = 0, low_id = ctx->qc_my_id;
@@ -611,12 +615,7 @@ check_votes(qd_ctx *ctx, node_info_t *ni, int max, disk_msg_t *msg)
 	return 0;
 }
 
-
-char *
-state_str(disk_node_state_t s);
-
-
-void
+static void
 print_node_info(FILE *fp, node_info_t *ni)
 {
 	fprintf(fp, "node_info_t [node %d] {\n", ni->ni_status.ps_nodeid);
@@ -645,7 +644,7 @@ print_node_info(FILE *fp, node_info_t *ni)
 }
 
 
-void
+static void
 update_local_status(qd_ctx *ctx, node_info_t *ni, int max, int score,
 		    int score_req, int score_max)
 {
@@ -725,36 +724,6 @@ out:
 		fclose(fp);
 }
 
-
-/* Timeval functions from clumanager */
-/**
- * Scale a (struct timeval).
- *
- * @param tv		The timeval to scale.
- * @param scale		Positive multiplier.
- * @return		tv
- */
-struct timeval *
-_scale_tv(struct timeval *tv, int scale)
-{
-	tv->tv_sec *= scale;
-	tv->tv_usec *= scale;
-
-	if (tv->tv_usec > 1000000) {
-		tv->tv_sec += (tv->tv_usec / 1000000);
-		tv->tv_usec = (tv->tv_usec % 1000000);
-	}
-
-	return tv;
-}
-
-
-
-#define _print_tv(val) \
-	printf("%s: %d.%06d\n", #val, (int)((val)->tv_sec), \
-			(int)((val)->tv_usec))
-
-
 static inline int
 _cmp_tv(struct timeval *left, struct timeval *right)
 {
@@ -800,7 +769,7 @@ set_priority(int queue, int prio)
 }
 
 
-int
+static int
 cman_alive(cman_handle_t ch)
 {
 	fd_set rfds;
@@ -820,7 +789,7 @@ cman_alive(cman_handle_t ch)
 }
 
 
-int
+static int
 quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 {
 	disk_msg_t msg = {0, 0, 0};
@@ -1074,7 +1043,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 /**
   Tell the other nodes we're done (safely!).
  */
-int
+static int
 quorum_logout(qd_ctx *ctx)
 {
 	/* Write out our status */
@@ -1355,7 +1324,7 @@ get_config_data(qd_ctx *ctx, struct h_data *h, int maxh,
 }
 
 
-void
+static void
 check_stop_cman(qd_ctx *ctx)
 {
 	if (!(ctx->qc_flags & RF_STOP_CMAN))

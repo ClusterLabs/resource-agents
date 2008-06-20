@@ -34,7 +34,7 @@ LOGSYS_DECLARE_SUBSYS ("QDISK", LOG_LEVEL_INFO);
 /*
   XXX Messy, but works for now... 
  */
-void
+static void
 nullify(void)
 {
 	int fd[3];
@@ -59,7 +59,7 @@ nullify(void)
   Set all signal handlers to default for exec of a script.
   ONLY do this after a fork().
  */
-void
+static void
 restore_signals(void)
 {
 	sigset_t set;
@@ -349,7 +349,7 @@ fudge_scoring(void)
 /**
   Loop for the scoring thread.
  */
-void *
+static void *
 score_thread_main(void *arg)
 {
 	struct h_arg *args = (struct h_arg *)arg;
@@ -375,24 +375,6 @@ score_thread_main(void *arg)
 	free(args);
 	log_printf(LOG_INFO, "Score thread going away\n");
 	return (NULL);
-}
-
-
-/**
-  Stop the score thread for shutdown / reconfiguration
- */
-int
-stop_score_thread(void)
-{
-	void *ret;
-
-	if (!_score_thread_running)
-		return 0;
-
-	_score_thread_running = 0;
-	pthread_join(score_thread, &ret);
-
-	return 0;
 }
 
 
@@ -437,35 +419,3 @@ start_score_thread(qd_ctx *ctx, struct h_data *h, int count)
 	_score_thread_running = 0;
 	return -1;	
 }
-
-
-#if 0
-int
-main(int argc, char **argv)
-{
-	struct h_data h[10];
-	int max = 0, score, maxscore, ccsfd;
-
-	ccsfd = ccs_force_connect("test", 1);
-	if (ccsfd < 0) 
-		return -1;
-	max = configure_heuristics(ccsfd, h, 10);
-	ccs_disconnect(ccsfd);
-	
-	start_score_thread(h, max);
-	max = 0;
-	while (max < 10) {
-		get_my_score(&score,&maxscore);
-		log_printf(LOG_INFO, "current %d/%d\n", score, maxscore);
-		sleep(1);
-		++max;
-	}
-	stop_score_thread();
-
-	get_my_score(&score,&maxscore);
-	log_printf(LOG_INFO, "final! %d/%d\n", score, maxscore);
-
-	return 0;
-}
-#endif
-

@@ -24,11 +24,6 @@ struct h_data {
  */
 int configure_heuristics(int ccsfd, struct h_data *hp, int max);
 
-/* 
-   Stop the thread which runs the scoring applets.
- */
-int stop_score_thread(void);
-
 /*
    Start the thread which runs the scoring applets
  */

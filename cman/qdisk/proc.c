@@ -71,7 +71,7 @@ check_device(char *device, char *label, quorum_header_t *qh,
 }
 
 
-void
+static void
 filter_devs(struct devnode *node, void *v_args)
 {
 	struct device_args *args = (struct device_args *)v_args;
@@ -125,7 +125,7 @@ state_str(disk_node_state_t s)
 }
 
 
-void
+static void
 print_status_block(status_block_t *sb)
 {
 	time_t timestamp = (time_t)sb->ps_timestamp;
@@ -149,7 +149,7 @@ print_status_block(status_block_t *sb)
 }
 
 
-void
+static void
 read_info(char *dev)
 {
 	target_info_t ti;
@@ -179,7 +179,7 @@ read_info(char *dev)
 }
 
 
-void
+static void
 print_qdisk_info(struct devnode *dn)
 {
 	quorum_header_t *qh = (quorum_header_t *)dn->filter;

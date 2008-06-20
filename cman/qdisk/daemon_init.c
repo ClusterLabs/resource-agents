@@ -29,7 +29,6 @@
  * This should ultimately go in a header file.
  */
 void daemon_init(char *prog);
-int check_pid_valid(pid_t pid, char *prog);
 int check_process_running(char *prog, pid_t * pid);
 
 /*
@@ -40,7 +39,7 @@ static int setup_sigmask(void);
 
 LOGSYS_DECLARE_SUBSYS ("QDISK", LOG_LEVEL_INFO);
 
-int
+static int
 check_pid_valid(pid_t pid, char *prog)
 {
 	FILE *fp;

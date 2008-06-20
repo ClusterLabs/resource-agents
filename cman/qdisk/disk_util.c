@@ -86,7 +86,7 @@ get_time(struct timeval *tv, int use_uptime)
 /**
   Update write times and calculate a new average time
  */
-void
+static void
 qd_update_wtime(qd_ctx *ctx, struct timeval *newtime)
 {
 	int x;
@@ -205,75 +205,10 @@ qd_write_status(qd_ctx *ctx, int nid, disk_node_state_t state,
 }
 
 
-int
-qd_print_status(target_info_t *disk, status_block_t *ps)
-{
-	int x;
-
-	printf("Data @ offset %d:\n",
-	       (int)qdisk_nodeid_offset(ps->ps_nodeid, disk->d_blksz));
-	printf("status_block_t {\n");
-	printf("\t.ps_magic = %08x;\n", (int)ps->ps_magic);
-	printf("\t.ps_nodeid = %d;\n", (int)ps->ps_nodeid);
-	printf("\t.ps_updatenode = %d;\n", (int)ps->ps_updatenode);
-	printf("\t.pad0 = %d;\n", (int)ps->pad0);
-	printf("\t.ps_timestamp = %llu;\n", (long long unsigned)
-		ps->ps_timestamp);
-	printf("\t.ps_state = %d;\n", ps->ps_state);
-	printf("\t.pad1[0] = %d;\n", ps->pad1[0]);
-	printf("\t.ps_flags = %d;\n", ps->ps_flags);
-	printf("\t.ps_score = %d;\n", ps->ps_score);
-	printf("\t.ps_scoremax = %d;\n", ps->ps_scoremax);
-	printf("\t.ps_ca_sec = %d;\n", ps->ps_ca_sec);
-	printf("\t.ps_ca_usec = %d;\n", ps->ps_ca_usec);
-	printf("\t.ps_lc_sec = %d;\n", ps->ps_lc_sec);
-	printf("\t.ps_lc_usec = %d;\n", ps->ps_lc_usec);
-	printf("\t.ps_mask = 0x");
-	for (x = (sizeof(memb_mask_t)-1); x >= 0; x--)
-		printf("%02x", ps->ps_mask[x]);
-	printf("\n");
-	printf("\t.ps_master_mask = 0x");
-	for (x = (sizeof(memb_mask_t)-1); x >= 0; x--)
-		printf("%02x", ps->ps_mask[x]);
-	printf("\n");
-
-	printf("}\n");
-
-	return 0;
-}
-
-
-int
-qd_read_print_status(target_info_t *disk, int nid)
-{
-	status_block_t ps;
-
-	if (!disk || disk->d_fd < 0) {
-		errno = EINVAL;
-		return -1;
-	}
-
-	if (nid <= 0) {
-		errno = EINVAL;
-		return -1;
-	}
-
-	if (qdisk_read(disk, qdisk_nodeid_offset(nid, disk->d_blksz), &ps,
-			sizeof(ps)) < 0) {
-		log_printf(LOG_ERR, "Error reading node ID block %d\n", nid);
-		return -1;
-	}
-	swab_status_block_t(&ps);
-	qd_print_status(disk, &ps);
-
-	return 0;
-}
-
-
 /**
   Generate a token based on the current system time.
  */
-uint64_t
+static uint64_t
 generate_token(void)
 {
 	uint64_t my_token = 0;
