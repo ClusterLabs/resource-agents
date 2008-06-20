@@ -210,7 +210,7 @@ int set_ccs_logging(xmlDocPtr ldoc){
 	log_printf(LOG_DEBUG, "No content found.\n");
       } else {
 	res = strdup((char *)node->children->content);
-	loglevel = atoi(res);
+	loglevel = logsys_priority_id_get (res);
 	if (loglevel < 0)
 	  loglevel = LOG_LEVEL_INFO;
 
