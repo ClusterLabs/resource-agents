@@ -1387,7 +1387,7 @@ main(int argc, char **argv)
 	cman_handle_t ch = NULL;
 	node_info_t ni[MAX_NODES_DISK];
 	struct h_data h[10];
-	char debug = 0, foreground = 0;
+	int debug = 0, foreground = 0;
 	char device[128];
 	pid_t pid;
 	quorum_header_t qh;
