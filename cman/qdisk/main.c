@@ -1469,9 +1469,6 @@ main(int argc, char **argv)
 	signal(SIGINT, int_handler);
 	signal(SIGTERM, int_handler);
 
-        if (debug)
-                ctx.qc_flags |= RF_DEBUG;
-
 	if (get_config_data(&ctx, h, 10, &cfh, debug) < 0) {
 		log_printf(LOG_CRIT, "Configuration failed\n");
 		check_stop_cman(&ctx);
