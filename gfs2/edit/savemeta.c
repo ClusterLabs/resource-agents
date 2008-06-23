@@ -37,6 +37,7 @@ struct saved_metablock *savedata;
 uint64_t last_fs_block, last_reported_block, blks_saved, total_out, pct;
 struct gfs2_block_list *blocklist = NULL;
 uint64_t journal_blocks[MAX_JOURNALS_SAVED];
+uint64_t gfs1_journal_size = 0; /* in blocks */
 int journals_found = 0;
 
 extern void read_superblock(void);
@@ -699,6 +700,7 @@ void get_journal_inode_blocks(void)
 				break;
 			gfs_jindex_in(&ji, jbuf);
 			jblock = ji.ji_addr;
+			gfs1_journal_size = ji.ji_nsegment * 16;
 		} else {
 			if (journal > indirect->ii[0].dirents - 3)
 				break;
@@ -802,9 +804,20 @@ void savemeta(const char *out_fn, int saveoption)
 		/* If this is gfs1, save off the rindex because it's not
 		   part of the file system as it is in gfs2. */
 		if (gfs1) {
+			int j;
+
 			block = sbd1->sb_rindex_di.no_addr;
 			save_block(sbd.device_fd, out_fd, block);
 			save_inode_data(out_fd);
+			/* In GFS1, journals aren't part of the RG space */
+			for (j = 0; j < journals_found; j++) {
+				log_debug("Saving journal #%d\n", j + 1);
+				for (block = journal_blocks[j];
+				     block < journal_blocks[j] +
+					     gfs1_journal_size;
+				     block++)
+					save_block(sbd.device_fd, out_fd, block);
+			}
 		}
 		/* Walk through the resource groups saving everything within */
 		for (tmp = sbd.rglist.next; tmp != &sbd.rglist;
