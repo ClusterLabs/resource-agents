@@ -1057,17 +1057,175 @@ quorum_logout(qd_ctx *ctx)
 
 
 /**
-  Grab all our configuration data from CCSD
+  Grab logsys configuration data from libccs
+ */
+static int
+get_logsys_config_data(int *debug)
+{
+	int ccsfd = -1, loglevel = LOG_LEVEL_INFO, facility = SYSLOGFACILITY;
+	char *val = NULL, *error = NULL;
+	unsigned int logmode;
+	int global_debug = 0;
+
+	log_printf(LOG_DEBUG, "Loading logsys configuration information\n");
+
+	ccsfd = ccs_connect();
+	if (ccsfd < 0) {
+		log_printf(LOG_CRIT, "Connection to CCSD failed; cannot start\n");
+		return -1;
+	}
+
+	logmode = logsys_config_mode_get();
+
+	if (ccs_get(ccsfd, "/cluster/logging/@debug", &val) == 0) {
+		if(!strcmp(val, "on")) {
+			global_debug = 1;
+		} else 
+		if(!strcmp(val, "off")) {
+			global_debug = 0;
+		} else
+			log_printf(LOG_ERR, "global debug: unknown value\n");
+		free(val);
+		val = NULL;
+	}
+
+	if (ccs_get(ccsfd, "/cluster/logging/logger_subsys[@subsys=\"QDISK\"]/@debug", &val) == 0) {
+		if(!*debug) {
+			if(!strcmp(val, "on")) {
+				*debug = 1;
+			} else 
+			if(!strcmp(val, "off") && !*debug) { /* debug from cmdline/envvars override config */
+				*debug = 0;
+			} else
+				log_printf(LOG_ERR, "subsys debug: unknown value: %s\n", val);
+		free(val);
+		val = NULL;
+		}
+	} else
+		*debug = global_debug; /* global debug overrides subsystem only if latter is not specified */
+
+	if (ccs_get(ccsfd, "/cluster/logging/logger_subsys[@subsys=\"QDISK\"]/@syslog_level", &val) == 0) {
+		loglevel = logsys_priority_id_get (val);
+		if (loglevel < 0)
+			loglevel = LOG_LEVEL_INFO;
+
+		if (!*debug) {
+			*debug = 1;
+			logsys_config_priority_set (loglevel);
+		}
+
+		free(val);
+	} else
+	if (ccs_get(ccsfd, "/cluster/quorumd/@log_level", &val) == 0) { /* check backward compat options */
+		loglevel = logsys_priority_id_get (val);
+		if (loglevel < 0)
+			loglevel = LOG_LEVEL_INFO;
+
+		log_printf(LOG_ERR, "<quorumd log_level=\"%s\".. option is depracated\n", val);
+
+		if (!*debug) {
+			*debug = 1;
+			logsys_config_priority_set (loglevel);
+		}
+
+		free(val);
+	}
+
+	if (ccs_get(ccsfd, "/cluster/logging/@to_stderr", &val) == 0) {
+		if(!strcmp(val, "yes")) {
+			logmode |= LOG_MODE_OUTPUT_STDERR;
+		} else 
+		if(!strcmp(val, "no")) {
+			logmode &= ~LOG_MODE_OUTPUT_STDERR;
+		} else
+			log_printf(LOG_ERR, "to_stderr: unknown value\n");
+		free(val);
+		val = NULL;
+	}
+
+	if (ccs_get(ccsfd, "/cluster/logging/@to_syslog", &val) == 0) {
+		if(!strcmp(val, "yes")) {
+			logmode |= LOG_MODE_OUTPUT_SYSLOG_THREADED;
+		} else 
+		if(!strcmp(val, "no")) {
+			logmode &= ~LOG_MODE_OUTPUT_SYSLOG_THREADED;
+		} else
+			log_printf(LOG_ERR, "to_syslog: unknown value\n");
+		free(val);
+		val = NULL;
+	}
+
+	if (ccs_get(ccsfd, "/cluster/logging/@to_file", &val) == 0) {
+		if(!strcmp(val, "yes")) {
+			logmode |= LOG_MODE_OUTPUT_FILE;
+		} else 
+		if(!strcmp(val, "no")) {
+			logmode &= ~LOG_MODE_OUTPUT_FILE;
+		} else
+			log_printf(LOG_ERR, "to_file: unknown value\n");
+		free(val);
+		val = NULL;
+	}
+
+	if (ccs_get(ccsfd, "/cluster/logging/@filename", &val) == 0) {
+		if(logsys_config_file_set(&error, val))
+			log_printf(LOG_ERR, "filename: unable to open %s for logging\n", val);
+		free(val);
+		val = NULL;
+	} else
+		log_printf(LOG_DEBUG, "filename: use default built-in log file: %s\n", LOGDIR "/qdisk.log");
+
+	if (ccs_get(ccsfd, "/cluster/logging/@syslog_facility", &val) == 0) {
+		facility = logsys_facility_id_get (val);
+		if (facility < 0) {
+			log_printf(LOG_ERR, "syslog_facility: unknown value\n");
+			facility = SYSLOGFACILITY;
+		}
+
+		logsys_config_facility_set ("QDISK", facility);
+		free(val);
+	} else
+	if (ccs_get(ccsfd, "/cluster/quorumd/@log_facility", &val) == 0) {
+		facility = logsys_facility_id_get (val);
+		if (facility < 0) {
+			log_printf(LOG_ERR, "syslog_facility: unknown value\n");
+			facility = SYSLOGFACILITY;
+		}
+
+		log_printf(LOG_ERR, "<quorumd log_facility=\"%s\".. option is depracated\n", val);
+
+		logsys_config_facility_set ("QDISK", facility);
+		free(val);
+	}
+
+	if(logmode & LOG_MODE_BUFFER_BEFORE_CONFIG) {
+		log_printf(LOG_DEBUG, "QDISK logsys config enabled from get_logsys_config_data\n");
+		logmode &= ~LOG_MODE_BUFFER_BEFORE_CONFIG;
+		logmode |= LOG_MODE_FLUSH_AFTER_CONFIG;
+		logsys_config_mode_set (logmode);
+	}
+
+	ccs_disconnect(ccsfd);
+
+	return 0;
+}
+
+/**
+  Grab all our configuration data from libccs
  */
 static int
 get_config_data(qd_ctx *ctx, struct h_data *h, int maxh,
-		int *cfh, int debug)
+		int *cfh, int debug, int trylater)
 {
-	int ccsfd = -1, loglevel = 4;
+	int ccsfd = -1;
 	char query[256];
 	char *val;
 
 	log_printf(LOG_DEBUG, "Loading configuration information\n");
+
+	if (trylater)
+		if(get_logsys_config_data(&debug))
+			return -1;
 
 	ccsfd = ccs_connect();
 	if (ccsfd < 0) {
@@ -1085,32 +1243,6 @@ get_config_data(qd_ctx *ctx, struct h_data *h, int maxh,
 
 	ctx->qc_sched = SCHED_RR;
 	ctx->qc_sched_prio = 1;
-
-	/* Get log log_facility */
-	snprintf(query, sizeof(query), "/cluster/quorumd/@log_facility");
-	if (ccs_get(ccsfd, query, &val) == 0) {
-		int facility;
-
-		facility = logsys_facility_id_get (val);
-		if (facility < 0)
-			facility = SYSLOGFACILITY;
-
-		logsys_config_facility_set ("QDISK", facility);
-		log_printf(LOG_DEBUG, "Log facility: %s (%d)\n", val, facility);
-		free(val);
-	}
-
-	/* Get log level */
-	snprintf(query, sizeof(query), "/cluster/quorumd/@log_level");
-	if (ccs_get(ccsfd, query, &val) == 0) {
-		loglevel = atoi(val);
-		free(val);
-		if (loglevel < 0)
-			loglevel = LOG_LEVEL_INFO;
-
-		if (!debug)
-			logsys_config_priority_set (loglevel);
-	}
 
 	/* Get interval */
 	snprintf(query, sizeof(query), "/cluster/quorumd/@interval");
@@ -1356,7 +1488,7 @@ main(int argc, char **argv)
 	cman_handle_t ch = NULL;
 	node_info_t ni[MAX_NODES_DISK];
 	struct h_data h[10];
-	int debug = 0, foreground = 0;
+	int debug = 0, foreground = 0, trylater = 0;
 	char device[128];
 	pid_t pid;
 	quorum_header_t qh;
@@ -1396,7 +1528,10 @@ main(int argc, char **argv)
 	if(debug)
 		logsys_config_priority_set (LOG_LEVEL_DEBUG);
 
-	logsys_config_mode_set (LOG_MODE_OUTPUT_STDERR | LOG_MODE_OUTPUT_SYSLOG_THREADED | LOG_MODE_OUTPUT_FILE | LOG_MODE_FLUSH_AFTER_CONFIG);
+	trylater = get_logsys_config_data(&debug);
+
+	if (trylater)
+		logsys_config_mode_set (LOG_MODE_OUTPUT_STDERR | LOG_MODE_OUTPUT_SYSLOG_THREADED | LOG_MODE_OUTPUT_FILE | LOG_MODE_FLUSH_AFTER_CONFIG);	
 
 #if (defined(LIBCMAN_VERSION) && LIBCMAN_VERSION >= 2)
 	ch = cman_admin_init(NULL);
@@ -1439,7 +1574,7 @@ main(int argc, char **argv)
 	signal(SIGINT, int_handler);
 	signal(SIGTERM, int_handler);
 
-	if (get_config_data(&ctx, h, 10, &cfh, debug) < 0) {
+	if (get_config_data(&ctx, h, 10, &cfh, debug, trylater) < 0) {
 		log_printf(LOG_CRIT, "Configuration failed\n");
 		check_stop_cman(&ctx);
 		goto out;
