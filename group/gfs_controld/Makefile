@@ -20,15 +20,15 @@ OBJS= 	main.o \
 	util.o \
 	plock.o
 
-CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmcontrolincdir}
-CFLAGS += -I${openaisincdir}
+CFLAGS += -I${ccsincdir} -I${cmanincdir}
+CFLAGS += -I${dlmcontrolincdir} -I${openaisincdir}
 CFLAGS += -I${KERNEL_SRC}/include/
 CFLAGS += -I$(S)/../libgfscontrol -I$(S)/../../fence/libfenced/
 CFLAGS += -I$(S)/../lib/ -I$(S)/../include/
 CFLAGS += -I${incdir}
 
-LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lcman -lccs -ldlmcontrol
-LDFLAGS += -L${openaislibdir} -lcpg -lSaCkpt
+LDFLAGS += -L${ccslibdir} -lccs -L${cmanlibdir} -lcman
+LDFLAGS += -L${dlmcontrollibdir} -ldlmcontrol -L${openaislibdir} -lcpg -lSaCkpt
 LDFLAGS += -L../../fence/libfenced/ -lfenced
 LDFLAGS += -L../lib -lgroup
 
