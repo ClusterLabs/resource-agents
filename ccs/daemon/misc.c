@@ -166,6 +166,50 @@ int set_ccs_logging(xmlDocPtr ldoc){
 
   logmode = logsys_config_mode_get();
 
+  res = do_simple_xml_query(ctx, "/cluster/logging/@debug");
+  if(res) {
+    if(!strcmp(res, "on")) {
+      global_debug = 1;
+    } else
+    if(!strcmp(res, "off")) {
+      global_debug = 0;
+    } else
+      log_printf(LOG_ERR, "debug: unknown value\n");
+    free(res);
+    res=NULL;
+  }
+
+  res = do_simple_xml_query(ctx, "/cluster/logging/logger_subsys[@subsys=\"CCS\"]/@debug");
+  if(res) {
+    if(!strcmp(res, "on")) {
+      debug = 1;
+    } else
+    if(!strcmp(res, "off") && !debug) { /* debug from cmdline/envvars override config */
+      debug = 0;
+    } else
+      log_printf(LOG_ERR, "debug: unknown value\n");
+    free(res);
+    res=NULL;
+  } else
+    debug = global_debug; /* global debug overrides subsystem only if latter is not specified */
+
+  if(debug)
+    logsys_config_priority_set (LOG_LEVEL_DEBUG);
+
+  res = do_simple_xml_query(ctx, "/cluster/logging/logger_subsys[@subsys=\"CCS\"]/@syslog_level");
+  if(res) {
+    loglevel = logsys_priority_id_get (res);
+    if (loglevel < 0)
+      loglevel = LOG_LEVEL_INFO;
+
+    if (!debug)
+      logsys_config_priority_set (loglevel);
+
+    log_printf(LOG_DEBUG, "syslog_level: %s (%d).\n", res, loglevel);
+    free(res);
+    res=NULL;
+  }
+
   res = do_simple_xml_query(ctx, "/cluster/logging/@to_stderr");
   if(res) {
     if(!strcmp(res, "yes")) {
@@ -224,52 +268,6 @@ int set_ccs_logging(xmlDocPtr ldoc){
 
     logsys_config_facility_set ("CCS", facility);
     log_printf(LOG_DEBUG, "log_facility: %s (%d).\n", res, facility);
-    free(res);
-    res=NULL;
-  }
-
-  res = do_simple_xml_query(ctx, "/cluster/logging/@debug");
-  if(res) {
-    if(!strcmp(res, "on")) {
-      global_debug = 1;
-    } else
-    if(!strcmp(res, "off")) {
-      global_debug = 0;
-    } else
-      log_printf(LOG_ERR, "debug: unknown value\n");
-    free(res);
-    res=NULL;
-  }
-
-  /* subsytem config */
-
-  res = do_simple_xml_query(ctx, "/cluster/logging/logger_subsys[@subsys=\"CCS\"]/@debug");
-  if(res) {
-    if(!strcmp(res, "on")) {
-      debug = 1;
-    } else
-    if(!strcmp(res, "off") && !debug) { /* debug from cmdline/envvars override config */
-      debug = 0;
-    } else
-      log_printf(LOG_ERR, "debug: unknown value\n");
-    free(res);
-    res=NULL;
-  } else
-    debug = global_debug; /* global debug overrides subsystem only if latter is not specified */
-
-  if(debug)
-    logsys_config_priority_set (LOG_LEVEL_DEBUG);
-
-  res = do_simple_xml_query(ctx, "/cluster/logging/logger_subsys[@subsys=\"CCS\"]/@syslog_level");
-  if(res) {
-    loglevel = logsys_priority_id_get (res);
-    if (loglevel < 0)
-      loglevel = LOG_LEVEL_INFO;
-
-    if (!debug)
-      logsys_config_priority_set (loglevel);
-
-    log_printf(LOG_DEBUG, "syslog_level: %s (%d).\n", res, loglevel);
     free(res);
     res=NULL;
   }
