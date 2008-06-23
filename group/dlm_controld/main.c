@@ -636,6 +636,7 @@ static void process_connection(int ci)
 		ls = find_ls(h.name);
 		if (ls)
 			send_cycle_start(ls);
+		client_dead(ci);
 		break;
 
 	default:
@@ -645,7 +646,6 @@ static void process_connection(int ci)
  out:
 	if (extra)
 		free(extra);
-	client_dead(ci);
 }
 
 static void process_listener(int ci)

@@ -1997,12 +1997,7 @@ static void recover_and_start(struct mountgroup *mg)
 	   is received, check whether any more journals need recovery.  If
 	   so, start recovery on the next one, if not, start the kernel. */
 
-	if (wait_recoveries_done(mg)) {
-		/* will first mounter get an error in start_kernel
-		   the first time it's called after first mount? */
-		log_group(mg, "recover_and_start start_kernel");
-		start_kernel(mg);
-	} else {
+	if (!wait_recoveries_done(mg)) {
 		if (!mg->kernel_mount_done || mg->kernel_mount_error)
 			return;
 		if (mg->spectator)
@@ -2011,6 +2006,11 @@ static void recover_and_start(struct mountgroup *mg)
 			return;
 		if (pick_journal_to_recover(mg, &jid))
 			start_journal_recovery(mg, jid);
+	} else {
+		if (!mg->kernel_stopped)
+			return;
+		log_group(mg, "recover_and_start start_kernel");
+		start_kernel(mg);
 	}
 }
 
