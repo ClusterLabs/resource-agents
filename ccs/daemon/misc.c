@@ -174,20 +174,22 @@ int set_ccs_logging(xmlDocPtr ldoc){
     if(!strcmp(res, "off")) {
       global_debug = 0;
     } else
-      log_printf(LOG_ERR, "debug: unknown value\n");
+      log_printf(LOG_ERR, "global debug: unknown value\n");
     free(res);
     res=NULL;
   }
 
   res = do_simple_xml_query(ctx, "/cluster/logging/logger_subsys[@subsys=\"CCS\"]/@debug");
   if(res) {
-    if(!strcmp(res, "on")) {
-      debug = 1;
-    } else
-    if(!strcmp(res, "off") && !debug) { /* debug from cmdline/envvars override config */
-      debug = 0;
-    } else
-      log_printf(LOG_ERR, "debug: unknown value\n");
+    if(!debug) {
+      if(!strcmp(res, "on")) {
+	debug = 1;
+      } else
+      if(!strcmp(res, "off")) { /* debug from cmdline/envvars override config */
+	debug = 0;
+      } else
+	log_printf(LOG_ERR, "subsys debug: unknown value\n");
+    }
     free(res);
     res=NULL;
   } else
