@@ -1077,59 +1077,60 @@ get_logsys_config_data(int *debug)
 
 	logmode = logsys_config_mode_get();
 
-	if (ccs_get(ccsfd, "/cluster/logging/@debug", &val) == 0) {
-		if(!strcmp(val, "on")) {
-			global_debug = 1;
-		} else 
-		if(!strcmp(val, "off")) {
-			global_debug = 0;
-		} else
-			log_printf(LOG_ERR, "global debug: unknown value\n");
-		free(val);
-		val = NULL;
-	}
+	if (!debug) {
+		if (ccs_get(ccsfd, "/cluster/logging/@debug", &val) == 0) {
+			if(!strcmp(val, "on")) {
+				global_debug = 1;
+			} else 
+			if(!strcmp(val, "off")) {
+				global_debug = 0;
+			} else
+				log_printf(LOG_ERR, "global debug: unknown value\n");
+			free(val);
+			val = NULL;
+		}
 
-	if (ccs_get(ccsfd, "/cluster/logging/logger_subsys[@subsys=\"QDISK\"]/@debug", &val) == 0) {
-		if(!*debug) {
+		if (ccs_get(ccsfd, "/cluster/logging/logger_subsys[@subsys=\"QDISK\"]/@debug", &val) == 0) {
 			if(!strcmp(val, "on")) {
 				*debug = 1;
 			} else 
-			if(!strcmp(val, "off") && !*debug) { /* debug from cmdline/envvars override config */
+			if(!strcmp(val, "off")) { /* debug from cmdline/envvars override config */
 				*debug = 0;
 			} else
 				log_printf(LOG_ERR, "subsys debug: unknown value: %s\n", val);
-		free(val);
-		val = NULL;
+			free(val);
+			val = NULL;
+		} else
+			*debug = global_debug; /* global debug overrides subsystem only if latter is not specified */
+
+		if (ccs_get(ccsfd, "/cluster/logging/logger_subsys[@subsys=\"QDISK\"]/@syslog_level", &val) == 0) {
+			loglevel = logsys_priority_id_get (val);
+			if (loglevel < 0)
+				loglevel = LOG_LEVEL_INFO;
+
+			if (!*debug) {
+				*debug = 1;
+				logsys_config_priority_set (loglevel);
+			}
+
+			free(val);
+		} else
+		if (ccs_get(ccsfd, "/cluster/quorumd/@log_level", &val) == 0) { /* check backward compat options */
+			loglevel = logsys_priority_id_get (val);
+			if (loglevel < 0)
+				loglevel = LOG_LEVEL_INFO;
+
+			log_printf(LOG_ERR, "<quorumd log_level=\"%s\".. option is depracated\n", val);
+
+			if (!*debug) {
+				*debug = 1;
+				logsys_config_priority_set (loglevel);
+			}
+
+			free(val);
 		}
 	} else
-		*debug = global_debug; /* global debug overrides subsystem only if latter is not specified */
-
-	if (ccs_get(ccsfd, "/cluster/logging/logger_subsys[@subsys=\"QDISK\"]/@syslog_level", &val) == 0) {
-		loglevel = logsys_priority_id_get (val);
-		if (loglevel < 0)
-			loglevel = LOG_LEVEL_INFO;
-
-		if (!*debug) {
-			*debug = 1;
-			logsys_config_priority_set (loglevel);
-		}
-
-		free(val);
-	} else
-	if (ccs_get(ccsfd, "/cluster/quorumd/@log_level", &val) == 0) { /* check backward compat options */
-		loglevel = logsys_priority_id_get (val);
-		if (loglevel < 0)
-			loglevel = LOG_LEVEL_INFO;
-
-		log_printf(LOG_ERR, "<quorumd log_level=\"%s\".. option is depracated\n", val);
-
-		if (!*debug) {
-			*debug = 1;
-			logsys_config_priority_set (loglevel);
-		}
-
-		free(val);
-	}
+		logsys_config_priority_set (LOG_LEVEL_DEBUG);
 
 	if (ccs_get(ccsfd, "/cluster/logging/@to_stderr", &val) == 0) {
 		if(!strcmp(val, "yes")) {

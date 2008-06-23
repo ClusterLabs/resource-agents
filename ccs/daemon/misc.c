@@ -166,22 +166,22 @@ int set_ccs_logging(xmlDocPtr ldoc){
 
   logmode = logsys_config_mode_get();
 
-  res = do_simple_xml_query(ctx, "/cluster/logging/@debug");
-  if(res) {
-    if(!strcmp(res, "on")) {
-      global_debug = 1;
-    } else
-    if(!strcmp(res, "off")) {
-      global_debug = 0;
-    } else
-      log_printf(LOG_ERR, "global debug: unknown value\n");
-    free(res);
-    res=NULL;
-  }
+  if(!debug) {
+    res = do_simple_xml_query(ctx, "/cluster/logging/@debug");
+    if(res) {
+      if(!strcmp(res, "on")) {
+	global_debug = 1;
+      } else
+      if(!strcmp(res, "off")) {
+	global_debug = 0;
+      } else
+	log_printf(LOG_ERR, "global debug: unknown value\n");
+      free(res);
+      res=NULL;
+    }
 
-  res = do_simple_xml_query(ctx, "/cluster/logging/logger_subsys[@subsys=\"CCS\"]/@debug");
-  if(res) {
-    if(!debug) {
+    res = do_simple_xml_query(ctx, "/cluster/logging/logger_subsys[@subsys=\"CCS\"]/@debug");
+    if(res) {
       if(!strcmp(res, "on")) {
 	debug = 1;
       } else
@@ -189,28 +189,25 @@ int set_ccs_logging(xmlDocPtr ldoc){
 	debug = 0;
       } else
 	log_printf(LOG_ERR, "subsys debug: unknown value\n");
+      free(res);
+      res=NULL;
+    } else
+      debug = global_debug; /* global debug overrides subsystem only if latter is not specified */
+
+    res = do_simple_xml_query(ctx, "/cluster/logging/logger_subsys[@subsys=\"CCS\"]/@syslog_level");
+    if(res) {
+      loglevel = logsys_priority_id_get (res);
+      if (loglevel < 0)
+	loglevel = LOG_LEVEL_INFO;
+
+      if(!debug)
+	logsys_config_priority_set (loglevel);
+
+      free(res);
+      res=NULL;
     }
-    free(res);
-    res=NULL;
   } else
-    debug = global_debug; /* global debug overrides subsystem only if latter is not specified */
-
-  if(debug)
     logsys_config_priority_set (LOG_LEVEL_DEBUG);
-
-  res = do_simple_xml_query(ctx, "/cluster/logging/logger_subsys[@subsys=\"CCS\"]/@syslog_level");
-  if(res) {
-    loglevel = logsys_priority_id_get (res);
-    if (loglevel < 0)
-      loglevel = LOG_LEVEL_INFO;
-
-    if (!debug)
-      logsys_config_priority_set (loglevel);
-
-    log_printf(LOG_DEBUG, "syslog_level: %s (%d).\n", res, loglevel);
-    free(res);
-    res=NULL;
-  }
 
   res = do_simple_xml_query(ctx, "/cluster/logging/@to_stderr");
   if(res) {
