@@ -974,7 +974,7 @@ static int __init gnbd_init(void)
 			goto out;
 		}
 		elevator_exit(disk->queue->elevator);
-		err = elevator_init(disk->queue, "anticipatory");
+		err = elevator_init(disk->queue, "deadline");
 		if (err) {
 			blk_cleanup_queue(disk->queue);
 			put_disk(disk);
