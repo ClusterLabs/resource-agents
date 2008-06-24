@@ -780,21 +780,30 @@ static int match_change(struct mountgroup *mg, struct change *cg,
 	uint32_t seq = hd->msgdata;
 	int i, members_mismatch;
 
-	/* We can ignore messages if we're not in the list of members.  The one
-	   known time this will happen is after we've joined the cpg, we can
-	   get messages for changes prior to the change in which we're added. */
-
 	ids = (struct id_info *)((char *)hd +
 				 sizeof(struct gfs_header) +
 				 mi->mg_info_size);
 
-	id = get_id_struct(ids, mi->id_info_count, mi->id_info_size,
-			   our_nodeid);
+	if (!mi->started_count) {
+		if (mi->id_info_count != 1) {
+			log_error("match_change fail %d:%u id_count %d exp 1",
+				  hd->nodeid, seq, mi->id_info_count);
+			return 0;
+		}
+	} else {
+		/* We can ignore messages if we're not in the list of members.
+		   The one known time this will happen is after we've joined
+		   the cpg, we can get messages for changes prior to the change
+		   in which we're added. */
 
-	if (!id || !(id->flags & IDI_NODEID_IS_MEMBER)) {
-		log_group(mg, "match_change fail %d:%u we are not in members",
-			  hd->nodeid, seq);
-		return 0;
+		id = get_id_struct(ids, mi->id_info_count, mi->id_info_size,
+				   our_nodeid);
+
+		if (!id || !(id->flags & IDI_NODEID_IS_MEMBER)) {
+			log_group(mg, "match_change fail %d:%u we are not in "
+				  "members", hd->nodeid, seq);
+			return 0;
+		}
 	}
 
 	memb = find_memb(cg, hd->nodeid);
@@ -1870,6 +1879,18 @@ void process_recovery_uevent(char *table)
 	}
 
 	if (!mg->first_recovery_needed) {
+		if (!mg->local_recovery_busy) {
+			/* we expect a recovery_done uevent for our own journal
+			   when we mount; shouldn't happen otherwise */
+
+			if (jid == mg->our_jid)
+				return;
+
+			log_error("process_recovery_uevent jid %d unexpected",
+				  jid);
+			return;
+		}
+
 		mg->local_recovery_busy = 0;
 
 		if (mg->local_recovery_jid != jid) {

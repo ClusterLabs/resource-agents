@@ -297,8 +297,7 @@ static void process_uevent(int ci)
 		if (lock_module)
 			return;
 
-		if (group_mode == GROUP_LIBGROUP)
-			do_leave(argv[3], 0);
+		do_leave(argv[3], 0);
 
 	} else if (!strcmp(act, "change@")) {
 		if (!lock_module)
@@ -315,6 +314,8 @@ static void process_uevent(int ci)
 
 		if (group_mode == GROUP_LIBGROUP)
 			do_withdraw_old(argv[3]);
+		else
+			log_error("TODO withdraw for libcpg");
 
 	} else {
 		if (!lock_module)
