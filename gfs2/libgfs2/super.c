@@ -67,6 +67,7 @@ int read_sb(struct gfs2_sbd *sdp)
 		goto out;
 
 	sdp->sd_fsb2bb_shift = sdp->sd_sb.sb_bsize_shift - GFS2_BASIC_BLOCK_SHIFT;
+	sdp->bsize = sdp->sd_sb.sb_bsize;
 	sdp->sd_diptrs =
 		(sdp->sd_sb.sb_bsize-sizeof(struct gfs2_dinode)) /
 		sizeof(uint64_t);
