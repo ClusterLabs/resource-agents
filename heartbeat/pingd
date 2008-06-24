@@ -152,7 +152,7 @@ pingd_start() {
     pingd_cmd="${HA_BIN}/pingd -D -p $OCF_RESKEY_pidfile -a $OCF_RESKEY_name -d $OCF_RESKEY_dampen $extras"
 
     if [ ! -z $OCF_RESKEY_user ]; then
-	echo "$pingd_cmd" | su - $OCF_RESKEY_user
+	sudo -u $OCF_RESKEY_user $pingd_cmd
     else
 	$pingd_cmd
     fi
