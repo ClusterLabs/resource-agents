@@ -22,8 +22,8 @@ CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${fenceincdir} -I${openaisincdir}
 CFLAGS += -I$(S) -I$(S)/../include -I$(S)/../libfenced -I$(SRCDIR)/group/lib
 CFLAGS += -I${incdir}
 
-LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -L${openaislibdir} -lccs -lcman -lcpg
-LDFLAGS += -L${fencelibdir} -L${openaislibdir} -lfence -lcpg -lpthread
+LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -L${openaislibdir} -lccs -lcman -lcpg -llogsys
+LDFLAGS += -L${fencelibdir} -lfence -lpthread
 LDFLAGS += -L../../group/lib -l group
 
 

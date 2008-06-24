@@ -1,6 +1,8 @@
 #include "fd.h"
 #include "ccs.h"
 
+LOGSYS_DECLARE_SUBSYS ("FENCED", LOG_LEVEL_INFO);
+
 static int open_ccs(void)
 {
 	int i = 0, cd;
@@ -8,7 +10,7 @@ static int open_ccs(void)
 	while ((cd = ccs_connect()) < 0) {
 		sleep(1);
 		if (++i > 9 && !(i % 10))
-			log_error("connect to ccs error %d, "
+			log_printf(LOG_ERR, "connect to ccs error %d, "
 				  "check ccsd or cluster status", cd);
 	}
 	return cd;
@@ -27,12 +29,12 @@ static void read_ccs_int(int cd, char *path, int *config_val)
 	val = atoi(str);
 
 	if (val < 0) {
-		log_error("ignore invalid value %d for %s", val, path);
+		log_printf(LOG_ERR, "ignore invalid value %d for %s", val, path);
 		return;
 	}
 
 	*config_val = val;
-	log_debug("%s is %u", path, val);
+	log_printf_debug("%s is %u", path, val);
 	free(str);
 }
 
@@ -64,7 +66,7 @@ int read_ccs(struct fd *fd)
 
 	error = ccs_get(cd, path, &str);
 	if (error || !str) {
-		log_error("local cman node name \"%s\" not found in the "
+		log_printf(LOG_ERR, "local cman node name \"%s\" not found in the "
 			  "configuration", our_name);
 		return error;
 	}
@@ -102,7 +104,7 @@ int read_ccs(struct fd *fd)
 	}
 
 	if (comline.clean_start) {
-		log_debug("clean start, skipping initial nodes");
+		log_printf_debug("clean start, skipping initial nodes");
 		goto out;
 	}
 
@@ -120,7 +122,7 @@ int read_ccs(struct fd *fd)
 		count++;
 	}
 
-	log_debug("added %d nodes from ccs", count);
+	log_printf_debug("added %d nodes from ccs", count);
  out:
 	ccs_disconnect(cd);
 	return 0;

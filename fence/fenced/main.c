@@ -18,6 +18,13 @@ struct client {
 	void *deadfn;
 };
 
+LOGSYS_DECLARE_SYSTEM (NULL,
+	LOG_MODE_OUTPUT_STDERR | LOG_MODE_OUTPUT_SYSLOG_THREADED | LOG_MODE_OUTPUT_FILE | LOG_MODE_BUFFER_BEFORE_CONFIG,
+	LOGDIR "/fenced.log",
+	SYSLOGFACILITY);
+
+LOGSYS_DECLARE_SUBSYS ("FENCED", LOG_LEVEL_INFO);
+
 static int do_read(int fd, void *buf, size_t count)
 {
 	int rv, off = 0;
@@ -68,10 +75,10 @@ static void client_alloc(void)
 		pollfd = realloc(pollfd, (client_size + CLIENT_NALLOC) *
 					 sizeof(struct pollfd));
 		if (!pollfd)
-			log_error("can't alloc for pollfd");
+			log_printf(LOG_ERR, "can't alloc for pollfd");
 	}
 	if (!client || !pollfd)
-		log_error("can't alloc for client array");
+		log_printf(LOG_ERR, "can't alloc for client array");
 
 	for (i = client_size; i < client_size + CLIENT_NALLOC; i++) {
 		client[i].workfn = NULL;
@@ -191,7 +198,7 @@ static int do_join(char *name)
 
 	fd = find_fd(name);
 	if (fd) {
-		log_debug("join error: domain %s exists", name);
+		log_printf_debug("join error: domain %s exists", name);
 		rv = -EEXIST;
 		goto out;
 	}
@@ -406,17 +413,17 @@ static void process_connection(int ci)
 
 	rv = do_read(client[ci].fd, &h, sizeof(h));
 	if (rv < 0) {
-		log_debug("connection %d read error %d", ci, rv);
+		log_printf_debug("connection %d read error %d", ci, rv);
 		goto out;
 	}
 
 	if (h.magic != FENCED_MAGIC) {
-		log_debug("connection %d magic error %x", ci, h.magic);
+		log_printf_debug("connection %d magic error %x", ci, h.magic);
 		goto out;
 	}
 
 	if ((h.version & 0xFFFF0000) != (FENCED_VERSION & 0xFFFF0000)) {
-		log_debug("connection %d version error %x", ci, h.version);
+		log_printf_debug("connection %d version error %x", ci, h.version);
 		goto out;
 	}
 
@@ -424,14 +431,14 @@ static void process_connection(int ci)
 		extra_len = h.len - sizeof(h);
 		extra = malloc(extra_len);
 		if (!extra) {
-			log_error("process_connection no mem %d", extra_len);
+			log_printf(LOG_ERR, "process_connection no mem %d", extra_len);
 			goto out;
 		}
 		memset(extra, 0, extra_len);
 
 		rv = do_read(client[ci].fd, extra, extra_len);
 		if (rv < 0) {
-			log_debug("connection %d extra read error %d", ci, rv);
+			log_printf_debug("connection %d extra read error %d", ci, rv);
 			goto out;
 		}
 	}
@@ -450,10 +457,10 @@ static void process_connection(int ci)
 	case FENCED_CMD_NODE_INFO:
 	case FENCED_CMD_DOMAIN_INFO:
 	case FENCED_CMD_DOMAIN_NODES:
-		log_error("process_connection query on wrong socket");
+		log_printf(LOG_ERR, "process_connection query on wrong socket");
 		break;
 	default:
-		log_error("process_connection %d unknown command %d",
+		log_printf(LOG_ERR, "process_connection %d unknown command %d",
 			  ci, h.command);
 	}
  out:
@@ -468,13 +475,13 @@ static void process_listener(int ci)
 
 	fd = accept(client[ci].fd, NULL, NULL);
 	if (fd < 0) {
-		log_error("process_listener: accept error %d %d", fd, errno);
+		log_printf(LOG_ERR, "process_listener: accept error %d %d", fd, errno);
 		return;
 	}
 	
 	i = client_add(fd, process_connection, NULL);
 
-	log_debug("client connection %d fd %d", i, fd);
+	log_printf_debug("client connection %d fd %d", i, fd);
 }
 
 static int setup_listener(char *sock_path)
@@ -487,7 +494,7 @@ static int setup_listener(char *sock_path)
 
 	s = socket(AF_LOCAL, SOCK_STREAM, 0);
 	if (s < 0) {
-		log_error("socket error %d %d", s, errno);
+		log_printf(LOG_ERR, "socket error %d %d", s, errno);
 		return s;
 	}
 
@@ -498,14 +505,14 @@ static int setup_listener(char *sock_path)
 
 	rv = bind(s, (struct sockaddr *) &addr, addrlen);
 	if (rv < 0) {
-		log_error("bind error %d %d", rv, errno);
+		log_printf(LOG_ERR, "bind error %d %d", rv, errno);
 		close(s);
 		return rv;
 	}
 
 	rv = listen(s, 5);
 	if (rv < 0) {
-		log_error("listen error %d %d", rv, errno);
+		log_printf(LOG_ERR, "listen error %d %d", rv, errno);
 		close(s);
 		return rv;
 	}
@@ -586,7 +593,7 @@ static int setup_queries(void)
 
 	rv = pthread_create(&query_thread, NULL, process_queries, &s);
 	if (rv < 0) {
-		log_error("can't create query thread");
+		log_printf(LOG_ERR, "can't create query thread");
 		close(s);
 		return rv;
 	}
@@ -595,7 +602,7 @@ static int setup_queries(void)
 
 static void cluster_dead(int ci)
 {
-	log_error("cluster is down, exiting");
+	log_printf(LOG_ERR, "cluster is down, exiting");
 	exit(1);
 }
 
@@ -654,7 +661,7 @@ static int loop(void)
 			continue;
 		}
 		if (rv < 0) {
-			log_error("poll errno %d", errno);
+			log_printf(LOG_ERR, "poll errno %d", errno);
 			goto out;
 		}
 

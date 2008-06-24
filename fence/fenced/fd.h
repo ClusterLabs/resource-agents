@@ -10,7 +10,6 @@
 #include <errno.h>
 #include <string.h>
 #include <stdint.h>
-#include <syslog.h>
 #include <time.h>
 #include <sched.h>
 #include <sys/ioctl.h>
@@ -24,6 +23,7 @@
 
 #include <openais/saAis.h>
 #include <openais/cpg.h>
+#include <openais/service/logsys.h>
 
 #include "list.h"
 #include "linux_endian.h"
@@ -71,17 +71,11 @@ extern int group_mode;
 
 extern void daemon_dump_save(void);
 
-#define log_debug(fmt, args...) \
+#define log_printf_debug(fmt, args...) \
 do { \
 	snprintf(daemon_debug_buf, 255, "%ld " fmt "\n", time(NULL), ##args); \
-	if (daemon_debug_opt) fprintf(stderr, "%s", daemon_debug_buf); \
 	daemon_dump_save(); \
-} while (0)
-
-#define log_error(fmt, args...) \
-do { \
-	log_debug(fmt, ##args); \
-	syslog(LOG_ERR, fmt, ##args); \
+	log_printf(LOG_DEBUG, fmt, ##args); \
 } while (0)
 
 /* config option defaults */
