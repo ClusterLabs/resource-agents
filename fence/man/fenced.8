@@ -49,7 +49,7 @@ until fencing succeeds.  Other systems such as DLM and GFS will not begin
 their own recovery for a failed node until fenced has successfully
 completed fencing it.  So, a delay or problem in fencing will result in
 other systems like DLM/GFS being blocked.  Information about fencing
-operations will appear in syslog.
+operations will also appear in syslog.
 
 When a domain member fails, the actual fencing operation can be delayed by
 a configurable number of seconds (cluster.conf:post_fail_delay or -f).
