@@ -15,7 +15,8 @@ OBJS=	config.o \
 	group.o \
 	main.o \
 	member_cman.o \
-	recover.o
+	recover.o \
+	logging.o
 
 CFLAGS += -D_FILE_OFFSET_BITS=64
 CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${fenceincdir} -I${openaisincdir}

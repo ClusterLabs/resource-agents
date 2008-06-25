@@ -1,7 +1,9 @@
 #include "fd.h"
 #include "ccs.h"
 
-static int open_ccs(void)
+static int ccs_handle;
+
+int setup_ccs(void)
 {
 	int i = 0, cd;
 
@@ -9,18 +11,60 @@ static int open_ccs(void)
 		sleep(1);
 		if (++i > 9 && !(i % 10))
 			log_error("connect to ccs error %d, "
-				  "check ccsd or cluster status", cd);
+				  "check cluster status", cd);
 	}
-	return cd;
+
+	ccs_handle = cd;
+	return 0;
 }
 
-static void read_ccs_int(int cd, char *path, int *config_val)
+void close_ccs(void)
+{
+	ccs_disconnect(ccs_handle);
+}
+
+void read_ccs_name(char *path, char *name)
+{
+	char *str;
+	int error;
+
+	error = ccs_get(ccs_handle, path, &str);
+	if (error || !str)
+		return;
+
+	strcpy(name, str);
+
+	free(str);
+}
+
+void read_ccs_yesno(char *path, int *yes, int *no)
+{
+	char *str;
+	int error;
+
+	*yes = 0;
+	*no = 0;
+
+	error = ccs_get(ccs_handle, path, &str);
+	if (error || !str)
+		return;
+
+	if (!strcmp(str, "yes"))
+		*yes = 1;
+
+	else if (!strcmp(str, "no"))
+		*no = 1;
+
+	free(str);
+}
+
+void read_ccs_int(char *path, int *config_val)
 {
 	char *str;
 	int val;
 	int error;
 
-	error = ccs_get(cd, path, &str);
+	error = ccs_get(ccs_handle, path, &str);
 	if (error || !str)
 		return;
 
@@ -48,11 +92,7 @@ int read_ccs(struct fd *fd)
 {
 	char path[256];
 	char *str;
-	int error, cd, i = 0, count = 0;
-
-	cd = open_ccs();
-	if (cd < 0)
-		return cd;
+	int error, i = 0, count = 0;
 
 	/* Our own nodename must be in cluster.conf before we're allowed to
 	   join the fence domain and then mount gfs; other nodes need this to
@@ -62,7 +102,7 @@ int read_ccs(struct fd *fd)
 	memset(path, 0, 256);
 	snprintf(path, 256, OUR_NAME_PATH, our_name);
 
-	error = ccs_get(cd, path, &str);
+	error = ccs_get(ccs_handle, path, &str);
 	if (error || !str) {
 		log_error("local cman node name \"%s\" not found in the "
 			  "configuration", our_name);
@@ -77,22 +117,22 @@ int read_ccs(struct fd *fd)
 	   values set in cluster.conf. */
 
 	if (!comline.groupd_compat_opt)
-		read_ccs_int(cd, GROUPD_COMPAT_PATH, &comline.groupd_compat);
+		read_ccs_int(GROUPD_COMPAT_PATH, &comline.groupd_compat);
 	if (!comline.clean_start_opt)
-		read_ccs_int(cd, CLEAN_START_PATH, &comline.clean_start);
+		read_ccs_int(CLEAN_START_PATH, &comline.clean_start);
 	if (!comline.post_join_delay_opt)
-		read_ccs_int(cd, POST_JOIN_DELAY_PATH, &comline.post_join_delay);
+		read_ccs_int(POST_JOIN_DELAY_PATH, &comline.post_join_delay);
 	if (!comline.post_fail_delay_opt)
-		read_ccs_int(cd, POST_FAIL_DELAY_PATH, &comline.post_fail_delay);
+		read_ccs_int(POST_FAIL_DELAY_PATH, &comline.post_fail_delay);
 	if (!comline.override_time_opt)
-		read_ccs_int(cd, OVERRIDE_TIME_PATH, &comline.override_time);
+		read_ccs_int(OVERRIDE_TIME_PATH, &comline.override_time);
 
 	if (!comline.override_path_opt) {
 		str = NULL;
 		memset(path, 0, 256);
 		sprintf(path, OVERRIDE_PATH_PATH);
 
-		error = ccs_get(cd, path, &str);
+		error = ccs_get(ccs_handle, path, &str);
 		if (!error && str) {
 			free(comline.override_path);
 			comline.override_path = strdup(str);
@@ -111,7 +151,7 @@ int read_ccs(struct fd *fd)
 		memset(path, 0, 256);
 		sprintf(path, "/cluster/clusternodes/clusternode[%d]/@nodeid", i);
 
-		error = ccs_get(cd, path, &str);
+		error = ccs_get(ccs_handle, path, &str);
 		if (error || !str)
 			break;
 
@@ -122,7 +162,6 @@ int read_ccs(struct fd *fd)
 
 	log_debug("added %d nodes from ccs", count);
  out:
-	ccs_disconnect(cd);
 	return 0;
 }
 

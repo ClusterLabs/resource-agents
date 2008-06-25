@@ -122,6 +122,10 @@ static void cman_callback(cman_handle_t h, void *private, int reason, int arg)
 		if (!quorate && cman_quorate && (group_mode == GROUP_LIBCPG))
 			process_fd_changes();
 		break;
+
+	case CMAN_REASON_CONFIG_UPDATE:
+		setup_logging(&daemon_debug_logsys);
+		break;
 	}
 }
 
@@ -140,10 +144,28 @@ int setup_cman(void)
 {
 	cman_node_t node;
 	int rv, fd;
+	int init = 0, active = 0;
 
+ retry_init:
 	ch = cman_init(NULL);
 	if (!ch) {
-		log_error("cman_init error %p %d", ch, errno);
+		if (init++ < 2) {
+			sleep(1);
+			goto retry_init;
+		}
+		log_error("cman_init error %d", errno);
+		return -ENOTCONN;
+	}
+
+ retry_active:
+	rv = cman_is_active(ch);
+	if (!rv) {
+		if (active++ < 2) {
+			sleep(1);
+			goto retry_active;
+		}
+		log_error("cman_is_active error %d", errno);
+		cman_finish(ch);
 		return -ENOTCONN;
 	}
 
@@ -177,12 +199,10 @@ int setup_cman(void)
 	return fd;
 }
 
-/*
-void exit_member(void)
+void close_cman(void)
 {
 	cman_finish(ch);
 }
-*/
 
 int is_cman_member(int nodeid)
 {

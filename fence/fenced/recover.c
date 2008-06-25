@@ -116,7 +116,7 @@ static int check_override(int ofd, char *nodename, int timeout)
 
 	ret = select(ofd + 1, &rfds, NULL, NULL, &tv);
 	if (ret < 0) {
-		syslog(LOG_ERR, "select: %s\n", strerror(errno));
+		log_debug("check_override select: %s", strerror(errno));
 		return -1;
 	}
 
@@ -126,7 +126,7 @@ static int check_override(int ofd, char *nodename, int timeout)
 	memset(buf, 0, sizeof(buf));
 	ret = read(ofd, buf, sizeof(buf) - 1);
 	if (ret < 0) {
-		syslog(LOG_ERR, "read: %s\n", strerror(errno));
+		log_debug("check_override read: %s", strerror(errno));
 		return -1;
 	}
 
@@ -212,8 +212,8 @@ void delay_fencing(struct fd *fd, int node_join)
 		  (int) (last.tv_sec - first.tv_sec), victim_count);
  out:
 	list_for_each_entry(node, &fd->victims, list) {
-		syslog(LOG_INFO, "%s not a cluster member after %d sec %s",
-		       node->name, delay, delay_type);
+		log_debug("%s not a cluster member after %d sec %s",
+		          node->name, delay, delay_type);
 	}
 }
 
@@ -226,8 +226,7 @@ void defer_fencing(struct fd *fd)
 
 	master_name = nodeid_to_name(fd->master);
 
-	log_debug("defer fencing to %d %s", fd->master, master_name);
-	syslog(LOG_INFO, "fencing deferred to %s", master_name);
+	log_level(LOG_INFO, "fencing deferred to %s", master_name);
 }
 
 void fence_victims(struct fd *fd)
@@ -257,15 +256,14 @@ void fence_victims(struct fd *fd)
 			continue;
 		}
 
-		log_debug("fencing node %s", node->name);
-		syslog(LOG_INFO, "fencing node \"%s\"", node->name);
+		log_level(LOG_INFO, "fencing node \"%s\"", node->name);
 
 		query_unlock();
 		error = fence_node(node->name);
 		query_lock();
 
-		syslog(LOG_INFO, "fence \"%s\" %s", node->name,
-		       error ? "failed" : "success");
+		log_level(LOG_INFO, "fence \"%s\" %s", node->name,
+			  error ? "failed" : "success");
 
 		if (!error) {
 			victim_done(fd, node->nodeid, VIC_DONE_AGENT);
@@ -286,8 +284,8 @@ void fence_victims(struct fd *fd)
 		override = open_override(comline.override_path);
 		if (check_override(override, node->name,
 				   comline.override_time) > 0) {
-			syslog(LOG_WARNING, "fence \"%s\" overridden by "
-			       "administrator intervention", node->name);
+			log_level(LOG_WARNING, "fence \"%s\" overridden by "
+				  "administrator intervention", node->name);
 			victim_done(fd, node->nodeid, VIC_DONE_OVERRIDE);
 			list_del(&node->list);
 			free(node);

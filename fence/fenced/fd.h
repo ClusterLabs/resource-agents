@@ -10,7 +10,6 @@
 #include <errno.h>
 #include <string.h>
 #include <stdint.h>
-#include <syslog.h>
 #include <time.h>
 #include <sched.h>
 #include <sys/ioctl.h>
@@ -24,6 +23,7 @@
 
 #include <openais/saAis.h>
 #include <openais/cpg.h>
+#include <openais/service/logsys.h>
 
 #include "list.h"
 #include "linux_endian.h"
@@ -58,6 +58,7 @@
 #define GROUP_LIBCPG            3
 
 extern int daemon_debug_opt;
+extern int daemon_debug_logsys;
 extern int daemon_quit;
 extern struct list_head domains;
 extern int cman_quorate;
@@ -74,14 +75,23 @@ extern void daemon_dump_save(void);
 #define log_debug(fmt, args...) \
 do { \
 	snprintf(daemon_debug_buf, 255, "%ld " fmt "\n", time(NULL), ##args); \
-	if (daemon_debug_opt) fprintf(stderr, "%s", daemon_debug_buf); \
 	daemon_dump_save(); \
+	if (daemon_debug_opt) \
+		fprintf(stderr, "%s", daemon_debug_buf); \
+	if (daemon_debug_logsys) \
+		log_printf(LOG_DEBUG, "%s", daemon_debug_buf); \
 } while (0)
 
 #define log_error(fmt, args...) \
 do { \
 	log_debug(fmt, ##args); \
-	syslog(LOG_ERR, fmt, ##args); \
+	log_printf(LOG_ERR, fmt, ##args); \
+} while (0)
+
+#define log_level(lvl, fmt, args...) \
+do { \
+	log_debug(fmt, ##args); \
+	log_printf(lvl, fmt, ##args); \
 } while (0)
 
 /* config option defaults */
@@ -210,6 +220,11 @@ struct fd {
 
 /* config.c */
 
+int setup_ccs(void);
+void close_ccs(void);
+void read_ccs_name(char *path, char *name);
+void read_ccs_yesno(char *path, int *yes, int *no);
+void read_ccs_int(char *path, int *config_val);
 int read_ccs(struct fd *fd);
 
 /* cpg.c */
@@ -231,6 +246,7 @@ int set_domain_nodes(struct fd *fd, int option, int *node_count,
 
 void process_groupd(int ci);
 int setup_groupd(void);
+void close_groupd(void);
 int fd_join_group(struct fd *fd);
 int fd_leave_group(struct fd *fd);
 int set_node_info_group(struct fd *fd, int nodeid, struct fenced_node *node);
@@ -251,6 +267,7 @@ void query_unlock(void);
 
 void process_cman(int ci);
 int setup_cman(void);
+void close_cman(void);
 int is_cman_member(int nodeid);
 char *nodeid_to_name(int nodeid);
 int name_to_nodeid(char *name);
@@ -265,6 +282,12 @@ int is_victim(struct fd *fd, int nodeid);
 void delay_fencing(struct fd *fd, int node_join);
 void defer_fencing(struct fd *fd);
 void fence_victims(struct fd *fd);
+
+/* logging.c */
+
+void init_logging(void);
+void setup_logging(int *prog_debug);
+void close_logging(void);
 
 #endif				/*  __FD_DOT_H__  */
 

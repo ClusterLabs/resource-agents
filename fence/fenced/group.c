@@ -363,12 +363,10 @@ int setup_groupd(void)
 	return rv;
 }
 
-/*
-void exit_groupd(void)
+void close_groupd(void)
 {
 	group_exit(gh);
 }
-*/
 
 int fd_join_group(struct fd *fd)
 {

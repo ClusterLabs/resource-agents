@@ -596,10 +596,10 @@ static int setup_queries(void)
 static void cluster_dead(int ci)
 {
 	log_error("cluster is down, exiting");
-	exit(1);
+	daemon_quit = 1;
 }
 
-static int loop(void)
+static void loop(void)
 {
 	int rv, i;
 	void (*workfn) (int ci);
@@ -618,6 +618,12 @@ static int loop(void)
 	if (rv < 0)
 		goto out;
 	client_add(rv, process_cman, cluster_dead);
+
+	rv = setup_ccs();
+	if (rv < 0)
+		goto out;
+
+	setup_logging(&daemon_debug_logsys);
 
 	group_mode = GROUP_LIBCPG;
 
@@ -647,9 +653,8 @@ static int loop(void)
 	for (;;) {
 		rv = poll(pollfd, client_maxi + 1, -1);
 		if (rv == -1 && errno == EINTR) {
-			if (daemon_quit && list_empty(&domains)) {
-				exit(1);
-			}
+			if (daemon_quit && list_empty(&domains))
+				goto out;
 			daemon_quit = 0;
 			continue;
 		}
@@ -673,11 +678,16 @@ static int loop(void)
 			}
 		}
 		pthread_mutex_unlock(&query_mutex);
+
+		if (daemon_quit)
+			break;
 	}
-	rv = 0;
  out:
-	free(pollfd);
-	return rv;
+	if (comline.groupd_compat)
+		close_groupd();
+	close_logging();
+	close_ccs();
+	close_cman();
 }
 
 static void lockfile(void)
@@ -852,6 +862,8 @@ int main(int argc, char **argv)
 	comline.override_time = DEFAULT_OVERRIDE_TIME;
 	comline.override_path = strdup(DEFAULT_OVERRIDE_PATH);
 
+	init_logging();
+
 	read_arguments(argc, argv);
 
 	lockfile();
@@ -863,12 +875,13 @@ int main(int argc, char **argv)
 		}
 		umask(0);
 	}
-	openlog("fenced", LOG_PID, LOG_DAEMON);
 	signal(SIGTERM, sigterm_handler);
 
 	set_oom_adj(-16);
 
-	return loop();
+	loop();
+
+	return 0;
 }
 
 void daemon_dump_save(void)
@@ -888,6 +901,7 @@ void daemon_dump_save(void)
 }
 
 int daemon_debug_opt;
+int daemon_debug_logsys;
 int daemon_quit;
 struct list_head domains;
 int cman_quorate;
