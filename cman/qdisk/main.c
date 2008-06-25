@@ -1109,11 +1109,14 @@ get_logsys_config_data(int *debug)
 				loglevel = LOG_LEVEL_INFO;
 
 			if (!*debug) {
-				*debug = 1;
+				if (loglevel == LOG_LEVEL_DEBUG)
+					*debug = 1;
+
 				logsys_config_priority_set (loglevel);
 			}
 
 			free(val);
+			val = NULL;
 		} else
 		if (ccs_get(ccsfd, "/cluster/quorumd/@log_level", &val) == 0) { /* check backward compat options */
 			loglevel = logsys_priority_id_get (val);
@@ -1123,11 +1126,14 @@ get_logsys_config_data(int *debug)
 			log_printf(LOG_ERR, "<quorumd log_level=\"%s\".. option is depracated\n", val);
 
 			if (!*debug) {
-				*debug = 1;
+				if (loglevel == LOG_LEVEL_DEBUG)
+					*debug = 1;
+
 				logsys_config_priority_set (loglevel);
 			}
 
 			free(val);
+			val = NULL;
 		}
 	} else
 		logsys_config_priority_set (LOG_LEVEL_DEBUG);
@@ -1197,10 +1203,11 @@ get_logsys_config_data(int *debug)
 
 		logsys_config_facility_set ("QDISK", facility);
 		free(val);
+		val = NULL;
 	}
 
 	if(logmode & LOG_MODE_BUFFER_BEFORE_CONFIG) {
-		log_printf(LOG_DEBUG, "QDISK logsys config enabled from get_logsys_config_data\n");
+		log_printf(LOG_DEBUG, "logsys config enabled from get_logsys_config_data\n");
 		logmode &= ~LOG_MODE_BUFFER_BEFORE_CONFIG;
 		logmode |= LOG_MODE_FLUSH_AFTER_CONFIG;
 		logsys_config_mode_set (logmode);
