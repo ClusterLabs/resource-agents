@@ -3,7 +3,7 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <string.h>
-#include <syslog.h>
+#include <openais/service/logsys.h>
 
 #include "libfence.h"
 #include "libfenced.h"
@@ -21,6 +21,13 @@ do \
 while (0)
 
 static char *prog_name;
+
+LOGSYS_DECLARE_SYSTEM (NULL,
+	LOG_MODE_OUTPUT_STDERR | LOG_MODE_OUTPUT_SYSLOG_THREADED,
+	NULL,
+	SYSLOGFACILITY);
+
+LOGSYS_DECLARE_SUBSYS ("FENCE_NODE", LOG_LEVEL_INFO);
 
 static void print_usage(void)
 {
@@ -85,15 +92,13 @@ int main(int argc, char *argv[])
 	if (!victim)
 		die("no node name specified");
 
-	openlog("fence_node", LOG_PID, LOG_USER);
-
 	error = fence_node(victim);
 
 	if (error) {
-		syslog(LOG_ERR, "Fence of \"%s\" was unsuccessful\n", victim);
+		log_printf(LOG_ERR, "Fence of \"%s\" was unsuccessful\n", victim);
 		exit(EXIT_FAILURE);
 	} else {
-		syslog(LOG_NOTICE, "Fence of \"%s\" was successful\n", victim);
+		log_printf(LOG_NOTICE, "Fence of \"%s\" was successful\n", victim);
 
 		/* Tell fenced what we've done so that it can avoid fencing
 		   this node again if the fence_node() rebooted it. */
