@@ -11,7 +11,6 @@
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <errno.h>
-#include <libxml/parser.h>
 #include <errno.h>
 #include <libxml/parser.h>
 #include <libxml/tree.h>
