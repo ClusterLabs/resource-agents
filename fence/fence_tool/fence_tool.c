@@ -347,6 +347,7 @@ static void print_usage(void)
 	printf("Actions:\n");
 	printf("  join             Join the default fence domain\n");
 	printf("  leave            Leave default fence domain\n");
+	printf("  ls		   List nodes status\n");
 	printf("  dump		   Dump debug buffer from fenced\n");
 	printf("\n");
 	printf("Options:\n");
