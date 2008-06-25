@@ -594,6 +594,8 @@ int _ccs_get_fullxpath(int desc, const char *query, char **rtn, int list)
 
 	if (list && !strcmp(query, previous_query))
 		xmllistindex++;
+	else
+		xmllistindex = 0;
 
 	memset(realquery, 0, PATH_MAX + 16);
 	snprintf(realquery, PATH_MAX + 16 - 1, "/objdbmaindoc%s", query);
