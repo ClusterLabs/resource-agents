@@ -847,15 +847,8 @@ static void set_oom_adj(int val)
 	fclose(fp);
 }
 
-static int get_logsys_config_data(void)
-{
-	return -1;
-}
-
 int main(int argc, char **argv)
 {
-	int trylater = 0;
-
 	INIT_LIST_HEAD(&domains);
 
 	memset(&comline, 0, sizeof(comline));
@@ -880,7 +873,7 @@ int main(int argc, char **argv)
 
 	if (!daemon_debug_opt) {
 		if (daemon(0, 0) < 0) {
-			perror("main: cannot fork");
+			log_printf(LOG_ERR, "main: cannot fork");
 			exit(EXIT_FAILURE);
 		}
 		umask(0);
@@ -921,4 +914,4 @@ int dump_point;
 int dump_wrap;
 int group_mode;
 struct commandline comline;
-
+int trylater = 0;

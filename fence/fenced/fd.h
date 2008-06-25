@@ -68,6 +68,7 @@ extern char dump_buf[FENCED_DUMP_SIZE];
 extern int dump_point;
 extern int dump_wrap;
 extern int group_mode;
+extern int trylater;
 
 extern void daemon_dump_save(void);
 
@@ -240,6 +241,7 @@ void free_fd(struct fd *fd);
 struct fd *find_fd(char *name);
 void query_lock(void);
 void query_unlock(void);
+int get_logsys_config_data(void);
 
 /* member_cman.c */
 

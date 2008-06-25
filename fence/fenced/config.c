@@ -38,6 +38,11 @@ static void read_ccs_int(int cd, char *path, int *config_val)
 	free(str);
 }
 
+int get_logsys_config_data(void)
+{
+	return -1;
+}
+
 #define OUR_NAME_PATH "/cluster/clusternodes/clusternode[@name=\"%s\"]/@name"
 #define GROUPD_COMPAT_PATH "/cluster/group/@groupd_compat"
 #define CLEAN_START_PATH "/cluster/fence_daemon/@clean_start"
@@ -51,6 +56,9 @@ int read_ccs(struct fd *fd)
 	char path[256];
 	char *str;
 	int error, cd, i = 0, count = 0;
+
+	if(get_logsys_config_data())
+		log_printf(LOG_ERR, "Unable to configure logging system\n");
 
 	cd = open_ccs();
 	if (cd < 0)
