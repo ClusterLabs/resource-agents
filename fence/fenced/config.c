@@ -40,7 +40,131 @@ static void read_ccs_int(int cd, char *path, int *config_val)
 
 int get_logsys_config_data(void)
 {
-	return -1;
+	int ccsfd = -1, loglevel = LOG_LEVEL_INFO, facility = SYSLOGFACILITY;
+	char *val = NULL, *error = NULL;
+	unsigned int logmode;
+	int global_debug = 0;
+
+	log_printf(LOG_DEBUG, "Loading logsys configuration information\n");
+
+	ccsfd = ccs_connect();
+	if (ccsfd < 0) {
+		log_printf(LOG_CRIT, "Connection to CCSD failed; cannot start\n");
+		return -1;
+	}
+
+	logmode = logsys_config_mode_get();
+
+	if (!daemon_debug_opt) {
+		if (ccs_get(ccsfd, "/cluster/logging/@debug", &val) == 0) {
+			if(!strcmp(val, "on")) {
+				global_debug = 1;
+			} else
+			if(!strcmp(val, "off")) {
+				global_debug = 0;
+			} else
+				log_printf(LOG_ERR, "global debug: unknown value\n");
+			free(val);
+			val = NULL;
+		}
+
+		if (ccs_get(ccsfd, "/cluster/logging/logger_subsys[@subsys=\"FENCED\"]/@debug", &val) == 0) {
+			if(!strcmp(val, "on")) {
+				daemon_debug_opt = 1;
+			} else
+			if(!strcmp(val, "off")) { /* debug from cmdline/envvars override config */
+				daemon_debug_opt = 0;
+			} else
+				log_printf(LOG_ERR, "subsys debug: unknown value: %s\n", val);
+			free(val);
+			val = NULL;
+		} else
+			daemon_debug_opt = global_debug; /* global debug overrides subsystem only if latter is not specified */
+
+		if (ccs_get(ccsfd, "/cluster/logging/logger_subsys[@subsys=\"FENCED\"]/@syslog_level", &val) == 0) {
+			loglevel = logsys_priority_id_get (val);
+			if (loglevel < 0)
+				loglevel = LOG_LEVEL_INFO;
+
+			if (!daemon_debug_opt) {
+				if (loglevel == LOG_LEVEL_DEBUG)
+					daemon_debug_opt = 1;
+
+				logsys_config_priority_set (loglevel);
+			}
+
+			free(val);
+			val = NULL;
+		}
+	} else
+		logsys_config_priority_set (LOG_LEVEL_DEBUG);
+
+	if (ccs_get(ccsfd, "/cluster/logging/@to_stderr", &val) == 0) {
+		if(!strcmp(val, "yes")) {
+			logmode |= LOG_MODE_OUTPUT_STDERR;
+		} else
+		if(!strcmp(val, "no")) {
+			logmode &= ~LOG_MODE_OUTPUT_STDERR;
+		} else
+			log_printf(LOG_ERR, "to_stderr: unknown value\n");
+		free(val);
+		val = NULL;
+	}
+
+	if (ccs_get(ccsfd, "/cluster/logging/@to_syslog", &val) == 0) {
+		if(!strcmp(val, "yes")) {
+			logmode |= LOG_MODE_OUTPUT_SYSLOG_THREADED;
+		} else
+		if(!strcmp(val, "no")) {
+			logmode &= ~LOG_MODE_OUTPUT_SYSLOG_THREADED;
+		} else
+			log_printf(LOG_ERR, "to_syslog: unknown value\n");
+		free(val);
+		val = NULL;
+	}
+
+	if (ccs_get(ccsfd, "/cluster/logging/@to_file", &val) == 0) {
+		if(!strcmp(val, "yes")) {
+			logmode |= LOG_MODE_OUTPUT_FILE;
+		} else
+		if(!strcmp(val, "no")) {
+			logmode &= ~LOG_MODE_OUTPUT_FILE;
+		} else
+			log_printf(LOG_ERR, "to_file: unknown value\n");
+		free(val);
+		val = NULL;
+	}
+
+	if (ccs_get(ccsfd, "/cluster/logging/@filename", &val) == 0) {
+		if(logsys_config_file_set(&error, val))
+			log_printf(LOG_ERR, "filename: unable to open %s for logging\n", val);
+		free(val);
+		val = NULL;
+	} else
+		log_printf(LOG_DEBUG, "filename: use default built-in log file: %s\n", LOGDIR "/fenced.log");
+
+	if (ccs_get(ccsfd, "/cluster/logging/@syslog_facility", &val) == 0) {
+		facility = logsys_facility_id_get (val);
+		if (facility < 0) {
+			log_printf(LOG_ERR, "syslog_facility: unknown value\n");
+			facility = SYSLOGFACILITY;
+		}
+
+		logsys_config_facility_set ("FENCED", facility);
+		free(val);
+		val = NULL;
+	}
+
+	if(logmode & LOG_MODE_BUFFER_BEFORE_CONFIG) {
+		log_printf(LOG_DEBUG, "logsys config enabled from get_logsys_config_data\n");
+		logmode &= ~LOG_MODE_BUFFER_BEFORE_CONFIG;
+		logmode |= LOG_MODE_FLUSH_AFTER_CONFIG;
+		logsys_config_mode_set (logmode);
+	}
+
+	ccs_disconnect(ccsfd);
+
+	return 0;
 }
 
 #define OUR_NAME_PATH "/cluster/clusternodes/clusternode[@name=\"%s\"]/@name"
@@ -57,8 +181,9 @@ int read_ccs(struct fd *fd)
 	char *str;
 	int error, cd, i = 0, count = 0;
 
-	if(get_logsys_config_data())
-		log_printf(LOG_ERR, "Unable to configure logging system\n");
+	if(trylater)
+		if(get_logsys_config_data())
+			log_printf(LOG_ERR, "Unable to configure logging system\n");
 
 	cd = open_ccs();
 	if (cd < 0)
