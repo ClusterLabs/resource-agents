@@ -770,6 +770,7 @@ static void read_arguments(int argc, char **argv)
 
 		case 'D':
 			daemon_debug_opt = 1;
+			daemon_fork = 1;
 			break;
 
 		case 'g':
@@ -871,7 +872,7 @@ int main(int argc, char **argv)
 
 	lockfile();
 
-	if (!daemon_debug_opt) {
+	if (!daemon_fork) {
 		if (daemon(0, 0) < 0) {
 			log_printf(LOG_ERR, "main: cannot fork");
 			exit(EXIT_FAILURE);
@@ -903,6 +904,7 @@ void daemon_dump_save(void)
 }
 
 int daemon_debug_opt;
+int daemon_fork = 0;
 int daemon_quit;
 struct list_head domains;
 int cman_quorate;

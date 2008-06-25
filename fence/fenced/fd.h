@@ -58,6 +58,7 @@
 #define GROUP_LIBCPG            3
 
 extern int daemon_debug_opt;
+extern int daemon_fork;
 extern int daemon_quit;
 extern struct list_head domains;
 extern int cman_quorate;
