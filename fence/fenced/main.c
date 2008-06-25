@@ -847,8 +847,15 @@ static void set_oom_adj(int val)
 	fclose(fp);
 }
 
+static int get_logsys_config_data(void)
+{
+	return -1;
+}
+
 int main(int argc, char **argv)
 {
+	int trylater = 0;
+
 	INIT_LIST_HEAD(&domains);
 
 	memset(&comline, 0, sizeof(comline));
@@ -861,6 +868,14 @@ int main(int argc, char **argv)
 
 	read_arguments(argc, argv);
 
+	if (daemon_debug_opt)
+		logsys_config_priority_set (LOG_LEVEL_DEBUG);
+
+	trylater = get_logsys_config_data();
+
+	if (trylater)
+		logsys_config_mode_set (LOG_MODE_OUTPUT_STDERR | LOG_MODE_OUTPUT_SYSLOG_THREADED | LOG_MODE_OUTPUT_FILE | LOG_MODE_FLUSH_AFTER_CONFIG);
+
 	lockfile();
 
 	if (!daemon_debug_opt) {
@@ -870,7 +885,7 @@ int main(int argc, char **argv)
 		}
 		umask(0);
 	}
-	openlog("fenced", LOG_PID, LOG_DAEMON);
+
 	signal(SIGTERM, sigterm_handler);
 
 	set_oom_adj(-16);
