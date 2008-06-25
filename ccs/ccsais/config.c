@@ -186,7 +186,7 @@ static int ccs_readconfig(struct objdb_iface_ver0 *objdb, char **error_string)
 	int ret;
 
 	/* We need to set this up to internal defaults too early */
-	openlog("openais", LOG_CONS|LOG_PID, LOG_LOCAL4);
+	openlog("openais", LOG_CONS|LOG_PID, SYSLOGFACILITY);
 
 	/* Read low-level totem/aisexec etc config from CCS */
 	if ( !(ret = init_config(objdb, error_reason)) )
