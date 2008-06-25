@@ -27,8 +27,6 @@
 #include "libgfs2.h"
 #include "gfs2hex.h"
 
-#include <syslog.h>
-
 #define RGLIST_DUMMY_BLOCK -2
 
 int display(int identify_only);
