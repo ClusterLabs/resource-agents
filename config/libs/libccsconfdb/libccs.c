@@ -594,8 +594,10 @@ int _ccs_get_fullxpath(int desc, const char *query, char **rtn, int list)
 
 	if (list && !strcmp(query, previous_query))
 		xmllistindex++;
-	else
+	else {
+		memset(previous_query, 0, PATH_MAX);
 		xmllistindex = 0;
+	}
 
 	memset(realquery, 0, PATH_MAX + 16);
 	snprintf(realquery, PATH_MAX + 16 - 1, "/objdbmaindoc%s", query);
@@ -605,13 +607,14 @@ int _ccs_get_fullxpath(int desc, const char *query, char **rtn, int list)
 	if(!obj)
 		return -EINVAL;
 
-	if (obj->nodesetval && (obj->nodesetval->nodeNr > 0) ) {
+	if (obj->nodesetval && (obj->nodesetval->nodeNr > 0)) {
 		xmlNodePtr node;
 		int size = 0, nnv = 0;
 
 		if(xmllistindex >= obj->nodesetval->nodeNr){
+			memset(previous_query, 0, PATH_MAX);
 			xmllistindex = 0;
-			res = -1;
+			res = -ENODATA;
 			goto fail;
 		}
 
@@ -627,7 +630,6 @@ int _ccs_get_fullxpath(int desc, const char *query, char **rtn, int list)
 			if (node->children && node->children->content)
 				size = strlen((char *)node->children->content) +
 					strlen((char *)node->name)+2;
-
 			else
 				size = strlen((char *)node->name)+2;
 
@@ -657,7 +659,8 @@ int _ccs_get_fullxpath(int desc, const char *query, char **rtn, int list)
 		if(list)
 			strncpy(previous_query, query, PATH_MAX-1);
 
-	}
+	} else
+		res = -EINVAL;
 
 fail:
 	if(obj)

@@ -58,12 +58,15 @@ static char *do_xml_query(xmlXPathContextPtr ctx, char *query, int list) {
 
 	if (list && !strcmp(query, previous_query))
 		xmllistindex++;
-	else
+	else {
+		memset(previous_query, 0, PATH_MAX);
 		xmllistindex = 0;
+	}
 
 	obj = xmlXPathEvalExpression((xmlChar *)query, ctx);
 	if (obj && obj->nodesetval && (obj->nodesetval->nodeNr > 0)) {
 		if (xmllistindex >= obj->nodesetval->nodeNr) {
+			memset(previous_query, 0, PATH_MAX);
 			xmllistindex = 0;
 			goto fail;
 		}
