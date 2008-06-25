@@ -21,7 +21,6 @@ static int cb_type;
 static int cb_member_count;
 static int cb_members[MAX_NODES];
 
-LOGSYS_DECLARE_SUBSYS ("FENCED", LOG_LEVEL_INFO);
 
 static void stop_cbfn(group_handle_t h, void *private, char *name)
 {
@@ -170,13 +169,13 @@ static void _add_first_victims(struct fd *fd)
 
 	/* complete list initialised in init_nodes() to all nodes from ccs */
 	if (list_empty(&fd->complete))
-		log_printf_debug("first complete list empty warning");
+		log_debug("first complete list empty warning");
 
 	list_for_each_entry_safe(prev_node, safe, &fd->complete, list) {
 		if (!is_cman_member(prev_node->nodeid)) {
 			list_del(&prev_node->list);
 			list_add(&prev_node->list, &fd->victims);
-			log_printf_debug("add first victim %s", prev_node->name);
+			log_debug("add first victim %s", prev_node->name);
 			prev_node->init_victim = 1;
 		}
 	}
@@ -197,7 +196,7 @@ static void _add_victims(struct fd *fd, int start_type, int member_count,
 				list_add(&node->list, &fd->complete);
 			else {
 				list_add(&node->list, &fd->victims);
-				log_printf_debug("add victim %u, was leaving",
+				log_debug("add victim %u, was leaving",
 					  node->nodeid);
 			}
 		}
@@ -207,7 +206,7 @@ static void _add_victims(struct fd *fd, int start_type, int member_count,
 	 * to victims list or leaving list, depending on the type of start. */
 
 	if (list_empty(&fd->complete))
-		log_printf_debug("complete list empty warning");
+		log_debug("complete list empty warning");
 
 	list_for_each_entry_safe(node, safe, &fd->complete, list) {
 		if (!id_in_nodeids(node->nodeid, member_count, nodeids)) {
@@ -218,7 +217,7 @@ static void _add_victims(struct fd *fd, int start_type, int member_count,
 			else
 				list_add(&node->list, &fd->leaving);
 
-			log_printf_debug("add node %u to list %u", node->nodeid,
+			log_debug("add node %u to list %u", node->nodeid,
 				  start_type);
 		}
 	}
@@ -232,7 +231,7 @@ static void add_victims(struct fd *fd, int start_type, int member_count,
 	 * start/stop/start immediately upon joining. */
 
 	if (!fd->last_finish && fd->last_stop) {
-		log_printf_debug("revert aborted first start");
+		log_debug("revert aborted first start");
 		fd->last_stop = 0;
 		fd->first_recovery = 0;
 		free_node_list(&fd->prev);
@@ -240,7 +239,7 @@ static void add_victims(struct fd *fd, int start_type, int member_count,
 		free_node_list(&fd->leaving);
 	}
 
-	log_printf_debug("add_victims stop %d start %d finish %d",
+	log_debug("add_victims stop %d start %d finish %d",
 		  fd->last_stop, fd->last_start, fd->last_finish);
 
 	if (!fd->first_recovery) {
@@ -295,13 +294,13 @@ void process_groupd(int ci)
 
 	switch (cb_action) {
 	case DO_STOP:
-		log_printf_debug("stop %s", cb_name);
+		log_debug("stop %s", cb_name);
 		fd->last_stop = fd->last_start;
 		group_stop_done(gh, cb_name);
 		break;
 
 	case DO_START:
-		log_printf_debug("start %s %d members %s", cb_name, cb_event_nr,
+		log_debug("start %s %d members %s", cb_name, cb_event_nr,
 			  str_members());
 		fd->last_start = cb_event_nr;
 
@@ -321,7 +320,7 @@ void process_groupd(int ci)
 		break;
 
 	case DO_FINISH:
-		log_printf_debug("finish %s %d", cb_name, cb_event_nr);
+		log_debug("finish %s %d", cb_name, cb_event_nr);
 		fd->last_finish = cb_event_nr;
 
 		/* we get terminate callback when all have started, which means
@@ -331,9 +330,9 @@ void process_groupd(int ci)
 		break;
 
 	case DO_TERMINATE:
-		log_printf_debug("terminate %s", cb_name);
+		log_debug("terminate %s", cb_name);
 		if (!fd->leaving_group)
-			log_printf(LOG_ERR, "process_groupd terminate not leaving");
+			log_error("process_groupd terminate not leaving");
 		list_del(&fd->list);
 		free_fd(fd);
 		break;
@@ -355,12 +354,12 @@ int setup_groupd(void)
 
 	gh = group_init(NULL, "fence", 0, &callbacks, GROUPD_TIMEOUT);
 	if (!gh) {
-		log_printf(LOG_ERR, "group_init error %p %d", gh, errno);
+		log_error("group_init error %p %d", gh, errno);
 		return -ENOTCONN;
 	}
 	rv = group_get_fd(gh);
 	if (rv < 0)
-		log_printf(LOG_ERR, "group_get_fd error %d %d", rv, errno);
+		log_error("group_get_fd error %d %d", rv, errno);
 	return rv;
 }
 
@@ -380,7 +379,7 @@ int fd_join_group(struct fd *fd)
 
 	rv = group_join(gh, fd->name);
 	if (rv) {
-		log_printf(LOG_ERR, "group_join error %d", rv);
+		log_error("group_join error %d", rv);
 		list_del(&fd->list);
 		free(fd);
 	}
@@ -395,7 +394,7 @@ int fd_leave_group(struct fd *fd)
 
 	rv = group_leave(gh, fd->name);
 	if (rv)
-		log_printf(LOG_ERR, "group_leave error %d", rv);
+		log_error("group_leave error %d", rv);
 
 	return rv;
 }

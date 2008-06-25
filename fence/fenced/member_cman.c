@@ -7,7 +7,6 @@ static cman_handle_t	ch;
 static cman_node_t	cman_nodes[MAX_NODES];
 static int		cman_node_count;
 
-LOGSYS_DECLARE_SUBSYS ("FENCED", LOG_LEVEL_INFO);
 
 static int name_equal(char *name1, char *name2)
 {
@@ -100,7 +99,7 @@ static void statechange(void)
 
 	rv = cman_get_nodes(ch, MAX_NODES, &cman_node_count, cman_nodes);
 	if (rv < 0)
-		log_printf(LOG_ERR, "cman_get_nodes error %d %d", rv, errno);
+		log_error("cman_get_nodes error %d %d", rv, errno);
 }
 
 static void cman_callback(cman_handle_t h, void *private, int reason, int arg)
@@ -112,7 +111,7 @@ static void cman_callback(cman_handle_t h, void *private, int reason, int arg)
 		if (list_empty(&domains))
 			cman_replyto_shutdown(ch, 1);
 		else {
-			log_printf_debug("no to cman shutdown");
+			log_debug("no to cman shutdown");
 			cman_replyto_shutdown(ch, 0);
 		}
 		break;
@@ -132,7 +131,7 @@ void process_cman(int ci)
 
 	rv = cman_dispatch(ch, CMAN_DISPATCH_ALL);
 	if (rv == -1 && errno == EHOSTDOWN) {
-		log_printf(LOG_ERR, "cluster is down, exiting");
+		log_error("cluster is down, exiting");
 		exit(1);
 	}
 }
@@ -144,13 +143,13 @@ int setup_cman(void)
 
 	ch = cman_init(NULL);
 	if (!ch) {
-		log_printf(LOG_ERR, "cman_init error %p %d", ch, errno);
+		log_error("cman_init error %p %d", ch, errno);
 		return -ENOTCONN;
 	}
 
 	rv = cman_start_notification(ch, cman_callback);
 	if (rv < 0) {
-		log_printf(LOG_ERR, "cman_start_notification error %d %d", rv, errno);
+		log_error("cman_start_notification error %d %d", rv, errno);
 		cman_finish(ch);
 		return rv;
 	}
@@ -163,7 +162,7 @@ int setup_cman(void)
 	memset(&node, 0, sizeof(node));
 	rv = cman_get_node(ch, CMAN_NODEID_US, &node);
 	if (rv < 0) {
-		log_printf(LOG_ERR, "cman_get_node us error %d %d", rv, errno);
+		log_error("cman_get_node us error %d %d", rv, errno);
 		cman_finish(ch);
 		fd = rv;
 		goto out;
@@ -173,7 +172,7 @@ int setup_cman(void)
 	strncpy(our_name, node.cn_name, CMAN_MAX_NODENAME_LEN);
 	our_nodeid = node.cn_nodeid;
 
-	log_printf_debug("our_nodeid %d our_name %s", our_nodeid, our_name);
+	log_debug("our_nodeid %d our_name %s", our_nodeid, our_name);
  out:
 	return fd;
 }
@@ -197,7 +196,7 @@ int is_cman_member(int nodeid)
 	if (cn && cn->cn_member)
 		return 1;
 
-	log_printf_debug("node %d not a cman member, cn %d", nodeid, cn ? 1 : 0);
+	log_debug("node %d not a cman member, cn %d", nodeid, cn ? 1 : 0);
 	return 0;
 }
 
@@ -217,7 +216,7 @@ struct node *get_new_node(struct fd *fd, int nodeid)
 	memset(&cn, 0, sizeof(cn));
 	rv = cman_get_node(ch, nodeid, &cn);
 	if (rv < 0)
-		log_printf_debug("get_new_node %d no cman node %d", nodeid, rv);
+		log_debug("get_new_node %d no cman node %d", nodeid, rv);
 	else
 		strncpy(node->name, cn.cn_name, MAX_NODENAME_LEN);
 

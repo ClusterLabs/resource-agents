@@ -1,7 +1,5 @@
 #include "fd.h"
 
-LOGSYS_DECLARE_SUBSYS ("FENCED", LOG_LEVEL_INFO);
-
 void free_node_list(struct list_head *head)
 {
 	struct node *node;
@@ -64,7 +62,7 @@ static int reduce_victims(struct fd *fd)
 
 	list_for_each_entry_safe(node, safe, &fd->victims, list) {
 		if (is_cman_member(node->nodeid)) {
-			log_printf_debug("reduce victim %s", node->name);
+			log_debug("reduce victim %s", node->name);
 			victim_done(fd, node->nodeid, VIC_DONE_MEMBER);
 			list_del(&node->list);
 			free(node);
@@ -118,7 +116,7 @@ static int check_override(int ofd, char *nodename, int timeout)
 
 	ret = select(ofd + 1, &rfds, NULL, NULL, &tv);
 	if (ret < 0) {
-		log_printf(LOG_ERR, "select: %s\n", strerror(errno));
+		syslog(LOG_ERR, "select: %s\n", strerror(errno));
 		return -1;
 	}
 
@@ -128,7 +126,7 @@ static int check_override(int ofd, char *nodename, int timeout)
 	memset(buf, 0, sizeof(buf));
 	ret = read(ofd, buf, sizeof(buf) - 1);
 	if (ret < 0) {
-		log_printf(LOG_ERR, "read: %s\n", strerror(errno));
+		syslog(LOG_ERR, "read: %s\n", strerror(errno));
 		return -1;
 	}
 
@@ -210,11 +208,11 @@ void delay_fencing(struct fd *fd, int node_join)
 
 	gettimeofday(&last, NULL);
 
-	log_printf_debug("delay of %ds leaves %d victims",
+	log_debug("delay of %ds leaves %d victims",
 		  (int) (last.tv_sec - first.tv_sec), victim_count);
  out:
 	list_for_each_entry(node, &fd->victims, list) {
-		log_printf(LOG_INFO, "%s not a cluster member after %d sec %s",
+		syslog(LOG_INFO, "%s not a cluster member after %d sec %s",
 		       node->name, delay, delay_type);
 	}
 }
@@ -228,8 +226,8 @@ void defer_fencing(struct fd *fd)
 
 	master_name = nodeid_to_name(fd->master);
 
-	log_printf_debug("defer fencing to %d %s", fd->master, master_name);
-	log_printf(LOG_INFO, "fencing deferred to %s", master_name);
+	log_debug("defer fencing to %d %s", fd->master, master_name);
+	syslog(LOG_INFO, "fencing deferred to %s", master_name);
 }
 
 void fence_victims(struct fd *fd)
@@ -249,7 +247,7 @@ void fence_victims(struct fd *fd)
 			fenced = 0;
 
 		if (member || fenced) {
-			log_printf_debug("averting fence of node %s "
+			log_debug("averting fence of node %s "
 				  "member %d external %d",
 				  node->name, member, fenced);
 			victim_done(fd, node->nodeid, member ? VIC_DONE_MEMBER :
@@ -259,14 +257,14 @@ void fence_victims(struct fd *fd)
 			continue;
 		}
 
-		log_printf_debug("fencing node %s", node->name);
-		log_printf(LOG_INFO, "fencing node \"%s\"", node->name);
+		log_debug("fencing node %s", node->name);
+		syslog(LOG_INFO, "fencing node \"%s\"", node->name);
 
 		query_unlock();
 		error = fence_node(node->name);
 		query_lock();
 
-		log_printf(LOG_INFO, "fence \"%s\" %s", node->name,
+		syslog(LOG_INFO, "fence \"%s\" %s", node->name,
 		       error ? "failed" : "success");
 
 		if (!error) {
@@ -288,7 +286,7 @@ void fence_victims(struct fd *fd)
 		override = open_override(comline.override_path);
 		if (check_override(override, node->name,
 				   comline.override_time) > 0) {
-			log_printf(LOG_WARNING, "fence \"%s\" overridden by "
+			syslog(LOG_WARNING, "fence \"%s\" overridden by "
 			       "administrator intervention", node->name);
 			victim_done(fd, node->nodeid, VIC_DONE_OVERRIDE);
 			list_del(&node->list);

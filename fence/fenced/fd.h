@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <string.h>
 #include <stdint.h>
+#include <syslog.h>
 #include <time.h>
 #include <sched.h>
 #include <sys/ioctl.h>
@@ -23,7 +24,6 @@
 
 #include <openais/saAis.h>
 #include <openais/cpg.h>
-#include <openais/service/logsys.h>
 
 #include "list.h"
 #include "linux_endian.h"
@@ -58,7 +58,6 @@
 #define GROUP_LIBCPG            3
 
 extern int daemon_debug_opt;
-extern int daemon_fork;
 extern int daemon_quit;
 extern struct list_head domains;
 extern int cman_quorate;
@@ -69,15 +68,20 @@ extern char dump_buf[FENCED_DUMP_SIZE];
 extern int dump_point;
 extern int dump_wrap;
 extern int group_mode;
-extern int trylater;
 
 extern void daemon_dump_save(void);
 
-#define log_printf_debug(fmt, args...) \
+#define log_debug(fmt, args...) \
 do { \
 	snprintf(daemon_debug_buf, 255, "%ld " fmt "\n", time(NULL), ##args); \
+	if (daemon_debug_opt) fprintf(stderr, "%s", daemon_debug_buf); \
 	daemon_dump_save(); \
-	log_printf(LOG_DEBUG, fmt, ##args); \
+} while (0)
+
+#define log_error(fmt, args...) \
+do { \
+	log_debug(fmt, ##args); \
+	syslog(LOG_ERR, fmt, ##args); \
 } while (0)
 
 /* config option defaults */
@@ -242,7 +246,6 @@ void free_fd(struct fd *fd);
 struct fd *find_fd(char *name);
 void query_lock(void);
 void query_unlock(void);
-int get_logsys_config_data(void);
 
 /* member_cman.c */
 

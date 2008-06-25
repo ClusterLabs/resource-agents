@@ -12,8 +12,6 @@ struct member {
 	uint32_t start_flags;
 };
 
-LOGSYS_DECLARE_SUBSYS ("FENCED", LOG_LEVEL_INFO);
-
 static char *msg_name(int type)
 {
 	switch (type) {
@@ -64,18 +62,18 @@ static int _send_message(cpg_handle_t h, void *buf, int len, int type)
 		retries++;
 		usleep(1000);
 		if (!(retries % 100))
-			log_printf(LOG_ERR, "cpg_mcast_joined retry %d %s",
+			log_error("cpg_mcast_joined retry %d %s",
 				   retries, msg_name(type));
 		goto retry;
 	}
 	if (error != CPG_OK) {
-		log_printf(LOG_ERR, "cpg_mcast_joined error %d handle %llx %s",
+		log_error("cpg_mcast_joined error %d handle %llx %s",
 			  error, (unsigned long long)h, msg_name(type));
 		return -1;
 	}
 
 	if (retries)
-		log_printf_debug("cpg_mcast_joined retried %d %s",
+		log_debug("cpg_mcast_joined retried %d %s",
 			  retries, msg_name(type));
 
 	return 0;
@@ -182,7 +180,7 @@ static void node_history_start(struct fd *fd, int nodeid)
 	
 	node = get_node_history(fd, nodeid);
 	if (!node) {
-		log_printf(LOG_ERR, "node_history_start no nodeid %d", nodeid);
+		log_error("node_history_start no nodeid %d", nodeid);
 		return;
 	}
 
@@ -195,7 +193,7 @@ static void node_history_left(struct fd *fd, int nodeid)
 
 	node = get_node_history(fd, nodeid);
 	if (!node) {
-		log_printf(LOG_ERR, "node_history_left no nodeid %d", nodeid);
+		log_error("node_history_left no nodeid %d", nodeid);
 		return;
 	}
 
@@ -208,7 +206,7 @@ static void node_history_fail(struct fd *fd, int nodeid)
 
 	node = get_node_history(fd, nodeid);
 	if (!node) {
-		log_printf(LOG_ERR, "node_history_fail no nodeid %d", nodeid);
+		log_error("node_history_fail no nodeid %d", nodeid);
 		return;
 	}
 
@@ -227,7 +225,7 @@ void node_history_fence(struct fd *fd, int nodeid, int master, int how)
 
 	node = get_node_history(fd, nodeid);
 	if (!node) {
-		log_printf(LOG_ERR, "node_history_fence no nodeid %d", nodeid);
+		log_error("node_history_fence no nodeid %d", nodeid);
 		return;
 	}
 
@@ -252,7 +250,7 @@ static void node_history_fence_external(struct fd *fd, int nodeid, int from)
 
 	node = get_node_history(fd, nodeid);
 	if (!node) {
-		log_printf(LOG_ERR, "node_history_fence_external no nodeid %d", nodeid);
+		log_error("node_history_fence_external no nodeid %d", nodeid);
 		return;
 	}
 
@@ -280,7 +278,7 @@ void send_external(struct fd *fd, int victim)
 	hd->type = FD_MSG_EXTERNAL;
 	hd->msgdata = victim;
 
-	log_printf_debug("send_external %u", victim);
+	log_debug("send_external %u", victim);
 
 	fd_send_message(fd, buf, len);
 
@@ -294,7 +292,7 @@ void send_external(struct fd *fd, int victim)
 
 static void receive_external(struct fd *fd, struct fd_header *hd, int len)
 {
-	log_printf_debug("receive_external from %d len %d victim %d",
+	log_debug("receive_external from %d len %d victim %d",
 		  hd->nodeid, len, hd->msgdata);
 
 	node_history_fence_external(fd, hd->msgdata, hd->nodeid);
@@ -306,7 +304,7 @@ int is_fenced_external(struct fd *fd, int nodeid)
 
 	node = get_node_history(fd, nodeid);
 	if (!node) {
-		log_printf(LOG_ERR, "is_fenced_external no nodeid %d", nodeid);
+		log_error("is_fenced_external no nodeid %d", nodeid);
 		return 0;
 	}
 
@@ -348,7 +346,7 @@ void send_victim_done(struct fd *fd, int victim, int how)
 	p[1] = cpu_to_le32(how);
 	p[2] = cpu_to_le32(remaining);
 
-	log_printf_debug("send_victim_done %u flags %x victim %d how %d remaining %d",
+	log_debug("send_victim_done %u flags %x victim %d how %d remaining %d",
 		  cg->seq, hd->flags, victim, how, remaining);
 
 	fd_send_message(fd, buf, len);
@@ -363,7 +361,7 @@ static void receive_victim_done(struct fd *fd, struct fd_header *hd, int len)
 	int victim, how, remaining, found;
 	int *nums;
 
-	log_printf_debug("receive_victim_done %d:%u flags %x len %d", hd->nodeid, seq,
+	log_debug("receive_victim_done %d:%u flags %x len %d", hd->nodeid, seq,
 		  hd->flags, len);
 
 	/* check that hd->nodeids is fd->master ? */
@@ -385,7 +383,7 @@ static void receive_victim_done(struct fd *fd, struct fd_header *hd, int len)
 
 	list_for_each_entry(node, &fd->victims, list) {
 		if (node->nodeid == victim) {
-			log_printf_debug("receive_victim_done remove %d how %d rem %d",
+			log_debug("receive_victim_done remove %d how %d rem %d",
 				  victim, how, remaining);
 			node_history_fence(fd, victim, hd->nodeid, how);
 			list_del(&node->list);
@@ -396,7 +394,7 @@ static void receive_victim_done(struct fd *fd, struct fd_header *hd, int len)
 	}
 
 	if (!found)
-		log_printf_debug("receive_victim_done victim %d not found from %d",
+		log_debug("receive_victim_done victim %d not found from %d",
 			  victim, hd->nodeid);
 }
 
@@ -436,7 +434,7 @@ static void send_complete(struct fd *fd)
 	list_for_each_entry(memb, &cg->members, list)
 		p[i++] = cpu_to_le32(memb->nodeid);
 
-	log_printf_debug("send_complete %u counts %d %d %d %d", cg->seq,
+	log_debug("send_complete %u counts %d %d %d %d", cg->seq,
 		  cg->member_count, cg->joined_count,
 		  cg->remove_count, cg->failed_count);
 
@@ -452,7 +450,7 @@ static void receive_complete(struct fd *fd, struct fd_header *hd, int len)
 	uint32_t seq = hd->msgdata;
 	struct node *node, *safe;
 
-	log_printf_debug("receive_complete %d:%u len %d", hd->nodeid, seq, len);
+	log_debug("receive_complete %d:%u len %d", hd->nodeid, seq, len);
 
 	if (fd->init_complete)
 		return;
@@ -466,7 +464,7 @@ static void receive_complete(struct fd *fd, struct fd_header *hd, int len)
 
 	n_ints = 4 + member_count;
 	if (len < (sizeof(struct fd_header) + (n_ints * sizeof(int)))) {
-		log_printf_debug("receive_complete %d:%u bad len %d nums %s",
+		log_debug("receive_complete %d:%u bad len %d nums %s",
 			  hd->nodeid, seq, len, str_nums(nums, n_ints));
 		return;
 	}
@@ -476,7 +474,7 @@ static void receive_complete(struct fd *fd, struct fd_header *hd, int len)
 			break;
 	}
 	if (i == member_count) {
-		log_printf_debug("receive_complete %d:%u we are not in members",
+		log_debug("receive_complete %d:%u we are not in members",
 			  hd->nodeid, seq);
 		return;
 	}
@@ -485,7 +483,7 @@ static void receive_complete(struct fd *fd, struct fd_header *hd, int len)
 
 	/* we may have victims from init which we can clear now */
 	list_for_each_entry_safe(node, safe, &fd->victims, list) {
-		log_printf_debug("receive_complete clear victim %d init %d",
+		log_debug("receive_complete clear victim %d init %d",
 			  node->nodeid, node->init_victim);
 		list_del(&node->list);
 		free(node);
@@ -498,7 +496,7 @@ static int check_quorum_done(struct fd *fd)
 	int wait_count = 0;
 
 	if (!cman_quorate) {
-		log_printf_debug("check_quorum %d", cman_quorate);
+		log_debug("check_quorum %d", cman_quorate);
 		return 0;
 	}
 
@@ -509,7 +507,7 @@ static int check_quorum_done(struct fd *fd)
 		if (!is_cman_member(node->nodeid)) {
 			node->check_quorum = 0;
 		} else {
-			log_printf_debug("check_quorum %d is_cman_member",
+			log_debug("check_quorum %d is_cman_member",
 				  node->nodeid);
 			wait_count++;
 		}
@@ -518,7 +516,7 @@ static int check_quorum_done(struct fd *fd)
 	if (wait_count)
 		return 0;
 
-	log_printf_debug("check_quorum done");
+	log_debug("check_quorum done");
 	return 1;
 }
 
@@ -542,11 +540,11 @@ static int wait_messages_done(struct fd *fd)
 	}
 
 	if (need) {
-		log_printf_debug("wait_messages_done need %d of %d", need, total);
+		log_debug("wait_messages_done need %d of %d", need, total);
 		return 0;
 	}
 
-	log_printf_debug("wait_messages_done got all %d", total);
+	log_debug("wait_messages_done got all %d", total);
 	return 1;
 }
 
@@ -583,7 +581,7 @@ static void set_master(struct fd *fd)
 			complete = memb->nodeid;
 	}
 
-	log_printf_debug("set_master from %d to %s node %d", fd->master,
+	log_debug("set_master from %d to %s node %d", fd->master,
 		  complete ? "complete" : "low",
 		  complete ? complete : low);
 
@@ -609,7 +607,7 @@ static int match_change(struct fd *fd, struct change *cg,
 
 	n_ints = 4 + member_count;
 	if (len < (sizeof(struct fd_header) + (n_ints * sizeof(int)))) {
-		log_printf_debug("match_change fail %d:%u bad len %d nums %s",
+		log_debug("match_change fail %d:%u bad len %d nums %s",
 			  hd->nodeid, seq, len, str_nums(nums, n_ints));
 		return 0;
 	}
@@ -623,14 +621,14 @@ static int match_change(struct fd *fd, struct change *cg,
 			break;
 	}
 	if (i == member_count) {
-		log_printf_debug("match_change fail %d:%u we are not in members",
+		log_debug("match_change fail %d:%u we are not in members",
 			  hd->nodeid, seq);
 		return 0;
 	}
 
 	memb = find_memb(cg, hd->nodeid);
 	if (!memb) {
-		log_printf_debug("match_change fail %d:%u sender not member",
+		log_debug("match_change fail %d:%u sender not member",
 			  hd->nodeid, seq);
 		return 0;
 	}
@@ -642,7 +640,7 @@ static int match_change(struct fd *fd, struct change *cg,
 	    joined_count != cg->joined_count ||
 	    remove_count != cg->remove_count ||
 	    failed_count != cg->failed_count) {
-		log_printf_debug("match_change fail %d:%u expect counts "
+		log_debug("match_change fail %d:%u expect counts "
 			  "%d %d %d %d nums %s",
 			  hd->nodeid, seq,
 			  cg->member_count, cg->joined_count,
@@ -657,7 +655,7 @@ static int match_change(struct fd *fd, struct change *cg,
 		memb = find_memb(cg, nodeid);
 		if (memb)
 			continue;
-		log_printf_debug("match_change fail %d:%u no memb %d",
+		log_debug("match_change fail %d:%u no memb %d",
 			  hd->nodeid, seq, nodeid);
 		members_mismatch = 1;
 	}
@@ -696,7 +694,7 @@ static struct change *find_change(struct fd *fd, struct fd_header *hd, int len)
 		return cg;
 	}
 
-	log_printf_debug("find_change %d:%u no match", hd->nodeid, hd->msgdata);
+	log_debug("find_change %d:%u no match", hd->nodeid, hd->msgdata);
 	return NULL;
 }
 
@@ -717,7 +715,7 @@ static void receive_start(struct fd *fd, struct fd_header *hd, int len)
 	int joining = 0;
 	uint32_t seq = hd->msgdata;
 
-	log_printf_debug("receive_start %d:%u flags %x len %d", hd->nodeid, seq,
+	log_debug("receive_start %d:%u flags %x len %d", hd->nodeid, seq,
 		  hd->flags, len);
 
 	cg = find_change(fd, hd, len);
@@ -727,7 +725,7 @@ static void receive_start(struct fd *fd, struct fd_header *hd, int len)
 	memb = find_memb(cg, hd->nodeid);
 	if (!memb) {
 		/* this should never happen since match_change checks it */
-		log_printf(LOG_ERR, "receive_start no member %d", hd->nodeid);
+		log_error("receive_start no member %d", hd->nodeid);
 		return;
 	}
 
@@ -737,7 +735,7 @@ static void receive_start(struct fd *fd, struct fd_header *hd, int len)
 		joining = 1;
 
 	if ((memb->added && !joining) || (!memb->added && joining)) {
-		log_printf(LOG_ERR, "receive_start %d:%u disallowed added %d joining %d",
+		log_error("receive_start %d:%u disallowed added %d joining %d",
 			  hd->nodeid, seq, memb->added, joining);
 		memb->disallowed = 1;
 	} else {
@@ -787,7 +785,7 @@ static void send_start(struct fd *fd)
 	list_for_each_entry(memb, &cg->members, list)
 		p[i++] = cpu_to_le32(memb->nodeid);
 
-	log_printf_debug("send_start %u flags %x counts %d %d %d %d", cg->seq,
+	log_debug("send_start %u flags %x counts %d %d %d %d", cg->seq,
 		  hd->flags, cg->member_count, cg->joined_count,
 		  cg->remove_count, cg->failed_count);
 
@@ -828,7 +826,7 @@ static void add_victims(struct fd *fd, struct change *cg)
 		if (!node)
 			return;
 		list_add(&node->list, &fd->victims);
-		log_printf_debug("add node %d to victims", node->nodeid);
+		log_debug("add node %d to victims", node->nodeid);
 	}
 }
 
@@ -883,7 +881,7 @@ static void apply_changes(struct fd *fd)
 		break;
 
 	default:
-		log_printf(LOG_ERR, "apply_changes invalid state %d", cg->state);
+		log_error("apply_changes invalid state %d", cg->state);
 	}
 }
 
@@ -947,14 +945,14 @@ static int add_change(struct fd *fd,
 		else
 			node_history_left(fd, memb->nodeid);
 
-		log_printf_debug("add_change %u nodeid %d remove reason %d",
+		log_debug("add_change %u nodeid %d remove reason %d",
 			  cg->seq, memb->nodeid, left_list[i].reason);
 	}
 
 	for (i = 0; i < joined_list_entries; i++) {
 		memb = find_memb(cg, joined_list[i].nodeid);
 		if (!memb) {
-			log_printf(LOG_ERR, "no member %d", joined_list[i].nodeid);
+			log_error("no member %d", joined_list[i].nodeid);
 			error = -ENOENT;
 			goto fail;
 		}
@@ -965,7 +963,7 @@ static int add_change(struct fd *fd,
 		else
 			node_history_init(fd, memb->nodeid);
 
-		log_printf_debug("add_change %u nodeid %d joined", cg->seq,
+		log_debug("add_change %u nodeid %d joined", cg->seq,
 			  memb->nodeid);
 	}
 
@@ -973,7 +971,7 @@ static int add_change(struct fd *fd,
 		list_for_each_entry(memb, &cg->members, list)
 			node_history_init(fd, memb->nodeid);
 
-	log_printf_debug("add_change %u member %d joined %d remove %d failed %d",
+	log_debug("add_change %u member %d joined %d remove %d failed %d",
 		  cg->seq, cg->member_count, cg->joined_count, cg->remove_count,
 		  cg->failed_count);
 
@@ -982,7 +980,7 @@ static int add_change(struct fd *fd,
 	return 0;
 
  fail_nomem:
-	log_printf(LOG_ERR, "no memory");
+	log_error("no memory");
 	error = -ENOMEM;
  fail:
 	free_cg(cg);
@@ -1004,7 +1002,7 @@ static void add_victims_init(struct fd *fd, struct change *cg)
 		    !is_victim(fd, node->nodeid)) {
 			node->init_victim = 1;
 			list_add(&node->list, &fd->victims);
-			log_printf_debug("add_victims_init %d", node->nodeid);
+			log_debug("add_victims_init %d", node->nodeid);
 		} else {
 			free(node);
 		}
@@ -1033,7 +1031,7 @@ static void confchg_cb(cpg_handle_t handle, struct cpg_name *group_name,
 
 	fd = find_fd_handle(handle);
 	if (!fd) {
-		log_printf(LOG_ERR, "confchg_cb no fence domain for cpg %s",
+		log_error("confchg_cb no fence domain for cpg %s",
 			  group_name->value);
 		return;
 	}
@@ -1041,7 +1039,7 @@ static void confchg_cb(cpg_handle_t handle, struct cpg_name *group_name,
 	if (fd->leaving_group && we_left(left_list, left_list_entries)) {
 		/* we called cpg_leave(), and this should be the final
 		   cpg callback we receive */
-		log_printf_debug("confchg for our leave");
+		log_debug("confchg for our leave");
 		cpg_finalize(fd->cpg_handle);
 		client_dead(fd->cpg_client);
 		list_del(&fd->list);
@@ -1076,7 +1074,7 @@ static void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 
 	fd = find_fd_handle(handle);
 	if (!fd) {
-		log_printf(LOG_ERR, "deliver_cb no fd for cpg %s", group_name->value);
+		log_error("deliver_cb no fd for cpg %s", group_name->value);
 		return;
 	}
 
@@ -1093,7 +1091,7 @@ static void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 	hd->msgdata     = le32_to_cpu(hd->msgdata);
 
 	if (hd->version[0] != protocol_active[0]) {
-		log_printf(LOG_ERR, "reject message from %d version %u.%u.%u vs %u.%u.%u",
+		log_error("reject message from %d version %u.%u.%u vs %u.%u.%u",
 			  nodeid, hd->version[0], hd->version[1],
 			  hd->version[2], protocol_active[0],
 			  protocol_active[1], protocol_active[2]);
@@ -1101,7 +1099,7 @@ static void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 	}
 
 	if (hd->nodeid != nodeid) {
-		log_printf(LOG_ERR, "bad msg nodeid %d %d", hd->nodeid, nodeid);
+		log_error("bad msg nodeid %d %d", hd->nodeid, nodeid);
 		return;
 	}
 
@@ -1119,7 +1117,7 @@ static void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 		receive_external(fd, hd, len);
 		break;
 	default:
-		log_printf(LOG_ERR, "unknown msg type %d", hd->type);
+		log_error("unknown msg type %d", hd->type);
 	}
 }
 
@@ -1135,13 +1133,13 @@ static void process_fd_cpg(int ci)
 
 	fd = find_fd_ci(ci);
 	if (!fd) {
-		log_printf(LOG_ERR, "process_fd_cpg no fence domain for ci %d", ci);
+		log_error("process_fd_cpg no fence domain for ci %d", ci);
 		return;
 	}
 
 	error = cpg_dispatch(fd->cpg_handle, CPG_DISPATCH_ALL);
 	if (error != CPG_OK) {
-		log_printf(LOG_ERR, "cpg_dispatch error %d", error);
+		log_error("cpg_dispatch error %d", error);
 		return;
 	}
 
@@ -1157,7 +1155,7 @@ int fd_join(struct fd *fd)
 
 	error = cpg_initialize(&h, &cpg_callbacks);
 	if (error != CPG_OK) {
-		log_printf(LOG_ERR, "cpg_initialize error %d", error);
+		log_error("cpg_initialize error %d", error);
 		goto fail_free;
 	}
 
@@ -1180,11 +1178,11 @@ int fd_join(struct fd *fd)
 	if (error == CPG_ERR_TRY_AGAIN) {
 		sleep(1);
 		if (!(++i % 10))
-			log_printf(LOG_ERR, "cpg_join error retrying");
+			log_error("cpg_join error retrying");
 		goto retry;
 	}
 	if (error != CPG_OK) {
-		log_printf(LOG_ERR, "cpg_join error %d", error);
+		log_error("cpg_join error %d", error);
 		cpg_finalize(h);
 		goto fail;
 	}
@@ -1217,11 +1215,11 @@ int fd_leave(struct fd *fd)
 	if (error == CPG_ERR_TRY_AGAIN) {
 		sleep(1);
 		if (!(++i % 10))
-			log_printf(LOG_ERR, "cpg_leave error retrying");
+			log_error("cpg_leave error retrying");
 		goto retry;
 	}
 	if (error != CPG_OK)
-		log_printf(LOG_ERR, "cpg_leave error %d", error);
+		log_error("cpg_leave error %d", error);
 
 	return 0;
 }
