@@ -200,8 +200,12 @@ int set_ccs_logging(xmlDocPtr ldoc){
       if (loglevel < 0)
 	loglevel = LOG_LEVEL_INFO;
 
-      if(!debug)
+      if(!debug) {
+	if(loglevel == LOG_LEVEL_DEBUG)
+		debug = 1;
+
 	logsys_config_priority_set (loglevel);
+      }
 
       free(res);
       res=NULL;
@@ -276,7 +280,7 @@ int set_ccs_logging(xmlDocPtr ldoc){
   }
 
   if(logmode & LOG_MODE_BUFFER_BEFORE_CONFIG) {
-    log_printf(LOG_DEBUG, "CCS logsys config enabled from set_ccs_logging\n");
+    log_printf(LOG_DEBUG, "logsys config enabled from set_ccs_logging\n");
     logmode &= ~LOG_MODE_BUFFER_BEFORE_CONFIG;
     logmode |= LOG_MODE_FLUSH_AFTER_CONFIG;
     logsys_config_mode_set (logmode);
