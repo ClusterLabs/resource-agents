@@ -1,0 +1,89 @@
+
+# Example cluster LDIF file
+dn: cn=cluster,dc=chrissie,dc=net
+cn: cluster
+objectClass: rhcsCluster
+name: cc_cluster
+rhcsConfig-version: 1
+
+# Some cman parameters
+dn: cn=cman,cn=cluster,dc=chrissie,dc=net
+cn: cman
+objectClass: rhcsCman
+rhcsCluster-id: 444
+
+# Some totem parameters
+dn: cn=totem,cn=cluster,dc=chrissie,dc=net
+cn: totem
+objectClass: rhcsTotem
+rhcsToken: 21000
+
+# Define nodes
+dn: cn=clusternodes,cn=cluster,dc=chrissie,dc=net
+cn: clusternodes
+objectClass: nsContainer
+
+
+dn: cn=clusternode,cn=clusternodes,cn=cluster,dc=chrissie,dc=net
+cn: clusternode
+objectClass: nsContainer
+
+
+dn: name=jeltz,cn=clusternode,cn=clusternodes,cn=cluster,dc=chrissie,dc=net
+objectClass: rhcsNode
+name: jeltz
+rhcsNodeid: 1
+rhcsVotes: 2
+
+# Define a fence agent for this node ...!
+dn: cn=fence,name=jeltz,cn=clusternode,cn=clusternodes,cn=cluster,dc=chrissie,dc=net
+cn: fence
+objectclass: nsContainer
+
+dn: cn=method,cn=fence,name=jeltz,cn=clusternode,cn=clusternodes,cn=cluster,dc=chrissie,dc=net
+cn: method
+objectclass: nsContainer
+
+dn: name=apc,cn=method,cn=fence,name=jeltz,cn=clusternode,cn=clusternodes,cn=cluster,dc=chrissie,dc=net
+name: apc
+objectclass: nsContainer
+
+dn: cn=device,name=apc,cn=method,cn=fence,name=jeltz,cn=clusternode,cn=clusternodes,cn=cluster,dc=chrissie,dc=net
+cn: device
+objectclass: nsContainer
+
+dn: name=myapc,cn=device,name=apc,cn=method,cn=fence,name=jeltz,cn=clusternode,cn=clusternodes,cn=cluster,dc=chrissie,dc=net
+name: myapc
+objectclass: nsContainer
+port=4
+
+dn: name=arthur,cn=clusternode,cn=clusternodes,cn=cluster,dc=chrissie,dc=net
+objectClass: rhcsNode
+name: arthur
+rhcsNodeid: 10
+rhcsVotes: 1
+
+dn: name=ford,cn=clusternode,cn=clusternodes,cn=cluster,dc=chrissie,dc=net
+objectClass: rhcsNode
+name: ford
+rhcsNodeid: 32
+rhcsVotes: 1
+
+# Fence agent
+
+dn: cn=fencedevices,cn=cluster,dc=chrissie,dc=net
+cn: fencedevices
+objectClass: nsContainer
+
+dn: cn=fencedevice,cn=fencedevices,cn=cluster,dc=chrissie,dc=net
+cn: fencedevice
+objectClass: nsContainer
+
+
+dn: name=myapc,cn=fencedevice,cn=fencedevices,cn=cluster,dc=chrissie,dc=net
+objectClass: rhcsFencedevice
+name: myapc
+rhcsAgent: fence_apc
+rhcsIpaddr: myapc.chrissie.net
+rhcsUsername: apc
+rhcsPassword: apc
