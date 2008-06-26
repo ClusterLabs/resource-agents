@@ -73,8 +73,6 @@ assign_family(fence_xvm_args_t *args, struct arg_info *arg,
 static inline void
 assign_address(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 {
-	if (args->addr)
-		free(args->addr);
 	args->addr = strdup(value);
 }
 
@@ -151,8 +149,6 @@ assign_key(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 {
 	struct stat st;
 
-	if (args->key_file)
-		free(args->key_file);
 	args->key_file = strdup(value);
 
 	if (stat(value, &st) == -1) {
@@ -257,18 +253,6 @@ assign_nocluster(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 }
 
 
-static inline void
-assign_uri(fence_xvm_args_t *args, struct arg_info *arg, char *value)
-{
-	if (args->uri)
-		free(args->uri);
-
-	/* XXX NO validation yet */
-	args->uri = strdup(value);
-}
-
-
-
 /** ALL valid command line and stdin arguments for this fencing agent */
 static struct arg_info _arg_info[] = {
 	{ '\xff', NULL, "agent",
@@ -280,7 +264,7 @@ static struct arg_info _arg_info[] = {
 	  NULL },
 
 	{ 'd', "-d", "debug",
-	  "Specify (CCS) / increment (command line) debug level",
+	  "Enable debugging mode",
 	  assign_debug },
 
 	{ 'f', "-f", NULL,
@@ -316,7 +300,7 @@ static struct arg_info _arg_info[] = {
 	  assign_auth },
 
 	{ 'k', "-k <file>", "key_file",
-	  "Shared key file (default=" DEFAULT_KEY_FILE ")",
+	  "Shared key file (default=" DEFAULT_CONFIG_DIR "/fence_xvm.key)",
 	  assign_key },
 
 	{ 'o', "-o <operation>", "option",
@@ -350,10 +334,6 @@ static struct arg_info _arg_info[] = {
 	{ 'L', "-L", NULL,
  	  "Local mode only (no cluster)",
 	  assign_nocluster }, 
-
-	{ 'U', "-U", "uri",
-	  "URI for Hypervisor (default: " DEFAULT_HYPERVISOR_URI ")",
-	  assign_uri },
 	  
 	{ 'V', "-V", NULL,
  	  "Display version and exit", 
@@ -406,8 +386,7 @@ args_init(fence_xvm_args_t *args)
 {
 	args->addr = NULL;
 	args->domain = NULL;
-	args->key_file = strdup(DEFAULT_KEY_FILE);
-	args->uri = strdup(DEFAULT_HYPERVISOR_URI);
+	args->key_file = DEFAULT_KEY_FILE;
 	args->op = FENCE_REBOOT;
 	args->hash = DEFAULT_HASH;
 	args->auth = DEFAULT_AUTH;
@@ -465,7 +444,14 @@ args_usage(char *progname, char *optstr, int print_stdin)
 	int x;
 	struct arg_info *arg;
 
-	if (!print_stdin) {
+	if (print_stdin) {
+		printf("With no command line argument, arguments are "
+		       "read from standard input.\n");
+		printf("Arguments read from standard input take "
+		       "the form of:\n\n");
+		printf("    arg1=value1\n");
+		printf("    arg2=value2\n\n");
+	} else {
 		if (progname) {
 			printf("usage: %s [args]\n", progname);
 		} else {
