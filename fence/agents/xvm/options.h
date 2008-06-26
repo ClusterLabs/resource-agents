@@ -18,6 +18,7 @@ typedef struct {
 	char *addr;
 	char *domain;
 	char *key_file;
+	char *uri;
 	fence_cmd_t op;
 	fence_hash_t hash;
 	fence_auth_type_t auth;

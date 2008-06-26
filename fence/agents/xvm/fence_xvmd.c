@@ -36,8 +36,6 @@
 #include "libcman.h"
 #include "debug.h"
 
-#define LIBVIRT_XEN_URI "xen:///"
-
 static int running = 1;
 static int reload_key;
 
@@ -551,7 +549,7 @@ xvmd_loop(cman_handle_t ch, void *h, int fd, fence_xvm_args_t *args,
 	virt_list_t *vl = NULL;
 	virt_state_t *dom = NULL;
 
-	vp = virConnectOpen(LIBVIRT_XEN_URI);
+	vp = virConnectOpen(args->uri);
 	if (!vp)
 		perror("virConnectOpen");
 
@@ -608,7 +606,7 @@ xvmd_loop(cman_handle_t ch, void *h, int fd, fence_xvm_args_t *args,
 			continue;
 	
 		/* Request and/or timeout: open connection */
-		vp = virConnectOpen(LIBVIRT_XEN_URI);
+		vp = virConnectOpen(args->uri);
 		if (!vp) {
 			printf("NOTICE: virConnectOpen(): %s; cannot fence!\n",
 			       strerror(errno));
@@ -723,7 +721,7 @@ main(int argc, char **argv)
 	int mc_sock;
 	char key[MAX_KEY_LEN];
 	int key_len = 0, x;
-	char *my_options = "dfi:a:p:C:c:k:u?hLXV";
+	char *my_options = "dfi:a:p:C:U:c:k:u?hLXV";
 	cman_handle_t ch = NULL;
 	void *h = NULL;
 
@@ -741,12 +739,17 @@ main(int argc, char **argv)
 	}
 
 	if (args.flags & F_ERR) {
-		args_usage(argv[0], my_options, 0);
 		return 1;
 	}
 
 	if (args.flags & F_HELP) {
 		args_usage(argv[0], my_options, 0);
+
+		printf("Arguments may be specified as part of the\n");
+		printf("fence_xvmd tag in cluster.conf in the form of:\n");
+		printf("    <fence_xvmd argname=\"value\" ... />\n\n");
+
+		args_usage(argv[0], my_options, 1);
 		return 0;
 	}
 

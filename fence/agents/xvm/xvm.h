@@ -40,6 +40,10 @@ typedef enum {
 
 #define DEFAULT_TTL 4
 
+#ifndef DEFAULT_HYPERVISOR_URI
+#define DEFAULT_HYPERVISOR_URI "qemu:///system"
+#endif
+
 #define MAX_HASH_LENGTH SHA512_LENGTH
 #define MAX_KEY_LEN 4096
 
