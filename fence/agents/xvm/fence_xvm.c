@@ -314,6 +314,14 @@ main(int argc, char **argv)
 
 	if (args.flags & F_HELP) {
 		args_usage(argv[0], my_options, 0);
+
+                printf("With no command line argument, arguments are "
+                       "read from standard input.\n");
+                printf("Arguments read from standard input take "
+                       "the form of:\n\n");
+                printf("    arg1=value1\n");
+                printf("    arg2=value2\n\n");
+
 		args_usage(argv[0], my_options, 1);
 		exit(0);
 	}
