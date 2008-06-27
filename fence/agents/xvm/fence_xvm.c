@@ -37,6 +37,13 @@
 #include "mcast.h"
 #include "debug.h"
 
+LOGSYS_DECLARE_SYSTEM (NULL,
+        LOG_MODE_OUTPUT_STDERR | LOG_MODE_OUTPUT_SYSLOG_THREADED |
+	LOG_MODE_OUTPUT_FILE,
+        LOGDIR "/fence_xvm.log",
+        SYSLOGFACILITY);
+
+LOGSYS_DECLARE_SUBSYS ("XVM", LOG_LEVEL_NOTICE);
 
 int
 tcp_wait_connect(int lfd, int retry_tenths)
@@ -80,14 +87,14 @@ tcp_exchange(int fd, fence_auth_type_t auth, void *key,
 	dbg_printf(3, "Issuing TCP challenge\n");
 	if (tcp_challenge(fd, auth, key, key_len, timeout) <= 0) {
 		/* Challenge failed */
-		printf("Invalid response to challenge\n");
+		log_printf(LOG_ERR, "Invalid response to challenge\n");
 		return 0;
 	}
 
 	/* Now they'll send us one, so we need to respond here */
 	dbg_printf(3, "Responding to TCP challenge\n");
 	if (tcp_response(fd, auth, key, key_len, timeout) <= 0) {
-		printf("Invalid response to challenge\n");
+		log_printf(LOG_ERR, "Invalid response to challenge\n");
 		return 0;
 	}
 
@@ -109,9 +116,9 @@ tcp_exchange(int fd, fence_auth_type_t auth, void *key,
 
 	close(fd);
 	if (ret == 0)
-		printf("Remote: Operation was successful\n");
+		log_printf(LOG_INFO, "Remote: Operation was successful\n");
 	else
-		printf("Remote: Operation failed\n");
+		log_printf(LOG_INFO, "Remote: Operation failed\n");
 	return ret;
 }
 
@@ -210,8 +217,9 @@ fence_xen_domain(fence_xvm_args_t *args)
 	if (args->auth != AUTH_NONE || args->hash != HASH_NONE) {
 		key_len = read_key_file(args->key_file, key, sizeof(key));
 		if (key_len < 0) {
-			printf("Could not read %s; trying without "
-			       "authentication\n", args->key_file);
+			log_printf(LOG_INFO,
+				   "Could not read %s; trying without "
+			           "authentication\n", args->key_file);
 			args->auth = AUTH_NONE;
 			args->hash = HASH_NONE;
 		}
@@ -219,7 +227,7 @@ fence_xen_domain(fence_xvm_args_t *args)
 
 	/* Do the real work */
 	if (ip_build_list(&ipl) < 0) {
-		printf("Error building IP address list\n");
+		log_printf(LOG_ERR, "Error building IP address list\n");
 		return 1;
 	}
 
@@ -241,11 +249,14 @@ fence_xen_domain(fence_xvm_args_t *args)
 	}
 
 	if (lfd < 0) {
-		printf("Failed to listen: %s\n", strerror(errno));
+		log_printf(LOG_ERR, "Failed to listen: %s\n", strerror(errno));
 		return 1;
 	}
 
 	attempts = args->timeout * 10 / args->retr_time;
+
+	log_printf(LOG_INFO, "Sending fence request for %s\n", 
+		   args->domain);
 
 	do {
 		if (send_multicast_packets(&ipl, args, key, key_len)) {
@@ -274,10 +285,11 @@ fence_xen_domain(fence_xvm_args_t *args)
 
 	if (fd < 0) {
 		if (attempts <= 0) {
-			printf("Timed out waiting for response\n");
+			log_printf(LOG_ERR,
+				   "Timed out waiting for response\n");
 			return 1;
 		}
-		printf("Fencing failed: %s\n", strerror(errno));
+		log_printf(LOG_ERR, "Fencing failed: %s\n", strerror(errno));
 		return -1;
 	}
 
@@ -306,6 +318,7 @@ main(int argc, char **argv)
 	char *my_options = "di:a:p:T:r:C:c:k:H:uo:t:?hV";
 
 	args_init(&args);
+
 	if (argc == 1) {
 		args_get_stdin(my_options, &args);
 	} else {
@@ -337,12 +350,14 @@ main(int argc, char **argv)
 	args_finalize(&args);
 	dset(args.debug);
 	
-	if (args.debug > 0) 
+	if (args.debug > 0) {
+                logsys_config_priority_set (LOG_LEVEL_DEBUG);
 		args_print(&args);
+	}
 
 	/* Additional validation here */
 	if (!args.domain) {
-		printf("No domain specified!\n");
+		log_printf(LOG_ERR, "No domain specified!\n");
 		args.flags |= F_ERR;
 	}
 
@@ -354,7 +369,7 @@ main(int argc, char **argv)
 	/* Initialize NSS; required to do hashing, as silly as that
 	   sounds... */
 	if (NSS_NoDB_Init(NULL) != SECSuccess) {
-		printf("Could not initialize NSS\n");
+		log_printf(LOG_ERR, "Could not initialize NSS\n");
 		return 1;
 	}
 

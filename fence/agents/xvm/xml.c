@@ -15,6 +15,9 @@
 #include "debug.h"
 #endif
 
+LOGSYS_DECLARE_SUBSYS("XVM", LOG_LEVEL_NOTICE);
+
+
 xmlNodePtr
 get_os_node(xmlDocPtr doc)
 {
@@ -109,7 +112,7 @@ cleanup_xml_doc(xmlDocPtr doc)
 
 	/* Node is still pointing to the <os> block */
 	if (type == 2) {
-		dbg_printf(3, "Unlinkiking %s block\n", (char *)os_node->name);
+		dbg_printf(3, "Unlinking %s block\n", (char *)os_node->name);
 		xmlUnlinkNode(os_node);
 		xmlFreeNode(os_node);
 	}

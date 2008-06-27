@@ -22,6 +22,8 @@
 #include "ip_lookup.h"
 #include "debug.h"
 
+LOGSYS_DECLARE_SUBSYS("XVM", LOG_LEVEL_NOTICE);
+
 static int
 send_addr_dump(int fd, int family)
 {

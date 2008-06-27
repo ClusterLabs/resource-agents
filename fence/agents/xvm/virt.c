@@ -7,7 +7,9 @@
 #include <stdint.h>
 #include <errno.h>
 #include "virt.h"
+#include "debug.h"
 
+LOGSYS_DECLARE_SUBSYS("XVM", LOG_LEVEL_NOTICE);
 
 static int
 _compare_virt(const void *_left, const void *_right)
@@ -140,16 +142,19 @@ vl_print(virt_list_t *vl)
 {
 	int x;
 
-	printf("%-24.24s %-36.36s %-5.5s %-5.5s\n", "Domain", "UUID",
+	/* XXX Once the logsys stderr "tag" goes away, the 21s should go back
+	   to 24s. */
+
+	dbg_printf(1, "%-21.21s %-36.36s %-5.5s %-5.5s\n", "Domain", "UUID",
 	       "Owner", "State");
-	printf("%-24.24s %-36.36s %-5.5s %-5.5s\n", "------", "----",
+	dbg_printf(1, "%-21.21s %-36.36s %-5.5s %-5.5s\n", "------", "----",
 	       "-----", "-----");
 
 	if (!vl || !vl->vm_count)
 		return;
 
 	for (x = 0; x < vl->vm_count; x++) {
-		printf("%-24.24s %-36.36s %-5.5d %-5.5d\n",
+		dbg_printf(1, "%-21.21s %-36.36s %-5.5d %-5.5d\n",
 		       vl->vm_states[x].v_name,
 		       vl->vm_states[x].v_uuid,
 		       vl->vm_states[x].v_state.s_owner,

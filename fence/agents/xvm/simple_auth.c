@@ -13,6 +13,7 @@
 #include "simple_auth.h"
 #include "debug.h"
 
+LOGSYS_DECLARE_SUBSYS("XVM", LOG_LEVEL_NOTICE);
 
 void
 print_hash(unsigned char *hash, size_t hashlen)

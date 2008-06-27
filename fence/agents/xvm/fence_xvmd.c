@@ -25,6 +25,7 @@
 #include <virterror.h>
 #include <nss.h>
 #include <libgen.h>
+#include <ccs.h>
 
 /* Local includes */
 #include "xvm.h"
@@ -39,6 +40,15 @@
 static int running = 1;
 static int reload_key;
 
+LOGSYS_DECLARE_SYSTEM (NULL,
+        LOG_MODE_OUTPUT_STDERR |
+	LOG_MODE_OUTPUT_SYSLOG_THREADED |
+	LOG_MODE_OUTPUT_FILE |
+	LOG_MODE_BUFFER_BEFORE_CONFIG,
+	LOGDIR "/fence_xvmd.log",
+	SYSLOGFACILITY);
+
+LOGSYS_DECLARE_SUBSYS ("XVM", LOG_LEVEL_NOTICE);
 
 int cleanup_xml(char *xmldesc, char **ret, size_t *retsz);
 
@@ -60,7 +70,9 @@ connect_tcp(fence_req_t *req, fence_auth_type_t auth,
 		fd = ipv4_connect(&sin.sin_addr, req->port,
 				  5);
 		if (fd < 0) {
-			printf("Failed to call back\n");
+			log_printf(LOG_ERR,
+				   "Failed to connect to caller: %s\n",
+				   strerror(errno));
 			return -1;
 		}
 		break;
@@ -76,24 +88,24 @@ connect_tcp(fence_req_t *req, fence_auth_type_t auth,
 		inet_ntop(PF_INET6, &sin6.sin6_addr, buf, sizeof(buf));
 
 		if (fd < 0) {
-			printf("Failed to call back %s\n", buf);
+			log_printf(LOG_ERR, "Failed to call back %s\n", buf);
 			return -1;
 		}
 		break;
 	default:
-		printf("Family = %d\n", req->family);
+		dbg_printf(1, "Family = %d\n", req->family);
 		return -1;
 	}
 
 	/* Noops if auth == AUTH_NONE */
 	if (tcp_response(fd, auth, key, key_len, 10) <= 0) {
-		printf("Failed to respond to challenge\n");
+		log_printf(LOG_ERR, "Failed to respond to challenge\n");
 		close(fd);
 		return -1;
 	}
 
 	if (tcp_challenge(fd, auth, key, key_len, 10) <= 0) {
-		printf("Remote failed challenge\n");
+		log_printf(LOG_ERR, "Remote failed challenge\n");
 		close(fd);
 		return -1;
 	}
@@ -131,11 +143,12 @@ raise_error(virConnectPtr vp)
 
 	vep = virConnGetLastError(vp);
 	if (!vep) {
-		printf("Error: Unable to retrieve error from connection!\n");
+		log_printf(LOG_ERR,
+		   "Error: Unable to retrieve error from connection!\n");
 		return;
 	}
 
-	printf("Error: libvirt #%d domain %d: %s\n", vep->code,
+	log_printf(LOG_ERR, "Error: libvirt #%d domain %d: %s\n", vep->code,
 	       vep->domain, vep->message);
 }
 
@@ -226,11 +239,12 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 
 	switch(req->request) {
 	case FENCE_NULL:
-		printf("NULL operation: returning failure\n");
+		dbg_printf(1, "NULL operation: returning failure\n");
 		response = 1;
 		break;
 	case FENCE_OFF:
-		printf("Destroying domain %s...\n", (char *)req->domain);
+		log_printf(LOG_NOTICE, "Destroying domain %s...\n",
+			   (char *)req->domain);
 		if (flags & F_NOCLUSTER) {
 			if (!vdp ||
 			    ((virDomainGetInfo(vdp, &vdi) == 0) &&
@@ -246,19 +260,23 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 		dbg_printf(2, "[OFF] Calling virDomainDestroy\n");
 		ret = virDomainDestroy(vdp);
 		if (ret < 0) {
-			printf("virDomainDestroy() failed: %d\n", ret);
+			log_printf(LOG_ERR,
+				   "virDomainDestroy() failed: %d\n",
+				   ret);
 			break;
 		}
 
 		response = wait_domain(req, vp, 15);
 
 		if (response) {
-			printf("Domain still exists; fencing failed\n");
+			log_printf(LOG_ERR,
+			   "Domain %s still exists; fencing failed\n",
+			   (char *)req->domain);
 		}
 		break;
 	case FENCE_REBOOT:
-		printf("Rebooting domain %s...\n",
-		       (char *)req->domain);
+		log_printf(LOG_NOTICE, "Rebooting domain %s...\n",
+			   (char *)req->domain);
 
 		if (flags & F_NOCLUSTER) {
 			if (!vdp ||
@@ -287,14 +305,16 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 			dbg_printf(3, "[[ XML Domain Info (modified) ]]\n");
 			dbg_printf(3, "%s\n[[ XML END ]]\n", domain_desc);
 		} else {
-			printf("Failed getting domain description from "
-			       "libvirt\n");
+			dbg_printf(1, "Failed getting domain description from "
+				   "libvirt\n");
 		}
 
 		dbg_printf(2, "[REBOOT] Calling virDomainDestroy(%p)\n", vdp);
 		ret = virDomainDestroy(vdp);
 		if (ret < 0) {
-			printf("virDomainDestroy() failed: %d/%d\n", ret, errno);
+			log_printf(LOG_ERR,
+				   "virDomainDestroy() failed: %d/%d\n",
+				   ret, errno);
 			if (domain_desc)
 				free(domain_desc);
 			break;
@@ -303,7 +323,9 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 		response = wait_domain(req, vp, 15);
 
 		if (response) {
-			printf("Domain still exists; fencing failed\n");
+			log_printf(LOG_ERR,
+				   "Domain %s still exists; fencing failed\n",
+				   (char *)req->domain);
 		} else if (domain_desc) {
 			/* Recreate the domain if possible */
 			/* Success */
@@ -316,7 +338,8 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 
 	dbg_printf(3, "Sending response to caller...\n");
 	if (write(fd, &response, 1) < 0) {
-		perror("write");
+		log_printf(LOG_ERR, "Failed to send response to caller: %s\n",
+			   strerror(errno));
 	}
 out:
 	if (fd != -1)
@@ -427,7 +450,7 @@ store_domains_by_name(void *hp, virt_list_t *vl)
 	for (x = 0; x < vl->vm_count; x++) {
 		if (!strcmp(DOMAIN0NAME, vl->vm_states[x].v_name))
 			continue;
-		printf("Storing %s\n", vl->vm_states[x].v_name);
+		dbg_printf(2, "Storing %s\n", vl->vm_states[x].v_name);
 		ckpt_write(hp, vl->vm_states[x].v_name, 
 			   &vl->vm_states[x].v_state,
 			   sizeof(vm_state_t));
@@ -446,7 +469,7 @@ store_domains_by_uuid(void *hp, virt_list_t *vl)
 	for (x = 0; x < vl->vm_count; x++) {
 		if (!strcmp(DOMAIN0UUID, vl->vm_states[x].v_uuid))
 			continue;
-		printf("Storing %s\n", vl->vm_states[x].v_uuid);
+		dbg_printf(2, "Storing %s\n", vl->vm_states[x].v_uuid);
 		ckpt_write(hp, vl->vm_states[x].v_uuid, 
 			   &vl->vm_states[x].v_state,
 			   sizeof(vm_state_t));
@@ -468,22 +491,23 @@ handle_remote_domain(cman_handle_t ch, void *h, fence_req_t *data,
 	
 
 	if (get_domain_state_ckpt(h, data->domain, &vst) < 0) {
-		printf("Evaluating Domain: %s   Last Owner/State Unknown\n",
+		dbg_printf(1, "Evaluating Domain: %s   Last Owner/State Unknown\n",
 		       data->domain);
 		memset(&vst, 0, sizeof(vst));
 	} else {
-		printf("Evaluating Domain: %s   Last Owner: %d   State %d\n",
+		dbg_printf(1, "Evaluating Domain: %s   Last Owner: %d   State %d\n",
 		       data->domain, vst.s_owner, vst.s_state);
 	}
 			
 	if (get_cman_ids(ch, NULL, &high_id) < 0) {
-		printf("Error: Could not determine high node ID; unable to "
-		       "process fencing request\n");
+		log_printf(LOG_ERR,
+			   "Error: Could not determine high node ID; "
+			   "unable to process fencing request\n");
 		return;
 	}
 	
 	if (my_id == high_id && vst.s_owner == 0) {
-		printf("There is no record of that domain; "
+		dbg_printf(1, "There is no record of that domain; "
 		       "returning success\n");
 		ret = 0;
 	} else if (my_id == high_id && vst.s_owner != my_id) {
@@ -491,29 +515,31 @@ handle_remote_domain(cman_handle_t ch, void *h, fence_req_t *data,
 		memset(&node, 0, sizeof(node));
 		cman_get_node(ch, vst.s_owner, &node);
 		if (node.cn_nodeid == 0) {
-			printf("Node %d does not exist\n", vst.s_owner);
+			dbg_printf(1, "Node %d does not exist\n",
+				   vst.s_owner);
 			return;
 		}
 
 		if (node.cn_member) {
-			printf("Node %d is online - not taking action\n",
-			       vst.s_owner);
+			dbg_printf(1,
+				   "Node %d is online - not taking action\n",
+				   vst.s_owner);
 			return;
 		}
 
 		fenced = 0;
 		cman_get_fenceinfo(ch, vst.s_owner, &fence_time, &fenced, NULL);
 		if (fenced == 0) {
-			printf("Node %d is dead but not fenced - not "
-			       "taking action\n", vst.s_owner);
+			dbg_printf(1, "Node %d is dead but not fenced - not "
+				   "taking action\n", vst.s_owner);
 			return;
 		}
 
-		printf("Node %d is dead & fenced\n", vst.s_owner);
+		dbg_printf(1, "Node %d is dead & fenced\n", vst.s_owner);
 		ret = 0;
 					
 	} else if (vst.s_owner == my_id) {
-		printf("I am the last owner of the domain\n");
+		dbg_printf(1, "I am the last owner of the domain\n");
 		ret = 0;
 	}
 
@@ -523,11 +549,11 @@ handle_remote_domain(cman_handle_t ch, void *h, fence_req_t *data,
 		case AUTH_SHA1:
 		case AUTH_SHA256:
 		case AUTH_SHA512:
-			printf("Plain TCP request\n");
+			dbg_printf(1, "Plain TCP request\n");
 			do_notify_caller_tcp(data, auth, key, key_len, ret);
 			break;
 		default:
-			printf("XXX Unhandled authentication\n");
+			dbg_printf(1, "XXX Unhandled authentication\n");
 		}
 	}
 }
@@ -550,13 +576,14 @@ xvmd_loop(cman_handle_t ch, void *h, int fd, fence_xvm_args_t *args,
 	virt_state_t *dom = NULL;
 
 	vp = virConnectOpen(args->uri);
-	if (!vp)
-		perror("virConnectOpen");
-
-	if (!(args->flags & F_NOCLUSTER))
-		get_cman_ids(ch, &my_id, NULL);
-
-	printf("My Node ID = %d\n", my_id);
+  	if (!vp)
+		log_printf(LOG_ERR, "virConnectOpen failed: %s",
+			   strerror(errno));
+  
+  	if (!(args->flags & F_NOCLUSTER))
+  		get_cman_ids(ch, &my_id, NULL);
+  
+	dbg_printf(1, "My Node ID = %d\n", my_id);
 	
 	if (vp) {
 		vl = vl_get(vp, my_id);
@@ -586,9 +613,10 @@ xvmd_loop(cman_handle_t ch, void *h, int fd, fence_xvm_args_t *args,
 
 			reload_key = 0;
 
-			ret = read_key_file(args->key_file, temp_key, sizeof(temp_key));
+			ret = read_key_file(args->key_file, temp_key,
+					    sizeof(temp_key));
 			if (ret < 0) {
-				printf("Could not read %s; not updating key",
+				log_printf(LOG_ERR, "Could not read %s; not updating key",
 					args->key_file);
 			} else {
 				memcpy(key, temp_key, MAX_KEY_LEN);
@@ -608,8 +636,8 @@ xvmd_loop(cman_handle_t ch, void *h, int fd, fence_xvm_args_t *args,
 		/* Request and/or timeout: open connection */
 		vp = virConnectOpen(args->uri);
 		if (!vp) {
-			printf("NOTICE: virConnectOpen(): %s; cannot fence!\n",
-			       strerror(errno));
+			log_printf(LOG_NOTICE, "NOTICE: virConnectOpen(): "
+				   "%s; cannot fence!\n", strerror(errno));
 			continue;
 		}
 			
@@ -636,30 +664,31 @@ xvmd_loop(cman_handle_t ch, void *h, int fd, fence_xvm_args_t *args,
 			       (struct sockaddr *)&sin, &slen);
 		
 		if (len <= 0) {
-			perror("recvfrom");
+			log_printf(LOG_ERR, "recvfrom: %s\n",
+				   strerror(errno));
 			continue;
 		}
 
 		if (!verify_request(&data, args->hash, key, key_len)) {
-			printf("Key mismatch; dropping packet\n");
+			dbg_printf(1, "Key mismatch; dropping packet\n");
 			continue;
 		}
 
 		if ((args->flags & F_USE_UUID) &&
 		    !(data.flags & RF_UUID)) {
-			printf("Dropping packet: Request to fence by "
-			       "name while using UUIDs\n");
+			dbg_printf(1, "Dropping packet: Request to fence by "
+			           "name while using UUIDs\n");
 			continue;
 		}
 
 		if (!(args->flags & F_USE_UUID) &&
 		    (data.flags & RF_UUID)) {
-			printf("Dropping packet: Request to fence by "
-			       "UUID while using names\n");
+			dbg_printf(1, "Dropping packet: Request to fence by "
+			           "UUID while using names\n");
 			continue;
 		}
 
-		printf("Request to fence: %s\n", data.domain);
+		dbg_printf(1, "Request to fence: %s\n", data.domain);
 		
 		if (args->flags & F_USE_UUID)
 			dom = vl_find_uuid(vl, (char *)data.domain);
@@ -671,20 +700,19 @@ xvmd_loop(cman_handle_t ch, void *h, int fd, fence_xvm_args_t *args,
 			continue;
 		}
 
-		printf("%s is running locally\n",
-		       (char *)data.domain);
+		dbg_printf(1, "%s is running locally\n", (char *)data.domain);
 
 		switch(args->auth) {
 		case AUTH_NONE:
 		case AUTH_SHA1:
 		case AUTH_SHA256:
 		case AUTH_SHA512:
-			printf("Plain TCP request\n");
+			dbg_printf(1, "Plain TCP request\n");
 			do_fence_request_tcp(&data, args->auth, key,
 					     key_len, vp, args->flags);
 			break;
 		default:
-			printf("XXX Unhandled authentication\n");
+			log_printf(LOG_ERR, "XXX Unhandled authentication\n");
 		}
 	}
 
@@ -714,11 +742,182 @@ sighup_handler(int sig)
 void malloc_dump_table(void);
 
 
+static void
+log_config_done(int logmode)
+{
+	if(logmode & LOG_MODE_BUFFER_BEFORE_CONFIG) {
+		log_printf(LOG_DEBUG, "logsys config enabled from get_logsys_config_data\n");
+		logmode &= ~LOG_MODE_BUFFER_BEFORE_CONFIG;
+		logmode |= LOG_MODE_FLUSH_AFTER_CONFIG;
+		logsys_config_mode_set (logmode);
+	}
+}
+
+
+/**
+  Grab logsys configuration data from libccs
+ */
+static int
+get_logsys_config_data(int *debug)
+{
+	int ccsfd = -1, loglevel = LOG_LEVEL_NOTICE, facility = SYSLOGFACILITY;
+	char *val = NULL, *error = NULL;
+	unsigned int logmode;
+	int global_debug = 0;
+
+	log_printf(LOG_DEBUG, "Loading logsys configuration information\n");
+
+	ccsfd = ccs_connect();
+	if (ccsfd < 0) {
+		log_printf(LOG_CRIT, "Connection to CCSD failed; cannot start\n");
+		return -1;
+	}
+
+	logmode = logsys_config_mode_get();
+
+	if (!debug) {
+		if (ccs_get(ccsfd, "/cluster/logging/@debug", &val) == 0) {
+			if(!strcmp(val, "on")) {
+				global_debug = 1;
+			} else 
+			if(!strcmp(val, "off")) {
+				global_debug = 0;
+			} else
+				log_printf(LOG_ERR, "global debug: unknown value\n");
+			free(val);
+			val = NULL;
+		}
+
+		if (ccs_get(ccsfd, "/cluster/logging/logger_subsys[@subsys=\"XVM\"]/@debug", &val) == 0) {
+			if(!strcmp(val, "on")) {
+				*debug = 1;
+			} else 
+			if(!strcmp(val, "off")) { /* debug from cmdline/envvars override config */
+				*debug = 0;
+			} else
+				log_printf(LOG_ERR, "subsys debug: unknown value: %s\n", val);
+			free(val);
+			val = NULL;
+		} else
+			*debug = global_debug; /* global debug overrides subsystem only if latter is not specified */
+
+		if (ccs_get(ccsfd, "/cluster/logging/logger_subsys[@subsys=\"XVM\"]/@syslog_level", &val) == 0) {
+			loglevel = logsys_priority_id_get (val);
+			if (loglevel < 0)
+				loglevel = LOG_LEVEL_INFO;
+
+			if (!*debug) {
+				if (loglevel == LOG_LEVEL_DEBUG)
+					*debug = 1;
+
+				logsys_config_priority_set (loglevel);
+			}
+
+			free(val);
+			val = NULL;
+		} else
+		if (ccs_get(ccsfd, "/cluster/fence_xvmd/@log_level", &val) == 0) { /* check backward compat options */
+			loglevel = logsys_priority_id_get (val);
+			if (loglevel < 0)
+				loglevel = LOG_LEVEL_INFO;
+
+			log_printf(LOG_ERR, "<fence_xvmd log_level=\"%s\".. option is depracated\n", val);
+
+			if (!*debug) {
+				if (loglevel == LOG_LEVEL_DEBUG)
+					*debug = 1;
+
+				logsys_config_priority_set (loglevel);
+			}
+
+			free(val);
+			val = NULL;
+		}
+	} else
+		logsys_config_priority_set (LOG_LEVEL_DEBUG);
+
+	if (ccs_get(ccsfd, "/cluster/logging/@to_stderr", &val) == 0) {
+		if(!strcmp(val, "yes")) {
+			logmode |= LOG_MODE_OUTPUT_STDERR;
+		} else 
+		if(!strcmp(val, "no")) {
+			logmode &= ~LOG_MODE_OUTPUT_STDERR;
+		} else
+			log_printf(LOG_ERR, "to_stderr: unknown value\n");
+		free(val);
+		val = NULL;
+	}
+
+	if (ccs_get(ccsfd, "/cluster/logging/@to_syslog", &val) == 0) {
+		if(!strcmp(val, "yes")) {
+			logmode |= LOG_MODE_OUTPUT_SYSLOG_THREADED;
+		} else 
+		if(!strcmp(val, "no")) {
+			logmode &= ~LOG_MODE_OUTPUT_SYSLOG_THREADED;
+		} else
+			log_printf(LOG_ERR, "to_syslog: unknown value\n");
+		free(val);
+		val = NULL;
+	}
+
+	if (ccs_get(ccsfd, "/cluster/logging/@to_file", &val) == 0) {
+		if(!strcmp(val, "yes")) {
+			logmode |= LOG_MODE_OUTPUT_FILE;
+		} else 
+		if(!strcmp(val, "no")) {
+			logmode &= ~LOG_MODE_OUTPUT_FILE;
+		} else
+			log_printf(LOG_ERR, "to_file: unknown value\n");
+		free(val);
+		val = NULL;
+	}
+
+	if (ccs_get(ccsfd, "/cluster/logging/@filename", &val) == 0) {
+		if(logsys_config_file_set(&error, val))
+			log_printf(LOG_ERR, "filename: unable to open %s for logging\n", val);
+		free(val);
+		val = NULL;
+	} else
+		log_printf(LOG_DEBUG, "filename: use default built-in log file: %s\n", LOGDIR "/fence_xvmd.log");
+
+	if (ccs_get(ccsfd, "/cluster/logging/@syslog_facility", &val) == 0) {
+		facility = logsys_facility_id_get (val);
+		if (facility < 0) {
+			log_printf(LOG_ERR, "syslog_facility: unknown value\n");
+			facility = SYSLOGFACILITY;
+		}
+
+		logsys_config_facility_set ("XVM", facility);
+		free(val);
+	} else
+	if (ccs_get(ccsfd, "/cluster/fence_xvmd/@log_facility", &val) == 0) {
+		facility = logsys_facility_id_get (val);
+		if (facility < 0) {
+			log_printf(LOG_ERR, "syslog_facility: unknown value\n");
+			facility = SYSLOGFACILITY;
+		}
+
+		log_printf(LOG_ERR, "<fence_xvmd log_facility=\"%s\".. option is depracated\n", val);
+
+		logsys_config_facility_set ("XVM", facility);
+		free(val);
+		val = NULL;
+	}
+
+	log_config_done(logmode);
+
+	ccs_disconnect(ccsfd);
+
+	return 0;
+}
+
+
 int
 main(int argc, char **argv)
 {
 	fence_xvm_args_t args;
 	int mc_sock;
+	unsigned int logmode;
 	char key[MAX_KEY_LEN];
 	int key_len = 0, x;
 	char *my_options = "dfi:a:p:C:U:c:k:u?hLXV";
@@ -727,20 +926,6 @@ main(int argc, char **argv)
 
 	args_init(&args);
 	args_get_getopt(argc, argv, my_options, &args);
-
-	if (!(args.flags & F_NOCCS)) {
-		args_get_ccs(my_options, &args);
-	}
-
-	args_finalize(&args);
-	if (args.debug > 0) {
-		dset(args.debug);
-		args_print(&args);
-	}
-
-	if (args.flags & F_ERR) {
-		return 1;
-	}
 
 	if (args.flags & F_HELP) {
 		args_usage(argv[0], my_options, 0);
@@ -761,11 +946,31 @@ main(int argc, char **argv)
 		exit(0);
 	}
 
+	if (!(args.flags & F_NOCCS)) {
+		args_get_ccs(my_options, &args);
+		get_logsys_config_data(&args.debug);
+	} else {
+		logmode = logsys_config_mode_get();
+		log_config_done(logmode);
+	}
+
+	args_finalize(&args);
+	if (args.debug > 0) {
+		dset(args.debug);
+                logsys_config_priority_set (LOG_LEVEL_DEBUG);
+		args_print(&args);
+	}
+
+	if (args.flags & F_ERR) {
+		return 1;
+	}
+
 	if (args.auth != AUTH_NONE || args.hash != HASH_NONE) {
 		key_len = read_key_file(args.key_file, key, sizeof(key));
 		if (key_len < 0) {
-			printf("Could not read %s; operating without "
-			       "authentication\n", args.key_file);
+			log_printf(LOG_WARNING,
+				   "Could not read %s; operating without "
+			           "authentication\n", args.key_file);
 			args.auth = AUTH_NONE;
 			args.hash = HASH_NONE;
 		}
@@ -774,22 +979,22 @@ main(int argc, char **argv)
 	/* Fork in to background */
 	/* XXX need to wait for child to successfully start before
 	   exiting... */
-	if (!(args.flags & F_FOREGROUND))
+	if (!(args.flags & F_FOREGROUND)) {
 		if(daemon(0,0)) {
-			printf("Could not daemonize\n");
+			log_printf(LOG_ERR, "Could not daemonize\n");
 			return 1;
 		}
-			
+	}
 
 	if (virInitialize() != 0) {
-		printf("Could not initialize libvirt\n");
+		log_printf(LOG_ERR, "Could not initialize libvirt\n");
 		return 1;
 	}
 
 	/* Initialize NSS; required to do hashing, as silly as that
 	   sounds... */
 	if (NSS_NoDB_Init(NULL) != SECSuccess) {
-		printf("Could not initialize NSS\n");
+		log_printf(LOG_ERR, "Could not initialize NSS\n");
 		return 1;
 	}
 	
@@ -798,13 +1003,14 @@ main(int argc, char **argv)
 		x = 0;
 		while ((ch = cman_init(NULL)) == NULL) {
 			if (!x) {
-				printf("Could not connect to CMAN; retrying...\n");
+				dbg_printf(1,
+				  "Could not connect to CMAN; retrying...\n");
 				x = 1;
 			}
 			sleep(3);
 		}
 		if (x)
-			printf("Connected to CMAN\n");
+			dbg_printf(1, "Connected to CMAN\n");
 		/* Wait for quorum */
 		while (!cman_is_quorate(ch))
 			sleep(3);
@@ -813,13 +1019,13 @@ main(int argc, char **argv)
 		x = 0;
 		while ((h = ckpt_init("vm_states", 262144, 4096, 64, 10)) == NULL) {
 			if (!x) {
-				printf("Could not initialize saCkPt; retrying...\n");
+				dbg_printf(1, "Could not initialize saCkPt; retrying...\n");
 				x = 1;
 			}
 			sleep(3);
 		}
 		if (x)
-			printf("Checkpoint initialized\n");
+			dbg_printf(1, "Checkpoint initialized\n");
 	}
 
 	if (args.family == PF_INET)
@@ -827,7 +1033,8 @@ main(int argc, char **argv)
 	else
 		mc_sock = ipv6_recv_sk(args.addr, args.port);
 	if (mc_sock < 0) {
-		printf("Could not set up multicast listen socket\n");
+		log_printf(LOG_ERR,
+			   "Could not set up multicast listen socket\n");
 		return 1;
 	}
 

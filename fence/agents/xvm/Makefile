@@ -39,10 +39,10 @@ CFLAGS += -I${incdir}
 EXTRA_CFLAGS += -DSTANDALONE
 
 LDFLAGS += -L${nsslibdir} -L${libdir}
-LDFLAGS += -lnss3
+LDFLAGS += -lnss3 -L${openaislibdir} -llogsys
 
 EXTRA_LDFLAGS += -L${ccslibdir} -lccs -L${cmanlibdir} -lcman
-EXTRA_LDFLAGS += -L${virtlibdir} -lvirt -L${openaislibdir} -lSaCkpt
+EXTRA_LDFLAGS += -L${virtlibdir} -lvirt -lSaCkpt
 XML_LDFLAGS += `xml2-config --libs`
 
 

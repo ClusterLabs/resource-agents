@@ -23,7 +23,9 @@
 #include "simple_auth.h"
 #include "mcast.h"
 #include "options.h"
+#include "debug.h"
 
+LOGSYS_DECLARE_SUBSYS("XVM", LOG_LEVEL_NOTICE);
 
 
 /* Assignment functions */
@@ -64,7 +66,7 @@ assign_family(fence_xvm_args_t *args, struct arg_info *arg,
 	} else if (!strcasecmp(value, "auto")) {
 		args->family = 0;
 	} else {
-		printf("Unsupported family: '%s'\n", value);
+		log_printf(LOG_ERR, "Unsupported family: '%s'\n", value);
 		args->flags |= F_ERR;
 	}
 }
@@ -95,7 +97,7 @@ assign_port(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 {
 	args->port = atoi(value);
 	if (args->port <= 0 || args->port >= 65500) {
-		printf("Invalid port: '%s'\n", value);
+		log_printf(LOG_ERR, "Invalid port: '%s'\n", value);
 		args->flags |= F_ERR;
 	}
 }
@@ -106,7 +108,7 @@ assign_retrans(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 {
 	args->retr_time = atoi(value);
 	if (args->retr_time <= 0) {
-		printf("Invalid retransmit time: '%s'\n", value);
+		log_printf(LOG_ERR, "Invalid retransmit time: '%s'\n", value);
 		args->flags |= F_ERR;
 	}
 }
@@ -123,7 +125,7 @@ assign_hash(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 	} else if (!strcasecmp(value, "sha512")) {
 		args->hash = HASH_SHA512;
 	} else {
-		printf("Unsupported hash: %s\n", value);
+		log_printf(LOG_ERR, "Unsupported hash: %s\n", value);
 		args->flags |= F_ERR;
 	}
 }
@@ -141,7 +143,7 @@ assign_auth(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 	} else if (!strcasecmp(value, "sha512")) {
 		args->auth = AUTH_SHA512;
 	} else {
-		printf("Unsupported auth type: %s\n", value);
+		log_printf(LOG_ERR, "Unsupported auth type: %s\n", value);
 		args->flags |= F_ERR;
 	}
 }
@@ -156,8 +158,8 @@ assign_key(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 	args->key_file = strdup(value);
 
 	if (stat(value, &st) == -1) {
-		printf("Invalid key file: '%s' (%s)\n", value,
-		       strerror(errno));
+ 		log_printf(LOG_ERR, "Invalid key file: '%s' (%s)\n", value,
+  		       strerror(errno));
 		args->flags |= F_ERR;
 	}
 }
@@ -173,7 +175,7 @@ assign_op(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 	} else if (!strcasecmp(value, "reboot")) {
 		args->op = FENCE_REBOOT;
 	} else {
-		printf("Unsupported operation: %s\n", value);
+		log_printf(LOG_ERR, "Unsupported operation: %s\n", value);
 		args->flags |= F_ERR;
 	}
 }
@@ -183,21 +185,24 @@ static inline void
 assign_domain(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 {
 	if (args->domain) {
-		printf("Domain/UUID may not be specified more than once\n");
+		log_printf(LOG_ERR,
+		   "Domain/UUID may not be specified more than once\n");
 		args->flags |= F_ERR;
 		return;
 	}
 
+	if (args->domain)
+		free(args->domain);
 	args->domain = strdup(value);
 
 	if (strlen(value) <= 0) {
-		printf("Invalid domain name\n");
+		log_printf(LOG_ERR, "Invalid domain name\n");
 		args->flags |= F_ERR;
 	}
 
 	if (strlen(value) >= MAX_DOMAINNAME_LENGTH) {
 		errno = ENAMETOOLONG;
-		printf("Invalid domain name: '%s' (%s)\n",
+		log_printf(LOG_ERR, "Invalid domain name: '%s' (%s)\n",
 		       value, strerror(errno));
 		args->flags |= F_ERR;
 	}
@@ -223,7 +228,7 @@ assign_timeout(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 {
 	args->timeout = atoi(value);
 	if (args->timeout <= 0) {
-		printf("Invalid timeout: '%s'\n", value);
+		log_printf(LOG_ERR, "Invalid timeout: '%s'\n", value);
 		args->flags |= F_ERR;
 	}
 }
@@ -266,7 +271,6 @@ assign_uri(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 	/* XXX NO validation yet */
 	args->uri = strdup(value);
 }
-
 
 
 /** ALL valid command line and stdin arguments for this fencing agent */
@@ -421,8 +425,8 @@ args_init(fence_xvm_args_t *args)
 }
 
 
-#define _pr_int(piece) printf("  %s = %d\n", #piece, piece)
-#define _pr_str(piece) printf("  %s = %s\n", #piece, piece)
+#define _pr_int(piece) dbg_printf(1, "  %s = %d\n", #piece, piece)
+#define _pr_str(piece) dbg_printf(1, "  %s = %s\n", #piece, piece)
 
 
 /**
@@ -433,7 +437,7 @@ args_init(fence_xvm_args_t *args)
 void
 args_print(fence_xvm_args_t *args)
 {
-	printf("-- args @ %p --\n", args);
+	dbg_printf(1, "-- args @ %p --\n", args);
 	_pr_str(args->addr);
 	_pr_str(args->domain);
 	_pr_str(args->key_file);
@@ -446,13 +450,15 @@ args_print(fence_xvm_args_t *args)
 	_pr_int(args->retr_time);
 	_pr_int(args->flags);
 	_pr_int(args->debug);
-	printf("-- end args --\n");
+	dbg_printf(1, "-- end args --\n");
 }
 
 
 /**
   Print out arguments and help information based on what is allowed in
   the getopt string optstr.
+
+  TODO use log_printf instead of printf 
 
   @param progname	Program name.
   @param optstr		Getopt(3) style options string

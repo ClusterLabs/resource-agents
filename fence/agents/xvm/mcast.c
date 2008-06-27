@@ -25,6 +25,8 @@
 #include "mcast.h"
 #include "debug.h"
 
+LOGSYS_DECLARE_SUBSYS ("XVM", LOG_LEVEL_NOTICE);
+
 /** 
   Sets up a multicast receive socket
  */
