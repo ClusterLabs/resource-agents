@@ -61,6 +61,8 @@ my %options = (
 	nsprlibdir => \$nsprlibdir,
 	xenincdir => \$xenincdir,
 	xenlibdir => \$xenlibdir,
+	ldapincdir => \$ldapincdir,
+	ldaplibdir => \$ldaplibdir,
 	libexecdir => \$libexecdir,
 	mandir  => \$mandir,
 	prefix => \$prefix,
@@ -139,6 +141,8 @@ my $err = &GetOptions (\%options,
 		    'nsprlibdir=s',
 		    'xenincdir=s',
 		    'xenlibdir=s',
+		    'ldapincdir=s',
+		    'ldaplibdir=s',
 		    'libexecdir=s',
 		    'mandir=s',
 		    'prefix=s',
@@ -237,6 +241,8 @@ if ($help || !$err) {
   print "--virtlibdir=\tthe base directory for libvirt libraries.  (Default: {libdir})\n";
   print "--xenincdir=\tthe base directory for xen include files.  (Default: {incdir}/xen)\n";
   print "--xenlibdir=\tthe base directory for xen libraries.  (Default: {libdir})\n";
+  print "--ldapincdir=\tthe base directory for ldap include files.  (Default: {incdir})\n";
+  print "--ldaplibdir=\tthe base directory for ldap libraries.  (Default: {libdir})\n";
   print "--fence_agents=\tlist of fence agents to configure.  (Default: all)\n";
   print "\t\tUse --fence_agents=help for a list\n";
   print "--fenceagentslibdir=\tspecify directory where to install common fence python lib.  (Default: /usr/share/fence)\n";
@@ -494,6 +500,12 @@ if (!$xenincdir) {
 if (!$xenlibdir) {
   $xenlibdir="${libdir}";
 }
+if (!$ldapincdir) {
+  $ldapincdir="${incdir}";
+}
+if (!$ldaplibdir) {
+  $ldaplibdir="${libdir}";
+}
 if (!$libexecdir) {
   $libexecdir="${prefix}/libexec";
 }
@@ -658,6 +670,8 @@ while (<IFILE>) {
   $_ =~ s/\@AISEXECBIN\@/$aisexecbin/;
   $_ =~ s/\@XENINCDIR\@/$xenincdir/;
   $_ =~ s/\@XENLIBDIR\@/$xenlibdir/;
+  $_ =~ s/\@LDAPINCDIR\@/$ldapincdir/;
+  $_ =~ s/\@LDAPLIBDIR\@/$ldaplibdir/;
   $_ =~ s/\@NSSINCDIR\@/$nssincdir/;
   $_ =~ s/\@NSSLIBDIR\@/$nsslibdir/;
   $_ =~ s/\@NSPRINCDIR\@/$nsprincdir/;

@@ -11,9 +11,10 @@ include $(OBJDIR)/make/install.mk
 include $(OBJDIR)/make/uninstall.mk
 
 CFLAGS += -fPIC
+CFLAGS += -I${ldapincdir}
 CFLAGS += -I${incdir}
 
-LDFLAGS += -lldap
+LDFLAGS += -L${ldaplibdir} -lldap
 
 OBJS=	configldap.o
 
