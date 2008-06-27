@@ -33,7 +33,7 @@
 #include <openais/service/swab.h>
 
 #define DEFAULT_LDAP_URL "ldap:///"
-#define DEFAULT_LDAP_BASEDN "cn=cluster,dc=chrissie,dc=net"
+#define DEFAULT_LDAP_BASEDN "dc=chrissie,dc=net"
 
 static int ldap_readconfig(struct objdb_iface_ver0 *objdb, char **error_string);
 static int init_config(struct objdb_iface_ver0 *objdb, char *error_string);
@@ -117,7 +117,7 @@ static void convert_dn_underscores(LDAPDN dn)
  * Return the parent object of a DN.
  * Actually, this returns the LAST parent with that name. which should (!) be correct.
  */
-static unsigned int find_parent(struct objdb_iface_ver0 *objdb, LDAPDN dn, int startdn)
+static unsigned int find_parent(struct objdb_iface_ver0 *objdb, LDAPDN dn, int startdn, char *parent)
 {
 	int i=startdn;
 	int gotstart=0;
@@ -125,17 +125,17 @@ static unsigned int find_parent(struct objdb_iface_ver0 *objdb, LDAPDN dn, int s
 	unsigned int parent_handle = OBJECT_PARENT_HANDLE;
 	unsigned int object_handle=0;
 
-//	fprintf(stderr, "CC: find parent: startdn=%d\n", startdn);
+//	fprintf(stderr, "CC: find parent: startdn=%d, parent=%s\n", startdn, parent);
 
 	/*
 	 * Find the start and end positions first.
-	 * start is where the 'cluster' entry is.
+	 * start is where the 'parent' entry is.
 	 * end   is the end of the list
 	 */
 	do {
 //		fprintf(stderr, "CC: %d: seen %s\n", i,dn[i][0][0].la_value.bv_val);
 		if (!gotstart && dn[i][0][0].la_value.bv_len == 7 &&
-		    !strncmp("cluster", dn[i][0][0].la_value.bv_val, 7)) {
+		    !strncmp(parent, dn[i][0][0].la_value.bv_val, 7)) {
 			gotstart = 1;
 			start = i;
 		}
@@ -158,40 +158,22 @@ static unsigned int find_parent(struct objdb_iface_ver0 *objdb, LDAPDN dn, int s
 	return object_handle;
 }
 
-/* The real work starts here */
-static int init_config(struct objdb_iface_ver0 *objdb, char *error_string)
+
+
+static int read_config_for(LDAP *ld, struct objdb_iface_ver0 *objdb, unsigned int parent,
+			   char *object, char *sub_dn, int always_create)
 {
-	LDAP *ld;
-	LDAPMessage *result, *e;
+	char search_dn[4096];
+	int rc;
 	char *dn;
-	int version, rc;
+	LDAPMessage *result, *e;
 	unsigned int parent_handle = OBJECT_PARENT_HANDLE;
 	unsigned int object_handle;
 
-	if (getenv("LDAP_URL"))
-		ldap_url = getenv("LDAP_URL");
-	if (getenv("LDAP_BASEDN"))
-		ldap_basedn = getenv("LDAP_BASEDN");
-
-	/* Connect to the LDAP server */
-	if (ldap_initialize(&ld, ldap_url)) {
-		perror("ldap_initialize");
-		return -1;
-	}
-	version = LDAP_VERSION3;
-	ldap_set_option(ld, LDAP_OPT_PROTOCOL_VERSION, &version);
-
-	/*
-	 * CC: Do I need to use sasl ?!
-	 */
-	rc = ldap_simple_bind_s(ld, getenv("LDAP_BINDDN"), getenv("LDAP_BINDPWD"));
-	if (rc != LDAP_SUCCESS) {
-		fprintf(stderr, "ldap_simple_bind_s: %s\n", ldap_err2string(rc));
-		return -1;
-	}
+	sprintf(search_dn, "%s,%s", sub_dn, ldap_basedn);
 
 	/* Search the whole tree from the base DN provided */
-	rc = ldap_search_ext_s(ld, ldap_basedn, LDAP_SCOPE_SUBTREE, "(objectClass=*)", NULL, 0,
+	rc = ldap_search_ext_s(ld, search_dn, LDAP_SCOPE_SUBTREE, "(objectClass=*)", NULL, 0,
 			       NULL, NULL, NULL, 0, &result);
 	if (rc != LDAP_SUCCESS) {
 		fprintf(stderr, "ldap_search_ext_s: %s\n", ldap_err2string(rc));
@@ -220,13 +202,13 @@ static int init_config(struct objdb_iface_ver0 *objdb, char *error_string)
 			/* Create a new object if the top-level is NOT name= */
 //			printf("CC: dn: %s\n", dn);
 			if (strncmp(parsed_dn[0][0][0].la_attr.bv_val, "name", 4)) {
-				parent_handle = find_parent(objdb, parsed_dn, 0);
+				parent_handle = find_parent(objdb, parsed_dn, 0, object);
 
 				objdb->object_create(parent_handle, &object_handle, parsed_dn[0][0][0].la_value.bv_val,
 						     parsed_dn[0][0][0].la_value.bv_len);
 			}
 			else {
-				parent_handle = find_parent(objdb, parsed_dn, 2);
+				parent_handle = find_parent(objdb, parsed_dn, 2, object);
 				/* Create a new object with the same name as the current one */
 				objdb->object_create(parent_handle, &object_handle, parsed_dn[1][0][0].la_value.bv_val,
 						     parsed_dn[1][0][0].la_value.bv_len);
@@ -278,6 +260,41 @@ static int init_config(struct objdb_iface_ver0 *objdb, char *error_string)
 		}
 	}
 	ldap_msgfree(result);
+
+	return 0;
+}
+
+/* The real work starts here */
+static int init_config(struct objdb_iface_ver0 *objdb, char *error_string)
+{
+	LDAP *ld;
+	int version, rc;
+
+	if (getenv("LDAP_URL"))
+		ldap_url = getenv("LDAP_URL");
+	if (getenv("LDAP_BASEDN"))
+		ldap_basedn = getenv("LDAP_BASEDN");
+
+	/* Connect to the LDAP server */
+	if (ldap_initialize(&ld, ldap_url)) {
+		perror("ldap_initialize");
+		return -1;
+	}
+	version = LDAP_VERSION3;
+	ldap_set_option(ld, LDAP_OPT_PROTOCOL_VERSION, &version);
+
+	/*
+	 * CC: Do I need to use sasl ?!
+	 */
+	rc = ldap_simple_bind_s(ld, getenv("LDAP_BINDDN"), getenv("LDAP_BINDPWD"));
+	if (rc != LDAP_SUCCESS) {
+		fprintf(stderr, "ldap_simple_bind_s: %s\n", ldap_err2string(rc));
+		return -1;
+	}
+
+	rc = read_config_for(ld, objdb, OBJECT_PARENT_HANDLE, "cluster", "cn=cluster", 1);
+	rc = read_config_for(ld, objdb, OBJECT_PARENT_HANDLE, "totem", "cn=totem,cn=cluster", 1);
+	rc = read_config_for(ld, objdb, OBJECT_PARENT_HANDLE, "logging", "cn=logging,cn=cluster", 1);
 
 	ldap_unbind(ld);
 	return 0;
