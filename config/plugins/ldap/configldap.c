@@ -9,13 +9,10 @@
 **
 *******************************************************************************
 ******************************************************************************/
-#include <stdio.h>
+#include <sys/types.h>
 #include <stdlib.h>
-#include <stdint.h>
 #include <string.h>
 #include <errno.h>
-#include <netinet/in.h>
-#include <stdio.h>
 
 // CC: temp until I tame SASL ... is this necessary?
 #define LDAP_DEPRECATED 1
@@ -23,21 +20,20 @@
 
 /* openais headers */
 #include <openais/service/objdb.h>
-#include <openais/service/swab.h>
-#include <openais/totem/totemip.h>
-#include <openais/totem/totempg.h>
-#include <openais/totem/aispoll.h>
-#include <openais/service/service.h>
 #include <openais/service/config.h>
 #include <openais/lcr/lcr_comp.h>
-#include <openais/service/swab.h>
 
+/* These are defaults. they can be overridden with environment variables
+ *  LDAP_URL & LDAP_BASEDN
+ */
 #define DEFAULT_LDAP_URL "ldap:///"
 #define DEFAULT_LDAP_BASEDN "dc=chrissie,dc=net"
 
 static int ldap_readconfig(struct objdb_iface_ver0 *objdb, char **error_string);
-static int init_config(struct objdb_iface_ver0 *objdb, char *error_string);
+static int init_config(struct objdb_iface_ver0 *objdb);
 static char error_reason[1024];
+static char *ldap_url = DEFAULT_LDAP_URL;
+static char *ldap_basedn = DEFAULT_LDAP_BASEDN;
 
 /*
  * Exports the interface for the service
@@ -78,17 +74,13 @@ static int ldap_readconfig(struct objdb_iface_ver0 *objdb, char **error_string)
 	int ret;
 
 	/* Read config tree from LDAP */
-	if (!(ret = init_config(objdb, error_reason)))
+	if (!(ret = init_config(objdb)))
 	    sprintf(error_reason, "%s", "Successfully read config from LDAP\n");
 
         *error_string = error_reason;
 
 	return ret;
 }
-
-/* Specify the search criteria here. */
-static char *ldap_url = DEFAULT_LDAP_URL;
-static char *ldap_basedn = DEFAULT_LDAP_BASEDN;
 
 /*
  * Convert hyphens to underscores in all attribute names
@@ -176,8 +168,11 @@ static int read_config_for(LDAP *ld, struct objdb_iface_ver0 *objdb, unsigned in
 	rc = ldap_search_ext_s(ld, search_dn, LDAP_SCOPE_SUBTREE, "(objectClass=*)", NULL, 0,
 			       NULL, NULL, NULL, 0, &result);
 	if (rc != LDAP_SUCCESS) {
-		fprintf(stderr, "ldap_search_ext_s: %s\n", ldap_err2string(rc));
-		return 1;
+		sprintf(error_reason, "ldap_search_ext_s: %s\n", ldap_err2string(rc));
+		if (rc == LDAP_NO_SUCH_OBJECT)
+			return 0;
+		else
+			return -1;
 	}
 	for (e = ldap_first_entry(ld, result); e != NULL;
 	     e = ldap_next_entry(ld, e)) {
@@ -188,7 +183,7 @@ static int read_config_for(LDAP *ld, struct objdb_iface_ver0 *objdb, unsigned in
 
 			/* Make it parsable so we can discern the hierarchy */
 			if (ldap_str2dn(dn, &parsed_dn, LDAP_DN_PEDANTIC)) {
-				strcpy(error_reason, strerror(errno));
+				sprintf(error_reason, "ldap_str2dn failed: %s\n", ldap_err2string(rc));
 				return -1;
 			}
 
@@ -265,7 +260,7 @@ static int read_config_for(LDAP *ld, struct objdb_iface_ver0 *objdb, unsigned in
 }
 
 /* The real work starts here */
-static int init_config(struct objdb_iface_ver0 *objdb, char *error_string)
+static int init_config(struct objdb_iface_ver0 *objdb)
 {
 	LDAP *ld;
 	int version, rc;
@@ -277,7 +272,7 @@ static int init_config(struct objdb_iface_ver0 *objdb, char *error_string)
 
 	/* Connect to the LDAP server */
 	if (ldap_initialize(&ld, ldap_url)) {
-		perror("ldap_initialize");
+		sprintf(error_reason, "ldap_simple_bind failed: %s\n", strerror(errno));
 		return -1;
 	}
 	version = LDAP_VERSION3;
@@ -288,13 +283,15 @@ static int init_config(struct objdb_iface_ver0 *objdb, char *error_string)
 	 */
 	rc = ldap_simple_bind_s(ld, getenv("LDAP_BINDDN"), getenv("LDAP_BINDPWD"));
 	if (rc != LDAP_SUCCESS) {
-		fprintf(stderr, "ldap_simple_bind_s: %s\n", ldap_err2string(rc));
+		sprintf(error_reason, "ldap_simple_bind failed: %s\n", ldap_err2string(rc));
 		return -1;
 	}
 
 	rc = read_config_for(ld, objdb, OBJECT_PARENT_HANDLE, "cluster", "cn=cluster", 1);
-	rc = read_config_for(ld, objdb, OBJECT_PARENT_HANDLE, "totem", "cn=totem,cn=cluster", 1);
-	rc = read_config_for(ld, objdb, OBJECT_PARENT_HANDLE, "logging", "cn=logging,cn=cluster", 1);
+	if (!rc)
+		rc = read_config_for(ld, objdb, OBJECT_PARENT_HANDLE, "totem", "cn=totem,cn=cluster", 1);
+	if (!rc)
+		rc = read_config_for(ld, objdb, OBJECT_PARENT_HANDLE, "logging", "cn=logging,cn=cluster", 1);
 
 	ldap_unbind(ld);
 	return 0;
