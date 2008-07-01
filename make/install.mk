@@ -55,3 +55,7 @@ ifdef FENCEAGENTSLIB
 	install -d ${DESTDIR}/${fenceagentslibdir}
 	install -m644 ${FENCEAGENTSLIB} ${DESTDIR}/${fenceagentslibdir}
 endif
+ifdef DOCS
+	install -d ${docdir}
+	install -m644 $(S)/${DOCS} ${docdir}
+endif

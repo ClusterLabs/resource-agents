@@ -35,3 +35,6 @@ endif
 ifdef FENCEAGENTSLIB
 	${UNINSTALL} ${FENCEAGENTSLIB}* ${DESTDIR}/${fenceagentslibdir}
 endif
+ifdef DOCS
+	${UNINSTALL} ${DOCS} ${docdir}
+endif
