@@ -1,7 +1,8 @@
 include make/defines.mk
 
 REALSUBDIRS = gnbd-kernel/src gfs-kernel/src/gfs \
-	      config cman ccs dlm fence/libfenced group fence gfs gfs2 gnbd rgmanager bindings
+	      config cman ccs dlm fence/libfenced group \
+	      fence gfs gfs2 gnbd rgmanager bindings doc
 
 SUBDIRS = $(filter-out \
 	  $(if ${without_gnbd-kernel/src},gnbd-kernel/src) \
