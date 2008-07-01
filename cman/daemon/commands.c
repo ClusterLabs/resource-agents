@@ -1064,6 +1064,7 @@ static void ccsd_timer_fn(void *arg)
 		log_printf(LOG_ERR, "Now got CCS information version %d, continuing\n", config_version);
 		config_error = 0;
 		recalculate_quorum(0, 0);
+		notify_listeners(NULL, EVENT_REASON_CONFIG_UPDATE, config_version);
 	}
 }
 
@@ -1561,6 +1562,7 @@ static int valid_transition_msg(int nodeid, struct cl_transmsg *msg)
 			send_reconfigure(us->node_id, RECONFIG_PARAM_CONFIG_VERSION, config_version);
 		}
 		recalculate_quorum(0, 0);
+		notify_listeners(NULL, EVENT_REASON_CONFIG_UPDATE, config_version);
 	}
 
 
@@ -1718,6 +1720,7 @@ static void do_reconfigure_msg(void *data)
 			openais_timer_add_duration((unsigned long long)ccsd_poll_interval*1000000, NULL,
 						   ccsd_timer_fn, &ccsd_timer);
 		}
+		notify_listeners(NULL, EVENT_REASON_CONFIG_UPDATE, config_version);
 		break;
 	}
 }

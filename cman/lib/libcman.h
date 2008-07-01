@@ -43,11 +43,13 @@ typedef void *cman_handle_t;
  * for TRY_SHUTDOWN           arg == 1 for ANYWAY, otherwise 0 (ie if arg == 1 
  * 			      then cman WILL shutdown regardless
  *                            of your response, think of this as advance warning)
+ * for CONFIG_UPDATE          arg will be the new config version
  */
 typedef enum {CMAN_REASON_PORTCLOSED,
 	      CMAN_REASON_STATECHANGE,
               CMAN_REASON_PORTOPENED,
-              CMAN_REASON_TRY_SHUTDOWN} cman_call_reason_t;
+              CMAN_REASON_TRY_SHUTDOWN,
+              CMAN_REASON_CONFIG_UPDATE} cman_call_reason_t;
 
 /*
  * Reason flags for cman_leave
@@ -171,14 +173,14 @@ typedef struct cman_qdev_info {
  * call other cman_* functions while in these two callbacks:
  */
 
-/* Callback routine for a membership event */
+/* Callback routine for a membership or other event */
 typedef void (*cman_callback_t)(cman_handle_t handle, void *privdata, int reason, int arg);
 
 /* Callback routine for data received */
 typedef void (*cman_datacallback_t)(cman_handle_t handle, void *privdata,
 				    char *buf, int len, uint8_t port, int nodeid);
 
-
+/* Callback for nodes joining/leaving */
 typedef void (*cman_confchgcallback_t)(cman_handle_t handle, void *privdata,
 				       unsigned int *member_list, int member_list_entries,
 				       unsigned int *left_list, int left_list_entries,

@@ -92,6 +92,7 @@
 #define EVENT_REASON_STATECHANGE  1
 #define EVENT_REASON_PORTOPENED   2
 #define EVENT_REASON_TRY_SHUTDOWN 3
+#define EVENT_REASON_CONFIG_UPDATE 4
 
 /* Shutdown flags */
 #define SHUTDOWN_ANYWAY           1
