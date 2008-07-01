@@ -195,7 +195,7 @@ if ($help || !$err) {
   print "--libdir=\tthe base directory for libraries.  (Default: {prefix}/lib)\n";
   print "--libexecdir=\tthe base directory for executable components.  (Default: {prefix}/libexec)\n";
   print "--sharedir=\tthe base directory for misc cluster files.  (Default: {prefix}/share/cluster)\n";
-  print "--docdir=\tthe base directory for misc cluster documentation files.  (Default: {sharedir}/doc/cluster)\n";
+  print "--docdir=\tthe base directory for misc cluster documentation files.  (Default: {prefix}/share/doc/cluster)\n";
   print "--logdir=\tthe base directory for cluster logging files.  (Default: /var/log/cluster/)\n";
   print "--syslogfacility=\tset the default syslog facility.  (Default: LOG_LOCAL4)\n";
   print "--mibdir=\tthe base directory for snmp mibs.  (Default: {prefix}/share/snmp/mibs)\n";
@@ -525,7 +525,7 @@ if (!$sharedir) {
   $sharedir="${prefix}/share/cluster";
 }
 if (!$docdir) {
-  $docdir="${sharedir}/doc/cluster";
+  $docdir="${prefix}/share/doc/cluster";
 }
 if (!$logdir) {
   $logdir="/var/log/cluster";
