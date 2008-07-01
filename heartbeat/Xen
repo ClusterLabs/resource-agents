@@ -210,7 +210,7 @@ Xen_Monitor() {
   if [ $? -eq ${OCF_NOT_RUNNING} ];then
 	return ${OCF_NOT_RUNNING}
   fi
-  if [ "X${OCF_RESKEY_monitor_scripts}" == "X" ];then
+  if [ "X${OCF_RESKEY_monitor_scripts}" = "X" ];then
 	return ${OCF_SUCCESS}
   fi
   for SCRIPT in ${OCF_RESKEY_monitor_scripts};do

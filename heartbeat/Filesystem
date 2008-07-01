@@ -188,7 +188,7 @@ list_mounts() {
 }
 
 determine_blockdevice() {
-	if [ $blockdevice == "yes" ]; then
+	if [ $blockdevice = "yes" ]; then
 		return
 	fi
 
@@ -301,7 +301,7 @@ ocfs2_init()
 	else
 		OCFS2_CLUSTER=$(find "$OCFS2_CONFIGFS" -maxdepth 1 -mindepth 1 -type d -printf %f 2>/dev/null)
 		set -- $OCFS2_CLUSTER
-		local n="$#"
+		local n; n="$#"
 		if [ $n -gt 1 ]; then
 			ocf_log err "$OCFS2_CLUSTER: several clusters found."
 			exit $OCF_ERR_GENERIC
@@ -453,11 +453,11 @@ Filesystem_notify() {
 		return $OCF_ERR_UNIMPLEMENTED
 	fi
 
-	local n_type="$OCF_RESKEY_CRM_meta_notify_type"
-	local n_op="$OCF_RESKEY_CRM_meta_notify_operation"
-	local n_active="$OCF_RESKEY_CRM_meta_notify_active_uname"
-	local n_stop="$OCF_RESKEY_CRM_meta_notify_stop_uname"
-	local n_start="$OCF_RESKEY_CRM_meta_notify_start_uname"
+	local n_type; n_type="$OCF_RESKEY_CRM_meta_notify_type"
+	local n_op; n_op="$OCF_RESKEY_CRM_meta_notify_operation"
+	local n_active; n_active="$OCF_RESKEY_CRM_meta_notify_active_uname"
+	local n_stop; n_stop="$OCF_RESKEY_CRM_meta_notify_stop_uname"
+	local n_start; n_start="$OCF_RESKEY_CRM_meta_notify_start_uname"
 
 	ocf_log info "$OCFS2_UUID: notify: $n_type for $n_op"
 	ocf_log info "$OCFS2_UUID: notify active: $n_active"
@@ -506,7 +506,7 @@ Filesystem_notify() {
 
 	ocf_log info "$OCFS2_UUID: post-processed active: $n_active"
 
-	local n_myself=${HA_CURHOST:-$(uname -n | tr '[A-Z]' '[a-z]')}
+	local n_myself; n_myself=${HA_CURHOST:-$(uname -n | tr '[A-Z]' '[a-z]')}
 	ocf_log info "$OCFS2_UUID: I am node $n_myself."
 
 	case " $n_active " in
@@ -605,7 +605,7 @@ Filesystem_stop()
 					if [ "X${HOSTOS}" = "XOpenBSD" ];then
 						PIDS=`fstat | grep ${SUB} | awk '{print $3}'`
 						for PID in ${PIDS};do
-							kill -9 ${PID}
+							kill -s 9 ${PID}
 							ocf_log info "Sent kill -9 to ${PID}"
 						done
 					else
