@@ -2,6 +2,9 @@ TARGET= config_ldap.lcrso
 
 LCRSOT=$(TARGET)
 
+DOCS =	99cluster.ldif \
+	example.ldif
+
 all: ${TARGET}
 
 include ../../../make/defines.mk
