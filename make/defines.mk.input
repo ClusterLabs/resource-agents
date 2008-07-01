@@ -4,6 +4,7 @@ initddir ?= ${DESTDIR}@INITDDIR@
 libdir ?= ${DESTDIR}@LIBDIR@
 libexecdir ?= ${DESTDIR}@LIBEXECDIR@
 sharedir ?= ${DESTDIR}@SHAREDIR@
+docdir ?= ${DESTDIR}@DOCDIR@
 logdir ?= ${DESTDIR}@LOGDIR@
 mandir ?= ${DESTDIR}@MANDIR@
 module_dir ?= @MODULE_DIR@
