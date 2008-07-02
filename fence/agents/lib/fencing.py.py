@@ -27,6 +27,7 @@ EC_WAITING_OFF     = 7
 
 TELNET_PATH = "/usr/bin/telnet"
 SSH_PATH    = "/usr/bin/ssh"
+SSL_PATH    = "/sbin/telnet_ssl.py"
 
 all_opt = {
 	"help"    : {
@@ -100,6 +101,10 @@ all_opt = {
 	"secure" : {
 		"getopt" : "x",
 		"help" : "-x             Use ssh connection",
+		"order" : 1 },
+	"ssl" : {
+		"getopt" : "z",
+		"help" : "-z             Use ssl connection",
 		"order" : 1 },
 	"port" : {
 		"getopt" : "n:",
@@ -350,7 +355,10 @@ def fence_login(options):
 		re_login = re.compile("(login: )|(Login Name:  )|(username: )|(User Name :)", re.IGNORECASE)
 		re_pass  = re.compile("password", re.IGNORECASE)
 
-		if options.has_key("-x") and 0 == options.has_key("-k"):
+		if options.has_key("-z"):
+			command = '%s %s %s' % (SSL_PATH, options["-a"], "443")
+			conn = fspawn(command)
+		elif options.has_key("-x") and 0 == options.has_key("-k"):
 			command = '%s %s@%s' % (SSH_PATH, options["-l"], options["-a"])
 			if options.has_key("ssh_options"):
 				command += ' ' + options["ssh_options"]
