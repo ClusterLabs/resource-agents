@@ -15,7 +15,7 @@
 #include "debug.h"
 #endif
 
-LOGSYS_DECLARE_SUBSYS("XVM", LOG_LEVEL_NOTICE);
+LOGSYS_DECLARE_SUBSYS("XVM", LOG_LEVEL_INFO);
 
 
 xmlNodePtr

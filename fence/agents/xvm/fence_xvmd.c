@@ -43,12 +43,13 @@ static int reload_key;
 LOGSYS_DECLARE_SYSTEM (NULL,
         LOG_MODE_OUTPUT_STDERR |
 	LOG_MODE_OUTPUT_SYSLOG_THREADED |
+	LOG_MODE_SHORT_FILELINE |
 	LOG_MODE_OUTPUT_FILE |
 	LOG_MODE_BUFFER_BEFORE_CONFIG,
 	LOGDIR "/fence_xvmd.log",
 	SYSLOGFACILITY);
 
-LOGSYS_DECLARE_SUBSYS ("XVM", LOG_LEVEL_NOTICE);
+LOGSYS_DECLARE_SUBSYS ("XVM", LOG_LEVEL_INFO);
 
 int cleanup_xml(char *xmldesc, char **ret, size_t *retsz);
 
@@ -762,7 +763,7 @@ get_logsys_config_data(int *debug)
 {
 	int ccsfd = -1, loglevel = LOG_LEVEL_NOTICE, facility = SYSLOGFACILITY;
 	char *val = NULL, *error = NULL;
-	unsigned int logmode;
+	unsigned int logmode = 0;
 	int global_debug = 0;
 
 	log_printf(LOG_DEBUG, "Loading logsys configuration information\n");
@@ -917,7 +918,7 @@ main(int argc, char **argv)
 {
 	fence_xvm_args_t args;
 	int mc_sock;
-	unsigned int logmode;
+	unsigned int logmode = 0;
 	char key[MAX_KEY_LEN];
 	int key_len = 0, x;
 	char *my_options = "dfi:a:p:C:U:c:k:u?hLXV";
@@ -951,6 +952,7 @@ main(int argc, char **argv)
 		get_logsys_config_data(&args.debug);
 	} else {
 		logmode = logsys_config_mode_get();
+		logmode &= ~LOG_MODE_DISPLAY_FILELINE;
 		log_config_done(logmode);
 	}
 

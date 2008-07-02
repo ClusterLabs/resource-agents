@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "debug.h"
 
-LOGSYS_DECLARE_SUBSYS("XVM", LOG_LEVEL_NOTICE);
+LOGSYS_DECLARE_SUBSYS("XVM", LOG_LEVEL_INFO);
 
 static int _debug = 0;
 
