@@ -22,13 +22,6 @@ while (0)
 
 static char *prog_name;
 
-LOGSYS_DECLARE_SYSTEM (NULL,
-	LOG_MODE_OUTPUT_STDERR | LOG_MODE_OUTPUT_SYSLOG_THREADED,
-	NULL,
-	SYSLOGFACILITY);
-
-LOGSYS_DECLARE_SUBSYS ("FENCE_NODE", SYSLOGLEVEL);
-
 static void print_usage(void)
 {
 	printf("Usage:\n");
@@ -44,7 +37,7 @@ static void print_usage(void)
 
 int main(int argc, char *argv[])
 {
-	int cont = 1, optchar, error;
+	int cont = 1, optchar, error, rv;
 	char *victim = NULL;
 
 	prog_name = argv[0];
@@ -92,11 +85,15 @@ int main(int argc, char *argv[])
 	if (!victim)
 		die("no node name specified");
 
+	logsys_init("fence_node",
+		    LOG_MODE_OUTPUT_STDERR | LOG_MODE_OUTPUT_SYSLOG_THREADED,
+		    SYSLOGFACILITY, LOG_LEVEL_NOTICE, NULL);
+
 	error = fence_node(victim);
 
 	if (error) {
 		log_printf(LOG_ERR, "Fence of \"%s\" was unsuccessful\n", victim);
-		exit(EXIT_FAILURE);
+		rv = EXIT_FAILURE;
 	} else {
 		log_printf(LOG_NOTICE, "Fence of \"%s\" was successful\n", victim);
 
@@ -104,7 +101,10 @@ int main(int argc, char *argv[])
 		   this node again if the fence_node() rebooted it. */
 		fenced_external(victim);
 
-		exit(EXIT_SUCCESS);
+		rv = EXIT_SUCCESS;
 	}
+
+	logsys_exit();
+	exit(rv);
 }
 
