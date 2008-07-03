@@ -43,7 +43,7 @@ LOGSYS_DECLARE_SYSTEM (NULL,
         LOGDIR "/fence_xvm.log",
         SYSLOGFACILITY);
 
-LOGSYS_DECLARE_SUBSYS ("XVM", LOG_LEVEL_INFO);
+LOGSYS_DECLARE_SUBSYS ("XVM", SYSLOGLEVEL);
 
 int
 tcp_wait_connect(int lfd, int retry_tenths)

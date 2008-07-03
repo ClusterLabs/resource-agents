@@ -25,7 +25,7 @@
 #include "options.h"
 #include "debug.h"
 
-LOGSYS_DECLARE_SUBSYS("XVM", LOG_LEVEL_INFO);
+LOGSYS_DECLARE_SUBSYS("XVM", SYSLOGLEVEL);
 
 
 /* Assignment functions */

@@ -150,7 +150,7 @@ fail:
  * Returns: -1 on failure. NULL on success.
  */
 int set_ccs_logging(xmlDocPtr ldoc){
-  int facility = SYSLOGFACILITY, loglevel = LOG_LEVEL_INFO, global_debug = 0;
+  int facility = SYSLOGFACILITY, loglevel = SYSLOGLEVEL, global_debug = 0;
   char *res = NULL, *error = NULL;
   xmlXPathContextPtr ctx = NULL;
   unsigned int logmode;
@@ -197,7 +197,7 @@ int set_ccs_logging(xmlDocPtr ldoc){
     if(res) {
       loglevel = logsys_priority_id_get (res);
       if (loglevel < 0)
-	loglevel = LOG_LEVEL_INFO;
+	loglevel = SYSLOGLEVEL;
 
       if(!debug) {
 	if(loglevel == LOG_LEVEL_DEBUG)

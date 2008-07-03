@@ -17,7 +17,7 @@
 #include <time.h>
 #include <openais/service/logsys.h>
 
-LOGSYS_DECLARE_SUBSYS ("QDISK", LOG_LEVEL_INFO);
+LOGSYS_DECLARE_SUBSYS ("QDISK", SYSLOGLEVEL);
 
 inline void
 _diff_tv(struct timeval *dest, struct timeval *start, struct timeval *end)

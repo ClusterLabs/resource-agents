@@ -16,7 +16,7 @@
 
 #include "debug.h"
 
-LOGSYS_DECLARE_SUBSYS("XVM", LOG_LEVEL_INFO);
+LOGSYS_DECLARE_SUBSYS("XVM", SYSLOGLEVEL);
 
 static int connect_nb(int fd, struct sockaddr *dest, socklen_t len, int timeout);
 

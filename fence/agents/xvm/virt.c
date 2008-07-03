@@ -9,7 +9,7 @@
 #include "virt.h"
 #include "debug.h"
 
-LOGSYS_DECLARE_SUBSYS("XVM", LOG_LEVEL_INFO);
+LOGSYS_DECLARE_SUBSYS("XVM", SYSLOGLEVEL);
 
 static int
 _compare_virt(const void *_left, const void *_right)

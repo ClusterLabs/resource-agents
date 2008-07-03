@@ -22,7 +22,7 @@
 #include "ip_lookup.h"
 #include "debug.h"
 
-LOGSYS_DECLARE_SUBSYS("XVM", LOG_LEVEL_INFO);
+LOGSYS_DECLARE_SUBSYS("XVM", SYSLOGLEVEL);
 
 static int
 send_addr_dump(int fd, int family)

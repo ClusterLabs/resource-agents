@@ -49,7 +49,7 @@ LOGSYS_DECLARE_SYSTEM (NULL,
 	LOGDIR "/fence_xvmd.log",
 	SYSLOGFACILITY);
 
-LOGSYS_DECLARE_SUBSYS ("XVM", LOG_LEVEL_INFO);
+LOGSYS_DECLARE_SUBSYS ("XVM", SYSLOGLEVEL);
 
 int cleanup_xml(char *xmldesc, char **ret, size_t *retsz);
 
@@ -761,7 +761,7 @@ log_config_done(int logmode)
 static int
 get_logsys_config_data(int *debug)
 {
-	int ccsfd = -1, loglevel = LOG_LEVEL_NOTICE, facility = SYSLOGFACILITY;
+	int ccsfd = -1, loglevel = SYSLOGLEVEL, facility = SYSLOGFACILITY;
 	char *val = NULL, *error = NULL;
 	unsigned int logmode = 0;
 	int global_debug = 0;
@@ -805,7 +805,7 @@ get_logsys_config_data(int *debug)
 		if (ccs_get(ccsfd, "/cluster/logging/logger_subsys[@subsys=\"XVM\"]/@syslog_level", &val) == 0) {
 			loglevel = logsys_priority_id_get (val);
 			if (loglevel < 0)
-				loglevel = LOG_LEVEL_INFO;
+				loglevel = SYSLOGLEVEL;
 
 			if (!*debug) {
 				if (loglevel == LOG_LEVEL_DEBUG)
@@ -820,7 +820,7 @@ get_logsys_config_data(int *debug)
 		if (ccs_get(ccsfd, "/cluster/fence_xvmd/@log_level", &val) == 0) { /* check backward compat options */
 			loglevel = logsys_priority_id_get (val);
 			if (loglevel < 0)
-				loglevel = LOG_LEVEL_INFO;
+				loglevel = SYSLOGLEVEL;
 
 			log_printf(LOG_ERR, "<fence_xvmd log_level=\"%s\".. option is depracated\n", val);
 

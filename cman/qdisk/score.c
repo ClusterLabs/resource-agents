@@ -29,7 +29,7 @@ struct h_arg {
 	int count;
 };
 
-LOGSYS_DECLARE_SUBSYS ("QDISK", LOG_LEVEL_INFO);
+LOGSYS_DECLARE_SUBSYS ("QDISK", SYSLOGLEVEL);
 
 /*
   XXX Messy, but works for now... 

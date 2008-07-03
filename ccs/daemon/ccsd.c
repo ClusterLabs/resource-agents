@@ -46,7 +46,7 @@ LOGSYS_DECLARE_SYSTEM (NULL,
 	LOGDIR "/ccs.log",
 	SYSLOGFACILITY);
 
-LOGSYS_DECLARE_SUBSYS ("CCS", LOG_LEVEL_INFO);
+LOGSYS_DECLARE_SUBSYS ("CCS", SYSLOGLEVEL);
 
 int main(int argc, char *argv[]){
   int i,error=0;

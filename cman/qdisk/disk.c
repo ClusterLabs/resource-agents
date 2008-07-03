@@ -30,7 +30,7 @@
 static int diskRawRead(target_info_t *disk, char *buf, int len);
 uint32_t clu_crc32(const char *data, size_t count);
 
-LOGSYS_DECLARE_SUBSYS ("QDISK", LOG_LEVEL_INFO);
+LOGSYS_DECLARE_SUBSYS ("QDISK", SYSLOGLEVEL);
 
 /**
  * Swap the bytes of a shared header so that it's always in big-endian form

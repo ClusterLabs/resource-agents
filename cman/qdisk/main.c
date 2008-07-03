@@ -61,7 +61,7 @@ LOGSYS_DECLARE_SYSTEM (NULL,
         LOGDIR "/qdisk.log",
         SYSLOGFACILITY);
 
-LOGSYS_DECLARE_SUBSYS ("QDISK", LOG_LEVEL_INFO);
+LOGSYS_DECLARE_SUBSYS ("QDISK", SYSLOGLEVEL);
 
 static void
 int_handler(int sig)
@@ -1062,7 +1062,7 @@ quorum_logout(qd_ctx *ctx)
 static int
 get_logsys_config_data(int *debug)
 {
-	int ccsfd = -1, loglevel = LOG_LEVEL_INFO, facility = SYSLOGFACILITY;
+	int ccsfd = -1, loglevel = SYSLOGLEVEL, facility = SYSLOGFACILITY;
 	char *val = NULL, *error = NULL;
 	unsigned int logmode;
 	int global_debug = 0;
@@ -1106,7 +1106,7 @@ get_logsys_config_data(int *debug)
 		if (ccs_get(ccsfd, "/cluster/logging/logger_subsys[@subsys=\"QDISK\"]/@syslog_level", &val) == 0) {
 			loglevel = logsys_priority_id_get (val);
 			if (loglevel < 0)
-				loglevel = LOG_LEVEL_INFO;
+				loglevel = SYSLOGLEVEL;
 
 			if (!*debug) {
 				if (loglevel == LOG_LEVEL_DEBUG)
@@ -1121,7 +1121,7 @@ get_logsys_config_data(int *debug)
 		if (ccs_get(ccsfd, "/cluster/quorumd/@log_level", &val) == 0) { /* check backward compat options */
 			loglevel = logsys_priority_id_get (val);
 			if (loglevel < 0)
-				loglevel = LOG_LEVEL_INFO;
+				loglevel = SYSLOGLEVEL;
 
 			log_printf(LOG_ERR, "<quorumd log_level=\"%s\".. option is depracated\n", val);
 
