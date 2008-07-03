@@ -1,4 +1,7 @@
 make/defines.mk
+.configure.sh
 *.d
 *.o
-.configure.sh
+*.a
+*.so*
+*.lcrso
