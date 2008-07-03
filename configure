@@ -72,6 +72,7 @@ my %options = (
 	docdir => \$docdir,
 	logdir => \$logdir,
 	syslogfacility => \$syslogfacility,
+	sysloglevel => \$sysloglevel,
 	mibdir => \$mibdir,
 	snmpbin => \$snmpbin,
 	confdir => \$confdir,
@@ -153,6 +154,7 @@ my $err = &GetOptions (\%options,
 		    'docdir=s',
 		    'logdir=s',
 		    'syslogfacility=s',
+		    'sysloglevel=s',
 		    'mibdir=s',
 		    'snmpbin=s',
 		    'confdir=s',
@@ -198,6 +200,7 @@ if ($help || !$err) {
   print "--docdir=\tthe base directory for misc cluster documentation files.  (Default: {prefix}/share/doc/cluster)\n";
   print "--logdir=\tthe base directory for cluster logging files.  (Default: /var/log/cluster/)\n";
   print "--syslogfacility=\tset the default syslog facility.  (Default: LOG_LOCAL4)\n";
+  print "--sysloglevel=\tset the default syslog level.  (Default: LOG_LEVEL_INFO)\n";
   print "--mibdir=\tthe base directory for snmp mibs.  (Default: {prefix}/share/snmp/mibs)\n";
   print "--snmpbin=\tthe base directory for snmp binaries (Ex: /usr/bin/snmpwalk).  (Default: {prefix}/bin)\n";
   print "--confdir=\tthe cluster config directory.  (Default: /etc/cluster)\n";
@@ -533,6 +536,9 @@ if (!$logdir) {
 if (!$syslogfacility) {
   $syslogfacility="LOG_LOCAL4";
 }
+if (!$sysloglevel) {
+  $sysloglevel="LOG_LEVEL_INFO";
+}
 if (!$mibdir) {
   $mibdir="${prefix}/share/snmp/mibs";
 }
@@ -692,6 +698,7 @@ while (<IFILE>) {
   $_ =~ s/\@DOCDIR\@/$docdir/;
   $_ =~ s/\@LOGDIR\@/$logdir/;
   $_ =~ s/\@SYSLOGFACILITY\@/$syslogfacility/;
+  $_ =~ s/\@SYSLOGLEVEL\@/$sysloglevel/;
   $_ =~ s/\@MIBDIR\@/$mibdir/;
   $_ =~ s/\@SNMPBIN\@/$snmpbin/;
   $_ =~ s/\@CONFDIR\@/$confdir/;
