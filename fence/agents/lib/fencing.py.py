@@ -27,7 +27,7 @@ EC_WAITING_OFF     = 7
 
 TELNET_PATH = "/usr/bin/telnet"
 SSH_PATH    = "/usr/bin/ssh"
-SSL_PATH    = "/sbin/telnet_ssl.py"
+SSL_PATH    = "@FENCEAGENTSLIBDIR@/telnet_ssl"
 
 all_opt = {
 	"help"    : {

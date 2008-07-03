@@ -1,6 +1,6 @@
 include ../../../make/defines.mk
 
-TARGET= fencing.py
+TARGET= fencing.py telnet_ssl
 
 FENCEAGENTSLIB= $(TARGET)
 
