@@ -27,6 +27,7 @@
 #include "commands.h"
 #include "logging.h"
 #include "barrier.h"
+#include "cman.h"
 #include "ais.h"
 
 extern int we_are_a_cluster_member;

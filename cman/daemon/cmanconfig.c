@@ -16,11 +16,12 @@
 #include "cnxman-private.h"
 #include "logging.h"
 #include "commands.h"
+#include "cman.h"
 #include "cmanconfig.h"
 LOGSYS_DECLARE_SUBSYS (CMAN_NAME, LOG_INFO);
 #include "nodelist.h"
 #include "ais.h"
-#include "cman.h"
+
 
 /* Local vars - things we get from ccs */
        int two_node;

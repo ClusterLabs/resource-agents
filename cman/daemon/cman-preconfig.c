@@ -170,6 +170,38 @@ static int address_family(char *addr, struct sockaddr_storage *ssaddr)
 }
 
 
+/* Find the "CMAN" logger_subsys object. Or create one if it does not
+   exist
+*/
+static unsigned int find_cman_logger(struct objdb_iface_ver0 *objdb, unsigned int object_handle)
+{
+	unsigned int subsys_handle;
+	char *str;
+
+	objdb->object_find_reset(object_handle);
+	while (!objdb->object_find(object_handle,
+				  "logger_subsys", strlen("logger_subsys"), &subsys_handle)) {
+
+		if (objdb_get_string(objdb, subsys_handle, "subsys", &str)) {
+			continue;
+		}
+		if (strcmp(str, CMAN_NAME) == 0)
+			return subsys_handle;
+	}
+
+	/* We can't find it ... create one */
+	if (objdb->object_create(object_handle, &subsys_handle,
+				 "logger_subsys", strlen("logger_subsys")) == 0) {
+
+		objdb->object_key_create(subsys_handle, "subsys", strlen("subsys"),
+					 CMAN_NAME, strlen(CMAN_NAME)+1);
+	}
+
+	return subsys_handle;
+
+}
+
+
 static int add_ifaddr(struct objdb_iface_ver0 *objdb, char *mcast, char *ifaddr, int portnum)
 {
 	unsigned int totem_object_handle;
@@ -200,29 +232,24 @@ static int add_ifaddr(struct objdb_iface_ver0 *objdb, char *mcast, char *ifaddr,
 				     "totem", strlen("totem"));
         }
 
-	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
-	if (objdb->object_find(OBJECT_PARENT_HANDLE,
-			       "totem", strlen("totem"), &totem_object_handle) == 0) {
+	if (objdb->object_create(totem_object_handle, &interface_object_handle,
+				 "interface", strlen("interface")) == 0) {
 
-		if (objdb->object_create(totem_object_handle, &interface_object_handle,
-					 "interface", strlen("interface")) == 0) {
+		sprintf(tmp, "%d", num_interfaces);
+		objdb->object_key_create(interface_object_handle, "ringnumber", strlen("ringnumber"),
+					 tmp, strlen(tmp)+1);
 
-			sprintf(tmp, "%d", num_interfaces);
-			objdb->object_key_create(interface_object_handle, "ringnumber", strlen("ringnumber"),
-							tmp, strlen(tmp)+1);
+		objdb->object_key_create(interface_object_handle, "bindnetaddr", strlen("bindnetaddr"),
+					 ifaddr, strlen(ifaddr)+1);
 
-			objdb->object_key_create(interface_object_handle, "bindnetaddr", strlen("bindnetaddr"),
-							ifaddr, strlen(ifaddr)+1);
+		objdb->object_key_create(interface_object_handle, "mcastaddr", strlen("mcastaddr"),
+					 mcast, strlen(mcast)+1);
 
-			objdb->object_key_create(interface_object_handle, "mcastaddr", strlen("mcastaddr"),
-							mcast, strlen(mcast)+1);
+		sprintf(tmp, "%d", portnum);
+		objdb->object_key_create(interface_object_handle, "mcastport", strlen("mcastport"),
+					 tmp, strlen(tmp)+1);
 
-			sprintf(tmp, "%d", portnum);
-			objdb->object_key_create(interface_object_handle, "mcastport", strlen("mcastport"),
-							tmp, strlen(tmp)+1);
-
-			num_interfaces++;
-		}
+		num_interfaces++;
 	}
 	return ret;
 }
@@ -432,6 +459,10 @@ static int get_env_overrides()
 		expected_votes = 1;
 		votes = 1;
 	}
+	if (getenv("CMAN_DEBUGLOG")) {
+		debug_mask = atoi(getenv("CMAN_DEBUGLOG"));
+	}
+
 	return 0;
 }
 
@@ -680,18 +711,14 @@ static void add_cman_overrides(struct objdb_iface_ver0 *objdb)
 		char *logstr;
 		char *logfacility;
 
-
 		logfacility = logsys_facility_name_get(SYSLOGFACILITY);
+
+		logger_object_handle = find_cman_logger(objdb, object_handle);
 
 		if (objdb_get_string(objdb, object_handle, "syslog_facility", &logstr)) {
 			objdb->object_key_create(object_handle, "syslog_facility", strlen("syslog_facility"),
 						 logfacility, strlen(logfacility)+1);
 		}
-
-		objdb->object_create(object_handle, &logger_object_handle,
-				      "logger_subsys", strlen("logger_subsys"));
-		objdb->object_key_create(logger_object_handle, "subsys", strlen("subsys"),
-					 "CMAN", strlen("CMAN")+1);
 
 		if (objdb_get_string(objdb, object_handle, "to_file", &logstr)) {
 			objdb->object_key_create(object_handle, "to_file", strlen("to_file"),
@@ -703,11 +730,24 @@ static void add_cman_overrides(struct objdb_iface_ver0 *objdb)
 						 LOGDIR "/cman.log", strlen(LOGDIR "/cman.log")+1);
 		}
 
+		objdb->object_key_create(object_handle, "syslog_facility", strlen("syslog_facility"),
+					 "local4", strlen("local4")+1);
+
+
 		if (debug_mask) {
-			objdb->object_key_create(logger_object_handle, "debug", strlen("debug"),
-						 "on", strlen("on")+1);
 			objdb->object_key_create(object_handle, "to_stderr", strlen("to_stderr"),
 						 "yes", strlen("yes")+1);
+			objdb->object_key_create(logger_object_handle, "debug", strlen("debug"),
+						 "on", strlen("on")+1);
+			objdb->object_key_create(logger_object_handle, "syslog_level", strlen("syslog_level"),
+						 "debug", strlen("debug")+1);
+
+		}
+		else {
+			char *loglevel;
+			loglevel = logsys_priority_name_get(SYSLOGLEVEL);
+			objdb->object_key_create(logger_object_handle, "syslog_level", strlen("syslog_level"),
+						 loglevel, strlen(loglevel)+1);
 		}
 	}
 
@@ -742,7 +782,11 @@ static void add_cman_overrides(struct objdb_iface_ver0 *objdb)
 			objdb->object_key_create(object_handle, "two_node", strlen("two_node"),
 						 str, strlen(str) + 1);
 		}
-
+		if (debug_mask) {
+			sprintf(str, "%d", debug_mask);
+			objdb->object_key_create(object_handle, "debug_mask", strlen("debug_mask"),
+						 str, strlen(str) + 1);
+		}
 	}
 
 	/* Make sure we load our alter-ego - the main cman module */

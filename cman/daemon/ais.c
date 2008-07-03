@@ -145,42 +145,28 @@ static int cman_exec_init_fn(struct objdb_iface_ver0 *objdb)
 	unsigned int object_handle;
 	char pipe_msg[256];
 
-	if (getenv("CMAN_DEBUGLOG"))
-		debug_mask = atoi(getenv("CMAN_DEBUGLOG"));
-
-	set_debuglog(debug_mask);
-
-	/* We need to set this up to internal defaults too early */
-	openlog("openais", LOG_CONS|LOG_PID, SYSLOGFACILITY);
-
-	/* Enable stderr logging if requested by cman_tool */
-	if (debug_mask) {
-		logsys_config_subsys_set("CMAN", LOGSYS_TAG_LOG, LOG_DEBUG);
-	}
-
 	if (getenv("CMAN_PIPE"))
                 startup_pipe = atoi(getenv("CMAN_PIPE"));
-
-	P_DAEMON("CMAN starting");
 
         /* Get our config variables */
 	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
 	objdb->object_find(OBJECT_PARENT_HANDLE,
 		"cluster", strlen("cluster"), &cluster_parent_handle);
 
+	objdb->object_find_reset(cluster_parent_handle);
 	if (objdb->object_find(cluster_parent_handle, "cman", strlen("cman"), &object_handle) == 0)
 	{
 		objdb_get_int(objdb, object_handle, "quorum_dev_poll", &quorumdev_poll);
 		objdb_get_int(objdb, object_handle, "shutdown_timeout", &shutdown_timeout);
 		objdb_get_int(objdb, object_handle, "ccsd_poll", &ccsd_poll_interval);
+		objdb_get_int(objdb, object_handle, "debug_mask", &debug_mask);
 
-		/* Only use the CCS version of this if it was not overridden on the command-line */
-		if (!getenv("CMAN_DEBUGLOG"))
-		{
-			objdb_get_int(objdb, object_handle, "debug_mask", &debug_mask);
-			set_debuglog(debug_mask);
-		}
+		/* All other debugging options should already have been set in preconfig */
+		set_debuglog(debug_mask);
 	}
+	log_printf(LOG_DEBUG, "CC: debug message");
+	log_printf(LOG_INFO, "CC: info message");
+	P_DAEMON(CMAN_NAME " starting");
 
 	/* Open local sockets and initialise I/O queues */
 	read_cman_config(objdb, &config_version);

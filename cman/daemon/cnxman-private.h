@@ -8,9 +8,6 @@
 #define CNXMAN_MINOR_VERSION 1
 #define CNXMAN_PATCH_VERSION 0
 
-/* How we announce ourself in syslog */
-#define CMAN_NAME "CMAN"
-
 struct cman_timer
 {
 	struct list list;

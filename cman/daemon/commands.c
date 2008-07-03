@@ -28,6 +28,7 @@
 #include <openais/service/timer.h>
 #include <openais/totem/aispoll.h>
 #include "list.h"
+#include "cman.h"
 #include "cnxman-socket.h"
 #include "cnxman-private.h"
 #include "daemon.h"

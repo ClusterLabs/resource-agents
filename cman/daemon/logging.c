@@ -10,6 +10,7 @@
 
 #include <openais/service/logsys.h>
 #include "list.h"
+#include "cman.h"
 #include "cnxman-socket.h"
 #include "cnxman-private.h"
 #include "logging.h"
