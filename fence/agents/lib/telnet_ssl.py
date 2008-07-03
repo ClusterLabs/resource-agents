@@ -3,11 +3,17 @@
 #####
 ## simple telnet client with SSL support 
 ##
-## ./telnet_ssl.py host port
+## ./telnet_ssl host port
 #####
 
 import sys, socket, string, fcntl, os , time
 from OpenSSL import SSL
+
+#BEGIN_VERSION_GENERATION
+RELEASE_VERSION=""
+REDHAT_COPYRIGHT=""
+BUILD_DATE=""
+#END_VERSION_GENERATION
 
 def main():
 	hostname = None
