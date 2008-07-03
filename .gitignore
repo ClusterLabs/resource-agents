@@ -1,3 +1,4 @@
 make/defines.mk
 *.d
 *.o
+.configure.sh

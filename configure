@@ -10,6 +10,8 @@ print "\nConfiguring Makefiles for your system...\n";
 
 # Set a bunch of variables
 
+my @invoke = @ARGV;
+
 my $ret = 0;
 
 # this should be only the major version without the extra version 
@@ -770,6 +772,12 @@ print OFILE "SOMINOR = $sominor\n";
 print OFILE "RELEASE_VERSION = $release_version\n";
 print OFILE "CFLAGS += -DRELEASE_VERSION=\\\"$release_version\\\"\n";
 
+close OFILE;
+
+open OFILE, ">${objdir}/.configure.sh" or die "Can't redirect stdout";
+print OFILE "#!/bin/bash\n";
+print OFILE "$0 @invoke \$@\n";
+print OFILE "exit \$?\n";
 close OFILE;
 
 print "Completed Makefile configuration\n\n";

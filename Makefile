@@ -45,6 +45,13 @@ gnbd: cman
 rgmanager: cman dlm
 bindings: cman
 
+oldconfig:
+	@if [ -f $(OBJDIR)/.configure.sh ]; then \
+		sh $(OBJDIR)/.configure.sh; \
+	else \
+		echo "No old configure data found"; \
+	fi
+
 install: all
 	set -e && for i in ${SUBDIRS}; do ${MAKE} -C $$i $@; done
 
@@ -56,6 +63,7 @@ clean:
 
 distclean: clean
 	rm -f make/defines.mk
+	rm -f .configure.sh
 	rm -f *tar.gz
 	rm -rf build
 
