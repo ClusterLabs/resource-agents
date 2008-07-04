@@ -521,7 +521,7 @@ static int get_nodename(struct objdb_iface_ver0 *objdb)
 
 	}
 
-	/* Add <cman nodename> */
+	/* Add <cman> bits to pass down to the main module*/
 	if ( (node_object_handle = nodelist_byname(objdb, cluster_parent_handle, nodename))) {
 		if (objdb_get_string(objdb, node_object_handle, "nodeid", &nodeid_str)) {
 			sprintf(error_reason, "This node has no nodeid in cluster.conf");
@@ -729,10 +729,6 @@ static void add_cman_overrides(struct objdb_iface_ver0 *objdb)
 			objdb->object_key_create(object_handle, "logfile", strlen("logfile"),
 						 LOGDIR "/cman.log", strlen(LOGDIR "/cman.log")+1);
 		}
-
-		objdb->object_key_create(object_handle, "syslog_facility", strlen("syslog_facility"),
-					 "local4", strlen("local4")+1);
-
 
 		if (debug_mask) {
 			objdb->object_key_create(object_handle, "to_stderr", strlen("to_stderr"),
@@ -944,10 +940,6 @@ static int cmanpre_readconfig(struct objdb_iface_ver0 *objdb, char **error_strin
 
 	if (getenv("CMAN_PIPE"))
                 startup_pipe = atoi(getenv("CMAN_PIPE"));
-
-	/* We need to set this up to internal defaults too early */
-	openlog("openais", LOG_CONS|LOG_PID, SYSLOGFACILITY);
-
 
 	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
         objdb->object_find(OBJECT_PARENT_HANDLE,
