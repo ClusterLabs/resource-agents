@@ -1174,13 +1174,13 @@ get_logsys_config_data(int *debug)
 		val = NULL;
 	}
 
-	if (ccs_get(ccsfd, "/cluster/logging/@filename", &val) == 0) {
+	if (ccs_get(ccsfd, "/cluster/logging/@logfile", &val) == 0) {
 		if(logsys_config_file_set(&error, val))
-			log_printf(LOG_ERR, "filename: unable to open %s for logging\n", val);
+			log_printf(LOG_ERR, "logfile: unable to open %s for logging\n", val);
 		free(val);
 		val = NULL;
 	} else
-		log_printf(LOG_DEBUG, "filename: use default built-in log file: %s\n", LOGDIR "/qdisk.log");
+		log_printf(LOG_DEBUG, "logfile: use default built-in log file: %s\n", LOGDIR "/qdisk.log");
 
 	if (ccs_get(ccsfd, "/cluster/logging/@syslog_facility", &val) == 0) {
 		facility = logsys_facility_id_get (val);

@@ -251,14 +251,14 @@ int set_ccs_logging(xmlDocPtr ldoc){
     res=NULL;
   }
 
-  res = do_simple_xml_query(ctx, "/cluster/logging/@filename");
+  res = do_simple_xml_query(ctx, "/cluster/logging/@logfile");
   if(res) {
     if(logsys_config_file_set(&error, res))
-      log_printf(LOG_ERR, "filename: unable to open %s for logging\n", res);
+      log_printf(LOG_ERR, "logfile: unable to open %s for logging\n", res);
     free(res);
     res=NULL;
   } else
-      log_printf(LOG_DEBUG, "filename: use default built-in log file: %s\n", LOGDIR "/ccs.log");
+      log_printf(LOG_DEBUG, "logfile: use default built-in log file: %s\n", LOGDIR "/ccs.log");
 
   res = do_simple_xml_query(ctx, "/cluster/logging/@syslog_facility");
   if(res) {

@@ -24,7 +24,7 @@
    "/cluster/logging/logger_subsys[@subsys=\"prog_name\"]/@syslog_level"
 
    file from
-   "/cluster/logging/@filename"
+   "/cluster/logging/@logfile"
 
    debug from
    "/cluster/logging/@debug"
@@ -105,7 +105,7 @@ static int read_ccs_logging(int *mode, int *facility, int *priority, char *file,
 	strcpy(file, DEFAULT_FILE);
 
 	memset(name, 0, sizeof(name));
-	read_ccs_name("/cluster/logging/@filename", name);
+	read_ccs_name("/cluster/logging/@logfile", name);
 
 	if (name[0])
 		strcpy(file, name);
