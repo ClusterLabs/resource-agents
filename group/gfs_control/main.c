@@ -14,7 +14,7 @@
 
 #include "libgfscontrol.h"
 
-#define OPTION_STRING			"hV"
+#define OPTION_STRING			"vhV"
 
 #define OP_LIST				1
 #define OP_DUMP				2
@@ -27,6 +27,7 @@ static char *prog_name;
 static char *fsname;
 static int operation;
 static int opt_ind;
+static int verbose;
 
 static void print_usage(void)
 {
@@ -35,6 +36,7 @@ static void print_usage(void)
 	printf("%s [options] [ls|dump|plocks]\n", prog_name);
 	printf("\n");
 	printf("Options:\n");
+	printf("  -v               Verbose output\n");
 	printf("  -h               Print this help, then exit\n");
 	printf("  -V               Print program version information, then exit\n");
 	printf("\n");
@@ -142,12 +144,230 @@ static int do_write(int fd, void *buf, size_t count)
 	return 0;
 }
 
-void do_leave(char *name)
+void do_leave(char *table)
 {
+	struct gfsc_mount_args ma;
+	int rv;
+
+	memset(&ma, 0, sizeof(ma));
+
+	strncpy(ma.table, table, sizeof(ma.table));
+
+	rv = gfsc_fs_leave(&ma, 0);
+	if (rv < 0)
+		fprintf(stderr, "gfs_controld leave error %d\n", rv);
 }
+
+char *gfsc_mf_str(uint32_t flags)
+{
+	static char str[128];
+
+	memset(str, 0, sizeof(str));
+
+	if (flags & GFSC_MF_JOINING)
+		strcat(str, "joining ");
+	if (flags & GFSC_MF_LEAVING)
+		strcat(str, "leaving ");
+	if (flags & GFSC_MF_KERNEL_STOPPED)
+		strcat(str, "kernel_stopped ");
+	if (flags & GFSC_MF_KERNEL_MOUNT_DONE)
+		strcat(str, "kernel_mount_done ");
+	if (flags & GFSC_MF_KERNEL_MOUNT_ERROR)
+		strcat(str, "kernel_mount_error ");
+	if (flags & GFSC_MF_FIRST_RECOVERY_NEEDED)
+		strcat(str, "first_recovery_needed ");
+	if (flags & GFSC_MF_FIRST_RECOVERY_MSG)
+		strcat(str, "first_recovery_msg ");
+	if (flags & GFSC_MF_LOCAL_RECOVERY_BUSY)
+		strcat(str, "local_recovery_busy ");
+
+	return str;
+}
+
+char *gfsc_nf_str(uint32_t flags)
+{
+	static char str[128];
+
+	memset(str, 0, sizeof(str));
+
+	if (flags & GFSC_NF_MEMBER)
+		strcat(str, "member ");
+	if (flags & GFSC_NF_START)
+		strcat(str, "start ");
+	if (flags & GFSC_NF_DISALLOWED)
+		strcat(str, "disallowed ");
+	if (flags & GFSC_NF_KERNEL_MOUNT_DONE)
+		strcat(str, "kernel_mount_done ");
+	if (flags & GFSC_NF_KERNEL_MOUNT_ERROR)
+		strcat(str, "kernel_mount_error ");
+	if (flags & GFSC_NF_READONLY)
+		strcat(str, "readonly ");
+	if (flags & GFSC_NF_SPECTATOR)
+		strcat(str, "spectator ");
+	if (flags & GFSC_NF_CHECK_DLM)
+		strcat(str, "check_dlm ");
+
+	return str;
+}
+
+char *condition_str(int cond)
+{
+	switch (cond) {
+	case 0:
+		return "";
+	case 1:
+		return "kernel_mount_done";
+	case 2:
+		return "notify_nodeid";
+	case 3:
+		return "poll_dlm";
+	case 4:
+		return "pending";
+	default:
+		return "unknown";
+	}
+}
+
+static void show_mg(struct gfsc_mountgroup *mg)
+{
+	printf("gfs mountgroup \"%s\"\n", mg->name);
+	printf("id 0x%x flags 0x%x %s\n", mg->global_id, mg->flags,
+		gfsc_mf_str(mg->flags));
+	printf("journals needing recovery %d\n", mg->journals_need_recovery);
+
+	printf("seq %u-%u counts member %d joined %d remove %d failed %d\n",
+	        mg->cg_prev.combined_seq, mg->cg_prev.seq,
+		mg->cg_prev.member_count, mg->cg_prev.joined_count,
+		mg->cg_prev.remove_count, mg->cg_prev.failed_count);
+
+	if (!mg->cg_next.seq)
+		return;
+
+	printf("new seq %u-%u counts member %d joined %d remove %d failed %d\n",
+	        mg->cg_next.combined_seq, mg->cg_next.seq,
+		mg->cg_next.member_count, mg->cg_next.joined_count,
+		mg->cg_next.remove_count, mg->cg_next.failed_count);
+
+	printf("new wait_messages %d wait_condition %d %s\n",
+		mg->cg_next.wait_messages, mg->cg_next.wait_condition,
+		condition_str(mg->cg_next.wait_condition));
+}
+
+static void show_all_nodes(int count, struct gfsc_node *nodes)
+{
+	struct gfsc_node *n = nodes;
+	int i;
+
+	for (i = 0; i < count; i++) {
+		printf("nodeid %d jid %d add_seq %u rem_seq %u failed %d flags 0x%x %s\n",
+			n->nodeid, n->jid, n->added_seq, n->removed_seq,
+			n->failed_reason, n->flags, gfsc_nf_str(n->flags));
+		n++;
+	}
+}
+
+static void show_nodeids(int count, struct gfsc_node *nodes)
+{
+	struct gfsc_node *n = nodes;
+	int i;
+
+	for (i = 0; i < count; i++) {
+		printf("%d ", n->nodeid);
+		n++;
+	}
+	printf("\n");
+}
+
+static int node_compare(const void *va, const void *vb)
+{
+	const struct gfsc_node *a = va;
+	const struct gfsc_node *b = vb;
+
+	return a->nodeid - b->nodeid;
+}
+
+#define MAX_MG 128
+#define MAX_NODES 128
+
+struct gfsc_mountgroup mgs[MAX_MG];
+struct gfsc_node nodes[MAX_NODES];
 
 static void do_list(char *name)
 {
+	struct gfsc_mountgroup *mg;
+	int node_count;
+	int mg_count;
+	int rv;
+	int i;
+
+	memset(mgs, 0, sizeof(mgs));
+
+	if (name) {
+		rv = gfsc_mountgroup_info(name, mgs);
+		if (rv < 0)
+			goto out;
+		mg_count = 1;
+	} else {
+		rv = gfsc_mountgroups(MAX_MG, &mg_count, mgs);
+		if (rv < 0)
+			goto out;
+	}
+
+	for (i = 0; i < mg_count; i++) {
+		mg = &mgs[i];
+
+		show_mg(mg);
+
+		node_count = 0;
+		memset(&nodes, 0, sizeof(nodes));
+
+		rv = gfsc_mountgroup_nodes(mg->name, GFSC_NODES_MEMBERS,
+					   MAX_NODES, &node_count, nodes);
+		if (rv < 0)
+			goto out;
+
+		qsort(nodes, node_count, sizeof(struct gfsc_node),node_compare);
+
+		printf("members ");
+		show_nodeids(node_count, nodes);
+
+		if (!mg->cg_next.seq)
+			goto show_all;
+
+		node_count = 0;
+		memset(&nodes, 0, sizeof(nodes));
+
+		rv = gfsc_mountgroup_nodes(mg->name, GFSC_NODES_NEXT,
+					   MAX_NODES, &node_count, nodes);
+		if (rv < 0)
+			goto out;
+
+		qsort(nodes, node_count, sizeof(struct gfsc_node),node_compare);
+
+		printf("new members ");
+		show_nodeids(node_count, nodes);
+
+ show_all:
+		if (!verbose)
+			continue;
+
+		node_count = 0;
+		memset(&nodes, 0, sizeof(nodes));
+
+		rv = gfsc_mountgroup_nodes(mg->name, GFSC_NODES_ALL,
+					   MAX_NODES, &node_count, nodes);
+		if (rv < 0)
+			goto out;
+
+		qsort(nodes, node_count, sizeof(struct gfsc_node),node_compare);
+
+		printf("all nodes\n");
+		show_all_nodes(node_count, nodes);
+	}
+	return;
+ out:
+	fprintf(stderr, "gfs_controld query error %d\n", rv);
+
 }
 
 static void do_plocks(char *name)

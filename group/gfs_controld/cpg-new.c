@@ -2392,38 +2392,41 @@ int setup_dlmcontrol(void)
 	return dlmcontrol_fd;
 }
 
-#if 0
-int set_mountgroup_info(struct mountgroup *mg, struct gfsc_mountgroup *mountgroup)
+int set_mountgroup_info(struct mountgroup *mg, struct gfsc_mountgroup *out)
 {
 	struct change *cg, *last = NULL;
 
-	strncpy(mountgroup->name, mg->name, GFS_LOCKSPACE_LEN);
-	mountgroup->global_id = mg->id;
+	strncpy(out->name, mg->name, GFS_MOUNTGROUP_LEN);
+	out->global_id = mg->id;
 
 	if (mg->joining)
-		mountgroup->flags |= GFSC_LF_JOINING;
+		out->flags |= GFSC_MF_JOINING;
 	if (mg->leaving)
-		mountgroup->flags |= GFSC_LF_LEAVING;
+		out->flags |= GFSC_MF_LEAVING;
 	if (mg->kernel_stopped)
-		mountgroup->flags |= GFSC_LF_KERNEL_STOPPED;
-	if (mg->fs_registered)
-		mountgroup->flags |= GFSC_LF_FS_REGISTERED;
-	if (mg->need_plocks)
-		mountgroup->flags |= GFSC_LF_NEED_PLOCKS;
-	if (mg->save_plocks)
-		mountgroup->flags |= GFSC_LF_SAVE_PLOCKS;
+		out->flags |= GFSC_MF_KERNEL_STOPPED;
+	if (mg->kernel_mount_done)
+		out->flags |= GFSC_MF_KERNEL_MOUNT_DONE;
+	if (mg->kernel_mount_error)
+		out->flags |= GFSC_MF_KERNEL_MOUNT_ERROR;
+	if (mg->first_recovery_needed)
+		out->flags |= GFSC_MF_FIRST_RECOVERY_NEEDED;
+	if (mg->first_recovery_msg)
+		out->flags |= GFSC_MF_FIRST_RECOVERY_MSG;
+	if (mg->local_recovery_busy)
+		out->flags |= GFSC_MF_LOCAL_RECOVERY_BUSY;
 
 	if (!mg->started_change)
 		goto next;
 
 	cg = mg->started_change;
 
-	mountgroup->cg_prev.member_count = cg->member_count;
-	mountgroup->cg_prev.joined_count = cg->joined_count;
-	mountgroup->cg_prev.remove_count = cg->remove_count;
-	mountgroup->cg_prev.failed_count = cg->failed_count;
-	mountgroup->cg_prev.combined_seq = cg->combined_seq;
-	mountgroup->cg_prev.seq = cg->seq;
+	out->cg_prev.member_count = cg->member_count;
+	out->cg_prev.joined_count = cg->joined_count;
+	out->cg_prev.remove_count = cg->remove_count;
+	out->cg_prev.failed_count = cg->failed_count;
+	out->cg_prev.combined_seq = cg->combined_seq;
+	out->cg_prev.seq = cg->seq;
 
  next:
 	if (list_empty(&mg->changes))
@@ -2434,24 +2437,27 @@ int set_mountgroup_info(struct mountgroup *mg, struct gfsc_mountgroup *mountgrou
 
 	cg = list_first_entry(&mg->changes, struct change, list);
 
-	mountgroup->cg_next.member_count = cg->member_count;
-	mountgroup->cg_next.joined_count = cg->joined_count;
-	mountgroup->cg_next.remove_count = cg->remove_count;
-	mountgroup->cg_next.failed_count = cg->failed_count;
-	mountgroup->cg_next.combined_seq = last->seq;
-	mountgroup->cg_next.seq = cg->seq;
+	out->cg_next.member_count = cg->member_count;
+	out->cg_next.joined_count = cg->joined_count;
+	out->cg_next.remove_count = cg->remove_count;
+	out->cg_next.failed_count = cg->failed_count;
+	out->cg_next.combined_seq = last->seq;
+	out->cg_next.seq = cg->seq;
+
+	/* FIXME: use real definitions for these conditions
+	   (also in dlm_controld) */
 
 	if (cg->state == CGST_WAIT_CONDITIONS)
-		mountgroup->cg_next.wait_condition = 4;
-	if (poll_fencing)
-		mountgroup->cg_next.wait_condition = 1;
-	else if (poll_quorum)
-		mountgroup->cg_next.wait_condition = 2;
-	else if (poll_fs)
-		mountgroup->cg_next.wait_condition = 3;
+		out->cg_next.wait_condition = 4;
+	if (!mg->kernel_mount_done)
+		out->cg_next.wait_condition = 1;
+	if (mg->dlm_notify_nodeid)
+		out->cg_next.wait_condition = 2;
+	if (poll_dlm)
+		out->cg_next.wait_condition = 3;
 
 	if (cg->state == CGST_WAIT_MESSAGES)
-		mountgroup->cg_next.wait_messages = 1;
+		out->cg_next.wait_messages = 1;
  out:
 	return 0;
 }
@@ -2481,14 +2487,18 @@ static int _set_node_info(struct mountgroup *mg, struct change *cg, int nodeid,
 	if (!n)
 		goto out;
 
-	if (n->check_fencing)
-		node->flags |= GFSC_NF_CHECK_FENCING;
-	if (n->check_quorum)
-		node->flags |= GFSC_NF_CHECK_QUORUM;
-	if (n->check_fs)
-		node->flags |= GFSC_NF_CHECK_FS;
-	if (n->fs_notified)
-		node->flags |= GFSC_NF_FS_NOTIFIED;
+	node->jid = n->jid;
+
+	if (n->kernel_mount_done)
+		node->flags |= GFSC_NF_KERNEL_MOUNT_DONE;
+	if (n->kernel_mount_error)
+		node->flags |= GFSC_NF_KERNEL_MOUNT_ERROR;
+	if (n->check_dlm)
+		node->flags |= GFSC_NF_CHECK_DLM;
+	if (n->ro)
+		node->flags |= GFSC_NF_READONLY;
+	if (n->spectator)
+		node->flags |= GFSC_NF_SPECTATOR;
 
 	node->added_seq = n->added_seq;
 	node->removed_seq = n->removed_seq;
@@ -2583,4 +2593,3 @@ int set_mountgroup_nodes(struct mountgroup *mg, int option, int *node_count,
 	*nodes_out = nodes;
 	return 0;
 }
-#endif

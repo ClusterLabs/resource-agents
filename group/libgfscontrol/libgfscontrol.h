@@ -10,12 +10,18 @@
 
 #define GFSC_DUMP_SIZE		(1024 * 1024)
 
-#define GFSC_NF_MEMBER		0x00000001 /* node is member in cg */
-#define GFSC_NF_START		0x00000002 /* start message recvd for cg */
-#define GFSC_NF_DISALLOWED	0x00000004 /* node disallowed in cg */
+#define GFSC_NF_MEMBER			0x00000001 /* node is member in cg */
+#define GFSC_NF_START			0x00000002 /* start message recvd */
+#define GFSC_NF_DISALLOWED		0x00000004 /* node disallowed in cg */
+#define GFSC_NF_KERNEL_MOUNT_DONE	0x00000008
+#define GFSC_NF_KERNEL_MOUNT_ERROR	0x00000010
+#define GFSC_NF_READONLY		0x00000010
+#define GFSC_NF_SPECTATOR		0x00000010
+#define GFSC_NF_CHECK_DLM		0x00000010
 
 struct gfsc_node {
 	int nodeid;
+	int jid;
 	uint32_t flags;
 	uint32_t added_seq;
 	uint32_t removed_seq;
@@ -33,13 +39,19 @@ struct gfsc_change {
 	uint32_t combined_seq;
 };
 
-#define GFSC_LF_JOINING		0x00000001
-#define GFSC_LF_LEAVING		0x00000002
-#define GFSC_LF_KERNEL_STOPPED	0x00000004
+#define GFSC_MF_JOINING			0x00000001
+#define GFSC_MF_LEAVING			0x00000002
+#define GFSC_MF_KERNEL_STOPPED		0x00000004
+#define GFSC_MF_KERNEL_MOUNT_DONE	0x00000004
+#define GFSC_MF_KERNEL_MOUNT_ERROR	0x00000004
+#define GFSC_MF_FIRST_RECOVERY_NEEDED	0x00000008
+#define GFSC_MF_FIRST_RECOVERY_MSG	0x00000010
+#define GFSC_MF_LOCAL_RECOVERY_BUSY	0x00000020
 
 struct gfsc_mountgroup {
 	struct gfsc_change cg_prev;	/* completed change (started_change) */
 	struct gfsc_change cg_next;	/* in-progress change (changes list) */
+	int journals_need_recovery;	/* count of jounals need_recovery */
 	uint32_t flags;
 	uint32_t global_id;
 	char name[GFS_MOUNTGROUP_LEN+1];
