@@ -2,7 +2,7 @@
 
 #define DEFAULT_MODE		LOG_MODE_OUTPUT_SYSLOG_THREADED
 #define DEFAULT_FACILITY	SYSLOGFACILITY /* cluster config setting */
-#define DEFAULT_PRIORITY	LOG_LEVEL_INFO
+#define DEFAULT_PRIORITY	SYSLOGLEVEL /* cluster config setting */
 #define DEFAULT_FILE		LOGDIR "/fenced.log"
 
 #define LEVEL_PATH "/cluster/logging/logger_subsys[@subsys=\"FENCED\"]/@syslog_level"

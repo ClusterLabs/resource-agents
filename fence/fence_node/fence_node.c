@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
 
 	logsys_init("fence_node",
 		    LOG_MODE_OUTPUT_STDERR | LOG_MODE_OUTPUT_SYSLOG_THREADED,
-		    SYSLOGFACILITY, LOG_LEVEL_NOTICE, NULL);
+		    SYSLOGFACILITY, SYSLOGLEVEL, NULL);
 
 	error = fence_node(victim);
 
