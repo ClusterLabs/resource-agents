@@ -17,6 +17,7 @@ CFLAGS += -I${dlmcontrolincdir}
 CFLAGS += -I$(S)/../../fence/libfenced
 CFLAGS += -I$(S)/../libgfscontrol
 CFLAGS += -I${incdir}
+CFLAGS += -I${KERNEL_SRC}/include/
 
 LDFLAGS += -L../lib -lgroup
 LDFLAGS += -L${dlmcontrollibdir} -ldlmcontrol

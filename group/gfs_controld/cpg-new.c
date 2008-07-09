@@ -1704,6 +1704,20 @@ static void create_new_journals(struct mountgroup *mg)
 
 		log_group(mg, "create_new_journals %d gets jid %d",
 			  node->nodeid, node->jid);
+
+		if (node->jid == JID_NONE)
+			continue;
+
+		j = malloc(sizeof(struct journal));
+		if (!j) {
+			log_error("create_new_journals no mem");
+			continue;
+		}
+		memset(j, 0, sizeof(struct journal));
+
+		j->nodeid = nodeid;
+		j->jid = node->jid;
+		list_add(&j->list, &mg->journals);
 	}
 }
 
@@ -1880,13 +1894,13 @@ void process_recovery_uevent(char *table)
 
 	if (!mg->first_recovery_needed) {
 		if (!mg->local_recovery_busy) {
-			/* we expect a recovery_done uevent for our own journal
-			   when we mount; shouldn't happen otherwise */
-
-			if (jid == mg->our_jid)
-				return;
-
-			log_error("process_recovery_uevent jid %d unexpected",
+			/* This will happen in two known situations:
+			   - we get a recovery_done uevent for our own journal
+			     when we mount  (jid == mg->our_jid)
+			   - the first mounter will read first_done and clear
+			     first_recovery_needed before seeing the change
+			     uevent from others_may_mount */
+			log_group(mg, "process_recovery_uevent jid %d ignore",
 				  jid);
 			return;
 		}

@@ -488,7 +488,7 @@ static void gfs_controld_list(void)
 		if (rv < 0 || !node_count)
 			goto do_nodeids;
 
-		qsort(nodes, node_count, sizeof(struct dlmc_node),
+		qsort(nodes, node_count, sizeof(struct gfsc_node),
 		      gfsc_node_compare);
 
  do_nodeids:
