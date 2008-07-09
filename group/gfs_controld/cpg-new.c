@@ -2593,3 +2593,4 @@ int set_mountgroup_nodes(struct mountgroup *mg, int option, int *node_count,
 	*nodes_out = nodes;
 	return 0;
 }
+

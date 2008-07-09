@@ -208,6 +208,11 @@ void process_mountgroups(void);
 int gfs_join_mountgroup(struct mountgroup *mg);
 void gfs_leave_mountgroup(char *name, int mnterr);
 void gfs_mount_done(struct mountgroup *mg);
+int set_mountgroup_info(struct mountgroup *mg, struct gfsc_mountgroup *out);
+int set_node_info(struct mountgroup *mg, int nodeid, struct gfsc_node *node);
+int set_mountgroups(int *count, struct gfsc_mountgroup **mgs_out);
+int set_mountgroup_nodes(struct mountgroup *mg, int option, int *node_count,
+	struct gfsc_node **nodes_out);
 
 /* cpg-old.c */
 int setup_cpg_old(void);
@@ -216,7 +221,7 @@ int gfs_join_mountgroup_old(struct mountgroup *mg, struct gfsc_mount_args *ma);
 void gfs_leave_mountgroup_old(char *name, int mnterr);
 int send_group_message_old(struct mountgroup *mg, int len, char *buf);
 void save_message_old(struct mountgroup *mg, char *buf, int len, int from,
-		      int type);
+	int type);
 void send_withdraw_old(struct mountgroup *mg);
 int process_recovery_uevent_old(char *table);
 void ping_kernel_mount_old(char *table);
@@ -231,6 +236,13 @@ int do_withdraw_old(char *table);
 /* group.c */
 int setup_groupd(void);
 void process_groupd(int ci);
+int set_mountgroup_info_group(struct mountgroup *mg,
+	struct gfsc_mountgroup *out);
+int set_node_info_group(struct mountgroup *mg, int nodeid,
+	struct gfsc_node *node);
+int set_mountgroups_group(int *count, struct gfsc_mountgroup **mgs_out);
+int set_mountgroup_nodes_group(struct mountgroup *mg, int option,
+	int *node_count, struct gfsc_node **nodes_out);
 
 /* main.c */
 int do_read(int fd, void *buf, size_t count);

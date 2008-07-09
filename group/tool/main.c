@@ -10,28 +10,22 @@
 #include <string.h>
 #include <errno.h>
 #include <netinet/in.h>
+#include <linux/dlmconstants.h>
 
 #include "libgroup.h"
 #include "groupd.h"
+#include "libfenced.h"
+#include "libdlmcontrol.h"
+#include "libgfscontrol.h"
 
-#define MAX_GROUPS			64
-#define OPTION_STRING			"hVv"
+#define MAX_NODES			128
+#define MAX_LS				128
+#define MAX_MG				128
+#define MAX_GROUPS			128
 
-/* copied from cluster/group/gfs_controld/lock_dlm.h */
-#define LOCK_DLM_SOCK_PATH		"gfs_controld_sock"
+#define GROUPD_DUMP_SIZE		(1024 * 1024)
 
-/* copied from cluster/fence/fenced/fd.h */
-#define FENCED_SOCK_PATH		"fenced_socket"
-
-/* needs to match the same in cluster/group/daemon/gd_internal.h and
-   cluster/group/gfs_controld/lock_dlm.h and cluster/fence/fenced/fd.h */
-#define DUMP_SIZE			(1024 * 1024)
-
-/* needs to match the same in cluster/group/gfs_controld/lock_dlm.h,
-   it's the message size that gfs_controld takes */
-#define MAXLINE				256
-
-#define OP_LS				1
+#define OP_LIST				1
 #define OP_DUMP				2
 #define OP_LOG				3
 
@@ -39,6 +33,8 @@ static char *prog_name;
 static int operation;
 static int opt_ind;
 static int verbose;
+static int all_daemons;
+
 
 static int do_write(int fd, void *buf, size_t count)
 {
@@ -101,6 +97,8 @@ static void print_usage(void)
 	printf("\n");
 }
 
+#define OPTION_STRING "ahVv"
+
 static void decode_arguments(int argc, char **argv)
 {
 	int cont = 1;
@@ -110,6 +108,10 @@ static void decode_arguments(int argc, char **argv)
 		optchar = getopt(argc, argv, OPTION_STRING);
 
 		switch (optchar) {
+		case 'a':
+			all_daemons = 1;
+			break;
+
 		case 'v':
 			verbose = 1;
 			break;
@@ -150,7 +152,7 @@ static void decode_arguments(int argc, char **argv)
 			break;
 		} else if (strcmp(argv[optind], "ls") == 0 ||
 		           strcmp(argv[optind], "list") == 0) {
-			operation = OP_LS;
+			operation = OP_LIST;
 			opt_ind = optind + 1;
 			break;
 		} else if (strcmp(argv[optind], "log") == 0) {
@@ -162,7 +164,7 @@ static void decode_arguments(int argc, char **argv)
 	}
 
 	if (!operation)
-		operation = OP_LS;
+		operation = OP_LIST;
 }
 
 /* copied from grouip/daemon/gd_internal.h, must keep in sync */
@@ -255,7 +257,7 @@ static int member_compare(const void *va, const void *vb)
 	return *a - *b;
 }
 
-int do_ls(int argc, char **argv)
+static int groupd_list(int argc, char **argv, int *total)
 {
 	group_data_t data[MAX_GROUPS];
 	int i, j, rv, count = 0, level;
@@ -278,10 +280,14 @@ int do_ls(int argc, char **argv)
 	} else
 		rv = group_get_groups(MAX_GROUPS, &count, data);
 
-	if (rv < 0) {
-		fprintf(stderr,"Unable to connect to groupd.  Is it running?\n");
+	if (rv < 0)
 		return rv;
-	}
+
+	if (!count)
+		return 0;
+
+	*total = count;
+
 	for (i = 0; i < count; i++) {
 		len = strlen(data[i].name);
 		if (len > max_name)
@@ -326,6 +332,178 @@ int do_ls(int argc, char **argv)
 	return 0;
 }
 
+static int fenced_node_compare(const void *va, const void *vb)
+{
+	const struct fenced_node *a = va;
+	const struct fenced_node *b = vb;
+
+	return a->nodeid - b->nodeid;
+}
+
+static void fenced_list(void)
+{
+	struct fenced_domain d;
+	struct fenced_node nodes[MAX_NODES];
+	struct fenced_node *np;
+	int node_count;
+	int rv, j;
+
+	rv = fenced_domain_info(&d);
+	if (rv < 0)
+		return;
+
+	printf("fence        0     %-*s %08x %d\n",
+	       16, "default", 0, d.state);
+
+	node_count = 0;
+	memset(&nodes, 0, sizeof(nodes));
+
+	rv = fenced_domain_nodes(FENCED_NODES_MEMBERS, MAX_NODES,
+				 &node_count, nodes);
+	if (rv < 0 || !node_count)
+		goto do_nodeids;
+
+	qsort(&nodes, node_count, sizeof(struct fenced_node),
+	      fenced_node_compare);
+
+ do_nodeids:
+	printf("[");
+	np = nodes;
+	for (j = 0; j < node_count; j++) {
+		if (j)
+			printf(" ");
+		printf("%d", np->nodeid);
+		np++;
+	}
+	printf("]\n");
+}
+
+static int dlmc_node_compare(const void *va, const void *vb)
+{
+	const struct dlmc_node *a = va;
+	const struct dlmc_node *b = vb;
+
+	return a->nodeid - b->nodeid;
+}
+
+static void dlm_controld_list(void)
+{
+	struct dlmc_lockspace lss[MAX_LS];
+	struct dlmc_node nodes[MAX_NODES];
+	struct dlmc_node *np;
+	struct dlmc_lockspace *ls;
+	char *name = NULL;
+	int node_count;
+	int ls_count;
+	int rv;
+	int i, j;
+
+	memset(lss, 0, sizeof(lss));
+
+	if (name) {
+		rv = dlmc_lockspace_info(name, lss);
+		if (rv < 0)
+			return;
+		ls_count = 1;
+	} else {
+		rv = dlmc_lockspaces(MAX_LS, &ls_count, lss);
+		if (rv < 0)
+			return;
+	}
+
+	for (i = 0; i < ls_count; i++) {
+		ls = &lss[i];
+
+		printf("dlm          1     %-*s %08x %x\n",
+			16, ls->name, ls->global_id, ls->flags);
+
+		node_count = 0;
+		memset(&nodes, 0, sizeof(nodes));
+
+		rv = dlmc_lockspace_nodes(ls->name, DLMC_NODES_MEMBERS,
+					  MAX_NODES, &node_count, nodes);
+		if (rv < 0 || !node_count)
+			goto do_nodeids;
+
+		qsort(nodes, node_count, sizeof(struct dlmc_node),
+		      dlmc_node_compare);
+
+ do_nodeids:
+		printf("[");
+		np = nodes;
+		for (j = 0; j < node_count; j++) {
+			if (j)
+				printf(" ");
+			printf("%d", np->nodeid);
+			np++;
+		}
+		printf("]\n");
+	}
+}
+
+static int gfsc_node_compare(const void *va, const void *vb)
+{
+	const struct gfsc_node *a = va;
+	const struct gfsc_node *b = vb;
+
+	return a->nodeid - b->nodeid;
+}
+
+static void gfs_controld_list(void)
+{
+	struct gfsc_mountgroup mgs[MAX_MG];
+	struct gfsc_node nodes[MAX_NODES];
+	struct gfsc_node *np;
+	struct gfsc_mountgroup *mg;
+	char *name = NULL;
+	int node_count;
+	int mg_count;
+	int rv;
+	int i, j;
+
+	memset(mgs, 0, sizeof(mgs));
+
+	if (name) {
+		rv = gfsc_mountgroup_info(name, mgs);
+		if (rv < 0)
+			return;
+		mg_count = 1;
+	} else {
+		rv = gfsc_mountgroups(MAX_MG, &mg_count, mgs);
+		if (rv < 0)
+			return;
+	}
+
+	for (i = 0; i < mg_count; i++) {
+		mg = &mgs[i];
+
+		printf("gfs          2     %-*s %08x %x\n",
+			16, mg->name, mg->global_id, mg->flags);
+
+		node_count = 0;
+		memset(&nodes, 0, sizeof(nodes));
+
+		rv = gfsc_mountgroup_nodes(mg->name, GFSC_NODES_MEMBERS,
+					   MAX_NODES, &node_count, nodes);
+		if (rv < 0 || !node_count)
+			goto do_nodeids;
+
+		qsort(nodes, node_count, sizeof(struct dlmc_node),
+		      gfsc_node_compare);
+
+ do_nodeids:
+		printf("[");
+		np = nodes;
+		for (j = 0; j < node_count; j++) {
+			if (j)
+				printf(" ");
+			printf("%d", np->nodeid);
+			np++;
+		}
+		printf("]\n");
+	}
+}
+
 static int connect_daemon(char *path)
 {
 	struct sockaddr_un sun;
@@ -350,92 +528,30 @@ static int connect_daemon(char *path)
 	return fd;
 }
 
-int do_dump(int argc, char **argv, int fd)
+static void groupd_dump_debug(int argc, char **argv, char *inbuf)
 {
-	char inbuf[DUMP_SIZE];
 	char outbuf[GROUPD_MSGLEN];
-	int rv;
+	int rv, fd;
 
-	memset(inbuf, 0, sizeof(inbuf));
+	fd = connect_daemon(GROUPD_SOCK_PATH);
+	if (fd < 0)
+		return;
+
 	memset(outbuf, 0, sizeof(outbuf));
-
 	sprintf(outbuf, "dump");
 
 	rv = do_write(fd, outbuf, sizeof(outbuf));
 	if (rv < 0) {
 		printf("dump write error %d errno %d\n", rv, errno);
-		return -1;
+		return;
 	}
 
 	do_read(fd, inbuf, sizeof(inbuf));
-	do_write(STDOUT_FILENO, inbuf, strlen(inbuf));
 
 	close(fd);
-	return 0;
 }
 
-int do_maxline_dump(int argc, char **argv, int fd)
-{
-	char inbuf[DUMP_SIZE];
-	char outbuf[MAXLINE];
-	int rv;
-
-	memset(inbuf, 0, sizeof(inbuf));
-	memset(outbuf, 0, sizeof(outbuf));
-
-	sprintf(outbuf, "dump");
-
-	rv = do_write(fd, outbuf, sizeof(outbuf));
-	if (rv < 0) {
-		printf("dump write error %d errno %d\n", rv, errno);
-		return -1;
-	}
-
-	do_read(fd, inbuf, sizeof(inbuf));
-	do_write(STDOUT_FILENO, inbuf, sizeof(inbuf));
-
-	close(fd);
-	return 0;
-}
-
-int do_plock_dump(int argc, char **argv, int fd)
-{
-	char inbuf[MAXLINE];
-	char outbuf[MAXLINE];
-	int rv;
-
-	memset(outbuf, 0, sizeof(outbuf));
-
-	if (opt_ind + 1 >= argc) {
-		printf("plocks option requires a group name\n");
-		return -1;
-	}
-
-	sprintf(outbuf, "plocks %s", argv[opt_ind + 1]);
-
-	rv = do_write(fd, outbuf, sizeof(outbuf));
-	if (rv < 0) {
-		printf("dump write error %d errno %d\n", rv, errno);
-		return -1;
-	}
-
-	while (1) {
-		memset(&inbuf, 0, sizeof(inbuf));
-		rv = read(fd, inbuf, sizeof(inbuf));
-		if (rv <= 0)
-			break;
-		rv = write(STDOUT_FILENO, inbuf, rv);
-		if (rv < 0) {
-			printf("dump write error %d errno %d\n", rv, errno);
-			return  -1;
-		}
-	}
-
-	close(fd);
-	return 0;
-}
-
-int do_log(char *comment)
+static int do_log(char *comment)
 {
 	char buf[GROUPD_MSGLEN];
 	int fd, rv;
@@ -452,43 +568,99 @@ int do_log(char *comment)
 
 int main(int argc, char **argv)
 {
-	int fd;
+	int total = 0;
 
 	prog_name = argv[0];
 	decode_arguments(argc, argv);
 
 	switch (operation) {
-	case OP_LS:
-		return do_ls(argc, argv);
+	case OP_LIST:
+		if (all_daemons) {
+			if (verbose) {
+				system("fence_tool ls -v");
+				system("dlm_tool ls -v");
+				system("gfs_control ls -v");
+			} else {
+				system("fence_tool ls");
+				system("dlm_tool ls");
+				system("gfs_control ls");
+			}
+			break;
+		}
+
+		/* If no groupd or no groups found in groupd, then try
+		   the querying the daemons.  Print any data from the
+		   new daemons in a format similar to the old format. */
+
+		groupd_list(argc, argv, &total);
+		if (total)
+			break;
+
+		printf("type         level name             id       state\n");
+		fenced_list();
+		dlm_controld_list();
+		gfs_controld_list();
+		break;
 
 	case OP_DUMP:
 		if (opt_ind && opt_ind < argc) {
 			if (!strncmp(argv[opt_ind], "gfs", 3)) {
-				fd = connect_daemon(LOCK_DLM_SOCK_PATH);
-				if (fd < 0)
-					return -1;
-				return do_maxline_dump(argc, argv, fd);
+				char gbuf[GFSC_DUMP_SIZE];
+
+				memset(gbuf, 0, sizeof(gbuf));
+
+				printf("dump gfs\n");
+				gfsc_dump_debug(gbuf);
+
+				do_write(STDOUT_FILENO, gbuf, strlen(gbuf));
+			}
+
+			if (!strncmp(argv[opt_ind], "dlm", 3)) {
+				char dbuf[DLMC_DUMP_SIZE];
+
+				memset(dbuf, 0, sizeof(dbuf));
+
+				printf("dump dlm\n");
+				dlmc_dump_debug(dbuf);
+
+				do_write(STDOUT_FILENO, dbuf, strlen(dbuf));
 			}
 
 			if (!strncmp(argv[opt_ind], "fence", 5)) {
-				fd = connect_daemon(FENCED_SOCK_PATH);
-				if (fd < 0)
-					return -1;
-				return do_maxline_dump(argc, argv, fd);
+				char fbuf[FENCED_DUMP_SIZE];
+
+				memset(fbuf, 0, sizeof(fbuf));
+
+				fenced_dump_debug(fbuf);
+
+				do_write(STDOUT_FILENO, fbuf, strlen(fbuf));
 			}
 
-			if (!strncmp(argv[opt_ind], "plocks", 5)) {
-				fd = connect_daemon(LOCK_DLM_SOCK_PATH);
-				if (fd < 0)
+			if (!strncmp(argv[opt_ind], "plocks", 6)) {
+				char pbuf[DLMC_DUMP_SIZE];
+
+				if (opt_ind + 1 >= argc) {
+					printf("plock dump requires name\n");
 					return -1;
-				return do_plock_dump(argc, argv, fd);
+				}
+
+				memset(pbuf, 0, sizeof(pbuf));
+
+				dlmc_dump_plocks(argv[opt_ind + 1], pbuf);
+
+				do_write(STDOUT_FILENO, pbuf, strlen(pbuf));
 			}
+		} else {
+			char rbuf[GROUPD_DUMP_SIZE];
+
+			memset(rbuf, 0, sizeof(rbuf));
+
+			groupd_dump_debug(argc, argv, rbuf);
+
+			do_write(STDOUT_FILENO, rbuf, strlen(rbuf));
 		}
 
-		fd = connect_daemon(GROUPD_SOCK_PATH);
-		if (fd < 0)
-			break;
-		return do_dump(argc, argv, fd);
+		break;
 
 	case OP_LOG:
 		if (opt_ind && opt_ind < argc) {

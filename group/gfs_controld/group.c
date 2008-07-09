@@ -175,3 +175,24 @@ int setup_groupd(void)
 	return rv;
 }
 
+int set_mountgroup_info_group(struct mountgroup *mg, struct gfsc_mountgroup *out)
+{
+	return 0;
+}
+
+int set_node_info_group(struct mountgroup *mg, int nodeid, struct gfsc_node *node)
+{
+	return 0;
+}
+
+int set_mountgroups_group(int *count, struct gfsc_mountgroup **mgs_out)
+{
+	return 0;
+}
+
+int set_mountgroup_nodes_group(struct mountgroup *mg, int option, int *node_count,
+			       struct gfsc_node **nodes_out)
+{
+	return 0;
+}
+

@@ -443,6 +443,122 @@ static void do_reply(int fd, int cmd, char *name, int result, void *buf,
 	free(reply);
 }
 
+static void query_mountgroup_info(int fd, char *name)
+{
+	struct mountgroup *mg;
+	struct gfsc_mountgroup mountgroup;
+	int rv;
+
+	mg = find_mg(name);
+	if (!mg) {
+		rv = -ENOENT;
+		goto out;
+	}
+
+	if (group_mode == GROUP_LIBGROUP)
+		rv = set_mountgroup_info_group(mg, &mountgroup);
+	else
+		rv = set_mountgroup_info(mg, &mountgroup);
+ out:
+	do_reply(fd, GFSC_CMD_MOUNTGROUP_INFO, name, rv,
+		 (char *)&mountgroup, sizeof(mountgroup));
+}
+
+static void query_node_info(int fd, char *name, int nodeid)
+{
+	struct mountgroup *mg;
+	struct gfsc_node node;
+	int rv;
+
+	mg = find_mg(name);
+	if (!mg) {
+		rv = -ENOENT;
+		goto out;
+	}
+
+	if (group_mode == GROUP_LIBGROUP)
+		rv = set_node_info_group(mg, nodeid, &node);
+	else
+		rv = set_node_info(mg, nodeid, &node);
+ out:
+	do_reply(fd, GFSC_CMD_NODE_INFO, name, rv,
+		 (char *)&node, sizeof(node));
+}
+
+static void query_mountgroups(int fd, int max)
+{
+	int mg_count = 0;
+	struct gfsc_mountgroup *mgs = NULL;
+	int rv, result;
+
+	if (group_mode == GROUP_LIBGROUP)
+		rv = set_mountgroups_group(&mg_count, &mgs);
+	else
+		rv = set_mountgroups(&mg_count, &mgs);
+
+	if (rv < 0) {
+		result = rv;
+		mg_count = 0;
+		goto out;
+	}
+
+	if (mg_count > max) {
+		result = -E2BIG;
+		mg_count = max;
+	} else {
+		result = mg_count;
+	}
+ out:
+	do_reply(fd, GFSC_CMD_MOUNTGROUPS, NULL, result,
+		 (char *)mgs, mg_count * sizeof(struct gfsc_mountgroup));
+
+	if (mgs)
+		free(mgs);
+}
+
+static void query_mountgroup_nodes(int fd, char *name, int option, int max)
+{
+	struct mountgroup *mg;
+	int node_count = 0;
+	struct gfsc_node *nodes = NULL;
+	int rv, result;
+
+	mg = find_mg(name);
+	if (!mg) {
+		result = -ENOENT;
+		node_count = 0;
+		goto out;
+	}
+
+	if (group_mode == GROUP_LIBGROUP)
+		rv = set_mountgroup_nodes_group(mg, option, &node_count, &nodes);
+	else
+		rv = set_mountgroup_nodes(mg, option, &node_count, &nodes);
+
+	if (rv < 0) {
+		result = rv;
+		node_count = 0;
+		goto out;
+	}
+
+	/* node_count is the number of structs copied/returned; the caller's
+	   max may be less than that, in which case we copy as many as they
+	   asked for and return -E2BIG */
+
+	if (node_count > max) {
+		result = -E2BIG;
+		node_count = max;
+	} else {
+		result = node_count;
+	}
+ out:
+	do_reply(fd, GFSC_CMD_MOUNTGROUP_NODES, name, result,
+		 (char *)nodes, node_count * sizeof(struct gfsc_node));
+
+	if (nodes)
+		free(nodes);
+}
+
 void client_reply_remount(struct mountgroup *mg, int result)
 {
 	struct gfsc_mount_args *ma = &mg->mount_args;
@@ -726,6 +842,7 @@ void process_connection(int ci)
 		if (group_mode == GROUP_LIBGROUP)
 			remount_mountgroup_old(ci, ma);
 #if 0
+		/* FIXME */
 		else
 			remount_mountgroup(ci, ma);
 #endif
@@ -837,6 +954,18 @@ static void *process_queries(void *arg)
 			break;
 		case GFSC_CMD_DUMP_PLOCKS:
 			query_dump_plocks(f, h.name);
+			break;
+		case GFSC_CMD_MOUNTGROUP_INFO:
+			query_mountgroup_info(f, h.name);
+			break;
+		case GFSC_CMD_NODE_INFO:
+			query_node_info(f, h.name, h.data);
+			break;
+		case GFSC_CMD_MOUNTGROUPS:
+			query_mountgroups(f, h.data);
+			break;
+		case GFSC_CMD_MOUNTGROUP_NODES:
+			query_mountgroup_nodes(f, h.name, h.option, h.data);
 			break;
 		default:
 			break;

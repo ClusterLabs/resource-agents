@@ -7,8 +7,8 @@
 /* should match the same in fd.h */
 #define MAX_NODENAME_LEN		255
 
-#define FENCED_SOCK_PATH		"fenced_socket"
-#define FENCED_QUERY_SOCK_PATH		"fenced_query_socket"
+#define FENCED_SOCK_PATH		"fenced_sock"
+#define FENCED_QUERY_SOCK_PATH		"fenced_query_sock"
 
 #define FENCED_MAGIC			0x0FE11CED
 #define FENCED_VERSION			0x00010001
