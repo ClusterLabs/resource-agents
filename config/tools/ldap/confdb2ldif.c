@@ -167,7 +167,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "     %s dc=mycompany,dc=com\n", argv[0]);
 		fprintf(stderr, "     %s dc=mycompany,dc=com rhcluster\n", argv[0]);
 		fprintf(stderr, "\n");
-		fprintf(stderr, "objdb root defaults to 'cn=cluster'\n");
+		fprintf(stderr, "objdb root defaults to 'cluster'\n");
 		fprintf(stderr, "\n");
 		return 0;
 	}
@@ -190,7 +190,7 @@ int main(int argc, char *argv[])
 		exit (1);
 	}
 
-	result = confdb_object_find(handle, OBJECT_PARENT_HANDLE, "cluster", strlen("cluster"), &cluster_handle);
+	result = confdb_object_find(handle, OBJECT_PARENT_HANDLE, clusterroot, strlen(clusterroot), &cluster_handle);
 	if (result != SA_AIS_OK) {
 		printf ("Could not object_find \"cluster\": %d\n", result);
 		exit (1);

@@ -1,0 +1,64 @@
+.TH confdb2ldif 8
+
+.SH NAME
+confdb2ldif - Create an LDIF file from a cluster configuration
+
+.SH SYNOPSIS
+.B confdb2ldap <basedn> [<config object base>]
+
+.SH DESCRIPTION
+\fBconfdb2ldif\fP reads the cluster configuration from the openais object database
+and generates an LDIF file suitable for importing into an LDAP database. The LDIF
+file is written to standard output.
+
+.SH OPTIONS
+.TP
+\fB<basedn>\fP
+This is the base DN of the LDAP server into which the configuration will be imported.
+confdb2ldif will create a "cn=cluster" object below this to contain the cluster configuration.
+The base DN is usually derived from the host's domain name. So if the host is ldapsrv.mycorp.com
+then the base DN could be dc=mycorp,dc=com.
+.TP
+\fB[<config object base>]\fP
+Configuration object in the objdb to start from. This defaults to "cluster" and 
+there should rarely be any need to change it.
+
+.SH COMMENTS
+\fBconfdb2ldif\fP uses the openais libconfdb to read the configuration. The default way to
+do this is run against a running aisexec to read the live configuration. 
+It is possible to generate an LDIF file from a non-running system by using the standalone feature of openais's libconfdb.
+.br
+eg to read the configuration from /etc/cluster/cluster.conf, use the following command:
+
+.nf
+OPENAIS_DEFAULT_CONFIG_IFACE=xmlconfig:cmanpreconfig confdb2ldif dc=mycompany,dc=com
+.fi
+
+or to do it from CCS
+
+.nf
+OPENAIS_DEFAULT_CONFIG_IFACE=ccsconfig:cmanpreconfig confdb2ldif dc=mycompany,dc=com
+.fi
+
+The LDIF file is written to stdout and so can be saved or piped straight into ldapmodify if required.
+.br
+.br
+It's important that the 99cluster.ldif schema file has been loaded into the LDAP server
+before adding the contents of this generated LDIF file.
+
+.SH EXAMPLE
+
+.nf
+confdb2ldif dc=mycorp,dc=com | ldapmodify -x -a -D"cn=Directory Manager" -c -v -W
+.fi
+
+.SH BUGS
+\fBconfdb2ldif\fP parses the cluster configuration without checking it against the loaded
+schema. So if there are attributes in the config file that are not known to the schema, 
+parts of the load will fail. It is important to check the results of feeding the
+output into ldapmodify. In particular aisexec logging operations will not convert
+into LDIF because they rely on duplicate keys.
+
+
+.SH SEE ALSO
+libconfdb(3), openais(8), cluster.conf(5)
