@@ -17,7 +17,7 @@
 #include <sys/un.h>
 
 #include <openais/saAis.h>
-#include <openais/service/confdb.h>
+#include <openais/confdb.h>
 
 confdb_callbacks_t callbacks = {
 	.confdb_change_notify_fn = NULL,
