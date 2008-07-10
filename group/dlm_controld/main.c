@@ -786,19 +786,21 @@ static int setup_queries(void)
 	return 0;
 }
 
-static void cluster_dead(int ci)
+void cluster_dead(int ci)
 {
 	log_error("cluster is down, exiting");
-	clear_configfs();
-	exit(1);
+	daemon_quit = 1;
 }
 
-static int loop(void)
+static void loop(void)
 {
 	int poll_timeout = -1;
 	int rv, i;
 	void (*workfn) (int ci);
 	void (*deadfn) (int ci);
+
+	/* FIXME: add code that looks for uncontrolled instances of
+	   dlm lockspaces in the kernel */
 
 	rv = setup_queries();
 	if (rv < 0)
@@ -809,15 +811,23 @@ static int loop(void)
 		goto out;
 	client_add(rv, process_listener, NULL);
 
-	rv = setup_uevent();
-	if (rv < 0)
-		goto out;
-	client_add(rv, process_uevent, NULL);
-
 	rv = setup_cman();
 	if (rv < 0)
 		goto out;
 	client_add(rv, process_cman, cluster_dead);
+
+	rv = setup_ccs();
+	if (rv < 0)
+		goto out;
+
+	rv = setup_configfs();
+	if (rv < 0)
+		goto out;
+
+	rv = setup_uevent();
+	if (rv < 0)
+		goto out;
+	client_add(rv, process_uevent, NULL);
 
 	group_mode = GROUP_LIBCPG;
 
@@ -880,10 +890,8 @@ static int loop(void)
 	for (;;) {
 		rv = poll(pollfd, client_maxi + 1, poll_timeout);
 		if (rv == -1 && errno == EINTR) {
-			if (daemon_quit && list_empty(&lockspaces)) {
-				clear_configfs();
-				exit(1);
-			}
+			if (daemon_quit && list_empty(&lockspaces))
+				goto out;
 			daemon_quit = 0;
 			continue;
 		}
@@ -907,6 +915,10 @@ static int loop(void)
 				deadfn(i);
 			}
 		}
+		query_unlock();
+
+		if (daemon_quit)
+			break;
 
 		poll_timeout = -1;
 
@@ -922,13 +934,16 @@ static int loop(void)
 			}
 			poll_timeout = 1000;
 		}
-
-		query_unlock();
 	}
-	rv = 0;
  out:
-	free(pollfd);
-	return rv;
+	if (cfgd_groupd_compat)
+		close_groupd();
+	clear_configfs();
+	close_ccs();
+	close_cman();
+
+	if (!list_empty(&lockspaces))
+		log_error("lockspaces abandoned");
 }
 
 static void lockfile(void)
@@ -1167,24 +1182,12 @@ int main(int argc, char **argv)
 	openlog("dlm_controld", LOG_PID, LOG_DAEMON);
 	signal(SIGTERM, sigterm_handler);
 
-	read_ccs();
-
-	clear_configfs();
-
-	/* the kernel has its own defaults for these values which we
-	   don't want to change unless these have been set; -1 means
-	   they have not been set on command line or config file */
-	if (cfgk_debug != -1)
-		set_configfs_debug(cfgk_debug);
-	if (cfgk_timewarn != -1)
-		set_configfs_timewarn(cfgk_timewarn);
-	if (cfgk_protocol != -1)
-		set_configfs_protocol(cfgk_protocol);
-
 	set_scheduler();
 	set_oom_adj(-16);
 
-	return loop();
+	loop();
+
+	return 0;
 }
 
 void daemon_dump_save(void)

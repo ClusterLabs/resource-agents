@@ -194,12 +194,15 @@ int set_sysfs_event_done(char *name, int val);
 int set_sysfs_id(char *name, uint32_t id);
 int set_configfs_members(char *name, int new_count, int *new_members,
 			int renew_count, int *renew_members);
-void clear_configfs(void);
 int add_configfs_node(int nodeid, char *addr, int addrlen, int local);
 void del_configfs_node(int nodeid);
-int set_configfs_protocol(int proto);
-int set_configfs_timewarn(int cs);
-int set_configfs_debug(int val);
+void clear_configfs(void);
+int setup_configfs(void);
+
+/* config.c */
+int get_weight(int nodeid, char *lockspace);
+int setup_ccs(void);
+void close_ccs(void);
 
 /* cpg.c */
 int setup_cpg(void);
@@ -236,9 +239,11 @@ void client_back(int ci, int fd);
 struct lockspace *find_ls(char *name);
 struct lockspace *find_ls_id(uint32_t id);
 char *dlm_mode_str(int mode);
+void cluster_dead(int ci);
 
 /* member_cman.c */
 int setup_cman(void);
+void close_cman(void);
 void process_cman(int ci);
 void cman_statechange(void);
 int is_cman_member(int nodeid);
@@ -265,6 +270,7 @@ int fill_plock_dump_buf(struct lockspace *ls);
 
 /* group.c */
 int setup_groupd(void);
+void close_groupd(void);
 void process_groupd(int ci);
 int dlm_join_lockspace_group(struct lockspace *ls);
 int dlm_leave_lockspace_group(struct lockspace *ls);

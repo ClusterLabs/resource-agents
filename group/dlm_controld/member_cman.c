@@ -118,7 +118,7 @@ static void statechange(void)
 	}
 }
 
-static void member_callback(cman_handle_t h, void *private, int reason, int arg)
+static void cman_callback(cman_handle_t h, void *private, int reason, int arg)
 {
 	switch (reason) {
 	case CMAN_REASON_TRY_SHUTDOWN:
@@ -140,27 +140,40 @@ void process_cman(int ci)
 	int rv;
 
 	rv = cman_dispatch(ch, CMAN_DISPATCH_ALL);
-	if (rv == -1 && errno == EHOSTDOWN) {
-		/* do we want to try to forcibly clean some stuff up
-		   in the kernel here? */
-		log_error("cluster is down, exiting");
-		clear_configfs();
-		exit(1);
-	}
+	if (rv == -1 && errno == EHOSTDOWN)
+		cluster_dead(0);
 }
 
 int setup_cman(void)
 {
 	cman_node_t node;
 	int rv, fd;
+	int init = 0, active = 0;
 
+ retry_init:
 	ch = cman_init(NULL);
 	if (!ch) {
-		log_error("cman_init error %p %d", ch, errno);
+		if (init++ < 2) {
+			sleep(1);
+			goto retry_init;
+		}
+		log_error("cman_init error %d", errno);
 		return -ENOTCONN;
 	}
 
-	rv = cman_start_notification(ch, member_callback);
+ retry_active:
+	rv = cman_is_active(ch);
+	if (!rv) {
+		if (active++ < 2) {
+			sleep(1);
+			goto retry_active;
+		}
+		log_error("cman_is_active error %d", errno);
+		cman_finish(ch);
+		return -ENOTCONN;
+	}
+
+	rv = cman_start_notification(ch, cman_callback);
 	if (rv < 0) {
 		log_error("cman_start_notification error %d %d", rv, errno);
 		cman_finish(ch);
@@ -190,6 +203,11 @@ int setup_cman(void)
 	statechange();
  out:
 	return fd;
+}
+
+void close_cman(void)
+{
+	cman_finish(ch);
 }
 
 /* Force re-read of cman nodes */

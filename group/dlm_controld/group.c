@@ -228,6 +228,11 @@ int setup_groupd(void)
 	return rv;
 }
 
+void close_groupd(void)
+{
+	group_exit(gh);
+}
+
 /* FIXME: most of the query info doesn't apply in the LIBGROUP mode,
    but we can emulate some basic parts of it */
 

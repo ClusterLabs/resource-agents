@@ -997,10 +997,10 @@ static int setup_queries(void)
 	return 0;
 }
 
-static void cluster_dead(int ci)
+void cluster_dead(int ci)
 {
 	log_error("cluster is down, exiting");
-	exit(1);
+	daemon_quit = 1;
 }
 
 static void dead_dlmcontrol(int ci)
@@ -1008,7 +1008,7 @@ static void dead_dlmcontrol(int ci)
 	log_error("dlm_controld poll error %x", pollfd[ci].revents);
 }
 
-static int loop(void)
+static void loop(void)
 {
 	int poll_timeout = -1;
 	int rv, i;
@@ -1027,15 +1027,19 @@ static int loop(void)
 		goto out;
 	client_add(rv, process_listener, NULL);
 
-	rv = setup_uevent();
-	if (rv < 0)
-		goto out;
-	client_add(rv, process_uevent, NULL);
-
 	rv = setup_cman();
 	if (rv < 0)
 		goto out;
 	client_add(rv, process_cman, cluster_dead);
+
+	rv = setup_ccs();
+	if (rv < 0)
+		goto out;
+
+	rv = setup_uevent();
+	if (rv < 0)
+		goto out;
+	client_add(rv, process_uevent, NULL);
 
 	group_mode = GROUP_LIBCPG;
 
@@ -1092,9 +1096,8 @@ static int loop(void)
 	for (;;) {
 		rv = poll(pollfd, client_maxi + 1, poll_timeout);
 		if (rv == -1 && errno == EINTR) {
-			if (daemon_quit && list_empty(&mountgroups)) {
-				exit(1);
-			}
+			if (daemon_quit && list_empty(&mountgroups))
+				goto out;
 			daemon_quit = 0;
 			continue;
 		}
@@ -1118,6 +1121,9 @@ static int loop(void)
 				deadfn(i);
 			}
 		}
+
+		if (daemon_quit)
+			break;
 
 		poll_timeout = -1;
 
@@ -1149,9 +1155,14 @@ static int loop(void)
 
 		query_unlock();
 	}
-	rv = 0;
  out:
-	return rv;
+	if (cfgd_groupd_compat)
+		close_groupd();
+	close_ccs();
+	close_cman();
+
+	if (!list_empty(&mountgroups))
+		log_error("mountgroups abandoned");
 }
 
 static void lockfile(void)
@@ -1367,12 +1378,12 @@ int main(int argc, char **argv)
 	openlog("gfs_controld", LOG_PID, LOG_DAEMON);
 	signal(SIGTERM, sigterm_handler);
 
-	read_ccs();
-
 	set_scheduler();
 	set_oom_adj(-16);
 
-	return loop();
+	loop();
+
+	return 0;
 }
 
 void daemon_dump_save(void)

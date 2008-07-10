@@ -175,6 +175,11 @@ int setup_groupd(void)
 	return rv;
 }
 
+void close_groupd(void)
+{
+	group_exit(gh);
+}
+
 int set_mountgroup_info_group(struct mountgroup *mg, struct gfsc_mountgroup *out)
 {
 	return 0;

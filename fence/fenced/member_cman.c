@@ -134,10 +134,8 @@ void process_cman(int ci)
 	int rv;
 
 	rv = cman_dispatch(ch, CMAN_DISPATCH_ALL);
-	if (rv == -1 && errno == EHOSTDOWN) {
-		log_error("cluster is down, exiting");
-		exit(1);
-	}
+	if (rv == -1 && errno == EHOSTDOWN)
+		cluster_dead(0);
 }
 
 int setup_cman(void)

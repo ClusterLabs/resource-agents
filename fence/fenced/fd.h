@@ -262,6 +262,7 @@ void free_fd(struct fd *fd);
 struct fd *find_fd(char *name);
 void query_lock(void);
 void query_unlock(void);
+void cluster_dead(int ci);
 
 /* member_cman.c */
 

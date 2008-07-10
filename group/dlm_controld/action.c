@@ -253,7 +253,7 @@ int set_configfs_members(char *name, int new_count, int *new_members,
 {
 	char path[PATH_MAX];
 	char buf[32];
-	int i, w, fd, rv, id, cd = 0, old_count, *old_members;
+	int i, w, fd, rv, id, old_count, *old_members;
 	int do_renew;
 
 	/*
@@ -378,10 +378,7 @@ int set_configfs_members(char *name, int new_count, int *new_members,
 		 * set node's weight
 		 */
 
-		if (!cd)
-			cd = open_ccs();
-
-		w = get_weight(cd, id, name);
+		w = get_weight(id, name);
 
 		memset(path, 0, PATH_MAX);
 		snprintf(path, PATH_MAX, "%s/%s/nodes/%d/weight",
@@ -407,8 +404,6 @@ int set_configfs_members(char *name, int new_count, int *new_members,
 
 	rv = 0;
  out:
-	if (cd)
-		close_ccs(cd);
 	return rv;
 }
 
@@ -554,13 +549,6 @@ static void clear_configfs_spaces(void)
 	closedir(d);
 }
 
-void clear_configfs(void)
-{
-	clear_configfs_comms();
-	clear_configfs_spaces();
-	rmdir("/sys/kernel/config/dlm/cluster");
-}
-
 static int add_configfs_base(void)
 {
 	int rv = 0;
@@ -590,10 +578,6 @@ int add_configfs_node(int nodeid, char *addr, int addrlen, int local)
 
 	log_debug("set_configfs_node %d %s local %d",
 		  nodeid, str_ip(addr), local);
-
-	rv = add_configfs_base();
-	if (rv < 0)
-		return rv;
 
 	/*
 	 * create comm dir for this node
@@ -696,15 +680,11 @@ void del_configfs_node(int nodeid)
 		log_error("%s: rmdir failed: %d", path, errno);
 }
 
-int set_configfs_protocol(int proto)
+static int set_configfs_protocol(int proto)
 {
 	char path[PATH_MAX];
 	char buf[32];
 	int fd, rv;
-
-	rv = add_configfs_base();
-	if (rv < 0)
-		return rv;
 
 	memset(path, 0, PATH_MAX);
 	snprintf(path, PATH_MAX, "%s/protocol", CLUSTER_DIR);
@@ -728,15 +708,11 @@ int set_configfs_protocol(int proto)
 	return 0;
 }
 
-int set_configfs_timewarn(int cs)
+static int set_configfs_timewarn(int cs)
 {
 	char path[PATH_MAX];
 	char buf[32];
 	int fd, rv;
-
-	rv = add_configfs_base();
-	if (rv < 0)
-		return rv;
 
 	memset(path, 0, PATH_MAX);
 	snprintf(path, PATH_MAX, "%s/timewarn_cs", CLUSTER_DIR);
@@ -760,15 +736,11 @@ int set_configfs_timewarn(int cs)
 	return 0;
 }
 
-int set_configfs_debug(int val)
+static int set_configfs_debug(int val)
 {
 	char path[PATH_MAX];
 	char buf[32];
 	int fd, rv;
-
-	rv = add_configfs_base();
-	if (rv < 0)
-		return rv;
 
 	memset(path, 0, PATH_MAX);
 	snprintf(path, PATH_MAX, "%s/log_debug", CLUSTER_DIR);
@@ -789,6 +761,37 @@ int set_configfs_debug(int val)
 	}
 	close(fd);
 	log_debug("set log_debug %d", val);
+	return 0;
+}
+
+void clear_configfs(void)
+{
+	clear_configfs_comms();
+	clear_configfs_spaces();
+	rmdir("/sys/kernel/config/dlm/cluster");
+}
+
+int setup_configfs(void)
+{
+	int rv;
+
+	clear_configfs();
+
+	rv = add_configfs_base();
+	if (rv < 0)
+		return rv;
+
+	/* the kernel has its own defaults for these values which we
+	   don't want to change unless these have been set; -1 means
+	   they have not been set on command line or config file */
+
+	if (cfgk_debug != -1)
+		set_configfs_debug(cfgk_debug);
+	if (cfgk_timewarn != -1)
+		set_configfs_timewarn(cfgk_timewarn);
+	if (cfgk_protocol != -1)
+		set_configfs_protocol(cfgk_protocol);
+
 	return 0;
 }
 

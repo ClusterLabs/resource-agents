@@ -196,7 +196,8 @@ struct mountgroup {
 #define LM_RD_SUCCESS 309
 
 /* config.c */
-void read_ccs(void);
+int setup_ccs(void);
+void close_ccs(void);
 void read_ccs_nodir(struct mountgroup *mg, char *buf);
 
 /* cpg-new.c */
@@ -235,6 +236,7 @@ int do_withdraw_old(char *table);
 
 /* group.c */
 int setup_groupd(void);
+void close_groupd(void);
 void process_groupd(int ci);
 int set_mountgroup_info_group(struct mountgroup *mg,
 	struct gfsc_mountgroup *out);
@@ -261,9 +263,11 @@ void client_reply_join_full(struct mountgroup *mg, int result);
 void query_lock(void);
 void query_unlock(void);
 void process_connection(int ci);
+void cluster_dead(int ci);
 
 /* member_cman.c */
 int setup_cman(void);
+void close_cman(void);
 void process_cman(int ci);
 
 /* plock.c */

@@ -28,6 +28,8 @@
 #define PROTO_TCP  1
 #define PROTO_SCTP 2
 
+static int ccs_handle;
+
 /* was a config value set on command line?, 0 or 1.
    optk is a kernel option, optd is a daemon option */
 
@@ -64,7 +66,6 @@ int cfgd_drop_resources_time	= DEFAULT_DROP_RESOURCES_TIME;
 int cfgd_drop_resources_count	= DEFAULT_DROP_RESOURCES_COUNT;
 int cfgd_drop_resources_age	= DEFAULT_DROP_RESOURCES_AGE;
 
-
 /* when not set in cluster.conf, a node's default weight is 1 */
 
 #define MASTER_PATH "/cluster/dlm/lockspace[@name=\"%s\"]/master"
@@ -74,7 +75,7 @@ int cfgd_drop_resources_age	= DEFAULT_DROP_RESOURCES_AGE;
 
 /* look for node's weight in the dlm/lockspace section */
 
-static int get_weight_lockspace(int cd, char *node, char *lockspace)
+static int get_weight_lockspace(char *node, char *lockspace)
 {
 	char path[PATH_MAX], *str;
 	int error, weight;
@@ -84,7 +85,7 @@ static int get_weight_lockspace(int cd, char *node, char *lockspace)
 	sprintf(path, MASTER_NAME, lockspace);
 
 	while (1) {
-		error = ccs_get_list(cd, path, &str);
+		error = ccs_get_list(ccs_handle, path, &str);
 		if (error || !str)
 			break;
 		master_count++;
@@ -108,7 +109,7 @@ static int get_weight_lockspace(int cd, char *node, char *lockspace)
 	memset(path, 0, PATH_MAX);
 	sprintf(path, MASTER_WEIGHT, lockspace, node);
 
-	error = ccs_get(cd, path, &str);
+	error = ccs_get(ccs_handle, path, &str);
 	if (error || !str)
 		return 1;
 
@@ -119,7 +120,7 @@ static int get_weight_lockspace(int cd, char *node, char *lockspace)
 
 /* look for node's weight on its clusternode line */
 
-static int get_weight_clusternode(int cd, char *node, char *lockspace)
+static int get_weight_clusternode(char *node, char *lockspace)
 {
 	char path[PATH_MAX], *str;
 	int error, weight;
@@ -127,7 +128,7 @@ static int get_weight_clusternode(int cd, char *node, char *lockspace)
 	memset(path, 0, PATH_MAX);
 	sprintf(path, WEIGHT_PATH, node);
 
-	error = ccs_get(cd, path, &str);
+	error = ccs_get(ccs_handle, path, &str);
 	if (error || !str)
 		return -1;
 
@@ -136,7 +137,7 @@ static int get_weight_clusternode(int cd, char *node, char *lockspace)
 	return weight;
 }
 
-int get_weight(int cd, int nodeid, char *lockspace)
+int get_weight(int nodeid, char *lockspace)
 {
 	char *node;
 	int w;
@@ -148,11 +149,11 @@ int get_weight(int cd, int nodeid, char *lockspace)
 		goto out;
 	}
 
-	w = get_weight_lockspace(cd, node, lockspace);
+	w = get_weight_lockspace(node, lockspace);
 	if (w >= 0)
 		goto out;
 
-	w = get_weight_clusternode(cd, node, lockspace);
+	w = get_weight_clusternode(node, lockspace);
 	if (w >= 0)
 		goto out;
 
@@ -162,31 +163,13 @@ int get_weight(int cd, int nodeid, char *lockspace)
 	return w;
 }
 
-int open_ccs(void)
-{
-	int i = 0, cd;
-
-	while ((cd = ccs_connect()) < 0) {
-		sleep(1);
-		if (++i > 9 && !(i % 10))
-			log_error("connect to ccs error %d, "
-				  "check ccsd or cluster status", cd);
-	}
-	return cd;
-}
-
-void close_ccs(int cd)
-{
-	ccs_disconnect(cd);
-}
-
-static void read_ccs_int(int cd, char *path, int *config_val)
+static void read_ccs_int(char *path, int *config_val)
 {
 	char *str;
 	int val;
 	int error;
 
-	error = ccs_get(cd, path, &str);
+	error = ccs_get(ccs_handle, path, &str);
 	if (error || !str)
 		return;
 
@@ -202,13 +185,13 @@ static void read_ccs_int(int cd, char *path, int *config_val)
 	free(str);
 }
 
-static void read_ccs_protocol(int cd, char *path, int *config_val)
+static void read_ccs_protocol(char *path, int *config_val)
 {
 	char *str;
 	int val;
 	int error;
 
-	error = ccs_get(cd, path, &str);
+	error = ccs_get(ccs_handle, path, &str);
 	if (error || !str)
 		return;
 
@@ -241,46 +224,56 @@ static void read_ccs_protocol(int cd, char *path, int *config_val)
 #define DROP_RESOURCES_COUNT_PATH "/cluster/dlm/@drop_resources_count"
 #define DROP_RESOURCES_AGE_PATH "/cluster/dlm/@drop_resources_age"
 
-/* These config values are set from cluster.conf only if they haven't already
-   been set on the command line. */
-
-void read_ccs(void)
+int setup_ccs(void)
 {
-	int cd;
+	int i = 0, cd;
 
-	cd = open_ccs();
-	if (cd < 0)
-		return;
+	while ((cd = ccs_connect()) < 0) {
+		sleep(1);
+		if (++i > 9 && !(i % 10))
+			log_error("connect to ccs error %d, "
+				  "check cluster status", cd);
+	}
+
+	ccs_handle = cd;
+
+	/* These config values are set from cluster.conf only if they haven't
+	   already been set on the command line. */
 
 	if (!optk_debug)
-		read_ccs_int(cd, DEBUG_PATH, &cfgk_debug);
+		read_ccs_int(DEBUG_PATH, &cfgk_debug);
 	if (!optk_timewarn)
-		read_ccs_int(cd, TIMEWARN_PATH, &cfgk_timewarn);
+		read_ccs_int(TIMEWARN_PATH, &cfgk_timewarn);
 	if (!optk_protocol)
-		read_ccs_protocol(cd, PROTOCOL_PATH, &cfgk_protocol);
+		read_ccs_protocol(PROTOCOL_PATH, &cfgk_protocol);
 	if (!optd_groupd_compat)
-		read_ccs_int(cd, GROUPD_COMPAT_PATH, &cfgd_groupd_compat);
+		read_ccs_int(GROUPD_COMPAT_PATH, &cfgd_groupd_compat);
 	if (!optd_enable_fencing)
-		read_ccs_int(cd, ENABLE_FENCING_PATH, &cfgd_enable_fencing);
+		read_ccs_int(ENABLE_FENCING_PATH, &cfgd_enable_fencing);
 	if (!optd_enable_quorum)
-		read_ccs_int(cd, ENABLE_QUORUM_PATH, &cfgd_enable_quorum);
+		read_ccs_int(ENABLE_QUORUM_PATH, &cfgd_enable_quorum);
 	if (!optd_enable_deadlk)
-		read_ccs_int(cd, ENABLE_DEADLK_PATH, &cfgd_enable_deadlk);
+		read_ccs_int(ENABLE_DEADLK_PATH, &cfgd_enable_deadlk);
 	if (!optd_enable_plock)
-		read_ccs_int(cd, ENABLE_PLOCK_PATH, &cfgd_enable_plock);
+		read_ccs_int(ENABLE_PLOCK_PATH, &cfgd_enable_plock);
 	if (!optd_plock_debug)
-		read_ccs_int(cd, PLOCK_DEBUG_PATH, &cfgd_plock_debug);
+		read_ccs_int(PLOCK_DEBUG_PATH, &cfgd_plock_debug);
 	if (!optd_plock_rate_limit)
-		read_ccs_int(cd, PLOCK_RATE_LIMIT_PATH, &cfgd_plock_rate_limit);
+		read_ccs_int(PLOCK_RATE_LIMIT_PATH, &cfgd_plock_rate_limit);
 	if (!optd_plock_ownership)
-		read_ccs_int(cd, PLOCK_OWNERSHIP_PATH, &cfgd_plock_ownership);
+		read_ccs_int(PLOCK_OWNERSHIP_PATH, &cfgd_plock_ownership);
 	if (!optd_drop_resources_time)
-		read_ccs_int(cd, DROP_RESOURCES_TIME_PATH, &cfgd_drop_resources_time);
+		read_ccs_int(DROP_RESOURCES_TIME_PATH, &cfgd_drop_resources_time);
 	if (!optd_drop_resources_count)
-		read_ccs_int(cd, DROP_RESOURCES_COUNT_PATH, &cfgd_drop_resources_count);
+		read_ccs_int(DROP_RESOURCES_COUNT_PATH, &cfgd_drop_resources_count);
 	if (!optd_drop_resources_age)
-		read_ccs_int(cd, DROP_RESOURCES_AGE_PATH, &cfgd_drop_resources_age);
+		read_ccs_int(DROP_RESOURCES_AGE_PATH, &cfgd_drop_resources_age);
 
-	ccs_disconnect(cd);
+	return 0;
+}
+
+void close_ccs(void)
+{
+	ccs_disconnect(ccs_handle);
 }
 

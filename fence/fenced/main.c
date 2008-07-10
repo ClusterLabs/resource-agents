@@ -593,7 +593,7 @@ static int setup_queries(void)
 	return 0;
 }
 
-static void cluster_dead(int ci)
+void cluster_dead(int ci)
 {
 	log_error("cluster is down, exiting");
 	daemon_quit = 1;
@@ -688,6 +688,9 @@ static void loop(void)
 	close_logging();
 	close_ccs();
 	close_cman();
+
+	if (!list_empty(&domains))
+		log_error("domain abandoned");
 }
 
 static void lockfile(void)

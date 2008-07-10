@@ -1,3 +1,6 @@
+#ifndef __CONFIG_DOT_H__
+#define __CONFIG_DOT_H__
+
 /* the kernel has default values for debug, timewarn and protocol;
    we only change them if new values are given on command line or in ccs */
 
@@ -43,8 +46,5 @@ extern int cfgd_drop_resources_time;
 extern int cfgd_drop_resources_count;
 extern int cfgd_drop_resources_age;
 
-void read_ccs(void);
-int open_ccs(void);
-void close_ccs(int cd);
-int get_weight(int cd, int nodeid, char *lockspace);
+#endif
 
