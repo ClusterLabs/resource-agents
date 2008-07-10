@@ -2,7 +2,7 @@ TARGET= confdb2ldif
 
 SBINDIRT=$(TARGET)
 
-all: depends ${TARGET}
+all: ${TARGET}
 
 include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
@@ -21,8 +21,6 @@ LDFLAGS += -L${openaislibdir} -lconfdb
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
-
-depends:
 
 clean: generalclean
 
