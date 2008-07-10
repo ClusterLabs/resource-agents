@@ -1,4 +1,4 @@
-TARGET= loadldap
+TARGET= confdb2ldif
 
 SBINDIRT=$(TARGET)
 
@@ -10,7 +10,7 @@ include $(OBJDIR)/make/clean.mk
 include $(OBJDIR)/make/install.mk
 include $(OBJDIR)/make/uninstall.mk
 
-OBJS=	loadldap.o
+OBJS=	confdb2ldif.o
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
 CFLAGS += -I${openaisincdir}
@@ -23,7 +23,6 @@ ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 depends:
-	$(MAKE) -C ../../libs all
 
 clean: generalclean
 
