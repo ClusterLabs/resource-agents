@@ -198,9 +198,6 @@ int setup_cman(void)
 	memset(&old_nodes, 0, sizeof(old_nodes));
 	cman_node_count = 0;
 	memset(&cman_nodes, 0, sizeof(cman_nodes));
-
-	/* add configfs entries for existing nodes */
-	statechange();
  out:
 	return fd;
 }

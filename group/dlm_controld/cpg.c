@@ -344,7 +344,10 @@ static void node_history_fail(struct lockspace *ls, int nodeid,
 	if (cfgd_enable_fencing && !node->add_time)
 		node->check_fencing = 1;
 
-	if (cfgd_enable_quorum)
+	/* fenced will take care of making sure the quorum value
+	   is adjusted for all the failures */
+
+	if (cfgd_enable_quorum && !cfgd_enable_fencing)
 		node->check_quorum = 1;
 
 	node->check_fs = 1;
@@ -405,8 +408,6 @@ static int check_fencing_done(struct lockspace *ls)
 	return 1;
 }
 
-/* wait for cman to see all the same nodes failed, and to say there's quorum */
-
 static int check_quorum_done(struct lockspace *ls)
 {
 	struct node *node;
@@ -415,10 +416,9 @@ static int check_quorum_done(struct lockspace *ls)
 	if (!cfgd_enable_quorum)
 		return 1;
 
-	if (!cman_quorate) {
-		log_group(ls, "check_quorum %d", cman_quorate);
-		return 0;
-	}
+	/* wait for cman to see all the same nodes failed, so we know that
+	   cman_quorate is adjusted for the same failures we've seen
+	   (see comment in fenced about the assumption here) */
 
 	list_for_each_entry(node, &ls->node_history, list) {
 		if (!node->check_quorum)
@@ -435,6 +435,11 @@ static int check_quorum_done(struct lockspace *ls)
 
 	if (wait_count)
 		return 0;
+
+	if (!cman_quorate) {
+		log_group(ls, "check_quorum not quorate");
+		return 0;
+	}
 
 	log_group(ls, "check_quorum done");
 	return 1;

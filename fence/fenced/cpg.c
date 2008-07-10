@@ -495,10 +495,14 @@ static int check_quorum_done(struct fd *fd)
 	struct node_history *node;
 	int wait_count = 0;
 
-	if (!cman_quorate) {
-		log_debug("check_quorum %d", cman_quorate);
-		return 0;
-	}
+	/* We don't want to trust the cman_quorate value until we know
+	   that cman has seen the same nodes fail that we have.  So, we
+	   first make sure that all nodes we've seen fail are also
+	   failed in cman, then we can just check cman_quorate.  This
+	   assumes that we'll get to this function to do all the checks
+	   before any of the failed nodes can actually rejoin and become
+	   cman members again (if that assumption doesn't hold, perhaps
+	   do something with timestamps of join/fail). */
 
 	list_for_each_entry(node, &fd->node_history, list) {
 		if (!node->check_quorum)
@@ -515,6 +519,11 @@ static int check_quorum_done(struct fd *fd)
 
 	if (wait_count)
 		return 0;
+
+	if (!cman_quorate) {
+		log_debug("check_quorum not quorate");
+		return 0;
+	}
 
 	log_debug("check_quorum done");
 	return 1;

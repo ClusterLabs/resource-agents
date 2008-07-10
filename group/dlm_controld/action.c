@@ -781,6 +781,9 @@ int setup_configfs(void)
 	if (rv < 0)
 		return rv;
 
+	/* add configfs entries for existing nodes */
+	cman_statechange();
+
 	/* the kernel has its own defaults for these values which we
 	   don't want to change unless these have been set; -1 means
 	   they have not been set on command line or config file */
