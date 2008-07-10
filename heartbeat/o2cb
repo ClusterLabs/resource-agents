@@ -51,11 +51,13 @@ meta_data() {
 
 <longdesc lang="en">
 
-This script manages the Oracle Cluster membership layer. It obsoletes
-manual configuration of the nodes in /etc/ocfs2/cluster.conf, and
-automates the discovery of the IP addresses uses by o2cb. It should be
-used below one or more ocfs2 mounts managed by Filesystem.
+This script manages the Oracle Cluster membership layer. It might
+eventually obsolete manual configuration of the nodes in
+/etc/ocfs2/cluster.conf, and automates the discovery of the IP addresses
+uses by o2cb. It should be used below one or more ocfs2 mounts managed
+by Filesystem.
 
+THIS IS EXPERIMENTAL AND SHOULD ONLY BE USED FOR TESTING!
 </longdesc>
 <shortdesc lang="en">OCFS2 membership layer manager.</shortdesc>
 
