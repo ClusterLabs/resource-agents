@@ -6,6 +6,7 @@ libexecdir ?= ${DESTDIR}@LIBEXECDIR@
 sharedir ?= ${DESTDIR}@SHAREDIR@
 docdir ?= ${DESTDIR}@DOCDIR@
 logdir ?= ${DESTDIR}@LOGDIR@
+logrotatedir ?= ${DESTDIR}@LOGROTATEDIR@
 mandir ?= ${DESTDIR}@MANDIR@
 module_dir ?= @MODULE_DIR@
 incdir ?= ${DESTDIR}@INCDIR@
@@ -85,6 +86,8 @@ S=$(SRCDIR)/$(THISDIR)
 
 CONFDIR=@CONFDIR@
 CONFFILE=@CONFFILE@
+
+LOGDIR=@LOGDIR@
 
 UNINSTALL = perl @SRCDIR@/scripts/uninstall.pl
 FENCEPARSE = bash @SRCDIR@/scripts/fenceparse

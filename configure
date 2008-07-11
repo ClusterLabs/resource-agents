@@ -73,6 +73,7 @@ my %options = (
 	sharedir => \$sharedir,
 	docdir => \$docdir,
 	logdir => \$logdir,
+	logrotatedir => \$logrotatedir,
 	syslogfacility => \$syslogfacility,
 	sysloglevel => \$sysloglevel,
 	mibdir => \$mibdir,
@@ -155,6 +156,7 @@ my $err = &GetOptions (\%options,
 		    'sharedir=s',
 		    'docdir=s',
 		    'logdir=s',
+		    'logrotatedir=s',
 		    'syslogfacility=s',
 		    'sysloglevel=s',
 		    'mibdir=s',
@@ -201,6 +203,7 @@ if ($help || !$err) {
   print "--sharedir=\tthe base directory for misc cluster files.  (Default: {prefix}/share/cluster)\n";
   print "--docdir=\tthe base directory for misc cluster documentation files.  (Default: {prefix}/share/doc/cluster)\n";
   print "--logdir=\tthe base directory for cluster logging files.  (Default: /var/log/cluster/)\n";
+  print "--logrotatedir=\tthe base directory for logrorate.d files.  (Default: /etc/logrotate.d/)\n";
   print "--syslogfacility=\tset the default syslog facility.  (Default: LOG_LOCAL4)\n";
   print "--sysloglevel=\tset the default syslog level.  (Default: LOG_LEVEL_INFO)\n";
   print "--mibdir=\tthe base directory for snmp mibs.  (Default: {prefix}/share/snmp/mibs)\n";
@@ -535,6 +538,9 @@ if (!$docdir) {
 if (!$logdir) {
   $logdir="/var/log/cluster";
 }
+if (!$logrotatedir) {
+  $logrotatedir="/etc/logrotate.d";
+}
 if (!$syslogfacility) {
   $syslogfacility="LOG_LOCAL4";
 }
@@ -699,6 +705,7 @@ while (<IFILE>) {
   $_ =~ s/\@SHAREDIR\@/$sharedir/;
   $_ =~ s/\@DOCDIR\@/$docdir/;
   $_ =~ s/\@LOGDIR\@/$logdir/;
+  $_ =~ s/\@LOGROTATEDIR\@/$logrotatedir/;
   $_ =~ s/\@SYSLOGFACILITY\@/$syslogfacility/;
   $_ =~ s/\@SYSLOGLEVEL\@/$sysloglevel/;
   $_ =~ s/\@MIBDIR\@/$mibdir/;

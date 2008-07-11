@@ -1,0 +1,8 @@
+@LOGDIR@/*log {
+	missingok
+	compress
+	notifempty
+	daily
+	rotate 7
+	create 0600 root root
+}

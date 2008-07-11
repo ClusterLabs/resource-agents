@@ -7,11 +7,20 @@ DOCS =	gfs2.txt \
 	COPYRIGHT \
 	README.licence
 
-all:
+TARGET= cluster.logrotate
+
+LOGRORATED = $(TARGET)
+
+all: $(TARGET)
 
 include ../make/defines.mk
 include $(OBJDIR)/make/install.mk
 include $(OBJDIR)/make/uninstall.mk
 include $(OBJDIR)/make/clean.mk
+
+$(TARGET):
+	cat $(S)/$(TARGET).in | sed \
+		-e 's#@LOGDIR@#${LOGDIR}#g' \
+	> $(TARGET)
 
 clean: generalclean

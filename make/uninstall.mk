@@ -38,3 +38,6 @@ endif
 ifdef DOCS
 	${UNINSTALL} ${DOCS} ${docdir}
 endif
+ifdef LOGRORATED
+	${UNINSTALL} ${LOGRORATED} ${logrotatedir}
+endif

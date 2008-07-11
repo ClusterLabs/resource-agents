@@ -59,3 +59,7 @@ ifdef DOCS
 	install -d ${docdir}
 	install -m644 $(S)/${DOCS} ${docdir}
 endif
+ifdef LOGRORATED
+	install -d ${logrotatedir}
+	install -m644 ${LOGRORATED} ${logrotatedir}
+endif
