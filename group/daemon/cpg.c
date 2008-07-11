@@ -325,7 +325,7 @@ void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 
 		g = find_group_level(name, msg->ms_level);
 		if (!g) {
-			if (groupd_debug_verbose > 1) {
+			if (daemon_debug_verbose > 1) {
 				log_print("%d:%s RECV len %d %s from %d, "
 					  "no group",
 				  	  msg->ms_level, name, data_len,
@@ -347,7 +347,7 @@ void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 		}
 	}
 
-	if (groupd_debug_verbose > 1)
+	if (daemon_debug_verbose > 1)
 		log_group(g, "RECV len %d %s from %d", data_len,
 			  msg_type(msg->ms_type), nodeid);
 
@@ -669,7 +669,7 @@ static int _send_message(cpg_handle_t h, group_t *g, void *buf, int len)
 
 int send_message_groupd(group_t *g, void *buf, int len, int type)
 {
-	if (groupd_debug_verbose > 1)
+	if (daemon_debug_verbose > 1)
 		log_group(g, "SEND len %d %s", len, msg_type(type));
 
 	return _send_message(groupd_handle, g, buf, len);

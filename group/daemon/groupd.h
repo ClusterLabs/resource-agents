@@ -8,5 +8,6 @@
 #define GROUPD_MSGLEN		(2200) /* should be enough to permit
 					  group_send() of up to 2048 bytes
 					  of data plus header info */
+#define GROUPD_DUMP_SIZE	(1024 * 1024)
 
 #endif

@@ -117,49 +117,67 @@ static void cman_callback(cman_handle_t h, void *private, int reason, int arg)
 	}
 }
 
-static void close_cman(int ci)
-{
-	log_debug("cluster is down, exiting");
-	exit(1);
-}
-
-static void process_cman(int ci)
+void process_cman(int ci)
 {
 	int rv;
+
 	rv = cman_dispatch(ch, CMAN_DISPATCH_ALL);
 	if (rv == -1 && errno == EHOSTDOWN)
-		close_cman(ci);
+		cluster_dead(0);
 }
 
 int setup_cman(void)
 {
 	cman_node_t node;
 	int rv, fd;
+	int init = 0, active = 0;
 
+ retry_init:
 	ch = cman_init(NULL);
 	if (!ch) {
-		log_print("cman_init error %p %d", ch, errno);
+		if (init++ < 2) {
+			sleep(1);
+			goto retry_init;
+		}
+		log_print("cman_init error %d", errno);
+		return -ENOTCONN;
+	}
+
+ retry_active:
+	rv = cman_is_active(ch);
+	if (!rv) {
+		if (active++ < 2) {
+			sleep(1);
+			goto retry_active;
+		}
+		log_print("cman_is_active error %d", errno);
+		cman_finish(ch);
 		return -ENOTCONN;
 	}
 
 	ch_admin = cman_admin_init(NULL);
 	if (!ch_admin) {
-		log_print("cman_admin_init error %p %d", ch_admin, errno);
-		rv = -ENOTCONN;
-		goto fail1;
+		log_print("cman_admin_init error %d", errno);
+		cman_finish(ch);
+		return -ENOTCONN;
 	}
 
 	rv = cman_start_notification(ch, cman_callback);
 	if (rv < 0) {
 		log_print("cman_start_notification error %d %d", rv, errno);
-		goto fail2;
+		cman_finish(ch);
+		cman_finish(ch_admin);
+		return rv;
 	}
 
 	memset(&node, 0, sizeof(node));
 	rv = cman_get_node(ch, CMAN_NODEID_US, &node);
 	if (rv < 0) {
 		log_print("cman_get_node us error %d %d", rv, errno);
-		goto fail3;
+		cman_stop_notification(ch);
+		cman_finish(ch);
+		cman_finish(ch_admin);
+		return rv;
 	}
 
 	cman_node_count = 0;
@@ -167,7 +185,10 @@ int setup_cman(void)
 	rv = cman_get_nodes(ch, MAX_NODES, &cman_node_count, cman_nodes);
 	if (rv < 0) {
 		log_print("cman_get_nodes error %d %d", rv, errno);
-		goto fail3;
+		cman_stop_notification(ch);
+		cman_finish(ch);
+		cman_finish(ch_admin);
+		return rv;
 	}
 
 	cman_quorate = cman_is_quorate(ch);
@@ -180,15 +201,13 @@ int setup_cman(void)
 		  our_nodeid, our_name, cman_quorate);
 
 	fd = cman_get_fd(ch);
-	client_add(fd, process_cman, close_cman);
-	return 0;
 
- fail3:
-	cman_stop_notification(ch);
- fail2:
-	cman_finish(ch_admin);
- fail1:
+	return fd;
+}
+
+void close_cman(void)
+{
 	cman_finish(ch);
-	return rv;
+	cman_finish(ch_admin);
 }
 

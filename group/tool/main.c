@@ -23,8 +23,6 @@
 #define MAX_MG				128
 #define MAX_GROUPS			128
 
-#define GROUPD_DUMP_SIZE		(1024 * 1024)
-
 #define OP_LIST				1
 #define OP_DUMP				2
 #define OP_LOG				3

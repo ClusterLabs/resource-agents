@@ -28,37 +28,39 @@
 #include "groupd.h"
 #include "libgroup.h"
 
-#define MAX_NAMELEN		(32)	/* should match libgroup.h */
-#define MAX_LEVELS		(4)
-#define MAX_NODES		(256)
-#define MAXARGS			(16)
-#define MAXCON			(16)
-#define NALLOC			(16)
-#define DUMP_SIZE		(1024 * 1024)
+#define MAX_NAMELEN		32	/* should match libgroup.h */
+#define MAX_LEVELS		4
+#define MAX_NODES		128
 
-extern char *prog_name;
-extern int groupd_debug_opt;
-extern int groupd_debug_verbose;
-extern char groupd_debug_buf[256];
-extern char dump_buf[DUMP_SIZE];
+extern int daemon_debug_opt;
+extern int daemon_debug_verbose;
+extern int daemon_quit;
+extern int cman_quorate;
+extern int our_nodeid;
+extern char *our_name;
+extern char daemon_debug_buf[256];
+extern char dump_buf[GROUPD_DUMP_SIZE];
 extern int dump_point;
 extern int dump_wrap;
+extern struct list_head gd_groups;
+extern struct list_head gd_levels[MAX_LEVELS];
+extern uint32_t gd_event_nr;
 
-extern void groupd_dump_save(void);
+void daemon_dump_save(void);
 
 #define log_debug(fmt, args...) \
 do { \
-	snprintf(groupd_debug_buf, 255, "%ld " fmt "\n", time(NULL), ##args); \
-	if (groupd_debug_opt) fprintf(stderr, "%s", groupd_debug_buf); \
-	groupd_dump_save(); \
+	snprintf(daemon_debug_buf, 255, "%ld " fmt "\n", time(NULL), ##args); \
+	if (daemon_debug_opt) fprintf(stderr, "%s", daemon_debug_buf); \
+	daemon_dump_save(); \
 } while (0)
 
 #define log_group(g, fmt, args...) \
 do { \
-	snprintf(groupd_debug_buf, 255, "%ld %d:%s " fmt "\n", time(NULL), \
+	snprintf(daemon_debug_buf, 255, "%ld %d:%s " fmt "\n", time(NULL), \
 		 (g)->level, (g)->name, ##args); \
-	if (groupd_debug_opt) fprintf(stderr, "%s", groupd_debug_buf); \
-	groupd_dump_save(); \
+	if (daemon_debug_opt) fprintf(stderr, "%s", daemon_debug_buf); \
+	daemon_dump_save(); \
 } while (0)
 
 #define log_print(fmt, args...) \
@@ -72,7 +74,6 @@ do { \
 	log_group(g, fmt, ##args); \
 	syslog(LOG_ERR, fmt, ##args); \
 } while (0)
-
 
 #define ASSERT(x) \
 do { \
@@ -88,13 +89,6 @@ do { \
 #ifndef FALSE
 #define FALSE (0)
 #endif
-
-extern struct list_head		gd_groups;
-extern struct list_head		gd_levels[MAX_LEVELS];
-extern uint32_t			gd_event_nr;
-extern int			cman_quorate;
-extern int			our_nodeid;
-extern char			*our_name;
 
 struct group;
 struct app;
@@ -261,9 +255,12 @@ void app_terminate(app_t *a);
 void app_deliver(app_t *a, struct save_msg *save);
 int client_add(int fd, void (*workfn)(int ci), void (*deadfn)(int ci));
 void client_dead(int ci);
+void cluster_dead(int ci);
 
 /* cman.c */
 int setup_cman(void);
+void close_cman(void);
+void process_cman(int ci);
 int kill_cman(int nodeid);
 int set_cman_dirty(void);
 

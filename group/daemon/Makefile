@@ -16,10 +16,11 @@ OBJS=	app.o \
 	joinleave.o \
 	main.o
 
-CFLAGS += -I${cmanincdir} -I${openaisincdir}
+CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${openaisincdir}
 CFLAGS += -I$(S) -I$(S)/../include/ -I$(S)/../lib/
 CFLAGS += -I${incdir}
 
+LDFLAGS += -L${ccslibdir} -lccs
 LDFLAGS += -L${cmanlibdir} -L${openaislibdir} -L${libdir} -lcman -lcpg
 
 

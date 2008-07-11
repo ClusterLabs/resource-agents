@@ -2,25 +2,19 @@
 #include <time.h>
 
 #include "gd_internal.h"
+#include "ccs.h"
 
-#define OPTION_STRING			"DhVv"
-#define LOCKFILE_NAME			"/var/run/groupd.pid"
-#define LOG_FILE				"/var/log/groupd.log"
+#define LOCKFILE_NAME	"/var/run/groupd.pid"
+#define CLIENT_NALLOC	32
 
 extern struct list_head recovery_sets;
-
-struct list_head	gd_groups;
-struct list_head	gd_levels[MAX_LEVELS];
-uint32_t		gd_event_nr;
-char			*our_name;
-int			our_nodeid;
-int			cman_quorate;
 
 static int client_maxi;
 static int client_size = 0;
 static struct client *client = NULL;
-static struct pollfd *pollfd;
+static struct pollfd *pollfd = NULL;
 static char last_action[16];
+static int ccs_handle;
 
 struct client {
 	int fd;
@@ -29,6 +23,23 @@ struct client {
 	void *workfn;
 	void *deadfn;
 };
+
+static int do_read(int fd, void *buf, size_t count)
+{
+	int rv, off = 0;
+
+	while (off < count) {
+		rv = read(fd, buf + off, count - off);
+		if (rv == 0)
+			return -1;
+		if (rv == -1 && errno == EINTR)
+			continue;
+		if (rv == -1)
+			return -1;
+		off += rv;
+	}
+	return 0;
+}
 
 static int do_write(int fd, void *buf, size_t count)
 {
@@ -51,22 +62,27 @@ static int do_write(int fd, void *buf, size_t count)
 	return 0;
 }
 
-static int do_read(int fd, void *buf, size_t count)
+int setup_ccs(void)
 {
-	int rv, off = 0;
+	int i = 0, cd;
 
-	while (off < count) {
-		rv = read(fd, buf + off, count - off);
-		if (rv == 0)
-			return -1;
-		if (rv == -1 && errno == EINTR)
-			continue;
-		if (rv == -1)
-			return -1;
-		off += rv;
+	while ((cd = ccs_connect()) < 0) {
+		sleep(1);
+		if (++i > 9 && !(i % 10))
+			log_print("connect to ccs error %d, "
+				  "check cluster status", cd);
 	}
+
+	ccs_handle = cd;
+
 	return 0;
 }
+
+void close_ccs(void)
+{
+	ccs_disconnect(ccs_handle);
+}
+
 
 /* Look for any instances of gfs or dlm in the kernel, if we find any, it
    means they're uncontrolled by us (via gfs_controld/dlm_controld/groupd).
@@ -173,7 +189,8 @@ void app_deliver(app_t *a, struct save_msg *save)
 	int rv;
 
 	rv = snprintf(buf, sizeof(buf), "deliver %s %d %d",
-		      a->g->name, save->nodeid, save->msg_len - sizeof(msg_t));
+		      a->g->name, save->nodeid,
+		      (int)(save->msg_len - sizeof(msg_t)));
 
 	log_group(a->g, "deliver to app: %s", buf);
 
@@ -251,25 +268,7 @@ void app_finish(app_t *a)
 	app_action(a, buf);
 }
 
-#if 0
-static void make_args(char *buf, int *argc, char **argv, char sep)
-{
-	char *p = buf;
-	int i;
-
-	argv[0] = p;
-
-	for (i = 1; i < MAXARGS; i++) {
-		p = strchr(buf, sep);
-		if (!p)
-			break;
-		*p = '\0';
-		argv[i] = p + 1;
-		buf = p + 1;
-	}
-	*argc = i;
-}
-#endif
+#define MAXARGS 16
 
 static char *get_args(char *buf, int *argc, char **argv, char sep, int want)
 {
@@ -369,20 +368,21 @@ static void client_alloc(void)
 {
 	int i;
 
-	if (!client)
-		client = malloc(NALLOC * sizeof(struct client));
-	else {
-		client = realloc(client, (client_size + NALLOC) *
+	if (!client) {
+		client = malloc(CLIENT_NALLOC * sizeof(struct client));
+		pollfd = malloc(CLIENT_NALLOC * sizeof(struct pollfd));
+	} else {
+		client = realloc(client, (client_size + CLIENT_NALLOC) *
 					 sizeof(struct client));
-		pollfd = realloc(pollfd, (client_size + NALLOC) *
+		pollfd = realloc(pollfd, (client_size + CLIENT_NALLOC) *
 					 sizeof(struct pollfd));
 		if (!pollfd)
 			log_print("can't alloc for pollfd");
 	}
-	if (!client)
+	if (!client || !pollfd)
 		log_print("can't alloc for client array");
 
-	for (i = client_size; i < client_size + NALLOC; i++) {
+	for (i = client_size; i < client_size + CLIENT_NALLOC; i++) {
 		client[i].workfn = NULL;
 		client[i].deadfn = NULL;
 		client[i].fd = -1;
@@ -391,7 +391,7 @@ static void client_alloc(void)
 		pollfd[i].fd = -1;
 		pollfd[i].revents = 0;
 	}
-	client_size += NALLOC;
+	client_size += CLIENT_NALLOC;
 }
 
 void client_dead(int ci)
@@ -427,6 +427,11 @@ int client_add(int fd, void (*workfn)(int ci), void (*deadfn)(int ci))
 
 	client_alloc();
 	goto again;
+}
+
+static void sigterm_handler(int sig)
+{
+	daemon_quit = 1;
 }
 
 static void do_setup(int ci, int argc, char **argv)
@@ -544,7 +549,7 @@ static int do_dump(int fd)
 	int len;
 
 	if (dump_wrap) {
-		len = DUMP_SIZE - dump_point;
+		len = GROUPD_DUMP_SIZE - dump_point;
 		do_write(fd, dump_buf + dump_point, len);
 		len = dump_point;
 	} else
@@ -602,8 +607,6 @@ static void process_connection(int ci)
 
 	rv = do_read(client[ci].fd, buf, GROUPD_MSGLEN);
 	if (rv < 0) {
-		log_print("client %d fd %d read error %d %d", ci,
-			  client[ci].fd, rv, errno);
 		client_dead(ci);
 		return;
 	}
@@ -681,10 +684,10 @@ static void process_listener(int ci)
 	
 	i = client_add(fd, process_connection, NULL);
 
-	log_debug("client connection %d", i);
+	log_debug("client connection %d fd %d", i, fd);
 }
 
-static int setup_listener(void)
+static int setup_listener(char *sock_path)
 {
 	struct sockaddr_un addr;
 	socklen_t addrlen;
@@ -700,7 +703,7 @@ static int setup_listener(void)
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_LOCAL;
-	strcpy(&addr.sun_path[1], GROUPD_SOCK_PATH);
+	strcpy(&addr.sun_path[1], sock_path);
 	addrlen = sizeof(sa_family_t) + strlen(addr.sun_path+1) + 1;
 
 	rv = bind(s, (struct sockaddr *) &addr, addrlen);
@@ -716,50 +719,72 @@ static int setup_listener(void)
 		close(s);
 		return rv;
 	}
-
-	client_add(s, process_listener, NULL);
-
-	return 0;
+	return s;
 }
 
-static int loop(void)
+void cluster_dead(int ci)
 {
-	int rv, i, timeout = -1;
+	log_print("cluster is down, exiting");
+	daemon_quit = 1;
+}
+
+static void loop(void)
+{
+	int poll_timeout = -1;	
+	int rv, i;
 	void (*workfn) (int ci);
 	void (*deadfn) (int ci);
 
-	rv = setup_listener();
+	rv = setup_listener(GROUPD_SOCK_PATH);
 	if (rv < 0)
-		return rv;
+		goto out;
+	client_add(rv, process_listener, NULL);
 
 	rv = setup_cman();
 	if (rv < 0)
-		return rv;
+		goto out;
+	client_add(rv, process_cman, cluster_dead);
+
+	rv = setup_ccs();
+	if (rv < 0)
+		goto out;
 
 	rv = check_uncontrolled_groups();
 	if (rv < 0)
-		return rv;
+		goto out;
 
 	rv = setup_cpg();
 	if (rv < 0)
-		return rv;
+		goto out;
 
-	while (1) {
-		rv = poll(pollfd, client_maxi + 1, timeout);
-		if (rv < 0)
-			log_debug("poll error %d %d", rv, errno);
+	for (;;) {
+		rv = poll(pollfd, client_maxi + 1, poll_timeout);
+		if (rv == -1 && errno == EINTR) {
+			if (daemon_quit && list_empty(&gd_groups))
+				goto out;
+			daemon_quit = 0;
+			continue;
+		}
+		if (rv < 0) {
+			log_print("poll errno %d", errno);
+			goto out;
+		}
 
 		for (i = 0; i <= client_maxi; i++) {
 			if (client[i].fd < 0)
 				continue;
-			if (pollfd[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {
-				deadfn = client[i].deadfn;
-				deadfn(i);
-			} else if (pollfd[i].revents & POLLIN) {
+			if (pollfd[i].revents & POLLIN) {
 				workfn = client[i].workfn;
 				workfn(i);
 			}
+			if (pollfd[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {
+				deadfn = client[i].deadfn;
+				deadfn(i);
+			}
 		}
+
+		if (daemon_quit)
+			break;
 
 		/* process_apps() returns non-zero if there may be
 		   more work to do */
@@ -769,8 +794,12 @@ static int loop(void)
 			rv += process_apps();
 		} while (rv);
 	}
+ out:
+	close_ccs();
+	close_cman();
 
-	return 0;
+	if (!list_empty(&gd_groups))
+		log_print("groups abandoned");
 }
 
 static void lockfile(void)
@@ -815,34 +844,11 @@ static void lockfile(void)
 	}
 }
 
-void daemonize(void)
-{
-	pid_t pid = fork();
-	if (pid < 0) {
-		perror("main: cannot fork");
-		exit(EXIT_FAILURE);
-	}
-	if (pid)
-		exit(EXIT_SUCCESS);
-	setsid();
-	if(chdir("/") < 0) {
-		perror("main: unable to chdir");
-		exit(EXIT_FAILURE);
-	}
-	umask(0);
-	close(0);
-	close(1);
-	close(2);
-	openlog("groupd", LOG_PID, LOG_DAEMON);
-
-	lockfile();
-}
-
 static void print_usage(void)
 {
 	printf("Usage:\n");
 	printf("\n");
-	printf("%s [options]\n", prog_name);
+	printf("groupd [options]\n");
 	printf("\n");
 	printf("Options:\n");
 	printf("\n");
@@ -851,9 +857,11 @@ static void print_usage(void)
 	printf("  -V	       Print program version information, then exit\n");
 }
 
-static void decode_arguments(int argc, char **argv)
+#define OPTION_STRING "DhVv"
+
+static void read_arguments(int argc, char **argv)
 {
-	int cont = TRUE;
+	int cont = 1;
 	int optchar;
 
 	while (cont) {
@@ -862,7 +870,7 @@ static void decode_arguments(int argc, char **argv)
 		switch (optchar) {
 
 		case 'D':
-			groupd_debug_opt = 1;
+			daemon_debug_opt = 1;
 			break;
 
 		case 'h':
@@ -871,7 +879,7 @@ static void decode_arguments(int argc, char **argv)
 			break;
 
 		case 'v':
-			groupd_debug_verbose++;
+			daemon_debug_verbose++;
 			break;
 
 		case 'V':
@@ -899,7 +907,7 @@ static void decode_arguments(int argc, char **argv)
 	}
 }
 
-void set_oom_adj(int val)
+static void set_oom_adj(int val)
 {
 	FILE *fp;
 
@@ -911,7 +919,7 @@ void set_oom_adj(int val)
 	fclose(fp);
 }
 
-void set_scheduler(void)
+static void set_scheduler(void)
 {
 	struct sched_param sched_param;
 	int rv;
@@ -929,38 +937,8 @@ void set_scheduler(void)
 	}
 }
 
-void bail_with_log(int sig)
-{
-	int fd;
-	time_t now;
-
-	unlink(LOG_FILE);
-	fd = creat(LOG_FILE, S_IRUSR | S_IWUSR);
-	if (fd > 0) {
-		char now_ascii[32];
-
-		do_dump(fd);
-		memset(now_ascii, 0, sizeof(now_ascii));
-		time(&now);
-		sprintf(now_ascii, "%ld", now);
-		if (write(fd, now_ascii, strlen(now_ascii)) < 0) {
-			perror("Unable to write");
-			exit(1);
-		}
-		if (write(fd, " groupd segfault log follows:\n", 30) < 0) {
-			perror("Unable to write");
-			exit(1);
-		}
-		close(fd);
-	} else
-		perror(LOG_FILE);
-	if (sig == SIGSEGV)
-		exit(0);
-}
-
 int main(int argc, char *argv[])
 {
-	prog_name = argv[0];
 	int i;
 
 	INIT_LIST_HEAD(&recovery_sets);
@@ -968,45 +946,54 @@ int main(int argc, char *argv[])
 	for (i = 0; i < MAX_LEVELS; i++)
 		INIT_LIST_HEAD(&gd_levels[i]);
 
-	decode_arguments(argc, argv);
+	read_arguments(argc, argv);
 
-	signal(SIGSEGV, bail_with_log);
-	signal(SIGUSR1, bail_with_log);
+	lockfile();
 
-	if (!groupd_debug_opt)
-		daemonize();
+	if (!daemon_debug_opt) {
+		if (daemon(0, 0) < 0) {
+			perror("daemon error");
+			exit(EXIT_FAILURE);
+		}
+	}
+	openlog("groupd", LOG_PID, LOG_DAEMON);
+	signal(SIGTERM, sigterm_handler);
 
 	set_scheduler();
 	set_oom_adj(-16);
 
-	pollfd = malloc(NALLOC * sizeof(struct pollfd));
-	if (!pollfd)
-		return -1;
+	loop();
 
-	return loop();
+	return 0;
 }
 
-void groupd_dump_save(void)
+void daemon_dump_save(void)
 {
 	int len, i;
 
-	len = strlen(groupd_debug_buf);
+	len = strlen(daemon_debug_buf);
 
 	for (i = 0; i < len; i++) {
-		dump_buf[dump_point++] = groupd_debug_buf[i];
+		dump_buf[dump_point++] = daemon_debug_buf[i];
 
-		if (dump_point == DUMP_SIZE) {
+		if (dump_point == GROUPD_DUMP_SIZE) {
 			dump_point = 0;
 			dump_wrap = 1;
 		}
 	}
 }
 
-char *prog_name;
-int groupd_debug_opt;
-int groupd_debug_verbose;
-char groupd_debug_buf[256];
-char dump_buf[DUMP_SIZE];
+int daemon_debug_opt;
+int daemon_debug_verbose;
+int daemon_quit;
+int cman_quorate;
+int our_nodeid;
+char *our_name;
+char daemon_debug_buf[256];
+char dump_buf[GROUPD_DUMP_SIZE];
 int dump_point;
 int dump_wrap;
+struct list_head gd_groups;
+struct list_head gd_levels[MAX_LEVELS];
+uint32_t gd_event_nr;
 
