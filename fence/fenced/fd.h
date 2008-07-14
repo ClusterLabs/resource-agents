@@ -12,6 +12,7 @@
 #include <stdint.h>
 #include <time.h>
 #include <sched.h>
+#include <limits.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
