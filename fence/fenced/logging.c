@@ -5,8 +5,8 @@
    and fenced.log, debug messages are added to fenced.log. */
 
 #define DEFAULT_MODE		LOG_MODE_OUTPUT_SYSLOG_THREADED | \
-				LOG_MODE_NOSUBSYS | \
-				LOG_MODE_OUTPUT_FILE /* | LOG_MODE_NO_DEBUG_SYSLOG */
+				LOG_MODE_OUTPUT_FILE | \
+				LOG_MODE_NOSUBSYS | LOG_MODE_NO_DEBUG_SYSLOG
 #define DEFAULT_FACILITY	SYSLOGFACILITY /* cluster config setting */
 #define DEFAULT_PRIORITY	SYSLOGLEVEL /* cluster config setting */
 #define DEFAULT_FILE		LOGDIR "/fenced.log"
