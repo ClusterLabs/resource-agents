@@ -1257,7 +1257,6 @@ int process_command(struct connection *con, int cmd, char *cmdbuf,
 		break;
 #ifdef DEBUG
 	case CMAN_CMD_DUMP_OBJDB:
-		P_MEMB("CC: Dump_objdb: filename = %s\n", cmdbuf);
 		dumpfile = fopen(cmdbuf, "w+");
 		if (dumpfile)  {
 			global_objdb->object_dump(OBJECT_PARENT_HANDLE, dumpfile);

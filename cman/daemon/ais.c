@@ -164,8 +164,6 @@ static int cman_exec_init_fn(struct objdb_iface_ver0 *objdb)
 		/* All other debugging options should already have been set in preconfig */
 		set_debuglog(debug_mask);
 	}
-	log_printf(LOG_DEBUG, "CC: debug message");
-	log_printf(LOG_INFO, "CC: info message");
 	P_DAEMON(CMAN_NAME " starting");
 
 	/* Open local sockets and initialise I/O queues */
