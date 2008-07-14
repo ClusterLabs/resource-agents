@@ -533,6 +533,10 @@ static void start_kernel(struct lockspace *ls)
 	log_group(ls, "start_kernel %u member_count %d",
 		  cg->seq, cg->member_count);
 
+	/* needs to happen before setting control which starts recovery */
+	if (ls->joining)
+		set_sysfs_id(ls->name, ls->global_id);
+
 	format_member_ids(ls);
 	format_renew_ids(ls);
 	set_configfs_members(ls->name, member_count, member_ids,
@@ -541,7 +545,6 @@ static void start_kernel(struct lockspace *ls)
 	ls->kernel_stopped = 0;
 
 	if (ls->joining) {
-		set_sysfs_id(ls->name, ls->global_id);
 		set_sysfs_event_done(ls->name, 0);
 		ls->joining = 0;
 	}
