@@ -70,8 +70,10 @@ static int dump_objdb_buff(confdb_handle_t dump_handle, unsigned int parent_obje
 	int res;
 
 	res = confdb_key_iter_start(dump_handle, parent_object_handle);
-	if (res != SA_AIS_OK)
+	if (res != SA_AIS_OK) {
+		errno = ENOMEM;
 		return -1;
+	}
 
 	if (!*buffer || ((*buffer) && !strlen(*buffer))) {
 		snprintf(temp, PATH_MAX - 1, "<?xml version=\"1.0\"?>\n<objdbmaindoc>\n");
@@ -92,15 +94,19 @@ static int dump_objdb_buff(confdb_handle_t dump_handle, unsigned int parent_obje
 	}
 
 	res = confdb_object_iter_start(dump_handle, parent_object_handle);
-	if (res != SA_AIS_OK)
+	if (res != SA_AIS_OK) {
+		errno = ENOMEM;
 		return -1;
+	}
 
 	while ( (res = confdb_object_iter(dump_handle, parent_object_handle, &object_handle, object_name, &object_name_len)) == SA_AIS_OK)   {
 		unsigned int parent;
 
 		res = confdb_object_parent_get(dump_handle, object_handle, &parent);
-		if (res != SA_AIS_OK)
+		if (res != SA_AIS_OK) {
+			errno = EINVAL;
 			return -1;
+		}
 
 		object_name[object_name_len] = '\0';
 
@@ -113,8 +119,10 @@ static int dump_objdb_buff(confdb_handle_t dump_handle, unsigned int parent_obje
 		add_to_buffer(temp, buffer, size);
 
 		res = dump_objdb_buff(dump_handle, object_handle, buffer, size);
-		if(res)
+		if(res) {
+			errno = -res;
 			return res;
+		}
 
 		if (object_handle != parent_object_handle) {
 			snprintf(temp, PATH_MAX - 1, "</%s>\n", object_name);
@@ -176,14 +184,17 @@ int ccs_connect(void){
 		return 1;
 
 	res = confdb_initialize (&handle, &callbacks);
-	if (res != SA_AIS_OK)
+	if (res != SA_AIS_OK) {
+		errno = ENOMEM;
 		return -1;
+	}
 
 	if(!fullxpath)
 		xpathlite_init();
 	else
 		if (xpathfull_init() < 0) {
 			ccs_disconnect(1);
+			errno = ENOMEM;
 			return -1;
 		}
 
@@ -206,6 +217,7 @@ int ccs_force_connect(const char *cluster_name, int blocking){
 			if (res < 0)
 				sleep(1);
 		}
+		errno = -res;
 		return res;
 	} else
 		return ccs_connect();
@@ -241,8 +253,10 @@ int ccs_disconnect(int desc){
 	}
 
 	res = confdb_finalize (handle);
-	if (res != CONFDB_OK)
+	if (res != CONFDB_OK) {
+		errno = EINVAL;
 		return -1;
+	}
 
 	handle = 0;
 
@@ -260,15 +274,19 @@ static int tokenizer() {
 	while (curpos <= end) {
 		index++;
 
-		if (strncmp(curpos, "/", 1))
+		if (strncmp(curpos, "/", 1)) {
+			errno = EINVAL;
 			return -1;
+		}
 
 		memset(curpos, 0, 1);
 		curpos = curpos + 1;
 
 		next = strstr(curpos, "/");
-		if (next == curpos)
+		if (next == curpos) {
+			errno = EINVAL;
 			return -1;
+		}
 
 		if(!next)
 			return index;
@@ -279,6 +297,7 @@ static int tokenizer() {
 			curpos = strstr(strstr(curpos, "]"), "/");
 
 	}
+	errno = EINVAL;
 	return -1;
 }
 
@@ -400,6 +419,7 @@ static int path_dive(int tokens)
 	return 0;
 
 fail:
+	errno = EINVAL;
 	return -1;
 }
 
@@ -504,6 +524,7 @@ static int get_data(char **rtn, char *curpos, int list, int is_oldlist)
 	return 0;
 
 fail:
+	errno = EINVAL;
 	return -1;
 }
 
@@ -567,6 +588,7 @@ int _ccs_get_xpathlite(int desc, const char *query, char **rtn, int list)
 		strncpy(previous_query, query, PATH_MAX-1);
 
 fail:
+	errno = -res;
 	return res;
 }
 
@@ -666,6 +688,7 @@ fail:
 	if(obj)
 		xmlXPathFreeObject(obj);
 
+	errno = -res;
 	return res;
 }
 
@@ -697,7 +720,8 @@ int ccs_get_list(int desc, const char *query, char **rtn){
  * Returns: 0 on success, < 0 on failure
  */
 int ccs_set(int desc, const char *path, char *val){
-	return -ENOSYS;
+	errno = ENOSYS;
+	return -1;
 }
 
 /**
