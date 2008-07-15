@@ -9,6 +9,8 @@
 #include <sys/socket.h>
 #include <sys/errno.h>
 #include <netdb.h>
+#define SYSLOG_NAMES
+#include <sys/syslog.h>
 #include <ifaddrs.h>
 #include <arpa/inet.h>
 
@@ -84,6 +86,31 @@ __attribute__ ((constructor)) static void cmanpre_comp_register(void) {
 	lcr_interfaces_set(&ifaces_ver0[0], &cmanpreconfig_iface_ver0);
 	lcr_component_register(&cmanpre_comp_ver0);
 }
+
+static char *facility_name_get (unsigned int facility)
+{
+	unsigned int i;
+
+	for (i = 0; facilitynames[i].c_name != NULL; i++) {
+		if (facility == facilitynames[i].c_val) {
+			return (facilitynames[i].c_name);
+		}
+	}
+	return (NULL);
+}
+
+static char *priority_name_get (unsigned int priority)
+{
+	unsigned int i;
+
+	for (i = 0; prioritynames[i].c_name != NULL; i++) {
+		if (priority == prioritynames[i].c_val) {
+			return (prioritynames[i].c_name);
+		}
+	}
+	return (NULL);
+}
+
 
 #define LOCALHOST_IPV4 "127.0.0.1"
 #define LOCALHOST_IPV6 "::1"
@@ -711,7 +738,7 @@ static void add_cman_overrides(struct objdb_iface_ver0 *objdb)
 		char *logstr;
 		char *logfacility;
 
-		logfacility = logsys_facility_name_get(SYSLOGFACILITY);
+		logfacility = facility_name_get(SYSLOGFACILITY);
 
 		logger_object_handle = find_cman_logger(objdb, object_handle);
 
@@ -741,7 +768,7 @@ static void add_cman_overrides(struct objdb_iface_ver0 *objdb)
 		}
 		else {
 			char *loglevel;
-			loglevel = logsys_priority_name_get(SYSLOGLEVEL);
+			loglevel = priority_name_get(SYSLOGLEVEL);
 			objdb->object_key_create(logger_object_handle, "syslog_level", strlen("syslog_level"),
 						 loglevel, strlen(loglevel)+1);
 		}
