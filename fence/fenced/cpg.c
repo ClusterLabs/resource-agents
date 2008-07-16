@@ -12,6 +12,71 @@ struct member {
 	uint32_t start_flags;
 };
 
+/* fd_info and id_info: for syncing state in start message */
+
+struct fd_info {
+	uint32_t fd_info_size;
+	uint32_t id_info_size;
+	uint32_t id_info_count;
+
+	uint32_t started_count;
+
+	int member_count;
+	int joined_count;
+	int remove_count;
+	int failed_count;
+};
+
+#define IDI_NODEID_IS_MEMBER    0x00000001
+
+struct id_info {
+	int nodeid;
+	uint32_t flags;
+
+	/* the following syncs info to make queries useful from all nodes */
+
+	int fence_external_node;
+	int fence_master;
+	int fence_how;
+	uint64_t fence_time;
+	uint64_t fence_external_time;
+};
+
+static void fd_info_in(struct fd_info *fi)
+{
+	fi->fd_info_size  = le32_to_cpu(fi->fd_info_size);
+	fi->id_info_size  = le32_to_cpu(fi->id_info_size);
+	fi->id_info_count = le32_to_cpu(fi->id_info_count);
+	fi->started_count = le32_to_cpu(fi->started_count);
+	fi->member_count  = le32_to_cpu(fi->member_count);
+	fi->joined_count  = le32_to_cpu(fi->joined_count);
+	fi->remove_count  = le32_to_cpu(fi->remove_count);
+	fi->failed_count  = le32_to_cpu(fi->failed_count);
+}
+
+static void id_info_in(struct id_info *id)
+{
+	id->nodeid              = le32_to_cpu(id->nodeid);
+	id->flags               = le32_to_cpu(id->flags);
+	id->fence_external_node = le32_to_cpu(id->fence_external_node);
+	id->fence_master        = le32_to_cpu(id->fence_master);
+	id->fence_how           = le32_to_cpu(id->fence_how);
+	id->fence_time          = le64_to_cpu(id->fence_time);
+	id->fence_external_time = le64_to_cpu(id->fence_external_time);
+}
+
+static void ids_in(struct fd_info *fi, struct id_info *ids)
+{
+	struct id_info *id;
+	int i;
+
+	id = ids;
+	for (i = 0; i < fi->id_info_count; i++) {
+		id_info_in(id);
+		id = (struct id_info *)((char *)id + fi->id_info_size);
+        }
+}
+
 static char *msg_name(int type)
 {
 	switch (type) {
@@ -219,18 +284,19 @@ static void node_history_fail(struct fd *fd, int nodeid)
    domain members update it when they receive the status message from the
    master. */
 
-void node_history_fence(struct fd *fd, int nodeid, int master, int how)
+void node_history_fence(struct fd *fd, int victim, int master, int how,
+			uint64_t mastertime)
 {
 	struct node_history *node;
 
-	node = get_node_history(fd, nodeid);
+	node = get_node_history(fd, victim);
 	if (!node) {
-		log_error("node_history_fence no nodeid %d", nodeid);
+		log_error("node_history_fence no nodeid %d", victim);
 		return;
 	}
 
-	node->fence_time = time(NULL);
 	node->fence_master = master;
+	node->fence_time = mastertime;
 	node->fence_how = how;
 }
 
@@ -256,6 +322,41 @@ static void node_history_fence_external(struct fd *fd, int nodeid, int from)
 
 	node->fence_external_time = time(NULL);
 	node->fence_external_node = from;
+}
+
+static void save_history(struct fd *fd, struct fd_info *fi, struct id_info *ids)
+{
+	struct node_history *node;
+	struct id_info *id;
+	int i;
+
+	id = ids;
+
+	for (i = 0; i < fi->id_info_count; i++) {
+		node = get_node_history(fd, id->nodeid);
+		if (!node)
+			goto next;
+
+		if (!node->fence_time && id->fence_time) {
+			node->fence_master = id->fence_master;
+			node->fence_time = id->fence_time;
+			node->fence_how = id->fence_how;
+			log_debug("save_history %d master %d time %llu how %d",
+				  node->nodeid, node->fence_master,
+				  (unsigned long long)node->fence_time,
+				  node->fence_how);
+		}
+
+		if (!node->fence_external_time && id->fence_external_time) {
+			node->fence_external_time = id->fence_external_time;
+			node->fence_external_node = id->fence_external_node;
+			log_debug("save_history %d ext node %d ext time %llu",
+				  node->nodeid, node->fence_external_node,
+				  (unsigned long long)node->fence_external_time);
+		}
+ next:
+		id = (struct id_info *)((char *)id + fi->id_info_size);
+	}
 }
 
 /* call this from libfenced:fenced_external() */
@@ -316,19 +417,20 @@ int is_fenced_external(struct fd *fd, int nodeid)
 /* completed victim must be removed from victims list before calling this
    because we count the number of entries on the victims list for remaining */
 
-void send_victim_done(struct fd *fd, int victim, int how)
+void send_victim_done(struct fd *fd, int victim)
 {
 	struct change *cg = list_first_entry(&fd->changes, struct change, list);
 	struct fd_header *hd;
-	int n_ints, len, *p;
-	int remaining = list_count(&fd->victims);
+	struct id_info *id;
+	struct node_history *node;
 	char *buf;
+	int len;
 
-	n_ints = 3;
-	len = sizeof(struct fd_header) + (n_ints * sizeof(int));
+	len = sizeof(struct fd_header) + sizeof(struct id_info);
 
 	buf = malloc(len);
 	if (!buf) {
+		log_error("send_victim_done no mem len %d", len);
 		return;
 	}
 	memset(buf, 0, len);
@@ -340,14 +442,20 @@ void send_victim_done(struct fd *fd, int victim, int how)
 	if (fd->init_complete)
 		hd->flags |= FD_MFLG_COMPLETE;
 
-	p = (int *)(buf + sizeof(struct fd_header));
+	node = get_node_history(fd, victim);
+	if (!node) {
+		log_error("send_victim_done %d no node struct", victim);
+		return;
+	}
 
-	p[0] = cpu_to_le32(victim);
-	p[1] = cpu_to_le32(how);
-	p[2] = cpu_to_le32(remaining);
+	id = (struct id_info *)(buf + sizeof(struct fd_header));
+	id->nodeid       = cpu_to_le32(victim);
+	id->fence_master = cpu_to_le32(our_nodeid);
+	id->fence_time   = cpu_to_le64(node->fence_time);
+	id->fence_how    = cpu_to_le32(node->fence_how);
 
-	log_debug("send_victim_done %u flags %x victim %d how %d remaining %d",
-		  cg->seq, hd->flags, victim, how, remaining);
+	log_debug("send_victim_done %u flags %x victim %d",
+		  cg->seq, hd->flags, victim);
 
 	fd_send_message(fd, buf, len);
 
@@ -358,8 +466,8 @@ static void receive_victim_done(struct fd *fd, struct fd_header *hd, int len)
 {
 	struct node *node;
 	uint32_t seq = hd->msgdata;
-	int victim, how, remaining, found;
-	int *nums;
+	int found;
+	struct id_info *id;
 
 	log_debug("receive_victim_done %d:%u flags %x len %d", hd->nodeid, seq,
 		  hd->flags, len);
@@ -373,19 +481,16 @@ static void receive_victim_done(struct fd *fd, struct fd_header *hd, int len)
 	if (hd->nodeid == our_nodeid)
 		return;
 
-	nums = (int *)((char *)hd + sizeof(struct fd_header));
-
-	victim = le32_to_cpu(nums[0]);
-	how = le32_to_cpu(nums[1]);
-	remaining = le32_to_cpu(nums[2]);
+	id = (struct id_info *)((char *)hd + sizeof(struct fd_header));
+	id_info_in(id);
 
 	found = 0;
-
 	list_for_each_entry(node, &fd->victims, list) {
-		if (node->nodeid == victim) {
-			log_debug("receive_victim_done remove %d how %d rem %d",
-				  victim, how, remaining);
-			node_history_fence(fd, victim, hd->nodeid, how);
+		if (node->nodeid == id->nodeid) {
+			log_debug("receive_victim_done remove %d how %d",
+				  id->nodeid, id->fence_how);
+			node_history_fence(fd, id->nodeid, id->fence_master,
+					   id->fence_how, id->fence_time);
 			list_del(&node->list);
 			free(node);
 			found = 1;
@@ -395,7 +500,7 @@ static void receive_victim_done(struct fd *fd, struct fd_header *hd, int len)
 
 	if (!found)
 		log_debug("receive_victim_done victim %d not found from %d",
-			  victim, hd->nodeid);
+			  id->nodeid, hd->nodeid);
 }
 
 /* same content as a start message, a new (incomplete) node will look for
@@ -567,6 +672,12 @@ static void cleanup_changes(struct fd *fd)
 		free_cg(fd->started_change);
 	fd->started_change = cg;
 
+	/* zero started_count means "never started" */
+
+	fd->started_count++;
+	if (!fd->started_count)
+		fd->started_count++;
+
 	list_for_each_entry_safe(cg, safe, &fd->changes, list) {
 		list_del(&cg->list);
 		free_cg(cg);
@@ -597,39 +708,38 @@ static void set_master(struct fd *fd)
 	fd->master = complete ? complete : low;
 }
 
+static struct id_info *get_id_struct(struct id_info *ids, int count, int size,
+                                     int nodeid)
+{
+	struct id_info *id = ids;
+	int i;
+
+	for (i = 0; i < count; i++) {
+		if (id->nodeid == nodeid)
+			return id;
+		id = (struct id_info *)((char *)id + size);
+	}
+	return NULL;
+}
+
 /* do the change details in the message match the details of the given change */
 
-static int match_change(struct fd *fd, struct change *cg,
-			struct fd_header *hd, int len)
+static int match_change(struct fd *fd, struct change *cg, struct fd_header *hd,
+			struct fd_info *fi, struct id_info *ids)
 {
+	struct id_info *id;
 	struct member *memb;
-	int member_count, joined_count, remove_count, failed_count;
-	int i, n_ints, *nums, nodeid, members_mismatch;
 	uint32_t seq = hd->msgdata;
+	int i, members_mismatch;
 
-	nums = (int *)((char *)hd + sizeof(struct fd_header));
+	/* We can ignore messages if we're not in the list of members.
+	   The one known time this will happen is after we've joined
+	   the cpg, we can get messages for changes prior to the change
+	   in which we're added. */
 
-	member_count = le32_to_cpu(nums[0]);
-	joined_count = le32_to_cpu(nums[1]);
-	remove_count = le32_to_cpu(nums[2]);
-	failed_count = le32_to_cpu(nums[3]);
+	id = get_id_struct(ids, fi->id_info_count, fi->id_info_size,our_nodeid);
 
-	n_ints = 4 + member_count;
-	if (len < (sizeof(struct fd_header) + (n_ints * sizeof(int)))) {
-		log_debug("match_change fail %d:%u bad len %d nums %s",
-			  hd->nodeid, seq, len, str_nums(nums, n_ints));
-		return 0;
-	}
-
-	/* We can ignore messages if we're not in the list of members.  The one
-	   known time this will happen is after we've joined the cpg, we can
-	   get messages for changes prior to the change in which we're added. */
-
-	for (i = 0; i < member_count; i++) {
-		if (our_nodeid == le32_to_cpu(nums[4+i]))
-			break;
-	}
-	if (i == member_count) {
+	if (!id || !(id->flags & IDI_NODEID_IS_MEMBER)) {
 		log_debug("match_change fail %d:%u we are not in members",
 			  hd->nodeid, seq);
 		return 0;
@@ -645,32 +755,37 @@ static int match_change(struct fd *fd, struct change *cg,
 	/* verify this is the right change by matching the counts
 	   and the nodeids of the current members */
 
-	if (member_count != cg->member_count ||
-	    joined_count != cg->joined_count ||
-	    remove_count != cg->remove_count ||
-	    failed_count != cg->failed_count) {
+	if (fi->member_count != cg->member_count ||
+	    fi->joined_count != cg->joined_count ||
+	    fi->remove_count != cg->remove_count ||
+	    fi->failed_count != cg->failed_count) {
 		log_debug("match_change fail %d:%u expect counts "
-			  "%d %d %d %d nums %s",
-			  hd->nodeid, seq,
+			  "%d %d %d %d", hd->nodeid, seq,
 			  cg->member_count, cg->joined_count,
-			  cg->remove_count, cg->failed_count,
-			  str_nums(nums, n_ints));
+			  cg->remove_count, cg->failed_count);
 		return 0;
 	}
 
 	members_mismatch = 0;
-	for (i = 0; i < member_count; i++) {
-		nodeid = le32_to_cpu(nums[4+i]);
-		memb = find_memb(cg, nodeid);
-		if (memb)
-			continue;
-		log_debug("match_change fail %d:%u no memb %d",
-			  hd->nodeid, seq, nodeid);
-		members_mismatch = 1;
+	id = ids;
+
+	for (i = 0; i < fi->id_info_count; i++) {
+		if (id->flags & IDI_NODEID_IS_MEMBER) {
+			memb = find_memb(cg, id->nodeid);
+			if (!memb) {
+				log_debug("match_change fail %d:%u memb %d",
+					  hd->nodeid, seq, id->nodeid);
+				members_mismatch = 1;
+				break;
+			}
+		}
+		id = (struct id_info *)((char *)id + fi->id_info_size);
 	}
+
 	if (members_mismatch)
 		return 0;
 
+	log_debug("match_change done %d:%u", hd->nodeid, seq);
 	return 1;
 }
 
@@ -693,12 +808,13 @@ static int match_change(struct fd *fd, struct change *cg,
    In step 4, how do the nodes know whether the start message from C is
    for confchg1 or confchg2?  Hopefully by comparing the counts and members. */
 
-static struct change *find_change(struct fd *fd, struct fd_header *hd, int len)
+static struct change *find_change(struct fd *fd, struct fd_header *hd,
+				  struct fd_info *fi, struct id_info *ids)
 {
 	struct change *cg;
 
 	list_for_each_entry_reverse(cg, &fd->changes, list) {
-		if (!match_change(fd, cg, hd, len))
+		if (!match_change(fd, cg, hd, fi, ids))
 			continue;
 		return cg;
 	}
@@ -707,27 +823,37 @@ static struct change *find_change(struct fd *fd, struct fd_header *hd, int len)
 	return NULL;
 }
 
-/* We require new members (memb->added) to be joining the domain
-   (memb->joining).  New members that are not joining the domain can happen
-   when the cpg partitions and is then merged back together (shouldn't happen
-   in general, but is possible).  We label these new members that are not
-   joining as "disallowed", and ignore their start message. */
+static int is_added(struct fd *fd, int nodeid)
+{
+	struct change *cg;
+	struct member *memb;
 
-/* Handle spurious joins by ignoring this start message if the node says it's
-   not joining (i.e. it's already a member), but we see it being added (i.e.
-   it's not already a member) */
+	list_for_each_entry(cg, &fd->changes, list) {
+		memb = find_memb(cg, nodeid);
+		if (memb && memb->added)
+			return 1;
+	}
+	return 0;
+}
 
 static void receive_start(struct fd *fd, struct fd_header *hd, int len)
 {
 	struct change *cg;
 	struct member *memb;
-	int joining = 0;
+	struct fd_info *fi;
+	struct id_info *ids;
 	uint32_t seq = hd->msgdata;
+	int added;
 
-	log_debug("receive_start %d:%u flags %x len %d", hd->nodeid, seq,
-		  hd->flags, len);
+	log_debug("receive_start %d:%u len %d", hd->nodeid, seq, len);
 
-	cg = find_change(fd, hd, len);
+	fi = (struct fd_info *)((char *)hd + sizeof(struct fd_header));
+	ids = (struct id_info *)((char *)fi + sizeof(struct fd_info));
+
+	fd_info_in(fi);
+	ids_in(fi, ids);
+
+	cg = find_change(fd, hd, fi, ids);
 	if (!cg)
 		return;
 
@@ -740,59 +866,104 @@ static void receive_start(struct fd *fd, struct fd_header *hd, int len)
 
 	memb->start_flags = hd->flags;
 
-	if (memb->start_flags & FD_MFLG_JOINING)
-		joining = 1;
+	added = is_added(fd, hd->nodeid);
 
-	if ((memb->added && !joining) || (!memb->added && joining)) {
-		log_error("receive_start %d:%u disallowed added %d joining %d",
-			  hd->nodeid, seq, memb->added, joining);
-		memb->disallowed = 1;
-	} else {
-		node_history_start(fd, hd->nodeid);
-		memb->start = 1;
+	if (added && fi->started_count) {
+		log_error("receive_start %d:%u add node with started_count %u",
+			  hd->nodeid, seq, fi->started_count);
+
+                /* observe this scheme working before using it; I'm not sure
+                   that a joining node won't ever see an existing node as added
+                   under normal circumstances */
+                /*
+                memb->disallowed = 1;
+                return;
+                */
 	}
+
+	node_history_start(fd, hd->nodeid);
+	memb->start = 1;
+
+	/* save any fencing history from this message that we don't have */
+	save_history(fd, fi, ids);
+}
+
+static int count_ids(struct fd *fd)
+{
+	struct node_history *node;
+	int count = 0;
+
+	list_for_each_entry(node, &fd->node_history, list)
+		count++;
+
+	return count;
 }
 
 static void send_start(struct fd *fd)
 {
-	struct change *cg = list_first_entry(&fd->changes, struct change, list);
+	struct change *cg;
 	struct fd_header *hd;
-	struct member *memb;
-	int n_ints, len, *p, i;
+	struct fd_info *fi;
+	struct id_info *id;
+	struct node_history *node;
 	char *buf;
+	uint32_t flags;
+	int len, id_count;
 
-	n_ints = 4 + cg->member_count;
-	len = sizeof(struct fd_header) + (n_ints * sizeof(int));
+	cg = list_first_entry(&fd->changes, struct change, list);
+
+	id_count = count_ids(fd);
+
+	len = sizeof(struct fd_header) + sizeof(struct fd_info) +
+	      id_count * sizeof(struct id_info);
 
 	buf = malloc(len);
 	if (!buf) {
+		log_error("send_start len %d no mem", len);
 		return;
 	}
 	memset(buf, 0, len);
 
 	hd = (struct fd_header *)buf;
+	fi = (struct fd_info *)(buf + sizeof(*hd));
+	id = (struct id_info *)(buf + sizeof(*hd) + sizeof(*fi));
+
+	/* fill in header (fd_send_message handles part of header) */
+
 	hd->type = FD_MSG_START;
 	hd->msgdata = cg->seq;
-
 	if (cg->we_joined)
 		hd->flags |= FD_MFLG_JOINING;
 	if (fd->init_complete)
 		hd->flags |= FD_MFLG_COMPLETE;
 
-	p = (int *)(buf + sizeof(struct fd_header));
+	/* fill in fd_info */
 
-	/* sending all this stuff is probably unnecessary, but gives
-	   us more certainty in matching stopped messages to the correct
-	   change that they are for */
+	fi->fd_info_size  = cpu_to_le32(sizeof(struct fd_info));
+	fi->id_info_size  = cpu_to_le32(sizeof(struct id_info));
+	fi->id_info_count = cpu_to_le32(id_count);
+	fi->started_count = cpu_to_le32(fd->started_count);
+	fi->member_count  = cpu_to_le32(cg->member_count);
+	fi->joined_count  = cpu_to_le32(cg->joined_count);
+	fi->remove_count  = cpu_to_le32(cg->remove_count);
+	fi->failed_count  = cpu_to_le32(cg->failed_count);
 
-	p[0] = cpu_to_le32(cg->member_count);
-	p[1] = cpu_to_le32(cg->joined_count);
-	p[2] = cpu_to_le32(cg->remove_count);
-	p[3] = cpu_to_le32(cg->failed_count);
+	/* fill in id_info entries */
 
-	i = 4;
-	list_for_each_entry(memb, &cg->members, list)
-		p[i++] = cpu_to_le32(memb->nodeid);
+	list_for_each_entry(node, &fd->node_history, list) {
+		flags = 0;
+		if (find_memb(cg, node->nodeid))
+			flags = IDI_NODEID_IS_MEMBER;
+
+		id->flags              = cpu_to_le32(flags);
+		id->nodeid             = cpu_to_le32(node->nodeid);
+		id->fence_external_node= cpu_to_le32(node->fence_external_node);
+		id->fence_master       = cpu_to_le32(node->fence_master);
+		id->fence_how          = cpu_to_le32(node->fence_how);
+		id->fence_time         = cpu_to_le64(node->fence_time);
+		id->fence_external_time= cpu_to_le64(node->fence_external_time);
+		id++;
+	}
 
 	log_debug("send_start %u flags %x counts %d %d %d %d", cg->seq,
 		  hd->flags, cg->member_count, cg->joined_count,
@@ -854,7 +1025,7 @@ static void add_victims(struct fd *fd, struct change *cg)
    once the master begins fencing victims, it won't process any new changes
    until it's done.  the non-master members will process changes while the
    master is fencing, but will wait for the master to catch up in
-   WAIT_MESSAGES.  if the master fails, the others will no longer wait for it. */
+   WAIT_MESSAGES.  if the master fails, the others will no longer wait for it.*/
 
 static void apply_changes(struct fd *fd)
 {

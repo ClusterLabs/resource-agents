@@ -195,6 +195,7 @@ struct fd {
 	int			cpg_client;
 	int			cpg_fd;
 	uint32_t		change_seq;
+	uint32_t		started_count;
 	struct change		*started_change;
 	struct list_head	changes;
 	struct list_head	node_history;
@@ -231,10 +232,11 @@ int read_ccs(struct fd *fd);
 /* cpg.c */
 
 void free_cg(struct change *cg);
-void node_history_fence(struct fd *fd, int nodeid, int master, int how);
+void node_history_fence(struct fd *fd, int victim, int master, int how,
+			uint64_t mastertime);
 void send_external(struct fd *fd, int victim);
 int is_fenced_external(struct fd *fd, int nodeid);
-void send_victim_done(struct fd *fd, int victim, int how);
+void send_victim_done(struct fd *fd, int victim);
 void process_fd_changes(void);
 int fd_join(struct fd *fd);
 int fd_leave(struct fd *fd);

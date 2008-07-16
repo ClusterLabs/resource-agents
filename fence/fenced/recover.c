@@ -45,8 +45,8 @@ static void victim_done(struct fd *fd, int victim, int how)
 	if (group_mode == GROUP_LIBGROUP)
 		return;
 
-	node_history_fence(fd, victim, our_nodeid, how);
-	send_victim_done(fd, victim, how);
+	node_history_fence(fd, victim, our_nodeid, how, time(NULL));
+	send_victim_done(fd, victim);
 }
 
 /* This routine should probe other indicators to check if victims
