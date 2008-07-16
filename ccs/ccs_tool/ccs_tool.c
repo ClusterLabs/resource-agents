@@ -140,13 +140,20 @@ static int xpath_query(int argc, char **argv)
 	int handle;
 	char *ret;
 	int i;
+	int compat_output = 0;
 
 	if (argc < 2) {
 		fprintf(stderr,
 			"Usage:\n"
 			"\n"
-			"ccs_tool query <xpath query>\n");
+			"ccs_tool query [-c] <xpath query>\n");
 		return 1;
+	}
+
+	if (strcmp(argv[1], "-c") == 0) {
+		argc--;
+		argv++;
+		compat_output = 1;
 	}
 
 	/* Tell the library we want full XPath parsing */
@@ -157,11 +164,22 @@ static int xpath_query(int argc, char **argv)
 	/* Process all the queries on the command-line */
 	for (i=1; i<argc; i++) {
 		if (!ccs_get(handle, argv[1], &ret)) {
-			printf("%s\n", ret);
+			if (compat_output) {
+				printf("Get successful.\n");
+				printf(" Value = <%s>\n", ret);
+			}
+			else {
+				printf("%s\n", ret);
+			}
 			free(ret);
 		}
 		else {
-			printf("Query failed: %s\n", strerror(errno));
+			if (compat_output) {
+				fprintf(stderr, "ccs_get failed: %s\n", strerror(errno));
+			}
+			else {
+				fprintf(stderr, "Query failed: %s\n", strerror(errno));
+			}
 			ccs_disconnect(handle);
 			return -1;
 		}
@@ -292,6 +310,7 @@ static void tool_print_usage(FILE *stream){
 	  "  query <ccs query>   Query the cluster configuration.\n"
 #else
 	  "  query <xpath query> Query the cluster configuration.\n"
+	  "  query [-c] <query>  Query the cluster configuration, old output format.\n"
 #endif
 	  "  addnode <node>      Add a node\n"
           "  delnode <node>      Delete a node\n"
