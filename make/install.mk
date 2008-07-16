@@ -57,7 +57,9 @@ ifdef FENCEAGENTSLIB
 endif
 ifdef DOCS
 	install -d ${docdir}
-	install -m644 $(S)/${DOCS} ${docdir}
+	for i in ${DOCS}; do \
+		install -m644 $(S)/$$i ${docdir}; \
+	done
 endif
 ifdef LOGRORATED
 	install -d ${logrotatedir}
