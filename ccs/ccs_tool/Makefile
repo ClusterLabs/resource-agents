@@ -25,7 +25,7 @@ endif
 
 LDFLAGS += -L${cmanlibdir} -lcman
 LDFLAGS += `xml2-config --libs` -L${libdir}
-ifdef OLD_CCS_CODE
+ifdef LEGACY_CODE
 LDFLAGS += -L../libccscompat -lccscompat
 else
 LDFLAGS += -L${ccslibdir} -lccs
