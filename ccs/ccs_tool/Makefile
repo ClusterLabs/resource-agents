@@ -23,7 +23,7 @@ OBJS=	ccs_tool.o \
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
 CFLAGS += -I${cmanincdir} `xml2-config --cflags`
-CFLAGS += -I${ccslibdir} -I$(S)/../include
+CFLAGS += -I${ccsincdir} -I$(S)/../include
 CFLAGS += -I$(S)/../libccscompat
 CFLAGS += -I${incdir}
 
