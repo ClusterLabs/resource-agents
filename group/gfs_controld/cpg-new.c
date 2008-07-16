@@ -501,6 +501,9 @@ static int nodes_failed(struct mountgroup *mg)
 	return 0;
 }
 
+/* find a start message from an old node to use; it doesn't matter which old
+   node we take the start message from, they should all be the same */
+
 static int get_id_list(struct mountgroup *mg, struct id_info **ids,
 		       int *count, int *size)
 {
@@ -508,10 +511,6 @@ static int get_id_list(struct mountgroup *mg, struct id_info **ids,
 	struct member *memb;
 
 	cg = list_first_entry(&mg->changes, struct change, list);
-
-	/* find a start message from an old node to use; it doesn't
-	   matter which old node we take the start message from, they
-	   should all be the same */
 
 	list_for_each_entry(memb, &cg->members, list) {
 		if (!memb->mg_info->started_count)
@@ -784,26 +783,17 @@ static int match_change(struct mountgroup *mg, struct change *cg,
 				 sizeof(struct gfs_header) +
 				 mi->mg_info_size);
 
-	if (!mi->started_count) {
-		if (mi->id_info_count != 1) {
-			log_error("match_change fail %d:%u id_count %d exp 1",
-				  hd->nodeid, seq, mi->id_info_count);
-			return 0;
-		}
-	} else {
-		/* We can ignore messages if we're not in the list of members.
-		   The one known time this will happen is after we've joined
-		   the cpg, we can get messages for changes prior to the change
-		   in which we're added. */
+	/* We can ignore messages if we're not in the list of members.
+	   The one known time this will happen is after we've joined
+	   the cpg, we can get messages for changes prior to the change
+	   in which we're added. */
 
-		id = get_id_struct(ids, mi->id_info_count, mi->id_info_size,
-				   our_nodeid);
+	id = get_id_struct(ids, mi->id_info_count, mi->id_info_size, our_nodeid);
 
-		if (!id || !(id->flags & IDI_NODEID_IS_MEMBER)) {
-			log_group(mg, "match_change fail %d:%u we are not in "
-				  "members", hd->nodeid, seq);
-			return 0;
-		}
+	if (!id || !(id->flags & IDI_NODEID_IS_MEMBER)) {
+		log_group(mg, "match_change fail %d:%u we are not in members",
+			  hd->nodeid, seq);
+		return 0;
 	}
 
 	memb = find_memb(cg, hd->nodeid);
@@ -831,17 +821,15 @@ static int match_change(struct mountgroup *mg, struct change *cg,
 	id = ids;
 
 	for (i = 0; i < mi->id_info_count; i++) {
-		if (!(id->flags & IDI_NODEID_IS_MEMBER))
-			goto next;
-
-		memb = find_memb(cg, id->nodeid);
-		if (!memb) {
-			log_group(mg, "match_change fail %d:%u no memb %d",
-			  	hd->nodeid, seq, id->nodeid);
-			members_mismatch = 1;
-			break;
+		if (id->flags & IDI_NODEID_IS_MEMBER) {
+			memb = find_memb(cg, id->nodeid);
+			if (!memb) {
+				log_group(mg, "match_change fail %d:%u memb %d",
+					  hd->nodeid, seq, id->nodeid);
+				members_mismatch = 1;
+				break;
+			}
 		}
- next:
 		id = (struct id_info *)((char *)id + mi->id_info_size);
 	}
 
@@ -993,9 +981,6 @@ static int count_ids(struct mountgroup *mg)
 	struct journal *j;
 	int count = 0;
 
-	if (!mg->started_count)
-		return 1;
-
 	cg = list_first_entry(&mg->changes, struct change, list);
 
 	list_for_each_entry(memb, &cg->members, list)
@@ -1037,6 +1022,14 @@ static void send_start(struct mountgroup *mg)
 
 	id_count = count_ids(mg);
 
+	/* sanity check */
+
+	if (!mg->started_count && id_count != cg->member_count) {
+		log_error("send_start bad counts id_count %d member_count %d",
+			  cg->member_count, id_count);
+		return;
+	}
+
 	len = sizeof(struct gfs_header) + sizeof(struct mg_info) +
 	      id_count * sizeof(struct id_info);
 
@@ -1072,31 +1065,27 @@ static void send_start(struct mountgroup *mg)
 
 	/* fill in id_info entries */
 
-	/* new members only send info about themselves, it's all they have */
-
-	if (!mg->started_count) {
-		flags = IDI_NODEID_IS_MEMBER;
-		flags |= mg->ro ? IDI_MOUNT_RO : 0;
-		flags |= mg->spectator ? IDI_MOUNT_SPECTATOR : 0;
-
-		id->nodeid = cpu_to_le32(our_nodeid);
-		id->jid    = cpu_to_le32(JID_NONE);
-		id->flags  = cpu_to_le32(flags);
-		goto do_send;
-	}
-
-	/* all old members send full info about all old members, and empty
-	   id_info slots about new members.  The union of start messages
-	   from a single old node and all new nodes give a complete picture
-	   of state for all members.  In sync_state, all nodes (old and new)
-	   make this union, and then assign jid's to new nodes. */
+	/* New members send info about themselves, and empty id_info slots for
+	   all other members.  Old members send full info about all old
+	   members, and empty id_info slots about new members.  The union of
+	   start messages from a single old node and all new nodes give a
+	   complete picture of state for all members.  In sync_state, all nodes
+	   (old and new) make this union, and then assign jid's to new nodes. */
 
 	list_for_each_entry(memb, &cg->members, list) {
-		if (is_added(mg, memb->nodeid)) {
+
+		if (!mg->started_count || is_added(mg, memb->nodeid)) {
 			/* send empty slot for new member */
 			jid = JID_NONE;
 			flags = IDI_NODEID_IS_MEMBER;
+
+			/* include our own info which no one knows yet */
+			if (!mg->started_count && memb->nodeid == our_nodeid) {
+				flags |= mg->ro ? IDI_MOUNT_RO : 0;
+				flags |= mg->spectator ? IDI_MOUNT_SPECTATOR : 0;
+			}
 			new_memb++;
+
 		} else {
 			/* send full info for old member */
 			node = get_node_history(mg, memb->nodeid);
@@ -1145,7 +1134,14 @@ static void send_start(struct mountgroup *mg)
 		}
 	}
 
- do_send:
+	/* sanity check */
+
+	if (!mg->started_count && (old_memb || old_journal || new_journal)) {
+		log_error("send_start %u bad counts om %d nm %d oj %d nj %d",
+			  cg->seq, old_memb, new_memb, old_journal, new_journal);
+		return;
+	}
+
 	log_group(mg, "send_start %u id_count %d om %d nm %d oj %d nj %d",
 		  cg->seq, id_count, old_memb, new_memb, old_journal,
 		  new_journal);
@@ -1518,7 +1514,7 @@ static void create_new_nodes(struct mountgroup *mg)
 {
 	struct change *cg;
 	struct member *memb;
-	struct id_info *id;
+	struct id_info *ids, *id;
 	struct node *node;
 
 	cg = list_first_entry(&mg->changes, struct change, list);
@@ -1534,11 +1530,12 @@ static void create_new_nodes(struct mountgroup *mg)
 			return;
 		}
 
-		/* a new node sends one id struct describing itself */
+		ids = (struct id_info *)(memb->start_msg +
+					 sizeof(struct gfs_header) +
+					 memb->mg_info->mg_info_size);
 
-		id = (struct id_info *)(memb->start_msg +
-					sizeof(struct gfs_header) +
-					memb->mg_info->mg_info_size);
+		id = get_id_struct(ids, memb->mg_info->id_info_count,
+				   memb->mg_info->id_info_size, memb->nodeid);
 
 		if (!(id->flags & IDI_NODEID_IS_MEMBER) ||
 		     (id->flags & IDI_JID_NEEDS_RECOVERY)) {
@@ -1934,7 +1931,7 @@ void process_recovery_uevent(char *table)
 		/*
 		 * Assumption here is that only the first mounter will get
 		 * uevents when first_recovery_needed is set.
-	 	 */
+		 */
 
 		/* make a local record of jid and recover_status; we may want
 		   to check below that we've seen uevents for all jids
