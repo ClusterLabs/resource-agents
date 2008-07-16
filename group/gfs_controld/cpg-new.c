@@ -874,20 +874,8 @@ static struct change *find_change(struct mountgroup *mg, struct gfs_header *hd,
 	return NULL;
 }
 
-static void receive_start(struct mountgroup *mg, struct gfs_header *hd, int len)
+static void mg_info_in(struct mg_info *mi)
 {
-	struct change *cg;
-	struct member *memb;
-	struct mg_info *mi;
-	uint32_t seq = hd->msgdata;
-	int added;
-
-	log_group(mg, "receive_start %d:%u len %d", hd->nodeid, seq, len);
-
-	/* header endian conv in deliver_cb, mg_info endian conv here,
-	   id_info endian conv later when it's used */
-
-	mi = (struct mg_info *)((char *)hd + sizeof(struct gfs_header));
 	mi->mg_info_size  = le32_to_cpu(mi->mg_info_size);
 	mi->id_info_size  = le32_to_cpu(mi->id_info_size);
 	mi->id_info_count = le32_to_cpu(mi->id_info_count);
@@ -898,6 +886,43 @@ static void receive_start(struct mountgroup *mg, struct gfs_header *hd, int len)
 	mi->failed_count  = le32_to_cpu(mi->failed_count);
 	mi->first_recovery_needed = le32_to_cpu(mi->first_recovery_needed);
 	mi->first_recovery_master = le32_to_cpu(mi->first_recovery_master);
+}
+
+static void id_info_in(struct id_info *id)
+{
+	id->nodeid = le32_to_cpu(id->nodeid);
+	id->jid    = le32_to_cpu(id->jid);
+	id->flags  = le32_to_cpu(id->flags);
+}
+
+static void ids_in(struct mg_info *mi, struct id_info *ids)
+{
+	struct id_info *id;
+	int i;
+
+	id = ids;
+	for (i = 0; i < mi->id_info_count; i++) {
+		id_info_in(id);
+		id = (struct id_info *)((char *)id + mi->id_info_size);
+	}
+}
+
+static void receive_start(struct mountgroup *mg, struct gfs_header *hd, int len)
+{
+	struct change *cg;
+	struct member *memb;
+	struct mg_info *mi;
+	struct id_info *ids;
+	uint32_t seq = hd->msgdata;
+	int added;
+
+	log_group(mg, "receive_start %d:%u len %d", hd->nodeid, seq, len);
+
+	/* header endian conv in deliver_cb, mg_info endian conv here,
+	   id_info endian conv below */
+
+	mi = (struct mg_info *)((char *)hd + sizeof(struct gfs_header));
+	mg_info_in(mi);
 
 	cg = find_change(mg, hd, len, mi);
 	if (!cg)
@@ -934,14 +959,22 @@ static void receive_start(struct mountgroup *mg, struct gfs_header *hd, int len)
 		return;
 	}
 
+	/* save a copy of each start message */
 	memb->start_msg = malloc(len);
 	if (!memb->start_msg) {
 		log_error("receive_start len %d no mem", len);
 		return;
 	}
 	memcpy(memb->start_msg, hd, len);
+
+	/* a shortcut to the saved mg_info */
 	memb->mg_info = (struct mg_info *)(memb->start_msg +
 					   sizeof(struct gfs_header));
+	/* endian swap saved id_info entries */
+	ids = (struct id_info *)(memb->start_msg +
+				 sizeof(struct gfs_header) +
+				 memb->mg_info->mg_info_size);
+	ids_in(mi, ids);
 }
 
 /* start messages are associated with a specific change and use the
