@@ -1,4 +1,4 @@
-TARGET= ccs_test.8 confdb2ldif.8
+TARGET= confdb2ldif.8
 
 include ../../../make/defines.mk
 include $(OBJDIR)/make/man.mk
