@@ -19,13 +19,11 @@ CFLAGS += -I${cmanincdir} `xml2-config --cflags`
 CFLAGS += -I${ccslibdir} -I$(S)/../include
 CFLAGS += -I$(S)/../libccscompat
 CFLAGS += -I${incdir}
-ifdef LEGACY_CODE
-CFLAGS += -DLEGACY_CODE
-endif
 
 LDFLAGS += -L${cmanlibdir} -lcman
 LDFLAGS += `xml2-config --libs` -L${libdir}
-ifdef LEGACY_CODE
+
+ifdef legacy_code
 LDFLAGS += -L../libccscompat -lccscompat
 else
 LDFLAGS += -L${ccslibdir} -lccs
