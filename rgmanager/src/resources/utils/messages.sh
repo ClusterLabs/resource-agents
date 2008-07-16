@@ -5,7 +5,6 @@ declare CLOG_SUCCEED=200
 
 declare CLOG_FAILED=400
 declare CLOG_FAILED_TIMEOUT=401
-declare CLOG_FAILED_CCS=402
 declare CLOG_FAILED_NOT_FOUND=403
 declare CLOG_FAILED_INVALID=404
 declare CLOG_FAILED_NOT_READABLE=405
@@ -235,9 +234,6 @@ clog_looking_for()
 			;;
 		$CLOG_FAILED)
 			ocf_log error "Looking For $2 [$OCF_RESOURCE_INSTANCE] > Failed"
-			;;		
-		$CLOG_FAILED_CCS)
-			ocf_log error "Looking For $2 [$OCF_RESOURCE_INSTANCE] > Failed - Unable To Connect To \"ccs\""
 			;;		
 		$CLOG_FAILED_NOT_FOUND)
 			ocf_log error "Looking For $2 [$OCF_RESOURCE_INSTANCE] > Failed - No $2 Found"

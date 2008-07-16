@@ -82,8 +82,6 @@ generate_config_file()
 
 start()
 {
-	declare ccs_fd;
-	
 	clog_service_start $CLOG_INIT
 
 	create_pid_directory
@@ -107,14 +105,8 @@ start()
 
 	clog_looking_for $CLOG_INIT "IP Addresses"
 
-        ccs_fd=$(ccs_connect);
-        if [ $? -ne 0 ]; then
-		clog_looking_for $CLOG_FAILED_CCS
-                return $OCF_ERR_GENERIC
-        fi
-
-        get_service_ip_keys "$ccs_fd" "$OCF_RESKEY_service_name"
-        ip_addresses=`build_ip_list "$ccs_fd"`
+        get_service_ip_keys "$OCF_RESKEY_service_name"
+        ip_addresses=`build_ip_list`
 
 	if [ -z "$ip_addresses" ]; then
 		clog_looking_for $CLOG_FAILED_NOT_FOUND "IP Addresses"

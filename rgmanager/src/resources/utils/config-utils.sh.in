@@ -47,60 +47,18 @@ sha1_verify()
 }
 
 #
-# Usage: ccs_connect
-# Returns: $FAIL on failure, or a connection descriptor on success
-#
-ccs_connect()
-{
-	declare outp
-
-	outp=$(ccs_test connect 2>&1)
-	if [ $? -ne 0 ]; then
-		ocf_log err "$outp"
-		return $FAIL
-	fi
-
-	outp=${outp/*= /}
-	if [ -n "$outp" ]; then
-		echo $outp
-		return 0
-	fi
-
-	return 1
-}
-
-#
-# Usage: ccs_disconnect descriptor
-#
-ccs_disconnect()
-{
-	declare outp
-
-	[ -n "$1" ] || return $FAIL
-	outp=$(ccs_test disconnect $1 2>&1)
-	if [ $? -ne 0 ]; then
-		ocf_log warn "Disconnect CCS desc $1 failed: $outp"
-		return 1
-	fi
-	return 0
-}
-
-#
-# Usage: ccs_get desc key
+# Usage: ccs_get key
 #
 ccs_get()
 {
 	declare outp
-	declare ccsfd=$1
 	declare key
 
 	[ -n "$1" ] || return $FAIL
-	[ -n "$2" ] || return $FAIL
 
-	shift
 	key="$*"
 
-	outp=$(ccs_test get $ccsfd "$key" 2>&1)
+	outp=$(ccs_tool query -c "$key" 2>&1)
 	if [ $? -ne 0 ]; then
 		if [ "$outp" = "${outp/No data available/}" ]; then
 			ocf_log err "$outp ($key)"
@@ -125,16 +83,10 @@ ccs_get()
 #
 get_service_ip_keys()
 {
-	declare ccsfd=$1
 	declare svc=$2
 	declare -i x y=0
 	declare outp
 	declare key
-
-	if [ $ccsfd -eq $FAIL ]; then
-		ocf_log err "Can not talk to ccsd: invalid descriptor $ccsfd"
-		return 1
-	fi
 
 	#
 	# Find service-local IP keys
@@ -146,7 +98,7 @@ get_service_ip_keys()
 		#
 		# Try direct method
 		#
-		outp=$(ccs_get $ccsfd "$key/@address")
+		outp=$(ccs_get "$key/@address")
 		if [ $? -ne 0 ]; then
 			return 1
 		fi
@@ -155,7 +107,7 @@ get_service_ip_keys()
 		# Try by reference
 		#
 		if [ -z "$outp" ]; then
-			outp=$(ccs_get $ccsfd "$key/@ref")
+			outp=$(ccs_get "$key/@ref")
 			if [ $? -ne 0 ]; then
 				return 1
 			fi
@@ -181,12 +133,11 @@ get_service_ip_keys()
 
 build_ip_list()
 {
-        declare -i ccsfd=$1
         declare ipaddrs ipaddr
         declare -i x=0
                         
         while [ -n "${ip_keys[$x]}" ]; do
-              ipaddr=$(ccs_get $ccsfd "${ip_keys[$x]}/@address")
+              ipaddr=$(ccs_get "${ip_keys[$x]}/@address")
               if [ -z "$ipaddr" ]; then
                                    break
               fi
