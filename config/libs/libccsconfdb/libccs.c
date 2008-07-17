@@ -611,8 +611,10 @@ int _ccs_get_fullxpath(int desc, const char *query, char **rtn, int list)
 	xmlXPathObjectPtr obj = NULL;
 	char realquery[PATH_MAX + 16];
 
-	if(strncmp(query, "/", 1))
+	if(strncmp(query, "/", 1)) {
+		errno = EINVAL;
 		return -EINVAL;
+	}
 
 	if (list && !strcmp(query, previous_query))
 		xmllistindex++;
@@ -626,8 +628,10 @@ int _ccs_get_fullxpath(int desc, const char *query, char **rtn, int list)
 
 	obj = xmlXPathEvalExpression((xmlChar *)realquery, ctx);
 
-	if(!obj)
+	if(!obj) {
+		errno = EINVAL;
 		return -EINVAL;
+	}
 
 	if (obj->nodesetval && (obj->nodesetval->nodeNr > 0)) {
 		xmlNodePtr node;
@@ -755,8 +759,10 @@ int ccs_lookup_nodename(int cd, const char *nodename, char **retval) {
 	nodename_len = strlen(nodename);
 	ret = snprintf(path, sizeof(path),
 			"/cluster/clusternodes/clusternode[@name=\"%s\"]/@name", nodename);
-	if (ret < 0 || (size_t) ret >= sizeof(path))
+	if (ret < 0 || (size_t) ret >= sizeof(path)) {
+		errno = E2BIG;
 		return (-E2BIG);
+	}
 
 	str = NULL;
 	error = ccs_get(cd, path, &str);
@@ -765,8 +771,10 @@ int ccs_lookup_nodename(int cd, const char *nodename, char **retval) {
 		return (0);
 	}
 
-	if (nodename_len >= sizeof(host_only))
+	if (nodename_len >= sizeof(host_only)) {
+		errno = E2BIG;
 		return (-E2BIG);
+	}
 
 	/* Try just the hostname */
 	strcpy(host_only, nodename);
@@ -832,6 +840,7 @@ int ccs_lookup_nodename(int cd, const char *nodename, char **retval) {
 			if (altcnt == 0) {
 				if (strlen(str) >= sizeof(canonical_name)) {
 					free(str);
+					errno = E2BIG;
 					return (-E2BIG);
 				}
 				strcpy(canonical_name, str);
@@ -839,6 +848,7 @@ int ccs_lookup_nodename(int cd, const char *nodename, char **retval) {
 
 			if (strlen(str) >= sizeof(cur_node)) {
 				free(str);
+				errno = E2BIG;
 				return (-E2BIG);
 			}
 
@@ -855,8 +865,10 @@ int ccs_lookup_nodename(int cd, const char *nodename, char **retval) {
 			{
 				free(str);
 				*retval = strdup(canonical_name);
-				if (*retval == NULL)
+				if (*retval == NULL) {
+					errno = ENOMEM;
 					return (-ENOMEM);
+				}
 				return (0);
 			}
 
@@ -877,8 +889,10 @@ int ccs_lookup_nodename(int cd, const char *nodename, char **retval) {
 						freeaddrinfo(ai);
 						free(str);
 						*retval = strdup(canonical_name);
-						if (*retval == NULL)
+						if (*retval == NULL) {
+							errno = ENOMEM;
 							return (-ENOMEM);
+						}
 						return (0);
 					}
 				}
@@ -892,6 +906,7 @@ int ccs_lookup_nodename(int cd, const char *nodename, char **retval) {
 	}
 
 out_fail:
+	errno = EINVAL;
 	*retval = NULL;
 	return (-1);
 }
