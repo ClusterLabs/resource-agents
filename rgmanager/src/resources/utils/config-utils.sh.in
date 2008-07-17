@@ -58,7 +58,7 @@ ccs_get()
 
 	key="$*"
 
-	outp=$(ccs_tool query -c "$key" 2>&1)
+	outp=$(ccs_tool query "$key" 2>&1)
 	if [ $? -ne 0 ]; then
 		if [ "$outp" = "${outp/No data available/}" ] || [ "$outp" = "${outp/Operation not permitted/}" ]; then
 			ocf_log err "$outp ($key)"
