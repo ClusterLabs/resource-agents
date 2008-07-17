@@ -772,23 +772,20 @@ static void cleanup_changes(struct mountgroup *mg)
 /* do the change details in the message match the details of the given change */
 
 static int match_change(struct mountgroup *mg, struct change *cg,
-			struct gfs_header *hd, int len, struct mg_info *mi)
+			struct gfs_header *hd, struct mg_info *mi,
+			struct id_info *ids)
 {
-	struct id_info *ids, *id;
+	struct id_info *id;
 	struct member *memb;
 	uint32_t seq = hd->msgdata;
 	int i, members_mismatch;
-
-	ids = (struct id_info *)((char *)hd +
-				 sizeof(struct gfs_header) +
-				 mi->mg_info_size);
 
 	/* We can ignore messages if we're not in the list of members.
 	   The one known time this will happen is after we've joined
 	   the cpg, we can get messages for changes prior to the change
 	   in which we're added. */
 
-	id = get_id_struct(ids, mi->id_info_count, mi->id_info_size, our_nodeid);
+	id = get_id_struct(ids, mi->id_info_count, mi->id_info_size,our_nodeid);
 
 	if (!id || !(id->flags & IDI_NODEID_IS_MEMBER)) {
 		log_group(mg, "match_change fail %d:%u we are not in members",
@@ -860,12 +857,12 @@ static int match_change(struct mountgroup *mg, struct change *cg,
    for confchg1 or confchg2?  Hopefully by comparing the counts and members. */
 
 static struct change *find_change(struct mountgroup *mg, struct gfs_header *hd,
-				  int len, struct mg_info *mi)
+				  struct mg_info *mi, struct id_info *ids)
 {
 	struct change *cg;
 
 	list_for_each_entry_reverse(cg, &mg->changes, list) {
-		if (!match_change(mg, cg, hd, len, mi))
+		if (!match_change(mg, cg, hd, mi, ids))
 			continue;
 		return cg;
 	}
@@ -918,13 +915,13 @@ static void receive_start(struct mountgroup *mg, struct gfs_header *hd, int len)
 
 	log_group(mg, "receive_start %d:%u len %d", hd->nodeid, seq, len);
 
-	/* header endian conv in deliver_cb, mg_info endian conv here,
-	   id_info endian conv below */
-
 	mi = (struct mg_info *)((char *)hd + sizeof(struct gfs_header));
-	mg_info_in(mi);
+	ids = (struct id_info *)((char *)mi + sizeof(struct mg_info));
 
-	cg = find_change(mg, hd, len, mi);
+	mg_info_in(mi);
+	ids_in(mi, ids);
+
+	cg = find_change(mg, hd, mi, ids);
 	if (!cg)
 		return;
 
@@ -970,11 +967,6 @@ static void receive_start(struct mountgroup *mg, struct gfs_header *hd, int len)
 	/* a shortcut to the saved mg_info */
 	memb->mg_info = (struct mg_info *)(memb->start_msg +
 					   sizeof(struct gfs_header));
-	/* endian swap saved id_info entries */
-	ids = (struct id_info *)(memb->start_msg +
-				 sizeof(struct gfs_header) +
-				 memb->mg_info->mg_info_size);
-	ids_in(mi, ids);
 }
 
 /* start messages are associated with a specific change and use the
