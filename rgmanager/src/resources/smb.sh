@@ -101,62 +101,18 @@ EOT
 
 
 #
-# Usage: ccs_connect
-# Returns: $_FAIL on failure, or a connection descriptor on success
-#
-ccs_connect()
-{
-	declare outp
-
-	outp=$(ccs_test connect 2>&1)
-	if [ $? -ne 0 ]; then
-		ocf_log err "$outp"
-		return $_FAIL
-	fi
-
-	outp=${outp/*= /}
-	if [ -n "$outp" ]; then
-		echo $outp
-		return 0
-	fi
-
-	return 1
-}
-
-
-#
-# Usage: ccs_disconnect desc
-#
-ccs_disconnect()
-{
-	declare outp
-
-	[ -n "$1" ] || return $_FAIL
-	outp=$(ccs_test disconnect $1 2>&1)
-	if [ $? -ne 0 ]; then
-		ocf_log warn "Disconnect CCS desc $1 failed: $outp"
-		return 1
-	fi
-	return 0
-}
-
-
-#
-# Usage: ccs_get desc key
+# Usage: ccs_get key
 #
 ccs_get()
 {
 	declare outp
-	declare ccsfd=$1
 	declare key
 
 	[ -n "$1" ] || return $_FAIL
-	[ -n "$2" ] || return $_FAIL
 
-	shift
 	key="$*"
 
-	outp=$(ccs_test get $ccsfd "$key" 2>&1)
+	outp=$(ccs_tool query -c "$key" 2>&1)
 	if [ $? -ne 0 ]; then
 		if [ "$outp" = "${outp/No data available/}" ]; then
 			ocf_log err "$outp ($key)"
@@ -181,16 +137,10 @@ ccs_get()
 #
 get_service_ip_keys()
 {
-	declare -i ccsfd=$1
-	declare svc=$2
+	declare svc=$1
 	declare -i x y=0
 	declare outp
 	declare key
-
-	if [ $ccsfd -eq $_FAIL ]; then
-		ocf_log err "Can not talk to ccsd: invalid descriptor $ccsfd"
-		return 1
-	fi
 
 	#
 	# Find service-local IP keys
@@ -202,7 +152,7 @@ get_service_ip_keys()
 		#
 		# Try direct method
 		#
-		outp=$(ccs_get $ccsfd "$key/@address")
+		outp=$(ccs_get "$key/@address")
 		if [ $? -ne 0 ]; then
 			return 1
 		fi
@@ -211,7 +161,7 @@ get_service_ip_keys()
 		# Try by reference
 		#
 		if [ -z "$outp" ]; then
-			outp=$(ccs_get $ccsfd "$key/@ref")
+			outp=$(ccs_get "$key/@ref")
 			if [ $? -ne 0 ]; then
 				return 1
 			fi
@@ -241,16 +191,10 @@ get_service_ip_keys()
 #
 get_service_fs_keys()
 {
-	declare -i ccsfd=$1
-	declare svc=$2
+	declare svc=$1
 	declare -i x y=0
 	declare outp
 	declare key
-
-	if [ $ccsfd -eq $_FAIL ]; then
-		ocf_log err "Can not talk to ccsd: invalid descriptor $ccsfd"
-		return 1
-	fi
 
 	#
 	# Find service-local IP keys
@@ -262,7 +206,7 @@ get_service_fs_keys()
 		#
 		# Try direct method
 		#
-		outp=$(ccs_get $ccsfd "$key/@name")
+		outp=$(ccs_get "$key/@name")
 		if [ $? -ne 0 ]; then
 			return 1
 		fi
@@ -271,7 +215,7 @@ get_service_fs_keys()
 		# Try by reference
 		#
 		if [ -z "$outp" ]; then
-			outp=$(ccs_get $ccsfd "$key/@ref")
+			outp=$(ccs_get "$key/@ref")
 			if [ $? -ne 0 ]; then
 				return 1
 			fi
@@ -298,12 +242,11 @@ get_service_fs_keys()
 
 build_ip_list()
 {
-	declare -i ccsfd=$1
 	declare ipaddrs ipaddr
 	declare -i x=0
 
 	while [ -n "${ipkeys[$x]}" ]; do
-		ipaddr=$(ccs_get $ccsfd "${ipkeys[$x]}/@address")
+		ipaddr=$(ccs_get "${ipkeys[$x]}/@address")
 		if [ -z "$ipaddr" ]; then
 			break
 		fi
@@ -359,8 +302,7 @@ verify_sha1()
 
 add_fs_entries()
 {
-	declare -i ccsfd=$1
-	declare conf="$2"
+	declare conf="$1"
 	declare sharename
 	declare sharepath key
 
@@ -369,13 +311,13 @@ add_fs_entries()
 	while [ -n "${fskeys[$x]}" ]; do
 		key="${fskeys[$x]}/@name"
 
-		sharename=$(ccs_get $ccsfd "$key")
+		sharename=$(ccs_get "$key")
 		if [ -z "$sharename" ]; then
 			break
 		fi
 
 		key="${fskeys[$x]}/@mountpoint"
-		sharepath=$(ccs_get $ccsfd "$key")
+		sharepath=$(ccs_get "$key")
 		if [ -z "$sharepath" ]; then
 			break
 		fi
@@ -402,7 +344,6 @@ EODEV
 #
 gen_smb_conf()
 {
-	declare -i ccsfd=$_FAIL
 	declare conf="$1"
 	declare lvl="debug"
 
@@ -418,15 +359,8 @@ gen_smb_conf()
 
 	ocf_log $lvl "Creating $conf"
 
-	ccsfd=$(ccs_connect)
-	if [ $? -eq $_FAIL ]; then
-		return $OCF_ERR_GENERIC
-	fi
-
-	ocf_log debug "Acquired CCS descriptor $ccsfd"
-
-	get_service_ip_keys $ccsfd "$OCF_RESKEY_service_name"
-	get_service_fs_keys $ccsfd "$OCF_RESKEY_service_name"
+	get_service_ip_keys "$OCF_RESKEY_service_name"
+	get_service_fs_keys "$OCF_RESKEY_service_name"
 
 	cat > "$conf" <<EOT
 #
@@ -462,14 +396,13 @@ gen_smb_conf()
 	# "$OCF_RESKEY_service_name"; IPv6 addresses may or may not
 	# work correctly.
 	#
-	interfaces = $(build_ip_list $ccsfd)
+	interfaces = $(build_ip_list)
 
 #
 # Shares based on fs resources at the top level of "$OCF_RESKEY_service_name"
 #
 EOT
-	add_fs_entries $ccsfd "$conf"
-	ccs_disconnect $ccsfd
+	add_fs_entries "$conf"
 	add_sha1 "$conf"
 
 	return 0

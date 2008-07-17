@@ -83,7 +83,7 @@ ccs_get()
 #
 get_service_ip_keys()
 {
-	declare svc=$2
+	declare svc=$1
 	declare -i x y=0
 	declare outp
 	declare key
