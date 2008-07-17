@@ -90,20 +90,26 @@ static int test_main(int argc, char *argv[], int old_format){
     } else {
       printf("Connect successful.\n");
       printf(" Connection descriptor = %d\n", desc);
+#ifndef LEGACY_CODE
       ccs_disconnect(desc);
+#endif
     }
   }
-  else if(!strcmp(argv[1], "ccs_disconnect")){
+  else if(!strcmp(argv[1], "disconnect")){
     if(argc < 3){
       fprintf(stderr, "Wrong number of arguments.\n");
       exit(EXIT_FAILURE);
     }
+#ifdef LEGACY_CODE
+    desc = atoi(argv[2]);
+#else
     desc = ccs_connect();
+#endif
     if((error = ccs_disconnect(desc))){
-      fprintf(stderr, "ccs_ccs_disconnect failed: %s\n", errstring(-error));
+      fprintf(stderr, "ccs_disconnect failed: %s\n", errstring(-error));
       exit(EXIT_FAILURE);
     } else {
-      printf("Ccs_Disconnect successful.\n");
+      printf("Disconnect successful.\n");
     }
   }
   else if(!strcmp(argv[1], "get")){
@@ -111,7 +117,11 @@ static int test_main(int argc, char *argv[], int old_format){
       fprintf(stderr, "Wrong number of arguments.\n");
       exit(EXIT_FAILURE);
     }
+#ifdef LEGACY_CODE
+    desc = atoi(argv[2]);
+#else
     desc = ccs_connect();
+#endif
     if((desc < 0) || (error = ccs_get(desc, argv[3], &str))){
       fprintf(stderr, "ccs_get failed: %s\n", errstring(-error));
       exit(EXIT_FAILURE);
@@ -124,7 +134,9 @@ static int test_main(int argc, char *argv[], int old_format){
 		    printf("%s\n", str);
 	    }
       if(str)free(str);
+#ifndef LEGACY_CODE
       ccs_disconnect(desc);
+#endif
     }
   }
   else {
@@ -148,7 +160,7 @@ static void test_print_usage(FILE *stream)
 	  "\n"
 	  "Commands:\n"
 	  "  connect <force> <block>   Connect to CCS and return connection descriptor.\n"
-	  "  ccs_disconnect <desc>     Disconnect from CCS.\n"
+	  "  disconnect <desc>         Disconnect from CCS.\n"
 	  "  get <desc> <request>      Get a value from CCS.\n"
 	  );
 }
