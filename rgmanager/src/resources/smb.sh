@@ -112,19 +112,11 @@ ccs_get()
 
 	key="$*"
 
-	outp=$(ccs_tool query -c "$key" 2>&1)
+	outp=$(ccs_tool query  "$key" 2>&1)
 	if [ $? -ne 0 ]; then
-		if [ "$outp" = "${outp/No data available/}" ]; then
-			ocf_log err "$outp ($key)"
-			return $_FAIL
-		fi
-
-		# no real error, just no data available
-		return 0
+		ocf_log err "$outp ($key)"
+		return $_FAIL
 	fi
-
-	outp=${outp/*</}
-	outp=${outp/>*/}
 
 	echo $outp
 
