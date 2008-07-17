@@ -60,7 +60,7 @@ ccs_get()
 
 	outp=$(ccs_tool query -c "$key" 2>&1)
 	if [ $? -ne 0 ]; then
-		if [ "$outp" = "${outp/No data available/}" ]; then
+		if [ "$outp" = "${outp/No data available/}" ] || [ "$outp" = "${outp/Operation not permitted/}" ]; then
 			ocf_log err "$outp ($key)"
 			return $FAIL
 		fi
@@ -68,9 +68,6 @@ ccs_get()
 		# no real error, just no data available
 		return 0
 	fi
-
-	outp=${outp/*</}
-	outp=${outp/>*/}
 
 	echo $outp
 
