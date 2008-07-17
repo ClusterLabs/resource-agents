@@ -794,10 +794,12 @@ print OFILE "CFLAGS += -DRELEASE_VERSION=\\\"$release_version\\\"\n";
 
 close OFILE;
 
-open OFILE, ">${objdir}/.configure.sh" or die "Can't redirect stdout";
+open OFILE, ">${objdir}/.configure.sh.tmp" or die "Can't redirect stdout";
 print OFILE "#!/bin/bash\n";
 print OFILE "$0 @invoke \$@\n";
 print OFILE "exit \$?\n";
 close OFILE;
+
+system("mv ${objdir}/.configure.sh.tmp ${objdir}/.configure.sh");
 
 print "Completed Makefile configuration\n\n";
