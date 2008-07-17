@@ -1,15 +1,14 @@
 TARGET1 = ccs_tool
+TARGET2 = ccs_test
 
-SBINDIRT = $(TARGET1)
+SBINDIRT = $(TARGET1) $(TARGET2)
 
 include ../../make/defines.mk
 
 ifdef legacy_code
-TARGET2 = ccs_test
-SBINDIRT += $(TARGET2)
 all: depends ${TARGET1} ${TARGET2}
 else
-all: ${TARGET1}
+all: ${TARGET1} ${TARGET2}
 endif
 
 include $(OBJDIR)/make/cobj.mk
@@ -39,10 +38,10 @@ endif
 ${TARGET1}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-ifdef legacy_code
 ${TARGET2}: ${TARGET1}
 	ln -sf ${TARGET1} ${TARGET2}
 
+ifdef legacy_code
 depends:
 	$(MAKE) -C ../libccscompat all
 endif
