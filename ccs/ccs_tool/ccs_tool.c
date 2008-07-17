@@ -13,14 +13,27 @@
 #include "ccs.h"
 #endif
 
+
+/*
+ * Old libccs retruned -error (mostly!) but didn't set errno (sigh)
+ * New libccs sets errno correctly
+ */
+static char *errstring(int retcode)
+{
+#ifdef LEGACY_CODE
+	return strerror(retcode);
+#else
+	return strerror(errno);
+#endif
+}
+
 static void tool_print_usage(FILE *stream);
 
 int globalverbose=0;
 
-#ifdef LEGACY_CODE
 static void test_print_usage(FILE *stream);
 
-static int test_main(int argc, char *argv[]){
+static int test_main(int argc, char *argv[], int old_format){
   int desc=0;
   int i=0;
   int error = 0;
@@ -72,7 +85,7 @@ static int test_main(int argc, char *argv[]){
       desc = ccs_connect();
     }
     if(desc < 0){
-      fprintf(stderr, "ccs_connect failed: %s\n", strerror(-desc));
+      fprintf(stderr, "ccs_connect failed: %s\n", errstring(-desc));
       exit(EXIT_FAILURE);
     } else {
       printf("Connect successful.\n");
@@ -87,7 +100,7 @@ static int test_main(int argc, char *argv[]){
     }
     desc = ccs_connect();
     if((error = ccs_disconnect(desc))){
-      fprintf(stderr, "ccs_ccs_disconnect failed: %s\n", strerror(-error));
+      fprintf(stderr, "ccs_ccs_disconnect failed: %s\n", errstring(-error));
       exit(EXIT_FAILURE);
     } else {
       printf("Ccs_Disconnect successful.\n");
@@ -100,11 +113,16 @@ static int test_main(int argc, char *argv[]){
     }
     desc = ccs_connect();
     if((desc < 0) || (error = ccs_get(desc, argv[3], &str))){
-      fprintf(stderr, "ccs_get failed: %s\n", strerror(-error));
+      fprintf(stderr, "ccs_get failed: %s\n", errstring(-error));
       exit(EXIT_FAILURE);
     } else {
-      printf("Get successful.\n");
-      printf(" Value = <%s>\n", str);
+	    if (old_format) {
+		    printf("Get successful.\n");
+		    printf(" Value = <%s>\n", str);
+	    }
+	    else {
+		    printf("%s\n", str);
+	    }
       if(str)free(str);
       ccs_disconnect(desc);
     }
@@ -117,9 +135,9 @@ static int test_main(int argc, char *argv[]){
   exit(EXIT_SUCCESS);
 }
 
-
-static void test_print_usage(FILE *stream){
-  fprintf(stream,
+static void test_print_usage(FILE *stream)
+{
+	fprintf(stream,
 	  "Usage:\n"
 	  "\n"
 	  "ccs_test [Options] <Command>\n"
@@ -134,26 +152,20 @@ static void test_print_usage(FILE *stream){
 	  "  get <desc> <request>      Get a value from CCS.\n"
 	  );
 }
-#else
+
+#ifndef LEGACY_CODE
 static int xpath_query(int argc, char **argv)
 {
 	int handle;
 	char *ret;
 	int i;
-	int compat_output = 0;
 
 	if (argc < 2) {
 		fprintf(stderr,
 			"Usage:\n"
 			"\n"
-			"ccs_tool query [-c] <xpath query>\n");
+			"ccs_tool query <xpath query>\n");
 		return 1;
-	}
-
-	if (strcmp(argv[1], "-c") == 0) {
-		argc--;
-		argv++;
-		compat_output = 1;
 	}
 
 	/* Tell the library we want full XPath parsing */
@@ -164,22 +176,11 @@ static int xpath_query(int argc, char **argv)
 	/* Process all the queries on the command-line */
 	for (i=1; i<argc; i++) {
 		if (!ccs_get(handle, argv[1], &ret)) {
-			if (compat_output) {
-				printf("Get successful.\n");
-				printf(" Value = <%s>\n", ret);
-			}
-			else {
-				printf("%s\n", ret);
-			}
+			printf("%s\n", ret);
 			free(ret);
 		}
 		else {
-			if (compat_output) {
-				fprintf(stderr, "ccs_get failed: %s\n", strerror(errno));
-			}
-			else {
-				fprintf(stderr, "Query failed: %s\n", strerror(errno));
-			}
+			fprintf(stderr, "Query failed: %s\n", strerror(errno));
 			ccs_disconnect(handle);
 			return -1;
 		}
@@ -238,7 +239,7 @@ static int tool_main(int argc, char *argv[])
 	    for (i=2; i<argc; i++)
 		    new_argv[1+i] = argv[i];
 
-	    return test_main(argc+1, new_argv);
+	    return test_main(argc+1, new_argv, 0);
     }
 #else
     else if(!strcmp(argv[optind], "query")){
@@ -308,7 +309,6 @@ static void tool_print_usage(FILE *stream){
 	  "  query <ccs query>   Query the cluster configuration.\n"
 #else
 	  "  query <xpath query> Query the cluster configuration.\n"
-	  "  query [-c] <query>  Query the cluster configuration, old output format.\n"
 #endif
 	  "  addnode <node>      Add a node\n"
           "  delnode <node>      Delete a node\n"
@@ -324,8 +324,6 @@ static void tool_print_usage(FILE *stream){
 
 int main(int argc, char *argv[])
 {
-#ifdef LEGACY_CODE
-	/* basename() can alter its argument */
 	char *name = strdup(argv[0]);
 
 	/*
@@ -337,8 +335,7 @@ int main(int argc, char *argv[])
 	 */
 
 	if (strcmp(basename(name), "ccs_test") == 0)
-		return test_main(argc, argv);
+		return test_main(argc, argv, 1);
 	else
-#endif
 		return tool_main(argc, argv);
 }
