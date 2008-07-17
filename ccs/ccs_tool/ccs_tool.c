@@ -238,13 +238,11 @@ static int tool_main(int argc, char *argv[])
 	    for (i=2; i<argc; i++)
 		    new_argv[1+i] = argv[i];
 
-	    test_main(argc+1, new_argv);
-	    exit(EXIT_SUCCESS);
+	    return test_main(argc+1, new_argv);
     }
 #else
     else if(!strcmp(argv[optind], "query")){
-	    xpath_query(argc-1, argv+1);
-	    exit(EXIT_SUCCESS);
+	    return xpath_query(argc-1, argv+1);
     }
 #endif
     else if(!strcmp(argv[optind], "addnode")){
