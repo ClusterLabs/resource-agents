@@ -27,13 +27,12 @@ CFLAGS += -I$(S)/../libccscompat
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${cmanlibdir} -lcman
-LDFLAGS += `xml2-config --libs` -L${libdir}
-
 ifdef legacy_code
 LDFLAGS += -L../libccscompat -lccscompat
 else
 LDFLAGS += -L${ccslibdir} -lccs
 endif
+LDFLAGS += `xml2-config --libs` -L${libdir}
 
 ${TARGET1}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
