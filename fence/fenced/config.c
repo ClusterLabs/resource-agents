@@ -1,7 +1,26 @@
 #include "fd.h"
+#include "config.h"
 #include "ccs.h"
 
 static int ccs_handle;
+
+/* was a config value set on command line?, 0 or 1. */
+
+int optd_groupd_compat;
+int optd_clean_start;
+int optd_post_join_delay;
+int optd_post_fail_delay;
+int optd_override_time;
+int optd_override_path;
+
+/* actual config value from command line, cluster.conf, or default. */
+
+int cfgd_groupd_compat   = DEFAULT_GROUPD_COMPAT;
+int cfgd_clean_start     = DEFAULT_CLEAN_START;
+int cfgd_post_join_delay = DEFAULT_POST_JOIN_DELAY;
+int cfgd_post_fail_delay = DEFAULT_POST_FAIL_DELAY;
+int cfgd_override_time   = DEFAULT_OVERRIDE_TIME;
+char *cfgd_override_path = DEFAULT_OVERRIDE_PATH;
 
 int setup_ccs(void)
 {
@@ -90,7 +109,7 @@ void read_ccs_int(char *path, int *config_val)
 
 int read_ccs(struct fd *fd)
 {
-	char path[256];
+	char path[PATH_MAX];
 	char *str;
 	int error, i = 0, count = 0;
 
@@ -99,8 +118,8 @@ int read_ccs(struct fd *fd)
 	   fence us. */
 
 	str = NULL;
-	memset(path, 0, 256);
-	snprintf(path, 256, OUR_NAME_PATH, our_name);
+	memset(path, 0, sizeof(path));
+	snprintf(path, sizeof(path), OUR_NAME_PATH, our_name);
 
 	error = ccs_get(ccs_handle, path, &str);
 	if (error || !str) {
@@ -111,44 +130,37 @@ int read_ccs(struct fd *fd)
 	if (str)
 		free(str);
 
-	/* The comline config options are initially set to the defaults,
-	   then options are read from the command line to override the
-	   defaults, for options not set on command line, we look for
-	   values set in cluster.conf. */
+	if (!optd_groupd_compat)
+		read_ccs_int(GROUPD_COMPAT_PATH, &cfgd_groupd_compat);
+	if (!optd_clean_start)
+		read_ccs_int(CLEAN_START_PATH, &cfgd_clean_start);
+	if (!optd_post_join_delay)
+		read_ccs_int(POST_JOIN_DELAY_PATH, &cfgd_post_join_delay);
+	if (!optd_post_fail_delay)
+		read_ccs_int(POST_FAIL_DELAY_PATH, &cfgd_post_fail_delay);
+	if (!optd_override_time)
+		read_ccs_int(OVERRIDE_TIME_PATH, &cfgd_override_time);
 
-	if (!comline.groupd_compat_opt)
-		read_ccs_int(GROUPD_COMPAT_PATH, &comline.groupd_compat);
-	if (!comline.clean_start_opt)
-		read_ccs_int(CLEAN_START_PATH, &comline.clean_start);
-	if (!comline.post_join_delay_opt)
-		read_ccs_int(POST_JOIN_DELAY_PATH, &comline.post_join_delay);
-	if (!comline.post_fail_delay_opt)
-		read_ccs_int(POST_FAIL_DELAY_PATH, &comline.post_fail_delay);
-	if (!comline.override_time_opt)
-		read_ccs_int(OVERRIDE_TIME_PATH, &comline.override_time);
-
-	if (!comline.override_path_opt) {
+	if (!optd_override_path) {
 		str = NULL;
-		memset(path, 0, 256);
+		memset(path, 0, sizeof(path));
 		sprintf(path, OVERRIDE_PATH_PATH);
 
 		error = ccs_get(ccs_handle, path, &str);
-		if (!error && str) {
-			free(comline.override_path);
-			comline.override_path = strdup(str);
-		}
+		if (!error && str)
+			cfgd_override_path = strdup(str);
 		if (str)
 			free(str);
 	}
 
-	if (comline.clean_start) {
+	if (cfgd_clean_start) {
 		log_debug("clean start, skipping initial nodes");
 		goto out;
 	}
 
 	for (i = 1; ; i++) {
 		str = NULL;
-		memset(path, 0, 256);
+		memset(path, 0, sizeof(path));
 		sprintf(path, "/cluster/clusternodes/clusternode[%d]/@nodeid", i);
 
 		error = ccs_get(ccs_handle, path, &str);

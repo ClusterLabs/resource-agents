@@ -1,5 +1,6 @@
 #include "fd.h"
-#include "pthread.h"
+#include "config.h"
+#include <pthread.h>
 #include "copyright.cf"
 
 #define LOCKFILE_NAME		"/var/run/fenced.pid"
@@ -627,7 +628,7 @@ static void loop(void)
 
 	group_mode = GROUP_LIBCPG;
 
-	if (comline.groupd_compat) {
+	if (cfgd_groupd_compat) {
 		rv = setup_groupd();
 		if (rv < 0)
 			goto out;
@@ -635,7 +636,7 @@ static void loop(void)
 
 		group_mode = GROUP_LIBGROUP;
 
-		if (comline.groupd_compat == 2) {
+		if (cfgd_groupd_compat == 2) {
 			/* set_group_mode(); */
 			group_mode = GROUP_LIBGROUP;
 		}
@@ -683,7 +684,7 @@ static void loop(void)
 			break;
 	}
  out:
-	if (comline.groupd_compat)
+	if (cfgd_groupd_compat)
 		close_groupd();
 	close_logging();
 	close_ccs();
@@ -779,37 +780,35 @@ static void read_arguments(int argc, char **argv)
 			break;
 
 		case 'g':
-			comline.groupd_compat = atoi(optarg);
-			comline.groupd_compat_opt = 1;
+			optd_groupd_compat = 1;
+			cfgd_groupd_compat = atoi(optarg);
 			break;
 
 		case 'c':
-			comline.clean_start = 1;
-			comline.clean_start_opt = 1;
+			optd_clean_start = 1;
+			cfgd_clean_start = 1;
 			break;
 
 		case 'j':
-			comline.post_join_delay = atoi(optarg);
-			comline.post_join_delay_opt = 1;
+			optd_post_join_delay = 1;
+			cfgd_post_join_delay = atoi(optarg);
 			break;
 
 		case 'f':
-			comline.post_fail_delay = atoi(optarg);
-			comline.post_fail_delay_opt = 1;
+			optd_post_fail_delay = 1;
+			cfgd_post_fail_delay = atoi(optarg);
 			break;
 
 		case 'R':
-			comline.override_time = atoi(optarg);
-			if (comline.override_time < 3)
-				comline.override_time = 3;
-			comline.override_time_opt = 1;
+			optd_override_time = 1;
+			cfgd_override_time = atoi(optarg);
+			if (cfgd_override_time < 3)
+				cfgd_override_time = 3;
 			break;
 
 		case 'O':
-			if (comline.override_path)
-				free(comline.override_path);
-			comline.override_path = strdup(optarg);
-			comline.override_path_opt = 1;
+			optd_override_path = 1;
+			cfgd_override_path = strdup(optarg);
 			break;
 
 		case 'h':
@@ -856,14 +855,6 @@ static void set_oom_adj(int val)
 int main(int argc, char **argv)
 {
 	INIT_LIST_HEAD(&domains);
-
-	memset(&comline, 0, sizeof(comline));
-	comline.groupd_compat = DEFAULT_GROUPD_COMPAT;
-	comline.clean_start = DEFAULT_CLEAN_START;
-	comline.post_join_delay = DEFAULT_POST_JOIN_DELAY;
-	comline.post_fail_delay = DEFAULT_POST_FAIL_DELAY;
-	comline.override_time = DEFAULT_OVERRIDE_TIME;
-	comline.override_path = strdup(DEFAULT_OVERRIDE_PATH);
 
 	init_logging();
 
@@ -915,5 +906,4 @@ char dump_buf[FENCED_DUMP_SIZE];
 int dump_point;
 int dump_wrap;
 int group_mode;
-struct commandline comline;
 

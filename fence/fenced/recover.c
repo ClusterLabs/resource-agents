@@ -1,4 +1,5 @@
 #include "fd.h"
+#include "config.h"
 
 void free_node_list(struct list_head *head)
 {
@@ -164,10 +165,10 @@ void delay_fencing(struct fd *fd, int node_join)
 		return;
 
 	if (node_join) {
-		delay = comline.post_join_delay;
+		delay = cfgd_post_join_delay;
 		delay_type = "post_join_delay";
 	} else {
-		delay = comline.post_fail_delay;
+		delay = cfgd_post_fail_delay;
 		delay_type = "post_fail_delay";
 	}
 
@@ -188,8 +189,8 @@ void delay_fencing(struct fd *fd, int node_join)
 
 		if (victim_count < last_count) {
 			gettimeofday(&start, NULL);
-			if (delay > 0 && comline.post_join_delay > delay) {
-				delay = comline.post_join_delay;
+			if (delay > 0 && cfgd_post_join_delay > delay) {
+				delay = cfgd_post_join_delay;
 				delay_type = "post_join_delay (modified)";
 			}
 		}
@@ -272,7 +273,7 @@ void fence_victims(struct fd *fd)
 			continue;
 		}
 
-		if (!comline.override_path) {
+		if (!cfgd_override_path) {
 			query_unlock();
 			sleep(5);
 			query_lock();
@@ -281,16 +282,16 @@ void fence_victims(struct fd *fd)
 
 		query_unlock();
 		/* Check for manual intervention */
-		override = open_override(comline.override_path);
+		override = open_override(cfgd_override_path);
 		if (check_override(override, node->name,
-				   comline.override_time) > 0) {
+				   cfgd_override_time) > 0) {
 			log_level(LOG_WARNING, "fence \"%s\" overridden by "
 				  "administrator intervention", node->name);
 			victim_done(fd, node->nodeid, VIC_DONE_OVERRIDE);
 			list_del(&node->list);
 			free(node);
 		}
-		close_override(&override, comline.override_path);
+		close_override(&override, cfgd_override_path);
 		query_lock();
 	}
 }

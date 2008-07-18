@@ -95,34 +95,6 @@ do { \
 	log_printf(lvl, fmt, ##args); \
 } while (0)
 
-/* config option defaults */
-
-#define DEFAULT_GROUPD_COMPAT	1
-#define DEFAULT_CLEAN_START	0
-#define DEFAULT_POST_JOIN_DELAY	6
-#define DEFAULT_POST_FAIL_DELAY	0
-#define DEFAULT_OVERRIDE_TIME   3
-#define DEFAULT_OVERRIDE_PATH	"/var/run/cluster/fenced_override"
-
-struct commandline
-{
-	int groupd_compat;
-	int clean_start;
-	int post_join_delay;
-	int post_fail_delay;
-	int override_time;
-	char *override_path;
-
-	int8_t groupd_compat_opt;
-	int8_t clean_start_opt;
-	int8_t post_join_delay_opt;
-	int8_t post_fail_delay_opt;
-	int8_t override_time_opt;
-	int8_t override_path_opt;
-};
-
-extern struct commandline comline;
-
 #define FD_MSG_START		1
 #define FD_MSG_VICTIM_DONE	2
 #define FD_MSG_COMPLETE		3
