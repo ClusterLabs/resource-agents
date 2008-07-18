@@ -1003,9 +1003,11 @@ void cluster_dead(int ci)
 	daemon_quit = 1;
 }
 
-static void dead_dlmcontrol(int ci)
+static void dlmcontrol_dead(int ci)
 {
-	log_error("dlm_controld poll error %x", pollfd[ci].revents);
+	if (!list_empty(&mountgroups))
+		log_error("dlm_controld is gone");
+	client_dead(ci);
 }
 
 static void loop(void)
@@ -1072,7 +1074,7 @@ static void loop(void)
 		rv = setup_dlmcontrol();
 		if (rv < 0)
 			goto out;
-		client_add(rv, process_dlmcontrol, dead_dlmcontrol);
+		client_add(rv, process_dlmcontrol, dlmcontrol_dead);
 
 	} else if (group_mode == GROUP_LIBGROUP) {
 
