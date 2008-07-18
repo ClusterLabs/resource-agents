@@ -1,0 +1,278 @@
+#!/bin/sh
+#
+#	Route OCF RA. Enables and disables network routes.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+#######################################################################
+# Initialization:
+
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
+
+#######################################################################
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="Route" version="0.1">
+<version>1.0</version>
+
+<longdesc lang="en">
+Enables and disables network routes.
+
+Supports host and net routes, routes via a gateway address,
+and routes using specific source addresses.
+
+This resource agent is useful if a node's routing table
+needs to be manipulated based on node role assignment.
+Consider the following example use case:
+  -  One cluster node serves as an IPsec tunnel endpoint.
+  -  All other nodes use the IPsec tunnel to reach hosts
+     in a specific remote network.
+Then, here is how you would implement this scheme making use
+of the Route resource agent:
+  -  Configure an ipsec LSB resource.
+  -  Configure a cloned Route OCF resource.
+  -  Create an order constraint to ensure 
+     that ipsec is started before Route.
+  -  Create a colocation constraint between the
+     ipsec and Route resources, to make sure no instance
+     of your cloned Route resource is started on the
+     tunnel endpoint itself.
+</longdesc>
+<shortdesc lang="en">Manages network routes</shortdesc>
+
+<parameters>
+
+<parameter name="destination" unique="1" required="1">
+<longdesc lang="en">
+The destination network (or host) to be configured for the route. 
+Specify the netmask suffix in CIDR notation (e.g. "/24").
+If no suffix is given, a host route will be created.
+Specify "0.0.0.0/0" or "default" if you want this resource to set 
+the system default route.
+</longdesc>
+<shortdesc lang="en">Destination network</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="device" unique="1">
+<longdesc lang="en">
+The outgoing network device to use for this route.
+</longdesc>
+<shortdesc lang="en">Outgoing network device</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="gateway" unique="1">
+<longdesc lang="en">
+The gateway IP address to use for this route.
+</longdesc>
+<shortdesc lang="en">Gateway IP address</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="source" unique="1">
+<longdesc lang="en">
+The source IP address to be configured for the route.
+</longdesc>
+<shortdesc lang="en">Source IP address</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"        timeout="20" />
+<action name="stop"         timeout="20" />
+<action name="monitor"      timeout="20" interval="10" 
+                            depth="0" start-delay="0"/>
+<action name="reload"       timeout="20" />
+<action name="meta-data"    timeout="5" />
+<action name="validate-all" timeout="20" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+create_route_spec() {
+    # Creates a route specification for use by "ip route (add|del|show)"
+    route_spec="to ${OCF_RESKEY_destination}"
+    if [ -n "${OCF_RESKEY_device}" ]; then
+	route_spec="${route_spec} dev ${OCF_RESKEY_device}"
+    fi
+    if [ -n "${OCF_RESKEY_gateway}" ]; then
+	route_spec="${route_spec} via ${OCF_RESKEY_gateway}"
+    fi
+    if [ -n "${OCF_RESKEY_source}" ]; then
+	route_spec="${route_spec} src ${OCF_RESKEY_source}"
+    fi
+    echo "$route_spec"
+}
+
+route_usage() {
+	cat <<END
+usage: $0 {start|stop|status|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+route_start() {
+    route_status
+    status=$?
+    if [ $status -eq $OCF_SUCCESS ]; then
+	ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : already started."
+	return $OCF_SUCCESS
+    fi
+    route_spec="$(create_route_spec)"
+    if ip route add $route_spec; then
+	ocf_log info "${OCF_RESOURCE_INSTANCE} Added network route: $route_spec"
+	return $OCF_SUCCESS
+    else
+	ocf_log error "${OCF_RESOURCE_INSTANCE} Failed to add network route: $route_spec"
+    fi
+    return $OCF_ERR_GENERIC
+}
+
+route_stop() {
+    route_status
+    status=$?
+    case $status in
+	$OCF_SUCCESS)
+	    route_spec="$(create_route_spec)"
+	    if ip route del $route_spec; then
+		ocf_log info "${OCF_RESOURCE_INSTANCE} Removed network route: $route_spec"
+		return $OCF_SUCCESS
+	    else
+		ocf_log error "${OCF_RESOURCE_INSTANCE} Failed to remove network route: $route_spec"
+	    fi
+	    ;;
+	$OCF_NOT_RUNNING)
+	    ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : already stopped."
+	    return $OCF_SUCCESS
+	    ;;
+    esac
+    return $OCF_ERR_GENERIC
+}
+
+route_status() {
+    show_output="$(ip route show $(create_route_spec) 2>/dev/null)"
+    if [ $? -eq 0 ]; then
+	if [ -n "$show_output" ]; then
+	    # "ip route show" returned zero, and produced output on
+	    # stdout. That is what we expect.
+	    return $OCF_SUCCESS
+	else
+	    # "ip route show" returned zero, but produced no
+	    # output on stdout. Assume the route was cleanly
+	    # unconfigured.
+	    return $OCF_NOT_RUNNING
+	fi
+    else
+	# "ip route show" returned an error code. Assume something
+	# went wrong.
+	return $OCF_ERR_GENERIC
+    fi
+}
+
+route_validate() {
+    # If we're running as a clone, are the clone meta attrs OK?
+    if [ "${OCF_RESKEY_CRM_meta_clone}" ]; then
+	if [ "${OCF_RESKEY_CRM_meta_clone_node_max}" -ne 1 ]; then
+	    ocf_log error "Misconfigured clone parameters. Must set meta attribute \"clone_node_max\" to 1, got ${OCF_RESKEY_CRM_meta_clone_node_max}."
+	    return $OCF_ERR_ARGS
+	fi
+    fi
+    # Did we get a destination?
+    if [ -z "${OCF_RESKEY_destination}" ]; then
+	ocf_log error "Missing required parameter \"destination\"."
+	return $OCF_ERR_ARGS
+    fi
+    # Did we get either a device or a gateway address?
+    if [ -z "${OCF_RESKEY_device}" -a -z "${OCF_RESKEY_gateway}" ]; then
+	ocf_log error "Must specifiy either \"device\", or \"gateway\", or both."
+	return $OCF_ERR_ARGS
+    fi
+    # If a device has been configured, is it available on this system?
+    if [ -n "${OCF_RESKEY_device}" ]; then
+	if ! ip link show ${OCF_RESKEY_device} >/dev/null 2>&1; then
+	    ocf_log error "Network device ${OCF_RESKEY_device} appears not to be available on this system."
+	    # OCF_ERR_ARGS prevents the resource from running anywhere at all,
+	    # maybe another node has the interface?
+            # OCF_ERR_INSTALLED just prevents starting on this particular node.
+	    return $OCF_ERR_INSTALLED
+	fi
+    fi
+    # If a source address has been configured, is it available on this system?
+    if [ -n "${OCF_RESKEY_source}" ]; then
+	if ! ip address show | grep -w ${OCF_RESKEY_source} >/dev/null 2>&1; then
+	    ocf_log error "Source address ${OCF_RESKEY_source} appears not to be available on this system."
+	    # same reason as with _device:
+	    return $OCF_ERR_INSTALLED
+	fi
+    fi
+    # If a gateway address has been configured, is it reachable?
+    if [ -n "${OCF_RESKEY_gateway}" ]; then
+	if ! ip route get ${OCF_RESKEY_gateway} >/dev/null 2>&1; then
+	    ocf_log error "Gateway address ${OCF_RESKEY_gateway} is unreachable."
+	    # same reason as with _device:
+	    return $OCF_ERR_INSTALLED
+	fi
+    fi
+    return $OCF_SUCCESS
+}
+
+# These two actions must always succeed
+case $__OCF_ACTION in
+meta-data)	meta_data
+		# OCF variables are not set when querying meta-data
+		exit 0
+		;;
+usage|help)	route_usage
+		exit $OCF_SUCCESS
+		;;
+esac
+
+# Don't do anything if the necessary utilities aren't present
+for binary in ip grep; do
+    check_binary $binary
+done
+
+route_validate || exit $?
+case $__OCF_ACTION in
+start)		route_start;;
+stop)		route_stop;;
+status|monitor)	route_status;;
+reload)		ocf_log info "Reloading..."
+	        route_start
+		;;
+validate-all)	;;
+*)		route_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION returned $rc"
+exit $rc

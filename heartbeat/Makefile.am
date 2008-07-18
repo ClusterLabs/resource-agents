@@ -74,6 +74,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			pgsql		\
 			Pure-FTPd	\
 			Raid1		\
+			Route		\
 			rsyncd		\
 			SAPDatabase	\
 			SAPInstance	\

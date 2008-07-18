@@ -570,7 +570,7 @@ then
   	    meta-data)	metadata_apache;;
 	  esac
 	  ocf_log err "No valid httpd found! Please revise your <HTTPDLIST> item"
-          exit $OCF_ERR_CONFIGURED
+          exit $OCF_ERR_INSTALLED
 	fi
 # Let the user know that the $HTTPD used is not the one (s)he specified via $OCF_RESKEY_httpd
         if
