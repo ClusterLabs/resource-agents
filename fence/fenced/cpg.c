@@ -1,4 +1,5 @@
 #include "fd.h"
+#include "config.h"
 
 static unsigned int protocol_active[3] = {1, 0, 0};
 

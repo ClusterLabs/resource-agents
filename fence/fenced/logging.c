@@ -1,4 +1,5 @@
 #include "fd.h"
+#include "config.h"
 
 /* default: errors go to syslog (/var/log/messages) and fenced.log
    logging/debug=on: errors continue going to syslog (/var/log/messages)
@@ -38,8 +39,7 @@
    "/cluster/logging/logger_subsys[@subsys=\"prog_name\"]/@debug"
 */
 
-static int read_ccs_logging(int *mode, int *facility, int *priority, char *file,
-			    int *debug)
+static int read_ccs_logging(int *mode, int *facility, int *priority, char *file)
 {
 	char name[PATH_MAX];
 	int val, y, n;
@@ -121,19 +121,22 @@ static int read_ccs_logging(int *mode, int *facility, int *priority, char *file,
 	 * debug
 	 */
 
+	if (optd_debug_logsys)
+		return 0;
+
 	memset(name, 0, sizeof(name));
 	read_ccs_name("/cluster/logging/@debug", name);
 
 	if (!strcmp(name, "on"))
-		*debug = 1;
+		cfgd_debug_logsys = 1;
 
 	memset(name, 0, sizeof(name));
 	read_ccs_name(DEBUG_PATH, name);
 
 	if (!strcmp(name, "on"))
-		*debug = 1;
+		cfgd_debug_logsys = 1;
 	else if (!strcmp(name, "off"))
-		*debug = 0;
+		cfgd_debug_logsys = 0;
 
 	return 0;
 }
@@ -148,7 +151,7 @@ void init_logging(void)
 
 /* this function is also called when we get a cman config-update event */
 
-void setup_logging(int *prog_debug)
+void setup_logging(void)
 {
 	int mode, facility, priority;
 	char file[PATH_MAX];
@@ -156,7 +159,7 @@ void setup_logging(int *prog_debug)
 	/* The debug setting is special, it's used by the program
 	   and not used to configure logsys. */
 
-	read_ccs_logging(&mode, &facility, &priority, file, prog_debug);
+	read_ccs_logging(&mode, &facility, &priority, file);
 	logsys_conf("fenced", mode, facility, priority, file);
 }
 

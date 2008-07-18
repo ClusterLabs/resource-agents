@@ -1,4 +1,5 @@
 #include "fd.h"
+#include "config.h"
 #include <libcman.h>
 
 #define BUFLEN		MAX_NODENAME_LEN+1
@@ -124,7 +125,7 @@ static void cman_callback(cman_handle_t h, void *private, int reason, int arg)
 		break;
 
 	case CMAN_REASON_CONFIG_UPDATE:
-		setup_logging(&daemon_debug_logsys);
+		setup_logging();
 		break;
 	}
 }

@@ -624,7 +624,7 @@ static void loop(void)
 	if (rv < 0)
 		goto out;
 
-	setup_logging(&daemon_debug_logsys);
+	setup_logging();
 
 	group_mode = GROUP_LIBCPG;
 
@@ -745,6 +745,7 @@ static void print_usage(void)
 	printf("Options:\n");
 	printf("\n");
 	printf("  -D           Enable debugging code and don't fork\n");
+	printf("  -L <num>     Enable (1) or disable (0) debugging to logsys (default %d)\n", DEFAULT_DEBUG_LOGSYS);
 	printf("  -g <num>     groupd compatibility, 0 off, 1 on\n");
 	printf("               on: use libgroup, compat with cluster2/stable2/rhel5\n");
 	printf("               off: use libcpg, no backward compatability\n");
@@ -763,7 +764,7 @@ static void print_usage(void)
 	printf("\n");
 }
 
-#define OPTION_STRING	"g:cj:f:Dn:O:T:hVS"
+#define OPTION_STRING	"L:g:cj:f:Dn:O:T:hVS"
 
 static void read_arguments(int argc, char **argv)
 {
@@ -777,6 +778,11 @@ static void read_arguments(int argc, char **argv)
 
 		case 'D':
 			daemon_debug_opt = 1;
+			break;
+
+		case 'L':
+			optd_debug_logsys = 1;
+			cfgd_debug_logsys = atoi(optarg);
 			break;
 
 		case 'g':
@@ -838,6 +844,11 @@ static void read_arguments(int argc, char **argv)
 			exit(EXIT_FAILURE);
 		};
 	}
+
+	if (!optd_debug_logsys && getenv("FENCED_DEBUG_LOGSYS")) {
+		optd_debug_logsys = 1;
+		cfgd_debug_logsys = atoi(getenv("FENCED_DEBUG_LOGSYS"));
+	}
 }
 
 static void set_oom_adj(int val)
@@ -895,7 +906,6 @@ void daemon_dump_save(void)
 }
 
 int daemon_debug_opt;
-int daemon_debug_logsys;
 int daemon_quit;
 struct list_head domains;
 int cman_quorate;

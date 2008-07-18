@@ -59,7 +59,6 @@
 #define GROUP_LIBCPG            3
 
 extern int daemon_debug_opt;
-extern int daemon_debug_logsys;
 extern int daemon_quit;
 extern struct list_head domains;
 extern int cman_quorate;
@@ -79,7 +78,7 @@ do { \
 	daemon_dump_save(); \
 	if (daemon_debug_opt) \
 		fprintf(stderr, "%s", daemon_debug_buf); \
-	if (daemon_debug_logsys) \
+	if (cfgd_debug_logsys) \
 		log_printf(LOG_DEBUG, "%s", daemon_debug_buf); \
 } while (0)
 
@@ -262,7 +261,7 @@ void fence_victims(struct fd *fd);
 /* logging.c */
 
 void init_logging(void);
-void setup_logging(int *prog_debug);
+void setup_logging();
 void close_logging(void);
 
 #endif				/*  __FD_DOT_H__  */
