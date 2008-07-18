@@ -7,7 +7,7 @@ DOCS =	gfs2.txt \
 	COPYRIGHT \
 	README.licence
 
-TARGET= cluster.logrotate
+TARGET= cluster
 
 LOGRORATED = $(TARGET)
 
@@ -19,7 +19,7 @@ include $(OBJDIR)/make/uninstall.mk
 include $(OBJDIR)/make/clean.mk
 
 $(TARGET):
-	cat $(S)/$(TARGET).in | sed \
+	cat $(S)/$(TARGET).logrotate.in | sed \
 		-e 's#@LOGDIR@#${LOGDIR}#g' \
 	> $(TARGET)
 
