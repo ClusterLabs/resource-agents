@@ -94,25 +94,6 @@ static char *msg_name(int type)
 	}
 }
 
-static char *str_nums(int *nums, int n_ints)
-{
-	static char buf[128];
-	int i, len, ret, pos = 0;
-
-	len = sizeof(buf);
-	memset(buf, 0, len);
-
-	for (i = 0; i < n_ints; i++) {
-		ret = snprintf(buf + pos, len - pos, "%d ",
-			       le32_to_cpu(nums[i]));
-		if (ret >= len - pos)
-			break;
-		pos += ret;
-	}
-
-	return buf;
-}
-
 static int _send_message(cpg_handle_t h, void *buf, int len, int type)
 {
 	struct iovec iov;
@@ -504,98 +485,6 @@ static void receive_victim_done(struct fd *fd, struct fd_header *hd, int len)
 			  id->nodeid, hd->nodeid);
 }
 
-/* same content as a start message, a new (incomplete) node will look for
-   a complete message that shows it as a member, when it sees one it can
-   clear any init_victims and set init_complete for future cycles */
-
-static void send_complete(struct fd *fd)
-{
-	struct change *cg = list_first_entry(&fd->changes, struct change, list);
-	struct fd_header *hd;
-	struct member *memb;
-	int n_ints, len, *p, i;
-	char *buf;
-
-	n_ints = 4 + cg->member_count;
-	len = sizeof(struct fd_header) + (n_ints * sizeof(int));
-
-	buf = malloc(len);
-	if (!buf) {
-		return;
-	}
-	memset(buf, 0, len);
-
-	hd = (struct fd_header *)buf;
-	hd->type = FD_MSG_COMPLETE;
-	hd->msgdata = cg->seq;
-
-	p = (int *)(buf + sizeof(struct fd_header));
-
-	p[0] = cpu_to_le32(cg->member_count);
-	p[1] = cpu_to_le32(cg->joined_count);
-	p[2] = cpu_to_le32(cg->remove_count);
-	p[3] = cpu_to_le32(cg->failed_count);
-
-	i = 4;
-	list_for_each_entry(memb, &cg->members, list)
-		p[i++] = cpu_to_le32(memb->nodeid);
-
-	log_debug("send_complete %u counts %d %d %d %d", cg->seq,
-		  cg->member_count, cg->joined_count,
-		  cg->remove_count, cg->failed_count);
-
-	fd_send_message(fd, buf, len);
-
-	free(buf);
-}
-
-static void receive_complete(struct fd *fd, struct fd_header *hd, int len)
-{
-	int member_count, joined_count, remove_count, failed_count;
-	int i, n_ints, *nums;
-	uint32_t seq = hd->msgdata;
-	struct node *node, *safe;
-
-	log_debug("receive_complete %d:%u len %d", hd->nodeid, seq, len);
-
-	if (fd->init_complete)
-		return;
-
-	nums = (int *)((char *)hd + sizeof(struct fd_header));
-
-	member_count = le32_to_cpu(nums[0]);
-	joined_count = le32_to_cpu(nums[1]);
-	remove_count = le32_to_cpu(nums[2]);
-	failed_count = le32_to_cpu(nums[3]);
-
-	n_ints = 4 + member_count;
-	if (len < (sizeof(struct fd_header) + (n_ints * sizeof(int)))) {
-		log_debug("receive_complete %d:%u bad len %d nums %s",
-			  hd->nodeid, seq, len, str_nums(nums, n_ints));
-		return;
-	}
-
-	for (i = 0; i < member_count; i++) {
-		if (our_nodeid == le32_to_cpu(nums[4+i]))
-			break;
-	}
-	if (i == member_count) {
-		log_debug("receive_complete %d:%u we are not in members",
-			  hd->nodeid, seq);
-		return;
-	}
-
-	fd->init_complete = 1;
-
-	/* we may have victims from init which we can clear now */
-	list_for_each_entry_safe(node, safe, &fd->victims, list) {
-		log_debug("receive_complete clear victim %d init %d",
-			  node->nodeid, node->init_victim);
-		list_del(&node->list);
-		free(node);
-	}
-}
-
 static int check_quorum_done(struct fd *fd)
 {
 	struct node_history *node;
@@ -889,6 +778,43 @@ static void receive_start(struct fd *fd, struct fd_header *hd, int len)
 	save_history(fd, fi, ids);
 }
 
+static void receive_complete(struct fd *fd, struct fd_header *hd, int len)
+{
+	struct fd_info *fi;
+	struct id_info *ids, *id;
+	uint32_t seq = hd->msgdata;
+	struct node *node, *safe;
+
+	log_debug("receive_complete %d:%u len %d", hd->nodeid, seq, len);
+
+	if (fd->init_complete)
+		return;
+
+	fi = (struct fd_info *)((char *)hd + sizeof(struct fd_header));
+	ids = (struct id_info *)((char *)fi + sizeof(struct fd_info));
+
+	fd_info_in(fi);
+	ids_in(fi, ids);
+
+	id = get_id_struct(ids, fi->id_info_count, fi->id_info_size,our_nodeid);
+
+	if (!id || !(id->flags & IDI_NODEID_IS_MEMBER)) {
+		log_debug("receive_complete %d:%u we are not in members",
+			  hd->nodeid, seq);
+		return;
+	}
+
+	fd->init_complete = 1;
+
+	/* we may have victims from init which we can clear now */
+	list_for_each_entry_safe(node, safe, &fd->victims, list) {
+		log_debug("receive_complete clear victim %d init %d",
+			  node->nodeid, node->init_victim);
+		list_del(&node->list);
+		free(node);
+	}
+}
+
 static int count_ids(struct fd *fd)
 {
 	struct node_history *node;
@@ -900,7 +826,7 @@ static int count_ids(struct fd *fd)
 	return count;
 }
 
-static void send_start(struct fd *fd)
+static void send_info(struct fd *fd, int type)
 {
 	struct change *cg;
 	struct fd_header *hd;
@@ -920,7 +846,7 @@ static void send_start(struct fd *fd)
 
 	buf = malloc(len);
 	if (!buf) {
-		log_error("send_start len %d no mem", len);
+		log_error("send_info len %d no mem", len);
 		return;
 	}
 	memset(buf, 0, len);
@@ -931,7 +857,7 @@ static void send_start(struct fd *fd)
 
 	/* fill in header (fd_send_message handles part of header) */
 
-	hd->type = FD_MSG_START;
+	hd->type = type;
 	hd->msgdata = cg->seq;
 	if (cg->we_joined)
 		hd->flags |= FD_MFLG_JOINING;
@@ -966,13 +892,28 @@ static void send_start(struct fd *fd)
 		id++;
 	}
 
-	log_debug("send_start %u flags %x counts %d %d %d %d", cg->seq,
-		  hd->flags, cg->member_count, cg->joined_count,
-		  cg->remove_count, cg->failed_count);
+	log_debug("send_%s %u flags %x counts %u %d %d %d %d",
+		  type == FD_MSG_START ? "start" : "complete",
+		  cg->seq, hd->flags, fd->started_count, cg->member_count,
+		  cg->joined_count, cg->remove_count, cg->failed_count);
 
 	fd_send_message(fd, buf, len);
 
 	free(buf);
+}
+
+static void send_start(struct fd *fd)
+{
+	send_info(fd, FD_MSG_START);
+}
+
+/* same content as a start message, a new (incomplete) node will look for
+   a complete message that shows it as a member, when it sees one it can
+   clear any init_victims and set init_complete for future cycles */
+
+static void send_complete(struct fd *fd)
+{
+	send_info(fd, FD_MSG_COMPLETE);
 }
 
 /* FIXME: better to just look in victims list for any nodes with init_victim? */
