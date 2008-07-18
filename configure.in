@@ -2847,7 +2847,10 @@ AC_ARG_ENABLE([libc-malloc],
 
 
 if test "xyes" = "x$enable_libc_malloc" -o "x1" = "x$enable_libc_malloc"; then
+   AC_MSG_NOTICE(Using standard malloc routines: true)
    AC_DEFINE_UNQUOTED(CL_USE_LIBC_MALLOC, 1, Use libc malloc instead of Heartbeat's custom one.)
+else
+   AC_MSG_NOTICE(Using standard malloc routines: false)
 fi
 
 dnl **********************************************************************
