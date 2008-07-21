@@ -27,10 +27,10 @@
 
 static int ccs_handle;
 
-/* was a config value set on command line?, 0 or 1.
-   optk is a kernel option, optd is a daemon option */
+/* was a config value set on command line?, 0 or 1. */
 
 int optd_groupd_compat;
+int optd_debug_logsys;
 int optd_enable_withdraw;
 int optd_enable_plock;
 int optd_plock_debug;
@@ -40,10 +40,10 @@ int optd_drop_resources_time;
 int optd_drop_resources_count;
 int optd_drop_resources_age;
 
-/* actual config value from command line, cluster.conf, or default.
-   cfgk is a kernel config value, cfgd is a daemon config value */
+/* actual config value from command line, cluster.conf, or default. */
 
 int cfgd_groupd_compat		= DEFAULT_GROUPD_COMPAT;
+int cfgd_debug_logsys		= DEFAULT_DEBUG_LOGSYS;
 int cfgd_enable_withdraw	= DEFAULT_ENABLE_WITHDRAW;
 int cfgd_enable_plock		= DEFAULT_ENABLE_PLOCK;
 int cfgd_plock_debug		= DEFAULT_PLOCK_DEBUG;
@@ -53,7 +53,42 @@ int cfgd_drop_resources_time	= DEFAULT_DROP_RESOURCES_TIME;
 int cfgd_drop_resources_count	= DEFAULT_DROP_RESOURCES_COUNT;
 int cfgd_drop_resources_age	= DEFAULT_DROP_RESOURCES_AGE;
 
-static void read_ccs_int(char *path, int *config_val)
+void read_ccs_name(char *path, char *name)
+{
+	char *str;
+	int error;
+
+	error = ccs_get(ccs_handle, path, &str);
+	if (error || !str)
+		return;
+
+	strcpy(name, str);
+
+	free(str);
+}
+
+void read_ccs_yesno(char *path, int *yes, int *no)
+{
+	char *str;
+	int error;
+
+	*yes = 0;
+	*no = 0;
+
+	error = ccs_get(ccs_handle, path, &str);
+	if (error || !str)
+		return;
+
+	if (!strcmp(str, "yes"))
+		*yes = 1;
+
+	else if (!strcmp(str, "no"))
+		*no = 1;
+
+	free(str);
+}
+
+void read_ccs_int(char *path, int *config_val)
 {
 	char *str;
 	int val;
@@ -118,14 +153,14 @@ int setup_ccs(void)
 {
 	int i = 0, cd;
 
-        while ((cd = ccs_connect()) < 0) {
-                sleep(1);
-                if (++i > 9 && !(i % 10))
-                        log_error("connect to ccs error %d, "
-                                  "check cluster status", cd);
-        }
+	while ((cd = ccs_connect()) < 0) {
+		sleep(1);
+		if (++i > 9 && !(i % 10))
+			log_error("connect to ccs error %d, "
+				  "check cluster status", cd);
+	}
 
-        ccs_handle = cd;
+	ccs_handle = cd;
 
 	/* These config values are set from cluster.conf only if they haven't
 	   already been set on the command line. */

@@ -18,7 +18,8 @@ OBJS= 	main.o \
 	cpg-old.o \
 	group.o \
 	util.o \
-	plock.o
+	plock.o \
+	logging.o
 
 CFLAGS += -I${ccsincdir} -I${cmanincdir}
 CFLAGS += -I${dlmcontrolincdir} -I${openaisincdir}
@@ -30,7 +31,7 @@ CFLAGS += -I${incdir}
 LDFLAGS += -L${ccslibdir} -lccs -L${cmanlibdir} -lcman
 LDFLAGS += -L${dlmcontrollibdir} -ldlmcontrol -L${openaislibdir} -lcpg -lSaCkpt
 LDFLAGS += -L../../fence/libfenced/ -lfenced
-LDFLAGS += -L../lib -lgroup
+LDFLAGS += -L../lib -lgroup -llogsys
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)

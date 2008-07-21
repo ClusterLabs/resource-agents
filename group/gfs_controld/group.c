@@ -1,4 +1,5 @@
 #include "gfs_daemon.h"
+#include "config.h"
 #include "cpg-old.h"
 #include "libgroup.h"
 

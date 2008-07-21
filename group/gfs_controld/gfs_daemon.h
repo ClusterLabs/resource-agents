@@ -34,8 +34,9 @@
 #include <openais/saAis.h>
 #include <openais/saCkpt.h>
 #include <openais/cpg.h>
-#include <linux/dlmconstants.h>
+#include <openais/service/logsys.h>
 
+#include <linux/dlmconstants.h>
 #include "libgfscontrol.h"
 #include "gfs_controld.h"
 #include "list.h"
@@ -81,29 +82,36 @@ void daemon_dump_save(void);
 #define log_debug(fmt, args...) \
 do { \
 	snprintf(daemon_debug_buf, 255, "%ld " fmt "\n", time(NULL), ##args); \
-	if (daemon_debug_opt) fprintf(stderr, "%s", daemon_debug_buf); \
 	daemon_dump_save(); \
+	if (daemon_debug_opt) \
+		fprintf(stderr, "%s", daemon_debug_buf); \
+	if (cfgd_debug_logsys) \
+		log_printf(LOG_DEBUG, "%s", daemon_debug_buf); \
 } while (0)
 
 #define log_group(g, fmt, args...) \
 do { \
 	snprintf(daemon_debug_buf, 255, "%ld %s " fmt "\n", time(NULL), \
 		 (g)->name, ##args); \
-	if (daemon_debug_opt) fprintf(stderr, "%s", daemon_debug_buf); \
 	daemon_dump_save(); \
+	if (daemon_debug_opt) \
+		fprintf(stderr, "%s", daemon_debug_buf); \
+	if (cfgd_debug_logsys) \
+		log_printf(LOG_DEBUG, "%s", daemon_debug_buf); \
+} while (0)
+
+#define log_error(fmt, args...) \
+do { \
+	log_debug(fmt, ##args); \
+	log_printf(LOG_ERR, fmt, ##args); \
 } while (0)
 
 #define log_plock(g, fmt, args...) \
 do { \
 	snprintf(daemon_debug_buf, 255, "%ld %s " fmt "\n", time(NULL), \
 		 (g)->name, ##args); \
-	if (cfgd_plock_debug) fprintf(stderr, "%s", daemon_debug_buf); \
-} while (0)
-
-#define log_error(fmt, args...) \
-do { \
-	log_debug(fmt, ##args); \
-	syslog(LOG_ERR, fmt, ##args); \
+	if (daemon_debug_opt && cfgd_plock_debug) \
+		fprintf(stderr, "%s", daemon_debug_buf); \
 } while (0)
 
 struct mountgroup {
@@ -198,6 +206,9 @@ struct mountgroup {
 /* config.c */
 int setup_ccs(void);
 void close_ccs(void);
+void read_ccs_name(char *path, char *name);
+void read_ccs_yesno(char *path, int *yes, int *no);
+void read_ccs_int(char *path, int *config_val);
 void read_ccs_nodir(struct mountgroup *mg, char *buf);
 
 /* cpg-new.c */
@@ -292,5 +303,11 @@ int read_sysfs_int(struct mountgroup *mg, char *field, int *val_out);
 int run_dmsetup_suspend(struct mountgroup *mg, char *dev);
 void update_dmsetup_wait(void);
 void update_flow_control_status(void);
+
+/* logging.c */
+
+void init_logging(void);
+void setup_logging();
+void close_logging(void);
 
 #endif

@@ -1,4 +1,5 @@
 #include "gfs_daemon.h"
+#include "config.h"
 #include "libfenced.h"
 
 void update_flow_control_status(void)
