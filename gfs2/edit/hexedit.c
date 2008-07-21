@@ -2305,11 +2305,12 @@ void dump_journal(const char *journal)
 
 			if (gfs1) {
 				gfs_log_header_in(&lh1, jbuf);
-				print_gfs2("Block #%4llx: Log header: Seq"
-					   "= 0x%x, first = 0x%x tail = "
-					   "0x%x, last = 0x%x",
-					   jb, lh1.lh_sequence, lh1.lh_first,
-					   lh1.lh_tail, lh1.lh_last_dump);
+				print_gfs2("Block #%4llx: Log header: Flags = "
+					   "%08x, Seq = 0x%x, first = 0x%x "
+					   "tail = 0x%x, last = 0x%x",
+					   jb, lh1.lh_flags, lh1.lh_sequence,
+					   lh1.lh_first, lh1.lh_tail,
+					   lh1.lh_last_dump);
 			} else {
 				gfs2_log_header_in(&lh, jbuf);
 				print_gfs2("Block #%4llx: Log header: Seq"
