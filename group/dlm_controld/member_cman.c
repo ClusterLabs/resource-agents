@@ -1,5 +1,6 @@
-#include <libcman.h>
 #include "dlm_daemon.h"
+#include "config.h"
+#include <libcman.h>
 
 static cman_handle_t	ch;
 static cman_node_t      old_nodes[MAX_NODES];

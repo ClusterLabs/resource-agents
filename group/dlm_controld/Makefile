@@ -19,7 +19,8 @@ OBJS=	action.o \
 	member_cman.o \
 	netlink.o \
 	plock.o \
-	group.o
+	group.o \
+	logging.o
 
 CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmincdir} -I${dlmcontrolincdir}
 CFLAGS += -I${openaisincdir}
@@ -32,7 +33,7 @@ LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
 LDFLAGS += -L${dlmlibdir} -ldlm 
 LDFLAGS += -L${openaislibdir} -lcpg -lSaCkpt
 LDFLAGS += -L../../fence/libfenced/ -lfenced
-LDFLAGS += -L../lib -lgroup -lpthread
+LDFLAGS += -L../lib -lgroup -lpthread -llogsys
 
 
 ${TARGET}: ${OBJS}

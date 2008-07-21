@@ -1,4 +1,5 @@
 #include "dlm_daemon.h"
+#include "config.h"
 #include "libgroup.h"
 
 #define DO_STOP 1

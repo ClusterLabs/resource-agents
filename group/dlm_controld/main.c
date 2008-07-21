@@ -1,6 +1,8 @@
 #include "dlm_daemon.h"
 #include "config.h"
 #include <pthread.h>
+#include "copyright.cf"
+
 #include <linux/dlmconstants.h>
 #include <linux/netlink.h>
 #include <linux/genetlink.h>
@@ -820,6 +822,8 @@ static void loop(void)
 	if (rv < 0)
 		goto out;
 
+	setup_logging();
+
 	rv = setup_configfs();
 	if (rv < 0)
 		goto out;
@@ -939,6 +943,7 @@ static void loop(void)
 	if (cfgd_groupd_compat)
 		close_groupd();
 	clear_configfs();
+	close_logging();
 	close_ccs();
 	close_cman();
 
@@ -997,6 +1002,7 @@ static void print_usage(void)
 	printf("Options:\n");
 	printf("\n");
 	printf("  -D		Enable daemon debugging and don't fork\n");
+	printf("  -L <num>	Enable (1) or disable (0) debugging to logsys (default %d)\n", DEFAULT_DEBUG_LOGSYS);
 	printf("  -K		Enable kernel dlm debugging messages\n");
 	printf("  -g <num>	groupd compatibility, 0 off, 1 on\n");
 	printf("		on: use libgroup, compat with cluster2/stable2/rhel5\n");
@@ -1025,7 +1031,7 @@ static void print_usage(void)
 	printf("  -V		Print program version information, then exit\n");
 }
 
-#define OPTION_STRING			"DKg:f:q:d:p:Pl:o:t:c:a:hV"
+#define OPTION_STRING "L:DKg:f:q:d:p:Pl:o:t:c:a:hV"
 
 static void read_arguments(int argc, char **argv)
 {
@@ -1043,6 +1049,11 @@ static void read_arguments(int argc, char **argv)
 
 		case 'D':
 			daemon_debug_opt = 1;
+			break;
+
+		case 'L':
+			optd_debug_logsys = 1;
+			cfgd_debug_logsys = atoi(optarg);
 			break;
 
 		case 'g':
@@ -1113,7 +1124,7 @@ static void read_arguments(int argc, char **argv)
 		case 'V':
 			printf("dlm_controld %s (built %s %s)\n",
 				RELEASE_VERSION, __DATE__, __TIME__);
-			/* printf("%s\n", REDHAT_COPYRIGHT); */
+			printf("%s\n", REDHAT_COPYRIGHT);
 			exit(EXIT_SUCCESS);
 			break;
 
@@ -1132,6 +1143,11 @@ static void read_arguments(int argc, char **argv)
 			exit(EXIT_FAILURE);
 			break;
 		};
+	}
+
+	if (!optd_debug_logsys && getenv("DLM_CONTROLD_DEBUG")) {
+		optd_debug_logsys = 1;
+		cfgd_debug_logsys = atoi(getenv("DLM_CONTROLD_DEBUG"));
 	}
 }
 
@@ -1169,6 +1185,8 @@ int main(int argc, char **argv)
 {
 	INIT_LIST_HEAD(&lockspaces);
 
+	init_logging();
+
 	read_arguments(argc, argv);
 
 	lockfile();
@@ -1179,7 +1197,6 @@ int main(int argc, char **argv)
 			exit(EXIT_FAILURE);
 		}
 	}
-	openlog("dlm_controld", LOG_PID, LOG_DAEMON);
 	signal(SIGTERM, sigterm_handler);
 
 	set_scheduler();

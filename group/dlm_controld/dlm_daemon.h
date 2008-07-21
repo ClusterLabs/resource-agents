@@ -33,6 +33,7 @@
 #include <openais/saAis.h>
 #include <openais/saCkpt.h>
 #include <openais/cpg.h>
+#include <openais/service/logsys.h>
 
 #include <linux/dlmconstants.h>
 #include "libdlmcontrol.h"
@@ -82,29 +83,36 @@ void daemon_dump_save(void);
 #define log_debug(fmt, args...) \
 do { \
 	snprintf(daemon_debug_buf, 255, "%ld " fmt "\n", time(NULL), ##args); \
-	if (daemon_debug_opt) fprintf(stderr, "%s", daemon_debug_buf); \
 	daemon_dump_save(); \
+	if (daemon_debug_opt) \
+		fprintf(stderr, "%s", daemon_debug_buf); \
+	if (cfgd_debug_logsys) \
+		log_printf(LOG_DEBUG, "%s", daemon_debug_buf); \
 } while (0)
 
 #define log_group(ls, fmt, args...) \
 do { \
 	snprintf(daemon_debug_buf, 255, "%ld %s " fmt "\n", time(NULL), \
 		 (ls)->name, ##args); \
-	if (daemon_debug_opt) fprintf(stderr, "%s", daemon_debug_buf); \
 	daemon_dump_save(); \
+	if (daemon_debug_opt) \
+		fprintf(stderr, "%s", daemon_debug_buf); \
+	if (cfgd_debug_logsys) \
+		log_printf(LOG_DEBUG, "%s", daemon_debug_buf); \
 } while (0)
 
 #define log_error(fmt, args...) \
 do { \
 	log_debug(fmt, ##args); \
-	syslog(LOG_ERR, fmt, ##args); \
+	log_printf(LOG_ERR, fmt, ##args); \
 } while (0)
 
 #define log_plock(ls, fmt, args...) \
 do { \
 	snprintf(daemon_debug_buf, 255, "%ld %s " fmt "\n", time(NULL), \
 		 (ls)->name, ##args); \
-	if (daemon_debug_opt && cfgd_plock_debug) fprintf(stderr, "%s", daemon_debug_buf); \
+	if (daemon_debug_opt && cfgd_plock_debug) \
+		fprintf(stderr, "%s", daemon_debug_buf); \
 } while (0)
 
 /* dlm_header types */
@@ -200,9 +208,12 @@ void clear_configfs(void);
 int setup_configfs(void);
 
 /* config.c */
-int get_weight(int nodeid, char *lockspace);
 int setup_ccs(void);
 void close_ccs(void);
+void read_ccs_name(char *path, char *name);
+void read_ccs_yesno(char *path, int *yes, int *no);
+void read_ccs_int(char *path, int *config_val);
+int get_weight(int nodeid, char *lockspace);
 
 /* cpg.c */
 int setup_cpg(void);
@@ -281,6 +292,12 @@ int set_lockspace_info_group(struct lockspace *ls,
 int set_lockspaces_group(int *count, struct dlmc_lockspace **lss_out);
 int set_lockspace_nodes_group(struct lockspace *ls, int option, int *node_count,
 			struct dlmc_node **nodes);
+
+/* logging.c */
+
+void init_logging(void);
+void setup_logging();
+void close_logging(void);
 
 #endif
 

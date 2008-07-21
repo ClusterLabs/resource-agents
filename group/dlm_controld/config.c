@@ -37,6 +37,7 @@ int optk_debug;
 int optk_timewarn;
 int optk_protocol;
 int optd_groupd_compat;
+int optd_debug_logsys;
 int optd_enable_fencing;
 int optd_enable_quorum;
 int optd_enable_deadlk;
@@ -55,6 +56,7 @@ int cfgk_debug			= -1;
 int cfgk_timewarn		= -1;
 int cfgk_protocol		= -1;
 int cfgd_groupd_compat		= DEFAULT_GROUPD_COMPAT;
+int cfgd_debug_logsys		= DEFAULT_DEBUG_LOGSYS;
 int cfgd_enable_fencing		= DEFAULT_ENABLE_FENCING;
 int cfgd_enable_quorum		= DEFAULT_ENABLE_QUORUM;
 int cfgd_enable_deadlk		= DEFAULT_ENABLE_DEADLK;
@@ -163,7 +165,42 @@ int get_weight(int nodeid, char *lockspace)
 	return w;
 }
 
-static void read_ccs_int(char *path, int *config_val)
+void read_ccs_name(char *path, char *name)
+{
+	char *str;
+	int error;
+
+	error = ccs_get(ccs_handle, path, &str);
+	if (error || !str)
+		return;
+
+	strcpy(name, str);
+
+	free(str);
+}
+
+void read_ccs_yesno(char *path, int *yes, int *no)
+{
+	char *str;
+	int error;
+
+	*yes = 0;
+	*no = 0;
+
+	error = ccs_get(ccs_handle, path, &str);
+	if (error || !str)
+		return;
+
+	if (!strcmp(str, "yes"))
+		*yes = 1;
+
+	else if (!strcmp(str, "no"))
+		*no = 1;
+
+	free(str);
+}
+
+void read_ccs_int(char *path, int *config_val)
 {
 	char *str;
 	int val;

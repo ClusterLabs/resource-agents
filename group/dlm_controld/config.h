@@ -5,6 +5,7 @@
    we only change them if new values are given on command line or in ccs */
 
 #define DEFAULT_GROUPD_COMPAT 1
+#define DEFAULT_DEBUG_LOGSYS 0
 #define DEFAULT_ENABLE_FENCING 1
 #define DEFAULT_ENABLE_QUORUM 1
 #define DEFAULT_ENABLE_DEADLK 0
@@ -20,6 +21,7 @@ extern int optk_debug;
 extern int optk_timewarn;
 extern int optk_protocol;
 extern int optd_groupd_compat;
+extern int optd_debug_logsys;
 extern int optd_enable_fencing;
 extern int optd_enable_quorum;
 extern int optd_enable_deadlk;
@@ -35,6 +37,7 @@ extern int cfgk_debug;
 extern int cfgk_timewarn;
 extern int cfgk_protocol;
 extern int cfgd_groupd_compat;
+extern int cfgd_debug_logsys;
 extern int cfgd_enable_fencing;
 extern int cfgd_enable_quorum;
 extern int cfgd_enable_deadlk;
