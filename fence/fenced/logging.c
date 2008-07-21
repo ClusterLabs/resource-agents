@@ -1,9 +1,11 @@
 #include "fd.h"
 #include "config.h"
 
-/* default: errors go to syslog (/var/log/messages) and fenced.log
+#define DAEMON_NAME "fenced"
+
+/* default: errors go to syslog (/var/log/messages) and <daemon>.log
    logging/debug=on: errors continue going to syslog (/var/log/messages)
-   and fenced.log, debug messages are added to fenced.log. */
+   and <daemon>.log, debug messages are added to <daemon>.log. */
 
 #define DEFAULT_MODE		LOG_MODE_OUTPUT_SYSLOG_THREADED | \
 				LOG_MODE_OUTPUT_FILE | \
@@ -11,10 +13,10 @@
 				LOG_MODE_FILTER_DEBUG_FROM_SYSLOG
 #define DEFAULT_FACILITY	SYSLOGFACILITY /* cluster config setting */
 #define DEFAULT_PRIORITY	SYSLOGLEVEL /* cluster config setting */
-#define DEFAULT_FILE		LOGDIR "/fenced.log"
+#define DEFAULT_FILE		LOGDIR "/" DAEMON_NAME ".log"
 
-#define LEVEL_PATH "/cluster/logging/logger_subsys[@subsys=\"FENCED\"]/@syslog_level"
-#define DEBUG_PATH "/cluster/logging/logger_subsys[@subsys=\"FENCED\"]/@debug"
+#define DAEMON_LEVEL_PATH "/cluster/logging/logger_subsys[@subsys=\"FENCED\"]/@syslog_level"
+#define DAEMON_DEBUG_PATH "/cluster/logging/logger_subsys[@subsys=\"FENCED\"]/@debug"
 
 /* Read cluster.conf settings and convert them into logsys values.
    If no cluster.conf setting exists, the default that was used in
@@ -95,7 +97,7 @@ static int read_ccs_logging(int *mode, int *facility, int *priority, char *file)
 	p = DEFAULT_PRIORITY;
 
 	memset(name, 0, sizeof(name));
-	read_ccs_name(LEVEL_PATH, name);
+	read_ccs_name(DAEMON_LEVEL_PATH, name);
 
 	if (name[0]) {
 		val = logsys_priority_id_get(name);
@@ -131,7 +133,7 @@ static int read_ccs_logging(int *mode, int *facility, int *priority, char *file)
 		cfgd_debug_logsys = 1;
 
 	memset(name, 0, sizeof(name));
-	read_ccs_name(DEBUG_PATH, name);
+	read_ccs_name(DAEMON_DEBUG_PATH, name);
 
 	if (!strcmp(name, "on"))
 		cfgd_debug_logsys = 1;
@@ -145,8 +147,8 @@ static int read_ccs_logging(int *mode, int *facility, int *priority, char *file)
 
 void init_logging(void)
 {
-	logsys_init("fenced", DEFAULT_MODE, DEFAULT_FACILITY, DEFAULT_PRIORITY,
-		    DEFAULT_FILE);
+	logsys_init(DAEMON_NAME, DEFAULT_MODE, DEFAULT_FACILITY,
+		    DEFAULT_PRIORITY, DEFAULT_FILE);
 }
 
 /* this function is also called when we get a cman config-update event */
@@ -156,11 +158,10 @@ void setup_logging(void)
 	int mode, facility, priority;
 	char file[PATH_MAX];
 
-	/* The debug setting is special, it's used by the program
-	   and not used to configure logsys. */
+	memset(file, 0, PATH_MAX);
 
 	read_ccs_logging(&mode, &facility, &priority, file);
-	logsys_conf("fenced", mode, facility, priority, file);
+	logsys_conf(DAEMON_NAME, mode, facility, priority, file);
 }
 
 void close_logging(void)

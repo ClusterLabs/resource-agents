@@ -845,9 +845,9 @@ static void read_arguments(int argc, char **argv)
 		};
 	}
 
-	if (!optd_debug_logsys && getenv("FENCED_DEBUG_LOGSYS")) {
+	if (!optd_debug_logsys && getenv("FENCED_DEBUG")) {
 		optd_debug_logsys = 1;
-		cfgd_debug_logsys = atoi(getenv("FENCED_DEBUG_LOGSYS"));
+		cfgd_debug_logsys = atoi(getenv("FENCED_DEBUG"));
 	}
 }
 
