@@ -10,6 +10,7 @@
 import getopt, sys
 import os
 import datetime
+import time
 import select
 import signal
 from glob import glob
@@ -341,15 +342,18 @@ def main2():
 	  sys.exit(1)
   if 'switch' not in params:
 	  params['switch'] = ''
+
+  if 'option' not in params:
+          params['option'] = 'reboot'
   try:
 	  act = params['option'].lower()
 	  if act in ['on', 'off', 'reboot', 'status']:
 		  params['option'] = act
 	  else:
-		  usage()
-		  sys.exit(3)
+		  raise Exception
   except:
-	  params['option'] = 'reboot'
+          usage()
+          sys.exit(3)
 	  
   ### End of validation ###
 
@@ -377,6 +381,7 @@ def main2():
 		  raise Exception, 'Error turning outlet off'
   elif params['option'] == 'reboot':
 	  agent.power_off()
+          time.sleep(3)
 	  if agent.status() != 'off':
 		  raise Exception, 'Error turning outlet off'
 	  agent.power_on()
