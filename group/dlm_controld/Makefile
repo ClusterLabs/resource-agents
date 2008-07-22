@@ -31,10 +31,9 @@ CFLAGS += -I${incdir}
 
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
 LDFLAGS += -L${dlmlibdir} -ldlm 
-LDFLAGS += -L${openaislibdir} -lcpg -lSaCkpt
+LDFLAGS += -L${openaislibdir} -lcpg -lSaCkpt -llogsys -lpthread
 LDFLAGS += -L../../fence/libfenced/ -lfenced
-LDFLAGS += -L../lib -lgroup -lpthread -llogsys
-
+LDFLAGS += -L../lib -lgroup
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
