@@ -20,7 +20,7 @@ include $(OBJDIR)/make/clean.mk
 
 $(TARGET):
 	cat $(S)/$(TARGET).logrotate.in | sed \
-		-e 's#@LOGDIR@#${LOGDIR}#g' \
+		-e 's#@LOGDIR@#${logdir}#g' \
 	> $(TARGET)
 
 clean: generalclean

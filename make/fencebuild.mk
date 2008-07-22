@@ -19,6 +19,7 @@ $(TARGET):
 		-e 's#@FENCEAGENTSLIBDIR@#${fenceagentslibdir}#g' \
 		-e 's#@MIBDIR@#${mibdir}#g' \
 		-e 's#@SNMPBIN@#${snmpbin}#g' \
+		-e 's#@LOGDIR@#${logdir}#g' \
 	> $@
 
 	chmod +x $@
