@@ -22,6 +22,7 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <openais/cpg.h>
+#include <openais/service/logsys.h>
 
 #include "list.h"
 #include "linux_endian.h"
@@ -46,33 +47,44 @@ extern struct list_head gd_groups;
 extern struct list_head gd_levels[MAX_LEVELS];
 extern uint32_t gd_event_nr;
 
+#define DEFAULT_DEBUG_LOGSYS 0
+
+extern int optd_debug_logsys;
+extern int cfgd_debug_logsys;
+
 void daemon_dump_save(void);
 
 #define log_debug(fmt, args...) \
 do { \
 	snprintf(daemon_debug_buf, 255, "%ld " fmt "\n", time(NULL), ##args); \
-	if (daemon_debug_opt) fprintf(stderr, "%s", daemon_debug_buf); \
 	daemon_dump_save(); \
+	if (daemon_debug_opt) \
+		fprintf(stderr, "%s", daemon_debug_buf); \
+	if (cfgd_debug_logsys) \
+		log_printf(LOG_DEBUG, "%s", daemon_debug_buf); \
 } while (0)
 
 #define log_group(g, fmt, args...) \
 do { \
 	snprintf(daemon_debug_buf, 255, "%ld %d:%s " fmt "\n", time(NULL), \
 		 (g)->level, (g)->name, ##args); \
-	if (daemon_debug_opt) fprintf(stderr, "%s", daemon_debug_buf); \
 	daemon_dump_save(); \
+	if (daemon_debug_opt) \
+		fprintf(stderr, "%s", daemon_debug_buf); \
+	if (cfgd_debug_logsys) \
+		log_printf(LOG_DEBUG, "%s", daemon_debug_buf); \
 } while (0)
 
 #define log_print(fmt, args...) \
 do { \
 	log_debug(fmt, ##args); \
-	syslog(LOG_ERR, fmt, ##args); \
+	log_printf(LOG_ERR, fmt, ##args); \
 } while (0)
 
 #define log_error(g, fmt, args...) \
 do { \
 	log_group(g, fmt, ##args); \
-	syslog(LOG_ERR, fmt, ##args); \
+	log_printf(LOG_ERR, fmt, ##args); \
 } while (0)
 
 #define ASSERT(x) \
@@ -247,6 +259,9 @@ int is_our_join(event_t *ev);
 void purge_node_messages(group_t *g, int nodeid);
 
 /* main.c */
+void read_ccs_name(char *path, char *name);
+void read_ccs_yesno(char *path, int *yes, int *no);
+void read_ccs_int(char *path, int *config_val);
 void app_stop(app_t *a);
 void app_setid(app_t *a);
 void app_start(app_t *a);
@@ -279,6 +294,12 @@ int do_join(char *name, int level, int ci);
 int do_leave(char *name, int level);
 node_t *new_node(int nodeid);
 group_t *find_group_level(char *name, int level);
+
+/* logging.c */
+
+void init_logging(void);
+void setup_logging();
+void close_logging(void);
 
 #endif				/* __GD_INTERNAL_DOT_H__ */
 

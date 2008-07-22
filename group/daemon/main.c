@@ -3,6 +3,7 @@
 
 #include "gd_internal.h"
 #include "ccs.h"
+#include "copyright.cf"
 
 #define LOCKFILE_NAME	"/var/run/groupd.pid"
 #define CLIENT_NALLOC	32
@@ -60,6 +61,63 @@ static int do_write(int fd, void *buf, size_t count)
 		goto retry;
 	}
 	return 0;
+}
+
+void read_ccs_name(char *path, char *name)
+{
+	char *str;
+	int error;
+
+	error = ccs_get(ccs_handle, path, &str);
+	if (error || !str)
+		return;
+
+	strcpy(name, str);
+
+	free(str);
+}
+
+void read_ccs_yesno(char *path, int *yes, int *no)
+{
+	char *str;
+	int error;
+
+	*yes = 0;
+	*no = 0;
+
+	error = ccs_get(ccs_handle, path, &str);
+	if (error || !str)
+		return;
+
+	if (!strcmp(str, "yes"))
+		*yes = 1;
+
+	else if (!strcmp(str, "no"))
+		*no = 1;
+
+	free(str);
+}
+
+void read_ccs_int(char *path, int *config_val)
+{
+	char *str;
+	int val;
+	int error;
+
+	error = ccs_get(ccs_handle, path, &str);
+	if (error || !str)
+		return;
+
+	val = atoi(str);
+
+	if (val < 0) {
+		log_print("ignore invalid value %d for %s", val, path);
+		return;
+	}
+
+	*config_val = val;
+	log_debug("%s is %u", path, val);
+	free(str);
 }
 
 int setup_ccs(void)
@@ -749,6 +807,8 @@ static void loop(void)
 	if (rv < 0)
 		goto out;
 
+	setup_logging();
+
 	rv = check_uncontrolled_groups();
 	if (rv < 0)
 		goto out;
@@ -853,11 +913,12 @@ static void print_usage(void)
 	printf("Options:\n");
 	printf("\n");
 	printf("  -D	       Enable debugging code and don't fork\n");
+	printf("  -L <num>     Enable (1) or disable (0) debugging to logsys (default %d)\n", DEFAULT_DEBUG_LOGSYS);
 	printf("  -h	       Print this help, then exit\n");
 	printf("  -V	       Print program version information, then exit\n");
 }
 
-#define OPTION_STRING "DhVv"
+#define OPTION_STRING "L:DhVv"
 
 static void read_arguments(int argc, char **argv)
 {
@@ -873,6 +934,11 @@ static void read_arguments(int argc, char **argv)
 			daemon_debug_opt = 1;
 			break;
 
+		case 'L':
+			optd_debug_logsys = 1;
+			cfgd_debug_logsys = atoi(optarg);
+			break;
+
 		case 'h':
 			print_usage();
 			exit(EXIT_SUCCESS);
@@ -885,7 +951,7 @@ static void read_arguments(int argc, char **argv)
 		case 'V':
 			printf("groupd %s (built %s %s)\n",
 				RELEASE_VERSION, __DATE__, __TIME__);
-			/* printf("%s\n", REDHAT_COPYRIGHT); */
+			printf("%s\n", REDHAT_COPYRIGHT);
 			exit(EXIT_SUCCESS);
 			break;
 
@@ -904,6 +970,11 @@ static void read_arguments(int argc, char **argv)
 			exit(EXIT_FAILURE);
 			break;
 		};
+	}
+
+	if (!optd_debug_logsys && getenv("GROUPD_DEBUG")) {
+		optd_debug_logsys = 1;
+		cfgd_debug_logsys = atoi(getenv("GROUPD_DEBUG"));
 	}
 }
 
@@ -946,6 +1017,8 @@ int main(int argc, char *argv[])
 	for (i = 0; i < MAX_LEVELS; i++)
 		INIT_LIST_HEAD(&gd_levels[i]);
 
+	init_logging();
+
 	read_arguments(argc, argv);
 
 	lockfile();
@@ -956,7 +1029,6 @@ int main(int argc, char *argv[])
 			exit(EXIT_FAILURE);
 		}
 	}
-	openlog("groupd", LOG_PID, LOG_DAEMON);
 	signal(SIGTERM, sigterm_handler);
 
 	set_scheduler();
@@ -996,4 +1068,7 @@ int dump_wrap;
 struct list_head gd_groups;
 struct list_head gd_levels[MAX_LEVELS];
 uint32_t gd_event_nr;
+
+int optd_debug_logsys;
+int cfgd_debug_logsys = DEFAULT_DEBUG_LOGSYS;
 
