@@ -211,6 +211,18 @@ meta_data()
             <content type="string" default="live"/>
         </parameter>
 
+	<parameter name="snapshot">
+	    <longdesc lang="en">
+	    	Path to the snapshot directory where the virtual machine
+		image will be stored.
+	    </longdesc>
+	    <shortdesc lang="en">
+	    	Path to the snapshot directory where the virtual machine
+		image will be stored.
+	    </shortdesc>
+            <content type="string" default=""/>
+        </parameter>
+
         <parameter name="depend">
             <longdesc lang="en">
 		Top-level service this depends on, in "service:name" format.
@@ -346,6 +358,8 @@ build_xm_cmdline()
 			;;
 		migrate)
 			;;
+		snapshot)
+			;;
 		*)
 			cmdline="$cmdline $varp=\"$val\""
 			;;
@@ -370,8 +384,20 @@ do_start()
 	# doesn't exist...
 	#
 	declare cmdline
+	declare snapshotimage
 
 	status && return 0
+
+	snapshotimage="$OCF_RESKEY_snapshot/$OCF_RESKEY_name"
+
+        if [ -n "$OCF_RESKEY_snapshot" -a -f "$snapshotimage" ]; then
+		eval xm restore $snapshotimage
+		if [ $? -eq 0 ]; then
+			rm -f $snapshotimage
+			return 0
+		fi
+		return 1
+	fi
 
 	cmdline="`build_xm_cmdline`"
 
@@ -391,6 +417,10 @@ do_stop()
 	declare -i timeout=60
 	declare -i ret=1
 	declare st
+
+	if [ -n "$OCF_RESKEY_snapshot" ]; then
+		xm save $OCF_RESKEY_name "$OCF_RESKEY_snapshot/$OCF_RESKEY_name"
+	fi
 
 	for op in $*; do
 		echo xm $op $OCF_RESKEY_name ...
