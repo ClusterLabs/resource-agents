@@ -215,7 +215,7 @@ def usage():
         print "  -c <community>   SNMP community (default 'private')"
         print "  -n <num>         Outlet name/number to act on"
         print "  -o <string>      Action: Reboot (default), On, Off and Status"
-        print "  -v               Verbose mode - write to /tmp/apclog"
+        print "  -v               Verbose mode - write to @LOGDIR@/fence_apc_snmp.log"
         print "  -V               Version"
 	
         sys.exit(0)
@@ -226,7 +226,7 @@ file_log = None
 def set_logging(verbose):
 	global file_log
 	if verbose:
-		file_log = open('/tmp/apclog', 'a')
+		file_log = open('@LOGDIR@/fence_apc_snmp.log', 'a')
 		file_log.write('\n-----------  ')
 		file_log.write(datetime.datetime.today().ctime())
 		file_log.write('  -----------\n')
