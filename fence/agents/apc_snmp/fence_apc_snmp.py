@@ -9,7 +9,7 @@
 
 import getopt, sys
 import os
-import time
+import datetime
 import select
 import signal
 from glob import glob
@@ -24,49 +24,251 @@ POWER_ON="outletOn"
 POWER_OFF="outletOff"
 POWER_REBOOT="outletReboot"
 
-def usage():
-        print "Usage:";
-        print "";
-        print "Options:";
-        print "  -a <ip>          IP address or hostname of MasterSwitch";
-        print "  -h               usage";
-        print "  -l <name>        Login name";
-        print "  -n <num>         Outlet number to change";
-        print "  -o <string>      Action: Reboot (default), Off or On";
-        print "  -p <string>      Login password";
-        print "  -q               quiet mode";
-        print "  -V               version";
-        print "  -v               Log to file /tmp/apclog";
+
+# oid defining fence device 
+oid_sysObjectID = '.1.3.6.1.2.1.1.2.0'
+
+
+
+class SNMP:
+	def __init__(self, params):
+		self.hostname  = params['ipaddr']
+		self.udpport   = params['udpport']
+		self.community = params['community']
 	
-        sys.exit(0);
+	def get(self, oid):
+		args = ['@SNMPBIN@/snmpget']
+		args.append('-Oqn')
+		args.append('-v')
+		args.append('1')
+		args.append('-c')
+		args.append(self.community)
+		args.append('-m')
+		args.append('ALL')
+		args.append(self.hostname + ':' + self.udpport)
+		args.append(oid)
+		strr, code = execWithCaptureStatus("@SNMPBIN@/snmpget", args)
+		if code:
+			raise Exception, 'snmpget failed'
+		l = strr.strip().split()
+		return l[0], ' '.join(l[1:])
+	
+	def set_int(self, oid, value):
+		args = ['@SNMPBIN@/snmpset']
+		args.append('-Oqn')
+		args.append('-v')
+		args.append('1')
+		args.append('-c')
+		args.append(self.community)
+		args.append('-m')
+		args.append('ALL')
+		args.append(self.hostname + ':' + self.udpport)
+		args.append(oid)
+		args.append('i')
+		args.append(str(value))
+		strr,code = execWithCaptureStatus("@SNMPBIN@/snmpset", args)
+		if code:
+			raise Exception, 'snmpset failed'
+		
+	def walk(self, oid):
+		args = ['@SNMPBIN@/snmpwalk']
+		args.append('-Oqn')
+		args.append('-v')
+		args.append('1')
+		args.append('-c')
+		args.append(self.community)
+		args.append('-m')
+		args.append('ALL')
+		args.append(self.hostname + ':' + self.udpport)
+		args.append(oid)
+		strr,code = execWithCaptureStatus("@SNMPBIN@/snmpwalk", args)
+		if code:
+			raise Exception, 'snmpwalk failed'
+		lines = strr.strip().splitlines()
+		ret = []
+		for line in lines:
+			l = line.strip().split()
+			ret.append((l[0], ' '.join(l[1:]).strip('"')))
+		return ret
+	
+
+
+class FenceAgent:
+	
+	def __init__(self, params):
+	   self.snmp = SNMP(params)
+	
+	def resolve_outlet(self):
+		raise Exception, 'resolve_outlet() not implemented'
+	
+	def status(self):
+		oid = self.status_oid % self.resolve_outlet()
+		dummy, stat = self.snmp.get(oid)
+		if stat == self.state_on or stat == "outletStatusOn":
+			return 'on'
+		elif stat == self.state_off or stat == "outletStatusOff":
+			return 'off'
+		else:
+			raise Exception, 'invalid status ' + stat
+	
+	def power_off(self):
+		oid = self.control_oid % self.resolve_outlet()
+		self.snmp.set_int(oid, self.turn_off)
+	
+	def power_on(self):
+		oid = self.control_oid % self.resolve_outlet()
+		self.snmp.set_int(oid, self.turn_on)
+	
+
+
+
+		
+
+		
+
+class MasterSwitch(FenceAgent):
+	
+	def __init__(self, params):
+	   FenceAgent.__init__(self, params)
+	   
+	   self.status_oid       = '.1.3.6.1.4.1.318.1.1.12.3.5.1.1.4.%s'
+	   self.control_oid      = '.1.3.6.1.4.1.318.1.1.12.3.3.1.1.4.%s'
+	   self.outlet_table_oid = '.1.3.6.1.4.1.318.1.1.12.3.5.1.1.2'
+	   
+	   self.state_on  = '1'
+	   self.state_off = '2'
+	   
+	   self.turn_on   = '1'
+	   self.turn_off  = '2'
+	   
+	   self.port = params['port']
+	
+	def resolve_outlet(self):
+		outlet = None
+		try:
+			outlet = str(int(self.port))
+		except:
+			table = self.snmp.walk(self.outlet_table_oid)
+			for row in table:
+				if row[1] == self.port:
+					t = row[0].strip().split('.')
+					outlet = t[len(t)-1]
+		if outlet == None:
+			raise Exception, 'unable to resolve ' + self.port
+		else:
+			self.port = outlet
+		return outlet
+	
+	
+class MasterSwitchPlus(FenceAgent):
+	def __init__(self, params):
+	   FenceAgent.__init__(self, params)
+	   
+	   self.status_oid       = '.1.3.6.1.4.1.318.1.1.6.7.1.1.5.%s.1.%s'
+	   self.control_oid      = '.1.3.6.1.4.1.318.1.1.6.5.1.1.5.%s.1.%s'
+	   self.outlet_table_oid = '.1.3.6.1.4.1.318.1.1.6.7.1.1.4'
+	   
+	   self.state_on  = '1'
+	   self.state_off = '2'
+	   
+	   self.turn_on   = '1'
+	   self.turn_off  = '3'
+	   
+	   try:
+		   self.switch = params['switch']
+	   except:
+		   self.switch = ''
+	   self.port   = params['port']
+   
+	def resolve_outlet(self):
+		switch = None
+		outlet = None
+		try:
+			switch = str(int(self.switch))
+			outlet = str(int(self.port))
+		except:
+			table = self.snmp.walk(self.outlet_table_oid)
+			for row in table:
+				if row[1] == self.port:
+					t = row[0].strip().split('.')
+					outlet = t[len(t)-1]
+					switch = t[len(t)-3]
+		if outlet == None:
+			raise Exception, 'unable to resolve ' + self.port
+		else:
+			self.switch = switch
+			self.port   = outlet
+		return (switch, outlet)
+	
+
+
+
+	
+
+def usage():
+        print "Usage:"
+        print ""
+        print "Options:"
+        print "  -h               Usage"
+        print "  -a <ip>          IP address or hostname of fence device"
+        print "  -u <udpport>     UDP port to use (default 161)"
+        print "  -c <community>   SNMP community (default 'private')"
+        print "  -n <num>         Outlet name/number to act on"
+        print "  -o <string>      Action: Reboot (default), On, Off and Status"
+        print "  -v               Verbose mode - write to /tmp/apclog"
+        print "  -V               Version"
+	
+        sys.exit(0)
+
+
+
+file_log = None
+def set_logging(verbose):
+	global file_log
+	if verbose:
+		file_log = open('/tmp/apclog', 'a')
+		file_log.write('\n-----------  ')
+		file_log.write(datetime.datetime.today().ctime())
+		file_log.write('  -----------\n')
+def log(msg, error=False):
+	global file_log
+	if msg.rfind('\n') != len(msg)-1:
+		msg += '\n'
+	if file_log != None:
+		file_log.write(msg)
+	if error:
+		o = sys.stderr
+	else:
+		o = sys.stdout
+	o.write(msg)
 
 
 
 def main():
-  apc_base = "enterprises.apc.products.hardware."
-  apc_outletctl = "masterswitch.sPDUOutletControl.sPDUOutletControlTable.sPDUOutletControlEntry.sPDUOutletCtl."
-  apc_outletstatus = "masterswitch.sPDUOutletStatus.sPDUOutletStatusMSPTable.sPDUOutletStatusMSPEntry.sPDUOutletStatusMSP."
-
-  address = ""
-  output = ""
-  port = ""
-  action = "outletReboot"
-  status_check = False
+	try:
+		main2()
+		return 0
+	except Exception, e:
+		log(str(e), True)
+		sys.exit(1)
+def main2():
+  
+  agents_dir = {'.1.3.6.1.4.1.318.1.3.4.5' : MasterSwitch,
+		'.1.3.6.1.4.1.318.1.3.4.4' : MasterSwitchPlus}
+  
   verbose = False
-
-  if not glob('@MIBDIR@/powernet*.mib'):
-    sys.stderr.write('This APC Fence script uses snmp to control the APC power switch. This script requires that net-snmp-utils be installed on all nodes in the cluster, and that the powernet369.mib file be located in @MIBDIR@\n')
-    sys.exit(1)
-
+  params = {}
+  
   if len(sys.argv) > 1:
     try:
-      opts, args = getopt.getopt(sys.argv[1:], "a:hl:p:n:o:vV", ["help", "output="])
+      opts, args = getopt.getopt(sys.argv[1:], "ha:u:c:n:o:vV", ["help", "output="])
     except getopt.GetoptError:
-      #print help info and quit
       usage()
       sys.exit(2)
 
     for o, a in opts:
+      o = o.strip()
+      a = a.strip()
       if o == "-v":
         verbose = True
       if o == "-V":
@@ -76,229 +278,122 @@ def main():
         sys.exit(0)
       if o in ("-h", "--help"):
         usage()
-        sys.exit(0)
-      if o == "-n":
-        port = a
-      if o  == "-o":
-        lcase = a.lower() #Lower case string
-        if lcase == "off":
-          action = "outletOff"
-        elif lcase == "on":
-          action = "outletOn"
-        elif lcase == "reboot":
-          action = "outletReboot"
-        elif lcase == "status":
-          #action = "sPDUOutletStatusMSPOutletState"
-          action = ""
-          status_check = True
-        else:
-          usage()
-          sys.exit()
+	sys.exit(0)
       if o == "-a":
-        address = a
-
-    if address == "":
-      usage()
-      sys.exit(1)
-
-    if port == "":
-      usage()
-      sys.exit(1)
+        params['ipaddr'] = a
+      if o == "-u":
+        params['udpport'] = a
+      if o == "-c":
+        params['community'] = a
+      if o == "-n":
+        switch = ''
+	port   = a
+	if ':' in port:
+	   idx = port.find(':')
+	   switch = port[:idx]
+	   port = port[idx+1:]
+	params['switch'] = switch
+	params['port']   = port
+      if o == "-o":
+        params['option'] = a.lower()
 
   else: #Get opts from stdin 
-    params = {}
-    #place params in dict
     for line in sys.stdin:
-      val = line.split("=")
+      val = line.strip().split("=")
       if len(val) == 2:
-        params[val[0].strip()] = val[1].strip()
+         o = val[0].strip().lower()
+	 a = val[1].strip()
+	 if o == 'verbose':
+	    if a.lower() == 'on' or a.lower() == 'true' or a == '1':
+	       verbose = True
+	 else:
+	    params[o] = a 
+	
     
-    try:
-      address = params["ipaddr"]
-    except KeyError, e:
-      sys.stderr.write("FENCE: Missing ipaddr param for fence_apc...exiting")
-      sys.exit(1)
-    try:
-      login = params["login"]
-    except KeyError, e:
-      sys.stderr.write("FENCE: Missing login param for fence_apc...exiting")
-      sys.exit(1)
-    
-    try:
-      passwd = params["passwd"]
-    except KeyError, e:
-      sys.stderr.write("FENCE: Missing passwd param for fence_apc...exiting")
-      sys.exit(1)
-    
-    try:
-      port = params["port"]
-    except KeyError, e:
-      sys.stderr.write("FENCE: Missing port param for fence_apc...exiting")
-      sys.exit(1)
-    
-    
-    try:
-      a = params["option"]
-      if a == "Off" or a == "OFF" or a == "off":
-        action = POWER_OFF
-      elif a == "On" or a == "ON" or a == "on":
-        action = POWER_ON
-      elif a == "Reboot" or a == "REBOOT" or a == "reboot":
-        action = POWER_REBOOT
-    except KeyError, e:
-      action = POWER_REBOOT
+  set_logging(verbose)
+  
+  
+  ### validation ###
+  
+  try:
+	  if params['ipaddr'] == '':
+		  raise Exception, 'missing ipadddr'
+  except:
+	  log("FENCE: Missing ipaddr param for fence_apc_snmp...exiting", True)
+	  sys.exit(1)
+  if 'udpport' not in params:
+	  params['udpport'] = '161'
+  try:
+	  t = int(params['udpport'])
+	  if t >= 65536 or t < 0:
+		  raise Exception, 'invalid udpport'
+  except:
+	  log("FENCE: Invalid udpport for fence_apc_snmp...exiting", True)
+	  sys.exit(1)
+  if 'community' not in params:
+	  params['community'] = 'private'
+  try:
+	  port = params['port']
+	  if len(port) == 0:
+		  raise Exception, 'missing port'
+  except:
+	  log("FENCE: Missing port param for fence_apc_snmp...exiting", True)
+	  sys.exit(1)
+  if 'switch' not in params:
+	  params['switch'] = ''
+  try:
+	  act = params['option'].lower()
+	  if act in ['on', 'off', 'reboot', 'status']:
+		  params['option'] = act
+	  else:
+		  usage()
+		  sys.exit(3)
+  except:
+	  params['option'] = 'reboot'
+	  
+  ### End of validation ###
 
-    ####End of stdin section 
-
-  apc_command = apc_base + apc_outletctl + port
-
-  args_status = list()
-  args_off = list()
-  args_on = list()
-
-  args_status.append("@SNMPBIN@/snmpget")
-  args_status.append("-Oqu") #sets printing options
-  args_status.append("-v")
-  args_status.append("1")
-  args_status.append("-c")
-  args_status.append("private")
-  args_status.append("-m")
-  args_status.append("ALL")
-  args_status.append(address)
-  args_status.append(apc_command)
-
-  args_off.append("@SNMPBIN@/snmpset")
-  args_off.append("-Oqu") #sets printing options
-  args_off.append("-v")
-  args_off.append("1")
-  args_off.append("-c")
-  args_off.append("private")
-  args_off.append("-m")
-  args_off.append("ALL")
-  args_off.append(address)
-  args_off.append(apc_command)
-  args_off.append("i")
-  args_off.append("outletOff")
-
-  args_on.append("@SNMPBIN@/snmpset")
-  args_on.append("-Oqu") #sets printing options
-  args_on.append("-v")
-  args_on.append("1")
-  args_on.append("-c")
-  args_on.append("private")
-  args_on.append("-m")
-  args_on.append("ALL")
-  args_on.append(address)
-  args_on.append(apc_command)
-  args_on.append("i")
-  args_on.append("outletOn")
-
-  cmdstr_status = ' '.join(args_status)
-  cmdstr_off = ' '.join(args_off)
-  cmdstr_on = ' '.join(args_on)
-
-##This section issues the actual commands. Reboot is split into 
-##Off, then On to make certain both actions work as planned.
-##
-##The status command just dumps the outlet status to stdout.
-##The status checks that are made when turning an outlet on or off, though,
-##use the execWithCaptureStatus so that the stdout from snmpget can be
-##examined and the desired operation confirmed.
-
-  if status_check:
-    if verbose:
-      fd = open("/tmp/apclog", "w")
-      fd.write("Attempting the following command: %s\n" % cmdstr_status)
-    strr = os.system(cmdstr_status)
-    print strr
-    if verbose:
-      fd.write("Result: %s\n" % strr)
-      fd.close()
-
+  if verbose:
+     log('called with ' + str(params))
+  
+  agent = None
+  dummy, sys_id = SNMP(params).get(oid_sysObjectID)
+  if sys_id not in agents_dir:
+     log('Fence device with \'oid_sysObjectID=' + sys_id + '\' is not supported', True)
+     sys.exit(1)
+  agent = agents_dir[sys_id](params)
+  
+  if params['option'] == 'status':
+	  log('Outlet "%s" - %s is %s' % (params['port'], 
+					  str(agent.resolve_outlet()),
+					  agent.status()))
+  elif params['option'] == 'on':
+	  agent.power_on()
+	  if agent.status() != 'on':
+		  raise Exception, 'Error turning outlet on'
+  elif params['option'] == 'off':
+	  agent.power_off()
+	  if agent.status() != 'off':
+		  raise Exception, 'Error turning outlet off'
+  elif params['option'] == 'reboot':
+	  agent.power_off()
+	  if agent.status() != 'off':
+		  raise Exception, 'Error turning outlet off'
+	  agent.power_on()
+	  if agent.status() != 'on':
+		  raise Exception, 'Error turning outlet on'
   else:
-    if action == POWER_OFF:
-      if verbose:
-        fd = open("/tmp/apclog", "w")
-        fd.write("Attempting the following command: %s\n" % cmdstr_off)
-      strr = os.system(cmdstr_off)
-      time.sleep(1)
-      strr,code = execWithCaptureStatus("@SNMPBIN@/snmpget",args_status)
-      if verbose:
-        fd.write("Result: %s\n" % strr)
-        fd.close()
-      if strr.find(POWER_OFF) >= 0:
-        print "Success. Outlet off"
-        sys.exit(0)
-      else:
-        if verbose:
-          fd.write("Unable to power off apc outlet")
-          fd.close()
-        sys.exit(1)
-        
-    elif action == POWER_ON:
-      if verbose:
-        fd = open("/tmp/apclog", "w")
-        fd.write("Attempting the following command: %s\n" % cmdstr_on)
-      strr = os.system(cmdstr_on)
-      time.sleep(1)
-      strr,code = execWithCaptureStatus("@SNMPBIN@/snmpget",args_status)
-      #strr = os.system(cmdstr_status) 
-      if verbose:
-        fd.write("Result: %s\n" % strr)
-      if strr.find(POWER_ON) >= 0:
-        if verbose:
-          fd.close()
-        print "Success. Outlet On."
-        sys.exit(0)
-      else:
-        print "Unable to power on apc outlet"
-        if verbose:
-          fd.write("Unable to power on apc outlet")
-          fd.close()
-        sys.exit(1)
-        
-    elif action == POWER_REBOOT:
-      if verbose:
-        fd = open("/tmp/apclog", "w")
-        fd.write("Attempting the following command: %s\n" % cmdstr_off)
-      strr = os.system(cmdstr_off)
-      time.sleep(1)
-      strr,code = execWithCaptureStatus("@SNMPBIN@/snmpget",args_status)
-      #strr = os.system(cmdstr_status)
-      if verbose:
-        fd.write("Result: %s\n" % strr)
-      if strr.find(POWER_OFF) < 0:
-        print "Unable to power off apc outlet"
-        if verbose:
-          fd.write("Unable to power off apc outlet")
-          fd.close()
-        sys.exit(1)
+	  print 'nothing to do'
+	  sys.exit(1)
+	  pass
+  
 
-      if verbose:
-        fd.write("Attempting the following command: %s\n" % cmdstr_on)
-      strr = os.system(cmdstr_on)
-      time.sleep(1)
-      strr,code = execWithCaptureStatus("@SNMPBIN@/snmpget",args_status)
-      #strr = os.system(cmdstr_status)
-      if verbose:
-        fd.write("Result: %s\n" % strr)
-      if strr.find(POWER_ON) >= 0:
-        if verbose:
-          fd.close()
-        print "Success: Outlet Rebooted."
-        sys.exit(0)
-      else:
-        print "Unable to power on apc outlet"
-        if verbose:
-          fd.write("Unable to power on apc outlet")
-          fd.close()
-        sys.exit(1)
-        
+  
 def execWithCaptureStatus(command, argv, searchPath = 0, root = '/', stdin = 0,
 			  catchfd = 1, closefd = -1):
 	
     if not os.access (root + command, os.X_OK):
-        raise RuntimeError, command + " cannot be run"
+        raise Exception, command + " cannot be run"
     
     (read, write) = os.pipe()
     
@@ -351,4 +446,5 @@ def execWithCaptureStatus(command, argv, searchPath = 0, root = '/', stdin = 0,
     return (rc, status)
 
 if __name__ == "__main__":
-  main()
+	ret = main()
+	sys.exit(ret)
