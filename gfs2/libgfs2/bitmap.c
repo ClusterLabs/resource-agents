@@ -9,11 +9,39 @@
 #include "libgfs2.h"
 
 #define BITMAP_SIZE(size, cpb) (size / cpb)
+#define BITMAP_SIZE1(size) (size >> 3)
+#define BITMAP_SIZE4(size) (size >> 1)
 
 #define BITMAP_BYTE_OFFSET(x, map) ((x % map->chunks_per_byte) \
                                     * map->chunksize )
 
+/* BITMAP_BYTE_OFFSET1 is for chunksize==1, which implies chunks_per_byte==8 */
+/* Reducing the math, we get:                                                */
+/* #define BITMAP_BYTE_OFFSET1(x) ((x % 8) * 1)                              */
+/* #define BITMAP_BYTE_OFFSET1(x) (x % 8)                                    */
+/* #define BITMAP_BYTE_OFFSET1(x) (x & 0x0000000000000007)                   */
+#define BITMAP_BYTE_OFFSET1(x) (x & 0x0000000000000007)
+
+/* BITMAP_BYTE_OFFSET4 is for chunksize==4, which implies chunks_per_byte==2 */
+/* Reducing the math, we get:                                                */
+/* #define BITMAP_BYTE_OFFSET4(x) ((x % 2) * 4)                              */
+/* #define BITMAP_BYTE_OFFSET4(x) ((x & 0x0000000000000001) * 4)             */
+/* #define BITMAP_BYTE_OFFSET4(x) ((x & 0x0000000000000001) << 2)            */
+#define BITMAP_BYTE_OFFSET4(x) ((x & 0x0000000000000001) << 2)
+
 #define BITMAP_MASK(chunksize) ((2 << (chunksize - 1)) - 1)
+/* BITMAP_MASK1 is  for chunksize==1                                         */
+/* Reducing the math, we get:                                                */
+/* #define BITMAP_MASK1(chunksize) ((2 << (1 - 1)) - 1)                      */
+/* #define BITMAP_MASK1(chunksize) ((2 << 0) - 1)                            */
+/* #define BITMAP_MASK1(chunksize) ((2) - 1)                                 */
+#define BITMAP_MASK1(chunksize) (1)
+
+/* BITMAP_MASK4 is  for chunksize==4                                         */
+/* #define BITMAP_MASK(chunksize) ((2 << (4 - 1)) - 1)                       */
+/* #define BITMAP_MASK(chunksize) ((2 << 3) - 1)                             */
+/* #define BITMAP_MASK(chunksize) (0x10 - 1)                                 */
+#define BITMAP_MASK4(chunksize) (0xf)
 
 uint64_t gfs2_bitmap_size(struct gfs2_bmap *bmap) {
 	return bmap->size;
@@ -47,14 +75,19 @@ int gfs2_bitmap_create(struct gfs2_bmap *bmap, uint64_t size,
 
 int gfs2_bitmap_set(struct gfs2_bmap *bmap, uint64_t offset, uint8_t val)
 {
-	char *byte = NULL;
-	uint64_t b = offset;
+	static char *byte;
+	static uint64_t b;
 
 	if(offset < bmap->size) {
-		byte = bmap->map + BITMAP_SIZE(offset, bmap->chunks_per_byte);
-		b = BITMAP_BYTE_OFFSET(offset, bmap);
-
-		*byte |= (val & BITMAP_MASK(bmap->chunksize)) << b;
+		if (bmap->chunksize == 1) {
+			byte = bmap->map + BITMAP_SIZE1(offset);
+			b = BITMAP_BYTE_OFFSET1(offset);
+			*byte |= (val & BITMAP_MASK1(bmap->chunksize));
+		} else {
+			byte = bmap->map + BITMAP_SIZE4(offset);
+			b = BITMAP_BYTE_OFFSET4(offset);
+			*byte |= (val & BITMAP_MASK4(bmap->chunksize)) << b;
+		}
 		return 0;
 	}
 	return -1;
@@ -62,14 +95,19 @@ int gfs2_bitmap_set(struct gfs2_bmap *bmap, uint64_t offset, uint8_t val)
 
 int gfs2_bitmap_get(struct gfs2_bmap *bmap, uint64_t bit, uint8_t *val)
 {
-	char *byte = NULL;
-	uint64_t b = bit;
+	static char *byte;
+	static uint64_t b;
 
 	if(bit < bmap->size) {
-		byte = bmap->map + BITMAP_SIZE(bit, bmap->chunks_per_byte);
-		b = BITMAP_BYTE_OFFSET(bit, bmap);
-
-		*val = (*byte & (BITMAP_MASK(bmap->chunksize) << b )) >> b;
+		if (bmap->chunksize == 1) {
+			byte = bmap->map + BITMAP_SIZE1(bit);
+			b = BITMAP_BYTE_OFFSET1(bit);
+			*val = (*byte & (BITMAP_MASK1(bmap->chunksize) << b )) >> b;
+		} else {
+			byte = bmap->map + BITMAP_SIZE4(bit);
+			b = BITMAP_BYTE_OFFSET4(bit);
+			*val = (*byte & (BITMAP_MASK4(bmap->chunksize) << b )) >> b;
+		}
 		return 0;
 	}
 	return -1;
@@ -77,14 +115,19 @@ int gfs2_bitmap_get(struct gfs2_bmap *bmap, uint64_t bit, uint8_t *val)
 
 int gfs2_bitmap_clear(struct gfs2_bmap *bmap, uint64_t offset)
 {
-	char *byte = NULL;
-	uint64_t b = offset;
+	static char *byte;
+	static uint64_t b;
 
 	if(offset < bmap->size) {
-		byte = bmap->map + BITMAP_SIZE(offset, bmap->chunks_per_byte);
-		b = BITMAP_BYTE_OFFSET(offset, bmap);
-
-		*byte &= ~(BITMAP_MASK(bmap->chunksize) << b);
+		if (bmap->chunksize == 1) {
+			byte = bmap->map + BITMAP_SIZE1(offset);
+			b = BITMAP_BYTE_OFFSET1(offset);
+			*byte &= ~(BITMAP_MASK1(bmap->chunksize) << b);
+		} else {
+			byte = bmap->map + BITMAP_SIZE4(offset);
+			b = BITMAP_BYTE_OFFSET4(offset);
+			*byte &= ~(BITMAP_MASK4(bmap->chunksize) << b);
+		}
 		return 0;
 	}
 	return -1;
