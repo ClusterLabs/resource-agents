@@ -37,29 +37,6 @@ void print_it(const char *label, const char *fmt, const char *fmt2, ...)
 	va_end(args);
 }
 
-void print_map(struct gfs2_block_list *il, int count)
-{
-	int i, j;
-	struct gfs2_block_query k;
-
-	log_info("Printing map of blocks - 80 blocks per row\n");
-	j = 0;
-	for(i = 0; i < count; i++) {
-		if(j > 79) {
-			log_info("\n");
-			j = 0;
-		}
-		else if(!(j %10) && j != 0) {
-			log_info(" ");
-		}
-		j++;
-		gfs2_block_check(il, i, &k);
-		log_info("%X", k.block_type);
-
-	}
-	log_info("\n");
-}
-
 void usage(char *name)
 {
 	printf("Usage: %s [-hnqvVy] <device> \n", basename(name));
@@ -390,7 +367,6 @@ int main(int argc, char **argv)
 	inode_put(sbp->master_dir, update_sys_files);
 	if (lf_dip)
 		inode_put(lf_dip, update_sys_files);
-/*	print_map(sbp->bl, sbp->last_fs_block); */
 
 	if (!opts.no)
 		log_notice("Writing changes to disk\n");
