@@ -38,7 +38,11 @@ int check_eattr_indir(struct gfs2_inode *ip, uint64_t block,
 	struct gfs2_buffer_head *indir_bh = NULL;
 
 	if(gfs2_check_range(sbp, block)) {
-		log_err("Extended attributes indirect block out of range...removing\n");
+		log_err("Extended attributes indirect block #%"PRIu64
+			" (0x%" PRIx64 ") for inode #%" PRIu64
+			" (0x%" PRIx64 ") out of range...removing\n",
+			block, block, ip->i_di.di_num.no_addr,
+			ip->i_di.di_num.no_addr);
 		ip->i_di.di_eattr = 0;
 		*update = (opts.no ? not_updated : updated);
 		return 1;
@@ -48,7 +52,11 @@ int check_eattr_indir(struct gfs2_inode *ip, uint64_t block,
 		return -1;
 	}
 	else if(q.block_type != gfs2_indir_blk) {
-		log_err("Extended attributes indirect block invalid...removing\n");
+		log_err("Extended attributes indirect block #%"PRIu64
+			" (0x%" PRIx64 ") for inode #%" PRIu64
+			" (0x%" PRIx64 ") invalid...removing\n",
+			block, block, ip->i_di.di_num.no_addr,
+			ip->i_di.di_num.no_addr);
 		ip->i_di.di_eattr = 0;
 		*update = (opts.no ? not_updated : updated);
 		return 1;
@@ -67,7 +75,9 @@ int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
 	struct gfs2_block_query q;
 
 	if(gfs2_check_range(sbp, block)) {
-		log_err("Extended attributes block out of range...removing\n");
+		log_err("Extended attributes block for inode #%" PRIu64
+			" (0x%" PRIx64 ") out of range...removing\n",
+			ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr);
 		ip->i_di.di_eattr = 0;
 		*update = (opts.no ? not_updated : updated);
 		return 1;
@@ -77,7 +87,9 @@ int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
 		return -1;
 	}
 	else if(q.block_type != gfs2_meta_eattr) {
-		log_err("Extended attributes block invalid...removing\n");
+		log_err("Extended attributes block for inode #%"PRIu64
+			" (0x%" PRIx64 ") invalid...removing\n",
+			ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr);
 		ip->i_di.di_eattr = 0;
 		*update = (opts.no ? not_updated : updated);
 		return 1;

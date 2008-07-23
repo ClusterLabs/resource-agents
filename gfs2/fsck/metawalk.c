@@ -593,8 +593,7 @@ int check_inode_eattr(struct gfs2_inode *ip, struct metawalk_fxns *pass)
 	}
 
 	log_debug("Extended attributes exist for inode #%" PRIu64 " (0x%" PRIx64
-			  ").\n", ip->i_di.di_num.no_formal_ino,
-			  ip->i_di.di_num.no_formal_ino);
+		  ").\n", ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr);
 
 	if(ip->i_di.di_flags & GFS2_DIF_EA_INDIRECT){
 		if((error = check_indirect_eattr(ip, ip->i_di.di_eattr, pass)))
