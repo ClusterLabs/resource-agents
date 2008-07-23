@@ -137,7 +137,7 @@ void interrupt(int sig)
 			PRIu64 "\n", last_reported_block, last_fs_block);
 	
 	response = generic_interrupt("gfs2_fsck", pass, progress,
-				     "Do you want to abort gfs_fsck, skip " \
+				     "Do you want to abort gfs2_fsck, skip " \
 				     "the rest of this pass or continue " \
 				     "(a/s/c)?", "asc");
 	if(tolower(response) == 's') {

@@ -268,7 +268,7 @@ static int init_system_inodes(struct gfs2_sbd *sdp)
 	if (!bl) {
 		log_crit("This system doesn't have enough memory + swap space to fsck this file system.\n");
 		log_crit("Additional memory needed is approximately: %ldMB\n", addl_mem_needed / 1048576);
-		log_crit("Please increase your swap space by that amount and run gfs_fsck again.\n");
+		log_crit("Please increase your swap space by that amount and run gfs2_fsck again.\n");
 		goto fail;
 	}
 	return 0;
@@ -372,8 +372,8 @@ static void destroy_sbp(struct gfs2_sbd *sbp)
 {
 	if(!opts.no) {
 		if(block_mounters(sbp, 0)) {
-			log_warn("Unable to unblock other mounters - manual intevention required\n");
-			log_warn("Use 'gfs_tool sb <device> proto' to fix\n");
+			log_warn("Unable to unblock other mounters - manual intervention required\n");
+			log_warn("Use 'gfs2_tool sb <device> proto' to fix\n");
 		}
 		log_info("Syncing the device.\n");
 		fsync(sbp->device_fd);
