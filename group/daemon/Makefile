@@ -21,9 +21,10 @@ CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${openaisincdir}
 CFLAGS += -I$(S) -I$(S)/../include/ -I$(S)/../lib/
 CFLAGS += -I${incdir}
 
-LDFLAGS += -L${ccslibdir} -lccs -llogsys
-LDFLAGS += -L${cmanlibdir} -L${openaislibdir} -L${libdir} -lcman -lcpg
-
+LDFLAGS += -L${ccslibdir} -lccs 
+LDFLAGS += -L${cmanlibdir} -lcman
+LDFLAGS += -L${openaislibdir} -lcpg -llogsys -lpthread
+LDFLAGS += -L${libdir}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
