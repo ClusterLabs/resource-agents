@@ -101,13 +101,14 @@ int dirent_repair(struct gfs2_inode *ip, struct gfs2_buffer_head *bh,
 	/* If this is a sentinel, just fix the length and move on */
 	if (first && !de->de_inum.no_formal_ino) { /* Is it a sentinel? */
 		if (type == DIR_LINEAR)
-			de->de_rec_len = bh->b_size -
+			de->de_rec_len = ip->i_sbd->bsize -
 				sizeof(struct gfs2_dinode);
 		else
-			de->de_rec_len = bh->b_size - sizeof(struct gfs2_leaf);
+			de->de_rec_len = ip->i_sbd->bsize -
+				sizeof(struct gfs2_leaf);
 	}
 	else {
-		bh_end = bh->b_data + bh->b_size;
+		bh_end = bh->b_data + ip->i_sbd->bsize;
 		/* first, figure out a probable name length */
 		p = (char *)dent + sizeof(struct gfs2_dirent);
 		while (*p &&         /* while there's a non-zero char and */
@@ -141,7 +142,7 @@ int check_entries(struct gfs2_inode *ip, struct gfs2_buffer_head *bh,
 	char *filename;
 	int first = 1;
 
-	bh_end = bh->b_data + bh->b_size;
+	bh_end = bh->b_data + ip->i_sbd->bsize;
 
 	if(type == DIR_LINEAR) {
 		dent = (struct gfs2_dirent *)(bh->b_data + sizeof(struct gfs2_dinode));
@@ -644,7 +645,7 @@ static int build_and_check_metalist(struct gfs2_inode *ip,
 				     sizeof(struct gfs2_dinode));
 
 			for (ptr = (uint64_t *)(bh->b_data + head_size);
-			     (char *)ptr < (bh->b_data + bh->b_size);
+			     (char *)ptr < (bh->b_data + ip->i_sbd->bsize);
 			     ptr++) {
 				nbh = NULL;
 		
@@ -734,7 +735,7 @@ int check_metatree(struct gfs2_inode *ip, struct metawalk_fxns *pass)
 			     sizeof(struct gfs2_dinode));
 		ptr = (uint64_t *)(bh->b_data + head_size);
 
-		for ( ; (char *)ptr < (bh->b_data + bh->b_size); ptr++)	{
+		for ( ; (char *)ptr < (bh->b_data + ip->i_sbd->bsize); ptr++) {
 			if (!*ptr)
 				continue;
 

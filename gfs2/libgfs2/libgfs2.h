@@ -106,7 +106,6 @@ struct gfs2_buffer_head {
 	unsigned int b_count;
 	uint64_t b_blocknr;
 	char *b_data;
-	unsigned int b_size;
 
 	int b_changed;
 };

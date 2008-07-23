@@ -90,7 +90,6 @@ struct gfs2_buffer_head *bget_generic(struct gfs2_sbd *sdp, uint64_t num,
 	bh->b_count = 1;
 	bh->b_blocknr = num;
 	bh->b_data = (char *)bh + sizeof(struct gfs2_buffer_head);
-	bh->b_size = sdp->bsize;
 	if (read_disk) {
 		do_lseek(sdp->device_fd, num * sdp->bsize);
 		do_read(sdp->device_fd, bh->b_data, sdp->bsize);

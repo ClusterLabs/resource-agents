@@ -224,7 +224,7 @@ int clean_journal(struct gfs2_inode *ip, struct gfs2_log_header *head)
 		return -EIO;
 
 	bh = bread(ip->i_sbd, dblock);
-	memset(bh->b_data, 0, bh->b_size);
+	memset(bh->b_data, 0, ip->i_sbd->bsize);
 
 	lh = (struct gfs2_log_header *)bh->b_data;
 	memset(lh, 0, sizeof(struct gfs2_log_header));

@@ -122,7 +122,7 @@ static int buf_lo_scan_elements(struct gfs2_inode *ip, unsigned int start,
 			return error;
 
 		bh_ip = bget(sdp, blkno);
-		memcpy(bh_ip->b_data, bh_log->b_data, bh_log->b_size);
+		memcpy(bh_ip->b_data, bh_log->b_data, sdp->bsize);
 
 		check_magic = ((struct gfs2_meta_header *)
 			       (bh_ip->b_data))->mh_magic;
@@ -221,7 +221,7 @@ static int databuf_lo_scan_elements(struct gfs2_inode *ip, unsigned int start,
 			return error;
 
 		bh_ip = bget(sdp, blkno);
-		memcpy(bh_ip->b_data, bh_log->b_data, bh_log->b_size);
+		memcpy(bh_ip->b_data, bh_log->b_data, sdp->bsize);
 
 		/* Unescape */
 		if (esc) {

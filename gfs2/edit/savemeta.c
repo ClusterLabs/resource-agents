@@ -542,7 +542,7 @@ void save_indirect_blocks(int out_fd, osi_list_t *cur_list,
 		     sizeof(struct gfs2_dinode));
 
 	for (ptr = (uint64_t *)(mybh->b_data + head_size);
-	     (char *)ptr < (mybh->b_data + mybh->b_size); ptr++) {
+	     (char *)ptr < (mybh->b_data + sbd.bsize); ptr++) {
 		if (!*ptr)
 			continue;
 		indir_block = be64_to_cpu(*ptr);
