@@ -500,6 +500,8 @@ quorum_init(qd_ctx *ctx, node_info_t *ni, int max, struct h_data *h, int maxh)
 
 	get_my_score(&score, &maxscore);
 	log_printf(LOG_INFO, "Initial score %d/%d\n", score, maxscore);
+	if ((ctx->qc_flags & RF_STOP_CMAN) && (score < score_req))
+		return -1;
 	log_printf(LOG_INFO, "Initialization complete\n");
 
 	return 0;
