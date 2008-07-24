@@ -110,6 +110,11 @@ struct gfs2_buffer_head {
 	int b_changed;
 };
 
+struct special_blocks {
+	osi_list_t list;
+	uint64_t block;
+};
+
 struct gfs2_sbd;
 struct gfs2_inode {
 	struct gfs2_dinode i_di;
@@ -228,6 +233,9 @@ struct gfs2_sbd {
 	int metafs_fd;
 	int metafs_mounted; /* If metafs was already mounted */
 	char metafs_path[PATH_MAX]; /* where metafs is mounted */
+	struct special_blocks bad_blocks;
+	struct special_blocks dup_blocks;
+	struct special_blocks eattr_blocks;
 };
 
 extern char *prog_name;
@@ -276,26 +284,44 @@ void gfs2_bitmap_destroy(struct gfs2_bmap *bmap);
 uint64_t gfs2_bitmap_size(struct gfs2_bmap *bmap);
 
 /* block_list.c */
+#define FREE	        (0x0)  /*   0000 */
+#define BLOCK_IN_USE    (0x1)  /*   0001 */
+#define DIR_INDIR_BLK   (0x2)  /*   0010 */
+#define DIR_INODE       (0x3)  /*   0011 */
+#define FILE_INODE      (0x4)  /*   0100 */
+#define LNK_INODE       (0x5)
+#define BLK_INODE       (0x6)
+#define CHR_INODE       (0x7)
+#define FIFO_INODE      (0x8)
+#define SOCK_INODE      (0x9)
+#define DIR_LEAF_INODE  (0xA)  /*   1010 */
+#define JOURNAL_BLK     (0xB)  /*   1011 */
+#define OTHER_META      (0xC)  /*   1100 */
+#define EATTR_META      (0xD)  /*   1101 */
+#define UNUSED1         (0xE)  /*   1110 */
+#define INVALID_META    (0xF)  /*   1111 */
+
 /* Must be kept in sync with mark_to_bitmap array in block_list.c */
 enum gfs2_mark_block {
-        gfs2_block_free = 0,
-        gfs2_block_used,
-        gfs2_indir_blk,
-        gfs2_inode_dir,
-        gfs2_inode_file,
-        gfs2_inode_lnk,
-        gfs2_inode_blk,
-        gfs2_inode_chr,
-        gfs2_inode_fifo,
-        gfs2_inode_sock,
-        gfs2_leaf_blk,
-        gfs2_journal_blk,
-        gfs2_meta_other,
-        gfs2_meta_eattr,
-        gfs2_meta_inval = 15,
-        gfs2_bad_block,      /* Contains at least one bad block */
-        gfs2_dup_block,      /* Contains at least one duplicate block */
-        gfs2_eattr_block,    /* Contains an eattr */
+	gfs2_block_free = FREE,
+	gfs2_block_used = BLOCK_IN_USE,
+	gfs2_indir_blk = DIR_INDIR_BLK,
+	gfs2_inode_dir = DIR_INODE,
+	gfs2_inode_file = FILE_INODE,
+	gfs2_inode_lnk = LNK_INODE,
+	gfs2_inode_blk = BLK_INODE,
+	gfs2_inode_chr = CHR_INODE,
+	gfs2_inode_fifo = FIFO_INODE,
+	gfs2_inode_sock = SOCK_INODE,
+	gfs2_leaf_blk = DIR_LEAF_INODE,
+	gfs2_journal_blk = JOURNAL_BLK,
+	gfs2_meta_other = OTHER_META,
+	gfs2_meta_eattr = EATTR_META,
+	gfs2_meta_unused = UNUSED1,
+	gfs2_meta_inval = INVALID_META,
+	gfs2_bad_block,      /* Contains at least one bad block */
+	gfs2_dup_block,      /* Contains at least one duplicate block */
+	gfs2_eattr_block,    /* Contains an eattr */
 };
 
 struct gfs2_block_query {
@@ -321,21 +347,23 @@ struct gfs2_block_list {
         union gfs2_block_lists list;
 };
 
-struct gfs2_block_list *gfs2_block_list_create(uint64_t size,
+struct gfs2_block_list *gfs2_block_list_create(struct gfs2_sbd *sdp,
+					       uint64_t size,
 					       uint64_t *addl_mem_needed);
-int gfs2_block_mark(struct gfs2_block_list *il, uint64_t block,
-					enum gfs2_mark_block mark);
-int gfs2_block_set(struct gfs2_block_list *il, uint64_t block,
-				   enum gfs2_mark_block mark);
-int gfs2_block_clear(struct gfs2_block_list *il, uint64_t block,
-					 enum gfs2_mark_block m);
-int gfs2_block_check(struct gfs2_block_list *il, uint64_t block,
-					 struct gfs2_block_query *val);
-int gfs2_block_check_for_mark(struct gfs2_block_list *il, uint64_t block,
-			      enum gfs2_mark_block mark);
-void *gfs2_block_list_destroy(struct gfs2_block_list *il);
-int gfs2_find_next_block_type(struct gfs2_block_list *il,
-			      enum gfs2_mark_block m, uint64_t *b);
+struct special_blocks *blockfind(struct special_blocks *blist, uint64_t num);
+void gfs2_special_set(struct special_blocks *blocklist, uint64_t block);
+void gfs2_special_clear(struct special_blocks *blocklist, uint64_t block);
+void gfs2_special_free(struct special_blocks *blist);
+int gfs2_block_mark(struct gfs2_sbd *sdp, struct gfs2_block_list *il,
+		    uint64_t block, enum gfs2_mark_block mark);
+int gfs2_block_set(struct gfs2_sbd *sdp, struct gfs2_block_list *il,
+		   uint64_t block, enum gfs2_mark_block mark);
+int gfs2_block_clear(struct gfs2_sbd *sdp, struct gfs2_block_list *il,
+		     uint64_t block, enum gfs2_mark_block m);
+int gfs2_block_check(struct gfs2_sbd *sdp, struct gfs2_block_list *il,
+		     uint64_t block, struct gfs2_block_query *val);
+void *gfs2_block_list_destroy(struct gfs2_sbd *sdp,
+			      struct gfs2_block_list *il);
 
 /* buf.c */
 struct gfs2_buffer_head *bget_generic(struct gfs2_sbd *sdp, uint64_t num,

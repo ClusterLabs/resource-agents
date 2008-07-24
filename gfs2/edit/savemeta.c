@@ -793,7 +793,8 @@ void savemeta(const char *out_fn, int saveoption)
 		fflush(stdout);
 	}
 	if (!slow) {
-		blocklist = gfs2_block_list_create(last_fs_block + 1, &memreq);
+		blocklist = gfs2_block_list_create(&sbd, last_fs_block + 1,
+						   &memreq);
 		if (!blocklist)
 			slow = TRUE;
 	}
@@ -832,7 +833,7 @@ void savemeta(const char *out_fn, int saveoption)
 			log_debug("RG at %"PRIu64" is %u long\n",
 				  rgd->ri.ri_addr, rgd->ri.ri_length);
 			for (i = 0; i < rgd->ri.ri_length; i++) {
-				if(gfs2_block_set(blocklist,
+				if(gfs2_block_set(&sbd, blocklist,
 						  rgd->ri.ri_addr + i,
 						  gfs2_meta_other))
 					break;
@@ -867,7 +868,7 @@ void savemeta(const char *out_fn, int saveoption)
 	}
 	/* Clean up */
 	if (blocklist)
-		gfs2_block_list_destroy(blocklist);
+		gfs2_block_list_destroy(&sbd, blocklist);
 	/* There may be a gap between end of file system and end of device */
 	/* so we tell the user that we've processed everything. */
 	block = last_fs_block;

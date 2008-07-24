@@ -172,7 +172,8 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 			"\tName length = %u\n",
 			de->de_rec_len,
 			de->de_name_len);
-		gfs2_block_set(bl, ip->i_di.di_num.no_addr, gfs2_meta_inval);
+		gfs2_block_set(sbp, bl, ip->i_di.di_num.no_addr,
+			       gfs2_meta_inval);
 		return 1;
 		/* FIXME: should probably delete the entry here at the
 		 * very least - maybe look at attempting to fix it */
@@ -222,7 +223,7 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 			return 0;
 		}
 	}
-	if(gfs2_block_check(bl, de->de_inum.no_addr, &q)) {
+	if(gfs2_block_check(sbp, bl, de->de_inum.no_addr, &q)) {
 		stack;
 		return -1;
 	}
@@ -246,7 +247,8 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 
 			dirent2_del(ip, bh, prev_de, dent);
 
-			gfs2_block_set(bl, de->de_inum.no_addr, gfs2_meta_inval);
+			gfs2_block_set(sbp, bl, de->de_inum.no_addr,
+				       gfs2_meta_inval);
 			*update = 1;
 			return 1;
 		} else {
@@ -517,7 +519,7 @@ int check_system_dir(struct gfs2_inode *sysinode, const char *dirname,
 
 	if (sysinode) {
 		iblock = sysinode->i_di.di_num.no_addr;
-		if(gfs2_block_check(bl, iblock, &ds.q)) {
+		if(gfs2_block_check(sysinode->i_sbd, bl, iblock, &ds.q)) {
 			iblock = sysinode->i_di.di_num.no_addr;
 		}
 	}
@@ -535,7 +537,7 @@ int check_system_dir(struct gfs2_inode *sysinode, const char *dirname,
 		return -1;
 	}
 	if (error > 0)
-		gfs2_block_set(bl, iblock, gfs2_meta_inval);
+		gfs2_block_set(sysinode->i_sbd, bl, iblock, gfs2_meta_inval);
 
 	bh = bhold(sysinode->i_bh);
 	if(check_inode_eattr(sysinode, &pass2_fxns)) {
@@ -655,7 +657,7 @@ int pass2(struct gfs2_sbd *sbp)
 		if (is_system_dir(sbp, i))
 			continue;
 
-		if(gfs2_block_check(bl, i, &q)) {
+		if(gfs2_block_check(sbp, bl, i, &q)) {
 			log_err("Can't get block %"PRIu64 " (0x%" PRIx64
 					") from block list\n", i, i);
 			return -1;
@@ -714,7 +716,7 @@ int pass2(struct gfs2_sbd *sbp)
 				} else
 					log_err("Directory entry to invalid inode remains.\n");
 			}
-			gfs2_block_set(bl, i, gfs2_meta_inval);
+			gfs2_block_set(sbp, bl, i, gfs2_meta_inval);
 		}
 		bh = bread(sbp, i);
 		ip = fsck_inode_get(sbp, bh);

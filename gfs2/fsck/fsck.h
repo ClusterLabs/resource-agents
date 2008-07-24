@@ -77,6 +77,5 @@ extern uint64_t last_fs_block, last_reported_block;
 extern int skip_this_pass, fsck_abort, fsck_query;
 extern uint64_t last_data_block;
 extern uint64_t first_data_block;
-extern osi_list_t dup_list;
 
 #endif /* _FSCK_H */

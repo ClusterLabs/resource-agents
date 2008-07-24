@@ -23,7 +23,6 @@ int skip_this_pass = FALSE, fsck_abort = FALSE;
 const char *pass = "";
 uint64_t last_data_block;
 uint64_t first_data_block;
-osi_list_t dup_list;
 char *prog_name = "gfs2_fsck"; /* needed by libgfs2 */
 
 /* This function is for libgfs2's sake.                                      */
@@ -147,7 +146,7 @@ int check_system_inode(struct gfs2_inode *sysinode, const char *filename,
 		
 		/* FIXME: check this block's validity */
 
-		if(gfs2_block_check(bl, iblock, &ds.q)) {
+		if(gfs2_block_check(sysinode->i_sbd, bl, iblock, &ds.q)) {
 			log_crit("Can't get %s inode block %" PRIu64 " (0x%"
 				 PRIx64 ") from block list\n", filename,
 				 iblock, iblock);
@@ -159,7 +158,8 @@ int check_system_inode(struct gfs2_inode *sysinode, const char *filename,
 		/* Just reuse the inode and fix the bitmap.         */
 		if (ds.q.block_type == gfs2_block_free) {
 			log_info("The inode exists but the block is not marked 'in use'; fixing it.\n");
-			gfs2_block_set(bl, sysinode->i_di.di_num.no_addr,
+			gfs2_block_set(sysinode->i_sbd, bl,
+				       sysinode->i_di.di_num.no_addr,
 				       mark);
 			ds.q.block_type = mark;
 			if (mark == gfs2_inode_dir)
@@ -178,7 +178,8 @@ int check_system_inode(struct gfs2_inode *sysinode, const char *filename,
 		if (query(&opts, "Create new %s system inode? (y/n) ",
 			  filename)) {
 			builder(sysinode->i_sbd);
-			gfs2_block_set(bl, sysinode->i_di.di_num.no_addr,
+			gfs2_block_set(sysinode->i_sbd, bl,
+				       sysinode->i_di.di_num.no_addr,
 				       mark);
 			ds.q.block_type = mark;
 			if (mark == gfs2_inode_dir)

@@ -71,7 +71,7 @@ int check_block_status(struct gfs2_sbd *sbp, char *buffer, unsigned int buflen,
 		warm_fuzzy_stuff(block);
 		if (skip_this_pass || fsck_abort) /* if asked to skip the rest */
 			return 0;
-		gfs2_block_check(bl, block, &q);
+		gfs2_block_check(sbp, bl, block, &q);
 
 		block_status = convert_mark(&q, count);
 

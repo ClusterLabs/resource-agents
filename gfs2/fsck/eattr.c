@@ -9,7 +9,7 @@ static int clear_blk_nodup(struct gfs2_sbd *sbp, uint64_t block)
 {
 	struct gfs2_block_query q;
 
-	if(gfs2_block_check(bl, block, &q)) {
+	if(gfs2_block_check(sbp, bl, block, &q)) {
 		stack;
 		return -1;
 	}
@@ -19,7 +19,7 @@ static int clear_blk_nodup(struct gfs2_sbd *sbp, uint64_t block)
 		return 1;
 	}
 
-	gfs2_block_set(bl, block, gfs2_block_free);
+	gfs2_block_set(sbp, bl, block, gfs2_block_free);
 
 	return 0;
 
@@ -32,16 +32,13 @@ int clear_eattr_indir(struct gfs2_inode *ip, uint64_t block,
 	return clear_blk_nodup(ip->i_sbd, block);
 }
 
-
 int clear_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
 		     uint64_t parent, struct gfs2_buffer_head **bh,
 		     void *private)
 {
 
 	return clear_blk_nodup(ip->i_sbd, block);
-
 }
-
 
 int clear_eattr_entry (struct gfs2_inode *ip,
 		       struct gfs2_buffer_head *leaf_bh,

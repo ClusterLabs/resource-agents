@@ -121,7 +121,7 @@ static int find_dentry(struct gfs2_inode *ip, struct gfs2_dirent *de,
 	struct inode_with_dups *id;
 	struct gfs2_leaf leaf;
 
-	osi_list_foreach(tmp1, &dup_list) {
+	osi_list_foreach(tmp1, &ip->i_sbd->dup_blocks.list) {
 		b = osi_list_entry(tmp1, struct blocks, list);
 		osi_list_foreach(tmp2, &b->ref_inode_list) {
 			id = osi_list_entry(tmp2, struct inode_with_dups,
@@ -171,7 +171,8 @@ static int clear_dup_metalist(struct gfs2_inode *ip, uint64_t block,
 		inode_hash_remove(inode_hash, ip->i_di.di_num.no_addr);
 		/* Setting the block to invalid means the inode is
 		 * cleared in pass2 */
-		gfs2_block_set(bl, ip->i_di.di_num.no_addr, gfs2_meta_inval);
+		gfs2_block_set(ip->i_sbd, bl, ip->i_di.di_num.no_addr,
+			       gfs2_meta_inval);
 	}
 	return 0;
 }
@@ -195,7 +196,8 @@ static int clear_dup_data(struct gfs2_inode *ip, uint64_t block, void *private)
 		inode_hash_remove(inode_hash, ip->i_di.di_num.no_addr);
 		/* Setting the block to invalid means the inode is
 		 * cleared in pass2 */
-		gfs2_block_set(bl, ip->i_di.di_num.no_addr, gfs2_meta_inval);
+		gfs2_block_set(ip->i_sbd, bl, ip->i_di.di_num.no_addr,
+			       gfs2_meta_inval);
 	}
 
 	return 0;
@@ -219,7 +221,8 @@ static int clear_dup_eattr_indir(struct gfs2_inode *ip, uint64_t block,
 		log_err("Inode %s is in directory %" PRIu64 " (0x%" PRIx64 ")\n",
 				dh->id->name ? dh->id->name : "",
 				dh->id->parent, dh->id->parent);
-		gfs2_block_set(bl, ip->i_di.di_eattr, gfs2_meta_inval);
+		gfs2_block_set(ip->i_sbd, bl, ip->i_di.di_eattr,
+			       gfs2_meta_inval);
 	}
 
 	return 0;
@@ -241,7 +244,8 @@ static int clear_dup_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
 				dh->id->name ? dh->id->name : "",
 				dh->id->parent, dh->id->parent);
 		/* mark the main eattr block invalid */
-		gfs2_block_set(bl, ip->i_di.di_eattr, gfs2_meta_inval);
+		gfs2_block_set(ip->i_sbd, bl, ip->i_di.di_eattr,
+			       gfs2_meta_inval);
 	}
 
 	return 0;
@@ -307,7 +311,8 @@ static int clear_eattr_extentry(struct gfs2_inode *ip, uint64_t *ea_data_ptr,
 				dh->id->name ? dh->id->name : "",
 				dh->id->parent, dh->id->parent);
 		/* mark the main eattr block invalid */
-		gfs2_block_set(bl, ip->i_di.di_eattr, gfs2_meta_inval);
+		gfs2_block_set(ip->i_sbd, bl, ip->i_di.di_eattr,
+			       gfs2_meta_inval);
 	}
 
 	return 0;
@@ -368,33 +373,6 @@ int find_block_ref(struct gfs2_sbd *sbp, uint64_t inode, struct blocks *b)
 	fsck_inode_put(ip, (opts.no ? not_updated : updated)); /* out, brelse, free */
 	return 0;
 }
-
-/* Finds all blocks marked in the duplicate block bitmap */
-int find_dup_blocks(struct gfs2_sbd *sbp)
-{
-	uint64_t block_no = 0;
-	struct blocks *b;
-
-	while (!gfs2_find_next_block_type(bl, gfs2_dup_block, &block_no)) {
-		if(!(b = malloc(sizeof(*b)))) {
-			log_crit("Unable to allocate blocks structure\n");
-			return -1;
-		}
-		if(!memset(b, 0, sizeof(*b))) {
-			log_crit("Unable to zero blocks structure\n");
-			return -1;
-		}
-		b->block_no = block_no;
-		osi_list_init(&b->ref_inode_list);
-		log_notice("Found dup block at %"PRIu64" (0x%" PRIx64 ")\n", block_no,
-				   block_no);
-		osi_list_add(&b->list, &dup_list);
-		block_no++;
-	}
-	return 0;
-}
-
-
 
 int handle_dup_blk(struct gfs2_sbd *sbp, struct blocks *b)
 {
@@ -467,13 +445,10 @@ int pass1b(struct gfs2_sbd *sbp)
 	find_dirents.check_dentry = &find_dentry;
 	int rc = 0;
 
-	osi_list_init(&dup_list);
-	/* Shove all blocks marked as duplicated into a list */
 	log_info("Looking for duplicate blocks...\n");
-	find_dup_blocks(sbp);
 
 	/* If there were no dups in the bitmap, we don't need to do anymore */
-	if(osi_list_empty(&dup_list)) {
+	if(osi_list_empty(&sbp->dup_blocks.list)) {
 		log_info("No duplicate blocks found\n");
 		return 0;
 	}
@@ -489,7 +464,7 @@ int pass1b(struct gfs2_sbd *sbp)
 			goto out;
 		log_debug("Scanning block %" PRIu64 " (0x%" PRIx64 ") for inodes\n",
 				  i, i);
-		if(gfs2_block_check(bl, i, &q)) {
+		if(gfs2_block_check(sbp, bl, i, &q)) {
 			stack;
 			rc = -1;
 			goto out;
@@ -501,7 +476,7 @@ int pass1b(struct gfs2_sbd *sbp)
 		   (q.block_type == gfs2_inode_chr) ||
 		   (q.block_type == gfs2_inode_fifo) ||
 		   (q.block_type == gfs2_inode_sock)) {
-			osi_list_foreach(tmp, &dup_list) {
+			osi_list_foreach(tmp, &sbp->dup_blocks.list) {
 				b = osi_list_entry(tmp, struct blocks, list);
 				if(find_block_ref(sbp, i, b)) {
 					stack;
@@ -519,8 +494,9 @@ int pass1b(struct gfs2_sbd *sbp)
 	 * it later */
 	log_info("Handling duplicate blocks\n");
 out:
-	while (!osi_list_empty(&dup_list)) {
-		b = osi_list_entry(dup_list.next, struct blocks, list);
+	while (!osi_list_empty(&sbp->dup_blocks.list)) {
+		b = osi_list_entry(&sbp->dup_blocks.list.next, struct blocks,
+				   list);
 		if (!skip_this_pass && !rc) /* no error & not asked to skip the rest */
 			handle_dup_blk(sbp, b);
 		osi_list_del(&b->list);

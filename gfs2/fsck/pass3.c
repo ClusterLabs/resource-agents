@@ -72,13 +72,14 @@ struct dir_info *mark_and_return_parent(struct gfs2_sbd *sbp,
 				   PRIu64" (0x%" PRIx64 ")\n", di->dotdot_parent,
 				   di->dotdot_parent, di->treewalk_parent,
 				   di->treewalk_parent);
-		if(gfs2_block_check(bl, di->dotdot_parent, &q_dotdot)) {
+		if(gfs2_block_check(sbp, bl, di->dotdot_parent, &q_dotdot)) {
 			log_err("Unable to find block %"PRIu64
 					" (0x%" PRIx64 ") in block map.\n",
 					di->dotdot_parent, di->dotdot_parent);
 			return NULL;
 		}
-		if(gfs2_block_check(bl, di->treewalk_parent, &q_treewalk)) {
+		if(gfs2_block_check(sbp, bl, di->treewalk_parent,
+				    &q_treewalk)) {
 			log_err("Unable to find block %"PRIu64
 					" (0x%" PRIx64 ") in block map\n",
 					di->treewalk_parent, di->treewalk_parent);
@@ -147,7 +148,7 @@ struct dir_info *mark_and_return_parent(struct gfs2_sbd *sbp,
 		}
 	}
 	else {
-		if(gfs2_block_check(bl, di->dotdot_parent, &q_dotdot)) {
+		if(gfs2_block_check(sbp, bl, di->dotdot_parent, &q_dotdot)) {
 			log_err("Unable to find parent block %"PRIu64
 					" (0x%" PRIx64 ")  in block map\n",
 					di->dotdot_parent, di->dotdot_parent);
@@ -207,7 +208,7 @@ int pass3(struct gfs2_sbd *sbp)
 
 			/* FIXME: Factor this ? */
 			if(!tdi) {
-				if(gfs2_block_check(bl, di->dinode, &q)) {
+				if(gfs2_block_check(sbp, bl, di->dinode, &q)) {
 					stack;
 					return -1;
 				}
@@ -215,7 +216,9 @@ int pass3(struct gfs2_sbd *sbp)
 					log_err("Found unlinked directory containing bad block\n");
 					if(query(&opts,
 					   "Clear unlinked directory with bad blocks? (y/n) ")) {
-						gfs2_block_set(bl, di->dinode, gfs2_block_free);
+						gfs2_block_set(sbp, bl,
+							       di->dinode,
+							       gfs2_block_free);
 						break;
 					} else
 						log_err("Unlinked directory with bad block remains\n");
@@ -228,7 +231,8 @@ int pass3(struct gfs2_sbd *sbp)
 				   q.block_type != gfs2_inode_fifo &&
 				   q.block_type != gfs2_inode_sock) {
 					log_err("Unlinked block marked as inode not an inode\n");
-					gfs2_block_set(bl, di->dinode, gfs2_block_free);
+					gfs2_block_set(sbp, bl, di->dinode,
+						       gfs2_block_free);
 					log_err("Cleared\n");
 					break;
 				}
@@ -241,7 +245,9 @@ int pass3(struct gfs2_sbd *sbp)
 				if(!ip->i_di.di_size && !ip->i_di.di_eattr){
 					log_err("Unlinked directory has zero size.\n");
 					if(query(&opts, "Remove zero-size unlinked directory? (y/n) ")) {
-						gfs2_block_set(bl, di->dinode, gfs2_block_free);
+						gfs2_block_set(sbp, bl,
+							       di->dinode,
+							       gfs2_block_free);
 						fsck_inode_put(ip, not_updated);
 						break;
 					} else {

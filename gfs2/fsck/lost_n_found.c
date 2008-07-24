@@ -32,7 +32,7 @@ int add_inode_to_lf(struct gfs2_inode *ip){
 		log_info("Locating/Creating lost and found directory\n");
 
         lf_dip = createi(ip->i_sbd->md.rooti, "lost+found", S_IFDIR | 0700, 0);
-		if(gfs2_block_check(bl, lf_dip->i_di.di_num.no_addr, &q)) {
+	if(gfs2_block_check(ip->i_sbd, bl, lf_dip->i_di.di_num.no_addr, &q)) {
 			stack;
 			return -1;
 		}
@@ -45,7 +45,8 @@ int add_inode_to_lf(struct gfs2_inode *ip){
 			 * directory or just found an old one, and we
 			 * used that instead of the block_type to run
 			 * this */
-			gfs2_block_set(bl, lf_dip->i_di.di_num.no_addr, gfs2_inode_dir);
+			gfs2_block_set(ip->i_sbd, bl,
+				       lf_dip->i_di.di_num.no_addr, gfs2_inode_dir);
 			increment_link(ip->i_sbd,
 						   ip->i_sbd->md.rooti->i_di.di_num.no_addr);
 			increment_link(ip->i_sbd, lf_dip->i_di.di_num.no_addr);
@@ -140,6 +141,6 @@ int add_inode_to_lf(struct gfs2_inode *ip){
 
 	free(filename);
 	log_notice("Added inode #%"PRIu64" to lost+found dir\n",
-		   ip->i_di.di_num.no_addr);
+			   ip->i_di.di_num.no_addr);
 	return 0;
 }

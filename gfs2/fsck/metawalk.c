@@ -866,7 +866,7 @@ int remove_dentry_from_dir(struct gfs2_sbd *sbp, uint64_t dir,
 	remove_dentry_fxns.private = &dentryblock;
 	remove_dentry_fxns.check_dentry = remove_dentry;
 
-	if(gfs2_block_check(bl, dir, &q)) {
+	if(gfs2_block_check(sbp, bl, dir, &q)) {
 		stack;
 		return -1;
 	}

@@ -38,7 +38,7 @@ uint32_t gfs2_bitfit_core(struct gfs2_sbd *sbp, uint64_t goal, uint64_t start,
 	struct gfs2_block_query q;
 
 	for(block = start+goal; block < start+len; block++) {
-		gfs2_block_check(bl, block, &q);
+		gfs2_block_check(sbp, bl, block, &q);
 		switch(old_state) {
 			/* FIXME Make sure these are handled correctly */
 		case GFS2_BLKST_FREE:

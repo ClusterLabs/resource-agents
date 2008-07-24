@@ -47,7 +47,7 @@ int scan_inode_list(struct gfs2_sbd *sbp, osi_list_t *list) {
 		if(ii->counted_links == 0) {
 			log_err("Found unlinked inode at %" PRIu64 " (0x%" PRIx64 ")\n",
 					ii->inode, ii->inode);
-			if(gfs2_block_check(bl, ii->inode, &q)) {
+			if(gfs2_block_check(sbp, bl, ii->inode, &q)) {
 				stack;
 				return -1;
 			}
@@ -55,7 +55,8 @@ int scan_inode_list(struct gfs2_sbd *sbp, osi_list_t *list) {
 				log_err("Unlinked inode contains bad blocks\n", ii->inode);
 				if(query(&opts,
 						 "Clear unlinked inode with bad blocks? (y/n) ")) {
-					gfs2_block_set(bl, ii->inode, gfs2_block_free);
+					gfs2_block_set(sbp, bl, ii->inode,
+						       gfs2_block_free);
 					continue;
 				} else
 					log_err("Unlinked inode with bad blocks not cleared\n");
@@ -68,7 +69,8 @@ int scan_inode_list(struct gfs2_sbd *sbp, osi_list_t *list) {
 			   q.block_type != gfs2_inode_fifo &&
 			   q.block_type != gfs2_inode_sock) {
 				log_err("Unlinked block marked as inode not an inode\n");
-				gfs2_block_set(bl, ii->inode, gfs2_block_free);
+				gfs2_block_set(sbp, bl, ii->inode,
+					       gfs2_block_free);
 				log_err("Cleared\n");
 				continue;
 			}
@@ -80,7 +82,8 @@ int scan_inode_list(struct gfs2_sbd *sbp, osi_list_t *list) {
 			if(!ip->i_di.di_size && !ip->i_di.di_eattr){
 				log_err("Unlinked inode has zero size\n");
 				if(query(&opts, "Clear zero-size unlinked inode? (y/n) ")) {
-					gfs2_block_set(bl, ii->inode, gfs2_block_free);
+					gfs2_block_set(sbp, bl, ii->inode,
+						       gfs2_block_free);
 					fsck_inode_put(ip, not_updated);
 					continue;
 				}

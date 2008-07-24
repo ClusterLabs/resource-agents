@@ -43,7 +43,7 @@ int check_eattr_indir(struct gfs2_inode *ip, uint64_t block,
 		*update = (opts.no ? not_updated : updated);
 		return 1;
 	}
-	else if (gfs2_block_check(bl, block, &q)) {
+	else if (gfs2_block_check(sbp, bl, block, &q)) {
 		stack;
 		return -1;
 	}
@@ -72,7 +72,7 @@ int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
 		*update = (opts.no ? not_updated : updated);
 		return 1;
 	}
-	else if (gfs2_block_check(bl, block, &q)) {
+	else if (gfs2_block_check(sbp, bl, block, &q)) {
 		stack;
 		return -1;
 	}
@@ -187,7 +187,7 @@ int check_eattr_extentry(struct gfs2_inode *ip, uint64_t *ea_ptr,
 {
 	struct gfs2_block_query q;
 	struct gfs2_sbd *sbp = ip->i_sbd;
-	if(gfs2_block_check(bl, be64_to_cpu(*ea_ptr), &q)) {
+	if(gfs2_block_check(sbp, bl, be64_to_cpu(*ea_ptr), &q)) {
 		stack;
 		return -1;
 	}
@@ -211,6 +211,8 @@ int pass1c(struct gfs2_sbd *sbp)
 	int update = 0;
 	struct metawalk_fxns pass1c_fxns = { 0 };
 	int error = 0;
+	osi_list_t *tmp;
+	struct special_blocks *ea_block;
 
 	pass1c_fxns.check_eattr_indir = &check_eattr_indir;
 	pass1c_fxns.check_eattr_leaf = &check_eattr_leaf;
@@ -219,7 +221,9 @@ int pass1c(struct gfs2_sbd *sbp)
 	pass1c_fxns.private = (void *) &update;
 
 	log_info("Looking for inodes containing ea blocks...\n");
-	while (!gfs2_find_next_block_type(bl, gfs2_eattr_block, &block_no)) {
+	osi_list_foreach(tmp, &sbp->eattr_blocks.list) {
+		ea_block = osi_list_entry(tmp, struct special_blocks, list);
+		block_no = ea_block->block;
 
 		if (skip_this_pass || fsck_abort) /* if asked to skip the rest */
 			return 0;
@@ -227,7 +231,7 @@ int pass1c(struct gfs2_sbd *sbp)
 		if (gfs2_check_meta(bh, GFS2_METATYPE_IN)) { /* if a dinode */
 			log_info("EA in inode %"PRIu64" (0x%" PRIx64 ")\n",
 				 block_no, block_no);
-			gfs2_block_clear(bl, block_no, gfs2_eattr_block);
+			gfs2_block_clear(sbp, bl, block_no, gfs2_eattr_block);
 			ip = fsck_inode_get(sbp, bh);
 
 			log_debug("Found eattr at %"PRIu64" (0x%" PRIx64 ")\n",
@@ -244,7 +248,6 @@ int pass1c(struct gfs2_sbd *sbp)
 		} else {
 			brelse(bh, update);
 		}
-		block_no++;
 	}
 	return 0;
 }
