@@ -31,7 +31,45 @@ struct block_count {
 };
 
 static int leaf(struct gfs2_inode *ip, uint64_t block,
-				struct gfs2_buffer_head *bh, void *private)
+		struct gfs2_buffer_head *bh, void *private);
+static int check_metalist(struct gfs2_inode *ip, uint64_t block,
+			  struct gfs2_buffer_head **bh, void *private);
+static int check_data(struct gfs2_inode *ip, uint64_t block, void *private);
+static int check_eattr_indir(struct gfs2_inode *ip, uint64_t indirect,
+			     uint64_t parent, struct gfs2_buffer_head **bh,
+			     enum update_flags *want_updated, void *private);
+static int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
+			    uint64_t parent, struct gfs2_buffer_head **bh,
+			    enum update_flags *want_updated, void *private);
+static int check_eattr_entries(struct gfs2_inode *ip,
+			       struct gfs2_buffer_head *leaf_bh,
+			       struct gfs2_ea_header *ea_hdr,
+			       struct gfs2_ea_header *ea_hdr_prev,
+			       void *private);
+static int check_extended_leaf_eattr(struct gfs2_inode *ip, uint64_t *data_ptr,
+				     struct gfs2_buffer_head *leaf_bh,
+				     struct gfs2_ea_header *ea_hdr,
+				     struct gfs2_ea_header *ea_hdr_prev,
+				     enum update_flags *want_updated,
+				     void *private);
+static int finish_eattr_indir(struct gfs2_inode *ip, int indir_ok,
+			      enum update_flags *want_updated, void *private);
+
+struct metawalk_fxns pass1_fxns = {
+	.private = NULL,
+	.check_leaf = leaf,
+	.check_metalist = check_metalist,
+	.check_data = check_data,
+	.check_eattr_indir = check_eattr_indir,
+	.check_eattr_leaf = check_eattr_leaf,
+	.check_dentry = NULL,
+	.check_eattr_entry = check_eattr_entries,
+	.check_eattr_extentry = check_extended_leaf_eattr,
+	.finish_eattr_indir = finish_eattr_indir,
+};
+
+static int leaf(struct gfs2_inode *ip, uint64_t block,
+		struct gfs2_buffer_head *bh, void *private)
 {
 	struct block_count *bc = (struct block_count *) private;
 
@@ -43,7 +81,7 @@ static int leaf(struct gfs2_inode *ip, uint64_t block,
 }
 
 static int check_metalist(struct gfs2_inode *ip, uint64_t block,
-						  struct gfs2_buffer_head **bh, void *private)
+			  struct gfs2_buffer_head **bh, void *private)
 {
 	struct gfs2_block_query q = {0};
 	int found_dup = 0;
@@ -121,9 +159,55 @@ static int check_data(struct gfs2_inode *ip, uint64_t block, void *private)
 	return 0;
 }
 
+/* clear_eas - clear the extended attributes for an inode
+ *
+ * @ip       - in core inode pointer
+ * @bc       - pointer to a block count structure
+ * block     - the block that had the problem
+ * duplicate - if this is a duplicate block, don't set it "free"
+ * emsg      - what to tell the user about the eas being checked
+ * Returns: 1 if the EA is fixed, else 0 if it was not fixed.
+ */
+static int clear_eas(struct gfs2_inode *ip, struct block_count *bc,
+		     uint64_t block, int duplicate,
+		     enum update_flags *want_updated, const char *emsg)
+{
+	struct gfs2_sbd *sdp = ip->i_sbd;
+
+	*want_updated = not_updated;
+	log_err("Inode #%" PRIu64 " (0x%" PRIx64 "): %s",
+		ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr, emsg);
+	if (block)
+		log_err(" at block #%" PRIu64 " (0x%" PRIx64 ")",
+			block, block);
+	log_err(".\n");
+	if (query(&opts, "Clear the bad EA? (y/n) ")) {
+		if (block == 0)
+			block = ip->i_di.di_eattr;
+		gfs2_block_clear(sdp, bl, block, gfs2_eattr_block);
+		if (!duplicate) {
+			gfs2_block_clear(sdp, bl, block, gfs2_indir_blk);
+			gfs2_block_set(sdp, bl, block, gfs2_block_free);
+			gfs2_set_bitmap(sdp, block, GFS2_BLKST_FREE);
+		}
+		ip->i_di.di_flags &= ~GFS2_DIF_EA_INDIRECT;
+		if (block == ip->i_di.di_eattr)
+			ip->i_di.di_eattr = 0;
+		bc->ea_count = 0;
+		ip->i_di.di_blocks = 1 + bc->indir_count + bc->data_count;
+		gfs2_dinode_out(&ip->i_di, ip->i_bh->b_data);
+		*want_updated = updated;
+		return 1;
+	} else {
+		log_err("The bad EA was not fixed.\n");
+		bc->ea_count++;
+		return 0;
+	}
+}
+
 static int check_eattr_indir(struct gfs2_inode *ip, uint64_t indirect,
-							 uint64_t parent, struct gfs2_buffer_head **bh,
-							 void *private)
+			     uint64_t parent, struct gfs2_buffer_head **bh,
+			     enum update_flags *want_updated, void *private)
 {
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	int ret = 0;
@@ -138,11 +222,29 @@ static int check_eattr_indir(struct gfs2_inode *ip, uint64_t indirect,
 			gfs2_block_set(sdp, bl, parent, bad_block);*/
 		/* Doesn't help to mark this here - this gets checked
 		 * in pass1c */
-		ret = 1;
+		return 1;
 	}
 	if(gfs2_block_check(sdp, bl, indirect, &q)) {
 		stack;
-		ret = -1;
+		return -1;
+	}
+
+	/* Special duplicate processing:  If we have an EA block,
+	   check if it really is an EA.  If it is, let duplicate
+	   handling sort it out.  If it isn't, clear it but don't
+	   count it as a duplicate. */
+	*bh = bread(sdp, indirect);
+	if(gfs2_check_meta(*bh, GFS2_METATYPE_IN)) {
+		if(q.block_type != gfs2_block_free) { /* Duplicate? */
+			if (!clear_eas(ip, bc, indirect, 1, want_updated,
+				       "Bad indirect EA duplicate found"))
+				gfs2_block_set(sdp, bl, indirect,
+					       gfs2_dup_block);
+			return 1;
+		}
+		clear_eas(ip, bc, indirect, 0, want_updated,
+			  "EA indirect block has incorrect type");
+		return 1;
 	}
 	if(q.block_type != gfs2_block_free) { /* Duplicate? */
 		log_err("Inode #%" PRIu64 " (0x%" PRIx64
@@ -153,36 +255,31 @@ static int check_eattr_indir(struct gfs2_inode *ip, uint64_t indirect,
 		gfs2_block_set(sdp, bl, indirect, gfs2_dup_block);
 		bc->ea_count++;
 		ret = 1;
+	} else {
+		log_debug("Setting #%" PRIu64 " (0x%" PRIx64
+			  ") to indirect EA block\n", indirect, indirect);
+		gfs2_block_set(sdp, bl, indirect, gfs2_indir_blk);
+		bc->ea_count++;
 	}
-	else {
-		log_debug("Marking inode %" PRIu64 " (0x%"
+	return ret;
+}
+
+static int finish_eattr_indir(struct gfs2_inode *ip, int indir_ok,
+			      enum update_flags *want_updated, void *private)
+{
+	if (indir_ok) {
+		log_debug("Marking inode #%" PRIu64 " (0x%"
 			  PRIx64 ") with eattr block\n",
 			  ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr);
 		/* Mark the inode as having an eattr in the block map
 		   so pass1c can check it. */
 		gfs2_block_mark(ip->i_sbd, bl, ip->i_di.di_num.no_addr,
 				gfs2_eattr_block);
-
-		*bh = bread(sdp, indirect);
-		if(gfs2_check_meta(*bh, GFS2_METATYPE_IN)) {
-			log_warn("EA indirect block %" PRIu64 " (0x%" PRIx64
-				 ") has incorrect type.\n",
-				 indirect, indirect);
-			gfs2_block_set(ip->i_sbd, bl, indirect,
-				       gfs2_meta_inval);
-			ret = 1;
-			brelse(*bh, not_updated);
-		}
-		else {
-			/* FIXME: do i need to differentiate this as an ea_indir? */
-			log_debug("Setting %" PRIu64 " (0x%" PRIx64
-				  ") to indirect block\n", indirect, indirect);
-			gfs2_block_set(ip->i_sbd, bl, indirect,
-				       gfs2_indir_blk);
-			bc->ea_count++;
-		}
+		return 0;
 	}
-	return ret;
+	clear_eas(ip, (struct block_count *)private, 0, 0, want_updated,
+		  "has unrecoverable indirect EA errors");
+	return 0;
 }
 
 /**
@@ -200,6 +297,7 @@ static int check_extended_leaf_eattr(struct gfs2_inode *ip, uint64_t *data_ptr,
 				     struct gfs2_buffer_head *leaf_bh,
 				     struct gfs2_ea_header *ea_hdr,
 				     struct gfs2_ea_header *ea_hdr_prev,
+				     enum update_flags *want_updated,
 				     void *private)
 {
 	struct gfs2_buffer_head *el_buf;
@@ -207,6 +305,7 @@ static int check_extended_leaf_eattr(struct gfs2_inode *ip, uint64_t *data_ptr,
 	struct gfs2_block_query q;
 	uint64_t el_blk = be64_to_cpu(*data_ptr);
 	struct block_count *bc = (struct block_count *) private;
+	int ret = 0;
 
 	if(gfs2_check_range(sdp, el_blk)){
 		log_err("Inode #%" PRIu64 " (0x%" PRIx64 "): EA extended "
@@ -222,33 +321,44 @@ static int check_extended_leaf_eattr(struct gfs2_inode *ip, uint64_t *data_ptr,
 		stack;
 		return -1;
 	}
-	if(q.block_type != gfs2_block_free) {
-		gfs2_block_set(sdp, bl, el_blk, gfs2_dup_block);
-		bc->ea_count++;
-		return 1;
-	}
-
 	el_buf = bread(sdp, el_blk);
 
+	/* Special duplicate processing:  If we have an EA block,
+	   check if it really is an EA.  If it is, let duplicate
+	   handling sort it out.  If it isn't, clear it but don't
+	   count it as a duplicate. */
 	if(gfs2_check_meta(el_buf, GFS2_METATYPE_ED)) {
-		log_err("EA extended leaf block %" PRIu64 " (0x%" PRIx64
-				") has incorrect type.\n", el_blk, el_blk);
-		brelse(el_buf, not_updated);
-		gfs2_block_set(sdp, bl, el_blk, gfs2_meta_inval);
-		return 1;
+		if(q.block_type != gfs2_block_free) /* Duplicate? */
+			clear_eas(ip, bc, el_blk, 1, want_updated,
+				  "has bad extended EA duplicate");
+		else
+			clear_eas(ip, bc, el_blk, 0, want_updated,
+				  "EA extended leaf block has incorrect type");
+		ret = 1;
+	} else { /* If this looks like an EA */
+		if(q.block_type != gfs2_block_free) { /* Duplicate? */
+			log_debug("Duplicate block found at #%" PRIu64
+				  " (0x%" PRIx64 ").\n",
+				  el_blk, el_blk);
+			gfs2_block_set(sdp, bl, el_blk, gfs2_dup_block);
+			bc->ea_count++;
+			ret = 1;
+		} else {
+			log_debug("Setting block #%" PRIu64
+				  " (0x%" PRIx64 ") to eattr block\n",
+				  el_blk, el_blk);
+			gfs2_block_set(sdp, bl, el_blk, gfs2_meta_eattr);
+			bc->ea_count++;
+		}
 	}
 
-	log_debug("Setting %" PRIu64 " (0x%" PRIx64 ") to eattr block\n",
-			  el_blk, el_blk);
-	gfs2_block_set(sdp, bl, el_blk, gfs2_meta_eattr);
-	bc->ea_count++;
 	brelse(el_buf, not_updated);
-	return 0;
+	return ret;
 }
 
 static int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
 			    uint64_t parent, struct gfs2_buffer_head **bh,
-			    void *private)
+			    enum update_flags *want_updated, void *private)
 {
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_buffer_head *leaf_bh = NULL;
@@ -275,33 +385,43 @@ static int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
 		stack;
 		return -1;
 	}
-	else if(q.block_type != gfs2_block_free) {
-		log_debug("Duplicate block found at #%" PRIu64 " (0x%" PRIx64 ").\n",
-				  block, block);
-		gfs2_block_set(sdp, bl, block, gfs2_dup_block);
-		bc->ea_count++;
-		ret = 1;
-	}
 	else {
+		/* Special duplicate processing:  If we have an EA block,
+		   check if it really is an EA.  If it is, let duplicate
+		   handling sort it out.  If it isn't, clear it but don't
+		   count it as a duplicate. */
 		leaf_bh = bread(sdp, block);
 		if(gfs2_check_meta(leaf_bh, GFS2_METATYPE_EA)) {
-			log_warn("EA leaf block %"PRIu64" (0x%" 
-				 PRIx64") for inode %"PRIu64" (0x%"
-				 PRIx64") has incorrect type.\n",
-				 block, block, ip->i_di.di_num.no_addr,
-				 ip->i_di.di_num.no_addr);
-			gfs2_block_set(sdp, bl, block, gfs2_meta_inval);
-			ret = -1;
+			if(q.block_type != gfs2_block_free) { /* Duplicate? */
+				clear_eas(ip, bc, block, 1, want_updated,
+					  "Bad EA duplicate found");
+			} else {
+				clear_eas(ip, bc, block, 0, want_updated,
+					  "EA leaf block has incorrect type");
+			}
+			ret = 1;
 			brelse(leaf_bh, not_updated);
-		}
-		else {
-			log_debug("Setting block %" PRIu64 " (0x%" PRIx64
-					  ") to eattr block\n", block, block);
-			gfs2_block_set(sdp, bl, block, gfs2_meta_eattr);
-			bc->ea_count++;
+		} else { /* If this looks like an EA */
+			if(q.block_type != gfs2_block_free) { /* Duplicate? */
+				log_debug("Duplicate block found at #%" PRIu64
+					  " (0x%" PRIx64 ").\n",
+					  block, block);
+				gfs2_block_set(sdp, bl, block, gfs2_dup_block);
+				bc->ea_count++;
+				ret = 1;
+				brelse(leaf_bh, not_updated);
+			} else {
+				log_debug("Setting block #%" PRIu64
+					  " (0x%" PRIx64 ") to eattr block\n",
+					  block, block);
+				gfs2_block_set(sdp, bl, block,
+					       gfs2_meta_eattr);
+				bc->ea_count++;
+			}
 		}
 	}
-	*bh = leaf_bh;
+	if (!ret)
+		*bh = leaf_bh;
 
 	return ret;
 }
@@ -346,18 +466,6 @@ static int check_eattr_entries(struct gfs2_inode *ip,
 	}
 	return 0;
 }
-
-struct metawalk_fxns pass1_fxns = {
-	.private = NULL,
-	.check_leaf = leaf,
-	.check_metalist = check_metalist,
-	.check_data = check_data,
-	.check_eattr_indir = check_eattr_indir,
-	.check_eattr_leaf = check_eattr_leaf,
-	.check_dentry = NULL,
-	.check_eattr_entry = check_eattr_entries,
-	.check_eattr_extentry = check_extended_leaf_eattr,
-};
 
 int clear_metalist(struct gfs2_inode *ip, uint64_t block,
 		   struct gfs2_buffer_head **bh, void *private)
@@ -572,6 +680,7 @@ int handle_di(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh,
 			fsck_inode_put(ip, f);
 			return -1;
 		}
+		gfs2_set_bitmap(sdp, block, GFS2_BLKST_FREE);
 		fsck_inode_put(ip, f);
 		return 0;
 	}
@@ -595,6 +704,7 @@ int handle_di(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh,
 			fsck_inode_put(ip, f);
 			return -1;
 		}
+		gfs2_set_bitmap(sdp, block, GFS2_BLKST_FREE);
 		fsck_inode_put(ip, f);
 		return 0;
 	}
@@ -614,6 +724,7 @@ int handle_di(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh,
 				fsck_inode_put(ip, f);
 				return -1;
 			}
+			gfs2_set_bitmap(sdp, block, GFS2_BLKST_FREE);
 			fsck_inode_put(ip, f);
 			return 0;
 		}
@@ -633,15 +744,12 @@ int handle_di(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh,
 		check_metatree(ip, &invalidate_metatree);
 		gfs2_block_set(sdp, bl, ip->i_di.di_num.no_addr,
 			       gfs2_meta_inval);
+		gfs2_set_bitmap(sdp, ip->i_di.di_num.no_addr, GFS2_BLKST_FREE);
 		fsck_inode_put(ip, f);
 		return 0;
 	}
 
-	if(check_inode_eattr(ip, &pass1_fxns) < 0){
-		ip->i_di.di_eattr = 0;
-		gfs2_dinode_out(&ip->i_di, ip->i_bh->b_data);
-		f = updated;
-	}
+	check_inode_eattr(ip, &f, &pass1_fxns);
 
 	if (ip->i_di.di_blocks != 
 		(1 + bc.indir_count + bc.data_count + bc.ea_count)) {
@@ -675,6 +783,7 @@ int scan_meta(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh,
 			stack;
 			return -1;
 		}
+		gfs2_set_bitmap(sdp, block, GFS2_BLKST_FREE);
 		return 0;
 	}
 

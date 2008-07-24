@@ -10,12 +10,12 @@
 #include "metawalk.h"
 
 static int remove_eattr_entry(struct gfs2_sbd *sdp,
-							  struct gfs2_buffer_head *leaf_bh,
-							  struct gfs2_ea_header *curr,
-							  struct gfs2_ea_header *prev)
+			      struct gfs2_buffer_head *leaf_bh,
+			      struct gfs2_ea_header *curr,
+			      struct gfs2_ea_header *prev)
 {
 	log_warn("Removing EA located in block #%"PRIu64" (0x%" PRIx64 ").\n",
-			 leaf_bh->b_blocknr, leaf_bh->b_blocknr);
+		 leaf_bh->b_blocknr, leaf_bh->b_blocknr);
 	if(!prev)
 		curr->ea_type = GFS2_EATYPE_UNUSED;
 	else {
@@ -30,13 +30,13 @@ static int remove_eattr_entry(struct gfs2_sbd *sdp,
 
 int check_eattr_indir(struct gfs2_inode *ip, uint64_t block,
 		      uint64_t parent, struct gfs2_buffer_head **bh,
-		      void *private)
+		      enum update_flags *update, void *private)
 {
-	int *update = (int *) private;
 	struct gfs2_sbd *sbp = ip->i_sbd;
 	struct gfs2_block_query q;
 	struct gfs2_buffer_head *indir_bh = NULL;
 
+	*update = not_updated;
 	if(gfs2_check_range(sbp, block)) {
 		log_err("Extended attributes indirect block #%"PRIu64
 			" (0x%" PRIx64 ") for inode #%" PRIu64
@@ -67,13 +67,15 @@ int check_eattr_indir(struct gfs2_inode *ip, uint64_t block,
 	*bh = indir_bh;
 	return 0;
 }
+
 int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
-		     uint64_t parent, struct gfs2_buffer_head **bh, void *private)
+		     uint64_t parent, struct gfs2_buffer_head **bh,
+		     enum update_flags *update, void *private)
 {
-	int *update = (int *) private;
 	struct gfs2_sbd *sbp = ip->i_sbd;
 	struct gfs2_block_query q;
 
+	*update = not_updated;
 	if(gfs2_check_range(sbp, block)) {
 		log_err("Extended attributes block for inode #%" PRIu64
 			" (0x%" PRIx64 ") out of range...removing\n",
@@ -195,10 +197,12 @@ int check_eattr_extentry(struct gfs2_inode *ip, uint64_t *ea_ptr,
 			 struct gfs2_buffer_head *leaf_bh,
 			 struct gfs2_ea_header *ea_hdr,
 			 struct gfs2_ea_header *ea_hdr_prev,
-			 void *private)
+			 enum update_flags *want_updated, void *private)
 {
 	struct gfs2_block_query q;
 	struct gfs2_sbd *sbp = ip->i_sbd;
+
+	*want_updated = not_updated;
 	if(gfs2_block_check(sbp, bl, be64_to_cpu(*ea_ptr), &q)) {
 		stack;
 		return -1;
@@ -220,17 +224,17 @@ int pass1c(struct gfs2_sbd *sbp)
 	uint64_t block_no = 0;
 	struct gfs2_buffer_head *bh;
 	struct gfs2_inode *ip = NULL;
-	int update = 0;
 	struct metawalk_fxns pass1c_fxns = { 0 };
 	int error = 0;
 	osi_list_t *tmp;
 	struct special_blocks *ea_block;
+	enum update_flags want_updated = not_updated;
 
 	pass1c_fxns.check_eattr_indir = &check_eattr_indir;
 	pass1c_fxns.check_eattr_leaf = &check_eattr_leaf;
 	pass1c_fxns.check_eattr_entry = &check_eattr_entry;
 	pass1c_fxns.check_eattr_extentry = &check_eattr_extentry;
-	pass1c_fxns.private = (void *) &update;
+	pass1c_fxns.private = NULL;
 
 	log_info("Looking for inodes containing ea blocks...\n");
 	osi_list_foreach(tmp, &sbp->eattr_blocks.list) {
@@ -249,16 +253,18 @@ int pass1c(struct gfs2_sbd *sbp)
 			log_debug("Found eattr at %"PRIu64" (0x%" PRIx64 ")\n",
 				  ip->i_di.di_eattr, ip->i_di.di_eattr);
 			/* FIXME: Handle walking the eattr here */
-			error = check_inode_eattr(ip, &pass1c_fxns);
+			error = check_inode_eattr(ip, &want_updated,
+						  &pass1c_fxns);
 			if(error < 0) {
 				stack;
 				brelse(bh, not_updated);
 				return -1;
 			}
 
-			fsck_inode_put(ip, update); /* dinode_out, brelse, free */
+			fsck_inode_put(ip, want_updated); /* dinode_out,
+							     brelse, free */
 		} else {
-			brelse(bh, update);
+			brelse(bh, want_updated);
 		}
 	}
 	return 0;

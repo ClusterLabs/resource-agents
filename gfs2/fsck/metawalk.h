@@ -6,7 +6,8 @@
 
 struct metawalk_fxns;
 
-int check_inode_eattr(struct gfs2_inode *ip, struct metawalk_fxns *pass);
+int check_inode_eattr(struct gfs2_inode *ip, enum update_flags *want_updated,
+		      struct metawalk_fxns *pass);
 int check_metatree(struct gfs2_inode *ip, struct metawalk_fxns *pass);
 int check_dir(struct gfs2_sbd *sbp, uint64_t block,
 			  struct metawalk_fxns *pass);
@@ -41,15 +42,18 @@ struct metawalk_fxns {
 			   void *private);
 	int (*check_eattr_indir) (struct gfs2_inode *ip, uint64_t block,
 				  uint64_t parent,
-				  struct gfs2_buffer_head **bh, void *private);
+				  struct gfs2_buffer_head **bh,
+				  enum update_flags *want_updated,
+				  void *private);
 	int (*check_eattr_leaf) (struct gfs2_inode *ip, uint64_t block,
 				 uint64_t parent, struct gfs2_buffer_head **bh,
+				 enum update_flags *want_updated,
 				 void *private);
 	int (*check_dentry) (struct gfs2_inode *ip, struct gfs2_dirent *de,
 			     struct gfs2_dirent *prev,
 			     struct gfs2_buffer_head *bh,
-			     char *filename, int *update, uint16_t *count,
-			     void *private);
+			     char *filename, enum update_flags *update,
+			     uint16_t *count, void *private);
 	int (*check_eattr_entry) (struct gfs2_inode *ip,
 				  struct gfs2_buffer_head *leaf_bh,
 				  struct gfs2_ea_header *ea_hdr,
@@ -60,7 +64,11 @@ struct metawalk_fxns {
 				     struct gfs2_buffer_head *leaf_bh,
 				     struct gfs2_ea_header *ea_hdr,
 				     struct gfs2_ea_header *ea_hdr_prev,
+				     enum update_flags *want_updated,
 				     void *private);
+	int (*finish_eattr_indir) (struct gfs2_inode *ip, int indir_ok,
+				   enum update_flags *want_updated,
+				   void *private);
 };
 
 #endif /* _METAWALK_H */

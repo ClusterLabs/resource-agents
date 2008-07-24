@@ -74,14 +74,18 @@ int set_dotdot_dir(struct gfs2_sbd *sbp, uint64_t childblock,
 }
 
 static int check_eattr_indir(struct gfs2_inode *ip, uint64_t block,
-			    uint64_t parent, struct gfs2_buffer_head **bh, void *private)
+			    uint64_t parent, struct gfs2_buffer_head **bh,
+			     enum update_flags *want_updated, void *private)
 {
+	*want_updated = not_updated;
 	*bh = bread(ip->i_sbd, block);
 	return 0;
 }
 static int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
-			    uint64_t parent, struct gfs2_buffer_head **bh, void *private)
+			    uint64_t parent, struct gfs2_buffer_head **bh,
+			    enum update_flags *want_updated, void *private)
 {
+	*want_updated = not_updated;
 	*bh = bread(ip->i_sbd, block);
 	return 0;
 }
@@ -141,7 +145,7 @@ static int check_file_type(uint8_t de_type, uint8_t block_type)
 int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 		 struct gfs2_dirent *prev_de,
 		 struct gfs2_buffer_head *bh, char *filename,
-		 int *update, uint16_t *count, void *priv)
+		 enum update_flags *update, uint16_t *count, void *priv)
 {
 	struct gfs2_sbd *sbp = ip->i_sbd;
 	struct gfs2_block_query q = {0};
@@ -154,6 +158,7 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 	struct gfs2_dirent dentry, *de;
 	uint32_t calculated_hash;
 
+	*update = not_updated;
 	memset(&dentry, 0, sizeof(struct gfs2_dirent));
 	gfs2_dirent_in(&dentry, (char *)dent);
 	de = &dentry;
@@ -214,7 +219,7 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 				 "Clear directory entry tp out of range block? (y/n) ")) {
 			log_err("Clearing %s\n", tmp_name);
 			dirent2_del(ip, bh, prev_de, dent);
-			*update = 1;
+			*update = updated;
 			return 1;
 		} else {
 			log_err("Directory entry to out of range block remains\n");
@@ -239,7 +244,7 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 		if(query(&opts, "Clear entry to inode containing bad blocks? (y/n)")) {
 
 			entry_ip = fsck_load_inode(sbp, de->de_inum.no_addr);
-			check_inode_eattr(entry_ip, &clear_eattrs);
+			check_inode_eattr(entry_ip, update, &clear_eattrs);
 			fsck_inode_put(entry_ip, not_updated);
 
 			/* FIXME: make sure all blocks referenced by
@@ -249,7 +254,7 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 
 			gfs2_block_set(sbp, bl, de->de_inum.no_addr,
 				       gfs2_meta_inval);
-			*update = 1;
+			*update = updated;
 			return 1;
 		} else {
 			log_warn("Entry to inode containing bad blocks remains\n");
@@ -275,7 +280,7 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 			 * this inode are cleared in the bitmap */
 
 			dirent2_del(ip, bh, prev_de, dent);
-			*update = 1;
+			*update = updated;
 			log_warn("Directory entry '%s' cleared\n", tmp_name);
 			return 1;
 		} else {
@@ -299,11 +304,11 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 				 block_type_string(&q));
 		if(query(&opts, "Clear stale directory entry? (y/n) ")) {
 			entry_ip = fsck_load_inode(sbp, de->de_inum.no_addr);
-			check_inode_eattr(entry_ip, &clear_eattrs);
+			check_inode_eattr(entry_ip, update, &clear_eattrs);
 			fsck_inode_put(entry_ip, not_updated);
 
 			dirent2_del(ip, bh, prev_de, dent);
-			*update  = 1;
+			*update = updated;
 			return 1;
 		} else {
 			log_err("Stale directory entry remains\n");
@@ -323,11 +328,12 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 			if(query(&opts, "Clear duplicate '.' entry? (y/n) ")) {
 
 				entry_ip = fsck_load_inode(sbp, de->de_inum.no_addr);
-				check_inode_eattr(entry_ip, &clear_eattrs);
+				check_inode_eattr(entry_ip, update,
+						  &clear_eattrs);
 				fsck_inode_put(entry_ip, not_updated);
 
 				dirent2_del(ip, bh, prev_de, dent);
-				*update  = 1;
+				*update = updated;
 				return 1;
 			} else {
 				log_err("Duplicate '.' entry remains\n");
@@ -354,11 +360,12 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 					ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr);
 			if(query(&opts, "Remove '.' reference? (y/n) ")) {
 				entry_ip = fsck_load_inode(sbp, de->de_inum.no_addr);
-				check_inode_eattr(entry_ip, &clear_eattrs);
+				check_inode_eattr(entry_ip, update,
+						  &clear_eattrs);
 				fsck_inode_put(entry_ip, not_updated);
 
 				dirent2_del(ip, bh, prev_de, dent);
-				*update = 1;
+				*update = updated;
 				return 1;
 
 			} else {
@@ -374,7 +381,6 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 
 		ds->dotdir = 1;
 		increment_link(sbp, de->de_inum.no_addr);
-		*update = (opts.no ? not_updated : updated);
 		(*count)++;
 		ds->entry_count++;
 
@@ -389,7 +395,8 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 			if(query(&opts, "Clear duplicate '..' entry? (y/n) ")) {
 
 				entry_ip = fsck_load_inode(sbp, de->de_inum.no_addr);
-				check_inode_eattr(entry_ip, &clear_eattrs);
+				check_inode_eattr(entry_ip, update,
+						  &clear_eattrs);
 				fsck_inode_put(entry_ip, not_updated);
 
 				dirent2_del(ip, bh, prev_de, dent);
@@ -414,7 +421,8 @@ int check_dentry(struct gfs2_inode *ip, struct gfs2_dirent *dent,
 					ip->i_di.di_num.no_addr, ip->i_di.di_num.no_addr);
 			if(query(&opts, "Clear bad '..' directory entry? (y/n) ")) {
 				entry_ip = fsck_load_inode(sbp, de->de_inum.no_addr);
-				check_inode_eattr(entry_ip, &clear_eattrs);
+				check_inode_eattr(entry_ip, update,
+						  &clear_eattrs);
 				fsck_inode_put(entry_ip, not_updated);
 
 				dirent2_del(ip, bh, prev_de, dent);
@@ -513,7 +521,8 @@ int check_system_dir(struct gfs2_inode *sysinode, const char *dirname,
 	char *filename;
 	int filename_len;
 	char tmp_name[256];
-	int update=0, error = 0;
+	enum update_flags update = not_updated;
+	int error = 0;
 
 	log_info("Checking system directory inode '%s'\n", dirname);
 
@@ -540,7 +549,7 @@ int check_system_dir(struct gfs2_inode *sysinode, const char *dirname,
 		gfs2_block_set(sysinode->i_sbd, bl, iblock, gfs2_meta_inval);
 
 	bh = bhold(sysinode->i_bh);
-	if(check_inode_eattr(sysinode, &pass2_fxns)) {
+	if(check_inode_eattr(sysinode, &update, &pass2_fxns)) {
 		stack;
 		return -1;
 	}
