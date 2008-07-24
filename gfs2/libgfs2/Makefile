@@ -30,3 +30,4 @@ CFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE -D_GNU_SOURCE
 CFLAGS += -I${KERNEL_SRC}/fs/gfs2/ -I${KERNEL_SRC}/include/
 CFLAGS += -I$(S)/../include
 CFLAGS += -I${incdir}
+CFLAGS += -fPIC
