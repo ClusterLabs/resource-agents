@@ -5,3 +5,10 @@ make/defines.mk
 *.a
 *.so*
 *.lcrso
+*.po
+.*.*o.cmd
+.tmp_versions
+*.ko
+Module.symvers
+modules.order
+*.mod.c
