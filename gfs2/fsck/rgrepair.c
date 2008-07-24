@@ -11,6 +11,7 @@
 #include "fsck.h"
 
 int rindex_modified = FALSE;
+struct special_blocks false_rgrps;
 
 #define ri_equal(ondisk, expected, field) (ondisk.field == expected.field)
 
@@ -22,6 +23,53 @@ int rindex_modified = FALSE;
 		ondisk.field = expected.field; \
 		rindex_modified = TRUE; \
 	}
+
+/*
+ * find_journal_entry_rgs - find all RG blocks within all journals
+ *
+ * Since Resource Groups (RGs) are journaled, it is not uncommon for them
+ * to appear inside a journal.  But if there is severe damage to the rindex
+ * file or some of the RGs, we may need to hunt and peck for RGs and in that
+ * case, we don't want to mistake these blocks that look just a real RG
+ * for a real RG block.  These are "fake" RGs that need to be ignored for
+ * the purposes of finding where things are.
+ */
+void find_journaled_rgs(struct gfs2_sbd *sdp)
+{
+	int j, new = 0;
+	unsigned int jblocks;
+	uint64_t b, dblock;
+	uint32_t extlen;
+	struct gfs2_inode *ip;
+	struct gfs2_buffer_head *bh;
+
+	osi_list_init(&false_rgrps.list);
+	for (j = 0; j < sdp->md.journals; j++) {
+		log_debug("Checking for RGs in journal%d.\n", j);
+		ip = sdp->md.journal[j];
+		jblocks = ip->i_di.di_size / sdp->sd_sb.sb_bsize;
+		for (b = 0; b < jblocks; b++) {
+			block_map(ip, b, &new, &dblock, &extlen, 0,
+				  not_updated);
+			if (!dblock)
+				break;
+			bh = bread(sdp, dblock);
+			if (!gfs2_check_meta(bh, GFS2_METATYPE_RG)) {
+				log_debug("False RG found at block "
+					  "0x%" PRIx64 "\n", dblock);
+				gfs2_special_set(&false_rgrps, dblock);
+			}
+			brelse(bh, not_updated);
+		}
+	}
+}
+
+int is_false_rg(uint64_t block)
+{
+	if (blockfind(&false_rgrps, block))
+		return 1;
+	return 0;
+}
 
 /*
  * gfs2_rindex_rebuild - rebuild a corrupt Resource Group (RG) index manually
@@ -62,6 +110,9 @@ int gfs2_rindex_rebuild(struct gfs2_sbd *sdp, osi_list_t *ret_list,
 	int rg_was_fnd = FALSE, corrupt_rgs = 0, bitmap_was_fnd;
 	osi_list_t *tmp;
 
+	/* Figure out if there are any RG-looking blocks in the journal we
+	   need to ignore. */
+	find_journaled_rgs(sdp);
 	osi_list_init(ret_list);
 	number_of_rgs = 0;
 	initial_first_rg_dist = first_rg_dist = sdp->sb_addr + 1;
@@ -77,8 +128,9 @@ int gfs2_rindex_rebuild(struct gfs2_sbd *sdp, osi_list_t *ret_list,
 	     blk < sdp->device.length && number_of_rgs < 6;
 	     blk++) {
 		bh = bread(sdp, blk);
-		if ((blk == sdp->sb_addr + 1) ||
-		    (!gfs2_check_meta(bh, GFS2_METATYPE_RG))) {
+		if (((blk == sdp->sb_addr + 1) ||
+		    (!gfs2_check_meta(bh, GFS2_METATYPE_RG))) &&
+		    !is_false_rg(blk)) {
 			log_debug("RG found at block 0x%" PRIx64 "\n", blk);
 			if (blk > sdp->sb_addr + 1) {
 				uint64_t rgdist;
@@ -111,6 +163,8 @@ int gfs2_rindex_rebuild(struct gfs2_sbd *sdp, osi_list_t *ret_list,
 		brelse(bh, not_updated);
 	}
 	number_of_rgs = 0;
+	gfs2_special_free(&false_rgrps);
+
 	/* -------------------------------------------------------------- */
 	/* Sanity-check our first_rg_dist. If RG #2 got nuked, the        */
 	/* first_rg_dist would measure from #1 to #3, which would be bad. */
