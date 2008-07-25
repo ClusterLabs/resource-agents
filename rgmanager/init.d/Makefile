@@ -8,6 +8,6 @@ include ../../make/defines.mk
 include $(OBJDIR)/make/install.mk
 include $(OBJDIR)/make/uninstall.mk
 
-clean: generalclean
+clean:
 
 check:
