@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 
 use Getopt::Std;
+use XML::LibXML;
 use IPC::Open3;
 use POSIX;
 
@@ -96,25 +97,12 @@ sub get_node_id
 {
     ($node)=@_;
 
-    my $node_id;
+    my $xml = XML::LibXML->new();
+    my $tree = $xml->parse_file("/etc/cluster/cluster.conf");
 
-    my ($in, $out, $err);
-    my $cmd = "ccs_tool query /cluster/clusternodes/clusternode[\@name=\\\"$node\\\"]/\@nodeid";
+    my $xpath = "//cluster/clusternodes/clusternode[\@name='$node']/\@nodeid";
 
-    my $pid = open3($in, $out, $err, $cmd) or die "$!\n";
-
-    waitpid($pid, 0);
-
-    die "Unable to execute ccs_tool.\n" if ($?>>8);
-
-    while (<$out>) {
-        chomp;
-        $node_id = $_;
-    }
-
-    close($in);
-    close($out);
-    close($err);
+    my $node_id = $tree->findvalue($xpath);
 
     return $node_id;
 }
