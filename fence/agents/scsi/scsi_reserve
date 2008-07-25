@@ -23,6 +23,14 @@ if [ -f /etc/sysconfig/scsi_reserve ] ; then
     . /etc/sysconfig/scsi_reserve
 fi
 
+# check that cman is running
+#
+if ! cman_tool status &> /dev/null ; then
+    logger -t scsi_reserve \
+	"[error] cman does not appear to be running"
+    exit 1
+fi
+
 # check if cluster is configured for fence_scsi
 #
 if ! fence_scsi_test -t fence ; then
@@ -31,27 +39,11 @@ if ! fence_scsi_test -t fence ; then
     exit 1
 fi
 
-# check for nodeids in config file
-#
-if ! fence_scsi_test -t nodes ; then
-    logger -t scsi_reserve \
-	"[error] cluster must define nodeid for all nodes"
-    exit 1
-fi
-
 # check for sg_persist command provided by sg3_utils package
 #
 if ! sg_persist -V &> /dev/null ; then
     logger -t scsi_reserve \
 	"[error] unable to exec sg_persist"
-    exit 1
-fi
-
-# check that cman is running
-#
-if ! cman_tool status &> /dev/null ; then
-    logger -t scsi_reserve \
-	"[error] cman does not appear to be running"
     exit 1
 fi
 
