@@ -47,9 +47,25 @@ extern struct list_head gd_groups;
 extern struct list_head gd_levels[MAX_LEVELS];
 extern uint32_t gd_event_nr;
 
-#define DEFAULT_DEBUG_LOGSYS 0
+#define GROUP_PENDING		1
+#define GROUP_LIBGROUP          2
+#define GROUP_LIBCPG            3
 
+extern int group_mode;
+
+#define DEFAULT_GROUPD_COMPAT		2
+#define DEFAULT_GROUPD_WAIT		5
+#define DEFAULT_GROUPD_MODE_DELAY	2
+#define DEFAULT_DEBUG_LOGSYS		0
+
+extern int optd_groupd_compat;
+extern int optd_groupd_wait;
+extern int optd_groupd_mode_delay;
 extern int optd_debug_logsys;
+
+extern int cfgd_groupd_compat;
+extern int cfgd_groupd_wait;
+extern int cfgd_groupd_mode_delay;
 extern int cfgd_debug_logsys;
 
 void daemon_dump_save(void);
@@ -184,9 +200,10 @@ struct app {
 #define MSG_APP_RECOVER        3
 #define MSG_APP_INTERNAL       4
 #define MSG_GLOBAL_ID          5
+#define MSG_GROUP_VERSION      6
 
 #define MSG_VER_MAJOR          1
-#define MSG_VER_MINOR          0
+#define MSG_VER_MINOR          1
 #define MSG_VER_PATCH          0
 
 struct msg {
@@ -287,6 +304,7 @@ int send_message(group_t *g, void *buf, int len);
 int send_message_groupd(group_t *g, void *buf, int len, int type);
 void copy_groupd_data(group_data_t *data);
 int in_groupd_cpg(int nodeid);
+void group_mode_check_timeout(void);
 
 /* joinleave.c */
 void remove_group(group_t *g);
@@ -294,6 +312,8 @@ int do_join(char *name, int level, int ci);
 int do_leave(char *name, int level);
 node_t *new_node(int nodeid);
 group_t *find_group_level(char *name, int level);
+int create_group(char *name, int level, group_t **g_out);
+app_t *create_app(group_t *g);
 
 /* logging.c */
 

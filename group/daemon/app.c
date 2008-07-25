@@ -1799,6 +1799,9 @@ int process_apps(void)
 	group_t *g, *safe;
 	int rv = 0;
 
+	if (group_mode != GROUP_LIBGROUP)
+		return 0;
+
 	list_for_each_entry_safe(g, safe, &gd_groups, list) {
 		rv += process_app(g);
 		deliver_app_messages(g);

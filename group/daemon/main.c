@@ -120,6 +120,10 @@ void read_ccs_int(char *path, int *config_val)
 	free(str);
 }
 
+#define GROUPD_COMPAT_PATH "/cluster/group/@groupd_compat"
+#define GROUPD_WAIT_PATH "/cluster/group/@groupd_wait"
+#define GROUPD_MODE_DELAY_PATH "/cluster/group/@groupd_mode_delay"
+
 int setup_ccs(void)
 {
 	int i = 0, cd;
@@ -132,6 +136,18 @@ int setup_ccs(void)
 	}
 
 	ccs_handle = cd;
+
+	/* These config values are set from cluster.conf only if they haven't
+	   already been set on the command line. */
+
+	if (!optd_groupd_compat)
+		read_ccs_int(GROUPD_COMPAT_PATH, &cfgd_groupd_compat);
+
+	if (!optd_groupd_wait)
+		read_ccs_int(GROUPD_WAIT_PATH, &cfgd_groupd_wait);
+
+	if (!optd_groupd_mode_delay)
+		read_ccs_int(GROUPD_MODE_DELAY_PATH, &cfgd_groupd_mode_delay);
 
 	return 0;
 }
@@ -369,6 +385,7 @@ enum {
 	DO_GET_GROUP,
 	DO_DUMP,
 	DO_LOG,
+	DO_GET_VERSION,
 };
 
 int get_action(char *buf)
@@ -412,6 +429,9 @@ int get_action(char *buf)
 
 	if (!strncmp(act, "get_group", 16))
 		return DO_GET_GROUP;
+
+	if (!strncmp(act, "get_version", 16))
+		return DO_GET_VERSION;
 
 	if (!strncmp(act, "dump", 16))
 		return DO_DUMP;
@@ -602,6 +622,20 @@ static int do_get_group(int ci, int argc, char **argv)
 	return 0;
 }
 
+static int do_get_version(int ci)
+{
+	int mode;
+	int rv;
+
+	mode = group_mode;
+
+	rv = do_write(client[ci].fd, &mode, sizeof(mode));
+	if (rv < 0)
+		log_print("do_get_version write error");
+
+	return 0;
+}
+
 static int do_dump(int fd)
 {
 	int len;
@@ -715,6 +749,10 @@ static void process_connection(int ci)
 		do_get_group(ci, argc, argv);
 		break;
 
+	case DO_GET_VERSION:
+		do_get_version(ci);
+		break;
+
 	case DO_DUMP:
 		do_dump(client[ci].fd);
 		close(client[ci].fd);
@@ -786,6 +824,12 @@ void cluster_dead(int ci)
 	daemon_quit = 1;
 }
 
+#define min(x, y) ({                            \
+	typeof(x) _min1 = (x);                  \
+	typeof(y) _min2 = (y);                  \
+	(void) (&_min1 == &_min2);              \
+	_min1 < _min2 ? _min1 : _min2; })
+
 static void loop(void)
 {
 	int poll_timeout = -1;	
@@ -808,6 +852,13 @@ static void loop(void)
 		goto out;
 
 	setup_logging();
+
+	if (cfgd_groupd_compat == 0)
+		group_mode = GROUP_LIBCPG;
+	else if (cfgd_groupd_compat == 1)
+		group_mode = GROUP_LIBGROUP;
+	else if (cfgd_groupd_compat == 2)
+		group_mode = GROUP_PENDING;
 
 	rv = check_uncontrolled_groups();
 	if (rv < 0)
@@ -853,6 +904,13 @@ static void loop(void)
 			rv = 0;
 			rv += process_apps();
 		} while (rv);
+
+		poll_timeout = -1;
+
+		if (group_mode == GROUP_PENDING) {
+			group_mode_check_timeout();
+			poll_timeout = 1000 * min(cfgd_groupd_wait, cfgd_groupd_mode_delay);
+		}
 	}
  out:
 	close_ccs();
@@ -914,11 +972,20 @@ static void print_usage(void)
 	printf("\n");
 	printf("  -D	       Enable debugging code and don't fork\n");
 	printf("  -L <num>     Enable (1) or disable (0) debugging to logsys (default %d)\n", DEFAULT_DEBUG_LOGSYS);
+	printf("  -g <num>     group compatibility mode, 0 off, 1 on, 2 detect\n");
+	printf("               0: use libcpg, no backward compat, best performance\n");
+	printf("               1: use libgroup for compat with cluster2/stable2/rhel5\n");
+	printf("               2: detect old, or mode 0, nodes that require compat, use libcpg if none found\n");
+	printf("               Default is %d\n", DEFAULT_GROUPD_COMPAT);
+	printf("  -w <secs>    seconds to wait for a node's version message before assuming an old version requiring compat mode\n");
+	printf("               Default is %d", DEFAULT_GROUPD_WAIT);
+	printf("  -d <secs>    seconds to delay the mode selection to give time for an old version to join and force compat mode\n");
+	printf("               Default is %d", DEFAULT_GROUPD_MODE_DELAY);
 	printf("  -h	       Print this help, then exit\n");
 	printf("  -V	       Print program version information, then exit\n");
 }
 
-#define OPTION_STRING "L:DhVv"
+#define OPTION_STRING "L:Dg:w:d:hVv"
 
 static void read_arguments(int argc, char **argv)
 {
@@ -937,6 +1004,21 @@ static void read_arguments(int argc, char **argv)
 		case 'L':
 			optd_debug_logsys = 1;
 			cfgd_debug_logsys = atoi(optarg);
+			break;
+
+		case 'g':
+			optd_groupd_compat = 1;
+			cfgd_groupd_compat = atoi(optarg);
+			break;
+
+		case 'w':
+			optd_groupd_wait = 1;
+			cfgd_groupd_wait = atoi(optarg);
+			break;
+
+		case 'd':
+			optd_groupd_mode_delay = 1;
+			cfgd_groupd_mode_delay = atoi(optarg);
 			break;
 
 		case 'h':
@@ -1068,7 +1150,15 @@ int dump_wrap;
 struct list_head gd_groups;
 struct list_head gd_levels[MAX_LEVELS];
 uint32_t gd_event_nr;
+int group_mode;
 
+int optd_groupd_compat;
+int optd_groupd_wait;
+int optd_groupd_mode_delay;
 int optd_debug_logsys;
-int cfgd_debug_logsys = DEFAULT_DEBUG_LOGSYS;
+
+int cfgd_groupd_compat     = DEFAULT_GROUPD_COMPAT;
+int cfgd_groupd_wait       = DEFAULT_GROUPD_WAIT;
+int cfgd_groupd_mode_delay = DEFAULT_GROUPD_MODE_DELAY;
+int cfgd_debug_logsys      = DEFAULT_DEBUG_LOGSYS;
 

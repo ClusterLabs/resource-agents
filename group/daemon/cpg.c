@@ -21,7 +21,274 @@ static int			saved_left_count;
 static cpg_handle_t		saved_handle;
 static struct cpg_name		saved_name;
 static int			message_flow_control_on;
+static struct list_head		group_nodes;
+static uint64_t			send_version_first;
 
+#define CLUSTER2		2
+#define CLUSTER3		3
+
+struct group_version {
+	uint32_t nodeid;
+	uint16_t cluster;
+	uint16_t group_mode;
+	uint16_t groupd_compat;
+	uint16_t groupd_count;
+	uint32_t unused;
+};
+
+struct group_node {
+	uint32_t nodeid;
+	uint32_t got_from;
+	int got_version;
+	uint64_t add_time;
+	struct group_version ver;
+	struct list_head list;
+};
+
+static void block_old_nodes(void);
+
+static char *mode_str(int m)
+{
+	switch (m) {
+	case GROUP_PENDING:
+		return "PENDING";
+	case GROUP_LIBGROUP:
+		return "LIBGROUP";
+	case GROUP_LIBCPG:
+		return "LIBCPG";
+	default:
+		return "UNKNOWN";
+	}
+}
+
+static struct group_node *get_group_node(int nodeid)
+{
+	struct group_node *node;
+
+	list_for_each_entry(node, &group_nodes, list) {
+		if (node->nodeid == nodeid)
+			return node;
+	}
+	return NULL;
+}
+
+static void group_node_add(int nodeid)
+{
+	struct group_node *node;
+
+	node = get_group_node(nodeid);
+	if (node)
+		return;
+
+	node = malloc(sizeof(struct group_node));
+	if (!node)
+		return;
+	memset(node, 0, sizeof(struct group_node));
+
+	node->nodeid = nodeid;
+	node->add_time = time(NULL);
+	list_add_tail(&node->list, &group_nodes);
+}
+
+static void group_node_del(int nodeid)
+{
+	struct group_node *node;
+
+	node = get_group_node(nodeid);
+	if (!node) {
+		log_print("group_node_del %d no node", nodeid);
+		return;
+	}
+
+	list_del(&node->list);
+	free(node);
+}
+
+static void version_copy_in(struct group_version *ver)
+{
+	ver->nodeid        = le32_to_cpu(ver->nodeid);
+	ver->cluster       = le16_to_cpu(ver->cluster);
+	ver->group_mode    = le16_to_cpu(ver->group_mode);
+	ver->groupd_compat = le16_to_cpu(ver->groupd_compat);
+	ver->groupd_count  = le16_to_cpu(ver->groupd_count);
+}
+
+static void _send_version(int nodeid, int cluster, int mode, int compat)
+{
+	group_t g, *gp;
+	char *buf;
+	msg_t *msg;
+	int len;
+	int count = 0;
+	struct group_version *ver;
+
+	list_for_each_entry(gp, &gd_groups, list)
+		count++;
+
+	/* just so log_group will work */
+	memset(&g, 0, sizeof(group_t));
+	strcpy(g.name, "groupd");
+
+	len = sizeof(msg_t) + sizeof(struct group_version);
+
+	buf = malloc(len);
+	if (!buf)
+		return;
+	memset(buf, 0, len);
+
+	msg = (msg_t *)buf;
+	ver = (struct group_version *)(buf + sizeof(msg_t));
+
+	msg->ms_type = MSG_GROUP_VERSION;
+	msg_bswap_out(msg);
+
+	log_debug("send_version nodeid %d cluster %d mode %s compat %d",
+		  nodeid, cluster, mode_str(mode), compat);
+
+	ver->nodeid        = cpu_to_le32(nodeid);
+	ver->cluster       = cpu_to_le16(cluster);
+	ver->group_mode    = cpu_to_le16(mode);
+	ver->groupd_compat = cpu_to_le16(compat);
+	ver->groupd_count  = cpu_to_le16(count);
+
+	send_message_groupd(&g, buf, len, MSG_GROUP_VERSION);
+}
+
+static void send_version(void)
+{
+	_send_version(our_nodeid, CLUSTER3, group_mode, cfgd_groupd_compat);
+}
+
+static void set_group_mode(void)
+{
+	struct group_node *node;
+	int need_version, pending_count;
+
+	need_version = 0;
+	pending_count = 0;
+
+	list_for_each_entry(node, &group_nodes, list) {
+		if (!node->got_version) {
+			need_version++;
+			continue;
+		}
+		if (node->ver.group_mode == GROUP_PENDING) {
+			pending_count++;
+			continue;
+		}
+
+		/* If we receive any non-pending group mode, adopt it
+		   immediately. */
+
+		group_mode = node->ver.group_mode;
+
+		log_print("group mode is %s", mode_str(group_mode));
+		log_debug("set_group_mode %s matching nodeid %d got_from %d",
+			  mode_str(group_mode), node->nodeid, node->got_from);
+		break;
+	}
+
+	if (group_mode == GROUP_LIBCPG)
+		block_old_nodes();
+}
+
+static void receive_version(int from, msg_t *msg, int len)
+{
+	struct group_node *node;
+	struct group_version *ver;
+
+	if (group_mode != GROUP_PENDING)
+		return;
+
+	ver = (struct group_version *)((char *)msg + sizeof(msg_t));
+
+	version_copy_in(ver);
+
+	node = get_group_node(ver->nodeid);
+	if (!node) {
+		log_print("receive_version from %d nodeid %d not found",
+			  from, ver->nodeid);
+		return;
+	}
+
+	/* ignore a repeat of what we've seen before */
+
+	if (node->got_version && from == node->got_from &&
+	    node->ver.group_mode == ver->group_mode)
+		return;
+
+	log_debug("receive_version from %d nodeid %d cluster %d mode %s "
+		  "compat %d", from, ver->nodeid, ver->cluster,
+		  mode_str(ver->group_mode), ver->groupd_compat);
+
+	node->got_version = 1;
+	node->got_from = from;
+	memcpy(&node->ver, ver, sizeof(struct group_version));
+
+	set_group_mode();
+}
+
+void group_mode_check_timeout(void)
+{
+	struct group_node *node;
+	int need_version, pending_count;
+	uint64_t now;
+
+	if (group_mode != GROUP_PENDING)
+		return;
+
+	if (!send_version_first)
+		return;
+
+	/* Wait for cfgd_groupd_wait seconds to receive a version message from
+	   an added node, after which we'll send a version message for it,
+	   calling it a cluster2 node; receiving this will cause everyone to
+	   immediately set mode to LIBGROUP. */
+
+	need_version = 0;
+	pending_count = 0;
+	now = time(NULL);
+
+	list_for_each_entry(node, &group_nodes, list) {
+		if (node->got_version) {
+			pending_count++;
+			continue;
+		}
+		need_version++;
+
+		if (now - node->add_time >= cfgd_groupd_wait) {
+			log_print("send version for nodeid %d times %llu %llu",
+				  node->nodeid,
+				  (unsigned long long)node->add_time,
+				  (unsigned long long)now);
+			_send_version(node->nodeid, CLUSTER2, GROUP_LIBGROUP,1);
+		}
+	}
+
+	if (need_version) {
+		log_debug("group_mode_check_timeout need %d pending %d",
+			  need_version, pending_count);
+		return;
+	}
+
+	/* we have a version from everyone, and they all are pending;
+	   wait for cfgd_groupd_mode_delay to give any old cluster2 nodes
+	   a chance to join and cause us to use LIBGROUP */
+
+	if (now - send_version_first < cfgd_groupd_mode_delay) {
+		log_debug("group_mode_check_timeout delay times %llu %llu",
+			  (unsigned long long)send_version_first,
+			  (unsigned long long)now);
+		return;
+	}
+
+	/* everyone is cluster3/pending so we can use LIBCPG; receiving
+	   this will cause everyone to immediately set mode to LIBCPG */
+
+	log_debug("send version LIBCPG all %d pending", pending_count);
+
+	_send_version(our_nodeid, CLUSTER3, GROUP_LIBCPG, cfgd_groupd_compat);
+}
 
 static node_t *find_group_node(group_t *g, int nodeid)
 {
@@ -193,6 +460,27 @@ void process_groupd_confchg(void)
 	log_debug("groupd confchg total %d left %d joined %d",
 		  saved_member_count, saved_left_count, saved_joined_count);
 
+	if (!send_version_first) {
+		for (i = 0; i < saved_member_count; i++) {
+			group_node_add(saved_member[i].nodeid);
+			log_debug("groupd init %d", saved_member[i].nodeid);
+		}
+
+		send_version_first = time(NULL);
+	} else {
+		for (i = 0; i < saved_left_count; i++) {
+			group_node_del(saved_left[i].nodeid);
+			log_debug("groupd del %d", saved_left[i].nodeid);
+		}
+		for (i = 0; i < saved_joined_count; i++) {
+			group_node_add(saved_joined[i].nodeid);
+			log_debug("groupd add %d", saved_joined[i].nodeid);
+		}
+	}
+
+	if (saved_joined_count)
+		send_version();
+
 	memcpy(&groupd_cpg_member, &saved_member, sizeof(saved_member));
 	groupd_cpg_member_count = saved_member_count;
 
@@ -307,6 +595,11 @@ void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 
 	msg_bswap_in(msg);
 
+	if (msg->ms_type == MSG_GROUP_VERSION) {
+		receive_version(nodeid, msg, data_len);
+		return;
+	}
+
 	if (msg->ms_type == MSG_GLOBAL_ID) {
 		to_nodeid = msg->ms_global_id & 0x0000FFFF;
 		counter = (msg->ms_global_id >> 16) & 0x0000FFFF;
@@ -334,6 +627,9 @@ void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 			return;
 		}
 	} else {
+		if (group_mode != GROUP_LIBGROUP)
+			return;
+
 		g = find_group_by_handle(handle);
 		if (!g) {
 			len = group_name->length;
@@ -376,6 +672,9 @@ void process_confchg(void)
 		process_groupd_confchg();
 		return;
 	}
+
+	if (group_mode != GROUP_LIBGROUP)
+		return;
 
 	g = find_group_by_handle(saved_handle);
 	if (!g) {
@@ -533,6 +832,8 @@ int setup_cpg(void)
 	cpg_error_t error;
 	int fd;
 
+	INIT_LIST_HEAD(&group_nodes);
+
 	error = cpg_initialize(&groupd_handle, &callbacks);
 	if (error != CPG_OK) {
 		log_print("cpg_initialize error %d", error);
@@ -562,6 +863,7 @@ int setup_cpg(void)
 
 	log_debug("setup_cpg groupd_handle %llx",
 		  (unsigned long long)groupd_handle);
+
 	return 0;
 }
 
@@ -678,5 +980,72 @@ int send_message_groupd(group_t *g, void *buf, int len, int type)
 int send_message(group_t *g, void *buf, int len)
 {
 	return _send_message(g->cpg_handle, g, buf, len);
+}
+
+static void block_old_group(char *name, int level)
+{
+	group_t *g;
+	app_t *a;
+	cpg_error_t error;
+	cpg_handle_t h;
+	struct cpg_name cpgname;
+	int rv, fd, ci, i = 0;
+
+	rv = create_group(name, level, &g);
+	if (rv)
+		return;
+	a = create_app(g);
+	if (!a)
+		return;
+
+	error = cpg_initialize(&h, &callbacks);
+	if (error != CPG_OK) {
+		log_print("cpg_initialize error %d", error);
+		return;
+	}
+
+	cpg_fd_get(h, &fd);
+
+	ci = client_add(fd, process_cpg, NULL);
+
+	g->cpg_client = ci;
+	g->cpg_handle = h;
+	g->cpg_fd = fd;
+	g->joining = 1;
+	a->client = ci;
+
+	memset(&cpgname, 0, sizeof(cpgname));
+	sprintf(cpgname.value, "%d_%s", level, name);
+	cpgname.length = strlen(cpgname.value) + 1;
+
+ retry:
+	error = cpg_join(h, &cpgname);
+	if (error == CPG_ERR_TRY_AGAIN) {
+		log_debug("cpg_join error retry");
+		sleep(1);
+		if (!(++i % 10))
+			log_print("cpg_join error retrying");
+		goto retry;
+	}
+	if (error != CPG_OK) {
+		log_print("cpg_join error %d", error);
+		cpg_finalize(h);
+		return;
+	}
+}
+
+/* Problem: GROUP_LIBCPG is selected during version detection, then
+   an old cluster2 node starts (people aren't supposed to do this, but it may
+   happen, so it's nice to do what we can to address it).  groupd on the old
+   cluster2 node, using libgroup, will allow new groups to be formed on it.
+   Solution is a hack: when the cluster3 nodes select LIBCPG mode, they also
+   create unused/placeholder cpg's with the names of old known cluster2 groups,
+   which blocks them being fully joined by old groupd's that may come along. */
+
+static void block_old_nodes(void)
+{
+	block_old_group("default", 0);
+	block_old_group("clvmd", 1);
+	block_old_group("rgmanager", 1);
 }
 

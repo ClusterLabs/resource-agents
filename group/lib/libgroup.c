@@ -497,3 +497,29 @@ int group_get_group(int level, const char *name, group_data_t *data)
 	return rv;
 }
 
+int group_get_version(int *version)
+{
+	char buf[GROUPD_MSGLEN];
+	char data_buf[sizeof(int)];
+	int fd, rv;
+
+	fd = connect_groupd();
+	if (fd < 0)
+		 return fd;
+
+	memset(buf, 0, sizeof(buf));
+	snprintf(buf, sizeof(buf), "get_version");
+
+	rv = do_write(fd, &buf, GROUPD_MSGLEN);
+	if (rv < 0)
+		 goto out;
+
+	rv = do_read(fd, version, sizeof(int));
+	if (rv < 0)
+		 goto out;
+	rv = 0;
+ out:
+	close(fd);
+	return rv;
+}
+

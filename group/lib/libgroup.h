@@ -72,6 +72,8 @@ typedef struct group_data {
 int group_get_groups(int max, int *count, group_data_t *data);
 int group_get_group(int level, const char *name, group_data_t *data);
 
+int group_get_version(int *version);
+
 #ifdef __cplusplus
 }
 #endif
