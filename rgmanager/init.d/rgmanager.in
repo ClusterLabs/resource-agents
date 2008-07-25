@@ -28,6 +28,7 @@ export PATH
 
 ID="Cluster Service Manager"
 RGMGRD="clurgmgrd"
+CFG_FILE="@CONFDIR@/@CONFFILE@"
 
 LOG_ERR=3
 LOG_WARNING=4
@@ -90,6 +91,7 @@ case $1 in
 			echo "Cannot start $ID: Networking not configured"
 			exit 1
 		fi
+		[ -f "$CFG_FILE" ] || exit 0
 
 		echo -n $"Starting $ID: "
 		daemon $RGMGRD $RGMGR_OPTS
