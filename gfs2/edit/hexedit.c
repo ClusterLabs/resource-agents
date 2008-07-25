@@ -2328,6 +2328,8 @@ void dump_journal(const char *journal)
 					print_gfs2("0x%08llx   ", be64_to_cpu(*b));
 				}
 				b++;
+				if (gfs1)
+					b++;
 			}
 			eol(0);
 		} else if (get_block_type(jbuf) == GFS2_METATYPE_LH) {
