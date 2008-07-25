@@ -2,7 +2,6 @@
 
 use POSIX;
 use IPC::Open3;
-use XML::LibXML;
 use Getopt::Std;
 
 my @devices;
@@ -110,25 +109,14 @@ sub test_devices
 
 sub check_config_fence
 {
-    my $xml = XML::LibXML->new();
-    my $tree = $xml->parse_file("/etc/cluster/cluster.conf");
-    my $root = "//cluster/fencedevices/fencedevice";
+    my ($in, $out, $err);
+    my $cmd = "ccs_tool query /cluster/fencedevices/fencedevice[\@agent=\\\"fence_scsi\\\"]";
 
-    my $xpath_fence = "count(${root}[\@agent='fence_scsi'])";
+    my $pid = open3($in, $out, $err, $cmd) or die "$!\n";
 
-    return ( ! $tree->findvalue($xpath_fence));
-}
+    waitpid($pid, 0);
 
-sub check_config_nodes
-{
-    my $xml = XML::LibXML->new();
-    my $tree = $xml->parse_file("/etc/cluster/cluster.conf");
-    my $root = "//cluster/clusternodes/clusternode";
-
-    my $xpath_name = "count(${root}/\@name)";
-    my $xpath_nodeid = "count(${root}/\@nodeid)";
-
-    return ($tree->findvalue($xpath_name) != $tree->findvalue($xpath_nodeid));
+    return ($?>>8);
 }
 
 sub print_results
@@ -222,10 +210,6 @@ if ($opt_t)
     if ($opt_t eq "fence")
     {
 	exit check_config_fence;
-    }
-    if ($opt_t eq "nodes")
-    {
-	exit check_config_nodes;
     }
 }
 
