@@ -147,6 +147,7 @@ int bobgets(char string[],int x,int y,int sz,int *ch)
 			case('\r'):
 				rc=1;
 				done=TRUE;
+				string[runningy-y] = '\0';
 				break;
 			case(KEY_CANCEL):
 			case(0x01B):
@@ -1628,6 +1629,60 @@ uint64_t pop_block(void)
 }
 
 /* ------------------------------------------------------------------------ */
+/* find_journal_block - figure out where a journal starts, given the name   */
+/* Returns: journal block number, changes j_size to the journal size        */
+/* ------------------------------------------------------------------------ */
+uint64_t find_journal_block(const char *journal, uint64_t *j_size)
+{
+	int journal_num;
+	uint64_t jindex_block, jblock = 0;
+	int amtread;
+	struct gfs2_buffer_head *jindex_bh, *j_bh;
+	char jbuf[sbd.bsize];
+	struct gfs2_inode *j_inode = NULL;
+
+	journal_num = atoi(journal + 7);
+	/* Figure out the block of the jindex file */
+	if (gfs1)
+		jindex_block = sbd1->sb_jindex_di.no_addr;
+	else
+		jindex_block = masterblock("jindex");
+	/* read in the block */
+	jindex_bh = bread(&sbd, jindex_block);
+	/* get the dinode data from it. */
+	gfs2_dinode_in(&di, jindex_bh->b_data); /* parse disk inode to struct*/
+
+	if (!gfs1)
+		do_dinode_extended(&di, jindex_bh->b_data); /* parse dir. */
+	brelse(jindex_bh, not_updated);
+
+	if (gfs1) {
+		struct gfs2_inode *jiinode;
+		struct gfs_jindex ji;
+
+		jiinode = inode_get(&sbd, jindex_bh);
+		amtread = gfs2_readi(jiinode, (void *)&jbuf,
+				   journal_num * sizeof(struct gfs_jindex),
+				   sizeof(struct gfs_jindex));
+		if (amtread) {
+			gfs_jindex_in(&ji, jbuf);
+			jblock = ji.ji_addr;
+			*j_size = ji.ji_nsegment * 0x10;
+		}
+	} else {
+		struct gfs2_dinode jdi;
+
+		jblock = indirect->ii[0].dirent[journal_num + 2].block;
+		j_bh = bread(&sbd, jblock);
+		j_inode = inode_get(&sbd, j_bh);
+		gfs2_dinode_in(&jdi, j_bh->b_data);/* parse dinode to struct */
+		*j_size = jdi.di_size;
+		brelse(j_bh, not_updated);
+	}
+	return jblock;
+}
+
+/* ------------------------------------------------------------------------ */
 /* Check if the word is a keyword such as "sb" or "rindex"                  */
 /* Returns: block number if it is, else 0                                   */
 /* ------------------------------------------------------------------------ */
@@ -1678,6 +1733,10 @@ uint64_t check_keywords(const char *kword)
 
 		rgnum = atoi(kword + 3);
 		blk = get_rg_addr(rgnum);
+	} else if (!strncmp(kword, "journal", 7) && isdigit(kword[7])) {
+		uint64_t j_size;
+
+		blk = find_journal_block(kword, &j_size);
 	} else if (kword[0]=='0' && kword[1]=='x') /* hex addr */
 		sscanf(kword, "%"SCNx64, &blk);/* retrieve in hex */
 	else
@@ -2182,10 +2241,9 @@ void gfs_log_header_print(struct gfs_log_header *lh)
 /* ------------------------------------------------------------------------ */
 void dump_journal(const char *journal)
 {
-	struct gfs2_buffer_head *jindex_bh, *j_bh = NULL;
-	uint64_t jindex_block, jblock, j_size, jb;
+	struct gfs2_buffer_head *j_bh = NULL;
+	uint64_t jblock, j_size, jb;
 	int error, start_line, journal_num;
-	struct gfs2_dinode jdi;
 	char jbuf[sbd.bsize];
 	struct gfs2_inode *j_inode = NULL;
 
@@ -2195,39 +2253,12 @@ void dump_journal(const char *journal)
 	journal_num = atoi(journal + 7);
 	print_gfs2("Dumping journal #%d.", journal_num);
 	eol(0);
-	/* Figure out the block of the jindex file */
-	if (gfs1)
-		jindex_block = sbd1->sb_jindex_di.no_addr;
-	else
-		jindex_block = masterblock("jindex");
-	/* read in the block */
-	jindex_bh = bread(&sbd, jindex_block);
-	/* get the dinode data from it. */
-	gfs2_dinode_in(&di, jindex_bh->b_data); /* parse disk inode into structure */
-
-	if (!gfs1)
-		do_dinode_extended(&di, jindex_bh->b_data); /* parse dir. */
-	brelse(jindex_bh, not_updated);
-
-	if (gfs1) {
-		struct gfs2_inode *jiinode;
-		struct gfs_jindex ji;
-
-		jiinode = inode_get(&sbd, jindex_bh);
-		error = gfs2_readi(jiinode, (void *)&jbuf,
-				   journal_num * sizeof(struct gfs_jindex),
-				   sizeof(struct gfs_jindex));
-		if (!error)
-			return;
-		gfs_jindex_in(&ji, jbuf);
-		jblock = ji.ji_addr;
-		j_size = ji.ji_nsegment * 0x10;
-	} else {
-		jblock = indirect->ii[0].dirent[journal_num + 2].block;
+	jblock = find_journal_block(journal, &j_size);
+	if (!jblock)
+		return;
+	if (!gfs1) {
 		j_bh = bread(&sbd, jblock);
 		j_inode = inode_get(&sbd, j_bh);
-		gfs2_dinode_in(&jdi, j_bh->b_data);/* parse dinode to struct */
-		j_size = jdi.di_size;
 	}
 
 	for (jb = 0; jb < j_size; jb += (gfs1 ? 1:sbd.bsize)) {
@@ -2236,12 +2267,12 @@ void dump_journal(const char *journal)
 				brelse(j_bh, not_updated);
 			j_bh = bread(&sbd, jblock + jb);
 			memcpy(jbuf, j_bh->b_data, sbd.bsize);
-		}
-		else
+		} else {
 			error = gfs2_readi(j_inode, (void *)&jbuf, jb,
 					   sbd.bsize);
-		if (!error) /* end of file */
-			break;
+			if (!error) /* end of file */
+				break;
+		}
 		if (get_block_type(jbuf) == GFS2_METATYPE_LD) {
 			uint64_t *b;
 			struct gfs2_log_descriptor ld;
@@ -2449,9 +2480,15 @@ void process_parameters(int argc, char *argv[], int pass)
 			else if (!termlines && !strchr(argv[i],'/')) { /* if print, no slash */
 				uint64_t keyword_blk;
 
+				if (!strncmp(argv[i], "journal", 7) &&
+				    isdigit(argv[i][7])) {
+					dump_journal(argv[i]);
+					continue;
+				}
 				keyword_blk = check_keywords(argv[i]);
-				if (keyword_blk)
+				if (keyword_blk) {
 					push_block(keyword_blk);
+				}
 				else if (!strcasecmp(argv[i], "-x"))
 					dmode = HEX_MODE;
 				else if (argv[i][0] == '-') /* if it starts with a dash */
@@ -2521,9 +2558,6 @@ void process_parameters(int argc, char *argv[], int pass)
 				else if (isdigit(argv[i][0])) { /* decimal addr */
 					sscanf(argv[i], "%"SCNd64, &temp_blk);
 					push_block(temp_blk);
-				}
-				else if (!strncmp(argv[i], "journal", 7) && isdigit(argv[i][7])) {
-					dump_journal(argv[i]);
 				}
 				else {
 					fprintf(stderr,"I don't know what '%s' means.\n", argv[i]);
