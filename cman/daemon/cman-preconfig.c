@@ -514,9 +514,7 @@ static int get_nodename(struct objdb_iface_ver0 *objdb)
 
 			strcpy(nodename, nodename_env);
 
-			if (objdb->object_find(object_handle,
-					       nodename, strlen(nodename),
-					       &node_object_handle) != 0) {
+			if (!(node_object_handle = nodelist_byname(objdb, cluster_parent_handle, nodename))) {
 				sprintf(error_reason, "Overridden node name %s is not in CCS", nodename);
 				write_cman_pipe("Overridden node name is not in CCS");
 				error = -1;
