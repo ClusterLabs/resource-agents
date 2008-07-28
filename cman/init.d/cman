@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/BIN/BAsh
 #
 # cman - Cluster Manager init script
 #
@@ -235,17 +235,20 @@ fence_xvmd_enabled()
     # running on a machine capable of running xvmd.
     #
     which xm &> /dev/null || return 1
-	
+
     #
     # Check for presence of /cluster/fence_xvmd in cluster.conf
     # (If -X is specified, it doesn't matter if it's in cluster.conf;
     #  we'll start it anyway since ccsd is not required)
     #
-    if [ "$FENCE_XVMD_OPTS" = "${FENCE_XVMD_OPTS/-X/}" ]; then
-        xmllint --shell @CONFDIR@/@CONFFILE@ 2> /dev/null \
-            < <(echo ls cluster) | grep -q fence_xvmd || return 1
-    fi   
-    
+    /sbin/cman_tool status &> /dev/null
+    if [ $? -eq 0 ]
+    then
+	if [ "$FENCE_XVMD_OPTS" = "${FENCE_XVMD_OPTS/-X/}" ]; then
+		ccs_tool query /cluster/fence_xvmd || return 1
+	fi
+    fi
+
     return 0
 }
 
