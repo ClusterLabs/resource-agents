@@ -16,9 +16,6 @@
 # Source function library
 . /etc/init.d/functions
 
-# Grab the network config file
-. /etc/sysconfig/network
-
 # Grab cluster start config if it exists
 [ -f /etc/sysconfig/cluster ] && . /etc/sysconfig/cluster
 
@@ -83,14 +80,6 @@ stop_cluster()
 
 case $1 in
 	start)
-		#
-		# If we're not configured, then don't start anything.
-		#
-		if [ "${NETWORKING}" != "yes" ]; then
-			echo "Cannot start $ID: Networking not configured"
-			exit 1
-		fi
-
 		echo -n $"Starting $ID: "
 		daemon $RGMGRD $RGMGR_OPTS
 		ret=$?
