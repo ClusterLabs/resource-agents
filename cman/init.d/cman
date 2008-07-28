@@ -33,12 +33,11 @@
 #     startup quorum is needed by many other applications, so we may as 
 #     well wait here.  If CMAN_QUORUM_TIMEOUT is less than 1, quorum will 
 #     be ignored.
-#CMAN_QUORUM_TIMEOUT=300
 [ -z "$CMAN_QUORUM_TIMEOUT" ] && CMAN_QUORUM_TIMEOUT=0
 
 # CMAN_SHUTDOWN_TIMEOUT -- amount of time to wait for cman to become a 
 #     cluster member before calling cman_tool leave during shutdown.  
-#     default is 60 seconds
+#     The default is 60 seconds
 [ -z "$CMAN_SHUTDOWN_TIMEOUT" ] && CMAN_SHUTDOWN_TIMEOUT=60
 
 # FENCED_START_TIMEOUT -- amount of time to wait for starting fenced
@@ -57,6 +56,14 @@
 # NET_RMEM_MAX -- minimum value for rmem_max. If this is set
 # higher elsewhere it will not be reduced here.
 [ -z "$NET_RMEM_MAX" ] && NET_RMEM_MAX=4194304
+
+# FENCE_JOIN -- boolean value used to control whether or not this node
+#     should join the fence domain. If FENCE_JOIN is set to "no", then
+#     the script will not attempt to the fence domain. If FENCE_JOIN is
+#     set to "yes", then the script will attempt to join the fence domain.
+#     If FENCE_JOIN is set to any other value, the default behavior is
+#     to join the fence domain (equivalent to "yes").
+[ -z "$FENCE_JOIN" ] && FENCE_JOIN="yes"
 
 [ -z "$LOCK_FILE" ] && LOCK_FILE="/var/lock/subsys/cman"
 
@@ -231,6 +238,14 @@ xend_bridged_net_start() {
 fence_xvmd_enabled()
 {
     #
+    # Check the value of FENCE_JOIN.
+    # If FENCE_JOIN is set to "no", then we should disable fence_xvm.
+    #
+    if [ "$FENCE_JOIN" == "no" ]; then
+	return 1
+    fi
+
+    #
     # Check for the 'xm' binary.  If it's not here, we are not
     # running on a machine capable of running xvmd.
     #
@@ -272,6 +287,21 @@ set_networking_params()
     fi
 }
 
+fence_join_enabled()
+{
+    #
+    # Check the value of FENCE_JOIN.
+    # If FENCE_JOIN is set to "no", we will not attempt to join
+    # the fence domain. If FENCE_JOIN is set to any other value,
+    # we will attempt to join the fence domain (default).
+    #
+    if [ "$FENCE_JOIN" == "no" ]; then
+	return 1
+    else
+	return 0
+    fi
+}
+
 start()
 {
     echo "Starting cluster: "
@@ -289,6 +319,7 @@ start()
 			return 1
         fi
     fi
+
     echo -n "   Loading modules... "
     ulimit -c unlimited
     load_modules
@@ -299,6 +330,7 @@ start()
 	echo "failed"
 	return 1
     fi
+
     echo -n "   Mounting configfs... "
     start_configfs
     if [ $? -eq 0 ] 
@@ -308,6 +340,7 @@ start()
 	echo "failed"
 	return 1
     fi	
+
     echo -n "   Setting network parameters... "
     set_networking_params
     if [ $? -eq 0 ] 
@@ -317,6 +350,7 @@ start()
 	echo "failed"
 	return 1
     fi
+
     echo -n "   Starting ccsd... "
     start_ccsd
     if [ $? -eq 0 ] 
@@ -326,6 +360,7 @@ start()
 	echo "failed"
 	return 1
     fi
+
     echo -n "   Starting cman... "
     start_cman
     if [ $? -eq 0 ] 
@@ -347,16 +382,19 @@ start()
 	echo "failed"
 	return 1
     fi
-    echo -n "   Starting fencing... "
-    start_fence
-    if [ $? -eq 0 ] 
-    then
-	echo "done"
-    else
-	echo "failed"
-	return 1
+
+    if fence_join_enabled; then
+	echo -n "   Starting fencing... "
+	start_fence
+	if [ $? -eq 0 ] 
+	    then
+	    echo "done"
+	else
+	    echo "failed"
+	    return 1
+	fi
     fi
-    
+
     if fence_xvmd_enabled; then
 	echo -n "   Starting virtual machine fencing host... "
 	start_fence_xvmd
@@ -463,6 +501,7 @@ stop_fence_xvmd()
 stop()
 {
     echo "Stopping cluster: "
+
     if fence_xvmd_enabled; then
 	echo -n "   Stopping virtual machine fencing host... "
 	stop_fence_xvmd
@@ -473,16 +512,20 @@ stop()
 	    echo "failed"
 	    return 1
 	fi
-    fi        
-    echo -n "   Stopping fencing... "
-    stop_fence
-    if [ $? -eq 0 ]
-    then
-	echo "done"
-    else
-	echo "failed"
-	return 1
     fi
+
+    if fence_join_enabled; then
+	echo -n "   Stopping fencing... "
+	stop_fence
+	if [ $? -eq 0 ]
+	    then
+	    echo "done"
+	else
+	    echo "failed"
+	    return 1
+	fi
+    fi
+
     echo -n "   Stopping cman... "
     if [ $1 ]; then
 	stop_cman $1
@@ -496,8 +539,10 @@ stop()
 	echo "failed"
 	return 1
     fi
-#    stop_daemons
-#    [ $? -ne 0 ] && return 1
+
+#   stop_daemons
+#   [ $? -ne 0 ] && return 1
+
     echo -n "   Stopping ccsd... "
     stop_ccsd
     if [ $? -eq 0 ]
@@ -507,6 +552,7 @@ stop()
 	echo "failed"
 	return 1
     fi
+
     echo -n "   Unmounting configfs... "
     stop_configfs
     if [ $? -eq 0 ]
