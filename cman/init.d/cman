@@ -1,4 +1,4 @@
-#!/BIN/BAsh
+#!/bin/bash
 #
 # cman - Cluster Manager init script
 #
