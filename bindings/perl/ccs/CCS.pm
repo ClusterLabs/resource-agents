@@ -36,7 +36,7 @@ __END__
 
 =head1 NAME
 
-Cluster::CCS - Perl wrapper for the cluster configuration API
+Cluster::CCS - Perl wrapper for the Cluster Configuration Service library
 
 =head1 SYNOPSIS
 
