@@ -1,0 +1,14 @@
+TYPEMAP
+unsigned int *    T_PTROBJ
+char **           T_PTROBJ
+int *             T_PTROBJ
+char const *      T_PTROBJ
+struct sockaddr_in * T_sockaddr_in
+
+INPUT
+T_sockaddr_in
+    $var = ($type)SvPV($arg,na)
+
+OUTPUT
+T_sockaddr_in
+    sv_setpvn($arg, (char *)$var, sizeof(struct sockaddr_in));

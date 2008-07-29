@@ -387,6 +387,13 @@ if (! -d "$objdir/make") {
   symlinks("gnbd-kernel","*.h");
   symlinks("gfs-kernel","*.c");
   symlinks("gfs-kernel","*.h");
+  symlinks("bindings","*.pl");
+  symlinks("bindings","*.pm");
+  symlinks("bindings","*.xs");
+  symlinks("bindings","*.PL");
+  symlinks("bindings","MANIFEST");
+  symlinks("bindings","META.yml");
+  symlinks("bindings","typemap");
 } else {
   print "nothing to do\n";
 }
