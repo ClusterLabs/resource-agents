@@ -971,7 +971,7 @@ static void check_arguments(commandline_t *comline)
 		die("timeout is only appropriate with wait");
 }
 
-int main(int argc, char *argv[])
+int main(int argc, char *argv[], char *envp[])
 {
 	commandline_t comline;
 	int ret;
@@ -991,12 +991,12 @@ int main(int argc, char *argv[])
 			alarm(comline.timeout);
 		}
 
-		join(&comline);
+		join(&comline, envp);
 		if (comline.wait_opt || comline.wait_quorate_opt) {
 			do {
 				ret = cluster_wait(&comline);
 				if (ret == ENOTCONN)
-					join(&comline);
+					join(&comline, envp);
 
 			} while (ret == ENOTCONN);
 		}

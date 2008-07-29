@@ -265,10 +265,10 @@ static int init_config(struct objdb_iface_ver0 *objdb)
 	LDAP *ld;
 	int version, rc;
 
-	if (getenv("LDAP_URL"))
-		ldap_url = getenv("LDAP_URL");
-	if (getenv("LDAP_BASEDN"))
-		ldap_basedn = getenv("LDAP_BASEDN");
+	if (getenv("COROSYNC_LDAP_URL"))
+		ldap_url = getenv("COROSYNC_LDAP_URL");
+	if (getenv("COROSYNC_LDAP_BASEDN"))
+		ldap_basedn = getenv("COROSYNC_LDAP_BASEDN");
 
 	/* Connect to the LDAP server */
 	if (ldap_initialize(&ld, ldap_url)) {
@@ -281,7 +281,7 @@ static int init_config(struct objdb_iface_ver0 *objdb)
 	/*
 	 * CC: Do I need to use sasl ?!
 	 */
-	rc = ldap_simple_bind_s(ld, getenv("LDAP_BINDDN"), getenv("LDAP_BINDPWD"));
+	rc = ldap_simple_bind_s(ld, getenv("COROSYNC_LDAP_BINDDN"), getenv("COROSYNC_LDAP_BINDPWD"));
 	if (rc != LDAP_SUCCESS) {
 		sprintf(error_reason, "ldap_simple_bind failed: %s\n", ldap_err2string(rc));
 		return -1;

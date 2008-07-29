@@ -93,7 +93,7 @@ struct commandline
 };
 typedef struct commandline commandline_t;
 
-int join(commandline_t *comline);
+int join(commandline_t *comline, char *envp[]);
 char *cman_error(int err);
 
 #endif  /*  __CMAN_TOOL_DOT_H__  */

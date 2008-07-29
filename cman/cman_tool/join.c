@@ -5,8 +5,10 @@
 #include "libcman.h"
 #include "cman_tool.h"
 
-static char *argv[128];
-static char *envp[128];
+#define MAX_ARGS 128
+
+static char *argv[MAX_ARGS];
+static char *envp[MAX_ARGS];
 
 static void be_daemon(int close_stderr)
 {
@@ -37,7 +39,7 @@ static void be_daemon(int close_stderr)
 	setsid();
 }
 
-int join(commandline_t *comline)
+int join(commandline_t *comline, char *main_envp[])
 {
 	int i, err;
 	int envptr = 0;
@@ -105,8 +107,17 @@ int join(commandline_t *comline)
 		envp[envptr++] = strdup(scratch);
 	}
 
+	/* Copy any COROSYNC_* env variables to the new daemon */
+	i=0;
+	while (i < MAX_ARGS && main_envp[i]) {
+		if (strncmp(main_envp[i], "COROSYNC_", 9) == 0)
+			envp[envptr++] = main_envp[i];
+		i++;
+	}
+
+
 	/* Create a pipe to monitor cman startup progress */
-	if(pipe(p) < 0)
+	if (pipe(p) < 0)
 		die("unable to create pipe: %s", strerror(errno));
 	fcntl(p[1], F_SETFD, 0); /* Don't close on exec */
 	snprintf(scratch, sizeof(scratch), "CMAN_PIPE=%d", p[1]);

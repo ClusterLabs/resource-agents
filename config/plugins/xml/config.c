@@ -245,8 +245,8 @@ static int xml_readconfig(struct objdb_iface_ver0 *objdb, char **error_string)
 	/* We need to set this up to internal defaults too early */
 	openlog("openais", LOG_CONS|LOG_PID, SYSLOGFACILITY);
 
-	if(getenv("CLUSTER_CONFIG_FILE"))
-		configfile = getenv("CLUSTER_CONFIG_FILE");
+	if(getenv("COROSYNC_CLUSTER_CONFIG_FILE"))
+		configfile = getenv("COROSYNC_CLUSTER_CONFIG_FILE");
 
 	/* Read low-level totem/aisexec etc config from cluster.conf */
 	if ( !(ret = init_config(objdb, configfile, error_reason)) )
