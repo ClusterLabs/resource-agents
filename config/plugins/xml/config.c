@@ -13,10 +13,12 @@
 #include "logging.h"
 
 static int xml_readconfig(struct objdb_iface_ver0 *objdb, char **error_string);
-static int init_config(struct objdb_iface_ver0 *objdb, char *error_string);
+static int init_config(struct objdb_iface_ver0 *objdb, char *configfile, char *error_string);
 static char error_reason[1024];
 static int xmllistindex = 0;
 static char previous_query[PATH_MAX];
+
+#define DEFAULT_CONFIG DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE
 
 /*
  * Exports the interface for the service
@@ -237,16 +239,20 @@ static int read_config_for(xmlXPathContextPtr ctx, struct objdb_iface_ver0 *objd
 
 static int xml_readconfig(struct objdb_iface_ver0 *objdb, char **error_string)
 {
-	int ret;
+	int ret = 0;
+	char *configfile = DEFAULT_CONFIG;
 
 	/* We need to set this up to internal defaults too early */
 	openlog("openais", LOG_CONS|LOG_PID, SYSLOGFACILITY);
 
+	if(getenv("CLUSTER_CONFIG_FILE"))
+		configfile = getenv("CLUSTER_CONFIG_FILE");
+
 	/* Read low-level totem/aisexec etc config from cluster.conf */
-	if ( !(ret = init_config(objdb, error_reason)) )
-		sprintf (error_reason, "%s", "Successfully read config from " DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE "\n");
+	if ( !(ret = init_config(objdb, configfile, error_reason)) )
+		sprintf (error_reason, "Successfully read config from %s\n", configfile);
 	else
-		sprintf (error_reason, "%s", "Unable to read config from " DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE "\n");
+		sprintf (error_reason, "Unable to read config from %s\n", configfile);
 
         *error_string = error_reason;
 
@@ -254,7 +260,7 @@ static int xml_readconfig(struct objdb_iface_ver0 *objdb, char **error_string)
 }
 
 
-static int init_config(struct objdb_iface_ver0 *objdb, char *error_string)
+static int init_config(struct objdb_iface_ver0 *objdb, char *configfile, char *error_string)
 {
 	int err = 0;
 	xmlDocPtr doc = NULL;
@@ -262,7 +268,7 @@ static int init_config(struct objdb_iface_ver0 *objdb, char *error_string)
 
 	/* openfile */
 
-	doc = xmlParseFile(DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE);
+	doc = xmlParseFile(configfile);
 	if (!doc) {
 		err = -1;
 		goto fail;
