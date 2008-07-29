@@ -225,6 +225,7 @@ static void show_status(void)
 	if (cman_get_quorum_device(h, &qinfo) == 0 && qinfo.qi_state == 2)
 		printf("Quorum device votes: %d\n", qinfo.qi_votes);
 	printf("Total votes: %d\n", einfo->ei_total_votes);
+	printf("Node votes: %d\n", einfo->ei_node_votes);
 
 	printf("Quorum: %d %s\n", einfo->ei_quorum, quorate?" ":"Activity blocked");
 	printf("Active subsystems: %d\n", cman_get_subsys_count(h));
