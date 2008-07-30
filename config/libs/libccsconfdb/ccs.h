@@ -6,7 +6,7 @@
 #define __CCS_DOT_H__
 
 int ccs_connect(void);
-int ccs_force_connect(char const *cluster_name, int blocking);
+int ccs_force_connect(const char *cluster_name, int blocking);
 int ccs_disconnect(int desc);
 int ccs_get(int desc, const char *query, char **rtn);
 int ccs_get_list(int desc, const char *query, char **rtn);

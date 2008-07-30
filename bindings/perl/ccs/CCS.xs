@@ -23,7 +23,7 @@ connect(self)
 
 int
 force_connect(self, cluster_name, blocking)
-    char const *cluster_name;
+    const char *cluster_name;
     int blocking;
     CODE:
 	RETVAL = ccs_force_connect(cluster_name, blocking);
