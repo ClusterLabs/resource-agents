@@ -7,14 +7,11 @@
 
 #define LOCKFILE_NAME	"/var/run/gfs_controld.pid"
 #define CLIENT_NALLOC   32
-#define GROUP_LIBGROUP  2
-#define GROUP_LIBCPG    3
 
 static int client_maxi;
 static int client_size;
 static struct client *client;
 static struct pollfd *pollfd;
-static int group_mode;
 static pthread_t query_thread;
 static pthread_mutex_t query_mutex;
 
@@ -1056,13 +1053,10 @@ static void loop(void)
 		client_add(rv, process_groupd, cluster_dead);
 
 		group_mode = GROUP_LIBGROUP;
-
-		if (cfgd_groupd_compat == 2) {
-			/* set_group_mode(); */
-			/* might set group_mode to GROUP_LIBCPG */
-			group_mode = GROUP_LIBGROUP;
-		}
+		if (cfgd_groupd_compat == 2)
+			set_group_mode();
 	}
+	log_debug("group_mode %d compat %d", group_mode, cfgd_groupd_compat);
 
 	if (group_mode == GROUP_LIBCPG) {
 
@@ -1224,9 +1218,11 @@ static void print_usage(void)
 	printf("\n");
 	printf("  -D           Enable debugging code and don't fork\n");
 	printf("  -L <num>     Enable (1) or disable (0) debugging to logsys (default %d)\n", DEFAULT_DEBUG_LOGSYS);
-	printf("  -g <num>     groupd compatibility, 0 off, 1 on\n");
-	printf("               on: use libgroup, compat with cluster2/stable2/rhel5\n");
-	printf("               off: use libcpg, no backward compatability\n");
+	printf("  -g <num>     groupd compatibility mode, 0 off, 1 on, 2 detect\n");
+	printf("               0: use libcpg, no backward compat, best performance\n");
+	printf("               1: use libgroup for compat with cluster2/rhel5\n");
+	printf("               2: use groupd to detect old, or mode 1, nodes that\n"
+	       "               require compat, use libcpg if none found\n");
 	printf("               Default is %d\n", DEFAULT_GROUPD_COMPAT);
 	printf("  -w <num>     Enable (1) or disable (0) withdraw\n");
 	printf("               Default is %d\n", DEFAULT_ENABLE_WITHDRAW);
@@ -1440,4 +1436,5 @@ int plock_dump_len;
 int dmsetup_wait;
 cpg_handle_t libcpg_handle;
 int libcpg_flow_control_on;
+int group_mode;
 

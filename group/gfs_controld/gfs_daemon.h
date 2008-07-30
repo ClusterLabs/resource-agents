@@ -57,6 +57,11 @@
 
 #define MAXLINE         256
 
+/* group_mode */
+
+#define GROUP_LIBGROUP	2
+#define GROUP_LIBCPG	3
+
 extern int daemon_debug_opt;
 extern int daemon_quit;
 extern int poll_dlm;
@@ -76,6 +81,7 @@ extern int plock_dump_len;
 extern int dmsetup_wait;
 extern cpg_handle_t libcpg_handle;
 extern int libcpg_flow_control_on;
+extern int group_mode;
 
 void daemon_dump_save(void);
 
@@ -256,6 +262,7 @@ int set_node_info_group(struct mountgroup *mg, int nodeid,
 int set_mountgroups_group(int *count, struct gfsc_mountgroup **mgs_out);
 int set_mountgroup_nodes_group(struct mountgroup *mg, int option,
 	int *node_count, struct gfsc_node **nodes_out);
+void set_group_mode(void);
 
 /* main.c */
 int do_read(int fd, void *buf, size_t count);
