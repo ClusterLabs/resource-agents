@@ -21,7 +21,11 @@
 #
 if [ -f /etc/sysconfig/scsi_reserve ] ; then
     . /etc/sysconfig/scsi_reserve
+    echo "/etc/sysconfig/scsi_reserve has been deprecated in favour of /etc/sysconfig/cluster"
+    echo "Please consider switching to the new file"
 fi
+
+[ -f /etc/sysconfig/cluster ] && . /etc/sysconfig/cluster
 
 # check that cman is running
 #
