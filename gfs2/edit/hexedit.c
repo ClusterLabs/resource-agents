@@ -2237,15 +2237,129 @@ void gfs_log_header_print(struct gfs_log_header *lh)
 }
 
 /* ------------------------------------------------------------------------ */
+/* print_ld_blocks - print all blocks given in a log descriptor             */
+/* returns: the number of block numbers it printed                          */
+/* ------------------------------------------------------------------------ */
+int print_ld_blocks(const uint64_t *b, const char *end, int start_line)
+{
+	int bcount = 0, i = 0;
+	static char str[256];
+
+	while (*b && (char *)b < end) {
+		if (!termlines ||
+		    (print_entry_ndx >= start_row[dmode] &&
+		     ((print_entry_ndx - start_row[dmode])+1) *
+		     lines_per_row[dmode] <= termlines - start_line - 2)) {
+			if (i && i % 4 == 0) {
+				eol(0);
+				print_gfs2("                    ");
+			}
+			i++;
+			sprintf(str, "0x%llx",
+				(unsigned long long)be64_to_cpu(*b));
+			print_gfs2("%-18.18s ", str);
+			bcount++;
+		}
+		b++;
+		if (gfs1)
+			b++;
+	}
+	eol(0);
+	return bcount;
+}
+
+/* ------------------------------------------------------------------------ */
+/* fsck_readi - same as libgfs2's gfs2_readi, but sets absolute block #     */
+/*              of the first bit of data read.                              */
+/* ------------------------------------------------------------------------ */
+int fsck_readi(struct gfs2_inode *ip, void *buf, uint64_t offset,
+	       unsigned int size, uint64_t *abs_block)
+{
+	struct gfs2_sbd *sdp = ip->i_sbd;
+	struct gfs2_buffer_head *bh;
+	uint64_t lblock, dblock;
+	unsigned int o;
+	uint32_t extlen = 0;
+	unsigned int amount;
+	int not_new = 0;
+	int isdir = !!(S_ISDIR(ip->i_di.di_mode));
+	int copied = 0;
+
+	*abs_block = 0;
+	if (offset >= ip->i_di.di_size)
+		return 0;
+	if ((offset + size) > ip->i_di.di_size)
+		size = ip->i_di.di_size - offset;
+	if (!size)
+		return 0;
+	if (isdir) {
+		lblock = offset;
+		o = do_div(lblock, sdp->sd_jbsize);
+	} else {
+		lblock = offset >> sdp->sd_sb.sb_bsize_shift;
+		o = offset & (sdp->bsize - 1);
+	}
+
+	if (!ip->i_di.di_height) /* inode_is_stuffed */
+		o += sizeof(struct gfs2_dinode);
+	else if (isdir)
+		o += sizeof(struct gfs2_meta_header);
+
+	while (copied < size) {
+		amount = size - copied;
+		if (amount > sdp->bsize - o)
+			amount = sdp->bsize - o;
+		if (!extlen)
+			block_map(ip, lblock, &not_new, &dblock, &extlen,
+				  FALSE, not_updated);
+		if (dblock) {
+			bh = bread(sdp, dblock);
+			if (*abs_block == 0)
+				*abs_block = bh->b_blocknr;
+			dblock++;
+			extlen--;
+		} else
+			bh = NULL;
+		if (bh) {
+			memcpy(buf, bh->b_data + o, amount);
+			brelse(bh, not_updated);
+		} else {
+			memset(buf, 0, amount);
+		}
+		copied += amount;
+		lblock++;
+		o = (isdir) ? sizeof(struct gfs2_meta_header) : 0;
+	}
+	return copied;
+}
+
+void check_journal_wrap(uint64_t seq, uint64_t *highest_seq)
+{
+	if (seq < *highest_seq) {
+		print_gfs2("------------------------------------------------"
+			   "------------------------------------------------");
+		eol(0);
+		print_gfs2("Journal wrapped here.");
+		eol(0);
+		print_gfs2("------------------------------------------------"
+			   "------------------------------------------------");
+		eol(0);
+	}
+	*highest_seq = seq;
+}
+
+/* ------------------------------------------------------------------------ */
 /* dump_journal - dump a journal file's contents.                           */
 /* ------------------------------------------------------------------------ */
 void dump_journal(const char *journal)
 {
 	struct gfs2_buffer_head *j_bh = NULL;
-	uint64_t jblock, j_size, jb;
+	uint64_t jblock, j_size, jb, abs_block;
 	int error, start_line, journal_num;
 	char jbuf[sbd.bsize];
 	struct gfs2_inode *j_inode = NULL;
+	int ld_blocks = 0;
+	uint64_t highest_seq = 0;
 
 	start_line = line;
 	lines_per_row[dmode] = 1;
@@ -2266,17 +2380,18 @@ void dump_journal(const char *journal)
 			if (j_bh)
 				brelse(j_bh, not_updated);
 			j_bh = bread(&sbd, jblock + jb);
+			abs_block = jblock + jb;
 			memcpy(jbuf, j_bh->b_data, sbd.bsize);
 		} else {
-			error = gfs2_readi(j_inode, (void *)&jbuf, jb,
-					   sbd.bsize);
+			error = fsck_readi(j_inode, (void *)&jbuf, jb,
+					   sbd.bsize, &abs_block);
 			if (!error) /* end of file */
 				break;
 		}
 		if (get_block_type(jbuf) == GFS2_METATYPE_LD) {
 			uint64_t *b;
 			struct gfs2_log_descriptor ld;
-			int i = 0, ltndx;
+			int ltndx;
 			uint32_t logtypes[2][6] = {
 				{GFS2_LOG_DESC_METADATA,
 				 GFS2_LOG_DESC_REVOKE,
@@ -2294,8 +2409,8 @@ void dump_journal(const char *journal)
 				{"Metadata", "Unlinked inode", "Dealloc inode",
 				 "Quota", "Final Entry", "Unknown"}};
 
-			print_gfs2("Block #%4llx: Log descriptor, ",
-				   jb / (gfs1 ? 1 : sbd.bsize));
+			print_gfs2("0x%llx (j+%4llx): Log descriptor, ",
+				   abs_block, jb / (gfs1 ? 1 : sbd.bsize));
 			gfs2_log_descriptor_in(&ld, jbuf);
 			print_gfs2("type %d ", ld.ld_type);
 
@@ -2308,50 +2423,50 @@ void dump_journal(const char *journal)
 			print_gfs2("len:%u, data1: %u",
 				   ld.ld_length, ld.ld_data1);
 			eol(0);
-			print_gfs2("             ");
+			print_gfs2("                    ");
 			if (gfs1)
 				b = (uint64_t *)(jbuf +
 					sizeof(struct gfs_log_descriptor));
 			else
 				b = (uint64_t *)(jbuf +
 					sizeof(struct gfs2_log_descriptor));
-			while (*b && (char *)b < (jbuf + sbd.bsize)) {
-				if (!termlines ||
-				    (print_entry_ndx >= start_row[dmode] &&
-				     ((print_entry_ndx - start_row[dmode])+1) *
-				     lines_per_row[dmode] <= termlines - start_line - 2)) {
-					if (i && i % 4 == 0) {
-						eol(0);
-						print_gfs2("             ");
-					}
-					i++;
-					print_gfs2("0x%08llx   ", be64_to_cpu(*b));
-				}
-				b++;
-				if (gfs1)
-					b++;
-			}
-			eol(0);
+			ld_blocks = ld.ld_data1;
+			ld_blocks -= print_ld_blocks(b, (jbuf + sbd.bsize),
+						     start_line);
 		} else if (get_block_type(jbuf) == GFS2_METATYPE_LH) {
 			struct gfs2_log_header lh;
 			struct gfs_log_header lh1;
 
 			if (gfs1) {
 				gfs_log_header_in(&lh1, jbuf);
-				print_gfs2("Block #%4llx: Log header: Flags = "
-					   "%08x, Seq = 0x%x, first = 0x%x "
-					   "tail = 0x%x, last = 0x%x",
+				check_journal_wrap(lh1.lh_sequence,
+						   &highest_seq);
+				print_gfs2("0x%llx (j+%4llx): Log header: "
+					   "Flags:%x, Seq: 0x%x, "
+					   "1st: 0x%x, tail: 0x%x, "
+					   "last: 0x%x", abs_block,
 					   jb, lh1.lh_flags, lh1.lh_sequence,
 					   lh1.lh_first, lh1.lh_tail,
 					   lh1.lh_last_dump);
 			} else {
 				gfs2_log_header_in(&lh, jbuf);
-				print_gfs2("Block #%4llx: Log header: Seq"
-					   "= 0x%x, tail = 0x%x, blk = 0x%x",
+				check_journal_wrap(lh.lh_sequence,
+						   &highest_seq);
+				print_gfs2("0x%llx (j+%4llx): Log header: Seq"
+					   ": 0x%x, tail: 0x%x, blk: 0x%x",
+					   abs_block,
 					   jb / sbd.bsize, lh.lh_sequence,
 					   lh.lh_tail, lh.lh_blkno);
 			}
 			eol(0);
+		} else if (gfs1 && ld_blocks > 0) {
+			print_gfs2("0x%llx (j+%4llx): GFS log descriptor"
+				   " continuation block", abs_block, jb);
+			eol(0);
+			print_gfs2("                    ");
+			ld_blocks -= print_ld_blocks((uint64_t *)jbuf,
+						     (jbuf + sbd.bsize),
+						     start_line);
 		}
 	}
 	brelse(j_bh, not_updated);
