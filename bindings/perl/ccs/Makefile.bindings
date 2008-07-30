@@ -1,0 +1,11 @@
+include ../../../make/defines.mk
+
+PMTARGET = CCS.pm
+
+TARGET = $(PMTARGET)
+
+CFLAGS=-I${ccsincdir}
+
+LDFLAGS=-L${ccslibdir} -lccs
+
+include $(OBJDIR)/make/perl-binding-common.mk

@@ -18,7 +18,7 @@ our %EXPORT_TAGS = ( 'all' => [qw(
 );
 @EXPORT_OK = (@{$EXPORT_TAGS{'all'}});
 
-our $VERSION = '0.01';
+our $VERSION = '@VERSION@';
 
 require XSLoader;
 XSLoader::load('Cluster::CCS', $VERSION);
