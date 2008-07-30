@@ -60,6 +60,11 @@
 
 #define MAXLINE		256
 
+/* group_mode */
+
+#define GROUP_LIBGROUP	2
+#define GROUP_LIBCPG	3
+
 extern int daemon_debug_opt;
 extern int daemon_quit;
 extern int poll_fencing;
@@ -77,6 +82,7 @@ extern int dump_point;
 extern int dump_wrap;
 extern char plock_dump_buf[DLMC_DUMP_SIZE];
 extern int plock_dump_len;
+extern int group_mode;
 
 void daemon_dump_save(void);
 
@@ -292,6 +298,7 @@ int set_lockspace_info_group(struct lockspace *ls,
 int set_lockspaces_group(int *count, struct dlmc_lockspace **lss_out);
 int set_lockspace_nodes_group(struct lockspace *ls, int option, int *node_count,
 			struct dlmc_node **nodes);
+void set_group_mode(void);
 
 /* logging.c */
 

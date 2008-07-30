@@ -10,14 +10,11 @@
 
 #define LOCKFILE_NAME	"/var/run/dlm_controld.pid"
 #define CLIENT_NALLOC	32
-#define GROUP_LIBGROUP	2
-#define GROUP_LIBCPG	3
 
 static int client_maxi;
 static int client_size = 0;
 static struct client *client = NULL;
 static struct pollfd *pollfd = NULL;
-static int group_mode;
 static pthread_t query_thread;
 static pthread_mutex_t query_mutex;
 
@@ -842,32 +839,10 @@ static void loop(void)
 		client_add(rv, process_groupd, cluster_dead);
 
 		group_mode = GROUP_LIBGROUP;
-
-		if (cfgd_groupd_compat == 2) {
-			/* cfgd_groupd_compat of 2 uses new groupd feature that
-			   figures out whether all other groupd's in the cluster
-			   are in LIGCPG mode, and if they are group_mode is
-			   changed to LIBCPG.  If any groupd in the cluster
-			   is from cluster2/stable2/rhel5, or any groupd is
-			   in LIBGROUP mode, then group_mode remains LIBGROUP.
-
-			   set_group_mode() figures this out by joining the
-			   groupd cpg, sending a new "mode" message, and
-			   waiting to see if it gets a mode reply from
-			   all other groupd's.  If it does, and all modes
-			   are LIGCPG, then we set groupd_mode to LIBCPG.
-			   Any previous generation groupd's won't recognize
-			   the new mode message and won't reply; their lack
-			   of reply (or seeing an old-style message from them)
-			   indicates they are a cluster2 version.
-
-			   Not yet implemented.  In the future, it may set
-			   group_mode to GROUP_LIBCPG. */
-
-			/* set_group_mode(); */
-			group_mode = GROUP_LIBGROUP;
-		}
+		if (cfgd_groupd_compat == 2)
+			set_group_mode();
 	}
+	log_debug("group_mode %d compat %d", group_mode, cfgd_groupd_compat);
 
 	if (group_mode == GROUP_LIBCPG) {
 		rv = setup_cpg();
@@ -1004,9 +979,11 @@ static void print_usage(void)
 	printf("  -D		Enable daemon debugging and don't fork\n");
 	printf("  -L <num>	Enable (1) or disable (0) debugging to logsys (default %d)\n", DEFAULT_DEBUG_LOGSYS);
 	printf("  -K		Enable kernel dlm debugging messages\n");
-	printf("  -g <num>	groupd compatibility, 0 off, 1 on\n");
-	printf("		on: use libgroup, compat with cluster2/stable2/rhel5\n");
-	printf("		off: use libcpg, no backward compatability\n");
+	printf("  -g <num>	groupd compatibility mode, 0 off, 1 on, 2 detect\n");
+	printf("		0: use libcpg, no backward compat, best performance\n");
+	printf("		1: use libgroup for compat with cluster2/rhel5\n");
+	printf("		2: use groupd to detect old, or mode 1, nodes that\n"
+	       "		require compat, use libcpg if none found\n");
 	printf("		Default is %d\n", DEFAULT_GROUPD_COMPAT);
 	printf("  -f <num>	Enable (1) or disable (0) fencing recovery dependency\n");
 	printf("		Default is %d\n", DEFAULT_ENABLE_FENCING);
@@ -1240,4 +1217,5 @@ int dump_point;
 int dump_wrap;
 char plock_dump_buf[DLMC_DUMP_SIZE];
 int plock_dump_len;
+int group_mode;
 
