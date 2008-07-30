@@ -500,7 +500,6 @@ int group_get_group(int level, const char *name, group_data_t *data)
 int group_get_version(int *version)
 {
 	char buf[GROUPD_MSGLEN];
-	char data_buf[sizeof(int)];
 	int fd, rv;
 
 	fd = connect_groupd();

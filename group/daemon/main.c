@@ -627,7 +627,10 @@ static int do_get_version(int ci)
 	int mode;
 	int rv;
 
-	mode = group_mode;
+	if (group_mode == GROUP_PENDING)
+		mode = -EAGAIN;
+	else
+		mode = group_mode;
 
 	rv = do_write(client[ci].fd, &mode, sizeof(mode));
 	if (rv < 0)
@@ -974,13 +977,16 @@ static void print_usage(void)
 	printf("  -L <num>     Enable (1) or disable (0) debugging to logsys (default %d)\n", DEFAULT_DEBUG_LOGSYS);
 	printf("  -g <num>     group compatibility mode, 0 off, 1 on, 2 detect\n");
 	printf("               0: use libcpg, no backward compat, best performance\n");
-	printf("               1: use libgroup for compat with cluster2/stable2/rhel5\n");
-	printf("               2: detect old, or mode 0, nodes that require compat, use libcpg if none found\n");
+	printf("               1: use libgroup for compat with cluster2/rhel5\n");
+	printf("               2: detect old, or mode 1, nodes that require compat,\n"
+	       "               use libcpg if none found\n");
 	printf("               Default is %d\n", DEFAULT_GROUPD_COMPAT);
-	printf("  -w <secs>    seconds to wait for a node's version message before assuming an old version requiring compat mode\n");
-	printf("               Default is %d", DEFAULT_GROUPD_WAIT);
-	printf("  -d <secs>    seconds to delay the mode selection to give time for an old version to join and force compat mode\n");
-	printf("               Default is %d", DEFAULT_GROUPD_MODE_DELAY);
+	printf("  -w <secs>    seconds to wait for a node's version message before\n"
+	       "               assuming an old version requiring compat mode\n");
+	printf("               Default is %d\n", DEFAULT_GROUPD_WAIT);
+	printf("  -d <secs>    seconds to delay the mode selection to give time\n"
+	       "               for an old version to join and force compat mode\n");
+	printf("               Default is %d\n", DEFAULT_GROUPD_MODE_DELAY);
 	printf("  -h	       Print this help, then exit\n");
 	printf("  -V	       Print program version information, then exit\n");
 }
