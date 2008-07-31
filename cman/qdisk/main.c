@@ -444,7 +444,7 @@ master_exists(qd_ctx *ctx, node_info_t *ni, int max, int *low_id, int *count)
 static int
 quorum_init(qd_ctx *ctx, node_info_t *ni, int max, struct h_data *h, int maxh)
 {
-	int x = 0, score, maxscore, score_req;
+	int x = 0, score, maxscore, score_req = 0;
 
 	log_printf(LOG_INFO, "Quorum Daemon Initializing\n");
 	
