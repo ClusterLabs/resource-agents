@@ -88,7 +88,7 @@ Cluster::CCS - Perl wrapper for the Cluster Configuration Service library
   This has to be set before connect() or force_connect.
   In order to change this value, a disconnect operation is required.
 
-=head2 connect()
+=head2 connect(void)
 
   Initialize the connection to libccs/libconfdb/corosync objdb.
   Returns 1 on success or negative on failure.
