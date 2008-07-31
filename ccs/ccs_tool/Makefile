@@ -29,12 +29,13 @@ CFLAGS += -I${incdir}
 LDFLAGS += -L${cmanlibdir} -lcman
 ifdef legacy_code
 LDFLAGS += -L../libccscompat -lccscompat
+LDDEPS += ../libccscompat/libccscompat.a
 else
 LDFLAGS += -L${ccslibdir} -lccs
 endif
 LDFLAGS += `xml2-config --libs` -L${libdir}
 
-${TARGET1}: ${OBJS}
+${TARGET1}: ${OBJS} ${LDDEPS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 ${TARGET2}: ${TARGET1}
@@ -46,7 +47,5 @@ depends:
 endif
 
 clean: generalclean
-
-.PHONY: all ${TARGET1}
 
 -include $(OBJS:.o=.d)

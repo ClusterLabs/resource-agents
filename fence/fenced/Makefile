@@ -28,7 +28,9 @@ LDFLAGS += -L${fencelibdir} -lfence
 LDFLAGS += -L${openaislibdir} -lcpg -llogsys -lpthread
 LDFLAGS += -L../../group/lib -l group
 
-${TARGET}: ${OBJS}
+LDDEPS += ../../group/lib/libgroup.a
+
+${TARGET}: ${OBJS} ${LDDEPS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 depends:

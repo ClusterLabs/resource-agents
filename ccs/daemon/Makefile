@@ -25,12 +25,9 @@ LDFLAGS += -L${cmanlibdir} -lcman
 LDFLAGS += -L${openaislibdir} -llogsys
 LDFLAGS += -L${libdir} `xml2-config --libs` -lpthread
 
-
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 clean: generalclean
-
-.PHONY: all ${TARGET}
 
 -include $(OBJS:.o=.d)

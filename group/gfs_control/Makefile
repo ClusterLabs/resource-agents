@@ -17,7 +17,9 @@ CFLAGS += -I${incdir}
 
 LDFLAGS += -L../libgfscontrol -lgfscontrol
 
-${TARGET}: ${OBJS}
+LDDEPS += ../libgfscontrol/libgfscontrol.a
+
+${TARGET}: ${OBJS} ${LDDEPS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 clean: generalclean

@@ -69,13 +69,16 @@ EXTRA_LDFLAGS += -lpthread
 LOCAL_LDFLAGS += -llalloc
 READLINE_LDFLAGS += -L${readlinelibdir} -lreadline
 
+LDDEPS += ../clulib/libclulib.a
 
-${TARGET1}: ${OBJS1}
+LOCAL_LDDEPS += ../clulib/liblalloc.a
+
+${TARGET1}: ${OBJS1} ${LDDEPS}
 	$(CC) -o $@ $^ $(LDFLAGS) $(CCS_LDFLAGS) $(CMAN_LDFLAGS) \
 			$(DLM_LDFLAGS) $(XML2_LDFLAGS) \
 			$(SLANG_LDFLAGS) $(EXTRA_LDFLAGS)
 
-${TARGET2}: ${OBJS2}
+${TARGET2}: ${OBJS2} ${LDDEPS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 #
@@ -92,11 +95,11 @@ ${TARGET2}: ${OBJS2}
 # This is NOT meant to be an installed binary.  Rather, RPMs and/or other
 # packages should run 'make check' as part of the build process.
 #
-${TARGET3}: ${SHAREDOBJS} ${OBJS3}
+${TARGET3}: ${SHAREDOBJS} ${OBJS3} ${LDDEPS} ${LOCAL_LDDEPS}
 	$(CC) -o $@ $^ $(LDFLAGS) $(CMAN_LDFLAGS) \
 			$(LOCAL_LDFLAGS) $(EXTRA_LDFLAGS) $(XML2_LDFLAGS)
 
-${TARGET4}: ${SHAREDOBJS} ${OBJS4}
+${TARGET4}: ${SHAREDOBJS} ${OBJS4} ${LDDEPS} ${LOCAL_LDDEPS}
 	$(CC) -o $@ $^ $(LDFLAGS) $(CCS_LDFLAGS) $(CMAN_LDFLAGS) \
 			$(LOCAL_LDFLAGS) $(EXTRA_LDFLAGS) $(XML2_LDFLAGS) \
 			$(READLINE_LDFLAGS)
@@ -109,8 +112,6 @@ depends:
 
 clean: generalclean
 	rm -f tests/*.out*
-
-.PHONY: all ${TARGET1} ${TARGET2} ${TARGET3} ${TARGET4}
 
 -include $(OBJS1:.o=.d)
 -include $(OBJS2:.o=.d)

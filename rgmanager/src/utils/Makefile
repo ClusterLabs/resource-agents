@@ -25,6 +25,8 @@ CFLAGS += -I${incdir}
 LDFLAGS += -L${libdir}
 LDFLAGS += -L../clulib -lclulib
 
+LDDEPS += ../clulib/libclulib.a
+
 CCS_LDFLAGS += -L${ccslibdir} -lccs
 CMAN_LDFLAGS += -L${cmanlibdir} -lcman
 NCURSES_LDFLAGS += -L${ncurseslibdir} -lncurses
@@ -36,20 +38,20 @@ OBJS3=	$(TARGET3).o
 OBJS4=	$(TARGET4).o
 OBJS5=	$(TARGET5).o
 
-${TARGET1}: ${OBJS1}
+${TARGET1}: ${OBJS1} ${LDDEPS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-${TARGET2}: ${OBJS2}
+${TARGET2}: ${OBJS2} ${LDDEPS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-${TARGET3}: ${OBJS3}
+${TARGET3}: ${OBJS3} ${LDDEPS}
 	$(CC) -o $@ $^ $(LDFLAGS) $(CCS_LDFLAGS) $(CMAN_LDFLAGS) \
 			$(NCURSES_LDFLAGS) $(PTHREAD_LDFLAGS)
 
-${TARGET4}: ${OBJS4}
+${TARGET4}: ${OBJS4} ${LDDEPS}
 	$(CC) -o $@ $^ $(LDFLAGS) $(CMAN_LDFLAGS) $(PTHREAD_LDFLAGS)
 
-${TARGET5}: ${OBJS5}
+${TARGET5}: ${OBJS5} ${LDDEPS}
 	$(CC) -o $@ $^ $(LDFLAGS) $(CCS_LDFLAGS)
 
 ${TARGET6}:
@@ -60,8 +62,6 @@ depends:
 	$(MAKE) -C ../clulib all
 
 clean: generalclean
-
-.PHONY: all ${TARGET1} ${TARGET2} ${TARGET3} ${TARGET4} ${TARGET5} ${TARGET6}
 
 -include $(OBJS1:.o=.d)
 -include $(OBJS2:.o=.d)

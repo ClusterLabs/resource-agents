@@ -19,15 +19,14 @@ CFLAGS += -I${incdir}
 
 LDFLAGS += -L../libgfs2 -lgfs2
 
+LDDEPS += ../libgfs2/libgfs2.a
 
-${TARGET}: ${OBJS}
+${TARGET}: ${OBJS} ${LDDEPS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 depends:
 	$(MAKE) -C ../libgfs2 all
 
 clean: generalclean
-
-.PHONY: all ${TARGET}
 
 -include $(OBJS:.o=.d)

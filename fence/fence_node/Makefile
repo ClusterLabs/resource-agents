@@ -22,7 +22,9 @@ LDFLAGS += -L${ccslibdir} -L${fencelibdir} -lccs -lfence
 LDFLAGS += -L${openaislibdir} -llogsys
 LDFLAGS += -L../libfenced -lfenced
 
-${TARGET}: ${OBJS}
+LDDEPS += ../libfenced/libfenced.a
+
+${TARGET}: ${OBJS} ${LDDEPS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 depends:

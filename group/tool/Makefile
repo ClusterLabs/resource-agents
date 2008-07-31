@@ -19,17 +19,19 @@ CFLAGS += -I$(S)/../libgfscontrol
 CFLAGS += -I${incdir}
 CFLAGS += -I${KERNEL_SRC}/include/
 
-LDFLAGS += -L../lib -lgroup
 LDFLAGS += -L${dlmcontrollibdir} -ldlmcontrol
+LDFLAGS += -L../lib -lgroup
 LDFLAGS += -L../../fence/libfenced -lfenced
 LDFLAGS += -L../libgfscontrol -lgfscontrol
 
-${TARGET}: ${OBJS}
+LDDEPS += ../lib/libgroup.a
+LDDEPS += ../libgfscontrol/libgfscontrol.a
+LDDEPS += ../../fence/libfenced/libfenced.a
+
+${TARGET}: ${OBJS} ${LDDEPS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 depends:
 	$(MAKE) -C ../lib all
 
 clean: generalclean
-
-.PHONY: all ${TARGET}

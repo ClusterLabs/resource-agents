@@ -27,8 +27,9 @@ CFLAGS += -I${incdir}
 LDFLAGS += -L${volidlibdir} -lvolume_id
 LDFLAGS += -L../libgfs -lgfs
 
+LDDEPS += ../libgfs/libgfs.a
 
-${TARGET1}: ${OBJS}
+${TARGET1}: ${OBJS} ${LDDEPS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 ${TARGET2}: ${TARGET1}
@@ -38,7 +39,5 @@ depends:
 	$(MAKE) -C ../libgfs all
 
 clean: generalclean
-
-.PHONY: all ${TARGET1}
 
 -include $(OBJS:.o=.d)

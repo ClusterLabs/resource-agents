@@ -24,6 +24,4 @@ ${TARGET}: ${OBJS}
 
 clean: generalclean
 
-.PHONY: all ${TARGET}
-
 -include $(OBJS:.o=.d)

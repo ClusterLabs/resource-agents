@@ -38,11 +38,12 @@ CFLAGS += -I${incdir}
 
 LDFLAGS += -L../libgfs2 -lgfs2
 
+LDDEPS += ../libgfs2/libgfs2.a
 
-${TARGET1}: $(OBJS)
+${TARGET1}: $(OBJS) ../libgfs2/libgfs2.a
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-${TARGET2}: ${TARGET1}
+${TARGET2}: ${TARGET1} ${LDDEPS}
 	ln -fs ${TARGET1} ${TARGET2}	
 
 depends:
@@ -63,5 +64,3 @@ ${TARGET1}.pot: $(OBJS:.o=.c)
 	 --keyword=log_debug --keyword=log_err --keyword=log_print -d - $(OBJS:.o=.c) > ${TARGET1}.pot	
 
 -include $(OBJS:.o=.d)
-
-.PHONY: all ${TARGET1}

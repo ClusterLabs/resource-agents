@@ -34,14 +34,15 @@ LDFLAGS += -L${openaislibdir} -lcpg -lSaCkpt -llogsys -lpthread
 LDFLAGS += -L../../fence/libfenced/ -lfenced
 LDFLAGS += -L../lib -lgroup
 
-${TARGET}: ${OBJS}
+LDDEPS += ../lib/libgroup.a
+LDDEPS += ../../fence/libfenced/libfenced.a
+
+${TARGET}: ${OBJS} ${LDDEPS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 depends:
 	$(MAKE) -C ../lib all
 
 clean: generalclean
-
-.PHONY: all ${TARGET}
 
 -include $(OBJS:.o=.d)

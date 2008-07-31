@@ -20,7 +20,9 @@ CFLAGS += -I${incdir}
 
 LDFLAGS += -L../../group/libgfscontrol -lgfscontrol
 
-${TARGET1}: ${OBJS1}
+LDDEPS += ../../group/libgfscontrol/libgfscontrol.a
+
+${TARGET1}: ${OBJS1} ${LDDEPS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 install: all

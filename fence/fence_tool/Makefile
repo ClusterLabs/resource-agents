@@ -20,7 +20,9 @@ CFLAGS += -I${incdir}
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
 LDFLAGS += -L../libfenced -lfenced
 
-${TARGET}: ${OBJS}
+LDDEPS += ../libfenced/libfenced.a
+
+${TARGET}: ${OBJS} ${LDDEPS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 depends:

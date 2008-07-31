@@ -17,9 +17,11 @@ CFLAGS += -I${incdir}
 
 LDFLAGS += -L../libccscompat -lccscompat
 
+LDDEPS += ../libccscompat/libccscompat.a
+
 OBJS=	config.o
 
-${TARGET}: ${OBJS}
+${TARGET}: ${OBJS} ${LDDEPS}
 	$(CC) -shared -Wl,-soname,$@ -o $@ $^ $(LDFLAGS)
 
 depends:
