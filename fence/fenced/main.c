@@ -316,17 +316,22 @@ static void query_dump_debug(int f)
 	do_write(f, dump_buf, len);
 }
 
-static void query_node_info(int f, int nodeid)
+static void query_node_info(int f, int data_nodeid)
 {
 	struct fd *fd;
 	struct fenced_node node;
-	int rv;
+	int nodeid, rv;
 
 	fd = find_fd("default");
 	if (!fd) {
 		rv = -ENOENT;
 		goto out;
 	}
+
+	if (data_nodeid == FENCED_NODEID_US)
+		nodeid = our_nodeid;
+	else
+		nodeid = data_nodeid;
 
 	if (group_mode == GROUP_LIBGROUP)
 		rv = set_node_info_group(fd, nodeid, &node);

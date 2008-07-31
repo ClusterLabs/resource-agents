@@ -3,6 +3,9 @@
 
 #define FENCED_DUMP_SIZE (1024 * 1024)
 
+/* for querying local node info */
+#define FENCED_NODEID_US 0
+
 struct fenced_node {
 	int nodeid;
 	int member;
