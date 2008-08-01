@@ -18,6 +18,6 @@ depends:
 %: %.o
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-install: all
+install:
 
 clean: generalclean

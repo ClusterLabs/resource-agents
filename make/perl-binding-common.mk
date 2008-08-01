@@ -19,7 +19,7 @@ all: $(TARGET)
 Makefile: META.yml $(PMTARGET)
 	perl Makefile.PL INC='$(CFLAGS)' LIBS='$(LDFLAGS)' INSTALLDIRS=vendor
 
-install: $(TARGET)
+install:
 	${MAKE} -f Makefile install
 
 uninstall:

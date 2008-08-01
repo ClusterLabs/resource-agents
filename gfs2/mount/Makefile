@@ -25,7 +25,7 @@ LDDEPS += ../../group/libgfscontrol/libgfscontrol.a
 ${TARGET1}: ${OBJS1} ${LDDEPS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-install: all
+install:
 	mkdir -p ${DESTDIR}/sbin
 	install ${TARGET1} ${DESTDIR}/sbin
 

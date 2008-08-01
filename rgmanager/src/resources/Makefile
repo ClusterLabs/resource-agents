@@ -30,7 +30,7 @@ $(TARGET):
 		-e 's#@CONFFILE@#${CONFFILE}#g' \
 	> $(TARGET)
 
-install: all
+install:
 	install -d ${sharedir}/utils
 	for i in $(RESOURCES); do \
 	 install -m755 $(S)/$$i ${sharedir}; \

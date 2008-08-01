@@ -1,4 +1,4 @@
-install: all
+install:
 ifdef LIBDIRT
 	install -d ${libdir}
 	install -m644 ${LIBDIRT} ${libdir}

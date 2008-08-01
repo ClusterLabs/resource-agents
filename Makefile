@@ -52,7 +52,7 @@ oldconfig:
 		echo "No old configure data found"; \
 	fi
 
-install: all
+install:
 	set -e && for i in ${SUBDIRS}; do ${MAKE} -C $$i $@; done
 
 uninstall:
