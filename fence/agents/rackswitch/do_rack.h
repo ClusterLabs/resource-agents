@@ -11,10 +11,6 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
-#include <linux/net.h>
-#include <linux/fs.h>
-#include <linux/socket.h>
-/*#include <linux/in.h>*/
 #include <arpa/inet.h>
 
 #include <signal.h>
