@@ -167,7 +167,10 @@ static int cman_exec_init_fn(struct objdb_iface_ver0 *objdb)
 	P_DAEMON(CMAN_NAME " starting");
 
 	/* Open local sockets and initialise I/O queues */
-	read_cman_config(objdb, &config_version);
+	if (read_cman_config(objdb, &config_version)) {
+		/* An error message will have been written to cman_pipe */
+		exit(9);
+	}
 	cman_init();
 
 	/* Let cman_tool know we are running and our PID */
