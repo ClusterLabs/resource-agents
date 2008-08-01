@@ -90,6 +90,17 @@ meta_data()
 	    <content type="boolean"/>
 	</parameter>
 
+	<parameter name="sleeptime">
+	    <longdesc lang="en">
+		Amount of time to sleep after removing an IP address.
+		Value is specified in seconds. Default value is 10.
+	    </longdesc>
+	    <shortdesc lang="en">
+		Amount of time (seconds) to sleep.
+	    </shortdesc>
+	    <content type="string"/>
+	</parameter>
+
     </parameters>
 
     <actions>
@@ -896,7 +907,13 @@ stop)
 
 		# XXX Let nfsd/lockd clear their queues; we hope to have a
 		# way to enforce this in the future
-		sleep 10
+		if [ -z "$OCF_RESKEY_sleeptime" ]; then
+		    sleep 10
+		else
+		    if [ "$OCF_RESKEY_sleeptime" -gt "0" ]; then
+			sleep $OCF_RESKEY_sleeptime
+		    fi
+		fi
 	else
 		ocf_log debug "${OCF_RESKEY_address} is not configured"
 	fi
