@@ -149,10 +149,10 @@ END
 
 Xen_Status() {
   STATUS=`xm list --long $1 2>/dev/null | grep status 2>/dev/null`
-  if [ "X${STATUS}" != "X" ];then
+  if [ "X${STATUS}" != "X" ]; then
     # we have Xen 3.0.4 or higher
     STATUS_NOSPACES=`echo "$STATUS" | awk '{ print $1,$2}'`
-    if [ "$STATUS_NOSPACES" = "(status 2)" -o "$STATUS_NOSPACES" = "(status 1)" ] ; then
+    if [ "$STATUS_NOSPACES" = "(status 2)" -o "$STATUS_NOSPACES" = "(status 1)" ]; then
       return $OCF_SUCCESS
     else 
       return $OCF_NOT_RUNNING
@@ -161,7 +161,7 @@ Xen_Status() {
     # we have Xen 3.0.3 or lower
     STATUS=`xm list --long $1 2>/dev/null | grep state 2>/dev/null`
     echo "${STATUS}" | grep -qs "[-r][-b][-p]---"
-    if [ $? -ne 0 ];then
+    if [ $? -ne 0 ]; then
       return $OCF_NOT_RUNNING
     else
       return $OCF_SUCCESS
@@ -171,19 +171,19 @@ Xen_Status() {
 }
 
 Xen_Adjust_Memory() {
-    if [ "${OCF_RESKEY_allow_mem_management}" != 0 ];then
+    if [ "${OCF_RESKEY_allow_mem_management}" != 0 ]; then
       CNTNEW=$1
       RUNNING=`Xen_List_running`
       RUNCNT=`Xen_Count_running`
       MAXMEM=`Xen_Total_Memory`
-      if [ ${RUNCNT} -eq 0 -a ${CNTNEW} -eq 0 ];then
+      if [ ${RUNCNT} -eq 0 -a ${CNTNEW} -eq 0 ]; then
 	RUNCNT=1
       fi
       #NEWMEM=`echo "(${MAXMEM}-${OCF_RESKEY_reserved_Dom0_memory})/(${RUNCNT}+${CNTNEW})"|bc`
       NEWMEM=$(( (${MAXMEM} - ${OCF_RESKEY_reserved_Dom0_memory}) / (${RUNCNT} + ${CNTNEW} ) ))
       # do not rely on ballooning add dom0_mem=512 instead to force memory for dom0
       #xm mem-set Domain-0 ${OCF_RESKEY_reserved_Dom0_memory}
-      for DOM in ${RUNNING};do
+      for DOM in ${RUNNING}; do
         xm mem-set ${DOM} ${NEWMEM} 
       done
       ocf_log info "Adjusted memory to: $NEWMEM, for the following $RUNCNT domains: $RUNNING"
@@ -195,8 +195,8 @@ Xen_List_all() {
 }
 Xen_List_running() {
 	ALL_DOMS=`Xen_List_all`
-	for DOM in ${ALL_DOMS};do
-		if Xen_Status $DOM;then
+	for DOM in ${ALL_DOMS}; do
+		if Xen_Status $DOM; then
 			echo "${DOM} "
 		fi
 	done
@@ -207,15 +207,15 @@ Xen_Count_running() {
 
 Xen_Monitor() {
   Xen_Status ${DOMAIN_NAME}
-  if [ $? -eq ${OCF_NOT_RUNNING} ];then
+  if [ $? -eq ${OCF_NOT_RUNNING} ]; then
 	return ${OCF_NOT_RUNNING}
   fi
-  if [ "X${OCF_RESKEY_monitor_scripts}" = "X" ];then
+  if [ "X${OCF_RESKEY_monitor_scripts}" = "X" ]; then
 	return ${OCF_SUCCESS}
   fi
-  for SCRIPT in ${OCF_RESKEY_monitor_scripts};do
+  for SCRIPT in ${OCF_RESKEY_monitor_scripts}; do
 	$SCRIPT
-	if [ $? -ne 0 ];then
+	if [ $? -ne 0 ]; then
 		return ${OCF_ERR_GENERIC}
 	fi
   done
@@ -238,7 +238,7 @@ Xen_Start() {
   fi
 
   Xen_Adjust_Memory 1
-  if [ "${OCF_RESKEY_allow_mem_management}" != 0 ];then
+  if [ "${OCF_RESKEY_allow_mem_management}" != 0 ]; then
     ocf_log info "New memory for virtual domains: ${NEWMEM}"
     sed -i -e "/^memory=/ s/^memory=.*/memory=${NEWMEM}/" ${OCF_RESKEY_xmfile}
     xm mem-set ${DOMAIN_NAME} ${NEWMEM} 
@@ -259,22 +259,19 @@ Xen_Start() {
 }
 
 Xen_Stop() {
-  if
-    Xen_Status ${DOMAIN_NAME} 
-  then
+  if Xen_Status ${DOMAIN_NAME}; then
     # xm commands are asynchroneus, therefore wait a bit
     # to just give it time to shutdown correctly
     xm shutdown -w ${DOMAIN_NAME}
 
     rc=$?
     sleep 3
-    if
-      [ $rc -ne 0 ]
-    then
+
+    if [ $rc -ne 0 ]; then
       xm destroy -w ${DOMAIN_NAME}
       rc2=$?
       sleep 3
-      if [ $rc2 -ne 0 ];then 
+      if [ $rc2 -ne 0 ]; then 
         return ${OCF_ERR_GENERIC}
       else
 	Xen_Adjust_Memory 0
@@ -292,15 +289,11 @@ Xen_Stop() {
 
 Xen_Migrate_To() {
   target_node="$OCF_RESKEY_CRM_meta_migrate_target"
-  if 
-    Xen_Status ${DOMAIN_NAME}
-  then
+  if Xen_Status ${DOMAIN_NAME}; then
     ocf_log info "$DOMAIN_NAME: Starting xm migrate to $target_node"
     xm migrate --live $DOMAIN_NAME $target_node
     rc=$?
-    if
-      [ $rc -ne 0 ]
-    then
+    if [ $rc -ne 0 ]; then
       ocf_log err "$DOMAIN_NAME: xm migrate to $target_node failed: $rc"
       return $OCF_ERR_GENERIC
     else 
@@ -315,9 +308,7 @@ Xen_Migrate_To() {
 }
 
 Xen_Migrate_From() {
-  if 
-    Xen_Status ${DOMAIN_NAME}
-  then
+  if Xen_Status ${DOMAIN_NAME}; then
     Xen_Adjust_Memory 0
     ocf_log info "$DOMAIN_NAME: Active locally, migration successful"
     return $OCF_SUCCESS
