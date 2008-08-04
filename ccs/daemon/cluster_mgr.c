@@ -37,8 +37,6 @@ static int select_retry(int max_fd, fd_set *rfds, fd_set *wfds, fd_set *xfds,
 
 static ssize_t read_retry(int fd, void *buf, int count, struct timeval *timeout);
 
-LOGSYS_DECLARE_SUBSYS ("CCS", LOG_INFO);
-
 static int check_update_doc(xmlDocPtr tmp_doc)
 {
   int error = 0;

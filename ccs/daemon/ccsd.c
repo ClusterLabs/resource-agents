@@ -41,13 +41,6 @@ static int join_group(int sfd, int loopback, int port);
 static int setup_local_socket(int backlog);
 static inline void process_signals(void);
 
-LOGSYS_DECLARE_SYSTEM (NULL,
-	LOG_MODE_OUTPUT_STDERR | LOG_MODE_OUTPUT_SYSLOG_THREADED | LOG_MODE_OUTPUT_FILE | LOG_MODE_BUFFER_BEFORE_CONFIG,
-	LOGDIR "/ccs.log",
-	SYSLOGFACILITY);
-
-LOGSYS_DECLARE_SUBSYS ("CCS", SYSLOGLEVEL);
-
 int main(int argc, char *argv[]){
   int i,error=0;
   int trueint = 1;
@@ -59,6 +52,8 @@ int main(int argc, char *argv[]){
   fd_set rset, tmp_set;
   char *msg;
   unsigned int logmode;
+
+  logsys_init("CCS", LOG_MODE_OUTPUT_STDERR | LOG_MODE_OUTPUT_SYSLOG_THREADED | LOG_MODE_OUTPUT_FILE | LOG_MODE_FILTER_DEBUG_FROM_SYSLOG | LOG_MODE_BUFFER_BEFORE_CONFIG, SYSLOGFACILITY, SYSLOGLEVEL, LOGDIR "/ccs.log");
 
   msg = parse_cli_args(argc, argv);
 
@@ -259,6 +254,7 @@ int main(int argc, char *argv[]){
       }
     }
   }
+  logsys_exit();
   exit(EXIT_SUCCESS);
 }
 

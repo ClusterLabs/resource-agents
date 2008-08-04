@@ -54,8 +54,6 @@ typedef struct open_connection_s {
   time_t oc_expire;
 } open_connection_t;
 
-LOGSYS_DECLARE_SUBSYS ("CCS", LOG_INFO);
-
 /* ATTENTION: need to lock on this if we start forking the daemon **
 **  Also would need to create a shared memory area for open cnx's */
 static open_connection_t **ocs = NULL;

@@ -29,8 +29,6 @@ pthread_mutex_t update_lock;
 
 open_doc_t *master_doc = NULL;
 
-LOGSYS_DECLARE_SUBSYS ("CCS", LOG_INFO);
-
 /**
  * do_simple_xml_query
  * @ctx: xml context
