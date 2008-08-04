@@ -49,7 +49,7 @@ volatile sig_atomic_t quit_threads=0;
 
 int num_connections = 0;
 poll_handle ais_poll_handle;
-uint32_t max_outstanding_messages = 128;
+uint32_t max_outstanding_messages = DEFAULT_MAX_QUEUED;
 
 static int process_client(poll_handle handle, int fd, int revent, void *data);
 static void remove_client(poll_handle handle, struct connection *con);

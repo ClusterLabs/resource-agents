@@ -156,10 +156,10 @@ static int cman_exec_init_fn(struct objdb_iface_ver0 *objdb)
 	objdb->object_find_reset(cluster_parent_handle);
 	if (objdb->object_find(cluster_parent_handle, "cman", strlen("cman"), &object_handle) == 0)
 	{
-		objdb_get_int(objdb, object_handle, "quorum_dev_poll", &quorumdev_poll);
-		objdb_get_int(objdb, object_handle, "shutdown_timeout", &shutdown_timeout);
-		objdb_get_int(objdb, object_handle, "ccsd_poll", &ccsd_poll_interval);
-		objdb_get_int(objdb, object_handle, "debug_mask", &debug_mask);
+		objdb_get_int(objdb, object_handle, "quorum_dev_poll", &quorumdev_poll, DEFAULT_QUORUMDEV_POLL);
+		objdb_get_int(objdb, object_handle, "shutdown_timeout", &shutdown_timeout, DEFAULT_SHUTDOWN_TIMEOUT);
+		objdb_get_int(objdb, object_handle, "ccsd_poll", &ccsd_poll_interval, DEFAULT_CCSD_POLL);
+		objdb_get_int(objdb, object_handle, "debug_mask", &debug_mask, 0);
 
 		/* All other debugging options should already have been set in preconfig */
 		set_debuglog(debug_mask);

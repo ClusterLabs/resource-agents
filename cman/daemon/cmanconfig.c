@@ -49,7 +49,7 @@ int read_cman_nodes(struct objdb_iface_ver0 *objdb, unsigned int *config_version
     char *nodename;
 
     /* New config version */
-    objdb_get_int(objdb, cluster_parent_handle, "config_version", config_version);
+    objdb_get_int(objdb, cluster_parent_handle, "config_version", config_version, 0);
 
     objdb->object_find_reset(cluster_parent_handle);
 
@@ -59,11 +59,11 @@ int read_cman_nodes(struct objdb_iface_ver0 *objdb, unsigned int *config_version
     {
 	    /* This overrides any other expected votes calculation /except/ for
 	       one specified on a join command-line */
-	    objdb_get_int(objdb, object_handle, "expected_votes", &expected);
-	    objdb_get_int(objdb, object_handle, "two_node", (unsigned int *)&two_node);
-	    objdb_get_int(objdb, object_handle, "cluster_id", &cluster_id);
+	    objdb_get_int(objdb, object_handle, "expected_votes", &expected, 0);
+	    objdb_get_int(objdb, object_handle, "two_node", (unsigned int *)&two_node, 0);
+	    objdb_get_int(objdb, object_handle, "cluster_id", &cluster_id, 0);
 	    objdb_get_string(objdb, object_handle, "nodename", &our_nodename);
-	    objdb_get_int(objdb, object_handle, "max_queued", &max_outstanding_messages);
+	    objdb_get_int(objdb, object_handle, "max_queued", &max_outstanding_messages, DEFAULT_MAX_QUEUED);
     }
 
     clear_reread_flags();
@@ -76,11 +76,11 @@ int read_cman_nodes(struct objdb_iface_ver0 *objdb, unsigned int *config_version
 		    continue;
 	    }
 
-	    objdb_get_int(objdb, nodes_handle, "votes", (unsigned int *)&votes);
+	    objdb_get_int(objdb, nodes_handle, "votes", (unsigned int *)&votes, 0);
 	    if (votes == 0)
 		    votes = 1;
 
-	    objdb_get_int(objdb, nodes_handle, "nodeid", (unsigned int *)&nodeid);
+	    objdb_get_int(objdb, nodes_handle, "nodeid", (unsigned int *)&nodeid, 0);
 
 	    if (check_nodeids && nodeid == 0) {
 		    char message[132];
@@ -173,7 +173,7 @@ static int get_cman_join_info(struct objdb_iface_ver0 *objdb)
 
 			node_count++;
 
-			objdb_get_int(objdb, nodes_handle, "votes", (unsigned int *)&votes);
+			objdb_get_int(objdb, nodes_handle, "votes", (unsigned int *)&votes, 0);
 			if (votes == 0)
 				votes = 1;
 
@@ -194,7 +194,7 @@ static int get_cman_join_info(struct objdb_iface_ver0 *objdb)
 		{
 
 			/* optional expected_votes supercedes vote sum */
-			objdb_get_int(objdb, object_handle, "expected_votes", (unsigned int *)&expected_votes);
+			objdb_get_int(objdb, object_handle, "expected_votes", (unsigned int *)&expected_votes, 0);
 			if (!expected_votes)
 				expected_votes = vote_sum;
 		}
@@ -215,9 +215,7 @@ static int get_cman_join_info(struct objdb_iface_ver0 *objdb)
 
 	if (!votes) {
 		unsigned int votestmp=-1;
-		objdb_get_int(objdb, node_object, "votes", &votestmp);
-		if (votestmp == -1)
-			votestmp = 1;
+		objdb_get_int(objdb, node_object, "votes", &votestmp, 1);
 
 		if (votestmp < 0 || votestmp > 255) {
 			log_printf(LOG_ERR, "invalid votes value %d", votestmp);
@@ -225,9 +223,6 @@ static int get_cman_join_info(struct objdb_iface_ver0 *objdb)
 			return -EINVAL;
 		}
 		votes = votestmp;
-	}
-	if (!votes) {
-		votes = 1;
 	}
 	our_votes = votes;
 
@@ -238,7 +233,7 @@ static int get_cman_join_info(struct objdb_iface_ver0 *objdb)
 	}
 
 	if (!nodeid) {
-		objdb_get_int(objdb, node_object, "nodeid", (unsigned int *)&nodeid);
+		objdb_get_int(objdb, node_object, "nodeid", (unsigned int *)&nodeid, 0);
 	}
 
 	if (!nodeid) {

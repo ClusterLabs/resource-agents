@@ -20,9 +20,11 @@ static inline int objdb_get_string(struct objdb_iface_ver0 *objdb, unsigned int 
 }
 
 static inline void objdb_get_int(struct objdb_iface_ver0 *objdb, unsigned int object_service_handle,
-				   char *key, unsigned int *intvalue)
+				 char *key, unsigned int *intvalue, unsigned int default_value)
 {
 	char *value = NULL;
+
+	*intvalue = default_value;
 
 	if (!objdb->object_key_get(object_service_handle, key, strlen(key),
 				   (void *)&value, NULL)) {

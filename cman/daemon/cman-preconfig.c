@@ -14,10 +14,6 @@
 #include <ifaddrs.h>
 #include <arpa/inet.h>
 
-#define DEFAULT_PORT            5405
-#define DEFAULT_CLUSTER_NAME    "RHCluster"
-#define NOCCS_KEY_FILENAME      "/etc/cluster/cman_authkey"
-
 /* openais headers */
 #include <openais/service/objdb.h>
 #include <openais/service/swab.h>
@@ -587,9 +583,7 @@ static int get_nodename(struct objdb_iface_ver0 *objdb)
 
 	/* optional port */
 	if (!portnum) {
-		objdb_get_int(objdb, object_handle, "port", &portnum);
-		if (!portnum)
-			portnum = DEFAULT_PORT;
+		objdb_get_int(objdb, object_handle, "port", &portnum, DEFAULT_PORT);
 	}
 
 	if (add_ifaddr(objdb, mcast_name, nodename, portnum))
@@ -609,9 +603,7 @@ static int get_nodename(struct objdb_iface_ver0 *objdb)
 			continue;
 		}
 
-		objdb_get_int(objdb, alt_object, "port", &port);
-		if (!port)
-			port = portnum;
+		objdb_get_int(objdb, alt_object, "port", &port, portnum);
 
 		if (objdb_get_string(objdb, alt_object, "mcast", &mcast)) {
 			mcast = mcast_name;
@@ -944,13 +936,13 @@ static int get_cman_globals(struct objdb_iface_ver0 *objdb)
 			       "cman", strlen("cman"),
 			       &object_handle) == 0) {
 		if (!portnum)
-			objdb_get_int(objdb, object_handle, "port", &portnum);
+			objdb_get_int(objdb, object_handle, "port", &portnum, DEFAULT_PORT);
 
 		if (!key_filename)
 			objdb_get_string(objdb, object_handle, "keyfile", &key_filename);
 
 		if (!cluster_id)
-			objdb_get_int(objdb, object_handle, "cluster_id", &cluster_id);
+			objdb_get_int(objdb, object_handle, "cluster_id", &cluster_id, 0);
 
 		if (!cluster_id)
 			cluster_id = generate_cluster_id(cluster_name);
