@@ -232,7 +232,7 @@ Xen_Start() {
     return $OCF_SUCCESS
   fi
 
-  if [ ! -f ${OCF_RESKEY_xmfile} ]; then
+  if [ ! -f "${OCF_RESKEY_xmfile}" ]; then
     ocf_log err "Config file ${OCF_RESKEY_xmfile} for $DOMAIN_NAME does not exist."
     return $OCF_ERR_INSTALLED
   fi
