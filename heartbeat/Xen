@@ -227,38 +227,35 @@ Xen_Total_Memory() {
 }
 
 Xen_Start() {
-  [ -f ${OCF_RESKEY_xmfile} ] || {
-    ocf_log err "Config file ${OCF_RESKEY_xmfile} for $DOMAIN_NAME does not exist."
-    return $OCF_ERR_GENERIC
-  }
-  if
-    Xen_Status ${DOMAIN_NAME}
-  then
+  if Xen_Status ${DOMAIN_NAME}; then
     ocf_log info "Xen domain $DOMAIN_NAME already running."
     return $OCF_SUCCESS
-  else
-    Xen_Adjust_Memory 1
-    if [ "${OCF_RESKEY_allow_mem_management}" != 0 ];then
-      ocf_log info "New memory for virtual domains: ${NEWMEM}"
-      sed -i -e "/^memory=/ s/^memory=.*/memory=${NEWMEM}/" ${OCF_RESKEY_xmfile}
-      xm mem-set ${DOMAIN_NAME} ${NEWMEM} 
+  fi
+
+  if [ ! -f ${OCF_RESKEY_xmfile} ]; then
+    ocf_log err "Config file ${OCF_RESKEY_xmfile} for $DOMAIN_NAME does not exist."
+    return $OCF_ERR_INSTALLED
+  fi
+
+  Xen_Adjust_Memory 1
+  if [ "${OCF_RESKEY_allow_mem_management}" != 0 ];then
+    ocf_log info "New memory for virtual domains: ${NEWMEM}"
+    sed -i -e "/^memory=/ s/^memory=.*/memory=${NEWMEM}/" ${OCF_RESKEY_xmfile}
+    xm mem-set ${DOMAIN_NAME} ${NEWMEM} 
+  fi
+
+  xm create ${OCF_RESKEY_xmfile} name=$DOMAIN_NAME
+  rc=$?
+  if [ $rc -ne 0 ]; then
+    return $OCF_ERR_GENERIC
+  else 
+    if [ "${OCF_RESKEY_allow_mem_management}" != 0 ]; then
+      xm mem-set ${DOMAIN_NAME} ${NEWMEM}
     fi
-    xm create ${OCF_RESKEY_xmfile} name=$DOMAIN_NAME
-    rc=$?
-    if
-      [ $rc -ne 0 ]
-    then
-      return $OCF_ERR_GENERIC
-    else 
-      if [ "${OCF_RESKEY_allow_mem_management}" != 0 ];then
-        xm mem-set ${DOMAIN_NAME} ${NEWMEM}
-      fi
-    fi
-    while sleep 1; do
-      Xen_Monitor && return $OCF_SUCCESS
-    done
-	# not reachable
-  fi  
+  fi
+  while sleep 1; do
+    Xen_Monitor && return $OCF_SUCCESS
+  done
 }
 
 Xen_Stop() {
@@ -365,6 +362,10 @@ else
 		fi
 	fi
 	DOMAIN_NAME=${DOMAIN_NAME:-${OCF_RESOURCE_INSTANCE}}
+fi
+
+if [ X`which xm` == X ]; then
+	return $OCF_ERR_INSTALLED
 fi
 
 case $1 in
