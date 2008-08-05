@@ -21,6 +21,7 @@ CFLAGS += -I${incdir}
 LDFLAGS += -L${ccslibdir} -L${fencelibdir} -lccs -lfence
 LDFLAGS += -L${openaislibdir} -llogsys
 LDFLAGS += -L../libfenced -lfenced
+LDFLAGS += -L${libdir}
 
 LDDEPS += ../libfenced/libfenced.a
 

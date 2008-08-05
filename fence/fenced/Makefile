@@ -27,6 +27,7 @@ LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
 LDFLAGS += -L${fencelibdir} -lfence
 LDFLAGS += -L${openaislibdir} -lcpg -llogsys -lpthread
 LDFLAGS += -L../../group/lib -l group
+LDFLAGS += -L${libdir}
 
 LDDEPS += ../../group/lib/libgroup.a
 

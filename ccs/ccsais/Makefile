@@ -16,6 +16,7 @@ CFLAGS += -I${cmanincdir}/../daemon
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L../libccscompat -lccscompat
+LDFLAGS += -L${libdir}
 
 LDDEPS += ../libccscompat/libccscompat.a
 

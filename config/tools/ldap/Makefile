@@ -17,7 +17,7 @@ CFLAGS += -I${openaisincdir}
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${openaislibdir} -lconfdb
-
+LDFLAGS += -L${libdir}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)

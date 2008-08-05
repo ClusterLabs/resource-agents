@@ -19,6 +19,7 @@ CFLAGS += -I${incdir}
 
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
 LDFLAGS += -L../libfenced -lfenced
+LDFLAGS += -L${libdir}
 
 LDDEPS += ../libfenced/libfenced.a
 

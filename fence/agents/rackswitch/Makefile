@@ -14,6 +14,7 @@ OBJS=	do_rack.o
 
 CFLAGS += -I${incdir}
 
+LDFLAGS += -L${libdir}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)

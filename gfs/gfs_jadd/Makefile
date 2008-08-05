@@ -19,6 +19,7 @@ CFLAGS += -I$(S)/../include -I$(S)/../libgfs
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L../libgfs -lgfs
+LDFLAGS += -L${libdir}
 
 LDDEPS += ../libgfs/libgfs.a
 

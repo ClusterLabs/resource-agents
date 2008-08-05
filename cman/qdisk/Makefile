@@ -18,6 +18,7 @@ CFLAGS += -I$(S)
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${openaislibdir} -llogsys -lpthread
+LDFLAGS += -L${libdir}
 
 EXTRA_LDFLAGS += -L${cmanlibdir} -L${ccslibdir} -lcman -lccs
 
@@ -34,9 +35,8 @@ SHAREDOBJS= disk.o \
 	    proc.o \
 	    scandisk.o
 
-
 ${TARGET1}: ${SHAREDOBJS} ${OBJS1}
-	$(CC) -o $@ $^ $(LDFLAGS) $(EXTRA_LDFLAGS)
+	$(CC) -o $@ $^ $(EXTRA_LDFLAGS) $(LDFLAGS)
 
 ${TARGET2}: ${SHAREDOBJS} ${OBJS2}
 	$(CC) -o $@ $^ $(LDFLAGS)

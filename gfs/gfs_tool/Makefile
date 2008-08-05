@@ -25,6 +25,7 @@ CFLAGS += -I${gfskincdir}
 CFLAGS += -I$(S)/../include
 CFLAGS += -I${incdir}
 
+LDFLAGS += -L${libdir}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)

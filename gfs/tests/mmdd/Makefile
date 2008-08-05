@@ -6,6 +6,9 @@ include ../../../make/defines.mk
 include $(OBJDIR)/make/clean.mk
 
 CFLAGS += -D_GNU_SOURCE
+CFLAGS += -I${incdir}
+
+LDFLAGS += -L${libdir}
 
 mmdd.o: mmdd.c
 	$(CC) $(CFLAGS) -D_FILE_OFFSET_BITS=64 -c -o $@ $<

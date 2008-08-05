@@ -22,8 +22,8 @@ CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmincdir} -I${ncursesincdir}
 CFLAGS += -I$(S)/../../include
 CFLAGS += -I${incdir}
 
-LDFLAGS += -L${libdir}
 LDFLAGS += -L../clulib -lclulib
+LDFLAGS += -L${libdir}
 
 LDDEPS += ../clulib/libclulib.a
 
@@ -45,14 +45,14 @@ ${TARGET2}: ${OBJS2} ${LDDEPS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 ${TARGET3}: ${OBJS3} ${LDDEPS}
-	$(CC) -o $@ $^ $(LDFLAGS) $(CCS_LDFLAGS) $(CMAN_LDFLAGS) \
-			$(NCURSES_LDFLAGS) $(PTHREAD_LDFLAGS)
+	$(CC) -o $@ $^ $(CCS_LDFLAGS) $(CMAN_LDFLAGS) \
+			$(NCURSES_LDFLAGS) $(PTHREAD_LDFLAGS) $(LDFLAGS)
 
 ${TARGET4}: ${OBJS4} ${LDDEPS}
-	$(CC) -o $@ $^ $(LDFLAGS) $(CMAN_LDFLAGS) $(PTHREAD_LDFLAGS)
+	$(CC) -o $@ $^ $(CMAN_LDFLAGS) $(PTHREAD_LDFLAGS) $(LDFLAGS)
 
 ${TARGET5}: ${OBJS5} ${LDDEPS}
-	$(CC) -o $@ $^ $(LDFLAGS) $(CCS_LDFLAGS)
+	$(CC) -o $@ $^ $(CCS_LDFLAGS) $(LDFLAGS)
 
 ${TARGET6}:
 	cp $(S)/${TARGET6}.sh ${TARGET6}

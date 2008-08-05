@@ -15,6 +15,8 @@ OBJS= main.o
 CFLAGS += -I$(SRCDIR)/gnbd/tools/gnbd_import
 CFLAGS += -I${incdir}
 
+LDFLAGS += -L${libdir}
+
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
 

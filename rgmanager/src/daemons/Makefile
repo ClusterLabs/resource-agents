@@ -57,8 +57,8 @@ CFLAGS += -I${incdir}
 
 EXTRA_CFLAGS += -DNO_CCS
 
-LDFLAGS += -L${libdir}
 LDFLAGS += -L../clulib -lclulib
+LDFLAGS += -L${libdir}
 
 CCS_LDFLAGS += -L${ccslibdir} -lccs 
 CMAN_LDFLAGS += -L${cmanlibdir} -lcman
@@ -74,9 +74,10 @@ LDDEPS += ../clulib/libclulib.a
 LOCAL_LDDEPS += ../clulib/liblalloc.a
 
 ${TARGET1}: ${OBJS1} ${LDDEPS}
-	$(CC) -o $@ $^ $(LDFLAGS) $(CCS_LDFLAGS) $(CMAN_LDFLAGS) \
+	$(CC) -o $@ $^ $(CCS_LDFLAGS) $(CMAN_LDFLAGS) \
 			$(DLM_LDFLAGS) $(XML2_LDFLAGS) \
-			$(SLANG_LDFLAGS) $(EXTRA_LDFLAGS)
+			$(SLANG_LDFLAGS) $(EXTRA_LDFLAGS) \
+			$(LD_FLAGS)
 
 ${TARGET2}: ${OBJS2} ${LDDEPS}
 	$(CC) -o $@ $^ $(LDFLAGS)
@@ -96,13 +97,13 @@ ${TARGET2}: ${OBJS2} ${LDDEPS}
 # packages should run 'make check' as part of the build process.
 #
 ${TARGET3}: ${SHAREDOBJS} ${OBJS3} ${LDDEPS} ${LOCAL_LDDEPS}
-	$(CC) -o $@ $^ $(LDFLAGS) $(CMAN_LDFLAGS) \
-			$(LOCAL_LDFLAGS) $(EXTRA_LDFLAGS) $(XML2_LDFLAGS)
+	$(CC) -o $@ $^ $(CMAN_LDFLAGS) $(LOCAL_LDFLAGS) $(EXTRA_LDFLAGS) \
+			$(XML2_LDFLAGS) $(LDFLAGS)
 
 ${TARGET4}: ${SHAREDOBJS} ${OBJS4} ${LDDEPS} ${LOCAL_LDDEPS}
-	$(CC) -o $@ $^ $(LDFLAGS) $(CCS_LDFLAGS) $(CMAN_LDFLAGS) \
+	$(CC) -o $@ $^ $(CCS_LDFLAGS) $(CMAN_LDFLAGS) \
 			$(LOCAL_LDFLAGS) $(EXTRA_LDFLAGS) $(XML2_LDFLAGS) \
-			$(READLINE_LDFLAGS)
+			$(READLINE_LDFLAGS) $(LDFLAGS)
 
 check: rg_test
 	cd tests && ./runtests.sh

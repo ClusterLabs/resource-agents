@@ -23,7 +23,8 @@ CFLAGS += -I${incdir}
 
 LDFLAGS += -L${cmanlibdir} -lcman
 LDFLAGS += -L${openaislibdir} -llogsys
-LDFLAGS += -L${libdir} `xml2-config --libs` -lpthread
+LDFLAGS += `xml2-config --libs` -lpthread
+LDFLAGS += -L${libdir}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)

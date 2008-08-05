@@ -26,6 +26,7 @@ CFLAGS += -I${incdir}
 
 LDFLAGS += -L${volidlibdir} -lvolume_id
 LDFLAGS += -L../libgfs -lgfs
+LDFLAGS += -L${libdir}
 
 LDDEPS += ../libgfs/libgfs.a
 

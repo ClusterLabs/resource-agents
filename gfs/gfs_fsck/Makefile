@@ -47,6 +47,7 @@ CFLAGS += -D_FILE_OFFSET_BITS=64 -DHELPER_PROGRAM
 CFLAGS += -I$(S)/../include
 CFLAGS += -I${incdir}
 
+LDFLAGS += -L${libdir}
 
 ${TARGET1}: $(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS)

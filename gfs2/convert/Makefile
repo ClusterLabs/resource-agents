@@ -18,6 +18,7 @@ CFLAGS += -I$(S)/../include -I$(S)/../libgfs2
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L../libgfs2 -lgfs2
+LDFLAGS += -L${libdir}
 
 LDDEPS += ../libgfs2/libgfs2.a
 

@@ -16,3 +16,4 @@ CFLAGS += -I${incdir}
 
 LDFLAGS += -L${openaislibdir} -lconfdb
 LDFLAGS += `xml2-config --libs`
+LDFLAGS += -L${libdir}

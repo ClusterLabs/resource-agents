@@ -33,7 +33,8 @@ LDDEPS += ../libccscompat/libccscompat.a
 else
 LDFLAGS += -L${ccslibdir} -lccs
 endif
-LDFLAGS += `xml2-config --libs` -L${libdir}
+LDFLAGS += `xml2-config --libs`
+LDFLAGS += -L${libdir}
 
 ${TARGET1}: ${OBJS} ${LDDEPS}
 	$(CC) -o $@ $^ $(LDFLAGS)

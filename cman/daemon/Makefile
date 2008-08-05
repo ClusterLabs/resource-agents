@@ -15,6 +15,8 @@ CFLAGS += -fPIC
 CFLAGS += -I${openaisincdir}
 CFLAGS += -I${incdir}
 
+LDFLAGS += -L${libdir}
+
 OBJS1=	daemon.o \
 	logging.o \
 	ais.o \

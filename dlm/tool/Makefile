@@ -18,7 +18,7 @@ CFLAGS += -I${incdir}
 CFLAGS += -I${KERNEL_SRC}/include/
 
 LDFLAGS += -L${dlmlibdir} -L${dlmcontrollibdir} -ldlm -ldlmcontrol
-
+LDFLAGS += -L${libdir}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)

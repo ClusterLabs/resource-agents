@@ -20,7 +20,8 @@ CFLAGS += -I$(S)/../../include -I$(S)/../../server
 CFLAGS += -I$(S)/../../utils -I$(S)/../../client
 CFLAGS += -I${incdir}
 
-LDFLAGS += -L${libdir} -L${cmanlibdir} -lcman
+LDFLAGS += -L${cmanlibdir} -lcman
+LDFLAGS += -L${libdir}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)

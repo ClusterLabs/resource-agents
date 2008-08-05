@@ -16,6 +16,7 @@ CFLAGS += -I${cmanincdir}/../daemon
 CFLAGS += -I${incdir}
 
 LDFLAGS += `xml2-config --libs`
+LDFLAGS += -L${libdir}
 
 OBJS=	config.o
 

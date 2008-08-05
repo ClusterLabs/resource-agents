@@ -38,19 +38,19 @@ CFLAGS += -I${incdir}
 
 EXTRA_CFLAGS += -DSTANDALONE
 
-LDFLAGS += -L${nsslibdir} -L${libdir}
-LDFLAGS += -lnss3 -L${openaislibdir} -llogsys
+LDFLAGS += -L${nsslibdir} -lnss3
+LDFLAGS += -L${openaislibdir} -llogsys
+LDFLAGS += -L${libdir}
 
 EXTRA_LDFLAGS += -L${ccslibdir} -lccs -L${cmanlibdir} -lcman
 EXTRA_LDFLAGS += -L${virtlibdir} -lvirt -lSaCkpt
 XML_LDFLAGS += `xml2-config --libs`
 
-
 ${TARGET1}: ${SHAREDOBJS} ${OBJS1}
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 ${TARGET2}: ${SHAREDOBJS} ${OBJS2}
-	$(CC) -o $@ $^ $(LDFLAGS) $(EXTRA_LDFLAGS) $(XML_LDFLAGS)
+	$(CC) -o $@ $^ $(EXTRA_LDFLAGS) $(XML_LDFLAGS) $(LDFLAGS)
 
 ${TARGET3}: ${OBJS3}
 	$(CC) -o $@ $^ $(XML_LDFLAGS)

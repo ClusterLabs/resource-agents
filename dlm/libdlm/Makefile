@@ -32,6 +32,8 @@ CFLAGS += -I$(S)
 CFLAGS += -I${incdir}
 CFLAGS += -I$(KERNEL_SRC)/include
 
+LDFLAGS += -L${libdir}
+
 PTHREAD_LDFLAGS += -lpthread 
 
 $(TARGET).a: $(TARGET).o $(AISTARGET).o

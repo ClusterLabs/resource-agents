@@ -18,6 +18,7 @@ CFLAGS += -I${ldapincdir}
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${ldaplibdir} -lldap
+LDFLAGS += -L${libdir}
 
 OBJS=	configldap.o
 

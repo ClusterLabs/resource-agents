@@ -27,7 +27,7 @@ CFLAGS += -I${incdir}
 LDFLAGS += -L${cmanlibdir} -lcman 
 LDFLAGS += -L. -lclulib -llalloc
 LDFLAGS += -lpthread
-
+LDFLAGS += -L${libdir}
 
 ${TARGET1}: ${OBJS1}
 	${AR} cru $@ $^

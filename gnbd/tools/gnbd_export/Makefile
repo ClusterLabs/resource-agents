@@ -19,7 +19,8 @@ CFLAGS += -I${gnbdkincdir} -I${cmanincdir}
 CFLAGS += -I$(S)/../../include -I$(S)/../../server -I$(S)/../../utils
 CFLAGS += -I${incdir}
 
-LDFLAGS += -L${libdir} -L${cmanlibdir} -lcman
+LDFLAGS += -L${cmanlibdir} -lcman
+LDFLAGS += -L${libdir}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)

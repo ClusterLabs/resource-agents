@@ -14,3 +14,4 @@ CFLAGS += -I${ccsincdir}
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${ccslibdir} -lccs
+LDFLAGS += -L${libdir}

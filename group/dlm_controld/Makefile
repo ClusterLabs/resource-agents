@@ -34,6 +34,7 @@ LDFLAGS += -L${dlmlibdir} -ldlm
 LDFLAGS += -L${openaislibdir} -lcpg -lSaCkpt -llogsys -lpthread
 LDFLAGS += -L../../fence/libfenced/ -lfenced
 LDFLAGS += -L../lib -lgroup
+LDFLAGS += -L${libdir}
 
 LDDEPS += ../../fence/libfenced/libfenced.a
 LDDEPS += ../lib/libgroup.a

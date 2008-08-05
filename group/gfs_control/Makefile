@@ -16,6 +16,7 @@ CFLAGS += -I$(S)/../libgfscontrol
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L../libgfscontrol -lgfscontrol
+LDFLAGS += -L${libdir}
 
 LDDEPS += ../libgfscontrol/libgfscontrol.a
 

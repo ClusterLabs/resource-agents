@@ -23,6 +23,7 @@ LDFLAGS += -L${dlmcontrollibdir} -ldlmcontrol
 LDFLAGS += -L../lib -lgroup
 LDFLAGS += -L../../fence/libfenced -lfenced
 LDFLAGS += -L../libgfscontrol -lgfscontrol
+LDFLAGS += -L${libdir}
 
 LDDEPS += ../lib/libgroup.a
 LDDEPS += ../libgfscontrol/libgfscontrol.a

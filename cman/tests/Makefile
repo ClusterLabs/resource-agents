@@ -10,7 +10,7 @@ CFLAGS += -I${cmanincdir}
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${cmanlibdir} -lcman
-
+LDFLAGS += -L${libdir}
 
 depends:
 	$(MAKE) -C ../lib all
