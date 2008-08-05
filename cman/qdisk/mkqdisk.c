@@ -12,16 +12,14 @@
 #include <unistd.h>
 #include <openais/service/logsys.h>
 
-LOGSYS_DECLARE_SYSTEM (NULL, LOG_MODE_OUTPUT_STDERR, NULL, SYSLOGFACILITY);
-
-LOGSYS_DECLARE_SUBSYS ("QDISK", SYSLOGLEVEL);
-
 int
 main(int argc, char **argv)
 {
 	char device[128];
 	char *newdev = NULL, *newlabel = NULL;
 	int rv, verbose_level = 1;
+
+	logsys_init("QDISK", LOG_MODE_OUTPUT_STDERR | LOG_MODE_NOSUBSYS, SYSLOGFACILITY, SYSLOGLEVEL, NULL);
 
 	printf("mkqdisk v" RELEASE_VERSION "\n\n");
 
@@ -32,7 +30,13 @@ main(int argc, char **argv)
 		switch (rv) {
 		case 'd':
 			++verbose_level;
-			logsys_config_priority_set (LOG_LEVEL_DEBUG);
+			/* Workaround a bug in logsys new API.
+			 * logsys segfaults if our first operation is to set the priority
+			 * because the logsys_config_priority_set is buggy.
+			 * Temporary use the direct call while fix is applied upstream and propagated
+			 */
+			// logsys_config_priority_set(LOG_LEVEL_DEBUG);
+			_logsys_config_priority_set(0, LOG_LEVEL_DEBUG);
 			break;
 		}
 	}

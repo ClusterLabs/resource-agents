@@ -37,8 +37,6 @@ int check_process_running(char *prog, pid_t * pid);
 static void update_pidfile(char *prog);
 static int setup_sigmask(void);
 
-LOGSYS_DECLARE_SUBSYS ("QDISK", SYSLOGLEVEL);
-
 static int
 check_pid_valid(pid_t pid, char *prog)
 {

@@ -56,13 +56,6 @@ static void update_local_status(qd_ctx *ctx, node_info_t *ni, int max, int score
 		    	 int score_req, int score_max);
 
 
-LOGSYS_DECLARE_SYSTEM (NULL,
-        LOG_MODE_OUTPUT_STDERR | LOG_MODE_OUTPUT_SYSLOG_THREADED | LOG_MODE_OUTPUT_FILE | LOG_MODE_BUFFER_BEFORE_CONFIG,
-        LOGDIR "/qdisk.log",
-        SYSLOGFACILITY);
-
-LOGSYS_DECLARE_SUBSYS ("QDISK", SYSLOGLEVEL);
-
 static void
 int_handler(int sig)
 {
@@ -1079,7 +1072,7 @@ get_logsys_config_data(int *debug)
 
 	logmode = logsys_config_mode_get();
 
-	if (!debug) {
+	if (!*debug) {
 		if (ccs_get(ccsfd, "/cluster/logging/@debug", &val) == 0) {
 			if(!strcmp(val, "on")) {
 				global_debug = 1;
@@ -1503,6 +1496,8 @@ main(int argc, char **argv)
 	pid_t pid;
 	quorum_header_t qh;
 
+	logsys_init("QDISK", LOG_MODE_OUTPUT_STDERR | LOG_MODE_OUTPUT_SYSLOG_THREADED | LOG_MODE_OUTPUT_FILE | LOG_MODE_FILTER_DEBUG_FROM_SYSLOG | LOG_MODE_BUFFER_BEFORE_CONFIG, SYSLOGFACILITY, SYSLOGLEVEL, LOGDIR "/qdisk.log");
+
 	if (check_process_running(argv[0], &pid) && pid !=getpid()) {
 		printf("QDisk services already running\n");
 		return 0;
@@ -1672,7 +1667,7 @@ main(int argc, char **argv)
 out:
 	cman_finish(ctx.qc_ch);
 	qd_destroy(&ctx);
-
+	logsys_exit();
 	return ret;
 }
 

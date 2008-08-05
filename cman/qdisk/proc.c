@@ -21,8 +21,6 @@ struct device_args {
 	int pad;
 };
 
-LOGSYS_DECLARE_SUBSYS ("QDISK", SYSLOGLEVEL);
-
 int
 check_device(char *device, char *label, quorum_header_t *qh,
 	     int flags)
