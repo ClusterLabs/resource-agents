@@ -97,7 +97,7 @@ action:
 
 	validate-all	validate the instance parameters
 	!
-  exit $OCF_ERR_ARGS
+  exit $1
 }
 
 apachecat() {
@@ -538,7 +538,7 @@ then
   OPTIONS="$OCF_RESKEY_options"
   TESTREGEX=${OCF_RESKEY_testregex:-'</ *body *>[[:space:]]*</ *html *>'}
 else
-  usage
+  usage $OCF_ERR_ARGS
 fi
 
 LSB_STATUS_STOPPED=3
@@ -618,5 +618,5 @@ case $COMMAND in
   monitor)	monitor_apache;;
   meta-data)	metadata_apache;;
   validate-all)	validate_all_apache;;
-  *)		usage;;
+  *)		usage $OCF_ERR_UNIMPLEMENTED;;
 esac

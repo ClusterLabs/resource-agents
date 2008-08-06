@@ -3112,29 +3112,23 @@ mgmt/Makefile							\
 	)
 fi
 
-if test "x${enable_snmp_subagent}" = "xyes"; then
 AC_CONFIG_FILES(		  				\
 snmp_subagent/Makefile						\
 	snmp_subagent/SNMPAgentSanityCheck			\
 	)
-fi
 
-if test "x${enable_cim_provider}" = "xyes"; then
 AC_CONFIG_FILES(		  				\
 cim/Makefile		        				\
         cim/mof/Makefile                                        \
         cim/mof/register_providers.sh                           \
         cim/mof/unregister_providers.sh                         \
 	)
-fi
 
-if test "x${enable_tsa_plugin}" = "xyes"; then
 AC_CONFIG_FILES(		  				\
 	tsa_plugin/Makefile					\
 	tsa_plugin/testrun.sh					\
 	tsa_plugin/linuxha-adapter				\
 	)
-fi
 
 dnl Now process the entire list of files added by previous 
 dnl  calls to AC_CONFIG_FILES()
