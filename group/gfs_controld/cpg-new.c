@@ -1245,19 +1245,8 @@ static void save_message(struct mountgroup *mg, struct gfs_header *hd, int len)
 	list_add_tail(&sm->list, &cg->saved_messages);
 }
 
-/* We can't register with dlm_controld until dlm_controld knows about this
-   lockspace.  We know that it will when the kernel mount completes.  */
-
 void gfs_mount_done(struct mountgroup *mg)
 {
-	int rv;
-
-	if (!mg->kernel_mount_error) {
-		rv = dlmc_fs_register(dlmcontrol_fd, mg->name);
-		if (rv)
-			log_error("dlmc_fs_register %s error %d", mg->name, rv);
-	}
-
 	send_mount_done(mg, mg->kernel_mount_error);
 }
 
@@ -2217,6 +2206,7 @@ static void confchg_cb(cpg_handle_t handle, struct cpg_name *group_name,
 		/* we called cpg_leave(), and this should be the final
 		   cpg callback we receive */
 		log_group(mg, "confchg for our leave");
+		dlmc_fs_unregister(dlmcontrol_fd, mg->name);
 		cpg_finalize(mg->cpg_handle);
 		client_dead(mg->cpg_client);
 		list_del(&mg->list);
@@ -2326,7 +2316,15 @@ int gfs_join_mountgroup(struct mountgroup *mg)
 	cpg_error_t error;
 	cpg_handle_t h;
 	struct cpg_name name;
-	int i = 0, fd, ci;
+	int i = 0, fd, ci, rv;
+
+	/* I think this registration with dlm_controld could be done
+	   just about anywhere before we do the mount(2). */
+	rv = dlmc_fs_register(dlmcontrol_fd, mg->name);
+	if (rv) {
+		log_error("dlmc_fs_register failed %d", rv);
+		return rv;
+	}
 
 	error = cpg_initialize(&h, &cpg_callbacks);
 	if (error != CPG_OK) {
@@ -2371,6 +2369,7 @@ int gfs_join_mountgroup(struct mountgroup *mg)
 	client_dead(ci);
 	cpg_finalize(h);
  fail:
+	dlmc_fs_unregister(dlmcontrol_fd, mg->name);
 	return -ENOTCONN;
 }
 
