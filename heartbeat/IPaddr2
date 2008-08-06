@@ -176,12 +176,12 @@ Specify the hashing algorithm used for the Cluster IP functionality.
 <content type="string" default="sourceip-sourceport"/>
 </parameter>
 
-<parameter name="use_clone_offset">
+<parameter name="unique_clone_address">
 <longdesc lang="en">
-If true, add the clone ID to the supplied value of ip to determin
-the final address to manage 
+If true, add the clone ID to the supplied value of ip to create
+a unique address to manage 
 </longdesc>
-<shortdesc lang="en">Use the clone ID as an offset</shortdesc>
+<shortdesc lang="en">Create a unique address for cloned instances</shortdesc>
 <content type="boolean" default="false"/>
 </parameter>
 
@@ -784,7 +784,7 @@ ip_validate() {
 	exit $OCF_SUCCESS
 }
 
-case "$OCF_RESKEY_use_clone_offset" in
+case "$OCF_RESKEY_unique_clone_address" in
   true|TRUE|True|yes|YES|Yes|1)
     prefix=`echo $OCF_RESKEY_ip | awk -F. '{print $1"."$2"."$3}'`
     suffix=`echo $OCF_RESKEY_ip | awk -F. '{print $4}'`
