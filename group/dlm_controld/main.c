@@ -17,6 +17,7 @@ static struct client *client = NULL;
 static struct pollfd *pollfd = NULL;
 static pthread_t query_thread;
 static pthread_mutex_t query_mutex;
+static struct list_head fs_register_list;
 
 struct client {
 	int fd;
@@ -192,6 +193,44 @@ struct lockspace *find_ls_id(uint32_t id)
 	return NULL;
 }
 
+struct fs_reg {
+	struct list_head list;
+	char name[DLM_LOCKSPACE_LEN+1];
+};
+
+static int fs_register_add(char *name)
+{
+	struct fs_reg *fs;
+	fs = malloc(sizeof(struct fs_reg));
+	if (!fs)
+		return -ENOMEM;
+	strncpy(fs->name, name, DLM_LOCKSPACE_LEN);
+	list_add(&fs->list, &fs_register_list);
+	return 0;
+}
+
+static void fs_register_del(char *name)
+{
+	struct fs_reg *fs;
+	list_for_each_entry(fs, &fs_register_list, list) {
+		if (!strcmp(name, fs->name)) {
+			list_del(&fs->list);
+			free(fs);
+			return;
+		}
+	}
+}
+
+static int fs_register_check(char *name)
+{
+	struct fs_reg *fs;
+	list_for_each_entry(fs, &fs_register_list, list) {
+		if (!strcmp(name, fs->name))
+			return 1;
+	}
+	return 0;
+}
+
 #define MAXARGS 8
 
 static char *get_args(char *buf, int *argc, char **argv, char sep, int want)
@@ -299,6 +338,9 @@ static void process_uevent(int ci)
 			rv = -ENOMEM;
 			goto out;
 		}
+
+		if (fs_register_check(ls->name))
+			ls->fs_registered = 1;
 
 		if (group_mode == GROUP_LIBGROUP)
 			rv = dlm_join_lockspace_group(ls);
@@ -602,20 +644,24 @@ static void process_connection(int ci)
 
 	switch (h.command) {
 	case DLMC_CMD_FS_REGISTER:
-		ls = find_ls(h.name);
 		if (group_mode == GROUP_LIBGROUP) {
 			rv = -EINVAL;
-		} else if (!ls) {
-			rv = -ENOENT;
 		} else {
-			ls->fs_registered = 1;
 			rv = 0;
+			ls = find_ls(h.name);
+			if (ls)
+				ls->fs_registered = 1;
+			else
+				rv = fs_register_add(h.name);
 		}
 		do_reply(client[ci].fd, DLMC_CMD_FS_REGISTER, h.name, rv,
 			 NULL, 0);
 		break;
 
 	case DLMC_CMD_FS_UNREGISTER:
+		if (group_mode == GROUP_LIBGROUP)
+			break;
+		fs_register_del(h.name);
 		ls = find_ls(h.name);
 		if (ls)
 			ls->fs_registered = 0;
@@ -1161,6 +1207,7 @@ static void set_scheduler(void)
 int main(int argc, char **argv)
 {
 	INIT_LIST_HEAD(&lockspaces);
+	INIT_LIST_HEAD(&fs_register_list);
 
 	init_logging();
 
