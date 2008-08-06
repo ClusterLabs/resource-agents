@@ -176,6 +176,15 @@ Specify the hashing algorithm used for the Cluster IP functionality.
 <content type="string" default="sourceip-sourceport"/>
 </parameter>
 
+<parameter name="use_clone_offset">
+<longdesc lang="en">
+If true, add the clone ID to the supplied value of ip to determin
+the final address to manage 
+</longdesc>
+<shortdesc lang="en">Use the clone ID as an offset</shortdesc>
+<content type="boolean" default="false"/>
+</parameter>
+
 <parameter name="arp_interval">
 <longdesc lang="en">
 Specify the interval between unsolicited ARP packets in milliseconds.
@@ -774,6 +783,16 @@ ip_validate() {
 
 	exit $OCF_SUCCESS
 }
+
+case "$OCF_RESKEY_use_clone_offset" in
+  true|TRUE|True|yes|YES|Yes|1)
+    prefix=`echo $OCF_RESKEY_ip | awk -F. '{print $1"."$2"."$3}'`
+    suffix=`echo $OCF_RESKEY_ip | awk -F. '{print $4}'`
+    suffix=`expr ${OCF_RESKEY_CRM_meta_clone:-0} + $suffix`
+    OCF_RESKEY_ip="$prefix.$suffix"
+    ;;
+  *) ;;
+esac
 
 case $__OCF_ACTION in
 meta-data)	meta_data
