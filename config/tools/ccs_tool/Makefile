@@ -4,7 +4,7 @@ TARGET2 = ccs_test
 SBINDIRT = $(TARGET1)
 SBINSYMT = $(TARGET2)
 
-include ../../make/defines.mk
+include ../../../make/defines.mk
 
 ifdef legacy_code
 all: depends ${TARGET1} ${TARGET2}
@@ -26,14 +26,14 @@ endif
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
 CFLAGS += -I${cmanincdir} `xml2-config --cflags`
-CFLAGS += -I${ccsincdir} -I$(S)/../include
-CFLAGS += -I$(S)/../libccscompat
+CFLAGS += -I${ccsincdir} -I$(SRCDIR)/ccs/include
+CFLAGS += -I$(SRCDIR)/ccs/libccscompat
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${cmanlibdir} -lcman
 ifdef legacy_code
-LDFLAGS += -L../libccscompat -lccscompat
-LDDEPS += ../libccscompat/libccscompat.a
+LDFLAGS += -L$(OBJDIR)/ccs/libccscompat -lccscompat
+LDDEPS += $(OBJDIR)/ccs/libccscompat/libccscompat.a
 else
 LDFLAGS += -L${ccslibdir} -lccs
 endif
@@ -48,7 +48,7 @@ ${TARGET2}: ${TARGET1}
 
 ifdef legacy_code
 depends:
-	$(MAKE) -C ../libccscompat all
+	$(MAKE) -C $(OBJDIR)/ccs/libccscompat all
 endif
 
 clean: generalclean

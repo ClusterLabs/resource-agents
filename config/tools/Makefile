@@ -1,4 +1,4 @@
 include ../../make/defines.mk
 include $(OBJDIR)/make/passthrough.mk
 
-SUBDIRS=ldap man
+SUBDIRS=ccs_tool ldap man
