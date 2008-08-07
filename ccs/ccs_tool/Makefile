@@ -1,7 +1,8 @@
 TARGET1 = ccs_tool
 TARGET2 = ccs_test
 
-SBINDIRT = $(TARGET1) $(TARGET2)
+SBINDIRT = $(TARGET1)
+SBINSYMT = $(TARGET2)
 
 include ../../make/defines.mk
 
