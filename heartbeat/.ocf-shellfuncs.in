@@ -58,6 +58,13 @@ ocf_is_root() {
 	esac
 }
 
+ocf_maybe_random() {
+	local rnd="$RANDOM"
+	# Something sane-ish in case a shell doesn't support $RANDOM
+	[ -n "$rnd" ] || rnd=$$
+	echo $rnd
+}
+
 # Portability comments:
 # o The following rely on Bourne "sh" pattern-matching, which is usually
 #   that for filename generation (note: not regexp).
@@ -208,19 +215,15 @@ ocf_pidfile_status() {
 }
 
 ocf_take_lock() {
-    lockfile=$1
+    local lockfile=$1
+    local rnd=$(ocf_maybe_random)
 
-    if [ ! -n $RANDOM ]; then
-	# Something sane-ish in case a shell doesn't support $RANDOM
-	RANDOM=$$
-    fi
-
-    sleep 0.$RANDOM
+    sleep 0.$rnd
     while 
 	ocf_pidfile_status $lockfile
     do
 	ocf_log info "Sleeping until $lockfile is released..."
-	sleep 0.$RANDOM
+	sleep 0.$rnd
     done
     echo $$ > $lockfile
 }

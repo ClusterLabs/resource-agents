@@ -294,7 +294,8 @@ WAS_report_status() {
 #       This is actually faster than WAS_status above...
 #
 WAS_monitor() {
-  tmpfile=`maketempfile`
+  trap '[ -z "$tmpfile" || rmtempfile "$tmpfile"' 0
+  tmpfile=`maketempfile` || exit 1
   SnoopPort=`GetWASSnoopPort $1`
   output=`$WGET -nv -O$tmpfile  http://localhost:$SnoopPort/snoop 2>&1`
   rc=$?
@@ -313,7 +314,6 @@ WAS_monitor() {
     ocf_log "err" "WAS: $1: wget failure: $output"
     rc=$OCF_ERR_GENERIC
   fi
-  rm -fr $tmpfile
   return $rc
 }
 

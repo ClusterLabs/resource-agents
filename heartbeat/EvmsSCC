@@ -151,7 +151,7 @@ EvmsSCC_start_notify_common()
                 while [ -n "$EVMS_OUTPUT" ] ; do
                         EVMS_OUTPUT=`evms_activate 2>&1`
                         if [ -n "$EVMS_OUTPUT" ] ; then
-                                SLEEP_TIME=$(($RANDOM % 40))
+                                SLEEP_TIME=$(($(ocf_maybe_random) % 40))
                                 ocf_log info "EvmsSCC: Evms call failed - sleeping for $SLEEP_TIME seconds and then trying again."
                                 sleep $SLEEP_TIME
                         else

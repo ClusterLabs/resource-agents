@@ -588,20 +588,14 @@ AC_PATH_PROGS(PKGCONFIG, pkg-config)
 dnl ************************************************************************
 dnl Check whether non-root user can chown.
 dnl ************************************************************************
-AC_PATH_PROGS(MKTEMP, mktemp)
 
 if test -n "$WHOAMI"; then
   IAM=`$WHOAMI`
 fi
 AC_MSG_CHECKING(if chown works for non-root)
 
-dnl Prefer "mktemp" command.  But some OSes lack it; they can "touch".
-if test -n "$MKTEMP"; then
-  F=`$MKTEMP "./.chown-testXXXXX"`
-else
-  F="./.chown-test.$$"
-  touch $F
-fi
+F="./.chown-test.$$"
+touch $F
 
 if
   case "$IAM" in
