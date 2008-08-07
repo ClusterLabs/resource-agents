@@ -10,7 +10,6 @@
 #include <ctype.h>
 #include <errno.h>
 
-#include "debug.h"
 #include "comm_headers.h"
 #include "libccscompat.h"
 
