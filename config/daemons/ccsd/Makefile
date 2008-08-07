@@ -2,9 +2,9 @@ TARGET= ccsd
 
 SBINDIRT=$(TARGET)
 
-all: ${TARGET}
+all: depends ${TARGET}
 
-include ../../make/defines.mk
+include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
 include $(OBJDIR)/make/install.mk
@@ -18,7 +18,7 @@ OBJS=	ccsd.o \
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
 CFLAGS += -I${cmanincdir} `xml2-config --cflags` -I${corosyncincdir}
-CFLAGS += -I$(S) -I$(S)/../include -I$(S)/../common
+CFLAGS += -I$(S)
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${cmanlibdir} -lcman
@@ -28,6 +28,9 @@ LDFLAGS += -L${libdir}
 
 ${TARGET}: ${OBJS}
 	$(CC) -o $@ $^ $(LDFLAGS)
+
+depends:
+	$(MAKE) -C $(OBJDIR)/cman/lib all
 
 clean: generalclean
 

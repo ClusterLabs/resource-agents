@@ -6,11 +6,7 @@ SBINSYMT = $(TARGET2)
 
 include ../../../make/defines.mk
 
-ifdef legacy_code
-all: depends ${TARGET1} ${TARGET2}
-else
 all: ${TARGET1} ${TARGET2}
-endif
 
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
@@ -26,7 +22,7 @@ endif
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
 CFLAGS += -I${cmanincdir} `xml2-config --cflags`
-CFLAGS += -I${ccsincdir} -I$(SRCDIR)/ccs/daemon
+CFLAGS += -I${ccsincdir} -I$(SRCDIR)/config/daemons/ccsd
 CFLAGS += -I$(SRCDIR)/config/libs/libccscompat
 CFLAGS += -I${incdir}
 
@@ -46,8 +42,9 @@ ${TARGET1}: ${OBJS} ${LDDEPS}
 ${TARGET2}: ${TARGET1}
 	ln -sf ${TARGET1} ${TARGET2}
 
-ifdef legacy_code
 depends:
+	$(MAKE) -C $(OBJDIR)/cman/lib all
+ifdef legacy_code
 	$(MAKE) -C $(OBJDIR)/config/libs/libccscompat all
 endif
 

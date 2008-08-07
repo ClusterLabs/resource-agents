@@ -11,5 +11,5 @@ include $(OBJDIR)/make/uninstall.mk
 
 CFLAGS += -D_FILE_OFFSET_BITS=64
 CFLAGS += -fPIC
-CFLAGS += -I$(SRCDIR)/ccs/daemon
+CFLAGS += -I$(SRCDIR)/config/daemons/ccsd
 CFLAGS += -I${incdir}

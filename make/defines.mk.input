@@ -73,7 +73,6 @@ enable_xen ?= @ENABLE_XEN@
 without_gnbd-kernel/src ?= @DISABLE_GNBDKERNEL@
 without_gfs-kernel/src/gfs ?= @DISABLE_GFSKERNEL@
 without_cman/lib ?= @DISABLE_CMAN@
-without_ccs ?= @DISABLE_CCS@
 without_cman ?= @DISABLE_CMAN@
 without_dlm ?= @DISABLE_DLM@
 without_group ?= @DISABLE_GROUP@
