@@ -5,9 +5,9 @@
 #include <errno.h>
 
 #include "copyright.cf"
-#include "update.h"
 #include "editconf.h"
 #ifdef LEGACY_CODE
+#include "update.h"
 #include "libccscompat.h"
 #else
 #include "ccs.h"

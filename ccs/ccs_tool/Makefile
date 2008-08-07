@@ -16,9 +16,12 @@ include $(OBJDIR)/make/clean.mk
 include $(OBJDIR)/make/install.mk
 include $(OBJDIR)/make/uninstall.mk
 
-OBJS=	ccs_tool.o \
-	update.o \
+OBJS =	ccs_tool.o \
 	editconf.o
+
+ifdef legacy_code
+OBJS += update.o
+endif
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
 CFLAGS += -I${cmanincdir} `xml2-config --cflags`
