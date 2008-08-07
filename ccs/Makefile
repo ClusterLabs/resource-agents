@@ -1,4 +1,4 @@
 include ../make/defines.mk
 include $(OBJDIR)/make/passthrough.mk
 
-SUBDIRS=daemon ccsais man
+SUBDIRS=daemon man

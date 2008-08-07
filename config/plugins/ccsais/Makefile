@@ -4,7 +4,7 @@ LCRSOT=$(TARGET)
 
 all: depends ${TARGET}
 
-include ../../make/defines.mk
+include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
 include $(OBJDIR)/make/clean.mk
 include $(OBJDIR)/make/install.mk
