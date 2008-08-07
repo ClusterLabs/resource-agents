@@ -421,7 +421,7 @@ stop_configfs()
 {
     awk '{ print $2 }' /etc/mtab | grep "/sys/kernel/config" &> /dev/null\
     && awk '{ print $3 }' /etc/mtab | grep "configfs" &> /dev/null
-    if [ $? -eq 0 ]
+    if [ $? -eq 0 ] && [ -z "$(ls -1 /sys/kernel/config)" ]
     then
 	errmsg=$( /bin/umount /sys/kernel/config 2>&1 )
 	if [ $? -ne 0 ]
