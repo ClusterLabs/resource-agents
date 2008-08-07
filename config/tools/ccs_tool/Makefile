@@ -26,7 +26,7 @@ endif
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
 CFLAGS += -I${cmanincdir} `xml2-config --cflags`
-CFLAGS += -I${ccsincdir} -I$(SRCDIR)/ccs/include
+CFLAGS += -I${ccsincdir} -I$(SRCDIR)/ccs/daemon
 CFLAGS += -I$(SRCDIR)/ccs/libccscompat
 CFLAGS += -I${incdir}
 
