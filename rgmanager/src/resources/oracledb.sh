@@ -42,6 +42,7 @@ declare SCRIPTDIR="`dirname $0`"
 [ -n "$OCF_RESKEY_user" ] && ORACLE_USER=$OCF_RESKEY_user
 [ -n "$OCF_RESKEY_home" ] && ORACLE_HOME=$OCF_RESKEY_home
 [ -n "$OCF_RESKEY_name" ] && ORACLE_SID=$OCF_RESKEY_name
+[ -n "$OCF_RESKEY_listener_name" ] && ORACLE_LISTENER=$OCF_RESKEY_listener_name
 [ -n "$OCF_RESKEY_lockfile" ] && LOCKFILE=$OCF_RESKEY_lockfile
 [ -n "$OCF_RESKEY_type" ] && ORACLE_TYPE=$OCF_RESKEY_type
 [ -n "$OCF_RESKEY_vhost" ] && ORACLE_HOSTNAME=$OCF_RESKEY_vhost
@@ -81,7 +82,7 @@ declare SCRIPTDIR="`dirname $0`"
 #
 # 5. Type of Oracle Database.  Currently supported: 10g 10g-iAS(untested!)
 #
-[ -n "$ORACLE_TYPE" ] || ORACLE_TYPE=10g
+[ -n "$ORACLE_TYPE" ] || ORACLE_TYPE="base-em"
 
 #
 # 6. Oracle virtual hostname.  This is the hostname you gave Oracle during
@@ -141,7 +142,21 @@ meta_data()
 	    <content type="string"/>
         </parameter>
 
-        <parameter name="user" unique="1" required="1">
+        <parameter name="listener_name" unique="1">
+	    <longdesc lang="en">
+		Oracle Listener Instance Name.  If you have multiple 
+		instances of Oracle running, it may be necessary to 
+		have multiple listeners on the same machine with
+		different names.
+	    </longdesc>
+            <shortdesc lang="en">
+		Oracle Listener Instance Name
+            </shortdesc>
+	    <content type="string"/>
+        </parameter>
+
+
+        <parameter name="user" required="1">
 	    <longdesc lang="en">
 		Oracle user name.  This is the user name of the Oracle
 		user which the Oracle AS instance runs as.
@@ -152,7 +167,7 @@ meta_data()
 	    <content type="string"/>
         </parameter>
 
-        <parameter name="home" unique="1" required="1">
+        <parameter name="home" required="1">
 	    <longdesc lang="en">
 		This is the Oracle (application, not user) home directory.
 		This is configured when you install Oracle.
@@ -163,11 +178,13 @@ meta_data()
 	    <content type="string"/>
         </parameter>
 
-        <parameter name="type" required="1">
+        <parameter name="type" required="0">
 	    <longdesc lang="en">
-		This is the Oracle installation type.
-		Only "10g" and "10g-ias" are supported, and 10g-ias is
-		untested.
+		This is the Oracle installation type:
+		base - Database Instance and Listener only
+		base-em (or 10g) - Database, Listener, Enterprise Manager,
+				   and iSQL*Plus
+		ias (or 10g-ias) - Internet Application Server (Infrastructure)
 	    </longdesc>
             <shortdesc lang="en">
 		Oracle Installation Type
@@ -209,7 +226,7 @@ meta_data()
 	<action name="monitor" depth="20" timeout="90" interval="10m"/>
 
 	<action name="meta-data" timeout="5"/>
-	<action name="verify-all" timeout="5"/>
+	<action name="validate-all" timeout="5"/>
     </actions>
 
     <special tag="rgmanager">
@@ -281,7 +298,7 @@ start_db()
 	grep -q "failure" $logfile
 	if [ $? -eq 0 ]; then
 		rm -f $tmpfile
-		echo "ORACLE_SID Incorrectly set?"
+	echo "ORACLE_SID Incorrectly set?"
 		echo "See $logfile for more information."
 		return 1
 	fi
@@ -463,8 +480,9 @@ get_lsnr_status()
 	#
 	for (( i=$RESTART_RETRIES ; i; i-- )) ; do
 
-		action "Restarting Oracle listener:" lsnrctl start
-		lsnrctl status >& /dev/null
+		action "Restarting Oracle listener:" lsnrctl start \
+					$ORACLE_LISTENER
+		lsnrctl status $ORACLE_LISTENER >& /dev/null
 		if [ $? == 0 ] ; then
 			break # Listener was (re)started and is running fine
 		fi
@@ -666,7 +684,16 @@ validation_checks()
 	#
 	# If we don't know the type, we're done
 	#
-	[ "$ORACLE_TYPE" = "10g" ] || [ "$ORACLE_TYPE" = "10g-ias" ] || oops ORACLE_TYPE
+	if [ "$ORACLE_TYPE" = "base" ]; then
+		# Other names for base
+		ORACLE_TYPE="base"
+	elif [ "$ORACLE_TYPE" = "10g" ] || [ "$ORACLE_TYPE" = "base-em" ]; then
+		ORACLE_TYPE="base-em"
+	elif [ "$ORACLE_TYPE" = "10g-ias" ] || [ "$ORACLE_TYPE" = "ias" ]; then
+		ORACLE_TYPE="ias"
+	else
+		oops ORACLE_TYPE
+	fi
 
 	#
 	# If the hostname is zero-length, fix it
@@ -708,12 +735,12 @@ validation_checks()
 start_oracle()
 {
 	faction "Starting Oracle Database:" start_db || return 1
-	action "Starting Oracle Listener:" lsnrctl start || return 1
+	action "Starting Oracle Listener:" lsnrctl start $ORACLE_LISTENER || return 1
 
-	if [ "$ORACLE_TYPE" = "10g" ]; then
+	if [ "$ORACLE_TYPE" = "base-em" ]; then
 		action "Starting iSQL*Plus:" isqlplusctl start || return 1
 		action "Starting Oracle EM DB Console:" emctl start dbconsole || return 1
-	elif [ "$ORACLE_TYPE" = "10g-ias" ]; then
+	elif [ "$ORACLE_TYPE" = "ias" ]; then
 		action "Starting Oracle EM:" emctl start em || return 1
 		action "Starting iAS Infrastructure:" opmnctl startall || return 1
 	fi
@@ -736,16 +763,16 @@ stop_oracle()
 		return 0
 	fi
 
-	if [ "$ORACLE_TYPE" = "10g" ]; then
+	if [ "$ORACLE_TYPE" = "base-em" ]; then
 		action "Stopping Oracle EM DB Console:" emctl stop dbconsole || return 1
 		action "Stopping iSQL*Plus:" isqlplusctl stop || return 1
-	elif [ "$ORACLE_TYPE" = "10g-ias" ]; then
+	elif [ "$ORACLE_TYPE" = "ias" ]; then
 		action "Stopping iAS Infrastructure:" opmnctl stopall || return 1
 		action "Stopping Oracle EM:" emctl stop em || return 1
 	fi
 
 	faction "Stopping Oracle Database:" stop_db || return 1
-	action "Stopping Oracle Listener:" lsnrctl stop
+	action "Stopping Oracle Listener:" lsnrctl stop $ORACLE_LISTENER
 	faction "Waiting for all Oracle processes to exit:" exit_idle 
 
 	if [ $? -ne 0 ]; then
@@ -800,12 +827,12 @@ status_oracle()
 	update_status $? $last
 	last=$?
 	
-	if [ "$ORACLE_TYPE" = "10g" ]; then
+	if [ "$ORACLE_TYPE" = "base-em" ]; then
 		# XXX Add isqlplus status check?!
 		emctl status dbconsole 2>&1 | grep "is running"
 		update_status $? $last
 		last=$?
-	elif [ "$ORACLE_TYPE" = "10g-ias" ]; then
+	elif [ "$ORACLE_TYPE" = "ias" ]; then
 		# Check & report opmn / opmn-managed process status
 		get_opmn_status $subsys_lock $depth
 		update_status $? $last

@@ -67,7 +67,7 @@
 		<shortdesc lang="en">
 			Wait X seconds for correct end of service shutdown
 		</shortdesc>
-		<content type="number" default="30" />
+		<content type="integer" default="30" />
 	</parameter>
 
         <parameter name="service_name" inherit="service%name">

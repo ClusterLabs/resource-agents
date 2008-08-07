@@ -24,7 +24,6 @@
 	name	CDATA	#REQUIRED
 	primary (1|0)   "0"
 	required (1|0)	"0"
-	reconfig (1|0)	"0"
 	inherit CDATA	""
 	unique	(1|0)	"0"
 	reconfig (1|0)  "0">
@@ -44,7 +43,7 @@
 
 <!ELEMENT action EMPTY>
 <!ATTLIST action
-	name	(start|stop|recover|status|reconfig|monitor|reload|meta-data|verify-all|migrate|reconfig)	#REQUIRED
+	name	(start|stop|recover|status|reconfig|monitor|reload|meta-data|validate-all|migrate|reconfig|methods)	#REQUIRED
 	timeout		CDATA	#REQUIRED
 	interval 	CDATA	#IMPLIED
 	start-delay 	CDATA	#IMPLIED
@@ -57,7 +56,9 @@
 
 <!ELEMENT attributes EMPTY>
 <!ATTLIST attributes
-	maxinstances CDATA "0">
+	maxinstances CDATA "0"
+	init_on_add CDATA "0"
+	destroy_on_delete CDATA "0">
 
 <!ELEMENT child EMPTY>
 <!ATTLIST child

@@ -8,7 +8,7 @@ include $(OBJDIR)/make/clean.mk
 RESOURCES=fs.sh service.sh ip.sh nfsclient.sh nfsexport.sh \
 	script.sh netfs.sh clusterfs.sh smb.sh \
 	apache.sh openldap.sh samba.sh mysql.sh \
-	postgres-8.sh tomcat-5.sh lvm.sh lvm_by_lv.sh lvm_by_vg.sh \
+	postgres-8.sh tomcat-5.sh lvm.sh \
 	vm.sh SAPInstance SAPDatabase named.sh \
 	oracledb.sh ASEHAagent.sh
 
@@ -16,7 +16,7 @@ METADATA=apache.metadata openldap.metadata samba.metadata \
 	mysql.metadata postgres-8.metadata tomcat-5.metadata \
 	named.metadata lvm.metadata default_event_script.sl
 
-GENERAL_TARGETS=ocf-shellfuncs svclib_nfslock
+GENERAL_TARGETS=ocf-shellfuncs svclib_nfslock lvm_by_lv.sh lvm_by_vg.sh
 
 UTIL_TARGETS= \
 	utils/ra-skelet.sh utils/messages.sh \

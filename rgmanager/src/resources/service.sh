@@ -194,7 +194,7 @@ meta_data()
     </actions>
     
     <special tag="rgmanager">
-        <attributes root="1" maxinstances="1"/>
+        <attributes maxinstances="1"/>
         <child type="lvm" start="1" stop="9"/>
         <child type="fs" start="2" stop="8"/>
         <child type="clusterfs" start="3" stop="7"/>

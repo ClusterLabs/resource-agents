@@ -33,6 +33,8 @@ if [ -f /usr/lib/heartbeat/ocf-shellfuncs ]; then
 	. /usr/lib/heartbeat/ocf-shellfuncs
 elif [ -f /usr/share/cluster/ocf-shellfuncs ]; then
 	. /usr/share/cluster/ocf-shellfuncs
+elif [ -f `dirname $0`/ocf-shellfuncs ]; then
+	. `dirname $0`/ocf-shellfuncs
 else
 	echo Could not find ocf-shellfuncs!
 	exit 1
@@ -65,7 +67,7 @@ usage() {
 meta_data() {
 	cat <<END
 <?xml version="1.0"?>
-<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<!DOCTYPE resource-agent SYSTEM "ra-api-1-modified.dtd">
 <resource-agent name="SAPDatabase">
 <version>1.2</version>
 

@@ -166,7 +166,7 @@ validate-all|verify-all)
 	rv=0
 	;;
 *)
-	echo "usage: $0 {start|status|monitor|stop|restart|meta-data|verify-all}"
+	echo "usage: $0 {start|status|monitor|stop|restart|meta-data|validate-all}"
 	exit $OCF_ERR_UNIMPLEMENTED
 	;;
 esac
