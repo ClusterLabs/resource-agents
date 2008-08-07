@@ -1,4 +1,7 @@
 include ../../make/defines.mk
 include $(OBJDIR)/make/passthrough.mk
 
-SUBDIRS=libccsconfdb
+SUBDIRS = libccsconfdb
+ifdef legacy_code
+SUBDIRS += libccscompat
+endif

@@ -27,13 +27,13 @@ endif
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
 CFLAGS += -I${cmanincdir} `xml2-config --cflags`
 CFLAGS += -I${ccsincdir} -I$(SRCDIR)/ccs/daemon
-CFLAGS += -I$(SRCDIR)/ccs/libccscompat
+CFLAGS += -I$(SRCDIR)/config/libs/libccscompat
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${cmanlibdir} -lcman
 ifdef legacy_code
-LDFLAGS += -L$(OBJDIR)/ccs/libccscompat -lccscompat
-LDDEPS += $(OBJDIR)/ccs/libccscompat/libccscompat.a
+LDFLAGS += -L$(OBJDIR)/config/libs/libccscompat -lccscompat
+LDDEPS += $(OBJDIR)/config/libs/libccscompat/libccscompat.a
 else
 LDFLAGS += -L${ccslibdir} -lccs
 endif
@@ -48,7 +48,7 @@ ${TARGET2}: ${TARGET1}
 
 ifdef legacy_code
 depends:
-	$(MAKE) -C $(OBJDIR)/ccs/libccscompat all
+	$(MAKE) -C $(OBJDIR)/config/libs/libccscompat all
 endif
 
 clean: generalclean

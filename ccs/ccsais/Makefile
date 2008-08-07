@@ -11,14 +11,14 @@ include $(OBJDIR)/make/install.mk
 include $(OBJDIR)/make/uninstall.mk
 
 CFLAGS += -fPIC
-CFLAGS += -I$(S)/../libccscompat
+CFLAGS += -I$(SRCDIR)/config/libs/libccscompat
 CFLAGS += -I${cmanincdir}/../daemon
 CFLAGS += -I${incdir}
 
-LDFLAGS += -L../libccscompat -lccscompat
+LDFLAGS += -L$(OBJDIR)/config/libs/libccscompat -lccscompat
 LDFLAGS += -L${libdir}
 
-LDDEPS += ../libccscompat/libccscompat.a
+LDDEPS += $(OBJDIR)/config/libs/libccscompat/libccscompat.a
 
 OBJS=	config.o
 
@@ -26,7 +26,7 @@ ${TARGET}: ${OBJS} ${LDDEPS}
 	$(CC) -shared -Wl,-soname,$@ -o $@ $^ $(LDFLAGS)
 
 depends:
-	$(MAKE) -C ../libccscompat all
+	$(MAKE) -C $(OBJDIR)/config/libs/libccscompat all
 
 clean: generalclean 
 
