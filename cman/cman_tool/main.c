@@ -7,7 +7,7 @@
 #include "libcman.h"
 #include "cman_tool.h"
 
-#define DEFAULT_CONFIG_MODULE "ccsconfig"
+#define DEFAULT_CONFIG_MODULE "xmlconfig"
 
 #define OPTION_STRING		("m:n:v:e:2p:c:r:i:N:t:o:k:F:C:VPwfqah?Xd::")
 #define OP_JOIN			1
@@ -50,7 +50,7 @@ static void print_usage(int subcmd)
 		printf("  -n <nodename>    The name of this node (defaults to hostname)\n");
 		printf("  -c <clustername> The name of the cluster to join\n");
 		printf("  -N <id>          Node id\n");
-		printf("  -C <module>      Config file reader (default: ccsconfig)\n");
+		printf("  -C <module>      Config file reader (default: " DEFAULT_CONFIG_MODULE ")\n");
 		printf("  -w               Wait until node has joined a cluster\n");
 		printf("  -q               Wait until the cluster is quorate\n");
 		printf("  -t               Maximum time (in seconds) to wait\n");
