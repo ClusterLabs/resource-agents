@@ -58,7 +58,7 @@ uninstall:
 	set -e && for i in ${SUBDIRS}; do ${MAKE} -C $$i $@; done
 
 clean:
-	set -e && for i in ${REALSUBDIRS}; do ${MAKE} -C $$i $@; done
+	set -e && for i in ${REALSUBDIRS}; do legacy_code=1 ${MAKE} -C $$i $@; done
 
 distclean: clean
 	rm -f make/defines.mk
