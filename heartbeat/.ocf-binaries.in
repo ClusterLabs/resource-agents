@@ -11,7 +11,6 @@ export PATH
 : ${EGREP:="@EGREP@"}
 : ${IFCONFIG_A_OPT:="@IFCONFIG_A_OPT@"}
 : ${MAILCMD:=@MAILCMD@}
-: ${MKTEMP:=@MKTEMP@}
 : ${PING:=@PING@}
 : ${RPM:=@RPM@}
 : ${SH:=@SHELL@}
@@ -48,7 +47,6 @@ export PATH
 : ${SCP:=scp}
 : ${SSH:=ssh}
 : ${SWIG:=swig}
-: ${MKTEMP:=mktemp}
 : ${GZIP_PROG:=gzip}
 : ${TAR:=tar}
 : ${MD5:=md5}
