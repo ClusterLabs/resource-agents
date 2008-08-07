@@ -78,6 +78,19 @@ fi
 
 [ -n "$NODENAME" ] && cman_join_opts+=" -n $NODENAME"
 
+# CONFIG_LOADER -- select default config parser.
+# This can be:
+# xmlconfig       - read directly from cluster.conf and use ricci as default config
+#                   propagation method. (default)
+# ldapconfig      - read configuration from an ldap server.
+#                   Requires: LDAP_URL or/and LDAP_BASEDN envvar to be set.
+#                   LDAP_BINDDN and LDAP_BINDPWD have to be either both set or both unset.
+# corosync_parser - use internal corosync config file parser.
+# openaisparser   - use internal openais config file parser.
+# ccsconfig       - read configuration from ccsd daemon. This method is deprecated
+#                   and available only if building the code with --enable_legacy_code.
+[ -n "$CONFIG_LOADER" ] && cman_join_opts+=" -C $CONFIG_LOADER"
+
 load_modules()
 {
     errmsg=$( /sbin/modprobe configfs 2>&1 ) || return 1
@@ -118,6 +131,47 @@ start_cman()
     /sbin/cman_tool status &> /dev/null
     if [ $? -ne 0 ]
     then
+	case "$CONFIG_LOADER" in
+	    ldapconfig)
+		if [ -n "$LDAP_URL" ] || [ -n "$LDAP_BASEDN" ]; then
+		    if [ -n "$LDAP_BINDDN" ]; then
+			if [ -z "$LDAP_BINDPWD" ]; then
+			    errmsg="ldadconfig has been select but LDAP_BINDPWD is not set"
+			    return 1
+			fi
+		    fi
+		    if [ -n "$LDAP_BINDPWD" ]; then
+			if [ -z "$LDAP_BINDDN" ]; then
+			    errmsg="ldadconfig has been select but LDAP_BINDDN is not set"
+			    return 1
+			fi
+		    fi
+		else
+		    errmsg="ldadconfig has been select but neither LDAP_URL or LDAP_BASEDN have been set"
+		    return 1
+		fi
+		;;
+	    ccsconfig)
+		if [ -x /sbin/ccsd ]; then
+		    echo -n "   Starting ccsd... "
+		    start_ccsd
+		    if [ $? -eq 0 ] 
+		    then
+			echo "done"
+		    else
+			echo "failed"
+			errmsg="Unable to start ccsd"
+			return 1
+		    fi
+		else
+			errmsg="ccsconfig has been selected but ccsd does not appear to be installed or executable"
+			return 1
+		fi
+		;;
+	    *)
+		# nothing to do for now
+		;;
+	esac
 	errmsg=$( /sbin/cman_tool -t $CMAN_CLUSTER_TIMEOUT -w join \
 	    $cman_join_opts 2>&1 ) || return 1
 
@@ -350,16 +404,6 @@ start()
 
     echo -n "   Setting network parameters... "
     set_networking_params
-    if [ $? -eq 0 ] 
-    then
-	echo "done"
-    else
-	echo "failed"
-	return 1
-    fi
-
-    echo -n "   Starting ccsd... "
-    start_ccsd
     if [ $? -eq 0 ] 
     then
 	echo "done"
