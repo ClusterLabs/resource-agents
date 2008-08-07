@@ -212,7 +212,7 @@ srca_status() {
 CheckIP() {
   ip="$1"
   case $ip in
-    *[^0-9.]*) #got invalid char
+    *[!0-9.]*) #got invalid char
 	false;;
     .*|*.) #begin or end by ".", which is invalid
 	false;;

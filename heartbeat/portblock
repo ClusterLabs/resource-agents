@@ -257,7 +257,7 @@ CheckPort() {
 #	Examples of valid port: "1080", "1", "0080"
 #	Examples of invalid port: "1080bad", "0", "0000", ""
   case "$1" in
-    *[^0-9]*) #got invalid char
+    *[!0-9]*) #got invalid char
 	false;;
     *[1-9]*) #no invalid char, and has non-zero digit, so is a good port
 	true;;

@@ -767,7 +767,7 @@ ip_validate() {
 	fi
 
 	case $IF_MAC in
-	[0-9a-zA-Z][1379bBdDfF][^0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][^0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][^0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][^0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][^0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z])
+	[0-9a-zA-Z][1379bBdDfF][!0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][!0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][!0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][!0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][!0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z])
 		;;
 	*)
 		valid=0

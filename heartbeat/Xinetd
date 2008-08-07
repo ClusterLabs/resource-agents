@@ -155,7 +155,7 @@ CheckInteger() {
   case "$1" in
     "") #empty string 
 	false;;
-    *[^0-9]*) #got invalid char
+    *[!0-9]*) #got invalid char
 	false;;
     *) #no invalid char, and has at least one digit, so is a good integer
 	true;;
@@ -375,11 +375,11 @@ xup_validate_all () {
 
 	service*)
 	case $stripped in
-	    *[^\	\ +-]=*)
+	    *[!\	\ +-]=*)
 		ocf_log err "Attribute needs a space before operator ="
 		exit $OCF_ERR_CONFIGURED
 		;;
-	    *[^\	\ ][+-]=*)
+	    *[!\	\ ][+-]=*)
 		ocf_log err "Attribute needs a space before operator [+-]="
 		exit $OCF_ERR_CONFIGURED
 		;;
