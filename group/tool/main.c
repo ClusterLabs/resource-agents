@@ -18,6 +18,10 @@
 #include "libfenced.h"
 #include "libdlmcontrol.h"
 #include "libgfscontrol.h"
+#include "copyright.cf"
+
+#define GROUP_LIBGROUP			2
+#define GROUP_LIBCPG			3
 
 #define MAX_NODES			128
 #define MAX_LS				128
@@ -33,6 +37,7 @@ static int operation;
 static int opt_ind;
 static int verbose;
 static int all_daemons;
+static int print_header_done;
 
 
 static int do_write(int fd, void *buf, size_t count)
@@ -123,7 +128,7 @@ static void decode_arguments(int argc, char **argv)
 		case 'V':
 			printf("%s %s (built %s %s)\n",
 				prog_name, RELEASE_VERSION, __DATE__, __TIME__);
-			/* printf("%s\n", REDHAT_COPYRIGHT); */
+			printf("%s\n", REDHAT_COPYRIGHT);
 			exit(EXIT_SUCCESS);
 			break;
 
@@ -256,7 +261,7 @@ static int member_compare(const void *va, const void *vb)
 	return *a - *b;
 }
 
-static int groupd_list(int argc, char **argv, int *total)
+static int groupd_list(int argc, char **argv)
 {
 	group_data_t data[MAX_GROUPS];
 	int i, j, rv, count = 0, level;
@@ -285,8 +290,6 @@ static int groupd_list(int argc, char **argv, int *total)
 	if (!count)
 		return 0;
 
-	*total = count;
-
 	for (i = 0; i < count; i++) {
 		len = strlen(data[i].name);
 		if (len > max_name)
@@ -299,16 +302,16 @@ static int groupd_list(int argc, char **argv, int *total)
 	else
 		state_header = "state";
 			
-	printf("%-*s %-*s %-*s %-*s %-*s\n",
-		type_width, "type",
-		level_width, "level",
-		name_width, "name",
-		id_width, "id",
-		state_width, state_header);
-
 	qsort(&data, count, sizeof(group_data_t), data_compare);
 
 	for (i = 0; i < count; i++) {
+		if (!i)
+			printf("%-*s %-*s %-*s %-*s %-*s\n",
+			       type_width, "type",
+			       level_width, "level",
+			       name_width, "name",
+			       id_width, "id",
+			       state_width, state_header);
 
 		printf("%-*s %-*d %-*s %0*x %-*s\n",
 			type_width, data[i].client_name,
@@ -339,6 +342,15 @@ static int fenced_node_compare(const void *va, const void *vb)
 	return a->nodeid - b->nodeid;
 }
 
+static void print_header(void)
+{
+	if (print_header_done)
+		return;
+	print_header_done = 1;
+
+	printf("type         level name             id       state\n");
+}
+
 static void fenced_list(void)
 {
 	struct fenced_domain d;
@@ -350,6 +362,8 @@ static void fenced_list(void)
 	rv = fenced_domain_info(&d);
 	if (rv < 0)
 		return;
+
+	print_header();
 
 	printf("fence        0     %-*s %08x %d\n",
 	       16, "default", 0, d.state);
@@ -413,6 +427,9 @@ static void dlm_controld_list(void)
 	for (i = 0; i < ls_count; i++) {
 		ls = &lss[i];
 
+		if (!i)
+			print_header();
+
 		printf("dlm          1     %-*s %08x %x\n",
 			16, ls->name, ls->global_id, ls->flags);
 
@@ -475,6 +492,9 @@ static void gfs_controld_list(void)
 
 	for (i = 0; i < mg_count; i++) {
 		mg = &mgs[i];
+
+		if (!i)
+			print_header();
 
 		printf("gfs          2     %-*s %08x %x\n",
 			16, mg->name, mg->global_id, mg->flags);
@@ -567,7 +587,7 @@ static int do_log(char *comment)
 
 int main(int argc, char **argv)
 {
-	int total = 0;
+	int rv, version;
 
 	prog_name = argv[0];
 	decode_arguments(argc, argv);
@@ -584,21 +604,19 @@ int main(int argc, char **argv)
 				system("dlm_tool ls");
 				system("gfs_control ls");
 			}
-			break;
+		} else {
+			rv = group_get_version(&version);
+
+			if (version == -EAGAIN) {
+				printf("groupd detecting version...\n");
+			} else if (!rv && version == GROUP_LIBGROUP) {
+				groupd_list(argc, argv);
+			} else {
+				fenced_list();
+				dlm_controld_list();
+				gfs_controld_list();
+			}
 		}
-
-		/* If no groupd or no groups found in groupd, then try
-		   the querying the daemons.  Print any data from the
-		   new daemons in a format similar to the old format. */
-
-		groupd_list(argc, argv, &total);
-		if (total)
-			break;
-
-		printf("type         level name             id       state\n");
-		fenced_list();
-		dlm_controld_list();
-		gfs_controld_list();
 		break;
 
 	case OP_DUMP:
