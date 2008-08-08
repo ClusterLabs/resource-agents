@@ -16,6 +16,7 @@ struct fenced_node {
 };
 
 struct fenced_domain {
+	int group_mode;
 	int member_count;
 	int victim_count;
 	int master_nodeid;

@@ -353,6 +353,9 @@ static void query_domain_info(int f)
 		goto out;
 	}
 
+	memset(&domain, 0, sizeof(domain));
+	domain.group_mode = group_mode;
+
 	if (group_mode == GROUP_LIBGROUP)
 		rv = set_domain_info_group(fd, &domain);
 	else

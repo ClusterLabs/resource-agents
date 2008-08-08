@@ -1383,6 +1383,7 @@ int set_domain_info(struct fd *fd, struct fenced_domain *domain)
 	}
 	domain->master_nodeid = fd->master;
 	domain->victim_count = list_count(&fd->victims);
+	domain->current_victim = fd->current_victim;
 
 	return 0;
 }
@@ -1404,6 +1405,7 @@ int set_domain_nodes(struct fd *fd, int option, int *node_count,
 		nodes = malloc(count * sizeof(struct fenced_node));
 		if (!nodes)
 			return -ENOMEM;
+		memset(nodes, 0, sizeof(*nodes));
 
 		n = nodes;
 		list_for_each_entry(memb, &cg->members, list)
@@ -1417,6 +1419,7 @@ int set_domain_nodes(struct fd *fd, int option, int *node_count,
 		nodes = malloc(count * sizeof(struct fenced_node));
 		if (!nodes)
 			return -ENOMEM;
+		memset(nodes, 0, sizeof(*nodes));
 
 		n = nodes;
 		list_for_each_entry(nh, &fd->node_history, list)

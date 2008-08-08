@@ -404,7 +404,8 @@ int set_node_info_group(struct fd *fd, int nodeid, struct fenced_node *nodeinfo)
 	nodeinfo->victim = is_victim(fd, nodeid);
 	nodeinfo->member = id_in_nodeids(nodeid, cb_member_count, cb_members);
 
-	/* FIXME: need to keep track of last fence info for nodes */
+	/* FIXME: we don't keep track of last_fenced_* in this libgroup code,
+	   maybe just leave it out */
 
 	return 0;
 }
@@ -415,6 +416,7 @@ int set_domain_info_group(struct fd *fd, struct fenced_domain *domain)
 	domain->victim_count = list_count(&fd->victims);
 	domain->member_count = cb_member_count;
 	domain->state = cb_action;
+	domain->current_victim = fd->current_victim;
 	return 0;
 }
 
@@ -430,10 +432,11 @@ int set_domain_nodes_group(struct fd *fd, int option, int *node_count,
 	nodes = malloc(cb_member_count * sizeof(struct fenced_node));
 	if (!nodes)
 		return -ENOMEM;
+	memset(nodes, 0, sizeof(*nodes));
 
 	nodep = nodes;
 	for (i = 0; i < cb_member_count; i++) {
-		set_node_info(fd, cb_members[i], nodep++);
+		set_node_info_group(fd, cb_members[i], nodep++);
 	}
  out:
 	*node_count = cb_member_count;

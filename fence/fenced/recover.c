@@ -259,9 +259,14 @@ void fence_victims(struct fd *fd)
 
 		log_level(LOG_INFO, "fencing node \"%s\"", node->name);
 
+		/* for queries */
+		fd->current_victim = node->nodeid;
+
 		query_unlock();
 		error = fence_node(node->name);
 		query_lock();
+
+		fd->current_victim = 0;
 
 		log_level(LOG_INFO, "fence \"%s\" %s", node->name,
 			  error ? "failed" : "success");

@@ -177,6 +177,7 @@ struct fd {
 	int			master;
 	int			joining_group;
 	int			leaving_group;
+	int			current_victim; /* for queries */
 	struct list_head 	victims;
 	struct list_head	complete;
 
