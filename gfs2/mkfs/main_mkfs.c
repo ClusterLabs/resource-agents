@@ -318,7 +318,7 @@ void check_mount(char *device)
  */
 
 static void
-print_results(struct gfs2_sbd *sdp)
+print_results(struct gfs2_sbd *sdp, uint64_t real_device_size)
 {
 	if (sdp->debug)
 		printf("\n");
@@ -332,7 +332,8 @@ print_results(struct gfs2_sbd *sdp)
 
 	printf("Blocksize:                 %u\n", sdp->bsize);
 	printf("Device Size                %.2f GB (%"PRIu64" blocks)\n",
-	       sdp->device_size / ((float)(1 << 30)) * sdp->bsize, sdp->device_size);
+	       real_device_size / ((float)(1 << 30)),
+	       real_device_size / sdp->bsize);
 	printf("Filesystem Size:           %.2f GB (%"PRIu64" blocks)\n",
 	       sdp->fssize / ((float)(1 << 30)) * sdp->bsize, sdp->fssize);
 
@@ -365,6 +366,7 @@ main_mkfs(int argc, char *argv[])
 	unsigned int x;
 	int error;
 	int rgsize_specified = 0;
+	uint64_t real_device_size;
 
 	memset(sdp, 0, sizeof(struct gfs2_sbd));
 	sdp->bsize = GFS2_DEFAULT_BSIZE;
@@ -401,14 +403,19 @@ main_mkfs(int argc, char *argv[])
 
 	/* Get the device geometry */
 
+	device_size(sdp->device_fd, &real_device_size);
 	device_geometry(sdp);
 	/* Convert optional block-count to basic blocks */
 	if (sdp->orig_fssize) {
 		sdp->orig_fssize *= sdp->bsize;
 		sdp->orig_fssize >>= GFS2_BASIC_BLOCK_SHIFT;
-		if (sdp->orig_fssize > sdp->device.length)
-			die("specified block count is smaller than the"
-			    "actual device.\n");
+		if (sdp->orig_fssize > sdp->device.length) {
+			fprintf(stderr, "%s: Specified block count is bigger "
+				"than the actual device.\n", prog_name);
+			die("Device Size is %.2f GB (%"PRIu64" blocks)\n",
+			       real_device_size / ((float)(1 << 30)),
+			       real_device_size / sdp->bsize);
+		}
 		sdp->device.length = sdp->orig_fssize;
 	}
 	fix_device_geometry(sdp);
@@ -449,5 +456,5 @@ main_mkfs(int argc, char *argv[])
 		die("error closing device (%d): %s\n",
 		    error, strerror(errno));
 
-	print_results(sdp);
+	print_results(sdp, real_device_size);
 }
