@@ -454,6 +454,9 @@ static void query_mountgroup_info(int fd, char *name)
 		goto out;
 	}
 
+	memset(&mountgroup, 0, sizeof(mountgroup));
+	mountgroup.group_mode = group_mode;
+
 	if (group_mode == GROUP_LIBGROUP)
 		rv = set_mountgroup_info_group(mg, &mountgroup);
 	else

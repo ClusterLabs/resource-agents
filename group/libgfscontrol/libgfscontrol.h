@@ -49,6 +49,7 @@ struct gfsc_change {
 #define GFSC_MF_LOCAL_RECOVERY_BUSY	0x00000080
 
 struct gfsc_mountgroup {
+	int group_mode;
 	struct gfsc_change cg_prev;	/* completed change (started_change) */
 	struct gfsc_change cg_next;	/* in-progress change (changes list) */
 	int journals_need_recovery;	/* count of jounals need_recovery */

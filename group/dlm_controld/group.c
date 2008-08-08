@@ -311,7 +311,7 @@ int set_lockspace_nodes_group(struct lockspace *ls, int option, int *node_count,
 	memset(nodes, 0, sizeof(*nodes));
 
 	nodep = nodes;
-	for (i = 0; i < cb_member_count; i++) {
+	for (i = 0; i < ls->cb_member_count; i++) {
 		set_node_info_group(ls, ls->cb_members[i], nodep++);
 	}
  out:

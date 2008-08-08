@@ -181,24 +181,139 @@ void close_groupd(void)
 	group_exit(gh);
 }
 
-int set_mountgroup_info_group(struct mountgroup *mg, struct gfsc_mountgroup *out)
+/* most of the query info doesn't apply in the LIBGROUP mode, but we can
+   emulate some basic parts of it */
+
+int set_mountgroup_info_group(struct mountgroup *mg,
+			      struct gfsc_mountgroup *out)
 {
+	strncpy(out->name, mg->name, GFS_MOUNTGROUP_LEN);
+	out->global_id = mg->id;
+
+	if (mg->joining)
+		out->flags |= GFSC_MF_JOINING;
+	if (mg->leaving)
+		out->flags |= GFSC_MF_LEAVING;
+	if (mg->kernel_stopped)
+		out->flags |= GFSC_MF_KERNEL_STOPPED;
+
+	out->cg_prev.member_count = mg->memb_count;
+
 	return 0;
 }
 
-int set_node_info_group(struct mountgroup *mg, int nodeid, struct gfsc_node *node)
+static int _set_node_info(struct mountgroup *mg, int nodeid,
+			  struct gfsc_node *node)
 {
+	struct mg_member *memb;
+	int is_member = 0, is_gone = 0;
+
+	list_for_each_entry(memb, &mg->members, list) {
+		if (memb->nodeid != nodeid)
+			continue;
+		is_member = 1;
+		goto found;
+	}
+	list_for_each_entry(memb, &mg->members_gone, list) {
+		if (memb->nodeid != nodeid)
+			continue;
+		is_gone = 1;
+		break;
+	}
+	if (!is_member && !is_gone)
+		goto out;
+ found:
+	node->nodeid = nodeid;
+
+	if (is_member)
+		node->flags |= GFSC_NF_MEMBER;
+	if (memb->spectator)
+		node->flags |= GFSC_NF_SPECTATOR;
+	if (memb->readonly)
+		node->flags |= GFSC_NF_READONLY;
+	if (memb->ms_kernel_mount_done)
+		node->flags |= GFSC_NF_KERNEL_MOUNT_DONE;
+	if (memb->ms_kernel_mount_error)
+		node->flags |= GFSC_NF_KERNEL_MOUNT_ERROR;
+
+	node->jid = memb->jid;
+
+	if (is_gone && memb->gone_type == GROUP_NODE_FAILED)
+		node->failed_reason = 1;
+ out:
 	return 0;
+}
+
+int set_node_info_group(struct mountgroup *mg, int nodeid,
+			struct gfsc_node *node)
+{
+	return _set_node_info(mg, nodeid, node);
 }
 
 int set_mountgroups_group(int *count, struct gfsc_mountgroup **mgs_out)
 {
+	struct mountgroup *mg;
+	struct gfsc_mountgroup *mgs, *mgp;
+	int mg_count = 0;
+
+	list_for_each_entry(mg, &mountgroups, list)
+		mg_count++;
+
+	mgs = malloc(mg_count * sizeof(struct gfsc_mountgroup));
+	if (!mgs)
+		return -ENOMEM;
+	memset(mgs, 0, mg_count * sizeof(struct gfsc_mountgroup));
+
+	mgp = mgs;
+	list_for_each_entry(mg, &mountgroups, list) {
+		set_mountgroup_info(mg, mgp++);
+	}
+
+	*count = mg_count;
+	*mgs_out = mgs;
 	return 0;
 }
 
-int set_mountgroup_nodes_group(struct mountgroup *mg, int option, int *node_count,
-			       struct gfsc_node **nodes_out)
+int list_count(struct list_head *head)
 {
+	struct list_head *tmp;
+	int count = 0;
+
+	list_for_each(tmp, head)
+		count++;
+	return count;
+}
+
+int set_mountgroup_nodes_group(struct mountgroup *mg, int option,
+			       int *node_count, struct gfsc_node **nodes_out)
+{
+	struct gfsc_node *nodes = NULL, *nodep;
+	struct mg_member *memb;
+	int count = 0;
+
+	if (option == GFSC_NODES_ALL) {
+		count = mg->memb_count + list_count(&mg->members_gone);
+	} else if (option == GFSC_NODES_MEMBERS) {
+		count = mg->memb_count;
+	} else
+		goto out;
+
+	nodes = malloc(count * sizeof(struct gfsc_node));
+	if (!nodes)
+		return -ENOMEM;
+	memset(nodes, 0, count * sizeof(struct gfsc_node));
+	nodep = nodes;
+
+	list_for_each_entry(memb, &mg->members, list)
+		_set_node_info(mg, memb->nodeid, nodep++);
+
+	if (option == GFSC_NODES_ALL) {
+		list_for_each_entry(memb, &mg->members_gone, list)
+			_set_node_info(mg, memb->nodeid, nodep++);
+	}
+ out:
+	*node_count = count;
+	*nodes_out = nodes;
 	return 0;
 }
 

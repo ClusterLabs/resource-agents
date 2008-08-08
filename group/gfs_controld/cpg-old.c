@@ -32,31 +32,6 @@ enum {
 	RS_READONLY,
 };
 
-struct mg_member {
-	struct list_head	list;
-	int			nodeid;
-	int			jid;
-
-	int			spectator;
-	int			readonly;
-	int			rw;
-	uint32_t		opts;
-
-	int			tell_gfs_to_recover;
-	int			wait_gfs_recover_done;
-	int			gone_event;
-	int			gone_type;
-	int			finished;
-	int			local_recovery_status;
-	int			recovery_status;
-	int			withdrawing;
-	int			needs_journals;
-
-	int			ms_kernel_mount_done;
-	int			ms_first_mounter;
-	int			ms_kernel_mount_error;
-};
-
 extern group_handle_t gh;
 
 /* cpg message protocol
@@ -632,6 +607,7 @@ static void receive_recovery_done(struct mountgroup *mg, char *buf, int len,
 	}
 
 	mg->needs_recovery = 0;
+	mg->kernel_stopped = 0; /* for queries */
 	set_sysfs(mg, "block", 0);
 }
 
@@ -1891,8 +1867,10 @@ int do_stop(struct mountgroup *mg)
 
 	for (;;) {
 		rv = set_sysfs(mg, "block", 1);
-		if (!rv)
+		if (!rv) {
+			mg->kernel_stopped = 1; /* for queries */
 			break;
+		}
 
 		/* We get an error trying to block gfs, this could be due
 		   to a number of things:
@@ -2001,6 +1979,7 @@ int do_finish(struct mountgroup *mg)
 	}
 
 	if (!mg->needs_recovery) {
+		mg->kernel_stopped = 0; /* for queries */
 		set_sysfs(mg, "block", 0);
 
 		/* we may have been holding back our local mount due to
