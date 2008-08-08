@@ -1290,12 +1290,8 @@ static int create_lockspace_v6(const char *name, uint32_t flags)
 static dlm_lshandle_t create_lockspace(const char *name, mode_t mode,
 				       uint32_t flags)
 {
-	int status;
-	int minor;
-	int i;
+	int minor, i;
 	struct stat st;
-	int stat_ret;
-	int create_dev = 1;
 	char dev_name[PATH_MAX];
 	struct dlm_ls_info *newls;
 
@@ -1314,57 +1310,20 @@ static dlm_lshandle_t create_lockspace(const char *name, mode_t mode,
 	else
 		minor = create_lockspace_v6(name, flags);
 
-	if (minor < 0 && errno != EEXIST) {
+	if (minor < 0) {
 		free(newls);
 		return NULL;
 	}
 
-	/*
-	 * If the lockspace already exists, we don't get the minor
-	 * number returned, so we need to get it the hard way.
-	 */
-
-	if (minor <= 0)
-		minor = find_minor_from_proc(DLM_PREFIX,name);
-
 	/* Wait for udev to create the device */
-	for (i=1; i<10; i++) {
+	for (i = 1; i < 10; i++) {
 		if (stat(dev_name, &st) == 0)
 			break;
 		sleep(1);
 	}
 
-	/*
-	 * If the device exists we check the minor number.
-	 * If the device doesn't exist then we have to look in /proc/misc
-	 * to find the minor number.
-	 */
-	stat_ret = stat(dev_name, &st);
-
-	/* Check if the device exists and has the right modes */
-	if (!stat_ret &&
-	    S_ISCHR(st.st_mode) && st.st_rdev == makedev(MISC_MAJOR, minor)) {
-		create_dev = 0;
-	}
-
-	if (create_dev) {
-		unlink(dev_name);
-
-		/* Now try to create the device, EEXIST is OK cos it must have
-	   	  been devfs or udev that created it */
-		status = mknod(dev_name, S_IFCHR | mode,
-			       makedev(MISC_MAJOR, minor));
-		if (status == -1 && errno != EEXIST) {
-			release_lockspace(minor, 0);
-			free(newls);
-			return NULL;
-		}
-#ifdef HAVE_SELINUX
-		set_selinux_context(dev_name);
-#endif
-	}
-
 	/* Open it and return the struct as a handle */
+
 	newls->fd = open(dev_name, O_RDWR);
 	if (newls->fd == -1) {
 		int saved_errno = errno;
@@ -1423,8 +1382,6 @@ static int release_lockspace(uint32_t minor, uint32_t flags)
 
 int dlm_release_lockspace(const char *name, dlm_lshandle_t ls, int force)
 {
-	int status;
-	char dev_name[PATH_MAX];
 	struct stat st;
 	struct dlm_ls_info *lsinfo = (struct dlm_ls_info *)ls;
 	uint32_t flags = 0;
@@ -1442,17 +1399,8 @@ int dlm_release_lockspace(const char *name, dlm_lshandle_t ls, int force)
 	if (force)
 		flags = DLM_USER_LSFLG_FORCEFREE;
 
-	status = release_lockspace(minor(st.st_rdev), flags);
-
-	/* Remove the device */
-	ls_dev_name(name, dev_name, sizeof(dev_name));
-
-	status = unlink(dev_name);
-
-	/* ENOENT is OK here if devfs has cleaned up */
-	if (status == 0 || (status == -1 && errno == ENOENT))
-		return 0;
-	return -1;
+	release_lockspace(minor(st.st_rdev), flags);
+	return 0;
 }
 
 /*
@@ -1485,7 +1433,6 @@ dlm_lshandle_t dlm_open_lockspace(const char *name)
 		return NULL;
 	}
 	fcntl(newls->fd, F_SETFD, 1);
-
 	return (dlm_lshandle_t)newls;
 }
 
