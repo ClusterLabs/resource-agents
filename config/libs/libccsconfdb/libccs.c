@@ -84,6 +84,12 @@ static int dump_objdb_buff(confdb_handle_t dump_handle, unsigned int parent_obje
 					key_value, &key_value_len)) == SA_AIS_OK) {
 		key_name[key_name_len] = '\0';
 		key_value[key_value_len] = '\0';
+
+		if (!strncmp(key_name, "service_id", key_name_len))
+			continue;
+		if (!strncmp(key_name, "handle", key_name_len))
+			continue;
+
 		snprintf(temp, PATH_MAX - 1, " %s=\"%s\"", key_name, key_value);
 		add_to_buffer(temp, buffer, size);
 	}
@@ -112,8 +118,6 @@ static int dump_objdb_buff(confdb_handle_t dump_handle, unsigned int parent_obje
 
 		/* we need to skip the top level services because they have invalid
 		 * xml chars */
-		if(!strncmp(object_name, "service", object_name_len))
-			continue;
 
 		snprintf(temp, PATH_MAX - 1, "<%s", object_name);
 		add_to_buffer(temp, buffer, size);
