@@ -117,6 +117,7 @@ void process_groupd(int ci)
 	switch (cb_action) {
 	case DO_STOP:
 		log_debug("groupd callback: stop %s", cb_name);
+		ls->kernel_stopped = 1; /* for queries */
 		set_sysfs_control(cb_name, 0);
 		group_stop_done(gh, cb_name);
 		break;
@@ -125,12 +126,17 @@ void process_groupd(int ci)
 		log_debug("groupd callback: start %s count %d members %s",
 			  cb_name, cb_member_count, str_members());
 
+		/* save in ls for queries */
+		ls->cb_member_count = cb_member_count;
+		memcpy(ls->cb_members, cb_members, sizeof(cb_members));
+
 		set_configfs_members(cb_name, cb_member_count, cb_members,
 				     0, NULL);
 
 		/* this causes the dlm to do a "start" using the
 		   members we just set */
 
+		ls->kernel_stopped = 0;
 		set_sysfs_control(cb_name, 1);
 
 		/* the dlm doesn't need/use a "finish" stage following
@@ -234,29 +240,83 @@ void close_groupd(void)
 	group_exit(gh);
 }
 
-/* FIXME: most of the query info doesn't apply in the LIBGROUP mode,
-   but we can emulate some basic parts of it */
+/* most of the query info doesn't apply in the LIBGROUP mode, but we can
+   emulate some basic parts of it */
 
 int set_lockspace_info_group(struct lockspace *ls,
 			     struct dlmc_lockspace *lockspace)
 {
+	strncpy(lockspace->name, ls->name, DLM_LOCKSPACE_LEN);
+	lockspace->global_id = ls->global_id;
+
+	if (ls->joining)
+		lockspace->flags |= DLMC_LF_JOINING;
+	if (ls->leaving)
+		lockspace->flags |= DLMC_LF_LEAVING;
+	if (ls->kernel_stopped)
+		lockspace->flags |= DLMC_LF_KERNEL_STOPPED;
+
+	lockspace->cg_prev.member_count = ls->cb_member_count;
+
+	/* we could save the previous cb_members and calculate
+	   joined_count and remove_count */
+
 	return 0;
 }
 
 int set_node_info_group(struct lockspace *ls, int nodeid,
 			struct dlmc_node *node)
 {
+	node->nodeid = nodeid;
+	node->flags = DLMC_NF_MEMBER;
 	return 0;
 }
 
 int set_lockspaces_group(int *count, struct dlmc_lockspace **lss_out)
 {
+	struct lockspace *ls;
+	struct dlmc_lockspace *lss, *lsp;
+	int ls_count = 0;
+
+	list_for_each_entry(ls, &lockspaces, list)
+		ls_count++;
+
+	lss = malloc(ls_count * sizeof(struct dlmc_lockspace));
+	if (!lss)
+		return -ENOMEM;
+	memset(lss, 0, ls_count * sizeof(struct dlmc_lockspace));
+
+	lsp = lss;
+	list_for_each_entry(ls, &lockspaces, list) {
+		set_lockspace_info(ls, lsp++);
+	}
+
+	*count = ls_count;
+	*lss_out = lss;
 	return 0;
 }
 
 int set_lockspace_nodes_group(struct lockspace *ls, int option, int *node_count,
 			      struct dlmc_node **nodes_out)
 {
+	struct dlmc_node *nodes = NULL, *nodep;
+	int i;
+
+	if (!ls->cb_member_count)
+		goto out;
+
+	nodes = malloc(ls->cb_member_count * sizeof(struct dlmc_node));
+	if (!nodes)
+		return -ENOMEM;
+	memset(nodes, 0, sizeof(*nodes));
+
+	nodep = nodes;
+	for (i = 0; i < cb_member_count; i++) {
+		set_node_info_group(ls, ls->cb_members[i], nodep++);
+	}
+ out:
+	*node_count = ls->cb_member_count;
+	*nodes_out = nodes;
 	return 0;
 }
 

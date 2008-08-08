@@ -186,6 +186,11 @@ struct lockspace {
 	struct timeval		drop_resources_last;
 	uint64_t		plock_ckpt_handle;
 
+	/* save copy of groupd member callback data for queries */
+
+	int			cb_member_count;
+	int			cb_members[MAX_NODES];
+
 	/* deadlock stuff */
 
 	int			deadlk_low_nodeid;

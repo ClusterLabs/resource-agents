@@ -38,6 +38,7 @@ struct dlmc_change {
 #define DLMC_LF_SAVE_PLOCKS	0x00000020
 
 struct dlmc_lockspace {
+	int group_mode;
 	struct dlmc_change cg_prev;	/* completed change (started_change) */
 	struct dlmc_change cg_next;	/* in-progress change (changes list) */
 	uint32_t flags;

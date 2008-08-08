@@ -499,6 +499,9 @@ static void query_lockspace_info(int fd, char *name)
 		goto out;
 	}
 
+	memset(&lockspace, 0, sizeof(lockspace));
+	lockspace.group_mode = group_mode;
+
 	if (group_mode == GROUP_LIBGROUP)
 		rv = set_lockspace_info_group(ls, &lockspace);
 	else
