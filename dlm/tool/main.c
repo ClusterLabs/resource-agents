@@ -15,10 +15,9 @@
 #include <linux/dlmconstants.h>
 #include "libdlm.h"
 #include "libdlmcontrol.h"
+#include "copyright.cf"
 
 #define LKM_IVMODE -1
-
-#define OPTION_STRING			"MhVvd:m:"
 
 #define OP_JOIN				1
 #define OP_LEAVE			2
@@ -36,6 +35,8 @@ static int operation;
 static int opt_ind;
 static int verbose;
 static int opt_dir = 0;
+static int opt_excl = 0;
+static int opt_fs = 0;
 static int dump_mstcpy = 0;
 static mode_t create_mode = 0600;
 
@@ -43,17 +44,25 @@ static void print_usage(void)
 {
 	printf("Usage:\n");
 	printf("\n");
-	printf("%s [options] [join|leave|lockdump|lockdebug|ls|dump|plocks|deadlock_check]\n", prog_name);
+	printf("dlm_tool [options] [join | leave | lockdump | lockdebug |\n"
+	       "                    ls | dump | plocks | deadlock_check]\n");
 	printf("\n");
 	printf("Options:\n");
 	printf("  -v               Verbose output\n");
-	printf("  -d <n>           Resource directory off/on (0/1), default 0\n");
+	printf("  -d <n>           Resource directory off/on (0/1) in join, default 0\n");
+#ifdef LINUX2628rc
+	printf("  -e <n>           Exclusive create off/on (0/1) in join, default 0\n");
+#endif
+	printf("  -f <n>           FS memory allocation off/on (0/1) in join, default 0\n");
 	printf("  -m <mode>        Permission mode for lockspace device (octal), default 0600\n");
-	printf("  -M               Print MSTCPY locks in lockdump (remote locks, locally mastered)\n");
+	printf("  -M               Print MSTCPY locks in lockdump\n"
+	       "                   (remote locks that are locally mastered)\n");
 	printf("  -h               Print this help, then exit\n");
 	printf("  -V               Print program version information, then exit\n");
 	printf("\n");
 }
+
+#define OPTION_STRING "MhVvd:m:e:f:"
 
 static void decode_arguments(int argc, char **argv)
 {
@@ -66,6 +75,18 @@ static void decode_arguments(int argc, char **argv)
 		optchar = getopt(argc, argv, OPTION_STRING);
 
 		switch (optchar) {
+		case 'd':
+			opt_dir = atoi(optarg);
+			break;
+
+		case 'e':
+			opt_excl = atoi(optarg);
+			break;
+
+		case 'f':
+			opt_fs = atoi(optarg);
+			break;
+
 		case 'm':
 			memset(modebuf, 0, sizeof(modebuf));
 			snprintf(modebuf, 8, "%s", optarg);
@@ -85,14 +106,10 @@ static void decode_arguments(int argc, char **argv)
 			exit(EXIT_SUCCESS);
 			break;
 
-		case 'd':
-			opt_dir = atoi(optarg);
-			break;
-
 		case 'V':
 			printf("%s %s (built %s %s)\n",
 				prog_name, RELEASE_VERSION, __DATE__, __TIME__);
-			/* printf("%s\n", REDHAT_COPYRIGHT); */
+			printf("%s\n", REDHAT_COPYRIGHT);
 			exit(EXIT_SUCCESS);
 			break;
 
@@ -216,21 +233,52 @@ static int do_write(int fd, void *buf, size_t count)
 	return 0;
 }
 
+static char *flag_str(uint32_t flags)
+{
+	static char join_flags[128];
+
+	memset(join_flags, 0, sizeof(join_flags));
+
+	strcat(join_flags, "flags ");
+
+	if (flags & DLM_LSFL_NODIR)
+		strcat(join_flags, "NODIR ");
+
+#ifdef LINUX2628rc
+	if (flags & DLM_LSFL_NEWEXCL)
+		strcat(join_flags, "NEWEXCL ");
+#endif
+
+	if (flags & DLM_LSFL_FS)
+		strcat(join_flags, "FS ");
+
+	return join_flags;
+}
+
 void do_join(char *name)
 {
 	dlm_lshandle_t *dh;
 	uint32_t flags = 0;
 
-	printf("Joining lockspace \"%s\", permission %o\n", name, create_mode);
-	fflush(stdout);
-
 	if (!opt_dir)
-		flags = DLM_LSFL_NODIR;
+		flags |= DLM_LSFL_NODIR;
+
+#ifdef LINUX2628rc
+	if (opt_excl)
+		flags |= DLM_LSFL_NEWEXCL;
+#endif
+
+	if (opt_fs)
+		flags |= DLM_LSFL_FS;
+
+	printf("Joining lockspace \"%s\" permission %o %s\n",
+	       name, create_mode, flags ? flag_str(flags) : "");
+	fflush(stdout);
 
 	dh = dlm_new_lockspace(name, create_mode, flags);
 	if (!dh) {
-		fprintf(stderr, "dlm_new_lockspace %s error %p %d\n",
-			name, dh, errno);
+		fprintf(stderr, "dlm_new_lockspace %s error %d\n",
+			name, errno);
 		exit(-1);
 	}
 
