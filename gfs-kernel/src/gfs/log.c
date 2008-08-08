@@ -655,7 +655,13 @@ sync_trans(struct gfs_sbd *sdp, struct gfs_trans *tr)
 	     tmp != head;
 	     tmp = prev, prev = tmp->prev) {
 		lb = list_entry(tmp, struct gfs_log_buf, lb_list);
-		gfs_logbh_start(sdp, &lb->lb_bh);
+		if (likely(!test_bit(SDF_SHUTDOWN, &sdp->sd_flags))) {
+			gfs_logbh_start(sdp, &lb->lb_bh);
+		} else {
+			list_del(&lb->lb_list);
+			log_free_buf(sdp, lb);
+			error = -EIO;
+		}
 	}
 
 	/* Wait on I/O
@@ -689,12 +695,14 @@ static int
 commit_trans(struct gfs_sbd *sdp, struct gfs_trans *tr)
 {
 	struct gfs_log_buf *lb;
-	int error;
+	int error = 0;
 
 	lb = log_get_header(sdp, tr, TRUE);
 
-	gfs_logbh_start(sdp, &lb->lb_bh);
-	error = gfs_logbh_wait(sdp, &lb->lb_bh);
+	if (likely(!test_bit(SDF_SHUTDOWN, &sdp->sd_flags))) {
+		gfs_logbh_start(sdp, &lb->lb_bh);
+		error = gfs_logbh_wait(sdp, &lb->lb_bh);
+	}
 	if (!error) {
 		spin_lock(&sdp->sd_log_seg_lock);
 		if (!(tr->tr_flags & TRF_DUMMY))
@@ -1372,6 +1380,8 @@ gfs_log_shutdown(struct gfs_sbd *sdp)
 	gfs_logbh_init(sdp, &lb->lb_bh, sdp->sd_log_head, bmem);
 	memset(bmem, 0, sdp->sd_sb.sb_bsize);
 	gfs_desc_out(&desc, lb->lb_bh.b_data);
+	if (test_bit(SDF_SHUTDOWN, &sdp->sd_flags))
+		goto out;
 	gfs_logbh_start(sdp, &lb->lb_bh);
 	error = gfs_logbh_wait(sdp, &lb->lb_bh);
 	gfs_logbh_uninit(sdp, &lb->lb_bh);
@@ -1406,10 +1416,11 @@ gfs_log_shutdown(struct gfs_sbd *sdp)
 	gfs_log_header_out(&head,
 			   lb->lb_bh.b_data + GFS_BASIC_BLOCK -
 			   sizeof(struct gfs_log_header));
-	gfs_logbh_start(sdp, &lb->lb_bh);
-	gfs_logbh_wait(sdp, &lb->lb_bh);
-	gfs_logbh_uninit(sdp, &lb->lb_bh);
-
+	if (!test_bit(SDF_SHUTDOWN, &sdp->sd_flags)) {
+		gfs_logbh_start(sdp, &lb->lb_bh);
+		gfs_logbh_wait(sdp, &lb->lb_bh);
+		gfs_logbh_uninit(sdp, &lb->lb_bh);
+	}
    /* If a withdraw is called before we've a chance to relock the trans
     * lock, the sd_log_head points to the wrong place, and a umount will
     * fail on asserts because of this.
