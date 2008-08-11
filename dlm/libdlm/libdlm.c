@@ -13,6 +13,7 @@
 #include <errno.h>
 #include <string.h>
 #include <stdio.h>
+#include <dirent.h>
 #include <linux/major.h>
 #ifdef HAVE_SELINUX
 #include <selinux/selinux.h>
@@ -467,6 +468,64 @@ static int open_control_device(void)
 	if (!kernel_version_detected)
 		detect_kernel_version();
 	return 0;
+}
+
+/* the max number of characters in a sysfs device name, not including \0 */
+#define MAX_SYSFS_NAME 19
+
+static int find_udev_device(const char *lockspace, int minor, char *udev_path)
+{
+	char basename[PATH_MAX];
+	char tmp_path[PATH_MAX];
+	DIR *d;
+	struct dirent *de;
+	struct stat st;
+	size_t basename_len;
+	int i;
+
+	ls_dev_name(lockspace, udev_path, PATH_MAX);
+	snprintf(basename, PATH_MAX, DLM_PREFIX "%s", lockspace);
+	basename_len = strlen(basename);
+
+	for (i = 0; i < 10; i++) {
+
+		/* look for a device with the full name */
+
+		if (stat(udev_path, &st) == 0 && minor(st.st_rdev) == minor)
+			return 0;
+
+		if (basename_len < MAX_SYSFS_NAME) {
+			sleep(1);
+			continue;
+		}
+
+		/* look for a device with a truncated name */
+
+		d = opendir(MISC_PREFIX);
+		while ((de = readdir(d))) {
+			if (de->d_name[0] == '.')
+				continue;
+			if (strlen(de->d_name) < MAX_SYSFS_NAME)
+				continue;
+			if (strncmp(de->d_name, basename, MAX_SYSFS_NAME))
+				continue;
+			snprintf(tmp_path, PATH_MAX, MISC_PREFIX "%s",
+				 de->d_name);
+			if (stat(tmp_path, &st))
+				continue;
+			if (minor(st.st_rdev) != minor)
+				continue;
+
+			/* truncated name */
+			strncpy(udev_path, tmp_path, PATH_MAX);
+			closedir(d);
+			return 0;
+		}
+		closedir(d);
+		sleep(1);
+	}
+
+	return -1;
 }
 
 /*
@@ -1290,10 +1349,10 @@ static int create_lockspace_v6(const char *name, uint32_t flags)
 static dlm_lshandle_t create_lockspace(const char *name, mode_t mode,
 				       uint32_t flags)
 {
-	int minor, i;
-	struct stat st;
-	char dev_name[PATH_MAX];
+	char dev_path[PATH_MAX];
+	char udev_path[PATH_MAX];
 	struct dlm_ls_info *newls;
+	int error, saved_errno, minor;
 
 	/* We use the control device for creating lockspaces. */
 	if (open_control_device())
@@ -1303,39 +1362,48 @@ static dlm_lshandle_t create_lockspace(const char *name, mode_t mode,
 	if (!newls)
 		return NULL;
 
-	ls_dev_name(name, dev_name, sizeof(dev_name));
+	ls_dev_name(name, dev_path, sizeof(dev_path));
 
 	if (kernel_version.version[0] == 5)
 		minor = create_lockspace_v5(name, flags);
 	else
 		minor = create_lockspace_v6(name, flags);
 
-	if (minor < 0) {
-		free(newls);
-		return NULL;
-	}
+	if (minor < 0)
+		goto fail;
 
-	/* Wait for udev to create the device */
-	for (i = 1; i < 10; i++) {
-		if (stat(dev_name, &st) == 0)
-			break;
-		sleep(1);
+	/* Wait for udev to create the device; the device it creates may
+	   have a truncated name due to the sysfs device name limit. */
+	   
+	error = find_udev_device(name, minor, udev_path);
+	if (error)
+		goto fail;
+
+	/* If the symlink already exists, find_udev_device() will return
+	   it and we'll skip this. */
+
+	if (strcmp(dev_path, udev_path)) {
+		error = symlink(udev_path, dev_path);
+		if (error)
+			goto fail;
 	}
 
 	/* Open it and return the struct as a handle */
 
-	newls->fd = open(dev_name, O_RDWR);
-	if (newls->fd == -1) {
-		int saved_errno = errno;
-		free(newls);
-		errno = saved_errno;
-		return NULL;
-	}
+	newls->fd = open(dev_path, O_RDWR);
+	if (newls->fd == -1)
+		goto fail;
 	if (mode)
 		fchmod(newls->fd, mode);
 	newls->tid = 0;
 	fcntl(newls->fd, F_SETFD, 1);
 	return (dlm_lshandle_t)newls;
+
+ fail:
+	saved_errno = errno;
+	free(newls);
+	errno = saved_errno;
+	return NULL;
 }
 
 dlm_lshandle_t dlm_new_lockspace(const char *name, mode_t mode, uint32_t flags)
@@ -1382,9 +1450,15 @@ static int release_lockspace(uint32_t minor, uint32_t flags)
 
 int dlm_release_lockspace(const char *name, dlm_lshandle_t ls, int force)
 {
+	char dev_path[PATH_MAX];
 	struct stat st;
 	struct dlm_ls_info *lsinfo = (struct dlm_ls_info *)ls;
 	uint32_t flags = 0;
+	int fd, is_symlink = 0;
+
+	ls_dev_name(name, dev_path, sizeof(dev_path));
+	if (!lstat(dev_path, &st) && S_ISLNK(st.st_mode))
+		is_symlink = 1;
 
 	/* We need the minor number */
 	if (fstat(lsinfo->fd, &st))
@@ -1400,6 +1474,26 @@ int dlm_release_lockspace(const char *name, dlm_lshandle_t ls, int force)
 		flags = DLM_USER_LSFLG_FORCEFREE;
 
 	release_lockspace(minor(st.st_rdev), flags);
+
+	if (!is_symlink)
+		return 0;
+
+	/* The following open is used to detect if our release was the last.
+	   It will fail if our release was the last, because either:
+	   . udev has already removed the truncated sysfs device name (ENOENT)
+	   . the misc device has been deregistered in the kernel (ENODEV)
+	     (the deregister completes before release returns)
+
+	   So, if the open fails, we know that our release was the last,
+	   udev will be removing the device with the truncated name (if it
+	   hasn't already), and we should remove the symlink. */
+
+	fd = open(dev_path, O_RDWR);
+	if (fd < 0)
+		unlink(dev_path);
+	else
+		close(fd); /* our release was not the last */
+
 	return 0;
 }
 
