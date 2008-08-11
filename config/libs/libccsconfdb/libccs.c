@@ -338,6 +338,8 @@ static int path_dive(int tokens)
 			 */
 
 			char *start = NULL, *middle = NULL, *end = NULL;
+			char data[PATH_MAX];
+			int datalen;
 
 			/*
 			 * those ones should be always good because
@@ -356,7 +358,25 @@ static int path_dive(int tokens)
 			memset(start, 0, 1);
 			memset(end, 0, 1);
 
-			if (!strstr(middle, "@")) {
+			if (!strcmp(pos, "child::*")) {
+				int val, i;
+
+				val = atoi(middle);
+
+				if(val < 1)
+					goto fail;
+
+				if(confdb_object_iter_start(handle, query_handle) != SA_AIS_OK)
+					goto fail;
+
+				for (i = 1; i <= val; i++) {
+					if(confdb_object_iter(handle, query_handle, &new_obj_handle, data, &datalen) != SA_AIS_OK)
+						goto fail;
+				}
+
+				query_handle = new_obj_handle;
+
+			} else if (!strstr(middle, "@")) {
 				/* lookup something with index num = int */
 				int val, i;
 
@@ -374,8 +394,7 @@ static int path_dive(int tokens)
 			} else {
 				/* lookup something with obj foo = bar */
 				char *equal = NULL, *value = NULL, *tmp = NULL;
-				char data[PATH_MAX];
-				int goout = 0, datalen;
+				int goout = 0;
 
 				equal=strstr(middle, "=");
 				if(!equal)
