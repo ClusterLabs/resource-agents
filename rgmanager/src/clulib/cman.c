@@ -45,6 +45,7 @@ _set_nonblock(int fd)
 cman_handle_t 
 cman_lock(int block, int preempt)
 {
+	int err;
 	pthread_t tid;
 	cman_handle_t *ret = NULL;
 
@@ -68,8 +69,7 @@ cman_lock(int block, int preempt)
 
 		/* Try to wake up the holder! */
 		if (preempt)
-			if(write(_wakeup_pipe[1], "!", 1) < 0)
-				goto out_unlock;
+			err = write(_wakeup_pipe[1], "!", 1); /** XXX we don't care about errors here **/
 
 		/* Blocking call; do the cond-thing */
 		pthread_cond_wait(&_chandle_cond, &_chandle_lock);
@@ -145,6 +145,7 @@ out_unlock:
 int
 cman_unlock(cman_handle_t ch)
 {
+	int err;
 	int ret = -1;
 	char c;
 
@@ -166,8 +167,7 @@ cman_unlock(cman_handle_t ch)
 
 	/* Empty wakeup pipe if we took it with the preempt flag */
 	if (_chandle_preempt)
-		if(read(_wakeup_pipe[0], &c, 1) < 0)
-			goto out_unlock;
+		err = read(_wakeup_pipe[0], &c, 1); /** XXX we don't care about errors here **/
 
 	_chandle_preempt = 0;
 	_chandle_holder = 0;
