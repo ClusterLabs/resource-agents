@@ -2,7 +2,7 @@
 #include <linux/slab.h>
 #include <linux/smp_lock.h>
 #include <linux/spinlock.h>
-#include <asm/semaphore.h>
+#include <linux/semaphore.h>
 #include <linux/completion.h>
 #include <linux/buffer_head.h>
 #include <asm/uaccess.h>
@@ -93,11 +93,11 @@ gfs_llseek(struct file *file, loff_t offset, int origin)
 	if (origin == 2) {
 		error = gfs_glock_nq_init(ip->i_gl, LM_ST_SHARED, LM_FLAG_ANY, &i_gh);
 		if (!error) {
-			error = remote_llseek(file, offset, origin);
+			error = generic_file_llseek_unlocked(file, offset, origin);
 			gfs_glock_dq_uninit(&i_gh);
 		}
 	} else
-		error = remote_llseek(file, offset, origin);
+		error = generic_file_llseek_unlocked(file, offset, origin);
 
 	return error;
 }

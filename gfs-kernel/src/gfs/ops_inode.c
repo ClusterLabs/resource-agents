@@ -2,7 +2,7 @@
 #include <linux/slab.h>
 #include <linux/smp_lock.h>
 #include <linux/spinlock.h>
-#include <asm/semaphore.h>
+#include <linux/semaphore.h>
 #include <linux/completion.h>
 #include <linux/buffer_head.h>
 #include <linux/namei.h>
@@ -375,7 +375,7 @@ gfs_link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry)
 	if (error)
 		goto fail;
 
-	error = permission(dir, MAY_WRITE | MAY_EXEC, NULL);
+	error = inode_permission(dir, MAY_WRITE | MAY_EXEC);
 	if (error)
 		goto fail_gunlock;
 
@@ -1020,7 +1020,7 @@ gfs_rename(struct inode *odir, struct dentry *odentry,
 			}
 		}
 	} else {
-		error = permission(ndir, MAY_WRITE | MAY_EXEC, NULL);
+		error = inode_permission(ndir, MAY_WRITE | MAY_EXEC);
 		if (error)
 			goto fail_gunlock;
 
@@ -1261,7 +1261,6 @@ gfs_follow_link(struct dentry *dentry, struct nameidata *nd)
  * gfs_permission_i -
  * @inode:
  * @mask:
- * @nd: ignored
  *
  * Shamelessly ripped from ext3
  *
@@ -1269,7 +1268,7 @@ gfs_follow_link(struct dentry *dentry, struct nameidata *nd)
  */
 
 static int
-gfs_permission_i(struct inode *inode, int mask, struct nameidata *nd)
+gfs_permission_i(struct inode *inode, int mask)
 {
 	return generic_permission(inode, mask, gfs_check_acl);
 }
@@ -1278,13 +1277,12 @@ gfs_permission_i(struct inode *inode, int mask, struct nameidata *nd)
  * gfs_permission -
  * @inode:
  * @mask:
- * @nd: passed from Linux VFS, ignored by us
  *
  * Returns: errno
  */
 
 static int
-gfs_permission(struct inode *inode, int mask, struct nameidata *nd)
+gfs_permission(struct inode *inode, int mask)
 {
 	struct gfs_inode *ip = get_v2ip(inode);
 	struct gfs_holder i_gh;
@@ -1298,7 +1296,7 @@ gfs_permission(struct inode *inode, int mask, struct nameidata *nd)
 	if (error)
 		return error;
 
-	error = gfs_permission_i(inode, mask, nd);
+	error = gfs_permission_i(inode, mask);
 
 	gfs_glock_dq_uninit(&i_gh);
 
@@ -1369,7 +1367,7 @@ gfs_setattr(struct dentry *dentry, struct iattr *attr)
 		goto fail;
 
 	if (attr->ia_valid & ATTR_SIZE) {
-		error = permission(inode, MAY_WRITE, NULL);
+		error = inode_permission(inode, MAY_WRITE);
 		if (error)
 			goto fail;
 

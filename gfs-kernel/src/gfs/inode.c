@@ -2,7 +2,7 @@
 #include <linux/slab.h>
 #include <linux/smp_lock.h>
 #include <linux/spinlock.h>
-#include <asm/semaphore.h>
+#include <linux/semaphore.h>
 #include <linux/completion.h>
 #include <linux/buffer_head.h>
 #include <linux/posix_acl.h>
@@ -910,7 +910,7 @@ gfs_lookupi(struct gfs_holder *d_gh, struct qstr *name,
 		return error;
 
 	if (!is_root) {
-		error = permission(dip->i_vnode, MAY_EXEC, NULL);
+		error = inode_permission(dip->i_vnode, MAY_EXEC);
 		if (error) {
 			gfs_glock_dq(d_gh);
 			return error;
@@ -952,7 +952,7 @@ gfs_lookupi(struct gfs_holder *d_gh, struct qstr *name,
 		}
 
 		if (!is_root) {
-			error = permission(dip->i_vnode, MAY_EXEC, NULL);
+			error = inode_permission(dip->i_vnode, MAY_EXEC);
 			if (error) {
 				gfs_glock_dq(d_gh);
 				gfs_glock_dq_uninit(i_gh);
@@ -1017,7 +1017,7 @@ create_ok(struct gfs_inode *dip, struct qstr *name, unsigned int type)
 {
 	int error;
 
-	error = permission(dip->i_vnode, MAY_WRITE | MAY_EXEC, NULL);
+	error = inode_permission(dip->i_vnode, MAY_WRITE | MAY_EXEC);
 	if (error)
 		return error;
 
@@ -1577,7 +1577,7 @@ gfs_unlink_ok(struct gfs_inode *dip, struct qstr *name, struct gfs_inode *ip)
 	if (IS_APPEND(dip->i_vnode))
 		return -EPERM;
 
-	error = permission(dip->i_vnode, MAY_WRITE | MAY_EXEC, NULL);
+	error = inode_permission(dip->i_vnode, MAY_WRITE | MAY_EXEC);
 	if (error)
 		return error;
 

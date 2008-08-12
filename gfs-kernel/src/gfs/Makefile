@@ -32,6 +32,13 @@ gfs-objs := acl.o \
 	inode.o \
 	ioctl.o \
 	lm.o \
+	locking.o \
+	lock_nolock_main.o \
+	lock_dlm_lock.o \
+	lock_dlm_main.o \
+	lock_dlm_mount.o \
+	lock_dlm_sysfs.o \
+	lock_dlm_thread.o \
 	log.o \
 	lops.o \
 	lvb.o \

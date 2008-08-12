@@ -3,7 +3,7 @@
 
 #define RELEASE_VERSION "<CVS>"
 
-#include <linux/lm_interface.h>
+#include "lm_interface.h"
 
 #include "gfs_ondisk.h"
 #include "fixed_div64.h"

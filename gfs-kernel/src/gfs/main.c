@@ -2,7 +2,7 @@
 #include <linux/slab.h>
 #include <linux/smp_lock.h>
 #include <linux/spinlock.h>
-#include <asm/semaphore.h>
+#include <linux/semaphore.h>
 #include <linux/completion.h>
 #include <linux/buffer_head.h>
 #include <linux/proc_fs.h>
@@ -73,6 +73,14 @@ int __init init_gfs_fs(void)
 	printk("GFS %s (built %s %s) installed\n",
 	       RELEASE_VERSION, __DATE__, __TIME__);
 
+	error = init_lock_dlm();
+	if (error)
+		goto fail1;
+
+	error = init_nolock();
+	if (error)
+		goto fail1;
+
 	return 0;
 
  fail1:
@@ -104,6 +112,8 @@ int __init init_gfs_fs(void)
 void __exit
 exit_gfs_fs(void)
 {
+	exit_nolock();
+	exit_lock_dlm();
 	unregister_filesystem(&gfs_fs_type);
 
 	kmem_cache_destroy(gfs_mhc_cachep);
