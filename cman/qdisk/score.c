@@ -11,7 +11,7 @@
 #include <pthread.h>
 #include <string.h>
 #include <ccs.h>
-#include <openais/service/logsys.h>
+#include <corosync/engine/logsys.h>
 #include <sched.h>
 #include <sys/mman.h>
 #include "disk.h"

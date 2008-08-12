@@ -21,7 +21,7 @@
 #include <sched.h>
 #include <signal.h>
 #include <ccs.h>
-#include <openais/service/logsys.h>
+#include <corosync/engine/logsys.h>
 #include "score.h"
 #if (!defined(LIBCMAN_VERSION) || \
      (defined(LIBCMAN_VERSION) && LIBCMAN_VERSION < 2))

@@ -47,7 +47,7 @@ int join(commandline_t *comline, char *main_envp[])
 	char scratch[1024];
 	cman_handle_t h;
 	int status;
-	pid_t aisexec_pid;
+	pid_t corosync_pid;
 	int p[2];
 
         /*
@@ -100,10 +100,10 @@ int join(commandline_t *comline, char *main_envp[])
 	}
 	if (comline->noconfig_opt) {
 		envp[envptr++] = strdup("CMAN_NOCONFIG=true");
-		envp[envptr++] = strdup("OPENAIS_DEFAULT_CONFIG_IFACE=cmanpreconfig");
+		envp[envptr++] = strdup("COROSYNC_DEFAULT_CONFIG_IFACE=cmanpreconfig");
 	}
 	else {
-		snprintf(scratch, sizeof(scratch), "OPENAIS_DEFAULT_CONFIG_IFACE=%s:cmanpreconfig", comline->config_lcrso);
+		snprintf(scratch, sizeof(scratch), "COROSYNC_DEFAULT_CONFIG_IFACE=%s:cmanpreconfig", comline->config_lcrso);
 		envp[envptr++] = strdup(scratch);
 	}
 
@@ -124,7 +124,7 @@ int join(commandline_t *comline, char *main_envp[])
 	envp[envptr++] = strdup(scratch);
 	envp[envptr++] = NULL;
 
-	argv[0] = "aisexec";
+	argv[0] = "corosync";
 	if (comline->verbose & ~DEBUG_STARTUP_ONLY)
 		argv[++argvptr] = "-f";
 	if (comline->nosetpri_opt)
@@ -132,15 +132,15 @@ int join(commandline_t *comline, char *main_envp[])
 	argv[++argvptr] = NULL;
 
 	/* Fork/exec cman */
-	switch ( (aisexec_pid = fork()) )
+	switch ( (corosync_pid = fork()) )
 	{
 	case -1:
-		die("fork of aisexec daemon failed: %s", strerror(errno));
+		die("fork of corosync daemon failed: %s", strerror(errno));
 
 	case 0: /* child */
 		close(p[0]);
 		if (comline->verbose & DEBUG_STARTUP_ONLY) {
-			fprintf(stderr, "Starting %s", AISEXECBIN);
+			fprintf(stderr, "Starting %s", COROSYNCBIN);
 			for (i=0; i< argvptr; i++) {
 				fprintf(stderr, " %s", argv[i]);
 			}
@@ -150,10 +150,10 @@ int join(commandline_t *comline, char *main_envp[])
 			}
 		}
 		be_daemon(!(comline->verbose & ~DEBUG_STARTUP_ONLY));
-		execve(AISEXECBIN, argv, envp);
+		execve(COROSYNCBIN, argv, envp);
 
 		/* exec failed - tell the parent process */
-		sprintf(scratch, "execve of " AISEXECBIN " failed: %s", strerror(errno));
+		sprintf(scratch, "execve of " COROSYNCBIN " failed: %s", strerror(errno));
 		err = write(p[1], scratch, strlen(scratch));
 		exit(1);
 		break;
@@ -184,10 +184,10 @@ int join(commandline_t *comline, char *main_envp[])
 			int len;
 			if ((len = read(p[0], message, sizeof(message)) > 0)) {
 
-				/* Success! get the new PID of double-forked aisexec */
-				if (sscanf(message, "SUCCESS: %d", &aisexec_pid) == 1) {
+				/* Success! get the new PID of double-forked corosync */
+				if (sscanf(message, "SUCCESS: %d", &corosync_pid) == 1) {
 					if (comline->verbose & DEBUG_STARTUP_ONLY)
-						fprintf(stderr, "aisexec running, process ID is %d\n", aisexec_pid);
+						fprintf(stderr, "corosync running, process ID is %d\n", corosync_pid);
 					status = 0;
 				}
 				else {
@@ -200,16 +200,16 @@ int join(commandline_t *comline, char *main_envp[])
 			}
 			else { /* Error or EOF - check the child status */
 				int pidstatus;
-				status = waitpid(aisexec_pid, &pidstatus, WNOHANG);
+				status = waitpid(corosync_pid, &pidstatus, WNOHANG);
 				if (status == -1 && errno == ECHILD) {
 					fprintf(stderr, "cman not started\n");
 					break;
 				}
 				if (status == 0 && pidstatus != 0) {
 					if (WIFEXITED(pidstatus))
-						fprintf(stderr, "aisexec died with status: %d\n", WEXITSTATUS(pidstatus));
+						fprintf(stderr, "corosync died with status: %d\n", WEXITSTATUS(pidstatus));
 					if (WIFSIGNALED(pidstatus))
-						fprintf(stderr, "aisexec died with signal: %d\n", WTERMSIG(pidstatus));
+						fprintf(stderr, "corosync died with signal: %d\n", WTERMSIG(pidstatus));
 					status = -1;
 					break;
 				}
@@ -222,18 +222,18 @@ int join(commandline_t *comline, char *main_envp[])
 	} while (status != 0);
 	close(p[0]);
 
-	/* If aisexec has started, try to connect to cman ... if it's still there */
+	/* If corosync has started, try to connect to cman ... if it's still there */
 	if (status == 0) {
 		do {
 			if (status == 0) {
-				if (kill(aisexec_pid, 0) < 0) {
-					die("aisexec died during startup\n");
+				if (kill(corosync_pid, 0) < 0) {
+					die("corosync died during startup\n");
 				}
 
 				h = cman_admin_init(NULL);
 				if (!h && comline->verbose & DEBUG_STARTUP_ONLY)
 				{
-					fprintf(stderr, "waiting for aisexec to start\n");
+					fprintf(stderr, "waiting for corosync to start\n");
 				}
 			}
 			sleep (1);
@@ -241,10 +241,10 @@ int join(commandline_t *comline, char *main_envp[])
 	}
 
 	if (!h)
-		die("aisexec daemon didn't start");
+		die("corosync daemon didn't start");
 
 	if ((comline->verbose & DEBUG_STARTUP_ONLY) && !cman_is_active(h))
-		fprintf(stderr, "aisexec started, but not joined the cluster yet.\n");
+		fprintf(stderr, "corosync started, but not joined the cluster yet.\n");
 
 	cman_finish(h);
 	return 0;

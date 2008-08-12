@@ -1,7 +1,7 @@
 #ifndef _DBG_H
 #define _DBG_H
 
-#include <openais/service/logsys.h>
+#include <corosync/engine/logsys.h>
 
 inline void dset(int);
 inline int dget(void);

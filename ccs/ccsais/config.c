@@ -2,21 +2,16 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <syslog.h>
 #include <netinet/in.h>
 
-/* openais headers */
-#include <openais/service/objdb.h>
 #include "list.h"
 #include "cnxman-socket.h"
 #include "cnxman-private.h"
-#include <openais/service/swab.h>
-#include <openais/totem/totemip.h>
-#include <openais/totem/totempg.h>
-#include <openais/totem/aispoll.h>
-#include <openais/service/service.h>
-#include <openais/service/config.h>
-#include <openais/lcr/lcr_comp.h>
-#include <openais/service/swab.h>
+
+#include <corosync/lcr/lcr_comp.h>
+#include <corosync/engine/objdb.h>
+#include <corosync/engine/config.h>
 
 #include "libccscompat.h"
 #include "logging.h"
@@ -186,7 +181,7 @@ static int ccs_readconfig(struct objdb_iface_ver0 *objdb, char **error_string)
 	int ret;
 
 	/* We need to set this up to internal defaults too early */
-	openlog("openais", LOG_CONS|LOG_PID, SYSLOGFACILITY);
+	openlog("corosync", LOG_CONS|LOG_PID, SYSLOGFACILITY);
 
 	/* Read low-level totem/aisexec etc config from CCS */
 	if ( !(ret = init_config(objdb, error_reason)) )

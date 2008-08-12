@@ -17,7 +17,7 @@
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
 #include <libxml/xpathInternals.h>
-#include <openais/service/logsys.h>
+#include <corosync/engine/logsys.h>
 
 #include "comm_headers.h"
 #include "debug.h"

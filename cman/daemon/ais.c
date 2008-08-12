@@ -14,17 +14,11 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
-/* openais headers */
-#include <openais/service/objdb.h>
-#include <openais/service/swab.h>
-#include <openais/totem/totemip.h>
-#include <openais/totem/totempg.h>
-#include <openais/totem/aispoll.h>
-#include <openais/service/service.h>
-#include <openais/service/config.h>
-#include <openais/lcr/lcr_comp.h>
-#include <openais/service/swab.h>
-#include <openais/service/logsys.h>
+/* corosync headers */
+#include <corosync/ipc_gen.h>
+#include <corosync/engine/coroapi.h>
+#include <corosync/engine/logsys.h>
+#include <corosync/lcr/lcr_comp.h>
 
 #include "list.h"
 #include "cnxman-socket.h"
@@ -34,6 +28,8 @@
 
 #include "ais.h"
 #include "cman.h"
+#define OBJDB_API struct corosync_api_v1
+#include "nodelist.h"
 #include "cmanconfig.h"
 #include "daemon.h"
 
@@ -43,7 +39,7 @@ extern char *key_filename;
 extern unsigned int quorumdev_poll;
 extern unsigned int ccsd_poll_interval;
 extern unsigned int shutdown_timeout;
-extern int init_config(struct objdb_iface_ver0 *objdb);
+extern int init_config(struct corosync_api_v1 *api);
 
 struct totem_ip_address mcast_addr[MAX_INTERFACES];
 struct totem_ip_address ifaddrs[MAX_INTERFACES];
@@ -56,8 +52,10 @@ static unsigned int cluster_parent_handle;
 static int startup_pipe;
 static unsigned int debug_mask;
 static int first_trans = 1;
-static totempg_groups_handle group_handle;
-static struct totempg_group cman_group[1] = {
+struct corosync_api_v1 *corosync;
+
+static corosync_tpg_handle group_handle;
+static struct corosync_tpg_group cman_group[1] = {
         { .group          = "CMAN", .group_len      = 4},
 };
 
@@ -74,46 +72,44 @@ struct cl_protheader {
 	int            tgtid;	/* Node ID of the target */
 };
 
-static void cman_deliver_fn(unsigned int nodeid, struct iovec *iovec, int iov_len,
-			    int endian_conversion_required);
-static void cman_confchg_fn(enum totem_configuration_type configuration_type,
-			    unsigned int *member_list, int member_list_entries,
-			    unsigned int *left_list, int left_list_entries,
-			    unsigned int *joined_list, int joined_list_entries,
-			    struct memb_ring_id *ring_id);
-
 /* Plugin-specific code */
 /* Need some better way of determining these.... */
 #define CMAN_SERVICE 9
 
 static int cman_exit_fn(void *conn_info);
-static int cman_exec_init_fn(struct objdb_iface_ver0 *objdb);
+static int cman_exec_init_fn(struct corosync_api_v1 *api);
+static void cman_confchg_fn(enum totem_configuration_type configuration_type,
+			    unsigned int *member_list, int member_list_entries,
+			    unsigned int *left_list, int left_list_entries,
+			    unsigned int *joined_list, int joined_list_entries,
+			    struct memb_ring_id *ring_id);
+static void cman_deliver_fn(unsigned int nodeid, struct iovec *iovec, int iov_len,
+			    int endian_conversion_required);
 
 /*
  * Exports the interface for the service
  */
-static struct openais_service_handler cman_service_handler = {
-	.name		    		= (char *)"openais CMAN membership service 2.90",
+static struct corosync_service_engine cman_service_handler = {
+	.name		    		= (char *)"corosync CMAN membership service 2.90",
 	.id			        = CMAN_SERVICE,
-	.flow_control			= OPENAIS_FLOW_CONTROL_NOT_REQUIRED,
+	.flow_control			= COROSYNC_LIB_FLOW_CONTROL_NOT_REQUIRED,
 	.lib_exit_fn		       	= cman_exit_fn,
 	.exec_init_fn		       	= cman_exec_init_fn,
 	.config_init_fn                 = NULL,
 };
 
-static struct openais_service_handler *cman_get_handler_ver0(void)
+static struct corosync_service_engine *cman_get_handler_ver0(void)
 {
 	return (&cman_service_handler);
 }
 
-static struct openais_service_handler_iface_ver0 cman_service_handler_iface = {
-	.openais_get_service_handler_ver0 = cman_get_handler_ver0
+static struct corosync_service_engine_iface_ver0 cman_service_handler_iface = {
+	.corosync_get_service_engine_ver0 = cman_get_handler_ver0
 };
-
 
 static struct lcr_iface ifaces_ver0[1] = {
 	{
-		.name		        = "openais_cman",
+		.name		        = "corosync_cman",
 		.version	        = 0,
 		.versions_replace     	= 0,
 		.versions_replace_count = 0,
@@ -140,34 +136,38 @@ __attribute__ ((constructor)) static void cman_comp_register(void) {
 /* ------------------------------- */
 
 
-static int cman_exec_init_fn(struct objdb_iface_ver0 *objdb)
+static int cman_exec_init_fn(struct corosync_api_v1 *api)
 {
 	unsigned int object_handle;
+	unsigned int find_handle;
 	char pipe_msg[256];
+
+	corosync = api;
 
 	if (getenv("CMAN_PIPE"))
                 startup_pipe = atoi(getenv("CMAN_PIPE"));
 
         /* Get our config variables */
-	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
-	objdb->object_find(OBJECT_PARENT_HANDLE,
-		"cluster", strlen("cluster"), &cluster_parent_handle);
+	corosync->object_find_create(OBJECT_PARENT_HANDLE, "cluster", strlen("cluster"), &find_handle);
+	corosync->object_find_next(find_handle, &cluster_parent_handle);
+	corosync->object_find_destroy(find_handle);
 
-	objdb->object_find_reset(cluster_parent_handle);
-	if (objdb->object_find(cluster_parent_handle, "cman", strlen("cman"), &object_handle) == 0)
+	corosync->object_find_create(cluster_parent_handle, "cman", strlen("cman"), &find_handle);
+	if (corosync->object_find_next(find_handle, &object_handle) == 0)
 	{
-		objdb_get_int(objdb, object_handle, "quorum_dev_poll", &quorumdev_poll, DEFAULT_QUORUMDEV_POLL);
-		objdb_get_int(objdb, object_handle, "shutdown_timeout", &shutdown_timeout, DEFAULT_SHUTDOWN_TIMEOUT);
-		objdb_get_int(objdb, object_handle, "ccsd_poll", &ccsd_poll_interval, DEFAULT_CCSD_POLL);
-		objdb_get_int(objdb, object_handle, "debug_mask", &debug_mask, 0);
+		objdb_get_int(api, object_handle, "quorum_dev_poll", &quorumdev_poll, DEFAULT_QUORUMDEV_POLL);
+		objdb_get_int(api, object_handle, "shutdown_timeout", &shutdown_timeout, DEFAULT_SHUTDOWN_TIMEOUT);
+		objdb_get_int(api, object_handle, "ccsd_poll", &ccsd_poll_interval, DEFAULT_CCSD_POLL);
+		objdb_get_int(api, object_handle, "debug_mask", &debug_mask, 0);
 
 		/* All other debugging options should already have been set in preconfig */
 		set_debuglog(debug_mask);
 	}
+	corosync->object_find_destroy(find_handle);
 	P_DAEMON(CMAN_NAME " starting");
 
 	/* Open local sockets and initialise I/O queues */
-	if (read_cman_config(objdb, &config_version)) {
+	if (read_cman_config(api, &config_version)) {
 		/* An error message will have been written to cman_pipe */
 		exit(9);
 	}
@@ -180,8 +180,8 @@ static int cman_exec_init_fn(struct objdb_iface_ver0 *objdb)
 	startup_pipe = 0;
 
 	/* Start totem */
-	totempg_groups_initialize(&group_handle, cman_deliver_fn, cman_confchg_fn);
-	totempg_groups_join(group_handle, cman_group, 1);
+	api->tpg_init(&group_handle, cman_deliver_fn, cman_confchg_fn);
+	api->tpg_join(group_handle, cman_group, 1);
 
 	return 0;
 }
@@ -202,7 +202,7 @@ int comms_send_message(void *buf, int len,
 {
 	struct iovec iov[2];
 	struct cl_protheader header;
-	int totem_flags = TOTEMPG_AGREED;
+	int totem_flags = TOTEM_AGREED;
 
 	P_AIS("comms send message %p len = %d\n", buf,len);
 	header.tgtport = toport;
@@ -217,20 +217,20 @@ int comms_send_message(void *buf, int len,
 	iov[1].iov_len  = len;
 
 	if (flags & MSG_TOTEM_SAFE)
-		totem_flags = TOTEMPG_SAFE;
+		totem_flags = TOTEM_SAFE;
 
-	return totempg_groups_mcast_joined(group_handle, iov, 2, totem_flags);
+	return corosync->tpg_joined_mcast(group_handle, iov, 2, totem_flags);
 }
 
-/* This assumes the iovec has only one element ... is it true ?? */
+// This assumes the iovec has only one element ... is it true ??
 static void cman_deliver_fn(unsigned int nodeid, struct iovec *iovec, int iov_len,
 			    int endian_conversion_required)
 {
 	struct cl_protheader *header = iovec->iov_base;
 	char *buf = iovec->iov_base;
 
-	P_AIS("deliver_fn called, iov_len = %d, iov[0].len = %lu, source nodeid = %d, conversion reqd=%d\n",
-	      iov_len, (unsigned long)iovec->iov_len, nodeid, endian_conversion_required);
+	P_AIS("deliver_fn source nodeid = %d, len=%d, endian_conv=%d\n",
+	      nodeid, iovec->iov_len, endian_conversion_required);
 
 	if (endian_conversion_required) {
 		header->srcid = swab32(header->srcid);
@@ -243,8 +243,7 @@ static void cman_deliver_fn(unsigned int nodeid, struct iovec *iovec, int iov_le
 	    header->tgtid == 0) {
 		send_to_userport(header->srcport, header->tgtport,
 				 header->srcid, header->tgtid,
-				 buf + sizeof(struct cl_protheader),
-				 iovec->iov_len - sizeof(struct cl_protheader),
+				 buf + sizeof(struct cl_protheader), iovec->iov_len,
 				 endian_conversion_required);
 	}
 }

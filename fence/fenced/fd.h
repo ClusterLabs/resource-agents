@@ -23,8 +23,8 @@
 #include <sys/time.h>
 
 #include <openais/saAis.h>
-#include <openais/cpg.h>
-#include <openais/service/logsys.h>
+#include <corosync/cpg.h>
+#include <corosync/engine/logsys.h>
 
 #include "list.h"
 #include "linux_endian.h"

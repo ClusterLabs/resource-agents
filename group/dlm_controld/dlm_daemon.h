@@ -32,8 +32,8 @@
 #include <dirent.h>
 #include <openais/saAis.h>
 #include <openais/saCkpt.h>
-#include <openais/cpg.h>
-#include <openais/service/logsys.h>
+#include <corosync/cpg.h>
+#include <corosync/engine/logsys.h>
 
 #include <linux/dlmconstants.h>
 #include "libdlmcontrol.h"
@@ -46,13 +46,13 @@
    The libcpg limit is larger at CPG_MAX_NAME_LENGTH 128.  Our cpg name includes
    a "dlm:" prefix before the lockspace name. */
 
-/* Maximum members of a lockspace, should match CPG_MEMBERS_MAX in openais/cpg.h.
+/* Maximum members of a lockspace, should match CPG_MEMBERS_MAX in corosync/cpg.h.
    There are no max defines in dlm-kernel for lockspace members. */
 
 #define MAX_NODES	128
 
 /* Maximum number of IP addresses per node, when using SCTP and multi-ring in
-   openais.  In dlm-kernel this is DLM_MAX_ADDR_COUNT, currently 3. */
+   corosync  In dlm-kernel this is DLM_MAX_ADDR_COUNT, currently 3. */
 
 #define MAX_NODE_ADDRESSES 4
 

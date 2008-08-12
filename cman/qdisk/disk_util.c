@@ -15,7 +15,7 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include <time.h>
-#include <openais/service/logsys.h>
+#include <corosync/engine/logsys.h>
 
 inline void
 _diff_tv(struct timeval *dest, struct timeval *start, struct timeval *end)

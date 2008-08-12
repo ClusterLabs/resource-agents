@@ -14,16 +14,14 @@
 #include <ifaddrs.h>
 #include <arpa/inet.h>
 
-/* openais headers */
-#include <openais/service/objdb.h>
-#include <openais/service/swab.h>
-#include <openais/service/service.h>
-#include <openais/service/config.h>
-#include <openais/lcr/lcr_comp.h>
-#include <openais/service/swab.h>
+/* corosync headers */
+#include <corosync/engine/logsys.h>
+#include <corosync/lcr/lcr_comp.h>
+#include <corosync/engine/objdb.h>
+#include <corosync/engine/config.h>
 
 #include "cman.h"
-#include "cmanconfig.h"
+#define OBJDB_API struct objdb_iface_ver0
 #include "cnxman-socket.h"
 #include "nodelist.h"
 #include "logging.h"
@@ -199,11 +197,11 @@ static int address_family(char *addr, struct sockaddr_storage *ssaddr)
 static unsigned int find_cman_logger(struct objdb_iface_ver0 *objdb, unsigned int object_handle)
 {
 	unsigned int subsys_handle;
+	unsigned int find_handle;
 	char *str;
 
-	objdb->object_find_reset(object_handle);
-	while (!objdb->object_find(object_handle,
-				  "logger_subsys", strlen("logger_subsys"), &subsys_handle)) {
+	objdb->object_find_create(object_handle, "logger_subsys", strlen("logger_subsys"), &find_handle);
+	while (!objdb->object_find_next(object_handle, &subsys_handle)) {
 
 		if (objdb_get_string(objdb, subsys_handle, "subsys", &str)) {
 			continue;
@@ -211,13 +209,14 @@ static unsigned int find_cman_logger(struct objdb_iface_ver0 *objdb, unsigned in
 		if (strcmp(str, CMAN_NAME) == 0)
 			return subsys_handle;
 	}
+	objdb->object_find_destroy(find_handle);
 
 	/* We can't find it ... create one */
 	if (objdb->object_create(object_handle, &subsys_handle,
-				 "logger_subsys", strlen("logger_subsys")) == 0) {
+				    "logger_subsys", strlen("logger_subsys")) == 0) {
 
 		objdb->object_key_create(subsys_handle, "subsys", strlen("subsys"),
-					 CMAN_NAME, strlen(CMAN_NAME)+1);
+					    CMAN_NAME, strlen(CMAN_NAME)+1);
 	}
 
 	return subsys_handle;
@@ -228,6 +227,7 @@ static unsigned int find_cman_logger(struct objdb_iface_ver0 *objdb, unsigned in
 static int add_ifaddr(struct objdb_iface_ver0 *objdb, char *mcast, char *ifaddr, int portnum)
 {
 	unsigned int totem_object_handle;
+	unsigned int find_handle;
 	unsigned int interface_object_handle;
 	struct sockaddr_storage if_addr, localhost, mcast_addr;
 	char tmp[132];
@@ -247,13 +247,13 @@ static int add_ifaddr(struct objdb_iface_ver0 *objdb, char *mcast, char *ifaddr,
 		return -1;
 	}
 
-	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
-	if (objdb->object_find(OBJECT_PARENT_HANDLE,
-			       "totem", strlen("totem"), &totem_object_handle)) {
+	objdb->object_find_create(OBJECT_PARENT_HANDLE, "totem", strlen("totem"), &find_handle);
+	if (objdb->object_find_next(find_handle, &totem_object_handle)) {
 
 		objdb->object_create(OBJECT_PARENT_HANDLE, &totem_object_handle,
 				     "totem", strlen("totem"));
         }
+	objdb->object_destroy(find_handle);
 
 	if (objdb->object_create(totem_object_handle, &interface_object_handle,
 				 "interface", strlen("interface")) == 0) {
@@ -332,7 +332,7 @@ static int verify_nodename(struct objdb_iface_ver0 *objdb, char *nodename)
 	struct ifaddrs *ifa, *ifa_list;
 	struct sockaddr *sa;
 	unsigned int nodes_handle;
-	unsigned int parent_handle;
+	unsigned int find_handle;
 	int error;
 
 	/* nodename is either from commandline or from uname */
@@ -353,7 +353,7 @@ static int verify_nodename(struct objdb_iface_ver0 *objdb, char *nodename)
 
 	/* If nodename (from uname) is domain-less, try to match against
 	   cluster.conf names which may have domainname specified */
-	nodes_handle = nodeslist_init(objdb, cluster_parent_handle, &parent_handle);
+	nodes_handle = nodeslist_init(objdb, cluster_parent_handle, &find_handle);
 	do {
 		int len;
 
@@ -374,7 +374,7 @@ static int verify_nodename(struct objdb_iface_ver0 *objdb, char *nodename)
 			strcpy(nodename, str);
 			return 0;
 		}
-		nodes_handle = nodeslist_next(objdb, parent_handle);
+		nodes_handle = nodeslist_next(objdb, find_handle);
 	} while (nodes_handle);
 
 
@@ -494,6 +494,7 @@ static int get_nodename(struct objdb_iface_ver0 *objdb)
 {
 	char *nodeid_str;
 	unsigned int object_handle;
+	unsigned int find_handle;
 	unsigned int node_object_handle;
 	unsigned int alt_object;
 	int error;
@@ -551,23 +552,21 @@ static int get_nodename(struct objdb_iface_ver0 *objdb)
 		}
 	}
 
-	objdb->object_find_reset(cluster_parent_handle);
+	objdb->object_find_create(cluster_parent_handle, "cman", strlen("cman"), &find_handle);
 
-	if (objdb->object_find(cluster_parent_handle,
-			       "cman", strlen("cman"),
-			       &object_handle) == 0) {
+	if (objdb->object_find_next(find_handle, &object_handle) == 0) {
 
 		unsigned int mcast_handle;
+		unsigned int find_handle2;
 
 		if (!mcast_name) {
 
-			objdb->object_find_reset(object_handle);
-			if (objdb->object_find(object_handle,
-					       "multicast", strlen("multicast"),
-					       &mcast_handle) == 0) {
+			objdb->object_find_create(object_handle, "multicast", strlen("multicast"), &find_handle2);
+			if (objdb->object_find_next(find_handle2, &mcast_handle) == 0) {
 
 				objdb_get_string(objdb, mcast_handle, "addr", &mcast_name);
 			}
+			objdb->object_find_destroy(find_handle2);
 		}
 
 		if (!mcast_name) {
@@ -575,8 +574,9 @@ static int get_nodename(struct objdb_iface_ver0 *objdb)
 		}
 
 		objdb->object_key_create(object_handle, "nodename", strlen("nodename"),
-					 nodename, strlen(nodename)+1);
+					    nodename, strlen(nodename)+1);
 	}
+	objdb->object_find_destroy(find_handle);
 
 	nodeid = atoi(nodeid_str);
 	error = 0;
@@ -591,10 +591,8 @@ static int get_nodename(struct objdb_iface_ver0 *objdb)
 
 	/* Get all alternative node names */
 	num_nodenames = 1;
-	objdb->object_find_reset(node_object_handle);
-	while (objdb->object_find(node_object_handle,
-				  "altname", strlen("altname"),
-				  &alt_object) == 0) {
+	objdb->object_find_create(node_object_handle,"altname", strlen("altname"), &find_handle);
+	while (objdb->object_find_next(find_handle, &alt_object) == 0) {
 		unsigned int port;
 		char *nodename;
 		char *mcast;
@@ -614,6 +612,7 @@ static int get_nodename(struct objdb_iface_ver0 *objdb)
 
 		num_nodenames++;
 	}
+	objdb->object_find_destroy(find_handle);
 
 out:
 	return error;
@@ -622,14 +621,16 @@ out:
 /* These are basically cman overrides to the totem config bits */
 static void add_cman_overrides(struct objdb_iface_ver0 *objdb)
 {
+	unsigned int logger_object_handle;
+	char *logstr;
+	char *logfacility;
 	unsigned int object_handle;
+	unsigned int find_handle;
 	char tmp[256];
 
 	/* "totem" key already exists, because we have added the interfaces by now */
-	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
-	if (objdb->object_find(OBJECT_PARENT_HANDLE,
-			       "totem", strlen("totem"),
-			       &object_handle) == 0)
+	objdb->object_find_create(OBJECT_PARENT_HANDLE,"totem", strlen("totem"), &find_handle);
+	if (objdb->object_find_next(find_handle, &object_handle) == 0)
 	{
 		char *value;
 
@@ -664,7 +665,6 @@ static void add_cman_overrides(struct objdb_iface_ver0 *objdb)
 			objdb->object_key_create(object_handle, "consensus", strlen("consensus"),
 						 "4800", strlen("4800")+1);
 		}
-
 
 		/* Set RRP mode appropriately */
 		if (objdb_get_string(objdb, object_handle, "rrp_mode", &value)) {
@@ -710,78 +710,68 @@ static void add_cman_overrides(struct objdb_iface_ver0 *objdb)
 						 tmp, keylen);
 		}
 	}
+	objdb->object_find_destroy(find_handle);
 
 	/* Make sure mainconfig doesn't stomp on our logging options */
-	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
-	if (objdb->object_find(OBJECT_PARENT_HANDLE,
-			       "logging", strlen("logging"), &object_handle)) {
+	objdb->object_find_create(OBJECT_PARENT_HANDLE, "logging", strlen("logging"), &find_handle);
+	if (objdb->object_find_next(find_handle, &object_handle)) {
 
                 objdb->object_create(OBJECT_PARENT_HANDLE, &object_handle,
 					    "logging", strlen("logging"));
         }
+	objdb->object_find_destroy(find_handle);
 
-	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
-	if (objdb->object_find(OBJECT_PARENT_HANDLE,
-			       "logging", strlen("logging"),
-			       &object_handle) == 0) {
-		unsigned int logger_object_handle;
-		char *logstr;
-		char *logfacility;
+	logfacility = facility_name_get(SYSLOGFACILITY);
 
-		logfacility = facility_name_get(SYSLOGFACILITY);
+	logger_object_handle = find_cman_logger(objdb, object_handle);
 
-		logger_object_handle = find_cman_logger(objdb, object_handle);
-
-		if (objdb_get_string(objdb, object_handle, "syslog_facility", &logstr)) {
-			objdb->object_key_create(object_handle, "syslog_facility", strlen("syslog_facility"),
-						 logfacility, strlen(logfacility)+1);
-		}
-
-		if (objdb_get_string(objdb, object_handle, "to_file", &logstr)) {
-			objdb->object_key_create(object_handle, "to_file", strlen("to_file"),
-						 "yes", strlen("yes")+1);
-		}
-
-		if (objdb_get_string(objdb, object_handle, "logfile", &logstr)) {
-			objdb->object_key_create(object_handle, "logfile", strlen("logfile"),
-						 LOGDIR "/cman.log", strlen(LOGDIR "/cman.log")+1);
-		}
-
-		if (debug_mask) {
-			objdb->object_key_create(object_handle, "to_stderr", strlen("to_stderr"),
-						 "yes", strlen("yes")+1);
-			objdb->object_key_create(logger_object_handle, "debug", strlen("debug"),
-						 "on", strlen("on")+1);
-			objdb->object_key_create(logger_object_handle, "syslog_level", strlen("syslog_level"),
-						 "debug", strlen("debug")+1);
-
-		}
-		else {
-			char *loglevel;
-			loglevel = priority_name_get(SYSLOGLEVEL);
-			objdb->object_key_create(logger_object_handle, "syslog_level", strlen("syslog_level"),
-						 loglevel, strlen(loglevel)+1);
-		}
+	if (objdb_get_string(objdb, object_handle, "syslog_facility", &logstr)) {
+		objdb->object_key_create(object_handle, "syslog_facility", strlen("syslog_facility"),
+					    logfacility, strlen(logfacility)+1);
 	}
+
+	if (objdb_get_string(objdb, object_handle, "to_file", &logstr)) {
+		objdb->object_key_create(object_handle, "to_file", strlen("to_file"),
+					    "yes", strlen("yes")+1);
+	}
+
+	if (objdb_get_string(objdb, object_handle, "logfile", &logstr)) {
+		objdb->object_key_create(object_handle, "logfile", strlen("logfile"),
+					    LOGDIR "/cman.log", strlen(LOGDIR "/cman.log")+1);
+	}
+
+	if (debug_mask) {
+		objdb->object_key_create(object_handle, "to_stderr", strlen("to_stderr"),
+					    "yes", strlen("yes")+1);
+		objdb->object_key_create(logger_object_handle, "debug", strlen("debug"),
+					    "on", strlen("on")+1);
+		objdb->object_key_create(logger_object_handle, "syslog_level", strlen("syslog_level"),
+					    "debug", strlen("debug")+1);
+
+	}
+	else {
+		char *loglevel;
+		loglevel = priority_name_get(SYSLOGLEVEL);
+		objdb->object_key_create(logger_object_handle, "syslog_level", strlen("syslog_level"),
+					    loglevel, strlen(loglevel)+1);
+	}
+
 
 	/* Don't run under user "ais" */
-	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
-	if (objdb->object_find(OBJECT_PARENT_HANDLE, "aisexec", strlen("aisexec"), &object_handle) != 0) {
+	objdb->object_find_create(OBJECT_PARENT_HANDLE, "aisexec", strlen("aisexec"), &find_handle);
+	if (objdb->object_find_next(find_handle, &object_handle) != 0) {
 		objdb->object_create(OBJECT_PARENT_HANDLE, &object_handle,
-				     "aisexec", strlen("aisexec"));
+					"aisexec", strlen("aisexec"));
 
 	}
-	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
-	if (objdb->object_find(OBJECT_PARENT_HANDLE, "aisexec", strlen("aisexec"), &object_handle) == 0)
-	{
-		objdb->object_key_create(object_handle, "user", strlen("user"),
-				 "root", strlen("root") + 1);
-		objdb->object_key_create(object_handle, "group", strlen("group"),
-				 "root", strlen("root") + 1);
-	}
+	objdb->object_find_destroy(find_handle);
+	objdb->object_key_create(object_handle, "user", strlen("user"),
+				    "root", strlen("root") + 1);
+	objdb->object_key_create(object_handle, "group", strlen("group"),
+				    "root", strlen("root") + 1);
 
-	objdb->object_find_reset(cluster_parent_handle);
-	if (objdb->object_find(cluster_parent_handle, "cman", strlen("cman"), &object_handle) == 0)
+	objdb->object_find_create(cluster_parent_handle, "cman", strlen("cman"), &find_handle);
+	if (objdb->object_find_next(find_handle, &object_handle) == 0)
 	{
 		char str[255];
 
@@ -801,12 +791,13 @@ static void add_cman_overrides(struct objdb_iface_ver0 *objdb)
 						 str, strlen(str) + 1);
 		}
 	}
+	objdb->object_find_destroy(find_handle);
 
 	/* Make sure we load our alter-ego - the main cman module */
 	objdb->object_create(OBJECT_PARENT_HANDLE, &object_handle,
 			     "service", strlen("service"));
 	objdb->object_key_create(object_handle, "name", strlen("name"),
-				 "openais_cman", strlen("openais_cman") + 1);
+				 "corosync_cman", strlen("corosync_cman") + 1);
 	objdb->object_key_create(object_handle, "ver", strlen("ver"),
 				 "0", 2);
 }
@@ -816,6 +807,7 @@ static int set_noccs_defaults(struct objdb_iface_ver0 *objdb)
 {
 	char tmp[255];
 	unsigned int object_handle;
+	unsigned int find_handle;
 
 	/* Enforce key */
 	key_filename = NOCCS_KEY_FILENAME;
@@ -901,40 +893,34 @@ static int set_noccs_defaults(struct objdb_iface_ver0 *objdb)
 				 cluster_name, strlen(cluster_name)+1);
 
 
-        if (objdb->object_find(cluster_parent_handle,
-			       "cman", strlen("cman"), &object_handle)) {
+	objdb->object_find_create(cluster_parent_handle, "cman", strlen("cman"), &find_handle);
+	if (objdb->object_find_next(find_handle, &object_handle) == 0) {
 
                 objdb->object_create(cluster_parent_handle, &object_handle,
                                             "cman", strlen("cman"));
         }
+	sprintf(tmp, "%d", cluster_id);
+	objdb->object_key_create(object_handle, "cluster_id", strlen("cluster_id"),
+				    tmp, strlen(tmp)+1);
 
-	objdb->object_find_reset(cluster_parent_handle);
-	if (objdb->object_find(cluster_parent_handle,
-			       "cman", strlen("cman"),
-			       &object_handle) == 0) {
+	sprintf(tmp, "%d", expected_votes);
+	objdb->object_key_create(object_handle, "expected_votes", strlen("expected_votes"),
+				    tmp, strlen(tmp)+1);
 
-		sprintf(tmp, "%d", cluster_id);
-		objdb->object_key_create(object_handle, "cluster_id", strlen("cluster_id"),
-					 tmp, strlen(tmp)+1);
-
-		sprintf(tmp, "%d", expected_votes);
-		objdb->object_key_create(object_handle, "expected_votes", strlen("expected_votes"),
-					 tmp, strlen(tmp)+1);
-	}
+	objdb->object_find_destroy(find_handle);
 	return 0;
 }
 
 static int get_cman_globals(struct objdb_iface_ver0 *objdb)
 {
 	unsigned int object_handle;
+	unsigned int find_handle;
 
 	objdb_get_string(objdb, cluster_parent_handle, "name", &cluster_name);
 
 	/* Get the <cman> bits that override <totem> bits */
-	objdb->object_find_reset(cluster_parent_handle);
-	if (objdb->object_find(cluster_parent_handle,
-			       "cman", strlen("cman"),
-			       &object_handle) == 0) {
+	objdb->object_find_create(cluster_parent_handle, "cman", strlen("cman"), &find_handle);
+	if (objdb->object_find_next(find_handle, &object_handle) == 0) {
 		if (!portnum)
 			objdb_get_int(objdb, object_handle, "port", &portnum, DEFAULT_PORT);
 
@@ -947,6 +933,7 @@ static int get_cman_globals(struct objdb_iface_ver0 *objdb)
 		if (!cluster_id)
 			cluster_id = generate_cluster_id(cluster_name);
 	}
+	objdb->object_find_destroy(find_handle);
 	return 0;
 }
 
@@ -954,20 +941,22 @@ static int cmanpre_readconfig(struct objdb_iface_ver0 *objdb, char **error_strin
 {
 	int ret = 0;
 	unsigned int object_handle;
+	unsigned int find_handle;
 
 	if (getenv("CMAN_PIPE"))
                 startup_pipe = atoi(getenv("CMAN_PIPE"));
 
-	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
-        objdb->object_find(OBJECT_PARENT_HANDLE,
-			   "cluster", strlen("cluster"), &cluster_parent_handle);
+	objdb->object_find_create(OBJECT_PARENT_HANDLE, "cluster", strlen("cluster"), &find_handle);
+        objdb->object_find_next(find_handle, &cluster_parent_handle);
+	objdb->object_find_destroy(find_handle);
 
-	if (objdb->object_find(cluster_parent_handle,
-			       "cman", strlen("cman"), &object_handle)) {
+	objdb->object_find_create(cluster_parent_handle, "cman", strlen("cman"), &find_handle);
+	if (objdb->object_find_next(find_handle, &object_handle)) {
 
                 objdb->object_create(cluster_parent_handle, &object_handle,
-				     "cman", strlen("cman"));
+					"cman", strlen("cman"));
         }
+	objdb->object_find_destroy(find_handle);
 
 	get_env_overrides();
 	if (getenv("CMAN_NOCONFIG"))

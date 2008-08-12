@@ -17,10 +17,9 @@
 #include <sys/un.h>
 
 #include <openais/saAis.h>
-#include <openais/confdb.h>
+#include <corosync/confdb.h>
 
 confdb_callbacks_t callbacks = {
-	.confdb_change_notify_fn = NULL,
 };
 
 /* This structure maps object parent names to object classes */

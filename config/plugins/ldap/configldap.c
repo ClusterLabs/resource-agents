@@ -13,15 +13,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <arpa/inet.h>
 
 // CC: temp until I tame SASL ... is this necessary?
 #define LDAP_DEPRECATED 1
 #include <ldap.h>
 
-/* openais headers */
-#include <openais/service/objdb.h>
-#include <openais/service/config.h>
-#include <openais/lcr/lcr_comp.h>
+/* corosync headers */
+#include <corosync/lcr/lcr_comp.h>
+#include <corosync/engine/objdb.h>
+#include <corosync/engine/config.h>
 
 /* These are defaults. they can be overridden with environment variables
  *  LDAP_URL & LDAP_BASEDN
@@ -116,8 +117,7 @@ static unsigned int find_parent(struct objdb_iface_ver0 *objdb, LDAPDN dn, int s
 	int start=0, end=startdn;
 	unsigned int parent_handle = OBJECT_PARENT_HANDLE;
 	unsigned int object_handle=0;
-
-//	fprintf(stderr, "CC: find parent: startdn=%d, parent=%s\n", startdn, parent);
+	unsigned int find_handle;
 
 	/*
 	 * Find the start and end positions first.
@@ -125,7 +125,6 @@ static unsigned int find_parent(struct objdb_iface_ver0 *objdb, LDAPDN dn, int s
 	 * end   is the end of the list
 	 */
 	do {
-//		fprintf(stderr, "CC: %d: seen %s\n", i,dn[i][0][0].la_value.bv_val);
 		if (!gotstart && dn[i][0][0].la_value.bv_len == 7 &&
 		    !strncmp(parent, dn[i][0][0].la_value.bv_val, 7)) {
 			gotstart = 1;
@@ -136,16 +135,14 @@ static unsigned int find_parent(struct objdb_iface_ver0 *objdb, LDAPDN dn, int s
 	if (start <= 0)
 		return parent_handle;
 
-//	fprintf(stderr, "CC: find parent: start=%d, end=%d\n", start, end);
-
 	for (i=start; i>=end; i--) {
-		objdb->object_find_reset(parent_handle);
-//		fprintf(stderr, "CC: %d: looking for %s\n", i,dn[i][0][0].la_value.bv_val);
-		if (!objdb->object_find(parent_handle,
-					dn[i][0][0].la_value.bv_val, dn[i][0][0].la_value.bv_len,
-					&object_handle)) {
+		objdb->object_find_create(parent_handle,
+					     dn[i][0][0].la_value.bv_val, dn[i][0][0].la_value.bv_len,
+					     &find_handle);
+		if (!objdb->object_find_next(find_handle, &object_handle)) {
 			parent_handle = object_handle;
 		}
+		objdb->object_find_destroy(find_handle);
 	}
 	return object_handle;
 }
@@ -195,7 +192,6 @@ static int read_config_for(LDAP *ld, struct objdb_iface_ver0 *objdb, unsigned in
 			convert_dn_underscores(parsed_dn);
 
 			/* Create a new object if the top-level is NOT name= */
-//			printf("CC: dn: %s\n", dn);
 			if (strncmp(parsed_dn[0][0][0].la_attr.bv_val, "name", 4)) {
 				parent_handle = find_parent(objdb, parsed_dn, 0, object);
 

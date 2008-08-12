@@ -1,5 +1,5 @@
 
-/* Interface with openais's cman API */
+/* Interface with corosync's cman API */
 
 #include <libcman.h>
 #include "gd_internal.h"

@@ -9,7 +9,7 @@
 #include <platform.h>
 #include <stdlib.h>
 #include <string.h>
-#include <openais/service/logsys.h>
+#include <corosync/engine/logsys.h>
 #include "scandisk.h"
 
 struct device_args {

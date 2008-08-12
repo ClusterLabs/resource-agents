@@ -17,9 +17,10 @@
 #include <netinet/in.h>
 #include <sys/errno.h>
 
-#include <openais/service/swab.h>
-#include <openais/totem/aispoll.h>
-#include <openais/totem/totemip.h>
+#include <corosync/ipc_gen.h>
+#include <corosync/engine/coroapi.h>
+#include <corosync/engine/logsys.h>
+#include <corosync/totem/coropoll.h>
 
 #include "list.h"
 #include "cnxman-socket.h"

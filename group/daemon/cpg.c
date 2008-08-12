@@ -1,5 +1,5 @@
 
-/* Interface with openais's closed-process-group (cpg) API */
+/* Interface with corosync's closed-process-group (cpg) API */
 
 #include "gd_internal.h"
 

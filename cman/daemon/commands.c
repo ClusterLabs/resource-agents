@@ -6,6 +6,7 @@
 #include <inttypes.h>
 #include <syslog.h>
 #include <string.h>
+#include <time.h>
 #include <sys/time.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -19,14 +20,9 @@
 #include <sys/errno.h>
 #include <dlfcn.h>
 
-#include <openais/service/objdb.h>
-#include <openais/service/swab.h>
-#include <openais/totem/totemip.h>
-#include <openais/totem/totempg.h>
-#include <openais/service/swab.h>
-#include <openais/service/logsys.h>
-#include <openais/service/timer.h>
-#include <openais/totem/aispoll.h>
+#include <corosync/ipc_gen.h>
+#include <corosync/engine/coroapi.h>
+#include <corosync/engine/logsys.h>
 #include "list.h"
 #include "cman.h"
 #include "cnxman-socket.h"
@@ -34,7 +30,9 @@
 #include "daemon.h"
 #include "barrier.h"
 #include "logging.h"
+#define OBJDB_API struct corosync_api_v1
 #include "cmanconfig.h"
+#include "nodelist.h"
 #include "commands.h"
 #include "ais.h"
 
@@ -67,15 +65,15 @@ static struct cluster_node *quorum_device;
 static uint16_t cluster_id;
 static int ais_running;
 static time_t join_time;
-static openais_timer_handle quorum_device_timer;
-static struct objdb_iface_ver0 *global_objdb;
+static corosync_timer_handle_t quorum_device_timer;
+static struct corosync_api_v1 *corosync;
 
 /* If CCS gets out of sync, we poll it until it isn't */
-static openais_timer_handle ccsd_timer;
+static corosync_timer_handle_t ccsd_timer;
 static unsigned int wanted_config_version;
 static int config_error;
 
-static openais_timer_handle shutdown_timer;
+static corosync_timer_handle_t shutdown_timer;
 static struct connection *shutdown_con;
 static uint32_t shutdown_flags;
 static int shutdown_yes;
@@ -88,7 +86,7 @@ static int get_node_count(void);
 static int get_highest_nodeid(void);
 static int send_port_open_msg(unsigned char port);
 static int send_port_enquire(int nodeid);
-static void process_internal_message(char *data, int len, int nodeid, int byteswap);
+static void process_internal_message(char *data, int nodeid, int byteswap);
 static void recalculate_quorum(int allow_decrease, int by_current_nodes);
 static void send_kill(int nodeid, uint16_t reason);
 static char *killmsg_reason(int reason);
@@ -136,6 +134,39 @@ static int have_disallowed(void)
 	}
 
 	return 0;
+}
+
+/* Make a totem_ip_address into a usable sockaddr_storage */
+static int totemip_to_sockaddr(struct totem_ip_address *ip_addr,
+			       uint16_t port, struct sockaddr_storage *saddr, int *addrlen)
+{
+	int ret = -1;
+
+	if (ip_addr->family == AF_INET) {
+		struct sockaddr_in *sin = (struct sockaddr_in *)saddr;
+
+		memset(sin, 0, sizeof(struct sockaddr_in));
+		sin->sin_family = ip_addr->family;
+		sin->sin_port = port;
+		memcpy(&sin->sin_addr, ip_addr->addr, sizeof(struct in_addr));
+		*addrlen = sizeof(struct sockaddr_in);
+		ret = 0;
+	}
+
+	if (ip_addr->family == AF_INET6) {
+		struct sockaddr_in6 *sin = (struct sockaddr_in6 *)saddr;
+
+		memset(sin, 0, sizeof(struct sockaddr_in6));
+		sin->sin6_family = ip_addr->family;
+		sin->sin6_port = port;
+		sin->sin6_scope_id = 2;
+		memcpy(&sin->sin6_addr, ip_addr->addr, sizeof(struct in6_addr));
+
+		*addrlen = sizeof(struct sockaddr_in6);
+		ret = 0;
+	}
+
+	return ret;
 }
 
 /* If "cluster_is_quorate" is 0 then all activity apart from protected ports is
@@ -356,9 +387,9 @@ static void copy_to_usernode(struct cluster_node *node,
 
 	/* Just send the first address. If the user wants the full set they
 	   must ask for them */
-	totempg_ifaces_get(node->node_id, node_ifs, &status, &numaddrs);
+	corosync->totem_ifaces_get(node->node_id, node_ifs, &status, &numaddrs);
 
-	totemip_totemip_to_sockaddr_convert(&node_ifs[0], 0, &ss, &addrlen);
+	totemip_to_sockaddr(&node_ifs[0], 0, &ss, &addrlen);
 	memcpy(unode->addr, &ss, addrlen);
 	unode->addrlen = addrlen;
 }
@@ -382,7 +413,7 @@ int cman_set_nodeid(int nodeid)
 	return 0;
 }
 
-int cman_join_cluster(struct objdb_iface_ver0 *objdb,
+int cman_join_cluster(struct corosync_api_v1 *api,
 		      char *name, unsigned short cl_id,
 		      int two_node_flag, int votes, int expected_votes)
 {
@@ -395,7 +426,7 @@ int cman_join_cluster(struct objdb_iface_ver0 *objdb,
 	cluster_id = cl_id;
 	strncpy(cluster_name, name, MAX_CLUSTER_NAME_LEN);
 	two_node = two_node_flag;
-	global_objdb = objdb;
+	corosync = api;
 
 	quit_threads = 0;
 	ais_running = 1;
@@ -450,6 +481,8 @@ static int do_cmd_get_extrainfo(char *cmdbuf, char **retbuf, int retsize, int *r
 	unsigned int num_interfaces;
 	unsigned int totem_object_handle;
 	unsigned int object_handle;
+	unsigned int totem_find_handle;
+	unsigned int iface_find_handle;
 	char **status;
 	struct cluster_node *node;
 	struct sockaddr_storage *ss;
@@ -459,7 +492,7 @@ static int do_cmd_get_extrainfo(char *cmdbuf, char **retbuf, int retsize, int *r
 	if (!we_are_a_cluster_member)
 		return -ENOENT;
 
-	totempg_ifaces_get(us->node_id, node_ifs, &status, &num_interfaces);
+	corosync->totem_ifaces_get(us->node_id, node_ifs, &status, &num_interfaces);
 
 	list_iterate_items(node, &cluster_members_list) {
 		if (node->state == NODESTATE_MEMBER) {
@@ -505,20 +538,19 @@ static int do_cmd_get_extrainfo(char *cmdbuf, char **retbuf, int retsize, int *r
 
 	ptr = einfo->addresses;
 
-	global_objdb->object_find_reset(OBJECT_PARENT_HANDLE);
-	if (global_objdb->object_find(OBJECT_PARENT_HANDLE,
-				      "totem", strlen("totem"),
-				      &totem_object_handle) == 0) {
+	corosync->object_find_create(OBJECT_PARENT_HANDLE, "totem", strlen("totem"), &totem_find_handle);
+	if (corosync->object_find_next(totem_find_handle, &totem_object_handle) == 0) {
 
-		while (global_objdb->object_find(totem_object_handle,
-						 "interface", strlen("interface"),
-						 &object_handle) == 0) {
+		corosync->object_find_destroy(totem_find_handle);
+
+		corosync->object_find_create(totem_object_handle, "interface", strlen("interface"), &iface_find_handle);
+		while (corosync->object_find_next(iface_find_handle, &object_handle) == 0) {
 
 			char *mcast;
 			struct sockaddr_in *saddr4;
 			struct sockaddr_in6 *saddr6;
 
-			objdb_get_string(global_objdb, object_handle, "mcastaddr", &mcast);
+			objdb_get_string(corosync, object_handle, "mcastaddr", &mcast);
 			memset(ptr, 0, sizeof(struct sockaddr_storage));
 
 			saddr4 = (struct sockaddr_in *)ptr;
@@ -533,10 +565,11 @@ static int do_cmd_get_extrainfo(char *cmdbuf, char **retbuf, int retsize, int *r
 			ptr += sizeof(struct sockaddr_storage);
 		}
 	}
+	corosync->object_find_destroy(iface_find_handle);
 
 	for (i=0; i<num_interfaces; i++) {
 		ss = (struct sockaddr_storage *)ptr;
-		totemip_totemip_to_sockaddr_convert(&node_ifs[i], 0, ss, &addrlen);
+		totemip_to_sockaddr(&node_ifs[i], 0, ss, &addrlen);
 		ptr += sizeof(struct sockaddr_storage);
 	}
 
@@ -891,7 +924,7 @@ static void check_shutdown_status()
 	/* All replies safely gathered in ? */
 	if (shutdown_yes + shutdown_no >= shutdown_expected) {
 
-		openais_timer_delete(shutdown_timer);
+		corosync->timer_delete(shutdown_timer);
 
 		if (shutdown_yes >= shutdown_expected ||
 		    shutdown_flags & SHUTDOWN_ANYWAY) {
@@ -976,7 +1009,7 @@ static int do_cmd_try_shutdown(struct connection *con, char *cmdbuf)
 
 		/* Start the timer. If we don't get a full set of replies before this goes
 		   off we'll cancel the shutdown */
-		openais_timer_add_duration((unsigned long long)shutdown_timeout*1000000, NULL,
+		corosync->timer_add_duration((unsigned long long)shutdown_timeout*1000000, NULL,
 					   shutdown_timer_fn, &shutdown_timer);
 
 		notify_listeners(NULL, EVENT_REASON_TRY_SHUTDOWN, flags);
@@ -1053,12 +1086,12 @@ static void ccsd_timer_fn(void *arg)
 	int ccs_err;
 
 	log_printf(LOG_DEBUG, "Polling ccsd for updated information\n");
-	ccs_err = read_cman_nodes(global_objdb, &config_version, 0);
+	ccs_err = read_cman_nodes(corosync, &config_version, 0);
 	if (ccs_err || config_version < wanted_config_version) {
 		log_printf(LOG_ERR, "Can't read CCS to get updated config version %d. Activity suspended on this node\n",
 				wanted_config_version);
 
-		openais_timer_add_duration((unsigned long long)ccsd_poll_interval*1000000, NULL,
+		corosync->timer_add_duration((unsigned long long)ccsd_poll_interval*1000000, NULL,
 					   ccsd_timer_fn, &ccsd_timer);
 	}
 	else {
@@ -1084,7 +1117,7 @@ static void quorum_device_timer_fn(void *arg)
 		recalculate_quorum(0, 0);
 	}
 	else {
-		openais_timer_add_duration((unsigned long long)quorumdev_poll*1000000, quorum_device,
+		corosync->timer_add_duration((unsigned long long)quorumdev_poll*1000000, quorum_device,
 					   quorum_device_timer_fn, &quorum_device_timer);
 	}
 }
@@ -1104,7 +1137,7 @@ static int do_cmd_poll_quorum_device(char *cmdbuf, int *retlen)
                         quorum_device->state = NODESTATE_MEMBER;
                         recalculate_quorum(0, 0);
 
-			openais_timer_add_duration((unsigned long long)quorumdev_poll*1000000, quorum_device,
+			corosync->timer_add_duration((unsigned long long)quorumdev_poll*1000000, quorum_device,
 						   quorum_device_timer_fn, &quorum_device_timer);
                 }
         }
@@ -1112,7 +1145,7 @@ static int do_cmd_poll_quorum_device(char *cmdbuf, int *retlen)
                 if (quorum_device->state == NODESTATE_MEMBER) {
                         quorum_device->state = NODESTATE_DEAD;
                         recalculate_quorum(0, 0);
-			openais_timer_delete(quorum_device_timer);
+			corosync->timer_delete(quorum_device_timer);
                 }
         }
 
@@ -1201,13 +1234,13 @@ static int do_cmd_get_node_addrs(char *cmdbuf, char **retbuf, int retsize, int *
 	if (node->state != NODESTATE_MEMBER)
 		return 0;
 
-	if (totempg_ifaces_get(nodeid, node_ifs, &status, (unsigned int *)&addrs->numaddrs))
+	if (corosync->totem_ifaces_get(nodeid, node_ifs, &status, (unsigned int *)&addrs->numaddrs))
 		return -errno;
 
 	for (i=0; i<addrs->numaddrs; i++) {
-		totemip_totemip_to_sockaddr_convert(&node_ifs[i], 0,
-						    &addrs->addrs[i].addr,
-						    &addrs->addrs[i].addrlen);
+		totemip_to_sockaddr(&node_ifs[i], 0,
+				    &addrs->addrs[i].addr,
+				    &addrs->addrs[i].addrlen);
 	}
 	*retlen = sizeof(struct cl_get_node_addrs) +
 		addrs->numaddrs * sizeof(struct cl_node_addrs);
@@ -1259,7 +1292,7 @@ int process_command(struct connection *con, int cmd, char *cmdbuf,
 	case CMAN_CMD_DUMP_OBJDB:
 		dumpfile = fopen(cmdbuf, "w+");
 		if (dumpfile)  {
-			global_objdb->object_dump(OBJECT_PARENT_HANDLE, dumpfile);
+			corosync->object_dump(OBJECT_PARENT_HANDLE, dumpfile);
 			fclose(dumpfile);
 			err = 0;
 		}
@@ -1396,12 +1429,13 @@ int process_command(struct connection *con, int cmd, char *cmdbuf,
 
 int send_to_userport(unsigned char fromport, unsigned char toport,
 		     int nodeid, int tgtid,
-		     char *recv_buf, int len, int endian_conv)
+		     char *recv_buf, int len,
+		     int endian_conv)
 {
 	int ret = -1;
 
 	if (toport == 0) {
-		process_internal_message(recv_buf, len, nodeid, endian_conv);
+		process_internal_message(recv_buf, nodeid, endian_conv);
 		ret = 0;
 	}
 	else {
@@ -1409,7 +1443,7 @@ int send_to_userport(unsigned char fromport, unsigned char toport,
 		if (port_array[toport]) {
 			struct connection *c = port_array[toport];
 
-			P_MEMB("send_to_userport. cmd=%d, len=%d, endian_conv=%d\n", recv_buf[0], len, endian_conv);
+			P_MEMB("send_to_userport. cmd=%d,  endian_conv=%d\n", recv_buf[0],endian_conv);
 
 			send_data_reply(c, nodeid, fromport, recv_buf, len);
 			ret = 0;
@@ -1547,14 +1581,14 @@ static int valid_transition_msg(int nodeid, struct cl_transmsg *msg)
 	if (msg->config_version > config_version) {
 		int ccs_err;
 
-		ccs_err = read_cman_nodes(global_objdb, &config_version, 0);
+		ccs_err = read_cman_nodes(corosync, &config_version, 0);
 		if (ccs_err || config_version < msg->config_version) {
 			config_error = 1;
 			log_printf(LOG_ERR, "Can't read CCS to get updated config version %d. Activity suspended on this node\n",
 				msg->config_version);
 
 			wanted_config_version = msg->config_version;
-			openais_timer_add_duration((unsigned long long)ccsd_poll_interval*1000000, NULL,
+			corosync->timer_add_duration((unsigned long long)ccsd_poll_interval*1000000, NULL,
 						   ccsd_timer_fn, &ccsd_timer);
 		}
 		if (config_version > msg->config_version) {
@@ -1618,7 +1652,7 @@ void send_transition_msg(int last_memb_count, int first_trans)
 			   0); /* flags */
 }
 
-static void byteswap_internal_message(char *data, int len)
+static void byteswap_internal_message(char *data)
 {
 	struct cl_protmsg *msg = (struct cl_protmsg *)data;
 	struct cl_barriermsg *barriermsg;
@@ -1709,7 +1743,7 @@ static void do_reconfigure_msg(void *data)
 
 	case RECONFIG_PARAM_CONFIG_VERSION:
 		if (config_version != msg->value &&
-		    read_cman_nodes(global_objdb, &config_version, 0)) {
+		    read_cman_nodes(corosync, &config_version, 0)) {
 			log_printf(LOG_ERR, "Can't read CCS to get updated config version %d. Activity suspended on this node\n",
 				   msg->value);
 
@@ -1717,7 +1751,7 @@ static void do_reconfigure_msg(void *data)
 			recalculate_quorum(0, 0);
 
 			wanted_config_version = config_version;
-			openais_timer_add_duration((unsigned long long)ccsd_poll_interval*1000000, NULL,
+			corosync->timer_add_duration((unsigned long long)ccsd_poll_interval*1000000, NULL,
 						   ccsd_timer_fn, &ccsd_timer);
 		}
 		notify_listeners(NULL, EVENT_REASON_CONFIG_UPDATE, config_version);
@@ -1749,7 +1783,7 @@ static void do_fence_msg(void *data)
 
 }
 
-static void do_process_transition(int nodeid, char *data, int len)
+static void do_process_transition(int nodeid, char *data)
 {
 	struct cl_transmsg *msg = (struct cl_transmsg *)data;
 	struct cluster_node *node;
@@ -1859,7 +1893,7 @@ static void do_process_transition(int nodeid, char *data, int len)
 	}
 }
 
-static void process_internal_message(char *data, int len, int nodeid, int need_byteswap)
+static void process_internal_message(char *data, int nodeid, int need_byteswap)
 {
 	struct cl_protmsg *msg = (struct cl_protmsg *)data;
 	struct cl_portmsg *portmsg;
@@ -1869,11 +1903,11 @@ static void process_internal_message(char *data, int len, int nodeid, int need_b
 	struct cluster_node *node = find_node_by_nodeid(nodeid);
 	unsigned char portresult[PORT_BITS_SIZE+1];
 
-	P_MEMB("Message on port 0 is %d (len = %d)\n", msg->cmd, len);
+	P_MEMB("Message on port 0 is %d\n", msg->cmd);
 
 	/* Byteswap messages if needed */
 	if (need_byteswap)
-		byteswap_internal_message(data, len);
+		byteswap_internal_message(data);
 
 	switch (msg->cmd) {
 	case CLUSTER_MSG_PORTOPENED:
@@ -1909,7 +1943,7 @@ static void process_internal_message(char *data, int len, int nodeid, int need_b
 
 	case CLUSTER_MSG_TRANSITION:
 		P_MEMB("got TRANSITION from node %d\n", nodeid);
-		do_process_transition(nodeid, data, len);
+		do_process_transition(nodeid, data);
 		break;
 
 	case CLUSTER_MSG_KILLNODE:

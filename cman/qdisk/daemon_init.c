@@ -23,7 +23,7 @@
 #include <sys/errno.h>
 #include <libgen.h>
 #include <signal.h>
-#include <openais/service/logsys.h>
+#include <corosync/engine/logsys.h>
 
 /*
  * This should ultimately go in a header file.

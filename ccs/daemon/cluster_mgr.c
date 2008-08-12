@@ -11,7 +11,7 @@
 #include <sys/ioctl.h>
 #include <errno.h>
 #include <libxml/parser.h>
-#include <openais/service/logsys.h>
+#include <corosync/engine/logsys.h>
 
 #include "comm_headers.h"
 #include "debug.h"

@@ -13,7 +13,7 @@ include $(OBJDIR)/make/uninstall.mk
 OBJS=	main.o \
 	join.o
 
-CFLAGS += -DAISEXECBIN=\"${aisexecbin}\"
+CFLAGS += -DCOROSYNCBIN=\"${aisexecbin}\"
 CFLAGS += -I${cmanincdir}
 CFLAGS += -I${incdir}
 

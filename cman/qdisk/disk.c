@@ -25,7 +25,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <linux/fs.h>
-#include <openais/service/logsys.h>
+#include <corosync/engine/logsys.h>
 
 static int diskRawRead(target_info_t *disk, char *buf, int len);
 uint32_t clu_crc32(const char *data, size_t count);

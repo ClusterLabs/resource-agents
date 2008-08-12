@@ -21,8 +21,8 @@
 #include <sys/poll.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
-#include <openais/cpg.h>
-#include <openais/service/logsys.h>
+#include <corosync/cpg.h>
+#include <corosync/engine/logsys.h>
 
 #include "list.h"
 #include "linux_endian.h"

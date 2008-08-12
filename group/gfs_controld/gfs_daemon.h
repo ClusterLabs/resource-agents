@@ -33,8 +33,8 @@
 #include <dirent.h>
 #include <openais/saAis.h>
 #include <openais/saCkpt.h>
-#include <openais/cpg.h>
-#include <openais/service/logsys.h>
+#include <corosync/cpg.h>
+#include <corosync/engine/logsys.h>
 
 #include <linux/dlmconstants.h>
 #include "libgfscontrol.h"
@@ -48,7 +48,7 @@
 */
 
 /* Maximum members of a mountgroup, should match CPG_MEMBERS_MAX in
-   openais/cpg.h.  There are no max defines in gfs-kernel for
+   corosync/cpg.h.  There are no max defines in gfs-kernel for
    mountgroup members. (FIXME verify gfs-kernel/lock_dlm) */
 
 #define MAX_NODES       128

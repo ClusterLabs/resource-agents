@@ -8,7 +8,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#include <openais/service/logsys.h>
+#include <corosync/engine/logsys.h>
 #include "list.h"
 #include "cman.h"
 #include "cnxman-socket.h"

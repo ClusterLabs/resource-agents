@@ -1,4 +1,4 @@
-#include <openais/service/logsys.h>
+//#include <corosync/service/logsys.h>
 
 extern void set_debuglog(int subsystems);
 

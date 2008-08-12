@@ -3,7 +3,7 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <string.h>
-#include <openais/service/logsys.h>
+#include <corosync/engine/logsys.h>
 
 #include "libfence.h"
 #include "libfenced.h"

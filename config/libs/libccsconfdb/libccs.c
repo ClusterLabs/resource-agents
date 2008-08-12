@@ -12,7 +12,7 @@
 #include <errno.h>
 #include <limits.h>
 #include <openais/saAis.h>
-#include <openais/confdb.h>
+#include <corosync/confdb.h>
 #include <libxml/parser.h>
 #include <libxml/xpath.h>
 
@@ -20,7 +20,6 @@
 
 /* Callbacks are not supported - we will use them to update fullxml doc/ctx */
 static confdb_callbacks_t callbacks = {
-	.confdb_change_notify_fn = NULL,
 };
 
 static confdb_handle_t handle = 0;
@@ -338,8 +337,6 @@ static int path_dive(int tokens)
 			 */
 
 			char *start = NULL, *middle = NULL, *end = NULL;
-			char data[PATH_MAX];
-			int datalen;
 
 			/*
 			 * those ones should be always good because
@@ -358,25 +355,7 @@ static int path_dive(int tokens)
 			memset(start, 0, 1);
 			memset(end, 0, 1);
 
-			if (!strcmp(pos, "child::*")) {
-				int val, i;
-
-				val = atoi(middle);
-
-				if(val < 1)
-					goto fail;
-
-				if(confdb_object_iter_start(handle, query_handle) != SA_AIS_OK)
-					goto fail;
-
-				for (i = 1; i <= val; i++) {
-					if(confdb_object_iter(handle, query_handle, &new_obj_handle, data, &datalen) != SA_AIS_OK)
-						goto fail;
-				}
-
-				query_handle = new_obj_handle;
-
-			} else if (!strstr(middle, "@")) {
+			if (!strstr(middle, "@")) {
 				/* lookup something with index num = int */
 				int val, i;
 
@@ -394,7 +373,8 @@ static int path_dive(int tokens)
 			} else {
 				/* lookup something with obj foo = bar */
 				char *equal = NULL, *value = NULL, *tmp = NULL;
-				int goout = 0;
+				char data[PATH_MAX];
+				int goout = 0, datalen;
 
 				equal=strstr(middle, "=");
 				if(!equal)

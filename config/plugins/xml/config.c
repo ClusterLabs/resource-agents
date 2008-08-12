@@ -1,14 +1,16 @@
 #include <string.h>
 #include <limits.h>
+#include <syslog.h>
+#include <arpa/inet.h>
 
 #include <libxml/parser.h>
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
 #include <libxml/xpathInternals.h>
 
-#include <openais/service/objdb.h>
-#include <openais/service/config.h>
-#include <openais/lcr/lcr_comp.h>
+#include <corosync/lcr/lcr_comp.h>
+#include <corosync/engine/objdb.h>
+#include <corosync/engine/config.h>
 
 #include "logging.h"
 
@@ -243,7 +245,7 @@ static int xml_readconfig(struct objdb_iface_ver0 *objdb, char **error_string)
 	char *configfile = DEFAULT_CONFIG;
 
 	/* We need to set this up to internal defaults too early */
-	openlog("openais", LOG_CONS|LOG_PID, SYSLOGFACILITY);
+	openlog("corosync", LOG_CONS|LOG_PID, SYSLOGFACILITY);
 
 	if(getenv("COROSYNC_CLUSTER_CONFIG_FILE"))
 		configfile = getenv("COROSYNC_CLUSTER_CONFIG_FILE");

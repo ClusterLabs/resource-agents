@@ -1,7 +1,6 @@
-#include <openais/service/objdb.h>
 struct cluster_node;
 struct connection;
-extern void process_cnxman_message(char *data, int len, char *addr, int addrlen,
+extern void process_cnxman_message(char *data, char *addr, int addrlen,
 				  struct cluster_node *rem_node);
 
 extern int send_to_userport(unsigned char fromport, unsigned char toport,
@@ -30,7 +29,7 @@ extern void remove_unread_nodes(void);
 /* Startup stuff called from cmanccs: */
 extern int cman_set_nodename(char *name);
 extern int cman_set_nodeid(int nodeid);
-extern int cman_join_cluster(struct objdb_iface_ver0 *objdb,
+extern int cman_join_cluster(struct corosync_api_v1 *api,
 			     char *name, unsigned short cluster_id, int two_node,
 			     int votes, int expected_votes);
 

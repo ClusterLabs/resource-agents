@@ -7,9 +7,9 @@
 #include <errno.h>
 #include <netdb.h>
 
-#include <openais/service/objdb.h>
-#include <openais/service/swab.h>
-#include <openais/service/logsys.h>
+#include <corosync/ipc_gen.h>
+#include <corosync/engine/coroapi.h>
+#include <corosync/engine/logsys.h>
 
 #include "list.h"
 #include "cnxman-socket.h"
@@ -17,11 +17,12 @@
 #include "logging.h"
 #include "commands.h"
 #include "cman.h"
+#define OBJDB_API struct corosync_api_v1
 #include "cmanconfig.h"
-LOGSYS_DECLARE_SUBSYS (CMAN_NAME, LOG_INFO);
 #include "nodelist.h"
 #include "ais.h"
 
+LOGSYS_DECLARE_SUBSYS (CMAN_NAME, LOG_INFO);
 
 /* Local vars - things we get from ccs */
        int two_node;
@@ -37,7 +38,7 @@ static unsigned int cluster_parent_handle;
  * add them to our node list.
  * Called when we start up and on "cman_tool version".
  */
-int read_cman_nodes(struct objdb_iface_ver0 *objdb, unsigned int *config_version, int check_nodeids)
+int read_cman_nodes(struct corosync_api_v1 *corosync, unsigned int *config_version, int check_nodeids)
 {
     int error;
     unsigned int expected = 0;
@@ -45,43 +46,38 @@ int read_cman_nodes(struct objdb_iface_ver0 *objdb, unsigned int *config_version
     int nodeid;
     unsigned int object_handle;
     unsigned int nodes_handle;
-    unsigned int parent_handle;
+    unsigned int find_handle;
     char *nodename;
 
     /* New config version */
-    objdb_get_int(objdb, cluster_parent_handle, "config_version", config_version, 0);
+    objdb_get_int(corosync, cluster_parent_handle, "config_version", config_version,0);
 
-    objdb->object_find_reset(cluster_parent_handle);
+    corosync->object_find_create(cluster_parent_handle, "cman", strlen("cman"), &find_handle);
 
-    if (objdb->object_find(cluster_parent_handle,
-			   "cman", strlen("cman"),
-			   &object_handle) == 0)
+    if (corosync->object_find_next(find_handle, &object_handle) == 0)
     {
 	    /* This overrides any other expected votes calculation /except/ for
 	       one specified on a join command-line */
-	    objdb_get_int(objdb, object_handle, "expected_votes", &expected, 0);
-	    objdb_get_int(objdb, object_handle, "two_node", (unsigned int *)&two_node, 0);
-	    objdb_get_int(objdb, object_handle, "cluster_id", &cluster_id, 0);
-	    objdb_get_string(objdb, object_handle, "nodename", &our_nodename);
-	    objdb_get_int(objdb, object_handle, "max_queued", &max_outstanding_messages, DEFAULT_MAX_QUEUED);
+	    objdb_get_int(corosync, object_handle, "expected_votes", &expected, 0);
+	    objdb_get_int(corosync, object_handle, "two_node", (unsigned int *)&two_node, 0);
+	    objdb_get_int(corosync, object_handle, "cluster_id", &cluster_id, 0);
+	    objdb_get_string(corosync, object_handle, "nodename", &our_nodename);
+	    objdb_get_int(corosync, object_handle, "max_queued", &max_outstanding_messages, DEFAULT_MAX_QUEUED);
     }
+    corosync->object_find_destroy(find_handle);
 
     clear_reread_flags();
 
     /* Get the nodes list */
-    nodes_handle = nodeslist_init(objdb, cluster_parent_handle, &parent_handle);
+    nodes_handle = nodeslist_init(corosync, cluster_parent_handle, &find_handle);
     do {
-	    if (objdb_get_string(objdb, nodes_handle, "name", &nodename)) {
-		    nodes_handle = nodeslist_next(objdb, parent_handle);
+	    if (objdb_get_string(corosync, nodes_handle, "name", &nodename)) {
+		    nodes_handle = nodeslist_next(corosync, find_handle);
 		    continue;
 	    }
 
-	    objdb_get_int(objdb, nodes_handle, "votes", (unsigned int *)&votes, 0);
-	    if (votes == 0)
-		    votes = 1;
-
-	    objdb_get_int(objdb, nodes_handle, "nodeid", (unsigned int *)&nodeid, 0);
-
+	    objdb_get_int(corosync, nodes_handle, "votes", (unsigned int *)&votes, 1);
+	    objdb_get_int(corosync, nodes_handle, "nodeid", (unsigned int *)&nodeid, 0);
 	    if (check_nodeids && nodeid == 0) {
 		    char message[132];
 
@@ -96,8 +92,9 @@ int read_cman_nodes(struct objdb_iface_ver0 *objdb, unsigned int *config_version
 
 	    P_MEMB("Got node %s from ccs (id=%d, votes=%d)\n", nodename, nodeid, votes);
 	    add_ccs_node(nodename, nodeid, votes, expected);
-	    nodes_handle = nodeslist_next(objdb, parent_handle);
+	    nodes_handle = nodeslist_next(corosync, find_handle);
     } while (nodes_handle);
+    corosync->object_find_destroy(find_handle);
 
     if (expected)
 	    override_expected(expected);
@@ -109,7 +106,7 @@ out_err:
     return error;
 }
 
-static int join(struct objdb_iface_ver0 *objdb)
+static int join(struct corosync_api_v1 *corosync)
 {
 	int error;
 	error = cman_set_nodename(our_nodename);
@@ -118,7 +115,7 @@ static int join(struct objdb_iface_ver0 *objdb)
         /*
 	 * Setup join information
 	 */
-	error = cman_join_cluster(objdb, cluster_name, cluster_id,
+	error = cman_join_cluster(corosync, cluster_name, cluster_id,
 				  two_node, our_votes, expected_votes);
 	if (error == -EINVAL) {
 		write_cman_pipe("Cannot start, cluster name is too long or other CCS error");
@@ -132,7 +129,7 @@ static int join(struct objdb_iface_ver0 *objdb)
 	return 0;
 }
 
-static int get_cman_join_info(struct objdb_iface_ver0 *objdb)
+static int get_cman_join_info(struct corosync_api_v1 *corosync)
 {
 	char *cname = NULL;
 	int  error, vote_sum = 0, node_count = 0;
@@ -141,7 +138,7 @@ static int get_cman_join_info(struct objdb_iface_ver0 *objdb)
 	unsigned int node_object;
 
 	/* Cluster name */
-	if (objdb_get_string(objdb, cluster_parent_handle, "name", &cname)) {
+	if (objdb_get_string(corosync, cluster_parent_handle, "name", &cname)) {
 		log_printf(LOG_ERR, "cannot find cluster name in config file");
 		write_cman_pipe("Can't find cluster name in CCS");
 		error = -ENOENT;
@@ -165,18 +162,15 @@ static int get_cman_join_info(struct objdb_iface_ver0 *objdb)
 	/* Sum node votes for expected */
 	if (expected_votes == 0) {
 		unsigned int nodes_handle;
-		unsigned int parent_handle;
+		unsigned int find_handle;
 
-		nodes_handle = nodeslist_init(objdb, cluster_parent_handle, &parent_handle);
+		nodes_handle = nodeslist_init(corosync, cluster_parent_handle, &find_handle);
 		do {
 			int votes;
 
 			node_count++;
 
-			objdb_get_int(objdb, nodes_handle, "votes", (unsigned int *)&votes, 0);
-			if (votes == 0)
-				votes = 1;
-
+			objdb_get_int(corosync, nodes_handle, "votes", (unsigned int *)&votes, 1);
 			if (votes < 0) {
 				log_printf(LOG_ERR, "negative votes not allowed");
 				write_cman_pipe("Found negative votes for this node in CCS");
@@ -184,20 +178,20 @@ static int get_cman_join_info(struct objdb_iface_ver0 *objdb)
 				goto out;
 			}
 			vote_sum += votes;
-			nodes_handle = nodeslist_next(objdb, parent_handle);
+			nodes_handle = nodeslist_next(corosync, find_handle);
 		} while (nodes_handle);
+		corosync->object_find_destroy(find_handle);
 
-		objdb->object_find_reset(cluster_parent_handle);
-		if (objdb->object_find(cluster_parent_handle,
-				       "cman", strlen("cman"),
-				       &object_handle) == 0)
+		corosync->object_find_create(cluster_parent_handle, "cman", strlen("cman"), &find_handle);
+		if (corosync->object_find_next(find_handle, &object_handle) == 0)
 		{
 
 			/* optional expected_votes supercedes vote sum */
-			objdb_get_int(objdb, object_handle, "expected_votes", (unsigned int *)&expected_votes, 0);
+			objdb_get_int(corosync, object_handle, "expected_votes", (unsigned int *)&expected_votes, 0);
 			if (!expected_votes)
 				expected_votes = vote_sum;
 		}
+		corosync->object_find_destroy(find_handle);
 	}
 
 	/* find our own number of votes */
@@ -206,7 +200,7 @@ static int get_cman_join_info(struct objdb_iface_ver0 *objdb)
 		log_printf(LOG_INFO, "Using override votes %d\n", votes);
 	}
 
-	node_object = nodelist_byname(objdb, cluster_parent_handle, our_nodename);
+	node_object = nodelist_byname(corosync, cluster_parent_handle, our_nodename);
 	if (!node_object) {
 		log_printf(LOG_ERR, "unable to find votes for %s", our_nodename);
 		write_cman_pipe("Unable to find votes for node in CCS");
@@ -215,8 +209,7 @@ static int get_cman_join_info(struct objdb_iface_ver0 *objdb)
 
 	if (!votes) {
 		unsigned int votestmp=-1;
-		objdb_get_int(objdb, node_object, "votes", &votestmp, 1);
-
+		objdb_get_int(corosync, node_object, "votes", &votestmp, 1);
 		if (votestmp < 0 || votestmp > 255) {
 			log_printf(LOG_ERR, "invalid votes value %d", votestmp);
 			write_cman_pipe("Found invalid votes for node in CCS");
@@ -233,7 +226,7 @@ static int get_cman_join_info(struct objdb_iface_ver0 *objdb)
 	}
 
 	if (!nodeid) {
-		objdb_get_int(objdb, node_object, "nodeid", (unsigned int *)&nodeid, 0);
+		objdb_get_int(corosync, node_object, "nodeid", (unsigned int *)&nodeid, 0);
 	}
 
 	if (!nodeid) {
@@ -274,22 +267,26 @@ out:
 
 /* Read the stuff we need to get started.
    This does what 'cman_tool join' used to to */
-int read_cman_config(struct objdb_iface_ver0 *objdb, unsigned int *config_version)
+int read_cman_config(struct corosync_api_v1 *corosync, unsigned int *config_version)
 {
 	int error;
+	unsigned int find_handle;
 
-	objdb->object_find_reset(OBJECT_PARENT_HANDLE);
-	objdb->object_find(OBJECT_PARENT_HANDLE,
-			   "cluster", strlen("cluster"), &cluster_parent_handle);
+	/* Get the parent object handle */
+	corosync->object_find_create(OBJECT_PARENT_HANDLE,
+				    "cluster", strlen("cluster"), &find_handle);
 
-	read_cman_nodes(objdb, config_version, 1);
-	error = get_cman_join_info(objdb);
+	corosync->object_find_next(find_handle, &cluster_parent_handle);
+	corosync->object_find_destroy(find_handle);
+
+	read_cman_nodes(corosync, config_version, 1);
+	error = get_cman_join_info(corosync);
 	if (error) {
 		log_printf(LOG_ERR, "Error reading configuration, cannot start");
 		return error;
 	}
 
-	error = join(objdb);
+	error = join(corosync);
 
 	return error;
 }

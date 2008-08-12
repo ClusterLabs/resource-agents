@@ -16,10 +16,9 @@
 #include <netinet/in.h>
 #include <sys/errno.h>
 
-#include <openais/service/swab.h>
-#include <openais/totem/totemip.h>
-#include <openais/totem/aispoll.h>
-#include <openais/service/timer.h>
+#include <corosync/ipc_gen.h>
+#include <corosync/engine/coroapi.h>
+#include <corosync/engine/logsys.h>
 #include "list.h"
 #include "cnxman-socket.h"
 #include "cnxman-private.h"
@@ -51,8 +50,9 @@ struct cl_barrier {
 	unsigned long timeout;	/* In seconds */
 
 	struct connection *con;
-	openais_timer_handle timer;
+	corosync_timer_handle_t timer;
 };
+extern struct corosync_api_v1 *corosync;
 
 /* A list of all current barriers */
 static struct list barrier_list;
@@ -60,7 +60,7 @@ static struct list barrier_list;
 static void send_barrier_complete_msg(struct cl_barrier *barrier)
 {
 	if (barrier->timeout) {
-		openais_timer_delete(barrier->timer);
+		corosync->timer_delete(barrier->timer);
 		barrier->timeout = 0;
 	}
 
@@ -274,7 +274,7 @@ static int barrier_setattr_enabled(struct cl_barrier *barrier,
 
 		/* Start the timer if one was wanted */
 		if (barrier->timeout) {
-			openais_timer_add_duration((unsigned long long)barrier->timeout*1000000000ULL, barrier,
+			corosync->timer_add_duration((unsigned long long)barrier->timeout*1000000000ULL, barrier,
 						   barrier_timer_fn, &barrier->timer);
 		}
 

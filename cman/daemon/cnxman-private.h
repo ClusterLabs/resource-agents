@@ -1,8 +1,6 @@
 #ifndef __CNXMAN_PRIVATE_H
 #define __CNXMAN_PRIVATE_H
 
-#include <openais/totem/totem.h>
-
 /* Protocol Version triplet */
 #define CNXMAN_MAJOR_VERSION 6
 #define CNXMAN_MINOR_VERSION 1

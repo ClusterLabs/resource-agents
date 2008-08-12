@@ -245,7 +245,7 @@ if ($help || !$err) {
   print "--readlinelibdir=\tthe base directory for readline libraries.  (Default: {libdir})\n";
   print "--openaisincdir=\tthe base directory for openais include files.  (Default: {incdir})\n";
   print "--openaislibdir=\tthe base directory for openais libraries.  (Default: {libdir}/openais)\n";
-  print "--aisexecbin=\tlocation of aisexec executable file.  (Default: /usr/sbin/aisexec)\n";
+  print "--aisexecbin=\tlocation of aisexec executable file.  (Default: /usr/sbin/corosync)\n";
   print "--nssincdir=\tthe base directory for libnss include files.  (Default: {incdir}/nss3)\n";
   print "--nsslibdir=\tthe base directory for libnss libraries.  (Default: {libdir})\n";
   print "--nsprincdir=\tthe base directory for libnspr include files.  (Default: {incdir}/nspr4)\n";
@@ -494,7 +494,7 @@ if (!$openaislibdir) {
   $openaislibdir="${libdir}/openais";
 }
 if (!$aisexecbin) {
-  $aisexecbin="/usr/sbin/aisexec";
+  $aisexecbin="/usr/sbin/corosync";
 }
 if (!$nssincdir) {
   $nssincdir="${incdir}/nss3";

@@ -1,59 +1,92 @@
+/* These just make the access a little neater */
+static inline int objdb_get_string(OBJDB_API *corosync, unsigned int object_service_handle,
+				   char *key, char **value)
+{
+	int res;
+
+	*value = NULL;
+	if ( !(res = corosync->object_key_get(object_service_handle,
+					      key,
+					      strlen(key),
+					      (void *)value,
+					      NULL))) {
+		if (*value)
+			return 0;
+	}
+	return -1;
+}
+
+static inline void objdb_get_int(OBJDB_API *corosync, unsigned int object_service_handle,
+				 char *key, unsigned int *intvalue, unsigned int default_value)
+{
+	char *value = NULL;
+
+	*intvalue = default_value;
+
+	if (!corosync->object_key_get(object_service_handle, key, strlen(key),
+				 (void *)&value, NULL)) {
+		if (value) {
+			*intvalue = atoi(value);
+		}
+	}
+}
+
+
 /* Helper functions for navigating the nodes list */
-static unsigned int nodeslist_init(struct objdb_iface_ver0 *objdb,
-				   unsigned int cluster_parent_handle,
-				   unsigned int *parent_handle)
+static inline unsigned int nodeslist_init(OBJDB_API *corosync,
+					  unsigned int cluster_parent_handle,
+					  unsigned int *find_handle)
 {
 	unsigned int object_handle;
+	unsigned int find_handle1;
+	unsigned int find_handle2;
 
-	objdb->object_find_reset(cluster_parent_handle);
-	if (objdb->object_find(cluster_parent_handle,
-			       "clusternodes", strlen("clusternodes"),
-			       &object_handle) == 0)
+	corosync->object_find_create(cluster_parent_handle,"clusternodes", strlen("clusternodes"), &find_handle1);
+	if (corosync->object_find_next(find_handle1, &object_handle) == 0)
 	{
 		unsigned int nodes_handle;
-		objdb->object_find_reset(object_handle);
+		corosync->object_find_destroy(find_handle1);
 
-		if (objdb->object_find(object_handle,
-				       "clusternode", strlen("clusternode"),
-				       &nodes_handle) == 0)
+		corosync->object_find_create(object_handle,"clusternode", strlen("clusternode"), &find_handle2);
+
+		if (corosync->object_find_next(find_handle2, &nodes_handle) == 0)
 		{
-			*parent_handle = object_handle;
+			*find_handle = find_handle2;
 			return nodes_handle;
 		}
 	}
 	return 0;
 }
 
-static unsigned int nodeslist_next(struct objdb_iface_ver0 *objdb, unsigned int parent_handle)
+static inline unsigned int nodeslist_next(OBJDB_API *corosync, unsigned int find_handle)
 {
 	unsigned int nodes_handle;
 
-	if (objdb->object_find(parent_handle,
-			       "clusternode", strlen("clusternode"),
-			       &nodes_handle) == 0)
+	if (corosync->object_find_next(find_handle, &nodes_handle) == 0)
 		return nodes_handle;
 	else
 		return 0;
 }
 
-static unsigned int nodelist_byname(struct objdb_iface_ver0 *objdb,
-				    unsigned int cluster_parent_handle,
-				    char *name)
+static inline unsigned int nodelist_byname(OBJDB_API *corosync,
+					   unsigned int cluster_parent_handle,
+					   char *name)
 {
 	char *nodename;
 	unsigned int nodes_handle;
-	unsigned int parent_handle;
+	unsigned int find_handle;
 
-	nodes_handle = nodeslist_init(objdb, cluster_parent_handle, &parent_handle);
+	nodes_handle = nodeslist_init(corosync, cluster_parent_handle, &find_handle);
 	while (nodes_handle) {
-		if (objdb_get_string(objdb, nodes_handle, "name", &nodename)) {
+		if (objdb_get_string(corosync, nodes_handle, "name", &nodename)) {
 			break;
 		}
 		if (strcmp(nodename, name) == 0)
 			return nodes_handle;
 
-		nodes_handle = nodeslist_next(objdb, parent_handle);
+		nodes_handle = nodeslist_next(corosync, find_handle);
 	}
+	corosync->object_find_destroy(find_handle);
 
 	return 0;
 }

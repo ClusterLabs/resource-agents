@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <openais/service/logsys.h>
+#include <corosync/engine/logsys.h>
 
 int
 main(int argc, char **argv)
