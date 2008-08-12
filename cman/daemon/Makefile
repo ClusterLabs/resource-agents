@@ -12,7 +12,7 @@ include $(OBJDIR)/make/install.mk
 include $(OBJDIR)/make/uninstall.mk
 
 CFLAGS += -fPIC
-CFLAGS += -I${openaisincdir}
+CFLAGS += -I${openaisincdir} -I${corosyncincdir}
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${libdir}

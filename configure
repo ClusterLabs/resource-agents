@@ -52,9 +52,11 @@ my %options = (
 	slanglibdir => \$slanglibdir,
 	readlineincdir => \$readlineincdir,
 	readlinelibdir => \$readlinelibdir,
+	corosyncincdir => \$corosyncincdir,
+	corosynclibdir => \$corosynclibdir,
 	openaisincdir => \$openaisincdir,
 	openaislibdir => \$openaislibdir,
-	aisexecbin => \$aisexecbin,
+	corosyncbin => \$corosyncbin,
 	virtincdir => \$virtincdir,
 	virtlibdir => \$virtlibdir,
 	nssincdir => \$nssincdir,
@@ -136,9 +138,11 @@ my $err = &GetOptions (\%options,
 		    'slanglibdir=s',
 		    'readlineincdir=s',
 		    'readlinelibdir=s',
+		    'corosyncincdir=s',
+		    'corosynclibdir=s',
 		    'openaisincdir=s',
 		    'openaislibdir=s',
-		    'aisexecbin=s',
+		    'corosyncbin=s',
 		    'virtincdir=s',
 		    'virtlibdir=s',
 		    'nssincdir=s',
@@ -243,9 +247,11 @@ if ($help || !$err) {
   print "--slanglibdir=\tthe base directory for S-Lang libraries.  (Default: {libdir})\n";
   print "--readlineincdir=\tthe base directory for readline include files.  (Default: {incdir})\n";
   print "--readlinelibdir=\tthe base directory for readline libraries.  (Default: {libdir})\n";
+  print "--corosyncincdir=\tthe base directory for corosync include files.  (Default: {incdir})\n";
+  print "--corosynclibdir=\tthe base directory for corosync libraries.  (Default: {libdir}/corosync)\n";
   print "--openaisincdir=\tthe base directory for openais include files.  (Default: {incdir})\n";
   print "--openaislibdir=\tthe base directory for openais libraries.  (Default: {libdir}/openais)\n";
-  print "--aisexecbin=\tlocation of aisexec executable file.  (Default: /usr/sbin/corosync)\n";
+  print "--corosyncbin=\tlocation of corosync executable file.  (Default: /usr/sbin/corosync)\n";
   print "--nssincdir=\tthe base directory for libnss include files.  (Default: {incdir}/nss3)\n";
   print "--nsslibdir=\tthe base directory for libnss libraries.  (Default: {libdir})\n";
   print "--nsprincdir=\tthe base directory for libnspr include files.  (Default: {incdir}/nspr4)\n";
@@ -487,14 +493,20 @@ if (!$slangincdir) {
 if (!$slanglibdir) {
   $slanglibdir="${libdir}";
 }
+if (!$corosyncincdir) {
+  $corosyncincdir="${incdir}";
+}
+if (!$corosynclibdir) {
+  $corosynclibdir="${libdir}/corosync";
+}
 if (!$openaisincdir) {
   $openaisincdir="${incdir}";
 }
 if (!$openaislibdir) {
   $openaislibdir="${libdir}/openais";
 }
-if (!$aisexecbin) {
-  $aisexecbin="/usr/sbin/corosync";
+if (!$corosyncbin) {
+  $corosyncbin="/usr/sbin/corosync";
 }
 if (!$nssincdir) {
   $nssincdir="${incdir}/nss3";
@@ -703,9 +715,11 @@ while (<IFILE>) {
   $_ =~ s/\@NCURSESLIBDIR\@/$ncurseslibdir/;
   $_ =~ s/\@SLANGINCDIR\@/$slangincdir/;
   $_ =~ s/\@SLANGLIBDIR\@/$slanglibdir/;
+  $_ =~ s/\@COROSYNCINCDIR\@/$corosyncincdir/;
+  $_ =~ s/\@COROSYNCLIBDIR\@/$corosynclibdir/;
   $_ =~ s/\@OPENAISINCDIR\@/$openaisincdir/;
   $_ =~ s/\@OPENAISLIBDIR\@/$openaislibdir/;
-  $_ =~ s/\@AISEXECBIN\@/$aisexecbin/;
+  $_ =~ s/\@COROSYNCBIN\@/$corosyncbin/;
   $_ =~ s/\@XENINCDIR\@/$xenincdir/;
   $_ =~ s/\@XENLIBDIR\@/$xenlibdir/;
   $_ =~ s/\@LDAPINCDIR\@/$ldapincdir/;

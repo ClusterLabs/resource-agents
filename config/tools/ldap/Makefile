@@ -13,10 +13,10 @@ include $(OBJDIR)/make/uninstall.mk
 OBJS=	confdb2ldif.o
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
-CFLAGS += -I${openaisincdir}
+CFLAGS += -I${corosyncincdir}
 CFLAGS += -I${incdir}
 
-LDFLAGS += -L${openaislibdir} -lconfdb
+LDFLAGS += -L${corosynclibdir} -lconfdb
 LDFLAGS += -L${libdir}
 
 ${TARGET}: ${OBJS}

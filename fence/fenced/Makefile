@@ -19,13 +19,13 @@ OBJS=	config.o \
 	logging.o
 
 CFLAGS += -D_FILE_OFFSET_BITS=64
-CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${fenceincdir} -I${openaisincdir}
+CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${fenceincdir} -I${corosyncincdir}
 CFLAGS += -I$(S) -I$(S)/../include -I$(S)/../libfenced -I$(SRCDIR)/group/lib
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
 LDFLAGS += -L${fencelibdir} -lfence
-LDFLAGS += -L${openaislibdir} -lcpg -llogsys -lpthread
+LDFLAGS += -L${corosynclibdir} -lcpg -llogsys -lpthread
 LDFLAGS += -L../../group/lib -l group
 LDFLAGS += -L${libdir}
 

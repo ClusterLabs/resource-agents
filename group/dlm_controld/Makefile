@@ -23,15 +23,16 @@ OBJS=	action.o \
 	logging.o
 
 CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmincdir} -I${dlmcontrolincdir}
-CFLAGS += -I${openaisincdir}
+CFLAGS += -I${corosyncincdir} -I${openaisincdir}
 CFLAGS += -I$(SRCDIR)/fence/libfenced/
 CFLAGS += -I${KERNEL_SRC}/include/
 CFLAGS += -I$(S)/../lib/ -I$(S)/../include/
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
-LDFLAGS += -L${dlmlibdir} -ldlm 
-LDFLAGS += -L${openaislibdir} -lcpg -lSaCkpt -llogsys -lpthread
+LDFLAGS += -L${dlmlibdir} -ldlm
+LDFLAGS += -L${corosynclibdir} -lcpg -llogsys -lpthread
+LDFLAGS += -L${openaislibdir} -lSaCkpt 
 LDFLAGS += -L../../fence/libfenced/ -lfenced
 LDFLAGS += -L../lib -lgroup
 LDFLAGS += -L${libdir}

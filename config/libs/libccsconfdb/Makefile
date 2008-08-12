@@ -11,9 +11,9 @@ include $(OBJDIR)/make/uninstall.mk
 
 CFLAGS += -fPIC
 CFLAGS += -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64
-CFLAGS += -I${openaisincdir} `xml2-config --cflags`
+CFLAGS += -I${corosyncincdir} `xml2-config --cflags`
 CFLAGS += -I${incdir}
 
-LDFLAGS += -L${openaislibdir} -lconfdb
+LDFLAGS += -L${corosynclibdir} -lconfdb
 LDFLAGS += `xml2-config --libs`
 LDFLAGS += -L${libdir}
