@@ -253,7 +253,7 @@ static int add_ifaddr(struct objdb_iface_ver0 *objdb, char *mcast, char *ifaddr,
 		objdb->object_create(OBJECT_PARENT_HANDLE, &totem_object_handle,
 				     "totem", strlen("totem"));
         }
-	objdb->object_destroy(find_handle);
+	objdb->object_find_destroy(find_handle);
 
 	if (objdb->object_create(totem_object_handle, &interface_object_handle,
 				 "interface", strlen("interface")) == 0) {
