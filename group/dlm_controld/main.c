@@ -198,9 +198,23 @@ struct fs_reg {
 	char name[DLM_LOCKSPACE_LEN+1];
 };
 
+static int fs_register_check(char *name)
+{
+	struct fs_reg *fs;
+	list_for_each_entry(fs, &fs_register_list, list) {
+		if (!strcmp(name, fs->name))
+			return 1;
+	}
+	return 0;
+}
+
 static int fs_register_add(char *name)
 {
 	struct fs_reg *fs;
+
+	if (fs_register_check(name))
+		return -EALREADY;
+
 	fs = malloc(sizeof(struct fs_reg));
 	if (!fs)
 		return -ENOMEM;
@@ -219,16 +233,6 @@ static void fs_register_del(char *name)
 			return;
 		}
 	}
-}
-
-static int fs_register_check(char *name)
-{
-	struct fs_reg *fs;
-	list_for_each_entry(fs, &fs_register_list, list) {
-		if (!strcmp(name, fs->name))
-			return 1;
-	}
-	return 0;
 }
 
 #define MAXARGS 8
@@ -465,9 +469,10 @@ static void query_dump_plocks(int fd, char *name)
 /* combines a header and the data and sends it back to the client in
    a single do_write() call */
 
-static void do_reply(int fd, int cmd, char *name, int result, char *buf,
-		     int buflen)
+static void do_reply(int fd, int cmd, char *name, int result, int option,
+		     char *buf, int buflen)
 {
+	struct dlmc_header *h;
 	char *reply;
 	int reply_len;
 
@@ -476,8 +481,10 @@ static void do_reply(int fd, int cmd, char *name, int result, char *buf,
 	if (!reply)
 		return;
 	memset(reply, 0, reply_len);
+	h = (struct dlmc_header *)reply;
 
-	init_header((struct dlmc_header *)reply, cmd, name, result, buflen);
+	init_header(h, cmd, name, result, buflen);
+	h->option = option;
 
 	if (buf && buflen)
 		memcpy(reply + sizeof(struct dlmc_header), buf, buflen);
@@ -507,7 +514,7 @@ static void query_lockspace_info(int fd, char *name)
 	else
 		rv = set_lockspace_info(ls, &lockspace);
  out:
-	do_reply(fd, DLMC_CMD_LOCKSPACE_INFO, name, rv,
+	do_reply(fd, DLMC_CMD_LOCKSPACE_INFO, name, rv, 0,
 		 (char *)&lockspace, sizeof(lockspace));
 }
 
@@ -528,7 +535,7 @@ static void query_node_info(int fd, char *name, int nodeid)
 	else
 		rv = set_node_info(ls, nodeid, &node);
  out:
-	do_reply(fd, DLMC_CMD_NODE_INFO, name, rv,
+	do_reply(fd, DLMC_CMD_NODE_INFO, name, rv, 0,
 		 (char *)&node, sizeof(node));
 }
 
@@ -556,7 +563,7 @@ static void query_lockspaces(int fd, int max)
 		result = ls_count;
 	}
  out:
-	do_reply(fd, DLMC_CMD_LOCKSPACES, NULL, result,
+	do_reply(fd, DLMC_CMD_LOCKSPACES, NULL, result, 0,
 		 (char *)lss, ls_count * sizeof(struct dlmc_lockspace));
 
 	if (lss)
@@ -599,7 +606,7 @@ static void query_lockspace_nodes(int fd, char *name, int option, int max)
 		result = node_count;
 	}
  out:
-	do_reply(fd, DLMC_CMD_LOCKSPACE_NODES, name, result,
+	do_reply(fd, DLMC_CMD_LOCKSPACE_NODES, name, result, 0,
 		 (char *)nodes, node_count * sizeof(struct dlmc_node));
 
 	if (nodes)
@@ -650,14 +657,12 @@ static void process_connection(int ci)
 		if (group_mode == GROUP_LIBGROUP) {
 			rv = -EINVAL;
 		} else {
-			rv = 0;
+			rv = fs_register_add(h.name);
 			ls = find_ls(h.name);
 			if (ls)
 				ls->fs_registered = 1;
-			else
-				rv = fs_register_add(h.name);
 		}
-		do_reply(client[ci].fd, DLMC_CMD_FS_REGISTER, h.name, rv,
+		do_reply(client[ci].fd, DLMC_CMD_FS_REGISTER, h.name, rv, 0,
 			 NULL, 0);
 		break;
 
@@ -676,8 +681,9 @@ static void process_connection(int ci)
 			rv = set_fs_notified(ls, h.data);
 		else
 			rv = -ENOENT;
+		/* pass back the nodeid provided by caller in option field */
 		do_reply(client[ci].fd, DLMC_CMD_FS_NOTIFIED, h.name, rv,
-			 NULL, 0);
+			 h.option, NULL, 0);
 		break;
 
 	case DLMC_CMD_DEADLOCK_CHECK:
