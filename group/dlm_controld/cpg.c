@@ -1167,6 +1167,9 @@ static int add_change(struct lockspace *ls,
 
 		log_group(ls, "add_change %u nodeid %d remove reason %d",
 			  cg->seq, memb->nodeid, left_list[i].reason);
+
+		if (left_list[i].reason == CPG_REASON_PROCDOWN)
+			kick_node_from_cluster(memb->nodeid);
 	}
 
 	for (i = 0; i < joined_list_entries; i++) {

@@ -217,6 +217,7 @@ int add_configfs_node(int nodeid, char *addr, int addrlen, int local);
 void del_configfs_node(int nodeid);
 void clear_configfs(void);
 int setup_configfs(void);
+int check_uncontrolled_lockspaces(void);
 
 /* config.c */
 int setup_ccs(void);
@@ -270,6 +271,7 @@ void process_cman(int ci);
 void cman_statechange(void);
 int is_cman_member(int nodeid);
 char *nodeid2name(int nodeid);
+void kick_node_from_cluster(int nodeid);
 
 /* netlink.c */
 int setup_netlink(void);

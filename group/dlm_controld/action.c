@@ -92,6 +92,37 @@ static int get_mountgroup_name(uint32_t mg_id)
 	return rv;
 }
 
+/* This is for the case where dlm_controld exits/fails, abandoning dlm
+   lockspaces in the kernel, and then dlm_controld is restarted.  When
+   dlm_controld exits and abandons lockspaces, that node needs to be
+   rebooted to clear the uncontrolled lockspaces from the kernel. */
+
+int check_uncontrolled_lockspaces(void)
+{
+	DIR *d;
+	struct dirent *de;
+	int count = 0;
+
+	d = opendir(DLM_SYSFS_DIR);
+	if (!d)
+		return 0;
+
+	while ((de = readdir(d))) {
+		if (de->d_name[0] == '.')
+			continue;
+
+		log_error("found uncontrolled lockspace %s", de->d_name);
+		count++;
+	}
+	closedir(d);
+
+	if (count) {
+		kick_node_from_cluster(our_nodeid);
+		return -1;
+	}
+	return 0;
+}
+
 /* find the mountgroup with "mg_id" in sysfs, get it's name, then look for
    the ls with with the same name in lockspaces list, return its id */
 

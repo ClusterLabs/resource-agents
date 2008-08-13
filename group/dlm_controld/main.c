@@ -853,9 +853,6 @@ static void loop(void)
 	void (*workfn) (int ci);
 	void (*deadfn) (int ci);
 
-	/* FIXME: add code that looks for uncontrolled instances of
-	   dlm lockspaces in the kernel */
-
 	rv = setup_queries();
 	if (rv < 0)
 		goto out;
@@ -875,6 +872,10 @@ static void loop(void)
 		goto out;
 
 	setup_logging();
+
+	rv = check_uncontrolled_lockspaces();
+	if (rv < 0)
+		goto out;
 
 	rv = setup_configfs();
 	if (rv < 0)
