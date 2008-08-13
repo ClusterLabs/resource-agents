@@ -376,6 +376,7 @@ static int verify_nodename(struct objdb_iface_ver0 *objdb, char *nodename)
 		}
 		nodes_handle = nodeslist_next(objdb, find_handle);
 	} while (nodes_handle);
+	objdb->object_find_destroy(find_handle);
 
 
 	/* The cluster.conf names may not be related to uname at all,
