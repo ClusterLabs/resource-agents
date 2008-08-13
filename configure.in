@@ -7,7 +7,7 @@ dnl
 dnl License: GNU General Public License (GPL)
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_INIT(heartbeat.spec.in)
+AC_INIT(heartbeat.spec)
 AC_PREREQ(2.53)
 
 AC_CONFIG_AUX_DIR(.)
@@ -39,7 +39,7 @@ AC_ARG_WITH(hapkgversion,
 )
 
 if test -z "$HAPKGVERSION" ; then
-   HAPKGVERSION="2.2.0"
+   HAPKGVERSION="3.0.0"
 fi
 AM_INIT_AUTOMAKE(heartbeat, $HAPKGVERSION)
 
@@ -2935,8 +2935,7 @@ AC_SUBST(ECHO_CMD)
 dnl *** "echo" adjustments (end) ***
 
 dnl The Makefiles and shell scripts we output
-AC_CONFIG_FILES(heartbeat.spec 					\
-Makefile						        \
+AC_CONFIG_FILES(Makefile				        \
 README							        \
 logd/Makefile							\
 buildtools/Makefile						\
