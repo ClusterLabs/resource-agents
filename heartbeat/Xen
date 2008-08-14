@@ -278,7 +278,7 @@ Xen_Stop() {
     if [ -n "$OCF_RESKEY_shutdown_timeout" ]; then
       timeout=$OCF_RESKEY_shutdown_timeout
     else
-      timeout=${CRM_meta_timeout:-60}
+      timeout=${OCF_RESKEY_CRM_meta_timeout:-60}
       # Allow 2/3 of the action timeout for the orderly shutdown
       timeout=$[timeout*2/3]
     fi
