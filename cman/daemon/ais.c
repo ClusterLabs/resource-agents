@@ -230,7 +230,7 @@ static void cman_deliver_fn(unsigned int nodeid, struct iovec *iovec, int iov_le
 	char *buf = iovec->iov_base;
 
 	P_AIS("deliver_fn source nodeid = %d, len=%d, endian_conv=%d\n",
-	      nodeid, iovec->iov_len, endian_conversion_required);
+	      nodeid, (int)iovec->iov_len, endian_conversion_required);
 
 	if (endian_conversion_required) {
 		header->srcid = swab32(header->srcid);

@@ -74,7 +74,7 @@ static inline unsigned int nodelist_byname(OBJDB_API *corosync,
 {
 	char *nodename;
 	unsigned int nodes_handle;
-	unsigned int find_handle;
+	unsigned int find_handle = 0;
 
 	nodes_handle = nodeslist_init(corosync, cluster_parent_handle, &find_handle);
 	while (nodes_handle) {

@@ -333,7 +333,7 @@ static int verify_nodename(struct objdb_iface_ver0 *objdb, char *nodename)
 	struct ifaddrs *ifa, *ifa_list;
 	struct sockaddr *sa;
 	unsigned int nodes_handle;
-	unsigned int find_handle;
+	unsigned int find_handle = 0;
 	int error;
 
 	/* nodename is either from commandline or from uname */
