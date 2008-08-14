@@ -622,6 +622,8 @@ void process_dlmcontrol(int ci)
 	}
 
 	poll_dlm = 0;
+
+	process_mountgroup(mg);
 }
 
 static int check_dlm_notify_done(struct mountgroup *mg)
@@ -657,8 +659,8 @@ static int check_dlm_notify_done(struct mountgroup *mg)
 		   dlmc_fs_notified() again in a bit */
 
 		if (node->dlm_notify_callback && node->dlm_notify_result) {
-			log_group(mg, "check_dlm_notify will retry nodeid %d",
-				  node->nodeid);
+			log_group(mg, "check_dlm_notify result %d will retry nodeid %d",
+				  node->dlm_notify_result, node->nodeid);
 			node->dlm_notify_callback = 0;
 			poll_dlm = 1;
 			return 0;
@@ -2065,7 +2067,7 @@ static void process_mountgroup(struct mountgroup *mg)
 	if (!list_empty(&mg->changes))
 		apply_changes(mg);
 	
-	if (list_empty(&mg->changes))
+	if (mg->started_change && list_empty(&mg->changes))
 		recover_and_start(mg);
 }
 
