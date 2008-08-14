@@ -295,14 +295,16 @@ Xen_Stop() {
       done
     fi
     
-    ocf_log warn "Xen domain $DOMAIN_NAME will be destroyed!"
-    xm destroy ${DOMAIN_NAME}
-    while Xen_Status ${DOMAIN_NAME}; do
-      sleep 1
-    done
-    # Note: This does not give up. stop isn't allowed to to fail.
-    # If xm destroy fails, stop will eventually timeout.
-    # This is the correct behaviour.
+    if [ "$timeout" -eq 0 ]; then
+      ocf_log warn "Xen domain $DOMAIN_NAME will be destroyed!"
+      xm destroy ${DOMAIN_NAME}
+      while Xen_Status ${DOMAIN_NAME}; do
+        sleep 1
+      done
+      # Note: This does not give up. stop isn't allowed to to fail.
+      # If xm destroy fails, stop will eventually timeout.
+      # This is the correct behaviour.
+    fi
   fi
 
   ocf_log info "Xen domain $DOMAIN_NAME stopped."
