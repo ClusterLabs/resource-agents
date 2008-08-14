@@ -1525,13 +1525,17 @@ int set_fs_notified(struct lockspace *ls, int nodeid)
 
 	/* this shouldn't happen */
 	node = get_node_history(ls, nodeid);
-	if (!node)
+	if (!node) {
+		log_error("set_fs_notified no nodeid %d", nodeid);
 		return -ESRCH;
+	}
 
 	/* this can happen, we haven't seen a nodedown for this node yet,
 	   but we should soon */
-	if (!node->check_fs)
+	if (!node->check_fs) {
+		log_group(ls, "set_fs_notified %d zero check_fs", nodeid);
 		return -EAGAIN;
+	}
 
 	node->fs_notified = 1;
 	return 0;

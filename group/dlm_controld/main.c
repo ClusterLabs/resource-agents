@@ -683,7 +683,7 @@ static void process_connection(int ci)
 			rv = -ENOENT;
 		/* pass back the nodeid provided by caller in option field */
 		do_reply(client[ci].fd, DLMC_CMD_FS_NOTIFIED, h.name, rv,
-			 h.option, NULL, 0);
+			 h.data, NULL, 0);
 		break;
 
 	case DLMC_CMD_DEADLOCK_CHECK:
