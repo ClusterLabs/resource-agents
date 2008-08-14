@@ -277,10 +277,12 @@ Xen_Stop() {
     local timeout
     if [ -n "$OCF_RESKEY_shutdown_timeout" ]; then
       timeout=$OCF_RESKEY_shutdown_timeout
-    else
-      timeout=${OCF_RESKEY_CRM_meta_timeout:-60}
+    elif [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
       # Allow 2/3 of the action timeout for the orderly shutdown
-      timeout=$[timeout*2/3]
+      # (The origin unit is ms, hence the conversion)
+      timeout=$[OCF_RESKEY_CRM_meta_timeout/1500]
+    else
+      timeout=60
     fi
 
     if [ "$timeout" -gt 0 ]; then
