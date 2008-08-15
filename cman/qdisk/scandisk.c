@@ -649,6 +649,9 @@ static int scansysfs(struct devlisthead *devlisthead, char *path, int level)
 						return -1;
 
 			if (!lstat(newpath, &sb)) {
+				if (S_ISDIR(sb.st_mode))
+					if (scansysfs(devlisthead, newpath, 1) < 0)
+						return -1;
 
 				if (S_ISLNK(sb.st_mode))
 					continue;
