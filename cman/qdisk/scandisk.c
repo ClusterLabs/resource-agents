@@ -626,7 +626,7 @@ static int sysfs_is_disk(char *path)
  * -1 on generic error
  * -2 -ENOMEM
  */
-static int scansysfs(struct devlisthead *devlisthead, char *path)
+static int scansysfs(struct devlisthead *devlisthead, char *path, int level)
 {
 	struct devnode *startnode;
 	int i, n, maj, min;
@@ -642,11 +642,13 @@ static int scansysfs(struct devlisthead *devlisthead, char *path)
 		if (namelist[n]->d_name[0] != '.') {
 			snprintf(newpath, sizeof(newpath),
 				 "%s/%s", path, namelist[n]->d_name);
-			if (!lstat(newpath, &sb)) {
 
+			if (!stat(newpath, &sb) && !level)
 				if (S_ISDIR(sb.st_mode))
-					if (scansysfs(devlisthead, newpath) < 0)
+					if (scansysfs(devlisthead, newpath, 1) < 0)
 						return -1;
+
+			if (!lstat(newpath, &sb)) {
 
 				if (S_ISLNK(sb.st_mode))
 					continue;
@@ -719,7 +721,7 @@ struct devlisthead *scan_for_dev(struct devlisthead *devlisthead,
 	/* it's important we check those 3 errors and abort in case
 	 * as it means that we are running out of mem,
 	 */
-	devlisthead->sysfs = res = scansysfs(devlisthead, SYSBLOCKPATH);
+	devlisthead->sysfs = res = scansysfs(devlisthead, SYSBLOCKPATH, 0);
 	if (res < -1)
 		goto emergencyout;
 
