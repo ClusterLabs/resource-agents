@@ -1126,7 +1126,6 @@ SNMPCONFIG=""
 ENABLE_SNMP="yes"
 if test "x${enable_snmp}" = "xno"; then
    ENABLE_SNMP="no"
-   enable_snmp_subagent="no"
 fi
 
 AC_CHECK_HEADERS(ucd-snmp/snmp.h,[],[],[#include <sys/types.h>
@@ -1144,7 +1143,6 @@ elif test "x${ac_cv_header_net_snmp_net_snmp_config_h}" = "xyes"; then
 	else
 		AC_MSG_CHECKING(for special snmp libraries)
 		SNMPLIB=`net-snmp-config --libs`
-		SNMPAGENTLIB=`net-snmp-config --agent-libs`
 		# KLUDGE!!
 		# Apparently some versions of SUSE Linux don't include -lwrap in $SNMPAGENTLIB
                 case $SNMPAGENTLIB in
@@ -1161,7 +1159,6 @@ elif test "x${ac_cv_header_ucd_snmp_snmp_h}" = "xyes"; then
 	if test "X${SNMPLIB}" = "X"; then
 		AC_CHECK_LIB(ucdsnmp, init_snmp, SNMPLIB="-lucdsnmp")
 	fi
-	SNMPAGENTLIB="$SNMPLIB"
 	if test "X${SNMPLIB}" = "X"; then
 		ENABLE_SNMP="no"
 		AC_MSG_RESULT("Could not find ucdsnmp libary."
@@ -1170,16 +1167,6 @@ elif test "x${ac_cv_header_ucd_snmp_snmp_h}" = "xyes"; then
 	fi
 else
 	ENABLE_SNMP="no"
-fi
-
-if test "$ENABLE_SNMP" = "no" -a "x${enable_snmp_subagent}" = "xyes"; then
-  FatalMissingThing "SNMP Development package" "Missing SNMP development libraries and/or headers" "" "Install net-snmp-devel to enable SNMP features"
-fi
-if test "$ENABLE_SNMP" = "no" -o "x${enable_snmp_subagent}" != "xyes"; then
-        enable_snmp_subagent="no"
-	RPM_ENABLE_SNMP_SUBAGENT="0"
-else
-	RPM_ENABLE_SNMP_SUBAGENT="1"
 fi
 
 check_snmp_libs ()
@@ -1198,10 +1185,6 @@ SNMPLIBSET=""
 if test "$ENABLE_SNMP" = "yes"; then
 	check_snmp_libs $SNMPLIB
 	SNMPLIBSET="$SNMPLIB"
-fi
-if test "$enable_snmp_subagent" = "yes"; then
-	check_snmp_libs $SNMPAGENTLIB
-	SNMPLIBSET="$SNMPLIBSET $SNMPAGENTLIB"
 fi
 
 dnl
@@ -1297,28 +1280,9 @@ AC_ARG_WITH(mibsdir,
 	[  --with-miBsdir=DIR      directory for mib files. ],
 	[ MIBS_DIR="$withval" ])
 
-if test "x${enable_snmp_subagent}"  = "xyes" -a "X${MIBS_DIR}" = "X"; then
-	AC_MSG_CHECKING(which MIB directory to use)
-	for mibs_dir in /usr/share/snmp/mibs \
-			/usr/local/share/snmp/mibs; do 
-		if test -d "$mibs_dir"; then
-			MIBS_DIR="$mibs_dir"
-		fi
-	done
-	if test "X${MIBS_DIR}" = "X"; then
-		AC_MSG_ERROR(Could not find mibs directory, 
-			please specify with --with-mibsdir);
-	fi
-	AC_MSG_RESULT($MIBS_DIR)
-fi
-AC_SUBST(MIBS_DIR)
-
 AC_SUBST(SNMPCONFIG)
 AC_SUBST(SNMPLIB)
-AC_SUBST(SNMPAGENTLIB)
-AC_SUBST(RPM_ENABLE_SNMP_SUBAGENT)
 AM_CONDITIONAL(USE_APC_SNMP, test "$ENABLE_SNMP" = "yes")
-AM_CONDITIONAL(SNMP_SUBAGENT_BUILD, test "x${enable_snmp_subagent}" = "xyes")
 
 #
 #	We've had this new API for a very long time
@@ -1704,10 +1668,6 @@ AC_ARG_ENABLE([snmp],
 [  --enable-snmp Enable building of SNMP related functionality.
                           [default=yes]])
 
-AC_ARG_ENABLE([snmp-subagent],
-[  --enable-snmp-subagent Enable building of our SNMP subagent (lots of dependencies).
-                          [default=try]])
-
 AC_ARG_ENABLE([ipmilan],
 [  --enable-ipmilan       enable IPMILan Stonith Plugin
                           [default=yes]])
@@ -1722,7 +1682,6 @@ dnl - If requested, enable ALL subsystems.
 	  enable_ansi=yes;
 	  enable_fatal_warnings=yes;
 	  enable_lrm=yes;
-	  enable_snmp_subagent=try;
 	  enable_mgmt=try;
 	  enable_quorumd=try;
 	  enable_ipmilan=try
@@ -2970,11 +2929,6 @@ mgmt/Makefile							\
 	)
 fi
 
-AC_CONFIG_FILES(		  				\
-snmp_subagent/Makefile						\
-	snmp_subagent/SNMPAgentSanityCheck			\
-	)
-
 dnl Now process the entire list of files added by previous 
 dnl  calls to AC_CONFIG_FILES()
 AC_OUTPUT()
@@ -3018,11 +2972,6 @@ AC_MSG_RESULT([  HA group id              = "${HA_APIGID}"])
 AC_MSG_RESULT([  HA user name             = "${HA_CCMUSER}"])
 AC_MSG_RESULT([  HA user user id          = "${HA_CCMUID}"])
 
-AC_MSG_RESULT([  Build snmp subagent      = "${enable_snmp_subagent}"])
-if test "x${enable_snmp_subagent}" = "xyes"; then
-    AC_MSG_RESULT([  SNMP MIB directory       = "${MIBS_DIR}"])
-    AC_MSG_RESULT([  SNMP agent libraries     = "${SNMPAGENTLIB}"])
-fi
 AC_MSG_RESULT([  SNMP libraries           = "${SNMPLIB}"])
 AC_MSG_RESULT([  ucd_snmp_devel name      = "${UCDSNMPDEVEL}"])
 
