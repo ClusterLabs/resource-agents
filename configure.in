@@ -2812,7 +2812,6 @@ port/Makefile							\
 telecom/Makefile						\
 	telecom/apphbd/Makefile					\
 tools/Makefile							\
-	tools/ciblint						\
 	tools/hb_report						\
 	tools/ocf-tester					\
 resources/Makefile						\
