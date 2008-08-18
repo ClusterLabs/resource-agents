@@ -2862,7 +2862,6 @@ lib/Makefile							\
 		lib/plugins/quorum/Makefile			\
 		lib/plugins/quorumd/Makefile			\
 		lib/plugins/tiebreaker/Makefile			\
-	lib/recoverymgr/Makefile				\
 	lib/stonith/Makefile					\
 lrm/Makefile							\
 	lrm/lrmd/Makefile					\
@@ -2921,7 +2920,6 @@ port/Makefile							\
 		port/heartbeat/pkg-plist			\
 telecom/Makefile						\
 	telecom/apphbd/Makefile					\
-	telecom/recoverymgrd/Makefile				\
 tools/Makefile							\
 	tools/ciblint						\
 	tools/hb_report						\
