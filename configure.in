@@ -1392,107 +1392,6 @@ AM_CONDITIONAL(BUILD_TIPC_MODULE,
 	test "x${tipc_headers_found}" = "xyes" && test "x${enable_tipc}" != "xno")
 
 dnl ***************************************************************************
-dnl  CIM provider configuration
-dnl ***************************************************************************
-AC_ARG_ENABLE([cim-provider],
-[  --enable-cim-provider Enable CIM providers.
-                          [default=no]])
-
-AC_ARG_WITH([cimom],
- [  --with-cimom            Specify CIM server], [], [])
-
-AC_ARG_WITH([cmpiheader],
- [  --with-cmpi-headers     Specify CMPI header files], [], [])
-
-AC_ARG_WITH([cmpiprovider],
- [  --with-provider-dir     Specify CMPI providers directory], [], [])
-
-CMPI_HEADER_PATH=${with_cmpi_headers}
-CIMOM=${with_cimom}
-CMPI_PROVIDER_DIR=${with_provider_dir}
-
-if test "x${enable_cim_provider}" != "xyes"; then
-        enable_cim_provider="no"
-fi
-
-if test "x${CIMOM}" = "x"; then
-        if test "x${CIMOM}" = "x"; then 
-                AC_CHECK_PROG([CIMOM], [cimserver], [pegasus])
-        fi
-
-        if test "x${CIMOM}" = "x"; then 
-                AC_CHECK_PROG([CIMOM], [sfcbd], [sfcb])
-        fi
-
-        if test "x${CIMOM}" = "x"; then 
-                AC_CHECK_PROG([CIMOM], [owcimomd], [openwbem])
-        fi
-        
-        if test "x${CIMOM}" = "x"; then
-                AC_MSG_WARN([Cimom not found, MOF will not be installed!])
-        fi
-
-fi
-
-if test "x${enable_cim_provider}" != "xyes"; then
-  if test "x${CIMOM}" != "x"; then
-	echo "NOTE: CIM provider [--enable-cim-provider] not enabled."
-	CIMOM=""
-  fi
-else
-        if test "x${CMPI_HEADER_PATH}" != "x"; then
-		CPPFLAGS="$CPPFLAGS -I${CMPI_HEADER_PATH}"
-        fi
-
-        for header in cmpidt.h cmpift.h cmpimacs.h
-        do
-                AC_CHECK_HEADER([${header}], [], 
-		        	[AC_MSG_ERROR([Sorry, can't find CMPI header files, \
-specify CMPI header files with --with-cmpi-headers please.])] )
-        done
-
-	AC_MSG_CHECKING(CMPI provider directory)
-        if test "x${CMPI_PROVIDER_DIR}" = "x"; then
-                case ${CIMOM} in
-                        sfcbd)  SFCBD_PREFIX=`which sfcbd`
-				SFCBD_PREFIX=`dirname ${SFCBD_PREFIX}`
-				SFCBD_PREFIX=`dirname ${SFCBD_PREFIX}` 
-				CMPI_PROVIDER_DIR=${SFCBD_PREFIX}/lib/cmpi;;
-                        openwbem)
-				OPENWBEM_PREFIX=`which owcimomd`
-				OPENWBEM_PREFIX=`dirname ${OPENWBEM_PREFIX}`
-				OPENWBEM_PREFIX=`dirname ${OPENWBEM_PREFIX}`
-				OPENWBEM_CONFIG=${OPENWBEM_PREFIX}/etc/openwbem/openwbem.conf
-				OPENWBEM_CMPI_DIR=`grep -e "cmpiprovifc.prov_location.*=" \
-					${OPENWBEM_CONFIG} | sed -e 's/.*=\s*\(\.*\)/\1/'`
-				if test "x${OPENWBEM_CMPI_DIR}" != "x"; then
-					CMPI_PROVIDER_DIR=${OPENWBEM_CMPI_DIR}
-					echo cmpi provider dir set, using openwbem config file: \
-							${OPENWBEM_CONFIG}.
-				else
-					CMPI_PROVIDER_DIR=${OPENWBEM_PREFIX}/lib/openwbem/cmpiproviders
-					echo openwbem config not found, cmpi provider dir set to \
-							$(CMPI_PROVIDER_DIR) by default. 
-				fi;;
-                        pegasus|tog-pegasus) CMPI_PROVIDER_DIR=/opt/tog-pegasus/providers/lib;;
-                        *);;
-                esac
-
-                if test x"$CMPI_PROVIDER_DIR" = x ; then
-                        CMPI_PROVIDER_DIR="$libdir"/cmpi
-                        AC_MSG_RESULT(default directory: $CMPI_PROVIDER_DIR)
-                fi
-                AC_MSG_RESULT($CMPI_PROVIDER_DIR)
-        fi
-fi
-
-AM_CONDITIONAL(CIM_PROVIDER_BUILD, test "x${enable_cim_provider}" = "xyes")
-AC_SUBST(CMPI_PROVIDER_DIR)
-AC_SUBST(CIMOM)
-AC_SUBST(CMPI_HEADER_PATH)
-
-
-dnl ***************************************************************************
 dnl  Thread safe configuration
 dnl ***************************************************************************
 AM_CONDITIONAL(ENABLE_THREAD_SAFE, test "x${enable_thread_safe}" = "xyes")
@@ -1826,7 +1725,6 @@ dnl - If requested, enable ALL subsystems.
 	  enable_snmp_subagent=try;
 	  enable_mgmt=try;
 	  enable_quorumd=try;
-	  enable_cim_provider=try;
 	  enable_ipmilan=try
 	fi
 
@@ -2553,7 +2451,6 @@ AC_MSG_NOTICE([whether to enable the Cluster Resource Manager... ${enable_crm}])
 
 dnl None of the following items build without the CRM available
 enable_mgmt=no
-enable_cim_provider=no
 
 dnl lrm configuration
 AC_ARG_ENABLE([lrm],
@@ -3080,13 +2977,6 @@ snmp_subagent/Makefile						\
 	snmp_subagent/SNMPAgentSanityCheck			\
 	)
 
-AC_CONFIG_FILES(		  				\
-cim/Makefile		        				\
-        cim/mof/Makefile                                        \
-        cim/mof/register_providers.sh                           \
-        cim/mof/unregister_providers.sh                         \
-	)
-
 dnl Now process the entire list of files added by previous 
 dnl  calls to AC_CONFIG_FILES()
 AC_OUTPUT()
@@ -3142,13 +3032,6 @@ AC_MSG_RESULT([  Build CRM                = "${enable_crm}"])
 AC_MSG_RESULT([  Build LRM                = "${enable_lrm}"])
 AC_MSG_RESULT([  Build Ldirectord         = "${enable_ldirectord}"])
 AC_MSG_RESULT([  Build IPMILan Plugin     = "${enable_ipmilan}"])
-
-AC_MSG_RESULT([  Build CIM providers      = "${enable_cim_provider}"])
-if test "x${enable_cim_provider}" = "xyes"; then
-    AC_MSG_RESULT([  CIM server               = "${CIMOM}"])
-    AC_MSG_RESULT([  CIM providers dir        = "${CMPI_PROVIDER_DIR}"])
-    AC_MSG_RESULT([  CMPI header files        = "${CMPI_HEADER_PATH}"])    
-fi
 
 AC_MSG_RESULT([  Build dopd plugin        = "${enable_dopd}"])
 
