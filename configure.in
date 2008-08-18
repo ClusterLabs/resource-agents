@@ -1682,7 +1682,6 @@ dnl - If requested, enable ALL subsystems.
 	  enable_ansi=yes;
 	  enable_fatal_warnings=yes;
 	  enable_lrm=yes;
-	  enable_mgmt=try;
 	  enable_quorumd=try;
 	  enable_ipmilan=try
 	fi
@@ -2408,9 +2407,6 @@ AC_SUBST(CRM_ENABLED)
 AM_CONDITIONAL(CRM_BUILD, test "x${enable_crm}" = "xyes")
 AC_MSG_NOTICE([whether to enable the Cluster Resource Manager... ${enable_crm}])
 
-dnl None of the following items build without the CRM available
-enable_mgmt=no
-
 dnl lrm configuration
 AC_ARG_ENABLE([lrm],
 [  --enable-lrm  Compile the new Local Resource Manager.  [default=yes]],
@@ -2474,76 +2470,12 @@ fi
 AC_SUBST(GNUTLSHEAD)
 AC_SUBST(GNUTLSLIBS)
 
-dnl management tool configuration
-AC_ARG_ENABLE([mgmt],
-[  --enable-mgmt  Compile the management tool.  [default=try]],
-                     [], [enable_mgmt=try])
-
-if test "x${enable_mgmt}" != "xno"; then
-	if test "x${enable_mgmt}" = "xtry"; then
-		MISSING_FN="WarnMissingThing"
-	else
-		MISSING_FN="FatalMissingThing"
-	fi
-	enable_mgmt="yes"
-	MGMT_ENABLED=1
-
-	AM_CHECK_PYTHON_HEADERS(,PYTHON_INCLUDES='')
-	AC_SUBST(PYTHON_INCLUDES)
-
-	if test "x${PYTHON_INCLUDES}" = "x"; then
-  		$MISSING_FN "Python.h" \
-		  "The GUI managment module needs Python.h (Linux: python-devel package)"
-		enable_mgmt="no"
-		MGMT_ENABLED=0
-	fi
-
-	if test "$ac_cv_header_security_pam_appl_h" = "no" -a "$ac_cv_header_pam_pam_appl_h" = "no"; then
-  		$MISSING_FN "security/pam_appl.h" \
-		  "The GUI managment module needs the pam-devel package"
-		enable_mgmt="no"
-		MGMT_ENABLED=0
-	fi
-
-	if test "$ac_cv_header_gnutls_gnutls_h" = "no"; then
-  		$MISSING_FN "gnutls/gnutls.h" \
-		  "The GUI managment module needs GNU/TLS header files"
-		enable_mgmt="no"
-		MGMT_ENABLED=0
-	fi
-
-	if test -z "$SWIG"; then
-		$MISSING_FN "swig" \
-		  "The GUI managment module needs swig" \
-		  "You can get it from http://swig.org/"
-		enable_mgmt="no"
-		MGMT_ENABLED=0
-	fi
-fi
-
-if test "x${enable_mgmt}" != "xno"; then
-  RPM_ENABLE_MGMT_CONFIG=1
-  MGMT_DIR=mgmt
-else
-  RPM_ENABLE_MGMT_CONFIG=0
-  MGMT_DIR=""
-fi
-AC_SUBST(RPM_ENABLE_MGMT_CONFIG)
-AC_SUBST(MGMT_DIR)
-
 if test "x${enable_openhpi}" != "xno"; then
   RPM_ENABLE_OPENHPI=1
 else
   RPM_ENABLE_OPENHPI=0
 fi
 AC_SUBST(RPM_ENABLE_OPENHPI)
-
-AM_CONDITIONAL(MGMT_BUILD, test "x${enable_mgmt}" != "xno")
-if test "x${enable_mgmt}" != "xno"; then
-     AC_DEFINE_UNQUOTED(MGMT_ENABLED, 1, Define to 1 if the mgmt-daemon and friends are enabled.)
-fi
-   
-AC_MSG_NOTICE([whether to enable the management tool... ${enable_mgmt}])
 
 dnl quorum server configuration
 AC_ARG_ENABLE([quorumd],
@@ -2916,18 +2848,6 @@ resources/Makefile						\
 	resources/heartbeat/WinPopup				\
 	resources/heartbeat/Xinetd				\
 		)
-
-if test "x${enable_mgmt}" = "xyes"; then
-AC_CONFIG_FILES(		  				\
-include/mgmt/Makefile						\
-lib/mgmt/Makefile						\
-mgmt/Makefile							\
-	mgmt/daemon/Makefile					\
-	mgmt/client/Makefile					\
-		mgmt/client/haclient.py				\
-		mgmt/client/mgmtcmd.py				\
-	)
-fi
 
 dnl Now process the entire list of files added by previous 
 dnl  calls to AC_CONFIG_FILES()
