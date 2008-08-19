@@ -632,7 +632,9 @@ ip_start() {
 		: no need to run send_arp on loopback
 		;;
 	*)
+	    if [ -x $SENDARP ]; then
 		run_send_arp
+	    fi
 		;;
 	esac
 	exit $OCF_SUCCESS
