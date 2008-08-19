@@ -249,6 +249,7 @@ int is_cman_member(int nodeid);
 char *nodeid_to_name(int nodeid);
 int name_to_nodeid(char *name);
 struct node *get_new_node(struct fd *fd, int nodeid);
+void kick_node_from_cluster(int nodeid);
 
 /* recover.c */
 
