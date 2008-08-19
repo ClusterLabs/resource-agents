@@ -816,7 +816,7 @@ AC_SUBST(LIBNETLIBS)
 AC_SUBST(LIBNETDEFINES)
 AC_DEFINE(HAVE_LIBNET_API, test "x$libnet_version" != "xnone", Libnet API)
 
-AM_CONDITIONAL(SENDARP_LINUX, $sendarp_linux)
+AM_CONDITIONAL(SENDARP_LINUX, test $sendarp_linux = 1 )
 AM_CONDITIONAL(USE_LIBNET, test "x$libnet_version" != "xnone" )
 
 
@@ -2828,7 +2828,6 @@ heartbeat/Makefile						\
 		heartbeat/lib/hb_delnode			\
 		heartbeat/lib/hb_setweight			\
 		heartbeat/lib/hb_setsite			\
-	heartbeat/libnet_util/Makefile				\
 	heartbeat/logrotate.d/Makefile				\
 ldirectord/Makefile						\
 ldirectord/ldirectord   					\
