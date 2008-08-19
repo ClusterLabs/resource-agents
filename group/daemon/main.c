@@ -157,95 +157,6 @@ void close_ccs(void)
 	ccs_disconnect(ccs_handle);
 }
 
-
-/* Look for any instances of gfs or dlm in the kernel, if we find any, it
-   means they're uncontrolled by us (via gfs_controld/dlm_controld/groupd).
-   We need to be rebooted to clear out this uncontrolled kernel state.  Most
-   importantly, other nodes must not be allowed to form groups that might
-   correspond to these same instances of gfs/dlm.  If they did, then we'd
-   be accessing gfs/dlm independently from them and corrupt stuff. */
-
-/* If we detect any local gfs/dlm state, fence ourself via fence_node.
-   This may not be strictly necessary since other nodes should fence us
-   when they form a new fence domain.  If they're not forming a new domain,
-   that means there is a domain member that has a record of previous cluster
-   state when we were a member; it will have recognized that we left the
-   cluster and need fencing.  The case where we need groupd to fence ourself
-   is when all cluster nodes are starting up and have residual gfs/dlm kernel
-   state.  None would be able to start groupd/fenced and fence anyone. */
-
-/* - we've rejoined the cman cluster with residual gfs/dlm state
-   - there is a previous cman/domain member that saw us fail
-   - when we failed it lost quorum
-   - our current rejoin has given the cluster quorum
-   - the old member that saw we needed fencing can now begin fencing
-   - the old member sees we're now a cman member, might bypass fencing us...
-   - only bypasses fencing us if we're also in groupd cpg
-   - we won't be in groupd cpg until after we've verified there's no
-     local residual gfs/dlm state */
-
-static int kernel_instance_count(char *sysfs_dir)
-{
-	char path[PATH_MAX];
-	DIR *d;
-	struct dirent *de;
-	int rv = 0;
-
-	memset(path, 0, PATH_MAX);
-	snprintf(path, PATH_MAX, "%s", sysfs_dir);
-
-	d = opendir(path);
-	if (!d)
-		return 0;
-
-	while ((de = readdir(d))) {
-		if (de->d_name[0] == '.')
-			continue;
-
-		log_print("found uncontrolled kernel object %s in %s",
-			  de->d_name, sysfs_dir);
-		rv++;
-	}
-	closedir(d);
-	return rv;
-}
-
-int check_uncontrolled_groups(void)
-{
-	pid_t pid;
-	char *argv[4];
-	int status, rv = 0;
-
-	/* FIXME: ignore gfs/gfs2 nolock fs's */
-
-	rv += kernel_instance_count("/sys/kernel/dlm");
-	rv += kernel_instance_count("/sys/fs/gfs");
-	rv += kernel_instance_count("/sys/fs/gfs2");
-
-	if (!rv)
-		return 0;
-
-	log_print("local node must be reset to clear %d uncontrolled "
-		  "instances of gfs and/or dlm", rv);
-
-	kill_cman(our_nodeid);
-
-	argv[0] = "fence_node";
-	argv[1] = "-O";
-	argv[2] = our_name;
-	argv[3] = NULL;
-
-	pid = fork();
-	if (pid)
-		waitpid(pid, &status, 0);
-	else {
-		execvp(argv[0], argv);
-		log_print("failed to exec fence_node");
-	}
-
-	return -1;
-}
-
 static void app_action(app_t *a, char *buf)
 {
 	int rv;
@@ -862,10 +773,6 @@ static void loop(void)
 		group_mode = GROUP_LIBGROUP;
 	else if (cfgd_groupd_compat == 2)
 		group_mode = GROUP_PENDING;
-
-	rv = check_uncontrolled_groups();
-	if (rv < 0)
-		goto out;
 
 	rv = setup_cpg();
 	if (rv < 0)
