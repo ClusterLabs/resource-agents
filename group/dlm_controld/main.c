@@ -18,6 +18,7 @@ static struct pollfd *pollfd = NULL;
 static pthread_t query_thread;
 static pthread_mutex_t query_mutex;
 static struct list_head fs_register_list;
+static int kernel_monitor_fd;
 
 struct client {
 	int fd;
@@ -840,6 +841,20 @@ static int setup_queries(void)
 	return 0;
 }
 
+/* The dlm in kernels before 2.6.28 do not have the monitor device.  We
+   keep this fd open as long as we're running.  If we exit/terminate while
+   lockspaces exist in the kernel, the kernel will detect a close on this
+   fd and stop the lockspaces. */
+
+static void setup_monitor(void)
+{
+	if (!monitor_minor)
+		return;
+
+	kernel_monitor_fd = open("/dev/misc/dlm-monitor", O_RDONLY);
+	log_debug("/dev/misc/dlm-monitor fd %d", kernel_monitor_fd);
+}
+
 void cluster_dead(int ci)
 {
 	log_error("cluster is down, exiting");
@@ -876,6 +891,12 @@ static void loop(void)
 	rv = check_uncontrolled_lockspaces();
 	if (rv < 0)
 		goto out;
+
+	rv = setup_misc_devices();
+	if (rv < 0)
+		goto out;
+
+	setup_monitor();
 
 	rv = setup_configfs();
 	if (rv < 0)
@@ -1275,4 +1296,8 @@ int dump_wrap;
 char plock_dump_buf[DLMC_DUMP_SIZE];
 int plock_dump_len;
 int group_mode;
+uint32_t control_minor;
+uint32_t monitor_minor;
+uint32_t plock_minor;
+uint32_t old_plock_minor;
 

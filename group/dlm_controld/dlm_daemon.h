@@ -83,6 +83,10 @@ extern int dump_wrap;
 extern char plock_dump_buf[DLMC_DUMP_SIZE];
 extern int plock_dump_len;
 extern int group_mode;
+extern uint32_t control_minor;
+extern uint32_t monitor_minor;
+extern uint32_t plock_minor;
+extern uint32_t old_plock_minor;
 
 void daemon_dump_save(void);
 
@@ -218,6 +222,7 @@ void del_configfs_node(int nodeid);
 void clear_configfs(void);
 int setup_configfs(void);
 int check_uncontrolled_lockspaces(void);
+int setup_misc_devices(void);
 
 /* config.c */
 int setup_ccs(void);

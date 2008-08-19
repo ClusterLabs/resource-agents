@@ -829,3 +829,103 @@ int setup_configfs(void)
 	return 0;
 }
 
+static void find_minors(void)
+{
+	FILE *fl;
+	char name[256];
+	uint32_t number;
+	int found = 0;
+	int c;
+
+	if (!(fl = fopen("/proc/misc", "r"))) {
+		log_error("/proc/misc fopen failed: %s", strerror(errno));
+		return;
+	}
+
+	while (!feof(fl)) {
+		if (fscanf(fl, "%d %255s\n", &number, &name[0]) == 2) {
+
+			if (!strcmp(name, "dlm-control")) {
+				control_minor = number;
+				found++;
+			} else if (!strcmp(name, "dlm-monitor")) {
+				monitor_minor = number;
+				found++;
+			} else if (!strcmp(name, "dlm_plock")) {
+				plock_minor = number;
+				found++;
+			} else if (!strcmp(name, "lock_dlm_plock")) {
+				old_plock_minor = number;
+				found++;
+			}
+
+		} else do {
+			c = fgetc(fl);
+		} while (c != EOF && c != '\n');
+
+		if (found == 3)
+			break;
+	}
+	fclose(fl);
+
+	if (!found)
+		log_error("Is dlm missing from kernel? No misc devices found.");
+}
+
+static int find_udev_device(char *path, uint32_t minor)
+{
+	struct stat st;
+	int i;
+
+	for (i = 0; i < 10; i++) {
+		if (stat(path, &st) == 0 && minor(st.st_rdev) == minor)
+			return 0;
+		sleep(1);
+	}
+
+	log_error("cannot find device %s with minor %d", path, minor);
+	return -1;
+}
+
+int setup_misc_devices(void)
+{
+	int rv;
+
+	find_minors();
+
+	if (control_minor) {
+		rv = find_udev_device("/dev/misc/dlm-control", control_minor);
+		if (rv < 0)
+			return rv;
+		log_debug("found /dev/misc/dlm-control minor %u",
+			  control_minor);
+	}
+
+	if (monitor_minor) {
+		rv = find_udev_device("/dev/misc/dlm-monitor", monitor_minor);
+		if (rv < 0)
+			return rv;
+		log_debug("found /dev/misc/dlm-monitor minor %u",
+			  monitor_minor);
+	}
+
+	if (plock_minor) {
+		rv = find_udev_device("/dev/misc/dlm_plock", plock_minor);
+		if (rv < 0)
+			return rv;
+		log_debug("found /dev/misc/dlm_plock minor %u",
+			  plock_minor);
+	}
+
+	if (old_plock_minor) {
+		rv = find_udev_device("/dev/misc/lock_dlm_plock",
+				      old_plock_minor);
+		if (rv < 0)
+			return rv;
+		log_debug("found /dev/misc/lock_dlm_plock minor %u",
+			  old_plock_minor);
+	}
+
+	return 0;
+}
+
