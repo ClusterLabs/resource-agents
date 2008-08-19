@@ -601,10 +601,10 @@ ip_start() {
 
     if [ "$SYSTYPE" = "DarwinBSD" -a "$NIC_unique" = "lo0" ]; then
 	# Darwin can't send ARPs on loopback devices
-	SENDARP=""
+	SENDARP="x$SENDARP" # Prevent the binary from being found
     fi
 
-    if [ x$SENDARP != x ]; then
+    if [ -x $SENDARP ]; then
 	TARGET_INTERFACE=`echo $NIC_unique | sed 's%:.*%%'`
 	SENDARPPIDFILE="$SENDARPPIDDIR/send_arp-$OCF_RESKEY_ip"    
        

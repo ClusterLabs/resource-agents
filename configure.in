@@ -551,7 +551,6 @@ AC_PATH_PROGS(MAILCMD, mailx mail)
 AC_SUBST(MAILCMD)
 
 AC_DEFINE_UNQUOTED(IFCONFIG, "$IFCONFIG", path to the ifconfig command)
-AC_PATH_PROGS(LIBNETCONFIG, libnet-config)
 AC_PATH_PROGS(GETENT, getent)
 AC_PATH_PROGS(IP2UTIL, ip, /sbin/ip)
 AC_PATH_PROGS(XML2CONFIG, xml2-config)
@@ -615,10 +614,7 @@ AM_CONDITIONAL(NONROOT_CHOWN, test "$nonroot_chown" = yes )
 
 dnl ************************************************************************
 dnl checks for libraries
-dnl Needed for libnet test.
 dnl ************************************************************************
-AC_CHECK_LIB(nsl, t_open)			dnl -lnsl
-AC_CHECK_LIB(socket, socket)			dnl -lsocket
 AC_CHECK_LIB(posix4, sched_getscheduler)	dnl -lposix4
 AC_CHECK_LIB(c, dlopen)				dnl if dlopen is in libc...
 AC_CHECK_LIB(dl, dlopen)			dnl -ldl (for Linux)
@@ -729,18 +725,41 @@ else
 fi
 AC_MSG_RESULT(using $GLIBCONFIG)
 
-AC_MSG_CHECKING(which libnet version is installed)
-if test x"${LIBNETCONFIG}" = x""; then
-      AC_MSG_RESULT(using old version of API)
-      dnl The old version of the API REQUIRES $LIBNETCONFIG
-      dnl so we can only deal with new API unless we have it.
-      AC_CHECK_LIB(net, libnet_get_hwaddr, [],
-      [FatalMissingThing "libnet" "You need libnet to continue."			\
-		"You can get libnet from http://www.packetfactory.net/libnet"		\
-		"Note that some RPMs split libnet up into libnet and libnet-devel."	\
-		"In this case you have to install libnet-devel"])
+AC_ARG_ENABLE([libnet],
+ [  --enable-libnet 	Use libnet for ARP based funcationality, [default=try]], 
+ [enable_libnet=$withval], [enable_libnet=try])
+
+libnet=""
+libnet_version="none"
+LIBNETLIBS=""
+LIBNETDEFINES=""
+
+AC_MSG_CHECKING(if libnet is required)
+libnet_fatal=$enable_libnet
+case $enable_libnet in
+     no) ;;
+     yes|libnet10|libnet11|10|11) libnet_fatal=yes;;
+     try)
+	case $host_os in
+	     *Linux*|*linux*) libnet_fatal=no;;
+	     *) libnet_fatal=yes;; dnl legacy behavior
+	esac
+	;;
+     *) libnet_fatal=yes; enable_libnet=try;;
+esac
+AC_MSG_RESULT($libnet_fatal)
+
+if test "x$enable_libnet" != "xno"; then
+   AC_PATH_PROGS(LIBNETCONFIG, libnet-config)
+
+   AC_CHECK_LIB(nsl, t_open)			dnl -lnsl
+   AC_CHECK_LIB(socket, socket)			dnl -lsocket
+   AC_CHECK_LIB(net, libnet_get_hwaddr, LIBNETLIBS=" -lnet", [])
+fi
+
+AC_MSG_CHECKING(for libnet)
+if test "x$LIBNETLIBS" != "x" -o "x$enable_libnet" = "xlibnet11"; then
       LIBNETDEFINES=""
-      LIBNETLIBS=" -lnet"
       if test "$ac_cv_lib_nsl_t_open" = yes; then
          LIBNETLIBS="-lnsl $LIBNETLIBS"
       fi
@@ -749,33 +768,57 @@ if test x"${LIBNETCONFIG}" = x""; then
       fi
 
       libnet=net
-else
+      libnet_version="libnet1.1"
+fi
+
+if test "x$enable_libnet" = "xtry" -o "x$enable_libnet" = "xlibnet10"; then
+   if test "x$LIBNETLIBS" = x -a "x${LIBNETCONFIG}" != "x" ; then
       LIBNETDEFINES="`$LIBNETCONFIG --defines` `$LIBNETCONFIG --cflags`";
       LIBNETLIBS="`$LIBNETCONFIG --libs`";
-      AC_MSG_RESULT(using $LIBNETCONFIG)
+      libnet_version="libnet1.0 (old)"
       case $LIBNETLIBS in
         *-l*)	libnet=`echo $LIBNETLIBS | sed 's%.*-l%%'`;;
-        *)	libnet=$LIBNETLIBS;;
+        *)	libnet_version=none;;
       esac
 
-      dnl Add any libnet definitions to the compiler flags.
       CPPFLAGS="$CPPFLAGS $LIBNETDEFINES"
 
       AC_CHECK_HEADERS(libnet.h)
       if test "$ac_cv_header_libnet_h" = no; then
-        FatalMissingThing "libnet" "You need libnet (headers) to continue."			\
+	libnet_version=none
+      fi
+   fi
+fi
+AC_MSG_RESULT(found $libnet_version)
+
+if test "$libnet_version" = none; then
+   LIBNETLIBS=""
+   LIBNETDEFINES=""
+   if test $libnet_fatal = yes; then
+        FatalMissingThing "libnet" "You need libnet to continue."			\
 		"You can get libnet from http://www.packetfactory.net/libnet"		\
 		"Note that some RPMs split libnet up into libnet and libnet-devel."	\
-		"In this case you have to install libnet-devel"
-      fi
+		"In this case you have to install libnet-devel too"
+   fi
+
+else
+   AC_CHECK_LIB($libnet,libnet_init,
+      [new_libnet=yes; AC_DEFINE(HAVE_LIBNET_1_1_API, 1, Libnet 1.1 API)],
+      [new_libnet=no; AC_DEFINE(HAVE_LIBNET_1_0_API, 1, Libnet 1.0 API)],$LIBNETLIBS)
 fi
 
-AC_SUBST(LIBNETDEFINES)
-AC_SUBST(LIBNETLIBS)
+sendarp_linux=0
+case $host_os in
+     *Linux*|*linux*) sendarp_linux=1;;
+esac
 
-AC_CHECK_LIB($libnet,libnet_init,
-[new_libnet=yes; AC_DEFINE(HAVE_LIBNET_1_1_API, 1, Libnet 1.1 API)],
-[new_libnet=no; AC_DEFINE(HAVE_LIBNET_1_0_API, 1, Libnet 1.0 API)],$LIBNETLIBS)
+AC_SUBST(LIBNETLIBS)
+AC_SUBST(LIBNETDEFINES)
+AC_DEFINE(HAVE_LIBNET_API, test "x$libnet_version" != "xnone", Libnet API)
+
+AM_CONDITIONAL(SENDARP_LINUX, $sendarp_linux)
+AM_CONDITIONAL(USE_LIBNET, test "x$libnet_version" != "xnone" )
+
 
 AC_MSG_CHECKING(where is python installed)
 if test "x${PYTHON}" = x; then
