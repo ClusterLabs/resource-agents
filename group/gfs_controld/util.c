@@ -211,3 +211,76 @@ void update_dmsetup_wait(void)
 	}
 }
 
+static int ignore_nolock(char *sysfs_dir, char *table)
+{
+	char path[PATH_MAX];
+	int fd;
+
+	memset(path, 0, PATH_MAX);
+
+	snprintf(path, PATH_MAX, "%s/%s/lock_module/proto_name",
+		 sysfs_dir, table);
+
+	/* lock_nolock doesn't create the "lock_module" dir at all,
+	   so we'll fail to open this */
+
+	fd = open(path, O_RDONLY);
+	if (fd < 0)
+		return 1;
+
+	close(fd);
+	return 0;
+}
+
+/* This is for the case where gfs_controld exits/fails, abandoning gfs
+   filesystems in the kernel, and then gfs_controld is restarted.  When
+   gfs_controld exits and abandons lockspaces, that node needs to be
+   rebooted to clear the uncontrolled filesystems from the kernel. */
+
+int check_uncontrolled_filesystems(void)
+{
+	DIR *d;
+	struct dirent *de;
+	int count = 0;
+
+	d = opendir("/sys/fs/gfs/");
+	if (!d)
+		goto gfs2;
+
+	while ((de = readdir(d))) {
+		if (de->d_name[0] == '.')
+			continue;
+
+		if (ignore_nolock("/sys/fs/gfs/", de->d_name))
+			continue;
+
+		log_error("found uncontrolled gfs fs %s", de->d_name);
+		count++;
+	}
+	closedir(d);
+
+ gfs2:
+	d = opendir("/sys/fs/gfs2/");
+	if (!d)
+		goto out;
+
+	while ((de = readdir(d))) {
+		if (de->d_name[0] == '.')
+			continue;
+
+		if (ignore_nolock("/sys/fs/gfs2/", de->d_name))
+			continue;
+
+		log_error("found uncontrolled gfs2 fs %s", de->d_name);
+		count++;
+	}
+	closedir(d);
+
+ out:
+	if (count) {
+		kick_node_from_cluster(our_nodeid);
+		return -1;
+	}
+	return 0;
+}
+

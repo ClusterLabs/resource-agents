@@ -287,6 +287,7 @@ void cluster_dead(int ci);
 int setup_cman(void);
 void close_cman(void);
 void process_cman(int ci);
+void kick_node_from_cluster(int nodeid);
 
 /* plock.c */
 int setup_plocks(void);
@@ -310,6 +311,7 @@ int read_sysfs_int(struct mountgroup *mg, char *field, int *val_out);
 int run_dmsetup_suspend(struct mountgroup *mg, char *dev);
 void update_dmsetup_wait(void);
 void update_flow_control_status(void);
+int check_uncontrolled_filesystems(void);
 
 /* logging.c */
 

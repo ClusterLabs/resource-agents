@@ -1019,9 +1019,6 @@ static void loop(void)
 	void (*workfn) (int ci);
 	void (*deadfn) (int ci);
 
-	/* FIXME: add code that looks for uncontrolled instances of
-	   gfs filesystems in the kernel */
-
 	rv = setup_queries();
 	if (rv < 0)
 		goto out;
@@ -1041,6 +1038,10 @@ static void loop(void)
 		goto out;
 
 	setup_logging();
+
+	rv = check_uncontrolled_filesystems();
+	if (rv < 0)
+		goto out;
 
 	rv = setup_uevent();
 	if (rv < 0)

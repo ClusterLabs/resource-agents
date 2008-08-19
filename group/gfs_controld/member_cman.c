@@ -3,7 +3,20 @@
 #include <libcman.h>
 
 static cman_handle_t ch;
+static cman_handle_t ch_admin;
 static cman_cluster_t cluster;
+
+void kick_node_from_cluster(int nodeid)
+{
+	if (!nodeid) {
+		log_error("telling cman to shut down cluster locally");
+		cman_shutdown(ch_admin, CMAN_SHUTDOWN_ANYWAY);
+	} else {
+		log_error("telling cman to remove nodeid %d from cluster",
+			  nodeid);
+		cman_kill_node(ch_admin, nodeid);
+	}
+}
 
 static void cman_callback(cman_handle_t h, void *private, int reason, int arg)
 {
@@ -33,12 +46,18 @@ int setup_cman(void)
 	int init = 0, active = 0;
 
  retry_init:
-	ch = cman_init(NULL);
-	if (!ch) {
+	ch_admin = cman_admin_init(NULL);
+	if (!ch_admin) {
 		if (init++ < 2) {
 			sleep(1);
 			goto retry_init;
 		}
+		log_error("cman_admin_init error %d", errno);
+		return -ENOTCONN;
+	}
+
+	ch = cman_init(NULL);
+	if (!ch) {
 		log_error("cman_init error %d", errno);
 		return -ENOTCONN;
 	}
