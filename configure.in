@@ -2791,7 +2791,6 @@ lib/Makefile							\
 		lib/plugins/stonith/external/ssh		\
 		lib/plugins/stonith/external/hmchttp		\
 		lib/plugins/stonith/external/xen0-ha		\
-		lib/plugins/AppHBNotification/Makefile		\
 		lib/plugins/HBcompress/Makefile			\
 		lib/plugins/quorum/Makefile			\
 		lib/plugins/quorumd/Makefile			\
