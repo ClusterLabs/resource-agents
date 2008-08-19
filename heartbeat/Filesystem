@@ -297,7 +297,7 @@ ocfs2_init()
 	ocfs2_set_uuid
 	
 	if [ -n "$OCF_RESKEY_ocfs2_cluster" ]; then
-		OCFS2_CLUSTER=$(echo $OCF_RESKEY_ocfs2_cluster | tr '[a-z]' '[A-Z]')
+		OCFS2_CLUSTER=$(echo $OCF_RESKEY_ocfs2_cluster)
 	else
 		OCFS2_CLUSTER=$(find "$OCFS2_CONFIGFS" -maxdepth 1 -mindepth 1 -type d -printf %f 2>/dev/null)
 		set -- $OCFS2_CLUSTER

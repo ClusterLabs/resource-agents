@@ -100,6 +100,21 @@ for paravirtual machines.
 <shortdesc lang="en">Use live migration</shortdesc>
 <content type="boolean" default="0" />
 </parameter>
+<parameter name="shutdown_timeout">
+<longdesc lang="en">
+The Xen agent will first try an orderly shutdown using xm shutdown.
+Should this not succeed within this timeout, the agent will escalate to
+xm destroy, forcibly killing the node.
+
+If this is not set, it will default to two-third of the stop action
+timeout.
+
+Setting this value to 0 forces an immediate destroy.
+
+</longdesc>
+<shortdesc lang="en">Shutdown escalation timeout</shortdesc>
+<content type="boolean" default="" />
+</parameter>
 <parameter name="allow_mem_management" unique="0" required="0">
 <longdesc lang="en">
 This parameter enables dynamic adjustment of memory for start 
@@ -138,7 +153,6 @@ services.
 <action name="stop" timeout="40" />
 <action name="migrate_from" timeout="120" />
 <action name="migrate_to" timeout="120" />
-<action name="status" depth="0" timeout="30" interval="10" start-delay="120" />
 <action name="monitor" depth="0" timeout="30" interval="10" start-delay="120" />
 <action name="meta-data" timeout="5" />
 <action name="validate-all" timeout="5" />
@@ -237,8 +251,8 @@ Xen_Start() {
     return $OCF_ERR_INSTALLED
   fi
 
-  Xen_Adjust_Memory 1
   if [ "${OCF_RESKEY_allow_mem_management}" != 0 ]; then
+    Xen_Adjust_Memory 1
     ocf_log info "New memory for virtual domains: ${NEWMEM}"
     sed -i -e "/^memory=/ s/^memory=.*/memory=${NEWMEM}/" ${OCF_RESKEY_xmfile}
     xm mem-set ${DOMAIN_NAME} ${NEWMEM} 
@@ -260,31 +274,42 @@ Xen_Start() {
 
 Xen_Stop() {
   if Xen_Status ${DOMAIN_NAME}; then
-    # xm commands are asynchroneus, therefore wait a bit
-    # to just give it time to shutdown correctly
-    xm shutdown -w ${DOMAIN_NAME}
-
-    rc=$?
-    sleep 3
-
-    if [ $rc -ne 0 ]; then
-      xm destroy -w ${DOMAIN_NAME}
-      rc2=$?
-      sleep 3
-      if [ $rc2 -ne 0 ]; then 
-        return ${OCF_ERR_GENERIC}
-      else
-	Xen_Adjust_Memory 0
-	return ${OCF_SUCCESS}
-      fi
-    else 
-      Xen_Adjust_Memory 0
-      return ${OCF_SUCCESS}
+    local timeout
+    if [ -n "$OCF_RESKEY_shutdown_timeout" ]; then
+      timeout=$OCF_RESKEY_shutdown_timeout
+    elif [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
+      # Allow 2/3 of the action timeout for the orderly shutdown
+      # (The origin unit is ms, hence the conversion)
+      timeout=$[OCF_RESKEY_CRM_meta_timeout/1500]
+    else
+      timeout=60
     fi
-  else
-    ocf_log info "Xen domain $DOMAIN_NAME already stopped."
-    return $OCF_SUCCESS
+
+    if [ "$timeout" -gt 0 ]; then
+      ocf_log info "Xen domain $DOMAIN_NAME will be stopped (timeout: ${timeout}s)"
+      xm shutdown ${DOMAIN_NAME}
+          
+      while Xen_Status ${DOMAIN_NAME} && [ "$timeout" -gt 0 ]; do
+        timeout=$[timeout-1]
+        sleep 1
+      done
+    fi
+    
+    if [ "$timeout" -eq 0 ]; then
+      ocf_log warn "Xen domain $DOMAIN_NAME will be destroyed!"
+      xm destroy ${DOMAIN_NAME}
+      while Xen_Status ${DOMAIN_NAME}; do
+        sleep 1
+      done
+      # Note: This does not give up. stop isn't allowed to to fail.
+      # If xm destroy fails, stop will eventually timeout.
+      # This is the correct behaviour.
+    fi
   fi
+
+  ocf_log info "Xen domain $DOMAIN_NAME stopped."
+  Xen_Adjust_Memory 0
+  return $OCF_SUCCESS
 }
 
 Xen_Migrate_To() {
