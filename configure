@@ -86,6 +86,7 @@ my %options = (
 	fenceagentslibdir => \$fenceagentslibdir,
 	enable_crack_of_the_day => \$enable_crack_of_the_day,
 	enable_legacy_code => \$enable_legacy_code,
+	enable_contrib => \$enable_contrib,
 	enable_xen => \$enable_xen,
 	somajor => \$somajor,
 	sominor => \$sominor,
@@ -175,6 +176,7 @@ my $err = &GetOptions (\%options,
 		    'fenceagentslibdir=s',
 		    'enable_crack_of_the_day',
 		    'enable_legacy_code',
+		    'enable_contrib',
 		    'enable_xen',
 		    'without_ccs',
 		    'without_cman',
@@ -266,6 +268,7 @@ if ($help || !$err) {
   print "\t\tUse --fence_agents=help for a list\n";
   print "--fenceagentslibdir=\tspecify directory where to install common fence python lib.  (Default: /usr/share/fence)\n";
   print "--enable_crack_of_the_day\tEnable build of highly experimental features that rely on code that is not yet available for general use. (Default: no)\n";
+  print "--enable_contrib\tEnable build of community contributed code/tools.  (Default: no)\n";
   print "--enable_legacy_code\tEnable build of old/obsolete/unsupported code/tools.  (Default: no)\n";
   print "--enable_xen\tEnable building of Xen-specific pieces\n";
   print "--without_ccs\tDisable ccs building  (Default: enabled)\n";
@@ -595,6 +598,9 @@ if (!$enable_crack_of_the_day) {
   print "\n********************************************************************************************\n";
   $cflags="${cflags} -DEXPERIMENTAL_BUILD";
 }
+if (!$enable_contrib) {
+  $enable_contrib="";
+}
 if (!$enable_legacy_code) {
   $enable_legacy_code="";
 } else {
@@ -748,6 +754,7 @@ while (<IFILE>) {
   $_ =~ s/\@FENCEAGENTSLIBDIR\@/$fenceagentslibdir/;
   $_ =~ s/\@ENABLE_CRACK_OF_THE_DAY\@/$enable_crack_of_the_day/;
   $_ =~ s/\@ENABLE_LEGACY_CODE\@/$enable_legacy_code/;
+  $_ =~ s/\@ENABLE_CONTRIB\@/$enable_contrib/;
   $_ =~ s/\@ENABLE_XEN\@/$enable_xen/;
   $_ =~ s/\@DISABLE_CCS\@/$without_ccs/;
   $_ =~ s/\@DISABLE_CMAN\@/$without_cman/;

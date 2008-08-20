@@ -69,6 +69,7 @@ fence_agents ?= @FENCE_AGENTS@
 fenceagentslibdir ?= @FENCEAGENTSLIBDIR@
 experimental_build ?= @ENABLE_CRACK_OF_THE_DAY@
 legacy_code ?= @ENABLE_LEGACY_CODE@
+contrib_code ?= @ENABLE_CONTRIB@
 enable_xen ?= @ENABLE_XEN@
 without_gnbd-kernel/src ?= @DISABLE_GNBDKERNEL@
 without_gfs-kernel/src/gfs ?= @DISABLE_GFSKERNEL@

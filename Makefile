@@ -2,7 +2,8 @@ include make/defines.mk
 
 REALSUBDIRS = gnbd-kernel/src gfs-kernel/src/gfs \
 	      cman/lib config cman dlm fence/libfenced group \
-	      fence gfs gfs2 gnbd rgmanager bindings doc
+	      fence gfs gfs2 gnbd rgmanager bindings doc \
+	      contrib
 
 SUBDIRS = $(filter-out \
 	  $(if ${without_gnbd-kernel/src},gnbd-kernel/src) \
@@ -43,6 +44,7 @@ gfs2: group
 gnbd: cman
 rgmanager: cman dlm
 bindings: cman
+contrib: gfs2
 
 oldconfig:
 	@if [ -f $(OBJDIR)/.configure.sh ]; then \
@@ -58,7 +60,11 @@ uninstall:
 	set -e && for i in ${SUBDIRS}; do ${MAKE} -C $$i $@; done
 
 clean:
-	set -e && for i in ${REALSUBDIRS}; do legacy_code=1 ${MAKE} -C $$i $@; done
+	set -e && for i in ${REALSUBDIRS}; do \
+		contrib_code=1 \
+		legacy_code=1 \
+		${MAKE} -C $$i $@;\
+	done
 
 distclean: clean
 	rm -f make/defines.mk
