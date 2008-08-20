@@ -805,44 +805,6 @@ static void add_cman_overrides(struct objdb_iface_ver0 *objdb)
 				 "corosync_cman", strlen("corosync_cman") + 1);
 	objdb->object_key_create(object_handle, "ver", strlen("ver"),
 				 "0", 2);
-
-	/* Load some other useful openais services too */
-	if (!disable_openais) {
-		objdb->object_create(OBJECT_PARENT_HANDLE, &object_handle,
-				     "service", strlen("service"));
-		objdb->object_key_create(object_handle, "name", strlen("name"),
-					 "openais_ckpt", strlen("openais_ckpt") + 1);
-		objdb->object_key_create(object_handle, "ver", strlen("ver"),
-					 "0", 2);
-
-		objdb->object_create(OBJECT_PARENT_HANDLE, &object_handle,
-				     "service", strlen("service"));
-		objdb->object_key_create(object_handle, "name", strlen("name"),
-					 "openais_evt", strlen("openais_evt") + 1);
-		objdb->object_key_create(object_handle, "ver", strlen("ver"),
-					 "0", 2);
-
-		objdb->object_create(OBJECT_PARENT_HANDLE, &object_handle,
-				     "service", strlen("service"));
-		objdb->object_key_create(object_handle, "name", strlen("name"),
-					 "openais_msg", strlen("openais_msg") + 1);
-		objdb->object_key_create(object_handle, "ver", strlen("ver"),
-					 "0", 2);
-
-		objdb->object_create(OBJECT_PARENT_HANDLE, &object_handle,
-				     "service", strlen("service"));
-		objdb->object_key_create(object_handle, "name", strlen("name"),
-					 "openais_clm", strlen("openais_clm") + 1);
-		objdb->object_key_create(object_handle, "ver", strlen("ver"),
-					 "0", 2);
-
-		objdb->object_create(OBJECT_PARENT_HANDLE, &object_handle,
-				     "service", strlen("service"));
-		objdb->object_key_create(object_handle, "name", strlen("name"),
-					 "openais_lck", strlen("openais_lck") + 1);
-		objdb->object_key_create(object_handle, "ver", strlen("ver"),
-					 "0", 2);
-	}
 }
 
 /* If ccs is not available then use some defaults */

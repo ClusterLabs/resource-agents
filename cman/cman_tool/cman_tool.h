@@ -90,6 +90,7 @@ struct commandline
 	int addresses_opt;
 	int noconfig_opt;
 	int nosetpri_opt;
+	int noopenais_opt;
 };
 typedef struct commandline commandline_t;
 

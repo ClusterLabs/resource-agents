@@ -9,7 +9,7 @@
 
 #define DEFAULT_CONFIG_MODULE "xmlconfig"
 
-#define OPTION_STRING		("m:n:v:e:2p:c:r:i:N:t:o:k:F:C:VPwfqah?Xd::")
+#define OPTION_STRING		("m:n:v:e:2p:c:r:i:N:t:o:k:F:C:VAPwfqah?Xd::")
 #define OP_JOIN			1
 #define OP_LEAVE		2
 #define OP_EXPECTED		3
@@ -57,6 +57,7 @@ static void print_usage(int subcmd)
 		printf("  -k <file>        Private key file for AIS communications\n");
 		printf("  -P               Don't set aisexec to realtime priority\n");
 		printf("  -X               Use internal cman defaults for configuration\n");
+		printf("  -A               Don't load openais services\n");
 		printf("\n");
 	}
 
@@ -860,6 +861,10 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 
 		case 'X':
 			comline->noconfig_opt = TRUE;
+			break;
+
+		case 'A':
+			comline->noopenais_opt = TRUE;
 			break;
 
 		case 'P':

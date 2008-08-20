@@ -267,7 +267,12 @@ add two modules (eg) 'ldapconfig' and 'ldappreproc' to the chain start cman with
 .br
 The default value for this is 'ccsconfig'. Note that if the -X is on the command-line
 then -C will be ignored.
-
+.TP
+.I -A
+Don't load openais services. Normally cman_tool join will load the configuration
+module 'openaisserviceenable' which will load the services installed by openais.
+If you don't want to use these services or have not installed openais then
+this switch will disable them.
 .SH "NODES" OPTIONS
 .TP
 .I -f
