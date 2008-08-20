@@ -2799,13 +2799,13 @@ lib/Makefile							\
 lrm/Makefile							\
 	lrm/lrmd/Makefile					\
 	lrm/admin/Makefile					\
-	lrm/test/regression.sh				\
+	lrm/test/regression.sh					\
 	lrm/test/LRMBasicSanityCheck				\
 	lrm/test/Makefile					\
 	lrm/test/lrmregtest					\
 	lrm/test/lrmregtest-lsb					\
-	lrm/test/lrmregtest-heartbeat					\
-	lrm/test/testcases/Makefile					\
+	lrm/test/lrmregtest-heartbeat				\
+	lrm/test/testcases/Makefile				\
 heartbeat/Makefile						\
 	heartbeat/shellfuncs					\
 	heartbeat/rc.d/Makefile					\
