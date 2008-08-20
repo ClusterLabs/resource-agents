@@ -2522,7 +2522,7 @@ AC_SUBST(RPM_ENABLE_OPENHPI)
 
 dnl quorum server configuration
 AC_ARG_ENABLE([quorumd],
-[  --enable-quorumd  Compile the quorum server.  [default=try]],
+[  --enable-quorumd  Compile the quorum server.  [default=no]],
                      [], [enable_quorumd=try])
 
 if test "x${enable_quorumd}" != "xno"; then
