@@ -39,7 +39,7 @@ typedef void *cman_handle_t;
  *
  * The 'arg' parameter varies depending on the callback type.
  * for PORTCLOSED/PORTOPENED  arg == the port opened/closed
- * for STATECHANGE            arg should be ignored
+ * for STATECHANGE            arg is quorum state (1=quorate, 0=not)
  * for TRY_SHUTDOWN           arg == 1 for ANYWAY, otherwise 0 (ie if arg == 1 
  * 			      then cman WILL shutdown regardless
  *                            of your response, think of this as advance warning)

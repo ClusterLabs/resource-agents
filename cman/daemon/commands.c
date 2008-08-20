@@ -361,7 +361,7 @@ static void recalculate_quorum(int allow_decrease, int by_current_nodes)
 
 	quorum = calculate_quorum(allow_decrease, by_current_nodes?cluster_members:0, &total_votes);
 	set_quorate(total_votes);
-	notify_listeners(NULL, EVENT_REASON_STATECHANGE, 0);
+	notify_listeners(NULL, EVENT_REASON_STATECHANGE, cluster_is_quorate);
 }
 
 /* Copy internal node format to userland format */
