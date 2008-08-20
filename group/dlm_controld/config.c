@@ -30,44 +30,6 @@
 
 static int ccs_handle;
 
-/* was a config value set on command line?, 0 or 1.
-   optk is a kernel option, optd is a daemon option */
-
-int optk_debug;
-int optk_timewarn;
-int optk_protocol;
-int optd_groupd_compat;
-int optd_debug_logsys;
-int optd_enable_fencing;
-int optd_enable_quorum;
-int optd_enable_deadlk;
-int optd_enable_plock;
-int optd_plock_debug;
-int optd_plock_rate_limit;
-int optd_plock_ownership;
-int optd_drop_resources_time;
-int optd_drop_resources_count;
-int optd_drop_resources_age;
-
-/* actual config value from command line, cluster.conf, or default.
-   cfgk is a kernel config value, cfgd is a daemon config value */
-
-int cfgk_debug			= -1;
-int cfgk_timewarn		= -1;
-int cfgk_protocol		= -1;
-int cfgd_groupd_compat		= DEFAULT_GROUPD_COMPAT;
-int cfgd_debug_logsys		= DEFAULT_DEBUG_LOGSYS;
-int cfgd_enable_fencing		= DEFAULT_ENABLE_FENCING;
-int cfgd_enable_quorum		= DEFAULT_ENABLE_QUORUM;
-int cfgd_enable_deadlk		= DEFAULT_ENABLE_DEADLK;
-int cfgd_enable_plock		= DEFAULT_ENABLE_PLOCK;
-int cfgd_plock_debug		= DEFAULT_PLOCK_DEBUG;
-int cfgd_plock_rate_limit	= DEFAULT_PLOCK_RATE_LIMIT;
-int cfgd_plock_ownership	= DEFAULT_PLOCK_OWNERSHIP;
-int cfgd_drop_resources_time	= DEFAULT_DROP_RESOURCES_TIME;
-int cfgd_drop_resources_count	= DEFAULT_DROP_RESOURCES_COUNT;
-int cfgd_drop_resources_age	= DEFAULT_DROP_RESOURCES_AGE;
-
 /* when not set in cluster.conf, a node's default weight is 1 */
 
 #define MASTER_PATH "/cluster/dlm/lockspace[@name=\"%s\"]/master"

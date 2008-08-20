@@ -354,8 +354,8 @@ int set_configfs_members(char *name, int new_count, int *new_members,
 		else if (id_exists(id, old_count, old_members))
 			continue;
 
-		if (!is_cman_member(id))
-			cman_statechange();
+		if (!is_cluster_member(id))
+			update_cluster();
 		/*
 		 * create node's dir
 		 */
@@ -813,7 +813,7 @@ int setup_configfs(void)
 		return rv;
 
 	/* add configfs entries for existing nodes */
-	cman_statechange();
+	update_cluster();
 
 	/* the kernel has its own defaults for these values which we
 	   don't want to change unless these have been set; -1 means

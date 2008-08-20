@@ -1,6 +1,7 @@
 #include "dlm_daemon.h"
 #include "config.h"
 #include <libcman.h>
+#include "libfenced.h"
 
 static cman_handle_t	ch;
 static cman_handle_t	ch_admin;
@@ -37,7 +38,7 @@ static int is_old_member(int nodeid)
 	return is_member(old_nodes, old_node_count, nodeid);
 }
 
-int is_cman_member(int nodeid)
+int is_cluster_member(int nodeid)
 {
 	return is_member(cman_nodes, cman_node_count, nodeid);
 }
@@ -73,7 +74,7 @@ static void statechange(void)
 	int num_addrs;
 	struct cman_node_address *addrptr = addrs;
 
-	cman_quorate = cman_is_quorate(ch);
+	cluster_quorate = cman_is_quorate(ch);
 
 	old_node_count = cman_node_count;
 	memcpy(&old_nodes, &cman_nodes, sizeof(old_nodes));
@@ -96,7 +97,7 @@ static void statechange(void)
 
 	for (i = 0; i < old_node_count; i++) {
 		if (old_nodes[i].cn_member &&
-		    !is_cman_member(old_nodes[i].cn_nodeid)) {
+		    !is_cluster_member(old_nodes[i].cn_nodeid)) {
 
 			log_debug("cman: node %d removed",
 				   old_nodes[i].cn_nodeid);
@@ -149,7 +150,7 @@ static void cman_callback(cman_handle_t h, void *private, int reason, int arg)
 	}
 }
 
-void process_cman(int ci)
+void process_cluster(int ci)
 {
 	int rv;
 
@@ -158,7 +159,7 @@ void process_cman(int ci)
 		cluster_dead(0);
 }
 
-int setup_cman(void)
+int setup_cluster(void)
 {
 	cman_node_t node;
 	int rv, fd;
@@ -222,14 +223,44 @@ int setup_cman(void)
 	return fd;
 }
 
-void close_cman(void)
+void close_cluster(void)
 {
 	cman_finish(ch);
 }
 
 /* Force re-read of cman nodes */
-void cman_statechange(void)
+void update_cluster(void)
 {
 	statechange();
+}
+
+int fence_node_time(int nodeid, uint64_t *last_fenced_time)
+{
+	struct fenced_node nodeinfo;
+	int rv;
+
+	memset(&nodeinfo, 0, sizeof(nodeinfo));
+
+	rv = fenced_node_info(nodeid, &nodeinfo);
+	if (rv < 0)
+		return rv;
+
+	*last_fenced_time = nodeinfo.last_fenced_time;
+	return 0;
+}
+
+int fence_in_progress(int *count)
+{
+	struct fenced_domain domain;
+	int rv;
+
+	memset(&domain, 0, sizeof(domain));
+
+	rv = fenced_domain_info(&domain);
+	if (rv < 0)
+		return rv;
+
+	*count = domain.victim_count;
+	return 0;
 }
 

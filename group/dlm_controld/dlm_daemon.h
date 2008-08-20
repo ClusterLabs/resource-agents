@@ -74,7 +74,7 @@ extern int poll_ignore_plock;
 extern int plock_fd;
 extern int plock_ci;
 extern struct list_head lockspaces;
-extern int cman_quorate;
+extern int cluster_quorate;
 extern int our_nodeid;
 extern char daemon_debug_buf[256];
 extern char dump_buf[DLMC_DUMP_SIZE];
@@ -270,13 +270,15 @@ char *dlm_mode_str(int mode);
 void cluster_dead(int ci);
 
 /* member_cman.c */
-int setup_cman(void);
-void close_cman(void);
-void process_cman(int ci);
-void cman_statechange(void);
-int is_cman_member(int nodeid);
+int setup_cluster(void);
+void close_cluster(void);
+void process_cluster(int ci);
+void update_cluster(void);
+int is_cluster_member(int nodeid);
 char *nodeid2name(int nodeid);
 void kick_node_from_cluster(int nodeid);
+int fence_node_time(int nodeid, uint64_t *last_fenced_time);
+int fence_in_progress(int *count);
 
 /* netlink.c */
 int setup_netlink(void);
@@ -298,19 +300,38 @@ void purge_plocks(struct lockspace *ls, int nodeid, int unmount);
 int fill_plock_dump_buf(struct lockspace *ls);
 
 /* group.c */
+#define BUILD_GROUPD_COMPAT
+#ifdef BUILD_GROUPD_COMPAT
 int setup_groupd(void);
 void close_groupd(void);
 void process_groupd(int ci);
 int dlm_join_lockspace_group(struct lockspace *ls);
 int dlm_leave_lockspace_group(struct lockspace *ls);
 int set_node_info_group(struct lockspace *ls, int nodeid,
-			struct dlmc_node *node);
+	struct dlmc_node *node);
 int set_lockspace_info_group(struct lockspace *ls,
-			struct dlmc_lockspace *lockspace);
-int set_lockspaces_group(int *count, struct dlmc_lockspace **lss_out);
-int set_lockspace_nodes_group(struct lockspace *ls, int option, int *node_count,
-			struct dlmc_node **nodes);
+	struct dlmc_lockspace *lockspace);
+int set_lockspaces_group(int *count,
+	struct dlmc_lockspace **lss_out);
+int set_lockspace_nodes_group(struct lockspace *ls, int option,
+	int *node_count, struct dlmc_node **nodes);
 void set_group_mode(void);
+#else
+static inline int setup_groupd(void) { return -1; }
+static inline void close_groupd(void) { }
+static inline void process_groupd(int ci) { }
+static inline int dlm_join_lockspace_group(struct lockspace *ls) { return -1; }
+static inline int dlm_leave_lockspace_group(struct lockspace *ls) { return -1; }
+static inline int set_node_info_group(struct lockspace *ls, int nodeid,
+	struct dlmc_node *node) { return -1; }
+static inline int set_lockspace_info_group(struct lockspace *ls,
+	struct dlmc_lockspace *lockspace) { return -1; }
+static inline int set_lockspaces_group(int *count,
+	struct dlmc_lockspace **lss_out) { return -1; }
+static inline int set_lockspace_nodes_group(struct lockspace *ls, int option,
+	int *node_count, struct dlmc_node **nodes) { return -1; }
+static inline void set_group_mode(void) { }
+#endif
 
 /* logging.c */
 

@@ -1,6 +1,5 @@
 #include "dlm_daemon.h"
 #include "config.h"
-#include "libfenced.h"
 
 uint32_t cpgname_to_crc(const char *data, int len);
 
@@ -386,9 +385,8 @@ static void node_history_fail(struct lockspace *ls, int nodeid,
 static int check_fencing_done(struct lockspace *ls)
 {
 	struct node *node;
-	struct fenced_node nodeinfo;
-	struct fenced_domain domain;
-	int wait_count = 0;
+	uint64_t last_fenced_time;
+	int in_progress, wait_count = 0;
 	int rv;
 
 	if (!cfgd_enable_fencing)
@@ -401,13 +399,11 @@ static int check_fencing_done(struct lockspace *ls)
 		/* check with fenced to see if the node has been
 		   fenced since node->add_time */
 
-		memset(&nodeinfo, 0, sizeof(nodeinfo));
-
-		rv = fenced_node_info(node->nodeid, &nodeinfo);
+		rv = fence_node_time(node->nodeid, &last_fenced_time);
 		if (rv < 0)
 			log_error("fenced_node_info error %d", rv);
 
-		if (nodeinfo.last_fenced_time > node->add_time) {
+		if (last_fenced_time > node->add_time) {
 			node->check_fencing = 0;
 			node->add_time = 0;
 		} else {
@@ -424,13 +420,13 @@ static int check_fencing_done(struct lockspace *ls)
 	   we may not have seen in any lockspace), and return 0 if there
 	   are any */
 
-	rv = fenced_domain_info(&domain);
+	rv = fence_in_progress(&in_progress);
 	if (rv < 0) {
 		log_error("fenced_domain_info error %d", rv);
 		return 0;
 	}
 
-	if (domain.victim_count)
+	if (in_progress)
 		return 0;
 	return 1;
 }
@@ -443,18 +439,18 @@ static int check_quorum_done(struct lockspace *ls)
 	if (!cfgd_enable_quorum)
 		return 1;
 
-	/* wait for cman to see all the same nodes failed, so we know that
-	   cman_quorate is adjusted for the same failures we've seen
-	   (see comment in fenced about the assumption here) */
+	/* wait for quorum system (cman) to see all the same nodes failed, so
+	   we know that cluster_quorate is adjusted for the same failures we've
+	   seen (see comment in fenced about the assumption here) */
 
 	list_for_each_entry(node, &ls->node_history, list) {
 		if (!node->check_quorum)
 			continue;
 
-		if (!is_cman_member(node->nodeid)) {
+		if (!is_cluster_member(node->nodeid)) {
 			node->check_quorum = 0;
 		} else {
-			log_group(ls, "check_quorum %d is_cman_member",
+			log_group(ls, "check_quorum %d is_cluster_member",
 				  node->nodeid);
 			wait_count++;
 		}
@@ -463,7 +459,7 @@ static int check_quorum_done(struct lockspace *ls)
 	if (wait_count)
 		return 0;
 
-	if (!cman_quorate) {
+	if (!cluster_quorate) {
 		log_group(ls, "check_quorum not quorate");
 		return 0;
 	}
