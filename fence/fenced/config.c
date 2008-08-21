@@ -9,6 +9,7 @@ static int ccs_handle;
 int optd_groupd_compat;
 int optd_debug_logsys;
 int optd_clean_start;
+int optd_skip_undefined;
 int optd_post_join_delay;
 int optd_post_fail_delay;
 int optd_override_time;
@@ -19,6 +20,7 @@ int optd_override_path;
 int cfgd_groupd_compat   = DEFAULT_GROUPD_COMPAT;
 int cfgd_debug_logsys    = DEFAULT_DEBUG_LOGSYS;
 int cfgd_clean_start     = DEFAULT_CLEAN_START;
+int cfgd_skip_undefined  = DEFAULT_SKIP_UNDEFINED;
 int cfgd_post_join_delay = DEFAULT_POST_JOIN_DELAY;
 int cfgd_post_fail_delay = DEFAULT_POST_FAIL_DELAY;
 int cfgd_override_time   = DEFAULT_OVERRIDE_TIME;
@@ -108,12 +110,31 @@ void read_ccs_int(char *path, int *config_val)
 #define POST_FAIL_DELAY_PATH "/cluster/fence_daemon/@post_fail_delay"
 #define OVERRIDE_PATH_PATH "/cluster/fence_daemon/@override_path"
 #define OVERRIDE_TIME_PATH "/cluster/fence_daemon/@override_time"
+#define METHOD_NAME_PATH "/cluster/clusternodes/clusternode[@name=\"%s\"]/fence/method[%d]/@name"
+
+static int count_methods(char *victim)
+{
+	char path[PATH_MAX], *name;
+	int error, i;
+
+	for (i = 0; i < 2; i++) {
+		memset(path, 0, sizeof(path));
+		sprintf(path, METHOD_NAME_PATH, victim, i+1);
+
+		error = ccs_get(ccs_handle, path, &name);
+		if (error)
+			break;
+		free(name);
+	}
+	return i;
+}
 
 int read_ccs(struct fd *fd)
 {
 	char path[PATH_MAX];
-	char *str;
+	char *str, *name;
 	int error, i = 0, count = 0;
+	int num_methods;
 
 	/* Our own nodename must be in cluster.conf before we're allowed to
 	   join the fence domain and then mount gfs; other nodes need this to
@@ -169,8 +190,30 @@ int read_ccs(struct fd *fd)
 		if (error || !str)
 			break;
 
-		add_complete_node(fd, atoi(str));
+		name = NULL;
+		memset(path, 0, sizeof(path));
+		sprintf(path, "/cluster/clusternodes/clusternode[%d]/@name", i);
+
+		error = ccs_get(ccs_handle, path, &name);
+		if (error || !name) {
+			log_error("node name query failed for num %d nodeid %s",
+				  i, str);
+			break;
+		}
+
+		num_methods = count_methods(name);
+
+		/* the libcpg code only uses the fd->complete list for
+		   determining initial victims; the libgroup code uses
+		   fd->complete more extensively */
+
+		if (cfgd_skip_undefined && !num_methods)
+			log_debug("skip %s with zero methods", name);
+		else
+			add_complete_node(fd, atoi(str));
+
 		free(str);
+		free(name);
 		count++;
 	}
 

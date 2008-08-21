@@ -758,6 +758,7 @@ static void print_usage(void)
 	printf("               2: use groupd to detect old, or mode 1, nodes that\n"
 	       "               require compat, use libcpg if none found\n");
 	printf("  -c           All nodes are in a clean state to start\n");
+	printf("  -s           Skip startup fencing of nodes with no defined fence methods\n");
 	printf("  -j <secs>    Post-join fencing delay (default %d)\n", DEFAULT_POST_JOIN_DELAY);
 	printf("  -f <secs>    Post-fail fencing delay (default %d)\n", DEFAULT_POST_FAIL_DELAY);
 	printf("  -R <secs>    Override time (default %d)\n", DEFAULT_OVERRIDE_TIME);
@@ -771,7 +772,7 @@ static void print_usage(void)
 	printf("\n");
 }
 
-#define OPTION_STRING	"L:g:cj:f:Dn:O:T:hVS"
+#define OPTION_STRING	"L:g:cj:f:Dn:O:hVSs"
 
 static void read_arguments(int argc, char **argv)
 {
@@ -800,6 +801,11 @@ static void read_arguments(int argc, char **argv)
 		case 'c':
 			optd_clean_start = 1;
 			cfgd_clean_start = 1;
+			break;
+
+		case 's':
+			optd_skip_undefined = 1;
+			cfgd_skip_undefined = 1;
 			break;
 
 		case 'j':
