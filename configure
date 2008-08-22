@@ -87,7 +87,7 @@ my %options = (
 	enable_crack_of_the_day => \$enable_crack_of_the_day,
 	enable_legacy_code => \$enable_legacy_code,
 	enable_contrib => \$enable_contrib,
-	enable_xen => \$enable_xen,
+	enable_virt => \$enable_virt,
 	somajor => \$somajor,
 	sominor => \$sominor,
 	release_version => \$release_version,
@@ -177,7 +177,7 @@ my $err = &GetOptions (\%options,
 		    'enable_crack_of_the_day',
 		    'enable_legacy_code',
 		    'enable_contrib',
-		    'enable_xen',
+		    'enable_virt',
 		    'without_ccs',
 		    'without_cman',
 		    'without_dlm',
@@ -270,7 +270,7 @@ if ($help || !$err) {
   print "--enable_crack_of_the_day\tEnable build of highly experimental features that rely on code that is not yet available for general use. (Default: no)\n";
   print "--enable_contrib\tEnable build of community contributed code/tools.  (Default: no)\n";
   print "--enable_legacy_code\tEnable build of old/obsolete/unsupported code/tools.  (Default: no)\n";
-  print "--enable_xen\tEnable building of Xen-specific pieces\n";
+  print "--enable_virt\tEnable building of virtualization code (Default: disabled\n";
   print "--without_ccs\tDisable ccs building  (Default: enabled)\n";
   print "--without_cman\tDisable cman building  (Default: enabled)\n";
   print "--without_dlm\tDisable dlm building  (Default: enabled)\n";
@@ -610,8 +610,8 @@ if (!$enable_legacy_code) {
   print "\n********************************************************************************************\n";
   $cflags="${cflags} -DLEGACY_CODE";
 }
-if (!$enable_xen) {
-  $enable_xen="";
+if (!$enable_virt) {
+  $enable_virt="";
 }
 if (!$without_ccs) {
   $without_ccs="";
@@ -680,7 +680,7 @@ if ($fence_agents eq "help") {
 
 if ((!$fence_agents) || ($fence_agents eq "all")) {
   print "\nThe following fence agents will be build on this system:\n$all_fence\n";
-  print "\nNOTE: xvm will build only if --enable_xen has been specified\n\n";
+  print "\nNOTE: xvm will build only if --enable_virt has been specified\n\n";
   $fence_agents = $all_fence
 }
 
@@ -755,7 +755,7 @@ while (<IFILE>) {
   $_ =~ s/\@ENABLE_CRACK_OF_THE_DAY\@/$enable_crack_of_the_day/;
   $_ =~ s/\@ENABLE_LEGACY_CODE\@/$enable_legacy_code/;
   $_ =~ s/\@ENABLE_CONTRIB\@/$enable_contrib/;
-  $_ =~ s/\@ENABLE_XEN\@/$enable_xen/;
+  $_ =~ s/\@ENABLE_VIRT\@/$enable_virt/;
   $_ =~ s/\@DISABLE_CCS\@/$without_ccs/;
   $_ =~ s/\@DISABLE_CMAN\@/$without_cman/;
   $_ =~ s/\@DISABLE_DLM\@/$without_dlm/;
