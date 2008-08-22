@@ -8,6 +8,7 @@ REALSUBDIRS = gnbd-kernel/src gfs-kernel/src/gfs \
 SUBDIRS = $(filter-out \
 	  $(if ${without_gnbd-kernel/src},gnbd-kernel/src) \
 	  $(if ${without_gfs-kernel/src/gfs},gfs-kernel/src/gfs) \
+	  $(if ${without_config},config) \
 	  $(if ${without_cman},cman/lib) \
 	  $(if ${without_cman},cman) \
 	  $(if ${without_dlm},dlm) \

@@ -73,6 +73,7 @@ contrib_code ?= @ENABLE_CONTRIB@
 enable_virt ?= @ENABLE_VIRT@
 without_gnbd-kernel/src ?= @DISABLE_GNBDKERNEL@
 without_gfs-kernel/src/gfs ?= @DISABLE_GFSKERNEL@
+without_config ?= @DISABLE_CONFIG@
 without_cman/lib ?= @DISABLE_CMAN@
 without_cman ?= @DISABLE_CMAN@
 without_dlm ?= @DISABLE_DLM@

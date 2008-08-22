@@ -91,7 +91,7 @@ my %options = (
 	somajor => \$somajor,
 	sominor => \$sominor,
 	release_version => \$release_version,
-	without_ccs => \$without_ccs,
+	without_config => \$without_config,
 	without_cman => \$without_cman,
 	without_dlm => \$without_dlm,
 	without_group => \$without_group,
@@ -178,7 +178,7 @@ my $err = &GetOptions (\%options,
 		    'enable_legacy_code',
 		    'enable_contrib',
 		    'enable_virt',
-		    'without_ccs',
+		    'without_config',
 		    'without_cman',
 		    'without_dlm',
 		    'without_group',
@@ -271,7 +271,7 @@ if ($help || !$err) {
   print "--enable_contrib\tEnable build of community contributed code/tools.  (Default: no)\n";
   print "--enable_legacy_code\tEnable build of old/obsolete/unsupported code/tools.  (Default: no)\n";
   print "--enable_virt\tEnable building of virtualization code (Default: disabled\n";
-  print "--without_ccs\tDisable ccs building  (Default: enabled)\n";
+  print "--without_config\tDisable config building  (Default: enabled)\n";
   print "--without_cman\tDisable cman building  (Default: enabled)\n";
   print "--without_dlm\tDisable dlm building  (Default: enabled)\n";
   print "--without_group\tDisable group building  (Default: enabled)\n";
@@ -613,8 +613,8 @@ if (!$enable_legacy_code) {
 if (!$enable_virt) {
   $enable_virt="";
 }
-if (!$without_ccs) {
-  $without_ccs="";
+if (!$without_config) {
+  $without_config="";
 }
 if (!$without_cman) {
   $without_cman="";
@@ -756,7 +756,7 @@ while (<IFILE>) {
   $_ =~ s/\@ENABLE_LEGACY_CODE\@/$enable_legacy_code/;
   $_ =~ s/\@ENABLE_CONTRIB\@/$enable_contrib/;
   $_ =~ s/\@ENABLE_VIRT\@/$enable_virt/;
-  $_ =~ s/\@DISABLE_CCS\@/$without_ccs/;
+  $_ =~ s/\@DISABLE_CONFIG\@/$without_config/;
   $_ =~ s/\@DISABLE_CMAN\@/$without_cman/;
   $_ =~ s/\@DISABLE_DLM\@/$without_dlm/;
   $_ =~ s/\@DISABLE_GROUP\@/$without_group/;
