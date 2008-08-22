@@ -694,7 +694,7 @@ ipv4()
 			if [ "${addr/\/*/}" != "$ifaddr" ]; then
 			        continue
 			fi
-			addr=`/sbin/ip addr list | grep "$addr/" | head -n 1 | awk '{print $2}'`
+			addr=`/sbin/ip addr list | grep "$ifaddr/" | head -n 1 | awk '{print $2}'`
 			ocf_log info "Removing IPv4 address $addr from $dev"
 		fi
 		
