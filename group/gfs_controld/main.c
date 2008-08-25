@@ -275,6 +275,12 @@ static void process_uevent(int ci)
 	if (!strstr(buf, "gfs"))
 		return;
 
+	/* if an fs is named "gfs", it results in dlm uevents
+	   like "remove@/kernel/dlm/gfs" */
+
+	if (strstr(buf, "kernel/dlm"))
+		return;
+
 	log_debug("uevent: %s", buf);
 
 	if (strstr(buf, "lock_module"))
