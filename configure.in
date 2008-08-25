@@ -2627,26 +2627,10 @@ if test "x" = "x$VALGRIND_LOG"; then
 fi
 
 AC_PATH_PROG(VALGRIND_BIN, valgrind)
-if test "xyes" = "x$enable_valgrind" -a "x$VALGRIND_BIN" != "x"; then
-   enable_libc_malloc=yes
-fi
 
 AC_DEFINE_UNQUOTED(VALGRIND_BIN, "$VALGRIND_BIN", Valgrind command)
 AC_DEFINE_UNQUOTED(VALGRIND_LOG, "$VALGRIND_LOG", Valgrind logging options)
 AC_DEFINE_UNQUOTED(VALGRIND_SUPP, "$VALGRIND_SUPP", Name of a suppression file to pass to Valgrind)
-
-AC_ARG_ENABLE([libc-malloc],
-	[  --enable-libc-malloc  Use libc malloc instead of Heartbeat's custom one.  [default=no]],
-	[], [enable_libc_malloc=no])
-
-
-AC_MSG_CHECKING(which malloc routines to use)
-if test "xyes" = "x$enable_libc_malloc" -o "x1" = "x$enable_libc_malloc"; then
-   AC_MSG_RESULT(libc)
-   AC_DEFINE_UNQUOTED(CL_USE_LIBC_MALLOC, 1, Use libc malloc instead of Heartbeat's custom one.)
-else
-   AC_MSG_RESULT(clplumbing)
-fi
 
 dnl **********************************************************************
 dnl 'AWK' had been determined via 'aclocal.m4' as the simple name, using
