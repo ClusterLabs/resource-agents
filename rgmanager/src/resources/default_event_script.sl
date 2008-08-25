@@ -289,7 +289,15 @@ define default_user_event_handler()
 
 		ret = service_stop(service_name);
 
-	} 
+	} else if (user_request == USER_FREEZE) {
+
+		ret = service_freeze(service_name);
+
+	} else if (user_request == USER_UNFREEZE) {
+
+		ret = service_unfreeze(service_name);
+
+	}
 
 	%
 	% todo - migrate

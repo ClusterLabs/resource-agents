@@ -1506,7 +1506,8 @@ _svc_freeze(char *svcName, int enabled)
 		return RG_EFAIL;
 	}
 
-	clulog(LOG_DEBUG, "Handling %s request for RG %s\n", svcName, enabled?"freeze":"unfreeze");
+	clulog(LOG_DEBUG, "Handling %s request for RG %s\n", enabled?"freeze":"unfreeze",
+	       svcName);
 
 	if (get_rg_state(svcName, &svcStatus) != 0) {
 		rg_unlock(&lockp);

@@ -82,7 +82,9 @@ static int
    _user_stop = RG_STOP_USER,		/* From clusvcadm */
    _user_relo = RG_RELOCATE,
    _user_restart = RG_RESTART,
-   _user_migrate = RG_MIGRATE;
+   _user_migrate = RG_MIGRATE,
+   _user_freeze = RG_FREEZE,
+   _user_unfreeze = RG_UNFREEZE;
 
 
 SLang_Intrin_Var_Type rgmanager_vars[] =
@@ -131,6 +133,8 @@ SLang_Intrin_Var_Type rgmanager_vars[] =
 	MAKE_VARIABLE("USER_RELOCATE",	&_user_relo,	SLANG_INT_TYPE, 1),
 	MAKE_VARIABLE("USER_RESTART",	&_user_restart,	SLANG_INT_TYPE, 1),
 	MAKE_VARIABLE("USER_MIGRATE",	&_user_migrate,	SLANG_INT_TYPE, 1),
+	MAKE_VARIABLE("USER_FREEZE",	&_user_freeze,	SLANG_INT_TYPE, 1),
+	MAKE_VARIABLE("USER_UNFREEZE",	&_user_unfreeze,SLANG_INT_TYPE, 1),
 
 	/* Errors */
 	MAKE_VARIABLE("rg_error",	&_rg_err,	SLANG_INT_TYPE, 1),
@@ -260,6 +264,21 @@ sl_service_status(char *svcName)
 			     svcName);
 		free(state_str);
 	}
+}
+
+
+/* These can be done by the master node */
+int
+sl_service_freeze(char *svcName)
+{
+	return svc_freeze(svcName);
+}
+
+
+int
+sl_service_unfreeze(char *svcName)
+{
+	return svc_unfreeze(svcName);
 }
 
 
@@ -936,6 +955,10 @@ SLang_Intrin_Fun_Type rgmanager_slang[] =
 	MAKE_INTRINSIC_0("service_start", sl_start_service, SLANG_INT_TYPE),
 	MAKE_INTRINSIC_S("service_status", sl_service_status,
 			 SLANG_VOID_TYPE),
+	MAKE_INTRINSIC_S("service_freeze", sl_service_freeze,
+			 SLANG_INT_TYPE),
+	MAKE_INTRINSIC_S("service_unfreeze", sl_service_unfreeze,
+			 SLANG_INT_TYPE),
 
 	/* Node list manipulation */
 	MAKE_INTRINSIC_0("union", sl_union, SLANG_VOID_TYPE),
