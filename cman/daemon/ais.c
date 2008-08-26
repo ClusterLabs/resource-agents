@@ -243,7 +243,7 @@ static void cman_deliver_fn(unsigned int nodeid, struct iovec *iovec, int iov_le
 	    header->tgtid == 0) {
 		send_to_userport(header->srcport, header->tgtport,
 				 header->srcid, header->tgtid,
-				 buf + sizeof(struct cl_protheader), iovec->iov_len,
+				 buf + sizeof(struct cl_protheader), iovec->iov_len - sizeof(struct cl_protheader),
 				 endian_conversion_required);
 	}
 }
