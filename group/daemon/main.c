@@ -781,7 +781,8 @@ static void loop(void)
 	for (;;) {
 		rv = poll(pollfd, client_maxi + 1, poll_timeout);
 		if (rv == -1 && errno == EINTR) {
-			if (daemon_quit && list_empty(&gd_groups))
+			if (daemon_quit && (group_mode == GROUP_LIBCPG ||
+					    list_empty(&gd_groups)))
 				goto out;
 			daemon_quit = 0;
 			continue;
