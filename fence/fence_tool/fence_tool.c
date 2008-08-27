@@ -27,20 +27,28 @@
 
 #define DEFAULT_WAIT_TIMEOUT		300 /* five minutes */
 
-#define die(fmt, args...) \
-do { \
-	fprintf(stderr, "%s: ", prog_name); \
-	fprintf(stderr, fmt "\n", ##args); \
-	exit(EXIT_FAILURE); \
-} while (0)
+#define MAX_NODES			128
 
+int all_nodeids[MAX_NODES];
+int all_nodeids_count;
+cman_node_t cman_nodes[MAX_NODES];
+int cman_nodes_count;
+struct fenced_node nodes[MAX_NODES];
 char *prog_name;
 int operation;
 int verbose = 0;
 int inquorate_fail = 0;
 int wait_join = 0;			 /* default: don't wait for join */
 int wait_leave = 0;			 /* default: don't wait for leave */
-int wait_timeout = DEFAULT_WAIT_TIMEOUT; /* applies to all waits */
+int wait_members = 0;			 /* default: don't wait for members */
+int wait_timeout = DEFAULT_WAIT_TIMEOUT;
+
+#define die(fmt, args...) \
+do { \
+	fprintf(stderr, "%s: ", prog_name); \
+	fprintf(stderr, fmt "\n", ##args); \
+	exit(EXIT_FAILURE); \
+} while (0)
 
 static int do_write(int fd, void *buf, size_t count)
 {
@@ -116,7 +124,7 @@ static int we_are_in_fence_domain(void)
 	return 0;
 }
 
-static void do_wait(int joining)
+static void wait_domain(int joining)
 {
 	int in, tries = 0;
 
@@ -144,10 +152,65 @@ static void do_wait(int joining)
 	printf("Error %s the fence group.\n", joining ? "joining" : "leaving");
 }
 
-static void wait_quorum(void)
+static void read_ccs_nodeids(int cd)
+{
+	char path[PATH_MAX];
+	char *nodeid_str;
+	int i, error;
+
+	memset(all_nodeids, 0, sizeof(all_nodeids));
+	all_nodeids_count = 0;
+
+	for (i = 1; ; i++) {
+		nodeid_str = NULL;
+		memset(path, 0, sizeof(path));
+		sprintf(path, "/cluster/clusternodes/clusternode[%d]/@nodeid", i);
+
+		error = ccs_get(cd, path, &nodeid_str);
+		if (error || !nodeid_str)
+			break;
+
+		all_nodeids[all_nodeids_count++] = atoi(nodeid_str);
+		free(nodeid_str);
+	}
+}
+
+static int all_nodeids_are_members(cman_handle_t ch)
+{
+	int i, j, rv, found;
+
+	memset(&cman_nodes, 0, sizeof(cman_nodes));
+	cman_nodes_count = 0;
+
+	rv = cman_get_nodes(ch, MAX_NODES, &cman_nodes_count, cman_nodes);
+	if (rv < 0) {
+		printf("cman_get_nodes error %d %d\n", rv, errno);
+		return 0;
+	}
+
+	for (i = 0; i < all_nodeids_count; i++) {
+		found = 0;
+
+		for (j = 0; j < cman_nodes_count; j++) {
+			if (cman_nodes[j].cn_nodeid == all_nodeids[i] &&
+			    cman_nodes[j].cn_member) {
+				found = 1;
+				break;
+			}
+		}
+
+		if (!found)
+			return 0;
+	}
+	return 1;
+}
+
+static void wait_cman(void)
 {
 	cman_handle_t ch;
-	int rv, try_init = 0, try_active = 0, try_quorate = 0;
+	int try_init = 0, try_active = 0, try_quorate = 0;
+	int try_ccs = 0, try_members = 0;
+	int rv, cd;
 
 	while (1) {
 		ch = cman_init(NULL);
@@ -157,8 +220,11 @@ static void wait_quorum(void)
 		if (inquorate_fail)
 			goto fail;
 
-		if (try_init++ >= wait_timeout)
-			goto fail_err;
+		if (try_init++ >= wait_timeout) {
+			printf("%s: timed out waiting for cman init\n",
+			       prog_name);
+			goto fail;
+		}
 
 		if (!(try_init % 10))
 			printf("%s: waiting for cman to start\n", prog_name);
@@ -174,12 +240,14 @@ static void wait_quorum(void)
 		if (inquorate_fail)
 			goto fail;
 
-		if (try_active++ >= wait_timeout)
-			goto fail_err;
+		if (try_active++ >= wait_timeout) {
+			printf("%s: timed out waiting for cman active\n",
+			       prog_name);
+			goto fail;
+		}
 
 		if (!(try_active % 10))
-			printf("%s: waiting for cman to be active\n",prog_name);
-
+			printf("%s: waiting for cman active\n", prog_name);
 		sleep(1);
 	}
 
@@ -191,22 +259,61 @@ static void wait_quorum(void)
 		if (inquorate_fail)
 			goto fail;
 
-		if (try_quorate++ >= wait_timeout)
-			goto fail_err;
+		if (try_quorate++ >= wait_timeout) {
+			printf("%s: timed out waiting for cman quorum\n",
+			       prog_name);
+			goto fail;
+		}
 
 		if (!(try_quorate % 10))
-			printf("%s: waiting for cluster quorum\n", prog_name);
+			printf("%s: waiting for cman quorum\n", prog_name);
 
 		sleep(1);
 	}
 
+	while (1) {
+		cd = ccs_connect();
+		if (cd > 0)
+			break;
+
+		if (try_ccs++ >= wait_timeout) {
+			printf("%s: timed out waiting for ccs connect\n",
+			       prog_name);
+			goto fail;
+		}
+
+		if (!(try_ccs % 10))
+			printf("%s: waiting for ccs connect\n", prog_name);
+
+		sleep(1);
+	}
+
+	if (!wait_members)
+		goto out;
+	read_ccs_nodeids(cd);
+
+	while (1) {
+		rv = all_nodeids_are_members(ch);
+		if (rv)
+			break;
+
+		if (try_members++ >= wait_members)
+			break;
+
+		if (!(try_members % 10))
+			printf("%s: waiting for all %d nodes to be members\n",
+			       prog_name, all_nodeids_count);
+		sleep(1);
+	}
+
+ out:
+	ccs_disconnect(cd);
 	cman_finish(ch);
 	return;
 
- fail_err:
-	printf("%s: Timed out waiting for cluster quorum to form.\n",
-	       prog_name);
  fail:
+	if (ch)
+		cman_finish(ch);
 	exit(EXIT_FAILURE);
 }
 
@@ -214,14 +321,14 @@ static void do_join(int argc, char *argv[])
 {
 	int rv;
 
-	wait_quorum();
+	wait_cman();
 
 	rv = fenced_join();
 	if (rv < 0)
 		die("can't communicate with fenced");
 
 	if (wait_join)
-		do_wait(1);
+		wait_domain(1);
 
 	exit(EXIT_SUCCESS);
 }
@@ -237,7 +344,7 @@ static void do_leave(void)
 		die("can't communicate with fenced");
 
 	if (wait_leave)
-		do_wait(0);
+		wait_domain(0);
 
 	exit(EXIT_SUCCESS);
 }
@@ -263,10 +370,6 @@ static int node_compare(const void *va, const void *vb)
 
 	return a->nodeid - b->nodeid;
 }
-
-#define MAX_NODES 128
-
-struct fenced_node nodes[MAX_NODES];
 
 static int do_list(void)
 {
@@ -346,6 +449,8 @@ static void print_usage(void)
 	printf("  dump		   Dump debug buffer from fenced\n");
 	printf("\n");
 	printf("Options:\n");
+	printf("  -m <seconds>     Delay join up to <seconds> for all nodes in cluster.conf\n");
+	printf("                   to be cluster members\n");
 	printf("  -w               Wait for join or leave to complete\n");
 	printf("  -t <seconds>     Maximum time in seconds to wait (default %d)\n", DEFAULT_WAIT_TIMEOUT);
 	printf("  -Q               Fail if cluster is not quorate, don't wait\n");
@@ -354,7 +459,7 @@ static void print_usage(void)
 	printf("\n");
 }
 
-#define OPTION_STRING "vVht:wQ"
+#define OPTION_STRING "vVht:wQm:"
 
 static void decode_arguments(int argc, char *argv[])
 {
@@ -389,6 +494,10 @@ static void decode_arguments(int argc, char *argv[])
 		case 'w':
 			wait_join = 1;
 			wait_leave = 1;
+			break;
+
+		case 'm':
+			wait_members = atoi(optarg);
 			break;
 
 		case 't':

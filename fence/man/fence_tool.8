@@ -20,6 +20,9 @@ it to stdout.
 
 .SH OPTIONS
 .TP
+\fB-m\fP <n>
+Delay join up to n seconds for all nodes in cluster.conf to be cluster members.
+.TP
 \fB-w\fP
 Wait until the join or leave is completed.
 .TP
@@ -29,8 +32,8 @@ Help.  Print out the usage syntax.
 \fB-V\fP
 Print version information.
 .TP
-\fB-t\fP
-Maximum time in seconds to wait (default: 300 seconds)
+\fB-t\fP <n>
+Maximum time in seconds to wait for quorum or -w (default: 300 seconds)
 .TP
 \fB-Q\fP
 Fail command immediately if the cluster is not quorate, don't wait.
