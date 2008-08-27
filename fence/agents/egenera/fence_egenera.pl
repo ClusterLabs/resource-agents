@@ -284,7 +284,8 @@ sub pserver_shutdown
 {
 	my $rtrn=1;
         local *egen_log;
-        open(egen_log,">/tmp/eglog");
+        open(egen_log,">>/tmp/eglog");
+  print egen_log "Attempting shutdown at ".`date`."\n";
 	for (my $trys=0; $trys<20; $trys++)
 	{
 		last if (pserver_status != 0);
@@ -303,6 +304,12 @@ sub pserver_shutdown
 			# do I need to do anything here?  
 			# We'll just wait for now
 		}
+    elsif (/^Booting/)
+    {
+       # Server is already on the way back up. Do nothing
+       $rtrn=0;
+       last;
+    }
 		elsif (/^Booted\(KDB\)/ || /^Debugging/ )
 		{
 			print egen_log "shutdown: crash dump being performed. Waiting\n";
