@@ -10,15 +10,15 @@ CFLAGS += -I$(SRCDIR)/gfs2/include
 LDFLAGS += -L$(OBJDIR)/gfs2/libgfs2 -lgfs2
 
 build:
-	CFLAGS="$(CFLAGS)" LDFLAGS="$(LDFLAGS)" python setup.py build
+	CFLAGS="$(CFLAGS)" LDFLAGS="$(LDFLAGS)" python $(S)/setup.py build
 
 install:
-	python setup.py install --root $(DESTDIR)
+	python $(S)/setup.py install --root $(DESTDIR)
 
 uninstall:
 	@echo UNINSTALL TARGET UNSUPPORTED
 
 clean:
-	python setup.py clean
-	rm askant/*.pyc
+	python $(S)/setup.py clean
+	rm -rf askant/*.pyc
 	rm -rf build
