@@ -14,9 +14,8 @@ Out (iLO) PCI card.  The agent opens an SSL connection to the iLO card.  Once th
 SSL connection is established, the agent is able to communicate with the iLO
 card through an XML stream.  
 
-fence_ilo depends on the Net::SSLeay or Net::SSL perl module in order to establish 
-the SSL connection to the iLO card.  Net::SSL is available in the perl-Crypt-SSLeay package
-on RHN (http://rhn.redhat.com). Net::SSLeay is available at http://www.cpan.org.
+fence_ilo depends on the pyOpenSSL available in your distribution or 
+downloadable from http://pyopenssl.sourceforge.net
 
 NOTE: fence_ilo deprecates fence_rib.  
 
@@ -37,7 +36,12 @@ Login name.
 The action required.  reboot (default), off, on or status.
 .TP
 \fB-p\fP \fIpassword\fR
-Password for login.
+Password for login or for passphrase.
+.TP
+\fB-S\fP \fIscript\fR
+Script to run to retrieve password.
+\fB-z\fP
+Use secure connection over SSL (default).
 .TP
 \fB-S\fP \fIpath\fR
 Full path to an executable to generate the password for login.
@@ -64,6 +68,15 @@ IP address or hostname of the iLO card.
 .TP
 \fIlogin = < param >\fR
 Login name.
+.TP
+\fIpasswd = < param >\fR
+Password for login or for passphrase.
+.TP
+\fIpasswd_script = < param >\fR
+Script to run to retrieve password.
+.TP
+\fIssl = < param >\fR
+Use secure connection over SSL.
 .TP
 \fIpasswd = < param >\fR
 Password for login.
