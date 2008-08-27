@@ -64,6 +64,10 @@ fi
 # higher elsewhere it will not be reduced here.
 [ -z "$NET_RMEM_MAX" ] && NET_RMEM_MAX=4194304
 
+# FENCED_MEMBER_DELAY -- amount of time to delay fence_tool join to allow
+#     all nodes in cluster.conf to become cluster members.  In seconds.
+[ -z "$FENCED_MEMBER_DELAY" ] && FENCED_MEMBER_DELAY=45
+
 # FENCE_JOIN -- boolean value used to control whether or not this node
 #     should join the fence domain. If FENCE_JOIN is set to "no", then
 #     the script will not attempt to the fence domain. If FENCE_JOIN is
@@ -236,8 +240,16 @@ start_daemons()
 
 start_fence()
 {
-    errmsg=$( /sbin/fence_tool -w -t $FENCED_START_TIMEOUT join \
-	     > /dev/null 2>&1 ) || return 1
+    /usr/sbin/cman_tool status | grep Flags | grep 2node &> /dev/null
+    if [ $? -ne 0 ]
+    then
+        errmsg=$( /sbin/fence_tool -w -t $FENCED_START_TIMEOUT join \
+                 > /dev/null 2>&1 ) || return 1
+    else
+        errmsg=$( /sbin/fence_tool -w -t $FENCED_START_TIMEOUT \
+                 -m $FENCED_MEMBER_DELAY join \
+                 > /dev/null 2>&1 ) || return 1
+    fi
     return 0
 }
 
