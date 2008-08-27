@@ -35,8 +35,7 @@ def get_power_status(conn, options):
 	## Transformation to standard ON/OFF status if possible
 	if status == "Running":
 		status = "on"
-
-	if status == "Not Activated":
+	else:
 		status = "off"
 
 	return status
