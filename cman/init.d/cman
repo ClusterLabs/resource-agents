@@ -8,8 +8,8 @@
 #
 ### BEGIN INIT INFO
 # Provides:		cman
-# Required-Start:	$network
-# Required-Stop:	$network
+# Required-Start:	$network $time
+# Required-Stop:	$network $time
 # Default-Start:
 # Default-Stop:
 # Short-Description:	Starts and stops cman
