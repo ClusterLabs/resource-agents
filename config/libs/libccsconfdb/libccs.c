@@ -563,7 +563,7 @@ fail:
  *
  * Returns: 0 on success, < 0 on failure
  */
-int _ccs_get_xpathlite(int desc, const char *query, char **rtn, int list)
+static int _ccs_get_xpathlite(int desc, const char *query, char **rtn, int list)
 {
 	int res = 0, confdbres = 0, is_oldlist = 0;
 	int tokens, i;
@@ -627,7 +627,7 @@ fail:
  *
  * Returns: 0 on success, < 0 on failure
  */
-int _ccs_get_fullxpath(int desc, const char *query, char **rtn, int list)
+static int _ccs_get_fullxpath(int desc, const char *query, char **rtn, int list)
 {
 	int res = 0;
 	xmlXPathObjectPtr obj = NULL;
