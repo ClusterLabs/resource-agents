@@ -857,7 +857,7 @@ static int _process_get(comm_header_t *ch, char **payload){
     if(obj->nodesetval && (obj->nodesetval->nodeNr > 0) ){
       xmlNodePtr node;
       int size=0;
-      int nnv=0; /* name 'n' value */
+      int nnv=0, child=0; /* name 'n' value */
 
       if(ocs[desc]->oc_index >= obj->nodesetval->nodeNr){
 	ocs[desc]->oc_index = 0;
@@ -881,10 +881,11 @@ static int _process_get(comm_header_t *ch, char **payload){
 	 ((node->type == XML_ELEMENT_NODE) && strstr(query, "child::*"))){
 	/* add on the trailing NULL and the '=' separator for a list of attrs
 	   or an element node + CDATA*/
- 	if (node->children && node->children->content)
+ 	if (node->children && node->children->content) {
  	  size = strlen((char *)node->children->content) +
 		 strlen((char *)node->name)+2;
- 	else 
+	  child = 1;
+ 	} else 
  	  size = strlen((char *)node->name)+2;
 	nnv= 1;
       } else {
@@ -899,8 +900,10 @@ static int _process_get(comm_header_t *ch, char **payload){
       if(size <= ch->comm_payload_size){  /* do we already have enough space? */
 	log_printf(LOG_DEBUG, "No extra space needed.\n");
 	if(nnv){
- 	  sprintf(*payload, "%s=%s", node->name, node->children ?
- 					 (char *)node->children->content:"");
+	  if(child)
+ 	    sprintf(*payload, "%s=%s", node->name, (char *)node->children->content);
+	  else
+	    sprintf(*payload, "%s=", node->name);
 	} else {
  	  sprintf(*payload, "%s", node->children ? node->children->content :
  				  node->name);
@@ -914,9 +917,12 @@ static int _process_get(comm_header_t *ch, char **payload){
 	  error = -ENOMEM;
 	  goto fail;
 	}
+	memset(*payload,0,size);
 	if(nnv){
- 	  sprintf(*payload, "%s=%s", node->name, node->children ?
- 					 (char *)node->children->content:"");
+	  if(child)
+ 	    sprintf(*payload, "%s=%s", node->name, (char *)node->children->content);
+	  else
+	    sprintf(*payload, "%s=", node->name);
 	} else {
  	  sprintf(*payload, "%s", node->children ? node->children->content :
  				  node->name);

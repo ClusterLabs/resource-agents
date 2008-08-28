@@ -58,7 +58,7 @@ static char *do_xml_query(xmlXPathContextPtr ctx, char *query, int list) {
 	xmlXPathObjectPtr obj = NULL;
 	xmlNodePtr node = NULL;
 	char *rtn = NULL;
-	int size = 0, nnv = 0;
+	int size = 0, nnv = 0, child = 0;
 
 	if (list && !strcmp(query, previous_query))
 		xmllistindex++;
@@ -81,10 +81,11 @@ static char *do_xml_query(xmlXPathContextPtr ctx, char *query, int list) {
 
 		if (((node->type == XML_ATTRIBUTE_NODE) && strstr(query, "@*")) ||
 		     ((node->type == XML_ELEMENT_NODE) && strstr(query, "child::*"))) {
-			if (node->children && node->children->content)
+			if (node->children && node->children->content) {
 				size = strlen((char *)node->children->content) +
 					strlen((char *)node->name)+2;
-			else
+				child = 1;
+			} else
 				size = strlen((char *)node->name)+2;
 
 			nnv = 1;
@@ -99,9 +100,14 @@ static char *do_xml_query(xmlXPathContextPtr ctx, char *query, int list) {
 		if (!rtn)
 			goto fail;
 
-		if (nnv)
-			sprintf(rtn, "%s=%s", node->name, node->children ? (char *)node->children->content:"");
-		else
+		memset(rtn, 0, size);
+
+		if (nnv) {
+			if (child)
+				sprintf(rtn, "%s=%s", node->name, (char *)node->children->content);
+			else
+				sprintf(rtn, "%s=", node->name);
+		} else
 			sprintf(rtn, "%s", node->children ? node->children->content : node->name);
 
 		if(list)
