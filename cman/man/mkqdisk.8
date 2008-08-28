@@ -4,7 +4,7 @@ mkqdisk \- Cluster Quorum Disk Utility
 .SH "WARNING"
 Use of this command can cause the cluster to malfunction.
 .SH "SYNOPSIS"
-\fBmkqdisk [\-?|\-h] | [\-L] | [\-f \fPlabel\fB] [\-c \fPdevice \fB -l \fPlabel\fB]
+\fBmkqdisk [\-?|\-h] | [\-L] | [\-f \fPlabel\fB] [\-c \fPdevice \fB -l \fPlabel\fB] [-d [-d ...]]
 .SH "DESCRIPTION"
 .PP 
 The \fBmkqdisk\fP command is used to create a new quorum disk or display
@@ -23,6 +23,9 @@ a UUID created with uuidgen(1).
 Find the cluster quorum disk with the given label and display information about it.
 .IP "\-L"
 Display information on all accessible cluster quorum disks.
+.IP "\-d"
+Increase debugging level.  Specify multiple times for more information.
+Currently, specifying more than twice has no effect.
 
 .SH "SEE ALSO"
 qdisk(5), qdiskd(8), uuidgen(1)

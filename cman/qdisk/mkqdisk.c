@@ -63,7 +63,7 @@ main(int argc, char **argv)
 			break;
 		case 'h':
 			printf("usage: mkqdisk -L | -f <label> | -c "
-			       "<device> -l <label>\n");
+			       "<device> -l <label> [-d]\n");
 			return 0;
 		default:
 			break;
