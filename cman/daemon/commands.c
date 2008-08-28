@@ -2069,7 +2069,7 @@ void add_ais_node(int nodeid, uint64_t incarnation, int total_members)
 		node = add_new_node(tempname, nodeid, 1, total_members, NODESTATE_DEAD);
 	}
 
-	if (node->state == NODESTATE_DEAD) {
+	if (node->state == NODESTATE_DEAD || node->state == NODESTATE_LEAVING) {
 		gettimeofday(&node->join_time, NULL);
 		node->incarnation = incarnation;
 		node->state = NODESTATE_MEMBER;
