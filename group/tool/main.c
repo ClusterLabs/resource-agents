@@ -89,7 +89,9 @@ static void print_usage(void)
 	printf("\n");
 	printf("Display group information from groupd\n");
 	printf("ls                 Show information for all groups\n");
-	printf("ls <level> <name>  Show information one group\n");
+	printf("ls <level> <name>  Show information one group.  If\n");
+	printf("                   we are not a member of the group,\n");
+	printf("                   return 1.\n");
 	printf("\n");
 	printf("Display debugging information\n");
 	printf("dump               Show debug log from groupd\n");
@@ -264,7 +266,7 @@ static int member_compare(const void *va, const void *vb)
 static int groupd_list(int argc, char **argv)
 {
 	group_data_t data[MAX_GROUPS];
-	int i, j, rv, count = 0, level;
+	int i, j, rv, count = 0, level, ret = 0;
 	char *name, *state_header;
 	int type_width = 16;
 	int level_width = 5;
@@ -281,6 +283,18 @@ static int groupd_list(int argc, char **argv)
 
 		rv = group_get_group(level, name, data);
 		count = 1;
+
+		/* don't output if there's no group at all */
+		if (data[0].id == 0) {
+			fprintf(stderr, "groupd has no information about "
+			        "the specified group\n");
+			return 1;
+		}
+		/* If we wanted a specific group but we are not
+		   joined, print it out - but return failure to
+		   the caller */
+		if (data[0].member != 1)
+			ret = 1;
 	} else
 		rv = group_get_groups(MAX_GROUPS, &count, data);
 
@@ -331,7 +345,7 @@ static int groupd_list(int argc, char **argv)
 		}
 		printf("]\n");
 	}
-	return 0;
+	return ret;
 }
 
 static int fenced_node_compare(const void *va, const void *vb)
