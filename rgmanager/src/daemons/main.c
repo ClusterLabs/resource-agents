@@ -42,6 +42,9 @@ int svc_exists(char *);
 int watchdog_init(void);
 int32_t master_event_callback(char *key, uint64_t viewno, void *data, uint32_t datalen);
 
+int node_has_fencing(int nodeid);
+int fence_domain_joined(void);
+
 int shutdown_pending = 0, running = 1, need_reconfigure = 0;
 char debug = 0; /* XXX* */
 static int signalled = 0;
@@ -892,7 +895,25 @@ clu_initialize(cman_handle_t *ch)
 		while (cman_is_quorate(*ch) == 0) {
 			sleep(1);
 		}
-		clulog(LOG_NOTICE, "Quorum formed, starting\n");
+		clulog(LOG_NOTICE, "Quorum formed\n");
+	}
+
+}
+
+
+void
+wait_for_fencing(void)
+{
+        if (node_has_fencing(my_id()) && !fence_domain_joined()) {
+		clulog(LOG_INFO, "Waiting for fence domain join operation "
+		       "to complete\n");
+
+		while (fence_domain_joined() == 0)
+			sleep(1);
+		clulog(LOG_INFO, "Fence domain joined\n");
+	} else {
+		clulog(LOG_DEBUG, "Fence domain already joined "
+		       "or no fencing configured\n");
 	}
 }
 
@@ -1000,6 +1021,8 @@ main(int argc, char **argv)
 	set_my_id(me.cn_nodeid);
 
 	clulog(LOG_INFO, "I am node #%d\n", my_id());
+
+	wait_for_fencing();
 
 	/*
 	   We know we're quorate.  At this point, we need to

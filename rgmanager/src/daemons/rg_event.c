@@ -157,6 +157,20 @@ node_has_fencing(int nodeid)
 }
 
 
+/* Since the API for groupd is private, use group_tool to find
+   out if we've joined the fence domain */ 
+int
+fence_domain_joined(void)
+{
+	int rv;
+
+	rv = system("group_tool ls fence default &> /dev/null");	
+	if (rv == 0)
+		return 1;
+	return 0;
+}
+
+
 /**
    Quick query to cman to see if a node has been fenced.
  */
