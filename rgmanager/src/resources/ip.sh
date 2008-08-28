@@ -619,12 +619,16 @@ ipv6()
                         if [ $? -ne 0 ]; then
                                 continue
                         fi
+			if [ "${addr/\/*/}" = "${addr}" ]; then
+				addr="$addr/$maskbits"
+			fi
 			ocf_log info "Adding IPv6 address $addr to $dev"
 		fi
 		if [ "$1" = "del" ]; then
 		        if [ "${addr_exp/\/*/}" != "$ifaddr_exp" ]; then
 			        continue
 			fi
+			addr=`/sbin/ip addr list | grep "$addr" | head -n 1 | awk '{print $2}'`
 			ocf_log info "Removing IPv6 address $addr from $dev"
                 fi
 		
