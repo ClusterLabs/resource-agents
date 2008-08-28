@@ -18,13 +18,8 @@
 
 . /etc/init.d/functions
 
-if [ -f /etc/sysconfig/cman ]; then
-    . /etc/sysconfig/cman
-    echo "/etc/sysconfig/cman has been deprecated in favour of /etc/sysconfig/cluster"
-    echo "Please consider switching to the new file"
-fi
-
 [ -f /etc/sysconfig/cluster ] && . /etc/sysconfig/cluster
+[ -f /etc/sysconfig/cman ] && . /etc/sysconfig/cman
 
 [ -z "$CCSD_OPTS" ] && CCSD_OPTS=
 

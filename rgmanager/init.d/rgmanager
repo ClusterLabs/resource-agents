@@ -18,6 +18,7 @@
 
 # Grab cluster start config if it exists
 [ -f /etc/sysconfig/cluster ] && . /etc/sysconfig/cluster
+[ -f /etc/sysconfig/rgmanager ] && . /etc/sysconfig/rgmanager
 
 PATH=/sbin:/bin:/usr/sbin:/usr/bin
 

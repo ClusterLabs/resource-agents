@@ -17,6 +17,7 @@
 
 . /etc/init.d/functions
 [ -f /etc/sysconfig/cluster ] && . /etc/sysconfig/cluster
+[ -f /etc/sysconfig/qdiskd ] && . /etc/sysconfig/qdiskd
 
 LOCK_FILE="/var/lock/subsys/qdiskd"
 

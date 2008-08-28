@@ -17,6 +17,7 @@
 
 . /etc/init.d/functions
 [ -f /etc/sysconfig/cluster ] && . /etc/sysconfig/cluster
+[ -f /etc/sysconfig/gfs ] && . /etc/sysconfig/gfs
 
 #
 # This script's behavior is modeled closely after the netfs script.  
