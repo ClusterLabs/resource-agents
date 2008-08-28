@@ -75,8 +75,18 @@ int check_block_status(struct gfs2_sbd *sbp, char *buffer, unsigned int buflen,
 
 		block_status = convert_mark(&q, count);
 
-		if (rg_status != block_status) {
-			const char *blockstatus[] = {"Free", "Data", "Invalid", "inode"};
+		/* If one node opens a file and another node deletes it, we
+		   may be left with a block that appears to be "unlinked" in
+		   the bitmap, but nothing links to it. This is a valid case
+		   and should be cleaned up by the file system eventually.
+		   So we ignore it. */
+		if (rg_status == GFS2_BLKST_UNLINKED &&
+		    block_status == GFS2_BLKST_FREE) {
+			log_warn("Unlinked block found at block %"
+				 PRIu64" (0x%" PRIx64 "), left unchanged.\n",
+				 block, block);
+		} else if (rg_status != block_status) {
+			const char *blockstatus[] = {"Free", "Data", "Unlinked", "inode"};
 
 			log_err("Ondisk and fsck bitmaps differ at"
 					" block %"PRIu64" (0x%" PRIx64 ") \n", block, block);
