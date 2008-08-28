@@ -28,7 +28,7 @@ ifndef MAKESTATICLIB
 all: $(STATICLIB) $(SHAREDLIB)
 
 $(SHAREDLIB): $(OBJS)
-	$(CC) -shared -o $@ -Wl,-soname=$(TARGET).so.$(SOMAJOR) $< $(LDFLAGS)
+	$(CC) -shared -o $@ -Wl,-soname=$(TARGET).so.$(SOMAJOR) $^ $(LDFLAGS)
 	ln -sf $(TARGET).so.$(SOMAJOR).$(SOMINOR) $(TARGET).so
 	ln -sf $(TARGET).so.$(SOMAJOR).$(SOMINOR) $(TARGET).so.$(SOMAJOR)
 

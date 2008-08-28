@@ -37,7 +37,7 @@ CFLAGS += -I${virtincdir} -I${nssincdir} -I${nsprincdir}
 CFLAGS += `xml2-config --cflags`
 CFLAGS += -I${incdir}
 
-EXTRA_CFLAGS += -DSTANDALONE
+STANDALONE_CFLAGS += -DSTANDALONE
 
 LDFLAGS += -L${nsslibdir} -lnss3
 LDFLAGS += -L${corosynclibdir} -llogsys

@@ -26,17 +26,18 @@ include $(OBJDIR)/make/clean.mk
 include $(OBJDIR)/make/install.mk
 include $(OBJDIR)/make/uninstall.mk
 
-AISTARGET= libaislock
-
+CFLAGS += -fPIC
 CFLAGS += -I$(S)
 CFLAGS += -I${incdir}
 CFLAGS += -I$(KERNEL_SRC)/include
+
+REENT_CFLAGS += -D_REENTRANT
 
 LDFLAGS += -L${libdir}
 
 PTHREAD_LDFLAGS += -lpthread 
 
-$(TARGET).a: $(TARGET).o $(AISTARGET).o
+$(TARGET).a: $(TARGET).o
 	${AR} cru $@ $^
 	${RANLIB} $@
 
@@ -44,30 +45,17 @@ $(TARGET)_lt.a: $(TARGET)_lt.o
 	${AR} cru $@ $^
 	${RANLIB} $@
 
-$(TARGET).so.${SOMAJOR}.${SOMINOR}: $(TARGET).po $(AISTARGET).po
+$(TARGET).so.${SOMAJOR}.${SOMINOR}: $(TARGET).o
 	$(CC) -shared -o $@ -Wl,-soname=$(TARGET).so.$(SOMAJOR) $< $(PTHREAD_LDFLAGS) $(LDFLAGS)
 	ln -sf $(TARGET).so.$(SOMAJOR).$(SOMINOR) $(TARGET).so
 	ln -sf $(TARGET).so.$(SOMAJOR).$(SOMINOR) $(TARGET).so.$(SOMAJOR)
 
-$(TARGET)_lt.so.${SOMAJOR}.${SOMINOR}: $(TARGET)_lt.po
+$(TARGET)_lt.so.${SOMAJOR}.${SOMINOR}: $(TARGET)_lt.o
 	$(CC) -shared -o $@ -Wl,-soname=$(TARGET)_lt.so.$(SOMAJOR) $< $(LDFLAGS)
 	ln -sf $(TARGET)_lt.so.$(SOMAJOR).$(SOMINOR) $(TARGET)_lt.so
 	ln -sf $(TARGET)_lt.so.$(SOMAJOR).$(SOMINOR) $(TARGET)_lt.so.$(SOMAJOR)
-
-%_lt.o: $(S)/%.c
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-%_lt.po: $(S)/%.c
-	$(CC) $(CFLAGS) -fPIC -c -o $@ $<
-
-%.o: $(S)/%.c
-	$(CC) $(CFLAGS) -D_REENTRANT -c -o $@ $<
-
-%.po: $(S)/%.c
-	$(CC) $(CFLAGS) -fPIC -D_REENTRANT -c -o $@ $<
 
 clean: generalclean
 
 -include $(TARGET).d
 -include $(TARGET)_lt.d
--include $(AISTARGET).d
