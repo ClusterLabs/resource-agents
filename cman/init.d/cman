@@ -71,6 +71,11 @@
 #     to join the fence domain (equivalent to "yes").
 [ -z "$FENCE_JOIN" ] && FENCE_JOIN="yes"
 
+# NETWORK_BRIDGE_SCRIPT -- script to use for xen network bridging.
+#     This script must exist in the /etc/xen/scripts directory.
+#     The default script is "network-bridge".
+[ -z "$NETWORK_BRIDGE_SCRIPT" ] && NETWORK_BRIDGE_SCRIPT="network-bridge"
+
 [ -z "$LOCK_FILE" ] && LOCK_FILE="/var/lock/subsys/cman"
 
 [ -n "$CLUSTERNAME" ] && cman_join_opts="-c $CLUSTERNAME"
@@ -278,7 +283,7 @@ xend_bridged_net_enabled() {
         return 1
     fi
 
-    egrep "^[[:blank:]]*\([[:blank:]]*network-script[[:blank:]]+(')?[[:blank:]]*network-bridge([[:blank:]]*\)|[[:blank:]]+)" /etc/xen/xend-config.sxp >&/dev/null
+    egrep "^[[:blank:]]*\([[:blank:]]*network-script[[:blank:]]+(')?[[:blank:]]*${NETWORK_BRIDGE_SCRIPT}([[:blank:]]*\)|[[:blank:]]+)" /etc/xen/xend-config.sxp >&/dev/null
     if [ $? -ne 0 ]; then
         # xend isn't configured to use bridged networking.
         return 1
@@ -287,8 +292,8 @@ xend_bridged_net_enabled() {
 }
 
 xend_bridged_net_start() {
-    if [ ! -x /etc/xen/scripts/network-bridge ]; then
-        if [ -f /etc/xen/scripts/network-bridge ]; then
+    if [ ! -x /etc/xen/scripts/${NETWORK_BRIDGE_SCRIPT} ]; then
+        if [ -f /etc/xen/scripts/${NETWORK_BRIDGE_SCRIPT} ]; then
             errmsg='The xend bridged network script cannot be run'
         else
             errmsg='The xend bridged network script is missing'
@@ -298,8 +303,8 @@ xend_bridged_net_start() {
 
     /sbin/modprobe netbk >& /dev/null
     /sbin/modprobe netloop >& /dev/null
-    bridge_parms=`egrep -m 1 "^[[:blank:]]*\([[:blank:]]*network-script[[:blank:]]+(')?[[:blank:]]*network-bridge([[:blank:]]*\)|[[:blank:]]+)" /etc/xen/xend-config.sxp| sed -r "s/^[[:blank:]]*\([[:blank:]]*network-script[[:blank:]]+'?[[:blank:]]*network-bridge[[:blank:]]*//; s/'?[[:blank:]]*\).*//"`
-    errmsg=$(/etc/xen/scripts/network-bridge start $bridge_parms 2>&1) || return 1
+    bridge_parms=`egrep -m 1 "^[[:blank:]]*\([[:blank:]]*network-script[[:blank:]]+(')?[[:blank:]]*${NETWORK_BRIDGE_SCRIPT}([[:blank:]]*\)|[[:blank:]]+)" /etc/xen/xend-config.sxp| sed -r "s/^[[:blank:]]*\([[:blank:]]*network-script[[:blank:]]+'?[[:blank:]]*${NETWORK_BRIDGE_SCRIPT}[[:blank:]]*//; s/'?[[:blank:]]*\).*//"`
+    errmsg=$(/etc/xen/scripts/${NETWORK_BRIDGE_SCRIPT} start $bridge_parms 2>&1) || return 1
     return 0
 }
 
