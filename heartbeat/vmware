@@ -1,0 +1,350 @@
+#!/bin/sh
+#
+# VMware OCF resource agent
+#
+# Copyright (c) 2008 Apra Sistemi s.r.l.
+#                    All Rights Reserved.
+#
+# Description:  Manages a VMware server 2.0 as a High-Availability
+#               resource
+#
+#
+# Author:       Cristian Mammoli <c.mammoli AT apra DOT it>
+# License:      GNU General Public License (GPL)
+# Copyright:    (C) 2008 Apra Sistemi s.r.l.
+#
+# See usage() function below for more details...
+#
+# OCF instance parameters:
+#  * OCF_RESKEY_VMXPATH (mandatory, full path to the virtual machine vmx file)
+#  * OCF_RESKEY_VIMSHBIN (mandatory, full path to th vmware-vim-cmd executable)
+#
+# Requirements/caveats:
+#  * vmware-server 2.0 RC1 installed and autostarted on all nodes
+#  * vmdk files must be in the same directory of the vmx file
+#  * vmx filenames must be unique, even if stored in different directories
+#  * Default_Action_Timeout stock value (20 sec) isn't enough if you are
+#    dealing with many virtual machines: raise it to something around 300 secs
+#    or use operation attributes with the proposed values
+
+# Initialization
+#################################################################
+
+# Source ocf shell functions
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
+
+# Basic variables configuration
+#################################################################
+
+# Path to the virtual machine configuration file
+VMXPATH="$OCF_RESKEY_vmxpath"
+
+# Path to the vmware-vim-cmd executable
+VIMSHBIN="$OCF_RESKEY_vimshbin"
+
+# vmware-vim-cmd functions
+#################################################################
+
+# Get virtual machine vid
+vmware_get_vid() {
+  $VIMSHBIN vmsvc/getallvms 2>/dev/null \
+         | awk '/\/'"$1"'/ {print $1}'
+}
+
+# Is the vm waiting for input after a migration?
+vmware_uuid_alt() {
+  $VIMSHBIN vmsvc/message $1 2>/dev/null \
+         | awk /^msg.uuid.altered/
+}
+
+# Get message id
+vmware_get_msgid() {
+  $VIMSHBIN vmsvc/message $1 2>/dev/null \
+         | awk '/^Virtual machine message/ {print $4}' \
+     | awk -F : '{print $1}'
+}
+
+# Answers message
+vmware_answer_msg() {
+  $VIMSHBIN vmsvc/message $1 $2 $3 &> /dev/null
+}
+
+# Register a virtual machine
+vmware_register_vm() {
+  $VIMSHBIN solo/registervm '"'$1'"' &> /dev/null
+}
+
+# Unregister a virtual machine
+vmware_unregister_vm() {
+  $VIMSHBIN  vmsvc/unregister $1 &> /dev/null
+}
+
+# Start a virtual machine
+vmware_poweron_vm() {
+  $VIMSHBIN vmsvc/power.on $1 &> /dev/null
+}
+
+# Suspend a virtual machine
+vmware_suspend_vm() {
+  $VIMSHBIN vmsvc/power.suspend $1 &> /dev/null
+}
+
+# Get virtual machine power state
+vmware_get_status() {
+  $VIMSHBIN vmsvc/power.getstate $1 2>/dev/null \
+         | awk '/^Powered on/ || /^Powered off/ || /^Suspended/'
+}
+
+# Get vid of missing virtual machines
+vmware_get_broken() {
+  $VIMSHBIN vmsvc/getallvm 2>&1 \
+         | awk -F "'" '/^Skipping/ {print $2}'
+}
+
+# Variables depending on the above functions
+#################################################################
+
+# Directory containing the virtual machine
+VMXDIR="`dirname "$VMXPATH"`"
+
+# Basename of the configuration file
+RELVMXPATH="`basename "$VMXPATH"`"
+
+# Vid of the virtual machine (can be empty if the vm is not registered)
+VMID=`vmware_get_vid "$RELVMXPATH"`
+
+# Power state of the virtual machine (can be empty if the vm is not registered)
+VMSTATE="`vmware_get_status $VMID`"
+
+# Virtual machine name
+VM="`awk -F '"' '/^displayName/ {print $2}' "$VMXPATH"`"
+
+# msg.autoAnswer value in config file
+VMAUTOMSG="`awk -F '"' '/^msg.autoAnswer/ {print $2}' "$VMXPATH"`"
+
+# Main functions
+#################################################################
+
+# Print usage summary
+vmware_usage() {
+    cat <<END
+usage: $0 {start|stop|status|monitor|meta-data|validate-all}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+# Check for mandatory files presence and consistency
+vmware_validate() {
+  if [ -z "`pidof vmware-hostd`" ]; then
+    ocf_log err "vmware-hostd is not running: aborting"
+    exit $OCF_ERR_GENERIC
+  fi
+
+  if [ ! -x "$VIMSHBIN" ]; then
+    ocf_log err "vmware-vimsh executable missing or not in path ($VIMSHBIN): aborting"
+    exit $OCF_ERR_ARGS
+  fi
+
+  if [ ! -f "$VMXPATH" ]; then
+    ocf_log err "Specified vmx file ($VMXPATH) does not exist: aborting"
+    exit $OCF_ERR_ARGS
+  fi
+
+  if [ -z "$VM" ]; then
+    ocf_log err "Could not find out virtual machine name: aborting"
+    exit $OCF_ERR_ARGS
+  fi
+
+  if [ "$VMAUTOMSG" != "TRUE" ]; then
+    ocf_log warn "Please set msg.autoAnswer = \"TRUE\" in your config file"
+  fi
+
+  # $VMID and $VMSTATE are allowed to be empty in case we are validating a
+  # virtual machine which is not registered
+
+  return $OCF_SUCCESS
+}
+
+# Start a virtual machine
+vmware_start() {
+  # Don't start a VM if it's already running
+  if [ "$VMSTATE" = "Powered on" ]; then
+    ocf_log info "Virtual machine $VM is already running"
+    return $OCF_SUCCESS
+  else
+    # Removes stale lockfiles and missing virtual machines
+    # in case of a crash.
+    # Do not use with a clustered filesystem or you could
+    # end up starting the same VM in more than one node
+    ocf_log info "Removing stale lockfiles"
+    find "$VMXDIR" -name \*.lck -type f -exec rm "{}" \;
+    for BVM in `vmware_get_broken`; do
+      ocf_log info "Unregistering missing virtual machine $BVM"
+      vmware_unregister_vm $BVM
+    done
+    if [ -z "$VMID" ]; then
+      # VM is not registered, need to register
+      ocf_log info "Virtual machine $VM is not registered"
+      ocf_log info "Registering Virtual machine $VM"
+      vmware_register_vm "$VMXPATH"
+      VMID=`vmware_get_vid "$RELVMXPATH"`
+      if [ -z "$VMID" ]; then
+        ocf_log err "Could not register virtual machine $VM: aborting."
+        exit $OCF_ERR_GENERIC
+      fi
+      ocf_log info "Virtual machine $VM registered with ID $VMID"
+    fi
+    ocf_log info "Powering on virtual machine $VM"
+    vmware_poweron_vm $VMID
+    # Give the VM some time to initialize
+    sleep 10
+
+    if [ "$VMAUTOMSG" != "TRUE" ]; then
+      # msg.autoAnswer is not set: we try to deal with the
+      # most common question: msg.uuid.altered
+      ocf_log info  "Checking msg.uuid.altered on VM $VM"
+      if [ -n "`vmware_uuid_alt $VMID`" ]; then
+        MSGID=`vmware_get_msgid $VMID`
+        vmware_answer_msg $VMID $MSGID 2
+      fi
+    fi
+
+    # Check if the VM is running. We don't bother
+    # with timeouts: we rely on the CRM for that.
+    while [ "$VMSTATE" != "Powered on" ]; do
+      ocf_log info "Virtual machine $VM is still stopped: delaying 10 seconds"
+      sleep 10
+      VMSTATE="`vmware_get_status $VMID`"
+    done
+
+    ocf_log info "Virtual machine $VM is running"
+    return $OCF_SUCCESS
+  fi
+}
+
+# Stop a virtual machine
+vmware_stop() {
+  # Don't stop a VM if it's not registered
+  if [ -z "$VMID" ]; then
+    ocf_log info "Virtual machine $VM is not registered"
+    return $OCF_SUCCESS
+  else
+    # Don't stop a VM if it's already stopped
+    if [ "$VMSTATE" != "Powered on" ]; then
+      ocf_log info "Virtual machine $VM is already stopped"
+    else
+      # If the VM is running send a suspend signal and wait
+      # until it is off. We don't bother with timeouts: we
+      # rely on the CRM for that.
+      ocf_log info "Virtual machine $VM is running: suspending it"
+      vmware_suspend_vm $VMID
+      sleep 5
+      while [ "$VMSTATE" = "Powered on" ]; do
+        ocf_log info "Virtual machine $VM is still running: delaying 10 seconds"
+        sleep 10
+        VMSTATE="`vmware_get_status $VMID`"
+      done
+    fi
+    ocf_log info "Unregistering virtual machine $VM"
+    vmware_unregister_vm $VMID
+    VMID=`vmware_get_vid "$RELVMXPATH"`
+    if [ -n "$VMID" ]; then
+      ocf_log err "Could not unregister virtual machine $VM: aborting."
+      exit $OCF_ERR_GENERIC
+    fi
+    ocf_log info "Virtual machine $VM is stopped"
+    return $OCF_SUCCESS
+  fi
+}
+
+# Monitor a virtual machine
+vmware_monitor() {
+  if [ "$VMSTATE" = "Powered on" ]; then
+    ocf_log info "Virtual machine $VM (ID $VMID) is running..."
+    return $OCF_SUCCESS
+  else
+    ocf_log info "Virtual machine $VM is stopped/suspended/not registered"
+    return $OCF_NOT_RUNNING
+  fi
+}
+
+# Print metadata informations
+meta_data() {
+    cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="vmwarevm">
+<version>0.1</version>
+<longdesc lang="en">
+OCF compliant script to control vmware server 2.0 virtual machines.
+</longdesc>
+<shortdesc lang="en">VMWare server 2.0 resource agent</shortdesc>
+
+<parameters>
+<parameter name="vmxpath" unique="0" required="1">
+<longdesc lang="en">
+VMX configuration file path
+</longdesc>
+<shortdesc lang="en">VMX file path</shortdesc>
+<content type="string"/>
+</parameter>
+
+<parameter name="vimshbin" unique="0" required="1">
+<longdesc lang="en">
+vmware-vim-cmd executable path
+</longdesc>
+<shortdesc lang="en">vmware-vimsh path</shortdesc>
+<content type="string" default="/usr/bin/vmware-vim-cmd"/>
+</parameter>
+</parameters>
+
+<actions>
+<action name="start"        timeout="300" />
+<action name="stop"         timeout="300" />
+<action name="monitor"      timeout="30" interval="300" depth="0"
+start-delay="60" />
+<action name="meta-data"    timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+# See how we were called
+#################################################################
+
+case $1 in
+meta-data)
+  meta_data
+  exit $OCF_SUCCESS
+  ;;
+
+start)
+  vmware_validate
+  vmware_start
+  ;;
+
+stop)
+  vmware_stop
+  ;;
+
+status|monitor)
+  vmware_monitor
+  ;;
+
+usage|help)
+  vmware_usage
+  exit $OCF_SUCCESS
+  ;;
+
+validate-all)
+  vmware_validate
+  ;;
+
+*)
+  vmware_usage
+  exit $OCF_ERR_UNIMPLEMENTED
+  ;;
+
+esac
+exit $?
