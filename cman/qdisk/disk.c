@@ -203,6 +203,7 @@ qdisk_open(char *name, target_info_t *disk)
 	ret = ioctl(disk->d_fd, BLKSSZGET, &ssz);
 	if (ret < 0) {
 		log_printf(LOG_ERR, "qdisk_open: ioctl(BLKSSZGET)");
+		close(disk->d_fd);
 		return -1;
 	}
 
@@ -213,12 +214,14 @@ qdisk_open(char *name, target_info_t *disk)
 	ret = lseek(disk->d_fd, END_OF_DISK(disk->d_blksz), SEEK_SET);
 	if (ret < 0) {
 		log_printf(LOG_DEBUG, "open_partition: seek");
+		close(disk->d_fd);
 		return -1;
 	}
 
 	if (ret < END_OF_DISK(disk->d_blksz)) {
 		log_printf(LOG_ERR, "Partition %s too small\n", name);
 		errno = EINVAL;
+		close(disk->d_fd);
 		return -1;
 	}
 
