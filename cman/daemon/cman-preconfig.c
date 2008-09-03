@@ -553,9 +553,6 @@ static int get_nodename(struct objdb_iface_ver0 *objdb)
 			write_cman_pipe("This node has no nodeid in cluster.conf");
 			return -1;
 		}
-		sprintf(error_reason, "Failed to find node name in cluster.conf");
-		write_cman_pipe("Failed to find node name in cluster.conf");
-		return -1;
 	}
 
 	objdb->object_find_create(cluster_parent_handle, "cman", strlen("cman"), &find_handle);

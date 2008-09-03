@@ -139,7 +139,7 @@ static unsigned int find_parent(struct objdb_iface_ver0 *objdb, LDAPDN dn, int s
 		objdb->object_find_create(parent_handle,
 					     dn[i][0][0].la_value.bv_val, dn[i][0][0].la_value.bv_len,
 					     &find_handle);
-		if (!objdb->object_find_next(find_handle, &object_handle)) {
+		while (!objdb->object_find_next(find_handle, &object_handle)) {
 			parent_handle = object_handle;
 		}
 		objdb->object_find_destroy(find_handle);
@@ -203,7 +203,6 @@ static int read_config_for(LDAP *ld, struct objdb_iface_ver0 *objdb, unsigned in
 				/* Create a new object with the same name as the current one */
 				objdb->object_create(parent_handle, &object_handle, parsed_dn[1][0][0].la_value.bv_val,
 						     parsed_dn[1][0][0].la_value.bv_len);
-
 			}
 
 			/* Finished with the text representation */
@@ -236,10 +235,12 @@ static int read_config_for(LDAP *ld, struct objdb_iface_ver0 *objdb, unsigned in
 					 * as they don't provide anything we can use
 					 */
 					if (strcmp("objectClass", attr) &&
-					    strcmp("cn", attr))
+					    strcmp("cn", attr)) {
 						objdb->object_key_create(object_handle, attr, strlen(attr),
 									 val_ber[i]->bv_val,
 									 val_ber[i]->bv_len+1);
+						fprintf(stderr, "Created key %s=%s\n",attr, val_ber[i]->bv_val);
+					}
 					i++;
 				}
 				ldap_memfree(attr);
