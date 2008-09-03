@@ -284,10 +284,6 @@ static int init_config(struct objdb_iface_ver0 *objdb)
 	}
 
 	rc = read_config_for(ld, objdb, OBJECT_PARENT_HANDLE, "cluster", "cn=cluster", 1);
-	if (!rc)
-		rc = read_config_for(ld, objdb, OBJECT_PARENT_HANDLE, "totem", "cn=totem,cn=cluster", 1);
-	if (!rc)
-		rc = read_config_for(ld, objdb, OBJECT_PARENT_HANDLE, "logging", "cn=logging,cn=cluster", 1);
 
 	ldap_unbind(ld);
 	return 0;

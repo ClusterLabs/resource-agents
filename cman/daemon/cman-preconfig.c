@@ -916,6 +916,76 @@ static int set_noccs_defaults(struct objdb_iface_ver0 *objdb)
 	return 0;
 }
 
+/* Move an object/key tree */
+static int move_config_tree(struct objdb_iface_ver0 *objdb, unsigned int source_object, unsigned int target_parent_object)
+{
+	unsigned int object_handle;
+	unsigned int new_object;
+	unsigned int find_handle;
+	char object_name[1024];
+	int object_name_len;
+	void *key_name;
+	int key_name_len;
+	void *key_value;
+	int key_value_len;
+	int res;
+
+	/* Create new parent object if necessary */
+	objdb->object_name_get(source_object, object_name, &object_name_len);
+
+	objdb->object_find_create(target_parent_object, object_name, strlen(object_name), &find_handle);
+	if (objdb->object_find_next(find_handle, &object_handle))
+			objdb->object_create(target_parent_object, &new_object, object_name, object_name_len);
+	objdb->object_find_destroy(find_handle);
+
+	/* Copy the keys */
+	objdb->object_key_iter_reset(new_object);
+
+	while (!objdb->object_key_iter(source_object, &key_name, &key_name_len,
+				       &key_value, &key_value_len)) {
+
+		objdb->object_key_create(new_object, key_name, key_name_len,
+					 key_value, key_value_len);
+	}
+
+	/* Create sub-objects */
+	res = objdb->object_find_create(source_object, NULL, 0, &find_handle);
+	if (res) {
+		sprintf(error_reason, "error resetting object iterator for object %d: %d\n", source_object, res);
+		return -1;
+	}
+
+	while ( (res = objdb->object_find_next(find_handle, &object_handle) == 0)) {
+
+		/* Down we go ... */
+		move_config_tree(objdb, object_handle, new_object);
+	}
+	objdb->object_find_destroy(find_handle);
+
+	return 0;
+}
+
+/*
+ * Move trees from /cluster where they live in cluster.conf, into the root
+ * of the config tree where corosync expects to find them.
+ */
+static int move_tree_to_root(struct objdb_iface_ver0 *objdb, char *name)
+{
+	unsigned int find_handle;
+	unsigned int object_handle;
+	int res=0;
+
+	objdb->object_find_create(cluster_parent_handle, name, strlen(name), &find_handle);
+	if (objdb->object_find_next(find_handle, &object_handle) == 0) {
+		res = move_config_tree(objdb, object_handle, OBJECT_PARENT_HANDLE);
+	}
+	objdb->object_find_destroy(find_handle);
+
+	// TODO Destroy original ??
+	// objdb->object_destroy(object_handle);
+	return res;
+}
+
 static int get_cman_globals(struct objdb_iface_ver0 *objdb)
 {
 	unsigned int object_handle;
@@ -955,6 +1025,13 @@ static int cmanpre_readconfig(struct objdb_iface_ver0 *objdb, char **error_strin
         objdb->object_find_next(find_handle, &cluster_parent_handle);
 	objdb->object_find_destroy(find_handle);
 
+	/* Move these to a place where corosync expects to find them */
+	ret = move_tree_to_root(objdb, "totem");
+	ret = move_tree_to_root(objdb, "logging");
+	ret = move_tree_to_root(objdb, "event");
+	ret = move_tree_to_root(objdb, "amf");
+	ret = move_tree_to_root(objdb, "aisexec");
+
 	objdb->object_find_create(cluster_parent_handle, "cman", strlen("cman"), &find_handle);
 	if (objdb->object_find_next(find_handle, &object_handle)) {
 
@@ -973,6 +1050,8 @@ static int cmanpre_readconfig(struct objdb_iface_ver0 *objdb, char **error_strin
 		ret = get_nodename(objdb);
 		add_cman_overrides(objdb);
 	}
+
+
 	if (!ret) {
 		sprintf (error_reason, "%s", "Successfully parsed cman config\n");
 	}

@@ -209,14 +209,6 @@ static int init_config(struct objdb_iface_ver0 *objdb, char *error_string)
 		return -1;
 	}
 
-	/* These first few are just versions of openais.conf */
-	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "totem", "/cluster/totem", 1);
-	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "logging", "/cluster/logging", 1);
-	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "event", "/cluster/event", 1);
-	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "aisexec", "/cluster/aisexec", 1);
-	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "amf", "/cluster/amf", 1);
-
-	/* This is stuff specific to us, eg quorum device timeout */
 	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "cluster", "/cluster", 1);
 
 	ccs_disconnect(cd);
