@@ -208,18 +208,34 @@ void are_you_sure(commandline_t *comline)
 {
 	char input[32];
 	struct volume_id *vid = NULL;
+	int fd;
 
-	vid = volume_id_open_node(comline->device);
-	if (vid == NULL)
+	fd = open(comline->device, O_RDONLY);
+	if (fd < 0)
+		die("Error: device %s not found.\n", comline->device);
+	vid = volume_id_open_fd(fd);
+	if (vid == NULL) {
+		close(fd);
 		die("error identifying the contents of %s: %s\n",
 		    comline->device, strerror(errno));
-
+	}
 	printf("This will destroy any data on %s.\n",
 	       comline->device);
-	if (volume_id_probe_all(vid, 0, MKFS_DEFAULT_BSIZE) == 0)
-		printf("  It appears to contain a %s %s.\n", vid->type,
-			   vid->usage_id == VOLUME_ID_OTHER? "partition" : vid->usage);
+	if (volume_id_probe_all(vid, 0, MKFS_DEFAULT_BSIZE) == 0) {
+		const char *fstype, *fsusage;
+		int rc;
+
+		rc = volume_id_get_type(vid, &fstype);
+		if (rc) {
+			rc = volume_id_get_usage(vid, &fsusage);
+			if (!rc || strncmp(fsusage, "other", 5) == 0)
+				fsusage = "partition";
+			printf("  It appears to contain a %s %s.\n", fstype,
+			       fsusage);
+		}
+	}
 	volume_id_close(vid);
+	close(fd);
 	printf("\nAre you sure you want to proceed? [y/n] ");
 	if (fgets(input, 32, stdin) == NULL || input[0] != 'y')
 		die("aborted\n");
