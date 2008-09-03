@@ -12,6 +12,7 @@ static struct client *client = NULL;
 static struct pollfd *pollfd = NULL;
 static pthread_t query_thread;
 static pthread_mutex_t query_mutex;
+static struct list_head controlled_entries;
 
 struct client {
 	int fd;
@@ -602,6 +603,108 @@ static int setup_queries(void)
 	return 0;
 }
 
+struct controlled_entry {
+	struct list_head list;
+	char path[PATH_MAX+1];
+};
+
+static void register_controlled_dir(char *path)
+{
+	struct controlled_entry *ce;
+
+	ce = malloc(sizeof(struct controlled_entry));
+	if (!ce)
+		return;
+	memset(ce, 0, sizeof(struct controlled_entry));
+	strncpy(ce->path, path, PATH_MAX);
+	list_add(&ce->list, &controlled_entries);
+}
+
+static int ignore_nolock(char *sysfs_dir, char *table)
+{
+	char path[PATH_MAX];
+	int fd;
+
+	memset(path, 0, PATH_MAX);
+
+	snprintf(path, PATH_MAX, "%s/%s/lock_module/proto_name",
+		 sysfs_dir, table);
+
+	/* lock_nolock doesn't create the "lock_module" dir at all,
+	   so we'll fail to open this */
+
+	fd = open(path, O_RDONLY);
+	if (fd < 0)
+		return 1;
+
+	close(fd);
+	return 0;
+}
+
+static int check_controlled_dir(char *path)
+{
+	DIR *d;
+	struct dirent *de;
+	int count = 0;
+
+	d = opendir(path);
+	if (!d)
+		return 0;
+
+	while ((de = readdir(d))) {
+		if (de->d_name[0] == '.')
+			continue;
+
+		if (strstr(path, "fs/gfs") && ignore_nolock(path, de->d_name))
+			continue;
+
+		log_error("found uncontrolled entry %s/%s", path, de->d_name);
+		count++;
+	}
+	closedir(d);
+
+	return count;
+}
+
+/* Joining the "fenced:daemon" cpg (in setup_cpg()) tells fenced on other
+   nodes that we are in a "clean state", and don't need fencing.  So, if
+   we're a pending fence victim on another node, they'll skip fencing us
+   once we start fenced and join the "daemon" cpg (it's not the fence domain
+   cpg which we join when fence_tool join is run).  This "daemon" cpg is just
+   to notify others that we have no uncontrolled gfs/dlm objects.
+   (Conceptually, we could use the fence domain cpg for this purpose instead,
+   but that would require processing domain membership changes during
+   fence_victims(), which would be a major change in the way the daemon works.)
+
+   So, if we (the local node) are *not* in a clean state, we don't join the
+   daemon cpg and we exit; we still need to be fenced.  If we are starting
+   up and find that instances of gfs/dlm in the kernel have been previously
+   abandoned, that's an unclean, unreset state, and we still need fencing. */
+
+static int check_uncontrolled_entries(void)
+{
+	struct controlled_entry *ce;
+	int count = 0;
+
+	list_for_each_entry(ce, &controlled_entries, list) {
+		if (strncmp(ce->path, "-", 1))
+			goto skip_default;
+	}
+
+	/* the default dirs to check */
+	register_controlled_dir("/sys/kernel/dlm");
+	register_controlled_dir("/sys/fs/gfs2");
+	register_controlled_dir("/sys/fs/gfs");
+
+ skip_default:
+	list_for_each_entry(ce, &controlled_entries, list)
+		count += check_controlled_dir(ce->path);
+
+	if (count)
+		return -1;
+	return 0;
+}
+
 void cluster_dead(int ci)
 {
 	log_error("cluster is down, exiting");
@@ -634,6 +737,15 @@ static void loop(void)
 
 	setup_logging();
 
+	rv = check_uncontrolled_entries();
+	if (rv < 0)
+		goto out;
+
+	rv = setup_cpg();
+	if (rv < 0)
+		goto out;
+	client_add(rv, process_cpg, cluster_dead);
+
 	group_mode = GROUP_LIBCPG;
 
 	if (cfgd_groupd_compat) {
@@ -647,15 +759,6 @@ static void loop(void)
 			set_group_mode();
 	}
 	log_debug("group_mode %d compat %d", group_mode, cfgd_groupd_compat);
-
-	if (group_mode == GROUP_LIBCPG) {
-		/*
-		rv = setup_cpg();
-		if (rv < 0)
-			goto out;
-		client_add(rv, process_cpg, cluster_dead);
-		*/
-	}
 
 	for (;;) {
 		rv = poll(pollfd, client_maxi + 1, -1);
@@ -692,6 +795,7 @@ static void loop(void)
  out:
 	if (cfgd_groupd_compat)
 		close_groupd();
+	close_cpg();
 	close_logging();
 	close_ccs();
 	close_cman();
@@ -757,7 +861,10 @@ static void print_usage(void)
 	printf("               1: use libgroup for compat with cluster2/rhel5\n");
 	printf("               2: use groupd to detect old, or mode 1, nodes that\n"
 	       "               require compat, use libcpg if none found\n");
-	printf("  -c           All nodes are in a clean state to start\n");
+	printf("  -r <path>    Register a directory that needs to be empty for\n");
+	printf("               the daemon to start.  \"-\" to skip default directories\n");
+	printf("               /sys/fs/gfs, /sys/fs/gfs2, /sys/kernel/dlm\n");
+	printf("  -c           All nodes are in a clean state to start; do no startup fencing\n");
 	printf("  -s           Skip startup fencing of nodes with no defined fence methods\n");
 	printf("  -j <secs>    Post-join fencing delay (default %d)\n", DEFAULT_POST_JOIN_DELAY);
 	printf("  -f <secs>    Post-fail fencing delay (default %d)\n", DEFAULT_POST_FAIL_DELAY);
@@ -772,7 +879,7 @@ static void print_usage(void)
 	printf("\n");
 }
 
-#define OPTION_STRING	"L:g:cj:f:Dn:O:hVSs"
+#define OPTION_STRING	"L:g:cj:f:Dn:O:hVSse:r:"
 
 static void read_arguments(int argc, char **argv)
 {
@@ -830,6 +937,10 @@ static void read_arguments(int argc, char **argv)
 			cfgd_override_path = strdup(optarg);
 			break;
 
+		case 'r':
+			register_controlled_dir(optarg);
+			break;
+
 		case 'h':
 			print_usage();
 			exit(EXIT_SUCCESS);
@@ -879,6 +990,7 @@ static void set_oom_adj(int val)
 int main(int argc, char **argv)
 {
 	INIT_LIST_HEAD(&domains);
+	INIT_LIST_HEAD(&controlled_entries);
 
 	init_logging();
 

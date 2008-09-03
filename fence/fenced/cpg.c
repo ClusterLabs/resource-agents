@@ -2,6 +2,9 @@
 #include "config.h"
 
 static unsigned int protocol_active[3] = {1, 0, 0};
+static cpg_handle_t cpg_handle_daemon;
+static struct cpg_address daemon_member_list[MAX_NODES];
+static int daemon_member_list_entries;
 
 struct member {
 	struct list_head list;
@@ -1308,7 +1311,6 @@ int fd_join(struct fd *fd)
 	}
 	if (error != CPG_OK) {
 		log_error("cpg_join error %d", error);
-		cpg_finalize(h);
 		goto fail;
 	}
 
@@ -1347,6 +1349,122 @@ int fd_leave(struct fd *fd)
 		log_error("cpg_leave error %d", error);
 
 	return 0;
+}
+
+/* process_cpg(), setup_cpg(), close_cpg() are for the "daemon" cpg which
+   tracks the presence of other daemons; it's not the fenced domain cpg.
+   Joining this cpg tells others that we don't have uncontrolled dlm/gfs
+   kernel state and they can skip fencing us if we're a victim.  (We have
+   to check for that uncontrolled state before calling setup_cpg, obviously.) */
+
+static void deliver_cb_daemon(cpg_handle_t handle, struct cpg_name *group_name,
+		uint32_t nodeid, uint32_t pid, void *data, int len)
+{
+}
+
+static void confchg_cb_daemon(cpg_handle_t handle, struct cpg_name *group_name,
+		struct cpg_address *member_list, int member_list_entries,
+		struct cpg_address *left_list, int left_list_entries,
+		struct cpg_address *joined_list, int joined_list_entries)
+{
+	memset(&daemon_member_list, 0, sizeof(daemon_member_list));
+	memcpy(&daemon_member_list, member_list,
+	       member_list_entries * sizeof(struct cpg_address));
+	daemon_member_list_entries = member_list_entries;
+}
+
+static cpg_callbacks_t cpg_callbacks_daemon = {
+	.cpg_deliver_fn = deliver_cb_daemon,
+	.cpg_confchg_fn = confchg_cb_daemon,
+};
+
+void process_cpg(int ci)
+{
+	cpg_error_t error;
+
+	error = cpg_dispatch(cpg_handle_daemon, CPG_DISPATCH_ALL);
+	if (error != CPG_OK)
+		log_error("daemon cpg_dispatch error %d", error);
+}
+
+int in_daemon_member_list(int nodeid)
+{
+	int i;
+
+	cpg_dispatch(cpg_handle_daemon, CPG_DISPATCH_ALL);
+
+	for (i = 0; i < daemon_member_list_entries; i++) {
+		if (daemon_member_list[i].nodeid == nodeid)
+			return 1;
+	}
+	return 0;
+}
+
+int setup_cpg(void)
+{
+	cpg_error_t error;
+	cpg_handle_t h;
+	struct cpg_name name;
+	int i = 0, f;
+
+	error = cpg_initialize(&h, &cpg_callbacks_daemon);
+	if (error != CPG_OK) {
+		log_error("daemon cpg_initialize error %d", error);
+		goto fail;
+	}
+
+	cpg_fd_get(h, &f);
+
+	cpg_handle_daemon = h;
+
+	memset(&name, 0, sizeof(name));
+	sprintf(name.value, "fenced:daemon");
+	name.length = strlen(name.value) + 1;
+
+ retry:
+	error = cpg_join(h, &name);
+	if (error == CPG_ERR_TRY_AGAIN) {
+		sleep(1);
+		if (!(++i % 10))
+			log_error("daemon cpg_join error retrying");
+		goto retry;
+	}
+	if (error != CPG_OK) {
+		log_error("daemon cpg_join error %d", error);
+		goto fail;
+	}
+
+	log_debug("setup_cpg %d", f);
+	return f;
+
+ fail:
+	cpg_finalize(h);
+	return -1;
+}
+
+void close_cpg(void)
+{
+	cpg_error_t error;
+	struct cpg_name name;
+	int i = 0;
+
+	if (!cpg_handle_daemon)
+		return;
+
+	memset(&name, 0, sizeof(name));
+	sprintf(name.value, "fenced:daemon");
+	name.length = strlen(name.value) + 1;
+
+ retry:
+	error = cpg_leave(cpg_handle_daemon, &name);
+	if (error == CPG_ERR_TRY_AGAIN) {
+		sleep(1);
+		if (!(++i % 10))
+			log_error("daemon cpg_leave error retrying");
+		goto retry;
+	}
+	if (error != CPG_OK)
+		log_error("daemon cpg_leave error %d", error);
 }
 
 int set_node_info(struct fd *fd, int nodeid, struct fenced_node *nodeinfo)

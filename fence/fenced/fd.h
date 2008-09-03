@@ -13,6 +13,7 @@
 #include <time.h>
 #include <sched.h>
 #include <limits.h>
+#include <dirent.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -203,6 +204,9 @@ int read_ccs(struct fd *fd);
 
 /* cpg.c */
 
+void process_cpg(int ci);
+int setup_cpg(void);
+void close_cpg(void);
 void free_cg(struct change *cg);
 void node_history_fence(struct fd *fd, int victim, int master, int how,
 			uint64_t mastertime);
@@ -216,6 +220,7 @@ int set_node_info(struct fd *fd, int nodeid, struct fenced_node *node);
 int set_domain_info(struct fd *fd, struct fenced_domain *domain);
 int set_domain_nodes(struct fd *fd, int option, int *node_count,
 		     struct fenced_node **nodes);
+int in_daemon_member_list(int nodeid);
 
 /* group.c */
 
