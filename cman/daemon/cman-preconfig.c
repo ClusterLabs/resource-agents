@@ -360,7 +360,8 @@ static int verify_nodename(struct objdb_iface_ver0 *objdb, char *nodename)
 
 		if (objdb_get_string(objdb, nodes_handle, "name", &str)) {
 			sprintf(error_reason, "Cannot get node name");
-			break;
+			nodes_handle = nodeslist_next(objdb, find_handle);
+			continue;
 		}
 
 		strcpy(nodename3, str);
@@ -494,7 +495,7 @@ static int get_env_overrides()
 
 static int get_nodename(struct objdb_iface_ver0 *objdb)
 {
-	char *nodeid_str;
+	char *nodeid_str = NULL;
 	unsigned int object_handle;
 	unsigned int find_handle;
 	unsigned int node_object_handle;
@@ -552,6 +553,9 @@ static int get_nodename(struct objdb_iface_ver0 *objdb)
 			write_cman_pipe("This node has no nodeid in cluster.conf");
 			return -1;
 		}
+		sprintf(error_reason, "Failed to find node name in cluster.conf");
+		write_cman_pipe("Failed to find node name in cluster.conf");
+		return -1;
 	}
 
 	objdb->object_find_create(cluster_parent_handle, "cman", strlen("cman"), &find_handle);

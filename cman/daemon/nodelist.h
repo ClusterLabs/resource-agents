@@ -79,7 +79,8 @@ static inline unsigned int nodelist_byname(OBJDB_API *corosync,
 	nodes_handle = nodeslist_init(corosync, cluster_parent_handle, &find_handle);
 	while (nodes_handle) {
 		if (objdb_get_string(corosync, nodes_handle, "name", &nodename)) {
-			break;
+			nodes_handle = nodeslist_next(corosync, find_handle);
+			continue;
 		}
 		if (strcmp(nodename, name) == 0)
 			return nodes_handle;
