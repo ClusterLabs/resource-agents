@@ -239,7 +239,6 @@ static int read_config_for(LDAP *ld, struct objdb_iface_ver0 *objdb, unsigned in
 						objdb->object_key_create(object_handle, attr, strlen(attr),
 									 val_ber[i]->bv_val,
 									 val_ber[i]->bv_len+1);
-						fprintf(stderr, "Created key %s=%s\n",attr, val_ber[i]->bv_val);
 					}
 					i++;
 				}
