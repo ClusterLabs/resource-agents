@@ -199,6 +199,10 @@ sub get_key
     my $cluster_id = get_cluster_id;
     my $node_id = get_node_id($node);
 
+    if ($node_id == 0) {
+	die "Unable to determine nodeid for $node.\n";
+    }
+
     my $key = sprintf "%x%.4x", $cluster_id, $node_id;
 
     return $key;
