@@ -356,6 +356,7 @@ void send_external(struct fd *fd, int victim)
 
 	buf = malloc(len);
 	if (!buf) {
+		log_error("send_external no mem len %d", len);
 		return;
 	}
 	memset(buf, 0, len);
@@ -364,7 +365,7 @@ void send_external(struct fd *fd, int victim)
 	hd->type = FD_MSG_EXTERNAL;
 	hd->msgdata = victim;
 
-	log_debug("send_external %u", victim);
+	log_debug("send_external victim nodeid %u", victim);
 
 	fd_send_message(fd, buf, len);
 
@@ -378,7 +379,7 @@ void send_external(struct fd *fd, int victim)
 
 static void receive_external(struct fd *fd, struct fd_header *hd, int len)
 {
-	log_debug("receive_external from %d len %d victim %d",
+	log_debug("receive_external from %d len %d victim nodeid %d",
 		  hd->nodeid, len, hd->msgdata);
 
 	node_history_fence_external(fd, hd->msgdata, hd->nodeid);
@@ -429,7 +430,7 @@ void send_victim_done(struct fd *fd, int victim)
 
 	node = get_node_history(fd, victim);
 	if (!node) {
-		log_error("send_victim_done %d no node struct", victim);
+		log_error("send_victim_done no nodeid %d", victim);
 		return;
 	}
 
@@ -439,7 +440,7 @@ void send_victim_done(struct fd *fd, int victim)
 	id->fence_time   = cpu_to_le64(node->fence_time);
 	id->fence_how    = cpu_to_le32(node->fence_how);
 
-	log_debug("send_victim_done %u flags %x victim %d",
+	log_debug("send_victim_done cg %u flags %x victim nodeid %d",
 		  cg->seq, hd->flags, victim);
 
 	fd_send_message(fd, buf, len);
@@ -472,7 +473,7 @@ static void receive_victim_done(struct fd *fd, struct fd_header *hd, int len)
 	found = 0;
 	list_for_each_entry(node, &fd->victims, list) {
 		if (node->nodeid == id->nodeid) {
-			log_debug("receive_victim_done remove %d how %d",
+			log_debug("receive_victim_done remove nodeid %d how %d",
 				  id->nodeid, id->fence_how);
 			node_history_fence(fd, id->nodeid, id->fence_master,
 					   id->fence_how, id->fence_time);
@@ -484,7 +485,7 @@ static void receive_victim_done(struct fd *fd, struct fd_header *hd, int len)
 	}
 
 	if (!found)
-		log_debug("receive_victim_done victim %d not found from %d",
+		log_debug("receive_victim_done no nodeid %d from %d",
 			  id->nodeid, hd->nodeid);
 }
 
@@ -633,15 +634,15 @@ static int match_change(struct fd *fd, struct change *cg, struct fd_header *hd,
 	id = get_id_struct(ids, fi->id_info_count, fi->id_info_size,our_nodeid);
 
 	if (!id || !(id->flags & IDI_NODEID_IS_MEMBER)) {
-		log_debug("match_change fail %d:%u we are not in members",
-			  hd->nodeid, seq);
+		log_debug("match_change %d:%u skip cg %u we are not in members",
+			  hd->nodeid, seq, cg->seq);
 		return 0;
 	}
 
 	memb = find_memb(cg, hd->nodeid);
 	if (!memb) {
-		log_debug("match_change fail %d:%u sender not member",
-			  hd->nodeid, seq);
+		log_debug("match_change %d:%u skip cg %u sender not member",
+			  hd->nodeid, seq, cg->seq);
 		return 0;
 	}
 
@@ -652,8 +653,8 @@ static int match_change(struct fd *fd, struct change *cg, struct fd_header *hd,
 	    fi->joined_count != cg->joined_count ||
 	    fi->remove_count != cg->remove_count ||
 	    fi->failed_count != cg->failed_count) {
-		log_debug("match_change fail %d:%u expect counts "
-			  "%d %d %d %d", hd->nodeid, seq,
+		log_debug("match_change %d:%u skip cg %u expect counts "
+			  "%d %d %d %d", hd->nodeid, seq, cg->seq,
 			  cg->member_count, cg->joined_count,
 			  cg->remove_count, cg->failed_count);
 		return 0;
@@ -666,8 +667,9 @@ static int match_change(struct fd *fd, struct change *cg, struct fd_header *hd,
 		if (id->flags & IDI_NODEID_IS_MEMBER) {
 			memb = find_memb(cg, id->nodeid);
 			if (!memb) {
-				log_debug("match_change fail %d:%u memb %d",
-					  hd->nodeid, seq, id->nodeid);
+				log_debug("match_change %d:%u skip cg %u "
+					  "no memb %d", hd->nodeid, seq,
+					  cg->seq, id->nodeid);
 				members_mismatch = 1;
 				break;
 			}
@@ -678,7 +680,7 @@ static int match_change(struct fd *fd, struct change *cg, struct fd_header *hd,
 	if (members_mismatch)
 		return 0;
 
-	log_debug("match_change done %d:%u", hd->nodeid, seq);
+	log_debug("match_change %d:%u matches cg %u", hd->nodeid, seq, cg->seq);
 	return 1;
 }
 
@@ -765,13 +767,22 @@ static void receive_start(struct fd *fd, struct fd_header *hd, int len)
 		log_error("receive_start %d:%u add node with started_count %u",
 			  hd->nodeid, seq, fi->started_count);
 
-                /* observe this scheme working before using it; I'm not sure
-                   that a joining node won't ever see an existing node as added
-                   under normal circumstances */
-                /*
-                memb->disallowed = 1;
-                return;
-                */
+		/* This is how we deal with cpg's that are partitioned and
+		   then merge back together.  When the merge happens, the
+		   cpg on each side will see nodes from the other side being
+		   added, and neither side will have zero started_count.  So,
+		   both sides will ignore start messages from the other side.
+		   This causes the the domain on each side to continue waiting
+		   for the missing start messages indefinately.  To unblock
+		   things, all nodes from one side of the former partition
+		   need to fail. */
+
+		/* This method of detecting a merge of a partitioned cpg
+		   assumes a joining node won't ever see an existing node
+		   as "added" under normal circumstances. */
+
+		memb->disallowed = 1;
+		return;
 	}
 
 	node_history_start(fd, hd->nodeid);
@@ -811,7 +822,7 @@ static void receive_complete(struct fd *fd, struct fd_header *hd, int len)
 
 	/* we may have victims from init which we can clear now */
 	list_for_each_entry_safe(node, safe, &fd->victims, list) {
-		log_debug("receive_complete clear victim %d init %d",
+		log_debug("receive_complete clear victim nodeid %d init %d",
 			  node->nodeid, node->init_victim);
 		list_del(&node->list);
 		free(node);
@@ -895,7 +906,7 @@ static void send_info(struct fd *fd, int type)
 		id++;
 	}
 
-	log_debug("send_%s %u flags %x counts %u %d %d %d %d",
+	log_debug("send_%s cg %u flags %x counts %u %d %d %d %d",
 		  type == FD_MSG_START ? "start" : "complete",
 		  cg->seq, hd->flags, fd->started_count, cg->member_count,
 		  cg->joined_count, cg->remove_count, cg->failed_count);
@@ -947,11 +958,21 @@ static void add_victims(struct fd *fd, struct change *cg)
 	list_for_each_entry(memb, &cg->removed, list) {
 		if (!memb->failed)
 			continue;
+		if (is_victim(fd, memb->nodeid)) {
+			/* Only one scenario I know of where this happens:
+			   when a partitioned cpg merges and then the
+			   disallowed node is killed.  The original
+			   partition makes the node a victim, and killing
+			   it after a merge will find it already a victim. */
+			log_debug("add_victims nodeid %d already victim",
+				  memb->nodeid);
+			continue;
+		}
 		node = get_new_node(fd, memb->nodeid);
 		if (!node)
 			return;
 		list_add(&node->list, &fd->victims);
-		log_debug("add node %d to victims", node->nodeid);
+		log_debug("add nodeid %d to victims", node->nodeid);
 	}
 }
 
@@ -1070,7 +1091,7 @@ static int add_change(struct fd *fd,
 		else
 			node_history_left(fd, memb->nodeid);
 
-		log_debug("add_change %u nodeid %d remove reason %d",
+		log_debug("add_change cg %u remove nodeid %d reason %d",
 			  cg->seq, memb->nodeid, left_list[i].reason);
 
 		if (left_list[i].reason == CPG_REASON_PROCDOWN)
@@ -1091,7 +1112,7 @@ static int add_change(struct fd *fd,
 		else
 			node_history_init(fd, memb->nodeid);
 
-		log_debug("add_change %u nodeid %d joined", cg->seq,
+		log_debug("add_change cg %u joined nodeid %d", cg->seq,
 			  memb->nodeid);
 	}
 
@@ -1099,9 +1120,9 @@ static int add_change(struct fd *fd,
 		list_for_each_entry(memb, &cg->members, list)
 			node_history_init(fd, memb->nodeid);
 
-	log_debug("add_change %u member %d joined %d remove %d failed %d",
-		  cg->seq, cg->member_count, cg->joined_count, cg->remove_count,
-		  cg->failed_count);
+	log_debug("add_change cg %u counts member %d joined %d remove %d "
+		  "failed %d", cg->seq, cg->member_count, cg->joined_count,
+		  cg->remove_count, cg->failed_count);
 
 	list_add(&cg->list, &fd->changes);
 	*cg_out = cg;
@@ -1130,7 +1151,7 @@ static void add_victims_init(struct fd *fd, struct change *cg)
 		    !is_victim(fd, node->nodeid)) {
 			node->init_victim = 1;
 			list_add(&node->list, &fd->victims);
-			log_debug("add_victims_init %d", node->nodeid);
+			log_debug("add_victims_init nodeid %d", node->nodeid);
 		} else {
 			free(node);
 		}

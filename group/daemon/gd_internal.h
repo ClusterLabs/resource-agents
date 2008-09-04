@@ -294,7 +294,6 @@ int setup_cman(void);
 void close_cman(void);
 void process_cman(int ci);
 int kill_cman(int nodeid);
-int set_cman_dirty(void);
 
 /* cpg.c */
 int setup_cpg(void);

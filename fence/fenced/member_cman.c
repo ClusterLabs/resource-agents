@@ -9,6 +9,15 @@ static cman_handle_t	ch_admin;
 static cman_node_t	cman_nodes[MAX_NODES];
 static int		cman_node_count;
 
+void set_cman_dirty(void)
+{
+	int rv;
+
+	rv = cman_set_dirty(ch_admin);
+	if (rv)
+		log_error("cman_set_dirty error %d", rv);
+}
+
 void kick_node_from_cluster(int nodeid)
 {
 	if (!nodeid) {

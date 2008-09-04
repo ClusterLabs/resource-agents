@@ -19,16 +19,6 @@ int kill_cman(int nodeid)
 	return cman_kill_node(ch_admin, nodeid);
 }
 
-int set_cman_dirty(void)
-{
-	int rv;
-
-	rv = cman_set_dirty(ch_admin);
-	if (rv)
-		log_print("cman_set_dirty error %d", rv);
-	return rv;
-}
-
 static int is_member(cman_node_t *node_list, int count, int nodeid)
 {
 	int i;

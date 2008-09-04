@@ -186,6 +186,15 @@ struct fd *find_fd(char *name)
 	return NULL;
 }
 
+/* We don't require cman dirty/disallowed to detect and handle cpg merges after
+   a partition, because we already do that with started_count checks and our
+   own disallowed flag.  But, we do need cman dirty/disallowed to deal with
+   correctly skipping victims that rejoin the cluster.  Without cman
+   dirty/disallowed, we'd skip fencing a node after a merge of a partition
+   since the merged node would be a cman member and a fenced:daemon cpg member.
+   By setting the dirty flag, cman won't report a dirty merged node as a
+   member, so we'll continue fencing it. */
+
 static int do_join(char *name)
 {
 	struct fd *fd;
@@ -214,6 +223,9 @@ static int do_join(char *name)
 		rv = fd_join_group(fd);
 	else
 		rv = fd_join(fd);
+
+	if (!rv)
+		set_cman_dirty();
  out:
 	return rv;
 }
