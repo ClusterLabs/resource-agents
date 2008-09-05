@@ -450,7 +450,7 @@ static int check_quorum_done(struct lockspace *ls)
 		if (!is_cluster_member(node->nodeid)) {
 			node->check_quorum = 0;
 		} else {
-			log_group(ls, "check_quorum %d is_cluster_member",
+			log_group(ls, "check_quorum nodeid %d is_cluster_member",
 				  node->nodeid);
 			wait_count++;
 		}
@@ -486,7 +486,7 @@ static int check_fs_done(struct lockspace *ls)
 		if (node->fs_notified) {
 			node->check_fs = 0;
 		} else {
-			log_group(ls, "check_fs %d needs fs notify",
+			log_group(ls, "check_fs nodeid %d needs fs notify",
 				  node->nodeid);
 			wait_count++;
 		}
@@ -549,11 +549,11 @@ static void start_kernel(struct lockspace *ls)
 	struct change *cg = list_first_entry(&ls->changes, struct change, list);
 
 	if (!ls->kernel_stopped) {
-		log_error("start_kernel %u not stopped", cg->seq);
+		log_error("start_kernel cg %u not stopped", cg->seq);
 		return;
 	}
 
-	log_group(ls, "start_kernel %u member_count %d",
+	log_group(ls, "start_kernel cg %u member_count %d",
 		  cg->seq, cg->member_count);
 
 	/* needs to happen before setting control which starts recovery */
@@ -576,7 +576,7 @@ static void start_kernel(struct lockspace *ls)
 static void stop_kernel(struct lockspace *ls, uint32_t seq)
 {
 	if (!ls->kernel_stopped) {
-		log_group(ls, "stop_kernel %u", seq);
+		log_group(ls, "stop_kernel cg %u", seq);
 		set_sysfs_control(ls->name, 0);
 		ls->kernel_stopped = 1;
 	}
@@ -742,15 +742,15 @@ static int match_change(struct lockspace *ls, struct change *cg,
 	id = get_id_struct(ids, li->id_info_count, li->id_info_size,our_nodeid);
 
 	if (!id) {
-		log_debug("match_change fail %d:%u we are not in members",
-			  hd->nodeid, seq);
+		log_group(ls, "match_change %d:%u skip %u we are not in members",
+			  hd->nodeid, seq, cg->seq);
                 return 0;
 	}
 
 	memb = find_memb(cg, hd->nodeid);
 	if (!memb) {
-		log_group(ls, "match_change fail %d:%u sender not member",
-			  hd->nodeid, seq);
+		log_group(ls, "match_change %d:%u skip %u sender not member",
+			  hd->nodeid, seq, cg->seq);
 		return 0;
 	}
 
@@ -761,8 +761,8 @@ static int match_change(struct lockspace *ls, struct change *cg,
 	    li->joined_count != cg->joined_count ||
 	    li->remove_count != cg->remove_count ||
 	    li->failed_count != cg->failed_count) {
-		log_group(ls, "match_change fail %d:%u expect counts "
-			  "%d %d %d %d", hd->nodeid, seq,
+		log_group(ls, "match_change %d:%u skip %u expect counts "
+			  "%d %d %d %d", hd->nodeid, seq, cg->seq,
 			  cg->member_count, cg->joined_count,
 			  cg->remove_count, cg->failed_count);
 		return 0;
@@ -774,8 +774,8 @@ static int match_change(struct lockspace *ls, struct change *cg,
 	for (i = 0; i < li->id_info_count; i++) {
 		memb = find_memb(cg, id->nodeid);
 		if (!memb) {
-			log_group(ls, "match_change fail %d:%u no memb %d",
-			  	  hd->nodeid, seq, id->nodeid);
+			log_group(ls, "match_change %d:%u skip %u no memb %d",
+			  	  hd->nodeid, seq, cg->seq, id->nodeid);
 			members_mismatch = 1;
 			break;
 		}
@@ -784,7 +784,8 @@ static int match_change(struct lockspace *ls, struct change *cg,
 	if (members_mismatch)
 		return 0;
 
-	log_group(ls, "match_change done %d:%u", hd->nodeid, seq);
+	log_group(ls, "match_change %d:%u matches cg %u", hd->nodeid, seq,
+		  cg->seq);
 	return 1;
 }
 
@@ -871,13 +872,9 @@ static void receive_start(struct lockspace *ls, struct dlm_header *hd, int len)
 		log_error("receive_start %d:%u add node with started_count %u",
 			  hd->nodeid, seq, li->started_count);
 
-		/* observe this scheme working before using it; I'm not sure
-		   that a joining node won't ever see an existing node as added
-		   under normal circumstances */
-		/*
+		/* see comment in fence/fenced/cpg.c */
 		memb->disallowed = 1;
 		return;
-		*/
 	}
 
 	node_history_start(ls, hd->nodeid);
@@ -978,7 +975,7 @@ static void send_info(struct lockspace *ls, int type)
 		id++;
 	}
 
-	log_group(ls, "send_%s %u flags %x counts %u %d %d %d %d",
+	log_group(ls, "send_%s cg %u flags %x counts %u %d %d %d %d",
 		  type == DLM_MSG_START ? "start" : "plocks_stored",
 		  cg->seq, hd->flags, ls->started_count, cg->member_count,
 		  cg->joined_count, cg->remove_count, cg->failed_count);
@@ -1161,7 +1158,7 @@ static int add_change(struct lockspace *ls,
 		else
 			node_history_left(ls, memb->nodeid, cg);
 
-		log_group(ls, "add_change %u nodeid %d remove reason %d",
+		log_group(ls, "add_change cg %u remove nodeid %d reason %d",
 			  cg->seq, memb->nodeid, left_list[i].reason);
 
 		if (left_list[i].reason == CPG_REASON_PROCDOWN)
@@ -1182,19 +1179,19 @@ static int add_change(struct lockspace *ls,
 		else
 			node_history_init(ls, memb->nodeid, cg);
 
-		log_group(ls, "add_change %u nodeid %d joined", cg->seq,
+		log_group(ls, "add_change cg %u joined nodeid %d", cg->seq,
 			  memb->nodeid);
 	}
 
 	if (cg->we_joined) {
-		log_group(ls, "add_change %u we joined", cg->seq);
+		log_group(ls, "add_change cg %u we joined", cg->seq);
 		list_for_each_entry(memb, &cg->members, list)
 			node_history_init(ls, memb->nodeid, cg);
 	}
 
-	log_group(ls, "add_change %u member %d joined %d remove %d failed %d",
-		  cg->seq, cg->member_count, cg->joined_count, cg->remove_count,
-		  cg->failed_count);
+	log_group(ls, "add_change cg %u counts member %d joined %d remove %d "
+		  "failed %d", cg->seq, cg->member_count, cg->joined_count,
+		  cg->remove_count, cg->failed_count);
 
 	list_add(&cg->list, &ls->changes);
 	*cg_out = cg;

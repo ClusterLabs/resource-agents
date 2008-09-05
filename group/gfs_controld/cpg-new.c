@@ -545,11 +545,11 @@ static void start_kernel(struct mountgroup *mg)
 	struct change *cg = mg->started_change;
 
 	if (!mg->kernel_stopped) {
-		log_error("start_kernel %u not stopped", cg->seq);
+		log_error("start_kernel cg %u not stopped", cg->seq);
 		return;
 	}
 
-	log_group(mg, "start_kernel %u member_count %d",
+	log_group(mg, "start_kernel cg %u member_count %d",
 		  cg->seq, cg->member_count);
 
 	set_sysfs(mg, "block", 0);
@@ -669,7 +669,7 @@ static int check_dlm_notify_done(struct mountgroup *mg)
 		/* check if the dlm has seen this nodeid fail, we get the
 		   answer asynchronously in process_dlmcontrol */
 
-		log_group(mg, "check_dlm_notify %d begin", node->nodeid);
+		log_group(mg, "check_dlm_notify nodeid %d begin", node->nodeid);
 
 		rv = dlmc_fs_notified(dlmcontrol_fd, mg->name, node->nodeid);
 		if (rv) {
@@ -790,15 +790,15 @@ static int match_change(struct mountgroup *mg, struct change *cg,
 	id = get_id_struct(ids, mi->id_info_count, mi->id_info_size,our_nodeid);
 
 	if (!id || !(id->flags & IDI_NODEID_IS_MEMBER)) {
-		log_group(mg, "match_change fail %d:%u we are not in members",
-			  hd->nodeid, seq);
+		log_group(mg, "match_change %d:%u skip cg %u we are not in members",
+			  hd->nodeid, seq, cg->seq);
 		return 0;
 	}
 
 	memb = find_memb(cg, hd->nodeid);
 	if (!memb) {
-		log_group(mg, "match_change fail %d:%u sender not member",
-			  hd->nodeid, seq);
+		log_group(mg, "match_change %d:%u skip cg %u sender not member",
+			  hd->nodeid, seq, cg->seq);
 		return 0;
 	}
 
@@ -809,8 +809,8 @@ static int match_change(struct mountgroup *mg, struct change *cg,
 	    mi->joined_count != cg->joined_count ||
 	    mi->remove_count != cg->remove_count ||
 	    mi->failed_count != cg->failed_count) {
-		log_group(mg, "match_change fail %d:%u expect counts "
-			  "%d %d %d %d", hd->nodeid, seq,
+		log_group(mg, "match_change %d:%u skip cg %u expect counts "
+			  "%d %d %d %d", hd->nodeid, seq, cg->seq,
 			  cg->member_count, cg->joined_count,
 			  cg->remove_count, cg->failed_count);
 		return 0;
@@ -823,8 +823,9 @@ static int match_change(struct mountgroup *mg, struct change *cg,
 		if (id->flags & IDI_NODEID_IS_MEMBER) {
 			memb = find_memb(cg, id->nodeid);
 			if (!memb) {
-				log_group(mg, "match_change fail %d:%u memb %d",
-					  hd->nodeid, seq, id->nodeid);
+				log_group(mg, "match_change %d:%u skip cg %u "
+					  "no memb %d", hd->nodeid, seq,
+					  cg->seq, id->nodeid);
 				members_mismatch = 1;
 				break;
 			}
@@ -835,7 +836,8 @@ static int match_change(struct mountgroup *mg, struct change *cg,
 	if (members_mismatch)
 		return 0;
 
-	log_group(mg, "match_change done %d:%u", hd->nodeid, seq);
+	log_group(mg, "match_change %d:%u matches cg %u", hd->nodeid, seq,
+		  cg->seq);
 	return 1;
 }
 
@@ -940,13 +942,9 @@ static void receive_start(struct mountgroup *mg, struct gfs_header *hd, int len)
 		log_error("receive_start %d:%u add node with started_count %u",
 			  hd->nodeid, seq, mi->started_count);
 
-		/* observe this scheme working before using it; I'm not sure
-		   that a joining node won't ever see an existing node as added
-		   under normal circumstances */
-		/*
+		/* see comment in fence/fenced/cpg.c */
 		memb->disallowed = 1;
 		return;
-		*/
 	}
 
 	node_history_start(mg, hd->nodeid);
@@ -1117,7 +1115,7 @@ static void send_start(struct mountgroup *mg)
 			/* send full info for old member */
 			node = get_node_history(mg, memb->nodeid);
 			if (!node) {
-				log_error("send_start no node %d",memb->nodeid);
+				log_error("send_start no nodeid %d", memb->nodeid);
 				continue;
 			}
 
@@ -1164,12 +1162,12 @@ static void send_start(struct mountgroup *mg)
 	/* sanity check */
 
 	if (!mg->started_count && (old_memb || old_journal || new_journal)) {
-		log_error("send_start %u bad counts om %d nm %d oj %d nj %d",
+		log_error("send_start cg %u bad counts om %d nm %d oj %d nj %d",
 			  cg->seq, old_memb, new_memb, old_journal, new_journal);
 		return;
 	}
 
-	log_group(mg, "send_start %u id_count %d om %d nm %d oj %d nj %d",
+	log_group(mg, "send_start cg %u id_count %d om %d nm %d oj %d nj %d",
 		  cg->seq, id_count, old_memb, new_memb, old_journal,
 		  new_journal);
 
@@ -1257,7 +1255,7 @@ static void receive_mount_done(struct mountgroup *mg, struct gfs_header *hd,
 {
 	struct node *node;
 
-	log_group(mg, "receive_mount_done %d result %d",
+	log_group(mg, "receive_mount_done from %d result %d",
 		  hd->nodeid, hd->msgdata);
 
 	node = get_node_history(mg, hd->nodeid);
@@ -1280,12 +1278,12 @@ static void receive_recovery_result(struct mountgroup *mg,
 	jid = le32_to_cpu(p[0]);
 	result = le32_to_cpu(p[1]);
 
-	log_group(mg, "receive_recovery_result %d jid %d result %d",
+	log_group(mg, "receive_recovery_result from %d jid %d result %d",
 		  hd->nodeid, jid, result);
 
 	j = find_journal(mg, jid);
 	if (!j) {
-		log_error("receive_recovery_result %d no jid %d",
+		log_error("receive_recovery_result from %d no jid %d",
 			  hd->nodeid, jid);
 		return;
 	}
@@ -1307,12 +1305,12 @@ static void receive_first_recovery_done(struct mountgroup *mg,
 {
 	int master = mg->first_recovery_master;
 
-	log_group(mg, "receive_first_recovery_done %d master %d "
+	log_group(mg, "receive_first_recovery_done from %d master %d "
 		  "mount_client_notified %d",
 		  hd->nodeid, master, mg->mount_client_notified);
 
 	if (master != hd->nodeid)
-		log_error("receive_first_recovery_done %d master %d",
+		log_error("receive_first_recovery_done from %d master %d",
 			  hd->nodeid, master);
 
 	if (list_empty(&mg->changes)) {
@@ -2133,7 +2131,7 @@ static int add_change(struct mountgroup *mg,
 		else
 			node_history_left(mg, memb->nodeid, cg);
 
-		log_group(mg, "add_change %u nodeid %d remove reason %d",
+		log_group(mg, "add_change cg %u remove nodeid %d reason %d",
 			  cg->seq, memb->nodeid, left_list[i].reason);
 
 		if (left_list[i].reason == CPG_REASON_PROCDOWN)
@@ -2154,19 +2152,19 @@ static int add_change(struct mountgroup *mg,
 		else
 			node_history_init(mg, memb->nodeid, cg);
 
-		log_group(mg, "add_change %u nodeid %d joined", cg->seq,
+		log_group(mg, "add_change cg %u joined nodeid %d", cg->seq,
 			  memb->nodeid);
 	}
 
 	if (cg->we_joined) {
-		log_group(mg, "add_change %u we joined", cg->seq);
+		log_group(mg, "add_change cg %u we joined", cg->seq);
 		list_for_each_entry(memb, &cg->members, list)
 			node_history_init(mg, memb->nodeid, cg);
 	}
 
-	log_group(mg, "add_change %u member %d joined %d remove %d failed %d",
-		  cg->seq, cg->member_count, cg->joined_count, cg->remove_count,
-		  cg->failed_count);
+	log_group(mg, "add_change cg %u counts member %d joined %d remove %d "
+		  "failed %d", cg->seq, cg->member_count, cg->joined_count,
+		  cg->remove_count, cg->failed_count);
 
 	list_add(&cg->list, &mg->changes);
 	*cg_out = cg;
