@@ -40,6 +40,13 @@ static int opt_fs = 0;
 static int dump_mstcpy = 0;
 static mode_t create_mode = 0600;
 
+#define MAX_LS 128
+#define MAX_NODES 128
+
+struct dlmc_lockspace lss[MAX_LS];
+struct dlmc_node nodes[MAX_NODES];
+
+
 static void print_usage(void)
 {
 	printf("Usage:\n");
@@ -523,41 +530,12 @@ char *condition_str(int cond)
 	}
 }
 
-static void show_ls(struct dlmc_lockspace *ls)
+static int node_compare(const void *va, const void *vb)
 {
-	printf("dlm lockspace \"%s\"\n", ls->name);
-	printf("id 0x%x flags 0x%x %s\n", ls->global_id, ls->flags,
-		dlmc_lf_str(ls->flags));
+	const struct dlmc_node *a = va;
+	const struct dlmc_node *b = vb;
 
-	printf("seq %u-%u counts member %d joined %d remove %d failed %d\n",
-	        ls->cg_prev.combined_seq, ls->cg_prev.seq,
-		ls->cg_prev.member_count, ls->cg_prev.joined_count,
-		ls->cg_prev.remove_count, ls->cg_prev.failed_count);
-
-	if (!ls->cg_next.seq)
-		return;
-
-	printf("new seq %u-%u counts member %d joined %d remove %d failed %d\n",
-	        ls->cg_next.combined_seq, ls->cg_next.seq,
-		ls->cg_next.member_count, ls->cg_next.joined_count,
-		ls->cg_next.remove_count, ls->cg_next.failed_count);
-
-	printf("new wait_messages %d wait_condition %d %s\n",
-		ls->cg_next.wait_messages, ls->cg_next.wait_condition,
-		condition_str(ls->cg_next.wait_condition));
-}
-
-static void show_all_nodes(int count, struct dlmc_node *nodes)
-{
-	struct dlmc_node *n = nodes;
-	int i;
-
-	for (i = 0; i < count; i++) {
-		printf("nodeid %d add_seq %u rem_seq %u failed %d flags 0x%x %s\n",
-			n->nodeid, n->added_seq, n->removed_seq,
-			n->failed_reason, n->flags, dlmc_nf_str(n->flags));
-		n++;
-	}
+	return a->nodeid - b->nodeid;
 }
 
 static void show_nodeids(int count, struct dlmc_node *nodes)
@@ -572,19 +550,71 @@ static void show_nodeids(int count, struct dlmc_node *nodes)
 	printf("\n");
 }
 
-static int node_compare(const void *va, const void *vb)
+static void show_ls(struct dlmc_lockspace *ls)
 {
-	const struct dlmc_node *a = va;
-	const struct dlmc_node *b = vb;
+	int rv, node_count;
 
-	return a->nodeid - b->nodeid;
+	printf("name          %s\n", ls->name);
+	printf("id            0x%08x\n", ls->global_id);
+	printf("flags         0x%08x %s\n",
+		ls->flags, dlmc_lf_str(ls->flags));
+	printf("change        member %d joined %d remove %d failed %d seq %d,%d\n",
+		ls->cg_prev.member_count, ls->cg_prev.joined_count,
+		ls->cg_prev.remove_count, ls->cg_prev.failed_count,
+		ls->cg_prev.combined_seq, ls->cg_prev.seq);
+
+	node_count = 0;
+	memset(&nodes, 0, sizeof(nodes));
+	rv = dlmc_lockspace_nodes(ls->name, DLMC_NODES_MEMBERS,
+				  MAX_NODES, &node_count, nodes);
+	if (rv < 0) {
+		printf("members       error\n");
+		goto next;
+	}
+	qsort(nodes, node_count, sizeof(struct dlmc_node), node_compare);
+
+	printf("members       ");
+	show_nodeids(node_count, nodes);
+
+ next:
+	if (!ls->cg_next.seq)
+		return;
+
+	printf("new change    member %d joined %d remove %d failed %d seq %d,%d\n",
+		ls->cg_next.member_count, ls->cg_next.joined_count,
+		ls->cg_next.remove_count, ls->cg_next.failed_count,
+	        ls->cg_next.combined_seq, ls->cg_next.seq);
+
+	printf("new status    wait_messages %d wait_condition %d %s\n",
+		ls->cg_next.wait_messages, ls->cg_next.wait_condition,
+		condition_str(ls->cg_next.wait_condition));
+
+	node_count = 0;
+	memset(&nodes, 0, sizeof(nodes));
+	rv = dlmc_lockspace_nodes(ls->name, DLMC_NODES_NEXT,
+				  MAX_NODES, &node_count, nodes);
+	if (rv < 0) {
+		printf("new members   error\n");
+		return;
+	}
+	qsort(nodes, node_count, sizeof(struct dlmc_node), node_compare);
+
+	printf("new members   ");
+	show_nodeids(node_count, nodes);
 }
 
-#define MAX_LS 128
-#define MAX_NODES 128
+static void show_all_nodes(int count, struct dlmc_node *nodes)
+{
+	struct dlmc_node *n = nodes;
+	int i;
 
-struct dlmc_lockspace lss[MAX_LS];
-struct dlmc_node nodes[MAX_NODES];
+	for (i = 0; i < count; i++) {
+		printf("nodeid %d add_seq %u rem_seq %u failed %d flags 0x%x %s\n",
+			n->nodeid, n->added_seq, n->removed_seq,
+			n->failed_reason, n->flags, dlmc_nf_str(n->flags));
+		n++;
+	}
+}
 
 static void do_list(char *name)
 {
@@ -607,56 +637,33 @@ static void do_list(char *name)
 			goto out;
 	}
 
+	if (ls_count)
+		printf("dlm lockspaces\n");
+
 	for (i = 0; i < ls_count; i++) {
 		ls = &lss[i];
 
 		show_ls(ls);
 
-		node_count = 0;
-		memset(&nodes, 0, sizeof(nodes));
-
-		rv = dlmc_lockspace_nodes(ls->name, DLMC_NODES_MEMBERS,
-					  MAX_NODES, &node_count, nodes);
-		if (rv < 0)
-			goto out;
-
-		qsort(nodes, node_count, sizeof(struct dlmc_node),node_compare);
-
-		printf("members ");
-		show_nodeids(node_count, nodes);
-
-		if (!ls->cg_next.seq)
-			goto show_all;
-
-		node_count = 0;
-		memset(&nodes, 0, sizeof(nodes));
-
-		rv = dlmc_lockspace_nodes(ls->name, DLMC_NODES_NEXT,
-			 		  MAX_NODES, &node_count, nodes);
-		if (rv < 0)
-			goto out;
-
-		qsort(nodes, node_count, sizeof(struct dlmc_node),node_compare);
-
-		printf("new members ");
-		show_nodeids(node_count, nodes);
-
- show_all:
 		if (!verbose)
-			continue;
+			goto next;
 
 		node_count = 0;
 		memset(&nodes, 0, sizeof(nodes));
 
 		rv = dlmc_lockspace_nodes(ls->name, DLMC_NODES_ALL,
 					  MAX_NODES, &node_count, nodes);
-		if (rv < 0)
-			goto out;
+		if (rv < 0) {
+			printf("all nodes error %d %d\n", rv, errno);
+			goto next;
+		}
 
 		qsort(nodes, node_count, sizeof(struct dlmc_node),node_compare);
 
 		printf("all nodes\n");
 		show_all_nodes(node_count, nodes);
+ next:
+		printf("\n");
 	}
 	return;
  out:

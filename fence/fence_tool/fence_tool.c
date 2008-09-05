@@ -382,21 +382,24 @@ static int do_list(void)
 	if (rv < 0)
 		goto fail;
 
-	printf("fence domain \"default\"\n");
-	printf("member_count %d master_nodeid %d victim_count %d current_victim %d state %d\n",
-		d.member_count, d.master_nodeid, d.victim_count, d.current_victim, d.state);
+	printf("fence domain\n");
+	printf("member count  %d\n", d.member_count);
+	printf("victim count  %d\n", d.victim_count);
+	printf("victim now    %d\n", d.current_victim);
+	printf("master nodeid %d\n", d.master_nodeid);
+	printf("members       ");
 
 	node_count = 0;
 	memset(&nodes, 0, sizeof(nodes));
 
 	rv = fenced_domain_nodes(FENCED_NODES_MEMBERS, MAX_NODES,
 				 &node_count, nodes);
-	if (rv < 0)
+	if (rv < 0) {
+		printf("error\n");
 		goto fail;
+	}
 
 	qsort(&nodes, node_count, sizeof(struct fenced_node), node_compare);
-
-	printf("members ");
 
 	np = nodes;
 	for (i = 0; i < node_count; i++) {
@@ -430,6 +433,7 @@ static int do_list(void)
 				np->last_fenced_how);
 		np++;
 	}
+	printf("\n");
 	exit(EXIT_SUCCESS);
  fail:
 	fprintf(stderr, "fenced query error %d\n", rv);

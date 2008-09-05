@@ -29,6 +29,13 @@ static int operation;
 static int opt_ind;
 static int verbose;
 
+#define MAX_MG 128
+#define MAX_NODES 128
+
+struct gfsc_mountgroup mgs[MAX_MG];
+struct gfsc_node nodes[MAX_NODES];
+
+
 static void print_usage(void)
 {
 	printf("Usage:\n");
@@ -52,6 +59,10 @@ static void decode_arguments(int argc, char **argv)
 		optchar = getopt(argc, argv, OPTION_STRING);
 
 		switch (optchar) {
+		case 'v':
+			verbose = 1;
+			break;
+
 		case 'h':
 			print_usage();
 			exit(EXIT_SUCCESS);
@@ -228,44 +239,6 @@ char *condition_str(int cond)
 	}
 }
 
-static void show_mg(struct gfsc_mountgroup *mg)
-{
-	printf("gfs mountgroup \"%s\"\n", mg->name);
-	printf("id 0x%x flags 0x%x %s\n", mg->global_id, mg->flags,
-		gfsc_mf_str(mg->flags));
-	printf("journals needing recovery %d\n", mg->journals_need_recovery);
-
-	printf("seq %u-%u counts member %d joined %d remove %d failed %d\n",
-	        mg->cg_prev.combined_seq, mg->cg_prev.seq,
-		mg->cg_prev.member_count, mg->cg_prev.joined_count,
-		mg->cg_prev.remove_count, mg->cg_prev.failed_count);
-
-	if (!mg->cg_next.seq)
-		return;
-
-	printf("new seq %u-%u counts member %d joined %d remove %d failed %d\n",
-	        mg->cg_next.combined_seq, mg->cg_next.seq,
-		mg->cg_next.member_count, mg->cg_next.joined_count,
-		mg->cg_next.remove_count, mg->cg_next.failed_count);
-
-	printf("new wait_messages %d wait_condition %d %s\n",
-		mg->cg_next.wait_messages, mg->cg_next.wait_condition,
-		condition_str(mg->cg_next.wait_condition));
-}
-
-static void show_all_nodes(int count, struct gfsc_node *nodes)
-{
-	struct gfsc_node *n = nodes;
-	int i;
-
-	for (i = 0; i < count; i++) {
-		printf("nodeid %d jid %d add_seq %u rem_seq %u failed %d flags 0x%x %s\n",
-			n->nodeid, n->jid, n->added_seq, n->removed_seq,
-			n->failed_reason, n->flags, gfsc_nf_str(n->flags));
-		n++;
-	}
-}
-
 static void show_nodeids(int count, struct gfsc_node *nodes)
 {
 	struct gfsc_node *n = nodes;
@@ -286,11 +259,71 @@ static int node_compare(const void *va, const void *vb)
 	return a->nodeid - b->nodeid;
 }
 
-#define MAX_MG 128
-#define MAX_NODES 128
+static void show_mg(struct gfsc_mountgroup *mg)
+{
+	int rv, node_count;
 
-struct gfsc_mountgroup mgs[MAX_MG];
-struct gfsc_node nodes[MAX_NODES];
+	printf("name          %s\n", mg->name);
+	printf("id            0x%08x\n", mg->global_id);
+	printf("flags         0x%08x %s\n",
+		mg->flags, gfsc_mf_str(mg->flags));
+	printf("change        member %d joined %d remove %d failed %d seq %d,%d\n",
+		mg->cg_prev.member_count, mg->cg_prev.joined_count,
+		mg->cg_prev.remove_count, mg->cg_prev.failed_count,
+	        mg->cg_prev.combined_seq, mg->cg_prev.seq);
+
+	node_count = 0;
+	memset(&nodes, 0, sizeof(nodes));
+	rv = gfsc_mountgroup_nodes(mg->name, GFSC_NODES_MEMBERS,
+				   MAX_NODES, &node_count, nodes);
+	if (rv < 0) {
+		printf("members       error\n");
+		goto next;
+	}
+	qsort(nodes, node_count, sizeof(struct gfsc_node), node_compare);
+
+	printf("members       ");
+	show_nodeids(node_count, nodes);
+
+ next:
+	if (!mg->cg_next.seq)
+		return;
+
+	printf("new change    member %d joined %d remove %d failed %d seq %d,%d\n",
+		mg->cg_next.member_count, mg->cg_next.joined_count,
+		mg->cg_next.remove_count, mg->cg_next.failed_count,
+		mg->cg_next.combined_seq, mg->cg_next.seq);
+
+	printf("new status    wait_messages %d wait_condition %d %s\n",
+		mg->cg_next.wait_messages, mg->cg_next.wait_condition,
+		condition_str(mg->cg_next.wait_condition));
+
+	node_count = 0;
+	memset(&nodes, 0, sizeof(nodes));
+	rv = gfsc_mountgroup_nodes(mg->name, GFSC_NODES_NEXT,
+				   MAX_NODES, &node_count, nodes);
+	if (rv < 0) {
+		printf("new members   error\n");
+		return;
+	}
+	qsort(nodes, node_count, sizeof(struct gfsc_node), node_compare);
+
+	printf("new members ");
+	show_nodeids(node_count, nodes);
+}
+
+static void show_all_nodes(int count, struct gfsc_node *nodes)
+{
+	struct gfsc_node *n = nodes;
+	int i;
+
+	for (i = 0; i < count; i++) {
+		printf("nodeid %d jid %d add_seq %u rem_seq %u failed %d flags 0x%x %s\n",
+			n->nodeid, n->jid, n->added_seq, n->removed_seq,
+			n->failed_reason, n->flags, gfsc_nf_str(n->flags));
+		n++;
+	}
+}
 
 static void do_list(char *name)
 {
@@ -313,56 +346,33 @@ static void do_list(char *name)
 			goto out;
 	}
 
+	if (mg_count)
+		printf("gfs mountgroups\n");
+
 	for (i = 0; i < mg_count; i++) {
 		mg = &mgs[i];
 
 		show_mg(mg);
 
-		node_count = 0;
-		memset(&nodes, 0, sizeof(nodes));
-
-		rv = gfsc_mountgroup_nodes(mg->name, GFSC_NODES_MEMBERS,
-					   MAX_NODES, &node_count, nodes);
-		if (rv < 0)
-			goto out;
-
-		qsort(nodes, node_count, sizeof(struct gfsc_node),node_compare);
-
-		printf("members ");
-		show_nodeids(node_count, nodes);
-
-		if (!mg->cg_next.seq)
-			goto show_all;
-
-		node_count = 0;
-		memset(&nodes, 0, sizeof(nodes));
-
-		rv = gfsc_mountgroup_nodes(mg->name, GFSC_NODES_NEXT,
-					   MAX_NODES, &node_count, nodes);
-		if (rv < 0)
-			goto out;
-
-		qsort(nodes, node_count, sizeof(struct gfsc_node),node_compare);
-
-		printf("new members ");
-		show_nodeids(node_count, nodes);
-
- show_all:
 		if (!verbose)
-			continue;
+			goto next;
 
 		node_count = 0;
 		memset(&nodes, 0, sizeof(nodes));
 
 		rv = gfsc_mountgroup_nodes(mg->name, GFSC_NODES_ALL,
 					   MAX_NODES, &node_count, nodes);
-		if (rv < 0)
-			goto out;
+		if (rv < 0) {
+			printf("all nodes error %d %d\n", rv, errno);
+			goto next;
+		}
 
 		qsort(nodes, node_count, sizeof(struct gfsc_node),node_compare);
 
 		printf("all nodes\n");
 		show_all_nodes(node_count, nodes);
+ next:
+		printf("\n");
 	}
 	return;
  out:
