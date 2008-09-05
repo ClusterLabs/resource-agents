@@ -238,23 +238,6 @@ check_transitions(qd_ctx *ctx, node_info_t *ni, int max, memb_mask_t mask)
 		     state_run(ni[x].ni_status.ps_state)) {
 
 			/*
-			   Write eviction notice if we're the master.
-			 */
-			if (ctx->qc_status == S_MASTER) {
-				log_printf(LOG_NOTICE,
-				       "Writing eviction notice for node %d\n",
-				       ni[x].ni_status.ps_nodeid);
-				qd_write_status(ctx, ni[x].ni_status.ps_nodeid,
-						S_EVICT, NULL, NULL, NULL);
-				if (ctx->qc_flags & RF_ALLOW_KILL) {
-					log_printf(LOG_DEBUG, "Telling CMAN to "
-						"kill the node\n");
-					cman_kill_node(ctx->qc_ch,
-						ni[x].ni_status.ps_nodeid);
-				}
-			}
-
-			/*
 			   Mark our internal views as dead if nodes miss too
 			   many heartbeats...  This will cause a master
 			   transition if no live master exists.
@@ -271,6 +254,23 @@ check_transitions(qd_ctx *ctx, node_info_t *ni, int max, memb_mask_t mask)
 			ni[x].ni_evil_incarnation = 
 				ni[x].ni_status.ps_incarnation;
 			
+			/*
+			   Write eviction notice if we're the master.
+			 */
+			if (ctx->qc_status == S_MASTER) {
+				clulog(LOG_NOTICE,
+				       "Writing eviction notice for node %d\n",
+				       ni[x].ni_status.ps_nodeid);
+				qd_write_status(ctx, ni[x].ni_status.ps_nodeid,
+						S_EVICT, NULL, NULL, NULL);
+				if (ctx->qc_flags & RF_ALLOW_KILL) {
+					clulog(LOG_DEBUG, "Telling CMAN to "
+						"kill the node\n");
+					cman_kill_node(ctx->qc_ch,
+						ni[x].ni_status.ps_nodeid);
+				}
+			}
+
 			/* Clear our master mask for the node after eviction */
 			if (mask)
 				clear_bit(mask, (ni[x].ni_status.ps_nodeid-1),
