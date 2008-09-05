@@ -241,6 +241,8 @@ typedef struct {
 	int qc_scoremin;
 	int qc_sched;
 	int qc_sched_prio;
+	int qc_max_error_cycles;
+	int qc_pad;
 	disk_node_state_t qc_disk_status;
 	disk_node_state_t qc_status;
 	int qc_master;		/* Master?! */

@@ -122,10 +122,10 @@ check_self(qd_ctx *ctx, status_block_t *sb)
   or has not updated their timestamp recently.  See check_transitions as
   well.
  */
-static void
+int
 read_node_blocks(qd_ctx *ctx, node_info_t *ni, int max)
 {
-	int x;
+	int x, errors = 0;
 	status_block_t *sb;
 
 	for (x = 0; x < max; x++) {
@@ -137,6 +137,7 @@ read_node_blocks(qd_ctx *ctx, node_info_t *ni, int max)
 			       sb, sizeof(*sb)) < 0) {
 			log_printf(LOG_WARNING,"Error reading node ID block %d\n",
 			       x+1);
+			++errors;
 			continue;
 		}
 		swab_status_block_t(sb);
@@ -172,6 +173,8 @@ read_node_blocks(qd_ctx *ctx, node_info_t *ni, int max)
 		ni[x].ni_seen++;
 		ni[x].ni_last_seen = sb->ps_timestamp;
 	}
+
+	return errors;
 }
 
 
@@ -258,13 +261,13 @@ check_transitions(qd_ctx *ctx, node_info_t *ni, int max, memb_mask_t mask)
 			   Write eviction notice if we're the master.
 			 */
 			if (ctx->qc_status == S_MASTER) {
-				clulog(LOG_NOTICE,
+				log_printf(LOG_NOTICE,
 				       "Writing eviction notice for node %d\n",
 				       ni[x].ni_status.ps_nodeid);
 				qd_write_status(ctx, ni[x].ni_status.ps_nodeid,
 						S_EVICT, NULL, NULL, NULL);
 				if (ctx->qc_flags & RF_ALLOW_KILL) {
-					clulog(LOG_DEBUG, "Telling CMAN to "
+					log_printf(LOG_DEBUG, "Telling CMAN to "
 						"kill the node\n");
 					cman_kill_node(ctx->qc_ch,
 						ni[x].ni_status.ps_nodeid);
@@ -789,7 +792,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 {
 	disk_msg_t msg = {0, 0, 0};
 	int low_id, bid_pending = 0, score, score_max, score_req,
-	    upgrade = 0, count;
+	    upgrade = 0, count, errors, error_cycles = 0;
 	memb_mask_t mask, master_mask;
 	struct timeval maxtime, oldtime, newtime, diff, sleeptime, interval;
 
@@ -814,7 +817,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 		get_time(&oldtime, (ctx->qc_flags&RF_UPTIME));
 		
 		/* Read everyone else's status */
-		read_node_blocks(ctx, ni, max);
+		errors = read_node_blocks(ctx, ni, max);
 
 		/* Check for node transitions */
 		check_transitions(ctx, ni, max, mask);
@@ -851,7 +854,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 				if (ctx->qc_flags & RF_REBOOT)
 					reboot(RB_AUTOBOOT);
 			}
-		}  else {
+		} else {
 			set_bit(mask, (ctx->qc_my_id-1), sizeof(mask));
 			if (ctx->qc_status == S_NONE) {
 				log_printf(LOG_NOTICE,
@@ -958,7 +961,8 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 				return -1;
 			}
 			check_cman(ctx, mask, master_mask);
-			cman_poll_quorum_device(ctx->qc_ch, 1);
+			if (!errors)
+				cman_poll_quorum_device(ctx->qc_ch, 1);
 
 		} else if (ctx->qc_status == S_RUN && ctx->qc_master &&
 			   ctx->qc_master != ctx->qc_my_id) {
@@ -977,7 +981,8 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 						"Halting qdisk operations\n");
 					return -1;
 				}
-				cman_poll_quorum_device(ctx->qc_ch, 1);
+				if (!errors)
+					cman_poll_quorum_device(ctx->qc_ch, 1);
 			}
 		}
 		
@@ -985,6 +990,8 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 		if (qd_write_status(ctx, ctx->qc_my_id, ctx->qc_status,
 				    &msg, mask, master_mask) != 0) {
 			log_printf(LOG_ERR, "Error writing to quorum disk\n");
+			errors++; /* this value isn't really used 
+				     at this point */
 		}
 
 		/* write out our local status */
@@ -1025,13 +1032,24 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 			       (int)diff.tv_sec, (int)diff.tv_usec);
 			memcpy(&sleeptime, &interval, sizeof(sleeptime));
 		}
+
+		if (errors && ctx->qc_max_error_cycles) {
+			++error_cycles;
+			if (error_cycles >= ctx->qc_max_error_cycles) {
+				log_printf(LOG_ALERT,
+				       "Too many I/O errors; giving up.\n");
+				_running = 0;
+			}
+		} else {
+			error_cycles = 0;
+		}
 		
 		/* Could hit a watchdog timer here if we wanted to */
 		if (_running)
 			select(0, NULL, NULL, NULL, &sleeptime);
 	}
 
-	return 0;
+	return !!errors;
 }
 
 
@@ -1246,6 +1264,7 @@ get_config_data(qd_ctx *ctx, struct h_data *h, int maxh,
 
 	ctx->qc_sched = SCHED_RR;
 	ctx->qc_sched_prio = 1;
+	ctx->qc_max_error_cycles = 0;
 
 	/* Get interval */
 	snprintf(query, sizeof(query), "/cluster/quorumd/@interval");
@@ -1443,6 +1462,20 @@ get_config_data(qd_ctx *ctx, struct h_data *h, int maxh,
 			ctx->qc_flags &= ~RF_UPTIME;
 		else
 			ctx->qc_flags |= RF_UPTIME;
+		free(val);
+	}
+
+
+	/*
+	 * How many consecutive error cycles do we allow before
+	 * giving up?
+	 */
+	/* default = no max */
+	snprintf(query, sizeof(query), "/cluster/quorumd/@max_error_cycles");
+	if (ccs_get(ccsfd, query, &val) == 0) {
+		ctx->qc_max_error_cycles = atoi(val);
+		if (ctx->qc_max_error_cycles <= 0)
+			ctx->qc_max_error_cycles = 0;
 		free(val);
 	}
 

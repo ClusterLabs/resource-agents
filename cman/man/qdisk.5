@@ -338,6 +338,22 @@ daemon will read /proc/partitions and check for qdisk signatures
 on every block device found, comparing the label against the specified
 label.  This is useful in configurations where the block device name
 differs on a per-node basis.
+
+.in 9
+\fIcman_label\fP\fB="\fPmylabel\fB"/>\fP
+.in 12
+This overrides the label advertised to CMAN if present.  If specified,
+the quorum daemon will register with this name instead of the actual
+device name.
+
+.in 9
+\fImax_error_cycles\fP\fB="\fP0\fB"/>\fP
+.in 12
+If we receive an I/O error during a cycle, we do not poll CMAN and tell
+it we are alive.  If specified, this value will cause qdiskd to exit
+after the specified number of consecutive cycles during which I/O errors
+occur.  The default is 0 (no maximum).
+
 .in 8
 \fB/>\fP
 .in 0
