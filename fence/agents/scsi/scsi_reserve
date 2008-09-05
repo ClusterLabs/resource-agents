@@ -223,6 +223,61 @@ case $1 in
 
 	;; # end of stop
 
+    restart)
+
+	error=0
+
+	echo -n "Retarting scsi_reserve:"
+
+	for dev in $scsi_devices
+	do
+	  # recreate the scsi registration
+	  #
+	  if ! sg_persist -n -d $dev -o -I -S $key &> /dev/null ; then
+	      logger -t scsi_reserve \
+		"[error] unable to register device $dev (key=0x$key)"
+	      : $[ count = $count + 1 ]
+	      error=1
+	  else
+	      logger -t scsi_reserve \
+		"[info] registered with device $dev (key=0x$key)"
+	  fi
+
+	  # check to see if reservation already exists
+	  #
+	  if sg_persist -n -d $dev -i -r | grep -qiE "^[[:space:]]*Key=0x" ; then
+	      logger -t scsi_reserve \
+		"[info] reservation already exists on $dev"
+	      continue
+	  fi
+
+	  # recreate the scsi reservation
+	  #
+	  if ! sg_persist -n -d $dev -o -R -K $key -T 5 &> /dev/null ; then
+	      logger -t scsi_reserver \
+		"[error] unable to create reservation on $dev (key=0x$key)"
+	      : $[ count = $count + 1 ]
+	      error=1
+	  fi
+	done
+
+	# leave fence domain if any errors occured during registration
+	#
+	if [ $error -eq 0 ] ; then
+	    success
+	else
+	    logger -t scsi_reserve \
+		"[info] $count errors during registration"
+	    logger -t scsi_reserve \
+		"[info] leaving the fence domain"
+	    fence_tool leave
+	    failure
+	fi
+
+	echo
+
+	;; # end of restart
+
     status)
 
 	error=0
