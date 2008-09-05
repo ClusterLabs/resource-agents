@@ -43,7 +43,7 @@ static int two_node;
 static unsigned int disable_openais;
 static unsigned int portnum;
 static int num_nodenames;
-static char *key_filename;
+static char *key_filename=NULL;
 static char *mcast_name;
 static char *cluster_name;
 static char error_reason[1024] = { '\0' };

@@ -35,7 +35,6 @@
 
 extern int our_nodeid();
 extern char cluster_name[MAX_CLUSTER_NAME_LEN+1];
-extern char *key_filename;
 extern unsigned int quorumdev_poll;
 extern unsigned int ccsd_poll_interval;
 extern unsigned int shutdown_timeout;

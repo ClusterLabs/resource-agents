@@ -15,6 +15,7 @@
 #include "logging.h"
 
 static int xml_readconfig(struct objdb_iface_ver0 *objdb, char **error_string);
+static int xml_reloadconfig(struct objdb_iface_ver0 *objdb, int flush, char **error_string);
 static int init_config(struct objdb_iface_ver0 *objdb, char *configfile, char *error_string);
 static char error_reason[1024];
 static int xmllistindex = 0;
@@ -27,7 +28,8 @@ static char previous_query[PATH_MAX];
  */
 
 static struct config_iface_ver0 xmlconfig_iface_ver0 = {
-	.config_readconfig        = xml_readconfig
+	.config_readconfig        = xml_readconfig,
+	.config_reloadconfig      = xml_reloadconfig
 };
 
 static struct lcr_iface ifaces_ver0[2] = {
@@ -243,6 +245,12 @@ static int read_config_for(xmlXPathContextPtr ctx, struct objdb_iface_ver0 *objd
 		free(str);
 	}
 	return gotcount;
+}
+
+static int xml_reloadconfig(struct objdb_iface_ver0 *objdb, int flush, char **error_string)
+{
+	fprintf(stderr, "CC: xml_reloadconfig\n");
+	return xml_readconfig(objdb, error_string);
 }
 
 static int xml_readconfig(struct objdb_iface_ver0 *objdb, char **error_string)
