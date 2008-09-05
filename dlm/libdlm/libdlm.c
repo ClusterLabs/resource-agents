@@ -24,11 +24,11 @@
 #include "libdlm.h"
 #include <linux/dlm_device.h>
 
-#define PROC_MISC		"/proc/misc"
 #define MISC_PREFIX		"/dev/misc/"
 #define DLM_PREFIX		"dlm_"
 #define DLM_MISC_PREFIX		MISC_PREFIX DLM_PREFIX
-#define DLM_CONTROL_DEV		"dlm-control"
+#define DLM_CONTROL_NAME	"dlm-control"
+#define DLM_CONTROL_PATH	MISC_PREFIX DLM_CONTROL_NAME
 #define DEFAULT_LOCKSPACE	"default"
 
 /*
@@ -74,11 +74,6 @@ struct dlm_lock_result_v5 {
 	__u32 lvb_offset;
 };
 
-/*
- * This is the name of the control device
- */
-
-#define DLM_CTL_DEVICE_NAME MISC_PREFIX DLM_CONTROL_DEV
 
 /*
  * One of these per lockspace in use by the application
@@ -113,28 +108,6 @@ static void ls_dev_name(const char *lsname, char *devname, int devlen)
 {
 	snprintf(devname, devlen, DLM_MISC_PREFIX "%s", lsname);
 }
-
-#ifdef HAVE_SELINUX
-static int set_selinux_context(const char *path)
-{
-	security_context_t scontext;
-
-	if (is_selinux_enabled() <= 0)
-		return 1;
-
-	if (matchpathcon(path, 0, &scontext) < 0) {
-		return 0;
-	}
-
-	if ((lsetfilecon(path, scontext) < 0) && (errno != ENOTSUP)) {
-		freecon(scontext);
-		return 0;
-	}
-
-	free(scontext);
-	return 1;
-}
-#endif
 
 static void dummy_ast_routine(void *arg)
 {
@@ -338,86 +311,6 @@ static int open_default_lockspace(void)
 	return 0;
 }
 
-static int create_control_device(void)
-{
-    FILE *pmisc;
-    int minor;
-    char name[256];
-    int status = 0;
-    int saved_errno = 0;
-    mode_t oldmode;
-    int done = 0;
-    int rv;
-
-    /* Make sure the parent directory exists */
-    oldmode = umask(0);
-    status = mkdir(MISC_PREFIX, 0755);
-    umask(oldmode);
-    if (status != 0 && errno != EEXIST)
-    {
-	return status;
-    }
-
-    pmisc = fopen(PROC_MISC, "r");
-    if (!pmisc)
-	return -1;
-
-    while (!feof(pmisc))
-    {
-	
-	rv = fscanf(pmisc, "%d %s\n", &minor, name);
-	if ((rv == EOF) || (rv != 2))
-		break;
-	if (strcmp(name, DLM_CONTROL_DEV) == 0)
-	{
-	    status = mknod(DLM_CTL_DEVICE_NAME, S_IFCHR | 0600, makedev(MISC_MAJOR, minor));
-	    saved_errno = errno;
-	    done = 1;
-#ifdef HAVE_SELINUX
-	    if (status == 0)
-		set_selinux_context(DLM_CTL_DEVICE_NAME);
-#endif
-	    break;
-	}
-    }
-    fclose(pmisc);
-
-    /* if it all went well but we didn't find the DLM misc device, still return an error */
-    if (status == 0 && !done)
-    {
-	    status = -1;
-	    saved_errno = ENXIO;
-    }
-    errno = saved_errno;
-    return status;
-}
-
-static int find_minor_from_proc(const char *prefix, const char *lsname)
-{
-    FILE *f = fopen(PROC_MISC, "r");
-    char miscname[strlen(lsname)+strlen(prefix)+1];
-    char name[256];
-    int minor;
-
-    sprintf(miscname, "%s%s", prefix, lsname);
-
-    if (f)
-    {
-	while (!feof(f))
-	{
-	    if (fscanf(f, "%d %s", &minor, name) == 2 &&
-		strcmp(name, miscname) == 0)
-	    {
-		fclose(f);
-		return minor;
-	    }
-	}
-    }
-
-    fclose(f);
-    return 0;
-}
-
 static void detect_kernel_version(void)
 {
 	struct dlm_device_version v;
@@ -437,32 +330,65 @@ static void detect_kernel_version(void)
 	kernel_version_detected = 1;
 }
 
+static int find_control_minor(int *minor)
+{
+	FILE *f;
+	char name[256];
+	int found = 0, m = 0;
+
+	f = fopen("/proc/misc", "r");
+	if (!f)
+		return -1;
+
+	while (!feof(f)) {
+		if (fscanf(f, "%d %s", &m, name) != 2)
+			continue;
+		if (strcmp(name, DLM_CONTROL_NAME))
+			continue;
+		found = 1;
+		break;
+	}
+	fclose(f);
+
+	if (found) {
+		*minor = m;
+		return 0;
+	}
+	return -1;
+}
+
 static int open_control_device(void)
 {
-	int minor;
 	struct stat st;
-	int stat_ret;
+	int i, rv, minor, found = 0;
 
-	if (control_fd == -1) {
-		stat_ret = stat(DLM_CTL_DEVICE_NAME, &st);
-		if (!stat_ret) {
-			minor = find_minor_from_proc("", DLM_CONTROL_DEV);
-			if (S_ISCHR(st.st_mode) &&
-			    st.st_rdev != makedev(MISC_MAJOR, minor))
-				unlink(DLM_CTL_DEVICE_NAME);
+	if (control_fd > -1)
+		goto out;
+
+	rv = find_control_minor(&minor);
+	if (rv < 0)
+		return -1;
+
+	/* wait for udev to create the device */
+
+	for (i = 0; i < 10; i++) {
+		if (stat(DLM_CONTROL_PATH, &st) == 0 &&
+		    minor(st.st_rdev) == minor) {
+			found = 1;
+			break;
 		}
-
-		control_fd = open(DLM_CTL_DEVICE_NAME, O_RDWR);
-
-		if (control_fd == -1) {
-			if (create_control_device())
-				return -1;
-
-			control_fd = open(DLM_CTL_DEVICE_NAME, O_RDWR);
-			if (control_fd == -1)
-				return -1;
-		}
+		sleep(1);
+		continue;
 	}
+
+	if (!found)
+		return -1;
+
+	control_fd = open(DLM_CONTROL_PATH, O_RDWR);
+	if (control_fd == -1)
+		return -1;
+
+ out:
 	fcntl(control_fd, F_SETFD, 1);
 
 	if (!kernel_version_detected)
