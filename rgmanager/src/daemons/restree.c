@@ -313,6 +313,26 @@ restore_signals(void)
 }
 
 
+/** Find the index for a given operation / depth in a resource node */
+int
+res_act_index(resource_node_t *node, const char *op_str, int depth)
+{
+	int x = 0;
+	resource_act_t *act;
+
+	for (x = 0; node->rn_actions[x].ra_name; x++) {
+		act = &node->rn_actions[x];
+		if (depth != act->ra_depth)
+			continue;
+		if (strcasecmp(act->ra_name, op_str))
+			continue;
+		return x;
+	}
+
+	return -1;
+}
+
+
 /**
    Execute a resource-specific agent for a resource node in the tree.
 
@@ -327,12 +347,25 @@ res_exec(resource_node_t *node, int op, const char *arg, int depth)
 {
 	int childpid, pid;
 	int ret = 0;
+	int act_index;
+	time_t sleeptime = 0;
 	char **env = NULL;
 	resource_t *res = node->rn_resource;
 	const char *op_str = agent_op_str(op);
 	char fullpath[2048];
 
 	if (!res->r_rule->rr_agent)
+		return 0;
+
+	/* Get the action index for later */
+	act_index = res_act_index(node, op_str, depth);
+
+	/* This shouldn't happen, but execing an action for which 
+	   we have an incorrect depth or no status action does not
+	   indicate a problem.  This allows people writing resource
+	   agents to write agents which have no status/monitor function
+	   at their option, in violation of the OCF RA API specification. */
+	if (act_index < 0)
 		return 0;
 
 #ifdef DEBUG
@@ -390,11 +423,53 @@ res_exec(resource_node_t *node, int op, const char *arg, int depth)
 	kill_env(env);
 #endif
 
-	do {
-		pid = waitpid(childpid, &ret, 0);
-		if ((pid < 0) && (errno == EINTR))
-			continue;
-	} while (0);
+	if (node->rn_flags & RF_ENFORCE_TIMEOUTS)
+		sleeptime = node->rn_actions[act_index].ra_timeout;
+
+	if (sleeptime > 0) {
+
+		/* There's a better way to do this, but this is easy and
+		   doesn't introduce signal woes */
+		while (sleeptime) {
+			pid = waitpid(childpid, &ret, WNOHANG);
+
+			if (pid == childpid)
+				break;
+			sleep(1);
+			--sleeptime;
+		}
+
+		if (pid != childpid && sleeptime == 0) {
+
+			clulog(LOG_ERR,
+			       "%s on %s:%s timed out after %d seconds\n",
+			       op_str, res->r_rule->rr_type,
+			       res->r_attrs->ra_value,
+			       node->rn_actions[act_index].ra_timeout,
+			       ocf_strerror(ret));
+			
+			/* This can't be guaranteed to kill even the child
+			   process if the child is in disk-wait :( */
+			kill(childpid, SIGKILL);
+			sleep(1);
+			pid = waitpid(childpid, &ret, WNOHANG);
+			if (pid == 0) {
+				clulog(LOG_ERR,
+				       "Task %s PID %d did not exit "
+				       "after SIGKILL\n",
+				       op_str, childpid);
+			}
+
+			/* Always an error if we time out */
+			return 1;
+		}
+	} else {
+		do {
+			pid = waitpid(childpid, &ret, 0);
+			if ((pid < 0) && (errno == EINTR))
+				continue;
+		} while (0);
+	}
 
 	if (WIFEXITED(ret)) {
 
@@ -549,6 +624,17 @@ do_load_resource(int ccsfd, char *base,
 #endif
 		if (atoi(ref) > 0 || strcasecmp(ref, "yes") == 0)
 			node->rn_flags |= RF_INDEPENDENT;
+		free(ref);
+	}
+
+	snprintf(tok, sizeof(tok), "%s/@__enforce_timeouts", base);
+#ifndef NO_CCS
+	if (ccs_get(ccsfd, tok, &ref) == 0) {
+#else
+	if (conf_get(tok, &ref) == 0) {
+#endif
+		if (atoi(ref) > 0 || strcasecmp(ref, "yes") == 0)
+			node->rn_flags |= RF_ENFORCE_TIMEOUTS;
 		free(ref);
 	}
 
@@ -828,6 +914,8 @@ _print_resource_tree(resource_node_t **tree, int level)
 				printf("COMMON ");
 			if (node->rn_flags & RF_INDEPENDENT)
 				printf("INDEPENDENT ");
+			if (node->rn_flags & RF_ENFORCE_TIMEOUTS)
+				printf("ENFORCE-TIMEOUTS ");
 			printf("]");
 		}
 		printf(" {\n");

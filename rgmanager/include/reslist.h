@@ -27,6 +27,7 @@
 #define RF_DESTROY	(1<<8)	/** Resource rule flag: Destroy this
 				  resource class if you delete it from
 				  the configuration */
+#define RF_ENFORCE_TIMEOUTS (1<<9) /** Enforce timeouts for this node */
 
 
 
