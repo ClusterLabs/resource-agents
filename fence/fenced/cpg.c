@@ -548,11 +548,11 @@ static int wait_messages_done(struct fd *fd)
 	}
 
 	if (need) {
-		log_debug("wait_messages_done need %d of %d", need, total);
+		log_debug("wait_messages need %d of %d", need, total);
 		return 0;
 	}
 
-	log_debug("wait_messages_done got all %d", total);
+	log_debug("wait_messages got all %d", total);
 	return 1;
 }
 

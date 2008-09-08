@@ -738,11 +738,11 @@ static int wait_messages_done(struct mountgroup *mg)
 	}
 
 	if (need) {
-		log_group(mg, "wait_messages_done need %d of %d", need, total);
+		log_group(mg, "wait_messages need %d of %d", need, total);
 		return 0;
 	}
 
-	log_group(mg, "wait_messages_done got all %d", total);
+	log_group(mg, "wait_messages got all %d", total);
 	return 1;
 }
 
@@ -2376,6 +2376,11 @@ int gfs_join_mountgroup(struct mountgroup *mg)
 	return -ENOTCONN;
 }
 
+/* If mount(2) fails, we'll often get two leaves, one from seeing the remove
+   uevent, and the other from mount.gfs.  I suspect they could arrive in either
+   order.  We can just ignore the second.  The second would either not find
+   the mg here, or would see mg->leaving of 1 from the first. */
+
 void gfs_leave_mountgroup(char *mgname, int mnterr)
 {
 	struct mountgroup *mg;
@@ -2385,7 +2390,12 @@ void gfs_leave_mountgroup(char *mgname, int mnterr)
 
 	mg = find_mg(mgname);
 	if (!mg) {
-		log_error("leave: %s not found", mgname);
+		log_debug("leave: %s not found", mgname);
+		return;
+	}
+
+	if (mg->leaving) {
+		log_debug("leave: %s already leaving", mgname);
 		return;
 	}
 

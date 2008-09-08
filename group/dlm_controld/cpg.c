@@ -630,11 +630,11 @@ static int wait_messages_done(struct lockspace *ls)
 	}
 
 	if (need) {
-		log_group(ls, "wait_messages_done need %d of %d", need, total);
+		log_group(ls, "wait_messages need %d of %d", need, total);
 		return 0;
 	}
 
-	log_group(ls, "wait_messages_done got all %d", total);
+	log_group(ls, "wait_messages got all %d", total);
 	return 1;
 }
 
