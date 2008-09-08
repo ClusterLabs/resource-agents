@@ -66,7 +66,7 @@ forwarding_thread(void *arg)
 		clulog(LOG_ERR, "FW: Attempt to forward to invalid node ID\n");
        		goto out_fail;
 	}
-	if (rgs.rs_owner == my_id()) {
+	if (rgs.rs_owner == (uint32_t)my_id()) {
 		clulog(LOG_WARNING, "BUG! Attempt to forward to myself!\n");
        		goto out_fail;
 	}
@@ -90,7 +90,7 @@ forwarding_thread(void *arg)
 		       rgs.rs_owner, ctx);
 		goto out_fail;
 	}
-	if (msg_send(ctx, &msg, sizeof(msg)) < sizeof(msg)) {
+	if (msg_send(ctx, &msg, sizeof(msg)) < (int)sizeof(msg)) {
 		clulog(LOG_DEBUG, "FW: Failed to send message to %d CTX: %p\n",
 		       rgs.rs_owner, ctx);
 		goto out_fail;
@@ -192,7 +192,7 @@ forwarding_thread_v2(void *arg)
 
 	/* swap + send */
 	swab_SmMessageSt(msgp);
-	if (msg_send(ctx, msgp, sizeof(*msgp)) < sizeof(*msgp)) {
+	if (msg_send(ctx, msgp, sizeof(*msgp)) < (int)sizeof(*msgp)) {
 		clulog(LOG_DEBUG, "FW: Failed to send message to %d CTX: %p\n",
 		       target, ctx);
 		goto out_fail;

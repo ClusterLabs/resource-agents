@@ -17,6 +17,7 @@
 #include <malloc.h>
 #include <cman-private.h>
 #include <event.h>
+#include <members.h>
 
 #define L_SHUTDOWN (1<<2)
 #define L_SYS (1<<1)

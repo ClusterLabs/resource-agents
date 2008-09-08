@@ -49,7 +49,11 @@
 int group_property(char *, char *, char *, size_t);
 
 fod_node_t *
+#ifndef NO_CCS
 fod_get_node(int ccsfd, char *base, int idx, fod_t *domain)
+#else
+fod_get_node(int __attribute__((unused)) ccsfd, char *base, int idx, fod_t *domain)
+#endif
 {
 	fod_node_t *fodn;
 	char xpath[256];
@@ -538,7 +542,7 @@ node_should_start(int nodeid, cluster_member_list_t *membership,
 		 */
 		if (svc_state.rs_state == RG_STATE_STARTED)
 			started = 1;
-		if (svc_state.rs_owner == nodeid)
+		if (svc_state.rs_owner == (uint32_t)nodeid)
 			owned_by_node = 1;
 		if (!memb_online(membership, svc_state.rs_owner))
 			no_owner = 1;

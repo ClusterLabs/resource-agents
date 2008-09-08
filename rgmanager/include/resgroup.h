@@ -196,13 +196,6 @@ int rg_unlock(struct dlm_lksb *p);
 #endif
 
 
-/*
-   from memberlist.c
- */
-void member_list_update(cluster_member_list_t *new_ml);
-cluster_member_list_t *member_list(void);
-int my_id(void);
-
 /* Return codes */
 #define RG_EEXCL	-16		/* Service not runnable due to
 					   inability to start exclusively */

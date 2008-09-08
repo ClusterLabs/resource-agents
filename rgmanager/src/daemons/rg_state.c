@@ -491,7 +491,7 @@ svc_advise_stop(rg_state_t *svcStatus, char *svcName, int req)
 	case RG_STATE_STARTING:
 	case RG_STATE_RECOVER:
 	case RG_STATE_MIGRATE:
-		if ((svcStatus->rs_owner != my_id()) &&
+		if ((svcStatus->rs_owner != (uint32_t)my_id()) &&
 		    memb_online(membership, svcStatus->rs_owner)) {
 			/*
 			   Service is running and the owner is online.
@@ -517,7 +517,7 @@ svc_advise_stop(rg_state_t *svcStatus, char *svcName, int req)
 		}
 
 		if (svcStatus->rs_owner == 0 ||
-		    (svcStatus->rs_owner == my_id())) {
+		    (svcStatus->rs_owner == (uint32_t)my_id())) {
 			/*
 			   Service is marked as running locally or on
 			   0 (e.g. no member).  Safe
@@ -623,7 +623,7 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 	case RG_STATE_STARTED:
 	case RG_STATE_CHECK:
 	case RG_STATE_STARTING:
-		if (svcStatus->rs_owner == my_id()) {
+		if (svcStatus->rs_owner == (uint32_t)my_id()) {
 		    	/*
 			 * Service is already running locally
 			clulog(LOG_DEBUG,
@@ -633,7 +633,7 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 			break;
 		}
 
-		if (svcStatus->rs_owner != my_id() &&
+		if (svcStatus->rs_owner != (uint32_t)my_id() &&
 		    memb_online(membership, svcStatus->rs_owner)) {
 			/*
 			 * Service is running and the owner is online!
@@ -895,13 +895,13 @@ svc_migrate(char *svcName, int target)
 		return RG_EFAIL;
 	}
 
-	if (svcStatus.rs_owner == target) {
+	if (svcStatus.rs_owner == (uint32_t)target) {
 		rg_unlock(&lockp);
 		/* Do not allow migration to its current owner! */
 		return 0;
 	}
 
-	if (svcStatus.rs_owner != my_id()) {
+	if (svcStatus.rs_owner != (uint32_t)my_id()) {
 		rg_unlock(&lockp);
 		return RG_EFORWARD;
 	}
@@ -978,8 +978,8 @@ svc_migrate(char *svcName, int target)
 		return ret;
 	}
 
-	if (svcStatus.rs_last_owner != my_id() ||
-	    svcStatus.rs_owner != target ||
+	if (svcStatus.rs_last_owner != (uint32_t)my_id() ||
+	    svcStatus.rs_owner != (uint32_t)target ||
 	    svcStatus.rs_state != RG_STATE_MIGRATE) {
 		rg_unlock(&lockp);
 		return ret;
@@ -1151,7 +1151,7 @@ svc_status(char *svcName)
 		/* Don't check status if the service is frozen */
 		return 0;
 
-	if (svcStatus.rs_owner != my_id())
+	if (svcStatus.rs_owner != (uint32_t)my_id())
 		/* Don't check status for anything not owned */
 		return 0;
 
@@ -1171,7 +1171,8 @@ svc_status(char *svcName)
 
 
 static inline int
-handle_started_status(char *svcName, int ret, rg_state_t *svcStatus)
+handle_started_status(char *svcName, int ret,
+		      rg_state_t __attribute__((unused)) *svcStatus)
 {
 	int newowner;
 
@@ -1471,7 +1472,7 @@ svc_fail(char *svcName)
 	}
 
 	if ((svcStatus.rs_state == RG_STATE_STARTED) &&
-	    (svcStatus.rs_owner != my_id())) {
+	    (svcStatus.rs_owner != (uint32_t)my_id())) {
 		rg_unlock(&lockp);
 		clulog(LOG_DEBUG, "Unable to disable RG %s in %s state\n",
 		       svcName, rg_state_str(svcStatus.rs_state));
@@ -1609,7 +1610,7 @@ svc_start_remote(char *svcName, int request, uint32_t target)
 
 	/* Send relocate message to the other node */
 	if (msg_send(&ctx, &msg_relo, sizeof (SmMessageSt)) < 
-	    sizeof (SmMessageSt)) {
+	    (int)sizeof (SmMessageSt)) {
 		clulog(LOG_ERR,
 		       "#59: Error sending remote-start request to member #%d\n",
 		       target);
@@ -2056,8 +2057,8 @@ handle_start_remote_req(char *svcName, int req)
 
 	/* XXX ok, so we need to say "should I start this if I was the
 	   only cluster member online */
-	for (x = 0; x < membership->cml_count; x++) {
-		if (membership->cml_members[x].cn_nodeid == me)
+	for (x = 0; x < (int)membership->cml_count; x++) {
+		if (membership->cml_members[x].cn_nodeid == (int)me)
 			continue;
 
 		membership->cml_members[x].cn_member = 0;

@@ -264,7 +264,7 @@ sh_exit(int sig)
  * Traditional behavior.  Reconfigure on SIGHUP.
  */
 static void
-sh_reconfigure(int sig)
+sh_reconfigure(int __attribute__ ((unused)) sig)
 {
 	clulog(LOG_DEBUG, "Re-reading the cluster database\n");
 	rmtabd_reconfigure();
@@ -374,7 +374,7 @@ get_rmtabd_loglevel(void)
  * configuration database.
  */
 static int
-get_rmtabd_pollinterval(int *interval)
+get_rmtabd_pollinterval(int __attribute__((unused)) *interval)
 {
 #if 0
 	return __get_int_param(POLLINT_STR, interval, POLLINT_DEFAULT);

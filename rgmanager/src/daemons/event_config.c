@@ -141,7 +141,11 @@ event_match(event_t *pattern, event_t *actual)
 
 
 char *
+#ifndef NO_CCS
 ccs_node_id_to_name(int ccsfd, int nodeid)
+#else
+ccs_node_id_to_name(int __attribute__ ((unused)) ccsfd, int nodeid)
+#endif
 {
 	char xpath[256], *ret = 0;
 
@@ -154,7 +158,11 @@ ccs_node_id_to_name(int ccsfd, int nodeid)
 
 
 int
+#ifndef NO_CCS
 ccs_node_name_to_id(int ccsfd, char *name)
+#else
+ccs_node_name_to_id(int __attribute__((unused)) ccsfd, char *name)
+#endif
 {
 	char xpath[256], *ret = 0;
 	int rv = 0;

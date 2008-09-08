@@ -108,8 +108,8 @@ ccs_lock(void)
 
 
 int
-ccs_unlock(int fd)
 #ifndef NO_CCS
+ccs_unlock(int fd)
 {
 	int ret;
 
@@ -121,6 +121,7 @@ ccs_unlock(int fd)
 	return 0;
 }
 #else
+ccs_unlock(int __attribute__((unused)) fd)
 {
 	xmlFreeDoc(ccs_doc);
 	ccs_doc = NULL;

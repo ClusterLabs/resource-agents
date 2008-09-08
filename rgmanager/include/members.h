@@ -32,5 +32,7 @@ cluster_member_list_t *memb_lost(cluster_member_list_t *old,
 	 			 cluster_member_list_t *new);
 
 cluster_member_list_t *member_list_dup(cluster_member_list_t *old);
+cluster_member_list_t *member_list(void);
+void member_list_update(cluster_member_list_t *new_ml);
 
 #endif

@@ -1172,7 +1172,8 @@ clear_checks(resource_node_t *node)
    @see			_res_op_by_level res_exec
  */
 static inline int
-_res_op_internal(resource_node_t **tree, resource_t *first,
+_res_op_internal(resource_node_t __attribute__ ((unused)) **tree,
+		 resource_t *first,
 		 char *type, void *__attribute__((unused))ret, int realop,
 		 resource_node_t *node)
 {

@@ -86,7 +86,8 @@ char *agentpath = RESOURCE_ROOTDIR;
 
 
 int
-rules_func(int argc, char **argv)
+rules_func(int __attribute__((unused)) argc,
+	   char __attribute__((unused)) **argv)
 {
 	resource_rule_t *rulelist = NULL, *currule;
 	int rules = 0;

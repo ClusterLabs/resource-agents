@@ -4,6 +4,7 @@
 #include <gettid.h>
 #include <rg_queue.h>
 #include <assert.h>
+#include <members.h>
 
 /**
  * Resource thread list entry.
@@ -247,7 +248,7 @@ resgroup_thread_main(void *arg)
 
 		case RG_ENABLE:
 			if (req->rr_target != 0 &&
-			    req->rr_target != my_id()) {
+			    req->rr_target != (unsigned)my_id()) {
 				error = RG_EFORWARD;
 				ret = RG_NONE;
 				break;

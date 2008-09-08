@@ -42,6 +42,7 @@ void res_build_name(char *, size_t, resource_t *);
 int get_rg_state_local(char *, rg_state_t *);
 int group_migratory(char *groupname, int lock);
 int _group_property(char *groupname, char *property, char *ret, size_t len);
+int restart_threshold_exceeded(restart_counter_t arg);
 
 
 struct status_arg {
@@ -228,7 +229,7 @@ count_resource_groups_local(cman_node_t *mp)
 		     st.rs_state != RG_STATE_STARTING)
 			continue;
 
-		if (mp->cn_nodeid != st.rs_owner)
+		if (mp->cn_nodeid != (int)st.rs_owner)
 			continue;
 
 		++mp->cn_svccount;
@@ -475,7 +476,7 @@ consider_start(resource_node_t *node, char *svcName, rg_state_t *svcStatus,
 	 * local start.
 	 */
 	if (svcStatus->rs_state == RG_STATE_STARTED &&
-	    svcStatus->rs_owner == mp->cn_nodeid)
+	    svcStatus->rs_owner == (uint32_t)mp->cn_nodeid)
 		return;
 
 	if (svcStatus->rs_state == RG_STATE_DISABLED)
@@ -579,7 +580,7 @@ consider_relocate(char *svcName, rg_state_t *svcStatus, uint32_t nodeid,
 	 */
 	if ((svcStatus->rs_state != RG_STATE_STARTING &&
 	    svcStatus->rs_state != RG_STATE_STARTED) ||
-	    svcStatus->rs_owner != my_id())
+	    svcStatus->rs_owner != (uint32_t)my_id())
 		return;
 
 	/*
@@ -783,7 +784,9 @@ eval_groups(int local, uint32_t nodeid, int nodeStatus)
  * @see			eval_groups
  */
 int
-group_event(char *rg_name, uint32_t state, int owner)
+group_event(char __attribute__ ((unused)) *rg_name,
+	    uint32_t state,
+	    int __attribute__ ((unused)) owner)
 {
 	char svcName[64], *nodeName;
 	resource_node_t *node;
@@ -858,7 +861,7 @@ group_event(char *rg_name, uint32_t state, int owner)
 		 */
 		if (depend == 0 &&
 		    svcStatus.rs_state == RG_STATE_STARTED &&
-		    svcStatus.rs_owner == my_id()) {
+		    svcStatus.rs_owner == (uint32_t)my_id()) {
 
 			clulog(LOG_WARNING, "Stopping service %s: Dependency missing\n",
 			       svcName);
@@ -1287,7 +1290,7 @@ rg_doall(int request, int block, char *debugfmt)
 
 			/* Always run stop if we're the owner, regardless
 			   of state; otherwise, don't run stop */
-			if (svcblk.rs_owner != my_id())
+			if (svcblk.rs_owner != (uint32_t)my_id())
 				continue;
 		}
 
@@ -1337,7 +1340,7 @@ q_status_checks(void __attribute__ ((unused)) *arg)
 			rg_unlock(&lockp);
 		}
 
-		if (svcblk.rs_owner != my_id() ||
+		if (svcblk.rs_owner != (uint32_t)my_id() ||
 		    (svcblk.rs_state != RG_STATE_STARTED &&
 		     svcblk.rs_state != RG_STATE_MIGRATE))
 			continue;
@@ -1395,7 +1398,7 @@ do_condstops(void)
 			continue;
 		}
 
-		if (svcblk.rs_owner != my_id())
+		if (svcblk.rs_owner != (uint32_t)my_id())
 			continue;
 
 		/* Set state to uninitialized if we're killing a RG */
@@ -1475,7 +1478,7 @@ do_condstarts(void)
 			rg_unlock(&lockp);
 		}
 
-		if (!need_init && svcblk.rs_owner != my_id())
+		if (!need_init && svcblk.rs_owner != (uint32_t)my_id())
 			continue;
 
 		if (need_init) {

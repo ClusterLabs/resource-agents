@@ -77,7 +77,8 @@ central_events_enabled(void)
   @see eval_groups
  */
 void
-node_event(int local, int nodeID, int nodeStatus, int clean)
+node_event(int local, int nodeID, int nodeStatus,
+	   int __attribute__((unused)) clean)
 {
 	if (!running)
 		return;
@@ -196,7 +197,8 @@ node_fenced(int nodeid)
    Master key.
  */
 int32_t
-master_event_callback(char *key, uint64_t viewno,
+master_event_callback(char __attribute__ ((unused)) *key,
+		      uint64_t __attribute__ ((unused)) viewno,
 		      void *data, uint32_t datalen)
 {
 	event_master_t *m;
@@ -213,7 +215,7 @@ master_event_callback(char *key, uint64_t viewno,
 		return 1;
 	}
 
-	if (m->m_nodeid == my_id())
+	if (m->m_nodeid == (uint32_t)my_id())
 		clulog(LOG_DEBUG, "Master Commit: I am master\n");
 	else 
 		clulog(LOG_DEBUG, "Master Commit: %d is master\n", m->m_nodeid);
@@ -368,7 +370,7 @@ void group_event(char *name, uint32_t state, int owner);
   events are on the queue.
  */
 void *
-_event_thread_f(void *arg)
+_event_thread_f(void __attribute__ ((unused)) *arg)
 {
 	event_t *ev;
 	int notice = 0, count = 0;

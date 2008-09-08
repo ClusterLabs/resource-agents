@@ -431,7 +431,8 @@ store_resource(resource_t **reslist, resource_t *newres)
    @return		newly allocated pointer to value or NULL if not found.
  */
 char *
-xpath_get_one(xmlDocPtr doc, xmlXPathContextPtr ctx, char *query)
+xpath_get_one(xmlDocPtr __attribute__ ((unused)) doc,
+	      xmlXPathContextPtr ctx, char *query)
 {
 	char *val = NULL, *ret = NULL;
 	xmlXPathObjectPtr obj;
@@ -626,7 +627,11 @@ act_dup(resource_act_t *acts)
 
 /* Copied from resrules.c -- _get_actions */
 void
+#ifndef NO_CCS
 _get_actions_ccs(int ccsfd, char *base, resource_t *res)
+#else
+_get_actions_ccs(int __attribute__((unused)) ccsfd, char *base, resource_t *res)
+#endif
 {
 	char xpath[256];
 	int idx = 0;
