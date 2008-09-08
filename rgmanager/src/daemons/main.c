@@ -50,6 +50,7 @@ char debug = 0; /* XXX* */
 static int signalled = 0;
 static uint8_t ALIGNED port = RG_PORT;
 static char *rgmanager_lsname = "rgmanager"; /* XXX default */
+static int status_poll_interval = DEFAULT_CHECK_INTERVAL;
 
 int next_node_id(cluster_member_list_t *membership, int me);
 void malloc_dump_table(FILE *, size_t, size_t);
@@ -701,7 +702,7 @@ event_loop(msgctx_t *localctx, msgctx_t *clusterctx)
 	struct timeval tv;
 	int nodeid;
 
-	tv.tv_sec = 10;
+	tv.tv_sec = status_poll_interval;
 	tv.tv_usec = 0;
 
 	if (signalled) {
@@ -860,6 +861,21 @@ configure_rgmanager(int ccsfd, int dbg)
 			       "Centralized Event Processing enabled\n");
 		free(v);
 	}
+
+	if (ccs_get(ccsfd, "/cluster/rm/@status_poll_interval", &v) == 0) {
+		status_poll_interval = atoi(v);
+		if (status_poll_interval >= 1) {
+			clulog(LOG_NOTICE,
+			       "Status Polling Interval set to %d\n", v);
+		} else {
+			clulog(LOG_WARNING, "Ignoring illegal "
+			       "status_poll_interval of %s\n", v);
+			status_poll_interval = 10;
+		}
+		
+		free(v);
+	}
+
 
 	if (internal)
 		ccs_disconnect(ccsfd);
