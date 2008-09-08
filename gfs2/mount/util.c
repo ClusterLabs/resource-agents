@@ -494,6 +494,10 @@ int lock_dlm_leave(struct mount_options *mo, struct gen_sb *sb, int mnterr)
 
 	strncpy(ma.dir, mo->dir, PATH_MAX);
 	strncpy(ma.type, fsname, PATH_MAX);
+	if (mo->locktable[0])
+		strncpy(ma.table, mo->locktable, PATH_MAX);
+	else
+		strncpy(ma.table, sb->locktable, PATH_MAX);
 
 	rv = gfsc_fs_leave(&ma, mnterr);
 	if (rv)
