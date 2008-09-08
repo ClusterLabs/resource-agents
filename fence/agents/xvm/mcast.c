@@ -31,10 +31,10 @@ LOGSYS_DECLARE_SUBSYS ("XVM", SYSLOGLEVEL);
   Sets up a multicast receive socket
  */
 int
-ipv4_recv_sk(char *addr, int port)
+ipv4_recv_sk(char *addr, int port, unsigned int ifindex)
 {
 	int sock;
-	struct ip_mreq mreq;
+	struct ip_mreqn mreq;
 	struct sockaddr_in sin;
 
 	/* Store multicast address */
@@ -74,7 +74,7 @@ ipv4_recv_sk(char *addr, int port)
 	 * Join multicast group
 	 */
 	/* mreq.imr_multiaddr.s_addr is set above */
-	mreq.imr_interface.s_addr = htonl(INADDR_ANY);
+	mreq.imr_ifindex = ifindex;
 	dbg_printf(4, "Joining multicast group\n");
 	if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP,
 		       &mreq, sizeof(mreq)) == -1) {
@@ -184,7 +184,7 @@ ipv4_send_sk(char *send_addr, char *addr, int port, struct sockaddr *tgt,
   Sets up a multicast receive (ipv6) socket
  */
 int
-ipv6_recv_sk(char *addr, int port)
+ipv6_recv_sk(char *addr, int port, unsigned int ifindex)
 {
 	int sock, val;
 	struct ipv6_mreq mreq;
@@ -203,6 +203,7 @@ ipv6_recv_sk(char *addr, int port)
 	memcpy(&mreq.ipv6mr_multiaddr, &sin.sin6_addr,
 	       sizeof(struct in6_addr));
 
+	mreq.ipv6mr_interface = ifindex;
 
 	/********************************
 	 * SET UP MULTICAST RECV SOCKET *

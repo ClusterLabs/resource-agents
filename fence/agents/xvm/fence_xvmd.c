@@ -921,7 +921,7 @@ main(int argc, char **argv)
 	unsigned int logmode = 0;
 	char key[MAX_KEY_LEN];
 	int key_len = 0, x;
-	char *my_options = "dfi:a:p:C:U:c:k:u?hLXV";
+	char *my_options = "dfi:a:p:I:C:U:c:k:u?hLXV";
 	cman_handle_t ch = NULL;
 	void *h = NULL;
 
@@ -1031,9 +1031,9 @@ main(int argc, char **argv)
 	}
 
 	if (args.family == PF_INET)
-		mc_sock = ipv4_recv_sk(args.addr, args.port);
+		mc_sock = ipv4_recv_sk(args.addr, args.port, args.ifindex);
 	else
-		mc_sock = ipv6_recv_sk(args.addr, args.port);
+		mc_sock = ipv6_recv_sk(args.addr, args.port, args.ifindex);
 	if (mc_sock < 0) {
 		log_printf(LOG_ERR,
 			   "Could not set up multicast listen socket\n");

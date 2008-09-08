@@ -104,6 +104,13 @@ assign_port(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 
 
 static inline void
+assign_interface(fence_xvm_args_t *args, struct arg_info *arg, char *value)
+{
+	args->ifindex = if_nametoindex(value);
+}
+
+
+static inline void
 assign_retrans(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 {
 	args->retr_time = atoi(value);
@@ -307,6 +314,10 @@ static struct arg_info _arg_info[] = {
 	  "IP port (default=1229)",
 	  assign_port },
 
+	{ 'I', "-I <interface>", "multicast_address",
+	  "Network interface name to listen on",
+	  assign_interface },
+
 	{ 'r', "-r <retrans>", "retrans", 
 	  "Multicast retransmit time (in 1/10sec; default=20)",
 	  assign_retrans },
@@ -416,6 +427,7 @@ args_init(fence_xvm_args_t *args)
 	args->hash = DEFAULT_HASH;
 	args->auth = DEFAULT_AUTH;
 	args->port = 1229;
+	args->ifindex = 0;
 	args->family = PF_INET;
 	args->timeout = 30;
 	args->retr_time = 20;
@@ -445,6 +457,7 @@ args_print(fence_xvm_args_t *args)
 	_pr_int(args->hash);
 	_pr_int(args->auth);
 	_pr_int(args->port);
+	_pr_int(args->ifindex);
 	_pr_int(args->family);
 	_pr_int(args->timeout);
 	_pr_int(args->retr_time);

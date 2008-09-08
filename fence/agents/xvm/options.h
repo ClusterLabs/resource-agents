@@ -23,6 +23,7 @@ typedef struct {
 	fence_hash_t hash;
 	fence_auth_type_t auth;
 	int port;
+	unsigned int ifindex;
 	int family;
 	int timeout;
 	int retr_time;
