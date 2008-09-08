@@ -22,6 +22,12 @@ clusvcadm \- Cluster User Service Administration Utility
 .B [\-R
 .I <service>
 .B ]
+.B [\-Z
+.I <service>
+.B ]
+.B [\-U
+.I <service>
+.B ]
 .B [\-s
 .I <service>
 .B ]
@@ -73,6 +79,19 @@ Restarts the user service named
 .I
 service
 on the cluster member on which it is currently running.
+.IP "\-Z <service>"
+Freezes the service named
+.I
+service
+on the cluster member on which it is currently running.  This will
+prevent status checks of the service as well as failover in the
+event the node fails or rgmanager is stopped.
+.IP "\-U <service>"
+Unfreezes the user service named
+.I
+service
+on the cluster member on which it is currently running.  This will
+re-enable status checks.
 .IP "\-S"
 Display whether each of the active service managers is locked or not.  This
 can be used to verify the correct operation of the \fB-l\fR and \fB-u\fR 
@@ -88,6 +107,15 @@ again.
 
 .IP \-v
 Display version information and exit.
+
+.SH "NOTES"
+Executing
+.I -U
+(unfreeze) on a service which was frozen in the 
+.B started
+state while the service owner is offline results in an undefined
+(and possibly dangerous) condition.  Manually ensure all resources are
+clear before doing this.
 
 .SH "SEE ALSO"
 clustat(8)

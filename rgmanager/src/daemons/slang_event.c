@@ -248,7 +248,14 @@ sl_service_status(char *svcName)
 		return;
 	}
 
-	state_str = strdup(rg_state_str(svcStatus.rs_state));
+	if (svcStatus.rs_flags & RG_FLAG_FROZEN) {
+		/* Special case: "frozen" is a flag, but user scripts should
+		   treat it as a state. */
+		state_str = strdup(rg_flag_str(RG_FLAG_FROZEN));
+	} else {
+		state_str = strdup(rg_state_str(svcStatus.rs_state));
+	}
+
 	if (!state_str) {
 		SLang_verror(SL_RunTime_Error,
 			     "%s: Failed to duplicate state of %s",

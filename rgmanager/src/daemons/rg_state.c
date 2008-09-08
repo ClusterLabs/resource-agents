@@ -1551,7 +1551,7 @@ _svc_freeze(char *svcName, int enabled)
 
 	default:
 		rg_unlock(&lockp);
-		return RG_EFAIL;
+		return RG_EAGAIN;
 		break;
 	}
 

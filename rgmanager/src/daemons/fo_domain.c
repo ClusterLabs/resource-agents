@@ -354,7 +354,7 @@ node_domain_set(fod_t **domains, char *name, int **ret, int *retlen, int *flags)
 	int ts_count;
 	fod_node_t *fodn;
 	fod_t *domain;
-	int rv = -1, found = 0;
+	int found = 0;
 
 	list_for(domains, domain, x) {
 		if (!strcasecmp(domain->fd_name, name)) {

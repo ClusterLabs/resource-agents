@@ -145,12 +145,12 @@ rg_search_table_by_str(const struct string_val *table, const char *val)
 }
 
 
-
 const char *
 rg_strerror(int val)
 {
 	return rg_search_table(rg_error_strings, val);
 }
+
 	
 const char *
 rg_state_str(int val)
@@ -165,6 +165,19 @@ rg_state_str_to_id(const char *val)
 }
 
 
+const char *
+rg_req_str(int val)
+{
+	return rg_search_table(rg_req_strings, val);
+}
+
+
+const char *
+rg_flag_str(int val)
+{
+	return rg_search_table(rg_flags_strings, val);
+}
+
 
 const char *
 rg_flags_str(char *flags_string, size_t size, int val, char *separator)
@@ -172,7 +185,7 @@ rg_flags_str(char *flags_string, size_t size, int val, char *separator)
 	int i;
 	const char *string;
 
-	for (i = 0; i < sizeof(uint32_t); i++) {
+	for (i = 0; i < (sizeof(val) * 8); i++) {
 		if ( val & (1 << i)) {
 			if (strlen(flags_string))
 				strncat(flags_string, separator, size - (strlen(flags_string) + strlen(separator) + 1));
@@ -181,12 +194,6 @@ rg_flags_str(char *flags_string, size_t size, int val, char *separator)
 		}
 	}
 	return flags_string;
-}
-
-const char *
-rg_req_str(int val)
-{
-	return rg_search_table(rg_req_strings, val);
 }
 
 

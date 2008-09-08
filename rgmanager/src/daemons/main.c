@@ -31,7 +31,7 @@ void set_transition_throttling(int);
 void node_event(int, int, int, int);
 void node_event_q(int, int, int, int);
 int daemon_init(char *);
-int init_resource_groups(int);
+int init_resource_groups(int, int);
 void kill_resource_groups(void);
 void set_my_id(int);
 void flag_shutdown(int sig);
@@ -924,7 +924,7 @@ void dump_thread_states(FILE *);
 int
 main(int argc, char **argv)
 {
-	int rv;
+	int rv, do_init = 1;
 	char foreground = 0, wd = 1;
 	cman_node_t me;
 	msgctx_t *cluster_ctx;
@@ -932,13 +932,16 @@ main(int argc, char **argv)
 	pthread_t th;
 	cman_handle_t clu = NULL;
 
-	while ((rv = getopt(argc, argv, "wfd")) != EOF) {
+	while ((rv = getopt(argc, argv, "wfdN")) != EOF) {
 		switch (rv) {
 		case 'w':
 			wd = 0;
 			break;
 		case 'd':
 			debug = 1;
+			break;
+		case 'N':
+			do_init = 0;
 			break;
 		case 'f':
 			foreground = 1;
@@ -1005,7 +1008,7 @@ main(int argc, char **argv)
 	configure_rgmanager(-1, debug);
 	clulog(LOG_NOTICE, "Resource Group Manager Starting\n");
 
-	if (init_resource_groups(0) != 0) {
+	if (init_resource_groups(0, do_init) != 0) {
 		clulog(LOG_CRIT, "#8: Couldn't initialize services\n");
 		return -1;
 	}

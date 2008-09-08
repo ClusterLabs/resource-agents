@@ -36,7 +36,8 @@ define move_or_start(service, node_list)
 		return ERR_DOMAIN;
 	}
 
-	if (((event_type != EVENT_USER) and (state == "disabled")) or (state == "failed")) {
+	if (((event_type != EVENT_USER) and (state == "disabled")) or
+            ((state == "failed") or (state == "frozen"))) {
 		%
 		% Commenting out this block will -not- allow you to
 		% recover failed services from event scripts.  Sorry.

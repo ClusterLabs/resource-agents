@@ -137,6 +137,8 @@ int handle_start_remote_req(char *svcName, int req);
 #define RG_FLAG_FROZEN			(1<<0)	/** Resource frozen */
 
 const char *rg_state_str(int val);
+const char *rg_flag_str(int val);
+const char *rg_flags_str(char *flags_string, size_t size, int val, char *separator);
 int rg_state_str_to_id(const char *val);
 const char *rg_flags_str(char *flags_string, size_t size, int val, char *separator);
 const char *agent_op_str(int val);

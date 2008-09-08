@@ -12,6 +12,7 @@
 #include <reslist.h>
 #include <assert.h>
 #include <event.h>
+#include <sets.h>
 
 /* Use address field in this because we never use it internally,
    and there is no extra space in the cman_node_t type.
@@ -410,15 +411,15 @@ check_depend_safe(char *rg_name)
 int
 check_rdomain_crash(char *svcName)
 {
-	int *nodes = NULL, nodecount;
-	int *fd_nodes = NULL, fd_nodecount, fl;
-	int *isect = NULL, icount;
+	int *nodes = NULL, nodecount = 0;
+	int *fd_nodes = NULL, fd_nodecount = 0, fl = 0;
+	int *isect = NULL, icount = 0;
 	char fd_name[256];
 
 	if (_group_property(svcName, "domain", fd_name, sizeof(fd_name)) != 0)
 		goto out_free;
 
-	if (node_domain_set(_domains, fd_name, &fd_nodes,
+	if (node_domain_set(&_domains, fd_name, &fd_nodes,
 			    &fd_nodecount, &fl) != 0)
 		goto out_free;
 
@@ -1597,7 +1598,7 @@ dump_config_version(FILE *fp)
   resource group modification.
  */
 int
-init_resource_groups(int reconfigure)
+init_resource_groups(int reconfigure, int do_init)
 {
 	int fd, x, y, cnt;
 
@@ -1724,10 +1725,14 @@ init_resource_groups(int reconfigure)
 		clulog(LOG_INFO, "Restarting changed resources.\n");
 		do_condstarts();
 	} else {
-		/* Do initial stop-before-start */
-		clulog(LOG_INFO, "Initializing Services\n");
-		rg_doall(RG_INIT, 1, "Initializing %s\n");
-		clulog(LOG_INFO, "Services Initialized\n");
+		if (do_init) {
+			/* Do initial stop-before-start */
+			clulog(LOG_INFO, "Initializing Services\n");
+			rg_doall(RG_INIT, 1, "Initializing %s\n");
+			clulog(LOG_INFO, "Services Initialized\n");
+		} else {
+			clulog(LOG_INFO, "Skipping stop-before-start: overridden by administrator\n");
+		}
 		rg_set_initialized();
 	}
 
