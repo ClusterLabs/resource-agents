@@ -133,8 +133,17 @@ service_op_stop(char *svcName, int do_disable, int event_type)
 
 	if (get_service_state_internal(svcName, &svcStatus) < 0)
 		return RG_EFAIL;
-	if (svcStatus.rs_owner > 0)
-		msgtarget = svcStatus.rs_owner;
+	if (svcStatus.rs_owner > 0) {
+		if (member_online(svcStatus.rs_owner)) {
+			msgtarget = svcStatus.rs_owner;
+		} else {
+			/* If the owner is not online, 
+			   mark the service as 'stopped' but
+			   otherwise, do nothing.
+			 */
+			return svc_stop(svcName, RG_STOP);
+		}
+	}
 
 	if (msg_open(MSG_CLUSTER, msgtarget, RG_PORT, &ctx, 2)< 0) {
 		clulog(LOG_ERR,

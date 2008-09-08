@@ -575,24 +575,12 @@ push_int_array(int *stuff, int len)
 void
 sl_nodes_online(void)
 {
-	int i, *nodes, nodecount = 0;
+	int x, *nodes = NULL, nodecount = 0;
 
-	cluster_member_list_t *membership = member_list();
-	if (!membership)
-		return;
-	nodes = malloc(sizeof(int) * membership->cml_count);
-	if (!nodes)
+	x = member_online_set(&nodes, &nodecount);
+	if (x < 0 || !nodes || !nodecount)
 		return;
 
-	nodecount = 0;
-	for (i = 0; i < membership->cml_count; i++) {
-		if (membership->cml_members[i].cn_member &&
-		    membership->cml_members[i].cn_nodeid != 0) {
-			nodes[nodecount] = membership->cml_members[i].cn_nodeid;
-			++nodecount;
-		}
-	}
-	free_member_list(membership);
 	push_int_array(nodes, nodecount);
 	free(nodes);
 }

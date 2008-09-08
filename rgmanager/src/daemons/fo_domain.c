@@ -347,13 +347,24 @@ node_in_domain(char *nodename, fod_t *domain,
 
 
 int
-node_domain_set(fod_t *domain, int **ret, int *retlen)
+node_domain_set(fod_t **domains, char *name, int **ret, int *retlen, int *flags)
 {
 	int x, i, j;
 	int *tmpset;
 	int ts_count;
-
 	fod_node_t *fodn;
+	fod_t *domain;
+	int rv = -1, found = 0;
+
+	list_for(domains, domain, x) {
+		if (!strcasecmp(domain->fd_name, name)) {
+			found = 1;
+			break;
+		}
+	} // while (!list_done(&_domains, fod));
+
+	if (!found)
+		return -1;
 
 	/* Count domain length */
 	list_for(&domain->fd_nodes, fodn, x) { }
@@ -365,6 +376,8 @@ node_domain_set(fod_t *domain, int **ret, int *retlen)
 	tmpset = malloc(sizeof(int) * x);
 	if (!(*tmpset))
 		return -1;
+
+	*flags = domain->fd_flags;
 
 	if (domain->fd_flags & FOD_ORDERED) {
 		for (i = 1; i <= 100; i++) {

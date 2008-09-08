@@ -31,7 +31,8 @@ define move_or_start(service, node_list)
 
 	len = length(node_list);
 	if (len == 0) {
-		debug(service, " is not runnable");
+		notice(service, " is not runnable - restricted domain offline");
+		()=service_stop(service);
 		return ERR_DOMAIN;
 	}
 

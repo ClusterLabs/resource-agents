@@ -17,6 +17,7 @@ void free_member_list(cluster_member_list_t *ml);
 void member_set_state(int nodeid, int state);
 int memb_count(cluster_member_list_t *ml);
 int member_online(int nodeid);
+int member_online_set(int **nodes, int *nodecount);
 int memb_online(cluster_member_list_t *ml, int nodeid);
 int memb_online_name(cluster_member_list_t *ml, char *name);
 int memb_name_to_id(cluster_member_list_t *ml, char *name);

@@ -195,6 +195,35 @@ member_list(void)
 }
 
 
+int
+member_online_set(int **nodes, int *nodecount)
+{
+	int ret = 1, i;
+
+	pthread_rwlock_rdlock(&memblock);
+	if (!membership)
+		goto out_unlock;
+
+	*nodes = malloc(sizeof(int) * membership->cml_count);
+	if (!*nodes)
+		goto out_unlock;
+
+	*nodecount = 0;
+	for (i = 0; i < membership->cml_count; i++) {
+		if (membership->cml_members[i].cn_member &&
+		    membership->cml_members[i].cn_nodeid != 0) {
+			(*nodes)[*nodecount] = membership->cml_members[i].cn_nodeid;
+			++(*nodecount);
+		}
+	}
+
+	ret = 0;
+out_unlock:
+	pthread_rwlock_unlock(&memblock);
+	return ret;
+}
+
+
 void
 member_set_state(int nodeid, int state)
 {

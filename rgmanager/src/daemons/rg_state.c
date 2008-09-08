@@ -463,6 +463,8 @@ get_rg_state_local(char *name, rg_state_t *svcblk)
  *                      3 = DO NOT stop service, return RG_EFORWARD
  *			4 = DO NOT stop service, return RG_EAGAIN
  *			5 = DO NOT stop service, return RG_EFROZEN
+ *			6 = DO NOT stop service, mark stopped and return
+ *			    RG_SUCCESS (0)
  */
 int
 svc_advise_stop(rg_state_t *svcStatus, char *svcName, int req)
@@ -527,9 +529,10 @@ svc_advise_stop(rg_state_t *svcStatus, char *svcName, int req)
 
 		/*
 		   Service is marked as running but node is down.
-		   Doesn't make much sense to stop it.
+		   Doesn't make much sense to stop it - but we need
+		   to mark it stopped
 		 */
-		ret = 2;
+		ret = 6;
 		break;
 
 	case RG_STATE_ERROR:
@@ -1298,6 +1301,16 @@ _svc_stop(char *svcName, int req, int recover, uint32_t newstate)
 		clulog(LOG_DEBUG, "Unable to stop RG %s in %s state\n",
 		       svcName, rg_state_str(svcStatus.rs_state));
 		return RG_EFAIL;
+	case 6:
+		/* Mark stopped, but do not do anything */
+		svcStatus.rs_last_owner = svcStatus.rs_owner;
+		svcStatus.rs_owner = 0;
+		svcStatus.rs_state = RG_STATE_STOPPED;
+		if (set_rg_state(svcName, &svcStatus) != 0) {
+			rg_unlock(&lockp);
+			return RG_EFAIL;
+		}
+		/* FALLTHROUGH */
 	case 2:
 		rg_unlock(&lockp);
 		return RG_ESUCCESS;

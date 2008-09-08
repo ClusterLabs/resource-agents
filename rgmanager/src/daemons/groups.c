@@ -39,7 +39,8 @@ pthread_rwlock_t resource_lock = PTHREAD_RWLOCK_INITIALIZER;
 
 void res_build_name(char *, size_t, resource_t *);
 int get_rg_state_local(char *, rg_state_t *);
-int group_migratory(char *, int);
+int group_migratory(char *groupname, int lock);
+int _group_property(char *groupname, char *property, char *ret, size_t len);
 
 
 struct status_arg {
@@ -70,23 +71,9 @@ node_should_start_safe(uint32_t nodeid, cluster_member_list_t *membership,
 int
 node_domain_set_safe(char *domainname, int **ret, int *retlen, int *flags)
 {
-	fod_t *fod;
-	int rv = -1, found = 0, x = 0;
-
+	int rv = 0;
 	pthread_rwlock_rdlock(&resource_lock);
-
-	list_for(&_domains, fod, x) {
-		if (!strcasecmp(fod->fd_name, domainname)) {
-			found = 1;
-			break;
-		}
-	} // while (!list_done(&_domains, fod));
-
-	if (found) {
-		rv = node_domain_set(fod, ret, retlen);
-		*flags = fod->fd_flags;
-	}
-
+	rv = node_domain_set(&_domains, domainname, ret, retlen, flags);
 	pthread_rwlock_unlock(&resource_lock);
 
 	return rv;
@@ -420,6 +407,47 @@ check_depend_safe(char *rg_name)
 }
 
 
+int
+check_rdomain_crash(char *svcName)
+{
+	int *nodes = NULL, nodecount;
+	int *fd_nodes = NULL, fd_nodecount, fl;
+	int *isect = NULL, icount;
+	char fd_name[256];
+
+	if (_group_property(svcName, "domain", fd_name, sizeof(fd_name)) != 0)
+		goto out_free;
+
+	if (node_domain_set(_domains, fd_name, &fd_nodes,
+			    &fd_nodecount, &fl) != 0)
+		goto out_free;
+
+	if (!(fl & FOD_RESTRICTED))
+		goto out_free;
+	
+	if (s_intersection(fd_nodes, fd_nodecount, nodes, nodecount, 
+		    &isect, &icount) < 0)
+		goto out_free;
+
+	if (icount == 0) {
+		clulog(LOG_NOTICE, "Marking %s as stopped: "
+		       "Restricted domain unavailable\n", svcName);
+		rt_enqueue_request(svcName, RG_STOP, NULL, 0, 0,
+				   0, 0);
+	}
+
+out_free:
+	if (fd_nodes)
+		free(fd_nodes);
+	if (nodes)
+		free(nodes);
+	if (isect)
+		free(isect);
+
+	return 0;
+}
+
+
 /**
   Start or failback a resource group: if it's not running, start it.
   If it is running and we're a better member to run it, then ask for
@@ -433,6 +461,7 @@ consider_start(resource_node_t *node, char *svcName, rg_state_t *svcStatus,
 	cman_node_t *mp;
 	int autostart, exclusive;
 	struct dlm_lksb lockp;
+	int fod_ret;
 
 	mp = memb_id_to_p(membership, my_id());
 	assert(mp);
@@ -527,10 +556,13 @@ consider_start(resource_node_t *node, char *svcName, rg_state_t *svcStatus,
 	 * Start any stopped services, or started services
 	 * that are owned by a down node.
 	 */
-	if (node_should_start(mp->cn_nodeid, membership, svcName, &_domains) ==
-	    FOD_BEST)
+	fod_ret = node_should_start(mp->cn_nodeid, membership,
+				    svcName, &_domains);
+	if (fod_ret == FOD_BEST)
 		rt_enqueue_request(svcName, RG_START, NULL, 0, mp->cn_nodeid,
 				   0, 0);
+	else if (fod_ret == FOD_ILLEGAL)
+		check_rdomain_crash(svcName);
 }
 
 
@@ -1045,15 +1077,13 @@ out:
    @return		0 on success, -1 on failure.
  */
 int
-group_property(char *groupname, char *property, char *ret, size_t len)
+_group_property(char *groupname, char *property, char *ret, size_t len)
 {
 	resource_t *res = NULL;
 	int x = 0;
 
-	pthread_rwlock_rdlock(&resource_lock);
 	res = find_root_by_ref(&_resources, groupname);
 	if (!res) {
-		pthread_rwlock_unlock(&resource_lock);
 		return -1;
 	}
 
@@ -1061,14 +1091,23 @@ group_property(char *groupname, char *property, char *ret, size_t len)
 		if (strcasecmp(res->r_attrs[x].ra_name, property))
 			continue;
 		strncpy(ret, res->r_attrs[x].ra_value, len);
-		pthread_rwlock_unlock(&resource_lock);
 		return 0;
 	}
-	pthread_rwlock_unlock(&resource_lock);
 
 	return -1;
 }
 
+
+int
+group_property(char *groupname, char *property, char *ret_val, size_t len)
+{
+	int ret = -1;
+	pthread_rwlock_rdlock(&resource_lock);
+	ret = _group_property(groupname, property, ret_val, len);
+	pthread_rwlock_unlock(&resource_lock);
+	return ret;
+}
+	
 
 /**
   Send the state of a resource group to a given file descriptor.
