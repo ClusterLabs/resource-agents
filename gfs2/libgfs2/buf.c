@@ -166,6 +166,7 @@ void bcommit(struct gfs2_sbd *sdp)
 			bh->b_changed = FALSE;    /* no longer changed */
 		}
 	}
+	fsync(sdp->device_fd);
 }
 
 /* Check for unreleased buffers */
