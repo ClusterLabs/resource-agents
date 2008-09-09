@@ -567,19 +567,6 @@ static void query_mountgroup_nodes(int fd, char *name, int option, int max)
 		free(nodes);
 }
 
-void client_reply_remount(struct mountgroup *mg, int result)
-{
-	struct gfsc_mount_args *ma = &mg->mount_args;
-
-	log_group(mg, "client_reply_remount ci %d result %d",
-		  mg->remount_client, result);
-
-	do_reply(client[mg->remount_client].fd, GFSC_CMD_FS_REMOUNT,
-		 mg->name, result, ma, sizeof(struct gfsc_mount_args));
-
-	mg->remount_client = 0;
-}
-
 void client_reply_join(int ci, struct gfsc_mount_args *ma, int result)
 {
 	char *name = strstr(ma->table, ":") + 1;
@@ -778,6 +765,53 @@ static void do_mount_done(char *table, int result)
 		gfs_mount_done(mg);
 }
 
+void client_reply_remount(struct mountgroup *mg, int ci, int result)
+{
+	do_reply(client[ci].fd, GFSC_CMD_FS_REMOUNT, mg->name, result,
+		 &mg->mount_args, sizeof(struct gfsc_mount_args));
+}
+
+/* mount.gfs creates a special ma->options string with only "ro" or "rw" */
+
+static void do_remount(int ci, struct gfsc_mount_args *ma)
+{
+	struct mountgroup *mg;
+	char *name = strstr(ma->table, ":") + 1;
+	int ro = 0, result = 0;
+
+	log_debug("remount: %s ci %d options %s", name, ci, ma->options);
+
+	mg = find_mg(name);
+	if (!mg) {
+		log_error("remount: %s not found", name);
+		result = -1;
+		goto out;
+	}
+
+	if (mg->spectator) {
+		log_error("remount of spectator not allowed");
+		result = -1;
+		goto out;
+	}
+
+	if (!strcmp(ma->options, "ro"))
+		ro = 1;
+
+	if ((mg->ro && ro) || (!mg->ro && !ro))
+		goto out;
+
+	if (group_mode == GROUP_LIBGROUP) {
+		/* the receive calls client_reply_remount */
+		mg->remount_client = ci;
+		send_remount_old(mg, ma);
+		return;
+	}
+
+	send_remount(mg, ma);
+ out:
+	client_reply_remount(mg, ci, result);
+}
+
 void process_connection(int ci)
 {
 	struct gfsc_header h;
@@ -847,13 +881,7 @@ void process_connection(int ci)
 		break;
 
 	case GFSC_CMD_FS_REMOUNT:
-		if (group_mode == GROUP_LIBGROUP)
-			remount_mountgroup_old(ci, ma);
-#if 0
-		/* FIXME */
-		else
-			remount_mountgroup(ci, ma);
-#endif
+		do_remount(ci, ma);
 		break;
 
 	default:

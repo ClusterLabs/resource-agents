@@ -27,6 +27,7 @@ enum {
 	GFS_MSG_MOUNT_DONE = 2,
 	GFS_MSG_FIRST_RECOVERY_DONE = 3,
 	GFS_MSG_RECOVERY_RESULT = 4,
+	GFS_MSG_REMOUNT = 5,
 };
 
 /* gfs_header flags */
@@ -243,6 +244,8 @@ static char *msg_name(int type)
 		return "first_recovery_done";
 	case GFS_MSG_RECOVERY_RESULT:
 		return "recovery_result";
+	case GFS_MSG_REMOUNT:
+		return "remount";
 	default:
 		return "unknown";
 	}
@@ -1226,6 +1229,18 @@ static void send_recovery_result(struct mountgroup *mg, int jid, int result)
 	free(buf);
 }
 
+void send_remount(struct mountgroup *mg, struct gfsc_mount_args *ma)
+{
+	struct gfs_header h;
+
+	memset(&h, 0, sizeof(h));
+
+	h.type = GFS_MSG_REMOUNT;
+	h.msgdata = strstr(ma->options, "ro") ? 1 : 0;
+
+	gfs_send_message(mg, (char *)&h, sizeof(h));
+}
+
 static void save_message(struct mountgroup *mg, struct gfs_header *hd, int len)
 {
 	struct change *cg;
@@ -1348,6 +1363,25 @@ static void receive_first_recovery_done(struct mountgroup *mg,
 		mg->first_recovery_master = 0;
 		mg->first_recovery_msg = 1;
 	}
+}
+
+static void receive_remount(struct mountgroup *mg, struct gfs_header *hd,
+			    int len)
+{
+	struct node *node;
+
+	log_group(mg, "receive_remount from %d ro %d", hd->nodeid, hd->msgdata);
+
+	node = get_node_history(mg, hd->nodeid);
+	if (!node) {
+		log_error("receive_remount no nodeid %d", hd->nodeid);
+		return;
+	}
+
+	node->ro = hd->msgdata;
+
+	if (hd->nodeid == our_nodeid)
+		mg->ro = node->ro;
 }
 
 /* start message from all nodes shows zero started_count */
@@ -2281,6 +2315,9 @@ static void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 			save_message(mg, hd, len);
 		else
 			receive_recovery_result(mg, hd, len);
+		break;
+	case GFS_MSG_REMOUNT:
+		receive_remount(mg, hd, len);
 		break;
 	default:
 		log_error("unknown msg type %d", hd->type);

@@ -514,8 +514,10 @@ int lock_dlm_remount(struct mount_options *mo, struct gen_sb *sb)
 
 	memset(&ma, 0, sizeof(ma));
 
-	/* FIXME: how to check for spectator remounts, we want
-	   to disallow remount to/from spectator */
+	if (strstr(mo->extra, "spectator")) {
+		warn("spectator remounts not allowed");
+		return -1;
+	}
 
 	if (mo->flags & MS_RDONLY)
 		mode = "ro";
@@ -525,6 +527,11 @@ int lock_dlm_remount(struct mount_options *mo, struct gen_sb *sb)
 	strncpy(ma.dir, mo->dir, PATH_MAX);
 	strncpy(ma.type, fsname, PATH_MAX);
 	strncpy(ma.options, mode, PATH_MAX);
+	if (mo->locktable[0])
+		strncpy(ma.table, mo->locktable, PATH_MAX);
+	else
+		strncpy(ma.table, sb->locktable, PATH_MAX);
+
 
 	fd = gfsc_fs_connect();
 	if (fd < 0) {

@@ -611,11 +611,12 @@ static void receive_recovery_done(struct mountgroup *mg, char *buf, int len,
 	set_sysfs(mg, "block", 0);
 }
 
-static void send_remount(struct mountgroup *mg, int ro)
+void send_remount_old(struct mountgroup *mg, struct gfsc_mount_args *ma)
 {
 	struct gdlm_header *hd;
-	int len;
 	char *buf;
+	int len;
+	int ro = strstr(ma->options, "ro") ? 1 : 0;
 
 	len = sizeof(struct gdlm_header) + MAX_OPTIONS_LEN;
 
@@ -631,7 +632,7 @@ static void send_remount(struct mountgroup *mg, int ro)
 
 	strcpy(buf+sizeof(struct gdlm_header), ro ? "ro" : "rw");
 
-	log_group(mg, "send_remount len %d \"%s\"", len,
+	log_group(mg, "send_remount_old len %d \"%s\"", len,
 		  buf+sizeof(struct gdlm_header));
 
 	send_group_message_old(mg, len, buf);
@@ -685,7 +686,7 @@ static void receive_remount(struct mountgroup *mg, char *buf, int len, int from)
 			mg->rw = memb->rw;
 			mg->ro = memb->readonly;
 		}
-		client_reply_remount(mg, result);
+		client_reply_remount(mg, mg->remount_client, result);
 	}
 
 	log_group(mg, "receive_remount from %d rw=%d ro=%d opts=%x",
@@ -1699,34 +1700,6 @@ int process_recovery_uevent_old(char *table)
 
  out:
 	recover_journals(mg);
-	return 0;
-}
-
-int remount_mountgroup_old(int ci, struct gfsc_mount_args *ma)
-{
-	struct mountgroup *mg;
-	char *name = strstr(ma->table, ":") + 1;
-	int ro = 0, rw = 0;
-
-	log_debug("remount: %s ci %d", name, ci);
-
-	if (!strncmp(ma->options, "ro", 2))
-		ro = 1;
-	else
-		rw = 1;
-
-	mg = find_mg(name);
-	if (!mg) {
-		log_error("remount: %s not found", name);
-		return -1;
-	}
-
-	/* no change */
-	if ((mg->ro && ro) || (mg->rw && rw))
-		return 1;
-
-	mg->remount_client = ci;
-	send_remount(mg, ro);
 	return 0;
 }
 
