@@ -4,7 +4,7 @@ use Getopt::Std;
 use IPC::Open3;
 use POSIX;
 
-my @volumes;
+my @device_list;
 
 $_ = $0;
 s/.*\///;
@@ -74,7 +74,6 @@ sub get_cluster_id
     while (<$out>)
     {
 	chomp;
-	print "OUT: $_\n" if $opt_v;
 
 	my ($name, $value) = split(/\s*:\s*/, $_);
 
@@ -88,6 +87,8 @@ sub get_cluster_id
     close($in);
     close($out);
     close($err);
+
+    print "[$pname]: get_cluster_id: cluster_id=$cluster_id\n" if $opt_v;
 
     return $cluster_id;
 }
@@ -116,11 +117,15 @@ sub get_node_id
     close($out);
     close($err);
 
+    print "[$pname]: get_node_id ($node): node_id=$node_id\n" if $opt_v;
+
     return $node_id;
 }
 
 sub get_node_name
 {
+    print "[$pname]: get_hode_name: node_name=$opt_n\n" if $opt_v;
+
     return $opt_n;
 }
 
@@ -140,7 +145,6 @@ sub get_host_id
     while (<$out>)
     {
 	chomp;
-	print "OUT: $_\n" if $opt_v;
 
 	my ($name, $value) = split(/\s*:\s*/, $_);
 
@@ -154,6 +158,8 @@ sub get_host_id
     close($in);
     close($out);
     close($err);
+
+    print "[$pname]: get_host_id: host_id=$host_id\n" if $opt_v;
 
     return $host_id;
 }
@@ -174,7 +180,6 @@ sub get_host_name
     while (<$out>)
     {
 	chomp;
-	print "OUT: $_\n" if $opt_v;
 
 	my ($name, $value) = split(/\s*:\s*/, $_);
 
@@ -188,6 +193,8 @@ sub get_host_name
     close($in);
     close($out);
     close($err);
+
+    print "[$pname]: get_host_name: host_name=$host_name\n" if $opt_v;
 
     return $host_name;
 }
@@ -204,6 +211,8 @@ sub get_key
     }
 
     my $key = sprintf "%x%.4x", $cluster_id, $node_id;
+
+    print "[$pname]: get_key ($node): key=$key\n" if $opt_v;
 
     return $key;
 }
@@ -265,7 +274,7 @@ sub get_key_list
 
     my ($in, $out, $err);
 
-    my $cmd = "sg_persist -n -d $dev -i -k";
+    my $cmd = "sg_persist -d $dev -i -k";
     my $pid = open3($in, $out, $err, $cmd) or die "$!\n";
 
     waitpid($pid, 0);
@@ -281,6 +290,22 @@ sub get_key_list
 	    s/\s+$//;
 
 	    $key_list{$_} = 1;
+	}
+    }
+
+    # DEBUG: use -v option
+    #
+    if ($opt_v)
+    {
+	my $count = keys %key_list;
+	my $index = 0;
+
+	print "[$pname]: get_key_list: found $count keys registered with $dev\n";
+
+	for $key (keys %key_list)
+	{
+	    print "[$pname]:   ($index) key=$key\n";
+	    $index++;
 	}
     }
 
@@ -302,19 +327,34 @@ sub get_scsi_devices
 
     waitpid($pid, 0);
 
-    die "Unable to execute lvs.\n" if ($?>>8);
+    die "Unable to execute vgs.\n" if ($?>>8);
 
     while (<$out>)
     {
 	chomp;
-	print "OUT: $_\n" if $opt_v;
 
-	my ($vg_attrs, $device) = split(/:/, $_);
+	my ($vg_attrs, $dev) = split(/:/, $_);
 
 	if ($vg_attrs =~ /.*c$/)
 	{
-	    $device =~ s/\(.*\)//;
-	    push(@volumes, $device);
+	    $dev =~ s/\(.*\)//;
+	    push(@device_list, $dev);
+	}
+    }
+
+    # DEBUG: use -v flag
+    #
+    if ($opt_v)
+    {
+	my $count = scalar @device_list;
+	my $index = 0;
+
+	print "[$pname]: get_scsi_devices: found $count devices\n";
+
+	for $dev (@device_list)
+	{
+	    print "[$pname]:   ($index) dev=$dev\n";
+	    $index++;
 	}
     }
 
@@ -333,12 +373,6 @@ sub check_sg_persist
 
     die "Unable to execute sg_persist.\n" if ($?>>8);
 
-    while (<$out>)
-    {
-	chomp;
-	print "OUT: $_\n" if $opt_v;
-    }
-
     close($in);
     close($out);
     close($err);
@@ -356,12 +390,6 @@ sub do_register
 
     die "Unable to execute sg_persist ($dev).\n" if ($?>>8);
 
-    while (<$out>)
-    {
-	chomp;
-	print "OUT: $_\n" if $opt_v;
-    }
-
     close($in);
     close($out);
     close($err);
@@ -377,9 +405,16 @@ sub fence_node
 
     my ($in, $out, $err);
 
-    foreach $dev (@volumes)
+    foreach $dev (@device_list)
     {
 	my %key_list = get_key_list($dev);
+
+	# DEBUG: use -v option
+	#
+	if ($opt_v)
+	{
+	    print "[$pname]: unregister key 0x$node_key from device $dev\n";
+	}
 
 	if (!$key_list{$host_key})
 	{
@@ -388,6 +423,10 @@ sub fence_node
 
 	if (!$key_list{$node_key})
 	{
+	    if ($opt_v)
+	    {
+		print "[$pname]: key 0x$node_key is not registered with device $dev\n";
+	    }
 	    next;
 	}
 
@@ -405,12 +444,6 @@ sub fence_node
 	waitpid($pid, 0);
 
 	die "Unable to execute sg_persist ($dev).\n" if ($?>>8);
-
-	while (<$out>)
-	{
-	    chomp;
-	    print "OUT: $_\n" if $opt_v;
-	}
 
 	close($in);
 	close($out);
