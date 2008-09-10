@@ -298,7 +298,8 @@ static void cman_confchg_fn(enum totem_configuration_type configuration_type,
 		P_AIS("last memb_count = %d, current = %d\n", last_memb_count, member_list_entries);
 		send_transition_msg(last_memb_count, first_trans);
 		last_memb_count = member_list_entries;
-		first_trans = 0;
+		if (member_list_entries > 1)
+			first_trans = 0;
 
 		cman_send_confchg(member_list,  member_list_entries,
 				  saved_left_list, saved_left_list_entries,

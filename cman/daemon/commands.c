@@ -1810,9 +1810,13 @@ static void do_process_transition(int nodeid, char *data)
 	}
 	assert(node);
 
+	P_MEMB("Got TRANSITION message. msg->flags=%x, node->flags=%x, first_trans=%d\n",
+	       msg->flags, node->flags, msg->first_trans);
+
 	/* Newer nodes 6.1.0 onwards, set the DIRTY flag if they have state. If the new node has been down
 	   and has state then we mark it disallowed because we cannot merge stateful nodes */
-	if (msg->flags & NODE_FLAGS_DIRTY && (node->flags & NODE_FLAGS_BEENDOWN)) {
+	if ( (msg->flags & NODE_FLAGS_DIRTY && (node->flags & NODE_FLAGS_BEENDOWN)) ||
+	     (msg->flags & NODE_FLAGS_DIRTY && msg->first_trans && !node->us)) {
 		/* Don't duplicate messages */
 		if (node->state != NODESTATE_AISONLY) {
 			if (cluster_is_quorate) {
