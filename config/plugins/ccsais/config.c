@@ -151,7 +151,7 @@ static int read_config_for(int ccs_fd, struct objdb_iface_ver0 *objdb, unsigned 
 		if (subkeycount > 0 && strcmp(str, subkeys[subkeycount-1]) == 0)
 		{
 			free(str);
-			break;
+			continue;
 		}
 		subkeys[subkeycount++] = str;
 	}

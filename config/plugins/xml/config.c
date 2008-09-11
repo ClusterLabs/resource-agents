@@ -222,7 +222,7 @@ static int read_config_for(xmlXPathContextPtr ctx, struct objdb_iface_ver0 *objd
 		if (subkeycount > 0 && strcmp(str, subkeys[subkeycount-1]) == 0)
 		{
 			free(str);
-			break;
+			continue;
 		}
 		subkeys[subkeycount++] = str;
 	}
