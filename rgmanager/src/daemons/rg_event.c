@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <vf.h>
 #include <members.h>
+#include <time.h>
 
 
 /**
@@ -23,6 +24,7 @@ static pthread_mutex_t mi_mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP;
 static pthread_mutex_t event_queue_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t mi_mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
+static pthread_cond_t event_queue_cond = PTHREAD_COND_INITIALIZER;
 static pthread_t event_thread = 0;
 static int transition_throttling = 5;
 static int central_events = 0;
@@ -373,23 +375,35 @@ void *
 _event_thread_f(void __attribute__ ((unused)) *arg)
 {
 	event_t *ev;
+	struct timeval now;
+	struct timespec expire;
 	int notice = 0, count = 0;
+
+	/* Event thread usually doesn't hang around.  When it's
+   	   spawned, sleep for this many seconds in order to let
+   	   some events queue up */
+	if (transition_throttling && !central_events) {
+		sleep(transition_throttling);
+	}
 
 	while (1) {
 		pthread_mutex_lock(&event_queue_mutex);
 		ev = event_queue;
-		if (ev)
-			list_remove(&event_queue, ev);
-		else
+		if (!ev && !central_events) {
+			gettimeofday(&now, NULL);
+			expire.tv_sec = now.tv_sec + 5;
+			expire.tv_nsec = now.tv_usec * 1000;
+			pthread_cond_timedwait(&event_queue_cond,
+						&event_queue_mutex,
+						&expire);
+			ev = event_queue;
+		}
+		if (!ev)
 			break; /* We're outta here */
 
-		++count;
-		/* Event thread usually doesn't hang around.  When it's
-	   	   spawned, sleep for this many seconds in order to let
-	   	   some events queue up */
-		if ((count==1) && transition_throttling && !central_events)
-			sleep(transition_throttling);
+		list_remove(&event_queue, ev);
 
+		++count;
 		pthread_mutex_unlock(&event_queue_mutex);
 
 		if (ev->ev_type == EVENT_CONFIG) {
@@ -489,6 +503,8 @@ insert_event(event_t *ev)
 
 		pthread_create(&event_thread, &attrs, _event_thread_f, NULL);
         	pthread_attr_destroy(&attrs);
+	} else {
+		pthread_cond_broadcast(&event_queue_cond);
 	}
 	pthread_mutex_unlock (&event_queue_mutex);
 }
