@@ -85,6 +85,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			SysInfo		\
 			tomcat		\
 			VIPArip		\
+			vmware		\
 			WAS		\
 			WAS6		\
 			WinPopup	\

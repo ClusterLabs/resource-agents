@@ -127,26 +127,6 @@ Any extra options to be given as -o options to mount.
 <content type="string" default="" />
 </parameter>
 
-<parameter name="ocfs2_cluster">
-<longdesc lang="en">
-The name (UUID) of the OCFS2 cluster this filesystem is part of,
-iff this is an OCFS2 resource and there's more than one cluster. You
-should not need to specify this.
-</longdesc>
-<shortdesc lang="en">OCFS2 cluster name/UUID</shortdesc>
-<content type="string" default="" />
-</parameter>
-
-<parameter name="ocfs2_configfs">
-<longdesc lang="en">
-Mountpoint of the cluster hierarchy below configfs. You should not
-need to specify this.
-</longdesc>
-<shortdesc lang="en">OCFS2 configfs root</shortdesc>
-<content type="string" default="" />
-</parameter>
-</parameters>
-
 <actions>
 <action name="start" timeout="60" />
 <action name="stop" timeout="60" />
@@ -210,133 +190,11 @@ list_submounts() {
 	list_mounts | grep " $1/" | cut -d' ' -f2 | sort -r
 }
 
-ocfs2_del_cache() {
-	if [ -e "$_OCFS2_uuid_cache" ]; then
-		rm -f $_OCFS2_uuid_cache 2>/dev/null
-	fi
-}
-
-ocfs2_cleanup() {
-	# We'll never see the post-stop notification. We're gone now,
-	# have unmounted, and thus should remove the membership.
-	#
-	# (Do so regardless of whether we were unmounted already,
-	# because the admin might have manually unmounted but not
-	# cleared up the membership directory. Bad admin, no cookie.)
-	#
-	if [ ! -d "$OCFS2_FS_ROOT" ]; then
-		ocf_log info "$OCFS2_FS_ROOT: Filesystem membership already gone."
-	else
-		ocf_log info "$OCFS2_FS_ROOT: Removing membership directory."
-		rm -rf $OCFS2_FS_ROOT/
-	fi
-
-	ocfs2_del_cache
-}
-
-ocfs2_fetch_uuid() {
-	mounted.ocfs2 -d $DEVICE|tail -1|awk '{print $3}'|tr -d -- -|tr '[a-z]' '[A-Z]'
-}
-
-ocfs2_set_uuid() {
-	_OCFS2_uuid_cache="$HA_RSCTMP/Filesystem.ocfs2_uuid.$(echo $DEVICE|tr / .)"
-	
-	if [ "$OP" != "start" -a -e "$_OCFS2_uuid_cache" ]; then
-		# Trust the cache.
-		OCFS2_UUID=$(cat $_OCFS2_uuid_cache 2>/dev/null)
-		return 0
-	fi
-
-	OCFS2_UUID=$(ocfs2_fetch_uuid)
-	if [ -n "$OCFS2_UUID" -a "$OCFS2_UUID" != "UUID" ]; then
-		# UUID valid:
-		echo $OCFS2_UUID > $_OCFS2_uuid_cache 
-		return 0
-	fi
-
-	# Ok, no UUID still, but that's alright for stop, because it
-	# very likely means we never got started -
-	if [ "$OP" = "stop" ]; then
-		ocf_log warn "$DEVICE: No UUID; assuming never started!"
-		OCFS2_UUID="UUID_NOT_SET"
-		return 0
-	fi
-
-	# Everything else - wrong:
-	ocf_log err "$DEVICE: Could not determine ocfs2 UUID for device."
-	exit $OCF_ERR_GENERIC
-}
-
-ocfs2_init()
-{
-	# Check & initialize the OCFS2 specific variables.
-
-	if [ $OP != "stop" ]; then
-		if [ -z "$OCF_RESKEY_CRM_meta_clone" ]; then
-			ocf_log err "ocfs2 must be run as a clone."
-			exit $OCF_ERR_GENERIC
-		fi
-	fi
-
-	if [ $blockdevice = "no" ]; then
-		ocf_log err "$DEVICE: ocfs2 needs a block device instead."
-		exit $OCF_ERR_GENERIC
-	fi
-	
-	for f in "$OCF_RESKEY_ocfs2_configfs" /sys/kernel/config/cluster /configfs/cluster ; do
-		if [ -n "$f" -a -d "$f" ]; then
-			OCFS2_CONFIGFS="$f"
-			break
-		fi
-	done
-	if [ ! -d "$OCFS2_CONFIGFS" ]; then
-		ocf_log err "ocfs2 needs configfs mounted."
-		exit $OCF_ERR_GENERIC
-	fi
-
-	ocfs2_set_uuid
-	
-	if [ -n "$OCF_RESKEY_ocfs2_cluster" ]; then
-		OCFS2_CLUSTER=$(echo $OCF_RESKEY_ocfs2_cluster)
-	else
-		OCFS2_CLUSTER=$(find "$OCFS2_CONFIGFS" -maxdepth 1 -mindepth 1 -type d -printf %f 2>/dev/null)
-		set -- $OCFS2_CLUSTER
-		local n; n="$#"
-		if [ $n -gt 1 ]; then
-			ocf_log err "$OCFS2_CLUSTER: several clusters found."
-			exit $OCF_ERR_GENERIC
-		fi
-		if [ $n -eq 0 ]; then
-			ocf_log err "$OCFS2_CONFIGFS: no clusters found."
-			exit $OCF_ERR_GENERIC
-		fi
-	fi
-
-	OCFS2_CLUSTER_ROOT="$OCFS2_CONFIGFS/$OCFS2_CLUSTER"
-	if [ ! -d "$OCFS2_CLUSTER_ROOT" ]; then
-		ocf_log err "$OCFS2_CLUSTER: Cluster doesn't exist. Maybe o2cb hasn't been run?"
-		exit $OCF_ERR_GENERIC
-	fi
-	
-	OCFS2_FS_ROOT=$OCFS2_CLUSTER_ROOT/heartbeat/$OCFS2_UUID
-}
-
 #
 # START: Start up the filesystem
 #
 Filesystem_start()
 {
-	if [ "$FSTYPE" = "ocfs2" ]; then
-		# "start" now has the notification data available; that
-		# we're being started means we didn't get the
-		# pre-notification, because we weren't running, so
-		# process the information now first.
-		ocf_log info "$OCFS2_UUID: Faking pre-notification on start."
-		OCF_RESKEY_CRM_meta_notify_type="pre"
-		OCF_RESKEY_CRM_meta_notify_operation="start"
-		Filesystem_notify
-	fi		
-
 	# See if the device is already mounted.
 	if Filesystem_status >/dev/null 2>&1 ; then
 		ocf_log info "Filesystem $MOUNTPOINT is already mounted."
@@ -374,7 +232,7 @@ Filesystem_start()
 
 		if
 		  case $FSTYPE in
-		    ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs|cifs|smbfs|ocfs2|lustre)	false;;
+		    ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs|cifs|smbfs|ocfs2|gfs2|lustre)	false;;
 		    *)									true;;
 		  esac
 		then
@@ -409,163 +267,10 @@ Filesystem_start()
 
         if [ $? -ne 0 ]; then
 		ocf_log err "Couldn't mount filesystem $DEVICE on $MOUNTPOINT"
-		if [ "$FSTYPE" = "ocfs2" ]; then
-			ocfs2_cleanup
-		fi
 		return $OCF_ERR_GENERIC
 	fi
 
 	return 0
-}
-# end of Filesystem_start
-
-Filesystem_notify() {
-	# Process notifications; this is the essential glue level for
-	# giving user-space membership events to a cluster-aware
-	# filesystem. Right now, only OCFS2 is supported.
-	#
-	# When we get a pre-start notification, we set up all the nodes
-	# which will be active in our membership for the filesystem.
-	# (For the resource to be started, this happens at the time of
-	# the actual 'start' operation.)
-	#
-	# At a post-start, actually there's nothing to do for us really,
-	# but no harm done in re-syncing either.
-	#
-	# pre-stop is meaningless; we can't remove any node yet, it
-	# first needs to unmount.
-	#
-	# post-stop: the node is removed from the membership of the
-	# other nodes.
-	# 
-	# Note that this expects that the base cluster is already
-	# active; ie o2cb has been started and populated
-	# $OCFS2_CLUSTER_ROOT/node/ already. This can be achieved by
-	# simply having o2cb run on all nodes by the CRM too.  This
-	# probably ought to be mentioned somewhere in the to be written
-	# documentation. ;-)
-	#
-
-	if [ "$FSTYPE" != "ocfs2" ]; then
-		# One of the cases which shouldn't occur; it should have
-		# been caught much earlier. Still, you know ...
-		ocf_log warn "$DEVICE: Notification received for non-ocfs2 mount."
-		return $OCF_ERR_UNIMPLEMENTED
-	fi
-
-	local n_type; n_type="$OCF_RESKEY_CRM_meta_notify_type"
-	local n_op; n_op="$OCF_RESKEY_CRM_meta_notify_operation"
-	local n_active; n_active="$OCF_RESKEY_CRM_meta_notify_active_uname"
-	local n_stop; n_stop="$OCF_RESKEY_CRM_meta_notify_stop_uname"
-	local n_start; n_start="$OCF_RESKEY_CRM_meta_notify_start_uname"
-
-	ocf_log info "$OCFS2_UUID: notify: $n_type for $n_op"
-	ocf_log info "$OCFS2_UUID: notify active: $n_active"
-	ocf_log info "$OCFS2_UUID: notify stop: $n_stop"
-	ocf_log info "$OCFS2_UUID: notify start: $n_start"
-
-	case "$n_type" in
-	pre)
-		case "$n_op" in
-		stop)
-			ocf_log info "$OCFS2_UUID: ignoring pre-notify for stop."
-			return $OCF_SUCCESS
-			;;
-		start)
-			# These are about to become active; prepare to
-			# communicate with them.
-			# Duplicate removal - start can contain nodes
-			# already on the active list, confusing the
-			# script later on:
-			for UNAME in $n_active; do
-				n_start=`echo ${n_start} | sed s/$UNAME//`
-			done
-			# Merge pruned lists again:
-			n_active="$n_active $n_start"
-			;;
-		esac
-		;;
-	post)
-		case "$n_op" in
-		stop)
-			# remove unames from notify_stop_uname; these have been
-			# stopped and can no longer be considered active.
-			for UNAME in $n_stop; do
-				n_active=`echo ${n_active} | sed s/$UNAME//`
-			done
-			;;
-		start)
-			if [ "$n_op" = "start" ]; then
-				ocf_log info "$OCFS2_UUID: ignoring post-notify for start."
-				return $OCF_SUCCESS
-			fi
-			;;
-		esac
-		;;
-	esac
-
-	ocf_log info "$OCFS2_UUID: post-processed active: $n_active"
-
-	local n_myself; n_myself=${HA_CURHOST:-$(uname -n | tr '[A-Z]' '[a-z]')}
-	ocf_log info "$OCFS2_UUID: I am node $n_myself."
-
-	case " $n_active " in
-	*" $n_myself "*) ;;
-	*)	ocf_log err "$OCFS2_UUID: $n_myself (local) not on active list!"
-		return $OCF_ERR_GENERIC
-		;;
-	esac
-
-	if [ -d "$OCFS2_FS_ROOT" ]; then
-	entry_prefix=$OCFS2_FS_ROOT/
-	for entry in $OCFS2_FS_ROOT/* ; do
-		n_fs="${entry##$entry_prefix}"
-		# ocf_log info "$OCFS2_UUID: Found current node $n_fs"
-		case " $n_active " in
-		*" $n_fs "*)
-			# Construct a list of nodes which are present
-			# already in the membership.
-			n_exists="$n_exists $n_fs"
-			ocf_log info "$OCFS2_UUID: Keeping node: $n_fs"
-			;;
-		*)
-			# Node is in the membership currently, but not on our 
-			# active list. Must be removed.
-			if [ "$n_op" = "start" ]; then
-				ocf_log warn "$OCFS2_UUID: Removing nodes on start"
-			fi
-			ocf_log info "$OCFS2_UUID: Removing dead node: $n_fs"
-			if ! rm -f $entry ; then
-				ocf_log err "$OCFS2_UUID: Removal of $n_fs failed!"
-			fi
-			;;
-		esac
-	done
-	else
-		ocf_log info "$OCFS2_UUID: heartbeat directory doesn't exist yet, creating."
-		mkdir -p $OCFS2_FS_ROOT
-	fi
-
-	ocf_log info "$OCFS2_UUID: Existing node list: $n_exists"
-	
-	# (2)
-	for entry in $n_active ; do
-		# ocf_log info "$OCFS2_UUID: Expected active node: $entry"
-		case " $n_exists " in
-		*" $entry "*)
-			ocf_log info "$OCFS2_UUID: Already active: $entry"
-			;;
-		*)
-			if [ "$n_op" = "stop" ]; then
-				ocf_log warn "$OCFS2_UUID: Adding nodes on stop"
-			fi
-			ocf_log info "$OCFS2_UUID: Activating node: $entry"
-			if ! ln -s $OCFS2_CLUSTER_ROOT/node/$entry $OCFS2_FS_ROOT/$entry ; then
-				ocf_log err "$OCFS2_CLUSTER_ROOT/node/$entry: failed to link"
-			fi
-			;;
-		esac
-	done
 }
 
 #
@@ -626,13 +331,6 @@ Filesystem_stop()
 	fi
 
 	flushbufs $DEVICE
-
-	if [ $rc -eq $OCF_SUCCESS ]; then
-		if [ "$FSTYPE" = "ocfs2" ]; then
-			ocfs2_init
-			ocfs2_cleanup
-		fi
-	fi
 
 	return $rc
 }
@@ -776,8 +474,7 @@ if [ "$OP" != "monitor" ]; then
 	ocf_log info "Running $OP for $DEVICE on $MOUNTPOINT"
 fi
 
-# These operations do not require the clone checking + OCFS2
-# initialization.
+# These operations do not require the clone checking
 case $OP in
 status|monitor)	Filesystem_status
 		exit $?
@@ -791,15 +488,13 @@ stop)		Filesystem_stop
 esac
 
 case $FSTYPE in
-ocfs2)	ocfs2_init
-	;;
-nfs)	: # this is kind of safe too
+bind|nfs|ocfs2|gfs2) : # this is kind of safe too
 	;;
 *)	if [ -n "$OCF_RESKEY_CRM_meta_clone" ]; then
 		ocf_log err "DANGER! $FSTYPE on $DEVICE is NOT cluster-aware!"
 		ocf_log err "DO NOT RUN IT AS A CLONE!"
 		ocf_log err "Politely refusing to proceed to avoid data corruption."
-		exit $OCF_ERR_GENERIC	
+		exit $OCF_ERR_CONFIGURED
 	fi
 	;;
 esac
