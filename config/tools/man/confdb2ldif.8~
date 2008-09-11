@@ -1,0 +1,42 @@
+.TH confdb2ldif 8
+
+.SH NAME
+confdb2ldif - Create a LDAP LDIF file from a cluster configuration
+
+.SH SYNOPSIS
+.B confdb2ldap <basedn> [<config object base>]
+
+.SH DESCRIPTION
+\fBconfdb2ldif\fP Reads the cluster configuration from the openais object database
+and generates and LDIF file suitable for importing into an LDAP database. The LDIF
+file is written to standard output.
+
+.SH OPTIONS
+.TP
+\fB<basedn>\fP
+This is the base DN of the LDAP server into which the configuration will be imported.
+confdb2ldif will create a "cn=cluster" object below this to contain the cluster configuration.
+.TP
+\fB[<config object base>]\fP
+Configuration object in the objdb to start from. This defaults to "cluster" and 
+there should rarely be any need to change it.
+
+.SH COMMENTS
+\fBconfdb2ldif\fP uses the openais libconfdb to read the configuration. If run against
+a running aisexec it will read the live configuration. It is possible to generate an LDIF file 
+from a non-running system by using the standalone feature of openais's libconfdb.
+.b
+eg to read the configuration from /etc/cluster/cluster.conf, use the following command:
+
+\fOPENAIS_DEFAULT_CONFIG_IFACE=xmlconfig:cmanpreconfig \fconfdb2ldif \fdc=mycompany,dc=com
+
+or to do it from CCS
+
+\fOPENAIS_DEFAULT_CONFIG_IFACE=ccsconfig:cmanpreconfig \fconfdb2ldif \fdc=mycompany,dc=com
+
+
+
+.SH BUGS
+
+.SH SEE ALSO
+libconfdb(7), openais(8), cluster.conf(5)
