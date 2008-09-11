@@ -14,7 +14,7 @@
 ##        cipher (des/blowfish) have to be defined
 #####
 
-import sys, re, pexpect
+import sys, re, pexpect, exceptions
 sys.path.append("@FENCEAGENTSLIBDIR@")
 from fencing import *
 
@@ -191,9 +191,16 @@ def main():
 
 	##
 	## Logout from system
+	##
+	## In some special unspecified cases it is possible that 
+	## connection will be closed before we run close(). This is not 
+	## a problem because everything is checked before.
 	######
-	conn.sendline("4")
-	conn.close()
+	try:
+		conn.sendline("4")
+		conn.close()
+	except exceptions.OSError:
+		pass
 
 if __name__ == "__main__":
 	main()
