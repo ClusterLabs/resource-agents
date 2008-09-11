@@ -108,7 +108,7 @@ all_opt = {
 		"order" : 1 },
 	"port" : {
 		"getopt" : "n:",
-		"help" : "-n <id>        Physical plug number on device",
+		"help" : "-n <id>        Physical plug number on device or name of virtual machine",
 		"order" : 1 },
 	"switch" : {
 		"getopt" : "s:",
@@ -126,7 +126,23 @@ all_opt = {
 		"getopt" : "T",
 		"help" : "",
 		"order" : 1,
-		"obsolete" : "use -o status instead" }
+		"obsolete" : "use -o status instead" },
+	"vmipaddr" : {
+		"getopt" : "A:",
+		"help" : "-A <ip>        IP address or hostname of managed VMware ESX (default localhost)",
+		"order" : 2 },
+	"vmlogin" : {
+		"getopt" : "L:",
+		"help" : "-L <name>      VMware ESX management login name",
+		"order" : 2 },
+	"vmpasswd" : {
+		"getopt" : "P:",
+		"help" : "-P <password>  VMware ESX management login password",
+		"order" : 2 },
+	"vmpasswd_script" : {
+		"getopt" : "B:",
+		"help" : "-B <script>    Script to run to retrieve VMware ESX management password",
+		"order" : 2 }
 }
 
 class fspawn(pexpect.spawn):
@@ -305,6 +321,20 @@ def check_input(device_opt, opt):
 	if options.has_key("-v") and options.has_key("debug_fh") == 0:
 		options["debug_fh"] = sys.stderr
 
+	## VMware
+	#######
+	if options.has_key("-B"):
+		options["-P"] = os.popen(options["-B"]).read().rstrip()
+
+	if (device_opt.count("vmlogin") and (not options.has_key("-L"))):
+		fail_usage("Failed: You have to set login name for VMware ESX management console")
+
+	if (options.has_key("-L") and (not (options.has_key("-P") or options.has_key("-C")))):
+		fail_usage("Failed: You have to enter password or password script for VMware ESX management console")
+
+	if (options.has_key("-L") and (not (options.has_key("-n")))):
+		fail_usage("Failed: You have to enter virtual machine name")
+		
 	return options
 	
 def wait_power_status(tn, options, get_power_fn):
