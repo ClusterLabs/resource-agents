@@ -1522,6 +1522,9 @@ blkfree_internal(struct gfs_sbd *sdp, uint64_t bstart, uint32_t blen,
 			   bits->bi_len, buf_blk, new_state);
 	}
 
+	if (new_state == GFS_BLKST_FREEMETA)
+		rgd->rd_flags |= RD_FL_META2FREE;
+
 	return rgd;
 }
 
@@ -2010,7 +2013,8 @@ gfs_rlist_free(struct gfs_rgrp_list *rlist)
 int
 gfs_reclaim_metadata(struct gfs_sbd *sdp, 
 		     uint64_t *inodes,
-		     uint64_t *metadata)
+		     uint64_t *metadata,
+		     uint32_t rg_max)
 {
 	struct gfs_holder ji_gh, ri_gh, rgd_gh, t_gh;
 	struct gfs_rgrpd *rgd;
@@ -2022,12 +2026,13 @@ gfs_reclaim_metadata(struct gfs_sbd *sdp,
 	uint32_t goal;
 	unsigned int x;
 	int error = 0;
+	uint64_t rg_count = 0;
 
+	rg_max = rg_max > sdp->sd_rgcount ? sdp->sd_rgcount : rg_max;
 	*inodes = *metadata = 0;
 
 	/* Acquire the jindex lock here so we don't deadlock with a
 	   process writing the the jindex inode. :-( */
-
 	error = gfs_jindex_hold(sdp, &ji_gh);
 	if (error)
 		goto fail;
@@ -2037,8 +2042,11 @@ gfs_reclaim_metadata(struct gfs_sbd *sdp,
 		goto fail_jindex_relse;
 
 	for (rgd = gfs_rgrpd_get_first(sdp);
-	     rgd;
+	     rgd && rg_count < rg_max;
 	     rgd = gfs_rgrpd_get_next(rgd)) {
+		if (!(rgd->rd_flags & RD_FL_META2FREE))
+			continue;
+
 		error = gfs_glock_nq_init(rgd->rd_gl,
 					  LM_ST_EXCLUSIVE, GL_NOCACHE,
 					  &rgd_gh);
@@ -2051,6 +2059,7 @@ gfs_reclaim_metadata(struct gfs_sbd *sdp,
 
 		if (!rg->rg_freedi && !rg->rg_freemeta) {
 			gfs_glock_dq_uninit(&rgd_gh);
+			rgd->rd_flags &= ~RD_FL_META2FREE;
 			continue;
 		}
 
@@ -2122,6 +2131,9 @@ gfs_reclaim_metadata(struct gfs_sbd *sdp,
 		gfs_trans_end(sdp);
 
 		gfs_glock_dq_uninit(&t_gh);
+
+		rgd->rd_flags &= ~RD_FL_META2FREE;
+		rg_count++;
 
 		gfs_glock_dq_uninit(&rgd_gh);
 	}

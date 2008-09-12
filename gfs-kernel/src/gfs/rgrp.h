@@ -70,6 +70,7 @@ void gfs_rlist_free(struct gfs_rgrp_list *rlist);
 
 int gfs_reclaim_metadata(struct gfs_sbd *sdp,
 			 uint64_t *inodes,
-			 uint64_t *metadata);
+			 uint64_t *metadata,
+			 uint32_t rg_max);
 
 #endif /* __RGRP_DOT_H__ */

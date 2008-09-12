@@ -203,6 +203,8 @@ struct gfs_bitmap {
 	uint32_t bi_len;     /* The number of bitmap bytes in this bit block */
 };
 
+#define RD_FL_META2FREE        (0x00000001)  /* rgrpd has freeable metadata */
+
 /*
  *  Resource Group (Rgrp) descriptor structure.
  *  There is one of these for each resource (block) group in the FS.
@@ -236,6 +238,7 @@ struct gfs_rgrpd {
 	struct list_head rd_depend;     /* Dependent inodes (MRU order) */
 
 	struct gfs_sbd *rd_sbd;		/* FS incore superblock (fs instance) */
+	uint32_t rd_flags;              /* RD_FL_XXX : flags for this rgrpd */
 };
 
 /*
@@ -892,6 +895,7 @@ struct gfs_tune {
 	unsigned int gt_greedy_max;
 	unsigned int gt_rgrp_try_threshold;
 	unsigned int gt_statfs_fast;
+	unsigned int gt_max_rgrp_free_mdata; /* Max # of rgrps to free metadata from */
 };
 
 /*
