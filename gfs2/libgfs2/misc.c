@@ -225,7 +225,7 @@ mount_gfs2_meta(struct gfs2_sbd *sdp)
 			    strerror(errno));
 	}
 		
-	ret = mount(sdp->device_name, sdp->metafs_path, "gfs2meta", 0, NULL);
+	ret = mount(sdp->path_name, sdp->metafs_path, "gfs2meta", 0, NULL);
 	if (ret)
 		die("Couldn't mount %s : %s\n", sdp->metafs_path,
 		    strerror(errno));
