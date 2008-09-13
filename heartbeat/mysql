@@ -324,7 +324,7 @@ mysql_start() {
     chmod 0640 $OCF_RESKEY_log
     [ -x /sbin/restorecon ] && /sbin/restorecon $OCF_RESKEY_log
     
-    if [ "$OCF_RESKEY_enable_creation" = 1 -a ! -d $OCF_RESKEY_datadir/mysql] ; then	
+    if [ "$OCF_RESKEY_enable_creation" = 1 -a ! -d $OCF_RESKEY_datadir/mysql ] ; then	
         ocf_log info "Initializing MySQL database: " 
 	$MYSQL_BINDIR/mysql_install_db --datadir=$OCF_RESKEY_datadir
         rc=$?
