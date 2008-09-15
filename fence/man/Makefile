@@ -19,6 +19,7 @@ TARGET= fence.8 \
 	fence_wti.8 \
 	fence_bullpap.8 \
 	fence_ipmilan.8 \
+	fence_vmware.8 \
 	fence_xvm.8 \
 	fence_xvmd.8 \
 	fenced.8
