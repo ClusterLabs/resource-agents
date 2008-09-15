@@ -918,7 +918,7 @@ static int set_noccs_defaults(struct objdb_iface_ver0 *objdb)
 }
 
 /* Move an object/key tree */
-static int move_config_tree(struct objdb_iface_ver0 *objdb, unsigned int source_object, unsigned int target_parent_object, int always_create)
+static int copy_config_tree(struct objdb_iface_ver0 *objdb, unsigned int source_object, unsigned int target_parent_object, int always_create)
 {
 	unsigned int object_handle;
 	unsigned int new_object;
@@ -959,7 +959,7 @@ static int move_config_tree(struct objdb_iface_ver0 *objdb, unsigned int source_
 	while ( (res = objdb->object_find_next(find_handle, &object_handle) == 0)) {
 
 		/* Down we go ... */
-		move_config_tree(objdb, object_handle, new_object, 0);
+		copy_config_tree(objdb, object_handle, new_object, 0);
 	}
 	objdb->object_find_destroy(find_handle);
 
@@ -967,10 +967,10 @@ static int move_config_tree(struct objdb_iface_ver0 *objdb, unsigned int source_
 }
 
 /*
- * Move trees from /cluster where they live in cluster.conf, into the root
+ * Copy trees from /cluster where they live in cluster.conf, into the root
  * of the config tree where corosync expects to find them.
  */
-static int move_tree_to_root(struct objdb_iface_ver0 *objdb, char *name, int always_create)
+static int copy_tree_to_root(struct objdb_iface_ver0 *objdb, char *name, int always_create)
 {
 	unsigned int find_handle;
 	unsigned int object_handle;
@@ -978,12 +978,10 @@ static int move_tree_to_root(struct objdb_iface_ver0 *objdb, char *name, int alw
 
 	objdb->object_find_create(cluster_parent_handle, name, strlen(name), &find_handle);
 	while (objdb->object_find_next(find_handle, &object_handle) == 0) {
-		res = move_config_tree(objdb, object_handle, OBJECT_PARENT_HANDLE, always_create);
+		res = copy_config_tree(objdb, object_handle, OBJECT_PARENT_HANDLE, always_create);
 	}
 	objdb->object_find_destroy(find_handle);
 
-	// TODO Destroy original(s) ??
-	// objdb->object_destroy(object_handle);
 	return res;
 }
 
@@ -1031,12 +1029,12 @@ static int cmanpre_readconfig(struct objdb_iface_ver0 *objdb, char **error_strin
 	}
 
 	/* Move these to a place where corosync expects to find them */
-	ret = move_tree_to_root(objdb, "totem", 0);
-	ret = move_tree_to_root(objdb, "logging", 0);
-	ret = move_tree_to_root(objdb, "event", 0);
-	ret = move_tree_to_root(objdb, "amf", 0);
-	ret = move_tree_to_root(objdb, "aisexec", 0);
-	ret = move_tree_to_root(objdb, "service", 1);
+	ret = copy_tree_to_root(objdb, "totem", 0);
+	ret = copy_tree_to_root(objdb, "logging", 0);
+	ret = copy_tree_to_root(objdb, "event", 0);
+	ret = copy_tree_to_root(objdb, "amf", 0);
+	ret = copy_tree_to_root(objdb, "aisexec", 0);
+	ret = copy_tree_to_root(objdb, "service", 1);
 
 	objdb->object_find_create(cluster_parent_handle, "cman", strlen("cman"), &find_handle);
 	if (objdb->object_find_next(find_handle, &object_handle)) {
