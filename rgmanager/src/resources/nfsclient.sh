@@ -109,6 +109,38 @@ meta_data()
             <content type="boolean"/>
         </parameter>
 
+	<parameter name="service_name" inherit="service%name">
+            <longdesc lang="en">
+		Service this NFS export belongs to.  Used for caching
+		exports on a per-service basis.
+            </longdesc>
+            <shortdesc lang="en">
+                Service Name
+            </shortdesc>
+	    <content type="string"/>
+	</parameter>
+
+	<parameter name="use_cache" inherit="service%nfs_client_cache">
+            <longdesc lang="en">
+	   	On systems with large numbers of exports, a performance
+		problem in the exportfs command can cause inordinately long
+		status check times for services with lots of mounted
+		NFS clients.  This occurs because exportfs does DNS queries
+		on all clients in the export list.
+
+		Setting this option to '1' will enable caching of the export
+		list returned from the exportfs command on a per-service
+		basis.  The cache will last for 30 seconds before expiring
+		instead of being generated each time an nfsclient resource
+		is called.
+            </longdesc>
+            <shortdesc lang="en">
+	    	Enable exportfs list caching
+            </shortdesc>
+	    <content type="integer"/>
+	</parameter>
+
+
     </parameters>
 
     <actions>
@@ -308,14 +340,68 @@ status|monitor)
         # 
 	export OCF_RESKEY_target_regexp=$(echo $OCF_RESKEY_target | \
 		sed -e 's/*/[*]/g' -e 's/?/[?]/g' -e 's/\./\\./g') 
-        exportfs -v | tr -d "\n" | sed -e 's/([^)]*)/\n/g' | grep -q \
-		"^${OCF_RESKEY_path}[\t ]*.*${OCF_RESKEY_target_regexp}" 
 
-	rv=$? 
-	if [ $rv -ne 0 ]; then
-		ocf_log info "nfsclient:$OCF_RESKEY_name is not running!"
-		exit $OCF_NOT_RUNNING
+	declare tmpfn
+	declare time_created time_now
+	declare -i delta=0
+
+	#
+	# Don't let anyone read the cache files.
+	#
+	umask 066
+	if [ -n "$OCF_RESKEY_service_name" ] && [ "$OCF_RESKEY_use_cache" = "1" ]; then
+
+		#
+		# For large #s of exports, we need to cache the information
+		#
+		tmpfn=/tmp/nfsclient-status-cache-$OCF_RESKEY_service_name
+
+		if [ -f "$tmpfn" ]; then
+			time_created=$(stat -c "%Y" $tmpfn)
+			time_now=$(date +"%s")
+			delta=$((time_now-time_created))
+		fi
+		#echo "Cache age = $delta seconds"
+	else
+		delta=100
+		#
+		# Create a different file if this is a separate instance
+		#
+		tmpfn=/tmp/nfsclient-status-cache-$$
 	fi
+
+	if ! [ -f "$tmpfn" ] || [ $delta -gt 30 ]; then
+		#echo "Create $tmpfn. Nonexistent / expired / no service name"
+		exportfs -v > $tmpfn
+	fi
+
+        cat $tmpfn | tr -d "\n" | sed -e 's/([^)]*)/\n/g' | grep -iq \
+		"^${OCF_RESKEY_path}[\t ]*.*${OCF_RESKEY_target_regexp}" 
+	rv=$? 
+
+	if [ $rv -eq 0 ]; then
+		[ -z "$OCF_RESKEY_service_name" ] && rm -f $tmpfn
+		exit 0
+	fi
+
+	declare OCF_RESKEY_target_tmp=$(clufindhostname -i "$OCF_RESKEY_target")
+	if [ $? -ne 0 ]; then
+		[ -z "$OCF_RESKEY_service_name" ] && rm -f $tmpfn
+		ocf_log err "nfsclient:$OCF_RESKEY_name is missing!"
+		exit 1
+	fi
+
+        cat $tmpfn | tr -d "\n" | sed -e 's/([^)]*)/\n/g' | grep -q \
+		"^${OCF_RESKEY_path}[\t ]*.*${OCF_RESKEY_target_tmp}" 
+	rv=$? 
+
+	[ -z "$OCF_RESKEY_service_name" ] && rm -f $tmpfn
+	if [ $rv -eq 0 ]; then
+		exit 0
+	fi
+
+	ocf_log err "nfsclient:$OCF_RESKEY_name is missing!"
+	exit 1
 	;;
 
 recover)

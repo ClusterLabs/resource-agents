@@ -108,6 +108,27 @@ meta_data()
 	    </shortdesc>
 	    <content type="boolean" default="0"/>
 	</parameter>
+
+	<parameter name="nfs_client_cache">
+            <longdesc lang="en">
+	   	On systems with large numbers of exports, a performance
+		problem in the exportfs command can cause inordinately long
+		status check times for services with lots of mounted
+		NFS clients.  This occurs because exportfs does DNS queries
+		on all clients in the export list.
+
+		Setting this option to '1' will enable caching of the export
+		list returned from the exportfs command on a per-service
+		basis.  The cache will last for 30 seconds before expiring
+		instead of being generated each time an nfsclient resource
+		is called.
+            </longdesc>
+            <shortdesc lang="en">
+	    	Enable exportfs list caching
+            </shortdesc>
+	    <content type="integer" default="0"/>
+	</parameter>
+
                 
         <parameter name="recovery" reconfig="1">
             <longdesc lang="en">
