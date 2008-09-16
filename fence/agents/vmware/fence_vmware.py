@@ -8,11 +8,11 @@
 #####
 
 import sys, re, pexpect
-sys.path.append("/usr/lib/fence")
+sys.path.append("@FENCEAGENTSLIBDIR@")
 from fencing import *
 
 #BEGIN_VERSION_GENERATION
-FENCE_RELEASE_NAME=""
+RELEASE_VERSION="New VMware Agent - test release on steroids"
 REDHAT_COPYRIGHT=""
 BUILD_DATE=""
 #END_VERSION_GENERATION
