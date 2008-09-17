@@ -472,7 +472,6 @@ gi_get_tune(struct gfs_inode *ip,
         gfs_printf("greedy_max %u\n", gt->gt_greedy_max);
         gfs_printf("rgrp_try_threshold %u\n", gt->gt_rgrp_try_threshold);
         gfs_printf("statfs_fast %u\n", gt->gt_statfs_fast);
-        gfs_printf("max_rgrp_free_mdata %u\n", gt->gt_max_rgrp_free_mdata);
 
         error = 0;
 
@@ -760,10 +759,8 @@ gi_set_tune(struct gfs_sbd *sdp, struct gfs_ioctl *gi, int from_user)
 			return error;
 		else
 			tune_set(gt_statfs_fast, x);
-	} else if (strcmp(param, "max_rgrp_free_mdata") == 0) {
-		if (sscanf(value, "%u", &x) != 1)
-			return -EINVAL;
-		tune_set(gt_max_rgrp_free_mdata, x);
+
+
 	} else
 		return -EINVAL;
 
@@ -798,8 +795,7 @@ gi_do_reclaim(struct gfs_inode *ip,
 
 	error = gfs_reclaim_metadata(ip->i_sbd,
 				     &inodes,
-				     &metadata,
-				     ip->i_sbd->sd_rgcount);
+				     &metadata);
 	if (error)
 		return error;
 

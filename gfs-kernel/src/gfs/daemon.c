@@ -13,7 +13,6 @@
 #include "recovery.h"
 #include "super.h"
 #include "unlinked.h"
-#include "rgrp.h"
 
 /**
  * gfs_scand - Look for cached glocks and inodes to toss from memory
@@ -174,10 +173,7 @@ gfs_inoded(void *data)
 	struct gfs_sbd *sdp = (struct gfs_sbd *)data;
 
 	while (!kthread_should_stop()) {
-		uint64_t inodes, metadata;
 		gfs_unlinked_dealloc(sdp);
-		gfs_reclaim_metadata(sdp, &inodes, &metadata, 
-				     gfs_tune_get(sdp, gt_max_rgrp_free_mdata));
 		schedule_timeout_interruptible(gfs_tune_get(sdp, gt_inoded_secs) * HZ);
 	}
 

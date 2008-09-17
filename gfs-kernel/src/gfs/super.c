@@ -75,7 +75,6 @@ gfs_tune_init(struct gfs_tune *gt)
 	gt->gt_greedy_max = HZ / 4;
 	gt->gt_rgrp_try_threshold = 100;
 	gt->gt_statfs_fast = 0;
-	gt->gt_max_rgrp_free_mdata = 5;
 }
 
 /**
