@@ -434,9 +434,11 @@ static int do_list(void)
 		np++;
 	}
 	printf("\n");
+	printf("\n");
 	exit(EXIT_SUCCESS);
  fail:
 	fprintf(stderr, "fenced query error %d\n", rv);
+	printf("\n");
 	exit(EXIT_FAILURE);
 }
 

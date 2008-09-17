@@ -837,6 +837,11 @@ static void find_minors(void)
 	int found = 0;
 	int c;
 
+	control_minor = 0;
+	monitor_minor = 0;
+	plock_minor = 0;
+	old_plock_minor = 0;
+
 	if (!(fl = fopen("/proc/misc", "r"))) {
 		log_error("/proc/misc fopen failed: %s", strerror(errno));
 		return;
@@ -917,7 +922,7 @@ int setup_misc_devices(void)
 			  plock_minor);
 	}
 
-	if (old_plock_minor) {
+	if (!plock_minor && old_plock_minor) {
 		rv = find_udev_device("/dev/misc/lock_dlm_plock",
 				      old_plock_minor);
 		if (rv < 0)
