@@ -281,6 +281,8 @@ sub get_key_list
 
     die "Unable to execute sg_persist.\n" if ($?>>8);
 
+    my %key_list;
+
     while (<$out>)
     {
 	chomp;
