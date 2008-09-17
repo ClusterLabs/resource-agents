@@ -28,6 +28,8 @@ enum {
 	GFS_MSG_FIRST_RECOVERY_DONE = 3,
 	GFS_MSG_RECOVERY_RESULT = 4,
 	GFS_MSG_REMOUNT = 5,
+	GFS_MSG_WITHDRAW = 6,
+	GFS_MSG_WITHDRAW_ACK = 7,
 };
 
 /* gfs_header flags */
@@ -108,6 +110,9 @@ struct node {
 	uint32_t added_seq;
 	uint32_t removed_seq;
 	uint64_t add_time;
+
+	int withdraw;
+	int send_withdraw_ack;
 };
 
 struct member {
@@ -205,8 +210,8 @@ struct save_msg {
 
    <new changes that arrive from here on result in going back to the top>
 
-   recover_and_start()
-   ------------------- 
+   apply_recovery()
+   ----------------
 
    if first_recovery_needed,
    master:    tells mount to run with first=1 (if not already)
@@ -227,11 +232,13 @@ struct save_msg {
    [If no one can recover some journal(s), all will be left waiting, unstarted.
     A new change from a new mount will result in things going back to the top,
     and hopefully the new node will be successful at doing the journal
-    recoveries when it comes through the recover_and_start() section, which
+    recoveries when it comes through the apply_recovery() section, which
     would let everyone start again.]
 */
 
 static void process_mountgroup(struct mountgroup *mg);
+static void send_withdraw_acks(struct mountgroup *mg);
+static void leave_mountgroup(struct mountgroup *mg, int mnterr);
 
 static char *msg_name(int type)
 {
@@ -246,6 +253,10 @@ static char *msg_name(int type)
 		return "recovery_result";
 	case GFS_MSG_REMOUNT:
 		return "remount";
+	case GFS_MSG_WITHDRAW:
+		return "withdraw";
+	case GFS_MSG_WITHDRAW_ACK:
+		return "withdraw_ack";
 	default:
 		return "unknown";
 	}
@@ -382,7 +393,7 @@ static void free_cg(struct change *cg)
 	free(cg);
 }
 
-static void free_mg(struct mountgroup *mg)
+void free_mg(struct mountgroup *mg)
 {
 	struct change *cg, *cg_safe;
 	struct node *node, *node_safe;
@@ -420,18 +431,20 @@ static void node_history_init(struct mountgroup *mg, int nodeid,
 	struct node *node;
 
 	node = get_node_history(mg, nodeid);
-	if (node)
+	if (node) {
+		list_del(&node->list);
 		goto out;
+	}
 
 	node = malloc(sizeof(struct node));
 	if (!node)
 		return;
+ out:
 	memset(node, 0, sizeof(struct node));
 
 	node->nodeid = nodeid;
 	node->add_time = 0;
 	list_add_tail(&node->list, &mg->node_history);
- out:
 	node->added_seq = cg->seq;	/* for queries */
 }
 
@@ -493,15 +506,39 @@ static int is_added(struct mountgroup *mg, int nodeid)
 	return 0;
 }
 
-static int nodes_failed(struct mountgroup *mg)
+static int is_withdraw(struct mountgroup *mg, int nodeid)
+{
+	struct node *node;
+
+	node = get_node_history(mg, nodeid);
+	if (!node) {
+		log_error("is_withdraw no nodeid %d", nodeid);
+		return 0;
+	}
+	return node->withdraw;
+}
+
+static int journals_need_recovery(struct mountgroup *mg)
 {
 	struct change *cg;
+	struct journal *j;
+	struct member *memb;
+	int count = 0;
+
+	list_for_each_entry(j, &mg->journals, list)
+		if (j->needs_recovery)
+			count++;
 
 	list_for_each_entry(cg, &mg->changes, list) {
-		if (cg->failed_count)
-			return 1;
+		list_for_each_entry(memb, &cg->removed, list) {
+			if (!memb->failed && !is_withdraw(mg, memb->nodeid))
+				continue;
+			/* check whether this node had a journal assigned? */
+			count++;
+		}
 	}
-	return 0;
+
+	return count;
 }
 
 /* find a start message from an old node to use; it doesn't matter which old
@@ -700,8 +737,9 @@ static int wait_conditions_done(struct mountgroup *mg)
 		return 1;
 	}
 
-	if (!nodes_failed(mg)) {
-		log_group(mg, "wait_conditions skip for zero nodes_failed");
+	if (!journals_need_recovery(mg)) {
+		log_group(mg, "wait_conditions skip for zero "
+			 "journals_need_recovery");
 		return 1;
 	}
 
@@ -1020,6 +1058,8 @@ static int count_ids(struct mountgroup *mg)
 
 	list_for_each_entry(cg, &mg->changes, list) {
 		list_for_each_entry(memb, &cg->removed, list) {
+			if (!memb->failed && !is_withdraw(mg, memb->nodeid))
+				continue;
 			j = find_journal_by_nodeid(mg, memb->nodeid);
 			if (j)
 				count++;
@@ -1141,8 +1181,9 @@ static void send_start(struct mountgroup *mg)
 
 	list_for_each_entry(j, &mg->journals, list) {
 		if (j->needs_recovery) {
+			flags = IDI_JID_NEEDS_RECOVERY;
 			id->jid = cpu_to_le32(j->jid);
-			id->flags = cpu_to_le32(IDI_JID_NEEDS_RECOVERY);
+			id->flags = cpu_to_le32(flags);
 			id++;
 			old_journal++;
 		}
@@ -1152,10 +1193,13 @@ static void send_start(struct mountgroup *mg)
 
 	list_for_each_entry(c, &mg->changes, list) {
 		list_for_each_entry(memb, &c->removed, list) {
+			if (!memb->failed && !is_withdraw(mg, memb->nodeid))
+				continue;
 			j = find_journal_by_nodeid(mg, memb->nodeid);
 			if (j) {
+				flags = IDI_JID_NEEDS_RECOVERY;
 				id->jid = cpu_to_le32(j->jid);
-				id->flags = cpu_to_le32(IDI_JID_NEEDS_RECOVERY);
+				id->flags = cpu_to_le32(flags);
 				id++;
 				new_journal++;
 			}
@@ -1237,6 +1281,17 @@ void send_remount(struct mountgroup *mg, struct gfsc_mount_args *ma)
 
 	h.type = GFS_MSG_REMOUNT;
 	h.msgdata = strstr(ma->options, "ro") ? 1 : 0;
+
+	gfs_send_message(mg, (char *)&h, sizeof(h));
+}
+
+void send_withdraw(struct mountgroup *mg)
+{
+	struct gfs_header h;
+
+	memset(&h, 0, sizeof(h));
+
+	h.type = GFS_MSG_WITHDRAW;
 
 	gfs_send_message(mg, (char *)&h, sizeof(h));
 }
@@ -1382,6 +1437,66 @@ static void receive_remount(struct mountgroup *mg, struct gfs_header *hd,
 
 	if (hd->nodeid == our_nodeid)
 		mg->ro = node->ro;
+}
+
+/* The node with the withdraw wants to leave the mountgroup, but have
+   the other nodes do recovery for it when it leaves.  They wouldn't usually
+   do recovery for a node that leaves "normally", i.e. without failing at the
+   cluster membership level.  So, we send a withdraw message to tell the
+   others that our succeeding leave-removal should be followed by recovery
+   like a failure-removal would be.
+
+   The withdrawing node can't release dlm locks for the fs before other
+   nodes have stopped the fs.  The same reason as for any gfs journal
+   recovery; the locks on the failed/withdrawn fs "protect" the parts of
+   the fs that need to be recovered, and until the fs on all mounters has
+   been stopped/blocked, our existing dlm locks need to remain to prevent
+   other nodes from touching these parts of the fs.
+
+   So, the node doing withdraw needs to know that other nodes in the mountgroup
+   have blocked the fs before it sets /sys/fs/gfs/foo/withdraw to 1, which
+   tells gfs-kernel to continue and release dlm locks.
+
+   Until the node doing withdraw has released the dlm locks on the withdrawn
+   fs, the other nodes' attempts to recover the given journal will fail (they
+   fail to acquire the journal lock.) So, these nodes need to either wait until
+   the dlm locks have been released before attempting to recover the journal,
+   or retry failed attempts at recovering the journal.
+
+   How it works
+   . nodes A,B,C in mountgroup for fs foo
+   . foo is withrawn on node C
+   . C sends withdraw to all
+   . all set C->withraw = 1
+   . C leaves mountgroup
+   . A,B,C get confchg removing C
+   . A,B stop kernel foo
+   . A,B send out-of-band message to C indicating foo is stopped
+   . C gets OOB message and set /sys/fs/gfs/foo/withdraw to 1
+   . dlm locks for foo are released on C
+   . A,B will now be able to acquire C's journal lock for foo
+   . A,B will complete recovery of foo
+
+   An "in-band" message would be through cpg foo, but since C has left cpg
+   foo, we can't use that cpg, and have to go through an external channel.
+*/
+
+static void receive_withdraw(struct mountgroup *mg, struct gfs_header *hd,
+			     int len)
+{
+	struct node *node;
+
+	log_group(mg, "receive_withdraw from %d", hd->nodeid);
+
+	node = get_node_history(mg, hd->nodeid);
+	if (!node) {
+		log_error("receive_withdraw no nodeid %d", hd->nodeid);
+		return;
+	}
+	node->withdraw = 1;
+
+	if (hd->nodeid == our_nodeid)
+		leave_mountgroup(mg, 0);
 }
 
 /* start message from all nodes shows zero started_count */
@@ -1602,6 +1717,21 @@ static void create_new_nodes(struct mountgroup *mg)
 	}
 }
 
+#if 0
+static void print_id_list(struct mountgroup *mg, struct id_info *ids,
+			  int id_count, int id_size)
+{
+	struct id_info *id = ids;
+	int i;
+
+	for (i = 0; i < id_count; i++) {
+		log_group(mg, "id nodeid %d jid %d flags %08x",
+			  id->nodeid, id->jid, id->flags);
+		id = (struct id_info *)((char *)id + id_size);
+	}
+}
+#endif
+
 static void create_failed_journals(struct mountgroup *mg)
 {
 	struct journal *j;
@@ -1612,14 +1742,16 @@ static void create_failed_journals(struct mountgroup *mg)
 	rv = get_id_list(mg, &ids, &id_count, &id_size);
 	if (rv) {
 		/* all new nodes, no old nodes */
+		log_group(mg, "create_failed_journals all new");
 		return;
 	}
+	/* print_id_list(mg, ids, id_count, id_size); */
 
 	id = ids;
 
 	for (i = 0; i < id_count; i++) {
 		if (!(id->flags & IDI_JID_NEEDS_RECOVERY))
-			continue;
+			goto next;
 
 		j = malloc(sizeof(struct journal));
 		if (!j) {
@@ -1631,12 +1763,15 @@ static void create_failed_journals(struct mountgroup *mg)
 		j->jid = id->jid;
 		j->needs_recovery = 1;
 		list_add(&j->list, &mg->journals);
-
-		id = (struct id_info *)((char *)id + id_size);
-
 		log_group(mg, "create_failed_journals jid %d", j->jid);
+ next:
+		id = (struct id_info *)((char *)id + id_size);
 	}
 }
+
+/* This pattern (for each failed memb in removed list of each change) is
+   repeated and needs to match in four places: here, count_ids(),
+   send_start(), and journals_need_recovery(). */
 
 static void set_failed_journals(struct mountgroup *mg)
 {
@@ -1648,9 +1783,8 @@ static void set_failed_journals(struct mountgroup *mg)
 
 	list_for_each_entry(cg, &mg->changes, list) {
 		list_for_each_entry(memb, &cg->removed, list) {
-			if (!memb->failed)
+			if (!memb->failed && !is_withdraw(mg, memb->nodeid))
 				continue;
-
 			j = find_journal_by_nodeid(mg, memb->nodeid);
 			if (j) {
 				j->needs_recovery = 1;
@@ -1864,9 +1998,13 @@ static void sync_state(struct mountgroup *mg)
 	if (mg->first_recovery_needed) {
 		/* shouldn't happen */
 		log_error("sync_state frn should not be set");
+		goto out;
 	}
 
+	log_group(mg, "sync_state");
  out:
+	send_withdraw_acks(mg);
+
 	if (!mg->started_count) {
 		create_old_nodes(mg);
 		create_new_nodes(mg);
@@ -1964,16 +2102,21 @@ void process_recovery_uevent(char *table)
 			return;
 		}
 
-		log_group(mg, "process_recovery_uevent jid %d status %d",
-			  jid, recover_status);
+		log_group(mg, "process_recovery_uevent jid %d status %d "
+			  "local_recovery_done %d needs_recovery %d",
+			  jid, recover_status, j->local_recovery_done,
+			  j->needs_recovery);
 
 		j->local_recovery_done = 1;
 		j->local_recovery_result = recover_status;
 
 		/* j->needs_recovery will be cleared when we receive this
-		   recovery_result message */
+		   recovery_result message.  if it's already set, then
+		   someone else has completed the recovery and there's
+		   no need to send our result */
 
-		send_recovery_result(mg, jid, recover_status);
+		if (j->needs_recovery)
+			send_recovery_result(mg, jid, recover_status);
 	} else {
 
 		/*
@@ -2027,8 +2170,8 @@ static int wait_recoveries_done(struct mountgroup *mg)
 
 	list_for_each_entry(j, &mg->journals, list) {
 		if (j->needs_recovery) {
-			log_group(mg, "wait_recoveries jid %d unrecovered",
-				  j->jid);
+			log_group(mg, "wait_recoveries jid %d nodeid %d "
+				  "unrecovered", j->jid, j->failed_nodeid);
 			wait_count++;
 		}
 	}
@@ -2054,19 +2197,43 @@ static int pick_journal_to_recover(struct mountgroup *mg, int *jid)
 			return 1;
 		}
 	}
+
+#if 0
+	/* FIXME: do something so this doesn't happen so regularly; maybe
+	   retry only after all nodes have failed */
+
+	/* Retry recoveries that failed the first time.  This is necessary
+	   at times for withrawn journals when all nodes fail the recovery
+	   (fail to get journal lock) before the withdrawing node has had a
+	   chance to clear its dlm locks for the withdrawn journal.
+	   32 max retries is random, and includes attempts by all nodes. */
+
+	list_for_each_entry(j, &mg->journals, list) {
+		if (j->needs_recovery && j->local_recovery_done &&
+		    (j->local_recovery_result == LM_RD_GAVEUP) &&
+		    (j->failed_recovery_count > 1) &&
+		    (j->failed_recovery_count < 32)) {
+			log_group(mg, "retrying jid %d recovery", j->jid);
+			*jid = j->jid;
+			sleep(1); /* might this cause problems? */
+			return 1;
+		}
+	}
+#endif
+
 	return 0;
 }
 
 /* processing that happens after all changes have been dealt with */
 
-static void recover_and_start(struct mountgroup *mg)
+static void apply_recovery(struct mountgroup *mg)
 {
 	int jid;
 
 	if (mg->first_recovery_needed) {
 		if (mg->first_recovery_master == our_nodeid &&
 		    !mg->mount_client_notified) {
-			log_group(mg, "recover_and_start first start_kernel");
+			log_group(mg, "apply_recovery first start_kernel");
 			mg->first_mounter = 1; /* adds first=1 to hostdata */
 			start_kernel(mg);      /* includes reply to mount.gfs */
 		}
@@ -2089,7 +2256,7 @@ static void recover_and_start(struct mountgroup *mg)
 	} else {
 		if (!mg->kernel_stopped)
 			return;
-		log_group(mg, "recover_and_start start_kernel");
+		log_group(mg, "apply_recovery start_kernel");
 		start_kernel(mg);
 	}
 }
@@ -2100,7 +2267,7 @@ static void process_mountgroup(struct mountgroup *mg)
 		apply_changes(mg);
 	
 	if (mg->started_change && list_empty(&mg->changes))
-		recover_and_start(mg);
+		apply_recovery(mg);
 }
 
 void process_mountgroups(void)
@@ -2247,7 +2414,19 @@ static void confchg_cb(cpg_handle_t handle, struct cpg_name *group_name,
 		cpg_finalize(mg->cpg_handle);
 		client_dead(mg->cpg_client);
 		list_del(&mg->list);
-		free_mg(mg);
+		if (!mg->withdraw_uevent) {
+			free_mg(mg);
+		} else {
+			if (!member_list_entries) {
+				/* no one remaining to send us an ack */
+				set_sysfs(mg, "withdraw", 1);
+				free_mg(mg);
+			} else {
+				/* set the sysfs withdraw file and free the mg
+				   when the ack arrives */
+				list_add(&mg->list, &withdrawn_mounts);
+			}
+		}
 		return;
 	}
 
@@ -2258,6 +2437,37 @@ static void confchg_cb(cpg_handle_t handle, struct cpg_name *group_name,
 		return;
 
 	process_mountgroup(mg);
+}
+
+static void gfs_header_in(struct gfs_header *hd)
+{
+	hd->version[0]  = le16_to_cpu(hd->version[0]);
+	hd->version[1]  = le16_to_cpu(hd->version[1]);
+	hd->version[2]  = le16_to_cpu(hd->version[2]);
+	hd->type        = le16_to_cpu(hd->type);
+	hd->nodeid      = le32_to_cpu(hd->nodeid);
+	hd->to_nodeid   = le32_to_cpu(hd->to_nodeid);
+	hd->global_id   = le32_to_cpu(hd->global_id);
+	hd->flags       = le32_to_cpu(hd->flags);
+	hd->msgdata     = le32_to_cpu(hd->msgdata);
+}
+
+static int gfs_header_check(struct gfs_header *hd, int nodeid)
+{
+	if (hd->version[0] != protocol_active[0]) {
+		log_error("reject message from %d version %u.%u.%u vs %u.%u.%u",
+			  nodeid, hd->version[0], hd->version[1],
+			  hd->version[2], protocol_active[0],
+			  protocol_active[1], protocol_active[2]);
+		return -1;
+	}
+
+	if (hd->nodeid != nodeid) {
+		log_error("bad message nodeid %d %d", hd->nodeid, nodeid);
+		return -1;
+	}
+
+	return 0;
 }
 
 static void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
@@ -2273,29 +2483,10 @@ static void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 	}
 
 	hd = (struct gfs_header *)data;
+	gfs_header_in(hd);
 
-	hd->version[0]  = le16_to_cpu(hd->version[0]);
-	hd->version[1]  = le16_to_cpu(hd->version[1]);
-	hd->version[2]  = le16_to_cpu(hd->version[2]);
-	hd->type        = le16_to_cpu(hd->type);
-	hd->nodeid      = le32_to_cpu(hd->nodeid);
-	hd->to_nodeid   = le32_to_cpu(hd->to_nodeid);
-	hd->global_id   = le32_to_cpu(hd->global_id);
-	hd->flags       = le32_to_cpu(hd->flags);
-	hd->msgdata     = le32_to_cpu(hd->msgdata);
-
-	if (hd->version[0] != protocol_active[0]) {
-		log_error("reject message from %d version %u.%u.%u vs %u.%u.%u",
-			  nodeid, hd->version[0], hd->version[1],
-			  hd->version[2], protocol_active[0],
-			  protocol_active[1], protocol_active[2]);
+	if (gfs_header_check(hd, nodeid) < 0)
 		return;
-	}
-
-	if (hd->nodeid != nodeid) {
-		log_error("bad msg nodeid %d %d", hd->nodeid, nodeid);
-		return;
-	}
 
 	switch (hd->type) {
 	case GFS_MSG_START:
@@ -2318,6 +2509,9 @@ static void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 		break;
 	case GFS_MSG_REMOUNT:
 		receive_remount(mg, hd, len);
+		break;
+	case GFS_MSG_WITHDRAW:
+		receive_withdraw(mg, hd, len);
 		break;
 	default:
 		log_error("unknown msg type %d", hd->type);
@@ -2418,24 +2612,16 @@ int gfs_join_mountgroup(struct mountgroup *mg)
    order.  We can just ignore the second.  The second would either not find
    the mg here, or would see mg->leaving of 1 from the first. */
 
-void gfs_leave_mountgroup(char *mgname, int mnterr)
+static void leave_mountgroup(struct mountgroup *mg, int mnterr)
 {
-	struct mountgroup *mg;
 	cpg_error_t error;
 	struct cpg_name name;
 	int i = 0;
 
-	mg = find_mg(mgname);
-	if (!mg) {
-		log_debug("leave: %s not found", mgname);
-		return;
-	}
-
 	if (mg->leaving) {
-		log_debug("leave: %s already leaving", mgname);
+		log_group(mg, "leave: already leaving");
 		return;
 	}
-
 	mg->leaving = 1;
 
 	memset(&name, 0, sizeof(name));
@@ -2454,21 +2640,186 @@ void gfs_leave_mountgroup(char *mgname, int mnterr)
 		log_error("cpg_leave error %d", error);
 }
 
-int setup_cpg(void)
+void do_leave(char *table, int mnterr)
+{
+	struct mountgroup *mg;
+	char *name = strstr(table, ":") + 1;
+
+	log_debug("do_leave %s mnterr %d", table, mnterr);
+
+	mg = find_mg(name);
+	if (!mg) {
+		log_error("do_leave: %s not found", name);
+		return;
+	}
+
+	if (mg->withdraw_uevent) {
+		log_group(mg, "do_leave: ignored during withdraw");
+		return;
+	}
+
+	leave_mountgroup(mg, mnterr);
+}
+
+static void receive_withdraw_ack(struct gfs_header *hd, int len)
+{
+	struct mountgroup *mg;
+
+	if (hd->to_nodeid != our_nodeid)
+		return;
+
+	log_debug("receive_withdraw_ack from %d global_id %x",
+		  hd->nodeid, hd->global_id);
+
+	list_for_each_entry(mg, &withdrawn_mounts, list) {
+		if (mg->id != hd->global_id)
+			continue;
+		set_sysfs(mg, "withdraw", 1);
+		list_del(&mg->list);
+		free_mg(mg);
+		break;
+	}
+}
+
+static void send_withdraw_ack(struct mountgroup *mg, int nodeid)
+{
+	struct gfs_header h;
+
+	memset(&h, 0, sizeof(h));
+
+	h.version[0]	= cpu_to_le16(protocol_active[0]);
+	h.version[1]	= cpu_to_le16(protocol_active[1]);
+	h.version[2]	= cpu_to_le16(protocol_active[2]);
+	h.type		= cpu_to_le16(GFS_MSG_WITHDRAW_ACK);
+	h.nodeid	= cpu_to_le32(our_nodeid);
+	h.to_nodeid	= cpu_to_le32(nodeid);
+	h.global_id	= cpu_to_le32(mg->id);
+
+	_send_message(cpg_handle_daemon, (char *)&h, sizeof(h),
+		      GFS_MSG_WITHDRAW_ACK);
+}
+
+/* Everyone remaining in the group will send an ack for the withdrawn fs;
+   all but the first will be ignored. */
+
+static void send_withdraw_acks(struct mountgroup *mg)
+{
+	struct node *node;
+
+	list_for_each_entry(node, &mg->node_history, list) {
+		if (node->withdraw && !node->send_withdraw_ack) {
+			send_withdraw_ack(mg, node->nodeid);
+			node->send_withdraw_ack = 1;
+		}
+	}
+}
+
+static void deliver_cb_daemon(cpg_handle_t handle, struct cpg_name *group_name,
+		uint32_t nodeid, uint32_t pid, void *data, int len)
+{
+	struct gfs_header *hd;
+
+	hd = (struct gfs_header *)data;
+	gfs_header_in(hd);
+
+	if (gfs_header_check(hd, nodeid) < 0)
+		return;
+
+	switch (hd->type) {
+	case GFS_MSG_WITHDRAW_ACK:
+		receive_withdraw_ack(hd, len);
+		break;
+	default:
+		log_error("deliver_cb_daemon unknown msg type %d", hd->type);
+	}
+}
+
+static void confchg_cb_daemon(cpg_handle_t handle, struct cpg_name *group_name,
+		struct cpg_address *member_list, int member_list_entries,
+		struct cpg_address *left_list, int left_list_entries,
+		struct cpg_address *joined_list, int joined_list_entries)
+{
+}
+
+static cpg_callbacks_t cpg_callbacks_daemon = {
+	.cpg_deliver_fn = deliver_cb_daemon,
+	.cpg_confchg_fn = confchg_cb_daemon,
+};
+
+void process_cpg(int ci)
 {
 	cpg_error_t error;
 
-	error = cpg_initialize(&libcpg_handle, &cpg_callbacks);
+	error = cpg_dispatch(cpg_handle_daemon, CPG_DISPATCH_ALL);
+	if (error != CPG_OK)
+		log_error("daemon cpg_dispatch error %d", error);
+}
+
+int setup_cpg(void)
+{
+	cpg_error_t error;
+	cpg_handle_t h;
+	struct cpg_name name;
+	int i = 0, f;
+
+	error = cpg_initialize(&h, &cpg_callbacks_daemon);
 	if (error != CPG_OK) {
-		log_error("setup_cpg cpg_initialize error %d", error);
+		log_error("daemon cpg_initialize error %d", error);
 		return -1;
 	}
 
-	/* join "gfs_controld" cpg to interact with other daemons in
-	   the cluster before we start processing uevents?  Could this
-	   also help in handling transient partitions? */
+	cpg_fd_get(h, &f);
 
-	return 0;
+	cpg_handle_daemon = h;
+
+	memset(&name, 0, sizeof(name));
+	sprintf(name.value, "gfs::daemon");
+	name.length = strlen(name.value) + 1;
+
+ retry:
+	error = cpg_join(h, &name);
+	if (error == CPG_ERR_TRY_AGAIN) {
+		sleep(1);
+		if (!(++i % 10))
+			log_error("daemon cpg_join error retrying");
+		goto retry;
+	}
+	if (error != CPG_OK) {
+		log_error("daemon cpg_join error %d", error);
+		goto fail;
+	}
+
+	log_debug("setup_cpg %d", f);
+	return f;
+
+ fail:
+	cpg_finalize(h);
+	return -1;
+}
+
+void close_cpg(void)
+{
+	cpg_error_t error;
+	struct cpg_name name;
+	int i = 0;
+
+	if (!cpg_handle_daemon)
+		return;
+
+	memset(&name, 0, sizeof(name));
+	sprintf(name.value, "gfs::daemon");
+	name.length = strlen(name.value) + 1;
+
+ retry:
+	error = cpg_leave(cpg_handle_daemon, &name);
+	if (error == CPG_ERR_TRY_AGAIN) {
+		sleep(1);
+		if (!(++i % 10))
+			log_error("daemon cpg_leave error retrying");
+		goto retry;
+	}
+	if (error != CPG_OK)
+		log_error("daemon cpg_leave error %d", error);
 }
 
 int setup_dlmcontrol(void)

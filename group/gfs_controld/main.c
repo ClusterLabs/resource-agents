@@ -22,7 +22,7 @@ struct client {
 	struct mountgroup *mg;
 };
 
-static void do_leave(char *table, int mnterr);
+static void do_withdraw(char *table);
 
 int do_read(int fd, void *buf, size_t count)
 {
@@ -302,7 +302,10 @@ static void process_uevent(int ci)
 		if (lock_module)
 			return;
 
-		do_leave(argv[3], 0);
+		if (group_mode == GROUP_LIBGROUP)
+			do_leave_old(argv[3], 0);
+		else
+			do_leave(argv[3], 0);
 
 	} else if (!strcmp(act, "change@")) {
 		if (!lock_module)
@@ -317,10 +320,7 @@ static void process_uevent(int ci)
 		if (!lock_module)
 			return;
 
-		if (group_mode == GROUP_LIBGROUP)
-			do_withdraw_old(argv[3]);
-		else
-			log_error("TODO withdraw for libcpg");
+		do_withdraw(argv[3]);
 
 	} else {
 		if (!lock_module)
@@ -730,16 +730,42 @@ static void do_join(int ci, struct gfsc_mount_args *ma)
 	client_reply_join(ci, ma, rv);
 }
 
-static void do_leave(char *table, int mnterr)
+/* The basic rule of withdraw is that we don't want to tell the kernel to drop
+   all locks until we know gfs has been stopped/blocked on all nodes.
+   A withdrawing node is very much like a readonly node, differences are
+   that others recover its journal when they remove it from the group,
+   and when it's been removed from the group, it tells the locally withdrawing
+   gfs to clear out locks. */
+
+static void do_withdraw(char *table)
 {
+	struct mountgroup *mg;
 	char *name = strstr(table, ":") + 1;
+	int rv;
 
-	log_debug("leave: %s mnterr %d", name, mnterr);
+	log_debug("withdraw: %s", name);
 
-	if (group_mode == GROUP_LIBGROUP)
-		gfs_leave_mountgroup_old(name, mnterr);
-	else
-		gfs_leave_mountgroup(name, mnterr);
+	if (!cfgd_enable_withdraw) {
+		log_error("withdraw feature not enabled");
+		return;
+	}
+
+	mg = find_mg(name);
+	if (!mg) {
+		log_error("do_withdraw no mountgroup %s", name);
+		return;
+	}
+
+	mg->withdraw_uevent = 1;
+
+	rv = run_dmsetup_suspend(mg, mg->mount_args.dev);
+	if (rv) {
+		log_error("do_withdraw %s: dmsetup %s error %d", mg->name,
+			  mg->mount_args.dev, rv);
+		return;
+	}
+
+	dmsetup_wait = 1;
 }
 
 static void do_mount_done(char *table, int result)
@@ -873,7 +899,10 @@ void process_connection(int ci)
 		break;
 
 	case GFSC_CMD_FS_LEAVE:
-		do_leave(ma->table, h.data);
+		if (group_mode == GROUP_LIBGROUP)
+			do_leave_old(ma->table, h.data);
+		else
+			do_leave(ma->table, h.data);
 		break;
 
 	case GFSC_CMD_FS_MOUNT_DONE:
@@ -1106,6 +1135,7 @@ static void loop(void)
 		rv = setup_cpg();
 		if (rv < 0)
 			goto out;
+		client_add(rv, process_cpg, cluster_dead);
 
 		rv = setup_dlmcontrol();
 		if (rv < 0)
@@ -1194,6 +1224,10 @@ static void loop(void)
 		query_unlock();
 	}
  out:
+	if (group_mode == GROUP_LIBCPG)
+		close_cpg();
+	else if (group_mode == GROUP_LIBGROUP)
+		close_cpg_old();
 	if (cfgd_groupd_compat)
 		close_groupd();
 	close_logging();
@@ -1416,6 +1450,7 @@ static void set_scheduler(void)
 int main(int argc, char **argv)
 {
 	INIT_LIST_HEAD(&mountgroups);
+	INIT_LIST_HEAD(&withdrawn_mounts);
 
 	init_logging();
 
@@ -1472,7 +1507,8 @@ int dump_wrap;
 char plock_dump_buf[GFSC_DUMP_SIZE];
 int plock_dump_len;
 int dmsetup_wait;
-cpg_handle_t libcpg_handle;
+cpg_handle_t cpg_handle_daemon;
 int libcpg_flow_control_on;
 int group_mode;
+struct list_head withdrawn_mounts;
 

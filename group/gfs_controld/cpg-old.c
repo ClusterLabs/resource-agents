@@ -41,9 +41,6 @@ static unsigned int protocol_v100[3] = {1, 0, 0};
 static unsigned int protocol_v200[3] = {2, 0, 0};
 static unsigned int protocol_active[3];
 
-static struct list_head withdrawn_mounts;
-static struct cpg_name daemon_name;
-
 
 static void send_journals(struct mountgroup *mg, int nodeid);
 
@@ -116,7 +113,7 @@ int send_group_message_old(struct mountgroup *mg, int len, char *buf)
 	hd->to_nodeid	= cpu_to_le32(hd->to_nodeid);
 	memcpy(hd->name, mg->name, strlen(mg->name));
 
-	return _send_message(libcpg_handle, buf, len, type);
+	return _send_message(cpg_handle_daemon, buf, len, type);
 }
 
 static struct mg_member *find_memb_nodeid(struct mountgroup *mg, int nodeid)
@@ -1470,7 +1467,7 @@ static void recover_journals(struct mountgroup *mg)
 
 	if (mg->spectator ||
 	    mg->ro ||
-	    mg->withdraw ||
+	    mg->withdraw_suspend ||
 	    mg->our_jid == JID_INIT ||
 	    mg->kernel_mount_error ||
 	    !mg->mount_client_notified ||
@@ -1479,7 +1476,7 @@ static void recover_journals(struct mountgroup *mg)
 		log_group(mg, "recover_journals: unable %d,%d,%d,%d,%d,%d,%d,%d",
 			  mg->spectator,
 			  mg->ro,
-			  mg->withdraw,
+			  mg->withdraw_suspend,
 			  mg->our_jid,
 			  mg->kernel_mount_error,
 			  mg->mount_client_notified,
@@ -1703,26 +1700,8 @@ int process_recovery_uevent_old(char *table)
 	return 0;
 }
 
-void gfs_leave_mountgroup_old(char *name, int mnterr)
+static void leave_mountgroup(struct mountgroup *mg, int mnterr)
 {
-	struct mountgroup *mg;
-
-	list_for_each_entry(mg, &withdrawn_mounts, list) {
-		if (strcmp(mg->name, name))
-			continue;
-
-		log_group(mg, "leave: for withdrawn fs");
-		list_del(&mg->list);
-		free(mg);
-		return;
-	}
-
-	mg = find_mg(name);
-	if (!mg) {
-		log_error("leave: %s not found", name);
-		return;
-	}
-
 	/* sanity check: we should already have gotten the error from
 	   the mount.gfs mount_done; so this shouldn't happen */
 
@@ -1743,6 +1722,31 @@ void gfs_leave_mountgroup_old(char *name, int mnterr)
 	}
 
 	group_leave(gh, mg->name);
+}
+
+void do_leave_old(char *table, int mnterr)
+{
+	struct mountgroup *mg;
+	char *name = strstr(table, ":") + 1;
+
+	log_debug("do_leave_old %s mnterr %d", table, mnterr);
+
+	list_for_each_entry(mg, &withdrawn_mounts, list) {
+		if (strcmp(mg->name, name))
+			continue;
+		log_group(mg, "leave for withdrawn fs");
+		list_del(&mg->list);
+		free_mg(mg);
+		return;
+	}
+
+	mg = find_mg(name);
+	if (!mg) {
+		log_error("do_leave_old: %s not found", name);
+		return;
+	}
+
+	leave_mountgroup(mg, mnterr);
 }
 
 /* When mounting a fs, we first join the mountgroup, then tell mount.gfs
@@ -2205,7 +2209,7 @@ int do_terminate(struct mountgroup *mg)
 {
 	purge_plocks(mg, 0, 1);
 
-	if (mg->withdraw) {
+	if (mg->withdraw_suspend) {
 		log_group(mg, "termination of our withdraw leave");
 		set_sysfs(mg, "withdraw", 1);
 		list_move(&mg->list, &withdrawn_mounts);
@@ -2215,44 +2219,6 @@ int do_terminate(struct mountgroup *mg)
 		free(mg);
 	}
 
-	return 0;
-}
-
-/* The basic rule of withdraw is that we don't want to tell the kernel to drop
-   all locks until we know gfs has been stopped/blocked on all nodes.  They'll
-   be stopped for our leave, we just need to know when they've all arrived
-   there.
-
-   A withdrawing node is very much like a readonly node, differences are
-   that others recover its journal when they remove it from the group,
-   and when it's been removed from the group (gets terminate for its leave),
-   it tells the locally withdrawing gfs to clear out locks. */
-
-int do_withdraw_old(char *table)
-{
-	struct mountgroup *mg;
-	char *name = strstr(table, ":") + 1;
-	int rv;
-
-	if (!cfgd_enable_withdraw) {
-		log_error("withdraw feature not enabled");
-		return 0;
-	}
-
-	mg = find_mg(name);
-	if (!mg) {
-		log_error("do_withdraw no mountgroup %s", name);
-		return -1;
-	}
-
-	rv = run_dmsetup_suspend(mg, mg->mount_args.dev);
-	if (rv) {
-		log_error("do_withdraw %s: dmsetup %s error %d", mg->name,
-			  mg->mount_args.dev, rv);
-		return -1;
-	}
-
-	dmsetup_wait = 1;
 	return 0;
 }
 
@@ -2389,7 +2355,7 @@ void process_cpg_old(int ci)
 {
 	cpg_error_t error;
 
-	error = cpg_dispatch(libcpg_handle, CPG_DISPATCH_ALL);
+	error = cpg_dispatch(cpg_handle_daemon, CPG_DISPATCH_ALL);
 	if (error != CPG_OK) {
 		log_error("cpg_dispatch error %d", error);
 		return;
@@ -2400,46 +2366,70 @@ void process_cpg_old(int ci)
 
 int setup_cpg_old(void)
 {
+	static struct cpg_name name;
 	cpg_error_t error;
 	int fd = 0;
-
-	INIT_LIST_HEAD(&withdrawn_mounts);
 
 	if (cfgd_plock_ownership)
 		memcpy(protocol_active, protocol_v200, sizeof(protocol_v200));
 	else
 		memcpy(protocol_active, protocol_v100, sizeof(protocol_v100));
 
-	error = cpg_initialize(&libcpg_handle, &callbacks);
+	error = cpg_initialize(&cpg_handle_daemon, &callbacks);
 	if (error != CPG_OK) {
-		log_error("cpg_initialize error %d", error);
+		log_error("daemon cpg_initialize error %d", error);
 		return -1;
 	}
 
-	cpg_fd_get(libcpg_handle, &fd);
+	cpg_fd_get(cpg_handle_daemon, &fd);
 	if (fd < 0) {
-		log_error("cpg_fd_get error %d", error);
+		log_error("daemon cpg_fd_get error %d", error);
 		return -1;
 	}
 
-	memset(&daemon_name, 0, sizeof(daemon_name));
-	strcpy(daemon_name.value, "gfs_controld");
-	daemon_name.length = 12;
+	memset(&name, 0, sizeof(name));
+	strcpy(name.value, "gfs_controld");
+	name.length = 12;
 
  retry:
-	error = cpg_join(libcpg_handle, &daemon_name);
+	error = cpg_join(cpg_handle_daemon, &name);
 	if (error == CPG_ERR_TRY_AGAIN) {
-		log_debug("setup_cpg cpg_join retry");
+		log_debug("daemon cpg_join retry");
 		sleep(1);
 		goto retry;
 	}
 	if (error != CPG_OK) {
-		log_error("cpg_join error %d", error);
-		cpg_finalize(libcpg_handle);
+		log_error("daemon cpg_join error %d", error);
+		cpg_finalize(cpg_handle_daemon);
 		return -1;
 	}
 
-	log_debug("cpg %d", fd);
+	log_debug("setup_cpg_old %d", fd);
 	return fd;
+}
+
+void close_cpg_old(void)
+{
+	static struct cpg_name name;
+	cpg_error_t error;
+	int i = 0;
+
+	if (!cpg_handle_daemon)
+		return;
+
+	memset(&name, 0, sizeof(name));
+	strcpy(name.value, "gfs_controld");
+	name.length = 12;
+
+ retry:
+	error = cpg_leave(cpg_handle_daemon, &name);
+	if (error == CPG_ERR_TRY_AGAIN) {
+		sleep(1);
+		if (!(++i % 10))
+			log_error("daemon cpg_leave error retrying");
+		goto retry;
+	}
+	if (error != CPG_OK)
+		log_error("daemon cpg_leave error %d", error);
 }
 

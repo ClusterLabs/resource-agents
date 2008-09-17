@@ -7,7 +7,7 @@ void update_flow_control_status(void)
 	cpg_flow_control_state_t flow_control_state;
 	cpg_error_t error;
 
-	error = cpg_flow_control_state_get(libcpg_handle, &flow_control_state);
+	error = cpg_flow_control_state_get(cpg_handle_daemon, &flow_control_state);
 	if (error != CPG_OK) {
 		log_error("cpg_flow_control_state_get %d", error);
 		return;
@@ -165,9 +165,11 @@ static void dmsetup_suspend_done(struct mountgroup *mg, int rv)
 	mg->dmsetup_pid = 0;
 
 	if (!rv) {
-		mg->withdraw = 1;
+		mg->withdraw_suspend = 1;
 		if (mg->old_group_mode)
 			send_withdraw_old(mg);
+		else
+			send_withdraw(mg);
 	}
 }
 

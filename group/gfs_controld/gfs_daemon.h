@@ -79,9 +79,10 @@ extern int dump_wrap;
 extern char plock_dump_buf[GFSC_DUMP_SIZE];
 extern int plock_dump_len;
 extern int dmsetup_wait;
-extern cpg_handle_t libcpg_handle;
+extern cpg_handle_t cpg_handle_daemon;
 extern int libcpg_flow_control_on;
 extern int group_mode;
+extern struct list_head withdrawn_mounts;
 
 void daemon_dump_save(void);
 
@@ -133,7 +134,8 @@ struct mountgroup {
 	int			mount_client_delay;
 	int			remount_client;
 
-	int			withdraw;
+	int			withdraw_uevent;
+	int			withdraw_suspend;
 	int			dmsetup_wait;
 	pid_t			dmsetup_pid;
 	int			our_jid;
@@ -219,25 +221,31 @@ void read_ccs_nodir(struct mountgroup *mg, char *buf);
 
 /* cpg-new.c */
 int setup_cpg(void);
+void close_cpg(void);
+void process_cpg(int ci);
 int setup_dlmcontrol(void);
 void process_dlmcontrol(int ci);
 void process_recovery_uevent(char *table);
 void process_mountgroups(void);
 int gfs_join_mountgroup(struct mountgroup *mg);
-void gfs_leave_mountgroup(char *name, int mnterr);
+void do_leave(char *table, int mnterr);
 void gfs_mount_done(struct mountgroup *mg);
 void send_remount(struct mountgroup *mg, struct gfsc_mount_args *ma);
+void send_withdraw(struct mountgroup *mg);
 int set_mountgroup_info(struct mountgroup *mg, struct gfsc_mountgroup *out);
 int set_node_info(struct mountgroup *mg, int nodeid, struct gfsc_node *node);
 int set_mountgroups(int *count, struct gfsc_mountgroup **mgs_out);
 int set_mountgroup_nodes(struct mountgroup *mg, int option, int *node_count,
 	struct gfsc_node **nodes_out);
+void free_mg(struct mountgroup *mg);
 
 /* cpg-old.c */
 int setup_cpg_old(void);
+void close_cpg_old(void);
 void process_cpg_old(int ci);
+
 int gfs_join_mountgroup_old(struct mountgroup *mg, struct gfsc_mount_args *ma);
-void gfs_leave_mountgroup_old(char *name, int mnterr);
+void do_leave_old(char *table, int mnterr);
 int send_group_message_old(struct mountgroup *mg, int len, char *buf);
 void save_message_old(struct mountgroup *mg, char *buf, int len, int from,
 	int type);

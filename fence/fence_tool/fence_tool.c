@@ -408,8 +408,10 @@ static int do_list(void)
 	}
 	printf("\n");
 
-	if (!verbose)
+	if (!verbose) {
+		printf("\n");
 		exit(EXIT_SUCCESS);
+	}
 
 	node_count = 0;
 	memset(&nodes, 0, sizeof(nodes));
@@ -433,7 +435,6 @@ static int do_list(void)
 				np->last_fenced_how);
 		np++;
 	}
-	printf("\n");
 	printf("\n");
 	exit(EXIT_SUCCESS);
  fail:
