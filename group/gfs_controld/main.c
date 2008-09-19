@@ -600,7 +600,7 @@ void client_reply_join_full(struct mountgroup *mg, int result)
 	if (nodir_str[0])
 		strcat(mg->mount_args.hostdata, nodir_str);
  out:
-	log_group(mg, "client_reply_join_full ci %d result %d hostdata %s",
+	log_group(mg, "client_reply_join_full ci %d result %d %s",
 		  mg->mount_client, result, mg->mount_args.hostdata);
 
 	client_reply_join(mg->mount_client, &mg->mount_args, result);

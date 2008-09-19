@@ -2059,19 +2059,19 @@ void process_recovery_uevent(char *table)
 
 	mg = find_mg(name);
 	if (!mg) {
-		log_error("process_recovery_uevent mg not found %s", table);
+		log_error("recovery_uevent mg not found %s", table);
 		return;
 	}
 
 	rv = read_sysfs_int(mg, "recover_done", &jid);
 	if (rv < 0) {
-		log_error("process_recovery_uevent recover_done read %d", rv);
+		log_error("recovery_uevent recover_done read %d", rv);
 		return;
 	}
 
 	rv = read_sysfs_int(mg, "recover_status", &recover_status);
 	if (rv < 0) {
-		log_error("process_recovery_uevent recover_status read %d", rv);
+		log_error("recovery_uevent recover_status read %d", rv);
 		return;
 	}
 
@@ -2080,29 +2080,28 @@ void process_recovery_uevent(char *table)
 			/* This will happen in two known situations:
 			   - we get a recovery_done uevent for our own journal
 			     when we mount  (jid == mg->our_jid)
-			   - the first mounter will read first_done and clear
+			   - the first mounter can read first_done and clear
 			     first_recovery_needed before seeing the change
 			     uevent from others_may_mount */
-			log_group(mg, "process_recovery_uevent jid %d ignore",
-				  jid);
+			log_group(mg, "recovery_uevent jid %d ignore", jid);
 			return;
 		}
 
 		mg->local_recovery_busy = 0;
 
 		if (mg->local_recovery_jid != jid) {
-			log_error("process_recovery_uevent jid %d exp %d",
-				  jid, mg->local_recovery_jid);
+			log_error("recovery_uevent jid %d expected %d", jid,
+				  mg->local_recovery_jid);
 			return;
 		}
 
 		j = find_journal(mg, jid);
 		if (!j) {
-			log_error("process_recovery_uevent no journal %d", jid);
+			log_error("recovery_uevent no journal %d", jid);
 			return;
 		}
 
-		log_group(mg, "process_recovery_uevent jid %d status %d "
+		log_group(mg, "recovery_uevent jid %d status %d "
 			  "local_recovery_done %d needs_recovery %d",
 			  jid, recover_status, j->local_recovery_done,
 			  j->needs_recovery);
@@ -2118,7 +2117,6 @@ void process_recovery_uevent(char *table)
 		if (j->needs_recovery)
 			send_recovery_result(mg, jid, recover_status);
 	} else {
-
 		/*
 		 * Assumption here is that only the first mounter will get
 		 * uevents when first_recovery_needed is set.
@@ -2128,18 +2126,22 @@ void process_recovery_uevent(char *table)
 		   to check below that we've seen uevents for all jids
 		   during first recovery before sending first_recovery_done. */
 
-		log_group(mg, "process_recovery_uevent jid %d status %d "
-			  "ignore during first_recovery", jid, recover_status);
+		log_group(mg, "recovery_uevent jid %d first recovery done %d",
+			  jid, mg->first_done_uevent);
+
+		/* ignore extraneous uevent from others_may_mount */
+		if (mg->first_done_uevent)
+			return;
 
 		rv = read_sysfs_int(mg, "first_done", &first_done);
 		if (rv < 0) {
-			log_error("process_recovery_uevent first_done read %d",
-				  rv);
+			log_error("recovery_uevent first_done read %d", rv);
 			return;
 		}
 
 		if (first_done) {
-			log_group(mg, "process_recovery_uevent first_done");
+			log_group(mg, "recovery_uevent first_done");
+			mg->first_done_uevent = 1;
 			send_first_recovery_done(mg);
 		}
 	}

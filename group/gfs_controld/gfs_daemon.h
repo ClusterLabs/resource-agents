@@ -161,6 +161,7 @@ struct mountgroup {
 	struct list_head        node_history;
 	struct list_head	journals;
 	int			dlm_notify_nodeid;
+	int			first_done_uevent;
 	int			first_recovery_needed;
 	int			first_recovery_master;
 	int			first_recovery_msg;
