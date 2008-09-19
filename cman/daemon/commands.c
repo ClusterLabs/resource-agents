@@ -1536,6 +1536,11 @@ void unbind_con(struct connection *con)
 
 		check_shutdown_status();
 	}
+
+	/* If the controlling shutdown process has quit, then cancel the
+	   shutdown session */
+	if (con == shutdown_con)
+		shutdown_con = NULL;
 }
 
 /* Post a PORT OPEN/CLOSE event to anyone listening on this end */
