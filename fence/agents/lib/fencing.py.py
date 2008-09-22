@@ -393,10 +393,22 @@ def fence_login(options):
 			if options.has_key("ssh_options"):
 				command += ' ' + options["ssh_options"]
 			conn = fspawn(command)
-			result = conn.log_expect(options, [ "ssword:", "Are you sure you want to continue connecting (yes/no)?" ], LOGIN_TIMEOUT)
-			if result == 1:
-				conn.sendline("yes")
-				conn.log_expect(options, "ssword:", LOGIN_TIMEOUT)
+
+			if options.has_key("telnet_over_ssh"):
+				#This is for stupid ssh servers (like ALOM) which behave more like telnet (ignore name and display login prompt)
+				result = conn.log_expect(options, [ re_login, "Are you sure you want to continue connecting (yes/no)?" ], LOGIN_TIMEOUT)
+				if result == 1:
+					conn.sendline("yes") # Host identity confirm
+					conn.log_expect(options, re_login, LOGIN_TIMEOUT)
+
+				conn.sendline(options["-l"])
+				conn.log_expect(options, re_pass, LOGIN_TIMEOUT)
+			else:
+				result = conn.log_expect(options, [ "ssword:", "Are you sure you want to continue connecting (yes/no)?" ], LOGIN_TIMEOUT)
+				if result == 1:
+					conn.sendline("yes")
+					conn.log_expect(options, "ssword:", LOGIN_TIMEOUT)
+
 			conn.sendline(options["-p"])
 			conn.log_expect(options, options["-c"], LOGIN_TIMEOUT)
 		elif options.has_key("-x") and 1 == options.has_key("-k"):
