@@ -68,6 +68,9 @@ Name of virtual machine to fence (ie. /vmfs/volumes/48bfcbd1-4624461c-8250-0015c
 \fB-x\fP
 Use secure connection over ssh (this is default, and can't be disabled) 
 .TP
+\fB-k\fP \fIfilename\fR
+Identity file (private key) for ssh
+.TP
 \fB-T\fP
 Test only.  Answer NO to the confirmation prompt instead of YES.
 .TP
@@ -117,6 +120,9 @@ Name of virtual machine to fence (ie. /vmfs/volumes/48bfcbd1-4624461c-8250-0015c
 .TP
 \fIsecure = < param >\fR
 Use secure connection over ssh (this is default, and can't be disabled) 
+.TP 
+\fIidentity_file = < param >\fR
+Identity file (private key) for ssh
 .TP
 \fItest = < param >\fR
 Test only.  Answer NO to the confirmation prompt instead of YES.
