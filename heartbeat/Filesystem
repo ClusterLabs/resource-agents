@@ -126,6 +126,7 @@ Any extra options to be given as -o options to mount.
 <shortdesc lang="en">options</shortdesc>
 <content type="string" default="" />
 </parameter>
+</parameters>
 
 <actions>
 <action name="start" timeout="60" />
