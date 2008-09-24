@@ -212,6 +212,10 @@ LVM_start() {
 #
 LVM_stop() {
 
+  vgdisplay "$1" 2>&1 | grep 'Volume group .* not found' >/dev/null && {
+    ocf_log info "Volume group $1 not found"
+    return 0
+  }
   ocf_log info "Deactivating volume group $1"
   ocf_run vgchange -a n $1 || return 1
 
