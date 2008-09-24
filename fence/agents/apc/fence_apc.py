@@ -41,7 +41,7 @@ def get_power_status(conn, options):
 					fail_usage("Failed: You have to enter physical switch number")
 			else:
 				if (0 == options.has_key("-s")):
-					options["-s"] = 1
+					options["-s"] = "1"
 
 		if (None == re.compile('.*Outlet Management.*', re.IGNORECASE | re.S).match(conn.before)):
 			version = 2
