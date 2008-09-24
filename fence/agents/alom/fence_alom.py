@@ -1,6 +1,9 @@
 #!/usr/bin/python
 
-# The Following Agent Has Been Tested On ALOM???
+# The Following Agent Has Been Tested On:
+#
+# Sun(tm) Advanced Lights Out Manager CMT v1.6.1
+# as found on SUN T2000 Niagara
 
 import sys, re, pexpect, time
 sys.path.append("@FENCEAGENTSLIBDIR@")
