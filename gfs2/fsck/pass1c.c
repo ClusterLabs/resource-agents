@@ -226,7 +226,7 @@ int pass1c(struct gfs2_sbd *sbp)
 	struct gfs2_inode *ip = NULL;
 	struct metawalk_fxns pass1c_fxns = { 0 };
 	int error = 0;
-	osi_list_t *tmp;
+	osi_list_t *tmp, *x;
 	struct special_blocks *ea_block;
 	enum update_flags want_updated = not_updated;
 
@@ -237,7 +237,7 @@ int pass1c(struct gfs2_sbd *sbp)
 	pass1c_fxns.private = NULL;
 
 	log_info("Looking for inodes containing ea blocks...\n");
-	osi_list_foreach(tmp, &sbp->eattr_blocks.list) {
+	osi_list_foreach_safe(tmp, &sbp->eattr_blocks.list, x) {
 		ea_block = osi_list_entry(tmp, struct special_blocks, list);
 		block_no = ea_block->block;
 

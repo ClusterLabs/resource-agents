@@ -457,7 +457,7 @@ int pass1b(struct gfs2_sbd *sbp)
 	struct blocks *b;
 	uint64_t i;
 	struct gfs2_block_query q;
-	osi_list_t *tmp = NULL;
+	osi_list_t *tmp = NULL, *x;
 	struct metawalk_fxns find_dirents = {0};
 	find_dirents.check_dentry = &find_dentry;
 	int rc = 0;
@@ -493,7 +493,7 @@ int pass1b(struct gfs2_sbd *sbp)
 		   (q.block_type == gfs2_inode_chr) ||
 		   (q.block_type == gfs2_inode_fifo) ||
 		   (q.block_type == gfs2_inode_sock)) {
-			osi_list_foreach(tmp, &sbp->dup_blocks.list) {
+			osi_list_foreach_safe(tmp, &sbp->dup_blocks.list, x) {
 				b = osi_list_entry(tmp, struct blocks, list);
 				if(find_block_ref(sbp, i, b)) {
 					stack;
