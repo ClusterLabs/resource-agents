@@ -341,9 +341,7 @@ main(int argc, char **argv)
 
 	if (args.flags & F_VERSION) {
 		printf("%s %s\n", basename(argv[0]), XVM_VERSION);
-#ifdef RELEASE_VERSION
 		printf("fence release %s\n", RELEASE_VERSION);
-#endif
 		exit(0);
 	}
 

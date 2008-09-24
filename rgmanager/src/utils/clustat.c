@@ -1074,12 +1074,8 @@ main(int argc, char **argv)
 		ret = !(cman_is_quorate(ch));
 		goto cleanup;
 	case VERSION_ONLY:
-#ifdef RELEASE_VERSION
 		printf("%s version %s\n", basename(argv[0]),
 		       RELEASE_VERSION);
-#else
-		printf("%s version DEVEL\n", basename(argv[0]));
-#endif
 		if (!ch)
 		       break;
 		goto cleanup;

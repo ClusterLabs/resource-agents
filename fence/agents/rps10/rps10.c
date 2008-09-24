@@ -21,11 +21,6 @@
 #include <libgen.h>
 #include "copyright.cf"
 
-#ifndef RELEASE_VERSION
-#define RELEASE_VERSION "sandbox"
-#endif
-
-
 /*
  * Salt to taste.
  */
