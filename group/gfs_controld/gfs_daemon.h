@@ -226,6 +226,7 @@ void close_cpg(void);
 void process_cpg(int ci);
 int setup_dlmcontrol(void);
 void process_dlmcontrol(int ci);
+int set_protocol(void);
 void process_recovery_uevent(char *table);
 void process_mountgroups(void);
 int gfs_join_mountgroup(struct mountgroup *mg);

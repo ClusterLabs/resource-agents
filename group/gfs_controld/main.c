@@ -1137,6 +1137,10 @@ static void loop(void)
 			goto out;
 		client_add(rv, process_cpg, cluster_dead);
 
+		rv = set_protocol();
+		if (rv < 0)
+			goto out;
+
 		rv = setup_dlmcontrol();
 		if (rv < 0)
 			goto out;
