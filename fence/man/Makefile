@@ -1,5 +1,6 @@
 TARGET= fence.8 \
 	fence_ack_manual.8 \
+	fence_alom.8 \
 	fence_apc.8 \
 	fence_rsa.8 \
 	fence_bladecenter.8 \
