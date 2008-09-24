@@ -33,6 +33,7 @@
 #  OCF_RESKEY_statusurl
 #  OCF_RESKEY_options
 #  OCF_RESKEY_testregex
+#  OCF_RESKEY_envfiles
 
 
 . ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
@@ -98,6 +99,13 @@ action:
 	validate-all	validate the instance parameters
 	!
   exit $1
+}
+
+source_envfiles() {
+	for f; do
+		[ -f "$f" -a -r "$f" ] &&
+			. "$f"
+	done
 }
 
 apachecat() {
@@ -477,6 +485,15 @@ is case insensitive.
 <content type="string" />
 </parameter>
 
+<parameter name="envfiles">
+<longdesc lang="en">
+File(s) which contain extra environment variables, such as
+/etc/apache2/envvars.
+</longdesc>
+<shortdesc lang="en">environment settings files</shortdesc>
+<content type="string" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -537,6 +554,7 @@ then
   CONFIGFILE="$OCF_RESKEY_configfile"
   OPTIONS="$OCF_RESKEY_options"
   TESTREGEX=${OCF_RESKEY_testregex:-'</ *body *>[[:space:]]*</ *html *>'}
+  source_envfiles $OCF_RESKEY_envfiles
 else
   usage $OCF_ERR_ARGS
 fi
