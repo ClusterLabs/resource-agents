@@ -12,7 +12,7 @@
 #include <restart_counter.h>
 #include <reslist.h>
 #include <pthread.h>
-#include <clulog.h>
+#include <logging.h>
 #include <assert.h>
 
 #ifdef INTERNAL_MALLOC
@@ -441,12 +441,11 @@ res_exec(resource_node_t *node, int op, const char *arg, int depth)
 
 		if (pid != childpid && sleeptime == 0) {
 
-			clulog(LOG_ERR,
+			log_printf(LOG_ERR,
 			       "%s on %s:%s timed out after %d seconds\n",
 			       op_str, res->r_rule->rr_type,
 			       res->r_attrs->ra_value,
-			       node->rn_actions[act_index].ra_timeout,
-			       ocf_strerror(ret));
+			       (int)node->rn_actions[act_index].ra_timeout);
 			
 			/* This can't be guaranteed to kill even the child
 			   process if the child is in disk-wait :( */
@@ -454,7 +453,7 @@ res_exec(resource_node_t *node, int op, const char *arg, int depth)
 			sleep(1);
 			pid = waitpid(childpid, &ret, WNOHANG);
 			if (pid == 0) {
-				clulog(LOG_ERR,
+				log_printf(LOG_ERR,
 				       "Task %s PID %d did not exit "
 				       "after SIGKILL\n",
 				       op_str, childpid);
@@ -482,7 +481,7 @@ res_exec(resource_node_t *node, int op, const char *arg, int depth)
 #else
 		if (ret) {
 #endif
-			clulog(LOG_NOTICE,
+			log_printf(LOG_NOTICE,
 			       "%s on %s \"%s\" returned %d (%s)\n",
 			       op_str, res->r_rule->rr_type,
 			       res->r_attrs->ra_value, ret,

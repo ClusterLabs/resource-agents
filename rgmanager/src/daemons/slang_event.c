@@ -6,7 +6,7 @@
 #include <list.h>
 #include <restart_counter.h>
 #include <reslist.h>
-#include <clulog.h>
+#include <logging.h>
 #include <members.h>
 #include <assert.h>
 #include <event.h>
@@ -16,7 +16,7 @@
 #include <slang.h>
 #include <sys/syslog.h>
 #include <malloc.h>
-#include <clulog.h>
+#include <logging.h>
 #include <sets.h>
 
 static int __sl_initialized = 0;
@@ -780,7 +780,7 @@ array_to_string(char *buf, int buflen, int *array, int arraylen)
 
 /**
   Start at the end of the arg list and work backwards, prepending a string.
-  This does not support standard clulog / printf formattting; rather, we 
+  This does not support standard log_printf / printf formattting; rather, we 
   just allow integers / strings to be mixed on the stack, figure out the
   type, convert it to the right type, and prepend it on to our log message
 
@@ -789,7 +789,7 @@ array_to_string(char *buf, int buflen, int *array, int arraylen)
      ...
      LOG_EMERG
 
-  This matches up with clulog / syslog mappings in the var table; the above
+  This matches up with log_printf / syslog mappings in the var table; the above
   are constants in the S/Lang interpreter.  Any number of arguments may
   be provided.  Examples are:
 
@@ -803,7 +803,7 @@ array_to_string(char *buf, int buflen, int *array, int arraylen)
 
  */
 void
-sl_clulog(int level)
+sl_log_printf(int level)
 {
 	int t, nargs, len;
 	//int level;
@@ -868,7 +868,7 @@ sl_clulog(int level)
 #if 0
 	printf("<%d> %s\n", level, &logbuf[remain]);
 #endif
-	clulog(level, &logbuf[remain]);
+	log_printf(level, "%s", &logbuf[remain]);
 	return;
 }
 
@@ -877,56 +877,56 @@ sl_clulog(int level)
 void
 sl_log_debug(void)
 {
-	sl_clulog(LOG_DEBUG);
+	sl_log_printf(LOG_DEBUG);
 }
 
 
 void
 sl_log_info(void)
 {
-	sl_clulog(LOG_INFO);
+	sl_log_printf(LOG_INFO);
 }
 
 
 void
 sl_log_notice(void)
 {
-	sl_clulog(LOG_NOTICE);
+	sl_log_printf(LOG_NOTICE);
 }
 
 
 void
 sl_log_warning(void)
 {
-	sl_clulog(LOG_WARNING);
+	sl_log_printf(LOG_WARNING);
 }
 
 
 void
 sl_log_err(void)
 {
-	sl_clulog(LOG_ERR);
+	sl_log_printf(LOG_ERR);
 }
 
 
 void
 sl_log_crit(void)
 {
-	sl_clulog(LOG_CRIT);
+	sl_log_printf(LOG_CRIT);
 }
 
 
 void
 sl_log_alert(void)
 {
-	sl_clulog(LOG_ALERT);
+	sl_log_printf(LOG_ALERT);
 }
 
 
 void
 sl_log_emerg(void)
 {
-	sl_clulog(LOG_EMERG);
+	sl_log_printf(LOG_EMERG);
 }
 
 
@@ -985,7 +985,7 @@ rgmanager_slang_error_hook(char *errstr)
 	/* Don't just send errstr, because it might contain
 	   "%s" for example which would result in a crash!
 	   plus, we like the newline :) */
-	clulog(LOG_ERR, "[S/Lang] %s\n", errstr);
+	log_printf(LOG_ERR, "[S/Lang] %s\n", errstr);
 }
 
 
@@ -1033,7 +1033,7 @@ do_slang_run(const char *file, const char *script)
 		ret = SLang_load_string((char *)script);
 
 	if (ret < 0) {
-		clulog(LOG_ERR, "[S/Lang] Script Execution Failure\n");
+		log_printf(LOG_ERR, "[S/Lang] Script Execution Failure\n");
 		SLang_restart(1);
 	}
 

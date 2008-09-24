@@ -2,7 +2,7 @@ TARGET1= clubufflush
 TARGET2= clufindhostname
 TARGET3= clustat
 TARGET4= clusvcadm
-TARGET5= clulog
+TARGET5= #clulog
 TARGET6= clunfslock
 
 SBINDIRT=$(TARGET1) $(TARGET2) $(TARGET3) $(TARGET4) $(TARGET5) $(TARGET6)
@@ -28,7 +28,7 @@ LDFLAGS += -L${libdir}
 LDDEPS += ../clulib/libclulib.a
 
 CCS_LDFLAGS += -L${ccslibdir} -lccs
-CMAN_LDFLAGS += -L${cmanlibdir} -lcman
+CMAN_LDFLAGS += -L${cmanlibdir} -lcman -llogsys
 NCURSES_LDFLAGS += -L${ncurseslibdir} -lncurses
 PTHREAD_LDFLAGS += -lpthread 
 

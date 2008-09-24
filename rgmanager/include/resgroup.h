@@ -248,7 +248,7 @@ const char *rg_strerror(int val);
 //#define DEBUG
 #ifdef DEBUG
 
-#define dprintf(fmt, args...) \
+#define dbg_printf(fmt, args...) \
 {\
 	printf("{%d} ", gettid());\
 	printf(fmt, ##args);\
@@ -274,7 +274,7 @@ const char *rg_strerror(int val);
 
 #else /* DEBUG */
 
-#define dprintf(fmt, args...)
+#define dbg_printf(fmt, args...)
 
 #endif
 

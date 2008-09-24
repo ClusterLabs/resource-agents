@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <resgroup.h>
-#include <clulog.h>
+#include <logging.h>
 #include <lock.h>
 #include <rg_locks.h>
 #include <ccs.h>
@@ -72,19 +72,19 @@ service_op_start(char *svcName,
 			return RG_EFAIL;
 		default:
 			/* deliberate fallthrough */
-			clulog(LOG_ERR,
+			log_printf(LOG_ERR,
 			       "#61: Invalid reply from member %d during"
 			       " start operation!\n", target);
 		case RG_NO:
 			/* state uncertain */
-			clulog(LOG_CRIT, "State Uncertain: svc:%s "
+			log_printf(LOG_CRIT, "State Uncertain: svc:%s "
 			       "nid:%d req:%s ret:%d\n", svcName,
 			       target, rg_req_str(RG_START_REMOTE), ret);
 			return 0;
 		case 0:
 			if (new_owner)
 				*new_owner = target;
-			clulog(LOG_NOTICE, "Service %s is now running "
+			log_printf(LOG_NOTICE, "Service %s is now running "
 			       "on member %d\n", svcName, (int)target);
 			return 0;
 		}
@@ -96,7 +96,7 @@ service_op_start(char *svcName,
 	else if (dep == target_list_len)
 		ret = RG_EDEPEND;
 
-	clulog(LOG_INFO, "Start failed; node reports: %d failures, "
+	log_printf(LOG_INFO, "Start failed; node reports: %d failures, "
 	       "%d exclusive, %d dependency errors\n", fail, excl, dep);
 	return ret;
 }
@@ -146,7 +146,7 @@ service_op_stop(char *svcName, int do_disable, int event_type)
 	}
 
 	if (msg_open(MSG_CLUSTER, msgtarget, RG_PORT, &ctx, 2)< 0) {
-		clulog(LOG_ERR,
+		log_printf(LOG_ERR,
 		       "#58: Failed opening connection to member #%d\n",
 		       my_id());
 		return -1;
@@ -158,7 +158,7 @@ service_op_stop(char *svcName, int do_disable, int event_type)
 	/* Send stop message to the other node */
 	if (msg_send(&ctx, &msg, sizeof (SmMessageSt)) < 
 	    (int)sizeof (SmMessageSt)) {
-		clulog(LOG_ERR, "Failed to send complete message\n");
+		log_printf(LOG_ERR, "Failed to send complete message\n");
 		msg_close(&ctx);
 		return -1;
 	}
@@ -174,7 +174,7 @@ service_op_stop(char *svcName, int do_disable, int event_type)
 	} while(1);
 
 	if (msg_ret != sizeof (SmMessageSt)) {
-		clulog(LOG_WARNING, "Strange response size: %d vs %d\n",
+		log_printf(LOG_WARNING, "Strange response size: %d vs %d\n",
 		       msg_ret, (int)sizeof(SmMessageSt));
 		return 0;	/* XXX really UNKNOWN */
 	}

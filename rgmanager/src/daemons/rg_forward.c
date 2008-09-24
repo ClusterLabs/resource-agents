@@ -4,7 +4,7 @@
 #include <rg_queue.h>
 #include <platform.h>
 #include <msgsimple.h>
-#include <clulog.h>
+#include <logging.h>
 #include <message.h>
 #include <members.h>
 
@@ -48,13 +48,13 @@ forwarding_thread(void *arg)
 	int new_owner = 0, retries = 0;
 
 	if (rg_lock(req->rr_group, &lockp) != 0) {
-		clulog(LOG_WARNING, "FW: Forwarding failed; lock unavailable for %s\n",
+		log_printf(LOG_WARNING, "FW: Forwarding failed; lock unavailable for %s\n",
 		       req->rr_group);
 		goto out_fail;
 	}
 	if (get_rg_state(req->rr_group, &rgs) != 0) {
 		rg_unlock(&lockp);
-		clulog(LOG_WARNING, "FW: Forwarding failed; state unavailable for %s\n",
+		log_printf(LOG_WARNING, "FW: Forwarding failed; state unavailable for %s\n",
 		       req->rr_group);
 		goto out_fail;
 	}
@@ -63,20 +63,20 @@ forwarding_thread(void *arg)
 	if (rgs.rs_owner == 0)
 		rgs.rs_owner = req->rr_target;
 	if (rgs.rs_owner == 0) {
-		clulog(LOG_ERR, "FW: Attempt to forward to invalid node ID\n");
+		log_printf(LOG_ERR, "FW: Attempt to forward to invalid node ID\n");
        		goto out_fail;
 	}
 	if (rgs.rs_owner == (uint32_t)my_id()) {
-		clulog(LOG_WARNING, "BUG! Attempt to forward to myself!\n");
+		log_printf(LOG_WARNING, "BUG! Attempt to forward to myself!\n");
        		goto out_fail;
 	}
 
-	clulog(LOG_DEBUG, "FW: Forwarding %s request to %d\n",
+	log_printf(LOG_DEBUG, "FW: Forwarding %s request to %d\n",
 	       rg_req_str(req->rr_request), rgs.rs_owner);
 
 	ctx = msg_new_ctx();
 	if (ctx == NULL) {
-		clulog(LOG_DEBUG, "FW: Failed to allocate socket context: %s\n",
+		log_printf(LOG_DEBUG, "FW: Failed to allocate socket context: %s\n",
 		       strerror(errno));
 		goto out_fail;
 	}
@@ -86,12 +86,12 @@ forwarding_thread(void *arg)
 		      req->rr_arg0, req->rr_arg1);
 
 	if (msg_open(MSG_CLUSTER, rgs.rs_owner, RG_PORT, ctx, 10) < 0) {
-		clulog(LOG_DEBUG, "FW: Failed to open channel to %d CTX: %p\n",
+		log_printf(LOG_DEBUG, "FW: Failed to open channel to %d CTX: %p\n",
 		       rgs.rs_owner, ctx);
 		goto out_fail;
 	}
 	if (msg_send(ctx, &msg, sizeof(msg)) < (int)sizeof(msg)) {
-		clulog(LOG_DEBUG, "FW: Failed to send message to %d CTX: %p\n",
+		log_printf(LOG_DEBUG, "FW: Failed to send message to %d CTX: %p\n",
 		       rgs.rs_owner, ctx);
 		goto out_fail;
 	}
@@ -175,17 +175,17 @@ forwarding_thread_v2(void *arg)
 	resp_ctx = fwmsg->ctx;
 	target = fwmsg->nodeid;
 
-	clulog(LOG_DEBUG, "FW: Forwarding SM request to %d\n",
+	log_printf(LOG_DEBUG, "FW: Forwarding SM request to %d\n",
 	       target);
 
 	ctx = msg_new_ctx();
 	if (ctx == NULL) {
-		clulog(LOG_DEBUG, "FW: Failed to allocate socket context: %s\n",
+		log_printf(LOG_DEBUG, "FW: Failed to allocate socket context: %s\n",
 		       strerror(errno));
 		goto out_fail;
 	}
 	if (msg_open(MSG_CLUSTER, target, RG_PORT, ctx, 10) < 0) {
-		clulog(LOG_DEBUG, "FW: Failed to open channel to %d CTX: %p\n",
+		log_printf(LOG_DEBUG, "FW: Failed to open channel to %d CTX: %p\n",
 		       target, ctx);
 		goto out_fail;
 	}
@@ -193,7 +193,7 @@ forwarding_thread_v2(void *arg)
 	/* swap + send */
 	swab_SmMessageSt(msgp);
 	if (msg_send(ctx, msgp, sizeof(*msgp)) < (int)sizeof(*msgp)) {
-		clulog(LOG_DEBUG, "FW: Failed to send message to %d CTX: %p\n",
+		log_printf(LOG_DEBUG, "FW: Failed to send message to %d CTX: %p\n",
 		       target, ctx);
 		goto out_fail;
 	}

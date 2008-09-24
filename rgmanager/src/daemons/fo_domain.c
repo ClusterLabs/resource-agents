@@ -7,7 +7,7 @@
  */
 #include <string.h>
 #include <list.h>
-#include <clulog.h>
+#include <logging.h>
 #include <resgroup.h>
 #include <restart_counter.h>
 #include <reslist.h>
@@ -20,18 +20,6 @@
 
 
 //#define DEBUG
-
-#ifdef DEBUG
-#define ENTER() clulog(LOG_DEBUG, "ENTER: %s\n", __FUNCTION__)
-#define RETURN(val) {\
-	clulog(LOG_DEBUG, "RETURN: %s line=%d value=%d\n", __FUNCTION__, \
-	       __LINE__, (val));\
-	return(val);\
-}
-#else
-#define ENTER()
-#define RETURN(val) return(val)
-#endif
 
 #ifdef NO_CCS
 #define ccs_get(fd, query, ret) conf_get(query, ret)
@@ -68,7 +56,7 @@ fod_get_node(int __attribute__((unused)) ccsfd, char *base, int idx, fod_t *doma
 		if (strcasecmp(ret, fodn->fdn_name))
 			continue;
 
-		clulog(LOG_ERR, "#30: Node %s defined multiple times in "
+		log_printf(LOG_ERR, "#30: Node %s defined multiple times in "
 		       "domain %s\n", ret, domain->fd_name);
 		free(ret);
 		return NULL;
@@ -87,7 +75,7 @@ fod_get_node(int __attribute__((unused)) ccsfd, char *base, int idx, fod_t *doma
  		 "/cluster/clusternodes/clusternode[@name=\"%s\"]/@nodeid",
  		 ret);
  	if (ccs_get(ccsfd, xpath, &ret) != 0) {
- 		clulog(LOG_WARNING, "Node %s has no nodeid attribute\n",
+ 		log_printf(LOG_WARNING, "Node %s has no nodeid attribute\n",
  		       fodn->fdn_name);
  		fodn->fdn_nodeid = -1;
  	} else {
@@ -132,7 +120,7 @@ fod_get_domain(int ccsfd, char *base, int idx, fod_t **domains)
 		if (strcasecmp(fod->fd_name, ret))
 			continue;
 		    
-		clulog(LOG_ERR, "#31: Domain %s defined multiple times\n",
+		log_printf(LOG_ERR, "#31: Domain %s defined multiple times\n",
 		       ret);
 		free(ret);
 		return NULL;
@@ -453,16 +441,14 @@ node_should_start(int nodeid, cluster_member_list_t *membership,
 	struct dlm_lksb lockp;
 #endif
 
-	ENTER();
-
 	/*
 	 * Um, if the node isn't online...
 	 */
 	if (!memb_online(membership, nodeid)) {
 #ifdef DEBUG
-		clulog(LOG_DEBUG,"Member #%d is not online -> NO\n", nodeid);
+		log_printf(LOG_DEBUG,"Member #%d is not online -> NO\n", nodeid);
 #endif
-		RETURN(FOD_ILLEGAL);
+		return FOD_ILLEGAL;
 	}
 
 	nodename = memb_id_to_name(membership, nodeid);
@@ -475,10 +461,10 @@ node_should_start(int nodeid, cluster_member_list_t *membership,
 		 * try to start the service.
 		 */
 #ifdef DEBUG
-		clulog(LOG_DEBUG,
+		log_printf(LOG_DEBUG,
 		       "Fail-over Domain for service %d nonexistent\n");
 #endif
-		RETURN(FOD_BEST);
+		return FOD_BEST;
 	}
 #endif
 
@@ -498,9 +484,9 @@ node_should_start(int nodeid, cluster_member_list_t *membership,
 		/*
 		 * Domain doesn't exist!  Weird...
 		 */
-		clulog(LOG_WARNING, "#66: Domain '%s' specified for resource "
+		log_printf(LOG_WARNING, "#66: Domain '%s' specified for resource "
 		       "group %s nonexistent!\n", domainname, rg_name);
-		RETURN(FOD_BEST);
+		return FOD_BEST;
 	}
 
 	/*
@@ -521,18 +507,18 @@ node_should_start(int nodeid, cluster_member_list_t *membership,
 #ifndef NO_CCS
 	if(nofailback) {
 		if (rg_lock(rg_name, &lockp) != 0) {
-			clulog(LOG_WARNING, "Error getting a lock\n");
-			RETURN(FOD_BEST);
+			log_printf(LOG_WARNING, "Error getting a lock\n");
+			return FOD_BEST;
 		}
                 
 		if (get_rg_state(rg_name, &svc_state) == RG_EFAIL) {
                 	/*
 			 * Couldn't get the service state, thats odd
 			 */
-			clulog(LOG_WARNING, "Problem getting state information for "
+			log_printf(LOG_WARNING, "Problem getting state information for "
 			       "%s\n", rg_name);
 			rg_unlock(&lockp);
-			RETURN(FOD_BEST);
+			return FOD_BEST;
 		}
 		rg_unlock(&lockp);
 
@@ -556,19 +542,19 @@ node_should_start(int nodeid, cluster_member_list_t *membership,
 		 * domain are online.
 		 */
 #ifdef DEBUG
-		clulog(LOG_DEBUG, "Member #%d is not a member and no "
+		log_printf(LOG_DEBUG, "Member #%d is not a member and no "
 		       "members are online\n", nodeid);
 #endif
 		if (!restricted) {
 #ifdef DEBUG
-			clulog(LOG_DEBUG,"Restricted mode off -> BEST\n");
+			log_printf(LOG_DEBUG,"Restricted mode off -> BEST\n");
 #endif
-			RETURN(FOD_BEST);
+			return FOD_BEST;
 		}
 #ifdef DEBUG
-		clulog(LOG_DEBUG,"Restricted mode -> ILLEGAL\n");
+		log_printf(LOG_DEBUG,"Restricted mode -> ILLEGAL\n");
 #endif
-		RETURN(FOD_ILLEGAL);
+		return FOD_ILLEGAL;
 	case 1:
 		/* 
 		 * Node is not a member of the domain and at least one member
@@ -576,26 +562,26 @@ node_should_start(int nodeid, cluster_member_list_t *membership,
 		 */
 		/* In this case, we can ignore 'restricted' */
 #ifdef DEBUG
-		clulog(LOG_DEBUG, "Member #%d is not a member of domain %s "
+		log_printf(LOG_DEBUG, "Member #%d is not a member of domain %s "
 		       "and a member is online\n", nodeid, domainname);
 #endif
 		if (!restricted) {
 #ifdef DEBUG
-			clulog(LOG_DEBUG,"Restricted mode off -> GOOD\n");
+			log_printf(LOG_DEBUG,"Restricted mode off -> GOOD\n");
 #endif
-			RETURN(FOD_GOOD);
+			return FOD_GOOD;
 		}
 #ifdef DEBUG
-		clulog(LOG_DEBUG,"Restricted mode -> ILLEGAL\n");
+		log_printf(LOG_DEBUG,"Restricted mode -> ILLEGAL\n");
 #endif
-		RETURN(FOD_ILLEGAL);
+		return FOD_ILLEGAL;
 	case 2:
 		/*
 		 * Node is a member of the domain, but is not the
 		 * lowest-ordered, online member.
 		 */
 #ifdef DEBUG
-		clulog(LOG_DEBUG, "Member #%d is a member, but is not the "
+		log_printf(LOG_DEBUG, "Member #%d is a member, but is not the "
 		       "lowest-ordered\n", nodeid);
 #endif
 		if (ordered) {
@@ -605,21 +591,21 @@ node_should_start(int nodeid, cluster_member_list_t *membership,
 			 */
 			if (nofailback && started && owned_by_node && !no_owner) {
 #ifdef DEBUG
-				clulog(LOG_DEBUG,"Ordered mode and no "
+				log_printf(LOG_DEBUG,"Ordered mode and no "
 				       "failback -> BEST\n");
 #endif
-				RETURN(FOD_BEST);
+				return FOD_BEST;
 			}
 #ifdef DEBUG
-			clulog(LOG_DEBUG,"Ordered mode -> BETTER\n");
+			log_printf(LOG_DEBUG,"Ordered mode -> BETTER\n");
 #endif
-			RETURN(FOD_BETTER);
+			return FOD_BETTER;
 		}
 
 #ifdef DEBUG
-		clulog(LOG_DEBUG,"Not using ordered mode -> BEST\n");
+		log_printf(LOG_DEBUG,"Not using ordered mode -> BEST\n");
 #endif
-		RETURN(FOD_BEST);
+		return FOD_BEST;
 	case 3:
 		/*
 		 * Node is a member of the domain and is the lowest-ordered,
@@ -628,26 +614,26 @@ node_should_start(int nodeid, cluster_member_list_t *membership,
 
 		if(nofailback && started && !owned_by_node && !no_owner) {
 #ifdef DEBUG
-			clulog(LOG_DEBUG, "Member #%d is the lowest-ordered "
+			log_printf(LOG_DEBUG, "Member #%d is the lowest-ordered "
 			       "memeber of the domain, but is not the owner "
 			       "-> BETTER\n", nodeid);
 #endif
-			RETURN(FOD_BETTER);
+			return FOD_BETTER;
 		}
  
 		/* In this case, we can ignore 'ordered' */
 #ifdef DEBUG
-		clulog(LOG_DEBUG, "Member #%d is the lowest-ordered member "
+		log_printf(LOG_DEBUG, "Member #%d is the lowest-ordered member "
 		       "of the domain -> BEST\n", nodeid);
 #endif
-		RETURN(FOD_BEST);
+		return FOD_BEST;
 	default:
 		/* Do what? */
-		clulog(LOG_ERR, "#32: Code path error: "
+		log_printf(LOG_ERR, "#32: Code path error: "
 		       "Invalid return from node_in_domain()\n");
-		RETURN(FOD_ILLEGAL);
+		return FOD_ILLEGAL;
 	}
 
 	/* not reached */
-	RETURN(FOD_ILLEGAL);
+	return FOD_ILLEGAL;
 }

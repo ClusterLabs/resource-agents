@@ -8,7 +8,7 @@
 #include <rg_locks.h>
 #include <fcntl.h>
 #include <resgroup.h>
-#include <clulog.h>
+#include <logging.h>
 #include <members.h>
 #include <msgsimple.h>
 #include <vf.h>
@@ -138,16 +138,16 @@ membership_update(void)
 		if (!rg_quorate())
 			return -1;
 
-		clulog(LOG_EMERG, "#1: Quorum Dissolved\n");
+		log_printf(LOG_EMERG, "#1: Quorum Dissolved\n");
 		rg_set_inquorate();
 		member_list_update(NULL);/* Clear member list */
 		rg_lockall(L_SYS);
 		rg_doall(RG_INIT, 1, "Emergency stop of %s\n");
 #ifndef USE_OPENAIS
-		clulog(LOG_DEBUG, "Invalidating local VF cache\n");
+		log_printf(LOG_DEBUG, "Invalidating local VF cache\n");
 		vf_invalidate();
 #endif
-		clulog(LOG_DEBUG, "Flushing resource group cache\n");
+		log_printf(LOG_DEBUG, "Flushing resource group cache\n");
 		kill_resource_groups();
 		rg_set_uninitialized();
 		return -1;
@@ -156,7 +156,7 @@ membership_update(void)
 		rg_set_quorate();
 		rg_unlockall(L_SYS);
 		rg_unlockall(L_USER);
-		clulog(LOG_NOTICE, "Quorum Regained\n");
+		log_printf(LOG_NOTICE, "Quorum Regained\n");
 	}
 
 	old_membership = member_list();
@@ -190,7 +190,7 @@ membership_update(void)
 					port);
 
 			if (quorate == 0) {
-				clulog(LOG_DEBUG, "Node %d is not listening\n",
+				log_printf(LOG_DEBUG, "Node %d is not listening\n",
 					new_ml->cml_members[x].cn_nodeid);
 				new_ml->cml_members[x].cn_member = 0;
 				break;
@@ -224,7 +224,7 @@ membership_update(void)
 	me = memb_online(node_delta, my_id());
 	if (me) {
 		/* Should not happen */
-		clulog(LOG_INFO, "State change: LOCAL OFFLINE\n");
+		log_printf(LOG_INFO, "State change: LOCAL OFFLINE\n");
 		if (node_delta)
 			free_member_list(node_delta);
 		node_event(1, my_id(), 0, 0);
@@ -233,7 +233,7 @@ membership_update(void)
 
 	for (x=0; node_delta && x < node_delta->cml_count; x++) {
 
-		clulog(LOG_INFO, "State change: %s DOWN\n",
+		log_printf(LOG_INFO, "State change: %s DOWN\n",
 		       node_delta->cml_members[x].cn_name);
 		/* Don't bother evaluating anything resource groups are
 		   locked.  This is just a performance thing */
@@ -241,7 +241,7 @@ membership_update(void)
 			node_event_q(0, node_delta->cml_members[x].cn_nodeid,
 				     0, 0);
 		} else {
-			clulog(LOG_DEBUG, "Not taking action - services"
+			log_printf(LOG_DEBUG, "Not taking action - services"
 			       " locked\n");
 		}
 	}
@@ -255,7 +255,7 @@ membership_update(void)
 
 	me = memb_online(node_delta, my_id());
 	if (me) {
-		clulog(LOG_INFO, "State change: Local UP\n");
+		log_printf(LOG_INFO, "State change: Local UP\n");
 		node_event_q(1, my_id(), 1, 1);
 	}
 
@@ -267,7 +267,7 @@ membership_update(void)
 		if (node_delta->cml_members[x].cn_nodeid == my_id())
 			continue;
 
-		clulog(LOG_INFO, "State change: %s UP\n",
+		log_printf(LOG_INFO, "State change: %s UP\n",
 		       node_delta->cml_members[x].cn_name);
 		node_event_q(0, node_delta->cml_members[x].cn_nodeid, 1, 1);
 	}
@@ -290,7 +290,7 @@ lock_commit_cb(char __attribute__ ((unused)) *key,
 	char lockstate;
 
 	if (datalen != 1) {
-		clulog(LOG_WARNING, "%s: invalid data length!\n", __FUNCTION__);
+		log_printf(LOG_WARNING, "%s: invalid data length!\n", __FUNCTION__);
 		free(data);
 		return 0;
 	}
@@ -301,18 +301,18 @@ lock_commit_cb(char __attribute__ ((unused)) *key,
 	if (lockstate == 0) {
 		rg_unlockall(L_USER); /* Doing this multiple times
 					 has no effect */
-		clulog(LOG_NOTICE, "Resource Groups Unlocked\n");
+		log_printf(LOG_NOTICE, "Resource Groups Unlocked\n");
 		return 0;
 	}
 
 	if (lockstate == 1) {
 		rg_lockall(L_USER); /* Doing this multiple times
 				       has no effect */
-		clulog(LOG_NOTICE, "Resource Groups Locked\n");
+		log_printf(LOG_NOTICE, "Resource Groups Locked\n");
 		return 0;
 	}
 
-	clulog(LOG_DEBUG, "Invalid lock state in callback: %d\n", lockstate);
+	log_printf(LOG_DEBUG, "Invalid lock state in callback: %d\n", lockstate);
 	return 0;
 }
 
@@ -384,7 +384,7 @@ do_lockreq(msgctx_t *ctx, int req)
 
 #ifdef OPENAIS
 	ret = ds_write("rg_lockdown", &state, 1);
-	clulog(LOG_INFO, "FIXME: send RG_LOCK update to all!\n");
+	log_printf(LOG_INFO, "FIXME: send RG_LOCK update to all!\n");
 #else
 	ret = vf_write(m, VFF_IGN_CONN_ERRORS, "rg_lockdown", &state, 1);
 	free_member_list(m);
@@ -422,7 +422,7 @@ dispatch_msg(msgctx_t *ctx, int nodeid, int need_close)
 	/* Peek-a-boo */
 	sz = msg_receive(ctx, msg_hdr, sizeof(msgbuf), 1);
 	if (sz < (int)sizeof (generic_msg_hdr)) {
-		clulog(LOG_ERR,
+		log_printf(LOG_ERR,
 		       "#37: Error receiving header from %d sz=%d CTX %p\n",
 		       nodeid, sz, ctx);
 		goto out;
@@ -444,27 +444,27 @@ dispatch_msg(msgctx_t *ctx, int nodeid, int need_close)
 	/* Decode the header */
 	swab_generic_msg_hdr(msg_hdr);
 	if ((msg_hdr->gh_magic != GENERIC_HDR_MAGIC)) {
-		clulog(LOG_ERR,
+		log_printf(LOG_ERR,
 		       "#38: Invalid magic: Wanted 0x%08x, got 0x%08x\n",
 		       GENERIC_HDR_MAGIC, msg_hdr->gh_magic);
 		goto out;
 	}
 
 	if ((int)msg_hdr->gh_length != sz) {
-		clulog(LOG_ERR, "#XX: Read size mismatch: %d %d\n",
+		log_printf(LOG_ERR, "#XX: Read size mismatch: %d %d\n",
 		       ret, msg_hdr->gh_length);
 		goto out;
 	}
 
 	switch (msg_hdr->gh_command) {
 	case RG_STATUS:
-		//clulog(LOG_DEBUG, "Sending service states to CTX%p\n",ctx);
+		//log_printf(LOG_DEBUG, "Sending service states to CTX%p\n",ctx);
 		if (send_rg_states(ctx, msg_hdr->gh_arg1) == 0)
 			need_close = 0;
 		break;
 
 	case RG_STATUS_NODE:
-		//clulog(LOG_DEBUG, "Sending node states to CTX%p\n",ctx);
+		//log_printf(LOG_DEBUG, "Sending node states to CTX%p\n",ctx);
 		send_node_states(ctx);
 		break;
 
@@ -484,7 +484,7 @@ dispatch_msg(msgctx_t *ctx, int nodeid, int need_close)
 	case RG_ACTION_REQUEST:
 
 		if (sz < (int)sizeof(msg_sm)) {
-			clulog(LOG_ERR,
+			log_printf(LOG_ERR,
 			       "#39: Error receiving entire request (%d/%d)\n",
 			       ret, (int)sizeof(msg_sm));
 			ret = -1;
@@ -503,7 +503,7 @@ dispatch_msg(msgctx_t *ctx, int nodeid, int need_close)
 
 			if (msg_send(ctx, msg_sm, sizeof (SmMessageSt)) <
 		    	    (int)sizeof (SmMessageSt))
-				clulog(LOG_ERR, "#40: Error replying to "
+				log_printf(LOG_ERR, "#40: Error replying to "
 				       "action request.\n");
 			ret = -1;
 			goto out;
@@ -543,7 +543,7 @@ dispatch_msg(msgctx_t *ctx, int nodeid, int need_close)
 	case RG_EVENT:
 		/* Service event.  Run a dependency check */
 		if (sz < (int)sizeof(msg_sm)) {
-			clulog(LOG_ERR,
+			log_printf(LOG_ERR,
 			       "#39: Error receiving entire request (%d/%d)\n",
 			       ret, (int)sizeof(msg_sm));
 			ret = -1;
@@ -566,7 +566,7 @@ dispatch_msg(msgctx_t *ctx, int nodeid, int need_close)
 		if (!member_online(msg_hdr->gh_arg1))
 			break;
 
-		clulog(LOG_NOTICE, "Member %d shutting down\n",
+		log_printf(LOG_NOTICE, "Member %d shutting down\n",
 		       msg_hdr->gh_arg1);
 	       	member_set_state(msg_hdr->gh_arg1, 0);
 		node_event_q(0, msg_hdr->gh_arg1, 0, 1);
@@ -580,7 +580,7 @@ dispatch_msg(msgctx_t *ctx, int nodeid, int need_close)
 		break;
 
 	default:
-		clulog(LOG_DEBUG, "unhandled message request %d\n",
+		log_printf(LOG_DEBUG, "unhandled message request %d\n",
 		       msg_hdr->gh_command);
 		break;
 	}
@@ -610,18 +610,18 @@ handle_cluster_event(msgctx_t *ctx)
 	switch(ret) {
 	case M_PORTOPENED:
 		msg_receive(ctx, NULL, 0, 0);
-		clulog(LOG_DEBUG, "Event: Port Opened\n");
+		log_printf(LOG_DEBUG, "Event: Port Opened\n");
 		membership_update();
 		break;
 	case M_PORTCLOSED:
 		/* Might want to handle powerclosed like membership change */
 		msg_receive(ctx, NULL, 0, 0);
-		clulog(LOG_DEBUG, "Event: Port Closed\n");
+		log_printf(LOG_DEBUG, "Event: Port Closed\n");
 		membership_update();
 		break;
 	case M_NONE:
 		msg_receive(ctx, NULL, 0, 0);
-		clulog(LOG_DEBUG, "NULL cluster message\n");
+		log_printf(LOG_DEBUG, "NULL cluster message\n");
 		break;
 	case M_OPEN:
 		newctx = msg_new_ctx();
@@ -642,12 +642,12 @@ handle_cluster_event(msgctx_t *ctx)
 		
 	case M_OPEN_ACK:
 	case M_CLOSE:
-		clulog(LOG_DEBUG, "I should NOT get here: %d\n",
+		log_printf(LOG_DEBUG, "I should NOT get here: %d\n",
 		       ret);
 		break;
 	case M_STATECHANGE:
 		msg_receive(ctx, NULL, 0, 0);
-		clulog(LOG_DEBUG, "Membership Change Event\n");
+		log_printf(LOG_DEBUG, "Membership Change Event\n");
 		if (running) {
 			rg_unlockall(L_SYS);
 			membership_update();
@@ -658,7 +658,7 @@ handle_cluster_event(msgctx_t *ctx)
 	case 999:
 	case M_TRY_SHUTDOWN:
 		msg_receive(ctx, NULL, 0, 0);
-		clulog(LOG_WARNING, "#67: Shutting down uncleanly\n");
+		log_printf(LOG_WARNING, "#67: Shutting down uncleanly\n");
 		rg_set_inquorate();
 		rg_doall(RG_INIT, 1, "Emergency stop of %s");
 		rg_set_uninitialized();
@@ -839,16 +839,7 @@ configure_rgmanager(int ccsfd, int dbg)
 			return -1;
 	}
 
-	if (ccs_get(ccsfd, "/cluster/rm/@log_facility", &v) == 0) {
-		clu_set_facility(v);
-		free(v);
-	}
-
-	if (ccs_get(ccsfd, "/cluster/rm/@log_level", &v) == 0) {
-		if (!dbg)
-			clu_set_loglevel(atoi(v));
-		free(v);
-	}
+	setup_logging(ccsfd);
 
 	if (ccs_get(ccsfd, "/cluster/rm/@transition_throttling", &v) == 0) {
 		set_transition_throttling(atoi(v));
@@ -858,7 +849,7 @@ configure_rgmanager(int ccsfd, int dbg)
 	if (ccs_get(ccsfd, "/cluster/rm/@central_processing", &v) == 0) {
 		set_central_events(atoi(v));
 		if (atoi(v))
-			clulog(LOG_NOTICE,
+			log_printf(LOG_NOTICE,
 			       "Centralized Event Processing enabled\n");
 		free(v);
 	}
@@ -866,10 +857,11 @@ configure_rgmanager(int ccsfd, int dbg)
 	if (ccs_get(ccsfd, "/cluster/rm/@status_poll_interval", &v) == 0) {
 		status_poll_interval = atoi(v);
 		if (status_poll_interval >= 1) {
-			clulog(LOG_NOTICE,
-			       "Status Polling Interval set to %d\n", v);
+			log_printf(LOG_NOTICE,
+			       "Status Polling Interval set to %d\n",
+			       status_poll_interval);
 		} else {
-			clulog(LOG_WARNING, "Ignoring illegal "
+			log_printf(LOG_WARNING, "Ignoring illegal "
 			       "status_poll_interval of %s\n", v);
 			status_poll_interval = 10;
 		}
@@ -893,7 +885,7 @@ clu_initialize(cman_handle_t *ch)
 
 	*ch = cman_init(NULL);
 	if (!(*ch)) {
-		clulog(LOG_NOTICE, "Waiting for CMAN to start\n");
+		log_printf(LOG_NOTICE, "Waiting for CMAN to start\n");
 
 		while (!(*ch = cman_init(NULL))) {
 			sleep(1);
@@ -907,12 +899,12 @@ clu_initialize(cman_handle_t *ch)
 		   and log in -- this will cause the plugin to not select any
 		   node group (if any exist).
 		 */
-		clulog(LOG_NOTICE, "Waiting for quorum to form\n");
+		log_printf(LOG_NOTICE, "Waiting for quorum to form\n");
 
 		while (cman_is_quorate(*ch) == 0) {
 			sleep(1);
 		}
-		clulog(LOG_NOTICE, "Quorum formed\n");
+		log_printf(LOG_NOTICE, "Quorum formed\n");
 	}
 
 }
@@ -922,14 +914,14 @@ void
 wait_for_fencing(void)
 {
         if (node_has_fencing(my_id()) && !fence_domain_joined()) {
-		clulog(LOG_INFO, "Waiting for fence domain join operation "
+		log_printf(LOG_INFO, "Waiting for fence domain join operation "
 		       "to complete\n");
 
 		while (fence_domain_joined() == 0)
 			sleep(1);
-		clulog(LOG_INFO, "Fence domain joined\n");
+		log_printf(LOG_INFO, "Fence domain joined\n");
 	} else {
-		clulog(LOG_DEBUG, "Fence domain already joined "
+		log_printf(LOG_DEBUG, "Fence domain already joined "
 		       "or no fencing configured\n");
 	}
 }
@@ -993,15 +985,17 @@ main(int argc, char **argv)
 	/*
 	   Set up logging / foreground mode, etc.
 	 */
+#if 0
 	if (debug)
 		clu_set_loglevel(LOG_DEBUG);
 	if (foreground)
 		clu_log_console(1);
+#endif
 
 	if (!foreground && (geteuid() == 0)) {
 		daemon_init(argv[0]);
 		if (wd && !debug && !watchdog_init())
-			clulog(LOG_NOTICE, "Failed to start watchdog\n");
+			log_printf(LOG_NOTICE, "Failed to start watchdog\n");
 	}
 
 	setup_signal(SIGINT, flag_shutdown);
@@ -1016,6 +1010,7 @@ main(int argc, char **argv)
 		unblock_signal(SIGSEGV);
 	}
 
+	init_logging();
 	clu_initialize(&clu);
 	if (cman_init_subsys(clu) < 0) {
 		perror("cman_init_subsys");
@@ -1037,7 +1032,7 @@ main(int argc, char **argv)
 	}
 	set_my_id(me.cn_nodeid);
 
-	clulog(LOG_INFO, "I am node #%d\n", my_id());
+	log_printf(LOG_INFO, "I am node #%d\n", my_id());
 
 	wait_for_fencing();
 
@@ -1046,22 +1041,22 @@ main(int argc, char **argv)
 	   read the resource group trees from ccsd.
 	 */
 	configure_rgmanager(-1, debug);
-	clulog(LOG_NOTICE, "Resource Group Manager Starting\n");
+	log_printf(LOG_NOTICE, "Resource Group Manager Starting\n");
 
 	if (init_resource_groups(0, do_init) != 0) {
-		clulog(LOG_CRIT, "#8: Couldn't initialize services\n");
+		log_printf(LOG_CRIT, "#8: Couldn't initialize services\n");
 		return -1;
 	}
 
 	if (msg_listen(MSG_SOCKET, RGMGR_SOCK, me.cn_nodeid, &local_ctx) < 0) {
-		clulog(LOG_CRIT,
+		log_printf(LOG_CRIT,
 		       "#10: Couldn't set up cluster message system: %s\n",
 		       strerror(errno));
 		return -1;
 	}
 
 	if (msg_listen(MSG_CLUSTER, &port, me.cn_nodeid, &cluster_ctx) < 0) {
-		clulog(LOG_CRIT,
+		log_printf(LOG_CRIT,
 		       "#10b: Couldn't set up cluster message system: %s\n",
 		       strerror(errno));
 		return -1;
@@ -1079,14 +1074,14 @@ main(int argc, char **argv)
 	 */
 #ifdef OPENAIS
 	if (ds_init() < 0) {
-		clulog(LOG_CRIT, "#11b: Couldn't initialize SAI AIS CKPT\n");
+		log_printf(LOG_CRIT, "#11b: Couldn't initialize SAI AIS CKPT\n");
 		return -1;
 	}
 
 	ds_key_init("rg_lockdown", 32, 10);
 #else
 	if (vf_init(me.cn_nodeid, port, NULL, NULL) != 0) {
-		clulog(LOG_CRIT, "#11: Couldn't set up VF listen socket\n");
+		log_printf(LOG_CRIT, "#11: Couldn't set up VF listen socket\n");
 		return -1;
 	}
 
@@ -1105,17 +1100,18 @@ main(int argc, char **argv)
 			   be ignored here */
 			msg_close(local_ctx);
 			++shutdown_pending;
-			clulog(LOG_NOTICE, "Shutting down\n");
+			log_printf(LOG_NOTICE, "Shutting down\n");
 			pthread_create(&th, NULL, shutdown_thread, NULL);
 		}
 	}
 
 	if (rg_initialized())
 		cleanup(cluster_ctx);
-	clulog(LOG_NOTICE, "Shutdown complete, exiting\n");
+	log_printf(LOG_NOTICE, "Shutdown complete, exiting\n");
 	clu_lock_finished(rgmanager_lsname);
 	cman_finish(clu);
 	
+	close_logging();
 	/*malloc_dump_table(); */ /* Only works if alloc.c us used */
 	/*malloc_stats();*/
 

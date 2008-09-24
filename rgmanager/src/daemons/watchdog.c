@@ -5,7 +5,7 @@
 #include <stdlib.h>
 
 #include <signals.h>
-#include <clulog.h>
+#include <logging.h>
 
 static pid_t child = 0;
 
@@ -60,15 +60,15 @@ watchdog_init(void)
 		
 		if (WIFSIGNALED(status)) {
 		        if (WTERMSIG(status) == SIGKILL) {
-				clulog(LOG_CRIT, "Watchdog: Daemon killed, exiting\n");
+				log_printf(LOG_CRIT, "Watchdog: Daemon killed, exiting\n");
 				raise(SIGKILL);
 				while(1) ;
 			}
 			else {
 #ifdef DEBUG
-			        clulog(LOG_CRIT, "Watchdog: Daemon died, but not rebooting because DEBUG is set\n");
+			        log_printf(LOG_CRIT, "Watchdog: Daemon died, but not rebooting because DEBUG is set\n");
 #else
-				clulog(LOG_CRIT, "Watchdog: Daemon died, rebooting...\n");
+				log_printf(LOG_CRIT, "Watchdog: Daemon died, rebooting...\n");
 				sync();
 			        reboot(RB_AUTOBOOT);
 #endif

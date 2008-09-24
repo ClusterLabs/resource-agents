@@ -10,7 +10,7 @@ include $(OBJDIR)/make/clean.mk
 include $(OBJDIR)/make/install.mk
 include $(OBJDIR)/make/uninstall.mk
 
-OBJS1=	clulog.o daemon_init.o signals.o msgsimple.o \
+OBJS1=	logging.o daemon_init.o signals.o msgsimple.o \
 	gettid.o rg_strings.o message.o members.o fdops.o \
 	lock.o cman.o vft.o msg_cluster.o msg_socket.o \
 	wrap_lock.o sets.o
@@ -26,7 +26,7 @@ CFLAGS += -I${incdir}
 
 LDFLAGS += -L${cmanlibdir} -lcman 
 LDFLAGS += -L. -lclulib -llalloc
-LDFLAGS += -lpthread
+LDFLAGS += -lpthread -llogsys
 LDFLAGS += -L${libdir}
 
 ${TARGET1}: ${OBJS1}

@@ -10,6 +10,7 @@
 #include <restart_counter.h>
 #include <reslist.h>
 #include <pthread.h>
+#include <libgen.h>
 #include <depends.h>
 #include <event.h>
 

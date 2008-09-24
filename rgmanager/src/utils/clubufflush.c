@@ -37,7 +37,7 @@ static const char *version __attribute__ ((unused)) = "$Revision$";
 /*
  * Cluster includes
  */
-#include <clulog.h>
+#include <logging.h>
 
 /***************************************************************************
  *
@@ -53,7 +53,7 @@ static const char *version __attribute__ ((unused)) = "$Revision$";
 static void
 printUsage(char *progName)
 {
-	clulog_and_print(LOG_ERR, "Usage: %s [-h] [-f device]\n", progName);
+	printf("Usage: %s [-h] [-f device]\n", progName);
 }
 
 /***************************************************************************
@@ -72,8 +72,7 @@ main(int argc, char **argv)
 	uid=getuid();
 	if (uid)
 	  {
-	    clulog_and_print(LOG_ERR, "%s should only be run as user root\n",
-	            argv[0]);
+	    printf("%s should only be run as user root\n", argv[0]);
 	    exit(1);
 	  }
 
@@ -105,15 +104,14 @@ main(int argc, char **argv)
 
 	if (fd < 0)
 	  {
-	    clulog_and_print(LOG_ERR, "Cannot open %s for flushing: %s\n",
+	    printf("Cannot open %s for flushing: %s\n",
 	            devicename, strerror(errno));
 	    exit(1);
 	  }
 
 	if (ioctl(fd, BLKFLSBUF, 0) < 0)
 	  {
-	    clulog_and_print(LOG_ERR, "Cannot flush %s: %s\n",
-	            devicename, strerror(errno));
+	    printf("Cannot flush %s: %s\n", devicename, strerror(errno));
 	    exit(1);
 	  }
 	free(devicename);

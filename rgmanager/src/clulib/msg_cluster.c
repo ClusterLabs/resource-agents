@@ -15,7 +15,7 @@
 #include <signals.h>
 #include <gettid.h>
 #include <cman-private.h>
-#include <clulog.h>
+#include <logging.h>
 
 /* Ripped from ccsd's setup_local_socket */
 
@@ -709,7 +709,7 @@ queue_for_context(msgctx_t *ctx, char *buf, int len)
 	msg_q_t *node;
 
 	if (ctx->type != MSG_CLUSTER) {
-		clulog(LOG_WARNING, "%s called on invalid context %p\n",
+		log_printf(LOG_WARNING, "%s called on invalid context %p\n",
 		       __FUNCTION__, ctx);
 		return;
 	}
@@ -828,7 +828,7 @@ process_cman_msg(cman_handle_t h, void *priv, char *buf, int len,
 		    contexts[m->dest_ctx]->type != MSG_CLUSTER) {
 			/* XXX Work around bug where M_CLOSE is called
 			   on a context which has been destroyed */
-			clulog(LOG_WARNING, "Ignoring M_CLOSE for destroyed "
+			log_printf(LOG_WARNING, "Ignoring M_CLOSE for destroyed "
 			       "context %d\n", m->dest_ctx);
 		} else {
 			queue_for_context(contexts[m->dest_ctx], buf, len);

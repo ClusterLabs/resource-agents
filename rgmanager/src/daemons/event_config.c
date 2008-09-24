@@ -3,7 +3,7 @@
  */
 #include <string.h>
 #include <list.h>
-#include <clulog.h>
+#include <logging.h>
 #include <resgroup.h>
 #include <restart_counter.h>
 #include <reslist.h>
@@ -25,18 +25,6 @@ void deconstruct_events(event_table_t **);
 void print_event(event_t *ev);
 
 //#define DEBUG
-
-#ifdef DEBUG
-#define ENTER() clulog(LOG_DEBUG, "ENTER: %s\n", __FUNCTION__)
-#define RETURN(val) {\
-	clulog(LOG_DEBUG, "RETURN: %s line=%d value=%d\n", __FUNCTION__, \
-	       __LINE__, (val));\
-	return(val);\
-}
-#else
-#define ENTER()
-#define RETURN(val) return(val)
-#endif
 
 #ifdef NO_CCS
 #define ccs_get(fd, query, ret) conf_get(query, ret)
@@ -347,7 +335,7 @@ get_event(int ccsfd, char *base, int idx, int *_done)
 	if (ccs_get(ccsfd, xpath, &ret) == 0) {
 		ev->ev_prio = atoi(ret);
 		if (ev->ev_prio <= 0 || ev->ev_prio > EVENT_PRIO_COUNT) {
-			clulog(LOG_ERR,
+			log_printf(LOG_ERR,
 			       "event %s: priority %s invalid\n",
 			       ev->ev_name, ret);
 			goto out_fail;
@@ -378,7 +366,7 @@ get_event(int ccsfd, char *base, int idx, int *_done)
 			if (get_config_event(ccsfd, xpath, ev) < 0)
 				goto out_fail;
 		} else {
-			clulog(LOG_ERR,
+			log_printf(LOG_ERR,
 			       "event %s: class %s unrecognized\n",
 			       ev->ev_name, ret);
 			goto out_fail;

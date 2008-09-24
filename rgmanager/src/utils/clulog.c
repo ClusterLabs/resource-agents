@@ -9,7 +9,7 @@
 #include <getopt.h>
 #include <string.h>
 #include <sys/syslog.h>
-#include <clulog.h>
+#include <corosync/engine/logsys.h>
 #include <ccs.h>
 
 int configure_logging(int);
@@ -22,39 +22,6 @@ usage(char *progname)
     fprintf(stdout, "%s -s severity [-f facility] [-l priority_filter] [-n program name] \n"
 	    "\t\t [-p pid] \"message text\"\n", progname);
     exit(0);
-}
-
-
-/*
- * Configure logging based on data in cluster.conf
- */
-int
-configure_logging(int ccsfd)
-{
-	char *v;
-	char internal = 0;
-
-	if (ccsfd < 0) {
-		internal = 1;
-		ccsfd = ccs_connect();
-		if (ccsfd < 0)
-			return -1;
-	}
-
-	if (ccs_get(ccsfd, "/cluster/rm/@log_facility", &v) == 0) {
-		clu_set_facility(v);
-		free(v);
-	}
-
-	if (ccs_get(ccsfd, "/cluster/rm/@log_level", &v) == 0) {
-		clu_set_loglevel(atoi(v));
-		free(v);
-	}
-
-	if (internal)
-		ccs_disconnect(ccsfd);
-
-	return 0;
 }
 
 
@@ -102,7 +69,7 @@ main(int argc, char **argv)
     logmsg = (char*)malloc(strlen(argv[argc-1])+2);
     if (logmsg == NULL) {
         fprintf(stderr,
-            "clulog: malloc fail err=%d\n", errno);
+            "log_printf: malloc fail err=%d\n", errno);
         exit(0);
     }
 
@@ -116,7 +83,7 @@ main(int argc, char **argv)
     	if (configure_logging(-1) < 0)
 		clu_set_loglevel(LOGLEVEL_DFLT);
     }
-    result = clulog_pid(severity, pid, progname, logmsg);
+    result = log_printf_pid(severity, pid, progname, logmsg);
     free(progname);
     return(result);
 }

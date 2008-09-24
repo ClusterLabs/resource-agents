@@ -16,7 +16,7 @@
 #include <signal.h>
 #include <errno.h>
 #include <syslog.h>
-#include <clulog.h>
+#include <logging.h>
 #include <unistd.h>
 #include <limits.h>
 #include <regex.h>
@@ -90,20 +90,20 @@ rmtab_modified(void)
 	memset(&curr_stat, 0, sizeof (curr_stat));
 	while (stat(_PATH_RMTAB, &curr_stat) == -1) {
 		if (errno != ENOENT) {
-			clulog(LOG_ERR, "#15: %s: stat: %s\n", __FUNCTION__,
+			log_printf(LOG_ERR, "#15: %s: stat: %s\n", __FUNCTION__,
 			       strerror(errno));
 			return -1;
 		}
 
 		/* Create the file. */
-		clulog(LOG_WARNING, "#62: " _PATH_RMTAB
+		log_printf(LOG_WARNING, "#62: " _PATH_RMTAB
 		       " does not exist - creating");
 		close(open(_PATH_RMTAB, O_CREAT | O_SYNC, 0600));
 	}
 
 	if ((rv = memcmp(&prev_stat.st_mtime, &curr_stat.st_mtime,
 			 sizeof (curr_stat.st_mtime)))) {
-		clulog(LOG_DEBUG, "Detected modified " _PATH_RMTAB "\n");
+		log_printf(LOG_DEBUG, "Detected modified " _PATH_RMTAB "\n");
 		memcpy(&prev_stat, &curr_stat, sizeof (prev_stat));
 	}
 
@@ -165,7 +165,7 @@ rmtab_get_update(rmtab_node ** rmtab, rmtab_node ** pruned_rmtab,
 	rmtab_move(&old_rmtab, rmtab);
 
 	if (rmtab_read(rmtab, _PATH_RMTAB) == -1) {
-		clulog(LOG_ERR, "#16: Failed to reread rmtab: %s\n",
+		log_printf(LOG_ERR, "#16: Failed to reread rmtab: %s\n",
 		       strerror(errno));
 
 		/* Don't kill the list if we fail to reread. */
@@ -177,7 +177,7 @@ rmtab_get_update(rmtab_node ** rmtab, rmtab_node ** pruned_rmtab,
 	rmtab_move(&old_pruned, pruned_rmtab);
 
 	if (rmtab_copy_bypath(pruned_rmtab, rmtab, path) == -1) {
-		clulog(LOG_ERR, "#17: Failed to prune rmtab: %s\n",
+		log_printf(LOG_ERR, "#17: Failed to prune rmtab: %s\n",
 		       strerror(errno));
 
 		/* 
@@ -196,7 +196,7 @@ rmtab_get_update(rmtab_node ** rmtab, rmtab_node ** pruned_rmtab,
 
 	/* find the differences */
 	if (rmtab_diff(old_pruned, *pruned_rmtab, diff)) {
-		clulog(LOG_ERR, "Failed to diff rmtab: %s\n", strerror(errno));
+		log_printf(LOG_ERR, "Failed to diff rmtab: %s\n", strerror(errno));
 		goto out;
 	}
 
@@ -239,7 +239,7 @@ rmtab_get_update(rmtab_node ** rmtab, rmtab_node ** pruned_rmtab,
 static void
 sh_sync(int sig)
 {
-	clulog(LOG_DEBUG, "Signal %d received; syncing ASAP\n", sig);
+	log_printf(LOG_DEBUG, "Signal %d received; syncing ASAP\n", sig);
 }
 
 
@@ -253,7 +253,7 @@ sh_sync(int sig)
 static void
 sh_exit(int sig)       
 {
-	clulog(LOG_DEBUG, "Signal %d received; exiting\n", sig);
+	log_printf(LOG_DEBUG, "Signal %d received; exiting\n", sig);
 	exiting = 1;
 }
 
@@ -266,7 +266,7 @@ sh_exit(int sig)
 static void
 sh_reconfigure(int __attribute__ ((unused)) sig)
 {
-	clulog(LOG_DEBUG, "Re-reading the cluster database\n");
+	log_printf(LOG_DEBUG, "Re-reading the cluster database\n");
 	rmtabd_reconfigure();
 }
 
@@ -346,7 +346,7 @@ __get_int_param(char *str, int *val, int dflt)
 		*val = atoi(value);
 		break;
 	default:
-		clulog(LOG_ERR, "#19: Cannot get \"%s\" from database; "
+		log_printf(LOG_ERR, "#19: Cannot get \"%s\" from database; "
 		       "CFG_Get() failed, err=%d\n", ret);
 		return 0;
 	}
@@ -398,9 +398,9 @@ rmtabd_reconfigure(void)
 
 	if (old_level != level) {
 		if (clu_set_loglevel(level) == -1)
-			clulog(LOG_ERR, "#20: Failed set log level\n");
+			log_printf(LOG_ERR, "#20: Failed set log level\n");
 		else
-			clulog(LOG_DEBUG, "Log level is now %d\n", level);
+			log_printf(LOG_DEBUG, "Log level is now %d\n", level);
 	}
 
 	/* rmtabd polling interval (tw33k4bl3) */
@@ -414,7 +414,7 @@ rmtabd_reconfigure(void)
 		poll_interval = 10;
 
 	if (old_interval != poll_interval) {
-		clulog_and_print(LOG_DEBUG,
+		log_printf_and_print(LOG_DEBUG,
 				 "Polling interval is now %d seconds\n",
 				 poll_interval);
 	}
@@ -455,7 +455,7 @@ rmtab_init(char *path, rmtab_node **rmtab, rmtab_node **pruned_rmtab)
 	snprintf(buf, sizeof(buf), "%s/%s", path, CM_NFS_DIR);
 
 	if ((mkdir(buf, 0700) == -1) && (errno != EEXIST)) {
-		clulog_and_print(LOG_ERR, "#21: Couldn't read/create %s: %s\n",
+		log_printf_and_print(LOG_ERR, "#21: Couldn't read/create %s: %s\n",
 				 buf, strerror(errno));
 		return -1;
 	}
@@ -463,7 +463,7 @@ rmtab_init(char *path, rmtab_node **rmtab, rmtab_node **pruned_rmtab)
 	snprintf(buf, sizeof(buf), "%s/%s/rmtab", path, CM_NFS_DIR);
 
 	if (rmtab_read(rmtab, buf) == -1) {
-		clulog_and_print(LOG_ERR, "#22: Failed to read %s: %s\n", buf,
+		log_printf_and_print(LOG_ERR, "#22: Failed to read %s: %s\n", buf,
 				 strerror(errno));
 		return -1;
 	}
@@ -473,7 +473,7 @@ rmtab_init(char *path, rmtab_node **rmtab, rmtab_node **pruned_rmtab)
 	 * cause the nodes with the greater count to be kept.
 	 */
 	if (rmtab_read(rmtab, _PATH_RMTAB) == -1) {
-		clulog_and_print(LOG_ERR, "#23: Failed to read %s: %s\n",
+		log_printf_and_print(LOG_ERR, "#23: Failed to read %s: %s\n",
 				 _PATH_RMTAB, strerror(errno));
 		return -1;
 	}
@@ -482,7 +482,7 @@ rmtab_init(char *path, rmtab_node **rmtab, rmtab_node **pruned_rmtab)
 	 * Prune by our path
 	 */
 	if (rmtab_copy_bypath(pruned_rmtab, rmtab, path) == -1) {
-		clulog_and_print(LOG_ERR, "#24: Failed to prune rmtab: %s\n",
+		log_printf_and_print(LOG_ERR, "#24: Failed to prune rmtab: %s\n",
 				 strerror(errno));
 		return -1;
 	}
@@ -492,7 +492,7 @@ rmtab_init(char *path, rmtab_node **rmtab, rmtab_node **pruned_rmtab)
 	 * we rewrite the file.
 	 */
 	if (rmtab_write_atomic(*rmtab, _PATH_RMTAB) == -1) {
-		clulog_and_print(LOG_ERR, "#25: Failed to write %s: %s\n",
+		log_printf_and_print(LOG_ERR, "#25: Failed to write %s: %s\n",
 				 _PATH_RMTAB, strerror(errno));
 		return -1;
 	}
@@ -500,7 +500,7 @@ rmtab_init(char *path, rmtab_node **rmtab, rmtab_node **pruned_rmtab)
 	 * Write new contents.
 	 */
 	if (rmtab_write_atomic(*pruned_rmtab, buf) == -1) {
-		clulog_and_print(LOG_ERR, "#26: Failed to write %s: %s\n", buf,
+		log_printf_and_print(LOG_ERR, "#26: Failed to write %s: %s\n", buf,
 				 strerror(errno));
 		return -1;
 	}
@@ -530,7 +530,7 @@ daemonize(char *path)
 
 	fp = fopen(filename, "w");
 	if (fp == NULL) {
-		clulog(LOG_WARNING, "#63: Couldn't write PID!\n");
+		log_printf(LOG_WARNING, "#63: Couldn't write PID!\n");
 	}
 
 	fprintf(fp, "%d", getpid());
@@ -560,7 +560,7 @@ main(int argc, char **argv)
 
 	/* Set up configuration parameters */
 	if (rmtabd_config_init() == -1) {
-		clulog_and_print(LOG_ERR,
+		log_printf_and_print(LOG_ERR,
 			         "#27: Couldn't initialize - exiting\n");
 		return -1;
 	}
@@ -578,9 +578,9 @@ main(int argc, char **argv)
 	 * all the necessary entries.
 	 */
 	if (rmtab_init(path, &rmtab, &pruned_rmtab) == -1) {
-		clulog_and_print(LOG_WARNING,
+		log_printf_and_print(LOG_WARNING,
 				 "#64: Could not validate %s\n", path);
-		clulog_and_print(LOG_WARNING,
+		log_printf_and_print(LOG_WARNING,
 				 "#65: NFS Failover of %s will malfunction\n",
 				 path);
 		return -1;
@@ -588,7 +588,7 @@ main(int argc, char **argv)
 
 	/* Jump off into the background */
 	if (daemonize(path) == -1) {
-		clulog_and_print(LOG_ERR, "#28: daemonize: %s\n",
+		log_printf_and_print(LOG_ERR, "#28: daemonize: %s\n",
 				 strerror(errno));
 		return -1;
 	}
@@ -606,7 +606,7 @@ main(int argc, char **argv)
 			rmtab_merge(&pruned_rmtab, diff);
 			rmtab_kill(&diff);
 			if (rmtab_write_atomic(pruned_rmtab, rmtab_priv) == -1)
-				clulog(LOG_ERR,
+				log_printf(LOG_ERR,
 				       "#29: rmtab_write_atomic: %s\n",
 				       strerror(errno));
 		}

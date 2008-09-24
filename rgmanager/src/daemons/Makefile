@@ -1,11 +1,11 @@
-TARGET1= clurgmgrd
-TARGET2= clurmtabd
+TARGET1= rgmanager
+#TARGET2= clurmtabd  # Not needed on 2.6 kernels
 TARGET3= rg_test
 TARGET4= dtest
 
-SBINDIRT=$(TARGET1) $(TARGET2) $(TARGET3)
+SBINDIRT=$(TARGET1) $(TARGET3)
 
-all: depends ${TARGET1} ${TARGET2} ${TARGET3}
+all: depends ${TARGET1} ${TARGET3}
 
 include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
@@ -48,7 +48,7 @@ SHAREDOBJS=	depends-noccs.o \
 		rg_locks-noccs.o \
 		event_config-noccs.o
 
-CFLAGS += -D_GNU_SOURCE -DSHAREDIR=\"${sharedir}\"
+CFLAGS += -DSHAREDIR=\"${sharedir}\"
 CFLAGS += -Werror -Wstrict-prototypes -Wshadow -fPIC
 CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmincdir}
 CFLAGS += `xml2-config --cflags` -I${readlineincdir} -I${slangincdir}
@@ -61,7 +61,7 @@ LDFLAGS += -L../clulib -lclulib
 LDFLAGS += -L${libdir}
 
 CCS_LDFLAGS += -L${ccslibdir} -lccs 
-CMAN_LDFLAGS += -L${cmanlibdir} -lcman
+CMAN_LDFLAGS += -L${cmanlibdir} -lcman -llogsys
 DLM_LDFLAGS += -L${dlmlibdir} -ldlm
 XML2_LDFLAGS += `xml2-config --libs`
 SLANG_LDFLAGS += -L${slanglibdir} -lslang
@@ -79,8 +79,8 @@ ${TARGET1}: ${OBJS1} ${LDDEPS}
 			$(SLANG_LDFLAGS) $(EXTRA_LDFLAGS) \
 			$(LD_FLAGS)
 
-${TARGET2}: ${OBJS2} ${LDDEPS}
-	$(CC) -o $@ $^ $(LDFLAGS)
+#${TARGET2}: ${OBJS2} ${LDDEPS}
+#	$(CC) -o $@ $^ $(LDFLAGS)
 
 #
 # Our test program links against the local allocator so that

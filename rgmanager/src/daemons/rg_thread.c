@@ -152,7 +152,7 @@ purge_all(request_t **list)
 	while((curr = *list)) {
 
 		list_remove(list, curr);
-		dprintf("Removed request %d\n", curr->rr_request);
+		dbg_printf("Removed request %d\n", curr->rr_request);
 		if (curr->rr_resp_ctx) {
 			send_response(RG_EABORT, 0, curr);
 			msg_close(curr->rr_resp_ctx);
@@ -178,7 +178,7 @@ resgroup_thread_main(void *arg)
 	rg_inc_threads();
 
 	strncpy(myname, arg, 256);
-	dprintf("Thread %s (tid %d) starting\n",myname,gettid());
+	dbg_printf("Thread %s (tid %d) starting\n",myname,gettid());
 
 	pthread_mutex_init(&my_queue_mutex, NULL);
 	pthread_mutex_lock(&my_queue_mutex);
@@ -227,7 +227,7 @@ resgroup_thread_main(void *arg)
 		ret = RG_FAIL;
 		error = 0;
 
-		dprintf("Processing request %s, resource group %s\n",
+		dbg_printf("Processing request %s, resource group %s\n",
 			rg_req_str(req->rr_request), myname);
 
 		/* find ourselves. */
@@ -498,7 +498,7 @@ resgroup_thread_main(void *arg)
 	myself = find_resthread_byname(myname);
 
 	if (!myself) {
-		dprintf("I don't exist...\n");
+		dbg_printf("I don't exist...\n");
 		raise(SIGSEGV);
 	}
 
@@ -523,7 +523,7 @@ resgroup_thread_main(void *arg)
 
 	pthread_mutex_unlock(&reslist_mutex);
 
-	dprintf("RGth %s (tid %d): No more requests"
+	dbg_printf("RGth %s (tid %d): No more requests"
 		"; exiting.\n", myname, gettid());
 
 	/* Thread's outta here */
@@ -722,7 +722,7 @@ rt_enqueue_request(const char *resgroupname, int request,
 	if (ret < 0)
 		return ret;
 
-	dprintf("Queued request for %d for %s\n", request, resgroupname);
+	dbg_printf("Queued request for %d for %s\n", request, resgroupname);
 	
 	return 0;	
 }

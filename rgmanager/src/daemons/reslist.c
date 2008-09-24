@@ -11,8 +11,9 @@
 #include <restart_counter.h>
 #include <reslist.h>
 #include <pthread.h>
+#include <libgen.h>
 #ifndef NO_CCS
-#include <clulog.h>
+#include <logging.h>
 #endif
 
 
@@ -398,7 +399,7 @@ store_resource(resource_t **reslist, resource_t *newres)
 					       newres->r_attrs[x].ra_value
 					       );
 #else 
-					clulog(LOG_ERR,
+					log_printf(LOG_ERR,
                                                "%s attribute collision. "
                                                "type=%s attr=%s value=%s\n",
 					       (newres->r_attrs[x].ra_flags&
@@ -853,7 +854,7 @@ load_resources(int ccsfd, resource_t **reslist, resource_rule_t **rulelist)
 	       		       printf("Error storing %s resource\n",
 				      newres->r_rule->rr_type);
 #else
-	       		       clulog(LOG_ERR,
+	       		       log_printf(LOG_ERR,
 				      "Error storing %s resource\n",
 				      newres->r_rule->rr_type);
 #endif

@@ -19,7 +19,7 @@
 #include <list.h>
 #include <time.h>
 #include <restart_counter.h>
-#include <clulog.h>
+#include <logging.h>
 #include <resgroup.h>
 #include <reslist.h>
 #include <ccs.h>
@@ -42,18 +42,6 @@ int dep_graph_validate(dep_t **deps);
 fod_t *fod_find_domain(fod_t **domains, char *name);
 
 //#define DEBUG
-
-#ifdef DEBUG
-#define ENTER() clulog(LOG_DEBUG, "ENTER: %s\n", __FUNCTION__)
-#define RETURN(val) {\
-	clulog(LOG_DEBUG, "RETURN: %s line=%d value=%d\n", __FUNCTION__, \
-	       __LINE__, (val));\
-	return(val);\
-}
-#else
-#define ENTER()
-#define RETURN(val) return(val)
-#endif
 
 #ifdef NO_CCS
 #define ccs_get(fd, query, ret) conf_get(query, ret)

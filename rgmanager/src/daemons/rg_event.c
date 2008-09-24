@@ -4,7 +4,7 @@
 #include <assert.h>
 #include <libcman.h>
 #include <ccs.h>
-#include <clulog.h>
+#include <logging.h>
 #include <lock.h>
 #include <event.h>
 #include <stdint.h>
@@ -89,20 +89,20 @@ node_event(int local, int nodeID, int nodeStatus,
 
 		/* Local Node Event */
 		if (nodeStatus == 0) {
-			clulog(LOG_ERR, "Exiting uncleanly\n");
+			log_printf(LOG_ERR, "Exiting uncleanly\n");
 			hard_exit();
 		}
 
 		if (!rg_initialized()) {
 			if (init_resource_groups(0) != 0) {
-				clulog(LOG_ERR,
+				log_printf(LOG_ERR,
 				       "#36: Cannot initialize services\n");
 				hard_exit();
 			}
 		}
 
 		if (shutdown_pending) {
-			clulog(LOG_NOTICE, "Processing delayed exit signal\n");
+			log_printf(LOG_NOTICE, "Processing delayed exit signal\n");
 			running = 0;
 			return;
 		}
@@ -118,7 +118,7 @@ node_event(int local, int nodeID, int nodeStatus,
 	 * Nothing to do for events from other nodes if we are not ready.
 	 */
 	if (!rg_initialized()) {
-		clulog(LOG_DEBUG, "Services not initialized.\n");
+		log_printf(LOG_DEBUG, "Services not initialized.\n");
 		return;
 	}
 
@@ -141,7 +141,7 @@ node_has_fencing(int nodeid)
 	
 	ccs_desc = ccs_connect();
 	if (ccs_desc < 0) {
-		clulog(LOG_ERR, "Unable to connect to ccsd; cannot handle"
+		log_printf(LOG_ERR, "Unable to connect to ccsd; cannot handle"
 		       " node event!\n");
 		/* Assume node has fencing */
 		return 1;
@@ -207,20 +207,20 @@ master_event_callback(char __attribute__ ((unused)) *key,
 
 	m = data;
 	if (datalen != (uint32_t)sizeof(*m)) {
-		clulog(LOG_ERR, "%s: wrong size\n", __FUNCTION__);
+		log_printf(LOG_ERR, "%s: wrong size\n", __FUNCTION__);
 		return 1;
 	}
 
 	swab_event_master_t(m);
 	if (m->m_magic != EVENT_MASTER_MAGIC) {
-		clulog(LOG_ERR, "%s: wrong size\n", __FUNCTION__);
+		log_printf(LOG_ERR, "%s: wrong size\n", __FUNCTION__);
 		return 1;
 	}
 
 	if (m->m_nodeid == (uint32_t)my_id())
-		clulog(LOG_DEBUG, "Master Commit: I am master\n");
+		log_printf(LOG_DEBUG, "Master Commit: I am master\n");
 	else 
-		clulog(LOG_DEBUG, "Master Commit: %d is master\n", m->m_nodeid);
+		log_printf(LOG_DEBUG, "Master Commit: %d is master\n", m->m_nodeid);
 
 	pthread_mutex_lock(&mi_mutex);
 	if (mi)
@@ -249,7 +249,7 @@ find_master(void)
 	m = member_list();
 	if (vf_read(m, "Transition-Master", &vn,
 		    (void **)(&data), &sz) < 0) {
-		clulog(LOG_ERR, "Unable to discover master"
+		log_printf(LOG_ERR, "Unable to discover master"
 		       " status\n");
 		masterinfo = NULL;
 	} else {
@@ -260,7 +260,7 @@ find_master(void)
 	if (masterinfo && (sz >= sizeof(*masterinfo))) {
 		swab_event_master_t(masterinfo);
 		if (masterinfo->m_magic == EVENT_MASTER_MAGIC) {
-			clulog(LOG_DEBUG, "Master Locate: %d is master\n",
+			log_printf(LOG_DEBUG, "Master Locate: %d is master\n",
 			       masterinfo->m_nodeid);
 			pthread_mutex_lock(&mi_mutex);
 			if (mi)
@@ -322,7 +322,7 @@ event_master(void)
 		master_id = mi->m_nodeid;
 		pthread_mutex_unlock(&mi_mutex);
 		if (memb_online(m, master_id)) {
-			//clulog(LOG_DEBUG, "%d is master\n", mi->m_nodeid);
+			//log_printf(LOG_DEBUG, "%d is master\n", mi->m_nodeid);
 			goto out;
 		}
 	}
@@ -353,7 +353,7 @@ event_master(void)
 	if (vf_write(m, VFF_IGN_CONN_ERRORS | VFF_RETRY,
 		     "Transition-Master", &masterinfo,
 		     sizeof(masterinfo)) < 0) {
-		clulog(LOG_ERR, "Unable to advertise master"
+		log_printf(LOG_ERR, "Unable to advertise master"
 		       " status to all nodes\n");
 	}
 
@@ -408,7 +408,7 @@ _event_thread_f(void __attribute__ ((unused)) *arg)
 
 		if (ev->ev_type == EVENT_CONFIG) {
 			/*
-			clulog(LOG_NOTICE, "Config Event: %d -> %d\n",
+			log_printf(LOG_NOTICE, "Config Event: %d -> %d\n",
 			       ev->ev.config.cfg_oldversion,
 			       ev->ev.config.cfg_version);
 			 */
@@ -432,7 +432,7 @@ _event_thread_f(void __attribute__ ((unused)) *arg)
 
 		if (ev->ev_type == EVENT_RG) {
 			/*
-			clulog(LOG_NOTICE, "RG Event: %s %s %d\n",
+			log_printf(LOG_NOTICE, "RG Event: %s %s %d\n",
 			       ev->ev.group.rg_name,
 			       rg_state_str(ev->ev.group.rg_state),
 			       ev->ev.group.rg_owner);
@@ -442,7 +442,7 @@ _event_thread_f(void __attribute__ ((unused)) *arg)
 				    ev->ev.group.rg_owner);
 		} else if (ev->ev_type == EVENT_NODE) {
 			/*
-			clulog(LOG_NOTICE, "Node Event: %s %d %s %s\n",
+			log_printf(LOG_NOTICE, "Node Event: %s %d %s %s\n",
 			       ev->ev.node.ne_local?"Local":"Remote",
 			       ev->ev.node.ne_nodeid,
 			       ev->ev.node.ne_state?"UP":"DOWN",
@@ -456,7 +456,7 @@ _event_thread_f(void __attribute__ ((unused)) *arg)
 				while (!node_fenced(ev->ev.node.ne_nodeid)) {
 					if (!notice) {
 						notice = 1;
-						clulog(LOG_INFO, "Waiting for "
+						log_printf(LOG_INFO, "Waiting for "
 						       "node #%d to be fenced\n",
 						       ev->ev.node.ne_nodeid);
 					}
@@ -464,7 +464,7 @@ _event_thread_f(void __attribute__ ((unused)) *arg)
 				}
 
 				if (notice)
-					clulog(LOG_INFO, "Node #%d fenced; "
+					log_printf(LOG_INFO, "Node #%d fenced; "
 					       "continuing\n",
 					       ev->ev.node.ne_nodeid);
 			}
@@ -479,7 +479,7 @@ _event_thread_f(void __attribute__ ((unused)) *arg)
 	}
 
 	if (!central_events || _master) {
-		clulog(LOG_DEBUG, "%d events processed\n", count);
+		log_printf(LOG_DEBUG, "%d events processed\n", count);
 	}
 	/* Mutex held */
 	event_thread = 0;
