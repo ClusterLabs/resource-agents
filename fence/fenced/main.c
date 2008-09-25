@@ -773,6 +773,12 @@ static void loop(void)
 	}
 	log_debug("group_mode %d compat %d", group_mode, cfgd_groupd_compat);
 
+	if (group_mode == GROUP_LIBCPG) {
+		rv = set_protocol();
+		if (rv < 0)
+			goto out;
+	}
+
 	for (;;) {
 		rv = poll(pollfd, client_maxi + 1, -1);
 		if (rv == -1 && errno == EINTR) {

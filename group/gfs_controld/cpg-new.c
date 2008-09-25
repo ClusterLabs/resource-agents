@@ -276,6 +276,8 @@ static void leave_mountgroup(struct mountgroup *mg, int mnterr);
 static char *msg_name(int type)
 {
 	switch (type) {
+	case GFS_MSG_PROTOCOL:
+		return "protocol";
 	case GFS_MSG_START:
 		return "start";
 	case GFS_MSG_MOUNT_DONE:

@@ -95,10 +95,11 @@ do { \
 	log_printf(lvl, fmt, ##args); \
 } while (0)
 
-#define FD_MSG_START		1
-#define FD_MSG_VICTIM_DONE	2
-#define FD_MSG_COMPLETE		3
-#define FD_MSG_EXTERNAL		4
+#define FD_MSG_PROTOCOL		1
+#define FD_MSG_START		2
+#define FD_MSG_VICTIM_DONE	3
+#define FD_MSG_COMPLETE		4
+#define FD_MSG_EXTERNAL		5
 
 #define FD_MFLG_JOINING		1  /* accompanies start, we are joining */
 #define FD_MFLG_COMPLETE	2  /* accompanies start, we have complete info */
@@ -207,6 +208,7 @@ int read_ccs(struct fd *fd);
 void process_cpg(int ci);
 int setup_cpg(void);
 void close_cpg(void);
+int set_protocol(void);
 void free_cg(struct change *cg);
 void node_history_fence(struct fd *fd, int victim, int master, int how,
 			uint64_t mastertime);

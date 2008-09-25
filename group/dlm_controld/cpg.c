@@ -130,6 +130,8 @@ static void ids_in(struct ls_info *li, struct id_info *ids)
 char *msg_name(int type)
 {
 	switch (type) {
+	case DLM_MSG_PROTOCOL:
+		return "protocol";
 	case DLM_MSG_START:
 		return "start";
 	case DLM_MSG_PLOCK:
