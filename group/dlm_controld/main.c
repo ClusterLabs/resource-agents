@@ -771,11 +771,18 @@ void query_unlock(void)
 static void *process_queries(void *arg)
 {
 	struct dlmc_header h;
-	int s = *((int *)arg);
-	int f, rv;
+	int s, f, rv;
+
+	rv = setup_listener(DLMC_QUERY_SOCK_PATH);
+	if (rv < 0)
+		exit (-1);
+
+	s = rv;
 
 	for (;;) {
 		f = accept(s, NULL, NULL);
+		if (f < 0)
+			exit (-1);
 
 		rv = do_read(f, &h, sizeof(h));
 		if (rv < 0) {
@@ -823,19 +830,13 @@ static void *process_queries(void *arg)
 
 static int setup_queries(void)
 {
-	int rv, s;
-
-	rv = setup_listener(DLMC_QUERY_SOCK_PATH);
-	if (rv < 0)
-		return rv;
-	s = rv;
+	int rv;
 
 	pthread_mutex_init(&query_mutex, NULL);
 
-	rv = pthread_create(&query_thread, NULL, process_queries, &s);
+	rv = pthread_create(&query_thread, NULL, process_queries, NULL);
 	if (rv < 0) {
 		log_error("can't create query thread");
-		close(s);
 		return rv;
 	}
 	return 0;
