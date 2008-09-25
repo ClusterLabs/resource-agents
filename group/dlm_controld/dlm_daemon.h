@@ -127,7 +127,8 @@ do { \
 
 /* dlm_header types */
 enum {
-	DLM_MSG_START = 1,
+	DLM_MSG_PROTOCOL = 1,
+	DLM_MSG_START,
 	DLM_MSG_PLOCK,
 	DLM_MSG_PLOCK_OWN,
 	DLM_MSG_PLOCK_DROP,
@@ -234,6 +235,8 @@ int get_weight(int nodeid, char *lockspace);
 
 /* cpg.c */
 int setup_cpg(void);
+void process_cpg(int ci);
+int set_protocol(void);
 void process_lockspace_changes(void);
 void dlm_send_message(struct lockspace *ls, char *buf, int len);
 int dlm_join_lockspace(struct lockspace *ls);

@@ -926,7 +926,11 @@ static void loop(void)
 		rv = setup_cpg();
 		if (rv < 0)
 			goto out;
-		/* client_add(rv, process_cpg, cluster_dead); */
+		client_add(rv, process_cpg, cluster_dead);
+
+		rv = set_protocol();
+		if (rv < 0)
+			goto out;
 
 		if (cfgd_enable_deadlk) {
 			rv = setup_netlink();

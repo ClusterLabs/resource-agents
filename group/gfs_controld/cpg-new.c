@@ -3082,7 +3082,7 @@ int set_protocol(void)
 	}
 
 	if (our_protocol.daemon_run[0] != our_protocol.daemon_max[0] ||
-	    our_protocol.daemon_run[1] != our_protocol.daemon_max[1]) {
+	    our_protocol.daemon_run[1] > our_protocol.daemon_max[1]) {
 		log_error("incompatible daemon protocol run %u.%u.%u max %u.%u.%u",
 			our_protocol.daemon_run[0],
 			our_protocol.daemon_run[1],
@@ -3094,7 +3094,7 @@ int set_protocol(void)
 	}
 
 	if (our_protocol.kernel_run[0] != our_protocol.kernel_max[0] ||
-	    our_protocol.kernel_run[1] != our_protocol.kernel_max[1]) {
+	    our_protocol.kernel_run[1] > our_protocol.kernel_max[1]) {
 		log_error("incompatible kernel protocol run %u.%u.%u max %u.%u.%u",
 			our_protocol.kernel_run[0],
 			our_protocol.kernel_run[1],
