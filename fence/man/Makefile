@@ -10,6 +10,7 @@ TARGET= fence.8 \
 	fence_gnbd.8 \
 	fence_ifmib.8 \
 	fence_ilo.8 \
+	fence_ldom.8 \
 	fence_manual.8 \
 	fence_mcdata.8 \
 	fence_node.8 \
