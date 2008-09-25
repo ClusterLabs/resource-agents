@@ -371,6 +371,22 @@ static int node_compare(const void *va, const void *vb)
 	return a->nodeid - b->nodeid;
 }
 
+#define CGST_WAIT_CONDITIONS    1
+#define CGST_WAIT_MESSAGES      2
+
+static char *wait_str(int state)
+{
+	switch (state) {
+	case 0:
+		return "none";
+	case CGST_WAIT_CONDITIONS:
+		return "quorum";
+	case CGST_WAIT_MESSAGES:
+		return "messages";
+	}
+	return "unknown";
+}
+
 static int do_list(void)
 {
 	struct fenced_domain d;
@@ -387,6 +403,7 @@ static int do_list(void)
 	printf("victim count  %d\n", d.victim_count);
 	printf("victim now    %d\n", d.current_victim);
 	printf("master nodeid %d\n", d.master_nodeid);
+	printf("wait state    %s\n", wait_str(d.state));
 	printf("members       ");
 
 	node_count = 0;

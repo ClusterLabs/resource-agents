@@ -241,6 +241,9 @@ void fence_victims(struct fd *fd)
 	while (!list_empty(&fd->victims)) {
 		node = list_entry(fd->victims.next, struct node, list);
 
+		/* for queries */
+		fd->current_victim = node->nodeid;
+
 		cman_member = is_cman_member(node->nodeid);
 		cpg_member = in_daemon_member_list(node->nodeid);
 		if (group_mode == GROUP_LIBCPG)
@@ -261,14 +264,9 @@ void fence_victims(struct fd *fd)
 
 		log_level(LOG_INFO, "fencing node \"%s\"", node->name);
 
-		/* for queries */
-		fd->current_victim = node->nodeid;
-
 		query_unlock();
 		error = fence_node(node->name);
 		query_lock();
-
-		fd->current_victim = 0;
 
 		log_level(LOG_INFO, "fence \"%s\" %s", node->name,
 			  error ? "failed" : "success");
@@ -301,5 +299,7 @@ void fence_victims(struct fd *fd)
 		close_override(&override, cfgd_override_path);
 		query_lock();
 	}
+
+	fd->current_victim = 0;
 }
 

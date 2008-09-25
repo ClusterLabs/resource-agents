@@ -1897,12 +1897,17 @@ int set_node_info(struct fd *fd, int nodeid, struct fenced_node *nodeinfo)
 
 int set_domain_info(struct fd *fd, struct fenced_domain *domain)
 {
-	struct change *cg = fd->started_change;
+	struct change *cg;
 
-	if (cg) {
+	if (list_empty(&fd->changes)) {
+		if (fd->started_change)
+			domain->member_count = fd->started_change->member_count;
+	} else {
+		cg = list_first_entry(&fd->changes, struct change, list);
 		domain->member_count = cg->member_count;
 		domain->state = cg->state;
 	}
+
 	domain->master_nodeid = fd->master;
 	domain->victim_count = list_count(&fd->victims);
 	domain->current_victim = fd->current_victim;
