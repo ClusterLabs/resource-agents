@@ -81,10 +81,6 @@ int query(struct fsck_sb *sbp, const char *format, ...)
 	int err = 0;
 	int ret = 0;
 
-	va_start(args, format);
-
-	transform = _(format);
-
 	if(sbp->opts->yes)
 		return 1;
 	if(sbp->opts->no)
@@ -108,6 +104,10 @@ int query(struct fsck_sb *sbp, const char *format, ...)
 
 	}
  query:
+	va_start(args, format);
+
+	transform = _(format);
+
 	vprintf(transform, args);
 
 	/* Make sure query is printed out */
@@ -126,6 +126,7 @@ int query(struct fsck_sb *sbp, const char *format, ...)
 		while(response != '\n')
 			err = read(STDIN_FILENO, &response, sizeof(char));
 		printf("Bad response, please type 'y' or 'n'.\n");
+		va_end(args);
 		goto query;
 	}
 
@@ -138,6 +139,7 @@ int query(struct fsck_sb *sbp, const char *format, ...)
 		err = read(STDIN_FILENO, &response, sizeof(char));
 	}
 
+	va_end(args);
 	fsck_query = FALSE;
 	return ret;
 }
