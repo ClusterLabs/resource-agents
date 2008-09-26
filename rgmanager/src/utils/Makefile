@@ -2,7 +2,7 @@ TARGET1= clubufflush
 TARGET2= clufindhostname
 TARGET3= clustat
 TARGET4= clusvcadm
-TARGET5= #clulog
+TARGET5= clulog
 TARGET6= clunfslock
 
 SBINDIRT=$(TARGET1) $(TARGET2) $(TARGET3) $(TARGET4) $(TARGET5) $(TARGET6)
@@ -52,7 +52,7 @@ ${TARGET4}: ${OBJS4} ${LDDEPS}
 	$(CC) -o $@ $^ $(CMAN_LDFLAGS) $(PTHREAD_LDFLAGS) $(LDFLAGS)
 
 ${TARGET5}: ${OBJS5} ${LDDEPS}
-	$(CC) -o $@ $^ $(CCS_LDFLAGS) $(LDFLAGS)
+	$(CC) -o $@ $^ $(CCS_LDFLAGS) $(CMAN_LDFLAGS) $(LDFLAGS)
 
 ${TARGET6}:
 	cp $(S)/${TARGET6}.sh ${TARGET6}
