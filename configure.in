@@ -1880,6 +1880,14 @@ dnl case with glib2.
 		CFLAGS="$CFLAGS -fgnu89-inline"
 	fi
 
+	if test "x${ENABLE_SNMP}" = "xyes" &&
+			echo "${SNMPLIB}" | grep netsnmp >/dev/null; then
+		inline_ver=`echo 4.3.0 | ver2num`
+		if test $GCCVER -ge $inline_ver; then
+			CFLAGS="$CFLAGS -DNETSNMP_BROKEN_INLINE"
+		fi
+	fi
+
 fi
 if test "${enable_times_kludge}" = no; then
   echo "Disabling times(2) kludge"
