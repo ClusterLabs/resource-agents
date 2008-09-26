@@ -1,4 +1,4 @@
-TARGET1= rgmanager
+TARGET1= clurgmgrd
 #TARGET2= clurmtabd  # Not needed on 2.6 kernels
 TARGET3= rg_test
 TARGET4= dtest
