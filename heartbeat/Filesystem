@@ -445,7 +445,12 @@ Filesystem_notify() {
 		# One of the cases which shouldn't occur; it should have
 		# been caught much earlier. Still, you know ...
 		ocf_log err "$DEVICE: Please only enable notifications for SLES10 OCFS2 mounts."
-		return $OCF_ERR_UNIMPLEMENTED
+		# Yes, in theory this is a configuration error, but
+		# simply discarding them allows users to switch from the
+		# SLES10 stack to the new one w/o downtime.
+		# Ignoring the notifications is harmless, afterall, and
+		# they can simply disable them in their own time.
+		return $OCF_SUCCESS
 	fi
 
 	local n_type; n_type="$OCF_RESKEY_CRM_meta_notify_type"
