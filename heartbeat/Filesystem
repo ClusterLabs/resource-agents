@@ -271,6 +271,20 @@ ocfs2_init()
 {
 	# Check & initialize the OCFS2 specific variables.
 
+	# This check detects whether the special/legacy hooks to
+	# integrate OCFS2 with user-space clustering on SLES10 need to
+	# be activated.
+	# Newer kernels >= 2.6.28, with OCFS2+openAIS+Pacemaker, do
+	# not need this:
+
+	OCFS2_SLES10=""
+	if false ; then
+		OCFS2_SLES10="yes"
+		ocf_log info "$DEVICE: Enabling SLES10 compatibility mode for OCFS2."
+	else
+		return
+	fi
+
 	if [ $OP != "stop" ]; then
 		if [ -z "$OCF_RESKEY_CRM_meta_clone" ]; then
 			ocf_log err "ocfs2 must be run as a clone."
@@ -326,7 +340,7 @@ ocfs2_init()
 #
 Filesystem_start()
 {
-	if [ "$FSTYPE" = "ocfs2" ]; then
+	if [ -n "$OCFS2_SLES10" ]; then
 		# "start" now has the notification data available; that
 		# we're being started means we didn't get the
 		# pre-notification, because we weren't running, so
@@ -409,7 +423,7 @@ Filesystem_start()
 
         if [ $? -ne 0 ]; then
 		ocf_log err "Couldn't mount filesystem $DEVICE on $MOUNTPOINT"
-		if [ "$FSTYPE" = "ocfs2" ]; then
+		if [ -n "$OCFS2_SLES10" ]; then
 			ocfs2_cleanup
 		fi
 		return $OCF_ERR_GENERIC
@@ -446,10 +460,10 @@ Filesystem_notify() {
 	# documentation. ;-)
 	#
 
-	if [ "$FSTYPE" != "ocfs2" ]; then
+	if [ -z "$OCFS2_SLES10" ]; then
 		# One of the cases which shouldn't occur; it should have
 		# been caught much earlier. Still, you know ...
-		ocf_log warn "$DEVICE: Notification received for non-ocfs2 mount."
+		ocf_log err "$DEVICE: Please only enable notifications for SLES10 OCFS2 mounts."
 		return $OCF_ERR_UNIMPLEMENTED
 	fi
 
@@ -627,10 +641,13 @@ Filesystem_stop()
 
 	flushbufs $DEVICE
 
+	# Yes I know the next blob is ugly, sorry.
 	if [ $rc -eq $OCF_SUCCESS ]; then
 		if [ "$FSTYPE" = "ocfs2" ]; then
 			ocfs2_init
-			ocfs2_cleanup
+			if [ -n "$OCFS2_SLES10" ]; then
+				ocfs2_cleanup
+			fi
 		fi
 	fi
 
