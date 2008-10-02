@@ -20,17 +20,17 @@
 #define GL_NOCACHE        (0x00000400) /* Release glock when done, don't cache */
 #define GL_SYNC           (0x00000800) /* Sync to disk when no more holders */
 #define GL_NOCANCEL       (0x00001000) /* Don't ever cancel this request */
-#define GL_READPAGE       (0x00002000) /* gfs_readpage() issued this lock request */
 #define GL_NOCANCEL_OTHER (0x00004000) /* Don't cancel other locks for this */
 
 #define GLR_TRYFAILED     (13)
 #define GLR_CANCELED      (14)
 
-static __inline__ struct gfs_holder*
+static __inline__ int
 gfs_glock_is_locked_by_me(struct gfs_glock *gl)
 {
 	struct list_head *tmp, *head;
 	struct gfs_holder *gh;
+	int locked = FALSE;
 
 	/* Look in glock's list of holders for one with current task as owner */
 	spin_lock(&gl->gl_spin);
@@ -38,13 +38,14 @@ gfs_glock_is_locked_by_me(struct gfs_glock *gl)
 	     tmp != head;
 	     tmp = tmp->next) {
 		gh = list_entry(tmp, struct gfs_holder, gh_list);
-		if (gh->gh_owner == current)
-			goto out;
+		if (gh->gh_owner == current) {
+			locked = TRUE;
+			break;
+		}
 	}
-	gh = NULL;
-out:
 	spin_unlock(&gl->gl_spin);
-	return gh;
+
+	return locked;
 }
 static __inline__ int
 gfs_glock_is_held_excl(struct gfs_glock *gl)

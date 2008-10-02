@@ -259,33 +259,13 @@ gfs_readpage(struct file *file, struct page *page)
 {
 	struct gfs_inode *ip = get_v2ip(page->mapping->host);
 	struct gfs_sbd *sdp = ip->i_sbd;
-	struct gfs_holder *gh;
 	int error;
 
 	atomic_inc(&sdp->sd_ops_address);
 
-	/* When gfs_readpage is called from the sys_madvise code through the 
-	 * readahead code, the inode glock is not held. In this case, we hold 
-	 * the inode glock, unlock the page and return AOP_TRUNCATED_PAGE. The
-	 * caller will then reload the page and call gfs_readpage again. We 
-	 * also add the flag GL_READPAGE to denote that the glock was held in
-	 * this function and if so, we unlock it before leaving this function
-	 */
-	gh = gfs_glock_is_locked_by_me(ip->i_gl);
-	if (!gh) {
-		gh = kmalloc(sizeof(struct gfs_holder), GFP_NOFS);
-		if (!gh)
-			return -ENOBUFS;
-		gfs_holder_init(ip->i_gl, LM_ST_SHARED, 
-				GL_READPAGE | LM_FLAG_ANY, gh);
+	if (!gfs_glock_is_locked_by_me(ip->i_gl)) {
 		unlock_page(page);
-		error = gfs_glock_nq(gh);
-		if (error) {
-			gfs_holder_uninit(gh);
-			kfree(gh);
-			goto out;
-		}
-		return AOP_TRUNCATED_PAGE;
+		return -ENOSYS;
 	}
 
 	if (!gfs_is_jdata(ip)) {
@@ -300,11 +280,6 @@ gfs_readpage(struct file *file, struct page *page)
 	if (unlikely(test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
 		error = -EIO;
 
-	if (gh->gh_flags & GL_READPAGE) { /* If we grabbed the glock here */
-		gfs_glock_dq_uninit(gh);
-		kfree(gh);
-	}
-out:
 	return error;
 }
 
