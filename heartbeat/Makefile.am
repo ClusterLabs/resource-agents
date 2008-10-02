@@ -66,7 +66,6 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			ManageRAID	\
 			ManageVE	\
 			mysql		\
-			o2cb		\
 			oracle		\
 			oralsnr		\
 			pingd		\
