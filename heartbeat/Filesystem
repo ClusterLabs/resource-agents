@@ -126,25 +126,6 @@ Any extra options to be given as -o options to mount.
 <shortdesc lang="en">options</shortdesc>
 <content type="string" default="" />
 </parameter>
-
-<parameter name="ocfs2_cluster">
-<longdesc lang="en">
-The name (UUID) of the OCFS2 cluster this filesystem is part of,
-iff this is an OCFS2 resource and there's more than one cluster. You
-should not need to specify this.
-</longdesc>
-<shortdesc lang="en">OCFS2 cluster name/UUID</shortdesc>
-<content type="string" default="" />
-</parameter>
-
-<parameter name="ocfs2_configfs">
-<longdesc lang="en">
-Mountpoint of the cluster hierarchy below configfs. You should not
-need to specify this.
-</longdesc>
-<shortdesc lang="en">OCFS2 configfs root</shortdesc>
-<content type="string" default="" />
-</parameter>
 </parameters>
 
 <actions>
