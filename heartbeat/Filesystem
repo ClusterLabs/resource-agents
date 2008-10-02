@@ -374,7 +374,7 @@ Filesystem_start()
 
 		if
 		  case $FSTYPE in
-		    ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs|cifs|smbfs|ocfs2|lustre)	false;;
+		    ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs|cifs|smbfs|ocfs2|gfs2|bind|lustre)	false;;
 		    *)									true;;
 		  esac
 		then
@@ -793,13 +793,13 @@ esac
 case $FSTYPE in
 ocfs2)	ocfs2_init
 	;;
-nfs)	: # this is kind of safe too
+nfs|bind|gfs2)	: # this is kind of safe too
 	;;
 *)	if [ -n "$OCF_RESKEY_CRM_meta_clone" ]; then
 		ocf_log err "DANGER! $FSTYPE on $DEVICE is NOT cluster-aware!"
 		ocf_log err "DO NOT RUN IT AS A CLONE!"
 		ocf_log err "Politely refusing to proceed to avoid data corruption."
-		exit $OCF_ERR_GENERIC	
+		exit $OCF_ERR_CONFIGURED
 	fi
 	;;
 esac
