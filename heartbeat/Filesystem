@@ -259,9 +259,14 @@ ocfs2_init()
 	# not need this:
 
 	OCFS2_SLES10=""
-	if false ; then
-		OCFS2_SLES10="yes"
-		ocf_log info "$DEVICE: Enabling SLES10 compatibility mode for OCFS2."
+	if [ "X$HA_cluster_type" != "Xopenais" ]; then
+		if grep -q "SUSE Linux Enterprise Server 10" /etc/SuSE-release >/dev/null 2>&1 ; then
+			OCFS2_SLES10="yes"
+			ocf_log info "$DEVICE: Enabling SLES10 compatibility mode for OCFS2."
+		else
+			ocf_log err "$DEVICE: ocfs2 is not compatible with your environment."
+			exit $OCF_ERR_CONFIGURED
+		fi
 	else
 		return
 	fi
