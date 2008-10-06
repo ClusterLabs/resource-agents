@@ -98,26 +98,6 @@ static struct gfs_sbd *init_sbd(struct super_block *sb)
 	return sdp;
 }
 
-static void init_vfs(struct super_block *sb, unsigned noatime)
-{
-	struct gfs_sbd *sdp = sb->s_fs_info;
-
-	/*  Set up Linux Virtual (VFS) Super Block  */
-
-	sb->s_magic = GFS_MAGIC;
-	sb->s_op = &gfs_super_ops;
-	sb->s_export_op = &gfs_export_ops;
-
-	/*  Don't let the VFS update atimes.  GFS handles this itself. */
-	sb->s_flags |= MS_NOATIME | MS_NODIRATIME;
-	sb->s_maxbytes = MAX_LFS_FILESIZE;
-
-	/*  If we were mounted with -o acl (to support POSIX access control
-	    lists), tell VFS */
-	if (sdp->sd_args.ar_posix_acls)
-		sb->s_flags |= MS_POSIXACL;
-}
-
 int init_names(struct gfs_sbd *sdp, int silent)
 {
 	struct gfs_sb *sb = NULL;
@@ -637,13 +617,18 @@ static int fill_super(struct super_block *sb, void *data, int silent)
 	}
 
 	/*  Copy VFS mount flags  */
-
-	if (sb->s_flags & (MS_NOATIME | MS_NODIRATIME))
-		set_bit(SDF_NOATIME, &sdp->sd_flags);
 	if (sb->s_flags & MS_RDONLY)
 		set_bit(SDF_ROFS, &sdp->sd_flags);
 
-	init_vfs(sb, SDF_NOATIME);
+	/*  Set up Linux Virtual (VFS) Super Block  */
+	sb->s_magic = GFS_MAGIC;
+	sb->s_op = &gfs_super_ops;
+	sb->s_export_op = &gfs_export_ops;
+
+	/*  If we were mounted with -o acl (to support POSIX access control
+ 	 *  lists), tell VFS */
+	if (sdp->sd_args.ar_posix_acls)
+		sb->s_flags |= MS_POSIXACL;
 
 	/*  Turn off quota stuff if we get the noquota mount option, don't 
 	    need to grab the sd_tune lock here since its before anything 

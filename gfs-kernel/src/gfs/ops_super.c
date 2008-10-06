@@ -26,6 +26,7 @@
 #include "super.h"
 #include "sys.h"
 #include "mount.h"
+#include "trans.h"
 
 /**
  * gfs_write_inode - Make sure the inode is stable on the disk
@@ -39,13 +40,40 @@ static int
 gfs_write_inode(struct inode *inode, int sync)
 {
 	struct gfs_inode *ip = get_v2ip(inode);
+	struct gfs_sbd *sdp = ip->i_sbd;
+	struct gfs_holder gh;
+	struct buffer_head *bh;
+	int64_t atime;
+	struct gfs_dinode *di;
+	int ret = 0;
 
 	atomic_inc(&ip->i_sbd->sd_ops_super);
+	ret = gfs_glock_nq_init(ip->i_gl, LM_ST_EXCLUSIVE, 0, &gh);
+	if (ret)
+		goto do_flush;
+	ret = gfs_trans_begin(sdp, 1, 0);
+	if (ret)
+		goto do_unlock;
+	ret = gfs_get_inode_buffer(ip, &bh);
+	if (ret == 0) {
+		di = (struct gfs_dinode *) bh->b_data;
+		atime = gfs64_to_cpu(di->di_atime);
+		if (inode->i_atime.tv_sec > atime) {
+			ip->i_di.di_atime = inode->i_atime.tv_sec;
+			gfs_trans_add_bh(ip->i_gl, bh);
+			gfs_dinode_out(&ip->i_di, bh->b_data);
+		}
+		brelse(bh);
+	}
 
+	gfs_trans_end(sdp);
+do_unlock:
+	gfs_glock_dq_uninit(&gh);
+do_flush:
 	if (ip && sync)
 		gfs_log_flush_glock(ip->i_gl);
 
-	return 0;
+	return ret;
 }
 
 /**
@@ -315,11 +343,6 @@ gfs_remount_fs(struct super_block *sb, int *flags, char *data)
 		sb->s_flags &= ~MS_POSIXACL;
 	}
 
-	if (*flags & (MS_NOATIME | MS_NODIRATIME))
-		set_bit(SDF_NOATIME, &sdp->sd_flags);
-	else
-		clear_bit(SDF_NOATIME, &sdp->sd_flags);
-
 	if (sdp->sd_args.ar_spectator)
 		*flags |= MS_RDONLY;
 	else {
@@ -350,9 +373,6 @@ gfs_remount_fs(struct super_block *sb, int *flags, char *data)
 		gt->gt_quota_account = 1;
 		spin_unlock(&gt->gt_spin);
 	}
-
-	/*  Don't let the VFS update atimes.  GFS handles this itself. */
-	*flags |= MS_NOATIME | MS_NODIRATIME;
 
 out:
 	kfree(args);

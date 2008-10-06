@@ -28,9 +28,6 @@ int gfs_unlink_ok(struct gfs_inode *dip, struct qstr *name,
 int gfs_ok_to_move(struct gfs_inode *this, struct gfs_inode *to);
 int gfs_readlinki(struct gfs_inode *ip, char **buf, unsigned int *len);
 
-int gfs_glock_nq_atime(struct gfs_holder *gh);
-int gfs_glock_nq_m_atime(unsigned int num_gh, struct gfs_holder *ghs);
-
 void gfs_try_toss_vnode(struct gfs_inode *ip);
 
 int gfs_setattr_simple(struct gfs_inode *ip, struct iattr *attr);

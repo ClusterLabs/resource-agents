@@ -367,9 +367,9 @@ do_read_buf(struct file *file, char *buf, size_t size, loff_t *offset,
 	ssize_t count = 0;
 	int error;
 
-	gfs_holder_init(ip->i_gl, LM_ST_SHARED, GL_ATIME, &ghs[num_gh]);
+	gfs_holder_init(ip->i_gl, LM_ST_SHARED, 0, &ghs[num_gh]);
 
-	error = gfs_glock_nq_m_atime(num_gh + 1, ghs);
+	error = gfs_glock_nq_m(num_gh + 1, ghs);
 	if (error)
 		goto out;
 
@@ -1155,8 +1155,8 @@ readdir_reg(struct file *file, void *dirent, filldir_t filldir)
 	fdr.fdr_filldir = filldir;
 	fdr.fdr_opaque = dirent;
 
-	gfs_holder_init(dip->i_gl, LM_ST_SHARED, GL_ATIME, &d_gh);
-	error = gfs_glock_nq_atime(&d_gh);
+	gfs_holder_init(dip->i_gl, LM_ST_SHARED, 0, &d_gh);
+	error = gfs_glock_nq(&d_gh);
 	if (error) {
 		gfs_holder_uninit(&d_gh);
 		return error;
@@ -1264,8 +1264,8 @@ readdir_bad(struct file *file, void *dirent, filldir_t filldir)
 		entries * sizeof(struct filldir_bad_entry);
 	fdb->fdb_name_size = entries * GFS_FAST_NAME_SIZE;
 
-	gfs_holder_init(dip->i_gl, LM_ST_SHARED, GL_ATIME, &d_gh);
-	error = gfs_glock_nq_atime(&d_gh);
+	gfs_holder_init(dip->i_gl, LM_ST_SHARED, 0, &d_gh);
+	error = gfs_glock_nq(&d_gh);
 	if (error) {
 		gfs_holder_uninit(&d_gh);
 		goto out;
@@ -1413,8 +1413,8 @@ gfs_mmap(struct file *file, struct vm_area_struct *vma)
 
 	atomic_inc(&ip->i_sbd->sd_ops_file);
 
-	gfs_holder_init(ip->i_gl, LM_ST_SHARED, GL_ATIME, &i_gh);
-	error = gfs_glock_nq_atime(&i_gh);
+	gfs_holder_init(ip->i_gl, LM_ST_SHARED, 0, &i_gh);
+	error = gfs_glock_nq(&i_gh);
 	if (error) {
 		gfs_holder_uninit(&i_gh);
 		return error;
@@ -1632,9 +1632,9 @@ gfs_splice_read(struct file *in_file, loff_t *ppos, struct pipe_inode_info *pipe
 
 	atomic_inc(&ip->i_sbd->sd_ops_file);
 
-	gfs_holder_init(ip->i_gl, LM_ST_SHARED, GL_ATIME, &gh);
+	gfs_holder_init(ip->i_gl, LM_ST_SHARED, 0, &gh);
 
-	retval = gfs_glock_nq_atime(&gh);
+	retval = gfs_glock_nq(&gh);
 	if (retval)
 		goto out;
 

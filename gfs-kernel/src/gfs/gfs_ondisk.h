@@ -379,8 +379,6 @@ struct gfs_quota {
 #define GFS_DIF_DIRECTIO          (0x00000010)
 #define GFS_DIF_IMMUTABLE         (0x00000020) /* Can't change file */
 #define GFS_DIF_APPENDONLY        (0x00000040) /* Can only add to end of file */
-#define GFS_DIF_NOATIME           (0x00000080) /* Don't update access time
-						  (currently unused/ignored) */
 #define GFS_DIF_SYNC              (0x00000100) /* Flush to disk, don't cache
 						  (currently unused/ignored) */
 #define GFS_DIF_INHERIT_DIRECTIO  (0x40000000) /* new files get DIRECTIO flag */
@@ -1234,7 +1232,8 @@ gfs_dinode_in(struct gfs_dinode *dinode, char *buf)
 	CPIN_32(dinode, str, di_nlink);
 	CPIN_64(dinode, str, di_size);
 	CPIN_64(dinode, str, di_blocks);
-	CPIN_64(dinode, str, di_atime);
+	if (gfs64_to_cpu(str->di_atime) > dinode->di_atime)
+		CPIN_64(dinode, str, di_atime);
 	CPIN_64(dinode, str, di_mtime);
 	CPIN_64(dinode, str, di_ctime);
 	CPIN_32(dinode, str, di_major);

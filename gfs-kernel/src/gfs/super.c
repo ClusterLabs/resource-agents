@@ -52,7 +52,6 @@ gfs_tune_init(struct gfs_tune *gt)
 	gt->gt_glock_purge = 0;
 	gt->gt_quota_simul_sync = 64;
 	gt->gt_quota_warn_period = 10;
-	gt->gt_atime_quantum = 3600;
 	gt->gt_quota_quantum = 60;
 	gt->gt_quota_scale_num = 1;
 	gt->gt_quota_scale_den = 1;

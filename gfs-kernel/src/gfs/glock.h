@@ -16,7 +16,6 @@
 #define GL_EXACT          (0x00000080) /* Requested state must == current state
                                         * for lock to be granted */
 #define GL_SKIP           (0x00000100) /* Don't read from disk after grant */
-#define GL_ATIME          (0x00000200) /* Update inode's ATIME after grant */
 #define GL_NOCACHE        (0x00000400) /* Release glock when done, don't cache */
 #define GL_SYNC           (0x00000800) /* Sync to disk when no more holders */
 #define GL_NOCANCEL       (0x00001000) /* Don't ever cancel this request */
