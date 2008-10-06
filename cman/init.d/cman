@@ -240,7 +240,7 @@ start_daemons()
 
 start_fence()
 {
-    /usr/sbin/cman_tool status | grep Flags | grep 2node &> /dev/null
+    /sbin/cman_tool status | grep Flags | grep 2node &> /dev/null
     if [ $? -ne 0 ]
     then
         errmsg=$( /sbin/fence_tool -w -t $FENCED_START_TIMEOUT join \
