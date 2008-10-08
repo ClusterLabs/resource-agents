@@ -64,6 +64,7 @@
 
 extern int daemon_debug_opt;
 extern int daemon_quit;
+extern int cluster_down;
 extern int poll_dlm;
 extern int poll_ignore_plock;
 extern int plock_fd;

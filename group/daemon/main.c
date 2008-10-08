@@ -827,7 +827,9 @@ static void loop(void)
 	close_ccs();
 	close_cman();
 
-	if (!list_empty(&gd_groups))
+	/* in LIBCPG mode, gd_groups is not empty because of the groups we
+	   add to "block" old versions of groupd */
+	if ((group_mode == GROUP_LIBGROUP) && !list_empty(&gd_groups))
 		log_print("groups abandoned");
 }
 

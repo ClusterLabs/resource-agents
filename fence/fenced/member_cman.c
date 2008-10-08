@@ -255,7 +255,7 @@ struct node *get_new_node(struct fd *fd, int nodeid)
 	node = malloc(sizeof(*node));
 	if (!node)
 		return NULL;
-	memset(node, 0, sizeof(*node));
+	memset(node, 0, sizeof(struct node));
 
 	node->nodeid = nodeid;
 

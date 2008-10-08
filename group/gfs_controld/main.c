@@ -1067,6 +1067,7 @@ void cluster_dead(int ci)
 {
 	log_error("cluster is down, exiting");
 	daemon_quit = 1;
+	cluster_down = 1;
 }
 
 static void dlmcontrol_dead(int ci)
@@ -1497,6 +1498,7 @@ void daemon_dump_save(void)
 
 int daemon_debug_opt;
 int daemon_quit;
+int cluster_down;
 int poll_ignore_plock;
 int poll_dlm;
 int plock_fd;

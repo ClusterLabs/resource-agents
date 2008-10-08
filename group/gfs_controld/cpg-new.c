@@ -3242,7 +3242,7 @@ void close_cpg(void)
 	struct cpg_name name;
 	int i = 0;
 
-	if (!cpg_handle_daemon)
+	if (!cpg_handle_daemon || cluster_down)
 		return;
 
 	memset(&name, 0, sizeof(name));

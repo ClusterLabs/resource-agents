@@ -722,6 +722,7 @@ void cluster_dead(int ci)
 {
 	log_error("cluster is down, exiting");
 	daemon_quit = 1;
+	cluster_down = 1;
 }
 
 static void loop(void)
@@ -1051,6 +1052,7 @@ void daemon_dump_save(void)
 
 int daemon_debug_opt;
 int daemon_quit;
+int cluster_down;
 struct list_head domains;
 int cman_quorate;
 int our_nodeid;

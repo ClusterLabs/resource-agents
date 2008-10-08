@@ -61,6 +61,7 @@
 
 extern int daemon_debug_opt;
 extern int daemon_quit;
+extern int cluster_down;
 extern struct list_head domains;
 extern int cman_quorate;
 extern int our_nodeid;
@@ -118,6 +119,7 @@ struct fd_header {
 
 #define CGST_WAIT_CONDITIONS	1
 #define CGST_WAIT_MESSAGES	2
+#define CGST_WAIT_FENCING	3	/* for queries */
 
 struct change {
 	struct list_head list;

@@ -344,9 +344,15 @@ static void save_history(struct fd *fd, struct fd_info *fi, struct id_info *ids)
 	id = ids;
 
 	for (i = 0; i < fi->id_info_count; i++) {
+		/* create history entries for nodes that were domain members
+		   prior to our joining the domain */
+		node_history_init(fd, id->nodeid);
+
 		node = get_node_history(fd, id->nodeid);
-		if (!node)
+		if (!node) {
+			log_error("save_history no nodeid %d", id->nodeid);
 			goto next;
+		}
 
 		if (!node->fence_time && id->fence_time) {
 			node->fence_master = id->fence_master;
@@ -1039,6 +1045,8 @@ static void apply_changes(struct fd *fd)
 	case CGST_WAIT_MESSAGES:
 		if (wait_messages_done(fd)) {
 			set_master(fd);
+			cg->state = CGST_WAIT_FENCING;  /* for queries */
+
 			if (fd->master == our_nodeid) {
 				delay_fencing(fd, nodes_added(fd));
 				fence_victims(fd);
@@ -1849,7 +1857,7 @@ void close_cpg(void)
 	struct cpg_name name;
 	int i = 0;
 
-	if (!cpg_handle_daemon)
+	if (!cpg_handle_daemon || cluster_down)
 		return;
 
 	memset(&name, 0, sizeof(name));
@@ -1872,25 +1880,28 @@ int set_node_info(struct fd *fd, int nodeid, struct fenced_node *nodeinfo)
 {
 	struct node_history *node;
 	struct member *memb;
+	struct change *cg;
 
 	nodeinfo->nodeid = nodeid;
 	nodeinfo->victim = is_victim(fd, nodeid);
 
-	if (!fd->started_change)
-		goto history;
+	if (list_empty(&fd->changes))
+		cg = fd->started_change;
+	else
+		cg = list_first_entry(&fd->changes, struct change, list);
 
-	memb = find_memb(fd->started_change, nodeid);
-	if (memb)
-		nodeinfo->member = memb->disallowed ? 0 : 1;
+	if (cg) {
+		memb = find_memb(cg, nodeid);
+		if (memb)
+			nodeinfo->member = memb->disallowed ? -1 : 1;
+	}
 
- history:
 	node = get_node_history(fd, nodeid);
-	if (!node)
-		return 0;
-
-	nodeinfo->last_fenced_master = node->fence_master;
-	nodeinfo->last_fenced_how = node->fence_how;
-	nodeinfo->last_fenced_time = node->fence_time;
+	if (node) {
+		nodeinfo->last_fenced_master = node->fence_master;
+		nodeinfo->last_fenced_how = node->fence_how;
+		nodeinfo->last_fenced_time = node->fence_time;
+	}
 
 	return 0;
 }
@@ -1932,7 +1943,7 @@ int set_domain_nodes(struct fd *fd, int option, int *node_count,
 		nodes = malloc(count * sizeof(struct fenced_node));
 		if (!nodes)
 			return -ENOMEM;
-		memset(nodes, 0, sizeof(*nodes));
+		memset(nodes, 0, count * sizeof(struct fenced_node));
 
 		n = nodes;
 		list_for_each_entry(memb, &cg->members, list)
@@ -1946,7 +1957,7 @@ int set_domain_nodes(struct fd *fd, int option, int *node_count,
 		nodes = malloc(count * sizeof(struct fenced_node));
 		if (!nodes)
 			return -ENOMEM;
-		memset(nodes, 0, sizeof(*nodes));
+		memset(nodes, 0, count * sizeof(struct fenced_node));
 
 		n = nodes;
 		list_for_each_entry(nh, &fd->node_history, list)

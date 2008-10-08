@@ -67,6 +67,7 @@
 
 extern int daemon_debug_opt;
 extern int daemon_quit;
+extern int cluster_down;
 extern int poll_fencing;
 extern int poll_quorum;
 extern int poll_fs;
@@ -235,6 +236,7 @@ int get_weight(int nodeid, char *lockspace);
 
 /* cpg.c */
 int setup_cpg(void);
+void close_cpg(void);
 void process_cpg(int ci);
 int set_protocol(void);
 void process_lockspace_changes(void);

@@ -300,15 +300,16 @@ int set_lockspace_nodes_group(struct lockspace *ls, int option, int *node_count,
 			      struct dlmc_node **nodes_out)
 {
 	struct dlmc_node *nodes = NULL, *nodep;
-	int i;
+	int i, len;
 
 	if (!ls->cb_member_count)
 		goto out;
 
-	nodes = malloc(ls->cb_member_count * sizeof(struct dlmc_node));
+	len = ls->cb_member_count * sizeof(struct dlmc_node);
+	nodes = malloc(len);
 	if (!nodes)
 		return -ENOMEM;
-	memset(nodes, 0, sizeof(*nodes));
+	memset(nodes, 0, len);
 
 	nodep = nodes;
 	for (i = 0; i < ls->cb_member_count; i++) {

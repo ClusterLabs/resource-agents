@@ -371,8 +371,10 @@ static int node_compare(const void *va, const void *vb)
 	return a->nodeid - b->nodeid;
 }
 
-#define CGST_WAIT_CONDITIONS    1
-#define CGST_WAIT_MESSAGES      2
+/* copied from fence/fenced/fd.h, should probably be in libfenced.h */
+#define CGST_WAIT_CONDITIONS	1
+#define CGST_WAIT_MESSAGES	2
+#define CGST_WAIT_FENCING	3
 
 static char *wait_str(int state)
 {
@@ -383,6 +385,31 @@ static char *wait_str(int state)
 		return "quorum";
 	case CGST_WAIT_MESSAGES:
 		return "messages";
+	case CGST_WAIT_FENCING:
+		return "fencing";
+	}
+	return "unknown";
+}
+
+/* copied from fence/fenced/fd.h, should probably be in libfenced.h */
+#define VIC_DONE_AGENT          1
+#define VIC_DONE_MEMBER         2
+#define VIC_DONE_OVERRIDE       3
+#define VIC_DONE_EXTERNAL       4
+
+static char *how_str(int how)
+{
+	switch (how) {
+	case 0:
+		return "none";
+	case VIC_DONE_AGENT:
+		return "agent";
+	case VIC_DONE_MEMBER:
+		return "member";
+	case VIC_DONE_OVERRIDE:
+		return "override";
+	case VIC_DONE_EXTERNAL:
+		return "external";
 	}
 	return "unknown";
 }
@@ -444,12 +471,12 @@ static int do_list(void)
 
 	np = nodes;
 	for (i = 0; i < node_count; i++) {
-		printf("nodeid %d member %d victim %d last fence master %d how %d\n",
+		printf("nodeid %d member %d victim %d last fence master %d how %s\n",
 				np->nodeid,
 				np->member,
 				np->victim,
 				np->last_fenced_master,
-				np->last_fenced_how);
+				how_str(np->last_fenced_how));
 		np++;
 	}
 	printf("\n");

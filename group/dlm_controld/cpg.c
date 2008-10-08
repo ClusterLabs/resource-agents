@@ -2005,6 +2005,31 @@ int setup_cpg(void)
 	return -1;
 }
 
+void close_cpg(void)
+{
+	cpg_error_t error;
+	struct cpg_name name;
+	int i = 0;
+
+	if (!daemon_cpg_handle || cluster_down)
+		return;
+
+	memset(&name, 0, sizeof(name));
+	sprintf(name.value, "dlm:controld");
+	name.length = strlen(name.value) + 1;
+
+ retry:
+	error = cpg_leave(daemon_cpg_handle, &name);
+	if (error == CPG_ERR_TRY_AGAIN) {
+		sleep(1);
+		if (!(++i % 10))
+			log_error("daemon cpg_leave error retrying");
+		goto retry;
+	}
+	if (error != CPG_OK)
+		log_error("daemon cpg_leave error %d", error);
+}
+
 /* fs_controld has seen nodedown for nodeid; it's now ok for dlm to do
    recovery for the failed node */
 

@@ -1182,7 +1182,7 @@ static int add_member(struct mountgroup *mg, int nodeid)
 	if (!memb)
 		return -ENOMEM;
 
-	memset(memb, 0, sizeof(*memb));
+	memset(memb, 0, sizeof(struct mg_member));
 
 	memb->nodeid = nodeid;
 	memb->jid = JID_INIT;
@@ -2414,7 +2414,7 @@ void close_cpg_old(void)
 	cpg_error_t error;
 	int i = 0;
 
-	if (!cpg_handle_daemon)
+	if (!cpg_handle_daemon || cluster_down)
 		return;
 
 	memset(&name, 0, sizeof(name));

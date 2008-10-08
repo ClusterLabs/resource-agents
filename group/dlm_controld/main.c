@@ -157,7 +157,7 @@ static struct lockspace *create_ls(char *name)
 	ls = malloc(sizeof(*ls));
 	if (!ls)
 		goto out;
-	memset(ls, 0, sizeof(*ls));
+	memset(ls, 0, sizeof(struct lockspace));
 	strncpy(ls->name, name, DLM_LOCKSPACE_LEN);
 
 	INIT_LIST_HEAD(&ls->changes);
@@ -860,6 +860,7 @@ void cluster_dead(int ci)
 {
 	log_error("cluster is down, exiting");
 	daemon_quit = 1;
+	cluster_down = 1;
 }
 
 static void loop(void)
@@ -999,6 +1000,8 @@ static void loop(void)
  out:
 	if (cfgd_groupd_compat)
 		close_groupd();
+	if (group_mode == GROUP_LIBCPG)
+		close_cpg();
 	clear_configfs();
 	close_logging();
 	close_ccs();
@@ -1285,6 +1288,7 @@ void daemon_dump_save(void)
 
 int daemon_debug_opt;
 int daemon_quit;
+int cluster_down;
 int poll_fencing;
 int poll_quorum;
 int poll_fs;
