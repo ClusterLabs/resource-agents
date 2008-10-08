@@ -629,12 +629,12 @@ static void do_list(char *name)
 	if (name) {
 		rv = dlmc_lockspace_info(name, lss);
 		if (rv < 0)
-			goto out;
+			return;
 		ls_count = 1;
 	} else {
 		rv = dlmc_lockspaces(MAX_LS, &ls_count, lss);
 		if (rv < 0)
-			goto out;
+			return;
 	}
 
 	if (ls_count)
@@ -665,10 +665,6 @@ static void do_list(char *name)
  next:
 		printf("\n");
 	}
-	return;
- out:
-	fprintf(stderr, "dlm_controld query error %d\n", rv);
-
 }
 
 static void do_deadlock_check(char *name)

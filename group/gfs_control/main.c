@@ -338,12 +338,12 @@ static void do_list(char *name)
 	if (name) {
 		rv = gfsc_mountgroup_info(name, mgs);
 		if (rv < 0)
-			goto out;
+			return;
 		mg_count = 1;
 	} else {
 		rv = gfsc_mountgroups(MAX_MG, &mg_count, mgs);
 		if (rv < 0)
-			goto out;
+			return;
 	}
 
 	if (mg_count)
@@ -374,10 +374,6 @@ static void do_list(char *name)
  next:
 		printf("\n");
 	}
-	return;
- out:
-	fprintf(stderr, "gfs_controld query error %d\n", rv);
-
 }
 
 static void do_plocks(char *name)

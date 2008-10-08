@@ -396,7 +396,7 @@ static int do_list(void)
 
 	rv = fenced_domain_info(&d);
 	if (rv < 0)
-		goto fail;
+		exit(EXIT_SUCCESS); /* fenced probably not running */
 
 	printf("fence domain\n");
 	printf("member count  %d\n", d.member_count);
