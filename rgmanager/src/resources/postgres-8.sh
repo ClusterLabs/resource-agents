@@ -80,10 +80,10 @@ generate_config_file()
 
 	generate_configTemplate "$generated_file" "$1"
 	echo "external_pid_file = '$PSQL_pid_file'" >> "$generated_file"
-	echo "listen_address = '$ip_comma'" >> "$generated_file"
+	echo "listen_addresses = '$ip_comma'" >> "$generated_file"
 
 	echo >> "$generated_file"	
-	sed 's/^[[:space:]]*external_pid_file/### external_pid_file/i;s/^[[:space:]]*listen_address/### listen_address/i' < "$original_file" >> "$generated_file"
+	sed 's/^[[:space:]]*external_pid_file/### external_pid_file/i;s/^[[:space:]]*listen_addresses/### listen_addresses/i' < "$original_file" >> "$generated_file"
 	
         sha1_addToFile "$generated_file"
 	clog_generate_config $CLOG_SUCCEED "$original_file" "$generated_file"
@@ -93,6 +93,7 @@ generate_config_file()
 
 start()
 {
+	declare pguser_group
 	clog_service_start $CLOG_INIT
 
 	create_pid_directory
@@ -104,6 +105,15 @@ start()
 		clog_service_start $CLOG_FAILED
 		return $OCF_ERR_GENERIC
 	fi
+
+	#
+	# Create an empty PID file for the postgres user and
+	# change it to be owned by the postgres user so that
+	# postmaster doesn't complain.
+	#
+	pguser_group=`groups $OCF_RESKEY_postmaster_user | cut -f1 -d ' '`
+	touch $PSQL_pid_file
+	chown $OCF_RESKEY_postmaster_user.$pguser_group $PSQL_pid_file
 
 	clog_looking_for $CLOG_INIT "IP Addresses"
 
@@ -120,7 +130,7 @@ start()
 	generate_config_file "$OCF_RESKEY_config_file" "$PSQL_gen_config_file" "$ip_addresses"
 
 	sudo -u "$OCF_RESKEY_postmaster_user" $PSQL_POSTMASTER -c config_file="$PSQL_gen_config_file" \
-		$OCF_RESKEY_postmaster_options 
+		$OCF_RESKEY_postmaster_options &> /dev/null &
 
 	if [ $? -ne 0 ]; then
 		clog_service_start $CLOG_FAILED

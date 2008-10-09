@@ -39,6 +39,11 @@ stop_generic()
 
 	read pid < "$pid_file"
 
+	# @todo: PID file empty -> error?
+	if [ -z "$pid" ]; then
+		return 0;
+	fi
+
 	# @todo: PID is not running -> error?
 	if [ ! -d "/proc/$pid" ]; then
 		return 0;

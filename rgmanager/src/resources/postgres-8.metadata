@@ -48,7 +48,7 @@
 		<shortdesc lang="en">
 			Other command-line options for postmaster
 		</shortdesc>
-		<content type="string" />
+		<content type="string" default="-D /var/lib/pgsql/data"/>
 	</parameter>
 
 	<parameter name="shutdown_wait">
