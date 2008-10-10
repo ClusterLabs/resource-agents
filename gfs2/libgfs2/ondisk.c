@@ -117,6 +117,9 @@ void gfs2_sb_out(struct gfs2_sb *sb, char *buf)
 
 	CPOUT_08(sb, str, sb_lockproto, GFS2_LOCKNAME_LEN);
 	CPOUT_08(sb, str, sb_locktable, GFS2_LOCKNAME_LEN);
+#ifdef GFS2_HAS_UUID
+	memcpy(str->sb_uuid, sb->sb_uuid, 16);
+#endif
 }
 
 void gfs2_sb_print(struct gfs2_sb *sb)
