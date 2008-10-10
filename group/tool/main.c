@@ -610,9 +610,9 @@ int main(int argc, char **argv)
 	case OP_LIST:
 		if (all_daemons) {
 			if (verbose) {
-				system("fence_tool ls -v");
-				system("dlm_tool ls -v");
-				system("gfs_control ls -v");
+				system("fence_tool ls -n");
+				system("dlm_tool ls -n");
+				system("gfs_control ls -n");
 			} else {
 				system("fence_tool ls");
 				system("dlm_tool ls");

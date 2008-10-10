@@ -269,7 +269,7 @@ static int daemon_member_count;
     would let everyone start again.]
 */
 
-static void process_mountgroup(struct mountgroup *mg);
+static void apply_changes_recovery(struct mountgroup *mg);
 static void send_withdraw_acks(struct mountgroup *mg);
 static void leave_mountgroup(struct mountgroup *mg, int mnterr);
 
@@ -700,7 +700,7 @@ void process_dlmcontrol(int ci)
 
 	poll_dlm = 0;
 
-	process_mountgroup(mg);
+	apply_changes_recovery(mg);
 }
 
 static int check_dlm_notify_done(struct mountgroup *mg)
@@ -2184,7 +2184,7 @@ void process_recovery_uevent(char *table)
 		}
 	}
 
-	process_mountgroup(mg);
+	apply_changes_recovery(mg);
 }
 
 static void start_journal_recovery(struct mountgroup *mg, int jid)
@@ -2301,7 +2301,7 @@ static void apply_recovery(struct mountgroup *mg)
 	}
 }
 
-static void process_mountgroup(struct mountgroup *mg)
+static void apply_changes_recovery(struct mountgroup *mg)
 {
 	if (!list_empty(&mg->changes))
 		apply_changes(mg);
@@ -2315,7 +2315,7 @@ void process_mountgroups(void)
 	struct mountgroup *mg, *safe;
 
 	list_for_each_entry_safe(mg, safe, &mountgroups, list)
-		process_mountgroup(mg);
+		apply_changes_recovery(mg);
 }
 
 static int add_change(struct mountgroup *mg,
@@ -2476,7 +2476,7 @@ static void confchg_cb(cpg_handle_t handle, struct cpg_name *group_name,
 	if (rv)
 		return;
 
-	process_mountgroup(mg);
+	apply_changes_recovery(mg);
 }
 
 static void gfs_header_in(struct gfs_header *hd)
@@ -2564,7 +2564,7 @@ static void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 		log_error("unknown msg type %d", hd->type);
 	}
 
-	process_mountgroup(mg);
+	apply_changes_recovery(mg);
 }
 
 static cpg_callbacks_t cpg_callbacks = {

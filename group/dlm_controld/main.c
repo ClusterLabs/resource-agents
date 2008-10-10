@@ -531,6 +531,8 @@ static void query_node_info(int fd, char *name, int nodeid)
 		goto out;
 	}
 
+	memset(&node, 0, sizeof(node));
+
 	if (group_mode == GROUP_LIBGROUP)
 		rv = set_node_info_group(ls, nodeid, &node);
 	else

@@ -47,6 +47,8 @@ struct node {
 	int check_fs;
 	int fs_notified;
 	uint64_t add_time;
+	uint64_t fence_time;	/* for debug */
+	uint32_t fence_queries;	/* for debug */
 	uint32_t added_seq;	/* for queries */
 	uint32_t removed_seq;	/* for queries */
 	int failed_reason;	/* for queries */
@@ -401,8 +403,11 @@ static void node_history_fail(struct lockspace *ls, int nodeid,
 		return;
 	}
 
-	if (cfgd_enable_fencing && !node->add_time)
+	if (cfgd_enable_fencing && node->add_time) {
 		node->check_fencing = 1;
+		node->fence_time = 0;
+		node->fence_queries = 0;
+	}
 
 	/* fenced will take care of making sure the quorum value
 	   is adjusted for all the failures */
@@ -410,7 +415,8 @@ static void node_history_fail(struct lockspace *ls, int nodeid,
 	if (cfgd_enable_quorum && !cfgd_enable_fencing)
 		node->check_quorum = 1;
 
-	node->check_fs = 1;
+	if (ls->fs_registered)
+		node->check_fs = 1;
 
 	node->removed_seq = cg->seq;	/* for queries */
 	node->failed_reason = reason;	/* for queries */
@@ -423,8 +429,10 @@ static int check_fencing_done(struct lockspace *ls)
 	int in_progress, wait_count = 0;
 	int rv;
 
-	if (!cfgd_enable_fencing)
+	if (!cfgd_enable_fencing) {
+		log_group(ls, "check_fencing disabled");
 		return 1;
+	}
 
 	list_for_each_entry(node, &ls->node_history, list) {
 		if (!node->check_fencing)
@@ -438,11 +446,23 @@ static int check_fencing_done(struct lockspace *ls)
 			log_error("fenced_node_info error %d", rv);
 
 		if (last_fenced_time > node->add_time) {
+			log_group(ls, "check_fencing %d %llu fenced at %llu",
+				  node->nodeid,
+				  (unsigned long long)node->add_time,
+				  (unsigned long long)last_fenced_time);
 			node->check_fencing = 0;
 			node->add_time = 0;
+			node->fence_time = last_fenced_time;
 		} else {
-			log_group(ls, "check_fencing %d needs fencing",
-				  node->nodeid);
+			if (!node->fence_queries ||
+			    node->fence_time != last_fenced_time) {
+				log_group(ls, "check_fencing %d not fenced "
+					  "add %llu fence %llu", node->nodeid,
+					 (unsigned long long)node->add_time,
+					 (unsigned long long)last_fenced_time);
+				node->fence_queries++;
+				node->fence_time = last_fenced_time;
+			}
 			wait_count++;
 		}
 	}
@@ -462,6 +482,8 @@ static int check_fencing_done(struct lockspace *ls)
 
 	if (in_progress)
 		return 0;
+
+	log_group(ls, "check_fencing done");
 	return 1;
 }
 
@@ -470,8 +492,10 @@ static int check_quorum_done(struct lockspace *ls)
 	struct node *node;
 	int wait_count = 0;
 
-	if (!cfgd_enable_quorum)
+	if (!cfgd_enable_quorum) {
+		log_group(ls, "check_quorum disabled");
 		return 1;
+	}
 
 	/* wait for quorum system (cman) to see all the same nodes failed, so
 	   we know that cluster_quorate is adjusted for the same failures we've
@@ -510,8 +534,10 @@ static int check_fs_done(struct lockspace *ls)
 	int wait_count = 0;
 
 	/* no corresponding fs for this lockspace */
-	if (!ls->fs_registered)
+	if (!ls->fs_registered) {
+		log_group(ls, "check_fs none registered");
 		return 1;
+	}
 
 	list_for_each_entry(node, &ls->node_history, list) {
 		if (!node->check_fs)
@@ -1301,6 +1327,8 @@ static void confchg_cb(cpg_handle_t handle, struct cpg_name *group_name,
 		       left_list, left_list_entries,
 		       joined_list, joined_list_entries);
 #endif
+
+	apply_changes(ls);
 }
 
 static void dlm_header_in(struct dlm_header *hd)
@@ -1396,6 +1424,8 @@ static void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 	default:
 		log_error("unknown msg type %d", hd->type);
 	}
+
+	apply_changes(ls);
 }
 
 static cpg_callbacks_t cpg_callbacks = {
@@ -1444,8 +1474,6 @@ static void process_lockspace_cpg(int ci)
 		log_error("cpg_dispatch error %d", error);
 		return;
 	}
-
-	apply_changes(ls);
 
 	update_flow_control_status();
 }
@@ -2149,8 +2177,6 @@ static int _set_node_info(struct lockspace *ls, struct change *cg, int nodeid,
 		node->flags |= DLMC_NF_CHECK_QUORUM;
 	if (n->check_fs)
 		node->flags |= DLMC_NF_CHECK_FS;
-	if (n->fs_notified)
-		node->flags |= DLMC_NF_FS_NOTIFIED;
 
 	node->added_seq = n->added_seq;
 	node->removed_seq = n->removed_seq;

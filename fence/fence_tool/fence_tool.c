@@ -36,7 +36,7 @@ int cman_nodes_count;
 struct fenced_node nodes[MAX_NODES];
 char *prog_name;
 int operation;
-int verbose = 0;
+int ls_all_nodes = 0;
 int inquorate_fail = 0;
 int wait_join = 0;			 /* default: don't wait for join */
 int wait_leave = 0;			 /* default: don't wait for leave */
@@ -452,7 +452,7 @@ static int do_list(void)
 	}
 	printf("\n");
 
-	if (!verbose) {
+	if (!ls_all_nodes) {
 		printf("\n");
 		exit(EXIT_SUCCESS);
 	}
@@ -500,6 +500,7 @@ static void print_usage(void)
 	printf("  dump		   Dump debug buffer from fenced\n");
 	printf("\n");
 	printf("Options:\n");
+	printf("  -n               Show all node information in ls\n");
 	printf("  -m <seconds>     Delay join up to <seconds> for all nodes in cluster.conf\n");
 	printf("                   to be cluster members\n");
 	printf("  -w               Wait for join or leave to complete\n");
@@ -510,7 +511,7 @@ static void print_usage(void)
 	printf("\n");
 }
 
-#define OPTION_STRING "vVht:wQm:"
+#define OPTION_STRING "Vht:wQm:n"
 
 static void decode_arguments(int argc, char *argv[])
 {
@@ -529,8 +530,8 @@ static void decode_arguments(int argc, char *argv[])
 			exit(EXIT_SUCCESS);
 			break;
 
-		case 'v':
-			verbose++;
+		case 'n':
+			ls_all_nodes = 1;
 			break;
 
 		case 'h':

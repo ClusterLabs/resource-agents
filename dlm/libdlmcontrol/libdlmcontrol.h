@@ -9,7 +9,6 @@
 #define DLMC_NF_CHECK_FENCING	0x00000008
 #define DLMC_NF_CHECK_QUORUM	0x00000010
 #define DLMC_NF_CHECK_FS	0x00000020
-#define DLMC_NF_FS_NOTIFIED	0x00000040
 
 struct dlmc_node {
 	int nodeid;

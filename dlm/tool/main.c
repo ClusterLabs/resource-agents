@@ -33,7 +33,7 @@ static char *prog_name;
 static char *lsname;
 static int operation;
 static int opt_ind;
-static int verbose;
+static int ls_all_nodes = 0;
 static int opt_dir = 0;
 static int opt_excl = 0;
 static int opt_fs = 0;
@@ -55,7 +55,7 @@ static void print_usage(void)
 	       "                    ls | dump | plocks | deadlock_check]\n");
 	printf("\n");
 	printf("Options:\n");
-	printf("  -v               Verbose output\n");
+	printf("  -n               Show all node information in ls\n");
 	printf("  -d <n>           Resource directory off/on (0/1) in join, default 0\n");
 #ifdef LINUX2628rc
 	printf("  -e <n>           Exclusive create off/on (0/1) in join, default 0\n");
@@ -69,7 +69,7 @@ static void print_usage(void)
 	printf("\n");
 }
 
-#define OPTION_STRING "MhVvd:m:e:f:"
+#define OPTION_STRING "MhVnd:m:e:f:"
 
 static void decode_arguments(int argc, char **argv)
 {
@@ -104,8 +104,8 @@ static void decode_arguments(int argc, char **argv)
 			dump_mstcpy = 1;
 			break;
 
-		case 'v':
-			verbose = 1;
+		case 'n':
+			ls_all_nodes = 1;
 			break;
 
 		case 'h':
@@ -466,53 +466,56 @@ void do_lockdump(char *name)
 	fclose(file);
 }
 
-char *dlmc_lf_str(uint32_t flags)
+static char *dlmc_lf_str(uint32_t flags)
 {
 	static char str[128];
+	int i = 0;
 
 	memset(str, 0, sizeof(str));
 
-	if (flags & DLMC_LF_JOINING)
-		strcat(str, "joining ");
-	if (flags & DLMC_LF_LEAVING)
-		strcat(str, "leaving ");
-	if (flags & DLMC_LF_KERNEL_STOPPED)
-		strcat(str, "kernel_stopped ");
-	if (flags & DLMC_LF_FS_REGISTERED)
-		strcat(str, "fs_registered ");
-	if (flags & DLMC_LF_NEED_PLOCKS)
-		strcat(str, "need_plocks ");
-	if (flags & DLMC_LF_SAVE_PLOCKS)
-		strcat(str, "save_plocks ");
+	if (flags & DLMC_LF_SAVE_PLOCKS) {
+		i++;
+		strcat(str, "save_plock");
+	}
+	if (flags & DLMC_LF_NEED_PLOCKS) {
+		strcat(str, i++ ? "," : "");
+		strcat(str, "need_plock");
+	}
+	if (flags & DLMC_LF_FS_REGISTERED) {
+		strcat(str, i++ ? "," : "");
+		strcat(str, "fs_reg");
+	}
+	if (flags & DLMC_LF_KERNEL_STOPPED) {
+		strcat(str, i++ ? "," : "");
+		strcat(str, "kern_stop");
+	}
+	if (flags & DLMC_LF_LEAVING) {
+		strcat(str, i++ ? "," : "");
+		strcat(str, "leave");
+	}
+	if (flags & DLMC_LF_JOINING) {
+		strcat(str, i++ ? "," : "");
+		strcat(str, "join");
+	}
 
 	return str;
 }
 
-char *dlmc_nf_str(uint32_t flags)
+static char *nf_check_str(uint32_t flags)
 {
-	static char str[128];
-
-	memset(str, 0, sizeof(str));
-
-	if (flags & DLMC_NF_MEMBER)
-		strcat(str, "member ");
-	if (flags & DLMC_NF_START)
-		strcat(str, "start ");
-	if (flags & DLMC_NF_DISALLOWED)
-		strcat(str, "disallowed ");
 	if (flags & DLMC_NF_CHECK_FENCING)
-		strcat(str, "check_fencing ");
-	if (flags & DLMC_NF_CHECK_QUORUM)
-		strcat(str, "check_quorum ");
-	if (flags & DLMC_NF_CHECK_FS)
-		strcat(str, "check_fs ");
-	if (flags & DLMC_NF_FS_NOTIFIED)
-		strcat(str, "fs_notified");
+		return "fence";
 
-	return str;
+	if (flags & DLMC_NF_CHECK_QUORUM)
+		return "quorum";
+
+	if (flags & DLMC_NF_CHECK_FS)
+		return "fs";
+
+	return "none";
 }
 
-char *condition_str(int cond)
+static char *condition_str(int cond)
 {
 	switch (cond) {
 	case 0:
@@ -603,15 +606,29 @@ static void show_ls(struct dlmc_lockspace *ls)
 	show_nodeids(node_count, nodes);
 }
 
+static int member_int(struct dlmc_node *n)
+{
+	if (n->flags & DLMC_NF_DISALLOWED)
+		return -1;
+	if (n->flags & DLMC_NF_MEMBER)
+		return 1;
+	return 0;
+}
+
 static void show_all_nodes(int count, struct dlmc_node *nodes)
 {
 	struct dlmc_node *n = nodes;
 	int i;
 
 	for (i = 0; i < count; i++) {
-		printf("nodeid %d add_seq %u rem_seq %u failed %d flags 0x%x %s\n",
-			n->nodeid, n->added_seq, n->removed_seq,
-			n->failed_reason, n->flags, dlmc_nf_str(n->flags));
+		printf("nodeid %d member %d failed %d start %d seq_add %u seq_rem %u check %s\n",
+			n->nodeid,
+			member_int(n),
+			n->failed_reason,
+			(n->flags & DLMC_NF_START) ? 1 : 0,
+			n->added_seq,
+			n->removed_seq,
+			nf_check_str(n->flags));
 		n++;
 	}
 }
@@ -645,7 +662,7 @@ static void do_list(char *name)
 
 		show_ls(ls);
 
-		if (!verbose)
+		if (!ls_all_nodes)
 			goto next;
 
 		node_count = 0;

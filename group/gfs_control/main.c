@@ -14,7 +14,7 @@
 
 #include "libgfscontrol.h"
 
-#define OPTION_STRING			"vhV"
+#define OPTION_STRING			"nhV"
 
 #define OP_LIST				1
 #define OP_DUMP				2
@@ -27,7 +27,7 @@ static char *prog_name;
 static char *fsname;
 static int operation;
 static int opt_ind;
-static int verbose;
+static int ls_all_nodes;
 
 #define MAX_MG 128
 #define MAX_NODES 128
@@ -43,7 +43,7 @@ static void print_usage(void)
 	printf("%s [options] [ls|dump|plocks]\n", prog_name);
 	printf("\n");
 	printf("Options:\n");
-	printf("  -v               Verbose output\n");
+	printf("  -n               Show all node information in ls\n");
 	printf("  -h               Print this help, then exit\n");
 	printf("  -V               Print program version information, then exit\n");
 	printf("\n");
@@ -59,8 +59,8 @@ static void decode_arguments(int argc, char **argv)
 		optchar = getopt(argc, argv, OPTION_STRING);
 
 		switch (optchar) {
-		case 'v':
-			verbose = 1;
+		case 'n':
+			ls_all_nodes = 1;
 			break;
 
 		case 'h':
@@ -354,7 +354,7 @@ static void do_list(char *name)
 
 		show_mg(mg);
 
-		if (!verbose)
+		if (!ls_all_nodes)
 			goto next;
 
 		node_count = 0;

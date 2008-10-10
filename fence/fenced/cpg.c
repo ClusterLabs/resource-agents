@@ -1247,6 +1247,8 @@ static void confchg_cb(cpg_handle_t handle, struct cpg_name *group_name,
 
 	if (cg->we_joined)
 		add_victims_init(fd, cg);
+
+	apply_changes(fd);
 }
 
 static void fd_header_in(struct fd_header *hd)
@@ -1313,6 +1315,8 @@ static void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 	default:
 		log_error("unknown msg type %d", hd->type);
 	}
+
+	apply_changes(fd);
 }
 
 static cpg_callbacks_t cpg_callbacks = {
@@ -1336,8 +1340,6 @@ static void process_fd_cpg(int ci)
 		log_error("cpg_dispatch error %d", error);
 		return;
 	}
-
-	apply_changes(fd);
 }
 
 int fd_join(struct fd *fd)
