@@ -449,6 +449,7 @@ gi_get_tune(struct gfs_inode *ip,
         gfs_printf("glock_purge %u\n", gt->gt_glock_purge);
         gfs_printf("quota_simul_sync %u\n", gt->gt_quota_simul_sync);
         gfs_printf("quota_warn_period %u\n", gt->gt_quota_warn_period);
+        gfs_printf("atime_quantum %u\n", gt->gt_atime_quantum);
         gfs_printf("quota_quantum %u\n", gt->gt_quota_quantum);
         gfs_printf("quota_scale_num %u\n", gt->gt_quota_scale_num);
         gfs_printf("quota_scale_den %u\n", gt->gt_quota_scale_den);
@@ -619,6 +620,11 @@ gi_set_tune(struct gfs_sbd *sdp, struct gfs_ioctl *gi, int from_user)
 		if (sscanf(value, "%u", &x) != 1)
 			return -EINVAL;
 		tune_set(gt_quota_warn_period, x);
+
+	} else if (strcmp(param, "atime_quantum") == 0) {
+		if (sscanf(value, "%u", &x) != 1)
+			return -EINVAL;
+		tune_set(gt_atime_quantum, x);
 
 	} else if (strcmp(param, "quota_quantum") == 0) {
 		if (sscanf(value, "%u", &x) != 1)

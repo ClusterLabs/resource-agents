@@ -869,6 +869,7 @@ struct gfs_tune {
 
 	unsigned int gt_quota_simul_sync; /* Max # quotavals to sync at once */
 	unsigned int gt_quota_warn_period; /* Secs between quota warn msgs */
+	unsigned int gt_atime_quantum; /* Min secs between atime updates */
 	unsigned int gt_quota_quantum; /* Secs between syncs to quota file */
 	unsigned int gt_quota_scale_num; /* Numerator */
 	unsigned int gt_quota_scale_den; /* Denominator */
@@ -919,6 +920,7 @@ struct gfs_gl_hash_bucket {
 #define SDF_SHUTDOWN            (1)  /* FS abnormaly shutdown */
 
 /* (Re)mount options from Linux VFS */
+#define SDF_NOATIME             (8)  /* Don't change access time */
 #define SDF_ROFS                (9)  /* Read-only mode */
 
 /* Journal log dump support */
