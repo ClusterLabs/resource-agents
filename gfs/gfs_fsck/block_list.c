@@ -23,10 +23,7 @@ struct block_list *block_list_create(uint64_t size, enum block_list_type type)
 	log_info("Creating a block list of size %"PRIu64"...\n", size);
 
 	if ((il = malloc(sizeof(*il)))) {
-		if(!memset(il, 0, sizeof(*il))) {
-			log_err("Cannot set block list to zero\n");
-			return NULL;
-		}
+		memset(il, 0, sizeof(*il));
 		il->type = type;
 
 		switch(type) {
