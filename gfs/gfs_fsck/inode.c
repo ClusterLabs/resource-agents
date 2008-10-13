@@ -125,7 +125,11 @@ static int fs_get_istruct(struct fsck_sb *sdp, struct gfs_inum *inum,
 		goto out;
 	}
 
-	ip = (struct fsck_inode *)malloc(sizeof(struct fsck_inode));
+	if(!(ip = (struct fsck_inode *)malloc(sizeof(struct fsck_inode)))) {
+		log_err("Unable to allocate memory for inode\n");
+		error = -1;
+		goto out;
+	}
 	ip->i_num = *inum;
 
 	ip->i_sbd = sdp;
