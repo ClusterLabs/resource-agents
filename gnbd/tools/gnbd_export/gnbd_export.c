@@ -488,6 +488,10 @@ char *execute_uid_program(char *command){
       delim = "'";
     }
     argv = realloc(argv, (size + 2) * sizeof(char **));
+    if (!argv){
+      printe("cannot allocate memory for command line\n");
+      exit(1);
+    }
     argv[size++] = ptr;
     ptr = strpbrk(ptr, delim);
     if (!ptr){

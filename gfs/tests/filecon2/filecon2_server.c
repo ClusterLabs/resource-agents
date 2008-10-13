@@ -555,7 +555,7 @@ int main(int argc, char *argv[])
       if (!sock)
 	die("can't alloc memory: %s\n", strerror(errno));
       ssin = realloc(ssin, clients * sizeof(struct sockaddr_in));
-      if (!sock)
+      if (!ssin)
 	die("can't alloc memory: %s\n", strerror(errno));
 
       size = sizeof(struct sockaddr_in);

@@ -1334,10 +1334,16 @@ static void add_waitfor(struct lockspace *ls, struct dlm_lkb *waiting_lkb,
 	}
 
 	if (tr->waitfor_count == tr->waitfor_alloc) {
+		struct trans **new_waitfor;
 		old_alloc = tr->waitfor_alloc;
 		tr->waitfor_alloc += TR_NALLOC;
-		tr->waitfor = realloc(tr->waitfor,
-				      tr->waitfor_alloc * sizeof(tr));
+		new_waitfor = realloc(tr->waitfor,
+				      tr->waitfor_alloc * sizeof(*tr->waitfor));
+		if (new_waitfor == NULL) {
+			log_group(ls, "failed to allocate ...");
+			free (tr->waitfor);
+			return;
+		}
 		for (i = old_alloc; i < tr->waitfor_alloc; i++)
 			tr->waitfor[i] = NULL;
 	}
