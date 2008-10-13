@@ -292,6 +292,7 @@ int gfs1_rindex_read(struct gfs2_sbd *sdp, int fd, int *count1)
 			return -1;
 
 		rgd = (struct rgrp_list *)malloc(sizeof(struct rgrp_list));
+		// FIXME: handle failed malloc
 		memset(rgd, 0, sizeof(struct rgrp_list));
 		osi_list_add_prev(&rgd->list, &sdp->rglist);
 

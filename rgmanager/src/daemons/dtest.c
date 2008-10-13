@@ -274,6 +274,7 @@ dtest_shell(void)
 	dep_op_t *ops = NULL, *op;
 	
 	nodes = malloc(sizeof(int)*nodes_all_count);
+	// FIXME: handle failed malloc
 	
 	while (!done) {
 		
@@ -325,6 +326,7 @@ dtest_shell(void)
 					free(nodes_online);
 				
 				nodes_online = malloc(sizeof(int) * cnt);
+				// FIXME: handle failed malloc
 				
 				for (x = 0; x < cnt; x++)
 					nodes_online[x] = nodes[x];

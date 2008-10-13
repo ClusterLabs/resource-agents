@@ -122,6 +122,7 @@ static int fs_get_istruct(int disk_fd, struct gfs_sbd *sdp,
 	}
 
 	ip = (struct gfs_inode *)malloc(sizeof(struct gfs_inode));
+	// FIXME: handle failed malloc
 	ip->i_num = *inum;
 
 	ip->i_sbd = sdp;

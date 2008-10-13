@@ -1259,6 +1259,7 @@ int display_indirect(struct iinfo *ind, int indblocks, int level, uint64_t start
 			char *tmpbuf;
 			
 			more_indir = malloc(sizeof(struct iinfo));
+			// FIXME: handle failed malloc
 			tmpbuf = malloc(sbd.bsize);
 			if (tmpbuf) {
 				do_lseek(sbd.device_fd,

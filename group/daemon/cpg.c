@@ -648,12 +648,14 @@ void deliver_cb(cpg_handle_t handle, struct cpg_name *group_name,
 			  msg_type(msg->ms_type), nodeid);
 
 	save = malloc(sizeof(struct save_msg));
+	// FIXME: handle failed malloc
 	memset(save, 0, sizeof(struct save_msg));
 	save->nodeid = nodeid;
 	save->msg_len = data_len;
 
 	if (data_len > sizeof(msg_t)) {
 		buf = malloc(data_len);
+		// FIXME: handle failed malloc
 		memcpy(buf, data, data_len);
 		save->msg_long = buf;
 		memcpy(&save->msg, data, sizeof(msg_t));

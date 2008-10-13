@@ -178,6 +178,7 @@ void extend_recover_event(group_t *g, event_t *ev, int nodeid)
 	}
 
 	id = malloc(sizeof(struct nodeid));
+	// FIXME: handle failed malloc
 	id->nodeid = new_id_nodeid;
 	list_add(&id->list, &ev->extended);
 }
@@ -274,6 +275,7 @@ struct recovery_set *add_recovery_set_cpg(int nodeid, int procdown)
 			if (node->nodeid == nodeid) {
 				log_group(g, "add to recovery set %d", nodeid);
 				re = malloc(sizeof(*re));
+				// FIXME: handle failed malloc
 				memset(re, 0, sizeof(struct recovery_entry));
 				re->group = g;
 				list_add_tail(&re->list, &rs->entries);
@@ -1534,6 +1536,7 @@ int recover_current_event(group_t *g)
 		}
 
 		id = malloc(sizeof(struct nodeid));
+		// FIXME: handle failed malloc
 		id->nodeid = rev->nodeid;
 		list_add(&id->list, &ev->extended);
 		log_group(g, "extend active rev %d with failed node %d",

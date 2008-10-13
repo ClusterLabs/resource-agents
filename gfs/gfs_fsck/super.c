@@ -710,6 +710,7 @@ int gfs_rgindex_rebuild(struct fsck_sb *sdp, osi_list_t *ret_list,
 			/* ------------------------------------------------------------- */
 			/* Allocate a new RG and index. */
 			calc_rgd = (struct fsck_rgrp *)malloc(sizeof(struct fsck_rgrp));
+			// FIXME: handle failed malloc
 			memset(calc_rgd, 0, sizeof(struct fsck_rgrp));
 			calc_rgd->rd_sbd = sdp; /* hopefully this is not used */
 			osi_list_add_prev(&calc_rgd->rd_list, ret_list);
@@ -975,6 +976,7 @@ int gfs_rgindex_calculate(struct fsck_sb *sdp, osi_list_t *ret_list,
 				(rgs_per_subd - 1) * (adjust_subdevice_size / rgs_per_subd);
 		
 		calc_rgd = (struct fsck_rgrp *)malloc(sizeof(struct fsck_rgrp));
+		// FIXME: handle failed malloc
 		memset(calc_rgd, 0, sizeof(struct fsck_rgrp));
 		calc_rgd->rd_sbd = sdp; /* hopefully this is not used */
 		osi_list_add_prev(&calc_rgd->rd_list, ret_list);
@@ -1117,6 +1119,7 @@ int ri_update(struct fsck_sb *sdp)
 			}
 			
 			rgd = (struct fsck_rgrp *)malloc(sizeof(struct fsck_rgrp));
+			// FIXME: handle failed malloc
 			memset(rgd, 0, sizeof(struct fsck_rgrp));
 			rgd->rd_sbd = sdp;
 			osi_list_add_prev(&rgd->rd_list, &sdp->rglist);

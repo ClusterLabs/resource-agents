@@ -212,6 +212,7 @@ static int init_system_inodes(struct gfs2_sbd *sdp)
 
 	gfs2_lookupi(sdp->master_dir, "statfs", 6, &sdp->md.statfs);
 	buf = malloc(sdp->md.statfs->i_di.di_size);
+	// FIXME: handle failed malloc
 	gfs2_readi(sdp->md.statfs, buf, 0, sdp->md.statfs->i_di.di_size);
 	/* call gfs2_inum_range_in() to retrieve range */
 	gfs2_statfs_change_in(&sc, buf);

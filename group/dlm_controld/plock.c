@@ -1618,6 +1618,7 @@ static int unpack_section_buf(struct lockspace *ls, char *numbuf, int buflen)
 	for (i = 0; i < count; i++) {
 		if (!pp->waiter) {
 			po = malloc(sizeof(struct posix_lock));
+			// FIXME: handle failed malloc
 			po->start	= le64_to_cpu(pp->start);
 			po->end		= le64_to_cpu(pp->end);
 			po->owner	= le64_to_cpu(pp->owner);
@@ -1627,6 +1628,7 @@ static int unpack_section_buf(struct lockspace *ls, char *numbuf, int buflen)
 			list_add_tail(&po->list, &r->locks);
 		} else {
 			w = malloc(sizeof(struct lock_waiter));
+			// FIXME: handle failed malloc
 			w->info.start	= le64_to_cpu(pp->start);
 			w->info.end	= le64_to_cpu(pp->end);
 			w->info.owner	= le64_to_cpu(pp->owner);

@@ -204,6 +204,7 @@ rmtab_insert(rmtab_node **head, rmtab_node *pre, char *host,
 
 	/* Copy in info */
 	rnew = malloc(sizeof(*rnew));
+	// FIXME: handle failed malloc
 	memset(rnew, 0, sizeof(*rnew));
 	rnew->rn_hostname = strdup(host);
 	rnew->rn_path = strdup(path);

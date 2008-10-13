@@ -344,6 +344,7 @@ int ri_update(int disk_fd, struct gfs_sbd *sdp)
 			goto fail;
 		}
 		rgd = (struct gfs_rgrpd *)malloc(sizeof(struct gfs_rgrpd));
+		// FIXME: handle failed malloc
 		rgd->rd_sbd = sdp;
 		osi_list_add_prev((osi_list_t *)&rgd->rd_list,
 						  (osi_list_t *)&sdp->sd_rglist);

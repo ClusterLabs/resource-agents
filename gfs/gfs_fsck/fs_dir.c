@@ -549,6 +549,7 @@ static int dir_l_search(struct fsck_inode *dip, identifier_t *id, unsigned int *
 			exit(1);
 		}
 		id->inum = (struct gfs_inum *)malloc(sizeof(struct gfs_inum));
+		// FIXME: don't dereference NULL on failed malloc
 		memset(id->inum, 0, sizeof(struct gfs_inum));
 
 		gfs_inum_in(id->inum, (char *)&dent->de_inum);
@@ -558,10 +559,12 @@ static int dir_l_search(struct fsck_inode *dip, identifier_t *id, unsigned int *
 			exit(1);
 		}
 		id->filename = (osi_filename_t *)malloc(sizeof(osi_filename_t));
+		// FIXME: don't dereference NULL on failed malloc
 		memset(id->filename, 0, sizeof(osi_filename_t));
 
 		id->filename->len = gfs16_to_cpu(dent->de_name_len);
 		id->filename->name = malloc(id->filename->len);
+		// FIXME: don't dereference NULL on failed malloc
 		memset(id->filename->name, 0, id->filename->len);
 
 		memcpy(id->filename->name, (char *)dent+sizeof(struct gfs_dirent),
@@ -801,6 +804,7 @@ static int dir_split_leaf(struct fsck_inode *dip, uint32 index, uint64 leaf_no)
 	    This code is complicated enough already.  */
 
 	lp = (uint64 *)malloc(half_len * sizeof(uint64));
+	// FIXME: don't dereference NULL on failed malloc
 	memset(lp, 0, half_len * sizeof(uint64));
 
 	error = readi(dip, (char *)lp, start * sizeof(uint64),

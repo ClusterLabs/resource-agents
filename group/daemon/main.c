@@ -485,6 +485,7 @@ static int do_get_groups(int ci, int argc, char **argv)
 	int rv, count = 0, max = atoi(argv[1]);
 
 	data = malloc(sizeof(group_data_t));
+	// FIXME: handle failed malloc
 	count = 0;
 
 	list_for_each_entry(g, &gd_groups, list) {
@@ -588,6 +589,7 @@ static void do_send(char *name, int level, int len, char *data)
 
 	total = sizeof(msg_t) + len;
 	buf = malloc(total);
+	// FIXME: handle failed malloc
 	memset(buf, 0, total);
 
 	memcpy(buf + sizeof(msg_t), data, len);

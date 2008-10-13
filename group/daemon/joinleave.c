@@ -157,6 +157,7 @@ node_t *new_node(int nodeid)
 	node_t *node;
 
 	node = malloc(sizeof(*node));
+	// FIXME: handle failed malloc
 	memset(node, 0, sizeof(*node));
 	node->nodeid = nodeid;
 	return node;
