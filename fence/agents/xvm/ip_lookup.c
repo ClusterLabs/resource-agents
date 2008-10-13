@@ -73,6 +73,8 @@ add_ip(ip_list_t *ipl, char *ipaddr, char family)
 	dbg_printf(4, "Adding IP %s to list (family %d)\n", ipaddr, family);
 
 	ipa = malloc(sizeof(*ipa));
+	if (!ipa)
+		return -1;
 	memset(ipa, 0, sizeof(*ipa));
 	ipa->ipa_family = family;
 	ipa->ipa_address = strdup(ipaddr);
