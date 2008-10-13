@@ -583,11 +583,9 @@ void save_inode_data(int out_fd)
 	osi_list_t *prev_list, *cur_list, *tmp;
 	struct gfs2_buffer_head *metabh, *mybh;
 	int i;
-	char *buf;
 
 	for (i = 0; i < GFS2_MAX_META_HEIGHT; i++)
 		osi_list_init(&metalist[i]);
-	buf = malloc(sbd.bsize);
 	metabh = bread(&sbd, block);
 	inode = inode_get(&sbd, metabh);
 	height = inode->i_di.di_height;
@@ -662,7 +660,6 @@ void save_inode_data(int out_fd)
 		brelse(metabh, not_updated);
 	}
 	inode_put(inode, not_updated);
-	free(buf);
 }
 
 void get_journal_inode_blocks(void)
