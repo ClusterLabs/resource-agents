@@ -447,6 +447,7 @@ static void add_fence_args(xmlNode *fencenode, int argc, char **argv, int optind
 		char *equals;
 
 		prop = strdup(argv[i]);
+		// FIXME: handle failed strdup
 		equals = strchr(prop, '=');
 		if (!equals)
 			die("option '%s' is not opt=value pair\n", prop);
