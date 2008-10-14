@@ -169,56 +169,90 @@ void do_leave(char *table)
 		fprintf(stderr, "gfs_controld leave error %d\n", rv);
 }
 
-char *gfsc_mf_str(uint32_t flags)
+char *mg_flags_str(uint32_t flags)
 {
 	static char str[128];
+	int i = 0;
 
 	memset(str, 0, sizeof(str));
 
-	if (flags & GFSC_MF_JOINING)
-		strcat(str, "joining ");
-	if (flags & GFSC_MF_LEAVING)
-		strcat(str, "leaving ");
-	if (flags & GFSC_MF_KERNEL_STOPPED)
-		strcat(str, "kernel_stopped ");
-	if (flags & GFSC_MF_KERNEL_MOUNT_DONE)
-		strcat(str, "kernel_mount_done ");
-	if (flags & GFSC_MF_KERNEL_MOUNT_ERROR)
-		strcat(str, "kernel_mount_error ");
-	if (flags & GFSC_MF_FIRST_RECOVERY_NEEDED)
-		strcat(str, "first_recovery_needed ");
+	if (flags & GFSC_MF_LOCAL_RECOVERY_BUSY) {
+		i++;
+		strcat(str, "recover");
+	}
+	if (flags & GFSC_MF_FIRST_RECOVERY_NEEDED) {
+		strcat(str, i++ ? "," : "");
+		strcat(str, "need_first");
+	}
+	if (flags & GFSC_MF_KERNEL_MOUNT_ERROR) {
+		strcat(str, i++ ? "," : "");
+		strcat(str, "error");
+	}
+	if (flags & GFSC_MF_KERNEL_MOUNT_DONE) {
+		strcat(str, i++ ? "," : "");
+		strcat(str, "mounted");
+	}
+	if (flags & GFSC_MF_KERNEL_STOPPED) {
+		strcat(str, i++ ? "," : "");
+		strcat(str, "blocked");
+	}
+	if (flags & GFSC_MF_LEAVING) {
+		strcat(str, i++ ? "," : "");
+		strcat(str, "leave");
+	}
+	if (flags & GFSC_MF_JOINING) {
+		strcat(str, i++ ? "," : "");
+		strcat(str, "join");
+	}
+
+	/* leave this one out, it will often be set and we don't need
+	   to see it */
+	/*
 	if (flags & GFSC_MF_FIRST_RECOVERY_MSG)
 		strcat(str, "first_recovery_msg ");
-	if (flags & GFSC_MF_LOCAL_RECOVERY_BUSY)
-		strcat(str, "local_recovery_busy ");
+	*/
+	return str;
+}
+
+char *node_mount_str(uint32_t flags)
+{
+	static char str[128];
+	int i = 0;
+
+	memset(str, 0, sizeof(str));
+
+	if (flags & GFSC_NF_KERNEL_MOUNT_DONE) {
+		i++;
+		strcat(str, "done");
+	}
+	if (flags & GFSC_NF_KERNEL_MOUNT_ERROR) {
+		strcat(str, i++ ? "," : "");
+		strcat(str, "error");
+	}
+	if (flags & GFSC_NF_READONLY) {
+		strcat(str, i++ ? "," : "");
+		strcat(str, "ro");
+	}
+	if (flags & GFSC_NF_SPECTATOR) {
+		strcat(str, i++ ? "," : "");
+		strcat(str, "spect");
+	}
+
+	if (!i)
+		strcat(str, "none");
+
+	/* ignoring CHECK_DLM */
 
 	return str;
 }
 
-char *gfsc_nf_str(uint32_t flags)
+int member_int(struct gfsc_node *n)
 {
-	static char str[128];
-
-	memset(str, 0, sizeof(str));
-
-	if (flags & GFSC_NF_MEMBER)
-		strcat(str, "member ");
-	if (flags & GFSC_NF_START)
-		strcat(str, "start ");
-	if (flags & GFSC_NF_DISALLOWED)
-		strcat(str, "disallowed ");
-	if (flags & GFSC_NF_KERNEL_MOUNT_DONE)
-		strcat(str, "kernel_mount_done ");
-	if (flags & GFSC_NF_KERNEL_MOUNT_ERROR)
-		strcat(str, "kernel_mount_error ");
-	if (flags & GFSC_NF_READONLY)
-		strcat(str, "readonly ");
-	if (flags & GFSC_NF_SPECTATOR)
-		strcat(str, "spectator ");
-	if (flags & GFSC_NF_CHECK_DLM)
-		strcat(str, "check_dlm ");
-
-	return str;
+	if (n->flags & GFSC_NF_DISALLOWED)
+		return -1;
+	if (n->flags & GFSC_NF_MEMBER)
+		return 1;
+	return 0;
 }
 
 char *condition_str(int cond)
@@ -266,7 +300,7 @@ static void show_mg(struct gfsc_mountgroup *mg)
 	printf("name          %s\n", mg->name);
 	printf("id            0x%08x\n", mg->global_id);
 	printf("flags         0x%08x %s\n",
-		mg->flags, gfsc_mf_str(mg->flags));
+		mg->flags, mg_flags_str(mg->flags));
 	printf("change        member %d joined %d remove %d failed %d seq %d,%d\n",
 		mg->cg_prev.member_count, mg->cg_prev.joined_count,
 		mg->cg_prev.remove_count, mg->cg_prev.failed_count,
@@ -318,9 +352,15 @@ static void show_all_nodes(int count, struct gfsc_node *nodes)
 	int i;
 
 	for (i = 0; i < count; i++) {
-		printf("nodeid %d jid %d add_seq %u rem_seq %u failed %d flags 0x%x %s\n",
-			n->nodeid, n->jid, n->added_seq, n->removed_seq,
-			n->failed_reason, n->flags, gfsc_nf_str(n->flags));
+		printf("nodeid %d jid %d member %d failed %d start %d seq_add %u seq_rem %u mount %s\n",
+			n->nodeid,
+			n->jid,
+			member_int(n),
+			n->failed_reason,
+			(n->flags & GFSC_NF_START) ? 1 : 0,
+			n->added_seq,
+			n->removed_seq,
+			node_mount_str(n->flags));
 		n++;
 	}
 }

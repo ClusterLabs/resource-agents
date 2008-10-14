@@ -37,6 +37,7 @@ static int operation;
 static int opt_ind;
 static int verbose;
 static int all_daemons;
+static int ls_all_nodes;
 static int print_header_done;
 
 
@@ -84,6 +85,8 @@ static void print_usage(void)
 	printf("\n");
 	printf("Options:\n");
 	printf("  -v               Verbose output, extra event information\n");
+	printf("  -a               fence_tool ls; dlm_tool ls; gfs_control ls\n");
+	printf("  -n               Show all node information with -a\n");
 	printf("  -h               Print this help, then exit\n");
 	printf("  -V               Print program version information, then exit\n");
 	printf("\n");
@@ -103,7 +106,7 @@ static void print_usage(void)
 	printf("\n");
 }
 
-#define OPTION_STRING "ahVv"
+#define OPTION_STRING "ahVvn"
 
 static void decode_arguments(int argc, char **argv)
 {
@@ -116,6 +119,10 @@ static void decode_arguments(int argc, char **argv)
 		switch (optchar) {
 		case 'a':
 			all_daemons = 1;
+			break;
+
+		case 'n':
+			ls_all_nodes = 1;
 			break;
 
 		case 'v':
@@ -609,7 +616,7 @@ int main(int argc, char **argv)
 	switch (operation) {
 	case OP_LIST:
 		if (all_daemons) {
-			if (verbose) {
+			if (verbose || ls_all_nodes) {
 				system("fence_tool ls -n");
 				system("dlm_tool ls -n");
 				system("gfs_control ls -n");
