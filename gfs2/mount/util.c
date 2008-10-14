@@ -141,6 +141,13 @@ void parse_opts(struct mount_options *mo)
 		}
 	}
 
+	/* Hack to get the noatime/nodiratime option through to gfs */
+	if ((mo->flags & (MS_NOATIME | MS_NODIRATIME)) &&
+	    (strcmp(mo->type, "gfs") == 0)) {
+		strcat(mo->extra, "gfs_noatime");
+		extra_len += strlen("gfs_noatime");
+	}
+
 	log_debug("parse_opts: flags = %x", mo->flags);
 	log_debug("parse_opts: extra = \"%s\"", mo->extra);
 	log_debug("parse_opts: hostdata = \"%s\"", mo->hostdata);

@@ -195,6 +195,7 @@ int main(int argc, char **argv)
 		die("invalid mount helper name \"%s\"\n", prog_name);
 
 	fsname = (strstr(prog_name, "gfs2")) ? "gfs2" : "gfs";
+	strcpy(mo.type, fsname);
 
 	if (argc < 2) {
 		print_usage();

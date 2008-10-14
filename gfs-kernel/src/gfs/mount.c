@@ -143,6 +143,9 @@ gfs_make_args(char *data_arg, struct gfs_args *args, int remount)
 		else if (!strcmp(x, "noquota"))
 			args->ar_noquota = TRUE;
 
+		else if (!strcmp(x, "gfs_noatime"))
+			args->ar_noatime = TRUE;
+
 		/*  Unknown  */
 
 		else {

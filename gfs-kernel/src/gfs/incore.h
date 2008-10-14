@@ -843,6 +843,7 @@ struct gfs_args {
 	int ar_posix_acls; /* Enable posix acls */
 	int ar_suiddir; /* suiddir support */
 	int ar_noquota; /* Turn off quota support */
+	int ar_noatime; /* Turn off atime updates */
 };
 
 struct gfs_tune {

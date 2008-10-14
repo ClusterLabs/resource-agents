@@ -638,7 +638,7 @@ static int fill_super(struct super_block *sb, void *data, int silent)
 
 	/*  Copy VFS mount flags  */
 
-	if (sb->s_flags & (MS_NOATIME | MS_NODIRATIME))
+	if (sdp->sd_args.ar_noatime)
 		set_bit(SDF_NOATIME, &sdp->sd_flags);
 	if (sb->s_flags & MS_RDONLY)
 		set_bit(SDF_ROFS, &sdp->sd_flags);
