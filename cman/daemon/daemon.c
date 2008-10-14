@@ -329,7 +329,7 @@ static int process_rendezvous(poll_handle handle, int fd, int revent, void *data
 	client_fd = accept(fd, (struct sockaddr *) &socka, &sl);
 	if (client_fd >= 0) {
 		struct connection *newcon = malloc(sizeof(struct connection));
-		if (!con) {
+		if (!newcon) {
 			close(client_fd);
 			return 0; /* returning -1 will remove us */
 		}

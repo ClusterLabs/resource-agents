@@ -518,6 +518,8 @@ int cman_dispatch(cman_handle_t handle, int flags)
 		if (header->length > sizeof(buf))
 		{
 			bufptr = malloc(header->length);
+			if (!bufptr)
+				return -1;
 			memcpy(bufptr, buf, sizeof(*header));
 			header = (struct sock_header *)bufptr;
 		}
