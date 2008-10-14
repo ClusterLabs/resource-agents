@@ -816,11 +816,12 @@ static int wait_messages_done(struct mountgroup *mg)
 	}
 
 	if (need) {
-		log_group(mg, "wait_messages need %d of %d", need, total);
+		log_group(mg, "wait_messages cg %u need %d of %d",
+			  cg->seq, need, total);
 		return 0;
 	}
 
-	log_group(mg, "wait_messages got all %d", total);
+	log_group(mg, "wait_messages cg %u got all %d", cg->seq, total);
 	return 1;
 }
 
