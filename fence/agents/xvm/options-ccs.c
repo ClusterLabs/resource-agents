@@ -65,6 +65,9 @@ args_get_ccs(char *optstr, fence_xvm_args_t *args)
 			continue;
 		}
 
+		if (!arg->stdin_opt)
+			continue;
+
 		n = snprintf(buf, sizeof(buf), "/cluster/fence_xvmd/@%s\n",
 			     arg->stdin_opt);
 		if (n == sizeof(buf)) {
