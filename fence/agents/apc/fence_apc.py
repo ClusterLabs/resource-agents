@@ -26,6 +26,7 @@ BUILD_DATE="March, 2008"
 
 def get_power_status(conn, options):
 	result = ""
+	outlets = {}
 	try:
 		conn.send("1\r\n")
 		conn.log_expect(options, options["-c"], SHELL_TIMEOUT)
@@ -68,6 +69,12 @@ def get_power_status(conn, options):
 			
 		while 1 == conn.log_expect(options, [ options["-c"],  "Press <ENTER>" ], SHELL_TIMEOUT):
 			result += conn.before
+			lines = conn.before.split("\n");
+			show_re = re.compile('^\s*(\d+)- (.*?)\s+(ON|OFF)\s*$')
+			for x in lines:
+				res = show_re.search(x)
+				if (res != None):
+					outlets[res.group(1)] = (res.group(2), res.group(3))
 			conn.send("\r\n")
 		result += conn.before
 		conn.send(chr(03))		
@@ -78,8 +85,11 @@ def get_power_status(conn, options):
 	except pexpect.TIMEOUT:
 		fail(EC_TIMED_OUT)
 
-	status = re.compile("\s*"+options["-n"]+"-.*(ON|OFF)", re.IGNORECASE).search(result).group(1)
-	return status.lower().strip()
+	if options["-o"] == "list":
+		return outlets
+	else:
+		status = re.compile("\s*"+options["-n"]+"-.*(ON|OFF)", re.IGNORECASE).search(result).group(1)
+		return status.lower().strip()
 
 def set_power_status(conn, options):
 	action = {
@@ -165,7 +175,7 @@ def set_power_status(conn, options):
 def main():
 	device_opt = [  "help", "version", "agent", "quiet", "verbose", "debug",
 			"action", "ipaddr", "login", "passwd", "passwd_script",
-			"secure", "port", "switch", "test" ]
+			"secure", "port", "switch", "test", "separator" ]
 
 	options = check_input(device_opt, process_input(device_opt))
 
@@ -187,7 +197,7 @@ def main():
 	## Operate the fencing device
 	####
 	conn = fence_login(options)
-	fence_action(conn, options, set_power_status, get_power_status)
+	fence_action(conn, options, set_power_status, get_power_status, get_power_status)
 
 	##
 	## Logout from system
