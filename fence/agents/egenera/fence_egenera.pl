@@ -284,7 +284,7 @@ sub pserver_shutdown
 {
 	my $rtrn=1;
         local *egen_log;
-        open(egen_log,">>/tmp/eglog");
+	open(egen_log,">>@LOGDIR@/fence_egenera.log");
   print egen_log "Attempting shutdown at ".`date`."\n";
 	for (my $trys=0; $trys<20; $trys++)
 	{
