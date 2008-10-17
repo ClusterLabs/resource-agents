@@ -238,6 +238,7 @@ dnl Always tries to set the compiler to ANSI C via options (AM)
 dnl Can force other with environment variable "CC".
 AC_PROG_CC
 AC_PROG_CC_STDC
+AM_PROG_CC_C_O
 
 dnl ************************************************************************
 dnl Override the RPM target architecture on those platforms that need it...
