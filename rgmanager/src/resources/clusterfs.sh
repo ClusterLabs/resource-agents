@@ -572,9 +572,9 @@ killMountProcesses()
 				else
 					kill -TERM $pid
 				fi
-			done < <(fuser -vm $mp | \
+			done < <(fuser -vm $mp 2>&1 | \
 			    grep -v PID | \
-			    sed 's;^'$mp';;' | \
+			    sed 's;^'$mp:';;' | \
 			    awk '{print $4,$2,$1}' | \
 			    sort -u -k 1,3)
 		fi
