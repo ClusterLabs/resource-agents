@@ -379,9 +379,14 @@ gfs_commit_write(struct file *file, struct page *page,
 		if (inode->i_size < file_size)
 			i_size_write(inode, file_size);
 	} else {
+		loff_t pos = ((loff_t)page->index << PAGE_CACHE_SHIFT) + to;
 		error = block_commit_write(page, from, to);
 		if (error)
 			goto fail;
+		if (pos > inode->i_size) {
+			i_size_write(inode, pos);
+			mark_inode_dirty(inode);
+		}
 	}
 
 	ip->gfs_file_aops.commit_write = NULL;
