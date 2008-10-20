@@ -50,7 +50,7 @@ SHAREDOBJS=	depends-noccs.o \
 
 CFLAGS += -DSHAREDIR=\"${sharedir}\"
 CFLAGS += -Werror -Wstrict-prototypes -Wshadow -fPIC
-CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmincdir}
+CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmincdir} -I${corosyncincdir}
 CFLAGS += `xml2-config --cflags` -I${readlineincdir} -I${slangincdir}
 CFLAGS += -I$(S)/../../include
 CFLAGS += -I${incdir}
@@ -61,7 +61,8 @@ LDFLAGS += -L../clulib -lclulib
 LDFLAGS += -L${libdir}
 
 CCS_LDFLAGS += -L${ccslibdir} -lccs 
-CMAN_LDFLAGS += -L${cmanlibdir} -lcman -llogsys
+CMAN_LDFLAGS += -L${cmanlibdir} -lcman
+LOGSYS_LDFLAGS += -L${corosynclibdir} -llogsys
 DLM_LDFLAGS += -L${dlmlibdir} -ldlm
 XML2_LDFLAGS += `xml2-config --libs`
 SLANG_LDFLAGS += -L${slanglibdir} -lslang
@@ -77,7 +78,7 @@ ${TARGET1}: ${OBJS1} ${LDDEPS}
 	$(CC) -o $@ $^ $(CCS_LDFLAGS) $(CMAN_LDFLAGS) \
 			$(DLM_LDFLAGS) $(XML2_LDFLAGS) \
 			$(SLANG_LDFLAGS) $(EXTRA_LDFLAGS) \
-			$(LD_FLAGS)
+			$(LOGSYS_LDFLAGS) $(LD_FLAGS)
 
 #${TARGET2}: ${OBJS2} ${LDDEPS}
 #	$(CC) -o $@ $^ $(LDFLAGS)
@@ -98,7 +99,7 @@ ${TARGET1}: ${OBJS1} ${LDDEPS}
 #
 ${TARGET3}: ${SHAREDOBJS} ${OBJS3} ${LDDEPS} ${LOCAL_LDDEPS}
 	$(CC) -o $@ $^ $(CMAN_LDFLAGS) $(LOCAL_LDFLAGS) $(EXTRA_LDFLAGS) \
-			$(XML2_LDFLAGS) $(LDFLAGS)
+			$(XML2_LDFLAGS) $(LOGSYS_LDFLAGS) $(LDFLAGS)
 
 ${TARGET4}: ${SHAREDOBJS} ${OBJS4} ${LDDEPS} ${LOCAL_LDDEPS}
 	$(CC) -o $@ $^ $(CCS_LDFLAGS) $(CMAN_LDFLAGS) \

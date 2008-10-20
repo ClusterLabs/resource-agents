@@ -18,7 +18,8 @@ include $(OBJDIR)/make/uninstall.mk
 DISABLEDTARGETS= cluarp
 
 CFLAGS += -Werror -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
-CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmincdir} -I${ncursesincdir}
+CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmincdir}
+CFLAGS += -I${corosyncincdir} -I${ncursesincdir}
 CFLAGS += -I$(S)/../../include
 CFLAGS += -I${incdir}
 
@@ -28,7 +29,8 @@ LDFLAGS += -L${libdir}
 LDDEPS += ../clulib/libclulib.a
 
 CCS_LDFLAGS += -L${ccslibdir} -lccs
-CMAN_LDFLAGS += -L${cmanlibdir} -lcman -llogsys
+CMAN_LDFLAGS += -L${cmanlibdir} -lcman
+LOGSYS_LDFLAGS += -L${corosynclibdir} -llogsys
 NCURSES_LDFLAGS += -L${ncurseslibdir} -lncurses
 PTHREAD_LDFLAGS += -lpthread 
 
@@ -46,13 +48,16 @@ ${TARGET2}: ${OBJS2} ${LDDEPS}
 
 ${TARGET3}: ${OBJS3} ${LDDEPS}
 	$(CC) -o $@ $^ $(CCS_LDFLAGS) $(CMAN_LDFLAGS) \
-			$(NCURSES_LDFLAGS) $(PTHREAD_LDFLAGS) $(LDFLAGS)
+			$(NCURSES_LDFLAGS) $(PTHREAD_LDFLAGS) \
+			$(LOGSYS_LDFLAGS) $(LDFLAGS)
 
 ${TARGET4}: ${OBJS4} ${LDDEPS}
-	$(CC) -o $@ $^ $(CMAN_LDFLAGS) $(PTHREAD_LDFLAGS) $(LDFLAGS)
+	$(CC) -o $@ $^ $(CMAN_LDFLAGS) $(PTHREAD_LDFLAGS) \
+			$(LOGSYS_LDFLAGS) $(LDFLAGS)
 
 ${TARGET5}: ${OBJS5} ${LDDEPS}
-	$(CC) -o $@ $^ $(CCS_LDFLAGS) $(CMAN_LDFLAGS) $(LDFLAGS)
+	$(CC) -o $@ $^ $(CCS_LDFLAGS) $(CMAN_LDFLAGS) \
+			$(LOGSYS_LDFLAGS) $(LDFLAGS)
 
 ${TARGET6}:
 	cp $(S)/${TARGET6}.sh ${TARGET6}
