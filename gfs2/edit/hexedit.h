@@ -269,7 +269,7 @@ EXTERN enum dsp_mode dmode INIT(HEX_MODE);
 #define DIV_RU(x, y) (((x) + (y) - 1) / (y))
 
 #define TITLE1 "gfs2_edit - Global File System Editor (use with extreme caution)"
-#define TITLE2 REDHAT_COPYRIGHT "- Press H for help"
+#define TITLE2 REDHAT_COPYRIGHT " - Press H for help"
 
 #define COLOR_TITLE     1
 #define COLOR_NORMAL    2
