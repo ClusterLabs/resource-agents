@@ -5,6 +5,12 @@ Copyright (C) 2004-2008 Red Hat, Inc.  All rights reserved.
 
 Exceptions:
 
+contrib/askant:
+ Copyright (C) 2008 Andrew Price <andy@andrewprice.me.uk>
+
+contrib/libaislock:
+ Contributed by Stanley Wang of Intel.
+
 cman/qdisk/crc32.c:
  Copyright (C) 2000 Bryan Call <bc at fodder.org>
  Modified by Lon H. Hohberger <lhh at redhat.com>
@@ -37,9 +43,6 @@ fence/agents/ifmib/fence_ifmib.py:
 
 fence/agents/ipmilan/expect.{c,h}:
  Copyright (C) 2000 Alan Robertson <alanr at unix.sh>
-
-fence/agents/vmware/fence_vmware.pl:
- Author: Zach Lowry <zach at zachlowry.net>
 
 fence/agents/xvm/tcp.c:
  Copyright (C) 2000 Mission Critical Linux

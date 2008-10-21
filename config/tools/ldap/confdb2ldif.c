@@ -1,12 +1,3 @@
-/*
- * Copyright (c) 2008 Red Hat Inc
- *
- * All rights reserved.
- *
- * Author: Christine Caulfield <ccaulfie@redhat.com>
- *
- */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>

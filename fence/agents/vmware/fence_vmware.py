@@ -1,7 +1,6 @@
 #!/usr/bin/python
 
-##
-## Copyright (C) 2008 Red Hat, Inc. All Rights Reserved.
+#####
 ##
 ## The Following Agent Has Been Tested On VMware ESX 3.5 and VMware Server 1.0.7
 ## 
