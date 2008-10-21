@@ -1340,7 +1340,7 @@ static void add_waitfor(struct lockspace *ls, struct dlm_lkb *waiting_lkb,
 		new_waitfor = realloc(tr->waitfor,
 				      tr->waitfor_alloc * sizeof(*tr->waitfor));
 		if (new_waitfor == NULL) {
-			log_group(ls, "failed to allocate ...");
+			log_group(ls, "failed to allocate internal buffer");
 			free (tr->waitfor);
 			return;
 		}
