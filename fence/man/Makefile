@@ -7,6 +7,7 @@ TARGET= fence.8 \
 	fence_brocade.8 \
 	fence_drac.8 \
 	fence_egenera.8 \
+	fence_eps.8 \
 	fence_gnbd.8 \
 	fence_ifmib.8 \
 	fence_ilo.8 \
@@ -14,7 +15,7 @@ TARGET= fence.8 \
 	fence_manual.8 \
 	fence_mcdata.8 \
 	fence_node.8 \
-        fence_rib.8 \
+	fence_rib.8 \
 	fence_sanbox2.8 \
 	fence_tool.8 \
 	fence_vixel.8 \
