@@ -70,6 +70,10 @@ all_opt = {
 		"getopt" : "",
 		"help" : "",
 		"order" : 1 },
+	"no_password" : {
+		"getopt" : "",
+		"help" : "",
+		"order" : 1 },
 	"passwd" : {
 		"getopt" : "p:",
 		"help" : "-p <password>  Login password or passphrase",
@@ -296,12 +300,13 @@ def check_input(device_opt, opt):
 	if 0 == options.has_key("-a"):
 		fail_usage("Failed: You have to enter fence address")
 
-	if 0 == device_opt.count("identity_file"):
-		if 0 == (options.has_key("-p") or options.has_key("-S")):
-			fail_usage("Failed: You have to enter password or password script")
-	else: 
-		if 0 == (options.has_key("-p") or options.has_key("-S") or options.has_key("-k")):
-			fail_usage("Failed: You have to enter password, password script or identity file")
+	if (device_opt.count("no_password") == 0):
+		if 0 == device_opt.count("identity_file"):
+			if 0 == (options.has_key("-p") or options.has_key("-S")):
+				fail_usage("Failed: You have to enter password or password script")
+			else: 
+				if 0 == (options.has_key("-p") or options.has_key("-S") or options.has_key("-k")):
+					fail_usage("Failed: You have to enter password, password script or identity file")
 
 	if 0 == options.has_key("-x") and 1 == options.has_key("-k"):
 		fail_usage("Failed: You have to use identity file together with ssh connection (-x)")

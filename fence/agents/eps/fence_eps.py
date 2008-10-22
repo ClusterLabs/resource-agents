@@ -23,8 +23,6 @@ def eps_log(options,str):
 # @param options Device options
 # @param params HTTP GET parameters (without ?)
 def eps_run_command(options, params):
-	# String for Authorization header
-	auth_str = 'Basic ' + string.strip(base64.encodestring(options["-l"]+':'+options["-p"]))
 	try:
 		# New http connection
 		conn = httplib.HTTPConnection(options["-a"])
@@ -37,8 +35,14 @@ def eps_run_command(options, params):
 		eps_log(options,"GET "+request_str+"\n")
 		conn.putrequest('GET', request_str)
 
-		eps_log(options,"Authorization:"+auth_str+"\n")
-		conn.putheader('Authorization',auth_str)
+		if (options.has_key("-l")):
+			if (not options.has_key("-p")):
+				options["-p"]="" # Default is empty password
+				
+			# String for Authorization header
+			auth_str = 'Basic ' + string.strip(base64.encodestring(options["-l"]+':'+options["-p"]))
+			eps_log(options,"Authorization:"+auth_str+"\n")
+			conn.putheader('Authorization',auth_str)
 
 		conn.endheaders()
 
@@ -88,18 +92,11 @@ def eps_define_new_opts():
 def main():
 	device_opt = [  "help", "version", "agent", "quiet", "verbose", "debug",
 			"action", "ipaddr", "login", "passwd", "passwd_script",
-			"test", "port", "hidden_page", "no_login" ]
+			"test", "port", "hidden_page", "no_login", "no_password" ]
 
 	eps_define_new_opts()
 
-	# Because we DON'T need password, we must do little hack
-	input_opts=process_input(device_opt)
-	if ((not input_opts.has_key("-p")) and (not input_opts.has_key("-S"))):
-		input_opts["-p"]=""
-	if (not input_opts.has_key("-l")):
-		input_opts["-l"]=""
-
-	options = check_input(device_opt,input_opts)
+	options = check_input(device_opt,process_input(device_opt))
 
 	if (not options.has_key("-c")):
 		options["-c"]="hidden.htm"
