@@ -67,7 +67,7 @@ uninstall:
 
 clean: generalclean
 
-check: $(RESOURCES) ra-api-1-modified.dtd
+check: $(RESOURCES) $(TARGET2) $(TARGET3) ra-api-1-modified.dtd
 	@echo Validating resource agent meta-data
 	@for f in $(RESOURCES); do \
 		echo "   ./$$f "; \
