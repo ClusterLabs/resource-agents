@@ -136,6 +136,8 @@ static int get_cman_join_info(struct corosync_api_v1 *corosync)
 	int votes=0;
 	unsigned int object_handle;
 	unsigned int node_object;
+	unsigned int nodes_handle;
+	unsigned int find_handle;
 
 	/* Cluster name */
 	if (objdb_get_string(corosync, cluster_parent_handle, "name", &cname)) {
@@ -159,29 +161,27 @@ static int get_cman_join_info(struct corosync_api_v1 *corosync)
 		}
 	}
 
-	/* Sum node votes for expected */
+	/* Sum node votes for expected. Even if we already know expected_votes, we need vote_sum
+	   later */
+	nodes_handle = nodeslist_init(corosync, cluster_parent_handle, &find_handle);
+	do {
+		int votes;
+
+		node_count++;
+
+		objdb_get_int(corosync, nodes_handle, "votes", (unsigned int *)&votes, 1);
+		if (votes < 0) {
+			log_printf(LOG_ERR, "negative votes not allowed");
+			write_cman_pipe("Found negative votes for this node in CCS");
+			error = -EINVAL;
+			goto out;
+		}
+		vote_sum += votes;
+		nodes_handle = nodeslist_next(corosync, find_handle);
+	} while (nodes_handle);
+	corosync->object_find_destroy(find_handle);
+
 	if (expected_votes == 0) {
-		unsigned int nodes_handle;
-		unsigned int find_handle;
-
-		nodes_handle = nodeslist_init(corosync, cluster_parent_handle, &find_handle);
-		do {
-			int votes;
-
-			node_count++;
-
-			objdb_get_int(corosync, nodes_handle, "votes", (unsigned int *)&votes, 1);
-			if (votes < 0) {
-				log_printf(LOG_ERR, "negative votes not allowed");
-				write_cman_pipe("Found negative votes for this node in CCS");
-				error = -EINVAL;
-				goto out;
-			}
-			vote_sum += votes;
-			nodes_handle = nodeslist_next(corosync, find_handle);
-		} while (nodes_handle);
-		corosync->object_find_destroy(find_handle);
-
 		corosync->object_find_create(cluster_parent_handle, "cman", strlen("cman"), &find_handle);
 		if (corosync->object_find_next(find_handle, &object_handle) == 0)
 		{
