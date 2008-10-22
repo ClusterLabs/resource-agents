@@ -707,9 +707,14 @@ event_loop(msgctx_t *localctx, msgctx_t *clusterctx)
 	tv.tv_usec = 0;
 
 	if (signalled) {
+		char dumpfile[PATH_MAX];
+
 		signalled = 0;
+
+		memset(dumpfile, 0, PATH_MAX);
+		sprintf(dumpfile, "/tmp/rgmanager-dump.%d", getpid());
  
-		dump_internal_state("/tmp/rgmanager-dump");
+		dump_internal_state(dumpfile);
 	}
 
 	while (running && (tv.tv_sec || tv.tv_usec)) {
