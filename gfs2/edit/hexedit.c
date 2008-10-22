@@ -33,7 +33,7 @@ int display(int identify_only);
 extern void eol(int col);
 extern void do_leaf_extended(char *buf, struct iinfo *indir);
 extern int do_indirect_extended(char *buf, struct iinfo *ii);
-extern void savemeta(const char *out_fn, int slow);
+extern void savemeta(char *out_fn, int slow);
 extern void restoremeta(const char *in_fn, const char *out_device,
 			int printblocksonly);
 

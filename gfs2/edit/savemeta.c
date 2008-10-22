@@ -712,7 +712,7 @@ void get_journal_inode_blocks(void)
 	}
 }
 
-void savemeta(const char *out_fn, int saveoption)
+void savemeta(char *out_fn, int saveoption)
 {
 	int out_fd;
 	int slow;
@@ -725,8 +725,13 @@ void savemeta(const char *out_fn, int saveoption)
 	slow = (saveoption == 1);
 	sbd.md.journals = 1;
 
-	if (!out_fn)
-		out_fn = DFT_SAVE_FILE;
+	if (!out_fn) {
+		out_fn = malloc(PATH_MAX);
+		if (!out_fn)
+			die("Can't allocate memory for the operation.\n");
+		memset(out_fn, 0, PATH_MAX);
+		sprintf(out_fn, DFT_SAVE_FILE ".%d", getpid());
+	}
 	out_fd = open(out_fn, O_RDWR | O_CREAT, 0644);
 	if (out_fd < 0)
 		die("Can't open %s: %s\n", out_fn, strerror(errno));
