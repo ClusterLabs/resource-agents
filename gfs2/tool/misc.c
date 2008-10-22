@@ -107,11 +107,11 @@ print_lockdump(int argc, char **argv)
 	/* See if debugfs is mounted, and if not, mount it. */
 	debugfs = find_debugfs_mount();
 	if (!debugfs) {
-		debugfs = malloc(20);
+		debugfs = malloc(PATH_MAX);
 		if (!debugfs)
 			die("Can't allocate memory for debugfs.\n");
-		memset(debugfs, 0, 20);
-		strcpy(debugfs, "/tmp/debugfs");
+		memset(debugfs, 0, PATH_MAX);
+		sprintf(debugfs, "/tmp/debugfs.%d", getpid());
 
 		if (access(debugfs, F_OK)) {
 			debug_dir_existed = mkdir(debugfs, 644);
