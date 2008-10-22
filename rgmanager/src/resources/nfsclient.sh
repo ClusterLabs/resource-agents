@@ -349,12 +349,15 @@ status|monitor)
 	# Don't let anyone read the cache files.
 	#
 	umask 066
+
+	mkdir -p /var/cache/cluster
+
 	if [ -n "$OCF_RESKEY_service_name" ] && [ "$OCF_RESKEY_use_cache" = "1" ]; then
 
 		#
 		# For large #s of exports, we need to cache the information
 		#
-		tmpfn=/tmp/nfsclient-status-cache-$OCF_RESKEY_service_name
+		tmpfn=/var/cache/cluster/nfsclient-status-cache-$OCF_RESKEY_service_name
 
 		if [ -f "$tmpfn" ]; then
 			time_created=$(stat -c "%Y" $tmpfn)
@@ -367,7 +370,7 @@ status|monitor)
 		#
 		# Create a different file if this is a separate instance
 		#
-		tmpfn=/tmp/nfsclient-status-cache-$$
+		tmpfn=/var/cache/cluster/nfsclient-status-cache-$$
 	fi
 
 	if ! [ -f "$tmpfn" ] || [ $delta -gt 30 ]; then
