@@ -267,7 +267,7 @@ start_db()
 	declare -i rv
 
 	tmpfile=/tmp/$SCRIPT-start.$$
-	logfile=/tmp/$SCRIPT-start.log
+	logfile=@LOGDIR@/$SCRIPT-start.log
 
 	#
 	# Set up our sqlplus script.  Basically, we're trying to 
@@ -280,9 +280,11 @@ start_db()
 	sqlplus "/ as sysdba" < $tmpfile &> $logfile
 	rv=$?
 
+	rm -f $tmpfile
+
 	# Dump logfile to /var/log/messages
 	initlog -q -c "cat $logfile"
-	
+
 	if [ $rv -ne 0 ]; then
 		echo "ORACLE_HOME Incorrectly set?"
 		echo "See $logfile for more information."
@@ -294,11 +296,9 @@ start_db()
 	# ORA-.....: failure, we failed
 	#
 
-	rm -f $tmpfile
 	grep -q "failure" $logfile
 	if [ $? -eq 0 ]; then
-		rm -f $tmpfile
-	echo "ORACLE_SID Incorrectly set?"
+		echo "ORACLE_SID Incorrectly set?"
 		echo "See $logfile for more information."
 		return 1
 	fi
@@ -317,7 +317,7 @@ stop_db()
 	declare -i rv
 
 	tmpfile=/tmp/$SCRIPT-stop.$$
-	logfile=/tmp/$SCRIPT-stop.log
+	logfile=@LOGDIR@/$SCRIPT-stop.log
 
 	# Setup for Stop ...
 	echo "shutdown abort" > $tmpfile
@@ -326,9 +326,11 @@ stop_db()
 	sqlplus "/ as sysdba" < $tmpfile &> $logfile
 	rv=$?
 
+	rm -f $tmpfile
+
 	# Dump logfile to /var/log/messages
 	initlog -q -c "cat $logfile"
-	
+
 	if [ $rv -ne 0 ]; then
 		echo "ORACLE_HOME Incorrectly set?"
 		echo "See $logfile for more information."
@@ -338,7 +340,6 @@ stop_db()
 	# 
 	# If we see 'failure' in the log, we're done.
 	#
-	rm -f $tmpfile
 	grep -q failure $logfile
 	if [ $? -eq 0 ]; then
 		echo_failure

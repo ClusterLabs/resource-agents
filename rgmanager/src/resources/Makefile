@@ -1,7 +1,8 @@
 TARGET1=utils/config-utils.sh
 TARGET2=fs.sh
+TARGET3=oracledb.sh
 
-all: $(TARGET1) $(TARGET2)
+all: $(TARGET1) $(TARGET2) $(TARGET3)
 
 include ../../../make/defines.mk
 include $(OBJDIR)/make/clean.mk
@@ -11,7 +12,7 @@ RESOURCES=service.sh ip.sh nfsclient.sh nfsexport.sh \
 	apache.sh openldap.sh samba.sh mysql.sh \
 	postgres-8.sh tomcat-5.sh lvm.sh \
 	vm.sh SAPInstance SAPDatabase named.sh \
-	oracledb.sh ASEHAagent.sh
+	ASEHAagent.sh
 
 METADATA=apache.metadata openldap.metadata samba.metadata \
 	mysql.metadata postgres-8.metadata tomcat-5.metadata \
@@ -36,6 +37,11 @@ $(TARGET2):
 		-e 's#@LOGDIR@#${logdir}#g' \
 	> $(TARGET2)
 
+$(TARGET3):
+	cat $(S)/$(TARGET3).in | sed \
+		-e 's#@LOGDIR@#${logdir}#g' \
+	> $(TARGET3)
+
 install:
 	install -d ${sharedir}/utils
 	for i in $(RESOURCES); do \
@@ -51,12 +57,12 @@ install:
 	 install -m755 $(S)/$$i ${sharedir}/utils; \
 	done
 	install -m755 $(TARGET1) ${sharedir}/utils
-	install -m755 $(TARGET2) ${sharedir}
+	install -m755 $(TARGET2) $(TARGET3) ${sharedir}
 
 uninstall:
 	${UNINSTALL} ${RESOURCES} ${GENERAL_TARGETS} \
 		     ${METADATA} ${UTIL_TARGETS} \
-		     $(TARGET1) $(TARGET2) \
+		     $(TARGET1) $(TARGET2) $(TARGET3) \
 		     ${sharedir}
 
 clean: generalclean
