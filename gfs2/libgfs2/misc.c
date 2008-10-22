@@ -125,11 +125,11 @@ find_gfs2_meta(struct gfs2_sbd *sdp)
 			   meta_path, fstype,mfsoptions, &fsdump, 
 			   &fspass) != 6)
 			continue;
-		
+
 		if (strcmp(meta_device, sdp->device_name) == 0 ||
 		    strcmp(meta_device, sdp->path_name) == 0) {
 			fclose(fp);
-			sdp->metafs_mounted = FALSE;
+			sdp->metafs_mounted = TRUE;
 			strcpy(sdp->metafs_path, meta_path);
 			return TRUE;
 		}
@@ -216,15 +216,20 @@ void
 mount_gfs2_meta(struct gfs2_sbd *sdp)
 {
 	int ret;
+
+	memset(sdp->metafs_path, 0, PATH_MAX);
+	snprintf(sdp->metafs_path, PATH_MAX - 1, "/tmp/.gfs2meta.%d", getpid());
+
 	/* mount the meta fs */
-	strcpy(sdp->metafs_path, "/tmp/.gfs2meta");
 	if (!dir_exists(sdp->metafs_path)) {
 		ret = mkdir(sdp->metafs_path, 0700);
 		if (ret)
 			die("Couldn't create %s : %s\n", sdp->metafs_path,
 			    strerror(errno));
-	}
-		
+		sdp->metafs_created_mount = TRUE;
+	} else
+		sdp->metafs_created_mount = FALSE;
+
 	ret = mount(sdp->path_name, sdp->metafs_path, "gfs2meta", 0, NULL);
 	if (ret)
 		die("Couldn't mount %s : %s\n", sdp->metafs_path,
@@ -266,6 +271,8 @@ cleanup_metafs(struct gfs2_sbd *sdp)
 		if (ret)
 			fprintf(stderr, "Couldn't unmount %s : %s\n",
 				sdp->metafs_path, strerror(errno));
+		if(sdp->metafs_created_mount) /* we created the directory */
+			rmdir(sdp->metafs_path);
 	}
 }
 

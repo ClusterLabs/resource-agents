@@ -232,6 +232,7 @@ struct gfs2_sbd {
 	unsigned int writes;
 	int metafs_fd;
 	int metafs_mounted; /* If metafs was already mounted */
+	int metafs_created_mount; /* TRUE if we created the mount point got metafs */
 	char metafs_path[PATH_MAX]; /* where metafs is mounted */
 	struct special_blocks bad_blocks;
 	struct special_blocks dup_blocks;
