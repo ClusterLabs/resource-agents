@@ -155,7 +155,7 @@ function vg_start
 	esac
 
 	if ! strip_and_add_tag ||
-	   ! vgchange -ay $OCF_RESKEY_vg_name -vvvv >& /tmp/butt; then
+	   ! vgchange -ay $OCF_RESKEY_vg_name; then
 		ocf_log err "Failed to activate volume group, $OCF_RESKEY_vg_name"
 		ocf_log notice "Attempting cleanup of $OCF_RESKEY_vg_name"
 
