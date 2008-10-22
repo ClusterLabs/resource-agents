@@ -781,8 +781,8 @@ deep_probe()
 	ocf_log debug "ASEHAagent: Start 'deep_probe'."	
 
 	# Declare two temporary files which will be used in this probe.
-	tmpfile1="/tmp/ASEHAagent.1"
-	tmpfile2="/tmp/ASEHAagent.2"
+	tmpfile1="/tmp/ASEHAagent.1.$$"
+	tmpfile2="/tmp/ASEHAagent.2.$$"
 	
 	# Get the login_string by analyzing the login_file.
 	get_login_string
@@ -794,6 +794,7 @@ deep_probe()
 	fi
 
 	rm -f $tmpfile1
+	rm -f $tmpfile2
 
 	# The login file is correct. We have gotten the login account and password from it.
 	# Run isql command in background.
@@ -842,10 +843,16 @@ EOF
 		# Read the process id of isql process from tmpfile2
 		pid=`cat $tmpfile2 | awk '{print $1}'`
 
+		rm -f $tmpfile1
+		rm -f $tmpfile2
+
 		# Kill the isql process directly.
 		kill -9 $pid
 		return 1
 	fi
+
+	rm -f $tmpfile1
+	rm -f $tmpfile2
 
 	ocf_log debug "ASEHAagent: End 'deep_probe'."
 
