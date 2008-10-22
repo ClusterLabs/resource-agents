@@ -41,7 +41,6 @@ do { \
 #define GQ_UNITS_BASICBLOCK  (36)
 
 #define BUF_SIZE 4096
-#define meta_mount "/tmp/.gfs2meta"
 
 struct commandline {
 	unsigned int operation;
