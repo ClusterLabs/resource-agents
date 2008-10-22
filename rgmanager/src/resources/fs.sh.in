@@ -1028,7 +1028,7 @@ Unknown file system type '$fstype' for device $dev.  Assuming fsck is required."
 	#
 	if [ -n "$fsck_needed" ] || [ "${OCF_RESKEY_force_fsck}" = "yes" ] ||\
 	   [ "${OCF_RESKEY_force_fsck}" = "1" ]; then
-		typeset fsck_log=/tmp/$(basename $dev).fsck.log
+		typeset fsck_log=@LOGDIR@/$(basename $dev).fsck.log
 		ocf_log debug "Running fsck on $dev"
 		fsck -p $dev >> $fsck_log 2>&1
 		ret_val=$?

@@ -1,11 +1,12 @@
-TARGET=	utils/config-utils.sh
+TARGET1=utils/config-utils.sh
+TARGET2=fs.sh
 
-all: $(TARGET)
+all: $(TARGET1) $(TARGET2)
 
 include ../../../make/defines.mk
 include $(OBJDIR)/make/clean.mk
 
-RESOURCES=fs.sh service.sh ip.sh nfsclient.sh nfsexport.sh \
+RESOURCES=service.sh ip.sh nfsclient.sh nfsexport.sh \
 	script.sh netfs.sh clusterfs.sh smb.sh \
 	apache.sh openldap.sh samba.sh mysql.sh \
 	postgres-8.sh tomcat-5.sh lvm.sh \
@@ -23,12 +24,17 @@ UTIL_TARGETS= \
 	utils/httpd-parse-config.pl utils/tomcat-parse-config.pl \
 	utils/member_util.sh
 
-$(TARGET):
+$(TARGET1):
 	mkdir -p utils
-	cat $(S)/$(TARGET).in | sed \
+	cat $(S)/$(TARGET1).in | sed \
 		-e 's#@CONFDIR@#${CONFDIR}#g' \
 		-e 's#@CONFFILE@#${CONFFILE}#g' \
-	> $(TARGET)
+	> $(TARGET1)
+
+$(TARGET2):
+	cat $(S)/$(TARGET2).in | sed \
+		-e 's#@LOGDIR@#${logdir}#g' \
+	> $(TARGET2)
 
 install:
 	install -d ${sharedir}/utils
@@ -44,12 +50,13 @@ install:
 	for i in $(UTIL_TARGETS); do \
 	 install -m755 $(S)/$$i ${sharedir}/utils; \
 	done
-	install -m755 $(TARGET) ${sharedir}/utils
+	install -m755 $(TARGET1) ${sharedir}/utils
+	install -m755 $(TARGET2) ${sharedir}
 
 uninstall:
 	${UNINSTALL} ${RESOURCES} ${GENERAL_TARGETS} \
 		     ${METADATA} ${UTIL_TARGETS} \
-		     $(TARGET) \
+		     $(TARGET1) $(TARGET2) \
 		     ${sharedir}
 
 clean: generalclean
