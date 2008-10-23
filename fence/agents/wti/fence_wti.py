@@ -8,7 +8,7 @@
 ## +-----------------+---------------------------+
 ##  WTI RSM-8R4         ?? unable to find out ??
 ##  WTI MPC-??? 	?? unable to find out ??
-##  WTI IPS-800-CE     v1.40h		(no username)
+##  WTI IPS-800-CE     v1.40h		(no username) ('list' tested)
 #####
 
 import sys, re, pexpect
@@ -31,14 +31,18 @@ def get_power_status(conn, options):
 		fail(EC_TIMED_OUT)
 	
 	plug_section = 0
+	outlets = {}
 	for line in conn.before.splitlines():
 		if (plug_section == 2) and line.find("|") >= 0:
 			plug_line = [x.strip().lower() for x in line.split("|")]
 			if len(plug_line) < len(plug_header):
 				plug_section = -1
 				pass
-			if options["-n"].lower() == plug_line[plug_index]:
+			if ["list", "monitor"].count(options["-o"]) == 0 and options["-n"].lower() == plug_line[plug_index]:
 				return plug_line[status_index]
+			else:
+				## We already believe that first column contains plug number
+				outlets[plug_line[0]] = (plug_line[name_index], plug_line[status_index])
 		elif (plug_section == 1):
 			plug_section = 2
 			pass
@@ -46,9 +50,13 @@ def get_power_status(conn, options):
 			plug_section = 1
 			plug_header = [x.strip().lower() for x in line.split("|")]
 			plug_index = plug_header.index("plug")
+			name_index = plug_header.index("name")
 			status_index = plug_header.index("status")
 
-	return "PROBLEM"
+	if ["list", "monitor"].count(options["-o"]) == 1:
+		return outlets
+	else:
+		return "PROBLEM"
 
 def set_power_status(conn, options):
 	action = {
@@ -96,7 +104,7 @@ def main():
 	else:
 		conn = fence_login(options)
 
-	fence_action(conn, options, set_power_status, get_power_status)
+	fence_action(conn, options, set_power_status, get_power_status, get_power_status)
 
 	##
 	## Logout from system
