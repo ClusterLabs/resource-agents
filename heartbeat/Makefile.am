@@ -83,6 +83,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			SphinxSearchDaemon	\
 			Stateful	\
 			SysInfo		\
+			scsi2reservation	\
 			sfex		\
 			tomcat		\
 			VIPArip		\

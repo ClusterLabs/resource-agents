@@ -1,0 +1,170 @@
+#!/bin/sh
+# by hxinwei@gmail.com
+# License: GNU General Public License 2 (GPL2)
+
+if [ -n "$OCF_DEBUG_LIBRARY" ]; then
+    . $OCF_DEBUG_LIBRARY
+else
+    . ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
+fi
+
+scsi2reserve_meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="scsi2reserve">
+<version>1.0</version>
+
+<longdesc lang="en">
+The scsi-2-reserve resource agent is a place holder for SCSI-2 reservation.
+A healthy instance of scsi-2-reserve resource, indicates the own of the specified SCSI device.
+This resource agent depends on the scsi_reserve from scsires package, which is Linux specific.
+</longdesc>
+
+<shortdesc lang="en">
+scsi-2 reservation
+</shortdesc>
+
+<parameters>
+
+<parameter name="scsi_reserve" unique="0" required="1">
+<longdesc lang="en">
+The scsi_reserve is a command from scsires package. 
+It helps to issue SCSI-2 reservation on SCSI devices.
+</longdesc>
+<shortdesc lang="en">
+scsi_reserve command
+</shortdesc>
+<content type="string" default="/usr/sbin/scsi_reserve" />
+</parameter>
+
+
+<parameter name="sharedisk" unique="0" required="1">
+<longdesc lang="en">
+The shared disk that can be reserved.
+</longdesc>
+<shortdesc lang="en">
+Shared disk.
+</shortdesc>
+<content type="string" default="/dev/sdb" />
+</parameter>
+
+<parameter name="start_loop" unique="0" required="1">
+<longdesc lang="en">
+We are going to try several times before giving up. Start_loop indicates how many times we are going to re-try.
+</longdesc>
+<shortdesc lang="en">
+Times to re-try before giving up.
+</shortdesc>
+<content type="string" default="10" />
+</parameter>
+
+
+</parameters>
+
+<actions>
+<action name="start"   timeout="300" />
+<action name="stop"    timeout="100" />
+<action name="status"   timeout="90" />
+<action name="monitor" depth="0"  timeout="20" interval="20" start-delay="1m" role="Slave" />
+<action name="monitor" depth="0"  timeout="20" interval="10" start-delay="1m" role="Master" />
+<action name="meta-data"  timeout="5" />
+<action name="validate-all"  timeout="30" />
+</actions>
+</resource-agent>
+END
+
+	return $OCF_SUCCESS
+}
+
+scsi2reserve_usage() {
+	cat <<END
+		usage: $0 {start|stop|monitor|validate-all|meta-data}
+END
+}
+
+case $__OCF_ACTION in
+	meta-data)  scsi2reserve_meta_data
+		exit $OCF_SUCCESS
+		;;
+	usage|help) scsi2reserve_usage
+		exit $OCF_SUCCESS
+		;;
+	*)
+		;;
+esac		
+	
+
+scsi2reserve_validate ()
+{
+	: ${OCF_RESKEY_start_loop=10}
+	if [ -x "${OCF_RESKEY_scsi_reserve}" ]; then
+		exit $OCF_ERR_INSTALLED
+	fi
+	if [ -z "${OCF_RESKEY_sharedisk}" ]; then
+		exit $OCF_ERR_GENERIC
+	fi	
+	if [ ! -b "${OCF_RESKEY_sharedisk}" ]; then
+		exit $OCF_ERR_ARGS
+	fi
+}
+
+scsi2reserve_validate
+
+scsi2reserve_start ()
+{
+	ite=$OCF_RESKEY_start_loop
+	while [ $ite -ge 0 ]; do	
+		/sbin/startproc ${OCF_RESKEY_scsi_reserve} -d ${OCF_RESKEY_sharedisk} --preempt --hold --stonith
+		sleep 15
+		/sbin/checkproc ${OCF_RESKEY_scsi_reserve}
+		rc=$?
+		if [ $rc -eq 0 ]; then
+			exit $OCF_SUCCESS
+		fi		
+		ite=`expr $ite - 1`
+	done	
+	exit $OCF_ERR_GENERIC
+}
+
+scsi2reserve_monitor ()
+{
+	/sbin/checkproc ${OCF_RESKEY_scsi_reserve}
+	rc=$?
+	if [ $rc -eq 0 ]; then
+		exit $OCF_SUCCESS
+	else
+		exit $OCF_NOT_RUNNING
+	fi	
+}
+
+scsi2reserve_stop ()
+{
+	/sbin/killproc ${OCF_RESKEY_scsi_reserve}
+	${OCF_RESKEY_scsi_reserve} -d ${OCF_RESKEY_sharedisk} --release
+	exit $OCF_SUCCESS
+}
+
+if [ $# -ne 1 ]; then
+	scsi2reserve_usage
+	exit $OCF_ERR_ARGS
+fi
+
+case $__OCF_ACTION in
+	start)      scsi2reserve_start
+		;;
+	stop)       scsi2reserve_stop
+		;;
+	monitor)    scsi2reserve_monitor
+		;;
+	validate-all)   scsi2reserve_validate
+			exit $OCF_SUCCESS
+		;;
+	*)      scsi2reserve_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+	;;
+esac
+
+exit $?
+
+
