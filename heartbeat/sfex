@@ -1,0 +1,257 @@
+#!/bin/sh
+#
+#       Shared Disk File EXclusiveness (SF-EX) OCF RA. 
+#       prevent a destruction of data on shared disk file system 
+#	due to Split-Brain.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  
+# 02110-1301, USA.
+#
+# Copyright (c) 2007 NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+#
+# NOTE:
+#	As a prerequisite for running SF-EX, one device should be
+#	initialized as below.
+#
+#		sfex_init [-n <numlocks>] <device>
+#
+#	Example:
+#
+#		/usr/sbin/sfex_init -n 10 /dev/sdb1
+#
+#	if further information is necessary, See README.
+#
+#######################################################################
+# Initialization:
+
+# switching ocf-shellfuncs path
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
+
+unset LC_ALL; export LC_ALL
+unset LANGUAGE; export LANGUAGE
+
+#######################################################################
+
+SFEX_DAEMON=${HA_BIN}/sfex_daemon
+
+usage() {
+    cat <<END
+    usage: $0 {start|stop|monitor|meta-data}
+END
+}
+
+meta_data() {
+    cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="sfex">
+<version>1.3</version>
+
+<longdesc lang="en">
+Resource script for SF-EX. It manages a shared storage medium exclusively .
+</longdesc>
+<shortdesc lang="en">SF-EX resource agent</shortdesc>
+
+<parameters>
+<parameter name="device" unique="0" required="1">
+<longdesc lang="en">
+Block device path that stores exclusive control data.
+</longdesc>
+<shortdesc lang="en">block device</shortdesc>
+<content type="string" default="" />
+</parameter>
+<parameter name="index" unique="0" required="0">
+<longdesc lang="en">
+Location in block device where exclusive control data is stored. 1 or more is specified. Default is 1.
+</longdesc>
+<shortdesc lang="en">index</shortdesc>
+<content type="integer" default="1" />
+</parameter>
+<parameter name="collision_timeout" unique="0" required="0">
+<longdesc lang="en">
+Waiting time when a collision of lock acquisition is detected. Default is 1 second.
+</longdesc>
+<shortdesc lang="en">waiting time for lock acquisition</shortdesc>
+<content type="integer" default="1" />
+</parameter>
+<parameter name="monitor_interval" unique="0" required="0">
+<longdesc lang="en">
+Monitor interval(sec). Default is 10 seconds
+</longdesc>
+<shortdesc lang="en">monitor interval</shortdesc>
+<content type="integer" default="10" />
+</parameter>
+<parameter name="lock_timeout" unique="0" required="0">
+<longdesc lang="en">
+Valid term of lock(sec). Default is 20 seconds.
+</longdesc>
+<shortdesc lang="en">Valid term of lock</shortdesc>
+<content type="integer" default="20" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start" timeout="600" />
+<action name="stop" timeout="10" />
+<action name="monitor" depth="0" timeout="10" interval="10" />
+<action name="meta-data" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+#
+# START: Exclusive control starts.
+#
+# It loops permanently until the lock can be acquired when locked with 
+# the other node. In this case, the reception of the stop signal by the 
+# timeout time passage set to CIB becomes the only stop opportunity. 
+#
+sfex_start() {
+    ocf_log info "sfex_daemon: starting..."
+
+	sfex_monitor
+	if [ $? -eq $OCF_SUCCESS ]; then
+		ocf_log info "sfex_daemon already started."
+		return $OCF_SUCCESS
+	fi
+
+	$SFEX_DAEMON -i $INDEX -c $COLLISION_TIMEOUT -t $LOCK_TIMEOUT -m $MONITOR_INTERVAL -r ${OCF_RESOURCE_INSTANCE} -d ${HA_RSCTMP}/pid-of-${OCF_RESOURCE_INSTANCE} $DEVICE 
+
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		ocf_log err "sfex_daemon failed to start"
+		return $OCF_ERR_GENERIC
+	fi
+	
+	sleep 2
+	sfex_monitor
+	if [ $? -eq $OCF_SUCCESS ]; then
+		ocf_log info "sfex_daemon: started."
+		return $OCF_SUCCESS
+	fi
+	ocf_log err "sfex_daemon failed to write pid file in ${HA_RSCTMP}/pid-of-${OCF_RESOURCE_INSTANCE}"
+	return $OCF_ERR_GENERIC
+	
+}
+
+#
+# STOP: stop exclusive control 
+#
+sfex_stop() {
+    ocf_log info "sfex_daemon: stopping..."
+
+	/sbin/killproc -p ${HA_RSCTMP}/pid-of-${OCF_RESOURCE_INSTANCE} $SFEX_DAEMON
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		ocf_log err "sfex_daemon failed to stop"
+		return $rc
+	fi
+
+#sfex could be in state D if the device is gone, and then not terminate.	
+#Wait and check again if the daemon is already properly shutdown.
+
+	sleep 4
+	sfex_monitor
+	rc=$?
+	if [ $rc -ne $OCF_NOT_RUNNING ]; then
+		ocf_log err "sfex_daemon failed to stop"
+		return $rc
+	fi
+    ocf_log info "sfex_daemon: stopped."
+    return $OCF_SUCCESS
+}
+
+sfex_monitor() {
+    ocf_log debug "sfex_monitor: started..."
+
+#	if [ "${OCF_RESKEY_CRM_meta_interval:-0}" -eq "0" ]; then
+#	# in case of probe, monitor operation is surely treated as
+#	# under suspension. This will call start operation.
+#	ocf_log info "probe..."
+#	return $OCF_NOT_RUNNING
+#	fi
+
+#If the option -k is used checkproc uses exit codes like startproc or killproc
+	/sbin/checkproc -k -p ${HA_RSCTMP}/pid-of-${OCF_RESOURCE_INSTANCE} $SFEX_DAEMON
+	rc=$?
+    ocf_log debug "sfex_monitor: complete."
+	return $rc
+}
+
+#
+# main process 
+#
+
+# check arguments
+if [ $# -ne 1 ]; then
+    usage
+    exit $OCF_ERR_ARGS
+fi
+OP=$1
+
+# These operations do not require instance parameters
+case $OP in
+    meta-data)
+	meta_data
+	exit $OCF_SUCCESS
+	;;
+    usage)
+	usage
+	exit $OCF_SUCCESS
+	;;
+esac
+
+# check parameters
+DEVICE=$OCF_RESKEY_device
+INDEX=${OCF_RESKEY_index:-1}
+COLLISION_TIMEOUT=${OCF_RESKEY_collision_timeout:-1}
+LOCK_TIMEOUT=${OCF_RESKEY_lock_timeout:-20}
+MONITOR_INTERVAL=${OCF_RESKEY_monitor_interval:-10}
+
+sfex_validate () {
+if [ -z "$DEVICE" ]; then
+    ocf_log err "Please set OCF_RESKEY_device to device for sfex meta-data"
+    exit $OCF_ERR_ARGS
+fi
+if [ ! -w "$DEVICE" ]; then
+    ocf_log warn "Couldn't find device [$DEVICE]. Expected /dev/??? to exist"
+    exit $OCF_ERR_ARGS
+fi
+}
+
+if [ -n "$OCF_RESKEY_CRM_meta_clone" ]; then
+    ocf_log err "THIS RA DO NOT SUPPORT CLONE MODE!"
+    exit $OCF_ERR_CONFIGURED
+fi
+
+case $OP in
+    start)
+	sfex_start
+	;;
+    stop)
+	sfex_stop
+	;;
+    monitor)
+	sfex_monitor
+	;;
+    validate-all)
+	sfex_validate
+	;;
+    *)
+	exit $OCF_ERR_UNIMPLEMENTED
+	;;
+esac
+exit $?
