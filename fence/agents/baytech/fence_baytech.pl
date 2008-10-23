@@ -54,7 +54,7 @@ sub usage
     print " -D             debugging output\n";
     print " -h             usage\n";
     print " -l string      user name\n";
-    print " -o string      action: On,Off,Status or Reboot (default)\n";
+    print " -o string      action: on,off,status or reboot (default)\n";
     print " -n string      outlet name\n";
     print " -p string      password\n";
     print " -S path        script to run to retrieve password\n";

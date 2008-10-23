@@ -215,7 +215,7 @@ def usage():
         print "  -u <udpport>     UDP port to use (default 161)"
         print "  -c <community>   SNMP community (default 'private')"
         print "  -n <num>         Outlet name/number to act on"
-        print "  -o <string>      Action: Reboot (default), On, Off and Status"
+        print "  -o <string>      Action: reboot (default), on, off or status"
         print "  -v               Verbose mode - write to @LOGDIR@/fence_apc_snmp.log"
         print "  -V               Version"
 	

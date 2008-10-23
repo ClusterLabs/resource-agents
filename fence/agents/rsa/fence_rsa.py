@@ -27,7 +27,7 @@ def usage():
   print "   -l [login]               login name"
   print "   -p [password]            password"
   print "   -S [path]                script to run to retrieve password"
-  print "   -o [action]              Reboot (default), Off, On, or Status"
+  print "   -o [action]              reboot (default), off, on, or status"
   print "   -v Verbose               Verbose mode"
   print "   -V                       Print Version, then exit"
   
@@ -91,13 +91,14 @@ def main():
       if o == "-S":
         passwd_script = a
       if o  == "-o":
-        if a == "Off" or a == "OFF" or a == "off":
+        a_lower=a.lower()
+        if a_lower == "off":
           action = POWER_OFF
-        elif a == "On" or a == "ON" or a == "on":
+        elif a_lower == "on":
           action = POWER_ON
-        elif a == "Status" or a == "STATUS" or a == "status":
+        elif a_lower == "status":
           action = POWER_STATUS
-        elif a == "Reboot" or a == "REBOOT" or a == "reboot":
+        elif a_lower == "reboot":
           action = POWER_REBOOT
         else:
           usage()
@@ -141,11 +142,12 @@ def main():
     
     try:
       a = params["option"]
-      if a == "Off" or a == "OFF" or a == "off":
+      a_lower=a.lower()
+      if a_lower == "off":
         action = POWER_OFF
-      elif a == "On" or a == "ON" or a == "on":
+      elif a_lower == "on":
         action = POWER_ON
-      elif a == "Reboot" or a == "REBOOT" or a == "reboot":
+      elif a_lower == "reboot":
         action = POWER_REBOOT
     except KeyError, e:
       action = POWER_REBOOT

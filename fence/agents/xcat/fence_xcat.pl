@@ -120,6 +120,7 @@ if (@ARGV > 0) {
    fail_usage "Unknown parameter." if (@ARGV > 0);
 
    fail_usage "No '-n' flag specified." unless defined $opt_n;
+   $opt_o=lc($opt_o);
    fail_usage "Unrecognised action '$opt_o' for '-o' flag"
       unless $opt_o =~ /^(on|off|reset|stat)$/;
 
@@ -127,6 +128,7 @@ if (@ARGV > 0) {
    get_options_stdin();
 
    fail "failed: no plug number" unless defined $opt_n;
+   $opt_o=lc($opt_o);
    fail "failed: unrecognised action: $opt_o"
       unless $opt_o =~ /^(on|off|reset|stat)$/;
 }

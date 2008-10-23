@@ -291,6 +291,9 @@ def check_input(device_opt, opt):
 	if 0 == options.has_key("-o"):
 		options["-o"] = "reboot"
 
+	# Convert action to lowercase
+	options["-o"]=options["-o"].lower()
+
 	if 0 == ["on", "off", "reboot", "status", "list"].count(options["-o"].lower()):
 		fail_usage("Failed: Unrecognised action '" + options["-o"] + "'")
 
