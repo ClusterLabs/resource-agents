@@ -249,7 +249,6 @@ static int read_config_for(xmlXPathContextPtr ctx, struct objdb_iface_ver0 *objd
 
 static int xml_reloadconfig(struct objdb_iface_ver0 *objdb, int flush, char **error_string)
 {
-	fprintf(stderr, "CC: xml_reloadconfig\n");
 	return xml_readconfig(objdb, error_string);
 }
 
