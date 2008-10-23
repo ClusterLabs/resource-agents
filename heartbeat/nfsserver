@@ -1,0 +1,254 @@
+#!/bin/sh
+# nfsserver
+#
+# Description: Manages nfs server as OCF resource
+# by hxinwei@gmail.com
+# License: GNU General Public License v2 (GPLv2) and later
+
+if [ -n "$OCF_DEBUG_LIBRARY" ]; then
+    . $OCF_DEBUG_LIBRARY
+else
+    . ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
+fi
+
+nfsserver_meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="nfsserver">
+<version>1.0</version>
+
+<longdesc lang="en">
+Nfsserver helps to manage the Linux nfs server as a failover-able resource in Linux-HA.
+It depends on Linux specific NFS implementation details, so is considered not portable to other platforms yet.
+</longdesc>
+
+<shortdesc lang="en">
+nfsserver
+</shortdesc>
+
+<parameters>
+
+<parameter name="nfs_init_script" unique="0" required="1">
+<longdesc lang="en">
+The default init script shipped with the Linux distro.
+The nfsserver resource agent offloads the start/stop/monitor work to the init script because the procedure to start/stop/monitor nfsserver varies on different Linux distro.
+</longdesc>
+<shortdesc lang="en">
+Init script for nfsserver
+</shortdesc>
+<content type="string" default="/etc/init.d/nfsserver" />
+</parameter>
+
+<parameter name="nfs_notify_cmd" unique="0" required="1">
+<longdesc lang="en">
+The tool to send out NSM reboot notification.
+Failover of nfsserver can be considered as rebooting to different machines.
+The nfsserver resource agent use this command to notify all clients about the happening of failover.
+</longdesc>
+<shortdesc lang="en">
+The tool to send out notification.
+</shortdesc>
+<content type="string" default="/sbin/sm-notify" />
+</parameter>
+
+<parameter name="nfs_shared_infodir" unique="0" required="1">
+<longdesc lang="en">
+The nfsserver resource agent will save nfs related information in this specific directory.
+And this directory must be able to fail-over before nfsserver itself.
+</longdesc>
+<shortdesc lang="en">
+Directory to store nfs server related information.
+</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="nfs_ip" unique="0" required="1">
+<longdesc lang="en">
+The floating IP address used to access the the nfs service
+</longdesc>
+<shortdesc lang="en">
+IP address.
+</shortdesc>
+<content type="string" default="*" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"   timeout="40" />
+<action name="stop"    timeout="10" />
+<action name="monitor" depth="0"  timeout="20" interval="10" />
+<action name="meta-data"  timeout="5" />
+<action name="validate-all"  timeout="30" />
+</actions>
+</resource-agent>
+END
+
+return $OCF_SUCCESS
+}
+
+nfsserver_usage() {
+	cat <<END
+		usage: $0 {start|stop|monitor|status|validate-all|meta-data}
+END
+}
+
+if [ $# -ne 1 ]; then
+	nfsserver_usage
+	exit $OCF_ERR_ARGS
+fi
+
+case $__OCF_ACTION in
+	meta-data)  nfsserver_meta_data
+		exit $OCF_SUCCESS
+		;;
+	usage|help) nfsserver_usage
+		exit $OCF_SUCCESS
+		;;
+	*)
+		;;	
+esac
+
+fp="$OCF_RESKEY_nfs_shared_infodir"
+
+nfsserver_monitor ()
+{
+	fn=`/bin/mktemp`
+	${OCF_RESKEY_nfs_init_script} status > $fn 2>&1 
+	rc=$?
+	ocf_log debug `cat $fn`
+	rm -f $fn
+
+#Adapte LSB status code to OCF return code
+	if [ $rc -eq 0 ]; then
+		return $OCF_SUCCESS
+	elif [ $rc -eq 3 ]; then
+		return $OCF_NOT_RUNNING
+	else
+		return $OCF_ERR_GENERIC
+	fi
+}
+
+prepare_directory ()
+{
+	[ -d "$fp" ] || mkdir -p $fp
+	[ -d "$fp/rpc_pipefs" ] || mkdir -p $fp/rpc_pipefs
+	[ -d "$fp/sm" ] || mkdir -p $fp/sm
+	[ -d "$fp/sm.ha" ] || mkdir -p $fp/sm.ha
+	[ -d "$fp/sm.bak" ] || mkdir -p $fp/sm.bak
+	[ -d "$fp/v4recovery" ] || mkdir -p $fp/v4recovery
+}
+
+is_bound ()
+{
+	mount | grep -q "$1 on $2 type none (.*bind)"
+	return $?
+}
+
+bind_tree ()
+{
+	if is_bound $fp /var/lib/nfs; then
+		ocf_log debug "$fp is already bound to /var/lib/nfs"
+		return 0
+	fi
+	mount --bind $fp /var/lib/nfs
+}
+
+unbind_tree ()
+{
+	if `mount | grep -q "rpc_pipefs on /var/lib/nfs/rpc_pipefs"`; then
+		umount /var/lib/nfs/rpc_pipefs
+	fi
+	if is_bound $fp /var/lib/nfs; then
+		umount /var/lib/nfs
+	fi
+}
+
+nfsserver_start ()
+{
+	prepare_directory
+	bind_tree
+
+	rm -f /var/lib/nfs/sm.ha/* > /dev/null 2>&1
+	cp -f /var/lib/nfs/sm/* /var/lib/nfs/sm.ha > /dev/null 2>&1
+
+	ocf_log info "Starting NFS server ..."
+
+	fn=`/bin/mktemp`
+	${OCF_RESKEY_nfs_init_script} start > $fn 2>&1
+	rc=$?
+	ocf_log debug `cat $fn`
+	rm -f $fn
+
+	if [ $rc -ne 0 ]; then
+		ocf_log err "Failed to start NFS server"
+		return $rc
+	fi	
+
+	#Notify the nfs server has been moved or rebooted
+	#The init script do that already, but with the hostname, which may be ignored by client
+	#we have to do it again with the nfs_ip 
+	${OCF_RESKEY_nfs_notify_cmd} -v $OCF_RESKEY_nfs_ip -P /var/lib/nfs/sm.ha
+
+	ocf_log info "NFS server started"
+	return $OCF_SUCCESS
+}
+
+nfsserver_stop ()
+{
+	ocf_log info "Stopping NFS server ..."
+
+	fn=`/bin/mktemp`
+	${OCF_RESKEY_nfs_init_script} stop > $fn 2>&1
+	rc=$?
+	ocf_log debug `cat $fn`
+	rm -f $fn
+
+	if [ $rc -eq 0 ]; then
+		unbind_tree 
+		ocf_log info "NFS server stopped"
+		return $OCF_SUCCESS
+	fi
+	ocf_log err "Failed to stop NFS server"
+	return $rc
+}
+
+nfsserver_validate ()
+{
+	if [ -z ${OCF_RESKEY_nfs_ip} ]; then
+		return $OCF_ERR_ARGS
+	fi
+
+	if [ `check_binary ${OCF_RESKEY_nfs_init_script}` -a `check_binary ${OCF_RESKEY_nfs_notify_cmd}` ]; then
+		if [ -d $OCF_RESKEY_nfs_shared_infodir ]; then
+			return $OCF_SUCCESS
+		else
+			return $OCF_ERR_ARGS
+		fi
+	else
+		return $OCF_ERR_INSTALLED
+	fi
+}
+
+if [ -n "$OCF_RESKEY_CRM_meta_clone" ]; then
+	ocf_log err "THIS RA DO NOT SUPPORT CLONE MODE!"
+	exit $OCF_ERR_CONFIGURED
+fi
+
+nfsserver_validate
+
+case $__OCF_ACTION in
+	start)      nfsserver_start
+		;;
+	stop)       nfsserver_stop
+		;;
+	monitor)    nfsserver_monitor
+		;;
+	validate-all)   nfsserver_validate
+		;;
+	*)      nfsserver_usage
+	exit $OCF_ERR_UNIMPLEMENTED
+	;;
+esac
+
