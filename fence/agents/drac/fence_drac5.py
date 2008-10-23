@@ -66,7 +66,7 @@ def main():
 	## Operate the fencing device
 	######
 	conn = fence_login(options)
-	fence_action(conn, options, set_power_status, get_power_status)
+	fence_action(conn, options, set_power_status, get_power_status, None)
 
 	##
 	## Logout from system

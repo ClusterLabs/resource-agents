@@ -95,7 +95,7 @@ def main():
 	##
 	## Fence operations
 	####
-	fence_action(conn, options, set_power_status, get_power_status)
+	fence_action(conn, options, set_power_status, get_power_status, None)
 
 if __name__ == "__main__":
 	main()

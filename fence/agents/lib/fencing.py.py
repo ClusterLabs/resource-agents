@@ -273,6 +273,7 @@ def process_input(avail_opt):
 ######
 def check_input(device_opt, opt):
 	options = dict(opt)
+	options["device_opt"] = device_opt
 
 	if options.has_key("-h"): 
 		usage(device_opt)
@@ -294,7 +295,7 @@ def check_input(device_opt, opt):
 	# Convert action to lowercase
 	options["-o"]=options["-o"].lower()
 
-	if 0 == ["on", "off", "reboot", "status", "list"].count(options["-o"].lower()):
+	if 0 == ["on", "off", "reboot", "status", "list", "monitor"].count(options["-o"].lower()):
 		fail_usage("Failed: Unrecognised action '" + options["-o"] + "'")
 
 	if (0 == options.has_key("-l")) and device_opt.count("login") and (device_opt.count("no_login") == 0):
@@ -318,7 +319,7 @@ def check_input(device_opt, opt):
 		if 0 == os.path.isfile(options["-k"]):
 			fail_usage("Failed: Identity file " + options["-k"] + " does not exist")
 
-	if (0 == options.has_key("-n")) and (device_opt.count("port")):
+	if (0 == ["list", "monitor"].count(options["-o"].lower())) and (0 == options.has_key("-n")) and (device_opt.count("port")):
 		fail_usage("Failed: You have to enter plug number")
 
 	if options.has_key("-S"):
@@ -361,18 +362,23 @@ def wait_power_status(tn, options, get_power_fn):
 	return 0
 
 def fence_action(tn, options, set_power_fn, get_power_fn, get_outlet_list = None):
-	if (options["-o"] == "list" and get_outlet_list == None):		
+	if (options["-o"] == "list" and 0 == options["device_opt"].count("port")):
+		print "N/A"
+		return
+	elif (options["-o"] == "list" and get_outlet_list == None):
 		## @todo: exception?
 		## This is just temporal solution, we will remove default value
 		## None as soon as all existing agent will support this operation 
 		print "NOTICE: List option is not working on this device yet"
 		return
-	elif (options["-o"] == "list"):
+	elif (options["-o"] == "list") or ((options["-o"] == "monitor") and 1 == options["device_opt"].count("port")):
 		outlets = get_outlet_list(tn, options)
 		## keys can be numbers (port numbers) or strings (names of VM)
 		for o in outlets.keys():
 			(alias, status) = outlets[o]
-			print o + options["-C"] + alias	
+			if options["-o"] != "monitor":
+				print o + options["-C"] + alias	
+		return
 
 	status = get_power_fn(tn, options)
 
@@ -407,6 +413,8 @@ def fence_action(tn, options, set_power_fn, get_power_fn, get_outlet_list = None
 		print "Success: Rebooted"
 	elif options["-o"] == "status":
 		print "Status: " + status.upper()
+	elif options["-o"] == "monitor":
+		1
 
 def fence_login(options):
 	try:

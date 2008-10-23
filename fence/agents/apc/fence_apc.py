@@ -85,7 +85,7 @@ def get_power_status(conn, options):
 	except pexpect.TIMEOUT:
 		fail(EC_TIMED_OUT)
 
-	if options["-o"] == "list":
+	if ["list", "monitor"].count(options["-o"]) == 1:
 		return outlets
 	else:
 		status = re.compile("\s*"+options["-n"]+"-.*(ON|OFF)", re.IGNORECASE).search(result).group(1)
@@ -188,7 +188,7 @@ def main():
 		options["-c"] = "\n>"
 
 	## Support for -n [switch]:[plug] notation that was used before
-	if (-1 != options["-n"].find(":")):
+	if (options.has_key("-n") == 1) and (-1 != options["-n"].find(":")):
 		(switch, plug) = options["-n"].split(":", 1)
 		options["-s"] = switch;
 		options["-n"] = plug;
