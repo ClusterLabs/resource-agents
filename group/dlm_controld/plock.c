@@ -2146,6 +2146,7 @@ int fill_plock_dump_buf(struct lockspace *ls)
 		}
 	}
  out:
+	plock_dump_len = pos;
 	return rv;
 }
 
