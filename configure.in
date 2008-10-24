@@ -2633,8 +2633,6 @@ cts/Makefile					        	\
 debian/Makefile							\
 doc/Makefile							\
 	doc/startstop						\
-	doc/cibadmin.8						\
-	doc/crm_resource.8					\
 contrib/Makefile						\
 	contrib/ipfail/Makefile					\
         contrib/mlock/Makefile					\
