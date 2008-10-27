@@ -149,7 +149,7 @@ all_opt = {
 		"order" : 2 },
 	"separator" : {
 		"getopt" : "C:",
-		"help" : "-C <char>	Separator for CSV created by 'list' operation",
+		"help" : "-C <char>      Separator for CSV created by 'list' operation",
 		"order" : 100 }
 }
 
