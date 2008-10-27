@@ -1458,10 +1458,7 @@ int main(int argc, char **argv)
 	INIT_LIST_HEAD(&mountgroups);
 	INIT_LIST_HEAD(&withdrawn_mounts);
 
-	init_logging();
-
 	read_arguments(argc, argv);
-
 	lockfile();
 
 	if (!daemon_debug_opt) {
@@ -1470,8 +1467,8 @@ int main(int argc, char **argv)
 			exit(EXIT_FAILURE);
 		}
 	}
+	init_logging();
 	signal(SIGTERM, sigterm_handler);
-
 	set_scheduler();
 	set_oom_adj(-16);
 

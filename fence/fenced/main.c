@@ -1012,10 +1012,7 @@ int main(int argc, char **argv)
 	INIT_LIST_HEAD(&domains);
 	INIT_LIST_HEAD(&controlled_entries);
 
-	init_logging();
-
 	read_arguments(argc, argv);
-
 	lockfile();
 
 	if (!daemon_debug_opt) {
@@ -1025,8 +1022,8 @@ int main(int argc, char **argv)
 		}
 		umask(0);
 	}
+	init_logging();
 	signal(SIGTERM, sigterm_handler);
-
 	set_oom_adj(-16);
 
 	loop();

@@ -1017,10 +1017,7 @@ int main(int argc, char *argv[])
 	for (i = 0; i < MAX_LEVELS; i++)
 		INIT_LIST_HEAD(&gd_levels[i]);
 
-	init_logging();
-
 	read_arguments(argc, argv);
-
 	lockfile();
 
 	if (!daemon_debug_opt) {
@@ -1029,8 +1026,8 @@ int main(int argc, char *argv[])
 			exit(EXIT_FAILURE);
 		}
 	}
+	init_logging();
 	signal(SIGTERM, sigterm_handler);
-
 	set_scheduler();
 	set_oom_adj(-16);
 
