@@ -20,6 +20,7 @@
 #define CONFIG_NAME_PATH	"/cluster/@name"
 
 static int ccs_readconfig(struct objdb_iface_ver0 *objdb, char **error_string);
+static int ccs_reloadconfig(struct objdb_iface_ver0 *objdb, int flush, char **error_string);
 static int init_config(struct objdb_iface_ver0 *objdb, char *error_string);
 static char error_reason[1024];
 
@@ -28,7 +29,8 @@ static char error_reason[1024];
  */
 
 static struct config_iface_ver0 ccsconfig_iface_ver0 = {
-	.config_readconfig        = ccs_readconfig
+	.config_readconfig        = ccs_readconfig,
+	.config_reloadconfig      = ccs_reloadconfig
 };
 
 static struct lcr_iface ifaces_ver0[2] = {
@@ -174,6 +176,11 @@ static int read_config_for(int ccs_fd, struct objdb_iface_ver0 *objdb, unsigned 
 		free(str);
 	}
 	return gotcount;
+}
+
+static int ccs_reloadconfig(struct objdb_iface_ver0 *objdb, int flush, char **error_string)
+{
+	return init_config(objdb, error_reason);
 }
 
 static int ccs_readconfig(struct objdb_iface_ver0 *objdb, char **error_string)
