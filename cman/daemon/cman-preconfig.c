@@ -30,6 +30,7 @@
 
 static unsigned int debug_mask;
 static int cmanpre_readconfig(struct objdb_iface_ver0 *objdb, char **error_string);
+static int cmanpre_reloadconfig(struct objdb_iface_ver0 *objdb, int flush, char **error_string);
 
 static char *nodename_env;
 static int expected_votes;
@@ -53,7 +54,8 @@ static unsigned int cluster_parent_handle;
  * Exports the interface for the service
  */
 static struct config_iface_ver0 cmanpreconfig_iface_ver0 = {
-	.config_readconfig        = cmanpre_readconfig
+	.config_readconfig        = cmanpre_readconfig,
+	.config_reloadconfig      = cmanpre_reloadconfig
 };
 
 static struct lcr_iface ifaces_ver0[2] = {
@@ -1011,6 +1013,51 @@ static int get_cman_globals(struct objdb_iface_ver0 *objdb)
 	return 0;
 }
 
+static int cmanpre_reloadconfig(struct objdb_iface_ver0 *objdb, int flush, char **error_string)
+{
+	int ret = 0;
+	unsigned int object_handle;
+	unsigned int find_handle;
+	unsigned int cluster_parent_handle_new;
+
+	/* find both /cluster entries */
+	objdb->object_find_create(OBJECT_PARENT_HANDLE, "cluster", strlen("cluster"), &find_handle);
+	objdb->object_find_next(find_handle, &cluster_parent_handle);
+	if (!cluster_parent_handle) {
+		sprintf (error_reason, "%s", "Cannot find old /cluster/ key in configuration\n");
+		goto err;
+	}
+	objdb->object_find_next(find_handle, &cluster_parent_handle_new);
+	if (!cluster_parent_handle_new) {
+		sprintf (error_reason, "%s", "Cannot find new /cluster/ key in configuration\n");
+		goto err;
+	}
+	objdb->object_find_destroy(find_handle);
+
+	/* destroy the old one */
+	objdb->object_destroy(cluster_parent_handle);
+
+	/* update the reference to the new config */
+	cluster_parent_handle = cluster_parent_handle_new;
+
+	/* destroy top level /logging */
+	objdb->object_find_create(OBJECT_PARENT_HANDLE, "logging", strlen("logging"), &find_handle);
+	objdb->object_find_next(find_handle, &object_handle);
+	objdb->object_find_destroy(find_handle);
+	if (object_handle) {
+		objdb->object_destroy(object_handle);
+	}
+
+	/* copy /cluster/logging to /logging */
+	ret = copy_tree_to_root(objdb, "logging", 0);
+
+	return 0;
+
+err:
+	*error_string = error_reason;
+	return -1;
+}
+
 static int cmanpre_readconfig(struct objdb_iface_ver0 *objdb, char **error_string)
 {
 	int ret = 0;
@@ -1038,7 +1085,6 @@ static int cmanpre_readconfig(struct objdb_iface_ver0 *objdb, char **error_strin
 
 	objdb->object_find_create(cluster_parent_handle, "cman", strlen("cman"), &find_handle);
 	if (objdb->object_find_next(find_handle, &object_handle)) {
-
                 objdb->object_create(cluster_parent_handle, &object_handle,
 					"cman", strlen("cman"));
         }
