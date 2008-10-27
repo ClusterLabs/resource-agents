@@ -522,6 +522,29 @@ run_send_arp() {
 	esac
 }
 
+#
+# Run ipoibarping to note peers about new Infiniband address
+#
+run_send_ib_arp() {
+	SENDIBARP="/sbin/ipoibarping"
+
+	if [ ! -x $SENDIBARP ] ; then
+		ocf_log err "Could not send gratuitous Infiniband arps: file not found: $SENDIBPARP"
+		return
+	fi
+
+	ARGS="-q -c  $ARP_REPEAT -U -I $NIC $BASEIP"
+	ocf_log info "$SENDIBARP $ARGS"
+	case $ARP_BACKGROUND in
+	yes)
+		($SENDIBARP $ARGS || ocf_log err "Could not send gratuitous arps" &) >&2
+		;;
+	*)
+		$SENDIBARP $ARGS || ocf_log err "Could not send gratuitous arps"
+		;;
+	esac
+}
+
 # Do we already serve this IP address?
 #
 # returns:
@@ -630,6 +653,9 @@ ip_start() {
 	case $NIC in
 	lo*)
 		: no need to run send_arp on loopback
+		;;
+	ib*)
+		run_send_ib_arp
 		;;
 	*)
 	    if [ -x $SENDARP ]; then
