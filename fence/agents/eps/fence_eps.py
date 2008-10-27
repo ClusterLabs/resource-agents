@@ -66,17 +66,20 @@ def eps_run_command(options, params):
 	return result
 
 def get_power_status(conn, options):
-	result = ""
-
 	ret_val=eps_run_command(options,"")
 
-	status=re.search("p"+options["-n"].lower()+"=(0|1)\s*\<br\>",ret_val.lower())
-	if status==None:
-		fail_usage("Failed: You have to enter existing physical plug!")
+	result={}
+	status=re.findall("p(\d{2})=(0|1)\s*\<br\>",ret_val.lower())
+	for out_num,out_stat in status:
+		result[out_num]=("",(out_stat=="1" and "on" or "off"))
 
-	result=(status.group(1)=="1" and "on" or "off")
-
-	return result
+	if (options["-o"] == "status"):
+		if (not (options["-n"] in result)):
+			fail_usage("Failed: You have to enter existing physical plug!")
+		else:
+			return result[options["-n"]][1]
+	else:
+		return result
 
 def set_power_status(conn, options):
 	ret_val=eps_run_command(options,"P%s=%s"%(options["-n"],(options["-o"]=="on" and "1" or "0")))
@@ -92,7 +95,8 @@ def eps_define_new_opts():
 def main():
 	device_opt = [  "help", "version", "agent", "quiet", "verbose", "debug",
 			"action", "ipaddr", "login", "passwd", "passwd_script",
-			"test", "port", "hidden_page", "no_login", "no_password" ]
+			"test", "port", "hidden_page", "no_login", "no_password",
+			"separator" ]
 
 	eps_define_new_opts()
 
@@ -101,8 +105,8 @@ def main():
 	if (not options.has_key("-c")):
 		options["-c"]="hidden.htm"
 
-	#Run fence action. Conn is None, beacause we always need run new curl command
-	fence_action(None, options, set_power_status, get_power_status)
+	#Run fence action. Conn is None, beacause we always need open new http connection
+	fence_action(None, options, set_power_status, get_power_status,get_power_status)
 
 if __name__ == "__main__":
 	main()

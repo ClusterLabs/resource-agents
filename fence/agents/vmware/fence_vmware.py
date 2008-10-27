@@ -26,23 +26,27 @@ def start_communication(conn, options):
 	conn.log_expect(options,COMMAND_PROMPT_REG,SHELL_TIMEOUT)
 
 # Prepare command line for vmware-cmd with parameters.
-def prepare_cmdline(conn,options):
-	cmd_line=VMWARE_COMMAND+" -H "+options["-A"]+" -U "+options["-L"]+" -P "+options["-P"]+" '"+options["-n"]+"'"
-        if options.has_key("-A"):
+def prepare_cmdline(conn,options,add_vm_name):
+	cmd_line=VMWARE_COMMAND+" -H '"+options["-A"]+"' -U '"+options["-L"]+"' -P '"+options["-P"]+"'"
+	if (add_vm_name):
+		cmd_line+=" '"+options["-n"]+"'"
+
+        if options.has_key("-v"):
     		cmd_line+=" -v"
+
     	return cmd_line
     	
 def get_power_status(conn, options):
 	result = ""
 	try:
 		start_communication(conn,options)
-		
-		cmd_line=prepare_cmdline(conn,options)
-            	
+
+		cmd_line=prepare_cmdline(conn,options,True)
+
             	cmd_line+=" getstate"
-            	
+
 		conn.sendline(cmd_line)
-		    
+
 		conn.log_expect(options,COMMAND_PROMPT_REG,SHELL_TIMEOUT)
 		status_err = re.search("vmcontrol\ error\ ([-+]?\d+)\:(.*)",conn.before.lower())
 		if (status_err!=None):
@@ -59,18 +63,47 @@ def get_power_status(conn, options):
 
 	return result
 
+def get_outlet_list(conn,options):
+	result={}
+
+	try:
+		start_communication(conn,options)
+
+		cmd_line=prepare_cmdline(conn,options,False)
+		cmd_line+=" -l"
+
+		conn.sendline(cmd_line)
+
+		conn.log_expect(options,COMMAND_PROMPT_REG,SHELL_TIMEOUT)
+		status_err = re.search("vmcontrol\ error\ ([-+]?\d+)\:(.*)",conn.before.lower())
+		if (status_err!=None):
+			fail_usage("VMware error "+status_err.group(1)+": "+status_err.group(2))
+
+                lines=conn.before.splitlines()
+
+                for line in lines[(options.has_key("-v") and 3 or 1):-1]:
+			if (line!=""):
+			    result[line]=("","")
+
+	except pexpect.EOF:
+		fail(EC_CONNECTION_LOST)
+	except pexpect.TIMEOUT:
+		fail(EC_TIMED_OUT)
+
+	return result
+
 def set_power_status(conn, options):
 	try:
 		start_communication(conn,options)
 
-		cmd_line=prepare_cmdline(conn,options)
-            	
+		cmd_line=prepare_cmdline(conn,options,True)
+
             	cmd_line+=" "+(options["-o"]=="on" and "start" or "stop hard")
-            	
+
 		conn.sendline(cmd_line)
-		    
+
 		conn.log_expect(options,COMMAND_PROMPT_REG,POWER_TIMEOUT)
-		
+
 	except pexpect.EOF:
 		fail(EC_CONNECTION_LOST)
 	except pexpect.TIMEOUT:
@@ -80,7 +113,7 @@ def main():
 	device_opt = [  "help", "version", "agent", "quiet", "verbose", "debug",
 			"action", "ipaddr", "login", "passwd", "passwd_script",
 			"secure",  "identity_file", "test" , "vmipaddr", "vmlogin", 
-			"vmpasswd", "port", "vmpasswd_script" ]
+			"vmpasswd", "port", "vmpasswd_script", "separator" ]
 
 	options = check_input(device_opt, process_input(device_opt))
 
@@ -98,7 +131,7 @@ def main():
 	## Operate the fencing device
 	####
 	conn = fence_login(options)
-	fence_action(conn, options, set_power_status, get_power_status)
+	fence_action(conn, options, set_power_status, get_power_status, get_outlet_list)
 
 	##
 	## Logout from system

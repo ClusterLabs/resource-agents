@@ -31,28 +31,39 @@ def start_communication(conn, options):
 	
 
 def get_power_status(conn, options):
-	result = ""
 	try:
 		start_communication(conn,options)
 		
 		conn.sendline("ldm ls")
 		    
 		conn.log_expect(options,COMMAND_PROMPT_REG,SHELL_TIMEOUT)
-		#Status of logical domain. This can be None => LM not found or something else	
-		ldom_exists = re.search(re.escape(options["-n"])+"\s+(\w+)",conn.before)
-		if (ldom_exists==None):
-			fail_usage("Failed: You have to enter existing logical domain!")
-		#Test status
-		status=re.search(".*bound",ldom_exists.group(1).lower())
 
-		result=(status!=None and "off" or "on")
+		result={}
+
+		#This is status of mini finite automata. 0 = we didn't found NAME and STATE, 1 = we did
+		fa_status=0
 		
+		for line in conn.before.splitlines():
+			domain=re.search("^(\S+)\s+(\S+)\s+.*$",line)
+
+			if (domain!=None):
+				if ((fa_status==0) and (domain.group(1)=="NAME") and (domain.group(2)=="STATE")):
+					fa_status=1
+				elif (fa_status==1):
+					result[domain.group(1)]=("",(domain.group(2).lower()=="bound" and "off" or "on"))
+
 	except pexpect.EOF:
 		fail(EC_CONNECTION_LOST)
 	except pexpect.TIMEOUT:
 		fail(EC_TIMED_OUT)
 
-	return result
+	if (options["-o"] == "status"):
+		if (not (options["-n"] in result)):
+			fail_usage("Failed: You have to enter existing logical domain!")
+		else:
+			return result[options["-n"]][1]
+	else:
+		return result
 
 def set_power_status(conn, options):
 	try:
@@ -72,7 +83,8 @@ def set_power_status(conn, options):
 def main():
 	device_opt = [  "help", "version", "agent", "quiet", "verbose", "debug",
 			"action", "ipaddr", "login", "passwd", "passwd_script",
-			"secure",  "identity_file", "test" , "port", "cmd_prompt" ]
+			"secure",  "identity_file", "test" , "port", "cmd_prompt",
+			"separator" ]
 
     	
 	options = check_input(device_opt, process_input(device_opt))
@@ -89,7 +101,7 @@ def main():
 	## Operate the fencing device
 	####
 	conn = fence_login(options)
-	fence_action(conn, options, set_power_status, get_power_status)
+	fence_action(conn, options, set_power_status, get_power_status,get_power_status)
 
 	##
 	## Logout from system

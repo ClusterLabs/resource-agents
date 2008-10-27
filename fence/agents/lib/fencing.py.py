@@ -345,12 +345,12 @@ def check_input(device_opt, opt):
 	if (device_opt.count("vmlogin") and (not options.has_key("-L"))):
 		fail_usage("Failed: You have to set login name for VMware ESX management console")
 
-	if (options.has_key("-L") and (not (options.has_key("-P") or options.has_key("-C")))):
+	if (options.has_key("-L") and (not (options.has_key("-P") or options.has_key("-B")))):
 		fail_usage("Failed: You have to enter password or password script for VMware ESX management console")
 
-	if (options.has_key("-L") and (not (options.has_key("-n")))):
+	if (["list", "monitor"].count(options["-o"])==0 and (options.has_key("-L") and (not (options.has_key("-n"))))):
 		fail_usage("Failed: You have to enter virtual machine name")
-		
+
 	return options
 	
 def wait_power_status(tn, options, get_power_fn):
