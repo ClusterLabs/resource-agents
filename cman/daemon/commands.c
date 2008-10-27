@@ -90,6 +90,8 @@ static void process_internal_message(char *data, int nodeid, int byteswap);
 static void recalculate_quorum(int allow_decrease, int by_current_nodes);
 static void send_kill(int nodeid, uint16_t reason);
 static char *killmsg_reason(int reason);
+static void ccsd_timer_fn(void *arg);
+
 
 static void set_port_bit(struct cluster_node *node, uint8_t port)
 {
@@ -1081,21 +1083,46 @@ static int do_cmd_unregister_quorum_device(char *cmdbuf, int *retlen)
         return 0;
 }
 
+static int reread_config(int new_version)
+{
+	int read_err;
+	char *reload_err = NULL;
+
+	wanted_config_version = new_version;
+
+	/* Tell objdb to reload */
+	read_err = corosync->object_reload_config(1, &reload_err);
+
+	/* Now get our bits */
+	if (!read_err)
+		read_err = read_cman_nodes(corosync, &config_version, 0);
+
+	if (read_err) {
+		config_error = 1;
+		log_printf(LOG_ERR, "Can't get updated config version %d: %s. Activity suspended on this node\n",
+			   wanted_config_version, reload_err?reload_err:"version mismatch on this node");
+	}
+
+	/* Still too old?? */
+	if (config_version < wanted_config_version) {
+		log_printf(LOG_ERR, "Can't get updated config version %d, config file is version %d.\n",
+			   wanted_config_version, config_version);
+	}
+
+	/* Keep looking */
+	if (read_err || config_version < wanted_config_version) {
+		corosync->timer_add_duration((unsigned long long)ccsd_poll_interval*1000000, NULL,
+					     ccsd_timer_fn, &ccsd_timer);
+	}
+
+	return read_err;
+}
+
 static void ccsd_timer_fn(void *arg)
 {
-	int ccs_err;
-
-	log_printf(LOG_DEBUG, "Polling ccsd for updated information\n");
-	ccs_err = read_cman_nodes(corosync, &config_version, 0);
-	if (ccs_err || config_version < wanted_config_version) {
-		log_printf(LOG_ERR, "Can't read CCS to get updated config version %d. Activity suspended on this node\n",
-				wanted_config_version);
-
-		corosync->timer_add_duration((unsigned long long)ccsd_poll_interval*1000000, NULL,
-					   ccsd_timer_fn, &ccsd_timer);
-	}
-	else {
-		log_printf(LOG_ERR, "Now got CCS information version %d, continuing\n", config_version);
+	log_printf(LOG_DEBUG, "Polling configuration for updated information\n");
+	if (!reread_config(wanted_config_version) && config_version >= wanted_config_version) {
+		log_printf(LOG_ERR, "Now got config information version %d, continuing\n", config_version);
 		config_error = 0;
 		recalculate_quorum(0, 0);
 		notify_listeners(NULL, EVENT_REASON_CONFIG_UPDATE, config_version);
@@ -1584,18 +1611,9 @@ static int valid_transition_msg(int nodeid, struct cl_transmsg *msg)
 
 	/* New config version - try to read new file */
 	if (msg->config_version > config_version) {
-		int ccs_err;
 
-		ccs_err = read_cman_nodes(corosync, &config_version, 0);
-		if (ccs_err || config_version < msg->config_version) {
-			config_error = 1;
-			log_printf(LOG_ERR, "Can't read CCS to get updated config version %d. Activity suspended on this node\n",
-				msg->config_version);
+		reread_config(msg->config_version);
 
-			wanted_config_version = msg->config_version;
-			corosync->timer_add_duration((unsigned long long)ccsd_poll_interval*1000000, NULL,
-						   ccsd_timer_fn, &ccsd_timer);
-		}
 		if (config_version > msg->config_version) {
 			/* Tell everyone else to update */
 			send_reconfigure(us->node_id, RECONFIG_PARAM_CONFIG_VERSION, config_version);
@@ -1747,17 +1765,8 @@ static void do_reconfigure_msg(void *data)
 		break;
 
 	case RECONFIG_PARAM_CONFIG_VERSION:
-		if (config_version != msg->value &&
-		    read_cman_nodes(corosync, &config_version, 0)) {
-			log_printf(LOG_ERR, "Can't read CCS to get updated config version %d. Activity suspended on this node\n",
-				   msg->value);
-
-			config_error = 1;
-			recalculate_quorum(0, 0);
-
-			wanted_config_version = config_version;
-			corosync->timer_add_duration((unsigned long long)ccsd_poll_interval*1000000, NULL,
-						   ccsd_timer_fn, &ccsd_timer);
+		if (config_version != msg->value) {
+			reread_config(msg->value);
 		}
 		notify_listeners(NULL, EVENT_REASON_CONFIG_UPDATE, config_version);
 		break;
@@ -2071,7 +2080,7 @@ void add_ais_node(int nodeid, uint64_t incarnation, int total_members)
  	/* This really should exist!! */
 	if (!node) {
 		char tempname[256];
-		log_printf(LOG_ERR, "Got node from AIS id %d with no CCS entry\n", nodeid);
+		log_printf(LOG_ERR, "Got node from AIS id %d with no config entry\n", nodeid);
 
 		/* Emergency nodename */
 		sprintf(tempname, "Node%d", nodeid);
