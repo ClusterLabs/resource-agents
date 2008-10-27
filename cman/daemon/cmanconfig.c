@@ -32,7 +32,6 @@ static char cluster_name[MAX_CLUSTER_NAME_LEN + 1];
 static unsigned int expected_votes;
 static char *our_nodename;
 static int our_votes;
-static unsigned int cluster_parent_handle;
 
 /* Get all the cluster node names from objdb and
  * add them to our node list.
@@ -48,6 +47,13 @@ int read_cman_nodes(struct corosync_api_v1 *corosync, unsigned int *config_versi
     unsigned int nodes_handle;
     unsigned int find_handle;
     char *nodename;
+    unsigned int cluster_parent_handle;
+
+    corosync->object_find_create(OBJECT_PARENT_HANDLE,
+				 "cluster", strlen("cluster"), &find_handle);
+
+    corosync->object_find_next(find_handle, &cluster_parent_handle);
+    corosync->object_find_destroy(find_handle);
 
     /* New config version */
     objdb_get_int(corosync, cluster_parent_handle, "config_version", config_version,0);
@@ -138,6 +144,13 @@ static int get_cman_join_info(struct corosync_api_v1 *corosync)
 	unsigned int node_object;
 	unsigned int nodes_handle;
 	unsigned int find_handle;
+	unsigned int cluster_parent_handle;
+
+	corosync->object_find_create(OBJECT_PARENT_HANDLE,
+				     "cluster", strlen("cluster"), &find_handle);
+
+	corosync->object_find_next(find_handle, &cluster_parent_handle);
+	corosync->object_find_destroy(find_handle);
 
 	/* Cluster name */
 	if (objdb_get_string(corosync, cluster_parent_handle, "name", &cname)) {
@@ -270,14 +283,6 @@ out:
 int read_cman_config(struct corosync_api_v1 *corosync, unsigned int *config_version)
 {
 	int error;
-	unsigned int find_handle;
-
-	/* Get the parent object handle */
-	corosync->object_find_create(OBJECT_PARENT_HANDLE,
-				    "cluster", strlen("cluster"), &find_handle);
-
-	corosync->object_find_next(find_handle, &cluster_parent_handle);
-	corosync->object_find_destroy(find_handle);
 
 	read_cman_nodes(corosync, config_version, 1);
 	error = get_cman_join_info(corosync);
