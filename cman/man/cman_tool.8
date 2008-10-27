@@ -65,7 +65,7 @@ you need to get it running again in a hurry.
 .I version
 Used alone this will report the major, minor, patch and config versions
 used by CMAN (also displayed in 'cman_tool status'). It can also be used
-with -r to set a new config version on all cluster members.
+with -r to tell cluster members to update.
 
 .TP
 .I wait 
@@ -129,9 +129,19 @@ name as it appears in 'cman_tool nodes'.
 .SH "VERSION" OPTIONS
 .TP
 .I -r <config_version>
-The new config version. You don't need to use this when adding a new node,
-the new cman node will tell the rest of the cluster to get their latest
-version of the config file automatically.
+Update config version. You don't need to use this when adding a new node,
+the new cman node will tell the rest of the cluster to read the latest
+version of the config file automatically. 
+.br
+In fact the argument to -r might look as though it is ignored. 
+Its presence simply tells cman to re-read the configuration file and look 
+for that version in the file. cman will keep re-reading the file
+until a version number >= the passed version is found.
+.br
+cman_tool version on its own will always show the current version
+and not the one being looked for. So be aware that the display
+will possible not update immediately after you have run
+cman_tool version -r.
 .SH "WAIT" OPTIONS
 .TP
 .I -q
