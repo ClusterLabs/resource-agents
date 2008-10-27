@@ -20,13 +20,18 @@ void kick_node_from_cluster(int nodeid)
 
 static void cman_callback(cman_handle_t h, void *private, int reason, int arg)
 {
-	if (reason == CMAN_REASON_TRY_SHUTDOWN) {
+	switch (reason) {
+	case CMAN_REASON_TRY_SHUTDOWN:
 		if (list_empty(&mountgroups))
 			cman_replyto_shutdown(ch, 1);
 		else {
 			log_debug("no to cman shutdown");
 			cman_replyto_shutdown(ch, 0);
 		}
+		break;
+	case CMAN_REASON_CONFIG_UPDATE:
+		setup_logging();
+		break;
 	}
 }
 
