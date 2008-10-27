@@ -1015,10 +1015,17 @@ static int get_cman_globals(struct objdb_iface_ver0 *objdb)
 
 static int cmanpre_reloadconfig(struct objdb_iface_ver0 *objdb, int flush, char **error_string)
 {
-	int ret = 0;
+	int ret = -1;
 	unsigned int object_handle;
 	unsigned int find_handle;
 	unsigned int cluster_parent_handle_new;
+
+	/* don't reload if we've been told to run configless */
+	if (getenv("CMAN_NOCONFIG")) {
+		sprintf(error_reason, "Config not updated because we were run with cman_tool -X");
+		ret = 0;
+		goto err;
+	}
 
 	/* find both /cluster entries */
 	objdb->object_find_create(OBJECT_PARENT_HANDLE, "cluster", strlen("cluster"), &find_handle);
@@ -1055,7 +1062,7 @@ static int cmanpre_reloadconfig(struct objdb_iface_ver0 *objdb, int flush, char 
 
 err:
 	*error_string = error_reason;
-	return -1;
+	return ret;
 }
 
 static int cmanpre_readconfig(struct objdb_iface_ver0 *objdb, char **error_string)
@@ -1071,17 +1078,18 @@ static int cmanpre_readconfig(struct objdb_iface_ver0 *objdb, char **error_strin
         objdb->object_find_next(find_handle, &cluster_parent_handle);
 	objdb->object_find_destroy(find_handle);
 	if (!cluster_parent_handle) {
-		sprintf (error_reason, "%s", "Cannot find /cluster/ key in configuration\n");
-		return -1;
+                objdb->object_create(OBJECT_PARENT_HANDLE, &cluster_parent_handle,
+				     "cluster", strlen("cluster"));
 	}
-
-	/* Move these to a place where corosync expects to find them */
-	ret = copy_tree_to_root(objdb, "totem", 0);
-	ret = copy_tree_to_root(objdb, "logging", 0);
-	ret = copy_tree_to_root(objdb, "event", 0);
-	ret = copy_tree_to_root(objdb, "amf", 0);
-	ret = copy_tree_to_root(objdb, "aisexec", 0);
-	ret = copy_tree_to_root(objdb, "service", 1);
+	else {
+		/* Move these to a place where corosync expects to find them */
+		ret = copy_tree_to_root(objdb, "totem", 0);
+		ret = copy_tree_to_root(objdb, "logging", 0);
+		ret = copy_tree_to_root(objdb, "event", 0);
+		ret = copy_tree_to_root(objdb, "amf", 0);
+		ret = copy_tree_to_root(objdb, "aisexec", 0);
+		ret = copy_tree_to_root(objdb, "service", 1);
+	}
 
 	objdb->object_find_create(cluster_parent_handle, "cman", strlen("cman"), &find_handle);
 	if (objdb->object_find_next(find_handle, &object_handle)) {
