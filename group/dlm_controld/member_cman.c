@@ -147,6 +147,9 @@ static void cman_callback(cman_handle_t h, void *private, int reason, int arg)
 	case CMAN_REASON_STATECHANGE:
 		statechange();
 		break;
+	case CMAN_REASON_CONFIG_UPDATE:
+		setup_logging();
+		break;
 	}
 }
 
