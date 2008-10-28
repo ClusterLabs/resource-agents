@@ -10,7 +10,7 @@
 #include "ccs_internal.h"
 
 #ifndef XMLBUFSIZE
-#define XMLBUFSIZE 64000 
+#define XMLBUFSIZE 64000
 #endif
 
 int fullxpath = 0;
@@ -26,10 +26,10 @@ static int add_to_buffer(char *data, char **buffer, int *bufsize)
 	datalen = strlen(data);
 	bufferlen = strlen(*buffer);
 
-	if(datalen) {
-		if((bufferlen + datalen) >= *bufsize) {
+	if (datalen) {
+		if ((bufferlen + datalen) >= *bufsize) {
 			newbuf = malloc((*bufsize * 2));
-			if(!newbuf) {
+			if (!newbuf) {
 				errno = ENOMEM;
 				return -1;
 			}
@@ -44,7 +44,9 @@ static int add_to_buffer(char *data, char **buffer, int *bufsize)
 	return 0;
 }
 
-static int dump_objdb_buff(confdb_handle_t dump_handle, unsigned int parent_object_handle, char **buffer, int *bufsize)
+static int dump_objdb_buff(confdb_handle_t dump_handle,
+			   unsigned int parent_object_handle, char **buffer,
+			   int *bufsize)
 {
 	unsigned int object_handle;
 	char temp[PATH_MAX];
@@ -63,13 +65,16 @@ static int dump_objdb_buff(confdb_handle_t dump_handle, unsigned int parent_obje
 	}
 
 	if (!*buffer || ((*buffer) && !strlen(*buffer))) {
-		snprintf(temp, PATH_MAX - 1, "<?xml version=\"1.0\"?>\n<objdbmaindoc>\n");
-		if(add_to_buffer(temp, buffer, bufsize))
+		snprintf(temp, PATH_MAX - 1,
+			 "<?xml version=\"1.0\"?>\n<objdbmaindoc>\n");
+		if (add_to_buffer(temp, buffer, bufsize))
 			return -1;
 	}
 
-	while ( (res = confdb_key_iter(dump_handle, parent_object_handle, key_name, &key_name_len,
-					key_value, &key_value_len)) == SA_AIS_OK) {
+	while ((res =
+		confdb_key_iter(dump_handle, parent_object_handle, key_name,
+				&key_name_len, key_value,
+				&key_value_len)) == SA_AIS_OK) {
 		key_name[key_name_len] = '\0';
 		key_value[key_value_len] = '\0';
 
@@ -81,13 +86,13 @@ static int dump_objdb_buff(confdb_handle_t dump_handle, unsigned int parent_obje
 			continue;
 
 		snprintf(temp, PATH_MAX - 1, " %s=\"%s\"", key_name, key_value);
-		if(add_to_buffer(temp, buffer, bufsize))
+		if (add_to_buffer(temp, buffer, bufsize))
 			return -1;
 	}
 
 	if (parent_object_handle > 0) {
 		snprintf(temp, PATH_MAX - 1, ">\n");
-		if(add_to_buffer(temp, buffer, bufsize))
+		if (add_to_buffer(temp, buffer, bufsize))
 			return -1;
 	}
 
@@ -97,10 +102,15 @@ static int dump_objdb_buff(confdb_handle_t dump_handle, unsigned int parent_obje
 		return -1;
 	}
 
-	while ( (res = confdb_object_iter(dump_handle, parent_object_handle, &object_handle, object_name, &object_name_len)) == SA_AIS_OK)   {
+	while ((res =
+		confdb_object_iter(dump_handle, parent_object_handle,
+				   &object_handle, object_name,
+				   &object_name_len)) == SA_AIS_OK) {
 		unsigned int parent;
 
-		res = confdb_object_parent_get(dump_handle, object_handle, &parent);
+		res =
+		    confdb_object_parent_get(dump_handle, object_handle,
+					     &parent);
 		if (res != SA_AIS_OK) {
 			errno = EINVAL;
 			return -1;
@@ -112,41 +122,44 @@ static int dump_objdb_buff(confdb_handle_t dump_handle, unsigned int parent_obje
 		 * xml chars */
 
 		snprintf(temp, PATH_MAX - 1, "<%s", object_name);
-		if(add_to_buffer(temp, buffer, bufsize))
+		if (add_to_buffer(temp, buffer, bufsize))
 			return -1;
 
-		res = dump_objdb_buff(dump_handle, object_handle, buffer, bufsize);
-		if(res) {
+		res =
+		    dump_objdb_buff(dump_handle, object_handle, buffer,
+				    bufsize);
+		if (res) {
 			errno = res;
 			return res;
 		}
 
 		if (object_handle != parent_object_handle) {
 			snprintf(temp, PATH_MAX - 1, "</%s>\n", object_name);
-			if(add_to_buffer(temp, buffer, bufsize))
+			if (add_to_buffer(temp, buffer, bufsize))
 				return -1;
 		} else {
 			snprintf(temp, PATH_MAX - 1, ">\n");
-			if(add_to_buffer(temp, buffer, bufsize))
+			if (add_to_buffer(temp, buffer, bufsize))
 				return -1;
 		}
 	}
 
 	if (parent_object_handle == OBJECT_PARENT_HANDLE) {
 		snprintf(temp, PATH_MAX - 1, "</objdbmaindoc>\n");
-		if(add_to_buffer(temp, buffer, bufsize))
+		if (add_to_buffer(temp, buffer, bufsize))
 			return -1;
 	}
 
 	return 0;
 }
 
-int xpathfull_init(confdb_handle_t handle, int ccs_handle) {
+int xpathfull_init(confdb_handle_t handle, int ccs_handle)
+{
 	int size = XMLBUFSIZE;
 	char *buffer, *newbuf;
 
 	newbuf = buffer = malloc(XMLBUFSIZE);
-	if(!buffer) {
+	if (!buffer) {
 		errno = ENOMEM;
 		goto fail;
 	}
@@ -161,14 +174,14 @@ int xpathfull_init(confdb_handle_t handle, int ccs_handle) {
 		newbuf = NULL;
 	}
 
-	doc = xmlParseMemory(buffer,strlen(buffer));
-	if(!doc)
+	doc = xmlParseMemory(buffer, strlen(buffer));
+	if (!doc)
 		goto fail;
 
 	free(buffer);
 
 	ctx = xmlXPathNewContext(doc);
-	if(!ctx) {
+	if (!ctx) {
 		xmlFreeDoc(doc);
 		goto fail;
 	}
@@ -179,7 +192,8 @@ fail:
 	return -1;
 }
 
-void xpathfull_finish() {
+void xpathfull_finish()
+{
 	if (ctx) {
 		xmlXPathFreeContext(ctx);
 		ctx = NULL;
@@ -204,7 +218,8 @@ void xpathfull_finish() {
  *
  * Returns: 0 on success, < 0 on failure
  */
-char * _ccs_get_fullxpath(confdb_handle_t handle, unsigned int connection_handle, const char *query, int list)
+char *_ccs_get_fullxpath(confdb_handle_t handle, unsigned int connection_handle,
+			 const char *query, int list)
 {
 	xmlXPathObjectPtr obj = NULL;
 	char realquery[PATH_MAX + 16];
@@ -216,17 +231,21 @@ char * _ccs_get_fullxpath(confdb_handle_t handle, unsigned int connection_handle
 
 	errno = 0;
 
-	if(strncmp(query, "/", 1)) {
+	if (strncmp(query, "/", 1)) {
 		errno = EINVAL;
 		goto fail;
 	}
 
 	memset(previous_query, 0, PATH_MAX);
 
-	prev = get_previous_query(handle, connection_handle, previous_query, &list_handle);
+	prev =
+	    get_previous_query(handle, connection_handle, previous_query,
+			       &list_handle);
 
 	if (list && !prev && !strcmp(query, previous_query)) {
-		if (confdb_key_increment(handle, connection_handle, "iterator_tracker", strlen("iterator_tracker"), &xmllistindex) != SA_AIS_OK) {
+		if (confdb_key_increment
+		    (handle, connection_handle, "iterator_tracker",
+		     strlen("iterator_tracker"), &xmllistindex) != SA_AIS_OK) {
 			xmllistindex = 0;
 		} else {
 			xmllistindex--;
@@ -239,9 +258,9 @@ char * _ccs_get_fullxpath(confdb_handle_t handle, unsigned int connection_handle
 	memset(realquery, 0, PATH_MAX + 16);
 	snprintf(realquery, PATH_MAX + 16 - 1, "/objdbmaindoc%s", query);
 
-	obj = xmlXPathEvalExpression((xmlChar *)realquery, ctx);
+	obj = xmlXPathEvalExpression((xmlChar *) realquery, ctx);
 
-	if(!obj) {
+	if (!obj) {
 		errno = EINVAL;
 		goto fail;
 	}
@@ -250,7 +269,7 @@ char * _ccs_get_fullxpath(confdb_handle_t handle, unsigned int connection_handle
 		xmlNodePtr node;
 		int size = 0, nnv = 0;
 
-		if(xmllistindex >= obj->nodesetval->nodeNr){
+		if (xmllistindex >= obj->nodesetval->nodeNr) {
 			reset_iterator(handle, connection_handle);
 			errno = ENODATA;
 			goto fail;
@@ -258,23 +277,25 @@ char * _ccs_get_fullxpath(confdb_handle_t handle, unsigned int connection_handle
 
 		node = obj->nodesetval->nodeTab[xmllistindex];
 
-		if(!node) {
+		if (!node) {
 			errno = ENODATA;
 			goto fail;
 		}
 
-		if (((node->type == XML_ATTRIBUTE_NODE) && strstr(query, "@*")) ||
-		    ((node->type == XML_ELEMENT_NODE) && strstr(query, "child::*"))) {
+		if (((node->type == XML_ATTRIBUTE_NODE) && strstr(query, "@*"))
+		    || ((node->type == XML_ELEMENT_NODE)
+			&& strstr(query, "child::*"))) {
 			if (node->children && node->children->content)
 				size = strlen((char *)node->children->content) +
-					strlen((char *)node->name)+2;
+				    strlen((char *)node->name) + 2;
 			else
-				size = strlen((char *)node->name)+2;
+				size = strlen((char *)node->name) + 2;
 
 			nnv = 1;
 		} else {
 			if (node->children && node->children->content)
-				size = strlen((char *)node->children->content)+1;
+				size =
+				    strlen((char *)node->children->content) + 1;
 
 			else {
 				errno = ENODATA;
@@ -290,18 +311,23 @@ char * _ccs_get_fullxpath(confdb_handle_t handle, unsigned int connection_handle
 		}
 
 		if (nnv)
-			sprintf(rtn, "%s=%s", node->name, node->children ? (char *)node->children->content:"");
+			sprintf(rtn, "%s=%s", node->name,
+				node->children ? (char *)node->children->
+				content : "");
 		else
-			sprintf(rtn, "%s", node->children ? node->children->content : node->name);
+			sprintf(rtn, "%s",
+				node->children ? node->children->
+				content : node->name);
 
-		if(list)
-			set_previous_query(handle, connection_handle, (char *)query, OBJECT_PARENT_HANDLE);
+		if (list)
+			set_previous_query(handle, connection_handle,
+					   (char *)query, OBJECT_PARENT_HANDLE);
 
 	} else
 		errno = EINVAL;
 
 fail:
-	if(obj)
+	if (obj)
 		xmlXPathFreeObject(obj);
 
 	return rtn;
