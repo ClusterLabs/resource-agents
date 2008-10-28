@@ -1406,10 +1406,6 @@ static void receive_first_recovery_done(struct mountgroup *mg,
 		  "mount_client_notified %d",
 		  hd->nodeid, master, mg->mount_client_notified);
 
-	if (master != hd->nodeid)
-		log_error("receive_first_recovery_done from %d master %d",
-			  hd->nodeid, master);
-
 	if (list_empty(&mg->changes)) {
 		/* everything is idle, no changes in progress */
 
@@ -1440,6 +1436,12 @@ static void receive_first_recovery_done(struct mountgroup *mg,
 		     (which may be inconsistent due to members sending their
 		     start messages either before or after receiving this
 		     message). */
+
+		/* exclude new nodes from this sanity check since they've
+		   never set a master value to compare against */
+		if (mg->started_count && (master != hd->nodeid))
+			log_error("receive_first_recovery_done from %d "
+				  "master %d", hd->nodeid, master);
 
 		mg->first_recovery_needed = 0;
 		mg->first_recovery_master = 0;
