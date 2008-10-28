@@ -4,6 +4,7 @@ INCDIRT=ccs.h
 
 OBJS=	$(TARGET).o \
 	xpathlite.o \
+	fullxpath.o \
 	extras.o
 
 include ../../../make/defines.mk
