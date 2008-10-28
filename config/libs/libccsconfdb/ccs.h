@@ -15,4 +15,8 @@ int ccs_lookup_nodename(int desc, const char *nodename, char **rtn);
 
 extern int fullxpath;
 
+#ifdef EXPERIMENTAL_BUILD
+extern int ccs_persistent_conn;
+#endif
+
 #endif /*  __CCS_DOT_H__ */

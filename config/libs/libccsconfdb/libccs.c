@@ -10,48 +10,258 @@
 #include <corosync/confdb.h>
 #include <libxml/parser.h>
 #include <libxml/xpath.h>
+#ifdef EXPERIMENTAL_BUILD
+#include <time.h>
+#endif
 
 #include "ccs.h"
+
+#ifdef EXPERIMENTAL_BUILD
+#ifndef CCS_HANDLE_TIMEOUT
+#define CCS_HANDLE_TIMEOUT 60 /* 60 seconds */
+#endif
+#endif
+
+#ifndef XMLBUFSIZE
+#define XMLBUFSIZE 64000 
+#endif
+
+#ifdef EXPERIMENTAL_BUILD
+int ccs_persistent_conn = 0;
+#endif
+
+int fullxpath = 0;
+
+static xmlDocPtr doc = NULL;
+static xmlXPathContextPtr ctx = NULL;
 
 /* Callbacks are not supported - we will use them to update fullxml doc/ctx */
 static confdb_callbacks_t callbacks = {
 };
 
-static confdb_handle_t handle = 0;
+/* confdb helper functions */
 
-static char current_query[PATH_MAX];
-static char previous_query[PATH_MAX];
-static unsigned int query_handle;
-static unsigned int list_handle;
-
-int fullxpath = 0;
-static int fullxpathint;
-
-static char *buffer = NULL;
-static xmlDocPtr doc = NULL;
-static xmlXPathContextPtr ctx = NULL;
-static int xmllistindex = 0;
-
-static void xpathlite_init() {
-	memset(current_query, 0, PATH_MAX);
-	memset(previous_query, 0, PATH_MAX);
-	query_handle = OBJECT_PARENT_HANDLE;
-	list_handle = OBJECT_PARENT_HANDLE;
-}
-
-static void add_to_buffer(char *data, char **buffer, int *size)
+static confdb_handle_t confdb_connect(void)
 {
-	int len;
+	confdb_handle_t handle = 0;
 
-	if((len = strlen(data))) {
-		*size = *size + len;
-		if (*buffer)
-			strncpy(*buffer + strlen(*buffer), data, len);
+	if (confdb_initialize (&handle, &callbacks) != SA_AIS_OK) {
+		errno = ENOMEM;
+		return -1;
 	}
-	return;
+
+	return handle;
 }
 
-static int dump_objdb_buff(confdb_handle_t dump_handle, unsigned int parent_object_handle, char **buffer, int *size)
+static int confdb_disconnect(confdb_handle_t handle)
+{
+	if (confdb_finalize (handle) != CONFDB_OK) {
+		errno = EINVAL;
+		return -1;
+	}
+	return 0;
+}
+
+static unsigned int find_libccs_handle(confdb_handle_t handle)
+{
+	unsigned int libccs_handle = 0;
+
+	if (confdb_object_find_start(handle, OBJECT_PARENT_HANDLE) != SA_AIS_OK) {
+		errno = ENOMEM;
+		return -1;
+	}
+
+	if (confdb_object_find(handle, OBJECT_PARENT_HANDLE, "libccs", strlen("libccs"), &libccs_handle) != SA_AIS_OK) {
+		errno = ENOENT;
+		return -1;
+	}
+
+	confdb_object_find_destroy(handle, OBJECT_PARENT_HANDLE);
+
+	return libccs_handle;
+}
+
+static unsigned int find_ccs_handle(confdb_handle_t handle, int ccs_handle)
+{
+	int res, datalen = 0, found = 0;
+	unsigned int libccs_handle = 0, connection_handle = 0;
+	char data[128];
+
+	libccs_handle = find_libccs_handle(handle);
+	if (libccs_handle == -1)
+		return -1;
+
+	if (confdb_object_find_start(handle, libccs_handle) != SA_AIS_OK) {
+		errno = ENOMEM;
+		return -1;
+	}
+
+	while (confdb_object_find(handle, libccs_handle, "connection", strlen("connection"), &connection_handle) == SA_AIS_OK) {
+		memset(data, 0, sizeof(data));
+		if (confdb_key_get(handle, connection_handle, "ccs_handle", strlen("ccs_handle"), data, &datalen) == SA_AIS_OK) {
+			res = atoi(data);
+			if (res == ccs_handle) {
+				found = 1;
+				break;
+			}
+		}
+	}
+
+	confdb_object_find_destroy(handle, libccs_handle);
+
+	if (found) {
+		return connection_handle;
+	} else {
+		errno = ENOENT;
+		return -1;
+	}
+}
+
+static int destroy_ccs_handle(confdb_handle_t handle, unsigned int connection_handle)
+{
+	if (confdb_object_destroy(handle, connection_handle) != SA_AIS_OK) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	return 0;
+}
+
+static unsigned int create_ccs_handle(confdb_handle_t handle, int ccs_handle, int fullxpath)
+{
+	unsigned int libccs_handle = 0, connection_handle = 0;
+	char buf[128];
+#ifdef EXPERIMENTAL_BUILD
+	time_t current_time;
+#endif
+
+	libccs_handle = find_libccs_handle(handle);
+	if (libccs_handle == -1)
+		return -1;
+
+	if (confdb_object_create(handle, libccs_handle, "connection", strlen("connection"), &connection_handle) != SA_AIS_OK) {
+		errno = ENOMEM;
+		return -1;
+	}
+
+	memset(buf, 0, sizeof(buf));
+	snprintf(buf, sizeof(buf), "%d", ccs_handle);
+	if (confdb_key_create(handle, connection_handle, "ccs_handle", strlen("ccs_handle"), buf, strlen(buf) + 1) != SA_AIS_OK) {
+		destroy_ccs_handle(handle, connection_handle);
+		errno = ENOMEM;
+		return -1;
+	}
+
+	memset(buf, 0, sizeof(buf));
+	snprintf(buf, sizeof(buf), "%d", fullxpath);
+	if (confdb_key_create(handle, connection_handle, "fullxpath", strlen("fullxpath"), buf, strlen(buf) + 1) != SA_AIS_OK) {
+		destroy_ccs_handle(handle, connection_handle);
+		errno = ENOMEM;
+		return -1;
+	}
+
+#ifdef EXPERIMENTAL_BUILD
+	if (ccs_persistent_conn)
+		return connection_handle;
+
+	memset(buf, 0, sizeof(buf));
+	time(&current_time);
+	memcpy(buf, &current_time, sizeof(time_t));
+	if (confdb_key_create(handle, connection_handle, "last_access", strlen("last_access"), buf, sizeof(time_t)) != SA_AIS_OK) {
+		destroy_ccs_handle(handle, connection_handle);
+		errno = ENOMEM;
+		return -1;
+	}
+#endif
+
+	return connection_handle;
+}
+
+static unsigned int get_ccs_handle(confdb_handle_t handle, int *ccs_handle, int fullxpath)
+{
+	unsigned int next_handle;
+	unsigned int libccs_handle = 0;
+	unsigned int ret = 0;
+
+	libccs_handle = find_libccs_handle(handle);
+	if (libccs_handle == -1)
+		return -1;
+
+	if (confdb_key_increment(handle, libccs_handle, "next_handle", strlen("next_handle"), &next_handle) == SA_AIS_OK) {
+		ret = create_ccs_handle(handle, (int)next_handle, fullxpath);
+		if (ret == -1) {
+			*ccs_handle = -1;
+			return ret;
+		}
+
+		*ccs_handle = (int)next_handle;
+		return ret;
+	}
+
+	*ccs_handle = -1;
+	errno = ENOMEM;
+	return -1;
+}
+
+#ifdef EXPERIMENTAL_BUILD
+static int clean_stalled_ccs_handles(confdb_handle_t handle)
+{
+	int datalen = 0;
+	unsigned int libccs_handle = 0, connection_handle = 0;
+	time_t current_time, stored_time;
+
+	libccs_handle = find_libccs_handle(handle);
+	if (libccs_handle == -1)
+		return -1;
+
+	if (confdb_object_find_start(handle, libccs_handle) != SA_AIS_OK) {
+		errno = ENOMEM;
+		return -1;
+	}
+
+	time(&current_time);
+
+	while (confdb_object_find(handle, libccs_handle, "connection", strlen("connection"), &connection_handle) == SA_AIS_OK) {
+		if (confdb_key_get(handle, connection_handle, "last_access", strlen("last_access"), &stored_time, &datalen) == SA_AIS_OK) {
+			if ((current_time - stored_time) > CCS_HANDLE_TIMEOUT)
+				destroy_ccs_handle(handle, connection_handle);
+		}
+	}
+
+	confdb_object_find_destroy(handle, libccs_handle);
+
+	return 0;
+}
+#endif
+
+static int add_to_buffer(char *data, char **buffer, int *bufsize)
+{
+	int datalen = 0, bufferlen = 0;
+	char *newbuf = NULL;
+
+	datalen = strlen(data);
+	bufferlen = strlen(*buffer);
+
+	if(datalen) {
+		if((bufferlen + datalen) >= *bufsize) {
+			newbuf = malloc((*bufsize * 2));
+			if(!newbuf) {
+				errno = ENOMEM;
+				return -1;
+			}
+			*bufsize = *bufsize * 2;
+			memset(newbuf, 0, *bufsize);
+			memcpy(newbuf, *buffer, bufferlen);
+			free(*buffer);
+			*buffer = newbuf;
+			sleep(1);
+		}
+		strncpy(*buffer + bufferlen, data, datalen);
+	}
+	return 0;
+}
+
+static int dump_objdb_buff(confdb_handle_t dump_handle, unsigned int parent_object_handle, char **buffer, int *bufsize)
 {
 	unsigned int object_handle;
 	char temp[PATH_MAX];
@@ -71,7 +281,8 @@ static int dump_objdb_buff(confdb_handle_t dump_handle, unsigned int parent_obje
 
 	if (!*buffer || ((*buffer) && !strlen(*buffer))) {
 		snprintf(temp, PATH_MAX - 1, "<?xml version=\"1.0\"?>\n<objdbmaindoc>\n");
-		add_to_buffer(temp, buffer, size);
+		if(add_to_buffer(temp, buffer, bufsize))
+			return -1;
 	}
 
 	while ( (res = confdb_key_iter(dump_handle, parent_object_handle, key_name, &key_name_len,
@@ -83,14 +294,18 @@ static int dump_objdb_buff(confdb_handle_t dump_handle, unsigned int parent_obje
 			continue;
 		if (!strncmp(key_name, "handle", key_name_len))
 			continue;
+		if (!strncmp(key_name, "next_handle", key_name_len))
+			continue;
 
 		snprintf(temp, PATH_MAX - 1, " %s=\"%s\"", key_name, key_value);
-		add_to_buffer(temp, buffer, size);
+		if(add_to_buffer(temp, buffer, bufsize))
+			return -1;
 	}
 
 	if (parent_object_handle > 0) {
 		snprintf(temp, PATH_MAX - 1, ">\n");
-		add_to_buffer(temp, buffer, size);
+		if(add_to_buffer(temp, buffer, bufsize))
+			return -1;
 	}
 
 	res = confdb_object_iter_start(dump_handle, parent_object_handle);
@@ -114,55 +329,66 @@ static int dump_objdb_buff(confdb_handle_t dump_handle, unsigned int parent_obje
 		 * xml chars */
 
 		snprintf(temp, PATH_MAX - 1, "<%s", object_name);
-		add_to_buffer(temp, buffer, size);
+		if(add_to_buffer(temp, buffer, bufsize))
+			return -1;
 
-		res = dump_objdb_buff(dump_handle, object_handle, buffer, size);
+		res = dump_objdb_buff(dump_handle, object_handle, buffer, bufsize);
 		if(res) {
-			errno = -res;
+			errno = res;
 			return res;
 		}
 
 		if (object_handle != parent_object_handle) {
 			snprintf(temp, PATH_MAX - 1, "</%s>\n", object_name);
-			add_to_buffer(temp, buffer, size);
+			if(add_to_buffer(temp, buffer, bufsize))
+				return -1;
 		} else {
 			snprintf(temp, PATH_MAX - 1, ">\n");
-			add_to_buffer(temp, buffer, size);
+			if(add_to_buffer(temp, buffer, bufsize))
+				return -1;
 		}
 	}
 
 	if (parent_object_handle == OBJECT_PARENT_HANDLE) {
 		snprintf(temp, PATH_MAX - 1, "</objdbmaindoc>\n");
-		add_to_buffer(temp, buffer, size);
+		if(add_to_buffer(temp, buffer, bufsize))
+			return -1;
 	}
 
 	return 0;
 }
 
-static int xpathfull_init() {
-	int size = 0;
+static int xpathfull_init(confdb_handle_t handle, int ccs_handle) {
+	int size = XMLBUFSIZE;
+	char *buffer, *newbuf;
 
-	if (dump_objdb_buff(handle, OBJECT_PARENT_HANDLE, &buffer, &size))
+	newbuf = buffer = malloc(XMLBUFSIZE);
+	if(!buffer) {
+		errno = ENOMEM;
+		goto fail;
+	}
+
+	memset(buffer, 0, XMLBUFSIZE);
+
+	if (dump_objdb_buff(handle, OBJECT_PARENT_HANDLE, &newbuf, &size))
 		goto fail;
 
-	buffer=malloc(2 * size);
-	if(!buffer)
-		goto fail;
-
-	memset(buffer, 0, 2 * size);
-
-	if (dump_objdb_buff(handle, OBJECT_PARENT_HANDLE, &buffer, &size))
-		goto fail;
+	if (newbuf != buffer) {
+		buffer = newbuf;
+		newbuf = NULL;
+	}
 
 	doc = xmlParseMemory(buffer,strlen(buffer));
 	if(!doc)
 		goto fail;
 
-	ctx = xmlXPathNewContext(doc);
-	if(!ctx)
-		goto fail;
+	free(buffer);
 
-	memset(previous_query, 0, PATH_MAX);
+	ctx = xmlXPathNewContext(doc);
+	if(!ctx) {
+		xmlFreeDoc(doc);
+		goto fail;
+	}
 
 	return 0;
 
@@ -175,38 +401,81 @@ fail:
  *
  * Returns: ccs_desc on success, < 0 on failure
  */
-int ccs_connect(void){
-	int res;
+int ccs_connect(void) {
+	confdb_handle_t handle = 0;
+	int ccs_handle = 0;
 
-	if(handle)
-		return 1;
+	handle = confdb_connect();
+	if(handle == -1)
+		return handle;
 
-	res = confdb_initialize (&handle, &callbacks);
-	if (res != SA_AIS_OK) {
+#ifdef EXPERIMENTAL_BUILD
+	clean_stalled_ccs_handles(handle);
+#endif
+
+	get_ccs_handle(handle, &ccs_handle, fullxpath);
+	if (ccs_handle < 0)
+		goto fail;
+
+	if (fullxpath) {
+		if (xpathfull_init(handle, ccs_handle)) {
+			ccs_disconnect(ccs_handle);
+			return -1;
+		}
+	}
+
+fail:
+	confdb_disconnect(handle);
+
+	return ccs_handle;
+}
+
+static int check_cluster_name(int ccs_handle, const char *cluster_name)
+{
+	confdb_handle_t handle = 0;
+	unsigned int cluster_handle;
+	char data[128];
+	int found = 0, datalen = 0;
+
+	handle = confdb_connect();
+	if (handle < 0)
+		return -1;
+
+	if (confdb_object_find_start(handle, OBJECT_PARENT_HANDLE) != SA_AIS_OK) {
 		errno = ENOMEM;
 		return -1;
 	}
 
-	if(!fullxpath)
-		xpathlite_init();
-	else
-		if (xpathfull_init() < 0) {
-			ccs_disconnect(1);
-			errno = ENOMEM;
-			return -1;
+	while (confdb_object_find(handle, OBJECT_PARENT_HANDLE, "cluster", strlen("cluster"), &cluster_handle) == SA_AIS_OK) {
+		memset(data, 0, sizeof(data));
+		if (confdb_key_get(handle, cluster_handle, "name", strlen("name"), data, &datalen) == SA_AIS_OK) {
+			if(!strncmp(data, cluster_name, datalen)) {
+				found = 1;
+				break;
+			}
 		}
+	}
 
-	fullxpathint = fullxpath;
+	confdb_disconnect(handle);
 
-	return 1;
+	if (found) {
+		return ccs_handle;
+	} else {
+		errno = ENOENT;
+		return -1;
+	}
 }
 
 /**
  * ccs_force_connect
  *
+ * @cluster_name: verify that we are trying to connect to the requested cluster (tbd)
+ * @blocking: retry connection forever
+ *
  * Returns: ccs_desc on success, < 0 on failure
  */
-int ccs_force_connect(const char *cluster_name, int blocking){
+int ccs_force_connect(const char *cluster_name, int blocking)
+{
 	int res = -1;
 
 	if (blocking) {
@@ -215,53 +484,123 @@ int ccs_force_connect(const char *cluster_name, int blocking){
 			if (res < 0)
 				sleep(1);
 		}
-		errno = -res;
+	} else {
+		res = ccs_connect();
+		if (res < 0)
+			return res;
+	}
+	if(cluster_name)
+		return check_cluster_name(res, cluster_name);
+	else
 		return res;
-	} else
-		return ccs_connect();
 }
 
 /**
  * ccs_disconnect
- * @desc: the descriptor returned by ccs_connect
  *
- * This function frees all associated state kept with an open connection
+ * @desc: the descriptor returned by ccs_connect
  *
  * Returns: 0 on success, < 0 on error
  */
-int ccs_disconnect(int desc){
-	int res;
+int ccs_disconnect(int desc)
+{
+	confdb_handle_t handle = 0;
+	unsigned int connection_handle = 0;
+	int ret;
+	char data[128];
+	int datalen = 0;
+	int fullxpathint = 0;
 
-	if (!handle)
-		return 0;
+	handle = confdb_connect();
+	if (handle <= 0)
+		return handle;
+
+	connection_handle = find_ccs_handle(handle, desc);
+	if (connection_handle == -1)
+		return -1;
+
+	memset(data, 0, sizeof(data));
+	if (confdb_key_get(handle, connection_handle, "fullxpath", strlen("fullxpath"), &data, &datalen) != SA_AIS_OK) {
+		errno = EINVAL;
+		return -1;
+	} else
+		fullxpathint = atoi(data);
 
 	if (fullxpathint) {
-		if(ctx) {
+		if (ctx) {
 			xmlXPathFreeContext(ctx);
 			ctx = NULL;
 		}
-		if(doc) {
+		if (doc) {
 			xmlFreeDoc(doc);
 			doc = NULL;
 		}
-		if(buffer) {
-			free(buffer);
-			buffer = NULL;
+	}
+
+	ret = destroy_ccs_handle(handle, connection_handle);
+	confdb_disconnect(handle);
+	return ret;
+}
+
+static int get_previous_query(confdb_handle_t handle, unsigned int connection_handle, char *previous_query, unsigned int *query_handle)
+{
+	int datalen;
+
+	if (confdb_key_get(handle, connection_handle, "previous_query", strlen("previous_query"), previous_query, &datalen) == SA_AIS_OK) {
+		if (confdb_key_get(handle, connection_handle, "query_handle", strlen("query_handle"), query_handle, &datalen) == SA_AIS_OK) {
+			return 0;
+		}
+	}
+	errno = ENOENT;
+	return -1;
+}
+
+static int set_previous_query(confdb_handle_t handle, unsigned int connection_handle, char *previous_query, unsigned int query_handle)
+{
+	char temp[PATH_MAX];
+	int templen;
+	unsigned int temphandle;
+
+	if (confdb_key_get(handle, connection_handle, "previous_query", strlen("previous_query"), temp, &templen) == SA_AIS_OK) {
+		if (strcmp(previous_query, temp)) {
+			if (confdb_key_replace(handle, connection_handle, "previous_query", strlen("previous_query"), temp, templen, previous_query, strlen(previous_query) + 1) != SA_AIS_OK) {
+				errno = ENOMEM;
+				return -1;
+			}
+		}
+	} else {
+		if (confdb_key_create(handle, connection_handle, "previous_query", strlen("previous_query"), previous_query, strlen(previous_query) + 1) != SA_AIS_OK) {
+			errno = ENOMEM;
+			return -1;
 		}
 	}
 
-	res = confdb_finalize (handle);
-	if (res != CONFDB_OK) {
-		errno = EINVAL;
-		return -1;
+	if (confdb_key_get(handle, connection_handle, "query_handle", strlen("query_handle"), &temphandle, &templen) == SA_AIS_OK) {
+		if (temphandle != query_handle) {
+			if (confdb_key_replace(handle, connection_handle, "query_handle", strlen("query_handle"), &temphandle, sizeof(unsigned int), &query_handle, sizeof(unsigned int)) != SA_AIS_OK) {
+				errno = ENOMEM;
+				return -1;
+			}
+		}
+	} else {
+		if (confdb_key_create(handle, connection_handle, "query_handle", strlen("query_handle"), &query_handle, sizeof(unsigned int)) != SA_AIS_OK) {
+			errno = ENOMEM;
+			return -1;
+		}
 	}
 
-	handle = 0;
+	if (confdb_key_get(handle, connection_handle, "iterator_tracker", strlen("iterator_tracker"), &temphandle, &templen) != SA_AIS_OK) {
+		temphandle = 1;
+		if (confdb_key_create(handle, connection_handle, "iterator_tracker", strlen("iterator_tracker"), &temphandle, sizeof(unsigned int)) != SA_AIS_OK) {
+			errno = ENOMEM;
+			return -1;
+		}
+	}
 
 	return 0;
 }
 
-static int tokenizer() {
+static int tokenizer(char *current_query) {
 	int index = 0;
 	char *curpos = current_query;
 	char *next = NULL;
@@ -303,7 +642,7 @@ static int tokenizer() {
  * return 0 on success
  * return -1 on errors
  */
-static int path_dive(int tokens)
+static int path_dive(confdb_handle_t handle, unsigned int *query_handle, char *current_query, int tokens)
 {
 	char *pos = NULL, *next = NULL;
 	int i;
@@ -313,17 +652,19 @@ static int path_dive(int tokens)
 
 	for (i = 1; i <= tokens; i++)
 	{
-		if(confdb_object_find_start(handle, query_handle) != SA_AIS_OK)
+		if(confdb_object_find_start(handle, *query_handle) != SA_AIS_OK)
 			goto fail;
 
 		next = pos + strlen(pos) + 1;
 
 		if (!strstr(pos, "[")) {
 			/* straight path diving */
-			if (confdb_object_find(handle, query_handle, pos, strlen(pos), &new_obj_handle) != SA_AIS_OK)
+			if (confdb_object_find(handle, *query_handle, pos, strlen(pos), &new_obj_handle) != SA_AIS_OK)
 				goto fail;
-			else
-				query_handle = new_obj_handle;
+			else {
+				confdb_object_find_destroy(handle, *query_handle);
+				*query_handle = new_obj_handle;
+			}
 		} else {
 			/*
 			 * /something[int]/ or /something[@foo="bar"]/
@@ -360,15 +701,16 @@ static int path_dive(int tokens)
 				if(val < 1)
 					goto fail;
 
-				if(confdb_object_iter_start(handle, query_handle) != SA_AIS_OK)
+				if(confdb_object_iter_start(handle, *query_handle) != SA_AIS_OK)
 					goto fail;
 
 				for (i = 1; i <= val; i++) {
-					if(confdb_object_iter(handle, query_handle, &new_obj_handle, data, &datalen) != SA_AIS_OK)
+					if(confdb_object_iter(handle, *query_handle, &new_obj_handle, data, &datalen) != SA_AIS_OK)
 						goto fail;
 				}
-
-				query_handle = new_obj_handle;
+				confdb_object_iter_destroy(handle, *query_handle);
+				confdb_object_find_destroy(handle, *query_handle);
+				*query_handle = new_obj_handle;
 
 			} else if (!strstr(middle, "@")) {
 				/* lookup something with index num = int */
@@ -380,10 +722,11 @@ static int path_dive(int tokens)
 					goto fail;
 
 				for (i = 1; i <= val; i++) {
-					if (confdb_object_find(handle, query_handle, pos, strlen(pos), &new_obj_handle) != SA_AIS_OK)
+					if (confdb_object_find(handle, *query_handle, pos, strlen(pos), &new_obj_handle) != SA_AIS_OK)
 						goto fail;
 				}
-				query_handle = new_obj_handle;
+				confdb_object_find_destroy(handle, *query_handle);
+				*query_handle = new_obj_handle;
 
 			} else {
 				/* lookup something with obj foo = bar */
@@ -417,7 +760,7 @@ static int path_dive(int tokens)
 
 				memset(data, 0, PATH_MAX);
 				while(!goout) {
-					if (confdb_object_find(handle, query_handle, pos, strlen(pos), &new_obj_handle) != SA_AIS_OK)
+					if (confdb_object_find(handle, *query_handle, pos, strlen(pos), &new_obj_handle) != SA_AIS_OK)
 						goto fail;
 					else {
 						if(confdb_key_get(handle, new_obj_handle, middle, strlen(middle), data, &datalen) == SA_AIS_OK) {
@@ -426,7 +769,8 @@ static int path_dive(int tokens)
 						}
 					}
 				}
-				query_handle=new_obj_handle;
+				confdb_object_find_destroy(handle, *query_handle);
+				*query_handle = new_obj_handle;
 			}
 		}
 
@@ -440,7 +784,19 @@ fail:
 	return -1;
 }
 
-static int get_data(char **rtn, char *curpos, int list, int is_oldlist)
+static void reset_iterator(confdb_handle_t handle, unsigned int connection_handle)
+{
+	unsigned int value = 0;
+
+	if (confdb_key_increment(handle, connection_handle, "iterator_tracker", strlen("iterator_tracker"), &value) != SA_AIS_OK)
+		return;
+
+	confdb_key_delete(handle, connection_handle, "iterator_tracker", strlen("iterator_tracker"), &value, sizeof(unsigned int));
+
+	return;
+}
+
+static int get_data(confdb_handle_t handle, unsigned int connection_handle, unsigned int query_handle, unsigned int *list_handle, char **rtn, char *curpos, int list, int is_oldlist)
 {
 	int datalen, cmp;
 	char data[PATH_MAX];
@@ -448,6 +804,7 @@ static int get_data(char **rtn, char *curpos, int list, int is_oldlist)
 	char keyval[PATH_MAX];
 	int keyvallen = PATH_MAX;
 	unsigned int new_obj_handle;
+	unsigned int value = 0;
 
 	memset(data, 0, PATH_MAX);
 	memset(resval, 0, PATH_MAX);
@@ -457,18 +814,16 @@ static int get_data(char **rtn, char *curpos, int list, int is_oldlist)
 	cmp = strcmp(curpos, "child::*");
 	if (cmp >= 0) {
 		char *start = NULL, *end=NULL;
-		int value = 1;
 
 		// a pure child::* request should come down as list
 		if (!cmp && !list)
 			goto fail;
 
-		if (!is_oldlist || cmp) {
-			if(confdb_object_iter_start(handle, query_handle) != SA_AIS_OK)
-				goto fail;
+		if(confdb_object_iter_start(handle, query_handle) != SA_AIS_OK)
+			goto fail;
 
-			list_handle = query_handle;
-		}
+		if(!is_oldlist)
+			*list_handle = query_handle;
 
 		if(cmp) {
 			start=strstr(curpos, "[");
@@ -485,12 +840,17 @@ static int get_data(char **rtn, char *curpos, int list, int is_oldlist)
 			value=atoi(start);
 			if (value <= 0)
 				goto fail;
+		} else {
+			if (confdb_key_increment(handle, connection_handle, "iterator_tracker", strlen("iterator_tracker"), &value) != SA_AIS_OK)
+				value = 1;
 		}
 
-		while (value) {
+		while (value != 0) {
 			memset(data, 0, PATH_MAX);
-			if(confdb_object_iter(handle, query_handle, &new_obj_handle, data, &datalen) != SA_AIS_OK)
+			if(confdb_object_iter(handle, query_handle, &new_obj_handle, data, &datalen) != SA_AIS_OK) {
+				reset_iterator(handle, connection_handle);
 				goto fail;
+			}
 
 			value--;
 		}
@@ -504,14 +864,23 @@ static int get_data(char **rtn, char *curpos, int list, int is_oldlist)
 		if(!list)
 			goto fail;
 
-		if (!is_oldlist)
-			if(confdb_key_iter_start(handle, query_handle) != SA_AIS_OK)
-				goto fail;
-
-		list_handle = query_handle;
-
-		if(confdb_key_iter(handle, query_handle, data, &datalen, keyval, &keyvallen) != SA_AIS_OK)
+		if(confdb_key_iter_start(handle, query_handle) != SA_AIS_OK)
 			goto fail;
+
+		*list_handle = query_handle;
+
+		if (confdb_key_increment(handle, connection_handle, "iterator_tracker", strlen("iterator_tracker"), &value) != SA_AIS_OK)
+			value = 1;
+
+		while (value != 0) {
+			memset(data, 0, PATH_MAX);
+			if(confdb_key_iter(handle, query_handle, data, &datalen, keyval, &keyvallen) != SA_AIS_OK) {
+				reset_iterator(handle, connection_handle);
+				goto fail;
+			}
+
+			value--;
+		}
 
 		snprintf(resval, sizeof(resval), "%s=%s", data, keyval);
 		*rtn = strndup(resval, datalen+keyvallen+2);
@@ -545,11 +914,12 @@ fail:
 	return -1;
 }
 
+
 /**
  * _ccs_get_xpathlite
- * @desc:
+ * @handle:
+ * @connection_handle:
  * @query:
- * @rtn: value returned
  * @list: 1 to operate in list fashion
  *
  * This function will allocate space for the value that is the result
@@ -558,55 +928,60 @@ fail:
  *
  * Returns: 0 on success, < 0 on failure
  */
-static int _ccs_get_xpathlite(int desc, const char *query, char **rtn, int list)
+static char * _ccs_get_xpathlite(confdb_handle_t handle, unsigned int connection_handle, const char *query, int list)
 {
-	int res = 0, confdbres = 0, is_oldlist = 0;
+	char current_query[PATH_MAX];
+	char *datapos, *rtn;
+	char previous_query[PATH_MAX];
+	unsigned int list_handle = 0;
+	unsigned int query_handle = 0;
+	int prev = 0, is_oldlist = 0;
 	int tokens, i;
-	char *datapos = current_query + 1; 
 
-	/* we should be able to mangle the world here without destroying anything */
+	memset(current_query, 0, PATH_MAX);
 	strncpy(current_query, query, PATH_MAX - 1);
 
-	/* we need to check list mode */
-	if (list && !strcmp(current_query, previous_query)) {
+	memset(previous_query, 0, PATH_MAX);
+
+	datapos = current_query + 1;
+
+	prev = get_previous_query(handle, connection_handle, previous_query, &list_handle);
+
+	if(list && !prev && !strcmp(current_query, previous_query)) {
 		query_handle = list_handle;
 		is_oldlist = 1;
 	} else {
+		reset_iterator(handle, connection_handle);
 		query_handle = OBJECT_PARENT_HANDLE;
-		memset(previous_query, 0, PATH_MAX);
 	}
 
-	confdbres = confdb_object_find_start(handle, query_handle);
-	if (confdbres != SA_AIS_OK) {
-		res = -1;
+	if (confdb_object_find_start(handle, query_handle) != SA_AIS_OK) {
+		errno = ENOENT;
 		goto fail;
 	}
 
-	res = tokens = tokenizer();
-	if (res < 1)
+	tokens = tokenizer(current_query);
+	if(tokens < 1)
 		goto fail;
 
-	for (i = 1; i < tokens; i++) {
+	for (i = 1; i < tokens; i++)
 		datapos = datapos + strlen(datapos) + 1;
-	}
 
-	if(!is_oldlist) {
-		res = path_dive(tokens - 1); /* path dive can mangle tokens */
-		if (res < 0)
+	if(!is_oldlist)
+		if (path_dive(handle, &query_handle, current_query, tokens - 1) < 0) /* path dive can mangle tokens */
 			goto fail;
 
-	}
-
-	res = get_data(rtn, datapos, list, is_oldlist);
-	if (res < 0)
+	if (get_data(handle, connection_handle, query_handle, &list_handle, &rtn, datapos, list, is_oldlist) < 0)
 		goto fail;
 
 	if(list)
-		strncpy(previous_query, query, PATH_MAX-1);
+		if (set_previous_query(handle, connection_handle, (char *)query, list_handle))
+			goto fail;
+
+	return rtn; 
 
 fail:
-	errno = -res;
-	return res;
+	return NULL;
 }
 
 /**
@@ -622,21 +997,35 @@ fail:
  *
  * Returns: 0 on success, < 0 on failure
  */
-static int _ccs_get_fullxpath(int desc, const char *query, char **rtn, int list)
+static char * _ccs_get_fullxpath(confdb_handle_t handle, unsigned int connection_handle, const char *query, int list)
 {
-	int res = 0;
 	xmlXPathObjectPtr obj = NULL;
 	char realquery[PATH_MAX + 16];
+	char previous_query[PATH_MAX];
+	unsigned int list_handle = 0;
+	unsigned int xmllistindex = 0;
+	int prev = 0;
+	char *rtn = NULL;
+
+	errno = 0;
 
 	if(strncmp(query, "/", 1)) {
 		errno = EINVAL;
-		return -EINVAL;
+		goto fail;
 	}
 
-	if (list && !strcmp(query, previous_query))
-		xmllistindex++;
-	else {
-		memset(previous_query, 0, PATH_MAX);
+	memset(previous_query, 0, PATH_MAX);
+
+	prev = get_previous_query(handle, connection_handle, previous_query, &list_handle);
+
+	if (list && !prev && !strcmp(query, previous_query)) {
+		if (confdb_key_increment(handle, connection_handle, "iterator_tracker", strlen("iterator_tracker"), &xmllistindex) != SA_AIS_OK) {
+			xmllistindex = 0;
+		} else {
+			xmllistindex--;
+		}
+	} else {
+		reset_iterator(handle, connection_handle);
 		xmllistindex = 0;
 	}
 
@@ -647,7 +1036,7 @@ static int _ccs_get_fullxpath(int desc, const char *query, char **rtn, int list)
 
 	if(!obj) {
 		errno = EINVAL;
-		return -EINVAL;
+		goto fail;
 	}
 
 	if (obj->nodesetval && (obj->nodesetval->nodeNr > 0)) {
@@ -655,16 +1044,15 @@ static int _ccs_get_fullxpath(int desc, const char *query, char **rtn, int list)
 		int size = 0, nnv = 0;
 
 		if(xmllistindex >= obj->nodesetval->nodeNr){
-			memset(previous_query, 0, PATH_MAX);
-			xmllistindex = 0;
-			res = -ENODATA;
+			reset_iterator(handle, connection_handle);
+			errno = ENODATA;
 			goto fail;
 		}
 
 		node = obj->nodesetval->nodeTab[xmllistindex];
 
 		if(!node) {
-			res = -ENODATA;
+			errno = ENODATA;
 			goto fail;
 		}
 
@@ -682,49 +1070,96 @@ static int _ccs_get_fullxpath(int desc, const char *query, char **rtn, int list)
 				size = strlen((char *)node->children->content)+1;
 
 			else {
-				res = -ENODATA;
+				errno = ENODATA;
 				goto fail;
 			}
 		}
 
-		*rtn = malloc(size);
+		rtn = malloc(size);
 
-		if (!*rtn) {
-			res = -ENOMEM;
+		if (!rtn) {
+			errno = ENOMEM;
 			goto fail;
 		}
 
 		if (nnv)
-			sprintf(*rtn, "%s=%s", node->name, node->children ? (char *)node->children->content:"");
+			sprintf(rtn, "%s=%s", node->name, node->children ? (char *)node->children->content:"");
 		else
-			sprintf(*rtn, "%s", node->children ? node->children->content : node->name);
+			sprintf(rtn, "%s", node->children ? node->children->content : node->name);
 
 		if(list)
-			strncpy(previous_query, query, PATH_MAX-1);
+			set_previous_query(handle, connection_handle, (char *)query, OBJECT_PARENT_HANDLE);
 
 	} else
-		res = -EINVAL;
+		errno = EINVAL;
 
 fail:
 	if(obj)
 		xmlXPathFreeObject(obj);
 
-	errno = -res;
-	return res;
+	return rtn;
 }
 
-int ccs_get(int desc, const char *query, char **rtn){
-	if(!fullxpathint)
-		return _ccs_get_xpathlite(desc, query, rtn, 0);
-	return _ccs_get_fullxpath(desc, query, rtn, 0);
+/**
+ * _ccs_get
+ * @desc:
+ * @query:
+ * @rtn: value returned
+ * @list: 1 to operate in list fashion
+ *
+ * This function will allocate space for the value that is the result
+ * of the given query.  It is the user's responsibility to ensure that
+ * the data returned is freed.
+ *
+ * Returns: 0 on success, < 0 on failure
+ */
+int _ccs_get(int desc, const char *query, char **rtn, int list)
+{
+	confdb_handle_t handle = 0;
+	unsigned int connection_handle = 0;
+	char data[128];
+	int datalen = 0;
+	int fullxpathint = 0;
+
+	handle = confdb_connect();
+	if (handle <= 0)
+		return handle;
+
+	connection_handle = find_ccs_handle(handle, desc);
+	if (connection_handle == -1)
+		return -1;
+
+	memset(data, 0, sizeof(data));
+	if (confdb_key_get(handle, connection_handle, "fullxpath", strlen("fullxpath"), &data, &datalen) != SA_AIS_OK) {
+		errno = EINVAL;
+		return -1;
+	} else
+		fullxpathint = atoi(data);
+
+	if (!fullxpathint)
+		*rtn = _ccs_get_xpathlite(handle, connection_handle, query, list);
+	else
+		*rtn = _ccs_get_fullxpath(handle, connection_handle, query, list);
+
+	confdb_disconnect(handle);
+
+	if(!*rtn)
+		return -1;
+
+	return 0;
 }
 
-int ccs_get_list(int desc, const char *query, char **rtn){
-	if(!fullxpathint)
-		return _ccs_get_xpathlite(desc, query, rtn, 1);
-	return _ccs_get_fullxpath(desc, query, rtn, 1);
+/* see _ccs_get */
+int ccs_get(int desc, const char *query, char **rtn)
+{
+	return _ccs_get(desc, query, rtn, 0);
 }
 
+/* see _ccs_get */
+int ccs_get_list(int desc, const char *query, char **rtn)
+{
+	return _ccs_get(desc, query, rtn, 1);
+}
 
 /**
  * ccs_set: set an individual element's value in the config file.
