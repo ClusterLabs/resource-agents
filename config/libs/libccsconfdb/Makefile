@@ -2,6 +2,9 @@ TARGET= libccs
 
 INCDIRT=ccs.h
 
+OBJS=	$(TARGET).o \
+	extras.o
+
 include ../../../make/defines.mk
 include $(OBJDIR)/make/libs.mk
 include $(OBJDIR)/make/cobj.mk
