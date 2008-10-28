@@ -1044,6 +1044,23 @@ static int cmanpre_readconfig(struct objdb_iface_ver0 *objdb, char **error_strin
         }
 	objdb->object_find_destroy(find_handle);
 
+	/* This will create /libccs/@next_handle.
+	 * next_handle will be atomically incremented by corosync to return ccs_handle down the pipe.
+	 * We create it in cman-preconfig to avoid an "init" race in libccs.
+	 */
+
+	objdb->object_find_create(OBJECT_PARENT_HANDLE, "libccs", strlen("libccs"), &find_handle);
+	if (objdb->object_find_next(find_handle, &object_handle)) {
+		int next_handle = 0;
+
+		objdb->object_create(OBJECT_PARENT_HANDLE, &object_handle,
+					"libccs", strlen("libccs"));
+
+		objdb->object_key_create(object_handle, "next_handle", strlen("next_handle"),
+					 &next_handle, sizeof(int));
+	}
+	objdb->object_find_destroy(find_handle);
+
 	get_env_overrides();
 	if (getenv("CMAN_NOCONFIG"))
 		ret = set_noccs_defaults(objdb);
