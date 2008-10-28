@@ -27,7 +27,7 @@ int ccs_persistent_conn = 0;
 static confdb_callbacks_t callbacks = {
 };
 
-/* confdb helper functions */
+/* helper functions */
 
 static confdb_handle_t confdb_connect(void)
 {
@@ -191,175 +191,6 @@ static unsigned int get_ccs_handle(confdb_handle_t handle, int *ccs_handle, int 
 	return -1;
 }
 
-#ifdef EXPERIMENTAL_BUILD
-static int clean_stalled_ccs_handles(confdb_handle_t handle)
-{
-	int datalen = 0;
-	unsigned int libccs_handle = 0, connection_handle = 0;
-	time_t current_time, stored_time;
-
-	libccs_handle = find_libccs_handle(handle);
-	if (libccs_handle == -1)
-		return -1;
-
-	if (confdb_object_find_start(handle, libccs_handle) != SA_AIS_OK) {
-		errno = ENOMEM;
-		return -1;
-	}
-
-	time(&current_time);
-
-	while (confdb_object_find(handle, libccs_handle, "connection", strlen("connection"), &connection_handle) == SA_AIS_OK) {
-		if (confdb_key_get(handle, connection_handle, "last_access", strlen("last_access"), &stored_time, &datalen) == SA_AIS_OK) {
-			if ((current_time - stored_time) > CCS_HANDLE_TIMEOUT)
-				destroy_ccs_handle(handle, connection_handle);
-		}
-	}
-
-	confdb_object_find_destroy(handle, libccs_handle);
-
-	return 0;
-}
-#endif
-
-/**
- * ccs_connect
- *
- * Returns: ccs_desc on success, < 0 on failure
- */
-int ccs_connect(void) {
-	confdb_handle_t handle = 0;
-	int ccs_handle = 0;
-
-	handle = confdb_connect();
-	if(handle == -1)
-		return handle;
-
-#ifdef EXPERIMENTAL_BUILD
-	clean_stalled_ccs_handles(handle);
-#endif
-
-	get_ccs_handle(handle, &ccs_handle, fullxpath);
-	if (ccs_handle < 0)
-		goto fail;
-
-	if (fullxpath) {
-		if (xpathfull_init(handle, ccs_handle)) {
-			ccs_disconnect(ccs_handle);
-			return -1;
-		}
-	}
-
-fail:
-	confdb_disconnect(handle);
-
-	return ccs_handle;
-}
-
-static int check_cluster_name(int ccs_handle, const char *cluster_name)
-{
-	confdb_handle_t handle = 0;
-	unsigned int cluster_handle;
-	char data[128];
-	int found = 0, datalen = 0;
-
-	handle = confdb_connect();
-	if (handle < 0)
-		return -1;
-
-	if (confdb_object_find_start(handle, OBJECT_PARENT_HANDLE) != SA_AIS_OK) {
-		errno = ENOMEM;
-		return -1;
-	}
-
-	while (confdb_object_find(handle, OBJECT_PARENT_HANDLE, "cluster", strlen("cluster"), &cluster_handle) == SA_AIS_OK) {
-		memset(data, 0, sizeof(data));
-		if (confdb_key_get(handle, cluster_handle, "name", strlen("name"), data, &datalen) == SA_AIS_OK) {
-			if(!strncmp(data, cluster_name, datalen)) {
-				found = 1;
-				break;
-			}
-		}
-	}
-
-	confdb_disconnect(handle);
-
-	if (found) {
-		return ccs_handle;
-	} else {
-		errno = ENOENT;
-		return -1;
-	}
-}
-
-/**
- * ccs_force_connect
- *
- * @cluster_name: verify that we are trying to connect to the requested cluster (tbd)
- * @blocking: retry connection forever
- *
- * Returns: ccs_desc on success, < 0 on failure
- */
-int ccs_force_connect(const char *cluster_name, int blocking)
-{
-	int res = -1;
-
-	if (blocking) {
-		while ( res < 0 ) {
-			res = ccs_connect();
-			if (res < 0)
-				sleep(1);
-		}
-	} else {
-		res = ccs_connect();
-		if (res < 0)
-			return res;
-	}
-	if(cluster_name)
-		return check_cluster_name(res, cluster_name);
-	else
-		return res;
-}
-
-/**
- * ccs_disconnect
- *
- * @desc: the descriptor returned by ccs_connect
- *
- * Returns: 0 on success, < 0 on error
- */
-int ccs_disconnect(int desc)
-{
-	confdb_handle_t handle = 0;
-	unsigned int connection_handle = 0;
-	int ret;
-	char data[128];
-	int datalen = 0;
-	int fullxpathint = 0;
-
-	handle = confdb_connect();
-	if (handle <= 0)
-		return handle;
-
-	connection_handle = find_ccs_handle(handle, desc);
-	if (connection_handle == -1)
-		return -1;
-
-	memset(data, 0, sizeof(data));
-	if (confdb_key_get(handle, connection_handle, "fullxpath", strlen("fullxpath"), &data, &datalen) != SA_AIS_OK) {
-		errno = EINVAL;
-		return -1;
-	} else
-		fullxpathint = atoi(data);
-
-	if (fullxpathint)
-		xpathfull_finish();
-
-	ret = destroy_ccs_handle(handle, connection_handle);
-	confdb_disconnect(handle);
-	return ret;
-}
-
 int get_previous_query(confdb_handle_t handle, unsigned int connection_handle, char *previous_query, unsigned int *query_handle)
 {
 	int datalen;
@@ -430,6 +261,73 @@ void reset_iterator(confdb_handle_t handle, unsigned int connection_handle)
 	return;
 }
 
+#ifdef EXPERIMENTAL_BUILD
+static int clean_stalled_ccs_handles(confdb_handle_t handle)
+{
+	int datalen = 0;
+	unsigned int libccs_handle = 0, connection_handle = 0;
+	time_t current_time, stored_time;
+
+	libccs_handle = find_libccs_handle(handle);
+	if (libccs_handle == -1)
+		return -1;
+
+	if (confdb_object_find_start(handle, libccs_handle) != SA_AIS_OK) {
+		errno = ENOMEM;
+		return -1;
+	}
+
+	time(&current_time);
+
+	while (confdb_object_find(handle, libccs_handle, "connection", strlen("connection"), &connection_handle) == SA_AIS_OK) {
+		if (confdb_key_get(handle, connection_handle, "last_access", strlen("last_access"), &stored_time, &datalen) == SA_AIS_OK) {
+			if ((current_time - stored_time) > CCS_HANDLE_TIMEOUT)
+				destroy_ccs_handle(handle, connection_handle);
+		}
+	}
+
+	confdb_object_find_destroy(handle, libccs_handle);
+
+	return 0;
+}
+#endif
+
+static int check_cluster_name(int ccs_handle, const char *cluster_name)
+{
+	confdb_handle_t handle = 0;
+	unsigned int cluster_handle;
+	char data[128];
+	int found = 0, datalen = 0;
+
+	handle = confdb_connect();
+	if (handle < 0)
+		return -1;
+
+	if (confdb_object_find_start(handle, OBJECT_PARENT_HANDLE) != SA_AIS_OK) {
+		errno = ENOMEM;
+		return -1;
+	}
+
+	while (confdb_object_find(handle, OBJECT_PARENT_HANDLE, "cluster", strlen("cluster"), &cluster_handle) == SA_AIS_OK) {
+		memset(data, 0, sizeof(data));
+		if (confdb_key_get(handle, cluster_handle, "name", strlen("name"), data, &datalen) == SA_AIS_OK) {
+			if(!strncmp(data, cluster_name, datalen)) {
+				found = 1;
+				break;
+			}
+		}
+	}
+
+	confdb_disconnect(handle);
+
+	if (found) {
+		return ccs_handle;
+	} else {
+		errno = ENOENT;
+		return -1;
+	}
+}
+
 /**
  * _ccs_get
  * @desc:
@@ -443,7 +341,7 @@ void reset_iterator(confdb_handle_t handle, unsigned int connection_handle)
  *
  * Returns: 0 on success, < 0 on failure
  */
-int _ccs_get(int desc, const char *query, char **rtn, int list)
+static int _ccs_get(int desc, const char *query, char **rtn, int list)
 {
 	confdb_handle_t handle = 0;
 	unsigned int connection_handle = 0;
@@ -477,6 +375,110 @@ int _ccs_get(int desc, const char *query, char **rtn, int list)
 		return -1;
 
 	return 0;
+}
+
+/**** PUBLIC API ****/
+
+/**
+ * ccs_connect
+ *
+ * Returns: ccs_desc on success, < 0 on failure
+ */
+int ccs_connect(void) {
+	confdb_handle_t handle = 0;
+	int ccs_handle = 0;
+
+	handle = confdb_connect();
+	if(handle == -1)
+		return handle;
+
+#ifdef EXPERIMENTAL_BUILD
+	clean_stalled_ccs_handles(handle);
+#endif
+
+	get_ccs_handle(handle, &ccs_handle, fullxpath);
+	if (ccs_handle < 0)
+		goto fail;
+
+	if (fullxpath) {
+		if (xpathfull_init(handle, ccs_handle)) {
+			ccs_disconnect(ccs_handle);
+			return -1;
+		}
+	}
+
+fail:
+	confdb_disconnect(handle);
+
+	return ccs_handle;
+}
+
+/**
+ * ccs_force_connect
+ *
+ * @cluster_name: verify that we are trying to connect to the requested cluster (tbd)
+ * @blocking: retry connection forever
+ *
+ * Returns: ccs_desc on success, < 0 on failure
+ */
+int ccs_force_connect(const char *cluster_name, int blocking)
+{
+	int res = -1;
+
+	if (blocking) {
+		while ( res < 0 ) {
+			res = ccs_connect();
+			if (res < 0)
+				sleep(1);
+		}
+	} else {
+		res = ccs_connect();
+		if (res < 0)
+			return res;
+	}
+	if(cluster_name)
+		return check_cluster_name(res, cluster_name);
+	else
+		return res;
+}
+
+/**
+ * ccs_disconnect
+ *
+ * @desc: the descriptor returned by ccs_connect
+ *
+ * Returns: 0 on success, < 0 on error
+ */
+int ccs_disconnect(int desc)
+{
+	confdb_handle_t handle = 0;
+	unsigned int connection_handle = 0;
+	int ret;
+	char data[128];
+	int datalen = 0;
+	int fullxpathint = 0;
+
+	handle = confdb_connect();
+	if (handle <= 0)
+		return handle;
+
+	connection_handle = find_ccs_handle(handle, desc);
+	if (connection_handle == -1)
+		return -1;
+
+	memset(data, 0, sizeof(data));
+	if (confdb_key_get(handle, connection_handle, "fullxpath", strlen("fullxpath"), &data, &datalen) != SA_AIS_OK) {
+		errno = EINVAL;
+		return -1;
+	} else
+		fullxpathint = atoi(data);
+
+	if (fullxpathint)
+		xpathfull_finish();
+
+	ret = destroy_ccs_handle(handle, connection_handle);
+	confdb_disconnect(handle);
+	return ret;
 }
 
 /* see _ccs_get */
