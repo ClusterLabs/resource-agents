@@ -44,6 +44,8 @@ my %options = (
 	dlmcontrollibdir => \$dlmcontrollibdir,
 	fenceincdir => \$fenceincdir,
 	fencelibdir => \$fencelibdir,
+	logtincdir => \$logtincdir,
+	logtlibdir => \$logtlibdir,
 	volidincdir => \$volidincdir,
 	volidlibdir => \$volidlibdir,
 	ncursesincdir => \$ncursesincdir,
@@ -91,6 +93,7 @@ my %options = (
 	somajor => \$somajor,
 	sominor => \$sominor,
 	release_version => \$release_version,
+	without_common => \$without_common,
 	without_config => \$without_config,
 	without_cman => \$without_cman,
 	without_dlm => \$without_dlm,
@@ -131,6 +134,8 @@ my $err = &GetOptions (\%options,
 		    'dlmcontrollibdir=s',
 		    'fenceincdir=s',
 		    'fencelibdir=s',
+		    'logtincdir=s',
+		    'logtlibdir=s',
 		    'volidincdir=s',
 		    'volidlibdir=s',
 		    'ncursesincdir=s',
@@ -178,6 +183,7 @@ my $err = &GetOptions (\%options,
 		    'enable_legacy_code',
 		    'enable_contrib',
 		    'enable_virt',
+		    'without_common',
 		    'without_config',
 		    'without_cman',
 		    'without_dlm',
@@ -241,6 +247,8 @@ if ($help || !$err) {
   print "--dlmcontrollibdir=\tthe base directory for dlmcontrol libraries.  (Default: ./dlm/libdlmcontrol)\n";
   print "--fenceincdir=\tthe base directory for fence include files.  (Default: ./fence/libfence)\n";
   print "--fencelibdir=\tthe base directory for fence libraries.  (Default: ./fence/libfence)\n";
+  print "--logtincdir=\tthe base directory for logthread include files.  (Default: ./common/liblogthread)\n";
+  print "--logtlibdir=\tthe base directory for logthread libraries.  (Default: ./common/liblogthread)\n";
   print "--volidincdir=\tthe base directory for volume_id include files.  (Default: {incdir})\n";
   print "--volidlibdir=\tthe base directory for volume_id libraries.  (Default: {libdir})\n";
   print "--ncursesincdir=\tthe base directory for ncurses include files.  (Default: {incdir})\n";
@@ -271,6 +279,7 @@ if ($help || !$err) {
   print "--enable_contrib\tEnable build of community contributed code/tools.  (Default: no)\n";
   print "--enable_legacy_code\tEnable build of old/obsolete/unsupported code/tools.  (Default: no)\n";
   print "--enable_virt\tEnable building of virtualization code (Default: disabled\n";
+  print "--without_common\tDisable common building  (Default: enabled)\n";
   print "--without_config\tDisable config building  (Default: enabled)\n";
   print "--without_cman\tDisable cman building  (Default: enabled)\n";
   print "--without_dlm\tDisable dlm building  (Default: enabled)\n";
@@ -469,6 +478,12 @@ if (!$fenceincdir) {
 if (!$fencelibdir) {
   $fencelibdir="${objdir}/fence/libfence";
 }
+if (!$logtincdir) {
+  $logtincdir="${cdir}/common/liblogthread";
+}
+if (!$logtlibdir) {
+  $logtlibdir="${objdir}/common/liblogthread";
+}
 if (!$volidincdir) {
   $volidincdir="${incdir}";
 }
@@ -613,6 +628,9 @@ if (!$enable_legacy_code) {
 if (!$enable_virt) {
   $enable_virt="";
 }
+if (!$without_common) {
+  $without_common="";
+}
 if (!$without_config) {
   $without_config="";
 }
@@ -713,6 +731,8 @@ while (<IFILE>) {
   $_ =~ s/\@DLMCONTROLLIBDIR\@/$dlmcontrollibdir/;
   $_ =~ s/\@FENCEINCDIR\@/$fenceincdir/;
   $_ =~ s/\@FENCELIBDIR\@/$fencelibdir/;
+  $_ =~ s/\@LOGTINCDIR\@/$logtincdir/;
+  $_ =~ s/\@LOGTLIBDIR\@/$logtlibdir/;
   $_ =~ s/\@VOLIDINCDIR\@/$volidincdir/;
   $_ =~ s/\@VOLIDLIBDIR\@/$volidlibdir/;
   $_ =~ s/\@READLINEINCDIR\@/$readlineincdir/;
@@ -756,6 +776,7 @@ while (<IFILE>) {
   $_ =~ s/\@ENABLE_LEGACY_CODE\@/$enable_legacy_code/;
   $_ =~ s/\@ENABLE_CONTRIB\@/$enable_contrib/;
   $_ =~ s/\@ENABLE_VIRT\@/$enable_virt/;
+  $_ =~ s/\@DISABLE_COMMON\@/$without_common/;
   $_ =~ s/\@DISABLE_CONFIG\@/$without_config/;
   $_ =~ s/\@DISABLE_CMAN\@/$without_cman/;
   $_ =~ s/\@DISABLE_DLM\@/$without_dlm/;
