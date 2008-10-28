@@ -3,6 +3,7 @@ TARGET= libccs
 INCDIRT=ccs.h
 
 OBJS=	$(TARGET).o \
+	xpathlite.o \
 	extras.o
 
 include ../../../make/defines.mk
