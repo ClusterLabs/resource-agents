@@ -104,11 +104,14 @@ static int check_override(int ofd, char *nodename, int timeout)
 	char buf[128];
 	fd_set rfds;
 	struct timeval tv = {0, 0};
-	int ret, x;
+	int ret, x, rv;
+
+	query_unlock();
 
 	if (ofd < 0 || !nodename || !strlen(nodename)) {
 		sleep(timeout);
-		return 0;
+		rv = 0;
+		goto out;
 	}
 
 	FD_ZERO(&rfds);
@@ -119,17 +122,21 @@ static int check_override(int ofd, char *nodename, int timeout)
 	ret = select(ofd + 1, &rfds, NULL, NULL, &tv);
 	if (ret < 0) {
 		log_debug("check_override select: %s", strerror(errno));
-		return -1;
+		rv = -1;
+		goto out;
 	}
 
-	if (ret == 0)
-		return 0;
+	if (ret == 0) {
+		rv = 0;
+		goto out;
+	}
 
 	memset(buf, 0, sizeof(buf));
 	ret = read(ofd, buf, sizeof(buf) - 1);
 	if (ret < 0) {
 		log_debug("check_override read: %s", strerror(errno));
-		return -1;
+		rv = -1;
+		goto out;
 	}
 
 	/* chop off control characters */
@@ -143,10 +150,14 @@ static int check_override(int ofd, char *nodename, int timeout)
 	if (!strcasecmp(nodename, buf)) {
 		/* Case insensitive, but not as nice as, say, name_equal
 		   in the other file... */
-		return 1;
+		rv = 1;
+		goto out;
 	}
 
-	return 0;
+	rv = 0;
+ out:
+	query_lock();
+	return rv;
 }
 
 /* If there are victims after a node has joined, it's a good indication that
@@ -179,9 +190,10 @@ void delay_fencing(struct fd *fd, int node_join)
 	gettimeofday(&first, NULL);
 	gettimeofday(&start, NULL);
 
-	query_unlock();
 	for (;;) {
+		query_unlock();
 		sleep(1);
+		query_lock();
 
 		victim_count = reduce_victims(fd);
 
@@ -206,7 +218,6 @@ void delay_fencing(struct fd *fd, int node_join)
 		if (now.tv_sec - start.tv_sec >= delay)
 			break;
 	}
-	query_lock();
 
 	gettimeofday(&last, NULL);
 
@@ -285,7 +296,6 @@ void fence_victims(struct fd *fd)
 			continue;
 		}
 
-		query_unlock();
 		/* Check for manual intervention */
 		override = open_override(cfgd_override_path);
 		if (check_override(override, node->name,
@@ -297,7 +307,6 @@ void fence_victims(struct fd *fd)
 			free(node);
 		}
 		close_override(&override, cfgd_override_path);
-		query_lock();
 	}
 
 	fd->current_victim = 0;

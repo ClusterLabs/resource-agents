@@ -1180,7 +1180,6 @@ static void loop(void)
 			goto out;
 		}
 
-		/* FIXME: lock/unlock around operations that take a while */
 		query_lock();
 
 		for (i = 0; i <= client_maxi; i++) {
@@ -1195,9 +1194,12 @@ static void loop(void)
 				deadfn(i);
 			}
 		}
+		query_unlock();
 
 		if (daemon_quit)
 			break;
+
+		query_lock();
 
 		poll_timeout = -1;
 
@@ -1226,7 +1228,6 @@ static void loop(void)
 					poll_timeout = -1;
 			}
 		}
-
 		query_unlock();
 	}
  out:

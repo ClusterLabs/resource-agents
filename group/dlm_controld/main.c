@@ -964,7 +964,6 @@ static void loop(void)
 			goto out;
 		}
 
-		/* FIXME: lock/unlock around operations that take a while */
 		query_lock();
 
 		for (i = 0; i <= client_maxi; i++) {
@@ -984,6 +983,8 @@ static void loop(void)
 		if (daemon_quit)
 			break;
 
+		query_lock();
+
 		poll_timeout = -1;
 
 		if (poll_fencing || poll_quorum || poll_fs) {
@@ -998,6 +999,7 @@ static void loop(void)
 			}
 			poll_timeout = 1000;
 		}
+		query_unlock();
 	}
  out:
 	if (cfgd_groupd_compat)

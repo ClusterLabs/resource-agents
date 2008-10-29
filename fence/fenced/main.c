@@ -577,7 +577,7 @@ static void *process_queries(void *arg)
 			goto out;
 		}
 
-		pthread_mutex_lock(&query_mutex);
+		query_lock();
 
 		switch (h.command) {
 		case FENCED_CMD_DUMP_DEBUG:
@@ -595,7 +595,7 @@ static void *process_queries(void *arg)
 		default:
 			break;
 		}
-		pthread_mutex_unlock(&query_mutex);
+		query_unlock();
 
  out:
 		close(f);
@@ -793,7 +793,7 @@ static void loop(void)
 			goto out;
 		}
 
-		pthread_mutex_lock(&query_mutex);
+		query_lock();
 
 		for (i = 0; i <= client_maxi; i++) {
 			if (client[i].fd < 0)
@@ -807,7 +807,7 @@ static void loop(void)
 				deadfn(i);
 			}
 		}
-		pthread_mutex_unlock(&query_mutex);
+		query_unlock();
 
 		if (daemon_quit)
 			break;
