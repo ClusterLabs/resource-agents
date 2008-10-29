@@ -16,7 +16,7 @@ include $(OBJDIR)/make/uninstall.mk
 
 CFLAGS += -fPIC
 CFLAGS += -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64
-CFLAGS += -I${corosyncincdir} `xml2-config --cflags`
+CFLAGS += -I${corosyncincdir} -I${logtincdir} `xml2-config --cflags`
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${corosynclibdir} -lconfdb

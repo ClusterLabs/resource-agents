@@ -4,6 +4,11 @@
 #include <netdb.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <limits.h>
+
+#define SYSLOG_NAMES
+#include <syslog.h>
+#include <liblogthread.h>
 
 #include "ccs.h"
 
@@ -191,4 +196,127 @@ out_fail:
 	errno = EINVAL;
 	*retval = NULL;
 	return (-1);
+}
+
+static int facility_id_get (char *name)
+{
+	unsigned int i;
+
+	for (i = 0; facilitynames[i].c_name != NULL; i++) {
+		if (strcasecmp(name, facilitynames[i].c_name) == 0) {
+			return (facilitynames[i].c_val);
+		}
+	}
+	return (-1);
+}
+
+static int priority_id_get (char *name)
+{
+	unsigned int i;
+
+	for (i = 0; prioritynames[i].c_name != NULL; i++) {
+		if (strcasecmp(name, prioritynames[i].c_name) == 0) {
+			return (prioritynames[i].c_val);
+		}
+	}
+	return (-1);
+}
+
+void ccs_read_logging(int ccsfd, char *name, int *debug, int *mode, int *facility, int *priority, char **file)
+{
+	char *val = NULL;
+	char tmppath[PATH_MAX];
+	int global_debug = 0;
+
+	if (!*debug) {
+		if (ccs_get(ccsfd, "/cluster/logging/@debug", &val) == 0) {
+			if(!strcmp(val, "on")) {
+				global_debug = 1;
+			} else
+			if(!strcmp(val, "off")) {
+				global_debug = 0;
+			}
+			free(val);
+			val = NULL;
+		}
+
+		memset(tmppath, 0, PATH_MAX);
+		snprintf(tmppath, PATH_MAX - 1, "/cluster/logging/logger_subsys[@subsys=\"%s\"]/@debug", name);
+		if (ccs_get(ccsfd, tmppath, &val) == 0) {
+			if(!strcmp(val, "on")) {
+				*debug = 1;
+			} else
+			if(!strcmp(val, "off")) { /* debug from cmdline/envvars override config */
+				*debug = 0;
+			}
+			free(val);
+			val = NULL;
+		} else {
+			*debug = global_debug; /* global debug overrides subsystem only if latter is not specified */
+			*priority = LOG_DEBUG;
+		}
+
+		memset(tmppath, 0, PATH_MAX);
+		snprintf(tmppath, PATH_MAX - 1, "/cluster/logging/logger_subsys[@subsys=\"%s\"]/@syslog_level", name);
+		if (ccs_get(ccsfd, tmppath, &val) == 0) {
+			*priority = priority_id_get (val);
+			if (*priority < 0)
+				*priority = SYSLOGLEVEL;
+
+			if (!*debug)
+				if (*priority == LOG_DEBUG)
+					*debug = 1;
+
+			free(val);
+			val = NULL;
+		}
+	} else
+		*priority = LOG_DEBUG;
+
+	if (ccs_get(ccsfd, "/cluster/logging/@to_stderr", &val) == 0) {
+		if(!strcmp(val, "yes")) {
+			*mode |= LOG_MODE_OUTPUT_STDERR;
+		} else
+		if(!strcmp(val, "no")) {
+			*mode &= ~LOG_MODE_OUTPUT_STDERR;
+		}
+		free(val);
+		val = NULL;
+	}
+
+	if (ccs_get(ccsfd, "/cluster/logging/@to_syslog", &val) == 0) {
+		if(!strcmp(val, "yes")) {
+			*mode |= LOG_MODE_OUTPUT_SYSLOG_THREADED;
+		} else
+		if(!strcmp(val, "no")) {
+			*mode &= ~LOG_MODE_OUTPUT_SYSLOG_THREADED;
+		}
+		free(val);
+		val = NULL;
+	}
+	if (ccs_get(ccsfd, "/cluster/logging/@to_file", &val) == 0) {
+		if(!strcmp(val, "yes")) {
+			*mode |= LOG_MODE_OUTPUT_FILE;
+		} else
+		if(!strcmp(val, "no")) {
+			*mode &= ~LOG_MODE_OUTPUT_FILE;
+		}
+		free(val);
+		val = NULL;
+	}
+	if (ccs_get(ccsfd, "/cluster/logging/@logfile", &val) == 0) {
+		*file = strdup(val);
+		free(val);
+		val = NULL;
+	}
+	if (ccs_get(ccsfd, "/cluster/logging/@syslog_facility", &val) == 0) {
+		*facility = facility_id_get (val);
+		if (*facility < 0)
+			*facility = SYSLOGFACILITY;
+
+		free(val);
+		val = NULL;
+	}
+
+	return;
 }
