@@ -384,7 +384,7 @@ def fence_action(tn, options, set_power_fn, get_power_fn, get_outlet_list = None
 
 	status = get_power_fn(tn, options)
 
-	if status != "on" or status != "off":  
+	if status != "on" and status != "off":  
 		fail(EC_STATUS)
 
 	if options["-o"] == "on":
