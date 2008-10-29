@@ -19,6 +19,10 @@
 #define CONFIG_VERSION_PATH	"/cluster/@config_version"
 #define CONFIG_NAME_PATH	"/cluster/@name"
 
+#ifndef MAXXMLNODES
+#define MAXXMLNODES 1024
+#endif
+
 static int ccs_readconfig(struct objdb_iface_ver0 *objdb, char **error_string);
 static int ccs_reloadconfig(struct objdb_iface_ver0 *objdb, int flush, char **error_string);
 static int init_config(struct objdb_iface_ver0 *objdb, char *error_string);
@@ -91,7 +95,7 @@ static int read_config_for(int ccs_fd, struct objdb_iface_ver0 *objdb, unsigned 
 	unsigned int object_handle = 0;
 	char path[256];
 	int gotcount = 0;
-	char *subkeys[52];
+	char *subkeys[MAXXMLNODES];
 	int subkeycount = 0;
 	int i;
 
@@ -156,6 +160,8 @@ static int read_config_for(int ccs_fd, struct objdb_iface_ver0 *objdb, unsigned 
 			continue;
 		}
 		subkeys[subkeycount++] = str;
+		if (subkeycount >= MAXXMLNODES)
+			return -1;
 	}
 
 	for (i=0; i<subkeycount; i++)
@@ -167,11 +173,15 @@ static int read_config_for(int ccs_fd, struct objdb_iface_ver0 *objdb, unsigned 
 		for (;;)
 		{
 			char subpath[1024];
+			int res;
 
 			/* Found a subkey, iterate through it's sub sections */
 			sprintf(subpath, "%s/%s[%d]", key, str, ++count);
-			if (!read_config_for(ccs_fd, objdb, object_handle, str, subpath, 0))
+			res = read_config_for(ccs_fd, objdb, object_handle, str, subpath, 0);
+			if (!res)
 				break;
+			if (res < 0)
+				return -1;
 		}
 		free(str);
 	}
@@ -216,7 +226,10 @@ static int init_config(struct objdb_iface_ver0 *objdb, char *error_string)
 		return -1;
 	}
 
-	read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "cluster", "/cluster", 1);
+	if(read_config_for(cd, objdb, OBJECT_PARENT_HANDLE, "cluster", "/cluster", 1) < 0) {
+		strcpy(error_string, "Error: too many nodes within the same XML block\n");
+		return -1;
+	}
 
 	ccs_disconnect(cd);
 	return 0;
