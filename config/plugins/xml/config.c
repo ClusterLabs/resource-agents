@@ -18,8 +18,6 @@ static int xml_readconfig(struct objdb_iface_ver0 *objdb, char **error_string);
 static int xml_reloadconfig(struct objdb_iface_ver0 *objdb, int flush, char **error_string);
 static int init_config(struct objdb_iface_ver0 *objdb, char *configfile, char *error_string);
 static char error_reason[1024];
-static int xmllistindex = 0;
-static char previous_query[PATH_MAX];
 
 #define DEFAULT_CONFIG DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE
 
@@ -56,28 +54,28 @@ __attribute__ ((constructor)) static void xml_comp_register(void) {
 	lcr_component_register(&xml_comp_ver0);
 };
 
-static char *do_xml_query(xmlXPathContextPtr ctx, char *query, int list) {
+static char *do_xml_query(xmlXPathContextPtr ctx, char *query, char **previous_query, int *xmllistindex, int list) {
 	xmlXPathObjectPtr obj = NULL;
 	xmlNodePtr node = NULL;
 	char *rtn = NULL;
 	int size = 0, nnv = 0, child = 0;
 
-	if (list && !strcmp(query, previous_query))
-		xmllistindex++;
-	else {
-		memset(previous_query, 0, PATH_MAX);
-		xmllistindex = 0;
+	if (list && !strcmp(query, *previous_query)) {
+		*xmllistindex = *xmllistindex + 1;
+	} else {
+		memset(*previous_query, 0, PATH_MAX);
+		*xmllistindex = 0;
 	}
 
 	obj = xmlXPathEvalExpression((xmlChar *)query, ctx);
 	if (obj && obj->nodesetval && (obj->nodesetval->nodeNr > 0)) {
-		if (xmllistindex >= obj->nodesetval->nodeNr) {
-			memset(previous_query, 0, PATH_MAX);
-			xmllistindex = 0;
+		if (*xmllistindex >= obj->nodesetval->nodeNr) {
+			memset(*previous_query, 0, PATH_MAX);
+			*xmllistindex = 0;
 			goto fail;
 		}
 
-		node = obj->nodesetval->nodeTab[xmllistindex];
+		node = obj->nodesetval->nodeTab[*xmllistindex];
 		if (!node)
 			goto fail;
 
@@ -113,7 +111,7 @@ static char *do_xml_query(xmlXPathContextPtr ctx, char *query, int list) {
 			sprintf(rtn, "%s", node->children ? node->children->content : node->name);
 
 		if(list)
-			strncpy(previous_query, query, PATH_MAX-1);
+			strncpy(*previous_query, query, PATH_MAX-1);
 	}
 
 fail:
@@ -127,18 +125,23 @@ static int should_alloc(xmlXPathContextPtr ctx, char *key)
 {
 	int keyerror = 1, childerr = 1;
 	char path[256];
+	char previous_query_local[PATH_MAX];
+	char *previous_query = previous_query_local;
+	int xmllistindex = 0;
 	char *str = NULL;
 
+	memset(previous_query, 0, PATH_MAX);
 	sprintf(path, "%s/@*", key);
-	str = do_xml_query(ctx, path, 1);
+	str = do_xml_query(ctx, path, &previous_query, &xmllistindex, 1);
 	if (str) {
 		keyerror = 0;
 		free(str);
 		str = NULL;
 	}
 
+	memset(previous_query, 0, PATH_MAX);
 	sprintf(path, "%s/child::*", key);
-	str = do_xml_query(ctx, path, 1);
+	str = do_xml_query(ctx, path, &previous_query, &xmllistindex, 1);
 	if(str) {
 		childerr = 0;
 		free(str);
@@ -154,13 +157,14 @@ static int should_alloc(xmlXPathContextPtr ctx, char *key)
 static int read_config_for(xmlXPathContextPtr ctx, struct objdb_iface_ver0 *objdb, unsigned int parent,
 			   char *object, char *key, int always_create)
 {
-	char *str;
+	char *str, *prevstr = NULL;
 	unsigned int object_handle = 0;
-	char path[256];
-	int gotcount = 0;
-	char *subkeys[52];
-	int subkeycount = 0;
-	int i;
+	char path[PATH_MAX];
+	char previous_query_local[PATH_MAX];
+	char *previous_query = previous_query_local;
+	int xmllistindex = 0;
+	int ret = 0;
+	int nodecount = 1;
 
 	if (should_alloc(ctx, key) || always_create) {
 		objdb->object_create(parent, &object_handle, object, strlen(object));
@@ -173,9 +177,11 @@ static int read_config_for(xmlXPathContextPtr ctx, struct objdb_iface_ver0 *objd
 	{
 		char *equal;
 
-		str = do_xml_query(ctx, path, 1);
+		str = do_xml_query(ctx, path, &previous_query, &xmllistindex, 1);
 		if (!str)
                         break;
+
+		ret++;
 
 		equal = strchr(str, '=');
 		if (equal)
@@ -183,7 +189,6 @@ static int read_config_for(xmlXPathContextPtr ctx, struct objdb_iface_ver0 *objd
 			*equal = 0;
 			objdb->object_key_create(object_handle, str, strlen(str),
 						 equal+1, strlen(equal+1)+1);
-			gotcount++;
 		}
 		free(str);
 	}
@@ -192,15 +197,30 @@ static int read_config_for(xmlXPathContextPtr ctx, struct objdb_iface_ver0 *objd
 	   CCS can't cope with recursive queries so we have to store the result of
 	   the subkey search */
 	memset(previous_query, 0, PATH_MAX);
-	memset(subkeys, 0, sizeof(subkeys));
+	xmllistindex = 0;
 	sprintf(path, "%s/child::*", key);
 	for (;;)
 	{
 		char *equal;
+		char subpath[PATH_MAX];
 
-		str = do_xml_query(ctx, path, 1);
+		str = do_xml_query(ctx, path, &previous_query, &xmllistindex, 1);
 		if (!str)
                         break;
+
+		ret++;
+
+		if(!prevstr) {
+			prevstr = strdup(str);
+		} else {
+			if(!strcmp(str, prevstr)) {
+				nodecount++;
+			} else {
+				nodecount = 1;
+				free(prevstr);
+				prevstr = strdup(str);
+			}
+		}
 
 		/* CCS returns duplicate values for the numbered entries we use below.
 		   eg. if there are 4 <clusternode/> entries it will return
@@ -219,32 +239,19 @@ static int read_config_for(xmlXPathContextPtr ctx, struct objdb_iface_ver0 *objd
 		if (equal)
 			*equal = 0;
 
-		if (subkeycount > 0 && strcmp(str, subkeys[subkeycount-1]) == 0)
-		{
+		memset(subpath, 0, PATH_MAX);
+
+		/* Found a subkey, iterate through it's sub sections */
+		sprintf(subpath, "%s/%s[%d]", key, str, nodecount);
+		if (!read_config_for(ctx, objdb, object_handle, str, subpath, 0)) {
 			free(str);
-			continue;
+			break;
 		}
-		subkeys[subkeycount++] = str;
-	}
 
-	for (i=0; i<subkeycount; i++)
-	{
-		int count = 0;
-		str = subkeys[i];
-		gotcount++;
-
-		for (;;)
-		{
-			char subpath[1024];
-
-			/* Found a subkey, iterate through it's sub sections */
-			sprintf(subpath, "%s/%s[%d]", key, str, ++count);
-			if (!read_config_for(ctx, objdb, object_handle, str, subpath, 0))
-				break;
-		}
 		free(str);
 	}
-	return gotcount;
+
+	return ret;
 }
 
 static int xml_reloadconfig(struct objdb_iface_ver0 *objdb, int flush, char **error_string)
