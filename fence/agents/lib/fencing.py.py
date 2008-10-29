@@ -24,6 +24,7 @@ EC_CONNECTION_LOST = 4
 EC_TIMED_OUT       = 5
 EC_WAITING_ON      = 6
 EC_WAITING_OFF     = 7
+EC_STATUS          = 8
 
 TELNET_PATH = "/usr/bin/telnet"
 SSH_PATH    = "/usr/bin/ssh"
@@ -177,7 +178,8 @@ def fail(error_code):
 		EC_CONNECTION_LOST : "Connection lost",
 		EC_TIMED_OUT : "Connection timed out",
 		EC_WAITING_ON : "Failed: Timed out waiting to power ON",
-		EC_WAITING_OFF : "Failed: Timed out waiting to power OFF"
+		EC_WAITING_OFF : "Failed: Timed out waiting to power OFF",
+		EC_STATUS : "Failed: Unable to obtain correct plug status"
 	}[error_code] + "\n"
 	sys.stderr.write(message)
 	sys.exit(error_code)
@@ -381,6 +383,9 @@ def fence_action(tn, options, set_power_fn, get_power_fn, get_outlet_list = None
 		return
 
 	status = get_power_fn(tn, options)
+
+	if status != "on" or status != "off":  
+		fail(EC_STATUS)
 
 	if options["-o"] == "on":
 		if status == "on":
