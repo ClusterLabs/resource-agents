@@ -219,7 +219,7 @@ if ($help || !$err) {
   print "--logdir=\tthe base directory for cluster logging files.  (Default: /var/log/cluster/)\n";
   print "--logrotatedir=\tthe base directory for logrorate.d files.  (Default: /etc/logrotate.d/)\n";
   print "--syslogfacility=\tset the default syslog facility.  (Default: LOG_LOCAL4)\n";
-  print "--sysloglevel=\tset the default syslog level.  (Default: LOG_LEVEL_INFO)\n";
+  print "--sysloglevel=\tset the default syslog level.  (Default: LOG_INFO)\n";
   print "--mibdir=\tthe base directory for snmp mibs.  (Default: {prefix}/share/snmp/mibs)\n";
   print "--snmpbin=\tthe base directory for snmp binaries (Ex: /usr/bin/snmpwalk).  (Default: {prefix}/bin)\n";
   print "--confdir=\tthe cluster config directory.  (Default: /etc/cluster)\n";
@@ -584,7 +584,7 @@ if (!$syslogfacility) {
   $syslogfacility="LOG_LOCAL4";
 }
 if (!$sysloglevel) {
-  $sysloglevel="LOG_LEVEL_INFO";
+  $sysloglevel="LOG_INFO";
 }
 if (!$mibdir) {
   $mibdir="${prefix}/share/snmp/mibs";
