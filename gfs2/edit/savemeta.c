@@ -24,7 +24,7 @@
 #include "libgfs2.h"
 
 #define BUFSIZE (4096)
-#define DFT_SAVE_FILE "/tmp/gfsmeta"
+#define DFT_SAVE_FILE "/tmp/gfsmeta.XXXXXX"
 #define MAX_JOURNALS_SAVED 256
 
 struct saved_metablock {
@@ -726,13 +726,13 @@ void savemeta(char *out_fn, int saveoption)
 	sbd.md.journals = 1;
 
 	if (!out_fn) {
-		out_fn = malloc(PATH_MAX);
+		out_fn = strdup(DFT_SAVE_FILE);
 		if (!out_fn)
 			die("Can't allocate memory for the operation.\n");
-		memset(out_fn, 0, PATH_MAX);
-		sprintf(out_fn, DFT_SAVE_FILE ".%d", getpid());
-	}
-	out_fd = open(out_fn, O_RDWR | O_CREAT, 0644);
+		out_fd = mkstemp(out_fn);
+	} else
+		out_fd = open(out_fn, O_RDWR | O_CREAT, 0644);
+
 	if (out_fd < 0)
 		die("Can't open %s: %s\n", out_fn, strerror(errno));
 
