@@ -231,8 +231,6 @@ struct gfs2_sbd {
 	unsigned int spills;
 	unsigned int writes;
 	int metafs_fd;
-	int metafs_mounted; /* If metafs was already mounted */
-	int metafs_created_mount; /* TRUE if we created the mount point got metafs */
 	char metafs_path[PATH_MAX]; /* where metafs is mounted */
 	struct special_blocks bad_blocks;
 	struct special_blocks dup_blocks;
@@ -546,11 +544,8 @@ int gfs2_query(int *setonabort, struct gfs2_options *opts,
 #define SYS_BASE "/sys/fs/gfs2"
 
 void compute_constants(struct gfs2_sbd *sdp);
-int find_gfs2_meta(struct gfs2_sbd *sdp);
-int dir_exists(const char *dir);
 void check_for_gfs2(struct gfs2_sbd *sdp);
 void mount_gfs2_meta(struct gfs2_sbd *sdp);
-void lock_for_admin(struct gfs2_sbd *sdp);
 void cleanup_metafs(struct gfs2_sbd *sdp);
 char *get_list(void);
 char **str2lines(char *str);

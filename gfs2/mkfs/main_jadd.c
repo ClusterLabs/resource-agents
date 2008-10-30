@@ -488,11 +488,8 @@ main_jadd(int argc, char *argv[])
 
 	gather_info(sdp);
 
-	find_gfs2_meta(sdp);
-	if (!sdp->metafs_mounted)
-		mount_gfs2_meta(sdp);
-	lock_for_admin(sdp);
-	
+	mount_gfs2_meta(sdp);
+
 	compute_constants(sdp);
 	find_current_journals(sdp);
 

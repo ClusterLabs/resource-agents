@@ -498,10 +498,8 @@ do_reset(struct gfs2_sbd *sdp, commandline_t *comline)
 	strcpy(sdp->path_name, comline->filesystem);
 	check_for_gfs2(sdp);
 	read_superblock(&sdp->sd_sb, sdp);
-	if (!find_gfs2_meta(sdp))
-		mount_gfs2_meta(sdp);
-	lock_for_admin(sdp);
-	
+	mount_gfs2_meta(sdp);
+
 	strcpy(quota_file, sdp->metafs_path);
 	strcat(quota_file, "/quota");
 
@@ -557,10 +555,8 @@ do_list(struct gfs2_sbd *sdp, commandline_t *comline)
 	strcpy(sdp->path_name, comline->filesystem);
 	check_for_gfs2(sdp);
 	read_superblock(&sdp->sd_sb, sdp);
-	if (!find_gfs2_meta(sdp))
-		mount_gfs2_meta(sdp);
-	lock_for_admin(sdp);
-	
+	mount_gfs2_meta(sdp);
+
 	strcpy(quota_file, sdp->metafs_path);
 	strcat(quota_file, "/quota");
 
@@ -646,10 +642,8 @@ do_get_one(struct gfs2_sbd *sdp, commandline_t *comline, char *filesystem)
 	strcpy(sdp->path_name, filesystem);
 	check_for_gfs2(sdp);
 	read_superblock(&sdp->sd_sb, sdp);
-	if (!find_gfs2_meta(sdp))
-		mount_gfs2_meta(sdp);
-	lock_for_admin(sdp);
-	
+	mount_gfs2_meta(sdp);
+
 	strcpy(quota_file, sdp->metafs_path);
 	strcat(quota_file, "/quota");
 
@@ -809,10 +803,8 @@ do_set(struct gfs2_sbd *sdp, commandline_t *comline)
 	strcpy(sdp->path_name, comline->filesystem);
 	check_for_gfs2(sdp);
 	read_superblock(&sdp->sd_sb, sdp);
-	if (!find_gfs2_meta(sdp))
-		mount_gfs2_meta(sdp);
-	lock_for_admin(sdp);
-	
+	mount_gfs2_meta(sdp);
+
 	strcpy(quota_file, sdp->metafs_path);
 	strcat(quota_file, "/quota");
 
@@ -969,7 +961,6 @@ main(int argc, char *argv[])
 	commandline_t comline;
 
 	prog_name = argv[0];
-	sdp->metafs_mounted = 0;
 
 	memset(sdp, 0, sizeof(struct gfs2_sbd));
 	memset(&comline, 0, sizeof(commandline_t));

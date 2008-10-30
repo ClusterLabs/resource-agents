@@ -98,68 +98,6 @@ compute_constants(struct gfs2_sbd *sdp)
 		die("bad constants (2)\n");
 }
 
-int 
-find_gfs2_meta(struct gfs2_sbd *sdp)
-{
-	FILE *fp = fopen("/proc/mounts", "r");
-	char name[] = "gfs2meta";
-	char buffer[PATH_MAX];
-	char fstype[80], mfsoptions[PATH_MAX];
-	char meta_device[PATH_MAX];
-	char meta_path[PATH_MAX];
-	int fsdump, fspass;
-
-	if (fp == NULL) {
-		perror("open: /proc/mounts");
-		exit(EXIT_FAILURE);
-	}
-	sdp->metafs_mounted = FALSE;
-	memset(sdp->metafs_path, 0, sizeof(sdp->metafs_path));
-	memset(meta_path, 0, sizeof(meta_path));
-	while ((fgets(buffer, PATH_MAX - 1, fp)) != NULL) {
-		buffer[PATH_MAX - 1] = '\0';
-		if (strstr(buffer, name) == 0)
-			continue;
-
-		if (sscanf(buffer, "%s %s %s %s %d %d", meta_device, 
-			   meta_path, fstype,mfsoptions, &fsdump, 
-			   &fspass) != 6)
-			continue;
-
-		if (strcmp(meta_device, sdp->device_name) == 0 ||
-		    strcmp(meta_device, sdp->path_name) == 0) {
-			fclose(fp);
-			sdp->metafs_mounted = TRUE;
-			strcpy(sdp->metafs_path, meta_path);
-			return TRUE;
-		}
-	}
-	fclose(fp);
-	return FALSE;
-}
-
-int
-dir_exists(const char *dir)
-{
-	int fd, ret;
-	struct stat statbuf;
-	fd = open(dir, O_RDONLY);
-	if (fd<0) { 
-		if (errno == ENOENT)
-			return 0;
-		die("Couldn't open %s : %s\n", dir, strerror(errno));
-	}
-	ret = fstat(fd, &statbuf);
-	if (ret)
-		die("stat failed on %s : %s\n", dir, strerror(errno));
-	if (S_ISDIR(statbuf.st_mode)) {
-		close(fd);
-		return 1;
-	}
-	close(fd);
-	die("%s exists, but is not a directory. Cannot mount metafs here\n", dir);
-}
-
 void
 check_for_gfs2(struct gfs2_sbd *sdp)
 {
@@ -212,31 +150,7 @@ check_for_gfs2(struct gfs2_sbd *sdp)
 	die("gfs2 Filesystem %s is not mounted.\n", sdp->path_name);
 }
 
-void 
-mount_gfs2_meta(struct gfs2_sbd *sdp)
-{
-	int ret;
-
-	memset(sdp->metafs_path, 0, PATH_MAX);
-	snprintf(sdp->metafs_path, PATH_MAX - 1, "/tmp/.gfs2meta.%d", getpid());
-
-	/* mount the meta fs */
-	if (!dir_exists(sdp->metafs_path)) {
-		ret = mkdir(sdp->metafs_path, 0700);
-		if (ret)
-			die("Couldn't create %s : %s\n", sdp->metafs_path,
-			    strerror(errno));
-		sdp->metafs_created_mount = TRUE;
-	} else
-		sdp->metafs_created_mount = FALSE;
-
-	ret = mount(sdp->path_name, sdp->metafs_path, "gfs2meta", 0, NULL);
-	if (ret)
-		die("Couldn't mount %s : %s\n", sdp->metafs_path,
-		    strerror(errno));
-}
-
-void
+static void
 lock_for_admin(struct gfs2_sbd *sdp)
 {
 	int error;
@@ -256,6 +170,28 @@ lock_for_admin(struct gfs2_sbd *sdp)
 		printf("Got it.\n");
 }
 
+
+void 
+mount_gfs2_meta(struct gfs2_sbd *sdp)
+{
+	int ret;
+
+	memset(sdp->metafs_path, 0, PATH_MAX);
+	snprintf(sdp->metafs_path, PATH_MAX - 1, "/tmp/.gfs2meta.XXXXXX");
+
+	if(!mkdtemp(sdp->metafs_path))
+		die("Couldn't create %s : %s\n", sdp->metafs_path,
+		    strerror(errno));
+
+	ret = mount(sdp->path_name, sdp->metafs_path, "gfs2meta", 0, NULL);
+	if (ret) {
+		rmdir(sdp->metafs_path);
+		die("Couldn't mount %s : %s\n", sdp->metafs_path,
+		    strerror(errno));
+	}
+	lock_for_admin(sdp);
+}
+
 void
 cleanup_metafs(struct gfs2_sbd *sdp)
 {
@@ -266,14 +202,12 @@ cleanup_metafs(struct gfs2_sbd *sdp)
 
 	fsync(sdp->metafs_fd);
 	close(sdp->metafs_fd);
-	if (!sdp->metafs_mounted) { /* was mounted by us */
-		ret = umount(sdp->metafs_path);
-		if (ret)
-			fprintf(stderr, "Couldn't unmount %s : %s\n",
-				sdp->metafs_path, strerror(errno));
-		if(sdp->metafs_created_mount) /* we created the directory */
-			rmdir(sdp->metafs_path);
-	}
+	ret = umount(sdp->metafs_path);
+	if (ret)
+		fprintf(stderr, "Couldn't unmount %s : %s\n",
+			sdp->metafs_path, strerror(errno));
+	else
+		rmdir(sdp->metafs_path);
 }
 
 char *__get_sysfs(char *fsname, char *filename)

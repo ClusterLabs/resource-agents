@@ -282,9 +282,7 @@ main_grow(int argc, char *argv[])
 		if(read_sb(sdp) < 0)
 			die("gfs: Error reading superblock.\n");
 
-		if (!find_gfs2_meta(sdp))
-			mount_gfs2_meta(sdp);
-		lock_for_admin(sdp);
+		mount_gfs2_meta(sdp);
 
 		sprintf(rindex_name, "%s/rindex", sdp->metafs_path);
 		rindex_fd = open(rindex_name, (test ? O_RDONLY : O_RDWR));

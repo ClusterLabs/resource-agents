@@ -181,10 +181,8 @@ read_quota_file(struct gfs2_sbd *sdp, commandline_t *comline,
 	strcpy(sdp->path_name, comline->filesystem);
 	check_for_gfs2(sdp);
 	read_superblock(&sdp->sd_sb, sdp);
-	if (!find_gfs2_meta(sdp))
-		mount_gfs2_meta(sdp);
-	lock_for_admin(sdp);
-	
+	mount_gfs2_meta(sdp);
+
 	strcpy(quota_file, sdp->metafs_path);
 	strcat(quota_file, "/quota");
 
@@ -455,10 +453,8 @@ set_list(struct gfs2_sbd *sdp, commandline_t *comline, int user,
 	strcpy(sdp->path_name, comline->filesystem);
 	check_for_gfs2(sdp);
 	read_superblock(&sdp->sd_sb, sdp);
-	if (!find_gfs2_meta(sdp))
-		mount_gfs2_meta(sdp);
-	lock_for_admin(sdp);
-	
+	mount_gfs2_meta(sdp);
+
 	strcpy(quota_file, sdp->metafs_path);
 	strcat(quota_file, "/quota");
 

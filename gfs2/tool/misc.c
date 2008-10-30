@@ -430,9 +430,7 @@ print_journals(int argc, char **argv)
 	if (sbd.device_fd < 0)
 		die("can't open device %s: %s\n",
 		    sbd.device_name, strerror(errno));
-	if (!find_gfs2_meta(&sbd))
-		mount_gfs2_meta(&sbd);
-	lock_for_admin(&sbd);
+	mount_gfs2_meta(&sbd);
 
 	sprintf(jindex_name, "%s/jindex", sbd.metafs_path);
 	jindex = opendir(jindex_name);

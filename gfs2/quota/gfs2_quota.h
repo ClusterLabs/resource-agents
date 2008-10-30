@@ -65,8 +65,6 @@ extern char *prog_name;
 
 void do_get_super(int fd, struct gfs2_sb *sb);
 void do_sync(struct gfs2_sbd *sdp, commandline_t *comline);
-void lock_for_admin();
-void mount_gfs2_meta();
 void cleanup();
 void read_superblock(struct gfs2_sb *sb, struct gfs2_sbd *sdp);
 void get_last_quota_id(int fd, uint32_t *max_id);

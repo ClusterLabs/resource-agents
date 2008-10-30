@@ -101,9 +101,7 @@ do_df_one(char *path)
 		(get_sysfs_uint(fs, "args/localcaching")) ? "TRUE" : "FALSE");
 
 	/* Read the master statfs file */
-	if (!find_gfs2_meta(&sbd))
-		mount_gfs2_meta(&sbd);
-	lock_for_admin(&sbd);
+	mount_gfs2_meta(&sbd);
 
 	sprintf(statfs_fn, "%s/statfs", sbd.metafs_path);
 	statfs_fd = open(statfs_fn, O_RDONLY);
