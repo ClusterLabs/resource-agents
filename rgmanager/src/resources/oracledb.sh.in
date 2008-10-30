@@ -266,7 +266,7 @@ start_db()
 	declare logfile
 	declare -i rv
 
-	tmpfile=/tmp/$SCRIPT-start.$$
+	tmpfile="$(mktemp /tmp/$SCRIPT-start.XXXXXX)"
 	logfile=@LOGDIR@/$SCRIPT-start.log
 
 	#
@@ -316,7 +316,7 @@ stop_db()
 	declare logfile
 	declare -i rv
 
-	tmpfile=/tmp/$SCRIPT-stop.$$
+	tmpfile="$(mktemp /tmp/$SCRIPT-stop.XXXXXX)"
 	logfile=@LOGDIR@/$SCRIPT-stop.log
 
 	# Setup for Stop ...
