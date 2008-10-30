@@ -102,7 +102,7 @@ print_lockdump(int argc, char **argv)
 	char *name, line[PATH_MAX];
 	char *debugfs;
 	FILE *file;
-	int rc = -1, debug_dir_existed = 1;
+	int rc = -1;
 
 	/* See if debugfs is mounted, and if not, mount it. */
 	debugfs = find_debugfs_mount();
@@ -110,19 +110,18 @@ print_lockdump(int argc, char **argv)
 		debugfs = malloc(PATH_MAX);
 		if (!debugfs)
 			die("Can't allocate memory for debugfs.\n");
-		memset(debugfs, 0, PATH_MAX);
-		sprintf(debugfs, "/tmp/debugfs.%d", getpid());
 
-		if (access(debugfs, F_OK)) {
-			debug_dir_existed = mkdir(debugfs, 644);
-			if (debug_dir_existed) {
-				fprintf(stderr,
-					"Can't create %s mount point.\n",
-					debugfs);
-				free(debugfs);
-				exit(-1);
-			}
+		memset(debugfs, 0, PATH_MAX);
+		sprintf(debugfs, "/tmp/debugfs.XXXXXX");
+
+		if (!mkdtemp(debugfs)) {
+			fprintf(stderr,
+				"Can't create %s mount point.\n",
+				debugfs);
+			free(debugfs);
+			exit(-1);
 		}
+
 		rc = mount("none", debugfs, "debugfs", 0, NULL);
 		if (rc) {
 			fprintf(stderr,
@@ -153,10 +152,7 @@ print_lockdump(int argc, char **argv)
 	/* Check if we mounted the debugfs and if so, unmount it. */
 	if (!rc) {
 		umount(debugfs);
-		/* Check if we created the debugfs mount point and if so,
-		   delete it. */
-		if (!debug_dir_existed)
-			rmdir(debugfs);
+		rmdir(debugfs);
 	}
 	free(debugfs);
 }
