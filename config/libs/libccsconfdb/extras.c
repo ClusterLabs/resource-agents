@@ -198,7 +198,7 @@ out_fail:
 	return (-1);
 }
 
-static int facility_id_get (char *name)
+static int facility_id_get(char *name)
 {
 	unsigned int i;
 
@@ -210,7 +210,7 @@ static int facility_id_get (char *name)
 	return (-1);
 }
 
-static int priority_id_get (char *name)
+static int priority_id_get(char *name)
 {
 	unsigned int i;
 
@@ -222,101 +222,161 @@ static int priority_id_get (char *name)
 	return (-1);
 }
 
-void ccs_read_logging(int ccsfd, char *name, int *debug, int *mode, int *facility, int *priority, char **file)
+static void read_string(int fd, char *path, char *string)
 {
-	char *val = NULL;
-	char tmppath[PATH_MAX];
-	int global_debug = 0;
+	char *str;
+	int error;
+
+	error = ccs_get(fd, path, &str);
+	if (error || !str)
+		return;
+
+	strcpy(string, str);
+
+	free(str);
+}
+
+static void read_yesno(int fd, char *path, int *yes, int *no)
+{
+	char *str;
+	int error;
+
+	*yes = 0;
+	*no = 0;
+
+	error = ccs_get(fd, path, &str);
+	if (error || !str)
+		return;
+
+	if (!strcmp(str, "yes"))
+		*yes = 1;
+	else if (!strcmp(str, "no"))
+		*no = 1;
+
+	free(str);
+}
+
+static void read_onoff(int fd, char *path, int *on, int *off)
+{
+	char *str;
+	int error;
+
+	*on = 0;
+	*off = 0;
+
+	error = ccs_get(fd, path, &str);
+	if (error || !str)
+		return;
+
+	if (!strcmp(str, "on"))
+		*on = 1;
+	else if (!strcmp(str, "off"))
+		*off = 1;
+
+	free(str);
+}
+
+/* Values should be initialized to default values before calling
+   this function; they are not changed if cluster.conf has nothing
+   to say about them.  If debug is already set, this function will not
+   clear it, even if cluster.conf has it set to off. */
+
+void ccs_read_logging(int fd, char *name, int *debug, int *mode,
+		      int *facility, int *priority, char *file)
+{
+	char string[PATH_MAX];
+	char path[PATH_MAX];
+	int val, y, n, on, off;
+
+	/*
+	 * debug
+	 */
 
 	if (!*debug) {
-		if (ccs_get(ccsfd, "/cluster/logging/@debug", &val) == 0) {
-			if(!strcmp(val, "on")) {
-				global_debug = 1;
-			} else
-			if(!strcmp(val, "off")) {
-				global_debug = 0;
-			}
-			free(val);
-			val = NULL;
-		}
+		read_onoff(fd, "/cluster/logging/@debug", &on, &off);
+		if (on)
+			*debug = 1;
 
-		memset(tmppath, 0, PATH_MAX);
-		snprintf(tmppath, PATH_MAX - 1, "/cluster/logging/logger_subsys[@subsys=\"%s\"]/@debug", name);
-		if (ccs_get(ccsfd, tmppath, &val) == 0) {
-			if(!strcmp(val, "on")) {
-				*debug = 1;
-			} else
-			if(!strcmp(val, "off")) { /* debug from cmdline/envvars override config */
-				*debug = 0;
-			}
-			free(val);
-			val = NULL;
-		} else {
-			*debug = global_debug; /* global debug overrides subsystem only if latter is not specified */
-			*priority = LOG_DEBUG;
-		}
+		memset(path, 0, sizeof(path));
+		snprintf(path, PATH_MAX,
+			 "/cluster/logging/logger_subsys[@subsys=\"%s\"]/@debug",
+			 name);
 
-		memset(tmppath, 0, PATH_MAX);
-		snprintf(tmppath, PATH_MAX - 1, "/cluster/logging/logger_subsys[@subsys=\"%s\"]/@syslog_level", name);
-		if (ccs_get(ccsfd, tmppath, &val) == 0) {
-			*priority = priority_id_get (val);
-			if (*priority < 0)
-				*priority = SYSLOGLEVEL;
+		read_onoff(fd, path, &on, &off);
+		if (on)
+			*debug = 1;
+		else if (off)
+			*debug = 0;
 
-			if (!*debug)
+		/*
+		 * priority
+		 */
+
+		if (!*debug) {
+			memset(path, 0, sizeof(path));
+			snprintf(path, PATH_MAX,
+				 "/cluster/logging/logger_subsys[@subsys=\"%s\"]/@syslog_level",
+				 name);
+
+			memset(string, 0, sizeof(string));
+			read_string(fd, path, string);
+
+			if (string[0]) {
+				val = priority_id_get(string);
+				if (val >= 0)
+					*priority = val;
+
 				if (*priority == LOG_DEBUG)
 					*debug = 1;
-
-			free(val);
-			val = NULL;
-		}
+			}
+		} else
+			*priority = LOG_DEBUG;
 	} else
 		*priority = LOG_DEBUG;
 
-	if (ccs_get(ccsfd, "/cluster/logging/@to_stderr", &val) == 0) {
-		if(!strcmp(val, "yes")) {
-			*mode |= LOG_MODE_OUTPUT_STDERR;
-		} else
-		if(!strcmp(val, "no")) {
-			*mode &= ~LOG_MODE_OUTPUT_STDERR;
-		}
-		free(val);
-		val = NULL;
+	/*
+	 * mode
+	 */
+
+	read_yesno(fd, "/cluster/logging/@to_stderr", &y, &n);
+	if (y)
+		*mode |= LOG_MODE_OUTPUT_STDERR;
+	if (n)
+		*mode &= ~LOG_MODE_OUTPUT_STDERR;
+
+	read_yesno(fd, "/cluster/logging/@to_syslog", &y, &n);
+	if (y)
+		*mode |= LOG_MODE_OUTPUT_SYSLOG_THREADED;
+	if (n)
+		*mode &= ~LOG_MODE_OUTPUT_SYSLOG_THREADED;
+
+	read_yesno(fd, "/cluster/logging/@to_file", &y, &n);
+	if (y)
+		*mode |= LOG_MODE_OUTPUT_FILE;
+	if (n)
+		*mode &= ~LOG_MODE_OUTPUT_FILE;
+
+	/*
+	 * facility
+	 */
+
+	memset(string, 0, sizeof(string));
+	read_string(fd, "/cluster/logging/@syslog_facility", string);
+
+	if (string[0]) {
+		val = facility_id_get(string);
+		if (val >= 0)
+			*facility = val;
 	}
 
-	if (ccs_get(ccsfd, "/cluster/logging/@to_syslog", &val) == 0) {
-		if(!strcmp(val, "yes")) {
-			*mode |= LOG_MODE_OUTPUT_SYSLOG_THREADED;
-		} else
-		if(!strcmp(val, "no")) {
-			*mode &= ~LOG_MODE_OUTPUT_SYSLOG_THREADED;
-		}
-		free(val);
-		val = NULL;
-	}
-	if (ccs_get(ccsfd, "/cluster/logging/@to_file", &val) == 0) {
-		if(!strcmp(val, "yes")) {
-			*mode |= LOG_MODE_OUTPUT_FILE;
-		} else
-		if(!strcmp(val, "no")) {
-			*mode &= ~LOG_MODE_OUTPUT_FILE;
-		}
-		free(val);
-		val = NULL;
-	}
-	if (ccs_get(ccsfd, "/cluster/logging/@logfile", &val) == 0) {
-		*file = strdup(val);
-		free(val);
-		val = NULL;
-	}
-	if (ccs_get(ccsfd, "/cluster/logging/@syslog_facility", &val) == 0) {
-		*facility = facility_id_get (val);
-		if (*facility < 0)
-			*facility = SYSLOGFACILITY;
+	/*
+	 * file
+	 */
 
-		free(val);
-		val = NULL;
-	}
+	memset(string, 0, sizeof(string));
+	read_string(fd, "/cluster/logging/@logfile", string);
 
-	return;
+	if (string[0])
+		strcpy(file, string);
+
 }

@@ -12,7 +12,7 @@ int ccs_get(int desc, const char *query, char **rtn);
 int ccs_get_list(int desc, const char *query, char **rtn);
 int ccs_set(int desc, const char *path, char *val);
 int ccs_lookup_nodename(int desc, const char *nodename, char **rtn);
-void ccs_read_logging(int desc, char *name, int *debug, int *mode, int *facility, int *priority, char **file);
+void ccs_read_logging(int desc, char *name, int *debug, int *mode, int *facility, int *priority, char *file);
 
 extern int fullxpath;
 
