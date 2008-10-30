@@ -19,7 +19,7 @@
 #
 nfslock_statd_notify()
 {
-	declare tmpdir=/tmp/statd-$2.$$
+	declare tmpdir=$(mktemp -d /tmp/statd-$2.XXXXXX)
 	declare nl_dir=$1
 	declare nl_ip=$2
 	declare command		# Work around bugs in rpc.statd
@@ -37,7 +37,6 @@ nfslock_statd_notify()
 	fi
 
 	# Ok, copy the HA directory to something we can use.
-	rm -rf $tmpdir
        	mkdir -p $tmpdir/sm
 	
 	# Copy in our specified entries
