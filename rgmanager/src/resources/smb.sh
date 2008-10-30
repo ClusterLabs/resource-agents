@@ -266,7 +266,7 @@ add_sha1()
 
 verify_sha1()
 {
-	declare tmpfile="/tmp/smb-$OCF_RESKEY_name.tmp.$$"
+	declare tmpfile="$(mktemp /tmp/smb-${OCF_RESKEY}_name.tmp.XXXXXX)"
 	declare current exp
 
 	exp=$(grep "^# rgmanager-sha1.*$1" "$1" | head -1)
