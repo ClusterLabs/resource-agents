@@ -781,8 +781,8 @@ deep_probe()
 	ocf_log debug "ASEHAagent: Start 'deep_probe'."	
 
 	# Declare two temporary files which will be used in this probe.
-	tmpfile1="$(mktemp -t /tmp/ASEHAagent.1.XXXXXX)"
-	tmpfile2="$(mktemp -t /tmp/ASEHAagent.2.XXXXXX)"
+	tmpfile1="$(mktemp /tmp/ASEHAagent.1.XXXXXX)"
+	tmpfile2="$(mktemp /tmp/ASEHAagent.2.XXXXXX)"
 	
 	# Get the login_string by analyzing the login_file.
 	get_login_string
