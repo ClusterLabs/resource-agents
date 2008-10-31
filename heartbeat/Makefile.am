@@ -81,6 +81,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			SendArp		\
 			ServeRAID	\
 			SphinxSearchDaemon	\
+			Squid	\
 			Stateful	\
 			SysInfo		\
 			scsi2reservation	\
