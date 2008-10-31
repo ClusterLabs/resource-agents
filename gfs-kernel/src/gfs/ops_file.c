@@ -1603,6 +1603,12 @@ gfs_lock(struct file *file, int cmd, struct file_lock *fl)
 	if ((ip->i_di.di_mode & (S_ISGID | S_IXGRP)) == S_ISGID)
 		return -ENOLCK;
 
+	if (cmd == F_CANCELLK) {
+		/* Hack: */
+		cmd = F_SETLK;
+		fl->fl_type = F_UNLCK;
+	}
+
 	if (IS_GETLK(cmd))
 		return gfs_lm_plock_get(sdp, &name, file, fl);
 	else if (fl->fl_type == F_UNLCK)
