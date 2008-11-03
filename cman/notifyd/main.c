@@ -25,6 +25,10 @@ int rr = 0;
 
 #define OPTION_STRING "hdfVr"
 
+#ifndef MAX_ARGS
+#define MAX_ARGS	128
+#endif
+
 static void print_usage()
 {
 	printf("Usage:\n\n");
@@ -195,23 +199,74 @@ static void init_logging(int reconf)
 		logt_conf("CMANNOTIFYD", mode, facility, priority, file);
 }
 
+static void dispatch_notification(char *str)
+{
+	char *envp[MAX_ARGS];
+	char *argv[MAX_ARGS];
+	int envptr = 0;
+	int argvptr = 0;
+	char scratch[PATH_MAX];
+	int notify_pid;
+
+	if (!str)
+		return;
+
+	/* pass notification type */
+	snprintf(scratch, sizeof(scratch), "CMAN_NOTIFICATION=%s", str);
+	envp[envptr++] = strdup(scratch);
+
+	if (debug)
+		envp[envptr++] = strdup("CMAN_NOTIFICATION_DEBUG=1");
+
+	envp[envptr++] = NULL;
+
+	argv[argvptr++] = "cman_notify";
+
+	argv[argvptr++] = NULL;
+
+	switch ( (notify_pid = fork()) )
+	{
+		case -1:
+			/* unable to fork */
+			exit(EXIT_FAILURE);
+			break;
+
+		case 0: /* child */
+			execve(SBINDIR "/cman_notify", argv, envp);
+			/* unable to execute cman_notify */
+			exit(EXIT_FAILURE);
+			break;
+
+		default: /* parent */
+			break;
+	}
+
+}
+
 static void cman_callback(cman_handle_t ch, void *private, int reason, int arg)
 {
+	char *str = NULL;
+
 	switch (reason) {
 	case CMAN_REASON_TRY_SHUTDOWN:
 		logt_print(LOG_DEBUG, "Received a cman shutdown request\n");
 		cman_replyto_shutdown(ch, 1);	/* allow cman to shutdown */
+		str = "CMAN_REASON_TRY_SHUTDOWN";
 		break;
 	case CMAN_REASON_STATECHANGE:
 		logt_print(LOG_DEBUG,
 			   "Received a cman statechange notification\n");
+		str = "CMAN_REASON_STATECHANGE";
 		break;
 	case CMAN_REASON_CONFIG_UPDATE:
 		logt_print(LOG_DEBUG,
 			   "Received a cman config update notification\n");
 		init_logging(1);
+		str = "CMAN_REASON_CONFIG_UPDATE";
 		break;
 	}
+
+	dispatch_notification(str);
 }
 
 static void byebye_cman()
@@ -219,7 +274,6 @@ static void byebye_cman()
 	if (!cman_handle)
 		return;
 
-	cman_stop_notification(cman_handle);
 	cman_finish(cman_handle);
 	cman_handle = NULL;
 }
@@ -227,9 +281,6 @@ static void byebye_cman()
 static void setup_cman(int forever)
 {
 	int init = 0, active = 0;
-
-	if (forever)
-		logt_print(LOG_INFO, "wait for cman to reappear..\n");
 
 retry_init:
 	cman_handle = cman_init(NULL);
@@ -241,7 +292,7 @@ retry_init:
 			sleep(1);
 			goto retry_init;
 		}
-		logt_print(LOG_CRIT, "cman_init error %d", errno);
+		logt_print(LOG_CRIT, "cman_init error %d\n", errno);
 		exit(EXIT_FAILURE);
 	}
 
@@ -254,13 +305,13 @@ retry_active:
 			sleep(1);
 			goto retry_active;
 		}
-		logt_print(LOG_CRIT, "cman_is_active error %d", errno);
+		logt_print(LOG_CRIT, "cman_is_active error %d\n", errno);
 		cman_finish(cman_handle);
 		exit(EXIT_FAILURE);
 	}
 
 	if (cman_start_notification(cman_handle, cman_callback) < 0) {
-		logt_print(LOG_CRIT, "cman_start_notification error %d", errno);
+		logt_print(LOG_CRIT, "cman_start_notification error %d\n", errno);
 		cman_finish(cman_handle);
 		exit(EXIT_FAILURE);
 	}
@@ -280,8 +331,9 @@ static void loop()
 		rv = cman_dispatch(cman_handle, CMAN_DISPATCH_ONE);
 		if (rv == -1 && errno == EHOSTDOWN) {
 			byebye_cman();
-			sleep(10);
+			logt_print(LOG_DEBUG, "waiting for cman to reappear..\n");
 			setup_cman(1);
+			logt_print(LOG_DEBUG, "cman is back..\n");
 		}
 
 		if (daemon_quit) {

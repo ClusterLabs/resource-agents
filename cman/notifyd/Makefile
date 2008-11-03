@@ -10,7 +10,7 @@ include $(OBJDIR)/make/clean.mk
 include $(OBJDIR)/make/install.mk
 include $(OBJDIR)/make/uninstall.mk
 
-CFLAGS += -D_GNU_SOURCE
+CFLAGS += -D_GNU_SOURCE -DSBINDIR=\"${sbindir}\"
 CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${logtincdir}
 CFLAGS += -I${incdir}
 
