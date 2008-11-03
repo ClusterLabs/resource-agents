@@ -41,3 +41,6 @@ endif
 ifdef LOGRORATED
 	${UNINSTALL} ${LOGRORATED} ${logrotatedir}
 endif
+ifdef NOTIFYD
+	${UNINSTALL} ${NOTIFYD} ${notifyddir}
+endif

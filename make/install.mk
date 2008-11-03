@@ -65,3 +65,7 @@ ifdef LOGRORATED
 	install -d ${logrotatedir}
 	install -m644 ${LOGRORATED} ${logrotatedir}
 endif
+ifdef NOTIFYD
+	install -d ${notifyddir}
+	install -m755 ${NOTIFYD} ${notifyddir}
+endif

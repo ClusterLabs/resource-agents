@@ -12,6 +12,7 @@ module_dir ?= @MODULE_DIR@
 incdir ?= ${DESTDIR}@INCDIR@
 mibdir ?= ${DESTDIR}@MIBDIR@
 snmpbin ?= @SNMPBIN@
+notifyddir ?= ${DESTDIR}@CONFDIR@/cman-notify.d
 
 # Build information
 
