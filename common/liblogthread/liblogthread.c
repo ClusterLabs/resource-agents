@@ -50,7 +50,7 @@ static void write_entry(int level, char *str)
 		if ((logt_mode & LOG_MODE_FILTER_DEBUG_FROM_SYSLOG) &&
 		    (level == LOG_DEBUG))
 			return;
-		syslog(level, str);
+		syslog(level, "%s", str);
 	}
 }
 
