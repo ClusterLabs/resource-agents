@@ -219,6 +219,8 @@ int cman_stop_confchg(cman_handle_t handle);
 
 /* Call this if you get a TRY_SHUTDOWN event to signal whether you
  * will let cman shutdown or not.
+ * Note that getting this callback does not mean that cman WILL shutdown,
+ * only that it might. To detect a cman shutdown see cman_dispatch() below.
  */
 int cman_replyto_shutdown(cman_handle_t, int yesno);
 
