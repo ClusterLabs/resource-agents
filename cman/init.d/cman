@@ -235,6 +235,10 @@ start_daemons()
     if [ $? -ne 0 ]; then
 	errmsg=$( /sbin/gfs_controld 2>&1 ) || return 1
     fi
+    status cmannotifyd &> /dev/null
+    if [ $? -ne 0 ]; then
+	errmsg=$( /sbin/cmannotifyd 2>&1 ) || return 1
+    fi
     return 0
 }
 
@@ -522,6 +526,9 @@ stop_cman()
 
 stop_daemons()
 {
+    if pid=$(/sbin/pidof cmannotifyd 2>&1); then
+	errmsg=$(/usr/bin/kill $pid 2>&1) || return 1
+    fi
     if pid=$(/sbin/pidof gfs_controld 2>&1); then
 	errmsg=$(/usr/bin/kill $pid 2>&1) || return 1
     fi
@@ -636,7 +643,8 @@ cmanstatus()
 	errmsg=$( status fenced 2>&1) || return 1
 	errmsg=$( status dlm_controld 2>&1) || return 1
 	errmsg=$( status gfs_controld 2>&1) || return 1
-	
+	errmsg=$( status cmannotifyd 2>&1) || return 1
+
 	fence_xvmd_enabled || return 0
 	errmsg=$( status fence_xvmd 2>&1) || return 1
 
