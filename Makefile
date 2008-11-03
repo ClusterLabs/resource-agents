@@ -37,7 +37,7 @@ gfs-kernel: gfs-kernel/src/gfs
 
 common:
 config: cman/lib
-cman: config
+cman: common config
 dlm: config
 fence/libfenced:
 group: cman dlm fence/libfenced
