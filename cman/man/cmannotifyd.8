@@ -53,6 +53,10 @@ arrive, one by one.
 CMAN_REASON_TRY_SHUTDOWN is passed to scripts for information only, they
 can not influence cman's decsion about whether or not to shut down.
 
+CMAN_REASON_STATECHANGE also implies CMAN_NOTIFICATION_QUORUM exported
+in the environment. CMAN_NOTIFICATION_QUORUM can be set to 1 (when the node
+is part of a quored cluster) or 0 (otherwise).
+
 A template for cman_notify scripts can be found in the doc/ directory.
 
 .SH "OPTIONS"

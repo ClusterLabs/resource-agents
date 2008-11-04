@@ -201,7 +201,7 @@ static void init_logging(int reconf)
 		logt_conf("CMANNOTIFYD", mode, facility, priority, file);
 }
 
-static void dispatch_notification(char *str)
+static void dispatch_notification(char *str, int *quorum)
 {
 	char *envp[MAX_ARGS];
 	char *argv[MAX_ARGS];
@@ -217,6 +217,11 @@ static void dispatch_notification(char *str)
 	/* pass notification type */
 	snprintf(scratch, sizeof(scratch), "CMAN_NOTIFICATION=%s", str);
 	envp[envptr++] = strdup(scratch);
+
+	if (quorum) {
+		snprintf(scratch, sizeof(scratch), "CMAN_NOTIFICATION_QUORUM=%d", *quorum);
+		envp[envptr++] = strdup(scratch);
+	}
 
 	if (debug)
 		envp[envptr++] = strdup("CMAN_NOTIFICATION_DEBUG=1");
@@ -256,21 +261,22 @@ static void cman_callback(cman_handle_t ch, void *private, int reason, int arg)
 		logt_print(LOG_DEBUG, "Received a cman shutdown request\n");
 		cman_replyto_shutdown(ch, 1);	/* allow cman to shutdown */
 		str = "CMAN_REASON_TRY_SHUTDOWN";
+		dispatch_notification(str, 0);
 		break;
 	case CMAN_REASON_STATECHANGE:
 		logt_print(LOG_DEBUG,
 			   "Received a cman statechange notification\n");
 		str = "CMAN_REASON_STATECHANGE";
+		dispatch_notification(str, &arg);
 		break;
 	case CMAN_REASON_CONFIG_UPDATE:
 		logt_print(LOG_DEBUG,
 			   "Received a cman config update notification\n");
 		init_logging(1);
 		str = "CMAN_REASON_CONFIG_UPDATE";
+		dispatch_notification(str, 0);
 		break;
 	}
-
-	dispatch_notification(str);
 }
 
 static void byebye_cman()

@@ -34,6 +34,14 @@ case "$CMAN_NOTIFICATION" in
 		# we received a status change. A node might have left or joined
 		# the cluster
 		my_echo "replace me with something to do"
+
+		# STATECHANGE contains information about the quorum status of
+		# the node.
+		# 1 = the node is part of a quorated cluster
+		# 0 = there is no quorum
+		if [ "$CMAN_NOTIFICATION_QUORUM" = "1" ]; then
+			my_echo "we still have quorum"
+		fi
 	;;
 	CMAN_REASON_TRY_SHUTDOWN)
 		# we received a shutdown request. It means that cman might go
