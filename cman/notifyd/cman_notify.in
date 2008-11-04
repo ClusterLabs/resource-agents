@@ -10,9 +10,10 @@ if [ ! -d "@NOTIFYDDIR@" ]; then
 fi
 
 OUT="/dev/null 2>&1"
+LOGFILE="@LOGDIR@/cman_notify.log"
 
 if [ "$CMAN_NOTIFICATION_DEBUG" = "1" ]; then
-	OUT="@LOGDIR@/cman_notify.log"
+	OUT="$LOGFILE"
 fi
 
 # Ignore *~ and *, scripts
@@ -29,7 +30,11 @@ for i in $(LC_ALL=C; echo @NOTIFYDIR@/*[^~,]); do
 	[ "${i%.dpkg-dist}" != "${i}" ] && continue
 	[ "${i%.dpkg-new}" != "${i}" ] && continue
 
-	[ -x $i ] && $i > $OUT
+	if [ -x $i ]; then
+		echo "starting $(basename $i)" > $LOGFILE
+		$i > $OUT
+		echo "finished $(basename $i)" > $LOGFILE
+	fi
 done
 
 exit 0
