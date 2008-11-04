@@ -29,6 +29,7 @@ arrive, one by one.
 cman_notify will then execute all the scripts in the configured notification
 directory (default: /etc/cluster/cman-notify.d) passing a very minimal set of
 envvars including, of course, the CMAN_NOTIFICATION= type.
+The execution order is set by the filename as shown by "LC_ALL=C ls -las".
 
 cmannotifyd logs are stored in the default log file
 (/var/log/cluster/cmannotifyd.log).
