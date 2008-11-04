@@ -1,0 +1,49 @@
+.TH "cmannotifyd" "8" "November 2008" "" "CMAN Notification Daemon"
+.SH "NAME"
+cmannotifyd \- CMAN Notification Daemon
+.SH "SYNOPSIS"
+\fBcmannotifyd [\-f] [\-d]
+.SH "DESCRIPTION"
+.PP 
+The \fBcmannotifyd\fP daemon talks to CMAN and provides a mechanism to notify
+external entities about cluster changes.
+
+CMAN dispatches 3 kind of notifications:
+
+\- CMAN_REASON_TRY_SHUTDOWN when cman requests to all clients if it is allowed
+to shutdown.
+
+\- CMAN_REASON_STATECHANGE when cman detects a node joining or leaving the
+cluster.
+
+\- CMAN_REASON_CONFIG_UPDATE when a configuration change event has been
+detected/requested.
+
+Those notifications are then dispatches to cman_notify shell script in form of
+environmental variables (CMAN_NOTIFICATION=).
+
+Important notes: cmannotifyd does not block on cman_notify nor check the exit
+status of the script. Notifications are dispatched in the same order as they
+arrive, one by one.
+
+cman_notify will then execute all the scripts in the configured notification
+directory (default: /etc/cluster/cman-notify.d) passing a very minimal set of
+envvars including, of course, the CMAN_NOTIFICATION= type.
+
+cmannotifyd logs are stored in the default log file
+(/var/log/cluster/cmannotifyd.log).
+
+cman_notify logs are stored in the default log file
+(/var/log/cluster/cman_notify.log). By default the output from the scripts
+executed by cman_notify.log is redirected to /dev/null.
+Users can either set CMAN_NOTIFICATION_DEBUG=1 in their environment or
+set proper debug configuration in cluster.conf to redirect scripts output
+to cman_notify log file.
+
+A template for cman_notify scripts can be found in the doc/ directory.
+
+.SH "OPTIONS"
+.IP "\-f"
+Run in the foreground (do not fork / daemonize).
+.IP "\-d"
+Enable debug output.
