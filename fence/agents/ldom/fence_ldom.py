@@ -57,7 +57,7 @@ def get_power_status(conn, options):
 	except pexpect.TIMEOUT:
 		fail(EC_TIMED_OUT)
 
-	if (options["-o"] == "status"):
+	if (not (options["-o"] in ['monitor','list'])):
 		if (not (options["-n"] in result)):
 			fail_usage("Failed: You have to enter existing logical domain!")
 		else:

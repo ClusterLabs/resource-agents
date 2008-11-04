@@ -73,7 +73,7 @@ def get_power_status(conn, options):
 	for out_num,out_stat in status:
 		result[out_num]=("",(out_stat=="1" and "on" or "off"))
 
-	if (options["-o"] == "status"):
+	if (not (options["-o"] in ['monitor','list'])):
 		if (not (options["-n"] in result)):
 			fail_usage("Failed: You have to enter existing physical plug!")
 		else:
