@@ -17,7 +17,7 @@ my_echo() {
 
 LOGFILE="/var/log/cluster/file.log"
 
-# verify if you are running in debuggin mode
+# verify if you are running in debugging mode
 if [ "$CMAN_NOTIFICATION_DEBUG" = "1" ]; then
 	# in debuggin mode, we want to see the whole output somewhere
 	OUT="$LOGFILE"
@@ -37,7 +37,7 @@ case "$CMAN_NOTIFICATION" in
 
 		# STATECHANGE contains information about the quorum status of
 		# the node.
-		# 1 = the node is part of a quorated cluster
+		# 1 = the node is part of a quorate cluster
 		# 0 = there is no quorum
 		if [ "$CMAN_NOTIFICATION_QUORUM" = "1" ]; then
 			my_echo "we still have quorum"
