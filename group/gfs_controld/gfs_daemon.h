@@ -83,6 +83,8 @@ extern int dmsetup_wait;
 extern cpg_handle_t cpg_handle_daemon;
 extern int libcpg_flow_control_on;
 extern int group_mode;
+extern uint32_t plock_minor;
+extern uint32_t old_plock_minor;
 extern struct list_head withdrawn_mounts;
 
 void daemon_dump_save(void);
@@ -315,6 +317,7 @@ void store_plocks(struct mountgroup *mg, int nodeid);
 void retrieve_plocks(struct mountgroup *mg);
 void purge_plocks(struct mountgroup *mg, int nodeid, int unmount);
 int fill_plock_dump_buf(struct mountgroup *mg);
+int setup_misc_devices(void);
 
 /* util.c */
 int we_are_in_fence_domain(void);

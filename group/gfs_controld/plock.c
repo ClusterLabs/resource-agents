@@ -6,12 +6,6 @@
 
 #include <linux/dlm_plock.h>
 
-#define PROC_MISC               "/proc/misc"
-#define PROC_DEVICES            "/proc/devices"
-#define MISC_NAME               "misc"
-#define CONTROL_DIR             "/dev/misc"
-#define CONTROL_NAME            "dlm_plock"
-
 static uint32_t plock_read_count;
 static uint32_t plock_recv_count;
 static uint32_t plock_rate_delays;
@@ -19,7 +13,7 @@ static struct timeval plock_read_time;
 static struct timeval plock_recv_time;
 static struct timeval plock_rate_last;
 
-static int control_fd = -1;
+static int plock_device_fd = -1;
 static SaCkptHandleT ckpt_handle;
 static SaCkptCallbacksT callbacks = { 0, 0 };
 static SaVersionT version = { 'B', 1, 1 };
@@ -137,133 +131,6 @@ static char *ex_str(int optype, int ex)
 		return "RD";
 }
 
-static int get_proc_number(const char *file, const char *name, uint32_t *number)
-{
-	FILE *fl;
-	char nm[256];
-	int c;
-
-	if (!(fl = fopen(file, "r"))) {
-		log_error("%s: fopen failed: %s", file, strerror(errno));
-		return 0;
-	}
-
-	while (!feof(fl)) {
-		if (fscanf(fl, "%d %255s\n", number, &nm[0]) == 2) {
-			if (!strcmp(name, nm)) {
-				fclose(fl);
-				return 1;
-			}
-		} else do {
-			c = fgetc(fl);
-		} while (c != EOF && c != '\n');
-	}
-	fclose(fl);
-
-	log_error("%s: No entry for %s found", file, name);
-	return 0;
-}
-
-static int control_device_number(const char *plock_misc_name,
-				 uint32_t *major, uint32_t *minor)
-{
-	if (!get_proc_number(PROC_DEVICES, MISC_NAME, major) ||
-	    !get_proc_number(PROC_MISC, plock_misc_name, minor)) {
-		*major = 0;
-		return 0;
-	}
-
-	return 1;
-}
-
-/*
- * Returns 1 if exists; 0 if it doesn't; -1 if it's wrong
- */
-static int control_exists(const char *control, uint32_t major, uint32_t minor)
-{
-	struct stat buf;
-
-	if (stat(control, &buf) < 0) {
-		if (errno != ENOENT)
-			log_error("%s: stat failed: %s", control,
-				  strerror(errno));
-		return 0;
-	}
-
-	if (!S_ISCHR(buf.st_mode)) {
-		log_error("%s: Wrong inode type", control);
-		if (!unlink(control))
-			return 0;
-		log_error("%s: unlink failed: %s", control, strerror(errno));
-		return -1;
-	}
-
-	if (major && buf.st_rdev != makedev(major, minor)) {
-		log_error("%s: Wrong device number: (%u, %u) instead of "
-			  "(%u, %u)", control, major(buf.st_mode),
-			  minor(buf.st_mode), major, minor);
-		if (!unlink(control))
-			return 0;
-		log_error("%s: unlink failed: %s", control, strerror(errno));
-		return -1;
-	}
-
-	return 1;
-}
-
-static int create_control(const char *control, uint32_t major, uint32_t minor)
-{
-	int ret;
-	mode_t old_umask;
-
-	if (!major)
-		return 0;
-
-	old_umask = umask(0022);
-	ret = mkdir(CONTROL_DIR, 0777);
-	umask(old_umask);
-	if (ret < 0 && errno != EEXIST) {
-		log_error("%s: mkdir failed: %s", CONTROL_DIR, strerror(errno));
-		return 0;
-	}
-
-	if (mknod(control, S_IFCHR | S_IRUSR | S_IWUSR, makedev(major, minor)) < 0) {
-		log_error("%s: mknod failed: %s", control, strerror(errno));
-		return 0;
-	}
-
-	return 1;
-}
-
-static int open_control(const char *control_name, const char *plock_misc_name)
-{
-	char control[PATH_MAX];
-	uint32_t major = 0, minor = 0;
-
-	if (control_fd != -1)
-		return 0;
-
-	snprintf(control, sizeof(control), "%s/%s", CONTROL_DIR, control_name);
-
-	if (!control_device_number(plock_misc_name, &major, &minor))
-		return -1;
-
-	if (!control_exists(control, major, minor) &&
-	    !create_control(control, major, minor)) {
-		log_error("Failure to create device file %s", control);
-		return -1;
-	}
-
-	control_fd = open(control, O_RDWR);
-	if (control_fd < 0) {
-		log_error("Failure to open device %s: %s", control,
-			  strerror(errno));
-		return -1;
-	}
-
-	return 0;
-}
-
 /*
  * In kernels before 2.6.26, plocks came from gfs2's lock_dlm module.
  * Reading plocks from there as well should allow us to use cluster3
@@ -271,13 +138,9 @@ static int open_control(const char *control_name, const char *plock_misc_name)
  * structs is the mountgroup id, which we need to translate to the ls id.
  */
 
-#define OLD_CONTROL_NAME "lock_dlm_plock"
-#define OLD_PLOCK_MISC_NAME "lock_dlm_plock"
-
 int setup_plocks(void)
 {
 	SaAisErrorT err;
-	int rv;
 
 	plock_read_count = 0;
 	plock_recv_count = 0;
@@ -295,31 +158,26 @@ int setup_plocks(void)
 		   send ENOSYS back to the kernel if it tries to do a plock */
 	}
 
-	need_fsid_translation = 1;
-
-	rv = open_control(CONTROL_NAME, DLM_PLOCK_MISC_NAME);
-	if (rv) {
-		log_debug("setup_plocks trying old lock_dlm interface");
-		rv = open_control(OLD_CONTROL_NAME, OLD_PLOCK_MISC_NAME);
-		if (rv) {
-			log_error("Is dlm missing from kernel?  No control device.");
-			return rv;
-		}
-
-		/* the fsid from the kernel is the mountgroup id in old
-		   kernels, which we can use to look up the mg directly
-		   without translation */
-
+	if (plock_minor) {
+		need_fsid_translation = 1;
+		plock_device_fd = open("/dev/misc/dlm_plock", O_RDWR);
+	} else if (old_plock_minor) {
+		log_debug("setup_plocks using old lock_dlm interface");
 		need_fsid_translation = 0;
+		plock_device_fd = open("/dev/misc/lock_dlm_plock", O_RDWR);
 	}
 
-	log_debug("plocks %d", control_fd);
-	log_debug("plock need_fsid_translation %d", need_fsid_translation);
+	if (plock_device_fd < 0) {
+		log_error("Failure to open plock device: %s", strerror(errno));
+		return -1;
+	}
+
+	log_debug("plocks %d", plock_device_fd);
 	log_debug("plock cpg message size: %u bytes",
 		  (unsigned int) (sizeof(struct gdlm_header) +
 				  sizeof(struct dlm_plock_info)));
 
-	return control_fd;
+	return plock_device_fd;
 }
 
 /* FIXME: unify these two */
@@ -755,7 +613,7 @@ static void write_result(struct mountgroup *mg, struct dlm_plock_info *in,
 		in->fsid = mg->associated_ls_id;
 
 	in->rv = rv;
-	write(control_fd, in, sizeof(struct dlm_plock_info));
+	write(plock_device_fd, in, sizeof(struct dlm_plock_info));
 }
 
 static void do_waiters(struct mountgroup *mg, struct resource *r)
@@ -1636,10 +1494,10 @@ void process_plocks(int ci)
 
 	memset(&info, 0, sizeof(info));
 
-	rv = do_read(control_fd, &info, sizeof(info));
+	rv = do_read(plock_device_fd, &info, sizeof(info));
 	if (rv < 0) {
 		log_debug("process_plocks: read error %d fd %d\n",
-			  errno, control_fd);
+			  errno, plock_device_fd);
 		return;
 	}
 
@@ -1710,7 +1568,7 @@ void process_plocks(int ci)
 
  fail:
 	info.rv = rv;
-	rv = write(control_fd, &info, sizeof(info));
+	rv = write(plock_device_fd, &info, sizeof(info));
 
 	return;
 }
@@ -2375,6 +2233,88 @@ int fill_plock_dump_buf(struct mountgroup *mg)
 		}
 	}
  out:
+	plock_dump_len = pos;
 	return rv;
+}
+
+static void find_minors(void)
+{
+	FILE *fl;
+	char name[256];
+	uint32_t number;
+	int found = 0;
+	int c;
+
+	plock_minor = 0;
+	old_plock_minor = 0;
+
+	if (!(fl = fopen("/proc/misc", "r"))) {
+		log_error("/proc/misc fopen failed: %s", strerror(errno));
+		return;
+	}
+
+	while (!feof(fl)) {
+		if (fscanf(fl, "%d %255s\n", &number, &name[0]) == 2) {
+
+			if (!strcmp(name, "dlm_plock")) {
+				plock_minor = number;
+				found++;
+			} else if (!strcmp(name, "lock_dlm_plock")) {
+				old_plock_minor = number;
+				found++;
+			}
+
+		} else do {
+			c = fgetc(fl);
+		} while (c != EOF && c != '\n');
+
+		if (found == 3)
+			break;
+	}
+	fclose(fl);
+
+	if (!found)
+		log_error("Is lock_dlm or dlm missing from kernel? No misc devices found.");
+}
+
+static int find_udev_device(char *path, uint32_t minor)
+{
+	struct stat st;
+	int i;
+
+	for (i = 0; i < 10; i++) {
+		if (stat(path, &st) == 0 && minor(st.st_rdev) == minor)
+			return 0;
+		sleep(1);
+	}
+
+	log_error("cannot find device %s with minor %d", path, minor);
+	return -1;
+}
+
+int setup_misc_devices(void)
+{
+	int rv;
+
+	find_minors();
+
+	if (plock_minor) {
+		rv = find_udev_device("/dev/misc/dlm_plock", plock_minor);
+		if (rv < 0)
+			return rv;
+		log_debug("found /dev/misc/dlm_plock minor %u",
+			  plock_minor);
+	}
+
+	if (!plock_minor && old_plock_minor) {
+		rv = find_udev_device("/dev/misc/lock_dlm_plock",
+				      old_plock_minor);
+		if (rv < 0)
+			return rv;
+		log_debug("found /dev/misc/lock_dlm_plock minor %u",
+			  old_plock_minor);
+	}
+
+	return 0;
 }
 

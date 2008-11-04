@@ -1160,6 +1160,10 @@ static void loop(void)
 			goto out;
 		client_add(rv, process_cpg_old, cluster_dead);
 
+		rv = setup_misc_devices();
+		if (rv < 0)
+			goto out;
+
 		rv = setup_plocks();
 		if (rv < 0)
 			goto out;
@@ -1515,5 +1519,7 @@ int dmsetup_wait;
 cpg_handle_t cpg_handle_daemon;
 int libcpg_flow_control_on;
 int group_mode;
+uint32_t plock_minor;
+uint32_t old_plock_minor;
 struct list_head withdrawn_mounts;
 
