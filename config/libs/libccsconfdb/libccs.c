@@ -122,17 +122,116 @@ static int destroy_ccs_handle(confdb_handle_t handle,
 	return 0;
 }
 
+static int get_running_config_version(confdb_handle_t handle)
+{
+	unsigned int cluster_handle;
+	char data[128];
+	int datalen = 0;
+	int ret = -1;
+
+	if (confdb_object_find_start(handle, OBJECT_PARENT_HANDLE) != SA_AIS_OK) {
+		errno = ENOMEM;
+		return -1;
+	}
+
+	if (confdb_object_find
+	    (handle, OBJECT_PARENT_HANDLE, "cluster", strlen("cluster"),
+	     &cluster_handle) == SA_AIS_OK) {
+		memset(data, 0, sizeof(data));
+		if (confdb_key_get
+		    (handle, cluster_handle, "config_version",
+		     strlen("config_version"), data, &datalen) == SA_AIS_OK) {
+			ret = atoi(data);
+		}
+	}
+
+	confdb_object_find_destroy(handle, OBJECT_PARENT_HANDLE);
+
+	if (ret < 0)
+		errno = ENODATA;
+
+	return ret;
+}
+
+static int get_stored_config_version(confdb_handle_t handle,
+				     unsigned int connection_handle)
+{
+	char data[128];
+	int datalen = 0;
+	int ret = -1;
+
+	if (confdb_key_get
+	    (handle, connection_handle, "config_version",
+	     strlen("config_version"), data, &datalen) == SA_AIS_OK) {
+		ret = atoi(data);
+	}
+
+	if (ret < 0)
+		errno = ENODATA;
+
+	return ret;
+}
+
+int set_stored_config_version(confdb_handle_t handle,
+			      unsigned int connection_handle, int new_version)
+{
+	char temp[PATH_MAX];
+	int templen = 0;
+	char data[128];
+
+	memset(data, 0, sizeof(data));
+	snprintf(data, sizeof(data), "%d", new_version);
+
+	if (confdb_key_get
+	    (handle, connection_handle, "config_version",
+	     strlen("config_version"), temp, &templen) == SA_AIS_OK) {
+		if (confdb_key_replace
+		    (handle, connection_handle, "config_version",
+		     strlen("config_version"), temp, templen, data,
+		     strlen(data) + 1) == SA_AIS_OK) {
+			return 0;
+		}
+	}
+
+	return -1;
+}
+
+static int compare_config_versions(confdb_handle_t handle,
+				   unsigned int connection_handle)
+{
+	int running_version;
+	int stored_version;
+
+	running_version = get_running_config_version(handle);
+	if (running_version < 0)
+		return -1;
+
+	stored_version = get_stored_config_version(handle, connection_handle);
+	if (stored_version < 0)
+		return -1;
+
+	if (running_version != stored_version)
+		return running_version;
+
+	return 0;
+}
+
 static unsigned int create_ccs_handle(confdb_handle_t handle, int ccs_handle,
 				      int fullxpath)
 {
 	unsigned int libccs_handle = 0, connection_handle = 0;
 	char buf[128];
+	int config_version = 0;
 #ifdef EXPERIMENTAL_BUILD
 	time_t current_time;
 #endif
 
 	libccs_handle = find_libccs_handle(handle);
 	if (libccs_handle == -1)
+		return -1;
+
+	config_version = get_running_config_version(handle);
+	if (config_version < 0)
 		return -1;
 
 	if (confdb_object_create
@@ -147,6 +246,16 @@ static unsigned int create_ccs_handle(confdb_handle_t handle, int ccs_handle,
 	if (confdb_key_create
 	    (handle, connection_handle, "ccs_handle", strlen("ccs_handle"), buf,
 	     strlen(buf) + 1) != SA_AIS_OK) {
+		destroy_ccs_handle(handle, connection_handle);
+		errno = ENOMEM;
+		return -1;
+	}
+
+	memset(buf, 0, sizeof(buf));
+	snprintf(buf, sizeof(buf), "%d", config_version);
+	if (confdb_key_create
+	    (handle, connection_handle, "config_version",
+	     strlen("config_version"), buf, strlen(buf) + 1) != SA_AIS_OK) {
 		destroy_ccs_handle(handle, connection_handle);
 		errno = ENOMEM;
 		return -1;
@@ -379,6 +488,8 @@ static int check_cluster_name(int ccs_handle, const char *cluster_name)
 		}
 	}
 
+	confdb_object_find_destroy(handle, OBJECT_PARENT_HANDLE);
+
 	confdb_disconnect(handle);
 
 	if (found) {
@@ -409,6 +520,7 @@ static int _ccs_get(int desc, const char *query, char **rtn, int list)
 	char data[128];
 	int datalen = 0;
 	int fullxpathint = 0;
+	int need_reload = 0;
 
 	handle = confdb_connect();
 	if (handle <= 0)
@@ -417,6 +529,10 @@ static int _ccs_get(int desc, const char *query, char **rtn, int list)
 	connection_handle = find_ccs_handle(handle, desc);
 	if (connection_handle == -1)
 		return -1;
+
+	need_reload = compare_config_versions(handle, connection_handle);
+	if (need_reload < 0)
+		return need_reload;
 
 	memset(data, 0, sizeof(data));
 	if (confdb_key_get
@@ -429,10 +545,12 @@ static int _ccs_get(int desc, const char *query, char **rtn, int list)
 
 	if (!fullxpathint)
 		*rtn =
-		    _ccs_get_xpathlite(handle, connection_handle, query, list);
+		    _ccs_get_xpathlite(handle, connection_handle, query, list,
+				       need_reload);
 	else
 		*rtn =
-		    _ccs_get_fullxpath(handle, connection_handle, query, list);
+		    _ccs_get_fullxpath(handle, connection_handle, query, list,
+				       need_reload);
 
 	confdb_disconnect(handle);
 
@@ -467,7 +585,7 @@ int ccs_connect(void)
 		goto fail;
 
 	if (fullxpath) {
-		if (xpathfull_init(handle, ccs_handle)) {
+		if (xpathfull_init(handle)) {
 			ccs_disconnect(ccs_handle);
 			return -1;
 		}
