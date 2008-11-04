@@ -8,6 +8,8 @@
 #include <errno.h>
 #include <limits.h>
 #include <sched.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #include <libcman.h>
 #include <ccs.h>
@@ -206,7 +208,8 @@ static void dispatch_notification(char *str)
 	int envptr = 0;
 	int argvptr = 0;
 	char scratch[PATH_MAX];
-	int notify_pid;
+	pid_t notify_pid;
+	int pidstatus;
 
 	if (!str)
 		return;
@@ -238,6 +241,7 @@ static void dispatch_notification(char *str)
 			break;
 
 		default: /* parent */
+			waitpid(notify_pid, &pidstatus, 0);
 			break;
 	}
 
