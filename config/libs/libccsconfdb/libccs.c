@@ -172,7 +172,7 @@ static int get_stored_config_version(confdb_handle_t handle,
 	return ret;
 }
 
-int set_stored_config_version(confdb_handle_t handle,
+static int set_stored_config_version(confdb_handle_t handle,
 			      unsigned int connection_handle, int new_version)
 {
 	char temp[PATH_MAX];
@@ -196,8 +196,8 @@ int set_stored_config_version(confdb_handle_t handle,
 	return -1;
 }
 
-static int compare_config_versions(confdb_handle_t handle,
-				   unsigned int connection_handle)
+static int config_reload(confdb_handle_t handle,
+				   unsigned int connection_handle, int fullxpathint)
 {
 	int running_version;
 	int stored_version;
@@ -210,8 +210,22 @@ static int compare_config_versions(confdb_handle_t handle,
 	if (stored_version < 0)
 		return -1;
 
-	if (running_version != stored_version)
-		return running_version;
+	if (running_version == stored_version)
+		return 0;
+
+	if (fullxpathint) {
+		xpathfull_finish();
+		if (xpathfull_init(handle))
+			return -1;
+	}
+
+	reset_iterator(handle, connection_handle);
+
+	if (set_previous_query(handle, connection_handle, "", 0))
+		return -1;
+
+	if (set_stored_config_version(handle, connection_handle, running_version))
+		return -1;
 
 	return 0;
 }
@@ -520,7 +534,6 @@ static int _ccs_get(int desc, const char *query, char **rtn, int list)
 	char data[128];
 	int datalen = 0;
 	int fullxpathint = 0;
-	int need_reload = 0;
 
 	handle = confdb_connect();
 	if (handle <= 0)
@@ -529,10 +542,6 @@ static int _ccs_get(int desc, const char *query, char **rtn, int list)
 	connection_handle = find_ccs_handle(handle, desc);
 	if (connection_handle == -1)
 		return -1;
-
-	need_reload = compare_config_versions(handle, connection_handle);
-	if (need_reload < 0)
-		return need_reload;
 
 	memset(data, 0, sizeof(data));
 	if (confdb_key_get
@@ -543,14 +552,15 @@ static int _ccs_get(int desc, const char *query, char **rtn, int list)
 	} else
 		fullxpathint = atoi(data);
 
+	if (config_reload(handle, connection_handle, fullxpathint) < 0)
+		return -1;
+
 	if (!fullxpathint)
 		*rtn =
-		    _ccs_get_xpathlite(handle, connection_handle, query, list,
-				       need_reload);
+		    _ccs_get_xpathlite(handle, connection_handle, query, list);
 	else
 		*rtn =
-		    _ccs_get_fullxpath(handle, connection_handle, query, list,
-				       need_reload);
+		    _ccs_get_fullxpath(handle, connection_handle, query, list);
 
 	confdb_disconnect(handle);
 

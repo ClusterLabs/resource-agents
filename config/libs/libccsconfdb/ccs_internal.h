@@ -12,18 +12,15 @@ int get_previous_query(confdb_handle_t handle, unsigned int connection_handle,
 int set_previous_query(confdb_handle_t handle, unsigned int connection_handle,
 		       char *previous_query, unsigned int query_handle)
     __attribute__ ((visibility("hidden")));
-int set_stored_config_version(confdb_handle_t handle,
-			      unsigned int connection_handle, int need_reload)
-    __attribute__ ((visibility("hidden")));
 
 /* from xpathlite.c */
 char *_ccs_get_xpathlite(confdb_handle_t handle, unsigned int connection_handle,
-			 const char *query, int list, int need_reload)
+			 const char *query, int list)
     __attribute__ ((visibility("hidden")));
 
 /* from fullxpath.c */
 char *_ccs_get_fullxpath(confdb_handle_t handle, unsigned int connection_handle,
-			 const char *query, int list, int need_reload)
+			 const char *query, int list)
     __attribute__ ((visibility("hidden")));
 int xpathfull_init(confdb_handle_t handle)
     __attribute__ ((visibility("hidden")));

@@ -205,23 +205,6 @@ void xpathfull_finish()
 	return;
 }
 
-static int full_xpath_reload(confdb_handle_t handle,
-			     unsigned int connection_handle, int need_reload)
-{
-	xpathfull_finish();
-	if (xpathfull_init(handle))
-		return -1;
-
-	reset_iterator(handle, connection_handle);
-	if (set_previous_query(handle, connection_handle, "", 0))
-		return -1;
-
-	if (set_stored_config_version(handle, connection_handle, need_reload))
-		return -1;
-
-	return 0;
-}
-
 /**
  * _ccs_get_fullxpath
  * @desc:
@@ -236,7 +219,7 @@ static int full_xpath_reload(confdb_handle_t handle,
  * Returns: 0 on success, < 0 on failure
  */
 char *_ccs_get_fullxpath(confdb_handle_t handle, unsigned int connection_handle,
-			 const char *query, int list, int need_reload)
+			 const char *query, int list)
 {
 	xmlXPathObjectPtr obj = NULL;
 	char realquery[PATH_MAX + 16];
@@ -247,10 +230,6 @@ char *_ccs_get_fullxpath(confdb_handle_t handle, unsigned int connection_handle,
 	char *rtn = NULL;
 
 	errno = 0;
-
-	if (need_reload)
-		if (full_xpath_reload(handle, connection_handle, need_reload))
-			return NULL;
 
 	if (strncmp(query, "/", 1)) {
 		errno = EINVAL;

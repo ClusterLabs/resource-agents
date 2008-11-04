@@ -348,19 +348,6 @@ fail:
 	return -1;
 }
 
-static int xpathlite_reload(confdb_handle_t handle,
-			    unsigned int connection_handle, int need_reload)
-{
-	reset_iterator(handle, connection_handle);
-	if (set_previous_query(handle, connection_handle, "", 0))
-		return -1;
-
-	if (set_stored_config_version(handle, connection_handle, need_reload))
-		return -1;
-
-	return 0;
-}
-
 /**
  * _ccs_get_xpathlite
  * @handle:
@@ -375,7 +362,7 @@ static int xpathlite_reload(confdb_handle_t handle,
  * Returns: 0 on success, < 0 on failure
  */
 char *_ccs_get_xpathlite(confdb_handle_t handle, unsigned int connection_handle,
-			 const char *query, int list, int need_reload)
+			 const char *query, int list)
 {
 	char current_query[PATH_MAX];
 	char *datapos, *rtn;
@@ -384,10 +371,6 @@ char *_ccs_get_xpathlite(confdb_handle_t handle, unsigned int connection_handle,
 	unsigned int query_handle = 0;
 	int prev = 0, is_oldlist = 0;
 	int tokens, i;
-
-	if (need_reload)
-		if (xpathlite_reload(handle, connection_handle, need_reload))
-			return NULL;
 
 	memset(current_query, 0, PATH_MAX);
 	strncpy(current_query, query, PATH_MAX - 1);
