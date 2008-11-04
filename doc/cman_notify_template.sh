@@ -9,18 +9,18 @@
 
 PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin
 
-# define a simple wrapper to echo
+# define a simple wrapper to echo that will log to file only if
+# debugging is enable.
 my_echo() {
-	echo $@ > $OUT
+	[ -n "$OUT" ] && echo $@ >> $OUT
 }
 
-# set the default output to null.
-OUT="/dev/null"
+LOGFILE="/var/log/cluster/file.log"
 
 # verify if you are running in debuggin mode
 if [ "$CMAN_NOTIFICATION_DEBUG" = "1" ]; then
 	# in debuggin mode, we want to see the whole output somewhere
-	OUT="/var/log/cluster/file.log"
+	OUT="$LOGFILE"
 	my_echo "debugging is enabled"
 fi
 
