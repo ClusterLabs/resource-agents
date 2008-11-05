@@ -1320,16 +1320,12 @@ static void confchg_cb(cpg_handle_t handle, struct cpg_name *group_name,
 	list_for_each_entry(memb, &cg->removed, list)
 		purge_plocks(ls, memb->nodeid, 0);
 
-#if 0
-	/* deadlock code needs to adjust per a confchg, is this the right
-	   way/place for this? */
+	apply_changes(ls);
 
 	deadlk_confchg(ls, member_list, member_list_entries,
 		       left_list, left_list_entries,
 		       joined_list, joined_list_entries);
-#endif
 
-	apply_changes(ls);
 }
 
 static void dlm_header_in(struct dlm_header *hd)

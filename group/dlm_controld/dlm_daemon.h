@@ -260,6 +260,11 @@ void receive_checkpoint_ready(struct lockspace *ls, struct dlm_header *hd,
 void receive_cycle_start(struct lockspace *ls, struct dlm_header *hd, int len);
 void receive_cycle_end(struct lockspace *ls, struct dlm_header *hd, int len);
 void receive_cancel_lock(struct lockspace *ls, struct dlm_header *hd, int len);
+void deadlk_confchg(struct lockspace *ls,
+	struct cpg_address *member_list, int member_list_entries,
+	struct cpg_address *left_list, int left_list_entries,
+	struct cpg_address *joined_list, int joined_list_entries);
+
 
 /* main.c */
 int do_read(int fd, void *buf, size_t count);

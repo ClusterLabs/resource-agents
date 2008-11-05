@@ -148,6 +148,9 @@ void setup_deadlock(void)
 {
 	SaAisErrorT rv;
 
+	if (!cfgd_enable_deadlk)
+		return;
+
 	rv = saCkptInitialize(&global_ckpt_h, &callbacks, &version);
 	if (rv != SA_AIS_OK)
 		log_error("ckpt init error %d", rv);
@@ -330,80 +333,6 @@ static void parse_r_name(char *line, char *name)
 }
 
 #define LOCK_LINE_MAX 1024
-
-/* old/original way of dumping (only master state) in 5.1 kernel;
-   does deadlock detection based on pid instead of xid */
-
-static int read_debugfs_master(struct lockspace *ls)
-{
-	FILE *file;
-	char path[PATH_MAX];
-	char line[LOCK_LINE_MAX];
-	struct dlm_rsb *r;
-	struct dlm_lkb *lkb;
-	struct pack_lock lock;
-	char r_name[65];
-	unsigned long long xid;
-	unsigned int waiting;
-	int r_len;
-	int rv;
-
-	snprintf(path, PATH_MAX, "/sys/kernel/debug/dlm/%s_master", ls->name);
-
-	file = fopen(path, "r");
-	if (!file)
-		return -1;
-
-	/* skip the header on the first line */
-	if (!fgets(line, LOCK_LINE_MAX, file)) {
-		log_error("Unable to read %s: %d", path, errno);
-		goto out;
-	}
-
-	while (fgets(line, LOCK_LINE_MAX, file)) {
-		memset(&lock, 0, sizeof(struct pack_lock));
-
-		rv = sscanf(line, "%x %d %x %u %llu %x %hhd %hhd %hhd %u %d",
-			    &lock.id,
-			    &lock.nodeid,
-			    &lock.remid,
-			    &lock.ownpid,
-			    &xid,
-			    &lock.exflags,
-			    &lock.status,
-			    &lock.grmode,
-			    &lock.rqmode,
-			    &waiting,
-			    &r_len);
-
-		if (rv != 11) {
-			log_error("invalid debugfs line %d: %s", rv, line);
-			goto out;
-		}
-
-		memset(r_name, 0, sizeof(r_name));
-		parse_r_name(line, r_name);
-
-		r = get_resource(ls, r_name, r_len);
-		if (!r)
-			break;
-
-		/* we want lock.xid to be zero before calling add_lock
-		   so it will treat this like the full master copy (not
-		   partial).  then set the xid manually at the end to
-		   ownpid (there will be no process copy to merge and
-		   get the xid from in 5.1) */
-
-		set_copy(&lock);
-		lkb = add_lock(ls, r, our_nodeid, &lock);
-		if (!lkb)
-			break;
-		lkb->lock.xid = lock.ownpid;
-	}
- out:
-	fclose(file);
-	return 0;
-}
 
 static int read_debugfs_locks(struct lockspace *ls)
 {
@@ -1037,13 +966,8 @@ void receive_cycle_start(struct lockspace *ls, struct dlm_header *hd, int len)
 
 	rv = read_debugfs_locks(ls);
 	if (rv < 0) {
-		/* compat for RHEL5.1 kernels */
-		rv = read_debugfs_master(ls);
-		if (rv < 0) {
-			log_error("can't read dlm debugfs file: %s",
-				  strerror(errno));
-			return;
-		}
+		log_error("can't read dlm debugfs file: %s", strerror(errno));
+		return;
 	}
 
 	write_checkpoint(ls);
@@ -1151,12 +1075,15 @@ static void node_left(struct lockspace *ls, int nodeid, int reason)
 
 static void purge_locks(struct lockspace *ls, int nodeid);
 
-static void deadlk_confchg(struct lockspace *ls,
+void deadlk_confchg(struct lockspace *ls,
 		struct cpg_address *member_list, int member_list_entries,
 		struct cpg_address *left_list, int left_list_entries,
 		struct cpg_address *joined_list, int joined_list_entries)
 {
 	int i;
+
+	if (!cfgd_enable_deadlk)
+		return;
 
 	if (!ls->deadlk_confchg_init) {
 		ls->deadlk_confchg_init = 1;
