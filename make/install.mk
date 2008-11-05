@@ -26,10 +26,10 @@ endif
 ifdef INITDT
 	install -d ${initddir}
 	for i in ${INITDT}; do \
-		if [ -f $(S)/$$i ]; then \
-			install -m755 $(S)/$$i ${initddir}; \
-		else \
+		if [ -f $$i ]; then \
 			install -m755 $$i ${initddir}; \
+		else \
+			install -m755 $(S)/$$i ${initddir}; \
 		fi; \
 	done
 endif
