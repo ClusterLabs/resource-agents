@@ -1482,11 +1482,20 @@ int dlm_join_lockspace(struct lockspace *ls)
 	cpg_error_t error;
 	cpg_handle_t h;
 	struct cpg_name name;
-	int i = 0, fd, ci;
+	int i = 0, fd, ci, rv;
+	int unused;
+
+	rv = fence_in_progress(&unused);
+	if (cfgd_enable_fencing && rv < 0) {
+		log_error("dlm_join_lockspace no fence domain");
+		rv = -1;
+		goto fail_free;
+	}
 
 	error = cpg_initialize(&h, &cpg_callbacks);
 	if (error != CPG_OK) {
 		log_error("cpg_initialize error %d", error);
+		rv = -1;
 		goto fail_free;
 	}
 
@@ -1521,6 +1530,7 @@ int dlm_join_lockspace(struct lockspace *ls)
 	if (error != CPG_OK) {
 		log_error("cpg_join error %d", error);
 		cpg_finalize(h);
+		rv = -1;
 		goto fail;
 	}
 
@@ -1531,8 +1541,9 @@ int dlm_join_lockspace(struct lockspace *ls)
 	client_dead(ci);
 	cpg_finalize(h);
  fail_free:
+	set_sysfs_event_done(ls->name, rv);
 	free_ls(ls);
-	return error;
+	return rv;
 }
 
 /* received an "offline" uevent from dlm-kernel */
