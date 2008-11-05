@@ -33,23 +33,27 @@ SSL_PATH    = "@FENCEAGENTSLIBDIR@/telnet_ssl"
 all_opt = {
 	"help"    : {
 		"getopt" : "h",
-		"help" : "-h             Display this help and exit",
+		"longopt" : "help",
+		"help" : "-h, --help                     Display this help and exit",
 		"order" : 54 },
 	"version" : { 
 		"getopt" : "V",
-		"help" : "-V             Output version information and exit",
+		"longopt" : "version",
+		"help" : "-V, --version                  Output version information and exit",
 		"order" : 53 },
 	"quiet"   : {
 		"getopt" : "q",
-		"help" : "-q             Quiet mode",
+		"help" : "",
 		"order" : 50 },
 	"verbose" : {
 		"getopt" : "v",
-		"help" : "-v             Verbose mode",
+		"longopt" : "verbose",
+		"help" : "-v, --verbose                  Verbose mode",
 		"order" : 51 },
 	"debug" : {
 		"getopt" : "D:",
-		"help" : "-D <debugfile> Debugging to output file",
+		"longopt" : "debug-file", 
+		"help" : "-D, --debug-file=<debugfile>   Debugging to output file",
 		"order" : 52 },
 	"agent"   : {
 		"getopt" : "",
@@ -57,15 +61,18 @@ all_opt = {
 		"order" : 1 },
 	"action" : {
 		"getopt" : "o:",
-		"help" : "-o <action>    Action: status, reboot (default), off or on",
+		"longopt" : "action",
+		"help" : "-o, --action=<action>          Action: status, reboot (default), off or on",
 		"order" : 1 },
 	"ipaddr" : {
 		"getopt" : "a:",
-		"help" : "-a <ip>        IP address or hostname of fencing device",
+		"longopt" : "ip",
+		"help" : "-a, --ip=<ip>                  IP address or hostname of fencing device",
 		"order" : 1 },
 	"login" : {
 		"getopt" : "l:",
-		"help" : "-l <name>      Login name",
+		"longopt" : "username",
+		"help" : "-l, --username=<name>          Login name",
 		"order" : 1 },
 	"no_login" : {
 		"getopt" : "",
@@ -77,55 +84,67 @@ all_opt = {
 		"order" : 1 },
 	"passwd" : {
 		"getopt" : "p:",
-		"help" : "-p <password>  Login password or passphrase",
+		"longopt" : "password",
+		"help" : "-p, --password=<password>      Login password or passphrase",
 		"order" : 1 },
 	"passwd_script" : {
 		"getopt" : "S:",
-		"help" : "-S <script>    Script to run to retrieve password",
+		"longopt" : "password-script=",
+		"help" : "-S, --password-script=<script> Script to run to retrieve password",
 		"order" : 1 },
 	"identity_file" : {
 		"getopt" : "k:",
-		"help" : "-k <filename>  Identity file (private key) for ssh ",
+		"longopt" : "identity-file",
+		"help" : "-k, --identity-file=<filename> Identity file (private key) for ssh ",
 		"order" : 1 },
 	"module_name" : {
 		"getopt" : "m:",
-		"help" : "-m <module>    DRAC/MC module name",
+		"longopt" : "module-name",
+		"help" : "-m, --module-name=<module>     DRAC/MC module name",
 		"order" : 1 },
 	"drac_version" : {
 		"getopt" : "d:",
-		"help" : "-D <version>   Force DRAC version to use",
+		"longopt" : "drac-version",
+		"help" : "-D, --drac-version=<version>   Force DRAC version to use",
 		"order" : 1 },
 	"ribcl" : {
 		"getopt" : "r:",
-		"help" : "-r <version>   Force ribcl version to use",
+		"longopt" : "ribcl-version",
+		"help" : "-r, --ribcl-version=<version>  Force ribcl version to use",
 		"order" : 1 },
 	"cmd_prompt" : {
 		"getopt" : "c:",
-		"help" : "-c <prompt>    Force command prompt",
+		"longopt" : "command-prompt",
+		"help" : "-c, --command-prompt=<prompt>  Force command prompt",
 		"order" : 1 },
 	"secure" : {
 		"getopt" : "x",
-		"help" : "-x             Use ssh connection",
+		"longopt" : "ssh",
+		"help" : "-x, --ssh                      Use ssh connection",
 		"order" : 1 },
 	"ssl" : {
 		"getopt" : "z",
-		"help" : "-z             Use ssl connection",
+		"longopt" : "ssl",
+		"help" : "-z, --ssl                      Use ssl connection",
 		"order" : 1 },
 	"port" : {
 		"getopt" : "n:",
-		"help" : "-n <id>        Physical plug number on device or name of virtual machine",
+		"longopt" : "plug",
+		"help" : "-n, --plug=<id>                Physical plug number on device or\n" + 
+        "                                        name of virtual machine",
 		"order" : 1 },
 	"switch" : {
 		"getopt" : "s:",
-		"help" : "-s <id>        Physical switch number on device",
+		"longopt" : "switch",
+		"help" : "-s, --switch=<id>              Physical switch number on device",
 		"order" : 1 },
 	"partition" : {
 		"getopt" : "n:",
-		"help" : "-n <id>        Name of the partition",
+		"help" : "-n <id>                        Name of the partition",
 		"order" : 1 },
 	"managed" : {
 		"getopt" : "s:",
-		"help" : "-s <id>        Name of the managed system",
+		"help" : "-s <id>                        Name of the managed system",
 		"order" : 1 },
 	"test" : {
 		"getopt" : "T",
@@ -150,7 +169,8 @@ all_opt = {
 		"order" : 2 },
 	"separator" : {
 		"getopt" : "C:",
-		"help" : "-C <char>      Separator for CSV created by 'list' operation",
+		"longopt" : "separator",
+		"help" : "-C, --separator=<char>         Separator for CSV created by 'list' operation",
 		"order" : 100 }
 }
 
@@ -211,20 +231,39 @@ def process_input(avail_opt):
 	## Prepare list of options for getopt
 	#####
 	getopt_string = ""
+	longopt_list = [ ]
 	for k in avail_opt:
 		if all_opt.has_key(k):
 			getopt_string += all_opt[k]["getopt"]
 		else:
 			fail_usage("Parse error: unknown option '"+k+"'")
 
+		if all_opt.has_key(k) and all_opt[k].has_key("longopt"):
+			if all_opt[k]["getopt"].endswith(":"):
+				longopt_list.append(all_opt[k]["longopt"] + "=")
+			else:
+				longopt_list.append(all_opt[k]["longopt"])
+
 	##
 	## Read options from command line or standard input
 	#####
 	if len(sys.argv) > 1:
 		try:
-			opt, args = getopt.gnu_getopt(sys.argv[1:], getopt_string)
+			opt, args = getopt.gnu_getopt(sys.argv[1:], getopt_string, longopt_list)
 		except getopt.GetoptError, error:
 			fail_usage("Parse error: " + error.msg)
+
+		## Transform longopt to short one which are used in fencing agents
+		#####
+		old_opt = opt
+		opt = { }
+		for o in dict(old_opt).keys():
+			if o.startswith("--"):
+				for x in all_opt.keys():
+					if all_opt[x].has_key("longopt") and "--" + all_opt[x]["longopt"] == o:
+						opt["-" + all_opt[x]["getopt"]] = dict(old_opt)[o]
+			else:
+				opt[o] = dict(old_opt)[o]
 
 		## Compatibility Layer
 		#####
