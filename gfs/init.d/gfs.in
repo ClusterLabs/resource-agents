@@ -15,9 +15,34 @@
 # Description:		mount/unmount gfs filesystems configured in /etc/fstab
 ### END INIT INFO
 
-. /etc/init.d/functions
-[ -f /etc/sysconfig/cluster ] && . /etc/sysconfig/cluster
-[ -f /etc/sysconfig/gfs ] && . /etc/sysconfig/gfs
+# rpm based distros
+if [ -d /etc/sysconfig ]; then
+	[ -f @INITDDIR@/functions ] && . @INITDDIR@/functions
+	[ -f /etc/sysconfig/cluster ] && . /etc/sysconfig/cluster
+	[ -f /etc/sysconfig/gfs ] && . /etc/sysconfig/gfs
+	[ -z "$LOCK_FILE" ] && LOCK_FILE="/var/lock/subsys/gfs"
+	success=success
+	failure=failure
+fi
+
+# deb based distros
+if [ -d /etc/default ]; then
+	[ -f /etc/default/cluster ] && . /etc/default/cluster
+	[ -f /etc/default/gfs ] && . /etc/default/gfs
+	[ -z "$LOCK_FILE" ] && LOCK_FILE="/var/lock/gfs"
+	success=local_success
+	failure=local_failure
+fi
+
+local_success()
+{
+    echo -ne "[  OK  ]\r"
+}
+
+local_failure()
+{
+    echo -ne "[FAILED]\r"
+}
 
 #
 # This script's behavior is modeled closely after the netfs script.  
@@ -30,9 +55,18 @@ case "$1" in
   start)
         if [ -n "$GFSFSTAB" ] 
 	then
-		action $"Mounting GFS filesystems: " mount -a -t gfs
+		echo -n "Mounting GFS filesystems: "
+		mount -a -t gfs
+		rtrn=$?
+		if [ $rtrn = 0 ]; then
+			touch $LOCK_FILE
+			$success
+			echo
+		else
+			$failure
+			echo
+		fi
 	fi
-	touch /var/lock/subsys/gfs
 	;;
 
   stop)
@@ -43,18 +77,36 @@ case "$1" in
 		remaining=`LC_ALL=C awk '!/^#/ && $3 == "gfs" && $2 != "/" {print $2}' /proc/mounts`
 		while [ -n "$remaining" -a "$retry" -gt 0 ]
 		do
-			action $"Unmounting GFS filesystems: " umount -a -t gfs
-			
+			echo -n "Unmounting GFS filesystems: "
+			umount -a -t gfs
+			rtrn=$?
+			if [ $rtrn = 0 ]; then
+				$success
+				echo
+			else
+				$failure
+				echo
+			fi
+
 			if [ $retry -eq 0 ] 
 			then
-				action $"Unmounting GFS filesystems (lazy): " umount -l -a -t gfs
+				echo -n "Unmounting GFS filesystems (lazy): "
+				umount -l -a -t gfs
+				rtrn=$?
+				if [ $rtrn = 0 ]; then
+					$success
+					echo
+				else
+					$failure
+					echo
+				fi
 				break
 			fi
 
 			sleep 2
 			remaining=`LC_ALL=C awk '!/^#/ && $3 == "gfs" && $2 != "/" {print $2}' /proc/mounts`
 			[ -z "$remaining" ] && break
-			/sbin/fuser -k -m $sig $remaining >/dev/null
+			fuser -k -m $sig $remaining > /dev/null 2>&1
 			sleep 10
 			retry=$(($retry - 1))
 			sig=-9
@@ -62,18 +114,18 @@ case "$1" in
 	fi
 
 	modprobe -r gfs
-	rm -f /var/lock/subsys/gfs
+	rm -f $LOCK_FILE
 	;;
 
   status)
 	if [ -f /proc/mounts ]
 	then
 	        [ -n "$GFSFSTAB" ] && {
-		     echo $"Configured GFS mountpoints: "
+		     echo "Configured GFS mountpoints: "
 		     for fs in $GFSFSTAB; do echo $fs ; done
 		}
 		[ -n "$GFSMTAB" ] && {
-                      echo $"Active GFS mountpoints: "
+                      echo "Active GFS mountpoints: "
 		      for fs in $GFSMTAB; do echo $fs ; done
 		}
 	else

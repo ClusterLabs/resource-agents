@@ -15,16 +15,38 @@
 # Description:		start/stop persistent reservation service for lvm
 ### END INIT INFO
 
-. /etc/init.d/functions
+# rpm based distros
+if [ -d /etc/sysconfig ]; then
+	[ -f @INITDDIR@/functions ] && . @INITDDIR@/functions
+	[ -f /etc/sysconfig/cluster ] && . /etc/sysconfig/cluster
+	[ -f /etc/sysconfig/scsi_reserve ] && . /etc/sysconfig/scsi_reserve
+	[ -z "$LOCK_FILE" ] && LOCK_FILE="/var/lock/subsys/scsi_reserve"
+	success=success
+	failure=failure
+fi
 
-# read in config file if it exists
-#
-[ -f /etc/sysconfig/cluster ] && . /etc/sysconfig/cluster
-[ -f /etc/sysconfig/scsi_reserve ] && . /etc/sysconfig/scsi_reserve
+# deb based distros
+if [ -d /etc/default ]; then
+	[ -f /etc/default/cluster ] && . /etc/default/cluster
+	[ -f /etc/default/scsi_reserve ] && . /etc/default/scsi_reserve
+	[ -z "$LOCK_FILE" ] && LOCK_FILE="/var/lock/scsi_reserve"
+	success=local_success
+	failure=local_failure
+fi
+
+local_success()
+{
+    echo -ne "[  OK  ]\r"
+}
+
+local_failure()
+{
+    echo -ne "[FAILED]\r"
+}
 
 # check that cman is running
 #
-if ! cman_tool status &> /dev/null ; then
+if ! cman_tool status > /dev/null 2>&1; then
     logger -t scsi_reserve \
 	"[error] cman does not appear to be running"
     exit 1
@@ -40,7 +62,7 @@ fi
 
 # check for sg_persist command provided by sg3_utils package
 #
-if ! sg_persist -V &> /dev/null ; then
+if ! sg_persist -V > /dev/null 2>&1; then
     logger -t scsi_reserve \
 	"[error] unable to exec sg_persist"
     exit 1
@@ -113,7 +135,7 @@ case $1 in
 
 	  # create the scsi registration
 	  #
-	  if ! sg_persist -n -d $dev -o -I -S $key &> /dev/null ; then
+	  if ! sg_persist -n -d $dev -o -I -S $key > /dev/null 2>&1; then
 	      logger -t scsi_reserve \
 		"[error] unable to register device $dev (key=0x$key)"
 	      : $[ count = $count + 1 ]
@@ -133,7 +155,7 @@ case $1 in
 
 	  # create the scsi reservation
 	  #
-	  if ! sg_persist -n -d $dev -o -R -K $key -T 5 &> /dev/null ; then
+	  if ! sg_persist -n -d $dev -o -R -K $key -T 5 > /dev/null 2>&1; then
 	      logger -t scsi_reserver \
 		"[error] unable to create reservation on $dev (key=0x$key)"
 	      : $[ count = $count + 1 ]
@@ -144,17 +166,17 @@ case $1 in
 	# leave fence domain if any errors occured during registration
 	#
 	if [ $error -eq 0 ] ; then
-	    success
+	    $success
 	else
 	    logger -t scsi_reserve \
 		"[info] $count errors during registration"
 	    logger -t scsi_reserve \
 		"[info] leaving the fence domain"
 	    fence_tool leave
-	    failure
+	    $failure
 	fi
 
-	touch /var/lock/subsys/scsi_reserve
+	touch $LOCK_FILE
 
 	echo
 
@@ -195,7 +217,7 @@ case $1 in
 
 	  # remove registration for this device
 	  #
-	  if ! sg_persist -n -d $dev -o -G -K $key -S 0 &> /dev/null ; then
+	  if ! sg_persist -n -d $dev -o -G -K $key -S 0 > /dev/null 2>&1; then
 	      logger -t scsi_reserve \
 		"[error] failed to remove registration on $dev (key=0x$key)"
 	      : $[ count = $count + 1 ]
@@ -210,14 +232,14 @@ case $1 in
 	# report success or failure
 	#
 	if [ $error -eq 0 ] ; then
-	    success
+	    $success
 	else
 	    logger -t scsi_reserve \
 		"[info] $count errors occured during unregistration"
-	    failure
+	    $failure
 	fi
 
-	rm -f /var/lock/subsys/scsi_reserve
+	rm -f $LOCK_FILE
 
 	echo
 
@@ -233,7 +255,7 @@ case $1 in
 	do
 	  # recreate the scsi registration
 	  #
-	  if ! sg_persist -n -d $dev -o -I -S $key &> /dev/null ; then
+	  if ! sg_persist -n -d $dev -o -I -S $key > /dev/null 2>&1; then
 	      logger -t scsi_reserve \
 		"[error] unable to register device $dev (key=0x$key)"
 	      : $[ count = $count + 1 ]
@@ -253,7 +275,7 @@ case $1 in
 
 	  # recreate the scsi reservation
 	  #
-	  if ! sg_persist -n -d $dev -o -R -K $key -T 5 &> /dev/null ; then
+	  if ! sg_persist -n -d $dev -o -R -K $key -T 5 > /dev/null 2>&1; then
 	      logger -t scsi_reserver \
 		"[error] unable to create reservation on $dev (key=0x$key)"
 	      : $[ count = $count + 1 ]
@@ -264,14 +286,14 @@ case $1 in
 	# leave fence domain if any errors occured during registration
 	#
 	if [ $error -eq 0 ] ; then
-	    success
+	    $success
 	else
 	    logger -t scsi_reserve \
 		"[info] $count errors during registration"
 	    logger -t scsi_reserve \
 		"[info] leaving the fence domain"
 	    fence_tool leave
-	    failure
+	    $failure
 	fi
 
 	echo
