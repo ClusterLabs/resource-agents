@@ -1237,7 +1237,7 @@ static void add_waitfor(struct lockspace *ls, struct dlm_lkb *waiting_lkb,
 			struct dlm_lkb *granted_lkb)
 {
 	struct trans *tr = waiting_lkb->trans;
-	int old_alloc, i;
+	int i;
 
 	if (locks_compat(waiting_lkb, granted_lkb))
 		return;
@@ -1261,18 +1261,20 @@ static void add_waitfor(struct lockspace *ls, struct dlm_lkb *waiting_lkb,
 	}
 
 	if (tr->waitfor_count == tr->waitfor_alloc) {
-		struct trans **new_waitfor;
-		old_alloc = tr->waitfor_alloc;
+		struct trans **old_waitfor = tr->waitfor;
 		tr->waitfor_alloc += TR_NALLOC;
-		new_waitfor = realloc(tr->waitfor,
-				      tr->waitfor_alloc * sizeof(*tr->waitfor));
-		if (new_waitfor == NULL) {
-			log_group(ls, "failed to allocate internal buffer");
-			free (tr->waitfor);
+		tr->waitfor = malloc(tr->waitfor_alloc * sizeof(tr));
+		if (!tr->waitfor) {
+			log_error("add_waitfor no mem %u", tr->waitfor_alloc);
 			return;
 		}
-		for (i = old_alloc; i < tr->waitfor_alloc; i++)
-			tr->waitfor[i] = NULL;
+		memset(tr->waitfor, 0, tr->waitfor_alloc * sizeof(tr));
+
+		/* copy then free old set of pointers */
+		for (i = 0; i < tr->waitfor_count; i++)
+			tr->waitfor[i] = old_waitfor[i];
+		if (old_waitfor)
+			free(old_waitfor);
 	}
 
 	tr->waitfor[tr->waitfor_count++] = granted_lkb->trans;
