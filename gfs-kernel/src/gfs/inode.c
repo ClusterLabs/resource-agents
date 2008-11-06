@@ -334,6 +334,10 @@ inode_create(struct gfs_glock *i_gl, struct gfs_inum *inum,
 	gfs_glock_hold(i_gl);
 	set_gl2ip(i_gl, ip);
 
+	/* initialize stat counter and timestamp */
+	ip->i_dir_stats = 0;
+	do_gettimeofday(&ip->i_dir_stat_st);
+
 	atomic_inc(&sdp->sd_inode_count);
 
 	*ipp = ip;

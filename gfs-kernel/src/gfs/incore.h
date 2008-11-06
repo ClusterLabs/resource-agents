@@ -604,6 +604,9 @@ struct gfs_inode {
 
 	unsigned int i_greedy; /* The amount of time to be greedy */
 	unsigned long i_last_pfault; /* The time of the last page fault */
+
+	struct timeval i_dir_stat_st; /* Start time of stat counter */
+	unsigned long i_dir_stats; /* stat counter for this directory */
 	struct address_space_operations gfs_file_aops;
 };
 

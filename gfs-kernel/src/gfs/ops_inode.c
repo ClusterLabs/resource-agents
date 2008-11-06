@@ -1493,8 +1493,8 @@ gfs_setattr(struct dentry *dentry, struct iattr *attr)
 static int
 gfs_getattr(struct vfsmount *mnt, struct dentry *dentry, struct kstat *stat)
 {
-	struct inode *inode = dentry->d_inode;
-	struct gfs_inode *ip = get_v2ip(inode);
+	struct inode *inode = dentry->d_inode, *p_inode = NULL;
+	struct gfs_inode *ip = get_v2ip(inode), *pi = NULL;
 	struct gfs_holder gh;
 	int error;
 
@@ -1503,6 +1503,15 @@ gfs_getattr(struct vfsmount *mnt, struct dentry *dentry, struct kstat *stat)
 	error = gfs_glock_nq_init(ip->i_gl, LM_ST_SHARED, LM_FLAG_ANY, &gh);
 	if (!error) {
 		generic_fillattr(inode, stat);
+		if (S_ISREG(inode->i_mode) && dentry->d_parent 
+		    && dentry->d_parent->d_inode) {
+			p_inode = igrab(dentry->d_parent->d_inode);
+			if (p_inode) {
+				pi = get_v2ip(p_inode);
+				pi->i_dir_stats++;
+				iput(p_inode);
+			}
+		}
 		gfs_glock_dq_uninit(&gh);
 	}
 

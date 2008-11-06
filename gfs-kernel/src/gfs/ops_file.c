@@ -1132,6 +1132,29 @@ filldir_reg_func(void *opaque,
 	return 0;
 }
 
+static inline int
+high_stat_rate(struct gfs_inode *ip)
+{
+	struct timeval now, diff;
+	unsigned long milli = 0;
+	unsigned int rate = 0; /* stats per second in this dir */
+
+	do_gettimeofday(&now);
+	diff.tv_sec = now.tv_sec - ip->i_dir_stat_st.tv_sec;
+	diff.tv_usec = now.tv_usec - ip->i_dir_stat_st.tv_usec;
+	if (diff.tv_usec < 0) {
+		diff.tv_usec += 1000000;
+		diff.tv_sec--;
+	}
+	milli = (diff.tv_sec * 1000) + (diff.tv_usec / 1000);
+	if (milli)
+		rate = (ip->i_dir_stats * 1000) / milli;
+
+	if (rate > 10) /* More than 10 stats/sec */
+		return 1;
+	return 0;
+}
+
 /**
  * readdir_reg - Read directory entries from a directory
  * @file: The directory to read from
@@ -1151,9 +1174,13 @@ readdir_reg(struct file *file, void *dirent, filldir_t filldir)
 	int error;
 
 	fdr.fdr_sbd = dip->i_sbd;
-	fdr.fdr_prefetch = TRUE;
+	fdr.fdr_prefetch = high_stat_rate(dip) ? TRUE : FALSE;
 	fdr.fdr_filldir = filldir;
 	fdr.fdr_opaque = dirent;
+
+	/* reset stat counter and timestamp */
+	dip->i_dir_stats = 0;
+	do_gettimeofday(&dip->i_dir_stat_st);
 
 	gfs_holder_init(dip->i_gl, LM_ST_SHARED, GL_ATIME, &d_gh);
 	error = gfs_glock_nq_atime(&d_gh);
