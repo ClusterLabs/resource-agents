@@ -503,7 +503,7 @@ migrate()
 
 	# Patch from Marcelo Azevedo to migrate over private
 	# LANs instead of public LANs
-        if [ -n $OCF_RESKEY_migration_mapping ] ; then
+        if [ -n "$OCF_RESKEY_migration_mapping" ] ; then
                 target=${OCF_RESKEY_migration_mapping#*$target:} target=${target%%,*}
         fi
 
