@@ -220,7 +220,7 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 		     int flags)
 {
 	int fd = -1, ret = -1;
-	virDomainPtr vdp;
+	virDomainPtr vdp = NULL, nvdp = NULL;
 	virDomainInfo vdi;
 	char response = 1;
 	char *domain_desc, *domain_desc_sanitized;
@@ -329,9 +329,22 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 				   (char *)req->domain);
 		} else if (domain_desc) {
 			/* Recreate the domain if possible */
-			/* Success */
+			/* Success... or not? */
 			dbg_printf(2, "Calling virDomainCreateLinux()...\n");
-			virDomainCreateLinux(vp, domain_desc, 0);
+			nvdp = virDomainCreateLinux(vp, domain_desc, 0);
+
+			if (nvdp == NULL) {
+				/* More recent versions of libvirt or perhaps the
+ 				   KVM back-end do not let you create a domain from
+ 				   XML if there is already a defined domain description
+ 				   with the same name that it knows about.  You must
+ 				   then call virDomainCreate() */
+				dbg_printf(2, "Failed; Trying virDomainCreate()...\n");
+				if (virDomainCreate(vdp) < 0) {
+					log_printf(LOG_ERR, "Failed to recreate guest"
+						   " %s!\n", (char *)req->domain);
+				}
+			}
 			free(domain_desc);
 		}
 		break;
@@ -343,6 +356,10 @@ do_fence_request_tcp(fence_req_t *req, fence_auth_type_t auth,
 			   strerror(errno));
 	}
 out:
+	if (vdp)
+		virDomainFree(vdp);
+	if (nvdp)
+		virDomainFree(nvdp);
 	if (fd != -1)
 		close(fd);
 
