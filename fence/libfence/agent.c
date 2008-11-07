@@ -128,7 +128,7 @@ static int make_args(int cd, char *victim, char *method, int d,
 				char *device, char **args_out)
 {
 	char path[256], *args, *str;
-	int error;
+	int error, cnt = 0;
 
 	args = malloc(MAX_AGENT_ARGS_LEN);
 	if (!args)
@@ -144,6 +144,7 @@ static int make_args(int cd, char *victim, char *method, int d,
 		error = ccs_get_list(cd, path, &str);
 		if (error || !str)
 			break;
+		++cnt;
 
 		if (!strncmp(str, "name=", 5)) {
 			free(str);
@@ -164,6 +165,7 @@ static int make_args(int cd, char *victim, char *method, int d,
 		error = ccs_get_list(cd, path, &str);
 		if (error || !str)
 			break;
+		++cnt;
 
 		if (!strncmp(str, "name=", 5)) {
 			free(str);
@@ -175,6 +177,8 @@ static int make_args(int cd, char *victim, char *method, int d,
 		free(str);
 	}
 
+	if (cnt)
+		error = 0;
 	if (error) {
 		free(args);
 		args = NULL;
