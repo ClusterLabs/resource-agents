@@ -15,11 +15,11 @@
 #define MAX_DEVICES		8
 #define MAX_AGENT_ARGS_LEN	512
 
-#define METHOD_NAME_PATH        "/cluster/clusternodes/clusternode[@name=\"%s\"]/fence/method[%d]/@name"
-#define DEVICE_NAME_PATH        "/cluster/clusternodes/clusternode[@name=\"%s\"]/fence/method[@name=\"%s\"]/device[%d]/@name"
-#define NODE_FENCE_ARGS_PATH    "/cluster/clusternodes/clusternode[@name=\"%s\"]/fence/method[@name=\"%s\"]/device[%d]/@*"
-#define AGENT_NAME_PATH         "/cluster/fencedevices/fencedevice[@name=\"%s\"]/@agent"
-#define FENCE_DEVICE_ARGS_PATH  "/cluster/fencedevices/fencedevice[@name=\"%s\"]/@*"
+#define METHOD_NAME_PATH		"/cluster/clusternodes/clusternode[@name=\"%s\"]/fence/method[%d]/@name"
+#define DEVICE_NAME_PATH		"/cluster/clusternodes/clusternode[@name=\"%s\"]/fence/method[@name=\"%s\"]/device[%d]/@name"
+#define NODE_FENCE_ARGS_PATH	"/cluster/clusternodes/clusternode[@name=\"%s\"]/fence/method[@name=\"%s\"]/device[%d]/@*"
+#define AGENT_NAME_PATH			"/cluster/fencedevices/fencedevice[@name=\"%s\"]/@agent"
+#define FENCE_DEVICE_ARGS_PATH	"/cluster/fencedevices/fencedevice[@name=\"%s\"]/@*"
 
 
 
@@ -57,17 +57,17 @@ static int run_agent(char *agent, char *args)
 
 	if (pipe(fd1))
 		goto fail;
-  	pr_fd = fd1[0];
-  	cw_fd = fd1[1];
+	pr_fd = fd1[0];
+	cw_fd = fd1[1];
 
-  	if (pipe(fd2))
-   		goto fail;
-  	cr_fd = fd2[0];
-  	pw_fd = fd2[1];
+	if (pipe(fd2))
+		goto fail;
+	cr_fd = fd2[0];
+	pw_fd = fd2[1];
 
 	pid = fork();
 	if (pid < 0)
-   		goto fail;
+		goto fail;
 
 	if (pid) {
 		/* parent */
@@ -125,7 +125,7 @@ static int run_agent(char *agent, char *args)
 }
 
 static int make_args(int cd, char *victim, char *method, int d,
-		     char *device, char **args_out)
+				char *device, char **args_out)
 {
 	char path[256], *args, *str;
 	int error;
@@ -249,7 +249,7 @@ static int count_devices(int cd, char *victim, char *method)
 }
 
 static int use_device(int cd, char *victim, char *method, int d,
-		      char *device)
+				char *device)
 {
 	char path[256], *agent, *args = NULL;
 	int error;
@@ -306,9 +306,8 @@ int fence_node(char *victim)
 				sleep(1);
 			
 			error = get_method(cd, victim, m, &method);
-
-		if (error)
-			continue;
+			if (error)
+				continue;
 		} else if (error)
 			continue;
 
@@ -344,4 +343,3 @@ int fence_node(char *victim)
 
 	return error;
 }
-
