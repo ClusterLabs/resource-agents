@@ -1646,12 +1646,13 @@ main(int argc, char **argv)
 		}
 
 		if (qh.qh_version == VERSION_MAGIC_V2 &&
-                    qh.qh_blksz != rv) {
+		    qh.qh_blksz != qh.qh_kernsz) {
 			log_printf(LOG_CRIT,
-			       "Specified device %s does match kernel's "
-			       "reported sector size (%lu != %d)\n",
+			       "Specified device %s does not match kernel's "
+			       "reported sector size (%lu != %lu)\n",
 			       ctx.qc_device,
-			       (unsigned long)ctx.qc_disk.d_blksz, rv);
+			       (unsigned long)qh.qh_blksz,
+			       (unsigned long)qh.qh_kernsz);
 			check_stop_cman(&ctx);
 			goto out;
 		}
