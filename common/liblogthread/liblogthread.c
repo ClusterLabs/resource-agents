@@ -145,8 +145,10 @@ static void _conf(char *name, int mode, int facility, int priority, char *file)
 		if (logt_file_fp)
 			fclose(logt_file_fp);
 		logt_file_fp = fopen(logt_file, "a+");
-		fd = fileno(logt_file_fp);
-		fcntl(fd, F_SETFD, fcntl(fd, F_GETFD, 0) | FD_CLOEXEC);
+		if (logt_file_fp != NULL) {
+			fd = fileno(logt_file_fp);
+			fcntl(fd, F_SETFD, fcntl(fd, F_GETFD, 0) | FD_CLOEXEC);
+		}
 	}
 
 	if (logt_mode & LOG_MODE_OUTPUT_SYSLOG_THREADED) {
