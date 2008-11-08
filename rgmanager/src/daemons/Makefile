@@ -1,7 +1,6 @@
 TARGET1= clurgmgrd
-#TARGET2= clurmtabd  # Not needed on 2.6 kernels
-TARGET3= rg_test
-TARGET4= dtest
+TARGET2= rg_test
+TARGET3= dtest
 
 SBINDIRT=$(TARGET1) $(TARGET3)
 
@@ -32,13 +31,10 @@ OBJS1=	depends.o \
 	event_config.o \
 	watchdog.o
 
-OBJS2=	clurmtabd.o \
-	clurmtabd_lib.o
-
-OBJS3=	test-noccs.o \
+OBJS2=	test-noccs.o \
 	restart_counter.o
 
-OBJS4=	dtest-noccs.o
+OBJS3=	dtest-noccs.o
 
 SHAREDOBJS=	depends-noccs.o \
 		fo_domain-noccs.o \
@@ -80,9 +76,6 @@ ${TARGET1}: ${OBJS1} ${LDDEPS}
 			$(SLANG_LDFLAGS) $(EXTRA_LDFLAGS) \
 			$(LOGSYS_LDFLAGS) $(LD_FLAGS)
 
-#${TARGET2}: ${OBJS2} ${LDDEPS}
-#	$(CC) -o $@ $^ $(LDFLAGS)
-
 #
 # Our test program links against the local allocator so that
 # we can see if our program is leaking memory during XML parsing, tree
@@ -97,11 +90,11 @@ ${TARGET1}: ${OBJS1} ${LDDEPS}
 # This is NOT meant to be an installed binary.  Rather, RPMs and/or other
 # packages should run 'make check' as part of the build process.
 #
-${TARGET3}: ${SHAREDOBJS} ${OBJS3} ${LDDEPS} ${LOCAL_LDDEPS}
+${TARGET2}: ${SHAREDOBJS} ${OBJS3} ${LDDEPS} ${LOCAL_LDDEPS}
 	$(CC) -o $@ $^ $(CMAN_LDFLAGS) $(LOCAL_LDFLAGS) $(EXTRA_LDFLAGS) \
 			$(XML2_LDFLAGS) $(LOGSYS_LDFLAGS) $(LDFLAGS)
 
-${TARGET4}: ${SHAREDOBJS} ${OBJS4} ${LDDEPS} ${LOCAL_LDDEPS}
+${TARGET3}: ${SHAREDOBJS} ${OBJS4} ${LDDEPS} ${LOCAL_LDDEPS}
 	$(CC) -o $@ $^ $(CCS_LDFLAGS) $(CMAN_LDFLAGS) \
 			$(LOCAL_LDFLAGS) $(EXTRA_LDFLAGS) $(XML2_LDFLAGS) \
 			$(READLINE_LDFLAGS) $(LDFLAGS)
