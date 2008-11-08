@@ -1,4 +1,4 @@
-TARGET1= clurgmgrd
+TARGET1= rgmanager
 TARGET2= rg_test
 TARGET3= dtest
 

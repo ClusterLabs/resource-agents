@@ -39,7 +39,7 @@ PATH=/sbin:/bin:/usr/sbin:/usr/bin
 export PATH
 
 ID="Cluster Service Manager"
-RGMGRD="clurgmgrd"
+RGMGRD="rgmanager"
 
 LOG_ERR=3
 LOG_WARNING=4
