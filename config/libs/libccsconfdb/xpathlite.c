@@ -359,13 +359,13 @@ fail:
  * of the given query.  It is the user's responsibility to ensure that
  * the data returned is freed.
  *
- * Returns: 0 on success, < 0 on failure
+ * Returns: char * to result or NULL in case of failure.
  */
 char *_ccs_get_xpathlite(confdb_handle_t handle, unsigned int connection_handle,
 			 const char *query, int list)
 {
 	char current_query[PATH_MAX];
-	char *datapos, *rtn;
+	char *datapos, *rtn = NULL;
 	char previous_query[PATH_MAX];
 	unsigned int list_handle = 0;
 	unsigned int query_handle = 0;

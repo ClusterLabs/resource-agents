@@ -536,8 +536,8 @@ static int _ccs_get(int desc, const char *query, char **rtn, int list)
 	int fullxpathint = 0;
 
 	handle = confdb_connect();
-	if (handle <= 0)
-		return handle;
+	if (handle < 0)
+		return -1;
 
 	connection_handle = find_ccs_handle(handle, desc);
 	if (connection_handle == -1)

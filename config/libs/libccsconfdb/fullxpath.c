@@ -216,7 +216,7 @@ void xpathfull_finish()
  * of the given query.  It is the user's responsibility to ensure that
  * the data returned is freed.
  *
- * Returns: 0 on success, < 0 on failure
+ * Returns: char * to result or NULL in case of failure.
  */
 char *_ccs_get_fullxpath(confdb_handle_t handle, unsigned int connection_handle,
 			 const char *query, int list)
