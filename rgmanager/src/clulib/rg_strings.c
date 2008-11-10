@@ -200,6 +200,5 @@ rg_flags_str(char *flags_string, size_t size, int val, char *separator)
 const char *
 agent_op_str(int val)
 {
-		printf("searching agent_ops for %d\n", val);
 	return rg_search_table(agent_ops, val);
 }

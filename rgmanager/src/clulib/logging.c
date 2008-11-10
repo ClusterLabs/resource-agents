@@ -18,6 +18,8 @@
 				LOG_MODE_OUTPUT_FILE | \
 				LOG_MODE_NOSUBSYS | \
 				LOG_MODE_FILTER_DEBUG_FROM_SYSLOG
+static int default_mode = DEFAULT_MODE;
+
 #define DEFAULT_FACILITY	SYSLOGFACILITY /* cluster config setting */
 #define DEFAULT_PRIORITY	SYSLOGLEVEL /* cluster config setting */
 #define DEFAULT_FILE		LOGDIR "/" DAEMON_NAME ".log"
@@ -107,7 +109,7 @@ read_ccs_logging(int ccs_handle, int *mode, int *facility, int *priority,
 	 * mode
 	 */
 
-	m = DEFAULT_MODE;
+	m = default_mode;
 	val = read_ccs_yesno(ccs_handle, "/cluster/logging/@to_stderr");
 	if (val == 1)
 		m |= LOG_MODE_OUTPUT_STDERR;
@@ -198,9 +200,11 @@ read_ccs_logging(int ccs_handle, int *mode, int *facility, int *priority,
 /* initial settings until we can read cluster.conf logging settings from ccs */
 
 void
-init_logging(void)
+init_logging(int foreground)
 {
-	logsys_init(DAEMON_NAME, DEFAULT_MODE, DEFAULT_FACILITY,
+	if (foreground)
+		default_mode |= LOG_MODE_OUTPUT_STDERR;
+	logsys_init(DAEMON_NAME, default_mode, DEFAULT_FACILITY,
 		    DEFAULT_PRIORITY, DEFAULT_FILE);
 }
 

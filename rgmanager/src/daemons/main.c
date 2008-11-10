@@ -1010,7 +1010,7 @@ main(int argc, char **argv)
 		unblock_signal(SIGSEGV);
 	}
 
-	init_logging();
+	init_logging(foreground);
 	clu_initialize(&clu);
 	if (cman_init_subsys(clu) < 0) {
 		perror("cman_init_subsys");

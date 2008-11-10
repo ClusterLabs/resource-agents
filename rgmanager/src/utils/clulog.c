@@ -43,7 +43,7 @@ main(int argc, char **argv)
 	if (severity < 0)
 		severity = LOG_INFO;
 
-	init_logging();
+	init_logging(1);
 	ccsfd = ccs_connect();
 	setup_logging(ccsfd);
 	ccs_disconnect(ccsfd);
