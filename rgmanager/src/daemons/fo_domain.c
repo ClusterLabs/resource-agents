@@ -462,7 +462,8 @@ node_should_start(int nodeid, cluster_member_list_t *membership,
 		 */
 #ifdef DEBUG
 		log_printf(LOG_DEBUG,
-		       "Fail-over Domain for service %d nonexistent\n");
+		       "Fail-over Domain for service %s nonexistent\n",
+		       rg_name);
 #endif
 		return FOD_BEST;
 	}
