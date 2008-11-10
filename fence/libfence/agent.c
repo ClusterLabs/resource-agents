@@ -7,7 +7,6 @@
 #include <string.h>
 #include <errno.h>
 #include <time.h>
-#include <syslog.h>
 
 #include "ccs.h"
 
@@ -36,7 +35,9 @@ static void display_agent_output(const char *agent, int fd)
 			break;
 		} else if (ret > 0) {
 			buf[ret] = '\0';
+			/*
 			syslog(LOG_ERR, "agent \"%s\" reports: %s", agent, buf);
+			*/
 		}
 	} while (ret > 0);
 }
@@ -285,10 +286,8 @@ int fence_node(char *victim)
 	int num_methods, num_devices, m, d, error = -1, cd;
 
 	cd = ccs_force_connect(NULL, 0);
-	if (cd < 0) {
-		syslog(LOG_ERR, "cannot connect to ccs %d\n", cd);
+	if (cd < 0)
 		return -1;
-	}
 
 	if (ccs_lookup_nodename(cd, victim, &victim_nodename) == 0)
 		victim = victim_nodename;
