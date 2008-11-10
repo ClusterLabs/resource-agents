@@ -19,7 +19,8 @@ typedef enum {
 	M_STATECHANGE = 5,		/* Node transition */
 	M_PORTOPENED = 6,		/* Port opened */
 	M_PORTCLOSED = 7,		/* Port closed */
-	M_TRY_SHUTDOWN = 8		/* Local node shutdown */
+	M_TRY_SHUTDOWN = 8,		/* Local node shutdown */
+	M_CONFIG_UPDATE = 9		/* (new) Config Update */
 } msg_control_t;
 
 typedef enum {

@@ -510,6 +510,7 @@ cluster_msg_receive(msgctx_t *ctx, void *msg, size_t maxlen, int timeout)
 	case M_PORTOPENED:
 	case M_PORTCLOSED:
 	case M_TRY_SHUTDOWN:
+	case M_CONFIG_UPDATE:
 		pthread_mutex_lock(&ctx->u.cluster_info.mutex);
 
 		n = ctx->u.cluster_info.queue;
@@ -993,14 +994,24 @@ process_cman_event(cman_handle_t handle, void *private, int reason, int arg)
 	memset(msg, 0, sizeof(int)*2 +sizeof(cluster_msg_hdr_t));
 
 	switch(reason) {
-#if defined(LIBCMAN_VERSION) && LIBCMAN_VERSION >= 2
+#if defined(LIBCMAN_VERSION)
+#if LIBCMAN_VERSION >= 2
 	case CMAN_REASON_PORTOPENED:
 		msg->msg_control = M_PORTOPENED;
 		break;
 	case CMAN_REASON_TRY_SHUTDOWN:
 		msg->msg_control = M_TRY_SHUTDOWN;
 		break;
+#if LIBCMAN_VERSION >= 3
+	case CMAN_REASON_CONFIG_UPDATE:
+		msg->msg_control = M_CONFIG_UPDATE;
+#ifdef DEBUG
+		printf("M_CONFIG_UPDATE received!\n");
 #endif
+		break;
+#endif /* >= 3 */
+#endif /* >= 2 */
+#endif /* defined... */
 	case CMAN_REASON_PORTCLOSED:
 		msg->msg_control = M_PORTCLOSED;
 		break;

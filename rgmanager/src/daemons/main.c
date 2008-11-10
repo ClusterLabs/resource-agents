@@ -653,9 +653,6 @@ handle_cluster_event(msgctx_t *ctx)
 			membership_update();
 		}
 		break;
-	case 998:
-		break;
-	case 999:
 	case M_TRY_SHUTDOWN:
 		msg_receive(ctx, NULL, 0, 0);
 		log_printf(LOG_WARNING, "#67: Shutting down uncleanly\n");
@@ -666,6 +663,10 @@ handle_cluster_event(msgctx_t *ctx)
 		/* cman_replyto_shutdown() */
 #endif
 		running = 0;
+		break;
+	case M_CONFIG_UPDATE:
+		msg_receive(ctx, NULL, 0, 0);
+		need_reconfigure = 1;
 		break;
 	}
 
@@ -726,6 +727,8 @@ event_loop(msgctx_t *localctx, msgctx_t *clusterctx)
 		if (msg_fd_isset(clusterctx, &rfds)) {
 			msg_fd_clr(clusterctx, &rfds);
 			handle_cluster_event(clusterctx);
+			if (need_reconfigure)
+				break;
 			continue;
 		}
 
