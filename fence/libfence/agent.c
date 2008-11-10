@@ -298,21 +298,7 @@ int fence_node(char *victim)
 	for (m = 0; m < num_methods; m++) {
 
 		error = get_method(cd, victim, m, &method);
-
-		/* if the connection timed out while we were trying 
-		 * to fence, try to open the connection again
-		 */
-		if (error == -EBADR) {
-			syslog(LOG_INFO, "ccs connection timed out, "
-				"retrying\n");
-
-			while ((cd = ccs_connect()) < 0)
-				sleep(1);
-			
-			error = get_method(cd, victim, m, &method);
-			if (error)
-				continue;
-		} else if (error)
+		if (error)
 			continue;
 
 		/* if num_devices is zero we should return an error */
