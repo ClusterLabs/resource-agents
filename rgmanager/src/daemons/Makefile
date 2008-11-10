@@ -1,10 +1,12 @@
 TARGET1= rgmanager
 TARGET2= rg_test
 TARGET3= dtest
+TARGET4= clurgmgrd
 
-SBINDIRT=$(TARGET1) $(TARGET3)
+SBINDIRT=$(TARGET1) $(TARGET2)
+SBINSYMT=$(TARGET4)
 
-all: depends ${TARGET1} ${TARGET3}
+all: depends ${TARGET1} ${TARGET2} ${TARGET4}
 
 include ../../../make/defines.mk
 include $(OBJDIR)/make/cobj.mk
@@ -90,14 +92,17 @@ ${TARGET1}: ${OBJS1} ${LDDEPS}
 # This is NOT meant to be an installed binary.  Rather, RPMs and/or other
 # packages should run 'make check' as part of the build process.
 #
-${TARGET2}: ${SHAREDOBJS} ${OBJS3} ${LDDEPS} ${LOCAL_LDDEPS}
+${TARGET2}: ${SHAREDOBJS} ${OBJS2} ${LDDEPS} ${LOCAL_LDDEPS}
 	$(CC) -o $@ $^ $(CMAN_LDFLAGS) $(LOCAL_LDFLAGS) $(EXTRA_LDFLAGS) \
 			$(XML2_LDFLAGS) $(LOGSYS_LDFLAGS) $(LDFLAGS)
 
-${TARGET3}: ${SHAREDOBJS} ${OBJS4} ${LDDEPS} ${LOCAL_LDDEPS}
+${TARGET3}: ${SHAREDOBJS} ${OBJS3} ${LDDEPS} ${LOCAL_LDDEPS}
 	$(CC) -o $@ $^ $(CCS_LDFLAGS) $(CMAN_LDFLAGS) \
 			$(LOCAL_LDFLAGS) $(EXTRA_LDFLAGS) $(XML2_LDFLAGS) \
 			$(READLINE_LDFLAGS) $(LDFLAGS)
+
+${TARGET4}: ${TARGET1}
+	ln -sf ${TARGET1} ${TARGET4}
 
 check: rg_test
 	cd tests && ./runtests.sh
