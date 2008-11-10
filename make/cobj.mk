@@ -7,7 +7,7 @@
 
 # used by rgmanager/src/daemons
 %-noccs.o: $(S)/%.c
-	$(CC) $(CFLAGS) $(NOCCS_CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) $(NOCCS_CFLAGS) -c -o $@ $<
 
 # used by fence/agents/xvm
 %-standalone.o: $(S)/%.c
