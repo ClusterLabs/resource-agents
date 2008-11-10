@@ -53,7 +53,7 @@ CFLAGS += `xml2-config --cflags` -I${readlineincdir} -I${slangincdir}
 CFLAGS += -I$(S)/../../include
 CFLAGS += -I${incdir}
 
-EXTRA_CFLAGS += -DNO_CCS
+NOCCS_CFLAGS += -DNO_CCS
 
 LDFLAGS += -L../clulib -lclulib
 LDFLAGS += -L${libdir}
