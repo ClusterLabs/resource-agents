@@ -1644,7 +1644,7 @@ void send_transition_msg(int last_memb_count, int first_trans)
 	P_MEMB("sending TRANSITION message. cluster_name = %s\n", cluster_name);
 	msg->cmd = CLUSTER_MSG_TRANSITION;
 	msg->first_trans = first_trans;
-	msg->high_nodeid = get_highest_nodeid();
+	msg->votes = us->votes;
 	msg->expected_votes = us->expected_votes;
 	msg->cluster_id = cluster_id;
 	msg->major_version = CNXMAN_MAJOR_VERSION;
@@ -1694,7 +1694,7 @@ static void byteswap_internal_message(char *data)
 	case CLUSTER_MSG_TRANSITION:
 		transmsg = (struct cl_transmsg *)data;
 		transmsg->cluster_id = swab16(transmsg->cluster_id);
-		transmsg->high_nodeid = swab32(transmsg->high_nodeid);
+		transmsg->votes = swab32(transmsg->votes);
 		transmsg->expected_votes = swab32(transmsg->expected_votes);
 		transmsg->major_version = swab32(transmsg->major_version);
 		transmsg->minor_version = swab32(transmsg->minor_version);

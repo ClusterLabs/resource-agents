@@ -3,7 +3,7 @@
 
 /* Protocol Version triplet */
 #define CNXMAN_MAJOR_VERSION 6
-#define CNXMAN_MINOR_VERSION 1
+#define CNXMAN_MINOR_VERSION 2
 #define CNXMAN_PATCH_VERSION 0
 
 struct cman_timer
@@ -46,7 +46,7 @@ struct cl_transmsg {
 	unsigned char cmd;
 	unsigned char first_trans;
 	uint16_t cluster_id;
-	int high_nodeid;
+	int votes;
 	int expected_votes;
 
 	unsigned int   major_version;	/* Not backwards compatible */
