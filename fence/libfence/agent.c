@@ -285,7 +285,7 @@ int fence_node(char *victim)
 	char *victim_nodename = NULL;
 	int num_methods, num_devices, m, d, error = -1, cd;
 
-	cd = ccs_force_connect(NULL, 0);
+	cd = ccs_connect();
 	if (cd < 0)
 		return -1;
 
