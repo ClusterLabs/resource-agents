@@ -22,6 +22,8 @@ static int default_mode = DEFAULT_MODE;
 
 #define DEFAULT_FACILITY	SYSLOGFACILITY /* cluster config setting */
 #define DEFAULT_PRIORITY	SYSLOGLEVEL /* cluster config setting */
+static int default_priority = DEFAULT_PRIORITY;
+
 #define DEFAULT_FILE		LOGDIR "/" DAEMON_NAME ".log"
 
 #define DAEMON_LEVEL_PATH "/cluster/logging/logger_subsys[@subsys=\"rgmanager\"]/@syslog_level"
@@ -200,10 +202,12 @@ read_ccs_logging(int ccs_handle, int *mode, int *facility, int *priority,
 /* initial settings until we can read cluster.conf logging settings from ccs */
 
 void
-init_logging(int foreground)
+init_logging(int foreground, int default_prio)
 {
 	if (foreground)
 		default_mode |= LOG_MODE_OUTPUT_STDERR;
+	if (default_prio >= 0)
+		default_priority = default_prio;
 	logsys_init(DAEMON_NAME, default_mode, DEFAULT_FACILITY,
 		    DEFAULT_PRIORITY, DEFAULT_FILE);
 }

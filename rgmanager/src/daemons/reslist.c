@@ -720,7 +720,7 @@ _get_actions_ccs(int __attribute__((unused)) ccsfd, char *base, resource_t *res)
 resource_t *
 load_resource(int ccsfd, resource_rule_t *rule, char *base)
 {
-	resource_t *res;
+	resource_t *res = NULL;
 	char ccspath[1024];
 	char *attrname, *attr;
 	int x, found = 0, flags;
@@ -835,7 +835,7 @@ int
 load_resources(int ccsfd, resource_t **reslist, resource_rule_t **rulelist)
 {
 	int resID = 0;
-	resource_t *newres;
+	resource_t *newres = NULL;
 	resource_rule_t *currule;
 	char tok[256];
 

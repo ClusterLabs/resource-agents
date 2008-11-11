@@ -1557,36 +1557,6 @@ do_condstarts(void)
 }
 
 
-int
-check_config_update(int *new, int *old)
-{
-	int newver = 0, fd, ret = 0;
-	char *val = NULL;
-
-       	fd = ccs_lock();
-	if (fd == -1) {
-		return 0;
-	}
-
-	if (ccs_get(fd, "/cluster/@config_version", &val) == 0) {
-		newver = atoi(val);
-	}
-
-	if (val)
-		free(val);
-
-	pthread_mutex_lock(&config_mutex);
-	if (newver && newver != config_version)
-		ret = 1;
-	if (new) *new = newver;
-	if (old) *old = config_version;
-	pthread_mutex_unlock(&config_mutex);
-	ccs_unlock(fd);
-
-	return ret;
-}
-
-
 void
 dump_config_version(FILE *fp)
 {

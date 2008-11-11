@@ -37,7 +37,7 @@ static int _xid = 0;
 static event_master_t *mi = NULL;
 
 void hard_exit(void);
-int init_resource_groups(int);
+int init_resource_groups(int, int);
 void flag_shutdown(int sig);
 void flag_reconfigure(int sig);
 
@@ -94,7 +94,7 @@ node_event(int local, int nodeID, int nodeStatus,
 		}
 
 		if (!rg_initialized()) {
-			if (init_resource_groups(0) != 0) {
+			if (init_resource_groups(0, 0) != 0) {
 				log_printf(LOG_ERR,
 				       "#36: Cannot initialize services\n");
 				hard_exit();
@@ -412,7 +412,7 @@ _event_thread_f(void __attribute__ ((unused)) *arg)
 			       ev->ev.config.cfg_oldversion,
 			       ev->ev.config.cfg_version);
 			 */
-			init_resource_groups(1);
+			init_resource_groups(1, 0);
 			free(ev);
 			continue;
 		}
@@ -560,13 +560,11 @@ node_event_q(int local, int nodeID, int state, int clean)
 
 
 void
-config_event_q(int old_version, int new_version)
+config_event_q(void)
 {
 	event_t *ev = new_event();
 
 	ev->ev_type = EVENT_CONFIG;
-	ev->ev.config.cfg_version = new_version;
-	ev->ev.config.cfg_oldversion = old_version;
 	insert_event(ev);
 }
 

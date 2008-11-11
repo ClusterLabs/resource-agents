@@ -671,7 +671,7 @@ build_tree(int ccsfd, resource_node_t **tree,
 {
 	char tok[512];
 	resource_rule_t *childrule;
-	resource_node_t *node;
+	resource_node_t *node = NULL;
 	char *ref;
 	char *tmp;
 	int ccount = 0, x = 0, y = 0, flags = 0;
@@ -872,7 +872,7 @@ build_resource_tree(int ccsfd, resource_node_t **tree,
 void
 destroy_resource_tree(resource_node_t **tree)
 {
-	resource_node_t *node;
+	resource_node_t *node = NULL;
 
 	while ((node = *tree)) {
 		if ((*tree)->rn_child)

@@ -38,7 +38,6 @@ void set_my_id(int);
 void flag_shutdown(int sig);
 void hard_exit(void);
 int send_rg_states(msgctx_t *, int);
-int check_config_update(int *, int *);
 int svc_exists(char *);
 int watchdog_init(void);
 int32_t master_event_callback(char *key, uint64_t viewno, void *data, uint32_t datalen);
@@ -698,7 +697,7 @@ dump_internal_state(char *loc)
 int
 event_loop(msgctx_t *localctx, msgctx_t *clusterctx)
 {
- 	int n = 0, max, ret, oldver, newver;
+ 	int n = 0, max, ret;
 	fd_set rfds;
 	msgctx_t *newctx;
 	struct timeval tv;
@@ -769,10 +768,10 @@ event_loop(msgctx_t *localctx, msgctx_t *clusterctx)
 	if (!running)
 		return 0;
 
-	if (need_reconfigure || check_config_update(&oldver, &newver)) {
+	if (need_reconfigure) {
 		need_reconfigure = 0;
 		configure_rgmanager(-1, 0);
-		config_event_q(oldver, newver);
+		config_event_q();
 		return 0;
 	}
 
@@ -985,16 +984,6 @@ main(int argc, char **argv)
 		}
 	}
 
-	/*
-	   Set up logging / foreground mode, etc.
-	 */
-#if 0
-	if (debug)
-		clu_set_loglevel(LOG_DEBUG);
-	if (foreground)
-		clu_log_console(1);
-#endif
-
 	if (!foreground && (geteuid() == 0)) {
 		daemon_init(argv[0]);
 		if (wd && !debug && !watchdog_init())
@@ -1013,7 +1002,7 @@ main(int argc, char **argv)
 		unblock_signal(SIGSEGV);
 	}
 
-	init_logging(foreground);
+	init_logging(foreground, (debug? LOG_LEVEL_DEBUG : SYSLOGLEVEL));
 	clu_initialize(&clu);
 	if (cman_init_subsys(clu) < 0) {
 		perror("cman_init_subsys");

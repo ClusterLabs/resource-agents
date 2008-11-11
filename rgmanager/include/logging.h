@@ -3,7 +3,7 @@
 
 #include <corosync/engine/logsys.h>
 
-void init_logging(int foreground);
+void init_logging(int foreground, int debugging);
 void setup_logging(int ccs_handle);
 void close_logging(void);
 

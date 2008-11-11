@@ -18,7 +18,7 @@ typedef struct __ne_q {
 } node_event_t;
 
 typedef struct __cfg_q {
-	int cfg_version;
+	int cfg_version;	/* Not used or handled for now */
 	int cfg_oldversion;
 } config_event_t;
 
@@ -102,7 +102,7 @@ void node_event_q(int local, int nodeID, int state, int clean);
 void rg_event_q(char *name, uint32_t state, int owner, int last);
 void user_event_q(char *svc, int request, int arg1, int arg2,
 		  int target, msgctx_t *ctx);
-void config_event_q(int old_version, int new_version);
+void config_event_q(void);
 
 /* Call this to see if there's a master. */
 int event_master_info_cached(event_master_t *);

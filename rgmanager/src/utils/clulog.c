@@ -41,9 +41,9 @@ main(int argc, char **argv)
 	}
 
 	if (severity < 0)
-		severity = LOG_INFO;
+		severity = SYSLOGLEVEL;
 
-	init_logging(1);
+	init_logging(1, severity);
 	ccsfd = ccs_connect();
 	setup_logging(ccsfd);
 	ccs_disconnect(ccsfd);
