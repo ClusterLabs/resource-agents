@@ -59,7 +59,7 @@ check_binary () {
     then
         :
     else
-	if [ $OCF_NOT_RUNNING = 7 ]; then
+	if [ "$OCF_NOT_RUNNING" = 7 ]; then
 	    # Chances are we have a fully setup OCF environment
 	    ocf_log err "Setup problem: Couldn't find utility $1"
 	else 
