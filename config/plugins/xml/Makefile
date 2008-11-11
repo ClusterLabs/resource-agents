@@ -10,7 +10,7 @@ include $(OBJDIR)/make/clean.mk
 include $(OBJDIR)/make/install.mk
 include $(OBJDIR)/make/uninstall.mk
 
-CFLAGS += -fPIC
+CFLAGS += -fPIC -D_GNU_SOURCE
 CFLAGS += `xml2-config --cflags`
 CFLAGS += -I${cmanincdir}/../daemon
 CFLAGS += -I${incdir}

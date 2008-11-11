@@ -211,14 +211,14 @@ static int read_config_for(xmlXPathContextPtr ctx, struct objdb_iface_ver0 *objd
 		ret++;
 
 		if(!prevstr) {
-			prevstr = strdup(str);
+			prevstr = strndup(str, (strstr(str, "=") - str));
 		} else {
-			if(!strcmp(str, prevstr)) {
+			if(!strncmp(str, prevstr, (strstr(str, "=") - str))) {
 				nodecount++;
 			} else {
 				nodecount = 1;
 				free(prevstr);
-				prevstr = strdup(str);
+				prevstr = strndup(str, (strstr(str, "=") - str));
 			}
 		}
 
