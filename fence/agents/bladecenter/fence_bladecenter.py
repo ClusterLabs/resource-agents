@@ -60,6 +60,30 @@ def set_power_status(conn, options):
 	except pexpect.TIMEOUT:
 		fail(EC_TIMED_OUT)
 
+def get_blades_list(conn, options):
+	outlets = { }
+	try:
+		node_cmd = "system>"
+
+		conn.send("env -T system\r\n")
+		conn.log_expect(options, node_cmd, SHELL_TIMEOUT)
+		conn.send("list -l 2\r\n")
+		conn.log_expect(options, node_cmd, SHELL_TIMEOUT)
+
+		lines = conn.before.split("\r\n")
+		filter_re = re.compile("^\s*blade\[(\d+)\]\s+(.*?)\s*$")
+		for x in lines:
+			res = filter_re.search(x)
+			if res != None:
+				outlets[res.group(1)] = (res.group(2), "")
+
+	except pexpect.EOF:
+		fail(EC_CONNECTION_LOST)
+	except pexpect.TIMEOUT:
+		fail(EC_TIMED_OUT)
+
+	return outlets
+
 def main():
 	device_opt = [  "help", "version", "agent", "quiet", "verbose", "debug",
 			"action", "ipaddr", "login", "passwd", "passwd_script",
@@ -77,7 +101,7 @@ def main():
 	## Operate the fencing device
 	######
 	conn = fence_login(options)
-	fence_action(conn, options, set_power_status, get_power_status)
+	fence_action(conn, options, set_power_status, get_power_status, get_blades_list)
 
 	##
 	## Logout from system
