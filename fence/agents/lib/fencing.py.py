@@ -403,7 +403,7 @@ def wait_power_status(tn, options, get_power_fn):
 	return 0
 
 def fence_action(tn, options, set_power_fn, get_power_fn, get_outlet_list = None):
-	if (options["-o"] == "list" and 0 == options["device_opt"].count("port")):
+	if (options["-o"] == "list") and (0 == options["device_opt"].count("port")) and (0 == options["device_opt"].count("partition")):
 		print "N/A"
 		return
 	elif (options["-o"] == "list" and get_outlet_list == None):

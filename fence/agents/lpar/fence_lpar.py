@@ -57,6 +57,31 @@ def set_power_status(conn, options):
 	except pexpect.TIMEOUT:
 		fail(EC_TIMED_OUT)
 
+def get_lpar_list(conn, options):
+	outlets = { }
+	try:
+		conn.send("lssyscfg -r lpar -m " + options["-s"] + 
+			" -F name:state\n")
+		conn.log_expect(options, options["-c"], POWER_TIMEOUT)
+
+		## We have to remove first line (command) and last line (part of new prompt)
+		####
+		res = re.search("^.+?\n(.*)\n.*$", conn.before, re.S)
+
+		if res == None:
+			fail_usage("Unable to parse output of list command")
+		
+		lines = res.group(1).split("\n")
+		for x in lines:
+			s = x.split(":")
+			outlets[s[0]] = ("", s[1])
+	except pexpect.EOF:
+		fail(EC_CONNECTION_LOST)
+	except pexpect.TIMEOUT:
+		fail(EC_TIMED_OUT)
+
+	return outlets
+
 def main():
 	device_opt = [  "help", "version", "agent", "quiet", "verbose", "debug",
 			"action", "ipaddr", "login", "passwd", "passwd_script",
@@ -76,14 +101,14 @@ def main():
 	if 0 == options.has_key("-s"):
 		fail_usage("Failed: You have to enter name of managed system")
 
-        if 0 == options.has_key("-n"):
+        if (0 == ["list", "monitor"].count(options["-o"].lower())) and (0 == options.has_key("-n")):
                 fail_usage("Failed: You have to enter name of the partition")
 
 	##
 	## Operate the fencing device
 	####
 	conn = fence_login(options)
-	fence_action(conn, options, set_power_status, get_power_status)
+	fence_action(conn, options, set_power_status, get_power_status, get_lpar_list)
 
 	##
 	## Logout from system
