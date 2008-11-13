@@ -608,14 +608,40 @@ static int do_log(char *comment)
 
 int main(int argc, char **argv)
 {
-	int rv, version;
+	int rv, version = 0; 
 
 	prog_name = argv[0];
 	decode_arguments(argc, argv);
 
 	switch (operation) {
 	case OP_LIST:
+
+		rv = group_get_version(&version);
+		if (rv < 0)
+			version = -1;
+
+		switch (version) {
+		case -1:
+			printf("groupd not running\n");
+			break;
+		case -EAGAIN:
+			printf("groupd compatibility mode 2 (pending)\n");
+			break;
+		case GROUP_LIBGROUP:
+			printf("groupd compatibility mode 1\n");
+			break;
+		case GROUP_LIBCPG:
+			printf("groupd compatibility mode 0\n");
+			break;
+		default:
+			printf("groupd compatibility mode %d\n", version);
+			break;
+		}
+
 		if (all_daemons) {
+			/* show the new cluster3 data (from daemons) in
+			   the new daemon-specific format */
+
 			if (verbose || ls_all_nodes) {
 				system("fence_tool ls -n");
 				system("dlm_tool ls -n");
@@ -625,17 +651,26 @@ int main(int argc, char **argv)
 				system("dlm_tool ls");
 				system("gfs_control ls");
 			}
-		} else {
-			rv = group_get_version(&version);
 
-			if (version == -EAGAIN) {
-				printf("groupd detecting version...\n");
-			} else if (!rv && version == GROUP_LIBGROUP) {
+			if (version == GROUP_LIBGROUP)
+				printf("Run 'group_tool ls' for groupd information.\n");
+
+		} else {
+			if (version == GROUP_LIBGROUP) {
+				/* show the same old cluster2 data (from groupd)
+				   in the same old format as cluster2 */
+
 				groupd_list(argc, argv);
-			} else {
+
+			} else if (version == GROUP_LIBCPG || version == -1) {
+				/* show the new cluster3 data (from daemons)
+				   in the (nearly) same old format as cluster2 */
+
 				fenced_list();
 				dlm_controld_list();
 				gfs_controld_list();
+
+				printf("Run 'group_tool ls -a' for daemon information.\n");
 			}
 		}
 		break;
