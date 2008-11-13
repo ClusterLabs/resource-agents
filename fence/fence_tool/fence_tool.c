@@ -5,6 +5,7 @@
 #include <signal.h>
 #include <string.h>
 #include <stdint.h>
+#include <dirent.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -84,13 +85,14 @@ static int get_int_arg(char argopt, char *arg)
 	return val;
 }
 
-static int check_mounted(void)
+static int check_gfs(void)
 {
 	FILE *file;
 	char line[PATH_MAX];
 	char device[PATH_MAX];
 	char path[PATH_MAX];
 	char type[PATH_MAX];
+	int count = 0;
 
 	file = fopen("/proc/mounts", "r");
 	if (!file)
@@ -99,13 +101,59 @@ static int check_mounted(void)
 	while (fgets(line, PATH_MAX, file)) {
 		if (sscanf(line, "%s %s %s", device, path, type) != 3)
 			continue;
-		if (!strcmp(type, "gfs") || !strcmp(type, "gfs2"))
-			die("cannot leave, %s file system mounted from %s on %s",
-			    type, device, path);
+		if (!strcmp(type, "gfs") || !strcmp(type, "gfs2")) {
+			printf("found %s file system mounted from %s on %s\n",
+				type, device, path);
+			count++;
+		}
 	}
 
 	fclose(file);
-	return 0;
+	return count;
+}
+
+static int check_controlled_dir(char *path)
+{
+	DIR *d;
+	struct dirent *de;
+	int count = 0;
+
+	d = opendir(path);
+	if (!d)
+		return 0;
+
+	while ((de = readdir(d))) {
+		if (de->d_name[0] == '.')
+			continue;
+
+#if 0
+		if (strstr(path, "fs/gfs") && ignore_nolock(path, de->d_name))
+			continue;
+#endif
+
+		printf("found dlm lockspace %s/%s\n", path, de->d_name);
+		count++;
+	}
+
+	closedir(d);
+	return count;
+}
+
+/* Copying fenced's check_uncontrolled_entries()/check_controlled_dir()
+   in part here.
+   We could also use check_controlled_dir to detect gfs file systems intead
+   of looking at /proc/mounts... /proc/mounts gives us more info (mountpoint)
+   to report about the offending fs */
+
+static void check_controlled_systems(void)
+{
+	int count = 0;
+
+	count += check_gfs();
+	count += check_controlled_dir("/sys/kernel/dlm");
+
+	if (count)
+		die("cannot leave due to active systems");
 }
 
 static int we_are_in_fence_domain(void)
@@ -337,7 +385,7 @@ static void do_leave(void)
 {
 	int rv;
 
-	check_mounted();
+	check_controlled_systems();
 
 	rv = fenced_leave();
 	if (rv < 0)
