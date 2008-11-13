@@ -37,7 +37,6 @@ static int _xid = 0;
 static event_master_t *mi = NULL;
 
 void hard_exit(void);
-int init_resource_groups(int, int);
 void flag_shutdown(int sig);
 void flag_reconfigure(int sig);
 

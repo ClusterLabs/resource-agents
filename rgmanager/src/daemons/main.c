@@ -32,7 +32,6 @@ void set_transition_throttling(int);
 void node_event(int, int, int, int);
 void node_event_q(int, int, int, int);
 int daemon_init(char *);
-int init_resource_groups(int, int);
 void kill_resource_groups(void);
 void set_my_id(int);
 void flag_shutdown(int sig);

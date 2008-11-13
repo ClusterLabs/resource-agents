@@ -149,6 +149,7 @@ int group_migrate(char *groupname, int target);
 int rg_status(const char *resgroupname);
 int group_op(char *rgname, int op);
 void rg_init(void);
+int init_resource_groups(int, int);
 
 /* Basic service operations */
 int svc_start(char *svcName, int req);
