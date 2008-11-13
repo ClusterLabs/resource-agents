@@ -1095,6 +1095,14 @@ static void prepare_plocks(struct lockspace *ls)
 
 	set_plock_ckpt_node(ls);
 
+	/* there is no node with plock state, so there's no syncing to do */
+
+	if (!ls->plock_ckpt_node) {
+		ls->need_plocks = 0;
+		ls->save_plocks = 0;
+		return;
+	}
+
 	/* We save all plock messages from the time that the low node saves
 	   existing plock state in the ckpt to the time that we read that state
 	   from the ckpt. */
