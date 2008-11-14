@@ -696,6 +696,37 @@ void gfs_rgrp_out(struct gfs_rgrp *rgrp, char *buf)
 }
 
 /* ------------------------------------------------------------------------ */
+/* gfs_dinode_in */
+/* ------------------------------------------------------------------------ */
+void gfs_dinode_in(struct gfs_dinode *di, char *buf)
+{
+	struct gfs_dinode *str = (struct gfs_dinode *)buf;
+
+	gfs2_meta_header_in(&di->di_header, buf);
+	gfs2_inum_in(&di->di_num, (char *)&str->di_num);
+
+	di->di_mode = be32_to_cpu(str->di_mode);
+	di->di_uid = be32_to_cpu(str->di_uid);
+	di->di_gid = be32_to_cpu(str->di_gid);
+	di->di_nlink = be32_to_cpu(str->di_nlink);
+	di->di_size = be64_to_cpu(str->di_size);
+	di->di_blocks = be64_to_cpu(str->di_blocks);
+	di->di_atime = be64_to_cpu(str->di_atime);
+	di->di_mtime = be64_to_cpu(str->di_mtime);
+	di->di_ctime = be64_to_cpu(str->di_ctime);
+	di->di_major = be32_to_cpu(str->di_major);
+	di->di_minor = be32_to_cpu(str->di_minor);
+	di->di_goal_dblk = be64_to_cpu(str->di_goal_dblk);
+	di->di_goal_mblk = be64_to_cpu(str->di_goal_mblk);
+	di->di_flags = be32_to_cpu(str->di_flags);
+	di->di_payload_format = be32_to_cpu(str->di_payload_format);
+	di->di_height = be16_to_cpu(str->di_height);
+	di->di_depth = be16_to_cpu(str->di_depth);
+	di->di_entries = be32_to_cpu(str->di_entries);
+	di->di_eattr = be64_to_cpu(str->di_eattr);
+}
+
+/* ------------------------------------------------------------------------ */
 /* gfs_rgrp_print - print a gfs1 resource group                             */
 /* ------------------------------------------------------------------------ */
 void gfs_rgrp_print(struct gfs_rgrp *rg)

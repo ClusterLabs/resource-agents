@@ -68,7 +68,7 @@ metapointer(struct gfs2_buffer_head *bh, unsigned int height,
 			struct metapath *mp)
 {
 	unsigned int head_size = (height > 0) ?
-		sizeof(struct gfs2_meta_header) : sizeof(struct gfs2_dinode);
+		sizeof(struct gfs_indirect) : sizeof(struct gfs_dinode);
 
 	return ((uint64_t *)(bh->b_data + head_size)) + mp->mp_list[height];
 }
@@ -199,7 +199,7 @@ int gfs1_readi(struct gfs2_inode *ip, void *buf,
 {
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_buffer_head *bh;
-	uint64_t lblock, dblock;
+	uint64_t lblock, dblock = 0;
 	uint32_t extlen = 0;
 	unsigned int amount;
 	int not_new = 0;
@@ -224,7 +224,7 @@ int gfs1_readi(struct gfs2_inode *ip, void *buf,
 	}
 
 	if (!ip->i_di.di_height) /* stuffed */
-		offset += sizeof(struct gfs2_dinode);
+		offset += sizeof(struct gfs_dinode);
 	else if (journaled)
 		offset += sizeof(struct gfs2_meta_header);
 
@@ -345,6 +345,10 @@ int gfs1_ri_update(struct gfs2_sbd *sdp, int fd, int *rgcount)
 		else
 			gfs2_rgrp_relse(rgd, f);
 		count2++;
+		if (count2 % 100 == 0) {
+			printf(".");
+			fflush(stdout);
+		}
 	}
 
 	*rgcount = count1;
@@ -401,7 +405,13 @@ int get_gfs_struct_info(char *buf, int *block_type, int *struct_len)
 		*struct_len = sbd.bsize; /*sizeof(struct gfs_leaf);*/
 		break;
 	case GFS2_METATYPE_JD:   /* 7 (journal data) */
-		*struct_len = sizeof(struct gfs2_meta_header);
+		/* GFS1 keeps indirect pointers in GFS2_METATYPE_JD blocks
+		   so we need to save the whole block.  For GFS2, we don't
+		   want to, or we might capture user data, which is bad.  */
+		if (gfs1)
+			*struct_len = sbd.bsize;
+		else
+			*struct_len = sizeof(struct gfs2_meta_header);
 		break;
 	case GFS2_METATYPE_LH:   /* 8 (log header) */
 		*struct_len = sizeof(struct gfs2_log_header);
@@ -560,6 +570,42 @@ void save_indirect_blocks(int out_fd, osi_list_t *cur_list,
 	} /* for all data on the indirect block */
 }
 
+struct gfs2_inode *gfs_inode_get(struct gfs2_sbd *sdp,
+				 struct gfs2_buffer_head *bh)
+{
+	struct gfs_dinode gfs1_dinode;
+	struct gfs2_inode *ip;
+
+	zalloc(ip, sizeof(struct gfs2_inode));
+	gfs_dinode_in(&gfs1_dinode, bh->b_data);
+	memcpy(&ip->i_di.di_header, &gfs1_dinode.di_header,
+	       sizeof(struct gfs2_meta_header));
+	memcpy(&ip->i_di.di_num, &gfs1_dinode.di_num,
+	       sizeof(struct gfs2_inum));
+	ip->i_di.di_mode = gfs1_dinode.di_mode;
+	ip->i_di.di_uid = gfs1_dinode.di_uid;
+	ip->i_di.di_gid = gfs1_dinode.di_gid;
+	ip->i_di.di_nlink = gfs1_dinode.di_nlink;
+	ip->i_di.di_size = gfs1_dinode.di_size;
+	ip->i_di.di_blocks = gfs1_dinode.di_blocks;
+	ip->i_di.di_atime = gfs1_dinode.di_atime;
+	ip->i_di.di_mtime = gfs1_dinode.di_mtime;
+	ip->i_di.di_ctime = gfs1_dinode.di_ctime;
+	ip->i_di.di_major = gfs1_dinode.di_major;
+	ip->i_di.di_minor = gfs1_dinode.di_minor;
+	ip->i_di.di_goal_data = gfs1_dinode.di_goal_dblk;
+	ip->i_di.di_goal_meta = gfs1_dinode.di_goal_mblk;
+	ip->i_di.di_flags = gfs1_dinode.di_flags;
+	ip->i_di.di_payload_format = gfs1_dinode.di_payload_format;
+	ip->i_di.di_height = gfs1_dinode.di_height;
+	ip->i_di.di_depth = gfs1_dinode.di_depth;
+	ip->i_di.di_entries = gfs1_dinode.di_entries;
+	ip->i_di.di_eattr = gfs1_dinode.di_eattr;
+	ip->i_bh = bh;
+	ip->i_sbd = sdp;
+	return ip;
+}
+
 /*
  * save_inode_data - save off important data associated with an inode
  *
@@ -587,7 +633,10 @@ void save_inode_data(int out_fd)
 	for (i = 0; i < GFS2_MAX_META_HEIGHT; i++)
 		osi_list_init(&metalist[i]);
 	metabh = bread(&sbd, block);
-	inode = inode_get(&sbd, metabh);
+	if (gfs1)
+		inode = inode_get(&sbd, metabh);
+	else
+		inode = gfs_inode_get(&sbd, metabh);
 	height = inode->i_di.di_height;
 	/* If this is a user inode, we don't follow to the file height.
 	   We stop one level less.  That way we save off the indirect
@@ -689,11 +738,11 @@ void get_journal_inode_blocks(void)
 			char jbuf[sizeof(struct gfs_jindex)];
 
 			bh = bread(&sbd, sbd1->sb_jindex_di.no_addr);
-			j_inode = inode_get(&sbd, bh);
-			brelse(bh, not_updated);
+			j_inode = gfs_inode_get(&sbd, bh);
 			amt = gfs2_readi(j_inode, (void *)&jbuf,
 					 journal * sizeof(struct gfs_jindex),
 					 sizeof(struct gfs_jindex));
+			brelse(bh, not_updated);
 			if (!amt)
 				break;
 			gfs_jindex_in(&ji, jbuf);
@@ -744,7 +793,8 @@ void savemeta(char *out_fn, int saveoption)
 
 	do_lseek(sbd.device_fd, 0);
 	blks_saved = total_out = last_reported_block = 0;
-	sbd.bsize = BUFSIZE;
+	if (!gfs1)
+		sbd.bsize = BUFSIZE;
 	if (!slow) {
 		int i;
 
@@ -754,12 +804,29 @@ void savemeta(char *out_fn, int saveoption)
 		osi_list_init(&sbd.buf_list);
 		for(i = 0; i < BUF_HASH_SIZE; i++)
 			osi_list_init(&sbd.buf_hash[i]);
-		sbd.sd_sb.sb_bsize = GFS2_DEFAULT_BSIZE;
+		if (!gfs1)
+			sbd.sd_sb.sb_bsize = GFS2_DEFAULT_BSIZE;
 		compute_constants(&sbd);
-		if(!gfs1 && read_sb(&sbd) < 0)
-			slow = TRUE;
-		else
-			sbd.bsize = sbd.bsize = sbd.sd_sb.sb_bsize;
+		if(gfs1) {
+			sbd.bsize = sbd.sd_sb.sb_bsize;
+			sbd.sd_inptrs = (sbd.bsize -
+					 sizeof(struct gfs_indirect)) /
+				sizeof(uint64_t);
+			sbd.sd_diptrs = (sbd.bsize -
+					  sizeof(struct gfs_dinode)) /
+				sizeof(uint64_t);
+		} else {
+			if (read_sb(&sbd) < 0)
+				slow = TRUE;
+			else {
+				sbd.sd_inptrs = (sbd.bsize -
+					 sizeof(struct gfs2_meta_header)) /
+					sizeof(uint64_t);
+				sbd.sd_diptrs = (sbd.bsize -
+					  sizeof(struct gfs2_dinode)) /
+					sizeof(uint64_t);
+			}
+		}
 	}
 	last_fs_block = lseek(sbd.device_fd, 0, SEEK_END) / sbd.bsize;
 	printf("There are %" PRIu64 " blocks of %u bytes.\n",
@@ -888,10 +955,29 @@ int restore_data(int fd, int in_fd, int printblocksonly)
 	size_t rs;
 	uint64_t buf64, writes = 0;
 	uint16_t buf16;
-	int first = 1;
+	int first = 1, pos;
+	char buf[256];
+	char gfs_superblock_id[8] = {0x01, 0x16, 0x19, 0x70,
+				     0x00, 0x00, 0x00, 0x01};
 
 	if (!printblocksonly)
 		do_lseek(fd, 0);
+	do_lseek(in_fd, 0);
+	rs = read(in_fd, buf, sizeof(buf));
+	if (rs != sizeof(buf)) {
+		fprintf(stderr, "Error: File is too small.\n");
+		return -1;
+	}
+	for (pos = 0; pos < sizeof(buf) - sizeof(uint64_t) - sizeof(uint16_t);
+	     pos++) {
+		if (!memcmp(&buf[pos + sizeof(uint64_t) + sizeof(uint16_t)],
+			    gfs_superblock_id, sizeof(gfs_superblock_id))) {
+			break;
+		}
+	}
+	if (pos == sizeof(buf) - sizeof(uint64_t) - sizeof(uint16_t))
+		pos = 0;
+	do_lseek(in_fd, pos);
 	blks_saved = total_out = 0;
 	last_fs_block = 0;
 	while (TRUE) {
@@ -965,7 +1051,7 @@ int restore_data(int fd, int in_fd, int printblocksonly)
 			}
 			blks_saved++;
 		} else {
-			fprintf(stderr, "Bad record length: %d for #%"
+			fprintf(stderr, "Bad record length: %d for block #%"
 				PRIu64".\n", savedata->siglen, savedata->blk);
 			return -1;
 		}
