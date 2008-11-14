@@ -27,6 +27,7 @@ main(int argc, char **argv)
 	int severity = -1;
 
 	char *logmsg = argv[argc-1];
+	--argc;
 
 	while ((opt = getopt(argc, argv, "s:h")) != EOF) {
 		switch(opt) {
