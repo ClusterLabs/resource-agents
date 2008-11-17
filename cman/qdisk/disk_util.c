@@ -238,7 +238,7 @@ qd_init(qd_ctx *ctx, cman_handle_t ch, int me)
 	ctx->qc_incarnation = generate_token();
 	ctx->qc_ch = ch;
 	ctx->qc_my_id = me;
-	ctx->qc_status_sock = -1;
+	ctx->qc_config = 0;
 
 	return 0;
 }

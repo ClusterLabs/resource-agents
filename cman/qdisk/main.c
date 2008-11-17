@@ -51,7 +51,7 @@ inline int get_time(struct timeval *tv, int use_uptime);
 inline void _diff_tv(struct timeval *dest, struct timeval *start,
 		     struct timeval *end);
 
-static int _running = 1;
+static int _running = 1, _reconfig = 0;
 static void update_local_status(qd_ctx *ctx, node_info_t *ni, int max, int score,
 		    	 int score_req, int score_max);
 
@@ -60,6 +60,13 @@ static void
 int_handler(int sig)
 {
 	_running = 0;
+}
+
+
+static void
+hup_handler(int sig)
+{
+	_reconfig = 1;
 }
 
 
@@ -353,7 +360,7 @@ check_transitions(qd_ctx *ctx, node_info_t *ni, int max, memb_mask_t mask)
 		}
 
 		/*
-		   All other cases: Believe the node's reported state ;)
+		   All other cases: Believe the node's reported state
 		 */
 		if (state_run(ni[x].ni_state)) {
 			ni[x].ni_state = ni[x].ni_status.ps_state;
@@ -781,15 +788,19 @@ set_priority(int queue, int prio)
 
 
 static int
-cman_alive(cman_handle_t ch)
+cman_wait(cman_handle_t ch, struct timeval *_tv)
 {
 	fd_set rfds;
 	int fd = cman_get_fd(ch);
-	struct timeval tv = {0, 0};
+	struct timeval tv_local = {0, 0};
+	struct timeval *tv = _tv;
+
+	if (!_tv)
+		tv = &tv_local;
 	
 	FD_ZERO(&rfds);
 	FD_SET(fd, &rfds);
-	if (select(fd + 1, &rfds, NULL, NULL, &tv) == 1) {
+	if (select(fd + 1, &rfds, NULL, NULL, tv) == 1) {
 		if (cman_dispatch(ch, CMAN_DISPATCH_ALL) < 0) {
 			if (errno == EAGAIN)
 				return 0;
@@ -797,6 +808,36 @@ cman_alive(cman_handle_t ch)
 		}
 	}
 	return 0;
+}
+
+
+/*
+   Listen for cman events
+ */
+static void
+process_cman_event(cman_handle_t handle, void *private, int reason, int arg)
+{
+	switch(reason) {
+#if defined(LIBCMAN_VERSION)
+#if LIBCMAN_VERSION >= 2
+	case CMAN_REASON_PORTOPENED:
+		break;
+	case CMAN_REASON_TRY_SHUTDOWN:
+		_running = 0;
+		break;
+#if LIBCMAN_VERSION >= 3
+	case CMAN_REASON_CONFIG_UPDATE:
+		_reconfig = 1;
+		break;
+#endif /* >= 3 */
+#endif /* >= 2 */
+#endif /* defined... */
+	case CMAN_REASON_PORTCLOSED:
+		break;
+	case CMAN_REASON_STATECHANGE:
+		/* Not used */
+		break;
+	}
 }
 
 
@@ -858,7 +899,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 				msg.m_msg = M_NONE;
 				++msg.m_seq;
 				bid_pending = 0;
-				if (cman_alive(ctx->qc_ch) < 0) {
+				if (cman_wait(ctx->qc_ch, NULL) < 0) {
 					log_printf(LOG_ERR, "cman: %s\n",
 					       strerror(errno));
 				} else {
@@ -966,7 +1007,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 			/* We are the master.  Poll the quorum device.
 			   We can't be the master unless we score high
 			   enough on our heuristics. */
-			if (cman_alive(ctx->qc_ch) < 0) {
+			if (cman_wait(ctx->qc_ch, NULL) < 0) {
 				log_printf(LOG_ERR, "cman_dispatch: %s\n",
 				       strerror(errno));
 				log_printf(LOG_ERR,
@@ -987,7 +1028,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 			      ni[ctx->qc_master-1].ni_status.ps_master_mask,
 				       ctx->qc_my_id-1,
 				       sizeof(memb_mask_t))) {
-				if (cman_alive(ctx->qc_ch) < 0) {
+				if (cman_wait(ctx->qc_ch, NULL) < 0) {
 					log_printf(LOG_ERR, "cman_dispatch: %s\n",
 						strerror(errno));
 					log_printf(LOG_ERR,
@@ -1059,7 +1100,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 		
 		/* Could hit a watchdog timer here if we wanted to */
 		if (_running)
-			select(0, NULL, NULL, NULL, &sleeptime);
+			cman_wait(ctx->qc_ch, &sleeptime);
 	}
 
 	return !!errors;
@@ -1267,17 +1308,132 @@ get_config_data(qd_ctx *ctx, struct h_data *h, int maxh,
 		return -1;
 	}
 
-	ctx->qc_interval = 1;
-	ctx->qc_tko = 10;
-	ctx->qc_scoremin = 0;
-	ctx->qc_flags = RF_REBOOT | RF_ALLOW_KILL | RF_UPTIME;
+	/* Initialize defaults if we are not reconfiguring */
+	if (ctx->qc_config == 0) {
+		ctx->qc_interval = 1;
+		ctx->qc_tko = 10;
+		ctx->qc_scoremin = 0;
+		ctx->qc_flags = RF_REBOOT | RF_ALLOW_KILL | RF_UPTIME;
 			/* | RF_STOP_CMAN;*/
-	if (debug)
-		ctx->qc_flags |= RF_DEBUG;
+		if (debug)
+			ctx->qc_flags |= RF_DEBUG;
 
-	ctx->qc_sched = SCHED_RR;
-	ctx->qc_sched_prio = 1;
-	ctx->qc_max_error_cycles = 0;
+		ctx->qc_sched = SCHED_RR;
+		ctx->qc_sched_prio = 1;
+		ctx->qc_max_error_cycles = 0;
+	}
+
+	/* STUFF THAT CAN BE RECONFIGURED GOES HERE */
+
+	/* Get status file */
+	snprintf(query, sizeof(query), "/cluster/quorumd/@status_file");
+	if (ccs_get(ccsfd, query, &val) == 0) {
+		ctx->qc_status_file = val;
+	}
+	
+	/* Get scheduling queue */
+	snprintf(query, sizeof(query), "/cluster/quorumd/@scheduler");
+	if (ccs_get(ccsfd, query, &val) == 0) {
+		switch(val[0]) {
+		case 'r':
+		case 'R':
+			ctx->qc_sched = SCHED_RR;
+			break;
+		case 'f':
+		case 'F':
+			ctx->qc_sched = SCHED_FIFO;
+			break;
+		case 'o':
+		case 'O':
+			ctx->qc_sched = SCHED_OTHER;
+			break;
+		default:
+			log_printf(LOG_WARNING, "Invalid scheduling queue '%s'\n",
+			       val);
+			break;
+		}
+		free(val);
+	}
+	
+	/* Get priority */
+	snprintf(query, sizeof(query), "/cluster/quorumd/@priority");
+	if (ccs_get(ccsfd, query, &val) == 0) {
+		ctx->qc_sched_prio = atoi(val);
+		free(val);
+	}	
+	set_priority(ctx->qc_sched, ctx->qc_sched_prio);
+
+	/* Get reboot flag for when we transition -> offline */
+	/* default = on, so, 0 to turn off */
+	snprintf(query, sizeof(query), "/cluster/quorumd/@reboot");
+	if (ccs_get(ccsfd, query, &val) == 0) {
+		if (!atoi(val))
+			ctx->qc_flags &= ~RF_REBOOT;
+		free(val);
+	}
+
+	/*
+	 * Get flag to see if we're supposed to kill cman if qdisk is not 
+	 * available.
+	 */
+	/* default = off, so, 1 to turn on */
+	snprintf(query, sizeof(query), "/cluster/quorumd/@stop_cman");
+	if (ccs_get(ccsfd, query, &val) == 0) {
+		if (!atoi(val))
+			ctx->qc_flags &= ~RF_STOP_CMAN;
+		else
+			ctx->qc_flags |= RF_STOP_CMAN;
+		free(val);
+	}
+	
+	/*
+	 * Get flag to see if we're supposed to reboot if we can't complete
+	 * a pass in failure time
+	 */
+	/* default = off, so, 1 to turn on */
+	snprintf(query, sizeof(query), "/cluster/quorumd/@paranoid");
+	if (ccs_get(ccsfd, query, &val) == 0) {
+		if (!atoi(val))
+			ctx->qc_flags &= ~RF_PARANOID;
+		else
+			ctx->qc_flags |= RF_PARANOID;
+		free(val);
+	}
+	
+	/*
+	 * Get flag to see if we're supposed to reboot if we can't complete
+	 * a pass in failure time
+	 */
+	/* default = off, so, 1 to turn on */
+	snprintf(query, sizeof(query), "/cluster/quorumd/@allow_kill");
+	if (ccs_get(ccsfd, query, &val) == 0) {
+		if (!atoi(val))
+			ctx->qc_flags &= ~RF_ALLOW_KILL;
+		else
+			ctx->qc_flags |= RF_ALLOW_KILL;
+		free(val);
+	}
+
+	/*
+	 * How many consecutive error cycles do we allow before
+	 * giving up?
+	 */
+	/* default = no max */
+	snprintf(query, sizeof(query), "/cluster/quorumd/@max_error_cycles");
+	if (ccs_get(ccsfd, query, &val) == 0) {
+		ctx->qc_max_error_cycles = atoi(val);
+		if (ctx->qc_max_error_cycles <= 0)
+			ctx->qc_max_error_cycles = 0;
+		free(val);
+	}
+
+	if (ctx->qc_config) {
+		ccs_disconnect(ccsfd);
+		return 0;
+	}
+	ctx->qc_config = 1;
+
+	/* END ONLINE RECONFIGURATION */
 
 	/* Get interval */
 	snprintf(query, sizeof(query), "/cluster/quorumd/@interval");
@@ -1350,18 +1506,6 @@ get_config_data(qd_ctx *ctx, struct h_data *h, int maxh,
 		ctx->qc_label = val;
 	}
 
-	/* Get status file */
-	snprintf(query, sizeof(query), "/cluster/quorumd/@status_file");
-	if (ccs_get(ccsfd, query, &val) == 0) {
-		ctx->qc_status_file = val;
-	}
-
-	/* Get status socket */
-	snprintf(query, sizeof(query), "/cluster/quorumd/@status_sock");
-	if (ccs_get(ccsfd, query, &val) == 0) {
-		ctx->qc_status_sockname = val;
-	}
-
 	/* Get min score */
 	snprintf(query, sizeof(query), "/cluster/quorumd/@min_score");
 	if (ccs_get(ccsfd, query, &val) == 0) {
@@ -1369,46 +1513,6 @@ get_config_data(qd_ctx *ctx, struct h_data *h, int maxh,
 		free(val);
 		if (ctx->qc_scoremin < 0)
 			ctx->qc_scoremin = 0;
-	}
-	
-	/* Get scheduling queue */
-	snprintf(query, sizeof(query), "/cluster/quorumd/@scheduler");
-	if (ccs_get(ccsfd, query, &val) == 0) {
-		switch(val[0]) {
-		case 'r':
-		case 'R':
-			ctx->qc_sched = SCHED_RR;
-			break;
-		case 'f':
-		case 'F':
-			ctx->qc_sched = SCHED_FIFO;
-			break;
-		case 'o':
-		case 'O':
-			ctx->qc_sched = SCHED_OTHER;
-			break;
-		default:
-			log_printf(LOG_WARNING, "Invalid scheduling queue '%s'\n",
-			       val);
-			break;
-		}
-		free(val);
-	}
-	
-	/* Get priority */
-	snprintf(query, sizeof(query), "/cluster/quorumd/@priority");
-	if (ccs_get(ccsfd, query, &val) == 0) {
-		ctx->qc_sched_prio = atoi(val);
-		free(val);
-	}	
-
-	/* Get reboot flag for when we transition -> offline */
-	/* default = on, so, 0 to turn off */
-	snprintf(query, sizeof(query), "/cluster/quorumd/@reboot");
-	if (ccs_get(ccsfd, query, &val) == 0) {
-		if (!atoi(val))
-			ctx->qc_flags &= ~RF_REBOOT;
-		free(val);
 	}
 
 	/* Get cman_label */
@@ -1421,50 +1525,6 @@ get_config_data(qd_ctx *ctx, struct h_data *h, int maxh,
 	}
 	
 	/*
-	 * Get flag to see if we're supposed to kill cman if qdisk is not 
-	 * available.
-	 */
-	/* default = off, so, 1 to turn on */
-	snprintf(query, sizeof(query), "/cluster/quorumd/@stop_cman");
-	if (ccs_get(ccsfd, query, &val) == 0) {
-		if (!atoi(val))
-			ctx->qc_flags &= ~RF_STOP_CMAN;
-		else
-			ctx->qc_flags |= RF_STOP_CMAN;
-		free(val);
-	}
-	
-	
-	/*
-	 * Get flag to see if we're supposed to reboot if we can't complete
-	 * a pass in failure time
-	 */
-	/* default = off, so, 1 to turn on */
-	snprintf(query, sizeof(query), "/cluster/quorumd/@paranoid");
-	if (ccs_get(ccsfd, query, &val) == 0) {
-		if (!atoi(val))
-			ctx->qc_flags &= ~RF_PARANOID;
-		else
-			ctx->qc_flags |= RF_PARANOID;
-		free(val);
-	}
-	
-	
-	/*
-	 * Get flag to see if we're supposed to reboot if we can't complete
-	 * a pass in failure time
-	 */
-	/* default = off, so, 1 to turn on */
-	snprintf(query, sizeof(query), "/cluster/quorumd/@allow_kill");
-	if (ccs_get(ccsfd, query, &val) == 0) {
-		if (!atoi(val))
-			ctx->qc_flags &= ~RF_ALLOW_KILL;
-		else
-			ctx->qc_flags |= RF_ALLOW_KILL;
-		free(val);
-	}
-
-	/*
 	 * Get flag to see if we're supposed to use /proc/uptime instead of
 	 * gettimeofday(2)
 	 */
@@ -1475,20 +1535,6 @@ get_config_data(qd_ctx *ctx, struct h_data *h, int maxh,
 			ctx->qc_flags &= ~RF_UPTIME;
 		else
 			ctx->qc_flags |= RF_UPTIME;
-		free(val);
-	}
-
-
-	/*
-	 * How many consecutive error cycles do we allow before
-	 * giving up?
-	 */
-	/* default = no max */
-	snprintf(query, sizeof(query), "/cluster/quorumd/@max_error_cycles");
-	if (ccs_get(ccsfd, query, &val) == 0) {
-		ctx->qc_max_error_cycles = atoi(val);
-		if (ctx->qc_max_error_cycles <= 0)
-			ctx->qc_max_error_cycles = 0;
 		free(val);
 	}
 
@@ -1532,7 +1578,7 @@ int
 main(int argc, char **argv)
 {
 	cman_node_t me;
-	int cfh, rv, forked = 0, nfd = -1, ret = -1;
+	int cfh = 0, rv, forked = 0, nfd = -1, ret = -1;
 	qd_ctx ctx;
 	cman_handle_t ch = NULL;
 	node_info_t ni[MAX_NODES_DISK];
@@ -1609,6 +1655,11 @@ main(int argc, char **argv)
 		} while (!ch);
 	}
 
+        if (cman_start_notification(ch, process_cman_event) != 0) {
+		cman_finish(ch);
+		return -1;
+	}
+
 	memset(&me, 0, sizeof(me));
 	while (cman_get_node(ch, CMAN_NODEID_US, &me) < 0) {
 		if (!foreground && !forked) {
@@ -1624,6 +1675,7 @@ main(int argc, char **argv)
 
 	signal(SIGINT, int_handler);
 	signal(SIGTERM, int_handler);
+	signal(SIGHUP, hup_handler);
 
 	if (get_config_data(&ctx, h, 10, &cfh, debug, trylater) < 0) {
 		log_printf(LOG_CRIT, "Configuration failed\n");
@@ -1676,8 +1728,6 @@ main(int argc, char **argv)
 			goto out;
 	}
 	
-	set_priority(ctx.qc_sched, ctx.qc_sched_prio);
-
 	if (quorum_init(&ctx, ni, MAX_NODES_DISK, h, cfh) < 0) {
 		log_printf(LOG_CRIT, "Initialization failed\n");
 		check_stop_cman(&ctx);

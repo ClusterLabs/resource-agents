@@ -242,11 +242,11 @@ typedef struct {
 	int qc_sched;
 	int qc_sched_prio;
 	int qc_max_error_cycles;
+	int qc_master;		/* Master?! */
+	int qc_config;
 	int qc_pad;
 	disk_node_state_t qc_disk_status;
 	disk_node_state_t qc_status;
-	int qc_master;		/* Master?! */
-	int qc_status_sock;
 	run_flag_t qc_flags;
 	cman_handle_t qc_ch;
 	char *qc_device;
