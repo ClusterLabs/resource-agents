@@ -649,6 +649,8 @@ update_local_status(qd_ctx *ctx, node_info_t *ni, int max, int score,
 	FILE *fp;
 	int x, need_close = 0;
 	time_t now;
+	long flags;
+	int fd;
 
 	if (!ctx->qc_status_file)
 		return;
@@ -660,6 +662,17 @@ update_local_status(qd_ctx *ctx, node_info_t *ni, int max, int score,
 		if (fp == NULL)
 			return;
 		need_close = 1;
+	}
+
+	/* Don't block while writing to this file 
+	 * XXX Not set O_NONBLOCK twice on stdout?
+	 */
+	fd = fileno(fp);
+	flags = fcntl(fd, F_GETFD, 0);
+	if (fcntl(fd, F_SETFD, flags | O_NONBLOCK) != 0) {
+		if (need_close)
+			fclose(fp);
+		return;
 	}
 
 	now = time(NULL);
