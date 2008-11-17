@@ -1585,6 +1585,7 @@ init_resource_groups(int reconfigure, int do_init)
 
 	if (reconfigure)
 		log_printf(LOG_NOTICE, "Reconfiguring\n");
+
 	log_printf(LOG_INFO, "Loading Service Data\n");
 	log_printf(LOG_DEBUG, "Loading Resource Rules\n");
 	if (load_resource_rules(RESOURCE_ROOTDIR, &rulelist) != 0) {
@@ -1612,6 +1613,12 @@ init_resource_groups(int reconfigure, int do_init)
 			rg_set_statusmax(atoi(val));
 		free(val);
 	}
+
+	/* Wait for any pending requests */
+	rg_wait_threads();
+	/* Block operations that would break during configuration
+	   changes */
+	rg_clear_initialized(FL_CONFIG);
 
 	log_printf(LOG_DEBUG, "Building Resource Trees\n");
 	/* About to update the entire resource tree... */
@@ -1706,8 +1713,9 @@ init_resource_groups(int reconfigure, int do_init)
 		} else {
 			log_printf(LOG_INFO, "Skipping stop-before-start: overridden by administrator\n");
 		}
-		rg_set_initialized();
+		rg_set_initialized(FL_INIT);
 	}
+	rg_set_initialized(FL_CONFIG);
 
 	return 0;
 }

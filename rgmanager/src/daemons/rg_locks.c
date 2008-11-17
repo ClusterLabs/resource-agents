@@ -47,10 +47,13 @@ rg_initialized(void)
 
 
 int
-rg_set_initialized(void)
+rg_set_initialized(int flag)
 {
+	if (!flag)
+		flag = ~0;
+
 	pthread_mutex_lock(&locks_mutex);
-	__rg_initialized = 1;
+	__rg_initialized |= flag;
 	pthread_cond_broadcast(&init_cond);
 	pthread_mutex_unlock(&locks_mutex);
 	return 0;
@@ -58,21 +61,28 @@ rg_set_initialized(void)
 
 
 int
-rg_set_uninitialized(void)
+rg_clear_initialized(int flag)
 {
+	if (!flag)
+		flag = ~0;
 	pthread_mutex_lock(&locks_mutex);
-	__rg_initialized = 0;
+	__rg_initialized &= ~flag;
 	pthread_mutex_unlock(&locks_mutex);
 	return 0;
 }
 
 
 int
-rg_wait_initialized(void)
+rg_wait_initialized(int flag)
 {
 	pthread_mutex_lock(&locks_mutex);
-	while (!__rg_initialized)
-		pthread_cond_wait(&init_cond, &locks_mutex);
+	if (flag) {
+		while ((__rg_initialized & flag) != flag)
+			pthread_cond_wait(&init_cond, &locks_mutex);
+	} else {
+		while (!__rg_initialized)
+			pthread_cond_wait(&init_cond, &locks_mutex);
+	}
 	pthread_mutex_unlock(&locks_mutex);
 	return 0;
 }

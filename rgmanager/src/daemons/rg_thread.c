@@ -416,6 +416,10 @@ resgroup_thread_main(void *arg)
 			break;
 
 		case RG_STATUS:
+			if (!(rg_initialized()&FL_CONFIG)) {
+				ret = RG_SUCCESS;
+				break;
+			}
 			/* Need to make sure we don't check status of
 			   resource groups we don't own */
 			error = svc_status(myname);

@@ -147,7 +147,7 @@ membership_update(void)
 #endif
 		log_printf(LOG_DEBUG, "Flushing resource group cache\n");
 		kill_resource_groups();
-		rg_set_uninitialized();
+		rg_clear_initialized(0);
 		return -1;
 	} else if (!rg_quorate()) {
 
@@ -656,7 +656,7 @@ handle_cluster_event(msgctx_t *ctx)
 		log_printf(LOG_WARNING, "#67: Shutting down uncleanly\n");
 		rg_set_inquorate();
 		rg_doall(RG_INIT, 1, "Emergency stop of %s");
-		rg_set_uninitialized();
+		rg_clear_initialized(0);
 #if defined(LIBCMAN_VERSION) && LIBCMAN_VERSION >= 2
 		/* cman_replyto_shutdown() */
 #endif
