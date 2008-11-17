@@ -129,6 +129,18 @@ static int count_methods(char *victim)
 	return i;
 }
 
+/* These are the options that can be changed while running. */
+
+void reread_ccs(void)
+{
+	if (!optd_post_join_delay)
+		read_ccs_int(POST_JOIN_DELAY_PATH, &cfgd_post_join_delay);
+	if (!optd_post_fail_delay)
+		read_ccs_int(POST_FAIL_DELAY_PATH, &cfgd_post_fail_delay);
+	if (!optd_override_time)
+		read_ccs_int(OVERRIDE_TIME_PATH, &cfgd_override_time);
+}
+
 int read_ccs(struct fd *fd)
 {
 	char path[PATH_MAX];
@@ -157,12 +169,8 @@ int read_ccs(struct fd *fd)
 		read_ccs_int(GROUPD_COMPAT_PATH, &cfgd_groupd_compat);
 	if (!optd_clean_start)
 		read_ccs_int(CLEAN_START_PATH, &cfgd_clean_start);
-	if (!optd_post_join_delay)
-		read_ccs_int(POST_JOIN_DELAY_PATH, &cfgd_post_join_delay);
-	if (!optd_post_fail_delay)
-		read_ccs_int(POST_FAIL_DELAY_PATH, &cfgd_post_fail_delay);
-	if (!optd_override_time)
-		read_ccs_int(OVERRIDE_TIME_PATH, &cfgd_override_time);
+
+	reread_ccs();
 
 	if (!optd_override_path) {
 		str = NULL;

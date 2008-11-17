@@ -31,6 +31,7 @@ static void cman_callback(cman_handle_t h, void *private, int reason, int arg)
 		break;
 	case CMAN_REASON_CONFIG_UPDATE:
 		setup_logging();
+		setup_ccs();
 		break;
 	}
 }

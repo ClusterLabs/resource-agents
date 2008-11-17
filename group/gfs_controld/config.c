@@ -153,6 +153,9 @@ int setup_ccs(void)
 {
 	int i = 0, cd;
 
+	if (ccs_handle)
+		goto update;
+
 	while ((cd = ccs_connect()) < 0) {
 		sleep(1);
 		if (++i > 9 && !(i % 10))
@@ -171,18 +174,22 @@ int setup_ccs(void)
 		read_ccs_int(ENABLE_WITHDRAW_PATH, &cfgd_enable_withdraw);
 	if (!optd_enable_plock)
 		read_ccs_int(ENABLE_PLOCK_PATH, &cfgd_enable_plock);
+	if (!optd_plock_ownership)
+		read_ccs_int(PLOCK_OWNERSHIP_PATH, &cfgd_plock_ownership);
+
+	/* The following can be changed while running */
+ update:
 	if (!optd_plock_debug)
 		read_ccs_int(PLOCK_DEBUG_PATH, &cfgd_plock_debug);
 	if (!optd_plock_rate_limit)
 		read_ccs_int(PLOCK_RATE_LIMIT_PATH, &cfgd_plock_rate_limit);
-	if (!optd_plock_ownership)
-		read_ccs_int(PLOCK_OWNERSHIP_PATH, &cfgd_plock_ownership);
 	if (!optd_drop_resources_time)
 		read_ccs_int(DROP_RESOURCES_TIME_PATH, &cfgd_drop_resources_time);
 	if (!optd_drop_resources_count)
 		read_ccs_int(DROP_RESOURCES_COUNT_PATH, &cfgd_drop_resources_count);
 	if (!optd_drop_resources_age)
 		read_ccs_int(DROP_RESOURCES_AGE_PATH, &cfgd_drop_resources_age);
+
 
 	return 0;
 }

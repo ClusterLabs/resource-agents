@@ -200,6 +200,7 @@ struct fd {
 
 int setup_ccs(void);
 void close_ccs(void);
+void reread_ccs(void);
 void read_ccs_name(char *path, char *name);
 void read_ccs_yesno(char *path, int *yes, int *no);
 void read_ccs_int(char *path, int *config_val);
