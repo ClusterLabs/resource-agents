@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 #
 #       OCF Resource Agent compliant drbd resource script.
