@@ -145,7 +145,8 @@ END
 do_cmd() {
 	local cmd="$*"
 	ocf_log debug "$RESOURCE: Calling $cmd"
-	local cmd_out=$($cmd 2>&1)
+	local cmd_out
+	cmd_out=$($cmd 2>&1)
 	ret=$?
 	
 	if [ $ret -ne 0 ]; then
@@ -165,7 +166,8 @@ do_cmd() {
 do_drbdadm() {
 	local cmd="$DRBDADM -c $DRBDCONF $*"
 	ocf_log debug "$RESOURCE: Calling $cmd"
-	local cmd_out=$($cmd 2>&1)
+	local cmd_out
+	cmd_out=$($cmd 2>&1)
 	ret=$?
 	# Trim the garbage drbdadm likes to print when using the node
 	# override feature:
