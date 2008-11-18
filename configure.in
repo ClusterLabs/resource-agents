@@ -39,29 +39,36 @@ AC_ARG_WITH(hapkgversion,
 )
 
 if test -z "$HAPKGVERSION" ; then
-   HAPKGVERSION="2.99.2"
+   HAPKGVERSION="0.7"
 fi
 AM_INIT_AUTOMAKE(agents, $HAPKGVERSION)
 
-RPMREL=1
-AC_SUBST(RPMREL)
 HB_PKG=heartbeat
-AC_SUBST(HB_PKG)
-DISTDIR=$HB_PKG-$VERSION
-TARFILE=$DISTDIR.tar.gz
-AC_SUBST(DISTDIR)
-AC_SUBST(TARFILE)
 CC_IN_CONFIGURE=yes
 export CC_IN_CONFIGURE
 
 echo Our Host OS: $host_os/$host
 
+dnl This OS-based decision-making is poor autotools practice;
+dnl feature-based mechanisms are strongly preferred.
+dnl
+dnl So keep this section to a bare minimum; regard as a "necessary evil". 
+
+pf_argv_set=""
+case "$host_os" in
+*bsd*)		AC_DEFINE_UNQUOTED(ON_BSD,     1, Compiling for BSD platform);;
+*linux*)	AC_DEFINE_UNQUOTED(ON_LINUX,   1, Compiling for Linux platform);;
+darwin*)	AC_DEFINE_UNQUOTED(ON_DARWIN,  1, Compiling for Darwin platform);;
+*solaris*)	AC_DEFINE_UNQUOTED(ON_SOLARIS, 1, Compiling for Solaris platform);;
+esac
+
+LIBS="$LIBS -L${prefix}/lib"
+CFLAGS="$CFLAGS -I${prefix}/include"
+
 AC_SUBST(REBOOT_OPTIONS)
 AC_SUBST(POWEROFF_OPTIONS)
 AC_DEFINE_UNQUOTED(REBOOT_OPTIONS, "$REBOOT_OPTIONS", reboot options)
 AC_DEFINE_UNQUOTED(POWEROFF_OPTIONS, "$POWEROFF_OPTIONS", poweroff options)
-
-AC_DEFINE_UNQUOTED(HA_LOG_FACILITY, LOG_DAEMON, Default logging facility)
 
 dnl Info for building/packaging systems.
 dnl
@@ -86,59 +93,6 @@ AC_ARG_WITH(pkgname,
 AC_SUBST(PKGNAME)
 
 
-MISSINGTHINGS=""
-MISSINGOPTIONALS=""
-
-FatalMissingThing() {
-  if test X"$MISSINGTHINGS" = X; then
-    MISSINGTHINGS="$MISSINGTHINGS $1"
-  else
-    MISSINGTHINGS="$MISSINGTHINGS, $1"
-  fi
-  shift
-  AC_MSG_RESULT(configure: ERROR: $1 ====================)
-  shift
-  for j in "$@"
-  do
-    if test "X$j" != X-; then
-       AC_MSG_RESULT(configure:        $j ==)
-    fi
-  done
-}
-
-WarnMissingThing() {
-  if test X"$MISSINGOPTIONALS" = X; then
-    MISSINGOPTIONALS="$MISSINGOPTIONALS $1"
-  else
-    MISSINGOPTIONALS="$MISSINGOPTIONALS, $1"
-  fi
-  shift
-  AC_MSG_RESULT(configure: WARNING: $1 ====================)
-  shift
-  for j in "$@"
-  do
-    if test "X$j" != X-; then
-       AC_MSG_RESULT(configure:        $j ==)
-    fi
-  done
-}
-
-CheckMissingThings() {
-  if
-    test "X$MISSINGOPTIONALS" != "X"
-  then
-    AC_MSG_WARN(The following recommended components noted earlier are missing:
-    $MISSINGOPTIONALS
-    We will continue but you may have lost some non-critical functionality.)
-  fi
-  if
-    test "X$MISSINGTHINGS" != "X"
-  then
-    AC_MSG_ERROR(The following required components noted earlier are missing:
-    $MISSINGTHINGS
-    Please supply them and try again.)
-  fi
-}
 
 dnl Keep copy of original (default) prefix and localstatedir
 localstatedir_orig="$localstatedir"
@@ -473,10 +427,7 @@ if test "$libnet_version" = none; then
    LIBNETLIBS=""
    LIBNETDEFINES=""
    if test $libnet_fatal = yes; then
-        FatalMissingThing "libnet" "You need libnet to continue."			\
-		"You can get libnet from http://www.packetfactory.net/libnet"		\
-		"Note that some RPMs split libnet up into libnet and libnet-devel."	\
-		"In this case you have to install libnet-devel too"
+        AC_MSG_ERROR(libnet not found)
    fi
 
 else
@@ -484,6 +435,11 @@ else
       [new_libnet=yes; AC_DEFINE(HAVE_LIBNET_1_1_API, 1, Libnet 1.1 API)],
       [new_libnet=no; AC_DEFINE(HAVE_LIBNET_1_0_API, 1, Libnet 1.0 API)],$LIBNETLIBS)
 fi
+
+dnl ************************************************************************
+dnl * Check for netinet/icmp6.h to enable the IPv6addr resource agent
+AC_CHECK_HEADERS(netinet/icmp6.h,[],[],[#include <sys/types.h>])
+AM_CONDITIONAL(USE_IPV6ADDR, test "$ac_cv_header_netinet_icmp6_h" = yes -a "$new_libnet" = yes )
 
 sendarp_linux=0
 case $host_os in
@@ -514,13 +470,14 @@ else
 	AC_MSG_RESULT(no)
 fi
 
+AC_MSG_CHECKING(for ping)
 if test X${PING} = X
 then
-  FatalMissingThing "ping" "ping command is mandantory"
+  AC_MSG_ERROR(not found)
 fi
+AC_MSG_RESULT($PING)
 
 dnl Determine if we use -w1 or -t1 for ping (in PYTHON Scripts)
-
 
 AC_MSG_CHECKING(ping option for timeout - w or t)
 for PING_TIMEOUT_OPT in "-w1" "-t1"
@@ -779,7 +736,7 @@ dnl case with glib2.
 		awk -F. '{print $3+($2+($1*16))*16;}'
 	}
 	GCCVER=`gcc --version | head -1 |
-		awk '{for(i=1;i<=NF;i++) if($i~/)$/) {print $(i+1);exit}}' |
+		awk '{for(i=1;i<=NF;i++) if($i~/\)$/) {print $(i+1);exit}}' |
 		ver2num`
 	firstver=`echo 4.1.3 | ver2num`
 	lastver=`echo 4.3.0 | ver2num`
@@ -803,12 +760,6 @@ if
 then
   IP2UTIL=/sbin/ip
 fi
-
-dnl check byte order
-AC_MSG_CHECKING(for byteorder)
-AC_TRY_RUN(`cat $srcdir/config/byteorder_test.c`,
-[AC_MSG_RESULT(little-endian); AC_DEFINE(CONFIG_LITTLE_ENDIAN, 1, [little-endian])],
-[AC_MSG_RESULT(big-endian); AC_DEFINE(CONFIG_BIG_ENDIAN, 1, [big-endian])],)
 
 dnl
 dnl Lex and yacc can't be trusted to produce code that won't produce
@@ -867,6 +818,7 @@ AC_MSG_CHECKING(OCF directory)
 if test "X$OCF_ROOT_DIR" = X; then
   AC_MSG_ERROR(Not specified)
 fi
+AC_MSG_RESULT($OCF_ROOT_DIR)
 
 AC_SUBST(OCF_ROOT_DIR)
 AC_DEFINE_UNQUOTED(OCF_ROOT_DIR,"$OCF_ROOT_DIR", OCF root directory - specified by the OCF standard)
@@ -888,31 +840,6 @@ dnl We won't worry about that for now.
 dnl (David Lee; March 2007)
 AC_PATH_PROGS([AWK], $AWK)
 
-CheckMissingThings
-
-
-dnl Options for cleaning up the compiler output 
-dnl In 'buildtools' build a front-end 'ccdv' to the C compiler.
-PRETTY_CC=""
-REAL_CC="${CC}"
-QUIET_LIBTOOL_OPTS=""
-QUIET_MAKE_OPTS=""
-if test x"${enable_pretty}" = "xyes"; then
-   enable_quiet="yes"
-   echo "install_sh: ${install_sh}"
-   PRETTY_CC="`pwd`/buildtools/ccdv"
-   CC="\$(PRETTY_CC) ${CC}"
-fi
-if test "x${enable_quiet}" = "xyes"; then
-   QUIET_LIBTOOL_OPTS="--quiet"
-   QUIET_MAKE_OPTS="--quiet"
-fi
-
-AC_MSG_RESULT(Supressing make details: ${enable_quiet})
-AC_MSG_RESULT(Pretty printing of compiler output: ${enable_pretty})
-
-dnl Put the above variables to use
-LIBTOOL="${LIBTOOL} --tag=CC \$(QUIET_LIBTOOL_OPTS)"
 MAKE="${MAKE} \$(QUIET_MAKE_OPTS)"
 
 AC_SUBST(CC)
@@ -957,7 +884,6 @@ dnl *** "echo" adjustments (end) ***
 
 dnl The Makefiles and shell scripts we output
 AC_CONFIG_FILES(Makefile				        \
-heartbeat/Makefile						\
 	heartbeat/Makefile					\
 	heartbeat/.ocf-binaries					\
 	heartbeat/.ocf-directories				\

@@ -160,43 +160,6 @@ fi
 rm -f           ./automake
 ln -s `which $automake` ./automake
 
-# Check for Libtool
-pkg="libtool"
-for command in libtool libtool14 libtool15 glibtool
-do
-  URL=$gnu/$pkg/
-  if
-    testProgram $command
-  then
-    : OK $pkg is installed
-    libtool=$command
-    libtoolize=`echo  "$libtool" | sed -e 's/libtool/libtoolize/'`
-  fi
-done
-
-# Check to see if we got a valid command.
-if 
-    $libtool --version </dev/null >/dev/null 2>&1
-then
-    echo "Libtool package $libtool found."
-else
-    RC=$?
-    cat <<-!EOF >&2
-
-	You must have $pkg installed to compile the linux-ha package.
-	Download the appropriate package for your system,
-	or get the source tarball at: $URL
-	!EOF
-fi
-
-# Create local copy so that the incremental updates will work.
-rm -f          ./libtool
-ln -s `which $libtool` ./libtool
-
-case $RC in
-  0)	;;
-  *)	exit $RC;;
-esac
 
 case $IsHelp in
   yes)	$CONFIG "$@"; trap '' 0; exit 0;;
@@ -205,18 +168,6 @@ esac
 oneline() {
   read x; echo "$x"
 }
-
-LT_version=`$libtool --version | oneline | sed -e 's%^[^0-9]*%%' -e s'% .*%%'`
-LT_majvers=`echo "$LT_version" | sed -e 's%\..*%%'`
-LT_minvers=`echo "$LT_version" | sed -e 's%^[^.]*\.%%' `
-LT_minnum=`echo  "$LT_minvers" | sed -e 's%[^0-9].*%%'`
-
-if
-  [ $LT_majvers -lt 1 ] || [ $LT_majvers = 1 -a $LT_minnum -lt 4 ]
-then
-  echo "Minimum version of libtool is 1.4.  You have $LT_version installed."
-  exit 1
-fi
 
 echo $aclocal $ACLOCAL_FLAGS
 $aclocal $ACLOCAL_FLAGS
@@ -233,18 +184,8 @@ then
   $autoheader
 fi
 
-rm -rf libltdl libltdl.tar
-echo $libtoolize --ltdl --force --copy
-# Unset GREP_OPTIONS as any coloring can mess up the AC_CONFIG_AUX_DIR matching patterns
-GREP_OPTIONS= $libtoolize --ltdl --force --copy
-
 echo $aclocal $ACLOCAL_FLAGS
 $aclocal $ACLOCAL_FLAGS
-
-# Emulate the old --ltdl-tar option...
-#  If the libltdl directory is required we will unpack it later
-tar -cf libltdl.tar libltdl
-rm -rf libltdl
 
 echo $automake --add-missing --include-deps --copy
 $automake --add-missing --include-deps --copy
