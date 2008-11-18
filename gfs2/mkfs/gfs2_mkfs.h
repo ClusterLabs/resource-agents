@@ -7,9 +7,6 @@
 #include "copyright.cf"
 #include "ondisk.h"
 
-#define SRANDOM do { srandom(time(NULL) ^ getpid()); } while (0)
-#define RESRANDOM do { srandom(RANDOM(1000000000)); } while (0)
-
 /* main_grow */
 void main_grow(int argc, char *argv[]);
 

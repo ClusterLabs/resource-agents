@@ -11,8 +11,6 @@
 #include "libgfs2.h"
 #include "util.h"
 
-#define RANDOM(values) ((values) * (random() / (RAND_MAX + 1.0)))
-
 unsigned int sd_found_jblocks = 0, sd_replayed_jblocks = 0;
 unsigned int sd_found_metablocks = 0, sd_replayed_metablocks = 0;
 unsigned int sd_found_revokes = 0;

@@ -69,7 +69,6 @@ static __inline__ uint64_t do_div_i(uint64_t *num, unsigned int den)
 #define do_div(n, d) do_div_i(&(n), (d))
 
 #define SRANDOM do { srandom(time(NULL) ^ getpid()); } while (0)
-#define RESRANDOM do { srandom(RANDOM(1000000000)); } while (0)
 #define RANDOM(values) ((values) * (random() / (RAND_MAX + 1.0)))
 
 struct device {
