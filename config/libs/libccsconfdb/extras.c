@@ -222,6 +222,7 @@ static int priority_id_get(char *name)
 	return (-1);
 }
 
+/* requires string buffer to be PATH_MAX */
 static void read_string(int fd, char *path, char *string)
 {
 	char *str;
@@ -231,6 +232,7 @@ static void read_string(int fd, char *path, char *string)
 	if (error || !str)
 		return;
 
+	memset(string, 0, PATH_MAX);
 	strcpy(string, str);
 
 	free(str);
@@ -276,107 +278,171 @@ static void read_onoff(int fd, char *path, int *on, int *off)
 	free(str);
 }
 
+/* requires path buffer to be PATH_MAX */
+static void create_subsys_path(char *name, char *field, char *path)
+{
+	memset(path, 0, PATH_MAX);
+	snprintf(path, PATH_MAX,
+		 "/cluster/logging/logging_subsys[@subsys=\"%s\"]/%s",
+		 name, field);
+}
+
 /* Values should be initialized to default values before calling
    this function; they are not changed if cluster.conf has nothing
-   to say about them.  If debug is already set, this function will not
-   clear it, even if cluster.conf has it set to off. */
+   to say about them.  If *debug is already set , then *logfile_priority
+   is set to LOG_DEBUG; all debug and logfile_priority values from
+   cluster.conf are ignored. */
 
 void ccs_read_logging(int fd, char *name, int *debug, int *mode,
-		      int *facility, int *priority, char *file)
+		      int *syslog_facility, int *syslog_priority,
+		      int *logfile_priority, char *logfile)
 {
 	char string[PATH_MAX];
 	char path[PATH_MAX];
 	int val, y, n, on, off;
 
 	/*
-	 * debug
+	 * to_syslog 
 	 */
-
-	if (!*debug) {
-		read_onoff(fd, "/cluster/logging/@debug", &on, &off);
-		if (on)
-			*debug = 1;
-
-		memset(path, 0, sizeof(path));
-		snprintf(path, PATH_MAX,
-			 "/cluster/logging/logger_subsys[@subsys=\"%s\"]/@debug",
-			 name);
-
-		read_onoff(fd, path, &on, &off);
-		if (on)
-			*debug = 1;
-		else if (off)
-			*debug = 0;
-
-		/*
-		 * priority
-		 */
-
-		if (!*debug) {
-			memset(path, 0, sizeof(path));
-			snprintf(path, PATH_MAX,
-				 "/cluster/logging/logger_subsys[@subsys=\"%s\"]/@syslog_level",
-				 name);
-
-			memset(string, 0, sizeof(string));
-			read_string(fd, path, string);
-
-			if (string[0]) {
-				val = priority_id_get(string);
-				if (val >= 0)
-					*priority = val;
-
-				if (*priority == LOG_DEBUG)
-					*debug = 1;
-			}
-		} else
-			*priority = LOG_DEBUG;
-	} else
-		*priority = LOG_DEBUG;
-
-	/*
-	 * mode
-	 */
-
-	read_yesno(fd, "/cluster/logging/@to_stderr", &y, &n);
-	if (y)
-		*mode |= LOG_MODE_OUTPUT_STDERR;
-	if (n)
-		*mode &= ~LOG_MODE_OUTPUT_STDERR;
+	create_subsys_path(name, "to_syslog", path);
 
 	read_yesno(fd, "/cluster/logging/@to_syslog", &y, &n);
 	if (y)
-		*mode |= LOG_MODE_OUTPUT_SYSLOG_THREADED;
+		*mode |= LOG_MODE_OUTPUT_SYSLOG;
 	if (n)
-		*mode &= ~LOG_MODE_OUTPUT_SYSLOG_THREADED;
+		*mode &= ~LOG_MODE_OUTPUT_SYSLOG;
 
-	read_yesno(fd, "/cluster/logging/@to_file", &y, &n);
+	read_yesno(fd, path, &y, &n);
+	if (y)
+		*mode |= LOG_MODE_OUTPUT_SYSLOG;
+	if (n)
+		*mode &= ~LOG_MODE_OUTPUT_SYSLOG;
+
+	/*
+	 * to_logfile
+	 */
+	create_subsys_path(name, "to_logfile", path);
+
+	read_yesno(fd, "/cluster/logging/@to_logfile", &y, &n);
+	if (y)
+		*mode |= LOG_MODE_OUTPUT_FILE;
+	if (n)
+		*mode &= ~LOG_MODE_OUTPUT_FILE;
+
+	read_yesno(fd, path, &y, &n);
 	if (y)
 		*mode |= LOG_MODE_OUTPUT_FILE;
 	if (n)
 		*mode &= ~LOG_MODE_OUTPUT_FILE;
 
 	/*
-	 * facility
+	 * syslog_facility
 	 */
+	create_subsys_path(name, "syslog_facility", path);
 
-	memset(string, 0, sizeof(string));
 	read_string(fd, "/cluster/logging/@syslog_facility", string);
 
 	if (string[0]) {
 		val = facility_id_get(string);
 		if (val >= 0)
-			*facility = val;
+			*syslog_facility = val;
+	}
+
+	read_string(fd, path, string);
+
+	if (string[0]) {
+		val = facility_id_get(string);
+		if (val >= 0)
+			*syslog_facility = val;
 	}
 
 	/*
-	 * file
+	 * syslog_priority
 	 */
+	create_subsys_path(name, "syslog_priority", path);
 
-	memset(string, 0, sizeof(string));
+	read_string(fd, "/cluster/logging/@syslog_priority", string);
+
+	if (string[0]) {
+		val = priority_id_get(string);
+		if (val >= 0)
+			*syslog_priority = val;
+	}
+
+	read_string(fd, path, string);
+
+	if (string[0]) {
+		val = priority_id_get(string);
+		if (val >= 0)
+			*syslog_priority = val;
+	}
+
+	/*
+	 * logfile
+	 */
+	create_subsys_path(name, "logfile", path);
+
 	read_string(fd, "/cluster/logging/@logfile", string);
 
 	if (string[0])
-		strcpy(file, string);
+		strcpy(logfile, string);
 
+	read_string(fd, path, string);
+
+	if (string[0])
+		strcpy(logfile, string);
+
+	/*
+	 * debug is only ever turned on, not off, so if it's already on
+	 * (from the daemon), then just skip the debug lookups.
+	 */
+	if (*debug) {
+		*logfile_priority = LOG_DEBUG;
+		return;
+	}
+
+	/*
+	 * debug
+	 * debug=on is a shortcut for logfile_priority=LOG_DEBUG
+	 */
+	create_subsys_path(name, "debug", path);
+
+	read_onoff(fd, "/cluster/logging/@debug", &on, &off);
+	if (on)
+		*debug = 1;
+
+	read_onoff(fd, path, &on, &off);
+	if (on)
+		*debug = 1;
+	else if (off)
+		*debug = 0;
+
+	if (*debug)
+		*logfile_priority = LOG_DEBUG;
+
+	/* should we return here if debug has been turned on?, or should
+	   we allow an explicit logfile_priority setting to override the
+	   implicit setting from debug=on? */
+
+	/*
+	 * logfile_priority
+	 */
+	create_subsys_path(name, "logfile_priority", path);
+
+	read_string(fd, "/cluster/logging/@logfile_priority", string);
+
+	if (string[0]) {
+		val = priority_id_get(string);
+		if (val >= 0)
+			*logfile_priority = val;
+	}
+
+	read_string(fd, path, string);
+
+	if (string[0]) {
+		val = priority_id_get(string);
+		if (val >= 0)
+			*logfile_priority = val;
+	}
 }
+
