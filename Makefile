@@ -53,7 +53,7 @@ oldconfig:
 	@if [ -f $(OBJDIR)/.configure.sh ]; then \
 		sh $(OBJDIR)/.configure.sh; \
 	else \
-		echo "No old configure data found"; \
+		echo "Unable to find old configuration data"; \
 	fi
 
 install:
