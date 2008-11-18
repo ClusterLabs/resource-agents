@@ -2,12 +2,12 @@
 #include "config.h"
 #include "ccs.h"
 
-static int ccs_handle;
+int ccs_handle;
 
 /* was a config value set on command line?, 0 or 1. */
 
 int optd_groupd_compat;
-int optd_debug_logsys;
+int optd_debug_logfile;
 int optd_clean_start;
 int optd_skip_undefined;
 int optd_post_join_delay;
@@ -18,7 +18,7 @@ int optd_override_path;
 /* actual config value from command line, cluster.conf, or default. */
 
 int cfgd_groupd_compat   = DEFAULT_GROUPD_COMPAT;
-int cfgd_debug_logsys    = DEFAULT_DEBUG_LOGSYS;
+int cfgd_debug_logfile   = DEFAULT_DEBUG_LOGFILE;
 int cfgd_clean_start     = DEFAULT_CLEAN_START;
 int cfgd_skip_undefined  = DEFAULT_SKIP_UNDEFINED;
 int cfgd_post_join_delay = DEFAULT_POST_JOIN_DELAY;

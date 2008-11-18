@@ -25,7 +25,7 @@
 
 #include <openais/saAis.h>
 #include <corosync/cpg.h>
-#include <corosync/engine/logsys.h>
+#include <liblogthread.h>
 
 #include "list.h"
 #include "linux_endian.h"
@@ -74,27 +74,17 @@ extern int group_mode;
 
 extern void daemon_dump_save(void);
 
-#define log_debug(fmt, args...) \
-do { \
-	snprintf(daemon_debug_buf, 255, "%ld " fmt "\n", time(NULL), ##args); \
-	daemon_dump_save(); \
-	if (daemon_debug_opt) \
-		fprintf(stderr, "%s", daemon_debug_buf); \
-	if (cfgd_debug_logsys) \
-		log_printf(LOG_DEBUG, "%s", daemon_debug_buf); \
-} while (0)
-
-#define log_error(fmt, args...) \
-do { \
-	log_debug(fmt, ##args); \
-	log_printf(LOG_ERR, fmt, ##args); \
-} while (0)
-
 #define log_level(lvl, fmt, args...) \
 do { \
-	log_debug(fmt, ##args); \
-	log_printf(lvl, fmt, ##args); \
+	snprintf(daemon_debug_buf, 255, fmt "\n", ##args); \
+	daemon_dump_save(); \
+	logt_print(lvl, "%s", daemon_debug_buf); \
+	if (daemon_debug_opt) \
+		fprintf(stderr, "%s", daemon_debug_buf); \
 } while (0)
+
+#define log_debug(fmt, args...) log_level(LOG_DEBUG, fmt, ##args)
+#define log_error(fmt, args...) log_level(LOG_ERR, fmt, ##args)
 
 #define FD_MSG_PROTOCOL		1
 #define FD_MSG_START		2
