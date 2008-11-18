@@ -1,13 +1,12 @@
 include make/defines.mk
 
-REALSUBDIRS = gnbd-kernel/src gfs-kernel/src/gfs \
+REALSUBDIRS = gfs-kernel/src/gfs \
 	      common cman/lib config cman dlm fence/libfenced group \
-	      fence gfs gfs2 gnbd rgmanager bindings doc \
+	      fence gfs gfs2 rgmanager bindings doc \
 	      contrib
 
 SUBDIRS = $(filter-out \
 	  $(if ${without_common},common) \
-	  $(if ${without_gnbd-kernel/src},gnbd-kernel/src) \
 	  $(if ${without_gfs-kernel/src/gfs},gfs-kernel/src/gfs) \
 	  $(if ${without_config},config) \
 	  $(if ${without_cman},cman/lib) \
@@ -18,7 +17,6 @@ SUBDIRS = $(filter-out \
 	  $(if ${without_fence},fence) \
 	  $(if ${without_gfs},gfs) \
 	  $(if ${without_gfs2},gfs2) \
-	  $(if ${without_gnbd},gnbd) \
 	  $(if ${without_rgmanager},rgmanager) \
 	  $(if ${without_bindings},bindings) \
 	  , $(REALSUBDIRS))
@@ -30,7 +28,6 @@ ${SUBDIRS}:
 
 # Kernel
 
-gnbd-kernel: gnbd-kernel/src
 gfs-kernel: gfs-kernel/src/gfs
 
 # Dependencies
@@ -44,7 +41,6 @@ group: cman dlm fence/libfenced
 fence: group
 gfs:
 gfs2: group
-gnbd: cman
 rgmanager: cman dlm
 bindings: cman
 contrib: gfs2

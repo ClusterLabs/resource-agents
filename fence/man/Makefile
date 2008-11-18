@@ -8,7 +8,6 @@ TARGET= fence.8 \
 	fence_drac.8 \
 	fence_egenera.8 \
 	fence_eps.8 \
-	fence_gnbd.8 \
 	fence_ifmib.8 \
 	fence_ilo.8 \
 	fence_ldom.8 \
