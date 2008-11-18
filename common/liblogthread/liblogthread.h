@@ -3,13 +3,13 @@
 
 #include <syslog.h>
 
-#define LOG_MODE_OUTPUT_FILE			1
-#define LOG_MODE_OUTPUT_STDERR			2
-#define LOG_MODE_OUTPUT_SYSLOG_THREADED		4
-#define LOG_MODE_FILTER_DEBUG_FROM_SYSLOG	8
+#define LOG_MODE_OUTPUT_FILE	1
+#define LOG_MODE_OUTPUT_SYSLOG	2
 
-int logt_init(char *name, int mode, int facility, int priority, char *file);
-void logt_conf(char *name, int mode, int facility, int priority, char *file);
+int logt_init(char *name, int mode, int syslog_facility, int syslog_priority,
+	      int logfile_priority, char *logfile);
+void logt_conf(char *name, int mode, int syslog_facility, int syslog_priority,
+	       int logfile_priority, char *logfile);
 void logt_exit(void);
 void logt_print(int level, char *fmt, ...)
 	__attribute__((format(printf, 2, 3)));;

@@ -28,30 +28,33 @@ static pthread_t thread_handle;
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 
-static int logt_mode;
-static int logt_facility;
-static int logt_priority;
+static int logt_mode; /* LOG_MODE_ */
+static int logt_syslog_facility;
+static int logt_syslog_priority;
+static int logt_logfile_priority;
 static char logt_name[PATH_MAX];
-static char logt_file[PATH_MAX];
-static FILE *logt_file_fp;
+static char logt_logfile[PATH_MAX];
+static FILE *logt_logfile_fp;
 
+static char *_time(void)
+{
+	static char buf[64];
+	time_t t = time(NULL);
+
+	strftime(buf, sizeof(buf), "%b %d %T", localtime(&t));
+	return buf;
+}
 
 static void write_entry(int level, char *str)
 {
-	if (logt_mode & LOG_MODE_OUTPUT_FILE && logt_file_fp) {
-		fprintf(logt_file_fp, "%s %s", logt_name, str);
-		fflush(logt_file_fp);
+	if ((logt_mode & LOG_MODE_OUTPUT_FILE) &&
+	    (level <= logt_logfile_priority) && logt_logfile_fp) {
+		fprintf(logt_logfile_fp, "%s %s %s", _time(), logt_name, str);
+		fflush(logt_logfile_fp);
 	}
-	if (logt_mode & LOG_MODE_OUTPUT_STDERR) {
-		fprintf(stderr, "%s", str);
-		fflush(stderr);
-	}
-	if (logt_mode & LOG_MODE_OUTPUT_SYSLOG_THREADED) {
-		if ((logt_mode & LOG_MODE_FILTER_DEBUG_FROM_SYSLOG) &&
-		    (level == LOG_DEBUG))
-			return;
+	if ((logt_mode & LOG_MODE_OUTPUT_SYSLOG) &&
+	    (level <= logt_syslog_priority))
 		syslog(level, "%s", str);
-	}
 }
 
 static void write_dropped(int level, int num)
@@ -120,7 +123,7 @@ void logt_print(int level, char *fmt, ...)
 {
 	va_list ap;
 
-	if (level > logt_priority)
+	if (level > logt_syslog_priority && level > logt_logfile_priority)
 		return;
 
 	va_start(ap, fmt);
@@ -128,47 +131,53 @@ void logt_print(int level, char *fmt, ...)
 	va_end(ap);
 }
 
-static void _conf(char *name, int mode, int facility, int priority, char *file)
+static void _conf(char *name, int mode, int syslog_facility,
+		  int syslog_priority, int logfile_priority, char *logfile)
 {
 	int fd;
 
 	pthread_mutex_lock(&mutex);
 	logt_mode = mode;
-	logt_facility = facility;
-	logt_priority = priority;
+	logt_syslog_facility = syslog_facility;
+	logt_syslog_priority = syslog_priority;
+	logt_logfile_priority = logfile_priority;
 	if (name)
 		strncpy(logt_name, name, PATH_MAX);
-	if (file)
-		strncpy(logt_file, file, PATH_MAX);
+	if (logfile)
+		strncpy(logt_logfile, logfile, PATH_MAX);
 
-	if (logt_mode & LOG_MODE_OUTPUT_FILE && logt_file[0]) {
-		if (logt_file_fp)
-			fclose(logt_file_fp);
-		logt_file_fp = fopen(logt_file, "a+");
-		if (logt_file_fp != NULL) {
-			fd = fileno(logt_file_fp);
+	if (logt_mode & LOG_MODE_OUTPUT_FILE && logt_logfile[0]) {
+		if (logt_logfile_fp)
+			fclose(logt_logfile_fp);
+		logt_logfile_fp = fopen(logt_logfile, "a+");
+		if (logt_logfile_fp != NULL) {
+			fd = fileno(logt_logfile_fp);
 			fcntl(fd, F_SETFD, fcntl(fd, F_GETFD, 0) | FD_CLOEXEC);
 		}
 	}
 
-	if (logt_mode & LOG_MODE_OUTPUT_SYSLOG_THREADED) {
+	if (logt_mode & LOG_MODE_OUTPUT_SYSLOG) {
 		closelog();
-		openlog(logt_name, LOG_CONS | LOG_PID, logt_facility);
+		openlog(logt_name, LOG_CONS | LOG_PID, logt_syslog_facility);
 	}
 	pthread_mutex_unlock(&mutex);
 }
 
-void logt_conf(char *name, int mode, int facility, int priority, char *file)
+void logt_conf(char *name, int mode, int syslog_facility, int syslog_priority,
+	       int logfile_priority, char *logfile)
 {
-	_conf(name, mode, facility, priority, file);
+	_conf(name, mode, syslog_facility, syslog_priority, logfile_priority,
+	      logfile);
 }
 
-int logt_init(char *name, int mode, int facility, int priority, char *file)
+int logt_init(char *name, int mode, int syslog_facility, int syslog_priority,
+	      int logfile_priority, char *logfile)
 {
 	pthread_attr_t attr;
 	int rv;
 
-	_conf(name, mode, facility, priority, file);
+	_conf(name, mode, syslog_facility, syslog_priority, logfile_priority,
+	      logfile);
 
 	ents = malloc(num_ents * sizeof(struct entry));
 	if (!ents)
@@ -208,16 +217,11 @@ void logt_exit(void)
 #ifdef TEST
 int main(int argc, char **argv)
 {
-	logt_init("test", 0xF, LOG_DAEMON, LOG_DEBUG, "/tmp/logthread");
-
-	logt_print(1, "first message %d\n", argc);
-	logt_print(2, "%ld second %d %s\n", time(NULL), 2, "hi");
-	sleep(1);
-	logt_print(3, "third message\n");
-
+	logt_init("test", LOG_MODE_OUTPUT_FILE|LOG_MODE_OUTPUT_SYSLOG,
+		  LOG_DAEMON, LOG_DEBUG, LOG_DEBUG, "/tmp/logthread");
+	logt_print(LOG_DEBUG, "test debugging message %d\n", argc);
+	logt_print(LOG_ERR, "test error message %d\n", argc);
 	logt_exit();
-
-	fflush(stdout);
 	return 0;
 }
 #endif
