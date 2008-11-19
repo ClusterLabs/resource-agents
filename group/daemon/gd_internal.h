@@ -22,7 +22,7 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <corosync/cpg.h>
-#include <corosync/engine/logsys.h>
+#include <liblogthread.h>
 
 #include "list.h"
 #include "linux_endian.h"
@@ -56,51 +56,56 @@ extern int group_mode;
 #define DEFAULT_GROUPD_COMPAT		2
 #define DEFAULT_GROUPD_WAIT		5
 #define DEFAULT_GROUPD_MODE_DELAY	2
-#define DEFAULT_DEBUG_LOGSYS		0
+#define DEFAULT_DEBUG_LOGFILE		0
 
 extern int optd_groupd_compat;
 extern int optd_groupd_wait;
 extern int optd_groupd_mode_delay;
-extern int optd_debug_logsys;
+extern int optd_debug_logfile;
 
 extern int cfgd_groupd_compat;
 extern int cfgd_groupd_wait;
 extern int cfgd_groupd_mode_delay;
-extern int cfgd_debug_logsys;
+extern int cfgd_debug_logfile;
 
 void daemon_dump_save(void);
 
 #define log_debug(fmt, args...) \
 do { \
-	snprintf(daemon_debug_buf, 255, "%ld " fmt "\n", time(NULL), ##args); \
+	snprintf(daemon_debug_buf, 255, fmt "\n", ##args); \
 	daemon_dump_save(); \
+	logt_print(LOG_DEBUG, "%s", daemon_debug_buf); \
 	if (daemon_debug_opt) \
 		fprintf(stderr, "%s", daemon_debug_buf); \
-	if (cfgd_debug_logsys) \
-		log_printf(LOG_DEBUG, "%s", daemon_debug_buf); \
 } while (0)
 
 #define log_group(g, fmt, args...) \
 do { \
-	snprintf(daemon_debug_buf, 255, "%ld %d:%s " fmt "\n", time(NULL), \
+	snprintf(daemon_debug_buf, 255, "%d:%s " fmt "\n", \
 		 (g)->level, (g)->name, ##args); \
 	daemon_dump_save(); \
+	logt_print(LOG_DEBUG, "%s", daemon_debug_buf); \
 	if (daemon_debug_opt) \
 		fprintf(stderr, "%s", daemon_debug_buf); \
-	if (cfgd_debug_logsys) \
-		log_printf(LOG_DEBUG, "%s", daemon_debug_buf); \
 } while (0)
 
 #define log_print(fmt, args...) \
 do { \
-	log_debug(fmt, ##args); \
-	log_printf(LOG_ERR, fmt, ##args); \
+	snprintf(daemon_debug_buf, 255, fmt "\n", ##args); \
+	daemon_dump_save(); \
+	logt_print(LOG_ERR, "%s", daemon_debug_buf); \
+	if (daemon_debug_opt) \
+		fprintf(stderr, "%s", daemon_debug_buf); \
 } while (0)
 
 #define log_error(g, fmt, args...) \
 do { \
-	log_group(g, fmt, ##args); \
-	log_printf(LOG_ERR, fmt, ##args); \
+	snprintf(daemon_debug_buf, 255, "%d:%s " fmt "\n", \
+		 (g)->level, (g)->name, ##args); \
+	daemon_dump_save(); \
+	logt_print(LOG_ERR, "%s", daemon_debug_buf); \
+	if (daemon_debug_opt) \
+		fprintf(stderr, "%s", daemon_debug_buf); \
 } while (0)
 
 #define ASSERT(x) \

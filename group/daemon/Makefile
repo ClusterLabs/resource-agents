@@ -17,13 +17,13 @@ OBJS=	app.o \
 	main.o \
 	logging.o
 
-CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${corosyncincdir}
+CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${logtincdir} -I${corosyncincdir}
 CFLAGS += -I$(S) -I$(S)/../include/ -I$(S)/../lib/
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${ccslibdir} -lccs 
 LDFLAGS += -L${cmanlibdir} -lcman
-LDFLAGS += -L${corosynclibdir} -lcpg -llogsys -lpthread
+LDFLAGS += -L${corosynclibdir} -lcpg -llogthread -lpthread
 LDFLAGS += -L${libdir}
 
 ${TARGET}: ${OBJS}
