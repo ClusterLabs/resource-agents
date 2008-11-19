@@ -23,10 +23,6 @@
 #include <ccs.h>
 #include <corosync/engine/logsys.h>
 #include "score.h"
-#if (!defined(LIBCMAN_VERSION) || \
-     (defined(LIBCMAN_VERSION) && LIBCMAN_VERSION < 2))
-#include <cluster/cnxman-socket.h>
-#endif
 
 /* from daemon_init.c */
 int daemon_init(char *);
@@ -1565,12 +1561,7 @@ check_stop_cman(qd_ctx *ctx)
 	
 	log_printf(LOG_WARNING, "Telling CMAN to leave the cluster; qdisk is not"
 		" available\n");
-#if (defined(LIBCMAN_VERSION) && LIBCMAN_VERSION >= 2)
 	if (cman_shutdown(ctx->qc_cman_admin, 0) < 0) {
-#else
-	int x = 0;
-	if (ioctl(cman_get_fd(ctx->qc_cman_admin), SIOCCLUSTER_LEAVE_CLUSTER, &x) < 0) {
-#endif
 		log_printf(LOG_CRIT, "Could not leave the cluster - rebooting\n");
 		sleep(5);
 		if (ctx->qc_flags & RF_DEBUG)
