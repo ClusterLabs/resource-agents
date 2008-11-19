@@ -522,7 +522,7 @@ assign_restart_policy(resource_t *curres, resource_node_t *parent,
 	val = res_attr_value(curres, "restart_expire_time");
 	if (val) {
 		restart_expire_time = (time_t)expand_time(val);
-		if (!restart_expire_time)
+		if ((int64_t)restart_expire_time < 0)
 			return;
 	}
 
