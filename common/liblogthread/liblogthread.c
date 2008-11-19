@@ -17,6 +17,7 @@
 struct entry {
 	int level;
 	char str[ENTRY_STR_LEN];
+	time_t time;
 };
 
 static struct entry *ents;
@@ -36,20 +37,19 @@ static char logt_name[PATH_MAX];
 static char logt_logfile[PATH_MAX];
 static FILE *logt_logfile_fp;
 
-static char *_time(void)
+static char *_time(time_t *t)
 {
 	static char buf[64];
-	time_t t = time(NULL);
 
-	strftime(buf, sizeof(buf), "%b %d %T", localtime(&t));
+	strftime(buf, sizeof(buf), "%b %d %T", localtime(t));
 	return buf;
 }
 
-static void write_entry(int level, char *str)
+static void write_entry(int level, time_t *t, char *str)
 {
 	if ((logt_mode & LOG_MODE_OUTPUT_FILE) &&
 	    (level <= logt_logfile_priority) && logt_logfile_fp) {
-		fprintf(logt_logfile_fp, "%s %s %s", _time(), logt_name, str);
+		fprintf(logt_logfile_fp, "%s %s %s", _time(t), logt_name, str);
 		fflush(logt_logfile_fp);
 	}
 	if ((logt_mode & LOG_MODE_OUTPUT_SYSLOG) &&
@@ -57,17 +57,18 @@ static void write_entry(int level, char *str)
 		syslog(level, "%s", str);
 }
 
-static void write_dropped(int level, int num)
+static void write_dropped(int level, time_t *t, int num)
 {
 	char str[ENTRY_STR_LEN];
 	sprintf(str, "dropped %d entries", num);
-	write_entry(level, str);
+	write_entry(level, t, str);
 }
 
 static void *thread_fn(void *arg)
 {
 	char str[ENTRY_STR_LEN];
 	struct entry *e;
+	time_t time;
 	int level, prev_dropped = 0;
 
 	while (1) {
@@ -82,17 +83,18 @@ static void *thread_fn(void *arg)
 
 		memcpy(str, e->str, ENTRY_STR_LEN);
 		level = e->level;
+		time = e->time;
 
 		prev_dropped = dropped;
 		dropped = 0;
 		pthread_mutex_unlock(&mutex);
 
 		if (prev_dropped) {
-			write_dropped(level, prev_dropped);
+			write_dropped(level, &time, prev_dropped);
 			prev_dropped = 0;
 		}
 
-		write_entry(level, str);
+		write_entry(level, &time, str);
 	}
 }
 
@@ -114,6 +116,7 @@ static void _logt_print(int level, char *fmt, va_list ap)
 	memset(e->str, 0, ENTRY_STR_LEN);
 	vsnprintf(e->str, ENTRY_STR_LEN - 1, fmt, ap);
 	e->level = level;
+	e->time = time(NULL);
  out:
 	pthread_mutex_unlock(&mutex);
 	pthread_cond_signal(&cond);
