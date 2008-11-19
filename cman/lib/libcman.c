@@ -346,7 +346,7 @@ int cman_finish(cman_handle_t handle)
 	return 0;
 }
 
-int cman_setprivdata(cman_handle_t *handle, void *privdata)
+int cman_setprivdata(cman_handle_t handle, void *privdata)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
 	VALIDATE_HANDLE(h);
@@ -355,7 +355,7 @@ int cman_setprivdata(cman_handle_t *handle, void *privdata)
 	return 0;
 }
 
-int cman_getprivdata(cman_handle_t *handle, void **privdata)
+int cman_getprivdata(cman_handle_t handle, void **privdata)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
 	VALIDATE_HANDLE(h);

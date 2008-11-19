@@ -198,8 +198,8 @@ cman_handle_t cman_admin_init(void *privdata);
 int cman_finish(cman_handle_t handle);
 
 /* Update/retrieve the private data */
-int cman_setprivdata(cman_handle_t *h, void *privdata);
-int cman_getprivdata(cman_handle_t *h, void **privdata);
+int cman_setprivdata(cman_handle_t h, void *privdata);
+int cman_getprivdata(cman_handle_t h, void **privdata);
 
 /*
  * Notification of membership change events. Note that these are sent after
