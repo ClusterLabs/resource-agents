@@ -25,6 +25,7 @@ static unsigned int num_ents = DEFAULT_ENTRIES;
 static unsigned int head_ent, tail_ent; /* add at head, remove from tail */
 static unsigned int dropped;
 static unsigned int pending_ents;
+static unsigned int done;
 static pthread_t thread_handle;
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
@@ -74,6 +75,10 @@ static void *thread_fn(void *arg)
 	while (1) {
 		pthread_mutex_lock(&mutex);
 		while (head_ent == tail_ent) {
+			if (done) {
+				pthread_mutex_unlock(&mutex);
+				goto out;
+			}
 			pthread_cond_wait(&cond, &mutex);
 		}
 
@@ -96,6 +101,8 @@ static void *thread_fn(void *arg)
 
 		write_entry(level, &time, str);
 	}
+ out:
+	pthread_exit(NULL);
 }
 
 static void _logt_print(int level, char *fmt, va_list ap)
@@ -118,8 +125,8 @@ static void _logt_print(int level, char *fmt, va_list ap)
 	e->level = level;
 	e->time = time(NULL);
  out:
-	pthread_mutex_unlock(&mutex);
 	pthread_cond_signal(&cond);
+	pthread_mutex_unlock(&mutex);
 }
 
 void logt_print(int level, char *fmt, ...)
@@ -176,9 +183,6 @@ void logt_conf(char *name, int mode, int syslog_facility, int syslog_priority,
 int logt_init(char *name, int mode, int syslog_facility, int syslog_priority,
 	      int logfile_priority, char *logfile)
 {
-	pthread_attr_t attr;
-	int rv;
-
 	_conf(name, mode, syslog_facility, syslog_priority, logfile_priority,
 	      logfile);
 
@@ -187,33 +191,18 @@ int logt_init(char *name, int mode, int syslog_facility, int syslog_priority,
 		return -1;
 	memset(ents, 0, num_ents * sizeof(struct entry));
 
-	pthread_attr_init(&attr);
-	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-
-	rv = pthread_create(&thread_handle, &attr, thread_fn, NULL);
-
-	pthread_attr_destroy(&attr);
-	return rv;
+	return pthread_create(&thread_handle, NULL, thread_fn, NULL);
 }
 
 void logt_exit(void)
 {
-	void *status;
-	int i = 0;
-
-	/* there must be a better way of ensuring the thread
-	   finishes its work before terminating from cancel */
-	while (i++ < 100) {
-		pthread_mutex_lock(&mutex);
-		if (!pending_ents) {
-			pthread_mutex_unlock(&mutex);
-			break;
-		}
-		pthread_mutex_unlock(&mutex);
-		usleep(5000);
-	}
-	pthread_cancel(thread_handle);
-	pthread_join(thread_handle, &status);
+	pthread_mutex_lock(&mutex);
+	done = 1;
+	pthread_cond_signal(&cond);
+	pthread_mutex_unlock(&mutex);
+	pthread_join(thread_handle, NULL);
+	pthread_cond_destroy(&cond);
+	pthread_mutex_destroy(&mutex);
 	free(ents);
 }
 
@@ -222,8 +211,10 @@ int main(int argc, char **argv)
 {
 	logt_init("test", LOG_MODE_OUTPUT_FILE|LOG_MODE_OUTPUT_SYSLOG,
 		  LOG_DAEMON, LOG_DEBUG, LOG_DEBUG, "/tmp/logthread");
-	logt_print(LOG_DEBUG, "test debugging message %d\n", argc);
-	logt_print(LOG_ERR, "test error message %d\n", argc);
+	logt_print(LOG_DEBUG, "debugging message %d\n", argc);
+	logt_print(LOG_ERR, "error message %d\n", argc);
+	sleep(1);
+	logt_print(LOG_DEBUG, "second debug message\n");
 	logt_exit();
 	return 0;
 }
