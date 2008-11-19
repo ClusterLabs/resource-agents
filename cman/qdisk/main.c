@@ -54,6 +54,8 @@ inline void _diff_tv(struct timeval *dest, struct timeval *start,
 static int _running = 1, _reconfig = 0;
 static void update_local_status(qd_ctx *ctx, node_info_t *ni, int max, int score,
 		    	 int score_req, int score_max);
+static int get_config_data(qd_ctx *ctx, struct h_data *h, int maxh, int *cfh,
+			   int debug, int trylater);
 
 
 static void
@@ -276,7 +278,7 @@ check_transitions(qd_ctx *ctx, node_info_t *ni, int max, memb_mask_t mask)
 				if (ctx->qc_flags & RF_ALLOW_KILL) {
 					log_printf(LOG_DEBUG, "Telling CMAN to "
 						"kill the node\n");
-					cman_kill_node(ctx->qc_ch,
+					cman_kill_node(ctx->qc_cman_admin,
 						ni[x].ni_status.ps_nodeid);
 				}
 			}
@@ -312,7 +314,7 @@ check_transitions(qd_ctx *ctx, node_info_t *ni, int max, memb_mask_t mask)
 			if (ctx->qc_flags & RF_ALLOW_KILL) {
 				log_printf(LOG_DEBUG, "Telling CMAN to "
 					"kill the node\n");
-				cman_kill_node(ctx->qc_ch,
+				cman_kill_node(ctx->qc_cman_admin,
 					ni[x].ni_status.ps_nodeid);
 			}
 			continue;
@@ -548,7 +550,7 @@ check_cman(qd_ctx *ctx, memb_mask_t mask, memb_mask_t master_mask)
 	cman_node_t nodes[MAX_NODES_DISK];
 	int retnodes, x;
 
-	if (cman_get_nodes(ctx->qc_ch, MAX_NODES_DISK,
+	if (cman_get_nodes(ctx->qc_cman_admin, MAX_NODES_DISK,
 			   &retnodes, nodes) <0 )
 		return;
 
@@ -817,21 +819,18 @@ cman_wait(cman_handle_t ch, struct timeval *_tv)
 static void
 process_cman_event(cman_handle_t handle, void *private, int reason, int arg)
 {
+	qd_ctx *ctx = (qd_ctx *)private;
+
 	switch(reason) {
-#if defined(LIBCMAN_VERSION)
-#if LIBCMAN_VERSION >= 2
 	case CMAN_REASON_PORTOPENED:
 		break;
 	case CMAN_REASON_TRY_SHUTDOWN:
 		_running = 0;
 		break;
-#if LIBCMAN_VERSION >= 3
 	case CMAN_REASON_CONFIG_UPDATE:
-		_reconfig = 1;
+		get_config_data(ctx, NULL, 0, NULL,
+				!!(ctx->qc_flags&RF_DEBUG), 1);
 		break;
-#endif /* >= 3 */
-#endif /* >= 2 */
-#endif /* defined... */
 	case CMAN_REASON_PORTCLOSED:
 		break;
 	case CMAN_REASON_STATECHANGE:
@@ -867,6 +866,12 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 	
 	_running = 1;
 	while (_running) {
+		if (_reconfig) {
+			get_config_data(ctx, NULL, 0, NULL,
+					!!(ctx->qc_flags&RF_DEBUG), 1);
+			_reconfig = 0;
+		}
+
 		/* XXX this was getuptime() in clumanager */
 		get_time(&oldtime, (ctx->qc_flags&RF_UPTIME));
 		
@@ -899,11 +904,11 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 				msg.m_msg = M_NONE;
 				++msg.m_seq;
 				bid_pending = 0;
-				if (cman_wait(ctx->qc_ch, NULL) < 0) {
+				if (cman_wait(ctx->qc_cman_user, NULL) < 0) {
 					log_printf(LOG_ERR, "cman: %s\n",
 					       strerror(errno));
 				} else {
-					cman_poll_quorum_device(ctx->qc_ch, 0);
+					cman_poll_quorum_device(ctx->qc_cman_admin, 0);
 				}
 				if (ctx->qc_flags & RF_REBOOT)
 					reboot(RB_AUTOBOOT);
@@ -1007,7 +1012,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 			/* We are the master.  Poll the quorum device.
 			   We can't be the master unless we score high
 			   enough on our heuristics. */
-			if (cman_wait(ctx->qc_ch, NULL) < 0) {
+			if (cman_wait(ctx->qc_cman_user, NULL) < 0) {
 				log_printf(LOG_ERR, "cman_dispatch: %s\n",
 				       strerror(errno));
 				log_printf(LOG_ERR,
@@ -1016,7 +1021,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 			}
 			check_cman(ctx, mask, master_mask);
 			if (!errors)
-				cman_poll_quorum_device(ctx->qc_ch, 1);
+				cman_poll_quorum_device(ctx->qc_cman_admin, 1);
 
 		} else if (ctx->qc_status == S_RUN && ctx->qc_master &&
 			   ctx->qc_master != ctx->qc_my_id) {
@@ -1028,7 +1033,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 			      ni[ctx->qc_master-1].ni_status.ps_master_mask,
 				       ctx->qc_my_id-1,
 				       sizeof(memb_mask_t))) {
-				if (cman_wait(ctx->qc_ch, NULL) < 0) {
+				if (cman_wait(ctx->qc_cman_user, NULL) < 0) {
 					log_printf(LOG_ERR, "cman_dispatch: %s\n",
 						strerror(errno));
 					log_printf(LOG_ERR,
@@ -1036,7 +1041,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 					return -1;
 				}
 				if (!errors)
-					cman_poll_quorum_device(ctx->qc_ch, 1);
+					cman_poll_quorum_device(ctx->qc_cman_admin, 1);
 			}
 		}
 		
@@ -1099,8 +1104,9 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 		}
 		
 		/* Could hit a watchdog timer here if we wanted to */
-		if (_running)
-			cman_wait(ctx->qc_ch, &sleeptime);
+		if (_running) {
+			cman_wait(ctx->qc_cman_user, &sleeptime);
+		}
 	}
 
 	return !!errors;
@@ -1428,8 +1434,7 @@ get_config_data(qd_ctx *ctx, struct h_data *h, int maxh,
 	}
 
 	if (ctx->qc_config) {
-		ccs_disconnect(ccsfd);
-		return 0;
+		goto out;
 	}
 	ctx->qc_config = 1;
 
@@ -1543,6 +1548,7 @@ get_config_data(qd_ctx *ctx, struct h_data *h, int maxh,
 	log_printf(LOG_DEBUG,
 	       "Quorum Daemon: %d heuristics, %d interval, %d tko, %d votes\n",
 	       *cfh, ctx->qc_interval, ctx->qc_tko, ctx->qc_votes);
+out:
 	log_printf(LOG_DEBUG, "Run Flags: %08x\n", ctx->qc_flags);
 
 	ccs_disconnect(ccsfd);
@@ -1560,10 +1566,10 @@ check_stop_cman(qd_ctx *ctx)
 	log_printf(LOG_WARNING, "Telling CMAN to leave the cluster; qdisk is not"
 		" available\n");
 #if (defined(LIBCMAN_VERSION) && LIBCMAN_VERSION >= 2)
-	if (cman_shutdown(ctx->qc_ch, 0) < 0) {
+	if (cman_shutdown(ctx->qc_cman_admin, 0) < 0) {
 #else
 	int x = 0;
-	if (ioctl(cman_get_fd(ctx->qc_ch), SIOCCLUSTER_LEAVE_CLUSTER, &x) < 0) {
+	if (ioctl(cman_get_fd(ctx->qc_cman_admin), SIOCCLUSTER_LEAVE_CLUSTER, &x) < 0) {
 #endif
 		log_printf(LOG_CRIT, "Could not leave the cluster - rebooting\n");
 		sleep(5);
@@ -1580,7 +1586,8 @@ main(int argc, char **argv)
 	cman_node_t me;
 	int cfh = 0, rv, forked = 0, nfd = -1, ret = -1;
 	qd_ctx ctx;
-	cman_handle_t ch = NULL;
+	cman_handle_t ch_admin = NULL;
+	cman_handle_t ch_user = NULL;
 	node_info_t ni[MAX_NODES_DISK];
 	struct h_data h[10];
 	int debug = 0, foreground = 0, trylater = 0;
@@ -1630,12 +1637,9 @@ main(int argc, char **argv)
 	if (trylater)
 		logsys_config_mode_set (LOG_MODE_OUTPUT_STDERR | LOG_MODE_OUTPUT_SYSLOG_THREADED | LOG_MODE_OUTPUT_FILE | LOG_MODE_FLUSH_AFTER_CONFIG);	
 
-#if (defined(LIBCMAN_VERSION) && LIBCMAN_VERSION >= 2)
-	ch = cman_admin_init(NULL);
-#else
-	ch = cman_init(NULL);
-#endif
-	if (!ch) {
+	ch_admin = cman_admin_init(NULL);
+
+	if (!ch_admin) {
 		if (!foreground && !forked) {
 			if (daemon_init(argv[0]) < 0)
 				goto out;
@@ -1647,21 +1651,24 @@ main(int argc, char **argv)
 		
 		do {
 			sleep(5);
-#if (defined(LIBCMAN_VERSION) && LIBCMAN_VERSION >= 2)
-			ch = cman_admin_init(NULL);
-#else
-			ch = cman_init(NULL);
-#endif
-		} while (!ch);
+			ch_admin = cman_admin_init(NULL);
+		} while (!ch_admin);
 	}
 
-        if (cman_start_notification(ch, process_cman_event) != 0) {
-		cman_finish(ch);
+	/* For cman notifications we need two sockets - one for events,
+	   one for config change callbacks */
+	ch_user = cman_init(&ctx);
+
+        if (cman_start_notification(ch_user, process_cman_event) != 0) {
+		log_printf(LOG_CRIT, "Could not register with CMAN: %s\n",
+			   strerror(errno));
+		cman_finish(ch_user);
+		cman_finish(ch_admin);
 		return -1;
 	}
 
 	memset(&me, 0, sizeof(me));
-	while (cman_get_node(ch, CMAN_NODEID_US, &me) < 0) {
+	while (cman_get_node(ch_admin, CMAN_NODEID_US, &me) < 0) {
 		if (!foreground && !forked) {
 			if (daemon_init(argv[0]) < 0)
 				goto out;
@@ -1671,7 +1678,7 @@ main(int argc, char **argv)
 		sleep(5);
 	}
 
-	qd_init(&ctx, ch, me.cn_nodeid);
+	qd_init(&ctx, ch_admin, ch_user, me.cn_nodeid);
 
 	signal(SIGINT, int_handler);
 	signal(SIGTERM, int_handler);
@@ -1739,7 +1746,7 @@ main(int argc, char **argv)
 	if (!_running)
 		goto out;
 	
-	cman_register_quorum_device(ctx.qc_ch,
+	cman_register_quorum_device(ctx.qc_cman_admin,
 				    (ctx.qc_flags&RF_CMAN_LABEL)? 
 				        ctx.qc_cman_label:
                                         ctx.qc_device,
@@ -1747,7 +1754,7 @@ main(int argc, char **argv)
 	/*
 		XXX this always returns -1 / EBUSY even when it works?!!!
 		
-	if ((rv = cman_register_quorum_device(ctx.qc_ch, ctx.qc_device,
+	if ((rv = cman_register_quorum_device(ctx.qc_cman_admin, ctx.qc_device,
 					      ctx.qc_votes)) < 0) {
 		log_printf(LOG_CRIT,
 				 "Could not register %s with CMAN; "
@@ -1757,12 +1764,13 @@ main(int argc, char **argv)
 	}
 	*/
 	if (quorum_loop(&ctx, ni, MAX_NODES_DISK) == 0)
-		cman_unregister_quorum_device(ctx.qc_ch);
+		cman_unregister_quorum_device(ctx.qc_cman_admin);
 
 	quorum_logout(&ctx);
 	/* free cman handle to avoid leak in cman */
 out:
-	cman_finish(ctx.qc_ch);
+	cman_finish(ch_admin);
+	cman_finish(ch_user);
 	qd_destroy(&ctx);
 	logsys_exit();
 	return ret;

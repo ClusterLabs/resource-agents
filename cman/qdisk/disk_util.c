@@ -227,7 +227,7 @@ generate_token(void)
   Initialize a quorum disk context, given a CMAN handle and a nodeid.
  */
 int
-qd_init(qd_ctx *ctx, cman_handle_t ch, int me)
+qd_init(qd_ctx *ctx, cman_handle_t ch_admin, cman_handle_t ch, int me)
 {
 	if (!ctx || !ch || !me) {
 		errno = EINVAL;
@@ -236,7 +236,8 @@ qd_init(qd_ctx *ctx, cman_handle_t ch, int me)
 
 	memset(ctx, 0, sizeof(*ctx));
 	ctx->qc_incarnation = generate_token();
-	ctx->qc_ch = ch;
+	ctx->qc_cman_admin = ch_admin;
+	ctx->qc_cman_user = ch;
 	ctx->qc_my_id = me;
 	ctx->qc_config = 0;
 

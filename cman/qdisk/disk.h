@@ -248,7 +248,8 @@ typedef struct {
 	disk_node_state_t qc_disk_status;
 	disk_node_state_t qc_status;
 	run_flag_t qc_flags;
-	cman_handle_t qc_ch;
+	cman_handle_t qc_cman_admin;
+	cman_handle_t qc_cman_user;
 	char *qc_device;
 	char *qc_label;
 	char *qc_status_file;
@@ -270,7 +271,8 @@ typedef struct {
 
 int qd_write_status(qd_ctx *ctx, int nid, disk_node_state_t state,
 		    disk_msg_t *msg, memb_mask_t mask, memb_mask_t master);
-int qd_init(qd_ctx *ctx, cman_handle_t ch, int me);
+int qd_init(qd_ctx *ctx, cman_handle_t ch_admin,
+	    cman_handle_t ch_user, int me);
 void qd_destroy(qd_ctx *ctx);
 
 /* proc.c */
