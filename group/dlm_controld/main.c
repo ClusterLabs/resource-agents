@@ -1065,8 +1065,8 @@ static void print_usage(void)
 	printf("\n");
 	printf("Options:\n");
 	printf("\n");
-	printf("  -D		Enable daemon debugging and don't fork\n");
-	printf("  -L <num>	Enable (1) or disable (0) debugging to logsys (default %d)\n", DEFAULT_DEBUG_LOGSYS);
+	printf("  -D		Enable debugging to stderr and don't fork\n");
+	printf("  -L		Enable debugging to log file\n");
 	printf("  -K		Enable kernel dlm debugging messages\n");
 	printf("  -g <num>	groupd compatibility mode, 0 off, 1 on, 2 detect\n");
 	printf("		0: use libcpg, no backward compat, best performance\n");
@@ -1097,7 +1097,7 @@ static void print_usage(void)
 	printf("  -V		Print program version information, then exit\n");
 }
 
-#define OPTION_STRING "L:DKg:f:q:d:p:Pl:o:t:c:a:hV"
+#define OPTION_STRING "LDKg:f:q:d:p:Pl:o:t:c:a:hV"
 
 static void read_arguments(int argc, char **argv)
 {
@@ -1118,8 +1118,8 @@ static void read_arguments(int argc, char **argv)
 			break;
 
 		case 'L':
-			optd_debug_logsys = 1;
-			cfgd_debug_logsys = atoi(optarg);
+			optd_debug_logfile = 1;
+			cfgd_debug_logfile = 1;
 			break;
 
 		case 'g':
@@ -1211,9 +1211,9 @@ static void read_arguments(int argc, char **argv)
 		};
 	}
 
-	if (!optd_debug_logsys && getenv("DLM_CONTROLD_DEBUG")) {
-		optd_debug_logsys = 1;
-		cfgd_debug_logsys = atoi(getenv("DLM_CONTROLD_DEBUG"));
+	if (getenv("DLM_CONTROLD_DEBUG")) {
+		optd_debug_logfile = 1;
+		cfgd_debug_logfile = 1;
 	}
 }
 
@@ -1318,7 +1318,7 @@ int optk_debug;
 int optk_timewarn;
 int optk_protocol;
 int optd_groupd_compat;
-int optd_debug_logsys;
+int optd_debug_logfile;
 int optd_enable_fencing;
 int optd_enable_quorum;
 int optd_enable_deadlk;
@@ -1337,7 +1337,7 @@ int cfgk_debug                  = -1;
 int cfgk_timewarn               = -1;
 int cfgk_protocol               = -1;
 int cfgd_groupd_compat          = DEFAULT_GROUPD_COMPAT;
-int cfgd_debug_logsys           = DEFAULT_DEBUG_LOGSYS;
+int cfgd_debug_logfile		= DEFAULT_DEBUG_LOGFILE;
 int cfgd_enable_fencing         = DEFAULT_ENABLE_FENCING;
 int cfgd_enable_quorum          = DEFAULT_ENABLE_QUORUM;
 int cfgd_enable_deadlk          = DEFAULT_ENABLE_DEADLK;

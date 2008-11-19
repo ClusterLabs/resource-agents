@@ -33,7 +33,7 @@
 #include <openais/saAis.h>
 #include <openais/saCkpt.h>
 #include <corosync/cpg.h>
-#include <corosync/engine/logsys.h>
+#include <liblogthread.h>
 
 #include <linux/dlmconstants.h>
 #include "libdlmcontrol.h"
@@ -91,37 +91,30 @@ extern uint32_t old_plock_minor;
 
 void daemon_dump_save(void);
 
-#define log_debug(fmt, args...) \
+#define log_level(lvl, fmt, args...) \
 do { \
-	snprintf(daemon_debug_buf, 255, "%ld " fmt "\n", time(NULL), ##args); \
+	snprintf(daemon_debug_buf, 255, fmt "\n", ##args); \
 	daemon_dump_save(); \
+	logt_print(lvl, "%s", daemon_debug_buf); \
 	if (daemon_debug_opt) \
 		fprintf(stderr, "%s", daemon_debug_buf); \
-	if (cfgd_debug_logsys) \
-		log_printf(LOG_DEBUG, "%s", daemon_debug_buf); \
 } while (0)
+
+#define log_debug(fmt, args...) log_level(LOG_DEBUG, fmt, ##args)
+#define log_error(fmt, args...) log_level(LOG_ERR, fmt, ##args)
 
 #define log_group(ls, fmt, args...) \
 do { \
-	snprintf(daemon_debug_buf, 255, "%ld %s " fmt "\n", time(NULL), \
-		 (ls)->name, ##args); \
+	snprintf(daemon_debug_buf, 255, "%s " fmt "\n", (ls)->name, ##args); \
 	daemon_dump_save(); \
+	logt_print(LOG_DEBUG, "%s", daemon_debug_buf); \
 	if (daemon_debug_opt) \
 		fprintf(stderr, "%s", daemon_debug_buf); \
-	if (cfgd_debug_logsys) \
-		log_printf(LOG_DEBUG, "%s", daemon_debug_buf); \
-} while (0)
-
-#define log_error(fmt, args...) \
-do { \
-	log_debug(fmt, ##args); \
-	log_printf(LOG_ERR, fmt, ##args); \
 } while (0)
 
 #define log_plock(ls, fmt, args...) \
 do { \
-	snprintf(daemon_debug_buf, 255, "%ld %s " fmt "\n", time(NULL), \
-		 (ls)->name, ##args); \
+	snprintf(daemon_debug_buf, 255, "%s " fmt "\n", (ls)->name, ##args); \
 	if (daemon_debug_opt && cfgd_plock_debug) \
 		fprintf(stderr, "%s", daemon_debug_buf); \
 } while (0)

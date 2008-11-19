@@ -28,7 +28,7 @@
 #define PROTO_TCP  1
 #define PROTO_SCTP 2
 
-static int ccs_handle;
+int ccs_handle;
 
 /* when not set in cluster.conf, a node's default weight is 1 */
 

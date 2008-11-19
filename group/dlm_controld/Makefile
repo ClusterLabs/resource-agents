@@ -22,7 +22,7 @@ OBJS=	action.o \
 	group.o \
 	logging.o
 
-CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmincdir} -I${dlmcontrolincdir}
+CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${logtincdir} -I${dlmincdir} -I${dlmcontrolincdir}
 CFLAGS += -I${corosyncincdir} -I${openaisincdir}
 CFLAGS += -I$(SRCDIR)/fence/libfenced/
 CFLAGS += -I${KERNEL_SRC}/include/
@@ -31,7 +31,7 @@ CFLAGS += -I${incdir}
 
 LDFLAGS += -L${ccslibdir} -L${cmanlibdir} -lccs -lcman
 LDFLAGS += -L${dlmlibdir} -ldlm
-LDFLAGS += -L${corosynclibdir} -lcpg -llogsys -lpthread
+LDFLAGS += -L${corosynclibdir} -lcpg -llogthread -lpthread
 LDFLAGS += -L${openaislibdir} -lSaCkpt 
 LDFLAGS += -L../../fence/libfenced/ -lfenced
 LDFLAGS += -L../lib -lgroup
