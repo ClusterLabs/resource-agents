@@ -17,7 +17,7 @@ CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${corosyncincdir}
 CFLAGS += -I$(S)
 CFLAGS += -I${incdir}
 
-LDFLAGS += -L${corosynclibdir} -llogsys -lpthread
+LDFLAGS += -L${corosynclibdir} -llogsys -lpthread -lz
 LDFLAGS += -L${libdir}
 
 EXTRA_LDFLAGS += -L${cmanlibdir} -L${ccslibdir} -lcman -lccs

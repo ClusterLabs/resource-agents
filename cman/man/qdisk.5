@@ -243,21 +243,22 @@ has a high enough score.
 \fIlog_level\fP\fB="\fP4\fB"\fP
 .in 12
 This controls the verbosity of the quorum daemon in the system logs.
-0 = emergencies; 7 = debug.
+0 = emergencies; 7 = debug.  This option is deprecated.
 
 .in 9
 \fIlog_facility\fP\fB="\fPdaemon\fB"\fP
 .in 12
 This controls the syslog facility used by the quorum daemon when logging.
 For a complete list of available facilities, see \fBsyslog.conf(5)\fP.
-The default value for this is 'daemon'.
+The default value for this is 'daemon'.  This option is deprecated.
 
 .in 9
 \fIstatus_file\fP\fB="\fP/foo\fB"\fP
 .in 12
 Write internal states out to this file periodically ("-" = use stdout).
 This is primarily used for debugging.  The default value for this 
-attribute is undefined.
+attribute is undefined.  This option can be changed while qdiskd is
+running.
 
 .in 9
 \fImin_score\fP\fB="\fP3\fB"\fP
@@ -273,21 +274,24 @@ disk will never be available.
 .in 12
 If set to 0 (off), qdiskd will *not* reboot after a negative transition
 as a result in a change in score (see section 2.2).  The default for
-this value is 1 (on).
+this value is 1 (on).  This option can be changed while qdiskd is
+running.
 
 .in 9
 \fIallow_kill\fP\fB="\fP1\fB"\fP
 .in 12
 If set to 0 (off), qdiskd will *not* instruct to kill nodes it thinks
 are dead (as a result of not writing to the quorum disk).  The default
-for this value is 1 (on).
+for this value is 1 (on).  This option can be changed while qdiskd 
+is running.
 
 .in 9
 \fIparanoid\fP\fB="\fP0\fB"\fP
 .in 12
 If set to 1 (on), qdiskd will watch internal timers and reboot the node
 if it takes more than (interval * tko) seconds to complete a quorum disk
-pass.  The default for this value is 0 (off).
+pass.  The default for this value is 0 (off).  This option can be changed
+while qdiskd is running.
 
 .in 9
 \fIscheduler\fP\fB="\fPrr\fB"\fP
@@ -304,6 +308,7 @@ Valid values for 'rr' and 'fifo' are 1..100 inclusive.  Valid values
 for 'other' are -20..20 inclusive.  Sets the priority of the main & score
 threads.  The default value is 1 (in the RR and FIFO queues, higher numbers
 denote higher priority; in OTHER, lower values denote higher priority).
+This option can be changed while qdiskd is running.
 
 .in 9
 \fIstop_cman\fP\fB="\fP0\fB"\fP
@@ -313,6 +318,7 @@ If this parameter is set to 1 (on), qdiskd will tell CMAN to leave the
 cluster if it is unable to initialize the quorum disk during startup.  This
 can be used to prevent cluster participation by a node which has been 
 disconnected from the SAN.  The default for this value is 0 (off).
+This option can be changed while qdiskd is running.
 
 .in 9
 \fIuse_uptime\fP\fB="\fP1\fB"\fP
@@ -352,14 +358,16 @@ device name.
 If we receive an I/O error during a cycle, we do not poll CMAN and tell
 it we are alive.  If specified, this value will cause qdiskd to exit
 after the specified number of consecutive cycles during which I/O errors
-occur.  The default is 0 (no maximum).
+occur.  The default is 0 (no maximum).  This option can be changed while
+qdiskd is running.
 
 .in 8
 \fB/>\fP
 .in 0
 
 .SH "3.2.  The <heuristic> tag"
-This tag is a child of the <quorumd> tag.
+This tag is a child of the <quorumd> tag.  Heuristics may not be changed
+while qdiskd is running.
 
 .in 8
 \fB<heuristic\fP
