@@ -26,6 +26,8 @@
 #define ST_POWEROFF 2
 #define ST_GENERIC_RESET 3
 
+#define DEFAULT_TIMEOUT 10
+
 #define log(lvl, fmt, args...) fprintf(stderr, fmt, ##args)
 #include <libgen.h>
 #include "copyright.cf"
@@ -59,6 +61,7 @@ struct ipmi {
 	int i_config;
 	int i_verbose;
 	int i_lanplus;
+	int i_timeout;
 };
 
 
@@ -276,31 +279,14 @@ static int
 ipmi_op(struct ipmi *ipmi, int op, struct Etoken *toklist)
 {
 	char cmd[2048];
-	int retries = 5; 
 	int ret;
 
 	build_cmd(cmd, sizeof(cmd), ipmi, op);
 
 	if (ipmi_spawn(ipmi, cmd) != 0)
 		return -1;
-	ret = ipmi_expect(ipmi, toklist, 120);
+	ret = ipmi_expect(ipmi, toklist, ipmi->i_timeout);
 	ipmi_reap(ipmi);
-
-	while ((ret == EAGAIN || ret == ETIMEDOUT) && retries > 0) {
-		dbg_printf(ipmi, 3, "Sleeping 5 ...\n");
-		sleep(5);
-		dbg_printf(ipmi, 1, "Retrying ...\n");
-		--retries;
-		
-		if (ipmi_spawn(ipmi, cmd) != 0)
-			return -1;
-		ret = ipmi_expect(ipmi, toklist, 120);
-		if (ret == EFAULT) {
-			/* Doomed. */
-			break;
-		}
-		ipmi_reap(ipmi);
-	}
 
 	if (ret == EFAULT) {
 		log(LOG_CRIT, "ipmilan: ipmitool failed to create "
@@ -308,10 +294,10 @@ ipmi_op(struct ipmi *ipmi, int op, struct Etoken *toklist)
 		return ret;
 	}
 
-	if (ret == EAGAIN) {
+	if (ret == ETIMEDOUT) {
 		/*!!! Still couldn't get through?! */
 		log(LOG_WARNING,
-		    "ipmilan: Failed to connect after 30 seconds\n");
+		    "ipmilan: Failed to connect after %d seconds\n",ipmi->i_timeout);
 	}
 
 	return ret;
@@ -432,7 +418,7 @@ ipmi_destroy(struct ipmi *i)
  */
 static struct ipmi *
 ipmi_init(struct ipmi *i, char *host, char *authtype,
-	  char *user, char *password, int lanplus, int verbose)
+	  char *user, char *password, int lanplus, int verbose,int timeout)
 {
 	const char *p;
 
@@ -503,6 +489,7 @@ ipmi_init(struct ipmi *i, char *host, char *authtype,
 	i->i_id = IPMIID;
 	i->i_verbose = verbose;
 	i->i_lanplus = lanplus;
+	i->i_timeout = timeout;
 
 	return i;
 }
@@ -565,7 +552,7 @@ get_options_stdin(char *ip, size_t iplen,
 		  char *pwd_script, size_t pwd_script_len,
 		  char *user, size_t userlen,
 		  char *op, size_t oplen,
-		  int *lanplus, int *verbose)
+		  int *lanplus, int *verbose,int *timeout)
 {
 	char in[256];
 	int line = 0;
@@ -627,6 +614,10 @@ get_options_stdin(char *ip, size_t iplen,
 				user[0] = 0;
 		} else if (!strcasecmp(name, "lanplus")) {
 			(*lanplus) = 1;
+		} else if (!strcasecmp(name,"timeout")) {
+			if ((sscanf(val,"%d",timeout)!=1) || *timeout<1) {
+			    *timeout=DEFAULT_TIMEOUT;
+			}
 		} else if (!strcasecmp(name, "option") ||
 			   !strcasecmp(name, "operation") ||
 			   !strcasecmp(name, "action")) {
@@ -666,6 +657,7 @@ printf("   -l <login>     Username/Login (if required) to control power\n"
        "                  on IPMI device\n");
 printf("   -o <op>        Operation to perform.\n");
 printf("                  Valid operations: on, off, reboot, status\n");
+printf("   -t <timeout>   Timeout (sec) for IPMI operation (default %d)\n",DEFAULT_TIMEOUT);
 printf("   -V             Print version and exit\n");
 printf("   -v             Verbose mode\n\n");
 printf("If no options are specified, the following options will be read\n");
@@ -679,6 +671,7 @@ printf("   login=<login>         Same as -u\n");
 printf("   option=<op>           Same as -o\n");
 printf("   operation=<op>        Same as -o\n");
 printf("   action=<op>           Same as -o\n");
+printf("   timeout=<timeout>     Same as -t\n");
 printf("   verbose               Same as -v\n\n");
 	exit(1);
 }
@@ -699,6 +692,7 @@ main(int argc, char **argv)
 	int verbose=0;
 	char *pname = basename(argv[0]);
 	struct ipmi *i;
+	int timeout=DEFAULT_TIMEOUT;
 
 	memset(ip, 0, sizeof(ip));
 	memset(authtype, 0, sizeof(authtype));
@@ -710,7 +704,7 @@ main(int argc, char **argv)
 		/*
 		   Parse command line options if any were specified
 		 */
-		while ((opt = getopt(argc, argv, "A:a:i:l:p:S:Po:vV?hH")) != EOF) {
+		while ((opt = getopt(argc, argv, "A:a:i:l:p:S:Po:vV?hHt:")) != EOF) {
 			switch(opt) {
 			case 'A':
 				/* Auth type */
@@ -740,6 +734,12 @@ main(int argc, char **argv)
 				/* Operation */
 				strncpy(op, optarg, sizeof(op));
 				break;
+			case 't':
+				/* Timeout */
+				if ((sscanf(optarg,"%d",&timeout)!=1) || timeout<1) {
+				    fail_exit("Timeout option expects positive number parameter");
+				}
+				break;
 			case 'v':
 				verbose++;
 				break;
@@ -763,7 +763,7 @@ main(int argc, char **argv)
 				      passwd, sizeof(passwd),
 					  pwd_script, sizeof(pwd_script),
 				      user, sizeof(user),
-				      op, sizeof(op), &lanplus, &verbose) != 0)
+				      op, sizeof(op), &lanplus, &verbose,&timeout) != 0)
 			return 1;
 	}
 
@@ -813,7 +813,7 @@ main(int argc, char **argv)
 
 
 	/* Ok, set up the IPMI struct */
-	i = ipmi_init(NULL, ip, authtype, user, passwd, lanplus, verbose);
+	i = ipmi_init(NULL, ip, authtype, user, passwd, lanplus, verbose, timeout);
 	if (!i)
 		fail_exit("Failed to initialize\n");
 
