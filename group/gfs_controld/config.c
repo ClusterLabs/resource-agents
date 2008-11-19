@@ -25,12 +25,12 @@
 #include "config.h"
 #include "ccs.h"
 
-static int ccs_handle;
+int ccs_handle;
 
 /* was a config value set on command line?, 0 or 1. */
 
 int optd_groupd_compat;
-int optd_debug_logsys;
+int optd_debug_logfile;
 int optd_enable_withdraw;
 int optd_enable_plock;
 int optd_plock_debug;
@@ -43,7 +43,7 @@ int optd_drop_resources_age;
 /* actual config value from command line, cluster.conf, or default. */
 
 int cfgd_groupd_compat		= DEFAULT_GROUPD_COMPAT;
-int cfgd_debug_logsys		= DEFAULT_DEBUG_LOGSYS;
+int cfgd_debug_logfile		= DEFAULT_DEBUG_LOGFILE;
 int cfgd_enable_withdraw	= DEFAULT_ENABLE_WITHDRAW;
 int cfgd_enable_plock		= DEFAULT_ENABLE_PLOCK;
 int cfgd_plock_debug		= DEFAULT_PLOCK_DEBUG;

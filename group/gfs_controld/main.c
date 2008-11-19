@@ -1299,8 +1299,8 @@ static void print_usage(void)
 	printf("\n");
 	printf("Options:\n");
 	printf("\n");
-	printf("  -D           Enable debugging code and don't fork\n");
-	printf("  -L <num>     Enable (1) or disable (0) debugging to logsys (default %d)\n", DEFAULT_DEBUG_LOGSYS);
+	printf("  -D           Enable debugging to stderr and don't fork\n");
+	printf("  -L           Enable debugging to log file\n");
 	printf("  -g <num>     groupd compatibility mode, 0 off, 1 on, 2 detect\n");
 	printf("               0: use libcpg, no backward compat, best performance\n");
 	printf("               1: use libgroup for compat with cluster2/rhel5\n");
@@ -1327,7 +1327,7 @@ static void print_usage(void)
 	printf("  -V           Print program version information, then exit\n");
 }
 
-#define OPTION_STRING "L:DKg:w:f:q:d:p:Pl:o:t:c:a:hV"
+#define OPTION_STRING "LDKg:w:f:q:d:p:Pl:o:t:c:a:hV"
 
 static void read_arguments(int argc, char **argv)
 {
@@ -1344,8 +1344,8 @@ static void read_arguments(int argc, char **argv)
 			break;
 
 		case 'L':
-			optd_debug_logsys = 1;
-			cfgd_debug_logsys = atoi(optarg);
+			optd_debug_logfile = 1;
+			cfgd_debug_logfile = 1;
 			break;
 
 		case 'g':
@@ -1422,9 +1422,9 @@ static void read_arguments(int argc, char **argv)
 		};
 	}
 
-	if (!optd_debug_logsys && getenv("GFS_CONTROLD_DEBUG")) {
-		optd_debug_logsys = 1;
-		cfgd_debug_logsys = atoi(getenv("GFS_CONTROLD_DEBUG"));
+	if (getenv("GFS_CONTROLD_DEBUG")) {
+		optd_debug_logfile = 1;
+		cfgd_debug_logfile = 1;
 	}
 }
 
