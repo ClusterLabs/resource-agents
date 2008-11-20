@@ -32,8 +32,14 @@
 #include <dirent.h>
 #include <openais/saAis.h>
 #include <openais/saCkpt.h>
+
+#ifdef ENABLE_PACEMAKER
+#include <openais/cpg.h>
+#define logt_print(lvl, fmt, args...) syslog(lvl, fmt "\n", ##args)
+#else
 #include <corosync/cpg.h>
 #include <liblogthread.h>
+#endif
 
 #include <linux/dlmconstants.h>
 #include "libdlmcontrol.h"
