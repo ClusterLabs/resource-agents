@@ -175,30 +175,31 @@ static void set_scheduler(void)
 static void init_logging(int reconf)
 {
 	int ccs_handle;
-	int mode =
-	    LOG_MODE_OUTPUT_FILE | LOG_MODE_OUTPUT_SYSLOG_THREADED |
-	    LOG_MODE_FILTER_DEBUG_FROM_SYSLOG;
-	int facility = SYSLOGFACILITY;
-	int priority = SYSLOGLEVEL;
-	char file[PATH_MAX];
+	int mode = LOG_MODE_OUTPUT_FILE | LOG_MODE_OUTPUT_SYSLOG;
+	int syslog_facility = SYSLOGFACILITY;
+	int syslog_priority = SYSLOGLEVEL;
+	char logfile[PATH_MAX];
+	int logfile_priority = SYSLOGLEVEL;
 
-	memset(file, 0, PATH_MAX);
-	sprintf(file, LOGDIR "/cmannotifyd.log");
+	memset(logfile, 0, PATH_MAX);
+	sprintf(logfile, LOGDIR "/cmannotifyd.log");
 
 	ccs_handle = ccs_connect();
 	if (ccs_handle > 0) {
-		ccs_read_logging(ccs_handle, "CMANNOTIFYD", &debug, &mode,
-				 &facility, &priority, file);
+		ccs_read_logging(ccs_handle, "cmannotifyd", &debug, &mode,
+				 &syslog_facility, &syslog_priority, &logfile_priority, logfile);
 		ccs_disconnect(ccs_handle);
 	}
 
+#if 0
 	if (!daemonize)
 		mode |= LOG_MODE_OUTPUT_STDERR;
+#endif
 
 	if (!reconf)
-		logt_init("CMANNOTIFYD", mode, facility, priority, file);
+		logt_init("cmannotifyd", mode, syslog_facility, syslog_priority, logfile_priority, logfile);
 	else
-		logt_conf("CMANNOTIFYD", mode, facility, priority, file);
+		logt_conf("cmannotifyd", mode, syslog_facility, syslog_priority, logfile_priority, logfile);
 }
 
 static void dispatch_notification(char *str, int *quorum)
