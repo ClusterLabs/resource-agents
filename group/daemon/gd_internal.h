@@ -72,38 +72,38 @@ void daemon_dump_save(void);
 
 #define log_debug(fmt, args...) \
 do { \
-	snprintf(daemon_debug_buf, 255, fmt "\n", ##args); \
+	snprintf(daemon_debug_buf, 255, "%ld " fmt "\n", time(NULL), ##args); \
 	daemon_dump_save(); \
-	logt_print(LOG_DEBUG, "%s", daemon_debug_buf); \
+	logt_print(LOG_DEBUG, fmt "\n", ##args); \
 	if (daemon_debug_opt) \
 		fprintf(stderr, "%s", daemon_debug_buf); \
 } while (0)
 
 #define log_group(g, fmt, args...) \
 do { \
-	snprintf(daemon_debug_buf, 255, "%d:%s " fmt "\n", \
+	snprintf(daemon_debug_buf, 255, "%ld %d:%s " fmt "\n", time(NULL), \
 		 (g)->level, (g)->name, ##args); \
 	daemon_dump_save(); \
-	logt_print(LOG_DEBUG, "%s", daemon_debug_buf); \
+	logt_print(LOG_DEBUG, fmt "\n", ##args); \
 	if (daemon_debug_opt) \
 		fprintf(stderr, "%s", daemon_debug_buf); \
 } while (0)
 
 #define log_print(fmt, args...) \
 do { \
-	snprintf(daemon_debug_buf, 255, fmt "\n", ##args); \
+	snprintf(daemon_debug_buf, 255, "%ld " fmt "\n", time(NULL), ##args); \
 	daemon_dump_save(); \
-	logt_print(LOG_ERR, "%s", daemon_debug_buf); \
+	logt_print(LOG_ERR, fmt "\n", ##args); \
 	if (daemon_debug_opt) \
 		fprintf(stderr, "%s", daemon_debug_buf); \
 } while (0)
 
 #define log_error(g, fmt, args...) \
 do { \
-	snprintf(daemon_debug_buf, 255, "%d:%s " fmt "\n", \
+	snprintf(daemon_debug_buf, 255, "%ld %d:%s " fmt "\n", time(NULL), \
 		 (g)->level, (g)->name, ##args); \
 	daemon_dump_save(); \
-	logt_print(LOG_ERR, "%s", daemon_debug_buf); \
+	logt_print(LOG_ERR, fmt "\n", ##args); \
 	if (daemon_debug_opt) \
 		fprintf(stderr, "%s", daemon_debug_buf); \
 } while (0)

@@ -91,9 +91,9 @@ void daemon_dump_save(void);
 
 #define log_level(lvl, fmt, args...) \
 do { \
-	snprintf(daemon_debug_buf, 255, fmt "\n", ##args); \
+	snprintf(daemon_debug_buf, 255, "%ld " fmt "\n", time(NULL), ##args); \
 	daemon_dump_save(); \
-	logt_print(lvl, "%s", daemon_debug_buf); \
+	logt_print(lvl, fmt "\n", ##args); \
 	if (daemon_debug_opt) \
 		fprintf(stderr, "%s", daemon_debug_buf); \
 } while (0)
@@ -103,16 +103,18 @@ do { \
 
 #define log_group(g, fmt, args...) \
 do { \
-	snprintf(daemon_debug_buf, 255, "%s " fmt "\n", (g)->name, ##args); \
+	snprintf(daemon_debug_buf, 255, "%ld %s " fmt "\n", time(NULL), \
+		 (g)->name, ##args); \
 	daemon_dump_save(); \
-	logt_print(LOG_DEBUG, "%s", daemon_debug_buf); \
+	logt_print(LOG_DEBUG, fmt "\n", ##args); \
 	if (daemon_debug_opt) \
 		fprintf(stderr, "%s", daemon_debug_buf); \
 } while (0)
 
 #define log_plock(g, fmt, args...) \
 do { \
-	snprintf(daemon_debug_buf, 255, "%s " fmt "\n", (g)->name, ##args); \
+	snprintf(daemon_debug_buf, 255, "%ld %s " fmt "\n", time(NULL), \
+		 (g)->name, ##args); \
 	if (daemon_debug_opt && cfgd_plock_debug) \
 		fprintf(stderr, "%s", daemon_debug_buf); \
 } while (0)

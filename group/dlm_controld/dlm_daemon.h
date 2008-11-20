@@ -46,7 +46,7 @@
    The libcpg limit is larger at CPG_MAX_NAME_LENGTH 128.  Our cpg name includes
    a "dlm:" prefix before the lockspace name. */
 
-/* Maximum members of a lockspace, should match CPG_MEMBERS_MAX in corosync/cpg.h.
+/* Maximum members of a ls, should match CPG_MEMBERS_MAX in corosync/cpg.h.
    There are no max defines in dlm-kernel for lockspace members. */
 
 #define MAX_NODES	128
@@ -93,9 +93,9 @@ void daemon_dump_save(void);
 
 #define log_level(lvl, fmt, args...) \
 do { \
-	snprintf(daemon_debug_buf, 255, fmt "\n", ##args); \
+	snprintf(daemon_debug_buf, 255, "%ld " fmt "\n", time(NULL), ##args); \
 	daemon_dump_save(); \
-	logt_print(lvl, "%s", daemon_debug_buf); \
+	logt_print(lvl, fmt "\n", ##args); \
 	if (daemon_debug_opt) \
 		fprintf(stderr, "%s", daemon_debug_buf); \
 } while (0)
@@ -105,16 +105,18 @@ do { \
 
 #define log_group(ls, fmt, args...) \
 do { \
-	snprintf(daemon_debug_buf, 255, "%s " fmt "\n", (ls)->name, ##args); \
+	snprintf(daemon_debug_buf, 255, "%ld %s " fmt "\n", time(NULL), \
+		 (ls)->name, ##args); \
 	daemon_dump_save(); \
-	logt_print(LOG_DEBUG, "%s", daemon_debug_buf); \
+	logt_print(LOG_DEBUG, fmt "\n", ##args); \
 	if (daemon_debug_opt) \
 		fprintf(stderr, "%s", daemon_debug_buf); \
 } while (0)
 
 #define log_plock(ls, fmt, args...) \
 do { \
-	snprintf(daemon_debug_buf, 255, "%s " fmt "\n", (ls)->name, ##args); \
+	snprintf(daemon_debug_buf, 255, "%ld %s " fmt "\n", time(NULL), \
+		 (ls)->name, ##args); \
 	if (daemon_debug_opt && cfgd_plock_debug) \
 		fprintf(stderr, "%s", daemon_debug_buf); \
 } while (0)

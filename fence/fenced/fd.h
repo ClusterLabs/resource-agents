@@ -76,9 +76,9 @@ extern void daemon_dump_save(void);
 
 #define log_level(lvl, fmt, args...) \
 do { \
-	snprintf(daemon_debug_buf, 255, fmt "\n", ##args); \
+	snprintf(daemon_debug_buf, 255, "%ld " fmt "\n", time(NULL), ##args); \
 	daemon_dump_save(); \
-	logt_print(lvl, "%s", daemon_debug_buf); \
+	logt_print(lvl, fmt "\n", ##args); \
 	if (daemon_debug_opt) \
 		fprintf(stderr, "%s", daemon_debug_buf); \
 } while (0)
