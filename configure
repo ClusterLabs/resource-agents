@@ -60,6 +60,8 @@ my %options = (
 	corosyncbin => \$corosyncbin,
 	virtincdir => \$virtincdir,
 	virtlibdir => \$virtlibdir,
+	zlibincdir => \$zlibincdir,
+	zliblibdir => \$zliblibdir,
 	nssincdir => \$nssincdir,
 	nsslibdir => \$nsslibdir,
 	nsprincdir => \$nsprincdir,
@@ -148,6 +150,8 @@ my $err = &GetOptions (\%options,
 		    'corosyncbin=s',
 		    'virtincdir=s',
 		    'virtlibdir=s',
+		    'zlibincdir=s',
+		    'zliblibdir=s',
 		    'nssincdir=s',
 		    'nsslibdir=s',
 		    'nsprincdir=s',
@@ -264,6 +268,8 @@ if ($help || !$err) {
   print "--nsprlibdir=\tthe base directory for libnspr libraries.  (Default: {libdir})\n";
   print "--virtincdir=\tthe base directory for libvirt include files.  (Default: {incdir}/libvirt)\n";
   print "--virtlibdir=\tthe base directory for libvirt libraries.  (Default: {libdir})\n";
+  print "--zlibincdir=\tthe base directory for libz include files.  (Default: {incdir})\n";
+  print "--zliblibdir=\tthe base directory for libz libraries.  (Default: {libdir})\n";
   print "--xenincdir=\tthe base directory for xen include files.  (Default: {incdir}/xen)\n";
   print "--xenlibdir=\tthe base directory for xen libraries.  (Default: {libdir})\n";
   print "--ldapincdir=\tthe base directory for ldap include files.  (Default: {incdir})\n";
@@ -534,6 +540,12 @@ if (!$virtincdir) {
 if (!$virtlibdir) {
   $virtlibdir="${libdir}";
 }
+if (!$zlibincdir) {
+  $zlibincdir="${incdir}";
+}
+if (!$zliblibdir) {
+  $zliblibdir="${libdir}";
+}
 if (!$xenincdir) {
   $xenincdir="${incdir}/xen";
 }
@@ -740,6 +752,8 @@ while (<IFILE>) {
   $_ =~ s/\@NSPRLIBDIR\@/$nsprlibdir/;
   $_ =~ s/\@VIRTINCDIR\@/$virtincdir/;
   $_ =~ s/\@VIRTLIBDIR\@/$virtlibdir/;
+  $_ =~ s/\@ZLIBINCDIR\@/$zlibincdir/;
+  $_ =~ s/\@ZLIBLIBDIR\@/$zliblibdir/;
   $_ =~ s/\@LIBEXECDIR\@/$libexecdir/;
   $_ =~ s/\@MANDIR\@/$mandir/;
   $_ =~ s/\@SBINDIR\@/$sbindir/;

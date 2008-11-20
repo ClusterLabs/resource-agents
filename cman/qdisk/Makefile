@@ -13,11 +13,13 @@ include $(OBJDIR)/make/uninstall.mk
 
 CFLAGS += -D_GNU_SOURCE
 CFLAGS += -Werror -Wstrict-prototypes -Wshadow
-CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${corosyncincdir}
+CFLAGS += -I${ccsincdir} -I${cmanincdir}
+CFLAGS += -I${zlibincdir} -I${corosyncincdir}
 CFLAGS += -I$(S)
 CFLAGS += -I${incdir}
 
-LDFLAGS += -L${corosynclibdir} -llogsys -lpthread -lz
+LDFLAGS += -L${corosynclibdir} -llogsys -lpthread
+LDFLAGS += -L${zliblibdir} -lz
 LDFLAGS += -L${libdir}
 
 EXTRA_LDFLAGS += -L${cmanlibdir} -L${ccslibdir} -lcman -lccs
