@@ -138,34 +138,73 @@ ipmitool_path(void)
 }
 
 
+/** Prepare string for use in sh style environment. This function take source
+  string and prepend/append quote (') to start/end of source string to dest
+  string. Any occurence of quote in source string is replaced by '\'' sequence.
+  Dest string must be preallocated.
+
+  @param dest Destination string
+  @param source Source string
+  @param max_len Maximum length of data written to dest string (including end 0)
+  @return Pointer to start of destination string.
+*/
+char *str_prepare_for_sh(char *dest,char *source,int max_len) {
+  char *dest_p=dest;
+  char *max_dest=dest+max_len;
+
+  if (dest_p+1>=max_dest) {*dest_p=0;return dest;}
+  *dest_p++='\'';
+
+  while (*source) {
+    if (*source=='\'') {
+      if (dest_p+4>=max_dest) {*dest_p=0;return dest;}
+
+      memcpy(dest_p,"'\\''",4);dest_p+=4;
+    } else {
+      if (dest_p+1>=max_dest) {*dest_p=0;return dest;}
+
+      *dest_p++=*source;
+    }
+    source++;
+  }
+
+  if (dest_p+2>=max_dest) {*dest_p=0;return dest;}
+
+  *dest_p++='\'';*dest_p=0;
+
+  return dest;
+}
+
 static int
 build_cmd(char *command, size_t cmdlen, struct ipmi *ipmi, int op)
 {
 	char cmd[2048];
 	char arg[2048];
+	char tmp[2048];
 	int x;
 
 	/* Store path */
 	if (ipmi->i_lanplus) {
-		snprintf(cmd, sizeof(cmd), "%s -I lanplus -H %s", 
-				ipmi->i_ipmitool, ipmi->i_host);
+		snprintf(cmd, sizeof(cmd), "%s -I lanplus -H %s",
+				ipmi->i_ipmitool,
+				str_prepare_for_sh(tmp,ipmi->i_host,sizeof(tmp)));
 	} else {
 		snprintf(cmd, sizeof(cmd), "%s -I lan -H %s", ipmi->i_ipmitool,
-				ipmi->i_host);
+				str_prepare_for_sh(tmp,ipmi->i_host,sizeof(tmp)));
 	}
 
 	if (ipmi->i_user) {
-		snprintf(arg, sizeof(arg), " -U %s", ipmi->i_user);
+		snprintf(arg, sizeof(arg), " -U %s", str_prepare_for_sh(tmp,ipmi->i_user,sizeof(tmp)));
 		strncat(cmd, arg, sizeof(cmd) - strlen(arg));
 	}
 
 	if (ipmi->i_authtype) {
-		snprintf(arg, sizeof(arg), " -A %s", ipmi->i_authtype);
+		snprintf(arg, sizeof(arg), " -A %s", str_prepare_for_sh(tmp,ipmi->i_authtype,sizeof(tmp)));
 		strncat(cmd, arg, sizeof(cmd) - strlen(arg));
 	}
 
 	if (ipmi->i_password) {
-		snprintf(arg, sizeof(arg), " -P %s", ipmi->i_password);
+		snprintf(arg, sizeof(arg), " -P %s", str_prepare_for_sh(tmp,ipmi->i_password,sizeof(tmp)));
 		strncat(cmd, arg, sizeof(cmd) - strlen(arg));
 	} else {
 		snprintf(arg, sizeof(arg), " -P ''");
