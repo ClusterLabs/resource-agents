@@ -5,6 +5,7 @@
 
 #define LOG_MODE_OUTPUT_FILE	1
 #define LOG_MODE_OUTPUT_SYSLOG	2
+#define LOG_MODE_OUTPUT_STDERR	4
 
 int logt_init(char *name, int mode, int syslog_facility, int syslog_priority,
 	      int logfile_priority, char *logfile);

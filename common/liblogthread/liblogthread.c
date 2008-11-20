@@ -133,10 +133,16 @@ void logt_print(int level, char *fmt, ...)
 {
 	va_list ap;
 
+	va_start(ap, fmt);
+
+	/* this stderr crap really doesn't belong in this lib, please
+	   feel free to not use it */
+	if (logt_mode & LOG_MODE_OUTPUT_STDERR)
+		vfprintf(stderr, fmt, ap);
+
 	if (level > logt_syslog_priority && level > logt_logfile_priority)
 		return;
 
-	va_start(ap, fmt);
 	_logt_print(level, fmt, ap);
 	va_end(ap);
 }
