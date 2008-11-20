@@ -687,7 +687,7 @@ usage_exit(char *pname)
 printf("usage: %s <options>\n", pname);
 printf("   -A <authtype>  IPMI Lan Auth type (md5, password, or none)\n");
 printf("   -a <ipaddr>    IPMI Lan IP to talk to\n");
-printf("   -i <ipaddr>    IPMI Lan IP to talk to (deprecated, use -i)\n");
+printf("   -i <ipaddr>    IPMI Lan IP to talk to (deprecated, use -a)\n");
 printf("   -p <password>  Password (if required) to control power on\n"
        "                  IPMI device\n");
 printf("   -P             Use Lanplus\n");
