@@ -30,7 +30,8 @@ CFLAGS += -I${incdir}
 
 LDFLAGS += -L${ccslibdir} -lccs -L${cmanlibdir} -lcman
 LDFLAGS += -L${dlmcontrollibdir} -ldlmcontrol
-LDFLAGS += -L${corosynclibdir} -lcpg -llogthread -lpthread
+LDFLAGS += -L${logtlibdir} -llogthread
+LDFLAGS += -L${corosynclibdir} -lcpg -lpthread
 LDFLAGS += -L${openaislibdir} -lSaCkpt
 LDFLAGS += -L../../fence/libfenced/ -lfenced
 LDFLAGS += -L../lib -lgroup

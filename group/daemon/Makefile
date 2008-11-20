@@ -23,7 +23,8 @@ CFLAGS += -I${incdir}
 
 LDFLAGS += -L${ccslibdir} -lccs 
 LDFLAGS += -L${cmanlibdir} -lcman
-LDFLAGS += -L${corosynclibdir} -lcpg -llogthread -lpthread
+LDFLAGS += -L${logtlibdir} -llogthread
+LDFLAGS += -L${corosynclibdir} -lcpg -lpthread
 LDFLAGS += -L${libdir}
 
 ${TARGET}: ${OBJS}
