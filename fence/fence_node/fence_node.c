@@ -3,7 +3,7 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <string.h>
-#include <corosync/engine/logsys.h>
+#include <liblogthread.h>
 
 #include "libfence.h"
 #include "libfenced.h"
@@ -85,26 +85,28 @@ int main(int argc, char *argv[])
 	if (!victim)
 		die("no node name specified");
 
-	logsys_init("fence_node",
-		    LOG_MODE_OUTPUT_STDERR | LOG_MODE_OUTPUT_SYSLOG_THREADED,
-		    SYSLOGFACILITY, SYSLOGLEVEL, NULL);
-
 	error = fence_node(victim);
 
+	logt_init("fence_node", LOG_MODE_OUTPUT_SYSLOG, SYSLOGFACILITY,
+		  SYSLOGLEVEL, 0, NULL);
+
 	if (error) {
-		log_printf(LOG_ERR, "Fence of \"%s\" was unsuccessful\n", victim);
+		fprintf(stderr, "Fence of \"%s\" was unsuccessful\n", victim);
+		logt_print(LOG_ERR, "Fence of \"%s\" was unsuccessful\n",
+			   victim);
 		rv = EXIT_FAILURE;
 	} else {
-		log_printf(LOG_NOTICE, "Fence of \"%s\" was successful\n", victim);
+		fprintf(stderr, "Fence of \"%s\" was successful\n", victim);
+		logt_print(LOG_NOTICE, "Fence of \"%s\" was successful\n",
+			   victim);
+		rv = EXIT_SUCCESS;
 
 		/* Tell fenced what we've done so that it can avoid fencing
 		   this node again if the fence_node() rebooted it. */
 		fenced_external(victim);
-
-		rv = EXIT_SUCCESS;
 	}
 
-	logsys_exit();
+	logt_exit();
 	exit(rv);
 }
 
