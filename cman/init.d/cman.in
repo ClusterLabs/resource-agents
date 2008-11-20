@@ -575,9 +575,6 @@ stop_cman()
 
 stop_daemons()
 {
-    if pid=$(pidof cmannotifyd 2>&1); then
-	errmsg=$(kill $pid 2>&1) || return 1
-    fi
     if pid=$(pidof gfs_controld 2>&1); then
 	errmsg=$(kill $pid 2>&1) || return 1
     fi
@@ -591,6 +588,14 @@ stop_daemons()
 	errmsg=$(kill $pid 2>&1) || return 1
     fi
     return 0 # all ok
+}
+
+stop_cmannotifyd()
+{
+    if pid=$(pidof cmannotifyd 2>&1); then
+	errmsg=$(kill $pid 2>&1) || return 1
+    fi
+    return 0
 }
 
 stop_fence()
@@ -651,6 +656,16 @@ stop()
     else
 	stop_cman
     fi
+    if [ $? -eq 0 ]
+    then
+	echo "done"
+    else
+	echo "failed"
+	return 1
+    fi
+
+    echo -n "   Stopping cmannotifyd... "
+    stop_cmannotifyd
     if [ $? -eq 0 ]
     then
 	echo "done"
