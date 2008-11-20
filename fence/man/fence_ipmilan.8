@@ -44,6 +44,11 @@ Use the lanplus option if this is a lanplus capable interface (for example iLo2)
 \fB-A\fP \fIAuthentication Type\fP
 Can be set to none, password, md2, or md5.
 .TP
+\fB-t\fP \fItimeout\fP
+Timeout in seconds for IPMI operation. Default is 10, but in some cases it
+must be set to higher value (anything above 30 is not recommended and may
+cause strange problems).
+.TP
 \fB-q\fP
 Quiet operation.  Only print out error messages.
 .TP
@@ -72,6 +77,11 @@ Full path to an executable to generate the password for login.
 .TP
 \fIauth = < param >\fR
 Authentication type (none, password, md2, md5).
+.TP
+\fItimeout = < param >\fR
+Timeout in seconds for IPMI operation. Default is 10, but in some cases it
+must be set to higher value (anything above 30 is not recommended and may
+cause strange problems).
 .TP
 \fIlanplus\fR
 If we are using the lanplus option for ipmitool
