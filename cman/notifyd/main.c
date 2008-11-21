@@ -191,10 +191,8 @@ static void init_logging(int reconf)
 		ccs_disconnect(ccs_handle);
 	}
 
-#if 0
 	if (!daemonize)
 		mode |= LOG_MODE_OUTPUT_STDERR;
-#endif
 
 	if (!reconf)
 		logt_init("cmannotifyd", mode, syslog_facility, syslog_priority, logfile_priority, logfile);
