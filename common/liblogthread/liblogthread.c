@@ -105,7 +105,7 @@ static void *thread_fn(void *arg)
 	pthread_exit(NULL);
 }
 
-static void _logt_print(int level, char *fmt, va_list ap)
+static void _logt_print(int level, char *buf)
 {
 	struct entry *e;
 
@@ -120,8 +120,7 @@ static void _logt_print(int level, char *fmt, va_list ap)
 	head_ent = head_ent % num_ents;
 	pending_ents++;
 
-	memset(e->str, 0, ENTRY_STR_LEN);
-	vsnprintf(e->str, ENTRY_STR_LEN - 1, fmt, ap);
+	strncpy(e->str, buf, ENTRY_STR_LEN);
 	e->level = level;
 	e->time = time(NULL);
  out:
@@ -132,19 +131,23 @@ static void _logt_print(int level, char *fmt, va_list ap)
 void logt_print(int level, char *fmt, ...)
 {
 	va_list ap;
+	char buf[ENTRY_STR_LEN];
+
+	buf[sizeof(buf) - 1] = 0;
 
 	va_start(ap, fmt);
+	vsnprintf(buf, sizeof(buf) - 1, fmt, ap);
+	va_end(ap);
 
 	/* this stderr crap really doesn't belong in this lib, please
 	   feel free to not use it */
 	if (logt_mode & LOG_MODE_OUTPUT_STDERR)
-		vfprintf(stderr, fmt, ap);
+		fputs(buf, stderr);
 
 	if (level > logt_syslog_priority && level > logt_logfile_priority)
 		return;
 
-	_logt_print(level, fmt, ap);
-	va_end(ap);
+	_logt_print(level, buf);
 }
 
 static void _conf(char *name, int mode, int syslog_facility,
