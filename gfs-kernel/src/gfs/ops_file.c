@@ -271,6 +271,37 @@ do_read_readi(struct file *file, char *buf, size_t size, loff_t *offset,
 }
 
 /**
+ * grope_mapping - feel up a mapping that needs to be written
+ * @buf: the start of the memory to be written
+ * @size: the size of the memory to be written
+ *
+ * We do this after acquiring the locks on the mapping,
+ * but before starting the write transaction.  We need to make
+ * sure that we don't cause recursive transactions if blocks
+ * need to be allocated to the file backing the mapping.
+ *
+ * Returns: errno
+ */
+
+static int
+grope_mapping(char *buf, size_t size)
+{
+	unsigned long start = (unsigned long)buf;
+	unsigned long stop = start + size;
+	char c;
+
+	while (start < stop) {
+		if (copy_from_user(&c, (char *)start, 1))
+			return -EFAULT;
+
+		start += PAGE_CACHE_SIZE;
+		start &= PAGE_CACHE_MASK;
+	}
+
+	return 0;
+}
+
+/**
  * do_read_direct - Read bytes from a file
  * @file: The file to read from
  * @buf: The buffer to copy into
@@ -305,6 +336,12 @@ do_read_direct(struct file *file, char *buf, size_t size, loff_t *offset,
 		}
 
 	gfs_holder_init(ip->i_gl, state, flags, &ghs[num_gh]);
+
+	if (num_gh && atomic_read(&current->mm->mm_users) > 1) {
+		error = grope_mapping(buf, size);
+		if (error)
+			goto out;
+	}
 
 	error = gfs_glock_nq_m(num_gh + 1, ghs);
 	if (error)
@@ -368,6 +405,12 @@ do_read_buf(struct file *file, char *buf, size_t size, loff_t *offset,
 	int error;
 
 	gfs_holder_init(ip->i_gl, LM_ST_SHARED, GL_ATIME, &ghs[num_gh]);
+
+	if (num_gh && atomic_read(&current->mm->mm_users) > 1) {
+		error = grope_mapping(buf, size);
+		if (error)
+			goto out;
+	}
 
 	error = gfs_glock_nq_m_atime(num_gh + 1, ghs);
 	if (error)
@@ -436,37 +479,6 @@ gfs_aio_read(struct kiocb *iocb, const struct iovec *iov, unsigned long count,
 
 	BUG_ON(iocb->ki_pos != pos);
 	return(__gfs_read(filp, iov->iov_base, iov->iov_len, &iocb->ki_pos, iocb));
-}
-
-/**
- * grope_mapping - feel up a mapping that needs to be written
- * @buf: the start of the memory to be written
- * @size: the size of the memory to be written
- *
- * We do this after acquiring the locks on the mapping,
- * but before starting the write transaction.  We need to make
- * sure that we don't cause recursive transactions if blocks
- * need to be allocated to the file backing the mapping.
- *
- * Returns: errno
- */
-
-static int
-grope_mapping(char *buf, size_t size)
-{
-	unsigned long start = (unsigned long)buf;
-	unsigned long stop = start + size;
-	char c;
-
-	while (start < stop) {
-		if (copy_from_user(&c, (char *)start, 1))
-			return -EFAULT;
-
-		start += PAGE_CACHE_SIZE;
-		start &= PAGE_CACHE_MASK;
-	}
-
-	return 0;
 }
 
 /**
@@ -670,6 +682,12 @@ do_write_direct(struct file *file, char *buf, size_t size, loff_t *offset,
 
  restart:
 	gfs_holder_init(ip->i_gl, state, 0, &ghs[num_gh]);
+
+	if (num_gh && atomic_read(&current->mm->mm_users) > 1) {
+		error = grope_mapping(buf, size);
+		if (error)
+			goto out;
+	}
 
 	error = gfs_glock_nq_m(num_gh + 1, ghs);
 	if (error)
@@ -958,6 +976,12 @@ do_write_buf(struct file *file,
 	int error;
 
 	gfs_holder_init(ip->i_gl, LM_ST_EXCLUSIVE, 0, &ghs[num_gh]);
+
+	if (num_gh && atomic_read(&current->mm->mm_users) > 1) {
+		error = grope_mapping(buf, size);
+		if (error)
+			goto out;
+	}
 
 	error = gfs_glock_nq_m(num_gh + 1, ghs);
 	if (error)
