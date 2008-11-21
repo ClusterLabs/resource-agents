@@ -28,16 +28,15 @@ char *cfgd_override_path = DEFAULT_OVERRIDE_PATH;
 
 int setup_ccs(void)
 {
-	int i = 0, cd;
+	int cd;
 
-	while ((cd = ccs_connect()) < 0) {
-		sleep(1);
-		if (++i > 9 && !(i % 10))
-			log_error("connect to ccs error %d, "
-				  "check cluster status", cd);
+	cd = ccs_connect();
+	if (cd < 0) {
+		log_error("ccs_connect error %d %d", cd, errno);
+		return -1;
 	}
-
 	ccs_handle = cd;
+
 	return 0;
 }
 

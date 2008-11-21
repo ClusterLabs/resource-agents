@@ -151,18 +151,16 @@ void read_ccs_nodir(struct mountgroup *mg, char *buf)
 
 int setup_ccs(void)
 {
-	int i = 0, cd;
+	int cd;
 
 	if (ccs_handle)
 		goto update;
 
-	while ((cd = ccs_connect()) < 0) {
-		sleep(1);
-		if (++i > 9 && !(i % 10))
-			log_error("connect to ccs error %d, "
-				  "check cluster status", cd);
+	cd = ccs_connect();
+	if (cd < 0) {
+		log_error("ccs_connect error %d %d", cd, errno);
+		return -1;
 	}
-
 	ccs_handle = cd;
 
 	/* These config values are set from cluster.conf only if they haven't

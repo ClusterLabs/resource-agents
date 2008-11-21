@@ -126,15 +126,13 @@ void read_ccs_int(char *path, int *config_val)
 
 int setup_ccs(void)
 {
-	int i = 0, cd;
+	int cd;
 
-	while ((cd = ccs_connect()) < 0) {
-		sleep(1);
-		if (++i > 9 && !(i % 10))
-			log_print("connect to ccs error %d, "
-				  "check cluster status", cd);
+	cd = ccs_connect();
+	if (cd < 0) {
+		log_print("ccs_connect error %d %d", cd, errno);
+		return -1;
 	}
-
 	ccs_handle = cd;
 
 	/* These config values are set from cluster.conf only if they haven't
