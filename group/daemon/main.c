@@ -767,12 +767,16 @@ static void loop(void)
 
 	setup_logging();
 
-	if (cfgd_groupd_compat == 0)
+	if (cfgd_groupd_compat == 0) {
 		group_mode = GROUP_LIBCPG;
-	else if (cfgd_groupd_compat == 1)
+		log_level(LOG_INFO, "groupd compatibility mode 0 cfg");
+	} else if (cfgd_groupd_compat == 1) {
 		group_mode = GROUP_LIBGROUP;
-	else if (cfgd_groupd_compat == 2)
+		log_level(LOG_INFO, "groupd compatibility mode 1 cfg");
+	} else if (cfgd_groupd_compat == 2) {
 		group_mode = GROUP_PENDING;
+		/* report the mode in set_group_mode() */
+	}
 
 	rv = setup_cpg();
 	if (rv < 0)
@@ -1025,6 +1029,7 @@ int main(int argc, char *argv[])
 		}
 	}
 	init_logging();
+	log_level(LOG_INFO, "groupd %s", RELEASE_VERSION);
 	signal(SIGTERM, sigterm_handler);
 	set_scheduler();
 	set_oom_adj(-16);

@@ -70,14 +70,17 @@ extern int cfgd_debug_logfile;
 
 void daemon_dump_save(void);
 
-#define log_debug(fmt, args...) \
+#define log_level(lvl, fmt, args...) \
 do { \
 	snprintf(daemon_debug_buf, 255, "%ld " fmt "\n", time(NULL), ##args); \
 	daemon_dump_save(); \
-	logt_print(LOG_DEBUG, fmt "\n", ##args); \
+	logt_print(lvl, fmt "\n", ##args); \
 	if (daemon_debug_opt) \
 		fprintf(stderr, "%s", daemon_debug_buf); \
 } while (0)
+
+#define log_debug(fmt, args...) log_level(LOG_DEBUG, fmt, ##args)
+#define log_print(fmt, args...) log_level(LOG_ERR, fmt, ##args)
 
 #define log_group(g, fmt, args...) \
 do { \
@@ -85,15 +88,6 @@ do { \
 		 (g)->level, (g)->name, ##args); \
 	daemon_dump_save(); \
 	logt_print(LOG_DEBUG, fmt "\n", ##args); \
-	if (daemon_debug_opt) \
-		fprintf(stderr, "%s", daemon_debug_buf); \
-} while (0)
-
-#define log_print(fmt, args...) \
-do { \
-	snprintf(daemon_debug_buf, 255, "%ld " fmt "\n", time(NULL), ##args); \
-	daemon_dump_save(); \
-	logt_print(LOG_ERR, fmt "\n", ##args); \
 	if (daemon_debug_opt) \
 		fprintf(stderr, "%s", daemon_debug_buf); \
 } while (0)

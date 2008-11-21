@@ -182,7 +182,23 @@ static void set_group_mode(void)
 
 		group_mode = node->ver.group_mode;
 
-		log_print("group mode is %s", mode_str(group_mode));
+		switch (group_mode) {
+		case GROUP_PENDING:
+			/* shouldn't happen */
+			log_level(LOG_INFO, "groupd compatibility mode 2 ver");
+			break;
+		case GROUP_LIBGROUP:
+			log_level(LOG_INFO, "groupd compatibility mode 1 ver");
+			break;
+		case GROUP_LIBCPG:
+			log_level(LOG_INFO, "groupd compatibility mode 0 ver");
+			break;
+		default:
+			log_level(LOG_INFO, "groupd compatibility mode %d ver",
+				  group_mode);
+			break;
+		}
+
 		log_debug("set_group_mode %s matching nodeid %d got_from %d",
 			  mode_str(group_mode), node->nodeid, node->got_from);
 		break;

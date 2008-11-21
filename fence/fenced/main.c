@@ -1023,6 +1023,7 @@ int main(int argc, char **argv)
 		umask(0);
 	}
 	init_logging();
+	log_level(LOG_INFO, "fenced %s", RELEASE_VERSION);
 	signal(SIGTERM, sigterm_handler);
 	set_oom_adj(-16);
 

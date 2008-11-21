@@ -1262,6 +1262,7 @@ int main(int argc, char **argv)
 		}
 	}
 	init_logging();
+	log_level(LOG_INFO, "dlm_controld %s", RELEASE_VERSION);
 	signal(SIGTERM, sigterm_handler);
 	set_scheduler();
 	set_oom_adj(-16);
