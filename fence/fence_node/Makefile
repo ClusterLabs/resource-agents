@@ -14,11 +14,12 @@ OBJS=	fence_node.o
 
 CFLAGS += -D_FILE_OFFSET_BITS=64
 
-CFLAGS += -I${ccsincdir} -I${fenceincdir}
+CFLAGS += -I${ccsincdir} -I${fenceincdir} -I${logtincdir}
 CFLAGS += -I$(S)/../libfenced
 CFLAGS += -I${incdir}
 
-LDFLAGS += -L${ccslibdir} -L${fencelibdir} -lccs -lfence -llogthread
+LDFLAGS += -L${ccslibdir} -L${fencelibdir} -lccs -lfence
+LDFLAGS += -L${logtlibdir} -llogthread
 LDFLAGS += -L../libfenced -lfenced
 LDFLAGS += -L${libdir}
 
