@@ -271,7 +271,7 @@ int set_node_info_group(struct mountgroup *mg, int nodeid,
 int set_mountgroups_group(int *count, struct gfsc_mountgroup **mgs_out);
 int set_mountgroup_nodes_group(struct mountgroup *mg, int option,
 	int *node_count, struct gfsc_node **nodes_out);
-void set_group_mode(void);
+int set_group_mode(void);
 
 /* main.c */
 int do_read(int fd, void *buf, size_t count);

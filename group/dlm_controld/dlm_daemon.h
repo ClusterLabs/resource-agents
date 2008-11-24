@@ -326,7 +326,7 @@ int set_lockspaces_group(int *count,
 	struct dlmc_lockspace **lss_out);
 int set_lockspace_nodes_group(struct lockspace *ls, int option,
 	int *node_count, struct dlmc_node **nodes);
-void set_group_mode(void);
+int set_group_mode(void);
 #else
 static inline int setup_groupd(void) { return -1; }
 static inline void close_groupd(void) { }
@@ -341,7 +341,7 @@ static inline int set_lockspaces_group(int *count,
 	struct dlmc_lockspace **lss_out) { return -1; }
 static inline int set_lockspace_nodes_group(struct lockspace *ls, int option,
 	int *node_count, struct dlmc_node **nodes) { return -1; }
-static inline void set_group_mode(void) { }
+int inline void set_group_mode(void) { return 0; }
 #endif
 
 /* logging.c */

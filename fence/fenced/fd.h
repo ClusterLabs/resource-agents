@@ -228,7 +228,7 @@ int set_node_info_group(struct fd *fd, int nodeid, struct fenced_node *node);
 int set_domain_info_group(struct fd *fd, struct fenced_domain *domain);
 int set_domain_nodes_group(struct fd *fd, int option, int *node_count,
 			   struct fenced_node **nodes);
-void set_group_mode(void);
+int set_group_mode(void);
 
 /* main.c */
 

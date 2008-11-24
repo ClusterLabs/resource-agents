@@ -1122,9 +1122,21 @@ static void loop(void)
 			goto out;
 		client_add(rv, process_groupd, cluster_dead);
 
-		group_mode = GROUP_LIBGROUP;
-		if (cfgd_groupd_compat == 2)
-			set_group_mode();
+		switch (cfgd_groupd_compat) {
+		case 1:
+			group_mode = GROUP_LIBGROUP;
+			rv = 0;
+			break;
+		case 2:
+			rv = set_group_mode();
+			break;
+		default:
+			log_error("inval groupd_compat %d", cfgd_groupd_compat);
+			rv = -1;
+			break;
+		}
+		if (rv < 0)
+			goto out;
 	}
 	log_debug("group_mode %d compat %d", group_mode, cfgd_groupd_compat);
 

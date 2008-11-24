@@ -444,31 +444,39 @@ int set_domain_nodes_group(struct fd *fd, int option, int *node_count,
 	return 0;
 }
 
-void set_group_mode(void)
+int set_group_mode(void)
 {
 	int i = 0, rv, version;
 
 	while (1) {
 		rv = group_get_version(&version);
-		if (rv) {
-			log_error("group_get_version error %d", rv);
-			break;
-		} else if (version == GROUP_LIBGROUP) {
-			group_mode = GROUP_LIBGROUP;
-			break;
-		} else if (version == GROUP_LIBCPG) {
-			group_mode = GROUP_LIBCPG;
-			break;
-		} else if (version != -EAGAIN) {
-			log_error("group_get_version result %d", version);
-			break;
+
+		if (rv || version < 0) {
+			/* we expect to get version of -EAGAIN while groupd
+			   is detecting the mode of everyone */
+
+			log_debug("set_group_mode get_version %d ver %d",
+				  rv, version);
+			if (i++ > 10) {
+				log_error("cannot get groupd compatibility "
+					  "mode rv %d ver %d", rv, version);
+				return -1;
+			}
+			sleep(1);
+			continue;
 		}
 
-		if (i++ > 10) {
-			log_error("no version from groupd");
-			break;
+
+		if (version == GROUP_LIBGROUP) {
+			group_mode = GROUP_LIBGROUP;
+			return 0;
+		} else if (version == GROUP_LIBCPG) {
+			group_mode = GROUP_LIBCPG;
+			return 0;
+		} else {
+			log_error("set_group_mode invalid ver %d", version);
+			return -1;
 		}
-		sleep(1);
 	}
 }
 
