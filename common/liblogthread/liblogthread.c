@@ -25,6 +25,7 @@ static unsigned int num_ents = DEFAULT_ENTRIES;
 static unsigned int head_ent, tail_ent; /* add at head, remove from tail */
 static unsigned int dropped;
 static unsigned int pending_ents;
+static unsigned int init;
 static unsigned int done;
 static pthread_t thread_handle;
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -133,6 +134,9 @@ void logt_print(int level, char *fmt, ...)
 	va_list ap;
 	char buf[ENTRY_STR_LEN];
 
+	if (!init)
+		return;
+
 	buf[sizeof(buf) - 1] = 0;
 
 	va_start(ap, fmt);
@@ -185,6 +189,9 @@ static void _conf(char *name, int mode, int syslog_facility,
 void logt_conf(char *name, int mode, int syslog_facility, int syslog_priority,
 	       int logfile_priority, char *logfile)
 {
+	if (!init)
+		return;
+
 	_conf(name, mode, syslog_facility, syslog_priority, logfile_priority,
 	      logfile);
 }
@@ -192,6 +199,11 @@ void logt_conf(char *name, int mode, int syslog_facility, int syslog_priority,
 int logt_init(char *name, int mode, int syslog_facility, int syslog_priority,
 	      int logfile_priority, char *logfile)
 {
+	int rv;
+
+	if (init)
+		return -1;
+
 	_conf(name, mode, syslog_facility, syslog_priority, logfile_priority,
 	      logfile);
 
@@ -200,13 +212,21 @@ int logt_init(char *name, int mode, int syslog_facility, int syslog_priority,
 		return -1;
 	memset(ents, 0, num_ents * sizeof(struct entry));
 
-	return pthread_create(&thread_handle, NULL, thread_fn, NULL);
+	rv = pthread_create(&thread_handle, NULL, thread_fn, NULL);
+	if (rv) {
+		free(ents);
+		return -1;
+	}
+	done = 0;
+	init = 1;
+	return 0;
 }
 
 void logt_exit(void)
 {
 	pthread_mutex_lock(&mutex);
 	done = 1;
+	init = 0;
 	pthread_cond_signal(&cond);
 	pthread_mutex_unlock(&mutex);
 	pthread_join(thread_handle, NULL);
