@@ -110,6 +110,8 @@ static void ids_in(struct fd_info *fi, struct id_info *ids)
 static char *msg_name(int type)
 {
 	switch (type) {
+	case FD_MSG_PROTOCOL:
+		return "protocol";
 	case FD_MSG_START:
 		return "start";
 	case FD_MSG_VICTIM_DONE:
