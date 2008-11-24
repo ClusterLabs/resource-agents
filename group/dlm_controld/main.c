@@ -860,7 +860,8 @@ static void setup_monitor(void)
 
 void cluster_dead(int ci)
 {
-	log_error("cluster is down, exiting");
+	if (!cluster_down)
+		log_error("cluster is down, exiting");
 	daemon_quit = 1;
 	cluster_down = 1;
 }
