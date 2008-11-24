@@ -1,6 +1,7 @@
 /**
   @file Main loop / functions for disk-based quorum daemon.
  */
+#define SYSLOG_NAMES
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -23,7 +24,7 @@
 #include <ccs.h>
 #include <liblogthread.h>
 #include "score.h"
-
+#include <sys/syslog.h>
 
 #define LOG_DAEMON_NAME  "qdiskd"
 #define LOG_MODE_DEFAULT LOG_MODE_OUTPUT_SYSLOG|LOG_MODE_OUTPUT_FILE
@@ -1071,7 +1072,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 		update_local_status(ctx, ni, max, score, score_req, score_max);
 
 		/* Cycle. We could time the loop and sleep
-		   usleep(interval-looptime), but this is fine for now.*/
+		   (interval-looptime), but this is fine for now.*/
 		get_time(&newtime, ctx->qc_flags&RF_UPTIME);
 		_diff_tv(&diff, &oldtime, &newtime);
 		
@@ -1171,6 +1172,45 @@ conf_logging(int debug, int logmode, int facility, int loglevel,
 }
 
 
+int
+ccs_read_old_logging(int ccsfd, int *facility, int *priority)
+{
+	char query[256];
+	char *val;
+	int x, ret = 0;
+
+	/* Get log log_facility */
+	snprintf(query, sizeof(query), "/cluster/quorumd/@log_facility");
+	if (ccs_get(ccsfd, query, &val) == 0) {
+		logt_print(LOG_WARNING,
+			   "Use of quorumd/@log_facility is deprecated!\n");
+		for (x = 0; facilitynames[x].c_name; x++) {
+			if (strcasecmp(val, facilitynames[x].c_name))
+				continue;
+			*facility = facilitynames[x].c_val;
+			ret = 1;
+			break;
+		}
+		free(val);
+	}
+
+	/* Get log level */
+	snprintf(query, sizeof(query), "/cluster/quorumd/@log_level");
+	if (ccs_get(ccsfd, query, &val) == 0) {
+		logt_print(LOG_WARNING,
+			   "Use of quorumd/@log_level is deprecated!\n");
+		*priority = atoi(val);
+		free(val);
+		if (*priority < 0)
+			*priority = SYSLOGLEVEL;
+		else
+			ret = 1;
+	}
+
+	return ret;
+}
+
+
 /**
   Grab logsys configuration data from libccs
  */
@@ -1196,6 +1236,9 @@ get_log_config_data(int ccsfd)
 	}
 
 	snprintf(fname, sizeof(fname)-1, LOGDIR "/qdisk.log");
+	if (ccs_read_old_logging(ccsfd, &facility, &loglevel))
+		filelevel = loglevel;
+
 	ccs_read_logging(ccsfd, (char *)"QDISKD", &debug, &logmode,
         		 &facility, &loglevel, &filelevel, (char *)fname);
 	conf_logging(debug, logmode, facility, loglevel, filelevel, fname);
@@ -1487,6 +1530,9 @@ get_config_data(qd_ctx *ctx, struct h_data *h, int maxh, int *cfh)
 	logt_print(LOG_DEBUG, "Quorum Daemon: %d heuristics, "
 		   "%d interval, %d tko, %d votes\n",
 		   *cfh, ctx->qc_interval, ctx->qc_tko, ctx->qc_votes);
+	logt_print(LOG_DEBUG, "%d tko_up, %d master_wait, "
+		   "%d upgrade_wait\n",
+		   ctx->qc_tko_up, ctx->qc_master_wait, ctx->qc_upgrade_wait);
 out:
 	logt_print(LOG_DEBUG, "Run Flags: %08x\n", ctx->qc_flags);
 
