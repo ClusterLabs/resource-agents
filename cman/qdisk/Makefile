@@ -32,7 +32,6 @@ OBJS1=	main.o \
 OBJS2=	mkqdisk.o
 
 SHAREDOBJS= disk.o \
-	    crc32.o \
 	    disk_util.o \
 	    proc.o \
 	    scandisk.o

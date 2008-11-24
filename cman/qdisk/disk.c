@@ -26,9 +26,22 @@
 #include <time.h>
 #include <linux/fs.h>
 #include <liblogthread.h>
+#include <zlib.h>
 
 static int diskRawRead(target_info_t *disk, char *buf, int len);
-uint32_t clu_crc32(const char *data, size_t count);
+
+/**
+ * Calculate CRC32 of a data set.
+ *
+ * @param data		Data set for building CRC32
+ * @param count		Size of data set, in bytes.
+ * @return 		CRC32 of data set.
+ */
+uint32_t clu_crc32(const char *data, size_t count)
+{
+	return (uint32_t)crc32(0L, (const Bytef *)data, (uInt)count);
+}
+
 
 /**
  * Swap the bytes of a shared header so that it's always in big-endian form
@@ -146,8 +159,10 @@ header_verify(shared_header_t *hdr, const char *data, size_t count)
 	crc = clu_crc32((char *)hdr, sizeof(*hdr));
 	hdr->h_hcrc = bkupcrc;
 	if (bkupcrc != crc) {
+#ifdef DEBUG
 		logt_print(LOG_DEBUG, "Header CRC32 mismatch; Exp: 0x%08x "
 			"Got: 0x%08x\n", bkupcrc, crc);
+#endif
 		return -1;
 	}
 
@@ -339,9 +354,11 @@ diskRawReadShadow(target_info_t *disk, off_t readOffset, char *buf, int len)
 	datalen = hdrp->h_length;
 
 	if (header_verify(hdrp, data, len)) {
+#ifdef DEBUG
 		logt_print(LOG_DEBUG, "diskRawReadShadow: bad CRC32, "
 		       "offset = %d len = %d\n",
 		       (int) readOffset, len);
+#endif
 		errno = EPROTO;
 		return -1;
 	}

@@ -12,6 +12,8 @@
 #include <unistd.h>
 #include <liblogthread.h>
 
+#define PROGRAM_NAME "mkqdisk"
+
 int
 main(int argc, char **argv)
 {
@@ -19,9 +21,9 @@ main(int argc, char **argv)
 	char *newdev = NULL, *newlabel = NULL;
 	int rv, verbose_level = 1;
 
-	logt_init("MKQDISK", LOG_MODE_OUTPUT_STDERR, 0, 0, 0, NULL);
+	logt_init(PROGRAM_NAME, LOG_MODE_OUTPUT_STDERR, 0, 0, 0, NULL);
 
-	printf("mkqdisk v" RELEASE_VERSION "\n\n");
+	printf(PROGRAM_NAME " v" RELEASE_VERSION "\n\n");
 
 	/* XXX this is horrible but we need to prioritize options as long as
 	 * we can't queue messages properly

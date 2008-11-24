@@ -25,7 +25,8 @@
 #include "score.h"
 
 
-#define DAEMON_NAME "QDISKD"
+#define LOG_DAEMON_NAME  "qdiskd"
+#define LOG_MODE_DEFAULT LOG_MODE_OUTPUT_SYSLOG|LOG_MODE_OUTPUT_FILE
 
 /* from daemon_init.c */
 int daemon_init(char *);
@@ -1156,13 +1157,17 @@ conf_logging(int debug, int logmode, int facility, int loglevel,
 		loglevel = LOG_DEBUG;
 	if (_foreground)
 		logmode |= LOG_MODE_OUTPUT_STDERR;
-	if (!_log_config)
-		logt_init(DAEMON_NAME, logmode, facility, loglevel,
+
+	if (!_log_config) {
+		logt_init(LOG_DAEMON_NAME, logmode, facility, loglevel,
 			  filelevel, fname);
-	else
-		logt_conf(DAEMON_NAME, logmode, facility, loglevel,
-			  filelevel, fname);
-	_log_config = 1;
+		_log_config = 1;
+		return;
+
+	}
+
+	logt_conf(LOG_DAEMON_NAME, logmode, facility, loglevel,
+		  filelevel, fname);
 }
 
 
@@ -1173,14 +1178,18 @@ static int
 get_log_config_data(int ccsfd)
 {
 	char fname[PATH_MAX];
-	int debug, logmode, facility, loglevel, filelevel, need_close = 0;
+	int debug = 0, logmode = LOG_MODE_OUTPUT_FILE | LOG_MODE_OUTPUT_SYSLOG;
+	int facility = SYSLOGFACILITY;
+	int loglevel = SYSLOGLEVEL, filelevel = SYSLOGLEVEL;
+	int need_close = 0;
 
-	logt_print(LOG_DEBUG, "Loading logsys configuration information\n");
+	logt_print(LOG_DEBUG, "Loading logging configuration\n");
 
 	if (ccsfd < 0) {
 		ccsfd = ccs_connect();
 		if (ccsfd < 0) {
-			logt_print(LOG_CRIT, "Connection to CCSD failed; cannot start\n");
+			logt_print(LOG_ERR, "Logging configuration "
+				   "unavailable; using defaults\n");
 			return -1;
 		}
 		need_close = 1;
@@ -1197,43 +1206,17 @@ get_log_config_data(int ccsfd)
 	return 0;
 }
 
-/**
-  Grab all our configuration data from libccs
- */
+
 static int
-get_config_data(qd_ctx *ctx, struct h_data *h, int maxh, int *cfh)
+get_dynamic_config_data(qd_ctx *ctx, int ccsfd)
 {
-	int ccsfd = -1;
+	char *val = NULL;
 	char query[256];
-	char *val;
 
-	logt_print(LOG_DEBUG, "Loading configuration information\n");
-
-
-	ccsfd = ccs_connect();
-	if (ccsfd < 0) {
-		logt_print(LOG_CRIT, "Connection to CCSD failed; cannot start\n");
+	if (ccsfd < 0)
 		return -1;
-	}
 
-	get_log_config_data(ccsfd);
-
-	/* Initialize defaults if we are not reconfiguring */
-	if (ctx->qc_config == 0) {
-		ctx->qc_interval = 1;
-		ctx->qc_tko = 10;
-		ctx->qc_scoremin = 0;
-		ctx->qc_flags = RF_REBOOT | RF_ALLOW_KILL | RF_UPTIME;
-			/* | RF_STOP_CMAN;*/
-		if (_debug)
-			ctx->qc_flags |= RF_DEBUG;
-
-		ctx->qc_sched = SCHED_RR;
-		ctx->qc_sched_prio = 1;
-		ctx->qc_max_error_cycles = 0;
-	}
-
-	/* STUFF THAT CAN BE RECONFIGURED GOES HERE */
+	logt_print(LOG_DEBUG, "Loading dynamic configuration\n");
 
 	/* Get status file */
 	snprintf(query, sizeof(query), "/cluster/quorumd/@status_file");
@@ -1258,8 +1241,8 @@ get_config_data(qd_ctx *ctx, struct h_data *h, int maxh, int *cfh)
 			ctx->qc_sched = SCHED_OTHER;
 			break;
 		default:
-			logt_print(LOG_WARNING, "Invalid scheduling queue '%s'\n",
-			       val);
+			logt_print(LOG_WARNING,
+				   "Invalid scheduling queue '%s'\n", val);
 			break;
 		}
 		free(val);
@@ -1337,12 +1320,20 @@ get_config_data(qd_ctx *ctx, struct h_data *h, int maxh, int *cfh)
 		free(val);
 	}
 
-	if (ctx->qc_config) {
-		goto out;
-	}
-	ctx->qc_config = 1;
+	return 0;
+}
 
-	/* END ONLINE RECONFIGURATION */
+
+static int
+get_static_config_data(qd_ctx *ctx, int ccsfd) 
+{
+	char *val = NULL;
+	char query[256];
+
+	if (ccsfd < 0)
+		return -1;
+
+	logt_print(LOG_DEBUG, "Loading static configuration\n");
 
 	/* Get interval */
 	snprintf(query, sizeof(query), "/cluster/quorumd/@interval");
@@ -1447,11 +1438,55 @@ get_config_data(qd_ctx *ctx, struct h_data *h, int maxh, int *cfh)
 		free(val);
 	}
 
+
+	return 0;
+}
+
+
+/**
+  Grab all our configuration data from libccs
+ */
+static int
+get_config_data(qd_ctx *ctx, struct h_data *h, int maxh, int *cfh)
+{
+	int ccsfd = -1;
+
+	ccsfd = ccs_connect();
+	if (ccsfd < 0) {
+		logt_print(LOG_CRIT, "Configuration unavailable; "
+			   "cannot start\n");
+		return -1;
+	}
+
+	get_log_config_data(ccsfd);
+
+	/* Initialize defaults if we are not reconfiguring */
+	if (ctx->qc_config == 0) {
+		ctx->qc_interval = 1;
+		ctx->qc_tko = 10;
+		ctx->qc_scoremin = 0;
+		ctx->qc_flags = RF_REBOOT | RF_ALLOW_KILL | RF_UPTIME;
+			/* | RF_STOP_CMAN;*/
+
+		ctx->qc_sched = SCHED_RR;
+		ctx->qc_sched_prio = 1;
+		ctx->qc_max_error_cycles = 0;
+	}
+	
+	if (ctx->qc_config ||
+	    get_dynamic_config_data(ctx, ccsfd) < 0)
+		goto out;
+
+	ctx->qc_config = 1;
+
+	if (get_static_config_data(ctx, ccsfd) < 0)
+		goto out;
+
 	*cfh = configure_heuristics(ccsfd, h, maxh);
 
-	logt_print(LOG_DEBUG,
-	       "Quorum Daemon: %d heuristics, %d interval, %d tko, %d votes\n",
-	       *cfh, ctx->qc_interval, ctx->qc_tko, ctx->qc_votes);
+	logt_print(LOG_DEBUG, "Quorum Daemon: %d heuristics, "
+		   "%d interval, %d tko, %d votes\n",
+		   *cfh, ctx->qc_interval, ctx->qc_tko, ctx->qc_votes);
 out:
 	logt_print(LOG_DEBUG, "Run Flags: %08x\n", ctx->qc_flags);
 
@@ -1467,13 +1502,17 @@ check_stop_cman(qd_ctx *ctx)
 	if (!(ctx->qc_flags & RF_STOP_CMAN))
 		return;
 	
-	logt_print(LOG_WARNING, "Telling CMAN to leave the cluster; qdisk is not"
-		" available\n");
+	logt_print(LOG_WARNING, "Telling CMAN to leave the cluster; "
+		   "qdisk is not available\n");
 	if (cman_shutdown(ctx->qc_cman_admin, 0) < 0) {
-		logt_print(LOG_CRIT, "Could not leave the cluster - rebooting\n");
+		logt_print(LOG_CRIT,
+			   "Could not leave the cluster - rebooting\n");
 		sleep(5);
-		if (ctx->qc_flags & RF_DEBUG)
+		if (ctx->qc_flags & RF_DEBUG) {
+			logt_print(LOG_CRIT, "Debug mode specified! "
+				   "Reboot averted.\n");
 			return;
+		}
 		reboot(RB_AUTOBOOT);
 	}
 }
@@ -1579,6 +1618,10 @@ main(int argc, char **argv)
 	signal(SIGHUP, hup_handler);
 	signal(SIGUSR1, usr1_handler);
 
+	/* RF_DEBUG can only be set from the command line */
+	if (_debug)
+		ctx.qc_flags |= RF_DEBUG;
+
 	if (get_config_data(&ctx, h, 10, &cfh) < 0) {
 		logt_print(LOG_CRIT, "Configuration failed\n");
 		check_stop_cman(&ctx);
@@ -1601,8 +1644,6 @@ main(int argc, char **argv)
 
 		logt_print(LOG_INFO, "Quorum Partition: %s Label: %s\n",
 		       ctx.qc_device, ctx.qc_label);
-
-		logt_print(LOG_NOTICE, "WTF\n");
 	} else if (ctx.qc_device) {
 		if (check_device(ctx.qc_device, NULL, &qh, 0) != 0) {
 			logt_print(LOG_CRIT,
