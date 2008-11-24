@@ -31,16 +31,26 @@ void init_logging(void)
 	if (cfgd_debug_logfile)
 		logfile_priority = LOG_DEBUG;
 
+	log_debug("logging mode %d syslog f %d p %d logfile p %d %s",
+		  log_mode, syslog_facility, syslog_priority,
+		  logfile_priority, logfile);
+
 	logt_init(DAEMON_NAME, log_mode, syslog_facility, syslog_priority,
 		  logfile_priority, logfile);
 }
 
 void setup_logging(void)
 {
+	char junk[PATH_MAX];
+
 	ccs_read_logging(ccs_handle, DAEMON_NAME,
 			 &cfgd_debug_logfile, &log_mode,
 			 &syslog_facility, &syslog_priority,
-			 &logfile_priority, logfile);
+			 &logfile_priority, junk);
+
+	log_debug("logging mode %d syslog f %d p %d logfile p %d %s",
+		  log_mode, syslog_facility, syslog_priority,
+		  logfile_priority, logfile);
 
 	logt_conf(DAEMON_NAME, log_mode, syslog_facility, syslog_priority,
 		  logfile_priority, logfile);
