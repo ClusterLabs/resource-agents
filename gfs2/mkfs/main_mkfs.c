@@ -298,31 +298,31 @@ static void are_you_sure(struct gfs2_sbd *sdp)
 }
 
 /**
- * check_mount - check to see if device is mounted
+ * check_mount - check to see if device is mounted/busy
  * @device: the device to create the filesystem on
  *
  */
 
 void check_mount(char *device)
 {
-	struct mntent *mnt;
-	FILE *fp;
+	struct stat st_buf;
+	int fd;
 
-	if ((fp = setmntent("/proc/mounts", "r")) == NULL) {
-		die("error opening /proc/mounts");
-	}
+	if (stat(device, &st_buf) < 0)
+		die("could not stat device %s\n", device);
+	if (!S_ISBLK(st_buf.st_mode))
+		die("%s is not a block device\n", device);
 
-	while ((mnt = getmntent(fp)) != NULL) {
-		if (strcmp(device, mnt->mnt_fsname) == 0) {
-			printf("cannot create filesystem: ");
-			printf("%s appears to be mounted\n", device);
-			endmntent(fp);
-			exit(EXIT_FAILURE);
-			break;
+	fd = open(device, O_RDONLY | O_NONBLOCK | O_EXCL);
+
+	if (fd < 0) {
+		if (errno == EBUSY) {
+			die("device %s is busy\n", device);
 		}
 	}
-
-	endmntent(fp);
+	else {
+		close(fd);
+	}
 
 	return;
 }
