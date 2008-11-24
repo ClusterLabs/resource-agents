@@ -500,6 +500,9 @@ void process_groupd_confchg(void)
 	memcpy(&groupd_cpg_member, &saved_member, sizeof(saved_member));
 	groupd_cpg_member_count = saved_member_count;
 
+	if (group_mode != GROUP_LIBGROUP)
+		return;
+
 	for (i = 0; i < saved_member_count; i++) {
 		if (saved_member[i].nodeid == our_nodeid &&
 		    saved_member[i].pid == (uint32_t) getpid()) {
