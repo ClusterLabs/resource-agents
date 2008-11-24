@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <corosync/engine/logsys.h>
+#include <liblogthread.h>
 
 int
 main(int argc, char **argv)
@@ -19,7 +19,7 @@ main(int argc, char **argv)
 	char *newdev = NULL, *newlabel = NULL;
 	int rv, verbose_level = 1;
 
-	logsys_init("QDISK", LOG_MODE_OUTPUT_STDERR | LOG_MODE_NOSUBSYS, SYSLOGFACILITY, SYSLOGLEVEL, NULL);
+	logt_init("MKQDISK", LOG_MODE_OUTPUT_STDERR, 0, 0, 0, NULL);
 
 	printf("mkqdisk v" RELEASE_VERSION "\n\n");
 
@@ -30,13 +30,6 @@ main(int argc, char **argv)
 		switch (rv) {
 		case 'd':
 			++verbose_level;
-			/* Workaround a bug in logsys new API.
-			 * logsys segfaults if our first operation is to set the priority
-			 * because the logsys_config_priority_set is buggy.
-			 * Temporary use the direct call while fix is applied upstream and propagated
-			 */
-			// logsys_config_priority_set(LOG_LEVEL_DEBUG);
-			_logsys_config_priority_set(0, LOG_LEVEL_DEBUG);
 			break;
 		}
 	}

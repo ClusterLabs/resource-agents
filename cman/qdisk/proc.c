@@ -9,7 +9,7 @@
 #include <platform.h>
 #include <stdlib.h>
 #include <string.h>
-#include <corosync/engine/logsys.h>
+#include <liblogthread.h>
 #include "scandisk.h"
 
 struct device_args {
@@ -34,13 +34,13 @@ check_device(char *device, char *label, quorum_header_t *qh,
 
 	ret = qdisk_validate(device);
 	if (ret < 0) {
-		log_printf(LOG_DEBUG, "qdisk_verify");
+		logt_print(LOG_DEBUG, "qdisk_verify");
 		return -1;
 	}
 
 	ret = qdisk_open(device, &disk);
 	if (ret < 0) {
-		log_printf(LOG_ERR, "qdisk_open");
+		logt_print(LOG_ERR, "qdisk_open");
 		return -1;
 	}
 
@@ -130,17 +130,17 @@ print_status_block(status_block_t *sb)
 
 	if (sb->ps_state == S_NONE)
 		return;
-	log_printf(LOG_INFO, "Status block for node %d\n", sb->ps_nodeid);
-	log_printf(LOG_INFO, "\tLast updated by node %d\n", sb->ps_updatenode);
-	log_printf(LOG_INFO, "\tLast updated on %s", ctime((time_t *)&timestamp));
-	log_printf(LOG_INFO, "\tState: %s\n", state_str(sb->ps_state));
-	log_printf(LOG_INFO, "\tFlags: %04x\n", sb->ps_flags);
-	log_printf(LOG_INFO, "\tScore: %d/%d\n", sb->ps_score, sb->ps_scoremax);
-	log_printf(LOG_INFO, "\tAverage Cycle speed: %d.%06d seconds\n", 
+	logt_print(LOG_INFO, "Status block for node %d\n", sb->ps_nodeid);
+	logt_print(LOG_INFO, "\tLast updated by node %d\n", sb->ps_updatenode);
+	logt_print(LOG_INFO, "\tLast updated on %s", ctime((time_t *)&timestamp));
+	logt_print(LOG_INFO, "\tState: %s\n", state_str(sb->ps_state));
+	logt_print(LOG_INFO, "\tFlags: %04x\n", sb->ps_flags);
+	logt_print(LOG_INFO, "\tScore: %d/%d\n", sb->ps_score, sb->ps_scoremax);
+	logt_print(LOG_INFO, "\tAverage Cycle speed: %d.%06d seconds\n", 
 		sb->ps_ca_sec, sb->ps_ca_usec);
-	log_printf(LOG_INFO, "\tLast Cycle speed: %d.%06d seconds\n", 
+	logt_print(LOG_INFO, "\tLast Cycle speed: %d.%06d seconds\n", 
 		sb->ps_lc_sec, sb->ps_lc_usec);
-	log_printf(LOG_INFO, "\tIncarnation: %08x%08x\n",
+	logt_print(LOG_INFO, "\tIncarnation: %08x%08x\n",
 		(int)(sb->ps_incarnation>>32&0xffffffff),
 		(int)(sb->ps_incarnation&0xffffffff));
 
@@ -155,7 +155,7 @@ read_info(char *dev)
 	status_block_t sb;
 
 	if (qdisk_open(dev, &ti) < 0) {
-		log_printf(LOG_ERR, "Could not read from %s: %s\n",
+		logt_print(LOG_ERR, "Could not read from %s: %s\n",
 		       dev, strerror(errno));
 		return;
 	}
@@ -165,7 +165,7 @@ read_info(char *dev)
 		if (qdisk_read(&ti,
 			       qdisk_nodeid_offset(x+1, ti.d_blksz),
 			       &sb, sizeof(sb)) < 0) {
-			log_printf(LOG_ERR, "Error reading node ID block %d\n",
+			logt_print(LOG_ERR, "Error reading node ID block %d\n",
 			       x+1);
 			continue;
 		}
@@ -185,14 +185,14 @@ print_qdisk_info(struct devnode *dn)
 	time_t timestamp = (time_t)qh->qh_timestamp;
 
 	for (dp = dn->devpath; dp; dp = dp->next)
-		log_printf(LOG_INFO, "%s:\n", dp->path);
-	log_printf(LOG_INFO, "\tMagic:                %08x\n", qh->qh_magic);
-	log_printf(LOG_INFO, "\tLabel:                %s\n", qh->qh_cluster);
-	log_printf(LOG_INFO, "\tCreated:              %s", ctime(&timestamp));
-	log_printf(LOG_INFO, "\tHost:                 %s\n", qh->qh_updatehost);
-	log_printf(LOG_INFO, "\tKernel Sector Size:   %d\n", qh->qh_kernsz);
+		logt_print(LOG_INFO, "%s:\n", dp->path);
+	logt_print(LOG_INFO, "\tMagic:                %08x\n", qh->qh_magic);
+	logt_print(LOG_INFO, "\tLabel:                %s\n", qh->qh_cluster);
+	logt_print(LOG_INFO, "\tCreated:              %s", ctime(&timestamp));
+	logt_print(LOG_INFO, "\tHost:                 %s\n", qh->qh_updatehost);
+	logt_print(LOG_INFO, "\tKernel Sector Size:   %d\n", qh->qh_kernsz);
 	if (qh->qh_version == VERSION_MAGIC_V2) {
-		log_printf(LOG_INFO, "\tRecorded Sector Size: %d\n\n", (int)qh->qh_blksz);
+		logt_print(LOG_INFO, "\tRecorded Sector Size: %d\n\n", (int)qh->qh_blksz);
 	}
 }
 

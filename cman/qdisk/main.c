@@ -21,8 +21,11 @@
 #include <sched.h>
 #include <signal.h>
 #include <ccs.h>
-#include <corosync/engine/logsys.h>
+#include <liblogthread.h>
 #include "score.h"
+
+
+#define DAEMON_NAME "QDISKD"
 
 /* from daemon_init.c */
 int daemon_init(char *);
@@ -48,10 +51,15 @@ inline void _diff_tv(struct timeval *dest, struct timeval *start,
 		     struct timeval *end);
 
 static int _running = 1, _reconfig = 0;
+static int _debug = 0, _foreground = 0;
+
+/* */
+#define DEBUG_CONF 0x1
+#define DEBUG_CMDLINE 0x2
+
 static void update_local_status(qd_ctx *ctx, node_info_t *ni, int max, int score,
 		    	 int score_req, int score_max);
-static int get_config_data(qd_ctx *ctx, struct h_data *h, int maxh, int *cfh,
-			   int debug, int trylater);
+static int get_config_data(qd_ctx *ctx, struct h_data *h, int maxh, int *cfh);
 
 
 static void
@@ -65,6 +73,17 @@ static void
 hup_handler(int sig)
 {
 	_reconfig = 1;
+}
+
+
+static void
+usr1_handler(int sig)
+{
+	if (_debug)
+		/* Shut up debug mode */
+		_debug = 0;
+	else
+		_debug = DEBUG_CMDLINE;
 }
 
 
@@ -116,7 +135,7 @@ check_self(qd_ctx *ctx, status_block_t *sb)
 		/* Someone told us to die. */
 		reboot(RB_AUTOBOOT);
 	default:
-		log_printf(LOG_EMERG, "Unhandled state: %d\n", sb->ps_state);
+		logt_print(LOG_EMERG, "Unhandled state: %d\n", sb->ps_state);
 		raise(SIGSTOP);
 	}
 }
@@ -140,7 +159,7 @@ read_node_blocks(qd_ctx *ctx, node_info_t *ni, int max)
 		if (qdisk_read(&ctx->qc_disk,
 			       qdisk_nodeid_offset(x+1, ctx->qc_disk.d_blksz),
 			       sb, sizeof(*sb)) < 0) {
-			log_printf(LOG_WARNING,"Error reading node ID block %d\n",
+			logt_print(LOG_WARNING,"Error reading node ID block %d\n",
 			       x+1);
 			++errors;
 			continue;
@@ -166,7 +185,7 @@ read_node_blocks(qd_ctx *ctx, node_info_t *ni, int max)
 			/* XXX check for average + allow grace */
 			ni[x].ni_misses++;
 			if (ni[x].ni_misses > 1) {
-				log_printf(LOG_DEBUG,
+				logt_print(LOG_DEBUG,
 					"Node %d missed an update (%d/%d)\n",
 					x+1, ni[x].ni_misses, ctx->qc_tko);
 			}
@@ -211,11 +230,11 @@ check_transitions(qd_ctx *ctx, node_info_t *ni, int max, memb_mask_t mask)
 		       ni[x].ni_status.ps_incarnation))) {
 
 			if (ni[x].ni_status.ps_state == S_EVICT) {
-				log_printf(LOG_NOTICE, "Node %d evicted\n",
+				logt_print(LOG_NOTICE, "Node %d evicted\n",
 				       ni[x].ni_status.ps_nodeid);
 			} else {
 				/* State == S_NONE or incarnation change */
-				log_printf(LOG_INFO, "Node %d shutdown\n",
+				logt_print(LOG_INFO, "Node %d shutdown\n",
 				       ni[x].ni_status.ps_nodeid);
 				ni[x].ni_evil_incarnation = 0;
 			}
@@ -252,7 +271,7 @@ check_transitions(qd_ctx *ctx, node_info_t *ni, int max, memb_mask_t mask)
 			 */
 			if (ni[x].ni_status.ps_state >= S_RUN &&
 			    ni[x].ni_seen) {
-				log_printf(LOG_DEBUG, "Node %d DOWN\n",
+				logt_print(LOG_DEBUG, "Node %d DOWN\n",
 				       ni[x].ni_status.ps_nodeid);
 				ni[x].ni_seen = 0;	
 			}
@@ -266,13 +285,13 @@ check_transitions(qd_ctx *ctx, node_info_t *ni, int max, memb_mask_t mask)
 			   Write eviction notice if we're the master.
 			 */
 			if (ctx->qc_status == S_MASTER) {
-				log_printf(LOG_NOTICE,
+				logt_print(LOG_NOTICE,
 				       "Writing eviction notice for node %d\n",
 				       ni[x].ni_status.ps_nodeid);
 				qd_write_status(ctx, ni[x].ni_status.ps_nodeid,
 						S_EVICT, NULL, NULL, NULL);
 				if (ctx->qc_flags & RF_ALLOW_KILL) {
-					log_printf(LOG_DEBUG, "Telling CMAN to "
+					logt_print(LOG_DEBUG, "Telling CMAN to "
 						"kill the node\n");
 					cman_kill_node(ctx->qc_cman_admin,
 						ni[x].ni_status.ps_nodeid);
@@ -296,10 +315,10 @@ check_transitions(qd_ctx *ctx, node_info_t *ni, int max, memb_mask_t mask)
 		if (ni[x].ni_evil_incarnation &&
                     (ni[x].ni_evil_incarnation == 
 		     ni[x].ni_status.ps_incarnation)) {
-			log_printf(LOG_CRIT, "Node %d is undead.\n",
+			logt_print(LOG_CRIT, "Node %d is undead.\n",
 			       ni[x].ni_status.ps_nodeid);
 
-			log_printf(LOG_ALERT,
+			logt_print(LOG_ALERT,
 			       "Writing eviction notice for node %d\n",
 			       ni[x].ni_status.ps_nodeid);
 			qd_write_status(ctx, ni[x].ni_status.ps_nodeid,
@@ -308,7 +327,7 @@ check_transitions(qd_ctx *ctx, node_info_t *ni, int max, memb_mask_t mask)
 
 			/* XXX Need to fence it again */
 			if (ctx->qc_flags & RF_ALLOW_KILL) {
-				log_printf(LOG_DEBUG, "Telling CMAN to "
+				logt_print(LOG_DEBUG, "Telling CMAN to "
 					"kill the node\n");
 				cman_kill_node(ctx->qc_cman_admin,
 					ni[x].ni_status.ps_nodeid);
@@ -331,7 +350,7 @@ check_transitions(qd_ctx *ctx, node_info_t *ni, int max, memb_mask_t mask)
 			   right now.
 			 */
 			ni[x].ni_state = S_RUN;
-			log_printf(LOG_DEBUG, "Node %d is UP\n",
+			logt_print(LOG_DEBUG, "Node %d is UP\n",
 			       ni[x].ni_status.ps_nodeid);
 			ni[x].ni_incarnation =
 			    ni[x].ni_status.ps_incarnation;
@@ -348,7 +367,7 @@ check_transitions(qd_ctx *ctx, node_info_t *ni, int max, memb_mask_t mask)
 		 */
 		if (ni[x].ni_state == S_RUN &&
 		    ni[x].ni_status.ps_state == S_MASTER) {
-			log_printf(LOG_INFO, "Node %d is the master\n",
+			logt_print(LOG_INFO, "Node %d is the master\n",
 			       ni[x].ni_status.ps_nodeid);
 			ni[x].ni_state = S_MASTER;
 			if (mask)
@@ -409,7 +428,7 @@ master_exists(qd_ctx *ctx, node_info_t *ni, int max, int *low_id, int *count)
 		/* Look for dead master */
 		if (ni[x].ni_state < S_RUN &&
 		    ni[x].ni_status.ps_state == S_MASTER) {
-			log_printf(LOG_DEBUG,
+			logt_print(LOG_DEBUG,
 			       "Node %d is marked master, but is dead.\n",
 			       ni[x].ni_status.ps_nodeid);
 			continue;
@@ -447,28 +466,28 @@ quorum_init(qd_ctx *ctx, node_info_t *ni, int max, struct h_data *h, int maxh)
 {
 	int x = 0, score, maxscore, score_req = 0;
 
-	log_printf(LOG_INFO, "Quorum Daemon Initializing\n");
+	logt_print(LOG_INFO, "Quorum Daemon Initializing\n");
 	
 	if (mlockall(MCL_CURRENT|MCL_FUTURE) != 0) {
-		log_printf(LOG_ERR, "Unable to mlockall()\n");
+		logt_print(LOG_ERR, "Unable to mlockall()\n");
 	}
 
 	if (qdisk_validate(ctx->qc_device) < 0)
 		return -1;
 
 	if (qdisk_open(ctx->qc_device, &ctx->qc_disk) < 0) {
-		log_printf(LOG_CRIT, "Failed to open %s: %s\n", ctx->qc_device,
+		logt_print(LOG_CRIT, "Failed to open %s: %s\n", ctx->qc_device,
 		       strerror(errno));
 		return -1;
 	}
 
-	log_printf(LOG_DEBUG, "I/O Size: %lu  Page Size: %lu\n",
+	logt_print(LOG_DEBUG, "I/O Size: %lu  Page Size: %lu\n",
 	       (unsigned long)ctx->qc_disk.d_blksz, (unsigned long)ctx->qc_disk.d_pagesz);
 	
 	if (h && maxh) {
 		start_score_thread(ctx, h, maxh);
 	} else {
-		log_printf(LOG_DEBUG, "Permanently setting score to 1/1\n");
+		logt_print(LOG_DEBUG, "Permanently setting score to 1/1\n");
 		fudge_scoring();
 	}
 
@@ -476,7 +495,7 @@ quorum_init(qd_ctx *ctx, node_info_t *ni, int max, struct h_data *h, int maxh)
 	ctx->qc_status = S_INIT;
 	if (qd_write_status(ctx, ctx->qc_my_id,
 			    S_INIT, NULL, NULL, NULL) != 0) {
-		log_printf(LOG_CRIT, "Could not initialize status block!\n");
+		logt_print(LOG_CRIT, "Could not initialize status block!\n");
 		return -1;
 	}
 
@@ -486,7 +505,7 @@ quorum_init(qd_ctx *ctx, node_info_t *ni, int max, struct h_data *h, int maxh)
 
 		if (qd_write_status(ctx, ctx->qc_my_id,
 				    S_INIT, NULL, NULL, NULL) != 0) {
-			log_printf(LOG_CRIT, "Initialization failed\n");
+			logt_print(LOG_CRIT, "Initialization failed\n");
 			return -1;
 		}
 
@@ -500,10 +519,10 @@ quorum_init(qd_ctx *ctx, node_info_t *ni, int max, struct h_data *h, int maxh)
 	}
 
 	get_my_score(&score, &maxscore);
-	log_printf(LOG_INFO, "Initial score %d/%d\n", score, maxscore);
+	logt_print(LOG_INFO, "Initial score %d/%d\n", score, maxscore);
 	if ((ctx->qc_flags & RF_STOP_CMAN) && (score < score_req))
 		return -1;
-	log_printf(LOG_INFO, "Initialization complete\n");
+	logt_print(LOG_INFO, "Initialization complete\n");
 
 	return 0;
 }
@@ -779,7 +798,7 @@ set_priority(int queue, int prio)
 	}
 	
 	if (ret < 0 && errno) {
-		log_printf(LOG_WARNING, "set_priority [%s] failed: %s\n", func,
+		logt_print(LOG_WARNING, "set_priority [%s] failed: %s\n", func,
 		       strerror(errno));
 	}
 }
@@ -824,8 +843,7 @@ process_cman_event(cman_handle_t handle, void *private, int reason, int arg)
 		_running = 0;
 		break;
 	case CMAN_REASON_CONFIG_UPDATE:
-		get_config_data(ctx, NULL, 0, NULL,
-				!!(ctx->qc_flags&RF_DEBUG), 1);
+		get_config_data(ctx, NULL, 0, NULL);
 		break;
 	case CMAN_REASON_PORTCLOSED:
 		break;
@@ -855,7 +873,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 	
 	get_my_score(&score, &score_max);
 	if (score_max < ctx->qc_scoremin) {
-		log_printf(LOG_WARNING, "Minimum score (%d) is impossible to "
+		logt_print(LOG_WARNING, "Minimum score (%d) is impossible to "
 		       "achieve (heuristic total = %d)\n",
 		       ctx->qc_scoremin, score_max);
 	}
@@ -863,8 +881,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 	_running = 1;
 	while (_running) {
 		if (_reconfig) {
-			get_config_data(ctx, NULL, 0, NULL,
-					!!(ctx->qc_flags&RF_DEBUG), 1);
+			get_config_data(ctx, NULL, 0, NULL);
 			_reconfig = 0;
 		}
 
@@ -891,7 +908,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 		if (score < score_req) {
 			clear_bit(mask, (ctx->qc_my_id-1), sizeof(mask));
 			if (ctx->qc_status > S_NONE) {
-				log_printf(LOG_NOTICE,
+				logt_print(LOG_NOTICE,
 				       "Score insufficient for master "
 				       "operation (%d/%d; required=%d); "
 				       "downgrading\n",
@@ -901,7 +918,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 				++msg.m_seq;
 				bid_pending = 0;
 				if (cman_wait(ctx->qc_cman_user, NULL) < 0) {
-					log_printf(LOG_ERR, "cman: %s\n",
+					logt_print(LOG_ERR, "cman: %s\n",
 					       strerror(errno));
 				} else {
 					cman_poll_quorum_device(ctx->qc_cman_admin, 0);
@@ -912,7 +929,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 		} else {
 			set_bit(mask, (ctx->qc_my_id-1), sizeof(mask));
 			if (ctx->qc_status == S_NONE) {
-				log_printf(LOG_NOTICE,
+				logt_print(LOG_NOTICE,
 				       "Score sufficient for master "
 				       "operation (%d/%d; required=%d); "
 				       "upgrading\n",
@@ -931,7 +948,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 		/* Resolve master conflict, if one exists */
 		if (count >= 1 && ctx->qc_status == S_MASTER &&
 		    ctx->qc_master != ctx->qc_my_id) {
-			log_printf(LOG_WARNING, "Master conflict: abdicating\n");
+			logt_print(LOG_WARNING, "Master conflict: abdicating\n");
 
 			/* Handle just like a recent upgrade */
 			ctx->qc_status = S_RUN;
@@ -954,7 +971,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 			   upgraded.
 			 */
 
-			log_printf(LOG_DEBUG,"Making bid for master\n");
+			logt_print(LOG_DEBUG,"Making bid for master\n");
 			msg.m_msg = M_BID;
 			++msg.m_seq;
 			bid_pending = 1;
@@ -981,7 +998,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 				if (bid_pending < (ctx->qc_master_wait))
 					break;
 				
-				log_printf(LOG_INFO,
+				logt_print(LOG_INFO,
 				       "Assuming master role\n");
 				ctx->qc_status = S_MASTER;
 			case 2:
@@ -997,7 +1014,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 			/* We think we're master, but someone else claims
 			   that they are master. */
 
-			log_printf(LOG_CRIT,
+			logt_print(LOG_CRIT,
 			       "A master exists, but it's not me?!\n");
 			/* XXX Handle this how? Should not happen*/
 			/* reboot(RB_AUTOBOOT); */
@@ -1009,9 +1026,9 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 			   We can't be the master unless we score high
 			   enough on our heuristics. */
 			if (cman_wait(ctx->qc_cman_user, NULL) < 0) {
-				log_printf(LOG_ERR, "cman_dispatch: %s\n",
+				logt_print(LOG_ERR, "cman_dispatch: %s\n",
 				       strerror(errno));
-				log_printf(LOG_ERR,
+				logt_print(LOG_ERR,
 				       "Halting qdisk operations\n");
 				return -1;
 			}
@@ -1030,9 +1047,9 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 				       ctx->qc_my_id-1,
 				       sizeof(memb_mask_t))) {
 				if (cman_wait(ctx->qc_cman_user, NULL) < 0) {
-					log_printf(LOG_ERR, "cman_dispatch: %s\n",
+					logt_print(LOG_ERR, "cman_dispatch: %s\n",
 						strerror(errno));
-					log_printf(LOG_ERR,
+					logt_print(LOG_ERR,
 						"Halting qdisk operations\n");
 					return -1;
 				}
@@ -1044,7 +1061,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 		/* Write out our status */
 		if (qd_write_status(ctx, ctx->qc_my_id, ctx->qc_status,
 				    &msg, mask, master_mask) != 0) {
-			log_printf(LOG_ERR, "Error writing to quorum disk\n");
+			logt_print(LOG_ERR, "Error writing to quorum disk\n");
 			errors++; /* this value isn't really used 
 				     at this point */
 		}
@@ -1062,7 +1079,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 		 */
 		if (_cmp_tv(&maxtime, &diff) == 1 &&
 		    ctx->qc_flags & RF_PARANOID) {
-			log_printf(LOG_EMERG, "Failed to complete a cycle within "
+			logt_print(LOG_EMERG, "Failed to complete a cycle within "
 			       "%d second%s (%d.%06d) - REBOOTING\n",
 			       (int)maxtime.tv_sec,
 			       maxtime.tv_sec==1?"":"s",
@@ -1081,7 +1098,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 		if (_cmp_tv(&diff, &interval) == 1) {
 			_diff_tv(&sleeptime, &diff, &interval);
 		} else {
-			log_printf(LOG_WARNING, "qdisk cycle took more "
+			logt_print(LOG_WARNING, "qdisk cycle took more "
 			       "than %d second%s to complete (%d.%06d)\n",
 			       ctx->qc_interval, ctx->qc_interval==1?"":"s",
 			       (int)diff.tv_sec, (int)diff.tv_usec);
@@ -1091,7 +1108,7 @@ quorum_loop(qd_ctx *ctx, node_info_t *ni, int max)
 		if (errors && ctx->qc_max_error_cycles) {
 			++error_cycles;
 			if (error_cycles >= ctx->qc_max_error_cycles) {
-				log_printf(LOG_ALERT,
+				logt_print(LOG_ALERT,
 				       "Too many I/O errors; giving up.\n");
 				_running = 0;
 			}
@@ -1118,10 +1135,34 @@ quorum_logout(qd_ctx *ctx)
 	/* Write out our status */
 	if (qd_write_status(ctx, ctx->qc_my_id, S_NONE,
 			    NULL, NULL, NULL) != 0) {
-		log_printf(LOG_WARNING,
+		logt_print(LOG_WARNING,
 		       "Error writing to quorum disk during logout\n");
 	}
 	return 0;
+}
+
+
+void
+conf_logging(int debug, int logmode, int facility, int loglevel,
+	     int filelevel, char *fname)
+{
+	static int _log_config = 0;
+
+	if (debug)
+		_debug |= DEBUG_CONF;
+	else
+		_debug &= ~DEBUG_CONF;
+	if (_debug)
+		loglevel = LOG_DEBUG;
+	if (_foreground)
+		logmode |= LOG_MODE_OUTPUT_STDERR;
+	if (!_log_config)
+		logt_init(DAEMON_NAME, logmode, facility, loglevel,
+			  filelevel, fname);
+	else
+		logt_conf(DAEMON_NAME, logmode, facility, loglevel,
+			  filelevel, fname);
+	_log_config = 1;
 }
 
 
@@ -1129,160 +1170,29 @@ quorum_logout(qd_ctx *ctx)
   Grab logsys configuration data from libccs
  */
 static int
-get_logsys_config_data(int *debug)
+get_log_config_data(int ccsfd)
 {
-	int ccsfd = -1, loglevel = SYSLOGLEVEL, facility = SYSLOGFACILITY;
-	char *val = NULL, *error = NULL;
-	unsigned int logmode;
-	int global_debug = 0;
+	char fname[PATH_MAX];
+	int debug, logmode, facility, loglevel, filelevel, need_close = 0;
 
-	log_printf(LOG_DEBUG, "Loading logsys configuration information\n");
+	logt_print(LOG_DEBUG, "Loading logsys configuration information\n");
 
-	ccsfd = ccs_connect();
 	if (ccsfd < 0) {
-		log_printf(LOG_CRIT, "Connection to CCSD failed; cannot start\n");
-		return -1;
-	}
-
-	logmode = logsys_config_mode_get();
-
-	if (!*debug) {
-		if (ccs_get(ccsfd, "/cluster/logging/@debug", &val) == 0) {
-			if(!strcmp(val, "on")) {
-				global_debug = 1;
-			} else 
-			if(!strcmp(val, "off")) {
-				global_debug = 0;
-			} else
-				log_printf(LOG_ERR, "global debug: unknown value\n");
-			free(val);
-			val = NULL;
+		ccsfd = ccs_connect();
+		if (ccsfd < 0) {
+			logt_print(LOG_CRIT, "Connection to CCSD failed; cannot start\n");
+			return -1;
 		}
-
-		if (ccs_get(ccsfd, "/cluster/logging/logger_subsys[@subsys=\"QDISK\"]/@debug", &val) == 0) {
-			if(!strcmp(val, "on")) {
-				*debug = 1;
-			} else 
-			if(!strcmp(val, "off")) { /* debug from cmdline/envvars override config */
-				*debug = 0;
-			} else
-				log_printf(LOG_ERR, "subsys debug: unknown value: %s\n", val);
-			free(val);
-			val = NULL;
-		} else
-			*debug = global_debug; /* global debug overrides subsystem only if latter is not specified */
-
-		if (ccs_get(ccsfd, "/cluster/logging/logger_subsys[@subsys=\"QDISK\"]/@syslog_level", &val) == 0) {
-			loglevel = logsys_priority_id_get (val);
-			if (loglevel < 0)
-				loglevel = SYSLOGLEVEL;
-
-			if (!*debug) {
-				if (loglevel == LOG_LEVEL_DEBUG)
-					*debug = 1;
-
-				logsys_config_priority_set (loglevel);
-			}
-
-			free(val);
-			val = NULL;
-		} else
-		if (ccs_get(ccsfd, "/cluster/quorumd/@log_level", &val) == 0) { /* check backward compat options */
-			loglevel = logsys_priority_id_get (val);
-			if (loglevel < 0)
-				loglevel = SYSLOGLEVEL;
-
-			log_printf(LOG_ERR, "<quorumd log_level=\"%s\".. option is depracated\n", val);
-
-			if (!*debug) {
-				if (loglevel == LOG_LEVEL_DEBUG)
-					*debug = 1;
-
-				logsys_config_priority_set (loglevel);
-			}
-
-			free(val);
-			val = NULL;
-		}
-	} else
-		logsys_config_priority_set (LOG_LEVEL_DEBUG);
-
-	if (ccs_get(ccsfd, "/cluster/logging/@to_stderr", &val) == 0) {
-		if(!strcmp(val, "yes")) {
-			logmode |= LOG_MODE_OUTPUT_STDERR;
-		} else 
-		if(!strcmp(val, "no")) {
-			logmode &= ~LOG_MODE_OUTPUT_STDERR;
-		} else
-			log_printf(LOG_ERR, "to_stderr: unknown value\n");
-		free(val);
-		val = NULL;
+		need_close = 1;
 	}
 
-	if (ccs_get(ccsfd, "/cluster/logging/@to_syslog", &val) == 0) {
-		if(!strcmp(val, "yes")) {
-			logmode |= LOG_MODE_OUTPUT_SYSLOG_THREADED;
-		} else 
-		if(!strcmp(val, "no")) {
-			logmode &= ~LOG_MODE_OUTPUT_SYSLOG_THREADED;
-		} else
-			log_printf(LOG_ERR, "to_syslog: unknown value\n");
-		free(val);
-		val = NULL;
-	}
+	snprintf(fname, sizeof(fname)-1, LOGDIR "/qdisk.log");
+	ccs_read_logging(ccsfd, (char *)"QDISKD", &debug, &logmode,
+        		 &facility, &loglevel, &filelevel, (char *)fname);
+	conf_logging(debug, logmode, facility, loglevel, filelevel, fname);
 
-	if (ccs_get(ccsfd, "/cluster/logging/@to_file", &val) == 0) {
-		if(!strcmp(val, "yes")) {
-			logmode |= LOG_MODE_OUTPUT_FILE;
-		} else 
-		if(!strcmp(val, "no")) {
-			logmode &= ~LOG_MODE_OUTPUT_FILE;
-		} else
-			log_printf(LOG_ERR, "to_file: unknown value\n");
-		free(val);
-		val = NULL;
-	}
-
-	if (ccs_get(ccsfd, "/cluster/logging/@logfile", &val) == 0) {
-		if(logsys_config_file_set(&error, val))
-			log_printf(LOG_ERR, "logfile: unable to open %s for logging\n", val);
-		free(val);
-		val = NULL;
-	} else
-		log_printf(LOG_DEBUG, "logfile: use default built-in log file: %s\n", LOGDIR "/qdisk.log");
-
-	if (ccs_get(ccsfd, "/cluster/logging/@syslog_facility", &val) == 0) {
-		facility = logsys_facility_id_get (val);
-		if (facility < 0) {
-			log_printf(LOG_ERR, "syslog_facility: unknown value\n");
-			facility = SYSLOGFACILITY;
-		}
-
-		logsys_config_facility_set ("QDISK", facility);
-		free(val);
-	} else
-	if (ccs_get(ccsfd, "/cluster/quorumd/@log_facility", &val) == 0) {
-		facility = logsys_facility_id_get (val);
-		if (facility < 0) {
-			log_printf(LOG_ERR, "syslog_facility: unknown value\n");
-			facility = SYSLOGFACILITY;
-		}
-
-		log_printf(LOG_ERR, "<quorumd log_facility=\"%s\".. option is depracated\n", val);
-
-		logsys_config_facility_set ("QDISK", facility);
-		free(val);
-		val = NULL;
-	}
-
-	if(logmode & LOG_MODE_BUFFER_BEFORE_CONFIG) {
-		log_printf(LOG_DEBUG, "logsys config enabled from get_logsys_config_data\n");
-		logmode &= ~LOG_MODE_BUFFER_BEFORE_CONFIG;
-		logmode |= LOG_MODE_FLUSH_AFTER_CONFIG;
-		logsys_config_mode_set (logmode);
-	}
-
-	ccs_disconnect(ccsfd);
+	if (need_close)
+		ccs_disconnect(ccsfd);
 
 	return 0;
 }
@@ -1291,24 +1201,22 @@ get_logsys_config_data(int *debug)
   Grab all our configuration data from libccs
  */
 static int
-get_config_data(qd_ctx *ctx, struct h_data *h, int maxh,
-		int *cfh, int debug, int trylater)
+get_config_data(qd_ctx *ctx, struct h_data *h, int maxh, int *cfh)
 {
 	int ccsfd = -1;
 	char query[256];
 	char *val;
 
-	log_printf(LOG_DEBUG, "Loading configuration information\n");
+	logt_print(LOG_DEBUG, "Loading configuration information\n");
 
-	if (trylater)
-		if(get_logsys_config_data(&debug))
-			return -1;
 
 	ccsfd = ccs_connect();
 	if (ccsfd < 0) {
-		log_printf(LOG_CRIT, "Connection to CCSD failed; cannot start\n");
+		logt_print(LOG_CRIT, "Connection to CCSD failed; cannot start\n");
 		return -1;
 	}
+
+	get_log_config_data(ccsfd);
 
 	/* Initialize defaults if we are not reconfiguring */
 	if (ctx->qc_config == 0) {
@@ -1317,7 +1225,7 @@ get_config_data(qd_ctx *ctx, struct h_data *h, int maxh,
 		ctx->qc_scoremin = 0;
 		ctx->qc_flags = RF_REBOOT | RF_ALLOW_KILL | RF_UPTIME;
 			/* | RF_STOP_CMAN;*/
-		if (debug)
+		if (_debug)
 			ctx->qc_flags |= RF_DEBUG;
 
 		ctx->qc_sched = SCHED_RR;
@@ -1350,7 +1258,7 @@ get_config_data(qd_ctx *ctx, struct h_data *h, int maxh,
 			ctx->qc_sched = SCHED_OTHER;
 			break;
 		default:
-			log_printf(LOG_WARNING, "Invalid scheduling queue '%s'\n",
+			logt_print(LOG_WARNING, "Invalid scheduling queue '%s'\n",
 			       val);
 			break;
 		}
@@ -1541,11 +1449,11 @@ get_config_data(qd_ctx *ctx, struct h_data *h, int maxh,
 
 	*cfh = configure_heuristics(ccsfd, h, maxh);
 
-	log_printf(LOG_DEBUG,
+	logt_print(LOG_DEBUG,
 	       "Quorum Daemon: %d heuristics, %d interval, %d tko, %d votes\n",
 	       *cfh, ctx->qc_interval, ctx->qc_tko, ctx->qc_votes);
 out:
-	log_printf(LOG_DEBUG, "Run Flags: %08x\n", ctx->qc_flags);
+	logt_print(LOG_DEBUG, "Run Flags: %08x\n", ctx->qc_flags);
 
 	ccs_disconnect(ccsfd);
 
@@ -1559,10 +1467,10 @@ check_stop_cman(qd_ctx *ctx)
 	if (!(ctx->qc_flags & RF_STOP_CMAN))
 		return;
 	
-	log_printf(LOG_WARNING, "Telling CMAN to leave the cluster; qdisk is not"
+	logt_print(LOG_WARNING, "Telling CMAN to leave the cluster; qdisk is not"
 		" available\n");
 	if (cman_shutdown(ctx->qc_cman_admin, 0) < 0) {
-		log_printf(LOG_CRIT, "Could not leave the cluster - rebooting\n");
+		logt_print(LOG_CRIT, "Could not leave the cluster - rebooting\n");
 		sleep(5);
 		if (ctx->qc_flags & RF_DEBUG)
 			return;
@@ -1571,22 +1479,23 @@ check_stop_cman(qd_ctx *ctx)
 }
 
 
+#define logt_print_once(level, fmt, args...) \
+do { static int _logged=0; if (!_logged) { _logged=1; logt_print(level, fmt, ##args); } } while(0)
+
+
 int
 main(int argc, char **argv)
 {
 	cman_node_t me;
-	int cfh = 0, rv, forked = 0, nfd = -1, ret = -1;
+	int cfh = 0, rv, nfd = -1, ret = -1, active;
 	qd_ctx ctx;
 	cman_handle_t ch_admin = NULL;
 	cman_handle_t ch_user = NULL;
 	node_info_t ni[MAX_NODES_DISK];
 	struct h_data h[10];
-	int debug = 0, foreground = 0, trylater = 0;
 	char device[128];
 	pid_t pid;
 	quorum_header_t qh;
-
-	logsys_init("QDISK", LOG_MODE_OUTPUT_STDERR | LOG_MODE_OUTPUT_SYSLOG_THREADED | LOG_MODE_OUTPUT_FILE | LOG_MODE_FILTER_DEBUG_FROM_SYSLOG | LOG_MODE_BUFFER_BEFORE_CONFIG, SYSLOGFACILITY, SYSLOGLEVEL, LOGDIR "/qdisk.log");
 
 	if (check_process_running(argv[0], &pid) && pid !=getpid()) {
 		printf("QDisk services already running\n");
@@ -1596,10 +1505,10 @@ main(int argc, char **argv)
 	while ((rv = getopt(argc, argv, "fdQs")) != EOF) {
 		switch (rv) {
 		case 'd':
-			debug = 1;
+			_debug = DEBUG_CMDLINE;
 			break;
 		case 'f':
-			foreground = 1;
+			_foreground = 1;
 			break;
 		case 'Q':
 			/* Make qdisk very quiet */
@@ -1618,55 +1527,49 @@ main(int argc, char **argv)
 	}
 
 	if(getenv("QDISK_DEBUGLOG"))
-		debug = 1;
+		_debug = 1;
 
-	if(debug)
-		logsys_config_priority_set (LOG_LEVEL_DEBUG);
-
-	trylater = get_logsys_config_data(&debug);
-
-	if (trylater)
-		logsys_config_mode_set (LOG_MODE_OUTPUT_STDERR | LOG_MODE_OUTPUT_SYSLOG_THREADED | LOG_MODE_OUTPUT_FILE | LOG_MODE_FLUSH_AFTER_CONFIG);	
-
-	ch_admin = cman_admin_init(NULL);
-
-	if (!ch_admin) {
-		if (!foreground && !forked) {
-			if (daemon_init(argv[0]) < 0)
-				goto out;
-			else
-				forked = 1;
-		}
-		
-		log_printf(LOG_INFO, "Waiting for CMAN to start\n");
-		
-		do {
-			sleep(5);
-			ch_admin = cman_admin_init(NULL);
-		} while (!ch_admin);
+	if (!_foreground && daemon_init(argv[0]) < 0) {
+		fprintf(stderr, "Could not fork: %s\n", strerror(errno));
+		goto out;
 	}
+
+	conf_logging(0, LOG_MODE_OUTPUT_SYSLOG, SYSLOGFACILITY,
+		     SYSLOGLEVEL, 0, NULL);
+
+	while (_running && (ch_admin = cman_admin_init(NULL)) == NULL) {
+		logt_print_once(LOG_INFO, "Waiting for CMAN to start\n");
+		sleep(1);
+	}
+
+	while (_running && (active = cman_is_active(ch_admin)) <= 0) {
+		logt_print_once(LOG_INFO,
+				"Waiting for CMAN to become active\n");
+		if (active < 0) {
+			logt_print(LOG_CRIT, "cman_is_active: %s\n",
+				   strerror(errno));
+			goto out;
+		}
+		sleep(1);
+	}
+
+	if (!_running)
+		goto out;
 
 	/* For cman notifications we need two sockets - one for events,
 	   one for config change callbacks */
 	ch_user = cman_init(&ctx);
-
         if (cman_start_notification(ch_user, process_cman_event) != 0) {
-		log_printf(LOG_CRIT, "Could not register with CMAN: %s\n",
+		logt_print(LOG_CRIT, "Could not register with CMAN: %s\n",
 			   strerror(errno));
-		cman_finish(ch_user);
-		cman_finish(ch_admin);
-		return -1;
+		goto out;
 	}
 
 	memset(&me, 0, sizeof(me));
-	while (cman_get_node(ch_admin, CMAN_NODEID_US, &me) < 0) {
-		if (!foreground && !forked) {
-			if (daemon_init(argv[0]) < 0)
-				goto out;
-			else
-				forked = 1;
-		}
-		sleep(5);
+	if (cman_get_node(ch_admin, CMAN_NODEID_US, &me) < 0) {
+		logt_print(LOG_CRIT, "Could not determine local node ID: %s\n",
+			   strerror(errno));
+		goto out;
 	}
 
 	qd_init(&ctx, ch_admin, ch_user, me.cn_nodeid);
@@ -1674,9 +1577,10 @@ main(int argc, char **argv)
 	signal(SIGINT, int_handler);
 	signal(SIGTERM, int_handler);
 	signal(SIGHUP, hup_handler);
+	signal(SIGUSR1, usr1_handler);
 
-	if (get_config_data(&ctx, h, 10, &cfh, debug, trylater) < 0) {
-		log_printf(LOG_CRIT, "Configuration failed\n");
+	if (get_config_data(&ctx, h, 10, &cfh) < 0) {
+		logt_print(LOG_CRIT, "Configuration failed\n");
 		check_stop_cman(&ctx);
 		goto out;
 	}
@@ -1684,24 +1588,24 @@ main(int argc, char **argv)
 	if (ctx.qc_label) {
 		ret = find_partitions(ctx.qc_label, device, sizeof(device), 0);
 		if (ret < 0) {
-			log_printf(LOG_CRIT, "Unable to match label"
+			logt_print(LOG_CRIT, "Unable to match label"
 					 " '%s' to any device\n",
 					 ctx.qc_label);
 			check_stop_cman(&ctx);
 			goto out;
 		}
-		/* XXX Multiple matches: do we care? */
 
 		if (ctx.qc_device)
 			free(ctx.qc_device);
-
 		ctx.qc_device = strdup(device);
 
-		log_printf(LOG_INFO, "Quorum Partition: %s Label: %s\n",
+		logt_print(LOG_INFO, "Quorum Partition: %s Label: %s\n",
 		       ctx.qc_device, ctx.qc_label);
+
+		logt_print(LOG_NOTICE, "WTF\n");
 	} else if (ctx.qc_device) {
 		if (check_device(ctx.qc_device, NULL, &qh, 0) != 0) {
-			log_printf(LOG_CRIT,
+			logt_print(LOG_CRIT,
 			       "Specified partition %s does not have a "
 			       "qdisk label\n", ctx.qc_device);
 			check_stop_cman(&ctx);
@@ -1710,7 +1614,7 @@ main(int argc, char **argv)
 
 		if (qh.qh_version == VERSION_MAGIC_V2 &&
 		    qh.qh_blksz != qh.qh_kernsz) {
-			log_printf(LOG_CRIT,
+			logt_print(LOG_CRIT,
 			       "Specified device %s does not match kernel's "
 			       "reported sector size (%lu != %lu)\n",
 			       ctx.qc_device,
@@ -1721,13 +1625,8 @@ main(int argc, char **argv)
 		}
 	}
 
-	if (!foreground && !forked) {
-                if (daemon_init(argv[0]) < 0)
-			goto out;
-	}
-	
 	if (quorum_init(&ctx, ni, MAX_NODES_DISK, h, cfh) < 0) {
-		log_printf(LOG_CRIT, "Initialization failed\n");
+		logt_print(LOG_CRIT, "Initialization failed\n");
 		check_stop_cman(&ctx);
 		goto out;
 	}
@@ -1747,7 +1646,7 @@ main(int argc, char **argv)
 		
 	if ((rv = cman_register_quorum_device(ctx.qc_cman_admin, ctx.qc_device,
 					      ctx.qc_votes)) < 0) {
-		log_printf(LOG_CRIT,
+		logt_print(LOG_CRIT,
 				 "Could not register %s with CMAN; "
 				 "return = %d; error = %s\n",
 				 ctx.qc_device, rv, strerror(errno));
@@ -1763,7 +1662,7 @@ out:
 	cman_finish(ch_admin);
 	cman_finish(ch_user);
 	qd_destroy(&ctx);
-	logsys_exit();
+	logt_exit();
 	return ret;
 }
 

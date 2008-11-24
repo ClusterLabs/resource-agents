@@ -23,7 +23,7 @@
 #include <sys/errno.h>
 #include <libgen.h>
 #include <signal.h>
-#include <corosync/engine/logsys.h>
+#include <liblogthread.h>
 
 /*
  * This should ultimately go in a header file.
@@ -201,24 +201,24 @@ daemon_init(char *prog)
 
 	uid = getuid();
 	if (uid) {
-		log_printf(LOG_ERR,
+		logt_print(LOG_ERR,
 			"daemon_init: Sorry, only root wants to run this.\n");
 		exit(1);
 	}
 
 	if (check_process_running(prog, &pid) && (pid != getpid())) {
-		log_printf(LOG_ERR,
+		logt_print(LOG_ERR,
 			"daemon_init: Process \"%s\" already running.\n",
 			prog);
 		exit(1);
 	}
 	if (setup_sigmask() < 0) {
-		log_printf(LOG_ERR, "daemon_init: Unable to set signal mask.\n");
+		logt_print(LOG_ERR, "daemon_init: Unable to set signal mask.\n");
 		exit(1);
 	}
 
 	if(daemon(0, 0)) {
-		log_printf(LOG_ERR, "daemon_init: Unable to daemonize.\n");
+		logt_print(LOG_ERR, "daemon_init: Unable to daemonize.\n");
 		exit(1);
 	}
 

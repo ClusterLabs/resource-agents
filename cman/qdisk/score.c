@@ -11,7 +11,7 @@
 #include <pthread.h>
 #include <string.h>
 #include <ccs.h>
-#include <corosync/engine/logsys.h>
+#include <liblogthread.h>
 #include <sched.h>
 #include <sys/mman.h>
 #include "disk.h"
@@ -125,7 +125,7 @@ fork_heuristic(struct h_data *h)
 
 	execv("/bin/sh", argv);
 
-	log_printf(LOG_ERR, "Execv failed\n");
+	logt_print(LOG_ERR, "Execv failed\n");
 	return 0;
 }
 
@@ -141,7 +141,7 @@ total_score(struct h_data *h, int max, int *score, int *maxscore)
 	*score = 0;
 	*maxscore = 0;
 	
-	log_printf(LOG_DEBUG, "max = %d\n", max);
+	logt_print(LOG_DEBUG, "max = %d\n", max);
 	/* Allow operation w/o any heuristics */
 	if (!max) {
 		*score = *maxscore = 1;
@@ -190,7 +190,7 @@ check_heuristic(struct h_data *h, int block)
 	/* Returned 0 and was not killed */
 	if (!h->available) {
 		h->available = 1;
-		log_printf(LOG_INFO, "Heuristic: '%s' UP\n", h->program);
+		logt_print(LOG_INFO, "Heuristic: '%s' UP\n", h->program);
 	}
 	h->misses = 0;
 	return 0;
@@ -199,12 +199,12 @@ miss:
 	if (h->available) {
 		h->misses++;
 		if (h->misses >= h->tko) {
-			log_printf(LOG_INFO,
+			logt_print(LOG_INFO,
 				"Heuristic: '%s' DOWN (%d/%d)\n",
 				h->program, h->misses, h->tko);
 			h->available = 0;
 		} else {
-			log_printf(LOG_DEBUG,
+			logt_print(LOG_DEBUG,
 				"Heuristic: '%s' missed (%d/%d)\n",
 				h->program, h->misses, h->tko);
 		}
@@ -303,13 +303,13 @@ configure_heuristics(int ccsfd, struct h_data *h, int max)
 				h[x].tko = 1;
 		}
 
-		log_printf(LOG_DEBUG,
+		logt_print(LOG_DEBUG,
 		       "Heuristic: '%s' score=%d interval=%d tko=%d\n",
 		       h[x].program, h[x].score, h[x].interval, h[x].tko);
 
 	} while (++x < max);
 
-	log_printf(LOG_DEBUG, "%d heuristics loaded\n", x);
+	logt_print(LOG_DEBUG, "%d heuristics loaded\n", x);
 		
 	return x;
 }
@@ -371,7 +371,7 @@ score_thread_main(void *arg)
 
 	free(args->h);
 	free(args);
-	log_printf(LOG_INFO, "Score thread going away\n");
+	logt_print(LOG_INFO, "Score thread going away\n");
 	return (NULL);
 }
 
