@@ -3254,8 +3254,15 @@ void close_cpg(void)
 
 int setup_dlmcontrol(void)
 {
-	dlmcontrol_fd = dlmc_fs_connect();
-	return dlmcontrol_fd;
+	int fd;
+
+	fd = dlmc_fs_connect();
+	if (fd < 0)
+		log_error("cannot connect to dlm_controld %d", fd);
+	else
+		dlmcontrol_fd = fd;
+
+	return fd;
 }
 
 int set_mountgroup_info(struct mountgroup *mg, struct gfsc_mountgroup *out)
