@@ -323,18 +323,23 @@ int set_lockspace_nodes_group(struct lockspace *ls, int option, int *node_count,
 
 int set_group_mode(void)
 {
-	int i = 0, rv, version;
+	int i = 0, rv, version, limit;
 
 	while (1) {
 		rv = group_get_version(&version);
 
 		if (rv || version < 0) {
 			/* we expect to get version of -EAGAIN while groupd
-			   is detecting the mode of everyone */
+			   is detecting the mode of everyone; don't retry
+			   as long if we're not getting anything back from
+			   groupd */
 
 			log_debug("set_group_mode get_version %d ver %d",
 				  rv, version);
-			if (i++ > 10) {
+
+			limit = (version == -EAGAIN) ? 30 : 5;
+
+			if (i++ > limit) {
 				log_error("cannot get groupd compatibility "
 					  "mode rv %d ver %d", rv, version);
 				return -1;
