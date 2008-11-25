@@ -586,7 +586,7 @@ static void groupd_dump_debug(int argc, char **argv, char *inbuf)
 		return;
 	}
 
-	do_read(fd, inbuf, sizeof(inbuf));
+	do_read(fd, inbuf, GROUPD_DUMP_SIZE);
 
 	close(fd);
 }
