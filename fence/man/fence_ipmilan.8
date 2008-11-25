@@ -44,6 +44,11 @@ Use the lanplus option if this is a lanplus capable interface (for example iLo2)
 \fB-A\fP \fIAuthentication Type\fP
 Can be set to none, password, md2, or md5.
 .TP
+\fB-C\fP \fICiphersuite Type\fP
+If you are using lanplus, this option avails you to define type of ciphersuite to
+use. Standard is 3 (defined if you just use lanplus). For more information please
+refer ipmitool man page (option -C).
+.TP
 \fB-t\fP \fItimeout\fP
 Timeout in seconds for IPMI operation. Default is 10, but in some cases it
 must be set to higher value (anything above 30 is not recommended and may
@@ -83,8 +88,13 @@ Timeout in seconds for IPMI operation. Default is 10, but in some cases it
 must be set to higher value (anything above 30 is not recommended and may
 cause strange problems).
 .TP
+\fIcipher = < param >\fR
+If you are using lanplus, this option avails you to define type of ciphersuite to
+use. Standard is 3 (defined if you just use lanplus). For more information please
+refer ipmitool man page (option -C).
+.TP
 \fIlanplus\fR
 If we are using the lanplus option for ipmitool
 
 .SH SEE ALSO
-fence(8), fence_node(8)
+fence(8), fence_node(8), ipmitool(1)

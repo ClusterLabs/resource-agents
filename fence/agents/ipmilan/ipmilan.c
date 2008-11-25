@@ -62,6 +62,7 @@ struct ipmi {
 	int i_verbose;
 	int i_lanplus;
 	int i_timeout;
+	int i_cipher;
 };
 
 
@@ -80,10 +81,14 @@ const char *ipmitool_paths[] = {
 };
 
 
+#define ECIPHER 2048
+
 static struct Etoken power_on_complete[] = {
 	{"Password:", EPERM, 0},
 	{"Unable to establish LAN", EAGAIN, 0},	/* Retry */
 	{"IPMI mutex", EFAULT, 0},	/* Death */
+	{"Unsupported cipher suite ID", ECIPHER,0},
+	{"read_rakp2_message: no support for", ECIPHER,0},
 	{"Up/On", 0, 0},
 	{NULL, 0, 0}
 };
@@ -92,6 +97,8 @@ static struct Etoken power_off_complete[] = {
 	{"Password:", EPERM, 0},
 	{"Unable to establish LAN", EAGAIN, 0},	/* Retry */
 	{"IPMI mutex", EFAULT, 0},	/* Death */
+	{"Unsupported cipher suite ID", ECIPHER,0},
+	{"read_rakp2_message: no support for", ECIPHER,0},
 	{"Down/Off", 0, 0},
 	{NULL, 0, 0}
 };
@@ -103,6 +110,8 @@ static struct Etoken power_status[] = {
 	{"Password:", EPERM, 0},
 	{"Unable to establish LAN", EAGAIN, 0},	/* Retry */
 	{"IPMI mutex", EFAULT, 0},	/* Death */
+	{"Unsupported cipher suite ID", ECIPHER,0},
+	{"read_rakp2_message: no support for", ECIPHER,0},
 	{"Chassis Power is off", STATE_OFF, 0},
 	{"Chassis Power is on", STATE_ON, 0},
 	{NULL, 0, 0}
@@ -200,6 +209,11 @@ build_cmd(char *command, size_t cmdlen, struct ipmi *ipmi, int op)
 
 	if (ipmi->i_authtype) {
 		snprintf(arg, sizeof(arg), " -A %s", str_prepare_for_sh(tmp,ipmi->i_authtype,sizeof(tmp)));
+		strncat(cmd, arg, sizeof(cmd) - strlen(arg));
+	}
+
+	if (ipmi->i_cipher>=0) {
+		snprintf(arg, sizeof(arg), " -C %d", ipmi->i_cipher);
 		strncat(cmd, arg, sizeof(cmd) - strlen(arg));
 	}
 
@@ -333,6 +347,12 @@ ipmi_op(struct ipmi *ipmi, int op, struct Etoken *toklist)
 		return ret;
 	}
 
+	if (ret == ECIPHER) {
+		log(LOG_CRIT, "ipmilan: ipmitool failed to operate "
+		    "with ciphersuite %d; unable to complete operation\n",ipmi->i_cipher);
+		return ret;
+	}
+
 	if (ret == ETIMEDOUT) {
 		/*!!! Still couldn't get through?! */
 		log(LOG_WARNING,
@@ -457,7 +477,8 @@ ipmi_destroy(struct ipmi *i)
  */
 static struct ipmi *
 ipmi_init(struct ipmi *i, char *host, char *authtype,
-	  char *user, char *password, int lanplus, int verbose,int timeout)
+	  char *user, char *password, int lanplus, int verbose,int timeout,
+	  int cipher)
 {
 	const char *p;
 
@@ -529,6 +550,7 @@ ipmi_init(struct ipmi *i, char *host, char *authtype,
 	i->i_verbose = verbose;
 	i->i_lanplus = lanplus;
 	i->i_timeout = timeout;
+	i->i_cipher = cipher;
 
 	return i;
 }
@@ -591,7 +613,8 @@ get_options_stdin(char *ip, size_t iplen,
 		  char *pwd_script, size_t pwd_script_len,
 		  char *user, size_t userlen,
 		  char *op, size_t oplen,
-		  int *lanplus, int *verbose,int *timeout)
+		  int *lanplus, int *verbose,int *timeout,
+	          int *cipher)
 {
 	char in[256];
 	int line = 0;
@@ -657,6 +680,10 @@ get_options_stdin(char *ip, size_t iplen,
 			if ((sscanf(val,"%d",timeout)!=1) || *timeout<1) {
 			    *timeout=DEFAULT_TIMEOUT;
 			}
+		} else if (!strcasecmp(name,"cipher")) {
+			if ((sscanf(val,"%d",cipher)!=1) || *cipher<0) {
+			    *cipher=-1;
+			}
 		} else if (!strcasecmp(name, "option") ||
 			   !strcasecmp(name, "operation") ||
 			   !strcasecmp(name, "action")) {
@@ -697,6 +724,7 @@ printf("   -l <login>     Username/Login (if required) to control power\n"
 printf("   -o <op>        Operation to perform.\n");
 printf("                  Valid operations: on, off, reboot, status\n");
 printf("   -t <timeout>   Timeout (sec) for IPMI operation (default %d)\n",DEFAULT_TIMEOUT);
+printf("   -C <cipher>    Ciphersuite to use (same as ipmitool -C parameter)\n");
 printf("   -V             Print version and exit\n");
 printf("   -v             Verbose mode\n\n");
 printf("If no options are specified, the following options will be read\n");
@@ -711,6 +739,7 @@ printf("   option=<op>           Same as -o\n");
 printf("   operation=<op>        Same as -o\n");
 printf("   action=<op>           Same as -o\n");
 printf("   timeout=<timeout>     Same as -t\n");
+printf("   cipher=<cipher>       Same as -C\n");
 printf("   verbose               Same as -v\n\n");
 	exit(1);
 }
@@ -732,6 +761,7 @@ main(int argc, char **argv)
 	char *pname = basename(argv[0]);
 	struct ipmi *i;
 	int timeout=DEFAULT_TIMEOUT;
+        int cipher=-1;
 
 	memset(ip, 0, sizeof(ip));
 	memset(authtype, 0, sizeof(authtype));
@@ -743,7 +773,7 @@ main(int argc, char **argv)
 		/*
 		   Parse command line options if any were specified
 		 */
-		while ((opt = getopt(argc, argv, "A:a:i:l:p:S:Po:vV?hHt:")) != EOF) {
+		while ((opt = getopt(argc, argv, "A:a:i:l:p:S:Po:vV?hHt:C:")) != EOF) {
 			switch(opt) {
 			case 'A':
 				/* Auth type */
@@ -779,6 +809,12 @@ main(int argc, char **argv)
 				    fail_exit("Timeout option expects positive number parameter");
 				}
 				break;
+			case 'C':
+				/* Ciphersuite */
+				if ((sscanf(optarg,"%d",&cipher)!=1) || cipher<0) {
+				    fail_exit("Ciphersuite option expects positive number parameter");
+				}
+				break;
 			case 'v':
 				verbose++;
 				break;
@@ -802,7 +838,8 @@ main(int argc, char **argv)
 				      passwd, sizeof(passwd),
 					  pwd_script, sizeof(pwd_script),
 				      user, sizeof(user),
-				      op, sizeof(op), &lanplus, &verbose,&timeout) != 0)
+				      op, sizeof(op), &lanplus, &verbose,&timeout,
+				      &cipher) != 0)
 			return 1;
 	}
 
@@ -852,7 +889,7 @@ main(int argc, char **argv)
 
 
 	/* Ok, set up the IPMI struct */
-	i = ipmi_init(NULL, ip, authtype, user, passwd, lanplus, verbose, timeout);
+	i = ipmi_init(NULL, ip, authtype, user, passwd, lanplus, verbose, timeout, cipher);
 	if (!i)
 		fail_exit("Failed to initialize\n");
 
