@@ -40,12 +40,10 @@ void init_logging(void)
 
 void setup_logging(void)
 {
-	char junk[PATH_MAX];
-
 	ccs_read_logging(ccs_handle, DAEMON_NAME,
 			 &cfgd_debug_logfile, &log_mode,
 			 &syslog_facility, &syslog_priority,
-			 &logfile_priority, junk);
+			 &logfile_priority, logfile);
 
 	log_debug("logging mode %d syslog f %d p %d logfile p %d %s",
 		  log_mode, syslog_facility, syslog_priority,
