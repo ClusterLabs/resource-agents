@@ -257,12 +257,11 @@ static void process_uevent(int ci)
 
  retry_recv:
 	rv = recv(client[ci].fd, &buf, sizeof(buf), 0);
-	if (rv == -1 && rv == EINTR)
-		goto retry_recv;
-	if (rv == -1 && rv == EAGAIN)
-		return;
 	if (rv < 0) {
-		log_error("uevent recv error %d errno %d", rv, errno);
+		if (errno == EINTR)
+			goto retry_recv;
+		if (errno != EAGAIN)
+			log_error("uevent recv error %d errno %d", rv, errno);
 		return;
 	}
 
