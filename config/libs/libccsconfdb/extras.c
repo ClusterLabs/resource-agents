@@ -228,11 +228,12 @@ static void read_string(int fd, char *path, char *string)
 	char *str;
 	int error;
 
+	memset(string, 0, PATH_MAX);
+
 	error = ccs_get(fd, path, &str);
 	if (error || !str)
 		return;
 
-	memset(string, 0, PATH_MAX);
 	strcpy(string, str);
 
 	free(str);
