@@ -17,6 +17,7 @@ TARGET= fence.8 \
 	fence_rib.8 \
 	fence_sanbox2.8 \
 	fence_tool.8 \
+	fence_virsh.8 \
 	fence_vixel.8 \
 	fence_wti.8 \
 	fence_bullpap.8 \
