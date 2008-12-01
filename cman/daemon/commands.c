@@ -1258,8 +1258,11 @@ static int do_cmd_get_node_addrs(char *cmdbuf, char **retbuf, int retsize, int *
 	memset(outbuf, 0, retsize - offset);
 
 	/* AIS doesn't know about nodes that are not members */
-	if (node->state != NODESTATE_MEMBER)
+	if (node->state != NODESTATE_MEMBER)  {
+		addrs->numaddrs = 0;
+		*retlen = sizeof(struct cl_get_node_addrs);
 		return 0;
+	}
 
 	if (corosync->totem_ifaces_get(nodeid, node_ifs, &status, (unsigned int *)&addrs->numaddrs))
 		return -errno;
