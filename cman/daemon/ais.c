@@ -15,6 +15,7 @@
 #include <netdb.h>
 
 /* corosync headers */
+#include <corosync/corotypes.h>
 #include <corosync/ipc_gen.h>
 #include <corosync/engine/coroapi.h>
 #include <corosync/engine/logsys.h>
@@ -53,7 +54,7 @@ static unsigned int debug_mask;
 static int first_trans = 1;
 struct corosync_api_v1 *corosync;
 
-static corosync_tpg_handle group_handle;
+static cs_tpg_handle group_handle;
 static struct corosync_tpg_group cman_group[1] = {
         { .group          = "CMAN", .group_len      = 4},
 };
