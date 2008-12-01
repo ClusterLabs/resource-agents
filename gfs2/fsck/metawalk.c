@@ -312,7 +312,7 @@ int check_leaf(struct gfs2_inode *ip, enum update_flags *update,
 				{
 					int factor = 0, divisor = ref_count;
 
-					lbh = bread(sbp, old_leaf);
+					lbh = bread(&sbp->buf_list, old_leaf);
 					while (divisor > 1) {
 						factor++;
 						divisor /= 2;
@@ -347,7 +347,7 @@ int check_leaf(struct gfs2_inode *ip, enum update_flags *update,
 
 			*update = not_updated;
 			/* Try to read in the leaf block. */
-			lbh = bread(sbp, leaf_no);
+			lbh = bread(&sbp->buf_list, leaf_no);
 			/* Make sure it's really a valid leaf block. */
 			if (gfs2_check_meta(lbh, GFS2_METATYPE_LF)) {
 				warn_and_patch(ip, &leaf_no, &bad_leaf,
@@ -414,7 +414,7 @@ int check_leaf(struct gfs2_inode *ip, enum update_flags *update,
 				if(update && (count != leaf.lf_entries)) {
 					enum update_flags f = not_updated;
 
-					lbh = bread(sbp, leaf_no);
+					lbh = bread(&sbp->buf_list, leaf_no);
 					gfs2_leaf_in(&leaf, lbh->b_data);
 
 					log_err("Leaf %"PRIu64" (0x%" PRIx64
@@ -681,7 +681,7 @@ static int build_and_check_metalist(struct gfs2_inode *ip,
 	uint64_t *ptr, block;
 	int err;
 
-	metabh = bread(ip->i_sbd, ip->i_di.di_num.no_addr);
+	metabh = bread(&ip->i_sbd->buf_list, ip->i_di.di_num.no_addr);
 
 	osi_list_add(&metabh->b_altlist, &mlp[0]);
 
@@ -724,7 +724,8 @@ static int build_and_check_metalist(struct gfs2_inode *ip,
 					continue;
 				}
 				if(!nbh)
-					nbh = bread(ip->i_sbd, block);
+					nbh = bread(&ip->i_sbd->buf_list,
+						    block);
 
 				osi_list_add(&nbh->b_altlist, cur_list);
 			} /* for all data on the indirect block */
@@ -857,7 +858,7 @@ int check_dir(struct gfs2_sbd *sbp, uint64_t block, struct metawalk_fxns *pass)
 	enum update_flags update = not_updated;
 	int error = 0;
 
-	bh = bread(sbp, block);
+	bh = bread(&sbp->buf_list, block);
 	ip = fsck_inode_get(sbp, bh);
 
 	if(ip->i_di.di_flags & GFS2_DIF_EXHASH) {

@@ -213,7 +213,7 @@ void build_rgrps(struct gfs2_sbd *sdp, int write)
 
 		if (write) {
 			for (x = 0; x < bitblocks; x++) {
-				bh = bget(sdp, rl->start + x);
+				bh = bget(&sdp->nvbuf_list, rl->start + x);
 				if (x)
 					gfs2_meta_header_out(&mh, bh->b_data);
 				else

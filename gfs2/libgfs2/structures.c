@@ -41,7 +41,7 @@ build_sb(struct gfs2_sbd *sdp)
 
 	/* Zero out the beginning of the device up to the superblock */
 	for (x = 0; x < sdp->sb_addr; x++) {
-		bh = bget(sdp, x);
+		bh = bget(&sdp->buf_list, x);
 		memset(bh->b_data, 0, sdp->bsize);
 		brelse(bh, updated);
 	}
@@ -69,7 +69,7 @@ build_sb(struct gfs2_sbd *sdp)
 		close(fd);
 	}
 #endif
-	bh = bget(sdp, sdp->sb_addr);
+	bh = bget(&sdp->buf_list, sdp->sb_addr);
 	gfs2_sb_out(&sb, bh->b_data);
 	brelse(bh, updated);
 
@@ -418,7 +418,7 @@ struct gfs2_inode *gfs2_load_inode(struct gfs2_sbd *sbp, uint64_t block)
 	struct gfs2_buffer_head *bh;
 	struct gfs2_inode *ip;
 
-	bh = bread(sbp, block);
+	bh = bread(&sbp->buf_list, block);
 	ip = inode_get(sbp, bh);
 	return ip;
 }
@@ -589,7 +589,7 @@ int gfs2_next_rg_metatype(struct gfs2_sbd *sdp, struct rgrp_list *rgd,
 			brelse(bh, not_updated);
 		if (gfs2_next_rg_meta(rgd, block, first))
 			return -1;
-		bh = bread(sdp, *block);
+		bh = bread(&sdp->buf_list, *block);
 		first = 0;
 	} while(gfs2_check_meta(bh, type));
 	brelse(bh, not_updated);

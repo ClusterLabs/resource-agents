@@ -119,7 +119,7 @@ static int buf_lo_scan_elements(struct gfs2_inode *ip, unsigned int start,
 		if (error)
 			return error;
 
-		bh_ip = bget(sdp, blkno);
+		bh_ip = bget(&sdp->buf_list, blkno);
 		memcpy(bh_ip->b_data, bh_log->b_data, sdp->bsize);
 
 		check_magic = ((struct gfs2_meta_header *)
@@ -218,7 +218,7 @@ static int databuf_lo_scan_elements(struct gfs2_inode *ip, unsigned int start,
 		if (error)
 			return error;
 
-		bh_ip = bget(sdp, blkno);
+		bh_ip = bget(&sdp->buf_list, blkno);
 		memcpy(bh_ip->b_data, bh_log->b_data, sdp->bsize);
 
 		/* Unescape */
@@ -422,6 +422,7 @@ int replay_journals(struct gfs2_sbd *sdp){
 	inode_put(sdp->master_dir, not_updated);
 	inode_put(sdp->md.jiinode, not_updated);
 	/* Sync the buffers to disk so we get a fresh start. */
-	bsync(sdp);
+	bsync(&sdp->buf_list);
+	bsync(&sdp->nvbuf_list);
 	return 0;
 }

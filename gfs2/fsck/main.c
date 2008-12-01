@@ -371,7 +371,8 @@ int main(int argc, char **argv)
 
 	if (!opts.no)
 		log_notice("Writing changes to disk\n");
-	bsync(sbp);
+	bsync(&sbp->buf_list);
+	bsync(&sbp->nvbuf_list);
 	destroy(sbp);
 	log_notice("gfs2_fsck complete    \n");
 

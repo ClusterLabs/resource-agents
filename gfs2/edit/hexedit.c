@@ -627,7 +627,7 @@ void rgcount(void)
 		block = sbd1->sb_rindex_di.no_addr;
 	else
 		block = masterblock("rindex");
-	ribh = bread(&sbd, block);
+	ribh = bread(&sbd.buf_list, block);
 	riinode = inode_get(&sbd, ribh);
 	printf("%lld RGs in this file system.\n",
 	       (unsigned long long)riinode->i_di.di_size / risize());
@@ -696,37 +696,6 @@ void gfs_rgrp_out(struct gfs_rgrp *rgrp, char *buf)
 }
 
 /* ------------------------------------------------------------------------ */
-/* gfs_dinode_in */
-/* ------------------------------------------------------------------------ */
-void gfs_dinode_in(struct gfs_dinode *di, char *buf)
-{
-	struct gfs_dinode *str = (struct gfs_dinode *)buf;
-
-	gfs2_meta_header_in(&di->di_header, buf);
-	gfs2_inum_in(&di->di_num, (char *)&str->di_num);
-
-	di->di_mode = be32_to_cpu(str->di_mode);
-	di->di_uid = be32_to_cpu(str->di_uid);
-	di->di_gid = be32_to_cpu(str->di_gid);
-	di->di_nlink = be32_to_cpu(str->di_nlink);
-	di->di_size = be64_to_cpu(str->di_size);
-	di->di_blocks = be64_to_cpu(str->di_blocks);
-	di->di_atime = be64_to_cpu(str->di_atime);
-	di->di_mtime = be64_to_cpu(str->di_mtime);
-	di->di_ctime = be64_to_cpu(str->di_ctime);
-	di->di_major = be32_to_cpu(str->di_major);
-	di->di_minor = be32_to_cpu(str->di_minor);
-	di->di_goal_dblk = be64_to_cpu(str->di_goal_dblk);
-	di->di_goal_mblk = be64_to_cpu(str->di_goal_mblk);
-	di->di_flags = be32_to_cpu(str->di_flags);
-	di->di_payload_format = be32_to_cpu(str->di_payload_format);
-	di->di_height = be16_to_cpu(str->di_height);
-	di->di_depth = be16_to_cpu(str->di_depth);
-	di->di_entries = be32_to_cpu(str->di_entries);
-	di->di_eattr = be64_to_cpu(str->di_eattr);
-}
-
-/* ------------------------------------------------------------------------ */
 /* gfs_rgrp_print - print a gfs1 resource group                             */
 /* ------------------------------------------------------------------------ */
 void gfs_rgrp_print(struct gfs_rgrp *rg)
@@ -754,7 +723,7 @@ uint64_t get_rg_addr(int rgnum)
 		block = sbd1->sb_rindex_di.no_addr;
 	else
 		block = masterblock("rindex");
-	bh = bread(&sbd, block);
+	bh = bread(&sbd.buf_list, block);
 	riinode = inode_get(&sbd, bh);
 	if (rgnum < riinode->i_di.di_size / risize())
 		rgblk = find_rgrp_block(riinode, rgnum);
@@ -782,7 +751,7 @@ void set_rgrp_flags(int rgnum, uint32_t new_flags, int modify, int full)
 	uint64_t rgblk;
 
 	rgblk = get_rg_addr(rgnum);
-	bh = bread(&sbd, rgblk);
+	bh = bread(&sbd.buf_list, rgblk);
 	if (gfs1)
 		gfs_rgrp_in(&rg.rg1, bh->b_data);
 	else
@@ -814,7 +783,7 @@ void set_rgrp_flags(int rgnum, uint32_t new_flags, int modify, int full)
 		brelse(bh, not_updated);
 	}
 	if (modify)
-		bsync(&sbd);
+		bsync(&sbd.buf_list);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -877,7 +846,7 @@ int parse_rindex(struct gfs2_inode *di, int print_rindex)
 			else {
 				struct gfs2_buffer_head *tmp_bh;
 
-				tmp_bh = bread(&sbd, ri.ri_addr);
+				tmp_bh = bread(&sbd.nvbuf_list, ri.ri_addr);
 				if (gfs1) {
 					struct gfs_rgrp rg1;
 					gfs_rgrp_in(&rg1, tmp_bh->b_data);
@@ -1418,7 +1387,7 @@ int display_extended(void)
 
 	/* Display any indirect pointers that we have. */
 	if (block_is_rindex()) {
-		tmp_bh = bread(&sbd, block);
+		tmp_bh = bread(&sbd.buf_list, block);
 		tmp_inode = inode_get(&sbd, tmp_bh);
 		parse_rindex(tmp_inode, TRUE);
 		brelse(tmp_bh, not_updated);
@@ -1430,33 +1399,34 @@ int display_extended(void)
 		return -1;
 	else if (block_is_rglist()) {
 		if (gfs1)
-			tmp_bh = bread(&sbd, sbd1->sb_rindex_di.no_addr);
+			tmp_bh = bread(&sbd.buf_list,
+				       sbd1->sb_rindex_di.no_addr);
 		else
-			tmp_bh = bread(&sbd, masterblock("rindex"));
+			tmp_bh = bread(&sbd.buf_list, masterblock("rindex"));
 		tmp_inode = inode_get(&sbd, tmp_bh);
 		parse_rindex(tmp_inode, FALSE);
 		brelse(tmp_bh, not_updated);
 	}
 	else if (block_is_jindex()) {
-		tmp_bh = bread(&sbd, block);
+		tmp_bh = bread(&sbd.buf_list, block);
 		tmp_inode = inode_get(&sbd, tmp_bh);
 		print_jindex(tmp_inode);
 		brelse(tmp_bh, not_updated);
 	}
 	else if (block_is_inum_file()) {
-		tmp_bh = bread(&sbd, block);
+		tmp_bh = bread(&sbd.buf_list, block);
 		tmp_inode = inode_get(&sbd, tmp_bh);
 		print_inum(tmp_inode);
 		brelse(tmp_bh, not_updated);
 	}
 	else if (block_is_statfs_file()) {
-		tmp_bh = bread(&sbd, block);
+		tmp_bh = bread(&sbd.buf_list, block);
 		tmp_inode = inode_get(&sbd, tmp_bh);
 		print_statfs(tmp_inode);
 		brelse(tmp_bh, not_updated);
 	}
 	else if (block_is_quota_file()) {
-		tmp_bh = bread(&sbd, block);
+		tmp_bh = bread(&sbd.buf_list, block);
 		tmp_inode = inode_get(&sbd, tmp_bh);
 		print_quota(tmp_inode);
 		brelse(tmp_bh, not_updated);
@@ -1469,8 +1439,6 @@ int display_extended(void)
 /* ------------------------------------------------------------------------ */
 void read_superblock(int fd)
 {
-	int x;
-
 	sbd1 = (struct gfs_sb *)&sbd.sd_sb;
 	ioctl(fd, BLKFLSBUF, 0);
 	do_lseek(fd, 0x10 * 4096);
@@ -1484,9 +1452,8 @@ void read_superblock(int fd)
 	sbd.qcsize = GFS2_DEFAULT_QCSIZE;
 	sbd.time = time(NULL);
 	osi_list_init(&sbd.rglist);
-	osi_list_init(&sbd.buf_list);
-	for (x = 0; x < BUF_HASH_SIZE; x++)
-		osi_list_init(&sbd.buf_hash[x]);
+	init_buf_list(&sbd, &sbd.buf_list, 128 << 20);
+	init_buf_list(&sbd, &sbd.nvbuf_list, 0xffffffff);
 	compute_constants(&sbd);
 	gfs2_sb_in(&sbd.sd_sb, buf); /* parse it out into the sb structure */
 	/* Check to see if this is really gfs1 */
@@ -1680,7 +1647,7 @@ uint64_t find_journal_block(const char *journal, uint64_t *j_size)
 	else
 		jindex_block = masterblock("jindex");
 	/* read in the block */
-	jindex_bh = bread(&sbd, jindex_block);
+	jindex_bh = bread(&sbd.buf_list, jindex_block);
 	/* get the dinode data from it. */
 	gfs2_dinode_in(&di, jindex_bh->b_data); /* parse disk inode to struct*/
 
@@ -1705,7 +1672,7 @@ uint64_t find_journal_block(const char *journal, uint64_t *j_size)
 		struct gfs2_dinode jdi;
 
 		jblock = indirect->ii[0].dirent[journal_num + 2].block;
-		j_bh = bread(&sbd, jblock);
+		j_bh = bread(&sbd.buf_list, jblock);
 		j_inode = inode_get(&sbd, j_bh);
 		gfs2_dinode_in(&jdi, j_bh->b_data);/* parse dinode to struct */
 		*j_size = jdi.di_size;
@@ -2345,7 +2312,7 @@ int fsck_readi(struct gfs2_inode *ip, void *buf, uint64_t offset,
 			block_map(ip, lblock, &not_new, &dblock, &extlen,
 				  FALSE, not_updated);
 		if (dblock) {
-			bh = bread(sdp, dblock);
+			bh = bread(&sdp->buf_list, dblock);
 			if (*abs_block == 0)
 				*abs_block = bh->b_blocknr;
 			dblock++;
@@ -2403,7 +2370,7 @@ void dump_journal(const char *journal)
 	if (!jblock)
 		return;
 	if (!gfs1) {
-		j_bh = bread(&sbd, jblock);
+		j_bh = bread(&sbd.buf_list, jblock);
 		j_inode = inode_get(&sbd, j_bh);
 	}
 
@@ -2411,7 +2378,7 @@ void dump_journal(const char *journal)
 		if (gfs1) {
 			if (j_bh)
 				brelse(j_bh, not_updated);
-			j_bh = bread(&sbd, jblock + jb);
+			j_bh = bread(&sbd.buf_list, jblock + jb);
 			abs_block = jblock + jb;
 			memcpy(jbuf, j_bh->b_data, sbd.bsize);
 		} else {

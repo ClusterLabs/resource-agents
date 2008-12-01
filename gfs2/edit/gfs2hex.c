@@ -257,7 +257,7 @@ void do_dinode_extended(struct gfs2_dinode *di, char *buf)
 
 				if (last >= max_block)
 					break;
-				tmp_bh = bread(&sbd, last);
+				tmp_bh = bread(&sbd.buf_list, last);
 				gfs2_leaf_in(&leaf, tmp_bh->b_data);
 				indirect->ii[indirect_blocks].dirents = 0;
 				for (direntcount = 0, bufoffset = sizeof(struct gfs2_leaf);

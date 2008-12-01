@@ -160,6 +160,15 @@ struct master_dir
 	struct per_node *pn;              /* Array of per_node entries */
 };
 
+struct buf_list {
+	unsigned int num_bufs;
+	unsigned int spills;
+	uint32_t limit;
+	osi_list_t list;
+	struct gfs2_sbd *sbp;
+	osi_list_t buf_hash[BUF_HASH_SIZE];
+};
+
 struct gfs2_sbd {
 	struct gfs2_sb sd_sb;    /* a copy of the ondisk structure */
 	char lockproto[GFS2_LOCKNAME_LEN];
@@ -220,20 +229,22 @@ struct gfs2_sbd {
 
 	unsigned int orig_journals;
 
-	unsigned int num_bufs;
-	osi_list_t buf_list;
-	osi_list_t buf_hash[BUF_HASH_SIZE];
+	struct buf_list buf_list;   /* transient buffer list */
+	struct buf_list nvbuf_list; /* non-volatile buffer list */
 
 	struct gfs2_inode *master_dir;
 	struct master_dir md;
 
-	unsigned int spills;
 	unsigned int writes;
 	int metafs_fd;
 	char metafs_path[PATH_MAX]; /* where metafs is mounted */
 	struct special_blocks bad_blocks;
 	struct special_blocks dup_blocks;
 	struct special_blocks eattr_blocks;
+};
+
+struct metapath {
+	unsigned int mp_list[GFS2_MAX_META_HEIGHT];
 };
 
 extern char *prog_name;
@@ -364,17 +375,17 @@ void *gfs2_block_list_destroy(struct gfs2_sbd *sdp,
 			      struct gfs2_block_list *il);
 
 /* buf.c */
-struct gfs2_buffer_head *bget_generic(struct gfs2_sbd *sdp, uint64_t num,
+void init_buf_list(struct gfs2_sbd *sdp, struct buf_list *bl, uint32_t limit);
+struct gfs2_buffer_head *bget_generic(struct buf_list *bl, uint64_t num,
 				      int find_existing, int read_disk);
-struct gfs2_buffer_head *bget(struct gfs2_sbd *sdp, uint64_t num);
-struct gfs2_buffer_head *bread(struct gfs2_sbd *sdp, uint64_t num);
-struct gfs2_buffer_head *bget_zero(struct gfs2_sbd *sdp, uint64_t num);
+struct gfs2_buffer_head *bget(struct buf_list *bl, uint64_t num);
+struct gfs2_buffer_head *bread(struct buf_list *bl, uint64_t num);
+struct gfs2_buffer_head *bget_zero(struct buf_list *bl, uint64_t num);
 struct gfs2_buffer_head *bhold(struct gfs2_buffer_head *bh);
 void brelse(struct gfs2_buffer_head *bh, enum update_flags updated);
-void bsync(struct gfs2_sbd *sdp);
-void bcommit(struct gfs2_sbd *sdp);
-void bcheck(struct gfs2_sbd *sdp);
-void write_buffer(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh);
+void bsync(struct buf_list *bl);
+void bcommit(struct buf_list *bl);
+void bcheck(struct buf_list *bl);
 
 /* device_geometry.c */
 void device_geometry(struct gfs2_sbd *sdp);
@@ -412,6 +423,17 @@ void build_rgrps(struct gfs2_sbd *sdp, int write);
 #define IS_LEAF     (1)
 #define IS_DINODE   (2)
 
+static __inline__ uint64_t *
+metapointer(struct gfs2_buffer_head *bh, unsigned int height,
+	    struct metapath *mp)
+{
+	unsigned int head_size = (height > 0) ?
+		sizeof(struct gfs2_meta_header) : sizeof(struct gfs2_dinode);
+
+	return ((uint64_t *)(bh->b_data + head_size)) + mp->mp_list[height];
+}
+
+struct metapath *find_metapath(struct gfs2_inode *ip, uint64_t block);
 struct gfs2_inode *inode_get(struct gfs2_sbd *sdp,
 			     struct gfs2_buffer_head *bh);
 void inode_put(struct gfs2_inode *ip, enum update_flags updated);
@@ -445,7 +467,7 @@ void block_map(struct gfs2_inode *ip, uint64_t lblock, int *new,
 void gfs2_get_leaf_nr(struct gfs2_inode *dip, uint32_t index,
 					  uint64_t *leaf_out);
 void gfs2_put_leaf_nr(struct gfs2_inode *dip, uint32_t inx, uint64_t leaf_out);
-
+void gfs2_free_block(struct gfs2_sbd *sdp, uint64_t block);
 int gfs2_freedi(struct gfs2_sbd *sdp, uint64_t block);
 int gfs2_get_leaf(struct gfs2_inode *dip, uint64_t leaf_no,
 				  struct gfs2_buffer_head **bhp);
@@ -467,6 +489,71 @@ void write_journal(struct gfs2_sbd *sdp, struct gfs2_inode *ip, unsigned int j,
  */
 
 int device_size(int fd, uint64_t *bytes);
+
+/* gfs1.c - GFS1 backward compatibility functions */
+struct gfs_indirect {
+	struct gfs2_meta_header in_header;
+
+	char in_reserved[64];
+};
+
+struct gfs_dinode {
+	struct gfs2_meta_header di_header;
+
+	struct gfs2_inum di_num; /* formal inode # and block address */
+
+	uint32_t di_mode;	/* mode of file */
+	uint32_t di_uid;	/* owner's user id */
+	uint32_t di_gid;	/* owner's group id */
+	uint32_t di_nlink;	/* number (qty) of links to this file */
+	uint64_t di_size;	/* number (qty) of bytes in file */
+	uint64_t di_blocks;	/* number (qty) of blocks in file */
+	int64_t di_atime;	/* time last accessed */
+	int64_t di_mtime;	/* time last modified */
+	int64_t di_ctime;	/* time last changed */
+
+	/*  Non-zero only for character or block device nodes  */
+	uint32_t di_major;	/* device major number */
+	uint32_t di_minor;	/* device minor number */
+
+	/*  Block allocation strategy  */
+	uint64_t di_rgrp;	/* dinode rgrp block number */
+	uint64_t di_goal_rgrp;	/* rgrp to alloc from next */
+	uint32_t di_goal_dblk;	/* data block goal */
+	uint32_t di_goal_mblk;	/* metadata block goal */
+
+	uint32_t di_flags;	/* GFS_DIF_... */
+
+	/*  struct gfs_rindex, struct gfs_jindex, or struct gfs_dirent */
+	uint32_t di_payload_format;  /* GFS_FORMAT_... */
+	uint16_t di_type;	/* GFS_FILE_... type of file */
+	uint16_t di_height;	/* height of metadata (0 == stuffed) */
+	uint32_t di_incarn;	/* incarnation (unused, see gfs_meta_header) */
+	uint16_t di_pad;
+
+	/*  These only apply to directories  */
+	uint16_t di_depth;	/* Number of bits in the table */
+	uint32_t di_entries;	/* The # (qty) of entries in the directory */
+
+	/*  This formed an on-disk chain of unused dinodes  */
+	struct gfs2_inum di_next_unused;  /* used in old versions only */
+
+	uint64_t di_eattr;	/* extended attribute block number */
+
+	char di_reserved[56];
+};
+
+void gfs1_lookup_block(struct gfs2_inode *ip, struct gfs2_buffer_head *bh,
+		  unsigned int height, struct metapath *mp,
+		       int create, int *new, uint64_t *block);
+void gfs1_block_map(struct gfs2_inode *ip, uint64_t lblock, int *new,
+		    uint64_t *dblock, uint32_t *extlen, int prealloc);
+int gfs1_readi(struct gfs2_inode *ip, void *buf, uint64_t offset,
+	       unsigned int size);
+int gfs1_rindex_read(struct gfs2_sbd *sdp, int fd, int *count1);
+int gfs1_ri_update(struct gfs2_sbd *sdp, int fd, int *rgcount);
+struct gfs2_inode *gfs_inode_get(struct gfs2_sbd *sdp,
+				 struct gfs2_buffer_head *bh);
 
 /* locking.c */
 void test_locking(char *lockproto, char *locktable);
@@ -542,7 +629,11 @@ int gfs2_query(int *setonabort, struct gfs2_options *opts,
 /* misc.c */
 #define SYS_BASE "/sys/fs/gfs2"
 
+uint32_t compute_heightsize(struct gfs2_sbd *sdp, uint64_t *heightsize,
+			    int diptrs, int inptrs);
 void compute_constants(struct gfs2_sbd *sdp);
+int find_gfs2_meta(struct gfs2_sbd *sdp);
+int dir_exists(const char *dir);
 void check_for_gfs2(struct gfs2_sbd *sdp);
 void mount_gfs2_meta(struct gfs2_sbd *sdp);
 void cleanup_metafs(struct gfs2_sbd *sdp);

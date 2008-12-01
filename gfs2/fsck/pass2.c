@@ -78,7 +78,7 @@ static int check_eattr_indir(struct gfs2_inode *ip, uint64_t block,
 			     enum update_flags *want_updated, void *private)
 {
 	*want_updated = not_updated;
-	*bh = bread(ip->i_sbd, block);
+	*bh = bread(&ip->i_sbd->buf_list, block);
 	return 0;
 }
 static int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
@@ -86,7 +86,7 @@ static int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
 			    enum update_flags *want_updated, void *private)
 {
 	*want_updated = not_updated;
-	*bh = bread(ip->i_sbd, block);
+	*bh = bread(&ip->i_sbd->buf_list, block);
 	return 0;
 }
 
@@ -727,7 +727,7 @@ int pass2(struct gfs2_sbd *sbp)
 			}
 			gfs2_block_set(sbp, bl, i, gfs2_meta_inval);
 		}
-		bh = bread(sbp, i);
+		bh = bread(&sbp->buf_list, i);
 		ip = fsck_inode_get(sbp, bh);
 		if(!ds.dotdir) {
 			log_err("No '.' entry found\n");
@@ -753,7 +753,7 @@ int pass2(struct gfs2_sbd *sbp)
 		}
 		fsck_inode_put(ip, not_updated); /* does a brelse */
 
-		bh = bread(sbp, i);
+		bh = bread(&sbp->buf_list, i);
 		ip = fsck_inode_get(sbp, bh);
 		if(ip->i_di.di_entries != ds.entry_count) {
 			log_err("Entries is %d - should be %d for inode block %" PRIu64

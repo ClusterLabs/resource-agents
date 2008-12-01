@@ -172,7 +172,8 @@ void initialize_new_portion(struct gfs2_sbd *sdp, int *old_rg_count)
 	inode_put(sdp->master_dir, not_updated);
 
 	/* We're done with the libgfs portion, so commit it to disk.      */
-	bsync(sdp);
+	bsync(&sdp->buf_list);
+	bsync(&sdp->nvbuf_list);
 }
 
 /**
@@ -243,7 +244,7 @@ void
 main_grow(int argc, char *argv[])
 {
 	struct gfs2_sbd sbd, *sdp = &sbd;
-	int rgcount, i, rindex_fd;
+	int rgcount, rindex_fd;
 	char rindex_name[PATH_MAX];
 	osi_list_t *head = &sdp->rglist;
 
@@ -272,9 +273,8 @@ main_grow(int argc, char *argv[])
 		fix_device_geometry(sdp);
 		log_info("Initializing lists...\n");
 		osi_list_init(&sdp->rglist);
-		osi_list_init(&sdp->buf_list);
-		for(i = 0; i < BUF_HASH_SIZE; i++)
-			osi_list_init(&sdp->buf_hash[i]);
+		init_buf_list(sdp, &sdp->buf_list, 128 << 20);
+		init_buf_list(sdp, &sdp->nvbuf_list, 0xffffffff);
 
 		sdp->sd_sb.sb_bsize = GFS2_DEFAULT_BSIZE;
 		sdp->bsize = sdp->sd_sb.sb_bsize;

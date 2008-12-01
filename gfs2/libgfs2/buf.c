@@ -13,17 +13,19 @@
 #include "libgfs2.h"
 
 static __inline__ osi_list_t *
-blkno2head(struct gfs2_sbd *sdp, uint64_t blkno)
+blkno2head(struct buf_list *bl, uint64_t blkno)
 {
-	return sdp->buf_hash +
+	return bl->buf_hash +
 		(gfs2_disk_hash((char *)&blkno, sizeof(uint64_t)) & BUF_HASH_MASK);
 }
 
-void write_buffer(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh)
+static void write_buffer(struct buf_list *bl, struct gfs2_buffer_head *bh)
 {
+	struct gfs2_sbd *sdp = bl->sbp;
+
 	osi_list_del(&bh->b_list);
 	osi_list_del(&bh->b_hash);
-	sdp->num_bufs--;
+	bl->num_bufs--;
 	if (bh->b_changed) {
 		do_lseek(sdp->device_fd, bh->b_blocknr * sdp->bsize);
 		do_write(sdp->device_fd, bh->b_data, sdp->bsize);
@@ -32,31 +34,49 @@ void write_buffer(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh)
 	free(bh);
 }
 
-static void
-add_buffer(struct gfs2_sbd *sdp, struct gfs2_buffer_head *bh)
+void init_buf_list(struct gfs2_sbd *sdp, struct buf_list *bl, uint32_t limit)
 {
-	osi_list_t *head = blkno2head(sdp, bh->b_blocknr);
+	int i;
 
-	osi_list_add(&bh->b_list, &sdp->buf_list);
-	osi_list_add(&bh->b_hash, head);
-	sdp->num_bufs++;
-
-	while (sdp->num_bufs * sdp->bsize > 128 << 20) {
-		bh = osi_list_entry(sdp->buf_list.prev, struct gfs2_buffer_head,
-							b_list);
-		if (bh->b_count) {
-			osi_list_del(&bh->b_list);
-			osi_list_add(&bh->b_list, &sdp->buf_list);
-			continue;
-		}
-		write_buffer(sdp, bh);
-		sdp->spills++;
-	} 
+	bl->num_bufs = 0;
+	bl->spills = 0;
+	bl->limit = limit;
+	bl->sbp = sdp;
+	osi_list_init(&bl->list);
+	for(i = 0; i < BUF_HASH_SIZE; i++)
+		osi_list_init(&bl->buf_hash[i]);
 }
 
-struct gfs2_buffer_head *bfind(struct gfs2_sbd *sdp, uint64_t num)
+static void
+add_buffer(struct buf_list *bl, struct gfs2_buffer_head *bh)
 {
-	osi_list_t *head = blkno2head(sdp, num);
+	osi_list_t *head = blkno2head(bl, bh->b_blocknr);
+
+	osi_list_add(&bh->b_list, &bl->list);
+	osi_list_add(&bh->b_hash, head);
+	bl->num_bufs++;
+
+	if (bl->num_bufs * bl->sbp->bsize > bl->limit) {
+		int found = 0;
+		osi_list_t *tmp, *x;
+
+		osi_list_foreach_safe(tmp, &bl->list, x) {
+			bh = osi_list_entry(tmp, struct gfs2_buffer_head,
+					    b_list);
+			if (!bh->b_count) {
+				write_buffer(bl, bh);
+				found++;
+				if (found >= 10)
+					break;
+			}
+		}
+		bl->spills++;
+	}
+}
+
+struct gfs2_buffer_head *bfind(struct buf_list *bl, uint64_t num)
+{
+	osi_list_t *head = blkno2head(bl, num);
 	osi_list_t *tmp;
 	struct gfs2_buffer_head *bh;
 
@@ -64,7 +84,7 @@ struct gfs2_buffer_head *bfind(struct gfs2_sbd *sdp, uint64_t num)
 		bh = osi_list_entry(tmp, struct gfs2_buffer_head, b_hash);
 		if (bh->b_blocknr == num) {
 			osi_list_del(&bh->b_list);
-			osi_list_add(&bh->b_list, &sdp->buf_list);
+			osi_list_add(&bh->b_list, &bl->list);
 			osi_list_del(&bh->b_hash);
 			osi_list_add(&bh->b_hash, head);
 			bh->b_count++;
@@ -75,13 +95,14 @@ struct gfs2_buffer_head *bfind(struct gfs2_sbd *sdp, uint64_t num)
 	return NULL;
 }
 
-struct gfs2_buffer_head *bget_generic(struct gfs2_sbd *sdp, uint64_t num,
-									  int find_existing, int read_disk)
+struct gfs2_buffer_head *bget_generic(struct buf_list *bl, uint64_t num,
+				      int find_existing, int read_disk)
 {
 	struct gfs2_buffer_head *bh;
+	struct gfs2_sbd *sdp = bl->sbp;
 
 	if (find_existing) {
-		bh = bfind(sdp, num);
+		bh = bfind(bl, num);
 		if (bh)
 			return bh;
 	}
@@ -94,25 +115,25 @@ struct gfs2_buffer_head *bget_generic(struct gfs2_sbd *sdp, uint64_t num,
 		do_lseek(sdp->device_fd, num * sdp->bsize);
 		do_read(sdp->device_fd, bh->b_data, sdp->bsize);
 	}
-	add_buffer(sdp, bh);
+	add_buffer(bl, bh);
 	bh->b_changed = FALSE;
 
 	return bh;
 }
 
-struct gfs2_buffer_head *bget(struct gfs2_sbd *sdp, uint64_t num)
+struct gfs2_buffer_head *bget(struct buf_list *bl, uint64_t num)
 {
-	return bget_generic(sdp, num, TRUE, FALSE);
+	return bget_generic(bl, num, TRUE, FALSE);
 }
 
-struct gfs2_buffer_head *bread(struct gfs2_sbd *sdp, uint64_t num)
+struct gfs2_buffer_head *bread(struct buf_list *bl, uint64_t num)
 {
-	return bget_generic(sdp, num, TRUE, TRUE);
+	return bget_generic(bl, num, TRUE, TRUE);
 }
 
-struct gfs2_buffer_head *bget_zero(struct gfs2_sbd *sdp, uint64_t num)
+struct gfs2_buffer_head *bget_zero(struct buf_list *bl, uint64_t num)
 {
-	return bget_generic(sdp, num, FALSE, FALSE);
+	return bget_generic(bl, num, FALSE, FALSE);
 }
 
 struct gfs2_buffer_head *bhold(struct gfs2_buffer_head *bh)
@@ -136,33 +157,34 @@ void brelse(struct gfs2_buffer_head *bh, enum update_flags updated)
 	bh->b_count--;
 }
 
-void bsync(struct gfs2_sbd *sdp)
+void bsync(struct buf_list *bl)
 {
 	struct gfs2_buffer_head *bh;
 
-	while (!osi_list_empty(&sdp->buf_list)) {
-		bh = osi_list_entry(sdp->buf_list.prev, struct gfs2_buffer_head,
+	while (!osi_list_empty(&bl->list)) {
+		bh = osi_list_entry(bl->list.prev, struct gfs2_buffer_head,
 							b_list);
 		if (bh->b_count)
 			die("buffer still held for block: %" PRIu64 " (0x%" PRIx64")\n",
 				bh->b_blocknr, bh->b_blocknr);
-		write_buffer(sdp, bh);
+		write_buffer(bl, bh);
 	}
 }
 
 /* commit buffers to disk but do not discard */
-void bcommit(struct gfs2_sbd *sdp)
+void bcommit(struct buf_list *bl)
 {
 	osi_list_t *tmp, *x;
 	struct gfs2_buffer_head *bh;
+	struct gfs2_sbd *sdp = bl->sbp;
 
-	osi_list_foreach_safe(tmp, &sdp->buf_list, x) {
+	osi_list_foreach_safe(tmp, &bl->list, x) {
 		bh = osi_list_entry(tmp, struct gfs2_buffer_head, b_list);
 		if (!bh->b_count)             /* if not reserved for later */
-			write_buffer(sdp, bh);    /* write the data, free the memory */
+			write_buffer(bl, bh);/* write the data & free memory */
 		else if (bh->b_changed) {     /* if buffer has changed */
 			do_lseek(sdp->device_fd, bh->b_blocknr * sdp->bsize);
-			do_write(sdp->device_fd, bh->b_data, sdp->bsize); /* write it out */
+			do_write(sdp->device_fd, bh->b_data, sdp->bsize);
 			bh->b_changed = FALSE;    /* no longer changed */
 		}
 	}
@@ -170,12 +192,12 @@ void bcommit(struct gfs2_sbd *sdp)
 }
 
 /* Check for unreleased buffers */
-void bcheck(struct gfs2_sbd *sdp)
+void bcheck(struct buf_list *bl)
 {
 	osi_list_t *tmp;
 	struct gfs2_buffer_head *bh;
 
-	osi_list_foreach(tmp, &sdp->buf_list) {
+	osi_list_foreach(tmp, &bl->list) {
 		bh = osi_list_entry(tmp, struct gfs2_buffer_head, b_list);
 		if (bh->b_count)
 			die("buffer still held: %"PRIu64"\n", bh->b_blocknr);

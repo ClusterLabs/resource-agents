@@ -22,12 +22,35 @@
 
 static char sysfs_buf[PAGE_SIZE];
 
+uint32_t compute_heightsize(struct gfs2_sbd *sdp, uint64_t *heightsize,
+			    int diptrs, int inptrs)
+{
+	int x;
+
+	heightsize[0] = sdp->bsize - sizeof(struct gfs2_dinode);
+	heightsize[1] = sdp->bsize * diptrs;
+	for (x = 2;; x++) {
+		uint64_t space, d;
+		uint32_t m;
+
+		space = heightsize[x - 1] * inptrs;
+		d = space;
+		m = do_div(d, inptrs);
+
+		if (d != heightsize[x - 1] || m)
+			break;
+		heightsize[x] = space;
+	}
+	if (x > GFS2_MAX_META_HEIGHT)
+		die("bad constants (1)\n");
+	return x;
+}
+
 void
 compute_constants(struct gfs2_sbd *sdp)
 {
 	uint32_t hash_blocks, ind_blocks, leaf_blocks;
 	uint32_t tmp_blocks;
-	unsigned int x;
 
 	sdp->md.next_inum = 1;
 
@@ -61,41 +84,12 @@ compute_constants(struct gfs2_sbd *sdp)
 
 	sdp->sd_max_dirres = hash_blocks + ind_blocks + leaf_blocks;
 
-	sdp->sd_heightsize[0] = sdp->bsize - sizeof(struct gfs2_dinode);
-	sdp->sd_heightsize[1] = sdp->bsize * sdp->sd_diptrs;
-	for (x = 2;; x++) {
-		uint64_t space, d;
-		uint32_t m;
-
-		space = sdp->sd_heightsize[x - 1] * sdp->sd_inptrs;
-		d = space;
-		m = do_div(d, sdp->sd_inptrs);
-
-		if (d != sdp->sd_heightsize[x - 1] || m)
-			break;
-		sdp->sd_heightsize[x] = space;
-	}
-	sdp->sd_max_height = x;
-	if (sdp->sd_max_height > GFS2_MAX_META_HEIGHT)
-		die("bad constants (1)\n");
-
-	sdp->sd_jheightsize[0] = sdp->bsize - sizeof(struct gfs2_dinode);
-	sdp->sd_jheightsize[1] = sdp->sd_jbsize * sdp->sd_diptrs;
-	for (x = 2;; x++) {
-		uint64_t space, d;
-		uint32_t m;
-
-		space = sdp->sd_jheightsize[x - 1] * sdp->sd_inptrs;
-		d = space;
-		m = do_div(d, sdp->sd_inptrs);
-
-		if (d != sdp->sd_jheightsize[x - 1] || m)
-			break;
-		sdp->sd_jheightsize[x] = space;
-	}
-	sdp->sd_max_jheight = x;
-	if (sdp->sd_max_jheight > GFS2_MAX_META_HEIGHT)
-		die("bad constants (2)\n");
+	sdp->sd_max_height = compute_heightsize(sdp, sdp->sd_heightsize,
+						sdp->sd_diptrs,
+						sdp->sd_inptrs);
+	sdp->sd_max_jheight = compute_heightsize(sdp, sdp->sd_jheightsize,
+						sdp->sd_diptrs,
+						sdp->sd_inptrs);
 }
 
 void

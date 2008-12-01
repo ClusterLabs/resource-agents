@@ -26,7 +26,7 @@ int gfs2_compute_bitstructs(struct gfs2_sbd *sdp, struct rgrp_list *rgd)
 	   be assured we should never have more than 2149 of them. */
 	if (length > 2149 || length == 0)
 		return -1;
-	if(!(rgd->bits = (struct gfs2_bitmap *)
+	if(rgd->bits == NULL && !(rgd->bits = (struct gfs2_bitmap *)
 		 malloc(length * sizeof(struct gfs2_bitmap))))
 		return -1;
 	if(!memset(rgd->bits, 0, length * sizeof(struct gfs2_bitmap)))
@@ -72,6 +72,8 @@ int gfs2_compute_bitstructs(struct gfs2_sbd *sdp, struct rgrp_list *rgd)
 	    rgd->bits[length - 1].bi_len) * GFS2_NBBY != rgd->ri.ri_data)
 		return -1;
 
+	if (rgd->bh)      /* If we already have a bh allocated */
+		return 0; /* don't want to allocate another */
 	if(!(rgd->bh = (struct gfs2_buffer_head **)
 		 malloc(length * sizeof(struct gfs2_buffer_head *))))
 		return -1;
@@ -117,7 +119,7 @@ uint64_t gfs2_rgrp_read(struct gfs2_sbd *sdp, struct rgrp_list *rgd)
 	int x, length = rgd->ri.ri_length;
 
 	for (x = 0; x < length; x++){
-		rgd->bh[x] = bread(sdp, rgd->ri.ri_addr + x);
+		rgd->bh[x] = bread(&sdp->nvbuf_list, rgd->ri.ri_addr + x);
 		if(gfs2_check_meta(rgd->bh[x],
 				   (x) ? GFS2_METATYPE_RB : GFS2_METATYPE_RG))
 		{
@@ -153,8 +155,10 @@ void gfs2_rgrp_free(osi_list_t *rglist, enum update_flags updated)
 			gfs2_rgrp_relse(rgd, updated); /* free them all. */
 		if(rgd->bits)
 			free(rgd->bits);
-		if(rgd->bh)
+		if(rgd->bh) {
 			free(rgd->bh);
+			rgd->bh = NULL;
+		}
 		osi_list_del(&rgd->list);
 		free(rgd);
 	}

@@ -9,6 +9,7 @@ OBJS=	bitmap.o \
 	fs_bits.o \
 	fs_geometry.o \
 	fs_ops.o \
+	gfs1.o \
 	locking.o \
 	gfs2_log.o \
 	misc.o \

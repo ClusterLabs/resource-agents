@@ -58,7 +58,7 @@ int read_sb(struct gfs2_sbd *sdp)
 	unsigned int x;
 	int error;
 
-	bh = bread(sdp, GFS2_SB_ADDR >> sdp->sd_fsb2bb_shift);
+	bh = bread(&sdp->buf_list, GFS2_SB_ADDR >> sdp->sd_fsb2bb_shift);
 	gfs2_sb_in(&sdp->sd_sb, bh->b_data);
 	brelse(bh, not_updated);
 
@@ -184,7 +184,10 @@ int rindex_read(struct gfs2_sbd *sdp, int fd, int *count1)
 			return -1;
 
 		rgd = (struct rgrp_list *)malloc(sizeof(struct rgrp_list));
-		// FIXME: handle failed malloc
+		if (!rgd) {
+			log_crit("Cannot allocate memory for rindex.\n");
+			exit(-1);
+		}
 		memset(rgd, 0, sizeof(struct rgrp_list));
 		osi_list_add_prev(&rgd->list, &sdp->rglist);
 
@@ -255,10 +258,11 @@ int write_sb(struct gfs2_sbd *sbp)
 {
 	struct gfs2_buffer_head *bh;
 
-	bh = bread(sbp, GFS2_SB_ADDR >> sbp->sd_fsb2bb_shift);
+	bh = bread(&sbp->buf_list, GFS2_SB_ADDR >> sbp->sd_fsb2bb_shift);
 	gfs2_sb_out(&sbp->sd_sb, bh->b_data);
 	brelse(bh, updated);
-	bcommit(sbp); /* make sure the change gets to disk ASAP */
+	bcommit(&sbp->buf_list); /* make sure the change gets to disk ASAP */
+	bcommit(&sbp->nvbuf_list); /* make sure the change gets to disk ASAP */
 	return 0;
 }
 

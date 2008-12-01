@@ -107,7 +107,7 @@ static int check_metalist(struct gfs2_inode *ip, uint64_t block,
 		gfs2_block_mark(ip->i_sbd, bl, block, gfs2_dup_block);
 		found_dup = 1;
 	}
-	nbh = bread(ip->i_sbd, block);
+	nbh = bread(&ip->i_sbd->buf_list, block);
 
 	if (gfs2_check_meta(nbh, GFS2_METATYPE_IN)){
 		log_debug("Bad indirect block pointer "
@@ -233,7 +233,7 @@ static int check_eattr_indir(struct gfs2_inode *ip, uint64_t indirect,
 	   check if it really is an EA.  If it is, let duplicate
 	   handling sort it out.  If it isn't, clear it but don't
 	   count it as a duplicate. */
-	*bh = bread(sdp, indirect);
+	*bh = bread(&sdp->buf_list, indirect);
 	if(gfs2_check_meta(*bh, GFS2_METATYPE_IN)) {
 		if(q.block_type != gfs2_block_free) { /* Duplicate? */
 			if (!clear_eas(ip, bc, indirect, 1, want_updated,
@@ -321,7 +321,7 @@ static int check_extended_leaf_eattr(struct gfs2_inode *ip, uint64_t *data_ptr,
 		stack;
 		return -1;
 	}
-	el_buf = bread(sdp, el_blk);
+	el_buf = bread(&sdp->buf_list, el_blk);
 
 	/* Special duplicate processing:  If we have an EA block,
 	   check if it really is an EA.  If it is, let duplicate
@@ -390,7 +390,7 @@ static int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
 		   check if it really is an EA.  If it is, let duplicate
 		   handling sort it out.  If it isn't, clear it but don't
 		   count it as a duplicate. */
-		leaf_bh = bread(sdp, block);
+		leaf_bh = bread(&sdp->buf_list, block);
 		if(gfs2_check_meta(leaf_bh, GFS2_METATYPE_EA)) {
 			if(q.block_type != gfs2_block_free) { /* Duplicate? */
 				clear_eas(ip, bc, block, 1, want_updated,
@@ -886,7 +886,7 @@ int pass1(struct gfs2_sbd *sbp)
 				skip_this_pass = FALSE;
 				fflush(stdout);
 			}
-			bh = bread(sbp, block);
+			bh = bread(&sbp->buf_list, block);
 
 			if (scan_meta(sbp, bh, block)) {
 				stack;

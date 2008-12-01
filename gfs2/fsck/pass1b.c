@@ -72,7 +72,7 @@ static int check_eattr_indir(struct gfs2_inode *ip, uint64_t block,
 
 	*want_updated = not_updated;
 	inc_if_found(block, 0, private);
-	indir_bh = bread(sbp, block);
+	indir_bh = bread(&sbp->buf_list, block);
 	*bh = indir_bh;
 
 	return 0;
@@ -87,7 +87,7 @@ static int check_eattr_leaf(struct gfs2_inode *ip, uint64_t block,
 
 	*want_updated = not_updated;
 	inc_if_found(block, 0, private);
-	leaf_bh = bread(sbp, block);
+	leaf_bh = bread(&sbp->buf_list, block);
 
 	*bh = leaf_bh;
 	return 0;

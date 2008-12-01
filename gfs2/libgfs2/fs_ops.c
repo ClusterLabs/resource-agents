@@ -62,7 +62,7 @@ uint64_t blk_alloc_i(struct gfs2_sbd *sdp, unsigned int type)
 	rg = &rl->rg;
 
 	for (block = 0; block < ri->ri_length; block++) {
-		bh = bread(sdp, ri->ri_addr + block);
+		bh = bread(&sdp->nvbuf_list, ri->ri_addr + block);
 		x = (block) ? sizeof(struct gfs2_meta_header) : sizeof(struct gfs2_rgrp);
 
 		for (; x < sdp->bsize; x++)
@@ -104,7 +104,7 @@ uint64_t blk_alloc_i(struct gfs2_sbd *sdp, unsigned int type)
 
 	brelse(bh, updated);
 
-	bh = bread(sdp, ri->ri_addr);
+	bh = bread(&sdp->nvbuf_list, ri->ri_addr);
 	gfs2_rgrp_out(rg, bh->b_data);
 	brelse(bh, updated);
 
@@ -162,7 +162,7 @@ static void unstuff_dinode(struct gfs2_inode *ip)
 	if (ip->i_di.di_size) {
 		if (isdir) {
 			block = meta_alloc(ip);
-			bh = bget(sdp, block);
+			bh = bget(&sdp->buf_list, block);
 			{
 				struct gfs2_meta_header mh;
 				mh.mh_magic = GFS2_MAGIC;
@@ -178,7 +178,7 @@ static void unstuff_dinode(struct gfs2_inode *ip)
 			brelse(bh, updated);
 		} else {
 			block = data_alloc(ip);
-			bh = bget(sdp, block);
+			bh = bget(&sdp->buf_list, block);
 
 			buffer_copy_tail(sdp, bh, 0,
 					 ip->i_bh, sizeof(struct gfs2_dinode));
@@ -240,7 +240,7 @@ void build_height(struct gfs2_inode *ip, int height)
 
 		if (new_block) {
 			block = meta_alloc(ip);
-			bh = bget(sdp, block);
+			bh = bget(&sdp->buf_list, block);
 			{
 				struct gfs2_meta_header mh;
 				mh.mh_magic = GFS2_MAGIC;
@@ -266,11 +266,7 @@ void build_height(struct gfs2_inode *ip, int height)
 	}
 }
 
-struct metapath {
-	unsigned int mp_list[GFS2_MAX_META_HEIGHT];
-};
-
-static struct metapath *find_metapath(struct gfs2_inode *ip, uint64_t block)
+struct metapath *find_metapath(struct gfs2_inode *ip, uint64_t block)
 {
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct metapath *mp;
@@ -283,16 +279,6 @@ static struct metapath *find_metapath(struct gfs2_inode *ip, uint64_t block)
 		mp->mp_list[i] = do_div(b, sdp->sd_inptrs);
 
 	return mp;
-}
-
-static __inline__ uint64_t *
-metapointer(struct gfs2_buffer_head *bh, unsigned int height,
-			struct metapath *mp)
-{
-	unsigned int head_size = (height > 0) ?
-		sizeof(struct gfs2_meta_header) : sizeof(struct gfs2_dinode);
-
-	return ((uint64_t *)(bh->b_data + head_size)) + mp->mp_list[height];
 }
 
 static void lookup_block(struct gfs2_inode *ip,
@@ -373,13 +359,13 @@ void block_map(struct gfs2_inode *ip, uint64_t lblock, int *new,
 
 		if (*new) {
 			struct gfs2_meta_header mh;
-			bh = bget(sdp, *dblock);
+			bh = bget(&sdp->buf_list, *dblock);
 			mh.mh_magic = GFS2_MAGIC;
 			mh.mh_type = GFS2_METATYPE_IN;
 			mh.mh_format = GFS2_FORMAT_IN;
 			gfs2_meta_header_out(&mh, bh->b_data);
 		} else
-			bh = bread(sdp, *dblock);
+			bh = bread(&sdp->buf_list, *dblock);
 	}
 
 	if (!prealloc)
@@ -472,7 +458,7 @@ int gfs2_readi(struct gfs2_inode *ip, void *buf,
 				  FALSE, not_updated);
 
 		if (dblock) {
-			bh = bread(sdp, dblock);
+			bh = bread(&sdp->buf_list, dblock);
 			dblock++;
 			extlen--;
 		} else
@@ -546,7 +532,7 @@ int gfs2_writei(struct gfs2_inode *ip, void *buf,
 		}
 
 		if (new) {
-			bh = bget(sdp, dblock);
+			bh = bget(&sdp->buf_list, dblock);
 			if (isdir) {
 				struct gfs2_meta_header mh;
 				mh.mh_magic = GFS2_MAGIC;
@@ -555,7 +541,7 @@ int gfs2_writei(struct gfs2_inode *ip, void *buf,
 				gfs2_meta_header_out(&mh, bh->b_data);
 			}
 		} else
-			bh = bread(sdp, dblock);
+			bh = bread(&sdp->buf_list, dblock);
 		copy_from_mem(bh, &buf, o, amount);
 		brelse(bh, updated);
 
@@ -592,9 +578,9 @@ struct gfs2_buffer_head *get_file_buf(struct gfs2_inode *ip, uint64_t lbn,
 		ip->i_di.di_size = (lbn + 1) << sdp->sd_sb.sb_bsize_shift;
 
 	if (new)
-		return bget(sdp, dbn);
+		return bget(&sdp->buf_list, dbn);
 	else
-		return bread(sdp, dbn);
+		return bread(&sdp->buf_list, dbn);
 }
 
 int gfs2_dirent_first(struct gfs2_inode *dip, struct gfs2_buffer_head *bh,
@@ -748,7 +734,7 @@ dir_split_leaf(struct gfs2_inode *dip, uint32_t index, uint64_t leaf_no)
 	int count;
 
 	bn = meta_alloc(dip);
-	nbh = bget(dip->i_sbd, bn);
+	nbh = bget(&dip->i_sbd->buf_list, bn);
 	{
 		struct gfs2_meta_header mh;
 		mh.mh_magic = GFS2_MAGIC;
@@ -760,7 +746,7 @@ dir_split_leaf(struct gfs2_inode *dip, uint32_t index, uint64_t leaf_no)
 	nleaf = (struct gfs2_leaf *)nbh->b_data;
 	nleaf->lf_dirent_format = cpu_to_be32(GFS2_FORMAT_DE);
 
-	obh = bread(dip->i_sbd, leaf_no);
+	obh = bread(&dip->i_sbd->buf_list, leaf_no);
 	oleaf = (struct gfs2_leaf *)obh->b_data;
 
 	len = 1 << (dip->i_di.di_depth - be16_to_cpu(oleaf->lf_depth));
@@ -891,7 +877,7 @@ int gfs2_get_leaf(struct gfs2_inode *dip, uint64_t leaf_no,
 {
 	int error = 0;
 
-	*bhp = bread(dip->i_sbd, leaf_no);
+	*bhp = bread(&dip->i_sbd->buf_list, leaf_no);
 	if (error)
 		return error;
 	error = gfs2_check_meta(*bhp, GFS2_METATYPE_LF);
@@ -915,7 +901,7 @@ static int get_first_leaf(struct gfs2_inode *dip, uint32_t index,
 	uint64_t leaf_no;
 
 	gfs2_get_leaf_nr(dip, index, &leaf_no);
-	*bh_out = bget(dip->i_sbd, leaf_no);
+	*bh_out = bget(&dip->i_sbd->buf_list, leaf_no);
 	return 0;
 }
 
@@ -937,7 +923,7 @@ static int get_next_leaf(struct gfs2_inode *dip,struct gfs2_buffer_head *bh_in,
 
 	if (!leaf->lf_next)
 		return -1;
-	*bh_out = bget(dip->i_sbd, be64_to_cpu(leaf->lf_next));
+	*bh_out = bget(&dip->i_sbd->buf_list, be64_to_cpu(leaf->lf_next));
 	return 0;
 }
 
@@ -963,7 +949,7 @@ dir_e_add(struct gfs2_inode *dip, char *filename, int len,
 	gfs2_get_leaf_nr(dip, index, &leaf_no);
 
 	for (;;) {
-		bh = bread(dip->i_sbd, leaf_no);
+		bh = bread(&dip->i_sbd->buf_list, leaf_no);
 		leaf = (struct gfs2_leaf *)bh->b_data;
 
 		if (dirent_alloc(dip, bh, len, &dent)) {
@@ -985,7 +971,7 @@ dir_e_add(struct gfs2_inode *dip, char *filename, int len,
 
 			} else {
 				bn = meta_alloc(dip);
-				nbh = bget(dip->i_sbd, bn);
+				nbh = bget(&dip->i_sbd->buf_list, bn);
 				{
 					struct gfs2_meta_header mh;
 					mh.mh_magic = GFS2_MAGIC;
@@ -1036,7 +1022,7 @@ dir_make_exhash(struct gfs2_inode *dip)
 	uint64_t *lp, bn;
 
 	bn = meta_alloc(dip);
-	bh = bget(sdp, bn);
+	bh = bget(&sdp->buf_list, bn);
 	{
 		struct gfs2_meta_header mh;
 		mh.mh_magic = GFS2_MAGIC;
@@ -1120,7 +1106,7 @@ init_dinode(struct gfs2_sbd *sdp, struct gfs2_inum *inum,
 	struct gfs2_buffer_head *bh;
 	struct gfs2_dinode di;
 
-	bh = bget(sdp, inum->no_addr);
+	bh = bget(&sdp->buf_list, inum->no_addr);
 
 	memset(&di, 0, sizeof(struct gfs2_dinode));
 	di.di_header.mh_magic = GFS2_MAGIC;
@@ -1388,7 +1374,7 @@ static int dir_l_search(struct gfs2_inode *dip, const char *filename,
 	if(!inode_is_stuffed(dip))
 		return -1;
 
-	dibh = bread(dip->i_sbd, dip->i_di.di_num.no_addr);
+	dibh = bread(&dip->i_sbd->buf_list, dip->i_di.di_num.no_addr);
 	error = leaf_search(dip, dibh, filename, len, &dent, NULL);
 	if (!error) {
 		gfs2_inum_in(inum, (char *)&dent->de_inum);
@@ -1443,7 +1429,7 @@ static int dir_e_del(struct gfs2_inode *dip, const char *filename, int len)
 		gfs2_get_leaf_nr(dip, index, &leaf_no);
 
 		while(leaf_no && !found){
-			bh = bget(dip->i_sbd, leaf_no);
+			bh = bget(&dip->i_sbd->buf_list, leaf_no);
 			error = leaf_search(dip, bh, filename, len, &cur, &prev);
 			if (error) {
 				if(error != -ENOENT){
@@ -1477,7 +1463,7 @@ static int dir_l_del(struct gfs2_inode *dip, struct gfs2_buffer_head *dibh,
 		return -1;
 
 	if(!dibh) {
-		dibh = bread(dip->i_sbd, dip->i_di.di_num.no_addr);
+		dibh = bread(&dip->i_sbd->buf_list, dip->i_di.di_num.no_addr);
 		if (error)
 			return -1;
 		got_buf = 1;
@@ -1561,6 +1547,23 @@ int gfs2_lookupi(struct gfs2_inode *dip, const char *filename, int len,
 }
 
 /**
+ * gfs2_free_block - free up a block given its block number
+ */
+void gfs2_free_block(struct gfs2_sbd *sdp, uint64_t block)
+{
+	struct gfs2_buffer_head *bh;
+	struct rgrp_list *rgd;
+
+	gfs2_set_bitmap(sdp, block, GFS2_BLKST_FREE);
+	/* Adjust the free space count for the freed block */
+	rgd = gfs2_blk2rgrpd(sdp, block); /* find the rg for indir block */
+	bh = bget(&sdp->nvbuf_list, rgd->ri.ri_addr); /* get the rg buffer */
+	rgd->rg.rg_free++; /* adjust the free count */
+	gfs2_rgrp_out(&rgd->rg, bh->b_data); /* back to the buffer */
+	brelse(bh, updated); /* release the buffer */
+}
+
+/**
  * gfs2_freedi - unlink a disk inode by block number.
  * Note: currently only works for regular files.
  */
@@ -1573,7 +1576,7 @@ int gfs2_freedi(struct gfs2_sbd *sdp, uint64_t block)
 	unsigned char *buf;
 	struct rgrp_list *rgd;
 	
-	bh = bread(sdp, block);
+	bh = bread(&sdp->buf_list, block);
 	ip = inode_get(sdp, bh);
 	if (ip->i_di.di_height > 0) {
 		buf = (unsigned char *)bh->b_data;
@@ -1581,16 +1584,8 @@ int gfs2_freedi(struct gfs2_sbd *sdp, uint64_t block)
 		for (x = sizeof(struct gfs2_dinode); x < sdp->bsize;
 			 x += sizeof(uint64_t)) {
 			p = be64_to_cpu(*(uint64_t *)(buf + x));
-			if (p) {
-				gfs2_set_bitmap(sdp, p, GFS2_BLKST_FREE);
-				/* We need to adjust the free space count for the freed */
-                /* indirect block. */
-				rgd = gfs2_blk2rgrpd(sdp, p); /* find the rg for indir block */
-				bh = bget(sdp, rgd->ri.ri_addr); /* get the buffer its rg */
-				rgd->rg.rg_free++; /* adjust the free count */
-				gfs2_rgrp_out(&rgd->rg, bh->b_data); /* back to the buffer */
-				brelse(bh, updated); /* release the buffer */
-			}
+			if (p)
+				gfs2_free_block(sdp, p);
 		}
 	}
 	/* Set the bitmap type for inode to free space: */
@@ -1601,7 +1596,7 @@ int gfs2_freedi(struct gfs2_sbd *sdp, uint64_t block)
 	/* The rg itself is in memory as rgd->rg, but there's most likely a  */
 	/* buffer in memory for the rg on disk because we used it to fix the */
 	/* bitmaps, some of which are on the same block on disk.             */
-	bh = bread(sdp, rgd->ri.ri_addr); /* get the buffer */
+	bh = bread(&sdp->nvbuf_list, rgd->ri.ri_addr); /* get the buffer */
 	rgd->rg.rg_free++;
 	rgd->rg.rg_dinodes--; /* one less inode in use */
 	gfs2_rgrp_out(&rgd->rg, bh->b_data);

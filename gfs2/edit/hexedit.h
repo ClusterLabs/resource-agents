@@ -8,6 +8,7 @@
 #include <linux/gfs2_ondisk.h>
 #include <string.h>
 
+#include "libgfs2.h"
 #include "copyright.cf"
 
 #ifndef TRUE
@@ -156,52 +157,6 @@ struct gfs_rgrp {
 	char rg_reserved[64];
 };
 
-struct gfs_dinode {
-	struct gfs2_meta_header di_header;
-
-	struct gfs2_inum di_num; /* formal inode # and block address */
-
-	uint32_t di_mode;	/* mode of file */
-	uint32_t di_uid;	/* owner's user id */
-	uint32_t di_gid;	/* owner's group id */
-	uint32_t di_nlink;	/* number (qty) of links to this file */
-	uint64_t di_size;	/* number (qty) of bytes in file */
-	uint64_t di_blocks;	/* number (qty) of blocks in file */
-	int64_t di_atime;	/* time last accessed */
-	int64_t di_mtime;	/* time last modified */
-	int64_t di_ctime;	/* time last changed */
-
-	/*  Non-zero only for character or block device nodes  */
-	uint32_t di_major;	/* device major number */
-	uint32_t di_minor;	/* device minor number */
-
-	/*  Block allocation strategy  */
-	uint64_t di_rgrp;	/* dinode rgrp block number */
-	uint64_t di_goal_rgrp;	/* rgrp to alloc from next */
-	uint32_t di_goal_dblk;	/* data block goal */
-	uint32_t di_goal_mblk;	/* metadata block goal */
-
-	uint32_t di_flags;	/* GFS_DIF_... */
-
-	/*  struct gfs_rindex, struct gfs_jindex, or struct gfs_dirent */
-	uint32_t di_payload_format;  /* GFS_FORMAT_... */
-	uint16_t di_type;	/* GFS_FILE_... type of file */
-	uint16_t di_height;	/* height of metadata (0 == stuffed) */
-	uint32_t di_incarn;	/* incarnation (unused, see gfs_meta_header) */
-	uint16_t di_pad;
-
-	/*  These only apply to directories  */
-	uint16_t di_depth;	/* Number of bits in the table */
-	uint32_t di_entries;	/* The # (qty) of entries in the directory */
-
-	/*  This formed an on-disk chain of unused dinodes  */
-	struct gfs2_inum di_next_unused;  /* used in old versions only */
-
-	uint64_t di_eattr;	/* extended attribute block number */
-
-	char di_reserved[56];
-};
-
 EXTERN int block_is_jindex(void);
 EXTERN int block_is_rindex(void);
 EXTERN int block_is_inum_file(void);
@@ -230,12 +185,6 @@ struct iinfo {
 	struct indirect_info ii[512];
 };
 
-struct gfs_indirect {
-	struct gfs2_meta_header in_header;
-
-	char in_reserved[64];
-};
-
 struct blkstack_info {
 	uint64_t block;
 	int start_row[DMODES];
@@ -245,10 +194,6 @@ struct blkstack_info {
 	int edit_col[DMODES];
 	enum dsp_mode dmode;
 	int gfs2_struct_type;
-};
-
-struct metapath {
-	uint64_t mp_list[GFS2_MAX_META_HEIGHT];
 };
 
 struct gfs_sb {

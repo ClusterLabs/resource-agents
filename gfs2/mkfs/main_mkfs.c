@@ -361,7 +361,8 @@ print_results(struct gfs2_sbd *sdp, uint64_t real_device_size)
 
 	if (sdp->debug) {
 		printf("\n");
-		printf("Spills:                    %u\n", sdp->spills);
+		printf("Spills:                    %u\n",
+		       sdp->buf_list.spills);
 		printf("Writes:                    %u\n", sdp->writes);
 	}
 
@@ -379,7 +380,6 @@ void
 main_mkfs(int argc, char *argv[])
 {
 	struct gfs2_sbd sbd, *sdp = &sbd;
-	unsigned int x;
 	int error;
 	int rgsize_specified = 0;
 	uint64_t real_device_size;
@@ -393,9 +393,8 @@ main_mkfs(int argc, char *argv[])
 	strcpy(sdp->lockproto, GFS2_DEFAULT_LOCKPROTO);
 	sdp->time = time(NULL);
 	osi_list_init(&sdp->rglist);
-	osi_list_init(&sdp->buf_list);
-	for (x = 0; x < BUF_HASH_SIZE; x++)
-		osi_list_init(&sdp->buf_hash[x]);
+	init_buf_list(sdp, &sdp->buf_list, 128 << 20);
+	init_buf_list(sdp, &sdp->nvbuf_list, 0xffffffff);
 
 	decode_arguments(argc, argv, sdp);
 	if (sdp->rgsize == -1)                 /* if rg size not specified */
@@ -461,7 +460,8 @@ main_mkfs(int argc, char *argv[])
 	inode_put(sdp->master_dir, updated);
 	inode_put(sdp->md.inum, updated);
 	inode_put(sdp->md.statfs, updated);
-	bsync(sdp);
+	bsync(&sdp->buf_list);
+	bsync(&sdp->nvbuf_list);
 
 	error = fsync(sdp->device_fd);
 	if (error)

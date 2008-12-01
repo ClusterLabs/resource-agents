@@ -43,326 +43,6 @@ int journals_found = 0;
 extern void read_superblock(void);
 uint64_t masterblock(const char *fn);
 
-static __inline__ int fs_is_jdata(struct gfs2_inode *ip)
-{
-        return ip->i_di.di_flags & GFS2_DIF_JDATA;
-}
-
-static struct metapath *find_metapath(struct gfs2_inode *ip, uint64_t block)
-{
-	struct gfs2_sbd *sdp = ip->i_sbd;
-	struct metapath *mp;
-	uint64_t b = block;
-	unsigned int i;
-
-	zalloc(mp, sizeof(struct metapath));
-
-	for (i = ip->i_di.di_height; i--;)
-		mp->mp_list[i] = do_div(b, sdp->sd_inptrs);
-
-	return mp;
-}
-
-static __inline__ uint64_t *
-metapointer(struct gfs2_buffer_head *bh, unsigned int height,
-			struct metapath *mp)
-{
-	unsigned int head_size = (height > 0) ?
-		sizeof(struct gfs_indirect) : sizeof(struct gfs_dinode);
-
-	return ((uint64_t *)(bh->b_data + head_size)) + mp->mp_list[height];
-}
-
-static void lookup_block(struct gfs2_inode *ip,
-	     struct gfs2_buffer_head *bh, unsigned int height, struct metapath *mp,
-	     int create, int *new, uint64_t *block)
-{
-	uint64_t *ptr = metapointer(bh, height, mp);
-
-	if (*ptr) {
-		*block = be64_to_cpu(*ptr);
-		return;
-	}
-
-	*block = 0;
-
-	if (!create)
-		return;
-
-	if (height == ip->i_di.di_height - 1&&
-	    !(S_ISDIR(ip->i_di.di_mode)))
-		*block = data_alloc(ip);
-	else
-		*block = meta_alloc(ip);
-
-	*ptr = cpu_to_be64(*block);
-	ip->i_di.di_blocks++;
-
-	*new = 1;
-}
-
-void gfs1_block_map(struct gfs2_inode *ip, uint64_t lblock, int *new,
-		    uint64_t *dblock, uint32_t *extlen, int prealloc)
-{
-	struct gfs2_sbd *sdp = ip->i_sbd;
-	struct gfs2_buffer_head *bh;
-	struct metapath *mp;
-	int create = *new;
-	unsigned int bsize;
-	unsigned int height;
-	unsigned int end_of_metadata;
-	unsigned int x;
-	enum update_flags f;
-
-	f = not_updated;
-	*new = 0;
-	*dblock = 0;
-	if (extlen)
-		*extlen = 0;
-
-	if (!ip->i_di.di_height) { /* stuffed */
-		if (!lblock) {
-			*dblock = ip->i_di.di_num.no_addr;
-			if (extlen)
-				*extlen = 1;
-		}
-		return;
-	}
-
-	bsize = (fs_is_jdata(ip)) ? sdp->sd_jbsize : sdp->bsize;
-
-	height = calc_tree_height(ip, (lblock + 1) * bsize);
-	if (ip->i_di.di_height < height) {
-		if (!create)
-			return;
-
-		build_height(ip, height);
-	}
-
-	mp = find_metapath(ip, lblock);
-	end_of_metadata = ip->i_di.di_height - 1;
-
-	bh = bhold(ip->i_bh);
-
-	for (x = 0; x < end_of_metadata; x++) {
-		lookup_block(ip, bh, x, mp, create, new, dblock);
-		brelse(bh, not_updated);
-		if (!*dblock)
-			goto out;
-
-		if (*new) {
-			struct gfs2_meta_header mh;
-
-			bh = bget(sdp, *dblock);
-			mh.mh_magic = GFS2_MAGIC;
-			mh.mh_type = GFS2_METATYPE_IN;
-			mh.mh_format = GFS2_FORMAT_IN;
-			gfs2_meta_header_out(&mh, bh->b_data);
-			f = updated;
-		} else
-			bh = bread(sdp, *dblock);
-	}
-
-	if (!prealloc)
-		lookup_block(ip, bh, end_of_metadata, mp, create, new, dblock);
-
-	if (extlen && *dblock) {
-		*extlen = 1;
-
-		if (!*new) {
-			uint64_t tmp_dblock;
-			int tmp_new;
-			unsigned int nptrs;
-
-			nptrs = (end_of_metadata) ? sdp->sd_inptrs : sdp->sd_diptrs;
-
-			while (++mp->mp_list[end_of_metadata] < nptrs) {
-				lookup_block(ip, bh, end_of_metadata, mp, FALSE, &tmp_new,
-							 &tmp_dblock);
-
-				if (*dblock + *extlen != tmp_dblock)
-					break;
-
-				(*extlen)++;
-			}
-		}
-	}
-
-	brelse(bh, f);
-
- out:
-	free(mp);
-}
-
-int gfs1_readi(struct gfs2_inode *ip, void *buf,
-	       uint64_t offset, unsigned int size)
-{
-	struct gfs2_sbd *sdp = ip->i_sbd;
-	struct gfs2_buffer_head *bh;
-	uint64_t lblock, dblock = 0;
-	uint32_t extlen = 0;
-	unsigned int amount;
-	int not_new = 0;
-	int journaled = fs_is_jdata(ip);
-	int copied = 0;
-
-	if (offset >= ip->i_di.di_size)
-		return 0;
-
-	if ((offset + size) > ip->i_di.di_size)
-		size = ip->i_di.di_size - offset;
-
-	if (!size)
-		return 0;
-
-	if (journaled) {
-		lblock = offset / sdp->sd_jbsize;
-		offset %= sdp->sd_jbsize;
-	} else {
-		lblock = offset >> sdp->sd_sb.sb_bsize_shift;
-		offset &= sdp->sd_sb.sb_bsize - 1;
-	}
-
-	if (!ip->i_di.di_height) /* stuffed */
-		offset += sizeof(struct gfs_dinode);
-	else if (journaled)
-		offset += sizeof(struct gfs2_meta_header);
-
-	while (copied < size) {
-		amount = size - copied;
-		if (amount > sdp->bsize - offset)
-			amount = sdp->bsize - offset;
-
-		if (!extlen)
-			gfs1_block_map(ip, lblock, &not_new, &dblock,
-				       &extlen, FALSE);
-
-		if (dblock) {
-			bh = bread(sdp, dblock);
-			dblock++;
-			extlen--;
-		} else
-			bh = NULL;
-
-
-		if (bh) {
-			memcpy(buf+copied, bh->b_data + offset, amount);
-			brelse(bh, not_updated);
-		} else
-			memset(buf+copied, 0, amount);
-		copied += amount;
-		lblock++;
-
-		offset = (journaled) ? sizeof(struct gfs2_meta_header) : 0;
-	}
-
-	return copied;
-}
-
-/**
- * gfs1_rindex_read - read in the rg index file
- *                  Stolen from libgfs2/super.c, but modified to handle gfs1.
- * @sdp: the incore superblock pointer
- * fd: optional file handle for rindex file (if meta_fs file system is mounted)
- *     (if fd is <= zero, it will read from raw device)
- * @count1: return count of the rgs.
- *
- * Returns: 0 on success, -1 on failure
- */
-int gfs1_rindex_read(struct gfs2_sbd *sdp, int fd, int *count1)
-{
-	unsigned int rg;
-	int error;
-	struct gfs2_rindex buf;
-	struct rgrp_list *rgd, *prev_rgd;
-	uint64_t prev_length = 0;
-
-	*count1 = 0;
-	prev_rgd = NULL;
-	for (rg = 0; ; rg++) {
-		if (fd > 0)
-			error = read(fd, &buf, sizeof(struct gfs2_rindex));
-		else
-			error = gfs1_readi(sdp->md.riinode, (char *)&buf,
-					   (rg * sizeof(struct gfs2_rindex)),
-					   sizeof(struct gfs2_rindex));
-		if (!error)
-			break;
-		if (error != sizeof(struct gfs2_rindex))
-			return -1;
-
-		rgd = (struct rgrp_list *)malloc(sizeof(struct rgrp_list));
-		// FIXME: handle failed malloc
-		memset(rgd, 0, sizeof(struct rgrp_list));
-		osi_list_add_prev(&rgd->list, &sdp->rglist);
-
-		gfs2_rindex_in(&rgd->ri, (char *)&buf);
-
-		rgd->start = rgd->ri.ri_addr;
-		if (prev_rgd) {
-			prev_length = rgd->start - prev_rgd->start;
-			prev_rgd->length = prev_length;
-		}
-
-		if(gfs2_compute_bitstructs(sdp, rgd))
-			return -1;
-
-		(*count1)++;
-		prev_rgd = rgd;
-	}
-	if (prev_rgd)
-		prev_rgd->length = prev_length;
-	return 0;
-}
-
-/**
- * gfs1_ri_update - attach rgrps to the super block
- *                  Stolen from libgfs2/super.c, but modified to handle gfs1.
- * @sdp:
- *
- * Given the rgrp index inode, link in all rgrps into the super block
- * and be sure that they can be read.
- *
- * Returns: 0 on success, -1 on failure.
- */
-int gfs1_ri_update(struct gfs2_sbd *sdp, int fd, int *rgcount)
-{
-	struct rgrp_list *rgd;
-	osi_list_t *tmp;
-	int count1 = 0, count2 = 0;
-	uint64_t errblock = 0;
-
-	if (gfs1_rindex_read(sdp, fd, &count1))
-	    goto fail;
-	for (tmp = sdp->rglist.next; tmp != &sdp->rglist; tmp = tmp->next) {
-		enum update_flags f;
-
-		f = not_updated;
-		rgd = osi_list_entry(tmp, struct rgrp_list, list);
-		errblock = gfs2_rgrp_read(sdp, rgd);
-		if (errblock)
-			return errblock;
-		else
-			gfs2_rgrp_relse(rgd, f);
-		count2++;
-		if (count2 % 100 == 0) {
-			printf(".");
-			fflush(stdout);
-		}
-	}
-
-	*rgcount = count1;
-	if (count1 != count2)
-		goto fail;
-
-	return 0;
-
- fail:
-	gfs2_rgrp_free(&sdp->rglist, not_updated);
-	return -1;
-}
-
-
 /*
  * get_gfs_struct_info - get block type and structure length
  *
@@ -562,48 +242,12 @@ void save_indirect_blocks(int out_fd, osi_list_t *cur_list,
 		old_block = indir_block;
 		save_block(sbd.device_fd, out_fd, indir_block);
 		if (height != hgt) { /* If not at max height */
-			nbh = bread(&sbd, indir_block);
+			nbh = bread(&sbd.buf_list, indir_block);
 			osi_list_add_prev(&nbh->b_altlist,
 					  cur_list);
 			brelse(nbh, not_updated);
 		}
 	} /* for all data on the indirect block */
-}
-
-struct gfs2_inode *gfs_inode_get(struct gfs2_sbd *sdp,
-				 struct gfs2_buffer_head *bh)
-{
-	struct gfs_dinode gfs1_dinode;
-	struct gfs2_inode *ip;
-
-	zalloc(ip, sizeof(struct gfs2_inode));
-	gfs_dinode_in(&gfs1_dinode, bh->b_data);
-	memcpy(&ip->i_di.di_header, &gfs1_dinode.di_header,
-	       sizeof(struct gfs2_meta_header));
-	memcpy(&ip->i_di.di_num, &gfs1_dinode.di_num,
-	       sizeof(struct gfs2_inum));
-	ip->i_di.di_mode = gfs1_dinode.di_mode;
-	ip->i_di.di_uid = gfs1_dinode.di_uid;
-	ip->i_di.di_gid = gfs1_dinode.di_gid;
-	ip->i_di.di_nlink = gfs1_dinode.di_nlink;
-	ip->i_di.di_size = gfs1_dinode.di_size;
-	ip->i_di.di_blocks = gfs1_dinode.di_blocks;
-	ip->i_di.di_atime = gfs1_dinode.di_atime;
-	ip->i_di.di_mtime = gfs1_dinode.di_mtime;
-	ip->i_di.di_ctime = gfs1_dinode.di_ctime;
-	ip->i_di.di_major = gfs1_dinode.di_major;
-	ip->i_di.di_minor = gfs1_dinode.di_minor;
-	ip->i_di.di_goal_data = gfs1_dinode.di_goal_dblk;
-	ip->i_di.di_goal_meta = gfs1_dinode.di_goal_mblk;
-	ip->i_di.di_flags = gfs1_dinode.di_flags;
-	ip->i_di.di_payload_format = gfs1_dinode.di_payload_format;
-	ip->i_di.di_height = gfs1_dinode.di_height;
-	ip->i_di.di_depth = gfs1_dinode.di_depth;
-	ip->i_di.di_entries = gfs1_dinode.di_entries;
-	ip->i_di.di_eattr = gfs1_dinode.di_eattr;
-	ip->i_bh = bh;
-	ip->i_sbd = sdp;
-	return ip;
 }
 
 /*
@@ -632,7 +276,7 @@ void save_inode_data(int out_fd)
 
 	for (i = 0; i < GFS2_MAX_META_HEIGHT; i++)
 		osi_list_init(&metalist[i]);
-	metabh = bread(&sbd, block);
+	metabh = bread(&sbd.buf_list, block);
 	if (gfs1)
 		inode = inode_get(&sbd, metabh);
 	else
@@ -677,7 +321,7 @@ void save_inode_data(int out_fd)
 		struct gfs2_meta_header mh;
 		int e;
 
-		metabh = bread(&sbd, inode->i_di.di_eattr);
+		metabh = bread(&sbd.buf_list, inode->i_di.di_eattr);
 		save_block(sbd.device_fd, out_fd, inode->i_di.di_eattr);
 		gfs2_meta_header_in(&mh, metabh->b_data);
 		if (mh.mh_magic == GFS2_MAGIC) {
@@ -737,7 +381,7 @@ void get_journal_inode_blocks(void)
 			struct gfs_jindex ji;
 			char jbuf[sizeof(struct gfs_jindex)];
 
-			bh = bread(&sbd, sbd1->sb_jindex_di.no_addr);
+			bh = bread(&sbd.buf_list, sbd1->sb_jindex_di.no_addr);
 			j_inode = gfs_inode_get(&sbd, bh);
 			amt = gfs2_readi(j_inode, (void *)&jbuf,
 					 journal * sizeof(struct gfs_jindex),
@@ -752,7 +396,7 @@ void get_journal_inode_blocks(void)
 			if (journal > indirect->ii[0].dirents - 3)
 				break;
 			jblock = indirect->ii[0].dirent[journal + 2].block;
-			bh = bread(&sbd, jblock);
+			bh = bread(&sbd.buf_list, jblock);
 			j_inode = inode_get(&sbd, bh);
 			gfs2_dinode_in(&jdi, bh->b_data);
 			inode_put(j_inode, not_updated);
@@ -796,14 +440,11 @@ void savemeta(char *out_fn, int saveoption)
 	if (!gfs1)
 		sbd.bsize = BUFSIZE;
 	if (!slow) {
-		int i;
-
 		device_geometry(&sbd);
 		fix_device_geometry(&sbd);
 		osi_list_init(&sbd.rglist);
-		osi_list_init(&sbd.buf_list);
-		for(i = 0; i < BUF_HASH_SIZE; i++)
-			osi_list_init(&sbd.buf_hash[i]);
+		init_buf_list(&sbd, &sbd.buf_list, 128 << 20);
+		init_buf_list(&sbd, &sbd.nvbuf_list, 0xffffffff);
 		if (!gfs1)
 			sbd.sd_sb.sb_bsize = GFS2_DEFAULT_BSIZE;
 		compute_constants(&sbd);
@@ -846,7 +487,7 @@ void savemeta(char *out_fn, int saveoption)
 					    &sbd.md.riinode);
 			jindex_block = masterblock("jindex");
 		}
-		bh = bread(&sbd, jindex_block);
+		bh = bread(&sbd.buf_list, jindex_block);
 		gfs2_dinode_in(&di, bh->b_data);
 		if (!gfs1)
 			do_dinode_extended(&di, bh->b_data);

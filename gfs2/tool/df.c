@@ -32,7 +32,7 @@ do_df_one(char *path)
 	uint64_t rgrps;
 	unsigned int flags;
 	char *value, *fs;
- 	int x, statfs_fd;
+	int statfs_fd;
 	struct gfs2_sbd sbd;
 	char buf[GFS2_DEFAULT_BSIZE], statfs_fn[PATH_MAX];
 	struct gfs2_statfs_change sc;
@@ -52,9 +52,9 @@ do_df_one(char *path)
 	sbd.utsize = GFS2_DEFAULT_UTSIZE;
 	sbd.qcsize = GFS2_DEFAULT_QCSIZE;
 	osi_list_init(&sbd.rglist);
-	osi_list_init(&sbd.buf_list);
-	for (x = 0; x < BUF_HASH_SIZE; x++)
-		osi_list_init(&sbd.buf_hash[x]);
+	init_buf_list(&sbd, &sbd.buf_list, 128 << 20);
+	init_buf_list(&sbd, &sbd.nvbuf_list, 0xffffffff);
+
 	do_lseek(sbd.device_fd, 0x10 * sbd.bsize);
 	do_read(sbd.device_fd, buf, sbd.bsize); /* read in the superblock */
 
