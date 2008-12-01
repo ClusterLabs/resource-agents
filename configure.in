@@ -2760,6 +2760,7 @@ resources/Makefile						\
 	resources/heartbeat/Raid1				\
 	resources/heartbeat/ServeRAID				\
 	resources/heartbeat/SendArp				\
+	resources/heartbeat/VirtualDomain				\
 	resources/heartbeat/WAS					\
 	resources/heartbeat/WinPopup				\
 	resources/heartbeat/Xinetd				\

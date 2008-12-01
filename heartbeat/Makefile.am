@@ -88,6 +88,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			sfex		\
 			tomcat		\
 			VIPArip		\
+			VirtualDomain \
 			vmware		\
 			WAS		\
 			WAS6		\

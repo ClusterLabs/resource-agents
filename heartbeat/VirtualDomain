@@ -1,0 +1,212 @@
+#!/bin/sh
+#
+# Support:      linux-ha@lists.linux-ha.org
+# License:      GNU General Public License (GPL)
+#
+#   Resource Agent for domains managed by the libvirt API.
+#   Requires a running libvirt daemon (libvirtd), except when running
+#   in a Xen Domain-0 and specifying xen:/// as the hypervisor URL.
+#
+#	usage: $0  {start|stop|status|monitor|meta-data}
+#
+#   TODO: when properly supported by libvirt, this RA should include
+#         support for domain live migration and implement the
+#         migrate-to and migrate-from operations.
+#
+#######################################################################
+# Initialization:
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
+LC_ALL="C"
+LANG="C"
+
+# Defaults
+: ${OCF_RESKEY_force_stop=0}
+#######################################################################
+
+
+usage() {
+  echo "usage: $0 {start|stop|status|monitor|meta-data|validate-all}"
+}
+
+meta_data() {
+	cat <<EOF
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="VirtualDomain">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource agent for a virtual domain (a.k.a. domU, virtual machine, 
+virtual environment etc., depending on context) managed by libvirtd.
+</longdesc>
+<shortdesc lang="en">Manages virtual domains</shortdesc>
+
+<parameters>
+
+<parameter name="config" unique="1" required="1">
+<longdesc lang="en">
+Absolute path to the libvirt configuration file,
+for this virtual domain.
+</longdesc>
+<shortdesc lang="en">virtual domain configuration file</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="hypervisor" unique="0" required="0">
+<longdesc lang="en">
+Hypervisor URI to connect to. See the libvirt documentation for
+details on supported URI formats. The default is system dependent.
+</longdesc>
+<shortdesc lang="en">Hypervisor URI</shortdesc>
+<content type="string"/>
+</parameter>
+
+<parameter name="force_stop" unique="0" required="0">
+<longdesc lang="en">
+Forcefully shut down ("destroy") the domain on stop. Enable this only if 
+your virtual domain (or your virtualization backend) does not support 
+graceful shutdown.
+</longdesc>
+<shortdesc lang="en">Force shutdown on stop</shortdesc>
+<content type="boolean" default="0" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start" timeout="10" />
+<action name="stop" timeout="90" />
+<action name="status" depth="0" timeout="30" interval="10" />
+<action name="monitor" depth="0" timeout="30" interval="10" />
+<action name="meta-data" timeout="5" />
+<action name="validate-all" timeout="5" />
+</actions>
+</resource-agent>
+EOF
+}
+
+VirtualDomain_Define() {
+    DOMAIN_NAME="$(virsh ${VIRSH_OPTIONS} define ${OCF_RESKEY_config} | sed -e 's/Domain \(.*\) defined from .*$/\1/')" \
+	|| return $OCF_ERR_GENERIC
+}
+
+VirtualDomain_Status() {
+    rc=$OCF_ERR_GENERIC
+    status="`virsh $VIRSH_OPTIONS domstate $DOMAIN_NAME`"
+    case $status in
+	"shut off")
+	    rc=$OCF_NOT_RUNNING
+	    ;;
+	running|paused|blocked)
+	    rc=$OCF_SUCCESS
+	    ;;
+    esac
+    ocf_log debug "Virtual domain $DOMAIN_NAME is currently $status."
+    return $rc
+}
+
+VirtualDomain_Start() {
+    if VirtualDomain_Status ${DOMAIN_NAME}; then
+	ocf_log info "Virtual domain $DOMAIN_NAME already running."
+	return $OCF_SUCCESS
+    fi
+    
+    virsh $VIRSH_OPTIONS start ${DOMAIN_NAME}
+    rc=$?
+    if [ $rc -ne 0 ]; then
+	ocf_log error "Failed to start virtual domain ${DOMAIN_NAME}."
+	return $OCF_ERR_GENERIC
+    fi
+    
+    while sleep 1; do
+	VirtualDomain_Status && return $OCF_SUCCESS
+    done
+}
+
+VirtualDomain_Stop() {
+    if VirtualDomain_Status ${DOMAIN_NAME}; then
+	case $OCF_RESKEY_force_stop in
+	    [Yy][Ee][Ss]|[Tt][Rr][Uu][Ee]|[Oo][Nn]|1)
+		op="destroy"
+		;;
+	    *)
+		op="shutdown"
+		;;
+	esac
+	virsh $VIRSH_OPTIONS $op ${DOMAIN_NAME}
+	while sleep 1; do
+	    VirtualDomain_Status
+	    if [ $? -eq $OCF_NOT_RUNNING ]; then
+		return $OCF_SUCCESS
+	    fi
+	done
+    else
+	ocf_log info "Domain $DOMAIN_NAME already stopped."
+	return $OCF_SUCCESS
+    fi
+}
+
+VirtualDomain_Validate_All() {
+    # Required binaries:
+    for binary in virsh sed; do
+        check_binary $binary
+    done
+
+    if [ -z $OCF_RESKEY_config ]; then
+	ocf_log error "Missing configuration parameter \"config\"."
+	return $OCF_ERR_CONFIGURED
+    fi
+
+    # check if we can read the config file (otherwise we're unable to
+    # deduce $DOMAIN_NAME from it, see below)
+    if [ ! -r $OCF_RESKEY_config ]; then
+	ocf_log error "Configuration file $OCF_RESKEY_config does not exist or is not readable."
+	return $OCF_ERR_CONFIGURED
+    fi
+}
+
+if [ $# -ne 1 ]; then
+  usage
+  exit $OCF_ERR_ARGS
+fi
+
+case $1 in
+  meta-data)		meta_data
+			exit $OCF_SUCCESS
+			;;
+  usage)		usage
+			exit $OCF_SUCCESS
+			;;
+esac
+
+# Everything except usage and meta-data must pass the validate test
+VirtualDomain_Validate_All || exit $?
+
+# Set options to be passed to virsh:
+#
+# if OCF_RESKEY_hypervisor is set, add the --connect option.
+# Otherwise, omit it so virsh connects to libvirt's
+# system-dependent default hypervisor. 
+if [ -n "$OCF_RESKEY_hypervisor" ]; then
+    VIRSH_OPTIONS="--connect=${OCF_RESKEY_hypervisor}"
+fi
+VIRSH_OPTIONS="${VIRSH_OPTIONS} --quiet"
+
+# Define the domain on startup, and re-define (harmlessly)
+# on every invocation. This also sets DOMAIN_NAME. If this fails,
+# bail out.
+VirtualDomain_Define || exit $?
+
+case $1 in
+  start)		VirtualDomain_Start
+			;;
+  stop)			VirtualDomain_Stop
+			;;
+  monitor|status)	VirtualDomain_Status ${DOMAIN_NAME}
+			;;
+  validate-all)		
+			;;
+  *)			usage
+			exit $OCF_ERR_UNIMPLEMENTED
+			;;
+esac
+exit $?
