@@ -260,7 +260,7 @@ void close_cluster(void) {
 }
 
 #include <arpa/inet.h>
-#include <openais/totem/totemip.h>
+#include <corosync/totem/totemip.h>
 
 void dlm_process_node(gpointer key, gpointer value, gpointer user_data)
 {
@@ -396,3 +396,14 @@ void kick_node_from_cluster(int nodeid)
     log_error("%s not yet implemented", __FUNCTION__);
     return;
 }
+
+int fence_node_time(int nodeid, uint64_t *last_fenced_time)
+{
+	return 0;
+}
+
+int fence_in_progress(int *count)
+{
+	return 0;
+}
+
