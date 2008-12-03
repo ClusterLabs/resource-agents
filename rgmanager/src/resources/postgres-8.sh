@@ -129,8 +129,8 @@ start()
 
 	generate_config_file "$OCF_RESKEY_config_file" "$PSQL_gen_config_file" "$ip_addresses"
 
-	sudo -u "$OCF_RESKEY_postmaster_user" $PSQL_POSTMASTER -c config_file="$PSQL_gen_config_file" \
-		$OCF_RESKEY_postmaster_options &> /dev/null &
+	su - "$OCF_RESKEY_postmaster_user" -c "$PSQL_POSTMASTER -c config_file=\"$PSQL_gen_config_file\" \
+		$OCF_RESKEY_postmaster_options" &> /dev/null &
 
 	if [ $? -ne 0 ]; then
 		clog_service_start $CLOG_FAILED
