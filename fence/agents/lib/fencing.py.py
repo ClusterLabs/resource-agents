@@ -504,7 +504,9 @@ def fence_login(options):
 				else:
 					fail_usage("Failed: You have to enter passphrase (-p) for identity file")
 		else:
-			conn = fspawn('%s %s' % (TELNET_PATH, options["-a"]))
+			conn = fspawn(TELNET_PATH)
+			conn.send("set binary\n")
+			conn.send("open %s\n"%(options["-a"]))
 			conn.log_expect(options, re_login, LOGIN_TIMEOUT)
 			conn.send(options["-l"]+"\r\n")
 			conn.log_expect(options, re_pass, SHELL_TIMEOUT)
