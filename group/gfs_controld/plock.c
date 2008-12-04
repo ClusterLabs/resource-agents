@@ -2200,13 +2200,13 @@ int fill_plock_dump_buf(struct mountgroup *mg)
 	list_for_each_entry(r, &mg->plock_resources, list) {
 		list_for_each_entry(po, &r->locks, list) {
 			ret = snprintf(plock_dump_buf + pos, len - pos,
-			      "%llu %s %llu-%llu nodeid %d pid %u owner %llx\n",
+			      "%llu %s %llu-%llu nodeid %d pid %u owner %llx rown %d\n",
 			      (unsigned long long)r->number,
 			      po->ex ? "WR" : "RD",
 			      (unsigned long long)po->start,
 			      (unsigned long long)po->end,
 			      po->nodeid, po->pid,
-			      (unsigned long long)po->owner);
+			      (unsigned long long)po->owner, r->owner);
 
 			if (ret >= len - pos) {
 				rv = -ENOSPC;
@@ -2217,13 +2217,30 @@ int fill_plock_dump_buf(struct mountgroup *mg)
 
 		list_for_each_entry(w, &r->waiters, list) {
 			ret = snprintf(plock_dump_buf + pos, len - pos,
-			      "%llu WAITING %s %llu-%llu nodeid %d pid %u owner %llx\n",
+			      "%llu %s %llu-%llu nodeid %d pid %u owner %llx rown %d WAITING\n",
 			      (unsigned long long)r->number,
 			      w->info.ex ? "WR" : "RD",
 			      (unsigned long long)w->info.start,
 			      (unsigned long long)w->info.end,
 			      w->info.nodeid, w->info.pid,
-			      (unsigned long long)w->info.owner);
+			      (unsigned long long)w->info.owner, r->owner);
+
+			if (ret >= len - pos) {
+				rv = -ENOSPC;
+				goto out;
+			}
+			pos += ret;
+		}
+
+		list_for_each_entry(w, &r->pending, list) {
+			ret = snprintf(plock_dump_buf + pos, len - pos,
+			      "%llu %s %llu-%llu nodeid %d pid %u owner %llx rown %d PENDING\n",
+			      (unsigned long long)r->number,
+			      w->info.ex ? "WR" : "RD",
+			      (unsigned long long)w->info.start,
+			      (unsigned long long)w->info.end,
+			      w->info.nodeid, w->info.pid,
+			      (unsigned long long)w->info.owner, r->owner);
 
 			if (ret >= len - pos) {
 				rv = -ENOSPC;
