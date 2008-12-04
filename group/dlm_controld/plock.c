@@ -1251,7 +1251,7 @@ static void _receive_sync(struct lockspace *ls, struct dlm_header *hd, int len)
 	}
 
 	if (hd->type == DLM_MSG_PLOCK_SYNC_LOCK)
-		add_lock(r, info.nodeid, info.owner, info.pid, !info.ex, 
+		add_lock(r, info.nodeid, info.owner, info.pid, info.ex, 
 			 info.start, info.end);
 	else if (hd->type == DLM_MSG_PLOCK_SYNC_WAITER)
 		add_waiter(ls, r, &info);

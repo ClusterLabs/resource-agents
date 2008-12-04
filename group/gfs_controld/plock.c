@@ -1212,7 +1212,7 @@ static void _receive_sync(struct mountgroup *mg, char *buf, int len, int from)
 	}
 
 	if (hd->type == MSG_PLOCK_SYNC_LOCK)
-		add_lock(r, info.nodeid, info.owner, info.pid, !info.ex,
+		add_lock(r, info.nodeid, info.owner, info.pid, info.ex,
 			 info.start, info.end);
 	else if (hd->type == MSG_PLOCK_SYNC_WAITER)
 		add_waiter(mg, r, &info);
