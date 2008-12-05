@@ -1563,13 +1563,16 @@ static void recover_journals(struct mountgroup *mg)
    these and wait for gfs to be finished with all at which point it calls
    others_may_mount() and first_done is set. */
 
-static int kernel_recovery_done_first(struct mountgroup *mg)
+static int kernel_recovery_done_first(struct mountgroup *mg, int first_done)
 {
-	int rv, first_done;
+	int rv;
 
-	rv = read_sysfs_int(mg, "first_done", &first_done);
-	if (rv < 0)
-		return rv;
+	if (first_done < 0) {
+		/* for back compat, sysfs file deprecated */
+		rv = read_sysfs_int(mg, "first_done", &first_done);
+		if (rv < 0)
+			return rv;
+	}
 
 	log_group(mg, "kernel_recovery_done_first first_done %d", first_done);
 
@@ -1604,26 +1607,28 @@ static int need_kernel_recovery_done(struct mountgroup *mg)
    remain blocked until an rw node mounts, and the next mounter must
    be rw. */
 
-int process_recovery_uevent_old(char *table)
+int process_recovery_uevent_old(char *name, int jid_done, int status, int first)
 {
 	struct mountgroup *mg;
 	struct mg_member *memb;
-	char *name = strstr(table, ":") + 1;
 	char *ss;
-	int rv, jid_done, status, found = 0;
+	int rv, found = 0;
 
 	mg = find_mg(name);
 	if (!mg) {
-		log_error("recovery_done: unknown mount group %s", table);
+		log_error("recovery_done: unknown mount group %s", name);
 		return -1;
 	}
 
 	if (mg->first_mounter && !mg->first_mounter_done)
-		return kernel_recovery_done_first(mg);
+		return kernel_recovery_done_first(mg, first);
 
-	rv = read_sysfs_int(mg, "recover_done", &jid_done);
-	if (rv < 0)
-		return rv;
+	if (jid_done < 0) {
+		/* for back compat, sysfs file deprecated */
+		rv = read_sysfs_int(mg, "recover_done", &jid_done);
+		if (rv < 0)
+			return rv;
+	}
 
 	list_for_each_entry(memb, &mg->members_gone, list) {
 		if (memb->jid == jid_done) {
@@ -1646,12 +1651,15 @@ int process_recovery_uevent_old(char *table)
 		return 0;
 	}
 
-	rv = read_sysfs_int(mg, "recover_status", &status);
-	if (rv < 0) {
-		log_group(mg, "recovery_done jid %d nodeid %d sysfs error %d",
-			  memb->jid, memb->nodeid, rv);
-		memb->local_recovery_status = RS_NOFS;
-		goto out;
+	if (status < 0) {
+		/* for back compat, sysfs file deprecated */
+		rv = read_sysfs_int(mg, "recover_status", &status);
+		if (rv < 0) {
+			log_group(mg, "recovery_done jid %d nodeid %d sysfs error %d",
+				  memb->jid, memb->nodeid, rv);
+			memb->local_recovery_status = RS_NOFS;
+			goto out;
+		}
 	}
 
 	switch (status) {
@@ -1724,12 +1732,11 @@ static void leave_mountgroup(struct mountgroup *mg, int mnterr)
 	group_leave(gh, mg->name);
 }
 
-void do_leave_old(char *table, int mnterr)
+void do_leave_old(char *name, int mnterr)
 {
 	struct mountgroup *mg;
-	char *name = strstr(table, ":") + 1;
 
-	log_debug("do_leave_old %s mnterr %d", table, mnterr);
+	log_debug("do_leave_old %s mnterr %d", name, mnterr);
 
 	list_for_each_entry(mg, &withdrawn_mounts, list) {
 		if (strcmp(mg->name, name))
@@ -1780,7 +1787,7 @@ static int wait_for_kernel_mount(struct mountgroup *mg)
 		   sysfs files in place, do_stop() will be able to block
 		   the kernel. */
 
-		rv = read_sysfs_int(mg, "id", &val);
+		rv = read_sysfs_int(mg, "block", &val);
 		if (!rv)
 			break;
 		usleep(100000);

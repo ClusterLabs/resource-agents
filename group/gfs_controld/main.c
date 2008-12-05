@@ -7,6 +7,7 @@
 
 #define LOCKFILE_NAME	"/var/run/gfs_controld.pid"
 #define CLIENT_NALLOC   32
+#define UEVENT_BUF_SIZE 4096
 
 static int client_maxi;
 static int client_size;
@@ -22,7 +23,7 @@ struct client {
 	struct mountgroup *mg;
 };
 
-static void do_withdraw(char *table);
+static void do_withdraw(char *name);
 
 int do_read(int fd, void *buf, size_t count)
 {
@@ -198,62 +199,104 @@ struct mountgroup *find_mg_id(uint32_t id)
 	return NULL;
 }
 
-#define MAXARGS 8
-
-static char *get_args(char *buf, int *argc, char **argv, char sep, int want)
-{
-	char *p = buf, *rp = NULL;
-	int i;
-
-	argv[0] = p;
-
-	for (i = 1; i < MAXARGS; i++) {
-		p = strchr(buf, sep);
-		if (!p)
-			break;
-		*p = '\0';
-
-		if (want == i) {
-			rp = p + 1;
-			break;
-		}
-
-		argv[i] = p + 1;
-		buf = p + 1;
-	}
-	*argc = i;
-
-	/* we ended by hitting \0, return the point following that */
-	if (!rp)
-		rp = strchr(buf, '\0') + 1;
-
-	return rp;
-}
-
-static void ping_kernel_mount(char *table)
+static void ping_kernel_mount(char *name)
 {
 	struct mountgroup *mg;
-	char *name = strstr(table, ":") + 1;
 	int rv, val;
 
 	mg = find_mg(name);
 	if (!mg)
 		return;
 
-	rv = read_sysfs_int(mg, "id", &val);
+	rv = read_sysfs_int(mg, "block", &val);
 
 	log_group(mg, "ping_kernel_mount %d", rv);
 }
 
+enum {
+	Env_ACTION = 0,
+	Env_SUBSYSTEM,
+	Env_LOCKPROTO,
+	Env_LOCKTABLE,
+	Env_DEVPATH,
+	Env_RECOVERY,
+	Env_FIRSTMOUNT,
+	Env_JID,
+	Env_Last, /* Flag for end of vars */
+};
+
+static const char *uevent_vars[] = {
+	[Env_ACTION]		= "ACTION=",
+	[Env_SUBSYSTEM]		= "SUBSYSTEM=",
+	[Env_LOCKPROTO]		= "LOCKPROTO=",
+	[Env_LOCKTABLE]		= "LOCKTABLE=",
+	[Env_DEVPATH]		= "DEVPATH=",
+	[Env_RECOVERY]		= "RECOVERY=",
+	[Env_FIRSTMOUNT]	= "FIRSTMOUNT=",
+	[Env_JID]		= "JID=",
+};
+
+/*
+ * Parses a uevent message for the interesting bits. It requires a list
+ * of variables to look for, and an equally long list of pointers into
+ * which to write the results.
+ */
+static void decode_uevent(const char *buf, unsigned len, const char *vars[],
+			  unsigned nvars, const char *vals[])
+{
+	const char *ptr;
+	unsigned int i;
+	int slen, vlen;
+
+	memset(vals, 0, sizeof(const char *) * nvars);
+
+	while (len > 0) {
+		ptr = buf;
+		slen = strlen(ptr);
+		buf += slen;
+		len -= slen;
+		buf++;
+		len--;
+
+		for (i = 0; i < nvars; i++) {
+			vlen = strlen(vars[i]);
+			if (vlen > slen)
+				continue;
+			if (memcmp(vars[i], ptr, vlen) != 0)
+				continue;
+			vals[i] = ptr + vlen;
+			break;
+		}
+	}
+}
+
+static char *uevent_fsname(const char *vars[])
+{
+	char *name = NULL;
+
+	if (vars[Env_LOCKTABLE])
+		name = strchr(vars[Env_LOCKTABLE], ':');
+
+	/* When all kernels are converted, we can dispose with the following
+	 * grotty bit. This is for backward compatibility only.
+	 */
+	if (!name && vars[Env_DEVPATH]) {
+		name = strchr(vars[Env_DEVPATH], ':');
+		if (name) {
+			char *end = strstr(name, "/lock_module");
+			if (end)
+				*end = 0;
+		}
+	}
+	return (name && name[0]) ? name + 1 : NULL;
+}
+
 static void process_uevent(int ci)
 {
-	char buf[MAXLINE];
-	char *argv[MAXARGS], *act, *sys;
-	int rv, argc = 0;
-	int lock_module = 0;
-
-	memset(buf, 0, sizeof(buf));
-	memset(argv, 0, sizeof(char *) * MAXARGS);
+	char buf[UEVENT_BUF_SIZE];
+	const char *uevent_vals[Env_Last];
+	char *fsname;
+	int rv;
 
  retry_recv:
 	rv = recv(client[ci].fd, &buf, sizeof(buf), 0);
@@ -264,68 +307,71 @@ static void process_uevent(int ci)
 			log_error("uevent recv error %d errno %d", rv, errno);
 		return;
 	}
+	buf[rv] = 0;
 
-	/* first we get the uevent for removing lock module kobject:
-	     "remove@/fs/gfs/bull:x/lock_module"
-	   second is the uevent for removing gfs kobject:
-	     "remove@/fs/gfs/bull:x"
-	*/
+	decode_uevent(buf, rv, uevent_vars, Env_Last, uevent_vals);
 
-	if (!strstr(buf, "gfs"))
+	if (!uevent_vals[Env_DEVPATH] ||
+	    !uevent_vals[Env_ACTION] ||
+	    !uevent_vals[Env_SUBSYSTEM])
 		return;
 
-	/* if an fs is named "gfs", it results in dlm uevents
-	   like "remove@/kernel/dlm/gfs" */
-
-	if (strstr(buf, "kernel/dlm"))
+	if (!strstr(uevent_vals[Env_DEVPATH], "/fs/gfs"))
 		return;
 
-	log_debug("uevent: %s", buf);
+	log_debug("uevent %s %s %s",
+		  uevent_vals[Env_ACTION],
+		  uevent_vals[Env_SUBSYSTEM],
+		  uevent_vals[Env_DEVPATH]);
 
-	if (strstr(buf, "lock_module"))
-		lock_module = 1;
+	fsname = uevent_fsname(uevent_vals);
+	if (!fsname) {
+		log_error("no fsname uevent %s %s %s",
+		  	  uevent_vals[Env_ACTION],
+		  	  uevent_vals[Env_SUBSYSTEM],
+		  	  uevent_vals[Env_DEVPATH]);
+		return;
+	}
 
-	get_args(buf, &argc, argv, '/', 4);
-	if (argc != 4)
-		log_error("uevent message has %d args", argc);
-	act = argv[0];
-	sys = argv[2];
-
-	log_debug("kernel: %s %s", act, argv[3]);
-
-	if (!strcmp(act, "remove@")) {
+	if (!strcmp(uevent_vals[Env_ACTION], "remove")) {
 		/* We want to trigger the leave at the very end of the kernel's
 		   unmount process, i.e. at the end of put_super(), so we do the
 		   leave when the second uevent (from the gfs kobj) arrives. */
 
-		if (lock_module)
+		if (strcmp(uevent_vals[Env_SUBSYSTEM], "lock_dlm") == 0)
 			return;
+		if (group_mode == GROUP_LIBGROUP)
+			do_leave_old(fsname, 0);
+		else
+			do_leave(fsname, 0);
+
+	} else if (!strcmp(uevent_vals[Env_ACTION], "change")) {
+		int jid, status = -1, first = -1;
+
+		if (!uevent_vals[Env_JID] ||
+		    (sscanf(uevent_vals[Env_JID], "%d", &jid) != 1))
+			jid = -1;
+
+		if (uevent_vals[Env_RECOVERY]) {
+			if (strcmp(uevent_vals[Env_RECOVERY], "Done") == 0)
+				status = LM_RD_SUCCESS;
+			if (strcmp(uevent_vals[Env_RECOVERY], "Failed") == 0)
+				status = LM_RD_GAVEUP;
+		}
+
+		if (uevent_vals[Env_FIRSTMOUNT] &&
+		    (strcmp(uevent_vals[Env_FIRSTMOUNT], "Done") == 0))
+			first = 1;
 
 		if (group_mode == GROUP_LIBGROUP)
-			do_leave_old(argv[3], 0);
+			process_recovery_uevent_old(fsname, jid, status, first);
 		else
-			do_leave(argv[3], 0);
+			process_recovery_uevent(fsname, jid, status, first);
 
-	} else if (!strcmp(act, "change@")) {
-		if (!lock_module)
-			return;
-
-		if (group_mode == GROUP_LIBGROUP)
-			process_recovery_uevent_old(argv[3]);
-		else
-			process_recovery_uevent(argv[3]);
-
-	} else if (!strcmp(act, "offline@")) {
-		if (!lock_module)
-			return;
-
-		do_withdraw(argv[3]);
-
+	} else if (!strcmp(uevent_vals[Env_ACTION], "offline")) {
+		do_withdraw(fsname);
 	} else {
-		if (!lock_module)
-			return;
-
-		ping_kernel_mount(argv[3]);
+		ping_kernel_mount(fsname);
 	}
 }
 
@@ -736,10 +782,9 @@ static void do_join(int ci, struct gfsc_mount_args *ma)
    and when it's been removed from the group, it tells the locally withdrawing
    gfs to clear out locks. */
 
-static void do_withdraw(char *table)
+static void do_withdraw(char *name)
 {
 	struct mountgroup *mg;
-	char *name = strstr(table, ":") + 1;
 	int rv;
 
 	log_debug("withdraw: %s", name);

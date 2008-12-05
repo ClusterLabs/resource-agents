@@ -2078,30 +2078,35 @@ static void apply_changes(struct mountgroup *mg)
    and then process the uevent/ipc upon receiving the message for it, so
    that it can be processed in the same order by all nodes. */
 
-void process_recovery_uevent(char *table)
+void process_recovery_uevent(char *name, int jid, int recover_status,
+			     int first_done)
 {
 	struct mountgroup *mg;
 	struct journal *j;
-	char *name = strstr(table, ":") + 1;
-	int jid, recover_status, first_done;
 	int rv;
 
 	mg = find_mg(name);
 	if (!mg) {
-		log_error("recovery_uevent mg not found %s", table);
+		log_error("recovery_uevent mg not found %s", name);
 		return;
 	}
 
-	rv = read_sysfs_int(mg, "recover_done", &jid);
-	if (rv < 0) {
-		log_error("recovery_uevent recover_done read %d", rv);
-		return;
+	if (jid < 0) {
+		/* for back compat, sysfs file deprecated */
+		rv = read_sysfs_int(mg, "recover_done", &jid);
+		if (rv < 0) {
+			log_error("recovery_uevent recover_done read %d", rv);
+			return;
+		}
 	}
 
-	rv = read_sysfs_int(mg, "recover_status", &recover_status);
-	if (rv < 0) {
-		log_error("recovery_uevent recover_status read %d", rv);
-		return;
+	if (recover_status < 0) {
+		/* for back compat, sysfs file deprecated */
+		rv = read_sysfs_int(mg, "recover_status", &recover_status);
+		if (rv < 0) {
+			log_error("recovery_uevent recover_status read %d", rv);
+			return;
+		}
 	}
 
 	if (!mg->first_recovery_needed) {
@@ -2162,10 +2167,13 @@ void process_recovery_uevent(char *table)
 		if (mg->first_done_uevent)
 			return;
 
-		rv = read_sysfs_int(mg, "first_done", &first_done);
-		if (rv < 0) {
-			log_error("recovery_uevent first_done read %d", rv);
-			return;
+		if (first_done < 0) {
+			/* for back compat, sysfs file deprecated */
+			rv = read_sysfs_int(mg, "first_done", &first_done);
+			if (rv < 0) {
+				log_error("recovery_uevent first_done read %d", rv);
+				return;
+			}
 		}
 
 		if (first_done) {
@@ -2678,12 +2686,11 @@ static void leave_mountgroup(struct mountgroup *mg, int mnterr)
 		log_error("cpg_leave error %d", error);
 }
 
-void do_leave(char *table, int mnterr)
+void do_leave(char *name, int mnterr)
 {
 	struct mountgroup *mg;
-	char *name = strstr(table, ":") + 1;
 
-	log_debug("do_leave %s mnterr %d", table, mnterr);
+	log_debug("do_leave %s mnterr %d", name, mnterr);
 
 	mg = find_mg(name);
 	if (!mg) {

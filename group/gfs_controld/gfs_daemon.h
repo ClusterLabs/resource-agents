@@ -225,10 +225,10 @@ void process_cpg(int ci);
 int setup_dlmcontrol(void);
 void process_dlmcontrol(int ci);
 int set_protocol(void);
-void process_recovery_uevent(char *table);
+void process_recovery_uevent(char *name, int jid, int status, int first);
 void process_mountgroups(void);
 int gfs_join_mountgroup(struct mountgroup *mg);
-void do_leave(char *table, int mnterr);
+void do_leave(char *name, int mnterr);
 void gfs_mount_done(struct mountgroup *mg);
 void send_remount(struct mountgroup *mg, struct gfsc_mount_args *ma);
 void send_withdraw(struct mountgroup *mg);
@@ -245,13 +245,12 @@ void close_cpg_old(void);
 void process_cpg_old(int ci);
 
 int gfs_join_mountgroup_old(struct mountgroup *mg, struct gfsc_mount_args *ma);
-void do_leave_old(char *table, int mnterr);
+void do_leave_old(char *name, int mnterr);
 int send_group_message_old(struct mountgroup *mg, int len, char *buf);
 void save_message_old(struct mountgroup *mg, char *buf, int len, int from,
 	int type);
 void send_withdraw_old(struct mountgroup *mg);
-int process_recovery_uevent_old(char *table);
-void ping_kernel_mount_old(char *table);
+int process_recovery_uevent_old(char *name, int jid, int status, int first);
 void send_remount_old(struct mountgroup *mg, struct gfsc_mount_args *ma);
 void send_mount_status_old(struct mountgroup *mg);
 int do_stop(struct mountgroup *mg);
