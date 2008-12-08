@@ -148,7 +148,7 @@ load_modules()
 {
     errmsg=$( /sbin/modprobe configfs 2>&1 ) || return 1
     errmsg=$( /sbin/modprobe dlm 2>&1 ) || return 1
-    errmsg=$( /sbin/modprobe lock_dlm 2>&1 ) || return 1
+    errmsg=$( /sbin/modprobe lock_dlm 2>&1 ) || true
     return 0
 }
 
