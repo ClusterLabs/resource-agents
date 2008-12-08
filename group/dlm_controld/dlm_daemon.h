@@ -30,7 +30,7 @@
 #include <signal.h>
 #include <sys/time.h>
 #include <dirent.h>
-#include <corosync/saAis.h>
+#include <openais/saAis.h>
 #include <openais/saCkpt.h>
 
 #include <corosync/cpg.h>
