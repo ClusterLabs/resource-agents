@@ -4,7 +4,7 @@
 #include <string.h>
 #include <errno.h>
 #include <limits.h>
-#include <corosync/saAis.h>
+#include <corosync/corotypes.h>
 #include <corosync/confdb.h>
 
 #include "ccs.h"
@@ -64,7 +64,7 @@ static int path_dive(confdb_handle_t handle, unsigned int *query_handle,
 
 	for (i = 1; i <= tokens; i++) {
 		if (confdb_object_find_start(handle, *query_handle) !=
-		    SA_AIS_OK)
+		    CS_OK)
 			goto fail;
 
 		next = pos + strlen(pos) + 1;
@@ -73,7 +73,7 @@ static int path_dive(confdb_handle_t handle, unsigned int *query_handle,
 			/* straight path diving */
 			if (confdb_object_find
 			    (handle, *query_handle, pos, strlen(pos),
-			     &new_obj_handle) != SA_AIS_OK)
+			     &new_obj_handle) != CS_OK)
 				goto fail;
 			else {
 				confdb_object_find_destroy(handle,
@@ -117,14 +117,14 @@ static int path_dive(confdb_handle_t handle, unsigned int *query_handle,
 					goto fail;
 
 				if (confdb_object_iter_start
-				    (handle, *query_handle) != SA_AIS_OK)
+				    (handle, *query_handle) != CS_OK)
 					goto fail;
 
 				for (i = 1; i <= val; i++) {
 					if (confdb_object_iter
 					    (handle, *query_handle,
 					     &new_obj_handle, data,
-					     &datalen) != SA_AIS_OK)
+					     &datalen) != CS_OK)
 						goto fail;
 				}
 				confdb_object_iter_destroy(handle,
@@ -146,7 +146,7 @@ static int path_dive(confdb_handle_t handle, unsigned int *query_handle,
 					if (confdb_object_find
 					    (handle, *query_handle, pos,
 					     strlen(pos),
-					     &new_obj_handle) != SA_AIS_OK)
+					     &new_obj_handle) != CS_OK)
 						goto fail;
 				}
 				confdb_object_find_destroy(handle,
@@ -188,14 +188,14 @@ static int path_dive(confdb_handle_t handle, unsigned int *query_handle,
 					if (confdb_object_find
 					    (handle, *query_handle, pos,
 					     strlen(pos),
-					     &new_obj_handle) != SA_AIS_OK)
+					     &new_obj_handle) != CS_OK)
 						goto fail;
 					else {
 						if (confdb_key_get
 						    (handle, new_obj_handle,
 						     middle, strlen(middle),
 						     data,
-						     &datalen) == SA_AIS_OK) {
+						     &datalen) == CS_OK) {
 							if (!strcmp
 							    (data, value))
 								goout = 1;
@@ -243,7 +243,7 @@ static int get_data(confdb_handle_t handle, unsigned int connection_handle,
 		if (!cmp && !list)
 			goto fail;
 
-		if (confdb_object_iter_start(handle, query_handle) != SA_AIS_OK)
+		if (confdb_object_iter_start(handle, query_handle) != CS_OK)
 			goto fail;
 
 		if (!is_oldlist)
@@ -267,7 +267,7 @@ static int get_data(confdb_handle_t handle, unsigned int connection_handle,
 		} else {
 			if (confdb_key_increment
 			    (handle, connection_handle, "iterator_tracker",
-			     strlen("iterator_tracker"), &value) != SA_AIS_OK)
+			     strlen("iterator_tracker"), &value) != CS_OK)
 				value = 1;
 		}
 
@@ -275,7 +275,7 @@ static int get_data(confdb_handle_t handle, unsigned int connection_handle,
 			memset(data, 0, PATH_MAX);
 			if (confdb_object_iter
 			    (handle, query_handle, &new_obj_handle, data,
-			     &datalen) != SA_AIS_OK) {
+			     &datalen) != CS_OK) {
 				reset_iterator(handle, connection_handle);
 				goto fail;
 			}
@@ -292,21 +292,21 @@ static int get_data(confdb_handle_t handle, unsigned int connection_handle,
 		if (!list)
 			goto fail;
 
-		if (confdb_key_iter_start(handle, query_handle) != SA_AIS_OK)
+		if (confdb_key_iter_start(handle, query_handle) != CS_OK)
 			goto fail;
 
 		*list_handle = query_handle;
 
 		if (confdb_key_increment
 		    (handle, connection_handle, "iterator_tracker",
-		     strlen("iterator_tracker"), &value) != SA_AIS_OK)
+		     strlen("iterator_tracker"), &value) != CS_OK)
 			value = 1;
 
 		while (value != 0) {
 			memset(data, 0, PATH_MAX);
 			if (confdb_key_iter
 			    (handle, query_handle, data, &datalen, keyval,
-			     &keyvallen) != SA_AIS_OK) {
+			     &keyvallen) != CS_OK) {
 				reset_iterator(handle, connection_handle);
 				goto fail;
 			}
@@ -324,7 +324,7 @@ static int get_data(confdb_handle_t handle, unsigned int connection_handle,
 		if (list)
 			goto fail;
 
-		if (confdb_object_find_start(handle, query_handle) != SA_AIS_OK)
+		if (confdb_object_find_start(handle, query_handle) != CS_OK)
 			goto fail;
 
 		query = strstr(curpos, "@");
@@ -335,7 +335,7 @@ static int get_data(confdb_handle_t handle, unsigned int connection_handle,
 
 		if (confdb_key_get
 		    (handle, query_handle, query, strlen(query), data,
-		     &datalen) != SA_AIS_OK)
+		     &datalen) != CS_OK)
 			goto fail;
 
 		*rtn = strndup(data, datalen);
@@ -391,7 +391,7 @@ char *_ccs_get_xpathlite(confdb_handle_t handle, unsigned int connection_handle,
 		query_handle = OBJECT_PARENT_HANDLE;
 	}
 
-	if (confdb_object_find_start(handle, query_handle) != SA_AIS_OK) {
+	if (confdb_object_find_start(handle, query_handle) != CS_OK) {
 		errno = ENOENT;
 		goto fail;
 	}

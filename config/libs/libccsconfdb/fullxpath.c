@@ -1,7 +1,7 @@
 #include <string.h>
 #include <errno.h>
 #include <limits.h>
-#include <corosync/saAis.h>
+#include <corosync/corotypes.h>
 #include <corosync/confdb.h>
 #include <libxml/parser.h>
 #include <libxml/xpath.h>
@@ -59,7 +59,7 @@ static int dump_objdb_buff(confdb_handle_t dump_handle,
 	int res;
 
 	res = confdb_key_iter_start(dump_handle, parent_object_handle);
-	if (res != SA_AIS_OK) {
+	if (res != CS_OK) {
 		errno = ENOMEM;
 		return -1;
 	}
@@ -74,7 +74,7 @@ static int dump_objdb_buff(confdb_handle_t dump_handle,
 	while ((res =
 		confdb_key_iter(dump_handle, parent_object_handle, key_name,
 				&key_name_len, key_value,
-				&key_value_len)) == SA_AIS_OK) {
+				&key_value_len)) == CS_OK) {
 		key_name[key_name_len] = '\0';
 		key_value[key_value_len] = '\0';
 
@@ -97,7 +97,7 @@ static int dump_objdb_buff(confdb_handle_t dump_handle,
 	}
 
 	res = confdb_object_iter_start(dump_handle, parent_object_handle);
-	if (res != SA_AIS_OK) {
+	if (res != CS_OK) {
 		errno = ENOMEM;
 		return -1;
 	}
@@ -105,13 +105,13 @@ static int dump_objdb_buff(confdb_handle_t dump_handle,
 	while ((res =
 		confdb_object_iter(dump_handle, parent_object_handle,
 				   &object_handle, object_name,
-				   &object_name_len)) == SA_AIS_OK) {
+				   &object_name_len)) == CS_OK) {
 		unsigned int parent;
 
 		res =
 		    confdb_object_parent_get(dump_handle, object_handle,
 					     &parent);
-		if (res != SA_AIS_OK) {
+		if (res != CS_OK) {
 			errno = EINVAL;
 			return -1;
 		}
@@ -245,7 +245,7 @@ char *_ccs_get_fullxpath(confdb_handle_t handle, unsigned int connection_handle,
 	if (list && !prev && !strcmp(query, previous_query)) {
 		if (confdb_key_increment
 		    (handle, connection_handle, "iterator_tracker",
-		     strlen("iterator_tracker"), &xmllistindex) != SA_AIS_OK) {
+		     strlen("iterator_tracker"), &xmllistindex) != CS_OK) {
 			xmllistindex = 0;
 		} else {
 			xmllistindex--;

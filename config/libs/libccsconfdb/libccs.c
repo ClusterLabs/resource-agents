@@ -4,7 +4,7 @@
 #include <string.h>
 #include <errno.h>
 #include <limits.h>
-#include <corosync/saAis.h>
+#include <corosync/corotypes.h>
 #include <corosync/confdb.h>
 #ifdef EXPERIMENTAL_BUILD
 #include <time.h>
@@ -33,7 +33,7 @@ static confdb_handle_t confdb_connect(void)
 {
 	confdb_handle_t handle = 0;
 
-	if (confdb_initialize(&handle, &callbacks) != SA_AIS_OK) {
+	if (confdb_initialize(&handle, &callbacks) != CS_OK) {
 		errno = ENOMEM;
 		return -1;
 	}
@@ -54,14 +54,14 @@ static unsigned int find_libccs_handle(confdb_handle_t handle)
 {
 	unsigned int libccs_handle = 0;
 
-	if (confdb_object_find_start(handle, OBJECT_PARENT_HANDLE) != SA_AIS_OK) {
+	if (confdb_object_find_start(handle, OBJECT_PARENT_HANDLE) != CS_OK) {
 		errno = ENOMEM;
 		return -1;
 	}
 
 	if (confdb_object_find
 	    (handle, OBJECT_PARENT_HANDLE, "libccs", strlen("libccs"),
-	     &libccs_handle) != SA_AIS_OK) {
+	     &libccs_handle) != CS_OK) {
 		errno = ENOENT;
 		return -1;
 	}
@@ -81,18 +81,18 @@ static unsigned int find_ccs_handle(confdb_handle_t handle, int ccs_handle)
 	if (libccs_handle == -1)
 		return -1;
 
-	if (confdb_object_find_start(handle, libccs_handle) != SA_AIS_OK) {
+	if (confdb_object_find_start(handle, libccs_handle) != CS_OK) {
 		errno = ENOMEM;
 		return -1;
 	}
 
 	while (confdb_object_find
 	       (handle, libccs_handle, "connection", strlen("connection"),
-		&connection_handle) == SA_AIS_OK) {
+		&connection_handle) == CS_OK) {
 		memset(data, 0, sizeof(data));
 		if (confdb_key_get
 		    (handle, connection_handle, "ccs_handle",
-		     strlen("ccs_handle"), data, &datalen) == SA_AIS_OK) {
+		     strlen("ccs_handle"), data, &datalen) == CS_OK) {
 			res = atoi(data);
 			if (res == ccs_handle) {
 				found = 1;
@@ -114,7 +114,7 @@ static unsigned int find_ccs_handle(confdb_handle_t handle, int ccs_handle)
 static int destroy_ccs_handle(confdb_handle_t handle,
 			      unsigned int connection_handle)
 {
-	if (confdb_object_destroy(handle, connection_handle) != SA_AIS_OK) {
+	if (confdb_object_destroy(handle, connection_handle) != CS_OK) {
 		errno = EINVAL;
 		return -1;
 	}
@@ -129,18 +129,18 @@ static int get_running_config_version(confdb_handle_t handle)
 	int datalen = 0;
 	int ret = -1;
 
-	if (confdb_object_find_start(handle, OBJECT_PARENT_HANDLE) != SA_AIS_OK) {
+	if (confdb_object_find_start(handle, OBJECT_PARENT_HANDLE) != CS_OK) {
 		errno = ENOMEM;
 		return -1;
 	}
 
 	if (confdb_object_find
 	    (handle, OBJECT_PARENT_HANDLE, "cluster", strlen("cluster"),
-	     &cluster_handle) == SA_AIS_OK) {
+	     &cluster_handle) == CS_OK) {
 		memset(data, 0, sizeof(data));
 		if (confdb_key_get
 		    (handle, cluster_handle, "config_version",
-		     strlen("config_version"), data, &datalen) == SA_AIS_OK) {
+		     strlen("config_version"), data, &datalen) == CS_OK) {
 			ret = atoi(data);
 		}
 	}
@@ -162,7 +162,7 @@ static int get_stored_config_version(confdb_handle_t handle,
 
 	if (confdb_key_get
 	    (handle, connection_handle, "config_version",
-	     strlen("config_version"), data, &datalen) == SA_AIS_OK) {
+	     strlen("config_version"), data, &datalen) == CS_OK) {
 		ret = atoi(data);
 	}
 
@@ -184,11 +184,11 @@ static int set_stored_config_version(confdb_handle_t handle,
 
 	if (confdb_key_get
 	    (handle, connection_handle, "config_version",
-	     strlen("config_version"), temp, &templen) == SA_AIS_OK) {
+	     strlen("config_version"), temp, &templen) == CS_OK) {
 		if (confdb_key_replace
 		    (handle, connection_handle, "config_version",
 		     strlen("config_version"), temp, templen, data,
-		     strlen(data) + 1) == SA_AIS_OK) {
+		     strlen(data) + 1) == CS_OK) {
 			return 0;
 		}
 	}
@@ -250,7 +250,7 @@ static unsigned int create_ccs_handle(confdb_handle_t handle, int ccs_handle,
 
 	if (confdb_object_create
 	    (handle, libccs_handle, "connection", strlen("connection"),
-	     &connection_handle) != SA_AIS_OK) {
+	     &connection_handle) != CS_OK) {
 		errno = ENOMEM;
 		return -1;
 	}
@@ -259,7 +259,7 @@ static unsigned int create_ccs_handle(confdb_handle_t handle, int ccs_handle,
 	snprintf(buf, sizeof(buf), "%d", ccs_handle);
 	if (confdb_key_create
 	    (handle, connection_handle, "ccs_handle", strlen("ccs_handle"), buf,
-	     strlen(buf) + 1) != SA_AIS_OK) {
+	     strlen(buf) + 1) != CS_OK) {
 		destroy_ccs_handle(handle, connection_handle);
 		errno = ENOMEM;
 		return -1;
@@ -269,7 +269,7 @@ static unsigned int create_ccs_handle(confdb_handle_t handle, int ccs_handle,
 	snprintf(buf, sizeof(buf), "%d", config_version);
 	if (confdb_key_create
 	    (handle, connection_handle, "config_version",
-	     strlen("config_version"), buf, strlen(buf) + 1) != SA_AIS_OK) {
+	     strlen("config_version"), buf, strlen(buf) + 1) != CS_OK) {
 		destroy_ccs_handle(handle, connection_handle);
 		errno = ENOMEM;
 		return -1;
@@ -279,7 +279,7 @@ static unsigned int create_ccs_handle(confdb_handle_t handle, int ccs_handle,
 	snprintf(buf, sizeof(buf), "%d", fullxpath);
 	if (confdb_key_create
 	    (handle, connection_handle, "fullxpath", strlen("fullxpath"), buf,
-	     strlen(buf) + 1) != SA_AIS_OK) {
+	     strlen(buf) + 1) != CS_OK) {
 		destroy_ccs_handle(handle, connection_handle);
 		errno = ENOMEM;
 		return -1;
@@ -293,7 +293,7 @@ static unsigned int create_ccs_handle(confdb_handle_t handle, int ccs_handle,
 	memcpy(buf, &current_time, sizeof(time_t));
 	if (confdb_key_create
 	    (handle, connection_handle, "last_access", strlen("last_access"),
-	     buf, sizeof(time_t)) != SA_AIS_OK) {
+	     buf, sizeof(time_t)) != CS_OK) {
 		destroy_ccs_handle(handle, connection_handle);
 		errno = ENOMEM;
 		return -1;
@@ -316,7 +316,7 @@ static unsigned int get_ccs_handle(confdb_handle_t handle, int *ccs_handle,
 
 	if (confdb_key_increment
 	    (handle, libccs_handle, "next_handle", strlen("next_handle"),
-	     &next_handle) == SA_AIS_OK) {
+	     &next_handle) == CS_OK) {
 		ret = create_ccs_handle(handle, (int)next_handle, fullxpath);
 		if (ret == -1) {
 			*ccs_handle = -1;
@@ -339,11 +339,11 @@ int get_previous_query(confdb_handle_t handle, unsigned int connection_handle,
 
 	if (confdb_key_get
 	    (handle, connection_handle, "previous_query",
-	     strlen("previous_query"), previous_query, &datalen) == SA_AIS_OK) {
+	     strlen("previous_query"), previous_query, &datalen) == CS_OK) {
 		if (confdb_key_get
 		    (handle, connection_handle, "query_handle",
 		     strlen("query_handle"), query_handle,
-		     &datalen) == SA_AIS_OK) {
+		     &datalen) == CS_OK) {
 			return 0;
 		}
 	}
@@ -360,13 +360,13 @@ int set_previous_query(confdb_handle_t handle, unsigned int connection_handle,
 
 	if (confdb_key_get
 	    (handle, connection_handle, "previous_query",
-	     strlen("previous_query"), temp, &templen) == SA_AIS_OK) {
+	     strlen("previous_query"), temp, &templen) == CS_OK) {
 		if (strcmp(previous_query, temp)) {
 			if (confdb_key_replace
 			    (handle, connection_handle, "previous_query",
 			     strlen("previous_query"), temp, templen,
 			     previous_query,
-			     strlen(previous_query) + 1) != SA_AIS_OK) {
+			     strlen(previous_query) + 1) != CS_OK) {
 				errno = ENOMEM;
 				return -1;
 			}
@@ -375,7 +375,7 @@ int set_previous_query(confdb_handle_t handle, unsigned int connection_handle,
 		if (confdb_key_create
 		    (handle, connection_handle, "previous_query",
 		     strlen("previous_query"), previous_query,
-		     strlen(previous_query) + 1) != SA_AIS_OK) {
+		     strlen(previous_query) + 1) != CS_OK) {
 			errno = ENOMEM;
 			return -1;
 		}
@@ -383,13 +383,13 @@ int set_previous_query(confdb_handle_t handle, unsigned int connection_handle,
 
 	if (confdb_key_get
 	    (handle, connection_handle, "query_handle", strlen("query_handle"),
-	     &temphandle, &templen) == SA_AIS_OK) {
+	     &temphandle, &templen) == CS_OK) {
 		if (temphandle != query_handle) {
 			if (confdb_key_replace
 			    (handle, connection_handle, "query_handle",
 			     strlen("query_handle"), &temphandle,
 			     sizeof(unsigned int), &query_handle,
-			     sizeof(unsigned int)) != SA_AIS_OK) {
+			     sizeof(unsigned int)) != CS_OK) {
 				errno = ENOMEM;
 				return -1;
 			}
@@ -398,7 +398,7 @@ int set_previous_query(confdb_handle_t handle, unsigned int connection_handle,
 		if (confdb_key_create
 		    (handle, connection_handle, "query_handle",
 		     strlen("query_handle"), &query_handle,
-		     sizeof(unsigned int)) != SA_AIS_OK) {
+		     sizeof(unsigned int)) != CS_OK) {
 			errno = ENOMEM;
 			return -1;
 		}
@@ -406,12 +406,12 @@ int set_previous_query(confdb_handle_t handle, unsigned int connection_handle,
 
 	if (confdb_key_get
 	    (handle, connection_handle, "iterator_tracker",
-	     strlen("iterator_tracker"), &temphandle, &templen) != SA_AIS_OK) {
+	     strlen("iterator_tracker"), &temphandle, &templen) != CS_OK) {
 		temphandle = 1;
 		if (confdb_key_create
 		    (handle, connection_handle, "iterator_tracker",
 		     strlen("iterator_tracker"), &temphandle,
-		     sizeof(unsigned int)) != SA_AIS_OK) {
+		     sizeof(unsigned int)) != CS_OK) {
 			errno = ENOMEM;
 			return -1;
 		}
@@ -426,7 +426,7 @@ void reset_iterator(confdb_handle_t handle, unsigned int connection_handle)
 
 	if (confdb_key_increment
 	    (handle, connection_handle, "iterator_tracker",
-	     strlen("iterator_tracker"), &value) != SA_AIS_OK)
+	     strlen("iterator_tracker"), &value) != CS_OK)
 		return;
 
 	confdb_key_delete(handle, connection_handle, "iterator_tracker",
@@ -447,7 +447,7 @@ static int clean_stalled_ccs_handles(confdb_handle_t handle)
 	if (libccs_handle == -1)
 		return -1;
 
-	if (confdb_object_find_start(handle, libccs_handle) != SA_AIS_OK) {
+	if (confdb_object_find_start(handle, libccs_handle) != CS_OK) {
 		errno = ENOMEM;
 		return -1;
 	}
@@ -456,11 +456,11 @@ static int clean_stalled_ccs_handles(confdb_handle_t handle)
 
 	while (confdb_object_find
 	       (handle, libccs_handle, "connection", strlen("connection"),
-		&connection_handle) == SA_AIS_OK) {
+		&connection_handle) == CS_OK) {
 		if (confdb_key_get
 		    (handle, connection_handle, "last_access",
 		     strlen("last_access"), &stored_time,
-		     &datalen) == SA_AIS_OK) {
+		     &datalen) == CS_OK) {
 			if ((current_time - stored_time) > CCS_HANDLE_TIMEOUT)
 				destroy_ccs_handle(handle, connection_handle);
 		}
@@ -483,18 +483,18 @@ static int check_cluster_name(int ccs_handle, const char *cluster_name)
 	if (handle < 0)
 		return -1;
 
-	if (confdb_object_find_start(handle, OBJECT_PARENT_HANDLE) != SA_AIS_OK) {
+	if (confdb_object_find_start(handle, OBJECT_PARENT_HANDLE) != CS_OK) {
 		errno = ENOMEM;
 		return -1;
 	}
 
 	while (confdb_object_find
 	       (handle, OBJECT_PARENT_HANDLE, "cluster", strlen("cluster"),
-		&cluster_handle) == SA_AIS_OK) {
+		&cluster_handle) == CS_OK) {
 		memset(data, 0, sizeof(data));
 		if (confdb_key_get
 		    (handle, cluster_handle, "name", strlen("name"), data,
-		     &datalen) == SA_AIS_OK) {
+		     &datalen) == CS_OK) {
 			if (!strncmp(data, cluster_name, datalen)) {
 				found = 1;
 				break;
@@ -546,7 +546,7 @@ static int _ccs_get(int desc, const char *query, char **rtn, int list)
 	memset(data, 0, sizeof(data));
 	if (confdb_key_get
 	    (handle, connection_handle, "fullxpath", strlen("fullxpath"), &data,
-	     &datalen) != SA_AIS_OK) {
+	     &datalen) != CS_OK) {
 		errno = EINVAL;
 		return -1;
 	} else
@@ -663,7 +663,7 @@ int ccs_disconnect(int desc)
 	memset(data, 0, sizeof(data));
 	if (confdb_key_get
 	    (handle, connection_handle, "fullxpath", strlen("fullxpath"), &data,
-	     &datalen) != SA_AIS_OK) {
+	     &datalen) != CS_OK) {
 		errno = EINVAL;
 		return -1;
 	} else
