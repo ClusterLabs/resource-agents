@@ -19,7 +19,7 @@ BUILD_DATE=""
 #END_VERSION_GENERATION
 
 # Path to vmrun command
-VMHELPER_COMMAND="@FENCEAGENTSLIBDIR@/fence_vmware_vi_helper"
+VMHELPER_COMMAND="fence_vmware_vi_helper"
 
 # Return string with command and additional parameters (something like vmrun -h 'host'
 def vmware_vi_prepare_command(options,add_login_params,additional_params):
