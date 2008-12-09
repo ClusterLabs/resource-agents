@@ -22,6 +22,4 @@ $(TARGET):
 		-e 's#@LOGDIR@#${logdir}#g' \
 	> $@
 
-	chmod +x $@
-
 clean: generalclean
