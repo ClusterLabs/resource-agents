@@ -1108,11 +1108,12 @@ static int init(struct gfs2_sbd *sbp)
 	sbp->sd_jbsize = sbp->bsize - sizeof(struct gfs2_meta_header);
 	brelse(bh, not_updated);
 	sbp->sd_max_height = compute_heightsize(sbp, sbp->sd_heightsize,
-						sbp->sd_diptrs,
+						sbp->bsize, sbp->sd_diptrs,
 						sbp->sd_inptrs);
 	sbp->sd_max_jheight = compute_heightsize(sbp, sbp->sd_jheightsize,
-						sbp->sd_diptrs,
-						sbp->sd_inptrs);
+						 sbp->sd_jbsize,
+						 sbp->sd_diptrs,
+						 sbp->sd_inptrs);
 	/* -------------------------------------------------------- */
 	/* Our constants are for gfs1.  Need some for gfs2 as well. */
 	/* -------------------------------------------------------- */
@@ -1120,9 +1121,11 @@ static int init(struct gfs2_sbd *sbp)
                 sizeof(uint64_t); /* How many ptrs can we fit on a block? */
 	memset(gfs2_heightsize, 0, sizeof(gfs2_heightsize));
 	gfs2_max_height = compute_heightsize(sbp, gfs2_heightsize,
+					     sbp->bsize,
 					     sbp->sd_diptrs, gfs2_inptrs);
 	memset(gfs2_jheightsize, 0, sizeof(gfs2_jheightsize));
 	gfs2_max_jheight = compute_heightsize(sbp, gfs2_jheightsize,
+					      sbp->sd_jbsize,
 					      sbp->sd_diptrs, gfs2_inptrs);
 
 	/* ---------------------------------------------- */

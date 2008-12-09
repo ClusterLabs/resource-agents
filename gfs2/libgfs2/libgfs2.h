@@ -630,7 +630,7 @@ int gfs2_query(int *setonabort, struct gfs2_options *opts,
 #define SYS_BASE "/sys/fs/gfs2"
 
 uint32_t compute_heightsize(struct gfs2_sbd *sdp, uint64_t *heightsize,
-			    int diptrs, int inptrs);
+			    uint32_t bsize1, int diptrs, int inptrs);
 void compute_constants(struct gfs2_sbd *sdp);
 int find_gfs2_meta(struct gfs2_sbd *sdp);
 int dir_exists(const char *dir);

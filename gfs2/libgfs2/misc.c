@@ -23,12 +23,12 @@
 static char sysfs_buf[PAGE_SIZE];
 
 uint32_t compute_heightsize(struct gfs2_sbd *sdp, uint64_t *heightsize,
-			    int diptrs, int inptrs)
+			    uint32_t bsize1, int diptrs, int inptrs)
 {
 	int x;
 
 	heightsize[0] = sdp->bsize - sizeof(struct gfs2_dinode);
-	heightsize[1] = sdp->bsize * diptrs;
+	heightsize[1] = bsize1 * diptrs;
 	for (x = 2;; x++) {
 		uint64_t space, d;
 		uint32_t m;
@@ -85,11 +85,12 @@ compute_constants(struct gfs2_sbd *sdp)
 	sdp->sd_max_dirres = hash_blocks + ind_blocks + leaf_blocks;
 
 	sdp->sd_max_height = compute_heightsize(sdp, sdp->sd_heightsize,
-						sdp->sd_diptrs,
+						sdp->bsize, sdp->sd_diptrs,
 						sdp->sd_inptrs);
 	sdp->sd_max_jheight = compute_heightsize(sdp, sdp->sd_jheightsize,
-						sdp->sd_diptrs,
-						sdp->sd_inptrs);
+						 sdp->sd_jbsize,
+						 sdp->sd_diptrs,
+						 sdp->sd_inptrs);
 }
 
 void
