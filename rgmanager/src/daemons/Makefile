@@ -27,18 +27,17 @@ OBJS1=	depends.o \
 	rg_queue.o \
 	rg_state.o \
 	rg_thread.o \
-	restart_counter.o \
 	service_op.o \
 	slang_event.o \
 	event_config.o \
 	watchdog.o
 
-OBJS2=	test-noccs.o \
-	restart_counter.o
+OBJS2=	test-noccs.o
 
 OBJS3=	dtest-noccs.o
 
 SHAREDOBJS=	depends-noccs.o \
+		restart_counter.o \
 		fo_domain-noccs.o \
 		reslist-noccs.o \
 		resrules-noccs.o \
@@ -99,7 +98,7 @@ ${TARGET2}: ${SHAREDOBJS} ${OBJS2} ${LDDEPS} ${LOCAL_LDDEPS}
 ${TARGET3}: ${SHAREDOBJS} ${OBJS3} ${LDDEPS} ${LOCAL_LDDEPS}
 	$(CC) -o $@ $^ $(CCS_LDFLAGS) $(CMAN_LDFLAGS) \
 			$(LOCAL_LDFLAGS) $(EXTRA_LDFLAGS) $(XML2_LDFLAGS) \
-			$(READLINE_LDFLAGS) $(LDFLAGS)
+			$(READLINE_LDFLAGS) $(LOGSYS_LDFLAGS) $(LDFLAGS)
 
 ${TARGET4}: ${TARGET1}
 	ln -sf ${TARGET1} ${TARGET4}

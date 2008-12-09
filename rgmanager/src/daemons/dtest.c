@@ -3,6 +3,7 @@
 #include <libxml/xpath.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <restart_counter.h>
 #include <resgroup.h>
 #include <sys/types.h>
 #include <sys/stat.h>
