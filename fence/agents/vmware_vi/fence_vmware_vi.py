@@ -65,6 +65,37 @@ def vmware_vi_run_command(options,add_login_params,additional_params):
 
 	return res_output
 
+def dsv_split(dsv_str):
+	delimiter_c=':'
+	escape_c='\\'
+
+	res=[]
+	status=0
+	tmp_str=""
+
+	for x in dsv_str:
+		if (status==0):
+			if (x==delimiter_c):
+				res.append(tmp_str)
+				tmp_str=""
+			elif (x==escape_c):
+				status=1
+			else:
+				tmp_str+=x
+		elif (status==1):
+			if (x==delimiter_c):
+				tmp_str+=delimiter_c
+			elif (x==escape_c):
+				tmp_str+=escape_c
+			else:
+				tmp_str+=escape_c+x
+			status=0
+
+	if (tmp_str!=""):
+		res.append(tmp_str)
+
+	return res
+
 def get_outlets_status(conn, options):
 	outlets={}
 
@@ -73,9 +104,12 @@ def get_outlets_status(conn, options):
 	all_machines_array=all_machines.splitlines()
 
 	for machine in all_machines_array:
-		machine_array=machine.split("\t",1)
-		if (len(machine_array)==2):
-			outlets[machine_array[0]]=("",((machine_array[1].lower() in ["poweredon"]) and "on" or "off"))
+		machine_array=dsv_split(machine)
+		if (len(machine_array)==3):
+			if (machine_array[0] in outlets):
+				fail_usage("Failed. More machines with same name %s found!"%(machine_array[0]))
+
+			outlets[machine_array[0]]=("",((machine_array[2].lower() in ["poweredon"]) and "on" or "off"))
 
 	return outlets
 

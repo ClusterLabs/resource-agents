@@ -26,6 +26,15 @@ sub my_exit {
   exit $exit_code;
 }
 
+# Convert one field (string) to format acceptable by DSV. This
+# means replace any : with \: and \ with \\.
+sub convert_field_to_dsv {
+  my ($input_line)=@_;
+
+  $input_line =~ s/([\\:])/\\$1/g;
+  return $input_line
+}
+
 #### Global variables #####
 # Aditional options
 my %opts = (
@@ -117,7 +126,9 @@ my $found=0;
 # Traverse all found vm
 foreach $vm(@$vm_views) {
   if ($operation eq 'list') {
-    print $vm->name."\t".$vm->runtime->powerState->val."\n";
+    print convert_field_to_dsv($vm->name).":".
+          convert_field_to_dsv($vm->summary->config->vmPathName).":".
+          convert_field_to_dsv($vm->runtime->powerState->val)."\n";
   } elsif ($operation eq 'on') {
     eval {
       $vm->PowerOnVM();
