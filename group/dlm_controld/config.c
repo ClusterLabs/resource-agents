@@ -162,7 +162,7 @@ void read_ccs_yesno(char *path, int *yes, int *no)
 	free(str);
 }
 
-void read_ccs_int(char *path, int *config_val)
+int read_ccs_int(char *path, int *config_val)
 {
 	char *str;
 	int val;
@@ -170,18 +170,19 @@ void read_ccs_int(char *path, int *config_val)
 
 	error = ccs_get(ccs_handle, path, &str);
 	if (error || !str)
-		return;
+		return -1;
 
 	val = atoi(str);
 
 	if (val < 0) {
 		log_error("ignore invalid value %d for %s", val, path);
-		return;
+		return -1;
 	}
 
 	*config_val = val;
 	log_debug("%s is %u", path, val);
 	free(str);
+	return 0;
 }
 
 static void read_ccs_protocol(char *path, int *config_val)
@@ -223,9 +224,16 @@ static void read_ccs_protocol(char *path, int *config_val)
 #define DROP_RESOURCES_COUNT_PATH "/cluster/dlm/@drop_resources_count"
 #define DROP_RESOURCES_AGE_PATH "/cluster/dlm/@drop_resources_age"
 
+/* for backward-compat */
+#define GFS_PLOCK_RATE_LIMIT_PATH "/cluster/gfs_controld/@plock_rate_limit"
+#define GFS_PLOCK_OWNERSHIP_PATH "/cluster/gfs_controld/@plock_ownership"
+#define GFS_DROP_RESOURCES_TIME_PATH "/cluster/gfs_controld/@drop_resources_time"
+#define GFS_DROP_RESOURCES_COUNT_PATH "/cluster/gfs_controld/@drop_resources_count"
+#define GFS_DROP_RESOURCES_AGE_PATH "/cluster/gfs_controld/@drop_resources_age"
+
 int setup_ccs(void)
 {
-	int cd;
+	int cd, rv;
 
 	if (ccs_handle)
 		goto update;
@@ -256,21 +264,38 @@ int setup_ccs(void)
 		read_ccs_int(ENABLE_DEADLK_PATH, &cfgd_enable_deadlk);
 	if (!optd_enable_plock)
 		read_ccs_int(ENABLE_PLOCK_PATH, &cfgd_enable_plock);
-	if (!optd_plock_ownership)
-		read_ccs_int(PLOCK_OWNERSHIP_PATH, &cfgd_plock_ownership);
+	if (!optd_plock_ownership) {
+		rv = read_ccs_int(PLOCK_OWNERSHIP_PATH, &cfgd_plock_ownership);
+		if (rv < 0)
+			read_ccs_int(GFS_PLOCK_OWNERSHIP_PATH, &cfgd_plock_ownership);
+	}
+
 
 	/* The following can be changed while running */
  update:
-	if (!optd_plock_debug)
+	if (!optd_plock_debug) {
 		read_ccs_int(PLOCK_DEBUG_PATH, &cfgd_plock_debug);
-	if (!optd_plock_rate_limit)
-		read_ccs_int(PLOCK_RATE_LIMIT_PATH, &cfgd_plock_rate_limit);
-	if (!optd_drop_resources_time)
-		read_ccs_int(DROP_RESOURCES_TIME_PATH, &cfgd_drop_resources_time);
-	if (!optd_drop_resources_count)
-		read_ccs_int(DROP_RESOURCES_COUNT_PATH, &cfgd_drop_resources_count);
-	if (!optd_drop_resources_age)
-		read_ccs_int(DROP_RESOURCES_AGE_PATH, &cfgd_drop_resources_age);
+	}
+	if (!optd_plock_rate_limit) {
+		rv = read_ccs_int(PLOCK_RATE_LIMIT_PATH, &cfgd_plock_rate_limit);
+		if (rv < 0)
+			read_ccs_int(GFS_PLOCK_RATE_LIMIT_PATH, &cfgd_plock_rate_limit);
+	}
+	if (!optd_drop_resources_time) {
+		rv = read_ccs_int(DROP_RESOURCES_TIME_PATH, &cfgd_drop_resources_time);
+		if (rv < 0)
+			read_ccs_int(GFS_DROP_RESOURCES_TIME_PATH, &cfgd_drop_resources_time);
+	}
+	if (!optd_drop_resources_count) {
+		rv = read_ccs_int(DROP_RESOURCES_COUNT_PATH, &cfgd_drop_resources_count);
+		if (rv < 0)
+			read_ccs_int(GFS_DROP_RESOURCES_COUNT_PATH, &cfgd_drop_resources_count);
+	}
+	if (!optd_drop_resources_age) {
+		rv = read_ccs_int(DROP_RESOURCES_AGE_PATH, &cfgd_drop_resources_age);
+		if (rv < 0)
+			read_ccs_int(GFS_DROP_RESOURCES_AGE_PATH, &cfgd_drop_resources_age);
+	}
 
 	return 0;
 }
