@@ -16,7 +16,8 @@ RESOURCES=service.sh ip.sh nfsclient.sh nfsexport.sh \
 
 METADATA=apache.metadata openldap.metadata samba.metadata \
 	mysql.metadata postgres-8.metadata tomcat-5.metadata \
-	named.metadata lvm.metadata default_event_script.sl
+	named.metadata lvm.metadata default_event_script.sl \
+	follow-service.sl
 
 GENERAL_TARGETS=ocf-shellfuncs svclib_nfslock lvm_by_lv.sh lvm_by_vg.sh
 
