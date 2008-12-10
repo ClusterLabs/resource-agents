@@ -60,7 +60,8 @@ add_buffer(struct buf_list *bl, struct gfs2_buffer_head *bh)
 		int found = 0;
 		osi_list_t *tmp, *x;
 
-		osi_list_foreach_safe(tmp, &bl->list, x) {
+		for (tmp = bl->list.prev, x = tmp->prev; tmp != &bl->list;
+		     tmp = x, x = x->prev) {
 			bh = osi_list_entry(tmp, struct gfs2_buffer_head,
 					    b_list);
 			if (!bh->b_count) {

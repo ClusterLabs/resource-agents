@@ -901,7 +901,7 @@ static int get_first_leaf(struct gfs2_inode *dip, uint32_t index,
 	uint64_t leaf_no;
 
 	gfs2_get_leaf_nr(dip, index, &leaf_no);
-	*bh_out = bget(&dip->i_sbd->buf_list, leaf_no);
+	*bh_out = bread(&dip->i_sbd->buf_list, leaf_no);
 	return 0;
 }
 
@@ -923,7 +923,7 @@ static int get_next_leaf(struct gfs2_inode *dip,struct gfs2_buffer_head *bh_in,
 
 	if (!leaf->lf_next)
 		return -1;
-	*bh_out = bget(&dip->i_sbd->buf_list, be64_to_cpu(leaf->lf_next));
+	*bh_out = bread(&dip->i_sbd->buf_list, be64_to_cpu(leaf->lf_next));
 	return 0;
 }
 
@@ -1429,7 +1429,7 @@ static int dir_e_del(struct gfs2_inode *dip, const char *filename, int len)
 		gfs2_get_leaf_nr(dip, index, &leaf_no);
 
 		while(leaf_no && !found){
-			bh = bget(&dip->i_sbd->buf_list, leaf_no);
+			bh = bread(&dip->i_sbd->buf_list, leaf_no);
 			error = leaf_search(dip, bh, filename, len, &cur, &prev);
 			if (error) {
 				if(error != -ENOENT){
