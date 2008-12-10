@@ -479,7 +479,7 @@ remove_conflicting_loopback() {
 	delete_interface "$ipaddr" "$ifname" "$netmask"
 	# Forcibly remove the route (if it exists) to the loopback.
 	delete_route "$ipaddr" "$ifname"
-}       
+}
 
 #
 #	On Linux systems the (hidden) loopback interface may
@@ -604,8 +604,6 @@ ip_start() {
 	    ocf_release_lock_on_exit $CIP_lockfile
 	fi
 
-	ip_init
-
 	#
 	#	Do we already service this IP address?
 	#
@@ -667,7 +665,6 @@ ip_start() {
 }
 
 ip_stop() {
-	ip_init
 	local ip_del_if="yes"
 	if [ -n "$IP_CIP" ]; then
 	    # Cluster IPs need special processing when the last bucket
@@ -731,7 +728,6 @@ ip_stop() {
 }
 
 ip_monitor() {
-	ip_init
 	# TODO: Implement more elaborate monitoring like checking for
 	# interface health maybe via a daemon like FailSafe etc...
 
@@ -808,8 +804,6 @@ ip_validate() {
 	fi
 
     fi
-
-	exit $OCF_SUCCESS
 }
 
 case "$OCF_RESKEY_unique_clone_address" in
@@ -825,12 +819,19 @@ esac
 case $__OCF_ACTION in
 meta-data)	meta_data
 		;;
+usage|help)	ip_usage
+		exit $OCF_SUCCESS
+		;;
+esac
+
+ip_validate
+
+case $__OCF_ACTION in
 start)		ip_start
 		;;
 stop)		ip_stop
 		;;
-status)		ip_init
-		ip_status=`ip_served`
+status)		ip_status=`ip_served`
 		if [ $ip_status = "ok" ]; then
 			echo "running"
 			exit $OCF_SUCCESS
@@ -841,11 +842,7 @@ status)		ip_init
 		;;
 monitor)	ip_monitor
 		;;
-validate-all)	ip_validate
-		;;
-usage|help)	ip_usage
-		exit $OCF_SUCCESS
-		;;
+validate-all)	;;
 *)		ip_usage
 		exit $OCF_ERR_UNIMPLEMENTED
 		;;
