@@ -1994,7 +1994,7 @@ void retrieve_plocks(struct lockspace *ls)
 			goto out_it;
 		}
 
-		if (!desc.sectionSize)
+		if (!desc.sectionId.idLen)
 			continue;
 
 		iov.sectionId = desc.sectionId;
@@ -2002,8 +2002,10 @@ void retrieve_plocks(struct lockspace *ls)
 		iov.dataSize = desc.sectionSize;
 		iov.dataOffset = 0;
 
+		/* for debug print */
 		memset(&buf, 0, sizeof(buf));
 		snprintf(buf, SECTION_NAME_LEN, "%s", desc.sectionId.id);
+
 		log_group(ls, "retrieve_plocks: section size %llu id %u \"%s\"",
 			  (unsigned long long)iov.dataSize, iov.sectionId.idLen,
 			  buf);
@@ -2021,12 +2023,13 @@ void retrieve_plocks(struct lockspace *ls)
 			goto out_it;
 		}
 
+		/* we'll get empty (zero length) sections for resources with
+		   no locks, which exist in ownership mode; the resource
+		   name and owner come from the section id */
+
 		log_group(ls, "retrieve_plocks: ckpt read %llu bytes",
 			  (unsigned long long)iov.readSize);
 		section_len = iov.readSize;
-
-		if (!section_len)
-		       continue;
 
 		if (section_len % sizeof(struct pack_plock)) {
 			log_error("retrieve_plocks: bad section len %d %s",
