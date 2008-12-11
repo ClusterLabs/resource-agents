@@ -1398,6 +1398,7 @@ int limit_plocks(void)
 			return 2;
 		}
 		plock_rate_last = now;
+		plock_read_count++;
 	}
 	return 0;
 }
