@@ -5,7 +5,7 @@
 %
 % Author:       Marc Grimme, Mark Hlawatschek, October 2008
 % Support:      support@atix.de
-% License:      GNU General Public License (GPL)
+% License:      GNU General Public License (GPL), version 2 or later
 % Copyright:    (c) 2008 ATIX AG
 
 
