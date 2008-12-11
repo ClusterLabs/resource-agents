@@ -2192,6 +2192,7 @@ int fill_plock_dump_buf(struct mountgroup *mg)
 	struct posix_lock *po;
 	struct lock_waiter *w;
 	struct resource *r;
+	struct timeval now;
 	int rv = 0;
 	int len = GFSC_DUMP_SIZE, pos = 0, ret;
 
@@ -2199,6 +2200,23 @@ int fill_plock_dump_buf(struct mountgroup *mg)
 	plock_dump_len = 0;
 
 	list_for_each_entry(r, &mg->plock_resources, list) {
+
+		if (list_empty(&r->locks) &&
+		    list_empty(&r->waiters) &&
+		    list_empty(&r->pending)) {
+			ret = snprintf(plock_dump_buf + pos, len - pos,
+			      "%llu rown %d unused_ms %llu\n",
+			      (unsigned long long)r->number, r->owner,
+			      (unsigned long long)time_diff_ms(&r->last_access,
+							       &now));
+			if (ret >= len - pos) {
+				rv = -ENOSPC;
+				goto out;
+			}
+			pos += ret;
+			continue;
+		}
+
 		list_for_each_entry(po, &r->locks, list) {
 			ret = snprintf(plock_dump_buf + pos, len - pos,
 			      "%llu %s %llu-%llu nodeid %d pid %u owner %llx rown %d\n",
