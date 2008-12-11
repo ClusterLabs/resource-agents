@@ -808,6 +808,17 @@ static void add_cman_overrides(struct objdb_iface_ver0 *objdb)
 				 "corosync_cman", strlen("corosync_cman") + 1);
 	objdb->object_key_create(object_handle, "ver", strlen("ver"),
 				 "0", 2);
+
+	/* Define cman as the quorum provider for corosync */
+	objdb->object_find_create(OBJECT_PARENT_HANDLE, "quorum", strlen("quorum"), &find_handle);
+	if (objdb->object_find_next(find_handle, &object_handle) != 0) {
+		objdb->object_create(OBJECT_PARENT_HANDLE, &object_handle,
+					"quorum", strlen("quorum"));
+	}
+	objdb->object_find_destroy(find_handle);
+
+	objdb->object_key_create(object_handle, "provider", strlen("provider"),
+				 "quorum_cman", strlen("quorum_cman") + 1);
 }
 
 /* If ccs is not available then use some defaults */

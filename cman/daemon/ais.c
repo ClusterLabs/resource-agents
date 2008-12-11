@@ -19,6 +19,7 @@
 #include <corosync/ipc_gen.h>
 #include <corosync/engine/coroapi.h>
 #include <corosync/engine/logsys.h>
+#include <corosync/engine/quorum.h>
 #include <corosync/lcr/lcr_comp.h>
 
 #include "list.h"
@@ -46,6 +47,8 @@ struct totem_ip_address ifaddrs[MAX_INTERFACES];
 int num_interfaces;
 uint64_t incarnation;
 int num_ais_nodes;
+quorum_set_quorate_fn_t corosync_set_quorum;
+struct memb_ring_id cman_ring_id;
 extern unsigned int config_version;
 static unsigned int cluster_parent_handle;
 
@@ -85,6 +88,7 @@ static void cman_confchg_fn(enum totem_configuration_type configuration_type,
 			    struct memb_ring_id *ring_id);
 static void cman_deliver_fn(unsigned int nodeid, struct iovec *iovec, int iov_len,
 			    int endian_conversion_required);
+static void cman_quorum_init(struct corosync_api_v1 *api, quorum_set_quorate_fn_t report);
 
 /*
  * Exports the interface for the service
@@ -106,8 +110,11 @@ static struct corosync_service_engine *cman_get_handler_ver0(void)
 static struct corosync_service_engine_iface_ver0 cman_service_handler_iface = {
 	.corosync_get_service_engine_ver0 = cman_get_handler_ver0
 };
+static struct quorum_services_api_ver1 cman_quorum_iface_ver0 = {
+	.init				= cman_quorum_init
+};
 
-static struct lcr_iface ifaces_ver0[1] = {
+static struct lcr_iface ifaces_ver0[2] = {
 	{
 		.name		        = "corosync_cman",
 		.version	        = 0,
@@ -118,23 +125,39 @@ static struct lcr_iface ifaces_ver0[1] = {
 		.constructor	       	= NULL,
 		.destructor		= NULL,
 		.interfaces		= NULL,
-	}
+	},
+	{
+		.name			= "quorum_cman",
+		.version		= 0,
+		.versions_replace	= 0,
+		.versions_replace_count	= 0,
+		.dependencies		= 0,
+		.dependency_count	= 0,
+		.constructor		= NULL,
+		.destructor		= NULL,
+		.interfaces		= (void **)(void *)&cman_quorum_iface_ver0,
+	},
 };
 
 static struct lcr_comp cman_comp_ver0 = {
-	.iface_count				= 1,
+	.iface_count				= 2,
 	.ifaces					= ifaces_ver0,
 };
 
 
-
 __attribute__ ((constructor)) static void cman_comp_register(void) {
 	lcr_interfaces_set(&ifaces_ver0[0], &cman_service_handler_iface);
+	lcr_interfaces_set(&ifaces_ver0[1], &cman_quorum_iface_ver0);
 	lcr_component_register(&cman_comp_ver0);
 }
 
 /* ------------------------------- */
 
+static void cman_quorum_init(struct corosync_api_v1 *api, quorum_set_quorate_fn_t report)
+{
+	corosync = api;
+	corosync_set_quorum = report;
+}
 
 static int cman_exec_init_fn(struct corosync_api_v1 *api)
 {
@@ -262,6 +285,7 @@ static void cman_confchg_fn(enum totem_configuration_type configuration_type,
 
 	P_AIS("confchg_fn called type = %d, seq=%lld\n", configuration_type, ring_id->seq);
 
+	memcpy(&cman_ring_id, ring_id, sizeof(*ring_id));
 	incarnation = ring_id->seq;
 	num_ais_nodes = member_list_entries;
 

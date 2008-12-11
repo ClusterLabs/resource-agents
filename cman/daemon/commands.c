@@ -176,6 +176,10 @@ static int totemip_to_sockaddr(struct totem_ip_address *ip_addr,
 static void set_quorate(int total_votes)
 {
 	int quorate;
+	unsigned int nodelist[PROCESSOR_COUNT_MAX];
+	int nodecount = 0;
+	struct cluster_node *node = NULL;
+	struct list *tmp;
 
 	if (quorum > total_votes || config_error) {
 		quorate = 0;
@@ -191,8 +195,6 @@ static void set_quorate(int total_votes)
 
 	/* If we are newly quorate, then kill any AISONLY nodes */
 	if (!cluster_is_quorate && quorate) {
-		struct cluster_node *node = NULL;
-		struct list *tmp;
 
 		list_iterate(tmp, &cluster_members_list) {
 			node = list_item(tmp, struct cluster_node);
@@ -203,6 +205,15 @@ static void set_quorate(int total_votes)
 
 	cluster_is_quorate = quorate;
 
+	/* Inform corosync subsystems */
+	list_iterate(tmp, &cluster_members_list) {
+		node = list_item(tmp, struct cluster_node);
+		if (node->state == NODESTATE_MEMBER) {
+			nodelist[nodecount++] = node->node_id;
+		}
+	}
+
+	corosync_set_quorum(nodelist, nodecount, quorate, &cman_ring_id);
 }
 
 static void node_add_ordered(struct cluster_node *newnode)
