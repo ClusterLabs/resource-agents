@@ -222,6 +222,37 @@ int logt_init(char *name, int mode, int syslog_facility, int syslog_priority,
 	return 0;
 }
 
+
+/*
+ * Reinitialize logt w/ previous values (e.g. use after
+ * a call to fork())
+ *
+ * Only works after you call logt_init and logt_exit
+ */
+int logt_reinit(void)
+{
+	char name_tmp[PATH_MAX];
+	char file_tmp[PATH_MAX];
+
+	if (!done || init)
+		return -1;
+
+	/* Use copies on the stack for these */
+	memset(name_tmp, 0, sizeof(name_tmp));
+	memset(file_tmp, 0, sizeof(file_tmp));
+
+	strncpy(name_tmp, logt_name, sizeof(name_tmp));
+	if (!strlen(name_tmp))
+		return -1;
+	if (strlen(logt_logfile))
+		strncpy(file_tmp, logt_logfile, sizeof(file_tmp));
+
+	return logt_init(name_tmp, logt_mode, logt_syslog_facility,
+			 logt_syslog_priority, logt_logfile_priority,
+			 file_tmp);
+}
+
+
 void logt_exit(void)
 {
 	pthread_mutex_lock(&mutex);
@@ -230,14 +261,29 @@ void logt_exit(void)
 	pthread_cond_signal(&cond);
 	pthread_mutex_unlock(&mutex);
 	pthread_join(thread_handle, NULL);
-	pthread_cond_destroy(&cond);
-	pthread_mutex_destroy(&mutex);
+
+	pthread_mutex_lock(&mutex);
+	/* close syslog + log file */
+	closelog();
+	if (logt_logfile_fp)
+		fclose(logt_logfile_fp);
+	logt_logfile_fp = NULL;
+
+	/* clean up any pending log messages */
+	dropped = 0;
+	pending_ents = 0;
+	head_ent = tail_ent = 0;
 	free(ents);
+	ents = NULL;
+
+	pthread_mutex_unlock(&mutex);
 }
 
 #ifdef TEST
 int main(int argc, char **argv)
 {
+	int pid;
+
 	logt_init("test", LOG_MODE_OUTPUT_FILE|LOG_MODE_OUTPUT_SYSLOG,
 		  LOG_DAEMON, LOG_DEBUG, LOG_DEBUG, "/tmp/logthread");
 	logt_print(LOG_DEBUG, "debugging message %d\n", argc);
@@ -245,6 +291,35 @@ int main(int argc, char **argv)
 	sleep(1);
 	logt_print(LOG_DEBUG, "second debug message\n");
 	logt_exit();
+
+	logt_print(LOG_ERR, "If you see this, it's a bug\n");
+
+	logt_init("test2", LOG_MODE_OUTPUT_FILE|LOG_MODE_OUTPUT_SYSLOG,
+		  LOG_DAEMON, LOG_DEBUG, LOG_DEBUG, "/tmp/logthread");
+	logt_print(LOG_DEBUG, "after 2nd init %d\n", argc);
+	logt_print(LOG_ERR, "error message %d\n", argc);
+	logt_print(LOG_DEBUG, "third debug message\n");
+	logt_exit();
+
+	logt_print(LOG_ERR, "If you see this, it's a bug\n");
+
+	logt_reinit();
+	logt_print(LOG_DEBUG, "after reinit\n");
+	logt_print(LOG_DEBUG, "<-- should say test2\n");
+
+	logt_exit();
+
+	if ((pid = fork()) < 0)
+		return -1;
+
+	if (pid) 
+		exit(0);
+
+	/* child process */
+	logt_reinit();
+	logt_print(LOG_DEBUG, "HELLO from child process\n");
+	logt_exit();
+
 	return 0;
 }
 #endif
