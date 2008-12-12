@@ -464,6 +464,7 @@ int cman_dispatch(cman_handle_t handle, int flags)
 			res = process_cman_message(h, flags, smsg->msg);
 			h->saved_reply_msg = smsg->next;
 			len = smsg->msg->length;
+			free(smsg->msg);
 			free(smsg);
 			if (res || (flags & CMAN_DISPATCH_ONE))
 				break;
@@ -477,6 +478,7 @@ int cman_dispatch(cman_handle_t handle, int flags)
 			res = process_cman_message(h, flags, smsg->msg);
 			h->saved_data_msg = smsg->next;
 			len = smsg->msg->length;
+			free(smsg->msg);
 			free(smsg);
 			if (res || (flags & CMAN_DISPATCH_ONE))
 				break;
@@ -490,6 +492,7 @@ int cman_dispatch(cman_handle_t handle, int flags)
 			res = process_cman_message(h, flags, smsg->msg);
 			h->saved_event_msg = smsg->next;
 			len = smsg->msg->length;
+			free(smsg->msg);
 			free(smsg);
 			if (res || (flags & CMAN_DISPATCH_ONE))
 				break;
