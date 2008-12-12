@@ -102,7 +102,7 @@ main(int argc, char** argv)
 	int retval;
 
     	if (geteuid() != (uid_t)0) {
-          	log_printf_and_print(LOG_ERR, "%s must be run as the root user.\n",
+          	logt_print_and_print(LOG_ERR, "%s must be run as the root user.\n",
                 	argv[0]);
         	exit(1);    
     	}
@@ -134,12 +134,12 @@ main(int argc, char** argv)
 		}
 	}
 	if (nfsSyscallNum == 0) {
-		log_printf_and_print(LOG_ERR, "%s: No NFS syscall has been "
+		logt_print_and_print(LOG_ERR, "%s: No NFS syscall has been "
 				 "specified.\n",cmdname);
 		++errors;
 	}
 	if (deviceName == NULL) {
-		log_printf_and_print(LOG_ERR, "%s: No device name has been "
+		logt_print_and_print(LOG_ERR, "%s: No device name has been "
 				 "specified.\n", cmdname);
 		++errors;
 	}
@@ -166,13 +166,13 @@ main(int argc, char** argv)
 	 */
 	retval = nfsctl(nfsSyscallNum, &nfsctlarg, NULL);
 	if (retval != 0) {
-		/* log_printf_and_print calls syslog(), which modifies errno */
+		/* logt_print_and_print calls syslog(), which modifies errno */
 		errno_save = errno;
-		log_printf_and_print(LOG_WARNING, "#72: %s: NFS syscall %s failed: "
+		logt_print_and_print(LOG_WARNING, "#72: %s: NFS syscall %s failed: "
 				 "%s.\n", cmdname, nfsSyscallString, 
 				 strerror(errno_save));
 		if (errno_save == EINVAL) {
-			log_printf_and_print(LOG_WARNING,
+			logt_print_and_print(LOG_WARNING,
 				         "#73: %s: Kernel may not "
 					 "have NFS failover enhancements.\n",
 					 cmdname);
@@ -199,14 +199,14 @@ validateDevice(char *name) {
 	stat_ptr = &stat_st;
 
 	if (stat(name, stat_ptr) < 0) {
-		log_printf_and_print(LOG_ERR, "%s: Unable to stat %s.\n", cmdname, name);
+		logt_print_and_print(LOG_ERR, "%s: Unable to stat %s.\n", cmdname, name);
 		return(1);
 	}
 	/*
 	 * Verify that its a block or character special file.
 	 */
 	if (S_ISBLK(stat_st.st_mode) == 0) {
-		log_printf_and_print(LOG_ERR, "%s: %s is not a block special file.\n", cmdname, name);
+		logt_print_and_print(LOG_ERR, "%s: %s is not a block special file.\n", cmdname, name);
 		return(1);
 	}
 	return(0); // success

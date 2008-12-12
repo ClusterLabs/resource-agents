@@ -335,7 +335,7 @@ get_event(int ccsfd, char *base, int idx, int *_done)
 	if (ccs_get(ccsfd, xpath, &ret) == 0) {
 		ev->ev_prio = atoi(ret);
 		if (ev->ev_prio <= 0 || ev->ev_prio > EVENT_PRIO_COUNT) {
-			log_printf(LOG_ERR,
+			logt_print(LOG_ERR,
 			       "event %s: priority %s invalid\n",
 			       ev->ev_name, ret);
 			goto out_fail;
@@ -366,7 +366,7 @@ get_event(int ccsfd, char *base, int idx, int *_done)
 			if (get_config_event(ccsfd, xpath, ev) < 0)
 				goto out_fail;
 		} else {
-			log_printf(LOG_ERR,
+			logt_print(LOG_ERR,
 			       "event %s: class %s unrecognized\n",
 			       ev->ev_name, ret);
 			goto out_fail;

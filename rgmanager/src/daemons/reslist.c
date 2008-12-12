@@ -399,7 +399,7 @@ store_resource(resource_t **reslist, resource_t *newres)
 					       newres->r_attrs[x].ra_value
 					       );
 #else 
-					log_printf(LOG_ERR,
+					logt_print(LOG_ERR,
                                                "%s attribute collision. "
                                                "type=%s attr=%s value=%s\n",
 					       (newres->r_attrs[x].ra_flags&
@@ -854,7 +854,7 @@ load_resources(int ccsfd, resource_t **reslist, resource_rule_t **rulelist)
 	       		       printf("Error storing %s resource\n",
 				      newres->r_rule->rr_type);
 #else
-	       		       log_printf(LOG_ERR,
+	       		       logt_print(LOG_ERR,
 				      "Error storing %s resource\n",
 				      newres->r_rule->rr_type);
 #endif

@@ -107,14 +107,14 @@ count_resource_groups(cluster_member_list_t *ml)
 		res_build_name(rgname, sizeof(rgname), res);
 
 		if (rg_lock(rgname, &lockp) < 0) {
-			log_printf(LOG_ERR, "#XX: Unable to obtain cluster "
+			logt_print(LOG_ERR, "#XX: Unable to obtain cluster "
 			       "lock @ %s:%d: %s\n", __FILE__, __LINE__,
 			       strerror(errno));
 			continue;
 		}
 
 		if (get_rg_state(rgname, &st) < 0) {
-			log_printf(LOG_ERR, "#34: Cannot get status "
+			logt_print(LOG_ERR, "#34: Cannot get status "
 			       "for service %s\n", rgname);
 			rg_unlock(&lockp);
 			continue;
@@ -432,7 +432,7 @@ check_rdomain_crash(char *svcName)
 		goto out_free;
 
 	if (icount == 0) {
-		log_printf(LOG_NOTICE, "Marking %s as stopped: "
+		logt_print(LOG_NOTICE, "Marking %s as stopped: "
 		       "Restricted domain unavailable\n", svcName);
 		rt_enqueue_request(svcName, RG_STOP, NULL, 0, 0,
 				   0, 0);
@@ -491,7 +491,7 @@ consider_start(resource_node_t *node, char *svcName, rg_state_t *svcStatus,
 				     (atoi(val)==0))));
 		if (!autostart) {
 			/*
-			log_printf(LOG_DEBUG,
+			logt_print(LOG_DEBUG,
 			       "Skipping RG %s: Autostart disabled\n",
 			       svcName);
 			 */
@@ -500,14 +500,14 @@ consider_start(resource_node_t *node, char *svcName, rg_state_t *svcStatus,
 			   confusion!
 			 */
 			if (rg_lock(svcName, &lockp) < 0) {
-				log_printf(LOG_ERR, "#XX: Unable to obtain cluster "
+				logt_print(LOG_ERR, "#XX: Unable to obtain cluster "
 				       "lock @ %s:%d: %s\n", __FILE__, __LINE__,
 				       strerror(errno));
 				return;
 			}
 
 			if (get_rg_state(svcName, svcStatus) != 0) {
-				log_printf(LOG_ERR, "#34: Cannot get status "
+				logt_print(LOG_ERR, "#34: Cannot get status "
 				       "for service %s\n", svcName);
 				rg_unlock(&lockp);
 				return;
@@ -528,7 +528,7 @@ consider_start(resource_node_t *node, char *svcName, rg_state_t *svcStatus,
 	/* See if service this one depends on is running.  If not,
            don't start it */
 	if (check_depend(node->rn_resource) == 0) {
-		log_printf(LOG_DEBUG,
+		logt_print(LOG_DEBUG,
 		       "Skipping RG %s: Dependency missing\n", svcName);
 		return;
 	}
@@ -537,7 +537,7 @@ consider_start(resource_node_t *node, char *svcName, rg_state_t *svcStatus,
 	exclusive = val && ((!strcmp(val, "yes") || (atoi(val)>0)));
 
 	if (exclusive && mp->cn_svccount) {
-		log_printf(LOG_DEBUG,
+		logt_print(LOG_DEBUG,
 		       "Skipping RG %s: Exclusive and I am running services\n",
 		       svcName);
 		return;
@@ -548,7 +548,7 @@ consider_start(resource_node_t *node, char *svcName, rg_state_t *svcStatus,
 	   service.
 	 */
 	if (mp->cn_svcexcl) {
-		log_printf(LOG_DEBUG,
+		logt_print(LOG_DEBUG,
 		       "Skipping RG %s: I am running an exclusive service\n",
 		       svcName);
 		return;
@@ -603,7 +603,7 @@ consider_relocate(char *svcName, rg_state_t *svcStatus, uint32_t nodeid,
 		req = RG_MIGRATE;
 	}
 
-	log_printf(LOG_NOTICE, "%s %s to better node %s\n",
+	logt_print(LOG_NOTICE, "%s %s to better node %s\n",
 	       req==RG_MIGRATE ? "Migrating":"Relocating",
 	       svcName,
 	       memb_id_to_name(membership, nodeid));
@@ -684,7 +684,7 @@ eval_groups(int local, uint32_t nodeid, int nodeStatus)
 	int ret;
 
 	if (rg_locked()) {
-		log_printf(LOG_DEBUG,
+		logt_print(LOG_DEBUG,
 			"Resource groups locked; not evaluating\n");
 		return -EAGAIN;
 	}
@@ -705,7 +705,7 @@ eval_groups(int local, uint32_t nodeid, int nodeStatus)
 		 * status.
 		 */
 		if ((ret = rg_lock(svcName, &lockp)) < 0) {
-			log_printf(LOG_ERR,
+			logt_print(LOG_ERR,
 			       "#33: Unable to obtain cluster lock: %s\n",
 			       strerror(-ret));
 			pthread_rwlock_unlock(&resource_lock);
@@ -714,7 +714,7 @@ eval_groups(int local, uint32_t nodeid, int nodeStatus)
 		}
 		
 		if (get_rg_state(svcName, &svcStatus) != 0) {
-			log_printf(LOG_ERR,
+			logt_print(LOG_ERR,
 			       "#34: Cannot get status for service %s\n",
 			       svcName);
 			rg_unlock(&lockp);
@@ -736,7 +736,7 @@ eval_groups(int local, uint32_t nodeid, int nodeStatus)
 			continue;
 		}
 
-		log_printf(LOG_DEBUG, "Evaluating RG %s, state %s, owner "
+		logt_print(LOG_DEBUG, "Evaluating RG %s, state %s, owner "
 		       "%s\n", svcName,
 		       rg_state_str(svcStatus.rs_state),
 		       nodeName);
@@ -771,7 +771,7 @@ eval_groups(int local, uint32_t nodeid, int nodeStatus)
 	pthread_rwlock_unlock(&resource_lock);
 	free_member_list(membership);
 
-	log_printf(LOG_DEBUG, "Event (%d:%d:%d) Processed\n", local,
+	logt_print(LOG_DEBUG, "Event (%d:%d:%d) Processed\n", local,
 	       (int)nodeid, nodeStatus);
 
 	return 0;
@@ -795,7 +795,7 @@ group_event(char __attribute__ ((unused)) *rg_name,
 	int depend;
 
 	if (rg_locked()) {
-		log_printf(LOG_DEBUG,
+		logt_print(LOG_DEBUG,
 			"Resource groups locked; not evaluating\n");
 		return -EAGAIN;
 	}
@@ -847,7 +847,7 @@ group_event(char __attribute__ ((unused)) *rg_name,
 		    svcStatus.rs_state == RG_STATE_STOPPED &&
 		    state == RG_STATE_STARTED) {
 
-			log_printf(LOG_DEBUG, "Evaluating RG %s, state %s, owner "
+			logt_print(LOG_DEBUG, "Evaluating RG %s, state %s, owner "
 			       "%s\n", svcName,
 			       rg_state_str(svcStatus.rs_state),
 			       nodeName);
@@ -863,7 +863,7 @@ group_event(char __attribute__ ((unused)) *rg_name,
 		    svcStatus.rs_state == RG_STATE_STARTED &&
 		    svcStatus.rs_owner == (uint32_t)my_id()) {
 
-			log_printf(LOG_WARNING, "Stopping service %s: Dependency missing\n",
+			logt_print(LOG_WARNING, "Stopping service %s: Dependency missing\n",
 			       svcName);
 			rt_enqueue_request(svcName, RG_STOP, NULL, 0, my_id(),
 					   0, 0);
@@ -1007,7 +1007,7 @@ group_migrate(char *groupname, int target)
 	cluster_member_list_t *membership;
 
 	if (target <= 0) {
-		log_printf(LOG_WARNING,
+		logt_print(LOG_WARNING,
 		       "Illegal node ID %d during migrate operation\n",
 		       target);
 		return RG_EINVAL;
@@ -1015,7 +1015,7 @@ group_migrate(char *groupname, int target)
 
 	membership = member_list();
 	if (!membership) {
-		log_printf(LOG_ERR, "Unable to determine membership during "
+		logt_print(LOG_ERR, "Unable to determine membership during "
 		       "migrate operation\n");
 		return RG_EFAIL;
 	}
@@ -1024,7 +1024,7 @@ group_migrate(char *groupname, int target)
 	
 	tgt_name = memb_id_to_name(membership, target);
 	if (!tgt_name) {
-		log_printf(LOG_WARNING, "Node ID %d not in membership during "
+		logt_print(LOG_WARNING, "Node ID %d not in membership during "
 		       "migrate operation\n", target);
 		ret = RG_EINVAL;
 		goto out;
@@ -1032,7 +1032,7 @@ group_migrate(char *groupname, int target)
 
 	res = find_root_by_ref(&_resources, groupname);
 	if (!res) {
-		log_printf(LOG_WARNING,
+		logt_print(LOG_WARNING,
 		       "Unable to find '%s' in resource list during"
 		       "migrate operation\n", groupname);
 		goto out;
@@ -1046,20 +1046,20 @@ group_migrate(char *groupname, int target)
 	} while (!list_done(&_tree, tmp));
 
 	if (!rn) {
-		log_printf(LOG_WARNING,
+		logt_print(LOG_WARNING,
 		       "Unable to find '%s' it top level of resource "
 		       "tree during migrate operation\n", groupname);
 		goto out;
 	}
 	
-	log_printf(LOG_NOTICE, "Migrating %s to %s\n", groupname, tgt_name);
+	logt_print(LOG_NOTICE, "Migrating %s to %s\n", groupname, tgt_name);
 	ret = res_exec(rn, RS_MIGRATE, tgt_name, 0);
 	if (ret == 0) {
-		log_printf(LOG_NOTICE,
+		logt_print(LOG_NOTICE,
 		       "Migration of %s to %s completed\n",
 		       groupname, tgt_name);
 	} else {
-		log_printf(LOG_ERR, 
+		logt_print(LOG_ERR, 
 		       "Migration of %s to %s failed; return code %d\n",
 		       groupname, tgt_name, ret);
 	}
@@ -1280,7 +1280,7 @@ rg_doall(int request, int block, char __attribute__ ((unused)) *debugfmt)
 		res_build_name(rg, sizeof(rg), curr->rn_resource);
 
 		//if (debugfmt)
-			//log_printf(LOG_DEBUG, debugfmt, rg);
+			//logt_print(LOG_DEBUG, debugfmt, rg);
 
 		/* Optimization: Don't bother even queueing the request
 		   during the exit case if we don't own it */
@@ -1385,7 +1385,7 @@ do_condstops(void)
 	int need_kill;
 	char rg[64];
 
-	log_printf(LOG_INFO, "Stopping changed resources.\n");
+	logt_print(LOG_INFO, "Stopping changed resources.\n");
 
 	pthread_rwlock_rdlock(&resource_lock);
 	list_do(&_tree, curr) {
@@ -1405,14 +1405,14 @@ do_condstops(void)
 		need_kill = 0;
 		if (curr->rn_resource->r_flags & RF_NEEDSTOP) {
 			need_kill = 1;
-			log_printf(LOG_DEBUG, "Removing %s\n", rg);
+			logt_print(LOG_DEBUG, "Removing %s\n", rg);
 		}
 
 		if (!curr->rn_child && ((curr->rn_resource->r_rule->rr_flags &
 		    RF_DESTROY) == 0) && group_migratory(rg, 0) &&
 		    need_kill == 1) {
 			/* Do something smart here: flip state? */
-			log_printf(LOG_NOTICE,
+			logt_print(LOG_NOTICE,
 			       "%s removed from the config, but I am not stopping it.\n",
 			       rg);
 			if (rg_lock(rg, &lockp) != 0)
@@ -1448,7 +1448,7 @@ do_condstarts(void)
 	int need_init, new_groups = 0, autostart;
 	struct dlm_lksb lockp;
 
-	log_printf(LOG_INFO, "Starting changed resources.\n");
+	logt_print(LOG_INFO, "Starting changed resources.\n");
 
 	/* Pass 1: Start any normally changed resources */
 	pthread_rwlock_rdlock(&resource_lock);
@@ -1483,14 +1483,14 @@ do_condstarts(void)
 
 		if (need_init) {
 			++new_groups;
-			log_printf(LOG_NOTICE, "Initializing %s\n", rg);
+			logt_print(LOG_NOTICE, "Initializing %s\n", rg);
 		}
 
 		if (!curr->rn_child && ((curr->rn_resource->r_rule->rr_flags &
 		    RF_INIT) == 0) && group_migratory(rg, 0) &&
 		    need_init == 1) {
 			/* Do something smart here? */
-			log_printf(LOG_NOTICE,
+			logt_print(LOG_NOTICE,
 			       "%s was added to the config, but I am not initializing it.\n",
 			       rg);
 			continue;
@@ -1584,20 +1584,20 @@ init_resource_groups(int reconfigure, int do_init)
 	char *val;
 
 	if (reconfigure)
-		log_printf(LOG_NOTICE, "Reconfiguring\n");
+		logt_print(LOG_NOTICE, "Reconfiguring\n");
 
-	log_printf(LOG_INFO, "Loading Service Data\n");
-	log_printf(LOG_DEBUG, "Loading Resource Rules\n");
+	logt_print(LOG_INFO, "Loading Service Data\n");
+	logt_print(LOG_DEBUG, "Loading Resource Rules\n");
 	if (load_resource_rules(RESOURCE_ROOTDIR, &rulelist) != 0) {
 		return -1;
 	}
 	x = 0;
 	list_do(&rulelist, rule) { ++x; } while (!list_done(&rulelist, rule));
-	log_printf(LOG_DEBUG, "%d rules loaded\n", x);
+	logt_print(LOG_DEBUG, "%d rules loaded\n", x);
 
        	fd = ccs_lock();
 	if (fd == -1) {
-		log_printf(LOG_CRIT, "#5: Couldn't connect to ccsd!\n");
+		logt_print(LOG_CRIT, "#5: Couldn't connect to ccsd!\n");
 		return -1;
 	}
 
@@ -1620,10 +1620,10 @@ init_resource_groups(int reconfigure, int do_init)
 	   changes */
 	rg_clear_initialized(FL_CONFIG);
 
-	log_printf(LOG_DEBUG, "Building Resource Trees\n");
+	logt_print(LOG_DEBUG, "Building Resource Trees\n");
 	/* About to update the entire resource tree... */
 	if (load_resources(fd, &reslist, &rulelist) != 0) {
-		log_printf(LOG_CRIT, "#6: Error loading services\n");
+		logt_print(LOG_CRIT, "#6: Error loading services\n");
 		destroy_resources(&reslist);
 		destroy_resource_rules(&rulelist);
 		ccs_unlock(fd);
@@ -1631,7 +1631,7 @@ init_resource_groups(int reconfigure, int do_init)
 	}
 
 	if (build_resource_tree(fd, &tree, &rulelist, &reslist) != 0) {
-		log_printf(LOG_CRIT, "#7: Error building resource tree\n");
+		logt_print(LOG_CRIT, "#7: Error building resource tree\n");
 		destroy_resource_tree(&tree);
 		destroy_resources(&reslist);
 		destroy_resource_rules(&rulelist);
@@ -1641,13 +1641,13 @@ init_resource_groups(int reconfigure, int do_init)
 
 	x = 0;
 	list_do(&reslist, res) { ++x; } while (!list_done(&reslist, res));
-	log_printf(LOG_DEBUG, "%d resources defined\n", x);
+	logt_print(LOG_DEBUG, "%d resources defined\n", x);
 
-	log_printf(LOG_DEBUG, "Loading Failover Domains\n");
+	logt_print(LOG_DEBUG, "Loading Failover Domains\n");
 	construct_domains(fd, &domains);
 	x = 0;
 	list_do(&domains, fod) { ++x; } while (!list_done(&domains, fod));
-	log_printf(LOG_DEBUG, "%d domains defined\n", x);
+	logt_print(LOG_DEBUG, "%d domains defined\n", x);
 	construct_events(fd, &evt);
 	cnt = 0;
 	if (evt) {
@@ -1664,7 +1664,7 @@ init_resource_groups(int reconfigure, int do_init)
 			cnt += y;
 		}
 	}
-	log_printf(LOG_DEBUG, "%d events defined\n", x);
+	logt_print(LOG_DEBUG, "%d events defined\n", x);
 	
 
 	/* Reconfiguration done */
@@ -1702,16 +1702,16 @@ init_resource_groups(int reconfigure, int do_init)
 	if (reconfigure) {
 		/* Switch to read lock and do the up-half of the
 		   reconfig request */
-		log_printf(LOG_INFO, "Restarting changed resources.\n");
+		logt_print(LOG_INFO, "Restarting changed resources.\n");
 		do_condstarts();
 	} else {
 		if (do_init) {
 			/* Do initial stop-before-start */
-			log_printf(LOG_INFO, "Initializing Services\n");
+			logt_print(LOG_INFO, "Initializing Services\n");
 			rg_doall(RG_INIT, 1, "Initializing %s\n");
-			log_printf(LOG_INFO, "Services Initialized\n");
+			logt_print(LOG_INFO, "Services Initialized\n");
 		} else {
-			log_printf(LOG_INFO, "Skipping stop-before-start: overridden by administrator\n");
+			logt_print(LOG_INFO, "Skipping stop-before-start: overridden by administrator\n");
 		}
 		rg_set_initialized(FL_INIT);
 	}

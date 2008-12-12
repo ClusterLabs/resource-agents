@@ -121,13 +121,13 @@ svc_report_failure(char *svcName)
 	cluster_member_list_t *membership;
 
 	if (rg_lock(svcName, &lockp) == -1) {
-		log_printf(LOG_ERR, "#41: Couldn't obtain lock for RG %s: %s\n",
+		logt_print(LOG_ERR, "#41: Couldn't obtain lock for RG %s: %s\n",
 		       svcName, strerror(errno));
 		return -1;
 	}
 
 	if (get_rg_state(svcName, &svcStatus) != 0) {
-		log_printf(LOG_ERR, "#42: Couldn't obtain status for RG %s\n",
+		logt_print(LOG_ERR, "#42: Couldn't obtain status for RG %s\n",
 		       svcName);
 		rg_unlock(&lockp);
 		return -1;
@@ -137,17 +137,17 @@ svc_report_failure(char *svcName)
 	membership = member_list();
 	nodeName = memb_id_to_name(membership, svcStatus.rs_last_owner);
 	if (nodeName) {
-		log_printf(LOG_ALERT, "#2: Service %s returned failure "
+		logt_print(LOG_ALERT, "#2: Service %s returned failure "
 		       "code.  Last Owner: %s\n", svcName, nodeName);
 	} else {
-		log_printf(LOG_ALERT, "#3: Service %s returned failure "
+		logt_print(LOG_ALERT, "#3: Service %s returned failure "
 		       "code.  Last Owner: %d\n",
 		       svcName, (int)svcStatus.rs_last_owner);
 	}
 
 	free_member_list(membership);
 
-	log_printf(LOG_ALERT,
+	logt_print(LOG_ALERT,
 	       "#4: Administrator intervention required.\n");
 
 	return 0;
@@ -472,7 +472,7 @@ svc_advise_stop(rg_state_t *svcStatus, char *svcName, int req)
 	int ret = 0;
 	
 	if (svcStatus->rs_flags & RG_FLAG_FROZEN) {
-		log_printf(LOG_DEBUG, "Service %s frozen.\n", svcName);
+		logt_print(LOG_DEBUG, "Service %s frozen.\n", svcName);
 		return 5;
 	}
 
@@ -508,7 +508,7 @@ svc_advise_stop(rg_state_t *svcStatus, char *svcName, int req)
 			}
 
 			/* Disable or relocate request here. */
-			log_printf(LOG_DEBUG, "Forwarding req. to %s.\n",
+			logt_print(LOG_DEBUG, "Forwarding req. to %s.\n",
 			       memb_id_to_name(membership,
 					       svcStatus->rs_owner));
 			ret = 3;
@@ -540,7 +540,7 @@ svc_advise_stop(rg_state_t *svcStatus, char *svcName, int req)
 			ret = 1;
 			break;
 		}
-		log_printf(LOG_DEBUG,
+		logt_print(LOG_DEBUG,
 		       "Not stopping %s: service is failed\n",
 		       svcName);
 		ret = 0;
@@ -557,7 +557,7 @@ svc_advise_stop(rg_state_t *svcStatus, char *svcName, int req)
 	case RG_STATE_DISABLED:
 	case RG_STATE_UNINITIALIZED:
 		if (req == RG_DISABLE) {
-			log_printf(LOG_NOTICE,
+			logt_print(LOG_NOTICE,
 			       "Disabling disabled service %s\n",
 			       svcName);
 			ret = 1;
@@ -565,12 +565,12 @@ svc_advise_stop(rg_state_t *svcStatus, char *svcName, int req)
 		}
 
 		ret = 2;
-		log_printf(LOG_DEBUG, "Not stopping disabled service %s\n",
+		logt_print(LOG_DEBUG, "Not stopping disabled service %s\n",
 		       svcName);
 		break;
 
 	default:
-		log_printf(LOG_ERR,
+		logt_print(LOG_ERR,
 		       "#42: Cannot stop RG %s: Invalid State %d\n",
 		       svcName, svcStatus->rs_state);
 		break;
@@ -603,13 +603,13 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 	int ret = 0;
 	
 	if (svcStatus->rs_flags & RG_FLAG_FROZEN) {
-		log_printf(LOG_DEBUG, "Service %s frozen.\n", svcName);
+		logt_print(LOG_DEBUG, "Service %s frozen.\n", svcName);
 		return 5;
 	}
 
 	switch(svcStatus->rs_state) {
 	case RG_STATE_FAILED:
-		log_printf(LOG_ERR,
+		logt_print(LOG_ERR,
 		       "#43: Service %s has failed; can not start.\n",
 		       svcName);
 		break;
@@ -625,7 +625,7 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 		if (svcStatus->rs_owner == (uint32_t)my_id()) {
 		    	/*
 			 * Service is already running locally
-			log_printf(LOG_DEBUG,
+			logt_print(LOG_DEBUG,
 			       "RG %s is already running locally\n", svcName);
 			 */
 			ret = 4;
@@ -636,7 +636,7 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 		    memb_online(membership, svcStatus->rs_owner)) {
 			/*
 			 * Service is running and the owner is online!
-			log_printf(LOG_DEBUG, "RG %s is running on member %s.\n",
+			logt_print(LOG_DEBUG, "RG %s is running on member %s.\n",
 			       svcName,
 			       memb_id_to_name(membership,svcStatus->rs_owner));
 			 */
@@ -652,7 +652,7 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 				break;
 			}
 
-			log_printf(LOG_NOTICE,
+			logt_print(LOG_NOTICE,
 			       "Starting stopped service%s\n",
 			       svcName);
 			ret = 1;
@@ -660,7 +660,7 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 		}
 
 		if (rg_locked()) {
-			log_printf(LOG_WARNING, "Not initiating failover of %s: "
+			logt_print(LOG_WARNING, "Not initiating failover of %s: "
 			       "Resource groups locked!\n", svcName);
 			ret = 3;
 			break;
@@ -669,7 +669,7 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 		/*
 		 * Service is running but owner is down -> RG_EFAILOVER
 		 */
-		log_printf(LOG_NOTICE,
+		logt_print(LOG_NOTICE,
 		       "Taking over service %s from down member %s\n",
 		       svcName, memb_id_to_name(membership,
 						svcStatus->rs_owner));
@@ -681,7 +681,7 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 		 * Starting failed service...
 		 */
 		if (req == RG_START_RECOVER || central_events_enabled()) {
-			log_printf(LOG_NOTICE,
+			logt_print(LOG_NOTICE,
 			       "Recovering failed service %s\n",
 			       svcName);
 			svcStatus->rs_state = RG_STATE_STOPPED;
@@ -691,7 +691,7 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 		}
 
 		/* Don't start, but return success. */
-		log_printf(LOG_DEBUG,
+		logt_print(LOG_DEBUG,
 		       "Not starting %s: recovery state\n",
 		       svcName);
 		ret = 2;
@@ -705,7 +705,7 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 			break;
 		}
 
-		log_printf(LOG_NOTICE, "Starting stopped service %s\n",
+		logt_print(LOG_NOTICE, "Starting stopped service %s\n",
 		       svcName);
 		ret = 1;
 		break;
@@ -719,7 +719,7 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 				break;
 			}
 
-			log_printf(LOG_NOTICE,
+			logt_print(LOG_NOTICE,
 			       "Starting disabled service %s\n",
 			       svcName);
 			ret = 1;
@@ -730,12 +730,12 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 			break;
 		}
 
-		log_printf(LOG_DEBUG, "Not starting disabled RG %s\n",
+		logt_print(LOG_DEBUG, "Not starting disabled RG %s\n",
 		       svcName);
 		break;
 
 	default:
-		log_printf(LOG_ERR,
+		logt_print(LOG_ERR,
 		       "#44: Cannot start RG %s: Invalid State %d\n",
 		       svcName, svcStatus->rs_state);
 		break;
@@ -762,14 +762,14 @@ svc_start(char *svcName, int req)
 	rg_state_t svcStatus;
 
 	if (rg_lock(svcName, &lockp) < 0) {
-		log_printf(LOG_ERR, "#45: Unable to obtain cluster lock: %s\n",
+		logt_print(LOG_ERR, "#45: Unable to obtain cluster lock: %s\n",
 		       strerror(errno));
 		return RG_EFAIL;
 	}
 
 	if (get_rg_state(svcName, &svcStatus) != 0) {
 		rg_unlock(&lockp);
-		log_printf(LOG_ERR, "#46: Failed getting status for RG %s\n",
+		logt_print(LOG_ERR, "#46: Failed getting status for RG %s\n",
 		       svcName);
 		return RG_EFAIL;
 	}
@@ -807,7 +807,7 @@ svc_start(char *svcName, int req)
 		svcStatus.rs_restarts = 0;
 
 	if (set_rg_state(svcName, &svcStatus) < 0) {
-		log_printf(LOG_ERR,
+		logt_print(LOG_ERR,
 		       "#47: Failed changing service status\n");
 		rg_unlock(&lockp);
 		return RG_EFAIL;
@@ -820,14 +820,14 @@ svc_start(char *svcName, int req)
 			cute values scripts might return */
 
 	if (rg_lock(svcName, &lockp) < 0) {
-		log_printf(LOG_ERR, "#74: Unable to obtain cluster lock: %s\n",
+		logt_print(LOG_ERR, "#74: Unable to obtain cluster lock: %s\n",
 		       strerror(errno));
 		return RG_EFAIL;
 	}
 
 	svcStatus.rs_state = RG_STATE_STARTED;
 	if (set_rg_state(svcName, &svcStatus) != 0) {
-		log_printf(LOG_ERR,
+		logt_print(LOG_ERR,
 		       "#75: Failed changing service status\n");
 		rg_unlock(&lockp);
 		return RG_EFAIL;
@@ -835,14 +835,14 @@ svc_start(char *svcName, int req)
 	rg_unlock(&lockp);
        
 	if (ret == 0) {
-		log_printf(LOG_NOTICE,
+		logt_print(LOG_NOTICE,
 		       "Service %s started\n",
 		       svcName);
 
 		broadcast_event(svcName, RG_STATE_STARTED, svcStatus.rs_owner,
 				svcStatus.rs_last_owner);
 	} else {
-		log_printf(LOG_WARNING,
+		logt_print(LOG_WARNING,
 		       "#68: Failed to start %s; return value: %d\n",
 		       svcName, ret);
 	}
@@ -882,14 +882,14 @@ svc_migrate(char *svcName, int target)
 	free_member_list(membership);
 
 	if (rg_lock(svcName, &lockp) < 0) {
-		log_printf(LOG_ERR, "#45: Unable to obtain cluster lock: %s\n",
+		logt_print(LOG_ERR, "#45: Unable to obtain cluster lock: %s\n",
 		       strerror(errno));
 		return RG_EFAIL;
 	}
 
 	if (get_rg_state(svcName, &svcStatus) != 0) {
 		rg_unlock(&lockp);
-		log_printf(LOG_ERR, "#46: Failed getting status for RG %s\n",
+		logt_print(LOG_ERR, "#46: Failed getting status for RG %s\n",
 		       svcName);
 		return RG_EFAIL;
 	}
@@ -927,7 +927,7 @@ svc_migrate(char *svcName, int target)
 	svcStatus.rs_transition = (uint64_t)time(NULL);
 
 	if (set_rg_state(svcName, &svcStatus) != 0) {
-		log_printf(LOG_ERR,
+		logt_print(LOG_ERR,
 		       "#75: Failed changing service status\n");
 		rg_unlock(&lockp);
 		return RG_EFAIL;
@@ -965,14 +965,14 @@ svc_migrate(char *svcName, int target)
 	   services are ... well, migratable, we can just flip the state
 	   back to 'started' and error checking will fix it later. */
 	if (rg_lock(svcName, &lockp) < 0) {
-		log_printf(LOG_ERR, "#45: Unable to obtain cluster lock: %s\n",
+		logt_print(LOG_ERR, "#45: Unable to obtain cluster lock: %s\n",
 		       strerror(errno));
 		return ret;
 	}
 
 	if (get_rg_state(svcName, &svcStatus) != 0) {
 		rg_unlock(&lockp);
-		log_printf(LOG_ERR, "#46: Failed getting status for RG %s\n",
+		logt_print(LOG_ERR, "#46: Failed getting status for RG %s\n",
 		       svcName);
 		return ret;
 	}
@@ -1082,24 +1082,24 @@ msvc_check_cluster(char *svcName)
 
 	newowner = get_new_owner(svcName);
 	if (newowner < 0) {
-		log_printf(LOG_DEBUG, "No other nodes have seen %s\n", svcName);
+		logt_print(LOG_DEBUG, "No other nodes have seen %s\n", svcName);
 		return -1;
 	}
 
 	/* New owner found */
-	log_printf(LOG_NOTICE, "Migration: %s is running on %d\n", svcName, newowner);
+	logt_print(LOG_NOTICE, "Migration: %s is running on %d\n", svcName, newowner);
 
 	/* If the check succeeds (returns 0), then flip the state back to
 	   'started' - with a new owner */
 	if (rg_lock(svcName, &lockp) < 0) {
-		log_printf(LOG_ERR, "#451: Unable to obtain cluster lock: %s\n",
+		logt_print(LOG_ERR, "#451: Unable to obtain cluster lock: %s\n",
 			strerror(errno));
 		return -1;
 	}
 
 	if (get_rg_state(svcName, &svcStatus) != 0) {
 		rg_unlock(&lockp);
-		log_printf(LOG_ERR, "#452: Failed getting status for RG %s\n",
+		logt_print(LOG_ERR, "#452: Failed getting status for RG %s\n",
 		       svcName);
 		return -1;
 	}
@@ -1109,7 +1109,7 @@ msvc_check_cluster(char *svcName)
 
 	if (set_rg_state(svcName, &svcStatus) != 0) {
 		rg_unlock(&lockp);
-		log_printf(LOG_ERR, "#453: Failed setting status for RG %s\n",
+		logt_print(LOG_ERR, "#453: Failed setting status for RG %s\n",
 		       svcName);
 		return -1;
 	}
@@ -1133,14 +1133,14 @@ svc_status(char *svcName)
 	int ret;
 
 	if (rg_lock(svcName, &lockp) < 0) {
-		log_printf(LOG_ERR, "#48: Unable to obtain cluster lock: %s\n",
+		logt_print(LOG_ERR, "#48: Unable to obtain cluster lock: %s\n",
 		       strerror(errno));
 		return RG_EFAIL;
 	}
 
 	if (get_rg_state(svcName, &svcStatus) != 0) {
 		rg_unlock(&lockp);
-		log_printf(LOG_ERR, "#49: Failed getting status for RG %s\n",
+		logt_print(LOG_ERR, "#49: Failed getting status for RG %s\n",
 		       svcName);
 		return RG_EFAIL;
 	}
@@ -1186,7 +1186,7 @@ handle_started_status(char *svcName, int ret,
 	   inline recovery */
 	if (ret & SFL_RECOVERABLE) {
 
-		log_printf(LOG_WARNING, "Some independent resources in %s failed; "
+		logt_print(LOG_WARNING, "Some independent resources in %s failed; "
 		       "Attempting inline recovery\n", svcName);
 
 		ret = group_op(svcName, RG_CONDSTOP);
@@ -1195,10 +1195,10 @@ handle_started_status(char *svcName, int ret,
 		}
 
 		if (ret) {
-			log_printf(LOG_WARNING, "Inline recovery of %s failed\n",
+			logt_print(LOG_WARNING, "Inline recovery of %s failed\n",
 			       svcName);
 		} else {
-			log_printf(LOG_NOTICE,
+			logt_print(LOG_NOTICE,
 			       "Inline recovery of %s succeeded\n",
 			       svcName);
 			return 0;
@@ -1222,7 +1222,7 @@ handle_migrate_status(char *svcName, int ret, rg_state_t *svcStatus)
 	/* If the check succeeds (returns 0), then flip the state back to
 	   'started' - we now own the service */
 	if (rg_lock(svcName, &lockp) < 0) {
-		log_printf(LOG_ERR, "#45: Unable to obtain cluster lock: %s\n",
+		logt_print(LOG_ERR, "#45: Unable to obtain cluster lock: %s\n",
 			strerror(errno));
 		return RG_EFAIL;
 	}
@@ -1230,13 +1230,13 @@ handle_migrate_status(char *svcName, int ret, rg_state_t *svcStatus)
 	svcStatus->rs_state = RG_STATE_STARTED;
 	if (set_rg_state(svcName, svcStatus) != 0) {
 		rg_unlock(&lockp);
-		log_printf(LOG_ERR, "#46: Failed getting status for RG %s\n",
+		logt_print(LOG_ERR, "#46: Failed getting status for RG %s\n",
 		       svcName);
 		return RG_EFAIL;
 	}
 	rg_unlock(&lockp);
 
-	log_printf(LOG_NOTICE, "%s is now running locally\n", svcName);
+	logt_print(LOG_NOTICE, "%s is now running locally\n", svcName);
 
 	return 0;
 }
@@ -1248,7 +1248,7 @@ svc_status_inquiry(char *svcName)
 	rg_state_t svcStatus;
 
 	if (get_rg_state_local(svcName, &svcStatus) != 0) {
-		log_printf(LOG_ERR, "Failed getting local status for RG %s\n",
+		logt_print(LOG_ERR, "Failed getting local status for RG %s\n",
 		       svcName);
 		return RG_EFAIL;
 	}
@@ -1277,20 +1277,20 @@ _svc_stop(char *svcName, int req, int recover, uint32_t newstate)
 	int old_state;
 
 	if (!rg_quorate()) {
-		log_printf(LOG_WARNING, "#69: Unclean %s of %s\n", 
+		logt_print(LOG_WARNING, "#69: Unclean %s of %s\n", 
 		       rg_req_str(req), svcName);
 		return group_op(svcName, RG_STOP);
 	}
 
 	if (rg_lock(svcName, &lockp) == RG_EFAIL) {
-		log_printf(LOG_ERR, "#50: Unable to obtain cluster lock: %s\n",
+		logt_print(LOG_ERR, "#50: Unable to obtain cluster lock: %s\n",
 		       strerror(errno));
 		return RG_EFAIL;
 	}
 
 	if (get_rg_state(svcName, &svcStatus) != 0) {
 		rg_unlock(&lockp);
-		log_printf(LOG_ERR, "#51: Failed getting status for RG %s\n",
+		logt_print(LOG_ERR, "#51: Failed getting status for RG %s\n",
 		       svcName);
 		return RG_EFAIL;
 	}
@@ -1298,7 +1298,7 @@ _svc_stop(char *svcName, int req, int recover, uint32_t newstate)
 	switch (svc_advise_stop(&svcStatus, svcName, req)) {
 	case 0:
 		rg_unlock(&lockp);
-		log_printf(LOG_DEBUG, "Unable to stop RG %s in %s state\n",
+		logt_print(LOG_DEBUG, "Unable to stop RG %s in %s state\n",
 		       svcName, rg_state_str(svcStatus.rs_state));
 		return RG_EFAIL;
 	case 6:
@@ -1329,7 +1329,7 @@ _svc_stop(char *svcName, int req, int recover, uint32_t newstate)
 
 	old_state = svcStatus.rs_state;
 
-	log_printf(LOG_NOTICE, "Stopping service %s\n", svcName);
+	logt_print(LOG_NOTICE, "Stopping service %s\n", svcName);
 
 	if (recover) 
 	       	svcStatus.rs_state = RG_STATE_ERROR;
@@ -1341,7 +1341,7 @@ _svc_stop(char *svcName, int req, int recover, uint32_t newstate)
 
 	if (set_rg_state(svcName, &svcStatus) != 0) {
 		rg_unlock(&lockp);
-		log_printf(LOG_ERR, "#52: Failed changing RG status\n");
+		logt_print(LOG_ERR, "#52: Failed changing RG status\n");
 		return RG_EFAIL;
 	}
 	rg_unlock(&lockp);
@@ -1350,7 +1350,7 @@ _svc_stop(char *svcName, int req, int recover, uint32_t newstate)
 
 	if (old_state == RG_STATE_FAILED && newstate == RG_STATE_DISABLED) {
 		if (ret)
-			log_printf(LOG_ALERT, "Marking %s as 'disabled', "
+			logt_print(LOG_ALERT, "Marking %s as 'disabled', "
 			       "but some resources may still be allocated!\n",
 			       svcName);
 		_svc_stop_finish(svcName, 0, newstate);
@@ -1369,14 +1369,14 @@ _svc_stop_finish(char *svcName, int failed, uint32_t newstate)
 	struct dlm_lksb lockp;
 
 	if (rg_lock(svcName, &lockp) == RG_EFAIL) {
-		log_printf(LOG_ERR, "#53: Unable to obtain cluster lock: %s\n",
+		logt_print(LOG_ERR, "#53: Unable to obtain cluster lock: %s\n",
 		       strerror(errno));
 		return RG_EFAIL;
 	}
 
 	if (get_rg_state(svcName, &svcStatus) != 0) {
 		rg_unlock(&lockp);
-		log_printf(LOG_ERR, "#54: Failed getting status for RG %s\n",
+		logt_print(LOG_ERR, "#54: Failed getting status for RG %s\n",
 		       svcName);
 		return RG_EFAIL;
 	}
@@ -1392,7 +1392,7 @@ _svc_stop_finish(char *svcName, int failed, uint32_t newstate)
 	svcStatus.rs_owner = 0;
 
 	if (failed) {
-		log_printf(LOG_CRIT, "#12: RG %s failed to stop; intervention "
+		logt_print(LOG_CRIT, "#12: RG %s failed to stop; intervention "
 		       "required\n", svcName);
 		newstate = RG_STATE_FAILED;
 	} else if (svcStatus.rs_state == RG_STATE_ERROR) {
@@ -1402,14 +1402,14 @@ _svc_stop_finish(char *svcName, int failed, uint32_t newstate)
 
 	svcStatus.rs_state = newstate;
 
-	log_printf(LOG_NOTICE, "Service %s is %s\n", svcName,
+	logt_print(LOG_NOTICE, "Service %s is %s\n", svcName,
 	       rg_state_str(svcStatus.rs_state));
 	//printf("rg state = %s\n", rg_state_str(svcStatus.rs_state));
 
 	svcStatus.rs_transition = (uint64_t)time(NULL);
 	if (set_rg_state(svcName, &svcStatus) != 0) {
 		rg_unlock(&lockp);
-		log_printf(LOG_ERR, "#55: Failed changing RG status\n");
+		logt_print(LOG_ERR, "#55: Failed changing RG status\n");
 		return RG_EFAIL;
 	}
 	rg_unlock(&lockp);
@@ -1456,16 +1456,16 @@ svc_fail(char *svcName)
 	rg_state_t svcStatus;
 
 	if (rg_lock(svcName, &lockp) == RG_EFAIL) {
-		log_printf(LOG_ERR, "#55: Unable to obtain cluster lock: %s\n",
+		logt_print(LOG_ERR, "#55: Unable to obtain cluster lock: %s\n",
 		       strerror(errno));
 		return RG_EFAIL;
 	}
 
-	log_printf(LOG_DEBUG, "Handling failure request for RG %s\n", svcName);
+	logt_print(LOG_DEBUG, "Handling failure request for RG %s\n", svcName);
 
 	if (get_rg_state(svcName, &svcStatus) != 0) {
 		rg_unlock(&lockp);
-		log_printf(LOG_ERR, "#56: Failed getting status for RG %s\n",
+		logt_print(LOG_ERR, "#56: Failed getting status for RG %s\n",
 		       svcName);
 		return RG_EFAIL;
 	}
@@ -1473,7 +1473,7 @@ svc_fail(char *svcName)
 	if ((svcStatus.rs_state == RG_STATE_STARTED) &&
 	    (svcStatus.rs_owner != (uint32_t)my_id())) {
 		rg_unlock(&lockp);
-		log_printf(LOG_DEBUG, "Unable to disable RG %s in %s state\n",
+		logt_print(LOG_DEBUG, "Unable to disable RG %s in %s state\n",
 		       svcName, rg_state_str(svcStatus.rs_state));
 		return RG_EFAIL;
 	}
@@ -1490,7 +1490,7 @@ svc_fail(char *svcName)
 	svcStatus.rs_restarts = 0;
 	if (set_rg_state(svcName, &svcStatus) != 0) {
 		rg_unlock(&lockp);
-		log_printf(LOG_ERR, "#57: Failed changing RG status\n");
+		logt_print(LOG_ERR, "#57: Failed changing RG status\n");
 		return RG_EFAIL;
 	}
 	rg_unlock(&lockp);
@@ -1514,17 +1514,17 @@ _svc_freeze(char *svcName, int enabled)
 	rg_state_t svcStatus;
 
 	if (rg_lock(svcName, &lockp) == RG_EFAIL) {
-		log_printf(LOG_ERR, "#55: Unable to obtain cluster lock: %s\n",
+		logt_print(LOG_ERR, "#55: Unable to obtain cluster lock: %s\n",
 		       strerror(errno));
 		return RG_EFAIL;
 	}
 
-	log_printf(LOG_DEBUG, "Handling %s request for RG %s\n", enabled?"freeze":"unfreeze",
+	logt_print(LOG_DEBUG, "Handling %s request for RG %s\n", enabled?"freeze":"unfreeze",
 	       svcName);
 
 	if (get_rg_state(svcName, &svcStatus) != 0) {
 		rg_unlock(&lockp);
-		log_printf(LOG_ERR, "#56: Failed getting status for RG %s\n",
+		logt_print(LOG_ERR, "#56: Failed getting status for RG %s\n",
 		       svcName);
 		return RG_EFAIL;
 	}
@@ -1535,16 +1535,16 @@ _svc_freeze(char *svcName, int enabled)
 	case RG_STATE_DISABLED:
 
 		if (enabled == 1) {
-			log_printf(LOG_DEBUG, "Freezing RG %s\n", svcName);
+			logt_print(LOG_DEBUG, "Freezing RG %s\n", svcName);
 			svcStatus.rs_flags |= RG_FLAG_FROZEN;
 		} else {
-			log_printf(LOG_DEBUG, "Unfreezing RG %s\n", svcName);
+			logt_print(LOG_DEBUG, "Unfreezing RG %s\n", svcName);
 			svcStatus.rs_flags &= ~RG_FLAG_FROZEN;
 		}
 
 		if (set_rg_state(svcName, &svcStatus) != 0) {
 			rg_unlock(&lockp);
-			log_printf(LOG_ERR, "#57: Failed changing RG status\n");
+			logt_print(LOG_ERR, "#57: Failed changing RG status\n");
 			return RG_EFAIL;
 		}
 		break;
@@ -1598,7 +1598,7 @@ svc_start_remote(char *svcName, int request, uint32_t target)
 	/* Open a connection to the other node */
 
 	if (msg_open(MSG_CLUSTER, target, RG_PORT, &ctx, 2)< 0) {
-		log_printf(LOG_ERR,
+		logt_print(LOG_ERR,
 		       "#58: Failed opening connection to member #%d\n",
 		       target);
 		return -1;
@@ -1610,14 +1610,14 @@ svc_start_remote(char *svcName, int request, uint32_t target)
 	/* Send relocate message to the other node */
 	if (msg_send(&ctx, &msg_relo, sizeof (SmMessageSt)) < 
 	    (int)sizeof (SmMessageSt)) {
-		log_printf(LOG_ERR,
+		logt_print(LOG_ERR,
 		       "#59: Error sending remote-start request to member #%d\n",
 		       target);
 		msg_close(&ctx);
 		return -1;
 	}
 
-	log_printf(LOG_DEBUG, "Sent remote-start request to %d\n", (int)target);
+	logt_print(LOG_DEBUG, "Sent remote-start request to %d\n", (int)target);
 
 	/* Check the response */
 	do {
@@ -1632,7 +1632,7 @@ svc_start_remote(char *svcName, int request, uint32_t target)
 		/* Check to see if resource groups are locked for local
 		   shutdown */
 		if (rg_locked()) {
-			log_printf(LOG_WARNING,
+			logt_print(LOG_WARNING,
 			       "#XX: Cancelling relocation: Shutting down\n");
 			msg_close(&ctx);
 			return RG_NO;
@@ -1644,7 +1644,7 @@ svc_start_remote(char *svcName, int request, uint32_t target)
 			free_member_list(ml);
 			continue;
 		}
-		log_printf(LOG_WARNING,
+		logt_print(LOG_WARNING,
 		       "#XX: Cancelling relocation: Target node down\n");
 		free_member_list(ml);
 		msg_close(&ctx);
@@ -1656,7 +1656,7 @@ svc_start_remote(char *svcName, int request, uint32_t target)
 		 * In this case, we don't restart the service, because the 
 		 * service state is actually unknown to us at this time.
 		 */
-		log_printf(LOG_ERR, "#60: Mangled reply from member #%d during RG "
+		logt_print(LOG_ERR, "#60: Mangled reply from member #%d during RG "
 		       "relocate\n", target);
 		msg_close(&ctx);
 		return 0;	/* XXX really UNKNOWN */
@@ -1843,19 +1843,19 @@ handle_relocate_req(char *svcName, int request, int preferred_target,
 			return RG_EFAIL;
 		default:
 			/* deliberate fallthrough */
-			log_printf(LOG_ERR,
+			logt_print(LOG_ERR,
 			       "#61: Invalid reply from member %d during"
 			       " relocate operation!\n", target);
 		case RG_NO:
 			/* state uncertain */
 			free_member_list(allowed_nodes);
-			log_printf(LOG_CRIT, "State Uncertain: svc:%s "
+			logt_print(LOG_CRIT, "State Uncertain: svc:%s "
 			       "nid:%d req:%s ret:%d\n", svcName,
 			       target, rg_req_str(request), ret);
 			return 0;
 		case 0:
 			*new_owner = target;
-			log_printf(LOG_NOTICE, "Service %s is now running "
+			logt_print(LOG_NOTICE, "Service %s is now running "
 			       "on member %d\n", svcName, (int)target);
 			free_member_list(allowed_nodes);
 			return 0;
@@ -1878,7 +1878,7 @@ handle_relocate_req(char *svcName, int request, int preferred_target,
 	 */
 exhausted:
 	if (!rg_locked()) {
-		log_printf(LOG_WARNING,
+		logt_print(LOG_WARNING,
 		       "#70: Failed to relocate %s; restarting locally\n",
 		       svcName);
 		if (svc_start(svcName, RG_START_RECOVER) == 0) {
@@ -1989,9 +1989,9 @@ handle_start_req(char *svcName, int req, int *new_owner)
 	 * Keep the state open so the other nodes don't try to start
 	 * it.  This allows us to be the 'root' of a given service.
 	 */
-	log_printf(LOG_DEBUG, "Stopping failed service %s\n", svcName);
+	logt_print(LOG_DEBUG, "Stopping failed service %s\n", svcName);
 	if (svc_stop(svcName, RG_STOP_RECOVER) != 0) {
-		log_printf(LOG_CRIT,
+		logt_print(LOG_CRIT,
 		       "#13: Service %s failed to stop cleanly\n",
 		       svcName);
 		(void) svc_fail(svcName);
@@ -2011,7 +2011,7 @@ relocate:
 	 * we should relocate the service.
 	 */
 	if (actual_failure)
-		log_printf(LOG_WARNING, "#71: Relocating failed service %s\n",
+		logt_print(LOG_WARNING, "#71: Relocating failed service %s\n",
 	       	       svcName);
 	ret = handle_relocate_req(svcName, RG_START_RECOVER, -1, new_owner);
 
@@ -2120,7 +2120,7 @@ handle_recover_req(char *svcName, int *new_owner)
 
 	/* Check restart counter/timer for this resource */
 	if (check_restart(svcName) > 0) {
-		log_printf(LOG_NOTICE, "Restart threshold for %s exceeded; "
+		logt_print(LOG_NOTICE, "Restart threshold for %s exceeded; "
 		       "attempting to relocate\n", svcName);
 		return handle_relocate_req(svcName, RG_START_RECOVER, -1,
 					   new_owner);
@@ -2177,7 +2177,7 @@ handle_fd_start_req(char *svcName, int request, int *new_owner)
 			ret = RG_EFAIL;
 			goto out;
       		default:
-			log_printf(LOG_ERR,
+			logt_print(LOG_ERR,
 	 		       "#6X: Invalid reply [%d] from member %d during"
 	  		       " relocate operation!\n", ret, target);
 	   	}

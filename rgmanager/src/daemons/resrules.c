@@ -39,7 +39,7 @@ store_rule(resource_rule_t **rulelist, resource_rule_t *newrule)
 			fprintf(stderr, "Error storing %s: Duplicate\n",
 				newrule->rr_type);
 #else
-			log_printf(LOG_ERR, "Error storing %s: Duplicate\n",
+			logt_print(LOG_ERR, "Error storing %s: Duplicate\n",
 			       newrule->rr_type);
 #endif
 			return -1;
@@ -1013,7 +1013,7 @@ load_resource_rulefile(char *filename, resource_rule_t **rules)
 				"Error: Resource type '%s' is reserved",
 				type);
 #else
-			log_printf(LOG_ERR,
+			logt_print(LOG_ERR,
 				"Error: Resource type '%s' is reserved",
 				type);
 #endif

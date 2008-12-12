@@ -73,7 +73,7 @@ main(int argc, char **argv)
 	setup_logging(ccsfd);
 	ccs_disconnect(ccsfd);
 
-	log_printf(severity, "%s\n", logmsg);
+	logt_print(severity, "%s\n", logmsg);
 
 	close_logging();
 	return 0;

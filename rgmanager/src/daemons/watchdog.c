@@ -60,15 +60,15 @@ watchdog_init(void)
 		
 		if (WIFSIGNALED(status)) {
 		        if (WTERMSIG(status) == SIGKILL) {
-				log_printf(LOG_CRIT, "Watchdog: Daemon killed, exiting\n");
+				logt_print(LOG_CRIT, "Watchdog: Daemon killed, exiting\n");
 				raise(SIGKILL);
 				while(1) ;
 			}
 			else {
 #ifdef DEBUG
-			        log_printf(LOG_CRIT, "Watchdog: Daemon died, but not rebooting because DEBUG is set\n");
+			        logt_print(LOG_CRIT, "Watchdog: Daemon died, but not rebooting because DEBUG is set\n");
 #else
-				log_printf(LOG_CRIT, "Watchdog: Daemon died, rebooting...\n");
+				logt_print(LOG_CRIT, "Watchdog: Daemon died, rebooting...\n");
 				sync();
 			        reboot(RB_AUTOBOOT);
 #endif

@@ -441,7 +441,7 @@ res_exec(resource_node_t *node, int op, const char *arg, int depth)
 
 		if (pid != childpid && sleeptime == 0) {
 
-			log_printf(LOG_ERR,
+			logt_print(LOG_ERR,
 			       "%s on %s:%s timed out after %d seconds\n",
 			       op_str, res->r_rule->rr_type,
 			       res->r_attrs->ra_value,
@@ -453,7 +453,7 @@ res_exec(resource_node_t *node, int op, const char *arg, int depth)
 			sleep(1);
 			pid = waitpid(childpid, &ret, WNOHANG);
 			if (pid == 0) {
-				log_printf(LOG_ERR,
+				logt_print(LOG_ERR,
 				       "Task %s PID %d did not exit "
 				       "after SIGKILL\n",
 				       op_str, childpid);
@@ -481,7 +481,7 @@ res_exec(resource_node_t *node, int op, const char *arg, int depth)
 #else
 		if (ret) {
 #endif
-			log_printf(LOG_NOTICE,
+			logt_print(LOG_NOTICE,
 			       "%s on %s \"%s\" returned %d (%s)\n",
 			       op_str, res->r_rule->rr_type,
 			       res->r_attrs->ra_value, ret,

@@ -780,7 +780,7 @@ array_to_string(char *buf, int buflen, int *array, int arraylen)
 
 /**
   Start at the end of the arg list and work backwards, prepending a string.
-  This does not support standard log_printf / printf formattting; rather, we 
+  This does not support standard logt_print / printf formattting; rather, we 
   just allow integers / strings to be mixed on the stack, figure out the
   type, convert it to the right type, and prepend it on to our log message
 
@@ -789,7 +789,7 @@ array_to_string(char *buf, int buflen, int *array, int arraylen)
      ...
      LOG_EMERG
 
-  This matches up with log_printf / syslog mappings in the var table; the above
+  This matches up with logt_print / syslog mappings in the var table; the above
   are constants in the S/Lang interpreter.  Any number of arguments may
   be provided.  Examples are:
 
@@ -803,7 +803,7 @@ array_to_string(char *buf, int buflen, int *array, int arraylen)
 
  */
 void
-sl_log_printf(int level)
+sl_logt_print(int level)
 {
 	int t, nargs, len;
 	//int level;
@@ -868,7 +868,7 @@ sl_log_printf(int level)
 #if 0
 	printf("<%d> %s\n", level, &logbuf[remain]);
 #endif
-	log_printf(level, "%s", &logbuf[remain]);
+	logt_print(level, "%s", &logbuf[remain]);
 	return;
 }
 
@@ -877,56 +877,56 @@ sl_log_printf(int level)
 void
 sl_log_debug(void)
 {
-	sl_log_printf(LOG_DEBUG);
+	sl_logt_print(LOG_DEBUG);
 }
 
 
 void
 sl_log_info(void)
 {
-	sl_log_printf(LOG_INFO);
+	sl_logt_print(LOG_INFO);
 }
 
 
 void
 sl_log_notice(void)
 {
-	sl_log_printf(LOG_NOTICE);
+	sl_logt_print(LOG_NOTICE);
 }
 
 
 void
 sl_log_warning(void)
 {
-	sl_log_printf(LOG_WARNING);
+	sl_logt_print(LOG_WARNING);
 }
 
 
 void
 sl_log_err(void)
 {
-	sl_log_printf(LOG_ERR);
+	sl_logt_print(LOG_ERR);
 }
 
 
 void
 sl_log_crit(void)
 {
-	sl_log_printf(LOG_CRIT);
+	sl_logt_print(LOG_CRIT);
 }
 
 
 void
 sl_log_alert(void)
 {
-	sl_log_printf(LOG_ALERT);
+	sl_logt_print(LOG_ALERT);
 }
 
 
 void
 sl_log_emerg(void)
 {
-	sl_log_printf(LOG_EMERG);
+	sl_logt_print(LOG_EMERG);
 }
 
 
@@ -985,7 +985,7 @@ rgmanager_slang_error_hook(char *errstr)
 	/* Don't just send errstr, because it might contain
 	   "%s" for example which would result in a crash!
 	   plus, we like the newline :) */
-	log_printf(LOG_ERR, "[S/Lang] %s\n", errstr);
+	logt_print(LOG_ERR, "[S/Lang] %s\n", errstr);
 }
 
 
@@ -1033,7 +1033,7 @@ do_slang_run(const char *file, const char *script)
 		ret = SLang_load_string((char *)script);
 
 	if (ret < 0) {
-		log_printf(LOG_ERR, "[S/Lang] Script Execution Failure\n");
+		logt_print(LOG_ERR, "[S/Lang] Script Execution Failure\n");
 		SLang_restart(1);
 	}
 
