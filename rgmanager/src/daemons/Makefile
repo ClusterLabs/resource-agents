@@ -21,6 +21,7 @@ OBJS1=	depends.o \
 	reslist.o \
 	resrules.o \
 	restree.o \
+	restart_counter.o \
 	rg_event.o \
 	rg_forward.o \
 	rg_locks.o \
@@ -37,8 +38,8 @@ OBJS2=	test-noccs.o
 OBJS3=	dtest-noccs.o
 
 SHAREDOBJS=	depends-noccs.o \
-		restart_counter.o \
 		fo_domain-noccs.o \
+		restart_counter.o \
 		reslist-noccs.o \
 		resrules-noccs.o \
 		restree-noccs.o \
@@ -47,7 +48,7 @@ SHAREDOBJS=	depends-noccs.o \
 
 CFLAGS += -DSHAREDIR=\"${sharedir}\"
 CFLAGS += -Werror -Wstrict-prototypes -Wshadow -fPIC
-CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmincdir} -I${corosyncincdir}
+CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmincdir} -I${logtincdir}
 CFLAGS += `xml2-config --cflags` -I${readlineincdir} -I${slangincdir}
 CFLAGS += -I$(S)/../../include
 CFLAGS += -I${incdir}
@@ -59,7 +60,7 @@ LDFLAGS += -L${libdir}
 
 CCS_LDFLAGS += -L${ccslibdir} -lccs 
 CMAN_LDFLAGS += -L${cmanlibdir} -lcman
-LOGSYS_LDFLAGS += -L${corosynclibdir} -llogsys
+LOGSYS_LDFLAGS += -L${logtlibdir} -llogthread
 DLM_LDFLAGS += -L${dlmlibdir} -ldlm
 XML2_LDFLAGS += `xml2-config --libs`
 SLANG_LDFLAGS += -L${slanglibdir} -lslang

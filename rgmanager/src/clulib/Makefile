@@ -21,14 +21,14 @@ OBJS3= msgtest.o
 
 CFLAGS += -Werror -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
 CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmincdir}
-CFLAGS += -L${corosyncincdir}
+CFLAGS += -L${logtincdir}
 CFLAGS += -I$(S)/../../include
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${cmanlibdir} -lcman 
 LDFLAGS += -L. -lclulib -llalloc
 LDFLAGS += -lpthread
-LDFLAGS += -L${corosynclibdir} -llogsys
+LDFLAGS += -L${logtlibdir} -llogthread
 LDFLAGS += -L${libdir}
 
 ${TARGET1}: ${OBJS1}

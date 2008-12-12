@@ -19,7 +19,7 @@ DISABLEDTARGETS= cluarp
 
 CFLAGS += -Werror -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
 CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmincdir}
-CFLAGS += -I${corosyncincdir} -I${ncursesincdir}
+CFLAGS += -I${logtincdir} -I${ncursesincdir}
 CFLAGS += -I$(S)/../../include
 CFLAGS += -I${incdir}
 
@@ -30,7 +30,7 @@ LDDEPS += ../clulib/libclulib.a
 
 CCS_LDFLAGS += -L${ccslibdir} -lccs
 CMAN_LDFLAGS += -L${cmanlibdir} -lcman
-LOGSYS_LDFLAGS += -L${corosynclibdir} -llogsys
+LOGSYS_LDFLAGS += -L${logtlibdir} -llogthread
 NCURSES_LDFLAGS += -L${ncurseslibdir} -lncurses
 PTHREAD_LDFLAGS += -lpthread 
 
