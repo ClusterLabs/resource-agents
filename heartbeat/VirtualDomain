@@ -70,10 +70,24 @@ graceful shutdown.
 <shortdesc lang="en">Force shutdown on stop</shortdesc>
 <content type="boolean" default="0" />
 </parameter>
+
+<parameter name="monitor_scripts" unique="0" required="0">
+<longdesc lang="en">
+To additionally monitor services within the virtual domain, add this 
+parameter with a list of scripts to monitor.
+
+Note: when monitor scripts are used, the start operation will complete
+only when all monitor scripts have completed successfully. Be sure to
+set the timeout of your start operation to accommodate this delay.
+</longdesc>
+<shortdesc lang="en">space-separated list of monitor scripts</shortdesc>
+<content type="string" default="" />
+</parameter>
+
 </parameters>
 
 <actions>
-<action name="start" timeout="10" />
+<action name="start" timeout="90" />
 <action name="stop" timeout="90" />
 <action name="status" depth="0" timeout="30" interval="10" />
 <action name="monitor" depth="0" timeout="30" interval="10" />
@@ -84,9 +98,27 @@ graceful shutdown.
 EOF
 }
 
+# Set options to be passed to virsh:
+#
+# if OCF_RESKEY_hypervisor is set, add the --connect option.
+# Otherwise, omit it so virsh connects to libvirt's
+# system-dependent default hypervisor. 
+if [ -n "$OCF_RESKEY_hypervisor" ]; then
+    VIRSH_OPTIONS="--connect=${OCF_RESKEY_hypervisor}"
+fi
+VIRSH_OPTIONS="${VIRSH_OPTIONS} --quiet"
+
 VirtualDomain_Define() {
-    DOMAIN_NAME="$(virsh ${VIRSH_OPTIONS} define ${OCF_RESKEY_config} | sed -e 's/Domain \(.*\) defined from .*$/\1/')" \
-	|| return $OCF_ERR_GENERIC
+    # Note: passing in the domain name from outside the script is
+    # intended for testing and debugging purposes only. Don't do this
+    # in production, instead let the script figure out the domain name
+    # from the config file. You have been warned.
+    if [ -z "$DOMAIN_NAME" ]; then
+	DOMAIN_NAME="$(virsh ${VIRSH_OPTIONS} define ${OCF_RESKEY_config} | sed -e 's/Domain \(.*\) defined from .*$/\1/')" \
+	    || return $OCF_ERR_GENERIC
+    else
+	ocf_log warn "Domain name ${DOMAIN_NAME} already defined, overriding configuration file ${OCF_RESKEY_config}. You should do this for testing only."
+    fi
 }
 
 VirtualDomain_Status() {
@@ -118,7 +150,7 @@ VirtualDomain_Start() {
     fi
     
     while sleep 1; do
-	VirtualDomain_Status && return $OCF_SUCCESS
+	VirtualDomain_Monitor && return $OCF_SUCCESS
     done
 }
 
@@ -143,6 +175,32 @@ VirtualDomain_Stop() {
 	ocf_log info "Domain $DOMAIN_NAME already stopped."
 	return $OCF_SUCCESS
     fi
+}
+
+VirtualDomain_Monitor() {
+    # First, check the domain status. If that returns anything other
+    # than $OCF_SUCCESS, something is definitely wrong.
+    VirtualDomain_Status ${DOMAIN_NAME}
+    rc=$?
+    if [ ${rc} -eq ${OCF_SUCCESS} ]; then
+	# OK, the generic status check turned out fine.  Now, if we
+	# have monitor scripts defined, run them one after another.
+	for script in ${OCF_RESKEY_monitor_scripts}; do
+	    script_output="$($script 2>&1)"
+	    script_rc=$?
+	    if [ ${script_rc} -ne ${OCF_SUCCESS} ]; then
+		# A monitor script returned a non-success exit
+		# code. Stop iterating over the list of scripts, log a
+		# warning message, and propagate $OCF_ERR_GENERIC.
+		ocf_log warn "Monitor command \"${script}\" for domain ${DOMAIN_NAME} returned ${script_rc} with output: ${script_output}"
+		rc=$OCF_ERR_GENERIC
+		break
+	    else
+		ocf_log debug "Monitor command \"${script}\" for domain ${DOMAIN_NAME} completed successfully with output: ${script_output}"
+	    fi
+	done
+    fi
+    return ${rc}
 }
 
 VirtualDomain_Validate_All() {
@@ -181,32 +239,29 @@ esac
 # Everything except usage and meta-data must pass the validate test
 VirtualDomain_Validate_All || exit $?
 
-# Set options to be passed to virsh:
-#
-# if OCF_RESKEY_hypervisor is set, add the --connect option.
-# Otherwise, omit it so virsh connects to libvirt's
-# system-dependent default hypervisor. 
-if [ -n "$OCF_RESKEY_hypervisor" ]; then
-    VIRSH_OPTIONS="--connect=${OCF_RESKEY_hypervisor}"
-fi
-VIRSH_OPTIONS="${VIRSH_OPTIONS} --quiet"
-
 # Define the domain on startup, and re-define (harmlessly)
 # on every invocation. This also sets DOMAIN_NAME. If this fails,
 # bail out.
 VirtualDomain_Define || exit $?
 
 case $1 in
-  start)		VirtualDomain_Start
-			;;
-  stop)			VirtualDomain_Stop
-			;;
-  monitor|status)	VirtualDomain_Status ${DOMAIN_NAME}
-			;;
-  validate-all)		
-			;;
-  *)			usage
-			exit $OCF_ERR_UNIMPLEMENTED
-			;;
+    start)
+	VirtualDomain_Start
+	;;
+    stop)
+	VirtualDomain_Stop
+	;;
+    status)
+	VirtualDomain_Status
+	;;
+    monitor)
+	VirtualDomain_Monitor
+        ;;
+    validate-all)		
+	;;
+    *)	
+	usage
+	exit $OCF_ERR_UNIMPLEMENTED
+	;;
 esac
 exit $?
