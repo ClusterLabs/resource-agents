@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <netdb.h>
+#include <liblogthread.h>
 
 #ifndef IFA_MAX
 #include <linux/if_addr.h>
@@ -21,8 +22,6 @@
 /* Local includes */
 #include "ip_lookup.h"
 #include "debug.h"
-
-LOGSYS_DECLARE_SUBSYS("XVM", SYSLOGLEVEL);
 
 static int
 send_addr_dump(int fd, int family)

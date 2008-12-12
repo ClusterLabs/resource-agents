@@ -27,6 +27,7 @@
 #include <pthread.h>
 #include <libgen.h>
 #include <nss.h>
+#include <liblogthread.h>
 
 /* Local includes */
 #include "xvm.h"
@@ -37,13 +38,7 @@
 #include "mcast.h"
 #include "debug.h"
 
-LOGSYS_DECLARE_SYSTEM (NULL,
-        LOG_MODE_OUTPUT_STDERR | LOG_MODE_OUTPUT_SYSLOG_THREADED |
-	LOG_MODE_OUTPUT_FILE,
-        LOGDIR "/fence_xvm.log",
-        SYSLOGFACILITY);
-
-LOGSYS_DECLARE_SUBSYS ("XVM", SYSLOGLEVEL);
+#define LOG_DAEMON_NAME "fence_xvm"
 
 int
 tcp_wait_connect(int lfd, int retry_tenths)
@@ -87,14 +82,14 @@ tcp_exchange(int fd, fence_auth_type_t auth, void *key,
 	dbg_printf(3, "Issuing TCP challenge\n");
 	if (tcp_challenge(fd, auth, key, key_len, timeout) <= 0) {
 		/* Challenge failed */
-		log_printf(LOG_ERR, "Invalid response to challenge\n");
+		logt_print(LOG_ERR, "Invalid response to challenge\n");
 		return 0;
 	}
 
 	/* Now they'll send us one, so we need to respond here */
 	dbg_printf(3, "Responding to TCP challenge\n");
 	if (tcp_response(fd, auth, key, key_len, timeout) <= 0) {
-		log_printf(LOG_ERR, "Invalid response to challenge\n");
+		logt_print(LOG_ERR, "Invalid response to challenge\n");
 		return 0;
 	}
 
@@ -116,9 +111,9 @@ tcp_exchange(int fd, fence_auth_type_t auth, void *key,
 
 	close(fd);
 	if (ret == 0)
-		log_printf(LOG_INFO, "Remote: Operation was successful\n");
+		logt_print(LOG_INFO, "Remote: Operation was successful\n");
 	else
-		log_printf(LOG_INFO, "Remote: Operation failed\n");
+		logt_print(LOG_INFO, "Remote: Operation failed\n");
 	return ret;
 }
 
@@ -217,7 +212,7 @@ fence_xen_domain(fence_xvm_args_t *args)
 	if (args->auth != AUTH_NONE || args->hash != HASH_NONE) {
 		key_len = read_key_file(args->key_file, key, sizeof(key));
 		if (key_len < 0) {
-			log_printf(LOG_INFO,
+			logt_print(LOG_INFO,
 				   "Could not read %s; trying without "
 			           "authentication\n", args->key_file);
 			args->auth = AUTH_NONE;
@@ -227,7 +222,7 @@ fence_xen_domain(fence_xvm_args_t *args)
 
 	/* Do the real work */
 	if (ip_build_list(&ipl) < 0) {
-		log_printf(LOG_ERR, "Error building IP address list\n");
+		logt_print(LOG_ERR, "Error building IP address list\n");
 		return 1;
 	}
 
@@ -249,13 +244,13 @@ fence_xen_domain(fence_xvm_args_t *args)
 	}
 
 	if (lfd < 0) {
-		log_printf(LOG_ERR, "Failed to listen: %s\n", strerror(errno));
+		logt_print(LOG_ERR, "Failed to listen: %s\n", strerror(errno));
 		return 1;
 	}
 
 	attempts = args->timeout * 10 / args->retr_time;
 
-	log_printf(LOG_INFO, "Sending fence request for %s\n", 
+	logt_print(LOG_INFO, "Sending fence request for %s\n", 
 		   args->domain);
 
 	do {
@@ -285,11 +280,11 @@ fence_xen_domain(fence_xvm_args_t *args)
 
 	if (fd < 0) {
 		if (attempts <= 0) {
-			log_printf(LOG_ERR,
+			logt_print(LOG_ERR,
 				   "Timed out waiting for response\n");
 			return 1;
 		}
-		log_printf(LOG_ERR, "Fencing failed: %s\n", strerror(errno));
+		logt_print(LOG_ERR, "Fencing failed: %s\n", strerror(errno));
 		return -1;
 	}
 
@@ -316,6 +311,10 @@ main(int argc, char **argv)
 {
 	fence_xvm_args_t args;
 	char *my_options = "di:a:p:T:r:C:c:k:H:uo:t:?hV";
+
+	/* Print to stderr.  Fenced will report our output for us */
+	logt_init(LOG_DAEMON_NAME, LOG_MODE_OUTPUT_STDERR,
+		  SYSLOGFACILITY, SYSLOGLEVEL, SYSLOGLEVEL, NULL);
 
 	args_init(&args);
 
@@ -349,13 +348,14 @@ main(int argc, char **argv)
 	dset(args.debug);
 	
 	if (args.debug > 0) {
-                logsys_config_priority_set (LOG_LEVEL_DEBUG);
+		logt_conf(LOG_DAEMON_NAME, LOG_MODE_OUTPUT_STDERR,
+			  SYSLOGFACILITY, LOG_DEBUG, LOG_DEBUG, NULL);
 		args_print(&args);
 	}
 
 	/* Additional validation here */
 	if (!args.domain) {
-		log_printf(LOG_ERR, "No domain specified!\n");
+		logt_print(LOG_ERR, "No domain specified!\n");
 		args.flags |= F_ERR;
 	}
 
@@ -367,7 +367,7 @@ main(int argc, char **argv)
 	/* Initialize NSS; required to do hashing, as silly as that
 	   sounds... */
 	if (NSS_NoDB_Init(NULL) != SECSuccess) {
-		log_printf(LOG_ERR, "Could not initialize NSS\n");
+		logt_print(LOG_ERR, "Could not initialize NSS\n");
 		return 1;
 	}
 

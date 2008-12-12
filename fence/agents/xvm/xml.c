@@ -15,8 +15,6 @@
 #include "debug.h"
 #endif
 
-LOGSYS_DECLARE_SUBSYS("XVM", SYSLOGLEVEL);
-
 
 xmlNodePtr
 get_os_node(xmlDocPtr doc)

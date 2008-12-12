@@ -25,8 +25,6 @@
 #include "options.h"
 #include "debug.h"
 
-LOGSYS_DECLARE_SUBSYS("XVM", SYSLOGLEVEL);
-
 
 /* Assignment functions */
 
@@ -36,6 +34,8 @@ assign_debug(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 	if (!value) {
 		/* GNU getopt sets optarg to NULL for options w/o a param
 		   We rely on this here... */
+		/* Command-line debug sets a special flag */
+		args->flags |= F_DEBUG;
 		args->debug++;
 		return;
 	}
@@ -66,7 +66,7 @@ assign_family(fence_xvm_args_t *args, struct arg_info *arg,
 	} else if (!strcasecmp(value, "auto")) {
 		args->family = 0;
 	} else {
-		log_printf(LOG_ERR, "Unsupported family: '%s'\n", value);
+		logt_print(LOG_ERR, "Unsupported family: '%s'\n", value);
 		args->flags |= F_ERR;
 	}
 }
@@ -97,7 +97,7 @@ assign_port(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 {
 	args->port = atoi(value);
 	if (args->port <= 0 || args->port >= 65500) {
-		log_printf(LOG_ERR, "Invalid port: '%s'\n", value);
+		logt_print(LOG_ERR, "Invalid port: '%s'\n", value);
 		args->flags |= F_ERR;
 	}
 }
@@ -115,7 +115,7 @@ assign_retrans(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 {
 	args->retr_time = atoi(value);
 	if (args->retr_time <= 0) {
-		log_printf(LOG_ERR, "Invalid retransmit time: '%s'\n", value);
+		logt_print(LOG_ERR, "Invalid retransmit time: '%s'\n", value);
 		args->flags |= F_ERR;
 	}
 }
@@ -132,7 +132,7 @@ assign_hash(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 	} else if (!strcasecmp(value, "sha512")) {
 		args->hash = HASH_SHA512;
 	} else {
-		log_printf(LOG_ERR, "Unsupported hash: %s\n", value);
+		logt_print(LOG_ERR, "Unsupported hash: %s\n", value);
 		args->flags |= F_ERR;
 	}
 }
@@ -150,7 +150,7 @@ assign_auth(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 	} else if (!strcasecmp(value, "sha512")) {
 		args->auth = AUTH_SHA512;
 	} else {
-		log_printf(LOG_ERR, "Unsupported auth type: %s\n", value);
+		logt_print(LOG_ERR, "Unsupported auth type: %s\n", value);
 		args->flags |= F_ERR;
 	}
 }
@@ -165,7 +165,7 @@ assign_key(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 	args->key_file = strdup(value);
 
 	if (stat(value, &st) == -1) {
- 		log_printf(LOG_ERR, "Invalid key file: '%s' (%s)\n", value,
+ 		logt_print(LOG_ERR, "Invalid key file: '%s' (%s)\n", value,
   		       strerror(errno));
 		args->flags |= F_ERR;
 	}
@@ -182,7 +182,7 @@ assign_op(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 	} else if (!strcasecmp(value, "reboot")) {
 		args->op = FENCE_REBOOT;
 	} else {
-		log_printf(LOG_ERR, "Unsupported operation: %s\n", value);
+		logt_print(LOG_ERR, "Unsupported operation: %s\n", value);
 		args->flags |= F_ERR;
 	}
 }
@@ -192,7 +192,7 @@ static inline void
 assign_domain(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 {
 	if (args->domain) {
-		log_printf(LOG_ERR,
+		logt_print(LOG_ERR,
 		   "Domain/UUID may not be specified more than once\n");
 		args->flags |= F_ERR;
 		return;
@@ -203,13 +203,13 @@ assign_domain(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 	args->domain = strdup(value);
 
 	if (strlen(value) <= 0) {
-		log_printf(LOG_ERR, "Invalid domain name\n");
+		logt_print(LOG_ERR, "Invalid domain name\n");
 		args->flags |= F_ERR;
 	}
 
 	if (strlen(value) >= MAX_DOMAINNAME_LENGTH) {
 		errno = ENAMETOOLONG;
-		log_printf(LOG_ERR, "Invalid domain name: '%s' (%s)\n",
+		logt_print(LOG_ERR, "Invalid domain name: '%s' (%s)\n",
 		       value, strerror(errno));
 		args->flags |= F_ERR;
 	}
@@ -235,7 +235,7 @@ assign_timeout(fence_xvm_args_t *args, struct arg_info *arg, char *value)
 {
 	args->timeout = atoi(value);
 	if (args->timeout <= 0) {
-		log_printf(LOG_ERR, "Invalid timeout: '%s'\n", value);
+		logt_print(LOG_ERR, "Invalid timeout: '%s'\n", value);
 		args->flags |= F_ERR;
 	}
 }
@@ -470,8 +470,6 @@ args_print(fence_xvm_args_t *args)
 /**
   Print out arguments and help information based on what is allowed in
   the getopt string optstr.
-
-  TODO use log_printf instead of printf 
 
   @param progname	Program name.
   @param optstr		Getopt(3) style options string

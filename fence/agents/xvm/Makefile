@@ -33,6 +33,7 @@ CFLAGS += -D_GNU_SOURCE
 CFLAGS += -Werror -Wstrict-prototypes -Wshadow
 CFLAGS += -I${ccsincdir} -I${cmanincdir}
 CFLAGS += -I${corosyncincdir} -I${openaisincdir}
+CFLAGS += -I${logtincdir}
 CFLAGS += -I${virtincdir} -I${nssincdir} -I${nsprincdir}
 CFLAGS += `xml2-config --cflags`
 CFLAGS += -I${incdir}
@@ -40,7 +41,7 @@ CFLAGS += -I${incdir}
 STANDALONE_CFLAGS += -DSTANDALONE
 
 LDFLAGS += -L${nsslibdir} -lnss3
-LDFLAGS += -L${corosynclibdir} -llogsys
+LDFLAGS += -L${logtlibdir} -llogthread
 LDFLAGS += -L${libdir}
 
 EXTRA_LDFLAGS += -L${ccslibdir} -lccs -L${cmanlibdir} -lcman

@@ -10,7 +10,8 @@ typedef enum {
 	F_VERSION	= 0x20,
 	F_CCSERR	= 0x40,
 	F_CCSFAIL	= 0x80,
-	F_NOCLUSTER	= 0x100
+	F_NOCLUSTER	= 0x100,
+	F_DEBUG		= 0x200
 } arg_flags_t;
 
 
