@@ -12,6 +12,7 @@ int logt_init(char *name, int mode, int syslog_facility, int syslog_priority,
 void logt_conf(char *name, int mode, int syslog_facility, int syslog_priority,
 	       int logfile_priority, char *logfile);
 void logt_exit(void);
+int logt_reinit(void);
 void logt_print(int level, char *fmt, ...)
 	__attribute__((format(printf, 2, 3)));;
 
