@@ -1367,6 +1367,7 @@ int journ_space_to_rg(struct gfs2_sbd *sdp)
 		rgd->ri.ri_bitbytes = rgd->ri.ri_data / GFS2_NBBY;
 		convert_bitmaps(sdp, rgd, FALSE); /* allocates rgd->bh */
 		for (x = 0; x < rgd->ri.ri_length; x++) {
+			rgd->bh[x]->b_count++;
 			if (x)
 				gfs2_meta_header_out(&mh, rgd->bh[x]->b_data);
 			else
