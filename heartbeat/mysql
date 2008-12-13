@@ -246,8 +246,13 @@ END
 
 mysql_validate() {
 # checking the parameters
+    if [ ! -x $OCF_RESKEY_binary ]; then
+	ocf_log err "mysqld binary $OCF_RESKEY_binary does not exist or is not executable";
+	exit $OCF_ERR_INSTALLED;
+    fi
+
     if [ ! -f $OCF_RESKEY_config ]; then
-	ocf_log err "Config $OCF_RESKEY_mysql_config doesn't exist";
+	ocf_log err "Config $OCF_RESKEY_config doesn't exist";
 	exit $OCF_ERR_INSTALLED;
     fi
     
@@ -266,6 +271,12 @@ mysql_validate() {
     if [ ! $? -eq 0 ]; then
 	ocf_log err "Group $OCF_RESKEY_group doesn't exist";
 	exit $OCF_ERR_INSTALLED;
+    fi
+
+    piddir=`dirname $OCF_RESKEY_pid`
+    if ! su - $OCF_RESKEY_user -c "test -w $piddir"; then
+	ocf_log err "Directory $piddir for pidfile $OCF_RESKEY_pid is not writable by $OCF_RESKEY_user"
+	exit $OCF_ERR_PERM;
     fi
 }
 
