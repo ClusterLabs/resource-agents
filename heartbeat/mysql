@@ -424,20 +424,23 @@ mysql_stop() {
     return $OCF_SUCCESS
 }
 
+case "$1" in
+  meta-data)	meta_data; exit $OCF_SUCCESS;;
+  usage|help)	usage
+		exit $OCF_SUCCESS;;
+esac
+
+mysql_validate
 
 # What kind of method was invoked?
 case "$1" in
-  start)	mysql_validate; 
-		mysql_start;;
+  start)	mysql_start;;
   stop)		mysql_stop;;
   status)	mysql_status;;
   monitor)	mysql_monitor;;
-
-  meta-data)	meta_data; exit $OCF_SUCCESS;;
-  validate-all)	mysql_validate; exit $OCF_SUCCESS;;
+  validate-all)	exit $OCF_SUCCESS;;
 
  *)		usage
 		exit $OCF_ERR_UNIMPLEMENTED;;
 esac
 exit $?
-
