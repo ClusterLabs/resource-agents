@@ -383,7 +383,11 @@ drbd_monitor() {
 	    ocf_log debug "$RESOURCE monitor: resource not configured"
 	    return $OCF_NOT_RUNNING
 	elif [ "$DRBD_STATE_LOCAL" = "Primary" ]; then
-#	    drbd_update_prefs
+		if [ "$OCF_RESKEY_CRM_meta_interval" -eq 0 ]; then
+			# Restore the master setting during probes 
+			ocf_log debug "$RESOURCE monitor: restoring master setting during probe"
+			drbd_update_prefs
+		fi
 	    return $OCF_RUNNING_MASTER
 	elif [ "$DRBD_STATE_LOCAL" = "Secondary" ]; then
 #	    drbd_update_prefs
@@ -561,6 +565,8 @@ if [ $# -ne 1 ]; then
 	drbd_usage
 	exit $OCF_ERR_ARGS
 fi
+
+: ${OCF_RESKEY_CRM_meta_interval=0}
 
 ACTION=$1
 case $ACTION in
