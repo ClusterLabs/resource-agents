@@ -2036,6 +2036,16 @@ AC_ARG_WITH(
 AC_SUBST(HB_INITSTARTPRI)
 AC_DEFINE_UNQUOTED(HB_INITSTARTPRI,"$HB_INITSTARTPRI", init start priority)
 
+AC_ARG_WITH(
+  logd-start-init-priority,
+    [  --with-logd-start-init-priority=number  
+                          ha_logd init start priority.  [default=10]  ],
+    [ LOGD_INITSTARTPRI="$withval" ],
+    [ LOGD_INITSTARTPRI=10 ],
+  )
+AC_SUBST(LOGD_INITSTARTPRI)
+AC_DEFINE_UNQUOTED(LOGD_INITSTARTPRI,"$LOGD_INITSTARTPRI", ha_logd init start priority)
+
 #
 #	Priority for stopping via init shutdown scripts
 #
@@ -2048,6 +2058,16 @@ AC_ARG_WITH(
   )
 AC_SUBST(HB_INITSTOPPRI)
 AC_DEFINE_UNQUOTED(HB_INITSTOPPRI,"$HB_INITSTOPPRI", init stop priority)
+
+AC_ARG_WITH(
+  logd-stop-init-priority,
+    [  --with-logd-stop-init-priority=number  
+                          Init stop priority. [default=75]  ],
+    [ LOGD_INITSTOPPRI="$withval" ],
+    [ LOGD_INITSTOPPRI=75 ],
+  )
+AC_SUBST(LOGD_INITSTOPPRI)
+AC_DEFINE_UNQUOTED(LOGD_INITSTOPPRI,"$LOGD_INITSTOPPRI", init stop priority)
 
 #
 #	Name of UCD-SNMP development package
@@ -2689,6 +2709,7 @@ heartbeat/Makefile						\
 		heartbeat/rc.d/hb_takeover			\
 	heartbeat/init.d/Makefile				\
 		heartbeat/init.d/heartbeat			\
+		heartbeat/init.d/logd			\
 	heartbeat/lib/Makefile					\
 		heartbeat/lib/BasicSanityCheck			\
 		heartbeat/lib/ha_config				\
