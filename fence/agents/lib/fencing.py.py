@@ -49,6 +49,8 @@ all_opt = {
 		"getopt" : "v",
 		"longopt" : "verbose",
 		"help" : "-v, --verbose                  Verbose mode",
+		"required" : "0",
+		"shortdesc" : "Verbose mode",
 		"order" : 51 },
 	"debug" : {
 		"getopt" : "D:",
@@ -63,16 +65,23 @@ all_opt = {
 		"getopt" : "o:",
 		"longopt" : "action",
 		"help" : "-o, --action=<action>          Action: status, reboot (default), off or on",
+		"required" : "1",
+		"shortdesc" : "Fencing Action",
+		"default" : "reboot",
 		"order" : 1 },
 	"ipaddr" : {
 		"getopt" : "a:",
 		"longopt" : "ip",
 		"help" : "-a, --ip=<ip>                  IP address or hostname of fencing device",
+		"required" : "1",
+		"shortdesc" : "IP Address or Hostname",
 		"order" : 1 },
 	"login" : {
 		"getopt" : "l:",
 		"longopt" : "username",
 		"help" : "-l, --username=<name>          Login name",
+		"required" : "?",
+		"shortdesc" : "Login Name",
 		"order" : 1 },
 	"no_login" : {
 		"getopt" : "",
@@ -86,16 +95,22 @@ all_opt = {
 		"getopt" : "p:",
 		"longopt" : "password",
 		"help" : "-p, --password=<password>      Login password or passphrase",
+		"required" : "0",
+		"shortdesc" : "Login password or passphrase",
 		"order" : 1 },
 	"passwd_script" : {
 		"getopt" : "S:",
 		"longopt" : "password-script=",
 		"help" : "-S, --password-script=<script> Script to run to retrieve password",
+		"required" : "0",
+		"shortdesc" : "Script to retrieve password",
 		"order" : 1 },
 	"identity_file" : {
 		"getopt" : "k:",
 		"longopt" : "identity-file",
 		"help" : "-k, --identity-file=<filename> Identity file (private key) for ssh ",
+		"required" : "0",
+		"shortdesc" : "Identity file for ssh",
 		"order" : 1 },
 	"module_name" : {
 		"getopt" : "m:",
@@ -121,30 +136,42 @@ all_opt = {
 		"getopt" : "x",
 		"longopt" : "ssh",
 		"help" : "-x, --ssh                      Use ssh connection",
+		"required" : "0",
+		"shortdesc" : "SSH connection",
 		"order" : 1 },
 	"ssl" : {
 		"getopt" : "z",
 		"longopt" : "ssl",
 		"help" : "-z, --ssl                      Use ssl connection",
+		"required" : "0",
+		"shortdesc" : "SSL connection",
 		"order" : 1 },
 	"port" : {
 		"getopt" : "n:",
 		"longopt" : "plug",
 		"help" : "-n, --plug=<id>                Physical plug number on device or\n" + 
         "                                        name of virtual machine",
+		"required" : "1",
+		"shortdesc" : "Physical plug number or name of virtual machine",
 		"order" : 1 },
 	"switch" : {
 		"getopt" : "s:",
 		"longopt" : "switch",
 		"help" : "-s, --switch=<id>              Physical switch number on device",
+		"required" : "0",
+		"shortdesc" : "Physical switch number on device",
 		"order" : 1 },
 	"partition" : {
 		"getopt" : "n:",
 		"help" : "-n <id>                        Name of the partition",
+		"required" : "0",
+		"shortdesc" : "Partition name",
 		"order" : 1 },
 	"managed" : {
 		"getopt" : "s:",
 		"help" : "-s <id>                        Name of the managed system",
+		"required" : "0",
+		"shortdesc" : "Managed system name",
 		"order" : 1 },
 	"test" : {
 		"getopt" : "T",
@@ -171,6 +198,7 @@ all_opt = {
 		"getopt" : "C:",
 		"longopt" : "separator",
 		"help" : "-C, --separator=<char>         Separator for CSV created by 'list' operation",
+		"default" : ",", 
 		"order" : 100 }
 }
 
@@ -217,6 +245,29 @@ def usage(avail_opt):
 	for key, value in sorted_list:
 		if len(value["help"]) != 0:
 			print "   " + value["help"]
+
+def metadata(avail_opt):
+	global all_opt
+
+	sorted_list = [ (key, all_opt[key]) for key in avail_opt ]
+	sorted_list.sort(lambda x, y: cmp(x[1]["order"], y[1]["order"]))
+
+	print "<parameters>"
+	for option, value in sorted_list:
+		if all_opt[option].has_key("shortdesc"):
+			print "\t<parameter name=\"" + option + "\" unique=\"1\" required=\"" + all_opt[option]["required"] + "\">"
+
+			default = ""
+			if all_opt[option].has_key("default"):
+				default = "default=\""+all_opt[option]["default"]+"\""
+
+			if all_opt[option]["getopt"].count(":") > 0:
+				print "\t\t<content type=\"string\" "+default+" />"
+			else:
+				print "\t\t<content type=\"boolean\" "+default+" />"
+			print "\t\t<shortdesc lang=\"en\">" + all_opt[option]["shortdesc"] + "</shortdesc>"
+			print "\t</parameter>"
+	print "</parameters>"
 
 def process_input(avail_opt):
 	global all_opt
@@ -313,11 +364,26 @@ def process_input(avail_opt):
 ## password script to set a correct password
 ######
 def check_input(device_opt, opt):
+	global all_opt
+
 	options = dict(opt)
 	options["device_opt"] = device_opt
 
+	## Set requirements that should be included in metadata
+	#####
+	if device_opt.count("login") and device_opt.count("no_login") == 0:
+		all_opt["login"]["required"] = "1"
+	else:
+		all_opt["login"]["required"] = "0"
+
+	## Process special options (and exit)
+	#####
 	if options.has_key("-h"): 
 		usage(device_opt)
+		sys.exit(0)
+
+	if options.has_key("-o") and options["-o"].lower() == "metadata":
+		metadata(device_opt)
 		sys.exit(0)
 
 	if options.has_key("-V"):
@@ -325,16 +391,20 @@ def check_input(device_opt, opt):
 		print REDHAT_COPYRIGHT
 		sys.exit(0)
 
+	## Set default values
+	#####
+	for opt in device_opt:
+		if all_opt[opt].has_key("default"):
+			getopt = "-" + all_opt[opt]["getopt"].rstrip(":")
+			if 0 == options.has_key(getopt):
+				options[getopt] = all_opt[opt]["default"]
+
+	options["-o"]=options["-o"].lower()
+
 	if options.has_key("-v"):
 		options["log"] = LOG_MODE_VERBOSE
 	else:
 		options["log"] = LOG_MODE_QUIET
-
-	if 0 == options.has_key("-o"):
-		options["-o"] = "reboot"
-
-	# Convert action to lowercase
-	options["-o"]=options["-o"].lower()
 
 	if 0 == ["on", "off", "reboot", "status", "list", "monitor"].count(options["-o"].lower()):
 		fail_usage("Failed: Unrecognised action '" + options["-o"] + "'")
@@ -374,9 +444,6 @@ def check_input(device_opt, opt):
 
 	if options.has_key("-v") and options.has_key("debug_fh") == 0:
 		options["debug_fh"] = sys.stderr
-
-	if 0 == options.has_key("-C"):
-		options["-C"] = ","
 
 	## VMware
 	#######
