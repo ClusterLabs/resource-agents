@@ -1,6 +1,7 @@
 include ../../../make/defines.mk
 
 TARGET= fence_scsi fence_scsi_test scsi_reserve_notify scsi_reserve
+SBINDIRT=fence_scsi fence_scsi_test
 INITDT= scsi_reserve
 NOTIFYD= scsi_reserve_notify
 

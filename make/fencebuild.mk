@@ -1,5 +1,5 @@
 ifndef FENCEAGENTSLIB
-	ifdef TARGET
+	ifndef SBINDIRT
 		SBINDIRT=$(TARGET)
 	endif
 endif
