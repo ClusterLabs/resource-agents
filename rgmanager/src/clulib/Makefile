@@ -21,7 +21,7 @@ OBJS3= msgtest.o
 
 CFLAGS += -Werror -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
 CFLAGS += -I${ccsincdir} -I${cmanincdir} -I${dlmincdir}
-CFLAGS += -L${logtincdir}
+CFLAGS += -I${logtincdir}
 CFLAGS += -I$(S)/../../include
 CFLAGS += -I${incdir}
 
