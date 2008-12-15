@@ -180,10 +180,17 @@ gfs_iget(struct gfs_inode *ip, int create)
 		memcpy(&ip->gfs_file_aops, &gfs_file_aops,
 			   sizeof(struct address_space_operations));
 		tmp->i_mapping->a_ops = &ip->gfs_file_aops;
-		if (sdp->sd_args.ar_localflocks)
-			tmp->i_fop = &gfs_file_fops_nolock;
-		else
-			tmp->i_fop = &gfs_file_fops;
+		if (sdp->sd_args.ar_localflocks) {
+			if (gfs_is_jdata(ip))
+				tmp->i_fop = &gfs_file_fops_nolock_jdata;
+			else
+				tmp->i_fop = &gfs_file_fops_nolock;
+		} else {
+			if (gfs_is_jdata(ip))
+				tmp->i_fop = &gfs_file_fops_jdata;
+			else
+				tmp->i_fop = &gfs_file_fops;
+		}
 	} else if (ip->i_di.di_type == GFS_FILE_DIR) {
 		tmp->i_op = &gfs_dir_iops;
 		if (sdp->sd_args.ar_localflocks)

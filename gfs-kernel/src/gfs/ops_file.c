@@ -1835,6 +1835,24 @@ struct file_operations gfs_file_fops = {
 	.flock = gfs_flock,
 };
 
+struct file_operations gfs_file_fops_jdata = {
+	.llseek = gfs_llseek,
+	.read = gfs_read,
+	.write = gfs_write,
+	.aio_read = gfs_aio_read,
+	.aio_write = gfs_aio_write,
+	.ioctl = gfs_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl   = gfs_compat_ioctl,
+#endif
+	.mmap = gfs_mmap,
+	.open = gfs_open,
+	.release = gfs_close,
+	.fsync = gfs_fsync,
+	.lock = gfs_lock,
+	.flock = gfs_flock,
+};
+
 struct file_operations gfs_dir_fops = {
 	.readdir = gfs_readdir,
 	.ioctl = gfs_ioctl,
@@ -1863,6 +1881,22 @@ struct file_operations gfs_file_fops_nolock = {
 	.release = gfs_close,
 	.fsync = gfs_fsync,
 	.splice_read = gfs_splice_read,
+};
+
+struct file_operations gfs_file_fops_nolock_jdata = {
+	.llseek = gfs_llseek,
+	.read = gfs_read,
+	.write = gfs_write,
+	.aio_read = gfs_aio_read,
+	.aio_write = gfs_aio_write,
+	.ioctl = gfs_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = gfs_compat_ioctl,
+#endif
+	.mmap = gfs_mmap,
+	.open = gfs_open,
+	.release = gfs_close,
+	.fsync = gfs_fsync,
 };
 
 struct file_operations gfs_dir_fops_nolock = {
