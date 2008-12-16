@@ -1567,32 +1567,59 @@ void gfs2_free_block(struct gfs2_sbd *sdp, uint64_t block)
  * gfs2_freedi - unlink a disk inode by block number.
  * Note: currently only works for regular files.
  */
-int gfs2_freedi(struct gfs2_sbd *sdp, uint64_t block)
+int gfs2_freedi(struct gfs2_sbd *sdp, uint64_t diblock)
 {
 	struct gfs2_inode *ip;
-	struct gfs2_buffer_head *bh;
-	int x;
-	uint64_t p;
-	unsigned char *buf;
+	struct gfs2_buffer_head *bh, *nbh;
+	int h, head_size;
+	uint64_t *ptr, block;
 	struct rgrp_list *rgd;
-	
-	bh = bread(&sdp->buf_list, block);
+	uint32_t height;
+	osi_list_t metalist[GFS2_MAX_META_HEIGHT];
+	osi_list_t *cur_list, *next_list, *tmp;
+
+	for (h = 0; h < GFS2_MAX_META_HEIGHT; h++)
+		osi_list_init(&metalist[h]);
+
+	bh = bread(&sdp->buf_list, diblock);
 	ip = inode_get(sdp, bh);
-	if (ip->i_di.di_height > 0) {
-		buf = (unsigned char *)bh->b_data;
-		/* Free up all indirect blocks */
-		for (x = sizeof(struct gfs2_dinode); x < sdp->bsize;
-			 x += sizeof(uint64_t)) {
-			p = be64_to_cpu(*(uint64_t *)(buf + x));
-			if (p)
-				gfs2_free_block(sdp, p);
+	height = ip->i_di.di_height;
+	osi_list_add(&bh->b_altlist, &metalist[0]);
+
+	for (h = 0; h < height; h++){
+		cur_list = &metalist[h];
+		next_list = &metalist[h + 1];
+		head_size = (h > 0 ? sizeof(struct gfs2_meta_header) :
+			     sizeof(struct gfs2_dinode));
+
+		for (tmp = cur_list->next; tmp != cur_list; tmp = tmp->next){
+			bh = osi_list_entry(tmp, struct gfs2_buffer_head,
+					    b_altlist);
+
+			for (ptr = (uint64_t *)(bh->b_data + head_size);
+			     (char *)ptr < (bh->b_data + sdp->bsize); ptr++) {
+				if (!*ptr)
+					continue;
+
+				block = be64_to_cpu(*ptr);
+				gfs2_free_block(sdp, block);
+				if (h == height - 1) /* if not metadata */
+					continue; /* don't queue it up */
+				/* Read the next metadata block in the chain.
+				   First see if it's on the nvbuf_list. */
+				nbh = bfind(&sdp->nvbuf_list, block);
+				if (!nbh)
+					nbh = bread(&sdp->buf_list, block);
+				osi_list_add(&nbh->b_altlist, next_list);
+				brelse(nbh, not_updated);
+			}
 		}
 	}
 	/* Set the bitmap type for inode to free space: */
 	gfs2_set_bitmap(sdp, ip->i_di.di_num.no_addr, GFS2_BLKST_FREE);
 	inode_put(ip, updated);
 	/* Now we have to adjust the rg freespace count and inode count: */
-	rgd = gfs2_blk2rgrpd(sdp, block);
+	rgd = gfs2_blk2rgrpd(sdp, diblock);
 	/* The rg itself is in memory as rgd->rg, but there's most likely a  */
 	/* buffer in memory for the rg on disk because we used it to fix the */
 	/* bitmaps, some of which are on the same block on disk.             */

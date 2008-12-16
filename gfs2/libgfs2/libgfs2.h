@@ -376,6 +376,7 @@ void *gfs2_block_list_destroy(struct gfs2_sbd *sdp,
 
 /* buf.c */
 void init_buf_list(struct gfs2_sbd *sdp, struct buf_list *bl, uint32_t limit);
+struct gfs2_buffer_head *bfind(struct buf_list *bl, uint64_t num);
 struct gfs2_buffer_head *bget_generic(struct buf_list *bl, uint64_t num,
 				      int find_existing, int read_disk);
 struct gfs2_buffer_head *bget(struct buf_list *bl, uint64_t num);
