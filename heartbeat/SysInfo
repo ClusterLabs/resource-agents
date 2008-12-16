@@ -239,13 +239,16 @@ SysInfo_mem_units() {
 	:
     elif [ $mem_round = "00" ]; then 
 	:
-    elif [ $mem_round -lt "50" ]; then 
-	mem=$[mem+50]
-	mem=$[mem-$mem_round]
+    else
+	mem_round=`echo $mem_round | sed 's/^0//'`
+	if [ $mem_round -lt "50" ]; then 
+	    mem=$[mem+50]
+	    mem=$[mem-$mem_round]
 
-    else 
-	mem=$[mem+100]
-	mem=$[mem-$mem_round]
+	else 
+	    mem=$[mem+100]
+	    mem=$[mem-$mem_round]
+	fi
     fi
     echo $mem    
 }
