@@ -299,8 +299,15 @@ find_interface_solaris() {
 }
 
 find_interface_bsd() {
-    #$IFCONFIG $IFCONFIG_A_OPT | grep "inet.*[: ]$OCF_RESKEY_ip "
-    $IFCONFIG | grep "$ipaddr" -B20 | grep "UP," | tail -n 1 | cut -d ":" -f 1
+    $IFCONFIG $IFCONFIG_A_OPT | awk -v ip_addr="$ipaddr" '
+					/UP,/ && $0 ~ /^[a-z]+[0-9]:/ { 
+    						if_name=$1; sub(":$","",if_name); 
+					}
+					$1 == "inet" && $2 == ip_addr {
+    						print if_name 
+    						exit(0)
+					}'
+
 }
 
 #
