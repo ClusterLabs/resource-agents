@@ -2202,6 +2202,8 @@ int fill_plock_dump_buf(struct mountgroup *mg)
 	memset(plock_dump_buf, 0, sizeof(plock_dump_buf));
 	plock_dump_len = 0;
 
+	gettimeofday(&now, NULL);
+
 	list_for_each_entry(r, &mg->plock_resources, list) {
 
 		if (list_empty(&r->locks) &&

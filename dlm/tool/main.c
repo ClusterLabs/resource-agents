@@ -39,13 +39,42 @@ static int opt_excl = 0;
 static int opt_fs = 0;
 static int dump_mstcpy = 0;
 static mode_t create_mode = 0600;
+static int verbose;
+static int wide;
 
 #define MAX_LS 128
 #define MAX_NODES 128
 
+/* from linux/fs/dlm/dlm_internal.h */
+#define DLM_LKSTS_WAITING       1
+#define DLM_LKSTS_GRANTED       2
+#define DLM_LKSTS_CONVERT       3
+
 struct dlmc_lockspace lss[MAX_LS];
 struct dlmc_node nodes[MAX_NODES];
 
+static int rsb_nodeid, print_granted, print_convert, print_waiting, print_lookup;
+
+char *mode_str(int mode)
+{
+	switch (mode) {
+	case -1:
+		return "IV";
+	case LKM_NLMODE:
+		return "NL";
+	case LKM_CRMODE:
+		return "CR";
+	case LKM_CWMODE:
+		return "CW";
+	case LKM_PRMODE:
+		return "PR";
+	case LKM_PWMODE:
+		return "PW";
+	case LKM_EXMODE:
+		return "EX";
+	}
+	return "??";
+}
 
 static void print_usage(void)
 {
@@ -64,12 +93,14 @@ static void print_usage(void)
 	printf("  -m <mode>        Permission mode for lockspace device (octal), default 0600\n");
 	printf("  -M               Print MSTCPY locks in lockdump\n"
 	       "                   (remote locks that are locally mastered)\n");
+	printf("  -v               Verbose lockdebug output\n");
+	printf("  -w               Wide lockdebug output\n");
 	printf("  -h               Print this help, then exit\n");
 	printf("  -V               Print program version information, then exit\n");
 	printf("\n");
 }
 
-#define OPTION_STRING "MhVnd:m:e:f:"
+#define OPTION_STRING "MhVnd:m:e:f:vw"
 
 static void decode_arguments(int argc, char **argv)
 {
@@ -106,6 +137,14 @@ static void decode_arguments(int argc, char **argv)
 
 		case 'n':
 			ls_all_nodes = 1;
+			break;
+
+		case 'v':
+			verbose = 1;
+			break;
+
+		case 'w':
+			wide = 1;
 			break;
 
 		case 'h':
@@ -312,6 +351,246 @@ void do_leave(char *name)
 	printf("done\n");
 }
 
+char *pr_master(int nodeid, uint32_t first_lkid)
+{
+	static char buf[64];
+
+	memset(buf, 0, sizeof(buf));
+
+	if (nodeid > 0)
+		sprintf(buf, "Local %d", nodeid);
+	else if (!nodeid)
+		sprintf(buf, "Master");
+	else if (nodeid == -1)
+		sprintf(buf, "Lookup lkid %08x", first_lkid);
+
+	return buf;
+}
+
+char *pr_recovery(uint32_t flags, int root_list, int recover_list,
+		  int recover_locks_count)
+{
+	static char buf[128];
+
+	memset(buf, 0, sizeof(buf));
+
+	if (flags || root_list || recover_list || recover_locks_count)
+		sprintf(buf, "flags %08x root %d recover %d locks_count %d",
+			flags, root_list, recover_list, recover_locks_count);
+
+	return buf;
+}
+
+void print_rsb(char *line)
+{
+	char type[4], namefmt[4], *p;
+	int rv, nodeid, root_list, recover_list, recover_locks_count, namelen;
+	uint32_t first_lkid, flags;
+
+	rv = sscanf(line, "%s %d %u %u %d %d %u %u %s",
+		    type,
+		    &nodeid,
+		    &first_lkid,
+		    &flags,
+		    &root_list,
+		    &recover_list,
+		    &recover_locks_count,
+		    &namelen,
+		    namefmt);
+
+	if (rv != 9)
+		goto fail;
+
+	/* used for lkb prints */
+	rsb_nodeid = nodeid;
+	
+	p = strchr(line, '\n');
+	if (!p)
+		goto fail;
+	*p = '\0';
+
+	p = strstr(line, namefmt);
+	if (!p)
+		goto fail;
+	p += 4;
+
+	if (!strncmp(namefmt, "str", 3))
+		printf("Resource len %2d  \"%s\"\n", namelen, p);
+	else if (!strncmp(namefmt, "hex", 3))
+		printf("Resource len %2d hex %s\n", namelen, p);
+	else
+		goto fail;
+
+	printf("%-16s %s\n",
+		pr_master(nodeid, first_lkid),
+		pr_recovery(flags, root_list, recover_list, recover_locks_count));
+
+	return;
+
+ fail:
+	fprintf(stderr, "print_rsb error rv %d line \"%s\"\n", rv, line);
+}
+
+void print_lvb(char *line)
+{
+	char lvb[1024];
+	char type[4];
+	int i, c, rv, lvblen;
+	uint32_t lvbseq;
+
+	memset(lvb, 0, 1024);
+
+	rv = sscanf(line, "%s %u %d %[0-9A-Fa-f ]", type, &lvbseq, &lvblen, lvb);
+
+	if (rv != 4) {
+		fprintf(stderr, "print_lvb error rv %d line \"%s\"\n", rv, line);
+		return;
+	}
+
+	printf("LVB len %d seq %u\n", lvblen, lvbseq);
+
+	for (c = 0, i = 0; ; i++) {
+		printf("%c", lvb[i]);
+		if (lvb[i] != ' ')
+			c++;
+		if (!wide && lvb[i] == ' ' && !(c % 32))
+			printf("\n");
+		if (c == (lvblen * 2))
+			break;
+	}
+	printf("\n");
+}
+
+struct lkb {
+	uint64_t xid, timestamp, time_bast;
+	uint32_t id, remid, exflags, flags, lvbseq;
+	int nodeid, ownpid, status, grmode, rqmode, highbast, rsb_lookup, wait_type;
+};
+
+char *pr_grmode(struct lkb *lkb)
+{
+	if (lkb->status == DLM_LKSTS_GRANTED || lkb->status == DLM_LKSTS_CONVERT)
+		return mode_str(lkb->grmode);
+	else if (lkb->status == DLM_LKSTS_WAITING || lkb->rsb_lookup)
+		return "--";
+	else
+		return "XX";
+}
+
+char *pr_rqmode(struct lkb *lkb)
+{
+	static char buf[5];
+
+	memset(buf, 0, sizeof(buf));
+
+	if (lkb->status == DLM_LKSTS_GRANTED) {
+		return "    ";
+	} else if (lkb->status == DLM_LKSTS_CONVERT ||
+		   lkb->status == DLM_LKSTS_WAITING ||
+		   lkb->rsb_lookup) {
+		sprintf(buf, "(%s)", mode_str(lkb->rqmode));
+		return buf;
+	} else {
+		return "(XX)";
+	}
+}
+
+char *pr_remote(struct lkb *lkb)
+{
+	static char buf[64];
+
+	memset(buf, 0, sizeof(buf));
+
+	if (!lkb->nodeid) {
+		return "                    ";
+	} else if (lkb->nodeid != rsb_nodeid) {
+		sprintf(buf, "Remote: %3d %08x", lkb->nodeid, lkb->remid);
+		return buf;
+	} else {
+		sprintf(buf, "Master: %3d %08x", lkb->nodeid, lkb->remid);
+		return buf;
+	}
+}
+
+char *pr_wait(struct lkb *lkb)
+{
+	static char buf[16];
+
+	memset(buf, 0, sizeof(buf));
+
+	if (!lkb->wait_type) {
+		return "        ";
+	} else {
+		sprintf(buf, " wait %02d", lkb->wait_type);
+		return buf;
+	}
+}
+
+char *pr_verbose(struct lkb *lkb)
+{
+	static char buf[128];
+
+	memset(buf, 0, sizeof(buf));
+
+	sprintf(buf, "time %016llu flags %08x %08x bast %d %llu",
+		(unsigned long long)lkb->timestamp,
+		lkb->exflags, lkb->flags, lkb->highbast,
+		(unsigned long long)lkb->time_bast);
+
+	return buf;
+}
+
+void print_lkb(char *line)
+{
+	struct lkb lkb;
+	char type[4];
+	int rv;
+
+	rv = sscanf(line, "%s %x %d %x %u %llu %x %x %d %d %d %d %d %d %u %llu %llu",
+		    type,
+		    &lkb.id,
+		    &lkb.nodeid,
+		    &lkb.remid,
+		    &lkb.ownpid,
+		    &lkb.xid,
+		    &lkb.exflags,
+		    &lkb.flags,
+		    &lkb.status,
+		    &lkb.grmode,
+		    &lkb.rqmode,
+		    &lkb.highbast,
+		    &lkb.rsb_lookup,
+		    &lkb.wait_type,
+		    &lkb.lvbseq,
+		    &lkb.timestamp,
+		    &lkb.time_bast);
+
+	if ((lkb.status == DLM_LKSTS_GRANTED) && !print_granted) {
+		printf("Granted\n");
+		print_granted = 1;
+	}
+	if ((lkb.status == DLM_LKSTS_CONVERT) && !print_convert) {
+		printf("Convert\n");
+		print_convert = 1;
+	}
+	if ((lkb.status == DLM_LKSTS_WAITING) && !print_waiting) {
+		printf("Waiting\n");
+		print_waiting = 1;
+	}
+	if (lkb.rsb_lookup && !print_lookup) {
+		printf("Lookup\n");
+		print_lookup = 1;
+	}
+
+	printf("%08x %s %s %s %s %s\n",
+	       lkb.id, pr_grmode(&lkb), pr_rqmode(&lkb),
+	       pr_remote(&lkb), pr_wait(&lkb),
+	       (verbose && wide) ? pr_verbose(&lkb) : "");
+
+	if (verbose && !wide)
+		printf("%s\n", pr_verbose(&lkb));
+}
+
 #define LOCK_LINE_MAX 1024
 
 void do_lockdebug(char *name)
@@ -319,47 +598,52 @@ void do_lockdebug(char *name)
 	FILE *file;
 	char path[PATH_MAX];
 	char line[LOCK_LINE_MAX];
+	int old = 0;
 
-	snprintf(path, PATH_MAX, "/sys/kernel/debug/dlm/%s", name);
+	snprintf(path, PATH_MAX, "/sys/kernel/debug/dlm/%s_all", name);
 
 	file = fopen(path, "r");
 	if (!file) {
-		fprintf(stderr, "can't open %s: %s\n", path, strerror(errno));
-		return;
+		snprintf(path, PATH_MAX, "/sys/kernel/debug/dlm/%s", name);
+		file = fopen(path, "r");
+		if (!file) {
+			fprintf(stderr, "can't open %s: %s\n", path, strerror(errno));
+			return;
+		}
+		old = 1;
 	}
 
 	while (fgets(line, LOCK_LINE_MAX, file)) {
+
+		if (old)
+			goto raw;
+
+		if (!strncmp(line, "version", 7))
+			continue;
+
+		if (!strncmp(line, "rsb", 3)) {
+			rsb_nodeid = -9;
+			print_granted = print_convert = print_waiting = print_lookup = 0;
+			printf("\n");
+			print_rsb(line);
+			continue;
+		}
+		
+		if (!strncmp(line, "lvb", 3)) {
+			print_lvb(line);
+			continue;
+		}
+		
+		if (!strncmp(line, "lkb", 3)) {
+			print_lkb(line);
+			continue;
+		}
+ raw:
 		printf("%s", line);
 	}
-
+ out:
 	fclose(file);
 }
-
-char *mode_str(int mode)
-{
-	switch (mode) {
-	case -1:
-		return "IV";
-	case LKM_NLMODE:
-		return "NL";
-	case LKM_CRMODE:
-		return "CR";
-	case LKM_CWMODE:
-		return "CW";
-	case LKM_PRMODE:
-		return "PR";
-	case LKM_PWMODE:
-		return "PW";
-	case LKM_EXMODE:
-		return "EX";
-	}
-	return "??";
-}
-
-/* from linux/fs/dlm/dlm_internal.h */
-#define DLM_LKSTS_WAITING       1
-#define DLM_LKSTS_GRANTED       2
-#define DLM_LKSTS_CONVERT       3
 
 void parse_r_name(char *line, char *name)
 {
