@@ -13,7 +13,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <libxml/parser.h>
-#include <corosync/engine/logsys.h>
+#include <liblogthread.h>
 
 #include "debug.h"
 #include "cnx_mgr.h"
@@ -25,13 +25,12 @@
 #include "copyright.cf"
 
 int debug = 0;
+int nodaemon = 0;
 extern volatile int quorate;
 int no_manager_opt=0;
 static int exit_now=0;
-static unsigned int flags=0;
 static sigset_t signal_mask;
 static int signal_received = 0;
-#define FLAG_NODAEMON	1
 
 static char *parse_cli_args(int argc, char *argv[]);
 static int check_cluster_conf(void);
@@ -51,31 +50,15 @@ int main(int argc, char *argv[]){
   int addr_size=0;
   fd_set rset, tmp_set;
   char *msg;
-  unsigned int logmode;
 
-  logsys_init("CCS", LOG_MODE_OUTPUT_STDERR | LOG_MODE_OUTPUT_SYSLOG_THREADED | LOG_MODE_OUTPUT_FILE | LOG_MODE_FILTER_DEBUG_FROM_SYSLOG | LOG_MODE_BUFFER_BEFORE_CONFIG, SYSLOGFACILITY, SYSLOGLEVEL, LOGDIR "/ccs.log");
-
-  msg = parse_cli_args(argc, argv);
-
-  if(getenv("CCS_DEBUGLOG"))
+  if(getenv("CCS_DEBUGLOG")) 
     debug = 1;
 
-  /* enable debug as early as possible */
-  if(debug)
-    logsys_config_priority_set (LOG_LEVEL_DEBUG);
+  msg = parse_cli_args(argc, argv);
 
   if(check_cluster_conf()){
     /* check_cluster_conf will print out errors if there are any */
     exit(EXIT_FAILURE);
-  }
-
-  logmode = logsys_config_mode_get();
-
-  if(logmode & LOG_MODE_BUFFER_BEFORE_CONFIG) {
-    log_printf(LOG_DEBUG, "Using default CCS logsys config options\n");
-    logmode &= ~LOG_MODE_BUFFER_BEFORE_CONFIG;
-    logmode |= LOG_MODE_FLUSH_AFTER_CONFIG;
-    logsys_config_mode_set (logmode);
   }
 
   daemonize();
@@ -88,7 +71,7 @@ int main(int argc, char *argv[]){
 
   if (!no_manager_opt){
     if(start_cluster_monitor_thread()){
-      log_printf(LOG_ERR, "Unable to create thread.\n");
+      logt_print(LOG_ERR, "Unable to create thread.\n");
       exit(EXIT_FAILURE);
     }
   }
@@ -98,10 +81,10 @@ int main(int argc, char *argv[]){
   /** Setup the socket to communicate with the CCS library **/
   if(IPv6 && (sfds[0] = socket(PF_INET6, SOCK_STREAM, 0)) < 0){
     if(IPv6 == -1){
-      log_printf(LOG_DEBUG, "Unable to create IPv6 socket:: %s\n", strerror(errno));
+      logt_print(LOG_DEBUG, "Unable to create IPv6 socket:: %s\n", strerror(errno));
       IPv6=0;
     } else {
-      log_printf(LOG_ERR, "Unable to create IPv6 socket");
+      logt_print(LOG_ERR, "Unable to create IPv6 socket");
       exit(EXIT_FAILURE);
     }
   } else {
@@ -110,15 +93,15 @@ int main(int argc, char *argv[]){
     */
   }
 
-  log_printf(LOG_DEBUG, "Using %s\n", IPv6?"IPv6":"IPv4");
+  logt_print(LOG_DEBUG, "Using %s\n", IPv6?"IPv6":"IPv4");
 
   if(!IPv6 && (sfds[0] = socket(PF_INET, SOCK_STREAM, 0)) < 0){
-    log_printf(LOG_ERR, "Unable to create IPv4 socket");
+    logt_print(LOG_ERR, "Unable to create IPv4 socket");
     exit(EXIT_FAILURE);
   }
 
   if(setsockopt(sfds[0], SOL_SOCKET, SO_REUSEADDR, &trueint, sizeof(int))){
-    log_printf(LOG_ERR, "Unable to set socket option");
+    logt_print(LOG_ERR, "Unable to set socket option");
     exit(EXIT_FAILURE);
   }
 
@@ -136,7 +119,7 @@ int main(int argc, char *argv[]){
   }
  
   if(bind(sfds[0], (struct sockaddr *)&addr, addr_size) < 0){
-    log_printf(LOG_ERR, "Unable to bind socket");
+    logt_print(LOG_ERR, "Unable to bind socket");
     close(sfds[0]);
     exit(EXIT_FAILURE);
   }
@@ -147,12 +130,12 @@ int main(int argc, char *argv[]){
   /** Setup the socket to communicate with the CCS library **/
   sfds[1] = socket((IPv6)? PF_INET6: PF_INET, SOCK_DGRAM, 0);
   if(sfds[1] < 0){
-    log_printf(LOG_ERR, "Socket creation failed");
+    logt_print(LOG_ERR, "Socket creation failed");
     exit(EXIT_FAILURE);
   } else {
     int trueint = 1;
     if(setsockopt(sfds[1], SOL_SOCKET, SO_REUSEADDR, &trueint, sizeof(int))){
-      log_printf(LOG_ERR, "Unable to set socket option");
+      logt_print(LOG_ERR, "Unable to set socket option");
       exit(EXIT_FAILURE);
     }  
   }
@@ -168,14 +151,14 @@ int main(int argc, char *argv[]){
   }
  
   if(bind(sfds[1], (struct sockaddr *)&addr, addr_size) < 0){
-    log_printf(LOG_ERR, "Unable to bind socket");
+    logt_print(LOG_ERR, "Unable to bind socket");
     close(sfds[1]);
     return -errno;
   }
 
   if(IPv6 || multicast_address){
     if(join_group(sfds[1], 1, backend_port)){
-      log_printf(LOG_ERR, "Unable to join multicast group.\n");
+      logt_print(LOG_ERR, "Unable to join multicast group.\n");
       exit(EXIT_FAILURE);
     }
   }
@@ -189,7 +172,7 @@ int main(int argc, char *argv[]){
   if (sfds[2] >= 0) 
     FD_SET(sfds[2], &rset);
 
-  log_printf(LOG_DEBUG, "Sending SIGTERM to parent\n");
+  logt_print(LOG_DEBUG, "Sending SIGTERM to parent\n");
   kill(getppid(), SIGTERM);
 
   while(1){
@@ -201,7 +184,7 @@ int main(int argc, char *argv[]){
 
     if((select(FD_SETSIZE, &tmp_set, NULL,NULL,NULL) < 0)){
       if(errno != EINTR){
-	log_printf(LOG_ERR, "Select failed");
+	logt_print(LOG_ERR, "Select failed");
       }
       continue;
     }
@@ -212,49 +195,48 @@ int main(int argc, char *argv[]){
       }
       if(i == 0){
 	uint16_t port;
-	log_printf(LOG_DEBUG, "NORMAL CCS REQUEST.\n");
+	logt_print(LOG_DEBUG, "NORMAL CCS REQUEST.\n");
 	afd = accept(sfds[i], (struct sockaddr *)&addr, &len);
 	if(afd < 0){
-	  log_printf(LOG_ERR, "Unable to accept connection");
+	  logt_print(LOG_ERR, "Unable to accept connection");
 	  continue;
 	}
 
 	port = (IPv6) ? addr6->sin6_port : addr4->sin_port;
 
-	log_printf(LOG_DEBUG, "Connection requested from port %u.\n", ntohs(port));
+	logt_print(LOG_DEBUG, "Connection requested from port %u.\n", ntohs(port));
 
 	if(ntohs(port) > 1024){
-	  log_printf(LOG_ERR, "Refusing connection from port > 1024:  port = %d", ntohs(port));
+	  logt_print(LOG_ERR, "Refusing connection from port > 1024:  port = %d", ntohs(port));
 	  close(afd);
 	  continue;
 	}
 	if((error = process_request(afd))){
-	  log_printf(LOG_ERR, "Error while processing request: %s\n", strerror(-error));
+	  logt_print(LOG_ERR, "Error while processing request: %s\n", strerror(-error));
 	}
 	close(afd);
       } else if (i == 2) {
-	log_printf(LOG_DEBUG, "NORMAL CCS REQUEST.\n");
+	logt_print(LOG_DEBUG, "NORMAL CCS REQUEST.\n");
 	afd = accept(sfds[i], NULL, NULL);
 	if(afd < 0){
-	  log_printf(LOG_ERR, "Unable to accept connection");
+	  logt_print(LOG_ERR, "Unable to accept connection");
 	  continue;
 	}
 
-	log_printf(LOG_DEBUG, "Connection requested from local socket\n");
+	logt_print(LOG_DEBUG, "Connection requested from local socket\n");
 
 	if((error = process_request(afd))){
-	  log_printf(LOG_ERR, "Error while processing request: %s\n", strerror(-error));
+	  logt_print(LOG_ERR, "Error while processing request: %s\n", strerror(-error));
 	}
 	close(afd);
       } else {
-	log_printf(LOG_DEBUG, "BROADCAST REQUEST.\n");
+	logt_print(LOG_DEBUG, "BROADCAST REQUEST.\n");
 	if((error = process_broadcast(sfds[i]))){
-	  log_printf(LOG_ERR, "Error while processing broadcast: %s\n", strerror(-error));
+	  logt_print(LOG_ERR, "Error while processing broadcast: %s\n", strerror(-error));
 	}
       }
     }
   }
-  logsys_exit();
   exit(EXIT_SUCCESS);
 }
 
@@ -315,8 +297,7 @@ static int is_multicast_addr(char *addr_string){
  * @argc:
  * @argv:
  *
- * This function parses the command line arguments and sets the
- * appropriate flags in the global 'flags' variable.  Additionally,
+ * This function parses the command line arguments. Additionally,
  * it sets the global 'config_file_location'.  This function
  * will either succeed or cause the program to exit.
  *
@@ -421,7 +402,7 @@ static char *parse_cli_args(int argc, char *argv[]){
 			     "  Multicast (%s):: SET\n", optarg);
       break;
     case 'n':
-      flags |= FLAG_NODAEMON;
+      nodaemon = 1;
       buff_index += snprintf(buff+buff_index, buff_size-buff_index,
 			     "  No Daemon:: SET\n");
       break;
@@ -530,22 +511,24 @@ static int check_cluster_conf(void){
   if(!stat(config_file_location, &stat_buf)){
     doc = xmlParseFile(config_file_location);
     if(!doc){
-      log_printf(LOG_ERR, "\nUnable to parse %s.\n"
+      fprintf(stderr, "\nUnable to parse %s.\n"
 	      "You should either:\n"
 	      " 1. Correct the XML mistakes, or\n"
 	      " 2. (Re)move the file and attempt to grab a "
 	      "valid copy from the network.\n", config_file_location);
       return -1;
     }
-    set_ccs_logging(doc);
-    xmlFreeDoc(doc);
   } else {
     /* no cluster.conf file.  This is fine, just need to get it from the network */
     if(no_manager_opt){
-      log_printf(LOG_ERR, "\nNo local config file found: %s\n", config_file_location);
+      fprintf(stderr, "\nNo local config file found: %s\n", config_file_location);
       return -1;
     }
   }
+
+  set_ccs_logging(doc, 0);
+  if(doc)
+	xmlFreeDoc(doc);
 
   CCSEXIT("check_cluster_conf");
   return 0;
@@ -569,12 +552,12 @@ static int create_lockfile(char *lockfile){
   if(!strncmp(lockfile, "/var/run/cluster/", 17)){
     if(stat("/var/run/cluster", &stat_buf)){
       if(mkdir("/var/run/cluster", S_IRWXU)){
-        log_printf(LOG_ERR, "Cannot create lockfile directory");
+        logt_print(LOG_ERR, "Cannot create lockfile directory");
         error = -errno;
 	goto fail;
       }
     } else if(!S_ISDIR(stat_buf.st_mode)){
-      log_printf(LOG_ERR, "/var/run/cluster is not a directory.\n"
+      logt_print(LOG_ERR, "/var/run/cluster is not a directory.\n"
               "Cannot create lockfile.\n");
       error = -ENOTDIR;
       goto fail;
@@ -583,7 +566,7 @@ static int create_lockfile(char *lockfile){
  
   if((fd = open(lockfile, O_CREAT | O_WRONLY,
                 (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH))) < 0){
-    log_printf(LOG_ERR, "Cannot create lockfile");
+    logt_print(LOG_ERR, "Cannot create lockfile");
     error = -errno;
     goto fail;
   }
@@ -595,7 +578,7 @@ static int create_lockfile(char *lockfile){
  
   if (fcntl(fd, F_SETLK, &lock) < 0) {
     close(fd);
-    log_printf(LOG_ERR, "The ccsd process is already running.\n");
+    logt_print(LOG_ERR, "The ccsd process is already running.\n");
     error = -errno;
     goto fail;
   }
@@ -657,24 +640,24 @@ static void process_signal(int sig){
 
   switch(sig) {
   case SIGINT:
-    log_printf(LOG_INFO, "Stopping ccsd, SIGINT received.\n");
+    logt_print(LOG_INFO, "Stopping ccsd, SIGINT received.\n");
     err = EXIT_SUCCESS;
     break;
   case SIGQUIT:
-    log_printf(LOG_INFO, "Stopping ccsd, SIGQUIT received.\n");
+    logt_print(LOG_INFO, "Stopping ccsd, SIGQUIT received.\n");
     err = EXIT_SUCCESS;
     break;
   case SIGTERM:
-    log_printf(LOG_INFO, "Stopping ccsd, SIGTERM received.\n");
+    logt_print(LOG_INFO, "Stopping ccsd, SIGTERM received.\n");
     err = EXIT_SUCCESS;
     break;
   case SIGHUP:
-    log_printf(LOG_INFO, "SIGHUP received.\n");
-    log_printf(LOG_INFO, "Use ccs_tool for updates.\n");
+    logt_print(LOG_INFO, "SIGHUP received.\n");
+    logt_print(LOG_INFO, "Use ccs_tool for updates.\n");
     return;
     break;
   default:
-    log_printf(LOG_ERR, "Stopping ccsd, unknown signal %d received.\n", sig);
+    logt_print(LOG_ERR, "Stopping ccsd, unknown signal %d received.\n", sig);
     err = EXIT_FAILURE;
   }
 
@@ -717,20 +700,20 @@ static void daemonize(void){
 
   CCSENTER("daemonize");
 
-  if(flags & FLAG_NODAEMON){
-    log_printf(LOG_DEBUG, "Entering non-daemon mode.\n");
+  if(nodaemon){
+    logt_print(LOG_DEBUG, "Entering non-daemon mode.\n");
     if((error = create_lockfile(lockfile_location))){
       goto fail;
     }
   } else {
-    log_printf(LOG_DEBUG, "Entering daemon mode.\n");
+    logt_print(LOG_DEBUG, "Entering daemon mode.\n");
 
     signal(SIGTERM, &parent_exit_handler);
 
     pid = fork();
 
     if(pid < 0){
-      log_printf(LOG_ERR, "Unable to fork().\n");
+      logt_print(LOG_ERR, "Unable to fork().\n");
       error = pid;
       goto fail;
     }
@@ -744,11 +727,11 @@ static void daemonize(void){
 
       switch(WEXITSTATUS(status)){
       case EXIT_CLUSTER_FAIL:
-	log_printf(LOG_ERR, "Failed to connect to cluster manager.\n");
+	logt_print(LOG_ERR, "Failed to connect to cluster manager.\n");
 	break;
       case EXIT_LOCKFILE:
-	log_printf(LOG_ERR, "Failed to create lockfile.\n");
-	log_printf(LOG_ERR, "Hint: ccsd is already running.\n");
+	logt_print(LOG_ERR, "Failed to create lockfile.\n");
+	logt_print(LOG_ERR, "Hint: ccsd is already running.\n");
 	break;
       }
       exit(EXIT_FAILURE);
@@ -769,7 +752,7 @@ static void daemonize(void){
     }
 
     /* Make the parent stop waiting */
-    //log_printf(LOG_DEBUG, "Die early\n");
+    //logt_print(LOG_DEBUG, "Die early\n");
     //kill(getppid(), SIGTERM);
   }
 
@@ -797,11 +780,11 @@ static void daemonize(void){
 static void print_start_msg(char *msg){
   CCSENTER("print_start_msg");
   /* We want the start message to print every time */
-  log_printf(LOG_INFO, "Starting ccsd %s:\n", RELEASE_VERSION);
-  log_printf(LOG_INFO, " Built: "__DATE__" "__TIME__"\n");
-  log_printf(LOG_INFO, " %s\n", REDHAT_COPYRIGHT);
+  logt_print(LOG_INFO, "Starting ccsd %s:\n", RELEASE_VERSION);
+  logt_print(LOG_INFO, " Built: "__DATE__" "__TIME__"\n");
+  logt_print(LOG_INFO, " %s\n", REDHAT_COPYRIGHT);
   if(msg){
-    log_printf(LOG_INFO, "%s\n", msg);
+    logt_print(LOG_INFO, "%s\n", msg);
   }
   CCSEXIT("print_start_msg");
 }
@@ -844,13 +827,13 @@ static int join_group(int sfd, int loopback, int port){
 
     if(setsockopt(sfd, IPPROTO_IP, IP_MULTICAST_LOOP,
 		  &loopback, sizeof(loopback)) < 0){
-      log_printf(LOG_ERR, "Unable to %s loopback.\n", loopback?"SET":"UNSET");
+      logt_print(LOG_ERR, "Unable to %s loopback.\n", loopback?"SET":"UNSET");
       error = -errno;
       goto fail;
     }
     if(setsockopt(sfd, IPPROTO_IP, IP_ADD_MEMBERSHIP,
 		  (const void *)&mreq, sizeof(mreq)) < 0){
-      log_printf(LOG_ERR, "Unable to add to membership.\n");
+      logt_print(LOG_ERR, "Unable to add to membership.\n");
       error = -errno;
       goto fail;
     }
@@ -863,18 +846,18 @@ static int join_group(int sfd, int loopback, int port){
 
     if(setsockopt(sfd, IPPROTO_IPV6, IPV6_MULTICAST_LOOP,
 		  &loopback, sizeof(loopback)) < 0){
-      log_printf(LOG_ERR, "Unable to %s loopback.\n", loopback?"SET":"UNSET");
+      logt_print(LOG_ERR, "Unable to %s loopback.\n", loopback?"SET":"UNSET");
       error = -errno;
       goto fail;
     }
     if(setsockopt(sfd, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
 		  (const void *)&mreq, sizeof(mreq)) < 0){
-      log_printf(LOG_ERR, "Unable to add to membership: %s\n", strerror(errno));
+      logt_print(LOG_ERR, "Unable to add to membership: %s\n", strerror(errno));
       error = -errno;
       goto fail;
     }
   } else {
-    log_printf(LOG_ERR, "Unknown address family.\n");
+    logt_print(LOG_ERR, "Unknown address family.\n");
     error = -EINVAL;
   }
  fail:
@@ -911,7 +894,7 @@ int setup_local_socket(int backlog)
   if (listen(sock, backlog) < 0)
     goto fail;
 
-  log_printf(LOG_DEBUG, "Set up local socket on %s\n", su.sun_path);
+  logt_print(LOG_DEBUG, "Set up local socket on %s\n", su.sun_path);
   CCSEXIT("setup_local_socket");
   return sock;
 fail:

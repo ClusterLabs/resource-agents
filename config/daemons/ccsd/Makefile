@@ -17,12 +17,12 @@ OBJS=	ccsd.o \
 	globals.o
 
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
-CFLAGS += -I${cmanincdir} `xml2-config --cflags` -I${corosyncincdir}
+CFLAGS += -I${cmanincdir} `xml2-config --cflags` -I${logtincdir}
 CFLAGS += -I$(S)
 CFLAGS += -I${incdir}
 
 LDFLAGS += -L${cmanlibdir} -lcman
-LDFLAGS += -L${corosynclibdir} -llogsys
+LDFLAGS += -L${logtlibdir} -llogthread
 LDFLAGS += `xml2-config --libs` -lpthread
 LDFLAGS += -L${libdir}
 

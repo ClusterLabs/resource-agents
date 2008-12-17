@@ -11,7 +11,7 @@
 #include <sys/ioctl.h>
 #include <errno.h>
 #include <libxml/parser.h>
-#include <corosync/engine/logsys.h>
+#include <liblogthread.h>
 
 #include "comm_headers.h"
 #include "debug.h"
@@ -47,29 +47,29 @@ static int check_update_doc(xmlDocPtr tmp_doc)
   CCSENTER("check_update_doc");
 
   if (!(str1 = get_cluster_name(tmp_doc))) {
-    log_printf(LOG_ERR, "Unable to get cluster name from new config file.\n");
+    logt_print(LOG_ERR, "Unable to get cluster name from new config file.\n");
     error = -EINVAL;
     goto fail;
   }
 
   if (master_doc && master_doc->od_doc &&
       !(str2 = get_cluster_name(master_doc->od_doc))) {
-    log_printf(LOG_DEBUG, "Unable to get cluster name from current master doc.\n");
+    logt_print(LOG_DEBUG, "Unable to get cluster name from current master doc.\n");
   }
 
   if (str2 && strcmp(str1, str2)) {
-    log_printf(LOG_ERR, "Cluster names for current and update configs do not match.\n");
-    log_printf(LOG_ERR, "  Current cluster name:: <%s>\n", str2);
-    log_printf(LOG_ERR, "  Proposed update name:: <%s>\n", str1);
+    logt_print(LOG_ERR, "Cluster names for current and update configs do not match.\n");
+    logt_print(LOG_ERR, "  Current cluster name:: <%s>\n", str2);
+    logt_print(LOG_ERR, "  Proposed update name:: <%s>\n", str1);
     error = -EINVAL;
     goto fail;
   }
 
   if (master_doc && master_doc->od_doc &&
       (get_doc_version(tmp_doc) <= get_doc_version(master_doc->od_doc))) {
-    log_printf(LOG_ERR, "Proposed updated config file does not have greater version number.\n");
-    log_printf(LOG_ERR, "  Current config_version :: %d\n", get_doc_version(master_doc->od_doc));
-    log_printf(LOG_ERR, "  Proposed config_version:: %d\n", get_doc_version(tmp_doc));
+    logt_print(LOG_ERR, "Proposed updated config file does not have greater version number.\n");
+    logt_print(LOG_ERR, "  Current config_version :: %d\n", get_doc_version(master_doc->od_doc));
+    logt_print(LOG_ERR, "  Proposed config_version:: %d\n", get_doc_version(tmp_doc));
     error = -EINVAL;
   }
 
@@ -107,37 +107,37 @@ static int handle_cluster_message(int fd)
 
   CCSENTER("handle_cluster_message");
 
-  log_printf(LOG_DEBUG, "Cluster message on socket: %d\n", fd);
+  logt_print(LOG_DEBUG, "Cluster message on socket: %d\n", fd);
 
   client_len = sizeof(client_addr);
 
   if ((socket = accept(fd, &client_addr, &client_len)) < 0) {
-    log_printf(LOG_ERR, "Failed to accept connection.\n");
+    logt_print(LOG_ERR, "Failed to accept connection.\n");
     goto fail;
   }
 
   if ((nodeid = member_addr_to_id(members, &client_addr)) < 0) {
-    log_printf(LOG_ERR, "Unable to determine node ID.\n");
+    logt_print(LOG_ERR, "Unable to determine node ID.\n");
     goto fail;
   }
 
-  log_printf(LOG_DEBUG, "Accept socket: %d\n", socket);
+  logt_print(LOG_DEBUG, "Accept socket: %d\n", socket);
 
   error = recv(socket, &ch, sizeof(comm_header_t), MSG_PEEK);
 
   if (error < 0) {
-    log_printf(LOG_ERR, "Failed to receive message from %s\n",
+    logt_print(LOG_ERR, "Failed to receive message from %s\n",
 		member_id_to_name(members, nodeid));
     goto fail;
   }
 
-  log_printf(LOG_DEBUG, "Message (%d bytes) received from %s\n",
+  logt_print(LOG_DEBUG, "Message (%d bytes) received from %s\n",
 	  error, member_id_to_name(members, nodeid));
 
   swab_header(&ch);
 
   if (ch.comm_type != COMM_UPDATE) {
-    log_printf(LOG_ERR, "Unexpected communication type (%d)... ignoring.\n",
+    logt_print(LOG_ERR, "Unexpected communication type (%d)... ignoring.\n",
 	    ch.comm_type);
     error = -EINVAL;
     goto fail;
@@ -146,12 +146,12 @@ static int handle_cluster_message(int fd)
   if (ch.comm_flags == COMM_UPDATE_NOTICE) {
     buffer = malloc(ch.comm_payload_size + sizeof(comm_header_t));
     if (!buffer) {
-      log_printf(LOG_ERR, "Unable to allocate space to perform update.\n");
+      logt_print(LOG_ERR, "Unable to allocate space to perform update.\n");
       error = -ENOMEM;
       goto fail;
     }
 
-    log_printf(LOG_DEBUG, "Updated config size:: %d\n", ch.comm_payload_size);
+    logt_print(LOG_DEBUG, "Updated config size:: %d\n", ch.comm_payload_size);
 
     tv.tv_sec = 5;
     tv.tv_usec = 0;
@@ -159,19 +159,19 @@ static int handle_cluster_message(int fd)
     error = read_retry(socket, buffer, ch.comm_payload_size + sizeof(comm_header_t), &tv);
 
     if (error < 0) {
-      log_printf(LOG_ERR, "Unable to retrieve updated config");
+      logt_print(LOG_ERR, "Unable to retrieve updated config");
       goto fail;
     }
 
     pthread_mutex_lock(&update_lock);
     unlock = 1;
 
-    log_printf(LOG_DEBUG, "Got lock 0\n");
+    logt_print(LOG_DEBUG, "Got lock 0\n");
     
     tmp_doc = xmlParseMemory(buffer+sizeof(comm_header_t), ch.comm_payload_size);
 
     if (!tmp_doc) {
-      log_printf(LOG_ERR, "Unable to parse updated config file.\n");
+      logt_print(LOG_ERR, "Unable to parse updated config file.\n");
       /* ATTENTION -- need better error code */
       error = -EIO;
       goto fail;
@@ -188,28 +188,28 @@ static int handle_cluster_message(int fd)
     umask(old_mode);
 
     if (!fp) {
-      log_printf(LOG_ERR, "Unable to open " DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE "-update");
+      logt_print(LOG_ERR, "Unable to open " DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE "-update");
       error = -errno;
       goto fail;
     }
 
     if (xmlDocDump(fp, tmp_doc) < 0) {
-      log_printf(LOG_ERR, "Unable to write " DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE "-update");
+      logt_print(LOG_ERR, "Unable to write " DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE "-update");
       goto fail;
     }
 
-    log_printf(LOG_DEBUG, "Upload of new config file from %s complete.\n",
+    logt_print(LOG_DEBUG, "Upload of new config file from %s complete.\n",
 	    member_id_to_name(members, nodeid));
 
     ch.comm_payload_size = 0;
     ch.comm_flags = COMM_UPDATE_NOTICE_ACK;
 
-    log_printf(LOG_DEBUG, "Sending COMM_UPDATE_NOTICE_ACK.\n");
+    logt_print(LOG_DEBUG, "Sending COMM_UPDATE_NOTICE_ACK.\n");
 
     swab_header(&ch);
 
     if ((error = write(socket, &ch, sizeof(comm_header_t))) < 0) {
-      log_printf(LOG_ERR, "Unable to send COMM_UPDATE_NOTICE_ACK.\n");
+      logt_print(LOG_ERR, "Unable to send COMM_UPDATE_NOTICE_ACK.\n");
       goto fail;
     }
 
@@ -225,8 +225,8 @@ static int handle_cluster_message(int fd)
     error = read_retry(socket, &ch, sizeof(comm_header_t), &tv);
 
     if (master_node != nodeid) {
-      log_printf(LOG_ERR, "COMM_UPDATE_COMMIT received from node other than initiator.\n");
-      log_printf(LOG_ERR, "Hint: There may be multiple updates happening at once.\n");
+      logt_print(LOG_ERR, "COMM_UPDATE_COMMIT received from node other than initiator.\n");
+      logt_print(LOG_ERR, "Hint: There may be multiple updates happening at once.\n");
       error = -EPERM;
       goto fail;
     }
@@ -235,12 +235,12 @@ static int handle_cluster_message(int fd)
 
     unlock = 1;
 
-    log_printf(LOG_DEBUG, "Got lock 1\n");
+    logt_print(LOG_DEBUG, "Got lock 1\n");
 
     tmp_doc = xmlParseFile(DEFAULT_CONFIG_DIR "/" DEFAULT_CONFIG_FILE "-update");
 
     if (!tmp_doc) {
-      log_printf(LOG_ERR, "Unable to parse updated config file.\n");
+      logt_print(LOG_ERR, "Unable to parse updated config file.\n");
       /* ATTENTION -- need better error code */
       error = -EIO;
       goto fail;
@@ -257,13 +257,13 @@ static int handle_cluster_message(int fd)
     umask(old_mode);
 
     if (!fp) {
-      log_printf(LOG_ERR, "Unable to open " DEFAULT_CONFIG_DIR "/." DEFAULT_CONFIG_FILE);
+      logt_print(LOG_ERR, "Unable to open " DEFAULT_CONFIG_DIR "/." DEFAULT_CONFIG_FILE);
       error = -errno;
       goto fail;
     }
 
     if (xmlDocDump(fp, tmp_doc) < 0) {
-      log_printf(LOG_ERR, "Unable to write " DEFAULT_CONFIG_DIR "/." DEFAULT_CONFIG_FILE);
+      logt_print(LOG_ERR, "Unable to write " DEFAULT_CONFIG_DIR "/." DEFAULT_CONFIG_FILE);
       goto fail;
     }
 
@@ -272,12 +272,12 @@ static int handle_cluster_message(int fd)
     update_required = 1;
     ch.comm_flags = COMM_UPDATE_COMMIT_ACK;
 
-    log_printf(LOG_DEBUG, "Sending COMM_UPDATE_COMMIT_ACK.\n");
+    logt_print(LOG_DEBUG, "Sending COMM_UPDATE_COMMIT_ACK.\n");
 
     swab_header(&ch);
 
     if ((error = write(socket, &ch, sizeof(comm_header_t))) < 0) {
-      log_printf(LOG_ERR, "Unable to send COMM_UPDATE_NOTICE_ACK.\n");
+      logt_print(LOG_ERR, "Unable to send COMM_UPDATE_NOTICE_ACK.\n");
       goto fail;
     }
 
@@ -355,7 +355,7 @@ static void cluster_communicator(void)
   int opt = 1;
   int max_fd;
   int n;
-  int flags;
+  int cc_flags;
 
   fd_set rset;
   cman_handle_t handle = NULL;
@@ -372,7 +372,7 @@ static void cluster_communicator(void)
   if (IPv6) {
     if ((ccsd_fd = socket(PF_INET6, SOCK_STREAM, 0)) < 0) {
       if(IPv6 == -1) {
-	log_printf(LOG_DEBUG, "Unable to create IPv6 socket:: %s\n", strerror(errno));
+	logt_print(LOG_DEBUG, "Unable to create IPv6 socket:: %s\n", strerror(errno));
 	IPv6=0;
      }
     }
@@ -380,13 +380,13 @@ static void cluster_communicator(void)
 
   if (!IPv6) {
     if ((ccsd_fd = socket(PF_INET, SOCK_STREAM, 0)) < 0) {
-      log_printf(LOG_ERR, "Unable to create IPv4 socket.\n");
+      logt_print(LOG_ERR, "Unable to create IPv4 socket.\n");
       exit(EXIT_FAILURE);
     }
   }
 
   if (setsockopt(ccsd_fd, SOL_SOCKET, SO_REUSEADDR, (void *)&opt, sizeof(opt)) < 0) {
-    log_printf(LOG_ERR, "Unable to set socket option");
+    logt_print(LOG_ERR, "Unable to set socket option");
     exit(EXIT_FAILURE);
   }
 
@@ -402,18 +402,18 @@ static void cluster_communicator(void)
     addr4->sin_port = htons(cluster_base_port);
   }
 
-  flags = fcntl(ccsd_fd, F_GETFD, 0);
-  flags |= FD_CLOEXEC;
-  fcntl(ccsd_fd, F_SETFD, flags);
+  cc_flags = fcntl(ccsd_fd, F_GETFD, 0);
+  cc_flags |= FD_CLOEXEC;
+  fcntl(ccsd_fd, F_SETFD, cc_flags);
 
   if (bind(ccsd_fd, (struct sockaddr *)&addr, addr_size) < 0) {
-    log_printf(LOG_ERR, "Unable to bind to socket.\n");
+    logt_print(LOG_ERR, "Unable to bind to socket.\n");
     close(ccsd_fd);
     exit(EXIT_FAILURE);
   }
 
   if (listen(ccsd_fd, 15) < 0) {
-    log_printf(LOG_ERR, "Unable to listen to socket.\n");
+    logt_print(LOG_ERR, "Unable to listen to socket.\n");
     close(ccsd_fd);
     exit(EXIT_FAILURE);
   }
@@ -430,7 +430,7 @@ restart:
 
       if (!(warn_user % 30))
       {
-	log_printf(LOG_ERR, "Unable to connect to cluster infrastructure after %d seconds.\n",
+	logt_print(LOG_ERR, "Unable to connect to cluster infrastructure after %d seconds.\n",
 		warn_user);
       }
 
@@ -447,7 +447,7 @@ restart:
 
   quorate = cman_is_quorate(handle);
 
-  log_printf(LOG_INFO, "Initial status:: %s\n", (quorate)? "Quorate" : "Inquorate");
+  logt_print(LOG_INFO, "Initial status:: %s\n", (quorate)? "Quorate" : "Inquorate");
 
   members = get_member_list(handle);
 
@@ -461,18 +461,18 @@ restart:
 
     max_fd = (ccsd_fd > cman_fd) ? ccsd_fd : cman_fd;
 
-    log_printf(LOG_DEBUG, "Waiting for cluster event.\n");
+    logt_print(LOG_DEBUG, "Waiting for cluster event.\n");
     
     if ((n = select((max_fd + 1), &rset, NULL, NULL, NULL)) < 0) {
-      log_printf(LOG_ERR, "Select failed");
+      logt_print(LOG_ERR, "Select failed");
       continue;
     }
 
-    log_printf(LOG_DEBUG, "There are %d cluster messages waiting.\n", n);
+    logt_print(LOG_DEBUG, "There are %d cluster messages waiting.\n", n);
 
     while (n)
     {
-      log_printf(LOG_DEBUG, "There are %d messages remaining.\n", n);
+      logt_print(LOG_DEBUG, "There are %d messages remaining.\n", n);
 
       n--;
 
@@ -505,7 +505,7 @@ int start_cluster_monitor_thread(void) {
   error = pthread_create(&thread, NULL, (void *)cluster_communicator, NULL);
 
   if (error) {
-    log_printf(LOG_ERR, "Failed to create thread: %s\n", strerror(-error));
+    logt_print(LOG_ERR, "Failed to create thread: %s\n", strerror(-error));
     goto fail;
   }
 
