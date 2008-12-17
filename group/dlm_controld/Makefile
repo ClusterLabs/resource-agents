@@ -48,7 +48,7 @@ CFLAGS += -I${incdir}
 LDFLAGS += -L${dlmlibdir} -ldlm 
 LDFLAGS += -L${logtlibdir} -llogthread
 LDFLAGS += -L${openaislibdir} -lSaCkpt
-LDFLAGS += -L${corosynclibdir} -lcpg -llogsys -lpthread
+LDFLAGS += -L${corosynclibdir} -lcpg 
 LDFLAGS += -L../lib -lgroup
 LDFLAGS += -L${libdir}
 
