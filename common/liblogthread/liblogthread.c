@@ -143,13 +143,13 @@ void logt_print(int level, char *fmt, ...)
 	vsnprintf(buf, sizeof(buf) - 1, fmt, ap);
 	va_end(ap);
 
+	if (level > logt_syslog_priority && level > logt_logfile_priority)
+		return;
+
 	/* this stderr crap really doesn't belong in this lib, please
 	   feel free to not use it */
 	if (logt_mode & LOG_MODE_OUTPUT_STDERR)
 		fputs(buf, stderr);
-
-	if (level > logt_syslog_priority && level > logt_logfile_priority)
-		return;
 
 	_logt_print(level, buf);
 }
