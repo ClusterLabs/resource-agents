@@ -418,12 +418,10 @@ void ccs_read_logging(int fd, char *name, int *debug, int *mode,
 	else if (off)
 		*debug = 0;
 
-	if (*debug)
+	if (*debug) {
 		*logfile_priority = LOG_DEBUG;
-
-	/* should we return here if debug has been turned on?, or should
-	   we allow an explicit logfile_priority setting to override the
-	   implicit setting from debug=on? */
+		return;
+        }
 
 	/*
 	 * logfile_priority
