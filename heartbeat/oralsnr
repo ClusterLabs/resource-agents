@@ -190,7 +190,6 @@ runasdba() {
 #
 
 oralsnr_start() {
-	typeset output
 	if tnsping; then
 		: nothing to be done, we can leave right now
 		ocf_log info "Listener $listener already running"
@@ -211,7 +210,6 @@ oralsnr_start() {
 # oralsnr_stop: Stop the Oracle instance
 #
 oralsnr_stop() {
-	typeset status output
 	if is_oralsnr_up; then
 		output=`echo $lsnrctl stop $listener | runasdba`
 	else
@@ -239,7 +237,7 @@ oralsnr_kill() {
 	killprocs KILL `eval $procs | awk '{print $1}'`
 }
 killprocs() {
-	typeset sig=$1
+	sig=$1
 	shift 1
 	kill -$sig $* >/dev/null 2>&1
 }
