@@ -39,6 +39,77 @@ static void be_daemon(int close_stderr)
 	setsid();
 }
 
+
+static char *corosync_exit_reason(signed char status)
+{
+	static char reason[256];
+	switch (status) {
+	case -2:
+		return "Could not determine UID to run as";
+		break;
+	case -3:
+		return "Could not determine GID to run as";
+		break;
+	case -4:
+		return "Error initialising memory pool";
+		break;
+	case -5:
+		return "Could not fork";
+		break;
+	case -6:
+		return "Could not bind to libais socket";
+		break;
+	case -7:
+		return "Could not bind to network socket";
+		break;
+	case -8:
+		return "Could not read security key for communications";
+		break;
+	case -9:
+		return "Could not read cluster configuration";
+		break;
+	case -10:
+		return "Could not set up logging";
+		break;
+	case -11:
+		return "Could not dynamically load modules";
+		break;
+	case -12:
+		return "Could not load and initialise object database";
+		break;
+	case -13:
+		return "Could not initialise all required services";
+		break;
+	case -14:
+		return "Out of memory";
+		break;
+	default:
+		sprintf(reason, "Error, reason code is %d", status);
+		return reason;
+		break;
+	}
+}
+
+static int check_corosync_status(pid_t pid)
+{
+	int status;
+	int pidstatus;
+
+	status = waitpid(pid, &pidstatus, WNOHANG);
+	if (status == -1 && errno == ECHILD) {
+
+		return 0;
+	}
+	if ((status == 0 || status == pid) && pidstatus != 0) {
+		if (WIFEXITED(pidstatus))
+			fprintf(stderr, "corosync died: %s\n", corosync_exit_reason(WEXITSTATUS(pidstatus)));
+		if (WIFSIGNALED(pidstatus))
+			fprintf(stderr, "corosync died with signal: %d\n", WTERMSIG(pidstatus));
+		exit(1);
+	}
+	return status;
+}
+
 int join(commandline_t *comline, char *main_envp[])
 {
 	int i, err;
@@ -127,9 +198,10 @@ int join(commandline_t *comline, char *main_envp[])
 	envp[envptr++] = strdup(scratch);
 	envp[envptr++] = NULL;
 
+	/* Always run corosync -f because we have already forked twice anyway, and
+	   we want to return any exit code that might happen */
 	argv[0] = "corosync";
-	if (comline->verbose & ~DEBUG_STARTUP_ONLY)
-		argv[++argvptr] = "-f";
+	argv[++argvptr] = "-f";
 	if (comline->nosetpri_opt)
 		argv[++argvptr] = "-p";
 	argv[++argvptr] = NULL;
@@ -153,6 +225,10 @@ int join(commandline_t *comline, char *main_envp[])
 			}
 		}
 		be_daemon(!(comline->verbose & ~DEBUG_STARTUP_ONLY));
+
+		sprintf(scratch, "FORKED: %d", getpid());
+		err = write(p[1], scratch, strlen(scratch));
+
 		execve(COROSYNCBIN, argv, envp);
 
 		/* exec failed - tell the parent process */
@@ -182,43 +258,31 @@ int join(commandline_t *comline, char *main_envp[])
 
 		status = select(p[0]+1, &fds, NULL, NULL, &tv);
 
-		/* Did we get an error? */
+		/* Did we get a cman-reported error? */
 		if (status == 1) {
 			int len;
 			if ((len = read(p[0], message, sizeof(message)) > 0)) {
 
+				/* Forked OK - get the real corosync pid */
+				if (sscanf(message, "FORKED: %d", &corosync_pid) == 1) {
+					if (comline->verbose & DEBUG_STARTUP_ONLY)
+						fprintf(stderr, "forked process ID is %d\n", corosync_pid);
+					status = 1;
+					continue;
+				}
 				/* Success! get the new PID of double-forked corosync */
 				if (sscanf(message, "SUCCESS: %d", &corosync_pid) == 1) {
 					if (comline->verbose & DEBUG_STARTUP_ONLY)
 						fprintf(stderr, "corosync running, process ID is %d\n", corosync_pid);
 					status = 0;
+					break;
 				}
-				else {
-					fprintf(stderr, "cman not started: %s\n", message);
-				}
-				break;
 			}
 			else if (len < 0 && errno == EINTR) {
 				continue;
 			}
 			else { /* Error or EOF - check the child status */
-				int pidstatus;
-				status = waitpid(corosync_pid, &pidstatus, WNOHANG);
-				if (status == -1 && errno == ECHILD) {
-					fprintf(stderr, "cman not started\n");
-					break;
-				}
-				if (status == 0 && pidstatus != 0) {
-					if (WIFEXITED(pidstatus))
-						fprintf(stderr, "corosync died with status: %d\n", WEXITSTATUS(pidstatus));
-					if (WIFSIGNALED(pidstatus))
-						fprintf(stderr, "corosync died with signal: %d\n", WTERMSIG(pidstatus));
-					status = -1;
-					break;
-				}
-				else {
-					status = 0; /* Try to connect */
-				}
+				status = check_corosync_status(corosync_pid);
 			}
 		}
 
@@ -230,13 +294,15 @@ int join(commandline_t *comline, char *main_envp[])
 		do {
 			if (status == 0) {
 				if (kill(corosync_pid, 0) < 0) {
+					status = check_corosync_status(corosync_pid);
 					die("corosync died during startup\n");
 				}
 
 				h = cman_admin_init(NULL);
 				if (!h && comline->verbose & DEBUG_STARTUP_ONLY)
 				{
-					fprintf(stderr, "waiting for corosync to start\n");
+					fprintf(stderr, "waiting for cman to start\n");
+					status = check_corosync_status(corosync_pid);
 				}
 			}
 			sleep (1);
