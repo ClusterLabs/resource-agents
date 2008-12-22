@@ -37,6 +37,7 @@ int fs_compute_bitstructs(struct fsck_rgrp *rgd)
 		return -1;
 	}
 	if(!memset(rgd->rd_bits, 0, length * sizeof(fs_bitmap_t))) {
+		free(rgd->rd_bits);
 		log_err("Unable to zero bitmap structure\n");
 		stack;
 		return -1;
@@ -78,6 +79,7 @@ int fs_compute_bitstructs(struct fsck_rgrp *rgd)
 	if(bytes_left){
 		log_err( "fs_compute_bitstructs:  Too many blocks in rgrp to "
 			"fit into available bitmap.\n");
+		free(rgd->rd_bits);
 		return -1;
 	}
 
@@ -93,6 +95,7 @@ int fs_compute_bitstructs(struct fsck_rgrp *rgd)
 			rgd->rd_bits[length - 1].bi_len,
 			GFS_NBBY,
 			rgd->rd_ri.ri_data);
+		free(rgd->rd_bits);
 		return -1;
 	}
 
@@ -100,11 +103,13 @@ int fs_compute_bitstructs(struct fsck_rgrp *rgd)
 	if(!(rgd->rd_bh = (osi_buf_t **)malloc(length * sizeof(osi_buf_t *)))) {
 		log_err("Unable to allocate osi_buf structure\n");
 		stack;
+		free(rgd->rd_bits);
 		return -1;
 	}
 	if(!memset(rgd->rd_bh, 0, length * sizeof(osi_buf_t *))) {
 		log_err("Unable to zero osi_buf structure\n");
 		stack;
+		free(rgd->rd_bits);
 		return -1;
 	}
 

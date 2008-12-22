@@ -367,6 +367,8 @@ int gfs_rgindex_rebuild(struct fsck_sb *sdp, osi_list_t *ret_list,
 	uint64_t last_known_ri_addr = 0, prev_known_ri_addr = 0;
 	uint32_t last_known_ri_length = 0;
 	uint32_t last_known_ri_data = 0;
+	int section3_bump_size = 0;
+	uint64 start_block, end_block = 0;
 
 	osi_list_init(ret_list);
 	*num_rgs = 0;
@@ -502,8 +504,6 @@ int gfs_rgindex_rebuild(struct fsck_sb *sdp, osi_list_t *ret_list,
 	/* ----------------------------------------------------------------- */
 	subdevice_size = sdp->jindex->ji_addr; /* addr of first journal */;
 	for (subd = 0; subd < 2; subd++) {
-		uint64 start_block;
-
 		if (!subd)
 			start_block = (GFS_SB_ADDR >> sdp->fsb2bb_shift) + 1;
 		else
@@ -607,7 +607,13 @@ int gfs_rgindex_rebuild(struct fsck_sb *sdp, osi_list_t *ret_list,
 					blok = tmpndx.ri_addr - 1; /* go by the index */
 					log_debug("I(0x%" PRIx64 ")\n", blok);
 				}
-				else {
+				/* If this is the second section, we know for sure that */
+				/* the block length can't be smaller than section 1's   */
+				/* rg length. Might as well skip ahead.                 */
+				else if (subd == 1) {
+					blok += shortest_dist_btwn_rgs[0];
+					log_debug("2(0x%" PRIx64 ")\n", blok);
+				} else {
 					blok += tmp_rgrp.rg_useddi + tmp_rgrp.rg_free;
 					log_debug("R(0x%" PRIx64 ")\n", blok);
 				}
@@ -648,6 +654,37 @@ int gfs_rgindex_rebuild(struct fsck_sb *sdp, osi_list_t *ret_list,
 		log_debug("Section %d: distance between RGs: 0x%" PRIx64 "\n",
 				 subd + 1, shortest_dist_btwn_rgs[subd]);
 		log_debug("Section size: 0x%" PRIx64 "\n", subdevice_size);
+		/* If our rindex was all bad, we may have an improper count of RGs per
+		   section.  We may also not know where the third section should start.
+		   We need those for later. */
+		if (subd == 0) {
+			if (shortest_dist_btwn_rgs[subd] != 0) {
+				unsigned long long blocks_b4_sb;
+				unsigned long long index_entries;
+
+				blocks_b4_sb = (16 * (4096 / sdp->sb.sb_bsize));
+				index_entries = (subdevice_size - blocks_b4_sb) /
+					shortest_dist_btwn_rgs[subd];
+				if (index_entries_per_subd != index_entries) {
+					log_debug("rindex entries per section "
+						  "changed from %lld to %lld\n",
+						  index_entries_per_subd,
+						  index_entries);
+					index_entries_per_subd = index_entries;
+				}
+			}
+			if (fs_size_from_rgindex == 0) {
+				fs_size_from_rgindex = (sdp->jindex->ji_addr +
+							total_journal_space) +
+					subdevice_size;
+				log_debug("Fixed zero fs_size_from_rgindex "
+					  "due to rindex corruption.\n");
+				log_debug("New fs_size_from_rgindex value: "
+					  "%lld (0x%" PRIx64 ")\n",
+					  fs_size_from_rgindex,
+					  fs_size_from_rgindex);
+			}
+		}
 	} /* for subd */
 	number_of_rgs = 0; /* reset this because it is reused below */
 	/* ----------------------------------------------------------------- */
@@ -661,14 +698,12 @@ int gfs_rgindex_rebuild(struct fsck_sb *sdp, osi_list_t *ret_list,
 	/* rgindex and hope to God it's correct.  That's the only way we're  */
 	/* going to be able to recover RGs in the third section.             */
 	/* ----------------------------------------------------------------- */
-	prev_rgd = NULL;
 	block_bump = first_rg_dist[0];
 	corrupt_rgs = 0;
 	for (subd = 0; subd < 3; subd++) { /* third subdevice is for all RGs
-										  extended past the normal 2 with
-										  gfs_grow, etc. */
-		uint64 start_block, end_block = 0;
-
+					      extended past the normal 2 with
+					      gfs_grow, etc. */
+		prev_rgd = NULL;
 		if (subd == 0) {
 			start_block = (GFS_SB_ADDR >> sdp->fsb2bb_shift) + 1;
 			end_block = subdevice_size - 1;
@@ -685,8 +720,18 @@ int gfs_rgindex_rebuild(struct fsck_sb *sdp, osi_list_t *ret_list,
 				end_block = start_block + subdevice_size - 1; /* go to end */
 		}
 		else {
-			start_block = end_block + 1;
-			end_block = fs_total_size;
+			/* Section 3 should start the block after section 2.  However,     */
+			/* gfs_grow sometimes foolishly decides to put it as much as three */
+			/* blocks early. So we need to check for this special case.        */
+			for (start_block = end_block - 2;
+			     start_block < end_block + 1; start_block++) {
+				error = get_and_read_buf(sdp, start_block, &bh, 0);
+				rg_was_fnd = (!check_type(bh, GFS_METATYPE_RG));
+				relse_buf(sdp, bh); /* release the read buffer */
+				if (rg_was_fnd)
+					break;
+			}
+			end_block = fs_total_size - 1;
 			if (start_block + GFS_NBBY >= end_block)
 				break;
 		}
@@ -704,6 +749,16 @@ int gfs_rgindex_rebuild(struct fsck_sb *sdp, osi_list_t *ret_list,
 			}
 			rg_was_fnd = (!check_type(bh, GFS_METATYPE_RG));
 			relse_buf(sdp, bh); /* release the read buffer */
+			if (!rg_was_fnd && subd == 2) {
+				if (section3_bump_size) {
+					log_warn("Lost track of Section 3 rg length.\n");
+					blok -= block_bump; /* back up in case we overshot it */
+					section3_bump_size = 0;
+					block_bump = 1;
+				}
+				if (block_bump == 1)
+					continue;
+			}
 			/* ------------------------------------------------------------- */
 			/* For the first and second subdevice, we know the RG size.      */
 			/* Since we're bumping by that amount, this better be an RG.     */
@@ -762,11 +817,7 @@ int gfs_rgindex_rebuild(struct fsck_sb *sdp, osi_list_t *ret_list,
 				/*prev_rgd->rd_ri.ri_data = block_bump;*/
 			}
 			number_of_rgs++;
-			log_warn("%c RG %d at block 0x%" PRIX64 " %s",
-					 (rg_was_fnd ? ' ' : '*'), number_of_rgs, blok,
-					 (rg_was_fnd ? "intact" : "*** DAMAGED ***"));
 			rgs_per_subd++;
-			prev_rgd = calc_rgd;
 			block_of_last_rg = blok;
 			if (subd == 2) { /* if beyond the normal RGs into gfs_grow RGs  */
 				/* -------------------------------------------------------- */
@@ -782,26 +833,49 @@ int gfs_rgindex_rebuild(struct fsck_sb *sdp, osi_list_t *ret_list,
 				/* find an entry that has the smallest address greater than */
 				/* the block we're on (blok).                               */
 				/* -------------------------------------------------------- */
-				uint64_t rgndx_next_block;
+				if (section3_bump_size == 0) {
+					uint64_t rgndx_next_block, highest_riaddr;
 
-				rgndx_next_block = end_block;
-				for (rgi = 0; ; rgi++) {
-					error = readi(sdp->riinode, (char *)&buf,
-								  rgi * sizeof(struct gfs_rindex),
-								  sizeof(struct gfs_rindex));
-					if (!error)      /* if end of the rgindex */
-						break;        /* stop processing for more RGs */
-					gfs_rindex_in(&tmpndx, (char *)&buf);
-					/* if this index entry is the next RG physically */
-					if (tmpndx.ri_addr > blok &&
-						tmpndx.ri_addr < rgndx_next_block) {
-						rgndx_next_block = tmpndx.ri_addr; /* remember it */
+					rgndx_next_block = end_block;
+					highest_riaddr = 0;
+					for (rgi = 0; ; rgi++) {
+						error = readi(sdp->riinode, (char *)&buf,
+							      rgi * sizeof(struct gfs_rindex),
+							      sizeof(struct gfs_rindex));
+						if (!error)      /* if end of the rgindex */
+							break;        /* stop processing for more RGs */
+						gfs_rindex_in(&tmpndx, (char *)&buf);
+						/* if this index entry is the next RG physically */
+						if (tmpndx.ri_addr > blok &&
+						    tmpndx.ri_addr < rgndx_next_block) {
+							rgndx_next_block = tmpndx.ri_addr; /* remember it */
+						}
+						if (tmpndx.ri_addr > highest_riaddr)
+							highest_riaddr= tmpndx.ri_addr;
 					}
-				}
-				block_bump = rgndx_next_block - blok;
-				if (rgndx_next_block == end_block) { /* if no more RGs */
-					log_warn(" [length 0x%" PRIx64 "]\n", block_bump);
-					break;                 /* stop processing */
+					/* A special exception must be made for the last RG because we */
+					/* won't have a "next highest" entry in the rindex.            */
+					if (blok == highest_riaddr)
+						block_bump = end_block - blok + 1;
+					else if (rgndx_next_block == end_block) {
+						if (block_bump != 1) {
+							log_warn("\nUnable to use rindex; "
+								 "doing block-by-block search.\n");
+							log_warn("This will be slow, so be patient.\n");
+							rgndx_next_block = blok + 1;
+							block_bump = 1;
+						} else {
+							if (prev_rgd &&
+							    block_bump != blok -
+							    prev_rgd->rd_ri.ri_addr) {
+								log_warn("I think I figured it out.\n");
+								block_bump = blok -
+									prev_rgd->rd_ri.ri_addr;
+								section3_bump_size = block_bump;
+							}
+						}
+					} else
+						block_bump = rgndx_next_block - blok;
 				}
 			}
 			else {
@@ -810,8 +884,20 @@ int gfs_rgindex_rebuild(struct fsck_sb *sdp, osi_list_t *ret_list,
 				else
 					block_bump = shortest_dist_btwn_rgs[subd];
 			}
-			if (block_bump != 1)
-				log_warn(" [length 0x%" PRIx64 "]\n", block_bump);
+			if (block_bump == 1 && prev_rgd && subd == 2) {
+				uint64_t last_distance = blok - prev_rgd->rd_ri.ri_addr;
+
+				error = get_and_read_buf(sdp, blok + last_distance, &bh, 0);
+				rg_was_fnd = (!check_type(bh, GFS_METATYPE_RG));
+				relse_buf(sdp, bh); /* release the read buffer */
+				if (rg_was_fnd)
+					block_bump = last_distance;
+			}
+			log_warn("%c RG %d at block 0x%" PRIX64 " %s",
+					 (rg_was_fnd ? ' ' : '*'), number_of_rgs, blok,
+					 (rg_was_fnd ? "intact" : "*** DAMAGED ***"));
+			log_warn(" [length 0x%" PRIx64 "]\n", block_bump);
+			prev_rgd = calc_rgd;
 		} /* for blocks in subdevice */
 	} /* for subdevices */
 	/* ------------------------------------------------------------------- */
@@ -1086,7 +1172,7 @@ int ri_update(struct fsck_sb *sdp)
 		else if (trust_lvl == open_minded) { /* If we can't trust RG index */
 			/* Calculate our own RG index for comparison */
 			error = gfs_rgindex_calculate(sdp, &expected_rglist,
-						      &calc_rg_count);
+										  &calc_rg_count);
 			if (error) { /* If calculated RGs don't reasonably match the fs */
 				log_info("(failed--trying again at level 3)\n");
 				ri_cleanup(&sdp->rglist);
@@ -1095,7 +1181,7 @@ int ri_update(struct fsck_sb *sdp)
 		}
 		else if (trust_lvl == distrust) { /* If we can't trust RG index */
 			error = gfs_rgindex_rebuild(sdp, &expected_rglist,
-						    &calc_rg_count); /* count the RGs. */
+										&calc_rg_count); /* count the RGs. */
 			if (error) { /* If calculated RGs don't reasonably match the fs */
 				log_info("(failed--giving up)\n");
 				goto fail; /* try again, this time counting them manually */
@@ -1117,6 +1203,8 @@ int ri_update(struct fsck_sb *sdp)
 				log_err("Unable to read resource group index #%u.\n", rg);
 				goto fail;
 			}
+			if (trust_lvl != blind_faith && osi_list_empty(&expected_rglist))
+				break;
 			
 			rgd = (struct fsck_rgrp *)malloc(sizeof(struct fsck_rgrp));
 			// FIXME: handle failed malloc
