@@ -198,7 +198,7 @@ VirtualDomain_Migrate_To() {
 	    transport_suffix="+${OCF_RESKEY_migration_transport}"
 	fi
         # Scared of that sed expression? So am I. :-)
-	remoteuri=$(echo ${OCF_RESKEY_hypervisor} | sed -e "s/\(.*\):\/\/[^\/\:]*\(:\?[0-9]*\)\/\(.*\)/\1${transport_suffix}:\/\/${target_node}\2\/\3/")
+	remoteuri=$(echo ${OCF_RESKEY_hypervisor} | sed -e "s,\(.*\)://[^/:]*\(:\?[0-9]*\)/\(.*\),\1${transport_suffix}://${target_node}\2/\3,")
 
 	# OK, we know where to connect to. Now do the actual migration.
 	ocf_log info "$DOMAIN_NAME: Starting live migration to ${remoteuri}"
