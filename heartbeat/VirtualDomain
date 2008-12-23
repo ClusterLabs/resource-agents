@@ -4,14 +4,9 @@
 # License:      GNU General Public License (GPL)
 #
 #   Resource Agent for domains managed by the libvirt API.
-#   Requires a running libvirt daemon (libvirtd), except when running
-#   in a Xen Domain-0 and specifying xen:/// as the hypervisor URL.
+#   Requires a running libvirt daemon (libvirtd).
 #
-#	usage: $0  {start|stop|status|monitor|meta-data}
-#
-#   TODO: when properly supported by libvirt, this RA should include
-#         support for domain live migration and implement the
-#         migrate-to and migrate-from operations.
+#	usage: $0 {start|stop|status|monitor|migrate_to|migrate_from|meta-data|validate-all}
 #
 #######################################################################
 # Initialization:
@@ -20,12 +15,15 @@ LC_ALL="C"
 LANG="C"
 
 # Defaults
-: ${OCF_RESKEY_force_stop=0}
+OCF_RESKEY_force_stop_default=0
+OCF_RESKEY_hypervisor_default="$(virsh --quiet uri)"
+
+: ${OCF_RESKEY_force_stop=${OCF_RESKEY_force_stop_default}}
+: ${OCF_RESKEY_hypervisor=${OCF_RESKEY_hypervisor_default}}
 #######################################################################
 
-
 usage() {
-  echo "usage: $0 {start|stop|status|monitor|meta-data|validate-all}"
+  echo "usage: $0 {start|stop|status|monitor|migrate_to|migrate_from|meta-data|validate-all}"
 }
 
 meta_data() {
@@ -48,27 +46,38 @@ virtual environment etc., depending on context) managed by libvirtd.
 Absolute path to the libvirt configuration file,
 for this virtual domain.
 </longdesc>
-<shortdesc lang="en">virtual domain configuration file</shortdesc>
+<shortdesc lang="en">Virtual domain configuration file</shortdesc>
 <content type="string" default="" />
 </parameter>
 
-<parameter name="hypervisor" unique="0" required="0">
+<parameter name="hypervisor" unique="1" required="0">
 <longdesc lang="en">
 Hypervisor URI to connect to. See the libvirt documentation for
 details on supported URI formats. The default is system dependent.
 </longdesc>
 <shortdesc lang="en">Hypervisor URI</shortdesc>
-<content type="string"/>
+<content type="string" default="${OCF_RESKEY_hypervisor_default}"/>
 </parameter>
 
-<parameter name="force_stop" unique="0" required="0">
+<parameter name="force_stop" unique="1" required="0">
 <longdesc lang="en">
 Forcefully shut down ("destroy") the domain on stop. Enable this only if 
 your virtual domain (or your virtualization backend) does not support 
 graceful shutdown.
 </longdesc>
 <shortdesc lang="en">Force shutdown on stop</shortdesc>
-<content type="boolean" default="0" />
+<content type="boolean" default="${OCF_RESKEY_force_stop_default}" />
+</parameter>
+
+<parameter name="migration_transport" unique="1" required="0">
+<longdesc lang="en">
+Transport used to connect to the remote hypervisor while
+migrating. Please refer to the libvirt documentation for details on
+transports available. If this parameter is omitted, the resource will
+use libvirt's default transport to connect to the remote hypervisor.
+</longdesc>
+<shortdesc lang="en">Remote hypervisor transport</shortdesc>
+<content type="string" default="" />
 </parameter>
 
 <parameter name="monitor_scripts" unique="0" required="0">
@@ -76,9 +85,9 @@ graceful shutdown.
 To additionally monitor services within the virtual domain, add this 
 parameter with a list of scripts to monitor.
 
-Note: when monitor scripts are used, the start operation will complete
-only when all monitor scripts have completed successfully. Be sure to
-set the timeout of your start operation to accommodate this delay.
+Note: when monitor scripts are used, the start and migrate_from operations
+will complete only when all monitor scripts have completed successfully. 
+Be sure to set the timeout of these operations to accommodate this delay.
 </longdesc>
 <shortdesc lang="en">space-separated list of monitor scripts</shortdesc>
 <content type="string" default="" />
@@ -91,6 +100,8 @@ set the timeout of your start operation to accommodate this delay.
 <action name="stop" timeout="90" />
 <action name="status" depth="0" timeout="30" interval="10" />
 <action name="monitor" depth="0" timeout="30" interval="10" />
+<action name="migrate_from" timeout="60" />
+<action name="migrate_to" timeout="120" />
 <action name="meta-data" timeout="5" />
 <action name="validate-all" timeout="5" />
 </actions>
@@ -99,14 +110,7 @@ EOF
 }
 
 # Set options to be passed to virsh:
-#
-# if OCF_RESKEY_hypervisor is set, add the --connect option.
-# Otherwise, omit it so virsh connects to libvirt's
-# system-dependent default hypervisor. 
-if [ -n "$OCF_RESKEY_hypervisor" ]; then
-    VIRSH_OPTIONS="--connect=${OCF_RESKEY_hypervisor}"
-fi
-VIRSH_OPTIONS="${VIRSH_OPTIONS} --quiet"
+VIRSH_OPTIONS="--connect=${OCF_RESKEY_hypervisor} --quiet"
 
 VirtualDomain_Define() {
     # Note: passing in the domain name from outside the script is
@@ -125,7 +129,9 @@ VirtualDomain_Status() {
     rc=$OCF_ERR_GENERIC
     status="`virsh $VIRSH_OPTIONS domstate $DOMAIN_NAME`"
     case $status in
-	"shut off")
+	"shut off"|"no state")
+	    # shut off: domain is defined, but not started
+	    # no state: domain is migrating (migration target only)
 	    rc=$OCF_NOT_RUNNING
 	    ;;
 	running|paused|blocked)
@@ -175,6 +181,46 @@ VirtualDomain_Stop() {
 	ocf_log info "Domain $DOMAIN_NAME already stopped."
 	return $OCF_SUCCESS
     fi
+}
+
+VirtualDomain_Migrate_To() {
+    local target_node
+    local remoteuri
+    local transport_suffix
+
+    target_node="$OCF_RESKEY_CRM_meta_migrate_target"
+
+    if VirtualDomain_Status ${DOMAIN_NAME}; then
+        # Find out the remote hypervisor to connect to. That is, turn
+        # something like "qemu://foo:9999/system" into
+        # "qemu+tcp://bar:9999/system"
+	if [ -n "${OCF_RESKEY_migration_transport}" ]; then
+	    transport_suffix="+${OCF_RESKEY_migration_transport}"
+	fi
+        # Scared of that sed expression? So am I. :-)
+	remoteuri=$(echo ${OCF_RESKEY_hypervisor} | sed -e "s/\(.*\):\/\/[^\/\:]*\(:\?[0-9]*\)\/\(.*\)/\1${transport_suffix}:\/\/${target_node}\2\/\3/")
+
+	# OK, we know where to connect to. Now do the actual migration.
+	ocf_log info "$DOMAIN_NAME: Starting live migration to ${remoteuri}"
+	virsh ${VIRSH_OPTIONS} migrate --live $DOMAIN_NAME ${remoteuri}
+	rc=$?
+	if [ $rc -ne 0 ]; then
+	    ocf_log err "$DOMAIN_NAME: live migration to ${remoteuri} failed: $rc"
+	    return $OCF_ERR_GENERIC
+	else 
+	    ocf_log info "$DOMAIN_NAME: live migration to ${remoteuri} succeeded."
+	    return $OCF_SUCCESS
+	fi
+    else
+	ocf_log err "$DOMAIN_NAME: migrate_to: Not active locally!"
+	return $OCF_ERR_GENERIC
+    fi
+}
+
+VirtualDomain_Migrate_From() {
+    while sleep 1; do
+	VirtualDomain_Monitor && return $OCF_SUCCESS
+    done
 }
 
 VirtualDomain_Monitor() {
@@ -250,6 +296,12 @@ case $1 in
 	;;
     stop)
 	VirtualDomain_Stop
+	;;
+    migrate_to)
+	VirtualDomain_Migrate_To
+	;;
+    migrate_from)
+	VirtualDomain_Migrate_From
 	;;
     status)
 	VirtualDomain_Status
