@@ -384,11 +384,13 @@ char *pr_recovery(uint32_t flags, int root_list, int recover_list,
 void print_rsb(char *line)
 {
 	char type[4], namefmt[4], *p;
+	char addr[64];
 	int rv, nodeid, root_list, recover_list, recover_locks_count, namelen;
 	uint32_t first_lkid, flags;
 
-	rv = sscanf(line, "%s %d %u %u %d %d %u %u %s",
+	rv = sscanf(line, "%s %s %d %u %u %d %d %u %u %s",
 		    type,
+		    addr,
 		    &nodeid,
 		    &first_lkid,
 		    &flags,
@@ -398,7 +400,7 @@ void print_rsb(char *line)
 		    &namelen,
 		    namefmt);
 
-	if (rv != 9)
+	if (rv != 10)
 		goto fail;
 
 	/* used for lkb prints */
@@ -413,6 +415,8 @@ void print_rsb(char *line)
 	if (!p)
 		goto fail;
 	p += 4;
+
+	strcat(addr, " ");
 
 	if (!strncmp(namefmt, "str", 3))
 		printf("Resource len %2d  \"%s\"\n", namelen, p);
@@ -641,7 +645,6 @@ void do_lockdebug(char *name)
  raw:
 		printf("%s", line);
 	}
- out:
 	fclose(file);
 }
 
