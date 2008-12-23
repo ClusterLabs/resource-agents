@@ -50,7 +50,7 @@ for this virtual domain.
 <content type="string" default="" />
 </parameter>
 
-<parameter name="hypervisor" unique="1" required="0">
+<parameter name="hypervisor" unique="0" required="0">
 <longdesc lang="en">
 Hypervisor URI to connect to. See the libvirt documentation for
 details on supported URI formats. The default is system dependent.
@@ -59,7 +59,7 @@ details on supported URI formats. The default is system dependent.
 <content type="string" default="${OCF_RESKEY_hypervisor_default}"/>
 </parameter>
 
-<parameter name="force_stop" unique="1" required="0">
+<parameter name="force_stop" unique="0" required="0">
 <longdesc lang="en">
 Forcefully shut down ("destroy") the domain on stop. Enable this only if 
 your virtual domain (or your virtualization backend) does not support 
@@ -69,7 +69,7 @@ graceful shutdown.
 <content type="boolean" default="${OCF_RESKEY_force_stop_default}" />
 </parameter>
 
-<parameter name="migration_transport" unique="1" required="0">
+<parameter name="migration_transport" unique="0" required="0">
 <longdesc lang="en">
 Transport used to connect to the remote hypervisor while
 migrating. Please refer to the libvirt documentation for details on
