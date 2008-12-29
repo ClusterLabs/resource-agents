@@ -248,36 +248,31 @@ mysql_validate() {
 # checking the parameters
     if [ ! -x $OCF_RESKEY_binary ]; then
 	ocf_log err "mysqld binary $OCF_RESKEY_binary does not exist or is not executable";
-	exit $OCF_ERR_INSTALLED;
+	return $OCF_ERR_INSTALLED;
     fi
 
     if [ ! -f $OCF_RESKEY_config ]; then
 	ocf_log err "Config $OCF_RESKEY_config doesn't exist";
-	exit $OCF_ERR_INSTALLED;
+	return $OCF_ERR_CONFIGURED;
     fi
     
     if [ ! -d $OCF_RESKEY_datadir ]; then
-	ocf_log err "Datadir $OCF_RESKEY_datadir dosen't exist";
-	exit $OCF_ERR_INSTALLED;
+	ocf_log err "Datadir $OCF_RESKEY_datadir doesn't exist";
+	return $OCF_ERR_CONFIGURED;
     fi
     
     getent passwd $OCF_RESKEY_user >/dev/null 2>&1
     if [ ! $? -eq 0 ]; then
 	ocf_log err "User $OCF_RESKEY_user doesn't exit";
-	exit $OCF_ERR_INSTALLED;
+	return $OCF_ERR_INSTALLED;
     fi
     
     getent group $OCF_RESKEY_group >/dev/null 2>&1
     if [ ! $? -eq 0 ]; then
 	ocf_log err "Group $OCF_RESKEY_group doesn't exist";
-	exit $OCF_ERR_INSTALLED;
+	return $OCF_ERR_INSTALLED;
     fi
-
-    piddir=`dirname $OCF_RESKEY_pid`
-    if ! su -s /bin/sh - $OCF_RESKEY_user -c "test -w $piddir"; then
-	ocf_log err "Directory $piddir for pidfile $OCF_RESKEY_pid is not writable by $OCF_RESKEY_user"
-	exit $OCF_ERR_PERM;
-    fi
+    true
 }
 
 mysql_status() {
@@ -329,7 +324,7 @@ mysql_start() {
 	ocf_log info "MySQL already running"
 	return $OCF_SUCCESS
     fi
-	
+
     touch $OCF_RESKEY_log
     chown $OCF_RESKEY_user:$OCF_RESKEY_group $OCF_RESKEY_log
     chmod 0640 $OCF_RESKEY_log
@@ -347,6 +342,10 @@ mysql_start() {
     fi
 
     pid_dir=`dirname $OCF_RESKEY_pid`
+    if ! su -s /bin/sh - $OCF_RESKEY_user -c "test -w $pid_dir"; then
+	ocf_log err "Directory $pid_dir for pidfile $OCF_RESKEY_pid is not writable by $OCF_RESKEY_user"
+	return $OCF_ERR_PERM;
+    fi
     if [ ! -d $pid_dir ] ; then
 	ocf_log info "Creating PID dir: $pid_dir"
 	mkdir -p $pid_dir
@@ -429,20 +428,28 @@ case "$1" in
 		exit $OCF_SUCCESS;;
   usage|help)	usage
 		exit $OCF_SUCCESS;;
-  monitor)	mysql_monitor
-		exit $?;;
 esac
 
 mysql_validate
+rc=$?
+LSB_STATUS_STOPPED=3
+if [ $rc -ne 0 ]; then
+	case "$1" in
+		stop) exit $OCF_SUCCESS;;
+		monitor) exit $OCF_NOT_RUNNING;;
+		status) exit $LSB_STATUS_STOPPED;;
+		*) exit $rc;;
+	esac
+fi
 
 # What kind of method was invoked?
 case "$1" in
   start)	mysql_start;;
   stop)		mysql_stop;;
   status)	mysql_status;;
+  monitor)	mysql_monitor;;
   validate-all)	exit $OCF_SUCCESS;;
 
  *)		usage
 		exit $OCF_ERR_UNIMPLEMENTED;;
 esac
-exit $?
