@@ -274,7 +274,7 @@ mysql_validate() {
     fi
 
     piddir=`dirname $OCF_RESKEY_pid`
-    if ! su - $OCF_RESKEY_user -c "test -w $piddir"; then
+    if ! su -s /bin/sh - $OCF_RESKEY_user -c "test -w $piddir"; then
 	ocf_log err "Directory $piddir for pidfile $OCF_RESKEY_pid is not writable by $OCF_RESKEY_user"
 	exit $OCF_ERR_PERM;
     fi
@@ -425,9 +425,12 @@ mysql_stop() {
 }
 
 case "$1" in
-  meta-data)	meta_data; exit $OCF_SUCCESS;;
+  meta-data)	meta_data
+		exit $OCF_SUCCESS;;
   usage|help)	usage
 		exit $OCF_SUCCESS;;
+  monitor)	mysql_monitor
+		exit $?;;
 esac
 
 mysql_validate
@@ -437,7 +440,6 @@ case "$1" in
   start)	mysql_start;;
   stop)		mysql_stop;;
   status)	mysql_status;;
-  monitor)	mysql_monitor;;
   validate-all)	exit $OCF_SUCCESS;;
 
  *)		usage
