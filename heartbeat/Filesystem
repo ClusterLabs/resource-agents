@@ -597,11 +597,8 @@ Filesystem_stop()
 		for SUB in `list_submounts $MOUNTPOINT` $MOUNTPOINT; do
 			ocf_log info "Trying to unmount $MOUNTPOINT"
 			for sig in SIGTERM SIGTERM SIGTERM SIGKILL SIGKILL SIGKILL; do
-				if $UMOUNT $umount_force $SUB ; then
-					rc=$OCF_SUCCESS
-					ocf_log info "unmounted $SUB successfully"
-					break
-				else
+				$UMOUNT $umount_force $SUB
+				if list_mounts | grep -q " $SUB " >/dev/null 2>&1; then
 					rc=$OCF_ERR_GENERIC
 					ocf_log err "Couldn't unmount $SUB; trying cleanup with $sig"
 					# fuser returns a non-zero return code if none of the
@@ -621,6 +618,10 @@ Filesystem_stop()
 						fi
 					fi
 					sleep 1
+				else
+					rc=$OCF_SUCCESS
+					ocf_log info "unmounted $SUB successfully"
+					break
 				fi
 			done
 
