@@ -197,7 +197,7 @@ drbd_init() {
 
 	if [ ! -f "$DRBDCONF" ]; then
 		ocf_log err "drbd.conf not installed."
-		if [ '$ACTION' = 'monitor' ]; then
+		if [ "$ACTION" = 'monitor' ]; then
 			exit $OCF_NOT_RUNNING
 		else
 			exit $OCF_ERR_INSTALLED
