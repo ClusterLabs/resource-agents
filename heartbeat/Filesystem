@@ -122,6 +122,9 @@ The optional type of filesystem to be mounted.
 <parameter name="options">
 <longdesc lang="en">
 Any extra options to be given as -o options to mount.
+
+For bind mounts, add "bind" here and set fstype to "none".
+We will do the right thing for options such as "bind,ro".
 </longdesc>
 <shortdesc lang="en">options</shortdesc>
 <content type="string" default="" />
@@ -176,7 +179,7 @@ determine_blockdevice() {
 	# Get the current real device name, if possible.
 	# (specified devname could be -L or -U...)
 	case "$FSTYPE" in
-	nfs|smbfs|cifs) ;;
+	nfs|smbfs|cifs|none) ;;
 	*)	DEVICE=`list_mounts | grep " $MOUNTPOINT " | cut -d' ' -f1`
 		if [ -b "$DEVICE" ]; then
 		  blockdevice=yes
@@ -321,6 +324,31 @@ ocfs2_init()
 	OCFS2_FS_ROOT=$OCFS2_CLUSTER_ROOT/heartbeat/$OCFS2_UUID
 }
 
+# kernels < 2.6.26 can't handle bind remounts
+bind_kernel_check() {
+	echo "$options" | grep -w ro >/dev/null 2>&1 ||
+		return
+	uname -r | awk -F. '
+	$1==2 && $2==6 {
+		sub("[^0-9].*","",$3);
+		if ($3<26)
+			exit(1);
+	}'
+	[ $? -ne 0 ] &&
+		ocf_log warn "kernel `uname -r` cannot handle read only bind mounts"
+}
+bind_mount() {
+	if echo "$options" | grep -w bind >/dev/null 2>&1 &&
+		[ "$options" != "-o bind" ]
+	then
+		bind_kernel_check
+		bind_opts=`echo $options | sed 's/bind/remount/'`
+		$MOUNT $bind_opts $MOUNTPOINT
+	else
+		true # make sure to return OK
+	fi
+}
+
 #
 # START: Start up the filesystem
 #
@@ -349,7 +377,7 @@ Filesystem_start()
 		# RA magically load a kernel module?
 		$MODPROBE scsi_hostadapter >/dev/null 2>&1
 
-		if [ -z "$FSTYPE" ]; then
+		if [ -z "$FSTYPE" -o "$FSTYPE" = none ]; then
 			: No FSTYPE specified, rely on the system has the right file-system support already 
 		else
 			# Insert Filesystem module
@@ -374,7 +402,7 @@ Filesystem_start()
 
 		if
 		  case $FSTYPE in
-		    ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs|cifs|smbfs|ocfs2|gfs2|bind|lustre)	false;;
+		    ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs|cifs|smbfs|ocfs2|gfs2|none|lustre)	false;;
 		    *)									true;;
 		  esac
 		then
@@ -401,11 +429,13 @@ Filesystem_start()
 
 	flushbufs $DEVICE
 	# Mount the filesystem.
-	if [ -z "$FSTYPE" ]; then
-		$MOUNT $options $DEVICE $MOUNTPOINT
-	else
-		$MOUNT -t $FSTYPE $options $DEVICE $MOUNTPOINT
-        fi
+	case "$FSTYPE" in
+	none) $MOUNT $options $DEVICE $MOUNTPOINT &&
+		bind_mount
+		;;
+	"") $MOUNT $options $DEVICE $MOUNTPOINT ;;
+	*) $MOUNT -t $FSTYPE $options $DEVICE $MOUNTPOINT ;;
+        esac
 
         if [ $? -ne 0 ]; then
 		ocf_log err "Couldn't mount filesystem $DEVICE on $MOUNTPOINT"
@@ -689,7 +719,7 @@ Filesystem_validate_all()
 	# Check if the $FSTYPE is workable
 	# NOTE: Without inserting the $FSTYPE module, this step may be imprecise
 	# TODO: This is Linux specific crap.
-	if [ ! -z "$FSTYPE" ]; then
+	if [ ! -z "$FSTYPE" -a "$FSTYPE" != none ]; then
 		cut -f2 /proc/filesystems |grep -q ^$FSTYPE$
 		if [ $? -ne 0 ]; then
 			modpath=/lib/modules/`uname -r` 
@@ -802,7 +832,7 @@ esac
 case $FSTYPE in
 ocfs2)	ocfs2_init
 	;;
-nfs|bind|gfs2)	: # this is kind of safe too
+nfs|none|gfs2)	: # this is kind of safe too
 	;;
 *)	if [ -n "$OCF_RESKEY_CRM_meta_clone" ]; then
 		ocf_log err "DANGER! $FSTYPE on $DEVICE is NOT cluster-aware!"
