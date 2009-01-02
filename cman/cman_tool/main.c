@@ -564,8 +564,15 @@ static void leave(commandline_t *comline)
 	if (result) {
 		die("Error leaving cluster: %s", cman_error(errno));
 	}
-
 	cman_finish(h);
+
+	/* Wait until cman shuts down */
+	if (comline->wait_opt) {
+		while ( (h = cman_admin_init(NULL)) ) {
+			cman_finish(h);
+			sleep(1);
+		}
+	}
 }
 
 static void set_expected(commandline_t *comline)
