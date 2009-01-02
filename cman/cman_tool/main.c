@@ -561,7 +561,7 @@ static void leave(commandline_t *comline)
 	}
 
 	result = cman_shutdown(h, flags);
-	if (result) {
+	if (result && !comline->wait_opt) {
 		die("Error leaving cluster: %s", cman_error(errno));
 	}
 	cman_finish(h);
