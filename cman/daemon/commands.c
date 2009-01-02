@@ -1004,7 +1004,7 @@ static int do_cmd_try_shutdown(struct connection *con, char *cmdbuf)
 	int flags = *(int *)cmdbuf;
 
 	/* Are we already in shutdown ? */
-	if (shutdown_con)
+	if (shutdown_con || quit_threads)
 		return -EALREADY;
 
 	shutdown_con = con;
@@ -1015,6 +1015,7 @@ static int do_cmd_try_shutdown(struct connection *con, char *cmdbuf)
 
 	/* If no-one is listening for events then we can just go down now */
 	if (shutdown_expected == 0) {
+		quit_threads = 1;
 		send_leave(CLUSTER_LEAVEFLAG_DOWN);
 		return 0;
 	}
