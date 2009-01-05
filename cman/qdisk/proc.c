@@ -185,14 +185,14 @@ print_qdisk_info(struct devnode *dn)
 	time_t timestamp = (time_t)qh->qh_timestamp;
 
 	for (dp = dn->devpath; dp; dp = dp->next)
-		logt_print(LOG_INFO, "%s:\n", dp->path);
-	logt_print(LOG_INFO, "\tMagic:                %08x\n", qh->qh_magic);
-	logt_print(LOG_INFO, "\tLabel:                %s\n", qh->qh_cluster);
-	logt_print(LOG_INFO, "\tCreated:              %s", ctime(&timestamp));
-	logt_print(LOG_INFO, "\tHost:                 %s\n", qh->qh_updatehost);
-	logt_print(LOG_INFO, "\tKernel Sector Size:   %d\n", qh->qh_kernsz);
+		printf("%s:\n", dp->path);
+	printf("\tMagic:                %08x\n", qh->qh_magic);
+	printf("\tLabel:                %s\n", qh->qh_cluster);
+	printf("\tCreated:              %s", ctime(&timestamp));
+	printf("\tHost:                 %s\n", qh->qh_updatehost);
+	printf("\tKernel Sector Size:   %d\n", qh->qh_kernsz);
 	if (qh->qh_version == VERSION_MAGIC_V2) {
-		logt_print(LOG_INFO, "\tRecorded Sector Size: %d\n\n", (int)qh->qh_blksz);
+		printf("\tRecorded Sector Size: %d\n\n", (int)qh->qh_blksz);
 	}
 }
 
