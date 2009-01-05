@@ -6,12 +6,7 @@
 
 #include "copyright.cf"
 #include "editconf.h"
-#ifdef LEGACY_CODE
-#include "update.h"
-#include "libccscompat.h"
-#else
 #include "ccs.h"
-#endif
 
 
 /*
@@ -20,11 +15,7 @@
  */
 static char *errstring(int retcode)
 {
-#ifdef LEGACY_CODE
-	return strerror(retcode);
-#else
 	return strerror(errno);
-#endif
 }
 
 static void tool_print_usage(FILE *stream);
@@ -90,9 +81,7 @@ static int test_main(int argc, char *argv[], int old_format){
     } else {
       printf("Connect successful.\n");
       printf(" Connection descriptor = %d\n", desc);
-#ifndef LEGACY_CODE
       ccs_disconnect(desc);
-#endif
     }
   }
   else if(!strcmp(argv[1], "disconnect")){
@@ -100,11 +89,7 @@ static int test_main(int argc, char *argv[], int old_format){
       fprintf(stderr, "Wrong number of arguments.\n");
       exit(EXIT_FAILURE);
     }
-#ifdef LEGACY_CODE
-    desc = atoi(argv[2]);
-#else
     desc = ccs_connect();
-#endif
     if((error = ccs_disconnect(desc))){
       fprintf(stderr, "ccs_disconnect failed: %s\n", errstring(-error));
       exit(EXIT_FAILURE);
@@ -117,11 +102,7 @@ static int test_main(int argc, char *argv[], int old_format){
       fprintf(stderr, "Wrong number of arguments.\n");
       exit(EXIT_FAILURE);
     }
-#ifdef LEGACY_CODE
-    desc = atoi(argv[2]);
-#else
     desc = ccs_connect();
-#endif
     if((desc < 0) || (error = ccs_get(desc, argv[3], &str))){
       fprintf(stderr, "ccs_get failed: %s\n", errstring(-error));
       exit(EXIT_FAILURE);
@@ -134,9 +115,7 @@ static int test_main(int argc, char *argv[], int old_format){
 		    printf("%s\n", str);
 	    }
       if(str)free(str);
-#ifndef LEGACY_CODE
       ccs_disconnect(desc);
-#endif
     }
   }
   else {
@@ -165,7 +144,6 @@ static void test_print_usage(FILE *stream)
 	  );
 }
 
-#ifndef LEGACY_CODE
 static int xpath_query(int argc, char **argv)
 {
 	int handle;
@@ -200,7 +178,6 @@ static int xpath_query(int argc, char **argv)
 	ccs_disconnect(handle);
 	return 0;
 }
-#endif
 
 static int tool_main(int argc, char *argv[])
 {
@@ -226,38 +203,9 @@ static int tool_main(int argc, char *argv[])
       tool_print_usage(stdout);
       exit(EXIT_SUCCESS);
     }
-#ifdef LEGACY_CODE
-    /* Update is meaningless now */
-    else if(!strcmp(argv[optind], "update")){
-      if(optind+1 >= argc){
-	fprintf(stderr, "Too few arguments.\n"
-		"Try 'ccs_tool help' for help.\n");
-	exit(EXIT_FAILURE);
-      }
-      if(update(argv[optind+1])){
-	fprintf(stderr, "\nFailed to update config file.\n");
-	exit(EXIT_FAILURE);
-      }
-      printf("\nUpdate complete.\n");
-    }
-    /* Do old ccs queries */
-    else if(!strcmp(argv[optind], "query")){
-	    char *new_argv[argc+2];
-	    int i;
-
-	    new_argv[0] = "ccs_test";
-	    new_argv[1] = "get";
-	    new_argv[2] = "0"; /* Dummy connection ID */
-	    for (i=2; i<argc; i++)
-		    new_argv[1+i] = argv[i];
-
-	    return test_main(argc+1, new_argv, 0);
-    }
-#else
     else if(!strcmp(argv[optind], "query")){
 	    return xpath_query(argc-1, argv+1);
     }
-#endif
     else if(!strcmp(argv[optind], "addnode")){
 	    add_node(argc-1, argv+1);
 	    exit(EXIT_SUCCESS);
@@ -316,12 +264,7 @@ static void tool_print_usage(FILE *stream){
 	  "\n"
 	  "Commands:\n"
 	  "  help                Print this usage and exit.\n"
-#ifdef LEGACY_CODE
-	  "  update <xml file>   Tells ccsd to upgrade to new config file version.\n"
-	  "  query <ccs query>   Query the cluster configuration.\n"
-#else
 	  "  query <xpath query> Query the cluster configuration.\n"
-#endif
 	  "  addnode <node>      Add a node\n"
           "  delnode <node>      Delete a node\n"
           "  lsnode              List nodes\n"

@@ -112,8 +112,6 @@ fi
 #                   LDAP_BINDDN and LDAP_BINDPWD have to be either both set or both unset.
 # corosync_parser - use internal corosync config file parser.
 # openaisparser   - use internal openais config file parser.
-# ccsconfig       - read configuration from ccsd daemon. This method is deprecated
-#                   and available only if building the code with --enable_legacy_code.
 [ -n "$CONFIG_LOADER" ] && cman_join_opts+=" -C $CONFIG_LOADER"
 
 local_chkconfig()
@@ -165,19 +163,6 @@ start_configfs()
     return 0
 }
 
-start_ccsd()
-{
-    # ccsd
-    $status ccsd > /dev/null
-    if [ $? -ne 0 ]
-    then
-	errmsg=$(@SBINDIR@/ccsd $CCSD_OPTS 2>&1)
-	rtrn=$?
-	return $rtrn
-    fi
-    return 0
-}
-
 start_cman()
 {
     # cman
@@ -202,23 +187,6 @@ start_cman()
 		else
 		    errmsg="ldadconfig has been select but neither LDAP_URL or LDAP_BASEDN have been set"
 		    return 1
-		fi
-		;;
-	    ccsconfig)
-		if [ -x @SBINDIR@/ccsd ]; then
-		    echo -n "   Starting ccsd... "
-		    start_ccsd
-		    if [ $? -eq 0 ] 
-		    then
-			echo "done"
-		    else
-			echo "failed"
-			errmsg="Unable to start ccsd"
-			return 1
-		    fi
-		else
-			errmsg="ccsconfig has been selected but ccsd does not appear to be installed or executable"
-			return 1
 		fi
 		;;
 	    *)
@@ -541,27 +509,6 @@ stop_configfs()
     return 0
 }
 
-stop_ccsd()
-{
-    for sec in $(seq 1 10)
-    do
-	if pidof ccsd > /dev/null 2>&1
-	then
-	    # get the pid of ccsd from /var/run/cluster/ccsd.pid
-	    # and break if the file is not there
-	    [ -r /var/run/cluster/ccsd.pid ] || break
-
-	    pid=$(cat /var/run/cluster/ccsd.pid)
-	    kill $pid > /dev/null 2>&1 || break
-	    
-	    sleep 1
-	else
-	    return 0
-	fi
-    done
-    return 1
-}
-
 stop_cman()
 {
     @SBINDIR@/cman_tool status > /dev/null 2>&1
@@ -677,16 +624,6 @@ stop()
 #   stop_daemons
 #   [ $? -ne 0 ] && return 1
 
-    echo -n "   Stopping ccsd... "
-    stop_ccsd
-    if [ $? -eq 0 ]
-    then
-	echo "done"
-    else
-	echo "failed"
-	return 1
-    fi
-
     echo -n "   Unmounting configfs... "
     stop_configfs
     if [ $? -eq 0 ]
@@ -702,10 +639,6 @@ stop()
 
 cmanstatus()
 {
-	if [ -n "$CONFIG_LOADER" ] && [ "$CONFIG_LOADER" = ccsconfig ]; then
-		errmsg=$( $status ccsd 2>&1) || return 1
-	fi
-
 	errmsg=$( $status groupd 2>&1) || return 1
 	errmsg=$( $status fenced 2>&1) || return 1
 	errmsg=$( $status dlm_controld 2>&1) || return 1

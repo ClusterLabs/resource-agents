@@ -11,10 +11,6 @@
 
 #include <libxml/tree.h>
 
-#ifdef LEGACY_CODE
-#include "update.h"
-#endif
-
 #define MAX_NODES 256
 
 char *prog_name = "ccs_tool";
@@ -227,16 +223,6 @@ static void save_file(xmlDoc *doc, struct option_info *ninfo)
 				die("Can't move old config fileback in place - clean up after me please\n");
 		}
 	}
-
-#ifdef LEGACY_CODE
-	/* Try to tell ccsd if needed */
-	if ((strcmp(ninfo->configfile, ninfo->outputfile) == 0 && ninfo->tell_ccsd) ||
-	    ninfo->force_ccsd)
-	{
-		printf("running ccs_tool update...\n");
-		update(ninfo->outputfile);
-	}
-#endif
 
 	/* free the document */
 	xmlFreeDoc(doc);
