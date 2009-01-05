@@ -14,7 +14,6 @@
 #include <corosync/mar_gen.h>
 #include <corosync/ipc_gen.h>
 #include <corosync/ais_util.h>
-#include <corosync/quorum.h>
 #include <corosync/cfg.h>
 #include <corosync/confdb.h>
 #include <corosync/cmanquorum.h>

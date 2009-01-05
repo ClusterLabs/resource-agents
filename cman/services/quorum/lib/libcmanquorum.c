@@ -10,7 +10,6 @@
 #include <sys/socket.h>
 #include <errno.h>
 
-#include <openais/saAis.h>
 #include <corosync/mar_gen.h>
 #include <corosync/ipc_gen.h>
 #include <corosync/ais_util.h>
@@ -50,23 +49,23 @@ cs_error_t cmanquorum_initialize (
 	cmanquorum_handle_t *handle,
 	cmanquorum_callbacks_t *callbacks)
 {
-	SaAisErrorT error;
+	cs_error_t error;
 	struct cmanquorum_inst *cmanquorum_inst;
 
 	error = saHandleCreate (&cmanquorum_handle_t_db, sizeof (struct cmanquorum_inst), handle);
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		goto error_no_destroy;
 	}
 
 	error = saHandleInstanceGet (&cmanquorum_handle_t_db, *handle, (void *)&cmanquorum_inst);
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		goto error_destroy;
 	}
 
 	error = saServiceConnect (&cmanquorum_inst->dispatch_fd,
 				  &cmanquorum_inst->response_fd,
 				  CMANQUORUM_SERVICE);
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		goto error_put_destroy;
 	}
 
@@ -79,7 +78,7 @@ cs_error_t cmanquorum_initialize (
 
 	saHandleInstancePut (&cmanquorum_handle_t_db, *handle);
 
-	return (SA_AIS_OK);
+	return (CS_OK);
 
 error_put_destroy:
 	saHandleInstancePut (&cmanquorum_handle_t_db, *handle);
@@ -93,10 +92,10 @@ cs_error_t cmanquorum_finalize (
 	cmanquorum_handle_t handle)
 {
 	struct cmanquorum_inst *cmanquorum_inst;
-	SaAisErrorT error;
+	cs_error_t error;
 
 	error = saHandleInstanceGet (&cmanquorum_handle_t_db, handle, (void *)&cmanquorum_inst);
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		return (error);
 	}
 
@@ -142,7 +141,7 @@ cs_error_t cmanquorum_getinfo (
 	struct res_lib_cmanquorum_getinfo res_lib_cmanquorum_getinfo;
 
 	error = saHandleInstanceGet (&cmanquorum_handle_t_db, handle, (void *)&cmanquorum_inst);
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		return (error);
 	}
 
@@ -160,7 +159,7 @@ cs_error_t cmanquorum_getinfo (
 
 	pthread_mutex_unlock (&cmanquorum_inst->response_mutex);
 
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		goto error_exit;
 	}
 
@@ -191,7 +190,7 @@ cs_error_t cmanquorum_setexpected (
 	struct res_lib_cmanquorum_status res_lib_cmanquorum_status;
 
 	error = saHandleInstanceGet (&cmanquorum_handle_t_db, handle, (void *)&cmanquorum_inst);
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		return (error);
 	}
 
@@ -209,7 +208,7 @@ cs_error_t cmanquorum_setexpected (
 
 	pthread_mutex_unlock (&cmanquorum_inst->response_mutex);
 
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		goto error_exit;
 	}
 
@@ -233,7 +232,7 @@ cs_error_t cmanquorum_setvotes (
 	struct res_lib_cmanquorum_status res_lib_cmanquorum_status;
 
 	error = saHandleInstanceGet (&cmanquorum_handle_t_db, handle, (void *)&cmanquorum_inst);
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		return (error);
 	}
 
@@ -252,7 +251,7 @@ cs_error_t cmanquorum_setvotes (
 
 	pthread_mutex_unlock (&cmanquorum_inst->response_mutex);
 
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		goto error_exit;
 	}
 
@@ -279,7 +278,7 @@ cs_error_t cmanquorum_qdisk_register (
 		return CS_ERR_INVALID_PARAM;
 
 	error = saHandleInstanceGet (&cmanquorum_handle_t_db, handle, (void *)&cmanquorum_inst);
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		return (error);
 	}
 
@@ -298,7 +297,7 @@ cs_error_t cmanquorum_qdisk_register (
 
 	pthread_mutex_unlock (&cmanquorum_inst->response_mutex);
 
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		goto error_exit;
 	}
 
@@ -321,7 +320,7 @@ cs_error_t cmanquorum_qdisk_poll (
 	struct res_lib_cmanquorum_status res_lib_cmanquorum_status;
 
 	error = saHandleInstanceGet (&cmanquorum_handle_t_db, handle, (void *)&cmanquorum_inst);
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		return (error);
 	}
 
@@ -339,7 +338,7 @@ cs_error_t cmanquorum_qdisk_poll (
 
 	pthread_mutex_unlock (&cmanquorum_inst->response_mutex);
 
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		goto error_exit;
 	}
 
@@ -361,7 +360,7 @@ cs_error_t cmanquorum_qdisk_unregister (
 	struct res_lib_cmanquorum_status res_lib_cmanquorum_status;
 
 	error = saHandleInstanceGet (&cmanquorum_handle_t_db, handle, (void *)&cmanquorum_inst);
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		return (error);
 	}
 
@@ -378,7 +377,7 @@ cs_error_t cmanquorum_qdisk_unregister (
 
 	pthread_mutex_unlock (&cmanquorum_inst->response_mutex);
 
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		goto error_exit;
 	}
 
@@ -403,7 +402,7 @@ cs_error_t cmanquorum_qdisk_getinfo (
 	struct res_lib_cmanquorum_qdisk_getinfo res_lib_cmanquorum_qdisk_getinfo;
 
 	error = saHandleInstanceGet (&cmanquorum_handle_t_db, handle, (void *)&cmanquorum_inst);
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		return (error);
 	}
 
@@ -420,7 +419,7 @@ cs_error_t cmanquorum_qdisk_getinfo (
 
 	pthread_mutex_unlock (&cmanquorum_inst->response_mutex);
 
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		goto error_exit;
 	}
 
@@ -447,7 +446,7 @@ cs_error_t cmanquorum_setdirty (
 	struct res_lib_cmanquorum_status res_lib_cmanquorum_status;
 
 	error = saHandleInstanceGet (&cmanquorum_handle_t_db, handle, (void *)&cmanquorum_inst);
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		return (error);
 	}
 
@@ -464,7 +463,7 @@ cs_error_t cmanquorum_setdirty (
 
 	pthread_mutex_unlock (&cmanquorum_inst->response_mutex);
 
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		goto error_exit;
 	}
 
@@ -486,7 +485,7 @@ cs_error_t cmanquorum_leaving (
 	struct res_lib_cmanquorum_status res_lib_cmanquorum_status;
 
 	error = saHandleInstanceGet (&cmanquorum_handle_t_db, handle, (void *)&cmanquorum_inst);
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		return (error);
 	}
 
@@ -503,7 +502,7 @@ cs_error_t cmanquorum_leaving (
 
 	pthread_mutex_unlock (&cmanquorum_inst->response_mutex);
 
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		goto error_exit;
 	}
 
@@ -527,7 +526,7 @@ cs_error_t cmanquorum_killnode (
 	struct res_lib_cmanquorum_status res_lib_cmanquorum_status;
 
 	error = saHandleInstanceGet (&cmanquorum_handle_t_db, handle, (void *)&cmanquorum_inst);
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		return (error);
 	}
 
@@ -546,7 +545,7 @@ cs_error_t cmanquorum_killnode (
 
 	pthread_mutex_unlock (&cmanquorum_inst->response_mutex);
 
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		goto error_exit;
 	}
 
@@ -569,7 +568,7 @@ cs_error_t cmanquorum_trackstart (
 	struct res_lib_cmanquorum_status res_lib_cmanquorum_status;
 
 	error = saHandleInstanceGet (&cmanquorum_handle_t_db, handle, (void *)&cmanquorum_inst);
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		return (error);
 	}
 
@@ -587,7 +586,7 @@ cs_error_t cmanquorum_trackstart (
 
 	pthread_mutex_unlock (&cmanquorum_inst->response_mutex);
 
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		goto error_exit;
 	}
 
@@ -609,7 +608,7 @@ cs_error_t cmanquorum_trackstop (
 	struct res_lib_cmanquorum_status res_lib_cmanquorum_status;
 
 	error = saHandleInstanceGet (&cmanquorum_handle_t_db, handle, (void *)&cmanquorum_inst);
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		return (error);
 	}
 
@@ -626,7 +625,7 @@ cs_error_t cmanquorum_trackstop (
 
 	pthread_mutex_unlock (&cmanquorum_inst->response_mutex);
 
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		goto error_exit;
 	}
 
@@ -643,11 +642,11 @@ cs_error_t cmanquorum_context_get (
 	cmanquorum_handle_t handle,
 	void **context)
 {
-	SaAisErrorT error;
+	cs_error_t error;
 	struct cmanquorum_inst *cmanquorum_inst;
 
 	error = saHandleInstanceGet (&cmanquorum_handle_t_db, handle, (void *)&cmanquorum_inst);
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		return (error);
 	}
 
@@ -655,18 +654,18 @@ cs_error_t cmanquorum_context_get (
 
 	saHandleInstancePut (&cmanquorum_handle_t_db, handle);
 
-	return (SA_AIS_OK);
+	return (CS_OK);
 }
 
 cs_error_t cmanquorum_context_set (
 	cmanquorum_handle_t handle,
 	void *context)
 {
-	SaAisErrorT error;
+	cs_error_t error;
 	struct cmanquorum_inst *cmanquorum_inst;
 
 	error = saHandleInstanceGet (&cmanquorum_handle_t_db, handle, (void *)&cmanquorum_inst);
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		return (error);
 	}
 
@@ -674,7 +673,7 @@ cs_error_t cmanquorum_context_set (
 
 	saHandleInstancePut (&cmanquorum_handle_t_db, handle);
 
-	return (SA_AIS_OK);
+	return (CS_OK);
 }
 
 
@@ -689,7 +688,7 @@ cs_error_t cmanquorum_dispatch (
 {
 	struct pollfd ufds;
 	int timeout = -1;
-	SaAisErrorT error;
+	cs_error_t error;
 	int cont = 1; /* always continue do loop except when set to 0 */
 	int dispatch_avail;
 	struct cmanquorum_inst *cmanquorum_inst;
@@ -697,24 +696,24 @@ cs_error_t cmanquorum_dispatch (
 	struct res_overlay dispatch_data;
 	struct res_lib_cmanquorum_notification *res_lib_cmanquorum_notification;
 
-	if (dispatch_types != SA_DISPATCH_ONE &&
-		dispatch_types != SA_DISPATCH_ALL &&
-		dispatch_types != SA_DISPATCH_BLOCKING) {
+	if (dispatch_types != CS_DISPATCH_ONE &&
+		dispatch_types != CS_DISPATCH_ALL &&
+		dispatch_types != CS_DISPATCH_BLOCKING) {
 
-		return (SA_AIS_ERR_INVALID_PARAM);
+		return (CS_ERR_INVALID_PARAM);
 	}
 
 	error = saHandleInstanceGet (&cmanquorum_handle_t_db, handle,
 		(void *)&cmanquorum_inst);
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		return (error);
 	}
 
 	/*
-	 * Timeout instantly for SA_DISPATCH_ONE or SA_DISPATCH_ALL and
-	 * wait indefinately for SA_DISPATCH_BLOCKING
+	 * Timeout instantly for CS_DISPATCH_ONE or CS_DISPATCH_ALL and
+	 * wait indefinately for CS_DISPATCH_BLOCKING
 	 */
-	if (dispatch_types == SA_DISPATCH_ALL) {
+	if (dispatch_types == CS_DISPATCH_ALL) {
 		timeout = 0;
 	}
 
@@ -726,7 +725,7 @@ cs_error_t cmanquorum_dispatch (
 		pthread_mutex_lock (&cmanquorum_inst->dispatch_mutex);
 
 		error = saPollRetry (&ufds, 1, timeout);
-		if (error != SA_AIS_OK) {
+		if (error != CS_OK) {
 			goto error_unlock;
 		}
 
@@ -734,17 +733,17 @@ cs_error_t cmanquorum_dispatch (
 		 * Handle has been finalized in another thread
 		 */
 		if (cmanquorum_inst->finalize == 1) {
-			error = SA_AIS_OK;
+			error = CS_OK;
 			goto error_unlock;
 		}
 
 		if ((ufds.revents & (POLLERR|POLLHUP|POLLNVAL)) != 0) {
-			error = SA_AIS_ERR_BAD_HANDLE;
+			error = CS_ERR_BAD_HANDLE;
 			goto error_unlock;
 		}
 
 		dispatch_avail = ufds.revents & POLLIN;
-		if (dispatch_avail == 0 && dispatch_types == SA_DISPATCH_ALL) {
+		if (dispatch_avail == 0 && dispatch_types == CS_DISPATCH_ALL) {
 			pthread_mutex_unlock (&cmanquorum_inst->dispatch_mutex);
 			break; /* exit do while cont is 1 loop */
 		} else
@@ -756,13 +755,13 @@ cs_error_t cmanquorum_dispatch (
 		if (ufds.revents & POLLIN) {
 			error = saRecvRetry (cmanquorum_inst->dispatch_fd, &dispatch_data.header,
 				sizeof (mar_res_header_t));
-			if (error != SA_AIS_OK) {
+			if (error != CS_OK) {
 				goto error_unlock;
 			}
 			if (dispatch_data.header.size > sizeof (mar_res_header_t)) {
 				error = saRecvRetry (cmanquorum_inst->dispatch_fd, &dispatch_data.data,
 					dispatch_data.header.size - sizeof (mar_res_header_t));
-				if (error != SA_AIS_OK) {
+				if (error != CS_OK) {
 					goto error_unlock;
 				}
 			}
@@ -798,7 +797,7 @@ cs_error_t cmanquorum_dispatch (
 			break;
 
 		default:
-			error = SA_AIS_ERR_LIBRARY;
+			error = CS_ERR_LIBRARY;
 			goto error_put;
 			break;
 		}
@@ -807,12 +806,12 @@ cs_error_t cmanquorum_dispatch (
 		 * Determine if more messages should be processed
 		 * */
 		switch (dispatch_types) {
-		case SA_DISPATCH_ONE:
+		case CS_DISPATCH_ONE:
 			cont = 0;
 			break;
-		case SA_DISPATCH_ALL:
+		case CS_DISPATCH_ALL:
 			break;
-		case SA_DISPATCH_BLOCKING:
+		case CS_DISPATCH_BLOCKING:
 			break;
 		}
 	} while (cont);

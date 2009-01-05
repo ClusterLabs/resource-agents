@@ -468,7 +468,7 @@ static void message_handler_req_lib_cman_bind (void *conn, void *msg)
 	if (cman_pd->port || ports[req_lib_cman_bind->port]) {
 		error = EADDRINUSE;
 	}
-	if (error == SA_AIS_OK) {
+	if (error == CS_OK) {
 		cman_pd->port = req_lib_cman_bind->port;
 		ports[cman_pd->port] = corosync_api->ipc_conn_partner_get(conn);
 
@@ -512,7 +512,7 @@ static void message_handler_req_lib_cman_sendmsg (void *conn, void *msg)
 	struct req_lib_cman_sendmsg *req_lib_cman_sendmsg = (struct req_lib_cman_sendmsg *)msg;
 	mar_res_header_t res;
 	struct cman_pd *cman_pd = (struct cman_pd *)corosync_api->ipc_private_data_get (conn);
-	int error = SA_AIS_OK;
+	int error = CS_OK;
 
 
 	if (!cman_pd->port) {
@@ -536,7 +536,7 @@ static void message_handler_req_lib_cman_is_listening (void *conn, void *msg)
 {
 	struct req_lib_cman_is_listening *req_lib_cman_is_listening = (struct req_lib_cman_is_listening *)msg;
 	struct res_lib_cman_is_listening res_lib_cman_is_listening;;
-	int error = SA_AIS_OK;
+	int error = CS_OK;
 	struct cluster_node *node;
 
 // How I think this should work:
