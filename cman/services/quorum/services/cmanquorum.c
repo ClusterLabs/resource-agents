@@ -288,6 +288,7 @@ static struct corosync_service_engine quorum_service_handler = {
 	.name				        = "corosync cman quorum service v0.90",
 	.id					= CMANQUORUM_SERVICE,
 	.private_data_size			= sizeof (struct quorum_pd),
+	.allow_inquorate			= CS_LIB_ALLOW_INQUORATE,
 	.flow_control				= COROSYNC_LIB_FLOW_CONTROL_REQUIRED,
 	.lib_init_fn				= quorum_lib_init_fn,
 	.lib_exit_fn				= quorum_lib_exit_fn,

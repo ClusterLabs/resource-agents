@@ -145,6 +145,7 @@ static struct corosync_service_engine cman_service_handler = {
 	.name				        = "corosync cluster cman service v3.01",
 	.id					= CMAN_SERVICE,
 	.private_data_size			= sizeof (struct cman_pd),
+	.allow_inquorate			= CS_LIB_ALLOW_INQUORATE,
 	.flow_control				= COROSYNC_LIB_FLOW_CONTROL_REQUIRED,
 	.lib_init_fn				= cman_lib_init_fn,
 	.lib_exit_fn				= cman_lib_exit_fn,
