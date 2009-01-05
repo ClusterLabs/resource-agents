@@ -115,7 +115,7 @@ static void cman_instance_destructor (void *instance)
 static int cmanquorum_check_and_start(struct cman_inst *cman_inst)
 {
 	if (!cman_inst->cmq_handle) {
-		if (cmanquorum_initialize(&cman_inst->cmq_handle, &cmq_callbacks) != SA_AIS_OK) {
+		if (cmanquorum_initialize(&cman_inst->cmq_handle, &cmq_callbacks) != CS_OK) {
 			errno = ENOMEM;
 			return -1;
 		}
@@ -127,7 +127,7 @@ static int cmanquorum_check_and_start(struct cman_inst *cman_inst)
 cman_handle_t cman_init (
 	void *privdata)
 {
-	SaAisErrorT error;
+	cs_error_t error;
 	struct cman_inst *cman_inst;
 
 	cman_inst = malloc(sizeof(struct cman_inst));
@@ -137,7 +137,7 @@ cman_handle_t cman_init (
 	error = saServiceConnect (&cman_inst->dispatch_fd,
 				  &cman_inst->response_fd,
 				  CMAN_SERVICE);
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		goto error;
 	}
 
@@ -169,7 +169,7 @@ int cman_finish (
 	cman_handle_t handle)
 {
 	struct cman_inst *cman_inst;
-	SaAisErrorT error;
+	cs_error_t error;
 
 	cman_inst = (struct cman_inst *)handle;
 	VALIDATE_HANDLE(cman_inst);
@@ -241,7 +241,7 @@ int cman_start_recv_data (
 
 	pthread_mutex_unlock (&cman_inst->response_mutex);
 
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		goto error_exit;
 	}
 
@@ -276,7 +276,7 @@ int cman_end_recv_data (
 
 	pthread_mutex_unlock (&cman_inst->response_mutex);
 
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		goto error_exit;
 	}
 
@@ -316,7 +316,7 @@ int cman_send_data(cman_handle_t handle, const void *message, int len, int flags
 
 	pthread_mutex_unlock (&cman_inst->response_mutex);
 
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		goto error_exit;
 	}
 
@@ -356,7 +356,7 @@ int cman_is_listening (
 
 	pthread_mutex_unlock (&cman_inst->response_mutex);
 
-	if (error != SA_AIS_OK) {
+	if (error != CS_OK) {
 		goto error_exit;
 	}
 
@@ -381,7 +381,7 @@ int cman_is_quorate(cman_handle_t handle)
 	if (!cmanquorum_check_and_start(cman_inst))
 		return -1;
 
-	if (cmanquorum_getinfo(cman_inst->cmq_handle, 0, &info) != SA_AIS_OK)
+	if (cmanquorum_getinfo(cman_inst->cmq_handle, 0, &info) != CS_OK)
 		errno = EINVAL;
 	else
 		quorate = ((info.flags & CMANQUORUM_INFO_FLAG_QUORATE) != 0);
@@ -400,7 +400,7 @@ int cman_shutdown(cman_handle_t handle, int flags)
 	VALIDATE_HANDLE(cman_inst);
 
 	if (!cman_inst->cfg_handle) {
-		if (corosync_cfg_initialize(&cman_inst->cfg_handle, &cfg_callbacks) != SA_AIS_OK) {
+		if (corosync_cfg_initialize(&cman_inst->cfg_handle, &cfg_callbacks) != CS_OK) {
 			errno = ENOMEM;
 			return -1;
 		}
@@ -424,7 +424,7 @@ int cman_leave_cluster(cman_handle_t handle, int flags)
 	VALIDATE_HANDLE(cman_inst);
 
 	if (!cman_inst->cfg_handle) {
-		if (corosync_cfg_initialize(&cman_inst->cfg_handle, &cfg_callbacks) != SA_AIS_OK) {
+		if (corosync_cfg_initialize(&cman_inst->cfg_handle, &cfg_callbacks) != CS_OK) {
 			errno = ENOMEM;
 			return -1;
 		}
@@ -446,7 +446,7 @@ int cman_replyto_shutdown(cman_handle_t handle, int flags)
 	VALIDATE_HANDLE(cman_inst);
 
 	if (!cman_inst->cfg_handle) {
-		if (corosync_cfg_initialize(&cman_inst->cfg_handle, &cfg_callbacks) != SA_AIS_OK) {
+		if (corosync_cfg_initialize(&cman_inst->cfg_handle, &cfg_callbacks) != CS_OK) {
 			errno = ENOMEM;
 			return -1;
 		}
@@ -466,7 +466,7 @@ int cman_killnode(cman_handle_t handle, unsigned int nodeid)
 	VALIDATE_HANDLE(cman_inst);
 
 	if (!cman_inst->cfg_handle) {
-		if (corosync_cfg_initialize(&cman_inst->cfg_handle, &cfg_callbacks) != SA_AIS_OK) {
+		if (corosync_cfg_initialize(&cman_inst->cfg_handle, &cfg_callbacks) != CS_OK) {
 			errno = ENOMEM;
 			return -1;
 		}
@@ -528,7 +528,7 @@ int cman_getprivdata(
 	cman_handle_t handle,
 	void **context)
 {
-	SaAisErrorT error;
+	cs_error_t error;
 	struct cman_inst *cman_inst;
 
 	cman_inst = (struct cman_inst *)handle;
@@ -536,14 +536,14 @@ int cman_getprivdata(
 
 	*context = cman_inst->privdata;
 
-	return (SA_AIS_OK);
+	return (CS_OK);
 }
 
 int cman_setprivdata(
 	cman_handle_t handle,
 	void *context)
 {
-	SaAisErrorT error;
+	cs_error_t error;
 	struct cman_inst *cman_inst;
 
 	cman_inst = (struct cman_inst *)handle;
@@ -551,7 +551,7 @@ int cman_setprivdata(
 
 	cman_inst->privdata = context;
 
-	return (SA_AIS_OK);
+	return (CS_OK);
 }
 
 
@@ -654,28 +654,28 @@ int cman_dispatch (
 {
 	struct pollfd ufds;
 	int timeout = -1;
-	SaAisErrorT error;
+	cs_error_t error;
 	int cont = 1; /* always continue do loop except when set to 0 */
 	int dispatch_avail;
 	struct cman_inst *cman_inst;
 	struct res_overlay dispatch_data;
 	struct res_lib_cman_sendmsg *res_lib_cman_sendmsg;
 
-	if (dispatch_types != SA_DISPATCH_ONE &&
-		dispatch_types != SA_DISPATCH_ALL &&
-		dispatch_types != SA_DISPATCH_BLOCKING) {
+	if (dispatch_types != CS_DISPATCH_ONE &&
+		dispatch_types != CS_DISPATCH_ALL &&
+		dispatch_types != CS_DISPATCH_BLOCKING) {
 
-		return (SA_AIS_ERR_INVALID_PARAM);
+		return (CS_ERR_INVALID_PARAM);
 	}
 
 	cman_inst = (struct cman_inst *)handle;
 	VALIDATE_HANDLE(cman_inst);
 
 	/*
-	 * Timeout instantly for SA_DISPATCH_ONE or SA_DISPATCH_ALL and
-	 * wait indefinately for SA_DISPATCH_BLOCKING
+	 * Timeout instantly for SA_DISPATCH_ONE or CS_DISPATCH_ALL and
+	 * wait indefinately for CS_DISPATCH_BLOCKING
 	 */
-	if (dispatch_types == SA_DISPATCH_ALL) {
+	if (dispatch_types == CS_DISPATCH_ALL) {
 		timeout = 0;
 	}
 
@@ -687,7 +687,7 @@ int cman_dispatch (
 		pthread_mutex_lock (&cman_inst->dispatch_mutex);
 
 		error = saPollRetry (&ufds, 1, timeout);
-		if (error != SA_AIS_OK) {
+		if (error != CS_OK) {
 			goto error_unlock;
 		}
 
@@ -695,17 +695,17 @@ int cman_dispatch (
 		 * Handle has been finalized in another thread
 		 */
 		if (cman_inst->finalize == 1) {
-			error = SA_AIS_OK;
+			error = CS_OK;
 			goto error_unlock;
 		}
 
 		if ((ufds.revents & (POLLERR|POLLHUP|POLLNVAL)) != 0) {
-			error = SA_AIS_ERR_BAD_HANDLE;
+			error = CS_ERR_BAD_HANDLE;
 			goto error_unlock;
 		}
 
 		dispatch_avail = ufds.revents & POLLIN;
-		if (dispatch_avail == 0 && dispatch_types == SA_DISPATCH_ALL) {
+		if (dispatch_avail == 0 && dispatch_types == CS_DISPATCH_ALL) {
 			pthread_mutex_unlock (&cman_inst->dispatch_mutex);
 			break; /* exit do while cont is 1 loop */
 		} else
@@ -717,13 +717,13 @@ int cman_dispatch (
 		if (ufds.revents & POLLIN) {
 			error = saRecvRetry (cman_inst->dispatch_fd, &dispatch_data.header,
 				sizeof (mar_res_header_t));
-			if (error != SA_AIS_OK) {
+			if (error != CS_OK) {
 				goto error_unlock;
 			}
 			if (dispatch_data.header.size > sizeof (mar_res_header_t)) {
 				error = saRecvRetry (cman_inst->dispatch_fd, &dispatch_data.data,
 					dispatch_data.header.size - sizeof (mar_res_header_t));
-				if (error != SA_AIS_OK) {
+				if (error != CS_OK) {
 					goto error_unlock;
 				}
 			}
@@ -759,7 +759,7 @@ int cman_dispatch (
 			break;
 
 		default:
-			error = SA_AIS_ERR_LIBRARY;
+			error = CS_ERR_LIBRARY;
 			goto error_put;
 			break;
 		}
@@ -768,12 +768,12 @@ int cman_dispatch (
 		 * Determine if more messages should be processed
 		 * */
 		switch (dispatch_types) {
-		case SA_DISPATCH_ONE:
+		case CS_DISPATCH_ONE:
 			cont = 0;
 			break;
-		case SA_DISPATCH_ALL:
+		case CS_DISPATCH_ALL:
 			break;
-		case SA_DISPATCH_BLOCKING:
+		case CS_DISPATCH_BLOCKING:
 			break;
 		}
 	} while (cont);

@@ -2,7 +2,6 @@
 #define IPC_CMAN_H_DEFINED
 
 #include <netinet/in.h>
-#include "saAis.h"
 #include "corosync/ipc_gen.h"
 
 #define CMAN_SERVICE 9
