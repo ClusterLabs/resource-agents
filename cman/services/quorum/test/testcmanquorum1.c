@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
 	if ( (err=cmanquorum_initialize(&handle, &callbacks)) != CS_OK)
 		fprintf(stderr, "cmanquorum_initialize FAILED: %d\n", err);
 
-	if (cmanquorum_trackstart(handle, CS_TRACK_CHANGES) != CS_OK)
+	if ( (err = cmanquorum_trackstart(handle, CS_TRACK_CHANGES)) != CS_OK)
 		fprintf(stderr, "cmanquorum_trackstart FAILED: %d\n", err);
 
 	if ( (err=cmanquorum_getinfo(handle, 0, &info)) != CS_OK)
