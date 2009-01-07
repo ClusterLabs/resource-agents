@@ -1,5 +1,6 @@
 include make/defines.mk
 
+
 REALSUBDIRS = gfs-kernel/src/gfs \
 	      common cman/lib config cman dlm fence/libfenced group \
 	      fence gfs gfs2 rgmanager bindings doc \
