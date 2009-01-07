@@ -2,7 +2,6 @@
 
 use warnings;
 use Getopt::Long;
-use POSIX qw(uname);
 use Cwd 'abs_path';
 use File::Basename;
 
@@ -14,190 +13,32 @@ my @invoke = @ARGV;
 
 my $ret = 0;
 
-# this should be only the major version without the extra version 
-# eg. only the first 3 digits
-my $required_kernelversion = '2.6.27';
-
 my %options = (
 	help => \$help,
-	cc => \$cc,
-	debug => \$debug,
-	cflags => \$cflags,
-	extracflags => \$extracflags,
-	ldflags => \$ldflags,
-	extraldflags => \$extraldflags,
 	objdir => \$objdir,
-	kernel_build => \$kernel_build,
-	kernel_src => \$kernel_src,
-	module_dir => \$module_dir,
-	gfskincdir => \$gfskincdir,
-        incdir => \$incdir,
-	libdir => \$libdir,
-        ccsincdir => \$ccsincdir,
-	ccslibdir => \$ccslibdir,
-	cmanincdir => \$cmanincdir,
-	cmanlibdir => \$cmanlibdir,
-	dlmincdir => \$dlmincdir,
-	dlmlibdir => \$dlmlibdir,
-	dlmcontrolincdir => \$dlmcontrolincdir,
-	dlmcontrollibdir => \$dlmcontrollibdir,
-	fenceincdir => \$fenceincdir,
-	fencelibdir => \$fencelibdir,
-	logtincdir => \$logtincdir,
-	logtlibdir => \$logtlibdir,
-	volidincdir => \$volidincdir,
-	volidlibdir => \$volidlibdir,
-	ncursesincdir => \$ncursesincdir,
-	ncurseslibdir => \$ncurseslibdir,
-	slangincdir => \$slangincdir,
-	slanglibdir => \$slanglibdir,
-	readlineincdir => \$readlineincdir,
-	readlinelibdir => \$readlinelibdir,
-	corosyncincdir => \$corosyncincdir,
-	corosynclibdir => \$corosynclibdir,
-	openaisincdir => \$openaisincdir,
-	openaislibdir => \$openaislibdir,
-	corosyncbin => \$corosyncbin,
-	virtincdir => \$virtincdir,
-	virtlibdir => \$virtlibdir,
-	zlibincdir => \$zlibincdir,
-	zliblibdir => \$zliblibdir,
-	nssincdir => \$nssincdir,
-	nsslibdir => \$nsslibdir,
-	nsprincdir => \$nsprincdir,
-	nsprlibdir => \$nsprlibdir,
-	xenincdir => \$xenincdir,
-	xenlibdir => \$xenlibdir,
-	ldapincdir => \$ldapincdir,
-	ldaplibdir => \$ldaplibdir,
-	libexecdir => \$libexecdir,
-	mandir  => \$mandir,
 	prefix => \$prefix,
-	sbindir => \$sbindir,
-	initddir => \$initddir,
 	sharedir => \$sharedir,
 	docdir => \$docdir,
 	logdir => \$logdir,
-	logrotatedir => \$logrotatedir,
-	syslogfacility => \$syslogfacility,
-	sysloglevel => \$sysloglevel,
-	mibdir => \$mibdir,
-	snmpbin => \$snmpbin,
 	confdir => \$confdir,
 	conffile => \$conffile,
-	fence_agents => \$fence_agents,
-	fenceagentslibdir => \$fenceagentslibdir,
 	enable_crack_of_the_day => \$enable_crack_of_the_day,
 	enable_legacy_code => \$enable_legacy_code,
-	enable_contrib => \$enable_contrib,
-	enable_virt => \$enable_virt,
-	enable_pacemaker => \$enable_pacemaker,
-	somajor => \$somajor,
-	sominor => \$sominor,
 	release_version => \$release_version,
-	without_common => \$without_common,
-	without_config => \$without_config,
-	without_cman => \$without_cman,
-	without_dlm => \$without_dlm,
-	without_group => \$without_group,
-	without_fence => \$without_fence,
-	without_gfs => \$without_gfs,
-	without_gfs2 => \$without_gfs2,
-	without_rgmanager => \$without_rgmanager,
-	without_bindings => \$without_bindings,
-	without_kernel_modules => \$without_kernel_modules,
-	disable_kernel_check => \$disable_kernel_check,
 );
 
 my $err = &GetOptions (\%options,
 		    'help',
-		    'cc=s',
-		    'debug',
-		    'cflags=s',
-		    'extracflags=s',
-		    'ldflags=s',
-		    'extraldflags=s',
 		    'objdir=s',
-		    'kernel_build=s',
-		    'kernel_src=s',
-		    'module_dir=s',
-		    'gfskincdir=s',
-		    'incdir=s',
-		    'libdir=s',
-		    'ccsincdir=s',
-		    'ccslibdir=s',
-		    'cmanincdir=s',
-		    'cmanlibdir=s',
-		    'dlmincdir=s',
-		    'dlmlibdir=s',
-		    'dlmcontrolincdir=s',
-		    'dlmcontrollibdir=s',
-		    'fenceincdir=s',
-		    'fencelibdir=s',
-		    'logtincdir=s',
-		    'logtlibdir=s',
-		    'volidincdir=s',
-		    'volidlibdir=s',
-		    'ncursesincdir=s',
-		    'ncurseslibdir=s',
-		    'slangincdir=s',
-		    'slanglibdir=s',
-		    'readlineincdir=s',
-		    'readlinelibdir=s',
-		    'corosyncincdir=s',
-		    'corosynclibdir=s',
-		    'openaisincdir=s',
-		    'openaislibdir=s',
-		    'corosyncbin=s',
-		    'virtincdir=s',
-		    'virtlibdir=s',
-		    'zlibincdir=s',
-		    'zliblibdir=s',
-		    'nssincdir=s',
-		    'nsslibdir=s',
-		    'nsprincdir=s',
-		    'nsprlibdir=s',
-		    'xenincdir=s',
-		    'xenlibdir=s',
-		    'ldapincdir=s',
-		    'ldaplibdir=s',
-		    'libexecdir=s',
-		    'mandir=s',
 		    'prefix=s',
-		    'sbindir=s',
-		    'initddir=s',
 		    'sharedir=s',
 		    'docdir=s',
 		    'logdir=s',
-		    'logrotatedir=s',
-		    'syslogfacility=s',
-		    'sysloglevel=s',
-		    'mibdir=s',
-		    'snmpbin=s',
 		    'confdir=s',
 		    'conffile=s',
-		    'somajor=s',
-		    'sominor=s',
 		    'release_version=s',
-		    'fence_agents=s',
-		    'fenceagentslibdir=s',
 		    'enable_crack_of_the_day',
-		    'enable_legacy_code',
-		    'enable_contrib',
-		    'enable_virt',
-		    'enable_pacemaker',
-		    'without_common',
-		    'without_config',
-		    'without_cman',
-		    'without_dlm',
-		    'without_group',
-		    'without_fence',
-		    'without_gfs',
-		    'without_gfs2',
-		    'without_rgmanager',
-		    'without_bindings',
-		    'without_kernel_modules',
-		    'disable_kernel_check');
+		    'enable_legacy_code');
 
 if(!$err) {
   $ret = 1;
@@ -212,136 +53,16 @@ if ($help || !$err) {
   print "--help\t\tPrints this usage information\n\n";
   print "install flags:\n";
   print "--prefix=\tthe base directory to install into.  (Default: /usr)\n";
-  print "--sbindir=\tthe base directory for system binaries.  (Default: {prefix}/sbin)\n";
-  print "--initddir=\tthe base directory for init.d scripts.  (Default: /etc/init.d)\n";
-  print "--libdir=\tthe base directory for libraries.  (Default: {prefix}/lib)\n";
-  print "--libexecdir=\tthe base directory for executable components.  (Default: {prefix}/libexec)\n";
   print "--sharedir=\tthe base directory for misc cluster files.  (Default: {prefix}/share/cluster)\n";
   print "--docdir=\tthe base directory for misc cluster documentation files.  (Default: {prefix}/share/doc/cluster)\n";
   print "--logdir=\tthe base directory for cluster logging files.  (Default: /var/log/cluster/)\n";
-  print "--logrotatedir=\tthe base directory for logrorate.d files.  (Default: /etc/logrotate.d/)\n";
-  print "--syslogfacility=\tset the default syslog facility.  (Default: LOG_LOCAL4)\n";
-  print "--sysloglevel=\tset the default syslog level.  (Default: LOG_INFO)\n";
-  print "--mibdir=\tthe base directory for snmp mibs.  (Default: {prefix}/share/snmp/mibs)\n";
-  print "--snmpbin=\tthe base directory for snmp binaries (Ex: /usr/bin/snmpwalk).  (Default: {prefix}/bin)\n";
   print "--confdir=\tthe cluster config directory.  (Default: /etc/cluster)\n";
   print "--conffile=\tthe cluster config file.  (Default: cluster.conf)\n";
-  print "--mandir=\tthe base directory for man pages.  (Default: {prefix}/share/man)\n";
-  print "--module_dir=\tthe base directory for kernel modules.  (Default:  /lib/modules/`uname -r`/kernel\n";
   print "\nbuild flags:\n";
-  print "--cc=\t\tcompiler to use.  (Default: gcc)\n";
-  print "--debug\t\tEnable debugging build. Changes default CFLAGS to -Wall -O0 -DDEBUG -g.\n";
-  print "--cflags=\toverride default CFLAGS settings.  (Default: -Wall -O2 -g)\n";
-  print "--extracflags=\tadd extra compiler options to default CFLAGS setting.  (Default: none)\n";
-  print "--ldflags=\toverride default LDFLAGS settings.  (Default: none)\n";
-  print "--extraldflags=\tadd extra linking options to default LDFLAGS settings.  (Default: none)\n";
   print "--objdir=\tspecify directory where to store object files.  (Defaults: current build dir)\n";
-  print "--kernel_build=\tthe directory containing the kernel object tree you wish to\n\t\tcompile against. (Default: /lib/modules/`uname -r`/build\n\t\tif available or /usr/src/linux as fallback)\n";
-  print "--kernel_src=\tthe directory containing the kernel source you wish to\n\t\tcompile against.  (Default: /lib/modules/`uname -r`/source\n\t\tif available or \$kernel_build as fallback)\n";
-  print "--incdir=\tthe base directory for include files.  (Default: {prefix}/include)\n";
-  print "--ccsincdir=\tthe base directory for ccs include files.  (Default: ./config/libs/libccsconfdb)\n";
-  print "--ccslibdir=\tthe base directory for ccs libraries.  (Default: ./config/libs/libccsconfdb)\n";
-  print "--cmanincdir=\tthe base directory for cman include files.  (Default: ./cman/lib)\n";
-  print "--cmanlibdir=\tthe base directory for cman libraries.  (Default: ./cman/lib)\n";
-  print "--dlmincdir=\tthe base directory for dlm include files.  (Default: ./dlm/libdlm)\n";
-  print "--dlmlibdir=\tthe base directory for dlm libraries.  (Default: ./dlm/libdlm)\n";
-  print "--dlmcontrolincdir=\tthe base directory for dlmcontrol include files.  (Default: ./dlm/libdlmcontrol)\n";
-  print "--dlmcontrollibdir=\tthe base directory for dlmcontrol libraries.  (Default: ./dlm/libdlmcontrol)\n";
-  print "--fenceincdir=\tthe base directory for fence include files.  (Default: ./fence/libfence)\n";
-  print "--fencelibdir=\tthe base directory for fence libraries.  (Default: ./fence/libfence)\n";
-  print "--logtincdir=\tthe base directory for logthread include files.  (Default: ./common/liblogthread)\n";
-  print "--logtlibdir=\tthe base directory for logthread libraries.  (Default: ./common/liblogthread)\n";
-  print "--volidincdir=\tthe base directory for volume_id include files.  (Default: {incdir})\n";
-  print "--volidlibdir=\tthe base directory for volume_id libraries.  (Default: {libdir})\n";
-  print "--ncursesincdir=\tthe base directory for ncurses include files.  (Default: {incdir})\n";
-  print "--ncurseslibdir=\tthe base directory for ncurses libraries.  (Default: {libdir})\n";
-  print "--slangincdir=\tthe base directory for S-Lang include files.  (Default: {incdir})\n";
-  print "--slanglibdir=\tthe base directory for S-Lang libraries.  (Default: {libdir})\n";
-  print "--readlineincdir=\tthe base directory for readline include files.  (Default: {incdir})\n";
-  print "--readlinelibdir=\tthe base directory for readline libraries.  (Default: {libdir})\n";
-  print "--corosyncincdir=\tthe base directory for corosync include files.  (Default: {incdir})\n";
-  print "--corosynclibdir=\tthe base directory for corosync libraries.  (Default: {libdir}/corosync)\n";
-  print "--openaisincdir=\tthe base directory for openais include files.  (Default: {incdir})\n";
-  print "--openaislibdir=\tthe base directory for openais libraries.  (Default: {libdir}/openais)\n";
-  print "--corosyncbin=\tlocation of corosync executable file.  (Default: /usr/sbin/corosync)\n";
-  print "--nssincdir=\tthe base directory for libnss include files.  (Default: {incdir}/nss3)\n";
-  print "--nsslibdir=\tthe base directory for libnss libraries.  (Default: {libdir})\n";
-  print "--nsprincdir=\tthe base directory for libnspr include files.  (Default: {incdir}/nspr4)\n";
-  print "--nsprlibdir=\tthe base directory for libnspr libraries.  (Default: {libdir})\n";
-  print "--virtincdir=\tthe base directory for libvirt include files.  (Default: {incdir}/libvirt)\n";
-  print "--virtlibdir=\tthe base directory for libvirt libraries.  (Default: {libdir})\n";
-  print "--zlibincdir=\tthe base directory for libz include files.  (Default: {incdir})\n";
-  print "--zliblibdir=\tthe base directory for libz libraries.  (Default: {libdir})\n";
-  print "--xenincdir=\tthe base directory for xen include files.  (Default: {incdir}/xen)\n";
-  print "--xenlibdir=\tthe base directory for xen libraries.  (Default: {libdir})\n";
-  print "--ldapincdir=\tthe base directory for ldap include files.  (Default: {incdir})\n";
-  print "--ldaplibdir=\tthe base directory for ldap libraries.  (Default: {libdir})\n";
-  print "--fence_agents=\tlist of fence agents to configure.  (Default: all)\n";
-  print "\t\tUse --fence_agents=help for a list\n";
-  print "--fenceagentslibdir=\tspecify directory where to install common fence python lib.  (Default: /usr/share/fence)\n";
   print "--enable_crack_of_the_day\tEnable build of highly experimental features that rely on code that is not yet available for general use. (Default: no)\n";
-  print "--enable_contrib\tEnable build of community contributed code/tools.  (Default: no)\n";
   print "--enable_legacy_code\tEnable build of old/obsolete/unsupported code/tools.  (Default: no)\n";
-  print "--enable_virt\tEnable building of virtualization code (Default: disabled\n";
-  print "--enable_pacemaker\tEnable building of Pacemaker-specific pieces\n";
-  print "--without_common\tDisable common building  (Default: enabled)\n";
-  print "--without_config\tDisable config building  (Default: enabled)\n";
-  print "--without_cman\tDisable cman building  (Default: enabled)\n";
-  print "--without_dlm\tDisable dlm building  (Default: enabled)\n";
-  print "--without_group\tDisable group building  (Default: enabled)\n";
-  print "--without_fence\tDisable fence building  (Default: enabled)\n";
-  print "--without_gfs\tDisable gfs building  (Default: enabled)\n";
-  print "--without_gfs2\tDisable gfs2 building  (Default: enabled)\n";
-  print "--without_rgmanager\tDisable rgmanager building  (Default: enabled)\n";
-  print "--without_bindings\tDisable perl/python bindings building  (Default: enabled)\n";
-  print "--without_kernel_modules\tDisable kernel modules building  (Default: enabled)\n";
-  print "--disable_kernel_check\tDisable kernel version check  (Default: enabled)\n";
   exit $ret;
-}
-
-sub kernel_version {
-  my $makefile_path = shift;
-  my $required_version = shift;
-
-  print "\nChecking kernel:\n";
-
-  # add autoconf to the path
-  $makefile_path .= '/Makefile';
-  my @version = split /\./, $required_version;
-  if ( -f $makefile_path ) {
-    # open the toplevel Makefile to feth VERSION, PATCHLEVEL and SUBLEVEL
-    open MAKEFILE, '<', $makefile_path;
-    while (<MAKEFILE>) {
-      $build_version = $1 if /^VERSION = (\d+)/;
-      $build_patchlevel = $1 if /^PATCHLEVEL = (\d+)/;
-      $build_sublevel = $1 if /^SUBLEVEL = (\d+)/;
-      last if (defined $build_version && defined $build_patchlevel && defined $build_sublevel);
-    }
-    close MAKEFILE;
-    # Warn and continue if kernel version was not found
-    if (!$build_version || !$build_patchlevel || !$build_sublevel) {
-	print " WARNING: Could not determine kernel version.\n";
-	print "          Build might fail!\n";
-	return 1;
-    }
-    # checking VERSION, PATCHLEVEL and SUBLEVEL for the supplied kernel
-    if ($build_version >= $version[0] &&
-        $build_patchlevel >= $version[1] &&
-        $build_sublevel >= $version[2]) {
-      print " Current kernel version appears to be OK\n";
-      return 1;
-    } else {
-      print " Current kernel version: ",$build_version, "." , $build_patchlevel, ".", $build_sublevel, "\n Minimum kernel version: ",$required_version,"\n";
-      print " FAILED!\n";
-      return 0;
-    }
-  } else {
-    print " Unable to find ($makefile_path)!\n";
-    print " Make sure that:\n - the above path is correct\n";
-    print " - your kernel is properly configured and prepared.\n";
-    print " - kernel_build and kernel_src options to configure are set properly.\n";
-    return 0;
-  }
 }
 
 sub symlinks {
@@ -365,27 +86,7 @@ sub symlinks {
 $pwd = `pwd`;
 chomp($pwd);
 
-if (!$cc) {
-  $cc="gcc";
-}
-if (!$cflags) {
-  $cflags="-Wall -Wformat=2 -MMD";
-  if (!$debug) {
-    $cflags="${cflags} -O2";
-  } else {
-    $cflags="${cflags} -O0 -DDEBUG";
-  }
-  $cflags="${cflags} -g";
-}
-if ($extracflags) {
-  $cflags="${cflags} ${extracflags}";
-}
-if (!$ldflags) {
-  $ldflags="";
-}
-if ($extraldflags) {
-  $ldflags="${ldflags} ${extraldflags}";
-}
+
 if (!$prefix) {
   $prefix="/usr";
 }
@@ -405,174 +106,10 @@ if (! -d "$objdir/make") {
   mkdir "$objdir";
   symlinks(".","Makefile");
   symlinks(".","*.mk");
-  symlinks("gfs-kernel","*.c");
-  symlinks("gfs-kernel","*.h");
-  symlinks("bindings","*.bindings");
-  symlinks("bindings","*.pl");
-  symlinks("bindings","*.xs");
-  symlinks("bindings","*.PL");
-  symlinks("bindings","MANIFEST");
-  symlinks("bindings","typemap");
 } else {
   print "nothing to do\n";
 }
 
-my @un = POSIX::uname();
-if (!$kernel_build) {
-  if (-d "/lib/modules/$un[2]/build") {
-    $kernel_build="/lib/modules/$un[2]/build";
-  } else {
-    $kernel_build="/usr/src/linux";
-  }
-}
-if (!$kernel_src) {
-  if (-d "/lib/modules/$un[2]/source") {
-    $kernel_src="/lib/modules/$un[2]/source";
-  } else {
-    $kernel_src=$kernel_build;
-  }
-}
-if (not $disable_kernel_check and !kernel_version($kernel_src,$required_kernelversion)) {
-  exit 1;
-}
-if (!$module_dir) {
-  $module_dir="/lib/modules/$un[2]/kernel";
-}
-if (!$gfskincdir) {
-  $gfskincdir="${cdir}/gfs-kernel/src/gfs";
-}
-if (!$incdir) {
-  $incdir="${prefix}/include";
-}
-if (!$libdir) {
-  $libdir="${prefix}/lib";
-}
-if (!$ccsincdir) {
-  $ccsincdir="${cdir}/config/libs/libccsconfdb";
-}
-if (!$ccslibdir) {
-  $ccslibdir="${objdir}/config/libs/libccsconfdb";
-}
-if (!$cmanincdir) {
-  $cmanincdir="${cdir}/cman/lib";
-}
-if (!$cmanlibdir) {
-  $cmanlibdir="${objdir}/cman/lib";
-}
-if (!$dlmincdir) {
-  $dlmincdir="${cdir}/dlm/libdlm";
-}
-if (!$dlmlibdir) {
-  $dlmlibdir="${objdir}/dlm/libdlm";
-}
-if (!$dlmcontrolincdir) {
-  $dlmcontrolincdir="${cdir}/dlm/libdlmcontrol";
-}
-if (!$dlmcontrollibdir) {
-  $dlmcontrollibdir="${objdir}/dlm/libdlmcontrol";
-}
-if (!$fenceincdir) {
-  $fenceincdir="${cdir}/fence/libfence";
-}
-if (!$fencelibdir) {
-  $fencelibdir="${objdir}/fence/libfence";
-}
-if (!$logtincdir) {
-  $logtincdir="${cdir}/common/liblogthread";
-}
-if (!$logtlibdir) {
-  $logtlibdir="${objdir}/common/liblogthread";
-}
-if (!$volidincdir) {
-  $volidincdir="${incdir}";
-}
-if (!$volidlibdir) {
-  $volidlibdir="${libdir}";
-}
-if (!$readlineincdir) {
-  $readlineincdir="${incdir}";
-}
-if (!$readlinelibdir) {
-  $readlinelibdir="${libdir}";
-}
-if (!$ncursesincdir) {
-  $ncursesincdir="${incdir}";
-}
-if (!$ncurseslibdir) {
-  $ncurseslibdir="${libdir}";
-}
-if (!$slangincdir) {
-  $slangincdir="${incdir}";
-  if (! -f "$slangincdir/slang.h") {
-    $slangincdir="${incdir}/slang";
-  }
-}
-if (!$slanglibdir) {
-  $slanglibdir="${libdir}";
-}
-if (!$corosyncincdir) {
-  $corosyncincdir="${incdir}";
-}
-if (!$corosynclibdir) {
-  $corosynclibdir="${libdir}/corosync";
-}
-if (!$openaisincdir) {
-  $openaisincdir="${incdir}";
-}
-if (!$openaislibdir) {
-  $openaislibdir="${libdir}/openais";
-}
-if (!$corosyncbin) {
-  $corosyncbin="/usr/sbin/corosync";
-}
-if (!$nssincdir) {
-  $nssincdir="${incdir}/nss3";
-}
-if (!$nsslibdir) {
-  $nsslibdir="${libdir}";
-}
-if (!$nsprincdir) {
-  $nsprincdir="${incdir}/nspr4";
-}
-if (!$nsprlibdir) {
-  $nsprlibdir="${libdir}";
-}
-if (!$virtincdir) {
-  $virtincdir="${incdir}/libvirt";
-}
-if (!$virtlibdir) {
-  $virtlibdir="${libdir}";
-}
-if (!$zlibincdir) {
-  $zlibincdir="${incdir}";
-}
-if (!$zliblibdir) {
-  $zliblibdir="${libdir}";
-}
-if (!$xenincdir) {
-  $xenincdir="${incdir}/xen";
-}
-if (!$xenlibdir) {
-  $xenlibdir="${libdir}";
-}
-if (!$ldapincdir) {
-  $ldapincdir="${incdir}";
-}
-if (!$ldaplibdir) {
-  $ldaplibdir="${libdir}";
-}
-if (!$libexecdir) {
-  $libexecdir="${prefix}/libexec";
-}
-if (!$mandir) {
-  $mandir="${prefix}/share/man";
-}
-if (!$sbindir) {
-  $sbindir="${prefix}/sbin";
-}
-if (!$initddir) {
-  $initddir="/etc/init.d";
-}
 if (!$sharedir) {
   $sharedir="${prefix}/share/cluster";
 }
@@ -582,32 +119,11 @@ if (!$docdir) {
 if (!$logdir) {
   $logdir="/var/log/cluster";
 }
-if (!$logrotatedir) {
-  $logrotatedir="/etc/logrotate.d";
-}
-if (!$syslogfacility) {
-  $syslogfacility="LOG_LOCAL4";
-}
-if (!$sysloglevel) {
-  $sysloglevel="LOG_INFO";
-}
-if (!$mibdir) {
-  $mibdir="${prefix}/share/snmp/mibs";
-}
-if (!$snmpbin) {
-  $snmpbin="${prefix}/bin";
-}
 if (!$confdir) {
   $confdir="/etc/cluster";
 }
 if (!$conffile) {
   $conffile="cluster.conf";
-}
-if (!$fence_agents) {
-  $fence_agents="all";
-}
-if (!$fenceagentslibdir) {
-  $fenceagentslibdir="/usr/share/fence";
 }
 if (!$enable_crack_of_the_day) {
   $enable_crack_of_the_day="";
@@ -618,9 +134,6 @@ if (!$enable_crack_of_the_day) {
   print "\n********************************************************************************************\n";
   $cflags="${cflags} -DEXPERIMENTAL_BUILD";
 }
-if (!$enable_contrib) {
-  $enable_contrib="";
-}
 if (!$enable_legacy_code) {
   $enable_legacy_code="";
 } else {
@@ -630,79 +143,8 @@ if (!$enable_legacy_code) {
   print "\n********************************************************************************************\n";
   $cflags="${cflags} -DLEGACY_CODE";
 }
-if (!$enable_virt) {
-  $enable_virt="";
-}
-if (!$enable_pacemaker) {
-  $enable_pacemaker=""
-}
-if (!$without_common) {
-  $without_common="";
-}
-if (!$without_config) {
-  $without_config="";
-}
-if (!$without_cman) {
-  $without_cman="";
-}
-if (!$without_dlm) {
-  $without_dlm="";
-}
-if (!$without_group) {
-  $without_group="";
-}
-if (!$without_fence) {
-  $without_fence="";
-}
-if (!$without_gfs) {
-  $without_gfs="";
-}
-if (!$without_gfs2) {
-  $without_gfs2="";
-}
-if (!$without_rgmanager) {
-  $without_rgmanager="";
-}
-if (!$without_bindings) {
-  $without_bindings="";
-}
-if (!$without_kernel_modules) {
-  $without_gfskernel=$without_gfs;
-} else {
-  $without_gfskernel=1;
-}
-if (!$disable_kernel_check) {
-  $disable_kernel_check=0;
-}
-if (defined($somajor) && not length $somajor) {
-  $somajor="";
-}
-if (defined($sominor) && not length $sominor) {
-  $sominor="";
-}
 if (defined($release_version) && not length $release_version) {
   $release_version="";
-}
-
-@args = "find fence/agents -mindepth 2 -maxdepth 2 -name Makefile -printf '%h'";
-open (IFILE, "@args |");
-while (<IFILE>) {
-  chomp;
-  s|fence\/agents\/| |g;
-  s|lib ||g;
-  $all_fence = $_;
-}
-close IFILE;
-
-if ($fence_agents eq "help") {
-  print "Available fence agents:\n$all_fence\n";
-  exit 0;
-}
-
-if ((!$fence_agents) || ($fence_agents eq "all")) {
-  print "\nThe following fence agents will be build on this system:\n$all_fence\n";
-  print "\nNOTE: xvm will build only if --enable_virt has been specified\n\n";
-  $fence_agents = $all_fence
 }
 
 open IFILE, "<make/defines.mk.input" or die "Can't redirect stdin";
@@ -713,118 +155,31 @@ print OFILE "# This file was generated by configure from defines.mk.input\n";
 while (<IFILE>) {
   chomp;
   $_ =~ s/\@SRCDIR\@/$cdir/;
-  $_ =~ s/\@CC\@/$cc/;
-  $_ =~ s/\@CFLAGS\@/$cflags/;
-  $_ =~ s/\@LDFLAGS\@/$ldflags/;
   $_ =~ s/\@OBJDIR\@/$objdir/;
-  $_ =~ s/\@KERNEL_BUILD\@/$kernel_build/;
-  $_ =~ s/\@KERNEL_SRC\@/$kernel_src/;
-  $_ =~ s/\@MODULE_DIR\@/$module_dir/;
-  $_ =~ s/\@GFSKINCDIR\@/$gfskincdir/;
-  $_ =~ s/\@INCDIR\@/$incdir/;
-  $_ =~ s/\@LIBDIR\@/$libdir/;
-  $_ =~ s/\@CCSINCDIR\@/$ccsincdir/;
-  $_ =~ s/\@CCSLIBDIR\@/$ccslibdir/;
-  $_ =~ s/\@CMANINCDIR\@/$cmanincdir/;
-  $_ =~ s/\@CMANLIBDIR\@/$cmanlibdir/;
-  $_ =~ s/\@DLMINCDIR\@/$dlmincdir/;
-  $_ =~ s/\@DLMLIBDIR\@/$dlmlibdir/;
-  $_ =~ s/\@DLMCONTROLINCDIR\@/$dlmcontrolincdir/;
-  $_ =~ s/\@DLMCONTROLLIBDIR\@/$dlmcontrollibdir/;
-  $_ =~ s/\@FENCEINCDIR\@/$fenceincdir/;
-  $_ =~ s/\@FENCELIBDIR\@/$fencelibdir/;
-  $_ =~ s/\@LOGTINCDIR\@/$logtincdir/;
-  $_ =~ s/\@LOGTLIBDIR\@/$logtlibdir/;
-  $_ =~ s/\@VOLIDINCDIR\@/$volidincdir/;
-  $_ =~ s/\@VOLIDLIBDIR\@/$volidlibdir/;
-  $_ =~ s/\@READLINEINCDIR\@/$readlineincdir/;
-  $_ =~ s/\@READLINELIBDIR\@/$readlinelibdir/;
-  $_ =~ s/\@NCURSESINCDIR\@/$ncursesincdir/;
-  $_ =~ s/\@NCURSESLIBDIR\@/$ncurseslibdir/;
-  $_ =~ s/\@SLANGINCDIR\@/$slangincdir/;
-  $_ =~ s/\@SLANGLIBDIR\@/$slanglibdir/;
-  $_ =~ s/\@COROSYNCINCDIR\@/$corosyncincdir/;
-  $_ =~ s/\@COROSYNCLIBDIR\@/$corosynclibdir/;
-  $_ =~ s/\@OPENAISINCDIR\@/$openaisincdir/;
-  $_ =~ s/\@OPENAISLIBDIR\@/$openaislibdir/;
-  $_ =~ s/\@COROSYNCBIN\@/$corosyncbin/;
-  $_ =~ s/\@XENINCDIR\@/$xenincdir/;
-  $_ =~ s/\@XENLIBDIR\@/$xenlibdir/;
-  $_ =~ s/\@LDAPINCDIR\@/$ldapincdir/;
-  $_ =~ s/\@LDAPLIBDIR\@/$ldaplibdir/;
-  $_ =~ s/\@NSSINCDIR\@/$nssincdir/;
-  $_ =~ s/\@NSSLIBDIR\@/$nsslibdir/;
-  $_ =~ s/\@NSPRINCDIR\@/$nsprincdir/;
-  $_ =~ s/\@NSPRLIBDIR\@/$nsprlibdir/;
-  $_ =~ s/\@VIRTINCDIR\@/$virtincdir/;
-  $_ =~ s/\@VIRTLIBDIR\@/$virtlibdir/;
-  $_ =~ s/\@ZLIBINCDIR\@/$zlibincdir/;
-  $_ =~ s/\@ZLIBLIBDIR\@/$zliblibdir/;
-  $_ =~ s/\@LIBEXECDIR\@/$libexecdir/;
-  $_ =~ s/\@MANDIR\@/$mandir/;
-  $_ =~ s/\@SBINDIR\@/$sbindir/;
-  $_ =~ s/\@INITDDIR\@/$initddir/;
   $_ =~ s/\@SHAREDIR\@/$sharedir/;
   $_ =~ s/\@DOCDIR\@/$docdir/;
   $_ =~ s/\@LOGDIR\@/$logdir/;
-  $_ =~ s/\@LOGROTATEDIR\@/$logrotatedir/;
-  $_ =~ s/\@SYSLOGFACILITY\@/$syslogfacility/;
-  $_ =~ s/\@SYSLOGLEVEL\@/$sysloglevel/;
-  $_ =~ s/\@MIBDIR\@/$mibdir/;
-  $_ =~ s/\@SNMPBIN\@/$snmpbin/;
   $_ =~ s/\@CONFDIR\@/$confdir/;
   $_ =~ s/\@CONFFILE\@/$conffile/;
-  $_ =~ s/\@FENCE_AGENTS\@/$fence_agents/;
-  $_ =~ s/\@FENCEAGENTSLIBDIR\@/$fenceagentslibdir/;
   $_ =~ s/\@ENABLE_CRACK_OF_THE_DAY\@/$enable_crack_of_the_day/;
   $_ =~ s/\@ENABLE_LEGACY_CODE\@/$enable_legacy_code/;
-  $_ =~ s/\@ENABLE_CONTRIB\@/$enable_contrib/;
-  $_ =~ s/\@ENABLE_VIRT\@/$enable_virt/;
-  $_ =~ s/\@ENABLE_PACEMAKER\@/$enable_pacemaker/;
-  $_ =~ s/\@DISABLE_COMMON\@/$without_common/;
-  $_ =~ s/\@DISABLE_CONFIG\@/$without_config/;
-  $_ =~ s/\@DISABLE_CMAN\@/$without_cman/;
-  $_ =~ s/\@DISABLE_DLM\@/$without_dlm/;
-  $_ =~ s/\@DISABLE_GROUP\@/$without_group/;
-  $_ =~ s/\@DISABLE_FENCE\@/$without_fence/;
-  $_ =~ s/\@DISABLE_GFS\@/$without_gfs/;
-  $_ =~ s/\@DISABLE_GFSKERNEL\@/$without_gfskernel/;
-  $_ =~ s/\@DISABLE_GFS2\@/$without_gfs2/;
-  $_ =~ s/\@DISABLE_RGMANAGER\@/$without_rgmanager/;
-  $_ =~ s/\@DISABLE_BINDINGS\@/$without_bindings/;
 
   print OFILE "$_\n";
 }
 
 close IFILE;
 
-if ((not defined($somajor)) || (not defined($sominor)) || (not defined($release_version))) {
+if (not defined($release_version)) {
 
-  my $current_soname;
   my $current_version;
   if ( -f 'make/official_release_version' ) {
     open OFFICIAL_VERSION, '<', "make/official_release_version";
     while (<OFFICIAL_VERSION>) {
-      if ($_ =~ /SONAME/) {
-        $current_soname = $_;
-      }
       if ($_ =~ /VERSION/) {
 	$current_version = $_;
       }
     }
     close OFFICIAL_VERSION;
-  }
-
-  if ((not defined($somajor)) || (not defined($sominor))) {
-    if (not defined($current_soname)) {
-      print "ERROR: SONAME not defined in make/official_release_version\n";
-      exit 1;
-    } else {
-      $current_soname =~ s/.*"(.*)"\n/$1/;
-      my @release_soname = split /\./, $current_soname;
-      $somajor = $release_soname[0];
-      $sominor = $release_soname[1];
-    }
   }
 
   if (not defined($release_version)) {
@@ -838,12 +193,6 @@ if ((not defined($somajor)) || (not defined($sominor)) || (not defined($release_
   }
 }
 
-print OFILE "ifndef SOMAJOR\n";
-print OFILE "SOMAJOR = $somajor\n";
-print OFILE "endif\n";
-print OFILE "ifndef SOMINOR\n";
-print OFILE "SOMINOR = $sominor\n";
-print OFILE "endif\n";
 print OFILE "RELEASE_VERSION = $release_version\n";
 print OFILE "CFLAGS += -DRELEASE_VERSION=\\\"$release_version\\\"\n";
 

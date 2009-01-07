@@ -1,5 +1,0 @@
-KERNEL=="dlm-control", NAME="misc/dlm-control", MODE="0666"
-KERNEL=="dlm-monitor", NAME="misc/dlm-monitor", MODE="0666"
-KERNEL=="dlm_default", NAME="misc/dlm_default", MODE="0666"
-KERNEL=="dlm_*", NAME="misc/%k", MODE="0660"
-

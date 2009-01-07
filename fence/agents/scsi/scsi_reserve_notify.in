@@ -1,5 +1,0 @@
-#!/bin/bash
-
-[ "$CMAN_NOTIFICATION" = "CMAN_REASON_CONFIG_UPDATE" ] && @INITDT@/scsi_reserve start
-
-exit 0
