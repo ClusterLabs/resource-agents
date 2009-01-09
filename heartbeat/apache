@@ -250,7 +250,7 @@ GetParams() {
   #	somewhere in the file
   # - it will be supported at the same URL as the one we find in the file
   #
-  # If this doesn't work for you, then set STATUSURL at the top of the file
+  # If this doesn't work for you, then set the statusurl attribute.
   #
   if
      [ "X$STATUSURL" = "X" ]
@@ -418,10 +418,23 @@ metadata_apache(){
 <version>1.0</version>
 
 <longdesc lang="en">
-This is the resource agent for the
-Apache web server.
+This is the resource agent for the Apache web server.
 Thie resource agent operates both version 1.x and version 2.x Apache
 servers.
+
+The start operation ends with a loop in which monitor is
+repeatedly called to make sure that the server started and that
+it is operational. Hence, if the monitor operation does not
+succeed within the start operation timeout, the apache resource
+will end with an error status.
+
+The monitor operation by default loads the server status page
+which depends on the mod_status module and the corresponding
+configuration file (usually /etc/apache2/mod_status.conf).
+Make sure that the server status page works and that the access
+is allowed *only* from localhost (address 127.0.0.1).
+See the statusurl and testregex attributes for more details.
+
 See also http://httpd.apache.org/
 </longdesc>
 <shortdesc lang="en">Apache web server</shortdesc>
@@ -460,12 +473,25 @@ in the configuration file.
 
 <parameter name="statusurl">
 <longdesc lang="en">
-The URL of the apache status module.
-If left unspecified, it will be inferred
-from the apache configuration file.
+The URL to monitor (the apache server status page by default).
+If left unspecified, it will be inferred from
+the apache configuration file.
+
+If you set this, make sure that it succeeds *only* from the
+localhost (127.0.0.1). Otherwise, it may happen that the cluster
+complains about the resource being active on multiple nodes.
 </longdesc>
 <shortdesc lang="en">url name</shortdesc>
 <content type="string" />
+</parameter>
+
+<parameter name="testregex">
+<longdesc lang="en">
+Regular expression to match in the output of statusurl.
+It is case insensitive.
+</longdesc>
+<shortdesc lang="en">monitor regular expression</shortdesc>
+<content type="string" default="exists, but impossible to show in a human readable format (try grep testregex)"/>
 </parameter>
 
 <parameter name="options">
@@ -476,19 +502,10 @@ Extra options to apply when starting apache. See man httpd(8).
 <content type="string" />
 </parameter>
 
-<parameter name="testregex">
-<longdesc lang="en">
-Regular expression to match in the output of statusurl. It
-is case insensitive.
-</longdesc>
-<shortdesc lang="en">test regular expression</shortdesc>
-<content type="string" />
-</parameter>
-
 <parameter name="envfiles">
 <longdesc lang="en">
-File(s) which contain extra environment variables, such as
-/etc/apache2/envvars.
+Files (one or more) which contain extra environment variables,
+such as /etc/apache2/envvars.
 </longdesc>
 <shortdesc lang="en">environment settings files</shortdesc>
 <content type="string" />
