@@ -87,6 +87,16 @@ meta_data()
 	    <content type="string"/>
         </parameter>
 
+        <parameter name="no_unmount" required="0">
+	    <longdesc lang="en">
+	    	Do not unmount the filesystem during a stop or relocation operation
+	    </longdesc>
+            <shortdesc lang="en">
+	    	Skip unmount opration
+            </shortdesc>
+	    <content type="boolean"/>
+        </parameter>
+
         <parameter name="force_unmount">
             <longdesc lang="en">
                 If set, the cluster will kill all processes using 
@@ -553,6 +563,7 @@ stopNFSFilesystem() {
 	typeset -i sleep_time=2		# time between each umount failure
 	typeset done=""
 	typeset umount_failed=""
+	typeset no_umount=""
 	typeset force_umount=""
 	typeset fstype=""
 
@@ -605,6 +616,17 @@ stopNFSFilesystem() {
 		return $FAIL
 		;;
 	$YES)
+		case ${OCF_RESKEY_no_unmount} in
+                $YES_STR)       no_umount="$YES" ;;
+                1)              no_umount="$YES" ;;
+                *)              no_umount="" ;;
+                esac
+		
+		if [ "$no_umount" ]; then
+				ocf_log info "skipping unmount operation of $mp"
+				return $SUCCESS
+		fi
+
 		sync; sync; sync
                         ocf_log info "unmounting $mp"
 
