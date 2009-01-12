@@ -1,152 +1,10 @@
 Unless specified otherwise in the "exceptions section" below:
 
 Copyright (C) 1997-2003 Sistina Software, Inc.  All rights reserved.
-Copyright (C) 2004-2008 Red Hat, Inc.  All rights reserved.
+Copyright (C) 2004-2009 Red Hat, Inc.  All rights reserved.
 
 Exceptions:
 
-contrib/askant:
- Copyright (C) 2008 Andrew Price <andy@andrewprice.me.uk>
-
-contrib/libaislock:
- Contributed by Stanley Wang of Intel.
-
-cman/qdisk/crc32.c:
- Copyright (C) 2000 Bryan Call <bc at fodder.org>
- Modified by Lon H. Hohberger <lhh at redhat.com>
- Copyright (C) 2003-2008 Red Hat, Inc.  All rights reserved.
-
-cman/qdisk/daemon_init.c:
- Copyright (C) 2000 Mission Critical Linux
- Copyright (C) 2002-2008 Red Hat, Inc.  All rights reserved.
- Author: Jeff Moyer <jmoyer at redhat.com>
-
-cman/qdisk/disk.c:
- Copyright (C) 2000 Mission Critical Linux
- Copyright (C) 2002-2008 Red Hat, Inc.  All rights reserved.
- Author: Tim Burke <tburke at redhat.com>
-
-cman/qdisk/scandisk.{c,h}:
- Original design by: Joel Becker <Joel.Becker at oracle.com> and
- Fabio M. Di Nitto <fdinitto at redhat.com>
-
-dlm/doc/example.c:
- Author: Daniel Phillips <phillips at redhat.com>
-
-fence/agents/apc_snmp/powernet369.mib:
- Copyright (c) 2005 American Power Conversion, Inc.
- PowerNet is a Trademark of American Power Conversion Corp.
-
-fence/agents/ifmib/fence_ifmib.py:
- Copyright (C) 2008 Ross Vandegrift.
- Written by Ross Vandegrift <ross at kallisti.us>
-
-fence/agents/ipmilan/expect.{c,h}:
- Copyright (C) 2000 Alan Robertson <alanr at unix.sh>
-
-fence/agents/xvm/tcp.c:
- Copyright (C) 2000 Mission Critical Linux
- Copyright (C) 2002-2008 Red Hat, Inc.  All rights reserved.
- Author: Jeff Moyer <jmoyer at redhat.com>
-
-fence/man/fence_ifmib.8:
- Copyright (C) 2008 Ross Vandegrift.
- Written by Ross Vandegrift <ross at kallisti.us>
-
-gfs/man/gfs_mount.8:
- Portions copyright (C) 2001-2003 The OpenGFS Project
- Portions copyright (C) 2004 <ben.m.cahill at intel.com>
- Copyright (C) 2004-2008 Red Hat, Inc.  All rights reserved.
-
-gfs2/man/gfs2_mount.8:
- Portions copyright (C) 2001-2003 The OpenGFS2 Project
- Portions copyright (C) 2004 <ben.m.cahill at intel.com>
- Copyright (C) 2004-2008 Red Hat, Inc.  All rights reserved.
-
-gfs-kernel/src/gfs/fixed_div64.h:
- Copyright (c) 2000-2003 Silicon Graphics, Inc.  All Rights Reserved.
-  Contact information: Silicon Graphics, Inc., 1600 Amphitheatre Pkwy,
-  Mountain View, CA  94043, or:
-  http://www.sgi.com
-  For further information regarding this notice, see:
-  http://oss.sgi.com/projects/GenInfo/SGIGPLNoticeExplan/
- Copyright (C) 2004-2008 Red Hat, Inc.  All rights reserved.
-
-From rgmanager/AUTHORS:
-
-Lon Hohberger           lhh at redhat.com
-* Resource tree
-* Failover domains
-* Resource agent scripts
-
-Gregory Myrdal          [private]
-* Misc utilities
-* Resource agent scripts
-
-Jeff Moyer              jmoyer at redhat.com
-* Syslog wrapper & logging program
-
-Portions of this code (C) 2000-2001 Mission Critical Linux, Inc.
-
-rgmanager/include/clulog.h:
- Copyright (C) 2000 Mission Critical Linux
- Copyright (C) 2002-2008 Red Hat, Inc.  All rights reserved.
- Author: Jeff Moyer <moyer at missioncriticallinux.com>
-
-rgmanager/src/clulib/clulog.c:
- Copyright (C) 2000 Mission Critical Linux
- Copyright (C) 2002-2008 Red Hat, Inc.  All rights reserved.
- Author: Jeff Moyer <moyer at missioncriticallinux.com>
-
-rgmanager/src/clulib/daemon_init.c:
- Copyright (C) 2000 Mission Critical Linux
- Copyright (C) 2002-2008 Red Hat, Inc.  All rights reserved.
- Author: Jeff Moyer <moyer at missioncriticallinux.com>
-
-rgmanager/src/clulib/msgsimple.c:
- Copyright (C) 2000 Mission Critical Linux
- Copyright (C) 2002-2008 Red Hat, Inc.  All rights reserved.
-
-rgmanager/src/clulib/tmgr.c:
- Copyright (C) 2006-2007 Crosswalk.
- Copyright (C) 2007-2008 Red Hat, Inc.  All rights reserved.
-
-rgmanager/src/clulib/wrap_lock.c:
- Copyright (C) 2006-2007 Crosswalk.
- Copyright (C) 2007-2008 Red Hat, Inc.  All rights reserved.
-
-rgmanager/src/daemons/groups.c:
- Copyright (C) 2000 Mission Critical Linux
- Copyright (C) 2002-2008 Red Hat, Inc.  All rights reserved.
-
-rgmanager/src/daemons/main.c:
- Copyright (C) 2000 Mission Critical Linux
- Copyright (C) 2002-2008 Red Hat, Inc.  All rights reserved.
-
-rgmanager/src/utils/cluarp.c:
- Copyright (C) 2000 Mission Critical Linux
- Copyright (C) 2002-2008 Red Hat, Inc.  All rights reserved.
-
-rgmanager/src/utils/clubufflush.c:
- Copyright (C) 2000 Mission Critical Linux
- Copyright (C) 2002-2008 Red Hat, Inc.  All rights reserved.
- Author: Gregory P. Myrdal <Myrdal at MissionCriticalLinux.Com>
-
-rgmanager/src/utils/clufindhostname.c:
- Copyright (C) 2000 Mission Critical Linux
- Copyright (C) 2002-2008 Red Hat, Inc.  All rights reserved.
- Richard Rabbat <rabbat at missioncriticallinux.com>
-
-rgmanager/src/utils/clulog.c:
- Copyright (C) 2000 Mission Critical Linux
- Copyright (C) 2002-2008 Red Hat, Inc.  All rights reserved.
- Author: Jeff Moyer <moyer at missioncriticallinux.com>
-
-rgmanager/src/utils/syscall.h
- Copyright (C) 1995-1997 Olaf Kirch <okir at monad.swb.de>
- Copyright (C) 1997-2003 Sistina Software, Inc.  All rights reserved.
- Copyright (C) 2004-2008 Red Hat, Inc.  All rights reserved.
- 
 rgmanager/src/resources/ASEHAagent.sh:
  Sybase Availability Agent for Red Hat Cluster v15.0.2
  Copyright (C) - 2007
@@ -160,23 +18,28 @@ rgmanager/src/resources/ASEHAagent.sh:
 
 rgmanager/src/resources/clusterfs.sh:
  Copyright (C) 2000 Mission Critical Linux
- Copyright (C) 2002-2008 Red Hat, Inc.  All rights reserved.
+ Copyright (C) 2002-2009 Red Hat, Inc.  All rights reserved.
+
+rgmanager/src/resources/follow-service.sl
+ Author:
+  Marc Grimme, Mark Hlawatschek, October 2008
+ Copyright (C) 2008-2009 ATIX AG
 
 rgmanager/src/resources/fs.sh:
  Copyright (C) 2000 Mission Critical Linux
- Copyright (C) 2002-2008 Red Hat, Inc.  All rights reserved.
+ Copyright (C) 2002-2009 Red Hat, Inc.  All rights reserved.
 
 rgmanager/src/resources/ip.sh:
  Copyright (C) 2000 Mission Critical Linux
- Copyright (C) 2004-2008 Red Hat, Inc.  All rights reserved.
+ Copyright (C) 2004-2009 Red Hat, Inc.  All rights reserved.
 
 rgmanager/src/resources/netfs.sh:
  Copyright (C) 2000 Mission Critical Linux
- Copyright (C) 2002-2008 Red Hat, Inc.  All rights reserved.
+ Copyright (C) 2002-2009 Red Hat, Inc.  All rights reserved.
 
 rgmanager/src/resources/netexport.sh:
  Copyright (C) 2000 Mission Critical Linux
- Copyright (C) 2002-2008 Red Hat, Inc.  All rights reserved.
+ Copyright (C) 2002-2009 Red Hat, Inc.  All rights reserved.
 
 rgmanager/src/resources/ocf-shellfuncs:
  Copyright (C) 2004 SUSE LINUX AG, Lars Marowsky-Bree. All Rights Reserved.
@@ -196,7 +59,7 @@ rgmanager/src/resources/SAPInstance:
 
 rgmanager/src/resources/smb.sh:
  Copyright (C) 2000 Mission Critical Linux
- Copyright (C) 2002-2008 Red Hat, Inc.  All rights reserved.
+ Copyright (C) 2002-2009 Red Hat, Inc.  All rights reserved.
  Author(s):
   Lon Hohberger (lhh at redhat.com)
   Tim Burke (tburke at redhat.com)
