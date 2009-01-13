@@ -817,7 +817,7 @@ then
 fi
 
 # Set a tempfile and make sure to clean it up again
-TEMPFILE="/tmp/SAPDatabase.$$.tmp"
+TEMPFILE="$(mktemp /tmp/SAPDatabase.tmp.XXXXXX)"
 trap trap_handler INT TERM
 
 # These operations don't require OCF instance parameters to be set
