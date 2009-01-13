@@ -16,7 +16,10 @@ RESOURCES=service.sh ip.sh nfsclient.sh nfsexport.sh \
 
 METADATA=apache.metadata openldap.metadata samba.metadata \
 	mysql.metadata postgres-8.metadata tomcat-5.metadata \
-	named.metadata lvm.metadata default_event_script.sl \
+	named.metadata lvm.metadata
+
+EVENT_TARGETS= \
+	default_event_script.sl \
 	follow-service.sl
 
 GENERAL_TARGETS=ocf-shellfuncs svclib_nfslock lvm_by_lv.sh lvm_by_vg.sh
@@ -48,7 +51,7 @@ install:
 	for i in $(RESOURCES); do \
 	 install -m755 $(S)/$$i ${sharedir}; \
 	done
-	for i in $(METADATA); do \
+	for i in $(METADATA) $(EVENT_TARGETS); do \
 	 install -m644 $(S)/$$i ${sharedir}; \
 	done
 	for i in $(GENERAL_TARGETS); do \
@@ -62,7 +65,7 @@ install:
 
 uninstall:
 	${UNINSTALL} ${RESOURCES} ${GENERAL_TARGETS} \
-		     ${METADATA} ${UTIL_TARGETS} \
+		     ${METADATA} ${EVENT_TARGETS} ${UTIL_TARGETS} \
 		     $(TARGET1) $(TARGET2) $(TARGET3) \
 		     ${sharedir}
 
