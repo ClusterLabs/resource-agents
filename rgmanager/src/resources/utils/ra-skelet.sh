@@ -30,7 +30,10 @@ stop_generic()
 
 	if [ ! -e "$pid_file" ]; then
 		clog_check_file_exist $CLOG_FAILED_NOT_FOUND "$pid_file"
-		return $OCF_ERR_GENERIC
+		# In stop-after-stop situation there is no PID file but
+		# it will be nice to check for it in stop-after-start
+		# look at bug #449394
+		return 0
 	fi
 
 	if [ -z "$kill_timeout" ]; then
