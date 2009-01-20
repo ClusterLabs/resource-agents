@@ -387,10 +387,19 @@ send_ua(struct in6_addr* src_ip, char* if_name)
 	struct libnet_in6_addr dst_ip;
 	struct libnet_ether_addr *mac_address;
 	char payload[24];
+	int ifindex;
 
 
 	if ((l=libnet_init(LIBNET_RAW6, if_name, errbuf)) == NULL) {
 		cl_log(LOG_ERR, "libnet_init failure on %s", if_name);
+		goto err;
+	}
+	/* set the outgoing interface */
+	ifindex = if_nametoindex(if_name);
+	if (setsockopt(libnet_getfd(l), IPPROTO_IPV6, IPV6_MULTICAST_IF,
+		       &ifindex, sizeof(ifindex)) < 0) {
+		cl_log(LOG_ERR, "setsockopt(IPV6_MULTICAST_IF): %s",
+		       strerror(errno));
 		goto err;
 	}
 
@@ -414,6 +423,9 @@ send_ua(struct in6_addr* src_ip, char* if_name)
 	libnet_build_ipv6(0,0,LIBNET_ICMPV6_H + sizeof(payload),IPPROTO_ICMP6,
 				255,*(struct libnet_in6_addr*)src_ip,
 				dst_ip,NULL,0,l,0);
+	/* Hack: adjust the correct checksum offset. see LF #2034 */
+	libnet_pblock_record_ip_offset(l, l->total_size);
+
 
         if (libnet_write(l) == -1)
         {
