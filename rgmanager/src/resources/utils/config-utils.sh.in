@@ -218,6 +218,14 @@ check_pid_file() {
 		return 0;
 	fi
 
+	## if PID file is empty then it should be safe to remove it
+	read pid < "$pid_file"
+	if [ -z "$pid" ]; then
+		rm $pid_file
+		ocf_log debug "PID File \"$pid_file\" Was Removed - Zero length";
+		return 0;
+	fi
+
 	if [ ! -d /proc/`cat "$pid_file"` ]; then	
 		rm "$pid_file"
 		ocf_log debug "PID File \"$pid_file\" Was Removed - PID Does Not Exist";
