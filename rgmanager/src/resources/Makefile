@@ -77,9 +77,9 @@ clean: generalclean
 
 check: $(RESOURCES) $(TARGET2) $(TARGET3) ra-api-1-modified.dtd
 	@echo Validating resource agent meta-data
-	@for f in $(RESOURCES); do \
+	@for f in $(RESOURCES) $(TARGET2) $(TARGET3); do \
 		echo "   ./$$f "; \
-		./$$f meta-data | xmllint --dtdvalid \
+		bash ./$$f meta-data | xmllint --dtdvalid \
 				  ./ra-api-1-modified.dtd --noout -; \
 		if [ $$? -ne 0 ]; then exit 1; fi \
 	done
