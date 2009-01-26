@@ -12,7 +12,6 @@ export PATH=/bin:/sbin:/usr/bin:/usr/sbin
 declare MYSQL_MYSQLD=/usr/bin/mysqld_safe
 declare MYSQL_ipAddress
 declare MYSQL_pid_file="`generate_name_for_pid_file`"
-declare MYSQL_timeout=30
 
 verify_all()
 {
@@ -92,15 +91,16 @@ start()
 		return $OCF_ERR_GENERIC
 	fi
 
-	while [ "$MYSQL_timeout" -gt 0 ]; do
+	declare i=$OCF_RESKEY_startup_wait
+	while [ "$i" -gt 0 ]; do
 		if [ -f "$MYSQL_pid_file" ]; then
 			break;			
 		fi
 		sleep 1
-		let MYSQL_timeout=${MYSQL_timeout}-1
+		let i=$i-1
         done
 
-        if [ "$MYSQL_timeout" -eq 0 ]; then
+        if [ "$i" -eq 0 ]; then
 		clog_service_start $CLOG_FAILED_TIMEOUT
 		return $OCF_ERR_GENERIC
 	fi
