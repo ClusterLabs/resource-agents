@@ -264,7 +264,7 @@ VirtualDomain_Validate_All() {
     # deduce $DOMAIN_NAME from it, see below)
     if [ ! -r $OCF_RESKEY_config ]; then
 	ocf_log error "Configuration file $OCF_RESKEY_config does not exist or is not readable."
-	return $OCF_ERR_CONFIGURED
+	return $OCF_ERR_INSTALLED
     fi
 }
 
