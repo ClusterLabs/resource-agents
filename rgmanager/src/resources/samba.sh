@@ -13,8 +13,8 @@ declare SAMBA_SMBD=/usr/sbin/smbd
 declare SAMBA_NMBD=/usr/sbin/nmbd
 declare SAMBA_pid_dir="`generate_name_for_pid_dir`"
 declare SAMBA_conf_dir="`generate_name_for_conf_dir`"
-declare SAMBA_smbd_pid_file="$SAMBA_pid_dir/smbd.pid"
-declare SAMBA_nmbd_pid_file="$SAMBA_pid_dir/nmbd.pid"
+declare SAMBA_smbd_pid_file="$SAMBA_pid_dir/smbd-smb.conf.pid"
+declare SAMBA_nmbd_pid_file="$SAMBA_pid_dir/nmbd-smb.conf.pid"
 declare SAMBA_gen_config_file="$SAMBA_conf_dir/smb.conf"
 
 verify_all()
