@@ -48,10 +48,14 @@
 . ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 
 getpid() { # make sure that the file contains a number
+	# FIXME: pidfiles could contain spaces
 	grep '^[0-9][0-9]*$' $1
 }
 
 anything_status() {
+	# FIXME: This should use pidofproc
+	# FIXME: pidfile w/o process means the process died, so should
+	# be ERR_GENERIC
 	if test -f "$pidfile" && pid=`getpid $pidfile` && kill -0 $pid
 	then
 		return $OCF_RUNNING
@@ -62,6 +66,8 @@ anything_status() {
 
 anything_start() {
 	if ! anything_status
+	# FIXME: use start_daemon
+	# FIXME: What about daemons which can manage their own pidfiles?
 	then
 		if [ -n "$logfile" -a -n "$errlogfile" ]
 		then
@@ -95,11 +101,13 @@ anything_start() {
 }
 
 anything_stop() {
+	# FIXME: use killproc
 	if anything_status
 	then
 		pid=`getpid $pidfile`
 		kill $pid
 		i=0
+		# FIXME: escalate to kill -9 before timeout
 		while sleep 1 
 		do
 			if ! anything_status
@@ -114,6 +122,7 @@ anything_stop() {
 		rm -f $pidfile 
 		return $OCF_SUCCESS
 	fi
+	# FIXME: Never reached.
 	return $OCF_ERR_GENERIC
 }
 
@@ -125,6 +134,8 @@ anything_monitor() {
 		# implement your deeper monitor operation here
 		if [ -n "$OCF_RESKEY_monitor_hook" ]; then
 			eval "$OCF_RESKEY_monitor_hook"
+			# FIXME: Implement a check that this doesn't
+			# accidentially return NOT_RUNNING?
 			return
 		else
 			true
@@ -134,10 +145,12 @@ anything_monitor() {
 	fi
 }
 
+# FIXME: Attributes special meaning to the resource id
 process="$OCF_RESOURCE_INSTANCE"
 binfile="$OCF_RESKEY_binfile"
 cmdline_options="$OCF_RESKEY_cmdline_options"
 pidfile="$OCF_RESKEY_pidfile"
+# FIXME: Why test for $binfile here?
 [ -z "$pidfile" -a -n "$binfile" ] && pidfile=${HA_VARRUN}/anything_${process}.pid
 logfile="$OCF_RESKEY_logfile"
 errlogfile="$OCF_RESKEY_errlogfile"
@@ -145,6 +158,8 @@ user="$OCF_RESKEY_user"
 [ -z "$user" ] && user=root
 
 anything_validate() {
+	# FIXME: Actually this needs to test from the point of view of
+	# the user.
 	if [ ! -x "$binfile" ]
 	then
 		ocf_log err "binfile $binfile does not exist or is not executable."
@@ -257,11 +272,8 @@ case "$1" in
 	validate-all)
 		anything_validate
 	;;
-	promote|demote|notify)
-		exit $OCF_SUCCESS
-	;;
 	*)
 		ocf_log err "$0 was called with unsupported arguments: $*"
-		exit $OCF_ERR_GENERIC
+		exit $OCF_ERR_UNIMPLEMENTED
 	;;
 esac
