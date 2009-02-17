@@ -96,7 +96,7 @@ esac
 scsi2reserve_validate ()
 {
 	: ${OCF_RESKEY_start_loop=10}
-	if [ -x "${OCF_RESKEY_scsi_reserve}" ]; then
+	if [ ! -x "${OCF_RESKEY_scsi_reserve}" ]; then
 		exit $OCF_ERR_INSTALLED
 	fi
 	if [ -z "${OCF_RESKEY_sharedisk}" ]; then
