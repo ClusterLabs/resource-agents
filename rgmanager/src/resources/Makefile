@@ -48,15 +48,19 @@ $(TARGET3):
 
 install:
 	install -d ${sharedir}/utils
+	set -e; \
 	for i in $(RESOURCES); do \
 	 install -m755 $(S)/$$i ${sharedir}; \
 	done
+	set -e; \
 	for i in $(METADATA) $(EVENT_TARGETS); do \
 	 install -m644 $(S)/$$i ${sharedir}; \
 	done
+	set -e; \
 	for i in $(GENERAL_TARGETS); do \
 	 install -m755 $(S)/$$i ${sharedir}; \
 	done
+	set -e; \
 	for i in $(UTIL_TARGETS); do \
 	 install -m755 $(S)/$$i ${sharedir}/utils; \
 	done
