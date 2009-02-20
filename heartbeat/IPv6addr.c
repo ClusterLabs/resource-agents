@@ -499,7 +499,10 @@ scan_if(struct in6_addr* addr_target, int* plen_target, int use_mask)
 			n = plen / 32;
 			memset(mask.s6_addr32 + n + 1, 0, (3 - n) * 4);
 			s = 32 - plen % 32;
-			mask.s6_addr32[n] = 0xffffffff << s;
+			if (s == 32) 
+				mask.s6_addr32[n] = 0x0;
+			else
+				mask.s6_addr32[n] = 0xffffffff << s;
 			mask.s6_addr32[n] = htonl(mask.s6_addr32[n]);
 		}
 
