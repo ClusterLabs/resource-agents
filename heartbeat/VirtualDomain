@@ -134,7 +134,7 @@ VirtualDomain_Status() {
 	    # no state: domain is migrating (migration target only)
 	    rc=$OCF_NOT_RUNNING
 	    ;;
-	running|paused|blocked)
+	running|paused|blocked|idle)
 	    rc=$OCF_SUCCESS
 	    ;;
     esac
