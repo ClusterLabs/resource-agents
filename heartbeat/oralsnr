@@ -67,7 +67,7 @@ Oracle Listener instance as an HA resource.
 
 <parameters>
 
-<parameter name="sid" unique="1">
+<parameter name="sid" unique="1" required="1">
 <longdesc lang="en">
 The Oracle SID (aka ORACLE_SID). Necessary for the monitor op,
 i.e. to do tnsping SID.
@@ -85,7 +85,7 @@ If not specified, then the SID should be listed in /etc/oratab.
 <content type="string" default="" />
 </parameter>
 
-<parameter name="user" unique="0" required="1">
+<parameter name="user" unique="0">
 <longdesc lang="en">
 Run the listener as this user.
 </longdesc>
