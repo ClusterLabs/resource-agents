@@ -11,6 +11,135 @@ define node_in_set(node_list, node)
 	return 0;
 }
 
+
+%
+% Returns 3 node lists:
+% (1) Nodes with no services
+% (2) Nodes with non-exclusive services
+% (3) Nodes with exclusive services
+%
+% NOTE: This function currently defenstrates failover domain rules
+%
+define separate_nodes(node_list)
+{
+	variable services = service_list();
+	variable nodes_empty, nodes_services, nodes_excl;
+	variable x, len;
+	variable owner, state, excl, ns = 0, nx = 0;
+
+	nodes_empty = node_list;
+
+	% Most Awesome Initializer EVER!!!
+	nodes_services = subtract([0], 0);
+	nodes_excl = subtract([0], 0);
+
+	len = length(services);
+	for (x = 0; x < len; x++) {
+
+		(owner, state) = service_status(services[x]);
+		if (owner < 0) {
+			continue;
+		}
+
+		excl = atoi(service_property(services[x], "exclusive"));
+		nodes_empty = subtract(nodes_empty, owner);
+		if (excl) {
+			nodes_excl = union(nodes_excl, owner);
+		} else {
+			nodes_services = union(nodes_services, owner);
+		}
+	}
+
+	return (nodes_empty, nodes_services, nodes_excl);
+}
+
+
+define exclusive_prioritize(svc, node_list)
+{
+	variable services = service_list();
+	variable len, x, y, owner, state, preferred_owner;
+	variable svc_excl, other_excl;
+	variable nodes_x, nodes_s, nodes_e;
+
+	%
+	% Not exclusive?  Don't care!
+	%
+	svc_excl = atoi(service_property(svc, "exclusive"));
+	if (svc_excl == 0) {
+		return node_list;
+	}
+
+	(nodes_e, nodes_s, nodes_x) = separate_nodes(node_list);
+	debug("Nodes - Empty: ", nodes_e, " w/Services: ", nodes_s, " w/Excl: ", nodes_x);
+	if (length(nodes_e) > 0) {
+		%
+		% If we've got an exclusive service, only allow it to start on 
+		% empty nodes.
+		%
+		return nodes_e;
+	}
+
+	if (length(nodes_x) == 0) {
+		%
+		% If we've got NO nodes with other exclusive services
+		% and no empty nodes, the service can not be started
+		%
+		notice("No empty / exclusive nodes available; cannot restart ", svc);
+		return nodes_x;
+	}
+
+	%
+	% Prioritization of exclusive services: pancake a service and replace it
+	% with this service if this services is a higher priority.
+	%
+	len = length(services);
+	for (x = 0; x < len; x++) {
+		if (svc == services[x]) {
+			% don't do anything to ourself! 
+			continue;
+		}
+
+		(owner, state) = service_status(services[x]);
+		if (owner < 0) {
+			continue;
+		}
+
+		if (node_in_set(node_list, owner) == 0) {
+			continue;
+		}
+
+		other_excl = atoi(service_property(services[x], "exclusive"));
+		if (other_excl == 0) {
+			continue;
+		}
+
+		%
+		% If we're a higher priority (lower #) exclusive
+		% Stop the exclusive service that node and move that
+		% node to the front.
+		%
+		if (svc_excl >= other_excl) {
+			continue;
+		}
+
+		%
+		% 
+		%
+		warning("STOPPING service ", services[x], " because ", svc, " is a higher priority.");
+		() = service_stop(services[x]);
+
+		%
+		% Return just the one node.
+		%
+		node_list = subtract([0], 0);
+		node_list = union(node_list, owner);
+		return node_list;
+	}
+
+	return node_list;
+}
+
+
 define move_or_start(service, node_list)
 {
 	variable len;
@@ -63,9 +192,13 @@ define move_or_start(service, node_list)
 			return ERR_ABORT;
 		}
 	} else {
+		node_list = exclusive_prioritize(service, node_list);
 		notice("Starting ", service, " on ", node_list);
 	}
 
+	if (length(node_list) == 0) {
+		return ERR_DOMAIN; 
+	}
 	return service_start(service, node_list);
 }
 
@@ -128,7 +261,7 @@ define default_node_event_handler()
 	variable x;
 	variable nodes;
 
-	% debug("Executing default node event handler");
+	debug("Executing default node event handler");
 	for (x = 0; x < length(services); x++) {
 		nodes = allowed_nodes(services[x]);
 		()=move_or_start(services[x], nodes);
@@ -148,7 +281,7 @@ define default_service_event_handler()
 	variable owner;
 	variable state;
 
-	% debug("Executing default service event handler");
+	debug("Executing default service event handler");
 
 	if (service_state == "recovering") {
 
@@ -156,7 +289,8 @@ define default_service_event_handler()
 		debug("Recovering",
 		      " Service: ", service_name,
 		      " Last owner: ", service_last_owner,
-		      " Policy: ", policy);
+		      " Policy: ", policy,
+		      " RTE: ", service_restarts_exceeded);
 
 		if (policy == "disable") {
 			() = service_stop(service_name, 1);
@@ -164,13 +298,17 @@ define default_service_event_handler()
 		}
 
 		nodes = allowed_nodes(service_name);
-		if (policy == "restart") {
-			tmp = union(service_last_owner, nodes);
+		if (policy == "restart" and service_restarts_exceeded == 0) {
+			nodes = union(service_last_owner, nodes);
 		} else {
 			% relocate 
 			tmp = subtract(nodes, service_last_owner);
-			nodes = tmp;
-			tmp = union(nodes, service_last_owner);
+			if (length(tmp) == 0) {
+				() = service_stop(service_name,0);
+				return;
+			}
+
+			nodes = union(tmp, service_last_owner);
 		}
 
 		()=move_or_start(service_name, nodes);
@@ -214,7 +352,7 @@ define default_service_event_handler()
 
 define default_config_event_handler()
 {
-	% debug("Executing default config event handler");
+	debug("Executing default config event handler");
 }
 
 define default_user_event_handler()
