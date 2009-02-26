@@ -383,13 +383,13 @@ status|monitor)
 	rv=$? 
 
 	if [ $rv -eq 0 ]; then
-		[ -z "$OCF_RESKEY_service_name" ] && rm -f $tmpfn
+		[ "$OCF_RESKEY_use_cache" = "1" ] || rm -f $tmpfn
 		exit 0
 	fi
 
 	declare OCF_RESKEY_target_tmp=$(clufindhostname -i "$OCF_RESKEY_target")
 	if [ $? -ne 0 ]; then
-		[ -z "$OCF_RESKEY_service_name" ] && rm -f $tmpfn
+		[ "$OCF_RESKEY_use_cache" = "1" ] || rm -f $tmpfn
 		ocf_log err "nfsclient:$OCF_RESKEY_name is missing!"
 		exit 1
 	fi
@@ -398,7 +398,7 @@ status|monitor)
 		"^${OCF_RESKEY_path}[\t ]*.*${OCF_RESKEY_target_tmp}" 
 	rv=$? 
 
-	[ -z "$OCF_RESKEY_service_name" ] && rm -f $tmpfn
+	[ "$OCF_RESKEY_use_cache" = "1" ] || rm -f $tmpfn
 	if [ $rv -eq 0 ]; then
 		exit 0
 	fi
