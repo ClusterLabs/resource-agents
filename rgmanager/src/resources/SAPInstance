@@ -31,10 +31,14 @@
 #######################################################################
 # Initialization:
 
-if [ -f ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs ]; then
-        . ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
-elif [ -f /usr/share/cluster/ocf-shellfuncs ]; then
-        . /usr/share/cluster/ocf-shellfuncs
+if [ -f $(dirname $0)/.ocf-shellfuncs ]; then
+        . $(dirname $0)/.ocf-shellfuncs
+elif [ -f $(dirname $0)/ocf-shellfuncs ]; then
+        LC_ALL=C
+        LANG=C
+        PATH=/bin:/sbin:/usr/bin:/usr/sbin
+        export LC_ALL LANG PATH
+        . $(dirname $0)/ocf-shellfuncs
 else
         echo Could not find ocf-shellfuncs!
         exit 1
@@ -68,7 +72,7 @@ meta_data() {
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="SAPInstance">
-<version>1.92</version>
+<version>1.92.1</version>
 
 <longdesc lang="en">
 Resource script for SAP. It manages a SAP Instance as an HA resource.

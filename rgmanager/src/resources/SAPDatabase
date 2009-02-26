@@ -37,10 +37,14 @@
 #######################################################################
 # Initialization:
 
-if [ -f ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs ]; then
-        . ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
-elif [ -f /usr/share/cluster/ocf-shellfuncs ]; then
-        . /usr/share/cluster/ocf-shellfuncs
+if [ -f $(dirname $0)/.ocf-shellfuncs ]; then
+        . $(dirname $0)/.ocf-shellfuncs
+elif [ -f $(dirname $0)/ocf-shellfuncs ]; then
+        LC_ALL=C
+        LANG=C
+        PATH=/bin:/sbin:/usr/bin:/usr/sbin
+        export LC_ALL LANG PATH
+        . $(dirname $0)/ocf-shellfuncs
 else
         echo Could not find ocf-shellfuncs!
         exit 1
@@ -64,6 +68,7 @@ usage() {
 	The 'stop' operation stops the instance.
 	The 'status' operation reports whether the instance is running
 	The 'monitor' operation reports whether the instance seems to be working
+	The 'recover' operation tries to recover the instance after a crash (instance will be stopped first!)
 	The 'validate-all' operation reports whether the parameters are valid
 	The 'methods' operation reports on the methods $0 supports
 
@@ -75,7 +80,7 @@ meta_data() {
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="SAPDatabase">
-<version>1.92</version>
+<version>1.92.1</version>
 
 <longdesc lang="en">
 Resource script for SAP databases. It manages a SAP database of any type as an HA resource.
@@ -516,6 +521,7 @@ sapdatabase_methods() {
 	stop
 	status
 	monitor
+	recover
 	validate-all
 	methods
 	meta-data
@@ -990,6 +996,9 @@ case "$1" in
 
   status)
                 sapdatabase_status
+                exit $?;;
+
+  recover)      sapdatabase_recover
                 exit $?;;
 
   validate-all)	sapdatabase_validate
