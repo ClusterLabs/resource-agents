@@ -19,14 +19,58 @@ NO=1
 YES_STR="yes"
 INVALIDATEBUFFERS="/bin/true"
 
-# Grab nfs lock tricks if available
-export NFS_TRICKS=1
-if [ -f "$(dirname $0)/svclib_nfslock" ]; then
-	. $(dirname $0)/svclib_nfslock
-	NFS_TRICKS=0
-fi
+#
+# Using a global to contain the return value saves
+# clone() operations.  This is important to reduce
+# resource consumption during status checks.
+#
+# There is no way to return a string from a function
+# in bash without cloning the process, which is exactly
+# what we are trying to avoid.  So, we have to resort
+# to using a dedicated global variable.  This one is
+# for the real_device() function below.
+#
+declare REAL_DEVICE
 
-. $(dirname $0)/ocf-shellfuncs
+#
+# Stub ocf_log function for when we are using 
+# quick_status, since ocf_log generally forks (and
+# sourcing ocf-shellfuncs forks -a lot-).
+#
+ocf_log()
+{
+	echo $*
+}
+
+#
+# Assume NFS_TRICKS are not available until we are
+# proved otherwise.
+#
+export NFS_TRICKS=1
+
+#
+# Quick status doesn't fork() or clone() when using
+# device files directly.  (i.e. not symlinks, LABEL= or
+# UUID=
+#
+if [ "$1" = "status" -o "$1" = "monitor" ] &&
+   [ "$OCF_RESKEY_quick_status" = "1" ]; then
+	echo Using Quick Status
+
+	# XXX maybe we can make ocf-shellfuncs have a 'quick' mode too?
+	export OCF_SUCCESS=0
+	export OCF_ERR_GENERIC=1
+else
+	#
+	# Grab nfs lock tricks if available
+	#
+	if [ -f "$(dirname $0)/svclib_nfslock" ]; then
+		. $(dirname $0)/svclib_nfslock
+		NFS_TRICKS=0
+	fi
+
+	. $(dirname $0)/ocf-shellfuncs
+fi
 
 meta_data()
 {
@@ -98,20 +142,21 @@ meta_data()
 	    <content type="boolean"/>
         </parameter>
 
-	<!-- 
-        <parameter name="active_monitor">
+        <parameter name="quick_status">
             <longdesc lang="en">
-	    	If set, the cluster will spawn an active monitoring 
-		daemon which watches the ability to issue I/Os to the
-		file system.  Requires a file system with O_DIRECT
-		support.
+		Use quick status checks.  When set to 0 (the default), this
+		agent behaves normally.  When set to 1, this agent will not
+		log errors incurred or perform the file system accessibility
+		check (e.g. it will not try to read from/write to the file
+		system).  You should only set this to 1 if you have lots of
+		file systems on your cluster or you are seeing very high load
+		spikes as a direct result of this agent.
             </longdesc>
             <shortdesc lang="en">
-	    	Active Monitoring
+	    	Quick/brief status checks.
             </shortdesc>
 	    <content type="boolean"/>
         </parameter>
-	-->
 
 	<parameter name="self_fence">
 	    <longdesc lang="en">
@@ -240,30 +285,48 @@ verify_mountpoint()
 }
 
 
+#
+# This used to be called using $(...), but doing this causes bash
+# to set up a pipe and clone().  So, the output of this function is
+# stored in the global variable REAL_DEVICE, declared previously.
+#
 real_device()
 {
 	declare dev=$1
 	declare realdev
 
+	REAL_DEVICE=""
+
 	[ -z "$dev" ] && return $OCF_ERR_ARGS
 
+	# If our provided blockdev is a device, we are done
+	if [ -b "$dev" ]; then
+		REAL_DEVICE="$dev"
+	       	return $OCF_SUCCESS
+	fi
+
+	# Oops, we have a link.  Sorry, this is going to fork.
 	if [ -h "$dev" ]; then 
 		realdev=$(readlink -f $dev)
 		if [ $? -ne 0 ]; then
 			return $OCF_ERR_ARGS
 		fi
-		echo $realdev
+		REAL_DEVICE="$realdev"
 		return $OCF_SUCCESS
 	fi
 
-	if [ -b "$dev" ]; then
-		echo $dev
-	       	return $OCF_SUCCESS
+	# It's not a link, it's not a block device.  If it also
+	# does not match UUID= or LABEL=, then findfs is not 
+	# going to find anything useful, so we should quit now.
+	if [ "${dev/UUID=/}" = "$dev" ] &&
+	   [ "${dev/LABEL=/}" = "$dev" ]; then
+		return $OCF_ERR_GENERIC
 	fi
-		
+	
+	# When using LABEL= or UUID=, we can't save a fork.
 	realdev=$(findfs $dev 2> /dev/null)
 	if [ -n "$realdev" ] && [ -b "$realdev" ]; then
-		echo $realdev
+		REAL_DEVICE="$realdev"
 		return $OCF_SUCCESS
 	fi
 
@@ -280,7 +343,8 @@ verify_device()
 	       return $OCF_ERR_ARGS
 	fi
 
-	realdev=$(real_device $OCF_RESKEY_device)
+	real_device $OCF_RESKEY_device
+	realdev=$REAL_DEVICE
 	if [ -n "$realdev" ]; then
 		if [ "$realdev" != "$OCF_RESKEY_device" ]; then
 			ocf_log info "Specified $OCF_RESKEY_device maps to $realdev"
@@ -451,7 +515,7 @@ verify_all()
 mountInUse () {
 	typeset mp tmp_mp
 	typeset dev tmp_dev
-	typeset junk
+	typeset junka junkb junkc junkd
 
 	if [ $# -ne 2 ]; then
 		ocf_log err "Usage: mountInUse device mount_point".
@@ -461,7 +525,7 @@ mountInUse () {
 	dev=$1
 	mp=$2
 
-	while read tmp_dev tmp_mp junk; do
+	while read tmp_dev tmp_mp junka junkb junkc junkd; do
 		if [ -n "$tmp_dev" -a "$tmp_dev" = "$dev" ]; then
 			return $YES
 		fi
@@ -469,21 +533,9 @@ mountInUse () {
 		if [ -n "$tmp_mp" -a "$tmp_mp" = "$mp" ]; then
 			return $YES
 		fi
-	done < <(mount | awk '{print $1,$3}')
+	done < /proc/mounts
 
 	return $NO
-}
-
-
-#
-# trim_trailing_slash path
-#
-# Trim trailing slash from given path.
-#
-trim_trailing_slash() {
-	declare mpath=$1
-
-	echo $mpath | sed -e 's/\/*$//'
 }
 
 
@@ -497,26 +549,38 @@ isMounted () {
 
 	typeset mp tmp_mp
 	typeset dev tmp_dev
+	typeset ret=$FAIL
 
 	if [ $# -ne 2 ]; then
 		ocf_log err "Usage: isMounted device mount_point"
 		return $FAIL
 	fi
 
-	dev=$(real_device $1)
+	real_device $1
+	dev=$REAL_DEVICE
 	if [ -z "$dev" ]; then
 		ocf_log err \
 			"fs (isMounted): Could not match $1 with a real device"
 		return $OCF_ERR_ARGS
 	fi
-	mp=$(readlink -f $2)
-	
-	while read tmp_dev tmp_mp
+
+	if [ -h "$2" ]; then
+		mp=$(readlink -f $2)
+	else
+		mp=$2
+	fi
+
+	ret=$NO
+
+	while read tmp_dev tmp_mp junk_a junk_b junk_c junk_d
 	do
-		#echo "spec=$1 dev=$dev  tmp_dev=$tmp_dev"
-		tmp_dev=$(real_device $tmp_dev)
-		tmp_mp=${tmp_mp/%\//}  #$(trim_trailing_slash $tmp_mp)
-		mp=${mp/%\//}		       #$(trim_trailing_slash $mp)
+		real_device $tmp_dev
+		tmp_dev=$REAL_DEVICE
+
+		# This bash glyph simply removes a trailing slash
+		# if one exists.  /a/b/ -> /a/b; /a/b -> /a/b.
+		tmp_mp=${tmp_mp%/}
+		mp=${mp%/}
 
 		if [ -n "$tmp_dev" -a "$tmp_dev" = "$dev" ]; then
 			#
@@ -527,11 +591,11 @@ isMounted () {
 				ocf_log warn \
 "Device $dev is mounted on $tmp_mp instead of $mp"
 			fi
-			return $YES
+			ret=$YES
 		fi
-	done < <(mount | awk '{print $1,$3}')
+	done < /proc/mounts
 
-	return $NO
+	return $ret
 }
 
 
@@ -702,80 +766,6 @@ killMountProcesses()
 }
 
 
-activeMonitor() {
-	declare monpath=$OCF_RESKEY_mountpoint/.clumanager
-	declare p
-	declare pid
-
-	if [ -z "$OCF_RESKEY_mountpoint" ]; then
-		ocf_log err "activeMonitor: No mount point specified"
-		return $OCF_ERR_ARGS
-	fi
-
-	if [ "$OCF_RESKEY_active_monitor" != "1" ] &&
-	   [ "$OCF_RESKEY_active_monitor" != "yes" ]; then
-		# Nothing bad happened; but no active monitoring specified.
-		return $OCF_SUCCESS
-	fi
-
-	if [ "$OCF_RESKEY_self_fence" = "1" ] ||
-	   [ "$OCF_RESKEY_self_fence" = "yes" ]; then
-		args="-i 2 -a reboot"
-	else
-		args="-i 2"
-	fi
-
-	case $1 in
-	start)
-		ocf_log info "Starting active monitoring of $OCF_RESKEY_mountpoint"
-		mkdir -p $(dirname $monpath) || return $OCF_ERR_GENERIC
-		devmon $args -p $monpath/devmon.data -P $monpath/devmon.pid
-		;;
-	stop)
-		ocf_log info "Stopping active monitoring of $OCF_RESKEY_mountpoint"
-		if ! [ -f $monpath/devmon.pid ]; then
-			# Someone removed the file or it wasn't there for
-			# some reason... Force unmount will kill us
-			return 0
-		fi
-
-		pid=$(cat $monpath/devmon.pid)
-		if [ -z "$pid" ]; then
-			# Someone emptied the file?
-			return 0
-		fi
-
-		for p in $(pidof devmon); do
-			if [ "$pid" = "$p" ]; then
-				ocf_log debug "Killing devmon $p for $OCF_RESKEY_mountpoint"
-				kill -TERM $p
-				return 0
-			fi
-		done
-		# none matching
-
-		return 0
-		;;
-	status)
-		pid=$(cat $monpath/devmon.pid)
-		for p in $(pidof devmon); do
-			if [ "$pid" = "$p" ]; then
-				return 0
-			fi
-		done
-
-		# none matching
-		ocf_log err "Active Monitor for $OCF_RESKEY_mountpoint has exited"
-		return $OCF_ERR_GENERIC
-		;;
-	*)
-		ocf_log err "usage: activeMonitor <start|stop|status>"
-		return $OCF_ERR_ARGS
-		;;
-	esac
-}
-
-
 #
 # Decide which quota options are enabled and return a string 
 # which we can pass to quotaon
@@ -892,7 +882,8 @@ startFilesystem() {
 	#
 	# Get the device
 	#
-	dev=$(real_device $OCF_RESKEY_device)
+	real_device $OCF_RESKEY_device
+	dev=$REAL_DEVICE
 	if [ -z "$dev" ]; then
 			ocf_log err "\
 startFilesystem: Could not match $OCF_RESKEY_device with a real device"
@@ -1067,7 +1058,6 @@ Unknown file system type '$fstype' for device $dev.  Assuming fsck is required."
 	fi
 
 	enable_fs_quotas $opts $mp
-	activeMonitor start || return $OCF_ERR_GENERIC
 	
 	return $SUCCESS
 }
@@ -1113,7 +1103,8 @@ stopFilesystem() {
 	#
 	# Get the device
 	#
-	dev=$(real_device $OCF_RESKEY_device)
+	real_device $OCF_RESKEY_device
+	dev=$REAL_DEVICE
 	if [ -z "$dev" ]; then
 			ocf_log err "\
 stop: Could not match $OCF_RESKEY_device with a real device"
@@ -1161,7 +1152,6 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 		       		quotaoff -$quotaopts $mp &> /dev/null
 			fi
 
-			activeMonitor stop || return $OCF_ERR_GENERIC
 
 			ocf_log info "unmounting $mp"
 			umount $mp
@@ -1204,7 +1194,7 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 
 		if [ $try -ge $max_tries ]; then
 			done=$YES
-		else
+		elif [ "$done" -ne "$YES" ]; then
 			sleep $sleep_time
 			let try=try+1
 		fi
@@ -1241,33 +1231,16 @@ stop)
 	;;
 status|monitor)
   	isMounted ${OCF_RESKEY_device} ${OCF_RESKEY_mountpoint}
-	case $? in
-	$NO)
-		ocf_log info "fs:${OCF_RESKEY_name}: ${OCF_RESKEY_device} is not mounted on ${OCF_RESKEY_mountpoint}"
-		exit $OCF_NOT_RUNNING
-		;;
-	$YES)
-		;;
-	*)
-		ocf_log err "fs:${OCF_RESKEY_name}: ${OCF_RESKEY_device} is not mounted on ${OCF_RESKEY_mountpoint}"
-		exit $OCF_ERR_GENERIC
-		;;
-	esac
-		
+
  	if [ $? -ne $YES ]; then
 		ocf_log err "fs:${OCF_RESKEY_name}: ${OCF_RESKEY_device} is not mounted on ${OCF_RESKEY_mountpoint}"
 		exit $OCF_ERR_GENERIC
 	fi
 
-	if [ "$OCF_RESKEY_active_monitor" = "yes" ] ||
-	   [ "$OCF_RESKEY_active_monitor" = "1" ]; then
-
-	   	activeMonitor status
-		[ $? -eq 0 ] && exit 0
-		ocf_log err "fs:${OCF_RESKEY_name}: Active Monitoring reported a failure"
-		exit $OCF_ERR_GENERIC
+	if [ "$OCF_RESKEY_quick_status" = "1" ]; then
+		exit 0
 	fi
- 	
+
  	isAlive ${OCF_RESKEY_mountpoint}
  	[ $? -eq $YES ] && exit 0
 
