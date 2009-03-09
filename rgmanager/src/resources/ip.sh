@@ -615,10 +615,13 @@ ipv6()
                         if [ $? -ne 0 ]; then
                                 continue
                         fi
-                        network_link_up $dev
-                        if [ $? -ne 0 ]; then
-                                continue
-                        fi
+			if [ "$OCF_RESKEY_monitor_link" = "yes" ]; then
+                        	network_link_up $dev
+                        	if [ $? -ne 0 ]; then
+                                	continue
+                        	fi
+			fi
+
 			if [ "${addr/\/*/}" = "${addr}" ]; then
 				addr="$addr/$maskbits"
 			fi
@@ -684,9 +687,11 @@ ipv4()
 			if [ $? -ne 0 ]; then
 			        continue
 			fi
-			network_link_up $dev
-			if [ $? -ne 0 ]; then
-				continue
+			if [ "$OCF_RESKEY_monitor_link" = "yes" ]; then
+				network_link_up $dev
+				if [ $? -ne 0 ]; then
+					continue
+				fi
 			fi
 
 			if [ "${addr/\/*/}" = "${addr}" ]; then
@@ -802,15 +807,9 @@ ip_op()
 {
 	declare dev
 	declare rtr
-	declare monitor_link
 	declare addr=${3/\/*/}
 	
-	monitor_link="yes"
-	if [ "${OCF_RESKEY_monitor_link}" = "no" ] ||
-	    [ "${OCF_RESKEY_monitor_link}" = "0" ]; then
-	        monitor_link="no"
-	fi
-	
+
 	if [ "$2" = "status" ]; then
 
 		ocf_log debug "Checking $3, Level $OCF_CHECK_LEVEL"
@@ -822,7 +821,7 @@ ip_op()
 		fi
 		ocf_log debug "$3 present on $dev"
 		
-		if [ "$monitor_link" = "yes" ]; then
+		if [ "$OCF_RESKEY_monitor_link" = "yes" ]; then
 			if ! network_link_up $dev; then
 		        	ocf_log warn "No link on $dev..."
 				return 1
@@ -873,10 +872,12 @@ if [ -z "$OCF_CHECK_LEVEL" ]; then
 	OCF_CHECK_LEVEL=0
 fi
 
-if [ -z "$OCF_RESKEY_monitor_link" ]; then
+if [ "${OCF_RESKEY_monitor_link}" = "no" ] ||
+   [ "${OCF_RESKEY_monitor_link}" = "0" ]; then
+        OCF_RESKEY_monitor_link="no"
+else
         OCF_RESKEY_monitor_link="yes"
 fi
-
 
 case $1 in
 start)
