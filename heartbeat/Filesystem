@@ -397,7 +397,7 @@ Filesystem_start()
 	if [ $blockdevice = "yes" ]; then
 		if [ "$DEVICE" != "/dev/null" -a ! -b "$DEVICE" ] ; then
 			ocf_log err "Couldn't find device [$DEVICE]. Expected /dev/??? to exist"
-			exit $OCF_ERR_ARGS
+			exit $OCF_ERR_INSTALLED
 		fi
 
 		if
@@ -424,7 +424,7 @@ Filesystem_start()
 
 	if [ ! -d "$MOUNTPOINT" ] ; then
 		ocf_log err "Couldn't find directory  [$MOUNTPOINT] to use as a mount point"
-		exit $OCF_ERR_ARGS
+		exit $OCF_ERR_INSTALLED
 	fi
 
 	flushbufs $DEVICE
