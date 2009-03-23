@@ -225,6 +225,7 @@ oldincludedir=`var "$oldincludedir" "$exec_prefix/include"`
 infodir=`var "$infodir" "$prefix/info"`
 mandir=`var "$mandir" "$exec_prefix/man"`
 docdir=${datadir}/doc/${HB_PKG}-${VERSION}
+stdocdir=${datadir}/doc/${HB_PKG}-${VERSION}/stonith
 libdir=`var "$libdir" "$exec_prefix/lib"`
 libexecdir=`var "$libexecdir" "$exec_prefix/libexec"`
 noarchlibdir=`var "$noarchlibdir" "$prefix/lib"`
@@ -320,7 +321,7 @@ case $libexecdir in
 esac
 
 for j in exec_prefix bindir sbindir datadir sysconfdir localstatedir \
-	includedir oldincludedir mandir docdir libdir noarchlibdir
+	includedir oldincludedir mandir docdir stdocdir libdir noarchlibdir
 do 
   dirname=`eval echo '${'${j}'}'`
   if
@@ -464,6 +465,7 @@ AC_DEFINE_UNQUOTED(STONITH_EXT_PLUGINDIR,
 AC_SUBST(base_includedir)
 AC_SUBST(saf_includedir)
 AC_SUBST(docdir)
+AC_SUBST(stdocdir)
 
 #
 #	Other interesting variables: ${host_vendor} and ${host_os}
