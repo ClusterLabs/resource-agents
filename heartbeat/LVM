@@ -238,7 +238,7 @@ LVM_validate_all() {
   check_binary $AWK
 
 #	Off-the-shelf tests...  
-  vgck "$VOLUME" >/dev/nulll 2>&1
+  vgck "$VOLUME" >/dev/null 2>&1
   
   if [ $? -ne 0 ]; then
 	ocf_log err "Volume group [$VOLUME] does not exist or contains error!"
@@ -317,7 +317,7 @@ if
   ( [ $rc -ne 0 ] || [ -z "$LVM_VERSION" ] )
 then
   ocf_log err "LVM: $1 could not determine LVM version. Try 'vgchange --version' manually and modify $0 ?"
-  exit $OCF_ERR_GENERIC
+  exit $OCF_ERR_INSTALLED
 fi
 LVM_MAJOR="${LVM_VERSION%%.*}"
 
