@@ -203,9 +203,10 @@ meta_data()
         <action name="start" timeout="5"/>
         <action name="stop" timeout="5"/>
 	
-	<!-- No-ops.  Groups are abstract resource types.  -->
+	<!-- No-ops.  Groups are abstract resource types.
         <action name="status" timeout="5" interval="1h"/>
         <action name="monitor" timeout="5" interval="1h"/>
+       	 -->
 
         <action name="reconfig" timeout="5"/>
         <action name="recover" timeout="5"/>
