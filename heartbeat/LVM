@@ -72,6 +72,13 @@ The name of volume group.
 <shortdesc lang="en">Volume group name</shortdesc>
 <content type="string" default="" />
 </parameter>
+<parameter name="exclusive" unique="0" required="0">
+<longdesc lang="en">
+If set, the volume group will be activated exclusively.
+</longdesc>
+<shortdesc lang="en">Exclusive activation</shortdesc>
+<content type="string" default="false" />
+</parameter>
 </parameters>
 
 <actions>
@@ -185,20 +192,20 @@ LVM_start() {
 
   ocf_log info "Activating volume group $1"
 
-  if 
-    [ "$LVM_MAJOR" -eq "1" ]
-  then
+  if [ "$LVM_MAJOR" -eq "1" ]; then
 	ocf_run vgscan $1
   else
 	ocf_run vgscan
   fi
 
-  # TODO: For v2, this MUST use --refresh
-  ocf_run vgchange -a y $1 || return $OCF_ERR_GENERIC
+  active_mode="y"
+  if ocf_is_true "$OCF_RESKEY_exclusive" ; then
+  	active_mode="ey"
+  fi	
 
-  if
-    LVM_status $1
-  then
+  ocf_run vgchange -a $active_mode $1 || return $OCF_ERR_GENERIC
+
+  if LVM_status $1; then
     : OK Volume $1 activated just fine!
     return $OCF_SUCCESS 
   else
