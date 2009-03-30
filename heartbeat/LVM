@@ -224,7 +224,7 @@ LVM_stop() {
     return 0
   }
   ocf_log info "Deactivating volume group $1"
-  ocf_run vgchange -a n $1 || return 1
+  ocf_run vgchange -a ln $1 || return 1
 
   if
     LVM_status $1
