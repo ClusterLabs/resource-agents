@@ -198,7 +198,7 @@ LVM_start() {
 	ocf_run vgscan
   fi
 
-  active_mode="y"
+  active_mode="ly"
   if ocf_is_true "$OCF_RESKEY_exclusive" ; then
   	active_mode="ey"
   fi	
