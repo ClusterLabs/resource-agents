@@ -210,7 +210,7 @@ LVM_start() {
     return $OCF_SUCCESS 
   else
     ocf_log err "LVM: $1 did not activate correctly"
-    return $OCF_ERR_GENERIC
+    return $OCF_NOT_RUNNING
   fi
 }
 
