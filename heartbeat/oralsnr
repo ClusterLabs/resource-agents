@@ -201,7 +201,9 @@ oralsnr_start() {
 		ocf_log info "Listener $listener running: $output"
 		return $OCF_SUCCESS
 	else
-		ocf_log err "Listener $listener stopped: $output"
+		ocf_log err "Listener $listener appears to have started, but is not running properly: $output"
+		ocf_log err "Probable Oracle configuration error"
+		ocf_log err "Oracle $tnsping output: `$tnsping $ORACLE_SID`"
 		return $OCF_ERR_GENERIC
 	fi
 }
