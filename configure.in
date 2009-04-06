@@ -2236,6 +2236,10 @@ zlib_installed="yes"
 AC_CHECK_HEADERS(zlib.h, , [zlib_installed="no"],)
 AC_CHECK_LIB(z, compress , , [zlib_installed="no"])
 AM_CONDITIONAL(BUILD_ZLIB_COMPRESS_MODULE, test "x${zlib_installed}" = "xyes")
+if test "x${zlib_installed}" = "xno"; then
+	FatalMissingThing "zlib" \
+	  "The zlib library is missing"
+fi
 
 
 dnl check if header file and lib are there for zlib
