@@ -247,7 +247,7 @@ lvs_restore_loopback() {
     CMD="OCF_RESKEY_cidr_netmask=32 OCF_RESKEY_ip=$1 OCF_RESKEY_nic=$ifname $FINDIF"
     if
       NICINFO=`eval $CMD`
-      NICINFO=`echo $NICINFO | tr -s " "`
+      NICINFO=`echo $NICINFO | tr "	" " " | tr -s " "`
     then
 	netmask_text=`echo "$NICINFO" | cut -f3 -d " "`
 	broadcast=`echo "$NICINFO" | cut -f5 -d " "`
