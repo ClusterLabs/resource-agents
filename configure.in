@@ -267,7 +267,7 @@ then
   LibCdir=`dirname $LIBC`
   dirlist=`echo $LibCdir | tr '/' ' '`
   LibDirSuffix=unknown
-  for dir in dirlist
+  for dir in $dirlist
   do
     case $dir in
       *lib*)	LibDirSuffix=$dir; break;;
