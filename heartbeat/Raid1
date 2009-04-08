@@ -260,21 +260,30 @@ raid1_stop() {
 }
 
 #
+# monitor: a less noisy status
+#
+raid1_monitor() {
+	# check if the md device exists first
+	[ -b $MDDEV ] && 
+		grep -e "^$MD[ \t:]" /proc/mdstat >/dev/null &&
+	    return $OCF_SUCCESS
+	return $OCF_NOT_RUNNING
+}
+
+#
 # STATUS: is the raid device online or offline?
 #
-raid1_status() { 
-
+raid1_status() {
 	# See if the MD device is online
-	grep -e "^$MD[ \t:]" /proc/mdstat >/dev/null
-	if [ $? -ne 0 ] ; then
+	raid1_monitor
+	rc=$?
+	if [ $rc -ne $OCF_SUCCESS ]; then
 	    echo "stopped"
-	    return $OCF_NOT_RUNNING
 	else
 	    echo "running"
-	    return $OCF_SUCCESS
 	fi
-
-}    
+	return $rc
+}
 
 raid1_validate_all() {
     # Utilities used by this script
@@ -394,8 +403,11 @@ case "$1" in
   stop)
 	raid1_stop
 	;;
-  status|monitor) 
+  status) 
 	raid1_status
+	;;
+  monitor) 
+	raid1_monitor
 	;;
   validate-all)
 	raid1_validate_all
