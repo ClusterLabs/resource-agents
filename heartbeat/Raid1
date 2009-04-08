@@ -378,9 +378,8 @@ MD=`echo $MDDEV | sed -e 's/\/dev\///'`
 
 HAVE_RAIDTOOLS=false
 if 
-    have_binary $RAIDSTART
+    have_binary $RAIDSTART >/dev/null 2>&1
 then
-  check_binary $RAIDSTOP
   HAVE_RAIDTOOLS=true
 else
   check_binary $MDADM
