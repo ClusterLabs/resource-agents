@@ -367,7 +367,7 @@ if [ -z "$MDDEV" ] ; then
 	exit $OCF_ERR_ARGS
 fi
 
-if [ ! -b "$MDDEV" ] ; then
+if [ -e "$MDDEV" -a ! -b "$MDDEV" ] ; then
 	ocf_log err "$MDDEV is not a block device!"
 	exit $OCF_ERR_ARGS
 fi
