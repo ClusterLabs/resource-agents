@@ -1,0 +1,253 @@
+#!/bin/bash
+#
+#
+# AoEtarget OCF RA. 
+# Manages an ATA-over-Ethernet (AoE) target utilizing the vblade utility.
+#
+# Copyright (c) 2009 LINBIT HA-Solutions GmbH, Florian Haas
+#                    All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+######################################################################
+# Initialization:
+
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
+LC_ALL="C"
+LANG="C"
+
+# Defaults
+OCF_RESKEY_nic_default="eth0"
+OCF_RESKEY_pid_default="${HA_RSCTMP}/AoEtarget-${OCF_RESOURCE_INSTANCE}.pid"
+OCF_RESKEY_binary_default="/usr/sbin/vblade"
+
+: ${OCF_RESKEY_nic=${OCF_RESKEY_nic_default}}
+: ${OCF_RESKEY_pid=${OCF_RESKEY_pid_default}}
+: ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
+
+#######################################################################
+
+meta_data() {
+    cat <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="AoEtarget" version="0.1">
+  <version>1.0</version>
+  <longdesc lang="en">
+This resource agent manages an ATA-over-Ethernet (AoE) target using vblade.
+It exports any block device, or file, as an AoE target using the 
+specified Ethernet device, shelf, and slot number.
+</longdesc>
+  <shortdesc lang="en">ATA-over-Ethernet (AoE) target agent</shortdesc>
+  <parameters>
+    <parameter name="device" required="1">
+      <longdesc lang="en">
+The local block device (or file) to export as an AoE target.
+</longdesc>
+      <shortdesc lang="en">Device to export</shortdesc>
+      <content type="string"/>
+    </parameter>
+    <parameter name="nic" required="1">
+      <longdesc lang="en">
+The local Ethernet interface to use for exporting this AoE target.
+</longdesc>
+      <shortdesc lang="en">Ethernet interface</shortdesc>
+      <content type="string" default="${OCF_RESKEY_nic_default}"/>
+    </parameter>
+    <parameter name="shelf" required="1">
+      <longdesc lang="en">
+The AoE shelf number to use when exporting this target.
+</longdesc>
+      <shortdesc lang="en">AoE shelf number</shortdesc>
+      <content type="integer"/>
+    </parameter>
+    <parameter name="slot" required="1">
+      <longdesc lang="en">
+The AoE slot number to use when exporting this target.
+</longdesc>
+      <shortdesc lang="en">AoE slot number</shortdesc>
+      <content type="integer"/>
+    </parameter>
+    <parameter name="pid" required="0" unique="1">
+      <longdesc lang="en">
+The file to record the daemon pid to.
+</longdesc>
+      <shortdesc lang="en">Daemon pid file</shortdesc>
+      <content type="string" default="${OCF_RESKEY_pid_default}"/>
+    </parameter>
+    <parameter name="binary" required="0">
+      <longdesc lang="en">
+Location of the vblade binary.
+</longdesc>
+      <shortdesc lang="en">vblade binary</shortdesc>
+      <content type="string" default="${OCF_RESKEY_binary_default}"/>
+    </parameter>
+  </parameters>
+  <actions>
+    <action name="start" timeout="15"/>
+    <action name="stop" timeout="15"/>
+    <action name="monitor" timeout="15" interval="10" depth="0" start-delay="0"/>
+    <action name="reload" timeout="15"/>
+    <action name="meta-data" timeout="5"/>
+    <action name="validate-all" timeout="15"/>
+  </actions>
+</resource-agent>
+EOF
+}
+
+#######################################################################
+
+# don't exit on TERM, to test that lrmd makes sure that we do exit
+trap sigterm_handler TERM
+sigterm_handler() {
+	ocf_log info "They use TERM to bring us down. No such luck."
+	return
+}
+
+AoEtarget_usage() {
+	cat <<END
+usage: $0 {start|stop|status|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+AoEtarget_start() {
+    AoEtarget_monitor
+    if [ $? =  $OCF_SUCCESS ]; then
+	return $OCF_SUCCESS
+    fi
+    ocf_log info "Exporting device ${OCF_RESKEY_device} on ${OCF_RESKEY_nic} as shelf ${OCF_RESKEY_shelf}, slot ${OCF_RESKEY_slot}"
+    ${OCF_RESKEY_binary} ${OCF_RESKEY_shelf} ${OCF_RESKEY_slot} \
+	${OCF_RESKEY_nic} ${OCF_RESKEY_device} 2>&1 &
+    rc=$?
+    pid=$!
+    if [ $rc -ne 0 ]; then
+	return $OCF_ERR_GENERIC
+    fi
+    echo $pid > ${OCF_RESKEY_pid} && return $OCF_SUCCESS
+    return $OCF_ERR_GENERIC
+}
+
+AoEtarget_stop() {
+    AoEtarget_monitor
+    if [ $? -eq  $OCF_SUCCESS ]; then
+	ocf_log info "Unxporting device ${OCF_RESKEY_device} on ${OCF_RESKEY_nic} as shelf ${OCF_RESKEY_shelf}, slot ${OCF_RESKEY_slot}"
+	pid=$(cat ${OCF_RESKEY_pid})
+	kill -TERM $pid
+	# loop until we're really stopped, wait for the LRM to time us
+	# out if not
+	while AoEtarget_monitor; do
+	    sleep 1
+	done
+    fi
+    # Clean up pid file
+    rm -f ${OCF_RESKEY_pid}
+    return $OCF_SUCCESS
+}
+
+AoEtarget_monitor() {
+    ocf_pidfile_status ${OCF_RESKEY_pid} >/dev/null 2>&1
+    rc=$?
+    if [ $rc -eq 2 ]; then
+	# no pid file, must assume we're not running
+	return $OCF_NOT_RUNNING
+    elif [ $rc -eq 1 ]; then
+	# stale pid file, assume something went wrong
+	return $OCF_ERR_GENERIC
+    fi
+    return $OCF_RUNNING
+}
+
+AoEtarget_validate() {
+    # Is our binary executable?
+    if [ ! -x ${OCF_RESKEY_binary} ]; then
+	ocf_log error "${OCF_RESKEY_binary} not found or not executable"
+	return $OCF_ERR_INSTALLED
+    fi
+
+    # Do we have all required variables?
+    for var in device nic shelf slot pid; do
+	param="OCF_RESKEY_${var}"
+	if [ -z "${!param}" ]; then
+	    ocf_log error "Missing resource parameter \"$var\"!"
+	    return $OCF_ERR_CONFIGURED
+	fi
+    done
+
+    # Is the pid file directory writable? 
+    pid_dir=`dirname "$OCF_RESKEY_pid"`
+    touch "$pid_dir/$$"
+    if [ $? != 0 ]; then
+	ocf_log error "Cannot create pid file in $pid_dir -- check directory permissions"
+	return $OCF_ERR_INSTALLED
+    fi
+    rm "$pid_dir/$$"
+
+    # Does the device we are trying to export exist?
+    if [ ! -e ${OCF_RESKEY_device} ]; then
+	ocf_log error "${OCF_RESKEY_device} does not exist"
+	return $OCF_ERR_INSTALLED
+    fi
+    return $OCF_SUCCESS
+}
+
+case $1 in
+  meta-data)
+	meta_data
+	exit $OCF_SUCCESS
+	;;
+  usage|help)
+	AoEtarget_usage
+	exit $OCF_SUCCESS
+	;;
+esac
+
+# Everything except usage and meta-data must pass the validate test
+AoEtarget_validate || exit $?
+
+case $__OCF_ACTION in
+    start)
+	AoEtarget_start
+	;;
+    stop)
+	AoEtarget_stop
+	;;
+    status|monitor)
+	AoEtarget_monitor
+	;;
+    reload)
+	ocf_log err "Reloading..."
+	AoEtarget_start
+	;;
+    validate-all)
+	AoEtarget_validate
+	;;
+    *)
+	AoEtarget_usage
+	exit $OCF_ERR_UNIMPLEMENTED
+	;;
+esac
+
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc
+

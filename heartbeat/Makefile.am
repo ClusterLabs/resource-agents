@@ -48,6 +48,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 		        IPaddr2		\
 		        drbd		\
 			anything		\
+			AoEtarget		\
 			apache		\
 			AudibleAlarm	\
 			db2		\
