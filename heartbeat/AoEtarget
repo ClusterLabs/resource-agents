@@ -115,13 +115,6 @@ EOF
 
 #######################################################################
 
-# don't exit on TERM, to test that lrmd makes sure that we do exit
-trap sigterm_handler TERM
-sigterm_handler() {
-	ocf_log info "They use TERM to bring us down. No such luck."
-	return
-}
-
 AoEtarget_usage() {
 	cat <<END
 usage: $0 {start|stop|status|monitor|validate-all|meta-data}
