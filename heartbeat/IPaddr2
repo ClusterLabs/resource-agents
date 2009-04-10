@@ -282,7 +282,7 @@ ip_init() {
 
 	if [ $LVS_SUPPORT -gt 0 ] && [ $IP_INC_GLOBAL -gt 1 ]; then
 		ocf_log err "LVS and load sharing do not go together well"
-		exit OCF_ERR_ARGS
+		exit $OCF_ERR_ARGS
 	fi
 
 	ARP_INTERVAL_MS=${OCF_RESKEY_arp_interval:-200}
