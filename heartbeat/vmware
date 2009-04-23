@@ -66,27 +66,27 @@ vmware_get_msgid() {
 
 # Answers message
 vmware_answer_msg() {
-  $VIMSHBIN vmsvc/message $1 $2 $3 &> /dev/null
+  $VIMSHBIN vmsvc/message $1 $2 $3 >/dev/null 2>&1
 }
 
 # Register a virtual machine
 vmware_register_vm() {
-  $VIMSHBIN solo/registervm '"'$1'"' &> /dev/null
+  $VIMSHBIN solo/registervm '"'$1'"' >/dev/null 2>&1
 }
 
 # Unregister a virtual machine
 vmware_unregister_vm() {
-  $VIMSHBIN  vmsvc/unregister $1 &> /dev/null
+  $VIMSHBIN  vmsvc/unregister $1 >/dev/null 2>&1
 }
 
 # Start a virtual machine
 vmware_poweron_vm() {
-  $VIMSHBIN vmsvc/power.on $1 &> /dev/null
+  $VIMSHBIN vmsvc/power.on $1 >/dev/null 2>&1
 }
 
 # Suspend a virtual machine
 vmware_suspend_vm() {
-  $VIMSHBIN vmsvc/power.suspend $1 &> /dev/null
+  $VIMSHBIN vmsvc/power.suspend $1 >/dev/null 2>&1
 }
 
 # Get virtual machine power state

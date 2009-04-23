@@ -261,7 +261,7 @@ execsql() {
 #	Run commands in the oracle admin sqlplus...
 #
 dbasql() {
-	typeset func
+	local func
 	(
 	echo "connect / as sysdba"
 	echo "set feedback off"
@@ -317,12 +317,12 @@ is_clear_backupmode_set(){
 	[ x"${clear_backupmode}" = x"true" ]
 }
 is_instance_in_backup_mode() {
-	typeset count
+	local count
 	count="`dbasql db_backup_mode | sed 's/COUNT//'`"
 	[ x"$count" != x"0" ]
 }
 clear_backup_mode() {
-	typeset output
+	local output
 	output="`dbasql dbendbackup`"
 	ocf_log info "Oracle instance $ORACLE_SID alter database end backup: $output"
 }
@@ -341,17 +341,17 @@ getipc() {
 
 # Part 1: Oracle
 dumpinstipc() {
-	typeset dumpdest=`dbasql getdumpdest`
+	local dumpdest=`dbasql getdumpdest`
 	[ "x$dumpdest" != x -a -d "$dumpdest" ] || return 1
-	typeset -i fcount=`ls -rt $dumpdest | wc -l`
+	local -i fcount=`ls -rt $dumpdest | wc -l`
 	dbasql getipc >/dev/null 2>&1
-	typeset lastf=`ls -rt $dumpdest | grep -v '^\.*$' | tail -1`
-	typeset -i fcount2=`ls -rt $dumpdest | wc -l`
+	local lastf=`ls -rt $dumpdest | grep -v '^\.*$' | tail -1`
+	local -i fcount2=`ls -rt $dumpdest | wc -l`
 	[ $((fcount+1)) -eq $fcount2 ] || return 1  # more than one file created
 	echo $dumpdest/$lastf
 }
 parseipc() {
-	typeset inf=$1
+	local inf=$1
 	test -f "$1" || return 1
 	awk '
 		$3 == "Shmid" {n=1;next}
@@ -377,7 +377,7 @@ filteroraipc() {  # this portable?
 	grep -w $ORACLE_OWNER | awk '{print $2}'
 }
 ipcdesc() {
-	typeset what=$1
+	local what=$1
 	case $what in
 	m) echo "shared memory segment";;
 	s) echo "semaphore";;
@@ -385,14 +385,14 @@ ipcdesc() {
 	esac
 }
 rmipc() {
-	typeset what=$1 id=$2
+	local what=$1 id=$2
 	ipcs -$what | filteroraipc | grep -w $id >/dev/null 2>&1 ||
 		return
 	ocf_log info "Removing `ipcdesc $what` $id."
 	ipcrm -$what $id
 }
 ipcrm_orauser() {
-	typeset what id
+	local what id
 	for what in m s q; do
 		for id in `ipcs -$what | filteroraipc`; do
 			rmipc $what $id
@@ -400,7 +400,7 @@ ipcrm_orauser() {
 	done
 }
 ipcrm_instance() {
-	typeset ipcobj
+	local ipcobj
 	for ipcobj; do
 		rmipc `echo $ipcobj | sed 's/:/ /'`
 	done
@@ -449,7 +449,7 @@ ora_cleanup() {
 #
 
 oracle_start() {
-	typeset status output
+	local status output
 	if is_oracle_up; then
 		status="`dbasql dbstat`"
 		case "$status" in
@@ -512,7 +512,7 @@ oracle_start() {
 # oracle_stop: Stop the Oracle instance
 #
 oracle_stop() {
-	typeset status output ipc=""
+	local status output ipc=""
 	if is_oracle_up; then
 		[ "$IPCRM" = "instance" ] && ipc=$(parseipc `dumpinstipc`)
 		output=`dbasql dbstop`
@@ -535,7 +535,7 @@ oracle_stop() {
 # kill the database processes (if any left)
 # give them 30 secs to exit cleanly (6 times 5)
 killprocs() {
-	typeset sig=$1
+	local sig=$1
 	shift 1
 	kill -$sig $* >/dev/null 2>&1
 }

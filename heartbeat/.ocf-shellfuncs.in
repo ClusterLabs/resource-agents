@@ -85,6 +85,13 @@ ocf_is_decimal() {
 	esac
 }
 
+ocf_is_true() {
+	case "$1" in
+	yes|true|1|YES|TRUE|ja|on|ON) true ;;
+	*)	false ;;
+	esac
+}
+
 ocf_is_hex() {
 	case "$1" in
         ""|*[!0-9a-fA-F]*)	# empty, or at least one non-hex

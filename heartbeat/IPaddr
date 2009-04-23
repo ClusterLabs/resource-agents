@@ -247,7 +247,7 @@ lvs_restore_loopback() {
     CMD="OCF_RESKEY_cidr_netmask=32 OCF_RESKEY_ip=$1 OCF_RESKEY_nic=$ifname $FINDIF"
     if
       NICINFO=`eval $CMD`
-      NICINFO=`echo $NICINFO | tr -s " "`
+      NICINFO=`echo $NICINFO | tr "	" " " | tr -s " "`
     then
 	netmask_text=`echo "$NICINFO" | cut -f3 -d " "`
 	broadcast=`echo "$NICINFO" | cut -f5 -d " "`
@@ -299,8 +299,15 @@ find_interface_solaris() {
 }
 
 find_interface_bsd() {
-    #$IFCONFIG $IFCONFIG_A_OPT | grep "inet.*[: ]$OCF_RESKEY_ip "
-    $IFCONFIG | grep "$ipaddr" -B20 | grep "UP," | tail -n 1 | cut -d ":" -f 1
+    $IFCONFIG $IFCONFIG_A_OPT | awk -v ip_addr="$ipaddr" '
+					/UP,/ && $0 ~ /^[a-z]+[0-9]:/ { 
+    						if_name=$1; sub(":$","",if_name); 
+					}
+					$1 == "inet" && $2 == ip_addr {
+    						print if_name 
+    						exit(0)
+					}'
+
 }
 
 #

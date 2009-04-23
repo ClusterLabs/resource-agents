@@ -47,6 +47,8 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 		        IPaddr		\
 		        IPaddr2		\
 		        drbd		\
+			anything		\
+			AoEtarget		\
 			apache		\
 			AudibleAlarm	\
 			db2		\
@@ -88,6 +90,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			sfex		\
 			tomcat		\
 			VIPArip		\
+			VirtualDomain \
 			vmware		\
 			WAS		\
 			WAS6		\

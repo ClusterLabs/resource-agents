@@ -280,7 +280,7 @@ Xen_Stop() {
     elif [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
       # Allow 2/3 of the action timeout for the orderly shutdown
       # (The origin unit is ms, hence the conversion)
-      timeout=$[OCF_RESKEY_CRM_meta_timeout/1500]
+      timeout=$((OCF_RESKEY_CRM_meta_timeout/1500))
     else
       timeout=60
     fi
@@ -290,7 +290,7 @@ Xen_Stop() {
       xm shutdown ${DOMAIN_NAME}
           
       while Xen_Status ${DOMAIN_NAME} && [ "$timeout" -gt 0 ]; do
-        timeout=$[timeout-1]
+        timeout=$((timeout-1))
         sleep 1
       done
     fi
@@ -380,7 +380,7 @@ else
 	DOMAIN_NAME=${DOMAIN_NAME:-${OCF_RESOURCE_INSTANCE}}
 fi
 
-if [ X`which xm` == X ]; then
+if [ "X`which xm`" = X ]; then
 	return $OCF_ERR_INSTALLED
 fi
 
