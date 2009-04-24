@@ -419,7 +419,7 @@ mysql_stop() {
 
     ocf_log info "MySQL stopped";
     rm -f /var/lock/subsys/mysqld
-    rm -f $OCF_RESKEY_datadir/mysql.sock
+    rm -f $OCF_RESKEY_socket
     return $OCF_SUCCESS
 }
 
