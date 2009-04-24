@@ -153,12 +153,29 @@ sfex_start() {
 sfex_stop() {
     ocf_log info "sfex_daemon: stopping..."
 
-	/sbin/killproc -p ${HA_RSCTMP}/pid-of-${OCF_RESOURCE_INSTANCE} $SFEX_DAEMON
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		ocf_log err "sfex_daemon failed to stop"
-		return $rc
-	fi
+    # Confirming whether the PID file exists.
+    # If the PID file is lost, then a specific sfex_daemon cannot be stopped.
+    if [ ! -f "${HA_RSCTMP}/pid-of-${OCF_RESOURCE_INSTANCE}" ]; then
+         ocf_log err "Cannot stop sfex_daemon because PID file lost."
+         return $OCF_ERR_GENERIC
+    fi
+
+    # Check the sfex daemon has already stopped.
+    sfex_monitor
+    if [ $? -eq $OCF_NOT_RUNNING ]; then
+        ocf_log info "sfex_daemon already stopped."
+        # Delete PID file.
+        /bin/rm -f ${HA_RSCTMP}/pid-of-${OCF_RESOURCE_INSTANCE}
+        return $OCF_SUCCESS
+    fi
+    
+    # Stop sfex daemon by sending SIGTERM signal.
+    /bin/kill `cat ${HA_RSCTMP}/pid-of-${OCF_RESOURCE_INSTANCE}`
+    rc=$?
+    if [ $rc -ne 0 ]; then
+        ocf_log err "sfex_daemon failed to stop"
+	return $rc
+    fi
 
 #sfex could be in state D if the device is gone, and then not terminate.	
 #Wait and check again if the daemon is already properly shutdown.
@@ -171,6 +188,8 @@ sfex_stop() {
 		return $rc
 	fi
     ocf_log info "sfex_daemon: stopped."
+    # Delete PID file.
+    /bin/rm -f ${HA_RSCTMP}/pid-of-${OCF_RESOURCE_INSTANCE}
     return $OCF_SUCCESS
 }
 
@@ -184,11 +203,18 @@ sfex_monitor() {
 #	return $OCF_NOT_RUNNING
 #	fi
 
-#If the option -k is used checkproc uses exit codes like startproc or killproc
-	/sbin/checkproc -k -p ${HA_RSCTMP}/pid-of-${OCF_RESOURCE_INSTANCE} $SFEX_DAEMON
-	rc=$?
-    ocf_log debug "sfex_monitor: complete."
-	return $rc
+    # Confirming whether the PID file exists.
+    if [ -f "${HA_RSCTMP}/pid-of-${OCF_RESOURCE_INSTANCE}" ]; then
+        # Confirming whether the sfex_daemon process exists.
+        if /usr/bin/pgrep -f "$SFEX_DAEMON" | grep \
+           `cat ${HA_RSCTMP}/pid-of-${OCF_RESOURCE_INSTANCE}` > /dev/null 2>&1; then
+            ocf_log debug "sfex_monitor: complete. sfex_daemon is running."
+            return $OCF_SUCCESS
+        fi
+    fi
+
+    ocf_log debug "sfex_monitor: complete. sfex_daemon is not running."
+    return $OCF_NOT_RUNNING
 }
 
 #
