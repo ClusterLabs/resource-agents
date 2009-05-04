@@ -7,6 +7,10 @@ DOCS =	gfs2.txt \
 	COPYRIGHT \
 	README.licence
 
+all:
+
+clean:
+
 include ../make/defines.mk
 include $(OBJDIR)/make/install.mk
 include $(OBJDIR)/make/uninstall.mk
