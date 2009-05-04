@@ -20,14 +20,12 @@ oldconfig:
 
 install:
 	set -e && for i in ${SUBDIRS}; do ${MAKE} -C $$i $@; done
-	install -d ${notifyddir}
 	install -d ${logdir}
 	install -d ${DESTDIR}/var/lib/cluster
 	install -d ${DESTDIR}/var/run/cluster
 
 uninstall:
 	set -e && for i in ${SUBDIRS}; do ${MAKE} -C $$i $@; done
-	rmdir ${notifyddir} || :;
 	rmdir ${logdir} || :;
 	rmdir ${DESTDIR}/var/lib/cluster || :;
 	rmdir ${DESTDIR}/var/run/cluster || :;
