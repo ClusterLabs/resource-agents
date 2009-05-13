@@ -11,7 +11,7 @@
 # Author:       Alexander Krauth, June 2006
 # Support:      linux@sap.com
 # License:      GNU General Public License (GPL)
-# Copyright:    (c) 2006, 2007 Alexander Krauth
+# Copyright:    (c) 2006-2008 Alexander Krauth
 #
 # An example usage: 
 #      See usage() function below for more details...
@@ -23,6 +23,9 @@
 #	OCF_RESKEY_START_PROFILE    (optional, well known directories will be searched by default)
 #	OCF_RESKEY_START_WAITTIME   (optional, to solve timing problems during J2EE-Addin start)
 #	OCF_RESKEY_AUTOMATIC_RECOVER    (optional, automatic startup recovery using cleanipc, default is false)
+#       OCF_RESKEY_MONITOR_SERVICES     (optional, default is to monitor critical services only)
+#       OCF_RESKEY_ERS_InstanceName     (optional, InstanceName of the ERS instance in a Master/Slave configuration)
+#       OCF_RESKEY_ERS_START_PROFILE    (optional, START_PROFILE of the ERS instance in a Master/Slave configuration)
 #	OCF_RESKEY_PRE_START_USEREXIT	(optional, lists a script which can be executed before the resource is started)
 #	OCF_RESKEY_POST_START_USEREXIT	(optional, lists a script which can be executed after the resource is started)
 #	OCF_RESKEY_PRE_STOP_USEREXIT	(optional, lists a script which can be executed before the resource is stopped)
@@ -37,7 +40,7 @@
 
 SH=/bin/sh
 
-usage() {
+sapinstance_usage() {
   methods=`sapinstance_methods`
   methods=`echo $methods | tr ' ' '|'`
   cat <<-!
@@ -45,22 +48,25 @@ usage() {
 
 	$0 manages a SAP Instance as an HA resource.
 
-	The 'start' operation starts the instance.
-	The 'stop' operation stops the instance.
+	The 'start' operation starts the instance or the ERS instance in a Master/Slave configuration
+	The 'stop' operation stops the instance
 	The 'status' operation reports whether the instance is running
 	The 'monitor' operation reports whether the instance seems to be working
+        The 'promote' operation starts the primary instance in a Master/Slave configuration
+        The 'demote' operation stops the primary instance and starts the ERS instance
+        The 'notify' operation always returns SUCCESS
 	The 'validate-all' operation reports whether the parameters are valid
 	The 'methods' operation reports on the methods $0 supports
 
 	!
 }
 
-meta_data() {
+sapinstance_meta_data() {
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="SAPInstance">
-<version>1.91</version>
+<version>2.01</version>
 
 <longdesc lang="en">
 Resource script for SAP. It manages a SAP Instance as an HA resource.
@@ -98,6 +104,21 @@ Resource script for SAP. It manages a SAP Instance as an HA resource.
   <shortdesc lang="en">Enable or disable automatic startup recovery</shortdesc>
   <content type="boolean" default="false"/>
  </parameter>
+ <parameter name="MONITOR_SERVICES" unique="1" required="0">
+  <longdesc lang="en"></longdesc>
+  <shortdesc lang="en"></shortdesc>
+  <content type="string" default="disp+work|msg_server|enserver|enrepserver|jcontrol|jstart"/>
+ </parameter>
+ <parameter name="ERS_InstanceName" unique="1" required="0">
+  <longdesc lang="en"></longdesc>
+  <shortdesc lang="en"></shortdesc>
+  <content type="string" default=""/>
+ </parameter>
+ <parameter name="ERS_START_PROFILE" unique="1" required="0">
+  <longdesc lang="en"></longdesc>
+  <shortdesc lang="en"></shortdesc>
+  <content type="string" default=""/>
+ </parameter>
  <parameter name="PRE_START_USEREXIT" unique="1" required="0">
   <longdesc lang="en">The full qualified path where to find a script or program which should be executed before this resource gets started.</longdesc>
   <shortdesc lang="en">path to a pre-start script</shortdesc>
@@ -122,10 +143,11 @@ Resource script for SAP. It manages a SAP Instance as an HA resource.
 
 <actions>
 <action name="start" timeout="180" />
-<action name="recover" timeout="240" />
 <action name="stop" timeout="240" />
 <action name="status" timeout="60" />
 <action name="monitor" depth="0" timeout="60" interval="120" start-delay="240" />
+<action name="promote" timeout="320" />
+<action name="demote" timeout="320" />
 <action name="validate-all" timeout="5" />
 <action name="meta-data" timeout="5" />
 <action name="methods" timeout="5" />
@@ -141,15 +163,145 @@ END
 sapinstance_methods() {
   cat <<-!
 	start
-	recover
 	stop
 	status
 	monitor
+        promote
+        demote
+        notify
 	validate-all
 	methods
 	meta-data
 	usage
 	!
+}
+
+
+
+#
+# is_clone : find out if we are configured to run in a Master/Slave configuration
+#
+is_clone() {
+  if [ -n "$OCF_RESKEY_CRM_meta_clone_max" ] \
+   && [ "$OCF_RESKEY_CRM_meta_clone_max" -gt 0 ]
+  then
+    if [ "$OCF_RESKEY_CRM_meta_clone_max" -ne 2 ] || \
+       [ "$OCF_RESKEY_CRM_meta_clone_node_max" -ne 1 ] || \
+       [ "$OCF_RESKEY_CRM_meta_master_node_max" -ne 1 ] || \
+       [ "$OCF_RESKEY_CRM_meta_master_max" -ne 1 ]
+    then
+            ocf_log err "Clone options misconfigured. (expect: clone_max=2,clone_node_max=1,master_node_max=1,master_max=1)"
+            exit $OCF_ERR_CONFIGURED
+    fi
+
+    if [ -z "$OCF_RESKEY_ERS_InstanceName" ]
+    then
+      ocf_log err "In a Master/Slave configuration the ERS_InstanceName parameter is mandatory."
+      exit $OCF_ERR_ARGS
+    fi
+  else
+    return 0
+  fi
+  return 1
+}
+
+
+#
+# sapinstance_init : Define global variables with default values, if optional parameters are not set
+#
+#
+sapinstance_init() {
+
+  myInstanceName="$1"
+
+  SID=`echo "$myInstanceName" | cut -d_ -f1`
+  InstanceName=`echo "$myInstanceName" | cut -d_ -f2`
+  InstanceNr=`echo "$InstanceName" | sed 's/.*\([0-9][0-9]\)$/\1/'`
+  SAPVIRHOST=`echo "$myInstanceName" | cut -d_ -f3`
+
+  # optional OCF parameters, we try to guess which directories are correct
+  if  [ -z "$OCF_RESKEY_DIR_EXECUTABLE" ]
+  then
+    if [ -x /usr/sap/$SID/$InstanceName/exe/sapstartsrv -a -x /usr/sap/$SID/$InstanceName/exe/sapcontrol ]
+    then
+      DIR_EXECUTABLE="/usr/sap/$SID/$InstanceName/exe"
+      SAPSTARTSRV="/usr/sap/$SID/$InstanceName/exe/sapstartsrv"
+      SAPCONTROL="/usr/sap/$SID/$InstanceName/exe/sapcontrol"
+    elif [ -x /usr/sap/$SID/SYS/exe/run/sapstartsrv -a -x /usr/sap/$SID/SYS/exe/run/sapcontrol ]
+    then
+      DIR_EXECUTABLE="/usr/sap/$SID/SYS/exe/run"
+      SAPSTARTSRV="/usr/sap/$SID/SYS/exe/run/sapstartsrv"
+      SAPCONTROL="/usr/sap/$SID/SYS/exe/run/sapcontrol"
+    else
+      ocf_log warn "Cannot find sapstartsrv and sapcontrol executable, please set DIR_EXECUTABLE parameter!"
+      exit $OCF_NOT_RUNNING
+    fi
+  else
+    DIR_EXECUTABLE="$OCF_RESKEY_DIR_EXECUTABLE"
+    SAPSTARTSRV="$OCF_RESKEY_DIR_EXECUTABLE/sapstartsrv"
+    SAPCONTROL="$OCF_RESKEY_DIR_EXECUTABLE/sapcontrol"
+  fi
+
+  if [ -z "$OCF_RESKEY_DIR_PROFILE" ]
+  then
+    if [ -d /usr/sap/$SID/SYS/profile/ ]
+    then
+      DIR_PROFILE="/usr/sap/$SID/SYS/profile"
+    else
+      ocf_log warn "Expected /usr/sap/$SID/SYS/profile/ to be a directory, please set DIR_PROFILE parameter!"
+      exit $OCF_NOT_RUNNING
+    fi
+  else
+    DIR_PROFILE="$OCF_RESKEY_DIR_PROFILE"
+  fi
+
+  if [ "$myInstanceName" != "$OCF_RESKEY_InstanceName" ]
+  then
+    currentSTART_PROFILE=$OCF_RESKEY_ERS_START_PROFILE
+  else
+    currentSTART_PROFILE=$OCF_RESKEY_START_PROFILE
+  fi
+
+  if [ -z "$currentSTART_PROFILE" ]
+  then
+    SAPSTARTPROFILE="$DIR_PROFILE/START_${InstanceName}_${SAPVIRHOST}"
+    if [ ! -r $SAPSTARTPROFILE ]
+    then
+      ocf_log warn "Expected $SAPSTARTPROFILE to be the instance START profile, please set START_PROFILE parameter!"
+      exit $OCF_NOT_RUNNING
+    fi
+  else
+    SAPSTARTPROFILE="$currentSTART_PROFILE"
+  fi
+
+  if [ -z "$OCF_RESKEY_START_WAITTIME" ]
+  then
+    export OCF_RESKEY_START_WAITTIME=3600
+  fi
+
+  if [ -z "$OCF_RESKEY_AUTOMATIC_RECOVER" ]
+  then
+    OCF_RESKEY_AUTOMATIC_RECOVER=0
+  else
+    case "$OCF_RESKEY_AUTOMATIC_RECOVER" in
+     1|true|TRUE|yes|YES) export OCF_RESKEY_AUTOMATIC_RECOVER=1;;
+     0|false|FALSE|no|NO) export OCF_RESKEY_AUTOMATIC_RECOVER=0;;
+    esac
+  fi
+
+  if [ -z "$OCF_RESKEY_MONITOR_SERVICES" ]
+  then
+    export OCF_RESKEY_MONITOR_SERVICES="disp+work|msg_server|enserver|enrepserver|jcontrol|jstart"
+  fi
+
+  # as root user we need the library path to the SAP kernel to be able to call sapcontrol
+  if [ `echo $LD_LIBRARY_PATH | grep -c "^$DIR_EXECUTABLE\>"` -eq 0 ]; then
+    LD_LIBRARY_PATH=$DIR_EXECUTABLE:$LD_LIBRARY_PATH; export LD_LIBRARY_PATH
+  fi
+
+  sidadm="`echo $SID | tr [:upper:] [:lower:]`adm"
+
+  return $OCF_SUCCESS
 }
 
 
@@ -383,19 +535,19 @@ sapinstance_monitor() {
         *)                  STATE=$OCF_NOT_RUNNING;;
       esac 
 
-      case $SERVICE in
-        disp+work|msg_server|enserver|enrepserver|jcontrol|jstart)
-                      if [ $STATE -eq $OCF_NOT_RUNNING ]
-                      then
-                        if [ "$MONLOG" != "NOLOG" ]
-                        then
-                          ocf_log err "SAP instance service $SERVICE is not running with status $COLOR !"
-                        fi
-                        rc=$STATE
-                      fi
-                      count=1;;
-        *);;
-      esac
+      SEARCH=`echo "$OCF_RESKEY_MONITOR_SERVICES" | sed 's/\+/\\\+/g' | sed 's/\./\\\./g'`
+      if [ `echo "$SERVICE" | egrep -c "$SEARCH"` -eq 1 ]
+      then
+          if [ $STATE -eq $OCF_NOT_RUNNING ]
+          then
+            if [ "$MONLOG" != "NOLOG" ]
+            then
+              ocf_log err "SAP instance service $SERVICE is not running with status $COLOR !"
+            fi
+          rc=$STATE
+          fi
+          count=1
+      fi
     done
 
     if [ $count -eq 0 -a $rc -eq $OCF_SUCCESS ]
@@ -407,7 +559,7 @@ sapinstance_monitor() {
       rc=$OCF_ERR_ARGS
     fi
   fi
-  
+ 
   return $rc
 }
 
@@ -445,27 +597,142 @@ sapinstance_validate() {
 
 
 #
+# sapinstance_start_clone
+#
+sapinstance_start_clone() {
+  sapinstance_init $OCF_RESKEY_ERS_InstanceName
+  ${HA_SBIN_DIR}/crm_master -v 100 -l reboot
+  sapinstance_start
+  return $?
+}
+
+
+#
+# sapinstance_stop_clone
+#
+sapinstance_stop_clone() {
+  sapinstance_init $OCF_RESKEY_ERS_InstanceName
+  ${HA_SBIN_DIR}/crm_master -v 0 -l reboot
+  sapinstance_stop
+  return $?
+}
+
+
+#
+# sapinstance_monitor_clone
+#
+sapinstance_monitor_clone() {
+  # resource agents running in Master mode must return other returncodes than default
+  if [ "$OCF_RESKEY_CRM_meta_op_target_rc" -eq $OCF_RUNNING_MASTER ]
+  then
+    sapinstance_init $OCF_RESKEY_InstanceName
+    sapinstance_monitor
+    case "$?" in
+       $OCF_SUCCESS)     return $OCF_RUNNING_MASTER;;
+       $OCF_NOT_RUNNING) ${HA_SBIN_DIR}/crm_master -v 10 -l reboot
+                         return $OCF_FAILED_MASTER;;
+       *)                return $?;;
+    esac
+  else
+    sapinstance_init $OCF_RESKEY_ERS_InstanceName
+    sapinstance_monitor
+    return $?
+  fi
+}
+
+
+#
+# sapinstance_promote_clone: In a Master/Slave configuration get Master by starting the SCS instance and stopping the ERS instance
+#                            The order is important here to behave correct from the application levels view
+#
+sapinstance_promote_clone() {
+  sapinstance_init $OCF_RESKEY_InstanceName
+  ocf_log info "Promoting $SID-$InstanceName to running Master."
+  sapinstance_start
+  rc=$?
+
+  if [ $rc -eq $OCF_SUCCESS ]; then
+    sapinstance_init $OCF_RESKEY_ERS_InstanceName
+    sapinstance_stop
+    rc=$?
+  fi
+
+  return $rc
+}
+
+
+#
+# sapinstance_demote_clone: In a Master/Slave configuration get Slave by stopping the SCS instance and starting the ERS instance
+#
+sapinstance_demote_clone() {
+  sapinstance_init $OCF_RESKEY_InstanceName
+  ocf_log info "Demoting $SID-$InstanceName to a slave."
+  sapinstance_stop
+  rc=$?
+
+  if [ $rc -eq $OCF_SUCCESS ]; then
+    sapinstance_init $OCF_RESKEY_ERS_InstanceName
+    sapinstance_start
+    rc=$?
+  fi
+
+  return $rc
+}
+
+
+#
+# sapinstance_notify: After promotion of one master in the cluster, we make sure that all clones reset thier master
+#                     value back to 100. This is because a failed monitor on a master might have degree one clone
+#                     instance to score 10.
+#
+sapinstance_notify() {
+  local n_type="$OCF_RESKEY_CRM_meta_notify_type"
+  local n_op="$OCF_RESKEY_CRM_meta_notify_operation"
+
+  if [ "${n_type}_${n_op}" = "post_promote" ]; then
+    ${HA_SBIN_DIR}/crm_master -v 100 -l reboot
+  fi
+}
+
+
+#
 #	'main' starts here...
 #
+
+## GLOBALS
+SID=""
+sidadm=""
+InstanceName=""
+InstanceNr=""
+SAPVIRHOST=""
+DIR_EXECUTABLE=""
+SAPSTARTSRV=""
+SAPCONTROL=""
+DIR_PROFILE=""
+SAPSTARTPROFILE=""
+CLONE=0
+
 
 if
   ( [ $# -ne 1 ] )
 then
-  usage
+  sapinstance_usage
   exit $OCF_ERR_ARGS
 fi
 
+ACTION=$1
+if [ "$ACTION" = "status" ]; then
+  ACTION=monitor
+fi
+
 # These operations don't require OCF instance parameters to be set
-case "$1" in
-  meta-data)	meta_data
-		exit $OCF_SUCCESS;;
-
-  usage) 	usage
-		exit $OCF_SUCCESS;;
-
-  methods)	sapinstance_methods
-		exit $?;;
-
+case "$ACTION" in
+  usage|methods)                sapinstance_$ACTION
+                                exit $OCF_SUCCESS;;
+  meta-data)                    sapinstance_meta_data
+                                exit $OCF_SUCCESS;;
+  notify)                       sapinstance_notify
+                                exit $OCF_SUCCESS;;
   *);;
 esac
 
@@ -485,100 +752,20 @@ then
   exit $OCF_ERR_ARGS
 fi
 
-SID=`echo "$OCF_RESKEY_InstanceName" | cut -d_ -f1`
-InstanceName=`echo "$OCF_RESKEY_InstanceName" | cut -d_ -f2`
-InstanceNr=`echo "$InstanceName" | sed 's/.*\([0-9][0-9]\)$/\1/'`
-SAPVIRHOST=`echo "$OCF_RESKEY_InstanceName" | cut -d_ -f3`
-
-# optional OCF parameters, we try to guess which directories are correct
-if  [ -z "$OCF_RESKEY_DIR_EXECUTABLE" ]
+is_clone; CLONE=$?
+if [ ${CLONE} -eq 1 ]
 then
-  if [ -x /usr/sap/$SID/$InstanceName/exe/sapstartsrv -a -x /usr/sap/$SID/$InstanceName/exe/sapcontrol ]
-  then
-    DIR_EXECUTABLE="/usr/sap/$SID/$InstanceName/exe"
-    SAPSTARTSRV="/usr/sap/$SID/$InstanceName/exe/sapstartsrv"
-    SAPCONTROL="/usr/sap/$SID/$InstanceName/exe/sapcontrol"
-  elif [ -x /usr/sap/$SID/SYS/exe/run/sapstartsrv -a -x /usr/sap/$SID/SYS/exe/run/sapcontrol ]
-  then
-    DIR_EXECUTABLE="/usr/sap/$SID/SYS/exe/run"
-    SAPSTARTSRV="/usr/sap/$SID/SYS/exe/run/sapstartsrv"
-    SAPCONTROL="/usr/sap/$SID/SYS/exe/run/sapcontrol"
-  else
-    ocf_log warn "Cannot find sapstartsrv and sapcontrol executable, please set DIR_EXECUTABLE parameter!"
-    exit $OCF_NOT_RUNNING
-  fi
+  CLACT=_clone
 else
-  DIR_EXECUTABLE="$OCF_RESKEY_DIR_EXECUTABLE"
-  SAPSTARTSRV="$OCF_RESKEY_DIR_EXECUTABLE/sapstartsrv"
-  SAPCONTROL="$OCF_RESKEY_DIR_EXECUTABLE/sapcontrol"
+  sapinstance_init $OCF_RESKEY_InstanceName
 fi
-
-if [ -z "$OCF_RESKEY_DIR_PROFILE" ]
-then
-  if [ -d /usr/sap/$SID/SYS/profile/ ]
-  then
-    DIR_PROFILE="/usr/sap/$SID/SYS/profile"
-  else
-    ocf_log warn "Expected /usr/sap/$SID/SYS/profile/ to be a directory, please set DIR_PROFILE parameter!"
-    exit $OCF_NOT_RUNNING
-  fi
-else
-  DIR_PROFILE="$OCF_RESKEY_DIR_PROFILE"
-fi
-
-if [ -z "$OCF_RESKEY_START_PROFILE" ]
-then
-  SAPSTARTPROFILE="$DIR_PROFILE/START_${InstanceName}_${SAPVIRHOST}"
-  if [ ! -r $SAPSTARTPROFILE ]
-  then
-    ocf_log warn "Expected $SAPSTARTPROFILE to be the instance START profile, please set START_PROFILE parameter!"
-    exit $OCF_NOT_RUNNING
-  fi
-else
-  SAPSTARTPROFILE="$OCF_RESKEY_START_PROFILE"
-fi
-
-if [ -z "$OCF_RESKEY_START_WAITTIME" ]
-then
-  OCF_RESKEY_START_WAITTIME=3600
-fi
-
-
-if [ -z "$OCF_RESKEY_AUTOMATIC_RECOVER" ]
-then
-  OCF_RESKEY_AUTOMATIC_RECOVER=0
-else
-  case "$OCF_RESKEY_AUTOMATIC_RECOVER" in
-   1|true|TRUE|yes|YES) OCF_RESKEY_AUTOMATIC_RECOVER=1;;
-   0|false|FALSE|no|NO) OCF_RESKEY_AUTOMATIC_RECOVER=0;;
-  esac
-fi
-
-# as root user we need the library path to the SAP kernel to be able to call sapcontrol
-if [ `echo $LD_LIBRARY_PATH | grep -c "^$DIR_EXECUTABLE\>"` -eq 0 ]; then
-  LD_LIBRARY_PATH=$DIR_EXECUTABLE:$LD_LIBRARY_PATH; export LD_LIBRARY_PATH
-fi
-sidadm="`echo $SID | tr [:upper:] [:lower:]`adm"
 
 # What kind of method was invoked?
-case "$1" in
-
-  start)	sapinstance_start
-		exit $?;;
-
-  recover)      sapinstance_recover
-                exit $?;;
-
-  stop)		sapinstance_stop
-		exit $?;;
-
-  status|monitor)
-          	sapinstance_monitor
-		exit $?;;
-
-  validate-all)	sapinstance_validate
-		exit $?;;
-
-  *)		sapinstance_methods
-		exit $OCF_ERR_UNIMPLEMENTED;;
+case "$ACTION" in
+  start|stop|monitor|promote|demote)      sapinstance_$ACTION$CLACT
+                                          exit $?;;
+  validate-all)                           sapinstance_validate
+                                          exit $?;;
+  *)                                      sapinstance_methods
+                                          exit $OCF_ERR_UNIMPLEMENTED;;
 esac
