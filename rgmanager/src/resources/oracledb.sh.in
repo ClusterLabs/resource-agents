@@ -217,13 +217,8 @@ meta_data()
 	<action name="status" timeout="10"/>
 	<action name="monitor" timeout="10"/>
 
-	<!-- Checks to see if we can read from the mountpoint -->
 	<action name="status" depth="10" timeout="30" interval="5m"/>
 	<action name="monitor" depth="10" timeout="30" interval="5m"/>
-
-	<!-- Checks to see if we can write to the mountpoint (if !ROFS) -->
-	<action name="status" depth="20" timeout="90" interval="10m"/>
-	<action name="monitor" depth="20" timeout="90" interval="10m"/>
 
 	<action name="meta-data" timeout="5"/>
 	<action name="validate-all" timeout="5"/>
@@ -819,12 +814,12 @@ status_oracle()
 	fi
 
 	# Check database status
-	get_db_status $subsys_lock $depth
+	get_db_status $subsys_lock
 	update_status $? # Start
 	last=$?
 
 	# Check & report listener status
-	get_lsnr_status $subsys_lock $depth
+	get_lsnr_status $subsys_lock
 	update_status $? $last
 	last=$?
 	
@@ -835,7 +830,7 @@ status_oracle()
 		last=$?
 	elif [ "$ORACLE_TYPE" = "ias" ]; then
 		# Check & report opmn / opmn-managed process status
-		get_opmn_status $subsys_lock $depth
+		get_opmn_status $subsys_lock
 		update_status $? $last
 		last=$?
 	fi
@@ -872,7 +867,7 @@ case $1 in
 		exit $?
 		;;
 	status|monitor)
-		status_oracle $OCF_CHECK_LEVEL
+		status_oracle
 		exit $?
 		;;
 	restart)
